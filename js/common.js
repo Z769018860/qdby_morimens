@@ -11,7 +11,7 @@ export function h(tag, attrs = {}, ...kids) {
     else if (k === 'html') e.innerHTML = v;
     else e.setAttribute(k, v === true ? '' : v);
   }
-  for (const c of kids.flat()) {
+  for (const c of kids.flat(Infinity)) {
     if (c == null || c === false) continue;
     e.append(c.nodeType ? c : document.createTextNode(c));
   }

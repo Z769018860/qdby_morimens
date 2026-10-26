@@ -4,6 +4,8 @@ document.body.prepend(nav('codex'));
 const root = $('#app');
 root.textContent = '载入中…';
 const { D } = await loadDict();
+let SK = null;
+const skills = async () => SK || (SK = await (await fetch('data/skills.json')).json());
 
 const TABS = ['awakener', 'wheel', 'covenant', 'key', 'creation', 'monster'];
 const FILTERS = {
@@ -34,7 +36,7 @@ function sub(e) {
   return t.join(' · ');
 }
 
-function openDetail(kind, e) {
+async function openDetail(kind, e) {
   const art = kind === 'awakener' ? e.card : kind === 'wheel' ? e.big : null;
   dlg.replaceChildren(
     h('button', { class: 'close', onclick: () => dlg.close() }, '×'),
@@ -48,8 +50,28 @@ function openDetail(kind, e) {
         typeof e.desc === 'string' && e.desc ? h('p', {}, e.desc) : null,
         Array.isArray(e.desc) ? e.desc.map(x => h('div', { class: 'dblock' }, h('b', {}, x.h), h('p', {}, x.t))) : null,
         e.skills && e.skills.length ? h('div', { class: 'dblock' }, h('b', {}, '技能'), h('ul', {}, e.skills.map(s => h('li', {}, s)))) : null,
-        kind === 'awakener' ? h('p', { class: 'note' }, '技能数据暂未收录；潜能与卡牌构成请参考战报中的实战表现。') : null)));
+        e.real === false ? h('p', { class: 'note' }, '该条目尚未出现在融灾榜单队伍中。') : null,
+        kind === 'awakener' ? h('div', { class: 'skillbox' }, h('p', { class: 'note' }, '载入技能…')) : null)));
   dlg.showModal();
+  if (kind === 'awakener') fillSkills(e);
+}
+
+async function fillSkills(e) {
+  const box = $('.skillbox', dlg);
+  const rec = (await skills())[e.pid];
+  if (!rec) { box.replaceChildren(h('p', { class: 'note' }, '暂无技能数据')); return; }
+  const sk = (x) => h('div', { class: 'skill' }, h('header', {}, h('b', {}, x.name),
+    x.type ? h('span', { class: 'chip' }, x.type) : null, x.cost != null && x.cost !== '' ? h('span', { class: 'chip' }, `算力 ${x.cost}`) : null),
+    h('p', {}, x.desc));
+  const order = ['Strike', 'Defense', 'Skill1', 'Skill2', 'Rouse', 'Exalt', 'OverExalt'];
+  const cards = [...rec.skills].sort((a, b) => order.indexOf(a.slot) - order.indexOf(b.slot));
+  box.replaceChildren(...[
+    h('div', { class: 'sec' }, '指令卡牌'), cards.map(sk),
+    rec.talents.length ? [h('div', { class: 'sec' }, '天赋'), rec.talents.map(sk)] : null,
+    rec.enlightens.length ? [h('div', { class: 'sec' }, '启灵'), rec.enlightens.map(x => sk({ ...x, type: x.slot }))] : null,
+    rec.builds.length ? [h('div', { class: 'sec' }, '推荐配置（SKeyDB）'), rec.builds.map(b => h('div', { class: 'skill' },
+      h('b', {}, b.label), h('p', {}, `密契：${b.covenants.join('、') || '—'}\n命轮：${b.wheels.map(w => w.join(' / ')).join('；') || '—'}`)))] : null,
+    h('p', { class: 'note' }, '技能文本来自 SKeyDB 英文原文，术语按本站词表中文化；游戏内中文原文暂无公开数据源。')].flat(Infinity).filter(Boolean));
 }
 
 function list() {

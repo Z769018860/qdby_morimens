@@ -153,3 +153,15 @@ input[type=search], select { background: var(--panel2); color: var(--text); bord
   .dbody { flex-direction: column; align-items: center; }
   .rhead { flex-direction: column; }
 }
+
+.bimgs { display: flex; gap: 4px; justify-content: center; }
+.boss img { width: 56px; height: 56px; }
+.bskills { margin: 6px 0 10px; background: var(--panel2); border-radius: 10px; padding: 6px 12px; font-size: 13px; }
+.bskills summary { cursor: pointer; color: var(--accent); }
+.bskills ul { margin: 2px 0 8px; padding-left: 18px; color: var(--dim); }
+.invest { font-size: 12px; color: var(--dim); }
+.decoy { font-style: normal; font-size: 10px; color: var(--dim); }
+.skill { background: var(--panel2); border-radius: 10px; padding: 8px 12px; margin: 6px 0; }
+.skill header { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.skill p { margin: 4px 0 0; white-space: pre-line; font-size: 13px; }
+.sec { margin: 14px 0 4px; font-size: 14px; color: var(--gold); }

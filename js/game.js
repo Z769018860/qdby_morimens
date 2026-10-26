@@ -1,4 +1,5 @@
 import { $, h, store, loadDict, imgEl, wan, nav, KINDS } from './common.js';
+import { PEPPER } from './pepper.js';
 
 const MAX_TRIES = 6;
 const LEVELS = {
@@ -36,7 +37,23 @@ function newSel() {
   };
 }
 
-function start(p, m) {
+// answers ship obfuscated (see scripts/build_data.py); this keeps them out of plain sight, nothing more
+async function unseal(p) {
+  if (p.team) return p;
+  const raw = Uint8Array.from(atob(p.ans), c => c.charCodeAt(0));
+  const out = new Uint8Array(raw.length);
+  const enc = new TextEncoder();
+  for (let i = 0; i < raw.length; i += 32) {
+    const ks = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(`${PEPPER}|${p.id}|${i / 32}`)));
+    for (let j = 0; j < 32 && i + j < raw.length; j++) out[i + j] = raw[i + j] ^ ks[j];
+  }
+  const txt = new TextDecoder().decode(out);
+  if (!txt.startsWith('ZJ1:')) throw new Error('题目解码失败');
+  return { ...p, ...JSON.parse(txt.slice(4)) };
+}
+
+async function start(p0, m) {
+  const p = await unseal(p0);
   puzzle = p; mode = m;
   ans = p.team; // already sorted by damage desc: slot A = top damage
   sel = newSel(); fb = {}; history = []; hintsUsed = 0; hintTags = {}; finished = false; won = false;
@@ -209,21 +226,24 @@ function reportPanel() {
     h('div', { class: 'bars' },
       bline('dmg', Math.max(a.dmg / total * 100, 0.8), `伤害 ${(a.dmg / total * 100).toFixed(1)}% · ${wan(a.dmg)}`),
       bline('blk', Math.max(a.blk / maxBlk * 100, 0.8), `格挡 ${wan(a.blk)}`),
-      bline('heal', Math.max(a.heal / maxHeal * 100, 0.8), `治疗 ${wan(a.heal)}`)),
+      bline('heal', Math.max(a.heal / maxHeal * 100, 0.8), `治疗 ${wan(a.heal)}`),
+      h('div', { class: 'invest' }, `卡牌升级 ${a.up} 次 · 天赋合计 Lv.${a.tal}`)),
   ));
-  const boss = p.boss ? D.monster.find(m => m.zh === p.boss) : null;
+  const bosses = (p.boss || []).map(id => D.monster.find(m => m.id === id)).filter(Boolean);
   return h('section', { class: 'card report' },
     h('div', { class: 'rhead' },
       h('div', {}, h('h2', {}, `融灾战报 · 第 ${p.season} 期`),
         h('div', { class: 'chips' }, chip(`区域 ${p.zone}`), chip(`危险等级 ${p.threat}`),
           p.madness ? chip(`疯狂度 ${p.madness}`) : null, chip(`难度 ${'★'.repeat(p.diff)}`, 'gold'),
           p.extra ? chip('含额外通关', 'dim') : null)),
-      boss && boss.img ? h('div', { class: 'boss' }, imgEl(boss.img, boss.zh), h('small', {}, `区域 Boss：${boss.zh}`)) : null),
+      bosses.length ? h('div', { class: 'boss' }, h('div', { class: 'bimgs' }, bosses.map(b => imgEl(b.img, b.zh))), h('small', {}, `区域 Boss：${bosses.map(b => b.zh).join('、')}`)) : null),
     h('div', { class: 'stats' },
       stat('回合数', p.rounds, `Boss 战 ${p.bossRounds}`), stat('出牌数', p.cards, `能量 ${p.energy}`),
       stat('单回合最高伤害', wan(p.maxBout)), stat('死扛触发', p.deathResist),
       stat('剩余生命', `${p.left}/${p.hp}`), stat('钥令/玩家伤害', wan(p.playerDmg)),
       stat('榜单分数', p.score), stat('造物数量', p.relics.length, level >= 4 ? '需要全部还原' : '')),
+    bosses.length ? h('details', { class: 'bskills' }, h('summary', {}, '区域 Boss 技能（推理线索）'),
+      bosses.map(b => h('div', {}, h('b', {}, b.zh), h('ul', {}, (b.skills || []).map(t => h('li', {}, t)))))) : null,
     h('div', { class: 'brows' }, rows,
       h('p', { class: 'note' }, '已按队内伤害从高到低排序：A 是伤害最高者。队伍成员以匿名 A–D 呈现，顺序即答案顺序。')));
 }
@@ -336,7 +356,7 @@ document.body.append(dlg);
 
 function openPicker(kind, apply, slot) {
   const multi = kind === 'creation';
-  const all = D[kind].filter(e => e.id != null);
+  const all = D[kind].filter(e => e.id != null).sort((a, b) => (b.real !== false) - (a.real !== false));
   const used = kind === 'awakener' ? new Set(sel.slots.map(s => s.awk).filter(Boolean)) : new Set();
   let q = '', f1 = '', f2 = '';
   const f1key = { awakener: 'realm', wheel: 'realm', key: 'realm', creation: 'kind' }[kind];
@@ -357,7 +377,7 @@ function openPicker(kind, apply, slot) {
             persist(); draw(); count.textContent = `${sel.relics.length}/${puzzle.relics.length}`; return;
           }
           apply(id); persist(); dlg.close(); render();
-        } }, imgEl(e.img, e.zh), h('small', {}, e.zh)));
+        } }, imgEl(e.img, e.zh), h('small', {}, e.zh), e.real === false ? h('em', { class: 'decoy' }, '未上榜') : null));
     });
     if (!list.length) grid.append(h('p', { class: 'note' }, '没有匹配项'));
   };
@@ -393,4 +413,4 @@ function render() {
     ...(finished ? [answerPanel()] : []));
 }
 
-start(dailyPuzzle(), 'daily');
+await start(dailyPuzzle(), 'daily');

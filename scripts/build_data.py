@@ -100,7 +100,7 @@ for it in pool['awakener']:
     t = dict(x.split(':') for x in it.get('t', []))
     en = it['en'].strip('"')
     D['awakener'].append({
-        'id': awk_tid.get(en), 'en': it['en'], 'zh': it['zh'],
+        'id': awk_tid.get(en), 'pid': it['id'], 'en': it['en'], 'zh': it['zh'],
         'realm': parts[0] if parts else '', 'rarity': parts[1] if len(parts) > 1 else '',
         'role': parts[2] if len(parts) > 2 else '', 'realmCode': t.get('realm', ''), 'roleCode': t.get('type', ''),
         'img': asset(pool_rel(it['img']), 'awakener', (120, 120)),
@@ -113,7 +113,7 @@ for it in pool['wheel']:
     full = pool_rel(it['img'])
     mini = full.replace('Weapon_Full', 'Weapon_Mini').replace('wheels/', 'wheels/Mini/')
     D['wheel'].append({
-        'id': wheel_tid.get(it['en']), 'en': it['en'], 'zh': it['zh'],
+        'id': wheel_tid.get(it['en']), 'pid': it['id'], 'en': it['en'], 'zh': it['zh'],
         'realm': parts[0] if parts else '', 'rarity': parts[1] if len(parts) > 1 else '',
         'meta': ' · '.join(parts[2:]) if len(parts) > 2 else '',
         'img': asset(mini, 'wheel', (120, 120)) or asset(full, 'wheel', (120, 240)),
@@ -125,7 +125,7 @@ for it in pool['covenant']:
     parts, mline, desc = meta('covenant', it['id'])
     g = next((v for k, v in gear['covenants'].items() if v['en'] == it['en']), None)
     D['covenant'].append({
-        'id': cov_tid.get(it['en']), 'en': it['en'], 'zh': it['zh'],
+        'id': cov_tid.get(it['en']), 'pid': it['id'], 'en': it['en'], 'zh': it['zh'],
         'img': asset(pool_rel(it['img']), 'covenant', (120, 120)),
         'desc': desc or [{'h': f"{e['pieces']} 件套", 't': e['desc']} for e in (g or {}).get('effects', [])],
     })
@@ -133,7 +133,7 @@ for it in pool['covenant']:
 for it in pool['posse']:
     parts, mline, desc = meta('posse', it['id'])
     D['key'].append({
-        'id': tok_tid.get(it['en']), 'en': it['en'], 'zh': it['zh'], 'realm': parts[0] if parts else '',
+        'id': tok_tid.get(it['en']), 'pid': it['id'], 'en': it['en'], 'zh': it['zh'], 'realm': parts[0] if parts else '',
         'img': asset(pool_rel(it['img']), 'key', (120, 120)), 'desc': desc,
     })
 
@@ -141,7 +141,7 @@ pool_relic_en = {}
 for it in pool['relic']:
     parts, mline, desc = meta('relic', it['id'])
     e = {
-        'id': None, 'en': it['en'], 'zh': it['zh'], 'rarity': parts[1] if len(parts) > 1 else '',
+        'id': None, 'pid': it['id'], 'en': it['en'], 'zh': it['zh'], 'rarity': parts[1] if len(parts) > 1 else '',
         'kind': parts[0] if parts else '', 'owner': parts[2].replace('专属：', '') if len(parts) > 2 else '',
         'img': asset(pool_rel(it['img']), 'creation', (120, 120)), 'desc': desc,
     }
@@ -185,7 +185,7 @@ for tid, m in mons['monsters'].items():
 by_id = {k: {str(e['id']): e for e in v if e.get('id') is not None} for k, v in D.items()}
 
 # ---------------------------------------------------------------- puzzles
-STAGE_RE = re.compile(r'Zone (\d): Threat Level (\w+)')
+STAGE_RE = re.compile(r'Zone (\d): (?:Threat Level )?(\S+)')
 puzzles = []
 usage = defaultdict(Counter)  # kind -> id -> teams using it (latest season only)
 latest = max(args.seasons)
@@ -204,7 +204,8 @@ for s in args.seasons:
     if nf.exists():
         for n in jl(nf)['battleNodes']:
             if n['battleType'] == 'Boss' and n['monsters']:
-                zone_boss[n['zone']] = n['monsters'][0].get('name') or str(n['monsters'][0].get('id'))
+                zone_boss[n['zone']] = [str(x['id']) for x in n['monsters'] if str(x['id']) in mons['monsters']]
+    gids = sorted(jl(base / 'meta.json')['stageGroupIds'])
     for rf in sorted((base / 'raw-teams').glob('*.jsonl.gz')):
         for l in gzip.open(rf, 'rt', encoding='utf-8'):
             row = json.loads(l)
@@ -241,6 +242,8 @@ for s in args.seasons:
                     'tid': tid, 'lv': a.get('level'), 'brk': a.get('breakLevel'), 'pot': a.get('potencyLevel'),
                     'wheels': wheels, 'cov': cov, 'dmg': bd.get('damage') or 0, 'blk': bd.get('block') or 0,
                     'heal': bd.get('heal') or 0,
+                    'up': sum(x.get('upNum') or 0 for x in (a.get('slots') or [])),
+                    'tal': sum(x.get('lv') or 0 for x in (a.get('talents') or {}).values()),
                 })
             if not ok or len(members) != 4:
                 continue
@@ -261,12 +264,12 @@ for s in args.seasons:
                 for r_ in set(rel):
                     usage['creation'][r_] += 1
             sm = STAGE_RE.search(ids['stages'].get(str(b['stageTid']), {}).get('name', ''))
-            zone = int(sm.group(1)) if sm else (b['stageGroupId'] - 83428)
+            zone = gids.index(b['stageGroupId']) + 1 if b['stageGroupId'] in gids else int(sm.group(1))
             members.sort(key=lambda x: (-x['dmg'], -x['blk'], -x['heal']))
             cand[s].append({
                 'season': s, 'zone': zone, 'threat': sm.group(2) if sm else '?',
                 'madness': ids['stages'].get(str(b['stageTid']), {}).get('madness'),
-                'boss': zone_boss.get(zone), 'score': b['score'], 'rank': b['rank'],
+                'boss': zone_boss.get(zone) or [], 'score': b['score'], 'rank': b['rank'],
                 'rounds': b['stageRoundCount'], 'bossRounds': b['bossBattleRoundCount'],
                 'cards': b['totalUseCard'], 'energy': b['totalEnergyCost'], 'maxBout': b['maxBoutDamage'],
                 'deathResist': b['deathResistCount'], 'hp': b['maxHp'], 'left': b['leftHp'],
@@ -324,8 +327,116 @@ for kind, cnt in usage.items():
 D['usageSeason'] = latest
 D['usageTeams'] = team_total['n']
 
+# entries that never appear in a leaderboard team (no in-game id known) still need an id so the
+# picker can offer them as decoys / the codex can show them; they can never be a correct answer
+for kind in ('wheel', 'covenant', 'key', 'creation'):
+    for e in D[kind]:
+        e['real'] = e.get('id') is not None
+        if e['id'] is None:
+            e['id'] = 'p:' + e['pid']
+        e.setdefault('use', None)
+
+# ---------------------------------------------------------------- awakener skills (SKeyDB, CC BY-NC-SA 4.0)
+V3 = M / 'skeydb/public-v3/records'
+gl = jl(M / 'game/glossary.json')['entries']
+TERM = {e['en']: e['zh'] for e in gl if e['k'] == 'term' and e['zh']}
+for e in gl:
+    if e['k'] in ('awakener', 'wheel', 'relic', 'posse', 'covenant') and e['zh']:
+        TERM.setdefault(e['en'], e['zh'])
+ARG = re.compile(r'\[(?:\{[^}]*\}|[A-Za-z_ ]+)?:?(Arg\d+)\]')
+
+
+def fmt_arg(a, max_level=None):
+    k = a.get('kind')
+    suf = a.get('suffix') or ''
+    if k == 'fixed':
+        return f"{a['value']}{suf}"
+    if k == 'scaling':
+        v = a['values']
+        return (f"{v[0]}{suf}" if v[0] == v[-1] else f"{v[0]}–{v[-1]}{suf}") + (f"（{a['stat']}）" if a.get('stat') else '')
+    if k == 'linear':
+        base, gain = float(a['base']), float(a['gainPerLevel'])
+        hi = base + gain * ((max_level or 1) - 1)
+        f = lambda x: str(int(x)) if x == int(x) else f"{x:g}"
+        return f"{f(base)}–{f(hi)}{suf}" if max_level and max_level > 1 else f"{f(base)}{suf}"
+    return '?'
+
+
+def render_desc(rec, max_level=None):
+    t = rec.get('descriptionTemplate') or ''
+    args = rec.get('descriptionArgs') or {}
+    t = ARG.sub(lambda m: fmt_arg(args[m.group(1)], max_level) if m.group(1) in args else '?', t)
+    t = re.sub(r'\{plural:[^|{}]*\|[^|{}]*\|[^|{}]*\}', '层', t)
+    t = re.sub(r'\[\{([^{}]+)\}:\s*([^\[\]]*)\]', lambda m: f'【{m.group(1)}】{m.group(2)}', t)
+    t = re.sub(r'\{([^{}]+)\}', lambda m: TERM.get(m.group(1), m.group(1)), t)
+    t = re.sub(r'(?m)^overlay:.*$', '', t)
+    t = re.sub(r'\b(?:derived|overlay):', '', t)
+    t = re.sub(r'\[Talent_Attr_Lv_\w+\]', '成长值', t)
+    return t.replace('\\n', '\n').strip()
+
+
+SLOT = {'Skill1': '技能', 'Skill2': '技能', 'Skill3': '技能', 'Skill4': '技能', 'Skill5': '技能', 'Skill6': '技能',
+        'Strike': '攻击', 'Defense': '防御', 'Ult': '狂气爆发', 'Exalt': '狂气爆发', 'Rouse': '唤醒'}
+by_owner = defaultdict(lambda: {'skills': [], 'talents': [], 'enlightens': []})
+for kind, key in (('skills', 'skills'), ('talents', 'talents'), ('enlightens', 'enlightens')):
+    for f in sorted((V3 / kind).glob('*.json')):
+        r = jl(f)
+        o = r.get('ownerAwakenerId')
+        if not o:
+            continue
+        entry = {'name': r['name'], 'slot': r.get('slot', ''), 'desc': render_desc(r, r.get('maxLevel'))}
+        if kind == 'skills':
+            entry.update(cost=r.get('cost'), type=SLOT.get(r.get('slot'), r.get('slot', '')),
+                         tags=[t for t in (r.get('cardTypes') or [])])
+        by_owner[o][key].append(entry)
+
+awk_by_pid = {e['pid']: e for e in D['awakener']}
+builds = {}
+for f in sorted((V3 / 'awakener-builds').glob('*.json')):
+    r = jl(f)
+    o = r.get('awakenerId')
+    wn = {e['pid']: e['zh'] for e in D['wheel']}
+    cn = {e['pid']: e['zh'] for e in D['covenant']}
+    bl = []
+    for b in r.get('builds', []):
+        bl.append({'label': b.get('label'), 'covenants': [cn.get(c, c) for c in b.get('recommendedCovenantIds', [])],
+                   'wheels': [[wn.get(w, w) for w in x['wheelIds']] for x in b.get('recommendedWheels', [])][:4]})
+    builds[o] = bl
+SK = {}
+for pid, rec in by_owner.items():
+    a = awk_by_pid.get(pid)
+    if a:
+        SK[a['pid']] = {**rec, 'builds': builds.get(pid, [])}
+        a['hasSkills'] = True
+json.dump(SK, open(OUT_DATA / 'skills.json', 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
+
+# ---------------------------------------------------------------- hide the answers from the plain JSON
+import base64, hashlib, secrets
+PEPPER = secrets.token_hex(8)
+(ROOT / 'js').mkdir(exist_ok=True)
+(ROOT / 'js/pepper.js').write_text(f"// generated by scripts/build_data.py\nexport const PEPPER = '{PEPPER}';\n", encoding='utf-8')
+
+
+def seal(pid, obj):
+    raw = ('ZJ1:' + json.dumps(obj, ensure_ascii=False, separators=(',', ':'))).encode()
+    out = bytearray()
+    for i in range(0, len(raw), 32):
+        ks = hashlib.sha256(f'{PEPPER}|{pid}|{i // 32}'.encode()).digest()
+        out += bytes(a ^ b for a, b in zip(raw[i:i + 32], ks))
+    return base64.b64encode(bytes(out)).decode()
+
+
+pub = []
+for p in puzzles:
+    secret = {'team': p['team'], 'key': p['key'], 'relics': p['relics']}
+    q = {k: v for k, v in p.items() if k not in secret}
+    q['nrel'] = len(p['relics'])
+    q['clues'] = [{k: m[k] for k in ('dmg', 'blk', 'heal', 'up', 'tal')} for m in p['team']]
+    q['ans'] = seal(p['id'], secret)
+    pub.append(q)
+
 json.dump(D, open(OUT_DATA / 'dictionary.json', 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
-json.dump({'seasons': args.seasons, 'puzzles': puzzles}, open(OUT_DATA / 'puzzles.json', 'w', encoding='utf-8'),
+json.dump({'seasons': args.seasons, 'puzzles': pub}, open(OUT_DATA / 'puzzles.json', 'w', encoding='utf-8'),
           ensure_ascii=False, separators=(',', ':'))
-print({k: len(v) for k, v in D.items() if isinstance(v, list)}, 'puzzles', len(puzzles),
-      Counter(p['diff'] for p in puzzles), 'assets', len(used_assets))
+print({k: len(v) for k, v in D.items() if isinstance(v, list)}, 'puzzles', len(pub),
+      Counter(p['diff'] for p in pub), 'assets', len(used_assets), 'skills for', len(SK), 'awakeners')
