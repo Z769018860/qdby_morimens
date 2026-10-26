@@ -564,3 +564,58 @@ body.themed .toast { background: color-mix(in srgb, var(--bg) 85%, #000); }
 .favdet[open] > summary::before { transform: rotate(90deg); }
 .favdet > summary:hover { color: var(--text); }
 .favdet .frow { margin-top: 8px; }
+
+/* ==================================================================
+   个人中心 / 账号档案
+   ================================================================== */
+/* 推理页：偏好唤醒体提示 + 题池筛选 */
+.favline { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--dim); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.favline .link, .poolrow .link { color: var(--accent); }
+.poolrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.fchk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none; }
+.fchk input { width: 15px; height: 15px; accent-color: var(--accent); }
+
+/* 偏好唤醒体网格 */
+.favgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 6px; margin-top: 10px; max-height: 350px; overflow: auto; padding-right: 4px; }
+.fav { position: relative; background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 5px 3px; display: grid; justify-items: center; gap: 2px; opacity: .62; cursor: pointer; }
+.fav img { width: 44px; height: 44px; object-fit: contain; }
+.fav small { font-size: 10px; color: var(--dim); max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fav:hover { opacity: .9; }
+.fav.on { opacity: 1; border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.fav.on::after { content: '✓'; position: absolute; top: 1px; right: 4px; font-size: 10px; color: var(--accent); }
+
+/* 推理记录 */
+.hlist { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; max-height: 430px; overflow: auto; }
+.hrow { display: grid; grid-template-columns: 118px minmax(0, 1fr) auto auto auto 44px; gap: 8px; align-items: center; font-size: 12px; padding: 6px 9px; border-radius: 8px; background: var(--panel2); }
+.hrow .htime { color: var(--dim); font-variant-numeric: tabular-nums; }
+.hrow .hname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hrow .hres.win { color: var(--accent); font-weight: 600; }
+.hrow .hres.lose { color: var(--dim); }
+.hrow .hsc { font-variant-numeric: tabular-nums; color: var(--dim); text-align: right; }
+
+/* 工坊战报 */
+.implist { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.imp { border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; background: var(--panel2); }
+.imphead { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+.improw { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.impawk { display: grid; justify-items: center; gap: 2px; }
+.impawk img { width: 38px; height: 38px; object-fit: contain; }
+.impawk small { font-size: 10px; color: var(--dim); max-width: 58px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.impact { display: flex; gap: 14px; margin-top: 8px; font-size: 12px; }
+
+/* 典藏进度 */
+.prog { height: 8px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); overflow: hidden; margin-top: 10px; }
+.progbar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--gold)); }
+.cgmini { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.cgm img { width: 76px; height: 46px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
+
+.pfstats.four { grid-template-columns: repeat(4, 1fr); }
+
+@media (max-width: 720px) {
+  .pfstats.four { grid-template-columns: repeat(2, 1fr); }
+  .favgrid { grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); max-height: 300px; }
+  .hrow { grid-template-columns: 1fr auto auto; row-gap: 3px; }
+  .hrow .htime, .hrow .hname { grid-column: 1 / -1; }
+  .hsc { text-align: left; }
+}
+.imgph { display: inline-block; width: 32px; height: 32px; border-radius: 6px; background: var(--panel2); border: 1px dashed var(--line); }

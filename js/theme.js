@@ -1,6 +1,6 @@
 // CG 背景主题：解锁某张 CG 后，可把它设成全站背景，并按这张图的主色重排 UI 配色。
 // 配色在构建期已经算好（scripts/build_themes.py → data/themes.json），运行时只做变量注入。
-import { store, unlocked, toast, t } from './common.js';
+import { store, unlocked, toast, t, markDirty } from './common.js';
 
 let THEMES = null;
 let GALLERY = null;
@@ -57,12 +57,14 @@ export async function setTheme(id) {
   if (!vars || !item) throw new Error('missing');
   const th = { id, n: item.t, img: item.f, dark: vars.dark, vars };
   store.set(CACHE_KEY, th);
+  markDirty('theme');
   paint(th);
   return th;
 }
 
 export function clearTheme() {
   store.del(CACHE_KEY);
+  markDirty('theme');
   paint(null);
 }
 

@@ -1,7 +1,10 @@
 // CG 典藏馆：灰机 wiki 收录的官方 CG，用积分解锁后放大观看
 import { $, h, nav, t, lang, wallet, unlocked, imgEl } from './common.js';
 import { setTheme, clearTheme, activeTheme } from './theme.js';
+import { account } from './account.js';
 
+// 登录态先把云端档案（积分/解锁）合并下来，再渲染
+await account.ready();
 document.body.prepend(nav('gallery'));
 const root = $('#app');
 root.textContent = t('loading');

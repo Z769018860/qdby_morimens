@@ -45,10 +45,14 @@
 <h3>账号与个人中心</h3>
 <p>本站是纯静态站点，没有自己的服务器，账号直接复用 <a href="https://waline.js.org/">Waline</a> 的现成服务（和 <a href="https://z769018860.github.io/qdby_chinese/">忘忘看报</a> 用的是同一套），数据存在真实的数据库里，不需要你自己部署。</p>
 <ul>
+<li><b>只有两种状态</b>：<b>游客</b>（不登录，进度读本机 <code>localStorage</code>）和<b>账号</b>（登录后进度跟账号走）。没有「本地昵称」这类中间态——想留名字就注册，不想注册就用游客。</li>
 <li><b>注册 / 登录</b>：右上角头像，或「个人中心」页面。用户名 2–20 个字符（中文可以），密码至少 6 位；用户名在后台会映射成 <code>用户名@zjtt.local</code> 的邮箱形式，所以不需要你填邮箱。</li>
-<li><b>个人中心</b>：改昵称、换头像、看战绩（积分、已答题、正确率、解锁 CG 数、失败题库数）。</li>
+<li><b>个人中心 = 账号数据中枢</b>：昵称与头像、<b>偏好唤醒体</b>、<b>推理记录</b>、<b>工坊战报</b>、<b>典藏进度</b>、积分与失败题库，全都在这一页，也全都会随账号同步。右上角有「上次同步」时间和「立即同步」按钮。</li>
+<li><b>每一局都落库</b>：每日一题、随机一题、自建题、工坊导入的回放，结算后都会写一条记录（时间、题目、模式、档位、胜负、评级、分数、回放链接），同一道题只计一次；最多保留最近 300 条。</li>
+<li><b>偏好唤醒体</b>：在个人中心选好之后，推理页会出现「只看偏好唤醒体」开关，勾上就只从包含这些唤醒体的题目里出题（先按成员哈希分桶粗筛，再逐题解密确认，所以不用每次解密整库）。</li>
 <li><b>头像</b>：内置 <b>70 个预设</b> —— 62 位唤醒体的官方立绘 + 8 张精选 CG，都是 96×96 的方图；也可以直接贴一个图片直链（≤250 字符，例如 QQ 头像）。头像存在账号里，换设备登录也在。</li>
-<li><b>存档边界</b>：账号与头像在云端；积分、已解锁 CG、失败题库、自建题目仍然只在这台设备的浏览器里，个人中心可以一键清空。</li>
+<li><b>云端档案怎么存</b>：把「积分 / 解锁 CG / 失败题库 / 统计 / 偏好 / 工坊题 / 推理记录 / 背景主题」打成一个 <code>ZJ1D:</code> + base64 的文档，存进 Waline 评论表里属于你自己的那一条（路径 <code>/zjtt/u/&lt;id&gt;-&lt;散列&gt;</code>，不暴露自增 id）。首次建档用一次 POST，之后一律 PUT 更新，避开评论频率限制。</li>
+<li><b>合并规则</b>：换设备登录时，积分取两边较大值，解锁 CG 与失败题库取并集，统计逐项取大，推理记录与工坊题按 id 去重取新——所以两台设备交替玩也不会互相覆盖。退出登录只清本机的同步凭据，云端档案保留。</li>
 </ul>
 
 <h3>图鉴与关键词</h3>
@@ -106,8 +110,9 @@
 <p>战报来自公开的融灾排行榜（第 71、72 期），玩家 UID 已去除。同位置的辅助型角色在数据上难以唯一确定，所以评分按字段命中率计算，不要求一次性全对。答案已做混淆封装，但纯前端站点无法真正防作弊。</p>
 <p>技能数据来自 <a href="https://github.com/dansa/SKeyDB">SKeyDB</a>（CC BY-NC-SA 4.0，仅限非商业使用）；官方中文对照来自 <a href="https://github.com/BIAVGit/Morimens-Localizations">Morimens-Localizations</a> 与 <a href="https://morimens.huijiwiki.com/">忘却前夜中文维基</a>。</p>
 <p><b>状态/机制图标</b>取自 SKeyDB 的战斗图标库（<code>Battle_Card_Buff_*</code>、界域徽记 <code>realm-badge-*</code>），按官方 <code>iconId</code> 与词条映射，共 30 个图标覆盖 39 个常用关键词；没有官方图标的词条仍用文字字形显示。<b>CG 与唤醒体档案</b>（生日、身高、体重、诺斯指数、获取途径、语音）来自中文维基的角色条目与图片库。<b>回放</b>指向官方战报服务与忘忘看报复盘工具，本站不转存战斗数据。</p>
-<p>所有进度（积分、解锁的 CG、失败题库、自建题目、语言与答题记录）都存在浏览器 <code>localStorage</code> 的 <code>zjtt:</code> 前缀下，不上传任何服务器；清缓存或换浏览器即丢失。上传到云题库的题目是公开的，请不要把不想公开的内容放进去。</p>
-<p>数据由 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 生成，脚本见 <code>scripts/build_data.py</code>、<code>scripts/enhance_data.py</code>、<code>scripts/build_official_terms.py</code>、<code>scripts/score_difficulty.py</code>。</p>
+<p>所有进度（积分、解锁的 CG、失败题库、自建题目、偏好唤醒体、答题记录、语言与背景主题）默认存在浏览器 <code>localStorage</code> 的 <code>zjtt:</code> 前缀下；<b>登录后</b>会打包成账号档案同步到云端，换设备登录即可恢复，退出登录则回到只用本机数据。上传到云题库的题目是公开的，请不要把不想公开的内容放进去。</p>
+<p>题库共 <b>2000 道</b>：<code>data/puzzles.json</code>（1000 道核心题，每日一题只从这里出，保证扩充题库异步加载时题目不跳变）与 <code>data/puzzles-extra.json</code>（1000 道扩充题）。难度分统一重算后按分位切成 4 档（1 档 560 / 2 档 560 / 3 档 520 / 4 档 360），分档依据是「同签名题数」分布与伤害构成熵等公开信息，构建脚本 <code>scripts/finalize_puzzles.py</code> 会一并做结构审计：队伍 4 人唯一、命轮 1–2 件、密契齐全、钥令有效、造物 ≤18、UUID 完整、分桶号 4 个、公开线索 4 条；当前全部 2000 道通过，且没有任何两道题的公开线索完全重复。</p>
+<p>数据由 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 生成，脚本见 <code>scripts/build_data.py</code>、<code>scripts/build_puzzles_more.py</code>、<code>scripts/enhance_data.py</code>、<code>scripts/build_official_terms.py</code>、<code>scripts/score_difficulty.py</code>、<code>scripts/finalize_puzzles.py</code>。</p>
 </section>
 
 <section class="card prose" id="sec-en" hidden>
@@ -145,10 +150,14 @@
 <h3>Account and profile</h3>
 <p>This is a static site with no server of its own, so accounts reuse an existing <a href="https://waline.js.org/">Waline</a> service (the same one behind <a href="https://z769018860.github.io/qdby_chinese/">qdby_chinese</a>). Users live in a real database — nothing for you to deploy.</p>
 <ul>
+<li><b>Two states only</b>: <b>guest</b> (not signed in, progress read from this browser's <code>localStorage</code>) or <b>account</b> (signed in, progress follows the account). There is no in-between “local nickname” — register if you want a name, stay a guest if you don't.</li>
 <li><b>Register / sign in</b>: the avatar in the top-right, or the Profile page. Usernames are 2–20 characters (Chinese is fine), passwords at least 6; the username is mapped to <code>name@zjtt.local</code> internally, so no email is required.</li>
-<li><b>Profile</b>: change your display name and avatar, and see your record (credits, played, accuracy, unlocked CG, failed bank).</li>
+<li><b>Profile = the account's data hub</b>: display name and avatar, <b>preferred Awakeners</b>, <b>solve history</b>, <b>workshop reports</b>, <b>gallery progress</b>, credits and the failed bank all live here — and all of it syncs with the account. “Last synced” and a “Sync now” button sit in the header.</li>
+<li><b>Every run is stored</b>: daily, random, custom and workshop-imported puzzles each write one record after grading (time, puzzle, mode, level, win/loss, rating, score, replay link). A puzzle only counts once; the latest 300 are kept.</li>
+<li><b>Preferred Awakeners</b>: pick them on the Profile page and the puzzle screen grows a “preferred Awakeners only” switch. When on, only puzzles containing those Awakeners are drawn — members are hashed into buckets first, then each candidate is decrypted to confirm, so the whole library is never decrypted per draw.</li>
 <li><b>Avatars</b>: <b>70 presets</b> — the official portrait of all 62 awakeners plus 8 hand-picked CGs, all 96×96 squares; or paste your own image URL (≤250 chars, e.g. a QQ avatar). Avatars live on the account, so they follow you across devices.</li>
-<li><b>What lives where</b>: account and avatar in the cloud; credits, unlocked CG, the failed bank and your own puzzles stay in this browser, and the Profile page can clear them.</li>
+<li><b>How the cloud document works</b>: credits / unlocked CG / failed bank / stats / preferences / workshop puzzles / solve history / backdrop theme are packed into a <code>ZJ1D:</code> + base64 document stored on your own row in Waline's comment table (path <code>/zjtt/u/&lt;id&gt;-&lt;hash&gt;</code>, no auto-increment id exposed). One POST creates it, every later write is a PUT, which sidesteps the comment rate limit.</li>
+<li><b>Merge rules</b>: when you sign in elsewhere, credits take the larger value, unlocked CG and the failed bank are unioned, stats take the per-key maximum, and history / workshop puzzles are de-duplicated by id keeping the newest — so alternating between two devices never clobbers the other. Signing out only clears local sync credentials; the cloud document stays.</li>
 </ul>
 
 <h3>Codex and keywords</h3>
@@ -205,9 +214,10 @@
 <h3>Data notes</h3>
 <p>Reports come from the public Disaster leaderboards (seasons 71 and 72); player UIDs are removed. Support-type slots are hard to pin down uniquely, so scoring is per-field accuracy rather than all-or-nothing. Answers are obfuscated, but a pure static site cannot truly prevent cheating.</p>
 <p>Skill data from <a href="https://github.com/dansa/SKeyDB">SKeyDB</a> (CC BY-NC-SA 4.0, non-commercial). Official Chinese from <a href="https://github.com/BIAVGit/Morimens-Localizations">Morimens-Localizations</a> and the <a href="https://morimens.huijiwiki.com/">Chinese wiki</a>.</p>
-<p>Data generated from <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a>; see <code>scripts/build_data.py</code>, <code>scripts/enhance_data.py</code>, <code>scripts/build_official_terms.py</code> and <code>scripts/score_difficulty.py</code>.</p>
+<p>Data generated from <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a>; see <code>scripts/build_data.py</code>, <code>scripts/build_puzzles_more.py</code>, <code>scripts/enhance_data.py</code>, <code>scripts/build_official_terms.py</code>, <code>scripts/score_difficulty.py</code> and <code>scripts/finalize_puzzles.py</code>.</p>
 <p><b>Status/mechanic icons</b> come from SKeyDB's battle icon set (<code>Battle_Card_Buff_*</code>, realm badges <code>realm-badge-*</code>), mapped by official <code>iconId</code>: 30 icons cover 39 common keywords; terms without official art fall back to a text glyph. <b>CGs and Awakener profiles</b> (birthday, height, weight, Nos index, acquisition, voice lines) come from the Chinese wiki. <b>Replays</b> point at the official report service and the Wangwang review tool — no battle data is mirrored here.</p>
-<p>All progress (credits, unlocked CGs, failed bank, authored puzzles, language, answer history) is kept in <code>localStorage</code> under the <code>zjtt:</code> prefix and never uploaded. Clearing site data wipes it. Puzzles uploaded to the cloud bank are public — do not put anything private there.</p>
+<p>All progress (credits, unlocked CGs, failed bank, authored puzzles, preferred Awakeners, answer history, language, backdrop theme) is kept in <code>localStorage</code> under the <code>zjtt:</code> prefix by default; <b>once signed in</b> it is packed into an account document and synced to the cloud, so another device restores it on sign-in, and signing out returns to local-only. Puzzles uploaded to the cloud bank are public — do not put anything private there.</p>
+<p>The puzzle set holds <b>2000 entries</b>: <code>data/puzzles.json</code> (1000 core puzzles — the daily puzzle is drawn only from these, so it never jumps while the extra file loads asynchronously) and <code>data/puzzles-extra.json</code> (1000 extra). Difficulty is recomputed across both and split into four tiers by percentile (tier 1: 560 / 2: 560 / 3: 520 / 4: 360), based on public-only signals such as how many puzzles share the same clue signature and the entropy of the damage breakdown. <code>scripts/finalize_puzzles.py</code> also audits every entry (4 unique members, 1–2 Wheels each, Covenants present, valid Keeper skill, ≤18 Creations, intact UUID, 4 bucket ids, 4 public clues); all 2000 pass, and no two puzzles share an identical public clue set.</p>
 </section>
 
 </main>
@@ -215,7 +225,13 @@
 <script type="module">
 import { nav, lang, t } from './js/common.js';
 document.body.prepend(nav('about'));
-document.getElementById(lang.cur === 'en' ? 'sec-en' : 'sec-zh').hidden = false;
+// 两段内容按语言只留一段：默认 HTML 里给 sec-en 加了 hidden，
+// 英文态必须把 sec-zh 也显式隐藏，否则中英会同时出现。
+const zhSec = document.getElementById('sec-zh');
+const enSec = document.getElementById('sec-en');
+const isEn = lang.cur === 'en';
+zhSec.hidden = isEn;
+enSec.hidden = !isEn;
 document.documentElement.lang = lang.cur === 'en' ? 'en' : 'zh-CN';
 document.title = t('navAbout') + ' · ' + t('brand');
 document.querySelector('footer.foot').textContent = t('footNote');

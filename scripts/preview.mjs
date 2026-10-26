@@ -24,7 +24,11 @@ const server = http.createServer((req, res) => {
   if (rel.startsWith('..') || path.isAbsolute(rel)) { res.writeHead(403).end(); return; }
   if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html');
   if (!fs.existsSync(p)) { res.writeHead(404).end('404'); return; }
-  res.writeHead(200, { 'Content-Type': MIME[path.extname(p).toLowerCase()] || 'application/octet-stream' });
+  res.writeHead(200, {
+    'Content-Type': MIME[path.extname(p).toLowerCase()] || 'application/octet-stream',
+    // 预览时必须禁缓存，否则改完 JS 复用的 profile 还在跑旧代码
+    'Cache-Control': 'no-store, must-revalidate',
+  });
   fs.createReadStream(p).pipe(res);
 });
 

@@ -27,6 +27,10 @@ async function api(path, { method = 'GET', body, auth = true } = {}) {
   return json.data;
 }
 
+// 给 js/account.js 复用：同一套 token 与错误处理
+export const wApi = api;
+export const WALINE = { server: SERVER, domain: DOMAIN };
+
 function persist(user) {
   if (!user) {
     store.set(KEY.token, '');
@@ -65,6 +69,7 @@ export const auth = {
     await api('/api/user', { method: 'POST', auth: false, body: { email: mail, password: pass, name, url: '' } });
     const user = await api('/api/token', { method: 'POST', auth: false, body: { email: mail, password: pass } });
     const clean = persist(user);
+    document.dispatchEvent(new CustomEvent('zjtt:login', { detail: clean }));
     if (!clean.name || clean.name === nameOfMail(mail)) {
       try {
         const patched = await api('/api/user', { method: 'PUT', body: { display_name: String(name).trim() } });
@@ -76,7 +81,9 @@ export const auth = {
 
   async login(name, pass) {
     const user = await api('/api/token', { method: 'POST', auth: false, body: { email: enc(name), password: pass } });
-    return persist(user);
+    const clean = persist(user);
+    document.dispatchEvent(new CustomEvent('zjtt:login', { detail: clean }));
+    return clean;
   },
 
   logout() { persist(null); },

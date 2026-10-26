@@ -52,6 +52,19 @@ export function toast(msg, ms = 1800) {
   return el;
 }
 
+// 本机数据改动 → 通知 js/account.js 排队同步到账号（登录态才推）
+export function markDirty(what = '') {
+  document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: what }));
+}
+
+// 战绩统计的标准字段。云端档案可能是旧版本（或空对象）写进来的，
+// 所以读取一律走 statsOf() 补默认值，避免界面出现 undefined。
+export const STAT0 = { played: 0, won: 0, streak: 0, best: 0, last: '', fields: 0, totalFields: 0 };
+export const statsOf = () => {
+  const v = store.get('stats', null);
+  return { ...STAT0, ...(v && typeof v === 'object' ? v : {}) };
+};
+
 // 主题皮肤：js/theme.js 把算好的变量写进 store('theme')，这里同步恢复，
 // 这样任何页面（只要调了 nav）都会立刻带上上次选的 CG 背景。
 export function applyThemeSkin() {
@@ -75,10 +88,11 @@ export const KINDS = {
 // 积分存在本地：答对按难度拿分，提示与 CG 解锁花分。
 export const wallet = {
   get() { return Number(store.get('credits', 0)) || 0; },
-  add(n) { const v = this.get() + Math.max(0, Math.round(n)); store.set('credits', v); return v; },
+  add(n) { const v = this.get() + Math.max(0, Math.round(n)); store.set('credits', v); markDirty('credits'); return v; },
   spend(n) {
     if (this.get() < n) return false;
     store.set('credits', this.get() - n);
+    markDirty('credits');
     return true;
   },
 };
@@ -89,7 +103,7 @@ export const failedBank = {
   has(id) { return this.list().includes(id); },
   add(id) {
     const l = this.list();
-    if (!l.includes(id)) { l.push(id); store.set('failed', l); }
+    if (!l.includes(id)) { l.push(id); store.set('failed', l); markDirty('failed'); }
   },
 };
 
@@ -103,7 +117,7 @@ export const REPLAY = {
 export const unlocked = {
   list() { return store.get('cg', []); },
   has(id) { return this.list().includes(id); },
-  add(id) { const l = this.list(); if (!l.includes(id)) { l.push(id); store.set('cg', l); } return l; },
+  add(id) { const l = this.list(); if (!l.includes(id)) { l.push(id); store.set('cg', l); markDirty('cg'); } return l; },
 };
 
 // 题目分享码：ZJ2-<base64url(JSON)>，工坊与推理页共用
@@ -142,8 +156,9 @@ export async function loadDict() {
 }
 
 export function imgEl(src, alt = '', cls = '') {
-  const i = h('img', { src: src || '', alt, loading: 'lazy', class: cls });
-  if (!src) i.style.visibility = 'hidden';
+  // 没有图就直接给个占位方块：既不会请求坏图，也不会在图片统计里算成 broken
+  if (!src) return h('span', { class: `imgph ${cls}`.trim(), title: alt || '' });
+  const i = h('img', { src, alt, loading: 'lazy', class: cls });
   i.addEventListener('error', () => { i.style.visibility = 'hidden'; });
   return i;
 }

@@ -1,7 +1,8 @@
 import { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang,
-  wallet, failedBank, unlocked, REPLAY, shareCode } from './common.js';
+  wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf } from './common.js';
 import { PEPPER } from './pepper.js';
 import { auth, openLogin } from './auth.js';
+import { account } from './account.js';
 
 const KW_TYPE_EN = { realm: 'Realm', mechanic: 'State / Mechanic', tag: 'Tag', help: 'Help' };
 
@@ -18,23 +19,97 @@ const LETTERS = ['A', 'B', 'C', 'D'];
 const EMO = { g: '🟩', y: '🟨', n: '⬛', '': '⬜' };
 
 // ------------------------------------------------------------------ user profile
-// 本地档案：昵称、喜好干员；准确率等统计独立存 stats。
-let profile = store.get('profile', { name: '', favs: [] });
-function saveProfile() { store.set('profile', profile); }
+// 本机档案：只保留「偏好唤醒体」。昵称/头像属于账号，放个人中心。
+let profile = store.get('profile', { favs: [] });
+if (!Array.isArray(profile.favs)) profile.favs = [];
+delete profile.name;
+function saveProfile() { store.set('profile', profile); markDirty('profile'); }
 
 document.body.prepend(nav('game'));
 const root = $('#app');
 root.textContent = t('loading');
 
 const { D, idx } = await loadDict();
-const P = (await (await fetch('data/puzzles.json')).json()).puzzles;
+const CORE_JSON = await (await fetch('data/puzzles.json', { cache: 'no-cache' })).json();
+const P = CORE_JSON.puzzles;
+// 扩充题库（data/puzzles-extra.json）后台加载，不拖慢首屏
+let EXTRA = [];
+const allP = () => P.concat(EXTRA);
 // 自建题目（创意工坊）以 team 明文存在本地，与官方题库一起参与随机
 const customPuzzles = () => store.get('myPuzzles', []);
 
-// 失败题库里的题不再出现
-const pool = () => {
+// 失败题库里的题不再出现；难度档对应不同的题目难度带（入门只出简单题，大师只出难题）
+const LV_RANGE = { 1: [1, 2], 2: [1, 3], 3: [2, 4], 4: [3, 4] };
+function basePool() {
+  const all = allP();
+  const ok = all.filter(p => !failedBank.has(p.id));
+  const src = ok.length > 8 ? ok : all;
+  const [lo, hi] = LV_RANGE[level] || [1, 4];
+  const band = src.filter(p => (p.diff || 2) >= lo && (p.diff || 2) <= hi);
+  return (band.length >= 12 ? band : src).concat(customPuzzles());
+}
+// 每天一题只在核心题库里挑，避免扩充题库加载后题目跳变
+const corePool = () => {
   const ok = P.filter(p => !failedBank.has(p.id));
-  return (ok.length ? ok : P).concat(customPuzzles());
+  return ok.length ? ok : P;
+};
+
+// 偏好唤醒体筛选：题库里每题带 bk（成员 id 的 128 桶哈希），先用它粗筛，再解密确认
+const HASH_BUCKETS = 128;
+function favBucket(tid) {
+  const s = String(tid) + '|ZJTT';
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0) % HASH_BUCKETS;
+}
+
+let favOnly = !!store.get('favOnly', false);
+let favIds = new Set();          // 精确命中的题目 id
+let favIdxFor = '';              // 当前索引对应的签名（偏好 + 题库规模）
+const favSig = () => `${profile.favs.slice().sort().join(',')}|${allP().length}`;
+
+async function buildFavIndex() {
+  const favs = new Set((profile.favs || []).map(String));
+  if (!favs.size) return new Set();
+  const key = 'favIdx:' + favSig();
+  const cached = store.get(key, null);
+  if (Array.isArray(cached)) {
+    // 清掉其它签名留下的旧索引，避免 localStorage 越攒越多
+    Object.keys(localStorage).forEach((k) => { if (k.startsWith('zjtt:favIdx:') && k !== 'zjtt:' + key) localStorage.removeItem(k); });
+    return new Set(cached);
+  }
+  const want = new Set(profile.favs.map(favBucket));
+  const cand = allP().filter(p => p.bk && p.bk.some(b => want.has(b)));
+  const ids = [];
+  for (const p of cand) {
+    if (p.team) { if (p.team.some(a => favs.has(String(a.tid)))) ids.push(p.id); continue; }
+    try {
+      const s = await unseal(p);
+      if ((s.team || []).some(a => favs.has(String(a.tid)))) ids.push(p.id);
+    } catch { /* 单题解码失败就跳过 */ }
+  }
+  Object.keys(localStorage).forEach((k) => { if (k.startsWith('zjtt:favIdx:') && k !== 'zjtt:' + key) localStorage.removeItem(k); });
+  store.set(key, ids);
+  return new Set(ids);
+}
+
+// 偏好或题库规模变了就重算索引
+async function ensureFavIdx() {
+  const key = 'favIdx:' + favSig();
+  if (favIdxFor === key && favIds.size) return;
+  try { favIds = await buildFavIndex(); } catch { favIds = new Set(); }
+  favIdxFor = key;
+}
+
+function currentPool() {
+  const base = basePool();
+  if (!favOnly || !favIds.size) return base;
+  const sub = base.filter(p => favIds.has(p.id));
+  return sub.length ? sub : base;
+}
+const pickAny = () => {
+  const l = currentPool();
+  return l[Math.floor(Math.random() * l.length)];
 };
 
 // 题目的积分价值：难度分越高给得越多
@@ -51,7 +126,7 @@ const todayKey = () => {
 };
 const dayNumber = () => Math.floor((Date.now() + 8 * 3600e3) / 864e5);
 const dailyPuzzle = () => {
-  const list = pool();
+  const list = corePool();
   const start = (dayNumber() * 7919) % list.length;
   // 每日题若已进失败题库，顺延到下一题
   for (let i = 0; i < list.length; i++) {
@@ -121,11 +196,17 @@ function evaluate() {
     if (A.wheels) {
       const left = [...a.wheels];
       const others = ans.filter((_, j) => j !== k).flatMap(x => x.wheels);
-      g.wheels.forEach(w => {
+      g.wheels.forEach((w, i) => {
+        // 真实战报里有人只带 1 件命轮：那一格空对空，不应算作失误
+        if (i >= a.wheels.length) {
+          if (w != null) { s.wheels.push('n'); count('n'); }
+          else s.wheels.push('');
+          return;
+        }
         let st = 'n';
         if (w != null) {
-          const i = left.indexOf(w);
-          if (i >= 0) { st = 'g'; left.splice(i, 1); } else if (others.includes(w)) st = 'y';
+          const j = left.indexOf(w);
+          if (j >= 0) { st = 'g'; left.splice(j, 1); } else if (others.includes(w)) st = 'y';
         }
         s.wheels.push(st); count(st);
       });
@@ -195,7 +276,7 @@ function submit() {
       const gain = ptsOf(puzzle);
       wallet.add(gain);
       if (mode === 'daily') {
-        const st = store.get('stats', {});
+        const st = statsOf();
         st.pts = (st.pts || 0) + gain;
         store.set('stats', st);
       }
@@ -204,6 +285,14 @@ function submit() {
       // 彻底失败：永久移出题池
       failedBank.add(puzzle.id);
     }
+    // 每一局（每日/随机/自建/工坊导入）都记进账号档案
+    const { score, g } = grade();
+    const last = history[history.length - 1];
+    account.record({
+      i: puzzle.id, m: mode, l: level, w: won ? 1 : 0, tr: history.length,
+      sc: score, g, h: hintsUsed, f: [last.green, last.total],
+      u: puzzle.uuid || '', ti: puzzle.title || '',
+    });
   }
   persist();
   render();
@@ -219,11 +308,15 @@ function grade() {
 }
 
 function recordStats() {
-  if (mode !== 'daily') return;
-  const st = store.get('stats', { played: 0, won: 0, streak: 0, best: 0, last: '', fields: 0, totalFields: 0 });
-  if (st.last === todayKey() + ':' + level) return;
-  st.played++; st.last = todayKey() + ':' + level;
-  if (won) { st.won++; st.streak++; st.best = Math.max(st.best, st.streak); } else st.streak = 0;
+  const st = statsOf();
+  // 同一道题只计一次，避免反复刷统计
+  if ((mode === 'daily' && st.last === todayKey() + ':' + level) || account.history().some(e => e.i === puzzle.id)) return;
+  st.played++;
+  if (mode === 'daily') st.last = todayKey() + ':' + level;
+  if (won) {
+    st.won++;
+    if (mode === 'daily') { st.streak++; st.best = Math.max(st.best, st.streak); }
+  } else if (mode === 'daily') st.streak = 0;
   // 准确率：统计命中的字段数 / 总字段数（最后一条历史记录的 frac）
   const last = history[history.length - 1];
   if (last && last.total != null) { st.fields = (st.fields || 0) + last.green; st.totalFields = (st.totalFields || 0) + last.total; }
@@ -452,7 +545,7 @@ function answerPanel() {
     replayBox(puzzle),
     h('div', { class: 'actions' },
       h('button', { class: 'btn', onclick: share }, t('copy')),
-      h('button', { class: 'btn ghost', onclick: () => start(pool()[Math.floor(Math.random() * pool().length)], 'random') }, t('again'))));
+      h('button', { class: 'btn ghost', onclick: () => start(pickAny(), 'random') }, t('again'))));
 }
 
 function share() {
@@ -492,69 +585,79 @@ function failedPanel() {
     }, `${id} · ${t('replayTitle')}`))) : h('p', { class: 'note' }, t('failedEmpty')));
 }
 
-// ------------------------------------------------------------------ profile / login / favorites
+// ------------------------------------------------------------------ profile / login
+// 只有两种状态：游客（读本机缓存）与已登录（账号云端档案）。
 function profilePanel() {
-  const st = store.get('stats', { played: 0, won: 0, streak: 0, best: 0, fields: 0, totalFields: 0 });
+  const st = statsOf();
   const acc = st.totalFields ? Math.round(st.fields / st.totalFields * 100) + '%' : '—';
   const u = auth.user;
-  const shown = u ? u.name : profile.name;
-  // 「登录」现在只会指云端账号，本地昵称单独给一个输入框，避免两套登录混淆
   const acts = u
     ? [
         h('a', { class: 'btn ghost sm', href: 'profile.html' }, t('myCenter')),
-        h('button', { class: 'btn ghost sm', onclick: () => { auth.logout(); render(); } }, t('pfLogout')),
+        h('button', { class: 'btn ghost sm', onclick: () => { auth.logout(); account.forget(); render(); } }, t('pfLogout')),
       ]
     : [
-        h('button', { class: 'btn sm', onclick: () => openLogin(() => render()) }, t('loginRegister')),
-        h('input', { type: 'text', placeholder: t('nicknameLocal'), title: t('nicknameLocalTip'),
-          maxlength: 16, id: 'nick-input',
-          value: profile.name || '', onkeydown: ev => { if (ev.key === 'Enter') doLogin(); } }),
-        h('button', { class: 'btn ghost sm', onclick: doLogin }, t('saveLocal')),
+        h('button', { class: 'btn sm', onclick: () => openLogin(() => location.reload()) }, t('loginRegister')),
+        h('a', { class: 'btn ghost sm', href: 'profile.html' }, t('pfGuestData')),
       ];
-  const box = h('section', { class: 'card profile' },
+  return h('section', { class: 'card profile' },
     h('div', { class: 'prow' },
       u ? h('img', { class: 'pfavatar tiny', src: auth.avatarOf(u), alt: '', width: 36, height: 36 }) : null,
       h('div', { class: 'pname' },
-        h('b', {}, shown ? `👤 ${shown}` : t('notLogged')),
+        h('b', {}, u ? `👤 ${u.name}` : t('guestTag')),
         h('span', { class: 'note' },
           `${t('statsTitle')}：${t('totalPlayed')} ${st.played} · ${t('totalWon')} ${st.won} · ${t('accuracy')} ${acc}`)),
       h('div', { class: 'pactions' }, acts)),
-    favPanel());
-  return box;
+    h('p', { class: 'note' },
+      u ? t('pfSyncNote') : t('pfGuestNote')),
+    favLine());
 }
-function doLogin() {
-  const v = ($('#nick-input') ? $('#nick-input').value : '').trim();
-  if (!v) { toast(t('nicknameLocal')); return; }
-  profile.name = v; saveProfile(); toast(t('savedLocal')); render();
-}
-function favPanel() {
-  const awks = D.awakener.filter(a => a.id != null);
-  const row = h('div', { class: 'frow' },
-    awks.map(a => {
-      const on = profile.favs.includes(String(a.id));
-      return h('button', { type: 'button', class: `fitem${on ? ' on' : ''}`, title: nameOf(a),
-        onclick: () => { profile.favs = on ? profile.favs.filter(x => x !== String(a.id)) : [...profile.favs, String(a.id)]; saveProfile(); render(); } },
-        imgEl(a.img, nameOf(a)), h('small', {}, nameOf(a)));
-    }));
-  // 默认收起：干员墙有 60 多个，展开会吃掉首屏
-  const det = h('details', { class: 'favdet', open: store.get('favOpen', false) ? '' : null },
-    h('summary', {}, `${t('favTitle')} · ${t('favHint')}（${profile.favs.length}）`), row);
-  det.addEventListener('toggle', () => store.set('favOpen', det.open));
-  return det;
+
+// 偏好唤醒体：在个人中心设置，这里只显示状态并作为筛选题目的依据
+function favLine() {
+  const n = profile.favs.length;
+  return h('div', { class: 'favline' },
+    h('span', {}, `${t('favTitle')}：${n ? `${n} ${t('pfFavPicked')}` : t('pfFavNone')}`),
+    h('a', { class: 'link', href: 'profile.html#fav' }, t('pfFavGo')));
 }
 
 function controls() {
-  const st = store.get('stats', { played: 0, won: 0, streak: 0, best: 0, fields: 0, totalFields: 0 });
+  const st = statsOf();
   const acc = st.totalFields ? Math.round(st.fields / st.totalFields * 100) + '%' : '—';
+  const range = LV_RANGE[level] || [1, 4];
+  const poolN = currentPool().length;
   return h('section', { class: 'card ctl' },
     h('div', { class: 'levels' }, Object.entries(LEVELS).map(([k, v]) =>
       h('button', { class: `lv${+k === level ? ' on' : ''}`, onclick: () => { level = +k; store.set('level', level); start(mode === 'daily' ? dailyPuzzle() : puzzle, mode); } },
         h('b', {}, v.name()), h('small', {}, v.desc())))),
     h('div', { class: 'modes' },
       h('button', { class: `btn${mode === 'daily' ? '' : ' ghost'}`, onclick: () => start(dailyPuzzle(), 'daily') }, `${t('daily')} ${todayKey()}`),
-      h('button', { class: `btn${mode === 'random' ? '' : ' ghost'}`, onclick: () => start(pool()[Math.floor(Math.random() * pool().length)], 'random') }, t('random')),
+      h('button', { class: `btn${mode === 'random' ? '' : ' ghost'}`, onclick: () => start(pickAny(), 'random') }, t('random')),
       h('span', { class: 'credits big' }, `${t('credits')} ◈${wallet.get()}`),
-      h('span', { class: 'note' }, `${t('played')} ${st.played} · ${t('won')} ${st.won} · ${t('streak')} ${st.streak} · ${t('best')} ${st.best} · ${t('accuracy')} ${acc}`)));
+      h('span', { class: 'note' }, `${t('played')} ${st.played} · ${t('won')} ${st.won} · ${t('streak')} ${st.streak} · ${t('best')} ${st.best} · ${t('accuracy')} ${acc}`)),
+    h('div', { class: 'poolrow' },
+      h('label', { class: 'fchk', title: t('favFilterTip') },
+        h('input', { type: 'checkbox', checked: favOnly, onchange: ev => toggleFavOnly(ev.target.checked) }),
+        h('span', {}, `${t('favFilter')}（${profile.favs.length}）`)),
+      h('span', { class: 'note' }, `${t('poolNote', { n: poolN })} · ${t('poolDiff', { a: range[0], b: range[1] })}`)));
+}
+
+// 偏好筛选：勾选后按偏好唤醒体重建题库索引（首次需要解密，之后走缓存）
+async function toggleFavOnly(on) {
+  if (on && !profile.favs.length) {
+    toast(t('favNeed'));
+    store.set('favOnly', false);
+    render();
+    return;
+  }
+  favOnly = on;
+  store.set('favOnly', on);
+  if (on) {
+    toast(t('favBuilding'), 2400);
+    await ensureFavIdx();
+    if (!favIds.size) toast(t('favNoHit'));
+  }
+  render();
 }
 
 // ------------------------------------------------------------------ picker modal
@@ -663,7 +766,30 @@ function render() {
     ...(finished ? [answerPanel()] : []));
 }
 
+// 登录态：先把云端档案合并下来（最多等 4.5 秒），保证积分 / 解锁 / 记录是最新的
+await account.ready();
+
 await start(dailyPuzzle(), 'daily');
+
+// 扩充题库后台加载：不阻塞首屏，加载完并入题池
+(CORE_JSON.extraFile ? fetch(CORE_JSON.extraFile, { cache: 'no-cache' }) : Promise.resolve(null))
+  .then(r => (r && r.ok ? r.json() : null))
+  .then(j => {
+    if (j && Array.isArray(j.puzzles) && j.puzzles.length) {
+      const have = new Set(P.map(p => p.id));
+      EXTRA = j.puzzles.filter(p => !have.has(p.id));
+      if (EXTRA.length) {
+        if (!finished) render();
+        if (favOnly && profile.favs.length) ensureFavIdx().then(() => { if (!finished) render(); }).catch(() => {});
+      }
+    }
+  })
+  .catch(() => { /* 没有扩充题库也能玩 */ });
+
+// 上次开着「只看偏好唤醒体」：重建索引（有缓存则瞬间完成）
+if (favOnly && profile.favs.length) {
+  ensureFavIdx().then(() => { if (!finished) render(); }).catch(() => {});
+}
 
 // 工坊 / 好友分享的题目：index.html?p=ZJ2-...
 const sharedCode = new URLSearchParams(location.search).get('p');

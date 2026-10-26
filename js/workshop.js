@@ -1,9 +1,11 @@
 // 创意工坊：导入战报 → 生成自己的推理题 → 分享码 / 云题库
-import { $, h, store, nav, t, lang, loadDict, imgEl, nameOf, shareCode, REPLAY } from './common.js';
+import { $, h, store, nav, t, lang, loadDict, imgEl, nameOf, shareCode, REPLAY, markDirty } from './common.js';
 import { cloud, cloudConfig } from './cloud.js';
+import { account } from './account.js';
 import { decodeReplay, replayTeam } from './replay.js';
 import { PEPPER } from './pepper.js';
 
+await account.ready();
 document.body.prepend(nav('workshop'));
 const root = $('#app');
 root.textContent = t('loading');
@@ -272,15 +274,33 @@ function replayToDraft(t, exact) {
       };
     });
   }
-  d.relics = (t.relics || []).map(String);
-  d.key = t.keeperSkill != null ? String(t.keeperSkill) : null;
-  d.rounds = num(t.stats?.rounds);
-  d.cards = num(t.stats?.cards);
-  d.maxBout = num(t.stats?.maxBout);
-  d.deathResist = num(t.stats?.deathResist);
-  d.playerDmg = num(t.stats?.playerDamage);
-  d.diff = 4;
-  d.diffScore = Math.round(20 + Math.min(30, Math.log10(Math.max(1, d.maxBout)) * 4));
+  // 命中题库（exact）时，钥令 / 造物 / 题面数值都用答案里的完整字段
+  d.relics = ((exact && exact.relics) || t.relics || []).map(String);
+  const key = exact && exact.key != null ? exact.key
+    : (t.keeperSkill != null ? t.keeperSkill : (t.key != null ? t.key : null));
+  d.key = key != null ? String(key) : null;
+  d.rounds = num(t.stats?.rounds) || num(exact && exact.rounds);
+  d.cards = num(t.stats?.cards) || num(exact && exact.cards);
+  d.maxBout = num(t.stats?.maxBout) || num(exact && exact.maxBout);
+  d.deathResist = num(t.stats?.deathResist) || num(exact && exact.deathResist);
+  d.playerDmg = num(t.stats?.playerDamage) || num(exact && exact.playerDmg);
+  if (exact) {
+    d.title = `回放 ${exact.id}`;
+    d.season = num(exact.season);
+    d.zone = num(exact.zone);
+    d.threat = exact.threat || '?';
+    d.madness = num(exact.madness);
+    d.boss = exact.boss || [];
+    d.score = num(exact.score);
+    d.hp = num(exact.hp);
+    d.left = num(exact.left);
+    d.extra = !!exact.extra;
+    d.diff = num(exact.diff, 3);
+    d.diffScore = num(exact.diffScore, 30);
+  } else {
+    d.diff = 4;
+    d.diffScore = Math.round(20 + Math.min(30, Math.log10(Math.max(1, d.maxBout)) * 4));
+  }
   return d;
 }
 
@@ -351,8 +371,10 @@ function saveDraft() {
   if (!d) { toast(t('fillAll')); return; }
   const list = myPuzzles();
   const i = list.findIndex(x => x.id === d.id);
-  if (i >= 0) list[i] = d; else list.push(d);
+  d.at = Date.now();
+  if (i >= 0) list[i] = { ...list[i], ...d }; else list.push(d);
   saveMine(list);
+  markDirty('mine');
   draft = d;
   draw();
   toast(t('wsSaved'));
@@ -362,6 +384,7 @@ function removeMine(i) {
   const list = myPuzzles();
   list.splice(i, 1);
   saveMine(list);
+  markDirty('mine');
   draw();
 }
 
