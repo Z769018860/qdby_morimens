@@ -1,5 +1,6 @@
 // CG 典藏馆：灰机 wiki 收录的官方 CG，用积分解锁后放大观看
 import { $, h, nav, t, lang, wallet, unlocked, imgEl } from './common.js';
+import { setTheme, clearTheme, activeTheme } from './theme.js';
 
 document.body.prepend(nav('gallery'));
 const root = $('#app');
@@ -30,7 +31,9 @@ let view = [];
 
 function statsLine() {
   const own = ITEMS.filter(i => unlocked.has(i.id)).length;
-  return `${t('galleryProgress', { a: own, b: ITEMS.length })} · ${t('credits')} ◈${wallet.get()}`;
+  const cur = activeTheme();
+  const thm = cur ? ` · ${t('thmCurrent', { n: cur.n })}` : '';
+  return `${t('galleryProgress', { a: own, b: ITEMS.length })} · ${t('credits')} ◈${wallet.get()}${thm}`;
 }
 
 function drawTabs() {
@@ -72,24 +75,69 @@ function drawGrid() {
 function card(it, i) {
   const own = unlocked.has(it.id);
   const c = costOf(it);
-  return h('button', {
-    type: 'button', class: `cgcard${own ? ' own' : ' locked'}`, title: titleOf(it),
+  const cur = activeTheme();
+  const asBg = !!(cur && cur.id === it.id);
+  return h('div', {
+    class: `cgcard${own ? ' own' : ' locked'}${asBg ? ' asbg' : ''}`, title: titleOf(it),
+    role: 'button', tabindex: '0', 'data-id': it.id,
     onclick: () => {
-      if (own) return open(i);
+      if (own) return open(view.indexOf(it));
       if (wallet.spend(c)) {
         unlocked.add(it.id);
-        bar.firstChild.textContent = statsLine();
+        toast(t('galleryJustUnlocked', { n: titleOf(it) }));
         render();
-        open(view.findIndex(x => x.id === it.id));
+        open(view.indexOf(it));
       } else {
         toast(t('noCredits'));
       }
     },
   },
-    h('div', { class: 'cgthumb' }, imgEl(it.f, titleOf(it))),
+    h('div', { class: 'cgthumb' }, imgEl(it.f, titleOf(it)),
+      asBg ? h('span', { class: 'cgbadge' }, t('thmBadge')) : null),
     h('div', { class: 'cgmeta' },
       h('b', {}, titleOf(it)),
-      own ? h('small', { class: 'own-tag' }, `✓ ${t('galleryUnlocked')}`) : h('small', { class: 'lock-tag' }, `🔒 ${t('galleryUnlock', { n: c })}`)));
+      own ? h('small', { class: 'own-tag' }, `✓ ${t('galleryUnlocked')}`) : h('small', { class: 'lock-tag' }, `🔒 ${t('galleryUnlock', { n: c })}`)),
+    own ? h('button', {
+      type: 'button', class: `cgset${asBg ? ' on' : ''}`,
+      onclick: (e) => { e.stopPropagation(); toggleTheme(it); },
+    }, asBg ? t('thmUsing') : t('thmSet')) : null);
+}
+
+// 只刷新卡片的「背景」状态：整页 439 张卡重建太慢（浏览器要重新加载几百张缩略图）
+function refreshCards() {
+  const cur = activeTheme();
+  grid.querySelectorAll('.cgcard').forEach((el) => {
+    const on = !!(cur && cur.id === el.dataset.id);
+    el.classList.toggle('asbg', on);
+    const btn = el.querySelector('.cgset');
+    if (btn) {
+      btn.classList.toggle('on', on);
+      btn.textContent = on ? t('thmUsing') : t('thmSet');
+    }
+    const thumb = el.querySelector('.cgthumb');
+    let badge = el.querySelector('.cgbadge');
+    if (on && thumb && !badge) thumb.append(h('span', { class: 'cgbadge' }, t('thmBadge')));
+    if (!on && badge) badge.remove();
+  });
+  if (bar.firstChild) bar.firstChild.textContent = statsLine();
+  if (dlg.open) open(idx);
+}
+
+async function toggleTheme(it) {
+  const cur = activeTheme();
+  if (cur && cur.id === it.id) {
+    clearTheme();
+    toast(t('thmCleared'));
+    refreshCards();
+    return;
+  }
+  try {
+    const th = await setTheme(it.id);
+    toast(t('thmApplied', { n: th.n }));
+    refreshCards();
+  } catch (e) {
+    toast(e.message === 'locked' ? t('thmLocked') : t('thmFail'));
+  }
 }
 
 function toast(msg) {
@@ -107,6 +155,10 @@ function open(i) {
       h('b', {}, titleOf(it)),
       h('small', { class: 'note' }, `${it.w}×${it.h} · ${it.g}`),
       h('a', { class: 'link', href: `https://morimens.huijiwiki.com/wiki/${encodeURIComponent('文件:' + it.n)}`, target: '_blank', rel: 'noopener' }, t('galleryOriginal')),
+      unlocked.has(it.id)
+        ? h('button', { type: 'button', class: 'btn sm', onclick: () => toggleTheme(it) },
+          (activeTheme() && activeTheme().id === it.id) ? t('thmUsing') : t('thmSet'))
+        : null,
       h('button', { class: 'btn sm ghost', onclick: () => dlg.close() }, t('close'))),
     h('div', { class: 'cgstage' },
       h('button', { type: 'button', class: 'cgnav prev', onclick: () => open(idx - 1), disabled: idx === 0 }, '‹'),
@@ -122,7 +174,7 @@ document.addEventListener('keydown', e => {
 });
 
 root.replaceChildren(
-  h('section', { class: 'card' },
+  h('section', { class: 'card cgintro' },
     h('h2', {}, t('galleryTitle')),
     h('p', { class: 'note' }, t('gallerySub')),
     h('p', { class: 'note' }, t('galleryLockNote')),

@@ -7,6 +7,7 @@ export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 export const store = {
   get(k, d) { try { const v = localStorage.getItem('zjtt:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('zjtt:' + k, JSON.stringify(v)); } catch { /* private mode */ } },
+  del(k) { try { localStorage.removeItem('zjtt:' + k); } catch { /* private mode */ } },
 };
 
 // ------------------------------------------------------------------ language
@@ -43,6 +44,28 @@ export function h(tag, attrs = {}, ...kids) {
   }
   return e;
 }
+
+export function toast(msg, ms = 1800) {
+  const el = h('div', { class: 'toast' }, msg);
+  document.body.append(el);
+  setTimeout(() => el.remove(), ms);
+  return el;
+}
+
+// 主题皮肤：js/theme.js 把算好的变量写进 store('theme')，这里同步恢复，
+// 这样任何页面（只要调了 nav）都会立刻带上上次选的 CG 背景。
+export function applyThemeSkin() {
+  const th = store.get('theme', null);
+  const root = document.documentElement;
+  if (!th || !th.vars) return;
+  for (const [k, v] of Object.entries(th.vars)) root.style.setProperty(`--${k}`, v);
+  if (th.img) root.style.setProperty('--theme-img', `url("${new URL(th.img, document.baseURI).href}")`);
+  root.setAttribute('data-themed', th.dark ? 'dark' : 'light');
+  document.body.classList.add('themed');
+}
+
+// 账号（js/auth.js 写入，nav 只读，避免循环依赖）
+export const authUser = () => store.get('authUser', null);
 
 export const KINDS = {
   awakener: '唤醒体', wheel: '命轮', covenant: '密契', key: '钥令', creation: '造物', monster: '怪物',
@@ -134,7 +157,16 @@ export const wan = n => {
 
 export const RARITY_CLASS = { SSR: 'r-ssr', SR: 'r-sr', R: 'r-r' };
 
+function avatarEntry() {
+  const u = authUser();
+  const src = (u && u.avatar) || 'assets/avatars/a-15601.webp';
+  return h('a', { class: 'avatar-chip', href: 'profile.html', title: u ? t('myCenter') : t('login') },
+    h('img', { src, alt: '', width: 26, height: 26, loading: 'lazy' }),
+    h('span', {}, u ? u.name : t('login')));
+}
+
 export function nav(active) {
+  applyThemeSkin();
   const langBtn = h('button', {
     class: 'langbtn', type: 'button', title: '中文 / English',
     onclick: () => { lang.toggle(); location.reload(); },
@@ -145,15 +177,13 @@ export function nav(active) {
   const credits = h('span', { class: 'credits', title: t('creditsTip') }, `◈ ${wallet.get()}`);
   return h('header', { class: 'top' },
     h('a', { class: 'brand', href: 'index.html' }, h('b', {}, t('brand')), h('small', {}, t('brandSub'))),
-    h('div', { class: 'navright' },
-      h('nav', {},
-        h('a', { href: 'index.html', class: active === 'game' ? 'on' : '' }, t('navGame')),
-        h('a', { href: 'gallery.html', class: active === 'gallery' ? 'on' : '' }, t('navGallery')),
-        h('a', { href: 'workshop.html', class: active === 'workshop' ? 'on' : '' }, t('navWorkshop')),
-        h('a', { href: 'codex.html', class: active === 'codex' ? 'on' : '' }, t('navCodex')),
-        h('a', { href: 'about.html', class: active === 'about' ? 'on' : '' }, t('navAbout'))),
-      credits,
-      langBtn));
+    h('nav', {},
+      h('a', { href: 'index.html', class: active === 'game' ? 'on' : '' }, t('navGame')),
+      h('a', { href: 'gallery.html', class: active === 'gallery' ? 'on' : '' }, t('navGallery')),
+      h('a', { href: 'workshop.html', class: active === 'workshop' ? 'on' : '' }, t('navWorkshop')),
+      h('a', { href: 'codex.html', class: active === 'codex' ? 'on' : '' }, t('navCodex')),
+      h('a', { href: 'about.html', class: active === 'about' ? 'on' : '' }, t('navAbout'))),
+    h('div', { class: 'navright' }, credits, avatarEntry(), langBtn));
 }
 
 // ------------------------------------------------------------------ keywords

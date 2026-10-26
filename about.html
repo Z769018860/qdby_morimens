@@ -42,6 +42,15 @@
 <li><b>伤害来源</b>：战报里的守密人伤害（你的钥令）、触腕、反击、力量、侵蚀/中毒，能帮你锁定队伍构筑。</li>
 </ul>
 
+<h3>账号与个人中心</h3>
+<p>本站是纯静态站点，没有自己的服务器，账号直接复用 <a href="https://waline.js.org/">Waline</a> 的现成服务（和 <a href="https://z769018860.github.io/qdby_chinese/">忘忘看报</a> 用的是同一套），数据存在真实的数据库里，不需要你自己部署。</p>
+<ul>
+<li><b>注册 / 登录</b>：右上角头像，或「个人中心」页面。用户名 2–20 个字符（中文可以），密码至少 6 位；用户名在后台会映射成 <code>用户名@zjtt.local</code> 的邮箱形式，所以不需要你填邮箱。</li>
+<li><b>个人中心</b>：改昵称、换头像、看战绩（积分、已答题、正确率、解锁 CG 数、失败题库数）。</li>
+<li><b>头像</b>：内置 <b>70 个预设</b> —— 62 位唤醒体的官方立绘 + 8 张精选 CG，都是 96×96 的方图；也可以直接贴一个图片直链（≤250 字符，例如 QQ 头像）。头像存在账号里，换设备登录也在。</li>
+<li><b>存档边界</b>：账号与头像在云端；积分、已解锁 CG、失败题库、自建题目仍然只在这台设备的浏览器里，个人中心可以一键清空。</li>
+</ul>
+
 <h3>图鉴与关键词</h3>
 <p>图鉴收录全部唤醒体（含技能、天赋、启灵、衍生卡牌与推荐配置）、命轮、密契、钥令、造物与怪物。文字里的状态与机制会显示为带图标的小标签：悬停可看说明，点击可展开详情，并一键跳转到「包含该关键词」的条目列表。顶部的「关键词」页收录了全部 100 个关键词。</p>
 <p>中英文对照以<b>官方中文</b>为准：名称与术语优先取自中文维基、官方游戏文本表（Morimens-Localizations）与游戏客户端配置；关键词详情里会标注译名来源，凡未在官方文本中核实的会标为「非官方译名（站内译）」，仅供参考。</p>
@@ -59,11 +68,18 @@
 <h3>CG 典藏馆</h3>
 <p>典藏馆收录了从中文维基整理的全部官方 CG（<b>438 张</b>，另有 7 张在维基上已失效），按「典藏馆 / 主线剧情 / 特遣记录 / 动态绘卷 / 场景 CG / 其他」分组。未解锁的图以模糊缩略图呈现，点击按分组价格扣积分解锁（<b>典藏馆 60 / 动态绘卷 55 / 特遣记录 45 / 主线剧情 40 / 场景 30 / 其他 30</b>）。解锁状态存在本地，终身有效。</p>
 <p>大图支持左右翻页（键盘 ← / →）与「查看维基原图」，每张图都保留了灰机 wiki 的原始文件名，方便溯源。顶部还能按标题/文件名搜索（官方 CG 文件名里带章节编号，例如「C09 012」）。</p>
+<p><b>背景主题</b>：解锁任意一张 CG 后，卡片和放大视图里都会出现「设为背景」。点一下，这张图会成为全站背景（模糊 + 渐隐处理），同时按它自己的主色重新生成整套 UI 配色（底色、面板、边框、文字、强调色、金色），全站六个页面一起生效，存在本地，下次打开还在。构建期已经为 438 张图各算好一套配色（<code>scripts/build_themes.py</code>，其中 407 张是深色系、31 张是浅色系），切换是即时的。再点一次「背景使用中」即可恢复默认。</p>
 
 <h3>创意工坊</h3>
 <p>「工坊」让你自己出题：</p>
 <ul>
-<li><b>导入回放</b>：把官方回放（<code>BattleReplay_*.json</code>）下载下来，用「选回放 JSON 文件」读入即可。回放其实是 <b>LZ4 帧 + MessagePack</b>（不是 JSON），解码器沿用 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 的回放复盘实现，在浏览器本地展开，文件不会上传。会自动填好 4 名队员（按伤害排 A–D，带等级/灵塑）、钥令、造物与战斗数值；<b>命轮和密契不在回放里</b>，需要手动补。浏览器有跨域限制，不能直接抓回放地址，所以先用「打开官方回放」下载，再选文件。</li>
+<li><b>导入回放（三种方式）</b>：
+  <ul>
+  <li><b>回放码</b>：把 <code>battleUuid</code> 粘进去点「按回放码载入」，直接给出<b>完整队伍</b> —— 4 名唤醒体（等级 / 灵塑 / 突破）、每人 2 件命轮、密契、钥令、8 个造物，全部来自题库答案。</li>
+  <li><b>回放文件</b>：把官方回放（<code>BattleReplay_*.json</code>）下载下来用「选回放 JSON 文件」读入。文件其实是 <b>LZ4 帧 + MessagePack</b>（不是 JSON），解码器沿用 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 的回放复盘实现，在浏览器本地展开，不会上传。解析出的命轮（每人 2 件，来自战斗里挂载的「状态@武器」）、造物、钥令、等级与灵塑都准确；<b>密契只有在本局触发过才会留下痕迹</b>，所以若这条回放在题库里，会自动回查题库把密契补全，否则需要手选。</li>
+  <li><b>粘贴摘要</b>：战报摘要 JSON 直接粘进文本框也行。</li>
+  </ul>
+  浏览器有跨域限制，不能直接抓回放地址（对象存储没开 CORS），所以先用「打开官方回放」下载，再选文件。</li>
 <li><b>手动出题</b>：4 个位置各选唤醒体 / 2 件命轮 / 密契，再配等级·灵塑、钥令、造物与回合数等元数据。</li>
 <li><b>分享</b>：生成 <code>ZJ2-…</code> 题目代码，好友打开 <code>index.html?p=ZJ2-…</code> 就能直接挑战；也可以选择上传到云题库再用代码取回。</li>
 <li><b>自建题池</b>：保存的题进入「我的题目」，会混入你的随机/每日题目池，答对同样给积分。</li>
@@ -126,6 +142,15 @@
 <li><b>Damage sources</b>: Keeper damage (your skill), Tentacle, Counter, Strength and Poison/Erosion in the report are strong clues about the build.</li>
 </ul>
 
+<h3>Account and profile</h3>
+<p>This is a static site with no server of its own, so accounts reuse an existing <a href="https://waline.js.org/">Waline</a> service (the same one behind <a href="https://z769018860.github.io/qdby_chinese/">qdby_chinese</a>). Users live in a real database — nothing for you to deploy.</p>
+<ul>
+<li><b>Register / sign in</b>: the avatar in the top-right, or the Profile page. Usernames are 2–20 characters (Chinese is fine), passwords at least 6; the username is mapped to <code>name@zjtt.local</code> internally, so no email is required.</li>
+<li><b>Profile</b>: change your display name and avatar, and see your record (credits, played, accuracy, unlocked CG, failed bank).</li>
+<li><b>Avatars</b>: <b>70 presets</b> — the official portrait of all 62 awakeners plus 8 hand-picked CGs, all 96×96 squares; or paste your own image URL (≤250 chars, e.g. a QQ avatar). Avatars live on the account, so they follow you across devices.</li>
+<li><b>What lives where</b>: account and avatar in the cloud; credits, unlocked CG, the failed bank and your own puzzles stay in this browser, and the Profile page can clear them.</li>
+</ul>
+
 <h3>Codex and keywords</h3>
 <p>The codex lists every Awakener (with skills, talents, enlightenments, derived cards and recommended builds), Wheel, Covenant, Keeper skill, Creation and monster. States and mechanics in the text appear as icon chips: hover for a summary, click for details and a jump to every entry that uses them. The Keywords tab covers all 100 terms.</p>
 <p>Chinese names follow <b>official Chinese text</b> wherever it exists — the Chinese wiki, the official game text sheet (Morimens-Localizations) and the game client config. Keyword details show the provenance of each translation; anything not confirmed in official text is marked “Unofficial (site rendering)” and is for reference only.</p>
@@ -143,11 +168,18 @@
 <h3>CG gallery</h3>
 <p>The gallery holds every official CG collected from the Chinese wiki — <b>438 images</b> (7 more are dead links on the wiki), grouped into Hall / Main story / Dispatch records / Dynamic scrolls / Scene CGs / Other. Locked images show as a blurred thumbnail; clicking spends credits to unlock (Hall 60 / Dynamic 55 / Dispatch 45 / Story 40 / Scene 30 / Other 30). Unlocks are stored locally and are permanent.</p>
 <p>The viewer supports arrow-key paging and a “view original on the wiki” link — every item keeps its original wiki filename for provenance. A search box filters by title or filename (official CG filenames carry the chapter number, e.g. “C09 012”).</p>
+<p><b>Backdrop themes</b>: once a CG is unlocked, both the card and the viewer offer “Use as backdrop”. That CG becomes the site background (blurred and faded) and its own dominant colours are turned into a full UI palette — surface, panel, borders, text, accent and gold — across all six pages, remembered locally. All 438 palettes are precomputed at build time (<code>scripts/build_themes.py</code>; 407 dark, 31 light), so switching is instant. Click “In use” again to go back to the default look.</p>
 
 <h3>Workshop</h3>
 <p>The workshop lets you author your own puzzles:</p>
 <ul>
-<li><b>Import a replay</b>: download the official replay (<code>BattleReplay_*.json</code>) and open it with “Pick replay JSON”. The file is actually <b>LZ4 frame + MessagePack</b>, not JSON — the decoder is the one from <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a>'s replay review, running locally in your browser; nothing is uploaded. It fills in the four members (sorted A–D by damage, with level/potency), the Keeper skill, Creations and combat stats. <b>Wheels and Covenants are not in the replay</b> — add them by hand. Browsers cannot fetch the replay URL directly (CORS), so use “Open official replay” to download it first.</li>
+<li><b>Import a replay (three ways)</b>:
+  <ul>
+  <li><b>Replay code</b>: paste the <code>battleUuid</code> and hit “Load by replay code” — you get the <b>complete team</b>: four awakeners (level / potency / breakthrough), two Wheels each, Covenants, the Keeper skill and all eight Creations, straight from the puzzle-bank answer.</li>
+  <li><b>Replay file</b>: download the official replay (<code>BattleReplay_*.json</code>) and open it with “Pick replay JSON”. The file is actually <b>LZ4 frame + MessagePack</b>, not JSON — the decoder is the one from <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a>'s replay review, running locally; nothing is uploaded. Wheels (two per awakener, read from the mounted “状态@武器” states), Creations, the Keeper skill, level and potency all come out exact; <b>Covenants only leave a trace when they triggered</b>, so if the replay is in the bank the Covenants are filled in from the answer, otherwise pick them by hand.</li>
+  <li><b>Paste a summary</b>: report-summary JSON in the text box works too.</li>
+  </ul>
+  Browsers cannot fetch the replay URL directly (the object store sends no CORS headers), so use “Open official replay” to download it first.</li>
 <li><b>Manual authoring</b>: 4 slots × (Awakener, 2 Wheels, Covenant), plus level/potency, Keeper skill, Creations and rounds.</li>
 <li><b>Sharing</b>: produces a <code>ZJ2-…</code> code — friends open <code>index.html?p=ZJ2-…</code> and play immediately. Uploading to the cloud bank and loading it back by code is also supported.</li>
 <li><b>Your pool</b>: saved puzzles go under “My puzzles” and join your random/daily pool, paying credits like any other.</li>

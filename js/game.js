@@ -1,6 +1,7 @@
 import { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang,
   wallet, failedBank, unlocked, REPLAY, shareCode } from './common.js';
 import { PEPPER } from './pepper.js';
+import { auth, openLogin } from './auth.js';
 
 const KW_TYPE_EN = { realm: 'Realm', mechanic: 'State / Mechanic', tag: 'Tag', help: 'Help' };
 
@@ -495,17 +496,24 @@ function failedPanel() {
 function profilePanel() {
   const st = store.get('stats', { played: 0, won: 0, streak: 0, best: 0, fields: 0, totalFields: 0 });
   const acc = st.totalFields ? Math.round(st.fields / st.totalFields * 100) + '%' : '—';
+  const u = auth.user;
+  const shown = u ? u.name : profile.name;
   const box = h('section', { class: 'card profile' },
     h('div', { class: 'prow' },
+      u ? h('img', { class: 'pfavatar tiny', src: auth.avatarOf(u), alt: '', width: 36, height: 36 }) : null,
       h('div', { class: 'pname' },
-        h('b', {}, profile.name ? `👤 ${profile.name}` : t('loginTitle')),
-        h('span', { class: 'note' }, profile.name ? `${t('statsTitle')}：${t('totalPlayed')} ${st.played} · ${t('totalWon')} ${st.won} · ${t('accuracy')} ${acc}` : t('nicknamePh'))),
+        h('b', {}, shown ? `👤 ${shown}` : t('loginTitle')),
+        h('span', { class: 'note' }, shown
+          ? `${t('statsTitle')}：${t('totalPlayed')} ${st.played} · ${t('totalWon')} ${st.won} · ${t('accuracy')} ${acc}`
+          : t('nicknamePh'))),
       h('div', { class: 'pactions' },
-        profile.name
-          ? h('button', { class: 'btn ghost sm', onclick: () => { profile.name = ''; saveProfile(); render(); } }, t('logout'))
+        u
+          ? h('a', { class: 'btn ghost sm', href: 'profile.html' }, t('myCenter'))
           : h('input', { type: 'text', placeholder: t('nickname'), maxlength: 16, id: 'nick-input',
               onkeydown: ev => { if (ev.key === 'Enter') doLogin(); } }),
-        profile.name ? null : h('button', { class: 'btn sm', onclick: doLogin }, t('login')))),
+        u
+          ? h('button', { class: 'btn ghost sm', onclick: () => { auth.logout(); render(); } }, t('pfLogout'))
+          : h('button', { class: 'btn sm', onclick: () => openLogin(() => { profile.name = (auth.user && auth.user.name) || ''; saveProfile(); render(); }) }, t('login')))),
     favPanel());
   return box;
 }
@@ -515,8 +523,6 @@ function doLogin() {
   profile.name = v; saveProfile(); render();
 }
 function favPanel() {
-  const box = h('div', { class: 'favs' },
-    h('div', { class: 'fhead' }, h('small', {}, `${t('favTitle')} · ${t('favHint')}`)));
   const awks = D.awakener.filter(a => a.id != null);
   const row = h('div', { class: 'frow' },
     awks.map(a => {
@@ -525,8 +531,11 @@ function favPanel() {
         onclick: () => { profile.favs = on ? profile.favs.filter(x => x !== String(a.id)) : [...profile.favs, String(a.id)]; saveProfile(); render(); } },
         imgEl(a.img, nameOf(a)), h('small', {}, nameOf(a)));
     }));
-  box.append(row);
-  return box;
+  // 默认收起：干员墙有 60 多个，展开会吃掉首屏
+  const det = h('details', { class: 'favdet', open: store.get('favOpen', false) ? '' : null },
+    h('summary', {}, `${t('favTitle')} · ${t('favHint')}（${profile.favs.length}）`), row);
+  det.addEventListener('toggle', () => store.set('favOpen', det.open));
+  return det;
 }
 
 function controls() {

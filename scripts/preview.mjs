@@ -32,11 +32,14 @@ const PORT = 8787;
 await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'zjtt-'));
+// PREVIEW_PROFILE=某个目录可复用同一份浏览器数据（localStorage 会保留），
+// 这样可以「第一次跑探针写状态，第二次纯截图」。
+const profile = process.env.PREVIEW_PROFILE || fs.mkdtempSync(path.join(os.tmpdir(), 'zjtt-'));
+fs.mkdirSync(profile, { recursive: true });
 const proc = spawn(EDGE, [
   '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-  '--remote-debugging-port=9333', `--user-data-dir=${profile}`,
-  '--window-size=1440,1500', '--hide-scrollbars', '--force-device-scale-factor=1',
+  `--remote-debugging-port=${process.env.PREVIEW_PORT || 9333}`, `--user-data-dir=${profile}`,
+  `--window-size=${process.env.PREVIEW_SIZE || '1440,1500'}`, '--hide-scrollbars', '--force-device-scale-factor=1',
   'about:blank',
 ], { stdio: 'ignore' });
 
@@ -44,7 +47,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let wsUrl = null;
 for (let i = 0; i < 60; i++) {
   try {
-    const r = await fetch('http://127.0.0.1:9333/json/version');
+    const r = await fetch(`http://127.0.0.1:${process.env.PREVIEW_PORT || 9333}/json/version`);
     wsUrl = (await r.json()).webSocketDebuggerUrl;
     if (wsUrl) break;
   } catch { /* not ready */ }
@@ -114,6 +117,11 @@ for (const name of pages) {
     const out = await send('Runtime.evaluate', { expression: code, awaitPromise: true, returnByValue: true }, sessionId);
     console.log(`      probe -> ${String(out.result && out.result.value).slice(0, 1200)}`);
     await sleep(900);
+    // PROBE_RELOAD=1：交互脚本只改 localStorage 时，导航到同一地址再截图
+    if (process.env.PROBE_RELOAD) {
+      await send('Page.navigate', { url: url + (process.env.PROBE_RELOAD === '1' ? '' : '') }, sessionId).catch(() => {});
+      await sleep(2800);
+    }
   }
 
   const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);

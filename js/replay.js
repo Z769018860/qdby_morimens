@@ -255,3 +255,84 @@ export function replaySummary(rep) {
     })),
   };
 }
+
+// ------------------------------------------------------------------ 对外：回放 → 完整队伍
+// 命轮在回放里是「状态@武器X」的挂载状态，其 source.sourceType === 'Weapon' 且带 tid；
+// 密契（饰品/Trinket）只有在本局触发过时才会留下「状态@饰品X」，因此这里只能给出候选，
+// 精确值需要回查题库（见 workshop.js 的 lookupPuzzle）。
+const COV_TAIL = /(效果|计数|标记|标识|层数|叠层|数值|次数|记录)$/;
+
+function pushOnce(map, key, val) {
+  if (val == null || val === '') return;
+  const arr = map.get(key) || [];
+  if (!arr.some((x) => String(x) === String(val))) arr.push(val);
+  map.set(key, arr);
+}
+
+export function replayTeam(rep) {
+  const bd = (rep && rep.battleDat) || rep || {};
+  const rr = (rep && rep.resourceRecords) || {};
+  const stateDef = rr.State || {};
+  const st = bd.statistics || {};
+  const n = (v) => (Number.isFinite(+v) ? +v : 0);
+  const roles = (bd.roleData || []).filter((r) => r && r.tid != null);
+  const roleUids = new Set(roles.map((r) => String(r.uid)));
+  const wheelsOf = new Map();
+  const covOf = new Map();
+
+  for (const s of bd.stateList || []) {
+    const owner = String((s.ownerData && s.ownerData.uid) ?? s.casterUid ?? '');
+    if (!roleUids.has(owner)) continue;
+    const def = stateDef[String(s.stateId)] || {};
+    const cn = String(def.CnID || '');
+    const m = cn.match(/^状态@饰品(.+)$/);
+    if (m) pushOnce(covOf, owner, m[1].replace(COV_TAIL, ''));
+    for (const src of s.source || []) {
+      if (src && src.sourceType === 'Weapon') pushOnce(wheelsOf, owner, src.tid);
+    }
+  }
+
+  const dmg = st.AwakerDoDamage || {};
+  const blk = st.AwakerDoBlock || {};
+  const heal = st.AwakerDoHeal || {};
+  const pick = (map, r) => map[String(r.tid)] ?? map[String(r.uid)] ?? 0;
+
+  const team = roles.map((r) => {
+    const uid = String(r.uid);
+    const covs = covOf.get(uid) || [];
+    return {
+      tid: String(r.tid),
+      lv: n(r.level),
+      pot: n(r.potencyLevel),
+      brk: n(r.breakLevel),
+      like: n(r.likeLevel),
+      wheels: (wheelsOf.get(uid) || []).slice(0, 2).map(String),
+      cov: null,
+      covName: covs[0] || '',
+      covNames: covs,
+      dmg: n(pick(dmg, r)),
+      blk: n(pick(blk, r)),
+      heal: n(pick(heal, r)),
+    };
+  });
+  // 与题库答案一致：A = 伤害最高
+  team.sort((a, b) => b.dmg - a.dmg);
+
+  return {
+    source: 'replay',
+    uuid: String(bd.battleUuid || bd.gameLogBattleUid || ''),
+    playerUid: n(bd.playerUid),
+    stageId: n(bd.stageId),
+    playerLevel: n(bd.playerLevel),
+    keeperSkill: bd.keeperSkill != null ? bd.keeperSkill : null,
+    relics: (bd.relics || []).map((r) => (r && r.tid != null ? r.tid : r)).filter((x) => x != null).map(String),
+    team,
+    stats: {
+      rounds: n(st.BoutCount),
+      cards: n(st.UsedCardCount),
+      maxBout: n(st.BoutMaxPlayerDoDamage),
+      deathResist: n(st.DeathResistCount),
+      playerDamage: n(st.PlayerDoDamage),
+    },
+  };
+}

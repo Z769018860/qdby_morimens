@@ -1,7 +1,8 @@
 // 创意工坊：导入战报 → 生成自己的推理题 → 分享码 / 云题库
 import { $, h, store, nav, t, lang, loadDict, imgEl, nameOf, shareCode, REPLAY } from './common.js';
 import { cloud, cloudConfig } from './cloud.js';
-import { decodeReplay, replaySummary } from './replay.js';
+import { decodeReplay, replayTeam } from './replay.js';
+import { PEPPER } from './pepper.js';
 
 document.body.prepend(nav('workshop'));
 const root = $('#app');
@@ -135,6 +136,12 @@ function draw() {
             h('input', { type: 'file', accept: '.json,application/json', onchange: (ev) => readFile(ev) })),
           h('button', { class: 'btn ghost', onclick: () => importCode() }, t('wsImportCode')))),
       h('div', { class: 'importrow' },
+        h('label', { class: 'fld grow' }, h('small', {}, t('wsUuidLabel')),
+          h('input', { type: 'text', id: 'ws-uuid', placeholder: 'a7637e49-3ee0-3748-85ba-ca1a12efdf32', value: draft.uuid || '' })),
+        h('div', { class: 'importact' },
+          h('button', { class: 'btn', onclick: () => loadByCode() }, t('wsLoadByCode')),
+          h('button', { class: 'btn ghost', onclick: () => openReplay() }, t('wsOpenReplay')))),
+      h('div', { class: 'importrow' },
         h('label', { class: 'fld grow' }, h('small', {}, t('wsCodePh')),
           h('input', { type: 'text', id: 'ws-code', placeholder: 'ZJ2-…' })),
         h('div', { class: 'importact' },
@@ -184,17 +191,121 @@ async function readFile(ev) {
   const f = ev.target.files && ev.target.files[0];
   if (!f) return;
   try {
-    const buf = new Uint8Array(await f.arrayBuffer());
-    const rep = decodeReplay(buf);
-    const data = rep && rep.battleDat ? replaySummary(rep) : rep;
-    const txt = JSON.stringify(data);
-    $('#ws-json').value = txt;
-    importJson();
-    if (data && data.source === 'replay') toast(t('wsReplayNote'));
+    await applyReplay(decodeReplay(new Uint8Array(await f.arrayBuffer())));
   } catch (e) {
     console.warn('replay decode failed', e);
     toast(t('wsParseFail'));
   }
+}
+
+// ---------------------------------------------------------------- 题库回查
+// 回放只记录「触发过」的密契，精确值要回查题库（题库答案里有完整命轮/密契/造物）。
+let PUZZLES = null;
+async function puzzleLib() {
+  if (PUZZLES) return PUZZLES;
+  try {
+    const r = await fetch('data/puzzles.json', { cache: 'force-cache' });
+    const obj = await r.json();
+    PUZZLES = obj.puzzles || obj;
+  } catch {
+    PUZZLES = [];
+  }
+  return PUZZLES;
+}
+
+async function unsealPuzzle(p) {
+  if (p.team) return p;
+  const raw = Uint8Array.from(atob(p.ans), (c) => c.charCodeAt(0));
+  const out = new Uint8Array(raw.length);
+  const enc = new TextEncoder();
+  for (let i = 0; i < raw.length; i += 32) {
+    const ks = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(`${PEPPER}|${p.id}|${i / 32}`)));
+    for (let j = 0; j < 32 && i + j < raw.length; j++) out[i + j] = raw[i + j] ^ ks[j];
+  }
+  const txt = new TextDecoder().decode(out);
+  if (!txt.startsWith('ZJ1:')) throw new Error('decode failed');
+  return { ...p, ...JSON.parse(txt.slice(4)) };
+}
+
+async function lookupPuzzle(uuid) {
+  const id = String(uuid || '').trim().toLowerCase();
+  if (!id) return null;
+  const list = await puzzleLib();
+  const hit = list.find((x) => String(x.uuid || '').toLowerCase() === id);
+  if (!hit) return null;
+  try { return await unsealPuzzle(hit); } catch { return null; }
+}
+
+const covByName = () => {
+  const m = new Map();
+  for (const c of D.covenant || []) {
+    if (c.zh) m.set(String(c.zh).trim(), String(c.id));
+    if (c.en) m.set(String(c.en).trim().toLowerCase(), String(c.id));
+  }
+  return m;
+};
+
+function replayToDraft(t, exact) {
+  const d = emptyDraft();
+  d.uuid = t.uuid || '';
+  const byName = covByName();
+  const blank = () => ({ tid: null, lv: 60, pot: 0, brk: 0, wheels: [], cov: null, dmg: 0, blk: 0, heal: 0 });
+  if (exact && Array.isArray(exact.team) && exact.team.length) {
+    d.team = LETTERS.map((_, i) => {
+      const a = exact.team[i];
+      if (!a) return blank();
+      return {
+        tid: String(a.tid), lv: num(a.lv, 60), pot: num(a.pot), brk: num(a.brk),
+        wheels: (a.wheels || []).slice(0, 2).map(String), cov: a.cov ? String(a.cov) : null,
+        dmg: num(a.dmg), blk: num(a.blk), heal: num(a.heal),
+      };
+    });
+  } else {
+    d.team = LETTERS.map((_, i) => {
+      const a = (t.team || [])[i];
+      if (!a) return blank();
+      const covId = a.covName ? (byName.get(String(a.covName).trim()) || null) : null;
+      return {
+        tid: String(a.tid), lv: num(a.lv, 60), pot: num(a.pot), brk: num(a.brk),
+        wheels: (a.wheels || []).slice(0, 2).map(String), cov: covId,
+        dmg: num(a.dmg), blk: num(a.blk), heal: num(a.heal),
+      };
+    });
+  }
+  d.relics = (t.relics || []).map(String);
+  d.key = t.keeperSkill != null ? String(t.keeperSkill) : null;
+  d.rounds = num(t.stats?.rounds);
+  d.cards = num(t.stats?.cards);
+  d.maxBout = num(t.stats?.maxBout);
+  d.deathResist = num(t.stats?.deathResist);
+  d.playerDmg = num(t.stats?.playerDamage);
+  d.diff = 4;
+  d.diffScore = Math.round(20 + Math.min(30, Math.log10(Math.max(1, d.maxBout)) * 4));
+  return d;
+}
+
+async function applyReplay(rep) {
+  const rt = replayTeam(rep);
+  const exact = await lookupPuzzle(rt.uuid);
+  draft = replayToDraft(rt, exact);
+  draw();
+  toast(exact ? t('wsReplayExact') : t('wsReplayNote'));
+}
+
+async function loadByCode() {
+  const raw = ($('#ws-uuid')?.value || '').trim();
+  const uuid = raw.replace(/^.*BattleReplay[_-]/i, '').replace(/\.json$/i, '').trim();
+  if (!uuid) { toast(t('wsNeedUuid')); return; }
+  const hit = await lookupPuzzle(uuid);
+  if (hit) {
+    draft = replayToDraft({ uuid, stats: {} }, hit);
+    draw();
+    toast(t('wsReplayExact'));
+    return;
+  }
+  draft.uuid = uuid;
+  draw();
+  toast(t('wsCodeMiss'));
 }
 
 function openReplay() {
