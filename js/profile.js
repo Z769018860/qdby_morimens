@@ -118,6 +118,9 @@ function render() {
           },
         }, t('pfClear')))),
   ].filter(Boolean);
+  // 顶栏里也有头像和昵称，一起刷新
+  const old = document.querySelector('.top');
+  if (old) { old.remove(); document.body.prepend(nav('profile')); }
   root.replaceChildren(...kids);
 }
 
