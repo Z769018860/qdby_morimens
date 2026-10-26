@@ -1,0 +1,13 @@
+{
+  "name": "qdby-morimens-idle",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "《忘却之夜·挂机录》——《忘却前夜》非官方同人挂机自动战斗小游戏（网页原型）",
+  "scripts": {
+    "data": "python3 tools/build_data.py --src ../qdby_chinese",
+    "test": "node --test tests/core.test.mjs",
+    "sim": "node tools/sim_bot.mjs 4000",
+    "serve": "python3 -m http.server 8765"
+  }
+}
