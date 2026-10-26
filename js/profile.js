@@ -1,7 +1,8 @@
 // 个人中心：账号资料、头像、偏好唤醒体、推理记录、工坊战报、典藏进度、云端同步
-import { $, h, store, nav, t, wallet, failedBank, unlocked, loadDict, imgEl, nameOf, toast, markDirty, REPLAY, statsOf } from './common.js';
+import { $, h, store, nav, t, lang, wallet, failedBank, unlocked, loadDict, imgEl, nameOf, toast, markDirty, REPLAY, statsOf, scIcon, emptyState } from './common.js';
 import { auth, openLogin, avatarLib, nameOfMail } from './auth.js';
 import { account, CAP } from './account.js';
+import { checkinBar } from './checkin.js';
 import { galleryLib } from './theme.js';
 
 document.body.prepend(nav('profile'));
@@ -38,7 +39,7 @@ function guestView() {
       h('h2', {}, t('pfGuestTitle')),
       h('p', { class: 'note' }, t('pfGuestSub')),
       h('div', { class: 'pfstats four' },
-        meter(t('credits'), `◈ ${wallet.get()}`),
+        meter(t('credits'), [scIcon(18), ` ${wallet.get()}`]),
         meter(t('pfPlayed'), stat().played),
         meter(t('pfUnlockedCg'), unlocked.list().length),
         meter(t('pfHistTitle'), hists)),
@@ -58,33 +59,54 @@ function hero(u) {
       h('p', { class: 'note dim', id: 'pf-sync-line' },
         sync ? t('pfLastSync', { t: stamp(sync) }) : t('pfSyncNever'))),
     h('div', { class: 'pfstats' },
-      meter(t('credits'), `◈ ${wallet.get()}`),
+      meter(t('credits'), [scIcon(18), ` ${wallet.get()}`]),
       meter(t('pfPlayed'), stat().played, `${t('pfWinRate')} ${pct(stat().won, stat().played)}%`),
       meter(t('pfUnlockedCg'), `${unlocked.list().length}`),
       meter(t('pfFailed'), failedBank.list().length)));
 }
 
 // ------------------------------------------------------------------ 资料与头像
+const isLocalAvatar = (s) => /^assets\//.test(String(s || ''));
+
 function editBox(u) {
   let picked = u.avatar || '';
   const nameEl = h('input', { type: 'text', value: u.name || '', maxlength: 20, placeholder: t('pfNamePh') });
-  const urlEl = h('input', { type: 'text', value: u.avatar && !u.avatar.includes('assets/avatars/') ? u.avatar : '', placeholder: 'https://…' });
+  const urlEl = h('input', { type: 'text', value: u.avatar && !isLocalAvatar(u.avatar) ? u.avatar : '', placeholder: 'https://…' });
   const preview = h('img', { class: 'pfavatar small', src: auth.avatarOf(u), alt: '' });
   const grid = h('div', { class: 'avgv' });
+  const tabs = h('div', { class: 'avtabs' });
+  const count = h('small', { class: 'note' });
+  let all = [];
+  let cur = 'all';
 
   const setPick = (src) => {
     picked = src;
     preview.src = src || auth.avatarOf(u);
     grid.querySelectorAll('.avg').forEach((b) => b.classList.toggle('on', b.dataset.src === picked));
-    if (src && src.includes('assets/avatars/')) urlEl.value = '';
+    if (src && isLocalAvatar(src)) urlEl.value = '';
   };
 
-  avatarLib().then((list) => {
+  const drawGrid = () => {
+    const list = cur === 'all' ? all : all.filter((a) => a.g === cur);
     grid.replaceChildren(...list.map((a) => h('button', {
       type: 'button', class: `avg${a.src === picked ? ' on' : ''}`, 'data-src': a.src, title: a.n,
       onclick: () => setPick(a.src),
     }, h('img', { src: a.src, alt: a.n, loading: 'lazy' }))));
-    if (!picked) setPick(list[0] ? list[0].src : '');
+    count.textContent = t('pfAvatarN', { n: list.length });
+    tabs.querySelectorAll('.avtab').forEach((b) => b.classList.toggle('on', b.dataset.g === cur));
+  };
+
+  avatarLib().then((lib) => {
+    all = lib.items || [];
+    const mk = (g, label) => h('button', {
+      type: 'button', class: `avtab${g === cur ? ' on' : ''}`, 'data-g': g,
+      onclick: () => { cur = g; drawGrid(); },
+    }, label);
+    tabs.replaceChildren(
+      mk('all', t('pfAvatarAll', { n: all.length })),
+      ...(lib.groups || []).map((gp) => mk(gp.k, lang.cur === 'en' ? gp.en : gp.n)));
+    drawGrid();
+    if (!picked && all[0]) setPick(all[0].src);
   });
 
   urlEl.addEventListener('input', () => {
@@ -114,9 +136,9 @@ function editBox(u) {
       h('div', { class: 'pfeditflds' },
         h('label', { class: 'fld' }, h('small', {}, t('pfNick')), nameEl),
         h('label', { class: 'fld' }, h('small', {}, t('pfAvatarUrl')), urlEl))),
-    h('details', { class: 'favdet' },
-      h('summary', {}, t('pfAvatarPick')),
-      h('p', { class: 'note' }, t('pfAvatarNote')),
+    h('div', { class: 'avpick' },
+      h('div', { class: 'avpickhead' }, h('b', {}, t('pfAvatarPick')), count),
+      tabs,
       grid),
     h('div', { class: 'actions' },
       saveBtn,
@@ -187,7 +209,7 @@ function histBox() {
     h('p', { class: 'note' }, t('pfHistNote', { n: CAP.hist })),
     list.length
       ? h('div', { class: 'hlist' }, rows)
-      : h('p', { class: 'note' }, t('pfHistEmpty')));
+      : emptyState(t('pfHistEmpty')));
 }
 
 // ------------------------------------------------------------------ 工坊战报
@@ -212,7 +234,7 @@ function impBox() {
           h('a', { class: 'link', href: `index.html?p=${encodeURIComponent(shareCodeOf(p))}` }, t('pfImpPlay')),
           opened(p) ? h('a', { class: 'link', href: opened(p), target: '_blank', rel: 'noopener' }, t('pfImpReplay')) : null,
           h('button', { class: 'link', onclick: () => { const l = store.get('myPuzzles', []); l.splice(i, 1); store.set('myPuzzles', l); markDirty('mine'); account.schedule(400); render(); } }, t('pfImpDel'))));
-    })) : h('p', { class: 'note' }, t('pfImpEmpty')));
+    })) : emptyState(t('pfImpEmpty')));
 }
 
 // 工坊里同一套分享码逻辑（避免循环依赖，这里内联一份最小实现）
@@ -281,6 +303,7 @@ function render() {
   const kids = [
     h('section', { class: 'pagehead' }, h('h1', {}, t('pfTitle')), h('p', { class: 'note' }, t('pfSub'))),
     u ? hero(u) : guestView(),
+    h('section', { class: 'card ckcard' }, checkinBar('wide', () => render())),
     u ? editBox(u) : null,
     u ? favBox() : null,
     u ? histBox() : null,

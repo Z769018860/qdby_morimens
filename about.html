@@ -16,7 +16,7 @@
 <li>每道题是一份匿名的融灾战报：区域、回合数、出牌数、单回合最高伤害、伤害构成，以及队内 4 人的伤害、格挡、治疗。</li>
 <li>队员按伤害从高到低标为 A–D 位。你要在对应位置填入唤醒体，以及（取决于难度档）命轮、密契、钥令、潜能进阶和造物。</li>
 <li>提交后：🟩 位置/归属正确；🟨 在队内但放错了位置或装在别人身上；⬛ 不在队内。潜能进阶用 ↑/↓ 提示大小，相差 2 以内显示黄色。</li>
-<li>最多提交 6 次。提示可以帮你缩小范围，但每次消耗 <b>6 积分</b>（积分靠答对获得，见下）。</li>
+<li>最多提交 6 次。提示可以帮你缩小范围，但每次消耗 <b>6 银芯</b>（银芯靠答对获得，见下）。</li>
 <li>即使只猜唤醒体（入门档），结算时也会给出完整的命轮、密契、钥令、造物与唤醒体属性，方便学习完整配队。</li>
 </ol>
 
@@ -47,30 +47,32 @@
 <ul>
 <li><b>只有两种状态</b>：<b>游客</b>（不登录，进度读本机 <code>localStorage</code>）和<b>账号</b>（登录后进度跟账号走）。没有「本地昵称」这类中间态——想留名字就注册，不想注册就用游客。</li>
 <li><b>注册 / 登录</b>：右上角头像，或「个人中心」页面。用户名 2–20 个字符（中文可以），密码至少 6 位；用户名在后台会映射成 <code>用户名@zjtt.local</code> 的邮箱形式，所以不需要你填邮箱。</li>
-<li><b>个人中心 = 账号数据中枢</b>：昵称与头像、<b>偏好唤醒体</b>、<b>推理记录</b>、<b>工坊战报</b>、<b>典藏进度</b>、积分与失败题库，全都在这一页，也全都会随账号同步。右上角有「上次同步」时间和「立即同步」按钮。</li>
+<li><b>个人中心 = 账号数据中枢</b>：昵称与头像、<b>偏好唤醒体</b>、<b>推理记录</b>、<b>工坊战报</b>、<b>典藏进度</b>、银芯与失败题库，全都在这一页，也全都会随账号同步。右上角有「上次同步」时间和「立即同步」按钮。</li>
 <li><b>每一局都落库</b>：每日一题、随机一题、自建题、工坊导入的回放，结算后都会写一条记录（时间、题目、模式、档位、胜负、评级、分数、回放链接），同一道题只计一次；最多保留最近 300 条。</li>
 <li><b>偏好唤醒体</b>：在个人中心选好之后，推理页会出现「只看偏好唤醒体」开关，勾上就只从包含这些唤醒体的题目里出题（先按成员哈希分桶粗筛，再逐题解密确认，所以不用每次解密整库）。</li>
-<li><b>头像</b>：内置 <b>70 个预设</b> —— 62 位唤醒体的官方立绘 + 8 张精选 CG，都是 96×96 的方图；也可以直接贴一个图片直链（≤250 字符，例如 QQ 头像）。头像存在账号里，换设备登录也在。</li>
-<li><b>云端档案怎么存</b>：把「积分 / 解锁 CG / 失败题库 / 统计 / 偏好 / 工坊题 / 推理记录 / 背景主题」打成一个 <code>ZJ1D:</code> + base64 的文档，存进 Waline 评论表里属于你自己的那一条（路径 <code>/zjtt/u/&lt;id&gt;-&lt;散列&gt;</code>，不暴露自增 id）。首次建档用一次 POST，之后一律 PUT 更新，避开评论频率限制。</li>
-<li><b>合并规则</b>：换设备登录时，积分取两边较大值，解锁 CG 与失败题库取并集，统计逐项取大，推理记录与工坊题按 id 去重取新——所以两台设备交替玩也不会互相覆盖。退出登录只清本机的同步凭据，云端档案保留。</li>
+<li><b>头像</b>：直接用 Waline 的 <b>Q 版头像集</b>（共 <b>184 张</b>）：人物头像 79、剧情角色 5、特殊 21、Q 版 / 方块 / 幕间 / 邮票四种风格共 76、圣诞 3。选择器按分组切换，也能贴自己的图片直链（≤250 字符，例如 QQ 头像）。头像存在账号里，换设备登录也在。</li>
+<li><b>云端档案怎么存</b>：把「银芯 / 解锁 CG / 失败题库 / 统计 / 偏好 / 工坊题 / 推理记录 / 背景主题」打成一个 <code>ZJ1D:</code> + base64 的文档，存进 Waline 评论表里属于你自己的那一条（路径 <code>/zjtt/u/&lt;id&gt;-&lt;散列&gt;</code>，不暴露自增 id）。首次建档用一次 POST，之后一律 PUT 更新，避开评论频率限制。</li>
+<li><b>合并规则</b>：换设备登录时，银芯取两边较大值，解锁 CG 与失败题库取并集，统计逐项取大，推理记录与工坊题按 id 去重取新——所以两台设备交替玩也不会互相覆盖。退出登录只清本机的同步凭据，云端档案保留。</li>
 </ul>
 
 <h3>图鉴与关键词</h3>
 <p>图鉴收录全部唤醒体（含技能、天赋、启灵、衍生卡牌与推荐配置）、命轮、密契、钥令、造物与怪物。文字里的状态与机制会显示为带图标的小标签：悬停可看说明，点击可展开详情，并一键跳转到「包含该关键词」的条目列表。顶部的「关键词」页收录了全部 100 个关键词。</p>
 <p>中英文对照以<b>官方中文</b>为准：名称与术语优先取自中文维基、官方游戏文本表（Morimens-Localizations）与游戏客户端配置；关键词详情里会标注译名来源，凡未在官方文本中核实的会标为「非官方译名（站内译）」，仅供参考。</p>
 
-<h3>积分、提示与解锁</h3>
+<h3>银芯、提示与解锁</h3>
 <ul>
-<li><b>获取</b>：答对一道题按难度给分，公式为 <code>8 + 难度分 × 1.2</code>（难度分 0–100，所以一题大约 8–128 分，答对后四舍五入）。积分存在浏览器本地（<code>zjtt:credits</code>），换设备/清缓存会归零。</li>
+<li><b>获取</b>：答对一道题按难度给分，公式为 <code>8 + 难度分 × 1.2</code>（难度分 0–100，所以一题大约 8–128 分，答对后四舍五入）。银芯存在浏览器本地（<code>zjtt:credits</code>），换设备/清缓存会归零。</li>
 <li><b>花在哪</b>：① 买提示，每次 6 分；② 解锁典藏馆的 CG。</li>
 <li><b>提示</b>：入口在队伍卡的「提示」按钮，分「缩小唤醒体范围」「看命轮/密契」「看钥令/造物」几类，扣分即时生效，买过的提示不会因为你换页而退还。</li>
+<li><b>每日签到</b>：推理页和个人中心都有「每日签到」，每天一次 <b>+10 银芯</b>，连续签天数会累加；签到日期与连续天数也跟着账号同步，所以换设备当天也不能重复签。</li>
+<li><b>赠礼</b>：站内的一次性银芯赠礼写在 <code>data/grants.json</code> 里（按用户名匹配），符合条件的账号登录后自动到账，领过的记录会记进档案，发第二遍不会重复加。</li>
 </ul>
 
 <h3>失败题库</h3>
 <p>一道题用尽 6 次提交仍未答对，就会标为「失败」并<b>移出出题池</b>——它不会再随机出现，每日一题遇到失败题也会顺延到下一题。<b>失败题库</b>面板保留这些题目的答案（含完整队伍、命轮、密契、钥令、造物与回放），所以失败的题仍然可以点开当「复盘」学习，只是不能再作答。</p>
 
 <h3>CG 典藏馆</h3>
-<p>典藏馆收录了从中文维基整理的全部官方 CG（<b>438 张</b>，另有 7 张在维基上已失效），按「典藏馆 / 主线剧情 / 特遣记录 / 动态绘卷 / 场景 CG / 其他」分组。未解锁的图以模糊缩略图呈现，点击按分组价格扣积分解锁（<b>典藏馆 60 / 动态绘卷 55 / 特遣记录 45 / 主线剧情 40 / 场景 30 / 其他 30</b>）。解锁状态存在本地，终身有效。</p>
+<p>典藏馆收录了从中文维基整理的全部官方 CG（<b>438 张</b>，另有 7 张在维基上已失效），按「典藏馆 / 主线剧情 / 特遣记录 / 动态绘卷 / 场景 CG / 其他」分组。未解锁的图以模糊缩略图呈现，点击按分组价格扣银芯解锁（<b>典藏馆 60 / 动态绘卷 55 / 特遣记录 45 / 主线剧情 40 / 场景 30 / 其他 30</b>）。解锁状态存在本地，终身有效。</p>
 <p>大图支持左右翻页（键盘 ← / →）与「查看维基原图」，每张图都保留了灰机 wiki 的原始文件名，方便溯源。顶部还能按标题/文件名搜索（官方 CG 文件名里带章节编号，例如「C09 012」）。</p>
 <p><b>背景主题</b>：解锁任意一张 CG 后，卡片和放大视图里都会出现「设为背景」。点一下，这张图会成为全站背景（模糊 + 渐隐处理），同时按它自己的主色重新生成整套 UI 配色（底色、面板、边框、文字、强调色、金色），全站六个页面一起生效，存在本地，下次打开还在。构建期已经为 438 张图各算好一套配色（<code>scripts/build_themes.py</code>，其中 407 张是深色系、31 张是浅色系），切换是即时的。再点一次「背景使用中」即可恢复默认。</p>
 
@@ -86,7 +88,7 @@
   浏览器有跨域限制，不能直接抓回放地址（对象存储没开 CORS），所以先用「打开官方回放」下载，再选文件。</li>
 <li><b>手动出题</b>：4 个位置各选唤醒体 / 2 件命轮 / 密契，再配等级·灵塑、钥令、造物与回合数等元数据。</li>
 <li><b>分享</b>：生成 <code>ZJ2-…</code> 题目代码，好友打开 <code>index.html?p=ZJ2-…</code> 就能直接挑战；也可以选择上传到云题库再用代码取回。</li>
-<li><b>自建题池</b>：保存的题进入「我的题目」，会混入你的随机/每日题目池，答对同样给积分。</li>
+<li><b>自建题池</b>：保存的题进入「我的题目」，会混入你的随机/每日题目池，答对同样给银芯。</li>
 </ul>
 
 <h3>回放与复盘</h3>
@@ -110,7 +112,7 @@
 <p>战报来自公开的融灾排行榜（第 71、72 期），玩家 UID 已去除。同位置的辅助型角色在数据上难以唯一确定，所以评分按字段命中率计算，不要求一次性全对。答案已做混淆封装，但纯前端站点无法真正防作弊。</p>
 <p>技能数据来自 <a href="https://github.com/dansa/SKeyDB">SKeyDB</a>（CC BY-NC-SA 4.0，仅限非商业使用）；官方中文对照来自 <a href="https://github.com/BIAVGit/Morimens-Localizations">Morimens-Localizations</a> 与 <a href="https://morimens.huijiwiki.com/">忘却前夜中文维基</a>。</p>
 <p><b>状态/机制图标</b>取自 SKeyDB 的战斗图标库（<code>Battle_Card_Buff_*</code>、界域徽记 <code>realm-badge-*</code>），按官方 <code>iconId</code> 与词条映射，共 30 个图标覆盖 39 个常用关键词；没有官方图标的词条仍用文字字形显示。<b>CG 与唤醒体档案</b>（生日、身高、体重、诺斯指数、获取途径、语音）来自中文维基的角色条目与图片库。<b>回放</b>指向官方战报服务与忘忘看报复盘工具，本站不转存战斗数据。</p>
-<p>所有进度（积分、解锁的 CG、失败题库、自建题目、偏好唤醒体、答题记录、语言与背景主题）默认存在浏览器 <code>localStorage</code> 的 <code>zjtt:</code> 前缀下；<b>登录后</b>会打包成账号档案同步到云端，换设备登录即可恢复，退出登录则回到只用本机数据。上传到云题库的题目是公开的，请不要把不想公开的内容放进去。</p>
+<p>所有进度（银芯、解锁的 CG、失败题库、自建题目、偏好唤醒体、答题记录、语言与背景主题）默认存在浏览器 <code>localStorage</code> 的 <code>zjtt:</code> 前缀下；<b>登录后</b>会打包成账号档案同步到云端，换设备登录即可恢复，退出登录则回到只用本机数据。上传到云题库的题目是公开的，请不要把不想公开的内容放进去。</p>
 <p>题库共 <b>2000 道</b>：<code>data/puzzles.json</code>（1000 道核心题，每日一题只从这里出，保证扩充题库异步加载时题目不跳变）与 <code>data/puzzles-extra.json</code>（1000 道扩充题）。难度分统一重算后按分位切成 4 档（1 档 560 / 2 档 560 / 3 档 520 / 4 档 360），分档依据是「同签名题数」分布与伤害构成熵等公开信息，构建脚本 <code>scripts/finalize_puzzles.py</code> 会一并做结构审计：队伍 4 人唯一、命轮 1–2 件、密契齐全、钥令有效、造物 ≤18、UUID 完整、分桶号 4 个、公开线索 4 条；当前全部 2000 道通过，且没有任何两道题的公开线索完全重复。</p>
 <p>数据由 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 生成，脚本见 <code>scripts/build_data.py</code>、<code>scripts/build_puzzles_more.py</code>、<code>scripts/enhance_data.py</code>、<code>scripts/build_official_terms.py</code>、<code>scripts/score_difficulty.py</code>、<code>scripts/finalize_puzzles.py</code>。</p>
 </section>
@@ -121,7 +123,7 @@
 <li>Each puzzle is an anonymised Disaster raid report: zone, rounds, cards played, highest single-round damage, damage breakdown, plus each of the 4 members' damage / block / healing.</li>
 <li>Members are labelled A–D by damage, highest first. Fill each slot with an Awakener and — depending on the level — Wheels, Covenants, a Keeper skill, Potency and Creations.</li>
 <li>After submitting: 🟩 right place/owner; 🟨 in the team but wrong slot or attached to someone else; ⬛ not in the team. Potency uses ↑/↓, and shows yellow within 2.</li>
-<li>Six submissions max. Hints narrow things down but cost <b>6 credits</b> each (credits are earned by solving, see below).</li>
+<li>Six submissions max. Hints narrow things down but cost <b>6 Silver Core</b> each (Silver Core is earned by solving, see below).</li>
 <li>Even at the beginner level (Awakeners only), the result reveals the full Wheels, Covenants, Keeper skill, Creations and Awakener stats, so you learn complete team building.</li>
 </ol>
 
@@ -152,12 +154,12 @@
 <ul>
 <li><b>Two states only</b>: <b>guest</b> (not signed in, progress read from this browser's <code>localStorage</code>) or <b>account</b> (signed in, progress follows the account). There is no in-between “local nickname” — register if you want a name, stay a guest if you don't.</li>
 <li><b>Register / sign in</b>: the avatar in the top-right, or the Profile page. Usernames are 2–20 characters (Chinese is fine), passwords at least 6; the username is mapped to <code>name@zjtt.local</code> internally, so no email is required.</li>
-<li><b>Profile = the account's data hub</b>: display name and avatar, <b>preferred Awakeners</b>, <b>solve history</b>, <b>workshop reports</b>, <b>gallery progress</b>, credits and the failed bank all live here — and all of it syncs with the account. “Last synced” and a “Sync now” button sit in the header.</li>
+<li><b>Profile = the account's data hub</b>: display name and avatar, <b>preferred Awakeners</b>, <b>solve history</b>, <b>workshop reports</b>, <b>gallery progress</b>, Silver Core and the failed bank all live here — and all of it syncs with the account. “Last synced” and a “Sync now” button sit in the header.</li>
 <li><b>Every run is stored</b>: daily, random, custom and workshop-imported puzzles each write one record after grading (time, puzzle, mode, level, win/loss, rating, score, replay link). A puzzle only counts once; the latest 300 are kept.</li>
 <li><b>Preferred Awakeners</b>: pick them on the Profile page and the puzzle screen grows a “preferred Awakeners only” switch. When on, only puzzles containing those Awakeners are drawn — members are hashed into buckets first, then each candidate is decrypted to confirm, so the whole library is never decrypted per draw.</li>
-<li><b>Avatars</b>: <b>70 presets</b> — the official portrait of all 62 awakeners plus 8 hand-picked CGs, all 96×96 squares; or paste your own image URL (≤250 chars, e.g. a QQ avatar). Avatars live on the account, so they follow you across devices.</li>
-<li><b>How the cloud document works</b>: credits / unlocked CG / failed bank / stats / preferences / workshop puzzles / solve history / backdrop theme are packed into a <code>ZJ1D:</code> + base64 document stored on your own row in Waline's comment table (path <code>/zjtt/u/&lt;id&gt;-&lt;hash&gt;</code>, no auto-increment id exposed). One POST creates it, every later write is a PUT, which sidesteps the comment rate limit.</li>
-<li><b>Merge rules</b>: when you sign in elsewhere, credits take the larger value, unlocked CG and the failed bank are unioned, stats take the per-key maximum, and history / workshop puzzles are de-duplicated by id keeping the newest — so alternating between two devices never clobbers the other. Signing out only clears local sync credentials; the cloud document stays.</li>
+<li><b>Avatars</b>: the <b>Waline chibi pack</b>, <b>184 images</b> — 79 character portraits, 5 story NPCs, 21 specials, 76 across chibi / block / interlude / stamp styles, 3 Christmas; the picker groups them by family, and you can still paste your own image URL (≤250 chars). Avatars live on the account, so they follow you across devices.</li>
+<li><b>How the cloud document works</b>: Silver Core / unlocked CG / failed bank / stats / preferences / workshop puzzles / solve history / backdrop theme are packed into a <code>ZJ1D:</code> + base64 document stored on your own row in Waline's comment table (path <code>/zjtt/u/&lt;id&gt;-&lt;hash&gt;</code>, no auto-increment id exposed). One POST creates it, every later write is a PUT, which sidesteps the comment rate limit.</li>
+<li><b>Merge rules</b>: when you sign in elsewhere, Silver Core takes the larger value, unlocked CG and the failed bank are unioned, stats take the per-key maximum, and history / workshop puzzles are de-duplicated by id keeping the newest — so alternating between two devices never clobbers the other. Signing out only clears local sync credentials; the cloud document stays.</li>
 </ul>
 
 <h3>Codex and keywords</h3>
@@ -166,16 +168,18 @@
 
 <h3>Credits, hints and unlocks</h3>
 <ul>
-<li><b>Earning</b>: solving a puzzle pays out by difficulty, <code>8 + difficulty score × 1.2</code> (difficulty 0–100, so roughly 8–128 credits, rounded). Credits live in local storage (<code>zjtt:credits</code>) — clearing site data or switching devices resets them.</li>
-<li><b>Spending</b>: (1) hints at 6 credits each; (2) unlocking gallery CGs.</li>
+<li><b>Earning</b>: solving a puzzle pays out by difficulty, <code>8 + difficulty score × 1.2</code> (difficulty 0–100, so roughly 8–128 Silver Core, rounded). Silver Core lives in local storage (<code>zjtt:credits</code>) — clearing site data or switching devices resets them.</li>
+<li><b>Spending</b>: (1) hints at 6 Silver Core each; (2) unlocking gallery CGs.</li>
 <li><b>Hints</b> sit on the team card. They are charged the moment you use them and are not refunded on page changes.</li>
+<li><b>Daily check-in</b>: the puzzle page and the Profile page both offer a check-in — once a day for <b>+10 Silver Core</b>, with a streak that keeps counting. The date and streak sync with your account, so a second device cannot claim it twice on the same day.</li>
+<li><b>Gifts</b>: one-off Silver Core gifts live in <code>data/grants.json</code> (matched by username); eligible accounts receive them automatically on sign-in, and claimed ids are recorded in the account document so nothing is paid twice.</li>
 </ul>
 
 <h3>Failed bank</h3>
 <p>Burn all six submissions without solving and the puzzle is marked failed and <b>removed from the draw pool</b> — it will not come up randomly again, and the daily puzzle skips past failed ones. The <b>failed bank</b> panel keeps those answers (full team, Wheels, Covenants, Keeper skill, Creations and replay), so a failure still works as a review — you just cannot answer it again.</p>
 
 <h3>CG gallery</h3>
-<p>The gallery holds every official CG collected from the Chinese wiki — <b>438 images</b> (7 more are dead links on the wiki), grouped into Hall / Main story / Dispatch records / Dynamic scrolls / Scene CGs / Other. Locked images show as a blurred thumbnail; clicking spends credits to unlock (Hall 60 / Dynamic 55 / Dispatch 45 / Story 40 / Scene 30 / Other 30). Unlocks are stored locally and are permanent.</p>
+<p>The gallery holds every official CG collected from the Chinese wiki — <b>438 images</b> (7 more are dead links on the wiki), grouped into Hall / Main story / Dispatch records / Dynamic scrolls / Scene CGs / Other. Locked images show as a blurred thumbnail; clicking spends Silver Core to unlock (Hall 60 / Dynamic 55 / Dispatch 45 / Story 40 / Scene 30 / Other 30). Unlocks are stored locally and are permanent.</p>
 <p>The viewer supports arrow-key paging and a “view original on the wiki” link — every item keeps its original wiki filename for provenance. A search box filters by title or filename (official CG filenames carry the chapter number, e.g. “C09 012”).</p>
 <p><b>Backdrop themes</b>: once a CG is unlocked, both the card and the viewer offer “Use as backdrop”. That CG becomes the site background (blurred and faded) and its own dominant colours are turned into a full UI palette — surface, panel, borders, text, accent and gold — across all six pages, remembered locally. All 438 palettes are precomputed at build time (<code>scripts/build_themes.py</code>; 407 dark, 31 light), so switching is instant. Click “In use” again to go back to the default look.</p>
 
@@ -191,7 +195,7 @@
   Browsers cannot fetch the replay URL directly (the object store sends no CORS headers), so use “Open official replay” to download it first.</li>
 <li><b>Manual authoring</b>: 4 slots × (Awakener, 2 Wheels, Covenant), plus level/potency, Keeper skill, Creations and rounds.</li>
 <li><b>Sharing</b>: produces a <code>ZJ2-…</code> code — friends open <code>index.html?p=ZJ2-…</code> and play immediately. Uploading to the cloud bank and loading it back by code is also supported.</li>
-<li><b>Your pool</b>: saved puzzles go under “My puzzles” and join your random/daily pool, paying credits like any other.</li>
+<li><b>Your pool</b>: saved puzzles go under “My puzzles” and join your random/daily pool, paying Silver Core like any other.</li>
 </ul>
 
 <h3>Replays and review</h3>
@@ -216,7 +220,7 @@
 <p>Skill data from <a href="https://github.com/dansa/SKeyDB">SKeyDB</a> (CC BY-NC-SA 4.0, non-commercial). Official Chinese from <a href="https://github.com/BIAVGit/Morimens-Localizations">Morimens-Localizations</a> and the <a href="https://morimens.huijiwiki.com/">Chinese wiki</a>.</p>
 <p>Data generated from <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a>; see <code>scripts/build_data.py</code>, <code>scripts/build_puzzles_more.py</code>, <code>scripts/enhance_data.py</code>, <code>scripts/build_official_terms.py</code>, <code>scripts/score_difficulty.py</code> and <code>scripts/finalize_puzzles.py</code>.</p>
 <p><b>Status/mechanic icons</b> come from SKeyDB's battle icon set (<code>Battle_Card_Buff_*</code>, realm badges <code>realm-badge-*</code>), mapped by official <code>iconId</code>: 30 icons cover 39 common keywords; terms without official art fall back to a text glyph. <b>CGs and Awakener profiles</b> (birthday, height, weight, Nos index, acquisition, voice lines) come from the Chinese wiki. <b>Replays</b> point at the official report service and the Wangwang review tool — no battle data is mirrored here.</p>
-<p>All progress (credits, unlocked CGs, failed bank, authored puzzles, preferred Awakeners, answer history, language, backdrop theme) is kept in <code>localStorage</code> under the <code>zjtt:</code> prefix by default; <b>once signed in</b> it is packed into an account document and synced to the cloud, so another device restores it on sign-in, and signing out returns to local-only. Puzzles uploaded to the cloud bank are public — do not put anything private there.</p>
+<p>All progress (Silver Core, unlocked CGs, failed bank, authored puzzles, preferred Awakeners, answer history, language, backdrop theme) is kept in <code>localStorage</code> under the <code>zjtt:</code> prefix by default; <b>once signed in</b> it is packed into an account document and synced to the cloud, so another device restores it on sign-in, and signing out returns to local-only. Puzzles uploaded to the cloud bank are public — do not put anything private there.</p>
 <p>The puzzle set holds <b>2000 entries</b>: <code>data/puzzles.json</code> (1000 core puzzles — the daily puzzle is drawn only from these, so it never jumps while the extra file loads asynchronously) and <code>data/puzzles-extra.json</code> (1000 extra). Difficulty is recomputed across both and split into four tiers by percentile (tier 1: 560 / 2: 560 / 3: 520 / 4: 360), based on public-only signals such as how many puzzles share the same clue signature and the entropy of the damage breakdown. <code>scripts/finalize_puzzles.py</code> also audits every entry (4 unique members, 1–2 Wheels each, Covenants present, valid Keeper skill, ≤18 Creations, intact UUID, 4 bucket ids, 4 public clues); all 2000 pass, and no two puzzles share an identical public clue set.</p>
 </section>
 

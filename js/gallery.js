@@ -1,5 +1,5 @@
 // CG 典藏馆：灰机 wiki 收录的官方 CG，用积分解锁后放大观看
-import { $, h, nav, t, lang, wallet, unlocked, imgEl } from './common.js';
+import { $, h, nav, t, lang, wallet, unlocked, imgEl, scIcon } from './common.js';
 import { setTheme, clearTheme, activeTheme } from './theme.js';
 import { account } from './account.js';
 
@@ -36,7 +36,7 @@ function statsLine() {
   const own = ITEMS.filter(i => unlocked.has(i.id)).length;
   const cur = activeTheme();
   const thm = cur ? ` · ${t('thmCurrent', { n: cur.n })}` : '';
-  return `${t('galleryProgress', { a: own, b: ITEMS.length })} · ${t('credits')} ◈${wallet.get()}${thm}`;
+  return [t('galleryProgress', { a: own, b: ITEMS.length }), ` · ${t('credits')} `, scIcon(14), ` ${wallet.get()}${thm}`];
 }
 
 function drawTabs() {

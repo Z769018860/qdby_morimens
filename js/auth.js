@@ -112,21 +112,25 @@ export const auth = {
 
   avatarOf(user) {
     const u = user || this.user;
-    return (u && u.avatar) || 'assets/avatars/a-15601.webp';
+    return (u && u.avatar) || DEFAULT_AVATAR;
   },
 };
 
 // ------------------------------------------------------------------ 头像库
-let AVATARS = null;
+// 用 Waline 的 Q 版头像集（qdby_chinese/assets/waline-avatars），构建成 data/avatars-q.json。
+// 旧的 assets/avatars/*（立绘裁切）保留，老账号存的路径还能正常显示。
+export const DEFAULT_AVATAR = 'assets/avatars-q/char-albino.webp';
+let AVQ = null;
 export async function avatarLib() {
-  if (AVATARS) return AVATARS;
+  if (AVQ) return AVQ;
   try {
-    const r = await fetch('data/avatars.json', { cache: 'force-cache' });
-    AVATARS = (await r.json()).items || [];
+    const r = await fetch('data/avatars-q.json', { cache: 'no-cache' });
+    const d = await r.json();
+    AVQ = { size: d.size || 96, groups: d.groups || [], items: d.items || [] };
   } catch {
-    AVATARS = [];
+    AVQ = { size: 96, groups: [], items: [] };
   }
-  return AVATARS;
+  return AVQ;
 }
 
 // ------------------------------------------------------------------ 登录弹窗

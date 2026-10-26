@@ -1,8 +1,9 @@
 import { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang,
-  wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf } from './common.js';
+  wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf, scIcon, emptyState } from './common.js';
 import { PEPPER } from './pepper.js';
 import { auth, openLogin } from './auth.js';
 import { account } from './account.js';
+import { checkinBar } from './checkin.js';
 
 const KW_TYPE_EN = { realm: 'Realm', mechanic: 'State / Mechanic', tag: 'Tag', help: 'Help' };
 
@@ -461,8 +462,8 @@ function slotCard(k) {
   }
   if (!locked) {
     card.append(h('div', { class: 'hints' },
-      h('button', { type: 'button', class: 'link', onclick: () => hintAwk(k), disabled: !!hintTags[`a${k}`] }, `${t('hintRealm')} ◈${HINT_COST}`),
-      A.pot ? h('button', { type: 'button', class: 'link', onclick: () => hintLv(k), disabled: !!hintTags[`l${k}`] }, `${t('hintLv')} ◈${HINT_COST}`) : null));
+      h('button', { type: 'button', class: 'link', onclick: () => hintAwk(k), disabled: !!hintTags[`a${k}`] }, t('hintRealm'), ' ', scIcon(11), ` ${HINT_COST}`),
+      A.pot ? h('button', { type: 'button', class: 'link', onclick: () => hintLv(k), disabled: !!hintTags[`l${k}`] }, t('hintLv'), ' ', scIcon(11), ` ${HINT_COST}`) : null));
   }
   return card;
 }
@@ -473,7 +474,7 @@ function teamExtras() {
   if (A.key) {
     box.append(h('div', { class: 'extra' }, h('b', {}, t('keyLabel')),
       pickBtn('key', sel.key, () => { if (!finished) openPicker('key', v => { sel.key = v; }); }, 'key'),
-      hintTags.key ? chip(hintTags.key, 'gold') : (finished ? null : h('button', { type: 'button', class: 'link', onclick: hintKey }, `${t('hintKey')} ◈${HINT_COST}`))));
+      hintTags.key ? chip(hintTags.key, 'gold') : (finished ? null : h('button', { type: 'button', class: 'link', onclick: hintKey }, t('hintKey'), ' ', scIcon(11), ` ${HINT_COST}`))));
   }
   if (A.relics) {
     const n = puzzle.relics.length;
@@ -495,7 +496,7 @@ function teamExtras() {
 function historyPanel() {
   return h('section', { class: 'card hist' },
     h('h3', {}, `${t('histTitle')} ${history.length}/${MAX_TRIES}`),
-    history.length ? h('ol', {}, history.map(x => h('li', {}, x.row, h('em', {}, ` ${Math.round(x.frac * 100)}%`)))) : h('p', { class: 'note' }, t('histEmpty')));
+    history.length ? h('ol', {}, history.map(x => h('li', {}, x.row, h('em', {}, ` ${Math.round(x.frac * 100)}%`)))) : emptyState(t('histEmpty')));
 }
 
 function copyText(txt, ok = t('copied')) {
@@ -538,7 +539,7 @@ function answerPanel() {
     h('p', {}, t('scoreText', { s: score, h: hintsUsed, n: history.length })),
     h('div', { class: 'chips' },
       won ? chip(t('ptsGain', { n: ptsOf(puzzle) }), 'gold') : chip(t('failedMark'), 'warn'),
-      chip(`${t('credits')} ◈${wallet.get()}`)),
+      chip([`${t('credits')} `, scIcon(12), ` ${wallet.get()}`])),
     teamBlock(ans),
     h('div', { class: 'ans-row' }, h('b', {}, t('keyLabel')), mk('key', puzzle.key)),
     h('div', { class: 'ans-row wrap' }, h('b', {}, t('relicLabel')), puzzle.relics.map(r => mk('creation', r))),
@@ -582,7 +583,7 @@ function failedPanel() {
     h('p', { class: 'note' }, t('failedNote', { n: MAX_TRIES })),
     list.length ? h('div', { class: 'fbrow' }, list.map(id => h('button', {
       type: 'button', class: 'btn ghost sm', onclick: () => viewFailed(id),
-    }, `${id} · ${t('replayTitle')}`))) : h('p', { class: 'note' }, t('failedEmpty')));
+    }, `${id} · ${t('replayTitle')}`))) : emptyState(t('failedEmpty')));
 }
 
 // ------------------------------------------------------------------ profile / login
@@ -610,7 +611,8 @@ function profilePanel() {
       h('div', { class: 'pactions' }, acts)),
     h('p', { class: 'note' },
       u ? t('pfSyncNote') : t('pfGuestNote')),
-    favLine());
+    favLine(),
+    checkinBar('', () => render()));
 }
 
 // 偏好唤醒体：在个人中心设置，这里只显示状态并作为筛选题目的依据
@@ -633,7 +635,7 @@ function controls() {
     h('div', { class: 'modes' },
       h('button', { class: `btn${mode === 'daily' ? '' : ' ghost'}`, onclick: () => start(dailyPuzzle(), 'daily') }, `${t('daily')} ${todayKey()}`),
       h('button', { class: `btn${mode === 'random' ? '' : ' ghost'}`, onclick: () => start(pickAny(), 'random') }, t('random')),
-      h('span', { class: 'credits big' }, `${t('credits')} ◈${wallet.get()}`),
+      h('span', { class: 'credits big' }, `${t('credits')} `, scIcon(16), ` ${wallet.get()}`),
       h('span', { class: 'note' }, `${t('played')} ${st.played} · ${t('won')} ${st.won} · ${t('streak')} ${st.streak} · ${t('best')} ${st.best} · ${t('accuracy')} ${acc}`)),
     h('div', { class: 'poolrow' },
       h('label', { class: 'fchk', title: t('favFilterTip') },

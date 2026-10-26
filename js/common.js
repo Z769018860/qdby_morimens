@@ -45,6 +45,9 @@ export function h(tag, attrs = {}, ...kids) {
   return e;
 }
 
+// 空状态占位（虚线框 + 居中说明），各面板共用一套视觉
+export const emptyState = (text) => h('p', { class: 'empty' }, text);
+
 export function toast(msg, ms = 1800) {
   const el = h('div', { class: 'toast' }, msg);
   document.body.append(el);
@@ -84,8 +87,18 @@ export const KINDS = {
   awakener: '唤醒体', wheel: '命轮', covenant: '密契', key: '钥令', creation: '造物', monster: '怪物',
 };
 
-// ------------------------------------------------------------------ 积分 / 失败题库 / 回放
-// 积分存在本地：答对按难度拿分，提示与 CG 解锁花分。
+// ------------------------------------------------------------------ 银芯 / 失败题库 / 回放
+// 银芯就是原来叫「积分」的货币：答对按难度拿银芯，提示与 CG 解锁花银芯。
+// 名字与图标都对齐游戏内货币（维基 银芯.png），标识统一走 scIcon()。
+export const SC_ICON = 'assets/ui/silvercore.webp';
+export function scIcon(size = 14) {
+  return h('img', { class: 'sc-ico', src: SC_ICON, alt: '', width: size, height: size, decoding: 'async' });
+}
+// 图标 + 数字，例如 nav 里的「🪙 500」
+export function scNum(n, size = 14) {
+  return h('span', { class: 'sc-num' }, scIcon(size), h('b', {}, String(n)));
+}
+
 export const wallet = {
   get() { return Number(store.get('credits', 0)) || 0; },
   add(n) { const v = this.get() + Math.max(0, Math.round(n)); store.set('credits', v); markDirty('credits'); return v; },
@@ -174,7 +187,7 @@ export const RARITY_CLASS = { SSR: 'r-ssr', SR: 'r-sr', R: 'r-r' };
 
 function avatarEntry() {
   const u = authUser();
-  const src = (u && u.avatar) || 'assets/avatars/a-15601.webp';
+  const src = (u && u.avatar) || 'assets/avatars-q/char-albino.webp';
   return h('a', { class: 'avatar-chip', href: 'profile.html', title: u ? t('myCenter') : t('login') },
     h('img', { src, alt: '', width: 26, height: 26, loading: 'lazy' }),
     h('span', {}, u ? u.name : t('login')));
@@ -189,7 +202,7 @@ export function nav(active) {
   // 同步页脚语言
   const foot = document.querySelector('.foot');
   if (foot) foot.textContent = t('aboutFoot');
-  const credits = h('span', { class: 'credits', title: t('creditsTip') }, `◈ ${wallet.get()}`);
+  const credits = h('span', { class: 'credits', title: t('creditsTip') }, scNum(wallet.get(), 17));
   return h('header', { class: 'top' },
     h('a', { class: 'brand', href: 'index.html' }, h('b', {}, t('brand')), h('small', {}, t('brandSub'))),
     h('nav', {},

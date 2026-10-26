@@ -6,7 +6,7 @@
 //  · 路径用 <用户 id>-<邮箱散列>，不按自增 id 暴露；正文再 base64 一层，翻接口只看到乱码。
 //  · 写入走 PUT（Waline 允许作者改自己的评论），POST 只在第一次建档时用一次。
 //  · Waline 对「发新评论」有频率限制，所以建档失败会自动退避重试，期间数据仍在本机。
-import { store, wallet, failedBank, unlocked, STAT0 } from './common.js';
+import { store, wallet, failedBank, unlocked, STAT0, toast, t } from './common.js';
 import { auth, wApi } from './auth.js';
 
 const MAGIC = 'ZJ1D:';
@@ -58,6 +58,8 @@ export function snapshot() {
     mp: store.get('myPuzzles', []),
     hi: store.get('hist', []),
     th: store.get('theme', null),
+    ck: store.get('checkin', null),
+    gr: store.get('gr', []),
   };
 }
 
@@ -77,6 +79,8 @@ export function apply(d) {
   if (Array.isArray(d.mp)) store.set('myPuzzles', d.mp);
   if (Array.isArray(d.hi)) store.set('hist', d.hi);
   if (d.th) store.set('theme', d.th);
+  if (d.ck && typeof d.ck === 'object') store.set('checkin', d.ck);
+  if (Array.isArray(d.gr)) store.set('gr', uniq(d.gr));
 }
 
 // ------------------------------------------------------------------ 合并
@@ -100,6 +104,15 @@ function mergeHist(a = [], b = []) {
     if (!map.has(key) || (Number(e.at) || 0) > (Number(map.get(key).at) || 0)) map.set(key, e);
   }
   return [...map.values()].sort((x, y) => (Number(y.at) || 0) - (Number(x.at) || 0)).slice(0, CAP.hist);
+}
+
+// 签到状态：取「最近签到的那个日期更大」的一份，顺带把天数取大（防回退）
+function pickCheckin(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  const ka = String(a.last || ''), kb = String(b.last || '');
+  const win = ka === kb ? (Number(a.streak) || 0) >= (Number(b.streak) || 0) ? a : b : (ka > kb ? a : b);
+  return { ...win, streak: Math.max(Number(a.streak) || 0, Number(b.streak) || 0), total: Math.max(Number(a.total) || 0, Number(b.total) || 0) };
 }
 
 function mergeMine(a = [], b = []) {
@@ -127,6 +140,8 @@ export function mergeDoc(remote = {}, local = {}) {
     mp: mergeMine(remote.mp, local.mp),
     hi: mergeHist(remote.hi, local.hi),
     th: local.th || remote.th || null,
+    ck: pickCheckin(remote.ck, local.ck),
+    gr: uniq([...(remote.gr || []), ...(local.gr || [])]),
   };
 }
 
@@ -189,15 +204,52 @@ export function schedule(delay = PUSH_DELAY) {
   timer = setTimeout(() => { push(); }, delay);
 }
 
+// ------------------------------------------------------------------ 赠礼（data/grants.json）
+// 直接改别人的云端评论需要管理员权限，所以「给某个账号发银芯」做成站内赠礼：
+// 配置在 data/grants.json 里，登录同步时按用户名匹配、幂等领取，领过的 id 写进档案 gr。
+let GRANTS = null;
+async function grants() {
+  if (GRANTS) return GRANTS;
+  try {
+    const r = await fetch('data/grants.json', { cache: 'no-cache' });
+    const d = await r.json();
+    GRANTS = Array.isArray(d.grants) ? d.grants : [];
+  } catch { GRANTS = []; }
+  return GRANTS;
+}
+
+async function claimGrants() {
+  if (!auth.logged) return 0;
+  const list = await grants();
+  const me = String((auth.user && auth.user.name) || '').trim().toLowerCase();
+  if (!me) return 0;
+  const mine = list.filter((g) => g && g.id && String(g.user || '').trim().toLowerCase() === me);
+  if (!mine.length) return 0;
+  const claimed = new Set(uniq(store.get('gr', [])));
+  let gain = 0;
+  for (const g of mine) {
+    if (claimed.has(String(g.id))) continue;
+    claimed.add(String(g.id));
+    const n = Math.max(0, Math.round(Number(g.amount) || 0));
+    gain += n;
+  }
+  if (!gain) return 0;
+  store.set('gr', [...claimed]);
+  wallet.add(gain);                       // 会触发 dirty，但 sync 里紧接着会 push
+  try { toast(t('pfGrant', { n: gain })); } catch { /* 页面还没挂 body 时忽略 */ }
+  return gain;
+}
+
 export async function sync() {
   if (!auth.logged) return { ok: false, why: 'guest' };
   const remote = await pull().catch(() => null);
   const local = snapshot();
   const merged = remote ? mergeDoc(remote, local) : local;
   apply(merged);
+  const gifted = await claimGrants().catch(() => 0);
   const r = await push();
   syncAt = Date.now();
-  return { ok: !!r.ok, merged: !!remote, why: r.why };
+  return { ok: !!r.ok, merged: !!remote, why: r.why, gift: gifted };
 }
 
 let syncAt = 0;
@@ -206,7 +258,11 @@ let inflight = null;
 // 页面启动时调用：本机数据过期才拉云端，最多等 4.5 秒，失败就当游客继续用本机
 export function ready({ maxAge = MAX_AGE, timeout = 4500 } = {}) {
   if (!auth.logged) return Promise.resolve(false);
-  if (Date.now() - (syncAt || store.get(K.at, 0)) < maxAge && !store.get(K.pend, false)) return Promise.resolve(true);
+  if (Date.now() - (syncAt || store.get(K.at, 0)) < maxAge && !store.get(K.pend, false)) {
+    // 数据还新鲜不重拉，但赠礼是「登录后迟早要发到」的东西，顺手补一次
+    claimGrants().then((g) => { if (g) push().catch(() => {}); }).catch(() => {});
+    return Promise.resolve(true);
+  }
   if (inflight) return inflight;
   inflight = Promise.race([
     sync().then((r) => !!r.ok).catch(() => false),

@@ -103,6 +103,12 @@ for (const name of pages) {
   };
   listeners.push(onEvt);
 
+  // PREVIEW_SCHEME=dark|light 可强制配色方案（headless Edge 默认 light，暗色主题会被隐藏）
+  if (process.env.PREVIEW_SCHEME) {
+    await send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-color-scheme', value: process.env.PREVIEW_SCHEME }],
+    }, sessionId);
+  }
   await send('Runtime.enable', {}, sessionId);
   await send('Log.enable', {}, sessionId);
   await send('Page.enable', {}, sessionId);
