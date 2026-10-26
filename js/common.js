@@ -1,6 +1,32 @@
 // shared helpers for the game and the codex
+import { I18N } from './i18n.js';
+
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+export const store = {
+  get(k, d) { try { const v = localStorage.getItem('zjtt:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('zjtt:' + k, JSON.stringify(v)); } catch { /* private mode */ } },
+};
+
+// ------------------------------------------------------------------ language
+// 中英文切换：语言偏好存在 localStorage，名称类字段（en/zh）随语言切换。
+export const lang = {
+  cur: (store.get('lang', 'zh') === 'en' ? 'en' : 'zh'),
+  set(l) { this.cur = (l === 'en' ? 'en' : 'zh'); store.set('lang', this.cur); document.documentElement.lang = this.cur === 'en' ? 'en' : 'zh-CN'; },
+  toggle() { this.set(this.cur === 'en' ? 'zh' : 'en'); },
+};
+document.documentElement.lang = lang.cur === 'en' ? 'en' : 'zh-CN';
+
+// t(key, vars)：取当前语言文案，支持 {x} 占位符
+export function t(key, vars = {}) {
+  let s = (I18N[lang.cur] && I18N[lang.cur][key]) ?? I18N.zh[key] ?? key;
+  for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, v);
+  return s;
+}
+
+// 根据当前语言取条目的显示名（e 有 en/zh 字段）
+export const nameOf = (e) => (e ? (lang.cur === 'en' ? (e.en || e.zh) : (e.zh || e.en)) : '');
 
 export function h(tag, attrs = {}, ...kids) {
   const e = document.createElement(tag);
@@ -18,14 +44,12 @@ export function h(tag, attrs = {}, ...kids) {
   return e;
 }
 
-export const store = {
-  get(k, d) { try { const v = localStorage.getItem('zjtt:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem('zjtt:' + k, JSON.stringify(v)); } catch { /* private mode */ } },
-};
-
 export const KINDS = {
   awakener: '唤醒体', wheel: '命轮', covenant: '密契', key: '钥令', creation: '造物', monster: '怪物',
 };
+// 分类名称（中英）
+export const KIND_EN = { awakener: 'Awakener', wheel: 'Wheel of Destiny', covenant: 'Covenant', key: 'Key Token', creation: 'Relic', monster: 'Monster' };
+export const kindName = (k) => (lang.cur === 'en' ? KIND_EN[k] : KINDS[k]);
 
 export async function loadDict() {
   const [D] = await Promise.all([fetch('data/dictionary.json').then(r => r.json()), loadKeywords()]);
@@ -51,12 +75,21 @@ export const wan = n => {
 export const RARITY_CLASS = { SSR: 'r-ssr', SR: 'r-sr', R: 'r-r' };
 
 export function nav(active) {
+  const langBtn = h('button', {
+    class: 'langbtn', type: 'button', title: '中文 / English',
+    onclick: () => { lang.toggle(); location.reload(); },
+  }, lang.cur === 'en' ? '中文' : 'EN');
+  // 同步页脚语言
+  const foot = document.querySelector('.foot');
+  if (foot) foot.textContent = t('aboutFoot');
   return h('header', { class: 'top' },
-    h('a', { class: 'brand', href: 'index.html' }, h('b', {}, '战报侦探'), h('small', {}, '忘却前夜 · 同人推理')),
-    h('nav', {},
-      h('a', { href: 'index.html', class: active === 'game' ? 'on' : '' }, '推理'),
-      h('a', { href: 'codex.html', class: active === 'codex' ? 'on' : '' }, '图鉴'),
-      h('a', { href: 'about.html', class: active === 'about' ? 'on' : '' }, '说明')));
+    h('a', { class: 'brand', href: 'index.html' }, h('b', {}, t('brand')), h('small', {}, t('brandSub'))),
+    h('div', { class: 'navright' },
+      h('nav', {},
+        h('a', { href: 'index.html', class: active === 'game' ? 'on' : '' }, t('navGame')),
+        h('a', { href: 'codex.html', class: active === 'codex' ? 'on' : '' }, t('navCodex')),
+        h('a', { href: 'about.html', class: active === 'about' ? 'on' : '' }, t('navAbout'))),
+      langBtn));
 }
 
 // ------------------------------------------------------------------ keywords

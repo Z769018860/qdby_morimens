@@ -28,6 +28,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .chip { background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; font-size: 12px; }
 .chip.gold { color: var(--gold); border-color: var(--gold); }
 .chip.dim { color: var(--dim); }
+.chip.ok { color: #6fd08c; border-color: #3f6b4d; }
+.chip.warn { color: #e6b45a; border-color: #6b552f; }
 .btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 16px; }
 .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
 .btn.sm { padding: 4px 12px; }
@@ -101,6 +103,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ans-i { display: grid; justify-items: center; width: 60px; }
 .ans-i img { width: 44px; height: 44px; object-fit: contain; }
 .ans-i small { font-size: 10px; color: var(--dim); text-align: center; line-height: 1.1; }
+.ans-attr { font-size: 11px; color: var(--gold); margin-bottom: 4px; }
 
 /* picker */
 dialog { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 14px; padding: 0; }
@@ -176,6 +179,14 @@ input[type=search], select { background: var(--panel2); color: var(--text); bord
 .kw.hl { outline: 2px solid var(--gold); }
 .kw-damage { --c: var(--c-damage); } .kw-shield { --c: var(--c-shield); } .kw-heal { --c: var(--c-heal); }
 .kw-affliction { --c: var(--c-affliction); } .kw-aliemus { --c: var(--c-aliemus); } .kw-misc { --c: var(--c-misc); }
+/* 机制分类（伤害 / 减益 / 增益 / 资源 / 规则） */
+.kw-dmg { --c: var(--c-damage); } .kw-debuff { --c: var(--c-affliction); }
+.kw-buff { --c: var(--c-heal); } .kw-res { --c: var(--c-aliemus); } .kw-rule { --c: #7f8c9b; }
+.kwg { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--dim); }
+.kwg i { width: 9px; height: 9px; border-radius: 3px; background: var(--c-misc); display: inline-block; }
+.kwg i.dmg { background: var(--c-damage); } .kwg i.debuff { background: var(--c-affliction); }
+.kwg i.buff { background: var(--c-heal); } .kwg i.res { background: var(--c-aliemus); }
+.kwg i.rule { background: #7f8c9b; } .kwg i.realm { background: linear-gradient(135deg, var(--c-realm-chaos), var(--c-realm-aequor)); }
 .kw-realm-caro { --c: var(--c-realm-caro); } .kw-realm-chaos { --c: var(--c-realm-chaos); }
 .kw-realm-aequor { --c: var(--c-realm-aequor); } .kw-realm-ultra { --c: var(--c-realm-ultra); }
 .kwicon { object-fit: contain; flex: none; vertical-align: middle; }
@@ -204,3 +215,47 @@ input[type=search], select { background: var(--panel2); color: var(--text); bord
 .tabs button { flex: none; }
 .kwsel { max-width: 240px; }
 .bskills li .kw, .skill p .kw { font-size: 0.95em; }
+
+/* language switch & nav right */
+.navright { display: flex; align-items: center; gap: 10px; }
+.langbtn { background: var(--panel2); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 4px 12px; font-size: 13px; }
+.langbtn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* damage composition */
+.dmgcomp { background: var(--panel2); border-radius: 10px; padding: 8px 12px; margin: 6px 0 10px; }
+.dchead { font-size: 13px; color: var(--gold); margin-bottom: 4px; }
+.dcgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.dc { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; display: grid; }
+.dc small { color: var(--dim); font-size: 11px; }
+.dc b { font-size: 15px; }
+.dc[data-k="keeper"] b { color: var(--c-aliemus); }
+.dc[data-k="tentacle"] b { color: var(--c-realm-aequor); }
+.dc[data-k="counter"] b { color: var(--c-damage); }
+.dc[data-k="strength"] b { color: var(--c-realm-caro); }
+.dc[data-k="poison"] b { color: var(--c-affliction); }
+
+/* profile / login / favorites */
+.profile { display: grid; gap: 8px; }
+.prow { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pname b { font-size: 16px; }
+.pname .note { display: block; }
+.pactions { display: flex; gap: 6px; align-items: center; }
+.pactions input { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: inherit; }
+.favs { border-top: 1px solid var(--line); padding-top: 6px; }
+.fhead small { color: var(--dim); }
+.frow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.fitem { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 3px 6px; display: grid; justify-items: center; gap: 0; opacity: .65; }
+.fitem img { width: 30px; height: 30px; object-fit: contain; }
+.fitem small { font-size: 10px; color: var(--dim); max-width: 64px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.fitem.on { border-color: var(--gold); opacity: 1; }
+
+@media (max-width: 760px) {
+  .dcgrid { grid-template-columns: repeat(2, 1fr); }
+}
+
+
+/* 难度构成 */
+.diffwhy { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0 2px; font-size: 12px; color: var(--dim); }
+.diffwhy b { color: var(--fg); font-weight: 600; }
+.diffwhy span { background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; }
+.kwgline { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 8px 0 4px; }

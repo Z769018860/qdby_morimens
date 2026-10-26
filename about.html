@@ -7,33 +7,119 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<main id="app" class="wrap"><section class="card prose">
+<main id="app" class="wrap">
+
+<section class="card prose" id="sec-zh">
 <h2>怎么玩</h2>
 <ol>
-<li>每道题是一份匿名的融灾战报：区域、回合数、出牌数、单回合最高伤害，以及队内 4 人的伤害、格挡、治疗。</li>
+<li>每道题是一份匿名的融灾战报：区域、回合数、出牌数、单回合最高伤害、伤害构成，以及队内 4 人的伤害、格挡、治疗。</li>
 <li>队员按伤害从高到低标为 A–D 位。你要在对应位置填入唤醒体，以及（取决于难度档）命轮、密契、钥令、潜能进阶和造物。</li>
 <li>提交后：🟩 位置/归属正确；🟨 在队内但放错了位置或装在别人身上；⬛ 不在队内。潜能进阶用 ↑/↓ 提示大小，相差 2 以内显示黄色。</li>
 <li>最多提交 6 次。提示可以帮你缩小范围，但每次扣 5 分。</li>
+<li>即使只猜唤醒体（入门档），结算时也会给出完整的命轮、密契、钥令、造物与唤醒体属性，方便学习完整配队。</li>
 </ol>
-<h3>难度档</h3>
-<ul><li>入门：只猜 4 名唤醒体</li><li>进阶：+ 命轮（每人 2 件）</li><li>老手：+ 密契套装、钥令</li><li>大师：+ 潜能进阶、全部造物</li></ul>
+
+<h3>难度档与难度分</h3>
+<ul>
+<li>入门：只猜 4 名唤醒体；进阶：+ 命轮（每人 2 件）；老手：+ 密契套装、钥令；大师：+ 潜能进阶、全部造物。</li>
+<li>每道题另有一个 <b>难度分（0–100）</b>，只由公开信息决定，三项加权：
+  <b>信息排除度</b>（把回合数/出牌数/能量/单回合最高伤害/死扛/剩余生命做粗分桶后，题库里同桶的题越多，越难靠排除法锁定）；
+  <b>伤害集中度</b>（队内伤害越集中在一两人身上，越容易判断主 C，越简单）；
+  <b>数值常见度</b>（回合数、出牌数是否为常见的整数，越“整”越好记）。</li>
+<li>题目按难度分从低到高切成 4 档，所以档位是循序渐进的。</li>
+</ul>
+
+<h3>忘却前夜配队规则（给圈外人）</h3>
+<ul>
+<li><b>界域（阵营）</b>：每个唤醒体属于四大界域之一——混沌、血肉、深海、超维。</li>
+<li><b>组队</b>：除「混沌」外，唤醒体只能与「自身界域 + 混沌」组队；「混沌」可与任意界域组队。</li>
+<li><b>队伍构成</b>：4 名唤醒体 + 1 名守密人（你，携带钥令技能）。</li>
+<li><b>养成</b>：每个唤醒体有 2 个命轮（武器）、1 套密契（3/6 件套效果）、指令卡（打击/防御/技能）、天赋（疯狂预兆、灵塑适性等）与潜能进阶（灵塑）。</li>
+<li><b>狂气 vs 算力</b>：狂气是大招能量条，集满触发「狂气爆发」——消耗的是狂气，不是算力；算力是每回合打出指令卡所消耗的资源。</li>
+<li><b>狂气等级</b>指「疯狂预兆」天赋的等级（开局获得狂气）；<b>灵塑等级</b>指「灵塑适性」天赋 / 潜能进阶的等级。</li>
+<li><b>造物</b>：探索过程中获得的道具/遗物。</li>
+<li><b>伤害来源</b>：战报里的守密人伤害（你的钥令）、触腕、反击、力量、侵蚀/中毒，能帮你锁定队伍构筑。</li>
+</ul>
+
 <h3>图鉴与关键词</h3>
-<p>图鉴收录全部唤醒体（含技能、天赋、启灵、衍生卡牌与推荐配置）、命轮、密契、钥令、造物与怪物。文字里的状态与机制（力量、侵蚀、易伤、吞噬……）会显示为带图标的小标签：悬停可看说明，点击可展开详情，并一键跳转到「包含该关键词」的条目列表。顶部的「关键词」页收录了全部 100 个关键词。</p>
-<p>在任一分类里都可以按关键词筛选，例如选中「中毒」+「反击」，就能找出描述里同时（或任一）涉及它们的唤醒体、命轮、造物、密契。唤醒体的技能中文为 AI 辅助译文，尚未经官方文本校对。</p>
+<p>图鉴收录全部唤醒体（含技能、天赋、启灵、衍生卡牌与推荐配置）、命轮、密契、钥令、造物与怪物。文字里的状态与机制会显示为带图标的小标签：悬停可看说明，点击可展开详情，并一键跳转到「包含该关键词」的条目列表。顶部的「关键词」页收录了全部 100 个关键词。</p>
+<p>中英文对照以<b>官方中文</b>为准：名称与术语优先取自中文维基、官方游戏文本表（Morimens-Localizations）与游戏客户端配置；关键词详情里会标注译名来源，凡未在官方文本中核实的会标为「非官方译名（站内译）」，仅供参考。</p>
+
 <h3>推理思路示例</h3>
 <ul>
 <li>伤害占比 85% 以上、单回合最高伤害极高的 A 位，基本是主 C。</li>
 <li>格挡很高、几乎没有伤害的位置，多半是防御型；有治疗数字的位置，说明带了治疗手段。</li>
+<li>战报的伤害构成（触腕、反击、力量、侵蚀）是强线索：比如触腕伤害高说明队伍有深海/触腕体系，力量高说明有叠力量的角色。</li>
+<li>养成线索（指令卡总等级、狂气等级、灵塑）也能缩小范围：主 C 的指令卡通常等级最高。</li>
 <li>Boss 的阵营、回合数和出牌数，能帮你判断是快攻还是慢热体系。去「图鉴」查各角色、命轮、密契的效果与本期使用率，就是你的推理工具书。</li>
 </ul>
+
 <h3>数据说明</h3>
-<p>战报来自公开的融灾排行榜（第 71、72 期），玩家 UID 已去除。同位置的辅助型角色在数据上难以唯一确定，所以评分按字段命中率计算，不要求一次性全对；每位成员还会给出卡牌升级次数和天赋合计作为线索。答案已做混淆封装，但纯前端站点无法真正防作弊。</p><p>技能数据来自 <a href="https://github.com/dansa/SKeyDB">SKeyDB</a>（CC BY-NC-SA 4.0，仅限非商业使用）。</p>
-<p>数据由 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 生成，脚本见 <code>scripts/build_data.py</code>。</p>
-</section></main>
+<p>战报来自公开的融灾排行榜（第 71、72 期），玩家 UID 已去除。同位置的辅助型角色在数据上难以唯一确定，所以评分按字段命中率计算，不要求一次性全对。答案已做混淆封装，但纯前端站点无法真正防作弊。</p>
+<p>技能数据来自 <a href="https://github.com/dansa/SKeyDB">SKeyDB</a>（CC BY-NC-SA 4.0，仅限非商业使用）；官方中文对照来自 <a href="https://github.com/BIAVGit/Morimens-Localizations">Morimens-Localizations</a> 与 <a href="https://morimens.huijiwiki.com/">忘却前夜中文维基</a>。</p>
+<p>数据由 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 生成，脚本见 <code>scripts/build_data.py</code>、<code>scripts/enhance_data.py</code>、<code>scripts/build_official_terms.py</code>、<code>scripts/score_difficulty.py</code>。</p>
+</section>
+
+<section class="card prose" id="sec-en" hidden>
+<h2>How to play</h2>
+<ol>
+<li>Each puzzle is an anonymised Disaster raid report: zone, rounds, cards played, highest single-round damage, damage breakdown, plus each of the 4 members' damage / block / healing.</li>
+<li>Members are labelled A–D by damage, highest first. Fill each slot with an Awakener and — depending on the level — Wheels, Covenants, a Keeper skill, Potency and Creations.</li>
+<li>After submitting: 🟩 right place/owner; 🟨 in the team but wrong slot or attached to someone else; ⬛ not in the team. Potency uses ↑/↓, and shows yellow within 2.</li>
+<li>Six submissions max. Hints narrow things down but cost 5 points each.</li>
+<li>Even at the beginner level (Awakeners only), the result reveals the full Wheels, Covenants, Keeper skill, Creations and Awakener stats, so you learn complete team building.</li>
+</ol>
+
+<h3>Levels and difficulty score</h3>
+<ul>
+<li>Beginner: 4 Awakeners. Advanced: + Wheels (2 each). Veteran: + Covenants and Keeper skill. Master: + Potency and all Creations.</li>
+<li>Every puzzle also has a <b>difficulty score (0–100)</b> derived only from public clues, weighted from three parts:
+  <b>clue exclusion</b> (coarse buckets of rounds / cards / energy / max hit / death-resist / HP left — the more puzzles share the same bucket, the harder it is to narrow down);
+  <b>damage concentration</b> (the more a team's damage is concentrated on one or two members, the easier the carry is to spot);
+  <b>number familiarity</b> (whether rounds and card counts are common round numbers).</li>
+<li>Puzzles are sorted by that score into four tiers, so the ladder is gradual.</li>
+</ul>
+
+<h3>Team-building rules (for newcomers)</h3>
+<ul>
+<li><b>Realms</b>: every Awakener belongs to one of Chaos, Caro, Aequor or Ultra.</li>
+<li><b>Mixing</b>: apart from Chaos, an Awakener can only team with its own realm plus Chaos; Chaos can team with any realm.</li>
+<li><b>Team</b>: 4 Awakeners + 1 Keeper (you, carrying a Keeper skill).</li>
+<li><b>Progression</b>: 2 Wheels (weapons), one Covenant set (3/6-piece effects), command cards (Strike / Defense / Skill), talents (Madness Omen, Soulforge Aptitude…) and Potency.</li>
+<li><b>Aliemus vs Arithmetica</b>: Aliemus is the ultimate gauge — Exalt consumes Aliemus, not Arithmetica; Arithmetica is what you spend to play command cards.</li>
+<li><b>Madness level</b> is the level of the Madness Omen talent (grants Aliemus at the start); <b>Potency level</b> is Soulforge Aptitude / Potency progression.</li>
+<li><b>Creations</b>: items/relics picked up during a run.</li>
+<li><b>Damage sources</b>: Keeper damage (your skill), Tentacle, Counter, Strength and Poison/Erosion in the report are strong clues about the build.</li>
+</ul>
+
+<h3>Codex and keywords</h3>
+<p>The codex lists every Awakener (with skills, talents, enlightenments, derived cards and recommended builds), Wheel, Covenant, Keeper skill, Creation and monster. States and mechanics in the text appear as icon chips: hover for a summary, click for details and a jump to every entry that uses them. The Keywords tab covers all 100 terms.</p>
+<p>Chinese names follow <b>official Chinese text</b> wherever it exists — the Chinese wiki, the official game text sheet (Morimens-Localizations) and the game client config. Keyword details show the provenance of each translation; anything not confirmed in official text is marked “Unofficial (site rendering)” and is for reference only.</p>
+
+<h3>Example reasoning</h3>
+<ul>
+<li>An A slot with 85%+ of team damage and a huge max hit is almost certainly the carry.</li>
+<li>A slot with high block and almost no damage is likely a defensive Awakener; healing numbers mean a healing source.</li>
+<li>The damage breakdown is a strong clue: high Tentacle damage implies an Aequor/tentacle build, high Strength implies a STR-stacking unit.</li>
+<li>Progression clues (total command-card level, madness level, potency) narrow it down too — the carry usually has the highest card levels.</li>
+<li>Boss realm, rounds and card counts hint at fast or slow builds. Use the codex for effects and pick rates — it is your detective's handbook.</li>
+</ul>
+
+<h3>Data notes</h3>
+<p>Reports come from the public Disaster leaderboards (seasons 71 and 72); player UIDs are removed. Support-type slots are hard to pin down uniquely, so scoring is per-field accuracy rather than all-or-nothing. Answers are obfuscated, but a pure static site cannot truly prevent cheating.</p>
+<p>Skill data from <a href="https://github.com/dansa/SKeyDB">SKeyDB</a> (CC BY-NC-SA 4.0, non-commercial). Official Chinese from <a href="https://github.com/BIAVGit/Morimens-Localizations">Morimens-Localizations</a> and the <a href="https://morimens.huijiwiki.com/">Chinese wiki</a>.</p>
+<p>Data generated from <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a>; see <code>scripts/build_data.py</code>, <code>scripts/enhance_data.py</code>, <code>scripts/build_official_terms.py</code> and <code>scripts/score_difficulty.py</code>.</p>
+</section>
+
+</main>
 <footer class="foot">同人作品，与官方无关。</footer>
 <script type="module">
-import { nav } from './js/common.js';
+import { nav, lang, t } from './js/common.js';
 document.body.prepend(nav('about'));
+document.getElementById(lang.cur === 'en' ? 'sec-en' : 'sec-zh').hidden = false;
+document.documentElement.lang = lang.cur === 'en' ? 'en' : 'zh-CN';
+document.title = t('navAbout') + ' · ' + t('brand');
+document.querySelector('footer.foot').textContent = t('footNote');
 </script>
 </body>
 </html>
