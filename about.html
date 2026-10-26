@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>说明 · 战报侦探</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -15,7 +16,7 @@
 <li>每道题是一份匿名的融灾战报：区域、回合数、出牌数、单回合最高伤害、伤害构成，以及队内 4 人的伤害、格挡、治疗。</li>
 <li>队员按伤害从高到低标为 A–D 位。你要在对应位置填入唤醒体，以及（取决于难度档）命轮、密契、钥令、潜能进阶和造物。</li>
 <li>提交后：🟩 位置/归属正确；🟨 在队内但放错了位置或装在别人身上；⬛ 不在队内。潜能进阶用 ↑/↓ 提示大小，相差 2 以内显示黄色。</li>
-<li>最多提交 6 次。提示可以帮你缩小范围，但每次扣 5 分。</li>
+<li>最多提交 6 次。提示可以帮你缩小范围，但每次消耗 <b>6 积分</b>（积分靠答对获得，见下）。</li>
 <li>即使只猜唤醒体（入门档），结算时也会给出完整的命轮、密契、钥令、造物与唤醒体属性，方便学习完整配队。</li>
 </ol>
 
@@ -45,6 +46,37 @@
 <p>图鉴收录全部唤醒体（含技能、天赋、启灵、衍生卡牌与推荐配置）、命轮、密契、钥令、造物与怪物。文字里的状态与机制会显示为带图标的小标签：悬停可看说明，点击可展开详情，并一键跳转到「包含该关键词」的条目列表。顶部的「关键词」页收录了全部 100 个关键词。</p>
 <p>中英文对照以<b>官方中文</b>为准：名称与术语优先取自中文维基、官方游戏文本表（Morimens-Localizations）与游戏客户端配置；关键词详情里会标注译名来源，凡未在官方文本中核实的会标为「非官方译名（站内译）」，仅供参考。</p>
 
+<h3>积分、提示与解锁</h3>
+<ul>
+<li><b>获取</b>：答对一道题按难度给分，公式为 <code>8 + 难度分 × 1.2</code>（难度分 0–100，所以一题大约 8–128 分，答对后四舍五入）。积分存在浏览器本地（<code>zjtt:credits</code>），换设备/清缓存会归零。</li>
+<li><b>花在哪</b>：① 买提示，每次 6 分；② 解锁典藏馆的 CG。</li>
+<li><b>提示</b>：入口在队伍卡的「提示」按钮，分「缩小唤醒体范围」「看命轮/密契」「看钥令/造物」几类，扣分即时生效，买过的提示不会因为你换页而退还。</li>
+</ul>
+
+<h3>失败题库</h3>
+<p>一道题用尽 6 次提交仍未答对，就会标为「失败」并<b>移出出题池</b>——它不会再随机出现，每日一题遇到失败题也会顺延到下一题。<b>失败题库</b>面板保留这些题目的答案（含完整队伍、命轮、密契、钥令、造物与回放），所以失败的题仍然可以点开当「复盘」学习，只是不能再作答。</p>
+
+<h3>CG 典藏馆</h3>
+<p>典藏馆收录了从中文维基整理的全部官方 CG（<b>438 张</b>，另有 7 张在维基上已失效），按「典藏馆 / 主线剧情 / 特遣记录 / 动态绘卷 / 场景 CG / 其他」分组。未解锁的图以模糊缩略图呈现，点击按分组价格扣积分解锁（<b>典藏馆 60 / 动态绘卷 55 / 特遣记录 45 / 主线剧情 40 / 场景 30 / 其他 30</b>）。解锁状态存在本地，终身有效。</p>
+<p>大图支持左右翻页（键盘 ← / →）与「查看维基原图」，每张图都保留了灰机 wiki 的原始文件名，方便溯源。顶部还能按标题/文件名搜索（官方 CG 文件名里带章节编号，例如「C09 012」）。</p>
+
+<h3>创意工坊</h3>
+<p>「工坊」让你自己出题：</p>
+<ul>
+<li><b>导入回放</b>：把官方回放（<code>BattleReplay_*.json</code>）下载下来，用「选回放 JSON 文件」读入即可。回放其实是 <b>LZ4 帧 + MessagePack</b>（不是 JSON），解码器沿用 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 的回放复盘实现，在浏览器本地展开，文件不会上传。会自动填好 4 名队员（按伤害排 A–D，带等级/灵塑）、钥令、造物与战斗数值；<b>命轮和密契不在回放里</b>，需要手动补。浏览器有跨域限制，不能直接抓回放地址，所以先用「打开官方回放」下载，再选文件。</li>
+<li><b>手动出题</b>：4 个位置各选唤醒体 / 2 件命轮 / 密契，再配等级·灵塑、钥令、造物与回合数等元数据。</li>
+<li><b>分享</b>：生成 <code>ZJ2-…</code> 题目代码，好友打开 <code>index.html?p=ZJ2-…</code> 就能直接挑战；也可以选择上传到云题库再用代码取回。</li>
+<li><b>自建题池</b>：保存的题进入「我的题目」，会混入你的随机/每日题目池，答对同样给积分。</li>
+</ul>
+
+<h3>回放与复盘</h3>
+<p>答对（或在失败题库里查看）之后，结果面板会给出该局的官方回放地址：</p>
+<ul>
+<li><b>官方回放</b>：<code>https://z1g-warreport.qookkagames.com/publish/BattleReplay_&lt;uuid&gt;.json</code>，可直接下载原始 JSON。</li>
+<li><b>忘忘看报复盘</b>：一键把 uuid 送到 <a href="https://z769018860.github.io/qdby_chinese/morimens-tools.html#replay">morimens-tools 回放复盘</a>，看逐回合的伤害、格挡、治疗与手牌曲线。</li>
+<li><b>复制 uuid</b>：方便贴到别处或自己存档。1000 道题全部匹配到了唯一战报（联合键 <code>赛季+档位+分数+回合+出牌+单回合最高</code>），没有歧义。</li>
+</ul>
+
 <h3>推理思路示例</h3>
 <ul>
 <li>伤害占比 85% 以上、单回合最高伤害极高的 A 位，基本是主 C。</li>
@@ -57,6 +89,8 @@
 <h3>数据说明</h3>
 <p>战报来自公开的融灾排行榜（第 71、72 期），玩家 UID 已去除。同位置的辅助型角色在数据上难以唯一确定，所以评分按字段命中率计算，不要求一次性全对。答案已做混淆封装，但纯前端站点无法真正防作弊。</p>
 <p>技能数据来自 <a href="https://github.com/dansa/SKeyDB">SKeyDB</a>（CC BY-NC-SA 4.0，仅限非商业使用）；官方中文对照来自 <a href="https://github.com/BIAVGit/Morimens-Localizations">Morimens-Localizations</a> 与 <a href="https://morimens.huijiwiki.com/">忘却前夜中文维基</a>。</p>
+<p><b>状态/机制图标</b>取自 SKeyDB 的战斗图标库（<code>Battle_Card_Buff_*</code>、界域徽记 <code>realm-badge-*</code>），按官方 <code>iconId</code> 与词条映射，共 30 个图标覆盖 39 个常用关键词；没有官方图标的词条仍用文字字形显示。<b>CG 与唤醒体档案</b>（生日、身高、体重、诺斯指数、获取途径、语音）来自中文维基的角色条目与图片库。<b>回放</b>指向官方战报服务与忘忘看报复盘工具，本站不转存战斗数据。</p>
+<p>所有进度（积分、解锁的 CG、失败题库、自建题目、语言与答题记录）都存在浏览器 <code>localStorage</code> 的 <code>zjtt:</code> 前缀下，不上传任何服务器；清缓存或换浏览器即丢失。上传到云题库的题目是公开的，请不要把不想公开的内容放进去。</p>
 <p>数据由 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 生成，脚本见 <code>scripts/build_data.py</code>、<code>scripts/enhance_data.py</code>、<code>scripts/build_official_terms.py</code>、<code>scripts/score_difficulty.py</code>。</p>
 </section>
 
@@ -66,7 +100,7 @@
 <li>Each puzzle is an anonymised Disaster raid report: zone, rounds, cards played, highest single-round damage, damage breakdown, plus each of the 4 members' damage / block / healing.</li>
 <li>Members are labelled A–D by damage, highest first. Fill each slot with an Awakener and — depending on the level — Wheels, Covenants, a Keeper skill, Potency and Creations.</li>
 <li>After submitting: 🟩 right place/owner; 🟨 in the team but wrong slot or attached to someone else; ⬛ not in the team. Potency uses ↑/↓, and shows yellow within 2.</li>
-<li>Six submissions max. Hints narrow things down but cost 5 points each.</li>
+<li>Six submissions max. Hints narrow things down but cost <b>6 credits</b> each (credits are earned by solving, see below).</li>
 <li>Even at the beginner level (Awakeners only), the result reveals the full Wheels, Covenants, Keeper skill, Creations and Awakener stats, so you learn complete team building.</li>
 </ol>
 
@@ -96,6 +130,37 @@
 <p>The codex lists every Awakener (with skills, talents, enlightenments, derived cards and recommended builds), Wheel, Covenant, Keeper skill, Creation and monster. States and mechanics in the text appear as icon chips: hover for a summary, click for details and a jump to every entry that uses them. The Keywords tab covers all 100 terms.</p>
 <p>Chinese names follow <b>official Chinese text</b> wherever it exists — the Chinese wiki, the official game text sheet (Morimens-Localizations) and the game client config. Keyword details show the provenance of each translation; anything not confirmed in official text is marked “Unofficial (site rendering)” and is for reference only.</p>
 
+<h3>Credits, hints and unlocks</h3>
+<ul>
+<li><b>Earning</b>: solving a puzzle pays out by difficulty, <code>8 + difficulty score × 1.2</code> (difficulty 0–100, so roughly 8–128 credits, rounded). Credits live in local storage (<code>zjtt:credits</code>) — clearing site data or switching devices resets them.</li>
+<li><b>Spending</b>: (1) hints at 6 credits each; (2) unlocking gallery CGs.</li>
+<li><b>Hints</b> sit on the team card. They are charged the moment you use them and are not refunded on page changes.</li>
+</ul>
+
+<h3>Failed bank</h3>
+<p>Burn all six submissions without solving and the puzzle is marked failed and <b>removed from the draw pool</b> — it will not come up randomly again, and the daily puzzle skips past failed ones. The <b>failed bank</b> panel keeps those answers (full team, Wheels, Covenants, Keeper skill, Creations and replay), so a failure still works as a review — you just cannot answer it again.</p>
+
+<h3>CG gallery</h3>
+<p>The gallery holds every official CG collected from the Chinese wiki — <b>438 images</b> (7 more are dead links on the wiki), grouped into Hall / Main story / Dispatch records / Dynamic scrolls / Scene CGs / Other. Locked images show as a blurred thumbnail; clicking spends credits to unlock (Hall 60 / Dynamic 55 / Dispatch 45 / Story 40 / Scene 30 / Other 30). Unlocks are stored locally and are permanent.</p>
+<p>The viewer supports arrow-key paging and a “view original on the wiki” link — every item keeps its original wiki filename for provenance. A search box filters by title or filename (official CG filenames carry the chapter number, e.g. “C09 012”).</p>
+
+<h3>Workshop</h3>
+<p>The workshop lets you author your own puzzles:</p>
+<ul>
+<li><b>Import a replay</b>: download the official replay (<code>BattleReplay_*.json</code>) and open it with “Pick replay JSON”. The file is actually <b>LZ4 frame + MessagePack</b>, not JSON — the decoder is the one from <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a>'s replay review, running locally in your browser; nothing is uploaded. It fills in the four members (sorted A–D by damage, with level/potency), the Keeper skill, Creations and combat stats. <b>Wheels and Covenants are not in the replay</b> — add them by hand. Browsers cannot fetch the replay URL directly (CORS), so use “Open official replay” to download it first.</li>
+<li><b>Manual authoring</b>: 4 slots × (Awakener, 2 Wheels, Covenant), plus level/potency, Keeper skill, Creations and rounds.</li>
+<li><b>Sharing</b>: produces a <code>ZJ2-…</code> code — friends open <code>index.html?p=ZJ2-…</code> and play immediately. Uploading to the cloud bank and loading it back by code is also supported.</li>
+<li><b>Your pool</b>: saved puzzles go under “My puzzles” and join your random/daily pool, paying credits like any other.</li>
+</ul>
+
+<h3>Replays and review</h3>
+<p>After a solve (or from the failed bank) the result panel offers the official replay for that run:</p>
+<ul>
+<li><b>Official replay</b>: <code>https://z1g-warreport.qookkagames.com/publish/BattleReplay_&lt;uuid&gt;.json</code> — the raw JSON.</li>
+<li><b>Wangwang review</b>: sends the uuid to the <a href="https://z769018860.github.io/qdby_chinese/morimens-tools.html#replay">morimens-tools replay review</a> for per-round damage, block, healing and hand curves.</li>
+<li><b>Copy uuid</b>: for posting or archiving. All 1000 puzzles match exactly one report (joint key: season + rank + score + rounds + cards + max hit) with zero ambiguity.</li>
+</ul>
+
 <h3>Example reasoning</h3>
 <ul>
 <li>An A slot with 85%+ of team damage and a huge max hit is almost certainly the carry.</li>
@@ -109,6 +174,8 @@
 <p>Reports come from the public Disaster leaderboards (seasons 71 and 72); player UIDs are removed. Support-type slots are hard to pin down uniquely, so scoring is per-field accuracy rather than all-or-nothing. Answers are obfuscated, but a pure static site cannot truly prevent cheating.</p>
 <p>Skill data from <a href="https://github.com/dansa/SKeyDB">SKeyDB</a> (CC BY-NC-SA 4.0, non-commercial). Official Chinese from <a href="https://github.com/BIAVGit/Morimens-Localizations">Morimens-Localizations</a> and the <a href="https://morimens.huijiwiki.com/">Chinese wiki</a>.</p>
 <p>Data generated from <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a>; see <code>scripts/build_data.py</code>, <code>scripts/enhance_data.py</code>, <code>scripts/build_official_terms.py</code> and <code>scripts/score_difficulty.py</code>.</p>
+<p><b>Status/mechanic icons</b> come from SKeyDB's battle icon set (<code>Battle_Card_Buff_*</code>, realm badges <code>realm-badge-*</code>), mapped by official <code>iconId</code>: 30 icons cover 39 common keywords; terms without official art fall back to a text glyph. <b>CGs and Awakener profiles</b> (birthday, height, weight, Nos index, acquisition, voice lines) come from the Chinese wiki. <b>Replays</b> point at the official report service and the Wangwang review tool — no battle data is mirrored here.</p>
+<p>All progress (credits, unlocked CGs, failed bank, authored puzzles, language, answer history) is kept in <code>localStorage</code> under the <code>zjtt:</code> prefix and never uploaded. Clearing site data wipes it. Puzzles uploaded to the cloud bank are public — do not put anything private there.</p>
 </section>
 
 </main>

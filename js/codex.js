@@ -92,6 +92,7 @@ async function openDetail(kind, e) {
           e.use != null ? h('span', { class: 'chip gold' }, `${lang.cur === 'en' ? `S${D.usageSeason} usage` : `第 ${D.usageSeason} 期融灾使用率`} ${e.use}%`) : null),
         typeof e.desc === 'string' && e.desc ? h('p', { class: 'prewrap' }, renderText(e.desc)) : null,
         Array.isArray(e.desc) ? e.desc.map(x => h('div', { class: 'dblock' }, h('b', {}, x.h), h('p', { class: 'prewrap' }, renderText(x.t)))) : null,
+        kind === 'awakener' ? profileBlock(e) : null,
         e.skills && e.skills.length ? h('div', { class: 'dblock' }, h('b', {}, lang.cur === 'en' ? 'Skills' : '技能'), h('ul', {}, e.skills.map(s => h('li', {}, renderText(s))))) : null,
         kind !== 'awakener' && e.kw && e.kw.length ? kwRow(e.kw) : null,
         e.real === false ? h('p', { class: 'note' }, lang.cur === 'en' ? 'Not yet seen in a leaderboard team.' : '该条目尚未出现在融灾榜单队伍中。') : null,
@@ -99,6 +100,29 @@ async function openDetail(kind, e) {
   dlg.showModal();
   highlight();
   if (kind === 'awakener') await fillSkills(e);
+}
+
+// 唤醒体档案（灰机 wiki 基本资料 + 语音）
+function profileBlock(e) {
+  const en = lang.cur === 'en';
+  const rows = [
+    [en ? 'Birthday' : '生日', e.bd], [en ? 'Gender' : '性别', e.sex],
+    [en ? 'Height' : '身高', e.height], [en ? 'Weight' : '体重', e.weight],
+    [en ? 'Noss index' : '诺斯指数', e.nos],
+    [en ? 'Acquired' : '获取途径', (e.acq || []).join(en ? ', ' : '、')],
+    [en ? 'Aliases' : '别称', (e.aliases || []).join(en ? ', ' : '、')],
+    [en ? 'Traits' : '特性', (e.traits || []).join(en ? ', ' : '、')],
+    [en ? 'Related' : '相关人', (e.related || []).join(en ? ', ' : '、')],
+    [en ? 'Other forms' : '其他形态', (e.forms || []).map(f => f.zh + (f.rarity ? `（${f.rarity}）` : '')).join(en ? ', ' : '、')],
+  ].filter(([, v]) => v);
+  const voice = e.voice || [];
+  if (!rows.length && !voice.length) return null;
+  return h('div', { class: 'dblock profile' },
+    h('b', {}, en ? 'Profile (data: Huiji Wiki)' : '档案（数据：灰机 wiki）'),
+    h('div', { class: 'pflist' }, rows.map(([k, v]) => h('div', { class: 'pfrow' }, h('small', {}, k), h('span', {}, v)))),
+    voice.length ? h('details', { class: 'voicedet' },
+      h('summary', {}, `${en ? 'Voice lines' : '语音'} · ${voice.length}`),
+      h('ul', { class: 'voicelist' }, voice.map(v => h('li', {}, h('b', {}, v.t), h('p', {}, v.c))))) : null);
 }
 
 const kwRow = (slugs) => h('div', { class: 'kwrow' }, h('small', {}, lang.cur === 'en' ? 'Keywords:' : '涉及关键词：'),

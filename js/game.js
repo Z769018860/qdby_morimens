@@ -1,9 +1,12 @@
-import { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang } from './common.js';
+import { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang,
+  wallet, failedBank, unlocked, REPLAY, shareCode } from './common.js';
 import { PEPPER } from './pepper.js';
 
 const KW_TYPE_EN = { realm: 'Realm', mechanic: 'State / Mechanic', tag: 'Tag', help: 'Help' };
 
 const MAX_TRIES = 6;
+const HINT_COST = 6;       // 每次提示花掉的积分
+const POINT_BASE = 8;      // 答对的基础积分
 const LEVELS = {
   1: { name: () => t('lv1'), desc: () => t('lv1d') },
   2: { name: () => t('lv2'), desc: () => t('lv2d') },
@@ -24,6 +27,17 @@ root.textContent = t('loading');
 
 const { D, idx } = await loadDict();
 const P = (await (await fetch('data/puzzles.json')).json()).puzzles;
+// 自建题目（创意工坊）以 team 明文存在本地，与官方题库一起参与随机
+const customPuzzles = () => store.get('myPuzzles', []);
+
+// 失败题库里的题不再出现
+const pool = () => {
+  const ok = P.filter(p => !failedBank.has(p.id));
+  return (ok.length ? ok : P).concat(customPuzzles());
+};
+
+// 题目的积分价值：难度分越高给得越多
+const ptsOf = (p) => Math.round(POINT_BASE + (p.diffScore || 20) * 1.2);
 
 // ------------------------------------------------------------------ state
 let puzzle, ans, level, mode, sel, fb, history, hintsUsed, hintTags, finished, won, pickerKind;
@@ -35,7 +49,16 @@ const todayKey = () => {
   return d.toISOString().slice(0, 10);
 };
 const dayNumber = () => Math.floor((Date.now() + 8 * 3600e3) / 864e5);
-const dailyPuzzle = () => P[(dayNumber() * 7919) % P.length];
+const dailyPuzzle = () => {
+  const list = pool();
+  const start = (dayNumber() * 7919) % list.length;
+  // 每日题若已进失败题库，顺延到下一题
+  for (let i = 0; i < list.length; i++) {
+    const p = list[(start + i) % list.length];
+    if (!failedBank.has(p.id)) return p;
+  }
+  return list[start];
+};
 
 function newSel() {
   return {
@@ -164,7 +187,23 @@ function submit() {
   fillFeedback(r);
   history.push({ row: emojiRow(r), frac: r.green / r.total, green: r.green, total: r.total });
   if (r.win) { finished = true; won = true; } else if (history.length >= MAX_TRIES) { finished = true; won = false; }
-  if (finished) recordStats();
+  if (finished) {
+    recordStats();
+    if (won) {
+      // 按难度给分；提示已经扣过分，这里只结算答对奖励
+      const gain = ptsOf(puzzle);
+      wallet.add(gain);
+      if (mode === 'daily') {
+        const st = store.get('stats', {});
+        st.pts = (st.pts || 0) + gain;
+        store.set('stats', st);
+      }
+      toast(t('ptsGain', { n: gain }));
+    } else {
+      // 彻底失败：永久移出题池
+      failedBank.add(puzzle.id);
+    }
+  }
   persist();
   render();
 }
@@ -195,21 +234,30 @@ const REALM_EN = { CHAOS: 'Chaos', CARO: 'Caro', AEQUOR: 'Aequor', ULTRA: 'Ultra
 const ROLE_EN = { ASSAULT: 'Damage', WARDEN: 'Defense', CHORUS: 'Support' };
 const realmOf = (e) => (lang.cur === 'en' ? (REALM_EN[e.realmCode] || e.realm) : e.realm);
 const roleOf = (e) => (lang.cur === 'en' ? (ROLE_EN[e.roleCode] || e.role) : e.role);
+function payHint() {
+  if (!wallet.spend(HINT_COST)) { toast(t('noCredits')); return false; }
+  hintsUsed++;
+  toast(t('ptsHint', { n: HINT_COST }));
+  return true;
+}
 function hintAwk(k) {
   if (finished || hintTags[`a${k}`]) return;
+  if (!payHint()) return;
   const e = idx.awakener.get(ans[k].tid);
   hintTags[`a${k}`] = `${realmOf(e)} · ${roleOf(e)}`;
-  hintsUsed++; persist(); render();
+  persist(); render();
 }
 function hintLv(k) {
   if (finished || hintTags[`l${k}`]) return;
+  if (!payHint()) return;
   hintTags[`l${k}`] = `${t('lv', { n: ans[k].lv })} · ${t('brk', { n: ans[k].brk })}`;
-  hintsUsed++; persist(); render();
+  persist(); render();
 }
 function hintKey() {
   if (finished || hintTags.key) return;
+  if (!payHint()) return;
   hintTags.key = realmOf(idx.key.get(puzzle.key)) || '—';
-  hintsUsed++; persist(); render();
+  persist(); render();
 }
 
 // ------------------------------------------------------------------ UI pieces
@@ -319,8 +367,8 @@ function slotCard(k) {
   }
   if (!locked) {
     card.append(h('div', { class: 'hints' },
-      h('button', { type: 'button', class: 'link', onclick: () => hintAwk(k), disabled: !!hintTags[`a${k}`] }, t('hintRealm')),
-      A.pot ? h('button', { type: 'button', class: 'link', onclick: () => hintLv(k), disabled: !!hintTags[`l${k}`] }, t('hintLv')) : null));
+      h('button', { type: 'button', class: 'link', onclick: () => hintAwk(k), disabled: !!hintTags[`a${k}`] }, `${t('hintRealm')} ◈${HINT_COST}`),
+      A.pot ? h('button', { type: 'button', class: 'link', onclick: () => hintLv(k), disabled: !!hintTags[`l${k}`] }, `${t('hintLv')} ◈${HINT_COST}`) : null));
   }
   return card;
 }
@@ -331,7 +379,7 @@ function teamExtras() {
   if (A.key) {
     box.append(h('div', { class: 'extra' }, h('b', {}, t('keyLabel')),
       pickBtn('key', sel.key, () => { if (!finished) openPicker('key', v => { sel.key = v; }); }, 'key'),
-      hintTags.key ? chip(hintTags.key, 'gold') : (finished ? null : h('button', { type: 'button', class: 'link', onclick: hintKey }, t('hintKey')))));
+      hintTags.key ? chip(hintTags.key, 'gold') : (finished ? null : h('button', { type: 'button', class: 'link', onclick: hintKey }, `${t('hintKey')} ◈${HINT_COST}`))));
   }
   if (A.relics) {
     const n = puzzle.relics.length;
@@ -356,33 +404,91 @@ function historyPanel() {
     history.length ? h('ol', {}, history.map(x => h('li', {}, x.row, h('em', {}, ` ${Math.round(x.frac * 100)}%`)))) : h('p', { class: 'note' }, t('histEmpty')));
 }
 
-function answerPanel() {
-  const { score, g } = grade();
+function copyText(txt, ok = t('copied')) {
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject())
+    .then(() => toast(ok), () => prompt(t('copy'), txt));
+}
+
+// 回放：官方原始 JSON + 忘忘看报复盘入口
+function replayBox(p) {
+  if (!p.uuid) return h('p', { class: 'note' }, `${t('replayTitle')}：—`);
+  return h('div', { class: 'replaybox' },
+    h('b', {}, t('replayTitle')),
+    h('div', { class: 'rlinks' },
+      h('a', { href: REPLAY.json(p.uuid), target: '_blank', rel: 'noopener' }, t('replayApi')),
+      h('a', { href: REPLAY.review, target: '_blank', rel: 'noopener' }, t('replayReview')),
+      h('button', { type: 'button', class: 'link', onclick: () => copyText(p.uuid) }, t('replayCopy'))),
+    h('p', { class: 'note mono' }, p.uuid),
+    h('p', { class: 'note' }, t('replayHint')));
+}
+
+// 一支队伍答案的展示（结果面板 & 失败题库共用）
+function teamBlock(team) {
   const mk = (kind, id) => { const e = idx[kind].get(String(id)); return h('span', { class: 'ans-i', title: e ? nameOf(e) : id }, imgEl(e && e.img, e && nameOf(e)), h('small', {}, e ? nameOf(e) : id)); };
-  // 每个唤醒体的属性（阵营/定位/稀有度）—— 无论难度档都给出完整信息
   const awkAttr = (a) => {
     const e = idx.awakener.get(String(a.tid));
     if (!e) return '';
-    const parts = [realmOf(e), roleOf(e), e.rarity].filter(Boolean);
-    return parts.join(' · ');
+    return [realmOf(e), roleOf(e), e.rarity].filter(Boolean).join(' · ');
   };
+  return h('div', { class: 'ans-team' }, team.map((a, k) => h('div', { class: 'ans-slot' },
+    h('b', {}, `${t('slotHead', { l: LETTERS[k] })} · ${t('lv', { n: a.lv })} · ${t('potFull', { n: a.pot })} · ${t('brk', { n: a.brk })}`),
+    h('div', { class: 'ans-attr' }, awkAttr(a)),
+    h('div', { class: 'ans-row' }, mk('awakener', a.tid), (a.wheels || []).map(w => mk('wheel', w)), mk('covenant', a.cov)))));
+}
+
+function answerPanel() {
+  const { score, g } = grade();
+  const mk = (kind, id) => { const e = idx[kind].get(String(id)); return h('span', { class: 'ans-i', title: e ? nameOf(e) : id }, imgEl(e && e.img, e && nameOf(e)), h('small', {}, e ? nameOf(e) : id)); };
   return h('section', { class: `card result ${won ? 'win' : 'lose'}` },
     h('h2', {}, won ? `${t('winTitle')} · ${t('grade', { g })}` : `${t('loseTitle')} · ${t('grade', { g })}`),
     h('p', {}, t('scoreText', { s: score, h: hintsUsed, n: history.length })),
-    h('div', { class: 'ans-team' }, ans.map((a, k) => h('div', { class: 'ans-slot' },
-      h('b', {}, `${t('slotHead', { l: LETTERS[k] })} · ${t('lv', { n: a.lv })} · ${t('potFull', { n: a.pot })} · ${t('brk', { n: a.brk })}`),
-      h('div', { class: 'ans-attr' }, awkAttr(a)),
-      h('div', { class: 'ans-row' }, mk('awakener', a.tid), a.wheels.map(w => mk('wheel', w)), mk('covenant', a.cov))))),
+    h('div', { class: 'chips' },
+      won ? chip(t('ptsGain', { n: ptsOf(puzzle) }), 'gold') : chip(t('failedMark'), 'warn'),
+      chip(`${t('credits')} ◈${wallet.get()}`)),
+    teamBlock(ans),
     h('div', { class: 'ans-row' }, h('b', {}, t('keyLabel')), mk('key', puzzle.key)),
     h('div', { class: 'ans-row wrap' }, h('b', {}, t('relicLabel')), puzzle.relics.map(r => mk('creation', r))),
+    replayBox(puzzle),
     h('div', { class: 'actions' },
       h('button', { class: 'btn', onclick: share }, t('copy')),
-      h('button', { class: 'btn ghost', onclick: () => start(P[Math.floor(Math.random() * P.length)], 'random') }, t('again'))));
+      h('button', { class: 'btn ghost', onclick: () => start(pool()[Math.floor(Math.random() * pool().length)], 'random') }, t('again'))));
 }
 
 function share() {
   const txt = `${t('brand')} ${mode === 'daily' ? todayKey() : puzzle.id} · ${LEVELS[level].name()} ${won ? history.length : 'X'}/${MAX_TRIES}\n` + history.map(x => x.row).join('\n');
-  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(t('copied')), () => prompt(t('copy'), txt));
+  copyText(txt);
+}
+
+// ------------------------------------------------------------------ 失败题库
+const ansDlg = h('dialog', { class: 'picker review' });
+document.body.append(ansDlg);
+
+async function viewFailed(id) {
+  const p0 = P.find(x => x.id === id) || customPuzzles().find(x => x.id === id);
+  if (!p0) return;
+  const p = await unseal(p0);
+  const mk = (kind, i) => { const e = idx[kind].get(String(i)); return h('span', { class: 'ans-i', title: e ? nameOf(e) : i }, imgEl(e && e.img, e && nameOf(e)), h('small', {}, e ? nameOf(e) : i)); };
+  ansDlg.replaceChildren(
+    h('div', { class: 'phead' },
+      h('b', {}, `${t('failedTitle')} · ${p.id}`),
+      h('span', { class: 'note' }, `${t('season', { s: p.season })} · ${t('score', { s: p.score })}`),
+      h('button', { class: 'btn sm', onclick: () => ansDlg.close() }, t('close'))),
+    h('div', { class: 'ans-wrap' },
+      teamBlock(p.team),
+      h('div', { class: 'ans-row' }, h('b', {}, t('keyLabel')), mk('key', p.key)),
+      h('div', { class: 'ans-row wrap' }, h('b', {}, t('relicLabel')), (p.relics || []).map(r => mk('creation', r))),
+      replayBox(p)));
+  ansDlg.showModal();
+}
+
+function failedPanel() {
+  const list = failedBank.list();
+  return h('section', { class: 'card failedbank' },
+    h('h3', {}, `${t('failedTitle')} · ${list.length}`),
+    h('p', { class: 'note' }, t('failedNote', { n: MAX_TRIES })),
+    list.length ? h('div', { class: 'fbrow' }, list.map(id => h('button', {
+      type: 'button', class: 'btn ghost sm', onclick: () => viewFailed(id),
+    }, `${id} · ${t('replayTitle')}`))) : h('p', { class: 'note' }, t('failedEmpty')));
 }
 
 // ------------------------------------------------------------------ profile / login / favorites
@@ -432,7 +538,8 @@ function controls() {
         h('b', {}, v.name()), h('small', {}, v.desc())))),
     h('div', { class: 'modes' },
       h('button', { class: `btn${mode === 'daily' ? '' : ' ghost'}`, onclick: () => start(dailyPuzzle(), 'daily') }, `${t('daily')} ${todayKey()}`),
-      h('button', { class: `btn${mode === 'random' ? '' : ' ghost'}`, onclick: () => start(P[Math.floor(Math.random() * P.length)], 'random') }, t('random')),
+      h('button', { class: `btn${mode === 'random' ? '' : ' ghost'}`, onclick: () => start(pool()[Math.floor(Math.random() * pool().length)], 'random') }, t('random')),
+      h('span', { class: 'credits big' }, `${t('credits')} ◈${wallet.get()}`),
       h('span', { class: 'note' }, `${t('played')} ${st.played} · ${t('won')} ${st.won} · ${t('streak')} ${st.streak} · ${t('best')} ${st.best} · ${t('accuracy')} ${acc}`)));
 }
 
@@ -538,7 +645,21 @@ function render() {
         finished ? null : h('button', { class: 'btn ghost', onclick: () => { sel = newSel(); fb = {}; persist(); render(); } }, t('reset')))),
     teamRules(),
     historyPanel(),
+    failedPanel(),
     ...(finished ? [answerPanel()] : []));
 }
 
 await start(dailyPuzzle(), 'daily');
+
+// 工坊 / 好友分享的题目：index.html?p=ZJ2-...
+const sharedCode = new URLSearchParams(location.search).get('p');
+if (sharedCode) {
+  const p = shareCode.dec(sharedCode);
+  if (p && p.team) {
+    p.custom = true;
+    p.id = p.id || 'custom-' + Date.now().toString(36);
+    start(p, 'random');
+  } else {
+    toast('题目代码无法解析');
+  }
+}

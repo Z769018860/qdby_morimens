@@ -47,6 +47,66 @@ export function h(tag, attrs = {}, ...kids) {
 export const KINDS = {
   awakener: '唤醒体', wheel: '命轮', covenant: '密契', key: '钥令', creation: '造物', monster: '怪物',
 };
+
+// ------------------------------------------------------------------ 积分 / 失败题库 / 回放
+// 积分存在本地：答对按难度拿分，提示与 CG 解锁花分。
+export const wallet = {
+  get() { return Number(store.get('credits', 0)) || 0; },
+  add(n) { const v = this.get() + Math.max(0, Math.round(n)); store.set('credits', v); return v; },
+  spend(n) {
+    if (this.get() < n) return false;
+    store.set('credits', this.get() - n);
+    return true;
+  },
+};
+
+// 彻底失败（用完次数仍未还原）的题目 id：永久移出题池，只能去失败题库看答案
+export const failedBank = {
+  list() { return store.get('failed', []); },
+  has(id) { return this.list().includes(id); },
+  add(id) {
+    const l = this.list();
+    if (!l.includes(id)) { l.push(id); store.set('failed', l); }
+  },
+};
+
+// 官方回放 & 忘忘看报的复盘工具
+export const REPLAY = {
+  json: (uuid) => `https://z1g-warreport.qookkagames.com/publish/BattleReplay_${uuid}.json`,
+  review: 'https://z769018860.github.io/qdby_chinese/morimens-tools.html#replay',
+};
+
+// 典藏馆解锁记录
+export const unlocked = {
+  list() { return store.get('cg', []); },
+  has(id) { return this.list().includes(id); },
+  add(id) { const l = this.list(); if (!l.includes(id)) { l.push(id); store.set('cg', l); } return l; },
+};
+
+// 题目分享码：ZJ2-<base64url(JSON)>，工坊与推理页共用
+function b64uEncode(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 4096) bin += String.fromCharCode(...bytes.subarray(i, i + 4096));
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64uDecode(s) {
+  const b = s.replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(b + '='.repeat((4 - b.length % 4) % 4));
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+export const shareCode = {
+  enc(obj) { return 'ZJ2-' + b64uEncode(JSON.stringify(obj)); },
+  dec(code) {
+    try {
+      const s = String(code || '').trim();
+      if (!s) return null;
+      return JSON.parse(b64uDecode(s.replace(/^ZJ2-/, '')));
+    } catch { return null; }
+  },
+};
+
 // 分类名称（中英）
 export const KIND_EN = { awakener: 'Awakener', wheel: 'Wheel of Destiny', covenant: 'Covenant', key: 'Key Token', creation: 'Relic', monster: 'Monster' };
 export const kindName = (k) => (lang.cur === 'en' ? KIND_EN[k] : KINDS[k]);
@@ -82,13 +142,17 @@ export function nav(active) {
   // 同步页脚语言
   const foot = document.querySelector('.foot');
   if (foot) foot.textContent = t('aboutFoot');
+  const credits = h('span', { class: 'credits', title: t('creditsTip') }, `◈ ${wallet.get()}`);
   return h('header', { class: 'top' },
     h('a', { class: 'brand', href: 'index.html' }, h('b', {}, t('brand')), h('small', {}, t('brandSub'))),
     h('div', { class: 'navright' },
       h('nav', {},
         h('a', { href: 'index.html', class: active === 'game' ? 'on' : '' }, t('navGame')),
+        h('a', { href: 'gallery.html', class: active === 'gallery' ? 'on' : '' }, t('navGallery')),
+        h('a', { href: 'workshop.html', class: active === 'workshop' ? 'on' : '' }, t('navWorkshop')),
         h('a', { href: 'codex.html', class: active === 'codex' ? 'on' : '' }, t('navCodex')),
         h('a', { href: 'about.html', class: active === 'about' ? 'on' : '' }, t('navAbout'))),
+      credits,
       langBtn));
 }
 
