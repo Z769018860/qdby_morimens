@@ -165,3 +165,42 @@ input[type=search], select { background: var(--panel2); color: var(--text); bord
 .skill header { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .skill p { margin: 4px 0 0; white-space: pre-line; font-size: 13px; }
 .sec { margin: 14px 0 4px; font-size: 14px; color: var(--gold); }
+
+/* keywords */
+:root { --c-damage: #e5584f; --c-shield: #4f8be5; --c-heal: #45b36b; --c-affliction: #a06be0; --c-aliemus: #e3b341; --c-misc: #8a93a8;
+  --c-realm-caro: #d9534f; --c-realm-chaos: #c9a227; --c-realm-aequor: #2e9bd6; --c-realm-ultra: #8b5cf6; }
+.kw { --c: var(--c-misc); display: inline-flex; align-items: center; gap: 3px; vertical-align: baseline; border: 1px solid color-mix(in srgb, var(--c) 55%, transparent);
+  background: color-mix(in srgb, var(--c) 14%, transparent); color: inherit; border-radius: 6px; padding: 0 5px; margin: 0 1px; font: inherit; line-height: 1.5; cursor: pointer; }
+.kw img { width: 15px; height: 15px; object-fit: contain; }
+.kw:hover, .kw.hl { background: color-mix(in srgb, var(--c) 32%, transparent); }
+.kw.hl { outline: 2px solid var(--gold); }
+.kw-damage { --c: var(--c-damage); } .kw-shield { --c: var(--c-shield); } .kw-heal { --c: var(--c-heal); }
+.kw-affliction { --c: var(--c-affliction); } .kw-aliemus { --c: var(--c-aliemus); } .kw-misc { --c: var(--c-misc); }
+.kw-realm-caro { --c: var(--c-realm-caro); } .kw-realm-chaos { --c: var(--c-realm-chaos); }
+.kw-realm-aequor { --c: var(--c-realm-aequor); } .kw-realm-ultra { --c: var(--c-realm-ultra); }
+.kwicon { object-fit: contain; flex: none; vertical-align: middle; }
+.kwicon.glyph { display: inline-grid; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--c) 30%, var(--panel)); border: 1px solid var(--c); font-weight: 700; }
+.kwpop { position: fixed; z-index: 100; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; box-shadow: 0 8px 30px #0006; max-height: 70vh; overflow: auto; }
+.kwpop[hidden] { display: none; }
+.kwhead { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+.kwhead small { color: var(--dim); }
+.kwdesc { white-space: pre-line; font-size: 13px; }
+.kwlink { display: block; margin-top: 8px; font-size: 12px; }
+.prewrap { white-space: pre-line; }
+.kwbar { display: grid; gap: 6px; }
+.kwline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.kwline small { color: var(--dim); }
+.kwtag { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; background: var(--panel); color: inherit; font: inherit; font-size: 12px; }
+.kwtag:hover { border-color: var(--accent); }
+.kwtag.on { border-color: var(--gold); color: var(--gold); }
+.kwtag img { width: 16px; height: 16px; }
+.kwrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+.kwrow small { color: var(--dim); }
+.kwfind { display: flex; flex-wrap: wrap; gap: 6px; }
+.skill.match { border: 1px solid var(--gold); background: color-mix(in srgb, var(--gold) 10%, var(--panel2)); }
+.skill header .en { color: var(--dim); font-size: 12px; }
+.kwcard .kwicon { margin: 6px 0 2px; }
+.tabs { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
+.tabs button { flex: none; }
+.kwsel { max-width: 240px; }
+.bskills li .kw, .skill p .kw { font-size: 0.95em; }

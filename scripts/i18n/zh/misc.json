@@ -1,0 +1,19 @@
+{
+"creation_names":{
+"Argent Return":"银白回归","Brass Censer":"黄铜香炉","Chrono Pendulum \"Buildup\"":"时灵摆「蓄势」","Chrono Pendulum \"Reciprocate\"":"时灵摆「回馈」","Chrono Pendulum \"Wings\"":"时灵摆「羽翼」","Coalsie II":"煤球二号","Concubines' Conceit":"妃嫔的傲慢","Destiny Spindle":"命运纺锤",
+"Dimension Pendulum-Alert":"维度摆锤·警戒","Dimension Pendulum-Confuse":"维度摆锤·混淆","Dimension Pendulum-Duel":"维度摆锤·决斗","Dimension Pendulum-Lurk":"维度摆锤·潜伏","Dimension Pendulum-Scare":"维度摆锤·惊吓","Dimension Pendulum-Voodoo":"维度摆锤·巫毒",
+"Echoes from Beyond":"彼岸回响","Lamp of Salvation":"救赎之灯","Little N's Camera":"小N的相机","Medal of Rescue":"救援勋章","Ogai's Notes":"鸥外的笔记","Pallid Egg":"苍白之卵","Psyche Analysis":"精神分析","Pure Silver Core":"纯银之核","Sparganum":"裂头蚴","Sparganum+":"裂头蚴+",
+"Shapeshifter's Invitation":"变形者的邀约","The Futile Travail":"徒劳之苦","Twisted Palette":"扭曲调色板","Winner's Cup":"胜者之杯","Armor of Whalebone":"鲸骨铠甲","Pistoles de Marie":"玛丽金币","Blackened Flame":"焦黑之焰","Sheriff Badge":"警长徽章","Ceremonial Spur":"仪式马刺",
+"Time Scarab":"时之圣甲虫","Time Scarab+":"时之圣甲虫+","Dimensional Image: \"24":"维度影像·「24」","Dimensional Image: \"24\"":"维度影像·「24」"
+},
+"creation_descs":{
+"Sheriff Badge":"手牌上限 +1。战斗开始时，将 1 个{derived:derived.global.event-cauldron|Cauldron}加入手牌。回合开始时，若持有{derived:derived.global.event-cauldron|Cauldron}，可以{Exhaust}手牌中的 1 张牌并将其放入{derived:derived.global.event-cauldron|Cauldron}。达成酿造条件后，{derived:derived.global.event-cauldron|Cauldron}会转化为{derived:derived.global.event-potion|Potion}。",
+"Ceremonial Spur":"回合开始时与释放狂气爆发后，获得 1 层{Sprint}。每释放 2 张钥令，将{Sprint}转化为{Rush Headlong}。{Rush Headlong}首次达到 16 层时，移除{Rush Headlong}并获得{Charge unto Glory}。",
+"Dimensional Image: \"24\"":"回合开始时，「24」获得 [Arg1] 点狂气。回合开始时，若「24」处于「抑郁人格」状态，额外获得 [Arg2] 点狂气；若处于「躁狂人格」状态，其临时暴击率与临时暴击伤害 +[Arg2]%。",
+"Dimensional Image: \"24":"回合开始时，「24」获得 15 点狂气。回合开始时，若「24」处于「抑郁人格」状态，额外获得 24 点狂气；若处于「躁狂人格」状态，其临时暴击率与临时暴击伤害 +24%。",
+"Dimensional Image: Vivian":"回合开始时，薇薇安获得 15 点狂气。{Concoct}上限由 3 提高至 5。战斗开始时，{Concoct}一次，并使{derived:derived.vivian.cauldron|Cauldron}倒计时 -3。"
+},
+"key_names":{
+"Primordial Memory: Drain":"原初记忆：汲取","Primordial Memory: Catalysis":"原初记忆：催化","Primordial Memory: Healing":"原初记忆：治愈","Primordial Memory: Toxin":"原初记忆：毒素","Primordial Memory: Spike":"原初记忆：尖刺","Primordial Memory: Might":"原初记忆：蛮力","Primordial Memory: Bastion":"原初记忆：铁壁","Primordial Memory: Fury":"原初记忆：狂怒"
+}
+}

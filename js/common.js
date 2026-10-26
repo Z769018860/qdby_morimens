@@ -28,7 +28,7 @@ export const KINDS = {
 };
 
 export async function loadDict() {
-  const D = await (await fetch('data/dictionary.json')).json();
+  const [D] = await Promise.all([fetch('data/dictionary.json').then(r => r.json()), loadKeywords()]);
   const idx = {};
   for (const k of Object.keys(KINDS)) idx[k] = new Map(D[k].filter(e => e.id != null).map(e => [String(e.id), e]));
   return { D, idx };
@@ -57,4 +57,71 @@ export function nav(active) {
       h('a', { href: 'index.html', class: active === 'game' ? 'on' : '' }, '推理'),
       h('a', { href: 'codex.html', class: active === 'codex' ? 'on' : '' }, '图鉴'),
       h('a', { href: 'about.html', class: active === 'about' ? 'on' : '' }, '说明')));
+}
+
+// ------------------------------------------------------------------ keywords
+// Texts in data/*.json mark keywords as ⟦slug|文字⟧ (see scripts/i18n_lib.py)
+export const KW = { list: [], by: {} };
+export async function loadKeywords() {
+  if (!KW.list.length) {
+    KW.list = await (await fetch('data/keywords.json')).json();
+    KW.by = Object.fromEntries(KW.list.map(k => [k.s, k]));
+  }
+  return KW;
+}
+export const KW_TYPE = { realm: '界域', mechanic: '状态 / 机制', tag: '标签', help: '说明' };
+const MARK = /⟦([^|⟧]+)\|([^⟧]*)⟧/g;
+export const plain = t => (t || '').replace(MARK, '$2');
+export const slugsIn = t => [...new Set([...(t || '').matchAll(MARK)].map(m => m[1]))];
+
+export function kwChip(slug, text) {
+  const k = KW.by[slug];
+  if (!k) return document.createTextNode(text);
+  const cls = k.t === 'realm' ? `realm-${k.s}` : (k.c || 'misc');
+  const b = h('button', { type: 'button', class: `kw kw-${cls}`, 'data-s': slug, title: `${k.n}：${plain(k.d).replace(/\s+/g, ' ').slice(0, 150)}`,
+    onclick: e => { e.stopPropagation(); showKwPop(slug, b); } },
+    k.i ? h('img', { src: k.i, alt: '' }) : null, text);
+  return b;
+}
+
+export function renderText(t) {
+  const frag = document.createDocumentFragment();
+  let pos = 0;
+  for (const m of (t || '').matchAll(MARK)) {
+    if (m.index > pos) frag.append(t.slice(pos, m.index));
+    frag.append(kwChip(m[1], m[2]));
+    pos = m.index + m[0].length;
+  }
+  if (pos < (t || '').length) frag.append(t.slice(pos));
+  return frag;
+}
+
+export function kwIcon(k, size = 28) {
+  if (k.i) return h('img', { src: k.i, alt: '', class: 'kwicon', width: size, height: size });
+  const cls = k.t === 'realm' ? `realm-${k.s}` : (k.c || 'misc');
+  return h('span', { class: `kwicon glyph kw-${cls}`, style: `width:${size}px;height:${size}px;font-size:${size * .55}px` }, k.n.slice(0, 1));
+}
+
+let pop;
+export function showKwPop(slug, anchor) {
+  const k = KW.by[slug];
+  if (!k) return;
+  if (!pop) {
+    pop = h('div', { class: 'kwpop', role: 'dialog' });
+    document.addEventListener('click', e => { if (pop && !pop.contains(e.target)) pop.hidden = true; });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && pop) pop.hidden = true; });
+  }
+  pop.replaceChildren(
+    h('div', { class: 'kwhead' }, kwIcon(k, 32), h('b', {}, k.n), h('small', {}, k.e)),
+    h('div', { class: 'kwdesc' }, renderText(k.d)),
+    h('a', { class: 'kwlink', href: `codex.html#tab=awakener&kw=${slug}` }, '在图鉴中筛选包含此关键词的条目 →'));
+  (anchor.closest('dialog') || document.body).append(pop); // keep it above modal dialogs
+  pop.hidden = false;
+  const r = anchor.getBoundingClientRect();
+  const w = Math.min(360, innerWidth - 16);
+  pop.style.width = w + 'px';
+  pop.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left)) + 'px';
+  pop.style.top = '0px';
+  const hgt = pop.offsetHeight;
+  pop.style.top = (r.bottom + hgt + 12 > innerHeight && r.top > hgt + 12 ? r.top - hgt - 6 : r.bottom + 6) + 'px';
 }

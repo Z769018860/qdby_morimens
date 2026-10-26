@@ -1,4 +1,4 @@
-import { $, h, store, loadDict, imgEl, wan, nav, KINDS } from './common.js';
+import { $, h, store, loadDict, imgEl, wan, nav, KINDS, KW, KW_TYPE, renderText } from './common.js';
 import { PEPPER } from './pepper.js';
 
 const MAX_TRIES = 6;
@@ -243,7 +243,7 @@ function reportPanel() {
       stat('剩余生命', `${p.left}/${p.hp}`), stat('钥令/玩家伤害', wan(p.playerDmg)),
       stat('榜单分数', p.score), stat('造物数量', p.relics.length, level >= 4 ? '需要全部还原' : '')),
     bosses.length ? h('details', { class: 'bskills' }, h('summary', {}, '区域 Boss 技能（推理线索）'),
-      bosses.map(b => h('div', {}, h('b', {}, b.zh), h('ul', {}, (b.skills || []).map(t => h('li', {}, t)))))) : null,
+      bosses.map(b => h('div', {}, h('b', {}, b.zh), h('ul', {}, (b.skills || []).map(t => h('li', {}, renderText(t))))))) : null,
     h('div', { class: 'brows' }, rows,
       h('p', { class: 'note' }, '已按队内伤害从高到低排序：A 是伤害最高者。队伍成员以匿名 A–D 呈现，顺序即答案顺序。')));
 }
@@ -358,14 +358,14 @@ function openPicker(kind, apply, slot) {
   const multi = kind === 'creation';
   const all = D[kind].filter(e => e.id != null).sort((a, b) => (b.real !== false) - (a.real !== false));
   const used = kind === 'awakener' ? new Set(sel.slots.map(s => s.awk).filter(Boolean)) : new Set();
-  let q = '', f1 = '', f2 = '';
+  let q = '', f1 = '', f2 = '', fk = '';
   const f1key = { awakener: 'realm', wheel: 'realm', key: 'realm', creation: 'kind' }[kind];
   const f2key = { awakener: 'role', wheel: 'rarity', creation: 'rarity' }[kind];
   const opts = (key) => key ? [...new Set(all.map(e => e[key]).filter(Boolean))].sort() : [];
   const grid = h('div', { class: 'pgrid' });
   const draw = () => {
     grid.replaceChildren();
-    const list = all.filter(e => (!q || (e.zh + e.en).toLowerCase().includes(q)) && (!f1 || e[f1key] === f1) && (!f2 || e[f2key] === f2));
+    const list = all.filter(e => (!q || (e.zh + e.en).toLowerCase().includes(q)) && (!f1 || e[f1key] === f1) && (!f2 || e[f2key] === f2) && (!fk || (e.kw || []).includes(fk)));
     list.forEach(e => {
       const chosen = multi && sel.relics.includes(String(e.id));
       const full = multi && !chosen && sel.relics.length >= puzzle.relics.length;
@@ -385,11 +385,19 @@ function openPicker(kind, apply, slot) {
     const o = opts(key);
     return o.length ? h('select', { onchange: ev => { set(ev.target.value); draw(); } }, h('option', { value: '' }, label), o.map(x => h('option', { value: x }, x))) : null;
   };
+  const kwSelect = () => {
+    const have = new Set(all.flatMap(e => e.kw || []));
+    const ks = KW.list.filter(k => have.has(k.s));
+    if (!ks.length) return null;
+    return h('select', { title: '按技能/描述中的关键词筛选', onchange: ev => { fk = ev.target.value; draw(); } }, h('option', { value: '' }, '全部关键词'),
+      Object.entries(KW_TYPE).map(([t, label]) => { const g = ks.filter(k => k.t === t); return g.length ? h('optgroup', { label }, g.map(k => h('option', { value: k.s }, k.n))) : null; }));
+  };
   const count = h('span', { class: 'note' }, multi ? `${sel.relics.length}/${puzzle.relics.length}` : '');
   dlg.replaceChildren(
     h('div', { class: 'phead' }, h('b', {}, `选择${KINDS[kind]}`), count,
       h('input', { type: 'search', placeholder: '搜索名称（中/英）', oninput: ev => { q = ev.target.value.trim().toLowerCase(); draw(); } }),
       sub(f1key, f1key === 'kind' ? '全部类型' : '全部阵营', v => { f1 = v; }), sub(f2key, f2key === 'role' ? '全部定位' : '全部稀有度', v => { f2 = v; }),
+      kwSelect(),
       !multi ? h('button', { class: 'btn ghost sm', onclick: () => { apply(null); persist(); dlg.close(); render(); } }, '清空') : null,
       h('button', { class: 'btn sm', onclick: () => { dlg.close(); render(); } }, multi ? '完成' : '关闭')),
     grid);

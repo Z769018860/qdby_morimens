@@ -336,79 +336,137 @@ for kind in ('wheel', 'covenant', 'key', 'creation'):
             e['id'] = 'p:' + e['pid']
         e.setdefault('use', None)
 
-# ---------------------------------------------------------------- awakener skills (SKeyDB, CC BY-NC-SA 4.0)
+# ---------------------------------------------------------------- Chinese text, keywords, awakener skills
+# SKeyDB data is CC BY-NC-SA 4.0; the Chinese wording of skills/keywords comes from scripts/i18n/zh (see README)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import i18n_lib as I
+
 V3 = M / 'skeydb/public-v3/records'
 gl = jl(M / 'game/glossary.json')['entries']
-TERM = {e['en']: e['zh'] for e in gl if e['k'] == 'term' and e['zh']}
-for e in gl:
-    if e['k'] in ('awakener', 'wheel', 'relic', 'posse', 'covenant') and e['zh']:
-        TERM.setdefault(e['en'], e['zh'])
-ARG = re.compile(r'\[(?:\{[^}]*\}|[A-Za-z_ ]+)?:?(Arg\d+)\]')
+js = (SRC / 'morimens-calculator-skeydb.js').read_text(encoding='utf-8')
+known_ids = dict(re.findall(r"'((?:skill|derived|talent|enlighten)\.[^']+)':'([^']+)'", js[js.index('const zhSkillNames'):js.index('const uniqueTermZh')]))
+unique_terms = dict(re.findall(r"'([^']+)':'([^']+)'", js[js.index('const uniqueTermZh'):js.index('const globalTermMeta')]))
+overlays = [jl(f) for f in sorted((V3 / 'overlays').glob('*.json'))]
+pool_names = {}
+for kind in ('awakener', 'wheel', 'relic', 'posse', 'covenant'):
+    for it in pool[kind]:
+        if it['zh']:
+            pool_names[it['en']] = it['zh']
+records = {k: [jl(f) for f in sorted((V3 / k).glob('*.json'))] for k in ('skills', 'talents', 'enlightens', 'derived-skills')}
+known_en2zh = {r['name']: known_ids[r['id']] for rs in records.values() for r in rs if r['id'] in known_ids}
+L = I.Lang(overlays, gl, known_ids, known_en2zh, unique_terms, pool_names)
 
-
-def fmt_arg(a, max_level=None):
-    k = a.get('kind')
-    suf = a.get('suffix') or ''
-    if k == 'fixed':
-        return f"{a['value']}{suf}"
-    if k == 'scaling':
-        v = a['values']
-        return (f"{v[0]}{suf}" if v[0] == v[-1] else f"{v[0]}–{v[-1]}{suf}") + (f"（{a['stat']}）" if a.get('stat') else '')
-    if k == 'linear':
-        base, gain = float(a['base']), float(a['gainPerLevel'])
-        hi = base + gain * ((max_level or 1) - 1)
-        f = lambda x: str(int(x)) if x == int(x) else f"{x:g}"
-        return f"{f(base)}–{f(hi)}{suf}" if max_level and max_level > 1 else f"{f(base)}{suf}"
-    return '?'
-
-
-def render_desc(rec, max_level=None):
-    t = rec.get('descriptionTemplate') or ''
-    args = rec.get('descriptionArgs') or {}
-    t = ARG.sub(lambda m: fmt_arg(args[m.group(1)], max_level) if m.group(1) in args else '?', t)
-    t = re.sub(r'\{plural:[^|{}]*\|[^|{}]*\|[^|{}]*\}', '层', t)
-    t = re.sub(r'\[\{([^{}]+)\}:\s*([^\[\]]*)\]', lambda m: f'【{m.group(1)}】{m.group(2)}', t)
-    t = re.sub(r'\{([^{}]+)\}', lambda m: TERM.get(m.group(1), m.group(1)), t)
-    t = re.sub(r'(?m)^overlay:.*$', '', t)
-    t = re.sub(r'\b(?:derived|overlay):', '', t)
-    t = re.sub(r'\[Talent_Attr_Lv_\w+\]', '成长值', t)
-    return t.replace('\\n', '\n').strip()
-
-
-SLOT = {'Skill1': '技能', 'Skill2': '技能', 'Skill3': '技能', 'Skill4': '技能', 'Skill5': '技能', 'Skill6': '技能',
-        'Strike': '攻击', 'Defense': '防御', 'Ult': '狂气爆发', 'Exalt': '狂气爆发', 'Rouse': '唤醒'}
-by_owner = defaultdict(lambda: {'skills': [], 'talents': [], 'enlightens': []})
-for kind, key in (('skills', 'skills'), ('talents', 'talents'), ('enlightens', 'enlightens')):
-    for f in sorted((V3 / kind).glob('*.json')):
-        r = jl(f)
+SLOT_ZH = {'Strike': '打击', 'Defense': '防御', 'Skill1': '技能', 'Skill2': '技能', 'Rouse': '灵知觉醒', 'Exalt': '狂气爆发',
+           'OverExalt': '超限爆发', 'E1': '启灵 1', 'E2': '启灵 2', 'E3': '启灵 3', 'AbsoluteAxiom': '绝对公理'}
+ORDER = ['Strike', 'Defense', 'Skill1', 'Skill2', 'Rouse', 'Exalt', 'OverExalt']
+by_owner = defaultdict(lambda: {'skills': [], 'talents': [], 'enlightens': [], 'derived': []})
+missing_tpl = 0
+for kind, key in (('skills', 'skills'), ('talents', 'talents'), ('enlightens', 'enlightens'), ('derived-skills', 'derived')):
+    for r in records[kind]:
         o = r.get('ownerAwakenerId')
         if not o:
             continue
-        entry = {'name': r['name'], 'slot': r.get('slot', ''), 'desc': render_desc(r, r.get('maxLevel'))}
-        if kind == 'skills':
-            entry.update(cost=r.get('cost'), type=SLOT.get(r.get('slot'), r.get('slot', '')),
-                         tags=[t for t in (r.get('cardTypes') or [])])
+        d = L.render(r, r.get('maxLevel'))
+        if d is None:
+            missing_tpl += 1
+            d = r.get('descriptionTemplate') or ''
+        entry = {'n': L.name_of(r), 'e': r['name'], 'slot': r.get('slot', ''), 'ty': SLOT_ZH.get(r.get('slot'), '天赋' if kind == 'talents' else ''), 'd': d}
+        if kind in ('skills', 'derived-skills') and r.get('cost') not in (None, ''):
+            entry['cost'] = r['cost']
         by_owner[o][key].append(entry)
+for rec in by_owner.values():
+    rec['skills'].sort(key=lambda x: ORDER.index(x['slot']) if x['slot'] in ORDER else 99)
 
 awk_by_pid = {e['pid']: e for e in D['awakener']}
+wn = {e['pid']: e['zh'] for e in D['wheel']}
+cn_ = {e['pid']: e['zh'] for e in D['covenant']}
 builds = {}
 for f in sorted((V3 / 'awakener-builds').glob('*.json')):
     r = jl(f)
-    o = r.get('awakenerId')
-    wn = {e['pid']: e['zh'] for e in D['wheel']}
-    cn = {e['pid']: e['zh'] for e in D['covenant']}
-    bl = []
-    for b in r.get('builds', []):
-        bl.append({'label': b.get('label'), 'covenants': [cn.get(c, c) for c in b.get('recommendedCovenantIds', [])],
-                   'wheels': [[wn.get(w, w) for w in x['wheelIds']] for x in b.get('recommendedWheels', [])][:4]})
-    builds[o] = bl
+    builds[r.get('awakenerId')] = [{'label': {'Support': '辅助', 'Defence': '防御', 'Damage': '输出', 'DPS': '输出', 'Sub DPS': '副输出'}.get(b.get('label'), b.get('label')),
+                                    'covenants': [cn_.get(c, c) for c in b.get('recommendedCovenantIds', [])],
+                                    'wheels': [[wn.get(w, w) for w in x['wheelIds']] for x in b.get('recommendedWheels', [])][:4]}
+                                   for b in r.get('builds', [])]
 SK = {}
 for pid, rec in by_owner.items():
     a = awk_by_pid.get(pid)
     if a:
         SK[a['pid']] = {**rec, 'builds': builds.get(pid, [])}
         a['hasSkills'] = True
+
+# ---- creations / keys that still lack Chinese
+cfg_relic = jl(M / 'replay-relic-config.json')['relic']
+cn = lambda t: bool(I.CJK.search(t or ''))
+clean = lambda t: re.sub(r'<[^>]+>', '', t or '').replace('\\n', '\n')
+has_zh_desc = lambda e: bool(e['desc']) and any(cn(x['t']) for x in e['desc'])
+base_desc = {e['en']: e['desc'] for e in D['creation'] if has_zh_desc(e)}
+for e in D['creation']:
+    c = cfg_relic.get(str(e['id']))
+    if not cn(e['zh']):
+        z = (c['Name'].split('|')[-1] if c and c.get('Name') else '') or L.misc['creation_names'].get(e['en'])
+        if z:
+            e['zh'] = z
+    if not has_zh_desc(e):
+        if c and c.get('Desc'):
+            e['desc'] = [{'h': '造物特性', 't': clean(c['Desc'].split('|')[-1])}]
+        elif e['en'].endswith('+') and e['en'][:-1] in base_desc:
+            e['desc'] = base_desc[e['en'][:-1]]
+        elif e['en'] in L.misc['creation_descs']:
+            e['desc'] = [{'h': '造物特性', 't': L.render({}, template=L.misc['creation_descs'][e['en']])}]
+for e in D['key']:
+    if not cn(e['zh']) and e['en'] in L.misc['key_names']:
+        e['zh'] = L.misc['key_names'][e['en']]
+
+# ---- link keywords inside every text, then index which entries mention which keyword
+for kind in ('wheel', 'covenant', 'key', 'creation'):
+    for e in D[kind]:
+        for x in e['desc']:
+            x['t'] = L.link(x['t'])
+for e in D['monster']:
+    e['desc'] = L.link(e['desc'])
+    e['skills'] = [L.link(t) for t in e['skills']]
+REALM_SLUG = {'血肉': 'caro', '混沌': 'chaos', '深海': 'aequor', '超维': 'ultra'}
+usage_kw = defaultdict(lambda: defaultdict(int))
+
+
+def finish_kw(kind, e, texts):
+    ks = set()
+    for t in texts:
+        ks.update(I.slugs_in(t))
+    if REALM_SLUG.get(e.get('realm')):
+        ks.add(REALM_SLUG[e['realm']])
+    e['kw'] = sorted(ks)
+    for k in ks:
+        usage_kw[k][kind] += 1
+
+
+for kind in ('wheel', 'covenant', 'key', 'creation'):
+    for e in D[kind]:
+        finish_kw(kind, e, [x['t'] for x in e['desc']])
+for e in D['monster']:
+    finish_kw('monster', e, [e['desc']] + e['skills'])
+for e in D['awakener']:
+    rec = SK.get(e['pid'], {})
+    finish_kw('awakener', e, [x['d'] for g in ('skills', 'talents', 'enlightens', 'derived') for x in rec.get(g, [])])
+
+# ---- keyword table
+KW_REALM_ICON = {'caro': 'Xuerou', 'chaos': 'Hundun', 'aequor': 'Shenhai', 'ultra': 'Chaowei'}
+kwlist = []
+for k in L.kw.values():
+    icon = asset(f"skeydb-icons/{k['i']}.webp", 'kw', (64, 64)) if k['i'] else None
+    if k['s'] in KW_REALM_ICON:
+        src_svg = A / 'realms-svg' / f"Icon_Career2_{KW_REALM_ICON[k['s']]}.svg"
+        if src_svg.exists():
+            (OUT_ASSET / 'kw').mkdir(parents=True, exist_ok=True)
+            (OUT_ASSET / 'kw' / f'realm-{k["s"]}.svg').write_bytes(src_svg.read_bytes())
+            icon = f'assets/kw/realm-{k["s"]}.svg'
+    kwlist.append({'s': k['s'], 'n': k['n'], 'e': k['e'], 'a': k['a'], 'd': k['d'], 't': k['t'], 'c': k['c'], 'i': icon,
+                   'cnt': dict(usage_kw.get(k['s'], {}))})
+kwlist.sort(key=lambda k: ({'realm': 0, 'mechanic': 1, 'tag': 2, 'help': 3}.get(k['t'], 9), k['n']))
+json.dump(kwlist, open(OUT_DATA / 'keywords.json', 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
 json.dump(SK, open(OUT_DATA / 'skills.json', 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
+print('keywords', len(kwlist), 'skills', sum(len(v['skills']) + len(v['talents']) + len(v['enlightens']) + len(v['derived']) for v in SK.values()),
+      'missing templates', missing_tpl, 'unresolved terms', len(L.unresolved), list(L.unresolved)[:12])
 
 # ---------------------------------------------------------------- hide the answers from the plain JSON
 import base64, hashlib, secrets
