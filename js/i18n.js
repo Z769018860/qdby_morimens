@@ -56,6 +56,9 @@ export const I18N = {
     // 登录 / 统计
     loginTitle: '登录 / 档案', nickname: '昵称', login: '登录', logout: '退出',
     nicknamePh: '输入昵称（本地保存）',
+    notLogged: '未登录（本机档案）', loginRegister: '登录 / 注册',
+    nicknameLocal: '本地昵称', nicknameLocalTip: '只存在这台设备上，不上传服务器',
+    saveLocal: '保存', savedLocal: '已保存到本机',
     statsTitle: '我的战绩', accuracy: '总体准确率', totalPlayed: '累计已玩', totalWon: '累计胜场',
     favTitle: '喜好干员', favHint: '点选你喜欢的唤醒体（用于个性化）',
     // 配队规则（圈外人也能玩）
@@ -168,6 +171,9 @@ export const I18N = {
     copied: 'Copied',
     loginTitle: 'Profile', nickname: 'Nickname', login: 'Sign in', logout: 'Sign out',
     nicknamePh: 'Enter nickname (local)',
+    notLogged: 'Not signed in (local)', loginRegister: 'Sign in / Sign up',
+    nicknameLocal: 'Local nickname', nicknameLocalTip: 'Stored on this device only, never uploaded',
+    saveLocal: 'Save', savedLocal: 'Saved on this device',
     statsTitle: 'My stats', accuracy: 'Overall accuracy', totalPlayed: 'Total played', totalWon: 'Total won',
     favTitle: 'Favorite awakeners', favHint: 'Pick your favorites (personalization)',
     teamRuleTitle: 'Morimens team rules (for newcomers)',

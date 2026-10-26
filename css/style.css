@@ -243,7 +243,7 @@ input[type=search], select { background: var(--panel2); color: var(--text); bord
 .prow { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .pname b { font-size: 16px; }
 .pname .note { display: block; }
-.pactions { display: flex; gap: 6px; align-items: center; }
+.pactions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .pactions input { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: inherit; }
 .favs { border-top: 1px solid var(--line); padding-top: 6px; }
 .fhead small { color: var(--dim); }
@@ -522,9 +522,14 @@ body.themed .toast { background: color-mix(in srgb, var(--bg) 85%, #000); }
 /* 手机横屏：高度紧张，压扁纵向留白，导航与内容并排 */
 @media (max-height: 540px) and (orientation: landscape) {
   .wrap { padding: 8px 12px 22px; gap: 10px; }
-  .top { padding: 5px 12px; position: static; }
+  /* 横屏高度金贵：导航不换行，挤在一行里横向滚动 */
+  .top { padding: 5px 10px; position: static; flex-wrap: nowrap; gap: 6px; row-gap: 0; }
   .brand small { display: none; }
-  .top nav a { padding: 4px 10px; font-size: 13px; }
+  .brand b { font-size: 15px; }
+  .top nav { order: 2; flex: 1 1 auto; margin-left: 6px; padding-bottom: 0; overflow-x: auto; scrollbar-width: none; }
+  .top nav::-webkit-scrollbar { display: none; }
+  .top .navright { order: 3; margin-left: 6px; gap: 6px; }
+  .top nav a { padding: 4px 9px; font-size: 13px; }
   .card { padding: 10px 12px; }
   .pagehead h1 { font-size: 17px; }
   .pagehead .note { display: none; }

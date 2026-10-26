@@ -498,29 +498,34 @@ function profilePanel() {
   const acc = st.totalFields ? Math.round(st.fields / st.totalFields * 100) + '%' : '—';
   const u = auth.user;
   const shown = u ? u.name : profile.name;
+  // 「登录」现在只会指云端账号，本地昵称单独给一个输入框，避免两套登录混淆
+  const acts = u
+    ? [
+        h('a', { class: 'btn ghost sm', href: 'profile.html' }, t('myCenter')),
+        h('button', { class: 'btn ghost sm', onclick: () => { auth.logout(); render(); } }, t('pfLogout')),
+      ]
+    : [
+        h('button', { class: 'btn sm', onclick: () => openLogin(() => render()) }, t('loginRegister')),
+        h('input', { type: 'text', placeholder: t('nicknameLocal'), title: t('nicknameLocalTip'),
+          maxlength: 16, id: 'nick-input',
+          value: profile.name || '', onkeydown: ev => { if (ev.key === 'Enter') doLogin(); } }),
+        h('button', { class: 'btn ghost sm', onclick: doLogin }, t('saveLocal')),
+      ];
   const box = h('section', { class: 'card profile' },
     h('div', { class: 'prow' },
       u ? h('img', { class: 'pfavatar tiny', src: auth.avatarOf(u), alt: '', width: 36, height: 36 }) : null,
       h('div', { class: 'pname' },
-        h('b', {}, shown ? `👤 ${shown}` : t('loginTitle')),
-        h('span', { class: 'note' }, shown
-          ? `${t('statsTitle')}：${t('totalPlayed')} ${st.played} · ${t('totalWon')} ${st.won} · ${t('accuracy')} ${acc}`
-          : t('nicknamePh'))),
-      h('div', { class: 'pactions' },
-        u
-          ? h('a', { class: 'btn ghost sm', href: 'profile.html' }, t('myCenter'))
-          : h('input', { type: 'text', placeholder: t('nickname'), maxlength: 16, id: 'nick-input',
-              onkeydown: ev => { if (ev.key === 'Enter') doLogin(); } }),
-        u
-          ? h('button', { class: 'btn ghost sm', onclick: () => { auth.logout(); render(); } }, t('pfLogout'))
-          : h('button', { class: 'btn sm', onclick: () => openLogin(() => { profile.name = (auth.user && auth.user.name) || ''; saveProfile(); render(); }) }, t('login')))),
+        h('b', {}, shown ? `👤 ${shown}` : t('notLogged')),
+        h('span', { class: 'note' },
+          `${t('statsTitle')}：${t('totalPlayed')} ${st.played} · ${t('totalWon')} ${st.won} · ${t('accuracy')} ${acc}`)),
+      h('div', { class: 'pactions' }, acts)),
     favPanel());
   return box;
 }
 function doLogin() {
   const v = ($('#nick-input') ? $('#nick-input').value : '').trim();
-  if (!v) { toast(t('nickname')); return; }
-  profile.name = v; saveProfile(); render();
+  if (!v) { toast(t('nicknameLocal')); return; }
+  profile.name = v; saveProfile(); toast(t('savedLocal')); render();
 }
 function favPanel() {
   const awks = D.awakener.filter(a => a.id != null);
