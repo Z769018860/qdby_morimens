@@ -34,6 +34,10 @@ const root = $('#app');
 root.textContent = t('loading');
 
 const { D, idx } = await loadDict();
+// 造物的功能标签（scripts/tag_creations.py 生成），没有也能玩
+const RELIC_TAGS = await fetch('data/creation-tags.json', { cache: 'no-cache' })
+  .then(r => (r.ok ? r.json() : {}))
+  .catch(() => ({}));
 const CORE_JSON = await (await fetch('data/puzzles.json', { cache: 'no-cache' })).json();
 const P = CORE_JSON.puzzles;
 // 扩充题库（data/puzzles-extra.json 等）后台加载，不拖慢首屏
@@ -370,7 +374,7 @@ const isInnateRelic = (id) => (creationOf(id) || {}).kind === INNATE_KIND;
 const relicList = () => puzzle.relics || [];
 const innateRelics = () => relicList().filter(isInnateRelic);
 const fillRelics = () => relicList().filter(id => !isInnateRelic(id));
-const relicTags = (id) => (creationOf(id) || {}).tags || [];
+const relicTags = (id) => RELIC_TAGS[String(id)] || [];
 
 function hintAwk(k) {
   if (finished || isOpen(`r${k}`)) return;
