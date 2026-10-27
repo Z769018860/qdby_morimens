@@ -347,7 +347,7 @@ async function postPuzzle(request, env, cors) {
     .prepare('INSERT INTO puzzles (id, author, author_name, title, payload, at, updated_at) VALUES (?,?,?,?,?,?,?) ' +
       'ON CONFLICT(id) DO UPDATE SET author = excluded.author, author_name = excluded.author_name, ' +
       'title = excluded.title, payload = excluded.payload, updated_at = excluded.updated_at')
-    .bind(id, me.uid, me.name, title, JSON.stringify(payload), cur ? now : now, now)
+    .bind(id, me.uid, me.name, title, JSON.stringify(payload), now, now)
     .run();
 
   return reply({ ok: true, id, likes: await countOf(env, id) }, 200, cors);
