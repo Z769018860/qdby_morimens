@@ -37,18 +37,25 @@ node scripts/test_edge_api.mjs     # EdgeOne 版（用 Map 假装 KV，61 条断
 
 ## 方式 A：EdgeOne Pages 边缘函数（线上在用，免费）
 
-为什么选它：站点本身就部署在 EdgeOne Pages，接口和页面**同源同证书**，
-既没有跨域配置，也没有「https 页面调 http 接口被 mixed content 拦掉」的问题；
-免费额度 300 万次/月，KV 1GB，不用养服务器。
+为什么选它：接口和页面**同源同证书**，既没有跨域配置，也没有「https 页面调 http
+接口被 mixed content 拦掉」的问题；免费额度 300 万次/月，KV 1GB，不用养服务器。
 
-1. 控制台 → **存储 → KV** → 开通（免费 1GB）→ **创建命名空间**，名字随意，比如 `zjtt`
-2. 回到项目 → **KV 存储 → Bind Namespace**，选刚建的命名空间，
+**前提：项目必须接的是本仓库。** EdgeOne 里已有的 `morimens-5771` 接的是另一个仓库
+（银钥档案抽卡分析，提交 `7b5b485` 不在本仓库历史里），它的域名下没有我们的页面，
+也不会有 `/api`。要从本仓库另建一个项目（免费档 40 个额度，随便用）。
+
+1. 控制台 → **Pages → 新建项目** → 导入 Git 仓库 `Z769018860/qdby_morimens`，分支 `main`
+   - 类型选**静态站点**，构建命令留空，**输出目录填 `/`**（站点文件就在仓库根）
+2. **存储 → KV** → 开通（免费 1GB）→ **创建命名空间**，名字随意，比如 `zjtt`
+3. 回到项目 → **KV 存储 → Bind Namespace**，选刚建的命名空间，
    **变量名填 `zjtt_kv`**（代码里也认 `ZJTT_KV` / `KV`）
-3. 仓库里已经有 `edge-functions/api/[[default]].js`，推到 `main` 后平台会自动重新部署
-4. 验证：打开 `https://<你的域名>/api/health`，应返回
-   `{"ok":true,"service":"zjtt","v":2,"runtime":"edgeone",...}`
-5. 前端 `js/api.js` 的 `API_BASE` 指向 `https://<你的域名>/api`
-   （`node scripts/set_api_base.mjs https://<你的域名>/api`）
+4. 触发一次部署（推一次提交，或在控制台点「重新部署」）
+5. 验证：打开 `https://<项目域名>/api/health`，应返回
+   `{"ok":true,"service":"zjtt","v":2,"runtime":"edgeone",...}`；
+   返回 `no_kv` 就是第 3 步没绑上，返回 404 就是函数目录没被识别
+6. 前端**不用配**：站点和函数同源，`js/api.js` 会自动走 `/api`。
+   只有 GitHub Pages 镜像站那种异源情况，才需要
+   `node scripts/set_api_base.mjs https://<项目域名>/api`
 
 **KV 的脾气，改数据模型时要顺着它**：
 

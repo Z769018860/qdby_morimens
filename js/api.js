@@ -11,9 +11,10 @@
 // 地址优先取 store 里的 apiBase（设置里可改，方便临时指向本地后端），其次是下面的常量。
 import { store } from './common.js';
 
-// 部署后把这里换成自己的接口地址（要用到末尾的 /api 路径）
-// 用 `node scripts/set_api_base.mjs https://…/api` 改这一行，别手改错。
-export const API_BASE = 'https://morimens.qingdengbuyi.top/api';
+// 部署后把这里换成接口地址（末尾要带 /api）。只有「站点不在自家域名下」时才会用到它，
+// 比如 GitHub Pages 那份镜像站；站点本身就部署在 EdgeOne 上时走同源 /api，不用配。
+// 用 `node scripts/set_api_base.mjs https://<你的域名>/api` 改这一行，别手改错。
+export const API_BASE = 'https://zjtt-api.workers.dev';
 
 // 还是占位符就当作「没配后端」：各模块退回纯本机模式，不会去打一个不存在的域名
 const PLACEHOLDER = 'https://zjtt-api.workers.dev';
@@ -42,8 +43,10 @@ export const api = {
     const custom = String(store.get('apiBase', '') || '').trim().replace(/\/+$/, '');
     if (custom) return custom;
     if (isLocalDev()) return LOCAL;
-    // EdgeOne 的预览域每次部署都会变，同源调 /api 最省事（也能避开没绑自定义域名的情况）
-    if (/\.edgeone\.(dev|app|run)$/i.test(location.hostname)) return location.origin + '/api';
+    // 站点和函数在同一个项目里（EdgeOne 的自定义域名、预览域都算）就直接同源调，
+    // 好处是换域名、换预览地址都不用改代码，也不会因为域名写错打到别人的站上
+    if (!/\.github\.io$/i.test(location.hostname)) return location.origin + '/api';
+    // 只剩 GitHub Pages 镜像站这种异源情况，才需要绝对地址
     return String(API_BASE || '').replace(/\/+$/, '');
   },
 
