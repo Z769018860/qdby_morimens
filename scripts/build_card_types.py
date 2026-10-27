@@ -36,6 +36,8 @@ CODE = {
 
 
 def main():
+    if not SRC.exists():
+        raise SystemExit(f'缺少 {SRC}：先用 .tmp-cards/mine.py 挖一批官方回放（见文件头说明）')
     skills = json.load(open(SRC, encoding='utf-8'))
     out = {}
     for tid, e in skills.items():
