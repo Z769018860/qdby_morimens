@@ -127,6 +127,23 @@ console.log('\n[2c] env 里有同名但不像 KV 的东西时不能误判');
   eq('→ 503 而不是当成可用存储', r.status, 503);
 }
 
+console.log('\n[2d] ZJTT_STORE 可以钉死存储，避免 KV 审核通过后突然切库');
+{
+  const kv = fakeKV();
+  // 钉成 kv：明明有 KV 就用它
+  const callKv = makeCaller({ zjtt_kv: kv, ZJTT_STORE: 'kv' });
+  const r1 = await callKv('/health');
+  eq('钉 kv → store:kv', r1.json.store, 'kv');
+  eq('钉 kv → pin:kv', r1.json.pin, 'kv');
+
+  // 钉成 blob：有 KV 也不用，而 Blob 没凭据 → 明确报错，而不是偷偷切回 KV
+  const callBlob = makeCaller({ zjtt_kv: kv, ZJTT_STORE: 'blob' });
+  const r2 = await callBlob('/health');
+  eq('钉 blob 但没凭据 → 503', r2.status, 503);
+  eq('钉 blob 但没凭据 → no_store', r2.json.error, 'no_store');
+  check('错误里点明是钉死导致的', /ZJTT_STORE/.test(String(r2.json.detail)));
+}
+
 console.log('\n[3] CORS 白名单');
 {
   const kv = fakeKV();

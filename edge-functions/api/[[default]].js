@@ -184,19 +184,32 @@ function blobOf(env) {
 // KV 绑定：控制台里变量名怎么填都可能，这里挨个认一遍。
 // 注意 EdgeOne 的绑定是「注入同名全局变量」（官方示例直接 my_kv.put()），
 // 不一定出现在 env 上，所以两边都找：先 env 再 globalThis。
+//
+// ZJTT_STORE=kv|blob 可以钉死用哪一套。为什么需要：默认「先 KV 后 Blob」，
+// 万一先用着 Blob、几天后 KV 审核通过，会突然切到空库，赞数看起来像被清零。
+// 哪套开始存真数据，就用这个变量钉住它。
 function storeOf(env) {
+  const pin = String((env && env.ZJTT_STORE) || '').toLowerCase();
+
   const g = typeof globalThis !== 'undefined' ? globalThis : {};
   const hit = (env && (env.zjtt_kv || env.ZJTT_KV || env.KV || env.KV_STORE))
     || g.zjtt_kv || g.ZJTT_KV || g.KV || null;
   // 只认真正实现了存储接口的对象，别把 env 里别的配置当成存储
-  if (looksLikeKV(hit)) return hit;
+  const kv = looksLikeKV(hit) ? hit : null;
 
-  const blob = blobOf(env);
-  if (blob) return blob;
+  if (pin !== 'blob' && kv) return kv;
+  if (pin !== 'kv') {
+    const blob = blobOf(env);
+    if (blob) return blob;
+  }
 
+  const why = pin
+    ? `（ZJTT_STORE 钉死为 ${pin}，但那一套不可用）`
+    : '';
   throw new HttpError(500, 'no_store',
     '没有可用的存储：KV 未绑定（控制台 → 存储 → KV，审核通过后绑到项目），'
-    + 'Blob 也没拿到凭据（项目设置 → 环境变量，配 ZJTT_BLOB_TOKEN 与 ZJTT_BLOB_PROJECT）');
+    + 'Blob 也没拿到凭据（项目设置 → 环境变量，配 ZJTT_BLOB_TOKEN 与 ZJTT_BLOB_PROJECT）'
+    + why);
 }
 
 // 有上限的并发：Blob 的每次强一致读都是一次源站请求，一口气发 120 个会被限流
@@ -589,15 +602,17 @@ export async function onRequest(context) {
     // /health 先于 KV 检查：没绑 KV 时也要能答话，否则探活永远是 500 说不清原因
     if (path === '/health' || path === '/') {
       let kv = null;
-      try { kv = storeOf(env); } catch { kv = null; }
+      let why = null;
+      try { kv = storeOf(env); } catch (e) { kv = null; why = (e && e.detail) || null; }
       const kind = kv ? (kv.__kind || 'kv') : null;
+      const pin = String((env && env.ZJTT_STORE) || '').toLowerCase() || null;
       return reply({
         ok: Boolean(kv), service: 'zjtt', v: 2, runtime: 'edgeone',
-        store: kind, kv: Boolean(kv), day: dayKey(),
+        store: kind, pin, kv: Boolean(kv), day: dayKey(),
         ...(kv ? {} : {
           error: 'no_store',
-          detail: 'KV 未绑定（存储 → KV，审核通过后绑到项目），Blob 也没凭据'
-            + '（项目设置 → 环境变量，配 ZJTT_BLOB_TOKEN 与 ZJTT_BLOB_PROJECT）',
+          detail: why || ('KV 未绑定（存储 → KV，审核通过后绑到项目），Blob 也没凭据'
+            + '（项目设置 → 环境变量，配 ZJTT_BLOB_TOKEN 与 ZJTT_BLOB_PROJECT）'),
         }),
       }, kv ? 200 : 503, cors);
     }
