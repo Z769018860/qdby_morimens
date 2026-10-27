@@ -43,7 +43,7 @@
 </ul>
 
 <h3>账号与个人中心</h3>
-<p>账号登录复用 <a href="https://waline.js.org/">Waline</a> 的现成服务（和 <a href="https://z769018860.github.io/qdby_chinese/">忘忘看报</a> 用的是同一套）；积分、解锁、推理记录、工坊题库与点赞存在本站自己的后端（Cloudflare Worker + D1，代码在仓库 <code>server/</code>），换设备登录即可恢复。</p>
+<p>账号登录复用 <a href="https://waline.js.org/">Waline</a> 的现成服务（和 <a href="https://z769018860.github.io/qdby_chinese/">忘忘看报</a> 用的是同一套）；积分、解锁、推理记录、工坊题库与点赞存在本站自己的后端（代码在仓库 <code>server/</code>），换设备登录即可恢复。</p>
 <ul>
 <li><b>只有两种状态</b>：<b>游客</b>（不登录，进度读本机 <code>localStorage</code>）和<b>账号</b>（登录后进度跟账号走）。没有「本地昵称」这类中间态——想留名字就注册，不想注册就用游客。</li>
 <li><b>注册 / 登录</b>：右上角头像，或「个人中心」页面。用户名 2–20 个字符（中文可以），密码至少 6 位；用户名在后台会映射成 <code>用户名@zjtt.local</code> 的邮箱形式，所以不需要你填邮箱。</li>
@@ -154,7 +154,7 @@
 </ul>
 
 <h3>Account and profile</h3>
-<p>Accounts still sign in through an existing <a href="https://waline.js.org/">Waline</a> service (the same one behind <a href="https://z769018860.github.io/qdby_chinese/">qdby_chinese</a>); Silver Core, unlocks, solve history, workshop puzzles and likes live in the site's own backend (Cloudflare Worker + D1, see <code>server/</code>), so they follow you across devices.</p>
+<p>Accounts still sign in through an existing <a href="https://waline.js.org/">Waline</a> service (the same one behind <a href="https://z769018860.github.io/qdby_chinese/">qdby_chinese</a>); Silver Core, unlocks, solve history, workshop puzzles and likes live in the site's own backend (see <code>server/</code>), so they follow you across devices.</p>
 <ul>
 <li><b>Two states only</b>: <b>guest</b> (not signed in, progress read from this browser's <code>localStorage</code>) or <b>account</b> (signed in, progress follows the account). There is no in-between “local nickname” — register if you want a name, stay a guest if you don't.</li>
 <li><b>Register / sign in</b>: the avatar in the top-right, or the Profile page. Usernames are 2–20 characters (Chinese is fine), passwords at least 6; the username is mapped to <code>name@zjtt.local</code> internally, so no email is required.</li>

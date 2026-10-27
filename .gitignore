@@ -7,3 +7,9 @@ __pycache__/
 server/node_modules/
 server/.wrangler/
 server/.dev.vars
+
+# Node 版后端的 SQLite 库（含用户档案与赞数，绝不入库）
+server/data/
+*.db
+*.db-wal
+*.db-shm

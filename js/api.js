@@ -16,9 +16,10 @@ export const API_BASE = 'https://zjtt-api.workers.dev';
 // 还是占位符就当作「没配后端」：各模块退回纯本机模式，不会去打一个不存在的域名
 const PLACEHOLDER = 'https://zjtt-api.workers.dev';
 
-// 本地开发：站点由 scripts/preview.mjs 起在 8787（可用 PREVIEW_SITE_PORT 改），
-// Worker 用 `wrangler dev --port 8791`
-const LOCAL = 'http://127.0.0.1:8791';
+// 本地开发：站点由 scripts/preview.mjs 起在 8899（可用 PREVIEW_SITE_PORT 改），
+// 后端用 `node server/node.js`（默认 8787，这里按 8795 起；换端口就改这一行，
+// 或在控制台 store.set('apiBase', 'http://127.0.0.1:端口') 临时覆盖）
+const LOCAL = 'http://127.0.0.1:8795';
 
 export class ApiError extends Error {
   constructor(status, code, data) {

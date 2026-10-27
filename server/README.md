@@ -1,4 +1,4 @@
-# 后端（Cloudflare Worker + D1）
+# 战报侦探后端
 
 站点的账号档案、点赞、工坊题库都存在这里。之前这些东西借用 Waline 的评论表
 （一条评论存 base64 文档、一个路径的评论数当赞数），读写既受发帖限频和格式约束，
@@ -14,47 +14,138 @@
 | 工坊题库 | `puzzles` | 自建题存服务端，别人按 id 直接拉，也可列最近/最热 |
 | 登录缓存 | `sessions` | Waline token 校验一次后缓存 7 天，不用每个请求都回源 |
 
-## 部署
+## 两种跑法，同一套业务逻辑
 
-需要 Cloudflare 账号（免费额度足够：D1 每天 500 万次读、10 万次写）。
+`worker.js` 里只有「路由 + 规则」，不碰平台 API。外面套不同壳就能跑在别处：
+
+| 文件 | 跑在哪 | 存储 |
+|---|---|---|
+| `node.js` | 任意有 Node 的机器 | 本地 SQLite（`node:sqlite`，零依赖） |
+| `worker.js` | Cloudflare Workers | D1 |
+
+`node.js` 里写了约 40 行 D1 垫片（`prepare().bind().first()/.all()/.run()`），
+所以 `worker.js` 一行不用改。改规则只改 `worker.js`，两边同时生效。
+
+---
+
+## 方式 A：自己的服务器 / NAS（推荐，最省心）
+
+要求：Node ≥ 22.5（推荐 24，SQLite 已转正、没有实验警告）。**不需要装任何依赖。**
+
+```bash
+# 1. 把仓库放到服务器上，然后
+node server/node.js
+
+# 起在 http://0.0.0.0:8787，数据库自动建在 server/data/zjtt.db
+```
+
+常用环境变量：
+
+```bash
+PORT=8080                      # 端口，默认 8787
+HOST=127.0.0.1                 # 只给本机（前面挂 Nginx 时用这个），默认 0.0.0.0
+DATA_DIR=/var/lib/zjtt         # 数据库目录，默认 server/data
+WALINE_URL=https://…           # 账号 token 回源校验地址
+ALLOWED_ORIGINS=https://a.com,https://b.com   # 跨域白名单，* 全放行
+SERVE_STATIC=1                 # 顺带把整站也发了（同源部署，不用配 CORS）
+```
+
+**最省事的部署形态**：一台机器同时发站点和 API。
+
+```bash
+SERVE_STATIC=1 PORT=80 node server/node.js
+```
+
+这样 `http://你的域名/` 是站点、`http://你的域名/likes` 是接口，同源，没有跨域问题，
+也不需要在 GitHub Pages 和服务器之间来回配。前面套一层 Nginx/Caddy 上 HTTPS 即可。
+
+### 开机自启（systemd）
+
+```ini
+# /etc/systemd/system/zjtt.service
+[Unit]
+Description=zjtt backend
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/qdby_morimens
+ExecStart=/usr/bin/node server/node.js
+Environment=PORT=8787
+Environment=DATA_DIR=/var/lib/zjtt
+Environment=SERVE_STATIC=1
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+systemctl enable --now zjtt && systemctl status zjtt
+```
+
+## 方式 B：Docker
 
 ```bash
 cd server
-npm install                       # 只装 wrangler
-npx wrangler login                # 浏览器里授权一次
+docker build -t zjtt-api .
+docker run -d --name zjtt -p 8787:8787 -v zjtt-data:/data zjtt-api
+```
 
-npx wrangler d1 create zjtt       # 把输出的 database_id 填进 wrangler.toml
+镜像只含 `server/`，**只提供 API**（不带 67MB 的站点资源）。
+要连站点一起发，把 `Dockerfile` 的 `COPY . .` 换成仓库根、`WORKDIR` 改成 `/app`，
+再设 `SERVE_STATIC=1`。
+
+## 方式 C：Cloudflare Worker + D1
+
+`worker.js` + `wrangler.toml` 这套仍然可用，适合不想自己维护机器的情况：
+
+```bash
+cd server
+npm install
+npx wrangler login                # 浏览器授权
+npx wrangler d1 create zjtt       # 把 database_id 填进 wrangler.toml
 npx wrangler d1 execute zjtt --remote --file=./schema.sql
 npx wrangler deploy               # 输出 https://zjtt-api.<子域>.workers.dev
-
-cd ..
-node scripts/set_api_base.mjs https://zjtt-api.<子域>.workers.dev
-git commit -am "chore: point API_BASE at the deployed worker" && git push
 ```
 
 `wrangler.toml` 里两处按需改：
 
 - `WALINE_URL`：账号校验回源的地址，默认就是现在这套 `textbox.qingdengbuyi.top`
-- `ALLOWED_ORIGINS`：允许跨域的站点来源（**Origin 不含路径**，GitHub Pages 只写到用户名这一层）。
-  `localhost` / `127.0.0.1` 的任意端口已经自动放行，正式域名必须列进来，否则浏览器会拦。
+- `ALLOWED_ORIGINS`：允许跨域的站点来源（**Origin 不含路径**，GitHub Pages 只写到用户名这一层）
+
+---
+
+## 部署完，把前端指过来
+
+只改一处，前端所有模块（点赞、档案、题库）都会跟着走：
+
+```bash
+node scripts/set_api_base.mjs https://你的域名
+git commit -am "chore: point API_BASE at the backend" && git push
+```
+
+临时试一个地址不用改代码：浏览器控制台执行
+
+```js
+localStorage.setItem('zjtt:apiBase', JSON.stringify('https://your-api.example.com'))
+// 清掉就回默认：localStorage.removeItem('zjtt:apiBase')
+```
+
+后端连不上时：点赞退回本机模式、账号档案退回 Waline 老路径，页面不会白屏。
 
 ## 本地开发
 
 ```bash
-cd server
-npx wrangler d1 execute zjtt --local --file=./schema.sql   # 本地库建表
-npx wrangler dev --port 8791
+# 终端 1：后端
+PORT=8795 DB_FILE=./.tmp-syn/dev.db node server/node.js
 
-# 另一个终端，站点照旧
+# 终端 2：站点
 PREVIEW_SITE_PORT=8899 node scripts/preview.mjs index workshop profile
 ```
 
-`js/api.js` 在 `localhost` / `127.0.0.1` 下自动指向 `http://127.0.0.1:8791`，
-所以本地站点不用改任何配置就能连上本地 Worker。
-（`--port 8791` 是约定值，因为 `scripts/preview.mjs` 自己占着 8787。）
-
-想在浏览器里连别的后端：控制台执行 `localStorage.setItem('zjtt:apiBase', JSON.stringify('https://…'))`，
-或清掉这个键回到默认。
+`js/api.js` 在 `localhost` / `127.0.0.1` 下自动指向 `http://127.0.0.1:8795`，
+本地站点不用改配置。换端口就改 `js/api.js` 里的 `LOCAL`，或用上面的 `apiBase` 覆盖。
 
 ## 接口
 
@@ -74,8 +165,17 @@ DELETE /puzzle/:id                    删自己的题
 ```
 
 身份沿用 Waline：前端把 `Authorization: Bearer <waline token>` 带上来，
-Worker 回源 `/api/user` 验一次后把 `sha256(token) → uid` 缓存进 `sessions`。
+后端回源 `/api/user` 验一次后把 `sha256(token) → uid` 缓存进 `sessions`。
 未登录也能点赞，用请求头 `X-Dev-Id`（本机随机 id）当身份，另按 IP 限每天 40 次。
+
+## 备份
+
+整个库就是一个文件（`server/data/zjtt.db`，WAL 模式下还有 `-wal` / `-shm` 两个伴生文件）。
+停服务后直接拷走，或在线备份：
+
+```bash
+sqlite3 server/data/zjtt.db ".backup '/backup/zjtt-$(date +%F).db'"
+```
 
 ## 老数据怎么办
 
@@ -91,3 +191,5 @@ Worker 回源 `/api/user` 验一次后把 `sha256(token) → uid` 缓存进 `ses
 - **游客的每日额度靠 `X-Dev-Id` + IP**：换设备 + 换网络仍能多领几次。登录用户的额度是稳的。
 - **本地题没有归属记录**：只在浏览器里、没上传的题，`claim` 时服务端查不到作者，
   只做「赞数只升不降」的幂等保护。
+- **`SERVE_STATIC` 只发白名单**：6 个 `.html`、`css/`、`js/`、`assets/`、`data/`、`favicon.svg`。
+  `server/`（含数据库）、`.git/`、`scripts/` 一律 404，别把仓库根直接暴露出去。
