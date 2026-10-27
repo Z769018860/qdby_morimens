@@ -1150,3 +1150,18 @@ if (sharedCode) {
 
 // 上次没发完的赞，进页面后接着发
 likes.resume();
+
+// 队列里的赞发出去了：服务端回来的权威计数与额度会改本地缓存，重画一下赞数条
+// （数字和「排队发送中」任一变化就重画，否则发完了提示会赖着不走）
+let likeSaid = -1;
+document.addEventListener('zjtt:likes', () => {
+  const cur = puzzle && String(puzzle.id || '');
+  if (!cur || !puzzle.custom) return;
+  const n = Number(likes.cachedCounts()[cur]);
+  const q = likes.pending();
+  if (n !== likeCount || q !== likeSaid) {
+    likeCount = Number.isNaN(n) ? likeCount : n;
+    likeSaid = q;
+    render();
+  }
+});

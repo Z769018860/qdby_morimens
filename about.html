@@ -43,7 +43,7 @@
 </ul>
 
 <h3>账号与个人中心</h3>
-<p>本站是纯静态站点，没有自己的服务器，账号直接复用 <a href="https://waline.js.org/">Waline</a> 的现成服务（和 <a href="https://z769018860.github.io/qdby_chinese/">忘忘看报</a> 用的是同一套），数据存在真实的数据库里，不需要你自己部署。</p>
+<p>账号登录复用 <a href="https://waline.js.org/">Waline</a> 的现成服务（和 <a href="https://z769018860.github.io/qdby_chinese/">忘忘看报</a> 用的是同一套）；积分、解锁、推理记录、工坊题库与点赞存在本站自己的后端（Cloudflare Worker + D1，代码在仓库 <code>server/</code>），换设备登录即可恢复。</p>
 <ul>
 <li><b>只有两种状态</b>：<b>游客</b>（不登录，进度读本机 <code>localStorage</code>）和<b>账号</b>（登录后进度跟账号走）。没有「本地昵称」这类中间态——想留名字就注册，不想注册就用游客。</li>
 <li><b>注册 / 登录</b>：右上角头像，或「个人中心」页面。用户名 2–20 个字符（中文可以），密码至少 6 位；用户名在后台会映射成 <code>用户名@zjtt.local</code> 的邮箱形式，所以不需要你填邮箱。</li>
@@ -51,7 +51,7 @@
 <li><b>每一局都落库</b>：每日一题、随机一题、自建题、工坊导入的回放，结算后都会写一条记录（时间、题目、模式、档位、胜负、评级、分数、回放链接），同一道题只计一次；最多保留最近 300 条。</li>
 <li><b>偏好唤醒体</b>：在个人中心选好之后会存进账号，作为你自己的喜好收藏。<b>不会</b>用来筛题——那样难度会掉得太多，所以推理页不提供这个开关。</li>
 <li><b>头像</b>：直接用 Waline 的 <b>Q 版头像集</b>（共 <b>184 张</b>）：人物头像 79、剧情角色 5、特殊 21、Q 版 / 方块 / 幕间 / 邮票四种风格共 76、圣诞 3。选择器按分组切换，也能贴自己的图片直链（≤250 字符，例如 QQ 头像）。头像存在账号里，换设备登录也在。</li>
-<li><b>云端档案怎么存</b>：把「银芯 / 解锁 CG / 失败题库 / 统计 / 偏好 / 工坊题 / 推理记录 / 背景主题」打成一个 <code>ZJ1D:</code> + base64 的文档，存进 Waline 评论表里属于你自己的那一条（路径 <code>/zjtt/u/&lt;id&gt;-&lt;散列&gt;</code>，不暴露自增 id）。首次建档用一次 POST，之后一律 PUT 更新，避开评论频率限制。</li>
+<li><b>云端档案怎么存</b>：把「银芯 / 解锁 CG / 失败题库 / 统计 / 偏好 / 工坊题 / 推理记录 / 背景主题」打成一个文档，存到本站后端的 <code>accounts</code> 表（一位用户一条，按登录身份区分）。写入时带版本号：别的设备先改过就先合并再写，不会互相覆盖。以前存在 Waline 评论里的老档案会在第一次连上新后端时自动搬过来。</li>
 <li><b>合并规则</b>：换设备登录时，银芯取两边较大值，解锁 CG 与失败题库取并集，统计逐项取大，推理记录与工坊题按 id 去重取新——所以两台设备交替玩也不会互相覆盖。退出登录只清本机的同步凭据，云端档案保留。</li>
 </ul>
 
@@ -90,7 +90,7 @@
   浏览器有跨域限制，不能直接抓回放地址（对象存储没开 CORS），所以先用「打开官方回放」下载，再选文件。</li>
 <li><b>手动出题</b>：4 个位置各选唤醒体 / 2 件命轮 / 密契，再配等级·灵塑、钥令、造物与回合数等元数据。</li>
 <li><b>自定义线索</b>：除了系统按数据算出来的那些，你还能自己写最多 12 条线索 —— 标题、内容、价格（1–40 银芯）都自己定。玩家在题目的<b>线索台</b>最下面「作者线索」里按你的定价买，不受难度加价影响；写进分享码后，好友和云题库取回的题目都会带着。</li>
-<li><b>点赞</b>：别人打开你分享的题目，题面上方会有一个<b>赞</b>按钮。每被一个人点赞，你（作者）拿 <b>1 银芯</b>；每个人每天最多点 <b>10</b> 次，自己出的题不能自赞。赞数存在站点的共享存储里，进「我的题目」或「个人中心」时自动结算，1 个新赞换 1 银芯，换设备也不会重复领。</li>
+<li><b>点赞</b>：别人打开你分享的题目，题面上方会有一个<b>赞</b>按钮。每被一个人点赞，你（作者）拿 <b>1 银芯</b>；每个人每天最多点 <b>10</b> 次，自己出的题不能自赞。赞数与每日额度都由后端记（同一题同一个人只能赞一次，额度按账号算，清浏览器缓存也刷不出来），进「我的题目」或「个人中心」时自动结算，1 个新赞换 1 银芯，换设备也不会重复领。</li>
 <li><b>分享</b>：生成 <code>ZJ2-…</code> 题目代码，好友打开 <code>index.html?p=ZJ2-…</code> 就能直接挑战；也可以选择上传到云题库再用代码取回。</li>
 <li><b>自建题池</b>：保存的题进入「我的题目」，会混入你的随机/每日题目池，答对同样给银芯。</li>
 </ul>
@@ -154,7 +154,7 @@
 </ul>
 
 <h3>Account and profile</h3>
-<p>This is a static site with no server of its own, so accounts reuse an existing <a href="https://waline.js.org/">Waline</a> service (the same one behind <a href="https://z769018860.github.io/qdby_chinese/">qdby_chinese</a>). Users live in a real database — nothing for you to deploy.</p>
+<p>Accounts still sign in through an existing <a href="https://waline.js.org/">Waline</a> service (the same one behind <a href="https://z769018860.github.io/qdby_chinese/">qdby_chinese</a>); Silver Core, unlocks, solve history, workshop puzzles and likes live in the site's own backend (Cloudflare Worker + D1, see <code>server/</code>), so they follow you across devices.</p>
 <ul>
 <li><b>Two states only</b>: <b>guest</b> (not signed in, progress read from this browser's <code>localStorage</code>) or <b>account</b> (signed in, progress follows the account). There is no in-between “local nickname” — register if you want a name, stay a guest if you don't.</li>
 <li><b>Register / sign in</b>: the avatar in the top-right, or the Profile page. Usernames are 2–20 characters (Chinese is fine), passwords at least 6; the username is mapped to <code>name@zjtt.local</code> internally, so no email is required.</li>
@@ -162,7 +162,7 @@
 <li><b>Every run is stored</b>: daily, random, custom and workshop-imported puzzles each write one record after grading (time, puzzle, mode, level, win/loss, rating, score, replay link). A puzzle only counts once; the latest 300 are kept.</li>
 <li><b>Preferred Awakeners</b>: pick them on the Profile page and the puzzle screen grows a “preferred Awakeners only” switch. When on, only puzzles containing those Awakeners are drawn — members are hashed into buckets first, then each candidate is decrypted to confirm, so the whole library is never decrypted per draw.</li>
 <li><b>Avatars</b>: the <b>Waline chibi pack</b>, <b>184 images</b> — 79 character portraits, 5 story NPCs, 21 specials, 76 across chibi / block / interlude / stamp styles, 3 Christmas; the picker groups them by family, and you can still paste your own image URL (≤250 chars). Avatars live on the account, so they follow you across devices.</li>
-<li><b>How the cloud document works</b>: Silver Core / unlocked CG / failed bank / stats / preferences / workshop puzzles / solve history / backdrop theme are packed into a <code>ZJ1D:</code> + base64 document stored on your own row in Waline's comment table (path <code>/zjtt/u/&lt;id&gt;-&lt;hash&gt;</code>, no auto-increment id exposed). One POST creates it, every later write is a PUT, which sidesteps the comment rate limit.</li>
+<li><b>How the cloud document works</b>: Silver Core / unlocked CG / failed bank / stats / preferences / workshop puzzles / solve history / backdrop theme are packed into one document stored in the backend's <code>accounts</code> table (one row per signed-in user). Writes carry a version number: if another device saved first, the two sides are merged before writing, so neither is lost. Old documents kept in Waline comments are migrated automatically the first time you connect to the new backend.</li>
 <li><b>Merge rules</b>: when you sign in elsewhere, Silver Core takes the larger value, unlocked CG and the failed bank are unioned, stats take the per-key maximum, and history / workshop puzzles are de-duplicated by id keeping the newest — so alternating between two devices never clobbers the other. Signing out only clears local sync credentials; the cloud document stays.</li>
 </ul>
 
@@ -201,7 +201,7 @@
   Browsers cannot fetch the replay URL directly (the object store sends no CORS headers), so use “Open official replay” to download it first.</li>
 <li><b>Manual authoring</b>: 4 slots × (Awakener, 2 Wheels, Covenant), plus level/potency, Keeper skill, Creations and rounds.</li>
 <li><b>Custom clues</b>: besides the clues computed from the data, you can write up to 12 of your own — title, text and price (1–40 Silver Core) all yours to set. Players buy them from the <b>Author clues</b> group at the bottom of the clue desk at your price, with no tier markup; they travel inside the share code and come back from the cloud bank too.</li>
-<li><b>Likes</b>: when someone opens a puzzle you shared, a <b>Like</b> button sits above the report. Every like pays the author <b>1 Silver Core</b>; each person gets <b>10</b> likes per day, and you cannot like your own puzzle. Counts live in the site's shared store and settle automatically when you open “My puzzles” or your profile — 1 new like = 1 Silver Core, without double-paying across devices.</li>
+<li><b>Likes</b>: when someone opens a puzzle you shared, a <b>Like</b> button sits above the report. Every like pays the author <b>1 Silver Core</b>; each person gets <b>10</b> likes per day, and you cannot like your own puzzle. Counts and the daily quota are tracked by the backend (one like per person per puzzle, quota bound to the account, so clearing browser storage does not reset it), and settle automatically when you open “My puzzles” or your profile — 1 new like = 1 Silver Core, without double-paying across devices.</li>
 <li><b>Sharing</b>: produces a <code>ZJ2-…</code> code — friends open <code>index.html?p=ZJ2-…</code> and play immediately. Uploading to the cloud bank and loading it back by code is also supported.</li>
 <li><b>Your pool</b>: saved puzzles go under “My puzzles” and join your random/daily pool, paying Silver Core like any other.</li>
 </ul>

@@ -283,8 +283,80 @@ function draw() {
     h('section', { class: 'card' },
       h('h3', {}, `${t('wsMine')} · ${myPuzzles().length}`,
         h('span', { class: 'note likesum', 'data-liketotal': '' }, '')),
-      mineList()));
+      mineList()),
+    h('section', { class: 'card', 'data-bankcard': '' },
+      h('h3', {}, t('wsBank')),
+      h('p', { class: 'note' }, t('wsBankNote')),
+      h('div', { 'data-bank': '' }, h('p', { class: 'note' }, t('loading')))));
   paintLikes();
+  loadBank();
+}
+
+// ------------------------------------------------------------------ 本站题库
+// 别人上传的题，按 id 从后端直接拉，不再依赖 jsonblob / Gist。
+let BANK = null;
+
+const shortTime = (ms) => {
+  if (!Number(ms)) return '';
+  const d = new Date(Number(ms));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+async function loadBank(force = false) {
+  // 命中缓存也要重画：draw() 会整块重建 DOM，不重画就只剩「载入中」
+  if (BANK && !force) { paintBank(); return BANK; }
+  try {
+    const d = await cloud.list({ sort: 'new', limit: 12 });
+    BANK = d.items || [];
+  } catch {
+    BANK = [];
+  }
+  paintBank();
+  return BANK;
+}
+
+function paintBank() {
+  const box = root.querySelector('[data-bank]');
+  if (!box) return;
+  const items = BANK || [];
+  if (!items.length) {
+    box.replaceChildren(h('p', { class: 'note' }, cloud.ready() ? t('wsBankEmpty') : t('wsBankOff')));
+    return;
+  }
+  box.replaceChildren(h('div', { class: 'minelist' }, items.map((p) => h('div', { class: 'mine' },
+    h('b', {}, p.title || p.id),
+    h('span', { class: 'likebadge' }, p.likes > 0 ? `❤ ${p.likes}` : ''),
+    h('small', { class: 'note' }, `${p.authorName || t('wsBankAnon')} · ${shortTime(p.updatedAt)}`),
+    h('div', { class: 'mineact' },
+      h('button', { class: 'link', onclick: () => openBank(p.id) }, t('wsBankOpen')),
+      h('button', { class: 'link', onclick: () => playBank(p.id) }, t('wsPlay')))))));
+}
+
+async function fetchBank(id) {
+  const obj = await cloud.load(id);
+  const p = obj && (obj.puzzle || obj);
+  if (!p || !Array.isArray(p.team)) throw new Error('bad payload');
+  return { ...p, id: p.id || id, custom: true };
+}
+
+async function openBank(id) {
+  try {
+    const p = await fetchBank(id);
+    draft = { ...emptyDraft(), ...p, hints: hintsOf(p) };
+    draw();
+    toast(t('wsSaved'));
+  } catch {
+    toast(t('wsCloudFail'));
+  }
+}
+
+async function playBank(id) {
+  try {
+    const p = await fetchBank(id);
+    location.href = 'index.html?p=' + encodeURIComponent(codeOf(p));
+  } catch {
+    toast(t('wsCloudFail'));
+  }
 }
 
 function mineList() {

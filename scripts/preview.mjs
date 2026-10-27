@@ -32,7 +32,7 @@ const server = http.createServer((req, res) => {
   fs.createReadStream(p).pipe(res);
 });
 
-const PORT = 8787;
+const PORT = Number(process.env.PREVIEW_SITE_PORT) || 8787;
 await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';

@@ -1,0 +1,27 @@
+# 战报侦探 后端（Cloudflare Worker）
+#
+# 首次部署：
+#   npx wrangler login
+#   npx wrangler d1 create zjtt          # 把输出的 database_id 填到下面
+#   npx wrangler d1 execute zjtt --remote --file=./schema.sql
+#   npx wrangler deploy
+#
+# 本地调试：
+#   npx wrangler d1 execute zjtt --local --file=./schema.sql
+#   npx wrangler dev                    # http://127.0.0.1:8787
+
+name = "zjtt-api"
+main = "worker.js"
+compatibility_date = "2025-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "zjtt"
+database_id = "REPLACE_WITH_YOUR_D1_ID"
+
+[vars]
+# 账号校验回源：前端登录还是走这套 Waline
+WALINE_URL = "https://textbox.qingdengbuyi.top"
+
+# 允许跨域的来源，逗号分隔。Origin 不含路径，GitHub Pages 只写到用户名这一层。
+ALLOWED_ORIGINS = "https://z769018860.github.io,http://localhost:8000,http://127.0.0.1:8000,http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://127.0.0.1:5173"

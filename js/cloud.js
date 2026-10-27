@@ -1,7 +1,11 @@
-// 云题库：多后端存储。纯静态站点没有自己的服务器，所以按顺序尝试可用的公共存储。
-// 后端顺序：自建端点（store:cloudUrl）→ GitHub Gist（store:ghToken）→ jsonblob.com
-// 保存返回 { id, backend }；读取用 load(id)，会自动记住 id 属于哪个后端。
+// 云题库：自建后端优先，公共存储兜底。
+// 后端顺序：本站后端（server/worker.js 的 puzzles 表，需登录）→ 自建端点（store:cloudUrl）
+//           → GitHub Gist（store:ghToken）→ jsonblob.com
+// 保存返回 { id, backend }；读取用 load(id)，先问本站，不认识了再按 id 的老后端去找，
+// 这样以前传到 jsonblob / Gist 的题仍然打得开。
 import { store } from './common.js';
+import { api } from './api.js';
+import { auth } from './auth.js';
 
 const PREFIX = 'zjtt-puzzle';
 const FILE = 'zjtt-puzzle.json';
@@ -101,7 +105,39 @@ const custom = {
   },
 };
 
-const ALL = { jsonblob, gist, custom };
+// 本站后端：题目进 puzzles 表，别人按 id 直接拉，赞数也跟着题目走
+const server = {
+  id: 'server',
+  label: '本站',
+  async save(obj) {
+    if (!api.ready() || !auth.logged) throw new Error('server: no login');
+    const puzzle = (obj && obj.puzzle) || obj;
+    let id = String(puzzle.id || '');
+    let data = puzzle;
+    for (let i = 0; i < 2; i++) {
+      try {
+        const d = await api.post('/puzzle', { id, payload: data, title: data.title || '' });
+        return String(d.id);
+      } catch (e) {
+        // id 撞了别人的题：换一个再传，不要覆盖
+        if (e && e.code === 'dup_id' && i === 0) {
+          id = 'w-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+          data = { ...data, id };
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw new Error('server: dup');
+  },
+  async load(id) {
+    const d = await api.get(`/puzzle/${encodeURIComponent(id)}`);
+    if (!d || !d.puzzle) throw new Error('server: empty');
+    return { kind: PREFIX, v: 2, puzzle: d.puzzle, at: new Date(d.updatedAt || Date.now()).toISOString() };
+  },
+};
+
+const ALL = { server, jsonblob, gist, custom };
 
 // ---------------------------------------------------------------- 对外接口
 export const cloud = {
@@ -109,6 +145,7 @@ export const cloud = {
   async save(puzzle) {
     const body = { kind: PREFIX, v: 2, puzzle, at: new Date().toISOString() };
     const order = [];
+    if (api.ready() && auth.logged) order.push(server);
     if (customUrl.get()) order.push(custom);
     if (ghToken.get()) order.push(gist);
     order.push(jsonblob);
@@ -130,6 +167,7 @@ export const cloud = {
   async load(id) {
     const known = idMap.get()[id];
     const order = known && ALL[known] ? [ALL[known]] : [];
+    if (api.ready() && !order.includes(server)) order.push(server);
     for (const b of [custom, gist, jsonblob]) if (!order.includes(b)) order.push(b);
     const errs = [];
     for (const b of order) {
@@ -147,6 +185,15 @@ export const cloud = {
     throw err;
   },
 
+  // 本站题库列表（别人出的题，可按新到旧或按赞数排）
+  async list({ sort = 'new', author = '', limit = 20, offset = 0 } = {}) {
+    if (!api.ready()) throw new Error('server: no api');
+    const qs = new URLSearchParams({ sort, limit: String(limit), offset: String(offset) });
+    if (author) qs.set('author', author);
+    const d = await api.get(`/puzzles?${qs.toString()}`);
+    return { items: d.items || [], total: Number(d.total) || 0 };
+  },
+
   // 是否配置了「更稳」的后端（用来在 UI 上提示）
-  ready() { return Boolean(ghToken.get() || customUrl.get()); },
+  ready() { return Boolean(api.ready() || ghToken.get() || customUrl.get()); },
 };

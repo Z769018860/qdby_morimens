@@ -1,79 +1,99 @@
 // 点赞：自建题每被一个人点赞，作者得 1 银芯；每人每天最多 10 次。
 //
-// 站点是纯静态的，能共享的存储只有账号系统正在用的那个 Waline。
-// 所以一条赞 = 一条评论，挂在 /zjtt/like/<题目 id> 这个路径下，
-// 「赞数」就是那个路径的评论数（type=count 支持一次问一批，很便宜）。
+// 规则由后端执行（server/worker.js）：(题目, 身份) 主键唯一，每日额度服务端计数，
+// 所以清 localStorage 也刷不出额度，换设备也骗不到第二个赞。
 //
-// Waline 对「发评论」有频率限制（实测约 60 秒一条，按 IP 算），
-// 所以点赞一律先记在本机、后台排队发送：页面上的数字立刻 +1，不等网络。
-// 队列存在 localStorage 里，关掉页面下次打开接着发。
-import { store, wallet, markDirty } from './common.js';
+// 前端仍然「先记账、后发送」：点下去数字立刻 +1，请求进队列慢慢发，
+// 网络恢复或下次打开页面继续。服务端回来的权威计数会覆盖本地乐观值。
+import { store, wallet, markDirty, toast, t } from './common.js';
 import { auth } from './auth.js';
+import { api } from './api.js';
 
-const SERVER = 'https://textbox.qingdengbuyi.top';
-const MAGIC = 'ZJ1L:';
 export const LIKE_MAX = 10;      // 每人每天最多点几个
-const GAP = 61e3;                // 服务端约 60 秒放一条
-const HARD_TRIES = 3;            // 非限流错误重试几次后放弃
+const GAP = 800;                 // 两次发送之间稍等一下，别把请求堆成一串
+const HARD_TRIES = 4;            // 网络类错误重试几次后放弃
 
 // 与签到、每日一题同一套「东八区今天」
 const dayKey = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
 
-// ---------------------------------------------------------------- 基础
+// 旧接口保留：路径形式不再用于存储，但分享码里可能还带着老 id
 export const pathOf = (id) => `/zjtt/like/${String(id || '').replace(/[^A-Za-z0-9._-]/g, '_')}`;
 
-const b64 = (s) => {
-  const b = new TextEncoder().encode(s);
-  let o = '';
-  for (let i = 0; i < b.length; i += 4096) o += String.fromCharCode(...b.subarray(i, i + 4096));
-  return btoa(o);
-};
+// ---------------------------------------------------------------- 本机缓存
+const votes = () => store.get('likeVote', {}) || {};
+const votedSet = () => store.get('likeVoted', {}) || {};
+const countsCache = () => store.get('likeCnt', {}) || {};
 
-function devId() {
-  let v = store.get('likeDev', '');
-  if (!v) {
-    v = Math.random().toString(36).slice(2, 10);
-    store.set('likeDev', v);
-  }
-  return v;
+export const hasVoted = (id) => Boolean(votes()[String(id)] || votedSet()[String(id)]);
+export const cachedCounts = () => countsCache();
+
+function setCount(id, n) {
+  const c = countsCache();
+  c[String(id)] = Math.max(0, Number(n) || 0);
+  store.set('likeCnt', c);
+  return c;
 }
 
-// 登录了就用账号当身份（换设备也不会重复投），游客用本机随机 id
-export const voter = () => {
-  const u = auth.user;
-  return u && u.id ? `u${u.id}` : `d${devId()}`;
-};
+function markVoted(id) {
+  const v = votes();
+  if (!v[String(id)]) { v[String(id)] = Date.now(); store.set('likeVote', v); }
+  const s = votedSet();
+  if (!s[String(id)]) { s[String(id)] = 1; store.set('likeVoted', s); }
+}
 
-// ---------------------------------------------------------------- 本机状态
-const votes = () => store.get('likeVote', {}) || {};
-export const hasVoted = (id) => Boolean(votes()[String(id)]);
-
+// 今日额度：服务端给的数优先，没拿到就用本机记的
 function dayState() {
-  const q = store.get('likeDay', null);
   const d = dayKey();
+  const srv = store.get('likeLeft', null);
+  if (srv && srv.d === d && typeof srv.n === 'number') {
+    return { d, n: Math.max(0, LIKE_MAX - Math.min(LIKE_MAX, srv.n)) };
+  }
+  const q = store.get('likeDay', null);
   if (!q || q.d !== d) return { d, n: 0 };
   return { d, n: Math.max(0, Number(q.n) || 0) };
 }
+
+function setLeft(n) {
+  const left = Math.max(0, Math.min(LIKE_MAX, Number(n) || 0));
+  store.set('likeLeft', { d: dayKey(), n: left });
+  store.set('likeDay', { d: dayKey(), n: LIKE_MAX - left });
+}
+
 export const usedToday = () => dayState().n;
 export const leftToday = () => Math.max(0, LIKE_MAX - dayState().n);
 
-export const cachedCounts = () => store.get('likeCnt', {}) || {};
+const notify = () => {
+  try { document.dispatchEvent(new CustomEvent('zjtt:likes')); } catch { /* 非浏览器环境 */ }
+};
 
 // ---------------------------------------------------------------- 读赞数
-// 一次问一批（每批 20 个），返回 { 题目 id: 赞数 }
+// 一次问一批，返回 { 题目 id: 赞数 }；顺便把「我赞过谁」和今日额度同步下来
 export async function counts(ids) {
-  const list = [...new Set((ids || []).map((x) => String(x || '')).filter(Boolean))];
-  const out = {};
-  for (let i = 0; i < list.length; i += 20) {
-    const chunk = list.slice(i, i + 20);
-    const qs = chunk.map((id) => `url=${encodeURIComponent(pathOf(id))}`).join('&');
-    const r = await fetch(`${SERVER}/api/comment?type=count&${qs}`, { headers: { Accept: 'application/json' } });
-    if (!r.ok) throw new Error('like: ' + r.status);
-    const j = await r.json();
-    if (!j || !Array.isArray(j.data) || j.data.length !== chunk.length) throw new Error('like: bad payload');
-    chunk.forEach((id, k) => { out[id] = Math.max(0, Number(j.data[k]) || 0); });
+  const list = [...new Set((ids || []).map((x) => String(x || '')).filter(Boolean))].slice(0, 60);
+  if (!api.ready()) {
+    const cache = countsCache();
+    const out = {};
+    for (const id of list) out[id] = Number(cache[id]) || 0;
+    return out;
   }
-  return out;
+  try {
+    const d = await api.get(`/likes?ids=${encodeURIComponent(list.join(','))}`);
+    const out = {};
+    for (const id of list) out[id] = Math.max(0, Number(d.counts && d.counts[id]) || 0);
+    if (d.counts) store.set('likeCnt', { ...countsCache(), ...d.counts });
+    if (d.voted) {
+      const s = votedSet();
+      for (const id of Object.keys(d.voted)) if (d.voted[id]) s[String(id)] = 1;
+      store.set('likeVoted', s);
+    }
+    if (typeof d.left === 'number') setLeft(d.left);
+    return out;
+  } catch {
+    const cache = countsCache();
+    const out = {};
+    for (const id of list) out[id] = Number(cache[id]) || 0;
+    return out;
+  }
 }
 
 // ---------------------------------------------------------------- 发赞（排队）
@@ -82,64 +102,80 @@ const setQueue = (q) => store.set('likeQ', q);
 const nextAt = () => Number(store.get('likeNext', 0)) || 0;
 export const pending = () => queue().length;
 
-async function post(item) {
-  const u = auth.user;
-  const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
-  if (auth.token) headers.Authorization = `Bearer ${auth.token}`;
-  const r = await fetch(`${SERVER}/api/comment`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      comment: MAGIC + b64(JSON.stringify({ u: voter(), t: Date.now() })),
-      url: pathOf(item.id),
-      ua: 'zjtt/1',
-      nick: (u && u.name) || 'like',
-      mail: (u && u.mail) || 'like@zjtt.local',
-    }),
-  });
-  const j = await r.json().catch(() => ({}));
-  if (j && j.errno) throw new Error(String(j.errmsg || 'errno'));
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return j.data;
+const drop = (id) => setQueue(queue().filter((x) => String(x.id) !== String(id)));
+
+// 服务端拒了（额度用完 / 自己的题 / 不是合法题目）：把乐观加上的那一次撤掉
+function revert(id, reason) {
+  const key = String(id);
+  const v = votes();
+  if (v[key]) { delete v[key]; store.set('likeVote', v); }
+  const s = votedSet();
+  if (s[key]) { delete s[key]; store.set('likeVoted', s); }
+
+  const c = countsCache();
+  if (c[key] > 0) { c[key] -= 1; store.set('likeCnt', c); }
+
+  const q = store.get('likeDay', null);
+  if (q && q.d === dayKey() && q.n > 0) store.set('likeDay', { d: q.d, n: q.n - 1 });
+  store.del('likeLeft');
+
+  if (reason === 'quota') toast(t('likeZero', { n: LIKE_MAX }));
+  else if (reason === 'self') toast(t('likeSelfFail'));
+  notify();
 }
 
 let running = false;
 let tmr = 0;
 function later(ms) {
   clearTimeout(tmr);
-  tmr = setTimeout(() => { flush(); }, Math.max(300, ms));
+  tmr = setTimeout(() => { flush(); }, Math.max(200, ms));
 }
 
-// 把队列里的赞一条条发出去；被限流就等下一轮
+// 把队列里的赞一条条发出去
 export async function flush() {
   if (running || !queue().length) return;
+  if (!api.ready()) return;
   running = true;
   try {
     for (;;) {
       if (!queue().length) break;
       const wait = nextAt() - Date.now();
-      if (wait > 0) { later(wait + 800); break; }
+      if (wait > 0) { later(wait); break; }
+
       const item = { ...queue()[0] };
       try {
-        await post(item);
+        const d = await api.post('/like', { puzzle: String(item.id) });
+        if (d && typeof d.count === 'number') setCount(item.id, d.count);
+        if (d && typeof d.left === 'number') setLeft(d.left);
+        markVoted(item.id);
+        drop(item.id);
         store.set('likeNext', Date.now() + GAP);
-        setQueue(queue().filter((x) => String(x.id) !== String(item.id)));
+        notify();
       } catch (e) {
-        const msg = String((e && e.message) || '');
-        if (/too fast|rate/i.test(msg)) {
-          store.set('likeNext', Date.now() + GAP);
-          later(GAP + 1500);
-          break;
+        const code = String((e && e.code) || '');
+        const status = Number(e && e.status) || 0;
+
+        // 不可重试：额度没了、自己的题、题目不合法、没登录
+        if (code === 'quota' || code === 'self' || code === 'rate' || code === 'bad_puzzle' || code === 'no_voter' || status === 401 || status === 403) {
+          if (e && e.data && typeof e.data.count === 'number') setCount(item.id, e.data.count);
+          if (e && e.data && typeof e.data.left === 'number') setLeft(e.data.left);
+          revert(item.id, code);
+          drop(item.id);
+          continue;
         }
+
+        // 网络类错误：记一次，等会儿再试
         const n = (Number(item.n) || 0) + 1;
         if (n >= HARD_TRIES) {
-          setQueue(queue().filter((x) => String(x.id) !== String(item.id)));
+          revert(item.id, 'offline');
+          drop(item.id);
         } else {
           const q = queue();
           q[0] = { ...item, n };
           setQueue(q);
+          store.set('likeNext', Date.now() + n * 5000);
         }
-        later(20e3);
+        later(n * 5000);
         break;
       }
     }
@@ -155,31 +191,41 @@ export function like(id) {
   if (hasVoted(key)) return { ok: 'voted', left: leftToday() };
   if (leftToday() <= 0) return { ok: 'quota', left: 0 };
 
-  const v = votes();
-  v[key] = Date.now();
-  store.set('likeVote', v);
+  markVoted(key);
+  setCount(key, (Number(countsCache()[key]) || 0) + 1);
   store.set('likeDay', { d: dayKey(), n: dayState().n + 1 });
+  store.del('likeLeft');                    // 服务端数还没回来，先按本机记的走
 
-  const q = queue();
-  if (!q.some((x) => String(x.id) === key)) q.push({ id: key, at: Date.now(), n: 0 });
-  setQueue(q);
-  markDirty('like');            // 账号档案里有「我赞过谁」与今日额度
-  later(500);
+  // 没配后端就只记本机，别让「排队发送中」永远挂着
+  if (api.ready()) {
+    const q = queue();
+    if (!q.some((x) => String(x.id) === key)) q.push({ id: key, at: Date.now(), n: 0 });
+    setQueue(q);
+    later(400);
+  }
+  try { markDirty('like'); } catch { /* common 里没导出时忽略 */ }
   return { ok: 'ok', left: leftToday() };
 }
 
 // ---------------------------------------------------------------- 作者结算
-// 作者这边：拿自己题目的赞数，和上次结算过的数比，多出来的按 1 赞 = 1 银芯入账。
-// 结算基准（likeCredited）跟着账号档案走，换设备不会重复领。
+// 登录后走服务端 claim：每题已折过银芯的赞数记在 claims 表，只升不降，换设备也不会重复领。
+// 游客出的题没有归属记录，退回本机比较，银芯只加在本机。
 export async function syncMine(list) {
   const ids = (list || []).map((p) => (p && p.id ? String(p.id) : '')).filter(Boolean);
   if (!ids.length) return { counts: {}, gain: 0, ok: false };
 
-  let c;
-  try { c = await counts(ids); } catch { return { counts: {}, gain: 0, ok: false }; }
+  if (api.ready() && auth.logged) {
+    try {
+      const d = await api.post('/claim', { puzzles: ids });
+      const c = d.counts || {};
+      store.set('likeCnt', { ...countsCache(), ...c });
+      const gain = Math.max(0, Number(d.gain) || 0);
+      if (gain > 0) wallet.add(gain);
+      return { counts: c, gain, ok: true };
+    } catch { /* 落到本机算法，下面继续 */ }
+  }
 
-  store.set('likeCnt', { ...cachedCounts(), ...c });
-
+  const c = await counts(ids);
   const cred = store.get('likeCredited', {}) || {};
   let gain = 0;
   for (const id of ids) {
@@ -194,7 +240,9 @@ export async function syncMine(list) {
   return { counts: c, gain, ok: true };
 }
 
-// 页面打开时补发上次没发完的赞
+// 页面打开时：同步一次「我赞过谁 / 今天还剩几次」，再把上次没发完的赞补上
 export function resume() {
+  if (!api.ready()) return;
+  counts([]).catch(() => {});
   if (queue().length) later(1200);
 }

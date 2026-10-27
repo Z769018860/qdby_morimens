@@ -3,3 +3,7 @@ __pycache__/
 .preview/
 .gallery-full.json
 .tmp-cards/
+.tmp-syn/
+server/node_modules/
+server/.wrangler/
+server/.dev.vars

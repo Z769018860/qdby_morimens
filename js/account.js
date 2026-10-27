@@ -1,16 +1,17 @@
 // 账号云端档案
 // 把「积分 / 解锁 CG / 失败题库 / 推理记录 / 工坊导入的战报 / 偏好唤醒体 / 背景主题」
-// 打包成一份文档，存进 Waline 的评论表（每位账号一条、独立路径），换设备登录即可恢复。
+// 打包成一份文档存到自己的后端（server/worker.js 的 accounts 表），换设备登录即可恢复。
 //
 // 说明：
-//  · 路径用 <用户 id>-<邮箱散列>，不按自增 id 暴露；正文再 base64 一层，翻接口只看到乱码。
-//  · 写入走 PUT（Waline 允许作者改自己的评论），POST 只在第一次建档时用一次。
-//  · Waline 对「发新评论」有频率限制，所以建档失败会自动退避重试，期间数据仍在本机。
+//  · 每条档案带版本号：写入时比对版本，对不上说明别处先写过，合并后再推，多端不会互相覆盖。
+//  · 老用户的数据还留在 Waline 的评论里，第一次连上新后端时会自动搬过来（只搬一次）。
+//  · 后端不可用时退回 Waline 老路径读写，功能不至于整块消失。
 import { store, wallet, failedBank, unlocked, STAT0, toast, t } from './common.js';
 import { auth, wApi } from './auth.js';
+import { api } from './api.js';
 
 const MAGIC = 'ZJ1D:';
-const K = { doc: 'acctDoc', obj: 'acctObj', at: 'acctAt', pend: 'acctPend' };
+const K = { doc: 'acctDoc', obj: 'acctObj', at: 'acctAt', pend: 'acctPend', ver: 'acctVer' };
 export const CAP = { hist: 300, mine: 40 };
 const MAX_AGE = 5 * 60e3;      // 5 分钟内不重复拉取
 const PUSH_DELAY = 1500;       // 改动后延迟推送，避免连点产生大量请求
@@ -180,6 +181,29 @@ let pending = false;
 
 export async function pull() {
   if (!auth.logged) return null;
+  if (!api.ready()) return pullLegacy();
+
+  try {
+    const d = await api.get('/account');
+    store.set(K.ver, Number(d.ver) || 0);
+    if (d.doc) return d.doc;
+
+    // 新库里还没有这份档案：把 Waline 里的老档案接过来，下次 push 就落进新库
+    const legacy = await pullLegacy().catch(() => null);
+    if (legacy) {
+      store.set(K.ver, 0);
+      try { toast(t('acctMigrated')); } catch { /* 页面还没挂 body */ }
+    }
+    return legacy;
+  } catch (e) {
+    if (e && e.status === 401) return null;
+    // 后端暂时不可用：退回老路径读，至少还能拿到上次的数据
+    return pullLegacy().catch(() => null);
+  }
+}
+
+// 老路径：档案藏在用户自己的一条 Waline 评论里
+async function pullLegacy() {
   const u = auth.user;
   const res = await wApi(`/api/comment?path=${encodeURIComponent(pathOf(u))}&pageSize=20&sortBy=insertedAt_desc`);
   const list = (res && res.data) || [];
@@ -190,20 +214,48 @@ export async function pull() {
   return hit.d;
 }
 
+// 新后端：版本号对不上就合并重推，最多两轮
+async function pushRemote(input) {
+  let doc = input;
+  let ver = Number(store.get(K.ver, 0)) || 0;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const r = await api.put('/account', { doc, ver });
+      return { ver: Number(r.ver) || ver + 1 };
+    } catch (e) {
+      if (!(e && e.status === 409 && e.data && e.data.doc)) throw e;
+      const merged = mergeDoc(e.data.doc, doc);
+      apply(merged);
+      doc = merged;
+      ver = Number(e.data.ver) || 0;
+    }
+  }
+  throw new Error('conflict');
+}
+
+async function pushLegacy(doc) {
+  const u = auth.user;
+  const body = MAGIC + b64e(JSON.stringify(doc));
+  const obj = store.get(K.obj, '');
+  if (obj) {
+    await wApi(`/api/comment/${obj}`, { method: 'PUT', body: { comment: body } });
+  } else {
+    const made = await wApi('/api/comment', { method: 'POST', body: { comment: body, url: pathOf(u), ua: 'zjtt/1' } });
+    if (made && made.objectId) store.set(K.obj, made.objectId);
+  }
+}
+
 export async function push() {
   if (!auth.logged) return { ok: false, why: 'guest' };
   if (busy) { schedule(2500); return { ok: false, why: 'busy' }; }
   busy = true;
-  const u = auth.user;
   const doc = snapshot();
-  const body = MAGIC + b64e(JSON.stringify(doc));
   try {
-    const obj = store.get(K.obj, '');
-    if (obj) {
-      await wApi(`/api/comment/${obj}`, { method: 'PUT', body: { comment: body } });
+    if (api.ready()) {
+      const r = await pushRemote(doc);
+      store.set(K.ver, r.ver);
     } else {
-      const made = await wApi('/api/comment', { method: 'POST', body: { comment: body, url: pathOf(u), ua: 'zjtt/1' } });
-      if (made && made.objectId) store.set(K.obj, made.objectId);
+      await pushLegacy(doc);
     }
     store.set(K.at, Date.now());
     store.set(K.pend, false);
@@ -320,7 +372,7 @@ document.addEventListener('zjtt:login', () => { sync().catch(() => {}); });
 
 // 退出登录：云端文档保留，本机只清「同步凭据」，避免串号
 export function forget() {
-  for (const k of [K.doc, K.obj, K.at, K.pend]) store.del(k);
+  for (const k of [K.doc, K.obj, K.at, K.pend, K.ver]) store.del(k);
   syncAt = 0;
   clearTimeout(timer);
   pending = false;

@@ -1,0 +1,8 @@
+{
+  "name": "zjtt-server",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "wrangler": "^4.152.0"
+  }
+}
