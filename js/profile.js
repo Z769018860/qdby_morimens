@@ -244,6 +244,7 @@ function shareCodeOf(d) {
     rounds: d.rounds, cards: d.cards, maxBout: d.maxBout, deathResist: d.deathResist,
     hp: d.hp, left: d.left, playerDmg: d.playerDmg, score: d.score, diff: d.diff, diffScore: d.diffScore,
     key: d.key, relics: d.relics, team: d.team,
+    h: (Array.isArray(d.hints) ? d.hints : []).map(c => [c.n || '', c.v || '', c.c || 5]),
   };
   const bytes = new TextEncoder().encode(JSON.stringify(payload));
   let bin = '';

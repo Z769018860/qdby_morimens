@@ -561,12 +561,41 @@ function clueList() {
     ].filter(Boolean)
     : [];
 
-  return { team, relics, decks, slots };
+  // 作者自定义线索：内容原样展示，价格也按作者定的来
+  const extra = authorHints().map((c, i) => ({
+    id: `au${i}`, fixed: true, cost: Math.max(1, Math.round(Number(c.c) || 5)),
+    label: String(c.n || t('clueAuthorOne', { n: i + 1 })),
+    value: () => String(c.v || '—'),
+  }));
+
+  return { team, relics, decks, slots, extra };
+}
+
+// 作者自定义线索（工坊里手写的）：按作者定的价出售，不参与难度加价，
+// 因为它是「作者额外告诉你的信息」，不是从数据里算出来的那份。
+// 分享码里压成三元组（h），云题库 / 本地题库存的是完整对象（hints），两种都认。
+const authorHints = () => {
+  const p = puzzle || {};
+  if (Array.isArray(p.hints)) return p.hints.filter(c => c && (c.n || c.v));
+  if (Array.isArray(p.h)) {
+    return p.h.map(c => (Array.isArray(c) ? { n: c[0], v: c[1], c: c[2] } : c))
+      .filter(c => c && (c.n || c.v));
+  }
+  return [];
+};
+
+function payFixed(cost) {
+  const c = Math.max(1, Math.round(Number(cost) || 1));
+  if (!wallet.spend(c)) { toast(t('noCredits')); return false; }
+  hintsUsed++;
+  toast(t('ptsHint', { n: c }));
+  return true;
 }
 
 function buyClue(c) {
   if (finished || isOpen(`c:${c.id}`)) return;
-  if (!payHint(c.cost)) return;
+  const ok = c.fixed ? payFixed(c.cost) : payHint(c.cost);
+  if (!ok) return;
   openClue(`c:${c.id}`);
   render();
 }
@@ -575,14 +604,14 @@ function clueCard(c) {
   if (isOpen(`c:${c.id}`)) {
     return h('div', { class: 'clue on' }, h('small', {}, c.label), h('b', {}, c.value()));
   }
-  // 卡上显示的是这一档的真实价格（payHint 会按难度系数扣）
+  // 卡上显示的是这一档的真实价格（payHint 会按难度系数扣；作者线索是固定价）
   return h('button', { type: 'button', class: 'clue lock', onclick: () => buyClue(c) },
-    h('small', {}, c.label), h('b', { class: 'cost' }, scIcon(12), ` ${priceOf(c.cost)}`));
+    h('small', {}, c.label), h('b', { class: 'cost' }, scIcon(12), ` ${c.fixed ? c.cost : priceOf(c.cost)}`));
 }
 
 function cluePanel() {
   if (finished) return null;
-  const { team, relics, decks, slots } = clueList();
+  const { team, relics, decks, slots, extra } = clueList();
   const wheels = slots.filter(c => c.group === 'wheel');
   const covs = slots.filter(c => c.group === 'cov');
   const mul = LV_COST_MUL[level] || 1;
@@ -601,7 +630,10 @@ function cluePanel() {
     wheels.length ? h('div', { class: 'cluegrid four' }, wheels.map(clueCard)) : null,
     covs.length ? h('div', { class: 'cluesub' },
       h('b', {}, t('clueCovSeen')), h('span', { class: 'note' }, t('clueStepNote'))) : null,
-    covs.length ? h('div', { class: 'cluegrid four' }, covs.map(clueCard)) : null);
+    covs.length ? h('div', { class: 'cluegrid four' }, covs.map(clueCard)) : null,
+    extra.length ? h('div', { class: 'cluesub' },
+      h('b', {}, t('clueAuthorTitle')), h('span', { class: 'note' }, t('clueAuthorNote'))) : null,
+    extra.length ? h('div', { class: 'cluegrid' }, extra.map(clueCard)) : null);
 }
 
 // ------------------------------------------------------------------ UI pieces

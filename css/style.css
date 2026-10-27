@@ -337,6 +337,19 @@ input[type=search], select { background: var(--panel2); color: var(--text); bord
 .metagrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-top: 10px; }
 .pot input.tiny { width: 56px; }
 .pot { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
+/* 自定义线索：作者手写，标题 / 内容 / 价格一行一条 */
+.hintsed { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 8px; }
+.hinthead { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.hinthead b { font-size: 13px; }
+.hintrows { display: grid; gap: 6px; }
+.hintcols { display: grid; grid-template-columns: minmax(120px, .8fr) minmax(180px, 2.2fr) 74px auto; gap: 6px; padding: 0 2px; }
+.hintcols small { font-size: 11px; color: var(--dim); letter-spacing: .3px; }
+.hintcols small:nth-child(3) { text-align: right; }
+.hintrow { display: grid; grid-template-columns: minmax(120px, .8fr) minmax(180px, 2.2fr) 74px auto; gap: 6px; align-items: center; }
+.hintrow input { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font: inherit; font-size: 12.5px; width: 100%; }
+.hintrow .hc { text-align: right; font-variant-numeric: tabular-nums; }
+.hintrow input:focus { outline: none; border-color: var(--accent); }
+.hintact { display: flex; gap: 8px; }
 .minelist { display: grid; gap: 6px; }
 .mine { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
 .mine b { flex: 1; }
@@ -552,6 +565,9 @@ body.themed .toast { background: color-mix(in srgb, var(--bg) 85%, #000); }
   .pfavatar { width: 60px; height: 60px; }
   .avgv { max-height: 168px; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); }
   .slots, .metagrid { grid-template-columns: 1fr !important; }
+  .hintrow { grid-template-columns: 1fr 74px auto; }
+  .hintrow .hn { grid-column: 1 / -1; }
+  .hintcols { display: none; }
   .toast { bottom: 24px; font-size: 13px; padding: 7px 14px; }
   .cgview { padding: 0; }
   .cgstage { padding: 0 4px 8px; }

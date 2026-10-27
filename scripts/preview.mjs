@@ -85,7 +85,10 @@ const pages = process.argv.slice(2).length ? process.argv.slice(2) : ['index', '
 let bad = 0;
 
 for (const name of pages) {
-  const url = `http://127.0.0.1:${PORT}/${name}.html`;
+  // 允许「index?p=ZJ2-xxx」这种带参数的页面（截图文件名只取路径部分）
+  const [nm, qs] = name.split('?');
+  const url = `http://127.0.0.1:${PORT}/${nm}.html` + (qs ? `?${qs}` : '');
+  const slug = qs ? `${nm}-q` : nm;
   const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
 
@@ -137,10 +140,10 @@ for (const name of pages) {
   // PREVIEW_FULL=0：只截当前视口（长页面整页截图很慢，调试布局够用了）
   const full = process.env.PREVIEW_FULL !== '0';
   const { data } = await send('Page.captureScreenshot', full ? { format: 'png', captureBeyondViewport: true } : { format: 'png' }, sessionId);
-  const file = path.join(OUT, name + '.png');
+  const file = path.join(OUT, slug + '.png');
   fs.writeFileSync(file, Buffer.from(data, 'base64'));
   const top = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
-  fs.writeFileSync(path.join(OUT, name + '-top.png'), Buffer.from(top.data, 'base64'));
+  fs.writeFileSync(path.join(OUT, slug + '-top.png'), Buffer.from(top.data, 'base64'));
 
   const { result } = await send('Runtime.evaluate', {
     expression: `(() => {
@@ -156,7 +159,7 @@ for (const name of pages) {
 
   const info = JSON.parse(result.value || '{}');
   if (errs.length) bad++;
-  console.log(`${errs.length ? 'FAIL' : 'OK  '} ${name.padEnd(9)} text=${String(info.textLen).padStart(5)} img=${info.imgs} broken=${info.broken} title="${info.title}" -> .preview/${name}.png`);
+  console.log(`${errs.length ? 'FAIL' : 'OK  '} ${slug.padEnd(9)} text=${String(info.textLen).padStart(5)} img=${info.imgs} broken=${info.broken} title="${info.title}" -> .preview/${slug}.png`);
   for (const e of errs.slice(0, 8)) console.log('      ' + e);
 }
 

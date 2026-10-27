@@ -27,13 +27,34 @@ function emptyDraft() {
     season: 0, zone: 0, threat: '?', madness: 0, boss: [],
     score: 0, rounds: 0, cards: 0, maxBout: 0, deathResist: 0, hp: 0, left: 0,
     playerDmg: 0, extra: false, diff: 3, diffScore: 30,
-    key: null, relics: [], team: LETTERS.map(() => ({ tid: null, lv: 60, pot: 0, brk: 0, wheels: [], cov: null, dmg: 0, blk: 0, heal: 0 })),
+    key: null, relics: [], hints: [],
+    team: LETTERS.map(() => ({ tid: null, lv: 60, pot: 0, brk: 0, wheels: [], cov: null, dmg: 0, blk: 0, heal: 0 })),
   };
 }
 let draft = emptyDraft();
 
 const myPuzzles = () => store.get('myPuzzles', []);
 const saveMine = (list) => store.set('myPuzzles', list);
+
+// ------------------------------------------------------------------ 自定义线索
+// 作者自己写的线索：标题 + 内容 + 价格，玩家在题目的线索台里按这个价格买。
+// 题库自带的线索是「按数据算出来的」，这里的是「作者知道但数据算不出来的」
+// （比如这局怎么打的、某个位置的怪癖），所以价格也由作者定。
+const HINT_MAX = 12;
+const HINT_COST_MIN = 1;
+const HINT_COST_MAX = 40;
+const clampCost = (v) => {
+  const n = Math.round(num(v, 5));
+  return Math.min(HINT_COST_MAX, Math.max(HINT_COST_MIN, n));
+};
+const hintsOf = (d) => (Array.isArray(d && d.hints) ? d.hints : []);
+// 分享码里压成三元组，省点长度
+const packHints = (list) => list.map(c => [c.n || '', c.v || '', clampCost(c.c)]);
+const unpackHints = (arr) => (Array.isArray(arr) ? arr : []).map(c => ({
+  n: String(c && c.n != null ? c.n : (Array.isArray(c) ? c[0] : '')) || '',
+  v: String(c && c.v != null ? c.v : (Array.isArray(c) ? c[1] : '')) || '',
+  c: clampCost(c && c.c != null ? c.c : (Array.isArray(c) ? c[2] : 5)),
+}));
 
 // ------------------------------------------------------------------ 解析导入
 const num = (v, d = 0) => (Number.isFinite(+v) ? +v : d);
@@ -123,6 +144,60 @@ function metaEditor() {
       h('input', { type: 'text', value: draft.uuid || '', oninput: ev => { draft.uuid = ev.target.value.trim(); } })));
 }
 
+// 自定义线索编辑器：一行一条，标题 / 内容 / 价格，写一条加一条
+let focusLastHint = false;
+function clueEditor() {
+  const list = draft.hints || (draft.hints = []);
+  const row = (c, i) => h('div', { class: 'hintrow' },
+    h('input', {
+      type: 'text', class: 'hn', value: c.n || '', maxlength: 24, placeholder: t('wsHintLabelPh'),
+      oninput: ev => { c.n = ev.target.value; },
+    }),
+    h('input', {
+      type: 'text', class: 'hv', value: c.v || '', maxlength: 140, placeholder: t('wsHintTextPh'),
+      oninput: ev => { c.v = ev.target.value; },
+    }),
+    h('input', {
+      type: 'number', class: 'hc', min: HINT_COST_MIN, max: HINT_COST_MAX, value: c.c ?? 5,
+      title: t('wsHintCostTip'),
+      oninput: ev => { c.c = ev.target.value === '' ? '' : num(ev.target.value, 5); },
+      onblur: ev => { c.c = clampCost(ev.target.value); ev.target.value = c.c; },
+    }),
+    h('button', {
+      type: 'button', class: 'link', onclick: () => { list.splice(i, 1); draw(); },
+    }, t('wsDel')));
+  const box = h('div', { class: 'hintsed' },
+    h('div', { class: 'hinthead' },
+      h('b', {}, t('wsHintTitle')),
+      h('span', { class: 'note' }, t('wsHintNote', { max: HINT_MAX }))),
+    list.length
+      ? h('div', { class: 'hintcols' },
+        h('small', {}, t('wsHintColN')), h('small', {}, t('wsHintColV')),
+        h('small', {}, t('wsHintColC')), h('small', {}, ''))
+      : null,
+    list.length
+      ? h('div', { class: 'hintrows' }, list.map(row))
+      : h('p', { class: 'note' }, t('wsHintNone')),
+    h('div', { class: 'hintact' },
+      h('button', {
+        type: 'button', class: 'btn ghost sm', onclick: () => {
+          if (list.length >= HINT_MAX) { toast(t('wsHintFull', { n: HINT_MAX })); return; }
+          list.push({ n: '', v: '', c: 5 });
+          focusLastHint = true;
+          draw();
+        },
+      }, `＋ ${t('wsHintTitle')}`)));
+  // 新加的一行直接把光标送进标题框，不用再点一次
+  if (focusLastHint) {
+    focusLastHint = false;
+    requestAnimationFrame(() => {
+      const els = root.querySelectorAll('.hintrow .hn');
+      if (els.length) els[els.length - 1].focus();
+    });
+  }
+  return box;
+}
+
 function draw() {
   root.replaceChildren(
     h('section', { class: 'card' },
@@ -165,6 +240,7 @@ function draw() {
               if (v && !draft.relics.includes(v)) draft.relics.push(v); draw();
             }) }, h('span', { class: 'plus' }, '＋'), h('small', {}, t('add')))))),
       metaEditor(),
+      clueEditor(),
       h('div', { class: 'actions' },
         h('button', { class: 'btn', onclick: () => saveDraft() }, '保存到我的题目'),
         h('button', { class: 'btn ghost', onclick: () => copyCode() }, t('wsShare')),
@@ -181,7 +257,7 @@ function mineList() {
   if (!list.length) return h('p', { class: 'note' }, t('wsNoMine'));
   return h('div', { class: 'minelist' }, list.map((p, i) => h('div', { class: 'mine' },
     h('b', {}, p.title || p.id),
-    h('small', { class: 'note' }, `${p.team.filter(a => a.tid).length} 名唤醒体 · ${p.relics.length} 造物${p.uuid ? ' · 有回放' : ''}`),
+    h('small', { class: 'note' }, `${p.team.filter(a => a.tid).length} 名唤醒体 · ${p.relics.length} 造物${hintsOf(p).length ? ` · ${hintsOf(p).length} 条自定义线索` : ''}${p.uuid ? ' · 有回放' : ''}`),
     h('div', { class: 'mineact' },
       h('button', { class: 'link', onclick: () => { draft = JSON.parse(JSON.stringify(p)); draw(); } }, '编辑'),
       h('button', { class: 'link', onclick: () => { draft = JSON.parse(JSON.stringify(p)); copyCode(); } }, t('wsShare')),
@@ -307,7 +383,9 @@ function replayToDraft(t, exact) {
 async function applyReplay(rep) {
   const rt = replayTeam(rep);
   const exact = await lookupPuzzle(rt.uuid);
+  const keep = hintsOf(draft);           // 导入回放不改动作者已经写好的线索
   draft = replayToDraft(rt, exact);
+  draft.hints = keep;
   draw();
   toast(exact ? t('wsReplayExact') : t('wsReplayNote'));
 }
@@ -318,7 +396,9 @@ async function loadByCode() {
   if (!uuid) { toast(t('wsNeedUuid')); return; }
   const hit = await lookupPuzzle(uuid);
   if (hit) {
+    const keep = hintsOf(draft);
     draft = replayToDraft({ uuid, stats: {} }, hit);
+    draft.hints = keep;
     draw();
     toast(t('wsReplayExact'));
     return;
@@ -346,6 +426,13 @@ function normalize() {
   d.team.forEach(a => { a.wheels = (a.wheels || []).filter(Boolean).slice(0, 2); });
   d.diff = d.relics.length && d.key ? 4 : d.key ? 3 : d.team.some(a => a.wheels.length) ? 2 : 1;
   d.boss = d.boss || [];
+  // 自定义线索：标题和内容都空的不留；只有内容没标题的补个默认标题
+  d.hints = hintsOf(d).map(c => ({
+    n: String(c.n || '').trim().slice(0, 24),
+    v: String(c.v || '').trim().slice(0, 140),
+    c: clampCost(c.c),
+  })).filter(c => c.n || c.v).slice(0, HINT_MAX)
+    .map((c, i) => ({ ...c, n: c.n || t('wsHintDefault', { n: i + 1 }) }));
   return d;
 }
 
@@ -353,6 +440,7 @@ function importJson() {
   const el = $('#ws-json');
   const d = fromJson(el ? el.value : '');
   if (!d) { toast(t('wsParseFail')); return; }
+  d.hints = hintsOf(draft);
   draft = d;
   draw();
   toast(t('wsSaved'));
@@ -362,7 +450,7 @@ function importCode() {
   const raw = ($('#ws-code')?.value || '').trim();
   const obj = shareCode.dec(raw);
   if (!obj || !obj.team) { toast('题目代码无法解析'); return; }
-  draft = { ...emptyDraft(), ...obj };
+  draft = { ...emptyDraft(), ...obj, hints: unpackHints(obj.h || obj.hints) };
   draw();
 }
 
@@ -395,6 +483,7 @@ function codeOf(d) {
     rounds: d.rounds, cards: d.cards, maxBout: d.maxBout, deathResist: d.deathResist,
     hp: d.hp, left: d.left, playerDmg: d.playerDmg, score: d.score, diff: d.diff, diffScore: d.diffScore,
     key: d.key, relics: d.relics, team: d.team,
+    h: packHints(d.hints || []),
   });
 }
 
