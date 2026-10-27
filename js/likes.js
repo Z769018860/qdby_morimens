@@ -22,7 +22,8 @@ export const cloudReady = () => !cloudOff;
 const isNoStore = (e) => {
   const code = String((e && e.code) || '');
   const status = Number((e && e.status) || 0);
-  return code === 'no_kv' || code === 'not_ready' || status === 503;
+  // no_store = 后端在但没有任何存储可用（KV 未绑定、Blob 也没凭据）
+  return code === 'no_kv' || code === 'no_store' || code === 'not_ready' || status === 503;
 };
 
 // 与签到、每日一题同一套「东八区今天」

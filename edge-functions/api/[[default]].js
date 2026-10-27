@@ -26,7 +26,17 @@
 // 绑定方式（控制台）：存储 → KV → 开通 → 建命名空间 → 项目里「绑定 Namespace」，
 // 变量名填 zjtt_kv（代码里也认 ZJTT_KV / KV）。
 //
+// 存储有两条路，代码自动挑：
+//   · KV   —— 控制台绑定命名空间（白名单审核，1–3 个工作日）
+//   · Blob —— 免审核，首次调用自动建命名空间。SDK 需要凭据，两种给法：
+//             a) 平台注入（部署时把 {{PAGES_BLOB_DEPLOY_CREDENTIAL}} 换掉，零配置）
+//             b) 自己在「项目设置 → 环境变量」里配 ZJTT_BLOB_TOKEN + ZJTT_BLOB_PROJECT
+//            Blob 只有 set/get/delete/list，没有原子自增，语义和 KV 一致，
+//            下面套一层 blobKV 抹平差异；读默认强一致，显示用的赞数走边缘缓存。
+//
 // 部署路径：edge-functions/api/[[default]].js  →  线上 /api/*，下面会自己剥掉 /api 前缀。
+
+import { getStore as blobGetStore } from './_lib/pages-blob.js';
 
 // 本地用不到 EdgeOne CLI，就手写一个 KV 兜底，方便 node 直接跑测试
 const LIKE_MAX = 10;              // 每人每天最多点赞数
@@ -126,6 +136,51 @@ const clientIp = (request) =>
     || request.headers.get('CF-Connecting-IP')
     || (request.headers.get('X-Forwarded-For') || '').split(',')[0], 64).trim();
 
+// ---------------------------------------------------------------- 存储：KV 或 Blob
+// 统一成 { get(key, opt), put(key, value), delete(key) }。
+// opt.type='json' 取对象；opt.weak=true 表示「显示用，可以吃缓存」。
+function looksLikeKV(x) {
+  return Boolean(x) && typeof x.get === 'function' && typeof x.put === 'function';
+}
+
+// 把 Blob Store 包成 KV 语义。
+// 差异只有三处：set→put 改名、get 的 type 参数同构（text/json 都支持）、
+// 另加一致性开关（Blob 默认走边缘缓存，强一致会回源）。
+function blobKV(store) {
+  const cons = (opt) => (opt && opt.weak ? 'eventual' : 'strong');
+  return {
+    __kind: 'blob',
+    async get(key, opt) {
+      const type = opt && opt.type === 'json' ? 'json' : 'text';
+      const v = await store.get(String(key), { type, consistency: cons(opt) });
+      return v === undefined ? null : v;
+    },
+    async put(key, value) {
+      await store.set(String(key), typeof value === 'string' ? value : JSON.stringify(value));
+    },
+    async delete(key) {
+      await store.delete(String(key));
+    },
+  };
+}
+
+// 按控制台里的变量名取 Blob；取不到返回 null（不抛，让上层给可读错误）
+function blobOf(env) {
+  const e = env || {};
+  const name = String(e.ZJTT_BLOB_STORE || e.BLOB_STORE || 'zjtt');
+  const token = String(e.ZJTT_BLOB_TOKEN || e.BLOB_TOKEN || '');
+  const project = String(e.ZJTT_BLOB_PROJECT || e.BLOB_PROJECT || e.PAGES_PROJECT_ID || '');
+  try {
+    // 显式凭据优先（可控、可测）；否则交给平台注入的 deployCredential
+    const store = token && project
+      ? blobGetStore({ name, projectId: project, token })
+      : blobGetStore(name);
+    return store ? blobKV(store) : null;
+  } catch {
+    return null;   // 没有凭据：MISSING_ENVIRONMENT
+  }
+}
+
 // KV 绑定：控制台里变量名怎么填都可能，这里挨个认一遍。
 // 注意 EdgeOne 的绑定是「注入同名全局变量」（官方示例直接 my_kv.put()），
 // 不一定出现在 env 上，所以两边都找：先 env 再 globalThis。
@@ -133,22 +188,40 @@ function storeOf(env) {
   const g = typeof globalThis !== 'undefined' ? globalThis : {};
   const hit = (env && (env.zjtt_kv || env.ZJTT_KV || env.KV || env.KV_STORE))
     || g.zjtt_kv || g.ZJTT_KV || g.KV || null;
-  // 只认真正实现了 KV four API 的对象，别把 env 里别的配置当成存储
-  const kv = hit && typeof hit.get === 'function' && typeof hit.put === 'function' ? hit : null;
-  if (!kv) {
-    throw new HttpError(500, 'no_kv',
-      '没有绑定 KV：EdgeOne 控制台 → 存储 → KV → 建命名空间 → 项目里绑定，变量名填 zjtt_kv');
-  }
-  return kv;
+  // 只认真正实现了存储接口的对象，别把 env 里别的配置当成存储
+  if (looksLikeKV(hit)) return hit;
+
+  const blob = blobOf(env);
+  if (blob) return blob;
+
+  throw new HttpError(500, 'no_store',
+    '没有可用的存储：KV 未绑定（控制台 → 存储 → KV，审核通过后绑到项目），'
+    + 'Blob 也没拿到凭据（项目设置 → 环境变量，配 ZJTT_BLOB_TOKEN 与 ZJTT_BLOB_PROJECT）');
 }
 
-async function kvJson(kv, key) {
-  const raw = await kv.get(key, { type: 'json' });
+// 有上限的并发：Blob 的每次强一致读都是一次源站请求，一口气发 120 个会被限流
+async function mapLimit(list, limit, fn) {
+  const out = new Array(list.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, list.length) }, async () => {
+    for (;;) {
+      const k = i++;
+      if (k >= list.length) return;
+      out[k] = await fn(list[k], k);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
+// weak=true：显示用，允许吃边缘缓存（Blob 上能少一轮源站往返）
+async function kvJson(kv, key, weak = false) {
+  const raw = await kv.get(key, { type: 'json', weak });
   return raw || null;
 }
 
-async function kvNum(kv, key) {
-  const raw = await kv.get(key);
+async function kvNum(kv, key, weak = false) {
+  const raw = await kv.get(key, { weak });
   const n = Number(raw);
   return Number.isFinite(n) ? n : 0;
 }
@@ -218,22 +291,29 @@ async function getLikes(request, env, kv, url, cors) {
   const voted = {};
   const vh = voter ? await vhash(voter) : '';
 
-  // 一次把 60 个题的赞数 / 是否点过并发读掉；串行会堆成一长串 RTT
-  await Promise.all(ids.map(async (id) => {
+  // 一次把 60 个题的赞数 / 是否点过并发读掉；串行会堆成一长串 RTT。
+  // 赞数只用于显示，吃边缘缓存（weak）；「我点过没」必须准，走强一致。
+  await mapLimit(ids, 10, async (id) => {
     const ph = await phash(id);
     const [c, hit] = await Promise.all([
-      kvNum(kv, 'cnt_' + ph),
+      kvNum(kv, 'cnt_' + ph, true),
       vh ? kv.get(`lk_${ph}_${vh}`) : Promise.resolve(null),
     ]);
     counts[id] = c;
     if (hit) voted[id] = true;
-  }));
+  });
 
-  for (const id of ids) if (!(id in counts)) counts[id] = 0;
+  // 并发读回来的顺序是完成顺序，这里按入参顺序重排，输出稳定（也方便前端 diff 和测试）
+  const outCounts = {};
+  const outVoted = {};
+  for (const id of ids) {
+    outCounts[id] = Number(counts[id]) || 0;
+    if (voted[id]) outVoted[id] = true;
+  }
 
   const left = voter ? Math.max(0, LIKE_MAX - (await usedToday(kv, voter, day))) : LIKE_MAX;
 
-  return reply({ ok: true, counts, voted, left, day: dayKey() }, 200, cors);
+  return reply({ ok: true, counts: outCounts, voted: outVoted, left, day: dayKey() }, 200, cors);
 }
 
 // POST /like { puzzle }
@@ -510,10 +590,15 @@ export async function onRequest(context) {
     if (path === '/health' || path === '/') {
       let kv = null;
       try { kv = storeOf(env); } catch { kv = null; }
+      const kind = kv ? (kv.__kind || 'kv') : null;
       return reply({
         ok: Boolean(kv), service: 'zjtt', v: 2, runtime: 'edgeone',
-        kv: Boolean(kv), day: dayKey(),
-        ...(kv ? {} : { error: 'no_kv', detail: '控制台 → 存储 → KV → 建命名空间 → 项目里绑定命名空间，变量名 zjtt_kv' }),
+        store: kind, kv: Boolean(kv), day: dayKey(),
+        ...(kv ? {} : {
+          error: 'no_store',
+          detail: 'KV 未绑定（存储 → KV，审核通过后绑到项目），Blob 也没凭据'
+            + '（项目设置 → 环境变量，配 ZJTT_BLOB_TOKEN 与 ZJTT_BLOB_PROJECT）',
+        }),
       }, kv ? 200 : 503, cors);
     }
 
@@ -544,3 +629,6 @@ export async function onRequest(context) {
     return reply({ ok: false, error: 'server', detail: String((e && e.message) || e) }, 500, cors);
   }
 }
+
+// 本地测试用：不部署也能验证 Blob 适配层的语义（get/put/delete + 一致性开关）
+export { blobKV };

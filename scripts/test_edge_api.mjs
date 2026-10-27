@@ -89,20 +89,21 @@ console.log('\n[1] 健康检查 / 路由 /api 前缀剥离');
   eq('错误码 not_found', r404.json.error, 'not_found');
 }
 
-console.log('\n[2] 没绑 KV 时给出可读错误');
+console.log('\n[2] 没有任何存储时给出可读错误');
 {
   const call = makeCaller({});
   const r = await call('/health');
   eq('→ 503（探活仍能答话，只是 ok:false）', r.status, 503);
   eq('→ ok:false', r.json.ok, false);
   eq('→ kv:false', r.json.kv, false);
-  eq('→ no_kv', r.json.error, 'no_kv');
-  check('提示里写了怎么绑定', /zjtt_kv/.test(String(r.json.detail)));
+  eq('→ store:null', r.json.store, null);
+  eq('→ no_store', r.json.error, 'no_store');
+  check('提示里同时写了 KV 与 Blob 两条路', /KV/.test(String(r.json.detail)) && /ZJTT_BLOB_TOKEN/.test(String(r.json.detail)));
 
-  // 业务接口没 KV 时仍然是 500，前端按「后端不可用」降级
+  // 业务接口没存储时仍然是 500，前端按「后端不可用」降级
   const rb = await call('/likes?ids=a');
   eq('业务接口 → 500', rb.status, 500);
-  eq('业务接口 → no_kv', rb.json.error, 'no_kv');
+  eq('业务接口 → no_store', rb.json.error, 'no_store');
 }
 
 console.log('\n[2b] 绑定名字挂在全局变量上也要认（EdgeOne 官方示例就是这种注入方式）');
@@ -338,8 +339,75 @@ console.log('\n[10] 请求体限制');
   eq('超过上限 → 413', r.status, 413);
 }
 
-console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
-if (fail) {
+console.log('\n[11] Blob 适配层：换个存储引擎，规则必须一条不少');
+{
+  // 按 @edgeone/pages-blob 的真实语义造一个：set/get(key,{type,consistency})/delete/list
+  const blob = (() => {
+    const m = new Map();
+    const reads = { strong: 0, eventual: 0 };
+    return {
+      _m: m, _reads: reads,
+      async set(key, value) { m.set(String(key), typeof value === 'string' ? value : String(value)); },
+      async get(key, opts = {}) {
+        if (opts.consistency === 'strong') reads.strong++;
+        else reads.eventual++;
+        const v = m.get(String(key));
+        if (v === undefined) return null;
+        return opts.type === 'json' ? JSON.parse(v) : v;
+      },
+      async delete(key) { m.delete(String(key)); },
+      async list({ prefix = '' } = {}) {
+        return { blobs: [...m.keys()].filter((k) => k.startsWith(prefix)).map((k) => ({ key: k, etag: '' })) };
+      },
+    };
+  })();
+
+  const kv = MOD.blobKV(blob);
+  const call = makeCaller({ zjtt_kv: kv });
+
+  const h = await call('/health');
+  eq('health → store:blob', h.json.store, 'blob');
+  eq('health → ok', h.json.ok, true);
+
+  await kv.put('sess_' + sha('t:' + TOKEN), JSON.stringify({ uid: UID, name: 'tester', at: Date.now() }));
+
+  const l1 = await call('/like', { method: 'POST', headers: auth, body: { puzzle: 'blob-1' } });
+  eq('首次点赞 ok', l1.json.ok, true);
+  eq('赞数 1', l1.json.count, 1);
+  const l2 = await call('/like', { method: 'POST', headers: auth, body: { puzzle: 'blob-1' } });
+  eq('重复赞 duplicate', l2.json.duplicate, true);
+  eq('重复赞不涨数', l2.json.count, 1);
+
+  const lk = await call('/likes?ids=blob-1', { headers: auth });
+  eq('查回来 count=1', lk.json.counts['blob-1'], 1);
+  eq('voted=true', lk.json.voted['blob-1'], true);
+  eq('今日额度剩 9', lk.json.left, 9);
+
+  const p1 = await call('/account', { method: 'PUT', headers: auth, body: { doc: { cr: 5 }, ver: 0 } });
+  eq('首次写档案 ver=1', p1.json.ver, 1);
+  const p2 = await call('/account', { method: 'PUT', headers: auth, body: { doc: { cr: 6 }, ver: 0 } });
+  eq('拿旧版本号写 → 409', p2.status, 409);
+  const acc = await call('/account', { headers: auth });
+  eq('读回 cr=5', acc.json.doc.cr, 5);
+
+  const pu = await call('/puzzle', { method: 'POST', headers: auth, body: { id: 'b-9', title: '适配层题', payload: { id: 'b-9', team: [] } } });
+  eq('上传题目 ok', pu.json.ok, true);
+  const list = await call('/puzzles?limit=5');
+  check('题库列表里有它', (list.json.items || []).some((x) => x.id === 'b-9'));
+
+  // 别人（游客身份）赞这道题，作者再结算：应只发一次钱
+  const g = await call('/like', { method: 'POST', headers: { 'X-Dev-Id': 'blob-voter' }, body: { puzzle: 'b-9' } });
+  eq('游客点赞 ok', g.json.ok, true);
+  const c1 = await call('/claim', { method: 'POST', headers: auth, body: { puzzles: ['b-9'] } });
+  eq('首次结算 gain=1', c1.json.gain, 1);
+  const c2 = await call('/claim', { method: 'POST', headers: auth, body: { puzzles: ['b-9'] } });
+  eq('再结算 gain=0（不重复发钱）', c2.json.gain, 0);
+
+  check('写入路径走了强一致（reads.strong > 0）', blob._reads.strong > 0, blob._reads);
+  check('显示用赞数吃了缓存（reads.eventual > 0）', blob._reads.eventual > 0, blob._reads);
+}
+
+console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
   console.log('\n失败项：');
   for (const f of fails) console.log('  - ' + f);
   process.exit(1);
