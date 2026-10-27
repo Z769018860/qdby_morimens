@@ -96,7 +96,39 @@ docker run -d --name zjtt -p 8787:8787 -v zjtt-data:/data zjtt-api
 要连站点一起发，把 `Dockerfile` 的 `COPY . .` 换成仓库根、`WORKDIR` 改成 `/app`，
 再设 `SERVE_STATIC=1`。
 
-## 方式 C：Cloudflare Worker + D1
+## 方式 C：免费托管（没有自己的服务器）
+
+先说结论：**免费平台里能存住数据的只有「常驻进程 + 持久磁盘」这一种。**
+Vercel / Netlify / Cloudflare Pages 那类函数是无状态的，容器里的文件一重启就没，
+SQLite 丢上去等于每次清库。所以别把 `node.js` 往那类平台扔。
+
+### 推荐：Waifly（免费、不用信用卡、1GB 持久盘、进程不睡眠）
+
+1. 注册 <https://dash.waifly.com>（免费计划：300MB 内存 / 1GB 磁盘，无到期时间）
+2. Servers → Create → 类型选 **NodeJS** → 区域 FR1 或 FR2
+3. Startup 页把启动命令改成 `node node.js`，**Node 版本选 22 或 24**
+   （低于 22.5 没有内置 `node:sqlite`，会直接报错退出）
+4. 用文件管理器上传这四个文件（或上传 `server/` 打的 zip 再解压）：
+
+   ```
+   node.js        worker.js      schema.sql      package.json
+   ```
+
+5. 点 Start，控制台出现 `[zjtt] 后端已启动 http://0.0.0.0:…` 就是好了
+6. 面板给的地址用 `curl http://那个地址/health` 验一下，应返回 `{"ok":true,...}`
+
+数据库就是 `data/zjtt.db`，落在那块 1GB 盘上，重启不丢。备份 = 把这个文件下载下来。
+免费实例连续 3 天完全无请求会被暂停，有人用就不会。
+
+### 其它选择（都要改存储层，不是零改动）
+
+| 平台 | 免费额度 | 代价 |
+|---|---|---|
+| Render + Neon | Web Service + 0.5GB Postgres | 15 分钟无请求休眠，冷启动 30–50 秒；SQL 要改写成 Postgres 方言 |
+| Deno Deploy + Deno KV | 100 万请求/月、1GB KV | 没有持久文件系统，5 张表要重写成 KV |
+| Vercel / Netlify / Cloudflare Pages 函数 | 够用 | 无状态、无持久盘，SQLite 会被清空 |
+
+## 方式 D：Cloudflare Worker + D1
 
 `worker.js` + `wrangler.toml` 这套仍然可用，适合不想自己维护机器的情况：
 

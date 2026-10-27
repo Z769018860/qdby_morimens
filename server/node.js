@@ -28,7 +28,7 @@ const ROOT = path.resolve(HERE, '..'); // 仓库根，SERVE_STATIC 时对外发�
 // ------------------------------------------------------------------ 配置
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '0.0.0.0';
-const DATA_DIR = path.resolve(ROOT, process.env.DATA_DIR || 'server/data');
+const DATA_DIR = path.resolve(HERE, process.env.DATA_DIR || 'data');
 const DB_FILE = process.env.DB_FILE ? path.resolve(process.env.DB_FILE) : path.join(DATA_DIR, 'zjtt.db');
 const SERVE_STATIC = /^(1|true|yes)$/i.test(String(process.env.SERVE_STATIC || ''));
 const MAX_BODY = 1024 * 1024; // 和 worker 里的 512K 上限留一倍余量
