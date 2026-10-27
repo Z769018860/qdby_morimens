@@ -673,7 +673,10 @@ function likeBar() {
       : voted
         ? h('button', { type: 'button', class: 'btn sm ghost', disabled: true }, t('likeDone'))
         : h('button', { type: 'button', class: 'btn sm', disabled: left <= 0, onclick: doLike }, t('likeBtn')),
-    mine ? null : h('span', { class: 'note' }, left > 0 ? t('likeLeft', { n: left }) : t('likeZero', { n: likes.LIKE_MAX })),
+    mine ? null : likes.cloudReady()
+      ? h('span', { class: 'note' }, left > 0 ? t('likeLeft', { n: left }) : t('likeZero', { n: likes.LIKE_MAX }))
+      : h('span', { class: 'note dim' }, t('likeCloudNote')),
+    mine && !likes.cloudReady() ? h('span', { class: 'note dim' }, t('likeCloudNote')) : null,
     tip ? h('span', { class: 'note dim' }, t('likeQueue', { n: tip })) : null);
 }
 
@@ -685,7 +688,7 @@ function doLike() {
   if (r.ok === 'ok') {
     likeCount = (Number(likeCount) || 0) + 1;
     store.set('likeCnt', { ...likes.cachedCounts(), [id]: likeCount });
-    toast(t('likeThanks', { n: r.left }));
+    toast(likes.cloudReady() ? t('likeThanks', { n: r.left }) : t('likeCloudOff'));
   }
   render();
 }

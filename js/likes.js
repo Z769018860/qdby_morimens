@@ -13,6 +13,18 @@ export const LIKE_MAX = 10;      // 每人每天最多点几个
 const GAP = 800;                 // 两次发送之间稍等一下，别把请求堆成一串
 const HARD_TRIES = 4;            // 网络类错误重试几次后放弃
 
+// 后端在、但存储还没开通（EdgeOne 的 KV 是白名单审核，未通过时接口返回 503/no_kv）。
+// 这种情况重试多少次都不会好，所以整页生命周期内直接转「本机模式」：
+// 赞只记在这台设备上，界面明说，不再空转重试。审核通过后刷新页面即自动恢复。
+let cloudOff = false;
+let warned = false;              // 「存储没开通」只提示一次，别每点一个赞弹一遍
+export const cloudReady = () => !cloudOff;
+const isNoStore = (e) => {
+  const code = String((e && e.code) || '');
+  const status = Number((e && e.status) || 0);
+  return code === 'no_kv' || code === 'not_ready' || status === 503;
+};
+
 // 与签到、每日一题同一套「东八区今天」
 const dayKey = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
 
@@ -88,7 +100,8 @@ export async function counts(ids) {
     }
     if (typeof d.left === 'number') setLeft(d.left);
     return out;
-  } catch {
+  } catch (e) {
+    if (isNoStore(e)) cloudOff = true;
     const cache = countsCache();
     const out = {};
     for (const id of list) out[id] = Number(cache[id]) || 0;
@@ -135,6 +148,7 @@ function later(ms) {
 export async function flush() {
   if (running || !queue().length) return;
   if (!api.ready()) return;
+  if (cloudOff) { setQueue([]); return; }   // 存储没开通：别再空转
   running = true;
   try {
     for (;;) {
@@ -154,6 +168,16 @@ export async function flush() {
       } catch (e) {
         const code = String((e && e.code) || '');
         const status = Number(e && e.status) || 0;
+
+        // 后端回来了但存储还没开通：不算失败，赞留在本机，之后统一说一次
+        if (isNoStore(e)) {
+          cloudOff = true;
+          drop(item.id);
+          setQueue([]);
+          if (!warned) { warned = true; toast(t('likeCloudOff')); }
+          notify();
+          break;
+        }
 
         // 不可重试：额度没了、自己的题、题目不合法、没登录
         if (code === 'quota' || code === 'self' || code === 'rate' || code === 'bad_puzzle' || code === 'no_voter' || status === 401 || status === 403) {
@@ -196,8 +220,8 @@ export function like(id) {
   store.set('likeDay', { d: dayKey(), n: dayState().n + 1 });
   store.del('likeLeft');                    // 服务端数还没回来，先按本机记的走
 
-  // 没配后端就只记本机，别让「排队发送中」永远挂着
-  if (api.ready()) {
+  // 没配后端、或后端存储还没开通，就只记本机，别让「排队发送中」永远挂着
+  if (api.ready() && !cloudOff) {
     const q = queue();
     if (!q.some((x) => String(x.id) === key)) q.push({ id: key, at: Date.now(), n: 0 });
     setQueue(q);
