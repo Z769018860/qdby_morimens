@@ -43,6 +43,7 @@ node server/node.js
 
 ```bash
 PORT=8080                      # 端口，默认 8787
+SERVER_PORT=27483              # Pterodactyl/Pelican 面板分配的端口，PORT 没设时用它
 HOST=127.0.0.1                 # 只给本机（前面挂 Nginx 时用这个），默认 0.0.0.0
 DATA_DIR=/var/lib/zjtt         # 数据库目录，默认 server/data
 WALINE_URL=https://…           # 账号 token 回源校验地址
@@ -104,18 +105,29 @@ SQLite 丢上去等于每次清库。所以别把 `node.js` 往那类平台扔�
 
 ### 推荐：Waifly（免费、不用信用卡、1GB 持久盘、进程不睡眠）
 
+Waifly 用的是 **Pterodactyl 面板**（<https://panel.waifly.com>，和 dash 账号密码分开），
+没有 SSH，但有文件管理器、SFTP、在线控制台和 Startup 页。
+
 1. 注册 <https://dash.waifly.com>（免费计划：300MB 内存 / 1GB 磁盘，无到期时间）
-2. Servers → Create → 类型选 **NodeJS** → 区域 FR1 或 FR2
-3. Startup 页把启动命令改成 `node node.js`，**Node 版本选 22 或 24**
-   （低于 22.5 没有内置 `node:sqlite`，会直接报错退出）
-4. 用文件管理器上传这四个文件（或上传 `server/` 打的 zip 再解压）：
+2. Servers → Create → 类型选 **NodeJS** → 区域 PAR1 或 PAR2
+3. 面板 → 你的服务器 → **Startup** 页：
+   - 启动命令填 `node node.js`（或保留 `npm start`，效果一样）
+   - **Node 版本选 22 或 24**（低于 22.5 没有内置 `node:sqlite`，会直接报错退出）
+4. **Files** 页 → 右上角 Upload 上传部署包 zip → 右键 zip → **Unarchive** 解压到当前目录
+   （解压后根目录应有 `node.js` `worker.js` `schema.sql` `package.json` 四个文件）
+5. 点 **Start**，控制台出现下面这样就是好了：
 
    ```
-   node.js        worker.js      schema.sql      package.json
+   [zjtt] 后端已启动  http://0.0.0.0:27483
+   [zjtt] 数据库      /home/container/data/zjtt.db
    ```
 
-5. 点 Start，控制台出现 `[zjtt] 后端已启动 http://0.0.0.0:…` 就是好了
-6. 面板给的地址用 `curl http://那个地址/health` 验一下，应返回 `{"ok":true,...}`
+6. 用 `curl http://<面板地址>/health` 验一下，应返回 `{"ok":true,...}`
+
+**端口不用自己填。** 面板分配端口（形如 `node.waifly.com:27483`）会以 `SERVER_PORT`
+注入容器，程序按 `PORT → SERVER_PORT → 8787` 依次取值，会自动监听对的那个。
+如果控制台显示正在跑、外面却一直是 **502 / 连接被拒绝**，几乎都是这个原因：
+程序听了 8787 而反代在等 27483。确认启动日志里打印的端口与面板 Network 页一致即可。
 
 数据库就是 `data/zjtt.db`，落在那块 1GB 盘上，重启不丢。备份 = 把这个文件下载下来。
 免费实例连续 3 天完全无请求会被暂停，有人用就不会。

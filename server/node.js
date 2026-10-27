@@ -26,7 +26,11 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..'); // 仓库根，SERVE_STATIC 时对外发这里
 
 // ------------------------------------------------------------------ 配置
-const PORT = Number(process.env.PORT || 8787);
+// 端口优先序：PORT → SERVER_PORT → 8787
+//   SERVER_PORT 是 Pterodactyl / Pelican 面板分配给容器的端口（反代只往这个端口的
+//   容器内一侧转发）。面板上看到 node.xxx.com:27483 却一直 502，多半就是程序
+//   监听了 8787 而面板在等 27483 —— 所以这里必须认 SERVER_PORT。
+const PORT = Number(process.env.PORT || process.env.SERVER_PORT || 8787);
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = path.resolve(HERE, process.env.DATA_DIR || 'data');
 const DB_FILE = process.env.DB_FILE ? path.resolve(process.env.DB_FILE) : path.join(DATA_DIR, 'zjtt.db');
