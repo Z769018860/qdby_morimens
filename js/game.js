@@ -180,10 +180,11 @@ function evaluate() {
   });
   if (A.key) { r.key = sel.key == null ? 'n' : sel.key === puzzle.key ? 'g' : 'n'; count(r.key); }
   if (A.relics) {
-    const want = new Set(puzzle.relics);
+    // 固有造物已经白送了，不算字段；只判定玩家需要补的那部分
+    const need = fillRelics();
+    const want = new Set(need);
     sel.relics.forEach(x => r.relics.push(want.has(x) ? 'g' : 'n'));
-    // every real relic is a field; missing ones count as misses
-    puzzle.relics.forEach(x => { r.total++; if (sel.relics.includes(x)) r.green++; });
+    need.forEach(x => { r.total++; if (sel.relics.includes(x)) r.green++; });
     sel.relics.forEach(x => { if (!want.has(x)) r.total++; });
   }
   r.win = r.green === r.total;
@@ -210,7 +211,7 @@ function emojiRow(r) {
   if (A.cov) s += ' ' + r.slots.map(x => EMO[x.cov]).join('');
   if (A.key) s += ' ' + EMO[r.key];
   if (A.pot) s += ' ' + r.slots.map(x => EMO[x.pot.st]).join('');
-  if (A.relics) s += ` 🧪${r.relics.filter(x => x === 'g').length}/${puzzle.relics.length}`;
+  if (A.relics) s += ` 🧪${r.relics.filter(x => x === 'g').length}/${fillRelics().length}`;
   return s;
 }
 
@@ -361,6 +362,16 @@ const covNameOf = (id) => {
   return e ? nameOf(e) : '—';
 };
 
+// 造物：维度影像就是唤醒体的固有造物，题面直接给出、不用玩家填；
+// 玩家只需要补齐剩下那些。标签来自 data/dictionary.json 的 creation[].tags。
+const INNATE_KIND = '维度影像';
+const creationOf = (id) => idx.creation.get(String(id)) || null;
+const isInnateRelic = (id) => (creationOf(id) || {}).kind === INNATE_KIND;
+const relicList = () => puzzle.relics || [];
+const innateRelics = () => relicList().filter(isInnateRelic);
+const fillRelics = () => relicList().filter(id => !isInnateRelic(id));
+const relicTags = (id) => (creationOf(id) || {}).tags || [];
+
 function hintAwk(k) {
   if (finished || isOpen(`r${k}`)) return;
   if (!payHint()) return;
@@ -386,6 +397,15 @@ function hintLv(k) {
 // 绝不卖一条全是「—」的线索。价格一律是基础价，实际扣费走 payHint 的难度系数。
 const WHEEL_CLUE_COST = [6, 8, 10, 12, 14, 16, 18, 20];   // 第 1 条最便宜，往后逐条加价
 const COV_CLUE_COST = [5, 7, 9, 11];
+
+// 造物线索：按效果标签统计件数，只报「有几件带这个功能」，不报名字
+const RELIC_CLUES = [
+  { id: 'relOut', cost: 5, tags: ['dmg', 'str', 'crit'], label: 'clueRelOut' },
+  { id: 'relDraw', cost: 4, tags: ['draw'], label: 'clueRelDraw' },
+  { id: 'relRage', cost: 4, tags: ['rage'], label: 'clueRelRage' },
+  { id: 'relCost', cost: 4, tags: ['energy', 'exhaust'], label: 'clueRelCost' },
+  { id: 'relGuard', cost: 4, tags: ['guard'], label: 'clueRelGuard' },
+];
 
 // 用题目 id 做种子的确定性打散：每次渲染顺序一致，但不能是「按 A→D 排」，
 // 否则第 1 条永远来自 A 位，等于变相泄露位置。
@@ -509,7 +529,18 @@ function clueList() {
     });
   }
 
-  return { team, slots };
+  // 造物：按功能报件数（含固有造物，因为那几件也是这一局的造物）
+  const relics = A.relics && relicList().length
+    ? RELIC_CLUES.map(c => ({
+      id: c.id, cost: c.cost, label: t(c.label),
+      value: () => {
+        const n = relicList().filter(id => relicTags(id).some(x => c.tags.includes(x))).length;
+        return n ? t('clueRelN', { n }) : t('clueRelNone');
+      },
+    }))
+    : [];
+
+  return { team, relics, slots };
 }
 
 function buyClue(c) {
@@ -530,7 +561,7 @@ function clueCard(c) {
 
 function cluePanel() {
   if (finished) return null;
-  const { team, slots } = clueList();
+  const { team, relics, slots } = clueList();
   const wheels = slots.filter(c => c.group === 'wheel');
   const covs = slots.filter(c => c.group === 'cov');
   const mul = LV_COST_MUL[level] || 1;
@@ -540,6 +571,8 @@ function cluePanel() {
       h('h3', {}, t('clueTitle')),
       h('span', { class: 'note' }, note)),
     team.length ? h('div', { class: 'cluegrid' }, team.map(clueCard)) : null,
+    relics.length ? h('div', { class: 'cluesub' }, h('b', {}, t('clueRelTitle'))) : null,
+    relics.length ? h('div', { class: 'cluegrid' }, relics.map(clueCard)) : null,
     wheels.length ? h('div', { class: 'cluesub' },
       h('b', {}, t('clueWheelSeen')), h('span', { class: 'note' }, t('clueStepNote'))) : null,
     wheels.length ? h('div', { class: 'cluegrid four' }, wheels.map(clueCard)) : null,
@@ -610,7 +643,8 @@ function reportPanel() {
       stat(t('rounds'), p.rounds, t('bossRounds', { n: p.bossRounds })), stat(t('cards'), p.cards, t('energy', { n: p.energy })),
       stat(t('maxBout'), wan(p.maxBout)), stat(t('deathResist'), p.deathResist),
       stat(t('leftHp'), `${p.left}/${p.hp}`), stat(t('keyDmg'), wan(p.playerDmg)),
-      stat(t('score'), p.score), stat(t('relicCount'), p.relics.length, level >= 4 ? t('relicAll') : '')),
+      stat(t('score'), p.score), stat(t('relicCount'), p.relics.length,
+        level >= 4 ? t('relicInnate', { n: p.relics.filter(isInnateRelic).length }) : '')),
     dmgCompBox,
     p.diffWhy ? h('div', { class: 'diffwhy' },
       h('b', {}, `${t('diffWhy')}：`),
@@ -674,15 +708,29 @@ function teamExtras() {
       isOpen('c:key') ? chip(realmOf(idx.key.get(puzzle.key)), 'gold') : null));
   }
   if (A.relics) {
-    const n = puzzle.relics.length;
-    box.append(h('div', { class: 'extra wide' }, h('b', {}, `${t('relicLabel')} ${sel.relics.length}/${n}`),
-      h('div', { class: 'relics' },
+    const inn = innateRelics();
+    const need = fillRelics();
+    const relicChip = (id, title) => {
+      const e = creationOf(id);
+      return { e, label: e ? nameOf(e) : id };
+    };
+    box.append(h('div', { class: 'extra wide' }, h('b', {}, `${t('relicLabel')} ${sel.relics.length}/${need.length}`),
+      // 固有造物跟着唤醒体走，题面直接给，玩家不用也不能填
+      inn.length ? h('div', { class: 'relics innate' },
+        h('span', { class: 'innatetag' }, t('innateTag')),
+        inn.map(id => {
+          const { e, label } = relicChip(id);
+          return h('span', { class: 'pick mini fixed', title: label },
+            imgEl(e && e.img, label), h('small', {}, label));
+        })) : null,
+      h('div', { class: 'relics mine' },
+        inn.length ? h('span', { class: 'innatetag mine' }, t('relicFillTag')) : null,
         sel.relics.map(id => {
-          const e = idx.creation.get(id);
+          const { e, label } = relicChip(id);
           const f = fb[`rel${id}`];
-          return h('button', { type: 'button', class: `pick mini${f ? ' fb-' + f.c : ''}`, title: e ? nameOf(e) : id,
+          return h('button', { type: 'button', class: `pick mini${f ? ' fb-' + f.c : ''}`, title: label,
             onclick: () => { if (!finished) { sel.relics = sel.relics.filter(x => x !== id); persist(); render(); } } },
-            imgEl(e && e.img, e && nameOf(e)), h('small', {}, e ? nameOf(e) : id));
+            imgEl(e && e.img, label), h('small', {}, label));
         }),
         finished ? null : h('button', { type: 'button', class: 'pick mini add', onclick: () => openPicker('creation', null) }, h('span', { class: 'plus' }, '＋'), h('small', {}, t('add')))
       )));
@@ -716,7 +764,11 @@ function replayBox(p) {
 
 // 一支队伍答案的展示（结果面板 & 失败题库共用）
 function teamBlock(team) {
-  const mk = (kind, id) => { const e = idx[kind].get(String(id)); return h('span', { class: 'ans-i', title: e ? nameOf(e) : id }, imgEl(e && e.img, e && nameOf(e)), h('small', {}, e ? nameOf(e) : id)); };
+  const mk = (kind, id, extra = '') => {
+    const e = idx[kind].get(String(id));
+    return h('span', { class: `ans-i${extra}`, title: e ? nameOf(e) : id },
+      imgEl(e && e.img, e && nameOf(e)), h('small', {}, e ? nameOf(e) : id));
+  };
   const awkAttr = (a) => {
     const e = idx.awakener.get(String(a.tid));
     if (!e) return '';
@@ -730,7 +782,11 @@ function teamBlock(team) {
 
 function answerPanel() {
   const { score, g } = grade();
-  const mk = (kind, id) => { const e = idx[kind].get(String(id)); return h('span', { class: 'ans-i', title: e ? nameOf(e) : id }, imgEl(e && e.img, e && nameOf(e)), h('small', {}, e ? nameOf(e) : id)); };
+  const mk = (kind, id, extra = '') => {
+    const e = idx[kind].get(String(id));
+    return h('span', { class: `ans-i${extra}`, title: e ? nameOf(e) : id },
+      imgEl(e && e.img, e && nameOf(e)), h('small', {}, e ? nameOf(e) : id));
+  };
   return h('section', { class: `card result ${won ? 'win' : 'lose'}` },
     h('h2', {}, won ? `${t('winTitle')} · ${t('grade', { g })}` : `${t('loseTitle')} · ${t('grade', { g })}`),
     h('p', {}, t('scoreText', { s: score, h: hintsUsed, n: history.length })),
@@ -739,7 +795,8 @@ function answerPanel() {
       chip([`${t('credits')} `, scIcon(12), ` ${wallet.get()}`])),
     teamBlock(ans),
     h('div', { class: 'ans-row' }, h('b', {}, t('keyLabel')), mk('key', puzzle.key)),
-    h('div', { class: 'ans-row wrap' }, h('b', {}, t('relicLabel')), puzzle.relics.map(r => mk('creation', r))),
+    h('div', { class: 'ans-row wrap' }, h('b', {}, t('relicLabel')),
+      puzzle.relics.map(r => mk('creation', r, isInnateRelic(r) ? ' innate' : ''))),
     replayBox(puzzle),
     h('div', { class: 'actions' },
       h('button', { class: 'btn', onclick: share }, t('copy')),
@@ -846,16 +903,18 @@ function openPicker(kind, apply, slot) {
   const grid = h('div', { class: 'pgrid' });
   const draw = () => {
     grid.replaceChildren();
-    const list = all.filter(e => (!q || ((e.zh || '') + (e.en || '')).toLowerCase().includes(q)) && (!f1 || e[f1key] === f1) && (!f2 || e[f2key] === f2) && (!fk || (e.kw || []).includes(fk)));
+    // 固有造物已经在题面给出去了，选择器里不再列出来
+    const list = all.filter(e => (!multi || !isInnateRelic(e.id))
+      && (!q || ((e.zh || '') + (e.en || '')).toLowerCase().includes(q)) && (!f1 || e[f1key] === f1) && (!f2 || e[f2key] === f2) && (!fk || (e.kw || []).includes(fk)));
     list.forEach(e => {
       const chosen = multi && sel.relics.includes(String(e.id));
-      const full = multi && !chosen && sel.relics.length >= puzzle.relics.length;
+      const full = multi && !chosen && sel.relics.length >= fillRelics().length;
       grid.append(h('button', { type: 'button', class: `pitem${chosen ? ' chosen' : ''}${used.has(String(e.id)) ? ' used' : ''}`, disabled: full, title: e.en,
         onclick: () => {
           const id = String(e.id);
           if (multi) {
             sel.relics = chosen ? sel.relics.filter(x => x !== id) : [...sel.relics, id];
-            persist(); draw(); count.textContent = `${sel.relics.length}/${puzzle.relics.length}`; return;
+            persist(); draw(); count.textContent = `${sel.relics.length}/${fillRelics().length}`; return;
           }
           apply(id); persist(); dlg.close(); render();
         } }, imgEl(e.img, nameOf(e)), h('small', {}, nameOf(e)), e.real === false ? h('em', { class: 'decoy' }, t('decoy')) : null));
@@ -873,7 +932,7 @@ function openPicker(kind, apply, slot) {
     return h('select', { title: t('allKw'), onchange: ev => { fk = ev.target.value; draw(); } }, h('option', { value: '' }, t('allKw')),
       Object.entries(KW_TYPE).map(([ty, label]) => { const g = ks.filter(k => k.t === ty); return g.length ? h('optgroup', { label: lang.cur === 'en' ? KW_TYPE_EN[ty] : label }, g.map(k => h('option', { value: k.s }, lang.cur === 'en' ? k.e : k.n))) : null; }));
   };
-  const count = h('span', { class: 'note' }, multi ? `${sel.relics.length}/${puzzle.relics.length}` : '');
+  const count = h('span', { class: 'note' }, multi ? `${sel.relics.length}/${fillRelics().length}` : '');
   dlg.replaceChildren(
     h('div', { class: 'phead' }, h('b', {}, `${kindName(kind)}`), count,
       h('input', { type: 'search', placeholder: t('searchName'), oninput: ev => { q = ev.target.value.trim().toLowerCase(); draw(); } }),

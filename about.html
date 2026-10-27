@@ -22,7 +22,7 @@
 
 <h3>难度档与难度分</h3>
 <ul>
-<li>入门：只猜 4 名唤醒体；进阶：+ 命轮（每人 2 件）；老手：+ 密契套装、钥令；大师：+ 潜能进阶、全部造物。</li>
+<li>入门：只猜 4 名唤醒体；进阶：+ 命轮（每人 2 件）；老手：+ 密契套装、钥令；大师：+ 潜能进阶、造物（固有造物已经给出，只需补其余）。</li>
 <li>每道题另有一个 <b>难度分（0–100）</b>，只由公开信息决定，三项加权：
   <b>信息排除度</b>（把回合数/出牌数/能量/单回合最高伤害/死扛/剩余生命做粗分桶后，题库里同桶的题越多，越难靠排除法锁定）；
   <b>伤害集中度</b>（队内伤害越集中在一两人身上，越容易判断主 C，越简单）；
@@ -62,9 +62,10 @@
 <h3>银芯、提示与解锁</h3>
 <ul>
 <li><b>获取</b>：答对一道题按难度给分，公式为 <code>8 + 难度分 × 1.2</code>（难度分 0–100，所以一题大约 8–128 分，答对后四舍五入）。银芯存在浏览器本地（<code>zjtt:credits</code>），换设备/清缓存会归零。</li>
-<li><b>花在哪</b>：① 买提示，每次 6 银芯；② 解锁典藏馆的 CG。</li>
+<li><b>花在哪</b>：① 买提示（6 银芯起，越高难度档越贵）；② 解锁典藏馆的 CG。</li>
 <li><b>卡位提示</b>：队伍卡上每个位置有三条，各 6 银芯——「提示阵营」（四大界域）、「提示定位」（伤害 / 防御 / 辅助）、「提示等级」。买过的那条会变成金色小标签。</li>
-<li><b>线索台</b>：报告下面一组可解锁线索，全部按这一题的真实数据生成，没有数据的条目不会出现（标题也不会把说不到的字段写上去）。分三层：<b>队伍线索</b>——<b>钥令阵营</b>（6）、<b>内在灵格</b>（6，四位的灵格等级；等级在卡位提示里买）、<b>灵塑等级</b>（8，仅在潜能进阶档出现）、<b>养成</b>（7，指令卡总等级；旧战报没有疯狂预兆时就只报指令卡）、<b>命轮强化</b>（6，整队最高强化到几、有几件 ≥+12）、<b>助战</b>（4）、<b>单回合极值/守密人</b>（5）；<b>出现型线索</b>——<b>命轮</b>与<b>密契</b>一次解锁一条，只告诉你「这一局里出现了它」，<b>不说它在哪一位，也不成对给出</b>，顺序按题目打散，别想从第几条反推位置；命轮 6 / 8 / 10 / 12 / 14 / 16 / 18 / 20，密契 5 / 7 / 9 / 11，越往后越贵。上面的价格都是入门档，实际按难度档乘系数。买一次这一题内一直有效，换题重新计。</li>
+<li><b>线索台</b>：报告下面一组可解锁线索，全部按这一题的真实数据生成，没有数据的条目不会出现。分四层：<b>队伍线索</b>——<b>钥令阵营</b>（6）、<b>内在灵格</b>（6，四位的灵格等级；等级在卡位提示里买）、<b>灵塑等级</b>（8，仅大师档）、<b>养成</b>（7，指令卡总等级；旧战报没有疯狂预兆时就只给指令卡）、<b>命轮强化</b>（6，整队最高强化到几、有几件 ≥+12）、<b>助战</b>（4）、<b>单回合极值/守密人</b>（5）；<b>造物线索</b>（4–5）——按功能报件数：输出（伤害 / 力量 / 暴击）、抽牌、狂气、算力与消耗、防御续航，买了就知道本局造物里各有几件带这类效果；<b>命轮</b>与<b>密契</b>——每次解锁一件，命轮 6 / 8 / 10 / 12 / 14 / 16 / 18 / 20、密契 5 / 7 / 9 / 11，越往后越贵。上面的价格都是入门档，实际按难度档乘系数（进阶 ×1.25、老手 ×1.6、大师 ×2）。买一次这一题内一直有效，换题重新计。</li>
+<li><b>造物</b>：唤醒体自带的<b>固有造物</b>（即「维度影像」）会在题面上直接列出，不用你填；你只需要补齐其余造物。造物的功能（抽牌、伤害、狂气……）可以去线索台按类购买。</li>
 <li><b>每日签到</b>：推理页和个人中心都有「每日签到」，每天一次 <b>+10 银芯</b>，连续签天数会累加；签到日期与连续天数也跟着账号同步，所以换设备当天也不能重复签。</li>
 <li><b>赠礼</b>：站内的一次性银芯赠礼写在 <code>data/grants.json</code> 里（按用户名匹配），符合条件的账号登录后自动到账，领过的记录会记进档案，发第二遍不会重复加。</li>
 </ul>
@@ -114,7 +115,7 @@
 <p>技能数据来自 <a href="https://github.com/dansa/SKeyDB">SKeyDB</a>（CC BY-NC-SA 4.0，仅限非商业使用）；官方中文对照来自 <a href="https://github.com/BIAVGit/Morimens-Localizations">Morimens-Localizations</a> 与 <a href="https://morimens.huijiwiki.com/">忘却前夜中文维基</a>。</p>
 <p><b>状态/机制图标</b>取自 SKeyDB 的战斗图标库（<code>Battle_Card_Buff_*</code>、界域徽记 <code>realm-badge-*</code>），按官方 <code>iconId</code> 与词条映射，共 30 个图标覆盖 39 个常用关键词；没有官方图标的词条仍用文字字形显示。<b>CG 与唤醒体档案</b>（生日、身高、体重、诺斯指数、获取途径、语音）来自中文维基的角色条目与图片库。<b>回放</b>指向官方战报服务与忘忘看报复盘工具，本站不转存战斗数据。</p>
 <p>所有进度（银芯、解锁的 CG、失败题库、自建题目、偏好唤醒体、答题记录、语言与背景主题）默认存在浏览器 <code>localStorage</code> 的 <code>zjtt:</code> 前缀下；<b>登录后</b>会打包成账号档案同步到云端，换设备登录即可恢复，退出登录则回到只用本机数据。上传到云题库的题目是公开的，请不要把不想公开的内容放进去。</p>
-<p>题库共 <b>2000 道</b>：<code>data/puzzles.json</code>（1000 道核心题，每日一题只从这里出，保证扩充题库异步加载时题目不跳变）与 <code>data/puzzles-extra.json</code>（1000 道扩充题）。难度分统一重算后按分位切成 4 档（1 档 560 / 2 档 560 / 3 档 520 / 4 档 360），分档依据是「同签名题数」分布与伤害构成熵等公开信息，构建脚本 <code>scripts/finalize_puzzles.py</code> 会一并做结构审计：队伍 4 人唯一、命轮 1–2 件、密契齐全、钥令有效、造物 ≤18、UUID 完整、分桶号 4 个、公开线索 4 条；当前全部 2000 道通过，且没有任何两道题的公开线索完全重复。</p>
+<p>题库共 <b>4101 道</b>：<code>data/puzzles.json</code>（1000 道核心题，每日一题只从这里出，保证扩充题库异步加载时题目不跳变）、<code>data/puzzles-extra.json</code>（1000 道扩充题）与 <code>data/puzzles-more.json</code>（2101 道追加题），后两份按顺序在后台加载、边到边用。难度分统一重算后按分位切成 4 档（1 档 1149 / 2 档 1148 / 3 档 1066 / 4 档 738），分档依据是「同签名题数」分布与伤害构成熵等公开信息，构建脚本 <code>scripts/finalize_puzzles.py</code> 会一并做结构审计：队伍 4 人唯一、命轮 1–2 件、密契齐全、钥令有效、造物 ≤18、UUID 完整、分桶号 4 个、公开线索 4 条；当前全部 4101 道通过，且没有任何两道题的公开线索完全重复。</p>
 <p>数据由 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 生成，脚本见 <code>scripts/build_data.py</code>、<code>scripts/build_puzzles_more.py</code>、<code>scripts/enhance_data.py</code>、<code>scripts/build_official_terms.py</code>、<code>scripts/score_difficulty.py</code>、<code>scripts/finalize_puzzles.py</code>。</p>
 </section>
 
@@ -172,7 +173,8 @@
 <li><b>Earning</b>: solving a puzzle pays out by difficulty, <code>8 + difficulty score × 1.2</code> (difficulty 0–100, so roughly 8–128 Silver Core, rounded). Silver Core lives in local storage (<code>zjtt:credits</code>) — clearing site data or switching devices resets them.</li>
 <li><b>Spending</b>: (1) hints at 6 Silver Core each; (2) unlocking gallery CGs.</li>
 <li><b>Slot hints</b> sit on each team card, three per slot at 6 Silver Core each — <b>realm</b> (one of the four), <b>role</b> (damage / defense / support) and <b>level</b>. A bought hint turns into a gold chip.</li>
-<li><b>Clue desk</b>: the group of unlockable clues under the report. Every entry is computed from this puzzle's real data; entries without data simply do not appear, and the title never promises a field it cannot show. Three layers — <b>team clues</b>: <b>key realm</b> (6), <b>Gnostic Potential</b> (6, all four slots; level is bought on the slot card), <b>potency</b> (8, only at the potency tier), <b>build</b> (7 — command-card total level; older logs without Madness omen report cards only), <b>Wheel upgrades</b> (6 — best upgrade in the team and how many are at +12 or above), <b>assist</b> (4), <b>single-turn peak / Keeper</b> (5); and <b>appearance clues</b> — <b>Wheels</b> and <b>Covenants</b> unlock one line at a time and only tell you that it showed up in this battle: <b>never which slot and never as a pair</b>, with the order shuffled per puzzle so the line number cannot be read as a position. Wheels run 6 / 8 / 10 / 12 / 14 / 16 / 18 / 20, Covenants 5 / 7 / 9 / 11 — the further along, the pricier. All those prices are the entry tier; your tier multiplies them. Bought once, it stays open for that puzzle only.</li>
+<li><b>Clue desk</b>: the group of unlockable clues under the report. Every entry is computed from this puzzle's real data; entries without data simply do not appear. Four layers — <b>team clues</b>: <b>key realm</b> (6), <b>Gnostic Potential</b> (6, all four slots; level is bought on the slot card), <b>potency</b> (8, Master tier only), <b>build</b> (7 — command-card total level; older logs without Madness omen cover cards only), <b>Wheel upgrades</b> (6 — best upgrade in the team and how many are at +12 or above), <b>assist</b> (4), <b>single-turn peak / Keeper</b> (5); <b>relic clues</b> (4–5) — by function, as a count: damage (damage / strength / crit), card draw, Aliemus, Arithmetica &amp; exhaust, block &amp; healing; <b>Wheels</b> and <b>Covenants</b> — one entry per purchase, Wheels 6 / 8 / 10 / 12 / 14 / 16 / 18 / 20 and Covenants 5 / 7 / 9 / 11, pricier further along. Those are entry-tier prices; your tier multiplies them (Adept ×1.25, Veteran ×1.6, Master ×2). Bought once, it stays open for that puzzle only.</li>
+<li><b>Relics</b>: the <b>innate relic</b> each Awakener carries (its Dimensional Image) is listed on the puzzle itself and never needs filling in — you only add the rest. Relic functions (card draw, damage, Aliemus and so on) can be bought by category from the clue desk.</li>
 <li><b>Daily check-in</b>: the puzzle page and the Profile page both offer a check-in — once a day for <b>+10 Silver Core</b>, with a streak that keeps counting. The date and streak sync with your account, so a second device cannot claim it twice on the same day.</li>
 <li><b>Gifts</b>: one-off Silver Core gifts live in <code>data/grants.json</code> (matched by username); eligible accounts receive them automatically on sign-in, and claimed ids are recorded in the account document so nothing is paid twice.</li>
 </ul>

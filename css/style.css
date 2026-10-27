@@ -97,6 +97,20 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .extra { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--panel2); padding: 8px; border-radius: 10px; }
 .extra.wide { grid-column: 1 / -1; align-items: flex-start; }
 .relics { display: flex; gap: 6px; flex-wrap: wrap; }
+/* 固有造物：题面直接给，只读不能改 */
+.relics.innate { align-items: center; margin-bottom: 6px; }
+.pick.fixed {
+  border-style: dashed; border-color: color-mix(in srgb, var(--gold) 40%, var(--line));
+  background: color-mix(in srgb, var(--gold) 8%, var(--panel2));
+  cursor: default;
+}
+.innatetag {
+  font-size: 11px; color: var(--gold); white-space: nowrap;
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  border-radius: 6px; padding: 1px 6px;
+}
+.innatetag.mine { color: var(--dim); border-color: var(--line); background: var(--panel2); }
+.ans-i.innate { border: 1px dashed color-mix(in srgb, var(--gold) 55%, transparent); border-radius: 8px; padding: 2px 1px; }
 .hist ol { margin: 0; padding-left: 20px; font-family: ui-monospace, monospace; }
 .hist li { margin: 2px 0; }
 .hist em { color: var(--dim); font-style: normal; }
