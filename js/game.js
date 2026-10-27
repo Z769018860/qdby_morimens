@@ -127,6 +127,8 @@ async function start(p0, m) {
       finished = saved.finished; won = saved.won; fb = saved.fb || {};
     }
   }
+  // 固有造物现在由题面直接给出：老存档里如果填过它，得剔掉，否则会被倒扣分
+  if (Array.isArray(sel.relics)) sel.relics = sel.relics.filter(id => !isInnateRelic(id));
   render();
 }
 
@@ -366,13 +368,16 @@ const covNameOf = (id) => {
   return e ? nameOf(e) : '—';
 };
 
-// 造物：维度影像就是唤醒体的固有造物，题面直接给出、不用玩家填；
-// 玩家只需要补齐剩下那些。标签来自 data/dictionary.json 的 creation[].tags。
+// 造物：融灾里固有造物是「开局第一个造物 + 那一期的戒指」，两件都写在题面上、不用玩家填；
+// 玩家只需要补齐剩下那些。老题库（自建题 / 早期题）没有 inn 字段时，退回按「维度影像」判定。
 const INNATE_KIND = '维度影像';
 const creationOf = (id) => idx.creation.get(String(id)) || null;
-const isInnateRelic = (id) => (creationOf(id) || {}).kind === INNATE_KIND;
 const relicList = () => puzzle.relics || [];
-const innateRelics = () => relicList().filter(isInnateRelic);
+const innateIds = () => (Array.isArray(puzzle.inn) && puzzle.inn.length
+  ? puzzle.inn.map(String)
+  : relicList().filter(id => (creationOf(id) || {}).kind === INNATE_KIND));
+const isInnateRelic = (id) => innateIds().includes(String(id));
+const innateRelics = () => relicList().filter(id => isInnateRelic(id));
 const fillRelics = () => relicList().filter(id => !isInnateRelic(id));
 const relicTags = (id) => RELIC_TAGS[String(id)] || [];
 
@@ -544,7 +549,19 @@ function clueList() {
     }))
     : [];
 
-  return { team, relics, slots };
+  // 牌组：总张数 / 症状卡 / 衍生卡 / 命轮塞进牌组的附加卡，件数在构建题目时就按战报算好
+  const dk = (puzzle.x && puzzle.x.dk) || null;
+  const decks = dk
+    ? [
+      dk.n != null ? { id: 'dkN', cost: 3, label: t('clueDeckSize'), value: () => t('clueDeckN', { n: dk.n }) } : null,
+      dk.cur != null ? { id: 'dkCur', cost: 5, label: t('clueDeckCur'), value: () => t('clueDeckN', { n: dk.cur }) } : null,
+      // 延展（衍生）卡打完就没了，战报牌组里基本不留存：有才上架，没有就不占一格
+      dk.ext ? { id: 'dkExt', cost: 5, label: t('clueDeckExt'), value: () => t('clueDeckN', { n: dk.ext }) } : null,
+      dk.whl != null ? { id: 'dkWhl', cost: 4, label: t('clueDeckWhl'), value: () => t('clueDeckN', { n: dk.whl }) } : null,
+    ].filter(Boolean)
+    : [];
+
+  return { team, relics, decks, slots };
 }
 
 function buyClue(c) {
@@ -565,7 +582,7 @@ function clueCard(c) {
 
 function cluePanel() {
   if (finished) return null;
-  const { team, relics, slots } = clueList();
+  const { team, relics, decks, slots } = clueList();
   const wheels = slots.filter(c => c.group === 'wheel');
   const covs = slots.filter(c => c.group === 'cov');
   const mul = LV_COST_MUL[level] || 1;
@@ -577,6 +594,8 @@ function cluePanel() {
     team.length ? h('div', { class: 'cluegrid' }, team.map(clueCard)) : null,
     relics.length ? h('div', { class: 'cluesub' }, h('b', {}, t('clueRelTitle'))) : null,
     relics.length ? h('div', { class: 'cluegrid' }, relics.map(clueCard)) : null,
+    decks.length ? h('div', { class: 'cluesub' }, h('b', {}, t('clueDeckTitle'))) : null,
+    decks.length ? h('div', { class: 'cluegrid four' }, decks.map(clueCard)) : null,
     wheels.length ? h('div', { class: 'cluesub' },
       h('b', {}, t('clueWheelSeen')), h('span', { class: 'note' }, t('clueStepNote'))) : null,
     wheels.length ? h('div', { class: 'cluegrid four' }, wheels.map(clueCard)) : null,
