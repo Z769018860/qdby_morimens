@@ -16,7 +16,7 @@
 <li>每道题是一份匿名的融灾战报：区域、回合数、出牌数、单回合最高伤害、伤害构成，以及队内 4 人的伤害、格挡、治疗。</li>
 <li>队员按伤害从高到低标为 A–D 位。你要在对应位置填入唤醒体，以及（取决于难度档）命轮、密契、钥令、潜能进阶和造物。</li>
 <li>提交后：🟩 位置/归属正确；🟨 在队内但放错了位置或装在别人身上；⬛ 不在队内。潜能进阶用 ↑/↓ 提示大小，相差 2 以内显示黄色。</li>
-<li>最多提交 6 次。卡位上的「提示阵营」「提示定位」「提示等级」和队伍级的<b>线索台</b>都能帮你缩小范围，按条扣银芯（银芯靠答对获得，见下）。</li>
+<li>最多提交 6 次。卡位上的「提示阵营」「提示定位」「提示等级」和队伍级的<b>线索台</b>都能帮你缩小范围，按条扣银芯（银芯靠答对获得，见下）。<b>难度档越高，同一条提示越贵</b>：进阶 ×1.25、老手 ×1.6、大师 ×2，卡上标注的就是你这一档的实价。</li>
 <li>即使只猜唤醒体（入门档），结算时也会给出完整的命轮、密契、钥令、造物与唤醒体属性，方便学习完整配队。</li>
 </ol>
 
@@ -64,7 +64,7 @@
 <li><b>获取</b>：答对一道题按难度给分，公式为 <code>8 + 难度分 × 1.2</code>（难度分 0–100，所以一题大约 8–128 分，答对后四舍五入）。银芯存在浏览器本地（<code>zjtt:credits</code>），换设备/清缓存会归零。</li>
 <li><b>花在哪</b>：① 买提示，每次 6 银芯；② 解锁典藏馆的 CG。</li>
 <li><b>卡位提示</b>：队伍卡上每个位置有三条，各 6 银芯——「提示阵营」（四大界域）、「提示定位」（伤害 / 防御 / 辅助）、「提示等级」。买过的那条会变成金色小标签。</li>
-<li><b>线索台</b>：报告下面一组可解锁线索，全部按这一题的真实数据生成，没有数据的条目不会出现（标题也不会把说不到的字段写上去）。分两层：<b>队伍线索</b>——<b>钥令阵营</b>（6）、<b>内在灵格</b>（6，四位的灵格等级；等级在卡位提示里买）、<b>灵塑等级</b>（8，仅在潜能进阶档出现）、<b>养成</b>（7，指令卡总等级；旧战报没有疯狂预兆时就只报指令卡）、<b>助战</b>（4，是否借用助战）、<b>单回合极值/守密人</b>（5）；<b>按位解锁</b>——<b>命轮</b>与<b>密契</b>都是一次解锁一个位置（A→D），越往后越贵：命轮 8 / 10 / 12 / 14，密契 6 / 8 / 10 / 12。命轮那条会写出这个位置的两件命轮名，战报能对上队伍快照时还会带上最高强化等级（如 <code>+15</code>）。买一次这一题内一直有效，换题重新计。</li>
+<li><b>线索台</b>：报告下面一组可解锁线索，全部按这一题的真实数据生成，没有数据的条目不会出现（标题也不会把说不到的字段写上去）。分三层：<b>队伍线索</b>——<b>钥令阵营</b>（6）、<b>内在灵格</b>（6，四位的灵格等级；等级在卡位提示里买）、<b>灵塑等级</b>（8，仅在潜能进阶档出现）、<b>养成</b>（7，指令卡总等级；旧战报没有疯狂预兆时就只报指令卡）、<b>命轮强化</b>（6，整队最高强化到几、有几件 ≥+12）、<b>助战</b>（4）、<b>单回合极值/守密人</b>（5）；<b>出现型线索</b>——<b>命轮</b>与<b>密契</b>一次解锁一条，只告诉你「这一局里出现了它」，<b>不说它在哪一位，也不成对给出</b>，顺序按题目打散，别想从第几条反推位置；命轮 6 / 8 / 10 / 12 / 14 / 16 / 18 / 20，密契 5 / 7 / 9 / 11，越往后越贵。上面的价格都是入门档，实际按难度档乘系数。买一次这一题内一直有效，换题重新计。</li>
 <li><b>每日签到</b>：推理页和个人中心都有「每日签到」，每天一次 <b>+10 银芯</b>，连续签天数会累加；签到日期与连续天数也跟着账号同步，所以换设备当天也不能重复签。</li>
 <li><b>赠礼</b>：站内的一次性银芯赠礼写在 <code>data/grants.json</code> 里（按用户名匹配），符合条件的账号登录后自动到账，领过的记录会记进档案，发第二遍不会重复加。</li>
 </ul>
@@ -172,7 +172,7 @@
 <li><b>Earning</b>: solving a puzzle pays out by difficulty, <code>8 + difficulty score × 1.2</code> (difficulty 0–100, so roughly 8–128 Silver Core, rounded). Silver Core lives in local storage (<code>zjtt:credits</code>) — clearing site data or switching devices resets them.</li>
 <li><b>Spending</b>: (1) hints at 6 Silver Core each; (2) unlocking gallery CGs.</li>
 <li><b>Slot hints</b> sit on each team card, three per slot at 6 Silver Core each — <b>realm</b> (one of the four), <b>role</b> (damage / defense / support) and <b>level</b>. A bought hint turns into a gold chip.</li>
-<li><b>Clue desk</b>: the group of unlockable clues under the report. Every entry is computed from this puzzle's real data; entries without data simply do not appear, and the title never promises a field it cannot show. Two layers — <b>team clues</b>: <b>key realm</b> (6), <b>Gnostic Potential</b> (6, all four slots; level is bought on the slot card), <b>potency</b> (8, only at the potency tier), <b>build</b> (7 — command-card total level; older logs without Madness omen report cards only), <b>assist</b> (4), <b>single-turn peak / Keeper</b> (5); and <b>per-slot clues</b>: <b>Wheels</b> and <b>Covenants</b> unlock one slot at a time (A→D) and get pricier further along — Wheels 8 / 10 / 12 / 14, Covenants 6 / 8 / 10 / 12. A Wheel clue names that slot's two Wheels and, when the battle log matches a team snapshot, the highest upgrade (e.g. <code>+15</code>). Bought once, it stays open for that puzzle only.</li>
+<li><b>Clue desk</b>: the group of unlockable clues under the report. Every entry is computed from this puzzle's real data; entries without data simply do not appear, and the title never promises a field it cannot show. Three layers — <b>team clues</b>: <b>key realm</b> (6), <b>Gnostic Potential</b> (6, all four slots; level is bought on the slot card), <b>potency</b> (8, only at the potency tier), <b>build</b> (7 — command-card total level; older logs without Madness omen report cards only), <b>Wheel upgrades</b> (6 — best upgrade in the team and how many are at +12 or above), <b>assist</b> (4), <b>single-turn peak / Keeper</b> (5); and <b>appearance clues</b> — <b>Wheels</b> and <b>Covenants</b> unlock one line at a time and only tell you that it showed up in this battle: <b>never which slot and never as a pair</b>, with the order shuffled per puzzle so the line number cannot be read as a position. Wheels run 6 / 8 / 10 / 12 / 14 / 16 / 18 / 20, Covenants 5 / 7 / 9 / 11 — the further along, the pricier. All those prices are the entry tier; your tier multiplies them. Bought once, it stays open for that puzzle only.</li>
 <li><b>Daily check-in</b>: the puzzle page and the Profile page both offer a check-in — once a day for <b>+10 Silver Core</b>, with a streak that keeps counting. The date and streak sync with your account, so a second device cannot claim it twice on the same day.</li>
 <li><b>Gifts</b>: one-off Silver Core gifts live in <code>data/grants.json</code> (matched by username); eligible accounts receive them automatically on sign-in, and claimed ids are recorded in the account document so nothing is paid twice.</li>
 </ul>

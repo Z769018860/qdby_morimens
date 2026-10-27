@@ -8,8 +8,11 @@ import { checkinBar } from './checkin.js';
 const KW_TYPE_EN = { realm: 'Realm', mechanic: 'State / Mechanic', tag: 'Tag', help: 'Help' };
 
 const MAX_TRIES = 6;
-const HINT_COST = 6;       // 每次提示花掉的积分
+const HINT_COST = 6;       // 卡位提示与队伍级线索的基础价
 const POINT_BASE = 8;      // 答对的基础积分
+// 难度越高，信息越值钱：同一份提示在更高档位按倍数加价（入门不打折）
+const LV_COST_MUL = { 1: 1, 2: 1.25, 3: 1.6, 4: 2 };
+const priceOf = (base) => Math.max(1, Math.round(base * (LV_COST_MUL[level] || 1)));
 const LEVELS = {
   1: { name: () => t('lv1'), desc: () => t('lv1d') },
   2: { name: () => t('lv2'), desc: () => t('lv2d') },
@@ -286,32 +289,50 @@ const roleOf = (e) => (!e ? '—' : lang.cur === 'en' ? (ROLE_EN[e.roleCode] || 
 
 let opened = new Set();
 const clueStoreKey = () => `clues:${puzzle.id}`;
+// 第二版按位线索（会点名位置的命轮 / 密契）的旧价，用来退款
+const LEGACY_WHEEL_COST = [8, 10, 12, 14];
+const LEGACY_COV_COST = [6, 8, 10, 12];
 function loadClues() {
   const list = store.get(clueStoreKey(), null);
   const raw = new Set(Array.isArray(list) ? list : []);
   // 老版本买过的提示按新结构折算，别让人白花银芯：
   //   阵营·定位（a{k}）→ 只留阵营（r{k}），定位需要重新解锁
   //   等级/突破（c:lv）→ 内在灵格（c:brk）
-  //   命轮件数（c:wheel）→ A 位命轮（c:wheel0）
+  // 旧的按位命轮 / 密契（c:wheel{k}、c:cov{k}、c:wheel）语义已变（现在只报出现、
+  // 不报位置），直接原价退回银芯，让玩家按新规则重新挑。
   let changed = false;
+  let refund = 0;
   for (const key of [...raw]) {
     const m = /^a(\d)$/.exec(key);
     if (m) {
       raw.delete(key);
       raw.add(`r${m[1]}`);
       changed = true;
-    } else if (key === 'c:lv') {
+      continue;
+    }
+    if (key === 'c:lv') {
       raw.delete(key);
       raw.add('c:brk');
       changed = true;
-    } else if (key === 'c:wheel') {
+      continue;
+    }
+    const w = /^c:wheel(\d)?$/.exec(key);
+    if (w) {
       raw.delete(key);
-      raw.add('c:wheel0');
+      refund += w[1] == null ? 8 : (LEGACY_WHEEL_COST[+w[1]] || 8);
+      changed = true;
+      continue;
+    }
+    const c = /^c:cov(\d)$/.exec(key);
+    if (c) {
+      raw.delete(key);
+      refund += LEGACY_COV_COST[+c[1]] || 6;
       changed = true;
     }
   }
   opened = raw;
   if (changed) store.set(clueStoreKey(), [...raw]);
+  if (refund) { wallet.add(refund); toast(t('ptsRefund', { n: refund })); }
 }
 function openClue(key) {
   opened.add(key);
@@ -320,7 +341,9 @@ function openClue(key) {
 }
 const isOpen = (key) => opened.has(key);
 
-function payHint(cost = HINT_COST) {
+// 传进来的都是「基础价」，实际扣费按当前难度档乘以系数
+function payHint(base = HINT_COST) {
+  const cost = priceOf(base);
   if (!wallet.spend(cost)) { toast(t('noCredits')); return false; }
   hintsUsed++;
   toast(t('ptsHint', { n: cost }));
@@ -333,8 +356,8 @@ const slotRole = (k) => roleOf(idx.awakener.get(ans[k].tid));
 const slotLv = (k) => `${t('lvTag')} ${ans[k].lv}`;
 const wheelIds = (k) => (ans[k].wheels || []);
 const wheelName = (id) => nameOf(idx.wheel.get(String(id))) || String(id);
-const covName = (k) => {
-  const e = idx.covenant.get(String(ans[k].cov));
+const covNameOf = (id) => {
+  const e = idx.covenant.get(String(id));
   return e ? nameOf(e) : '—';
 };
 
@@ -357,11 +380,44 @@ function hintLv(k) {
   render();
 }
 
-// 线索台：队伍级线索（一次解锁整队）+ 按位线索（命轮 / 密契，一次解锁一个位置，
-// 越往后越贵）。值在渲染时才计算，保证和这一题完全对应；缺字段的线索直接不出现，
-// 绝不卖一条全是「—」的线索。
-const WHEEL_CLUE_COST = [8, 10, 12, 14];   // A / B / C / D，越往后越贵
-const COV_CLUE_COST = [6, 8, 10, 12];
+// 线索台：队伍级线索（一次解锁整队）+ 出现型线索（命轮 / 密契，一次解锁一条，
+// 只报「这局里有它」，不说在哪个位置、也不给组合，越往后越贵）。
+// 值在渲染时才计算，保证和这一题完全对应；缺字段的线索直接不出现，
+// 绝不卖一条全是「—」的线索。价格一律是基础价，实际扣费走 payHint 的难度系数。
+const WHEEL_CLUE_COST = [6, 8, 10, 12, 14, 16, 18, 20];   // 第 1 条最便宜，往后逐条加价
+const COV_CLUE_COST = [5, 7, 9, 11];
+
+// 用题目 id 做种子的确定性打散：每次渲染顺序一致，但不能是「按 A→D 排」，
+// 否则第 1 条永远来自 A 位，等于变相泄露位置。
+function seededShuffle(arr, seed) {
+  let st = 2166136261;
+  const key = String(seed || '');
+  for (let i = 0; i < key.length; i++) { st ^= key.charCodeAt(i); st = Math.imul(st, 16777619); }
+  const rnd = () => {
+    st ^= st << 13; st ^= st >>> 17; st ^= st << 5;
+    return (st >>> 0) / 4294967296;
+  };
+  const out = arr.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    const tmp = out[i]; out[i] = out[j]; out[j] = tmp;
+  }
+  return out;
+}
+
+// 本题出现过的命轮 / 密契（去重，保持「谁先出现」无关的顺序）
+function appeared(list) {
+  const seen = new Set();
+  const out = [];
+  for (const id of list) {
+    if (id == null) continue;
+    const key = String(id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(id);
+  }
+  return out;
+}
 
 function clueList() {
   const A = active();
@@ -370,6 +426,7 @@ function clueList() {
   const full = (f) => ans.length > 0 && ans.every(a => a[f] != null);
   const team = [];
   const slots = [];
+  const seed = puzzle.id;
 
   if (puzzle.key != null) {
     team.push({ id: 'key', cost: 6, label: t('hintKey'), value: () => realmOf(idx.key.get(puzzle.key)) });
@@ -398,6 +455,18 @@ function clueList() {
     });
   }
 
+  // 命轮强化只报整队统计，不带位置：最高强化到几、有几件 ≥+12
+  const wl = (x.wl || []).filter(v => v != null);
+  if (wl.length) {
+    team.push({
+      id: 'wheelUp', cost: 6, label: t('clueWheelUp'),
+      value: () => {
+        const hi = wl.filter(v => v >= 12).length;
+        return t('clueWheelMax', { n: Math.max(...wl) }) + (hi ? ` · ${t('clueWheelHi', { n: hi })}` : '');
+      },
+    });
+  }
+
   if (x.as != null) {
     team.push({
       id: 'assist', cost: 4, label: t('clueAssist'),
@@ -416,31 +485,26 @@ function clueList() {
     });
   }
 
-  // 命轮：一次一个位置，带上该位置命轮的最高强化等级（战报能对上快照时才有）
+  // 命轮：一次解锁一条，只说这局用了哪几件，不说在哪一位，也不成对给出
   if (A.wheels && full('wheels')) {
-    ans.forEach((a, k) => {
-      const ids = wheelIds(k);
-      if (!ids.length) return;
+    const all = appeared(ans.flatMap((a, k) => wheelIds(k)));
+    seededShuffle(all, seed).forEach((id, i) => {
       slots.push({
-        id: `wheel${k}`, cost: WHEEL_CLUE_COST[k], group: 'wheel',
-        label: t('clueWheelAt', { l: LETTERS[k] }),
-        value: () => {
-          const names = ids.map(wheelName).join(' / ');
-          const lv = (x.wl || [])[k];
-          return `${t('clueWheelPcs', { n: ids.length })} · ${names}` + (lv != null ? ` · +${lv}` : '');
-        },
+        id: `wh${i}`, cost: WHEEL_CLUE_COST[i] || WHEEL_CLUE_COST[WHEEL_CLUE_COST.length - 1], group: 'wheel',
+        label: t('clueWheelOne', { n: i + 1 }),
+        value: () => wheelName(id),
       });
     });
   }
 
-  // 密契：一次一个位置
+  // 密契：同样只报出现
   if (A.cov && full('cov')) {
-    ans.forEach((a, k) => {
-      if (a.cov == null) return;
+    const all = appeared(ans.map(a => a.cov));
+    seededShuffle(all, `${seed}#cov`).forEach((id, i) => {
       slots.push({
-        id: `cov${k}`, cost: COV_CLUE_COST[k], group: 'cov',
-        label: t('clueCovAt', { l: LETTERS[k] }),
-        value: () => covName(k),
+        id: `cv${i}`, cost: COV_CLUE_COST[i] || COV_CLUE_COST[COV_CLUE_COST.length - 1], group: 'cov',
+        label: t('clueCovOne', { n: i + 1 }),
+        value: () => covNameOf(id),
       });
     });
   }
@@ -459,8 +523,9 @@ function clueCard(c) {
   if (isOpen(`c:${c.id}`)) {
     return h('div', { class: 'clue on' }, h('small', {}, c.label), h('b', {}, c.value()));
   }
+  // 卡上显示的是这一档的真实价格（payHint 会按难度系数扣）
   return h('button', { type: 'button', class: 'clue lock', onclick: () => buyClue(c) },
-    h('small', {}, c.label), h('b', { class: 'cost' }, scIcon(12), ` ${c.cost}`));
+    h('small', {}, c.label), h('b', { class: 'cost' }, scIcon(12), ` ${priceOf(c.cost)}`));
 }
 
 function cluePanel() {
@@ -468,16 +533,18 @@ function cluePanel() {
   const { team, slots } = clueList();
   const wheels = slots.filter(c => c.group === 'wheel');
   const covs = slots.filter(c => c.group === 'cov');
+  const mul = LV_COST_MUL[level] || 1;
+  const note = mul > 1 ? `${t('clueNote')} · ${t('clueMul', { m: mul })}` : t('clueNote');
   return h('section', { class: 'card clues' },
     h('div', { class: 'cluehead' },
       h('h3', {}, t('clueTitle')),
-      h('span', { class: 'note' }, t('clueNote'))),
+      h('span', { class: 'note' }, note)),
     team.length ? h('div', { class: 'cluegrid' }, team.map(clueCard)) : null,
     wheels.length ? h('div', { class: 'cluesub' },
-      h('b', {}, t('clueWheelSlots')), h('span', { class: 'note' }, t('clueStepNote'))) : null,
+      h('b', {}, t('clueWheelSeen')), h('span', { class: 'note' }, t('clueStepNote'))) : null,
     wheels.length ? h('div', { class: 'cluegrid four' }, wheels.map(clueCard)) : null,
     covs.length ? h('div', { class: 'cluesub' },
-      h('b', {}, t('clueCovSlots')), h('span', { class: 'note' }, t('clueStepNote'))) : null,
+      h('b', {}, t('clueCovSeen')), h('span', { class: 'note' }, t('clueStepNote'))) : null,
     covs.length ? h('div', { class: 'cluegrid four' }, covs.map(clueCard)) : null);
 }
 
@@ -591,9 +658,9 @@ function slotCard(k) {
   }
   if (!locked) {
     card.append(h('div', { class: 'hints' },
-      isOpen(`r${k}`) ? null : h('button', { type: 'button', class: 'link', onclick: () => hintAwk(k) }, t('hintRealm'), ' ', scIcon(11), ` ${HINT_COST}`),
-      isOpen(`o${k}`) ? null : h('button', { type: 'button', class: 'link', onclick: () => hintRole(k) }, t('hintRole'), ' ', scIcon(11), ` ${HINT_COST}`),
-      isOpen(`l${k}`) ? null : h('button', { type: 'button', class: 'link', onclick: () => hintLv(k) }, t('hintLv'), ' ', scIcon(11), ` ${HINT_COST}`)));
+      isOpen(`r${k}`) ? null : h('button', { type: 'button', class: 'link', onclick: () => hintAwk(k) }, t('hintRealm'), ' ', scIcon(11), ` ${priceOf(HINT_COST)}`),
+      isOpen(`o${k}`) ? null : h('button', { type: 'button', class: 'link', onclick: () => hintRole(k) }, t('hintRole'), ' ', scIcon(11), ` ${priceOf(HINT_COST)}`),
+      isOpen(`l${k}`) ? null : h('button', { type: 'button', class: 'link', onclick: () => hintLv(k) }, t('hintLv'), ' ', scIcon(11), ` ${priceOf(HINT_COST)}`)));
   }
   return card;
 }
