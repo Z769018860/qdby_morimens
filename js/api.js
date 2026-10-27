@@ -1,23 +1,25 @@
 // 后端客户端：所有需要服务端记账的请求都从这里走。
 //
-// 服务端是 Cloudflare Worker + D1（代码在 server/），三个模块：
-//   · 点赞     —— (题目, 身份) 唯一 + 每日额度由服务端计
-//   · 账号档案 —— 带版本号，多端同时改不会互相覆盖
-//   · 工坊题库 —— 自建题存在服务端，别人按 id 直接拉
+// 线上跑的是 EdgeOne Pages 的 Edge Functions + KV（代码在 edge-functions/api/），
+// 和站点同域同证书，所以没有跨域、也没有 https 页面调 http 接口被拦的问题。
+// 另外还留着两份等价实现，规则逐条对齐：
+//   · server/worker.js  —— Cloudflare Worker + D1
+//   · server/node.js    —— Node + 内置 SQLite（自托管 / Docker）
 //
-// 地址优先取 store 里的 apiBase（设置里可改，方便临时指向本地 wrangler dev），
-// 其次是下面的常量。本地开发（localhost 且不是 Worker 自己的 8787 端口）自动指向 127.0.0.1:8787。
+// 三个模块：点赞（每人每天 10 次、同题只能赞一次）、账号档案（带版本号乐观锁）、工坊题库。
+//
+// 地址优先取 store 里的 apiBase（设置里可改，方便临时指向本地后端），其次是下面的常量。
 import { store } from './common.js';
 
-// 部署后把这里换成自己的 Worker 地址（wrangler deploy 会把地址打出来）
-// 用 `node scripts/set_api_base.mjs https://…workers.dev` 改这一行，别手改错。
-export const API_BASE = 'https://zjtt-api.workers.dev';
+// 部署后把这里换成自己的接口地址（要用到末尾的 /api 路径）
+// 用 `node scripts/set_api_base.mjs https://…/api` 改这一行，别手改错。
+export const API_BASE = 'https://morimens.qingdengbuyi.top/api';
 
 // 还是占位符就当作「没配后端」：各模块退回纯本机模式，不会去打一个不存在的域名
 const PLACEHOLDER = 'https://zjtt-api.workers.dev';
 
 // 本地开发：站点由 scripts/preview.mjs 起在 8899（可用 PREVIEW_SITE_PORT 改），
-// 后端用 `node server/node.js`（默认 8787，这里按 8795 起；换端口就改这一行，
+// 后端用 `node server/node.js`（这里按 8795 起；换端口就改这一行，
 // 或在控制台 store.set('apiBase', 'http://127.0.0.1:端口') 临时覆盖）
 const LOCAL = 'http://127.0.0.1:8795';
 
@@ -40,6 +42,8 @@ export const api = {
     const custom = String(store.get('apiBase', '') || '').trim().replace(/\/+$/, '');
     if (custom) return custom;
     if (isLocalDev()) return LOCAL;
+    // EdgeOne 的预览域每次部署都会变，同源调 /api 最省事（也能避开没绑自定义域名的情况）
+    if (/\.edgeone\.(dev|app|run)$/i.test(location.hostname)) return location.origin + '/api';
     return String(API_BASE || '').replace(/\/+$/, '');
   },
 

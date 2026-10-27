@@ -14,21 +14,54 @@
 | 工坊题库 | `puzzles` | 自建题存服务端，别人按 id 直接拉，也可列最近/最热 |
 | 登录缓存 | `sessions` | Waline token 校验一次后缓存 7 天，不用每个请求都回源 |
 
-## 两种跑法，同一套业务逻辑
+## 三种跑法，同一套规则
 
-`worker.js` 里只有「路由 + 规则」，不碰平台 API。外面套不同壳就能跑在别处：
-
-| 文件 | 跑在哪 | 存储 |
-|---|---|---|
-| `node.js` | 任意有 Node 的机器 | 本地 SQLite（`node:sqlite`，零依赖） |
-| `worker.js` | Cloudflare Workers | D1 |
+| 文件 | 跑在哪 | 存储 | 何时用 |
+|---|---|---|---|
+| `../edge-functions/api/[[default]].js` | 腾讯 EdgeOne Pages | KV | **线上在用**：和站点同域同证书，免费 |
+| `node.js` | 任意有 Node 的机器 / Docker | 本地 SQLite | 有自己的服务器时 |
+| `worker.js` | Cloudflare Workers | D1 | 有 Cloudflare 账号时 |
 
 `node.js` 里写了约 40 行 D1 垫片（`prepare().bind().first()/.all()/.run()`），
 所以 `worker.js` 一行不用改。改规则只改 `worker.js`，两边同时生效。
 
+EdgeOne 版是**另写的**：那边只有 KV，没有 SQL，`WHERE / COUNT / ORDER BY` 全要换成
+键设计。三条实现的路由、状态码、返回字段保持一致，前端只认地址，换实现不用改页面。
+两边的回归口径也一致，改完任一份都跑一遍：
+
+```bash
+node scripts/test_edge_api.mjs     # EdgeOne 版（用 Map 假装 KV，61 条断言）
+```
+
 ---
 
-## 方式 A：自己的服务器 / NAS（推荐，最省心）
+## 方式 A：EdgeOne Pages 边缘函数（线上在用，免费）
+
+为什么选它：站点本身就部署在 EdgeOne Pages，接口和页面**同源同证书**，
+既没有跨域配置，也没有「https 页面调 http 接口被 mixed content 拦掉」的问题；
+免费额度 300 万次/月，KV 1GB，不用养服务器。
+
+1. 控制台 → **存储 → KV** → 开通（免费 1GB）→ **创建命名空间**，名字随意，比如 `zjtt`
+2. 回到项目 → **KV 存储 → Bind Namespace**，选刚建的命名空间，
+   **变量名填 `zjtt_kv`**（代码里也认 `ZJTT_KV` / `KV`）
+3. 仓库里已经有 `edge-functions/api/[[default]].js`，推到 `main` 后平台会自动重新部署
+4. 验证：打开 `https://<你的域名>/api/health`，应返回
+   `{"ok":true,"service":"zjtt","v":2,"runtime":"edgeone",...}`
+5. 前端 `js/api.js` 的 `API_BASE` 指向 `https://<你的域名>/api`
+   （`node scripts/set_api_base.mjs https://<你的域名>/api`）
+
+**KV 的脾气，改数据模型时要顺着它**：
+
+| 限制 | 影响 | 这里的处理 |
+|---|---|---|
+| 跨节点最终一致，最长 60 秒 | 别人的赞不会立刻看到 | 赞数用计数器，同节点读写立刻生效，正常使用无感 |
+| 没有原子自增 | 并发读改写可能少记 | 量级小，偶尔差 1 个比上锁划算；结算用「只升不降」防重复发钱 |
+| key 只能字母数字下划线，≤512B | 题目 id 里带 `-` 不能直接用 | 一律 `sha256('p:' + id)` 再拼前缀 |
+| 单值 ≤1MB、请求体 ≤1MB、CPU 200ms | 大档案会被拒 | 超过 900KB 的题目直接 413，不静默截断 |
+
+---
+
+## 方式 B：自己的服务器 / NAS
 
 要求：Node ≥ 22.5（推荐 24，SQLite 已转正、没有实验警告）。**不需要装任何依赖。**
 
@@ -85,7 +118,7 @@ WantedBy=multi-user.target
 systemctl enable --now zjtt && systemctl status zjtt
 ```
 
-## 方式 B：Docker
+## 方式 C：Docker
 
 ```bash
 cd server
@@ -97,7 +130,7 @@ docker run -d --name zjtt -p 8787:8787 -v zjtt-data:/data zjtt-api
 要连站点一起发，把 `Dockerfile` 的 `COPY . .` 换成仓库根、`WORKDIR` 改成 `/app`，
 再设 `SERVE_STATIC=1`。
 
-## 方式 C：免费托管（没有自己的服务器）
+## 方式 D：免费托管（没有自己的服务器）
 
 先说结论：**免费平台里能存住数据的只有「常驻进程 + 持久磁盘」这一种。**
 Vercel / Netlify / Cloudflare Pages 那类函数是无状态的，容器里的文件一重启就没，
@@ -140,7 +173,7 @@ Waifly 用的是 **Pterodactyl 面板**（<https://panel.waifly.com>，和 dash 
 | Deno Deploy + Deno KV | 100 万请求/月、1GB KV | 没有持久文件系统，5 张表要重写成 KV |
 | Vercel / Netlify / Cloudflare Pages 函数 | 够用 | 无状态、无持久盘，SQLite 会被清空 |
 
-## 方式 D：Cloudflare Worker + D1
+## 方式 E：Cloudflare Worker + D1
 
 `worker.js` + `wrangler.toml` 这套仍然可用，适合不想自己维护机器的情况：
 
