@@ -93,9 +93,37 @@ console.log('\n[2] 没绑 KV 时给出可读错误');
 {
   const call = makeCaller({});
   const r = await call('/health');
-  eq('→ 500', r.status, 500);
+  eq('→ 503（探活仍能答话，只是 ok:false）', r.status, 503);
+  eq('→ ok:false', r.json.ok, false);
+  eq('→ kv:false', r.json.kv, false);
   eq('→ no_kv', r.json.error, 'no_kv');
   check('提示里写了怎么绑定', /zjtt_kv/.test(String(r.json.detail)));
+
+  // 业务接口没 KV 时仍然是 500，前端按「后端不可用」降级
+  const rb = await call('/likes?ids=a');
+  eq('业务接口 → 500', rb.status, 500);
+  eq('业务接口 → no_kv', rb.json.error, 'no_kv');
+}
+
+console.log('\n[2b] 绑定名字挂在全局变量上也要认（EdgeOne 官方示例就是这种注入方式）');
+{
+  const kv = fakeKV();
+  globalThis.zjtt_kv = kv;
+  try {
+    const call = makeCaller({});           // env 里什么都没有
+    const r = await call('/health');
+    eq('→ 200', r.status, 200);
+    eq('→ kv:true', r.json.kv, true);
+  } finally {
+    delete globalThis.zjtt_kv;
+  }
+}
+
+console.log('\n[2c] env 里有同名但不像 KV 的东西时不能误判');
+{
+  const call = makeCaller({ zjtt_kv: 'oops', KV: { foo: 1 } });
+  const r = await call('/health');
+  eq('→ 503 而不是当成可用存储', r.status, 503);
 }
 
 console.log('\n[3] CORS 白名单');

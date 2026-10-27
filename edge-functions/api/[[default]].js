@@ -126,9 +126,15 @@ const clientIp = (request) =>
     || request.headers.get('CF-Connecting-IP')
     || (request.headers.get('X-Forwarded-For') || '').split(',')[0], 64).trim();
 
-// KV 绑定：控制台里变量名怎么填都可能，这里挨个认一遍
+// KV 绑定：控制台里变量名怎么填都可能，这里挨个认一遍。
+// 注意 EdgeOne 的绑定是「注入同名全局变量」（官方示例直接 my_kv.put()），
+// 不一定出现在 env 上，所以两边都找：先 env 再 globalThis。
 function storeOf(env) {
-  const kv = (env && (env.zjtt_kv || env.ZJTT_KV || env.KV || env.KV_STORE)) || null;
+  const g = typeof globalThis !== 'undefined' ? globalThis : {};
+  const hit = (env && (env.zjtt_kv || env.ZJTT_KV || env.KV || env.KV_STORE))
+    || g.zjtt_kv || g.ZJTT_KV || g.KV || null;
+  // 只认真正实现了 KV four API 的对象，别把 env 里别的配置当成存储
+  const kv = hit && typeof hit.get === 'function' && typeof hit.put === 'function' ? hit : null;
   if (!kv) {
     throw new HttpError(500, 'no_kv',
       '没有绑定 KV：EdgeOne 控制台 → 存储 → KV → 建命名空间 → 项目里绑定，变量名填 zjtt_kv');
@@ -500,11 +506,18 @@ export async function onRequest(context) {
   const method = request.method;
 
   try {
-    const kv = storeOf(env);
-
+    // /health 先于 KV 检查：没绑 KV 时也要能答话，否则探活永远是 500 说不清原因
     if (path === '/health' || path === '/') {
-      return reply({ ok: true, service: 'zjtt', v: 2, runtime: 'edgeone', day: dayKey() }, 200, cors);
+      let kv = null;
+      try { kv = storeOf(env); } catch { kv = null; }
+      return reply({
+        ok: Boolean(kv), service: 'zjtt', v: 2, runtime: 'edgeone',
+        kv: Boolean(kv), day: dayKey(),
+        ...(kv ? {} : { error: 'no_kv', detail: '控制台 → 存储 → KV → 建命名空间 → 项目里绑定命名空间，变量名 zjtt_kv' }),
+      }, kv ? 200 : 503, cors);
     }
+
+    const kv = storeOf(env);
 
     if (path === '/likes' && method === 'GET') return await getLikes(request, env, kv, url, cors);
     if (path === '/like' && method === 'POST') return await postLike(request, env, kv, cors);
