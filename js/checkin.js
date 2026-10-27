@@ -1,6 +1,6 @@
 // 每日签到：每天可签一次，+10 银芯，连续签到记录天数。
 // 状态存 zjtt:checkin，跟着账号档案同步（换设备当天也不能再签）。
-import { store, wallet, markDirty, h, t, scIcon, scNum, toast } from './common.js';
+import { store, wallet, markDirty, h, t, scIcon, toast } from './common.js';
 
 const KEY = 'checkin';
 export const REWARD = 10;
@@ -33,12 +33,6 @@ export function claim() {
   return { ok: true, gain: REWARD, streak };
 }
 
-// 顶栏的银芯数字是页面加载时渲染的，签到后要手动刷一下
-function refreshNavCredits() {
-  const el = document.querySelector('.top .credits');
-  if (el) el.replaceChildren(scNum(wallet.get(), 17));
-}
-
 // 面板里的签到条：已签到时是静态状态，未签到时是可点的按钮
 export function checkinBar(cls = '', onDone) {
   const s = state();
@@ -49,7 +43,6 @@ export function checkinBar(cls = '', onDone) {
       const r = claim();
       if (!r.ok) return;
       toast(t('ckGain', { n: r.gain }));
-      refreshNavCredits();
       const host = btn.closest('.ck');
       if (host) host.replaceWith(checkinBar(cls, onDone));
       if (onDone) onDone(r);

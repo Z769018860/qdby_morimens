@@ -55,6 +55,15 @@ export function toast(msg, ms = 1800) {
   return el;
 }
 
+// 页面上所有银芯数字都带 data-sc="图标尺寸"，花/加之后统一就地重绘，
+// 免得顶栏还显示旧值（不用整页 render）。
+export function syncCreditsDom() {
+  const n = wallet.get();
+  document.querySelectorAll('[data-sc]').forEach((el) => {
+    el.replaceChildren(scNum(n, Number(el.getAttribute('data-sc')) || 14));
+  });
+}
+
 // 本机数据改动 → 通知 js/account.js 排队同步到账号（登录态才推）
 export function markDirty(what = '') {
   document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: what }));
@@ -68,16 +77,54 @@ export const statsOf = () => {
   return { ...STAT0, ...(v && typeof v === 'object' ? v : {}) };
 };
 
+// 主题面板色是 rgba(…, .72)：直接铺在明亮的 CG 上会把卡片冲成一片白。
+// 这里按同色系提高不透明度再与底色混合，得到「实心」面板色给卡片用。
+export function parseColor(c) {
+  if (!c) return null;
+  const s = String(c).trim();
+  let m = s.match(/^#([0-9a-f]{3,8})$/i);
+  if (m) {
+    let h = m[1];
+    if (h.length === 3) h = h.split('').map((x) => x + x).join('');
+    const n = parseInt(h.slice(0, 6), 16);
+    const a = h.length >= 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1;
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255, a];
+  }
+  m = s.match(/^rgba?\(([^)]+)\)$/i);
+  if (m) {
+    const q = m[1].split(/[,/ ]+/).filter(Boolean).map(Number);
+    if (q.length >= 3 && q.slice(0, 3).every((x) => !Number.isNaN(x))) return [q[0], q[1], q[2], q.length > 3 ? q[3] : 1];
+  }
+  return null;
+}
+
+export function solidOf(panel, bg) {
+  const p = parseColor(panel);
+  const b = parseColor(bg) || [0, 0, 0, 1];
+  if (!p) return panel;
+  const a = Math.min(1, (p[3] == null ? 1 : p[3]) + 0.18);
+  const mix = (x, y) => Math.round(x * a + y * (1 - a));
+  return `rgb(${mix(p[0], b[0])}, ${mix(p[1], b[1])}, ${mix(p[2], b[2])})`;
+}
+
 // 主题皮肤：js/theme.js 把算好的变量写进 store('theme')，这里同步恢复，
 // 这样任何页面（只要调了 nav）都会立刻带上上次选的 CG 背景。
-export function applyThemeSkin() {
-  const th = store.get('theme', null);
+export function themeVars(th) {
   const root = document.documentElement;
   if (!th || !th.vars) return;
   for (const [k, v] of Object.entries(th.vars)) root.style.setProperty(`--${k}`, v);
+  const p2 = solidOf(th.vars.panel2, th.vars.bg);
+  root.style.setProperty('--panel-solid', solidOf(th.vars.panel, th.vars.bg));
+  root.style.setProperty('--panel2-solid', p2);
+  // 卡片内部的小面板（统计块 / 签到条 / 槽位…）直接吃面板色，不再把 CG 透进来
+  root.style.setProperty('--panel2', p2);
   if (th.img) root.style.setProperty('--theme-img', `url("${new URL(th.img, document.baseURI).href}")`);
   root.setAttribute('data-themed', th.dark ? 'dark' : 'light');
   document.body.classList.add('themed');
+}
+
+export function applyThemeSkin() {
+  themeVars(store.get('theme', null));
 }
 
 // 账号（js/auth.js 写入，nav 只读，避免循环依赖）
@@ -101,11 +148,12 @@ export function scNum(n, size = 14) {
 
 export const wallet = {
   get() { return Number(store.get('credits', 0)) || 0; },
-  add(n) { const v = this.get() + Math.max(0, Math.round(n)); store.set('credits', v); markDirty('credits'); return v; },
+  add(n) { const v = this.get() + Math.max(0, Math.round(n)); store.set('credits', v); markDirty('credits'); syncCreditsDom(); return v; },
   spend(n) {
     if (this.get() < n) return false;
     store.set('credits', this.get() - n);
     markDirty('credits');
+    syncCreditsDom();
     return true;
   },
 };
@@ -202,7 +250,7 @@ export function nav(active) {
   // 同步页脚语言
   const foot = document.querySelector('.foot');
   if (foot) foot.textContent = t('aboutFoot');
-  const credits = h('span', { class: 'credits', title: t('creditsTip') }, scNum(wallet.get(), 17));
+  const credits = h('span', { class: 'credits', title: t('creditsTip'), 'data-sc': 17 }, scNum(wallet.get(), 17));
   return h('header', { class: 'top' },
     h('a', { class: 'brand', href: 'index.html' }, h('b', {}, t('brand')), h('small', {}, t('brandSub'))),
     h('nav', {},

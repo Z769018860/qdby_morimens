@@ -16,7 +16,7 @@
 <li>每道题是一份匿名的融灾战报：区域、回合数、出牌数、单回合最高伤害、伤害构成，以及队内 4 人的伤害、格挡、治疗。</li>
 <li>队员按伤害从高到低标为 A–D 位。你要在对应位置填入唤醒体，以及（取决于难度档）命轮、密契、钥令、潜能进阶和造物。</li>
 <li>提交后：🟩 位置/归属正确；🟨 在队内但放错了位置或装在别人身上；⬛ 不在队内。潜能进阶用 ↑/↓ 提示大小，相差 2 以内显示黄色。</li>
-<li>最多提交 6 次。提示可以帮你缩小范围，但每次消耗 <b>6 银芯</b>（银芯靠答对获得，见下）。</li>
+<li>最多提交 6 次。卡位上的「提示阵营/定位」「提示等级」和队伍级的<b>线索台</b>都能帮你缩小范围，按条扣银芯（银芯靠答对获得，见下）。</li>
 <li>即使只猜唤醒体（入门档），结算时也会给出完整的命轮、密契、钥令、造物与唤醒体属性，方便学习完整配队。</li>
 </ol>
 
@@ -49,7 +49,7 @@
 <li><b>注册 / 登录</b>：右上角头像，或「个人中心」页面。用户名 2–20 个字符（中文可以），密码至少 6 位；用户名在后台会映射成 <code>用户名@zjtt.local</code> 的邮箱形式，所以不需要你填邮箱。</li>
 <li><b>个人中心 = 账号数据中枢</b>：昵称与头像、<b>偏好唤醒体</b>、<b>推理记录</b>、<b>工坊战报</b>、<b>典藏进度</b>、银芯与失败题库，全都在这一页，也全都会随账号同步。右上角有「上次同步」时间和「立即同步」按钮。</li>
 <li><b>每一局都落库</b>：每日一题、随机一题、自建题、工坊导入的回放，结算后都会写一条记录（时间、题目、模式、档位、胜负、评级、分数、回放链接），同一道题只计一次；最多保留最近 300 条。</li>
-<li><b>偏好唤醒体</b>：在个人中心选好之后，推理页会出现「只看偏好唤醒体」开关，勾上就只从包含这些唤醒体的题目里出题（先按成员哈希分桶粗筛，再逐题解密确认，所以不用每次解密整库）。</li>
+<li><b>偏好唤醒体</b>：在个人中心选好之后会存进账号，作为你自己的喜好收藏。<b>不会</b>用来筛题——那样难度会掉得太多，所以推理页不提供这个开关。</li>
 <li><b>头像</b>：直接用 Waline 的 <b>Q 版头像集</b>（共 <b>184 张</b>）：人物头像 79、剧情角色 5、特殊 21、Q 版 / 方块 / 幕间 / 邮票四种风格共 76、圣诞 3。选择器按分组切换，也能贴自己的图片直链（≤250 字符，例如 QQ 头像）。头像存在账号里，换设备登录也在。</li>
 <li><b>云端档案怎么存</b>：把「银芯 / 解锁 CG / 失败题库 / 统计 / 偏好 / 工坊题 / 推理记录 / 背景主题」打成一个 <code>ZJ1D:</code> + base64 的文档，存进 Waline 评论表里属于你自己的那一条（路径 <code>/zjtt/u/&lt;id&gt;-&lt;散列&gt;</code>，不暴露自增 id）。首次建档用一次 POST，之后一律 PUT 更新，避开评论频率限制。</li>
 <li><b>合并规则</b>：换设备登录时，银芯取两边较大值，解锁 CG 与失败题库取并集，统计逐项取大，推理记录与工坊题按 id 去重取新——所以两台设备交替玩也不会互相覆盖。退出登录只清本机的同步凭据，云端档案保留。</li>
@@ -63,7 +63,8 @@
 <ul>
 <li><b>获取</b>：答对一道题按难度给分，公式为 <code>8 + 难度分 × 1.2</code>（难度分 0–100，所以一题大约 8–128 分，答对后四舍五入）。银芯存在浏览器本地（<code>zjtt:credits</code>），换设备/清缓存会归零。</li>
 <li><b>花在哪</b>：① 买提示，每次 6 分；② 解锁典藏馆的 CG。</li>
-<li><b>提示</b>：入口在队伍卡的「提示」按钮，分「缩小唤醒体范围」「看命轮/密契」「看钥令/造物」几类，扣分即时生效，买过的提示不会因为你换页而退还。</li>
+<li><b>卡位提示</b>：队伍卡上的「提示阵营/定位」（6 银芯）和「提示等级」（6 银芯），针对单个位置。</li>
+<li><b>线索台</b>：报告下面一排可解锁线索，全部按这一题的真实数据生成，没有数据的条目不会出现（标题也不会把说不到的字段写上去）。共七类：<b>钥令阵营</b>（6）、<b>等级/突破</b>（6）、<b>灵塑等级</b>（8，仅在潜能进阶档出现）、<b>命轮件数</b>（8，战报能对上队伍快照时再给出「四人有几位命轮 ≥+12、最高强化到几」）、<b>养成</b>（7，指令卡总等级；旧战报没有疯狂预兆时就只报指令卡）、<b>助战</b>（4，是否借用助战）、<b>单回合极值/守密人</b>（5，单回合最高出牌、最高耗能、守密人等级）。买一次这一题内一直有效，换题重新计。</li>
 <li><b>每日签到</b>：推理页和个人中心都有「每日签到」，每天一次 <b>+10 银芯</b>，连续签天数会累加；签到日期与连续天数也跟着账号同步，所以换设备当天也不能重复签。</li>
 <li><b>赠礼</b>：站内的一次性银芯赠礼写在 <code>data/grants.json</code> 里（按用户名匹配），符合条件的账号登录后自动到账，领过的记录会记进档案，发第二遍不会重复加。</li>
 </ul>
@@ -74,7 +75,7 @@
 <h3>CG 典藏馆</h3>
 <p>典藏馆收录了从中文维基整理的全部官方 CG（<b>438 张</b>，另有 7 张在维基上已失效），按「典藏馆 / 主线剧情 / 特遣记录 / 动态绘卷 / 场景 CG / 其他」分组。未解锁的图以模糊缩略图呈现，点击按分组价格扣银芯解锁（<b>典藏馆 60 / 动态绘卷 55 / 特遣记录 45 / 主线剧情 40 / 场景 30 / 其他 30</b>）。解锁状态存在本地，终身有效。</p>
 <p>大图支持左右翻页（键盘 ← / →）与「查看维基原图」，每张图都保留了灰机 wiki 的原始文件名，方便溯源。顶部还能按标题/文件名搜索（官方 CG 文件名里带章节编号，例如「C09 012」）。</p>
-<p><b>背景主题</b>：解锁任意一张 CG 后，卡片和放大视图里都会出现「设为背景」。点一下，这张图会成为全站背景（模糊 + 渐隐处理），同时按它自己的主色重新生成整套 UI 配色（底色、面板、边框、文字、强调色、金色），全站六个页面一起生效，存在本地，下次打开还在。构建期已经为 438 张图各算好一套配色（<code>scripts/build_themes.py</code>，其中 407 张是深色系、31 张是浅色系），切换是即时的。再点一次「背景使用中」即可恢复默认。</p>
+<p><b>背景主题</b>：解锁任意一张 CG 后，卡片和放大视图里都会出现「设为背景」。点一下，这张图会成为全站背景（<b>只做 3px 柔化</b>，看得清是哪张图；可读性交给卡片底面上的实心面板色与暗角），同时按它自己的主色重新生成整套 UI 配色（底色、面板、边框、文字、强调色、金色），卡片上还有随主题变色的细金线与斜纹。全站六个页面一起生效，存在本地，下次打开还在。构建期已经为 438 张图各算好一套配色（<code>scripts/build_themes.py</code>，其中 407 张是深色系、31 张是浅色系），切换是即时的。再点一次「背景使用中」即可恢复默认。</p>
 
 <h3>创意工坊</h3>
 <p>「工坊」让你自己出题：</p>
@@ -123,7 +124,7 @@
 <li>Each puzzle is an anonymised Disaster raid report: zone, rounds, cards played, highest single-round damage, damage breakdown, plus each of the 4 members' damage / block / healing.</li>
 <li>Members are labelled A–D by damage, highest first. Fill each slot with an Awakener and — depending on the level — Wheels, Covenants, a Keeper skill, Potency and Creations.</li>
 <li>After submitting: 🟩 right place/owner; 🟨 in the team but wrong slot or attached to someone else; ⬛ not in the team. Potency uses ↑/↓, and shows yellow within 2.</li>
-<li>Six submissions max. Hints narrow things down but cost <b>6 Silver Core</b> each (Silver Core is earned by solving, see below).</li>
+<li>Six submissions max. Per-slot hints and the team-level <b>clue desk</b> narrow things down, each priced in Silver Core (earned by solving, see below).</li>
 <li>Even at the beginner level (Awakeners only), the result reveals the full Wheels, Covenants, Keeper skill, Creations and Awakener stats, so you learn complete team building.</li>
 </ol>
 
@@ -170,7 +171,8 @@
 <ul>
 <li><b>Earning</b>: solving a puzzle pays out by difficulty, <code>8 + difficulty score × 1.2</code> (difficulty 0–100, so roughly 8–128 Silver Core, rounded). Silver Core lives in local storage (<code>zjtt:credits</code>) — clearing site data or switching devices resets them.</li>
 <li><b>Spending</b>: (1) hints at 6 Silver Core each; (2) unlocking gallery CGs.</li>
-<li><b>Hints</b> sit on the team card. They are charged the moment you use them and are not refunded on page changes.</li>
+<li><b>Slot hints</b> sit on each team card — “realm / role” and “level” for that one slot, 6 Silver Core each.</li>
+<li><b>Clue desk</b>: the row of unlockable clues under the report. Every entry is computed from this puzzle's real data; entries without data simply do not appear, and the title never promises a field it cannot show. <b>key realm</b> (6), <b>level / break</b> (6), <b>potency</b> (8, only at the potency tier), <b>wheel count</b> (8 — when the battle log matches a team snapshot it also says how many of the four have Wheels at +12 or above and the highest upgrade), <b>build</b> (7 — command-card total level; older logs without Madness omen report cards only), <b>assist</b> (4 — whether an assist was borrowed), <b>single-turn peak / Keeper</b> (5 — most cards played in a turn, highest energy spent, Keeper level). Bought once, it stays open for that puzzle only.</li>
 <li><b>Daily check-in</b>: the puzzle page and the Profile page both offer a check-in — once a day for <b>+10 Silver Core</b>, with a streak that keeps counting. The date and streak sync with your account, so a second device cannot claim it twice on the same day.</li>
 <li><b>Gifts</b>: one-off Silver Core gifts live in <code>data/grants.json</code> (matched by username); eligible accounts receive them automatically on sign-in, and claimed ids are recorded in the account document so nothing is paid twice.</li>
 </ul>
@@ -181,7 +183,7 @@
 <h3>CG gallery</h3>
 <p>The gallery holds every official CG collected from the Chinese wiki — <b>438 images</b> (7 more are dead links on the wiki), grouped into Hall / Main story / Dispatch records / Dynamic scrolls / Scene CGs / Other. Locked images show as a blurred thumbnail; clicking spends Silver Core to unlock (Hall 60 / Dynamic 55 / Dispatch 45 / Story 40 / Scene 30 / Other 30). Unlocks are stored locally and are permanent.</p>
 <p>The viewer supports arrow-key paging and a “view original on the wiki” link — every item keeps its original wiki filename for provenance. A search box filters by title or filename (official CG filenames carry the chapter number, e.g. “C09 012”).</p>
-<p><b>Backdrop themes</b>: once a CG is unlocked, both the card and the viewer offer “Use as backdrop”. That CG becomes the site background (blurred and faded) and its own dominant colours are turned into a full UI palette — surface, panel, borders, text, accent and gold — across all six pages, remembered locally. All 438 palettes are precomputed at build time (<code>scripts/build_themes.py</code>; 407 dark, 31 light), so switching is instant. Click “In use” again to go back to the default look.</p>
+<p><b>Backdrop themes</b>: once a CG is unlocked, both the card and the viewer offer “Use as backdrop”. That CG becomes the site background (only a 3px soften, so you can still tell which art it is; readability comes from solid panel colours and a vignette), and its own dominant colours are turned into a full UI palette — surface, panel, borders, text, accent and gold — across all six pages, remembered locally. All 438 palettes are precomputed at build time (<code>scripts/build_themes.py</code>; 407 dark, 31 light), so switching is instant. Click “In use” again to go back to the default look.</p>
 
 <h3>Workshop</h3>
 <p>The workshop lets you author your own puzzles:</p>

@@ -1,5 +1,5 @@
 import { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang,
-  wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf, scIcon, emptyState } from './common.js';
+  wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf, scIcon, scNum, emptyState } from './common.js';
 import { PEPPER } from './pepper.js';
 import { auth, openLogin } from './auth.js';
 import { account } from './account.js';
@@ -55,61 +55,9 @@ const corePool = () => {
   return ok.length ? ok : P;
 };
 
-// 偏好唤醒体筛选：题库里每题带 bk（成员 id 的 128 桶哈希），先用它粗筛，再解密确认
-const HASH_BUCKETS = 128;
-function favBucket(tid) {
-  const s = String(tid) + '|ZJTT';
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return (h >>> 0) % HASH_BUCKETS;
-}
-
-let favOnly = !!store.get('favOnly', false);
-let favIds = new Set();          // 精确命中的题目 id
-let favIdxFor = '';              // 当前索引对应的签名（偏好 + 题库规模）
-const favSig = () => `${profile.favs.slice().sort().join(',')}|${allP().length}`;
-
-async function buildFavIndex() {
-  const favs = new Set((profile.favs || []).map(String));
-  if (!favs.size) return new Set();
-  const key = 'favIdx:' + favSig();
-  const cached = store.get(key, null);
-  if (Array.isArray(cached)) {
-    // 清掉其它签名留下的旧索引，避免 localStorage 越攒越多
-    Object.keys(localStorage).forEach((k) => { if (k.startsWith('zjtt:favIdx:') && k !== 'zjtt:' + key) localStorage.removeItem(k); });
-    return new Set(cached);
-  }
-  const want = new Set(profile.favs.map(favBucket));
-  const cand = allP().filter(p => p.bk && p.bk.some(b => want.has(b)));
-  const ids = [];
-  for (const p of cand) {
-    if (p.team) { if (p.team.some(a => favs.has(String(a.tid)))) ids.push(p.id); continue; }
-    try {
-      const s = await unseal(p);
-      if ((s.team || []).some(a => favs.has(String(a.tid)))) ids.push(p.id);
-    } catch { /* 单题解码失败就跳过 */ }
-  }
-  Object.keys(localStorage).forEach((k) => { if (k.startsWith('zjtt:favIdx:') && k !== 'zjtt:' + key) localStorage.removeItem(k); });
-  store.set(key, ids);
-  return new Set(ids);
-}
-
-// 偏好或题库规模变了就重算索引
-async function ensureFavIdx() {
-  const key = 'favIdx:' + favSig();
-  if (favIdxFor === key && favIds.size) return;
-  try { favIds = await buildFavIndex(); } catch { favIds = new Set(); }
-  favIdxFor = key;
-}
-
-function currentPool() {
-  const base = basePool();
-  if (!favOnly || !favIds.size) return base;
-  const sub = base.filter(p => favIds.has(p.id));
-  return sub.length ? sub : base;
-}
+// 随机抽题：从当前难度带（含自建题）里挑
 const pickAny = () => {
-  const l = currentPool();
+  const l = basePool();
   return l[Math.floor(Math.random() * l.length)];
 };
 
@@ -117,7 +65,7 @@ const pickAny = () => {
 const ptsOf = (p) => Math.round(POINT_BASE + (p.diffScore || 20) * 1.2);
 
 // ------------------------------------------------------------------ state
-let puzzle, ans, level, mode, sel, fb, history, hintsUsed, hintTags, finished, won, pickerKind;
+let puzzle, ans, level, mode, sel, fb, history, hintsUsed, finished, won, pickerKind;
 level = store.get('level', 1);
 mode = 'daily';
 
@@ -163,11 +111,12 @@ async function start(p0, m) {
   const p = await unseal(p0);
   puzzle = p; mode = m;
   ans = p.team; // already sorted by damage desc: slot A = top damage
-  sel = newSel(); fb = {}; history = []; hintsUsed = 0; hintTags = {}; finished = false; won = false;
+  sel = newSel(); fb = {}; history = []; hintsUsed = 0; finished = false; won = false;
+  loadClues();
   if (m === 'daily') {
     const saved = store.get(`daily:${todayKey()}:${level}`, null);
     if (saved) {
-      sel = saved.sel; history = saved.history; hintsUsed = saved.hintsUsed; hintTags = saved.hintTags;
+      sel = saved.sel; history = saved.history; hintsUsed = saved.hintsUsed;
       finished = saved.finished; won = saved.won; fb = saved.fb || {};
     }
   }
@@ -176,7 +125,7 @@ async function start(p0, m) {
 
 function persist() {
   if (mode !== 'daily') return;
-  store.set(`daily:${todayKey()}:${level}`, { sel, history, hintsUsed, hintTags, finished, won, fb });
+  store.set(`daily:${todayKey()}:${level}`, { sel, history, hintsUsed, finished, won, fb });
 }
 
 // ------------------------------------------------------------------ evaluation
@@ -324,35 +273,151 @@ function recordStats() {
   store.set('stats', st);
 }
 
-// ------------------------------------------------------------------ hints
+// ------------------------------------------------------------------ 线索
+// 线索分两类：卡位上的（阵营/定位、等级/突破）和队伍级的（钥令、命轮、养成、助战、极值）。
+// 队伍级线索全部按当前这道题的真实数据算，没有数据的条目直接不出现；解锁状态按题存在本机。
 const REALM_EN = { CHAOS: 'Chaos', CARO: 'Caro', AEQUOR: 'Aequor', ULTRA: 'Ultra', FADED_LEGACY: 'Faded Legacy' };
+// 钥令/命轮只带中文阵营名（没有 realmCode），英文界面下按官方译名兜底
+const REALM_ZH2EN = { 深海: 'Aequor', 混沌: 'Chaos', 血肉: 'Caro', 超维: 'Ultra', 褪色遗产: 'Faded Legacy', 通用: 'Universal', 其他: 'Other' };
 const ROLE_EN = { ASSAULT: 'Damage', WARDEN: 'Defense', CHORUS: 'Support' };
-const realmOf = (e) => (lang.cur === 'en' ? (REALM_EN[e.realmCode] || e.realm) : e.realm);
-const roleOf = (e) => (lang.cur === 'en' ? (ROLE_EN[e.roleCode] || e.role) : e.role);
-function payHint() {
-  if (!wallet.spend(HINT_COST)) { toast(t('noCredits')); return false; }
+const realmOf = (e) => (!e ? '—' : lang.cur === 'en' ? (REALM_EN[e.realmCode] || REALM_ZH2EN[e.realm] || e.realm) : e.realm);
+const roleOf = (e) => (!e ? '—' : lang.cur === 'en' ? (ROLE_EN[e.roleCode] || e.role) : e.role);
+
+let opened = new Set();
+const clueStoreKey = () => `clues:${puzzle.id}`;
+function loadClues() {
+  const list = store.get(clueStoreKey(), null);
+  opened = new Set(Array.isArray(list) ? list : []);
+}
+function openClue(key) {
+  opened.add(key);
+  store.set(clueStoreKey(), [...opened]);
+  persist();
+}
+const isOpen = (key) => opened.has(key);
+
+function payHint(cost = HINT_COST) {
+  if (!wallet.spend(cost)) { toast(t('noCredits')); return false; }
   hintsUsed++;
-  toast(t('ptsHint', { n: HINT_COST }));
+  toast(t('ptsHint', { n: cost }));
   return true;
 }
+
+const slotArch = (k) => { const e = idx.awakener.get(ans[k].tid); return `${realmOf(e)} · ${roleOf(e)}`; };
+const slotLv = (k) => `${t('lvTag')} ${ans[k].lv} · ${t('brkTag')} ${ans[k].brk}`;
+
 function hintAwk(k) {
-  if (finished || hintTags[`a${k}`]) return;
+  if (finished || isOpen(`a${k}`)) return;
   if (!payHint()) return;
-  const e = idx.awakener.get(ans[k].tid);
-  hintTags[`a${k}`] = `${realmOf(e)} · ${roleOf(e)}`;
-  persist(); render();
+  openClue(`a${k}`);
+  render();
 }
 function hintLv(k) {
-  if (finished || hintTags[`l${k}`]) return;
+  if (finished || isOpen(`l${k}`)) return;
   if (!payHint()) return;
-  hintTags[`l${k}`] = `${t('lv', { n: ans[k].lv })} · ${t('brk', { n: ans[k].brk })}`;
-  persist(); render();
+  openClue(`l${k}`);
+  render();
 }
-function hintKey() {
-  if (finished || hintTags.key) return;
-  if (!payHint()) return;
-  hintTags.key = realmOf(idx.key.get(puzzle.key)) || '—';
-  persist(); render();
+
+// 队伍级线索：值在渲染时才计算，保证和这一题完全对应。
+// 题库里少数题缺失某些字段（老版本战报没有指令卡等级 / 疯狂预兆），
+// 只有「四个位置都有值」的线索才会出现在线索台上，绝不卖一条全是「—」的线索。
+function clueList() {
+  const A = active();
+  const x = puzzle.x || {};
+  const j = (arr) => arr.map(v => (v == null ? '—' : v)).join(' / ');
+  const full = (f) => ans.length > 0 && ans.every(a => a[f] != null);
+  const out = [];
+
+  if (puzzle.key != null) {
+    out.push({ id: 'key', cost: 6, label: t('hintKey'), value: () => realmOf(idx.key.get(puzzle.key)) });
+  }
+
+  if (full('lv') || full('brk')) {
+    out.push({
+      id: 'lv', cost: 6, label: t('clueLv'),
+      value: () => [
+        full('lv') ? `${t('lvTag')} ${j(ans.map(a => a.lv))}` : '',
+        full('brk') ? `${t('brkTag')} ${j(ans.map(a => a.brk))}` : '',
+      ].filter(Boolean).join(' · '),
+    });
+  }
+
+  if (A.pot && full('pot')) {
+    out.push({ id: 'pot', cost: 8, label: t('cluePot'), value: () => `${t('potLv')} ${j(ans.map(a => a.pot))}` });
+  }
+
+  if (full('wheels')) {
+    const hasLv = (x.wl || []).some(v => v != null);
+    out.push({
+      id: 'wheel', cost: 8, label: hasLv ? t('clueWheel') : t('clueWheels'),
+      value: () => {
+        let s = `${t('clueWheelCnt')} ${j(ans.map(a => a.wheels.length))}`;
+        const lv = (x.wl || []).filter(v => v != null);
+        if (lv.length) {
+          s += ` · ${t('clueWheelHi', { n: lv.filter(v => v >= 12).length, max: Math.max(...lv) })}`;
+        }
+        return s;
+      },
+    });
+  }
+
+  const hasCard = full('cardLv');
+  const hasOmen = full('madness');
+  if (hasCard || hasOmen) {
+    out.push({
+      id: 'build', cost: 7,
+      // 老版本战报只有指令卡等级、没有疯狂预兆，标题就别把说不到的东西写上去
+      label: hasCard && hasOmen ? t('clueBuild') : (hasCard ? t('clueBuildCard') : t('clueBuildOmen')),
+      value: () => [
+        hasCard ? `${t('cardLv')} ${j(ans.map(a => a.cardLv))}` : '',
+        hasOmen ? `${t('madnessLv')} ${j(ans.map(a => a.madness))}` : '',
+      ].filter(Boolean).join(' · '),
+    });
+  }
+
+  if (x.as != null) {
+    out.push({
+      id: 'assist', cost: 4, label: t('clueAssist'),
+      value: () => (x.as ? t('clueAssistY', { n: x.as }) : t('clueAssistN')),
+    });
+  }
+
+  if (x.bc != null || x.be != null || x.pl != null) {
+    out.push({
+      id: 'peak', cost: 5, label: t('cluePeak'),
+      value: () => [
+        x.bc != null ? t('cluePeakCard', { n: x.bc }) : '',
+        x.be != null ? t('cluePeakEnergy', { n: x.be }) : '',
+        x.pl != null ? t('cluePeakLv', { n: x.pl }) : '',
+      ].filter(Boolean).join(' · '),
+    });
+  }
+
+  return out;
+}
+
+function buyClue(c) {
+  if (finished || isOpen(`c:${c.id}`)) return;
+  if (!payHint(c.cost)) return;
+  openClue(`c:${c.id}`);
+  render();
+}
+
+function cluePanel() {
+  if (finished) return null;
+  const list = clueList();
+  return h('section', { class: 'card clues' },
+    h('div', { class: 'cluehead' },
+      h('h3', {}, t('clueTitle')),
+      h('span', { class: 'note' }, t('clueNote'))),
+    h('div', { class: 'cluegrid' }, list.map((c) => {
+      if (isOpen(`c:${c.id}`)) {
+        return h('div', { class: 'clue on' }, h('small', {}, c.label), h('b', {}, c.value()));
+      }
+      return h('button', { type: 'button', class: 'clue lock', onclick: () => buyClue(c) },
+        h('small', {}, c.label), h('b', { class: 'cost' }, scIcon(12), ` ${c.cost}`));
+    })));
 }
 
 // ------------------------------------------------------------------ UI pieces
@@ -445,7 +510,9 @@ function slotCard(k) {
   const open = (kind, apply) => () => { if (!locked) openPicker(kind, apply, k); };
   const card = h('div', { class: 'slot' },
     h('div', { class: 'shead' }, h('b', {}, t('slotHead', { l: LETTERS[k] })),
-      h('span', { class: 'chips' }, hintTags[`a${k}`] ? chip(hintTags[`a${k}`], 'gold') : null, hintTags[`l${k}`] ? chip(hintTags[`l${k}`], 'gold') : null)),
+      h('span', { class: 'chips' },
+        isOpen(`a${k}`) ? chip(slotArch(k), 'gold') : null,
+        isOpen(`l${k}`) ? chip(slotLv(k), 'gold') : null)),
     pickBtn('awakener', g.awk, open('awakener', v => { g.awk = v; }), `awk${k}`, ' big'));
   if (A.wheels) {
     card.append(h('div', { class: 'row2' }, [0, 1].map(i =>
@@ -462,8 +529,8 @@ function slotCard(k) {
   }
   if (!locked) {
     card.append(h('div', { class: 'hints' },
-      h('button', { type: 'button', class: 'link', onclick: () => hintAwk(k), disabled: !!hintTags[`a${k}`] }, t('hintRealm'), ' ', scIcon(11), ` ${HINT_COST}`),
-      A.pot ? h('button', { type: 'button', class: 'link', onclick: () => hintLv(k), disabled: !!hintTags[`l${k}`] }, t('hintLv'), ' ', scIcon(11), ` ${HINT_COST}`) : null));
+      isOpen(`a${k}`) ? null : h('button', { type: 'button', class: 'link', onclick: () => hintAwk(k) }, t('hintRealm'), ' ', scIcon(11), ` ${HINT_COST}`),
+      isOpen(`l${k}`) ? null : h('button', { type: 'button', class: 'link', onclick: () => hintLv(k) }, t('hintLv'), ' ', scIcon(11), ` ${HINT_COST}`)));
   }
   return card;
 }
@@ -474,7 +541,7 @@ function teamExtras() {
   if (A.key) {
     box.append(h('div', { class: 'extra' }, h('b', {}, t('keyLabel')),
       pickBtn('key', sel.key, () => { if (!finished) openPicker('key', v => { sel.key = v; }); }, 'key'),
-      hintTags.key ? chip(hintTags.key, 'gold') : (finished ? null : h('button', { type: 'button', class: 'link', onclick: hintKey }, t('hintKey'), ' ', scIcon(11), ` ${HINT_COST}`))));
+      isOpen('c:key') ? chip(realmOf(idx.key.get(puzzle.key)), 'gold') : null));
   }
   if (A.relics) {
     const n = puzzle.relics.length;
@@ -601,33 +668,27 @@ function profilePanel() {
         h('button', { class: 'btn sm', onclick: () => openLogin(() => location.reload()) }, t('loginRegister')),
         h('a', { class: 'btn ghost sm', href: 'profile.html' }, t('pfGuestData')),
       ];
+  const chips = [`${t('totalPlayed')} ${st.played}`, `${t('totalWon')} ${st.won}`, `${t('accuracy')} ${acc}`];
   return h('section', { class: 'card profile' },
     h('div', { class: 'prow' },
-      u ? h('img', { class: 'pfavatar tiny', src: auth.avatarOf(u), alt: '', width: 36, height: 36 }) : null,
-      h('div', { class: 'pname' },
-        h('b', {}, u ? `👤 ${u.name}` : t('guestTag')),
-        h('span', { class: 'note' },
-          `${t('statsTitle')}：${t('totalPlayed')} ${st.played} · ${t('totalWon')} ${st.won} · ${t('accuracy')} ${acc}`)),
+      u
+        ? imgEl(auth.avatarOf(u), u.name, 'pfavatar tiny')
+        : h('span', { class: 'pfavatar tiny guest', title: t('guestTag') }, '👤'),
+      h('div', { class: 'pmeta' },
+        h('div', { class: 'pname' },
+          h('b', {}, u ? u.name : t('guestTag')),
+          h('span', { class: `ptag${u ? ' acct' : ''}` }, u ? t('acctTag') : t('guestShort'))),
+        h('div', { class: 'pchips' }, chips.map(x => h('span', { class: 'chip dim' }, x)))),
       h('div', { class: 'pactions' }, acts)),
-    h('p', { class: 'note' },
-      u ? t('pfSyncNote') : t('pfGuestNote')),
-    favLine(),
+    h('p', { class: 'pnote' }, u ? t('pfSyncNote') : t('pfGuestNote')),
     checkinBar('', () => render()));
-}
-
-// 偏好唤醒体：在个人中心设置，这里只显示状态并作为筛选题目的依据
-function favLine() {
-  const n = profile.favs.length;
-  return h('div', { class: 'favline' },
-    h('span', {}, `${t('favTitle')}：${n ? `${n} ${t('pfFavPicked')}` : t('pfFavNone')}`),
-    h('a', { class: 'link', href: 'profile.html#fav' }, t('pfFavGo')));
 }
 
 function controls() {
   const st = statsOf();
   const acc = st.totalFields ? Math.round(st.fields / st.totalFields * 100) + '%' : '—';
   const range = LV_RANGE[level] || [1, 4];
-  const poolN = currentPool().length;
+  const poolN = basePool().length;
   return h('section', { class: 'card ctl' },
     h('div', { class: 'levels' }, Object.entries(LEVELS).map(([k, v]) =>
       h('button', { class: `lv${+k === level ? ' on' : ''}`, onclick: () => { level = +k; store.set('level', level); start(mode === 'daily' ? dailyPuzzle() : puzzle, mode); } },
@@ -635,31 +696,9 @@ function controls() {
     h('div', { class: 'modes' },
       h('button', { class: `btn${mode === 'daily' ? '' : ' ghost'}`, onclick: () => start(dailyPuzzle(), 'daily') }, `${t('daily')} ${todayKey()}`),
       h('button', { class: `btn${mode === 'random' ? '' : ' ghost'}`, onclick: () => start(pickAny(), 'random') }, t('random')),
-      h('span', { class: 'credits big' }, `${t('credits')} `, scIcon(16), ` ${wallet.get()}`),
+      h('span', { class: 'credits big' }, `${t('credits')} `, scNum(wallet.get(), 16)),
       h('span', { class: 'note' }, `${t('played')} ${st.played} · ${t('won')} ${st.won} · ${t('streak')} ${st.streak} · ${t('best')} ${st.best} · ${t('accuracy')} ${acc}`)),
-    h('div', { class: 'poolrow' },
-      h('label', { class: 'fchk', title: t('favFilterTip') },
-        h('input', { type: 'checkbox', checked: favOnly, onchange: ev => toggleFavOnly(ev.target.checked) }),
-        h('span', {}, `${t('favFilter')}（${profile.favs.length}）`)),
-      h('span', { class: 'note' }, `${t('poolNote', { n: poolN })} · ${t('poolDiff', { a: range[0], b: range[1] })}`)));
-}
-
-// 偏好筛选：勾选后按偏好唤醒体重建题库索引（首次需要解密，之后走缓存）
-async function toggleFavOnly(on) {
-  if (on && !profile.favs.length) {
-    toast(t('favNeed'));
-    store.set('favOnly', false);
-    render();
-    return;
-  }
-  favOnly = on;
-  store.set('favOnly', on);
-  if (on) {
-    toast(t('favBuilding'), 2400);
-    await ensureFavIdx();
-    if (!favIds.size) toast(t('favNoHit'));
-  }
-  render();
+    h('div', { class: 'poolnote' }, `${t('poolNote', { n: poolN })} · ${t('poolDiff', { a: range[0], b: range[1] })}`));
 }
 
 // ------------------------------------------------------------------ picker modal
@@ -751,10 +790,11 @@ function teamRules() {
 }
 
 function render() {
-  root.replaceChildren(
+  root.replaceChildren(...[
     profilePanel(),
     controls(),
     reportPanel(),
+    cluePanel(),
     h('section', { class: 'card board' },
       h('h3', {}, `${t('boardTitle')} · ${LEVELS[level].name()}${t('boardLevel', { l: '' })}`),
       h('div', { class: 'slots' }, LETTERS.map((_, k) => slotCard(k))),
@@ -765,7 +805,8 @@ function render() {
     teamRules(),
     historyPanel(),
     failedPanel(),
-    ...(finished ? [answerPanel()] : []));
+    finished ? answerPanel() : null,
+  ].filter(Boolean));
 }
 
 // 登录态：先把云端档案合并下来（最多等 4.5 秒），保证积分 / 解锁 / 记录是最新的
@@ -780,18 +821,10 @@ await start(dailyPuzzle(), 'daily');
     if (j && Array.isArray(j.puzzles) && j.puzzles.length) {
       const have = new Set(P.map(p => p.id));
       EXTRA = j.puzzles.filter(p => !have.has(p.id));
-      if (EXTRA.length) {
-        if (!finished) render();
-        if (favOnly && profile.favs.length) ensureFavIdx().then(() => { if (!finished) render(); }).catch(() => {});
-      }
+      if (EXTRA.length && !finished) render();
     }
   })
   .catch(() => { /* 没有扩充题库也能玩 */ });
-
-// 上次开着「只看偏好唤醒体」：重建索引（有缓存则瞬间完成）
-if (favOnly && profile.favs.length) {
-  ensureFavIdx().then(() => { if (!finished) render(); }).catch(() => {});
-}
 
 // 工坊 / 好友分享的题目：index.html?p=ZJ2-...
 const sharedCode = new URLSearchParams(location.search).get('p');

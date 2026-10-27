@@ -1,6 +1,6 @@
 // CG 背景主题：解锁某张 CG 后，可把它设成全站背景，并按这张图的主色重排 UI 配色。
 // 配色在构建期已经算好（scripts/build_themes.py → data/themes.json），运行时只做变量注入。
-import { store, unlocked, toast, t, markDirty } from './common.js';
+import { store, unlocked, toast, t, markDirty, themeVars } from './common.js';
 
 let THEMES = null;
 let GALLERY = null;
@@ -32,15 +32,12 @@ export function paint(th) {
   const root = document.documentElement;
   if (!th || !th.vars) {
     root.removeAttribute('data-themed');
-    ['--bg', '--panel', '--panel2', '--line', '--text', '--dim', '--accent', '--gold', '--theme-img']
+    ['--bg', '--panel', '--panel2', '--panel-solid', '--panel2-solid', '--line', '--text', '--dim', '--accent', '--gold', '--theme-img']
       .forEach((k) => root.style.removeProperty(k));
     document.body.classList.remove('themed');
     return;
   }
-  for (const [k, v] of Object.entries(th.vars)) root.style.setProperty(`--${k}`, v);
-  if (th.img) root.style.setProperty('--theme-img', `url("${new URL(th.img, document.baseURI).href}")`);
-  root.setAttribute('data-themed', th.dark ? 'dark' : 'light');
-  document.body.classList.add('themed');
+  themeVars(th);
 }
 
 export function applyStored() {

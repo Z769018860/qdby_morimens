@@ -60,12 +60,15 @@ document.body.append(dlg);
 dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
 
 const REALM_EN = { CHAOS: 'Chaos', CARO: 'Caro', AEQUOR: 'Aequor', ULTRA: 'Ultra', FADED_LEGACY: 'Faded Legacy' };
+// 钥令/命轮只带中文阵营名（没有 realmCode），英文界面下按官方译名兜底
+const REALM_ZH2EN = { 深海: 'Aequor', 混沌: 'Chaos', 血肉: 'Caro', 超维: 'Ultra', 褪色遗产: 'Faded Legacy', 通用: 'Universal', 其他: 'Other' };
 const ROLE_EN = { ASSAULT: 'Damage', WARDEN: 'Defense', CHORUS: 'Support' };
+const ROLE_ZH2EN = { 伤害型: 'Damage', 防御型: 'Defense', 辅助型: 'Support' };
 const kwName = (k) => (lang.cur === 'en' ? (k.e || k.n) : k.n);
 function sub(e) {
   const en = lang.cur === 'en';
   const t = [];
-  if (e.realm) t.push(en ? (REALM_EN[e.realmCode] || e.realm) : e.realm);
+  if (e.realm) t.push(en ? (REALM_EN[e.realmCode] || REALM_ZH2EN[e.realm] || e.realm) : e.realm);
   if (e.role) t.push(en ? (ROLE_EN[e.roleCode] || e.role) : e.role);
   if (e.rarity) t.push(e.rarity);
   if (e.kind) t.push(e.kind);
@@ -247,8 +250,16 @@ function render() {
   const fs = ((lang.cur === 'en' ? FILTERS : FILTERS_ZH)[tab] || []).map(([k, label]) => {
     const vals = [...new Set(pool().map(e => e[k]).filter(Boolean))].sort();
     if (!vals.length) return null;
+    // 筛选下拉里的取值来自数据本身（阵营/定位只有中文），英文界面下同样要过一遍译名
+    const optLabel = (v) => {
+      if (!en) return tab === 'keyword' ? (k === 't' ? (KW_TYPE[v] || v) : (k === 'g' ? (KW_GROUP[v] || v) : v)) : v;
+      if (tab === 'keyword') return k === 't' ? (KW_TYPE_EN[v] || v) : (k === 'g' ? (KW_GROUP_EN[v] || v) : v);
+      if (k === 'realm') return REALM_ZH2EN[v] || v;
+      if (k === 'role') return ROLE_ZH2EN[v] || v;
+      return v;
+    };
     return h('select', { onchange: ev => { filt[k] = ev.target.value; render(); } },
-      h('option', { value: '' }, `${en ? 'All ' : '全部'}${label}`), vals.map(v => h('option', { value: v, selected: filt[k] === v }, tab === 'keyword' ? (k === 't' ? (en ? (KW_TYPE_EN[v] || v) : (KW_TYPE[v] || v)) : (k === 'g' ? (en ? (KW_GROUP_EN[v] || v) : (KW_GROUP[v] || v)) : v)) : v)));
+      h('option', { value: '' }, `${en ? 'All ' : '全部'}${label}`), vals.map(v => h('option', { value: v, selected: filt[k] === v }, optLabel(v))));
   });
   root.replaceChildren(...[
     h('div', { class: 'tabs' }, TABS.map(k => h('button', { class: k === tab ? 'on' : '', onclick: () => { tab = k; filt = {}; sort = 'default'; render(); } },

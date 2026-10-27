@@ -134,7 +134,9 @@ for (const name of pages) {
     }
   }
 
-  const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);
+  // PREVIEW_FULL=0：只截当前视口（长页面整页截图很慢，调试布局够用了）
+  const full = process.env.PREVIEW_FULL !== '0';
+  const { data } = await send('Page.captureScreenshot', full ? { format: 'png', captureBeyondViewport: true } : { format: 'png' }, sessionId);
   const file = path.join(OUT, name + '.png');
   fs.writeFileSync(file, Buffer.from(data, 'base64'));
   const top = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
