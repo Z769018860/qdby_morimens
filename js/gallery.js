@@ -156,7 +156,7 @@ function open(i) {
   dlg.replaceChildren(
     h('div', { class: 'cgviewhead' },
       h('b', {}, titleOf(it)),
-      h('small', { class: 'note' }, `${it.w}×${it.h} · ${it.g}`),
+      h('small', { class: 'note' }, `${it.bw || it.w}×${it.bh || it.h} · ${it.g}`),
       h('a', { class: 'link', href: `https://morimens.huijiwiki.com/wiki/${encodeURIComponent('文件:' + it.n)}`, target: '_blank', rel: 'noopener' }, t('galleryOriginal')),
       unlocked.has(it.id)
         ? h('button', { type: 'button', class: 'btn sm', onclick: () => toggleTheme(it) },
@@ -165,7 +165,7 @@ function open(i) {
       h('button', { class: 'btn sm ghost', onclick: () => dlg.close() }, t('close'))),
     h('div', { class: 'cgstage' },
       h('button', { type: 'button', class: 'cgnav prev', onclick: () => open(idx - 1), disabled: idx === 0 }, '‹'),
-      imgEl(it.f, titleOf(it), 'cgbig'),
+      imgEl(it.big || it.f, titleOf(it), 'cgbig'),
       h('button', { type: 'button', class: 'cgnav next', onclick: () => open(idx + 1), disabled: idx >= view.length - 1 }, '›')));
   dlg.showModal();
 }

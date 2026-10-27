@@ -16,7 +16,7 @@
 <li>每道题是一份匿名的融灾战报：区域、回合数、出牌数、单回合最高伤害、伤害构成，以及队内 4 人的伤害、格挡、治疗。</li>
 <li>队员按伤害从高到低标为 A–D 位。你要在对应位置填入唤醒体，以及（取决于难度档）命轮、密契、钥令、潜能进阶和造物。</li>
 <li>提交后：🟩 位置/归属正确；🟨 在队内但放错了位置或装在别人身上；⬛ 不在队内。潜能进阶用 ↑/↓ 提示大小，相差 2 以内显示黄色。</li>
-<li>最多提交 6 次。卡位上的「提示阵营/定位」「提示等级」和队伍级的<b>线索台</b>都能帮你缩小范围，按条扣银芯（银芯靠答对获得，见下）。</li>
+<li>最多提交 6 次。卡位上的「提示阵营」「提示定位」「提示等级」和队伍级的<b>线索台</b>都能帮你缩小范围，按条扣银芯（银芯靠答对获得，见下）。</li>
 <li>即使只猜唤醒体（入门档），结算时也会给出完整的命轮、密契、钥令、造物与唤醒体属性，方便学习完整配队。</li>
 </ol>
 
@@ -62,9 +62,9 @@
 <h3>银芯、提示与解锁</h3>
 <ul>
 <li><b>获取</b>：答对一道题按难度给分，公式为 <code>8 + 难度分 × 1.2</code>（难度分 0–100，所以一题大约 8–128 分，答对后四舍五入）。银芯存在浏览器本地（<code>zjtt:credits</code>），换设备/清缓存会归零。</li>
-<li><b>花在哪</b>：① 买提示，每次 6 分；② 解锁典藏馆的 CG。</li>
-<li><b>卡位提示</b>：队伍卡上的「提示阵营/定位」（6 银芯）和「提示等级」（6 银芯），针对单个位置。</li>
-<li><b>线索台</b>：报告下面一排可解锁线索，全部按这一题的真实数据生成，没有数据的条目不会出现（标题也不会把说不到的字段写上去）。共七类：<b>钥令阵营</b>（6）、<b>等级/突破</b>（6）、<b>灵塑等级</b>（8，仅在潜能进阶档出现）、<b>命轮件数</b>（8，战报能对上队伍快照时再给出「四人有几位命轮 ≥+12、最高强化到几」）、<b>养成</b>（7，指令卡总等级；旧战报没有疯狂预兆时就只报指令卡）、<b>助战</b>（4，是否借用助战）、<b>单回合极值/守密人</b>（5，单回合最高出牌、最高耗能、守密人等级）。买一次这一题内一直有效，换题重新计。</li>
+<li><b>花在哪</b>：① 买提示，每次 6 银芯；② 解锁典藏馆的 CG。</li>
+<li><b>卡位提示</b>：队伍卡上每个位置有三条，各 6 银芯——「提示阵营」（四大界域）、「提示定位」（伤害 / 防御 / 辅助）、「提示等级」。买过的那条会变成金色小标签。</li>
+<li><b>线索台</b>：报告下面一组可解锁线索，全部按这一题的真实数据生成，没有数据的条目不会出现（标题也不会把说不到的字段写上去）。分两层：<b>队伍线索</b>——<b>钥令阵营</b>（6）、<b>内在灵格</b>（6，四位的灵格等级；等级在卡位提示里买）、<b>灵塑等级</b>（8，仅在潜能进阶档出现）、<b>养成</b>（7，指令卡总等级；旧战报没有疯狂预兆时就只报指令卡）、<b>助战</b>（4，是否借用助战）、<b>单回合极值/守密人</b>（5）；<b>按位解锁</b>——<b>命轮</b>与<b>密契</b>都是一次解锁一个位置（A→D），越往后越贵：命轮 8 / 10 / 12 / 14，密契 6 / 8 / 10 / 12。命轮那条会写出这个位置的两件命轮名，战报能对上队伍快照时还会带上最高强化等级（如 <code>+15</code>）。买一次这一题内一直有效，换题重新计。</li>
 <li><b>每日签到</b>：推理页和个人中心都有「每日签到」，每天一次 <b>+10 银芯</b>，连续签天数会累加；签到日期与连续天数也跟着账号同步，所以换设备当天也不能重复签。</li>
 <li><b>赠礼</b>：站内的一次性银芯赠礼写在 <code>data/grants.json</code> 里（按用户名匹配），符合条件的账号登录后自动到账，领过的记录会记进档案，发第二遍不会重复加。</li>
 </ul>
@@ -82,7 +82,7 @@
 <ul>
 <li><b>导入回放（三种方式）</b>：
   <ul>
-  <li><b>回放码</b>：把 <code>battleUuid</code> 粘进去点「按回放码载入」，直接给出<b>完整队伍</b> —— 4 名唤醒体（等级 / 灵塑 / 突破）、每人 2 件命轮、密契、钥令、8 个造物，全部来自题库答案。</li>
+  <li><b>回放码</b>：把 <code>battleUuid</code> 粘进去点「按回放码载入」，直接给出<b>完整队伍</b> —— 4 名唤醒体（等级 / 灵塑 / 内在灵格）、每人 2 件命轮、密契、钥令、8 个造物，全部来自题库答案。</li>
   <li><b>回放文件</b>：把官方回放（<code>BattleReplay_*.json</code>）下载下来用「选回放 JSON 文件」读入。文件其实是 <b>LZ4 帧 + MessagePack</b>（不是 JSON），解码器沿用 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 的回放复盘实现，在浏览器本地展开，不会上传。解析出的命轮（每人 2 件，来自战斗里挂载的「状态@武器」）、造物、钥令、等级与灵塑都准确；<b>密契只有在本局触发过才会留下痕迹</b>，所以若这条回放在题库里，会自动回查题库把密契补全，否则需要手选。</li>
   <li><b>粘贴摘要</b>：战报摘要 JSON 直接粘进文本框也行。</li>
   </ul>
@@ -124,7 +124,7 @@
 <li>Each puzzle is an anonymised Disaster raid report: zone, rounds, cards played, highest single-round damage, damage breakdown, plus each of the 4 members' damage / block / healing.</li>
 <li>Members are labelled A–D by damage, highest first. Fill each slot with an Awakener and — depending on the level — Wheels, Covenants, a Keeper skill, Potency and Creations.</li>
 <li>After submitting: 🟩 right place/owner; 🟨 in the team but wrong slot or attached to someone else; ⬛ not in the team. Potency uses ↑/↓, and shows yellow within 2.</li>
-<li>Six submissions max. Per-slot hints and the team-level <b>clue desk</b> narrow things down, each priced in Silver Core (earned by solving, see below).</li>
+<li>Six submissions max. Per-slot hints (realm / role / level) and the team-level <b>clue desk</b> narrow things down, each priced in Silver Core (earned by solving, see below).</li>
 <li>Even at the beginner level (Awakeners only), the result reveals the full Wheels, Covenants, Keeper skill, Creations and Awakener stats, so you learn complete team building.</li>
 </ol>
 
@@ -171,8 +171,8 @@
 <ul>
 <li><b>Earning</b>: solving a puzzle pays out by difficulty, <code>8 + difficulty score × 1.2</code> (difficulty 0–100, so roughly 8–128 Silver Core, rounded). Silver Core lives in local storage (<code>zjtt:credits</code>) — clearing site data or switching devices resets them.</li>
 <li><b>Spending</b>: (1) hints at 6 Silver Core each; (2) unlocking gallery CGs.</li>
-<li><b>Slot hints</b> sit on each team card — “realm / role” and “level” for that one slot, 6 Silver Core each.</li>
-<li><b>Clue desk</b>: the row of unlockable clues under the report. Every entry is computed from this puzzle's real data; entries without data simply do not appear, and the title never promises a field it cannot show. <b>key realm</b> (6), <b>level / break</b> (6), <b>potency</b> (8, only at the potency tier), <b>wheel count</b> (8 — when the battle log matches a team snapshot it also says how many of the four have Wheels at +12 or above and the highest upgrade), <b>build</b> (7 — command-card total level; older logs without Madness omen report cards only), <b>assist</b> (4 — whether an assist was borrowed), <b>single-turn peak / Keeper</b> (5 — most cards played in a turn, highest energy spent, Keeper level). Bought once, it stays open for that puzzle only.</li>
+<li><b>Slot hints</b> sit on each team card, three per slot at 6 Silver Core each — <b>realm</b> (one of the four), <b>role</b> (damage / defense / support) and <b>level</b>. A bought hint turns into a gold chip.</li>
+<li><b>Clue desk</b>: the group of unlockable clues under the report. Every entry is computed from this puzzle's real data; entries without data simply do not appear, and the title never promises a field it cannot show. Two layers — <b>team clues</b>: <b>key realm</b> (6), <b>Gnostic Potential</b> (6, all four slots; level is bought on the slot card), <b>potency</b> (8, only at the potency tier), <b>build</b> (7 — command-card total level; older logs without Madness omen report cards only), <b>assist</b> (4), <b>single-turn peak / Keeper</b> (5); and <b>per-slot clues</b>: <b>Wheels</b> and <b>Covenants</b> unlock one slot at a time (A→D) and get pricier further along — Wheels 8 / 10 / 12 / 14, Covenants 6 / 8 / 10 / 12. A Wheel clue names that slot's two Wheels and, when the battle log matches a team snapshot, the highest upgrade (e.g. <code>+15</code>). Bought once, it stays open for that puzzle only.</li>
 <li><b>Daily check-in</b>: the puzzle page and the Profile page both offer a check-in — once a day for <b>+10 Silver Core</b>, with a streak that keeps counting. The date and streak sync with your account, so a second device cannot claim it twice on the same day.</li>
 <li><b>Gifts</b>: one-off Silver Core gifts live in <code>data/grants.json</code> (matched by username); eligible accounts receive them automatically on sign-in, and claimed ids are recorded in the account document so nothing is paid twice.</li>
 </ul>
@@ -190,7 +190,7 @@
 <ul>
 <li><b>Import a replay (three ways)</b>:
   <ul>
-  <li><b>Replay code</b>: paste the <code>battleUuid</code> and hit “Load by replay code” — you get the <b>complete team</b>: four awakeners (level / potency / breakthrough), two Wheels each, Covenants, the Keeper skill and all eight Creations, straight from the puzzle-bank answer.</li>
+  <li><b>Replay code</b>: paste the <code>battleUuid</code> and hit “Load by replay code” — you get the <b>complete team</b>: four awakeners (level / potency / Gnostic Potential), two Wheels each, Covenants, the Keeper skill and all eight Creations, straight from the puzzle-bank answer.</li>
   <li><b>Replay file</b>: download the official replay (<code>BattleReplay_*.json</code>) and open it with “Pick replay JSON”. The file is actually <b>LZ4 frame + MessagePack</b>, not JSON — the decoder is the one from <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a>'s replay review, running locally; nothing is uploaded. Wheels (two per awakener, read from the mounted “状态@武器” states), Creations, the Keeper skill, level and potency all come out exact; <b>Covenants only leave a trace when they triggered</b>, so if the replay is in the bank the Covenants are filled in from the answer, otherwise pick them by hand.</li>
   <li><b>Paste a summary</b>: report-summary JSON in the text box works too.</li>
   </ul>

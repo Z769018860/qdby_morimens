@@ -71,8 +71,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* board */
 .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .slot { background: var(--panel2); border-radius: 10px; padding: 8px; display: grid; gap: 6px; align-content: start; }
-.shead { display: flex; justify-content: space-between; align-items: center; }
-.shead .chips { margin: 0; }
+.shead { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; }
+.shead > b { white-space: nowrap; }
+.shead .chips { margin: 0; gap: 4px; flex: 1 1 auto; justify-content: flex-end; }
+.shead .chip { padding: 0 8px; font-size: 11.5px; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .pick { border: 2px solid var(--line); background: var(--panel); border-radius: 10px; padding: 4px; display: grid; justify-items: center; align-content: start; gap: 2px; min-height: 70px; position: relative; overflow: hidden; }
 .pick img { width: 56px; height: 56px; object-fit: contain; border-radius: 6px; }
@@ -90,7 +92,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .pot small { color: var(--dim); font-size: 11px; flex: 1; }
 .pot button { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel2); }
 .pot b { min-width: 28px; text-align: center; }
-.hints { display: flex; gap: 8px; flex-wrap: wrap; }
+.hints { display: flex; gap: 2px 9px; flex-wrap: wrap; font-size: 11.5px; }
 .extras { display: grid; grid-template-columns: auto 1fr; gap: 10px; margin-top: 10px; align-items: start; }
 .extra { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--panel2); padding: 8px; border-radius: 10px; }
 .extra.wide { grid-column: 1 / -1; align-items: flex-start; }
@@ -989,6 +991,15 @@ body:not(.themed) .card {
 .cluehead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .cluehead h3 { margin: 0; }
 .cluegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(208px, 1fr)); gap: 8px; }
+/* 按位线索（命轮 / 密契）：固定四列，一列一个位置，越往后价格越高 */
+.cluegrid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.cluesub {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  margin-top: 2px; padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 62%, transparent);
+}
+.cluesub b { font-size: 12.5px; font-weight: 600; color: var(--text); letter-spacing: .3px; }
+.cluesub .note { font-size: 11.5px; color: var(--dim); }
 .clue {
   display: grid; gap: 3px; padding: 9px 11px; text-align: left;
   border-radius: 11px; font: inherit; color: var(--text);
@@ -1013,7 +1024,7 @@ body:not(.themed) .card {
 }
 .clue.on small { color: color-mix(in srgb, var(--gold) 70%, var(--dim)); }
 @media (max-width: 720px) {
-  .cluegrid { grid-template-columns: 1fr 1fr; gap: 7px; }
+  .cluegrid, .cluegrid.four { grid-template-columns: 1fr 1fr; gap: 7px; }
   .clue { padding: 8px 9px; }
   .clue b { font-size: 12.5px; }
 }

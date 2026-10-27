@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PEPPER = re.search(r"'([0-9a-f]+)'", (ROOT / 'js/pepper.js').read_text(encoding='utf-8')).group(1)
-FILES = ['data/puzzles.json', 'data/puzzles-extra.json']
+FILES = ['data/puzzles.json', 'data/puzzles-extra.json', 'data/puzzles-more.json']
 
 
 def jl(p):

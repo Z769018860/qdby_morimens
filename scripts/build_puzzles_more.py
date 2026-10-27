@@ -73,6 +73,17 @@ def main():
 
     core = jl(ROOT / 'data/puzzles.json')['puzzles']
     have_ids = {p['id'] for p in core}
+    # 已有的扩充题库也要算进「已经有」，否则新一批会和 extra 撞 id
+    for rel in ('data/puzzles-extra.json', args.out):
+        fp = Path(rel)
+        if not fp.is_absolute():
+            fp = ROOT / rel
+        if fp.exists() and fp.resolve() != (ROOT / 'data/puzzles.json').resolve():
+            try:
+                have_ids |= {p['id'] for p in jl(fp)['puzzles']}
+            except (KeyError, json.JSONDecodeError):
+                pass
+    print(f'已有题目 {len(have_ids)} 道')
     zone_boss = {}
     for p in core:
         zone_boss[(p['season'], p['zone'])] = p['boss']

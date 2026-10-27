@@ -125,6 +125,28 @@ export function themeVars(th) {
 
 export function applyThemeSkin() {
   themeVars(store.get('theme', null));
+  upgradeThemeImage();
+}
+
+// 早期版本把 900 宽缩略图存成了背景，这里在进页面后悄悄换成 1920 宽的大图。
+// 走 store 而不是 theme.js，避免 common ←→ theme 循环依赖。
+let themeImgChecked = false;
+export async function upgradeThemeImage() {
+  if (themeImgChecked) return;
+  themeImgChecked = true;
+  const th = store.get('theme', null);
+  if (!th || !th.vars || !th.id) return;
+  try {
+    const r = await fetch('data/gallery.json', { cache: 'force-cache' });
+    const g = await r.json();
+    const it = (g.items || []).find((x) => x.id === th.id);
+    const want = it && (it.big || it.f);
+    if (want && want !== th.img) {
+      th.img = want;
+      store.set('theme', th);
+      themeVars(th);
+    }
+  } catch { /* 没有图库就保持原样 */ }
 }
 
 // 账号（js/auth.js 写入，nav 只读，避免循环依赖）

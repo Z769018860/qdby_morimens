@@ -33,7 +33,7 @@ root.textContent = t('loading');
 const { D, idx } = await loadDict();
 const CORE_JSON = await (await fetch('data/puzzles.json', { cache: 'no-cache' })).json();
 const P = CORE_JSON.puzzles;
-// 扩充题库（data/puzzles-extra.json）后台加载，不拖慢首屏
+// 扩充题库（data/puzzles-extra.json 等）后台加载，不拖慢首屏
 let EXTRA = [];
 const allP = () => P.concat(EXTRA);
 // 自建题目（创意工坊）以 team 明文存在本地，与官方题库一起参与随机
@@ -274,7 +274,8 @@ function recordStats() {
 }
 
 // ------------------------------------------------------------------ 线索
-// 线索分两类：卡位上的（阵营/定位、等级/突破）和队伍级的（钥令、命轮、养成、助战、极值）。
+// 线索分两类：卡位上的（阵营、定位、等级）和队伍级的（钥令、内在灵格、灵塑、养成、助战、极值），
+// 以及按位解锁的命轮 / 密契。
 // 队伍级线索全部按当前这道题的真实数据算，没有数据的条目直接不出现；解锁状态按题存在本机。
 const REALM_EN = { CHAOS: 'Chaos', CARO: 'Caro', AEQUOR: 'Aequor', ULTRA: 'Ultra', FADED_LEGACY: 'Faded Legacy' };
 // 钥令/命轮只带中文阵营名（没有 realmCode），英文界面下按官方译名兜底
@@ -287,7 +288,30 @@ let opened = new Set();
 const clueStoreKey = () => `clues:${puzzle.id}`;
 function loadClues() {
   const list = store.get(clueStoreKey(), null);
-  opened = new Set(Array.isArray(list) ? list : []);
+  const raw = new Set(Array.isArray(list) ? list : []);
+  // 老版本买过的提示按新结构折算，别让人白花银芯：
+  //   阵营·定位（a{k}）→ 只留阵营（r{k}），定位需要重新解锁
+  //   等级/突破（c:lv）→ 内在灵格（c:brk）
+  //   命轮件数（c:wheel）→ A 位命轮（c:wheel0）
+  let changed = false;
+  for (const key of [...raw]) {
+    const m = /^a(\d)$/.exec(key);
+    if (m) {
+      raw.delete(key);
+      raw.add(`r${m[1]}`);
+      changed = true;
+    } else if (key === 'c:lv') {
+      raw.delete(key);
+      raw.add('c:brk');
+      changed = true;
+    } else if (key === 'c:wheel') {
+      raw.delete(key);
+      raw.add('c:wheel0');
+      changed = true;
+    }
+  }
+  opened = raw;
+  if (changed) store.set(clueStoreKey(), [...raw]);
 }
 function openClue(key) {
   opened.add(key);
@@ -303,13 +327,27 @@ function payHint(cost = HINT_COST) {
   return true;
 }
 
-const slotArch = (k) => { const e = idx.awakener.get(ans[k].tid); return `${realmOf(e)} · ${roleOf(e)}`; };
-const slotLv = (k) => `${t('lvTag')} ${ans[k].lv} · ${t('brkTag')} ${ans[k].brk}`;
+// 卡位提示：阵营、定位、等级各一条（「内在灵格」属队伍级线索，见 clueList）
+const slotRealm = (k) => realmOf(idx.awakener.get(ans[k].tid));
+const slotRole = (k) => roleOf(idx.awakener.get(ans[k].tid));
+const slotLv = (k) => `${t('lvTag')} ${ans[k].lv}`;
+const wheelIds = (k) => (ans[k].wheels || []);
+const wheelName = (id) => nameOf(idx.wheel.get(String(id))) || String(id);
+const covName = (k) => {
+  const e = idx.covenant.get(String(ans[k].cov));
+  return e ? nameOf(e) : '—';
+};
 
 function hintAwk(k) {
-  if (finished || isOpen(`a${k}`)) return;
+  if (finished || isOpen(`r${k}`)) return;
   if (!payHint()) return;
-  openClue(`a${k}`);
+  openClue(`r${k}`);
+  render();
+}
+function hintRole(k) {
+  if (finished || isOpen(`o${k}`)) return;
+  if (!payHint()) return;
+  openClue(`o${k}`);
   render();
 }
 function hintLv(k) {
@@ -319,53 +357,37 @@ function hintLv(k) {
   render();
 }
 
-// 队伍级线索：值在渲染时才计算，保证和这一题完全对应。
-// 题库里少数题缺失某些字段（老版本战报没有指令卡等级 / 疯狂预兆），
-// 只有「四个位置都有值」的线索才会出现在线索台上，绝不卖一条全是「—」的线索。
+// 线索台：队伍级线索（一次解锁整队）+ 按位线索（命轮 / 密契，一次解锁一个位置，
+// 越往后越贵）。值在渲染时才计算，保证和这一题完全对应；缺字段的线索直接不出现，
+// 绝不卖一条全是「—」的线索。
+const WHEEL_CLUE_COST = [8, 10, 12, 14];   // A / B / C / D，越往后越贵
+const COV_CLUE_COST = [6, 8, 10, 12];
+
 function clueList() {
   const A = active();
   const x = puzzle.x || {};
   const j = (arr) => arr.map(v => (v == null ? '—' : v)).join(' / ');
   const full = (f) => ans.length > 0 && ans.every(a => a[f] != null);
-  const out = [];
+  const team = [];
+  const slots = [];
 
   if (puzzle.key != null) {
-    out.push({ id: 'key', cost: 6, label: t('hintKey'), value: () => realmOf(idx.key.get(puzzle.key)) });
+    team.push({ id: 'key', cost: 6, label: t('hintKey'), value: () => realmOf(idx.key.get(puzzle.key)) });
   }
 
-  if (full('lv') || full('brk')) {
-    out.push({
-      id: 'lv', cost: 6, label: t('clueLv'),
-      value: () => [
-        full('lv') ? `${t('lvTag')} ${j(ans.map(a => a.lv))}` : '',
-        full('brk') ? `${t('brkTag')} ${j(ans.map(a => a.brk))}` : '',
-      ].filter(Boolean).join(' · '),
-    });
+  // 等级在下方的卡位提示里已经能买到，这里只给「内在灵格」
+  if (full('brk')) {
+    team.push({ id: 'brk', cost: 6, label: t('clueBrk'), value: () => j(ans.map(a => a.brk)) });
   }
 
   if (A.pot && full('pot')) {
-    out.push({ id: 'pot', cost: 8, label: t('cluePot'), value: () => `${t('potLv')} ${j(ans.map(a => a.pot))}` });
-  }
-
-  if (full('wheels')) {
-    const hasLv = (x.wl || []).some(v => v != null);
-    out.push({
-      id: 'wheel', cost: 8, label: hasLv ? t('clueWheel') : t('clueWheels'),
-      value: () => {
-        let s = `${t('clueWheelCnt')} ${j(ans.map(a => a.wheels.length))}`;
-        const lv = (x.wl || []).filter(v => v != null);
-        if (lv.length) {
-          s += ` · ${t('clueWheelHi', { n: lv.filter(v => v >= 12).length, max: Math.max(...lv) })}`;
-        }
-        return s;
-      },
-    });
+    team.push({ id: 'pot', cost: 8, label: t('cluePot'), value: () => j(ans.map(a => a.pot)) });
   }
 
   const hasCard = full('cardLv');
   const hasOmen = full('madness');
   if (hasCard || hasOmen) {
-    out.push({
+    team.push({
       id: 'build', cost: 7,
       // 老版本战报只有指令卡等级、没有疯狂预兆，标题就别把说不到的东西写上去
       label: hasCard && hasOmen ? t('clueBuild') : (hasCard ? t('clueBuildCard') : t('clueBuildOmen')),
@@ -377,14 +399,14 @@ function clueList() {
   }
 
   if (x.as != null) {
-    out.push({
+    team.push({
       id: 'assist', cost: 4, label: t('clueAssist'),
       value: () => (x.as ? t('clueAssistY', { n: x.as }) : t('clueAssistN')),
     });
   }
 
   if (x.bc != null || x.be != null || x.pl != null) {
-    out.push({
+    team.push({
       id: 'peak', cost: 5, label: t('cluePeak'),
       value: () => [
         x.bc != null ? t('cluePeakCard', { n: x.bc }) : '',
@@ -394,7 +416,36 @@ function clueList() {
     });
   }
 
-  return out;
+  // 命轮：一次一个位置，带上该位置命轮的最高强化等级（战报能对上快照时才有）
+  if (A.wheels && full('wheels')) {
+    ans.forEach((a, k) => {
+      const ids = wheelIds(k);
+      if (!ids.length) return;
+      slots.push({
+        id: `wheel${k}`, cost: WHEEL_CLUE_COST[k], group: 'wheel',
+        label: t('clueWheelAt', { l: LETTERS[k] }),
+        value: () => {
+          const names = ids.map(wheelName).join(' / ');
+          const lv = (x.wl || [])[k];
+          return `${t('clueWheelPcs', { n: ids.length })} · ${names}` + (lv != null ? ` · +${lv}` : '');
+        },
+      });
+    });
+  }
+
+  // 密契：一次一个位置
+  if (A.cov && full('cov')) {
+    ans.forEach((a, k) => {
+      if (a.cov == null) return;
+      slots.push({
+        id: `cov${k}`, cost: COV_CLUE_COST[k], group: 'cov',
+        label: t('clueCovAt', { l: LETTERS[k] }),
+        value: () => covName(k),
+      });
+    });
+  }
+
+  return { team, slots };
 }
 
 function buyClue(c) {
@@ -404,20 +455,30 @@ function buyClue(c) {
   render();
 }
 
+function clueCard(c) {
+  if (isOpen(`c:${c.id}`)) {
+    return h('div', { class: 'clue on' }, h('small', {}, c.label), h('b', {}, c.value()));
+  }
+  return h('button', { type: 'button', class: 'clue lock', onclick: () => buyClue(c) },
+    h('small', {}, c.label), h('b', { class: 'cost' }, scIcon(12), ` ${c.cost}`));
+}
+
 function cluePanel() {
   if (finished) return null;
-  const list = clueList();
+  const { team, slots } = clueList();
+  const wheels = slots.filter(c => c.group === 'wheel');
+  const covs = slots.filter(c => c.group === 'cov');
   return h('section', { class: 'card clues' },
     h('div', { class: 'cluehead' },
       h('h3', {}, t('clueTitle')),
       h('span', { class: 'note' }, t('clueNote'))),
-    h('div', { class: 'cluegrid' }, list.map((c) => {
-      if (isOpen(`c:${c.id}`)) {
-        return h('div', { class: 'clue on' }, h('small', {}, c.label), h('b', {}, c.value()));
-      }
-      return h('button', { type: 'button', class: 'clue lock', onclick: () => buyClue(c) },
-        h('small', {}, c.label), h('b', { class: 'cost' }, scIcon(12), ` ${c.cost}`));
-    })));
+    team.length ? h('div', { class: 'cluegrid' }, team.map(clueCard)) : null,
+    wheels.length ? h('div', { class: 'cluesub' },
+      h('b', {}, t('clueWheelSlots')), h('span', { class: 'note' }, t('clueStepNote'))) : null,
+    wheels.length ? h('div', { class: 'cluegrid four' }, wheels.map(clueCard)) : null,
+    covs.length ? h('div', { class: 'cluesub' },
+      h('b', {}, t('clueCovSlots')), h('span', { class: 'note' }, t('clueStepNote'))) : null,
+    covs.length ? h('div', { class: 'cluegrid four' }, covs.map(clueCard)) : null);
 }
 
 // ------------------------------------------------------------------ UI pieces
@@ -511,7 +572,8 @@ function slotCard(k) {
   const card = h('div', { class: 'slot' },
     h('div', { class: 'shead' }, h('b', {}, t('slotHead', { l: LETTERS[k] })),
       h('span', { class: 'chips' },
-        isOpen(`a${k}`) ? chip(slotArch(k), 'gold') : null,
+        isOpen(`r${k}`) ? chip(slotRealm(k), 'gold') : null,
+        isOpen(`o${k}`) ? chip(slotRole(k), 'gold') : null,
         isOpen(`l${k}`) ? chip(slotLv(k), 'gold') : null)),
     pickBtn('awakener', g.awk, open('awakener', v => { g.awk = v; }), `awk${k}`, ' big'));
   if (A.wheels) {
@@ -529,7 +591,8 @@ function slotCard(k) {
   }
   if (!locked) {
     card.append(h('div', { class: 'hints' },
-      isOpen(`a${k}`) ? null : h('button', { type: 'button', class: 'link', onclick: () => hintAwk(k) }, t('hintRealm'), ' ', scIcon(11), ` ${HINT_COST}`),
+      isOpen(`r${k}`) ? null : h('button', { type: 'button', class: 'link', onclick: () => hintAwk(k) }, t('hintRealm'), ' ', scIcon(11), ` ${HINT_COST}`),
+      isOpen(`o${k}`) ? null : h('button', { type: 'button', class: 'link', onclick: () => hintRole(k) }, t('hintRole'), ' ', scIcon(11), ` ${HINT_COST}`),
       isOpen(`l${k}`) ? null : h('button', { type: 'button', class: 'link', onclick: () => hintLv(k) }, t('hintLv'), ' ', scIcon(11), ` ${HINT_COST}`)));
   }
   return card;
@@ -814,17 +877,27 @@ await account.ready();
 
 await start(dailyPuzzle(), 'daily');
 
-// 扩充题库后台加载：不阻塞首屏，加载完并入题池
-(CORE_JSON.extraFile ? fetch(CORE_JSON.extraFile, { cache: 'no-cache' }) : Promise.resolve(null))
-  .then(r => (r && r.ok ? r.json() : null))
-  .then(j => {
-    if (j && Array.isArray(j.puzzles) && j.puzzles.length) {
-      const have = new Set(P.map(p => p.id));
-      EXTRA = j.puzzles.filter(p => !have.has(p.id));
-      if (EXTRA.length && !finished) render();
+// 扩充题库后台加载：不阻塞首屏，加载完并入题池。
+// extraFile 可以是单个路径或路径数组（题库分片），逐片加载、边到边用。
+(() => {
+  const files = CORE_JSON.extraFiles || (CORE_JSON.extraFile ? [CORE_JSON.extraFile] : []);
+  if (!files.length) return;
+  (async () => {
+    for (const f of files) {
+      try {
+        const r = await fetch(f, { cache: 'no-cache' });
+        if (!r.ok) continue;
+        const j = await r.json();
+        if (!j || !Array.isArray(j.puzzles) || !j.puzzles.length) continue;
+        const have = new Set(allP().map(p => p.id));
+        const add = j.puzzles.filter(p => !have.has(p.id));
+        if (!add.length) continue;
+        EXTRA = EXTRA.concat(add);
+        if (!finished) render();
+      } catch { /* 单个分片失败不影响其他分片 */ }
     }
-  })
-  .catch(() => { /* 没有扩充题库也能玩 */ });
+  })();
+})();
 
 // 工坊 / 好友分享的题目：index.html?p=ZJ2-...
 const sharedCode = new URLSearchParams(location.search).get('p');

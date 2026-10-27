@@ -52,7 +52,15 @@ export async function setTheme(id) {
   const vars = themes[id];
   const item = gal.by.get(id);
   if (!vars || !item) throw new Error('missing');
-  const th = { id, n: item.t, img: item.f, dark: vars.dark, vars };
+  // 背景铺满整屏，必须用 1920 宽的大图；没有大图时才退回 900 缩略图
+  const img = item.big || item.f;
+  // 先把新背景解出来再换变量，避免整屏先闪一张空白
+  await new Promise((res) => {
+    const im = new Image();
+    im.onload = im.onerror = () => res();
+    im.src = new URL(img, document.baseURI).href;
+  });
+  const th = { id, n: item.t, img, dark: vars.dark, vars };
   store.set(CACHE_KEY, th);
   markDirty('theme');
   paint(th);
