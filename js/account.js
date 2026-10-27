@@ -60,6 +60,10 @@ export function snapshot() {
     th: store.get('theme', null),
     ck: store.get('checkin', null),
     gr: store.get('gr', []),
+    // 点赞：赞过谁（lk）、今日额度（ld）、作者已结算的赞数（lc）
+    lk: store.get('likeVote', {}),
+    ld: store.get('likeDay', null),
+    lc: store.get('likeCredited', {}),
   };
 }
 
@@ -81,6 +85,9 @@ export function apply(d) {
   if (d.th) store.set('theme', d.th);
   if (d.ck && typeof d.ck === 'object') store.set('checkin', d.ck);
   if (Array.isArray(d.gr)) store.set('gr', uniq(d.gr));
+  if (d.lk && typeof d.lk === 'object') store.set('likeVote', d.lk);
+  if (d.ld && typeof d.ld === 'object') store.set('likeDay', d.ld);
+  if (d.lc && typeof d.lc === 'object') store.set('likeCredited', d.lc);
 }
 
 // ------------------------------------------------------------------ 合并
@@ -127,6 +134,24 @@ function mergeMine(a = [], b = []) {
   return [...map.values()].slice(-CAP.mine);
 }
 
+// 点赞：赞过谁的记录、作者结算基准都取「更大的数」，今日额度取当天更大的那份
+function mergeLikes(a = {}, b = {}) {
+  const out = {};
+  for (const [k, v] of [...Object.entries(a || {}), ...Object.entries(b || {})]) {
+    if (v == null) continue;
+    out[k] = Math.max(Number(out[k]) || 0, Number(v) || 0);
+  }
+  return out;
+}
+
+function pickQuota(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  const ka = String(a.d || ''), kb = String(b.d || '');
+  if (ka !== kb) return ka > kb ? a : b;
+  return { d: a.d, n: Math.max(Number(a.n) || 0, Number(b.n) || 0) };
+}
+
 export function mergeDoc(remote = {}, local = {}) {
   const st = mergeStats(remote.st, local.st);
   return {
@@ -142,6 +167,9 @@ export function mergeDoc(remote = {}, local = {}) {
     th: local.th || remote.th || null,
     ck: pickCheckin(remote.ck, local.ck),
     gr: uniq([...(remote.gr || []), ...(local.gr || [])]),
+    lk: mergeLikes(remote.lk, local.lk),
+    ld: pickQuota(remote.ld, local.ld),
+    lc: mergeLikes(remote.lc, local.lc),
   };
 }
 

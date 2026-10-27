@@ -3,6 +3,7 @@ import { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, r
 import { PEPPER } from './pepper.js';
 import { auth, openLogin } from './auth.js';
 import { account } from './account.js';
+import * as likes from './likes.js';
 import { checkinBar } from './checkin.js';
 
 const KW_TYPE_EN = { realm: 'Realm', mechanic: 'State / Mechanic', tag: 'Tag', help: 'Help' };
@@ -129,6 +130,7 @@ async function start(p0, m) {
   }
   // 固有造物现在由题面直接给出：老存档里如果填过它，得剔掉，否则会被倒扣分
   if (Array.isArray(sel.relics)) sel.relics = sel.relics.filter(id => !isInnateRelic(id));
+  if (p.custom) loadLike(p.id);
   render();
 }
 
@@ -636,6 +638,58 @@ function cluePanel() {
     extra.length ? h('div', { class: 'cluegrid' }, extra.map(clueCard)) : null);
 }
 
+// ------------------------------------------------------------------ 点赞
+// 只有工坊出的自建题能点赞：每被一个人点赞，作者得 1 银芯；每人每天最多 10 次。
+// 赞数来自共享存储（见 js/likes.js），点完立刻 +1，真正的写入在后台排队。
+let likeCount = null;
+let likeFor = '';
+
+async function loadLike(id) {
+  const key = String(id || '');
+  likeFor = key;
+  const cached = likes.cachedCounts()[key];
+  likeCount = cached == null ? null : Number(cached) || 0;
+  try {
+    const c = await likes.counts([key]);
+    if (likeFor !== key) return;
+    likeCount = c[key] || 0;
+    store.set('likeCnt', { ...likes.cachedCounts(), [key]: likeCount });
+  } catch { /* 离线就只显示缓存里的数 */ }
+  if (puzzle && String(puzzle.id) === key) render();
+}
+
+function likeBar() {
+  if (!puzzle || !puzzle.custom) return null;
+  const id = String(puzzle.id || '');
+  const mine = customPuzzles().some(p => String(p.id) === id);
+  const voted = likes.hasVoted(id);
+  const left = likes.leftToday();
+  const tip = likes.pending();
+  return h('div', { class: 'likestrip' },
+    h('span', { class: 'likecnt', title: t('likeTip', { n: likes.LIKE_MAX }) },
+      '❤', h('b', {}, likeCount == null ? '·' : String(likeCount))),
+    mine
+      ? h('span', { class: 'note' }, t('likeSelf'))
+      : voted
+        ? h('button', { type: 'button', class: 'btn sm ghost', disabled: true }, t('likeDone'))
+        : h('button', { type: 'button', class: 'btn sm', disabled: left <= 0, onclick: doLike }, t('likeBtn')),
+    mine ? null : h('span', { class: 'note' }, left > 0 ? t('likeLeft', { n: left }) : t('likeZero', { n: likes.LIKE_MAX })),
+    tip ? h('span', { class: 'note dim' }, t('likeQueue', { n: tip })) : null);
+}
+
+function doLike() {
+  const id = String((puzzle && puzzle.id) || '');
+  if (!id) return;
+  const r = likes.like(id);
+  if (r.ok === 'quota') { toast(t('likeZero', { n: likes.LIKE_MAX })); return; }
+  if (r.ok === 'ok') {
+    likeCount = (Number(likeCount) || 0) + 1;
+    store.set('likeCnt', { ...likes.cachedCounts(), [id]: likeCount });
+    toast(t('likeThanks', { n: r.left }));
+  }
+  render();
+}
+
 // ------------------------------------------------------------------ UI pieces
 function toast(msg) {
   const t = h('div', { class: 'toast' }, msg);
@@ -1037,6 +1091,7 @@ function render() {
   root.replaceChildren(...[
     profilePanel(),
     controls(),
+    likeBar(),
     reportPanel(),
     cluePanel(),
     h('section', { class: 'card board' },
@@ -1092,3 +1147,6 @@ if (sharedCode) {
     toast('题目代码无法解析');
   }
 }
+
+// 上次没发完的赞，进页面后接着发
+likes.resume();

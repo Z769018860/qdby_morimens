@@ -4,6 +4,7 @@ import { auth, openLogin, avatarLib, nameOfMail } from './auth.js';
 import { account, CAP } from './account.js';
 import { checkinBar } from './checkin.js';
 import { galleryLib } from './theme.js';
+import * as likes from './likes.js';
 
 document.body.prepend(nav('profile'));
 const root = $('#app');
@@ -215,6 +216,7 @@ function histBox() {
 // ------------------------------------------------------------------ 工坊战报
 function impBox() {
   const list = store.get('myPuzzles', []);
+  const counts = likes.cachedCounts();
   const opened = (p) => (p.uuid ? REPLAY.json(p.uuid) : '');
   return h('section', { class: 'card' },
     h('h3', {}, `${t('pfImpTitle')} · ${list.length}`),
@@ -224,6 +226,7 @@ function impBox() {
       return h('div', { class: 'imp' },
         h('div', { class: 'imphead' },
           h('b', {}, p.title || p.id),
+          counts[String(p.id)] ? h('span', { class: 'likebadge' }, `❤ ${counts[String(p.id)]}`) : null,
           h('small', { class: 'note' }, `${team.length} ${t('pfImpTeam')} · ${(p.relics || []).length} ${t('relicLabel')} · ${stamp(p.at)}`)),
         h('div', { class: 'improw' }, team.map((a) => {
           const e = awakOf(a.tid);
@@ -328,3 +331,9 @@ try { GAL = (await galleryLib()).list || []; } catch { GAL = []; }
 try { DICT = (await loadDict()).D; } catch { DICT = null; }
 render();
 window.__pfRender = render;   // 供 scripts/preview.mjs 的交互探针重绘
+
+// 我的题目：拉一次赞数（有新赞折算银芯，结果下次渲染就能看到徽标）
+likes.syncMine(store.get('myPuzzles', [])).then((r) => {
+  if (r.ok && r.gain > 0) { render(); toast(t('likeGain', { n: r.gain })); }
+}).catch(() => {});
+likes.resume();

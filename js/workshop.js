@@ -4,6 +4,7 @@ import { cloud, cloudConfig } from './cloud.js';
 import { account } from './account.js';
 import { decodeReplay, replayTeam } from './replay.js';
 import { PEPPER } from './pepper.js';
+import * as likes from './likes.js';
 
 await account.ready();
 document.body.prepend(nav('workshop'));
@@ -198,6 +199,36 @@ function clueEditor() {
   return box;
 }
 
+// ------------------------------------------------------------------ 点赞
+// 别人在题目的线索台上方点「赞」，作者这边每 1 个赞换 1 银芯。
+// 赞数存在共享存储里（js/likes.js），结算基准跟着账号档案走，换设备不会重复领。
+const likeText = (id) => {
+  const n = Number(likes.cachedCounts()[String(id)]) || 0;
+  return n > 0 ? `❤ ${n}` : '';
+};
+
+function paintLikes() {
+  const c = likes.cachedCounts();
+  root.querySelectorAll('[data-like]').forEach(el => {
+    const n = Number(c[el.getAttribute('data-like')]) || 0;
+    el.textContent = n > 0 ? `❤ ${n}` : '';
+  });
+  const tot = root.querySelector('[data-liketotal]');
+  if (tot) {
+    const sum = myPuzzles().reduce((s, p) => s + (Number(c[String(p.id)]) || 0), 0);
+    tot.textContent = sum ? t('likeTotal', { n: sum }) : '';
+  }
+}
+
+async function refreshLikes() {
+  const list = myPuzzles();
+  if (!list.length) return;
+  const r = await likes.syncMine(list);
+  if (!r.ok) return;
+  paintLikes();
+  if (r.gain > 0) toast(t('likeGain', { n: r.gain }));
+}
+
 function draw() {
   root.replaceChildren(
     h('section', { class: 'card' },
@@ -249,7 +280,11 @@ function draw() {
         h('button', { class: 'btn ghost', onclick: () => openReplay() }, t('wsOpenReplay')),
         h('button', { class: 'btn ghost', onclick: () => cloudSettings() }, t('wsCloudCfg')),
         h('button', { class: 'btn ghost', onclick: () => { draft = emptyDraft(); draw(); } }, t('reset') || '重置'))),
-    h('section', { class: 'card' }, h('h3', {}, `${t('wsMine')} · ${myPuzzles().length}`), mineList()));
+    h('section', { class: 'card' },
+      h('h3', {}, `${t('wsMine')} · ${myPuzzles().length}`,
+        h('span', { class: 'note likesum', 'data-liketotal': '' }, '')),
+      mineList()));
+  paintLikes();
 }
 
 function mineList() {
@@ -257,6 +292,7 @@ function mineList() {
   if (!list.length) return h('p', { class: 'note' }, t('wsNoMine'));
   return h('div', { class: 'minelist' }, list.map((p, i) => h('div', { class: 'mine' },
     h('b', {}, p.title || p.id),
+    h('span', { class: 'likebadge', 'data-like': String(p.id || '') }, likeText(p.id)),
     h('small', { class: 'note' }, `${p.team.filter(a => a.tid).length} 名唤醒体 · ${p.relics.length} 造物${hintsOf(p).length ? ` · ${hintsOf(p).length} 条自定义线索` : ''}${p.uuid ? ' · 有回放' : ''}`),
     h('div', { class: 'mineact' },
       h('button', { class: 'link', onclick: () => { draft = JSON.parse(JSON.stringify(p)); draw(); } }, '编辑'),
@@ -588,3 +624,6 @@ function openPicker(kind, apply) {
 }
 
 draw();
+// 我的题目：拉一次赞数，有新赞就折算成银芯；顺带把上次没发完的赞补发
+refreshLikes();
+likes.resume();
