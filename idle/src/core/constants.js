@@ -21,4 +21,13 @@ export const MAX_STAR = 5;
 export const TEAM_SIZE = 4;
 export const RELIC_SLOTS = 3;
 export const GEAR_MAX_LV = 10;
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
+
+// Battle statuses. `kw` is the keyword slug used for the icon/tooltip (public/data/game-data.json -> kw).
+export const STATUS = {
+  poison: { zh: '中毒', kw: 'poison' }, bleed: { zh: '出血', kw: 'bleed' },
+  vulnerable: { zh: '易伤', kw: 'vulnerable' }, weakness: { zh: '虚弱', kw: 'weakness' },
+  counter: { zh: '反击', kw: 'counter' }, str: { zh: '力量', kw: 'str' }, strdown: { zh: '力量降低', kw: 'strength' },
+  barrier: { zh: '屏障', kw: 'barrier' }, fortress: { zh: '护垒', kw: 'fortress' },
+  fragile: { zh: '脆弱', kw: 'fragile' }, sealed: { zh: '封印', kw: 'sealed' },
+};

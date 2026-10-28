@@ -47,6 +47,12 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/')) return;   // 接口和点赞计数必须实时
 
   if (req.mode === 'navigate') {
+    // 子项目（idle/）是独立迭代的：页面外壳只有 4KB，走网络拿最新的，
+    // 免得「先给缓存」让老访客一直看到旧界面。离线时才回落到缓存。
+    if (url.pathname.startsWith('/idle/')) {
+      event.respondWith(networkFirst(req, event));
+      return;
+    }
     event.respondWith(navigate(req, event));
     return;
   }
@@ -74,6 +80,23 @@ async function navigate(req, event) {
   return fallback || new Response('离线，且这一页还没缓存。', {
     status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' },
   });
+}
+
+async function networkFirst(req, event) {
+  const cache = await caches.open(CACHE);
+  try {
+    const res = await fetch(req);
+    if (res && res.ok) cache.put(req, res.clone());
+    return res;
+  } catch (err) {
+    const hit = await cache.match(req, { ignoreSearch: true });
+    if (hit) return hit;
+    const fallback = await cache.match('/idle/index.html', { ignoreSearch: true });
+    if (fallback) return fallback;
+    return new Response('离线，且这一页还没缓存。', {
+      status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
 }
 
 async function staticFirst(req) {

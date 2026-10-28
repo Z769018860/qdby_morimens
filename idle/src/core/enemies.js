@@ -1,5 +1,6 @@
 import { hash, mulberry32 } from './rng.js';
 import { fx } from './skills.js';
+import { patternOf } from './monsters.js';
 
 export const CHAPTERS = ['序章·雾港', '蚀刻回廊', '沉没钟楼', '猩红温室', '回响墓园', '潮汐监牢', '倒悬教堂', '无光之海', '镜面都市', '终末列车'];
 export const stageInfo = (stage) => {
@@ -34,29 +35,39 @@ export const AFFIX_KEYS = Object.keys(AFFIX);
 
 export const enemyScale = (stage) => Math.pow(1.085, stage - 1);
 
-export function buildEnemies(stage, monsters) {
-  const info = stageInfo(stage);
-  const rng = mulberry32(hash(`stage${stage}`));
-  const pool = { Normal: monsters.filter((m) => m.rank === 'Normal'), Elite: monsters.filter((m) => m.rank === 'Elite'), Boss: monsters.filter((m) => m.rank === 'Boss') };
-  const comp = info.boss ? ['Boss', 'Normal', 'Normal'] : info.elite ? ['Elite', 'Normal'] : Array(2 + (info.node >= 3 ? 1 : 0) + (info.node >= 8 ? 0 : 0)).fill('Normal');
-  if (info.node === 9) comp.push('Normal');
+// Real monster design: class sets the budget, the record's hp/atk/df multipliers fine-tune it, and the enemy plays its
+// real opening (`op`) once, then loops its real cycle (`cy`). Without a skill table the generic pattern is used.
+const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+
+// One enemy definition from a monster record (shared by stages, the tower and the trials).
+export function makeEnemy(m, rank, stage, rng, { affixes = true, msk = null } = {}) {
   const S = enemyScale(stage);
-  return comp.map((rank, i) => {
-    const m = pool[rank][Math.floor(rng() * pool[rank].length)];
-    const hpM = { Normal: 1, Elite: 2.4, Boss: 5.5 }[rank];
-    const atkM = { Normal: 1, Elite: 1.15, Boss: 1.3 }[rank];
-    const def = {
-      name: m.zh, img: m.img, type: 'ASSAULT', realm: null, boss: rank === 'Boss', rank,
-      hp: Math.round(220 * S * hpM), atk: Math.round(34 * S * atkM), def: Math.round(28 + 5 * stage),
-      pattern: P[rank], critRate: 0, critDmg: 50,
-    };
-    if (stage >= 6 && rank !== 'Boss' && rng() < 0.4) {
-      const a = AFFIX_KEYS[Math.floor(rng() * AFFIX_KEYS.length)];
-      def.affix = a; def.name = AFFIX[a] + def.name;
-      if (a === 'fury') def.atk = Math.round(def.atk * 1.25);
-      if (a === 'shell') { def.hp = Math.round(def.hp * 1.4); def.def = Math.round(def.def * 1.3); }
-      if (a === 'bleeder') def.pattern = def.pattern.map((p, j) => (j === 0 ? { ...p, effects: [...p.effects, fx.dot(0.3, 3)] } : p));
-    }
-    return def;
-  });
+  const hpM = { Normal: 1, Elite: 2.4, Boss: 5.5 }[rank] * clamp(m.hp ?? 1, 0.5, 1.8);
+  const atkM = { Normal: 1, Elite: 1.15, Boss: 1.3 }[rank] * clamp(m.atk ?? 1, 0.75, 1.25);
+  const dfM = clamp(1 + (m.df ?? 0) * 0.35, 0.6, 1.8);
+  let pat = msk && m.cy?.length ? patternOf(m, msk, rank) : { opening: [], cycle: P[rank] };
+  const def = {
+    name: m.zh, img: m.img, type: 'ASSAULT', realm: null, boss: rank === 'Boss', rank,
+    hp: Math.round(220 * S * hpM), atk: Math.round(30 * S * atkM), def: Math.round((28 + 5 * stage) * dfM),
+    pattern: pat.cycle, opening: pat.opening, critRate: 0, critDmg: 50, mid: m.id, traits: m.traits || [], size: m.size,
+    skills: [...pat.opening, ...pat.cycle].filter((x, i, arr) => arr.findIndex((y) => y.name === x.name && y.plain === x.plain) === i)
+      .map((x) => ({ name: x.name, plain: x.plain || '', ic: x.ic || null })),
+  };
+  if (affixes && stage >= 6 && rank !== 'Boss' && rng() < 0.4) {
+    const a = AFFIX_KEYS[Math.floor(rng() * AFFIX_KEYS.length)];
+    def.affix = a; def.name = AFFIX[a] + def.name;
+    if (a === 'fury') def.atk = Math.round(def.atk * 1.25);
+    if (a === 'shell') { def.hp = Math.round(def.hp * 1.4); def.def = Math.round(def.def * 1.3); }
+    if (a === 'bleeder') def.pattern = def.pattern.map((p, j) => (j === 0 ? { ...p, effects: [...p.effects, fx.dot(0.3, 3)] } : p));
+  }
+  return def;
+}
+
+export function buildEnemies(stage, monsters, opts = {}) {
+  const info = opts.info || stageInfo(stage);
+  const rng = mulberry32(hash(opts.seed || `stage${stage}`));
+  const pool = { Normal: monsters.filter((m) => m.rank === 'Normal'), Elite: monsters.filter((m) => m.rank === 'Elite'), Boss: monsters.filter((m) => m.rank === 'Boss') };
+  const comp = info.boss ? ['Boss', 'Normal', 'Normal'] : info.elite ? ['Elite', 'Normal'] : Array(2 + (info.node >= 3 ? 1 : 0)).fill('Normal');
+  if (info.node === 9) comp.push('Normal');
+  return comp.map((rank) => makeEnemy(pool[rank][Math.floor(rng() * pool[rank].length)], rank, stage, rng, { msk: opts.msk }));
 }

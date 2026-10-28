@@ -37,3 +37,40 @@ export function openModal(html, cls = '') {
 }
 export function closeModal() { if (modalRoot) { modalRoot.remove(); modalRoot = null; } }
 export const modalEl = () => modalRoot;
+
+// ---------- keywords (status / mechanic tags with icons) ----------
+export const stripMarks = (t) => String(t ?? '').replace(/⟦[^|⟧]+\|([^⟧]*)⟧/g, '$1');
+export function kwIcon(kw, slug, size = 16) {
+  const k = kw?.[slug];
+  return k?.i ? `<img class="kwi" src="${img(k.i)}" alt="" width="${size}" height="${size}">` : '';
+}
+// text with ⟦slug|文字⟧ markers -> HTML chips (tap for the description)
+export function markup(text, kw) {
+  return esc(text).replace(/⟦([^|⟧]+)\|([^⟧]*)⟧/g, (_, slug, t) => {
+    const k = kw?.[slug];
+    if (!k) return t;
+    return `<span class="kw kc-${k.t === 'realm' ? 'realm-' + slug : (k.c || 'misc')}" data-kw="${slug}" title="${esc(k.n + '：' + stripMarks(k.d).replace(/\s+/g, ' ').slice(0, 120))}">${kwIcon(kw, slug, 14)}${t}</span>`;
+  });
+}
+let pop;
+export function showKwPop(kw, slug, anchor) {
+  const k = kw?.[slug];
+  if (!k) return;
+  if (!pop) {
+    pop = document.createElement('div');
+    pop.className = 'kwpop';
+    document.body.appendChild(pop);
+    document.addEventListener('click', (e) => { if (!e.target.closest('[data-kw],.kwpop')) pop.hidden = true; });
+  }
+  pop.innerHTML = `<div class="kwh">${kwIcon(kw, slug, 28)}<b>${esc(k.n)}</b><small>${esc(k.e)}</small></div><div class="kwd">${markup(k.d, kw)}</div>`;
+  pop.hidden = false;
+  const r = anchor.getBoundingClientRect(), w = Math.min(340, innerWidth - 16);
+  pop.style.width = w + 'px';
+  pop.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left)) + 'px';
+  pop.style.top = '0px';
+  const h = pop.offsetHeight;
+  pop.style.top = (r.bottom + h + 10 > innerHeight && r.top > h + 10 ? r.top - h - 6 : r.bottom + 6) + 'px';
+}
+
+// reward object -> text ({ gold, tickets, cores })
+export const rewardText = (r) => [r.gold ? `金币 +${fmt(r.gold)}` : '', r.tickets ? `召唤券 +${r.tickets}` : '', r.cores ? `银芯 +${r.cores}` : ''].filter(Boolean).join('　');

@@ -11,7 +11,7 @@
 // 预缓存不放在 install 里：那会让「装上」这个动作被 400KB 的下载拖住，
 // 期间页面还不受控。这里改成 activate 之后在后台慢慢填——当前页先受控，
 // 等它填完，之后切页就都是本地读取了。
-const VERSION = 'da059b2046';
+const VERSION = 'f819f6179a';
 const CACHE = 'zjtt-' + VERSION;
 const PRECACHE = [
   "index.html",
@@ -22,13 +22,13 @@ const PRECACHE = [
   "merge.html",
   "profile.html",
   "workshop.html",
-  "js/b/about.js?v=da059b2046",
-  "js/b/codex.js?v=da059b2046",
-  "js/b/detective.js?v=da059b2046",
-  "js/b/gallery.js?v=da059b2046",
-  "js/b/merge.js?v=da059b2046",
-  "js/b/profile.js?v=da059b2046",
-  "js/b/workshop.js?v=da059b2046",
+  "js/b/about.js?v=f819f6179a",
+  "js/b/codex.js?v=f819f6179a",
+  "js/b/detective.js?v=f819f6179a",
+  "js/b/gallery.js?v=f819f6179a",
+  "js/b/merge.js?v=f819f6179a",
+  "js/b/profile.js?v=f819f6179a",
+  "js/b/workshop.js?v=f819f6179a",
   "js/b/merge-sync.js",
   "data/boot.json"
 ];
@@ -65,6 +65,12 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/')) return;   // 接口和点赞计数必须实时
 
   if (req.mode === 'navigate') {
+    // 子项目（idle/）是独立迭代的：页面外壳只有 4KB，走网络拿最新的，
+    // 免得「先给缓存」让老访客一直看到旧界面。离线时才回落到缓存。
+    if (url.pathname.startsWith('/idle/')) {
+      event.respondWith(networkFirst(req, event));
+      return;
+    }
     event.respondWith(navigate(req, event));
     return;
   }
@@ -92,6 +98,23 @@ async function navigate(req, event) {
   return fallback || new Response('离线，且这一页还没缓存。', {
     status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' },
   });
+}
+
+async function networkFirst(req, event) {
+  const cache = await caches.open(CACHE);
+  try {
+    const res = await fetch(req);
+    if (res && res.ok) cache.put(req, res.clone());
+    return res;
+  } catch (err) {
+    const hit = await cache.match(req, { ignoreSearch: true });
+    if (hit) return hit;
+    const fallback = await cache.match('/idle/index.html', { ignoreSearch: true });
+    if (fallback) return fallback;
+    return new Response('离线，且这一页还没缓存。', {
+      status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
 }
 
 async function staticFirst(req) {

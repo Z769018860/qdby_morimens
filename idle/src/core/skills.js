@@ -13,8 +13,11 @@ const E = {
   debuff: (stat, v, dur, to = 'foe') => ({ t: 'debuff', stat, v, dur, to }),
   dot: (m, dur, to = 'foe') => ({ t: 'dot', m, dur, to }),
   gauge: (k, v, to = 'self') => ({ t: 'gauge', k, v, to }),
+  status: (s, n, dur, to = 'foe') => ({ t: 'status', s, n, dur, to }),
 };
 export { E as fx };
+
+import { STATUS } from './constants.js';
 
 const STAT_ZH = { atk: '攻击', def: '防御', crit: '暴击率', amp: '增伤', vuln: '受伤' };
 const TO_ZH = {
@@ -32,6 +35,7 @@ export function describeEffect(e) {
     case 'debuff': return `${TO_ZH[e.to]}${STAT_ZH[e.stat]}${e.stat === 'vuln' ? '+' : '-'}${e.v}%，持续 ${e.dur} 回合`;
     case 'dot': return `对${TO_ZH[e.to]}附加流血：每回合 ${pct(e.m)}攻击，持续 ${e.dur} 回合`;
     case 'gauge': return `${TO_ZH[e.to]}${e.k === 'aliemus' ? '共鸣能量' : '超共鸣能量'}+${e.v}`;
+    case 'status': return `${TO_ZH[e.to]}${e.s === 'poison' ? `施加 ${e.n} 层` : e.s === 'counter' ? `获得 ${e.n} 层` : e.s === 'fortress' ? `获得 ${e.n}% 减伤的` : e.s === 'barrier' ? `获得 ${e.n} 层` : '陷入'}${STATUS[e.s].zh}${e.dur < 90 ? `，持续 ${e.dur} 回合` : ''}`;
     case 'lifesteal': return `吸血 ${e.v}%`;
     default: return '';
   }
@@ -80,7 +84,7 @@ function typeKit(type) {
   }
 }
 
-export function buildKit(a) {
+export function buildKit(a, level = 2, med = null) {
   const n = KIT_NAMES[a.type];
   const t = typeKit(a.type);
   const r = realmRider(a.realm);
@@ -95,7 +99,107 @@ export function buildKit(a) {
   };
   const sig = SIGNATURES[a.slug];
   if (sig) for (const [slot, o] of Object.entries(sig)) k[slot] = { slot, ...k[slot], ...o };
+  // real card names + keyword-driven riders (the real text only has prose, so numbers stay ours)
+  for (const slot of Object.keys(k)) {
+    const rk = a.rk?.[slot];
+    if (!rk) continue;
+    k[slot].name = rk.n;
+    k[slot].real = { d: rk.d, e: rk.e, tags: rk.tags || [] };
+    const f = flagsOf(rk);
+    let eff = k[slot].effects;
+    if (f.aoe && ['Skill1', 'Skill2', 'Exalt'].includes(slot)) {
+      const i = eff.findIndex((x) => x.t === 'dmg' && x.to === 'foe' && (x.hits || 1) === 1);
+      if (i >= 0) eff = eff.map((x, j) => (j === i ? { ...x, to: 'foes', m: +(x.m * 0.7).toFixed(2) } : x));
+    }
+    k[slot].effects = [...eff, ...riders(slot, rk, a, f).filter((r) => !['shield', 'heal'].includes(r.t) || !eff.some((x) => x.t === r.t))];
+    scaleReal(k[slot], rk, slot, level, med);
+  }
   return k;
+}
+
+// ---------- real numbers ----------
+// The real skill text carries ranges (lv1 – max): "造成 150–300%（攻击力） 点伤害", "获得 10–20%（防御力） 点护盾",
+// "获得 5–10 点狂气". We read them, compare each awakener with the median of the same slot at the same skill level and
+// scale this game's effect by that ratio, so strong real numbers stay strong without moving the overall balance.
+export const SKILL_LEVELS = 5; // levels 0..4 -> shown as Lv.1..5
+const RANGE = (m) => [+m[1], m[2] != null ? +m[2] : +m[1]];
+const addR = (arr) => (arr.length ? arr.reduce((s, x) => [s[0] + x[0], s[1] + x[1]], [0, 0]) : null);
+export function realNums(rk) {
+  const t = strip(rk.d || '');
+  const out = {};
+  const dmg = addR([...t.matchAll(/([\d.]+)(?:[–-]([\d.]+))?%（攻击力）\s*点[^，。；%]{0,8}?伤害/g)].map(RANGE));
+  const sh = addR([...t.matchAll(/([\d.]+)(?:[–-]([\d.]+))?%（防御力）\s*点[^，。；%]{0,6}?护盾/g)].map(RANGE));
+  const ga = addR([...t.matchAll(/获得\s*([\d.]+)(?:[–-]([\d.]+))?\s*点狂气/g)].map(RANGE));
+  if (dmg) out.dmg = dmg;
+  if (sh) out.shield = sh;
+  if (ga) out.gauge = ga;
+  return out;
+}
+const at = (r, level) => r[0] + (r[1] - r[0]) * (level / (SKILL_LEVELS - 1));
+export function makeMedians(awakeners) {
+  const table = {}, cache = {};
+  for (const a of awakeners) for (const [slot, rk] of Object.entries(a.rk || {})) {
+    const n = realNums(rk);
+    for (const key of Object.keys(n)) (table[`${slot}.${key}`] ||= []).push(n[key]);
+  }
+  return (slot, key, level) => {
+    const id = `${slot}.${key}.${level}`;
+    if (cache[id] != null) return cache[id];
+    const vals = (table[`${slot}.${key}`] || []).map((r) => at(r, level)).sort((x, y) => x - y);
+    return (cache[id] = vals.length ? vals[Math.floor(vals.length / 2)] : 0);
+  };
+}
+const GROWTH = (level) => 0.98 + 0.03 * level;
+function scaleReal(sk, rk, slot, level, med) {
+  const n = realNums(rk), g = GROWTH(level), cur = {};
+  const ratio = (key) => {
+    const m = med ? med(slot, key, level) : 0, v = at(n[key], level);
+    cur[key] = Math.round(v * 10) / 10;
+    return m > 0 ? Math.max(0.55, Math.min(1.8, v / m)) : 1;
+  };
+  const rd = n.dmg ? ratio('dmg') : 1, rs = n.shield ? ratio('shield') : 1, rg = n.gauge ? ratio('gauge') : 1;
+  let did = { dmg: !n.dmg, shield: !n.shield, gauge: !n.gauge };
+  sk.effects = sk.effects.map((e) => {
+    if (e.t === 'dmg') { const r = did.dmg ? 1 : (did.dmg = true, rd); return { ...e, m: +(e.m * r * g).toFixed(3) }; }
+    if (e.t === 'shield') { const r = did.shield ? 1 : (did.shield = true, rs); return { ...e, m: +(e.m * r * g).toFixed(3) }; }
+    if (e.t === 'heal') return { ...e, m: +(e.m * g).toFixed(3) };
+    if (e.t === 'gauge' && e.k === 'aliemus' && !did.gauge) { did.gauge = true; return { ...e, v: Math.round(e.v * rg) }; }
+    return e;
+  });
+  // real text damages/shields but this game's archetype kit does not: add the missing effect at slot budget
+  const aoe = /全体敌人|所有敌人/.test(strip(rk.d || ''));
+  const BUDGET = { Strike: 1.0, Skill1: 1.6, Skill2: 1.7, Rouse: 0, Exalt: 2.4, OverExalt: 1.5 };
+  if (n.dmg && !sk.effects.some((e) => e.t === 'dmg') && BUDGET[slot]) sk.effects = [E.dmg(+(BUDGET[slot] * rd * g * (aoe ? 0.7 : 1)).toFixed(3), { to: aoe ? 'foes' : 'foe' }), ...sk.effects];
+  if (n.shield && !sk.effects.some((e) => e.t === 'shield') && slot !== 'Defense') sk.effects = [...sk.effects, E.shield(+(0.9 * rs * g).toFixed(3), 'self')];
+  sk.real = { ...sk.real, nums: n, cur, level };
+}
+
+// ---------- keyword riders ----------
+const strip = (t) => String(t || '').replace(/⟦[^|⟧]+\|([^⟧]*)⟧/g, '$1');
+const SLOT_SCALE = { Strike: 0.55, Defense: 0.55, Skill1: 0.8, Skill2: 0.9, Rouse: 0.9, Exalt: 1.15, OverExalt: 1.4 };
+export function flagsOf(rk) {
+  const t = strip(rk.d);
+  return {
+    tg: new Set(rk.tags || []), aoe: /全体敌人|所有敌人/.test(t), ally: /全体唤醒体|其他唤醒体|全队|队友/.test(t),
+    heal: /回复[^。；]{0,8}生命|治疗|生命回复/.test(t), shield: /护盾/.test(t), dmg: /伤害/.test(t),
+  };
+}
+export function riders(slot, rk, a, f = flagsOf(rk)) {
+  const s = SLOT_SCALE[slot] ?? 1, tg = f.tg, out = [];
+  const foe = f.aoe ? 'foes' : 'foe';
+  const add = (e) => { if (out.length < 2) out.push(e); };
+  if (tg.has('poison') || tg.has('corrosion')) add(E.status('poison', Math.round((f.aoe ? 2 : 3) + 3 * s), 4, foe));
+  if (tg.has('vulnerable')) add(E.debuff('vuln', Math.round(15 + 12 * s), 2, foe));
+  if (tg.has('weakness')) add(E.status('weakness', 1, 2, foe));
+  if (tg.has('strength')) add(E.debuff('atk', Math.round(10 + 10 * s), 2, foe));
+  if (tg.has('counter')) add(E.status('counter', Math.round(1 + 2 * s), 3, f.ally ? 'allies' : 'self'));
+  if (tg.has('barrier')) add(E.status('barrier', 1, 3, 'self'));
+  if (tg.has('fortress')) add(E.status('fortress', Math.round(12 + 10 * s), 3, 'self'));
+  if (tg.has('bleed')) add(E.dot(0.15 + 0.25 * s, 3, foe));
+  if (tg.has('str') && slot !== 'Strike') add(E.buff('atk', Math.round(8 + 10 * s), 3, f.ally ? 'allies' : 'self'));
+  if (f.heal && a.type !== 'CHORUS') add(E.heal(0.45 * s, 'self'));
+  if (f.shield && a.type !== 'WARDEN') add(E.shield(0.4 * s, 'self'));
+  return out;
 }
 
 // Hand-tuned identities. Names/text are this game's own flavour, not official text.
@@ -151,3 +255,31 @@ const SIGNATURES = {
     Skill1: { name: '银辉', effects: [E.heal(1.2), E.buff('amp', 15, 2, 'allies')] },
   },
 };
+
+// ---------- real monster skill lines -> enemy skills ----------
+export const TAGS_OF = (t) => [...new Set([...String(t || '').matchAll(/⟦([^|⟧]+)\|/g)].map((m) => m[1]))];
+export function lineToSkill(text, budget = 1, rank = 'Normal') {
+  const plain = strip(text), tg = new Set(TAGS_OF(text));
+  const aoe = /全体唤醒体|所有唤醒体|全队|全体敌人|全部/.test(plain);
+  const hitsM = plain.match(/(\d+) 次/);
+  const hits = /X 次/.test(plain) ? 2 : hitsM ? Math.min(3, +hitsM[1]) : 1;
+  const eff = [];
+  const to = aoe ? 'foes' : 'foe'; // enemies' "foe" = our team
+  if (/伤害/.test(plain) && !/受到.{0,6}伤害/.test(plain.split('，')[0])) eff.push(E.dmg(+(budget * (aoe ? 0.6 : 1) * (hits > 1 ? 0.7 : 1)).toFixed(2), { to, hits: Math.min(3, hits) }));
+  if (tg.has('poison') || tg.has('corrosion')) eff.push(E.status('poison', aoe ? 2 : 3, 4, to));
+  if (tg.has('bleed')) eff.push(E.dot(0.3, 3, to));
+  if (tg.has('weakness')) eff.push(E.status('weakness', 1, 2, to));
+  if (tg.has('vulnerable')) eff.push(E.debuff('vuln', 20, 2, to));
+  if (tg.has('strength')) eff.push(E.debuff('atk', 15, 2, to));
+  if (tg.has('fragile')) eff.push(E.status('fragile', 1, 2, to));
+  if (tg.has('sealed')) eff.push(E.status('sealed', 1, 2, 'foeRand'));
+  if (tg.has('counter')) eff.push(E.status('counter', 2, 3, 'self'));
+  if (tg.has('barrier')) eff.push(E.status('barrier', 1, 3, 'self'));
+  if (tg.has('fortress')) eff.push(E.status('fortress', 20, 3, 'self'));
+  if (/护盾/.test(plain) && /获得/.test(plain)) eff.push(E.shield(0.8, 'self'));
+  if (/回复[^。，]{0,8}生命|治疗/.test(plain) && !/受到/.test(plain)) eff.push(E.heal(0.5, 'self'));
+  if (tg.has('str') && /获得/.test(plain)) eff.push(E.buff('atk', 20, 3, 'self'));
+  const label = tg.has('poison') ? '毒雾' : tg.has('bleed') ? '撕裂' : tg.has('weakness') ? '削弱' : tg.has('vulnerable') ? '破防' : tg.has('sealed') ? '封印'
+    : tg.has('counter') ? '反击姿态' : /护盾/.test(plain) ? '固守' : /回复/.test(plain) ? '再生' : eff.some((e) => e.t === 'dmg') ? (aoe ? '横扫' : '重击') : '咆哮';
+  return { name: label, effects: eff, text: plain };
+}

@@ -1,12 +1,17 @@
 import {
   allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, equipItem, unequipItem, isEquipped,
-  enhanceItem, dismantle, summon, equipPull, EQUIP_PULL_COST, claimDaily, PULL_PITY_GENESIS, newState, migrate,
+  enhanceItem, dismantle, dismantleCores, summon, equipPull, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST, PULL_PITY_GENESIS, newState, migrate,
 } from '../core/game.js';
 import { REALMS, TYPES, SLOTS, SLOT_ZH, MAX_LV, MAX_STAR, TEAM_SIZE, RARITY_ZH, RARITY_ORDER, GEAR_MAX_LV } from '../core/constants.js';
-import { lvUpCost, power } from '../core/stats.js';
+import { sound } from './audio.js';
+import { fxMode } from './fx.js';
+import { settleMode } from './report.js';
+import { SHOP, boughtToday } from '../core/shop.js';
+import { refineCost } from '../core/gear.js';
+import { lvUpCost, power, skillLevel } from '../core/stats.js';
 import { describeSkill } from '../core/skills.js';
 import { wheelText, relicText, covTheme, gearCost, dismantleValue, MAINSTAT, COV_THEMES } from '../core/gear.js';
-import { esc, img, fmt, openModal, closeModal, toast, store } from './util.js';
+import { esc, img, fmt, openModal, closeModal, toast, store, markup } from './util.js';
 
 const R = (a) => REALMS[a.realm];
 const stars = (n) => '★'.repeat(n) + '☆'.repeat(MAX_STAR - n);
@@ -29,7 +34,7 @@ function itemCard(app, it, extra = '') {
   const def = itemDef(app, it);
   const who = holder(app, it.uid);
   return `<div class="item ${rarCls(def.rarity || 'SR')} ${isEquipped(app.state, it.uid) ? 'eq' : ''}" data-uid="${it.uid}">
-    <img src="${img(def.img)}" alt="" loading="lazy"><div class="i-body"><b>${esc(def.zh)}</b> <em>${def.rarity || ''} Lv${it.lv}</em><small>${esc(itemText(app, it))}</small>${who ? `<small class="who">装备于 ${esc(who)}</small>` : ''}</div>${extra}</div>`;
+    <img src="${img(def.img)}" alt="" loading="lazy"><div class="i-body"><b>${esc(def.zh)}</b> <em>${def.rarity || ''} Lv${it.lv}${it.rf ? ` · 精炼+${it.rf}` : ''}</em><small>${esc(itemText(app, it))}</small>${who ? `<small class="who">装备于 ${esc(who)}</small>` : ''}</div>${extra}</div>`;
 }
 function holder(app, uid) {
   const s = app.state;
@@ -99,13 +104,21 @@ export function rosterPage(app) {
       <img src="${img(a.portrait)}" alt="" loading="lazy"><b>${esc(a.zh)}</b><small>${r ? `Lv${r.lv} ${'★'.repeat(r.star)}` : '未获得'} · ${TYPES[a.type].short}</small></div>`; }).join('')}</div></div>`;
 }
 
+const NUM_ZH = { dmg: '伤害', shield: '护盾', gauge: '狂气' };
+const numLine = (sk) => {
+  const n = sk.real?.nums, c = sk.real?.cur;
+  if (!n || !Object.keys(n).length) return '';
+  const part = (k) => `${NUM_ZH[k]} ${n[k][0] === n[k][1] ? n[k][0] : `${n[k][0]}–${n[k][1]}`}${k === 'gauge' ? '' : '%'} → <b>${c[k]}${k === 'gauge' ? '' : '%'}</b>`;
+  return `<small class="nums">原作数值（Lv.1–5 → 当前）：${Object.keys(n).map(part).join('　')}</small>`;
+};
+
 export function detailModal(app, slug) {
   const { state: s, data } = app;
   const a = data.bySlug[slug], r = s.roster[slug];
   const view = r ? allyDef(s, data, slug, [slug]) : null;
   const preview = r || { lv: 1, star: 0 };
   const st = view || (() => { const ghost = { ...s, roster: { ...s.roster, [slug]: preview } }; return allyDef(ghost, data, slug, [slug]); })();
-  const kit = data.kit(slug);
+  const lvl = skillLevel(preview.lv, preview.star), kit = data.kit(slug, lvl);
   const eq = s.gear.equip[slug] || {};
   const slotBox = (key, kind, label) => { const it = eq[key] && s.gear.items[eq[key]]; const def = it && itemDef(app, it); return `<div class="eqslot" data-act="equip-slot" data-slug="${slug}" data-kind="${kind}">${def ? `<img src="${img(def.img)}" alt=""><span><b>${esc(def.zh)}</b> Lv${it.lv}<br><small>${esc(itemText(app, it))}</small></span>` : `<span class="empty">＋ ${label}</span>`}</div>`; };
   const cost = r && r.lv < MAX_LV ? lvUpCost(r.lv) : 0;
@@ -117,8 +130,9 @@ export function detailModal(app, slug) {
       <div class="stats"><span>生命 <b>${fmt(st.hp)}</b></span><span>攻击 <b>${fmt(st.atk)}</b></span><span>防御 <b>${fmt(st.def)}</b></span><span>暴击 <b>${st.critRate.toFixed(1)}%</b></span><span>爆伤 <b>${st.critDmg.toFixed(0)}%</b></span><span>战力 <b>${fmt(power(st))}</b></span></div>
       ${r ? `<div class="row"><button class="btn" data-act="lvup" data-slug="${slug}" data-n="1" ${cost && s.gold >= cost ? '' : 'disabled'}>升级 (${fmt(cost)})</button><button class="btn" data-act="lvup" data-slug="${slug}" data-n="10" ${cost && s.gold >= cost ? '' : 'disabled'}>×10</button><button class="btn" data-act="lvmax" data-slug="${slug}">升至最高</button></div>
       <div class="eqrow">${slotBox('wheel', 'wheel', '命轮')}${slotBox('cov', 'covenant', '密契')}</div>` : ''}
-      <h4>技能</h4><div class="skills">${SLOTS.map((k) => `<div class="skill"><b class="sk ${k}">${SLOT_ZH[k]}</b> <em>${esc(kit[k].name)}</em><small>${esc(describeSkill(kit[k]))}</small></div>`).join('')}</div>
-      <p class="hint">星级：重复获得同一唤醒体 +1★（每★ 全属性 +8%，3★ 起增伤 +10%）。技能为本作同人化设计，非官方数值。</p>
+      <h4>技能 <small class="dim">技能等级 Lv.${lvl + 1}/5（随角色等级与★提升）</small></h4><div class="skills">${SLOTS.map((k) => `<div class="skill"><b class="sk ${k}">${SLOT_ZH[k]}</b> <em>${esc(kit[k].name)}</em>${kit[k].real?.e ? ` <small class="en">${esc(kit[k].real.e)}</small>` : ''}<small>本作效果：${esc(describeSkill(kit[k]))}</small>${numLine(kit[k])}${kit[k].real ? `<details><summary>原作技能文本（译）</summary><p class="real">${markup(kit[k].real.d, data.kw)}</p></details>` : ''}</div>`).join('')}</div>
+      ${a.rk_en?.length ? `<details class="en-box"><summary>启灵（原作文本，仅供参考）</summary>${a.rk_en.map((x) => `<div class="skill"><b>${esc(x.ty)}</b> <em>${esc(x.n)}</em><p class="real">${markup(x.d, data.kw)}</p></div>`).join('')}</details>` : ''}
+      <p class="hint">星级：重复获得同一唤醒体 +1★（每★ 全属性 +8%，3★ 起增伤 +10%）。技能名称与文本取自原作（中文为译文），数值与效果由本作自行设计，与官方无关。</p>
     </div></div>`;
   openModal(html, 'wide');
 }
@@ -132,9 +146,9 @@ export function gearPage(app) {
   const tabs = [['wheel', '命轮'], ['covenant', '密契'], ['relic', '造物']].map(([k, z]) => `<button class="btn sm ${tab === k ? 'on' : ''}" data-act="gear-tab" data-k="${k}">${z} ${Object.values(s.gear.items).filter((i) => i.kind === k).length}</button>`).join('');
   const rows = items.map((it) => {
     const def = itemDef(app, it);
-    const cost = it.lv < GEAR_MAX_LV ? gearCost(it.kind, it.lv) : 0;
+    const cost = it.lv < GEAR_MAX_LV ? gearCost(it.kind, it.lv) : 0, rc = refineCost(it);
     const eqd = isEquipped(s, it.uid);
-    const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}</button></div>`;
+    const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 💠${rc}` : '精炼满'}</button><button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity, it) ? ` +💠${dismantleCores(def.rarity, it)}` : ''}</button></div>`;
     return itemCard(app, it, btns);
   }).join('') || '<p class="hint">暂无。推图有概率掉落，也可在「召唤」页用金币祈愿。</p>';
   return `<div class="page"><h2>装备库</h2><div class="row">${tabs}</div><div class="list">${rows}</div></div>`;
@@ -149,6 +163,12 @@ export function summonPage(app) {
       <p>召唤券：<b>${s.tickets}</b>　　创生保底：<b>${p.genesis}/${PULL_PITY_GENESIS}</b>　　史诗保底：<b>${p.ssr}/10</b></p>
       <div class="row"><button class="btn big" data-act="pull" data-n="1" ${s.tickets >= 1 ? '' : 'disabled'}>单抽 ×1</button><button class="btn big gold" data-act="pull" data-n="10" ${s.tickets >= 10 ? '' : 'disabled'}>十连 ×10</button></div>
       <p class="hint">概率：精良 60% · 史诗 37% · 创生 3%（第 38 抽起逐步提升，${PULL_PITY_GENESIS} 抽必出）。十连至少 1 个史诗以上。重复获得提升星级，满星折算金币。</p></div>
+    <div class="banner-card"><h3>银芯召唤 <small>💠 ${fmt(s.cores)}</small></h3>
+      <p class="hint">银芯来自首通、成就、签到、周 Boss、属性塔、竞技场和分解装备。与召唤券共用保底。</p>
+      <div class="row"><button class="btn big" data-act="cpull" data-n="1" ${s.cores >= CORE_PULL_COST ? '' : 'disabled'}>单抽 💠${CORE_PULL_COST}</button><button class="btn big gold" data-act="cpull" data-n="10" ${s.cores >= CORE_PULL10_COST ? '' : 'disabled'}>十连 💠${CORE_PULL10_COST}</button>
+      <button class="btn big" data-act="cepull" ${s.cores >= EQUIP_CORE_COST ? '' : 'disabled'}>精选祈愿（SR 以上装备）💠${EQUIP_CORE_COST}</button></div></div>
+    <div class="banner-card"><h3>银芯商店 <small>每日 0 点（UTC）刷新限购</small></h3>
+      <div class="shop">${SHOP.map((x) => { const n = boughtToday(s, x.id); return `<div class="shopi"><b>${x.zh}</b><small>今日 ${n}/${x.limit}</small><button class="btn sm" data-act="shop-buy" data-id="${x.id}" ${n < x.limit && s.cores >= x.cost ? '' : 'disabled'}>💠 ${x.cost}</button></div>`; }).join('')}</div></div>
     <div class="banner-card"><h3>装备祈愿</h3>
       <p>金币：<b>${fmt(s.gold)}</b>　每次 ${EQUIP_PULL_COST} 金币，随机获得命轮 / 密契 / 造物。</p>
       <div class="row"><button class="btn big" data-act="epull" data-n="1" ${s.gold >= EQUIP_PULL_COST ? '' : 'disabled'}>祈愿 ×1</button><button class="btn big" data-act="epull" data-n="5" ${s.gold >= EQUIP_PULL_COST * 5 ? '' : 'disabled'}>祈愿 ×5</button></div></div>
@@ -169,7 +189,15 @@ export function settingsPage(app) {
   const st = s.stats;
   const today = new Date().toISOString().slice(0, 10);
   return `<div class="page"><h2>设置与存档</h2>
-    <div class="banner-card"><h3>每日奖励</h3><button class="btn big gold" data-act="daily" ${s.daily.day === today ? 'disabled' : ''}>${s.daily.day === today ? '今日已领取' : '领取 召唤券×10 + 金币×1000'}</button></div>
+    <div class="banner-card"><h3>每日奖励</h3><p class="hint">每日奖励已并入「签到」页（月历、累计宝箱、可补签）。</p></div>
+    <div class="banner-card"><h3>声音</h3>
+      <label class="snd"><input type="checkbox" data-aud="mute" ${sound.cfg.mute ? 'checked' : ''}> 静音</label>
+      <label class="snd">音效 <input type="range" min="0" max="100" value="${Math.round(sound.cfg.sfx * 100)}" data-aud="sfx"></label>
+      <label class="snd">背景氛围 <input type="range" min="0" max="100" value="${Math.round(sound.cfg.bgm * 100)}" data-aud="bgm"></label>
+      <div class="row">${[['hit', '命中'], ['crit', '暴击'], ['heal', '治疗'], ['shield', '护盾'], ['exalt', '共鸣'], ['win', '胜利'], ['summon', '召唤'], ['ach', '成就']].map(([k, z]) => `<button class="btn sm" data-act="snd-test" data-k="${k}">${z}</button>`).join('')}</div>
+      <label class="snd">结算弹窗 <select data-settle>${[['key', '首通 / Boss / 新怪物时'], ['all', '每场战斗'], ['off', '从不（在战斗页手动打开）']].map(([k, z]) => `<option value="${k}" ${settleMode.get() === k ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
+      <label class="snd">战斗特效 <select data-fx>${[['full', '完整'], ['lite', '简化（少粒子、不震屏）'], ['off', '关闭']].map(([k, z]) => `<option value="${k}" ${fxMode.get() === k ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
+      <p class="hint">所有声音均由浏览器实时合成，没有音频文件；首次点击页面后才会发声。命中音色随攻击者界域变化（混沌/血肉/深海/超维）。</p></div>
     <div class="banner-card"><h3>统计</h3><p>战斗 ${st.battles} 场 · 胜利 ${st.wins} · 击杀 ${st.kills} · 累计金币 ${fmt(st.gold)} · 召唤 ${st.pulls} 次 · 最高通关 ${s.maxStage}</p></div>
     <div class="banner-card"><h3>存档</h3>
       <div class="row"><button class="btn" data-act="export">导出存档</button><button class="btn" data-act="import">导入存档</button><button class="btn danger" data-act="reset">重置游戏</button></div>
@@ -181,6 +209,6 @@ export function settingsPage(app) {
 export function offlineModal(app, rep, onClaim) {
   const items = rep.drops.length;
   const m = openModal(`<h3>欢迎回来</h3><p>离线 ${Math.round(rep.secs / 60)} 分钟（结算 ${Math.round(rep.capped / 60)} 分钟），在第 ${rep.stage} 关挂机 ${rep.battles} 场，预计胜 ${rep.wins} 场。</p>
-    <p>金币 <b>+${fmt(rep.gold)}</b>　召唤券 <b>+${rep.tickets}</b>　装备 <b>+${items}</b></p><button class="btn big gold" data-act="claim-offline">领取</button>`);
+    <p>金币 <b>+${fmt(rep.gold)}</b>　召唤券 <b>+${rep.tickets}</b>　银芯 <b>+${rep.cores || 0}</b>　装备 <b>+${items}</b></p><button class="btn big gold" data-act="claim-offline">领取</button>`);
   m.addEventListener('click', (e) => { if (e.target.closest('[data-act="claim-offline"]')) { closeModal(); onClaim(); } });
 }

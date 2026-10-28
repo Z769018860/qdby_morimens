@@ -22,3 +22,6 @@ export function baseStats(a, lv, star = 0) {
 export const power = (st) => Math.round(st.hp / 10 + st.atk + st.def * 0.8);
 export const lvUpCost = (lv) => Math.round(40 * Math.pow(lv, 1.45));
 export const canLevel = (lv) => lv < MAX_LV;
+
+// skill level 0..4 (shown as Lv.1–5): grows with character level, ★ add a bit
+export const skillLevel = (lv, star = 0) => Math.max(0, Math.min(4, Math.floor(((lv - 1) / (MAX_LV - 1)) * 3.4 + star * 0.25)));

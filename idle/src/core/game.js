@@ -1,8 +1,8 @@
 import { hash, mulberry32 } from './rng.js';
 import { MAX_LV, MAX_STAR, TEAM_SIZE, RELIC_SLOTS, SAVE_VERSION, GEAR_MAX_LV } from './constants.js';
-import { baseStats, lvUpCost, power } from './stats.js';
-import { buildKit } from './skills.js';
-import { ZERO, addBonus, wheelBonus, relicBonus, covenantBonus, gearCost, dismantleValue } from './gear.js';
+import { baseStats, lvUpCost, power, skillLevel } from './stats.js';
+import { buildKit, makeMedians } from './skills.js';
+import { ZERO, addBonus, wheelBonus, relicBonus, covenantBonus, gearCost, dismantleValue, refineMult, refineCost, scaleBonus, REFINE_COST } from './gear.js';
 import { buildEnemies, stageInfo } from './enemies.js';
 import { simulate } from './battle.js';
 
@@ -15,11 +15,13 @@ const STARTERS = ['ogier', 'lotan', 'doll', 'ramona'];
 export function indexData(pack) {
   const by = (arr) => Object.fromEntries(arr.map((x) => [x.id, x]));
   const kits = {};
+  const med = makeMedians(pack.awakeners);
   const d = {
     ...pack,
     bySlug: Object.fromEntries(pack.awakeners.map((a) => [a.slug, a])),
+    monById: Object.fromEntries(pack.monsters.map((m) => [m.id, m])),
     wheelById: by(pack.wheels), covById: by(pack.covenants), relicById: by(pack.relics),
-    kit(slug) { return kits[slug] || (kits[slug] = buildKit(d.bySlug[slug])); },
+    kit(slug, level = 2) { const id = `${slug}:${level}`; return kits[id] || (kits[id] = buildKit(d.bySlug[slug], level, med)); },
   };
   return d;
 }
@@ -30,21 +32,22 @@ export function newState(data, now = Date.now()) {
   for (const s of STARTERS) roster[s] = { lv: 1, star: 0 };
   return {
     v: SAVE_VERSION, created: now, lastSeen: now, seed: (now ^ 0x9e3779b9) >>> 0,
-    gold: 600, tickets: 12, stage: 1, maxStage: 0,
+    gold: 600, tickets: 12, cores: 300, stage: 1, maxStage: 0,
     auto: true, speed: 2, skipAnim: false,
     strategy: { defend: 0.4, target: 'low', preset: 'balanced' },
-    roster, team: [...STARTERS],
+    roster, team: [...STARTERS], codex: {},
     gear: { items: {}, next: 1, equip: {}, relics: Array(RELIC_SLOTS).fill(null) },
     pity: { genesis: 0, ssr: 0 },
     stats: { battles: 0, wins: 0, pulls: 0, kills: 0, gold: 0 },
     daily: { day: '' }, log: [],
+    tower: { best: 0, day: '', tries: 0, runs: 0 }, trials: { cleared: {} }, ach: {}, tutorial: false,
   };
 }
 
 export function migrate(s, data) {
   if (!s || typeof s !== 'object') return newState(data);
   const base = newState(data, s.created || Date.now());
-  const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity } };
+  const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity }, tower: { ...base.tower, ...s.tower }, trials: { cleared: { ...(s.trials?.cleared || {}) } }, ach: { ...s.ach }, signin: s.signin ? { ...s.signin } : null, welcome: s.welcome ? { ...s.welcome } : null, shop: s.shop ? { ...s.shop } : null, codex: { ...s.codex }, weekly: s.weekly ? { ...s.weekly } : null, rtower: { ...s.rtower }, arena: s.arena ? { ...s.arena } : null };
   m.team = (m.team || []).filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
   if (!m.team.length) m.team = Object.keys(m.roster).slice(0, TEAM_SIZE);
   return m;
@@ -58,19 +61,19 @@ export function allyDef(state, data, slug, teamSlugs = state.team) {
   const bonus = ZERO();
   const eq = state.gear.equip[slug] || {};
   const wi = eq.wheel && state.gear.items[eq.wheel];
-  if (wi) addBonus(bonus, wheelBonus(data.wheelById[wi.defId], wi.lv, a));
+  if (wi) addBonus(bonus, scaleBonus(wheelBonus(data.wheelById[wi.defId], wi.lv, a), refineMult(wi)));
   const ci = eq.cov && state.gear.items[eq.cov];
   if (ci) {
     const count = teamSlugs.filter((t) => { const e = state.gear.equip[t]; const it = e?.cov && state.gear.items[e.cov]; return it && it.defId === ci.defId; }).length;
-    addBonus(bonus, covenantBonus(ci.defId, ci.lv, count));
+    addBonus(bonus, scaleBonus(covenantBonus(ci.defId, ci.lv, count), refineMult(ci)));
   }
   for (const uid of state.gear.relics) {
     const it = uid && state.gear.items[uid];
-    if (it) addBonus(bonus, relicBonus(data.relicById[it.defId], it.lv));
+    if (it) addBonus(bonus, scaleBonus(relicBonus(data.relicById[it.defId], it.lv), refineMult(it)));
   }
   if (r.star >= 3) bonus.amp += 10;
   const def = {
-    slug, name: a.zh, img: a.portrait, type: a.type, realm: a.realm,
+    slug, name: a.zh, img: a.portrait, type: a.type, realm: a.realm, lv: r.lv, star: r.star,
     hp: Math.round(st.hp * (1 + bonus.hpPct / 100)),
     atk: Math.round(st.atk * (1 + bonus.atkPct / 100)),
     def: Math.round(st.def * (1 + bonus.defPct / 100)),
@@ -78,7 +81,7 @@ export function allyDef(state, data, slug, teamSlugs = state.team) {
     aliGain: st.aliGain + bonus.aliGain, keyGain: st.keyGain + bonus.keyGain,
     healBonus: bonus.healBonus, shieldBonus: bonus.shieldBonus, steal: bonus.steal,
     surviveChance: Math.min(0.9, bonus.surviveChance), openAli: bonus.openAli, openKey: bonus.openKey,
-    firstBoost: bonus.firstBoost, kit: data.kit(slug), goldBonus: bonus.gold,
+    firstBoost: bonus.firstBoost, kit: data.kit(slug, skillLevel(r.lv, r.star)), goldBonus: bonus.gold,
   };
   def.power = power(def);
   return def;
@@ -100,7 +103,7 @@ export function teamDefs(state, data, slugs = state.team) {
 export const stageGold = (stage) => Math.round(18 * Math.pow(1.085, stage) + 9 * stage);
 const DROP_RATE = 0.1;
 
-function rollItem(rng, stage, data) {
+export function rollItem(rng, stage, data) {
   const kinds = ['wheel', 'wheel', 'covenant', 'covenant', 'relic'];
   const kind = kinds[Math.floor(rng() * kinds.length)];
   const pool = kind === 'wheel' ? data.wheels : kind === 'covenant' ? data.covenants : data.relics;
@@ -123,7 +126,7 @@ export function battleSeed(state) { return (state.seed = (Math.imul(state.seed, 
 
 export function prepareBattle(state, data, stage = state.stage) {
   const t = teamDefs(state, data);
-  const enemies = buildEnemies(stage, data.monsters);
+  const enemies = buildEnemies(stage, data.monsters, { msk: data.msk });
   return { team: t, enemies, seed: battleSeed(state), allies: t.list };
 }
 
@@ -133,11 +136,27 @@ export function runBattle(state, data, stage = state.stage) {
   return { ...res, prep: p, stage };
 }
 
+// monster codex: how often each real monster was met / beaten
+export function recordCodex(state, enemies, win) {
+  state.codex ||= {};
+  const fresh = [], bossFirst = [];
+  for (const e of enemies) {
+    if (!e.mid) continue;
+    const c = (state.codex[e.mid] ||= { seen: 0, kills: 0 });
+    if (!c.seen && !fresh.includes(e.mid)) fresh.push(e.mid);
+    c.seen++;
+    if (win) { if (!c.kills && e.rank === 'Boss') { state.cores = (state.cores || 0) + 5; bossFirst.push(e.mid); } c.kills++; }
+  }
+  return { fresh, bossFirst };
+}
+
 // apply result to state; returns reward summary
 export function applyResult(state, data, res) {
   const rng = mulberry32(res.prep.seed ^ 0xabcdef);
-  const rw = { gold: 0, tickets: 0, items: [], firstClear: false, advanced: false };
+  const rw = { gold: 0, tickets: 0, cores: 0, items: [], firstClear: false, advanced: false };
   state.stats.battles++;
+  const cx = recordCodex(state, res.prep.enemies, res.win);
+  rw.newMon = cx.fresh; rw.firstBoss = cx.bossFirst; rw.coresBoss = cx.bossFirst.length * 5;
   if (res.win) {
     state.stats.wins++;
     state.stats.kills += res.kills;
@@ -146,13 +165,14 @@ export function applyResult(state, data, res) {
     if (res.stage > state.maxStage) {
       state.maxStage = res.stage; rw.firstClear = true;
       rw.tickets = stageInfo(res.stage).boss ? 3 : 1;
+      rw.cores = stageInfo(res.stage).boss ? 20 : 4;
       if (stageInfo(res.stage).boss) rw.items.push(addItem(state, ...Object.values(rollItem(rng, res.stage, data))));
     }
     if (rng() < DROP_RATE * (stageInfo(res.stage).boss ? 3 : 1)) {
       const it = rollItem(rng, res.stage, data);
       rw.items.push(addItem(state, it.kind, it.defId));
     }
-    state.gold += rw.gold; state.tickets += rw.tickets; state.stats.gold += rw.gold;
+    state.gold += rw.gold; state.tickets += rw.tickets; state.cores += rw.cores; state.stats.gold += rw.gold;
     const alive = res.allies.filter((a) => a.alive).length;
     rw.comfortable = alive >= 3 && res.rounds <= (stageInfo(res.stage).boss ? 20 : 14);
     if (state.auto && res.stage === state.stage && rw.comfortable && state.stage <= state.maxStage) {
@@ -180,16 +200,16 @@ export function offlineReport(state, data, now = Date.now()) {
   const w = Math.round(n * rate);
   const t = teamDefs(state, data);
   const gold = Math.round(w * stageGold(stage) * (1 + t.goldBonus / 100));
-  const tickets = Math.floor(w / 40);
+  const tickets = Math.floor(w / 40), cores = Math.floor(w / 90);
   const rng = mulberry32(hash(String(state.lastSeen)));
   const drops = [];
   const nd = Math.min(25, Math.round(w * DROP_RATE));
   for (let i = 0; i < nd; i++) { const it = rollItem(rng, stage, data); drops.push(it); }
-  return { secs, capped, battles: n, wins: w, rate, stage, gold, tickets, drops };
+  return { secs, capped, battles: n, wins: w, rate, stage, gold, tickets, cores, drops };
 }
 export function claimOffline(state, rep, now = Date.now()) {
   if (rep) {
-    state.gold += rep.gold; state.tickets += rep.tickets;
+    state.gold += rep.gold; state.tickets += rep.tickets; state.cores += rep.cores || 0;
     for (const d of rep.drops) addItem(state, d.kind, d.defId);
     state.stats.gold += rep.gold;
   }
@@ -257,7 +277,15 @@ export function dismantle(state, data, uid) {
   const it = state.gear.items[uid]; if (!it || isEquipped(state, uid)) return 0;
   const def = (it.kind === 'wheel' ? data.wheelById : it.kind === 'cov' || it.kind === 'covenant' ? data.covById : data.relicById)[it.defId];
   const v = dismantleValue(def?.rarity || 'SR', it.lv);
-  state.gold += v; delete state.gear.items[uid]; return v;
+  state.gold += v; state.cores += dismantleCores(def?.rarity, it); delete state.gear.items[uid]; return v;
+}
+// 分解 returns a little 银芯: by rarity, plus half of what was spent on refining
+export const dismantleCores = (rarity, it) => ({ SSR: 6, SR: 2 }[rarity] || 0) + Math.floor(REFINE_COST.slice(0, it.rf || 0).reduce((a, x) => a + x, 0) / 2);
+// 精炼: spend 银芯, +8% of the item's whole bonus per tier (max 5)
+export function refineItem(state, uid) {
+  const it = state.gear.items[uid]; if (!it) return false;
+  const c = refineCost(it); if (!c || state.cores < c) return false;
+  state.cores -= c; state.stats.coresSpent = (state.stats.coresSpent || 0) + c; it.rf = (it.rf || 0) + 1; return true;
 }
 export const bestOwner = (state, data, def) => null;
 
@@ -279,7 +307,7 @@ export function pullOnce(state, data, rng) {
   let dup = false, gold = 0;
   if (!own) state.roster[a.slug] = { lv: 1, star: 0 };
   else if (own.star < MAX_STAR) { own.star++; dup = true; }
-  else { gold = 800; state.gold += gold; dup = true; }
+  else { gold = 800; state.gold += gold; state.cores += 30; dup = true; }
   state.stats.pulls++;
   return { slug: a.slug, rarity, isNew: !own, dup, gold, star: state.roster[a.slug].star };
 }
@@ -289,6 +317,30 @@ export function summon(state, data, n) {
   const rng = mulberry32(battleSeed(state));
   const out = [];
   for (let i = 0; i < n; i++) out.push(pullOnce(state, data, rng));
+  return out;
+}
+// 银芯召唤: 200 each, 10-pull 1900 (shares the pity counters with 召唤券)
+export const CORE_PULL_COST = 200, CORE_PULL10_COST = 1900;
+export function summonCores(state, data, n) {
+  const cost = n === 10 ? CORE_PULL10_COST : CORE_PULL_COST * n;
+  if (state.cores < cost) return null;
+  state.cores -= cost; state.stats.coresSpent = (state.stats.coresSpent || 0) + cost;
+  const rng = mulberry32(battleSeed(state));
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(pullOnce(state, data, rng));
+  return out;
+}
+export const EQUIP_CORE_COST = 80;     // 银芯祈愿: one item, rarity SR or better
+export function equipPullCores(state, data, n = 1) {
+  if (state.cores < EQUIP_CORE_COST * n) return null;
+  state.cores -= EQUIP_CORE_COST * n; state.stats.coresSpent = (state.stats.coresSpent || 0) + EQUIP_CORE_COST * n;
+  const rng = mulberry32(battleSeed(state));
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    let it;
+    for (let k = 0; k < 20; k++) { it = rollItem(rng, Math.max(20, state.maxStage), data); const def = (it.kind === 'wheel' ? data.wheelById : it.kind === 'covenant' ? data.covById : data.relicById)[it.defId]; if (it.kind === 'covenant' || ['SR', 'SSR'].includes(def?.rarity)) break; }
+    out.push(addItem(state, it.kind, it.defId));
+  }
   return out;
 }
 export const EQUIP_PULL_COST = 400;
@@ -302,10 +354,5 @@ export function equipPull(state, data, n) {
   return out;
 }
 
-export function claimDaily(state, today = new Date().toISOString().slice(0, 10)) {
-  if (state.daily.day === today) return null;
-  state.daily.day = today; state.tickets += 10; state.gold += 1000;
-  return { tickets: 10, gold: 1000 };
-}
 
 export function serialize(state) { return JSON.stringify(state); }

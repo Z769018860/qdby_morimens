@@ -194,6 +194,23 @@ for (const b of built) h.update(b.src);
 for (const b of built) if (b.entry) h.update(read(path.join(OUT_JS, b.entry)));
 for (const e of extras) h.update(read(path.join(OUT_JS, e.out)));
 h.update(read(path.join(SRC, 'sw.js')));
+// 挂机版（idle/）是独立子项目，不参与上面的打包，但它的资源同样走 SW 的
+// cache-first：只改 idle 而版本号不动的话，老访客会一直拿到旧的 src/*.js 与
+// game-data.json，新旧混杂看起来就是「资源不全」。所以整个 idle 树都进哈希。
+// 7MB / 870 个文件，读一遍约 100ms，换来的语义很简单：idle 一改就换缓存。
+{
+  const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => {
+    const p = path.join(dir, d.name);
+    return d.isDirectory() ? walk(p) : [p];
+  });
+  const idleDir = path.join(ROOT, 'idle');
+  if (fs.existsSync(idleDir)) {
+    for (const f of walk(idleDir).sort()) {
+      h.update(path.relative(ROOT, f).split(path.sep).join('/'));
+      h.update(fs.readFileSync(f));
+    }
+  }
+}
 const stamp = h.digest('hex').slice(0, 10);
 
 // ---- 页面拼装
