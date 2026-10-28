@@ -10,7 +10,7 @@ export function newGame(G) {
 }
 export const confirmedCount = (st) => Object.keys(st.confirmed).length;
 export const total = (G) => Object.keys(G.records).length;
-export const shadowUnlocked = (G, st) => st.msgs.includes('MSG06');
+export const shadowUnlocked = (G, st) => st.msgs.includes((G.shadow && G.shadow.msg) || 'MSG06');
 
 // ---- messages arrive as reports get confirmed
 export function deliver(G, st) {
@@ -178,7 +178,7 @@ export function options(G, st, key) {
   const ev = key && G.records[key] ? G.records[key].facts.items : [], nm = key && G.records[key] ? G.records[key].facts.names : [];
   const ros = rosterView(G, st);
   const culprits = [{ v: '0', t: '其他（无加害人）' }, ...ros.map((p) => ({ v: String(p.n), t: `${String(p.n).padStart(2, '0')} ${p.shownName}${p.melted ? '（融蚀）' : ''}` }))];
-  if (shadowUnlocked(G, st)) culprits.push({ v: '63', t: '63 名册外的个体（黑影）' });
+  if (shadowUnlocked(G, st)) culprits.push({ v: '63', t: (G.shadow && G.shadow.label) || '63 名册外的个体（黑影）' });
   return {
     causes: Object.entries(G.causes).map(([v, t]) => ({ v, t })),
     weapons: [{ v: '0', t: '无' }, ...ros.filter((p) => p.itemClass !== 'none' || !p.melted).map((p) => ({ v: String(p.n), t: (p.melted ? '（融蚀）' : p.item) }))],
@@ -216,7 +216,7 @@ export function nudge(G, st) {
 // the confirmation line shown after a correct report ("flavor" built from the solution)
 export function summary(G, key) {
   const s = G.solutions[key], r = G.records[key];
-  const who = s.culprit === 0 ? null : (s.culprit === 63 ? '名册外的个体（黑影）' : G.roster[s.culprit - 1].name);
+  const who = s.culprit === 0 ? null : (s.culprit === 63 ? ((G.shadow && G.shadow.label) || '名册外的个体（黑影）') : G.roster[s.culprit - 1].name);
   const cause = s.causeZh;
   if (s.cause === 'blast') return `${r.name} 因银芯被强制崩解而死`;
   if (s.cause === 'accident') return `${r.name} 因自身过失而死`;

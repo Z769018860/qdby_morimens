@@ -234,7 +234,8 @@ if os.environ.get('DR_ED'):
     import importlib
     _ed = importlib.import_module('ed_' + os.environ['DR_ED'])
     _main = {r[2]: r for r in ROSTER}
-    ROSTER = [(i + 1, _main[nm][1], nm, _main[nm][3], _main[nm][4], _main[nm][5], _main[nm][6], _main[nm][7]) for i, nm in enumerate(_ed.CAST)]
+    _x = getattr(_ed, 'EXTRA', {})
+    ROSTER = [((i + 1, _main[nm][1], nm, _main[nm][3], _main[nm][4], _main[nm][5], _main[nm][6], _main[nm][7]) if nm in _main else (i + 1, _x[nm][0], nm, _x[nm][1], _x[nm][2], _x[nm][3], _x[nm][4], _x[nm][5])) for i, nm in enumerate(_ed.CAST)]
     NAME = {r[0]: r[2] for r in ROSTER}; ITEM = {r[0]: r[5] for r in ROSTER}; ICLASS = {r[0]: r[7] for r in ROSTER}
     PLACES = dict(_ed.PLACES); ZONES = list(_ed.ZONES)
     E[:] = []

@@ -7,7 +7,7 @@ def make_docs(meta, n_cast, over, finals):
     docs = {}
     for did, (title, src, body, secret) in MAIN.items():
         if did in ('00-FRAGMENT', '00-DECREE', '00-SEALED', '00-WORLD'): continue
-        body = body.replace('第六十三次', meta['label']).replace('六十二名', cn(n_cast) + '名').replace('弥萨格学院 回溯班', '弥萨格大学 唤醒系')
+        body = body.replace('参加者唤醒体', '参加者').replace('第六十三次', meta['label']).replace('六十二名', cn(n_cast) + '名').replace('弥萨格学院 回溯班', '弥萨格大学 唤醒系')
         body = body.replace('文本里若夹着“残片”，见 [link]00-FRAGMENT[/link]。', '')
         docs[did] = (title, src, body, secret)
     for k, v in over.items(): docs[k] = v

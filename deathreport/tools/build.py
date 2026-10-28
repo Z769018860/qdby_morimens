@@ -8,6 +8,7 @@ import os
 ED = os.environ.get('DR_ED')
 from ledger import E, ROSTER, NAME, ITEM, ICLASS, PLACES, ZONES, CAUSES, SHADOW, BY_V, fmt, validate, tmin, MAIN_ROSTER
 MAIN_NUM = {r[2]: r[0] for r in MAIN_ROSTER}
+LORE_X = {}; AVATAR_X = {}
 if ED:
     import importlib
     _m = importlib.import_module('ed_' + ED)
@@ -16,6 +17,7 @@ if ED:
     T = {}; X = {}; FLAVOR = {}; T2 = _m.PROSE; EXT = {}; FRAGS = {}; ARCS = []; HIDDEN = []; ENDINGS = [_m.ENDING]; MILE = _m.MILE; ARC_SRC = ''
     PUZ_META = []; BADGES = {}; h32 = lambda x: 0
     DOCS = make_docs(_m.META, len(_m.CAST), _m.OVER, _m.FINALS); MSGS = _m.MSGS
+    LORE_X = getattr(_m, 'LORE_EXTRA', {}); AVATAR_X = getattr(_m, 'AVATAR_EXTRA', {})
 else:
     from ledger import E, ROSTER, NAME, ITEM, ICLASS, PLACES, ZONES, CAUSES, SHADOW, BY_V, fmt, validate, tmin
     from texts import T
@@ -196,6 +198,7 @@ for e in E:
     elif e['cause'] == 'accident': h2 = '这一起，也许没有加害人。重读 00-REPORT 里关于“过失”的部分。'
     elif e['cause'] == 'fall' and c == 0: h2 = '这一起，也许是本人的选择。重读 00-REPORT，想想“自杀”该怎么记。'
     elif e['cause'] == 'poison' and c == 0: h2 = '这一起，也许是本人的选择。重读 00-REPORT，想想“凶器”该怎么记。'
+    elif c == SHADOW and w == 0: h2 = '这一起没有用到配发装备。名册里，有没有人符合记录里的描述？'
     elif c == SHADOW: h2 = '凶器的原主早已死去，那个地方也早已封锁。想一想：谁能走进去？'
     elif w == 0: h2 = '这一起没有用到配发装备。看看记录里的证言，谁和被害者有过照面？' if e['how'] != 'trait' else '这一起没有用到配发装备。留意加害人身上带着什么。'
     elif e.get('snatch'): h2 = '这件凶器本是被害者自己的东西。'
@@ -212,7 +215,7 @@ for n, slug, zh, realm, role, item, kind, cls in ROSTER:
     img = None
     if kind == 'r' and item in cz: img = cz[item]['img']
     if kind == 'w' and item in wz: img = wz[item]['img']
-    roster.append(dict(n=n, slug=slug, name=zh, realm=realm, role=role, item=item, itemClass=cls, itemImg=img, avatar=av.get(zh.replace('「', '').replace('」', '')), melted=melted, key=KEY.get(n, ''), lore=LORE.get(str(MAIN_NUM[zh]), {})))
+    roster.append(dict(n=n, slug=slug, name=zh, realm=realm, role=role, item=item, itemClass=cls, itemImg=img, avatar=av.get(zh.replace('「', '').replace('」', '')) or AVATAR_X.get(zh), melted=melted, key=KEY.get(n, ''), lore=(LORE.get(str(MAIN_NUM[zh]), {}) if zh in MAIN_NUM else LORE_X.get(zh, {})), human=(realm == 'HUMAN')))
 arcs = []
 for aid, title, need, text in ARCS:
     t, wits, _ = render_raw(text + ''.join('\n' + l for l in FRAGS.get(('arc', aid), [])), 0)
@@ -223,7 +226,7 @@ for hid, title, cond, riddle, text in HIDDEN:
     arcs.append(dict(id=hid, title=title, source=ARC_SRC, text=t, refs=[KEY[b] for b in dict.fromkeys(wits)], need=999, hidden=True, cond=cond, riddle=riddle, badge=BADGES.get(hid, '')))
 puzzles = [dict(id=m['id'], h=h32(m['answer']), src=m['src']) for m in PUZ_META]
 game = dict(edition=(dict(_m.META, grid=dict(cols=cols, rows=rows, size=len(PLACES))) if ED else dict(n=63, label='第六十三次', title='死亡游戏调查报告', theme=63, grid=dict(cols='ABCDE', rows=[1, 2, 3, 4, 5], size=25))), endings=ENDINGS, puzzles=puzzles, arcs=arcs, milestones=MILE, title='死亡游戏调查报告', subtitle='第六十三次 回溯筛选', roster=roster, places=PLACES, zones=[dict(day=d, hour=h, cell=c) for d, h, c in ZONES], causes=CAUSES,
-            records=records, docs=docs, msgs=msgs, start=START, solutions=solutions, hints=hints, shadow=dict(num=SHADOW, keys=[e['key'] for e in E if e['c'] == SHADOW]),
+            records=records, docs=docs, msgs=msgs, start=START, solutions=solutions, hints=hints, shadow=dict(num=SHADOW, keys=[e['key'] for e in E if e['c'] == SHADOW], msg=(getattr(_m, 'SHADOW_MSG', 'MSG06') if ED else 'MSG06'), label=(getattr(_m, 'SHADOW_LABEL', '') if ED else '')),
             stats=dict(records=len(records), edges=sum(len(r['refs']) for r in records.values())))
 (HERE / 'data').mkdir(exist_ok=True)
 (HERE / ('data/game.json' if not ED else f'data/game-{ED}.json')).write_text(json.dumps(game, ensure_ascii=False, indent=1), encoding='utf-8')

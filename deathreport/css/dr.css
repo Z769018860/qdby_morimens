@@ -120,3 +120,5 @@ h1{background:linear-gradient(180deg,#fff,rgb(var(--tint)));-webkit-background-c
 @media(max-width:640px){.tower{width:50px;top:-48px;right:10px}}
 
 .edrow{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);padding:8px 10px;margin:8px 0;background:rgba(8,20,28,.6)}.edrow.on{border-color:rgb(var(--tint))}
+
+.endimg{width:96px;height:96px;object-fit:cover;border:1px solid rgba(var(--tint),.6);border-radius:3px;margin:14px 0 4px;display:block;box-shadow:0 0 24px rgba(var(--tint),.3)}

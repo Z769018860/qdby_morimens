@@ -107,12 +107,12 @@ function showPane(p) { ui.pane = p; document.querySelectorAll('.pane').forEach((
 $('#tabsm').addEventListener('click', (e) => { const b = e.target.closest('[data-p]'); if (b) showPane(b.dataset.p); });
 
 // ---------------------------------------------------------------- tools
-const REALM = { CHAOS: '混沌', CARO: '血肉', AEQUOR: '深海', ULTRA: '超维' }, ROLE = { ASSAULT: '突击', WARDEN: '守护', CHORUS: '合唱' };
+const REALM = { CHAOS: '混沌', CARO: '血肉', AEQUOR: '深海', ULTRA: '超维', HUMAN: '人类' }, ROLE = { ASSAULT: '突击', WARDEN: '守护', CHORUS: '合唱', INV: '调查员' };
 function renderTools() {
   const tp = $('#tp'); document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.t === ui.tab));
   if (ui.tab === 'ros') {
     const q = ui.q.trim().toLowerCase(), rows = rosterView(G, st).filter((p) => !q || p.shownName.toLowerCase().includes(q) || String(p.n) === q || p.item.toLowerCase().includes(q) || REALM[p.realm].includes(q) || ROLE[p.role].includes(q));
-    tp.innerHTML = `<h4>■ 唤醒体名册（${G.roster.length} 名）</h4><div class="row"><input id="rq" placeholder="搜索 姓名 / 编号 / 装备 / 界域" value="${esc(ui.q)}"></div><div class="ros">${rows.map((p) => `<div class="rr ${p.melted ? 'melt' : ''}" data-n="${p.n}"><span class="no">${String(p.n).padStart(2, '0')}</span>${p.avatar ? `<img class="av" loading="lazy" src="../${p.avatar}" alt="">` : '<span></span>'}<span class="nm">${p.melted ? '▇▇（融蚀）' : esc(p.shownName)} <small class="dim">${REALM[p.realm]}／${ROLE[p.role]}</small>${st.confirmed[p.key] ? '<span class="st">✔</span>' : p.recordKnown ? '<span class="st" style="color:var(--amb)">●</span>' : ''}</span><span class="it">${p.itemImg ? `<img src="../${p.itemImg}" alt="">` : ''}配发: ${p.melted ? '（融蚀）' : esc(p.item)}</span></div>`).join('')}</div>`;
+    tp.innerHTML = `<h4>■ ${G.roster.some((p) => p.human) ? '参加者' : '唤醒体'}名册（${G.roster.length} 名）</h4><div class="row"><input id="rq" placeholder="搜索 姓名 / 编号 / 装备 / 界域" value="${esc(ui.q)}"></div><div class="ros">${rows.map((p) => `<div class="rr ${p.melted ? 'melt' : ''}" data-n="${p.n}"><span class="no">${String(p.n).padStart(2, '0')}</span>${p.avatar ? `<img class="av" loading="lazy" src="../${p.avatar}" alt="">` : '<span></span>'}<span class="nm">${p.melted ? '▇▇（融蚀）' : esc(p.shownName)} <small class="dim">${REALM[p.realm]}／${ROLE[p.role]}</small>${st.confirmed[p.key] ? '<span class="st">✔</span>' : p.recordKnown ? '<span class="st" style="color:var(--amb)">●</span>' : ''}</span><span class="it">${p.itemImg ? `<img src="../${p.itemImg}" alt="">` : ''}配发: ${p.melted ? '（融蚀）' : esc(p.item)}</span></div>`).join('')}</div>`;
     tp.querySelectorAll('.rr').forEach((el) => { el.style.cursor = 'pointer'; el.onclick = () => {
       const p = rosterView(G, st).find((x) => x.n === +el.dataset.n), L = p.lore || {};
       if (p.melted) { modal('<h3>■ ▇▇　名册第 50 号</h3><p class="dim">档案已被融蚀，无法读取。</p><div class="btns"><button class="btn" data-close>关闭</button></div>'); return; }
@@ -232,6 +232,7 @@ async function endGame() {
     const en = G.endings[0], rt = s.rating;
     await typeLines(ep, [`${G.edition.label}　回溯筛选　记录复原　完毕`, '', '报告　完毕', ''], 28);
     await typeLines(ep, [`■ 结局　${en.title}`, '', ...en.lines], 24);
+    if (ED === 61) ep.insertAdjacentHTML('beforeend', '<img class="endimg" src="../assets/avatars-q/char-n.webp" alt="N"><div class="dim">N　——　下注的人。</div>');
     await typeLines(ep, ['', `评价 ${res.rank}（${rt.total}）　完成度 ${rt.comp}%　提示节制 ${rt.hint}%`, `核实率 ${s.rate}%　提示 ${s.hints} 次　错误输入 ${s.bad} 次　用时约 ${s.minutes} 分钟`, ''], 20);
     try { localStorage.setItem(META, JSON.stringify({ ...meta(), cleared: { ...(meta().cleared || {}), [ED]: true } })); } catch { /* ignore */ }
   } else if (res.ended === 'true') {
