@@ -4,6 +4,7 @@ import { REALMS, TYPES, STATUS } from '../core/constants.js';
 import { esc, img, fmt, $, toast, kwIcon, stripMarks } from './util.js';
 import { meterHtml } from './pages2.js';
 import { monsterModal, intentIcon } from './codex.js';
+import { sound } from './audio.js';
 
 const STAT_ZH = { atk: '攻击', def: '防御', crit: '暴击', amp: '增伤', vuln: '易伤' };
 
@@ -69,6 +70,9 @@ export class BattleView {
     this.res = res;
     this.units = {};
     this.draw(res);
+    const bossFight = res.prep.enemies.some((d) => d.boss);
+    sound.setMood(bossFight ? 'boss' : 'field');
+    if (bossFight && !s.skipAnim) sound.play('boss');
     $('#bv-banner', this.root).textContent = '';
     $('#bv-banner', this.root).className = 'banner';
     const evs = res.events;
@@ -101,7 +105,7 @@ export class BattleView {
     };
     $('#bv-e', this.root).innerHTML = res.prep.enemies.map((d, i) => mk(d, i, 'e')).join('');
     $('#bv-a', this.root).innerHTML = res.prep.allies.map((d, i) => mk(d, i, 'a')).join('');
-    for (const [side, arr] of [['e', res.prep.enemies], ['a', res.prep.allies]]) arr.forEach((d, i) => { this.units[`${side}${i}`] = { max: d.hp, el: $(`#u-${side}${i}`, this.root), name: d.name }; });
+    for (const [side, arr] of [['e', res.prep.enemies], ['a', res.prep.allies]]) arr.forEach((d, i) => { this.units[`${side}${i}`] = { max: d.hp, el: $(`#u-${side}${i}`, this.root), name: d.name, realm: d.realm }; });
   }
 
   float(u, text, cls) {
@@ -149,6 +153,10 @@ export class BattleView {
           for (const x of Object.values(this.units)) x.el.classList.remove('acting');
           u.el.classList.add('acting');
           const say = u.el.querySelector('.u-say'); say.textContent = e.name; say.classList.remove('pop'); void say.offsetWidth; say.classList.add('pop');
+          const fu = u.el.classList.contains('foe');
+          if (e.slot === 'Exalt' || e.slot === 'OverExalt') sound.play('exalt');
+          else if (e.slot === 'Skill1' || e.slot === 'Skill2' || e.slot === 'Rouse') sound.play('skill', { realm: u.realm });
+          else if (!fu) sound.play('swing', { realm: u.realm });
           this.log(`${nm(e.who)} 使用 <i class="sk ${e.slot}" ${e.text ? `title="${esc(e.text)}"` : ''}>${esc(e.name)}</i>`);
         }
         break;
@@ -160,12 +168,14 @@ export class BattleView {
         break;
       }
       case 'st': { const u = U(e.who); if (u) this.setStatus(u, e.list); break; }
-      case 'status': { const u = U(e.who); if (u && !quiet) this.float(u, STATUS[e.s]?.zh || '', u.el.classList.contains('foe') ? 'debuff' : 'buff'); break; }
+      case 'status': { const u = U(e.who); if (u && !quiet) { this.float(u, STATUS[e.s]?.zh || '', u.el.classList.contains('foe') ? 'debuff' : 'buff'); sound.play('status'); } break; }
       case 'dmg': case 'dot': case 'counter': {
         const u = U(e.who); if (!u) break;
         this.setBars(u, e);
-        if (e.blocked) { if (!quiet) this.float(u, '屏障!', 'sh'); break; }
+        if (e.blocked) { if (!quiet) { this.float(u, '屏障!', 'sh'); sound.play('block'); } break; }
         if (!quiet) {
+          const att = e.by ? this.units[e.by] : null, foe = u.el.classList.contains('foe');
+          sound.play(e.k === 'counter' ? 'counter' : e.k === 'dot' ? 'dot' : e.crit ? 'crit' : 'hit', { realm: att?.realm, foe, s: e.s, amt: e.amt });
           this.float(u, (e.crit ? '暴击 ' : e.k === 'counter' ? '反击 ' : e.s === 'poison' ? '中毒 ' : '') + '-' + fmt(e.amt), e.crit ? 'crit' : e.k === 'dot' ? 'dot' : 'dmg');
           u.el.classList.remove('hit'); void u.el.offsetWidth; u.el.classList.add('hit');
           if (e.saved) this.float(u, '死扛!', 'heal');
@@ -173,11 +183,11 @@ export class BattleView {
         }
         break;
       }
-      case 'heal': { const u = U(e.who); if (!u) break; this.setBars(u, { hp: e.hp }); if (!quiet && e.amt) { this.float(u, '+' + fmt(e.amt), 'heal'); this.log(`　${nm(e.who)} +${fmt(e.amt)}`, 'hl'); } break; }
-      case 'shield': { const u = U(e.who); if (!u) break; u.el.querySelector('.sh').style.width = `${Math.min(100, (e.shield / u.max) * 100)}%`; if (!quiet) this.float(u, '盾 ' + fmt(e.amt), 'sh'); break; }
-      case 'buff': if (!quiet) { const u = U(e.who); this.float(u, `${STAT_ZH[e.stat] || ''}${e.v > 0 ? '↑' : '↓'}`, e.v > 0 ? 'buff' : 'debuff'); } break;
+      case 'heal': { const u = U(e.who); if (!u) break; this.setBars(u, { hp: e.hp }); if (!quiet && e.amt) { sound.play('heal'); this.float(u, '+' + fmt(e.amt), 'heal'); this.log(`　${nm(e.who)} +${fmt(e.amt)}`, 'hl'); } break; }
+      case 'shield': { const u = U(e.who); if (!u) break; u.el.querySelector('.sh').style.width = `${Math.min(100, (e.shield / u.max) * 100)}%`; if (!quiet) { this.float(u, '盾 ' + fmt(e.amt), 'sh'); sound.play('shield'); } break; }
+      case 'buff': if (!quiet) { sound.play(e.v > 0 ? 'buff' : 'debuff'); const u = U(e.who); this.float(u, `${STAT_ZH[e.stat] || ''}${e.v > 0 ? '↑' : '↓'}`, e.v > 0 ? 'buff' : 'debuff'); } break;
       case 'gauge': { const u = U(e.who); if (!u || e.ali == null) break; const a = u.el.querySelector('.ali i'), k = u.el.querySelector('.key i'); if (a) a.style.width = e.ali + '%'; if (k) k.style.width = e.key + '%'; break; }
-      case 'die': { const u = U(e.who); if (u) { u.el.classList.add('dead'); this.setStatus(u, []); const ii = u.el.querySelector('.u-int'); if (ii) ii.innerHTML = ''; } if (!quiet) this.log(`　${nm(e.who)} 倒下了`, 'dead'); break; }
+      case 'die': { const u = U(e.who); if (u) { u.el.classList.add('dead'); this.setStatus(u, []); const ii = u.el.querySelector('.u-int'); if (ii) ii.innerHTML = ''; } if (!quiet) { sound.play('die', { foe: u?.el.classList.contains('foe') }); this.log(`　${nm(e.who)} 倒下了`, 'dead'); } break; }
       case 'end': break;
     }
   }
@@ -190,6 +200,7 @@ export class BattleView {
     s.lastSeen = Date.now();
     const b = $('#bv-banner', this.root);
     b.className = `banner ${res.win ? 'win' : 'lose'}`;
+    if (!s.skipAnim) sound.play(res.win ? 'win' : 'lose');
     b.textContent = res.win ? `胜利 · ${res.rounds} 回合` : (res.rounds >= 30 ? '超时 · 战斗失败' : '全员倒下 · 战斗失败');
     const parts = [];
     if (res.win) parts.push(`<span class="g">金币 +${fmt(rw.gold)}</span>`);

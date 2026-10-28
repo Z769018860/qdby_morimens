@@ -7,6 +7,7 @@ import { BattleView } from './ui/battleView.js';
 import * as P from './ui/pages.js';
 import * as P2 from './ui/pages2.js';
 import { codexPage, monsterModal } from './ui/codex.js';
+import { sound } from './ui/audio.js';
 import { doTower, doTrial } from './core/challenge.js';
 import { claimAchievement } from './core/achievements.js';
 import { $, $$, fmt, esc, store, toast, closeModal, openModal, showKwPop } from './ui/util.js';
@@ -75,6 +76,8 @@ function render() {
 const rerender = () => { app.save(); render(); };
 
 function onChange(e) {
+  const au = e.target.closest('[data-aud]');
+  if (au) { sound.set(au.dataset.aud, au.type === 'checkbox' ? au.checked : +au.value / 100); if (au.dataset.aud === 'sfx') sound.play('hit'); return; }
   const c = e.target.closest('[data-cf]');
   if (c) { const f = (app.ui.codex ||= { q: '', rank: '', trait: '', seen: false, more: 1 }); f[c.dataset.cf] = c.type === 'checkbox' ? c.checked : c.value; f.more = 1; render(); return; }
   const t = e.target.closest('[data-filter]');
@@ -90,12 +93,14 @@ function onAct(e) {
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
   const s = app.state, d = app.data, a = el.dataset.act;
+  if (el.tagName === 'BUTTON' && !['pull', 'epull', 'ach-claim', 'tower-go', 'trial-go', 'lvup', 'lvmax', 'daily', 'snd-test'].includes(a)) sound.play('click');
   switch (a) {
+    case 'snd-test': sound.play(el.dataset.k); break;
     case 'monster': monsterModal(app, el.dataset.id); break;
     case 'codex-more': app.ui.codex.more++; render(); break;
     case 'detail': P.detailModal(app, el.dataset.slug); break;
-    case 'lvup': levelUp(s, el.dataset.slug, +el.dataset.n); app.save(); P.detailModal(app, el.dataset.slug); render(); break;
-    case 'lvmax': levelUpMax(s, el.dataset.slug); app.save(); P.detailModal(app, el.dataset.slug); render(); break;
+    case 'lvup': sound.play('lvup'); levelUp(s, el.dataset.slug, +el.dataset.n); app.save(); P.detailModal(app, el.dataset.slug); render(); break;
+    case 'lvmax': sound.play('lvup'); levelUpMax(s, el.dataset.slug); app.save(); P.detailModal(app, el.dataset.slug); render(); break;
     case 'pick-slot': {
       const i = +el.dataset.i;
       P.pickAwakener(app, '选择上场唤醒体', (slug) => { const t = [...s.team]; const old = t.indexOf(slug); if (old >= 0) t[old] = t[i] || null; t[i] = slug; setTeam(s, t.filter(Boolean)); rerender(); });
@@ -122,12 +127,12 @@ function onAct(e) {
       P.pickAwakener(app, `装备给…`, (slug) => { equipItem(s, d, slug, it.uid); rerender(); toast('已装备'); });
       break;
     }
-    case 'pull': { const out = summon(s, d, +el.dataset.n); if (out) { app.save(); render(); P.showPulls(app, out); } break; }
-    case 'epull': { const out = equipPull(s, d, +el.dataset.n); if (out) { app.save(); render(); P.showItems(app, out); } break; }
-    case 'tower-go': { const r = doTower(s, d); if (r) { app.save(); render(); P2.towerResultModal(app, r); } break; }
-    case 'trial-go': { const r = doTrial(s, d, el.dataset.id, +el.dataset.i); if (r) { app.save(); render(); P2.trialResultModal(app, r); } break; }
-    case 'ach-claim': { const r = claimAchievement(s, el.dataset.id, app.data); if (r) { toast('成就奖励已领取'); rerender(); } break; }
-    case 'daily': { const r = claimDaily(s); if (r) toast(`领取成功：召唤券+${r.tickets} 金币+${r.gold}`); rerender(); break; }
+    case 'pull': { const out = summon(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play(out.some((p) => ['SSR', 'Genesis'].includes(p.rarity) && p.isNew !== false) ? 'summonSSR' : 'summon'); P.showPulls(app, out); } break; }
+    case 'epull': { const out = equipPull(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play('summon'); P.showItems(app, out); } break; }
+    case 'tower-go': { const r = doTower(s, d); if (r) { app.save(); render(); sound.play(r.reached > 0 ? 'win' : 'lose'); P2.towerResultModal(app, r); } break; }
+    case 'trial-go': { const r = doTrial(s, d, el.dataset.id, +el.dataset.i); if (r) { app.save(); render(); sound.play(r.win ? 'win' : 'lose'); P2.trialResultModal(app, r); } break; }
+    case 'ach-claim': { const r = claimAchievement(s, el.dataset.id, app.data); if (r) { sound.play('ach'); toast('成就奖励已领取'); rerender(); } break; }
+    case 'daily': { const r = claimDaily(s); if (r) sound.play('gold'); if (r) toast(`领取成功：召唤券+${r.tickets} 金币+${r.gold}`); rerender(); break; }
     case 'export': {
       const blob = new Blob([JSON.stringify(s)], { type: 'application/json' });
       const l = document.createElement('a'); l.href = URL.createObjectURL(blob); l.download = `morimens-idle-${Date.now()}.json`; l.click(); break;

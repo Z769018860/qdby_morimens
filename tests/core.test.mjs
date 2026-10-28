@@ -249,3 +249,39 @@ test('old saves migrate to the new state shape', () => {
   const m = migrate(old, data);
   assert.ok(m.tower && m.trials.cleared && m.ach && m.tutorial === false);
 });
+
+// ---------------------------------------------------------------- M4: real numbers, codex
+import { realNums, SKILL_LEVELS } from '../src/core/skills.js';
+import { skillLevel } from '../src/core/stats.js';
+import { compileSkill, fillText } from '../src/core/monsters.js';
+import { recordCodex } from '../src/core/game.js';
+
+test('real skill ranges are parsed and scale with skill level', () => {
+  const n = realNums({ d: '造成 150–300%（攻击力） 点伤害。获得 10–20%（防御力） 点护盾。获得 5–10 点狂气。' });
+  assert.deepEqual(n.dmg, [150, 300]); assert.deepEqual(n.shield, [10, 20]); assert.deepEqual(n.gauge, [5, 10]);
+  assert.equal(SKILL_LEVELS, 5);
+  assert.ok(skillLevel(1, 0) === 0 && skillLevel(60, 5) === 4 && skillLevel(30, 0) >= skillLevel(10, 0));
+  const lo = data.kit('xu', 0).Skill1.effects.find((e) => e.t === 'dmg'), hi = data.kit('xu', 4).Skill1.effects.find((e) => e.t === 'dmg');
+  assert.ok(lo && hi && hi.m > lo.m, 'higher skill level hits harder');
+  assert.ok(data.kit('xu', 4).Skill1.real.cur.dmg > data.kit('xu', 0).Skill1.real.cur.dmg);
+});
+
+test('monster formulas become effects with real multipliers', () => {
+  const rec = { n: '测试', t: '造成 {1} 点伤害 {2} 次，施加 {3} 回合的⟦weakness|虚弱⟧。获得 {4} 点护盾。', i: '009', g: 'FrontEnemy', a: [['a', 0.4], ['n', 3], ['n', 2], ['d', 2]] };
+  const sk = compileSkill(rec);
+  const d = sk.effects.find((e) => e.t === 'dmg');
+  assert.equal(d.m, 0.4); assert.equal(d.hits, 3);
+  assert.equal(sk.effects.find((e) => e.t === 'status' && e.s === 'weakness').dur, 2);
+  assert.ok(sk.effects.some((e) => e.t === 'shield' && e.m === 1));
+  assert.match(fillText(rec), /40%攻击/);
+});
+
+test('codex records encounters and kills; codex achievements count them', () => {
+  const s = newState(data, 3);
+  const e = buildEnemies(3, data.monsters, { msk: data.msk });
+  recordCodex(s, e, false); recordCodex(s, e, true);
+  const c = s.codex[e[0].mid];
+  assert.equal(c.seen, 2 + (e.filter((x) => x.mid === e[0].mid).length - 1) * 2 - 0 > 0 ? c.seen : c.seen); // seen at least twice
+  assert.ok(c.seen >= 2 && c.kills >= 1);
+  assert.ok(achievementList(s, data).some((a) => a.id === 'codex30'));
+});

@@ -127,8 +127,8 @@ const addR = (arr) => (arr.length ? arr.reduce((s, x) => [s[0] + x[0], s[1] + x[
 export function realNums(rk) {
   const t = strip(rk.d || '');
   const out = {};
-  const dmg = addR([...t.matchAll(/([\d.]+)(?:[–-]([\d.]+))?%（攻击力）\s*点伤害/g)].map(RANGE));
-  const sh = addR([...t.matchAll(/([\d.]+)(?:[–-]([\d.]+))?%（防御力）\s*点护盾/g)].map(RANGE));
+  const dmg = addR([...t.matchAll(/([\d.]+)(?:[–-]([\d.]+))?%（攻击力）\s*点[^，。；%]{0,8}?伤害/g)].map(RANGE));
+  const sh = addR([...t.matchAll(/([\d.]+)(?:[–-]([\d.]+))?%（防御力）\s*点[^，。；%]{0,6}?护盾/g)].map(RANGE));
   const ga = addR([...t.matchAll(/获得\s*([\d.]+)(?:[–-]([\d.]+))?\s*点狂气/g)].map(RANGE));
   if (dmg) out.dmg = dmg;
   if (sh) out.shield = sh;
@@ -149,7 +149,7 @@ export function makeMedians(awakeners) {
     return (cache[id] = vals.length ? vals[Math.floor(vals.length / 2)] : 0);
   };
 }
-const GROWTH = (level) => 0.92 + 0.04 * level;
+const GROWTH = (level) => 0.98 + 0.03 * level;
 function scaleReal(sk, rk, slot, level, med) {
   const n = realNums(rk), g = GROWTH(level), cur = {};
   const ratio = (key) => {

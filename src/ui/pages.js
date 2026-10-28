@@ -3,6 +3,7 @@ import {
   enhanceItem, dismantle, summon, equipPull, EQUIP_PULL_COST, claimDaily, PULL_PITY_GENESIS, newState, migrate,
 } from '../core/game.js';
 import { REALMS, TYPES, SLOTS, SLOT_ZH, MAX_LV, MAX_STAR, TEAM_SIZE, RARITY_ZH, RARITY_ORDER, GEAR_MAX_LV } from '../core/constants.js';
+import { sound } from './audio.js';
 import { lvUpCost, power, skillLevel } from '../core/stats.js';
 import { describeSkill } from '../core/skills.js';
 import { wheelText, relicText, covTheme, gearCost, dismantleValue, MAINSTAT, COV_THEMES } from '../core/gear.js';
@@ -179,6 +180,12 @@ export function settingsPage(app) {
   const today = new Date().toISOString().slice(0, 10);
   return `<div class="page"><h2>设置与存档</h2>
     <div class="banner-card"><h3>每日奖励</h3><button class="btn big gold" data-act="daily" ${s.daily.day === today ? 'disabled' : ''}>${s.daily.day === today ? '今日已领取' : '领取 召唤券×10 + 金币×1000'}</button></div>
+    <div class="banner-card"><h3>声音</h3>
+      <label class="snd"><input type="checkbox" data-aud="mute" ${sound.cfg.mute ? 'checked' : ''}> 静音</label>
+      <label class="snd">音效 <input type="range" min="0" max="100" value="${Math.round(sound.cfg.sfx * 100)}" data-aud="sfx"></label>
+      <label class="snd">背景氛围 <input type="range" min="0" max="100" value="${Math.round(sound.cfg.bgm * 100)}" data-aud="bgm"></label>
+      <div class="row">${[['hit', '命中'], ['crit', '暴击'], ['heal', '治疗'], ['shield', '护盾'], ['exalt', '共鸣'], ['win', '胜利'], ['summon', '召唤'], ['ach', '成就']].map(([k, z]) => `<button class="btn sm" data-act="snd-test" data-k="${k}">${z}</button>`).join('')}</div>
+      <p class="hint">所有声音均由浏览器实时合成，没有音频文件；首次点击页面后才会发声。命中音色随攻击者界域变化（混沌/血肉/深海/超维）。</p></div>
     <div class="banner-card"><h3>统计</h3><p>战斗 ${st.battles} 场 · 胜利 ${st.wins} · 击杀 ${st.kills} · 累计金币 ${fmt(st.gold)} · 召唤 ${st.pulls} 次 · 最高通关 ${s.maxStage}</p></div>
     <div class="banner-card"><h3>存档</h3>
       <div class="row"><button class="btn" data-act="export">导出存档</button><button class="btn" data-act="import">导入存档</button><button class="btn danger" data-act="reset">重置游戏</button></div>
