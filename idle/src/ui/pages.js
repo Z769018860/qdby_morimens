@@ -9,6 +9,7 @@ import {
   AWAKEN_STAT_PER, AWAKEN_AMP_EVERY, AWAKEN_AMP_PER, AWAKEN_SKILL_EVERY,
 } from '../core/constants.js';
 import { sound } from './audio.js';
+import { roundLimitFor, ROUND_LIMIT, FRONT_SLOTS } from '../core/battle.js';
 import { fxMode } from './fx.js';
 import { settleMode } from './report.js';
 import { SHOP, boughtToday } from '../core/shop.js';
@@ -120,10 +121,11 @@ export function teamPage(app) {
   const slots = Array.from({ length: TEAM_SIZE }, (_, i) => s.team[i] || null);
   const synText = t.synergy ? `同领域加成 +${Math.round(t.synergy * 100)}% 生命/攻击` : '同领域 3 人 +8%，4 人 +15%';
   const cards = slots.map((slug, i) => {
-    if (!slug) return `<div class="slot empty" data-act="pick-slot" data-i="${i}">＋ 选择唤醒体</div>`;
+    const row = i < FRONT_SLOTS ? '前排' : '后排';
+    if (!slug) return `<div class="slot empty" data-act="pick-slot" data-i="${i}">＋ 选择唤醒体<small class="pos ${i < FRONT_SLOTS ? 'front' : 'back'}">${row}</small></div>`;
     const a = data.bySlug[slug], d = t.list.find((x) => x.slug === slug), r = s.roster[slug];
     return `<div class="slot" style="--rc:${R(a).color}" data-act="pick-slot" data-i="${i}">
-      <img src="${img(a.portrait)}" alt=""><div><b>${esc(a.zh)}</b><small>${R(a).zh} · ${TYPES[a.type].zh}</small>
+      <img src="${img(a.portrait)}" alt=""><div><b>${esc(a.zh)}</b><small class="typ">${R(a).zh} · ${TYPES[a.type].short}<span class="pos ${i < FRONT_SLOTS ? 'front' : 'back'}">${row}</span></small>
       <small>Lv${r.lv}/${levelCap(r.star)} · ${awk(r.star)}</small><small>战力 ${fmt(d.power)}</small></div>
       <button class="btn sm" data-act="detail" data-slug="${slug}">详情</button></div>`;
   }).join('');
@@ -149,7 +151,7 @@ export function teamPage(app) {
   }).join('');
   return `<div class="page">
     <h2>队伍编成 <small>战力 ${fmt(t.power)}</small></h2>
-    <p class="hint">${synText}。站位按从左到右依次行动；守护被敌人攻击的概率更高。</p>
+    <p class="hint">${synText}。站位 1–2 是<b>前排</b>、3–4 是<b>后排</b>：敌人的单体攻击只会打前排，前排全灭才轮到后排（Boss 例外，可以越过前排）；我方守护也只能打敌阵前排，突击与合唱（远程）可以直接点名后排。每场还有<b>回合上限</b>（普通关 ${ROUND_LIMIT.normal} 回合、Boss 关 ${ROUND_LIMIT.boss} 回合），打不完算超时判负，四奶互相吊着磨是过不去的。</p>
     <div class="slots">${cards}</div>
     <div class="row"><button class="btn gold" data-act="autoteam">一键配队</button><button class="btn sm" data-act="guide-growth">养成指南</button></div>
     <p class="hint">「一键配队」会一起排好：4 人队伍（含同界域加成）、<b>每人 1 件命轮 + 1 件密契</b>、已解锁格里的造物（优先凑羁绊）、3 个钥令位。下面的命轮 / 密契格子可以直接点开换。</p>
@@ -340,10 +342,13 @@ export function gearPage(app) {
 }
 
 /* ----------------------------- ORDERS (钥令) ----------------------------- */
-// 钥令图标：改用原作 KeyToken 素材（img/key/*.webp），没有图时退回首字
-const oglyph = (def) => (def.img
-  ? `<span class="oglyph r-${def.rarity}"><img src="${img(def.img)}" alt="${esc(def.zh)}" loading="lazy"></span>`
-  : `<span class="oglyph r-${def.rarity}">${esc(def.glyph)}</span>`);
+// 钥令图标：改用原作 KeyToken 素材（img/key/*.webp）。
+// 图没加载出来时（老缓存 / 文件缺失）自动退回首字，不留下破图问号。
+const oglyph = (def) => {
+  const ch = esc(def.glyph || def.zh.slice(0, 1) || '钥');
+  if (!def.img) return `<span class="oglyph r-${def.rarity}">${ch}</span>`;
+  return `<span class="oglyph r-${def.rarity}"><i>${ch}</i><img src="${img(def.img)}" alt="${esc(def.zh)}" loading="lazy" onerror="this.remove()"></span>`;
+};
 
 export function ordersPage(app) {
   const { state: s, data } = app;

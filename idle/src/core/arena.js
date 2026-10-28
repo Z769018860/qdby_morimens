@@ -4,7 +4,7 @@
 //    名次越多，单场能跨的跨度越大（STEPS），否则爬完 1000 名要两百多场。
 //  · 好友对战: fight a friend's team from a battle code (see friend.js). No server, no rewards, no limits.
 import { hash, mulberry32 } from './rng.js';
-import { simulate } from './battle.js';
+import { simulate, ROUND_LIMIT } from './battle.js';
 import { newState, teamDefs, stageGold, battleSeed } from './game.js';
 import { skillLevel } from './stats.js';
 
@@ -86,7 +86,7 @@ export function fightArena(state, data, entry) {
   const team = teamDefs(state, data);
   const foes = hydrate(entry.snap, data);
   const seed = battleSeed(state);
-  const res = simulate({ allies: team.list, enemies: foes, seed, strategy: state.strategy });
+  const res = simulate({ allies: team.list, enemies: foes, seed, strategy: state.strategy, maxRounds: ROUND_LIMIT.boss });
   return { ...res, team, foes, entry };
 }
 export const dailyRankReward = (rank) => (rank <= 1 ? 20 : rank <= 5 ? 16 : rank <= 20 ? 13 : rank <= 100 ? 10 : rank <= 300 ? 7 : rank <= 600 ? 5 : rank <= LADDER ? 3 : 0);

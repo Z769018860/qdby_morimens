@@ -2,7 +2,7 @@
 // (the best four you own are picked automatically, so the 3+/4 realm synergy always applies); enemies are drawn from
 // monsters with the matching trait where the roster has them. One battle per floor, first clears give rewards.
 import { hash, mulberry32 } from './rng.js';
-import { simulate } from './battle.js';
+import { simulate, roundLimitFor } from './battle.js';
 import { buildEnemies } from './enemies.js';
 import { allyDef, teamDefs, stageGold, battleSeed, addItem, rollItem, recordCodex } from './game.js';
 import { power } from './stats.js';
@@ -42,7 +42,7 @@ export function doRTower(state, data, realm) {
   const floor = t.best + 1;
   const enemies = rtEnemies(realm, floor, data);
   const seed = battleSeed(state);
-  const res = simulate({ allies: team.list, enemies, seed, strategy: state.strategy });
+  const res = simulate({ allies: team.list, enemies, seed, strategy: state.strategy, maxRounds: roundLimitFor(rtInfo(floor)) });
   state.stats.battles++;
   recordCodex(state, enemies, res.win);
   const rw = { gold: 0, tickets: 0, cores: 0, items: [] };
@@ -51,6 +51,12 @@ export function doRTower(state, data, realm) {
     t.best = floor;
     const rng = mulberry32(seed ^ 0x77aa);
     rw.gold = Math.round(stageGold(rtStage(floor)) * 0.8);
+    // 每层都有零头：券 / 银芯随层数缓慢变多，攒够 1 才发放（余数存在 t.drip 里，不会丢）
+    t.drip ||= { tickets: 0, cores: 0 };
+    t.drip.tickets += 0.08 + floor * 0.0008;
+    t.drip.cores += 0.8 + floor * 0.012;
+    const dt = Math.floor(t.drip.tickets); if (dt) { rw.tickets += dt; t.drip.tickets -= dt; }
+    const dc = Math.floor(t.drip.cores); if (dc) { rw.cores += dc; t.drip.cores -= dc; }
     if (floor % 3 === 0) rw.tickets += 1;
     if (floor % 5 === 0) rw.cores += 12;
     if (floor % 10 === 0) { rw.tickets += 3; rw.cores += 20; rw.items.push(addItem(state, ...Object.values(rollItem(rng, rtStage(floor), data)))); }

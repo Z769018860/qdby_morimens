@@ -10,7 +10,7 @@ import {
 } from './gear.js';
 import { ordersBonus, orderUpCost, orderBonus, orderSlotCount } from './orders.js';
 import { buildEnemies, stageInfo } from './enemies.js';
-import { simulate } from './battle.js';
+import { simulate, roundLimitFor } from './battle.js';
 
 export const BATTLE_SECONDS = 25;       // assumed wall-clock length of one farm battle (offline maths)
 export const OFFLINE_CAP_HOURS = 8;
@@ -241,7 +241,8 @@ export function prepareBattle(state, data, stage = state.stage) {
 
 export function runBattle(state, data, stage = state.stage) {
   const p = prepareBattle(state, data, stage);
-  const res = simulate({ allies: p.allies, enemies: p.enemies, seed: p.seed, strategy: state.strategy });
+  // 每场都有回合上限：普通关 18、Boss 关 22，打满没清场就是超时判负（见 battle.js）
+  const res = simulate({ allies: p.allies, enemies: p.enemies, seed: p.seed, strategy: state.strategy, maxRounds: roundLimitFor(stageInfo(stage)) });
   return { ...res, prep: p, stage };
 }
 

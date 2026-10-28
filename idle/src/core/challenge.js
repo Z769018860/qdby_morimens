@@ -1,7 +1,7 @@
 // Endgame modes: the infinite tower (HP carries over, climb until you fall) and the
 // 融灾 trials (the real zone bosses of seasons 71/72, scaled by threat level).
 import { hash, mulberry32 } from './rng.js';
-import { simulate } from './battle.js';
+import { simulate, roundLimitFor } from './battle.js';
 import { buildEnemies, makeEnemy, enemyScale } from './enemies.js';
 import { teamDefs, stageGold, battleSeed, addItem, rollItem, addOrder, rollOrder, recordCodex } from './game.js';
 
@@ -32,8 +32,8 @@ export function simulateTower(state, data, { maxFloors = TOWER_MAX_FLOOR, seed =
   for (let f = 1; f <= maxFloors; f++) {
     const alive = allies.filter((a) => a.hpNow > 0);
     if (!alive.length) break;
-    const res = simulate({ allies: alive, enemies: towerEnemies(f, data), seed: (seed ^ Math.imul(f, 2654435761)) >>> 0, strategy: state.strategy });
-    floors.push({ floor: f, win: res.win, rounds: res.rounds, alive: res.allies.filter((a) => a.alive).length, stats: res.stats, allies: res.allies });
+    const res = simulate({ allies: alive, enemies: towerEnemies(f, data), seed: (seed ^ Math.imul(f, 2654435761)) >>> 0, strategy: state.strategy, maxRounds: roundLimitFor(towerInfo(f)) });
+    floors.push({ floor: f, win: res.win, rounds: res.rounds, timeout: !!res.timeout, alive: res.allies.filter((a) => a.alive).length, stats: res.stats, allies: res.allies });
     if (!res.win) break;
     // survivors keep their HP and recover a little; the fallen stay down
     const next = [];
@@ -50,8 +50,15 @@ export function simulateTower(state, data, { maxFloors = TOWER_MAX_FLOOR, seed =
 export function towerReward(state, data, reached, rng) {
   const rw = { gold: 0, tickets: 0, cores: 0, items: [], orders: [], newBest: false, cat: 0 };
   const prev = state.tower.best;
+  // 每层都给一点点召唤券 / 银芯，随层数缓慢变多（零头存进 state.tower，攒够 1 才发）；
+  // 里程碑（每 5 / 10 / 20 层）另有整份奖励，所以爬得越高、越愿意继续爬。
+  let tk = state.tower.tkFrac || 0, co = state.tower.coFrac || 0;
   for (let f = prev + 1; f <= reached; f++) {
     rw.gold += Math.round(stageGold(towerRewardStage(f)) * 0.9);
+    tk += 0.07 + f * 0.001;
+    co += 1 + f * 0.015;
+    const dt = Math.floor(tk); if (dt) { rw.tickets += dt; tk -= dt; }
+    const dc = Math.floor(co); if (dc) { rw.cores += dc; co -= dc; }
     if (f % 5 === 0) { rw.tickets += 2; rw.cores += 15; }
     if (f % 10 === 0) {
       rw.items.push(addItem(state, ...Object.values(rollItem(rng, towerRewardStage(f), data))));
@@ -64,6 +71,7 @@ export function towerReward(state, data, reached, rng) {
       rw.items.push(addItem(state, ...Object.values(rollItem(rng, towerRewardStage(f) + 8, data))));
     }
   }
+  state.tower.tkFrac = tk; state.tower.coFrac = co;
   rw.gold += Math.round(stageGold(towerRewardStage(Math.max(1, reached))) * Math.min(reached, 10) * 0.2); // participation
   if (reached > prev) { state.tower.best = reached; rw.newBest = true; }
   state.gold += rw.gold; state.tickets += rw.tickets; state.cores += rw.cores; state.stats.gold += rw.gold;
@@ -107,7 +115,7 @@ export function doTrial(state, data, trialId, thIdx) {
   if (!trial || !th || !trialUnlocked(state, trial, thIdx)) return null;
   const team = teamDefs(state, data);
   const seed = battleSeed(state);
-  const res = simulate({ allies: team.list, enemies: trialEnemies(trial, th, data), seed, strategy: state.strategy });
+  const res = simulate({ allies: team.list, enemies: trialEnemies(trial, th, data), seed, strategy: state.strategy, maxRounds: roundLimitFor({ boss: thIdx >= 2 }) });
   const rw = { gold: 0, tickets: 0, cores: 0, items: [], first: false };
   state.stats.battles++;
   const enemies = trialEnemies(trial, th, data);

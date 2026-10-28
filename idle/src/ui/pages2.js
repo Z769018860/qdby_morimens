@@ -47,7 +47,7 @@ export function challengePage(app) {
 export function towerResultModal(app, r) {
   const names = r.team.list.map((d) => d.name);
   const last = r.floors[r.floors.length - 1];
-  const rows = r.floors.slice(-12).map((f) => `<div class="frow ${f.win ? 'w' : 'l'}"><span>第 ${f.floor} 层</span><span>${f.win ? '胜利' : '失败'} · ${f.rounds} 回合</span><span>存活 ${f.alive}/${names.length}</span></div>`).join('');
+  const rows = r.floors.slice(-12).map((f) => `<div class="frow ${f.win ? 'w' : 'l'}"><span>第 ${f.floor} 层</span><span>${f.win ? '胜利' : f.timeout ? '超时' : '全灭'} · ${f.rounds} 回合</span><span>存活 ${f.alive}/${names.length}</span></div>`).join('');
   openModal(`<h3>爬塔结束 · 到达第 ${r.reached} 层${r.rw.newBest ? ' <em class="new">新纪录</em>' : ''}</h3>
     <p>${REWARD(r.rw) || '没有新的奖励'}${r.rw.items.length ? `　装备 +${r.rw.items.length}` : ''}</p>
     ${r.floors.length > 12 ? '<p class="hint">仅显示最后 12 层</p>' : ''}<div class="frows">${rows}</div>

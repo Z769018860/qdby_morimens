@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { data } from './helpers.mjs';
 import { newState, runBattle, applyResult, summon, equipPull, equipItem, allyDef, teamDefs, levelUp, migrate, offlineReport, claimOffline, autoTeam, PULL_PITY_GENESIS, dismantle, enhanceItem, addItem } from '../src/core/game.js';
 import { simulate } from '../src/core/battle.js';
+import { towerReward } from '../src/core/challenge.js';
+import { mulberry32 } from '../src/core/rng.js';
 import { buildKit, describeSkill } from '../src/core/skills.js';
 import { SLOTS } from '../src/core/constants.js';
 
@@ -753,4 +755,64 @@ test('手动挂机：停在本关反复刷，不再往前推进', () => {
   const rw4 = applyResult(s, data, runBattle(s, data, 200));
   assert.equal(rw4.retreat, true);
   assert.equal(s.stage, 30);
+});
+
+/* ---------- 通关回合上限 / 前后排 / 塔每层收益 ---------- */
+
+const wall = (side, i, hp, def, atk = 1) => ({
+  name: `${side}墙${i}`, hp, atk, def, type: 'WARDEN', realm: null,
+  pattern: [{ name: '撞', effects: [{ t: 'dmg', m: 0.05, to: 'foe' }] }], opening: [],
+});
+
+test('通关有回合上限：两边都磨不动就判超时', () => {
+  const res = simulate({
+    allies: [wall('a', 0, 90000, 600), wall('a', 1, 90000, 600)],
+    enemies: [wall('e', 0, 90000, 600)],
+    seed: 7, maxRounds: 18,
+  });
+  assert.equal(res.win, false);
+  assert.equal(res.timeout, true, '打满回合还没清场 = 超时');
+  assert.equal(res.rounds, 18);
+  assert.equal(res.roundLimit, 18, '上限要能被界面读到');
+
+  // 同样的队伍给足 30 回合依然是超时（超时不是「打平」，是判负）
+  const long = simulate({ allies: [wall('a', 0, 90000, 600)], enemies: [wall('e', 0, 90000, 600)], seed: 7, maxRounds: 30 });
+  assert.equal(long.timeout, true);
+  assert.equal(long.rounds, 30);
+});
+
+test('前后排：普通怪的单击只打前排，Boss 才能越过前排', () => {
+  const back = (i) => ({ name: `后排${i}`, hp: 100, atk: 1, def: 0, type: 'CHORUS', realm: null, pattern: [{ name: '看', effects: [{ t: 'heal', m: 0, to: 'self' }] }], opening: [] });
+  const foes = { ...wall('e', 0, 99999, 0, 260), type: 'ASSAULT' };
+  const allies = [wall('a', 0, 90000, 500), wall('a', 1, 90000, 500), back(2), back(3)];
+
+  const plain = simulate({ allies, enemies: [foes], seed: 3, maxRounds: 12 });
+  assert.equal(plain.win, false);
+  assert.ok(plain.allies[0].hp < plain.allies[0].maxHp || plain.allies[1].hp < plain.allies[1].maxHp, '前排挨打');
+  assert.equal(plain.allies[2].hp, plain.allies[2].maxHp, '普通怪打不到后排');
+  assert.equal(plain.allies[3].hp, plain.allies[3].maxHp, '普通怪打不到后排');
+
+  const boss = simulate({ allies, enemies: [{ ...foes, boss: true }], seed: 3, maxRounds: 12 });
+  assert.ok(boss.allies[2].hp < boss.allies[2].maxHp || boss.allies[3].hp < boss.allies[3].maxHp, 'Boss 可以越过前排打后排');
+});
+
+test('塔每层都给券和银芯，越往上越多', () => {
+  const low = newState(data, 21); low.tower = { best: 0, tries: 3, day: '' };
+  const rwLow = towerReward(low, data, 30, mulberry32(1));
+  const high = newState(data, 21); high.tower = { best: 270, tries: 3, day: '' };
+  const rwHigh = towerReward(high, data, 300, mulberry32(1));
+
+  // 30 层：里程碑 2 券/5 层 = 12 券，加上每层零头至少再 2 张；银芯同理
+  assert.ok(rwLow.tickets >= 14, `第 1–30 层券太少：${rwLow.tickets}`);
+  assert.ok(rwLow.cores >= 75, `第 1–30 层银芯太少：${rwLow.cores}`);
+
+  // 同样是 30 层，高层每层给得更多（缓慢增长）
+  const per = (rw, n) => ({ t: rw.tickets / n, c: rw.cores / n });
+  const a = per(rwLow, 30), b = per(rwHigh, 30);
+  assert.ok(b.t > a.t, `每层券应随层数增长：${a.t.toFixed(2)} → ${b.t.toFixed(2)}`);
+  assert.ok(b.c > a.c, `每层银芯应随层数增长：${a.c.toFixed(2)} → ${b.c.toFixed(2)}`);
+  // 但不能涨疯：第 271–300 层每层银芯（含里程碑与校猫层）还不到 20 个
+  assert.ok(b.c < 20, `每层银芯涨太快：${b.c.toFixed(2)}`);
+  // 零头会留在 state 里，下次继续攒
+  assert.ok(low.tower.tkFrac < 1 && low.tower.coFrac < 1);
 });

@@ -1,7 +1,16 @@
 import { mulberry32 } from './rng.js';
 
 export const DEF_K = 150;
-const MAX_ROUNDS = 30;
+export const MAX_ROUNDS = 30;
+// 通关回合上限：普通关 18 回合、Boss 关 22 回合（周 Boss 另有自己的 12 回合赛制）。
+// 打不完就判「超时」= 本次不通关，四奶互相吊着磨的打法因此不成立。
+export const ROUND_LIMIT = { normal: 18, boss: 22 };
+export const roundLimitFor = (info = {}) => (info.boss || info.reward ? ROUND_LIMIT.boss : ROUND_LIMIT.normal);
+// 前排几个位置能吃单体攻击：站位 1–2 是前排，3–4 是后排
+export const FRONT_SLOTS = 2;
+// 全局伤害系数：把「磨」压成「决」——两边都打得动，战斗才会在十几回合内见分晓，
+// 通关的回合上限才有意义（以前一场常拖到 25–30 回合）。
+const DMG_SCALE = 1.6;
 const WEIGHT = { WARDEN: 3, ASSAULT: 1.6, CHORUS: 1 };
 
 // A unit is a plain object so the whole simulation is serialisable and
@@ -55,8 +64,20 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   const foesOf = (u) => alive(u.side === 'a' ? E : A);
   const friendsOf = (u) => alive(u.side === 'a' ? A : E);
 
-  function chooseFoe(u, mode) {
+  // 能越过前排直取后排的单位：我方合唱 / 突击（远程与突进），敌方 Boss。
+  // 其余（我方守护、普通怪）都是近战，前排还有人时只能打前排——这就是「前后排」的实际作用。
+  const canReachBack = (u) => (u.side === 'a' ? u.type !== 'WARDEN' : u.boss);
+
+  // 单体可选目标：先按站位切出「够得着」的那一排
+  function reachable(u) {
     const foes = foesOf(u);
+    if (foes.length <= FRONT_SLOTS) return foes;
+    const front = foes.slice(0, FRONT_SLOTS);
+    return canReachBack(u) ? foes : front;
+  }
+
+  function chooseFoe(u, mode) {
+    const foes = reachable(u);
     if (!foes.length) return null;
     if (u.kit) {
       if (mode === 'foeLow') return foes.reduce((a, b) => (b.hp < a.hp ? b : a));
@@ -99,6 +120,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     if (crit) raw *= 1 + src.critDmg / 100;
     if (src.enrage) raw *= 1 + src.enrage;
     raw *= 0.95 + rng() * 0.1;
+    raw *= src.side === 'a' ? DMG_SCALE : 1;
     const d = tgt.def * (1 + sumBuff(tgt, 'def') / 100);
     let dmg = raw * (1 - d / (d + DEF_K)) * (1 + sumBuff(tgt, 'vuln') / 100);
     if (tgt.st.fortress) dmg *= 1 - Math.min(50, tgt.st.fortress.n) / 100;
@@ -304,9 +326,12 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   }
 
   const win = !E.some((x) => x.alive) && A.some((x) => x.alive);
-  push({ k: 'end', win, rounds: round });
+  // 回合打满还没清场 = 超时判负（不是「打平」）：挂机通关有时间限制，
+  // 四奶互相吊着硬磨的打法拿不到通关，也不会推进关卡。
+  const timeout = !win && round >= maxRounds;
+  push({ k: 'end', win, rounds: round, timeout });
   return {
-    win, rounds: round, events: ev, kills, stats,
+    win, rounds: round, timeout, roundLimit: maxRounds, events: ev, kills, stats,
     allies: A.map((u) => ({ uid: u.uid, hp: u.hp, maxHp: u.maxHp, alive: u.alive })),
   };
 }

@@ -1,4 +1,5 @@
 import { runBattle, applyResult, farmRate, firstClearReward, winRateOf } from '../core/game.js';
+import { roundLimitFor, FRONT_SLOTS } from '../core/battle.js';
 import { stageInfo } from '../core/enemies.js';
 import { REALMS, TYPES, STATUS } from '../core/constants.js';
 import { esc, img, fmt, $, toast, kwIcon, stripMarks } from './util.js';
@@ -32,7 +33,7 @@ export class BattleView {
       </div>
       <div class="farm" id="bv-farm"></div>
       <div class="fightbar" id="bv-fight"></div>
-      <div class="field" id="bv-field"><div class="side enemies" id="bv-e"></div><div class="vs" id="bv-round">—</div><div class="side allies" id="bv-a"></div></div>
+      <div class="field" id="bv-field"><div class="bv-scene" id="bv-scene"></div><div class="side enemies" id="bv-e"></div><div class="vs" id="bv-round">—</div><div class="side allies" id="bv-a"></div></div>
       <div class="banner" id="bv-banner"></div>
       <div class="rewards" id="bv-rw"></div>
       <details class="meterbox"><summary>战斗数据（上一战）</summary><div id="bv-meter"></div></details>
@@ -69,10 +70,14 @@ export class BattleView {
 
   refreshHead() {
     const s = this.app.state, i = stageInfo(s.stage);
+    const lim = roundLimitFor(i);
     $('#bv-name', this.root).textContent = `第 ${s.stage} 关 · ${i.name}`;
-    $('#bv-sub', this.root).textContent = `${i.node}/10 ${i.boss ? '· BOSS' : i.elite ? '· 精英' : ''}　最高通关：${s.maxStage}　${s.stage > s.maxStage ? '· 攻坚中' : ''}`;
+    $('#bv-sub', this.root).innerHTML = `${i.node}/10 ${i.boss ? '· BOSS' : i.elite ? '· 精英' : ''}　最高通关：${s.maxStage}　<b class="turncap">限 ${lim} 回合</b>${s.stage > s.maxStage ? '　· 攻坚中' : ''}`;
     $('#bv-auto', this.root).textContent = s.auto ? '自动挂机' : '手动挂机';
     $('#bv-auto', this.root).classList.toggle('on', s.auto);
+    // 战场背景跟着章节换（典藏室 CG 压暗后铺在战场后面）
+    const sc = $('#bv-scene', this.root);
+    if (sc) { const n = 27 + ((i.chapter - 1) % 6); sc.style.backgroundImage = `url(public/img/bg/hall-${String(n).padStart(2, '0')}.webp)`; }
     $('#bv-next', this.root).disabled = s.stage >= this.maxTarget();
     const prev = $('#bv-prev', this.root); if (prev) prev.disabled = s.stage <= 1;
     this.renderFarm();
@@ -147,9 +152,12 @@ export class BattleView {
     s.lastSeen = Date.now();
     const res = runBattle(s, this.app.data);
     this.res = res;
+    this.roundLimit = res.roundLimit || roundLimitFor(stageInfo(s.stage));
     this.units = {};
     this.draw(res);
     this.fx.clear(); this.fx.speed = 1;
+    $('#bv-round', this.root).textContent = `— / ${this.roundLimit}`;
+    $('#bv-round', this.root).classList.remove('urgent');
     this.phase = 'playing';
     this.renderFightBar();
     const bossFight = res.prep.enemies.some((d) => d.boss);
@@ -176,6 +184,7 @@ export class BattleView {
       return `<div class="unit ${side === 'e' ? 'foe' : ''} ${d.boss ? 'boss' : ''} ${d.reward ? 'reward' : ''}" id="u-${id}" ${d.mid ? `data-mid="${d.mid}"` : ''} style="--rc:${REALMS[d.realm]?.color || '#6b7280'}">
         <div class="u-pic"><img src="${img(d.img)}" alt=""><span class="u-tag">${esc(d.type && side === 'a' ? TYPES[d.type].short : '')}</span><div class="u-say"></div></div>
         <div class="u-name" ${side === 'e' && d.skills?.length ? `title="${esc(d.skills.map((x) => `${x.name}：${stripMarks(x.plain)}`).join('\n'))}"` : ''}>${esc(d.name)}${d.reward ? '<span class="rw-tag">奖励</span>' : ''}</div>
+        <div class="u-row ${u < FRONT_SLOTS ? 'front' : 'back'}">${u < FRONT_SLOTS ? '前排' : '后排'}</div>
         ${side === 'e' ? '<div class="u-int" title="下一步行动"></div>' : ''}
         <div class="u-st"></div>
         <div class="bar hp"><i style="width:100%"></i><b>${fmt(d.hp)}</b><u class="sh" style="width:0"></u></div>
@@ -225,7 +234,14 @@ export class BattleView {
     const U = (id) => this.units[id.replace(/^(.)(\d+)$/, '$1$2')];
     const nm = (id) => `<b class="${id[0] === 'a' ? 'ca' : 'ce'}">${esc(U(id)?.name)}</b>`;
     switch (e.k) {
-      case 'round': $('#bv-round', this.root).textContent = `第 ${e.n} 回合`; if (!quiet) this.log(`—— 第 ${e.n} 回合 ——`, 'rnd'); break;
+      case 'round': {
+        const lim = this.roundLimit || 0;
+        const el = $('#bv-round', this.root);
+        el.textContent = lim ? `第 ${e.n} / ${lim} 回合` : `第 ${e.n} 回合`;
+        el.classList.toggle('urgent', !!lim && e.n >= lim - 2);
+        if (!quiet) this.log(`—— 第 ${e.n} 回合 ——`, 'rnd');
+        break;
+      }
       case 'act': {
         const u = U(e.who);
         if (!quiet && u) {
@@ -288,7 +304,11 @@ export class BattleView {
     b.className = `banner ${res.win ? 'win' : 'lose'}`;
     sound.play(res.win ? 'win' : 'lose');
     if (res.win) { this.fx.confetti(); this.fx.flash('#ffd36b', 0.12); }
-    b.textContent = res.win ? `胜利 · ${res.rounds} 回合` : (res.rounds >= 30 ? '超时 · 战斗失败' : '全员倒下 · 战斗失败');
+    b.textContent = res.win
+      ? `胜利 · ${res.rounds} 回合`
+      : res.timeout
+        ? `超时判负 · ${res.rounds} 回合没清场（上限 ${res.roundLimit}）`
+        : '全员倒下 · 战斗失败';
     const parts = [];
     if (res.win) parts.push(`<span class="g">金币 +${fmt(rw.gold)}</span>`);
     if (rw.tickets) parts.push(`<span class="t">召唤券 +${rw.tickets}</span>`);

@@ -46,11 +46,12 @@ const GROUPS = [
   { k: 'more', zh: '更多', icon: ICON.more, tabs: [['signin', '签到'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']] },
 ];
 
-/* 每个页面用一张典藏馆（原作 CG 壁纸）当底，压暗后铺在内容后面。
-   同一组内换个页面也换背景，切换底部主导航时观感差别最明显。 */
+/* 每个页面用一张典藏室（原作 CG 壁纸）当底，压暗后铺在内容后面。
+   同一组内换个页面也换背景，切换底部主导航时观感差别最明显。
+   hall-01..12 是早期的一批，13 以后是 tools/build_bg.py 从典藏室重新压的一批。 */
 const BG = {
-  battle: '01', team: '02', roster: '03', gear: '04', orders: '05', summon: '06',
-  challenge: '07', weekly: '08', rtower: '09', arena: '10', signin: '11', codex: '12', ach: '11', settings: '12',
+  battle: '17', team: '13', roster: '14', gear: '15', orders: '16', summon: '18',
+  challenge: '19', weekly: '20', rtower: '21', arena: '22', signin: '23', codex: '24', ach: '25', settings: '26',
 };
 let bgNow = '';
 function setBg(tab) {

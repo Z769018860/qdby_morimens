@@ -288,7 +288,9 @@ body{background:#0a0d13}
 .oslot.empty{justify-content:center;color:var(--dim);border-style:dashed;text-align:center}
 .oslot.locked{justify-content:center;color:var(--dim);border-style:dashed;text-align:center;cursor:default;opacity:.8;line-height:1.35}
 .oslot small{display:block;color:var(--dim);font-size:11px}
-.oglyph{flex:none;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;background:#0b1017;border:1px solid var(--line);color:#cfd6e4}
+.oglyph{flex:none;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;background:#0b1017;border:1px solid var(--line);color:#cfd6e4;position:relative;overflow:hidden}
+.oglyph i{font-style:normal;font-size:16px;line-height:1}
+.oglyph img{position:relative;z-index:1;background:#0b1017}
 .oglyph.r-SSR{color:#ffd36b;border-color:#a5862f;box-shadow:0 0 8px #e5b84b44}
 .oglyph.r-SR{color:#9ec1ff;border-color:#3f5f96}
 .oglyph.r-R{color:#b9c3d4}
@@ -337,8 +339,9 @@ body{background:#0a0d13}
 .manual-note b{color:var(--gold)}
 
 /* 钥令图标改用原作 KeyToken 素材：图标本身有底色，容器只负责圆角与稀有度描边 */
-.oglyph img{width:100%;height:100%;object-fit:contain;border-radius:8px;display:block}
+.oglyph img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:8px;display:block;z-index:1}
 .ochip .oglyph{width:18px;height:18px;border-radius:5px;font-size:12px;vertical-align:-3px;margin-right:2px}
+.ochip .oglyph i{font-size:10px}
 .ochip .oglyph.r-SSR{box-shadow:none}
 
 /* ---------- 命轮 · 密契页：4 人槽位面板 ---------- */
@@ -357,3 +360,26 @@ body{background:#0a0d13}
 .eqslot.r-SSR{border-color:#a5862f;box-shadow:0 0 8px #e5b84b22}
 .eqslot.r-SR{border-color:#3f5f96}
 @media(max-width:560px){.eqrow{grid-template-columns:1fr 1fr}.eqwho{grid-column:1/-1;flex-direction:row;justify-content:flex-start;gap:8px;text-align:left}}
+
+/* ---------- 前后排 + 通关回合上限 ---------- */
+.u-row{display:inline-block;font-size:10px;line-height:1.4;padding:0 5px;border-radius:6px;margin-bottom:2px;border:1px solid var(--line);color:var(--dim)}
+.u-row.front{color:#ffcf7a;border-color:#7a5f2a;background:#2a2113}
+.u-row.back{color:#8fb4e8;border-color:#2c3f60;background:#121a26}
+.vs.urgent{color:var(--bad);font-weight:700}
+.turncap{color:var(--gold);font-weight:600}
+.pos{display:inline-block;font-size:10px;line-height:1.3;padding:0 5px;border-radius:5px;margin-left:5px;vertical-align:1px;border:1px solid var(--line);color:var(--dim)}
+.pos.front{color:#ffcf7a;border-color:#7a5f2a;background:#2a2113}
+.pos.back{color:#8fb4e8;border-color:#2c3f60;background:#121a26}
+
+/* ---------- 战场背景（章节 CG，压暗铺在战场后面） ---------- */
+.bv-scene{position:absolute;inset:-1px;border-radius:12px;background:center center/cover no-repeat;opacity:.26;filter:blur(2px) saturate(.8);pointer-events:none;z-index:0;
+  -webkit-mask-image:linear-gradient(180deg,#000 0,#000 62%,transparent 100%);mask-image:linear-gradient(180deg,#000 0,#000 62%,transparent 100%)}
+.field>.side,.field>.vs{position:relative;z-index:1}
+.pos{white-space:nowrap}
+.slot b{display:flex;align-items:center;gap:5px;min-width:0}
+.slot b .pos{margin-left:0}
+/* 窄屏队伍卡：头像小一点、文字不折行，避免 Lv/叠位 被挤到下一行 */
+.slot>div{min-width:0}
+.slot small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:560px){.slot{padding:7px;gap:8px}.slot img{width:52px;height:52px}}
+.slot small.typ{white-space:normal}
