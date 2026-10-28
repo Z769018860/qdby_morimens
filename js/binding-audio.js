@@ -128,6 +128,11 @@ export const Audio2 = {
   pickup() { [720, 960, 1240].forEach((f, i) => setTimeout(() => this.blip(f, 0.1, 'triangle', 0.04), i * 55)); },
   item() { [660, 880, 1180, 1480].forEach((f, i) => setTimeout(() => this.blip(f, 0.16, 'triangle', 0.045), i * 85)); },
   heart() { [520, 780].forEach((f, i) => setTimeout(() => this.blip(f, 0.22, 'sine', 0.05), i * 110)); },
+  // 残血时的心跳：两声低沉的「咚·咚」，比 hurt 轻，不盖过枪声
+  heartbeat() {
+    this.blip(62, 0.15, 'sine', 0.06, 0.72);
+    setTimeout(() => this.blip(48, 0.17, 'sine', 0.05, 0.72), 155);
+  },
   door() { this.blip(220, 0.12, 'sine', 0.045, 1.6); },
   boom() { this.noise(0.32, 0.09, 120); this.blip(90, 0.34, 'sine', 0.07, 0.4); },
   die() { [440, 330, 260, 180].forEach((f, i) => setTimeout(() => this.blip(f, 0.24, 'sine', 0.045), i * 140)); },

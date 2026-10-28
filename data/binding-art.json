@@ -51,5 +51,17 @@
     "b1": "assets/monster/Portrait_Small_Monster_S0402_BOSSSIZE.webp",
     "b2": "assets/monster/Portrait_Small_Monster_C0202_BOSSSIZE.webp",
     "b3": "assets/monster/Portrait_Small_Monster_C0204_BOSSSIZE.webp"
+  },
+  "monsters": {
+    "_note": "全部取自游戏自带的怪物图鉴（data/boot.json 的 dict.monster，img 字段那张 Portrait_Small_Monster_*）。key 是游戏里 ENEMIES 的 art，名字与出处写在 js/binding-data.js 的注释里。",
+    "follower": "assets/monster/Portrait_Small_Monster_S0402.webp",
+    "dog": "assets/monster/Portrait_Small_Monster_S0202.webp",
+    "clump": "assets/monster/Portrait_Small_Monster_S0101.webp",
+    "surgeon": "assets/monster/Portrait_Small_Monster_C0103_AT.webp",
+    "waxman": "assets/monster/Portrait_Small_Monster_C0202.webp",
+    "abscess": "assets/monster/Portrait_Small_Monster_C0302.webp",
+    "claw": "assets/monster/Portrait_Small_Monster_C0403.webp",
+    "chanter": "assets/monster/Portrait_Small_Monster_C0503.webp",
+    "hunter": "assets/monster/Portrait_Small_Monster_C0402.webp"
   }
 }

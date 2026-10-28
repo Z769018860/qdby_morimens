@@ -268,11 +268,13 @@ function rollItemKeyFor(rm) {
   return chosen.k;
 }
 
+// 没有立绘时退回几何形状画，按 AI 挑一个差不多意思的
+const SHAPE_BY_AI = { chase: 'blob', keep: 'eye', orbit: 'eye', dash: 'spider', blink: 'wraith' };
 function makeEnemy(type, x, y, scale) {
   const d = ENEMIES[type];
   const sc = scale || 1;
   return {
-    type, draw: d.draw, ai: d.ai, n: d.n, x, y, r: d.r * sc,
+    type, art: d.art || null, draw: d.draw || SHAPE_BY_AI[d.ai] || 'blob', ai: d.ai, n: d.n, x, y, r: d.r * sc,
     hp: d.hp * sc, maxHp: d.hp * sc, sp: d.sp, dmg: d.dmg, c: d.c, c2: d.c2,
     shoot: d.shoot, keep: d.keep, split: d.split, art: d.art,
     vx: 0, vy: 0, hurt: 0, seed: Math.random() * 9, cd: rnd(0.6, 1.8), state: 0, timer: 0, aimA: 0,
@@ -471,6 +473,13 @@ function update(dt) {
   p.blinkT -= dt;
   if (p.blinkT < 0) { p.blink = 0.12; p.blinkT = rnd(2.4, 6); }
   p.blink = Math.max(0, p.blink - dt);
+
+  // 残血心跳：血越少跳得越急。画布四边的红晕用的也是 0.34 这个门槛，两边一个节奏。
+  const hpR = p.maxHp > 0 ? p.hp / p.maxHp : 1;
+  if (hpR <= 0.34) {
+    p.heartT = (p.heartT || 0) - dt;
+    if (p.heartT <= 0) { p.heartT = 0.72 + hpR * 1.6; Audio2.heartbeat(); }
+  } else p.heartT = 0;
 
   // ---- 射击
   p.fireCd -= dt;
@@ -1392,6 +1401,9 @@ function refreshHud() {
     html += `<svg class="hp ${kind}" viewBox="0 0 16 16" aria-hidden="true"><path class="bg" d="M8 14.2C1.4 9.6 0 5.1 3.3 3.2 5.3 2.1 7.3 3.2 8 4.6 8.7 3.2 10.7 2.1 12.7 3.2 16 5.1 14.6 9.6 8 14.2Z"/><path class="fg" d="M8 14.2C1.4 9.6 0 5.1 3.3 3.2 5.3 2.1 7.3 3.2 8 4.6 8.7 3.2 10.7 2.1 12.7 3.2 16 5.1 14.6 9.6 8 14.2Z"/></svg>`;
   }
   hearts.innerHTML = html;
+  // 残血：让 HUD 上这几颗心自己跳起来（CSS 动画），和画布四边的红晕同一个节奏
+  const hpRatio = p.maxHp > 0 ? p.hp / p.maxHp : 1;
+  hearts.classList.toggle('low', hpRatio <= 0.34);
   $('coinNum').textContent = r.coins;
   // ---- 造物条：一件一张小图，多了折行
   const strip = $('itemStrip');
@@ -1686,29 +1698,67 @@ function render() {
   ctx.fillRect(-40, -40, G.W + 80, G.H + 80);
   ctx.restore();
 
+  // 残血：四边红晕随心跳一涨一落。血越少越急，和 HUD 上那颗抖的心是同一件事。
+  // 压在光照之后才看得见（光照那层会把边缘压暗）。
+  const hpRatio = p.maxHp > 0 ? p.hp / p.maxHp : 1;
+  if (hpRatio <= 0.34) {
+    const k = 1 - hpRatio / 0.34;                 // 0（刚到）/ 1（只剩半颗心）
+    const beat = 0.5 + 0.5 * Math.sin(G.t * (5.4 + k * 3.2));
+    const a = (0.16 + 0.30 * k) * (0.55 + 0.45 * beat);
+    ctx.save();
+    const vg = ctx.createRadialGradient(
+      G.W / 2, G.H / 2, Math.min(G.W, G.H) * (0.30 - 0.06 * k),
+      G.W / 2, G.H / 2, Math.max(G.W, G.H) * 0.72,
+    );
+    vg.addColorStop(0, 'rgba(150,10,16,0)');
+    vg.addColorStop(0.55, `rgba(150,10,16,${a * 0.42})`);
+    vg.addColorStop(1, `rgba(120,4,10,${a})`);
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, G.W, G.H);
+    // 最外一圈描边，缩到很小的时候也能看见
+    ctx.strokeStyle = `rgba(255,60,60,${a * 0.9})`;
+    ctx.lineWidth = 6;
+    ctx.strokeRect(3, 3, G.W - 6, G.H - 6);
+    ctx.restore();
+  }
+
   // 首领血条
   if (rm.boss) {
     const b = rm.boss;
     const w = G.W * 0.56, h = 8;
     const x = (G.W - w) / 2, y = G.H - 34;
+    const ratio = clamp(b.hp / b.maxHp, 0, 1);
+    const dying = ratio <= 0.3;                    // 残血：整条换成跳动的亮红
+    const beat = 0.5 + 0.5 * Math.sin(G.t * 7.5);
     ctx.save();
     ctx.fillStyle = 'rgba(8,10,16,.85)';
-    ctx.strokeStyle = 'rgba(200,210,235,.35)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = dying
+      ? `rgba(255,${Math.round(90 + 60 * beat)},${Math.round(84 + 40 * beat)},${0.7 + 0.3 * beat})`
+      : 'rgba(200,210,235,.35)';
+    ctx.lineWidth = dying ? 2 : 1;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(x - 2, y - 2, w + 4, h + 4, 4);
     else ctx.rect(x - 2, y - 2, w + 4, h + 4);
     ctx.fill(); ctx.stroke();
-    const ratio = clamp(b.hp / b.maxHp, 0, 1);
     const g = ctx.createLinearGradient(x, 0, x + w, 0);
-    g.addColorStop(0, b.phase > 1 ? '#ff5a5a' : '#c94a52');
-    g.addColorStop(1, b.phase > 1 ? '#ff9a5a' : '#8a2f3a');
+    if (dying) {
+      g.addColorStop(0, '#ff2a20');
+      g.addColorStop(1, '#ff6a52');
+    } else {
+      g.addColorStop(0, b.phase > 1 ? '#ff5a5a' : '#c94a52');
+      g.addColorStop(1, b.phase > 1 ? '#ff9a5a' : '#8a2f3a');
+    }
     ctx.fillStyle = g;
     ctx.fillRect(x, y, w * ratio, h);
-    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    // 残血时在血条尾部画一段「快没了」的闪
+    if (dying) {
+      ctx.fillStyle = `rgba(255,240,220,${0.25 + 0.45 * beat})`;
+      ctx.fillRect(x + w * ratio - 2, y, 2, h);
+    }
+    ctx.fillStyle = dying ? `rgba(255,210,200,${0.8 + 0.2 * beat})` : 'rgba(255,255,255,.85)';
     ctx.font = '11px system-ui,sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(b.n, G.W / 2, y - 6);
+    ctx.fillText(b.n + (dying ? '　' + Math.ceil(ratio * 100) + '%' : ''), G.W / 2, y - 6);
     ctx.restore();
   }
 

@@ -109,29 +109,93 @@ export const ACTIVES = [
 
 // ------------------------------------------------------------------ 敌人
 // draw 决定画法（见 js/binding-draw.js 的 drawEnemy），ai 决定行为。
+// ------------------------------------------------------------------ 怪物
+// 全部是游戏自带的怪物图鉴条目（data/boot.json 的 dict.monster），名字、英文名、
+// 图鉴描述都照原样，art 指向 data/binding-art.json 里 monsters 那张立绘。
+// 数值和 AI 是这一夜的地牢需要的部分，原作里是回合制，这里得自己给行为。
+//   ai: chase 直追 / keep 拉开距离射 / orbit 绕圈射 / dash 蓄力冲 / blink 闪现
 export const ENEMIES = {
-  crawler: { n: '煤渣团', draw: 'blob', hp: 9, r: 12, sp: 54, dmg: 1, ai: 'chase', c: '#2b3140', c2: '#9fb0d8' },
-  eye: { n: '游荡之眼', draw: 'eye', hp: 10, r: 13, sp: 40, dmg: 1, ai: 'keep', keep: 130, shoot: { cd: 2.2, n: 1, sp: 130, dmg: 1 }, c: '#c8d4ee', c2: '#ff6b6b' },
-  bat: { n: '灰羽', draw: 'bat', hp: 7, r: 11, sp: 92, dmg: 1, ai: 'chase', wobble: 1, c: '#3a3f52', c2: '#8b96b9' },
-  spider: { n: '撕裂之足', draw: 'spider', hp: 12, r: 12, sp: 58, dmg: 1, ai: 'dash', c: '#241f2b', c2: '#c58bff' },
-  blob: { n: '脓疱', draw: 'blob', hp: 16, r: 15, sp: 38, dmg: 1, ai: 'chase', split: 2, c: '#3a2430', c2: '#e0697f' },
-  wisp: { n: '灯芯', draw: 'wisp', hp: 13, r: 12, sp: 46, dmg: 1, ai: 'orbit', shoot: { cd: 2.6, n: 3, sp: 115, dmg: 1, spread: 0.5 }, c: '#e8c07a', c2: '#ffd98a' },
-  wraith: { n: '肖像幽灵', draw: 'wraith', hp: 26, r: 17, sp: 44, dmg: 1, ai: 'blink', shoot: { cd: 2.4, n: 8, sp: 110, dmg: 1, spread: Math.PI * 2 }, c: '#8892b8', c2: '#e0e6ff', art: 'b1' },
+  follower: {
+    n: '提灯教众', en: 'Lightbearer Followers', art: 'follower', cls: '普通',
+    desc: '提灯教会的一般教众，盲目地崇拜着教义宣传的毁灭。',
+    hp: 9, r: 12, sp: 52, dmg: 1, ai: 'chase', c: '#3b2b58', c2: '#b9a3f0',
+  },
+  dog: {
+    n: '融蚀野犬', en: 'Frenzied Wild Dog', art: 'dog', cls: '普通',
+    desc: '身上满是融蚀痕的流浪犬，它的攻击迅猛而连续。',
+    hp: 8, r: 12, sp: 86, dmg: 1, ai: 'chase', wobble: 1, c: '#2b2f3d', c2: '#9fb0d8',
+  },
+  clump: {
+    n: '协作型融蚀体', en: 'Collaborative Dissolute', art: 'clump', cls: '普通',
+    desc: '融蚀浆中诞生的小型怪物，威胁性较低。',
+    hp: 11, r: 11, sp: 42, dmg: 1, ai: 'orbit', c: '#1d2230', c2: '#8d9cc0',
+    shoot: { cd: 2.4, n: 1, sp: 122, dmg: 1 },
+  },
+  surgeon: {
+    n: '手术医生', en: 'Surgeon', art: 'surgeon', cls: '普通',
+    desc: '医生的刀刃本应切除伤病，他们却用其带来疼痛。攻击力很高的个体。',
+    hp: 13, r: 12, sp: 66, dmg: 2, ai: 'dash', c: '#c9d2e4', c2: '#8d99b5',
+  },
+  waxman: {
+    n: '蜡像绅士', en: 'Wax Sculpture Gentleman', art: 'waxman', cls: '普通',
+    desc: '垂头丧气的新派绅士，厌恶一切柔软的东西，包括他自己。',
+    hp: 19, r: 14, sp: 34, dmg: 1, ai: 'chase', c: '#d8cfbb', c2: '#8a7a63',
+  },
+  abscess: {
+    n: '双生脓疱', en: 'Twin Abscesses', art: 'abscess', cls: '普通',
+    desc: '双生的命运纠缠于一体，相互牵扯，相互裹挟，无处可逃。',
+    hp: 16, r: 15, sp: 38, dmg: 1, ai: 'chase', split: 2, c: '#3a2430', c2: '#e0697f',
+  },
+  claw: {
+    n: '奔袭之足', en: 'Hunting Dog\'s Claw', art: 'claw', cls: '精英',
+    desc: '自其他维度撕裂缝隙而来的追逐之足，捕捉每个冒失的灵魂。',
+    hp: 22, r: 14, sp: 92, dmg: 1, ai: 'dash', c: '#6b3550', c2: '#ff8fc4',
+  },
+  chanter: {
+    n: '「永恒助祭」', en: 'Chanter', art: 'chanter', cls: '精英',
+    desc: '永恒之国的低级祭司，在得到主祭首肯前，祂们不被允许踏入神殿。',
+    hp: 26, r: 15, sp: 44, dmg: 1, ai: 'blink', c: '#4a2f6b', c2: '#c08bff',
+    shoot: { cd: 2.4, n: 8, sp: 110, dmg: 1, spread: Math.PI * 2 },
+  },
+  hunter: {
+    n: '维度猎手', en: 'Dimensional Hunter', art: 'hunter', cls: '精英',
+    desc: '游离的维度碎片拼合而成的异兽，与祂的战利品和谐相处。',
+    hp: 24, r: 15, sp: 56, dmg: 1, ai: 'blink', c: '#4a3a2a', c2: '#d8b476',
+    shoot: { cd: 2.8, n: 3, sp: 116, dmg: 1, spread: 0.5 },
+  },
 };
 
 // ------------------------------------------------------------------ 首领
+// 三层的首领都是图鉴里真有的 Boss（13956 / 13958 / 13986），立绘取 BOSSSIZE 那张。
 // 画成「悬着的肖像」：圆形底 + 真素材 + 旋转的框，和以撒里那种飘着的头是同一个路数。
 export const BOSSES = {
-  b1: { n: '守灯人', sub: '第一层的提灯教牧，灯一直没熄过', art: 'b1', hp: 150, r: 34, sp: 46, atks: ['ring', 'aimed', 'summon'], ringN: 14, ringSp: 105 },
-  b2: { n: '劳伦斯先生', sub: '解剖教室里的蜡像绅士，走路没有声音', art: 'b2', hp: 230, r: 38, sp: 58, atks: ['charge', 'ring', 'summon'], ringN: 18, ringSp: 118 },
-  b3: { n: '「以眼还眼」', sub: '天台上面那只眼睛，替你看了整晚', art: 'b3', hp: 320, r: 40, sp: 54, atks: ['ring', 'aimed', 'charge', 'summon'], ringN: 22, ringSp: 128 },
+  b1: {
+    n: '「守灯人」', en: 'Guardian of the Lantern', art: 'b1', cls: 'Boss',
+    desc: '提灯教会的一般教众，盲目地崇拜着教义宣传的毁灭。',
+    sub: '第一层的提灯教牧，灯一直没熄过',
+    hp: 150, r: 34, sp: 46, atks: ['ring', 'aimed', 'summon'], ringN: 14, ringSp: 105,
+  },
+  b2: {
+    n: '「劳伦斯先生」', en: 'Mr. Lawrence', art: 'b2', cls: 'Boss',
+    desc: '他早已被繁重的任务压弯了背脊。工作、工作、工作——这就是他现在的全部。',
+    sub: '解剖教室里的蜡像绅士，走路没有声音',
+    hp: 230, r: 38, sp: 58, atks: ['charge', 'ring', 'summon'], ringN: 18, ringSp: 118,
+  },
+  b3: {
+    n: '「以眼还眼」', en: 'An Eye for an Eye', art: 'b3', cls: 'Boss',
+    desc: '群聚在地下的蜡像弃儿。时刻准备着，为罗杰斯大人的艺术献出一切！',
+    sub: '天台上面那一群蜡像弃儿，替你看了整晚',
+    hp: 320, r: 40, sp: 54, atks: ['ring', 'aimed', 'charge', 'summon'], ringN: 22, ringSp: 128,
+  },
 };
 
 // ------------------------------------------------------------------ 楼层
+// pool 里放的是 ENEMIES 的 key。一层提灯教会的地盘，二层解剖教室与蜡像，
+// 三层是撕开的维度——越往下，精英越多。
 export const FLOORS = [
-  { n: '一层 · 晚自习走廊', theme: 'wood', rooms: 9, pool: ['crawler', 'crawler', 'eye', 'bat'], boss: 'b1', tip: '走廊尽头的灯是坏的' },
-  { n: '二层 · 解剖教室', theme: 'tile', rooms: 10, pool: ['crawler', 'eye', 'spider', 'blob'], boss: 'b2', tip: '别碰泡在罐子里的东西' },
-  { n: '三层 · 天台与梦', theme: 'stone', rooms: 11, pool: ['bat', 'spider', 'wisp', 'wraith'], boss: 'b3', tip: '上面没有天台，只有一只眼睛' },
+  { n: '一层 · 晚自习走廊', theme: 'wood', rooms: 9, pool: ['follower', 'follower', 'dog', 'clump'], boss: 'b1', tip: '走廊尽头的灯是坏的' },
+  { n: '二层 · 解剖教室', theme: 'tile', rooms: 10, pool: ['surgeon', 'waxman', 'abscess', 'dog'], boss: 'b2', tip: '别碰泡在罐子里的东西' },
+  { n: '三层 · 天台与梦', theme: 'stone', rooms: 11, pool: ['claw', 'chanter', 'hunter', 'waxman'], boss: 'b3', tip: '上面没有天台，只有一群不肯散的东西' },
 ];
 
 // ------------------------------------------------------------------ 文案

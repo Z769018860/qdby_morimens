@@ -26,7 +26,8 @@ function dataUri(rel) {
 
 const pick = (map) => {
   const out = {};
-  for (const [k, v] of Object.entries(map || {})) out[k] = dataUri(v);
+  // 以 _ 开头的是注释（比如 monsters 里的 _note），不是素材
+  for (const [k, v] of Object.entries(map || {})) if (!k.startsWith('_')) out[k] = dataUri(v);
   return out;
 };
 
@@ -38,6 +39,7 @@ const art = {
   trinkets: pick(manifest.trinkets),
   actives: pick(manifest.actives),
   bosses: pick(manifest.bosses),
+  monsters: pick(manifest.monsters),
 };
 
 let bytes = 0;
@@ -56,6 +58,6 @@ const old = fs.existsSync(out) ? fs.readFileSync(out, 'utf8') : '';
 if (old !== code) fs.writeFileSync(out, code, 'utf8');
 console.log(
   `[binding-art] 猫 2 + 银芯 1 + 造物 ${count(art.items)} + 密契 ${count(art.trinkets)}` +
-    ` + 钥令 ${count(art.actives)} + 首领 ${count(art.bosses)} → js/binding-art.js` +
+    ` + 钥令 ${count(art.actives)} + 首领 ${count(art.bosses)} + 怪物 ${count(art.monsters)} → js/binding-art.js` +
     `（${(bytes / 1024).toFixed(0)}KB 内联，${old === code ? '无变化' : '已更新'}）`,
 );

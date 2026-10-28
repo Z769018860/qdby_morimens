@@ -392,15 +392,110 @@ export function drawDoorState(ctx, room, W, H, t, open, peek) {
 }
 
 // ------------------------------------------------------------------ 敌人
+// 怪物立绘（游戏自带图鉴素材，160×160 透明底，内容是出画的半身像）。
+// 立绘不做圆框，直接让它站在地上：底边压到碰撞圆下缘，头往上伸出去一截。
+// size 给到半径的 5 倍多——图里人物本身就占满画幅，按 2 倍画会小得像图标。
+const MON_SIZE = 5.2;
+const monSize = (r) => r * MON_SIZE;
+function drawMonsterSprite(ctx, e, im, r, t) {
+  const low = e.maxHp > 0 && e.hp / e.maxHp <= 0.35;
+  // 残血：身后一团红色心跳光。以撒不给小怪血条，但这里敌人小、同屏多，
+  // 不给信号就分不清哪只快死了
+  if (low) {
+    const pulse = 0.5 + 0.5 * Math.sin(t * 7 + e.seed);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(0, -r * 1.4, r * 0.4, 0, -r * 1.4, r * 3.4);
+    g.addColorStop(0, `rgba(255,74,62,${0.24 + 0.22 * pulse})`);
+    g.addColorStop(1, 'rgba(255,40,40,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, -r * 1.4, r * 3.4, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+
+  const size = monSize(r);
+  const dy = r * 0.9 - size;          // 底边贴着碰撞圆下缘
+  ctx.drawImage(im, -size / 2, dy, size, size);
+
+  // 立绘是半身像，底边是一刀切平的。在脚下压一团浓影把切口糊掉，
+  // 看着像从阴影里探出来，而不是一张贴纸浮在地板上。
+  const sg = ctx.createRadialGradient(0, r * 0.92, 1, 0, r * 0.92, size * 0.46);
+  sg.addColorStop(0, 'rgba(5,7,12,.88)');
+  sg.addColorStop(0.55, 'rgba(5,7,12,.42)');
+  sg.addColorStop(1, 'rgba(5,7,12,0)');
+  ctx.fillStyle = sg;
+  ctx.beginPath();
+  ctx.ellipse(0, r * 0.92, size * 0.46, size * 0.19, 0, 0, 7);
+  ctx.fill();
+
+  if (e.hurt > 0) {
+    // 受伤闪白：用 source-atop 只糊在立绘的像素上，不会画出一个白方块
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.globalAlpha = Math.min(0.85, e.hurt * 2.4);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(-size / 2, dy, size, size);
+    ctx.restore();
+  }
+}
+
+// 血条：平时不画，受伤后短暂出现；残血（≤35%）一直挂着，而且加个跳动的红尖
+function drawEnemyHp(ctx, e, t) {
+  const ratio = e.maxHp > 0 ? Math.max(0, Math.min(1, e.hp / e.maxHp)) : 1;
+  const low = ratio <= 0.35;
+  if (!low && !(e.hurt > 0.02)) return;
+  const w = Math.max(28, e.r * 2.9), h = 4.4;
+  const x = e.x - w / 2;
+  // 立绘头顶在 e.y - monSize + 0.9r，血条再往上让 7px
+  const y = e.y + e.r * 0.9 - monSize(e.r) - 7;
+  ctx.save();
+  ctx.fillStyle = 'rgba(4,6,11,.92)';
+  ctx.fillRect(x - 1.5, y - 1.5, w + 3, h + 3);
+  const g = ctx.createLinearGradient(x, 0, x + w, 0);
+  if (low) {
+    const pulse = 0.5 + 0.5 * Math.sin(t * 7 + e.seed);
+    g.addColorStop(0, '#ff2f28');
+    g.addColorStop(1, `rgba(255,${Math.round(150 + 50 * pulse)},90,1)`);
+  } else {
+    g.addColorStop(0, '#e8c07a');
+    g.addColorStop(1, '#ffe1ab');
+  }
+  ctx.fillStyle = g;
+  ctx.fillRect(x, y, Math.max(1.5, w * ratio), h);
+  if (low) {
+    const pulse = 0.5 + 0.5 * Math.sin(t * 9 + e.seed);
+    // 血条外面套一圈红光，远看也认得出
+    ctx.strokeStyle = `rgba(255,64,56,${0.35 + 0.5 * pulse})`;
+    ctx.lineWidth = 1.4;
+    ctx.strokeRect(x - 1.5, y - 1.5, w + 3, h + 3);
+    // 头顶一个向下的小尖，跟着一起闪
+    ctx.fillStyle = `rgba(255,90,80,${0.55 + 0.45 * pulse})`;
+    ctx.beginPath();
+    ctx.moveTo(e.x, y - 8);
+    ctx.lineTo(e.x - 4.5, y - 2.2);
+    ctx.lineTo(e.x + 4.5, y - 2.2);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
 export function drawEnemy(ctx, e, t) {
   const r = e.r;
-  const bob = Math.sin(t * 3 + e.seed) * 1.6;
+  const bob = Math.sin(t * 3 + e.seed) * 2.1;
+  const im = e.art ? artImage('m:' + e.art) : null;
   ctx.save();
   ctx.translate(e.x, e.y + bob);
 
-  // 影子
+  // 影子：带立绘的怪物脚下一大片，几何怪只要一小圈
   ctx.fillStyle = 'rgba(0,0,0,.35)';
-  ctx.beginPath(); ctx.ellipse(0, r * 0.95, r * 0.9, r * 0.3, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, r * 0.95, im ? r * 1.5 : r * 0.9, r * (im ? 0.34 : 0.3), 0, 0, 7); ctx.fill();
+
+  if (im) {
+    drawMonsterSprite(ctx, e, im, r, t);
+    ctx.restore();
+    drawEnemyHp(ctx, e, t);   // 血条放在世界坐标里，不跟着上下浮
+    return;
+  }
 
   if (e.draw === 'wraith') {
     ctx.restore();

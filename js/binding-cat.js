@@ -36,6 +36,8 @@ export function loadArt() {
   for (const [k, v] of Object.entries(ART.trinkets)) add('t:' + k, v);
   for (const [k, v] of Object.entries(ART.actives)) add('a:' + k, v);
   for (const [k, v] of Object.entries(ART.bosses)) add('b:' + k, v);
+  // 怪物立绘（游戏自带的图鉴素材），key 前缀 m: 和首领区分开
+  for (const [k, v] of Object.entries(ART.monsters || {})) add('m:' + k, v);
   return Promise.all(jobs);
 }
 
