@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>校猫的结合 · 忘忘同人小游戏</title>
+<meta name="description" content="以撒的结合式房间地牢，主角是弥萨格大学的校猫小煤球：往下打三层，捡起散落的造物，猫身上就会多出帽子、眼镜、披风、提灯——八种毛色、六种瞳色、二十多种饰品，把同一只黑猫改成完全不同的样子。带剧情与设定集：世界观整理自《忘却前夜》的剧情文本与收藏馆档案。">
+<meta name="theme-color" content="#080b11">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0e16'/%3E%3Cg fill='%23e6e9f0'%3E%3Cellipse cx='11' cy='12' rx='3.1' ry='3.9'/%3E%3Cellipse cx='21' cy='12' rx='3.1' ry='3.9'/%3E%3Cellipse cx='7' cy='19.4' rx='2.7' ry='3.3'/%3E%3Cellipse cx='25' cy='19.4' rx='2.7' ry='3.3'/%3E%3Cpath d='M16 17.2c4.3 0 7.2 3.3 7.2 6 0 2.3-2 3.7-4.5 3.7-1.5 0-2.3-.6-2.7-.6s-1.2.6-2.7.6c-2.5 0-4.5-1.4-4.5-3.7 0-2.7 2.9-6 7.2-6Z'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+/* 和合成大杜勒 / 是鸟弟一样，这一页不引 css/style.css：整站那份是给内容页的，
+   游戏壳自带样式 + 一个脚本请求就够（素材全部内联在脚本里，页面只有两个请求）。 */
+:root{
+  --bg:#080b11; --panel:#111722; --panel2:#1a2130; --line:#28324a; --text:#e6e9f0;
+  --dim:#8a93a8; --accent:#6ea8ff; --gold:#e3b341; --bad:#e8695f; --hp:#e0454f;
+  /* 盖在画布上的浮层（提示条 / 造物卡 / 钥令键）：画布本身永远是深色，
+     这几个颜色就**不跟主题走**——否则浅色系统下会变成深底配深字，等于看不见。 */
+  --glass:rgba(10,14,21,.94); --glassline:rgba(140,160,200,.34);
+  --glasstext:#e8ecf5; --glassdim:#9aa5bb; --glassgold:#e3b341;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#eef1f7; --panel:#fff; --panel2:#f4f6fb; --line:#d7dce8; --text:#1b2130;
+    --dim:#667088; --accent:#2c6fdb; --gold:#9a6f00; --bad:#c8413a; --hp:#d8412f; }
+}
+*{box-sizing:border-box}
+html,body{margin:0; height:100%}
+body{
+  background:var(--bg); color:var(--text); overflow:hidden;
+  font:15px/1.5 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-tap-highlight-color:transparent; user-select:none;
+}
+button{font:inherit; color:inherit; cursor:pointer}
+.app{
+  height:100dvh; max-width:660px; margin:0 auto;
+  padding:max(8px, env(safe-area-inset-top)) 10px max(8px, env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; gap:6px;
+}
+
+/* 宽屏给房间更多横向空间：房间按舞台宽高比自动切成横版 15×9 或竖版 9×13 */
+@media (min-width: 980px){ .app{max-width:1080px} }
+
+/* ---------------------------------------------------------------- 顶栏 */
+.hud{display:flex; align-items:center; gap:8px; flex:0 0 auto; padding:0 2px}
+.back{
+  width:30px; height:30px; flex:0 0 30px; border-radius:9px; display:grid; place-items:center;
+  border:1px solid var(--line); background:var(--panel); color:var(--text);
+  text-decoration:none; font-size:14px; line-height:1;
+}
+.back:hover{border-color:var(--accent); color:var(--accent)}
+.hearts{display:flex; gap:2px; align-items:center}
+.hp{width:17px; height:17px; display:block; overflow:visible}
+.hp .bg{fill:#2a1a20; stroke:rgba(255,255,255,.10); stroke-width:.6}
+.hp .fg{fill:var(--hp); stroke:rgba(255,190,190,.45); stroke-width:.6}
+.hp.half .fg{clip-path:inset(0 50% 0 0)}
+.hp.empty .fg{display:none}
+.pill{
+  display:flex; align-items:center; gap:4px; padding:2px 8px 2px 4px; border-radius:999px;
+  border:1px solid var(--line); background:var(--panel); font-size:12px; line-height:1;
+}
+.pill img{width:15px; height:15px; display:block; border-radius:50%}
+.pill b{font-variant-numeric:tabular-nums; font-size:13px}
+.pill.ghosted{padding:3px 9px; color:var(--dim)}
+.grow{flex:1}
+.floorline{font-size:11px; color:var(--dim); letter-spacing:.03em; white-space:nowrap}
+.floorline b{color:var(--gold); font-variant-numeric:tabular-nums}
+.icobtn{
+  padding:4px 9px; border-radius:8px; border:1px solid var(--line); background:var(--panel);
+  color:var(--dim); font-size:11.5px; line-height:1.2;
+}
+.icobtn:hover{color:var(--text); border-color:var(--accent)}
+
+/* ---------------------------------------------------------------- 舞台 */
+.stage{
+  position:relative; flex:1 1 auto; min-height:0; border-radius:14px; overflow:hidden;
+  border:1px solid var(--line); background:#05070b;
+  box-shadow:0 30px 60px -40px rgba(0,0,0,.9) inset;
+}
+#cv{display:block; width:100%; height:100%; touch-action:none}
+.minimap{
+  position:absolute; right:8px; top:8px; padding:4px; border-radius:9px;
+  background:rgba(8,11,17,.72); border:1px solid rgba(120,140,180,.22); line-height:0;
+}
+.minimap canvas{width:72px; height:72px; display:block}
+.strip{
+  position:absolute; left:8px; bottom:8px; display:flex; gap:3px; flex-wrap:wrap-reverse;
+  max-width:56%; pointer-events:none;
+}
+.strip img{
+  width:22px; height:22px; border-radius:5px; background:rgba(10,14,20,.75);
+  border:1px solid rgba(140,160,200,.25); padding:1px; display:block;
+}
+.trinket{
+  position:absolute; left:8px; top:8px; width:30px; height:30px; border-radius:8px;
+  border:1px dashed rgba(140,160,200,.25); display:none; place-items:center; background:rgba(10,14,20,.7);
+}
+.trinket.on{display:grid}
+.trinket img{width:22px; height:22px; display:block}
+.active{
+  position:absolute; right:10px; bottom:10px; width:52px; height:52px; border-radius:14px;
+  border:1px solid var(--glassline); background:rgba(12,17,26,.85); display:none; place-items:center;
+  padding:2px; overflow:hidden;
+}
+.active.on{display:grid}
+.active img{width:34px; height:34px; display:block; opacity:.55}
+.active .ch{
+  position:absolute; bottom:1px; right:3px; font-size:9px; color:var(--glassdim);
+  font-variant-numeric:tabular-nums;
+}
+.active.ready{border-color:color-mix(in oklab, var(--gold) 60%, transparent)}
+.active.ready img{opacity:1}
+.active.ready .ch{color:var(--gold)}
+@media (max-width:520px){
+  .active{width:46px; height:46px; border-radius:12px}
+  .active img{width:28px; height:28px}
+  .minimap canvas{width:58px; height:58px}
+  .strip img{width:19px; height:19px}
+}
+
+/* 拾取卡片 */
+.card{
+  position:absolute; left:50%; bottom:64px; transform:translate(-50%, 14px);
+  display:flex; gap:10px; align-items:flex-start; width:min(92%, 380px);
+  padding:9px 12px; border-radius:12px; background:var(--glass);
+  border:1px solid rgba(227,179,65,.42);
+  box-shadow:0 20px 40px -24px #000; opacity:0; pointer-events:none;
+  transition:opacity .18s ease, transform .18s ease;
+}
+.card.on{opacity:1; transform:translate(-50%, 0)}
+.card img{width:34px; height:34px; flex:0 0 34px; border-radius:8px; background:#0b0f16}
+.card em{display:block; font-style:normal; font-size:10px; color:var(--glassgold); letter-spacing:.08em}
+.card h4{margin:1px 0 3px; font-size:13.5px; color:var(--glasstext)}
+.card p{margin:0; font-size:11.5px; color:var(--glassdim); line-height:1.55}
+.toast{
+  position:absolute; left:50%; top:10px; transform:translate(-50%, -8px);
+  padding:5px 12px; border-radius:999px; font-size:12px;
+  background:var(--glass); border:1px solid var(--glassline); color:var(--glasstext);
+  opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; white-space:nowrap;
+}
+.toast.on{opacity:1; transform:translate(-50%, 0)}
+.hint{
+  position:absolute; left:50%; bottom:12px; transform:translateX(-50%);
+  font-size:12.5px; color:var(--glassdim); text-align:center; line-height:1.9;
+  pointer-events:none; transition:opacity .6s ease;
+}
+.hint.off{opacity:0}
+.hint b{color:var(--glasstext); font-weight:600}
+
+/* ---------------------------------------------------------------- 载入 */
+#boot{
+  position:absolute; inset:0; display:grid; place-content:center; justify-items:center; gap:10px;
+  background:rgba(6,9,14,.9); z-index:20; font-size:13px; color:var(--glassdim);
+}
+#boot .ring{
+  width:26px; height:26px; border-radius:50%;
+  border:2px solid rgba(110,168,255,.25); border-top-color:var(--accent);
+  animation:spin .9s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------------------------------------------------------------- 弹层 */
+.ov{
+  position:fixed; inset:0; z-index:30; display:none; place-items:center; padding:16px;
+  background:rgba(4,6,10,.72); backdrop-filter:blur(6px);
+  overflow:auto;
+}
+.ov.on{display:grid}
+.panel{
+  width:100%; max-width:520px; padding:20px 20px 18px; border-radius:16px;
+  background:linear-gradient(180deg, var(--panel), color-mix(in oklab, var(--panel) 80%, #000));
+  border:1px solid var(--line); box-shadow:0 40px 80px -40px #000;
+}
+.kicker{margin:0; font-size:11px; letter-spacing:.18em; color:var(--dim); text-transform:uppercase}
+.panel h1{margin:2px 0 0; font-size:30px; letter-spacing:.04em}
+.panel .en{margin:2px 0 12px; font-size:11.5px; letter-spacing:.14em; color:var(--gold); text-transform:uppercase}
+.panel .intro{margin:0 0 14px; font-size:13px; color:var(--dim); line-height:1.8}
+
+.dress{display:flex; gap:16px; align-items:center; margin-bottom:12px}
+#titleCat{
+  width:150px; height:160px; flex:0 0 150px; display:block;
+  background:radial-gradient(circle at 50% 62%, rgba(110,168,255,.10), transparent 70%);
+  border-radius:12px;
+}
+.picks{flex:1; min-width:0; display:flex; flex-direction:column; gap:8px}
+.pick label{display:block; font-size:10.5px; letter-spacing:.1em; color:var(--dim); margin-bottom:3px}
+.chips{display:flex; flex-wrap:wrap; gap:4px}
+.chip{
+  padding:3px 9px; border-radius:999px; font-size:11.5px; line-height:1.4;
+  border:1px solid var(--line); background:var(--panel2); color:var(--text);
+}
+.chip:hover{border-color:var(--accent)}
+.chip.on{border-color:var(--accent); background:color-mix(in oklab, var(--accent) 18%, var(--panel2)); color:var(--text); font-weight:600}
+.chip.locked{opacity:.42; color:var(--dim)}
+.chip i{font-style:normal; font-size:9px; color:var(--gold); margin-left:3px}
+@media (max-width:520px){
+  .dress{flex-direction:column; gap:8px}
+  #titleCat{width:130px; height:140px; flex:0 0 140px}
+  .panel h1{font-size:26px}
+}
+
+.best{font-size:11.5px; color:var(--dim); margin-bottom:14px}
+.best b{color:var(--gold); font-variant-numeric:tabular-nums}
+.acts{display:flex; gap:8px; flex-wrap:wrap}
+.btn{
+  padding:8px 16px; border-radius:10px; border:1px solid var(--line); background:var(--panel2);
+  color:var(--text); font-size:13px; text-decoration:none; display:inline-block;
+}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{
+  background:linear-gradient(180deg, color-mix(in oklab, var(--accent) 88%, #fff), var(--accent));
+  border-color:transparent; color:#07101d; font-weight:700;
+}
+.btn.primary:hover{filter:brightness(1.08)}
+.help{display:none; margin-top:14px; padding-top:12px; border-top:1px solid var(--line);
+  font-size:12px; color:var(--dim); line-height:1.9}
+.help.on{display:block}
+.help b{color:var(--text)}
+.help kbd{
+  padding:1px 5px; border-radius:4px; background:var(--panel2); border:1px solid var(--line);
+  font:11px/1.4 ui-monospace,monospace; color:var(--text);
+}
+
+.endstats{display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin:4px 0 14px}
+.endstats div{background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:7px 9px}
+.endstats span{display:block; font-size:10.5px; color:var(--dim); letter-spacing:.06em}
+.endstats b{font-size:15px; font-variant-numeric:tabular-nums}
+.unlock{display:none; margin:0 0 14px; padding:10px 12px; border-radius:10px;
+  background:color-mix(in oklab, var(--gold) 10%, var(--panel2));
+  border:1px solid color-mix(in oklab, var(--gold) 40%, var(--line))}
+.unlock.on{display:block}
+.unlock h4{margin:0 0 4px; font-size:12px; color:var(--gold); letter-spacing:.06em}
+.unlock p{margin:2px 0; font-size:12.5px; color:var(--text)}
+.unlock b{color:var(--text); font-weight:700}
+.ov.mapov .panel{max-width:380px; text-align:center}
+#bigmap{display:block; margin:8px auto 4px; width:234px; height:234px}
+
+/* ---------------------------------------------------------------- 标题夜景 */
+/* 一张全屏 canvas 画校舍 + 星 + 月，只在标题/结算时出现；进游戏就藏起来不烧电 */
+#bgcv{
+  position:fixed; inset:0; width:100%; height:100%; display:none; z-index:0;
+  background:#05070f;
+}
+body.titlestate #bgcv{display:block}
+body.titlestate{background:#05070f}
+.app{position:relative; z-index:1}
+body.titlestate .app{background:transparent}
+/* 标题/结算时舞台要让位给夜景：不然那张 canvas 被不透明的游戏区整个盖住，等于没画 */
+body.titlestate .stage{background:transparent; border-color:transparent; box-shadow:none}
+body.titlestate .stage #cv{opacity:0}
+body.titlestate .ov#ovTitle{background:radial-gradient(120% 90% at 50% 6%, rgba(8,11,20,.16), rgba(4,6,11,.5)); backdrop-filter:none}
+body.titlestate .ov#ovTitle .panel{
+  background:linear-gradient(180deg, color-mix(in oklab, var(--panel) 94%, #fff 6%), var(--panel));
+  border-color:color-mix(in oklab, var(--line) 78%, var(--accent));
+  box-shadow:0 40px 90px -50px #000, 0 0 0 1px rgba(255,255,255,.03) inset;
+}
+
+/* ---------------------------------------------------------------- 图标按钮 */
+.icobtn{display:inline-flex; align-items:center; gap:4px}
+.icobtn svg{
+  width:13px; height:13px; display:block; fill:none; stroke:currentColor;
+  stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round;
+}
+.icobtn.off{color:color-mix(in oklab, var(--dim) 70%, transparent)}
+.icobtn.off svg{opacity:.6}
+.icobtn.off .wav{display:none}
+
+/* ---------------------------------------------------------------- 剧情 */
+#storyCv{position:absolute; inset:0; width:100%; height:100%; display:none; z-index:10}
+.stage.storying #storyCv{display:block}
+.stage.storying .minimap,
+.stage.storying .strip,
+.stage.storying .trinket,
+.stage.storying .active,
+.stage.storying .hint,
+.stage.storying .card,
+.stage.storying .toast{display:none}
+.stage.storying #cv{visibility:hidden}
+
+.dlg{
+  position:absolute; left:12px; right:12px; bottom:12px; z-index:16;
+  display:none; gap:12px; align-items:flex-start; padding:12px 14px 14px;
+  border-radius:15px; cursor:pointer;
+  background:linear-gradient(180deg, rgba(12,16,25,.92), rgba(7,10,16,.95));
+  border:1px solid var(--glassline);
+  box-shadow:0 24px 60px -30px #000, 0 0 0 1px rgba(255,255,255,.03) inset;
+  animation:dlgin .18s ease-out;
+}
+@keyframes dlgin{from{opacity:0; transform:translateY(7px)}to{opacity:1; transform:none}}
+.dlg.on{display:flex}
+#spkCv{
+  width:92px; height:92px; flex:0 0 92px; display:none; border-radius:50%;
+  background:rgba(8,11,18,.7);
+}
+.dlgbox{flex:1; min-width:0; padding-top:2px}
+.dlgname{
+  font-size:11px; letter-spacing:.16em; color:var(--glassgold);
+  text-transform:uppercase; margin-bottom:5px;
+}
+.dlgname span{
+  display:inline-block; padding:2px 9px; border-radius:999px;
+  border:1px solid rgba(227,179,65,.36); background:rgba(227,179,65,.10);
+}
+.dlgbody{
+  margin:0; font-size:15px; line-height:1.85; color:var(--glasstext);
+  min-height:3.7em; white-space:pre-wrap; text-wrap:pretty;
+}
+.dlg.k-narr .dlgbody{color:var(--glassdim); font-style:italic}
+.dlg.k-narr .dlgname span{
+  color:var(--glassdim); border-color:var(--glassline); background:rgba(255,255,255,.04);
+}
+.dlg.k-cat .dlgbody{color:#eef2ff}
+.dlg.k-cat .dlgname span{
+  color:#bfe0ff; border-color:rgba(140,190,255,.4); background:rgba(120,170,255,.12);
+}
+.dlg.k-voice .dlgname span{
+  color:#8fd8ff; border-color:rgba(120,200,255,.4); background:rgba(90,170,255,.12);
+}
+.dlg.k-boss .dlgname span{
+  color:#ffb3ad; border-color:rgba(232,105,95,.45); background:rgba(232,105,95,.13);
+}
+.dlg.k-boss{border-color:rgba(232,105,95,.34)}
+.dlgnav{
+  position:absolute; right:14px; bottom:8px; font-size:11px; color:var(--glassdim);
+  animation:nav 1.4s ease-in-out infinite;
+}
+@keyframes nav{0%,100%{opacity:.35}50%{opacity:1}}
+.dlgskip{
+  position:absolute; right:12px; top:10px; z-index:17; display:none;
+  padding:3px 10px; border-radius:999px; font-size:11px;
+  border:1px solid var(--glassline); background:rgba(8,11,18,.7); color:var(--glassdim);
+}
+.stage.storying .dlgskip{display:block}
+.dlgskip:hover{color:var(--glasstext); border-color:rgba(227,179,65,.5)}
+
+@media (max-width:520px){
+  #spkCv{width:72px; height:72px; flex:0 0 72px}
+  .dlg{left:8px; right:8px; bottom:8px; padding:10px 11px 12px; gap:9px}
+  .dlgbody{font-size:13.5px; line-height:1.75; min-height:4.4em}
+}
+
+/* ---------------------------------------------------------------- 设定集 */
+.codexinfo{margin-left:8px; color:var(--dim)}
+.codexinfo::before{content:'·'; margin-right:8px; opacity:.6}
+.panel.wide{max-width:640px}
+.tabs{display:flex; gap:6px; margin:0 0 10px}
+.tabs button{
+  padding:5px 14px; border-radius:999px; font-size:12.5px;
+  border:1px solid var(--line); background:var(--panel2); color:var(--dim);
+}
+.tabs button.on{
+  border-color:var(--accent); color:var(--text); font-weight:600;
+  background:color-mix(in oklab, var(--accent) 16%, var(--panel2));
+}
+.codexlist{
+  max-height:min(58vh, 460px); overflow:auto; padding-right:4px;
+  display:flex; flex-direction:column; gap:8px;
+  overscroll-behavior:contain;
+}
+.codexcount{margin:0 0 2px; font-size:11.5px; color:var(--dim)}
+.entry{
+  padding:10px 12px; border-radius:11px; border:1px solid var(--line);
+  background:linear-gradient(180deg, var(--panel2), color-mix(in oklab, var(--panel2) 70%, #000));
+}
+.entry h4{margin:0 0 2px; font-size:14px; display:flex; align-items:baseline; gap:7px}
+.entry h4 span{font-size:10px; letter-spacing:.1em; color:var(--dim); font-weight:400; text-transform:uppercase}
+.entry em{
+  display:block; font-style:normal; font-size:10.5px; color:var(--gold);
+  letter-spacing:.04em; margin-bottom:4px;
+}
+.entry p{margin:0; font-size:12.5px; line-height:1.85; color:var(--dim)}
+.entry.locked{opacity:.62}
+.entry.locked h4{color:var(--dim)}
+.entry .row{display:flex; gap:10px; align-items:flex-start}
+.entry .row img{width:32px; height:32px; flex:0 0 32px; border-radius:7px; background:#0b0f16}
+
+.card p{white-space:pre-line}
+</style>
+<meta name="build" content="0b6d1cca28">
+</head>
+<body>
+<canvas id="bgcv" aria-hidden="true"></canvas>
+<div class="app">
+  <div class="hud">
+    <a class="back" href="index.html" aria-label="返回首页">←</a>
+    <div class="hearts" id="hearts" aria-label="生命"></div>
+    <div class="pill"><img id="coinIcon" alt=""><b id="coinNum">0</b></div>
+    <div class="pill ghosted"><span id="itemCount">0</span> 造物</div>
+    <div class="grow"></div>
+    <div class="floorline"><span id="floorName">—</span> · <b id="scoreNum">0</b> 分</div>
+    <button class="icobtn" id="btnMap" title="这一层的地图（M）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.4 6 2l4 1.4L14 2v10.6L10 14l-4-1.4L2 14Z"/><path d="M6 2v10.6M10 3.4V14"/></svg><span>地图</span></button>
+    <button class="icobtn" id="muteBtn" title="音效开关"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.2h2.4L8.6 3v10L5.4 9.8H3Z"/><path class="wav" d="M11 5.4c1 .8 1 4.4 0 5.2M12.8 3.8c1.8 1.4 1.8 7 0 8.4"/></svg><span id="muteLabel">音效</span></button>
+    <button class="icobtn" id="btnPause" title="暂停（Esc）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.4 3.6v8.8M10.6 3.6v8.8"/></svg><span>暂停</span></button>
+  </div>
+
+  <main class="stage" id="stage">
+    <canvas id="cv" aria-label="校猫的结合游戏区"></canvas>
+    <canvas id="storyCv" aria-hidden="true"></canvas>
+    <div class="minimap"><canvas id="mm"></canvas></div>
+    <div class="trinket" id="trinketSlot"><img alt=""></div>
+    <div class="strip" id="itemStrip"></div>
+    <button class="active" id="activeBtn" aria-label="使用钥令"><img alt=""><span class="ch">就绪</span></button>
+    <div class="card" id="itemCard"><img alt=""><div><em></em><h4></h4><p></p></div></div>
+    <div class="toast" id="toast"></div>
+    <!-- 剧情对话：压在场景背景上，点哪儿都继续 -->
+    <div class="dlg" id="dlg" role="dialog" aria-live="polite">
+      <canvas id="spkCv" width="92" height="92" aria-hidden="true"></canvas>
+      <div class="dlgbox">
+        <div class="dlgname"><span id="dlgName">旁白</span></div>
+        <p class="dlgbody" id="dlgText"></p>
+        <div class="dlgnav" aria-hidden="true">继续 <b>▸</b></div>
+      </div>
+    </div>
+    <button class="dlgskip" id="dlgSkip" aria-label="跳过这段剧情">跳过</button>
+    <div class="hint" id="hintBar">
+      <b>WASD</b> 移动 · <b>鼠标</b>或<b>方向键</b> 射击 · <b>空格</b> 钥令 · <b>Esc</b> 暂停<br>
+      手机：左半屏拖动移动，右半屏拖动射击
+    </div>
+    <div id="boot" role="status" aria-live="polite">
+      <div class="ring"></div>
+      <p id="bootText">正在载入校猫…</p>
+    </div>
+  </main>
+</div>
+
+<!-- ---------------------------------------------------------------- 标题 -->
+<div class="ov on" id="ovTitle">
+  <div class="panel">
+    <p class="kicker">Morimens · Fan Works</p>
+    <h1>校猫的结合</h1>
+    <p class="en">The Binding of School Cat</p>
+    <p class="intro">弥萨格大学的夜里，校猫小煤球掉进了地下室。往下打三层，捡起这里散落的造物——帽子、眼镜、披风、提灯会一件件挂到猫身上，捡得越多，越不像原来那只。</p>
+
+    <div class="dress">
+      <canvas id="titleCat" aria-label="校猫外观预览"></canvas>
+      <div class="picks">
+        <div class="pick"><label>毛色</label><div class="chips" id="furChips"></div></div>
+        <div class="pick"><label>瞳色</label><div class="chips" id="eyeChips"></div></div>
+        <div class="pick"><label>造型</label><div class="chips" id="cosChips"></div></div>
+      </div>
+    </div>
+
+    <div class="best"><span id="bestInfo"></span><span class="codexinfo" id="codexInfo"></span></div>
+    <div class="acts">
+      <button class="btn primary" id="btnStart">开始这一夜</button>
+      <button class="btn" id="btnCodex">设定集</button>
+      <button class="btn" id="btnHelp">怎么玩</button>
+    </div>
+    <div class="help" id="ovHelp">
+      <b>目标</b>：从一层打到三层，每层找到首领房，打倒首领后走楼梯下一层。<br>
+      <b>操作</b>：<kbd>WASD</kbd> 移动，<kbd>鼠标</kbd>瞄准并按住左键射击（也可以用<kbd>方向键</kbd>四向射击），<kbd>空格</kbd>放钥令，<kbd>Esc</kbd>暂停。<br>
+      <b>剧情</b>：开场、每层入口、首领前后都有对话，点画面继续；<kbd>Esc</kbd> 可以跳过，看过的不会重播。<br>
+      <b>造物</b>：宝箱房基座上的东西碰一下就拿到，除了加属性，还会在猫身上挂一件东西——这就是「改造」的来源。捡到过的东西会进设定集的「藏品」，附官方收藏馆里的原话。<br>
+      <b>密契</b>：清房间低概率掉的小饰品，一局只能带一件。<br>
+      <b>解锁</b>：通关、累计击杀、单局捡多少件造物，都会解锁新的毛色 / 瞳色 / 造型，下次开局可以直接换。<br>
+      <b>手机</b>：左半屏拖动移动，右半屏拖动射击，右下角按钮放钥令。
+    </div>
+  </div>
+</div>
+
+<!-- ---------------------------------------------------------------- 暂停 -->
+<div class="ov" id="ovPause">
+  <div class="panel">
+    <p class="kicker">Paused</p>
+    <h1>暂停</h1>
+    <p class="intro">猫在等你。</p>
+    <div class="acts">
+      <button class="btn primary" id="btnPauseBack">继续</button>
+      <button class="btn" id="btnPauseRetry">重新开始</button>
+      <button class="btn" id="btnPauseCodex">设定集</button>
+      <button class="btn" id="btnPauseQuit">回标题</button>
+    </div>
+    <div class="help on">
+      <b>操作</b>：<kbd>WASD</kbd> 移动 · <kbd>鼠标</kbd> / <kbd>方向键</kbd> 射击 · <kbd>空格</kbd> 钥令 · <kbd>Esc</kbd> 继续
+    </div>
+  </div>
+</div>
+
+<!-- ---------------------------------------------------------------- 结束 -->
+<div class="ov" id="ovEnd">
+  <div class="panel">
+    <p class="kicker">Run Over</p>
+    <h1 id="endTitle">这一夜到此为止</h1>
+    <p class="intro" id="endSub"></p>
+    <div class="endstats" id="endStats"></div>
+    <div class="unlock" id="endUnlock"></div>
+    <div class="acts">
+      <button class="btn primary" id="btnAgain">再来一夜</button>
+      <button class="btn" id="btnQuit">回标题</button>
+    </div>
+  </div>
+</div>
+
+<!-- ---------------------------------------------------------------- 地图 -->
+<div class="ov mapov" id="ovMap">
+  <div class="panel">
+    <p class="kicker">Map</p>
+    <h1>这一层</h1>
+    <canvas id="bigmap" width="234" height="234"></canvas>
+    <div class="acts" style="justify-content:center">
+      <button class="btn" id="btnMapClose">收起</button>
+    </div>
+  </div>
+</div>
+
+<!-- ---------------------------------------------------------------- 设定集 -->
+<div class="ov codexov" id="ovCodex">
+  <div class="panel wide">
+    <p class="kicker">Codex · Morimens</p>
+    <h1>设定集</h1>
+    <p class="intro">弥萨格的地下不写在校史上，这里记的是被挖出来的那部分。世界条目整理自官方剧情与收藏馆档案；这一夜发生的事按同一套规则补写。</p>
+    <div class="tabs" id="codexTabs">
+      <button data-tab="world" class="on">世界</button>
+      <button data-tab="item">藏品</button>
+    </div>
+    <div class="codexlist" id="codexList"></div>
+    <div class="acts" style="justify-content:center">
+      <button class="btn" id="btnCodexClose">收起</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 载入守护（内联，不占请求）：脚本卡住时至少给个说法和一个重试按钮 */
+(function () {
+  var t0 = Date.now();
+  setTimeout(function () {
+    var t = document.getElementById('bootText');
+    if (t) t.textContent = '还在载入素材…（首次访问会慢一些）';
+  }, 5000);
+  setInterval(function () {
+    var b = document.getElementById('boot');
+    if (!b) return;
+    if (Date.now() - t0 < 18000) return;
+    b.innerHTML = '<p id="bootText">载入超时</p>';
+    var btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.textContent = '重新载入';
+    btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
+    b.appendChild(btn);
+  }, 1000);
+})();
+</script>
+<script type="module" src="js/b/binding.js?v=0b6d1cca28"></script>
+<script>
+/* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
+   Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
+   而边缘一个来回就要 1~2 秒；SW 缓存能把这部分彻底省掉。 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>

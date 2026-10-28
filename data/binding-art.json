@@ -1,0 +1,55 @@
+{
+  "_note": "「校猫的结合」用到的全部美术素材清单。scripts/build_binding_art.mjs 会把这里的文件读成 data URI 写进 js/binding-art.js——页面上线只有「页面 + 一个脚本」两个请求，因为边缘每个请求固定 1~2 秒，多一个图就多一个来回。改素材只改这张表，别手改生成物。key 就是游戏代码里引用的 id。",
+  "cat": "assets/avatars-q/story-小煤球.webp",
+  "cat2": "assets/avatars-q/story-小煤球二世.webp",
+  "coin": "assets/ui/silvercore.webp",
+  "items": {
+    "heart": "assets/creation/Icon_Creation_099.webp",
+    "blood": "assets/creation/Icon_Creation_085.webp",
+    "clamp": "assets/creation/Icon_Creation_073.webp",
+    "ink": "assets/creation/Icon_Creation_129.webp",
+    "ruby": "assets/creation/Icon_Creation_024.webp",
+    "fan": "assets/creation/Icon_Creation_122.webp",
+    "lock": "assets/creation/Icon_Creation_060.webp",
+    "kaleido": "assets/creation/Icon_Creation_080.webp",
+    "prism": "assets/creation/Icon_Creation_017.webp",
+    "mirror": "assets/creation/Icon_Creation_027.webp",
+    "plano": "assets/creation/Icon_Creation_034.webp",
+    "watch": "assets/creation/Icon_Creation_120.webp",
+    "dial": "assets/creation/Icon_Creation_103.webp",
+    "butterfly": "assets/creation/Icon_Creation_131.webp",
+    "umbrella": "assets/creation/Icon_Creation_107.webp",
+    "vest": "assets/creation/Icon_Creation_030.webp",
+    "bone": "assets/creation/Icon_Creation_181.webp",
+    "eyeball": "assets/creation/Icon_Creation_010.webp",
+    "lantern": "assets/creation/Icon_Creation_155.webp",
+    "ribbon": "assets/creation/Icon_Creation_057.webp",
+    "tear": "assets/creation/Icon_Creation_086.webp",
+    "book": "assets/creation/Icon_Creation_082.webp",
+    "lamp": "assets/creation/Icon_Creation_047.webp",
+    "core": "assets/creation/Icon_Creation_116.webp",
+    "wine": "assets/creation/Icon_Creation_040.webp",
+    "jaw": "assets/creation/Icon_Creation_132.webp"
+  },
+  "trinkets": {
+    "deus": "assets/covenant/Icon_Trinket_001.webp",
+    "rabbit": "assets/covenant/Icon_Trinket_010.webp",
+    "ring36": "assets/covenant/Icon_Trinket_014.webp",
+    "feast": "assets/covenant/Icon_Trinket_020.webp",
+    "wolf": "assets/covenant/Icon_Trinket_022.webp",
+    "chrysalis": "assets/covenant/Icon_Trinket_023.webp",
+    "antinomy": "assets/covenant/Icon_Trinket_011.webp",
+    "april": "assets/covenant/Icon_Trinket_016.webp"
+  },
+  "actives": {
+    "dash": "assets/key/KeyToken_Skill_16.webp",
+    "nova": "assets/key/KeyToken_Skill_40.webp",
+    "twin": "assets/key/KeyToken_Skill_22.webp",
+    "slow": "assets/key/KeyToken_Skill_18.webp"
+  },
+  "bosses": {
+    "b1": "assets/monster/Portrait_Small_Monster_S0402_BOSSSIZE.webp",
+    "b2": "assets/monster/Portrait_Small_Monster_C0202_BOSSSIZE.webp",
+    "b3": "assets/monster/Portrait_Small_Monster_C0204_BOSSSIZE.webp"
+  }
+}
