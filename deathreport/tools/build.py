@@ -10,6 +10,7 @@ from texts_extra import X, FLAVOR
 from texts_v2 import T2
 from docs import DOCS, MSGS
 from witness import WIT
+from arcs import ARCS, MILE, SRC as ARC_SRC
 from texts_ext import EXT
 
 ap = argparse.ArgumentParser(); ap.add_argument('--repo', default='..'); args = ap.parse_args()
@@ -39,8 +40,9 @@ def cn(n):
 CLAUSE = ['广播念过{B}的名字——{P}，第{N}个。', '{B}死在了{P}。我数过，那是第{N}个。', '有人在走廊里喊：{B}在{P}没了，第{N}个！', '听说{P}那边，{B}是第{N}个倒下的。',
           '我在窗口看见{P}的方向暗了一下——后来才知道，那是{B}，第{N}个。', '{B}……在{P}。第{N}个。我把这三样东西在心里默念了一遍，怕自己忘掉。',
           '我记得很清楚：{P}，{B}，第{N}个。', '无线电里的杂音间隙传来一句：{B}死在{P}，是第{N}个。']
+ACLAUSE = ['记录在案：{B}，死亡地点{P}，死亡顺序第{N}个。', '{B}——{P}——第{N}个（据广播记录）。', '{B}：{P}，第{N}个死者。']
 def clause(a, b):
-    e = BY_V[b]; t = CLAUSE[(a * 7 + b * 3) % len(CLAUSE)]
+    e = BY_V[b]; t = (ACLAUSE[b % 3] if a == 0 else CLAUSE[(a * 7 + b * 3) % len(CLAUSE)])
     return t.replace('{B}', NAME[b]).replace('{P}', PLACES[e['cell']]).replace('{N}', cn(e['dord']))
 TOK = re.compile(r'\{(@?\d+|w:\d+|it:\d+|loc:[A-E]\d|bc:D\d-\d+|sys:[0-9A-Z-]+)\}')
 def full_prose(n):
@@ -57,7 +59,8 @@ def full_prose(n):
     for k, txt in sorted(ins, key=lambda a: -a[0]): L.insert(min(k + 1, len(L)), txt)
     return '\n'.join(L)
 FACTS = {}
-def render(n):
+def render(n): return render_raw(full_prose(n), n)
+def render_raw(src, n):
     mentions, sysrefs, wits, items, locs, bcs = [], [], [], [], [], []
     def sub(m):
         t = m.group(1)
@@ -68,8 +71,8 @@ def render(n):
         if t.startswith('sys:'): sysrefs.append(t[4:]); return ''
         if t.startswith('@'): return NAME[int(t[1:])]
         k = int(t); mentions.append(k); return NAME[k]
-    out = TOK.sub(sub, full_prose(n))
-    FACTS[n] = dict(names=sorted(set(mentions)), items=sorted(set(items)), locs=sorted(set(locs)), bcs=sorted(set(bcs)), wits=list(dict.fromkeys(wits)))
+    out = TOK.sub(sub, src)
+    if n: FACTS[n] = dict(names=sorted(set(mentions)), items=sorted(set(items)), locs=sorted(set(locs)), bcs=sorted(set(bcs)), wits=list(dict.fromkeys(wits)))
     return out.replace('。。', '。'), wits, sysrefs
 
 # ---------------- records
@@ -190,7 +193,12 @@ for n, slug, zh, realm, role, item, kind, cls in ROSTER:
     if kind == 'r' and item in cz: img = cz[item]['img']
     if kind == 'w' and item in wz: img = wz[item]['img']
     roster.append(dict(n=n, slug=slug, name=zh, realm=realm, role=role, item=item, itemClass=cls, itemImg=img, avatar=av.get(zh.replace('「', '').replace('」', '')), melted=melted, key=KEY[n], lore=LORE.get(str(n), {})))
-game = dict(title='死亡游戏调查报告', subtitle='第六十三次 回溯筛选', roster=roster, places=PLACES, zones=[dict(day=d, hour=h, cell=c) for d, h, c in ZONES], causes=CAUSES,
+arcs = []
+for aid, title, need, text in ARCS:
+    t, wits, _ = render_raw(text, 0)
+    t = t.replace('{DEAD}', str(dead1)).replace('{ALIVE}', str(63 - dead1))
+    arcs.append(dict(id=aid, title=title, source=ARC_SRC, text=t, refs=[KEY[b] for b in dict.fromkeys(wits)], need=need))
+game = dict(arcs=arcs, milestones=MILE, title='死亡游戏调查报告', subtitle='第六十三次 回溯筛选', roster=roster, places=PLACES, zones=[dict(day=d, hour=h, cell=c) for d, h, c in ZONES], causes=CAUSES,
             records=records, docs=docs, msgs=msgs, start=START, solutions=solutions, hints=hints, shadow=dict(num=SHADOW, keys=[e['key'] for e in E if e['c'] == SHADOW]),
             stats=dict(records=len(records), edges=sum(len(r['refs']) for r in records.values())))
 (HERE / 'data').mkdir(exist_ok=True)

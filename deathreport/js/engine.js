@@ -3,7 +3,7 @@ export const SAVE_VERSION = 1;
 export const REC_RE = /^(\d{2})-([A-E][1-5])-(\d{2})$/, DOC_RE = /^00-[A-Z]+$/;
 
 export function newGame(G) {
-  const st = { v: SAVE_VERSION, recovered: [], docs: [], msgs: [], drafts: {}, confirmed: {}, wrong: {}, hl: {}, marks: {}, rnotes: {}, notes: '', hintStep: {}, hints: 0, tries: 0, bad: 0, ended: null, startedAt: Date.now(), playMs: 0 };
+  const st = { v: SAVE_VERSION, recovered: [], docs: [], msgs: [], arcs: [], lastMile: 0, drafts: {}, confirmed: {}, wrong: {}, hl: {}, marks: {}, rnotes: {}, notes: '', hintStep: {}, hints: 0, tries: 0, bad: 0, ended: null, startedAt: Date.now(), playMs: 0 };
   st.docs.push('00-ORDER');
   deliver(G, st);
   return st;
@@ -16,6 +16,8 @@ export const shadowUnlocked = (G, st) => st.msgs.includes('MSG06');
 export function deliver(G, st) {
   const got = [], n = confirmedCount(st);
   for (const m of G.msgs) if (m.need <= n && !st.msgs.includes(m.id)) { st.msgs.push(m.id); got.push(m.id); }
+  st.arcs ||= [];
+  for (const a of G.arcs || []) if (a.need <= n && !st.arcs.includes(a.id)) { st.arcs.push(a.id); got.push(a.id); }
   return got;
 }
 
@@ -46,13 +48,14 @@ export const follow = (G, st, id) => recover(G, st, id);
 
 // ---- deduction structure: every record can carry the full key (name + place + order) of earlier deaths; [N] on the left = how many are still unrecovered
 export function leads(G, st, id) {
-  const r = G.records[id] || G.docs[id] || G.msgs.find((m) => m.id === id);
+  const r = G.records[id] || G.docs[id] || G.msgs.find((m) => m.id === id) || (G.arcs || []).find((a) => a.id === id);
   return ((r && r.refs) || []).filter((k) => !st.recovered.includes(k)).map((k) => ({ key: k, name: G.records[k].name, num: G.records[k].num }));
 }
 export function leadTotal(G, st) {
   const out = new Set();
   const feed = (r) => (r.refs || []).forEach((k) => { if (!st.recovered.includes(k)) out.add(k); });
   st.recovered.forEach((k) => feed(G.records[k])); st.docs.forEach((d) => feed(G.docs[d])); st.msgs.forEach((m) => feed(G.msgs.find((x) => x.id === m)));
+  (st.arcs || []).forEach((a) => feed(G.arcs.find((x) => x.id === a)));
   return out.size;
 }
 export function structure(G, st) {
@@ -60,6 +63,7 @@ export function structure(G, st) {
   const feed = (from, r) => (r.refs || []).forEach((k) => { pointed.add(k); if (from != null) edges.push({ from, to: G.records[k].num }); });
   st.recovered.forEach((k) => feed(G.records[k].num, G.records[k]));
   st.docs.forEach((d) => feed(null, G.docs[d])); st.msgs.forEach((m) => feed(null, G.msgs.find((x) => x.id === m)));
+  (st.arcs || []).forEach((a) => feed(null, G.arcs.find((x) => x.id === a)));
   for (const k of G.start) pointed.add(k);
   const nodes = G.roster.map((p) => {
     const k = p.key, state = st.confirmed[k] ? 'confirmed' : st.recovered.includes(k) ? 'recovered' : pointed.has(k) ? 'lead' : 'unknown';
@@ -83,19 +87,19 @@ const paraList = (text) => text.split(/(\[sys\][\s\S]*?\[\/sys\])/).filter((b) =
 export const paragraphs = paraList;
 export function clueCards(G, st) {
   const out = [];
-  for (const id of [...st.recovered, ...st.docs, ...st.msgs]) {
-    const r = G.records[id] || G.docs[id] || G.msgs.find((m) => m.id === id); if (!r) continue;
+  for (const id of [...st.recovered, ...st.docs, ...st.msgs, ...(st.arcs || [])]) {
+    const r = G.records[id] || G.docs[id] || G.msgs.find((m) => m.id === id) || G.arcs.find((a) => a.id === id); if (!r) continue;
     const ps = paraList(r.text), m = marksOf(st, id);
-    for (const [i, c] of Object.entries(m)) if (ps[i]) out.push({ id, i: +i, c, text: ps[i], title: G.records[id]?.name || id });
+    for (const [i, c] of Object.entries(m)) if (ps[i]) out.push({ id, i: +i, c, text: ps[i], title: G.records[id]?.name || G.arcs.find((a) => a.id === id)?.title || id });
   }
   return out.sort((a, b) => b.c - a.c || a.id.localeCompare(b.id));
 }
 export function search(G, st, q) {
   q = String(q || '').trim(); if (!q) return [];
   const out = [];
-  for (const id of [...st.recovered, ...st.docs, ...st.msgs]) {
-    const r = G.records[id] || G.docs[id] || G.msgs.find((m) => m.id === id); if (!r) continue;
-    paraList(r.text).forEach((t, i) => { if (t.includes(q)) out.push({ id, i, text: t, title: G.records[id]?.name || G.docs[id]?.title || id }); });
+  for (const id of [...st.recovered, ...st.docs, ...st.msgs, ...(st.arcs || [])]) {
+    const r = G.records[id] || G.docs[id] || G.msgs.find((m) => m.id === id) || G.arcs.find((a) => a.id === id); if (!r) continue;
+    paraList(r.text).forEach((t, i) => { if (t.includes(q)) out.push({ id, i, text: t, title: G.records[id]?.name || G.docs[id]?.title || G.arcs.find((a) => a.id === id)?.title || id }); });
   }
   return out;
 }
@@ -117,7 +121,7 @@ export function evidenceOf(G, key) {
 
 // ---- reference bookkeeping (the [X] badge and the dotted underline)
 export function unrecoveredRefs(G, st, id) {
-  const r = G.records[id] || G.docs[id] || G.msgs.find((m) => m.id === id);
+  const r = G.records[id] || G.docs[id] || G.msgs.find((m) => m.id === id) || (G.arcs || []).find((a) => a.id === id);
   if (!r) return 0;
   return (r.refs || []).filter((k) => !st.recovered.includes(k)).length;
 }
@@ -129,6 +133,7 @@ export function index(G, st) {
   const out = [];
   for (const d of st.docs) out.push({ id: d, kind: 'doc', title: G.docs[d].title, refs: unrecoveredRefs(G, st, d) });
   for (const m of st.msgs) out.push({ id: m, kind: 'msg', title: '发件人不明', refs: unrecoveredRefs(G, st, m) });
+  for (const a of st.arcs || []) out.push({ id: a, kind: 'arc', title: G.arcs.find((x) => x.id === a).title, refs: unrecoveredRefs(G, st, a) });
   st.recovered.forEach((k, i) => { const r = G.records[k]; out.push({ id: k, kind: 'rec', title: r.name, when: r.when, order: i, refs: unrecoveredRefs(G, st, k), dotted: unreadSysDocs(G, st, k).length > 0, status: st.confirmed[k] ? 'ok' : st.wrong[k] ? 'ng' : st.drafts[k]?.cause ? 'draft' : '' }); });
   return out;
 }
@@ -161,9 +166,21 @@ export function submit(G, st, key) {
   if (!d || d.cause == null || d.weapon == null || d.culprit == null) return { ok: false, msg: '三项都需要填写。' };
   if (String(d.culprit) === '63' && !shadowUnlocked(G, st)) return { ok: false, msg: '该选项尚不可用。' };
   const okAll = d.cause === sol.cause && String(d.weapon) === String(sol.weaponNum || 0) && String(d.culprit) === String(sol.culprit);
-  if (okAll) { st.confirmed[key] = true; delete st.wrong[key]; const arrived = deliver(G, st); return { ok: true, correct: true, arrived, msg: '报告已确认。' }; }
+  if (okAll) { st.confirmed[key] = true; delete st.wrong[key]; const arrived = deliver(G, st); return { ok: true, correct: true, arrived, milestone: milestone(G, st, arrived), msg: '报告已确认。' }; }
   st.wrong[key] = true;
   return { ok: true, correct: false, msg: '存在错误的报告。' };
+}
+// every third confirmed report: a resonance (popup + effect), a free nudge toward what can be deduced next, and the archives that just arrived
+export function milestone(G, st, arrived = []) {
+  const n = confirmedCount(st);
+  if (n % 3 !== 0 || n <= (st.lastMile || 0) || n > 60) return null;
+  st.lastMile = n;
+  return { k: n / 3, confirmed: n, line: (G.milestones || [])[n / 3 - 1] || '', arcs: arrived.filter((x) => x.startsWith('AR-')).map((x) => G.arcs.find((a) => a.id === x)), nudge: nudge(G, st) };
+}
+export function nudge(G, st) {
+  const out = new Set(); const feed = (r) => (r.refs || []).forEach((k) => { if (!st.recovered.includes(k)) out.add(G.records[k].name); });
+  st.recovered.forEach((k) => feed(G.records[k])); (st.arcs || []).forEach((a) => feed(G.arcs.find((x) => x.id === a))); st.docs.forEach((d) => feed(G.docs[d])); st.msgs.forEach((m) => feed(G.msgs.find((x) => x.id === m)));
+  return [...out].slice(0, 4);
 }
 // the confirmation line shown after a correct report ("flavor" built from the solution)
 export function summary(G, key) {

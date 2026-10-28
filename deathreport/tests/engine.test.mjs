@@ -133,7 +133,7 @@ test('full playthrough: recover everything, confirm all 62, messages arrive, tru
   assert.equal(String(G.solutions[sk].culprit), '63');
   for (const k of shadowKeys) assert.ok(solve(st, k).correct, k);
   assert.equal(confirmedCount(st), 62); assert.ok(st.msgs.includes('MSG07'));
-  assert.deepEqual(arrivals.filter((x) => x !== 'MSG07'), ['MSG02', 'MSG03', 'MSG04', 'MSG05', 'MSG06']);
+  assert.deepEqual(arrivals.filter((x) => x !== 'MSG07' && !x.startsWith('AR-')), ['MSG02', 'MSG03', 'MSG04', 'MSG05', 'MSG06']);
   const end = finish(G, st); assert.equal(end.ended, 'true'); assert.ok(['S', 'A', 'B'].includes(end.rank));
   assert.ok(recover(G, st, '00-SEALED').ok && recover(G, st, '00-DECREE').ok);
   assert.equal(stats(G, st).rate, 100);
@@ -192,8 +192,9 @@ test('every reference is a full witness: name + place + death order are written 
   }
   assert.ok(edges >= 80);
 });
-test('closure: every record key can be deduced from START + messages (tools/closure.py)', () => {
-  execFileSync('python3', ['tools/closure.py'], { cwd: new URL('..', import.meta.url).pathname });
+test('closure: every record key can be deduced from START + messages (tools/closure.py, also without broadcast arithmetic)', () => {
+  const cwd = new URL('..', import.meta.url).pathname;
+  execFileSync('python3', ['tools/closure.py'], { cwd }); execFileSync('python3', ['tools/closure.py', '--strict'], { cwd });
 });
 test('left-hand count goes down by one for each deduced record', () => {
   const st = newGame(G); for (const k of G.start) recover(G, st, k);
@@ -233,4 +234,28 @@ test('records are long enough to carry the story', () => {
   const lens = Object.values(G.records).map((r) => r.text.length);
   assert.ok(lens.reduce((a, b) => a + b, 0) / lens.length > 420);
   assert.ok(Math.min(...lens) > 300);
+});
+
+test('every third correct report is a resonance; archives arrive with progress and point at records', () => {
+  const st = newGame(G); const seen = [], got = [];
+  for (const k of keys.filter((x) => !G.shadow.keys.includes(x))) {
+    recover(G, st, k); const r = solve(st, k);
+    if (r.milestone) seen.push(r.milestone); got.push(...(r.arrived || []).filter((x) => x.startsWith('AR-')));
+  }
+  assert.deepEqual(seen.map((m) => m.confirmed), Array.from({ length: 17 }, (_, i) => (i + 1) * 3));
+  assert.ok(seen.every((m, i) => m.k === i + 1 && m.line && Array.isArray(m.nudge)));
+  assert.ok(seen.some((m) => m.arcs.length), 'a milestone announces the archives that just arrived');
+  assert.equal(G.arcs.length, 18); assert.equal(new Set(G.arcs.map((a) => a.need)).size, 18);
+  assert.deepEqual(got, G.arcs.filter((a) => a.need <= 53).map((a) => a.id));
+  const again = solve(st, keys[0]); assert.ok(!again.milestone, 'no second popup for the same count');
+  assert.ok(index(G, st).filter((i) => i.kind === 'arc').length === got.length);
+});
+test('archives: full keys in them are written out completely (name + place + order) and lead to records', () => {
+  let n = 0;
+  for (const a of G.arcs) for (const k of a.refs) {
+    const t = G.records[k]; n++;
+    assert.ok(a.text.split('\n').some((l) => l.includes(t.name) && l.includes(G.places[t.cell]) && l.includes(`第${cnum(t.dord)}`)), `${a.id} -> ${k}`);
+  }
+  assert.ok(n >= 12);
+  assert.ok(G.arcs.find((a) => a.id === 'AR-11').text.includes('死亡') && !G.arcs.some((a) => a.text.includes('{')));
 });

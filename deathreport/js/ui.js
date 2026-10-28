@@ -1,5 +1,6 @@
 import { newGame, recover, index, options, setDraft, submit, rosterView, leads, leadTotal, structure, marksOf, cycleMark, MARK_NAMES, clueCards, search, itemTrail, timeline, evidenceOf, hint, finish, canFinish, stats, summary, confirmedCount, total, unrecoveredRefs, shadowUnlocked } from './engine.js';
 
+import { burst } from './fx.js';
 const SAVE = 'morimens-deathreport-save-v1', PREF = 'morimens-deathreport-pref-v1';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -51,15 +52,16 @@ function readerTools() {
 }
 function openReader(id) {
   ui.sel = id; const head = $('#rdHead'), body = $('#rdBody');
-  const rec = G.records[id], doc = G.docs[id], msg = G.msgs.find((m) => m.id === id);
-  if (rec) { head.innerHTML = `<b>${id}</b> | ${esc(rec.name)} | ${esc(rec.when)}<small>${esc(rec.cell)} ${esc(G.places[rec.cell])}　NO.${String(rec.num).padStart(2, '0')}</small>`; body.innerHTML = paras(rec.text, id); }
+  const rec = G.records[id], doc = G.docs[id], msg = G.msgs.find((m) => m.id === id), arc = G.arcs.find((a) => a.id === id);
+  if (arc) { head.innerHTML = `<b>${id}</b> | ${esc(arc.title)} | ${esc(arc.source)}<small>补充档案　确认 ${arc.need} 份报告后送达</small>`; body.innerHTML = paras(arc.text, id); }
+  else if (rec) { head.innerHTML = `<b>${id}</b> | ${esc(rec.name)} | ${esc(rec.when)}<small>${esc(rec.cell)} ${esc(G.places[rec.cell])}　NO.${String(rec.num).padStart(2, '0')}</small>`; body.innerHTML = paras(rec.text, id); }
   else if (doc) { head.innerHTML = `<b>${id}</b> | ${esc(doc.title)} | ${esc(doc.source)}`; body.innerHTML = paras(doc.text, id); }
   else if (msg) { head.innerHTML = `<b>${id}</b> | 发件人不明 | --`; body.innerHTML = paras(msg.text, id); }
   if (rec) body.insertAdjacentHTML('afterbegin', readerTools());
   const ld = leads(G, st, id);
   if (ld.length) body.insertAdjacentHTML('beforeend', `<p class="notice">-- 检测到对其他记忆的参考。可推理出 ${ld.length} 条新记录：${ld.map((x) => esc(x.name)).join('、')} --</p>`);
   else if (rec && (rec.refs || []).length) body.insertAdjacentHTML('beforeend', '<p class="notice done">-- 这条记录能推理出的记录，已全部复原 --</p>');
-  if (rec || doc || msg) body.insertAdjacentHTML('beforeend', `<details class="rn" ${st.rnotes?.[id] ? 'open' : ''}><summary>本条笔记</summary><textarea data-rn="${id}" placeholder="针对这条记录的推理（自动保存）">${esc(st.rnotes?.[id] || '')}</textarea></details>`);
+  if (rec || doc || msg || arc) body.insertAdjacentHTML('beforeend', `<details class="rn" ${st.rnotes?.[id] ? 'open' : ''}><summary>本条笔记</summary><textarea data-rn="${id}" placeholder="针对这条记录的推理（自动保存）">${esc(st.rnotes?.[id] || '')}</textarea></details>`);
   body.parentElement.scrollTop = 0;
   showPane('rd'); renderList();
 }
@@ -82,7 +84,7 @@ function renderList() {
   if (ui.sort === 'refs') items.sort((a, b) => b.refs - a.refs);
   const msgR = items.filter((i) => i.kind === 'msg'), recR = items.filter((i) => i.kind !== 'msg');
   $('#leadsum').innerHTML = `可推理的新记录 <b>${leadTotal(G, st)}</b> 条　·　已复原 ${st.recovered.length}/${total(G)}`;
-  $('#list').innerHTML = [...recR, ...msgR].map((it) => `<li data-id="${it.id}" class="${it.kind === 'doc' ? 'sys' : it.kind === 'msg' ? 'msg' : ''} ${it.dotted ? 'dotted' : ''} ${ui.sel === it.id ? 'on' : ''}"><span class="badge ${it.refs > 0 ? 'on' : ''}" title="${it.refs > 0 ? `可推理出 ${it.refs} 条新记录` : ''}">${it.refs > 0 ? `[${it.refs}]` : it.kind === 'rec' && G.records[it.id].refs.length ? '✓' : ''}</span><span class="id">${it.id}</span><span class="t">${esc(it.title)}${it.when ? ' ' + esc(it.when) : ''}</span>${it.status ? `<span class="chip ${it.status}">${{ ok: '确认', ng: '有误', draft: '待核' }[it.status]}</span>` : ''}</li>`).join('');
+  $('#list').innerHTML = [...recR, ...msgR].map((it) => `<li data-id="${it.id}" class="${it.kind === 'doc' ? 'sys' : it.kind === 'msg' ? 'msg' : it.kind === 'arc' ? 'arc' : ''} ${it.dotted ? 'dotted' : ''} ${ui.sel === it.id ? 'on' : ''}"><span class="badge ${it.refs > 0 ? 'on' : ''}" title="${it.refs > 0 ? `可推理出 ${it.refs} 条新记录` : ''}">${it.refs > 0 ? `[${it.refs}]` : it.kind === 'rec' && G.records[it.id].refs.length ? '✓' : ''}</span><span class="id">${it.id}</span><span class="t">${esc(it.title)}${it.when ? ' ' + esc(it.when) : ''}</span>${it.status ? `<span class="chip ${it.status}">${{ ok: '确认', ng: '有误', draft: '待核' }[it.status]}</span>` : ''}</li>`).join('');
 }
 $('#list').addEventListener('click', (e) => { const li = e.target.closest('li'); if (li) openReader(li.dataset.id); });
 document.querySelector('.sortbar').addEventListener('click', (e) => { const b = e.target.closest('[data-sort]'); if (!b) return; ui.sort = b.dataset.sort; document.querySelectorAll('.sortbar button').forEach((x) => x.classList.toggle('on', x === b)); renderList(); });
@@ -188,9 +190,15 @@ function doSubmit() {
   const key = ui.rep, r = submit(G, st, key);
   if (!r.ok) { toast(r.msg); sfx.err(); return; }
   renderTools();
-  if (r.correct) { sfx.stamp(); toast('● 报告已确认'); for (const m of r.arrived || []) { sfx.msg(); toast(m === 'MSG06' ? '新消息 MSG06 ——名册已更新：检测到名册之外的个体。' : `新消息 ${m}`, 4200); } if (r.arrived?.includes('MSG07')) { save(); endGame(); return; } }
+  if (r.correct) { sfx.stamp(); toast('● 报告已确认'); for (const m of r.arrived || []) { sfx.msg(); toast(m.startsWith('AR-') ? `新档案 ${m}　${G.arcs.find((x) => x.id === m).title}` : m === 'MSG06' ? '新消息 MSG06 ——名册已更新：检测到名册之外的个体。' : `新消息 ${m}`, 4200); } if (r.arrived?.includes('MSG07')) { save(); endGame(); return; } if (r.milestone) { save(); resonance(r.milestone); } }
   else sfx.err();
   renderList(); refreshRate(); save();
+}
+function resonance(m) {
+  sfx.stamp(); [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, 0.05, 'triangle', 0.12 + i * 0.09)); burst(Math.min(5, 1 + Math.floor(m.k / 4)));
+  const pct = Math.round((m.confirmed / total(G)) * 100);
+  modal(`<div class="reso"><h3>■ 共鸣　${m.k}／20</h3><p class="mline">${esc(m.line.replace(/^共鸣 \d+\/20　/, ''))}</p><div class="bar"><i style="width:${pct}%"></i></div><p class="dim">已确认 ${m.confirmed}／${total(G)} 份报告</p>${m.arcs.map((a) => `<div class="arcn" data-arc="${a.id}">◆ 新档案 ${a.id}　${esc(a.title)}　<small>（点击阅读）</small></div>`).join('')}${m.nudge.length ? `<div class="nudge">提示（不计入评级）：已复原的记录与档案里，写明了这些人的下落——${m.nudge.map(esc).join('、')}。</div>` : '<div class="nudge">提示（不计入评级）：已复原的记录里没有新的线索了。去读读还没读的系统文档、消息与档案吧。</div>'}<div class="btns"><button class="btn" data-close>继续</button></div></div>`);
+  $('#modal').querySelectorAll('[data-arc]').forEach((el) => { el.onclick = () => { $('#modal').hidden = true; openReader(el.dataset.arc); }; });
 }
 function refreshRate() {
   const s = stats(G, st); $('#ratebar').style.width = s.rate + '%'; $('#ratetxt').textContent = `核实率 ${s.rate}%（${s.confirmed}/${s.total}）`;

@@ -81,3 +81,9 @@ input,select,textarea{background:#06100f;color:var(--hi);border:1px solid var(--
 .card{border-left:3px solid var(--line);padding:4px 8px;margin:6px 0;font-size:13px;cursor:pointer;background:#08151a}.card small{display:block;color:var(--dim)}.card.m1{border-color:var(--amb)}.card.m2{border-color:var(--cy)}.card.m3{border-color:var(--red)}.card mark{background:#5a4a10;color:#fff}
 .ev{margin-top:10px}.chipb{background:#0a1a1c;border:1px solid var(--line);margin:2px;padding:1px 8px;font-size:12px}.chipb:hover{border-color:var(--amb)}
 .nlinks{margin-top:6px}.tabs{flex-wrap:wrap}
+
+/* resonance popup / archives */
+#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:90;opacity:0}
+.reso{text-align:center}.reso h3{letter-spacing:.2em;color:var(--amb);animation:stampin .5s}.reso .mline{color:var(--hi);font-size:16px}.reso .bar{height:8px;border:1px solid var(--line);margin:8px 0;background:#06100f}.reso .bar i{display:block;height:100%;background:linear-gradient(90deg,#14483e,var(--cy))}
+.reso .arcn{border:1px solid var(--amb);padding:6px 8px;margin:8px 0;text-align:left;color:var(--amb);cursor:pointer}.reso .nudge{text-align:left;border-left:2px solid var(--cy);padding-left:8px;color:var(--cy);margin:8px 0;font-size:13px}
+.list li.arc .id{color:var(--amb)}.list li.arc .t{color:#d9bf7a}.chip.arcchip{color:var(--amb);border-color:var(--amb)}

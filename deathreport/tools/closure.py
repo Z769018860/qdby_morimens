@@ -10,28 +10,44 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
 G = json.loads((HERE / 'data/game.json').read_text(encoding='utf-8'))
 verbose = '-v' in sys.argv
+STRICT = '--strict' in sys.argv   # no broadcast arithmetic: only witness statements, message masks and elimination
 names = {p['n']: p['name'] for p in G['roster']}
 rec = G['records']; byvic = {r['num']: r for r in rec.values()}
 places = G['places']
 strip = lambda t: re.sub(r'\[/?[a-z]+\]|\[link\]|\[/link\]', '', t)
 BC = re.compile(r'目前已死亡(\d+)人。(?:新增的死者：([^。]+)。|上一个小时没有新增的死者。)')
-def name_in(line, n): return names[n].strip('「」') in line
+CN = {c: i for i, c in enumerate('零一二三四五六七八九')}
+def cn2int(t):
+    if '十' in t:
+        a, b = t.split('十'); return (CN[a] if a else 1) * 10 + (CN[b] if b else 0)
+    return CN[t]
+_ALL = sorted({v.strip('「」') for v in names.values()}, key=len, reverse=True)
+def name_in(line, n):   # longest name wins ('负誓·奥吉尔' is not '奥吉尔')
+    nm = names[n].strip('「」'); rest = line
+    for o in _ALL:
+        if o != nm and nm in o: rest = rest.replace(o, '\0')
+    return nm in rest
 def texts_of(st):
     out = [(None, strip(G['docs'][d]['text'])) for d in st['docs']]
     out += [(r, strip(rec[r]['text'])) for r in st['rec']]
-    out += [(None, strip(m['text'])) for m in G['msgs'] if m['need'] <= len(st['rec'])]
+    out += [('MSG', strip(m['text'])) for m in G['msgs'] if m['need'] <= len(st['rec'])]
+    out += [(None, strip(a['text'])) for a in G.get('arcs', []) if a['need'] <= len(st['rec'])]
     return out
 def analyse(st):
     ss, nn, xy = set(), {}, {}
     for own, t in texts_of(st):
-        ownnum = rec[own]['num'] if own else None
+        ismsg = own == 'MSG'; ownnum = rec[own]['num'] if own and not ismsg else None
         for line in t.split('\n'):
             for n in names:
                 if n != ownnum and name_in(line, n):
                     ss.add(n)
                     for c, pl in places.items():
                         if pl in line: xy.setdefault(n, set()).add(c)
-            for m in BC.finditer(line):
+            om = re.search(r'第([零一二三四五六七八九十]+)个', line)
+            if om:                                   # witness statement: name + place + order in one line
+                for n in names:
+                    if n != ownnum and name_in(line, n): nn[n] = cn2int(om.group(1))
+            for m in ([] if (STRICT and not ismsg) else BC.finditer(line)):
                 cnt = int(m.group(1)); lst = m.group(2).split('、') if m.group(2) else []
                 for i, nm in enumerate(lst):
                     for n in names:
