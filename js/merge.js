@@ -15,10 +15,10 @@ import { LEVELS } from './merge-art.js';
 const MAX = LEVELS.length - 1;
 const TAU = Math.PI * 2;
 const RATIO = 1.58;                 // 游戏区 高 / 宽
-// 投放池：0~9 级（杜勒赛因只能合出来）。权重按等级递减，越大的球越少见。
+// 投放池：0~8 级（杜勒赛因只能合出来）。权重按等级递减，越大的球越少见。
 // 早先只放 0~4 级，瓶子根本装不下「合到杜勒」需要的当量（算面积最多爬到 6 级），
-// 玩家体感就是「合着合着突然满了」。放开到 9 级后才够用。
-const SPAWN_W = [10, 9, 8, 7, 6, 1.8, 1.0, 0.5, 0.12, 0.06];
+// 玩家体感就是「合着合着突然满了」。放开到 8 级后才够用。
+const SPAWN_W = [10, 9, 8, 7, 6, 1.8, 1.0, 0.5, 0.12];
 const MAX_SPAWN = SPAWN_W.length - 1;
 const OPENER = 5;                   // 开局前几颗只出小球，别一上来就塞大球
 const CLEAR_BONUS = 120;            // 两个杜勒赛因一起消失的奖励
@@ -238,7 +238,9 @@ function tileFor(lv) {
   if (t) return t;
 
   const r = rad(lv);
-  const pad = Math.max(2, r * 0.11);
+  // 光晕只留很窄一圈：以前 pad 是半径的 11%，两颗球刚刚相切时两圈光晕叠在一起，
+  // 看着就像球体插进了对方身体里，「碰撞体积不对」的观感一半是它给的。
+  const pad = Math.max(1.5, r * 0.05);
   const px = Math.round((r + pad) * 2 * G.dpr);
   const c = document.createElement('canvas');
   c.width = c.height = px;
@@ -248,8 +250,8 @@ function tileFor(lv) {
   const tint = LEVELS[lv].tint;
 
   // 外圈光环，让同尺寸的球在暗背景上浮起来
-  const glow = g.createRadialGradient(cx, cx, R * 0.9, cx, cx, R + pad * G.dpr);
-  glow.addColorStop(0, hexA(tint, 0.45));
+  const glow = g.createRadialGradient(cx, cx, R * 0.94, cx, cx, R + pad * G.dpr);
+  glow.addColorStop(0, hexA(tint, 0.34));
   glow.addColorStop(1, hexA(tint, 0));
   g.fillStyle = glow;
   g.beginPath(); g.arc(cx, cx, R + pad * G.dpr, 0, TAU); g.fill();
@@ -470,6 +472,60 @@ function flushMerges() {
   return wave;
 }
 
+// 硬分离：只动位置，把每对的圆心距拉到「半径和 − tol」，反复几轮直到推不动为止。
+// resolve() 里的 pushK < 1 是给「软」的物理解算用的，球被挤在墙和球堆之间时
+// 几轮迭代根本收敛不完，剩下的重叠就直接画在脸上了（实测最深能插进 58% 半径）。
+// 这里补一脚全量的分离，重叠立刻消失；不碰速度，所以不会凭空加能量、也不会抖。
+function separate(passes, tol) {
+  const balls = G.balls;
+  if (balls.length < 2) return;
+  const clampBall = (b) => {
+    if (b.x < b.r) b.x = b.r;
+    else if (b.x > G.W - b.r) b.x = G.W - b.r;
+    if (b.y + b.r > G.H) b.y = G.H - b.r;
+    else if (b.y < b.r) b.y = b.r;
+  };
+  const stuck = (b, x, y) => (x < b.r - 0.01 || x > G.W - b.r + 0.01 || y > G.H - b.r + 0.01 || y < b.r - 0.01);
+
+  for (let pass = 0; pass < passes; pass++) {
+    let moved = 0;
+    for (let i = 0; i < balls.length; i++) {
+      const a = balls[i];
+      for (let j = i + 1; j < balls.length; j++) {
+        const b = balls[j];
+        const rr = a.r + b.r - tol;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= rr * rr) continue;
+        let d = Math.sqrt(d2);
+        let nx; let ny;
+        if (d < 1e-4) { nx = 0; ny = -1; d = 0; } else { nx = dx / d; ny = dy / d; }
+        const ov = rr - d;
+        const wa = 1 / (a.r * a.r);
+        const wb = 1 / (b.r * b.r);
+        const ws = wa + wb;
+        let ma = ov * (wa / ws);
+        let mb = ov * (wb / ws);
+        // 有一方被墙/瓶底顶住了，它那份推开量转给对面——
+        // 否则两边互相顶着，推多少轮都解不开（合成出来的大球正好卡在瓶底时最明显）
+        const aStuck = stuck(a, a.x - nx * ma, a.y - ny * ma);
+        const bStuck = stuck(b, b.x + nx * mb, b.y + ny * mb);
+        if (aStuck && !bStuck) { mb = ov; ma = 0; }
+        else if (bStuck && !aStuck) { ma = ov; mb = 0; }
+        a.x -= nx * ma;
+        a.y -= ny * ma;
+        b.x += nx * mb;
+        b.y += ny * mb;
+        clampBall(a);
+        clampBall(b);
+        moved++;
+      }
+    }
+    if (!moved) break;
+  }
+}
+
 function merge(a, b) {
   a.dead = b.dead = true;
   const x = (a.x + b.x) / 2;
@@ -497,7 +553,7 @@ function merge(a, b) {
   const drop = Math.max(0, rNew - Math.max(a.r, b.r)) * 0.55;
   const ny2 = clamp(y + drop, rNew, G.H - rNew);
   const nb = mkBall(nlv, clamp(x, rNew, G.W - rNew), ny2, (a.vx + b.vx) / 2, (a.vy + b.vy) / 2);
-  nb.scale = 1.32;
+  nb.scale = 1.12;
   G.balls.push(nb);
   G.score += LEVELS[nlv].pts;
   G.seen.add(nlv);
@@ -685,12 +741,15 @@ function loop(now) {
       let guard = 0;
       while (acc >= STEP && guard++ < 8) { step(STEP); acc -= STEP; }
       if (guard >= 8) acc = 0;
+      // 位置分离每帧做一次就够（它不是积分的一部分）：跑在软解算之后，
+      // 把残留的插模彻底推开。放在这里比放进 step 里便宜一倍，画面上一模一样。
+      separate(G.balls.length > 30 ? 12 : 20, 0.3);
     }
 
     // 合成时的弹一下
     for (const b of G.balls) {
       if (b.scale && b.scale > 1) {
-        b.scale = Math.max(1, b.scale - dt * 3.2);
+        b.scale = Math.max(1, b.scale - dt * 6.5);
       }
     }
     for (let i = G.fx.length - 1; i >= 0; i--) {

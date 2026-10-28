@@ -97,6 +97,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .pick:hover { border-color: var(--accent); }
 .pick.mini { min-height: 0; width: 74px; }
 .pick.mini img, .pick.mini .plus { width: 44px; height: 44px; }
+/* 交换：选中的那一格高亮，其它格子暗示「可以放这里」 */
+.slot.swapfrom { box-shadow: 0 0 0 2px var(--gold) inset; }
+.slot.swapfrom .pick { border-color: var(--gold); }
+.pick.droppable { border-style: dashed; border-color: color-mix(in srgb, var(--gold) 55%, var(--line)); }
+.pick.droppable:hover { border-style: solid; background: color-mix(in srgb, var(--gold) 12%, var(--panel)); }
+.swapnote { margin: 8px 0 0; color: var(--gold); }
 .fb-g { border-color: var(--green) !important; background: color-mix(in srgb, var(--green) 22%, var(--panel)); }
 .fb-y { border-color: var(--yellow) !important; background: color-mix(in srgb, var(--yellow) 22%, var(--panel)); }
 .fb-n { border-color: var(--gray) !important; background: color-mix(in srgb, var(--gray) 35%, var(--panel)); opacity: .85; }
@@ -1102,7 +1108,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
   border: 1px solid rgba(120,130,150,.45); background: transparent; color: inherit; }
 @keyframes bootspin { to { transform: rotate(360deg); } }
 </style>
-<meta name="build" content="20a767490d">
+<meta name="build" content="da059b2046">
 </head>
 <body>
 <main id="app" class="wrap">
@@ -1219,7 +1225,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
   if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
 })();
 </script>
-<script type="module" src="js/b/gallery.js?v=20a767490d"></script>
+<script type="module" src="js/b/gallery.js?v=da059b2046"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

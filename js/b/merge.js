@@ -89,15 +89,6 @@ const LEVELS = [
   "art": "data:image/webp;base64,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"
  },
  {
-  "key": "katigura",
-  "n": "凯蒂古拉",
-  "en": "Katigura",
-  "d": 0.3091,
-  "pts": 45,
-  "tint": "#d8a444",
-  "art": "data:image/webp;base64,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"
- },
- {
   "key": "doresain",
   "n": "杜勒赛因",
   "en": "Doresain",
@@ -130,10 +121,10 @@ const { LEVELS } = m_merge_art;
 const MAX = LEVELS.length - 1;
 const TAU = Math.PI * 2;
 const RATIO = 1.58;                 // 游戏区 高 / 宽
-// 投放池：0~9 级（杜勒赛因只能合出来）。权重按等级递减，越大的球越少见。
+// 投放池：0~8 级（杜勒赛因只能合出来）。权重按等级递减，越大的球越少见。
 // 早先只放 0~4 级，瓶子根本装不下「合到杜勒」需要的当量（算面积最多爬到 6 级），
-// 玩家体感就是「合着合着突然满了」。放开到 9 级后才够用。
-const SPAWN_W = [10, 9, 8, 7, 6, 1.8, 1.0, 0.5, 0.12, 0.06];
+// 玩家体感就是「合着合着突然满了」。放开到 8 级后才够用。
+const SPAWN_W = [10, 9, 8, 7, 6, 1.8, 1.0, 0.5, 0.12];
 const MAX_SPAWN = SPAWN_W.length - 1;
 const OPENER = 5;                   // 开局前几颗只出小球，别一上来就塞大球
 const CLEAR_BONUS = 120;            // 两个杜勒赛因一起消失的奖励
@@ -353,7 +344,9 @@ function tileFor(lv) {
   if (t) return t;
 
   const r = rad(lv);
-  const pad = Math.max(2, r * 0.11);
+  // 光晕只留很窄一圈：以前 pad 是半径的 11%，两颗球刚刚相切时两圈光晕叠在一起，
+  // 看着就像球体插进了对方身体里，「碰撞体积不对」的观感一半是它给的。
+  const pad = Math.max(1.5, r * 0.05);
   const px = Math.round((r + pad) * 2 * G.dpr);
   const c = document.createElement('canvas');
   c.width = c.height = px;
@@ -363,8 +356,8 @@ function tileFor(lv) {
   const tint = LEVELS[lv].tint;
 
   // 外圈光环，让同尺寸的球在暗背景上浮起来
-  const glow = g.createRadialGradient(cx, cx, R * 0.9, cx, cx, R + pad * G.dpr);
-  glow.addColorStop(0, hexA(tint, 0.45));
+  const glow = g.createRadialGradient(cx, cx, R * 0.94, cx, cx, R + pad * G.dpr);
+  glow.addColorStop(0, hexA(tint, 0.34));
   glow.addColorStop(1, hexA(tint, 0));
   g.fillStyle = glow;
   g.beginPath(); g.arc(cx, cx, R + pad * G.dpr, 0, TAU); g.fill();
@@ -585,6 +578,60 @@ function flushMerges() {
   return wave;
 }
 
+// 硬分离：只动位置，把每对的圆心距拉到「半径和 − tol」，反复几轮直到推不动为止。
+// resolve() 里的 pushK < 1 是给「软」的物理解算用的，球被挤在墙和球堆之间时
+// 几轮迭代根本收敛不完，剩下的重叠就直接画在脸上了（实测最深能插进 58% 半径）。
+// 这里补一脚全量的分离，重叠立刻消失；不碰速度，所以不会凭空加能量、也不会抖。
+function separate(passes, tol) {
+  const balls = G.balls;
+  if (balls.length < 2) return;
+  const clampBall = (b) => {
+    if (b.x < b.r) b.x = b.r;
+    else if (b.x > G.W - b.r) b.x = G.W - b.r;
+    if (b.y + b.r > G.H) b.y = G.H - b.r;
+    else if (b.y < b.r) b.y = b.r;
+  };
+  const stuck = (b, x, y) => (x < b.r - 0.01 || x > G.W - b.r + 0.01 || y > G.H - b.r + 0.01 || y < b.r - 0.01);
+
+  for (let pass = 0; pass < passes; pass++) {
+    let moved = 0;
+    for (let i = 0; i < balls.length; i++) {
+      const a = balls[i];
+      for (let j = i + 1; j < balls.length; j++) {
+        const b = balls[j];
+        const rr = a.r + b.r - tol;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= rr * rr) continue;
+        let d = Math.sqrt(d2);
+        let nx; let ny;
+        if (d < 1e-4) { nx = 0; ny = -1; d = 0; } else { nx = dx / d; ny = dy / d; }
+        const ov = rr - d;
+        const wa = 1 / (a.r * a.r);
+        const wb = 1 / (b.r * b.r);
+        const ws = wa + wb;
+        let ma = ov * (wa / ws);
+        let mb = ov * (wb / ws);
+        // 有一方被墙/瓶底顶住了，它那份推开量转给对面——
+        // 否则两边互相顶着，推多少轮都解不开（合成出来的大球正好卡在瓶底时最明显）
+        const aStuck = stuck(a, a.x - nx * ma, a.y - ny * ma);
+        const bStuck = stuck(b, b.x + nx * mb, b.y + ny * mb);
+        if (aStuck && !bStuck) { mb = ov; ma = 0; }
+        else if (bStuck && !aStuck) { ma = ov; mb = 0; }
+        a.x -= nx * ma;
+        a.y -= ny * ma;
+        b.x += nx * mb;
+        b.y += ny * mb;
+        clampBall(a);
+        clampBall(b);
+        moved++;
+      }
+    }
+    if (!moved) break;
+  }
+}
+
 function merge(a, b) {
   a.dead = b.dead = true;
   const x = (a.x + b.x) / 2;
@@ -612,7 +659,7 @@ function merge(a, b) {
   const drop = Math.max(0, rNew - Math.max(a.r, b.r)) * 0.55;
   const ny2 = clamp(y + drop, rNew, G.H - rNew);
   const nb = mkBall(nlv, clamp(x, rNew, G.W - rNew), ny2, (a.vx + b.vx) / 2, (a.vy + b.vy) / 2);
-  nb.scale = 1.32;
+  nb.scale = 1.12;
   G.balls.push(nb);
   G.score += LEVELS[nlv].pts;
   G.seen.add(nlv);
@@ -800,12 +847,15 @@ function loop(now) {
       let guard = 0;
       while (acc >= STEP && guard++ < 8) { step(STEP); acc -= STEP; }
       if (guard >= 8) acc = 0;
+      // 位置分离每帧做一次就够（它不是积分的一部分）：跑在软解算之后，
+      // 把残留的插模彻底推开。放在这里比放进 step 里便宜一倍，画面上一模一样。
+      separate(G.balls.length > 30 ? 12 : 20, 0.3);
     }
 
     // 合成时的弹一下
     for (const b of G.balls) {
       if (b.scale && b.scale > 1) {
-        b.scale = Math.max(1, b.scale - dt * 3.2);
+        b.scale = Math.max(1, b.scale - dt * 6.5);
       }
     }
     for (let i = G.fx.length - 1; i >= 0; i--) {

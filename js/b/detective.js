@@ -47,6 +47,9 @@ const I18N = {
     // 还原面板
     boardTitle: '还原队伍', boardLevel: '{l}档',
     submit: '提交推理', submitLeft: '（剩余 {n} 次）', reset: '重置选择',
+    clearWrong: '清除选错的角色', clearDone: '清掉了 {n} 个不在队内的角色', clearNone: '还没有能判断对错的角色',
+    swapPick: '已选中 {l} 位，再点另一个卡位就能换过去；再点自己一次是改选',
+    swapDone: '{a} 位 ↔ {b} 位已互换', swapHint: '交换中：点另一个卡位互换，点自己可改选',
     pickAwakener: '选择唤醒体', pickWheel: '选择命轮', pickCovenant: '选择密契', pickKey: '选择钥令', pickCreation: '选择造物',
     searchName: '搜索名称（中/英）', allRealm: '全部阵营', allRole: '全部定位', allRarity: '全部稀有度', allType: '全部类型',
     allKw: '全部关键词', clear: '清空', close: '关闭', done: '完成', add: '添加', noMatch: '没有匹配项',
@@ -242,6 +245,9 @@ const I18N = {
     sortNote: 'Sorted by damage desc: A is the top dealer. Members are anonymized as A–D; order matches the answer.',
     boardTitle: 'Restore team', boardLevel: '{l}',
     submit: 'Submit', submitLeft: ' ({n} left)', reset: 'Reset',
+    clearWrong: 'Clear wrong picks', clearDone: 'Cleared {n} flagged pick(s)', clearNone: 'Nothing flagged yet',
+    swapPick: '{l} selected — tap another slot to move it there; tap it again to change it',
+    swapDone: 'Swapped {a} ↔ {b}', swapHint: 'Swapping: tap another slot to swap, tap it again to change',
     pickAwakener: 'Pick awakener', pickWheel: 'Pick wheel', pickCovenant: 'Pick covenant', pickKey: 'Pick key', pickCreation: 'Pick relic',
     searchName: 'Search (CN/EN)', allRealm: 'All realms', allRole: 'All roles', allRarity: 'All rarities', allType: 'All types',
     allKw: 'All keywords', clear: 'Clear', close: 'Close', done: 'Done', add: 'Add', noMatch: 'No match',
@@ -2078,7 +2084,7 @@ return { REWARD, dayKey, state, done, claim, checkinBar };
 
 // ---- js/game.js
 const m_game = await (async () => {
-const { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang, wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf, scIcon, scNum, emptyState, realmFits, realmAnchor, realmName } = m_common;
+const { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang, wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf, scIcon, scNum, emptyState } = m_common;
 const { PEPPER } = m_pepper;
 const { bank } = m_bank;
 const { auth, openLogin } = m_auth;
@@ -2180,6 +2186,8 @@ const ptsOf = (p) => Math.round(POINT_BASE + (p.diffScore || 20) * 1.2);
 
 // ------------------------------------------------------------------ state
 let puzzle, ans, level, mode, sel, fb, history, hintsUsed, finished, won, pickerKind;
+// 交换模式：点了某个已选卡位后记下它的序号，再点另一个卡位就互换内容（null = 没在交换）
+let swapFrom = null;
 level = store.get('level', 1);
 mode = 'daily';
 
@@ -2236,7 +2244,7 @@ async function start(p0, m) {
   }
   puzzle = p; mode = m;
   ans = p.team; // already sorted by damage desc: slot A = top damage
-  sel = newSel(); fb = {}; history = []; hintsUsed = 0; finished = false; won = false;
+  sel = newSel(); fb = {}; history = []; hintsUsed = 0; finished = false; won = false; swapFrom = null;
   loadClues();
   if (m === 'daily') {
     const saved = store.get(`daily:${todayKey()}:${level}`, null);
@@ -2603,23 +2611,9 @@ function clueList() {
     team.push({ id: 'brk', cost: 6, label: t('clueBrk'), value: () => j(ans.map(a => a.brk)) });
   }
 
-  if (A.pot && full('pot')) {
-    team.push({ id: 'pot', cost: 8, label: t('cluePot'), value: () => j(ans.map(a => a.pot)) });
-  }
-
-  const hasCard = full('cardLv');
-  const hasOmen = full('madness');
-  if (hasCard || hasOmen) {
-    team.push({
-      id: 'build', cost: 7,
-      // 老版本战报只有指令卡等级、没有疯狂预兆，标题就别把说不到的东西写上去
-      label: hasCard && hasOmen ? t('clueBuild') : (hasCard ? t('clueBuildCard') : t('clueBuildOmen')),
-      value: () => [
-        hasCard ? `${t('cardLv')} ${j(ans.map(a => a.cardLv))}` : '',
-        hasOmen ? `${t('madnessLv')} ${j(ans.map(a => a.madness))}` : '',
-      ].filter(Boolean).join(' · '),
-    });
-  }
+  // 「灵塑等级」和「养成（指令卡 / 疯狂预兆）」不再当线索卖：
+  // 战报面板（reportPanel 的 invest 行）本来就把每个卡位的灵塑、指令卡总等级
+  // 原样印在桌上，再花银芯买一条一模一样的信息属于重复收费。
 
   // 命轮强化只报整队统计，不带位置：最高强化到几、有几件 ≥+12
   const wl = (x.wl || []).filter(v => v != null);
@@ -2914,18 +2908,77 @@ function pickBtn(kind, current, onPick, fkey, extraCls = '') {
     e ? h('small', {}, nameOf(e)) : h('small', {}, KINDS[kind]));
 }
 
+// 交换 / 清除都得把那一格的反馈颜色抹掉：颜色评的是「原来摆在那个位置的人」，
+// 人挪走了还留着颜色就是误导（也不该靠挪位置白拿一份新的对错信息）。
+function dropFb(k) {
+  delete fb[`awk${k}`];
+  delete fb[`w${k}0`];
+  delete fb[`w${k}1`];
+  delete fb[`cov${k}`];
+  delete fb[`pot${k}`];
+}
+
+// 两个卡位整体互换：唤醒体连同命轮、密契、灵塑一起搬过去
+function swapSlots(a, b) {
+  const s = sel.slots;
+  const t0 = s[a];
+  s[a] = s[b];
+  s[b] = t0;
+  dropFb(a);
+  dropFb(b);
+  toast(t('swapDone', { a: LETTERS[a], b: LETTERS[b] }));
+}
+
+// 反馈是红色（这人不在队里）的卡位 = 一定选错，可以一键清掉
+const wrongSlots = () => sel.slots
+  .map((g, k) => {
+    const f = fb[`awk${k}`];
+    return g.awk != null && f && f.c === 'n' && f.v === g.awk ? k : -1;
+  })
+  .filter(k => k >= 0);
+
+function clearWrong() {
+  const list = wrongSlots();
+  if (!list.length) { toast(t('clearNone')); return; }
+  list.forEach(k => {
+    sel.slots[k] = { awk: null, wheels: [null, null], cov: null, pot: null };
+    dropFb(k);
+  });
+  swapFrom = null;
+  persist();
+  render();
+  toast(t('clearDone', { n: list.length }));
+}
+
 function slotCard(k) {
   const A = active();
   const g = sel.slots[k];
   const locked = finished;
   const open = (kind, apply) => () => { if (!locked) openPicker(kind, apply, k); };
-  const card = h('div', { class: 'slot' },
+  // 唤醒体卡位：空着直接开选择器；已经选了的先进入交换状态，
+  // 再点自己（第二次）才改选，点别的卡位就换过去。
+  const onAwk = () => {
+    if (locked) return;
+    if (swapFrom == null) {
+      if (g.awk == null) { openPicker('awakener', v => { g.awk = v; }, k); return; }
+      swapFrom = k;
+      toast(t('swapPick', { l: LETTERS[k] }));
+      render();
+      return;
+    }
+    if (swapFrom === k) { swapFrom = null; openPicker('awakener', v => { g.awk = v; }, k); return; }
+    swapSlots(swapFrom, k);
+    swapFrom = null;
+    persist();
+    render();
+  };
+  const card = h('div', { class: `slot${swapFrom === k ? ' swapfrom' : ''}` },
     h('div', { class: 'shead' }, h('b', {}, t('slotHead', { l: LETTERS[k] })),
       h('span', { class: 'chips' },
         isOpen(`r${k}`) ? chip(slotRealm(k), 'gold') : null,
         isOpen(`o${k}`) ? chip(slotRole(k), 'gold') : null,
         isOpen(`l${k}`) ? chip(slotLv(k), 'gold') : null)),
-    pickBtn('awakener', g.awk, open('awakener', v => { g.awk = v; }), `awk${k}`, ' big'));
+    pickBtn('awakener', g.awk, onAwk, `awk${k}`, ` big${swapFrom != null && swapFrom !== k ? ' droppable' : ''}`));
   if (A.wheels) {
     card.append(h('div', { class: 'row2' }, [0, 1].map(i =>
       pickBtn('wheel', g.wheels[i], open('wheel', v => { g.wheels[i] = v; }), `w${k}${i}`))));
@@ -3150,19 +3203,11 @@ function openPicker(kind, apply, slot) {
   const f2key = { awakener: 'role', wheel: 'rarity', creation: 'rarity' }[kind];
   const opts = (key) => key ? [...new Set(all.map(e => e[key]).filter(Boolean))].sort() : [];
   const grid = h('div', { class: 'pgrid' });
-  // 界域规则：混沌之外只能有一种界域。题目的真实队伍一定守这条，所以把违反规则的
-  // 唤醒体直接挡掉，既不会让人选进死路，也不泄露任何答案信息（规则本来就写在题面上）。
-  const otherRealms = () => sel.slots
-    .filter((s, i) => i !== slot)
-    .map(s => (s.awk != null ? (idx.awakener.get(String(s.awk)) || {}).realm : ''))
-    .filter(Boolean);
+  // 只挡「同一名唤醒体已经占到别的卡位」：一个人不能同时在两个位置。
+  // 界域不再做过滤——以前选了深海之后，其它界域的唤醒体整片变灰，想按自己的
+  // 思路先摆位置都做不到，反而像 bug。现在四大界域随便选。
   const usedOther = (id) => sel.slots.some((s, i) => i !== slot && s.awk != null && String(s.awk) === String(id));
-  const blockWhy = (e) => {
-    if (kind !== 'awakener') return '';
-    if (usedOther(e.id)) return t('wsRealmUsed');
-    const others = otherRealms();
-    return realmFits(others, e.realm) ? '' : t('wsRealmBlocked', { r: realmName(realmAnchor(others)) });
-  };
+  const blockWhy = (e) => (kind === 'awakener' && usedOther(e.id) ? t('wsRealmUsed') : '');
   const draw = () => {
     grid.replaceChildren();
     // 固有造物已经在题面给出去了，选择器里不再列出来
@@ -3197,13 +3242,8 @@ function openPicker(kind, apply, slot) {
       Object.entries(KW_TYPE).map(([ty, label]) => { const g = ks.filter(k => k.t === ty); return g.length ? h('optgroup', { label: lang.cur === 'en' ? KW_TYPE_EN[ty] : label }, g.map(k => h('option', { value: k.s }, lang.cur === 'en' ? k.e : k.n))) : null; }));
   };
   const count = h('span', { class: 'note' }, multi ? `${sel.relics.length}/${fillRelics().length}` : '');
-  // 唤醒体选择器上把界域规则写清楚：选了血肉，超维/深海就会灰掉
-  const realmNote = (kind === 'awakener' && slot != null)
-    ? (() => {
-      const a = realmAnchor(otherRealms());
-      return h('p', { class: 'note picknote' }, a ? t('wsRealmAnchor', { r: realmName(a) }) : t('wsRealmRule'));
-    })()
-    : null;
+  // 唤醒体选择器不再挂界域提示：四个界域都能选，挂着「只能再选深海或混沌」只会误导
+  const realmNote = null;
   dlg.replaceChildren(
     h('div', { class: 'phead' }, h('b', {}, `${kindName(kind)}`), count,
       h('input', { type: 'search', placeholder: t('searchName'), oninput: ev => { q = ev.target.value.trim().toLowerCase(); draw(); } }),
@@ -3224,7 +3264,7 @@ function teamRules() {
     t: 'Morimens team rules (for newcomers)',
     items: [
       'Realm (阵营/界域): each Awakener belongs to one of 4 realms — Chaos, Caro (Flesh), Aequor (Deep Sea), Ultra.',
-      'Teaming: except Chaos, an Awakener can only team with its own realm plus Chaos. Chaos teams with any realm. (The picker already enforces this — conflicting Awakeners cannot be picked.)',
+      'Teaming: an Awakener can only team with its own realm plus Chaos; Chaos teams with any realm. (Reference only — this game does not block picks by realm, any Awakener can be placed anywhere.)',
       'A team = 4 Awakeners + 1 Keeper (you, who carries a Key Token skill).',
       'Each Awakener: 2 Wheels of Destiny (weapons) + 1 Covenant set (3/6-piece bonuses) + Command cards (Strike/Defense/Skill).',
       'Aliemus (狂气): the ultimate energy bar. When full, the Awakener unleashes Exalt (狂气爆发) — it costs Aliemus, NOT Arithmetica.',
@@ -3236,7 +3276,7 @@ function teamRules() {
     t: '忘却前夜配队规则（给圈外人）',
     items: [
       '界域（阵营）：每个唤醒体属于四大界域之一——混沌、血肉、深海、超维。',
-      '组队：除「混沌」外，唤醒体只能与「自身界域 + 混沌」组队；「混沌」可与任意界域组队。（选卡位时已按这条过滤，会冲突的唤醒体直接选不了）',
+      '组队：除「混沌」外，唤醒体一般只与「自身界域 + 混沌」组队；「混沌」可与任意界域组队。（这只是背景知识——选卡位不按界域限制，四个界域随便摆）',
       '一支队伍 = 4 名唤醒体 + 1 名守密人（你，携带钥令技能）。',
       '每个唤醒体：2 个命轮（武器）+ 1 套密契（3/6 件套效果）+ 指令卡（打击/防御/技能）。',
       '狂气：大招能量条，集满触发「狂气爆发」——消耗的是狂气，不是算力。',
@@ -3260,10 +3300,16 @@ function render() {
     h('section', { class: 'card board' },
       h('h3', {}, `${t('boardTitle')} · ${LEVELS[level].name()}${t('boardLevel', { l: '' })}`),
       h('div', { class: 'slots' }, LETTERS.map((_, k) => slotCard(k))),
+      swapFrom != null
+        ? h('p', { class: 'note swapnote' }, t('swapHint', { l: LETTERS[swapFrom] }))
+        : null,
       teamExtras(),
       h('div', { class: 'actions' },
         finished ? null : h('button', { class: 'btn', onclick: submit }, `${t('submit')}${t('submitLeft', { n: MAX_TRIES - history.length })}`),
-        finished ? null : h('button', { class: 'btn ghost', onclick: () => { sel = newSel(); fb = {}; persist(); render(); } }, t('reset')))),
+        finished ? null : wrongSlots().length
+          ? h('button', { class: 'btn ghost', onclick: clearWrong }, `${t('clearWrong')}（${wrongSlots().length}）`)
+          : null,
+        finished ? null : h('button', { class: 'btn ghost', onclick: () => { sel = newSel(); fb = {}; swapFrom = null; persist(); render(); } }, t('reset')))),
     teamRules(),
     historyPanel(),
     failedPanel(),
