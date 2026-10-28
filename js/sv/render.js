@@ -626,6 +626,19 @@ function drawBullets(L, R, T, B) {
       ctx.lineTo(-b.r, -b.r * 0.7);
       ctx.closePath();
       ctx.fill();
+    } else if (b.kind === 'saw') {
+      // 锯轮：八齿外环 + 亮心，靠旋转表现「在切」
+      ctx.fillStyle = b.color;
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const a = (Math.PI * 2 * i) / 8;
+        ctx.lineTo(Math.cos(a) * b.r * 1.5, Math.sin(a) * b.r * 1.5);
+        ctx.lineTo(Math.cos(a + Math.PI / 8) * b.r * 0.86, Math.sin(a + Math.PI / 8) * b.r * 0.86);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.beginPath(); ctx.arc(0, 0, b.r * 0.34, 0, Math.PI * 2); ctx.fill();
     } else if (b.kind === 'bolt') {
       // 单发弹拉成橄榄形：朝向已经跟着速度走，看起来是「射出去」而不是「飘着」
       ctx.globalAlpha = 0.26;
@@ -678,6 +691,26 @@ function drawOrbs() {
 
 function drawSummons() {
   for (const s of G.summons) {
+    // 图腾是站桩的：画成方尖碑，不再套用会追人的随从外观
+    if (s.static) {
+      ctx.fillStyle = 'rgba(0,0,0,0.42)';
+      ctx.beginPath(); ctx.ellipse(s.x, s.y + 13, 10, 4.4, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = s.color;
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y - 17); ctx.lineTo(s.x + 9, s.y - 4);
+      ctx.lineTo(s.x + 6, s.y + 12); ctx.lineTo(s.x - 6, s.y + 12);
+      ctx.lineTo(s.x - 9, s.y - 4);
+      ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+      // 顶端的电弧点在闪，表示它在工作
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.45 + Math.sin(G.t * 9 + s.spin) * 0.4).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(s.x, s.y - 8, 3.4, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.range ? 15 : 13, 0, Math.PI * 2); ctx.stroke();
+      continue;
+    }
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.beginPath(); ctx.ellipse(s.x, s.y + 12, 9, 4, 0, 0, Math.PI * 2); ctx.fill();
     ctx.save();
@@ -694,14 +727,49 @@ function drawFields(L, R, T, B) {
   for (const f of G.fields) {
     if (f.x < L || f.x > R || f.y < T || f.y > B) continue;
     const t = f.delay > 0 ? f.delay / 0.45 : 1;
-    ctx.globalAlpha = f.delay > 0 ? 0.35 + Math.sin(G.t * 40) * 0.15 : Math.min(0.5, f.life / f.max) * 0.55;
-    ctx.fillStyle = f.color;
-    ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (f.delay > 0 ? (1.15 - t * 0.15) : 1), 0, Math.PI * 2); ctx.fill();
-    if (f.delay > 0) {
+    // 地雷只有一个小圆点，不画领域那种大圆盘 —— 否则满地的「领域」看起来像踩在彩纸上
+    if (!f.arm) {
+      ctx.globalAlpha = f.delay > 0 ? 0.35 + Math.sin(G.t * 40) * 0.15 : Math.min(0.5, f.life / f.max) * 0.55;
+      ctx.fillStyle = f.color;
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (f.delay > 0 ? (1.15 - t * 0.15) : 1), 0, Math.PI * 2); ctx.fill();
+      if (f.delay > 0) {
+        ctx.globalAlpha = 0.9;
+        ctx.strokeStyle = f.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+    // 涡流：两圈反向旋转的弧，让「中心在拽东西」这件事一眼看得出来
+    if (f.pull > 0) {
+      ctx.globalAlpha = 0.55;
+      ctx.strokeStyle = f.color;
+      for (let k = 0; k < 2; k++) {
+        const a0 = G.t * (k ? -2.2 : 2.6) + k * Math.PI;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.55 + k * 0.28), a0, a0 + 1.7); ctx.stroke();
+      }
+      ctx.globalAlpha = 0.3;
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.16, 0, Math.PI * 2); ctx.fill();
+    }
+    // 地雷：小圆点 + 引信闪烁，敌人靠近时才亮起来
+    if (f.arm) {
+      const warn = f.life < 4 ? 0.5 + Math.sin(G.t * 12) * 0.5 : 0.4;
       ctx.globalAlpha = 0.9;
       ctx.strokeStyle = f.color;
       ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(f.x, f.y, 9, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.55 + warn * 0.4;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 4.5, 0, Math.PI * 2); ctx.fill();
+    }
+    // 悬空预警（陨石 / 光雨）：地面画一圈收缩的靶环，提示「马上砸这里」
+    if (f.delay > 0 && (f.sky || f.pillar)) {
+      ctx.globalAlpha = 0.8;
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (1.1 + t * 0.1), 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath(); ctx.moveTo(f.x - 8, f.y); ctx.lineTo(f.x + 8, f.y);
+      ctx.moveTo(f.x, f.y - 8); ctx.lineTo(f.x, f.y + 8); ctx.stroke();
     }
     ctx.globalAlpha = 1;
   }
@@ -825,7 +893,7 @@ function drawTexts() {
   ctx.textBaseline = 'middle';
   for (const t of G.texts) {
     const a = Math.min(1, t.life * 2.4);
-    const big = t.kind === 1 || t.kind === 2 || t.kind === 4;
+    const big = t.kind === 1 || t.kind === 2 || t.kind === 4 || t.kind === 6;
     ctx.globalAlpha = a;
     ctx.font = `${big ? 700 : 600} ${big ? 15 : t.kind === 5 ? 13 : 12}px system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif`;
     ctx.fillStyle = t.kind === 1 ? '#ffd479'
@@ -833,7 +901,8 @@ function drawTexts() {
         : t.kind === 3 ? '#ff7b72'
           : t.kind === 4 ? '#ff9350'
             : t.kind === 5 ? '#9fc4ff'
-              : '#e6e9f0';
+              : t.kind === 6 ? '#ffe9a8'
+                : '#e6e9f0';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(6,9,14,0.85)';
     ctx.strokeText(t.txt, t.x, t.y);

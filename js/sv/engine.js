@@ -10,8 +10,8 @@
 //   3. 每帧最多 300 个敌人、700 发子弹，超了就不再刷（宁可少刷也不掉帧）。
 
 import {
-  PROTOS, LV, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX,
-  RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY,
+  PROTOS, LV, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX, EVOS,
+  RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, eliteGap, eliteCount,
   PLAYER, expNeed, scoreOf,
   MAX_WEAPON, POOL_PER_PROTO, RAGE, TERRAINS, terrainAt,
 } from './defs.js';
@@ -67,6 +67,8 @@ export const G = {
   terrainIdx: 0, terrainFade: 0,
   // 主动收兵：和「被打死」一样走 over，只是结算文案与得分口径要区别对待
   gaveUp: false,
+  // 超武觉醒播报队列（由 refreshEvo 入队，update 在战斗帧里消费）
+  evoQueue: [],
   world: { w: 2400, h: 2400 },  // 只在绘制里当地面参考，玩家其实不设边界
   stats: { dmg: 0, taken: 0 },
 };
@@ -76,9 +78,14 @@ const emptyMods = () => ({
   crit: PLAYER.critBase, critMul: PLAYER.critMul,
   dmgTaken: 1, regen: 0, armor: 0, lifesteal: 0,
   pierce: 0, dmgMul: 1, enemySlow: 1, revives: 0,
-  summonBonus: 0, fieldWide: 1, healDrop: 0, thorns: 0,
+  summonBonus: 0, summonDmg: 1, fieldWide: 1, healDrop: 0, thorns: 0,
   maxHpBonus: 0, maxShieldBonus: 0, frenzy: 0, echo: 0,
   rageGain: 0,
+  // 2026-10 造物扩容带来的新维度：投射物数量 / 飞行速度 / 射程 / 持续时间 /
+  // 击退 / 领域半径 / 治疗量。每一个都在下面某个更新函数里真实生效，
+  // 否则造物卡面就是骗人的（用户提的第 3 条要求）。
+  count: 0, projSpd: 1, projRange: 1, dur: 1, knock: 1,
+  fieldRadius: 1, healBoost: 1,
   autoMagnet: false, autoBurst: 0, firstStrike: false, timeDilate: false,
 });
 
@@ -126,6 +133,7 @@ export function reset(charId, diffKey) {
   G.bossEta = BOSS_AT[0]; G.warn = 0; G.warnName = '';
   G.terrainIdx = terrainAt(0); G.terrainFade = 0;
   G.gaveUp = false;
+  G.evoQueue = [];
   G.stats = { dmg: 0, taken: 0, rageDmg: 0 };
   for (const k of ['enemies', 'bullets', 'fields', 'orbs', 'summons', 'pickups', 'fx', 'texts']) G[k].length = 0;
   G.weapons = []; G.passives = []; G.wheels = []; G.covs = [];
@@ -147,6 +155,7 @@ export function reset(charId, diffKey) {
   P.x = 0; P.y = 0; P.vx = 0; P.vy = 0; P.kx = 0; P.ky = 0;
   P.maxHp = PLAYER.hp + G.mods.maxHpBonus;
   P.hp = P.maxHp; P.shield = 0; P.inv = 0; P.face = 1; P.walk = 0;
+  P.shieldBroke = false;
 
   // 开局武器：角色自己的两个技能各一把，等级 1；另一把先放进候选池，
   // 玩家可以在升级时选它，也可以走别的流派。
@@ -220,6 +229,50 @@ export function recompute() {
   G.player.maxHp = Math.round(PLAYER.hp + m.maxHpBonus);
   G.player.maxShield = Math.round(30 + m.maxShieldBonus);
   if (G.player.hp > G.player.maxHp) G.player.hp = G.player.maxHp;
+  refreshEvo();
+}
+
+// ---------------------------------------------------------------- 超武判定
+// 一把武器是否升格成超武，只取决于「造物/命轮/自身等级」三件事，
+// 所以每次 recompute（拿造物）和每次武器升级之后都要重判一次。
+function evoFor(w) {
+  for (const e of EVOS) {
+    // 专武按角色绑定：只看「这把技能是不是这名唤醒体的」
+    if (e.char) { if (String(e.char) !== String(w.def.char)) continue; }
+    else if (e.proto !== w.def.proto) continue;
+    if (checkNeed(e.need, w)) return e;
+  }
+  return null;
+}
+
+function checkNeed(need, w) {
+  if (!need) return true;
+  if (need.level != null && w.lv < need.level) return false;
+  if (need.wheel && !G.wheels.some((x) => x.key === need.wheel)) return false;
+  if (need.proto && !G.weapons.some((x) => x.def.proto === need.proto)) return false;
+  if (need.creation) {
+    const { fx, n } = need.creation;
+    let got = 0;
+    for (const p of G.passives) if (p.fx === fx) got += p.stack;
+    if (got < n) return false;
+  }
+  return true;
+}
+
+// 重新判定并给出觉醒提示。只在「这一次真的变化了」时记一条，
+// 否则每拿一件造物都会把整排武器的名字再飘一遍。
+// 记进队列而不是直接飘字：拿造物发生在升级弹窗里，那一刻飘字会被弹窗盖住，
+// 玩家什么都看不见。等回到战斗第一帧再放。
+function refreshEvo() {
+  for (const w of G.weapons) {
+    const evo = evoFor(w);
+    if (evo === w.evo) continue;
+    w.evo = evo;
+    if (evo) {
+      if (!G.evoQueue) G.evoQueue = [];
+      G.evoQueue.push(evo.n);
+    }
+  }
 }
 
 function applyCreation(p, m) {
@@ -228,7 +281,9 @@ function applyCreation(p, m) {
   switch (fx.k) {
     case 'atk': m.atk += fx.v; if (p.fx === 'str') m.dmgTaken += 0.03; break;
     case 'crit': m.crit += fx.v; break;
+    case 'critMul': m.critMul += fx.v; break;
     case 'maxHp': m.maxHpBonus += fx.v; break;
+    case 'maxShield': m.maxShieldBonus += fx.v; break;
     case 'pick': m.pick += fx.v; if (p.fx === 'draw') m.exp += 0.06; break;
     case 'cd': m.cd *= (1 + fx.v); break;
     case 'rage': m.rageGain += fx.v; m.atk += 0.02; break;
@@ -236,6 +291,19 @@ function applyCreation(p, m) {
     case 'spd': m.spd += fx.v; break;
     case 'regen': m.regen += fx.v; break;
     case 'area': m.area += fx.v; break;
+    // ---- 2026-10 新增的造物维度
+    case 'count': m.count += fx.v; break;
+    case 'pierce': m.pierce += fx.v; break;
+    case 'projSpd': m.projSpd += fx.v; break;
+    case 'projRange': m.projRange += fx.v; break;
+    case 'dur': m.dur += fx.v; break;
+    case 'knock': m.knock += fx.v; break;
+    case 'fieldRadius': m.fieldRadius += fx.v; break;
+    case 'healBoost': m.healBoost += fx.v; break;
+    case 'lifesteal': m.lifesteal += fx.v; break;
+    case 'thorns': m.thorns += fx.v; break;
+    case 'exp': m.exp += fx.v; break;
+    case 'summon': m.summonBonus += fx.v; break;
     default: break;
   }
 }
@@ -252,7 +320,9 @@ function applyWheel(key, m) {
     case 'shield_start': m.maxShieldBonus += 30; break;
     case 'lifesteal5': m.lifesteal += 0.05; break;
     case 'revive': m.revives += 1; break;
-    case 'summon_extra': m.summonBonus += 2; break;
+    // 描述写的是「召唤物 +2，且伤害 +25%」，原来只加了数量 —— 少的那半句
+    // 就是典型的「描述和实际对不上」，这里补上。
+    case 'summon_extra': m.summonBonus += 2; m.summonDmg += 0.25; break;
     case 'field_wide': m.fieldWide += 0.35; break;
     case 'golden_touch': m.healDrop += 0.06; break;
     case 'thorns': m.thorns += 25; break;
@@ -300,13 +370,22 @@ export function addWeapon(wid, replaceId) {
     target.def = def;
     target.lv = 0;
     target.timer = rr(0.1, 0.4);
-    target.orb = null;
     target.cdMax = cdMax;
-    target.swapped = 1;
+    // HUD 的冷却遮罩读的是 cdLeft/cdMax，不重置的话新技能一上手就顶着满格暗条，
+    // 要等自己放一次才恢复正常 —— 玩家会以为新技能在冷却里卡住了。
+    target.cdLeft = target.timer;
+    target.orb = null;
+    // 伤害归因也要清空：不清的话结算面板会把上一把武器的战绩算到新技能头上，
+    // 「替换后逻辑是否正确」在这一条上本来是错的。
+    target.dmgTotal = 0;
+    target.hits = 0;
+    target.evo = null;
+    refreshEvo();
     return target;
   }
-  const w = { def, lv: 0, timer: rr(0.1, 0.5), ang: rnd() * TAU, cdMax, cdLeft: 0 };
+  const w = { def, lv: 0, timer: rr(0.1, 0.5), ang: rnd() * TAU, cdMax, cdLeft: 0, evo: null };
   G.weapons.push(w);
+  refreshEvo();
   return w;
 }
 
@@ -370,10 +449,9 @@ export function rollChoices() {
   if (weaponSlot) {
     for (const d of news) wpool.push({ kind: 'wnew', def: d });
   } else {
-    // 满了也照抽，只是变成「替换」：drop 是要让位的那一把。
-    // 默认挑等级最低的（同等看谁先拿），玩家在卡面上能直接看到换掉谁。
-    const weakest = G.weapons.reduce((a, b) => (a.lv <= b.lv ? a : b), G.weapons[0]);
-    for (const d of news) wpool.push({ kind: 'wswap', def: d, drop: weakest });
+    // 满了也照抽，只是变成「替换」。要让位的那一把交给玩家自己选 ——
+    // 以前固定换等级最低的，想换掉一把满级却不合流派的技能根本没门路。
+    for (const d of news) wpool.push({ kind: 'wswap', def: d, drop: null });
   }
 
   // 2. 造物：未满 8 件时进池，已有的可以叠到 3 层
@@ -428,10 +506,16 @@ export function applyChoice(o) {
   if (!o) { skipChoice(); return; }
   if (o.kind === 'wlv') { o.w.lv = Math.min(LV.max, o.w.lv + 1); }
   else if (o.kind === 'wnew') addWeapon(o.def.id);
-  else if (o.kind === 'wswap') addWeapon(o.def.id, o.drop && o.drop.def ? o.drop.def.id : null);
+  else if (o.kind === 'wswap') {
+    // dropId 来自「替换选择面板」：玩家自己指定让位的那把技能
+    addWeapon(o.def.id, o.dropId || (o.drop && o.drop.def ? o.drop.def.id : null));
+  }
   else if (o.kind === 'creation') addCreation(o.c.id);
   else if (o.kind === 'wheel') addWheel(o.i);
   else if (o.kind === 'cov') addCovenant(o.i);
+  // 专武的条件是「这把技能练到 4 级」，升级本身不会走 recompute，
+  // 所以每次选完都要重判一次超武状态。
+  refreshEvo();
   if (G.mods.timeDilate) G.dilate = 3;
   advancePending();
 }
@@ -538,10 +622,14 @@ function spawnRing(count) {
 function shot(x, y, vx, vy, opt) {
   if (G.bullets.length >= MAX_BULLET) return null;
   const b = take('bullets', () => ({}));
-  b.x = x; b.y = y; b.vx = vx; b.vy = vy;
+  // 造物的「弹道速度」对射线不生效：射线是持续拉出的判定，速度只影响它扫过
+  // 画面的快慢，加速等于变相缩短存在时间，手感会变得莫名其妙。
+  const ks = opt.kind === 'ray' ? 1 : G.mods.projSpd;
+  b.x = x; b.y = y;
+  b.vx = vx * ks; b.vy = vy * ks;
   b.r = opt.r || 6;
   b.dmg = opt.dmg;
-  b.life = opt.life || 1.4;
+  b.life = (opt.life || 1.4) * G.mods.projRange;
   b.pierce = (opt.pierce || 0) + G.mods.pierce;
   b.hitSet = null;
   b.color = opt.color || '#9ecbff';
@@ -566,6 +654,14 @@ export function update(dt) {
   const slow = G.dilate > 0 ? 0.4 : 1;
 
   G.t += dt;
+
+  // ---- 超武觉醒播报：升级弹窗里判定出来的超武，等回到战斗再飘出来
+  if (G.evoQueue && G.evoQueue.length) {
+    const evoName = G.evoQueue.shift();
+    addText(P.x, P.y - 66, `超武 · ${evoName}`, 6);
+    G.flash = Math.max(G.flash, 0.3);
+    G.shake = Math.min(12, G.shake + 5);
+  }
 
   // ---- 狂气爆发计时
   if (G.rageT > 0) {
@@ -672,14 +768,19 @@ function updateWeapons(dt) {
     // 给 HUD 的冷却环用：cdLeft/cdMax 是「这一发还要多久」和「整格多长」
     w.cdLeft = Math.max(0, w.timer);
     if (w.timer > 0) continue;
-    const cd = proto.cd * LV.cd(w.lv) * G.mods.cd * rageCd * (G.mods.echo && rnd() < G.mods.echo ? 0.4 : 1);
+    const ev = w.evo ? w.evo.fx : null;
+    const cd = proto.cd * LV.cd(w.lv) * G.mods.cd * rageCd
+      * (ev && ev.cd ? ev.cd : 1)
+      * (G.mods.echo && rnd() < G.mods.echo ? 0.4 : 1);
     w.timer = cd;
     w.cdMax = cd;
     w.cdLeft = cd;
-    const dmg = proto.dmg * LV.dmg(w.lv) * G.mods.atk * G.mods.dmgMul * rageAtk;
+    const dmg = proto.dmg * LV.dmg(w.lv) * G.mods.atk * G.mods.dmgMul * rageAtk
+      * (ev && ev.dmg ? 1 + ev.dmg : 1);
     fireProto(w, proto, dmg);
-    // 契物「回响」：30% 概率立刻再触发一次
-    if (G.mods.echo > 0 && rnd() < G.mods.echo * 0.35) fireProto(w, proto, dmg * 0.7);
+    // 契物「回响」：30% 概率立刻再触发一次。
+    // 原来这里乘了 0.35，实际只有 10.5%，和卡面写的 30% 对不上。
+    if (G.mods.echo > 0 && rnd() < G.mods.echo) fireProto(w, proto, dmg * 0.7);
   }
 }
 
@@ -695,7 +796,13 @@ function nearest(x, y, maxD) {
 function fireProto(w, proto, dmg) {
   const P = G.player;
   const lv = w.lv;
-  const cnt = LV.count(lv, proto);
+  const ev = w.evo ? w.evo.fx : null;
+  // 投射数量的三个来源：原型等级成长 + 超武加成 + 造物「投射物 +1」。
+  // 超武的 count 只给「凭空多出几发」的原型，范围类（nova/shield/heal）不吃。
+  const cnt = LV.count(lv, proto) + (ev && ev.count ? ev.count : 0) + G.mods.count;
+  // 范围：超武的 area 是「只强化这一把」，造物的 area 是全局
+  const areaMul = (ev && ev.area ? 1 + ev.area : 1) * G.mods.area;
+  const exPierce = ev && ev.pierce ? ev.pierce : 0;
   const color = proto.color;
   const src = w;
   switch (w.def.proto) {
@@ -703,17 +810,22 @@ function fireProto(w, proto, dmg) {
       for (let i = 0; i < cnt; i++) {
         const tgt = nearest(P.x, P.y, 900);
         const a = tgt ? Math.atan2(tgt.y - P.y, tgt.x - P.x) : rnd() * TAU;
-        shot(P.x, P.y, Math.cos(a) * 470, Math.sin(a) * 470, { dmg, r: 6, life: 1.5, color, kind: 'bolt', pierce: lv >= 4 ? 1 : 0, src });
+        // 描述写的是「4 级起穿透 2 次」，实现一直只给 1 次，这里按描述补上
+        shot(P.x, P.y, Math.cos(a) * 470, Math.sin(a) * 470, {
+          dmg, r: 6, life: 1.5, color, kind: 'bolt',
+          pierce: (lv >= 4 ? 2 : 0) + exPierce, src,
+        });
       }
       break;
     }
     case 'orbit': {
       // 环绕光刃作为常驻实体，由 updateOrbs 维护；这里只调数量
-      syncOrbit(w, 2 + lv, 62 + lv * 7, dmg, color);
+      const n = 2 + lv + (ev && ev.count ? ev.count : 0);
+      syncOrbit(w, n, (62 + lv * 7) * (ev && ev.area ? 1 + ev.area : 1), dmg, color);
       break;
     }
     case 'nova': {
-      const R = (90 + lv * 14) * G.mods.area;
+      const R = (90 + lv * 14) * areaMul;
       shockwave(P.x, P.y, R, dmg, color, src);
       G.shake = Math.min(9, G.shake + 2.4);
       break;
@@ -721,19 +833,23 @@ function fireProto(w, proto, dmg) {
     case 'beam': {
       const tgt = nearest(P.x, P.y, 900);
       const a = tgt ? Math.atan2(tgt.y - P.y, tgt.x - P.x) : rnd() * TAU;
-      const life = 0.3 + lv * 0.05;
-      shot(P.x, P.y, Math.cos(a) * 900, Math.sin(a) * 900, { dmg, r: 13, life, color, kind: 'ray', pierce: 99, w: 13 + lv * 2, src });
+      const life = (0.3 + lv * 0.05) * G.mods.dur;
+      shot(P.x, P.y, Math.cos(a) * 900, Math.sin(a) * 900, {
+        dmg, r: 13, life, color, kind: 'ray', pierce: 99,
+        // 射线的「范围」就是宽度：超武的 area 在这里读作加粗
+        w: (13 + lv * 2) * (ev && ev.area ? 1 + ev.area : 1), src,
+      });
       break;
     }
     case 'chain': {
       const tgt = nearest(P.x, P.y, 620);
-      if (tgt) chainFrom(tgt, 2 + lv, dmg, color, src);
+      if (tgt) chainFrom(tgt, 2 + lv + (ev && ev.count ? ev.count : 0), dmg, color, src);
       break;
     }
     case 'field': {
       const tgt = nearest(P.x, P.y, 520) || { x: P.x + rr(-80, 80), y: P.y + rr(-80, 80) };
       for (let i = 0; i < cnt; i++) {
-        addField(tgt.x + rr(-40, 40), tgt.y + rr(-40, 40), (2.4 + lv * 0.3), 52 * G.mods.area, dmg, color, false, src);
+        addField(tgt.x + rr(-40, 40), tgt.y + rr(-40, 40), (2.4 + lv * 0.3), 52 * areaMul, dmg, color, false, src);
       }
       break;
     }
@@ -762,18 +878,80 @@ function fireProto(w, proto, dmg) {
         const e = G.enemies[(rnd() * G.enemies.length) | 0];
         const x = e ? e.x : P.x + rr(-120, 120);
         const y = e ? e.y : P.y + rr(-120, 120);
-        addField(x, y, 0.45, 46 * G.mods.area, dmg, color, true, src);
+        // 落点预警 0.45 秒后一次性砸下全额伤害（以前是 0.28 秒结算一次的领域，
+        // 0.45 秒内只跳两下，实际只有描述的 56%，「重击」完全不重）
+        addField(x, y, 0.12, 46 * areaMul, dmg, color, false, src, { delay: 0.45, burst: true });
       }
       break;
     }
     case 'shield': {
       G.player.shield = Math.min(G.player.maxShield, G.player.shield + 8 + lv * 6);
-      shockwave(P.x, P.y, 76 * G.mods.area, dmg, color, src);
+      G.player.shieldBroke = false;
+      shockwave(P.x, P.y, 76 * areaMul, dmg, color, src);
       break;
     }
     case 'heal': {
-      G.player.hp = Math.min(G.player.maxHp, G.player.hp + 2 + lv);
-      shockwave(P.x, P.y, 66 * G.mods.area, dmg, color, src);
+      G.player.hp = Math.min(G.player.maxHp, G.player.hp + (2 + lv) * G.mods.healBoost);
+      shockwave(P.x, P.y, 66 * areaMul, dmg, color, src);
+      break;
+    }
+    // ------------------------------------------------ 2026-10 新增的 6 种
+    case 'vortex': {
+      // 涡流：领域 + 每 tick 把敌人往中心拽（pull 由 updateFields 处理）
+      const tgt = nearest(P.x, P.y, 560) || { x: P.x + rr(-90, 90), y: P.y + rr(-90, 90) };
+      addField(tgt.x, tgt.y, 1.6 + lv * 0.2, 70 * areaMul, dmg, color, false, src, { pull: 240 });
+      break;
+    }
+    case 'meteor': {
+      for (let i = 0; i < cnt; i++) {
+        const e = G.enemies[(rnd() * G.enemies.length) | 0];
+        const x = e ? e.x + rr(-26, 26) : P.x + rr(-140, 140);
+        const y = e ? e.y + rr(-26, 26) : P.y + rr(-140, 140);
+        addField(x, y, 0.16, 62 * areaMul, dmg, color, false, src, { delay: 0.55, burst: true, sky: true });
+      }
+      break;
+    }
+    case 'totem': {
+      // 图腾是站桩不动的召唤物：不追人，只按固定节奏向最近的敌人放电
+      let have = 0;
+      for (const s of G.summons) if (s.static && s.src === w) have++;
+      for (let i = have; i < cnt && G.summons.length < 10; i++) {
+        const a = rnd() * TAU;
+        G.summons.push({
+          x: P.x + Math.cos(a) * rr(56, 92), y: P.y + Math.sin(a) * rr(56, 92),
+          r: 13, dmg: dmg * 0.75, color, cd: rr(0.2, 0.8), life: 999,
+          img: G.char ? G.char.img : 0, spin: 0, src: w,
+          static: true, zap: 0.9, range: 270,
+        });
+      }
+      break;
+    }
+    case 'saw': {
+      for (let i = 0; i < cnt; i++) {
+        const tgt = nearest(P.x, P.y, 700);
+        const a = (tgt ? Math.atan2(tgt.y - P.y, tgt.x - P.x) : rnd() * TAU) + rr(-0.28, 0.28);
+        // 复用回旋镖的往返逻辑（back），但速度更快、穿透一切
+        shot(P.x, P.y, Math.cos(a) * 360, Math.sin(a) * 360, {
+          dmg, r: 12, life: 1.8, color, kind: 'saw', back: 0.6, pierce: 99 + exPierce, src,
+        });
+      }
+      break;
+    }
+    case 'mine': {
+      for (let i = 0; i < cnt; i++) {
+        const a = rnd() * TAU, dist = rr(28, 74);
+        // arm=true：敌人踩上来才炸；12 秒没被踩就自己消失
+        addField(P.x + Math.cos(a) * dist, P.y + Math.sin(a) * dist, 12, 48 * areaMul, dmg, color, false, src, { arm: true, burst: true });
+      }
+      break;
+    }
+    case 'rain': {
+      for (let i = 0; i < cnt; i++) {
+        const e = G.enemies[(rnd() * G.enemies.length) | 0];
+        const x = e ? e.x + rr(-46, 46) : P.x + rr(-160, 160);
+        const y = e ? e.y + rr(-46, 46) : P.y + rr(-160, 160);
+        addField(x, y, 0.14, 34 * areaMul, dmg, color, false, src, { delay: 0.3, burst: true, pillar: true });
+      }
       break;
     }
     default: break;
@@ -824,7 +1002,8 @@ function shockwave(x, y, r, dmg, color, src) {
     if (d < r + e.r) {
       damageEnemy(e, dmg * (1 - (d / (r + e.r)) * 0.1), x, y, src);
       const a = Math.atan2(e.y - y, e.x - x);
-      e.kx += Math.cos(a) * 90; e.ky += Math.sin(a) * 90;
+      e.kx += Math.cos(a) * 90 * G.mods.knock;
+      e.ky += Math.sin(a) * 90 * G.mods.knock;
     }
   }
 }
@@ -852,21 +1031,78 @@ function chainFrom(from, jumps, dmg, color, src) {
 }
 
 // ---------------------------------------------------------------- 领域
-function addField(x, y, life, r, dmg, color, delayed, src) {
-  G.fields.push({ x, y, r, life, max: life, dmg, color, delay: delayed ? 0.45 : 0, tick: 0, src: src || null });
+// 一个 addField 现在承担四种形态，靠 opt 区分：
+//   默认        每 0.28 秒结算一次伤害的领域
+//   { pull }    涡流：每帧把敌人往中心拽
+//   { arm }     地雷：敌人踩进来才引爆，没踩到就静默消失
+//   { delay, burst, sky/pillar }  陨石与光雨：先悬空预警，落下打全额
+function addField(x, y, life, r, dmg, color, delayed, src, opt) {
+  const o = opt || {};
+  // 「持续时间」只拉长会持续结算的领域，不拉长地雷引信和一次性爆发
+  const dur = o.arm || o.burst ? 1 : G.mods.dur;
+  G.fields.push({
+    x, y,
+    r: r * G.mods.fieldRadius,
+    life: life * dur, max: life * dur,
+    dmg, color,
+    delay: delayed ? 0.45 : (o.delay || 0),
+    tick: 0, src: src || null,
+    pull: o.pull || 0,
+    arm: !!o.arm, burst: !!o.burst, sky: !!o.sky, pillar: !!o.pillar,
+  });
 }
 
 function updateFields(dt) {
-  const P = G.player;
   for (let i = G.fields.length - 1; i >= 0; i--) {
     const f = G.fields[i];
-    if (f.delay > 0) { f.delay -= dt; continue; }
+    // 悬空预警阶段：只倒计时，不结算
+    if (f.delay > 0) {
+      f.delay -= dt;
+      if (f.delay <= 0 && f.sky) {
+        G.fx.push({
+          x: f.x, y: f.y, vx: 0, vy: 0, life: 0.3, max: 0.3,
+          color: f.color, r: 0, ring: f.r * 1.4, kind: 'ring',
+        });
+        G.shake = Math.min(10, G.shake + 2);
+      }
+      continue;
+    }
     f.life -= dt;
+    // 地雷：范围内有敌人就引爆，引信烧完还没人踩就直接消失（不是自爆）
+    if (f.arm) {
+      let trig = false;
+      for (const e of G.enemies) {
+        if ((e.x - f.x) ** 2 + (e.y - f.y) ** 2 < (f.r + e.r) ** 2) { trig = true; break; }
+      }
+      if (!trig) {
+        if (f.life <= 0) G.fields.splice(i, 1);
+        continue;
+      }
+      f.life = 0;
+    }
+    // 涡流引力：越靠外拉得越狠，首领只吃 35%
+    if (f.pull > 0) {
+      for (const e of G.enemies) {
+        const dx = f.x - e.x, dy = f.y - e.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < (f.r + e.r) ** 2 && d2 > 1) {
+          const d = Math.sqrt(d2);
+          const k = (0.35 + (1 - d / f.r) * 0.65) * f.pull * dt * (e.boss ? 0.35 : 1);
+          e.x += (dx / d) * k; e.y += (dy / d) * k;
+        }
+      }
+    }
     f.tick -= dt;
     if (f.tick <= 0) {
-      f.tick = 0.28;
+      // burst 型只结算一次全额；持续型每 0.28 秒按 0.28 倍摊
+      f.tick = f.burst ? 99 : 0.28;
+      const mult = f.burst ? 1 : 0.28;
+      // 这里原来还乘了一次 G.mods.atk，而 f.dmg 进 addField 前就已经乘过 atk，
+      // 等于领域伤害被攻击力平方放大 —— 面板上的「单发约 N」和实际打出来的对不上。
       for (const e of G.enemies) {
-        if ((e.x - f.x) ** 2 + (e.y - f.y) ** 2 < (f.r + e.r) ** 2) damageEnemy(e, f.dmg * 0.28 * G.mods.atk, f.x, f.y, f.src);
+        if ((e.x - f.x) ** 2 + (e.y - f.y) ** 2 < (f.r + e.r) ** 2) {
+          damageEnemy(e, f.dmg * mult, f.x, f.y, f.src);
+        }
       }
     }
     if (f.life <= 0) G.fields.splice(i, 1);
@@ -879,13 +1115,29 @@ function addSummon(dmg, color, lv, src) {
   G.summons.push({
     x: G.player.x + Math.cos(a) * 40,
     y: G.player.y + Math.sin(a) * 40,
-    r: 12, dmg: dmg * 1.25, color, cd: 0, life: 999, img: G.char ? G.char.img : 0, spin: rnd() * TAU,
+    // summonDmg 是命轮「召唤物 +2，且伤害 +25%」里的那 25%
+    r: 12, dmg: dmg * 1.25 * G.mods.summonDmg, color, cd: 0, life: 999,
+    img: G.char ? G.char.img : 0, spin: rnd() * TAU,
     src: src || null,
   });
 }
 
 function updateSummons(dt) {
   for (const s of G.summons) {
+    // 图腾：站桩不动，按固定节奏朝最近的敌人放电
+    if (s.static) {
+      if (s.cd > 0) s.cd -= dt;
+      if (s.cd <= 0) {
+        s.cd = s.zap || 0.9;
+        const tgt = nearest(s.x, s.y, s.range || 260);
+        if (tgt) {
+          damageEnemy(tgt, s.dmg, s.x, s.y, s.src);
+          G.fx.push({ x: s.x, y: s.y, x2: tgt.x, y2: tgt.y, life: 0.18, max: 0.18, color: s.color, kind: 'line' });
+        }
+      }
+      s.spin += dt * 1.5;
+      continue;
+    }
     const tgt = nearest(s.x, s.y, 800);
     if (tgt) {
       const a = Math.atan2(tgt.y - s.y, tgt.x - s.x);
@@ -939,7 +1191,7 @@ function updateBullets(dt) {
         b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
       }
     }
-    if (b.kind === 'boomerang') {
+    if (b.kind === 'boomerang' || b.kind === 'saw') {
       if (b.back > 0) {
         b.back -= dt;
         if (b.back <= 0) { b.vx *= -1.15; b.vy *= -1.15; b.back = -99; }
@@ -1165,8 +1417,12 @@ function creditDmg(src, dmg) {
 
 export function damageEnemy(e, amount, sx, sy, src) {
   if (e.hp <= 0) return;
-  const crit = rnd() < G.mods.crit;
-  let dmg = amount * (crit ? G.mods.critMul : 1);
+  // 超武可以把暴击率/暴击伤害加在「这一把武器」上，而全局暴击只来自造物与界域
+  const ev = src && typeof src === 'object' && src.evo ? src.evo.fx : null;
+  const critRate = G.mods.crit + (ev && ev.crit ? ev.crit : 0);
+  const critMul = G.mods.critMul + (ev && ev.critMul ? ev.critMul : 0);
+  const crit = rnd() < critRate;
+  let dmg = amount * (crit ? critMul : 1);
   if (G.mods.frenzy > 0) {
     const miss = 1 - G.player.hp / G.player.maxHp;
     dmg *= 1 + G.mods.frenzy * miss;
@@ -1180,6 +1436,19 @@ export function damageEnemy(e, amount, sx, sy, src) {
   if (G.mods.lifesteal > 0) {
     G.player.hp = Math.min(G.player.maxHp, G.player.hp + dmg * G.mods.lifesteal);
   }
+  // 超武「命中溅射」：8% 概率在命中点炸开一小圈。
+  // 溅射伤害的 src 传 null —— 否则会再触发一次溅射，直接递归到栈溢出。
+  if (ev && ev.onHit === 'burst' && rnd() < 0.08) {
+    const bx = sx == null ? e.x : sx;
+    const by = sy == null ? e.y : sy;
+    if (G.fx.length < 400) {
+      G.fx.push({ x: bx, y: by, vx: 0, vy: 0, life: 0.26, max: 0.26, color: '#ffd479', r: 0, ring: 54, kind: 'ring' });
+    }
+    for (const o of G.enemies) {
+      if (o === e) continue;
+      if ((o.x - bx) ** 2 + (o.y - by) ** 2 < (54 + o.r) ** 2) damageEnemy(o, dmg * 0.35, bx, by, null);
+    }
+  }
   if (e.hp <= 0) killEnemy(e, sx, sy);
 }
 
@@ -1189,6 +1458,11 @@ function killEnemy(e, sx, sy) {
   if (idx >= 0) G.enemies.splice(idx, 1);
   G.kills++;
   addRage(RAGE.perKill);
+  // 契物「血债」的卡面写的是「击杀回复 1 点生命，攻击力 +10%」，
+  // 实际只实现了攻击力那一半，这里补上回复。
+  if (G.covs.some((c) => c.key === 'c_blood')) {
+    G.player.hp = Math.min(G.player.maxHp, G.player.hp + 1);
+  }
   burst(e.x, e.y, e.tier === 2 ? 22 : e.tier === 1 ? 12 : 5, e.tier ? '#ffd479' : '#9aa4bb', e.tier ? 190 : 120);
   give('enemies', e);
 
@@ -1272,7 +1546,12 @@ export function hurtPlayer(amount, src) {
     const absorbed = Math.min(P.shield, dmg);
     P.shield -= absorbed;
     dmg -= absorbed;
-    if (P.shield <= 0 && G.wheels.some((w) => w.key === 'shield_start')) shockwave(P.x, P.y, 150, 40, '#8ec5ff');
+    // 「破盾时清场一圈」只该在护盾真正被打空的那一次触发。
+    // 原来只要挨打时护盾是 0 就会炸，等于每 0.55 秒白送一发 40 点冲击波。
+    if (P.shield <= 0 && !P.shieldBroke && G.wheels.some((w) => w.key === 'shield_start')) {
+      P.shieldBroke = true;
+      shockwave(P.x, P.y, 150, 40, '#8ec5ff');
+    }
   }
   if (dmg > 0) {
     P.hp -= dmg;
@@ -1331,8 +1610,10 @@ function updatePickups(dt) {
       G.pickups.splice(i, 1);
       if (p.kind === 'exp') gainExp(p.val);
       else if (p.kind === 'heal') {
-        P.hp = Math.min(P.maxHp, P.hp + p.val);
-        addText(P.x, P.y - 30, '+' + p.val, 2);
+        // 造物「治疗量 +20%」对拾取物也要生效，否则卡面只对技能有效
+        const gain = Math.max(1, Math.round(p.val * G.mods.healBoost));
+        P.hp = Math.min(P.maxHp, P.hp + gain);
+        addText(P.x, P.y - 30, '+' + gain, 2);
         burst(P.x, P.y, 5, '#7de3a0', 120);
       } else if (p.kind === 'rage') {
         addRage(p.val, true);
@@ -1393,9 +1674,11 @@ function updateSpawns(dt) {
   }
   G.eliteT -= dt;
   if (G.eliteT <= 0) {
-    G.eliteT = ELITE_EVERY;
-    spawnEnemy(1);
-    spawnEnemy(1);
+    // 间隔随时间收紧（70 秒 → 最快 20 秒），数量分三档抬到 3 只。
+    // 以前固定 70 秒刷 2 只，第 14 分钟和第 1 分钟一样稀。
+    G.eliteT = eliteGap(G.t);
+    const n = eliteCount(G.t);
+    for (let i = 0; i < n; i++) spawnEnemy(1);
   }
   // Boss 预警分两段：
   //   出现前 2.5 秒 —— 屏幕边缘红光脉动（渲染层读 bossEta），给玩家收拢的时间；
@@ -1445,6 +1728,7 @@ export function summary() {
         lv: w.lv + 1, proto: w.def.proto,
         color: (PROTOS[w.def.proto] || {}).color || '#9ecbff',
         dmg: Math.round(w.dmgTotal || 0), hits: w.hits || 0,
+        evo: w.evo ? w.evo.n : null,
       }))
       .sort((a, b) => b.dmg - a.dmg),
     totalDmg: Math.round(G.stats.dmg || 0),

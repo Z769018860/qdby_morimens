@@ -37,7 +37,7 @@ export const PROTOS = {
   },
   field: {
     name: '持续领域', color: '#8bd450', cd: 2.4, dmg: 7, n: 1, nStep: 2,
-    desc: (lv) => `在敌群脚下留下一片 ${(2.4 + lv * 0.3).toFixed(1)} 秒的侵蚀领域，每秒结算`,
+    desc: (lv) => `在敌群脚下留下一片 ${(2.4 + lv * 0.3).toFixed(1)} 秒的侵蚀领域，持续造成伤害`,
   },
   summon: {
     name: '召唤随行', color: '#ff9ecb', cd: 3.2, dmg: 11, n: 1, nStep: 2,
@@ -49,7 +49,7 @@ export const PROTOS = {
   },
   missile: {
     name: '追踪飞弹', color: '#ff6f91', cd: 1.05, dmg: 11, n: 2, nStep: 1,
-    desc: (lv) => `射出 ${2 + lv} 枚追踪弹，绕开遮挡直取敌人`,
+    desc: (lv) => `射出 ${2 + lv} 枚追踪弹，自动拐弯追向最近的敌人`,
   },
   strike: {
     name: '天降打击', color: '#f2c94c', cd: 1.6, dmg: 24, n: 1, nStep: 2,
@@ -61,7 +61,35 @@ export const PROTOS = {
   },
   heal: {
     name: '圣光回响', color: '#8ce0a8', cd: 3.0, dmg: 10, n: 1, nStep: 99,
-    desc: (lv) => `回复 ${2 + lv} 点生命，同时灼烧周围敌人`,
+    desc: (lv) => `回复 ${2 + lv} 点生命，并震开周围敌人`,
+  },
+  // ---- 2026-10 新增的 6 种原型
+  // 原来的 12 种里 field/beam/nova 三种就占了 49 把（field 一家 22 把），
+  // 一局下来场上永远在放领域、射线和爆圈。这 6 种各有自己的场面表现：
+  // 涡流是「聚」，陨石与光雨是「砸」，图腾是「守」，锯轮是「穿」，地雷是「埋」。
+  vortex: {
+    name: '引力涡流', color: '#9b8bff', cd: 2.6, dmg: 8, n: 1, nStep: 2,
+    desc: (lv) => `在敌群中心撕开 ${(1.6 + lv * 0.2).toFixed(1)} 秒的涡流，把敌人拽向中心`,
+  },
+  meteor: {
+    name: '陨星坠落', color: '#ff7a45', cd: 2.2, dmg: 26, n: 1, nStep: 2,
+    desc: (lv) => `召来 ${1 + Math.floor(lv / 2)} 颗陨石砸向敌群，落点预警 0.55 秒`,
+  },
+  totem: {
+    name: '图腾雷击', color: '#5ad1ff', cd: 3.4, dmg: 12, n: 1, nStep: 2,
+    desc: (lv) => `放下 ${1 + Math.floor(lv / 2)} 座图腾，每 0.9 秒向最近的敌人放电`,
+  },
+  saw: {
+    name: '裂轮切割', color: '#d9e36a', cd: 1.0, dmg: 13, n: 1, nStep: 2,
+    desc: (lv) => `甩出 ${1 + Math.floor(lv / 2)} 枚锯轮，直线往返切割，穿透一切`,
+  },
+  mine: {
+    name: '地雷布阵', color: '#ffb14e', cd: 1.8, dmg: 34, n: 1, nStep: 2,
+    desc: (lv) => `在脚下埋 ${1 + Math.floor(lv / 2)} 颗地雷，敌人靠近即引爆`,
+  },
+  rain: {
+    name: '光雨轰击', color: '#ffe9a8', cd: 2.9, dmg: 9, n: 3, nStep: 2,
+    desc: (lv) => `向随机敌人落下 ${3 + Math.floor(lv / 2)} 道光柱`,
   },
 };
 
@@ -147,19 +175,43 @@ export const terrainAt = (t) => {
 // 官方造物本身是战斗内效果，跟这里的实时动作游戏对不上，所以按它的
 // tags（dmg / crit / guard / draw / energy / rage / str / exhaust）映射成
 // 通用加成，名字和图标保持原样。同一件造物最多叠 3 层。
+//
+// 2026-10 扩充：原来只有 12 类，42 件造物平均 3.5 件共用同一个效果，
+// 抽到「肉冻」「幸运风衣」「偏方骰子」感觉完全一样。现在 26 类，
+// 按「攻击 / 投射物 / 生存 / 节奏 / 资源」五组铺开，每类都在引擎里真实生效
+// （改这里必须同时改 engine 的 applyCreation，否则就是描述骗人）。
 export const CREATION_FX = {
+  // ---- 攻击
   dmg: { k: 'atk', v: 0.08, txt: '攻击力 +8%' },
-  crit: { k: 'crit', v: 0.06, txt: '暴击率 +6%' },
-  guard: { k: 'maxHp', v: 18, txt: '最大生命 +18' },
-  draw: { k: 'pick', v: 0.3, txt: '拾取范围 +30%，经验 +6%' },
-  energy: { k: 'cd', v: -0.05, txt: '冷却 -5%' },
-  rage: { k: 'rage', v: 0.12, txt: '狂气积攒 +12%' },
   str: { k: 'atk', v: 0.12, txt: '攻击力 +12%，受伤 +3%' },
+  crit: { k: 'crit', v: 0.06, txt: '暴击率 +6%' },
+  critdmg: { k: 'critMul', v: 0.15, txt: '暴击伤害 +15%' },
   exhaust: { k: 'dmgTaken', v: 0.03, txt: '受伤 +3%，全伤害 +6%' },
-  speed: { k: 'spd', v: 0.06, txt: '移动速度 +6%' },
-  magnet: { k: 'pick', v: 0.45, txt: '拾取范围 +45%' },
+  // ---- 投射物
+  count: { k: 'count', v: 1, txt: '投射物 +1（多发技能多打一份）' },
+  pierce: { k: 'pierce', v: 1, txt: '所有弹道额外穿透 1 次' },
+  projspd: { k: 'projSpd', v: 0.12, txt: '弹道飞行速度 +12%' },
+  projrange: { k: 'projRange', v: 0.12, txt: '投射物射程 +12%' },
+  area: { k: 'area', v: 0.1, txt: '技能作用范围 +10%' },
+  fieldr: { k: 'fieldRadius', v: 0.15, txt: '领域与涡流半径 +15%' },
+  dur: { k: 'dur', v: 0.12, txt: '领域与射线持续时间 +12%' },
+  // ---- 生存
+  guard: { k: 'maxHp', v: 18, txt: '最大生命 +18' },
+  shieldup: { k: 'maxShield', v: 20, txt: '护盾上限 +20' },
   regen: { k: 'regen', v: 0.3, txt: '每秒回复 +0.3' },
-  area: { k: 'area', v: 0.1, txt: '作用范围 +10%' },
+  lifesteal: { k: 'lifesteal', v: 0.03, txt: '造成伤害的 3% 转为治疗' },
+  thorns: { k: 'thorns', v: 10, txt: '受击时反弹 10 点伤害' },
+  // ---- 节奏
+  speed: { k: 'spd', v: 0.06, txt: '移动速度 +6%' },
+  energy: { k: 'cd', v: -0.05, txt: '技能冷却 -5%' },
+  knock: { k: 'knock', v: 0.25, txt: '击退强度 +25%' },
+  // ---- 资源
+  draw: { k: 'pick', v: 0.3, txt: '拾取范围 +30%，经验 +6%' },
+  magnet: { k: 'pick', v: 0.45, txt: '拾取范围 +45%' },
+  expup: { k: 'exp', v: 0.1, txt: '经验获取 +10%' },
+  rage: { k: 'rage', v: 0.12, txt: '狂气积攒 +12%，攻击力 +2%' },
+  healup: { k: 'healBoost', v: 0.2, txt: '治疗量 +20%' },
+  summonup: { k: 'summon', v: 1, txt: '召唤物 +1' },
 };
 export const CREATION_STACK = 3;
 
@@ -201,6 +253,162 @@ export const COVENANT_FX = [
   { key: 'c_frenzy', txt: '生命越低伤害越高（最多 +45%）' },
 ];
 
+// ---------------------------------------------------------------- 超武（进化）
+// 机制：一把技能「升格」成超武需要凑条件，条件只有四种可判定的形式 ——
+//   creation: { fx, n }  某类造物累计 n 层（同一件叠 3 层算 3 层）
+//   wheel:    'key'      拥有某张命轮
+//   level:    n          这把技能自身达到 n 级
+//   proto:    'xxx'      队伍里还有一把别的原型的技能（双流派型）
+// 满足后 `w.evo` 指向这张表，效果是质变（多一发、多穿透、范围翻倍），
+// 不是再造物那种 +8%。专武额外带 char，只对那一名唤醒体的技能生效。
+//
+// fx 字段含义（全部在 engine 的 fireProto / damageEnemy 里真实生效）：
+//   dmg 伤害乘数加成   cd 冷却乘数   count 投射数 +n   pierce 穿透 +n
+//   area 范围加成      crit 暴击率   critMul 暴击伤害   onHit:'burst' 命中溅射
+export const EVOS = [
+  // ---------------- 通用超武：按原型，靠造物/命轮组合解锁
+  {
+    id: 'evo_bolt', proto: 'bolt', n: '追猎弩炮', color: '#7fb3ff',
+    need: { creation: { fx: 'crit', n: 2 } },
+    fx: { count: 2, pierce: 2, dmg: 0.35 },
+    txt: '额外 +2 发，全部穿透，伤害 +35%',
+  },
+  {
+    id: 'evo_orbit', proto: 'orbit', n: '绞杀之环', color: '#9d7bff',
+    need: { creation: { fx: 'speed', n: 2 } },
+    fx: { count: 3, dmg: 0.25, area: 0.15 },
+    txt: '光刃 +3 枚，伤害 +25%',
+  },
+  {
+    id: 'evo_nova', proto: 'nova', n: '崩解核心', color: '#ff8a5c',
+    need: { creation: { fx: 'str', n: 2 } },
+    fx: { area: 0.45, dmg: 0.5, onHit: 'burst' },
+    txt: '爆发范围 +45%，伤害 +50%，命中溅射',
+  },
+  {
+    id: 'evo_beam', proto: 'beam', n: '贯日长虹', color: '#5fe0d0',
+    need: { creation: { fx: 'projspd', n: 2 } },
+    fx: { dmg: 0.4, area: 0.3, pierce: 4 },
+    txt: '射线加宽 30%，伤害 +40%，穿透一切',
+  },
+  {
+    id: 'evo_field', proto: 'field', n: '永蚀之土', color: '#8bd450',
+    need: { creation: { fx: 'dur', n: 2 } },
+    fx: { area: 0.4, dmg: 0.3 },
+    txt: '领域半径 +40%，伤害 +30%',
+  },
+  {
+    id: 'evo_chain', proto: 'chain', n: '雷霆万钧', color: '#ffe066',
+    need: { creation: { fx: 'critdmg', n: 2 } },
+    fx: { count: 3, dmg: 0.25 },
+    txt: '额外跳跃 +3 次，伤害 +25%',
+  },
+  {
+    id: 'evo_summon', proto: 'summon', n: '军团召唤', color: '#ff9ecb',
+    need: { creation: { fx: 'summonup', n: 2 } },
+    fx: { count: 2, dmg: 0.4 },
+    txt: '召唤物 +2，伤害 +40%',
+  },
+  {
+    id: 'evo_strike', proto: 'strike', n: '审判之锤', color: '#f2c94c',
+    need: { creation: { fx: 'knock', n: 2 } },
+    fx: { count: 2, dmg: 0.4, area: 0.25 },
+    txt: '落点 +2 处，伤害 +40%',
+  },
+  {
+    id: 'evo_vortex', proto: 'vortex', n: '黑洞坍缩', color: '#9b8bff',
+    need: { creation: { fx: 'fieldr', n: 2 } },
+    fx: { area: 0.5, dmg: 0.35 },
+    txt: '涡流半径 +50%，吸力翻倍，伤害 +35%',
+  },
+  {
+    id: 'evo_saw', proto: 'saw', n: '裂空锯', color: '#d9e36a',
+    need: { creation: { fx: 'pierce', n: 2 } },
+    fx: { count: 2, dmg: 0.3 },
+    txt: '锯轮 +2 枚，伤害 +30%',
+  },
+  {
+    id: 'evo_mine', proto: 'mine', n: '连锁爆破', color: '#ffb14e',
+    need: { creation: { fx: 'area', n: 2 } },
+    fx: { area: 0.5, dmg: 0.35 },
+    txt: '爆炸范围 +50%，伤害 +35%',
+  },
+  {
+    id: 'evo_rain', proto: 'rain', n: '万钧光雨', color: '#ffe9a8',
+    need: { creation: { fx: 'projrange', n: 2 } },
+    fx: { count: 3, dmg: 0.3 },
+    txt: '光柱 +3 道，伤害 +30%',
+  },
+  {
+    id: 'evo_totem', proto: 'totem', n: '雷神祭坛', color: '#5ad1ff',
+    need: { creation: { fx: 'energy', n: 2 } },
+    fx: { count: 1, dmg: 0.3, cd: 0.75 },
+    txt: '图腾 +1，放电更快，伤害 +30%',
+  },
+  {
+    id: 'evo_missile', proto: 'missile', n: '蜂群导弹', color: '#ff6f91',
+    need: { creation: { fx: 'count', n: 1 } },
+    fx: { count: 3, dmg: 0.2 },
+    txt: '导弹 +3 枚，伤害 +20%',
+  },
+  {
+    id: 'evo_boomerang', proto: 'boomerang', n: '千回之刃', color: '#c8e06a',
+    need: { creation: { fx: 'projrange', n: 1 } },
+    fx: { count: 2, dmg: 0.3 },
+    txt: '回旋镖 +2 枚，伤害 +30%',
+  },
+  {
+    id: 'evo_shield', proto: 'shield', n: '不动壁垒', color: '#6ea8ff',
+    need: { creation: { fx: 'shieldup', n: 2 } },
+    fx: { area: 0.5, dmg: 0.4 },
+    txt: '护盾与冲击波范围 +50%，伤害 +40%',
+  },
+  {
+    id: 'evo_heal', proto: 'heal', n: '圣愈领域', color: '#8ce0a8',
+    need: { creation: { fx: 'healup', n: 2 } },
+    fx: { area: 0.5, dmg: 0.3 },
+    txt: '治疗回合范围 +50%，伤害 +30%',
+  },
+
+  // ---------------- 专武：只属于某一名唤醒体，条件是技能练到 4 级
+  {
+    id: 'sw_24', char: '15601', n: '共生·完全体', color: '#ff6a5a',
+    need: { level: 3 },
+    fx: { dmg: 0.45, area: 0.3, onHit: 'burst' },
+    txt: '「24」专属：伤害 +45%，范围 +30%，命中溅射',
+  },
+  {
+    id: 'sw_dur', char: '95786', n: '血肉曼陀罗', color: '#ff9ecb',
+    need: { level: 3 },
+    fx: { count: 1, dmg: 0.35 },
+    txt: '杜勒赛因专属：投射/召唤 +1，伤害 +35%',
+  },
+  {
+    id: 'sw_katy', char: '77913', n: '千兆圣裁', color: '#5fe0d0',
+    need: { level: 3 },
+    fx: { dmg: 0.5, pierce: 3 },
+    txt: '凯蒂古拉专属：伤害 +50%，穿透一切',
+  },
+  {
+    id: 'sw_gol', char: '15564', n: '断首者', color: '#ff8a5c',
+    need: { level: 3 },
+    fx: { crit: 0.18, critMul: 0.6, dmg: 0.2 },
+    txt: '戈利亚专属：暴击率 +18%，暴击伤害 +60%',
+  },
+  {
+    id: 'sw_ray', char: '15597', n: '苦痛共鸣', color: '#8ce0a8',
+    need: { level: 3 },
+    fx: { cd: 0.75, dmg: 0.3 },
+    txt: '雷娅专属：冷却 -25%，伤害 +30%',
+  },
+  {
+    id: 'sw_pan', char: '15560', n: '疯狂之鞭', color: '#c8e06a',
+    need: { level: 3 },
+    fx: { count: 2, cd: 0.85, dmg: 0.2 },
+    txt: '潘狄娅专属：投射 +2，冷却 -15%，伤害 +20%',
+  },
+];
+
 // ---------------------------------------------------------------- 波次
 // 15 分钟一局。hp/spd 会随时间再乘一次增长曲线，所以这里的数字是「起点」。
 // kind 决定刷新点位置：ring 围一圈、edge 从屏幕边、cluster 成群。
@@ -232,7 +440,13 @@ export const dmgScale = (t) => 1 + t / 300;
 
 // 关键节点（秒）：精英与 Boss。时间一到就刷，同时给一段压力峰值。
 export const BOSS_AT = [300, 600, 900];
+// 精英原来是固定 70 秒刷 2 只，整局节奏一条直线：第 14 分钟和第 1 分钟一样稀。
+// 现在间隔随时间收紧（每分钟 ×0.93，最快 20 秒），同时数量分三档抬上去，
+// 中后期才会出现「刚清完一波又来一群」的压迫感 —— 但压的是精英，不是小怪数量，
+// 小怪那条曲线动一下就会把 300 上限塞满。
 export const ELITE_EVERY = 70;
+export const eliteGap = (t) => Math.max(20, ELITE_EVERY * Math.pow(0.93, t / 60));
+export const eliteCount = (t) => (t >= 720 ? 3 : t >= 360 ? 2 : 1);
 
 // ---------------------------------------------------------------- 玩家
 export const PLAYER = {

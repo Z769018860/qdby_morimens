@@ -9,7 +9,7 @@
 import { G, applyChoice, skipChoice, summary, remaining } from './engine.js';
 import { CHARS, WEAPONS, META, ATLAS, CREATIONS, WHEELS, COVENANTS } from './gen.js';
 import {
-  PROTOS, LV, WHEEL_FX, COVENANT_FX, CREATION_FX, DIFFS, RAGE,
+  PROTOS, LV, WHEEL_FX, COVENANT_FX, CREATION_FX, DIFFS, RAGE, EVOS,
   creditsAt, nextTier,
 } from './defs.js';
 
@@ -51,6 +51,8 @@ export function showPick() {
   ov.hidden = false;
   $('ovUp').hidden = true;
   $('ovEnd').hidden = true;
+  const sw = $('ovSwap');
+  if (sw) sw.hidden = true;
 
   const list = $('charList');
   if (!list.dataset.built) {
@@ -173,17 +175,42 @@ export function closeInfo() {
   if (infoPaused) { infoPaused = false; G.phase = 'run'; }
 }
 
+// 「这把技能的超武还差什么」：按 engine 相同的判定顺序（专武在前、通用原型在后）
+// 找到第一个还没满足的条目，把条件翻译成人话。
+function evoNeedText(w) {
+  const list = EVOS.filter((e) => (e.char ? String(e.char) === String(w.def.char) : e.proto === w.def.proto));
+  const next = list.find((e) => !w.evo || e.id !== w.evo.id);
+  if (!next) return '';
+  const n = next.need || {};
+  const parts = [];
+  if (n.level != null) parts.push(`这把技能升到 ${n.level + 1} 级`);
+  if (n.creation) {
+    const fx = CREATION_FX[n.creation.fx];
+    parts.push(`${fx ? fx.txt.split('，')[0] : n.creation.fx} ×${n.creation.n} 层`);
+  }
+  if (n.wheel) {
+    const wl = WHEEL_FX.find((x) => x.key === n.wheel);
+    parts.push(`命轮「${wl ? wl.txt : n.wheel}」`);
+  }
+  if (n.proto) parts.push(`同时持有 ${n.proto} 类技能`);
+  return `超武「${esc(next.n)}」：需要 ${esc(parts.join(' + ') || '未知条件')}`;
+}
+
 function buildInfo() {
   const ws = G.weapons.map((x) => {
     const proto = PROTOS[x.def.proto];
-    const cd = proto ? proto.cd * LV.cd(x.lv) * G.mods.cd : 0;
-    const dmg = proto ? proto.dmg * LV.dmg(x.lv) * G.mods.atk * G.mods.dmgMul : 0;
-    return `<div class="if-row">
+    const ev = x.evo ? x.evo.fx : null;
+    const cd = proto ? proto.cd * LV.cd(x.lv) * G.mods.cd * (ev && ev.cd ? ev.cd : 1) : 0;
+    const dmg = proto ? proto.dmg * LV.dmg(x.lv) * G.mods.atk * G.mods.dmgMul * (ev && ev.dmg ? 1 + ev.dmg : 1) : 0;
+    // 没觉醒的武器给出「还差什么」—— 不给线索的话，玩家根本不知道有超武这回事
+    const hint = x.evo ? '' : evoNeedText(x);
+    return `<div class="if-row${x.evo ? ' has-evo' : ''}">
       <i style="${atlasStyle(charFrame(x.def.char), 34)}"></i>
       <div>
-        <b>${esc(x.def.n)} <em>Lv.${x.lv + 1}</em></b>
+        <b>${esc(x.def.n)} <em>Lv.${x.lv + 1}</em>${x.evo ? `<em class="evo-tag">超武 · ${esc(x.evo.n)}</em>` : ''}</b>
         <span>${esc(x.def.charName)} · ${proto ? proto.name : ''} · 单发约 ${Math.round(dmg)} · 每 ${cd.toFixed(2)} 秒</span>
         <u>${esc(proto ? proto.desc(x.lv) : '')}</u>
+        ${x.evo ? `<u class="evo-line">${esc(x.evo.txt)}</u>` : hint ? `<u class="evo-need">${hint}</u>` : ''}
       </div></div>`;
   }).join('') || '<p class="dim">还没有技能</p>';
 
@@ -264,13 +291,16 @@ export function updateHUD() {
     $('hBossName').textContent = boss.n;
     $('hBossFill').style.width = (Math.max(0, boss.hp / boss.maxHp) * 100).toFixed(1) + '%';
   }
-  const wkey = G.weapons.map((w) => w.def.id + w.lv).join(',');
+  const wkey = G.weapons.map((w) => w.def.id + w.lv + (w.evo ? 'E' : '')).join(',');
   if (hudCache.wkey !== wkey) {
     hudCache.wkey = wkey;
+    // 超武的槽要一眼能认出来：金边 + 右上角「超」字角标。
+    // 不标的话，玩家只会觉得「这把好像打得比别的疼」，根本不知道有机制。
     $('hWeapons').innerHTML = G.weapons.map((w) => `
-      <div class="slot" data-info="1" title="${esc(w.def.n)} · ${esc(w.def.charName)}">
+      <div class="slot${w.evo ? ' evo' : ''}" data-info="1" title="${esc(w.def.n)} · ${esc(w.def.charName)}${w.evo ? ' · 超武「' + esc(w.evo.n) + '」' : ''}">
         <i style="${atlasStyle(charFrame(w.def.char), 30)}"></i>
         <b class="cdm"></b>
+        ${w.evo ? '<em class="evb">超</em>' : ''}
         <span class="pips">${'<b class="on"></b>'.repeat(w.lv + 1)}${'<b></b>'.repeat(LV.max - w.lv)}</span>
       </div>`).join('');
     // 缓存遮罩节点：每帧 querySelector 会让这套 HUD 变成瓶颈
@@ -362,9 +392,10 @@ function upgradeCard(o, i) {
     const proto = PROTOS[d.proto];
     const title = o.kind === 'wlv' ? `${d.n} → ${lv + 1} 级` : `${d.n}（${d.charName}）`;
     const desc = proto ? proto.desc(lv) : '';
-    // 替换卡必须写清楚「换掉谁」，否则玩家点了之后才发现少了一把满级武器
+    // 替换卡是两段式的：点开之后自己指定「换掉哪一把」，
+    // 以前固定换等级最低的那把，想把满级但不合流派的技能换掉根本没门路
     const foot = isSwap
-      ? `替换掉 · ${o.drop ? o.drop.def.n : '等级最低的技能'}（新技能从 1 级起）`
+      ? '点开后可自选要换掉的技能（新技能从 1 级起）'
       : (d.text || '');
     return card(i, isSwap ? 'wswap' : o.kind === 'wlv' ? 'wlv' : 'wnew', title, desc, foot, atlasStyle(charFrame(d.char), 46), KIND_LABEL[o.kind]);
   }
@@ -400,10 +431,76 @@ export function choose(i) {
   // i < 0 是「跳过」：不拿任何东西，但同样要消耗掉这次待选次数
   const o = i >= 0 ? G.choices[i] : null;
   if (i >= 0 && !o) return;
+  // 替换卡要分两步：先让玩家点「哪一把技能让位」，再真正换上去
+  if (o && o.kind === 'wswap') { openSwapPicker(o); return; }
   $('ovUp').hidden = true;
   if (o) applyChoice(o); else skipChoice();
+  afterChoice();
+}
+
+// 一次选择之后的收尾：要么回到战斗（刷新 HUD），要么接着弹下一屏三选一
+function afterChoice() {
+  $('ovUp').hidden = true;
   if (G.phase === 'run') hudCache = {};
   else if (G.phase === 'levelup') showUpgrade(G.choices);
+}
+
+// ---------------------------------------------------------------- 替换目标选择
+// 技能栏满了之后抽到的「替换」卡，点开先弹这一屏：六个技能槽全列出来，
+// 显示等级与是否已升格成超武，玩家自己决定让谁下场。
+let pendingSwap = null;
+
+function openSwapPicker(o) {
+  const ov = $('ovSwap');
+  // 面板缺失时不能把玩家卡住：直接按「换等级最低的那把」兜底
+  if (!ov) {
+    applyChoice({ kind: 'wswap', def: o.def, dropId: null });
+    afterChoice();
+    return;
+  }
+  pendingSwap = o;
+  $('ovUp').hidden = true;
+  $('swapTitle').textContent = `用「${o.def.n}」替换掉哪一个？`;
+  $('swapList').innerHTML = G.weapons.map((w, i) => `
+    <button class="sw${w.evo ? ' evo' : ''}" data-i="${i}">
+      <i style="${atlasStyle(charFrame(w.def.char), 32)}"></i>
+      <b>${esc(w.def.n)}</b>
+      <em>Lv.${w.lv + 1}</em>
+      ${w.evo ? `<u class="evo-tag">超武 · ${esc(w.evo.n)}</u>` : ''}
+    </button>`).join('');
+  $('swapList').onclick = (e) => {
+    const b = e.target.closest('button[data-i]');
+    if (!b) return;
+    confirmSwap(Number(b.dataset.i));
+  };
+  $('btnSwapCancel').onclick = closeSwap;
+  ov.hidden = false;
+}
+
+function confirmSwap(idx) {
+  const o = pendingSwap;
+  const target = G.weapons[idx];
+  if (!o || !target) return;
+  pendingSwap = null;
+  $('ovSwap').hidden = true;
+  applyChoice({ kind: 'wswap', def: o.def, dropId: target.def.id });
+  afterChoice();
+}
+
+// 键盘 1~6 在替换面板里直接选槽位
+export function pickSwap(i) {
+  const ov = $('ovSwap');
+  if (ov && !ov.hidden) confirmSwap(i);
+}
+
+// 「算了」/ Esc：关掉替换面板，回到三选一重新挑
+export function closeSwap() {
+  const ov = $('ovSwap');
+  if (!ov || ov.hidden) return false;
+  ov.hidden = true;
+  pendingSwap = null;
+  showUpgrade(G.choices);
+  return true;
 }
 
 // ---------------------------------------------------------------- 暂停 / 结算
@@ -496,7 +593,7 @@ function renderDmgBreakdown(sm) {
     </div>`;
   const rows = ws.map((w) => row(
     `<i style="${atlasStyle(charFrame(w.charId), 24)}"></i>`,
-    w.n, `Lv.${w.lv} · ${w.char}`, w.dmg, w.color,
+    w.n + (w.evo ? ' · 超武' : ''), `Lv.${w.lv} · ${w.char}`, w.dmg, w.color,
   )).join('');
   const rageRow = sm.rageDmg > 0
     ? row('<i class="dmg-ico">狂</i>', '狂气爆发', `${sm.rageUsed} 次`, sm.rageDmg, '#ff9350')

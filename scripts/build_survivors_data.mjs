@@ -38,10 +38,21 @@ const flavor = (s) => {
 };
 
 // ------------------------------------------------------------ 技能 → 原型
-// 12 种原型决定「这个技能在幸存者里长什么样」。匹配顺序即优先级：
+// 18 种原型决定「这个技能在幸存者里长什么样」。匹配顺序即优先级：
 // 越具体的先判，最后落回单发弹道。
+//
+// 2026-10 扩容：原来 12 种，field 一家吃掉 22 把、beam 14 把、nova 13 把，
+// 124 个技能里有一半是「放个圈 / 打道光 / 爆一下」，玩十局也见不到新花样。
+// 新增 totem / mine / meteor / vortex / saw / rain 六种，并把判定顺序排到
+// field 之前 —— 否则「陨石坠落」会被 field 的「燃烧」或 strike 的「坠落」抢走。
 const RULES = [
   ['summon', /召唤|仆从|群鼠|鼠群|傀儡|随行|出动/],
+  ['totem', /图腾|方尖碑|圣像|祭坛|哨塔|立牌/],
+  ['mine', /地雷|炸弹|引爆|火药|雷区|埋设/],
+  ['meteor', /陨石|陨星|流星|坠星|天火/],
+  ['vortex', /漩涡|涡流|牵引|重力|吸附|聚拢|吸纳/],
+  ['saw', /锯|旋齿|刃轮|切割/],
+  ['rain', /光雨|箭雨|万箭|齐射|光柱|落光/],
   ['heal', /治疗|回复|愈合|恢复生命|抚慰|慈悲/],
   ['chain', /链|弹射|跳跃|连锁|传导/],
   ['beam', /光束|射线|贯穿|直线|耀斑|裁决|激光/],
@@ -56,36 +67,36 @@ const RULES = [
 
 // 少量手工覆盖：规则看不准的（名字和实际效果对不上），按官方技能描述改判。
 const OVERRIDE = {
-  临战体势: 'shield', 心眼利刃: 'beam', 共生畸变: 'nova', 狂乱斩击: 'orbit',
-  无色螺旋: 'orbit', 石质分解: 'nova', 永恒编织: 'field', 缚命之网: 'field',
+  临战体势: 'shield', 心眼利刃: 'saw', 共生畸变: 'nova', 狂乱斩击: 'orbit',
+  无色螺旋: 'vortex', 石质分解: 'nova', 永恒编织: 'field', 缚命之网: 'field',
   腺体分裂: 'summon', 友情的力量: 'heal', 破碎长戟: 'chain',
   奇迹祝福: 'heal', 雪夜魔咒: 'field', 念动力: 'missile', 噗: 'nova',
   暗影飞行: 'boomerang', 冥河之翼: 'orbit', 无色之梦: 'field', 永恒幻影: 'summon',
-  痛苦榨取: 'beam', 精神抚慰: 'heal', 惩戒雷霆: 'strike', 不祥信号: 'field',
-  裂颅者: 'strike', 异质潮汐: 'field', 自毁: 'nova', 命运坠落: 'strike',
-  体外手术: 'beam', 等价交换: 'heal', 陨落者的挽歌: 'nova', 冥府之路: 'summon',
+  痛苦榨取: 'beam', 精神抚慰: 'heal', 惩戒雷霆: 'rain', 不祥信号: 'totem',
+  裂颅者: 'strike', 异质潮汐: 'vortex', 自毁: 'mine', 命运坠落: 'meteor',
+  体外手术: 'beam', 等价交换: 'heal', 陨落者的挽歌: 'meteor', 冥府之路: 'summon',
   '释放：机甲': 'summon', 函数过载: 'beam', 养分吸收: 'heal', 萌芽: 'field',
-  欢欣之海: 'field', 深海暗流: 'chain', 断首之伤: 'beam', 最强者的法则: 'nova',
+  欢欣之海: 'vortex', 深海暗流: 'chain', 断首之伤: 'saw', 最强者的法则: 'nova',
   灵魂序曲: 'chain', 记忆轮舞曲: 'orbit', 恨意宣泄: 'nova', 鲜血链条: 'chain',
-  粉碎一击: 'strike', 绵长憎恶: 'field', 颂歌圣咏: 'heal', 挽歌圣咏: 'field',
-  群鼠集结: 'summon', '布朗出动！': 'summon', 蟾蜍浓汤: 'field', 静默守望: 'shield',
-  末路枪声: 'missile', 千兆耀斑: 'beam', 欲求不满之痛: 'heal', 苦痛与欢愉: 'chain',
-  报偿打击: 'shield', 禁忌沼泽: 'field', 扑蛾之火: 'missile', 绿色火焰: 'field',
-  '长刃：殒灭': 'beam', '短刃：吞噬': 'orbit', 桀骜之刃: 'orbit', 傲慢之潮: 'field',
+  粉碎一击: 'strike', 绵长憎恶: 'field', 颂歌圣咏: 'heal', 挽歌圣咏: 'rain',
+  群鼠集结: 'summon', '布朗出动！': 'summon', 蟾蜍浓汤: 'field', 静默守望: 'totem',
+  末路枪声: 'bolt', 千兆耀斑: 'rain', 欲求不满之痛: 'heal', 苦痛与欢愉: 'chain',
+  报偿打击: 'shield', 禁忌沼泽: 'field', 扑蛾之火: 'missile', 绿色火焰: 'meteor',
+  '长刃：殒灭': 'beam', '短刃：吞噬': 'saw', 桀骜之刃: 'saw', 傲慢之潮: 'vortex',
   升华火刑: 'nova', 被选中之人: 'heal', 致命冲击: 'missile', '闪耀☆粉碎': 'nova',
-  利莫里亚华尔兹: 'orbit', 深渊圣歌: 'field', 逆转漩涡: 'nova', 圣女诞生: 'heal',
+  利莫里亚华尔兹: 'orbit', 深渊圣歌: 'totem', 逆转漩涡: 'vortex', 圣女诞生: 'heal',
   禁止入内: 'shield', 短期记忆: 'field', 午夜之潮: 'chain', 死亡丧钟: 'strike',
-  罪染之枪: 'beam', 无尽之影: 'summon', 不稳屏障: 'shield', '「穿刺」之枪': 'beam',
-  疯狂之鞭: 'orbit', 蜡烛般炽热的渴望: 'field', 噬色者: 'chain', 栩栩如生的描绘: 'summon',
-  灼魂之光: 'beam', 净化裁决: 'strike', 憔悴肆虐: 'field', 憔悴者的召唤: 'summon',
-  命定之剑: 'beam', 无拘之视: 'missile', 女王之剑: 'orbit', 突击论题: 'boomerang',
-  意外之财: 'missile', 摊牌: 'nova', 受祝福的白骨: 'shield', 应消之苦: 'nova',
+  罪染之枪: 'beam', 无尽之影: 'summon', 不稳屏障: 'shield', '「穿刺」之枪': 'saw',
+  疯狂之鞭: 'saw', 蜡烛般炽热的渴望: 'field', 噬色者: 'chain', 栩栩如生的描绘: 'summon',
+  灼魂之光: 'meteor', 净化裁决: 'rain', 憔悴肆虐: 'field', 憔悴者的召唤: 'summon',
+  命定之剑: 'saw', 无拘之视: 'missile', 女王之剑: 'orbit', 突击论题: 'boomerang',
+  意外之财: 'bolt', 摊牌: 'mine', 受祝福的白骨: 'totem', 应消之苦: 'nova',
   美丽的慈悲: 'heal', 孤绝乐章: 'field', 脏腑之花: 'summon', 仿生: 'shield',
   玫瑰的优雅: 'orbit', 璞玉: 'beam', 全知真理: 'beam', 时之羽翼: 'boomerang',
   远古爱抚: 'heal', 圣血本能: 'field', 安魂曲: 'field', 远方旋律: 'missile',
   深渊秩序: 'chain', 当利莫里亚回归: 'nova', '沸腾吧，鲜血！': 'field',
-  '尖啸吧，鲜血！': 'nova', 天降汤雨: 'strike', 就地取材: 'orbit', 蓄力: 'missile',
-  '装填！': 'missile', 迷途之守: 'shield', 脊刺锁链: 'chain', 能量光束: 'beam',
+  '尖啸吧，鲜血！': 'nova', 天降汤雨: 'rain', 就地取材: 'mine', 蓄力: 'bolt',
+  '装填！': 'missile', 迷途之守: 'totem', 脊刺锁链: 'chain', 能量光束: 'beam',
   精神重建: 'heal', 思骨之苦: 'chain', 扇封之吻: 'heal', 打击: 'bolt', 防御: 'shield',
 };
 
@@ -157,14 +168,56 @@ for (const w of WEAPONS) counts[w.proto] = (counts[w.proto] || 0) + 1;
 
 // 造物在游戏里变成什么被动。官方造物的 tags 就是它在卡组里干的活
 // （dmg / crit / guard / draw / energy / rage / str / exhaust），照着映射即可；
-// 没 tags 的按 id 轮转分一个，保证 42 件都能用。
-const FX_KEYS = ['dmg', 'crit', 'guard', 'draw', 'energy', 'rage', 'str', 'exhaust'];
-const creationFx = (c) => {
-  for (const t of (c.t || [])) if (FX_KEYS.includes(t)) return t;
-  const fallback = ['dmg', 'crit', 'guard', 'speed', 'area', 'magnet', 'regen'];
-  return fallback[Number(c.id) % fallback.length];
+// 造物属性：26 类，按「攻击 / 投射 / 生存 / 节奏 / 资源」五组铺开。
+// 官方 tags 只决定「落在哪一组」，组内具体效果按顺序轮转 —— 以前 42 件造物
+// 只有 12 种效果，光「攻击力 +8%」就压了 14 件，抽到什么都一个样。
+// 组内轮转保证同类造物尽量不撞，最后再做一次兜底覆盖：26 个效果必须各出现
+// 至少一次，否则依赖它的超武永远解锁不了。
+const FX_GROUPS = [
+  { tag: ['dmg', 'str', 'crit', 'exhaust'], keys: ['dmg', 'str', 'crit', 'critdmg', 'exhaust'] },
+  { tag: ['area'], keys: ['count', 'pierce', 'projspd', 'projrange', 'area', 'fieldr', 'dur'] },
+  { tag: ['guard'], keys: ['guard', 'shieldup', 'regen', 'lifesteal', 'thorns'] },
+  { tag: ['energy', 'speed'], keys: ['speed', 'energy', 'knock'] },
+  { tag: ['draw', 'rage'], keys: ['draw', 'magnet', 'expup', 'rage', 'healup', 'summonup'] },
+];
+const ALL_FX = FX_GROUPS.flatMap((g) => g.keys);
+const groupOf = (key) => FX_GROUPS.findIndex((g) => g.keys.includes(key));
+
+const fxOf = new Map();
+const cursor = {};
+const pickIn = (gi) => {
+  const keys = FX_GROUPS[gi].keys;
+  const i = cursor[gi] || 0;
+  cursor[gi] = i + 1;
+  return keys[i % keys.length];
 };
-for (const c of atlas.creations) c.fx = creationFx(c);
+for (const c of atlas.creations) {
+  const tags = c.t || [];
+  let gi = FX_GROUPS.findIndex((g) => g.tag.some((t) => tags.includes(t)));
+  // 没有 tags 的造物：按 id 散到 1~4 组，避开攻击组（不然又是「攻击力 +8%」）
+  if (gi < 0) gi = 1 + (Number(c.id) % 4);
+  fxOf.set(String(c.id), pickIn(gi));
+}
+// 兜底：把还没出现过的效果，从「已经拿到 ≥2 件」的造物挪一件过来。
+// 先在同组里找（语义最贴近），同组实在没有可挪的才跨组 —— 26 个效果必须
+// 每个都至少有一件造物承载，否则依赖它的超武条件是永远凑不齐的。
+const fxCount = {};
+for (const v of fxOf.values()) fxCount[v] = (fxCount[v] || 0) + 1;
+for (const key of ALL_FX) {
+  if (fxCount[key]) continue;
+  const gi = groupOf(key);
+  const pool = atlas.creations.filter((c) => fxCount[fxOf.get(String(c.id))] > 1);
+  const sameGroup = pool.find((c) => groupOf(fxOf.get(String(c.id))) === gi);
+  const host = sameGroup || pool[0];
+  if (!host) continue;
+  const cur = fxOf.get(String(host.id));
+  fxCount[cur]--;
+  fxOf.set(String(host.id), key);
+  fxCount[key] = 1;
+}
+for (const c of atlas.creations) c.fx = fxOf.get(String(c.id));
+const fxMiss = ALL_FX.filter((k) => !fxCount[k]);
+if (fxMiss.length) console.warn('没有造物承载的效果：', fxMiss.join('、'));
 
 const out = {
   at: Date.now(),

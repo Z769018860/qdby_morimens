@@ -100,6 +100,13 @@ button{font:inherit}
 .slot .stk{position:absolute; right:1px; top:1px; min-width:13px; height:13px; padding:0 3px;
   border-radius:7px; background:#7ad6a0; color:#08130d; font-size:9px; font-style:normal;
   font-weight:700; line-height:13px; text-align:center; box-shadow:0 0 4px rgba(0,0,0,.5)}
+/* 超武槽：金边 + 右上角「超」标。没有这个标记，玩家只会觉得「这把打得比较疼」，
+   完全不知道背后有一套凑条件的机制。 */
+.slot.evo{border-color:var(--gold); box-shadow:0 0 0 1px color-mix(in oklab,var(--gold) 60%,transparent),
+  0 0 8px color-mix(in oklab,var(--gold) 45%,transparent)}
+.slot .evb{position:absolute; right:1px; top:1px; width:13px; height:13px; border-radius:4px;
+  background:var(--gold); color:#1a1206; font-size:9px; font-style:normal; font-weight:800;
+  line-height:13px; text-align:center; box-shadow:0 0 5px rgba(0,0,0,.55)}
 .hud-passives{display:flex; flex-wrap:wrap; gap:5px; margin-top:5px}
 .bossbar[hidden]{display:none}
 .bossbar{position:absolute; left:50%; bottom:calc(26px + env(safe-area-inset-bottom)); transform:translateX(-50%);
@@ -251,6 +258,27 @@ button{font:inherit}
   text-decoration:none; margin-top:2px}
 .if-row.sm{padding:5px 8px}
 .if-row.sm b{font-size:12px}
+/* 超武技能行：左侧金线 + 金框标签，和普通技能区分开 */
+.if-row.has-evo{border-left:2px solid var(--gold); padding-left:8px;
+  background:color-mix(in oklab,var(--gold) 7%,transparent)}
+.evo-tag{display:inline-block; margin-left:5px; padding:0 5px; border-radius:5px; font-style:normal;
+  font-size:10px; font-weight:600; background:color-mix(in oklab,var(--gold) 22%,transparent);
+  color:var(--gold); vertical-align:1px}
+.if-row u.evo-line{color:var(--gold)}
+/* 还没觉醒的技能：把超武条件写在下面，玩家才知道该往哪个方向凑 */
+.if-row u.evo-need{color:color-mix(in oklab,var(--gold) 60%,var(--dim))}
+/* 替换目标选择：六个槽两列铺开，等级与超武状态一眼可见 */
+#swapList{display:grid; grid-template-columns:1fr 1fr; gap:7px; margin:10px 0 4px}
+.sw{display:flex; flex-wrap:wrap; align-items:center; gap:7px; padding:7px 9px; border-radius:10px;
+  border:1px solid var(--line); background:var(--panel2); color:inherit; font:inherit;
+  text-align:left; cursor:pointer; min-width:0}
+.sw:active{transform:scale(.97)}
+.sw i{flex:0 0 auto; border-radius:8px}
+.sw b{font-size:12.5px; font-weight:600; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.sw em{margin-left:auto; flex:0 0 auto; font-style:normal; font-size:11px; color:var(--gold)}
+.sw.evo{border-color:color-mix(in oklab,var(--gold) 55%,var(--line))}
+.sw .evo-tag{flex:0 0 100%; margin:0; padding:0; background:none; font-size:10px;
+  color:color-mix(in oklab,var(--gold) 80%,var(--dim))}
 
 /* ------------------------------------------------------- 结算伤害明细 */
 .dmg-row{display:flex; align-items:center; gap:7px; margin-bottom:6px}
@@ -330,6 +358,18 @@ button{font:inherit}
       <p class="hint" id="upHint">选一个带走 · 键盘 1 / 2 / 3 · 0 跳过</p>
       <div id="upList"></div>
       <button class="up-skip" id="btnSkipUp">这次不要 · 跳过</button>
+    </div>
+  </div>
+
+  <!-- --------------------------------------------------- 替换目标 -->
+  <div class="ov mid" id="ovSwap" hidden>
+    <div class="card">
+      <h2 id="swapTitle">替换掉哪一个？</h2>
+      <p class="hint">被换掉的技能会失去全部等级，新技能从 1 级起 · 键盘 1 ~ 6</p>
+      <div id="swapList"></div>
+      <div class="row">
+        <button class="btn ghost" id="btnSwapCancel">算了，换一张</button>
+      </div>
     </div>
   </div>
 

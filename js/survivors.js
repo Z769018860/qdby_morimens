@@ -4,10 +4,11 @@
 // 跑得更快，掉帧时也不会瞬移穿过敌人 —— 每帧最多补 6 步，防止切标签页回来
 // 一次补上千步直接把自己补死。
 
-import { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage, giveUp } from './sv/engine.js';
+import { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage, giveUp, recompute } from './sv/engine.js';
 import { init, resize, draw } from './sv/render.js';
-import { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo } from './sv/ui.js';
+import { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo, pickSwap, closeSwap } from './sv/ui.js';
 import { DIFFS } from './sv/defs.js';
+import { WEAPONS } from './sv/gen.js';
 
 const FIXED = 1 / 60;
 const cv = document.getElementById('cv');
@@ -54,6 +55,8 @@ window.addEventListener('keydown', (e) => {
     // 构筑详情是「暂停态」的一种，Esc 应该先关它，而不是把游戏直接放跑
     const info = document.getElementById('ovInfo');
     if (info && !info.hidden) { closeInfo(); e.preventDefault(); return; }
+    // 替换目标选择面板：Esc 退回三选一，而不是把整屏关掉
+    if (closeSwap()) { e.preventDefault(); return; }
     // 三选一时 Esc 等同于「这次不要」：万一卡片没渲染出来，还有个退路
     if (G.phase === 'levelup') { choose(-1); e.preventDefault(); return; }
     if (G.phase === 'run' || G.phase === 'pause') { togglePause(); e.preventDefault(); }
@@ -62,6 +65,13 @@ window.addEventListener('keydown', (e) => {
   // 空格放狂气：只在这一局进行中生效，弹窗上按空格不应该误触
   if (e.code === 'Space') {
     if (G.phase === 'run') { releaseRage(); e.preventDefault(); }
+    return;
+  }
+  // 替换面板打开时，1~6 直接选槽位
+  const swapOv = document.getElementById('ovSwap');
+  if (swapOv && !swapOv.hidden) {
+    const n = Number(e.key);
+    if (n >= 1 && n <= 6) { pickSwap(n - 1); e.preventDefault(); }
     return;
   }
   if (G.phase === 'levelup') {
@@ -168,6 +178,8 @@ function startGame() {
   document.getElementById('ovEnd').hidden = true;
   document.getElementById('ovPause').hidden = true;
   document.getElementById('ovUp').hidden = true;
+  const sw = document.getElementById('ovSwap');
+  if (sw) sw.hidden = true;
   document.getElementById('hud').hidden = false;
   document.getElementById('stick').style.opacity = '0';
   ended = false;
@@ -183,7 +195,7 @@ function restart() {
   // 所有弹层都要收干净：以前这里只关了结算层，一旦是从暂停面板出来的，
   // 暂停层就留在选角层上面，点「继续」又因为 phase 已经不是 run/pause 而无反应 ——
   // 玩家看到的是一张点不动的界面，只能刷新。
-  for (const id of ['ovEnd', 'ovPause', 'ovUp', 'ovInfo', 'ovPick']) {
+  for (const id of ['ovEnd', 'ovPause', 'ovUp', 'ovInfo', 'ovPick', 'ovSwap']) {
     const el = document.getElementById(id);
     if (el) el.hidden = true;
   }
@@ -229,6 +241,10 @@ if (/[?&]_test=1/.test(location.search)) {
   window.__sv = {
     G, summary, update, applyChoice, rollChoices, addWeapon, addCreation,
     rage: releaseRage,
+    recompute,        // 测试用：直接改 G.passives 之后要重算 mods 与超武
+    allWeapons: WEAPONS,  // 测试用：按原型挑武器来验证超武
+    choose,           // 测试用：直接走一遍「点卡」的真实路径（替换面板两段式）
+    openUp: (c) => showUpgrade(c || G.choices),
     skip: skipChoice, // 「这次不要」：测试里要能直接调
     seed: setSeed,   // 平衡测量用：固定种子才能把两次改动的差异看出来
     start: (c, d) => { ui.charId = c; ui.diff = d || 'normal'; startGame(); },
