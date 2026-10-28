@@ -1,4 +1,5 @@
 import { THREATS } from './challenge.js';
+import { LADDER } from './arena.js';
 import { relicTheme } from './gear.js';
 
 // ---- progress readers
@@ -12,7 +13,7 @@ const seenCount = (s) => Object.values(s.codex || {}).filter((c) => c.seen > 0).
 const beatenBosses = (s, data) => Object.entries(s.codex || {}).filter(([id, c]) => c.kills > 0 && data?.monById?.[id]?.rank === 'Boss').length;
 const rtSum = (s) => Object.values(s.rtower || {}).reduce((a, t) => a + (t.best || 0), 0);
 const rtMin = (s) => Math.min(...['CHAOS', 'CARO', 'AEQUOR', 'ULTRA'].map((r) => s.rtower?.[r]?.best || 0));
-const arenaRank = (s) => (s.arena ? Math.max(0, 101 - s.arena.best) : 0);   // 0 = unranked … 100 = rank 1
+const arenaRank = (s) => (s.arena ? Math.max(0, LADDER + 1 - s.arena.best) : 0);   // 0 = unranked … 1000 = rank 1
 const owned = (s, data, rar) => Object.keys(s.roster).filter((k) => data?.bySlug?.[k]?.rarity === rar).length;
 const friendDuels = (s) => (s.arena?.friends || []).reduce((a, f) => a + f.wins + f.losses, 0);
 const trialTier = (s, ks) => Object.keys(s.trials.cleared).filter((k) => ks.some((x) => k.endsWith('-' + x))).length;
@@ -75,17 +76,21 @@ export const ACHIEVEMENTS = [
   { id: 'trial16', cat: 'challenge', zh: '灾厄终结者', desc: '累计通关 16 个融灾试炼等级', cur: trialsCleared, goal: 16, reward: reward(4) },
   { id: 'trialS', cat: 'challenge', zh: 'S 级威胁', desc: '通关任意 S 级融灾试炼', cur: (s) => trialTier(s, ['S', 'SS', 'SSS']), goal: 1, reward: reward(4) },
   { id: 'trialSSS', cat: 'challenge', zh: '深渊终局', desc: '通关任意 SSS 级融灾试炼', cur: (s) => trialTier(s, ['SSS']), goal: 1, reward: reward(6) },
+  // 校猫：奖励首领（推图每 40 关、无限塔每 20 层、属性塔每 20 层各一次）
+  { id: 'catmeet', cat: 'codex', zh: '猫猫经过', desc: '遭遇过奖励首领「校猫」', cur: (s) => (s.codex?.catboss?.seen ? 1 : 0), goal: 1, reward: reward(1) },
+  { id: 'catwin', cat: 'challenge', zh: '第一次撸猫', desc: '击败奖励首领「校猫」1 次', cur: (s) => s.codex?.catboss?.kills || 0, goal: 1, reward: reward(2) },
+  { id: 'catwin5', cat: 'challenge', zh: '校猫的常客', desc: '击败奖励首领「校猫」5 次', cur: (s) => s.codex?.catboss?.kills || 0, goal: 5, reward: reward(4) },
   { id: 'week1', cat: 'challenge', zh: '周 Boss 初战', desc: '累计对周 Boss 造成 50000 伤害', cur: (s) => s.weeklyTotal || 0, goal: 50000, reward: reward(0) },
   { id: 'week2', cat: 'challenge', zh: '猎首者', desc: '累计对周 Boss 造成 1000000 伤害', cur: (s) => s.weeklyTotal || 0, goal: 1000000, reward: reward(3) },
   { id: 'week3', cat: 'challenge', zh: '弑神者', desc: '累计对周 Boss 造成 10000000 伤害', cur: (s) => s.weeklyTotal || 0, goal: 10000000, reward: reward(5) },
   ...tiers('challenge', 'rt', ['界域初行', '界域行者', '界域巡礼', '界域征服者', '界域主宰'], (g) => `四座属性塔累计通关 ${g} 层`, rtSum, [20, 40, 80, 120, 200]),
   { id: 'rtall', cat: 'challenge', zh: '四界同修', desc: '四座属性塔各通关 15 层', cur: rtMin, goal: 15, reward: reward(4) },
-  { id: 'arena90', cat: 'arena', zh: '初上天梯', desc: '竞技场最高名次进入前 90', cur: arenaRank, goal: 11, reward: reward(0) },
-  { id: 'arena70', cat: 'arena', zh: '登上天梯', desc: '竞技场最高名次进入前 70', cur: arenaRank, goal: 31, reward: reward(1) },
-  { id: 'arena50', cat: 'arena', zh: '中流砥柱', desc: '竞技场最高名次进入前 50', cur: arenaRank, goal: 51, reward: reward(2) },
-  { id: 'arena30', cat: 'arena', zh: '前三十', desc: '竞技场最高名次进入前 30', cur: arenaRank, goal: 71, reward: reward(3) },
-  { id: 'arena10', cat: 'arena', zh: '十强', desc: '竞技场最高名次进入前 10', cur: arenaRank, goal: 91, reward: reward(5) },
-  { id: 'arena1', cat: 'arena', zh: '天梯之巅', desc: '竞技场登顶第 1 名', cur: arenaRank, goal: 100, reward: reward(6) },
+  { id: 'arena90', cat: 'arena', zh: '初上天梯', desc: '竞技场最高名次进入前 900', cur: arenaRank, goal: 101, reward: reward(0) },
+  { id: 'arena70', cat: 'arena', zh: '登上天梯', desc: '竞技场最高名次进入前 700', cur: arenaRank, goal: 301, reward: reward(1) },
+  { id: 'arena50', cat: 'arena', zh: '中流砥柱', desc: '竞技场最高名次进入前 500', cur: arenaRank, goal: 501, reward: reward(2) },
+  { id: 'arena30', cat: 'arena', zh: '前三百', desc: '竞技场最高名次进入前 300', cur: arenaRank, goal: 701, reward: reward(3) },
+  { id: 'arena10', cat: 'arena', zh: '百强', desc: '竞技场最高名次进入前 100', cur: arenaRank, goal: 901, reward: reward(5) },
+  { id: 'arena1', cat: 'arena', zh: '天梯之巅', desc: '竞技场登顶第 1 名', cur: arenaRank, goal: LADDER, reward: reward(6) },
   ...tiers('arena', 'awin', ['初试锋芒', '常胜', '百战天梯'], (g) => `竞技场累计胜利 ${g} 场`, (s) => s.arena?.wins || 0, [5, 30, 100]),
   ...tiers('arena', 'duel', ['以武会友', '切磋', '知己'], (g) => `好友对战累计 ${g} 场`, friendDuels, [1, 10, 30]),
   ...tiers('codex', 'codex', ['初识异形', '融蚀图鉴', '博物学家', '无所不知'], (g) => `遭遇 ${g} 种怪物`, seenCount, [30, 100, 250, 400]),

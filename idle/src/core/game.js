@@ -1,14 +1,14 @@
 import { hash, mulberry32 } from './rng.js';
 import {
-  MAX_LV_HARD, MAX_AWAKEN, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, SAVE_VERSION, GEAR_MAX_LV,
+  MAX_LV_HARD, MAX_AWAKEN, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, ORDER_SLOTS, SAVE_VERSION, GEAR_MAX_LV, RARITY_ORDER,
 } from './constants.js';
 import { baseStats, lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost } from './stats.js';
 import { buildKit, makeMedians } from './skills.js';
 import {
-  ZERO, addBonus, wheelBonus, relicBonus, relicBond, relicSlotCount, covenantBonus, gearCost, dismantleValue,
+  ZERO, addBonus, wheelBonus, relicBonus, relicBond, relicSlotCount, relicTheme, covenantBonus, gearCost, dismantleValue,
   refineMult, refineCost, scaleBonus, REFINE_COST,
 } from './gear.js';
-import { ordersBonus, orderUpCost } from './orders.js';
+import { ordersBonus, orderUpCost, orderBonus, orderSlotCount } from './orders.js';
 import { buildEnemies, stageInfo } from './enemies.js';
 import { simulate } from './battle.js';
 
@@ -22,11 +22,16 @@ export function indexData(pack) {
   const by = (arr) => Object.fromEntries(arr.map((x) => [x.id, x]));
   const kits = {};
   const med = makeMedians(pack.awakeners);
+  // 附加怪物表（public/data/special.json）：奖励首领校猫 + 它的出招表，跟主表一个格式，直接并进来
+  const extra = pack.special || {};
+  const monsters = extra.monsters?.length ? [...pack.monsters, ...extra.monsters] : pack.monsters;
+  const msk = extra.msk ? { ...pack.msk, ...extra.msk } : pack.msk;
   const d = {
     ...pack,
+    monsters, msk,
     orders: pack.orders || [],
     bySlug: Object.fromEntries(pack.awakeners.map((a) => [a.slug, a])),
-    monById: Object.fromEntries(pack.monsters.map((m) => [m.id, m])),
+    monById: Object.fromEntries(monsters.map((m) => [m.id, m])),
     wheelById: by(pack.wheels), covById: by(pack.covenants), relicById: by(pack.relics),
     orderById: by(pack.orders || []),
     kit(slug, level = 2) { const id = `${slug}:${level}`; return kits[id] || (kits[id] = buildKit(d.bySlug[slug], level, med)); },
@@ -76,11 +81,14 @@ export function migrate(s, data) {
   while (rel.length < RELIC_SLOTS) rel.push(null);
   m.gear.relics = rel.map((uid) => (uid && m.gear.items[uid] ? uid : null));
   m.drip = { tickets: 0, cores: 0, ...(s.drip || {}) };
-  // 钥令：老存档没有就按开局配置补上
+  // 钥令：老存档没有就按开局配置补上；M10 换成原作 63 件后，旧的自造 id 会被清掉
   const o = m.orders || {};
   m.orders = { owned: { ...(o.owned || base.orders.owned) }, slots: Array.isArray(o.slots) ? o.slots.slice(0, 3) : base.orders.slots };
+  m.orders.owned = Object.fromEntries(Object.entries(m.orders.owned).filter(([id]) => data.orderById[id]));
   while (m.orders.slots.length < 3) m.orders.slots.push(null);
   m.orders.slots = m.orders.slots.map((id) => (id && m.orders.owned[id] != null ? id : null));
+  if (!Object.keys(m.orders.owned).length) { m.orders = { ...base.orders }; }
+  if (!m.orders.slots.some(Boolean)) m.orders.slots = [Object.keys(m.orders.owned)[0] || null, ...m.orders.slots.slice(1)];
   return m;
 }
 
@@ -277,6 +285,17 @@ export function applyResult(state, data, res) {
       const it = rollItem(rng, res.stage, data);
       rw.items.push(addItem(state, it.kind, it.defId));
     }
+    // 校猫（奖励首领）：每 40 关的 Boss 关换成它，打赢额外给券 + 银芯 + 装备，首杀再翻一倍
+    const cat = res.prep.enemies.find((e) => e.reward);
+    if (cat) {
+      rw.cat = true;
+      rw.tickets += 5; rw.cores += 60;
+      rw.items.push(addItem(state, ...Object.values(rollItem(rng, res.stage + 8, data))));
+      if ((state.codex?.[cat.mid]?.kills || 0) <= 1) {
+        rw.catFirst = true; rw.tickets += 5; rw.cores += 60;
+        rw.items.push(addItem(state, ...Object.values(rollItem(rng, res.stage + 12, data))));
+      }
+    }
     // 挂机零头：召唤券 / 银芯按 1/40、1/90 场累积，攒满 1 就进账（与离线结算同口径）
     const drip = (state.drip ||= { tickets: 0, cores: 0 });
     drip.tickets += TICKET_PER_WIN; drip.cores += CORE_PER_WIN;
@@ -291,11 +310,12 @@ export function applyResult(state, data, res) {
       if (res.stage === state.stage && rw.comfortable && state.stage <= state.maxStage) {
         state.stage = Math.min(state.maxStage + 1, state.stage + 1); rw.advanced = true;
       }
-    } else if (res.stage === state.stage) {
-      // 手动攻坚：赢了就推进，不看是否从容；目标自动指向下一关（最高关只到 maxStage+1）
-      state.stage = Math.min(state.maxStage + 1, state.stage + 1); rw.advanced = true; rw.manual = true;
+    } else {
+      // 手动挂机：关卡由玩家用 ◀ ▶ 自己选，打赢也不自动往前走（只更新最高通关），
+      // 就地留在这一关继续刷，收益按这一关算。
+      rw.stayed = true;
     }
-  } else if (state.stage > state.maxStage) {
+  } else if (state.auto && state.stage > state.maxStage) {
     // lost on the frontier: fall back to the last cleared stage and farm there
     state.stage = Math.max(1, state.maxStage); rw.retreat = true;
   }
@@ -371,6 +391,62 @@ export function awakenUp(state, slug) {
 export function setTeam(state, slots) {
   const seen = new Set();
   state.team = slots.filter((s) => s && state.roster[s] && !seen.has(s) && seen.add(s)).slice(0, TEAM_SIZE);
+}
+
+/* ---------- 一键配队：队伍 + 命轮 + 密契 + 造物 + 钥令 ---------- */
+// 加成键的权重（越靠前越直接体现在战力上），用来比较「哪件更好」
+const BW = {
+  atkPct: 1, hpPct: 0.7, defPct: 0.7, critRate: 1.1, critDmg: 0.45, amp: 1.4,
+  aliGain: 0.5, keyGain: 0.5, healBonus: 0.5, shieldBonus: 0.5, steal: 1.2,
+  surviveChance: 120, openAli: 0.4, openKey: 0.4, firstBoost: 0.6, gold: 0.15,
+};
+export const bonusScore = (b) => Object.entries(b || {}).reduce((s, [k, v]) => s + (BW[k] ?? 0.2) * (Number(v) || 0), 0);
+
+export function autoLoadout(state, data) {
+  autoTeam(state, data);                     // 先按战力 + 同界域加成排出 4 人
+  const items = Object.values(state.gear.items);
+  const defOf = (it) => (it.kind === 'wheel' ? data.wheelById[it.defId] : it.kind === 'covenant' ? data.covById[it.defId] : data.relicById[it.defId]);
+  const rar = (it) => (RARITY_ORDER[defOf(it)?.rarity || 'SR'] ?? 2);
+  state.gear.equip ||= {};
+  const used = new Set();
+
+  // 命轮：稀有度优先，其次同界域（命轮对同领域唤醒体有 ×1.25），再看等级
+  const wheels = items.filter((i) => i.kind === 'wheel');
+  for (const slug of state.team) {
+    const a = data.bySlug[slug], eq = (state.gear.equip[slug] ||= {});
+    const best = wheels.filter((i) => !used.has(i.uid)).sort((x, y) => (rar(y) - rar(x))
+      || (Number(defOf(y)?.realm === a.realm) - Number(defOf(x)?.realm === a.realm)) || (y.lv - x.lv))[0];
+    if (best) { eq.wheel = best.uid; used.add(best.uid); }
+  }
+  // 密契：先把已有 1 / 3 件的款式凑成 2 / 4 件套装，再按稀有度补
+  const covs = items.filter((i) => i.kind === 'covenant'), ccount = {};
+  for (const slug of state.team) {
+    const eq = (state.gear.equip[slug] ||= {});
+    const best = covs.filter((i) => !used.has(i.uid)).map((i) => {
+      const c = ccount[i.defId] || 0;
+      return { i, s: (c === 1 || c === 3 ? 100 : 0) + rar(i) * 10 + i.lv };
+    }).sort((a, b) => b.s - a.s)[0];
+    if (best) { eq.cov = best.i.uid; used.add(best.i.uid); ccount[best.i.defId] = (ccount[best.i.defId] || 0) + 1; }
+  }
+  // 造物：填满已解锁的格子，优先补齐 1 / 3 / 5 件的主题（凑 2 / 4 / 6 档羁绊）
+  const slots = relicSlotCount(state.maxStage || 0);
+  const relics = items.filter((i) => i.kind === 'relic'), picked = [], tc = {};
+  for (let k = 0; k < slots; k++) {
+    const best = relics.filter((i) => !picked.includes(i.uid)).map((i) => {
+      const th = relicTheme(defOf(i)?.id || i.defId).zh, c = tc[th] || 0;
+      return { i, th, s: (c === 1 || c === 3 || c === 5 ? 60 : 0) + rar(i) * 10 + i.lv };
+    }).sort((a, b) => b.s - a.s)[0];
+    if (!best) break;
+    picked.push(best.i.uid); tc[best.th] = (tc[best.th] || 0) + 1;
+  }
+  state.gear.relics = Array.from({ length: RELIC_SLOTS }, (_, i) => picked[i] || null);
+  // 钥令：按加成总分排序，取前 N 个不重复的（槽位数按最高通关解锁）
+  const on = orderSlotCount(state.maxStage || 0);
+  const ranked = Object.keys(state.orders.owned)
+    .map((id) => ({ id, s: bonusScore(orderBonus(data.orderById[id], state.orders.owned[id])) }))
+    .sort((a, b) => b.s - a.s);
+  state.orders.slots = Array.from({ length: ORDER_SLOTS }, (_, i) => (i < on ? ranked[i]?.id || null : null));
+  return { team: [...state.team], relics: picked.length, orders: Math.min(on, ranked.length) };
 }
 export function autoTeam(state, data) {
   const ranked = Object.keys(state.roster).map((s) => ({ s, p: allyDef(state, data, s, [s]).power, t: data.bySlug[s].type }))

@@ -1,7 +1,7 @@
 // Weekly boss, realm towers, arena
 import { REALMS } from '../core/constants.js';
 import { weeklyState, weeklyBoss, MILESTONES, WEEKLY_DAILY, WEEKLY_ROUNDS, weekId, weeklyEnemy } from '../core/weekly.js';
-import { REALM_TOWERS, TOWER_NAME, rtBest, rtTeam, rtEnemies, rtStage } from '../core/rtower.js';
+import { REALM_TOWERS, TOWER_NAME, rtBest, rtTeam, rtEnemies, rtStage, rtInfo } from '../core/rtower.js';
 import { arenaState, arenaTries, ARENA_DAILY, LADDER, dailyRankReward, canClaimArenaDaily, hydrate } from '../core/arena.js';
 import { encodeCode } from '../core/friend.js';
 import { teamDefs } from '../core/game.js';
@@ -51,7 +51,7 @@ export function rtowerPage(app) {
     const foes = rtEnemies(realm, next, data);
     const R = REALMS[realm];
     return `<div class="banner-card rt" style="--rc:${R.color}"><h3 style="color:${R.color}">${TOWER_NAME[realm]} <small>${R.zh}界域</small></h3>
-      <p>已通关 <b>${best}</b> 层　下一层（第 ${next} 层${next % 10 === 0 ? ' · BOSS' : next % 5 === 0 ? ' · 精英' : ''}，强度≈第 ${rtStage(next)} 关）：${foes.map((x) => esc(x.name)).join('、')}</p>
+      <p>已通关 <b>${best}</b> 层　下一层（第 ${next} 层${rtInfo(next).reward ? ' · 🐈 校猫奖励层' : next % 10 === 0 ? ' · BOSS' : next % 5 === 0 ? ' · 精英' : ''}，强度≈第 ${rtStage(next)} 关）：${foes.map((x) => esc(x.name)).join('、')}</p>
       <p class="hint">出战：${team ? team.slugs.map((x) => esc(data.bySlug[x].zh)).join('、') + `（${team.slugs.length}人${team.synergy ? ` · 同界域加成 +${Math.round(team.synergy * 100)}%` : ''}）` : `你还没有任何${R.zh}唤醒体，去召唤吧`}</p>
       <div class="row"><button class="btn gold" data-act="rt-go" data-realm="${realm}" ${team ? '' : 'disabled'}>挑战第 ${next} 层</button>
       <button class="btn" data-act="rt-auto" data-realm="${realm}" ${team ? '' : 'disabled'}>连续挑战（最多 10 层）</button></div></div>`;
@@ -81,7 +81,7 @@ export function arenaPage(app) {
       <button class="btn sm gold" data-act="arena-go" data-rank="${o.rank}" ${tries > 0 ? '' : 'disabled'}>挑战</button></div>`;
   const code = app.ui.arena?.code || '';
   return `<div class="page"><h2>竞技场 <small>${ranked ? `当前第 ${a.rank} 名` : '未上榜'} · 最高 ${a.best <= LADDER ? `第 ${a.best} 名` : '—'} · ${a.wins}胜${a.losses}负 · 今日 ${tries}/${ARENA_DAILY}</small></h2>
-    <div class="banner-card"><h3>天梯（人机）</h3><p>${LADDER} 个名次，对手都是人机，名次越靠前越强。战胜名次更高的对手即可取代其名次。每天 ${ARENA_DAILY} 次。</p>
+    <div class="banner-card"><h3>天梯（人机）</h3><p>${LADDER} 个名次，对手都是人机，名次越靠前越强。战胜名次更高的对手即可取代其名次；候选对手分别落后你 1 / 3 / 7 / 15 / 31 名，越往上跨的跨度越大。每天 ${ARENA_DAILY} 次。</p>
       <div class="row"><button class="btn ${canClaimArenaDaily(s) ? 'gold' : ''}" data-act="arena-daily" ${canClaimArenaDaily(s) ? '' : 'disabled'}>每日排名奖励${ranked ? `（召唤券 ${dailyRankReward(a.rank)} + 金币 1500）` : '（上榜后可领）'}</button></div>
       <div class="opps">${opp.length ? opp.map(entry).join('') : '<p class="dim">你已经是第 1 名了。</p>'}</div></div>
     <div class="banner-card"><h3>好友对战</h3>

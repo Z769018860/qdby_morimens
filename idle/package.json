@@ -8,6 +8,7 @@
     "data": "python3 tools/build_data.py --src ../qdby_chinese && python3 tools/build_morimens.py --morimens ../qdby_main --chinese ../qdby_chinese && python3 tools/build_monsters.py --morimens ../qdby_main --chinese ../qdby_chinese",
     "test": "node --test tests/core.test.mjs",
     "sim": "node tools/sim_bot.mjs 4000",
+    "regress": "node tools/regress.mjs",
     "serve": "python3 -m http.server 8765"
   }
 }

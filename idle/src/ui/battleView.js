@@ -1,4 +1,4 @@
-import { runBattle, applyResult, prepareBattle, farmRate, firstClearReward, winRateOf } from '../core/game.js';
+import { runBattle, applyResult, farmRate, firstClearReward, winRateOf } from '../core/game.js';
 import { stageInfo } from '../core/enemies.js';
 import { REALMS, TYPES, STATUS } from '../core/constants.js';
 import { esc, img, fmt, $, toast, kwIcon, stripMarks } from './util.js';
@@ -55,11 +55,10 @@ export class BattleView {
     if (a === 'detail') { if (this.lastCtx) settlementModal(this.app, this.lastCtx); return; }
     if (a === 'auto') {
       s.auto = !s.auto;
-      toast(s.auto ? '自动挂机：循环刷本关，从容胜利才推进' : '手动攻坚：点「开战」打一场，胜利即推进');
+      toast(s.auto ? '自动挂机：打赢且从容就自动推进下一关' : '手动挂机：留在当前关反复刷，不再自动推进；用 ◀ ▶ 换关');
       this.app.save(); this.refreshHead(); this.restart();
       return;
     }
-    if (a === 'fight') { if (this.phase !== 'playing') this.next(); return; }
     if (a === 'prev' && s.stage > 1) { s.stage--; this.restart(); }
     if (a === 'next') {
       if (s.stage < this.maxTarget()) { s.stage++; this.restart(); }
@@ -72,7 +71,7 @@ export class BattleView {
     const s = this.app.state, i = stageInfo(s.stage);
     $('#bv-name', this.root).textContent = `第 ${s.stage} 关 · ${i.name}`;
     $('#bv-sub', this.root).textContent = `${i.node}/10 ${i.boss ? '· BOSS' : i.elite ? '· 精英' : ''}　最高通关：${s.maxStage}　${s.stage > s.maxStage ? '· 攻坚中' : ''}`;
-    $('#bv-auto', this.root).textContent = s.auto ? '自动挂机：开' : '自动挂机：关';
+    $('#bv-auto', this.root).textContent = s.auto ? '自动挂机' : '手动挂机';
     $('#bv-auto', this.root).classList.toggle('on', s.auto);
     $('#bv-next', this.root).disabled = s.stage >= this.maxTarget();
     const prev = $('#bv-prev', this.root); if (prev) prev.disabled = s.stage <= 1;
@@ -113,49 +112,32 @@ export class BattleView {
     const delta = f.cur.goldPerHour > 0 ? (nf.goldPerHour / f.cur.goldPerHour - 1) * 100 : 0;
     const first = firstClearReward(f.nxt);
     const extra = `<div class="farmx">${delta >= 0 ? '+' : ''}${delta.toFixed(1)}% 金币收益${f.nxt > s.maxStage ? `　首通：券+${first.tickets} 银芯+${first.cores}${first.order ? ' 钥令+1' : ''}${first.gear ? ' 装备+1' : ''}` : ''}</div>`;
+    // 校猫奖励关：每 40 关一次，提示一下，别让人以为只是普通 Boss
+    const catNote = (st) => (stageInfo(st)?.reward ? `<div class="farmx cat">🐈 第 ${st} 关是「校猫」奖励关：打赢额外掉召唤券 5 + 银芯 60 + 装备，首杀翻倍</div>` : '');
     $('#bv-farm', this.root).innerHTML = `
       <div class="farmgrid">
-        ${col('当前挂机', f.cur)}
-        ${col('下一关', nf, extra)}
+        ${col('当前挂机', f.cur, catNote(f.cur.stage))}
+        ${col('下一关', nf, extra + catNote(f.nxt))}
       </div>
       <p class="hint">一场按 25 秒结算：金币 = 单场金币 × 胜率；召唤券每 40 场 1 张、银芯每 90 场 1 枚、装备每场 10% 掉落。在线与离线同一口径（离线最多累计 8 小时）。
-        ${s.auto ? '自动挂机中：打赢且「从容」（存活 ≥3 人、回合数达标）才自动推进，否则原地刷。' : '手动攻坚中：战斗不会自动重开，点「开战」打一场；<b>赢了就推进</b>，不看是否从容，适合硬闯高关拿更高挂机收益。'}</p>`;
+        ${s.auto ? '自动挂机中：打赢且「从容」（存活 ≥3 人、回合数达标）才自动推进，否则原地刷。' : '手动挂机中：<b>不会自动推进关卡</b>，只在这一关反复刷（收益按本关算）；要打更高关用右上角 ▶ 自己走过去。'}</p>`;
   }
 
   /* ---------- 战斗流 ---------- */
   start() {
     if (this.running) return;
     this.running = true;
-    if (this.app.state.auto) this.next();
-    else this.preview();
+    this.next();
   }
   stop() { this.running = false; this.token++; clearTimeout(this.timer); this.phase = 'idle'; }
   restart() { this.stop(); this.start(); }
 
-  // 手动模式下的「待战」画面：把这一关的敌人摆出来，等玩家点开战
-  preview(keepBanner = false) {
-    const s = this.app.state;
-    const prep = prepareBattle(s, this.app.data, s.stage);
-    this.res = null; this.units = {};
-    this.draw({ prep });
-    this.fx.clear();
-    $('#bv-round', this.root).textContent = '—';
-    if (!keepBanner) {
-      const b = $('#bv-banner', this.root);
-      b.className = 'banner'; b.textContent = '';
-      $('#bv-rw', this.root).innerHTML = '';
-    }
-    this.phase = 'ready';
-    this.renderFightBar();
-  }
-
+  // 手动挂机：战斗照常连打（还是挂机），只是**不自动推进关卡**，关卡由 ◀ ▶ 自己选
   renderFightBar() {
     const s = this.app.state, bar = $('#bv-fight', this.root);
     if (s.auto) { bar.innerHTML = ''; return; }
-    if (this.phase === 'playing') { bar.innerHTML = `<span class="dim">战斗中…</span>`; return; }
     const frontier = s.stage > s.maxStage;
-    bar.innerHTML = `<button class="btn big gold" data-bv="fight">开战 · 第 ${s.stage} 关${frontier ? '（攻坚）' : ''}</button>
-      <span class="hint">手动攻坚不会自动重开：赢一场推进一关，输了退回第 ${Math.max(1, s.maxStage)} 关。</span>`;
+    bar.innerHTML = `<span class="manual-note">手动挂机 · 停在第 <b>${s.stage}</b> 关${frontier ? '（攻坚中）' : ''}反复刷，打赢也<b>不往前推进</b>${frontier ? `，输了也留在这关` : ''}；要换关卡用右上角 ◀ ▶。</span>`;
   }
 
   next() {
@@ -191,9 +173,9 @@ export class BattleView {
   draw(res) {
     const mk = (d, u, side) => {
       const id = `${side}${u}`;
-      return `<div class="unit ${side === 'e' ? 'foe' : ''} ${d.boss ? 'boss' : ''}" id="u-${id}" ${d.mid ? `data-mid="${d.mid}"` : ''} style="--rc:${REALMS[d.realm]?.color || '#6b7280'}">
+      return `<div class="unit ${side === 'e' ? 'foe' : ''} ${d.boss ? 'boss' : ''} ${d.reward ? 'reward' : ''}" id="u-${id}" ${d.mid ? `data-mid="${d.mid}"` : ''} style="--rc:${REALMS[d.realm]?.color || '#6b7280'}">
         <div class="u-pic"><img src="${img(d.img)}" alt=""><span class="u-tag">${esc(d.type && side === 'a' ? TYPES[d.type].short : '')}</span><div class="u-say"></div></div>
-        <div class="u-name" ${side === 'e' && d.skills?.length ? `title="${esc(d.skills.map((x) => `${x.name}：${stripMarks(x.plain)}`).join('\n'))}"` : ''}>${esc(d.name)}</div>
+        <div class="u-name" ${side === 'e' && d.skills?.length ? `title="${esc(d.skills.map((x) => `${x.name}：${stripMarks(x.plain)}`).join('\n'))}"` : ''}>${esc(d.name)}${d.reward ? '<span class="rw-tag">奖励</span>' : ''}</div>
         ${side === 'e' ? '<div class="u-int" title="下一步行动"></div>' : ''}
         <div class="u-st"></div>
         <div class="bar hp"><i style="width:100%"></i><b>${fmt(d.hp)}</b><u class="sh" style="width:0"></u></div>
@@ -314,7 +296,8 @@ export class BattleView {
     for (const it of rw.items) parts.push(`<span class="i">获得装备：${esc(this.app.itemName(it))}</span>`);
     for (const od of rw.orders) parts.push(`<span class="i">获得钥令：${esc(this.app.data.orderById[od.id]?.zh || od.id)}</span>`);
     if (rw.firstClear) parts.push('<span class="n">首通!</span>');
-    if (rw.advanced) parts.push(`<span class="n">${rw.manual ? '攻坚成功' : '推进'} → 第 ${s.stage} 关</span>`);
+    if (rw.advanced) parts.push(`<span class="n">推进 → 第 ${s.stage} 关</span>`);
+    if (rw.stayed && res.win) parts.push(`<span class="n">留在第 ${s.stage} 关继续挂机</span>`);
     if (rw.retreat) parts.push('<span class="r">挑战失败，退回上一关挂机，提升战力再来</span>');
     if (res.win && !rw.advanced && !rw.comfortable && s.stage <= s.maxStage) parts.push('<span class="r">赢得不够从容，继续在此关积累</span>');
     $('#bv-rw', this.root).innerHTML = parts.join('');
@@ -329,16 +312,7 @@ export class BattleView {
     this.refreshHead();
     this.app.onBattleDone?.(rw);
 
-    if (!s.auto) {
-      // 手动攻坚：不自动重开，摆出下一场的待战画面并等点击
-      const txt = b.textContent, cls = b.className, rwHtml = $('#bv-rw', this.root).innerHTML;
-      this.preview(true);
-      const nb = $('#bv-banner', this.root);
-      nb.className = cls; nb.textContent = txt;
-      $('#bv-rw', this.root).innerHTML = rwHtml;
-      if (pop) this.popSettle(ctx);
-      return;
-    }
+    if (!s.auto) this.renderFightBar();
     if (pop) { this.popSettle(ctx); return; }
     this.timer = setTimeout(() => this.next(), NEXT_GAP);
   }
@@ -350,8 +324,8 @@ export class BattleView {
     const mo = new MutationObserver(() => {
       if (!document.querySelector('.modal-bg')) {
         mo.disconnect(); this.paused = false;
-        if (this.running && this.app.state.auto) this.timer = setTimeout(() => this.next(), 320);
-        else if (this.running) this.renderFightBar();
+        // 自动 / 手动都是连打（手动只是不推进关卡），所以关闭结算后一律继续
+        if (this.running) this.timer = setTimeout(() => this.next(), 320);
       }
     });
     mo.observe(document.body, { childList: true });

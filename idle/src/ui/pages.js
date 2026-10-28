@@ -111,13 +111,14 @@ export function teamPage(app) {
   const ochips = Array.from({ length: ORDER_SLOTS }, (_, i) => {
     if (i >= on) return `<span class="ochip locked">🔒 最高通关 ${orderLockedHint(i, s.maxStage)} 关</span>`;
     const id = s.orders.slots[i], def = id && data.orderById[id];
-    return def ? `<span class="ochip on" title="${esc(orderText(def, s.orders.owned[id]))}">${esc(def.glyph)} ${esc(def.zh)}<em>Lv${s.orders.owned[id]}</em></span>` : `<span class="ochip">空位 ${i + 1}</span>`;
+    return def ? `<span class="ochip on" title="${esc(orderText(def, s.orders.owned[id]))}">${oglyph(def)} ${esc(def.zh)}<em>Lv${s.orders.owned[id]}</em></span>` : `<span class="ochip">空位 ${i + 1}</span>`;
   }).join('');
   return `<div class="page">
     <h2>队伍编成 <small>战力 ${fmt(t.power)}</small></h2>
     <p class="hint">${synText}。站位按从左到右依次行动；守护被敌人攻击的概率更高。</p>
     <div class="slots">${cards}</div>
-    <div class="row"><button class="btn" data-act="autoteam">一键最优编队</button><button class="btn sm" data-act="guide-growth">养成指南</button></div>
+    <div class="row"><button class="btn gold" data-act="autoteam">一键配队</button><button class="btn sm" data-act="guide-growth">养成指南</button></div>
+    <p class="hint">「一键配队」会一起排好：4 人队伍（含同界域加成）、每人的命轮与密契、已解锁格里的造物（优先凑羁绊）、3 个钥令位。</p>
     <h3>战斗策略 <small>全自动，仅可设定倾向</small></h3>
     <div class="row">${pre}</div>
     <p class="hint">${PRESETS[s.strategy.preset]?.zh || ''}：血量低于 ${Math.round(s.strategy.defend * 100)}% 时优先架势；目标选择：${{ low: '血量最低', first: '前排优先', atk: '攻击最高' }[s.strategy.target]}。</p>
@@ -152,7 +153,7 @@ export function pickOrder(app, i, onPick) {
   const html = `<h3>第 ${i + 1} 个钥令位</h3><button class="btn sm" data-pick="">清空</button>
     <div class="list">${owned.map((def) => {
       const lv = s.orders.owned[def.id], used = s.orders.slots.some((x, j) => x === def.id && j !== i);
-      return `<div class="item ${rarCls(def.rarity)}"><span class="oglyph r-${def.rarity}">${esc(def.glyph)}</span><div class="i-body"><b>${esc(def.zh)}</b> <em>Lv${lv}</em><small>${esc(orderText(def, lv))}</small>${used ? '<small class="who">已装在别的位置</small>' : ''}</div><button class="btn sm" data-pick="${def.id}" ${used ? 'disabled' : ''}>选择</button></div>`;
+      return `<div class="item ${rarCls(def.rarity)}">${oglyph(def)}<div class="i-body"><b>${esc(def.zh)}</b> <em>Lv${lv}</em><small>${esc(orderText(def, lv))}</small>${used ? '<small class="who">已装在别的位置</small>' : ''}</div><button class="btn sm" data-pick="${def.id}" ${used ? 'disabled' : ''}>选择</button></div>`;
     }).join('') || '<p class="hint">还没有钥令。Boss 首通、无限塔每 10 层、周 Boss 里程碑、银芯商店都会给。</p>'}</div>`;
   const m = openModal(html, 'wide');
   m.addEventListener('click', (e) => { const t = e.target.closest('[data-pick]'); if (t && !t.disabled) { closeModal(); onPick(t.dataset.pick); } });
@@ -262,7 +263,7 @@ export function growthGuideModal(app) {
     <h4>叠位给什么</h4>
     <p class="hint">每 1 叠位：全属性 +${AWAKEN_STAT_PER}%、等级上限 +1。每 ${AWAKEN_AMP_EVERY} 叠位：增伤 +${AWAKEN_AMP_PER}%。每 ${AWAKEN_SKILL_EVERY} 叠位：技能等级 +1。99 叠位 = 全属性 +${Math.round(MAX_AWAKEN * AWAKEN_STAT_PER)}%、上限 ${MAX_LV_HARD} 级、增伤 +${(MAX_AWAKEN / AWAKEN_AMP_EVERY) * AWAKEN_AMP_PER}%、技能 +2 级。</p>
     <h4>先练谁</h4>
-    <p class="hint">优先把 4 人主力平均推到当前挂机关的推荐战力：队伍页的「一键最优编队」会按战力排出同界域加成最高的组合（3 人 +8%、4 人 +15%）。输出位先吃增伤（造物锋锐 / 钥令蚀日），前排先吃生命与防御（造物生机 / 壁垒）。</p>`;
+    <p class="hint">优先把 4 人主力平均推到当前挂机关的推荐战力：队伍页的「一键配队」不仅排队伍（同界域加成 3 人 +8%、4 人 +15%），还会一起换好命轮、密契、造物和钥令。输出位先吃增伤（造物锋锐 / 钥令蚀日），前排先吃生命与防御（造物生机 / 壁垒）。</p>`;
   openModal(html, 'wide');
 }
 
@@ -277,7 +278,7 @@ export function artModal(app, slug) {
 
 /* ----------------------------- GEAR ----------------------------- */
 export function gearPage(app) {
-  const { state: s } = app;
+  const { state: s, data } = app;
   const tab = app.ui.gearTab ||= 'wheel';
   const items = Object.values(s.gear.items).filter((i) => i.kind === tab)
     .sort((a, b) => (RARITY_ORDER[itemDef(app, b).rarity || 'SR'] - RARITY_ORDER[itemDef(app, a).rarity || 'SR']) || b.lv - a.lv);
@@ -289,12 +290,40 @@ export function gearPage(app) {
     const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 💠${rc}` : '精炼满'}</button><button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity, it) ? ` +💠${dismantleCores(def.rarity, it)}` : ''}</button></div>`;
     return itemCard(app, it, btns);
   }).join('') || '<p class="hint">暂无。推图有概率掉落，也可在「召唤」页用金币祈愿。</p>';
-  return `<div class="page"><h2>装备库</h2>
-    <p class="hint">命轮 / 密契装在单个唤醒体身上；造物装在队伍页的造物栏（全队被动，同主题还有羁绊）。</p>
+
+  // 队伍里每个人的命轮 / 密契槽位：点一下直接换，不用先点进角色详情
+  const slot = (slug, kind) => {
+    const eq = s.gear.equip[slug] || {};
+    const uid = eq[kind === 'wheel' ? 'wheel' : 'cov'], it = uid && s.gear.items[uid];
+    if (!it) return `<button class="eqslot empty" data-act="gear-slot" data-slug="${slug}" data-kind="${kind}"><span class="plus">＋</span><small>${kind === 'wheel' ? '命轮' : '密契'}</small></button>`;
+    const def = itemDef(app, it);
+    return `<button class="eqslot on ${rarCls(def.rarity)}" data-act="gear-slot" data-slug="${slug}" data-kind="${kind}" title="${esc(itemText(app, it))}">
+      <img src="${img(def.img)}" alt=""><b>${esc(def.zh)}</b><small>Lv${it.lv}${it.rf ? ` · 精炼+${it.rf}` : ''}</small></button>`;
+  };
+  const teamRows = (s.team || []).map((slug) => {
+    const a = data.bySlug[slug], r = s.roster[slug];
+    if (!a || !r) return '';
+    return `<div class="eqrow">
+      <div class="eqwho"><img src="${img(a.portrait)}" alt=""><b>${esc(a.zh)}</b><small>${TYPES[a.type].short} Lv${r.lv} · ${awk(r.star)}</small></div>
+      ${slot(slug, 'wheel')}${slot(slug, 'covenant')}</div>`;
+  }).join('');
+  const covCount = {};
+  for (const slug of s.team) { const ci = (s.gear.equip[slug] || {}).cov && s.gear.items[(s.gear.equip[slug] || {}).cov]; if (ci) covCount[ci.defId] = (covCount[ci.defId] || 0) + 1; }
+  const sets = Object.entries(covCount).filter(([, n]) => n >= 2).map(([id, n]) => `${esc(data.covById[id]?.zh || id)} ×${n}`);
+  return `<div class="page"><h2>命轮 · 密契 <small>每人各 1 件</small></h2>
+    <p class="hint">命轮与密契是<b>绑在单个唤醒体身上</b>的两件装备：点下面的槽位直接更换，点「已装备」的槽位可以卸下。密契全队同款凑到 2 / 4 件会触发套装效果（当前：${sets.length ? sets.join('、') : '还没有凑成套'}）。造物与钥令是全队被动，分别在队伍页与钥令页配置。</p>
+    <div class="eqpanel">${teamRows}</div>
+    <p class="hint">想一次性配好？回队伍页点「一键配队」，会连着命轮、密契、造物、钥令一起排。</p>
+    <h3>${tab === 'relic' ? '造物库存' : '库存'} <small>${items.length} 件</small></h3>
     <div class="row">${tabs}</div><div class="list">${rows}</div></div>`;
 }
 
 /* ----------------------------- ORDERS (钥令) ----------------------------- */
+// 钥令图标：改用原作 KeyToken 素材（img/key/*.webp），没有图时退回首字
+const oglyph = (def) => (def.img
+  ? `<span class="oglyph r-${def.rarity}"><img src="${img(def.img)}" alt="${esc(def.zh)}" loading="lazy"></span>`
+  : `<span class="oglyph r-${def.rarity}">${esc(def.glyph)}</span>`);
+
 export function ordersPage(app) {
   const { state: s, data } = app;
   const n = orderSlotCount(s.maxStage);
@@ -302,7 +331,7 @@ export function ordersPage(app) {
     if (i >= n) return `<div class="oslot locked" >🔒 ${i + 1} 号位<br><small>最高通关 ${orderLockedHint(i, s.maxStage)} 关解锁</small></div>`;
     const id = s.orders.slots[i], def = id && data.orderById[id];
     return `<div class="oslot ${def ? 'on r-' + def.rarity : 'empty'}" data-act="pick-order" data-i="${i}">
-      ${def ? `<span class="oglyph r-${def.rarity}">${esc(def.glyph)}</span><div><b>${esc(def.zh)}</b> Lv${s.orders.owned[id]}<small>${esc(orderText(def, s.orders.owned[id]))}</small></div>` : `＋ 空位 ${i + 1}`}</div>`;
+      ${def ? `${oglyph(def)}<div><b>${esc(def.zh)}</b> Lv${s.orders.owned[id]}<small>${esc(orderText(def, s.orders.owned[id]))}</small></div>` : `＋ 空位 ${i + 1}`}</div>`;
   }).join('');
   const owned = data.orders.filter((o) => s.orders.owned[o.id] != null);
   const locked = data.orders.filter((o) => s.orders.owned[o.id] == null);
@@ -311,8 +340,8 @@ export function ordersPage(app) {
     const c = orderUpCost(lv);
     const on = s.orders.slots.includes(def.id);
     return `<div class="order ${have ? '' : 'locked'} ${on ? 'on' : ''} ${rarCls(def.rarity)}">
-      <span class="oglyph r-${def.rarity}">${esc(def.glyph)}</span>
-      <div class="ob"><b>${esc(def.zh)}</b> <em>${def.rarity}${have ? ` · Lv${lv}/${ORDER_MAX_LV}` : ''}</em>
+      ${oglyph(def)}
+      <div class="ob"><b>${esc(def.zh)}</b> <em>${def.rarity}${def.realm ? ` · ${esc(def.realm)}` : ''}${have ? ` · Lv${lv}/${ORDER_MAX_LV}` : ''}</em>
         <small>${have ? esc(orderText(def, lv)) : '未获得'}</small>
         ${have && lv < ORDER_MAX_LV ? `<small class="dim">下一级：${esc(bonusText(Object.fromEntries(Object.entries(def.bonus).map(([k, v]) => [k, v * (orderLvMult(lv + 1) - orderLvMult(lv))]))))}</small>` : ''}
         <small class="flavor">${esc(def.desc)}</small></div>
@@ -358,7 +387,7 @@ export function showItems(app, items) {
   openModal(`<h3>获得装备</h3><div class="list">${items.map((i) => itemCard(app, i)).join('')}</div>`, 'wide');
 }
 export function showOrders(app, orders) {
-  openModal(`<h3>获得钥令</h3><div class="list">${orders.map((o) => { const def = app.data.orderById[o.id]; return `<div class="order on ${rarCls(def.rarity)}"><span class="oglyph r-${def.rarity}">${esc(def.glyph)}</span><div class="ob"><b>${esc(def.zh)}</b> <em>${def.rarity}</em><small>${esc(orderText(def, 0))}</small><small class="flavor">${esc(def.desc)}</small></div></div>`; }).join('')}</div>`, 'wide');
+  openModal(`<h3>获得钥令</h3><div class="list">${orders.map((o) => { const def = app.data.orderById[o.id]; return `<div class="order on ${rarCls(def.rarity)}">${oglyph(def)}<div class="ob"><b>${esc(def.zh)}</b> <em>${def.rarity}${def.realm ? ` · ${esc(def.realm)}` : ''}</em><small>${esc(orderText(def, 0))}</small><small class="flavor">${esc(def.desc)}</small></div></div>`; }).join('')}</div>`, 'wide');
 }
 
 /* ----------------------------- SETTINGS ----------------------------- */
@@ -370,7 +399,7 @@ export function settingsPage(app) {
       <p class="hint">重新过一遍底部五个分组的介绍（战斗 / 养成 / 召唤 / 挑战 / 更多），随时可跳过。</p>
       <div class="row"><button class="btn" data-act="guide">重看新手引导</button><button class="btn" data-act="guide-growth">养成指南</button></div></div>
     <div class="banner-card"><h3>战斗节奏</h3>
-      <p class="hint">本作没有倍速与「极速跳过」：战斗按固定节奏播放，胜负由队伍强度与策略决定，挂机收益按 ${Math.round(3600 / BATTLES_PER_HOUR)} 秒一场结算（离线同样口径）。想更快推进请关闭「自动挂机」改用手动攻坚。</p></div>
+      <p class="hint">本作没有倍速与「极速跳过」：战斗按固定节奏播放，胜负由队伍强度与策略决定，挂机收益按 ${Math.round(3600 / BATTLES_PER_HOUR)} 秒一场结算（离线同样口径）。关掉「自动挂机」是手动挂机——照常连打，但停在当前关不再自动推进，用右上角 ◀ ▶ 自己换关。</p></div>
     <div class="banner-card"><h3>每日奖励</h3><p class="hint">每日奖励已并入「签到」页（月历、累计宝箱、可补签）。</p></div>
     <div class="banner-card"><h3>声音</h3>
       <label class="snd"><input type="checkbox" data-aud="mute" ${sound.cfg.mute ? 'checked' : ''}> 静音</label>

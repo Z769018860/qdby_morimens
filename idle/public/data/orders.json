@@ -1,24 +1,1022 @@
 {
-  "version": 1,
-  "note": "钥令：本作自创的第三套队伍配置（命轮给个人、造物给全队、钥令给开局）。名字与数值为本作设计，与官方系统无关。",
-  "sources": [
-    "每个关卡 Boss 首通必掉 1 个钥令",
-    "无限塔每 10 层",
-    "周 Boss 累计伤害里程碑",
-    "银芯商店「钥令匣」"
-  ],
-  "items": [
-    { "id": "kd-dawn", "zh": "破晓之钥", "rarity": "R", "glyph": "晓", "bonus": { "atkPct": 6 }, "desc": "天将亮未亮时的第一声钟——让全队出手更重。" },
-    { "id": "kd-tide", "zh": "潮汐之钥", "rarity": "R", "glyph": "潮", "bonus": { "hpPct": 8 }, "desc": "退潮后仍留在礁石上的水，比海更耐活。" },
-    { "id": "kd-bulwark", "zh": "壁垒之钥", "rarity": "R", "glyph": "垒", "bonus": { "defPct": 10 }, "desc": "所有来不及逃的人，最后都学会了站住。" },
-    { "id": "kd-greed", "zh": "贪欲之钥", "rarity": "R", "glyph": "贪", "bonus": { "gold": 10 }, "desc": "它不打开门，只打开口袋。" },
-    { "id": "kd-ember", "zh": "余烬之钥", "rarity": "SR", "glyph": "烬", "bonus": { "critRate": 4 }, "desc": "熄了三次还亮着的火，最容易伤到人。" },
-    { "id": "kd-echo", "zh": "回响之钥", "rarity": "SR", "glyph": "响", "bonus": { "openAli": 15 }, "desc": "战斗一开始，共鸣就已经在账上了。" },
-    { "id": "kd-pyro", "zh": "燃焰之钥", "rarity": "SR", "glyph": "焰", "bonus": { "openKey": 15 }, "desc": "钥焰不等人，先烧起来的人先动。" },
-    { "id": "kd-mend", "zh": "愈疗之钥", "rarity": "SR", "glyph": "愈", "bonus": { "healBonus": 12 }, "desc": "缝合伤口的针脚，也是缝合队伍的针脚。" },
-    { "id": "kd-aegis", "zh": "庇护之钥", "rarity": "SR", "glyph": "庇", "bonus": { "shieldBonus": 15 }, "desc": "挡住一次，就多一次选择的机会。" },
-    { "id": "kd-oath", "zh": "誓约之钥", "rarity": "SSR", "glyph": "誓", "bonus": { "atkPct": 8, "hpPct": 8 }, "desc": "说好一起回去的人，通常回不去得最晚。" },
-    { "id": "kd-eclipse", "zh": "蚀日之钥", "rarity": "SSR", "glyph": "蚀", "bonus": { "amp": 10, "firstBoost": 20 }, "desc": "太阳被吃掉的那一瞬，所有影子都在替你出手。" },
-    { "id": "kd-grave", "zh": "不灭之钥", "rarity": "SSR", "glyph": "灭", "bonus": { "surviveChance": 0.08, "defPct": 8 }, "desc": "死过一次的人，第二次会站得比之前稳。" }
-  ]
+ "version": 2,
+ "note": "原作 64 件钥令的中文名、界域与钥令原文；bonus 是把原文关键词映射到本作加成键的结果（本作没有牌库/算力机制）。",
+ "sources": [
+  "data/dictionary.json → key",
+  "assets/key/*.webp"
+ ],
+ "items": [
+  {
+   "id": "k9653",
+   "zh": "鼠鼠的智慧",
+   "en": "A Mouse's Wisdom",
+   "realm": "褪色遗产",
+   "rarity": "SSR",
+   "img": "img/key/KeyToken_Skill_04.webp",
+   "glyph": "鼠",
+   "bonus": {
+    "openKey": 15,
+    "openAli": 15
+   },
+   "desc": "获得 3 点算力。",
+   "use": 11.4
+  },
+  {
+   "id": "k125190",
+   "zh": "深宅往事",
+   "en": "Manor Echoes",
+   "realm": "血肉",
+   "rarity": "SSR",
+   "img": "img/key/KeyToken_Skill_49.webp",
+   "glyph": "深",
+   "bonus": {
+    "amp": 10,
+    "atkPct": 10,
+    "openKey": 15,
+    "openAli": 15
+   },
+   "desc": "获得 1 点算力，并对所有敌人施加 ※ 临时力量降低。若徐在队伍中，同时对所有敌人施加 1 层咒缚。",
+   "use": 8.1
+  },
+  {
+   "id": "k120491",
+   "zh": "来自雾境",
+   "en": "From the Mist Realm",
+   "realm": "混沌",
+   "rarity": "SSR",
+   "img": "img/key/KeyToken_Skill_48.webp",
+   "glyph": "来",
+   "bonus": {
+    "openKey": 15,
+    "openAli": 15
+   },
+   "desc": "抽 2 张「打击」。若茉夏在队伍中，使其算力消耗 -1。",
+   "use": 7.6
+  },
+  {
+   "id": "k130703",
+   "zh": "溺亡的纯真",
+   "en": "Drowned Innocence",
+   "realm": "深海",
+   "rarity": "SSR",
+   "img": "img/key/KeyToken_Skill_51.webp",
+   "glyph": "溺",
+   "bonus": {
+    "aliGain": 21,
+    "openAli": 17
+   },
+   "desc": "使选定的唤醒体获得 ※ 点狂气，并使所有其他唤醒体获得 ※ 点狂气。若莫丝在队伍中，她发动追猎：Vortex! Shell! 数值成长：原初精通成长",
+   "use": 5.4
+  },
+  {
+   "id": "k118128",
+   "zh": "偏航船",
+   "en": "Wayward Ship",
+   "realm": "深海",
+   "rarity": "SSR",
+   "img": "img/key/KeyToken_Skill_46.webp",
+   "glyph": "偏",
+   "bonus": {
+    "openKey": 15,
+    "openAli": 15
+   },
+   "desc": "获得 1 点算力，并对所有敌人施加 5 层诞生仪式。若诞妄·墨菲在队伍中，抽 1 张利莫里亚华尔兹。",
+   "use": 5.2
+  },
+  {
+   "id": "k10065",
+   "zh": "小小心愿",
+   "en": "Tiny Wish",
+   "realm": "褪色遗产",
+   "rarity": "SSR",
+   "img": "img/key/KeyToken_Skill_05.webp",
+   "glyph": "小",
+   "bonus": {
+    "aliGain": 21,
+    "openAli": 17
+   },
+   "desc": "使选定的唤醒体获得 ※ 点狂气。数值成长：原初精通成长",
+   "use": 4.9
+  },
+  {
+   "id": "k95548",
+   "zh": "不落的太阳",
+   "en": "Undying Sun",
+   "realm": "混沌",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_40.webp",
+   "glyph": "不",
+   "bonus": {
+    "openKey": 10,
+    "openAli": 10,
+    "atkPct": 9
+   },
+   "desc": "获得 1 点算力与 ※ 临时伤害强效。若凯蒂古拉在队伍中，抽 1 张她的指令卡并对其施加 1 层 Fiamma。数值成长：原初精通成长",
+   "use": 3.9
+  },
+  {
+   "id": "k36859",
+   "zh": "全部的她",
+   "en": "All of Her",
+   "realm": "混沌",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_22.webp",
+   "glyph": "全",
+   "bonus": {
+    "aliGain": 14,
+    "openAli": 12
+   },
+   "desc": "使界域精通提高 ※。使选定的唤醒体获得 ※ 点狂气。数值成长：原初精通成长",
+   "use": 3.6
+  },
+  {
+   "id": "k49204",
+   "zh": "唯一的种子",
+   "en": "The Lone Seed",
+   "realm": "血肉",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_23.webp",
+   "glyph": "唯",
+   "bonus": {
+    "aliGain": 14,
+    "openAli": 22,
+    "openKey": 10
+   },
+   "desc": "选择手牌中一张非衍生指令卡，创造其基础复制品。该复制品带有消耗。使其唤醒体获得 ※ 点狂气。数值成长：原初精通成长",
+   "use": 3.6
+  },
+  {
+   "id": "k99724",
+   "zh": "泣血的圣心",
+   "en": "Sacred Bleeding Heart",
+   "realm": "超维",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_41.webp",
+   "glyph": "泣",
+   "bonus": {
+    "openKey": 10,
+    "openAli": 10,
+    "critRate": 7,
+    "critDmg": 14,
+    "atkPct": 9
+   },
+   "desc": "抽 1 张牌并使其算力消耗 -1。若抽到指令卡，其唤醒体获得 +※ 临时暴击伤害。若波吕克斯在队伍中，获得 5 层罪印。数值成长：原初精通成长",
+   "use": 3.5
+  },
+  {
+   "id": "k45300",
+   "zh": "海之祭",
+   "en": "Festival of Tides",
+   "realm": "深海",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_25.webp",
+   "glyph": "海",
+   "bonus": {
+    "aliGain": 14,
+    "openAli": 22,
+    "openKey": 10
+   },
+   "desc": "抽 2 张牌。获得 2 点算力。所有唤醒体失去 5 点狂气。若你的触腕体势为静海，对所有敌人施加 ※ 层中毒。首领战中改为施加 3 倍的中毒。数值成长：原初精通成长",
+   "use": 2.9
+  },
+  {
+   "id": "k145281",
+   "zh": "噬鲸的风暴",
+   "en": "Cetus-Devouring Storm",
+   "realm": "混沌",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_55.webp",
+   "glyph": "噬",
+   "bonus": {
+    "amp": 7,
+    "atkPct": 7,
+    "aliGain": 14,
+    "openAli": 12,
+    "steal": 4
+   },
+   "desc": "获得 ※ 点力量。选择 1 名唤醒体，从其他唤醒体身上偷取至多 10 点狂气。若蚀灭·萝坦在队伍中，其下一次「打击」额外生效 1 次。数值成长：原初精通成长",
+   "use": 2.9
+  },
+  {
+   "id": "k9685",
+   "zh": "纯白初遇",
+   "en": "Encounter in Pure White",
+   "realm": "褪色遗产",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_01.webp",
+   "glyph": "纯",
+   "bonus": {
+    "openKey": 10,
+    "openAli": 10
+   },
+   "desc": "弃置手牌，然后抽取相同张数 +2 的牌。",
+   "use": 2.8
+  },
+  {
+   "id": "k124899",
+   "zh": "罗网轮转",
+   "en": "Orbis Fatum",
+   "realm": "超维",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_52.webp",
+   "glyph": "罗",
+   "bonus": {
+    "shieldBonus": 12,
+    "defPct": 9,
+    "openKey": 10,
+    "openAli": 10,
+    "atkPct": 9
+   },
+   "desc": "获得 ※ 点护盾与 +※ 临时伤害强效。若阿拉克涅在队伍中，抽 1 张永恒编织并使其算力消耗 -1。数值成长：原初精通成长",
+   "use": 2.3
+  },
+  {
+   "id": "k95691",
+   "zh": "残忍的致意",
+   "en": "Cruel Homage",
+   "realm": "血肉",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_39.webp",
+   "glyph": "残",
+   "bonus": {
+    "amp": 7,
+    "atkPct": 7,
+    "steal": 4
+   },
+   "desc": "从所有敌人身上偷取 ※ 点力量。若杜勒赛因在队伍中，他获得 1 具尸体。",
+   "use": 2.2
+  },
+  {
+   "id": "k88873",
+   "zh": "错位命运",
+   "en": "Derision of Destiny",
+   "realm": "超维",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_36.webp",
+   "glyph": "错",
+   "bonus": {
+    "aliGain": 14,
+    "openAli": 22,
+    "openKey": 10,
+    "atkPct": 9
+   },
+   "desc": "使选定的唤醒体获得 ※ 点狂气。从抽卡堆中抽取算力消耗最低的 2 张牌。若卡斯托尔在队伍中，使其临时伤害强效提高 ※。数值成长：原初精通成长",
+   "use": 2.0
+  },
+  {
+   "id": "k94559",
+   "zh": "猎食决心",
+   "en": "Voracious Resolve",
+   "realm": "血肉",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_42.webp",
+   "glyph": "猎",
+   "bonus": {
+    "openKey": 10,
+    "openAli": 10
+   },
+   "desc": "从队伍中唤醒体的基础技能指令中发现 3 选 1，选择 1 张并将其临时复制品置入手牌，使其算力消耗 -1。若界域包含血肉，可选择 Gobble Up!",
+   "use": 1.9
+  },
+  {
+   "id": "k56643",
+   "zh": "虚无瘟疫",
+   "en": "Plague of Illusions",
+   "realm": "混沌",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_30.webp",
+   "glyph": "虚",
+   "bonus": {
+    "healBonus": 13,
+    "aliGain": 14,
+    "openAli": 12
+   },
+   "desc": "使选定的唤醒体获得 ※ 点狂气，并对每名敌人施加 ※ 层中毒。每名敌人每损失 1% 生命，触发其 1% 的中毒，至多 50%。数值成长：原初精通成长",
+   "use": 1.6
+  },
+  {
+   "id": "k10052",
+   "zh": "脑中之音",
+   "en": "Voices in Your Head",
+   "realm": "褪色遗产",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_02.webp",
+   "glyph": "脑",
+   "bonus": {
+    "amp": 7,
+    "atkPct": 7,
+    "steal": 4
+   },
+   "desc": "对每名敌人施加 1 层虚弱与易伤，并从其身上偷取 ※ 点力量。",
+   "use": 1.5
+  },
+  {
+   "id": "k56636",
+   "zh": "门扉的答案",
+   "en": "The Gated Answer",
+   "realm": "混沌",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_29.webp",
+   "glyph": "门",
+   "bonus": {
+    "keyGain": 14,
+    "openKey": 12
+   },
+   "desc": "从 3 个随机钥令中发现 1 个，选择 1 个并触发其效果，并获得 ※ 点银钥。数值成长：原初精通成长",
+   "use": 1.5
+  },
+  {
+   "id": "k148671",
+   "zh": "永续新篇",
+   "en": "Pages Ever New",
+   "realm": "混沌",
+   "rarity": "SR",
+   "img": "img/key/KeyToken_Skill_57.webp",
+   "glyph": "永",
+   "bonus": {
+    "shieldBonus": 12,
+    "defPct": 9,
+    "amp": 7,
+    "atkPct": 7,
+    "aliGain": 14,
+    "openAli": 12
+   },
+   "desc": "获得 ※ 点护盾与 ※ 点力量。若负誓·奥吉尔在队伍中，负誓·奥吉尔获得 ※ 点狂气并获得 1 层暗流。数值成长：原初精通成长",
+   "use": 1.5
+  },
+  {
+   "id": "k36849",
+   "zh": "跨越回溯之扉",
+   "en": "Gateway of Retrospection",
+   "realm": "混沌",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_16.webp",
+   "glyph": "跨",
+   "bonus": {
+    "openKey": 7,
+    "openAli": 7
+   },
+   "desc": "从抽卡堆中检索 1 张卡牌置入手牌，并使其算力消耗 -1。",
+   "use": 1.4
+  },
+  {
+   "id": "k45302",
+   "zh": "群山的觉悟",
+   "en": "The Mountains' Resolve",
+   "realm": "血肉",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_24.webp",
+   "glyph": "群",
+   "bonus": {
+    "openKey": 7,
+    "openAli": 7
+   },
+   "desc": "选择一名唤醒体；抽取其 2 张指令卡。",
+   "use": 1.4
+  },
+  {
+   "id": "k9518",
+   "zh": "注射守护",
+   "en": "Warded Injection",
+   "realm": "褪色遗产",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_03.webp",
+   "glyph": "注",
+   "bonus": {
+    "shieldBonus": 8,
+    "defPct": 6,
+    "healBonus": 9
+   },
+   "desc": "获得 ※ 点护盾，当前生命若低于 25%，回复 ※ 点生命。",
+   "use": 1.1
+  },
+  {
+   "id": "k36850",
+   "zh": "腐烂盛筵",
+   "en": "Feast of Decay",
+   "realm": "超维",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_13.webp",
+   "glyph": "腐",
+   "bonus": {
+    "amp": 5,
+    "atkPct": 5
+   },
+   "desc": "获得 ※ 点反击，并对所有敌人暂时施加 ※ 点力量降低。若处于超维回合，则改为对所有敌人触发 100% 反击，而不施加力量降低。数值成长：原初精通成长",
+   "use": 1.1
+  },
+  {
+   "id": "k130063",
+   "zh": "献给新世界",
+   "en": "For the New World",
+   "realm": "血肉",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_53.webp",
+   "glyph": "献",
+   "bonus": {
+    "shieldBonus": 8,
+    "defPct": 6,
+    "openKey": 7,
+    "openAli": 7
+   },
+   "desc": "获得 ※ 点护盾。抽 2 张「技能」卡并使其获得感知扭曲。沙耶：获得 1 层雌蕊。",
+   "use": 1.1
+  },
+  {
+   "id": "k36815",
+   "zh": "短暂的永恒",
+   "en": "Ephemeral Eternity",
+   "realm": "超维",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_12.webp",
+   "glyph": "短",
+   "bonus": {
+    "amp": 5,
+    "atkPct": 5,
+    "openKey": 7,
+    "openAli": 7
+   },
+   "desc": "获得 1 点算力。选择一名唤醒体；创造其 1 张基础打击与 1 张基础防御。这些复制品带有消耗与虚无。若界域包含超维，获得 ※ 点临时力量与 ※ 点临时戒备。数值成长：原初精通成长",
+   "use": 1.0
+  },
+  {
+   "id": "k141174",
+   "zh": "空心人",
+   "en": "The Hollow One",
+   "realm": "深海",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_54.webp",
+   "glyph": "空",
+   "bonus": {
+    "amp": 5,
+    "atkPct": 11,
+    "critRate": 5,
+    "critDmg": 10
+   },
+   "desc": "临时暴击伤害 +※，暂时使所有敌人的力量降低提高 ※。若庞托斯在队伍中，获得 1 层群猎。数值成长：原初精通成长",
+   "use": 1.0
+  },
+  {
+   "id": "k10032",
+   "zh": "永世执念",
+   "en": "Obsession Eternal",
+   "realm": "褪色遗产",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_06.webp",
+   "glyph": "永",
+   "bonus": {
+    "amp": 5,
+    "atkPct": 5
+   },
+   "desc": "获得 ※ 点力量，然后获得相当于永久力量 25% 的临时力量。数值成长：原初精通成长",
+   "use": 0.9
+  },
+  {
+   "id": "k36814",
+   "zh": "最后的誓言",
+   "en": "The Final Vow",
+   "realm": "混沌",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_09.webp",
+   "glyph": "最",
+   "bonus": {
+    "shieldBonus": 8,
+    "defPct": 6,
+    "amp": 5,
+    "atkPct": 5,
+    "openKey": 7,
+    "openAli": 7,
+    "critRate": 5,
+    "critDmg": 10
+   },
+   "desc": "获得 +※ 临时暴击率与 ※ 点临时力量。若处于首领战且本回合尚未打出卡牌，尝试触发 1 次死亡抵抗。若成功，获得 ※ 点护盾。该效果每场战斗仅可触发 1 次。数值成长：原初精通成长",
+   "use": 0.8
+  },
+  {
+   "id": "k36801",
+   "zh": "奥瑞塔的宝藏",
+   "en": "Aurita's Treasure",
+   "realm": "深海",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_10.webp",
+   "glyph": "奥",
+   "bonus": {
+    "openKey": 7,
+    "openAli": 7,
+    "atkPct": 6
+   },
+   "desc": "从抽卡堆中抽取算力消耗最低的 3 张牌。若界域包含深海，获得 ※ 点触腕伤害。数值成长：原初精通成长",
+   "use": 0.6
+  },
+  {
+   "id": "k36813",
+   "zh": "咆哮的血与沙",
+   "en": "Roaring Blood and Sand",
+   "realm": "血肉",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_11.webp",
+   "glyph": "咆",
+   "bonus": {
+    "healBonus": 9,
+    "amp": 5,
+    "atkPct": 5,
+    "aliGain": 10,
+    "openAli": 8
+   },
+   "desc": "使选定的唤醒体获得 ※ 点狂气。获得 ※ 点力量。若界域包含血肉，消耗 10% 的生命，使胚胎融合 +※。数值成长：原初精通成长",
+   "use": 0.6
+  },
+  {
+   "id": "k70919",
+   "zh": "群星的庇佑",
+   "en": "Blessing of the Stars",
+   "realm": "深海",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_31.webp",
+   "glyph": "群",
+   "bonus": {
+    "amp": 4
+   },
+   "desc": "选择「沉眠」或「苏醒」。",
+   "use": 0.6
+  },
+  {
+   "id": "k81756",
+   "zh": "不灭的雷光",
+   "en": "Undying Thunder",
+   "realm": "深海",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_35.webp",
+   "glyph": "不",
+   "bonus": {
+    "shieldBonus": 8,
+    "defPct": 6,
+    "openKey": 7,
+    "openAli": 7
+   },
+   "desc": "获得 ※ 点护盾，抽 2 张牌。若克珀珊特在队伍中，还会将 1 张「领航」置入手中。",
+   "use": 0.6
+  },
+  {
+   "id": "k100577",
+   "zh": "美梦一刹",
+   "en": "A Fleeting Dream",
+   "realm": "其他",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_45.webp",
+   "glyph": "美",
+   "bonus": {
+    "shieldBonus": 8,
+    "defPct": 6,
+    "amp": 5,
+    "atkPct": 5
+   },
+   "desc": "获得 ※ 点护盾，以及相当于你当前护盾 10% 的临时力量。",
+   "use": 0.6
+  },
+  {
+   "id": "k145970",
+   "zh": "并非谎言之物",
+   "en": "That Which is No Lie",
+   "realm": "血肉",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_56.webp",
+   "glyph": "并",
+   "bonus": {
+    "shieldBonus": 8,
+    "defPct": 6
+   },
+   "desc": "获得 ※ 点护盾，使界域精通提高 ※。若卡拉布在队伍中，卡拉布的下一张卡拉布的祝福不再附带代价。数值成长：原初精通成长",
+   "use": 0.6
+  },
+  {
+   "id": "k36860",
+   "zh": "玫瑰的胜利",
+   "en": "Victory of Roses",
+   "realm": "血肉",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_19.webp",
+   "glyph": "玫",
+   "bonus": {
+    "healBonus": 9,
+    "amp": 5,
+    "atkPct": 5,
+    "openKey": 7,
+    "openAli": 7
+   },
+   "desc": "抽 2 张牌并获得 ※ 点临时力量。若界域包含血肉，消耗 10% 的生命，再获得 ※ 点临时力量，且手牌中每有一个胚胎再获得 ※ 点临时力量。数值成长：原初精通成长",
+   "use": 0.5
+  },
+  {
+   "id": "k36858",
+   "zh": "巨人的霸道",
+   "en": "Giant's Reign",
+   "realm": "深海",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_21.webp",
+   "glyph": "巨",
+   "bonus": {
+    "amp": 5,
+    "atkPct": 11,
+    "aliGain": 10,
+    "openAli": 15,
+    "openKey": 7,
+    "critRate": 5,
+    "critDmg": 10
+   },
+   "desc": "获得 1 点算力与 ※ 点力量，然后使选定的唤醒体获得 ※ 点狂气。若你的触腕体势为怒涛，则改为获得 +※ 临时暴击率与暴击伤害。数值成长：原初精通成长",
+   "use": 0.5
+  },
+  {
+   "id": "k9995",
+   "zh": "不朽的葬仪",
+   "en": "Funus Aeternum",
+   "realm": "褪色遗产",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_08.webp",
+   "glyph": "不",
+   "bonus": {
+    "healBonus": 9,
+    "hpPct": 7,
+    "aliGain": 10,
+    "openAli": 8
+   },
+   "desc": "使所有唤醒体获得 ※ 点狂气。承受相当于最大生命 5% 的延迟献祭。数值成长：原初精通成长",
+   "use": 0.4
+  },
+  {
+   "id": "k36847",
+   "zh": "蚀骨的拥抱",
+   "en": "Bone-Chilling Embrace",
+   "realm": "深海",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_14.webp",
+   "glyph": "蚀",
+   "bonus": {
+    "shieldBonus": 8,
+    "defPct": 6,
+    "openKey": 7,
+    "openAli": 7
+   },
+   "desc": "获得 1 点算力，并在下回合开始时获得 ※ 点护盾。若你的触腕体势为汹涌潮汐，则改为产生 1 条触腕。",
+   "use": 0.4
+  },
+  {
+   "id": "k36848",
+   "zh": "湖畔回眸",
+   "en": "Lakeside Glimpse",
+   "realm": "血肉",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_15.webp",
+   "glyph": "湖",
+   "bonus": {
+    "shieldBonus": 8,
+    "defPct": 6,
+    "healBonus": 9
+   },
+   "desc": "对生命最高的敌人施加 ※ 层中毒，并获得 ※ 点护盾。若本回合触发过吞噬，则改为触发该敌人 50% 的中毒，而不获得护盾。数值成长：原初精通成长",
+   "use": 0.4
+  },
+  {
+   "id": "k99102",
+   "zh": "虚世之彩",
+   "en": "Void Hues",
+   "realm": "血肉",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_44.webp",
+   "glyph": "虚",
+   "bonus": {
+    "aliGain": 10,
+    "openAli": 15,
+    "openKey": 7
+   },
+   "desc": "使选定的唤醒体获得 ※ 点狂气，并将 1 张洞悉洗入抽卡堆。若皮克曼在队伍中，他获得 1 层创意。数值成长：原初精通成长",
+   "use": 0.4
+  },
+  {
+   "id": "k36861",
+   "zh": "灰雾真容",
+   "en": "Truth Behind Grey Mist",
+   "realm": "超维",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_17.webp",
+   "glyph": "灰",
+   "bonus": {
+    "amp": 5,
+    "atkPct": 5
+   },
+   "desc": "获得 ※ 点力量并创造 1 张洞悉。若处于超维回合，则改为创造 2 张洞悉。数值成长：原初精通成长",
+   "use": 0.3
+  },
+  {
+   "id": "k36857",
+   "zh": "神迹降临",
+   "en": "Miracle's Dawn",
+   "realm": "血肉",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_20.webp",
+   "glyph": "神",
+   "bonus": {
+    "shieldBonus": 8,
+    "defPct": 6,
+    "amp": 5,
+    "atkPct": 11
+   },
+   "desc": "获得 ※ 点力量。直到你的下回合，每当受到主动伤害，获得相当于该伤害 10% 的延迟护盾。若界域包含血肉，则改为累积相当于该伤害 10% 的猩红熔炉。数值成长：原初精通成长",
+   "use": 0.3
+  },
+  {
+   "id": "k80191",
+   "zh": "特殊治疗",
+   "en": "Sacred Mending",
+   "realm": "超维",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_34.webp",
+   "glyph": "特",
+   "bonus": {
+    "shieldBonus": 8,
+    "defPct": 6,
+    "healBonus": 9,
+    "amp": 5,
+    "atkPct": 11,
+    "aliGain": 10,
+    "openAli": 8
+   },
+   "desc": "回复 ※ 点生命并获得 ※ 点力量。若克莱门汀在队伍中，为她的下一张指令卡额外增加 1 次以下效果：伤害、护盾、生命回复、狂气与银钥。数值成长：原初精通成长",
+   "use": 0.3
+  },
+  {
+   "id": "k97737",
+   "zh": "定格的仲夏留念",
+   "en": "Beachside Memento",
+   "realm": "其他",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_43.webp",
+   "glyph": "定",
+   "bonus": {
+    "openKey": 7,
+    "openAli": 7,
+    "critRate": 5,
+    "critDmg": 10
+   },
+   "desc": "选择一名唤醒体；将其 1 张算力消耗为 0 的临时基础「打击」置入手牌。每第 3 次释放时，改为将 1 张虚无的美人置入手牌并获得 +※ 临时暴击率。数值成长：原初精通成长",
+   "use": 0.3
+  },
+  {
+   "id": "k9991",
+   "zh": "不平等交换",
+   "en": "Unequal Exchange",
+   "realm": "其他",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_07.webp",
+   "glyph": "不",
+   "bonus": {
+    "openKey": 7,
+    "openAli": 7
+   },
+   "desc": "抽 4 张牌。",
+   "use": 0.2
+  },
+  {
+   "id": "k45299",
+   "zh": "黑天鹅的舞步",
+   "en": "Black Swan's Dance",
+   "realm": "超维",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_32.webp",
+   "glyph": "黑",
+   "bonus": {
+    "aliGain": 10,
+    "openAli": 8,
+    "critRate": 5,
+    "critDmg": 10,
+    "atkPct": 6
+   },
+   "desc": "使选定的唤醒体获得 ※ 点狂气。本回合其指令卡的暴击率与暴击伤害 +※。若莉兹在队伍中，创造 1 张带有消耗的堕落之火。数值成长：原初精通成长",
+   "use": 0.2
+  },
+  {
+   "id": "k119952",
+   "zh": "重逢心愿",
+   "en": "Reunion's Wish",
+   "realm": "其他",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_47.webp",
+   "glyph": "重",
+   "bonus": {
+    "openKey": 7,
+    "openAli": 7
+   },
+   "desc": "将弃卡堆中 1 张指令卡返回手牌。本回合打出的下一张拉蒙娜指令卡生效 2 次。",
+   "use": 0.2
+  },
+  {
+   "id": "k129499",
+   "zh": "岁末花火",
+   "en": "Year-End Sparks",
+   "realm": "其他",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_50.webp",
+   "glyph": "岁",
+   "bonus": {
+    "openKey": 7,
+    "openAli": 7,
+    "critRate": 5,
+    "critDmg": 10
+   },
+   "desc": "获得 1 点算力与 +※ 临时暴击率。每场战斗首次释放时，对所有敌人施加 ※ 层古老余烬。数值成长：原初精通成长",
+   "use": 0.2
+  },
+  {
+   "id": "k36862",
+   "zh": "仲夏之梦",
+   "en": "Midsummer Vision",
+   "realm": "混沌",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_18.webp",
+   "glyph": "仲",
+   "bonus": {
+    "aliGain": 10,
+    "openAli": 15,
+    "openKey": 7
+   },
+   "desc": "抽 1 张牌；若抽到的是指令卡或觉醒卡，使其算力消耗降为 0，并使其唤醒体获得 ※ 点狂气。否则弃置该牌并重复此过程。数值成长：原初精通成长",
+   "use": 0.1
+  },
+  {
+   "id": "k45301",
+   "zh": "一声枪响",
+   "en": "A Gun's Cry",
+   "realm": "混沌",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_27.webp",
+   "glyph": "一",
+   "bonus": {
+    "critRate": 5,
+    "critDmg": 10
+   },
+   "desc": "创造 1 枚闪耀八面骰，并获得 ※ 临时暴击率。数值成长：原初精通成长",
+   "use": 0.1
+  },
+  {
+   "id": "k56638",
+   "zh": "第四乐章",
+   "en": "Symphony Fourth",
+   "realm": "混沌",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_28.webp",
+   "glyph": "第",
+   "bonus": {
+    "keyGain": 10,
+    "openKey": 15,
+    "openAli": 7
+   },
+   "desc": "若本回合你打出的下一张卡牌算力消耗不低于 3，获得 2 点算力；否则抽 2 张牌。若这是本场战斗第 4 次释放该钥令，则改为创造 4 张洞悉。",
+   "use": 0.1
+  },
+  {
+   "id": "k72095",
+   "zh": "酒馆之门",
+   "en": "Tavern's Opening",
+   "realm": "其他",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_33.webp",
+   "glyph": "酒",
+   "bonus": {
+    "amp": 4
+   },
+   "desc": "创造 1 枚莉亚的硬币并将其置入弃卡堆。",
+   "use": 0.1
+  },
+  {
+   "id": "kposse-0026",
+   "zh": "春天的献诗",
+   "en": "Spring's Verse",
+   "realm": "超维",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_26.webp",
+   "glyph": "春",
+   "bonus": {
+    "amp": 4
+   },
+   "desc": "从尚未选择的四张诗页中选择一张；所有诗篇都被选择后重置。",
+   "use": null
+  },
+  {
+   "id": "kposse-0054",
+   "zh": "原初记忆：汲取",
+   "en": "Primordial Memory: Drain",
+   "realm": "其他",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_00.webp",
+   "glyph": "原",
+   "bonus": {
+    "amp": 5,
+    "atkPct": 5
+   },
+   "desc": "暂时使所有敌人的力量降低提高 ※。数值成长：原初精通成长",
+   "use": null
+  },
+  {
+   "id": "kposse-0055",
+   "zh": "原初记忆：催化",
+   "en": "Primordial Memory: Catalysis",
+   "realm": "其他",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_00.webp",
+   "glyph": "原",
+   "bonus": {
+    "aliGain": 10,
+    "openAli": 8
+   },
+   "desc": "所有唤醒体获得 ※ 点狂气。数值成长：原初精通成长",
+   "use": null
+  },
+  {
+   "id": "kposse-0056",
+   "zh": "原初记忆：治愈",
+   "en": "Primordial Memory: Healing",
+   "realm": "其他",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_00.webp",
+   "glyph": "原",
+   "bonus": {
+    "healBonus": 9
+   },
+   "desc": "回复 ※ 点生命。数值成长：原初精通成长",
+   "use": null
+  },
+  {
+   "id": "kposse-0057",
+   "zh": "原初记忆：毒素",
+   "en": "Primordial Memory: Toxin",
+   "realm": "其他",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_00.webp",
+   "glyph": "原",
+   "bonus": {
+    "amp": 4
+   },
+   "desc": "对所有敌人施加 ※ 层中毒。数值成长：原初精通成长",
+   "use": null
+  },
+  {
+   "id": "kposse-0058",
+   "zh": "原初记忆：尖刺",
+   "en": "Primordial Memory: Spike",
+   "realm": "其他",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_00.webp",
+   "glyph": "原",
+   "bonus": {
+    "amp": 4
+   },
+   "desc": "获得 ※ 层临时反击。数值成长：原初精通成长",
+   "use": null
+  },
+  {
+   "id": "kposse-0059",
+   "zh": "原初记忆：蛮力",
+   "en": "Primordial Memory: Might",
+   "realm": "其他",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_00.webp",
+   "glyph": "原",
+   "bonus": {
+    "amp": 5,
+    "atkPct": 5
+   },
+   "desc": "获得 ※ 点力量。数值成长：原初精通成长",
+   "use": null
+  },
+  {
+   "id": "kposse-0060",
+   "zh": "原初记忆：铁壁",
+   "en": "Primordial Memory: Bastion",
+   "realm": "其他",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_00.webp",
+   "glyph": "原",
+   "bonus": {
+    "shieldBonus": 8,
+    "defPct": 6
+   },
+   "desc": "获得 ※ 点护盾。数值成长：原初精通成长",
+   "use": null
+  },
+  {
+   "id": "kposse-0061",
+   "zh": "原初记忆：狂怒",
+   "en": "Primordial Memory: Fury",
+   "realm": "其他",
+   "rarity": "R",
+   "img": "img/key/KeyToken_Skill_00.webp",
+   "glyph": "原",
+   "bonus": {
+    "atkPct": 6
+   },
+   "desc": "获得 ※ 临时伤害强效。数值成长：原初精通成长",
+   "use": null
+  }
+ ]
 }

@@ -6,7 +6,8 @@ export const CHAPTERS = ['序章·雾港', '蚀刻回廊', '沉没钟楼', '猩�
 export const stageInfo = (stage) => {
   const chapter = Math.floor((stage - 1) / 10) + 1;
   const node = ((stage - 1) % 10) + 1;
-  return { stage, chapter, node, boss: node === 10, elite: node === 5, name: CHAPTERS[(chapter - 1) % CHAPTERS.length] + (chapter > CHAPTERS.length ? `·${Math.floor((chapter - 1) / CHAPTERS.length) + 1}周` : '') };
+  // 每 40 关的 Boss 关换成「奖励首领」校猫（第 40/80/120… 关），打赢掉额外奖励
+  return { stage, chapter, node, boss: node === 10, elite: node === 5, reward: stage % 40 === 0, name: CHAPTERS[(chapter - 1) % CHAPTERS.length] + (chapter > CHAPTERS.length ? `·${Math.floor((chapter - 1) / CHAPTERS.length) + 1}周` : '') };
 };
 
 const P = {
@@ -50,6 +51,7 @@ export function makeEnemy(m, rank, stage, rng, { affixes = true, msk = null } = 
     name: m.zh, img: m.img, type: 'ASSAULT', realm: null, boss: rank === 'Boss', rank,
     hp: Math.round(220 * S * hpM), atk: Math.round(30 * S * atkM), def: Math.round((28 + 5 * stage) * dfM),
     pattern: pat.cycle, opening: pat.opening, critRate: 0, critDmg: 50, mid: m.id, traits: m.traits || [], size: m.size,
+    reward: !!m.reward,
     skills: [...pat.opening, ...pat.cycle].filter((x, i, arr) => arr.findIndex((y) => y.name === x.name && y.plain === x.plain) === i)
       .map((x) => ({ name: x.name, plain: x.plain || '', ic: x.ic || null })),
   };
@@ -66,8 +68,14 @@ export function makeEnemy(m, rank, stage, rng, { affixes = true, msk = null } = 
 export function buildEnemies(stage, monsters, opts = {}) {
   const info = opts.info || stageInfo(stage);
   const rng = mulberry32(hash(opts.seed || `stage${stage}`));
-  const pool = { Normal: monsters.filter((m) => m.rank === 'Normal'), Elite: monsters.filter((m) => m.rank === 'Elite'), Boss: monsters.filter((m) => m.rank === 'Boss') };
+  // 奖励首领（校猫）不进随机池：只在奖励关/奖励层出现，且固定站在 Boss 位
+  const reward = info.reward ? monsters.find((m) => m.reward) : null;
+  const plain = monsters.filter((m) => !m.reward);
+  const pool = { Normal: plain.filter((m) => m.rank === 'Normal'), Elite: plain.filter((m) => m.rank === 'Elite'), Boss: plain.filter((m) => m.rank === 'Boss') };
   const comp = info.boss ? ['Boss', 'Normal', 'Normal'] : info.elite ? ['Elite', 'Normal'] : Array(2 + (info.node >= 3 ? 1 : 0)).fill('Normal');
   if (info.node === 9) comp.push('Normal');
-  return comp.map((rank) => makeEnemy(pool[rank][Math.floor(rng() * pool[rank].length)], rank, stage, rng, { msk: opts.msk }));
+  return comp.map((rank, i) => {
+    const m = reward && i === 0 ? reward : pool[rank][Math.floor(rng() * pool[rank].length)];
+    return makeEnemy(m, rank, stage, rng, { msk: opts.msk });
+  });
 }

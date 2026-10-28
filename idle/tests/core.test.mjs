@@ -127,7 +127,7 @@ test('simulate: timeouts count as loss', () => {
 // ---------------------------------------------------------------- M3: real kits, statuses, challenge modes
 import { simulate as sim2 } from '../src/core/battle.js';
 import { fx } from '../src/core/skills.js';
-import { doTower, doTrial, simulateTower, towerTries, THREATS, trialUnlocked, TOWER_DAILY } from '../src/core/challenge.js';
+import { doTower, doTrial, simulateTower, towerTries, towerInfo, towerRewardStage, THREATS, trialUnlocked, TOWER_DAILY, TOWER_MAX_FLOOR } from '../src/core/challenge.js';
 import { achievementList, claimAchievement } from '../src/core/achievements.js';
 import { buildEnemies, makeEnemy } from '../src/core/enemies.js';
 
@@ -291,7 +291,7 @@ test('codex records encounters and kills; codex achievements count them', () => 
 import { doWeekly, weeklyState, claimWeekly, weekId, weeklyBoss, MILESTONES } from '../src/core/weekly.js';
 import { doRTower, rtTeam, rtPool } from '../src/core/rtower.js';
 import { encodeCode, decodeCode } from '../src/core/friend.js';
-import { botEntry, snapshot, hydrate, localOpponents, fightArena, applyArena, localSettle, arenaState, UNRANKED, fightFriend } from '../src/core/arena.js';
+import { botEntry, snapshot, hydrate, localOpponents, fightArena, applyArena, localSettle, arenaState, UNRANKED, LADDER, dailyRankReward, fightFriend } from '../src/core/arena.js';
 
 const mkTeamState = (lv = 30) => { const s = newState(data, 11); for (const a of ['salvador', 'xu', 'vivian', 'caraboo']) s.roster[a] = { lv, star: 1 }; s.team = ['salvador', 'caraboo', 'xu', 'vivian']; return s; };
 
@@ -326,7 +326,7 @@ test('realm tower only fields that realm and records the first clears', () => {
 });
 
 test('arena: bots scale with rank, snapshots round-trip, winning moves you up', () => {
-  const weak = botEntry(100, data), strong = botEntry(1, data);
+  const weak = botEntry(LADDER, data), strong = botEntry(1, data);
   assert.ok(strong.power > weak.power * 3);
   assert.deepEqual(botEntry(40, data).snap, botEntry(40, data).snap);
   const s = mkTeamState(40);
@@ -335,13 +335,17 @@ test('arena: bots scale with rank, snapshots round-trip, winning moves you up', 
   assert.equal(back.length, 4); assert.ok(back.every((d) => d.kit && d.hp > 0));
   assert.equal(arenaState(s).rank, UNRANKED);
   const opps = localOpponents(s, data);
-  assert.deepEqual(opps.map((o) => o.rank), [100, 99, 98, 97, 96]);
+  // 候选名次按 1 / 3 / 7 / 15 / 31 名递进，越往上跨度越大
+  assert.deepEqual(opps.map((o) => o.rank), [1000, 998, 994, 986, 970]);
   assert.ok(opps.every((o) => o.type === 'bot'));
   const e = opps[0], f = fightArena(s, data, e);
-  assert.ok(f.win, 'a lv40 team beats the rank-100 bot');
+  assert.ok(f.win, 'a lv40 team beats the last-place bot');
   const rw = applyArena(s, data, f, localSettle(s, e, f.win).rank);
-  assert.equal(arenaState(s).rank, 100); assert.ok(rw.tickets >= 1);
-  assert.ok(localOpponents(s, data)[0].rank === 99);
+  assert.equal(arenaState(s).rank, 1000); assert.ok(rw.tickets >= 1);
+  assert.ok(localOpponents(s, data)[0].rank === 999);
+  // 从第 2 名往上只有第 1 名，不会出现 0 或负名次
+  const top = mkTeamState(40); arenaState(top).rank = 2;
+  assert.deepEqual(localOpponents(top, data).map((o) => o.rank), [1]);
   // hostile snapshots are clamped
   const evil = hydrate([{ slug: 'xu', lv: 999, star: 99, hp: 1e18, atk: -5 }], data)[0];
   assert.ok(evil.lv === 159 && evil.star === 99 && evil.hp <= 5e6 && evil.atk === 0);
@@ -586,14 +590,16 @@ test('造物栏按最高关解锁，同主题 2 件激活羁绊', () => {
 
 test('钥令：配置、全队加成、淬炼、重复折算', () => {
   const s = newState(data, 25);
+  // 原作钥令的加成键各不相同（有的只给起始钥焰），所以按「所有键加起来」判断有没有效果
+  const sumAll = (b) => Object.values(b).reduce((a, v) => a + (Number(v) || 0), 0);
   assert.equal(orderSlotCount(0), 1);
   assert.equal(orderSlotCount(35), 3);
   const base = ordersBonus(s, data);
   const id = Object.keys(s.orders.owned)[0];
-  assert.ok(id && base.atkPct + base.hpPct + base.defPct + base.gold > 0, '开局送的钥令已经生效');
+  assert.ok(id && sumAll(base) > 0, '开局送的钥令已经生效');
   // 清空后加成归零
   assert.ok(setOrderSlot(s, 0, null));
-  assert.equal(ordersBonus(s, data).gold + ordersBonus(s, data).atkPct, 0);
+  assert.equal(sumAll(ordersBonus(s, data)), 0);
   assert.ok(setOrderSlot(s, 0, id));
   // 同一钥令不能占两个位置
   s.maxStage = 40;
@@ -604,9 +610,147 @@ test('钥令：配置、全队加成、淬炼、重复折算', () => {
   assert.ok(upgradeOrder(s, id) && s.orders.owned[id] === lv0 + 1);
   assert.ok(orderUpCost(lv0) > 0);
   const up = ordersBonus(s, data);
-  assert.ok(up.atkPct + up.hpPct + up.defPct + up.gold > base.atkPct + base.hpPct + base.defPct + base.gold);
+  assert.ok(sumAll(up) > sumAll(base));
   // 重复钥令折算银芯
   const c0 = s.cores;
   const dup = addOrder(s, id);
   assert.equal(dup.isNew, false); assert.ok(s.cores > c0);
+});
+
+/* ---------- M10：塔上限 / 1000 名天梯 / 校猫奖励首领 ---------- */
+
+test('tower: the climb cap is 300 floors and reward gold is clamped', () => {
+  assert.equal(TOWER_MAX_FLOOR, 300);
+  const s = mkTeamState(60);
+  const sim = simulateTower(s, data, { maxFloors: TOWER_MAX_FLOOR });
+  assert.ok(sim.floors.length <= TOWER_MAX_FLOOR);
+  // 奖励用的等效关卡在 200 层后封顶，避免 1.085^f 把金币算成天文数字
+  assert.equal(towerRewardStage(20), 29);
+  assert.ok(towerRewardStage(400) <= 200);
+  assert.equal(towerInfo(20).reward, true, '每 20 层是校猫奖励层');
+  assert.equal(towerInfo(19).reward, false);
+});
+
+test('arena: 1000 ranks, widening challenge window, rank-based daily rewards', () => {
+  assert.equal(LADDER, 1000); assert.equal(UNRANKED, 1001);
+  assert.equal(dailyRankReward(1), 20);
+  assert.ok(dailyRankReward(1) > dailyRankReward(50) && dailyRankReward(50) > dailyRankReward(500) && dailyRankReward(500) > dailyRankReward(999));
+  assert.equal(dailyRankReward(UNRANKED), 0);
+});
+
+test('cat boss: only on reward stages, keeps its own skill set, pays extra (first kill doubled)', () => {
+  const cat = data.monsters.find((m) => m.reward);
+  assert.ok(cat && cat.zh === '校猫');
+  const onReward = buildEnemies(40, data.monsters, { seed: 'stage40', msk: data.msk });
+  assert.equal(onReward[0].name, '校猫'); assert.ok(onReward[0].reward && onReward[0].boss);
+  assert.ok(onReward[0].skills.length >= 4, '校猫有自己的出招表');
+  let stray = 0;
+  for (let st = 1; st <= 79; st++) if (st % 40 !== 0) for (const e of buildEnemies(st, data.monsters, { seed: `s${st}`, msk: data.msk })) if (e.reward) stray++;
+  assert.equal(stray, 0, '校猫不会混进普通关的随机池');
+  const s = newState(data, 3);
+  s.maxStage = 39; s.stage = 40; s.auto = false;
+  for (const k of Object.keys(s.roster)) { const r = s.roster[k]; r.lv = 150; r.brk = 7; r.star = 40; }
+  const res = runBattle(s, data, 40);
+  assert.equal(res.prep.enemies[0].name, '校猫');
+  assert.ok(res.win, '99 级队伍打得过第 40 关的校猫');
+  const rw = applyResult(s, data, res);
+  assert.ok(rw.cat, '校猫战斗必须标记为奖励首领');
+  assert.ok(rw.catFirst, '第一次击败校猫');
+  assert.ok(rw.tickets >= 10 && rw.cores >= 120 && rw.items.length >= 2);
+  // 再打一次：不算首杀，但常规奖励还在
+  s.maxStage = 39; s.stage = 40;
+  const rw2 = applyResult(s, data, runBattle(s, data, 40));
+  assert.ok(rw2.cat && !rw2.catFirst);
+  assert.ok(rw2.tickets >= 5 && rw2.cores >= 60);
+});
+
+/* ---------- M10 收尾：一键配队 / 手动挂机不推进 ---------- */
+import { autoLoadout, bonusScore } from '../src/core/game.js';
+import { RELIC_SLOTS, ORDER_SLOTS } from '../src/core/constants.js';
+import { orderBonus } from '../src/core/orders.js';
+
+test('一键配队：队伍、命轮、密契、造物、钥令一次配齐', () => {
+  const s = newState(data, 33);
+  s.maxStage = 45; s.stage = 45;
+  for (const k of ['salvador', 'xu', 'vivian', 'caraboo']) s.roster[k] = { lv: 45, star: 3 };
+  // 备料：三类装备各来一批，保证配装时不会因为库存不够而空着
+  const uids = [
+    ...data.wheels.slice(0, 6).map((d) => addItem(s, 'wheel', d.id).uid),
+    ...data.covenants.slice(0, 8).map((d) => addItem(s, 'covenant', d.id).uid),
+    ...data.relics.slice(0, 10).map((d) => addItem(s, 'relic', d.id).uid),
+  ];
+  assert.equal(uids.length, 24);
+  for (const d of data.orders.slice(0, 10)) addOrder(s, d.id);
+
+  const out = autoLoadout(s, data);
+  assert.equal(s.team.length, 4);
+  assert.equal(new Set(s.team).size, 4);
+  assert.deepEqual(out.team, s.team);
+
+  // 命轮 + 密契：队伍 4 人各一件，种类对得上，也不会两个人抢同一件
+  const used = new Set();
+  for (const slug of s.team) {
+    const eq = s.gear.equip[slug] || {};
+    assert.ok(eq.wheel && eq.cov, `${slug} 应该配上命轮和密契`);
+    assert.equal(s.gear.items[eq.wheel].kind, 'wheel');
+    assert.equal(s.gear.items[eq.cov].kind, 'covenant');
+    for (const uid of [eq.wheel, eq.cov]) { assert.ok(!used.has(uid), '同一件不能装给两个人'); used.add(uid); }
+  }
+  assert.equal(used.size, 8);
+
+  // 造物：解锁几格就填几格，剩下的留空
+  const slots = relicSlotCount(s.maxStage);
+  assert.ok(slots >= 5, '45 关已经解锁 5 格造物');
+  assert.equal(out.relics, slots);
+  assert.equal(s.gear.relics.length, RELIC_SLOTS);
+  assert.equal(s.gear.relics.filter(Boolean).length, slots);
+  assert.equal(new Set(s.gear.relics.filter(Boolean)).size, slots);
+  assert.ok(s.gear.relics.slice(slots).every((x) => x === null), '超出的格子不塞东西');
+
+  // 钥令：按加成强度从高到低排，且不重复
+  const on = orderSlotCount(s.maxStage);
+  assert.equal(on, ORDER_SLOTS);
+  assert.equal(out.orders, on);
+  const ids = s.orders.slots.filter(Boolean);
+  assert.equal(ids.length, on);
+  assert.equal(new Set(ids).size, on);
+  const sc = ids.map((id) => bonusScore(orderBonus(data.orderById[id], s.orders.owned[id])));
+  assert.deepEqual(sc, [...sc].sort((x, y) => y - x), '按强度降序');
+
+  // 再配一次结果不变（不会越配越乱）
+  const snap = JSON.stringify([s.team, s.gear.equip, s.gear.relics, s.orders.slots]);
+  autoLoadout(s, data);
+  assert.equal(JSON.stringify([s.team, s.gear.equip, s.gear.relics, s.orders.slots]), snap);
+});
+
+test('手动挂机：停在本关反复刷，不再往前推进', () => {
+  const s = mkTeamState(60);
+  s.maxStage = 10; s.stage = 10; s.auto = false;
+  const rw = applyResult(s, data, runBattle(s, data, 10));
+  assert.ok(rw.stayed, '手动模式打赢也留在本关');
+  assert.ok(!rw.advanced && !rw.retreat);
+  assert.equal(s.stage, 10, '关卡不会被自动推进');
+  for (let i = 0; i < 3; i++) { applyResult(s, data, runBattle(s, data, s.stage)); assert.equal(s.stage, 10); }
+  assert.equal(s.maxStage, 10, '一直打已通关的关卡，最高关不变');
+
+  // 手动选了一关没打过的：赢了也只更新最高通关，关卡还是停在这一关
+  s.stage = 11;
+  const rw2 = applyResult(s, data, runBattle(s, data, 11));
+  assert.ok(rw2.stayed);
+  assert.equal(s.stage, 11);
+  assert.equal(s.maxStage, 11);
+
+  // 输了也不会被踢回前面的关卡（撤退只在自动模式下发生）
+  s.maxStage = 30; s.stage = 200;
+  const lost = runBattle(s, data, 200);
+  assert.ok(!lost.win, '60 级打不过第 200 关');
+  const rw3 = applyResult(s, data, lost);
+  assert.equal(rw3.retreat, undefined);
+  assert.equal(s.stage, 200);
+
+  // 自动模式才会在「没通过的高关」上失败后退回已通关的关卡
+  s.auto = true; s.maxStage = 30; s.stage = 200;
+  const rw4 = applyResult(s, data, runBattle(s, data, 200));
+  assert.equal(rw4.retreat, true);
+  assert.equal(s.stage, 30);
 });

@@ -1,4 +1,4 @@
-import { THREATS, trialKey, trialUnlocked, towerTries, TOWER_DAILY, towerStage, towerInfo, towerEnemies } from '../core/challenge.js';
+import { THREATS, trialKey, trialUnlocked, towerTries, TOWER_DAILY, TOWER_MAX_FLOOR, towerStage, towerInfo, towerEnemies } from '../core/challenge.js';
 import { achievementList, claimableCount, CATEGORIES } from '../core/achievements.js';
 import { teamDefs } from '../core/game.js';
 import { esc, img, fmt, openModal, markup, rewardText } from './util.js';
@@ -36,8 +36,8 @@ export function challengePage(app) {
   }).join('');
   return `<div class="page"><h2>挑战 <small>队伍战力 ${fmt(t.power)}</small></h2>
     <div class="banner-card"><h3>无限塔·倒悬回廊</h3>
-      <p>最高层数：<b>${s.tower.best}</b>　今日剩余挑战：<b>${tries}/${TOWER_DAILY}</b>　下一层：${ne.map((e) => esc(e.name)).join('、')}</p>
-      <p class="hint">从第 1 层开始连续战斗，存活者保留生命并回复 30%，倒下的不会复活；全灭即止。每 5 层奖励召唤券，每 10 层掉落装备，首次到达的新层数才有奖励。</p>
+      <p>最高层数：<b>${s.tower.best}</b> / ${TOWER_MAX_FLOOR}　今日剩余挑战：<b>${tries}/${TOWER_DAILY}</b>　下一层（第 ${nextFloor} 层${towerInfo(nextFloor).reward ? ' · 🐈 校猫奖励层' : towerInfo(nextFloor).boss ? ' · BOSS' : towerInfo(nextFloor).elite ? ' · 精英' : ''}）：${ne.map((e) => esc(e.name)).join('、')}</p>
+      <p class="hint">从第 1 层开始连续战斗，存活者保留生命并回复 30%，倒下的不会复活；全灭即止。每 5 层奖励召唤券，每 10 层掉落装备，<b>每 20 层是「校猫」奖励层</b>（额外给券、银芯与一件装备），首次到达的新层数才有奖励。塔共 ${TOWER_MAX_FLOOR} 层。</p>
       <div class="row"><button class="btn big gold" data-act="tower-go" ${tries > 0 ? '' : 'disabled'}>${tries > 0 ? '开始爬塔' : '今日次数已用完'}</button></div></div>
     <div class="banner-card"><h3>融灾试炼</h3>
       <p class="hint">真实的融灾区域首领，使用原作技能效果；威胁等级越高越强，需依次解锁。首通奖励召唤券与装备，重复挑战获得金币。</p>

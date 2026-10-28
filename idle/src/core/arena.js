@@ -1,13 +1,17 @@
 // Arena (PvP). Two parts:
-//  · 天梯: 100 ranks of bots (人机). Their teams are generated deterministically from the rank (higher = stronger).
-//    Everyone starts unranked (101); beating rank r takes that rank.
+//  · 天梯: LADDER ranks of bots (人机). Their teams are generated deterministically from the rank (higher = stronger).
+//    Everyone starts unranked (LADDER+1); beating rank r takes that rank.
+//    名次越多，单场能跨的跨度越大（STEPS），否则爬完 1000 名要两百多场。
 //  · 好友对战: fight a friend's team from a battle code (see friend.js). No server, no rewards, no limits.
 import { hash, mulberry32 } from './rng.js';
 import { simulate } from './battle.js';
 import { newState, teamDefs, stageGold, battleSeed } from './game.js';
 import { skillLevel } from './stats.js';
 
-export const LADDER = 100, UNRANKED = LADDER + 1, ARENA_DAILY = 5, WINDOW = 5;
+export const LADDER = 1000, UNRANKED = LADDER + 1, ARENA_DAILY = 5, WINDOW = 5;
+// 候选对手的名次跨度：从自己名次开始依次往上减 1、2、4、8、16，
+// 也就是实际差距 1 / 3 / 7 / 15 / 31 名 —— 名次越多，单场能跨的跨度越大。
+const STEPS = [1, 2, 4, 8, 16];
 const SURNAME = ['雾', '灰', '沉', '蚀', '潮', '霜', '烬', '夜', '铁', '白', '赤', '墨', '星', '黯', '琥珀', '银'];
 const GIVEN = ['行者', '看守', '拾荒人', '缝补匠', '巡礼者', '守夜人', '调香师', '摆渡人', '誊写员', '旅伴', '歌者', '猎手'];
 const day = () => new Date().toISOString().slice(0, 10);
@@ -43,8 +47,9 @@ export function hydrate(snap, data) {
 // ---- bots
 export function botEntry(rank, data) {
   const rng = mulberry32(hash(`arena-bot${rank}`));
-  const f = (LADDER - rank) / (LADDER - 1);                  // 0 at rank 100 … 1 at rank 1
-  const lv = Math.round(2 + 58 * Math.pow(f, 1.2)), star = Math.min(5, Math.floor(f * 4.4));
+  const f = (LADDER - rank) / (LADDER - 1);                  // 0 at the last rank … 1 at rank 1
+  // 天梯顶端要对得起玩家 159 级 / 99 叠位的上限，否则 1000 名只有前 100 名有难度
+  const lv = Math.round(2 + 98 * Math.pow(f, 1.15)), star = Math.min(20, Math.floor(f * 22));
   const all = data.awakeners.map((a) => a.slug).sort();
   const realms = ['CHAOS', 'CARO', 'AEQUOR', 'ULTRA'], main = realms[Math.floor(rng() * 4)];
   const pickFrom = (arr, n) => { const a = [...arr], out = []; while (out.length < n && a.length) out.push(a.splice(Math.floor(rng() * a.length), 1)[0]); return out; };
@@ -54,7 +59,7 @@ export function botEntry(rank, data) {
   const fake = newState(data, 1);
   fake.roster = Object.fromEntries(slugs.map((s) => [s, { lv, star }]));
   const team = teamDefs(fake, data, slugs);
-  const gear = 1 + 0.55 * f;                                  // stands in for wheels / covenants / relics
+  const gear = 1 + 0.8 * f;                                   // stands in for wheels / covenants / relics / orders
   const snap = snapshot(team).map((s) => ({ ...s, hp: Math.round(s.hp * gear), atk: Math.round(s.atk * gear), def: Math.round(s.def * gear) }));
   const name = `${SURNAME[Math.floor(rng() * SURNAME.length)]}${GIVEN[Math.floor(rng() * GIVEN.length)]}`;
   return { rank, type: 'bot', id: `bot${rank}`, name, snap, power: snap.reduce((s, x) => s + x.hp / 10 + x.atk + x.def * 0.8, 0) | 0 };
@@ -62,8 +67,15 @@ export function botEntry(rank, data) {
 
 // ---- local ladder: only the player's rank is stored; the occupant of every rank is the bot of that rank
 export function localOpponents(state, data) {
-  const a = arenaState(state), out = [];
-  for (let r = Math.min(a.rank, UNRANKED) - 1; r >= 1 && out.length < WINDOW; r--) out.push(botEntry(r, data));
+  const a = arenaState(state), out = [], seen = new Set();
+  let r = Math.min(a.rank, UNRANKED);
+  for (const step of STEPS) {
+    r = Math.max(1, r - step);
+    if (seen.has(r)) break;
+    seen.add(r); out.push(botEntry(r, data));
+    if (r === 1) break;                                       // 登顶后没有更高的名次可打
+    if (out.length >= WINDOW) break;
+  }
   return out;
 }
 // winning rank r inserts you there; the ones in between shift down (the server does the same for real players)
@@ -77,7 +89,7 @@ export function fightArena(state, data, entry) {
   const res = simulate({ allies: team.list, enemies: foes, seed, strategy: state.strategy });
   return { ...res, team, foes, entry };
 }
-export const dailyRankReward = (rank) => (rank <= 1 ? 20 : rank <= 3 ? 15 : rank <= 10 ? 12 : rank <= 30 ? 8 : rank <= 60 ? 5 : rank <= LADDER ? 3 : 0);
+export const dailyRankReward = (rank) => (rank <= 1 ? 20 : rank <= 5 ? 16 : rank <= 20 ? 13 : rank <= 100 ? 10 : rank <= 300 ? 7 : rank <= 600 ? 5 : rank <= LADDER ? 3 : 0);
 
 // apply the outcome (rank already decided by the ladder) to the player's state
 export function applyArena(state, data, fight, newRank) {
@@ -87,10 +99,12 @@ export function applyArena(state, data, fight, newRank) {
   const rw = { gold: 0, tickets: 0, cores: 0, up: 0 };
   if (fight.win) {
     a.wins++; state.stats.wins++;
-    rw.gold = Math.round(stageGold(20 + (LADDER - fight.entry.rank) * 0.45) * 0.7);
+    // 金币按「对手在这条天梯上的相对高度」算（与 LADDER 名次数无关），顶端约等于第 60 关的收益
+    const f = Math.max(0, Math.min(1, (LADDER - fight.entry.rank) / (LADDER - 1)));
+    rw.gold = Math.round(stageGold(Math.round(20 + 45 * f)) * 0.7);
     const prevBest = a.best;
     a.rank = newRank;
-    if (newRank < prevBest) { rw.up = prevBest - newRank; rw.tickets = Math.max(1, Math.floor(rw.up / 2)); rw.cores = Math.min(60, rw.up * 2); a.best = newRank; }
+    if (newRank < prevBest) { rw.up = prevBest - newRank; rw.tickets = Math.max(1, Math.floor(rw.up / 4)); rw.cores = Math.min(120, Math.round(rw.up * 0.8)); a.best = newRank; }
   } else { a.losses++; rw.gold = Math.round(stageGold(15) * 0.15); }
   state.gold += rw.gold; state.tickets += rw.tickets; state.cores += rw.cores; state.stats.gold += rw.gold;
   return rw;

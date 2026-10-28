@@ -320,3 +320,38 @@ body{background:#0a0d13}
 .matsrc span{color:var(--gold);font-size:11.5px}
 .matsrc em{font-style:normal;color:var(--dim)}
 @media(max-width:560px){.growtable>div{grid-template-columns:1fr;gap:2px}.growtable .gt-h{display:none}.growtable>div>span:first-child{font-weight:700}.matsrc>div{grid-template-columns:1fr;gap:2px}}
+
+/* ---------- M10：校猫奖励首领 / 竞技场 1000 名 / 塔上限 ---------- */
+/* 战斗里的敌方单位：名字后面挂一个「奖励」小标，头顶也换个金色描边，一眼能看出这关不是普通 Boss */
+.unit.reward .u-pic{border-color:rgba(227,179,65,.55);box-shadow:0 0 0 1px rgba(227,179,65,.25),0 0 14px rgba(227,179,65,.18)}
+.rw-tag{display:inline-block;margin-left:4px;padding:0 4px;border-radius:5px;font-size:9px;line-height:14px;vertical-align:1px;
+  background:rgba(227,179,65,.16);border:1px solid rgba(227,179,65,.4);color:var(--gold)}
+.farmx.cat{color:var(--gold)}
+.mcard.rwmon{border-color:var(--gold);background:linear-gradient(180deg,rgba(227,179,65,.1),transparent 60%),var(--card,#1c2230)}
+.tag.rw{background:rgba(227,179,65,.16);border-color:rgba(227,179,65,.4);color:var(--gold)}
+
+/* 手动挂机：不再有「开战」按钮，只留一条状态说明（关卡由右上角 ◀ ▶ 选） */
+.manual-note{display:block;font-size:12px;line-height:1.5;color:var(--dim);padding:6px 10px;background:#0b1017;border:1px solid var(--line);border-radius:10px}
+.manual-note b{color:var(--gold)}
+
+/* 钥令图标改用原作 KeyToken 素材：图标本身有底色，容器只负责圆角与稀有度描边 */
+.oglyph img{width:100%;height:100%;object-fit:contain;border-radius:8px;display:block}
+.ochip .oglyph{width:18px;height:18px;border-radius:5px;font-size:12px;vertical-align:-3px;margin-right:2px}
+.ochip .oglyph.r-SSR{box-shadow:none}
+
+/* ---------- 命轮 · 密契页：4 人槽位面板 ---------- */
+.eqpanel{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.eqrow{display:grid;grid-template-columns:126px 1fr 1fr;gap:8px;align-items:center;background:#0b1017;border:1px solid var(--line);border-radius:12px;padding:8px}
+.eqwho{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
+.eqwho img{width:42px;height:42px;border-radius:50%;object-fit:cover;object-position:top}
+.eqwho b{font-size:12.5px}.eqwho small{font-size:10.5px;color:var(--dim)}
+.eqslot{display:flex;align-items:center;gap:6px;padding:6px;border-radius:10px;border:1px dashed #2b3447;background:#11161f;color:inherit;font:inherit;cursor:pointer;text-align:left;min-height:46px}
+.eqslot img{width:32px;height:32px;border-radius:8px;object-fit:contain;background:#0b1017;flex:none}
+.eqslot b{font-size:12px;display:block;line-height:1.25}
+.eqslot small{font-size:10.5px;color:var(--dim);display:block}
+.eqslot.empty{justify-content:center;color:var(--dim)}
+.eqslot .plus{font-size:16px;color:var(--gold)}
+.eqslot.on{border-style:solid;border-color:#3a4a66;background:#131a26}
+.eqslot.r-SSR{border-color:#a5862f;box-shadow:0 0 8px #e5b84b22}
+.eqslot.r-SR{border-color:#3f5f96}
+@media(max-width:560px){.eqrow{grid-template-columns:1fr 1fr}.eqwho{grid-column:1/-1;flex-direction:row;justify-content:flex-start;gap:8px;text-align:left}}

@@ -8,8 +8,14 @@ import { teamDefs, stageGold, battleSeed, addItem, rollItem, addOrder, rollOrder
 // ---------- tower ----------
 export const TOWER_DAILY = 3;
 export const TOWER_HEAL = 0.3;                       // share of max HP restored between floors
+// 塔的层数上限（M10 从 150 提到 300）。它只是模拟的保险丝：全灭就停，够高就行。
+export const TOWER_MAX_FLOOR = 300;
+// 奖励用的「等效关卡」上限：towerStage 在 200 层后不再计入金币曲线，
+// 否则 stageGold(1.085^f) 到 300 层会算成上万亿，显示和存档都难看。
+const REWARD_STAGE_CAP = 200;
 export const towerStage = (floor) => Math.round(10 + floor * 0.95);
-export const towerInfo = (floor) => ({ stage: towerStage(floor), boss: floor % 10 === 0, elite: floor % 5 === 0 && floor % 10 !== 0, node: floor % 10 === 9 ? 9 : 3 });
+export const towerRewardStage = (floor) => Math.min(REWARD_STAGE_CAP, towerStage(floor));
+export const towerInfo = (floor) => ({ stage: towerStage(floor), boss: floor % 10 === 0, elite: floor % 5 === 0 && floor % 10 !== 0, node: floor % 10 === 9 ? 9 : 3, reward: floor % 20 === 0 });
 export const towerEnemies = (floor, data) => buildEnemies(towerStage(floor), data.monsters, { seed: `tower${floor}`, info: towerInfo(floor), msk: data.msk });
 
 export function towerTries(state, today = day()) {
@@ -19,7 +25,7 @@ export function towerTries(state, today = day()) {
 export const day = () => new Date().toISOString().slice(0, 10);
 
 // Pure simulation of one climb. Does not touch the state.
-export function simulateTower(state, data, { maxFloors = 150, seed = battleSeed({ seed: state.seed }) } = {}) {
+export function simulateTower(state, data, { maxFloors = TOWER_MAX_FLOOR, seed = battleSeed({ seed: state.seed }) } = {}) {
   const team = teamDefs(state, data);
   let allies = team.list.map((d) => ({ ...d, hpNow: d.hp }));
   const floors = [];
@@ -42,18 +48,23 @@ export function simulateTower(state, data, { maxFloors = 150, seed = battleSeed(
 }
 
 export function towerReward(state, data, reached, rng) {
-  const rw = { gold: 0, tickets: 0, cores: 0, items: [], orders: [], newBest: false };
+  const rw = { gold: 0, tickets: 0, cores: 0, items: [], orders: [], newBest: false, cat: 0 };
   const prev = state.tower.best;
   for (let f = prev + 1; f <= reached; f++) {
-    rw.gold += Math.round(stageGold(towerStage(f)) * 0.9);
+    rw.gold += Math.round(stageGold(towerRewardStage(f)) * 0.9);
     if (f % 5 === 0) { rw.tickets += 2; rw.cores += 15; }
     if (f % 10 === 0) {
-      rw.items.push(addItem(state, ...Object.values(rollItem(rng, towerStage(f), data))));
+      rw.items.push(addItem(state, ...Object.values(rollItem(rng, towerRewardStage(f), data))));
       const od = rollOrder(rng, data);
       if (od) { const got = addOrder(state, od.id); if (got.isNew) rw.orders.push(got); else rw.cores += got.cores; }
     }
+    // 校猫层：每 20 层一场「奖励首领」，额外给券、银芯和一件装备
+    if (towerInfo(f).reward) {
+      rw.cat += 1; rw.tickets += 4; rw.cores += 50;
+      rw.items.push(addItem(state, ...Object.values(rollItem(rng, towerRewardStage(f) + 8, data))));
+    }
   }
-  rw.gold += Math.round(stageGold(towerStage(Math.max(1, reached))) * Math.min(reached, 10) * 0.2); // participation
+  rw.gold += Math.round(stageGold(towerRewardStage(Math.max(1, reached))) * Math.min(reached, 10) * 0.2); // participation
   if (reached > prev) { state.tower.best = reached; rw.newBest = true; }
   state.gold += rw.gold; state.tickets += rw.tickets; state.cores += rw.cores; state.stats.gold += rw.gold;
   return rw;

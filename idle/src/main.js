@@ -1,5 +1,5 @@
 import {
-  indexData, newState, migrate, offlineReport, claimOffline, levelUp, levelUpMax, setTeam, autoTeam, setPreset,
+  indexData, newState, migrate, offlineReport, claimOffline, levelUp, levelUpMax, setTeam, autoTeam, autoLoadout, setPreset,
   equipItem, unequipItem, enhanceItem, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem,
   dismantleCores, breakThrough, awakenUp, upgradeOrder,
 } from './core/game.js';
@@ -40,7 +40,7 @@ const ICON = {
 
 const GROUPS = [
   { k: 'battle', zh: '战斗', icon: ICON.battle, tabs: [['battle', '战斗']] },
-  { k: 'team', zh: '养成', icon: ICON.team, tabs: [['team', '队伍'], ['roster', '唤醒体'], ['gear', '装备'], ['orders', '钥令']] },
+  { k: 'team', zh: '养成', icon: ICON.team, tabs: [['team', '队伍'], ['roster', '唤醒体'], ['gear', '命轮密契'], ['orders', '钥令']] },
   { k: 'summon', zh: '召唤', icon: ICON.summon, tabs: [['summon', '召唤']] },
   { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '挑战'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场']] },
   { k: 'more', zh: '更多', icon: ICON.more, tabs: [['signin', '签到'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']] },
@@ -77,11 +77,13 @@ const app = {
 };
 
 async function boot() {
-  const [pack, orders] = await Promise.all([
+  const [pack, orders, special] = await Promise.all([
     fetch('public/data/game-data.json').then((r) => r.json()),
     fetch('public/data/orders.json').then((r) => r.json()).catch(() => ({ items: [] })),
+    fetch('public/data/special.json').then((r) => r.json()).catch(() => null),
   ]);
   pack.orders = orders.items || [];
+  if (special) pack.special = special;
   app.data = indexData(pack);
   const saved = store.read();
   app.state = saved ? migrate(saved, app.data) : newState(app.data);
@@ -268,7 +270,7 @@ function onAct(e) {
       P.pickAwakener(app, '选择上场唤醒体', (slug) => { const t = [...s.team]; const old = t.indexOf(slug); if (old >= 0) t[old] = t[i] || null; t[i] = slug; setTeam(s, t.filter(Boolean)); rerender(); });
       break;
     }
-    case 'autoteam': autoTeam(s, d); rerender(); toast('已编成最优队伍'); break;
+    case 'autoteam': { const r = autoLoadout(s, d); app.save(); rerender(); toast(`一键配队完成：${r.team.length} 人 · 命轮/密契已换 · 造物 ${r.relics} 件 · 钥令 ${r.orders} 个`); break; }
     case 'preset': setPreset(s, el.dataset.k); rerender(); break;
     case 'pick-relic': {
       const i = +el.dataset.i;
@@ -281,6 +283,16 @@ function onAct(e) {
       break;
     }
     case 'gear-tab': app.ui.gearTab = el.dataset.k; render(); break;
+    // 命轮 / 密契页里的 4 人槽位：点一下就能换（不用先回角色详情）
+    case 'gear-slot': {
+      const { slug, kind } = el.dataset;
+      P.pickItem(app, kind, `${d.bySlug[slug].zh} · ${kind === 'wheel' ? '命轮' : '密契'}`, (uid) => {
+        if (uid) equipItem(s, d, slug, uid);
+        else { const e2 = s.gear.equip[slug] || {}; unequipItem(s, e2[kind === 'wheel' ? 'wheel' : 'cov']); }
+        app.save(); rerender();
+      });
+      break;
+    }
     case 'gear-up': enhanceItem(s, el.dataset.uid); rerender(); break;
     case 'gear-dis': { const v = dismantle(s, d, el.dataset.uid); if (v) toast(`分解获得 ${v} 金币`); rerender(); break; }
     case 'gear-equip': {

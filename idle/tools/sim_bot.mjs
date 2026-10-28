@@ -1,6 +1,6 @@
 // Balance bot: plays the idle loop greedily and prints the progress curve.
 import { readFileSync } from 'node:fs';
-import { indexData, newState, runBattle, applyResult, levelUp, breakThrough, autoTeam, summon, equipPull, equipItem, enhanceItem, allyDef, teamDefs } from '../src/core/game.js';
+import { indexData, newState, runBattle, applyResult, levelUp, breakThrough, autoLoadout, summon, equipPull, enhanceItem, allyDef, teamDefs } from '../src/core/game.js';
 import { levelCap, breakNeeded, lvUpCost } from '../src/core/stats.js';
 import { doTower, doTrial, THREATS, trialUnlocked } from '../src/core/challenge.js';
 import { doWeekly, weeklyState, MILESTONES } from '../src/core/weekly.js';
@@ -10,24 +10,18 @@ import { signToday } from '../src/core/signin.js';
 import { claimAllAchievements } from '../src/core/achievements.js';
 import { summonCores } from '../src/core/game.js';
 
-const data = indexData(JSON.parse(readFileSync(new URL('../public/data/game-data.json', import.meta.url), 'utf8')));
+const pack = JSON.parse(readFileSync(new URL('../public/data/game-data.json', import.meta.url), 'utf8'));
+pack.orders = JSON.parse(readFileSync(new URL('../public/data/orders.json', import.meta.url), 'utf8')).items || [];
+pack.special = JSON.parse(readFileSync(new URL('../public/data/special.json', import.meta.url), 'utf8'));
+const data = indexData(pack);
 const s = newState(data, 1);
 const BATTLES = +process.argv[2] || 3000;
 let lastReport = 0;
 function spend() {
   while (s.tickets >= 10) summon(s, data, 10);
-  autoTeam(s, data);
-  // gear: pull when rich, equip best (by rarity) to the team
+  // 抽完装备让「一键配队」把命轮 / 密契 / 造物 / 钥令一起排好（和游戏里那颗按钮同一套逻辑）
   if (s.gold > 3000 && s.maxStage > 8) equipPull(s, data, 5);
-  for (const slug of s.team) {
-    const e = (s.gear.equip[slug] ||= {});
-    for (const kind of ['wheel', 'covenant']) {
-      const key = kind === 'wheel' ? 'wheel' : 'cov';
-      if (e[key]) continue;
-      const free = Object.values(s.gear.items).find((it) => it.kind === kind && !Object.values(s.gear.equip).some((x) => x[key] === it.uid));
-      if (free) equipItem(s, data, slug, free.uid);
-    }
-  }
+  autoLoadout(s, data);
   // 升级：碰到 20/40/60… 的突破关卡就先付材料突破，突破不了才算这次花完钱
   for (let guard = 0; guard < 500; guard++) {
     const next = [...s.team].sort((x, y) => s.roster[x].lv - s.roster[y].lv)[0];
