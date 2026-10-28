@@ -4,6 +4,7 @@ import {
 } from '../core/game.js';
 import { REALMS, TYPES, SLOTS, SLOT_ZH, MAX_LV, MAX_STAR, TEAM_SIZE, RARITY_ZH, RARITY_ORDER, GEAR_MAX_LV } from '../core/constants.js';
 import { sound } from './audio.js';
+import { arenaServer } from '../core/arenaApi.js';
 import { lvUpCost, power, skillLevel } from '../core/stats.js';
 import { describeSkill } from '../core/skills.js';
 import { wheelText, relicText, covTheme, gearCost, dismantleValue, MAINSTAT, COV_THEMES } from '../core/gear.js';
@@ -186,6 +187,9 @@ export function settingsPage(app) {
       <label class="snd">背景氛围 <input type="range" min="0" max="100" value="${Math.round(sound.cfg.bgm * 100)}" data-aud="bgm"></label>
       <div class="row">${[['hit', '命中'], ['crit', '暴击'], ['heal', '治疗'], ['shield', '护盾'], ['exalt', '共鸣'], ['win', '胜利'], ['summon', '召唤'], ['ach', '成就']].map(([k, z]) => `<button class="btn sm" data-act="snd-test" data-k="${k}">${z}</button>`).join('')}</div>
       <p class="hint">所有声音均由浏览器实时合成，没有音频文件；首次点击页面后才会发声。命中音色随攻击者界域变化（混沌/血肉/深海/超维）。</p></div>
+    <div class="banner-card"><h3>竞技场服务器</h3>
+      <input type="text" class="wide" placeholder="留空 = 仅人机；例如 http://127.0.0.1:8796" value="${esc(arenaServer.get())}" data-arena-url>
+      <p class="hint">运行 <code>node server/arena-server.js</code> 或部署到自己的服务器后填入地址，即可与其他真人玩家对战（见 README）。注意：切换服务器后名次以服务器记录为准，新服务器上从「未上榜」开始。</p></div>
     <div class="banner-card"><h3>统计</h3><p>战斗 ${st.battles} 场 · 胜利 ${st.wins} · 击杀 ${st.kills} · 累计金币 ${fmt(st.gold)} · 召唤 ${st.pulls} 次 · 最高通关 ${s.maxStage}</p></div>
     <div class="banner-card"><h3>存档</h3>
       <div class="row"><button class="btn" data-act="export">导出存档</button><button class="btn" data-act="import">导入存档</button><button class="btn danger" data-act="reset">重置游戏</button></div>

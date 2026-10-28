@@ -58,7 +58,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   function chooseFoe(u, mode) {
     const foes = foesOf(u);
     if (!foes.length) return null;
-    if (u.side === 'a') {
+    if (u.kit) {
       if (mode === 'foeLow') return foes.reduce((a, b) => (b.hp < a.hp ? b : a));
       if (mode === 'foeRand') return foes[Math.floor(rng() * foes.length)];
       if (strat.target === 'first') return foes[0];
@@ -240,7 +240,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     u.shield = 0;
     for (const k of Object.keys(u.cd)) if (u.cd[k] > 0) u.cd[k]--;
     let slot, sk;
-    if (u.side === 'a') {
+    if (u.kit) {
       slot = chooseAllyCard(u);
       sk = u.kit[slot];
     } else {
@@ -249,7 +249,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       slot = 'Strike';
     }
     push({ k: 'act', who: u.uid, slot, name: sk.name, round, ...(sk.text ? { text: sk.text } : {}), ...(sk.ic ? { ic: sk.ic } : {}) });
-    if (u.side === 'a') {
+    if (u.kit) {
       if (slot === 'Rouse') { u.roused = true; gainGauge(u, 'key', 0); }
       if (slot === 'Exalt') { u.ali = 0; gainGauge(u, 'key', 34); }
       else if (slot === 'OverExalt') { u.key = 0; }

@@ -144,3 +144,15 @@ img.intent{vertical-align:middle;image-rendering:auto}
 .seq{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:4px 0;font-size:12px}.seq span{display:inline-flex;align-items:center;gap:2px;background:#10141d;padding:2px 6px;border-radius:10px}
 .tag.t2{background:#2b3447}.skill small.nums{display:block;color:#9ad1a0}
 .snd{display:flex;align-items:center;gap:10px;margin:6px 0}.snd input[type=range]{flex:1;max-width:260px}
+
+/* ---- M5: weekly boss / realm towers / arena ---- */
+#tabs{overflow-x:auto;scrollbar-width:none}#tabs::-webkit-scrollbar{display:none}
+#tabs button{flex:1 0 auto;min-width:62px;padding:0 8px;white-space:nowrap}
+.banner-card.wk{display:flex;gap:14px;align-items:flex-start}.banner-card.wk>img{width:132px;height:132px;object-fit:cover;border-radius:10px;flex:none}
+.banner-card.rt{border-left:3px solid var(--rc)}
+.opps{display:flex;flex-direction:column;gap:8px;margin:8px 0}
+.opp{display:flex;align-items:center;gap:10px;background:var(--card,#1c2230);border:1px solid #2b3447;border-radius:8px;padding:8px}
+.opp.human{border-color:#c9a24b;box-shadow:0 0 0 1px #c9a24b55}.opp .rk{font-size:20px;font-weight:700;width:56px;text-align:center;color:var(--gold)}
+.opp .ob{flex:1;display:flex;flex-direction:column;gap:3px}.opp small{color:var(--dim)}.oteam{display:flex;gap:4px}.oteam img{width:38px;height:38px;border-radius:6px;object-fit:cover}
+input.wide{width:100%;max-width:420px;background:#10141d;color:inherit;border:1px solid #2b3447;border-radius:6px;padding:6px 8px}
+@media(max-width:560px){.banner-card.wk{flex-direction:column}}

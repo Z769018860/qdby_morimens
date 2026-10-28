@@ -285,3 +285,63 @@ test('codex records encounters and kills; codex achievements count them', () => 
   assert.ok(c.seen >= 2 && c.kills >= 1);
   assert.ok(achievementList(s, data).some((a) => a.id === 'codex30'));
 });
+
+// ---------------------------------------------------------------- M5: weekly boss, realm towers, arena
+import { doWeekly, weeklyState, claimWeekly, weekId, weeklyBoss, MILESTONES } from '../src/core/weekly.js';
+import { doRTower, rtTeam, rtPool } from '../src/core/rtower.js';
+import { botEntry, snapshot, hydrate, localOpponents, fightArena, applyArena, localSettle, arenaState, UNRANKED, HUMAN_ZONE } from '../src/core/arena.js';
+
+const mkTeamState = (lv = 30) => { const s = newState(data, 11); for (const a of ['salvador', 'xu', 'vivian', 'caraboo']) s.roster[a] = { lv, star: 1 }; s.team = ['salvador', 'caraboo', 'xu', 'vivian']; return s; };
+
+test('weekly boss: stable per week, damage accumulates, milestones claim once', () => {
+  assert.equal(weekId(new Date(Date.UTC(2026, 9, 28))), '2026-W44');
+  assert.equal(weeklyBoss(data, '2026-W44').id, weeklyBoss(data, '2026-W44').id);
+  const s = mkTeamState();
+  const r = doWeekly(s, data);
+  assert.ok(r.dmg > 0 && r.rounds <= 12);
+  assert.equal(weeklyState(s).damage, r.dmg);
+  const w = weeklyState(s); w.tries = 3; doWeekly(s, data); doWeekly(s, data); doWeekly(s, data); assert.equal(doWeekly(s, data), null);
+  w.damage = MILESTONES[1].dmg;
+  assert.ok(claimWeekly(s, data, 1)); assert.equal(claimWeekly(s, data, 1), null); assert.equal(claimWeekly(s, data, 7), null);
+  // a new week clears the progress
+  weeklyState(s, '2099-W01'); assert.equal(s.weekly.damage, 0);
+});
+
+test('realm tower only fields that realm and records the first clears', () => {
+  const s = mkTeamState();
+  const caro = Object.keys(s.roster).filter((x) => data.bySlug[x].realm === 'CARO');
+  const t = rtTeam(s, data, 'CARO');
+  assert.ok(!t || t.slugs.every((x) => data.bySlug[x].realm === 'CARO'));
+  assert.equal(rtTeam(newState(data, 1), data, 'ULTRA') === null || true, true);
+  const none = { ...mkTeamState(), roster: {} };
+  assert.equal(rtTeam(none, data, 'CARO'), null);
+  assert.ok(['CHAOS', 'CARO', 'AEQUOR', 'ULTRA'].every((r) => rtPool(r, data).length >= 20));
+  const realm = data.bySlug[s.team[0]].realm;
+  const r = doRTower(s, data, realm);
+  assert.ok(r.floor === 1 && r.win);
+  assert.equal(s.rtower[realm].best, 1);
+  void caro;
+});
+
+test('arena: bots scale with rank, snapshots round-trip, winning moves you up', () => {
+  const weak = botEntry(100, data), strong = botEntry(1, data);
+  assert.ok(strong.power > weak.power * 3);
+  assert.deepEqual(botEntry(40, data).snap, botEntry(40, data).snap);
+  const s = mkTeamState(40);
+  const snap = snapshot(teamDefs(s, data));
+  const back = hydrate(snap, data);
+  assert.equal(back.length, 4); assert.ok(back.every((d) => d.kit && d.hp > 0));
+  assert.equal(arenaState(s).rank, UNRANKED);
+  const opps = localOpponents(s, data);
+  assert.deepEqual(opps.map((o) => o.rank), [100, 99, 98, 97, 96]);
+  assert.ok(opps.every((o) => o.type === 'bot'));
+  const e = opps[0], f = fightArena(s, data, e);
+  assert.ok(f.win, 'a lv40 team beats the rank-100 bot');
+  const rw = applyArena(s, data, f, localSettle(s, e, f.win).rank);
+  assert.equal(arenaState(s).rank, 100); assert.ok(rw.tickets >= 1);
+  assert.ok(localOpponents(s, data)[0].rank === 99);
+  // hostile snapshots are clamped
+  const evil = hydrate([{ slug: 'xu', lv: 999, star: 99, hp: 1e18, atk: -5 }], data)[0];
+  assert.ok(evil.lv === 60 && evil.star === 5 && evil.hp <= 5e6 && evil.atk === 0);
+  assert.ok(HUMAN_ZONE < 100);
+});

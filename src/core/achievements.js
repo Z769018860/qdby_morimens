@@ -8,6 +8,8 @@ const maxedGear = (s) => Object.values(s.gear.items).filter((i) => i.lv >= 10).l
 
 const seenCount = (s) => Object.values(s.codex || {}).filter((c) => c.seen > 0).length;
 const beatenBosses = (s, data) => Object.entries(s.codex || {}).filter(([id, c]) => c.kills > 0 && data?.monById?.[id]?.rank === 'Boss').length;
+const rtSum = (s) => Object.values(s.rtower || {}).reduce((a, t) => a + (t.best || 0), 0);
+const arenaRank = (s) => (s.arena ? Math.max(0, 101 - s.arena.best) : 0);
 export const ACHIEVEMENTS = [
   { id: 'stage10', zh: '雾港初探', desc: '通关第 10 关', cur: (s) => s.maxStage, goal: 10, reward: { tickets: 3 } },
   { id: 'stage20', zh: '蚀刻回廊', desc: '通关第 20 关', cur: (s) => s.maxStage, goal: 20, reward: { tickets: 5 } },
@@ -33,6 +35,13 @@ export const ACHIEVEMENTS = [
   { id: 'codex30', zh: '初识异形', desc: '遭遇 30 种怪物', cur: seenCount, goal: 30, reward: { tickets: 3 } },
   { id: 'codex100', zh: '融蚀图鉴', desc: '遭遇 100 种怪物', cur: seenCount, goal: 100, reward: { tickets: 8, gold: 8000 } },
   { id: 'boss15', zh: '首领猎手', desc: '击败 15 种首领', cur: beatenBosses, goal: 15, reward: { tickets: 8 } },
+  { id: 'week1', zh: '周 Boss 初战', desc: '累计对周 Boss 造成 50000 伤害', cur: (s) => s.weeklyTotal || 0, goal: 50000, reward: { tickets: 3 } },
+  { id: 'week2', zh: '猎首者', desc: '累计对周 Boss 造成 1000000 伤害', cur: (s) => s.weeklyTotal || 0, goal: 1000000, reward: { tickets: 15, gold: 20000 } },
+  { id: 'rt40', zh: '界域行者', desc: '四座属性塔累计通关 40 层', cur: rtSum, goal: 40, reward: { tickets: 6 } },
+  { id: 'rt120', zh: '界域征服者', desc: '四座属性塔累计通关 120 层', cur: rtSum, goal: 120, reward: { tickets: 20, gold: 30000 } },
+  { id: 'arena70', zh: '登上天梯', desc: '竞技场最高名次进入前 70', cur: arenaRank, goal: 31, reward: { tickets: 4 } },
+  { id: 'arena30', zh: '真人区', desc: '竞技场最高名次进入前 30（开始遭遇真人）', cur: arenaRank, goal: 71, reward: { tickets: 10, gold: 10000 } },
+  { id: 'arena1', zh: '天梯之巅', desc: '竞技场登顶第 1 名', cur: arenaRank, goal: 100, reward: { tickets: 30, gold: 50000 } },
   { id: 'trial1', zh: '融灾试炼', desc: '通关任意融灾试炼', cur: trialsCleared, goal: 1, reward: { tickets: 3 } },
   { id: 'trial8', zh: '灾厄猎手', desc: '累计通关 8 个融灾试炼等级', cur: trialsCleared, goal: 8, reward: { tickets: 10 } },
   { id: 'trialS', zh: 'S 级威胁', desc: '通关任意 S 级融灾试炼', cur: (s) => Object.keys(s.trials.cleared).filter((k) => k.endsWith('-S') || k.endsWith('-SS') || k.endsWith('-SSS')).length, goal: 1, reward: { tickets: 12, gold: 10000 } },

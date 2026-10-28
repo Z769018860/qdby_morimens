@@ -47,7 +47,7 @@ export function newState(data, now = Date.now()) {
 export function migrate(s, data) {
   if (!s || typeof s !== 'object') return newState(data);
   const base = newState(data, s.created || Date.now());
-  const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity }, tower: { ...base.tower, ...s.tower }, trials: { cleared: { ...(s.trials?.cleared || {}) } }, ach: { ...s.ach }, codex: { ...s.codex } };
+  const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity }, tower: { ...base.tower, ...s.tower }, trials: { cleared: { ...(s.trials?.cleared || {}) } }, ach: { ...s.ach }, codex: { ...s.codex }, weekly: s.weekly ? { ...s.weekly } : null, rtower: { ...s.rtower }, arena: s.arena ? { ...s.arena } : null };
   m.team = (m.team || []).filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
   if (!m.team.length) m.team = Object.keys(m.roster).slice(0, TEAM_SIZE);
   return m;
@@ -73,7 +73,7 @@ export function allyDef(state, data, slug, teamSlugs = state.team) {
   }
   if (r.star >= 3) bonus.amp += 10;
   const def = {
-    slug, name: a.zh, img: a.portrait, type: a.type, realm: a.realm,
+    slug, name: a.zh, img: a.portrait, type: a.type, realm: a.realm, lv: r.lv, star: r.star,
     hp: Math.round(st.hp * (1 + bonus.hpPct / 100)),
     atk: Math.round(st.atk * (1 + bonus.atkPct / 100)),
     def: Math.round(st.def * (1 + bonus.defPct / 100)),

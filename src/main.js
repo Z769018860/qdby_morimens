@@ -6,13 +6,18 @@ import { TEAM_SIZE } from './core/constants.js';
 import { BattleView } from './ui/battleView.js';
 import * as P from './ui/pages.js';
 import * as P2 from './ui/pages2.js';
+import * as P3 from './ui/pages3.js';
+import { doWeekly, claimWeekly } from './core/weekly.js';
+import { doRTower } from './core/rtower.js';
+import { arenaState, arenaTries, fightArena, applyArena, claimArenaDaily } from './core/arena.js';
+import { arenaServer, loadOpponents, reportResult, loadTop, ensureIdentity } from './core/arenaApi.js';
 import { codexPage, monsterModal } from './ui/codex.js';
 import { sound } from './ui/audio.js';
 import { doTower, doTrial } from './core/challenge.js';
 import { claimAchievement } from './core/achievements.js';
 import { $, $$, fmt, esc, store, toast, closeModal, openModal, showKwPop } from './ui/util.js';
 
-const TABS = [['battle', '战斗'], ['team', '队伍'], ['roster', '唤醒体'], ['gear', '装备'], ['summon', '召唤'], ['challenge', '挑战'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']];
+const TABS = [['battle', '战斗'], ['team', '队伍'], ['roster', '唤醒体'], ['gear', '装备'], ['summon', '召唤'], ['challenge', '挑战'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']];
 
 const app = {
   ui: {}, tab: 'battle',
@@ -66,16 +71,26 @@ export function show(tab) {
   const v = $('#view');
   v.hidden = tab === 'battle';
   if (tab !== 'battle') render();
+  if (tab === 'arena') refreshArena();
   app.refreshTop();
 }
+async function refreshArena() {
+  const o = await loadOpponents(app.state, app.data);
+  app.ui.arena = { ...(app.ui.arena || {}), list: o.opponents, remote: o.remote, error: o.error };
+  app.save();
+  if (app.tab === 'arena') render();
+  loadTop().then((t) => { app.ui.arena.top = t; if (app.tab === 'arena') render(); });
+}
 function render() {
-  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, ach: P2.achievementPage }[app.tab];
+  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, ach: P2.achievementPage }[app.tab];
   if (f) { const y = window.scrollY; $('#view').innerHTML = f(app); window.scrollTo(0, y); }
   app.refreshTop();
 }
 const rerender = () => { app.save(); render(); };
 
 function onChange(e) {
+  if (e.target.matches('[data-arena-name]')) { ensureIdentity(app.state).name = e.target.value.trim().slice(0, 12) || arenaState(app.state).name; app.save(); return; }
+  if (e.target.matches('[data-arena-url]')) { arenaServer.set(e.target.value); toast('竞技场服务器已保存'); return; }
   const au = e.target.closest('[data-aud]');
   if (au) { sound.set(au.dataset.aud, au.type === 'checkbox' ? au.checked : +au.value / 100); if (au.dataset.aud === 'sfx') sound.play('hit'); return; }
   const c = e.target.closest('[data-cf]');
@@ -96,6 +111,30 @@ function onAct(e) {
   if (el.tagName === 'BUTTON' && !['pull', 'epull', 'ach-claim', 'tower-go', 'trial-go', 'lvup', 'lvmax', 'daily', 'snd-test'].includes(a)) sound.play('click');
   switch (a) {
     case 'snd-test': sound.play(el.dataset.k); break;
+    case 'weekly-go': { const r = doWeekly(s, d); if (r) { app.save(); render(); sound.play('win'); P3.weeklyResultModal(app, r); } break; }
+    case 'weekly-claim': { const r = claimWeekly(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`领取成功：召唤券+${r.tickets} 金币+${r.gold}${r.items.length ? ' 装备+1' : ''}`); rerender(); } break; }
+    case 'rt-go': case 'rt-auto': {
+      const out = [];
+      for (let i = 0; i < (a === 'rt-auto' ? 10 : 1); i++) { const r = doRTower(s, d, el.dataset.realm); if (!r) break; out.push(r); if (!r.win) break; }
+      if (out.length) { app.save(); render(); sound.play(out[out.length - 1].win ? 'win' : 'lose'); P3.rtResultModal(app, out); }
+      break;
+    }
+    case 'arena-refresh': refreshArena(); break;
+    case 'arena-daily': { const r = claimArenaDaily(s); if (r) { sound.play('gold'); toast(`每日排名奖励：召唤券+${r.tickets} 金币+${r.gold}`); rerender(); } break; }
+    case 'arena-go': {
+      const ar = app.ui.arena, entry = ar?.list?.find((x) => x.rank === +el.dataset.rank);
+      if (!entry || arenaTries(s) <= 0) break;
+      ensureIdentity(s);
+      const fight = fightArena(s, d, entry);
+      el.disabled = true;
+      reportResult(s, d, entry, fight.win, ar.remote).then((res) => {
+        const rw = applyArena(s, d, fight, res.rank);
+        app.save(); sound.play(fight.win ? 'win' : 'lose');
+        P3.arenaResultModal(app, fight, rw, res.rank);
+        refreshArena();
+      });
+      break;
+    }
     case 'monster': monsterModal(app, el.dataset.id); break;
     case 'codex-more': app.ui.codex.more++; render(); break;
     case 'detail': P.detailModal(app, el.dataset.slug); break;
