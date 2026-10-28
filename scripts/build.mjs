@@ -140,6 +140,8 @@ fs.writeFileSync(path.join(ROOT, 'data/boot.json'), bootJson, 'utf8');
 const h = crypto.createHash('sha1');
 h.update(read(path.join(ROOT, 'css/style.css')));
 h.update(bootJson);
+// 页面 HTML 也算进去：只改文案（比如首页）也要换缓存，否则老访客会先看到旧页面
+for (const b of built) h.update(b.src);
 for (const b of built) if (b.entry) h.update(read(path.join(OUT_JS, b.entry)));
 h.update(read(path.join(SRC, 'sw.js')));
 const stamp = h.digest('hex').slice(0, 10);

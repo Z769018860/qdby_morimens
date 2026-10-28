@@ -4,12 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>忘忘同人小游戏</title>
-<meta name="description" content="《忘却前夜》同人小游戏合集：战报侦探、弥萨格挂机版、忘却前夜死亡调查报告。">
+<meta name="description" content="《忘却前夜》同人小游戏合集：战报侦探、弥萨格挂机版、忘却前夜死亡调查报告。一个账号，全部项目通用。">
 <meta name="theme-color" content="#0e1118">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
 <style>
 /* 这个页面故意做成「零依赖」：没有外部 CSS、没有 JS 模块、没有图片，
-   一个请求就能画完。它是入口页，必须比任何子页面都快。 */
+   一个请求就能画完。它是入口页，必须比任何子页面都快。
+   账号也是同一套思路：读写 localStorage 里的同一个 authUser/authToken，
+   只有点「登录」时才发一次 POST，不回源拉脚本。 */
 :root{
   --bg:#0e1118; --panel:#171c27; --panel2:#1f2635; --line:#2b3448; --text:#e6e9f0;
   --dim:#8a93a8; --accent:#6ea8ff; --gold:#e3b341; --green:#2ea66a; --violet:#a07cff;
@@ -28,9 +30,92 @@ body{
     radial-gradient(760px 380px at 92% 4%, color-mix(in oklab, var(--accent) 18%, transparent), transparent 72%);
   background-repeat:no-repeat;
 }
-.wrap{max-width:1060px; margin:0 auto; padding:48px 20px 40px; min-height:100svh;
+.wrap{max-width:1060px; margin:0 auto; padding:26px 20px 40px; min-height:100svh;
   display:flex; flex-direction:column; justify-content:center}
 
+/* ------------------------------------------------------------ 顶栏账号 */
+.bar{display:flex; align-items:center; justify-content:flex-end; gap:10px; min-height:40px; margin:0 0 22px}
+.acct{position:relative; display:flex; align-items:center; gap:10px}
+.acct .hint{color:var(--dim); font-size:12px}
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  appearance:none; border:1px solid var(--line); background:var(--panel2); color:var(--text);
+  font:inherit; font-size:13px; line-height:1.4; padding:7px 14px; border-radius:9px;
+  cursor:pointer; text-decoration:none; transition:border-color .16s ease, color .16s ease, opacity .16s ease;
+}
+.btn:hover{border-color:var(--accent); color:var(--accent)}
+.btn.primary{
+  background:linear-gradient(100deg, var(--accent), var(--violet));
+  border-color:transparent; color:#fff; font-weight:600;
+}
+.btn.primary:hover{color:#fff; opacity:.9}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.55; cursor:default}
+
+.chip{
+  display:inline-flex; align-items:center; gap:8px; max-width:min(260px,60vw);
+  padding:4px 12px 4px 4px; border-radius:999px; cursor:pointer;
+  background:var(--panel); border:1px solid var(--line); color:var(--text);
+  font:inherit; font-size:13px; transition:border-color .16s ease;
+}
+.chip:hover{border-color:var(--accent)}
+.chip .who{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.chip .caret{color:var(--dim); font-size:10px; transition:transform .16s ease}
+.chip[aria-expanded="true"] .caret{transform:rotate(180deg)}
+.av{display:inline-grid; place-items:center; border-radius:50%; object-fit:cover;
+  background:var(--panel2); border:1px solid var(--line); flex:0 0 auto}
+img.av{border:1px solid var(--line)}
+.av-txt{color:#fff; font-weight:700; font-size:13px;
+  background:linear-gradient(135deg, var(--accent), var(--violet))}
+
+.panel{
+  position:absolute; right:0; top:calc(100% + 10px); z-index:30;
+  width:min(296px, calc(100vw - 32px)); padding:14px;
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  box-shadow:0 26px 48px -26px rgba(8,12,22,.9);
+  display:none;
+}
+.panel.on{display:block; animation:drop .16s ease-out}
+@keyframes drop{from{opacity:0; transform:translateY(-5px)}to{opacity:1; transform:none}}
+.acc-head{display:flex; align-items:center; gap:10px; margin:0 0 12px}
+.acc-head .meta{min-width:0}
+.acc-head .meta b{display:block; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.acc-head .meta span{display:block; font-size:11.5px; color:var(--dim)}
+.stats{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:0 0 10px}
+.stat{background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:7px 6px; text-align:center}
+.stat b{display:block; font-size:16px; line-height:1.3; color:var(--gold)}
+.stat span{font-size:11px; color:var(--dim)}
+.pnote{margin:0 0 8px; font-size:11.5px; line-height:1.55; color:var(--dim)}
+.pacts{display:flex; gap:8px; margin-top:10px}
+.pacts .btn{flex:1}
+
+/* 登录 / 注册弹窗 */
+dialog.auth{
+  width:min(352px, 92vw); padding:0; border:1px solid var(--line); border-radius:16px;
+  background:var(--panel); color:var(--text);
+  box-shadow:0 30px 70px -34px rgba(4,8,16,.85);
+}
+dialog.auth::backdrop{background:rgba(6,9,14,.62)}
+.authbox{padding:16px 18px 16px; display:flex; flex-direction:column; gap:9px}
+.tabs{display:flex; gap:6px}
+.tab{
+  flex:1; padding:6px 0; font:inherit; font-size:13px; cursor:pointer;
+  border:1px solid var(--line); border-radius:9px; background:transparent; color:var(--dim);
+}
+.tab.on{background:var(--panel2); border-color:var(--accent); color:var(--text)}
+.authbox h3{margin:2px 0 0; font-size:15px; font-weight:700}
+.authbox input{
+  width:100%; padding:9px 11px; font:inherit; font-size:14px; color:var(--text);
+  background:var(--bg); border:1px solid var(--line); border-radius:9px;
+}
+.authbox input:focus{outline:none; border-color:var(--accent)}
+.tip{margin:0; min-height:17px; font-size:12px; line-height:1.45; color:var(--gold)}
+.tip.bad{color:#e8695f}
+.authacts{display:flex; gap:8px; margin-top:2px}
+.authacts .btn{flex:1}
+.authnote{margin:0; font-size:11.5px; color:var(--dim); line-height:1.55}
+
+/* ------------------------------------------------------------ 项目卡片 */
 .hero{text-align:center; margin:0 0 34px}
 .kicker{
   margin:0 0 10px; font-size:11px; letter-spacing:.32em; color:var(--dim);
@@ -113,16 +198,34 @@ a.proj:hover .arrow{transform:translateX(3px)}
 }
 .foot a{color:var(--dim)}
 .foot a:hover{color:var(--accent)}
+
+.toast{
+  position:fixed; left:50%; bottom:28px; transform:translateX(-50%); z-index:99;
+  padding:8px 16px; border-radius:10px; font-size:13px;
+  background:var(--panel); border:1px solid var(--line); color:var(--text);
+  box-shadow:0 18px 34px -20px rgba(0,0,0,.8);
+}
+@media (max-width:560px){
+  .bar{margin-bottom:14px}
+  .acct .hint{display:none}
+}
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
 </style>
-<meta name="build" content="2ddf6433c9">
+<meta name="build" content="456403594a">
 </head>
 <body>
 <main class="wrap">
+  <div class="bar">
+    <!-- 账号：未登录是「登录 / 注册」，登录后是头像 + 名字，点开是同步概况。
+         状态直接写在 localStorage 的 zjtt:authUser / zjtt:authToken 里，
+         和 js/auth.js 完全同一份，所以在这里登录 = 所有项目都已登录。 -->
+    <div class="acct" id="acct"></div>
+  </div>
+
   <header class="hero">
     <p class="kicker">Morimens · Fan Works</p>
     <h1>忘忘同人小游戏</h1>
-    <p class="sub">《忘却前夜》同人小游戏合集。挑一个项目进去玩，都是免费的浏览器游戏，不需要注册。</p>
+    <p class="sub">《忘却前夜》同人小游戏合集。挑一个项目进去玩——一个账号，全部项目通用。</p>
     <div class="rule"></div>
   </header>
 
@@ -178,13 +281,373 @@ a.proj:hover .arrow{transform:translateX(3px)}
     <span><a href="about.html">项目说明与素材来源</a></span>
   </footer>
 </main>
+
 <script>
-/* 首页也注册缓存：这样第一次进来之后，子页面的脚本会被后台预缓存，切页就快了 */
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function () {
-    navigator.serviceWorker.register('sw.js').catch(function () {});
-  });
-}
+/* ------------------------------------------------------------------ 首页账号
+   为什么不用 js/auth.js：那个文件要拖进 common/i18n 一串模块，入口页会从
+   1 个请求变成 5 个。所以这里把「登录 / 注册 / 退出」用几十行原生 JS 重写，
+   存的位置、字段、token 格式跟 js/auth.js 的 persist() 完全一致——
+   于是首页登录完，进任何项目都已经处于登录状态，进度也共用一份档案。
+   改 js/auth.js 的 SERVER / DOMAIN、或 persist() 的字段名时，这里要同步。 */
+(function () {
+  var WALINE = 'https://textbox.qingdengbuyi.top';
+  var DOMAIN = 'zjtt.local';
+  var K = {
+    token: 'zjtt:authToken', user: 'zjtt:authUser',
+    doc: 'zjtt:acctDoc', at: 'zjtt:acctAt', pend: 'zjtt:acctPend',
+    ver: 'zjtt:acctVer', obj: 'zjtt:acctObj'
+  };
+
+  var ls = {
+    get: function (k, d) {
+      try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }
+      catch (e) { return d; }
+    },
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+    del: function (k) { try { localStorage.removeItem(k); } catch (e) {} }
+  };
+
+  var user = ls.get(K.user, null);
+  var token = ls.get(K.token, '') || '';
+  if (!user || !token) { user = null; token = ''; }
+  var remote = null;          // 只在内存里放一次云端档案，用来显示，不落盘
+  var closeFlyout = null;     // 当前展开的下拉面板的关闭函数（重绘时换掉，监听只挂一次）
+
+  var root = document.getElementById('acct');
+
+  // 点空白处 / 按 Esc 收起面板：只挂一次，避免每次重绘都加一堆监听
+  document.addEventListener('click', function () { if (closeFlyout) closeFlyout(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && closeFlyout) closeFlyout(); });
+
+  // ------------------------------------------------------------ 小工具
+  function el(tag, cls, txt) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (txt != null) n.textContent = String(txt);
+    return n;
+  }
+  function nfmt(n) {
+    n = Number(n) || 0;
+    return n >= 10000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1) + 'k' : String(n);
+  }
+  function ago(ts) {
+    if (!ts) return '';
+    var d = Date.now() - Number(ts);
+    if (d < 0 || d < 60e3) return '刚刚';
+    if (d < 3600e3) return Math.floor(d / 60e3) + ' 分钟前';
+    if (d < 86400e3) return Math.floor(d / 3600e3) + ' 小时前';
+    if (d < 30 * 86400e3) return Math.floor(d / 86400e3) + ' 天前';
+    return new Date(Number(ts)).toLocaleDateString('zh-CN');
+  }
+  function toast(msg) {
+    var t = el('div', 'toast', msg);
+    document.body.append(t);
+    setTimeout(function () { t.remove(); }, 2200);
+  }
+  function avatarNode(u, size) {
+    var s = size + 'px';
+    if (u && u.avatar) {
+      var img = el('img', 'av');
+      img.src = u.avatar; img.alt = ''; img.width = size; img.height = size;
+      img.style.width = s; img.style.height = s;
+      img.onerror = function () { img.replaceWith(initialNode(u, size)); };
+      return img;
+    }
+    return initialNode(u, size);
+  }
+  function initialNode(u, size) {
+    var s = size + 'px';
+    var n = el('span', 'av av-txt', String((u && u.name) || '?').slice(0, 1).toUpperCase());
+    n.style.width = s; n.style.height = s; n.style.fontSize = Math.round(size * 0.44) + 'px';
+    return n;
+  }
+
+  // ------------------------------------------------------------ 账号接口
+  function enc(name) {
+    var s = String(name || '').trim();
+    return s.indexOf('@') >= 0 ? s : (s.toLowerCase() + '@' + DOMAIN);
+  }
+  function wapi(path, opt) {
+    opt = opt || {};
+    var headers = { Accept: 'application/json' };
+    if (opt.body) headers['Content-Type'] = 'application/json';
+    if (opt.auth !== false && token) headers.Authorization = 'Bearer ' + token;
+    return fetch(WALINE + path, {
+      method: opt.method || 'GET',
+      headers: headers,
+      body: opt.body ? JSON.stringify(opt.body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (j && j.errno) throw new Error(j.errmsg || ('errno ' + j.errno));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return j.data;
+      });
+    });
+  }
+  // 与 js/auth.js 的 persist() 字段一一对应：换页面才认得出是同一个人
+  function persist(u) {
+    if (!u) { ls.set(K.token, ''); ls.set(K.user, null); token = ''; return null; }
+    var mail = u.email || '';
+    var clean = {
+      id: u.objectId, token: u.token, mail: mail,
+      name: u.display_name || mail.replace(new RegExp('@' + DOMAIN + '$', 'i'), ''),
+      avatar: u.avatar || '', url: u.url || '', created: u.createdAt || ''
+    };
+    token = clean.token || '';
+    ls.set(K.token, token);
+    ls.set(K.user, clean);
+    return clean;
+  }
+
+  // 「上次同步」不能沿用上一个账号的，所以清掉时间戳并标记待同步
+  function afterLogin(u) {
+    var clean = persist(u);
+    ls.del(K.at); ls.del(K.ver);
+    ls.set(K.pend, true);
+    return clean;
+  }
+
+  function login(name, pass) {
+    return wapi('/api/token', { method: 'POST', auth: false, body: { email: enc(name), password: pass } })
+      .then(function (u) { return afterLogin(u); });
+  }
+
+  function register(name, pass) {
+    var mail = enc(name);
+    return wapi('/api/user', { method: 'POST', auth: false, body: { email: mail, password: pass, name: name, url: '' } })
+      .then(function () { return wapi('/api/token', { method: 'POST', auth: false, body: { email: mail, password: pass } }); })
+      .then(function (u) {
+        var clean = afterLogin(u);
+        // 昵称偶尔没写进去（display_name 还是邮箱前缀），补一次
+        if (!clean.name || clean.name === mail.replace(new RegExp('@' + DOMAIN + '$', 'i'), '')) {
+          return wapi('/api/user', { method: 'PUT', body: { display_name: String(name).trim() } })
+            .then(function (p) {
+              if (p && p.display_name) clean = persist(Object.assign({}, u, { display_name: p.display_name }));
+              return clean;
+            })
+            .catch(function () { return clean; });
+        }
+        return clean;
+      });
+  }
+
+  // 只在「刚在这页登录」时拉一次：老访客直接用本机镜像，首屏不多一个请求。
+  // 这里只读不写——真正的合并（本机 ↔ 云端）由项目页的 js/account.js 做，
+  // 免得两份逻辑各写一遍、越走越偏。
+  function pullForShow() {
+    if (!token) return Promise.resolve(null);
+    // 跟 js/api.js 一样：设置里改过 apiBase 就用它，否则走同源 /api
+    var base = String(ls.get('apiBase', '') || '').trim().replace(/\/+$/, '') || (location.origin + '/api');
+    return fetch(base + '/account', {
+      headers: { Accept: 'application/json', Authorization: 'Bearer ' + token }
+    }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { remote = (j && j.doc) ? j.doc : null; return remote; })
+      .catch(function () { return null; });
+  }
+
+  // ------------------------------------------------------------ 数字
+  function numbers() {
+    var d = (remote && typeof remote === 'object') ? remote
+      : (ls.get(K.doc, null) || {});
+    if (typeof d !== 'object') d = {};
+    var local = ls.get('zjtt:stats', {}) || {};
+    var st = (d.st && typeof d.st === 'object') ? d.st : local;
+    var mine = Array.isArray(d.mp) ? d.mp.length : (ls.get('zjtt:myPuzzles', []) || []).length;
+    return {
+      cr: Math.max(Number(d.cr) || 0, Number(ls.get('zjtt:credits', 0)) || 0),
+      won: Math.max(Number(st.won) || 0, Number(local.won) || 0),
+      mine: Math.max(Number(mine) || 0, (ls.get('zjtt:myPuzzles', []) || []).length),
+      at: Number(ls.get(K.at, 0)) || 0
+    };
+  }
+
+  // ------------------------------------------------------------ 渲染
+  function render() {
+    root.textContent = '';
+    if (!user) renderGuest(); else renderUser();
+  }
+
+  function renderGuest() {
+    closeFlyout = null;
+    root.append(el('span', 'hint', '一个账号，全部项目通用'));
+    var b = el('button', 'btn primary', '登录 / 注册');
+    b.type = 'button';
+    b.onclick = function () { openAuth('login'); };
+    root.append(b);
+  }
+
+  function renderUser() {
+    var chip = el('button', 'chip');
+    chip.type = 'button';
+    chip.setAttribute('aria-expanded', 'false');
+    chip.setAttribute('aria-label', '账号：' + (user.name || ''));
+    chip.append(avatarNode(user, 28));
+    chip.append(el('span', 'who', user.name || '已登录'));
+    chip.append(el('span', 'caret', '▾'));
+
+    var panel = el('div', 'panel');
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', '账号概况');
+
+    var head = el('div', 'acc-head');
+    head.append(avatarNode(user, 42));
+    var meta = el('div', 'meta');
+    meta.append(el('b', '', user.name || '已登录'));
+    meta.append(el('span', '', '已登录 · 进度跟着账号走'));
+    head.append(meta);
+    panel.append(head);
+
+    var n = numbers();
+    var stats = el('div', 'stats');
+    [['银芯', nfmt(n.cr)], ['胜场', nfmt(n.won)], ['出题', nfmt(n.mine)]].forEach(function (c) {
+      var s = el('div', 'stat');
+      s.append(el('b', '', c[1]), el('span', '', c[0]));
+      stats.append(s);
+    });
+    panel.append(stats);
+
+    panel.append(el('p', 'pnote', n.at
+      ? '上次同步 ' + ago(n.at) + '。进任意项目都会先合并本机进度，再接着存。'
+      : '还没同步过。进任意项目时会自动把本机进度合进这个账号。'));
+    panel.append(el('p', 'pnote', '战报侦探 · 弥萨格挂机版 · 死亡调查报告 共用这一个账号。'));
+
+    var acts = el('div', 'pacts');
+    var go = el('a', 'btn primary', '个人中心');
+    go.href = 'profile.html';
+    var out = el('button', 'btn ghost', '退出');
+    out.type = 'button';
+    out.onclick = logout;
+    acts.append(go, out);
+    panel.append(acts);
+
+    var open = false;
+    function setOpen(v) {
+      open = v;
+      panel.classList.toggle('on', v);
+      chip.setAttribute('aria-expanded', v ? 'true' : 'false');
+    }
+    chip.onclick = function (e) { e.stopPropagation(); setOpen(!open); };
+    panel.onclick = function (e) { e.stopPropagation(); };
+    closeFlyout = function () { if (open) setOpen(false); };
+
+    root.append(chip, panel);
+  }
+
+  function logout() {
+    // 只清「同步凭据」，本机进度（银芯 / 战绩 / 出题）留着，换回这个账号还能并回去
+    [K.user, K.token, K.doc, K.at, K.pend, K.ver, K.obj].forEach(ls.del);
+    user = null; token = ''; remote = null;
+    render();
+    toast('已退出。本机进度还在，换账号登录时会重新合并。');
+  }
+
+  // ------------------------------------------------------------ 登录弹窗
+  function openAuth(mode) {
+    if (user) { location.href = 'profile.html'; return; }
+    mode = mode === 'register' ? 'register' : 'login';
+
+    var uEl = el('input');
+    uEl.type = 'text'; uEl.placeholder = '用户名'; uEl.maxLength = 20;
+    uEl.autocomplete = 'username';
+    var pEl = el('input');
+    pEl.type = 'password'; pEl.placeholder = '密码（至少 6 位）';
+    var p2El = el('input');
+    p2El.type = 'password'; p2El.placeholder = '确认密码'; p2El.autocomplete = 'new-password';
+
+    var tabLogin = el('button', 'tab on', '登录');
+    var tabReg = el('button', 'tab', '注册');
+    tabLogin.type = 'button'; tabReg.type = 'button';
+
+    var title = el('h3', '', '登录后进度跟着账号走');
+    var tip = el('p', 'tip', '');
+    var btn = el('button', 'btn primary');
+    btn.type = 'button';
+    var cancel = el('button', 'btn ghost', '取消');
+    cancel.type = 'button';
+
+    var acts = el('div', 'authacts');
+    acts.append(btn, cancel);
+
+    var box = el('div', 'authbox');
+    var tabs = el('div', 'tabs');
+    tabs.append(tabLogin, tabReg);
+    box.append(tabs, title);
+    box.append(uEl, pEl, p2El, tip, acts);
+    box.append(el('p', 'authnote', '同一个账号在全部项目里通用；忘记密码只能重新注册一个。'));
+
+    var dlg = el('dialog', 'auth');
+    dlg.append(box);
+
+    function setMode(m) {
+      mode = m;
+      tabLogin.classList.toggle('on', m === 'login');
+      tabReg.classList.toggle('on', m === 'register');
+      p2El.hidden = m !== 'register';
+      title.textContent = m === 'login' ? '登录后进度跟着账号走' : '注册一个账号';
+      btn.textContent = m === 'login' ? '登录' : '注册并登录';
+      pEl.autocomplete = m === 'login' ? 'current-password' : 'new-password';
+      tip.className = 'tip';
+      tip.textContent = '';
+    }
+    tabLogin.onclick = function () { setMode('login'); };
+    tabReg.onclick = function () { setMode('register'); };
+    function shut() {
+      if (typeof dlg.close === 'function') dlg.close();
+      dlg.remove();
+    }
+    cancel.onclick = shut;
+
+    function say(msg, bad) {
+      tip.className = bad ? 'tip bad' : 'tip';
+      tip.textContent = msg;
+    }
+
+    btn.onclick = function () {
+      var name = uEl.value.trim();
+      var pass = pEl.value;
+      if (name.length < 2) { say('用户名至少 2 个字符', true); return; }
+      if (name.length > 20) { say('用户名最多 20 个字符', true); return; }
+      if (/[\s@]/.test(name)) { say('用户名不能包含空格或 @', true); return; }
+      if (pass.length < 6) { say('密码至少 6 位', true); return; }
+      if (mode === 'register' && pass !== p2El.value) { say('两次密码不一致', true); return; }
+
+      btn.disabled = true;
+      cancel.disabled = true;
+      say(mode === 'login' ? '登录中…' : '注册中…');
+      var job = mode === 'login' ? login(name, pass) : register(name, pass);
+      job.then(function (clean) {
+        user = clean || ls.get(K.user, null);
+        token = ls.get(K.token, '') || '';
+        shut();
+        render();
+        toast('欢迎，' + ((user && user.name) || name));
+        // 先把云端档案读出来显示（新设备上能立刻看到原来的进度）
+        pullForShow().then(function () { render(); });
+      }).catch(function (e) {
+        var msg = String((e && e.message) || '');
+        if (/already|exist|重复/i.test(msg)) say('这个用户名已被注册，换一个或直接登录', true);
+        else if (/password|密码/i.test(msg)) say('用户名或密码不对', true);
+        else if (/Failed to fetch|NetworkError|offline/i.test(msg)) say('连不上账号服务器，检查网络后重试', true);
+        else say('失败：' + (msg || '未知错误'), true);
+      }).then(function () {
+        btn.disabled = false;
+        cancel.disabled = false;
+      });
+    };
+
+    pEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') btn.click(); });
+    p2El.addEventListener('keydown', function (e) { if (e.key === 'Enter') btn.click(); });
+
+    setMode(mode);
+    document.body.append(dlg);
+    // 极老的浏览器没有 showModal：退化成普通弹层，至少能登录
+    if (typeof dlg.showModal === 'function') dlg.showModal();
+    else dlg.setAttribute('open', '');
+    setTimeout(function () { uEl.focus(); }, 40);
+  }
+
+  render();
+})();
 </script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
