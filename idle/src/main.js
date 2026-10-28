@@ -22,12 +22,32 @@ import { signToday, backfill, claimCum } from './core/signin.js';
 import { buy as shopBuy, SHOP } from './core/shop.js';
 import { signinPage } from './ui/pages4.js';
 import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
+import { startGuide } from './ui/guide.js';
 import { $, $$, fmt, esc, store, toast, closeModal, openModal, showKwPop } from './ui/util.js';
 
-const TABS = [['battle', '战斗'], ['team', '队伍'], ['roster', '唤醒体'], ['gear', '装备'], ['summon', '召唤'], ['challenge', '挑战'], ['signin', '签到'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']];
+/* 底部导航按「功能域」分 5 组。13 个平铺页签在手机上要横滚，一眼看不到全貌，
+   而且签到、设置这类低频页和战斗平起平坐也不合理。组内多页用顶部胶囊二级导航。 */
+const SVG = (d, extra = '') => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}${extra}</svg>`;
+const ICON = {
+  battle: SVG('<path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/>'),
+  team: SVG('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+  summon: SVG('<path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="m19 15 .7 1.8 1.8.7-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/>'),
+  challenge: SVG('<path d="M7 21V9l5-5 5 5v12"/><path d="M4 21h16"/><path d="M10 21v-4h4v4"/>'),
+  more: SVG('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>'),
+};
+
+const GROUPS = [
+  { k: 'battle', zh: '战斗', icon: ICON.battle, tabs: [['battle', '战斗']] },
+  { k: 'team', zh: '养成', icon: ICON.team, tabs: [['team', '队伍'], ['roster', '唤醒体'], ['gear', '装备']] },
+  { k: 'summon', zh: '召唤', icon: ICON.summon, tabs: [['summon', '召唤']] },
+  { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '挑战'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场']] },
+  { k: 'more', zh: '更多', icon: ICON.more, tabs: [['signin', '签到'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']] },
+];
+const GROUP_BY_K = Object.fromEntries(GROUPS.map((g) => [g.k, g]));
+const GROUP_OF = Object.fromEntries(GROUPS.flatMap((g) => g.tabs.map(([k]) => [k, g.k])));
 
 const app = {
-  ui: {}, tab: 'battle',
+  ui: { lastTab: {} }, tab: 'battle',
   save() { this.state.lastSeen = Date.now(); store.write(this.state); },
   itemName(it) { return P.itemDef(this, it).zh + (it.lv ? ` Lv${it.lv}` : ''); },
   refreshTop() {
@@ -48,11 +68,21 @@ async function boot() {
   app.onBattleDone = () => { if (app.tab !== 'battle') app.refreshTop(); };
   const rep = saved ? offlineReport(app.state, app.data) : null;
   show('battle');
-  if (welcomeStatus(app.state, portalUser()).canClaim) setTimeout(() => toast('🎁 注册福利可领取：去「签到」页领取银芯', 4000), 1500);
-  if (!app.state.tutorial) setTimeout(() => P2.tutorial(app, 0, () => { app.state.tutorial = true; app.save(); }), 300);
+  if (welcomeStatus(app.state, portalUser()).canClaim) setTimeout(() => toast('🎁 注册福利可领取：去「更多 → 签到」领取银芯', 4000), 1500);
+  // 引导必须排在离线结算之后：结算弹窗是 z-index 50，引导层是 60，先弹引导会把结算盖住
+  const maybeGuide = () => {
+    if (app.state.guide) return;
+    setTimeout(() => {
+      startGuide(app, (skipped, go) => {
+        app.state.guide = 1; app.state.tutorial = true; app.save();
+        if (go) show(go);
+        else if (!skipped) toast('想再看一遍？设置页有「重看新手引导」', 3500);
+      });
+    }, 420);
+  };
   if (rep && (rep.gold || rep.tickets)) {
-    P.offlineModal(app, rep, () => { claimOffline(app.state, rep); app.save(); app.refreshTop(); toast('已领取离线收益'); app.bv.start(); });
-  } else { claimOffline(app.state, null); app.bv.start(); }
+    P.offlineModal(app, rep, () => { claimOffline(app.state, rep); app.save(); app.refreshTop(); toast('已领取离线收益'); app.bv.start(); maybeGuide(); });
+  } else { claimOffline(app.state, null); app.bv.start(); maybeGuide(); }
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('beforeunload', () => app.save());
   setInterval(() => app.save(), 15000);
@@ -67,20 +97,44 @@ function onVisibility() {
 }
 
 function buildChrome() {
-  $('#tabs').innerHTML = TABS.map(([k, z]) => `<button data-tab="${k}">${z}</button>`).join('');
-  $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) show(b.dataset.tab); });
+  $('#tabs').innerHTML = GROUPS.map((g) => `<button data-group="${g.k}" title="${g.zh}"><i class="ti">${g.icon}</i><span>${g.zh}</span></button>`).join('');
+  $('#tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-group]');
+    if (!b) return;
+    const g = GROUP_BY_K[b.dataset.group];
+    // 回到该组上次停留的页面，比每次都跳回第一页更符合直觉
+    show((app.ui.lastTab || {})[g.k] || g.tabs[0][0]);
+  });
+  $('#subnav').addEventListener('click', (e) => { const b = e.target.closest('[data-sub]'); if (b) show(b.dataset.sub); });
   document.body.addEventListener('click', onAct);
   document.body.addEventListener('change', onChange);
 }
 
 export function show(tab) {
+  if (!GROUP_OF[tab]) tab = 'battle';
+  const prev = app.tab;
   app.tab = tab;
-  $$('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  const gk = GROUP_OF[tab];
+  (app.ui.lastTab ||= {})[gk] = tab;
+  $$('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.group === gk));
+  // 组内不止一页时才出二级导航；单页的组（战斗、召唤）不占这行空间
+  const g = GROUP_BY_K[gk], sub = $('#subnav'), multi = g.tabs.length > 1;
+  sub.hidden = !multi;
+  sub.innerHTML = multi
+    ? g.tabs.map(([k, z]) => `<button data-sub="${k}" class="${k === tab ? 'on' : ''}">${z}</button>`).join('')
+    : '';
   $('#battle').hidden = tab !== 'battle';
   const v = $('#view');
   v.hidden = tab === 'battle';
   if (tab !== 'battle') render();
   if (tab === 'arena') refreshArena();
+  // 切页淡入，避免内容「啪」地整块换掉
+  v.classList.remove('fadein'); void v.offsetWidth; v.classList.add('fadein');
+  if (prev !== tab) {
+    sound.play('nav');
+    // 只有跨组才给触感，组内切二级页太密会发麻
+    if (GROUP_OF[prev] !== gk) navigator.vibrate?.(6);
+  }
   app.refreshTop();
 }
 function refreshArena() {
@@ -157,6 +211,8 @@ function onAct(e) {
     case 'monster': monsterModal(app, el.dataset.id); break;
     case 'codex-more': app.ui.codex.more++; render(); break;
     case 'detail': P.detailModal(app, el.dataset.slug); break;
+    case 'zoom': sound.play('open'); P.artModal(app, el.dataset.slug); break;
+    case 'guide': startGuide(app, () => {}); break;
     case 'lvup': sound.play('lvup'); levelUp(s, el.dataset.slug, +el.dataset.n); app.save(); P.detailModal(app, el.dataset.slug); render(); break;
     case 'lvmax': sound.play('lvup'); levelUpMax(s, el.dataset.slug); app.save(); P.detailModal(app, el.dataset.slug); render(); break;
     case 'pick-slot': {

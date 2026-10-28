@@ -123,7 +123,7 @@ export function detailModal(app, slug) {
   const slotBox = (key, kind, label) => { const it = eq[key] && s.gear.items[eq[key]]; const def = it && itemDef(app, it); return `<div class="eqslot" data-act="equip-slot" data-slug="${slug}" data-kind="${kind}">${def ? `<img src="${img(def.img)}" alt=""><span><b>${esc(def.zh)}</b> Lv${it.lv}<br><small>${esc(itemText(app, it))}</small></span>` : `<span class="empty">＋ ${label}</span>`}</div>`; };
   const cost = r && r.lv < MAX_LV ? lvUpCost(r.lv) : 0;
   const html = `<div class="detail" style="--rc:${R(a).color}">
-    <div class="d-art"><img src="${img(a.card)}" alt=""></div>
+    <div class="d-art"><img src="${img(a.card)}" alt="${esc(a.zh)}立绘" data-act="zoom" data-slug="${slug}" loading="lazy"><span class="zoomhint">点立绘看大图</span></div>
     <div class="d-body"><h3>${esc(a.zh)} <small>${esc(a.en)}</small></h3>
       <div class="tags"><span class="tag" style="background:${R(a).color}">${R(a).zh}</span><span class="tag">${TYPES[a.type].zh}</span><span class="tag ${rarCls(a.rarity)}">${a.rarity === 'Genesis' ? '创生' : a.rarity}</span></div>
       ${r ? `<div class="lv">Lv ${r.lv}/${MAX_LV}　<span class="star">${stars(r.star)}</span></div>` : '<div class="lv dim">尚未获得 · 通过召唤获取</div>'}
@@ -135,6 +135,15 @@ export function detailModal(app, slug) {
       <p class="hint">星级：重复获得同一唤醒体 +1★（每★ 全属性 +8%，3★ 起增伤 +10%）。技能名称与文本取自原作（中文为译文），数值与效果由本作自行设计，与官方无关。</p>
     </div></div>`;
   openModal(html, 'wide');
+}
+
+/* 立绘大图：官方素材原图 240×600，弹窗里按屏幕高度撑满 */
+export function artModal(app, slug) {
+  const a = app.data.bySlug[slug];
+  if (!a) return;
+  const root = openModal(`<div class="art-big"><img src="${img(a.card)}" alt="${esc(a.zh)}立绘"><div class="ab-cap"><b>${esc(a.zh)}</b><small>${esc(a.en)} · ${esc(REALMS[a.realm].zh)}</small></div></div>`, 'art');
+  // 背景压到几乎全黑，让立绘独占视野，不被后面的列表分心
+  root?.classList.add('art-dark');
 }
 
 /* ----------------------------- GEAR ----------------------------- */
@@ -189,6 +198,9 @@ export function settingsPage(app) {
   const st = s.stats;
   const today = new Date().toISOString().slice(0, 10);
   return `<div class="page"><h2>设置与存档</h2>
+    <div class="banner-card"><h3>新手引导</h3>
+      <p class="hint">重新过一遍底部五个分组的介绍（战斗 / 养成 / 召唤 / 挑战 / 更多），随时可跳过。</p>
+      <div class="row"><button class="btn" data-act="guide">重看新手引导</button></div></div>
     <div class="banner-card"><h3>每日奖励</h3><p class="hint">每日奖励已并入「签到」页（月历、累计宝箱、可补签）。</p></div>
     <div class="banner-card"><h3>声音</h3>
       <label class="snd"><input type="checkbox" data-aud="mute" ${sound.cfg.mute ? 'checked' : ''}> 静音</label>

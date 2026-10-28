@@ -79,15 +79,5 @@ export function achievementPage(app) {
 }
 export { claimableCount };
 
-/* ---------- tutorial ---------- */
-const STEPS = [
-  ['欢迎来到忘却之夜', '这是一款全自动的挂机游戏：你的 4 人小队会不停地推关、战斗、掉落。你只需要决定「队伍怎么配」「钱花在哪」。离线时也会累积收益（最多 8 小时）。'],
-  ['养成', '金币用来给唤醒体升级、强化命轮 / 密契 / 造物。重复召唤到同一名唤醒体会提升星级。3 个以上同界域的队员有额外加成。'],
-  ['状态与关键词', '战斗里出现的「中毒、易伤、反击、屏障……」都是原作中的关键词。点一下任何带图标的标签，都能看到它的说明；唤醒体详情里能看到每个技能的原作名称与文本（译文）。'],
-  ['挑战', '推图遇到瓶颈时，去「挑战」页：无限塔每天有 3 次，融灾试炼是真实的融灾首领，威胁等级从 C 到 SSS。奖励的召唤券可以抽新的唤醒体。'],
-];
-export function tutorial(app, i = 0, done) {
-  const [t, body] = STEPS[i];
-  const m = openModal(`<h3>${t}</h3><p>${body}</p><div class="row"><small class="hint">${i + 1}/${STEPS.length}</small><button class="btn gold" data-tut>${i + 1 < STEPS.length ? '下一步' : '开始游戏'}</button></div>`);
-  m.addEventListener('click', (e) => { if (e.target.closest('[data-tut]')) { if (i + 1 < STEPS.length) tutorial(app, i + 1, done); else { m.remove(); done?.(); } } });
-}
+/* 新手引导已迁到 ui/guide.js：改成定位到底部导航各分组的高亮引导，
+   这里不再保留纯文字版，避免两套文案各说各话。 */

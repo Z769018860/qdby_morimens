@@ -52,13 +52,17 @@ class Sound {
   // ---- sound table
   play(name, o = {}) {
     if (this.cfg.mute || !this.ensure() || this.ctx.state !== 'running') return;
-    const now = performance.now(), gap = { hit: 45, crit: 60, dot: 90, heal: 80, shield: 80, buff: 90, debuff: 90, swing: 70, skill: 120, status: 100 }[name] ?? 30;
+    const now = performance.now(), gap = { hit: 45, crit: 60, dot: 90, heal: 80, shield: 80, buff: 90, debuff: 90, swing: 70, skill: 120, status: 100, nav: 90, open: 120 }[name] ?? 30;
     if (now - (this.last[name] || 0) < gap) return;
     this.last[name] = now;
     const fn = this[`s_${name}`];
     if (fn) fn.call(this, o);
   }
   s_click() { this.tone('triangle', 660, 520, 0.05, 0.12); }
+  // 导航：切组时极轻的一声，音量刻意压低，避免翻页翻得烦躁
+  s_nav() { this.tone('sine', 520, 720, 0.07, 0.05); this.noise(0.05, 0.025, { type: 'highpass', f0: 3000, f1: 6000 }); }
+  // 弹窗 / 立绘放大：短促的「展开」感
+  s_open() { this.tone('sine', 420, 900, 0.16, 0.07); this.noise(0.14, 0.035, { type: 'bandpass', f0: 900, f1: 3200, q: 1.4 }); }
   s_swing({ realm } = {}) {
     if (realm === 'AEQUOR') this.noise(0.14, 0.12, { type: 'bandpass', f0: 500, f1: 1600, q: 2 });
     else if (realm === 'ULTRA') this.tone('sine', 900, 300, 0.12, 0.08);
