@@ -4,7 +4,13 @@
 // 一路合到最大级的杜勒赛因；两个杜勒赛因再撞一次会一起消失，换一笔大分。
 // 球堆高过警戒线一段时间就结束。
 //
-// 首屏没有依赖：11 张头像由构建脚本内联成 data URI（js/merge-art.js），
+// 四档难度（简单 / 普通 / 困难 / 癫狂）只动三件事：投放池里大球的比例、
+// 警戒线压在哪儿、越线后还能抢救多久。合成链本身不动 —— 任何难度最终都是
+// 合到杜勒赛因，谁也别想靠选简单档换个更小的终点。
+//
+// 每局结束按分数换银芯（与侦探页同一个钱包 zjtt:credits），难度有倍率。
+//
+// 首屏没有依赖：10 张头像由构建脚本内联成 data URI（js/merge-art.js），
 // 页面只发一个脚本请求。物理是自己写的圆碰撞（位置修正 + 法向冲量，
 // 每帧 2 个子步、3 次松弛），球数最多几十个，手机上也扛得住。
 //
@@ -15,16 +21,47 @@ import { LEVELS } from './merge-art.js';
 const MAX = LEVELS.length - 1;
 const TAU = Math.PI * 2;
 const RATIO = 1.58;                 // 游戏区 高 / 宽
-// 投放池：0~8 级（杜勒赛因只能合出来）。权重按等级递减，越大的球越少见。
-// 早先只放 0~4 级，瓶子根本装不下「合到杜勒」需要的当量（算面积最多爬到 6 级），
-// 玩家体感就是「合着合着突然满了」。放开到 8 级后才够用。
-const SPAWN_W = [10, 9, 8, 7, 6, 1.8, 1.0, 0.5, 0.12];
-const MAX_SPAWN = SPAWN_W.length - 1;
+// 投放上限固定 8 级（诺缔拉）—— 杜勒赛因只能合出来。所有难度都是 9 档权重，
+// 长度一致，G.top / aimY 这些跟着 MAX_SPAWN 算的布局就不会随难度跳。
+const MAX_SPAWN = 8;
 const OPENER = 5;                   // 开局前几颗只出小球，别一上来就塞大球
 const CLEAR_BONUS = 120;            // 两个杜勒赛因一起消失的奖励
-const DANGER_HOLD = 2.0;            // 越线坚持多久算输（秒）
 const SETTLE = 1.4;                 // 刚投下 / 刚合成的球多久之后才参与越线判定
 const WARN_AT = 0.5;                // 球堆顶离警戒线还剩多少屏高就开始「接近」预警
+
+// ------------------------------------------------------------------ 难度
+// w     投放池权重，索引 = 等级（0 = 这个等级永不投放）
+// hold  越线之后还能撑多少秒（短 = 更难）
+// line  警戒线相对瓶口下移多少屏高（大 = 线更低 = 瓶子更矮 = 更难）
+// rand  「随机低阶」每局次数
+// low   随机能摇出的最高等级（含）
+// mul   银芯倍率
+// 简单档把 7、8 级几乎关掉：新手上手时最气人的就是手里凭空接到一颗诺缔拉，
+// 丢下去就占掉五分之一瓶子。
+// 难度主要靠「大球比例」拉开，而不是只靠警戒线 —— 实测警戒线压 2% 屏高，
+// 乱投 320 颗的机器人照样不判负（球一直在被合掉，堆不上去）；真正让人手忙脚乱
+// 的是手里接连来 6~8 级的球，合不掉的直接钉在瓶子里。
+const DIFFS = [
+  { k: 'easy', n: '简单', w: [14, 12, 10, 9, 7, 2, 1, 0.4, 0], hold: 2.6, line: 0.030, rand: 6, low: 4, mul: 0.8, tip: '球小好合，几乎不会输，适合练手' },
+  { k: 'normal', n: '普通', w: [10, 9, 8, 7, 6, 1.8, 1.0, 0.5, 0.12], hold: 1.7, line: 0.050, rand: 5, low: 3, mul: 1, tip: '原始手感' },
+  { k: 'hard', n: '困难', w: [7, 7.5, 8, 7.5, 7, 3.6, 3, 2, 1], hold: 1.2, line: 0.075, rand: 4, low: 3, mul: 1.6, tip: '大球更多，瓶子更矮' },
+  { k: 'frenzy', n: '癫狂', w: [5, 6, 7, 8, 8.5, 5.5, 4.5, 3.2, 2], hold: 0.9, line: 0.095, rand: 3, low: 2, mul: 2.5, tip: '大球满天飞，一次失误就满瓶' },
+];
+const DIFF_OF = Object.fromEntries(DIFFS.map((d) => [d.k, d]));
+
+// 分数 → 银芯的阶梯（普通难度基准，取达到的最高一档）。
+// 上限没封死，但最高档 12000 分已经是「瓶子快满时还在精准消球」的水平。
+const CREDIT_TIERS = [
+  [150, 2], [350, 4], [700, 7], [1200, 11], [1800, 15],
+  [2600, 20], [3600, 26], [5000, 33], [7000, 42], [12000, 55],
+];
+const creditsAt = (score) => {
+  let base = 0;
+  for (const [s, c] of CREDIT_TIERS) if (score >= s) base = c;
+  return base;
+};
+// 下一档还差多少分（够到顶就没有了）
+const nextTier = (score) => CREDIT_TIERS.find(([s]) => score < s) || null;
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d', { alpha: false });
@@ -41,12 +78,17 @@ const G = {
   t: 0,                                       // 世界时间
   balls: [],
   aimX: 0, spawnLv: 0, nextLv: 0, cooldown: 0, drops: 0,
-  score: 0, best: 0, over: false, cleared: false,
+  score: 0, best: 0, bestAll: 0, over: false, cleared: false,
+  diff: 'normal', rands: 0, gain: 0,
   danger: 0, warn: 0, approach: 0, merged: 0, finest: 0, seen: new Set([0]),
   fx: [], texts: [],
   bg: null, tiles: new Map(),
   sound: true, paused: false, started: false,
 };
+// 各难度各自的最高分。HUD 上的「最高」跟着当前难度走 —— 简单档刷出来的分
+// 拿去跟癫狂档比没有意义，那是两个游戏。
+const bestOf = { easy: 0, normal: 0, hard: 0, frenzy: 0 };
+const diffOf = () => DIFF_OF[G.diff] || DIFF_OF.normal;
 const IMG = LEVELS.map((l) => {
   const im = new Image();
   im.decoding = 'async';
@@ -69,9 +111,12 @@ let lastPicks = [];
 function refillBag() {
   const pool = [];
   // 权重放大 4 倍再铺牌：不放大时 0.1 这种小权重会被 round 成 1，
-  // 结果「极稀有的大球」和「普通小球」在袋子里一样多，配置就白写了
-  SPAWN_W.forEach((w, lv) => {
-    for (let i = 0; i < Math.max(1, Math.round(w * 4)); i++) pool.push(lv);
+  // 结果「极稀有的大球」和「普通小球」在袋子里一样多，配置就白写了。
+  // 用 ceil 而不是 round：0.12 × 4 = 0.48 会被 round 成 0，那颗球就彻底消失了；
+  // 权重写 0 则表示这个等级本难度压根不投（简单档关掉 7、8 级就是靠这个）。
+  diffOf().w.forEach((w, lv) => {
+    if (w <= 0) return;
+    for (let i = 0; i < Math.max(1, Math.ceil(w * 4)); i++) pool.push(lv);
   });
   for (let i = pool.length - 1; i > 0; i--) {
     const j = (Math.random() * (i + 1)) | 0;
@@ -149,7 +194,8 @@ function layout() {
   // 投放区只需要刚好放得下「最大那颗可投放的球」——这块留得越多，警戒线就被压得越低，
   // 瓶子能堆的高度越少（以前这里是 2.1 倍半径，白白吃掉五十多像素）
   G.top = Math.max(G.H * 0.10, rad(MAX_SPAWN) * 1.08);
-  G.lineY = G.top + G.H * 0.045;
+  // 警戒线压在哪儿是难度的一部分：困难 / 癫狂把线往下压，瓶子能堆的高度就少一截
+  G.lineY = G.top + G.H * diffOf().line;
 
   // 世界等比缩放：W 和 H 是按比例算出来的，所以只需一个系数
   if (oldW && Math.abs(W / oldW - 1) > 0.004) {
@@ -389,9 +435,12 @@ function step(dt) {
   G.approach = topMost === Infinity ? 0 : clamp(1 - (topMost - G.lineY) / GAP, 0, 1);
 
   G.danger = dan ? G.danger + dt : Math.max(0, G.danger - dt * 2.4);
-  G.warn = clamp(G.danger / DANGER_HOLD, 0, 1);
+  // 越线后能撑多久也是难度：简单档给 2.6 秒，够你连投两颗把塔顶消掉；
+  // 癫狂只有 0.95 秒，看到红线的时候基本已经来不及了
+  const hold = diffOf().hold;
+  G.warn = clamp(G.danger / hold, 0, 1);
   syncWarn();
-  if (G.danger > DANGER_HOLD) gameOver();
+  if (G.danger > hold) gameOver();
 }
 
 // 圆碰撞的位置修正 + 法向冲量 + 切向摩擦。
@@ -585,13 +634,21 @@ function fly(x, y, text, color) {
   G.texts.push({ x: x + jitter, y, text, color, life: 0.85, max: 0.85 });
 }
 
+// 只留一个 toast：切难度、摇随机、合出大球都可能连着弹，
+// 各弹各的会叠成三层互相盖住（连点「随机」五次尤其明显）。
+let toastEl = null;
 function toast(msg) {
+  if (toastEl) toastEl.remove();
   const el = document.createElement('div');
   el.className = 'toast';
   el.textContent = msg;
   document.body.appendChild(el);
+  toastEl = el;
   setTimeout(() => el.classList.add('out'), 1100);
-  setTimeout(() => el.remove(), 1700);
+  setTimeout(() => {
+    el.remove();
+    if (toastEl === el) toastEl = null;
+  }, 1700);
 }
 
 // ------------------------------------------------------------------ 投放
@@ -616,15 +673,45 @@ function drop() {
 function gameOver() {
   if (G.over) return;
   G.over = true;
-  G.danger = DANGER_HOLD;
+  const d = diffOf();
+  G.danger = d.hold;
   clearWarn();
-  if (G.score > G.best) { G.best = G.score; saveBest(G.best); }
+
+  // 纪录：本难度一份（HUD 显示）、全难度一份（账号同步 / 旧存档格式）
+  if (G.score > G.best) {
+    G.best = G.score;
+    bestOf[d.k] = G.score;
+    saveBest(d.k, G.score);
+  }
+  if (G.score > G.bestAll) G.bestAll = G.score;
+
+  // 银芯：按分数取档，再乘难度倍率。先入账再弹结算，刷掉页面也不会丢。
+  const base = creditsAt(G.score);
+  G.gain = Math.round(base * d.mul);
+  if (G.gain > 0) walletAdd(G.gain);
+
   beep(300, 0.16, 'sawtooth', 0.07);
   setTimeout(() => beep(190, 0.42, 'sawtooth', 0.07), 130);
-  document.getElementById('ovk').textContent = '瓶子满了';
+  if (G.gain > 0) setTimeout(() => { beep(660, 0.12, 'sine', 0.045); beep(990, 0.16, 'sine', 0.03); }, 420);
+
+  document.getElementById('ovk').textContent = d.n + '难度 · 瓶子满了';
   document.getElementById('ovs').textContent = G.score;
   document.getElementById('ovd').textContent = summary();
-  document.getElementById('ovb').textContent = '历史最佳 ' + G.best + ' 分';
+  document.getElementById('ovb').textContent =
+    `${d.n}最佳 ${G.best} 分 · 钱包 ${walletGet()} 银芯`;
+
+  // 银芯那一行：拿到了就报数，没拿到就说差多少 —— 空手而归也得知道差几步
+  const cr = document.getElementById('ovc');
+  if (cr) {
+    const nx = nextTier(G.score);
+    // 倍率写进括号里，让玩家看得见「同样是 1800 分，为什么癫狂给得多」
+    const mul = d.mul === 1 ? '' : ` ×${d.mul}`;
+    cr.className = 'cred' + (G.gain > 0 ? ' on' : '');
+    cr.innerHTML = G.gain > 0
+      ? `<b>+${G.gain}</b> 银芯${mul ? `<span>基础 ${base}${mul}</span>` : ''}`
+      : nx ? `再得 <b>${nx[0] - G.score}</b> 分就能换银芯` : '本局没有银芯';
+  }
+
   ov.hidden = false;
   requestAnimationFrame(() => ov.classList.add('on'));
   bsEl.textContent = G.best;
@@ -770,11 +857,13 @@ function loop(now) {
     if (G.score !== G.shown) {
       G.shown = G.score;
       scEl.textContent = G.score;
-      if (G.score > G.best) {          // 最高分实时跟上，不用等结束
+      if (G.score > G.best) {          // 本难度最高分实时跟上，不用等结束
         G.best = G.score;
+        bestOf[G.diff] = G.score;
         bsEl.textContent = G.best;
-        saveBest(G.best);
+        saveBest(G.diff, G.score);
       }
+      if (G.score > G.bestAll) G.bestAll = G.score;
     }
   }
   draw();
@@ -811,6 +900,81 @@ function buildChain() {
   });
 }
 
+// 难度条与「随机低阶」按钮。两个都是本局状态的一部分，所以每次 reset 都要重画。
+function paintDiff() {
+  document.querySelectorAll('#diff [data-diff]').forEach((b) => {
+    const on = b.dataset.diff === G.diff;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+    const d = DIFF_OF[b.dataset.diff];
+    b.title = `${d.n}：${d.tip}；越线 ${d.hold} 秒、银芯 ×${d.mul}、随机 ${d.rand} 次`;
+  });
+}
+
+function paintRand() {
+  const btn = document.getElementById('rand');
+  const n = document.getElementById('randn');
+  if (n) n.textContent = G.rands;
+  if (btn) {
+    const d = diffOf();
+    btn.classList.toggle('out', G.rands <= 0);
+    btn.title = `把手上这颗换成前 ${d.low + 1} 级的随机一颗（X），本局还剩 ${G.rands} 次`;
+  }
+}
+
+// 换难度：投放池、警戒线、越线容忍全变了，旧球留在瓶里没有意义 —— 直接重开一局。
+// 但难度条就在投球区上方，手指往上一滑就可能点到：已经打了几分的时候先要一次确认
+// （3 秒内再点同一个难度才真换），免得一局白打。
+let pendingDiff = null;
+let pendingAt = 0;
+function setDiff(k, force) {
+  if (!DIFF_OF[k] || k === G.diff) return;
+  if (!force && G.score > 0 && !G.over && !(pendingDiff === k && performance.now() - pendingAt < 3000)) {
+    pendingDiff = k;
+    pendingAt = performance.now();
+    toast(`再点一次「${DIFF_OF[k].n}」就重开，这一局会清空`);
+    return;
+  }
+  pendingDiff = null;
+  G.diff = k;
+  G.best = bestOf[k];
+  G.lineY = G.top + G.H * diffOf().line;
+  try { localStorage.setItem('zjtt:merge:diff', k); } catch { /* 无痕模式 */ }
+  paintDiff();
+  reset();
+  toast('已切到' + diffOf().n + '难度');
+}
+
+// 随机低阶：手上卡着一颗诺缔拉（8 级）又不敢丢的时候，用它换一颗小的。
+// 摇出来的等级偏向低阶（LOW_W 递减），并且保证不跟手上这颗重复 ——
+// 点了按钮还拿到同一颗，玩家会以为按钮坏了。
+const LOW_W = [6, 5, 4, 3, 2];
+function pickLow(max) {
+  let tot = 0;
+  for (let i = 0; i <= max; i++) tot += LOW_W[i] || 0;
+  let r = Math.random() * tot;
+  for (let i = 0; i <= max; i++) {
+    r -= LOW_W[i] || 0;
+    if (r <= 0) return i;
+  }
+  return 0;
+}
+
+function reroll() {
+  if (!G.started || G.over) return;
+  const d = diffOf();
+  if (G.rands <= 0) { toast('本局的随机次数用完了'); return; }
+  let lv = pickLow(d.low);
+  if (lv === G.spawnLv) lv = (lv + 1) % (d.low + 1);
+  G.spawnLv = lv;
+  G.rands--;
+  G.seen.add(lv);
+  paintRand();
+  beep(720, 0.07, 'triangle', 0.05);
+  setTimeout(() => beep(940, 0.09, 'sine', 0.03), 55);
+  toast('换成了' + LEVELS[lv].n);
+}
+
 function reset() {
   G.balls = [];
   G.fx = [];
@@ -825,6 +989,10 @@ function reset() {
   G.cooldown = 0;
   G.t = 0;
   G.drops = 0;
+  G.gain = 0;
+  G.rands = diffOf().rand;
+  pendingDiff = null;
+  G.lineY = G.top + G.H * diffOf().line;
   G.seen = new Set([0]);
   G.aimX = G.W / 2;
   resetSpawn();
@@ -842,6 +1010,7 @@ function reset() {
   bsEl.textContent = G.best;
   paintNext();
   paintChain();
+  paintRand();
 }
 
 // ------------------------------------------------------------------ 输入
@@ -871,11 +1040,17 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowLeft') { G.aimX = clamp(G.aimX - G.W * 0.045, 0, G.W); e.preventDefault(); }
   else if (e.key === 'ArrowRight') { G.aimX = clamp(G.aimX + G.W * 0.045, 0, G.W); e.preventDefault(); }
   else if (e.key === ' ' || e.key === 'Enter') { drop(); e.preventDefault(); }
+  else if (e.key === 'x' || e.key === 'X') { reroll(); e.preventDefault(); }
   else if (e.key === 'r' || e.key === 'R') { reset(); }
 });
 
 document.getElementById('again').addEventListener('click', reset);
 document.getElementById('rst').addEventListener('click', () => { reset(); });
+document.getElementById('diff').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-diff]');
+  if (b) setDiff(b.dataset.diff);
+});
+document.getElementById('rand').addEventListener('click', reroll);
 document.getElementById('snd').addEventListener('click', (e) => {
   G.sound = !G.sound;
   e.currentTarget.setAttribute('aria-pressed', G.sound ? 'true' : 'false');
@@ -894,15 +1069,52 @@ window.addEventListener('resize', () => { layout(); });
 window.addEventListener('orientationchange', () => setTimeout(layout, 160));
 
 // ------------------------------------------------------------------ 存档
+// zjtt:merge:best 是「全难度最高分」，不能动 —— js/account.js 的 mergeBest()
+// 读的就是这个键，换名字等于把老玩家的纪录和云端同步一起丢掉。
+// 各难度的单独纪录另外存 zjtt:merge:best:<难度>。
+const BEST_ALL = 'zjtt:merge:best';
+const bestKey = (k) => 'zjtt:merge:best:' + k;
+
 function loadPrefs() {
   try {
-    const b = parseInt(localStorage.getItem('zjtt:merge:best') || '0', 10);
-    if (b > 0) G.best = b;
+    G.bestAll = parseInt(localStorage.getItem(BEST_ALL) || '0', 10) || 0;
+    for (const d of DIFFS) bestOf[d.k] = parseInt(localStorage.getItem(bestKey(d.k)) || '0', 10) || 0;
+    // 旧版只有一个最高分，那时的手感就是现在的普通难度：并进普通档
+    if (G.bestAll > bestOf.normal) bestOf.normal = G.bestAll;
+    const s = localStorage.getItem('zjtt:merge:diff');
+    G.diff = DIFF_OF[s] ? s : 'normal';
+    G.best = bestOf[G.diff];
     G.sound = localStorage.getItem('zjtt:merge:snd') !== '0';
   } catch { /* 无痕模式 */ }
 }
-function saveBest(v) {
-  try { localStorage.setItem('zjtt:merge:best', String(v)); } catch { /* 无痕模式 */ }
+
+function saveBest(k, v) {
+  try {
+    localStorage.setItem(bestKey(k), String(v));
+    const all = parseInt(localStorage.getItem(BEST_ALL) || '0', 10) || 0;
+    if (v > all) localStorage.setItem(BEST_ALL, String(v));
+  } catch { /* 无痕模式 */ }
+}
+
+// ------------------------------------------------------------------ 银芯
+// 和侦探页共用 zjtt:credits。这里不 import js/common.js —— 那一条链
+// （common + i18n + auth + account）有 60 多 KB，为了写一个数字把首屏请求
+// 翻几倍不值当。格式必须和 common.js 的 store.set() 完全一致（JSON.stringify），
+// 否则两边会读到 NaN。
+function walletGet() {
+  try { return Number(JSON.parse(localStorage.getItem('zjtt:credits') || '0')) || 0; }
+  catch { return 0; }
+}
+function walletAdd(n) {
+  if (!(n > 0)) return walletGet();
+  try {
+    const v = Math.max(0, walletGet() + Math.round(n));
+    localStorage.setItem('zjtt:credits', JSON.stringify(v));
+    // 让 account.js 把这笔钱排队推上云。它监听 zjtt:dirty；没登录 / 同步件
+    // 还没载入时没人听，事件白白丢掉，但本机数字是对的。
+    document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: 'credits' }));
+    return v;
+  } catch { return walletGet(); }
 }
 
 // ------------------------------------------------------------------ 账号同步
@@ -923,15 +1135,17 @@ function armSync() {
         return m.pullBest ? m.pullBest() : null;
       })
       .then((b) => {
-        // 云端更高（比如换了台设备）：直接用云端的，并写回本机
-        if (b > G.best) {
-          G.best = b;
-          saveBest(b);
-          bsEl.textContent = G.best;
+        // 云端存的是「全难度最高分」，只有比本机所有难度都高才值得写回来
+        if (b > G.bestAll) {
+          G.bestAll = b;
+          // 旧存档只有一档纪录，那时的手感就是现在的普通难度
+          if (b > bestOf.normal) {
+            bestOf.normal = b;
+            saveBest('normal', b);
+            if (G.diff === 'normal') { G.best = b; bsEl.textContent = b; }
+          }
           if (!G.over) toast('云端的最高分 ' + b + ' 分已同步');
-        }
-        // 本机更高（这局刚破纪录、还没推上去）：趁现在补推一次
-        else if (G.best > 0) flushBest();
+        } else if (G.bestAll > 0) flushBest();   // 本机更高：趁现在补推一次
       })
       .catch(() => { /* 没网、没登录、老浏览器不支持动态 import：一律当单机 */ });
   };
@@ -943,10 +1157,10 @@ function armSync() {
 // 别每涨一分调一次——那会把 localStorage 和接口都刷爆。
 let pushedBest = 0;      // 已经推上去的值，避免一局结束 + 切后台重复推
 function flushBest() {
-  if (!SYNC || !SYNC.pushBest || G.best <= pushedBest) return;
-  pushedBest = G.best;
+  if (!SYNC || !SYNC.pushBest || G.bestAll <= pushedBest) return;
+  pushedBest = G.bestAll;
   try {
-    SYNC.pushBest(G.best);
+    SYNC.pushBest(G.bestAll);
     SYNC.flush();
   } catch { /* 同步失败不影响游戏 */ }
 }
@@ -958,12 +1172,14 @@ function boot() {
   snd.setAttribute('aria-pressed', G.sound ? 'true' : 'false');
   snd.classList.toggle('off', !G.sound);
   buildChain();
+  paintDiff();
   layout();
   reset();
   try {
     if (!localStorage.getItem('zjtt:merge:played')) {
       localStorage.setItem('zjtt:merge:played', '1');
       setTimeout(() => toast('点一下屏幕把头像投下去，两个一样的碰在一起就合成'), 400);
+      setTimeout(() => toast('手上卡着太大的球，就按「随机」换一颗小的'), 3200);
     }
   } catch { /* 无痕模式 */ }
   const ph = document.getElementById('boot');
@@ -974,23 +1190,56 @@ function boot() {
   if (window.__MERGE_TEST__ || /[?&]_test=1\b/.test(location.search)) {
     window.__mergeState = () => G;
     window.__mergeDrop = (x) => { G.aimX = clamp(x, 0, G.W); drop(); };
+    window.__mergeReroll = () => reroll();
+    window.__mergeDiff = (k) => setDiff(k, true);
+    window.__mergeCredits = (s) => creditsAt(s);
+    window.__mergeOver = (s) => { if (s != null) G.score = s; gameOver(); };
+    // 按固定步长推进物理：无头环境里页面失焦后 rAF 会被限流到几 fps，
+    // 实测「真实时间 39 秒、世界时间只走了 11 秒」，拿它测判负完全不可信。
+    // 这里直接同步跑 step()，一局几秒就能算完。
+    window.__mergeTick = (secs) => {
+      const n = Math.max(1, Math.round(secs / STEP));
+      for (let i = 0; i < n && !G.over; i++) {
+        G.t += STEP;
+        step(STEP);
+        // 每 0.1 秒分离一次，贴着真实 rAF 的节奏；整段只分一次的话
+        // 球会叠出几十像素的「假穿透」，测出来的数没法看
+        if (i % 12 === 11) separate(16, 0.3);
+      }
+      separate(20, 0.3);
+      return { over: G.over, danger: +G.danger.toFixed(2), balls: G.balls.length, score: G.score };
+    };
+    // 抽样投放池：临时把 G.drops 顶到开局保护之后，否则前 5 颗全是小球，看不出分布
+    window.__mergeSample = (n) => {
+      const d0 = G.drops;
+      G.drops = 999;
+      resetSpawn();
+      const c = new Array(LEVELS.length).fill(0);
+      for (let i = 0; i < n; i++) c[pickSpawn()]++;
+      G.drops = d0;
+      resetSpawn();
+      return c;
+    };
   }
 }
 
-if (IMG.every((im) => im.complete) && IMG[0].decode) {
-  Promise.all(IMG.map((im) => im.decode().catch(() => {}))).then(boot);
-} else if (IMG[0].decode) {
-  Promise.all(IMG.map((im) => (im.complete ? im.decode().catch(() => {}) : new Promise((r) => {
-    im.onload = im.onerror = r;
-  })))).then(boot);
-} else {
-  let left = IMG.length;
-  IMG.forEach((im) => {
-    const done = () => { if (--left === 0) boot(); };
-    if (im.complete) done();
-    else { im.onload = done; im.onerror = done; }
-  });
-}
+// 头像全是 data URI，正常情况 decode 一两帧就完。但 decode() 在后台标签页、
+// 内存紧张、或者图片已经 complete 而 onload 早错过的情况下，Promise 可能永远
+// 不 resolve —— 页面就卡在「正在载入」里，什么都点不动（实测在无头环境里必现）。
+// 所以这里不把「全部就绪」当硬条件：能等就等，等不到 1.2 秒也照样开局，
+// 顶多第一帧的头像空一下，下一帧 tileFor() 重画就有了。
+let booted = false;
+const start = () => { if (booted) return; booted = true; boot(); };
+
+const readyOne = (im) => new Promise((r) => {
+  if (im.complete) { r(); return; }
+  im.onload = im.onerror = r;
+  if (im.decode) im.decode().then(r, r);
+});
+Promise.race([
+  Promise.all(IMG.map(readyOne)),
+  new Promise((r) => setTimeout(r, 1200)),
+]).then(start, start);
 
 // 载入慢的时候给句话，别让人对着空白等
 setTimeout(() => {

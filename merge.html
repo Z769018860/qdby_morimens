@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>合成大杜勒 · 忘忘同人小游戏</title>
-<meta name="description" content="合成大西瓜的玩法，素材是《忘却前夜》的头像：把校猫小煤球丢进瓶子，两个同级头像相撞就合成下一级，一路合到杜勒赛因。">
+<meta name="description" content="合成大西瓜的玩法，素材是《忘却前夜》的头像：把校猫小煤球丢进瓶子，两个同级头像相撞就合成下一级，一路合到杜勒赛因。四档难度，每局按分数换银芯。">
 <meta name="theme-color" content="#0b0e15">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
 <style>
@@ -86,6 +86,36 @@ canvas#cv{
 #bootText{margin:0}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* ---------------------------------------------------------------- 难度与随机 */
+/* 四档难度只改投放池、警戒线、越线容忍；合成链不变，终点永远是杜勒赛因。
+   「随机」是手里卡了大球时的救命按钮，次数按难度递减。 */
+.diff{display:flex; align-items:center; gap:5px; flex:0 0 auto}
+.diff button{
+  flex:1 1 0; min-width:0; height:29px; padding:0 2px;
+  border:1px solid var(--line); border-radius:999px; background:var(--panel);
+  color:var(--dim); font:inherit; font-size:12px; white-space:nowrap; cursor:pointer;
+  transition:color .15s ease, border-color .15s ease, background .15s ease, transform .1s ease;
+}
+.diff button:active{transform:scale(.96)}
+.diff button.on{
+  color:var(--gold); font-weight:600;
+  border-color:color-mix(in srgb, var(--gold) 58%, var(--line));
+  background:color-mix(in srgb, var(--gold) 13%, var(--panel));
+}
+.diff .rand{
+  flex:0 0 auto; display:flex; align-items:center; gap:4px; padding:0 8px 0 7px;
+  color:var(--gold); border-color:color-mix(in srgb, var(--gold) 40%, var(--line));
+  background:color-mix(in srgb, var(--gold) 8%, var(--panel));
+}
+.diff .rand svg{width:14px; height:14px; display:block; flex:none}
+.diff .rand i{
+  font-style:normal; font-size:10.5px; line-height:15px; min-width:15px; text-align:center;
+  border-radius:999px; padding:0 4px;
+  background:color-mix(in srgb, var(--gold) 26%, transparent);
+}
+.diff .rand.out{color:var(--dim); border-color:var(--line); background:var(--panel); opacity:.5}
+.diff .rand.out i{background:var(--panel2)}
+
 /* ---------------------------------------------------------------- 结算 */
 .ov{
   position:absolute; inset:0; display:grid; place-items:center; padding:16px;
@@ -104,6 +134,10 @@ canvas#cv{
 .card .big b{font-size:40px; line-height:1; font-variant-numeric:tabular-nums; color:#e3b341}
 .card .big span{font-size:12px; color:#8a93a8}
 .card .sub{margin:10px 0 3px; font-size:12.5px; line-height:1.6; color:#c3cad8}
+.card .cred{margin:12px 0 2px; font-size:12px; color:#8a93a8; letter-spacing:.02em}
+.card .cred b{font-size:21px; line-height:1; color:#8a93a8; font-variant-numeric:tabular-nums; margin-right:2px}
+.card .cred span{margin-left:6px; font-size:11px; color:#8a93a8}
+.card .cred.on b{color:#e3b341}
 .card .sub2{margin:0 0 16px; font-size:11.5px; color:#8a93a8}
 .acts{display:flex; gap:8px}
 .btn{
@@ -177,7 +211,7 @@ body.danger canvas#cv{
 .toast.out{opacity:0; transform:translate(-50%,-8px)}
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
 </style>
-<meta name="build" content="e04248f1a2">
+<meta name="build" content="913a0f801d">
 </head>
 <body>
 <div class="app">
@@ -198,6 +232,22 @@ body.danger canvas#cv{
     </button>
   </header>
 
+  <div class="diff" id="diff" role="tablist" aria-label="难度">
+    <button role="tab" data-diff="easy" aria-selected="false">简单</button>
+    <button role="tab" data-diff="normal" aria-selected="true">普通</button>
+    <button role="tab" data-diff="hard" aria-selected="false">困难</button>
+    <button role="tab" data-diff="frenzy" aria-selected="false">癫狂</button>
+    <button class="rand" id="rand" title="把手上这颗换成前几级的随机一颗（X）" aria-label="随机前几级唤醒体">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+        <rect x="3.6" y="3.6" width="16.8" height="16.8" rx="4.2"/>
+        <circle cx="8.6" cy="8.6" r="1.15" fill="currentColor" stroke="none"/>
+        <circle cx="12" cy="12" r="1.15" fill="currentColor" stroke="none"/>
+        <circle cx="15.4" cy="15.4" r="1.15" fill="currentColor" stroke="none"/>
+      </svg>
+      <span>随机</span><i id="randn">5</i>
+    </button>
+  </div>
+
   <main class="stage" id="stage">
     <canvas id="cv" aria-label="合成大杜勒游戏区"></canvas>
     <div id="boot" role="status" aria-live="polite">
@@ -208,6 +258,7 @@ body.danger canvas#cv{
       <div class="card">
         <p class="k" id="ovk">瓶子满了</p>
         <p class="big"><b id="ovs">0</b><span>分</span></p>
+        <p class="cred" id="ovc"></p>
         <p class="sub" id="ovd"></p>
         <p class="sub2" id="ovb"></p>
         <div class="acts">
@@ -242,7 +293,7 @@ body.danger canvas#cv{
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/merge.js?v=e04248f1a2"></script>
+<script type="module" src="js/b/merge.js?v=913a0f801d"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
