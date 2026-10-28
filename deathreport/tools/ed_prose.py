@@ -31,7 +31,7 @@ def remap(txt, num_map, cell_map):
     txt = re.sub(r'\{w:(\d+)\}', lambda m: '{w:%d}' % num_map[int(m.group(1))], txt)
     txt = re.sub(r'\{loc:([A-E]\d)\}', lambda m: '{loc:%s}' % cell_map[m.group(1)], txt)
     return txt
-def build(n, events, cast, main_roster, old, places, overrides, shadow):
+def build(n, events, cast, main_roster, old, places, overrides, shadow, pairs=()):
     HERE = Path(__file__).resolve().parent.parent
     lore = json.loads((HERE / 'data/lore.json').read_text(encoding='utf-8'))
     NUM = {nm: i + 1 for i, nm in enumerate(cast)}
@@ -44,6 +44,9 @@ def build(n, events, cast, main_roster, old, places, overrides, shadow):
     dead_at = {e[2]: i for i, e in enumerate(events)}
     old_blast = {oldnum[e[2]] for e in old.EVENTS if e[3] == 'blast' and e[7].get('sub') != 'demo'}
     out = {}
+    plines = {}
+    for a, b, la, lda, lb, ldb in pairs:
+        plines.setdefault(a, []).append((b, la, lda)); plines.setdefault(b, []).append((a, lb, ldb))
     for idx, (t, cell, v, cause, w, c, how, kw) in enumerate(events):
         name = cast[v - 1]
         if v in overrides: out[v] = overrides[v]; continue
@@ -60,7 +63,12 @@ def build(n, events, cast, main_roster, old, places, overrides, shadow):
         if wk and wk not in (vo, vc): lorel = (lorel + '\n' if lorel else '') + '有人这样形容过我：“' + wk + '”'
         own = f"我把{{it:{v}}}握在手里，掌心全是汗。" if (idx + v) % 3 else f"{{it:{v}}}就放在脚边，我不想再碰它。"
         extra = CATLINE[n] if (idx * 7 + v) % 4 == 0 else (BETLINE if n == 61 and (idx * 7 + v) % 4 == 1 else '')
-        L = [loc, vo, PHASE[n][min(3, idx * 4 // len(events))], cam, own, extra]
+        pl = ''
+        for (pb, la, lda) in plines.get(v, []):
+            if pb == c and how != 'name': continue
+            pl = (lda if dead_at.get(pb, 10**6) < idx else la)
+            if pl: break
+        L = [loc, vo, PHASE[n][min(3, idx * 4 // len(events))], pl, cam, own, extra]
         if cause == 'blast':
             L += [bc, f"“{cnh(hh)}点整，{{loc:{cell}}}区域封锁。”{{sys:00-ZONE}}", ZFEEL[h % len(ZFEEL)], vc]
         elif cause == 'accident':

@@ -27,6 +27,9 @@ def run(n):
         kw2 = dict(kw)
         if 'takes' in kw2: kw2['takes'] = [mapn(x) for x in kw2['takes']]
         forced.append(dict(t=t, cell=oldcell[cell], v=mapn(v), cause=cause, w=mapn(w), c=cc, how=how, kw=kw2))
+    for (t, cell, v, cause, w, c, how, kw) in S.get('new_forced', []):
+        nm = lambda x: 0 if x == 0 else (SHADOW if x == 'N' else NUM[x])
+        forced.append(dict(t=t, cell=cell, v=nm(v), cause=cause, w=nm(w), c=nm(c), how=how, kw=dict(kw)))
     # zones: hourly closings, forced cells close after their last forced event, centre last
     last = {}
     for f in forced: last[f['cell']] = max(last.get(f['cell'], 0), mins(f['t']))
@@ -111,9 +114,18 @@ def run(n):
     out.sort(key=lambda e: mins(e[0]))
     return out, zones, S
 SPECS = {
- 62: dict(seed=62, survivor='图鲁', start='D1 19:00', zone_start='D1 21:00', zone_deaths=14, accidents=3, falls=2, poison_suicides=2, n_kills=0, tail=300, final=None,
+ 62: dict(seed=62, new_forced=[
+  ('D1 22:10', 'A4', '萝坦', 'blunt', '戈利亚', '戈利亚', 'item', {}), ('D1 22:55', 'A4', '戈利亚', 'blunt', 0, '蚀灭·萝坦', 'name', {}),
+  ('D1 22:40', 'D4', '墨菲', 'blunt', '克珀珊特', '克珀珊特', 'name', {}), ('D2 01:20', 'C5', '克珀珊特', 'fall', 0, '希莱斯特', 'name', {}),
+  ('D1 23:40', 'E3', '朵尔', 'slash', '熔毁·朵尔', '熔毁·朵尔', 'name', {}), ('D2 02:50', 'C4', '熔毁·朵尔', 'poison', 0, 0, 'none', dict(suicide=True)),
+  ('D2 03:10', 'B3', '环行·拉蒙娜', 'strangle', '沙耶', '沙耶', 'name', {}), ('D2 05:20', 'B3', '沙耶', 'blunt', '拉蒙娜', '拉蒙娜', 'name', {}), ('D2 05:50', 'B3', '拉蒙娜', 'fall', 0, 0, 'none', {})], survivor='图鲁', start='D1 19:00', zone_start='D1 21:00', zone_deaths=14, accidents=3, falls=2, poison_suicides=2, n_kills=0, tail=300, final=None,
           places={'A1': '售票厅', 'B1': '大剧场', 'C1': '后台', 'D1': '化妆间', 'E1': '布景仓', 'A2': '排练厅', 'B2': '观众席', 'C2': '道具库', 'D2': '乐池', 'E2': '灯光架', 'A3': '门厅', 'B3': '回廊', 'C3': '钟楼门口', 'D3': '锅炉间', 'E3': '服装间', 'A4': '雪地广场', 'B4': '马车棚', 'C4': '花园', 'D4': '冰窖', 'E4': '酒窖', 'A5': '北门', 'B5': '铁路桥', 'C5': '旧工坊', 'D5': '煤堆', 'E5': '墓地入口'}),
- 61: dict(seed=61, survivor='墨菲', start='D1 18:00', zone_start='D1 19:00', zone_deaths=13, accidents=3, falls=2, poison_suicides=2, n_kills=6, tail=0, final='希莱斯特', close_center=True,
+ 61: dict(seed=61, new_forced=[
+  ('D1 18:50', 'A1', '卡斯托尔', 'slash', '波吕克斯', '波吕克斯', 'name', {}), ('D2 01:50', 'A1', '波吕克斯', 'fall', 0, 0, 'none', {}),
+  ('D1 23:55', 'E5', '希洛', 'strangle', 0, 'N', 'trait', {}), ('D2 01:20', 'A2', '莉莉', 'poison', '弥利亚姆', '弥利亚姆', 'item', {}),
+  ('D2 03:40', 'C2', '诞妄·墨菲', 'blunt', 0, '墨菲', 'name', {}),
+  ('D2 01:10', 'D4', '熔毁·朵尔', 'strangle', 0, 'N', 'trait', {}), ('D2 02:10', 'D4', '朵尔', 'poison', 0, 0, 'none', dict(suicide=True)),
+  ('D2 01:40', 'C4', '拉蒙娜', 'strangle', '沙耶', '沙耶', 'name', {}), ('D2 02:40', 'E1', '沙耶', 'fall', 0, 0, 'none', {})], survivor='墨菲', start='D1 18:00', zone_start='D1 19:00', zone_deaths=13, accidents=3, falls=2, poison_suicides=2, n_kills=4, tail=0, final='希莱斯特', close_center=True,
           places={'A1': '灯塔', 'B1': '码头', 'C1': '渔市', 'D1': '船坞', 'E1': '海崖', 'A2': '雾堤', 'B2': '货仓', 'C2': '酒馆', 'D2': '礁石', 'E2': '沙滩', 'A3': '旧教堂', 'B3': '鱼市', 'C3': '港务厅', 'D3': '沉船', 'E3': '防波堤', 'A4': '盐田', 'B4': '修船厂', 'C4': '渔民区', 'D4': '海关', 'E4': '货栈', 'A5': '浅滩', 'B5': '水塔', 'C5': '渡口', 'D5': '暗礁', 'E5': '观潮台'}),
 }
 if __name__ == '__main__':
