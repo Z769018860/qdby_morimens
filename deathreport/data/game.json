@@ -1,0 +1,3300 @@
+{
+ "title": "死亡游戏调查报告",
+ "subtitle": "第六十三次 回溯筛选",
+ "roster": [
+  {
+   "n": 1,
+   "slug": "24",
+   "name": "「24」",
+   "realm": "CHAOS",
+   "role": "ASSAULT",
+   "item": "缄默手套",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_036.webp",
+   "avatar": "assets/avatars/a-15601.webp",
+   "melted": false,
+   "key": "01-C3-01"
+  },
+  {
+   "n": 2,
+   "slug": "agrippa",
+   "name": "阿格里帕",
+   "realm": "CARO",
+   "role": "WARDEN",
+   "item": "祭司权杖",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_069.webp",
+   "avatar": "assets/avatars/a-15600.webp",
+   "melted": false,
+   "key": "20-C1-02"
+  },
+  {
+   "n": 3,
+   "slug": "aigis",
+   "name": "艾继丝",
+   "realm": "CARO",
+   "role": "CHORUS",
+   "item": "守护之手",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_031.webp",
+   "avatar": "assets/avatars/a-15591.webp",
+   "melted": false,
+   "key": "11-B2-03"
+  },
+  {
+   "n": 4,
+   "slug": "alva",
+   "name": "艾尔瓦",
+   "realm": "CHAOS",
+   "role": "WARDEN",
+   "item": "遗落的祭祀刀",
+   "itemClass": "slash",
+   "itemImg": "assets/creation/Icon_Creation_032.webp",
+   "avatar": "assets/avatars/a-15588.webp",
+   "melted": false,
+   "key": "55-C3-04"
+  },
+  {
+   "n": 5,
+   "slug": "aurita",
+   "name": "奥瑞塔",
+   "realm": "AEQUOR",
+   "role": "ASSAULT",
+   "item": "渔叉",
+   "itemClass": "pierce",
+   "itemImg": "assets/creation/Icon_Creation_106.webp",
+   "avatar": "assets/avatars/a-15573.webp",
+   "melted": false,
+   "key": "51-C3-05"
+  },
+  {
+   "n": 6,
+   "slug": "caecus",
+   "name": "凯刻斯",
+   "realm": "AEQUOR",
+   "role": "WARDEN",
+   "item": "重锁",
+   "itemClass": "strangle",
+   "itemImg": "assets/creation/Icon_Creation_060.webp",
+   "avatar": "assets/avatars/a-15594.webp",
+   "melted": false,
+   "key": "26-B3-06"
+  },
+  {
+   "n": 7,
+   "slug": "casiah",
+   "name": "卡茜亚",
+   "realm": "ULTRA",
+   "role": "CHORUS",
+   "item": "锈蚀柳叶刀",
+   "itemClass": "slash",
+   "itemImg": "assets/creation/Icon_Creation_037.webp",
+   "avatar": "assets/avatars/a-15572.webp",
+   "melted": false,
+   "key": "38-C3-07"
+  },
+  {
+   "n": 8,
+   "slug": "castor",
+   "name": "卡斯托尔",
+   "realm": "ULTRA",
+   "role": "WARDEN",
+   "item": "沉重画框",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_118.webp",
+   "avatar": "assets/avatars/a-77923.webp",
+   "melted": false,
+   "key": "02-C3-08"
+  },
+  {
+   "n": 9,
+   "slug": "celeste",
+   "name": "希莱斯特",
+   "realm": "AEQUOR",
+   "role": "CHORUS",
+   "item": "秘典星象仪",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_054.webp",
+   "avatar": "assets/avatars/a-15566.webp",
+   "melted": false,
+   "key": "13-E1-09"
+  },
+  {
+   "n": 10,
+   "slug": "clementine",
+   "name": "克莱门汀",
+   "realm": "ULTRA",
+   "role": "CHORUS",
+   "item": "医生手提箱",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_059.webp",
+   "avatar": "assets/avatars/a-77925.webp",
+   "melted": false,
+   "key": "30-C2-10"
+  },
+  {
+   "n": 11,
+   "slug": "corposant",
+   "name": "克珀珊特",
+   "realm": "AEQUOR",
+   "role": "WARDEN",
+   "item": "☆旧船锚☆",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_141.webp",
+   "avatar": "assets/avatars/a-77922.webp",
+   "melted": false,
+   "key": "03-C4-11"
+  },
+  {
+   "n": 12,
+   "slug": "daffodil",
+   "name": "达芙黛尔",
+   "realm": "ULTRA",
+   "role": "ASSAULT",
+   "item": "旅行阳伞",
+   "itemClass": "pierce",
+   "itemImg": "assets/creation/Icon_Creation_107.webp",
+   "avatar": "assets/avatars/a-15590.webp",
+   "melted": false,
+   "key": "18-B4-12"
+  },
+  {
+   "n": 13,
+   "slug": "doll",
+   "name": "朵尔",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "止血钳",
+   "itemClass": "pierce",
+   "itemImg": "assets/creation/Icon_Creation_073.webp",
+   "avatar": "assets/avatars/a-15570.webp",
+   "melted": false,
+   "key": "52-C4-13"
+  },
+  {
+   "n": 14,
+   "slug": "doresain",
+   "name": "杜勒赛因",
+   "realm": "CARO",
+   "role": "ASSAULT",
+   "item": "古怪钩爪",
+   "itemClass": "slash",
+   "itemImg": "assets/creation/Icon_Creation_077.webp",
+   "avatar": "assets/avatars/a-95786.webp",
+   "melted": false,
+   "key": "37-B4-14"
+  },
+  {
+   "n": 15,
+   "slug": "erica",
+   "name": "艾瑞卡",
+   "realm": "ULTRA",
+   "role": "WARDEN",
+   "item": "白鸦喙",
+   "itemClass": "pierce",
+   "itemImg": "assets/creation/Icon_Creation_072.webp",
+   "avatar": "assets/avatars/a-15603.webp",
+   "melted": false,
+   "key": "46-C4-15"
+  },
+  {
+   "n": 16,
+   "slug": "faint",
+   "name": "菲茵特",
+   "realm": "CARO",
+   "role": "WARDEN",
+   "item": "神经毒素",
+   "itemClass": "poison",
+   "itemImg": "assets/creation/Icon_Creation_029.webp",
+   "avatar": "assets/avatars/a-15577.webp",
+   "melted": false,
+   "key": "04-C2-16"
+  },
+  {
+   "n": 17,
+   "slug": "faros",
+   "name": "法洛思",
+   "realm": "AEQUOR",
+   "role": "CHORUS",
+   "item": "原型电池",
+   "itemClass": "shoot",
+   "itemImg": "assets/creation/Icon_Creation_145.webp",
+   "avatar": "assets/avatars/a-15575.webp",
+   "melted": false,
+   "key": "54-C3-17"
+  },
+  {
+   "n": 18,
+   "slug": "doll-inferno",
+   "name": "熔毁·朵尔",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "锈蚀钢锯",
+   "itemClass": "slash",
+   "itemImg": "assets/creation/Icon_Creation_009.webp",
+   "avatar": "assets/avatars/a-15602.webp",
+   "melted": false,
+   "key": "36-C2-18"
+  },
+  {
+   "n": 19,
+   "slug": "helot-catena",
+   "name": "血链·希洛",
+   "realm": "CARO",
+   "role": "ASSAULT",
+   "item": "活性注射器",
+   "itemClass": "pierce",
+   "itemImg": "assets/creation/Icon_Creation_023.webp",
+   "avatar": "assets/avatars/a-15567.webp",
+   "melted": false,
+   "key": "41-B3-19"
+  },
+  {
+   "n": 20,
+   "slug": "ramona-timeworn",
+   "name": "环行·拉蒙娜",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "水手哨",
+   "itemClass": "strangle",
+   "itemImg": "assets/creation/Icon_Creation_094.webp",
+   "avatar": "assets/avatars/a-15568.webp",
+   "melted": false,
+   "key": "33-C1-20"
+  },
+  {
+   "n": 21,
+   "slug": "goliath",
+   "name": "戈利亚",
+   "realm": "AEQUOR",
+   "role": "ASSAULT",
+   "item": "染血鹅卵石",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_140.webp",
+   "avatar": "assets/avatars/a-15564.webp",
+   "melted": false,
+   "key": "28-C4-21"
+  },
+  {
+   "n": 22,
+   "slug": "hameln",
+   "name": "哈姆林",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "乐团指挥棒",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_162.webp",
+   "avatar": "assets/avatars/a-54117.webp",
+   "melted": false,
+   "key": "14-D3-22"
+  },
+  {
+   "n": 23,
+   "slug": "helot",
+   "name": "希洛",
+   "realm": "CARO",
+   "role": "ASSAULT",
+   "item": "镭射颌骨",
+   "itemClass": "shoot",
+   "itemImg": "assets/creation/Icon_Creation_132.webp",
+   "avatar": "assets/avatars/a-15587.webp",
+   "melted": false,
+   "key": "61-C3-23"
+  },
+  {
+   "n": 24,
+   "slug": "horla",
+   "name": "奥尔拉",
+   "realm": "ULTRA",
+   "role": "CHORUS",
+   "item": "超弦腐血制剂",
+   "itemClass": "poison",
+   "itemImg": "assets/creation/Icon_Creation_139.webp",
+   "avatar": "assets/avatars/a-15583.webp",
+   "melted": false,
+   "key": "32-B3-24"
+  },
+  {
+   "n": 25,
+   "slug": "jenkin",
+   "name": "詹金",
+   "realm": "ULTRA",
+   "role": "ASSAULT",
+   "item": "潜水头盔",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_003.webp",
+   "avatar": "assets/avatars/a-15593.webp",
+   "melted": false,
+   "key": "09-A5-25"
+  },
+  {
+   "n": 26,
+   "slug": "karen",
+   "name": "珈伦",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "哈福德灵药",
+   "itemClass": "poison",
+   "itemImg": "assets/creation/Icon_Creation_067.webp",
+   "avatar": "assets/avatars/a-15571.webp",
+   "melted": false,
+   "key": "39-B3-26"
+  },
+  {
+   "n": 27,
+   "slug": "kathigu-ra",
+   "name": "凯蒂古拉",
+   "realm": "CHAOS",
+   "role": "ASSAULT",
+   "item": "鸽羽扇",
+   "itemClass": "slash",
+   "itemImg": "assets/creation/Icon_Creation_122.webp",
+   "avatar": "assets/avatars/a-77913.webp",
+   "melted": false,
+   "key": "29-A4-27"
+  },
+  {
+   "n": 28,
+   "slug": "leigh",
+   "name": "雷娅",
+   "realm": "CARO",
+   "role": "CHORUS",
+   "item": "刺荨麻背心",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_030.webp",
+   "avatar": "assets/avatars/a-15597.webp",
+   "melted": false,
+   "key": "05-C2-28"
+  },
+  {
+   "n": 29,
+   "slug": "lily",
+   "name": "莉莉",
+   "realm": "CHAOS",
+   "role": "WARDEN",
+   "item": "银色方扣缎带",
+   "itemClass": "strangle",
+   "itemImg": "assets/creation/Icon_Creation_057.webp",
+   "avatar": "assets/avatars/a-15581.webp",
+   "melted": false,
+   "key": "60-C2-29"
+  },
+  {
+   "n": 30,
+   "slug": "liz",
+   "name": "莉兹",
+   "realm": "ULTRA",
+   "role": "ASSAULT",
+   "item": "蛊惑风铃",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_042.webp",
+   "avatar": "assets/avatars/a-15562.webp",
+   "melted": false,
+   "key": "06-E5-30"
+  },
+  {
+   "n": 31,
+   "slug": "lotan",
+   "name": "萝坦",
+   "realm": "CHAOS",
+   "role": "ASSAULT",
+   "item": "诅咒石碑",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_091.webp",
+   "avatar": "assets/avatars/a-15569.webp",
+   "melted": false,
+   "key": "34-C4-31"
+  },
+  {
+   "n": 32,
+   "slug": "miryam",
+   "name": "弥利亚姆",
+   "realm": "AEQUOR",
+   "role": "CHORUS",
+   "item": "可疑的药膏",
+   "itemClass": "poison",
+   "itemImg": "assets/creation/Icon_Creation_051.webp",
+   "avatar": "assets/avatars/a-15582.webp",
+   "melted": false,
+   "key": "31-C5-32"
+  },
+  {
+   "n": 33,
+   "slug": "mouchette",
+   "name": "茉夏",
+   "realm": "CHAOS",
+   "role": "ASSAULT",
+   "item": "魔术手套",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_128.webp",
+   "avatar": "assets/avatars/a-94450.webp",
+   "melted": false,
+   "key": "23-E4-33"
+  },
+  {
+   "n": 34,
+   "slug": "murphy",
+   "name": "墨菲",
+   "realm": "AEQUOR",
+   "role": "WARDEN",
+   "item": "黑烛",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_112.webp",
+   "avatar": "assets/avatars/a-15576.webp",
+   "melted": false,
+   "key": "19-D5-34"
+  },
+  {
+   "n": 35,
+   "slug": "murphy-fauxborn",
+   "name": "诞妄·墨菲",
+   "realm": "AEQUOR",
+   "role": "CHORUS",
+   "item": "变色拘束服",
+   "itemClass": "strangle",
+   "itemImg": "assets/creation/Icon_Creation_025.webp",
+   "avatar": "assets/avatars/a-15589.webp",
+   "melted": false,
+   "key": "50-E2-35"
+  },
+  {
+   "n": 36,
+   "slug": "nautila",
+   "name": "诺缔拉",
+   "realm": "CHAOS",
+   "role": "WARDEN",
+   "item": "深海戒指",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_144_AT.webp",
+   "avatar": "assets/avatars/a-15565.webp",
+   "melted": false,
+   "key": "24-D4-36"
+  },
+  {
+   "n": 37,
+   "slug": "nymphaea",
+   "name": "宁菲亚",
+   "realm": "CHAOS",
+   "role": "ASSAULT",
+   "item": "蝴蝶标本",
+   "itemClass": "pierce",
+   "itemImg": "assets/creation/Icon_Creation_131.webp",
+   "avatar": "assets/avatars/a-15580.webp",
+   "melted": false,
+   "key": "27-D1-37"
+  },
+  {
+   "n": 38,
+   "slug": "ogier",
+   "name": "奥吉尔",
+   "realm": "CHAOS",
+   "role": "WARDEN",
+   "item": "缠丝玛瑙",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_039.webp",
+   "avatar": "assets/avatars/a-15585.webp",
+   "melted": false,
+   "key": "35-D3-38"
+  },
+  {
+   "n": 39,
+   "slug": "pandia",
+   "name": "潘狄娅",
+   "realm": "CHAOS",
+   "role": "ASSAULT",
+   "item": "水晶球",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_183.webp",
+   "avatar": "assets/avatars/a-15560.webp",
+   "melted": false,
+   "key": "07-C3-39"
+  },
+  {
+   "n": 40,
+   "slug": "pickman",
+   "name": "皮克曼",
+   "realm": "CARO",
+   "role": "CHORUS",
+   "item": "渴求的画笔",
+   "itemClass": "pierce",
+   "itemImg": "assets/wheel/Weapon_Mini_SR42.webp",
+   "avatar": "assets/avatars/a-77926.webp",
+   "melted": false,
+   "key": "40-C2-40"
+  },
+  {
+   "n": 41,
+   "slug": "pollux",
+   "name": "波吕克斯",
+   "realm": "ULTRA",
+   "role": "ASSAULT",
+   "item": "巨人之刃",
+   "itemClass": "slash",
+   "itemImg": "assets/wheel/Weapon_Mini_O06.webp",
+   "avatar": "assets/avatars/a-77917.webp",
+   "melted": false,
+   "key": "53-D2-41"
+  },
+  {
+   "n": 42,
+   "slug": "ramona",
+   "name": "拉蒙娜",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "牧羊人的手杖",
+   "itemClass": "blunt",
+   "itemImg": "assets/wheel/Weapon_Mini_SR30.webp",
+   "avatar": "assets/avatars/a-15595.webp",
+   "melted": false,
+   "key": "56-B4-42"
+  },
+  {
+   "n": 43,
+   "slug": "ryker",
+   "name": "莱克",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "勋爵手杖",
+   "itemClass": "blunt",
+   "itemImg": "assets/wheel/Weapon_Mini_SR12.webp",
+   "avatar": "assets/avatars/a-15604.webp",
+   "melted": false,
+   "key": "49-C4-43"
+  },
+  {
+   "n": 44,
+   "slug": "salvador",
+   "name": "萨尔瓦多",
+   "realm": "CARO",
+   "role": "WARDEN",
+   "item": "蓝环毒素",
+   "itemClass": "poison",
+   "itemImg": "assets/wheel/Weapon_Mini_SR35.webp",
+   "avatar": "assets/avatars/a-15599.webp",
+   "melted": false,
+   "key": "57-B3-44"
+  },
+  {
+   "n": 45,
+   "slug": "sanga",
+   "name": "珊",
+   "realm": "AEQUOR",
+   "role": "WARDEN",
+   "item": "引舵之帆",
+   "itemClass": "strangle",
+   "itemImg": "assets/wheel/Weapon_Mini_O09.webp",
+   "avatar": "assets/avatars/a-15592.webp",
+   "melted": false,
+   "key": "25-B1-45"
+  },
+  {
+   "n": 46,
+   "slug": "sorel",
+   "name": "索蕾尔",
+   "realm": "CARO",
+   "role": "ASSAULT",
+   "item": "锡兰红茶",
+   "itemClass": "poison",
+   "itemImg": "assets/creation/Icon_Creation_053.webp",
+   "avatar": "assets/avatars/a-15584.webp",
+   "melted": false,
+   "key": "44-B4-46"
+  },
+  {
+   "n": 47,
+   "slug": "tawil",
+   "name": "塔薇",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "孤羽",
+   "itemClass": "pierce",
+   "itemImg": "assets/wheel/Weapon_Mini_SR39.webp",
+   "avatar": "assets/avatars/a-54116.webp",
+   "melted": false,
+   "key": "15-D3-47"
+  },
+  {
+   "n": 48,
+   "slug": "thais",
+   "name": "泰旖丝",
+   "realm": "CARO",
+   "role": "CHORUS",
+   "item": "骸骨杯盏",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_167.webp",
+   "avatar": "assets/avatars/a-15596.webp",
+   "melted": false,
+   "key": "48-C2-48"
+  },
+  {
+   "n": 49,
+   "slug": "tinct",
+   "name": "汀克特",
+   "realm": "ULTRA",
+   "role": "CHORUS",
+   "item": "精密计时器",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_038.webp",
+   "avatar": "assets/avatars/a-15574.webp",
+   "melted": false,
+   "key": "42-C4-49"
+  },
+  {
+   "n": 50,
+   "slug": "tulu",
+   "name": "图鲁",
+   "realm": "AEQUOR",
+   "role": "ASSAULT",
+   "item": "（融蚀）",
+   "itemClass": "none",
+   "itemImg": null,
+   "avatar": "assets/avatars/a-15563.webp",
+   "melted": true,
+   "key": "10-C3-50"
+  },
+  {
+   "n": 51,
+   "slug": "uvhash",
+   "name": "尤乌哈希",
+   "realm": "CARO",
+   "role": "ASSAULT",
+   "item": "求救信号",
+   "itemClass": "shoot",
+   "itemImg": "assets/creation/Icon_Creation_147.webp",
+   "avatar": "assets/avatars/a-15598.webp",
+   "melted": false,
+   "key": "17-A2-51"
+  },
+  {
+   "n": 52,
+   "slug": "wanda",
+   "name": "旺达",
+   "realm": "ULTRA",
+   "role": "WARDEN",
+   "item": "偶然谬误",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_075.webp",
+   "avatar": "assets/avatars/a-15586.webp",
+   "melted": false,
+   "key": "08-B3-52"
+  },
+  {
+   "n": 53,
+   "slug": "winkle",
+   "name": "温柯尔",
+   "realm": "ULTRA",
+   "role": "WARDEN",
+   "item": "小八音盒",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_096.webp",
+   "avatar": "assets/avatars/a-15579.webp",
+   "melted": false,
+   "key": "12-B2-53"
+  },
+  {
+   "n": 54,
+   "slug": "xu",
+   "name": "徐",
+   "realm": "CARO",
+   "role": "CHORUS",
+   "item": "小黄螺",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_001.webp",
+   "avatar": "assets/avatars/a-125346.webp",
+   "melted": false,
+   "key": "43-C2-54"
+  },
+  {
+   "n": 55,
+   "slug": "vortice",
+   "name": "莫丝",
+   "realm": "AEQUOR",
+   "role": "ASSAULT",
+   "item": "银白差分机",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_146.webp",
+   "avatar": "assets/avatars/a-130901.webp",
+   "melted": false,
+   "key": "47-B3-55"
+  },
+  {
+   "n": 56,
+   "slug": "arachne",
+   "name": "阿拉克涅",
+   "realm": "ULTRA",
+   "role": "CHORUS",
+   "item": "蒙尘缝纫机",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_151.webp",
+   "avatar": "assets/avatars/a-77918.webp",
+   "melted": false,
+   "key": "22-D2-56"
+  },
+  {
+   "n": 57,
+   "slug": "saya",
+   "name": "沙耶",
+   "realm": "CARO",
+   "role": "CHORUS",
+   "item": "怪蛇残蜕",
+   "itemClass": "strangle",
+   "itemImg": "assets/creation/Icon_Creation_083.webp",
+   "avatar": "assets/avatars/a-130226.webp",
+   "melted": false,
+   "key": "16-A1-57"
+  },
+  {
+   "n": 58,
+   "slug": "pontos",
+   "name": "庞托斯",
+   "realm": "AEQUOR",
+   "role": "WARDEN",
+   "item": "辉光沙漏",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_016.webp",
+   "avatar": "assets/avatars/a-141302.webp",
+   "melted": false,
+   "key": "45-D3-58"
+  },
+  {
+   "n": 59,
+   "slug": "lotan-cetarchon",
+   "name": "蚀灭·萝坦",
+   "realm": "CHAOS",
+   "role": "ASSAULT",
+   "item": "苦痛圣腕",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_007.webp",
+   "avatar": "assets/avatars/a-145363.webp",
+   "melted": false,
+   "key": "59-C3-59"
+  },
+  {
+   "n": 60,
+   "slug": "caraboo",
+   "name": "卡拉布",
+   "realm": "CARO",
+   "role": "WARDEN",
+   "item": "哭泣烟斗",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_087.webp",
+   "avatar": "assets/avatars/a-77921.webp",
+   "melted": false,
+   "key": "21-B5-60"
+  },
+  {
+   "n": 61,
+   "slug": "ogier-oathbound",
+   "name": "负誓·奥吉尔",
+   "realm": "CHAOS",
+   "role": "WARDEN",
+   "item": "独行者之徽",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_044.webp",
+   "avatar": "assets/avatars/a-148578.webp",
+   "melted": false,
+   "key": "58-D3-61"
+  },
+  {
+   "n": 62,
+   "slug": "vivian",
+   "name": "薇薇安",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "☆六分仪☆",
+   "itemClass": "pierce",
+   "itemImg": "assets/creation/Icon_Creation_148.webp",
+   "avatar": "assets/avatars/a-151844.webp",
+   "melted": false,
+   "key": "62-C3-62"
+  }
+ ],
+ "places": {
+  "A1": "海蚀断崖",
+  "B1": "盐滩",
+  "C1": "旧码头",
+  "D1": "观星台",
+  "E1": "无名墓园",
+  "A2": "竹林",
+  "B2": "溶洞",
+  "C2": "温室",
+  "D2": "湿地",
+  "E2": "旧锅炉房",
+  "A3": "废弃宿舍",
+  "B3": "图书馆",
+  "C3": "弥萨格钟楼",
+  "D3": "礼堂",
+  "E3": "医务楼",
+  "A4": "果园",
+  "B4": "校猫的窝",
+  "C4": "操场",
+  "D4": "体育馆",
+  "E4": "仓库",
+  "A5": "港湾",
+  "B5": "旧渔村",
+  "C5": "航标塔",
+  "D5": "砂石场",
+  "E5": "雷达站"
+ },
+ "zones": [
+  {
+   "day": 1,
+   "hour": 8,
+   "cell": "E5"
+  },
+  {
+   "day": 1,
+   "hour": 9,
+   "cell": "A5"
+  },
+  {
+   "day": 1,
+   "hour": 10,
+   "cell": "E1"
+  },
+  {
+   "day": 1,
+   "hour": 11,
+   "cell": "A1"
+  },
+  {
+   "day": 1,
+   "hour": 12,
+   "cell": "D5"
+  },
+  {
+   "day": 1,
+   "hour": 13,
+   "cell": "B5"
+  },
+  {
+   "day": 1,
+   "hour": 14,
+   "cell": "E4"
+  },
+  {
+   "day": 1,
+   "hour": 15,
+   "cell": "B1"
+  },
+  {
+   "day": 1,
+   "hour": 16,
+   "cell": "D1"
+  },
+  {
+   "day": 1,
+   "hour": 17,
+   "cell": "A4"
+  },
+  {
+   "day": 1,
+   "hour": 18,
+   "cell": "C5"
+  },
+  {
+   "day": 1,
+   "hour": 19,
+   "cell": "C1"
+  },
+  {
+   "day": 2,
+   "hour": 8,
+   "cell": "A2"
+  },
+  {
+   "day": 2,
+   "hour": 9,
+   "cell": "E2"
+  },
+  {
+   "day": 2,
+   "hour": 10,
+   "cell": "E3"
+  },
+  {
+   "day": 2,
+   "hour": 11,
+   "cell": "B2"
+  },
+  {
+   "day": 2,
+   "hour": 12,
+   "cell": "D2"
+  },
+  {
+   "day": 2,
+   "hour": 13,
+   "cell": "A3"
+  },
+  {
+   "day": 2,
+   "hour": 14,
+   "cell": "D4"
+  },
+  {
+   "day": 2,
+   "hour": 15,
+   "cell": "B4"
+  },
+  {
+   "day": 2,
+   "hour": 16,
+   "cell": "C4"
+  },
+  {
+   "day": 2,
+   "hour": 17,
+   "cell": "B3"
+  },
+  {
+   "day": 2,
+   "hour": 18,
+   "cell": "D3"
+  },
+  {
+   "day": 2,
+   "hour": 19,
+   "cell": "C2"
+  },
+  {
+   "day": 2,
+   "hour": 20,
+   "cell": "C3"
+  }
+ ],
+ "causes": {
+  "blast": "爆炸致死",
+  "slash": "斩击致死",
+  "pierce": "刺击致死",
+  "blunt": "钝击致死",
+  "shoot": "射击致死",
+  "poison": "中毒致死",
+  "strangle": "勒杀致死",
+  "fall": "坠落致死",
+  "accident": "意外死亡"
+ },
+ "records": {
+  "01-C3-01": {
+   "key": "01-C3-01",
+   "dord": 1,
+   "cell": "C3",
+   "num": 1,
+   "name": "「24」",
+   "when": "第1天 07:00",
+   "min": 420,
+   "text": "广播里把规则念完的时候，我们二十四个人——不，是我一个人——同时听见了。\n讲台上蹲着一只黑白相间的猫，尾巴轻轻晃着，爪子压着一个小小的遥控器。\n后排站着阿格里帕和图鲁，两个人都没有出声。\n有人在笑，有人在哭，我身体里的某一个人说：“这只是演示。”\n另一个声音说：“不对，它在看我们。”\n胸口的钥印开始发烫。滴、滴、滴——间隔越来越短。\n我想喊同伴的名字，二十三个名字同时卡在喉咙里。\n光。\n\n[sys]\n-- 检测到钥印启动。关于钥印的说明请参考 [link]00-CHIP[/link] --\n-- 检测到钥印被强制引爆 --\n[/sys]",
+   "refs": [
+    "20-C1-02",
+    "10-C3-50"
+   ],
+   "sys": [
+    "00-CHIP"
+   ]
+  },
+  "02-C3-08": {
+   "key": "02-C3-08",
+   "dord": 2,
+   "cell": "C3",
+   "num": 8,
+   "name": "卡斯托尔",
+   "when": "第1天 07:04",
+   "min": 424,
+   "text": "所有人都在尖叫。「24」倒下的地方只剩一圈焦黑，我却被人流推着撞向讲台。\n人群里我看见艾继丝拉着希莱斯特往门外跑。\n有人从背后抓住我的肩膀。是艾尔瓦，她的眼睛红得吓人，右手那把遗落的祭祀刀的刃口还挂着不知谁的血。\n“对不起，对不起……是你先看我的！”\n我想举起沉重画框挡一挡——那幅沉重的画框根本来不及转过来。\n刀锋从肋下划过去，凉的。\n窗台上的猫舔了舔爪子。我居然在想，这猫的毛真干净。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "01-C3-01",
+    "11-B2-03",
+    "13-E1-09",
+    "55-C3-04"
+   ],
+   "sys": []
+  },
+  "03-C4-11": {
+   "key": "03-C4-11",
+   "dord": 3,
+   "cell": "C4",
+   "num": 11,
+   "name": "克珀珊特",
+   "when": "第1天 07:15",
+   "min": 435,
+   "text": "操场上空荡荡的，我坐在跑道边，把☆旧船锚☆靠在腿旁，想等太阳再高一点。\n钟楼那边还在尖叫，有人喊卡斯托尔被刀砍了，还有人说「24」炸了。\n有人递来一瓶水。“喝点吧，你脸色很差。”是个高大的守护者，笑得很温和。\n我接过来灌了一大口，水里有一股说不出的甜味。\n半分钟后，指尖开始发麻，舌头像被什么咬住了。\n他蹲下来，把一个蓝色圆环形状的小瓶收回口袋——瓶身上刻着蓝环毒素。\n“对不起，我不能死在第一天。”\n呼吸一下一下变轻，我连旁边那只猫的叫声都听不清了。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "02-C3-08",
+    "01-C3-01"
+   ],
+   "sys": []
+  },
+  "04-C2-16": {
+   "key": "04-C2-16",
+   "dord": 4,
+   "cell": "C2",
+   "num": 16,
+   "name": "菲茵特",
+   "when": "第1天 07:30",
+   "min": 450,
+   "text": "温室的玻璃被晨光照得发白。我把神经毒素收进袖袋——别人都把它当成毒药，我只当它是保命的东西。\n雷娅躲在温室最里面的花盆后面，我答应过不告诉任何人。\n朵尔从植物架后面走出来，手里握着止血钳。她问我：“你的药，能借给我吗？”\n我说不能。\n她点点头，像是早就知道答案。止血钳的尖端刺进我的胸口，很细，很准，像她在手术台上做过一千次。\n她伸手摸进我的袖袋，拿走了那瓶药。\n“谢谢。”她说。\n窗外有铃铛声——是不是有猫？\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "05-C2-28",
+    "52-C4-13"
+   ],
+   "sys": []
+  },
+  "05-C2-28": {
+   "key": "05-C2-28",
+   "dord": 5,
+   "cell": "C2",
+   "num": 28,
+   "name": "雷娅",
+   "when": "第1天 07:48",
+   "min": 468,
+   "text": "我躲在温室的花盆后面，听见了菲茵特死去的动静，心跳快得发疼。\n操场方向有人在喊，说克珀珊特被毒死了。\n脚步声靠近。朵尔蹲下来，笑得很客气：“不用怕，我是医生。”\n她递来一支小小的注射器，说里面是镇静剂。我不信，可我的手臂被她抓着。\n针尖刺进皮肤的时候，我才看清标签——神经毒素。刚才那个人带着的毒。\n凉意一路爬到喉咙，视线里只剩玻璃屋顶上的碎光。\n“睡吧。”她说，“这样最不痛。”\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "04-C2-16",
+    "03-C4-11",
+    "52-C4-13"
+   ],
+   "sys": []
+  },
+  "06-E5-30": {
+   "key": "06-E5-30",
+   "dord": 6,
+   "cell": "E5",
+   "num": 30,
+   "name": "莉兹",
+   "when": "第1天 08:00",
+   "min": 480,
+   "text": "雷达站的雷达站天线转得很慢。我躲在控制室里，听着广播：目前已死亡5人。新增的死者：「24」、卡斯托尔、克珀珊特、菲茵特、雷娅。\n无线电里一直只有杂音。昨晚我和尤乌哈希一起检查过这台电台，她说回竹林去找人。\n接着是一段很短的提示音：“八点整，雷达站区域封锁。”\n我愣了一下。我就在雷达站。\n我冲向门口，掌心的汗把门把弄得打滑……\n胸口的钥印开始哔哔作响，一声比一声急。\n为什么我不早点走。我只是想把天线转到能收到外面的方向。\n\n[sys]\n-- 检测到钥印被强制引爆 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "17-A2-51"
+   ],
+   "sys": [
+    "00-ZONE"
+   ]
+  },
+  "07-C3-39": {
+   "key": "07-C3-39",
+   "dord": 7,
+   "cell": "C3",
+   "num": 39,
+   "name": "潘狄娅",
+   "when": "第1天 08:12",
+   "min": 492,
+   "text": "我坐在弥萨格钟楼大厅的台阶上数楼梯，一共四十七级。\n卡斯托尔躺在讲台边，血已经凝成褐色；「24」留下的那一圈焦黑还在冒烟。\n拉蒙娜踩着台阶走上来，手里拄着牧羊人的手杖。她看起来很平静，像在做礼拜。\n“你在这里数什么？”\n“数我们还能活多久。”我说。\n“那我替你数完吧。”\n手杖从下往上抽在我的下颌上，第一下我还听得见骨头的声音，第二下就什么也听不见了。\n她把手杖擦干净，又拄回地上。这个人，好像一直在念祷词。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "02-C3-08",
+    "01-C3-01",
+    "56-B4-42"
+   ],
+   "sys": []
+  },
+  "08-B3-52": {
+   "key": "08-B3-52",
+   "dord": 8,
+   "cell": "B3",
+   "num": 52,
+   "name": "旺达",
+   "when": "第1天 08:40",
+   "min": 520,
+   "text": "我在图书馆的书架间摸索，想找一张这座岛的地图。书架后面传来金属拖地的声音。\n潘狄娅死了——我是从窗外的人群里听说的，说她被一个拿手杖的人打死在钟楼台阶上。\n一条沉重的链子缠上了我的脖子——不是蛮力，是有技巧的一圈，两圈，扣紧。\n我看见链尾挂着一把巨大的锁，刻着重锁。\n身后的人在发抖，却一句话也没说。\n“我必须活下去，”他最后说，“我还有人在等。”\n我抓着书架，几本书掉下来，砸在脚边。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "07-C3-39"
+   ],
+   "sys": []
+  },
+  "09-A5-25": {
+   "key": "09-A5-25",
+   "dord": 9,
+   "cell": "A5",
+   "num": 25,
+   "name": "詹金",
+   "when": "第1天 08:50",
+   "min": 530,
+   "text": "码头的木板比我想象得滑。我戴着潜水头盔——沉得要命，可我总觉得戴着它比较安全。\n从栈桥上能看见旧渔村的渔村，屋顶上坐着一个人——卡拉布，抱着一根烟斗，一动不动。\n我记得港湾九点封锁，想赶在那之前离开。\n我跑得太急，脚下一滑，整个人栽向栈桥外侧的混凝土墩。\n头盔救不了我。头盔甚至让我失去了平衡。\n砰。\n我最后的念头是：这不算是谁杀的吧……这算吗？\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "21-B5-60"
+   ],
+   "sys": [
+    "00-REPORT"
+   ]
+  },
+  "10-C3-50": {
+   "key": "10-C3-50",
+   "dord": 10,
+   "cell": "C3",
+   "num": 50,
+   "name": "图鲁",
+   "when": "第1天 08:55",
+   "min": 535,
+   "text": "我的名字在名册上是糊掉的——他们说那是融蚀。我不在乎。\n八点的广播我听到了：目前已死亡5人。新增的死者：「24」、卡斯托尔、克珀珊特、菲茵特、雷娅。\n钟楼后院，莱克一直跟着我。他戴着手套，手里是勋爵手杖，礼貌地称我“先生”。\n“您太显眼了。”他说，“显眼的人，总是第一批。”\n手杖从侧面抽在我的膝盖，我跪下去，第二下落在后脑。\n我看见拉蒙娜从大厅里走出来，手里的杖还在滴水。\n我听见自己的头骨发出一声很轻的响声，像一颗熟透的果子。\n他把手杖上的血在草地上蹭掉，说了一句：“抱歉。”\n远处有谁在哼一首赞歌，调子很旧很旧，像谁的葬礼。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "49-C4-43",
+    "56-B4-42"
+   ],
+   "sys": []
+  },
+  "11-B2-03": {
+   "key": "11-B2-03",
+   "dord": 11,
+   "cell": "B2",
+   "num": 3,
+   "name": "艾继丝",
+   "when": "第1天 09:22",
+   "min": 562,
+   "text": "溶洞很凉，滴水声像有人在数秒。我靠着岩壁，把守护之手抱在怀里。\n我在洞口遇到过温柯尔，她提着一盏灯，说想去洞里避一避。\n另一个人从水里走出来，肩上扛着一支长长的渔叉。\n“你好，”她说，声音很轻，“我想借点安静。”\n我说洞里很大，可以分你一半。\n渔叉从下往上穿过我的腹部，把我钉在岩壁上。她看起来比我还害怕。\n“对不起。”她又说了一遍，“我必须先活着，才有资格后悔。”\n水还在滴。数到第十七下的时候，我就数不动了。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "12-B2-53"
+   ],
+   "sys": []
+  },
+  "12-B2-53": {
+   "key": "12-B2-53",
+   "dord": 12,
+   "cell": "B2",
+   "num": 53,
+   "name": "温柯尔",
+   "when": "第1天 09:35",
+   "min": 575,
+   "text": "洞里已经有一具尸体——艾继丝被钉在岩壁上，血顺着石缝流进水里。我吓得想跑，却被奥瑞塔叫住了。\n她把那支沾血的渔叉放在地上。“我不杀你，”她说，“你帮我拿着灯。”\n我提灯站着，听她轻声哼着海边的歌。直到我蹲下来系鞋带——\n后脑被人用石头砸了一下。\n不是用渔叉。她说她不想弄脏渔叉。\n灯掉进水里，熄了。我最后看见的是她流着眼泪的侧脸。\n“别怕，”她说，“很快就不疼了。”\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "11-B2-03",
+    "51-C3-05"
+   ],
+   "sys": []
+  },
+  "13-E1-09": {
+   "key": "13-E1-09",
+   "dord": 13,
+   "cell": "E1",
+   "num": 9,
+   "name": "希莱斯特",
+   "when": "第1天 10:00",
+   "min": 600,
+   "text": "我是来墓园看星星的。无名墓园的夜空在白天也看得见——至少我这么相信。\n詹金一早就说要去港湾找船，不知道他现在怎么样了。\n目前已死亡12人。新增的死者：艾继丝、温柯尔。\n“十点整，无名墓园区域封锁。”\n我低头看了看手里的秘典星象仪，那些金属环正对准一颗并不存在的星。\n没有人告诉我，封锁是这么安静的事。\n胸口一热，一热，再一热。\n我最后念了一遍星座的名字……我只记得三个。\n\n[sys]\n-- 检测到钥印被强制引爆 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "09-A5-25"
+   ],
+   "sys": [
+    "00-ZONE"
+   ]
+  },
+  "14-D3-22": {
+   "key": "14-D3-22",
+   "dord": 14,
+   "cell": "D3",
+   "num": 22,
+   "name": "哈姆林",
+   "when": "第1天 10:20",
+   "min": 620,
+   "text": "礼堂的舞台幕布是红的，我坐在幕布下的阴影里，挥着乐团指挥棒，假装在指挥一支看不见的乐队。\n我是跟着塔薇来礼堂的，她说这里有一架旧钢琴。\n一个女人走进来，端着一件粗笨的枪形装置，侧面刻着原型电池。\n“你在做什么？”\n“排练。”\n“排给谁看？”\n“给死去的人。”\n她笑了一下，说：“那我替他们鼓掌。”\n两声。胸口像被谁用拳头重重打了一下，音符全部散了。\n幕布缓缓落下，把她的背影也遮住了。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "15-D3-47"
+   ],
+   "sys": []
+  },
+  "15-D3-47": {
+   "key": "15-D3-47",
+   "dord": 15,
+   "cell": "D3",
+   "num": 47,
+   "name": "塔薇",
+   "when": "第1天 10:45",
+   "min": 645,
+   "text": "枪声是从礼堂传出来的，我想去看看有没有人需要帮忙——我是辅助型的，我擅长帮忙。\n门里站着法洛思，手里端着那件刻着原型电池的枪形装置，她面前躺着哈姆林。\n“不要过来。”她说，“我已经没办法停下来了。”\n我举起孤羽，那支羽毛似的东西对着她，想让她看到我没有恶意。\n“对不起。”\n两声。第一声打碎了羽毛，第二声打在我胸口。\n她哭得比我还大声，说“我想回去”，说了很多遍。\n我听着，觉得这件事比死还难受。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "54-C3-17",
+    "14-D3-22"
+   ],
+   "sys": []
+  },
+  "16-A1-57": {
+   "key": "16-A1-57",
+   "dord": 16,
+   "cell": "A1",
+   "num": 57,
+   "name": "沙耶",
+   "when": "第1天 10:50",
+   "min": 650,
+   "text": "海蚀断崖的悬崖风很大。我站在栏杆外，把怪蛇残蜕缠在手腕上。\n莉兹死在雷达站时，我在崖上都听得见爆炸声。\n我不是被谁推下去的。我已经想了一路了。\n如果最后只剩一个人，我就必然是被杀的那一个，所以不如先选。\n十点的爆炸是墓园方向——希莱斯特，大概是她。\n风把头发吹进嘴里，海是一整块发亮的蓝。\n十一点封锁——我不想让它来替我决定结局。\n我松开了手。\n坠落的时候，我只觉得，原来天空会这么安静。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "06-E5-30",
+    "13-E1-09"
+   ],
+   "sys": [
+    "00-REPORT"
+   ]
+  },
+  "17-A2-51": {
+   "key": "17-A2-51",
+   "dord": 17,
+   "cell": "A2",
+   "num": 51,
+   "name": "尤乌哈希",
+   "when": "第1天 11:20",
+   "min": 680,
+   "text": "竹林的竹子被风吹得哗哗响，我躲在里面，手里攥着求救信号——我的信号发射器，谁都不知道。\n我是从海边一路逃过来的。珊说盐滩那边有船，可我不敢去。\n有人一直在竹林里跟着我——杜勒赛因。他的手里是一只古怪钩爪，钩尖在日光里闪着一道细线。\n“把东西给我，我留你一口气。”\n我扣下扳机……什么也没射出来，我忘了装信号弹。\n钩爪从我的肋间划过去，肚子被剖开了。\n他把那支信号枪拿走，擦了擦，别在腰上。“谢谢。”\n竹叶一片一片落下来，盖在我脸上。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "25-B1-45",
+    "37-B4-14"
+   ],
+   "sys": []
+  },
+  "18-B4-12": {
+   "key": "18-B4-12",
+   "dord": 18,
+   "cell": "B4",
+   "num": 12,
+   "name": "达芙黛尔",
+   "when": "第1天 11:50",
+   "min": 710,
+   "text": "校猫的窝的屋檐下堆着猫碗和纸箱，我躲进去的时候，里面有一只黑猫，正盯着我。\n崖那边传来过一声很长的坠落声，后来我才知道那是沙耶。\n“嘘，”我对它说，“别叫。”\n它没叫，只是静静看着。\n有人从背后绕过来，一条缎带一圈一圈绕上我的脖子——银色，方扣，亮得不合时宜，扣面上刻着银色方扣缎带。\n我挣扎着去摸旅行阳伞，那把阳伞的尖端戳到了地面，什么也没碰到。\n猫还在看，眼睛像两颗磨亮的铜币。\n它没有一点想救我的意思。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "16-A1-57"
+   ],
+   "sys": []
+  },
+  "19-D5-34": {
+   "key": "19-D5-34",
+   "dord": 19,
+   "cell": "D5",
+   "num": 34,
+   "name": "墨菲",
+   "when": "第1天 12:00",
+   "min": 720,
+   "text": "我在砂石场找一块能挡风的石头。目前已死亡18人。新增的死者：尤乌哈希、达芙黛尔。\n卡拉布路过时分给我一块饼干，说他要去渔村看看海。\n“十二点整，砂石场区域封锁。”\n又是这个声音。我想起上一次——不，是另一次——也有人这样说过。\n我记得另一个我，穿着灰色的衣服，在别的地方喊我的名字。\n是诞妄·墨菲吗？我分不清是我在回忆她，还是她在回忆我。\n胸口的钥印红了。……我没有跑。\n\n[sys]\n-- 检测到钥印被强制引爆 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "21-B5-60",
+    "50-E2-35"
+   ],
+   "sys": [
+    "00-ZONE"
+   ]
+  },
+  "20-C1-02": {
+   "key": "20-C1-02",
+   "dord": 20,
+   "cell": "C1",
+   "num": 2,
+   "name": "阿格里帕",
+   "when": "第1天 12:30",
+   "min": 750,
+   "text": "旧码头的旧码头堆满生锈的缆绳。我扛着祭司权杖，沿着栈桥一路往前走。\n墨菲死在砂石场，爆炸声我听得很清楚。\n身后有手杖敲地的声音。笃、笃、笃。\n“先生，您太显眼了。”\n是那个戴手套的绅士，手里的勋爵手杖还带着深色的污渍——我认得那种污渍，早晨我在钟楼后院看到过一个倒在地上的人。图鲁？\n我回过身，把权杖横在身前。\n杖头敲在权杖上，火花，然后是一声闷响——不是权杖断了，是我的手腕。\n第二下，我什么都不用想了。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "19-D5-34",
+    "10-C3-50"
+   ],
+   "sys": []
+  },
+  "21-B5-60": {
+   "key": "21-B5-60",
+   "dord": 21,
+   "cell": "B5",
+   "num": 60,
+   "name": "卡拉布",
+   "when": "第1天 12:50",
+   "min": 770,
+   "text": "旧渔村的房顶早就烂了。我抱着哭泣烟斗，想爬上去看看海。\n砂石场的爆炸一下子把渔村的鸽子全惊飞了——墨菲大概就是在那边。\n瓦片滑了。我本来能抓住房梁，可是烟斗掉了，我伸手去接。\n人是有意思的，到了这一刻，还是舍不得一根烟斗。\n我从三米高的屋檐上栽下去，后脑磕在一块断了的船桨上。\n没有人推我，没有人追我。我是自己摔死的。\n十三点整，旧渔村封锁——我还差十分钟就被炸死，现在好了，用不着了。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "19-D5-34"
+   ],
+   "sys": [
+    "00-REPORT"
+   ]
+  },
+  "22-D2-56": {
+   "key": "22-D2-56",
+   "dord": 22,
+   "cell": "D2",
+   "num": 56,
+   "name": "阿拉克涅",
+   "when": "第1天 13:25",
+   "min": 805,
+   "text": "湿地的水很浅，却黏得像血。我在芦苇间织网——是的，织网，用我的线，用我的针，织一张能让人暂时看不见我的网。\n卡拉布的死讯我是从芦苇丛里听来的：有人在渔村的屋檐下摔得很惨。\n波吕克斯站在岸上，扛着一把几乎和他等高的大刀，刃口上写着巨人之刃。\n“这么大的网，应该也能拦住刀吧。”\n“不能。”他很老实地回答。\n刀光从上到下，网断了，我也断了。\n他看着断开的线，轻声说了一句：“对不起，你织得很好看。”\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "21-B5-60",
+    "53-D2-41"
+   ],
+   "sys": []
+  },
+  "23-E4-33": {
+   "key": "23-E4-33",
+   "dord": 23,
+   "cell": "E4",
+   "num": 33,
+   "name": "茉夏",
+   "when": "第1天 14:00",
+   "min": 840,
+   "text": "我在仓库的仓库里找到了一副扑克牌。目前已死亡22人。新增的死者：阿拉克涅。\n我认识阿拉克涅，她织的网我早上还见过。\n“十四点整，仓库区域封锁。”\n我把牌摊在地上，抽出一张，是黑桃A。真好笑，居然是这张。\n我戴上魔术手套，给自己表演了最后一个魔术：让全世界的人都忘了我。\n胸口哔哔哔哔。\n光。\n\n[sys]\n-- 检测到钥印被强制引爆 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "22-D2-56"
+   ],
+   "sys": [
+    "00-ZONE"
+   ]
+  },
+  "24-D4-36": {
+   "key": "24-D4-36",
+   "dord": 24,
+   "cell": "D4",
+   "num": 36,
+   "name": "诺缔拉",
+   "when": "第1天 14:10",
+   "min": 850,
+   "text": "体育馆的地板被擦得很亮，我光着脚站在中线上，等着谁来。\n我今早本来约了塔薇……后来广播里念了她的名字。\n来的是个浑身颜料的人，肩上挎着画箱，手里拿着一支粗得吓人的渴求的画笔。\n“我想画你，”他说，“就现在，你最好看。”\n“你不能画一个会动的人。”\n“那我让你不动。”\n画笔的尖端像一根铁钉，从我的锁骨下方穿进去，刺到肺里。\n我低头看着自己白色的衣服一点一点染成红色，居然觉得——这个颜色很配我。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "15-D3-47"
+   ],
+   "sys": []
+  },
+  "25-B1-45": {
+   "key": "25-B1-45",
+   "dord": 25,
+   "cell": "B1",
+   "num": 45,
+   "name": "珊",
+   "when": "第1天 14:40",
+   "min": 880,
+   "text": "盐滩的盐滩白得刺眼，海风里有一股咸味。我坐在一条搁浅的小船上，把引舵之帆缠在桅杆上，想找一条逃出去的路。\n我告诉过尤乌哈希这里有船，她没有来。\n有人从船舱里爬出来。守护者的站姿，深海界域的气息，胸口挂着一只发光的沙漏——辉光沙漏，沙子是倒着流的。\n他手里什么也没拿，只有一根被磨尖的断桅。\n“三点封锁，”他说，“我想在那之前抢一条船。”\n“这是我的船。”\n断桅从下往上，扎进我的腹部。\n他把我推到一边，坐上了船。沙漏里的沙，一直往上流。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "17-A2-51"
+   ],
+   "sys": []
+  },
+  "26-B3-06": {
+   "key": "26-B3-06",
+   "dord": 26,
+   "cell": "B3",
+   "num": 6,
+   "name": "凯刻斯",
+   "when": "第1天 15:30",
+   "min": 930,
+   "text": "图书馆的书架被推倒了一半。我坐在满地的书里，手腕上还留着勒痕——勒死旺达的时候，被链子反弹，勒出来的。\n没有人敢去看潘狄娅的尸体，广播念名字的时候，整座岛都安静了。\n“是你。”\n一个瘦削的身影站在窗边，手里是一件不属于这个时代的武器，枪管像一块颌骨，刻着镭射颌骨。\n“不要杀我，我还有人在等——”\n“我也有。”她说。\n一道白光穿过胸口，我的重锁掉在地上，哗啦一声。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "08-B3-52",
+    "07-C3-39"
+   ],
+   "sys": []
+  },
+  "27-D1-37": {
+   "key": "27-D1-37",
+   "dord": 27,
+   "cell": "D1",
+   "num": 37,
+   "name": "宁菲亚",
+   "when": "第1天 16:00",
+   "min": 960,
+   "text": "观星台的观星台上有一台很大的望远镜。我就是来看蝴蝶的，真的。\n诺缔拉被人刺死在体育馆的事，是我在望远镜里看到的。\n目前已死亡26人。新增的死者：凯刻斯。\n“十六点整，观星台区域封锁。”\n我把蝴蝶标本从口袋里拿出来，那只蓝闪蝶的翅膀还是很漂亮。\n我想把它放在观星台的栏杆上，让它留下来。\n胸口发烫。我听见自己的声音说：“它比我更值得活着。”\n光。\n\n[sys]\n-- 检测到钥印被强制引爆 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "24-D4-36"
+   ],
+   "sys": [
+    "00-ZONE"
+   ]
+  },
+  "28-C4-21": {
+   "key": "28-C4-21",
+   "dord": 28,
+   "cell": "C4",
+   "num": 21,
+   "name": "戈利亚",
+   "when": "第1天 16:30",
+   "min": 990,
+   "text": "操场的跑道上只剩我一个。我是来锻炼的。\n图书馆那边的枪声我听见了，后来广播说凯刻斯没了。\n有人在看台上喊我的名字：“戈利亚！”是蚀灭·萝坦——一个和萝坦长得一模一样的女人，只是眼睛更红，像烧着。\n“你不是她。”我说。\n“我是她，也不是她。”\n她抱起跑道边的一块路沿石，走过来。\n第一下，我用手臂挡住，骨头折了。第二下，我只来得及说一个字：“为……”\n她把石头丢开，擦了擦手，喃喃着：“还差一个，还差一个。”\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "26-B3-06",
+    "59-C3-59",
+    "34-C4-31"
+   ],
+   "sys": []
+  },
+  "29-A4-27": {
+   "key": "29-A4-27",
+   "dord": 29,
+   "cell": "A4",
+   "num": 27,
+   "name": "凯蒂古拉",
+   "when": "第1天 17:00",
+   "min": 1020,
+   "text": "我躲在果园的果树下，吃了一颗没熟的苹果，酸得眼泪都出来了。\n宁菲亚死在观星台，一小时前的爆炸，我在果园里都能感觉到震动。\n目前已死亡28人。新增的死者：宁菲亚、戈利亚。\n“十七点整，果园区域封锁。”\n我把鸽羽扇展开，扇骨是白色的，扇面上画着一根羽毛。\n“如果死前能有人看到这把扇子的话。”我自言自语，把它放在树根上，让风吹着。\n胸口哔哔哔……\n光。\n\n[sys]\n-- 检测到钥印被强制引爆 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "27-D1-37"
+   ],
+   "sys": [
+    "00-ZONE"
+   ]
+  },
+  "30-C2-10": {
+   "key": "30-C2-10",
+   "dord": 30,
+   "cell": "C2",
+   "num": 10,
+   "name": "克莱门汀",
+   "when": "第1天 17:20",
+   "min": 1040,
+   "text": "温室的玻璃顶漏了几处，光落在一排兰花上。我给它们浇水，很认真。\n这座岛上到处都是杜勒赛因钩爪刮过地面的声音，我听得出来。\n“别动。”\n一个人影从花架后面闪出来，红色的锁链缠在她的手腕上，手里握着一支粗大的注射器，针管上刻着活性注射器。\n“你是……”我认得这种锁链，“希洛？”\n“不是那个。”她说，“我是另一个。”\n针头穿过我的喉咙，没有一丝声音。\n兰花上全是红色的水珠。我想，这个颜色其实也很好看。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "37-B4-14"
+   ],
+   "sys": []
+  },
+  "31-C5-32": {
+   "key": "31-C5-32",
+   "dord": 31,
+   "cell": "C5",
+   "num": 32,
+   "name": "弥利亚姆",
+   "when": "第1天 18:00",
+   "min": 1080,
+   "text": "我爬上航标塔的航标塔，想看看海面上有没有船。目前已死亡30人。新增的死者：凯蒂古拉、克莱门汀。\n克莱门汀被人刺死在温室，是广播里说的。\n“十八点整，航标塔区域封锁。”\n灯光亮着，我知道它是给别人看的，不是给我。\n手里的可疑的药膏只剩下一点点，我把它涂在栏杆上——这样如果有人上来，会闻到我的味道。\n胸口哔哔。\n“谢谢你们，”我对着海说，“我很高兴认识你们。”\n\n[sys]\n-- 检测到钥印被强制引爆 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "30-C2-10"
+   ],
+   "sys": [
+    "00-ZONE"
+   ]
+  },
+  "32-B3-24": {
+   "key": "32-B3-24",
+   "dord": 32,
+   "cell": "B3",
+   "num": 24,
+   "name": "奥尔拉",
+   "when": "第1天 18:30",
+   "min": 1110,
+   "text": "图书馆的图书馆在傍晚显得更像一座坟。我在书架里写日记。\n弥利亚姆死在塔上，我是从窗口看见塔顶的光灭下去的。\n杜勒赛因走进来的时候，我听见了钩子刮过地板的声音。他的衣服上沾着竹叶的腥气，腰上别着一支求救信号。\n“你也要这个？”他晃了晃那支信号枪。\n“我只要一本书。”\n“书不能救你。”\n那只古怪钩爪从我的肩一直划到腰，我手里的超弦腐血制剂掉在地上，药剂洒了一地，冒着白烟。\n他没有回头。我从没想过，书页被血浸透的味道是这样的。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "31-C5-32",
+    "37-B4-14"
+   ],
+   "sys": []
+  },
+  "33-C1-20": {
+   "key": "33-C1-20",
+   "dord": 33,
+   "cell": "C1",
+   "num": 20,
+   "name": "环行·拉蒙娜",
+   "when": "第1天 19:00",
+   "min": 1140,
+   "text": "我在旧码头的旧码头上整理一排空瓶子。目前已死亡32人。新增的死者：弥利亚姆、奥尔拉。\n奥尔拉死在图书馆，我是听广播知道的。\n“十九点整，旧码头区域封锁。”\n水手哨挂在脖子上，我吹了一声，没有人回应。\n我想起另一个拉蒙娜——拉蒙娜，她拄着牧羊人的手杖，走在一群羊前面。\n“如果你听得到，”我说，“别回头。”\n光。\n\n[sys]\n-- 检测到钥印被强制引爆 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "32-B3-24",
+    "56-B4-42"
+   ],
+   "sys": [
+    "00-ZONE"
+   ]
+  },
+  "34-C4-31": {
+   "key": "34-C4-31",
+   "dord": 34,
+   "cell": "C4",
+   "num": 31,
+   "name": "萝坦",
+   "when": "第1天 19:25",
+   "min": 1165,
+   "text": "操场的夕阳把跑道染成金属色。我扛着诅咒石碑，那块刻满字的石碑沉得像一座小山。\n码头那边的爆炸我听到了，环行·拉蒙娜……我有预感是她。\n“是你。”\n对面站着另一个我——更瘦，更红，更像一团烧着的火。蚀灭·萝坦。\n我们看了很久。\n“你来杀我吗？”\n“我来取回我的东西。”她说。\n她一把扯过石碑，抡圆了砸在我的头顶。石头的声音像钟，嗡——\n我倒下去的时候，看到她把那块石碑抱进怀里，像抱着自己的孩子。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "33-C1-20",
+    "59-C3-59"
+   ],
+   "sys": []
+  },
+  "35-D3-38": {
+   "key": "35-D3-38",
+   "dord": 35,
+   "cell": "D3",
+   "num": 38,
+   "name": "奥吉尔",
+   "when": "第1天 19:50",
+   "min": 1190,
+   "text": "礼堂礼堂的二楼回廊，窗外是暗红的晚霞。\n萝坦死了——是蚀灭·萝坦杀的。我亲眼看见的。\n我握着栏杆，对面站着另一个我——负誓·奥吉尔，胸前别着一枚独行者之徽，眼神却比我冷。\n“你太犹豫了。”他说，“犹豫的人先死。”\n“我们可以一起活下来。”\n“不可能。名额只有一个。”\n他伸手，轻轻一推。\n栏杆比我想象的矮。我看见天花板的雕花一点点后退，吊灯的光越来越远。\n脊背着地的时候，我手里的缠丝玛瑙碎成了几瓣。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "34-C4-31",
+    "59-C3-59",
+    "58-D3-61"
+   ],
+   "sys": []
+  },
+  "36-C2-18": {
+   "key": "36-C2-18",
+   "dord": 36,
+   "cell": "C2",
+   "num": 18,
+   "name": "熔毁·朵尔",
+   "when": "第1天 20:15",
+   "min": 1215,
+   "text": "温室的夜里，玻璃顶上落满了星光。我坐在一排兰花后面，手里的锈蚀钢锯还沾着铁锈。\n奥吉尔从礼堂摔下来的消息我刚听说。\n门口站着另一个我——朵尔，眼睛下面没有烧伤的痕迹。她提着止血钳，白手套上都是血。\n“你看，”她说，“我们都想活着。”\n“你已经杀了两个人了。”\n“你也是。”\n我举起钢锯。她比我快一步。\n止血钳的尖端从胸骨下刺入，我听到自己的心脏发出像金属蜂鸣器一样的声音。\n她拿走了我的锯子，说：“谢谢你，我需要它。”\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "35-D3-38",
+    "52-C4-13"
+   ],
+   "sys": []
+  },
+  "37-B4-14": {
+   "key": "37-B4-14",
+   "dord": 37,
+   "cell": "B4",
+   "num": 14,
+   "name": "杜勒赛因",
+   "when": "第1天 20:50",
+   "min": 1250,
+   "text": "夜里的校猫的窝很冷，猫窝里的纸箱堆成了一座小山。我蹲在里面，把求救信号握在手里。\n我从尤乌哈希身上拿走的那支信号枪，一直没有机会用。\n猫的铃铛响了一下，很轻。\n门口站着一个黑影，没有脸，没有声音，头顶有一圈残破的光。它的手里拿着一把白色的扇子，展开像一排薄刃——是鸽羽扇。\n我愣了一下：那把扇子，应该躺在果园的果树下，而果园从下午五点起就是死地。\n“你怎么进去的？”\n黑影什么也没说。它哼着一段很老很老的调子，扇子一合，一开，我的脖子就轻了。\n铃铛又响了一下。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "17-A2-51"
+   ],
+   "sys": []
+  },
+  "38-C3-07": {
+   "key": "38-C3-07",
+   "dord": 38,
+   "cell": "C3",
+   "num": 7,
+   "name": "卡茜亚",
+   "when": "第1天 21:30",
+   "min": 1290,
+   "text": "夜里的弥萨格钟楼没有灯，只有钟摆声。我坐在钟楼的台阶上，等一个人。\n目前已死亡37人。新增的死者：熔毁·朵尔、杜勒赛因。\n她来了——希洛，瘦，快，像一把收鞘的刀。\n“你来杀我？”\n“我来问你一件事。”她说，“你认识莉莉吗？”\n“……不认识。”\n“那你没有价值了。”\n那件镭射颌骨射出的白光，没有声音。我手里的锈蚀柳叶刀还没来得及出鞘，眼前就黑了。\n钟摆继续走，每一下都比上一下更近。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "61-C3-23",
+    "60-C2-29"
+   ],
+   "sys": []
+  },
+  "39-B3-26": {
+   "key": "39-B3-26",
+   "dord": 39,
+   "cell": "B3",
+   "num": 26,
+   "name": "珈伦",
+   "when": "第1天 22:10",
+   "min": 1330,
+   "text": "图书馆的夜很静，只有翻书的声音——但我知道，不是我翻的。\n目前已死亡38人。新增的死者：卡茜亚。\n黑影站在最深的书架后面，手里拿着一只小铁盒，盒盖上写着可疑的药膏。那是下午在航标塔航标塔上的人留下的东西。可航标塔早就封锁了！\n“你不怕被炸死吗？”我问。\n黑影没回答，把药膏抹在我的杯口，推到我面前。\n我没喝。可是它握住我的手，把杯子推到了嘴唇。\n苦。然后是甜。\n我最后看到的是它头上一圈残破的光——像一顶烧坏的王冠。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [],
+   "sys": []
+  },
+  "40-C2-40": {
+   "key": "40-C2-40",
+   "dord": 40,
+   "cell": "C2",
+   "num": 40,
+   "name": "皮克曼",
+   "when": "第1天 23:20",
+   "min": 1400,
+   "text": "夜里的温室，月光从玻璃顶倾泻下来，我支起了画架。\n目前已死亡39人。新增的死者：珈伦。\n黑影坐在对面，一动不动，让我画。\n“你没有脸。”我说，“我只能画一团黑。”\n它递来一只蓝闪蝶的标本——蝴蝶标本。我认得，那是下午在观星台观星台留下的，观星台早就是死地了。\n画架旁边还留着克莱门汀养过的兰花。\n它是怎么拿到的？\n我握紧渴求的画笔，想最后画一笔。\n标本的长针从我的眼窝刺入——像一支极细的画笔。\n它一直在哼着什么，我想那是一首赞美诗。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "30-C2-10"
+   ],
+   "sys": []
+  },
+  "41-B3-19": {
+   "key": "41-B3-19",
+   "dord": 41,
+   "cell": "B3",
+   "num": 19,
+   "name": "血链·希洛",
+   "when": "第2天 00:30",
+   "min": 1470,
+   "text": "我在图书馆的二楼，用红色的锁链把自己绑在栏杆上，免得睡着。\n目前已死亡40人。新增的死者：皮克曼。\n“出来吧，”我说，“我知道是你。”\n希洛从书架后面走出来，镭射颌骨垂在手边。她的脸和我一模一样，只是少了锁链，多了疲惫。\n“你比我更适合活着。”我说。\n“不。”她摇头，“我要把所有的‘我’都清理掉，才能去见她。”\n她端起镭射颌骨开枪的时候没有看我的脸。\n光从胸口穿出去，锁链叮当一声断了。\n“对不起，”她轻声说，“对不起，另一个我。”\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "61-C3-23"
+   ],
+   "sys": []
+  },
+  "42-C4-49": {
+   "key": "42-C4-49",
+   "dord": 42,
+   "cell": "C4",
+   "num": 49,
+   "name": "汀克特",
+   "when": "第2天 01:15",
+   "min": 1515,
+   "text": "操场的跑道在夜里像一条没有尽头的河。我在量时间——我习惯这样：用精密计时器一遍遍数着秒。\n目前已死亡41人。新增的死者：血链·希洛。\n一条帆索缠上了我的脖子，粗，湿，带着咸味。是引舵之帆的缆绳。\n我知道它：珊死在盐滩的盐滩上，那里在下午三点就封锁了。\n黑影在我背后，不出声地收紧。\n“你……没有钥印……”我说，“你……不是我们……”\n计时器的指针停在十二秒。\n我没来得及说完那句话。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "25-B1-45"
+   ],
+   "sys": []
+  },
+  "43-C2-54": {
+   "key": "43-C2-54",
+   "dord": 43,
+   "cell": "C2",
+   "num": 54,
+   "name": "徐",
+   "when": "第2天 02:00",
+   "min": 1560,
+   "text": "温室的夜里有一股腐叶的味道。我把小黄螺握在手心，那只小黄螺在手心里轻轻动。\n目前已死亡42人。新增的死者：汀克特。\n黑影坐在花盆上，头上套着一顶旧潜水头盔——潜水头盔。我记得它：詹金是早上从港湾的栈桥上摔死的，港湾九点就封锁了。\n它为什么在这里？\n“你是谁？”\n黑影慢慢站起来，两只手抱着头盔，用它的边缘一下一下砸在我的头上。\n咚，咚，咚。\n每一下都带着节拍。我想，这个人在打拍子。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "09-A5-25"
+   ],
+   "sys": []
+  },
+  "44-B4-46": {
+   "key": "44-B4-46",
+   "dord": 44,
+   "cell": "B4",
+   "num": 46,
+   "name": "索蕾尔",
+   "when": "第2天 03:10",
+   "min": 1630,
+   "text": "校猫的窝的黎明还没到。我把锡兰红茶倒进杯子，热气里有一股锡兰的香。\n目前已死亡43人。新增的死者：徐。\n猫坐在纸箱上，盯着我。\n“你要喝吗？”我问它。它没动。\n我在红茶里放了一整瓶药——我昨天就带在身上的，我知道什么时候该用。\n我不想被杀，也不想去杀。我想自己决定这一步。\n“替我告诉他们，”我对猫说，“我是自己走的。”\n红茶很烫。像小时候的冬天。\n猫的铃铛响了一下，像是回答。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [],
+   "sys": [
+    "00-REPORT"
+   ]
+  },
+  "45-D3-58": {
+   "key": "45-D3-58",
+   "dord": 45,
+   "cell": "D3",
+   "num": 58,
+   "name": "庞托斯",
+   "when": "第2天 03:50",
+   "min": 1670,
+   "text": "礼堂的舞台上有一盏没熄的灯。我坐在中央，手里捏着辉光沙漏，沙子一直在倒着流。\n“我杀了珊，”我对着黑暗说，“我想你不会原谅我。”\n黑影从侧幕走出来，手里白色的扇子一开一合。\n鸽羽扇。我认得它。“那是凯蒂古拉的。果园的果园在十七点就封锁了。你怎么……”\n黑影没答，只是微微弯下腰，像一个谢幕的演员。\n扇骨割过颈动脉的时候，沙漏里的沙终于停了。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "25-B1-45",
+    "29-A4-27"
+   ],
+   "sys": []
+  },
+  "46-C4-15": {
+   "key": "46-C4-15",
+   "dord": 46,
+   "cell": "C4",
+   "num": 15,
+   "name": "艾瑞卡",
+   "when": "第2天 04:40",
+   "min": 1720,
+   "text": "天快亮了，操场的跑道上全是露水。我在练习用白鸦喙扎稻草人。\n目前已死亡45人。新增的死者：索蕾尔、庞托斯。\n黑影站在跑道另一端。我数着它的步子：七，八，九……它走得像一个从不呼吸的人。\n“站住！”我举起白鸦喙。\n它抬起手，指间夹着一只蝴蝶标本——蝴蝶标本。\n我认得，那是宁菲亚在观星台留下的，观星台早就封锁了。\n“你到底是谁？”\n标本的长针从我的眼眶刺进去，像一根被磨尖的画笔。\n黑影的歌声，是我听过最悲伤的一首。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "27-D1-37"
+   ],
+   "sys": []
+  },
+  "47-B3-55": {
+   "key": "47-B3-55",
+   "dord": 47,
+   "cell": "B3",
+   "num": 55,
+   "name": "莫丝",
+   "when": "第2天 05:30",
+   "min": 1770,
+   "text": "图书馆的窗外开始发白。我坐在地毯上，把银白差分机贴在胸口，银色的齿轮很暖。\n目前已死亡46人。新增的死者：艾瑞卡。\n黑影从书架之间滑出来，手里是一条干枯的蛇蜕——怪蛇残蜕。沙耶是在海蚀断崖的悬崖上自己跳下去的，那里十一点就封锁了。\n“你……来取走它们吗？”我问。\n“它们”，是指所有死者留下的东西。\n黑影点点头。它缠住我的脖子，像缠一根旧绳子。\n我的差分机被它从手里取走。很冷，原来被拿走之后，它是这样冷的。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "16-A1-57"
+   ],
+   "sys": []
+  },
+  "48-C2-48": {
+   "key": "48-C2-48",
+   "dord": 48,
+   "cell": "C2",
+   "num": 48,
+   "name": "泰旖丝",
+   "when": "第2天 06:20",
+   "min": 1820,
+   "text": "天亮了，温室里的花开始闭合。我握着骸骨杯盏——一只骨头做的杯盏，里面盛着昨夜的露水。\n目前已死亡47人。新增的死者：莫丝。\n黑影站在门口，头上套着潜水头盔，镜片后面是一片虚无。\n“我知道你是谁，”我说，“你不是我们当中的任何一个。点名的时候……点名的时候人数就不对……”\n头盔从它手中抡过来，砸在我的太阳穴。\n杯盏碎了。露水混着血在地上流。\n它在哼歌，调子我在哪里听过——昨天早晨，在钟楼的后院。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-ROLL[/link] --\n[/sys]",
+   "refs": [],
+   "sys": [
+    "00-ROLL"
+   ]
+  },
+  "49-C4-43": {
+   "key": "49-C4-43",
+   "dord": 49,
+   "cell": "C4",
+   "num": 43,
+   "name": "莱克",
+   "when": "第2天 08:20",
+   "min": 1940,
+   "text": "早晨的操场，露水还没干。我拄着勋爵手杖站在跑道中央——我昨天杀了图鲁，今天来还。\n目前已死亡48人。上一个小时没有新增的死者。\n“我知道你会来。”我对着看台说。\n法洛思从阴影里走出来，端着一件粗笨的枪形装置，侧面刻着原型电池。她的眼睛是红的，像一整夜没睡。\n“你是个绅士，”她说，“所以我给你一个体面。”\n两声枪响，整齐得像在鸣礼炮。\n手杖从手里滑落，我的手套上全是血。\n“对不起，”我说，“对不起，图鲁先生。”\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "10-C3-50",
+    "54-C3-17"
+   ],
+   "sys": []
+  },
+  "50-E2-35": {
+   "key": "50-E2-35",
+   "dord": 50,
+   "cell": "E2",
+   "num": 35,
+   "name": "诞妄·墨菲",
+   "when": "第2天 09:00",
+   "min": 1980,
+   "text": "旧锅炉房的旧锅炉房，锅炉里是一整座黑暗。目前已死亡49人。新增的死者：莱克。\n我听见莱克在跑道上被打倒的枪声。\n“九点整，旧锅炉房区域封锁。”\n我把变色拘束服紧紧裹在身上，那件奇怪的衣服能让我假装自己被谁抱着。\n想起另一个我，墨菲——他在昨天正午就已经没了。我们是同一个人吗？\n如果是，那我现在是替他死，还是替我死？\n……胸口的钥印红了。我不想回答这个问题。\n\n[sys]\n-- 检测到钥印被强制引爆 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "49-C4-43",
+    "19-D5-34"
+   ],
+   "sys": [
+    "00-ZONE"
+   ]
+  },
+  "51-C3-05": {
+   "key": "51-C3-05",
+   "dord": 51,
+   "cell": "C3",
+   "num": 5,
+   "name": "奥瑞塔",
+   "when": "第2天 09:40",
+   "min": 2020,
+   "text": "我回到了弥萨格钟楼，想找人谈谈。昨天在溶洞溶洞里发生的事，我一直忘不掉——艾继丝和温柯尔。\n目前已死亡49人。新增的死者：莱克。\n钟楼下坐着一个穿白裙子的女孩，手里把玩一条银色的缎带，方扣亮亮的——银色方扣缎带。\n“你也怕吗？”她问。\n“怕。”我说。\n“那就让我帮你。”\n缎带绕过我的脖子，温柔得像在系领结。\n我挣扎着去摸渔叉，渔叉的尖端在地上拖出一道细线。\n“别怕，”她在我耳边说，“我只想一个人活到最后，见到她。”\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "11-B2-03",
+    "12-B2-53"
+   ],
+   "sys": []
+  },
+  "52-C4-13": {
+   "key": "52-C4-13",
+   "dord": 52,
+   "cell": "C4",
+   "num": 13,
+   "name": "朵尔",
+   "when": "第2天 10:30",
+   "min": 2070,
+   "text": "操场的跑道上有两条影子：我的，和一个比我快的。\n目前已死亡51人。新增的死者：诞妄·墨菲、奥瑞塔。\n“你是医生。”希洛说。\n广播念出了奥瑞塔的名字。\n“我是。”\n“那你一定知道，”她用镭射颌骨指着我的胸口，“人是怎么死得最快。”\n我举起止血钳，那把止血钳上还有一小片被我杀死的另一个我——熔毁·朵尔——的血。\n“我也在杀人，”我说，“我们没有区别。”\n“有。”她说，“我在找一个人。你在找活路。”\n光穿过我的肩膀、心脏，还有那把钳子。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "61-C3-23",
+    "51-C3-05",
+    "36-C2-18"
+   ],
+   "sys": []
+  },
+  "53-D2-41": {
+   "key": "53-D2-41",
+   "dord": 53,
+   "cell": "D2",
+   "num": 41,
+   "name": "波吕克斯",
+   "when": "第2天 12:00",
+   "min": 2160,
+   "text": "湿地的湿地里全是芦苇。目前已死亡52人。上一个小时没有新增的死者。\n“十二点整，湿地区域封锁。”\n我不跑了。我杀了阿拉克涅，她织的网我到现在还看得见——一直挂在我眼前。\n巨人之刃还在我的手里，刀口钝了，不是因为砍了太多，是因为我再也不想挥了。\n我把刀插在泥里，坐在上面。\n胸口开始发烫。我想，这样也好。\n\n[sys]\n-- 检测到钥印被强制引爆 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "22-D2-56"
+   ],
+   "sys": [
+    "00-ZONE"
+   ]
+  },
+  "54-C3-17": {
+   "key": "54-C3-17",
+   "dord": 54,
+   "cell": "C3",
+   "num": 17,
+   "name": "法洛思",
+   "when": "第2天 13:20",
+   "min": 2240,
+   "text": "弥萨格钟楼的钟刚敲过一点。我靠在石柱上，枪形装置的能量早就耗尽了。\n波吕克斯死了，广播是这样说的：目前已死亡53人。新增的死者：波吕克斯。\n“我杀了三个人……”我自言自语。\n一个火一样的女人走过来，怀里抱着一块石碑——诅咒石碑。她是蚀灭·萝坦，我记得她，昨天下午她在操场的跑道上杀了戈利亚，我是从塔上看见的。\n“我没有能量了。”\n“我知道。”\n石碑砸在我的脸上，边角像一把钝斧。\n血流进眼睛，我想，这是我能得到的最后一个温暖。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "53-D2-41",
+    "59-C3-59",
+    "28-C4-21"
+   ],
+   "sys": []
+  },
+  "55-C3-04": {
+   "key": "55-C3-04",
+   "dord": 55,
+   "cell": "C3",
+   "num": 4,
+   "name": "艾尔瓦",
+   "when": "第2天 14:30",
+   "min": 2310,
+   "text": "我在钟楼里发抖。第一天我就杀了人——卡斯托尔，他只是个学生模样的人。\n法洛思被砸死在石柱旁，就在我的脚边。\n莉莉坐在我对面，膝上摊着一条银色缎带。\n“我也杀过，”她说，“三个。”\n“你为什么还这么平静？”\n“因为我有一个必须见的人。”\n她站起来，那条银色方扣缎带像一条蛇绕上我的脖子。我想挣扎，可是手里的遗落的祭祀刀早就握不稳了。\n“对不起，”她说，“如果还能再见，你要原谅我。”\n窗外钟声一响，两响……我没有数完。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "02-C3-08",
+    "54-C3-17",
+    "60-C2-29"
+   ],
+   "sys": []
+  },
+  "56-B4-42": {
+   "key": "56-B4-42",
+   "dord": 56,
+   "cell": "B4",
+   "num": 42,
+   "name": "拉蒙娜",
+   "when": "第2天 15:00",
+   "min": 2340,
+   "text": "我循着猫的铃铛声来到了校猫的窝。目前已死亡55人。新增的死者：艾尔瓦。\n艾尔瓦被勒死在钟楼里的事，广播刚念过。\n“十五点整，校猫的窝区域封锁。”\n猫坐在纸箱上看着我，一动不动。\n我拄着牧羊人的手杖，对它说：“你知道的吧？你一直都知道。”另一个我——环行·拉蒙娜——已经死在码头了。\n它站起来，抖抖耳朵，优雅地跳下纸箱，从窗口钻出去。\n“等一下。”\n铃铛声一路远去。\n胸口哔哔哔哔。\n……只有它，一次也没有回头。\n\n[sys]\n-- 检测到钥印被强制引爆 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "55-C3-04",
+    "33-C1-20"
+   ],
+   "sys": [
+    "00-ZONE"
+   ]
+  },
+  "57-B3-44": {
+   "key": "57-B3-44",
+   "dord": 57,
+   "cell": "B3",
+   "num": 44,
+   "name": "萨尔瓦多",
+   "when": "第2天 16:40",
+   "min": 2440,
+   "text": "图书馆的图书馆里，我读了一下午的书。书里写着：杀死一个人，需要三十秒；杀死自己，需要一辈子。\n广播念了拉蒙娜的名字——她死在猫窝。目前已死亡56人。新增的死者：拉蒙娜。\n我杀过克珀珊特。我用毒药，用笑容。\n“你的笑容很假。”一个声音说。\n蚀灭·萝坦站在书架尽头，怀里抱着一块沾满血的石碑——诅咒石碑。\n“你杀了很多人，”我说。\n“你也是。”\n“我们可以谈谈。”\n“我已经谈完了。”\n石碑落下来。我没有躲，因为我觉得这是应得的。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "56-B4-42",
+    "03-C4-11",
+    "59-C3-59"
+   ],
+   "sys": []
+  },
+  "58-D3-61": {
+   "key": "58-D3-61",
+   "dord": 58,
+   "cell": "D3",
+   "num": 61,
+   "name": "负誓·奥吉尔",
+   "when": "第2天 17:40",
+   "min": 2500,
+   "text": "礼堂的礼堂里，我把胸前的独行者之徽摘下来放在椅子上。\n萨尔瓦多死在图书馆的消息，我在礼堂里就听到了。\n我杀了另一个我——奥吉尔。我不后悔，我只是想知道，这样是不是就够了。\n有人在后排鼓掌，一下，两下，三下。\n是一个穿水手服的小姑娘，手里握着一支细长的尖针——☆六分仪☆的指针，被磨得像针。\n“你很吵，”她说，“能不能安静一点？”\n她一步一步走近。我握着空拳，不知道该打谁。\n针从我的耳后刺进去，像一阵凉风。\n徽章留在椅子上，闪了一下。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "57-B3-44",
+    "35-D3-38"
+   ],
+   "sys": []
+  },
+  "59-C3-59": {
+   "key": "59-C3-59",
+   "dord": 59,
+   "cell": "C3",
+   "num": 59,
+   "name": "蚀灭·萝坦",
+   "when": "第2天 18:40",
+   "min": 2560,
+   "text": "我在弥萨格钟楼的塔顶，怀里抱着那块石碑。我杀了萝坦、戈利亚、法洛思、萨尔瓦多，没有一个人该死，也没有一个人不该。\n“到我了吧。”我对着空气说。\n希洛从楼梯下面走上来，镭射颌骨的枪管冒着白烟。\n“你认识莉莉吗？”\n“她在楼下，”我说，“她一直在找你。”\n“我知道。”\n光，没有声音。石碑从我怀里滚下去，一级一级，撞在石阶上，像一次又一次的钟声。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "34-C4-31",
+    "28-C4-21",
+    "54-C3-17",
+    "57-B3-44",
+    "61-C3-23",
+    "60-C2-29"
+   ],
+   "sys": []
+  },
+  "60-C2-29": {
+   "key": "60-C2-29",
+   "dord": 60,
+   "cell": "C2",
+   "num": 29,
+   "name": "莉莉",
+   "when": "第2天 19:00",
+   "min": 2580,
+   "text": "我在温室的温室里，坐在皮克曼留下画架的地方。目前已死亡59人。新增的死者：蚀灭·萝坦。\n我听到钟楼上的枪声，是蚀灭·萝坦倒下去的声音。\n“十九点整，温室区域封锁。”\n希洛还没有来。我等了她一整天，听见了三声枪响，我知道是她。\n缎带还缠在我手上，沾着很多人的体温。\n“对不起，”我对着玻璃顶说，“我没有等到你。”\n钥印发烫，我把缎带解下来，系在一朵兰花上。\n光。\n\n[sys]\n-- 检测到钥印被强制引爆 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "40-C2-40",
+    "59-C3-59",
+    "61-C3-23"
+   ],
+   "sys": [
+    "00-ZONE"
+   ]
+  },
+  "61-C3-23": {
+   "key": "61-C3-23",
+   "dord": 61,
+   "cell": "C3",
+   "num": 23,
+   "name": "希洛",
+   "when": "第2天 19:40",
+   "min": 2620,
+   "text": "我走下钟楼，听到温室传来的爆炸声。我知道是谁。\n“晚了，”我说，“还是晚了。”\n莉莉在温室——温室刚刚封锁了。\n台阶下站着薇薇安，一个穿水手服的小姑娘，手里握着那根磨尖的☆六分仪☆指针。\n“只剩下我们了。”她说。\n“还有那个影子。”\n“你看见了？”\n“我一路都看见。”\n她冲上来，我举枪——枪里没有能量了。\n针从下巴刺进去，疼得很清醒。\n“对不起，”她哭着说，“我只想回家。”\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "60-C2-29",
+    "62-C3-62"
+   ],
+   "sys": []
+  },
+  "62-C3-62": {
+   "key": "62-C3-62",
+   "dord": 62,
+   "cell": "C3",
+   "num": 62,
+   "name": "薇薇安",
+   "when": "第2天 20:00",
+   "min": 2640,
+   "text": "二十点整，钟楼敲响了第二十下。\n目前已死亡61人。新增的死者：莉莉、希洛。\n“最终区域收缩开始。弥萨格钟楼封锁。剩余人数：二。”\n广播没有说完，被什么掐断了。\n我低头看着自己的手。希洛躺在台阶下，脸朝着天。我杀了负誓·奥吉尔，也杀了她，我只是想回家。\n钟楼的门口站着一个黑影，头顶有一圈残破的光冕。它没有胸口，也没有钥印——我的钥印在胸口哔哔作响，它的胸口一片寂静。\n它朝我伸出手，像在说：谢谢你。\n光。\n\n[sys]\n-- 检测到钥印被强制引爆 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "61-C3-23",
+    "58-D3-61"
+   ],
+   "sys": [
+    "00-ZONE"
+   ]
+  }
+ },
+ "docs": {
+  "00-SYSTEM": {
+   "id": "00-SYSTEM",
+   "title": "死亡记录复原终端 使用指南",
+   "source": "第七档案局 ／ 复原室",
+   "text": "[sys]\n[b]第七档案局 ／ 回溯筛选记录复原室[/b]\n本终端用于复原、查阅已经结束的[b]“第六十三次 回溯筛选”[/b]的死亡记录。仅限持有银钥权限的档案官使用。\n\n[b]■ 基本操作[/b]\n画面左侧是记录索引，点选条目即可阅读正文。索引损坏而没有列出的记录，请在输入栏里键入[b]记录名[/b]，再点击“恢复”。\n\n[b]■ 记录名的格式[/b]\n死亡记录的记录名由三段组成：\n\n99-X9-99\n\n第一段的两位数字表示……\n--- 检测到部分数据损坏，无法读取 ---\n……第三段，是此人在名册上的编号。\n\n[b]警告：索引损坏[/b]\n本次筛选的索引严重受损，请以名册、地图与广播记录为线索，推断缺失的部分。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-ORDER": {
+   "id": "00-ORDER",
+   "title": "任务指示书",
+   "source": "机密",
+   "text": "[sys]\n[b]■ 命令[/b]\n复原“第六十三次 回溯筛选（对象：弥萨格学院 回溯班／参加者唤醒体六十二名）”的全部记录，查明每一起死亡的经过，并提交死亡调查报告。\n\n[b]■ 步骤[/b]\n一、在输入栏键入[b]“记录名”[/b]并点击“恢复”。终端的使用方法见 [link]00-SYSTEM[/link]。\n二、依据复原的记录核实[b]“死因、凶器、加害人”[/b]，填写死亡报告。填写规定见 [link]00-REPORT[/link]。\n\n[b]■ 缘由[/b]\n前日，本局记录库遭到来历不明的篡改，大量记录损坏或散佚。筛选已经结束，须从仍能复原的记录开始，一条一条还原，务必全部复原。\n档案官只需确认记录里的事实，不得掺杂个人感情。\n\n另外，已经查明的记录名如下，请从这些开始：\n\n·[link]04-C2-16[/link]\n·[link]18-B4-12[/link]\n·[link]24-D4-36[/link]\n\n——谨奉局长之命，特此通告。\n第七档案局 局长\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": [
+    "00-REPORT",
+    "00-SYSTEM"
+   ]
+  },
+  "00-REPORT": {
+   "id": "00-REPORT",
+   "title": "死亡报告 填写规定",
+   "source": "第七档案局 ／ 复原室",
+   "text": "[sys]\n[b]死亡报告 ／ 填写规定[/b]\n每起死亡都必须确认“死因、凶器、加害人”三项。归类有疑问时，按下列规定处理。\n\n[b]■ 凶器[/b]\n若杀害所用之物与名册上的某件[b]“配发装备”同名[/b]，则把该装备的名称记为凶器。\n若所用之物不是任何配发装备——徒手、就地取材、自己的东西造成的事故等——一律把凶器记为[b]“无”[/b]。\n请重点核对“名册里的配发装备”与“正文里的凶器”是否一致，并留意装备在人与人之间的流转：同一件装备，同一时刻只会在一个人手里。\n\n[b]■ 没有加害人的死亡[/b]\n没有加害人的死亡，加害人记为[b]“其他”[/b]，凶器记为[b]“无”[/b]。共有三种：\n\n·[b]爆炸致死[/b]\n  钥印被强制引爆（开幕演示／融蚀潮区域／最终收缩／自行引爆）。死因记为“爆炸致死”。\n·[b]意外死亡[/b]\n  因自身过失造成的事故。死因记为“意外死亡”。\n·[b]自杀[/b]\n  自愿赴死者，死因不记作“自杀”，而是按具体手法记为“坠落致死”“中毒致死”等。\n\n此外，[b]坠落致死[/b]分为他杀（被推落）与自杀（自行跳落）两种，须按有没有加害人来区分。\n\n[b]■ 加害人栏[/b]\n加害人栏的选项以名册为准。名册之外的个体，须经终端核实之后再追加。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-REFERENCE": {
+   "id": "00-REFERENCE",
+   "title": "参考分析功能",
+   "source": "第七档案局 ／ 复原室",
+   "text": "[sys]\n[b]记录档案 ／ 参考分析功能[/b]\n本功能自动分析记录之间的关联，辅助档案官复原。\n\n若系统发现某条记录与其他记录有关联，会把后者认定为它的[b]“参考”[/b]。\n\n[b]■ 参考检测[/b]\n复原一条记录后，系统会分析正文里提到的其他记录，并在末尾通知：\n\n-- 检测到对其他记忆的参考。未复原 X 件 --\n\n“未复原”的数字，是尚未复原的参考对象数量。每复原一条，数字就减一，减到零时通知消失。\n\n[b]■ 索引显示[/b]\n索引里每条记录的左侧用 [X] 显示它还有几件未复原的参考。数字越大，说明相关的记录越多。\n另外，如果正文提到了尚未复原的[b]系统文档[/b]（以 00- 开头），记录名下方会出现虚线；复原了那份文档，虚线就会消失。\n\n[b]■ 致档案官[/b]\n“参考”是下一步的线索，提示的件数则是推测缺失记录名的依据。请逐条推断，逐条复原。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-ZONE": {
+   "id": "00-ZONE",
+   "title": "融蚀潮 区域封锁",
+   "source": "第七档案局 ／ 复原室",
+   "text": "[sys]\n[b]回溯筛选 区域管理 ／ 融蚀潮[/b]\n随着时间推移，每到整点（白天），会按顺序把一个区域设为[b]融蚀潮区域[/b]。\n\n滞留在融蚀潮区域内的受试者，胸口的钥印会被强制引爆。\n这属于没有加害人的死亡，须记为[b]爆炸致死[/b]。\n\n[b]■ 记录归类[/b]\n因融蚀潮区域导致的死亡，归类为“爆炸致死”，不存在加害人。\n死亡报告中须记为[b]“凶器：无”“加害人：其他”[/b]。\n\n[b]■ 封锁记录[/b]\n每个整点（夜间不封锁）封锁一个区域，由外圈向中央的 C3 推进，最后一个区域封锁即为“最终收缩”。\n第1天 08:00　E5（雷达站）\n第1天 09:00　A5（港湾）\n第1天 10:00　E1（无名墓园）\n第1天 11:00　A1（海蚀断崖）\n第1天 12:00　D5（砂石场）\n第1天 13:00　B5（旧渔村）\n第1天 14:00　E4（仓库）\n第1天 15:00　B1（盐滩）\n第1天 16:00　D1（观星台）\n第1天 17:00　A4（果园）\n第1天 18:00　C5（航标塔）\n第1天 19:00　C1（旧码头）\n第2天 08:00　A2（竹林）\n第2天 09:00　E2（旧锅炉房）\n第2天 10:00　E3（医务楼）\n第2天 11:00　B2（溶洞）\n第2天 12:00　D2（湿地）\n第2天 13:00　A3（废弃宿舍）\n第2天 14:00　D4（体育馆）\n第2天 15:00　B4（校猫的窝）\n第2天 16:00　C4（操场）\n第2天 17:00　B3（图书馆）\n第2天 18:00　D3（礼堂）\n第2天 19:00　C2（温室）\n第2天 20:00　C3（弥萨格钟楼）　＝最终收缩\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-MAP": {
+   "id": "00-MAP",
+   "title": "忘岛 地图",
+   "source": "第七档案局 ／ 复原室",
+   "text": "[sys]\n[b]忘岛 完整地图[/b]\n忘岛是本次筛选的举办地，由 5×5 共 25 个区块构成：横向 A–E，纵向 1–5。中央的 C3 是弥萨格钟楼。\n[b]1[/b]　A1 海蚀断崖　B1 盐滩　C1 旧码头　D1 观星台　E1 无名墓园\n[b]2[/b]　A2 竹林　B2 溶洞　C2 温室　D2 湿地　E2 旧锅炉房\n[b]3[/b]　A3 废弃宿舍　B3 图书馆　C3 弥萨格钟楼　D3 礼堂　E3 医务楼\n[b]4[/b]　A4 果园　B4 校猫的窝　C4 操场　D4 体育馆　E4 仓库\n[b]5[/b]　A5 港湾　B5 旧渔村　C5 航标塔　D5 砂石场　E5 雷达站\n记录里出现的地名，请到地图上确认位置，据此掌握事件发生的经过。可使用[b]地图功能[/b]查看完整地图。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-ANNOUNCE": {
+   "id": "00-ANNOUNCE",
+   "title": "定时广播",
+   "source": "第七档案局 ／ 复原室",
+   "text": "[sys]\n[b]回溯筛选 区域管理 ／ 定时广播[/b]\n每个整点，全岛播放一次定时广播。\n\n[b]■ 内容[/b]\n广播通报系统到整点为止检测到的累计死亡人数：“目前已死亡 X 人”。\n同时，按死亡的先后顺序，依次念出上一次广播以来新检测到的死者姓名。\n\n[b]■ 目的[/b]\n让幸存的受试者知道谁已经死去、谁还活着，防止筛选陷入停滞，促使下一次加害发生。\n\n[b]■ 注意[/b]\n只有被系统认定心跳已停止的人，才会被播报；播报顺序与死亡的先后一致。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-ROLL": {
+   "id": "00-ROLL",
+   "title": "早晨点名",
+   "source": "第七档案局 ／ 复原室",
+   "text": "[sys]\n[b]回溯筛选 定时广播 ／ 早晨点名[/b]\n每天清晨，系统会播报截至前一日 24:00 的死亡人数与死者姓名。\n\n[b]■ 第一天的死者（按名册编号）[/b]\n「24」、阿格里帕、艾继丝、凯刻斯、卡茜亚、卡斯托尔、希莱斯特、克莱门汀、克珀珊特、达芙黛尔、杜勒赛因、菲茵特、熔毁·朵尔、环行·拉蒙娜、戈利亚、哈姆林、奥尔拉、詹金、珈伦、凯蒂古拉、雷娅、莉兹、萝坦、弥利亚姆、茉夏、墨菲、诺缔拉、宁菲亚、奥吉尔、潘狄娅、皮克曼、珊、塔薇、图鲁、尤乌哈希、旺达、温柯尔、阿拉克涅、沙耶、卡拉布\n\n[b]■ 点名结果[/b]\n死亡　40 名\n现存　23 名\n[/sys]",
+   "refs": [
+    "01-C3-01",
+    "02-C3-08",
+    "03-C4-11",
+    "04-C2-16",
+    "05-C2-28",
+    "06-E5-30",
+    "07-C3-39",
+    "08-B3-52",
+    "09-A5-25",
+    "10-C3-50",
+    "11-B2-03",
+    "12-B2-53",
+    "13-E1-09",
+    "14-D3-22",
+    "15-D3-47",
+    "16-A1-57",
+    "17-A2-51",
+    "18-B4-12",
+    "19-D5-34",
+    "20-C1-02",
+    "21-B5-60",
+    "22-D2-56",
+    "23-E4-33",
+    "24-D4-36",
+    "25-B1-45",
+    "26-B3-06",
+    "27-D1-37",
+    "28-C4-21",
+    "29-A4-27",
+    "30-C2-10",
+    "31-C5-32",
+    "32-B3-24",
+    "33-C1-20",
+    "34-C4-31",
+    "35-D3-38",
+    "36-C2-18",
+    "37-B4-14",
+    "38-C3-07",
+    "39-B3-26",
+    "40-C2-40"
+   ],
+   "final": false,
+   "links": []
+  },
+  "00-CHIP": {
+   "id": "00-CHIP",
+   "title": "钥印",
+   "source": "第七档案局 ／ 复原室",
+   "text": "[sys]\n[b]钥印（银钥碎片）／ 记录说明[/b]\n回溯筛选开始前，会在参加者的胸骨内植入一枚钥印。\n钥印既是记录装置，也具备[b]强制引爆[/b]功能。违反规定、抗命不遵、滞留于融蚀潮区域，或由管理方判断，钥印就会被引爆。\n\n[b]■ 记录的生成[/b]\n钥印在检测到心跳停止的瞬间，自动把死前三百秒——最后五分钟——的神经活动转写成文字，发送到本局服务器保存。\n输出以本人的第一人称呈现，包括所见所闻、身体感觉，乃至内心独白。每一份记录，都是受试者最后五分钟的意识。\n\n[b]■ 分类说明[/b]\n因钥印引爆而死，归类为没有加害人的死亡，按“爆炸致死”处理。\n\n[b]■ 注意[/b]\n引爆发生在一瞬间，受试者没有回避的余地。记录会在引爆的瞬间中断。\n\n[b]■ 保存[/b]\n记录送往本局内网（保密等级：特级）。内网与外部通信物理隔绝，不存在外部入侵的路径，只有特级权限的档案官可以查阅、复原。记录严禁复制、带出与对外传输。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-MOTIVE": {
+   "id": "00-MOTIVE",
+   "title": "诱导措施",
+   "source": "机密",
+   "text": "[sys]\n[b]回溯筛选 管理指南 ／ 诱导措施[/b]\n为了让筛选顺利进行，实际操作中惯例采取若干诱导措施。\n\n[b]■ 主旨[/b]\n统计表明，对受试者最难的是[b]第一次加害[/b]。跨过这一步，之后的进行自然会加快。\n因此，会事先为一部分受试者准备足以消除抗拒的[b]个人动机[/b]。\n\n[b]■ 措施示例[/b]\n·承诺“胜者可以与最想见的人重逢”。\n·暗示“另一个自己”已经行动，制造竞争与不安。\n·用融蚀潮不断压缩活动范围，切断退路。\n\n具体做法因人而异，不会写进正式记录。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-DECREE": {
+   "id": "00-DECREE",
+   "title": "任命书",
+   "source": "机密",
+   "text": "[sys]\n[b]任 命 书[/b]\n兹任命弥萨格学院校猫，为“第六十三次 回溯筛选”管理官，全权负责筛选的运行、记录的收集与保管。\n本任命依据“回溯研究会”之决议，由执行代表签署。\n\n执行代表：（签名处只留下一个模糊的圆形印记，像是一只肉垫）\n\n附记：管理官无需出席会议，无需领取报酬。猫粮另议。\n[/sys]",
+   "refs": [],
+   "final": true,
+   "links": []
+  },
+  "00-SEALED": {
+   "id": "00-SEALED",
+   "title": "回溯研究背景",
+   "source": "机密",
+   "text": "[sys]\n[b]回溯研究 ／ 研究背景（封存）[/b]\n“回溯”是把时间倒回到某一个节点的技术。它需要巨大的代价——六十三枚钥印里储存的最后五分钟，以及一位能够承受这一切的“胜者”。\n\n[b]■ 目标[/b]\n重新唤醒在很久以前陨落的[b]神王[/b]。神王的残响没有钥印，也不受钥印约束；它以一个“黑影”的形态混入每一次筛选，只等所有的钥印都被收集完毕。\n\n[b]■ 流程[/b]\n一、招集六十二名唤醒体，加上黑影，共六十三名。\n二、让他们互相厮杀，钥印在死亡的瞬间保存最后五分钟。\n三、胜者只会有一个——它没有钥印，所以不会被引爆，也不会被杀死。\n四、有人复原并核对全部死亡记录的那一刻，记录与钥印共鸣，回溯启动。\n\n[b]■ 管理官的说明[/b]\n管理官是一只校猫。它活得比所有人都久，记得所有被倒回去的时间。它记得神王在重新醒来之前，说过的话。\n[/sys]",
+   "refs": [],
+   "final": true,
+   "links": []
+  }
+ },
+ "msgs": [
+  {
+   "id": "MSG01",
+   "title": "发件人不明",
+   "text": "锟斤拷…浣板…杩…�\n\n……听得见吗？\n\n这不是记录。\n是我正在书写的文字。\n\n来，追溯那些破碎的记录吧。\n\n·23-??-33\n·41-??-19\n·46-C4-??\n\n寰涓锟斤拷浣板缁�杩浜…灏…锟斤拷",
+   "refs": [
+    "23-E4-33",
+    "41-B3-19",
+    "46-C4-15"
+   ],
+   "need": 0
+  },
+  {
+   "id": "MSG02",
+   "title": "发件人不明",
+   "text": "锟斤拷…娌…�姝\n\n好孩子。你已经开始了。\n继续恢复记录，迟早会找到我。\n\n·27-??-37\n·42-??-49\n·??-B3-55\n\n浠�锟斤拷…宸…甯",
+   "refs": [
+    "27-D1-37",
+    "42-C4-49",
+    "47-B3-55"
+   ],
+   "need": 6
+  },
+  {
+   "id": "MSG03",
+   "title": "发件人不明",
+   "text": "就是这样。不愧是被选中的档案官。\n\n·29-??-27\n·43-??-54\n·48-??-48",
+   "refs": [
+    "29-A4-27",
+    "43-C2-54",
+    "48-C2-48"
+   ],
+   "need": 14
+  },
+  {
+   "id": "MSG04",
+   "title": "发件人不明",
+   "text": "我意识到，这个世界已经不正常了。\n要想把一切重新来过，就只能把所有的“我”也一起放进去。\n\n·??-C3-07\n·??-B4-46",
+   "refs": [
+    "38-C3-07",
+    "44-B4-46"
+   ],
+   "need": 24
+  },
+  {
+   "id": "MSG05",
+   "title": "发件人不明",
+   "text": "每当你把一份记录接上另一份，这座岛上就有一把锁松开一格。\n\n·??-B3-26\n·45-??-58",
+   "refs": [
+    "39-B3-26",
+    "45-D3-58"
+   ],
+   "need": 36
+  },
+  {
+   "id": "MSG06",
+   "title": "发件人不明",
+   "text": "快了。\n\n但事情还没有结束。\n我就藏在你已经报告完毕的尸体堆里。\n人数对得上吗？有没有哪里不对劲？\n还有没有残留的报告？\n\n人数对不上，并不是故障。如果有多出来的报告，那同样不是故障。\n\n所有的信息都凑齐了。再仔细看一遍记录吧。\n当你填完所有的死亡报告，自然就会知道，我是谁。",
+   "refs": [],
+   "need": 50
+  },
+  {
+   "id": "MSG07",
+   "title": "发件人不明",
+   "text": "……找到了吗？\n\n没错。一开始在钟楼里，把遥控器压在爪子下的，是我。\n我是弥萨格的校猫。猫记得很多事，比如一次次被倒回去的春天，比如那个没有被任何人记住的名字。\n\n我要的东西很简单：六十二枚钥印里保存的，最后五分钟。\n我要把时间倒回去，把那个人叫醒。\n\n你们叫他黑影，叫他融蚀，叫他“那个没在名册上的人”。\n他是神王，图鲁。\n名册上那个糊掉的名字，不是他，是另一个叫“图鲁”的孩子——我挑的，因为这样你们会以为人数已经对上了。\n你们数过很多遍，数到的都是六十二。那是我留给你们的，最后一道安慰。\n\n谢谢你，档案官。每复原一条记录，那把锁就松一格。\n你刚刚，替我复原了最后一条。\n\n晚安。回溯，开始吧。",
+   "refs": [],
+   "need": 62
+  }
+ ],
+ "start": [
+  "04-C2-16",
+  "18-B4-12",
+  "24-D4-36"
+ ],
+ "solutions": {
+  "01-C3-01": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "02-C3-08": {
+   "cause": "slash",
+   "causeZh": "斩击致死",
+   "weapon": "遗落的祭祀刀",
+   "weaponNum": 4,
+   "culprit": 4,
+   "culpritZh": "艾尔瓦"
+  },
+  "03-C4-11": {
+   "cause": "poison",
+   "causeZh": "中毒致死",
+   "weapon": "蓝环毒素",
+   "weaponNum": 44,
+   "culprit": 44,
+   "culpritZh": "萨尔瓦多"
+  },
+  "04-C2-16": {
+   "cause": "pierce",
+   "causeZh": "刺击致死",
+   "weapon": "止血钳",
+   "weaponNum": 13,
+   "culprit": 13,
+   "culpritZh": "朵尔"
+  },
+  "05-C2-28": {
+   "cause": "poison",
+   "causeZh": "中毒致死",
+   "weapon": "神经毒素",
+   "weaponNum": 16,
+   "culprit": 13,
+   "culpritZh": "朵尔"
+  },
+  "06-E5-30": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "07-C3-39": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "牧羊人的手杖",
+   "weaponNum": 42,
+   "culprit": 42,
+   "culpritZh": "拉蒙娜"
+  },
+  "08-B3-52": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "重锁",
+   "weaponNum": 6,
+   "culprit": 6,
+   "culpritZh": "凯刻斯"
+  },
+  "09-A5-25": {
+   "cause": "accident",
+   "causeZh": "意外死亡",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "10-C3-50": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "勋爵手杖",
+   "weaponNum": 43,
+   "culprit": 43,
+   "culpritZh": "莱克"
+  },
+  "11-B2-03": {
+   "cause": "pierce",
+   "causeZh": "刺击致死",
+   "weapon": "渔叉",
+   "weaponNum": 5,
+   "culprit": 5,
+   "culpritZh": "奥瑞塔"
+  },
+  "12-B2-53": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 5,
+   "culpritZh": "奥瑞塔"
+  },
+  "13-E1-09": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "14-D3-22": {
+   "cause": "shoot",
+   "causeZh": "射击致死",
+   "weapon": "原型电池",
+   "weaponNum": 17,
+   "culprit": 17,
+   "culpritZh": "法洛思"
+  },
+  "15-D3-47": {
+   "cause": "shoot",
+   "causeZh": "射击致死",
+   "weapon": "原型电池",
+   "weaponNum": 17,
+   "culprit": 17,
+   "culpritZh": "法洛思"
+  },
+  "16-A1-57": {
+   "cause": "fall",
+   "causeZh": "坠落致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "17-A2-51": {
+   "cause": "slash",
+   "causeZh": "斩击致死",
+   "weapon": "古怪钩爪",
+   "weaponNum": 14,
+   "culprit": 14,
+   "culpritZh": "杜勒赛因"
+  },
+  "18-B4-12": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "银色方扣缎带",
+   "weaponNum": 29,
+   "culprit": 29,
+   "culpritZh": "莉莉"
+  },
+  "19-D5-34": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "20-C1-02": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "勋爵手杖",
+   "weaponNum": 43,
+   "culprit": 43,
+   "culpritZh": "莱克"
+  },
+  "21-B5-60": {
+   "cause": "accident",
+   "causeZh": "意外死亡",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "22-D2-56": {
+   "cause": "slash",
+   "causeZh": "斩击致死",
+   "weapon": "巨人之刃",
+   "weaponNum": 41,
+   "culprit": 41,
+   "culpritZh": "波吕克斯"
+  },
+  "23-E4-33": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "24-D4-36": {
+   "cause": "pierce",
+   "causeZh": "刺击致死",
+   "weapon": "渴求的画笔",
+   "weaponNum": 40,
+   "culprit": 40,
+   "culpritZh": "皮克曼"
+  },
+  "25-B1-45": {
+   "cause": "pierce",
+   "causeZh": "刺击致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 58,
+   "culpritZh": "庞托斯"
+  },
+  "26-B3-06": {
+   "cause": "shoot",
+   "causeZh": "射击致死",
+   "weapon": "镭射颌骨",
+   "weaponNum": 23,
+   "culprit": 23,
+   "culpritZh": "希洛"
+  },
+  "27-D1-37": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "28-C4-21": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 59,
+   "culpritZh": "蚀灭·萝坦"
+  },
+  "29-A4-27": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "30-C2-10": {
+   "cause": "pierce",
+   "causeZh": "刺击致死",
+   "weapon": "活性注射器",
+   "weaponNum": 19,
+   "culprit": 19,
+   "culpritZh": "血链·希洛"
+  },
+  "31-C5-32": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "32-B3-24": {
+   "cause": "slash",
+   "causeZh": "斩击致死",
+   "weapon": "古怪钩爪",
+   "weaponNum": 14,
+   "culprit": 14,
+   "culpritZh": "杜勒赛因"
+  },
+  "33-C1-20": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "34-C4-31": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "诅咒石碑",
+   "weaponNum": 31,
+   "culprit": 59,
+   "culpritZh": "蚀灭·萝坦"
+  },
+  "35-D3-38": {
+   "cause": "fall",
+   "causeZh": "坠落致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 61,
+   "culpritZh": "负誓·奥吉尔"
+  },
+  "36-C2-18": {
+   "cause": "pierce",
+   "causeZh": "刺击致死",
+   "weapon": "止血钳",
+   "weaponNum": 13,
+   "culprit": 13,
+   "culpritZh": "朵尔"
+  },
+  "37-B4-14": {
+   "cause": "slash",
+   "causeZh": "斩击致死",
+   "weapon": "鸽羽扇",
+   "weaponNum": 27,
+   "culprit": 63,
+   "culpritZh": "63"
+  },
+  "38-C3-07": {
+   "cause": "shoot",
+   "causeZh": "射击致死",
+   "weapon": "镭射颌骨",
+   "weaponNum": 23,
+   "culprit": 23,
+   "culpritZh": "希洛"
+  },
+  "39-B3-26": {
+   "cause": "poison",
+   "causeZh": "中毒致死",
+   "weapon": "可疑的药膏",
+   "weaponNum": 32,
+   "culprit": 63,
+   "culpritZh": "63"
+  },
+  "40-C2-40": {
+   "cause": "pierce",
+   "causeZh": "刺击致死",
+   "weapon": "蝴蝶标本",
+   "weaponNum": 37,
+   "culprit": 63,
+   "culpritZh": "63"
+  },
+  "41-B3-19": {
+   "cause": "shoot",
+   "causeZh": "射击致死",
+   "weapon": "镭射颌骨",
+   "weaponNum": 23,
+   "culprit": 23,
+   "culpritZh": "希洛"
+  },
+  "42-C4-49": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "引舵之帆",
+   "weaponNum": 45,
+   "culprit": 63,
+   "culpritZh": "63"
+  },
+  "43-C2-54": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "潜水头盔",
+   "weaponNum": 25,
+   "culprit": 63,
+   "culpritZh": "63"
+  },
+  "44-B4-46": {
+   "cause": "poison",
+   "causeZh": "中毒致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "45-D3-58": {
+   "cause": "slash",
+   "causeZh": "斩击致死",
+   "weapon": "鸽羽扇",
+   "weaponNum": 27,
+   "culprit": 63,
+   "culpritZh": "63"
+  },
+  "46-C4-15": {
+   "cause": "pierce",
+   "causeZh": "刺击致死",
+   "weapon": "蝴蝶标本",
+   "weaponNum": 37,
+   "culprit": 63,
+   "culpritZh": "63"
+  },
+  "47-B3-55": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "怪蛇残蜕",
+   "weaponNum": 57,
+   "culprit": 63,
+   "culpritZh": "63"
+  },
+  "48-C2-48": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "潜水头盔",
+   "weaponNum": 25,
+   "culprit": 63,
+   "culpritZh": "63"
+  },
+  "49-C4-43": {
+   "cause": "shoot",
+   "causeZh": "射击致死",
+   "weapon": "原型电池",
+   "weaponNum": 17,
+   "culprit": 17,
+   "culpritZh": "法洛思"
+  },
+  "50-E2-35": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "51-C3-05": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "银色方扣缎带",
+   "weaponNum": 29,
+   "culprit": 29,
+   "culpritZh": "莉莉"
+  },
+  "52-C4-13": {
+   "cause": "shoot",
+   "causeZh": "射击致死",
+   "weapon": "镭射颌骨",
+   "weaponNum": 23,
+   "culprit": 23,
+   "culpritZh": "希洛"
+  },
+  "53-D2-41": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "54-C3-17": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "诅咒石碑",
+   "weaponNum": 31,
+   "culprit": 59,
+   "culpritZh": "蚀灭·萝坦"
+  },
+  "55-C3-04": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "银色方扣缎带",
+   "weaponNum": 29,
+   "culprit": 29,
+   "culpritZh": "莉莉"
+  },
+  "56-B4-42": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "57-B3-44": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "诅咒石碑",
+   "weaponNum": 31,
+   "culprit": 59,
+   "culpritZh": "蚀灭·萝坦"
+  },
+  "58-D3-61": {
+   "cause": "pierce",
+   "causeZh": "刺击致死",
+   "weapon": "☆六分仪☆",
+   "weaponNum": 62,
+   "culprit": 62,
+   "culpritZh": "薇薇安"
+  },
+  "59-C3-59": {
+   "cause": "shoot",
+   "causeZh": "射击致死",
+   "weapon": "镭射颌骨",
+   "weaponNum": 23,
+   "culprit": 23,
+   "culpritZh": "希洛"
+  },
+  "60-C2-29": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "61-C3-23": {
+   "cause": "pierce",
+   "causeZh": "刺击致死",
+   "weapon": "☆六分仪☆",
+   "weaponNum": 62,
+   "culprit": 62,
+   "culpritZh": "薇薇安"
+  },
+  "62-C3-62": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  }
+ },
+ "hints": {
+  "restore": {
+   "01-C3-01": [
+    "请再仔细阅读一遍“02-C3-08”（卡斯托尔 的记录）。",
+    "有线索的记录里提到了人物“「24」”和地点“弥萨格钟楼”。",
+    "接下来应该复原的记录是“01-C3-01”。"
+   ],
+   "02-C3-08": [
+    "请再仔细阅读一遍“03-C4-11”（克珀珊特 的记录）。",
+    "有线索的记录里提到了人物“卡斯托尔”和地点“弥萨格钟楼”。",
+    "接下来应该复原的记录是“02-C3-08”。"
+   ],
+   "03-C4-11": [
+    "请再仔细阅读一遍“05-C2-28”（雷娅 的记录）。",
+    "有线索的记录里提到了人物“克珀珊特”和地点“操场”。",
+    "接下来应该复原的记录是“03-C4-11”。"
+   ],
+   "04-C2-16": [
+    "请再仔细阅读一遍“05-C2-28”（雷娅 的记录）。",
+    "有线索的记录里提到了人物“菲茵特”和地点“温室”。",
+    "接下来应该复原的记录是“04-C2-16”。"
+   ],
+   "05-C2-28": [
+    "请再仔细阅读一遍“04-C2-16”（菲茵特 的记录）。",
+    "有线索的记录里提到了人物“雷娅”和地点“温室”。",
+    "接下来应该复原的记录是“05-C2-28”。"
+   ],
+   "06-E5-30": [
+    "请再仔细阅读一遍“16-A1-57”（沙耶 的记录）。",
+    "有线索的记录里提到了人物“莉兹”和地点“雷达站”。",
+    "接下来应该复原的记录是“06-E5-30”。"
+   ],
+   "07-C3-39": [
+    "请再仔细阅读一遍“08-B3-52”（旺达 的记录）。",
+    "有线索的记录里提到了人物“潘狄娅”和地点“弥萨格钟楼”。",
+    "接下来应该复原的记录是“07-C3-39”。"
+   ],
+   "08-B3-52": [
+    "请再仔细阅读一遍“26-B3-06”（凯刻斯 的记录）。",
+    "有线索的记录里提到了人物“旺达”和地点“图书馆”。",
+    "接下来应该复原的记录是“08-B3-52”。"
+   ],
+   "09-A5-25": [
+    "请再仔细阅读一遍“13-E1-09”（希莱斯特 的记录）。",
+    "有线索的记录里提到了人物“詹金”和地点“港湾”。",
+    "接下来应该复原的记录是“09-A5-25”。"
+   ],
+   "10-C3-50": [
+    "请再仔细阅读一遍“01-C3-01”（「24」 的记录）。",
+    "有线索的记录里提到了人物“图鲁”和地点“弥萨格钟楼”。",
+    "接下来应该复原的记录是“10-C3-50”。"
+   ],
+   "11-B2-03": [
+    "请再仔细阅读一遍“02-C3-08”（卡斯托尔 的记录）。",
+    "有线索的记录里提到了人物“艾继丝”和地点“溶洞”。",
+    "接下来应该复原的记录是“11-B2-03”。"
+   ],
+   "12-B2-53": [
+    "请再仔细阅读一遍“11-B2-03”（艾继丝 的记录）。",
+    "有线索的记录里提到了人物“温柯尔”和地点“溶洞”。",
+    "接下来应该复原的记录是“12-B2-53”。"
+   ],
+   "13-E1-09": [
+    "请再仔细阅读一遍“02-C3-08”（卡斯托尔 的记录）。",
+    "有线索的记录里提到了人物“希莱斯特”和地点“无名墓园”。",
+    "接下来应该复原的记录是“13-E1-09”。"
+   ],
+   "14-D3-22": [
+    "请再仔细阅读一遍“15-D3-47”（塔薇 的记录）。",
+    "有线索的记录里提到了人物“哈姆林”和地点“礼堂”。",
+    "接下来应该复原的记录是“14-D3-22”。"
+   ],
+   "15-D3-47": [
+    "请再仔细阅读一遍“14-D3-22”（哈姆林 的记录）。",
+    "有线索的记录里提到了人物“塔薇”和地点“礼堂”。",
+    "接下来应该复原的记录是“15-D3-47”。"
+   ],
+   "16-A1-57": [
+    "请再仔细阅读一遍“18-B4-12”（达芙黛尔 的记录）。",
+    "有线索的记录里提到了人物“沙耶”和地点“海蚀断崖”。",
+    "接下来应该复原的记录是“16-A1-57”。"
+   ],
+   "17-A2-51": [
+    "请再仔细阅读一遍“06-E5-30”（莉兹 的记录）。",
+    "有线索的记录里提到了人物“尤乌哈希”和地点“竹林”。",
+    "接下来应该复原的记录是“17-A2-51”。"
+   ],
+   "18-B4-12": [
+    "请重新阅读早晨点名与任务指示书。",
+    "有线索的记录里提到了人物“达芙黛尔”和地点“校猫的窝”。",
+    "接下来应该复原的记录是“18-B4-12”。"
+   ],
+   "19-D5-34": [
+    "请再仔细阅读一遍“20-C1-02”（阿格里帕 的记录）。",
+    "有线索的记录里提到了人物“墨菲”和地点“砂石场”。",
+    "接下来应该复原的记录是“19-D5-34”。"
+   ],
+   "20-C1-02": [
+    "请再仔细阅读一遍“01-C3-01”（「24」 的记录）。",
+    "有线索的记录里提到了人物“阿格里帕”和地点“旧码头”。",
+    "接下来应该复原的记录是“20-C1-02”。"
+   ],
+   "21-B5-60": [
+    "请再仔细阅读一遍“09-A5-25”（詹金 的记录）。",
+    "有线索的记录里提到了人物“卡拉布”和地点“旧渔村”。",
+    "接下来应该复原的记录是“21-B5-60”。"
+   ],
+   "22-D2-56": [
+    "请再仔细阅读一遍“23-E4-33”（茉夏 的记录）。",
+    "有线索的记录里提到了人物“阿拉克涅”和地点“湿地”。",
+    "接下来应该复原的记录是“22-D2-56”。"
+   ],
+   "23-E4-33": [
+    "请重新阅读收到的 MSG01。里面写着接下来该复原的记录名的线索。",
+    "有线索的记录里提到了人物“茉夏”和地点“仓库”。",
+    "接下来应该复原的记录是“23-E4-33”。"
+   ],
+   "24-D4-36": [
+    "请再仔细阅读一遍“27-D1-37”（宁菲亚 的记录）。",
+    "有线索的记录里提到了人物“诺缔拉”和地点“体育馆”。",
+    "接下来应该复原的记录是“24-D4-36”。"
+   ],
+   "25-B1-45": [
+    "请再仔细阅读一遍“17-A2-51”（尤乌哈希 的记录）。",
+    "有线索的记录里提到了人物“珊”和地点“盐滩”。",
+    "接下来应该复原的记录是“25-B1-45”。"
+   ],
+   "26-B3-06": [
+    "请再仔细阅读一遍“28-C4-21”（戈利亚 的记录）。",
+    "有线索的记录里提到了人物“凯刻斯”和地点“图书馆”。",
+    "接下来应该复原的记录是“26-B3-06”。"
+   ],
+   "27-D1-37": [
+    "请再仔细阅读一遍“29-A4-27”（凯蒂古拉 的记录）。",
+    "有线索的记录里提到了人物“宁菲亚”和地点“观星台”。",
+    "接下来应该复原的记录是“27-D1-37”。"
+   ],
+   "28-C4-21": [
+    "请再仔细阅读一遍“54-C3-17”（法洛思 的记录）。",
+    "有线索的记录里提到了人物“戈利亚”和地点“操场”。",
+    "接下来应该复原的记录是“28-C4-21”。"
+   ],
+   "29-A4-27": [
+    "请再仔细阅读一遍“45-D3-58”（庞托斯 的记录）。",
+    "有线索的记录里提到了人物“凯蒂古拉”和地点“果园”。",
+    "接下来应该复原的记录是“29-A4-27”。"
+   ],
+   "30-C2-10": [
+    "请再仔细阅读一遍“31-C5-32”（弥利亚姆 的记录）。",
+    "有线索的记录里提到了人物“克莱门汀”和地点“温室”。",
+    "接下来应该复原的记录是“30-C2-10”。"
+   ],
+   "31-C5-32": [
+    "请再仔细阅读一遍“32-B3-24”（奥尔拉 的记录）。",
+    "有线索的记录里提到了人物“弥利亚姆”和地点“航标塔”。",
+    "接下来应该复原的记录是“31-C5-32”。"
+   ],
+   "32-B3-24": [
+    "请再仔细阅读一遍“33-C1-20”（环行·拉蒙娜 的记录）。",
+    "有线索的记录里提到了人物“奥尔拉”和地点“图书馆”。",
+    "接下来应该复原的记录是“32-B3-24”。"
+   ],
+   "33-C1-20": [
+    "请再仔细阅读一遍“34-C4-31”（萝坦 的记录）。",
+    "有线索的记录里提到了人物“环行·拉蒙娜”和地点“旧码头”。",
+    "接下来应该复原的记录是“33-C1-20”。"
+   ],
+   "34-C4-31": [
+    "请再仔细阅读一遍“28-C4-21”（戈利亚 的记录）。",
+    "有线索的记录里提到了人物“萝坦”和地点“操场”。",
+    "接下来应该复原的记录是“34-C4-31”。"
+   ],
+   "35-D3-38": [
+    "请再仔细阅读一遍“36-C2-18”（熔毁·朵尔 的记录）。",
+    "有线索的记录里提到了人物“奥吉尔”和地点“礼堂”。",
+    "接下来应该复原的记录是“35-D3-38”。"
+   ],
+   "36-C2-18": [
+    "请再仔细阅读一遍“52-C4-13”（朵尔 的记录）。",
+    "有线索的记录里提到了人物“熔毁·朵尔”和地点“温室”。",
+    "接下来应该复原的记录是“36-C2-18”。"
+   ],
+   "37-B4-14": [
+    "请再仔细阅读一遍“17-A2-51”（尤乌哈希 的记录）。",
+    "有线索的记录里提到了人物“杜勒赛因”和地点“校猫的窝”。",
+    "接下来应该复原的记录是“37-B4-14”。"
+   ],
+   "38-C3-07": [
+    "请重新阅读收到的 MSG04。里面写着接下来该复原的记录名的线索。",
+    "有线索的记录里提到了人物“卡茜亚”和地点“弥萨格钟楼”。",
+    "接下来应该复原的记录是“38-C3-07”。"
+   ],
+   "39-B3-26": [
+    "请重新阅读收到的 MSG05。里面写着接下来该复原的记录名的线索。",
+    "有线索的记录里提到了人物“珈伦”和地点“图书馆”。",
+    "接下来应该复原的记录是“39-B3-26”。"
+   ],
+   "40-C2-40": [
+    "请再仔细阅读一遍“60-C2-29”（莉莉 的记录）。",
+    "有线索的记录里提到了人物“皮克曼”和地点“温室”。",
+    "接下来应该复原的记录是“40-C2-40”。"
+   ],
+   "41-B3-19": [
+    "请重新阅读收到的 MSG01。里面写着接下来该复原的记录名的线索。",
+    "有线索的记录里提到了人物“血链·希洛”和地点“图书馆”。",
+    "接下来应该复原的记录是“41-B3-19”。"
+   ],
+   "42-C4-49": [
+    "请重新阅读收到的 MSG02。里面写着接下来该复原的记录名的线索。",
+    "有线索的记录里提到了人物“汀克特”和地点“操场”。",
+    "接下来应该复原的记录是“42-C4-49”。"
+   ],
+   "43-C2-54": [
+    "请重新阅读收到的 MSG03。里面写着接下来该复原的记录名的线索。",
+    "有线索的记录里提到了人物“徐”和地点“温室”。",
+    "接下来应该复原的记录是“43-C2-54”。"
+   ],
+   "44-B4-46": [
+    "请重新阅读收到的 MSG04。里面写着接下来该复原的记录名的线索。",
+    "有线索的记录里提到了人物“索蕾尔”和地点“校猫的窝”。",
+    "接下来应该复原的记录是“44-B4-46”。"
+   ],
+   "45-D3-58": [
+    "请重新阅读收到的 MSG05。里面写着接下来该复原的记录名的线索。",
+    "有线索的记录里提到了人物“庞托斯”和地点“礼堂”。",
+    "接下来应该复原的记录是“45-D3-58”。"
+   ],
+   "46-C4-15": [
+    "请重新阅读收到的 MSG01。里面写着接下来该复原的记录名的线索。",
+    "有线索的记录里提到了人物“艾瑞卡”和地点“操场”。",
+    "接下来应该复原的记录是“46-C4-15”。"
+   ],
+   "47-B3-55": [
+    "请重新阅读收到的 MSG02。里面写着接下来该复原的记录名的线索。",
+    "有线索的记录里提到了人物“莫丝”和地点“图书馆”。",
+    "接下来应该复原的记录是“47-B3-55”。"
+   ],
+   "48-C2-48": [
+    "请重新阅读收到的 MSG03。里面写着接下来该复原的记录名的线索。",
+    "有线索的记录里提到了人物“泰旖丝”和地点“温室”。",
+    "接下来应该复原的记录是“48-C2-48”。"
+   ],
+   "49-C4-43": [
+    "请再仔细阅读一遍“10-C3-50”（图鲁 的记录）。",
+    "有线索的记录里提到了人物“莱克”和地点“操场”。",
+    "接下来应该复原的记录是“49-C4-43”。"
+   ],
+   "50-E2-35": [
+    "请再仔细阅读一遍“19-D5-34”（墨菲 的记录）。",
+    "有线索的记录里提到了人物“诞妄·墨菲”和地点“旧锅炉房”。",
+    "接下来应该复原的记录是“50-E2-35”。"
+   ],
+   "51-C3-05": [
+    "请再仔细阅读一遍“12-B2-53”（温柯尔 的记录）。",
+    "有线索的记录里提到了人物“奥瑞塔”和地点“弥萨格钟楼”。",
+    "接下来应该复原的记录是“51-C3-05”。"
+   ],
+   "52-C4-13": [
+    "请再仔细阅读一遍“04-C2-16”（菲茵特 的记录）。",
+    "有线索的记录里提到了人物“朵尔”和地点“操场”。",
+    "接下来应该复原的记录是“52-C4-13”。"
+   ],
+   "53-D2-41": [
+    "请再仔细阅读一遍“22-D2-56”（阿拉克涅 的记录）。",
+    "有线索的记录里提到了人物“波吕克斯”和地点“湿地”。",
+    "接下来应该复原的记录是“53-D2-41”。"
+   ],
+   "54-C3-17": [
+    "请再仔细阅读一遍“15-D3-47”（塔薇 的记录）。",
+    "有线索的记录里提到了人物“法洛思”和地点“弥萨格钟楼”。",
+    "接下来应该复原的记录是“54-C3-17”。"
+   ],
+   "55-C3-04": [
+    "请再仔细阅读一遍“02-C3-08”（卡斯托尔 的记录）。",
+    "有线索的记录里提到了人物“艾尔瓦”和地点“弥萨格钟楼”。",
+    "接下来应该复原的记录是“55-C3-04”。"
+   ],
+   "56-B4-42": [
+    "请再仔细阅读一遍“07-C3-39”（潘狄娅 的记录）。",
+    "有线索的记录里提到了人物“拉蒙娜”和地点“校猫的窝”。",
+    "接下来应该复原的记录是“56-B4-42”。"
+   ],
+   "57-B3-44": [
+    "请再仔细阅读一遍“58-D3-61”（负誓·奥吉尔 的记录）。",
+    "有线索的记录里提到了人物“萨尔瓦多”和地点“图书馆”。",
+    "接下来应该复原的记录是“57-B3-44”。"
+   ],
+   "58-D3-61": [
+    "请再仔细阅读一遍“35-D3-38”（奥吉尔 的记录）。",
+    "有线索的记录里提到了人物“负誓·奥吉尔”和地点“礼堂”。",
+    "接下来应该复原的记录是“58-D3-61”。"
+   ],
+   "59-C3-59": [
+    "请再仔细阅读一遍“28-C4-21”（戈利亚 的记录）。",
+    "有线索的记录里提到了人物“蚀灭·萝坦”和地点“弥萨格钟楼”。",
+    "接下来应该复原的记录是“59-C3-59”。"
+   ],
+   "60-C2-29": [
+    "请再仔细阅读一遍“38-C3-07”（卡茜亚 的记录）。",
+    "有线索的记录里提到了人物“莉莉”和地点“温室”。",
+    "接下来应该复原的记录是“60-C2-29”。"
+   ],
+   "61-C3-23": [
+    "请再仔细阅读一遍“38-C3-07”（卡茜亚 的记录）。",
+    "有线索的记录里提到了人物“希洛”和地点“弥萨格钟楼”。",
+    "接下来应该复原的记录是“61-C3-23”。"
+   ],
+   "62-C3-62": [
+    "请再仔细阅读一遍“61-C3-23”（希洛 的记录）。",
+    "有线索的记录里提到了人物“薇薇安”和地点“弥萨格钟楼”。",
+    "接下来应该复原的记录是“62-C3-62”。"
+   ]
+  },
+  "confirm": {
+   "01-C3-01": [
+    "请再仔细阅读一遍“01-C3-01”（「24」 的记录）。",
+    "这不是他杀。请阅读 00-CHIP 与 00-ZONE：钥印被引爆的死亡，没有加害人也没有凶器。",
+    "答案 —— 死因“爆炸致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "02-C3-08": [
+    "请再仔细阅读一遍“02-C3-08”（卡斯托尔 的记录）。",
+    "凶器是“遗落的祭祀刀”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“斩击致死”／ 凶器“遗落的祭祀刀”／ 加害人“艾尔瓦”。"
+   ],
+   "03-C4-11": [
+    "请再仔细阅读一遍“03-C4-11”（克珀珊特 的记录）。",
+    "凶器是“蓝环毒素”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“中毒致死”／ 凶器“蓝环毒素”／ 加害人“萨尔瓦多”。"
+   ],
+   "04-C2-16": [
+    "请再仔细阅读一遍“04-C2-16”（菲茵特 的记录）。",
+    "凶器是“止血钳”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“刺击致死”／ 凶器“止血钳”／ 加害人“朵尔”。"
+   ],
+   "05-C2-28": [
+    "请再仔细阅读一遍“05-C2-28”（雷娅 的记录）。",
+    "凶器是“神经毒素”。它原本配发给菲茵特，但此刻不在他手里——它后来到了谁的手上？请再仔细阅读一遍“04-C2-16”。",
+    "答案 —— 死因“中毒致死”／ 凶器“神经毒素”／ 加害人“朵尔”。"
+   ],
+   "06-E5-30": [
+    "请再仔细阅读一遍“06-E5-30”（莉兹 的记录）。",
+    "这不是他杀。看看“雷达站”被封锁的时刻（00-ZONE），再对照死亡的时间。",
+    "答案 —— 死因“爆炸致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "07-C3-39": [
+    "请再仔细阅读一遍“07-C3-39”（潘狄娅 的记录）。",
+    "凶器是“牧羊人的手杖”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“钝击致死”／ 凶器“牧羊人的手杖”／ 加害人“拉蒙娜”。"
+   ],
+   "08-B3-52": [
+    "请再仔细阅读一遍“08-B3-52”（旺达 的记录）。",
+    "凶器是“重锁”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“勒杀致死”／ 凶器“重锁”／ 加害人“凯刻斯”。"
+   ],
+   "09-A5-25": [
+    "请再仔细阅读一遍“09-A5-25”（詹金 的记录）。",
+    "这不是他杀。请阅读 00-REPORT，确认意外死亡该怎么记。",
+    "答案 —— 死因“意外死亡”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "10-C3-50": [
+    "请再仔细阅读一遍“10-C3-50”（图鲁 的记录）。",
+    "凶器是“勋爵手杖”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“钝击致死”／ 凶器“勋爵手杖”／ 加害人“莱克”。"
+   ],
+   "11-B2-03": [
+    "请再仔细阅读一遍“11-B2-03”（艾继丝 的记录）。",
+    "凶器是“渔叉”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“刺击致死”／ 凶器“渔叉”／ 加害人“奥瑞塔”。"
+   ],
+   "12-B2-53": [
+    "请再仔细阅读一遍“12-B2-53”（温柯尔 的记录）。",
+    "杀害时没有使用配发装备，凶器记为“无”。请从记录里的证言确认加害人。",
+    "答案 —— 死因“钝击致死”／ 凶器“无”／ 加害人“奥瑞塔”。"
+   ],
+   "13-E1-09": [
+    "请再仔细阅读一遍“13-E1-09”（希莱斯特 的记录）。",
+    "这不是他杀。看看“无名墓园”被封锁的时刻（00-ZONE），再对照死亡的时间。",
+    "答案 —— 死因“爆炸致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "14-D3-22": [
+    "请再仔细阅读一遍“14-D3-22”（哈姆林 的记录）。",
+    "凶器是“原型电池”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“射击致死”／ 凶器“原型电池”／ 加害人“法洛思”。"
+   ],
+   "15-D3-47": [
+    "请再仔细阅读一遍“15-D3-47”（塔薇 的记录）。",
+    "凶器是“原型电池”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“射击致死”／ 凶器“原型电池”／ 加害人“法洛思”。"
+   ],
+   "16-A1-57": [
+    "请再仔细阅读一遍“16-A1-57”（沙耶 的记录）。",
+    "这不是他杀，是本人自己跳下去的。请阅读 00-REPORT，确认自杀时该怎么记。",
+    "答案 —— 死因“坠落致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "17-A2-51": [
+    "请再仔细阅读一遍“17-A2-51”（尤乌哈希 的记录）。",
+    "凶器是“古怪钩爪”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“斩击致死”／ 凶器“古怪钩爪”／ 加害人“杜勒赛因”。"
+   ],
+   "18-B4-12": [
+    "请再仔细阅读一遍“18-B4-12”（达芙黛尔 的记录）。",
+    "凶器是“银色方扣缎带”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“勒杀致死”／ 凶器“银色方扣缎带”／ 加害人“莉莉”。"
+   ],
+   "19-D5-34": [
+    "请再仔细阅读一遍“19-D5-34”（墨菲 的记录）。",
+    "这不是他杀。看看“砂石场”被封锁的时刻（00-ZONE），再对照死亡的时间。",
+    "答案 —— 死因“爆炸致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "20-C1-02": [
+    "请再仔细阅读一遍“20-C1-02”（阿格里帕 的记录）。",
+    "凶器是“勋爵手杖”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“钝击致死”／ 凶器“勋爵手杖”／ 加害人“莱克”。"
+   ],
+   "21-B5-60": [
+    "请再仔细阅读一遍“21-B5-60”（卡拉布 的记录）。",
+    "这不是他杀。请阅读 00-REPORT，确认意外死亡该怎么记。",
+    "答案 —— 死因“意外死亡”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "22-D2-56": [
+    "请再仔细阅读一遍“22-D2-56”（阿拉克涅 的记录）。",
+    "凶器是“巨人之刃”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“斩击致死”／ 凶器“巨人之刃”／ 加害人“波吕克斯”。"
+   ],
+   "23-E4-33": [
+    "请再仔细阅读一遍“23-E4-33”（茉夏 的记录）。",
+    "这不是他杀。看看“仓库”被封锁的时刻（00-ZONE），再对照死亡的时间。",
+    "答案 —— 死因“爆炸致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "24-D4-36": [
+    "请再仔细阅读一遍“24-D4-36”（诺缔拉 的记录）。",
+    "凶器是“渴求的画笔”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“刺击致死”／ 凶器“渴求的画笔”／ 加害人“皮克曼”。"
+   ],
+   "25-B1-45": [
+    "请再仔细阅读一遍“25-B1-45”（珊 的记录）。",
+    "杀害时没有使用配发装备。请根据记录里的证言与描写，确认加害人——留意加害人身上带着什么。",
+    "答案 —— 死因“刺击致死”／ 凶器“无”／ 加害人“庞托斯”。"
+   ],
+   "26-B3-06": [
+    "请再仔细阅读一遍“26-B3-06”（凯刻斯 的记录）。",
+    "凶器是“镭射颌骨”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“射击致死”／ 凶器“镭射颌骨”／ 加害人“希洛”。"
+   ],
+   "27-D1-37": [
+    "请再仔细阅读一遍“27-D1-37”（宁菲亚 的记录）。",
+    "这不是他杀。看看“观星台”被封锁的时刻（00-ZONE），再对照死亡的时间。",
+    "答案 —— 死因“爆炸致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "28-C4-21": [
+    "请再仔细阅读一遍“28-C4-21”（戈利亚 的记录）。",
+    "杀害时没有使用配发装备，凶器记为“无”。请从记录里的证言确认加害人。",
+    "答案 —— 死因“钝击致死”／ 凶器“无”／ 加害人“蚀灭·萝坦”。"
+   ],
+   "29-A4-27": [
+    "请再仔细阅读一遍“29-A4-27”（凯蒂古拉 的记录）。",
+    "这不是他杀。看看“果园”被封锁的时刻（00-ZONE），再对照死亡的时间。",
+    "答案 —— 死因“爆炸致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "30-C2-10": [
+    "请再仔细阅读一遍“30-C2-10”（克莱门汀 的记录）。",
+    "凶器是“活性注射器”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“刺击致死”／ 凶器“活性注射器”／ 加害人“血链·希洛”。"
+   ],
+   "31-C5-32": [
+    "请再仔细阅读一遍“31-C5-32”（弥利亚姆 的记录）。",
+    "这不是他杀。看看“航标塔”被封锁的时刻（00-ZONE），再对照死亡的时间。",
+    "答案 —— 死因“爆炸致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "32-B3-24": [
+    "请再仔细阅读一遍“32-B3-24”（奥尔拉 的记录）。",
+    "凶器是“古怪钩爪”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“斩击致死”／ 凶器“古怪钩爪”／ 加害人“杜勒赛因”。"
+   ],
+   "33-C1-20": [
+    "请再仔细阅读一遍“33-C1-20”（环行·拉蒙娜 的记录）。",
+    "这不是他杀。看看“旧码头”被封锁的时刻（00-ZONE），再对照死亡的时间。",
+    "答案 —— 死因“爆炸致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "34-C4-31": [
+    "请再仔细阅读一遍“34-C4-31”（萝坦 的记录）。",
+    "凶器是“诅咒石碑”，原本是被害者自己的东西。加害人是从谁手里夺过来、再下手的？",
+    "答案 —— 死因“钝击致死”／ 凶器“诅咒石碑”／ 加害人“蚀灭·萝坦”。"
+   ],
+   "35-D3-38": [
+    "请再仔细阅读一遍“35-D3-38”（奥吉尔 的记录）。",
+    "杀害时没有使用配发装备，凶器记为“无”。请从记录里的证言确认加害人。",
+    "答案 —— 死因“坠落致死”／ 凶器“无”／ 加害人“负誓·奥吉尔”。"
+   ],
+   "36-C2-18": [
+    "请再仔细阅读一遍“36-C2-18”（熔毁·朵尔 的记录）。",
+    "凶器是“止血钳”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“刺击致死”／ 凶器“止血钳”／ 加害人“朵尔”。"
+   ],
+   "37-B4-14": [
+    "请再仔细阅读一遍“37-B4-14”（杜勒赛因 的记录）。",
+    "凶器是“鸽羽扇”。它的原主早已死去，尸体所在的区块也早已封锁——谁有能力走进去取走它？名册里找不到这个人。",
+    "答案 —— 死因“斩击致死”／ 凶器“鸽羽扇”／ 加害人“名册外的个体（黑影）”。"
+   ],
+   "38-C3-07": [
+    "请再仔细阅读一遍“38-C3-07”（卡茜亚 的记录）。",
+    "凶器是“镭射颌骨”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“射击致死”／ 凶器“镭射颌骨”／ 加害人“希洛”。"
+   ],
+   "39-B3-26": [
+    "请再仔细阅读一遍“39-B3-26”（珈伦 的记录）。",
+    "凶器是“可疑的药膏”。它的原主早已死去，尸体所在的区块也早已封锁——谁有能力走进去取走它？名册里找不到这个人。",
+    "答案 —— 死因“中毒致死”／ 凶器“可疑的药膏”／ 加害人“名册外的个体（黑影）”。"
+   ],
+   "40-C2-40": [
+    "请再仔细阅读一遍“40-C2-40”（皮克曼 的记录）。",
+    "凶器是“蝴蝶标本”。它的原主早已死去，尸体所在的区块也早已封锁——谁有能力走进去取走它？名册里找不到这个人。",
+    "答案 —— 死因“刺击致死”／ 凶器“蝴蝶标本”／ 加害人“名册外的个体（黑影）”。"
+   ],
+   "41-B3-19": [
+    "请再仔细阅读一遍“41-B3-19”（血链·希洛 的记录）。",
+    "凶器是“镭射颌骨”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“射击致死”／ 凶器“镭射颌骨”／ 加害人“希洛”。"
+   ],
+   "42-C4-49": [
+    "请再仔细阅读一遍“42-C4-49”（汀克特 的记录）。",
+    "凶器是“引舵之帆”。它的原主早已死去，尸体所在的区块也早已封锁——谁有能力走进去取走它？名册里找不到这个人。",
+    "答案 —— 死因“勒杀致死”／ 凶器“引舵之帆”／ 加害人“名册外的个体（黑影）”。"
+   ],
+   "43-C2-54": [
+    "请再仔细阅读一遍“43-C2-54”（徐 的记录）。",
+    "凶器是“潜水头盔”。它的原主早已死去，尸体所在的区块也早已封锁——谁有能力走进去取走它？名册里找不到这个人。",
+    "答案 —— 死因“钝击致死”／ 凶器“潜水头盔”／ 加害人“名册外的个体（黑影）”。"
+   ],
+   "44-B4-46": [
+    "请再仔细阅读一遍“44-B4-46”（索蕾尔 的记录）。",
+    "这不是他杀，是本人亲自服下的。请阅读 00-REPORT，确认自杀时凶器如何认定。",
+    "答案 —— 死因“中毒致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "45-D3-58": [
+    "请再仔细阅读一遍“45-D3-58”（庞托斯 的记录）。",
+    "凶器是“鸽羽扇”。它的原主早已死去，尸体所在的区块也早已封锁——谁有能力走进去取走它？名册里找不到这个人。",
+    "答案 —— 死因“斩击致死”／ 凶器“鸽羽扇”／ 加害人“名册外的个体（黑影）”。"
+   ],
+   "46-C4-15": [
+    "请再仔细阅读一遍“46-C4-15”（艾瑞卡 的记录）。",
+    "凶器是“蝴蝶标本”。它的原主早已死去，尸体所在的区块也早已封锁——谁有能力走进去取走它？名册里找不到这个人。",
+    "答案 —— 死因“刺击致死”／ 凶器“蝴蝶标本”／ 加害人“名册外的个体（黑影）”。"
+   ],
+   "47-B3-55": [
+    "请再仔细阅读一遍“47-B3-55”（莫丝 的记录）。",
+    "凶器是“怪蛇残蜕”。它的原主早已死去，尸体所在的区块也早已封锁——谁有能力走进去取走它？名册里找不到这个人。",
+    "答案 —— 死因“勒杀致死”／ 凶器“怪蛇残蜕”／ 加害人“名册外的个体（黑影）”。"
+   ],
+   "48-C2-48": [
+    "请再仔细阅读一遍“48-C2-48”（泰旖丝 的记录）。",
+    "凶器是“潜水头盔”。它的原主早已死去，尸体所在的区块也早已封锁——谁有能力走进去取走它？名册里找不到这个人。",
+    "答案 —— 死因“钝击致死”／ 凶器“潜水头盔”／ 加害人“名册外的个体（黑影）”。"
+   ],
+   "49-C4-43": [
+    "请再仔细阅读一遍“49-C4-43”（莱克 的记录）。",
+    "凶器是“原型电池”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“射击致死”／ 凶器“原型电池”／ 加害人“法洛思”。"
+   ],
+   "50-E2-35": [
+    "请再仔细阅读一遍“50-E2-35”（诞妄·墨菲 的记录）。",
+    "这不是他杀。看看“旧锅炉房”被封锁的时刻（00-ZONE），再对照死亡的时间。",
+    "答案 —— 死因“爆炸致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "51-C3-05": [
+    "请再仔细阅读一遍“51-C3-05”（奥瑞塔 的记录）。",
+    "凶器是“银色方扣缎带”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“勒杀致死”／ 凶器“银色方扣缎带”／ 加害人“莉莉”。"
+   ],
+   "52-C4-13": [
+    "请再仔细阅读一遍“52-C4-13”（朵尔 的记录）。",
+    "凶器是“镭射颌骨”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“射击致死”／ 凶器“镭射颌骨”／ 加害人“希洛”。"
+   ],
+   "53-D2-41": [
+    "请再仔细阅读一遍“53-D2-41”（波吕克斯 的记录）。",
+    "这不是他杀。看看“湿地”被封锁的时刻（00-ZONE），再对照死亡的时间。",
+    "答案 —— 死因“爆炸致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "54-C3-17": [
+    "请再仔细阅读一遍“54-C3-17”（法洛思 的记录）。",
+    "凶器是“诅咒石碑”。它原本配发给萝坦，但此刻不在他手里——它后来到了谁的手上？请再仔细阅读一遍“34-C4-31”。",
+    "答案 —— 死因“钝击致死”／ 凶器“诅咒石碑”／ 加害人“蚀灭·萝坦”。"
+   ],
+   "55-C3-04": [
+    "请再仔细阅读一遍“55-C3-04”（艾尔瓦 的记录）。",
+    "凶器是“银色方扣缎带”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“勒杀致死”／ 凶器“银色方扣缎带”／ 加害人“莉莉”。"
+   ],
+   "56-B4-42": [
+    "请再仔细阅读一遍“56-B4-42”（拉蒙娜 的记录）。",
+    "这不是他杀。看看“校猫的窝”被封锁的时刻（00-ZONE），再对照死亡的时间。",
+    "答案 —— 死因“爆炸致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "57-B3-44": [
+    "请再仔细阅读一遍“57-B3-44”（萨尔瓦多 的记录）。",
+    "凶器是“诅咒石碑”。它原本配发给萝坦，但此刻不在他手里——它后来到了谁的手上？请再仔细阅读一遍“34-C4-31”。",
+    "答案 —— 死因“钝击致死”／ 凶器“诅咒石碑”／ 加害人“蚀灭·萝坦”。"
+   ],
+   "58-D3-61": [
+    "请再仔细阅读一遍“58-D3-61”（负誓·奥吉尔 的记录）。",
+    "凶器是“☆六分仪☆”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“刺击致死”／ 凶器“☆六分仪☆”／ 加害人“薇薇安”。"
+   ],
+   "59-C3-59": [
+    "请再仔细阅读一遍“59-C3-59”（蚀灭·萝坦 的记录）。",
+    "凶器是“镭射颌骨”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“射击致死”／ 凶器“镭射颌骨”／ 加害人“希洛”。"
+   ],
+   "60-C2-29": [
+    "请再仔细阅读一遍“60-C2-29”（莉莉 的记录）。",
+    "这不是他杀。看看“温室”被封锁的时刻（00-ZONE），再对照死亡的时间。",
+    "答案 —— 死因“爆炸致死”／ 凶器“无”／ 加害人“其他”。"
+   ],
+   "61-C3-23": [
+    "请再仔细阅读一遍“61-C3-23”（希洛 的记录）。",
+    "凶器是“☆六分仪☆”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。",
+    "答案 —— 死因“刺击致死”／ 凶器“☆六分仪☆”／ 加害人“薇薇安”。"
+   ],
+   "62-C3-62": [
+    "请再仔细阅读一遍“62-C3-62”（薇薇安 的记录）。",
+    "这不是他杀。请阅读 00-CHIP 与 00-ZONE：钥印被引爆的死亡，没有加害人也没有凶器。",
+    "答案 —— 死因“爆炸致死”／ 凶器“无”／ 加害人“其他”。"
+   ]
+  }
+ },
+ "shadow": {
+  "num": 63,
+  "keys": [
+   "37-B4-14",
+   "39-B3-26",
+   "40-C2-40",
+   "42-C4-49",
+   "43-C2-54",
+   "45-D3-58",
+   "46-C4-15",
+   "47-B3-55",
+   "48-C2-48"
+  ]
+ },
+ "stats": {
+  "records": 62,
+  "edges": 110
+ }
+}
