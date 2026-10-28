@@ -4,7 +4,7 @@
 
 ```bash
 python3 -m http.server 8767       # 打开 http://localhost:8767/deathreport/
-node --test deathreport/tests     # 数据与引擎测试（16 项）
+node --test deathreport/tests     # 数据与引擎测试（18 项）
 python3 deathreport/tools/ledger.py   # 校验事件账本（时间 / 装备链 / 融蚀潮 / 杀手存活）
 python3 deathreport/tools/build.py --repo .   # 由账本 + 文本重新生成 data/game.json
 ```

@@ -159,3 +159,20 @@ test('head count trick: roll call says one more survivor than the roster allows'
   assert.ok(roll.includes(`死亡　${dead} 名`) && roll.includes(`现存　${63 - dead} 名`));
   assert.ok(G.docs['00-ORDER'].text.includes('六十二名'));
 });
+
+test('death order is derivable: every victim (but the last) is announced in a broadcast quoted by some record', () => {
+  const said = new Set();
+  for (const r of Object.values(G.records)) for (const m of r.text.matchAll(/“目前已死亡(\d+)人。新增的死者：([^”]*?)。”/g)) { for (const n of m[2].split('、')) said.add(n); }
+  const last = Object.values(G.records).sort((a, b) => b.dord - a.dord)[0];
+  for (const r of Object.values(G.records)) if (r.key !== last.key) assert.ok(said.has(r.name), `${r.name} is never announced`);
+});
+
+test('broadcast arithmetic: counts match the ledger and names are listed in death order', () => {
+  const byName = Object.fromEntries(Object.values(G.records).map((r) => [r.name, r]));
+  for (const r of Object.values(G.records)) for (const m of r.text.matchAll(/“目前已死亡(\d+)人。新增的死者：([^”]*?)。”/g)) {
+    const names = m[2].split('、'), recs = names.map((n) => byName[n]);
+    assert.deepEqual(recs.map((x) => x.dord), [...recs.map((x) => x.dord)].sort((a, b) => a - b), 'listed in death order');
+    assert.equal(recs[recs.length - 1].dord <= +m[1], true); assert.ok(recs.every((x) => x.dord <= +m[1]));
+    assert.equal(Object.values(G.records).filter((x) => x.dord <= +m[1]).length, +m[1]);
+  }
+});

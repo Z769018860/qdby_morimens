@@ -124,3 +124,7 @@ FLAVOR = {
  23: (1, "我追了很久很久，却始终是慢了一拍。"),
  62: (1, "我想起了出发时那条走了很久的路，它没有终点。"),
 }
+
+# ---- make sure every victim's name is read out in at least one broadcast that appears in some record
+for _n, _h in [(3, 'D1-09'), (12, 'D1-11'), (56, 'D1-13'), (6, 'D1-15'), (18, 'D1-20'), (43, 'D2-07'), (41, 'D2-11'), (4, 'D2-14'), (61, 'D2-17'), (59, 'D2-18')]:
+    X.setdefault(_n, []).append((0, "刚才的广播是这样说的——{bc:%s}" % _h))
