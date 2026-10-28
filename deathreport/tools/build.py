@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ledger import E, ROSTER, NAME, ITEM, ICLASS, PLACES, ZONES, CAUSES, SHADOW, BY_V, fmt, validate, tmin
 from texts import T
 from texts_extra import X, FLAVOR
+from texts_v2 import T2
 from docs import DOCS, MSGS
 
 ap = argparse.ArgumentParser(); ap.add_argument('--repo', default='..'); args = ap.parse_args()
@@ -30,6 +31,7 @@ def bc_text(day, hour):
 # ---------------- token rendering
 TOK = re.compile(r'\{(@?\d+|it:\d+|loc:[A-E]\d|bc:D\d-\d+|sys:[0-9A-Z-]+)\}')
 def full_prose(n):
+    if n in T2: return T2[n].strip('\n')
     L = T[n].split('\n')
     ins = list(X.get(n, []))
     if n in FLAVOR: ins.append(FLAVOR[n])
