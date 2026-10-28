@@ -2,7 +2,7 @@
 """Ground-truth ledger for 《死亡游戏调查报告 · 第六十三次回溯》.
 Everything else (record keys, broadcasts, solutions, reference graph) is derived from this table; the prose lives in texts.py.
 Run:  python3 tools/ledger.py   -> prints the table and validates all invariants."""
-import json, sys
+import json, sys, os
 from collections import OrderedDict
 
 # ---- roster: number -> (slug, zh, realm, role, issued item zh, item kind, item class)
@@ -175,7 +175,11 @@ def validate():
     errs = []
     # 1. every awakener dies exactly once, times strictly increase
     vs = [e['v'] for e in E]
-    if sorted(vs) != list(range(1, 63)): errs.append(f'victims not a permutation of 1..62: missing {set(range(1,63))-set(vs)} dup {[v for v in vs if vs.count(v)>1]}')
+    N = len(NAME) if not os.environ.get('DR_ED') else len(NAME)
+    exp = list(range(1, 63)) if not os.environ.get('DR_ED') else [n for n in range(1, N + 1) if n in set(vs)]
+    if not os.environ.get('DR_ED'):
+        if sorted(vs) != exp: errs.append(f'victims not a permutation of 1..62: missing {set(range(1,63))-set(vs)} dup {[v for v in vs if vs.count(v)>1]}')
+    elif len(set(vs)) != len(vs) or not set(vs) <= set(range(1, N + 1)): errs.append('edition victims invalid')
     if [e['min'] for e in E] != sorted(set(e['min'] for e in E)): errs.append('times not strictly increasing')
     # 2. killers alive; shadow ok; item chain
     dead_at = {e['v']: e['min'] for e in E}
@@ -184,7 +188,7 @@ def validate():
     shadow_has = set()
     for e in E:
         c, w, v = e['c'], e['w'], e['v']
-        if c in NAME and dead_at[c] <= e['min']: errs.append(f"{e['key']}: killer {c} already dead")
+        if c in NAME and dead_at.get(c, 10**9) <= e['min']: errs.append(f"{e['key']}: killer {c} already dead")
         if v in NAME and e['cause'] in ('blast','accident','fall') and c and e['cause']!='fall': errs.append(f"{e['key']}: no-culprit cause with culprit")
         if e['cause'] in ('blast','accident') and c: errs.append(f"{e['key']}: blast/accident must not have culprit")
         if e['cause'] in ('slash','pierce','blunt','shoot','poison','strangle') and not c and e['key'] != '': 
@@ -223,3 +227,17 @@ if __name__ == '__main__':
     print(cnt, 'errors:', len(errs))
     for x in errs: print('  !', x)
     sys.exit(1 if errs else 0)
+
+MAIN_ROSTER = list(ROSTER)
+# ---- earlier editions: DR_ED=62 / 61 swaps the cast, map, zones and events for the edition's own
+if os.environ.get('DR_ED'):
+    import importlib
+    _ed = importlib.import_module('ed_' + os.environ['DR_ED'])
+    _main = {r[2]: r for r in ROSTER}
+    ROSTER = [(i + 1, _main[nm][1], nm, _main[nm][3], _main[nm][4], _main[nm][5], _main[nm][6], _main[nm][7]) for i, nm in enumerate(_ed.CAST)]
+    NAME = {r[0]: r[2] for r in ROSTER}; ITEM = {r[0]: r[5] for r in ROSTER}; ICLASS = {r[0]: r[7] for r in ROSTER}
+    PLACES = dict(_ed.PLACES); ZONES = list(_ed.ZONES)
+    E[:] = []
+    for (_t, _cell, _v, _cause, _w, _c, _how, _kw) in _ed.EVENTS: ev(_t, _cell, _v, _cause, _w, _c, _how, **_kw)
+    for _i, _e in enumerate(E): _e['dord'] = _i + 1; _e['min'] = tmin(_e['t']); _e['key'] = f"{_e['dord']:02d}-{_e['cell']}-{_e['v']:02d}"
+    BY_V = {_e['v']: _e for _e in E}

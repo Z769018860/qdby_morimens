@@ -10,7 +10,7 @@ def _near(a, b):
 def plan(seed=63):
     rng = random.Random(seed); W = {e['v']: [] for e in E}
     import re, os
-    t2 = open(os.path.join(os.path.dirname(__file__), 'texts_v2.py'), encoding='utf-8').read()
+    t2 = '' if os.environ.get('DR_ED') else open(os.path.join(os.path.dirname(__file__), 'texts_v2.py'), encoding='utf-8').read()
     for m in re.finditer(r'T2\[(\d+)\] = """(.*?)"""', t2, re.S):   # edges already written into the prose
         for b in re.findall(r'\{w:(\d+)\}', m.group(2)): W[int(m.group(1))].append(int(b))
     seen = {b for l in W.values() for b in l}

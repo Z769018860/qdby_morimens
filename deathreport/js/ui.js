@@ -1,15 +1,18 @@
 import { newGame, recover, index, options, setDraft, submit, rosterView, lockedHidden, leads, leadTotal, structure, marksOf, cycleMark, MARK_NAMES, clueCards, search, itemTrail, timeline, evidenceOf, hint, finish, canFinish, stats, summary, confirmedCount, total, unrecoveredRefs, shadowUnlocked } from './engine.js';
 
 import { burst } from './fx.js';
-const SAVE = 'morimens-deathreport-save-v1', PREF = 'morimens-deathreport-pref-v1';
+import { startBg, setTheme } from './bg.js';
+let ED = 63;
+const EDS = { 63: ['data/game.json', 'morimens-deathreport-save-v1'], 62: ['data/game-62.json', 'morimens-deathreport-save-ed62-v1'], 61: ['data/game-61.json', 'morimens-deathreport-save-ed61-v1'] };
+const SAVE = { toString: () => EDS[ED][1] }, PREF = 'morimens-deathreport-pref-v1';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let G, st, AUTO, ui = { sel: null, sort: 'order', tab: 'ros', rep: null, pane: 'idx', hintLog: [], q: '' };
 let pref = { crt: true, size: 15, sound: true, auto: { name: true, loc: true, item: true, bc: true }, ...(() => { try { return JSON.parse(localStorage.getItem(PREF)) || {}; } catch { return {}; } })() };
 const savePref = () => { try { localStorage.setItem(PREF, JSON.stringify(pref)); } catch { /* ignore */ } };
-const hasSave = () => { try { return !!localStorage.getItem(SAVE); } catch { return false; } };
-const save = () => { try { st.playMs += Date.now() - (ui.t0 || Date.now()); ui.t0 = Date.now(); localStorage.setItem(SAVE, JSON.stringify(st)); } catch { /* ignore */ } };
-const loadSave = () => { try { const j = JSON.parse(localStorage.getItem(SAVE)); if (j && j.v === 1) return j; } catch { /* ignore */ } return null; };
+const hasSave = () => { try { return !!localStorage.getItem(EDS[ED][1]); } catch { return false; } };
+const save = () => { try { st.playMs += Date.now() - (ui.t0 || Date.now()); ui.t0 = Date.now(); localStorage.setItem(EDS[ED][1], JSON.stringify(st)); } catch { /* ignore */ } };
+const loadSave = () => { try { const j = JSON.parse(localStorage.getItem(EDS[ED][1])); if (j && j.v === 1) return j; } catch { /* ignore */ } return null; };
 
 // ---------------------------------------------------------------- audio (tiny synth)
 let ac;
@@ -134,10 +137,10 @@ function renderTools() {
     const h = `<h4>■ 记录对应结构</h4><p class="dim">每个点是一名唤醒体（按名册编号排列）。线 = “这条记录里写着它的下落”。<span class="lg c">●</span>已复原 <span class="lg k">●</span>已确认 <span class="lg l">●</span>已有人指向、尚未复原 <span class="lg u">●</span>尚无线索。点上的 +N = 这条记录还能推理出的新记录。</p><svg class="graph" viewBox="0 0 340 340">${lines}${dots}</svg><p class="dim">已复原 ${cnt('recovered') + cnt('confirmed')}　·　待复原的线索 ${cnt('lead')}　·　尚无线索 ${cnt('unknown')}</p>`;
     tp.innerHTML = h;
   } else if (ui.tab === 'map') {
-    const zones = st.docs.includes('00-ZONE'), cols = 'ABCDE'; const when = {}; for (const z of G.zones) when[z.cell] = `${z.day}日${String(z.hour).padStart(2, '0')}:00`;
+    const zones = st.docs.includes('00-ZONE'), cols = G.edition.grid.cols; const when = {}; for (const z of G.zones) when[z.cell] = `${z.day}日${String(z.hour).padStart(2, '0')}:00`;
     const dead = {}; for (const k of st.recovered) dead[G.records[k].cell] = (dead[G.records[k].cell] || 0) + 1;
-    let h = '<h4>■ 地图　弥萨格复本（密境）</h4><div class="map"><span></span>' + [...cols].map((c) => `<span class="ax">${c}</span>`).join('');
-    for (let r = 1; r <= 5; r++) { h += `<span class="ax">${r}</span>`; for (const c of cols) { const id = c + r; h += `<div class="cell ${id === 'C3' ? 'c3' : ''}"><b>${id} ${esc(G.places[id])}</b>${zones ? `<span class="z">封锁 ${when[id]}</span>` : ''}${dead[id] ? `<br><span class="d">复原 ${dead[id]} 条</span>` : ''}</div>`; } }
+    let h = `<h4>■ 地图　${G.edition.n === 63 ? '弥萨格复本（密境）' : G.edition.title + '（密境）'}</h4><div class="map" style="grid-template-columns:22px repeat(${cols.length},1fr)"><span></span>` + [...cols].map((c) => `<span class="ax">${c}</span>`).join('');
+    for (const r of G.edition.grid.rows) { h += `<span class="ax">${r}</span>`; for (const c of cols) { const id = c + r; h += `<div class="cell ${id === 'C3' && G.edition.n === 63 ? 'c3' : ''}"><b>${id} ${esc(G.places[id])}</b>${zones ? `<span class="z">封锁 ${when[id]}</span>` : ''}${dead[id] ? `<br><span class="d">复原 ${dead[id]} 条</span>` : ''}</div>`; } }
     tp.innerHTML = h + '</div>' + (zones ? '' : '<p class="dim">封锁时刻需要先复原 00-ZONE。</p>');
   } else if (ui.tab === 'rep') {
     const recs = st.recovered.map((k) => G.records[k]).sort((a, b) => a.dord - b.dord);
@@ -167,7 +170,7 @@ function renderTools() {
     if ($('#nq')) { $('#nq').addEventListener('input', (e) => { ui.nq = e.target.value; const pos = e.target.selectionStart; renderTools(); const i = $('#nq'); i.focus(); i.setSelectionRange(pos, pos); }); }
   } else if (ui.tab === 'hint') {
     const bd = (st.badges || []).map((id) => `<span class="badge2" title="${esc(G.arcs.find((a) => a.id === id).title)}">${esc(G.arcs.find((a) => a.id === id).badge)}</span>`).join('');
-    tp.innerHTML = `<h4>■ 提示</h4><p class="dim">提示分三级，越往后越直白；已使用 ${st.hints} 次（每次扣 30 分）。提示券 <b>${st.tokens || 0}</b> 张（解出隐藏档案获得，免费且不扣分）。</p><h4>■ 勋章 ${(st.badges || []).length}/${G.arcs.filter((a) => a.hidden).length}</h4><div class="badges">${bd || '<span class="dim">还没有勋章。隐藏档案，要靠推理。</span>'}</div><div class="row"><button class="btn" id="hRest">下一步该复原哪条？</button><button class="btn" id="hConf">核实当前报告</button></div><div class="hintlog">${ui.hintLog.map((x) => `<div>${esc(x)}</div>`).join('')}</div>`;
+    tp.innerHTML = `<h4>■ 提示</h4><p class="dim">提示分三级，越往后越直白；已使用 ${st.hints} 次（每次扣 30 分）。提示券 <b>${st.tokens || 0}</b> 张（解出隐藏档案获得，免费且不扣分）。</p>${G.arcs.some((a) => a.hidden) ? `<h4>■ 勋章 ${(st.badges || []).length}/${G.arcs.filter((a) => a.hidden).length}</h4><div class="badges">${bd || '<span class="dim">还没有勋章。隐藏档案，要靠推理。</span>'}</div>` : ''}<div class="row"><button class="btn" id="hRest">下一步该复原哪条？</button><button class="btn" id="hConf">核实当前报告</button></div><div class="hintlog">${ui.hintLog.map((x) => `<div>${esc(x)}</div>`).join('')}</div>`;
     $('#hRest').onclick = () => giveHint('restore'); $('#hConf').onclick = () => giveHint('confirm', ui.rep);
   }
 }
@@ -206,14 +209,17 @@ function reward(w) {
 function resonance(m) {
   sfx.stamp(); [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, 0.05, 'triangle', 0.12 + i * 0.09)); burst(Math.min(5, 1 + Math.floor(m.k / 4)));
   const pct = Math.round((m.confirmed / total(G)) * 100);
-  modal(`<div class="reso"><h3>■ 共鸣　${m.k}／20</h3><p class="mline">${esc(m.line.replace(/^共鸣 \d+\/20　/, ''))}</p><div class="bar"><i style="width:${pct}%"></i></div><p class="dim">已确认 ${m.confirmed}／${total(G)} 份报告</p>${m.arcs.map((a) => `<div class="arcn" data-arc="${a.id}">◆ 新档案 ${a.id}　${esc(a.title)}　<small>（点击阅读）</small></div>`).join('')}${m.nudge.length ? `<div class="nudge">提示（不计入评级）：已复原的记录与档案里，写明了这些人的下落——${m.nudge.map(esc).join('、')}。</div>` : '<div class="nudge">提示（不计入评级）：已复原的记录里没有新的线索了。去读读还没读的系统文档、消息与档案吧。</div>'}<div class="btns"><button class="btn" data-close>继续</button></div></div>`);
+  modal(`<div class="reso"><h3>■ 共鸣　${m.k}／${G.milestones.length}</h3><p class="mline">${esc(m.line.replace(/^共鸣 \d+\/\d+　/, ''))}</p><div class="bar"><i style="width:${pct}%"></i></div><p class="dim">已确认 ${m.confirmed}／${total(G)} 份报告</p>${m.arcs.map((a) => `<div class="arcn" data-arc="${a.id}">◆ 新档案 ${a.id}　${esc(a.title)}　<small>（点击阅读）</small></div>`).join('')}${m.nudge.length ? `<div class="nudge">提示（不计入评级）：已复原的记录与档案里，写明了这些人的下落——${m.nudge.map(esc).join('、')}。</div>` : '<div class="nudge">提示（不计入评级）：已复原的记录里没有新的线索了。去读读还没读的系统文档、消息与档案吧。</div>'}<div class="btns"><button class="btn" data-close>继续</button></div></div>`);
   $('#modal').querySelectorAll('[data-arc]').forEach((el) => { el.onclick = () => { $('#modal').hidden = true; openReader(el.dataset.arc); }; });
 }
 function refreshRate() {
-  const s = stats(G, st); $('#score').textContent = `${s.score} 分　勋章 ${s.badges}/${s.hiddenTotal}`; $('#ratebar').style.width = s.rate + '%'; $('#ratetxt').textContent = `核实率 ${s.rate}%（${s.confirmed}/${s.total}）`;
+  const s = stats(G, st); $('#score').textContent = `评价 ${s.rating.rank}（${s.rating.total}）${s.hiddenTotal ? `　勋章 ${s.badges}/${s.hiddenTotal}` : ''}`; $('#ratebar').style.width = s.rate + '%'; $('#ratetxt').textContent = `核实率 ${s.rate}%（${s.confirmed}/${s.total}）`;
   $('#bFinish').hidden = !(canFinish(G, st) && s.confirmed < s.total);
 }
 
+const META = 'morimens-deathreport-meta-v1';
+const meta = () => { try { return JSON.parse(localStorage.getItem(META)) || {}; } catch { return {}; } };
+function unlockEditions() { try { localStorage.setItem(META, JSON.stringify({ ...meta(), editions: true })); } catch { /* ignore */ } }
 // ---------------------------------------------------------------- ending
 async function typeLines(el, lines, speed = 22) {
   for (const l of lines) { const d = document.createElement('div'); el.appendChild(d); for (const ch of l) { d.textContent += ch; if (speed) await new Promise((r) => setTimeout(r, speed)); if (ch !== ' ') sfx.key(); } await new Promise((r) => setTimeout(r, 160)); }
@@ -222,10 +228,19 @@ async function endGame() {
   const res = finish(G, st), s = stats(G, st); save();
   const box = $('#ending'); box.hidden = false; box.innerHTML = '<pre id="ep"></pre><div class="row" id="epBtns" hidden></div>';
   const ep = $('#ep');
-  if (res.ended === 'true') {
+  if (res.ended === 'true' && ED !== 63) {
+    const en = G.endings[0], rt = s.rating;
+    await typeLines(ep, [`${G.edition.label}　回溯筛选　记录复原　完毕`, '', '报告　完毕', ''], 28);
+    await typeLines(ep, [`■ 结局　${en.title}`, '', ...en.lines], 24);
+    await typeLines(ep, ['', `评价 ${res.rank}（${rt.total}）　完成度 ${rt.comp}%　提示节制 ${rt.hint}%`, `核实率 ${s.rate}%　提示 ${s.hints} 次　错误输入 ${s.bad} 次　用时约 ${s.minutes} 分钟`, ''], 20);
+    try { localStorage.setItem(META, JSON.stringify({ ...meta(), cleared: { ...(meta().cleared || {}), [ED]: true } })); } catch { /* ignore */ }
+  } else if (res.ended === 'true') {
     await typeLines(ep, ['第六十三次　回溯筛选　记录复原　完毕', '对象：弥萨格学院　回溯班', '', '生存者　……　一名', '', '报告　完毕', '', '—— 新收到一条消息 ——', ''], 28);
     for (const ln of G.msgs.find((m) => m.id === 'MSG07').text.split('\n')) await typeLines(ep, [ln], 14);
-    await typeLines(ep, ['', `评级 ${res.rank}　　得分 ${s.score}　勋章 ${s.badges}/${s.hiddenTotal}　核实率 ${s.rate}%　提示 ${s.hints} 次　错误输入 ${s.bad} 次　用时约 ${s.minutes} 分钟`, '', '回溯，启动。'], 24);
+    const en = G.endings.find((e) => e.id === st.ending) || G.endings.at(-1), rt = s.rating;
+    await typeLines(ep, ['', `■ 结局　${en.title}`, '', ...en.lines], 24);
+    await typeLines(ep, ['', `评价 ${res.rank}（${rt.total}）　完成度 ${rt.comp}%　提示节制 ${rt.hint}%　隐藏档案 ${rt.hid}%（${s.badges}/${s.hiddenTotal}）`, `核实率 ${s.rate}%　提示 ${s.hints} 次　错误输入 ${s.bad} 次　用时约 ${s.minutes} 分钟`, ''], 20);
+    unlockEditions(); try { localStorage.setItem(META, JSON.stringify({ ...meta(), cleared: { ...(meta().cleared || {}), 63: true } })); } catch { /* ignore */ }
   } else {
     await typeLines(ep, ['报告已受理。', `核实率 ${s.rate}%（${s.confirmed}/${s.total}）`, '', '终端里还有没有复原的记录，也有没有对上的报告。', '有一道很小的影子在屏幕边缘停了一下，然后走远了。', '', '……再看看名册上那个糊掉的名字吧。'], 26);
   }
@@ -245,26 +260,40 @@ function settings() {
   $('#sCrt').onchange = (e) => { pref.crt = e.target.checked; applyPref(); savePref(); }; $('#sSnd').onchange = (e) => { pref.sound = e.target.checked; savePref(); }; $('#sSize').onchange = (e) => { pref.size = +e.target.value; applyPref(); savePref(); };
 }
 function help() {
-  modal(`<h3>■ 玩法说明</h3><p>你是弥萨格的守密人，手持银钥匙，借助溯梦终端复原“第六十三次回溯筛选”里每一个人的死亡记录，并为每一起死亡填写报告：<b>死因、凶器、加害人</b>。</p>
+  modal(`<h3>■ 玩法说明</h3><p>你是弥萨格的守密人，手持银钥匙，借助溯梦终端复原${G.edition.help || '“第六十三次回溯筛选”'}里每一个人的死亡记录，并为每一起死亡填写报告：<b>死因、凶器、加害人</b>。</p>
   <p>· 在左侧输入栏键入<b>记录名</b>复原记录。记录名怎么拼，要自己从线索里推——名册、地图、广播与时间都是线索。<br>· 记录的每个段落都可以点击标记。<br>· 记录末尾和索引里的 [X] 表示还有几条参考没有复原；虚线表示正文提到了还没读的系统文档。<br>· 三项全对才会“确认”；填错只会提示“存在错误的报告”。<br>· 每确认一部分报告，会收到新的消息。<br>· 提示分三级，会影响评级。</p><div class="btns"><button class="btn" data-close>明白了</button></div>`);
+}
+async function loadEdition(n) {
+  ED = n; G = await (await fetch(EDS[n][0])).json(); buildAuto(); setTheme(n);
+  document.title = n === 63 ? '死亡游戏调查报告 · 第六十三次回溯筛选' : `死亡游戏调查报告 · ${G.edition.label}回溯筛选（往届）`;
+  $('.sub').textContent = n === 63 ? '第六十三次　回溯筛选　完全复原' : G.edition.subtitle + '（往届档案）';
 }
 function bootTitle() {
   const log = $('#bootlog'); log.textContent = '';
-  const lines = ['> 记录复原终端　启动中……', '> 钥冢档案室内网　………　已确认（特级）', '> 检测到记录库遭到篡改　部分索引损坏', '> 参加者：六十二名　·　生存者：零', '> 请守密人尽快开始复原。'];
+  const lines = G.edition.boot || ['> 记录复原终端　启动中……', '> 钥冢档案室内网　………　已确认（特级）', '> 检测到记录库遭到篡改　部分索引损坏', '> 参加者：六十二名　·　生存者：零', '> 请守密人尽快开始复原。'];
   let i = 0; (function next() { if (i >= lines.length) return; log.textContent += lines[i++] + '\n'; sfx.key(); setTimeout(next, 260); })();
-  const items = [['continue', '继续调查', hasSave()], ['new', '新的游戏', true], ['settings', '系统设置', true], ['help', '玩法说明', true], ['home', '返回首页', true]].filter((x) => x[2]);
-  $('#menu').innerHTML = items.map(([k, t]) => `<button data-m="${k}">${t}</button>`).join('');
+  const un = meta().editions;
+  const items = [['continue', '继续调查', hasSave()], ['new', '新的游戏', true], ['eds', un ? '往届档案' : '往届档案　？？？', true], ['settings', '系统设置', true], ['help', '玩法说明', true], ['home', '返回首页', true]].filter((x) => x[2]);
+  $('#menu').innerHTML = items.map(([k, t]) => `<button data-m="${k}" class="${k === 'eds' && !un ? 'locked' : ''}">${t}</button>`).join('');
+}
+function editions() {
+  const un = meta().editions, cl = meta().cleared || {};
+  if (!un) { modal('<h3>■ 往届档案</h3><p class="dim">档案室的最深处，还有两份更早的备份。读完第六十三次的最后一份报告，才能打开。</p><div class="btns"><button class="btn" data-close>关闭</button></div>'); return; }
+  const rows = [[63, '第六十三次　本篇', '六十二名唤醒体 · 钟楼'], [62, '第六十二次　雪夜剧场', '十五名 · 一座仿造的剧院 · 门口的孩子'], [61, '第六十一次　雾港', '十二名 · 一座仿造的港口 · 胸口里的东西']];
+  modal(`<h3>■ 往届档案</h3><p class="dim">规则相同，世界相同，故事与记录完全不同。每一届有独立存档。</p>${rows.map(([n, t, d]) => `<div class="edrow ${ED === n ? 'on' : ''}"><div><b>${t}</b>${cl[n] ? ' <span class="chip ok">已结案</span>' : ''}<br><small class="dim">${d}</small></div><button class="btn" data-ed="${n}">${ED === n ? '当前' : '切换'}</button></div>`).join('')}<div class="btns"><button class="btn" data-close>关闭</button></div>`);
+  $('#modal').querySelectorAll('[data-ed]').forEach((b) => { b.onclick = async () => { await loadEdition(+b.dataset.ed); $('#modal').hidden = true; bootTitle(); }; });
 }
 $('#menu').addEventListener('click', (e) => {
   const m = e.target.closest('[data-m]')?.dataset.m; if (!m) return;
   if (m === 'continue') start(loadSave());
   if (m === 'new') { if (hasSave() && !confirm('开始新的游戏会覆盖当前存档，确定吗？')) return; start(null); }
+  if (m === 'eds') editions();
   if (m === 'settings') settings(); if (m === 'help') help(); if (m === 'home') location.href = '../index.html';
 });
 function toTitle() { save(); $('#game').hidden = true; $('#title').hidden = false; bootTitle(); }
 $('#bTitle').onclick = toTitle; $('#bSave').onclick = () => { save(); toast('已保存。'); }; $('#bSet').onclick = settings;
 function start(saved) {
-  st = saved || newGame(G); if (!saved) { try { localStorage.removeItem(SAVE); } catch { /* ignore */ } }
+  st = saved || newGame(G); if (!saved) { try { localStorage.removeItem(EDS[ED][1]); } catch { /* ignore */ } }
   ui = { sel: null, sort: 'order', tab: 'ros', rep: null, pane: 'idx', hintLog: [], q: '', t0: Date.now() };
   $('#title').hidden = true; $('#game').hidden = false; $('#rdHead').innerHTML = ''; $('#rdBody').innerHTML = '<p class="dim">在左侧选择记录，或在输入栏里键入记录名。</p>';
   showPane('idx'); renderList(); renderTools(); refreshRate(); save();
@@ -272,7 +301,7 @@ function start(saved) {
 }
 (async () => {
   applyPref();
-  G = await (await fetch('data/game.json')).json(); buildAuto();
+  startBg(); await loadEdition(63);
   window.__dr = { get G() { return G; }, get st() { return st; } };
   bootTitle();
 })();

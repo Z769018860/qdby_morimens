@@ -134,7 +134,7 @@ test('full playthrough: recover everything, confirm all 62, messages arrive, tru
   for (const k of shadowKeys) assert.ok(solve(st, k).correct, k);
   assert.equal(confirmedCount(st), 62); assert.ok(st.msgs.includes('MSG07'));
   assert.deepEqual(arrivals.filter((x) => x !== 'MSG07' && !/^(AR|HX)-/.test(x)), ['MSG02', 'MSG03', 'MSG04', 'MSG05', 'MSG06']);
-  const end = finish(G, st); assert.equal(end.ended, 'true'); assert.ok(['SS', 'S', 'A', 'B'].includes(end.rank));
+  const end = finish(G, st); assert.equal(end.ended, 'true'); assert.ok(['SSS', 'SS', 'S', 'A', 'B', 'C'].includes(end.rank)); assert.equal(st.ending, 'E4', 'a perfect streak opens HX-06');
   assert.ok(recover(G, st, '00-SEALED').ok && recover(G, st, '00-DECREE').ok);
   assert.equal(stats(G, st).rate, 100);
 });
@@ -179,7 +179,7 @@ test('broadcast arithmetic: counts match the ledger and names are listed in deat
 
 // ---- deduction structure (witness edges), marks, notes, reasoning aids
 import { execFileSync } from 'node:child_process';
-import { h32, grant, score, lockedHidden, leads, leadTotal, structure, marksOf, cycleMark, clueCards, search, itemTrail, timeline, evidenceOf } from '../js/engine.js';
+import { rating, pickEnding, h32, grant, score, lockedHidden, leads, leadTotal, structure, marksOf, cycleMark, clueCards, search, itemTrail, timeline, evidenceOf } from '../js/engine.js';
 const cnum = (n) => { const d = '零一二三四五六七八九'; return n < 10 ? d[n] : n < 20 ? '十' + (n > 10 ? d[n - 10] : '') : d[Math.floor(n / 10)] + '十' + (n % 10 ? d[n % 10] : ''); };
 
 test('every reference is a full witness: name + place + death order are written in the referring record', () => {
@@ -334,4 +334,23 @@ test('score: confirmed + first-try + hidden bonuses - hints; a free-hint voucher
   assert.equal(score(G, st), 2 * 100 + 50);
   st.tokens = 1; const h = hint(G, st, 'restore'); assert.ok(h.free); assert.equal(st.hints, 0); assert.equal(st.tokens, 0);
   const h2 = hint(G, st, 'restore'); assert.ok(!h2.free); assert.equal(st.hints, 1); assert.equal(score(G, st), 2 * 100 + 50 - 30);
+});
+
+test('rating = completion + hint restraint + hidden archives; SSS needs all of them; endings follow the hidden archives', () => {
+  const st = newGame(G); const r0 = rating(G, st); assert.ok(r0.total < 40 && r0.rank === 'C');
+  for (const k of keys) { recover(G, st, k); }
+  for (const d of Object.keys(G.docs)) if (!G.docs[d].final) st.docs.push(d);
+  for (const a of G.arcs) if (!a.hidden) st.arcs.push(a.id);
+  for (const k of keys.filter((x) => !G.shadow.keys.includes(x))) solve(st, k);
+  for (const k of G.shadow.keys) solve(st, k);
+  st.badges = []; const noHidden = rating(G, st); assert.equal(noHidden.comp, 100); assert.ok(noHidden.total < 80 && !['SSS', 'SS'].includes(noHidden.rank), JSON.stringify(noHidden));
+  assert.equal(pickEnding(G, { badges: [] }).id, 'E0');
+  assert.equal(pickEnding(G, { badges: ['HX-02', 'HX-09'] }).id, 'E1');
+  assert.equal(pickEnding(G, { badges: ['HX-03', 'HX-05', 'HX-11'] }).id, 'E2');
+  assert.equal(pickEnding(G, { badges: ['HX-08', 'HX-10'] }).id, 'E3');
+  assert.equal(pickEnding(G, { badges: ['HX-06'] }).id, 'E4');
+  const all = G.arcs.filter((a) => a.hidden).map((a) => a.id); assert.equal(pickEnding(G, { badges: all }).id, 'E5');
+  st.badges = [...all]; st.hints = 0; const best = rating(G, st); assert.equal(best.rank, 'SSS'); assert.equal(best.hid, 100);
+  st.hints = 10; assert.ok(rating(G, st).total < best.total);
+  st.hints = 0; st.badges = all.slice(0, 5); assert.ok(['S', 'A', 'SS'].includes(rating(G, st).rank));
 });

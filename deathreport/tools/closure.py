@@ -8,7 +8,8 @@ A record is recoverable when SS, NN and XY are all known.  Reports the stuck rec
 import json, re, sys
 from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
-G = json.loads((HERE / 'data/game.json').read_text(encoding='utf-8'))
+_arg = next((a.split('=', 1)[1] for a in sys.argv if a.startswith('--game=')), 'data/game.json')
+G = json.loads((HERE / _arg).read_text(encoding='utf-8'))
 verbose = '-v' in sys.argv
 STRICT = '--strict' in sys.argv   # no broadcast arithmetic: only witness statements, message masks and elimination
 names = {p['n']: p['name'] for p in G['roster']}

@@ -4,16 +4,30 @@ usage: python3 tools/build.py [--repo ..]   (repo = qdby_morimens main checkout,
 import sys, re, json, random, itertools, argparse
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ledger import E, ROSTER, NAME, ITEM, ICLASS, PLACES, ZONES, CAUSES, SHADOW, BY_V, fmt, validate, tmin
-from texts import T
-from texts_extra import X, FLAVOR
-from texts_v2 import T2
-from docs import DOCS, MSGS
-from witness import WIT
-from arcs import ARCS, MILE, SRC as ARC_SRC
-from hidden import HIDDEN
-from puzzles import FRAGS, META as PUZ_META, BADGES, h32
-from texts_ext import EXT
+import os
+ED = os.environ.get('DR_ED')
+from ledger import E, ROSTER, NAME, ITEM, ICLASS, PLACES, ZONES, CAUSES, SHADOW, BY_V, fmt, validate, tmin, MAIN_ROSTER
+MAIN_NUM = {r[2]: r[0] for r in MAIN_ROSTER}
+if ED:
+    import importlib
+    _m = importlib.import_module('ed_' + ED)
+    from ed_common import make_docs
+    from witness import WIT
+    T = {}; X = {}; FLAVOR = {}; T2 = _m.PROSE; EXT = {}; FRAGS = {}; ARCS = []; HIDDEN = []; ENDINGS = [_m.ENDING]; MILE = _m.MILE; ARC_SRC = ''
+    PUZ_META = []; BADGES = {}; h32 = lambda x: 0
+    DOCS = make_docs(_m.META, len(_m.CAST), _m.OVER, _m.FINALS); MSGS = _m.MSGS
+else:
+    from ledger import E, ROSTER, NAME, ITEM, ICLASS, PLACES, ZONES, CAUSES, SHADOW, BY_V, fmt, validate, tmin
+    from texts import T
+    from texts_extra import X, FLAVOR
+    from texts_v2 import T2
+    from docs import DOCS, MSGS
+    from witness import WIT
+    from arcs import ARCS, MILE, SRC as ARC_SRC
+    from hidden import HIDDEN
+    from endings import ENDINGS
+    from puzzles import FRAGS, META as PUZ_META, BADGES, h32
+    from texts_ext import EXT
 
 ap = argparse.ArgumentParser(); ap.add_argument('--repo', default='..'); args = ap.parse_args()
 REPO = Path(args.repo).resolve(); HERE = Path(__file__).resolve().parent.parent
@@ -102,21 +116,23 @@ def reach(starts, extra=()):
         for y in edges.get(x, ()):
             if y not in seen: seen.add(y); st.append(y)
     return seen
-early = [e['key'] for e in E if 28 <= e['dord'] <= 58 and e['c'] != SHADOW]
+_lo, _hi = (28, 58) if not ED else (max(3, int(len(E) * 0.4)), len(E) - 2)
+early = [e['key'] for e in E if _lo <= e['dord'] <= _hi and e['c'] != SHADOW]
 best = max(itertools.combinations(early, 3), key=lambda c: (len(reach(c)), sum(records[k]['dord'] for k in c)))
 START = sorted(best, key=lambda k: records[k]['dord'])
 covered = reach(START)
 rng = random.Random(63)
 def mask(key):
     d, c, s = key.split('-'); return f'??-{c}-{s}'   # who and where; the order must be deduced (broadcasts / elimination)
-msg_lists = [[] for _ in range(5)]
+NL = 5 if not ED else sum(1 for m in MSGS if '{M' in m[1])
+msg_lists = [[] for _ in range(NL)]
 order = sorted((k for k in records if k not in covered), key=lambda k: records[k]['dord'])
 # assign uncovered records to messages 1..5 in dord order, extending the covered set as we go
 i = 0
 for k in order:
     if k in covered: continue
     # pick the message whose slot count is smallest so far among the first free ones
-    mi = min(range(5), key=lambda j: (len(msg_lists[j]), j))
+    mi = min(range(NL), key=lambda j: (len(msg_lists[j]), j))
     msg_lists[mi].append(k); covered |= reach({k})
 for lst in msg_lists: lst.sort(key=lambda k: records[k]['dord'])
 unreached = set(records) - covered
@@ -132,21 +148,21 @@ def bullet(keys, partial=True):
     return out
 msgs = []
 for idx, (mid, text, need) in enumerate(MSGS):
-    keys = msg_lists[idx] if idx < 5 else []
-    txt = text.replace(f'{{M{idx+1}}}', bullet(keys)) if idx < 5 else text
+    keys = msg_lists[idx] if idx < NL else []
+    txt = text.replace(f'{{M{idx+1}}}', bullet(keys)) if idx < NL else text
     msgs.append(dict(id=mid, title='发件人不明', text=txt, refs=keys, need=need))
 
 # ---------------- documents
-zones_txt = '\n'.join(f"第{d}天 {h:02d}:00　{c}（{PLACES[c]}）" + ('　＝最终收缩' if (d, h, c) == ZONES[-1] else '') for d, h, c in ZONES)
-cols = 'ABCDE'
-map_txt = '\n'.join(f"[b]{r}[/b]　" + '　'.join(f"{c}{r} {PLACES[f'{c}{r}']}" for c in cols) for r in range(1, 6))
+zones_txt = '\n'.join(f"第{d}天 {h:02d}:00　{c}（{PLACES[c]}）" + ('　＝最终收缩' if (d, h, c) == ZONES[-1] and not ED else '') for d, h, c in ZONES)
+cols = ''.join(sorted({k[0] for k in PLACES})); rows = sorted({int(k[1]) for k in PLACES})
+map_txt = '\n'.join(f"[b]{r}[/b]　" + '　'.join(f"{c}{r} {PLACES[f'{c}{r}']}" for c in cols) for r in rows)
 roll_names = sorted((e['v'] for e in E if e['min'] < 1440))
-dead1 = len(roll_names)
+dead1 = len(roll_names); TOTAL = 63 if not ED else len(ROSTER)
 docs = {}
 for did, (title, src, body, secret) in DOCS.items():
     t = body.replace('{ZONES}', zones_txt).replace('{MAP}', map_txt)
     for fl in FRAGS.get(('doc', did), []): t = t.replace('[/sys]', fl + '\n[/sys]', 1) if '[/sys]' in t else t + '\n' + fl
-    t = t.replace('{ROLL}', '、'.join(NAME[n] for n in roll_names)).replace('{DEAD}', str(dead1)).replace('{ALIVE}', str(63 - dead1))
+    t = t.replace('{ROLL}', '、'.join(NAME[n] for n in roll_names)).replace('{DEAD}', str(dead1)).replace('{ALIVE}', str(TOTAL - dead1))
     t = t.replace('{START}', '\n'.join(f'·[link]{k}[/link]' for k in START))
     refs = roll_keys if did == '00-ROLL' else []
     docs[did] = dict(id=did, title=title, source=src, text=t, refs=refs, final=secret, links=sorted(set(re.findall(r'\[link\](00-[A-Z]+)\[/link\]', t))))
@@ -192,23 +208,23 @@ for e in E:
 LORE = json.loads((HERE / 'data/lore.json').read_text(encoding='utf-8'))
 roster = []
 for n, slug, zh, realm, role, item, kind, cls in ROSTER:
-    melted = (n == 50)
+    melted = (n == 50 and not ED)
     img = None
     if kind == 'r' and item in cz: img = cz[item]['img']
     if kind == 'w' and item in wz: img = wz[item]['img']
-    roster.append(dict(n=n, slug=slug, name=zh, realm=realm, role=role, item=item, itemClass=cls, itemImg=img, avatar=av.get(zh.replace('「', '').replace('」', '')), melted=melted, key=KEY[n], lore=LORE.get(str(n), {})))
+    roster.append(dict(n=n, slug=slug, name=zh, realm=realm, role=role, item=item, itemClass=cls, itemImg=img, avatar=av.get(zh.replace('「', '').replace('」', '')), melted=melted, key=KEY.get(n, ''), lore=LORE.get(str(MAIN_NUM[zh]), {})))
 arcs = []
 for aid, title, need, text in ARCS:
     t, wits, _ = render_raw(text + ''.join('\n' + l for l in FRAGS.get(('arc', aid), [])), 0)
-    t = t.replace('{DEAD}', str(dead1)).replace('{ALIVE}', str(63 - dead1))
+    t = t.replace('{DEAD}', str(dead1)).replace('{ALIVE}', str(TOTAL - dead1))
     arcs.append(dict(id=aid, title=title, source=ARC_SRC, text=t, refs=[KEY[b] for b in dict.fromkeys(wits)], need=need))
 for hid, title, cond, riddle, text in HIDDEN:
     t, wits, _ = render_raw(text, 0)
     arcs.append(dict(id=hid, title=title, source=ARC_SRC, text=t, refs=[KEY[b] for b in dict.fromkeys(wits)], need=999, hidden=True, cond=cond, riddle=riddle, badge=BADGES.get(hid, '')))
 puzzles = [dict(id=m['id'], h=h32(m['answer']), src=m['src']) for m in PUZ_META]
-game = dict(puzzles=puzzles, arcs=arcs, milestones=MILE, title='死亡游戏调查报告', subtitle='第六十三次 回溯筛选', roster=roster, places=PLACES, zones=[dict(day=d, hour=h, cell=c) for d, h, c in ZONES], causes=CAUSES,
+game = dict(edition=(dict(_m.META, grid=dict(cols=cols, rows=rows, size=len(PLACES))) if ED else dict(n=63, label='第六十三次', title='死亡游戏调查报告', theme=63, grid=dict(cols='ABCDE', rows=[1, 2, 3, 4, 5], size=25))), endings=ENDINGS, puzzles=puzzles, arcs=arcs, milestones=MILE, title='死亡游戏调查报告', subtitle='第六十三次 回溯筛选', roster=roster, places=PLACES, zones=[dict(day=d, hour=h, cell=c) for d, h, c in ZONES], causes=CAUSES,
             records=records, docs=docs, msgs=msgs, start=START, solutions=solutions, hints=hints, shadow=dict(num=SHADOW, keys=[e['key'] for e in E if e['c'] == SHADOW]),
             stats=dict(records=len(records), edges=sum(len(r['refs']) for r in records.values())))
 (HERE / 'data').mkdir(exist_ok=True)
-(HERE / 'data/game.json').write_text(json.dumps(game, ensure_ascii=False, indent=1), encoding='utf-8')
+(HERE / ('data/game.json' if not ED else f'data/game-{ED}.json')).write_text(json.dumps(game, ensure_ascii=False, indent=1), encoding='utf-8')
 print('records', len(records), 'refs', game['stats']['edges'], 'start', START, 'msg lists', [len(x) for x in msg_lists])

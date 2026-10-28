@@ -204,7 +204,7 @@ export function submit(G, st, key) {
 // every third confirmed report: a resonance (popup + effect), a free nudge toward what can be deduced next, and the archives that just arrived
 export function milestone(G, st, arrived = []) {
   const n = confirmedCount(st);
-  if (n % 3 !== 0 || n <= (st.lastMile || 0) || n > 60) return null;
+  if (n % 3 !== 0 || n <= (st.lastMile || 0) || n > (G.milestones || []).length * 3) return null;
   st.lastMile = n;
   return { k: n / 3, confirmed: n, line: (G.milestones || [])[n / 3 - 1] || '', arcs: arrived.filter((x) => /^(AR|HX)-/.test(x)).map((x) => G.arcs.find((a) => a.id === x)), nudge: nudge(G, st) };
 }
@@ -244,18 +244,33 @@ export function hint(G, st, kind, key) {
 
 // ---- ending
 export function score(G, st) { return Math.max(0, confirmedCount(st) * 100 + (st.firstTry || 0) * 50 + (st.bonus || 0) - st.hints * 30 - st.bad * 5); }
+// rating = archive completion (55) + restraint with hints (20) + hidden archives found (25); SSS needs everything and almost no hints
+export const RANKS = [['SSS', 98], ['SS', 90], ['S', 80], ['A', 70], ['B', 55], ['C', 0]];
+export function rating(G, st) {
+  const t = total(G), visible = Object.values(G.docs).filter((d) => !d.final).length + (G.arcs || []).filter((a) => !a.hidden).length;
+  const read = st.docs.filter((d) => !G.docs[d].final).length + (st.arcs || []).filter((a) => !G.arcs.find((x) => x.id === a).hidden).length;
+  const comp = Math.min(1, (confirmedCount(st) / t) * 0.88 + (visible ? read / visible : 1) * 0.12);
+  const hint = Math.max(0, 1 - st.hints / 25), hh = hiddenTotal(G), hid = hh ? (st.badges || []).length / hh : 1;
+  const w = hh ? [0.55, 0.2, 0.25] : [0.7, 0.3, 0];
+  const total100 = Math.round(100 * (w[0] * comp + w[1] * hint + w[2] * hid) * 10) / 10;
+  return { comp: Math.round(comp * 100), hint: Math.round(hint * 100), hid: Math.round(hid * 100), total: total100, rank: RANKS.find(([, m]) => total100 >= m)[0] };
+}
+export function pickEnding(G, st) {
+  const have = new Set(st.badges || []), hs = G.arcs.filter((a) => a.hidden).map((a) => a.id);
+  return (G.endings || []).find((e) => e.need === 'all' ? hs.length > 0 && hs.every((h) => have.has(h)) : e.need.every((h) => have.has(h)));
+}
 export const hiddenTotal = (G) => G.arcs.filter((a) => a.hidden).length;
 export function stats(G, st) {
   const n = confirmedCount(st), t = total(G);
-  return { score: score(G, st), badges: (st.badges || []).length, hiddenTotal: hiddenTotal(G), firstTry: st.firstTry || 0, tokens: st.tokens || 0, confirmed: n, total: t, rate: Math.round((n / t) * 100), hints: st.hints, tries: st.tries, bad: st.bad, minutes: Math.round(st.playMs / 60000) };
+  return { score: score(G, st), rating: rating(G, st), badges: (st.badges || []).length, hiddenTotal: hiddenTotal(G), firstTry: st.firstTry || 0, tokens: st.tokens || 0, confirmed: n, total: t, rate: Math.round((n / t) * 100), hints: st.hints, tries: st.tries, bad: st.bad, minutes: Math.round(st.playMs / 60000) };
 }
 export function canFinish(G, st) { return confirmedCount(st) >= Math.ceil(total(G) / 2); }
 export function finish(G, st) {
   const n = confirmedCount(st);
   st.ended = n >= total(G) ? 'true' : 'partial';
   if (!st.docs.includes('00-DECREE') && st.ended === 'true') st.docs.push('00-DECREE', '00-SEALED');
-  const sc = score(G, st), r = st.ended === 'true' ? (sc >= 12500 ? 'SS' : sc >= 10500 ? 'S' : sc >= 8500 ? 'A' : 'B') : 'C';
-  st.finalScore = sc;
+  const rt = rating(G, st), r = st.ended === 'true' ? rt.rank : (rt.rank === 'SSS' || rt.rank === 'SS' ? 'S' : rt.rank);
+  st.finalScore = rt.total; st.ending = st.ended === 'true' ? (pickEnding(G, st) || {}).id || 'E0' : 'P';
   st.rank = r;
   return { ended: st.ended, rank: r };
 }
