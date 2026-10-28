@@ -1,0 +1,21 @@
+:root{--bg:#070b08;--fg:#b7f5c0;--dim:#5f8a68;--hi:#eaffee;--amb:#ffcf6b;--red:#ff7b6b;--cy:#7fe3ff;--mag:#d9a8ff;--line:#13301b}
+@media (prefers-color-scheme: light){:root{--bg:#0b0f0c}}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 "SFMono-Regular",Menlo,Consolas,"Noto Sans Mono CJK SC","Source Han Mono SC","PingFang SC","Microsoft YaHei",monospace}
+.crt{position:relative;display:flex;flex-direction:column;height:100dvh;max-width:980px;margin:0 auto;padding:0 12px env(safe-area-inset-bottom)}
+.crt::after{content:"";position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(to bottom,rgba(0,0,0,0) 0,rgba(0,0,0,0) 2px,rgba(0,0,0,.14) 3px);mix-blend-mode:multiply}
+.bar{display:flex;gap:12px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--line);color:var(--dim);font-size:13px}
+.bar b{color:var(--hi);letter-spacing:.12em}.grow{flex:1}.bar button,.bar a{background:none;border:1px solid var(--line);color:var(--dim);border-radius:4px;padding:2px 8px;font:inherit;text-decoration:none;cursor:pointer}
+.bar button.off{opacity:.4}
+#screen{flex:1;overflow-y:auto;padding:12px 2px;scrollbar-width:thin;scrollbar-color:#1f4a2b transparent}
+.ln{white-space:pre-wrap;word-break:break-word;min-height:1.55em}
+.ln.cmd{color:var(--hi)}.ln.sys{color:var(--cy)}.ln.err{color:var(--red)}.ln.dim{color:var(--dim)}.ln.head{color:var(--amb);margin-top:.5em}
+.ln.clue{color:#1a0f00;background:var(--amb);display:inline-block;padding:0 6px;border-radius:2px;margin:2px 0;font-weight:600}
+.ln.ask{color:var(--mag);padding-left:1em;border-left:2px solid #3b2a52}
+.path{color:var(--cy);cursor:pointer;text-decoration:underline dotted}.path:hover{color:var(--hi)}
+.quick{display:flex;gap:6px;overflow-x:auto;padding:6px 0;scrollbar-width:none}.quick::-webkit-scrollbar{display:none}
+.quick button{flex:none;background:#0d1a10;color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:3px 12px;font:inherit;font-size:13px;cursor:pointer}
+.quick button:hover{border-color:var(--fg)}
+#line{display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding:10px 2px}
+#prompt{color:var(--amb);white-space:nowrap;font-size:14px}#in{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--hi);font:inherit;caret-color:var(--fg)}
+@media(max-width:560px){body{font-size:14px}#prompt{font-size:12px}.sub{display:none}}
+@media (prefers-reduced-motion: reduce){.crt::after{display:none}}
