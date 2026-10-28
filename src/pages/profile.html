@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>个人中心 · 战报侦探</title>
+<meta name="description" content="战报侦探个人中心：账号、Q 版头像、偏好唤醒体、推理记录、银芯与收藏。">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+<link rel="modulepreload" href="js/account.js">
+<link rel="modulepreload" href="js/api.js">
+<link rel="modulepreload" href="js/auth.js">
+<link rel="modulepreload" href="js/checkin.js">
+<link rel="modulepreload" href="js/common.js">
+<link rel="modulepreload" href="js/i18n.js">
+<link rel="modulepreload" href="js/likes.js">
+<link rel="modulepreload" href="js/profile.js">
+<link rel="modulepreload" href="js/theme.js">
+</head>
+<body>
+<main id="app" class="wrap">
+  <div id="boot" role="status" aria-live="polite">
+    <div class="ring"></div>
+    <p class="bt" id="bootText">正在载入…</p>
+    <p class="bh" id="bootHint"></p>
+  </div>
+</main>
+<footer class="foot">同人作品，与官方无关。账号服务由 Waline 提供。</footer>
+<!-- @boot -->
+<script type="module" src="js/profile.js"></script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>战报侦探</title>
+<meta name="description" content="忘却前夜融灾战报推理游戏：根据伤害占比、回合数等数据，猜出配队、命轮、密契、钥令与造物。">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+<style>
+/* 首屏占位样式内联：不依赖外部 CSS，HTML 一到就有东西可看 */
+#boot { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; min-height: 42vh; color: #6b7280; font: 14px/1.6 system-ui, -apple-system, "Microsoft YaHei", sans-serif; }
+#boot .ring { width: 26px; height: 26px; border: 3px solid rgba(120,130,150,.25);
+  border-top-color: #6b7280; border-radius: 50%; animation: bootspin .9s linear infinite; }
+#boot .bt { margin: 0; letter-spacing: .04em; }
+#boot .bh { margin: 0; font-size: 12px; color: #9aa3b2; max-width: 34em; text-align: center; }
+#boot.err .ring { display: none; }
+#boot button { font: inherit; padding: 7px 18px; border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(120,130,150,.45); background: transparent; color: inherit; }
+@keyframes bootspin { to { transform: rotate(360deg); } }
+@media (prefers-color-scheme: dark) { #boot { color: #a8b0bd; } }
+</style>
+<!-- 整个模块依赖一次预加载：不然浏览器要「先下 game.js，才知道要下 common.js」，
+     在只给 HTTP/1.1 的边缘上这就是两三秒的白屏。 -->
+<link rel="modulepreload" href="js/game.js">
+<link rel="modulepreload" href="js/common.js">
+<link rel="modulepreload" href="js/i18n.js">
+<link rel="modulepreload" href="js/pepper.js">
+<link rel="modulepreload" href="js/bank.js">
+<link rel="modulepreload" href="js/auth.js">
+<link rel="modulepreload" href="js/account.js">
+<link rel="modulepreload" href="js/api.js">
+<link rel="modulepreload" href="js/likes.js">
+<link rel="modulepreload" href="js/checkin.js">
+</head>
+<body>
+<main id="app" class="wrap">
+  <div id="boot" role="status" aria-live="polite">
+    <div class="ring"></div>
+    <p class="bt" id="bootText">正在载入数据…</p>
+    <p class="bh" id="bootHint"></p>
+  </div>
+</main>
+<footer class="foot">同人作品，与官方无关。素材版权归原权利人所有；战报数据来自公开榜单，玩家信息已匿名。</footer>
+<!-- @boot -->
+<script type="module" src="js/game.js" onerror="window.__bootFailed && window.__bootFailed('主脚本 js/game.js 未能加载')"></script>
+</body>
+</html>

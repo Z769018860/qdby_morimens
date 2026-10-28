@@ -256,10 +256,16 @@ export function realmFits(realms, candidate) {
 export const REALM_EN_ZH = { 深海: 'Aequor', 混沌: 'Chaos', 血肉: 'Caro', 超维: 'Ultra', 褪色遗产: 'Faded Legacy', 通用: 'Universal', 其他: 'Other' };
 export const realmName = (r) => (lang.cur === 'en' ? (REALM_EN_ZH[r] || r) : r);
 
-export async function loadDict(prefetched) {
-  // prefetched：index.html 里已经先开拉的字典 promise，省掉「等模块图加载完再拉数据」
-  const dictP = prefetched || fetch('data/dictionary.json').then(r => r.json());
-  const [D] = await Promise.all([dictP, loadKeywords()]);
+// bootP：页面 HTML 里已经开拉的 data/boot.json（字典/标签/关键词/索引合成的一个请求）。
+// 各页面不用自己传参，这里兜底复用，省掉「字典、关键词、标签各来一次」的三个轮次。
+const bootDataP = () => (typeof window !== 'undefined' && window.__boot && window.__boot.data) || null;
+
+export async function loadDict(prefetched, kwPrefetched) {
+  const boot = bootDataP();
+  const dictP = prefetched
+    || (boot ? boot.then(j => j.dict) : fetch('data/dictionary.json').then(r => r.json()));
+  const kwP = kwPrefetched || (boot ? boot.then(j => j.kw) : null);
+  const [D] = await Promise.all([dictP, loadKeywords(kwP)]);
   const idx = {};
   for (const k of Object.keys(KINDS)) idx[k] = new Map(D[k].filter(e => e.id != null).map(e => [String(e.id), e]));
   return { D, idx };
@@ -301,9 +307,9 @@ export function nav(active) {
   if (foot) foot.textContent = t('aboutFoot');
   const credits = h('span', { class: 'credits', title: t('creditsTip'), 'data-sc': 17 }, scNum(wallet.get(), 17));
   return h('header', { class: 'top' },
-    h('a', { class: 'brand', href: 'index.html' }, h('b', {}, t('brand')), h('small', {}, t('brandSub'))),
+    h('a', { class: 'brand', href: 'index.html', title: t('navHome') }, h('b', {}, t('brand')), h('small', {}, t('brandSub'))),
     h('nav', {},
-      h('a', { href: 'index.html', class: active === 'game' ? 'on' : '' }, t('navGame')),
+      h('a', { href: 'detective.html', class: active === 'game' ? 'on' : '' }, t('navGame')),
       h('a', { href: 'gallery.html', class: active === 'gallery' ? 'on' : '' }, t('navGallery')),
       h('a', { href: 'workshop.html', class: active === 'workshop' ? 'on' : '' }, t('navWorkshop')),
       h('a', { href: 'codex.html', class: active === 'codex' ? 'on' : '' }, t('navCodex')),
@@ -314,9 +320,11 @@ export function nav(active) {
 // ------------------------------------------------------------------ keywords
 // Texts in data/*.json mark keywords as ⟦slug|文字⟧ (see scripts/i18n_lib.py)
 export const KW = { list: [], by: {} };
-export async function loadKeywords() {
+export async function loadKeywords(prefetched) {
   if (!KW.list.length) {
-    KW.list = await (await fetch('data/keywords.json')).json();
+    KW.list = prefetched
+      ? await prefetched
+      : await (await fetch('data/keywords.json')).json();
     KW.by = Object.fromEntries(KW.list.map(k => [k.s, k]));
   }
   return KW;

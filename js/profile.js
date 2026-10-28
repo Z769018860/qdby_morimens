@@ -46,7 +46,7 @@ function guestView() {
         meter(t('pfHistTitle'), hists)),
       h('div', { class: 'actions' },
         h('button', { class: 'btn', onclick: () => openLogin(() => location.reload()) }, t('pfLoginBtn')),
-        h('a', { class: 'btn ghost', href: 'index.html' }, t('navGame')))));
+        h('a', { class: 'btn ghost', href: 'detective.html' }, t('navGame')))));
 }
 
 // ------------------------------------------------------------------ 已登录：账号概览
@@ -234,7 +234,7 @@ function impBox() {
             imgEl(e && e.img, e ? nameOf(e) : a.tid), h('small', {}, e ? nameOf(e) : a.tid));
         })),
         h('div', { class: 'impact' },
-          h('a', { class: 'link', href: `index.html?p=${encodeURIComponent(shareCodeOf(p))}` }, t('pfImpPlay')),
+          h('a', { class: 'link', href: `detective.html?p=${encodeURIComponent(shareCodeOf(p))}` }, t('pfImpPlay')),
           opened(p) ? h('a', { class: 'link', href: opened(p), target: '_blank', rel: 'noopener' }, t('pfImpReplay')) : null,
           h('button', { class: 'link', onclick: () => { const l = store.get('myPuzzles', []); l.splice(i, 1); store.set('myPuzzles', l); markDirty('mine'); account.schedule(400); render(); } }, t('pfImpDel'))));
     })) : emptyState(t('pfImpEmpty')));

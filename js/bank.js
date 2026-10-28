@@ -27,7 +27,7 @@ const state = {
 const pad3 = (n) => String(n).padStart(3, '0');
 
 // 加载索引。失败要抛出，让上层知道题库不可用，而不是静默变成空题池。
-// prefetched：index.html 里已经先开拉的索引 promise（省一个下载轮次）
+// prefetched：页面里已经先开拉的启动数据 promise（省一个下载轮次）
 async function load(prefetched) {
   const j = prefetched
     ? await prefetched

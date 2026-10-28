@@ -3,158 +3,198 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>战报侦探</title>
-<meta name="description" content="忘却前夜融灾战报推理游戏：根据伤害占比、回合数等数据，猜出配队、命轮、密契、钥令与造物。">
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/style.css">
+<title>忘忘同人小游戏</title>
+<meta name="description" content="《忘却前夜》同人小游戏合集：战报侦探、弥萨格挂机版、忘却前夜死亡调查报告。">
+<meta name="theme-color" content="#0e1118">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
 <style>
-/* 首屏占位样式内联：不依赖外部 CSS，HTML 一到就有东西可看 */
-#boot { display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 14px; min-height: 42vh; color: #6b7280; font: 14px/1.6 system-ui, -apple-system, "Microsoft YaHei", sans-serif; }
-#boot .ring { width: 26px; height: 26px; border: 3px solid rgba(120,130,150,.25);
-  border-top-color: #6b7280; border-radius: 50%; animation: bootspin .9s linear infinite; }
-#boot .bt { margin: 0; letter-spacing: .04em; }
-#boot .bh { margin: 0; font-size: 12px; color: #9aa3b2; max-width: 34em; text-align: center; }
-#boot.err .ring { display: none; }
-#boot button { font: inherit; padding: 7px 18px; border-radius: 8px; cursor: pointer;
-  border: 1px solid rgba(120,130,150,.45); background: transparent; color: inherit; }
-@keyframes bootspin { to { transform: rotate(360deg); } }
-@media (prefers-color-scheme: dark) { #boot { color: #a8b0bd; } }
+/* 这个页面故意做成「零依赖」：没有外部 CSS、没有 JS 模块、没有图片，
+   一个请求就能画完。它是入口页，必须比任何子页面都快。 */
+:root{
+  --bg:#0e1118; --panel:#171c27; --panel2:#1f2635; --line:#2b3448; --text:#e6e9f0;
+  --dim:#8a93a8; --accent:#6ea8ff; --gold:#e3b341; --green:#2ea66a; --violet:#a07cff;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#f3f5f9; --panel:#fff; --panel2:#eef1f7; --line:#d6dbe7; --text:#1b2130;
+    --dim:#667088; --accent:#2c6fdb; --gold:#a77a00; --green:#1f8a55; --violet:#6b45c8; }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  min-height:100vh; background:var(--bg); color:var(--text);
+  font:15px/1.6 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background-image:
+    radial-gradient(900px 420px at 12% -8%, color-mix(in oklab, var(--violet) 22%, transparent), transparent 70%),
+    radial-gradient(760px 380px at 92% 4%, color-mix(in oklab, var(--accent) 18%, transparent), transparent 72%);
+  background-repeat:no-repeat;
+}
+.wrap{max-width:1060px; margin:0 auto; padding:48px 20px 40px; min-height:100svh;
+  display:flex; flex-direction:column; justify-content:center}
+
+.hero{text-align:center; margin:0 0 34px}
+.kicker{
+  margin:0 0 10px; font-size:11px; letter-spacing:.32em; color:var(--dim);
+  text-transform:uppercase;
+}
+.hero h1{
+  margin:0; font-size:clamp(28px,5.2vw,44px); letter-spacing:.08em; font-weight:800;
+  background:linear-gradient(100deg, var(--text) 10%, var(--accent) 58%, var(--violet) 92%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.hero .sub{margin:14px auto 0; max-width:34em; color:var(--dim); font-size:14px}
+.hero .rule{
+  width:64px; height:3px; margin:20px auto 0; border-radius:3px;
+  background:linear-gradient(90deg, var(--accent), var(--violet));
+  opacity:.8;
+}
+
+.grid{display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(268px,1fr)); margin-top:6px}
+
+.proj{
+  position:relative; display:flex; flex-direction:column; gap:10px;
+  background:var(--panel); border:1px solid var(--line); border-radius:16px;
+  padding:18px 18px 16px; text-decoration:none; color:inherit;
+  transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  overflow:hidden;
+}
+.proj::after{
+  content:""; position:absolute; inset:0 0 auto; height:2px;
+  background:linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity:0; transition:opacity .18s ease;
+}
+a.proj:hover{transform:translateY(-3px); border-color:var(--accent); box-shadow:0 14px 30px -18px rgba(15,25,50,.85)}
+a.proj:hover::after{opacity:1}
+
+.phead{display:flex; align-items:center; gap:10px; position:relative; padding-right:62px}
+.ico{
+  width:38px; height:38px; flex:0 0 38px; border-radius:11px; display:grid; place-items:center;
+  background:var(--panel2); border:1px solid var(--line); color:var(--accent);
+}
+.ico svg{width:21px; height:21px; display:block}
+.proj h2{margin:0; font-size:17.5px; line-height:1.35; letter-spacing:.02em}
+.badge{
+  position:absolute; right:0; top:1px; font-size:11px; padding:2px 9px; border-radius:999px;
+  border:1px solid var(--line); color:var(--dim); white-space:nowrap;
+}
+.badge.ok{color:var(--green); border-color:color-mix(in oklab, var(--green) 55%, transparent)}
+.badge.soon{color:var(--gold); border-color:color-mix(in oklab, var(--gold) 55%, transparent)}
+.desc{margin:0; color:var(--dim); font-size:13.5px; line-height:1.65}
+.tags{display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 0; padding:0; list-style:none}
+.tags li{
+  font-size:11.5px; color:var(--dim); background:var(--panel2);
+  border:1px solid var(--line); border-radius:999px; padding:1px 9px;
+}
+.go{
+  margin-top:auto; padding-top:8px; font-size:13px; color:var(--accent);
+  display:flex; align-items:center; gap:6px;
+}
+a.proj:hover .go{gap:10px}
+.go .arrow{transition:transform .18s ease}
+a.proj:hover .arrow{transform:translateX(3px)}
+
+.soon{opacity:.72}
+.soon:hover{transform:none}
+.soon .ico{color:var(--gold)}
+.soon .go{color:var(--dim)}
+.soon .go .dot{
+  width:6px; height:6px; border-radius:50%; background:var(--gold);
+  box-shadow:0 0 0 0 color-mix(in oklab, var(--gold) 60%, transparent);
+  animation:pulse 2.4s ease-out infinite;
+}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 color-mix(in oklab, var(--gold) 55%, transparent)}
+  70%{box-shadow:0 0 0 7px transparent}
+  100%{box-shadow:0 0 0 0 transparent}
+}
+
+.foot{
+  margin-top:34px; text-align:center; color:var(--dim); font-size:12px;
+  display:flex; flex-direction:column; gap:8px; align-items:center;
+}
+.foot a{color:var(--dim)}
+.foot a:hover{color:var(--accent)}
+@media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
 </style>
-<!-- 整个模块依赖一次预加载：不然浏览器要「先下 game.js，才知道要下 common.js」，
-     在只给 HTTP/1.1 的边缘上这就是两三秒的白屏。 -->
-<link rel="modulepreload" href="js/game.js">
-<link rel="modulepreload" href="js/common.js">
-<link rel="modulepreload" href="js/i18n.js">
-<link rel="modulepreload" href="js/pepper.js">
-<link rel="modulepreload" href="js/bank.js">
-<link rel="modulepreload" href="js/auth.js">
-<link rel="modulepreload" href="js/account.js">
-<link rel="modulepreload" href="js/api.js">
-<link rel="modulepreload" href="js/likes.js">
-<link rel="modulepreload" href="js/checkin.js">
+<meta name="build" content="2ddf6433c9">
 </head>
 <body>
-<main id="app" class="wrap">
-  <div id="boot" role="status" aria-live="polite">
-    <div class="ring"></div>
-    <p class="bt" id="bootText">正在载入数据…</p>
-    <p class="bh" id="bootHint"></p>
-  </div>
+<main class="wrap">
+  <header class="hero">
+    <p class="kicker">Morimens · Fan Works</p>
+    <h1>忘忘同人小游戏</h1>
+    <p class="sub">《忘却前夜》同人小游戏合集。挑一个项目进去玩，都是免费的浏览器游戏，不需要注册。</p>
+    <div class="rule"></div>
+  </header>
+
+  <section class="grid">
+    <a class="proj" href="detective.html">
+      <div class="phead">
+        <span class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/><path d="M8 10.5h5M10.5 8v5"/>
+          </svg>
+        </span>
+        <h2>战报侦探</h2>
+        <span class="badge ok">可玩</span>
+      </div>
+      <p class="desc">只看一份战报的伤害占比、回合数与状态，反推这一局用了谁、带什么命轮密契、造物有几件。每日一题，也能自己出题考别人。</p>
+      <ul class="tags"><li>4101 道题</li><li>每日一题</li><li>创意工坊</li><li>排行榜</li></ul>
+      <span class="go">立即进入 <span class="arrow">→</span></span>
+    </a>
+
+    <div class="proj soon" aria-disabled="true">
+      <div class="phead">
+        <span class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 15.5 6.5 8h11L20 15.5"/><path d="M3 15.5h18v3H3z"/><circle cx="7.5" cy="19.5" r="1.6"/><circle cx="16.5" cy="19.5" r="1.6"/><path d="M9 5.5h6"/>
+          </svg>
+        </span>
+        <h2>弥萨格挂机版</h2>
+        <span class="badge soon">开发中</span>
+      </div>
+      <p class="desc">弥萨格学院的放置玩法：挂机攒资源、自动推图、离线也有收益，回头收菜就行。数值和界面还在做。</p>
+      <ul class="tags"><li>放置挂机</li><li>离线收益</li><li>自动战斗</li></ul>
+      <span class="go"><span class="dot"></span>开发中，还不能进入</span>
+    </div>
+
+    <div class="proj soon" aria-disabled="true">
+      <div class="phead">
+        <span class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h6M9 16h4"/>
+          </svg>
+        </span>
+        <h2>忘却前夜死亡调查报告</h2>
+        <span class="badge soon">开发中</span>
+      </div>
+      <p class="desc">以案件档案的形式复盘一场翻车：逐条质询当时的队伍、命轮与造物选择，找出真正的死因。</p>
+      <ul class="tags"><li>案件档案</li><li>逐条质询</li><li>复盘推理</li></ul>
+      <span class="go"><span class="dot"></span>开发中，还不能进入</span>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>同人作品，与官方无关。素材版权归原权利人所有；战报数据来自公开榜单，玩家信息已匿名。</span>
+    <span><a href="about.html">项目说明与素材来源</a></span>
+  </footer>
 </main>
-<footer class="foot">同人作品，与官方无关。素材版权归原权利人所有；战报数据来自公开榜单，玩家信息已匿名。</footer>
 <script>
-/* 首屏三件事：
-   1) 占位立即出现（纯 HTML，不等任何 JS）——以前「载入中」写在 game.js 里，
-      模块图下完才显示，慢网下就是十几秒白屏。
-   2) 最贵的几个数据文件在这里就开拉，交给 game.js 复用（window.__boot）。
-   3) 请求卡住不返回时（实测边缘会挂起）自动超时重试；真失败就给出可点的界面。 */
-(function () {
-  var bootEl = document.getElementById('boot');
-  var textEl = document.getElementById('bootText');
-  var hintEl = document.getElementById('bootHint');
-  var t0 = Date.now();
-  var settled = false;      // game.js 接管后就别再弹错误
-  var aborters = [];
-
-  function setHint(s) { if (hintEl) hintEl.textContent = s; }
-
-  // 慢一点的提示：8 秒没进展就说句话，别让人以为死了
-  var hintTimer = setTimeout(function () {
-    if (!document.getElementById('boot')) return;
-    setHint('网络较慢，正在继续载入（本站服务器在中国香港/新加坡节点，首次访问会慢一些）…');
-  }, 8000);
-
-  // 看门狗：25 秒还没渲染出内容，给一个明确的手动按钮
-  var dog = setInterval(function () {
-    if (!document.getElementById('boot')) { clearInterval(dog); clearTimeout(hintTimer); settled = true; return; }
-    if (Date.now() - t0 < 25000) return;
-    clearInterval(dog);
-    bootEl.className = 'err';
-    textEl.textContent = '载入超时';
-    setHint('可能是网络到服务器的连接卡住了，点下面的按钮重试（会跳过缓存重新拉）。');
-    var btn = document.createElement('button');
-    btn.textContent = '重新载入';
-    btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
-    bootEl.appendChild(btn);
-  }, 1000);
-
-  // 内核探测：下面那个只有一行 await 0 的 module 脚本用到了顶层 await，
-  // Chrome 89 以下会直接语法报错、整段不执行。这种时候页面只会剩一行页脚，
-  // 什么提示都没有——所以在这里明确告诉用户是浏览器的问题，别再让人以为站点坏了。
-  setTimeout(function () {
-    if (window.__tla) return;
-    if (!document.getElementById('boot')) return;
-    clearInterval(dog);
-    settled = true;
-    bootEl.className = 'err';
-    textEl.textContent = '浏览器内核版本过低';
-    setHint('本站需要 Chrome / Edge 89 及以上（360、QQ 浏览器请切到「极速模式」）。升级或换浏览器后再试。');
-  }, 1500);
-
-  function fail(msg) {
-    if (settled || !document.getElementById('boot')) return;
-    clearInterval(dog);
-    bootEl.className = 'err';
-    textEl.textContent = '载入失败';
-    setHint(msg || '');
-    var btn = document.createElement('button');
-    btn.textContent = '重试';
-    btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
-    bootEl.appendChild(btn);
-  }
-
-  // 模块脚本加载失败 / 运行时报错，都在这里兜住，绝不留白屏
-  window.addEventListener('error', function (e) {
-    var t = e && e.target;
-    if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
-      fail('脚本加载失败：' + (t.src || t.href || ''));
-    } else if (e && e.message && /import|module|MIME|Failed to fetch/i.test(e.message)) {
-      fail(e.message);
-    }
-  }, true);
-  window.addEventListener('unhandledrejection', function (e) {
-    var r = e && e.reason;
-    fail(r && (r.message || String(r)));
+/* 首页也注册缓存：这样第一次进来之后，子页面的脚本会被后台预缓存，切页就快了 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
   });
-
-  // 带超时与一次重试的 JSON 拉取
-  function get(url, opt, retried) {
-    var ctl = new AbortController();
-    aborters.push(ctl);
-    var timer = setTimeout(function () { ctl.abort(); }, 12000);
-    var o = Object.assign({}, opt || {}, { signal: ctl.signal });
-    var p = fetch(url, o).then(function (r) {
-      clearTimeout(timer);
-      if (!r.ok) throw new Error(url + ' ' + r.status);
-      return r.json();
-    }).catch(function (err) {
-      clearTimeout(timer);
-      if (retried) throw err;
-      // 卡住或被断开：换一个绕过缓存的地址再试一次
-      return get(url + (url.indexOf('?') < 0 ? '?' : '&') + 'rt=' + Date.now(), opt, true);
-    });
-    p.catch(function () {});
-    return p;
-  }
-
-  window.__boot = {
-    dict: get('data/dictionary.json'),
-    tags: get('data/creation-tags.json').catch(function () { return {}; }),
-    index: get('data/bank/index.json', { cache: 'no-cache' })
-  };
-  window.__bootFailed = function (msg) { fail(msg); };
-})();
+}
 </script>
-<script type="module">await 0; window.__tla = true;</script>
-<script nomodule>/* 老到不支持 ES module（多半是 360/QQ 浏览器的「兼容模式」= IE 内核） */
-(function () {
-  var el = document.getElementById('boot'); if (el) el.className = 'err';
-  var t = document.getElementById('bootText'); if (t) t.textContent = '浏览器内核太旧';
-  var h = document.getElementById('bootHint');
-  if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
-})();
+<script>
+/* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
+   Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
+   而边缘一个来回就要 1~2 秒；SW 缓存能把这部分彻底省掉。 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
 </script>
-<script type="module" src="js/game.js" onerror="window.__bootFailed && window.__bootFailed('主脚本 js/game.js 未能加载')"></script>
 </body>
 </html>

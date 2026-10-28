@@ -1,0 +1,106 @@
+<script>
+/* 首屏守护 + 启动数据预取（构建时注入，各页共用一份）
+   1) 占位是纯 HTML，HTML 一到就能画，不等任何 JS；
+   2) 模块或数据卡住时给出可点的界面，绝不留只有页脚的白屏；
+   3) 一个请求拿全字典 / 造物标签 / 关键词 / 题库索引（data/boot.json）。
+      原来这是 4 个请求，而边缘每个请求固定 1~2 秒——少一个就是一个轮次。 */
+(function () {
+  var bootEl = document.getElementById('boot');
+  var textEl = document.getElementById('bootText');
+  var hintEl = document.getElementById('bootHint');
+  var t0 = Date.now();
+  var settled = false;
+
+  function setHint(s) { if (hintEl) hintEl.textContent = s; }
+
+  function retryBtn(label) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
+    return btn;
+  }
+
+  // 慢一点就说句话，别让人以为死了
+  var hintTimer = setTimeout(function () {
+    if (!document.getElementById('boot')) return;
+    setHint('网络较慢，正在继续载入（站点在新加坡节点，首次访问会慢一些）…');
+  }, 7000);
+
+  // 看门狗：20 秒还没渲染出内容，给一个明确的按钮
+  var dog = setInterval(function () {
+    if (!document.getElementById('boot')) { clearInterval(dog); clearTimeout(hintTimer); settled = true; return; }
+    if (Date.now() - t0 < 20000) return;
+    clearInterval(dog);
+    if (settled) return;
+    settled = true;
+    bootEl.className = 'err';
+    textEl.textContent = '载入超时';
+    setHint('可能是到服务器的连接卡住了，点下面的按钮重试（会重新拉一次）。');
+    bootEl.appendChild(retryBtn('重新载入'));
+  }, 1000);
+
+  // 内核探测：下面那个只有一行 await 0 的 module 脚本用到了顶层 await，
+  // Chrome 89 以下会直接语法报错、整段不执行，页面只会剩一行页脚。
+  setTimeout(function () {
+    if (window.__tla || !document.getElementById('boot')) return;
+    clearInterval(dog);
+    settled = true;
+    bootEl.className = 'err';
+    textEl.textContent = '浏览器内核版本过低';
+    setHint('本站需要 Chrome / Edge 89 及以上（360、QQ 浏览器请切到「极速模式」）。');
+  }, 1500);
+
+  function fail(msg) {
+    if (settled || !document.getElementById('boot')) return;
+    settled = true;
+    clearInterval(dog);
+    bootEl.className = 'err';
+    textEl.textContent = '载入失败';
+    setHint(msg || '');
+    bootEl.appendChild(retryBtn('重试'));
+  }
+  window.__bootFailed = fail;
+
+  window.addEventListener('error', function (e) {
+    var t = e && e.target;
+    if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+      fail('脚本加载失败：' + (t.src || t.href || ''));
+    } else if (e && e.message && /import|module|MIME|Failed to fetch/i.test(e.message)) {
+      fail(e.message);
+    }
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e && e.reason;
+    fail(r && (r.message || String(r)));
+  });
+
+  // 带超时与一次重试的 JSON 拉取：实测边缘偶尔会挂起连接不返回
+  function get(url, retried) {
+    var ctl = new AbortController();
+    var timer = setTimeout(function () { ctl.abort(); }, 10000);
+    return fetch(url, { signal: ctl.signal }).then(function (r) {
+      clearTimeout(timer);
+      if (!r.ok) throw new Error(url + ' ' + r.status);
+      return r.json();
+    }).catch(function (err) {
+      clearTimeout(timer);
+      if (retried) throw err;
+      return get(url + (url.indexOf('?') < 0 ? '?' : '&') + 'rt=' + Date.now(), true);
+    });
+  }
+
+  var data = get('data/boot.json');
+  data.catch(function () {});
+  window.__boot = { data: data };
+})();
+</script>
+<script type="module">await 0; window.__tla = true;</script>
+<script nomodule>/* 老到不支持 ES module（多半是 360/QQ 浏览器的「兼容模式」= IE 内核） */
+(function () {
+  var el = document.getElementById('boot'); if (el) el.className = 'err';
+  var t = document.getElementById('bootText'); if (t) t.textContent = '浏览器内核太旧';
+  var h = document.getElementById('bootHint');
+  if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
+})();
+</script>

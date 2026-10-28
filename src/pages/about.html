@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>说明 · 战报侦探</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<main id="app" class="wrap">
+
+<section class="card prose" id="sec-zh">
+<p>「忘忘同人小游戏」是《忘却前夜》的同人小游戏合集，首页（<code>index.html</code>）列出全部项目；<b>战报侦探</b>是其中第一个做完的项目，也就是这一页（<code>detective.html</code>），另外两个还在开发中。</p>
+<h2>怎么玩</h2>
+<ol>
+<li>每道题是一份匿名的融灾战报：区域、回合数、出牌数、单回合最高伤害、伤害构成，以及队内 4 人的伤害、格挡、治疗。</li>
+<li>队员按伤害从高到低标为 A–D 位。你要在对应位置填入唤醒体，以及（取决于难度档）命轮、密契、钥令、潜能进阶和造物。</li>
+<li>提交后：🟩 位置/归属正确；🟨 在队内但放错了位置或装在别人身上；⬛ 不在队内。潜能进阶用 ↑/↓ 提示大小，相差 2 以内显示黄色。</li>
+<li>最多提交 6 次。卡位上的「提示阵营」「提示定位」「提示等级」和队伍级的<b>线索台</b>都能帮你缩小范围，按条扣银芯（银芯靠答对获得，见下）。<b>难度档越高，同一条提示越贵</b>：进阶 ×1.25、老手 ×1.6、大师 ×2，卡上标注的就是你这一档的实价。</li>
+<li>即使只猜唤醒体（入门档），结算时也会给出完整的命轮、密契、钥令、造物与唤醒体属性，方便学习完整配队。</li>
+</ol>
+
+<h3>难度档与难度分</h3>
+<ul>
+<li>入门：只猜 4 名唤醒体；进阶：+ 命轮（每人 2 件）；老手：+ 密契套装、钥令；大师：+ 潜能进阶、造物（固有造物已经给出，只需补其余）。</li>
+<li>每道题另有一个 <b>难度分（0–100）</b>，只由公开信息决定，三项加权：
+  <b>信息排除度</b>（把回合数/出牌数/能量/单回合最高伤害/死扛/剩余生命做粗分桶后，题库里同桶的题越多，越难靠排除法锁定）；
+  <b>伤害集中度</b>（队内伤害越集中在一两人身上，越容易判断主 C，越简单）；
+  <b>数值常见度</b>（回合数、出牌数是否为常见的整数，越“整”越好记）。</li>
+<li>题目按难度分从低到高切成 4 档，所以档位是循序渐进的。</li>
+</ul>
+
+<h3>忘却前夜配队规则（给圈外人）</h3>
+<ul>
+<li><b>界域（阵营）</b>：每个唤醒体属于四大界域之一——混沌、血肉、深海、超维。</li>
+<li><b>组队</b>：除「混沌」外，唤醒体只能与「自身界域 + 混沌」组队；「混沌」可与任意界域组队。</li>
+<li><b>队伍构成</b>：4 名唤醒体 + 1 名守密人（你，携带钥令技能）。</li>
+<li><b>养成</b>：每个唤醒体有 2 个命轮（武器）、1 套密契（3/6 件套效果）、指令卡（打击/防御/技能）、天赋（疯狂预兆、灵塑适性等）与潜能进阶（灵塑）。</li>
+<li><b>狂气 vs 算力</b>：狂气是大招能量条，集满触发「狂气爆发」——消耗的是狂气，不是算力；算力是每回合打出指令卡所消耗的资源。</li>
+<li><b>狂气等级</b>指「疯狂预兆」天赋的等级（开局获得狂气）；<b>灵塑等级</b>指「灵塑适性」天赋 / 潜能进阶的等级。</li>
+<li><b>造物</b>：探索过程中获得的道具/遗物。</li>
+<li><b>伤害来源</b>：战报里的守密人伤害（你的钥令）、触腕、反击、力量、侵蚀/中毒，能帮你锁定队伍构筑。</li>
+</ul>
+
+<h3>账号与个人中心</h3>
+<p>账号登录复用 <a href="https://waline.js.org/">Waline</a> 的现成服务（和 <a href="https://z769018860.github.io/qdby_chinese/">忘忘看报</a> 用的是同一套）；积分、解锁、推理记录、工坊题库与点赞存在本站自己的后端（跑在 EdgeOne 边缘函数上，代码在仓库 <code>edge-functions/</code>），换设备登录即可恢复。</p>
+<ul>
+<li><b>只有两种状态</b>：<b>游客</b>（不登录，进度读本机 <code>localStorage</code>）和<b>账号</b>（登录后进度跟账号走）。没有「本地昵称」这类中间态——想留名字就注册，不想注册就用游客。</li>
+<li><b>注册 / 登录</b>：右上角头像，或「个人中心」页面。用户名 2–20 个字符（中文可以），密码至少 6 位；用户名在后台会映射成 <code>用户名@zjtt.local</code> 的邮箱形式，所以不需要你填邮箱。</li>
+<li><b>个人中心 = 账号数据中枢</b>：昵称与头像、<b>偏好唤醒体</b>、<b>推理记录</b>、<b>工坊战报</b>、<b>典藏进度</b>、银芯与失败题库，全都在这一页，也全都会随账号同步。右上角有「上次同步」时间和「立即同步」按钮。</li>
+<li><b>每一局都落库</b>：每日一题、随机一题、自建题、工坊导入的回放，结算后都会写一条记录（时间、题目、模式、档位、胜负、评级、分数、回放链接），同一道题只计一次；最多保留最近 300 条。</li>
+<li><b>偏好唤醒体</b>：在个人中心选好之后会存进账号，作为你自己的喜好收藏。<b>不会</b>用来筛题——那样难度会掉得太多，所以推理页不提供这个开关。</li>
+<li><b>头像</b>：直接用 Waline 的 <b>Q 版头像集</b>（共 <b>184 张</b>）：人物头像 79、剧情角色 5、特殊 21、Q 版 / 方块 / 幕间 / 邮票四种风格共 76、圣诞 3。选择器按分组切换，也能贴自己的图片直链（≤250 字符，例如 QQ 头像）。头像存在账号里，换设备登录也在。</li>
+<li><b>云端档案怎么存</b>：把「银芯 / 解锁 CG / 失败题库 / 统计 / 偏好 / 工坊题 / 推理记录 / 背景主题」打成一个文档，存到本站后端的 <code>accounts</code> 表（一位用户一条，按登录身份区分）。写入时带版本号：别的设备先改过就先合并再写，不会互相覆盖。以前存在 Waline 评论里的老档案会在第一次连上新后端时自动搬过来。</li>
+<li><b>合并规则</b>：换设备登录时，银芯取两边较大值，解锁 CG 与失败题库取并集，统计逐项取大，推理记录与工坊题按 id 去重取新——所以两台设备交替玩也不会互相覆盖。退出登录只清本机的同步凭据，云端档案保留。</li>
+</ul>
+
+<h3>图鉴与关键词</h3>
+<p>图鉴收录全部唤醒体（含技能、天赋、启灵、衍生卡牌与推荐配置）、命轮、密契、钥令、造物与怪物。文字里的状态与机制会显示为带图标的小标签：悬停可看说明，点击可展开详情，并一键跳转到「包含该关键词」的条目列表。顶部的「关键词」页收录了全部 100 个关键词。</p>
+<p>中英文对照以<b>官方中文</b>为准：名称与术语优先取自中文维基、官方游戏文本表（Morimens-Localizations）与游戏客户端配置；关键词详情里会标注译名来源，凡未在官方文本中核实的会标为「非官方译名（站内译）」，仅供参考。</p>
+
+<h3>银芯、提示与解锁</h3>
+<ul>
+<li><b>获取</b>：答对一道题按难度给分，公式为 <code>8 + 难度分 × 1.2</code>（难度分 0–100，所以一题大约 8–128 分，答对后四舍五入）。银芯存在浏览器本地（<code>zjtt:credits</code>），换设备/清缓存会归零。</li>
+<li><b>花在哪</b>：① 买提示（6 银芯起，越高难度档越贵）；② 解锁典藏馆的 CG。</li>
+<li><b>卡位提示</b>：队伍卡上每个位置有三条，各 6 银芯——「提示阵营」（四大界域）、「提示定位」（伤害 / 防御 / 辅助）、「提示等级」。买过的那条会变成金色小标签。</li>
+<li><b>线索台</b>：报告下面一组可解锁线索，全部按这一题的真实数据生成，没有数据的条目不会出现。分四层：<b>队伍线索</b>——<b>钥令阵营</b>（6）、<b>内在灵格</b>（6，四位的灵格等级；等级在卡位提示里买）、<b>灵塑等级</b>（8，仅大师档）、<b>养成</b>（7，指令卡总等级；旧战报没有疯狂预兆时就只给指令卡）、<b>命轮强化</b>（6，整队最高强化到几、有几件 ≥+12）、<b>助战</b>（4）、<b>单回合极值/守密人</b>（5）；<b>造物线索</b>（8）——按功能报件数：输出（伤害 / 力量 / 暴击）、抽牌、狂气、算力与消耗、防御续航、<b>金色（SSR）件数</b>、<b>含基础伤害加成</b>、<b>含治疗 / 回复</b>，买了就知道本局造物里各有几件带这类效果（个别造物没有稀有度记录时会明写「另有 n 件稀有度未知」，不糊弄）；<b>牌组</b>（3–5）——<b>牌组张数</b>、<b>症状卡</b>、<b>衍生卡</b>、<b>命轮附加卡</b>（命轮往牌组里塞的那几张），按件数给；<b>命轮</b>与<b>密契</b>——每次解锁一件，命轮 6 / 8 / 10 / 12 / 14 / 16 / 18 / 20、密契 5 / 7 / 9 / 11，越往后越贵。上面的价格都是入门档，实际按难度档乘系数（进阶 ×1.25、老手 ×1.6、大师 ×2）。买一次这一题内一直有效，换题重新计。自建题还会多一层<b>作者线索</b>：由出题人自己写、自己定价，不乘档位系数。</li>
+<li><b>造物</b>：融灾里每局开局都带两件<b>固有造物</b>——<b>第一个造物</b>和那一期的<b>戒指</b>（深海 / 血肉 / 混沌 / 超维），它们会直接列在题面上，不用你填；你只需要补齐其余造物。造物的功能（抽牌、伤害、狂气……）可以去线索台按类购买。</li>
+<li><b>每日签到</b>：推理页和个人中心都有「每日签到」，每天一次 <b>+10 银芯</b>，连续签天数会累加；签到日期与连续天数也跟着账号同步，所以换设备当天也不能重复签。</li>
+<li><b>赠礼</b>：站内的一次性银芯赠礼写在 <code>data/grants.json</code> 里（按用户名匹配），符合条件的账号登录后自动到账，领过的记录会记进档案，发第二遍不会重复加。</li>
+</ul>
+
+<h3>失败题库</h3>
+<p>一道题用尽 6 次提交仍未答对，就会标为「失败」并<b>移出出题池</b>——它不会再随机出现，每日一题遇到失败题也会顺延到下一题。<b>失败题库</b>面板保留这些题目的答案（含完整队伍、命轮、密契、钥令、造物与回放），所以失败的题仍然可以点开当「复盘」学习，只是不能再作答。</p>
+
+<h3>CG 典藏馆</h3>
+<p>典藏馆收录了从中文维基整理的全部官方 CG（<b>438 张</b>，另有 7 张在维基上已失效），按「典藏馆 / 主线剧情 / 特遣记录 / 动态绘卷 / 场景 CG / 其他」分组。未解锁的图以模糊缩略图呈现，点击按分组价格扣银芯解锁（<b>典藏馆 60 / 动态绘卷 55 / 特遣记录 45 / 主线剧情 40 / 场景 30 / 其他 30</b>）。解锁状态存在本地，终身有效。</p>
+<p>大图支持左右翻页（键盘 ← / →）与「查看维基原图」，每张图都保留了灰机 wiki 的原始文件名，方便溯源。顶部还能按标题/文件名搜索（官方 CG 文件名里带章节编号，例如「C09 012」）。</p>
+<p><b>背景主题</b>：解锁任意一张 CG 后，卡片和放大视图里都会出现「设为背景」。点一下，这张图会成为全站背景（<b>只做 3px 柔化</b>，看得清是哪张图；可读性交给卡片底面上的实心面板色与暗角），同时按它自己的主色重新生成整套 UI 配色（底色、面板、边框、文字、强调色、金色），卡片上还有随主题变色的细金线与斜纹。全站六个页面一起生效，存在本地，下次打开还在。构建期已经为 438 张图各算好一套配色（<code>scripts/build_themes.py</code>，其中 407 张是深色系、31 张是浅色系），切换是即时的。再点一次「背景使用中」即可恢复默认。</p>
+
+<h3>创意工坊</h3>
+<p>「工坊」让你自己出题：</p>
+<ul>
+<li><b>导入回放（三种方式）</b>：
+  <ul>
+  <li><b>回放码</b>：把 <code>battleUuid</code> 粘进去点「按回放码载入」，直接给出<b>完整队伍</b> —— 4 名唤醒体（等级 / 灵塑 / 内在灵格）、每人 2 件命轮、密契、钥令、8 个造物，全部来自题库答案。</li>
+  <li><b>回放文件</b>：把官方回放（<code>BattleReplay_*.json</code>）下载下来用「选回放 JSON 文件」读入。文件其实是 <b>LZ4 帧 + MessagePack</b>（不是 JSON），解码器沿用 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 的回放复盘实现，在浏览器本地展开，不会上传。解析出的命轮（每人 2 件，来自战斗里挂载的「状态@武器」）、造物、钥令、等级与灵塑都准确；<b>密契只有在本局触发过才会留下痕迹</b>，所以若这条回放在题库里，会自动回查题库把密契补全，否则需要手选。</li>
+  <li><b>粘贴摘要</b>：战报摘要 JSON 直接粘进文本框也行。</li>
+  </ul>
+  浏览器有跨域限制，不能直接抓回放地址（对象存储没开 CORS），所以先用「打开官方回放」下载，再选文件。</li>
+<li><b>手动出题</b>：4 个位置各选唤醒体 / 2 件命轮 / 密契，再配等级·灵塑、钥令、造物与回合数等元数据。选唤醒体时按配队规则实时过滤：队里已经有一种非混沌界域，就只剩同界域和混沌可选，冲突项标灰并写明「与队内 X 冲突」，不会让你编出不存在的队伍。造物按集合录入，<b>顺序无所谓</b>，判分只比「有没有这几件」。</li>
+<li><b>自定义线索</b>：除了系统按数据算出来的那些，你还能自己写最多 12 条线索 —— 标题、内容、价格（1–40 银芯）都自己定。玩家在题目的<b>线索台</b>最下面「作者线索」里按你的定价买，不受难度加价影响；写进分享码后，好友和云题库取回的题目都会带着。</li>
+<li><b>点赞</b>：别人打开你分享的题目，题面上方会有一个<b>赞</b>按钮。每被一个人点赞，你（作者）拿 <b>1 银芯</b>；每个人每天最多点 <b>10</b> 次，自己出的题不能自赞。赞数与每日额度都由后端记（同一题同一个人只能赞一次，额度按账号算，清浏览器缓存也刷不出来），进「我的题目」或「个人中心」时自动结算，1 个新赞换 1 银芯，换设备也不会重复领。</li>
+<li><b>分享</b>：生成 <code>ZJ2-…</code> 题目代码，好友打开 <code>detective.html?p=ZJ2-…</code> 就能直接挑战；也可以选择上传到云题库再用代码取回。</li>
+<li><b>自建题池</b>：保存的题进入「我的题目」，会混入你的随机/每日题目池，答对同样给银芯。</li>
+</ul>
+
+<h3>回放与复盘</h3>
+<p>答对（或在失败题库里查看）之后，结果面板会给出该局的官方回放地址：</p>
+<ul>
+<li><b>官方回放</b>：<code>https://z1g-warreport.qookkagames.com/publish/BattleReplay_&lt;uuid&gt;.json</code>，可直接下载原始 JSON。</li>
+<li><b>忘忘看报复盘</b>：一键把 uuid 送到 <a href="https://z769018860.github.io/qdby_chinese/morimens-tools.html#replay">morimens-tools 回放复盘</a>，看逐回合的伤害、格挡、治疗与手牌曲线。</li>
+<li><b>复制 uuid</b>：方便贴到别处或自己存档。1000 道题全部匹配到了唯一战报（联合键 <code>赛季+档位+分数+回合+出牌+单回合最高</code>），没有歧义。</li>
+</ul>
+
+<h3>推理思路示例</h3>
+<ul>
+<li>伤害占比 85% 以上、单回合最高伤害极高的 A 位，基本是主 C。</li>
+<li>格挡很高、几乎没有伤害的位置，多半是防御型；有治疗数字的位置，说明带了治疗手段。</li>
+<li>战报的伤害构成（触腕、反击、力量、侵蚀）是强线索：比如触腕伤害高说明队伍有深海/触腕体系，力量高说明有叠力量的角色。</li>
+<li>养成线索（指令卡总等级、狂气等级、灵塑）也能缩小范围：主 C 的指令卡通常等级最高。</li>
+<li>Boss 的阵营、回合数和出牌数，能帮你判断是快攻还是慢热体系。去「图鉴」查各角色、命轮、密契的效果与本期使用率，就是你的推理工具书。</li>
+</ul>
+
+<h3>数据说明</h3>
+<p>战报来自公开的融灾排行榜（第 71、72 期），玩家 UID 已去除。同位置的辅助型角色在数据上难以唯一确定，所以评分按字段命中率计算，不要求一次性全对。答案已做混淆封装，但纯前端站点无法真正防作弊。</p>
+<p>技能数据来自 <a href="https://github.com/dansa/SKeyDB">SKeyDB</a>（CC BY-NC-SA 4.0，仅限非商业使用）；官方中文对照来自 <a href="https://github.com/BIAVGit/Morimens-Localizations">Morimens-Localizations</a> 与 <a href="https://morimens.huijiwiki.com/">忘却前夜中文维基</a>。</p>
+<p><b>状态/机制图标</b>取自 SKeyDB 的战斗图标库（<code>Battle_Card_Buff_*</code>、界域徽记 <code>realm-badge-*</code>），按官方 <code>iconId</code> 与词条映射，共 30 个图标覆盖 39 个常用关键词；没有官方图标的词条仍用文字字形显示。<b>CG 与唤醒体档案</b>（生日、身高、体重、诺斯指数、获取途径、语音）来自中文维基的角色条目与图片库。<b>回放</b>指向官方战报服务与忘忘看报复盘工具，本站不转存战斗数据。</p>
+<p>所有进度（银芯、解锁的 CG、失败题库、自建题目、偏好唤醒体、答题记录、语言与背景主题）默认存在浏览器 <code>localStorage</code> 的 <code>zjtt:</code> 前缀下；<b>登录后</b>会打包成账号档案同步到云端，换设备登录即可恢复，退出登录则回到只用本机数据。上传到云题库的题目是公开的，请不要把不想公开的内容放进去。</p>
+<p>题库共 <b>4101 道</b>：<code>data/puzzles.json</code>（1000 道核心题，每日一题只从这里出，保证扩充题库异步加载时题目不跳变）、<code>data/puzzles-extra.json</code>（1000 道扩充题）与 <code>data/puzzles-more.json</code>（2101 道追加题），后两份按顺序在后台加载、边到边用。难度分统一重算后按分位切成 4 档（1 档 1149 / 2 档 1148 / 3 档 1066 / 4 档 738），分档依据是「同签名题数」分布与伤害构成熵等公开信息，构建脚本 <code>scripts/finalize_puzzles.py</code> 会一并做结构审计：队伍 4 人唯一、命轮 1–2 件、密契齐全、钥令有效、造物 ≤18、UUID 完整、分桶号 4 个、公开线索 4 条；当前全部 4101 道通过，且没有任何两道题的公开线索完全重复。</p>
+<p>数据由 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 生成，脚本见 <code>scripts/build_data.py</code>、<code>scripts/build_puzzles_more.py</code>、<code>scripts/enhance_data.py</code>、<code>scripts/build_official_terms.py</code>、<code>scripts/score_difficulty.py</code>、<code>scripts/finalize_puzzles.py</code>、<code>scripts/enrich_clues.py</code>（把线索用的隐藏数据封进答案）与 <code>scripts/build_card_types.py</code>（卡牌类型表，取自官方回放的 <code>Skill</code> 表）。</p>
+</section>
+
+<section class="card prose" id="sec-en" hidden>
+<p>&ldquo;Wangwang Fan Mini-games&rdquo; is a collection of Morimens fan mini-games. The home page (<code>index.html</code>) lists every project; <b>Report Detective</b> is the first finished one and lives on this page (<code>detective.html</code>). Two more are still in development.</p>
+<h2>How to play</h2>
+<ol>
+<li>Each puzzle is an anonymised Disaster raid report: zone, rounds, cards played, highest single-round damage, damage breakdown, plus each of the 4 members' damage / block / healing.</li>
+<li>Members are labelled A–D by damage, highest first. Fill each slot with an Awakener and — depending on the level — Wheels, Covenants, a Keeper skill, Potency and Creations.</li>
+<li>After submitting: 🟩 right place/owner; 🟨 in the team but wrong slot or attached to someone else; ⬛ not in the team. Potency uses ↑/↓, and shows yellow within 2.</li>
+<li>Six submissions max. Per-slot hints (realm / role / level) and the team-level <b>clue desk</b> narrow things down, each priced in Silver Core (earned by solving, see below).</li>
+<li>Even at the beginner level (Awakeners only), the result reveals the full Wheels, Covenants, Keeper skill, Creations and Awakener stats, so you learn complete team building.</li>
+</ol>
+
+<h3>Levels and difficulty score</h3>
+<ul>
+<li>Beginner: 4 Awakeners. Advanced: + Wheels (2 each). Veteran: + Covenants and Keeper skill. Master: + Potency and all Creations.</li>
+<li>Every puzzle also has a <b>difficulty score (0–100)</b> derived only from public clues, weighted from three parts:
+  <b>clue exclusion</b> (coarse buckets of rounds / cards / energy / max hit / death-resist / HP left — the more puzzles share the same bucket, the harder it is to narrow down);
+  <b>damage concentration</b> (the more a team's damage is concentrated on one or two members, the easier the carry is to spot);
+  <b>number familiarity</b> (whether rounds and card counts are common round numbers).</li>
+<li>Puzzles are sorted by that score into four tiers, so the ladder is gradual.</li>
+</ul>
+
+<h3>Team-building rules (for newcomers)</h3>
+<ul>
+<li><b>Realms</b>: every Awakener belongs to one of Chaos, Caro, Aequor or Ultra.</li>
+<li><b>Mixing</b>: apart from Chaos, an Awakener can only team with its own realm plus Chaos; Chaos can team with any realm.</li>
+<li><b>Team</b>: 4 Awakeners + 1 Keeper (you, carrying a Keeper skill).</li>
+<li><b>Progression</b>: 2 Wheels (weapons), one Covenant set (3/6-piece effects), command cards (Strike / Defense / Skill), talents (Madness Omen, Soulforge Aptitude…) and Potency.</li>
+<li><b>Aliemus vs Arithmetica</b>: Aliemus is the ultimate gauge — Exalt consumes Aliemus, not Arithmetica; Arithmetica is what you spend to play command cards.</li>
+<li><b>Madness level</b> is the level of the Madness Omen talent (grants Aliemus at the start); <b>Potency level</b> is Soulforge Aptitude / Potency progression.</li>
+<li><b>Creations</b>: items/relics picked up during a run.</li>
+<li><b>Damage sources</b>: Keeper damage (your skill), Tentacle, Counter, Strength and Poison/Erosion in the report are strong clues about the build.</li>
+</ul>
+
+<h3>Account and profile</h3>
+<p>Accounts still sign in through an existing <a href="https://waline.js.org/">Waline</a> service (the same one behind <a href="https://z769018860.github.io/qdby_chinese/">qdby_chinese</a>); Silver Core, unlocks, solve history, workshop puzzles and likes live in the site's own backend (Edge Functions on EdgeOne, see <code>edge-functions/</code>), so they follow you across devices.</p>
+<ul>
+<li><b>Two states only</b>: <b>guest</b> (not signed in, progress read from this browser's <code>localStorage</code>) or <b>account</b> (signed in, progress follows the account). There is no in-between “local nickname” — register if you want a name, stay a guest if you don't.</li>
+<li><b>Register / sign in</b>: the avatar in the top-right, or the Profile page. Usernames are 2–20 characters (Chinese is fine), passwords at least 6; the username is mapped to <code>name@zjtt.local</code> internally, so no email is required.</li>
+<li><b>Profile = the account's data hub</b>: display name and avatar, <b>preferred Awakeners</b>, <b>solve history</b>, <b>workshop reports</b>, <b>gallery progress</b>, Silver Core and the failed bank all live here — and all of it syncs with the account. “Last synced” and a “Sync now” button sit in the header.</li>
+<li><b>Every run is stored</b>: daily, random, custom and workshop-imported puzzles each write one record after grading (time, puzzle, mode, level, win/loss, rating, score, replay link). A puzzle only counts once; the latest 300 are kept.</li>
+<li><b>Preferred Awakeners</b>: pick them on the Profile page and the puzzle screen grows a “preferred Awakeners only” switch. When on, only puzzles containing those Awakeners are drawn — members are hashed into buckets first, then each candidate is decrypted to confirm, so the whole library is never decrypted per draw.</li>
+<li><b>Avatars</b>: the <b>Waline chibi pack</b>, <b>184 images</b> — 79 character portraits, 5 story NPCs, 21 specials, 76 across chibi / block / interlude / stamp styles, 3 Christmas; the picker groups them by family, and you can still paste your own image URL (≤250 chars). Avatars live on the account, so they follow you across devices.</li>
+<li><b>How the cloud document works</b>: Silver Core / unlocked CG / failed bank / stats / preferences / workshop puzzles / solve history / backdrop theme are packed into one document stored in the backend's <code>accounts</code> table (one row per signed-in user). Writes carry a version number: if another device saved first, the two sides are merged before writing, so neither is lost. Old documents kept in Waline comments are migrated automatically the first time you connect to the new backend.</li>
+<li><b>Merge rules</b>: when you sign in elsewhere, Silver Core takes the larger value, unlocked CG and the failed bank are unioned, stats take the per-key maximum, and history / workshop puzzles are de-duplicated by id keeping the newest — so alternating between two devices never clobbers the other. Signing out only clears local sync credentials; the cloud document stays.</li>
+</ul>
+
+<h3>Codex and keywords</h3>
+<p>The codex lists every Awakener (with skills, talents, enlightenments, derived cards and recommended builds), Wheel, Covenant, Keeper skill, Creation and monster. States and mechanics in the text appear as icon chips: hover for a summary, click for details and a jump to every entry that uses them. The Keywords tab covers all 100 terms.</p>
+<p>Chinese names follow <b>official Chinese text</b> wherever it exists — the Chinese wiki, the official game text sheet (Morimens-Localizations) and the game client config. Keyword details show the provenance of each translation; anything not confirmed in official text is marked “Unofficial (site rendering)” and is for reference only.</p>
+
+<h3>Credits, hints and unlocks</h3>
+<ul>
+<li><b>Earning</b>: solving a puzzle pays out by difficulty, <code>8 + difficulty score × 1.2</code> (difficulty 0–100, so roughly 8–128 Silver Core, rounded). Silver Core lives in local storage (<code>zjtt:credits</code>) — clearing site data or switching devices resets them.</li>
+<li><b>Spending</b>: (1) hints at 6 Silver Core each; (2) unlocking gallery CGs.</li>
+<li><b>Slot hints</b> sit on each team card, three per slot at 6 Silver Core each — <b>realm</b> (one of the four), <b>role</b> (damage / defense / support) and <b>level</b>. A bought hint turns into a gold chip.</li>
+<li><b>Clue desk</b>: the group of unlockable clues under the report. Every entry is computed from this puzzle's real data; entries without data simply do not appear. Four layers — <b>team clues</b>: <b>key realm</b> (6), <b>Gnostic Potential</b> (6, all four slots; level is bought on the slot card), <b>potency</b> (8, Master tier only), <b>build</b> (7 — command-card total level; older logs without Madness omen cover cards only), <b>Wheel upgrades</b> (6 — best upgrade in the team and how many are at +12 or above), <b>assist</b> (4), <b>single-turn peak / Keeper</b> (5); <b>relic clues</b> (4–5) — by function, as a count: damage (damage / strength / crit), card draw, Aliemus, Arithmetica &amp; exhaust, block &amp; healing; <b>deck clues</b> (3–5) — <b>deck size</b>, <b>symptom cards</b>, <b>derived cards</b> and <b>cards added by Wheels</b>, again as counts; <b>Wheels</b> and <b>Covenants</b> — one entry per purchase, Wheels 6 / 8 / 10 / 12 / 14 / 16 / 18 / 20 and Covenants 5 / 7 / 9 / 11, pricier further along. Those are entry-tier prices; your tier multiplies them (Adept ×1.25, Veteran ×1.6, Master ×2). Bought once, it stays open for that puzzle only. Workshop puzzles add one more group, <b>Author clues</b> — written and priced by the author, with no tier multiplier.</li>
+<li><b>Relics</b>: every Roguelike run starts with two <b>innate relics</b> — the <b>first relic</b> and that season's <b>Ring</b> (Aequor / Caro / Chaos / Ultra). Both are listed on the puzzle itself and never need filling in; you only add the rest. Relic functions (card draw, damage, Aliemus and so on) can be bought by category from the clue desk.</li>
+<li><b>Daily check-in</b>: the puzzle page and the Profile page both offer a check-in — once a day for <b>+10 Silver Core</b>, with a streak that keeps counting. The date and streak sync with your account, so a second device cannot claim it twice on the same day.</li>
+<li><b>Gifts</b>: one-off Silver Core gifts live in <code>data/grants.json</code> (matched by username); eligible accounts receive them automatically on sign-in, and claimed ids are recorded in the account document so nothing is paid twice.</li>
+</ul>
+
+<h3>Failed bank</h3>
+<p>Burn all six submissions without solving and the puzzle is marked failed and <b>removed from the draw pool</b> — it will not come up randomly again, and the daily puzzle skips past failed ones. The <b>failed bank</b> panel keeps those answers (full team, Wheels, Covenants, Keeper skill, Creations and replay), so a failure still works as a review — you just cannot answer it again.</p>
+
+<h3>CG gallery</h3>
+<p>The gallery holds every official CG collected from the Chinese wiki — <b>438 images</b> (7 more are dead links on the wiki), grouped into Hall / Main story / Dispatch records / Dynamic scrolls / Scene CGs / Other. Locked images show as a blurred thumbnail; clicking spends Silver Core to unlock (Hall 60 / Dynamic 55 / Dispatch 45 / Story 40 / Scene 30 / Other 30). Unlocks are stored locally and are permanent.</p>
+<p>The viewer supports arrow-key paging and a “view original on the wiki” link — every item keeps its original wiki filename for provenance. A search box filters by title or filename (official CG filenames carry the chapter number, e.g. “C09 012”).</p>
+<p><b>Backdrop themes</b>: once a CG is unlocked, both the card and the viewer offer “Use as backdrop”. That CG becomes the site background (only a 3px soften, so you can still tell which art it is; readability comes from solid panel colours and a vignette), and its own dominant colours are turned into a full UI palette — surface, panel, borders, text, accent and gold — across all six pages, remembered locally. All 438 palettes are precomputed at build time (<code>scripts/build_themes.py</code>; 407 dark, 31 light), so switching is instant. Click “In use” again to go back to the default look.</p>
+
+<h3>Workshop</h3>
+<p>The workshop lets you author your own puzzles:</p>
+<ul>
+<li><b>Import a replay (three ways)</b>:
+  <ul>
+  <li><b>Replay code</b>: paste the <code>battleUuid</code> and hit “Load by replay code” — you get the <b>complete team</b>: four awakeners (level / potency / Gnostic Potential), two Wheels each, Covenants, the Keeper skill and all eight Creations, straight from the puzzle-bank answer.</li>
+  <li><b>Replay file</b>: download the official replay (<code>BattleReplay_*.json</code>) and open it with “Pick replay JSON”. The file is actually <b>LZ4 frame + MessagePack</b>, not JSON — the decoder is the one from <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a>'s replay review, running locally; nothing is uploaded. Wheels (two per awakener, read from the mounted “状态@武器” states), Creations, the Keeper skill, level and potency all come out exact; <b>Covenants only leave a trace when they triggered</b>, so if the replay is in the bank the Covenants are filled in from the answer, otherwise pick them by hand.</li>
+  <li><b>Paste a summary</b>: report-summary JSON in the text box works too.</li>
+  </ul>
+  Browsers cannot fetch the replay URL directly (the object store sends no CORS headers), so use “Open official replay” to download it first.</li>
+<li><b>Manual authoring</b>: 4 slots × (Awakener, 2 Wheels, Covenant), plus level/potency, Keeper skill, Creations and rounds.</li>
+<li><b>Custom clues</b>: besides the clues computed from the data, you can write up to 12 of your own — title, text and price (1–40 Silver Core) all yours to set. Players buy them from the <b>Author clues</b> group at the bottom of the clue desk at your price, with no tier markup; they travel inside the share code and come back from the cloud bank too.</li>
+<li><b>Likes</b>: when someone opens a puzzle you shared, a <b>Like</b> button sits above the report. Every like pays the author <b>1 Silver Core</b>; each person gets <b>10</b> likes per day, and you cannot like your own puzzle. Counts and the daily quota are tracked by the backend (one like per person per puzzle, quota bound to the account, so clearing browser storage does not reset it), and settle automatically when you open “My puzzles” or your profile — 1 new like = 1 Silver Core, without double-paying across devices.</li>
+<li><b>Sharing</b>: produces a <code>ZJ2-…</code> code — friends open <code>detective.html?p=ZJ2-…</code> and play immediately. Uploading to the cloud bank and loading it back by code is also supported.</li>
+<li><b>Your pool</b>: saved puzzles go under “My puzzles” and join your random/daily pool, paying Silver Core like any other.</li>
+</ul>
+
+<h3>Replays and review</h3>
+<p>After a solve (or from the failed bank) the result panel offers the official replay for that run:</p>
+<ul>
+<li><b>Official replay</b>: <code>https://z1g-warreport.qookkagames.com/publish/BattleReplay_&lt;uuid&gt;.json</code> — the raw JSON.</li>
+<li><b>Wangwang review</b>: sends the uuid to the <a href="https://z769018860.github.io/qdby_chinese/morimens-tools.html#replay">morimens-tools replay review</a> for per-round damage, block, healing and hand curves.</li>
+<li><b>Copy uuid</b>: for posting or archiving. All 1000 puzzles match exactly one report (joint key: season + rank + score + rounds + cards + max hit) with zero ambiguity.</li>
+</ul>
+
+<h3>Example reasoning</h3>
+<ul>
+<li>An A slot with 85%+ of team damage and a huge max hit is almost certainly the carry.</li>
+<li>A slot with high block and almost no damage is likely a defensive Awakener; healing numbers mean a healing source.</li>
+<li>The damage breakdown is a strong clue: high Tentacle damage implies an Aequor/tentacle build, high Strength implies a STR-stacking unit.</li>
+<li>Progression clues (total command-card level, madness level, potency) narrow it down too — the carry usually has the highest card levels.</li>
+<li>Boss realm, rounds and card counts hint at fast or slow builds. Use the codex for effects and pick rates — it is your detective's handbook.</li>
+</ul>
+
+<h3>Data notes</h3>
+<p>Reports come from the public Disaster leaderboards (seasons 71 and 72); player UIDs are removed. Support-type slots are hard to pin down uniquely, so scoring is per-field accuracy rather than all-or-nothing. Answers are obfuscated, but a pure static site cannot truly prevent cheating.</p>
+<p>Skill data from <a href="https://github.com/dansa/SKeyDB">SKeyDB</a> (CC BY-NC-SA 4.0, non-commercial). Official Chinese from <a href="https://github.com/BIAVGit/Morimens-Localizations">Morimens-Localizations</a> and the <a href="https://morimens.huijiwiki.com/">Chinese wiki</a>.</p>
+<p>Data generated from <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a>; see <code>scripts/build_data.py</code>, <code>scripts/build_puzzles_more.py</code>, <code>scripts/enhance_data.py</code>, <code>scripts/build_official_terms.py</code>, <code>scripts/score_difficulty.py</code>, <code>scripts/finalize_puzzles.py</code>, <code>scripts/enrich_clues.py</code> (seals the hidden clue data into each answer) and <code>scripts/build_card_types.py</code> (card-type table mined from the official replays' <code>Skill</code> records).</p>
+<p><b>Status/mechanic icons</b> come from SKeyDB's battle icon set (<code>Battle_Card_Buff_*</code>, realm badges <code>realm-badge-*</code>), mapped by official <code>iconId</code>: 30 icons cover 39 common keywords; terms without official art fall back to a text glyph. <b>CGs and Awakener profiles</b> (birthday, height, weight, Nos index, acquisition, voice lines) come from the Chinese wiki. <b>Replays</b> point at the official report service and the Wangwang review tool — no battle data is mirrored here.</p>
+<p>All progress (Silver Core, unlocked CGs, failed bank, authored puzzles, preferred Awakeners, answer history, language, backdrop theme) is kept in <code>localStorage</code> under the <code>zjtt:</code> prefix by default; <b>once signed in</b> it is packed into an account document and synced to the cloud, so another device restores it on sign-in, and signing out returns to local-only. Puzzles uploaded to the cloud bank are public — do not put anything private there.</p>
+<p>The puzzle set holds <b>4101 entries</b>: <code>data/puzzles.json</code> (1000 core puzzles — the daily puzzle is drawn only from these, so it never jumps while the extra files load asynchronously), <code>data/puzzles-extra.json</code> (1000 extra) and <code>data/puzzles-more.json</code> (2101 more), the last two loading in the background and used as they arrive. Difficulty is recomputed across all three and split into four tiers by percentile (tier 1: 1149 / 2: 1148 / 3: 1066 / 4: 738), based on public-only signals such as how many puzzles share the same clue signature and the entropy of the damage breakdown. <code>scripts/finalize_puzzles.py</code> also audits every entry (4 unique members, 1–2 Wheels each, Covenants present, valid Keeper skill, ≤18 Creations, intact UUID, 4 bucket ids, 4 public clues); all 4101 pass, and no two puzzles share an identical public clue set.</p>
+</section>
+
+</main>
+<footer class="foot">同人作品，与官方无关。</footer>
+<script type="module" src="js/about.js"></script>
+</body>
+</html>

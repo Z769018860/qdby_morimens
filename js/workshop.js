@@ -393,7 +393,7 @@ async function openBank(id) {
 async function playBank(id) {
   try {
     const p = await fetchBank(id);
-    location.href = 'index.html?p=' + encodeURIComponent(codeOf(p));
+    location.href = 'detective.html?p=' + encodeURIComponent(codeOf(p));
   } catch {
     toast(t('wsCloudFail'));
   }
@@ -646,7 +646,7 @@ function copyCode() {
 function play() {
   const d = normalize();
   if (!d) { toast(t('fillAll')); return; }
-  location.href = 'index.html?p=' + encodeURIComponent(codeOf(d));
+  location.href = 'detective.html?p=' + encodeURIComponent(codeOf(d));
 }
 
 // ------------------------------------------------------------------ 云题库（多后端）

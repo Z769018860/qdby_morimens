@@ -34,23 +34,24 @@ function saveProfile() { store.set('profile', profile); markDirty('profile'); }
 
 document.body.prepend(nav('game'));
 const root = $('#app');
-// index.html 里已经放了静态占位（转圈 + 「正在载入数据…」），到这一步说明
+// detective.html 里已经放了静态占位（转圈 + 「正在载入数据…」），到这一步说明
 // 模块已经跑起来了，占位继续留着，别把它抹成一行干字——首屏观感差别很大。
 if (!document.getElementById('boot')) root.textContent = t('loading');
 
-// 字典（772KB）、造物标签、题库索引（几十 KB）并行拉，别串着等。
-// 题库本体不再是整包下载，改成用到哪道取哪片（见 js/bank.js）。
-// window.__boot：index.html 里已经先开拉的同一批请求，直接复用，不重复下载。
-const boot = (typeof window !== 'undefined' && window.__boot) || {};
+// 启动数据合成一个请求（data/boot.json = 字典 + 造物标签 + 关键词 + 题库索引）。
+// 为什么合并：边缘每个请求固定 1~2 秒，4 个请求就是 4 个轮次，体积反而不是瓶颈。
+// window.__boot 是 HTML 里先开拉的同一个请求，直接复用，不会重复下载。
+// 题库本体仍然按片取（见 js/bank.js），不参与这次合并。
+const bootData = ((typeof window !== 'undefined' && window.__boot) || {}).data
+  || fetch('data/boot.json').then(r => r.json());
 let dictRes;
 let RELIC_TAGS;
 try {
+  const bd = await bootData;
   [dictRes, RELIC_TAGS] = await Promise.all([
-    loadDict(boot.dict),
-    boot.tags || fetch('data/creation-tags.json', { cache: 'force-cache' })
-      .then(r => (r.ok ? r.json() : {}))
-      .catch(() => ({})),
-    bank.load(boot.index),
+    loadDict(bd.dict, bd.kw),
+    bd.tags || {},
+    bank.load(bd.bank),
   ]);
 } catch (e) {
   // 慢网/断网时别停在「载入中」不动，给个能重试的界面
@@ -1204,7 +1205,7 @@ await start(dailyPuzzle(), 'daily');
 // 扩充题库（puzzles-extra / puzzles-more）不再整包预载：
 // 现在题库是「索引 + 分片」，抽到哪道才取哪片，见 js/bank.js。
 
-// 工坊 / 好友分享的题目：index.html?p=ZJ2-...
+// 工坊 / 好友分享的题目：detective.html?p=ZJ2-...
 const sharedCode = new URLSearchParams(location.search).get('p');
 if (sharedCode) {
   const p = shareCode.dec(sharedCode);

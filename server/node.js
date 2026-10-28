@@ -128,12 +128,12 @@ const MIME = {
 };
 
 // 无扩展名的路径按页面名补 .html，和 GitHub Pages 的行为保持一致
-const PAGES = new Set(['index', 'codex', 'profile', 'workshop', 'gallery', 'about']);
+const PAGES = new Set(['index', 'detective', 'codex', 'profile', 'workshop', 'gallery', 'about']);
 
 // 白名单，不是黑名单。仓库里还躺着 server/（含数据库）、.git/、scripts/，
 // 用「禁止 ..」这种黑名单挡不住 URL 规范化后的 /.git/config，所以只放这些出去。
 const PUBLIC_DIRS = ['css/', 'js/', 'assets/', 'data/'];
-const PUBLIC_FILES = new Set(['favicon.svg', 'NOTICE.md', '.nojekyll']);
+const PUBLIC_FILES = new Set(['favicon.svg', 'sw.js', 'NOTICE.md', '.nojekyll']);
 const PUBLIC_HTML = /^[a-z0-9_-]+\.html$/i;
 
 function isPublic(rel) {

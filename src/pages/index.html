@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>忘忘同人小游戏</title>
+<meta name="description" content="《忘却前夜》同人小游戏合集：战报侦探、弥萨格挂机版、忘却前夜死亡调查报告。">
+<meta name="theme-color" content="#0e1118">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+/* 这个页面故意做成「零依赖」：没有外部 CSS、没有 JS 模块、没有图片，
+   一个请求就能画完。它是入口页，必须比任何子页面都快。 */
+:root{
+  --bg:#0e1118; --panel:#171c27; --panel2:#1f2635; --line:#2b3448; --text:#e6e9f0;
+  --dim:#8a93a8; --accent:#6ea8ff; --gold:#e3b341; --green:#2ea66a; --violet:#a07cff;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#f3f5f9; --panel:#fff; --panel2:#eef1f7; --line:#d6dbe7; --text:#1b2130;
+    --dim:#667088; --accent:#2c6fdb; --gold:#a77a00; --green:#1f8a55; --violet:#6b45c8; }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  min-height:100vh; background:var(--bg); color:var(--text);
+  font:15px/1.6 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background-image:
+    radial-gradient(900px 420px at 12% -8%, color-mix(in oklab, var(--violet) 22%, transparent), transparent 70%),
+    radial-gradient(760px 380px at 92% 4%, color-mix(in oklab, var(--accent) 18%, transparent), transparent 72%);
+  background-repeat:no-repeat;
+}
+.wrap{max-width:1060px; margin:0 auto; padding:48px 20px 40px; min-height:100svh;
+  display:flex; flex-direction:column; justify-content:center}
+
+.hero{text-align:center; margin:0 0 34px}
+.kicker{
+  margin:0 0 10px; font-size:11px; letter-spacing:.32em; color:var(--dim);
+  text-transform:uppercase;
+}
+.hero h1{
+  margin:0; font-size:clamp(28px,5.2vw,44px); letter-spacing:.08em; font-weight:800;
+  background:linear-gradient(100deg, var(--text) 10%, var(--accent) 58%, var(--violet) 92%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.hero .sub{margin:14px auto 0; max-width:34em; color:var(--dim); font-size:14px}
+.hero .rule{
+  width:64px; height:3px; margin:20px auto 0; border-radius:3px;
+  background:linear-gradient(90deg, var(--accent), var(--violet));
+  opacity:.8;
+}
+
+.grid{display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(268px,1fr)); margin-top:6px}
+
+.proj{
+  position:relative; display:flex; flex-direction:column; gap:10px;
+  background:var(--panel); border:1px solid var(--line); border-radius:16px;
+  padding:18px 18px 16px; text-decoration:none; color:inherit;
+  transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  overflow:hidden;
+}
+.proj::after{
+  content:""; position:absolute; inset:0 0 auto; height:2px;
+  background:linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity:0; transition:opacity .18s ease;
+}
+a.proj:hover{transform:translateY(-3px); border-color:var(--accent); box-shadow:0 14px 30px -18px rgba(15,25,50,.85)}
+a.proj:hover::after{opacity:1}
+
+.phead{display:flex; align-items:center; gap:10px; position:relative; padding-right:62px}
+.ico{
+  width:38px; height:38px; flex:0 0 38px; border-radius:11px; display:grid; place-items:center;
+  background:var(--panel2); border:1px solid var(--line); color:var(--accent);
+}
+.ico svg{width:21px; height:21px; display:block}
+.proj h2{margin:0; font-size:17.5px; line-height:1.35; letter-spacing:.02em}
+.badge{
+  position:absolute; right:0; top:1px; font-size:11px; padding:2px 9px; border-radius:999px;
+  border:1px solid var(--line); color:var(--dim); white-space:nowrap;
+}
+.badge.ok{color:var(--green); border-color:color-mix(in oklab, var(--green) 55%, transparent)}
+.badge.soon{color:var(--gold); border-color:color-mix(in oklab, var(--gold) 55%, transparent)}
+.desc{margin:0; color:var(--dim); font-size:13.5px; line-height:1.65}
+.tags{display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 0; padding:0; list-style:none}
+.tags li{
+  font-size:11.5px; color:var(--dim); background:var(--panel2);
+  border:1px solid var(--line); border-radius:999px; padding:1px 9px;
+}
+.go{
+  margin-top:auto; padding-top:8px; font-size:13px; color:var(--accent);
+  display:flex; align-items:center; gap:6px;
+}
+a.proj:hover .go{gap:10px}
+.go .arrow{transition:transform .18s ease}
+a.proj:hover .arrow{transform:translateX(3px)}
+
+.soon{opacity:.72}
+.soon:hover{transform:none}
+.soon .ico{color:var(--gold)}
+.soon .go{color:var(--dim)}
+.soon .go .dot{
+  width:6px; height:6px; border-radius:50%; background:var(--gold);
+  box-shadow:0 0 0 0 color-mix(in oklab, var(--gold) 60%, transparent);
+  animation:pulse 2.4s ease-out infinite;
+}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 color-mix(in oklab, var(--gold) 55%, transparent)}
+  70%{box-shadow:0 0 0 7px transparent}
+  100%{box-shadow:0 0 0 0 transparent}
+}
+
+.foot{
+  margin-top:34px; text-align:center; color:var(--dim); font-size:12px;
+  display:flex; flex-direction:column; gap:8px; align-items:center;
+}
+.foot a{color:var(--dim)}
+.foot a:hover{color:var(--accent)}
+@media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="hero">
+    <p class="kicker">Morimens · Fan Works</p>
+    <h1>忘忘同人小游戏</h1>
+    <p class="sub">《忘却前夜》同人小游戏合集。挑一个项目进去玩，都是免费的浏览器游戏，不需要注册。</p>
+    <div class="rule"></div>
+  </header>
+
+  <section class="grid">
+    <a class="proj" href="detective.html">
+      <div class="phead">
+        <span class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/><path d="M8 10.5h5M10.5 8v5"/>
+          </svg>
+        </span>
+        <h2>战报侦探</h2>
+        <span class="badge ok">可玩</span>
+      </div>
+      <p class="desc">只看一份战报的伤害占比、回合数与状态，反推这一局用了谁、带什么命轮密契、造物有几件。每日一题，也能自己出题考别人。</p>
+      <ul class="tags"><li>4101 道题</li><li>每日一题</li><li>创意工坊</li><li>排行榜</li></ul>
+      <span class="go">立即进入 <span class="arrow">→</span></span>
+    </a>
+
+    <div class="proj soon" aria-disabled="true">
+      <div class="phead">
+        <span class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 15.5 6.5 8h11L20 15.5"/><path d="M3 15.5h18v3H3z"/><circle cx="7.5" cy="19.5" r="1.6"/><circle cx="16.5" cy="19.5" r="1.6"/><path d="M9 5.5h6"/>
+          </svg>
+        </span>
+        <h2>弥萨格挂机版</h2>
+        <span class="badge soon">开发中</span>
+      </div>
+      <p class="desc">弥萨格学院的放置玩法：挂机攒资源、自动推图、离线也有收益，回头收菜就行。数值和界面还在做。</p>
+      <ul class="tags"><li>放置挂机</li><li>离线收益</li><li>自动战斗</li></ul>
+      <span class="go"><span class="dot"></span>开发中，还不能进入</span>
+    </div>
+
+    <div class="proj soon" aria-disabled="true">
+      <div class="phead">
+        <span class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h6M9 16h4"/>
+          </svg>
+        </span>
+        <h2>忘却前夜死亡调查报告</h2>
+        <span class="badge soon">开发中</span>
+      </div>
+      <p class="desc">以案件档案的形式复盘一场翻车：逐条质询当时的队伍、命轮与造物选择，找出真正的死因。</p>
+      <ul class="tags"><li>案件档案</li><li>逐条质询</li><li>复盘推理</li></ul>
+      <span class="go"><span class="dot"></span>开发中，还不能进入</span>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>同人作品，与官方无关。素材版权归原权利人所有；战报数据来自公开榜单，玩家信息已匿名。</span>
+    <span><a href="about.html">项目说明与素材来源</a></span>
+  </footer>
+</main>
+<script>
+/* 首页也注册缓存：这样第一次进来之后，子页面的脚本会被后台预缓存，切页就快了 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>
