@@ -34,7 +34,9 @@ function saveProfile() { store.set('profile', profile); markDirty('profile'); }
 
 document.body.prepend(nav('game'));
 const root = $('#app');
-root.textContent = t('loading');
+// index.html 里已经放了静态占位（转圈 + 「正在载入数据…」），到这一步说明
+// 模块已经跑起来了，占位继续留着，别把它抹成一行干字——首屏观感差别很大。
+if (!document.getElementById('boot')) root.textContent = t('loading');
 
 // 字典（772KB）、造物标签、题库索引（几十 KB）并行拉，别串着等。
 // 题库本体不再是整包下载，改成用到哪道取哪片（见 js/bank.js）。

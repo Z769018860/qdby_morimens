@@ -7,32 +7,154 @@
 <meta name="description" content="忘却前夜融灾战报推理游戏：根据伤害占比、回合数等数据，猜出配队、命轮、密契、钥令与造物。">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="css/style.css">
+<style>
+/* 首屏占位样式内联：不依赖外部 CSS，HTML 一到就有东西可看 */
+#boot { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; min-height: 42vh; color: #6b7280; font: 14px/1.6 system-ui, -apple-system, "Microsoft YaHei", sans-serif; }
+#boot .ring { width: 26px; height: 26px; border: 3px solid rgba(120,130,150,.25);
+  border-top-color: #6b7280; border-radius: 50%; animation: bootspin .9s linear infinite; }
+#boot .bt { margin: 0; letter-spacing: .04em; }
+#boot .bh { margin: 0; font-size: 12px; color: #9aa3b2; max-width: 34em; text-align: center; }
+#boot.err .ring { display: none; }
+#boot button { font: inherit; padding: 7px 18px; border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(120,130,150,.45); background: transparent; color: inherit; }
+@keyframes bootspin { to { transform: rotate(360deg); } }
+@media (prefers-color-scheme: dark) { #boot { color: #a8b0bd; } }
+</style>
+<!-- 整个模块依赖一次预加载：不然浏览器要「先下 game.js，才知道要下 common.js」，
+     在只给 HTTP/1.1 的边缘上这就是两三秒的白屏。 -->
+<link rel="modulepreload" href="js/game.js">
+<link rel="modulepreload" href="js/common.js">
+<link rel="modulepreload" href="js/i18n.js">
+<link rel="modulepreload" href="js/pepper.js">
+<link rel="modulepreload" href="js/bank.js">
+<link rel="modulepreload" href="js/auth.js">
+<link rel="modulepreload" href="js/account.js">
+<link rel="modulepreload" href="js/api.js">
+<link rel="modulepreload" href="js/likes.js">
+<link rel="modulepreload" href="js/checkin.js">
 </head>
 <body>
-<main id="app" class="wrap"></main>
+<main id="app" class="wrap">
+  <div id="boot" role="status" aria-live="polite">
+    <div class="ring"></div>
+    <p class="bt" id="bootText">正在载入数据…</p>
+    <p class="bh" id="bootHint"></p>
+  </div>
+</main>
 <footer class="foot">同人作品，与官方无关。素材版权归原权利人所有；战报数据来自公开榜单，玩家信息已匿名。</footer>
 <script>
-/* 首屏最贵的两个数据文件，在这里就开拉。
-   模块图是一层层下载的（edge 只给 HTTP/1.1，每个请求约 1 秒），等 js/game.js
-   执行完再去拉字典，等于白等两三秒。这里先起的请求交给 game.js 复用（window.__boot），
-   同一 URL 只发一次，不会重复下载。
-   （页面禁用 JS 时这段不生效，不影响任何功能。） */
+/* 首屏三件事：
+   1) 占位立即出现（纯 HTML，不等任何 JS）——以前「载入中」写在 game.js 里，
+      模块图下完才显示，慢网下就是十几秒白屏。
+   2) 最贵的几个数据文件在这里就开拉，交给 game.js 复用（window.__boot）。
+   3) 请求卡住不返回时（实测边缘会挂起）自动超时重试；真失败就给出可点的界面。 */
 (function () {
-  var start = function (url, opt) {
-    var p = fetch(url, opt).then(function (r) {
+  var bootEl = document.getElementById('boot');
+  var textEl = document.getElementById('bootText');
+  var hintEl = document.getElementById('bootHint');
+  var t0 = Date.now();
+  var settled = false;      // game.js 接管后就别再弹错误
+  var aborters = [];
+
+  function setHint(s) { if (hintEl) hintEl.textContent = s; }
+
+  // 慢一点的提示：8 秒没进展就说句话，别让人以为死了
+  var hintTimer = setTimeout(function () {
+    if (!document.getElementById('boot')) return;
+    setHint('网络较慢，正在继续载入（本站服务器在中国香港/新加坡节点，首次访问会慢一些）…');
+  }, 8000);
+
+  // 看门狗：25 秒还没渲染出内容，给一个明确的手动按钮
+  var dog = setInterval(function () {
+    if (!document.getElementById('boot')) { clearInterval(dog); clearTimeout(hintTimer); settled = true; return; }
+    if (Date.now() - t0 < 25000) return;
+    clearInterval(dog);
+    bootEl.className = 'err';
+    textEl.textContent = '载入超时';
+    setHint('可能是网络到服务器的连接卡住了，点下面的按钮重试（会跳过缓存重新拉）。');
+    var btn = document.createElement('button');
+    btn.textContent = '重新载入';
+    btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
+    bootEl.appendChild(btn);
+  }, 1000);
+
+  // 内核探测：下面那个只有一行 await 0 的 module 脚本用到了顶层 await，
+  // Chrome 89 以下会直接语法报错、整段不执行。这种时候页面只会剩一行页脚，
+  // 什么提示都没有——所以在这里明确告诉用户是浏览器的问题，别再让人以为站点坏了。
+  setTimeout(function () {
+    if (window.__tla) return;
+    if (!document.getElementById('boot')) return;
+    clearInterval(dog);
+    settled = true;
+    bootEl.className = 'err';
+    textEl.textContent = '浏览器内核版本过低';
+    setHint('本站需要 Chrome / Edge 89 及以上（360、QQ 浏览器请切到「极速模式」）。升级或换浏览器后再试。');
+  }, 1500);
+
+  function fail(msg) {
+    if (settled || !document.getElementById('boot')) return;
+    clearInterval(dog);
+    bootEl.className = 'err';
+    textEl.textContent = '载入失败';
+    setHint(msg || '');
+    var btn = document.createElement('button');
+    btn.textContent = '重试';
+    btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
+    bootEl.appendChild(btn);
+  }
+
+  // 模块脚本加载失败 / 运行时报错，都在这里兜住，绝不留白屏
+  window.addEventListener('error', function (e) {
+    var t = e && e.target;
+    if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+      fail('脚本加载失败：' + (t.src || t.href || ''));
+    } else if (e && e.message && /import|module|MIME|Failed to fetch/i.test(e.message)) {
+      fail(e.message);
+    }
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e && e.reason;
+    fail(r && (r.message || String(r)));
+  });
+
+  // 带超时与一次重试的 JSON 拉取
+  function get(url, opt, retried) {
+    var ctl = new AbortController();
+    aborters.push(ctl);
+    var timer = setTimeout(function () { ctl.abort(); }, 12000);
+    var o = Object.assign({}, opt || {}, { signal: ctl.signal });
+    var p = fetch(url, o).then(function (r) {
+      clearTimeout(timer);
       if (!r.ok) throw new Error(url + ' ' + r.status);
       return r.json();
+    }).catch(function (err) {
+      clearTimeout(timer);
+      if (retried) throw err;
+      // 卡住或被断开：换一个绕过缓存的地址再试一次
+      return get(url + (url.indexOf('?') < 0 ? '?' : '&') + 'rt=' + Date.now(), opt, true);
     });
-    p.catch(function () {}); // 标记已处理，真正的错误由 game.js 捕获并提示重试
+    p.catch(function () {});
     return p;
-  };
+  }
+
   window.__boot = {
-    dict: start('data/dictionary.json'),
-    tags: start('data/creation-tags.json').catch(function () { return {}; }),
-    index: start('data/bank/index.json', { cache: 'no-cache' })
+    dict: get('data/dictionary.json'),
+    tags: get('data/creation-tags.json').catch(function () { return {}; }),
+    index: get('data/bank/index.json', { cache: 'no-cache' })
   };
+  window.__bootFailed = function (msg) { fail(msg); };
 })();
 </script>
-<script type="module" src="js/game.js"></script>
+<script type="module">await 0; window.__tla = true;</script>
+<script nomodule>/* 老到不支持 ES module（多半是 360/QQ 浏览器的「兼容模式」= IE 内核） */
+(function () {
+  var el = document.getElementById('boot'); if (el) el.className = 'err';
+  var t = document.getElementById('bootText'); if (t) t.textContent = '浏览器内核太旧';
+  var h = document.getElementById('bootHint');
+  if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
+})();
+</script>
+<script type="module" src="js/game.js" onerror="window.__bootFailed && window.__bootFailed('主脚本 js/game.js 未能加载')"></script>
 </body>
 </html>

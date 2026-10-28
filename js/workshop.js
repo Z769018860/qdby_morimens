@@ -10,7 +10,7 @@ import * as likes from './likes.js';
 await account.ready();
 document.body.prepend(nav('workshop'));
 const root = $('#app');
-root.textContent = t('loading');
+if (!document.getElementById('boot')) root.textContent = t('loading');
 
 const { D, idx } = await loadDict();
 const KINDS = { awakener: '唤醒体', wheel: '命轮', covenant: '密契', key: '钥令', creation: '造物' };

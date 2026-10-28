@@ -78,12 +78,21 @@ async function fetchPuzzle(id) {
   return list.find((p) => String(p.id) === e.id) || null;
 }
 
-// 闲时预热相邻的片，翻下一题更快
+// 闲时预热相邻的片，翻下一题更快。
+// 一定要延后：边缘只给 HTTP/1.1（单域名 6 条连接），首屏那几张卡图正在抢连接，
+// 这时候再去拽 85KB 的分片，只会让图更晚出来。
 function warm(id) {
   const e = entry(id);
   if (!e || !state.nChunks) return;
-  const next = (e.c + 1) % state.nChunks;
-  if (!state.chunks.has(next)) chunk(next).catch(() => {});
+  const run = () => {
+    const next = (e.c + 1) % state.nChunks;
+    if (!state.chunks.has(next)) chunk(next).catch(() => {});
+  };
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(run, { timeout: 9000 });
+  } else {
+    setTimeout(run, 6000);
+  }
 }
 
 export const bank = {

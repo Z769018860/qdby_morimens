@@ -2,7 +2,7 @@ import { $, $$, h, loadDict, imgEl, nav, KINDS, kindName, store, KW, KW_TYPE, re
 
 document.body.prepend(nav('codex'));
 const root = $('#app');
-root.textContent = t('loading');
+if (!document.getElementById('boot')) root.textContent = t('loading');
 const { D } = await loadDict();
 let SK = null;
 const skills = async () => SK || (SK = await (await fetch('data/skills.json')).json());

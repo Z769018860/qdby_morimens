@@ -7,7 +7,7 @@ import { account } from './account.js';
 await account.ready();
 document.body.prepend(nav('gallery'));
 const root = $('#app');
-root.textContent = t('loading');
+if (!document.getElementById('boot')) root.textContent = t('loading');
 
 const G = await (await fetch('data/gallery.json')).json();
 const ITEMS = G.items;
