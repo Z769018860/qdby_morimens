@@ -178,7 +178,7 @@ export function options(G, st, key) {
   const ev = key && G.records[key] ? G.records[key].facts.items : [], nm = key && G.records[key] ? G.records[key].facts.names : [];
   const ros = rosterView(G, st);
   const culprits = [{ v: '0', t: '其他（无加害人）' }, ...ros.map((p) => ({ v: String(p.n), t: `${String(p.n).padStart(2, '0')} ${p.shownName}${p.melted ? '（融蚀）' : ''}` }))];
-  if (shadowUnlocked(G, st)) culprits.push({ v: '63', t: (G.shadow && G.shadow.label) || '63 名册外的个体（黑影）' });
+  if (shadowUnlocked(G, st)) culprits.push({ v: String((G.shadow && G.shadow.num) || 63), t: (G.shadow && G.shadow.label) || '63 名册外的个体（黑影）' });
   return {
     causes: Object.entries(G.causes).map(([v, t]) => ({ v, t })),
     weapons: [{ v: '0', t: '无' }, ...ros.filter((p) => p.itemClass !== 'none' || !p.melted).map((p) => ({ v: String(p.n), t: (p.melted ? '（融蚀）' : p.item) }))],
@@ -195,7 +195,7 @@ export function submit(G, st, key) {
   if (!st.recovered.includes(key)) return { ok: false, msg: '这条记录还没有复原。' };
   if (st.confirmed[key]) return { ok: true, again: true, msg: '这份报告已经确认。' };
   if (!d || d.cause == null || d.weapon == null || d.culprit == null) return { ok: false, msg: '三项都需要填写。' };
-  if (String(d.culprit) === '63' && !shadowUnlocked(G, st)) return { ok: false, msg: '该选项尚不可用。' };
+  if (String(d.culprit) === String((G.shadow && G.shadow.num) || 63) && !shadowUnlocked(G, st)) return { ok: false, msg: '该选项尚不可用。' };
   const okAll = d.cause === sol.cause && String(d.weapon) === String(sol.weaponNum || 0) && String(d.culprit) === String(sol.culprit);
   if (okAll) { st.streak = (st.streak || 0) + 1; if (!(st.missed || {})[key]) st.firstTry = (st.firstTry || 0) + 1; st.confirmed[key] = true; delete st.wrong[key]; const arrived = deliver(G, st); return { ok: true, correct: true, arrived, milestone: milestone(G, st, arrived), msg: '报告已确认。' }; }
   st.streak = 0; st.missed[key] = (st.missed[key] || 0) + 1; st.wrong[key] = true;
@@ -216,7 +216,7 @@ export function nudge(G, st) {
 // the confirmation line shown after a correct report ("flavor" built from the solution)
 export function summary(G, key) {
   const s = G.solutions[key], r = G.records[key];
-  const who = s.culprit === 0 ? null : (s.culprit === 63 ? ((G.shadow && G.shadow.label) || '名册外的个体（黑影）') : G.roster[s.culprit - 1].name);
+  const who = s.culprit === 0 ? null : (s.culprit === ((G.shadow && G.shadow.num) || 63) ? ((G.shadow && G.shadow.label) || '名册外的个体（黑影）') : G.roster[s.culprit - 1].name);
   const cause = s.causeZh;
   if (s.cause === 'blast') return `${r.name} 因银芯被强制崩解而死`;
   if (s.cause === 'accident') return `${r.name} 因自身过失而死`;

@@ -280,7 +280,7 @@ function bootTitle() {
 function editions() {
   const un = meta().editions, cl = meta().cleared || {};
   if (!un) { modal('<h3>■ 往届档案</h3><p class="dim">档案室的最深处，还有两份更早的备份。读完第六十三次的最后一份报告，才能打开。</p><div class="btns"><button class="btn" data-close>关闭</button></div>'); return; }
-  const rows = [[63, '第六十三次　本篇', '六十二名唤醒体 · 钟楼'], [62, '第六十二次　雪夜剧场', '十五名 · 一座仿造的剧院 · 门口的孩子'], [61, '第六十一次　雾港', '十二名 · 一座仿造的港口 · 胸口里的东西']];
+  const rows = [[63, '第六十三次　本篇', '六十二名唤醒体 · 钟楼'], [62, '第六十二次　雪夜剧场', '六十三名（全部唤醒体 + 威廉）· 仿造的剧院 · 门口的孩子'], [61, '第六十一次　雾港', '六十三名（全部唤醒体 + 威廉）· 仿造的港口 · 下注的人']];
   modal(`<h3>■ 往届档案</h3><p class="dim">规则相同，世界相同，故事与记录完全不同。每一届有独立存档。</p>${rows.map(([n, t, d]) => `<div class="edrow ${ED === n ? 'on' : ''}"><div><b>${t}</b>${cl[n] ? ' <span class="chip ok">已结案</span>' : ''}<br><small class="dim">${d}</small></div><button class="btn" data-ed="${n}">${ED === n ? '当前' : '切换'}</button></div>`).join('')}<div class="btns"><button class="btn" data-close>关闭</button></div>`);
   $('#modal').querySelectorAll('[data-ed]').forEach((b) => { b.onclick = async () => { await loadEdition(+b.dataset.ed); $('#modal').hidden = true; bootTitle(); }; });
 }

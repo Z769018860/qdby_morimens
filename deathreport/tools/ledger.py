@@ -192,7 +192,7 @@ def validate():
         if v in NAME and e['cause'] in ('blast','accident','fall') and c and e['cause']!='fall': errs.append(f"{e['key']}: no-culprit cause with culprit")
         if e['cause'] in ('blast','accident') and c: errs.append(f"{e['key']}: blast/accident must not have culprit")
         if e['cause'] in ('slash','pierce','blunt','shoot','poison','strangle') and not c and e['key'] != '': 
-            if e['v'] != 46: errs.append(f"{e['key']}: murder without culprit")
+            if e['v'] != 46 and not e.get('suicide'): errs.append(f"{e['key']}: murder without culprit")
         # weapon legality
         if w:
             if ICLASS[w] != e['cause'] and e['cause'] not in ('poison',) : errs.append(f"{e['key']}: item class {ICLASS[w]} != cause {e['cause']}")
@@ -237,6 +237,7 @@ if os.environ.get('DR_ED'):
     _x = getattr(_ed, 'EXTRA', {})
     ROSTER = [((i + 1, _main[nm][1], nm, _main[nm][3], _main[nm][4], _main[nm][5], _main[nm][6], _main[nm][7]) if nm in _main else (i + 1, _x[nm][0], nm, _x[nm][1], _x[nm][2], _x[nm][3], _x[nm][4], _x[nm][5])) for i, nm in enumerate(_ed.CAST)]
     NAME = {r[0]: r[2] for r in ROSTER}; ITEM = {r[0]: r[5] for r in ROSTER}; ICLASS = {r[0]: r[7] for r in ROSTER}
+    SHADOW = 64
     PLACES = dict(_ed.PLACES); ZONES = list(_ed.ZONES)
     E[:] = []
     for (_t, _cell, _v, _cause, _w, _c, _how, _kw) in _ed.EVENTS: ev(_t, _cell, _v, _cause, _w, _c, _how, **_kw)
