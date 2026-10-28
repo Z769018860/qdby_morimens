@@ -55,30 +55,81 @@ body{
 .ico.off{opacity:.45}
 .ico svg{width:16px; height:16px; display:block}
 
+/* 难度徽标：颜色跟着档位走，玩的时候抬眼就知道自己在受什么刑 */
+.tag{
+  height:32px; padding:0 9px; flex:0 0 auto; border-radius:9px; cursor:pointer;
+  border:1px solid var(--line); background:var(--panel); color:var(--gold);
+  font:inherit; font-size:11.5px; font-weight:600; letter-spacing:.06em;
+  display:grid; place-items:center; transition:border-color .12s ease;
+}
+.tag[data-c="easy"]{color:#5fd08a; border-color:color-mix(in srgb,#5fd08a 45%,var(--line))}
+.tag[data-c="normal"]{color:#6ea8ff; border-color:color-mix(in srgb,#6ea8ff 45%,var(--line))}
+.tag[data-c="hard"]{color:#e09a4a; border-color:color-mix(in srgb,#e09a4a 45%,var(--line))}
+.tag[data-c="mad"]{color:#e8656f; border-color:color-mix(in srgb,#e8656f 55%,var(--line))}
+.tag:hover{border-color:var(--accent)}
+
 /* ---------------------------------------------------------------- 血条 */
-.bars{display:flex; gap:6px; flex:0 0 auto}
+/* 左边挂一张波吕克斯的头像：血少的时候头像框会红着跳，
+   比单看一条细条更容易注意到自己快没了。 */
+.vit{display:flex; gap:8px; align-items:stretch; flex:0 0 auto}
+.face{
+  position:relative; width:46px; height:46px; flex:0 0 46px; border-radius:13px; overflow:hidden;
+  background:radial-gradient(circle at 50% 38%, #1c2536, #0a0d14 72%);
+  box-shadow:inset 0 0 0 1px var(--line);
+  transition:box-shadow .2s ease;
+}
+.face canvas{width:100%; height:100%; display:block}
+.face.low{animation:pulseHp .8s ease-in-out infinite;
+  box-shadow:inset 0 0 0 1px #e7564d, 0 0 12px -2px rgba(231,86,77,.95)}
+.bars{flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:5px; justify-content:center}
 .bar{
-  position:relative; flex:1 1 0; height:16px; border-radius:999px; overflow:hidden;
+  position:relative; border-radius:8px; overflow:hidden;
   background:var(--panel2); box-shadow:inset 0 0 0 1px var(--line);
 }
-.bar i{
+.bar.hp{flex:1 1 auto; height:26px}
+.bar.rg{height:17px}
+.bar > i{
   position:absolute; inset:0 auto 0 0; width:0%;
   transition:width .18s cubic-bezier(.3,.9,.3,1);
 }
-.bar.hp i{background:linear-gradient(90deg,#b2362d,var(--hp))}
-.bar.rg i{background:linear-gradient(90deg,#5a3fa8,var(--rg))}
-.bar span{
-  position:absolute; inset:0; display:grid; place-items:center;
-  font-size:10px; letter-spacing:.04em; color:#fff;
-  text-shadow:0 1px 2px rgba(0,0,0,.95), 0 0 4px rgba(0,0,0,.85);
-  font-variant-numeric:tabular-nums;
+.bar.hp > i{background:linear-gradient(90deg,#8e241e,#e7564d 52%,#f8847a)}
+.bar.rg > i{background:linear-gradient(90deg,#432a86,#a07cff 68%,#c6acff)}
+/* 狂气条上的四条刻度 = 四个技能的消耗线，一眼看出还能放哪几个 */
+.bar .tk{position:absolute; top:0; bottom:0; width:1px; background:rgba(255,255,255,.26); pointer-events:none}
+.bar .tx{
+  position:absolute; inset:0; display:flex; align-items:center; gap:4px; padding:0 9px;
+  color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.95), 0 0 5px rgba(0,0,0,.9);
+  font-variant-numeric:tabular-nums; letter-spacing:.02em;
 }
-.bar.low i{animation:pulseHp .7s ease-in-out infinite}
+.bar.hp .tx{font-size:11px}
+.bar.hp .tx b{font-size:16px; font-weight:700; line-height:1}
+.bar.hp .tx .g{color:#ffd0c9; font-size:12px}
+.bar.hp .tx .mx{opacity:.82; font-size:11px}
+.bar.rg .tx{font-size:10px}
+.bar.rg .tx b{font-size:13px; font-weight:700}
+.bar.rg .tx .g{color:#d9c9ff}
+.bar.rg .tx .mx{opacity:.7}
+.bar.hp.low > i{animation:pulseHp .7s ease-in-out infinite}
+.bar.hp.low{box-shadow:inset 0 0 0 1px rgba(231,86,77,.85), 0 0 14px -4px rgba(231,86,77,.95)}
 /* 浅色模式下两条血的底太浅，白字压不住：把空槽压深一档 */
 @media (prefers-color-scheme: light){
   .bar{background:#b5bfd2; box-shadow:inset 0 0 0 1px #9aa6bd}
 }
 @keyframes pulseHp{50%{filter:brightness(1.55)}}
+
+/* 状态条：只在这一格有东西的时候才占高度 */
+.buffs{display:flex; flex-wrap:wrap; gap:5px; flex:0 0 auto; margin-top:-1px}
+.buff{
+  display:inline-flex; align-items:center; gap:4px;
+  padding:2px 8px; border-radius:999px; font-size:10px; letter-spacing:.02em;
+  border:1px solid var(--line); background:var(--panel); color:var(--text);
+}
+.buff[hidden]{display:none}
+.buff b{font-weight:600; font-variant-numeric:tabular-nums}
+.buff.ward{border-color:#4fbfa0; color:#7fe8c4; background:rgba(79,191,160,.12)}
+.buff.shield{border-color:#4fb6bf; color:#8fe6ee; background:rgba(79,182,191,.12)}
+.buff.feather{border-color:#8fa6c8; color:#d3e2fb; background:rgba(143,166,200,.14)}
+.buff.burst{border-color:#a07cff; color:#c9b4ff; background:rgba(160,124,255,.14)}
 
 /* ---------------------------------------------------------------- 舞台 */
 .stage{position:relative; flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center}
@@ -119,6 +170,28 @@ canvas#cv{
 .card .k{margin:0 0 8px; font-size:11px; letter-spacing:.22em; color:#8a93a8}
 .card .lead{margin:0 0 8px; font-size:12px; line-height:1.6; color:#c3cad8}
 .card .lead b{color:#e3b341; font-weight:600}
+
+/* 难度选择 */
+.diffs{display:grid; grid-template-columns:repeat(4,1fr); gap:5px; margin:0 0 6px}
+.df{
+  display:flex; flex-direction:column; align-items:center; gap:1px; padding:6px 2px 5px;
+  border-radius:9px; border:1px solid #2b3448; background:#1a2130; color:#c3cad8;
+  font:inherit; line-height:1.15; cursor:pointer;
+  transition:border-color .12s ease, background .12s ease;
+}
+.df b{font-size:12.5px; letter-spacing:.02em}
+.df em{font-size:9px; font-style:normal; color:#6f7a92; white-space:nowrap}
+.df:hover{border-color:#4a5c80}
+.df.on{border-color:#6ea8ff; background:rgba(110,168,255,.16)}
+.df.on b{color:#9cc6ff}
+.df.on em{color:#9fb4d8}
+.df[data-c="easy"].on{border-color:#5fd08a; background:rgba(95,208,138,.15)}
+.df[data-c="easy"].on b{color:#7ee0a3}
+.df[data-c="hard"].on{border-color:#e09a4a; background:rgba(224,154,74,.15)}
+.df[data-c="hard"].on b{color:#f0b268}
+.df[data-c="mad"].on{border-color:#e8656f; background:rgba(232,101,111,.16)}
+.df[data-c="mad"].on b{color:#ff8a92}
+.dfnote{margin:0 0 9px; font-size:10.5px; line-height:1.5; color:#8a93a8; min-height:16px}
 .keys-hint{
   display:flex; flex-wrap:wrap; gap:4px 9px; justify-content:center;
   margin:0 0 10px; font-size:10.5px; color:#8a93a8;
@@ -168,30 +241,74 @@ canvas#cv{
   border-color:color-mix(in srgb,var(--accent) 60%,var(--line));
   background:color-mix(in srgb,var(--accent) 16%,var(--panel)); transform:scale(.96);
 }
-.skills{margin-left:auto; display:grid; grid-template-columns:1fr 1fr; gap:6px}
+/* 技能：光写一个字谁也看不出这是干什么的，所以按钮上给名字 + 消耗，
+   冷却时压一层扇形遮罩把剩余秒数顶上来，够不够狂气靠边框颜色区分。 */
+/* 狂气和技能是一回事：狂气条直接压在技能盘上面，宽度和技能盘对齐 */
+.skillbox{margin-left:auto; display:flex; flex-direction:column; gap:5px; flex:0 0 auto}
+.skills{display:grid; grid-template-columns:repeat(2, auto); gap:6px}
 .sk{
-  position:relative; width:52px; height:34px; border-radius:10px; overflow:hidden;
-  border:1px solid var(--line); background:var(--panel); color:var(--text);
-  font:inherit; cursor:pointer; padding:0; display:grid; place-items:center; gap:0;
-  touch-action:none; transition:transform .08s ease, border-color .1s ease;
+  position:relative; width:70px; height:42px; border-radius:10px; overflow:hidden;
+  border:1px solid var(--line); background:linear-gradient(180deg,#1a2231,#131a26);
+  color:var(--text); font:inherit; cursor:pointer; padding:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  touch-action:none; transition:transform .08s ease, border-color .12s ease, box-shadow .12s ease;
 }
-.sk:active{transform:scale(.95)}
-.sk b{font-size:13px; line-height:1; letter-spacing:.04em}
-.sk i{font-size:9px; font-style:normal; color:var(--dim); letter-spacing:.03em}
+.sk .nm{font-size:11.5px; line-height:1.15; letter-spacing:.02em}
+.sk .ct{font-size:9px; line-height:1.1; color:var(--dim); font-variant-numeric:tabular-nums}
+.sk .ct::before{content:'✦'; margin-right:2px; color:var(--rg); font-size:8px}
+.sk .sweep{position:absolute; inset:0; opacity:0; pointer-events:none;
+  background:conic-gradient(rgba(6,9,14,.78) calc(var(--p,0) * 1%), rgba(6,9,14,0) 0)}
 .sk .cd{
-  position:absolute; inset:0; background:rgba(6,9,14,.72);
-  display:none; place-items:center; font-size:12px; color:#c3cad8;
-  font-variant-numeric:tabular-nums;
+  position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+  font-size:15px; font-weight:600; color:#e6edfa; font-variant-numeric:tabular-nums;
+  text-shadow:0 1px 3px rgba(0,0,0,.95);
 }
-.sk.cooling .cd{display:grid}
-.sk.ready{border-color:color-mix(in srgb,var(--rg) 70%,var(--line)); background:color-mix(in srgb,var(--rg) 14%,var(--panel))}
-.sk.poor{opacity:.55}
+.sk.cooling .sweep{opacity:1}
+.sk.cooling .cd{display:flex}
+.sk:active{transform:scale(.95)}
+.sk[data-id="dash"].ready{border-color:#5f9bf0; box-shadow:0 0 0 1px rgba(95,155,240,.35), 0 0 14px -5px rgba(95,155,240,.95)}
+.sk[data-id="star"].ready{border-color:#d9a94a; box-shadow:0 0 0 1px rgba(217,169,74,.35), 0 0 14px -5px rgba(217,169,74,.95)}
+.sk[data-id="ward"].ready{border-color:#4fbfa0; box-shadow:0 0 0 1px rgba(79,191,160,.35), 0 0 14px -5px rgba(79,191,160,.95)}
+.sk[data-id="burst"].ready{border-color:#a07cff; box-shadow:0 0 0 1px rgba(160,124,255,.4), 0 0 16px -5px rgba(160,124,255,1)}
+.sk.poor{opacity:.52}
+.sk.poor .ct{color:#e8695f}
+.sk.poor .ct::before{color:#e8695f}
+.sk.flash{animation:skFlash .4s ease-out}
+@keyframes skFlash{0%{filter:brightness(2.2)}100%{filter:none}}
+
+/* 技能生效时的抬头提示：名字 + 这次到底发生了什么事 */
+.cast{
+  position:absolute; left:50%; top:4.5%; z-index:4; transform:translate(-50%,-8px);
+  padding:6px 15px; border-radius:12px; text-align:center; pointer-events:none;
+  background:rgba(8,11,18,.78); border:1px solid rgba(150,185,255,.34);
+  box-shadow:0 14px 30px -18px rgba(0,0,0,.95);
+  opacity:0; transition:opacity .16s ease, transform .16s ease;
+}
+.cast.on{opacity:1; transform:translate(-50%,0)}
+.cast b{display:block; font-size:15px; letter-spacing:.1em; color:#eaf1ff}
+.cast i{display:block; margin-top:1px; font-size:10.5px; font-style:normal; color:#a8bcd8}
+/* ---------------------------------------------------------------- 玩法速查 */
+.help{max-width:360px; text-align:left; padding:14px 15px 12px}
+.help h2{margin:0 0 8px; font-size:16px}
+.helpbody{max-height:56vh; overflow:auto; font-size:12px; line-height:1.62; color:#c3cad8;
+  padding-right:4px; -webkit-overflow-scrolling:touch}
+.helpbody h3{margin:10px 0 4px; font-size:12px; color:#9cc6ff; letter-spacing:.06em}
+.helpbody h3:first-child{margin-top:0}
+.helpbody p{margin:0 0 4px}
+.helpbody ul{margin:0; padding-left:15px}
+.helpbody li{margin:1px 0}
+.helpbody b{color:#e3b341; font-weight:600}
+.helpbody kbd{font:inherit; font-size:11px; padding:0 4px; border-radius:4px; border:1px solid #2b3448; background:#1a2130; color:#c3cad8}
+
 @media (max-width:400px){
   .keys button{width:44px; height:44px}
-  .sk{width:48px; height:32px}
+  .sk{width:64px; height:40px}
+  .sk .nm{font-size:11px}
   .card{padding:12px 13px 11px}
   .card h1{font-size:18px}
   .card .lead{font-size:11.5px}
+  .face{width:42px; height:42px; flex:0 0 42px}
+  .bar.hp{height:22px}
 }
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
 </style>
@@ -200,6 +317,7 @@ canvas#cv{
 <div class="app">
   <header class="hud">
     <a class="back" href="index.html" title="回首页" aria-label="回首页">←</a>
+    <button class="tag" id="dtag" data-c="normal" title="切换难度（暂停或结算时可改）">普通</button>
     <div class="num"><b id="lv">0</b><span>层</span></div>
     <div class="num"><b id="sc">0</b><span>分数</span></div>
     <div class="num dim"><b id="bs">0</b><span>最高</span></div>
@@ -215,13 +333,23 @@ canvas#cv{
     </button>
   </header>
 
-  <div class="bars">
-    <div class="bar hp" id="hpbar"><i id="hpf"></i><span id="hpt">100 / 100</span></div>
-    <div class="bar rg" id="rgbar"><i id="rgf"></i><span id="rgt">30 / 100</span></div>
+  <div class="vit">
+    <div class="face" id="face" aria-hidden="true"><canvas id="faceCv" width="92" height="92"></canvas></div>
+    <div class="bar hp" id="hpbar">
+      <i id="hpf"></i>
+      <span class="tx"><em class="g">♥</em><b id="hpv">100</b><em class="mx" id="hpm">/ 100</em></span>
+    </div>
+  </div>
+  <div class="buffs" id="buffs">
+    <span class="buff ward" id="bf-ward" hidden>减伤<b>0.0s</b></span>
+    <span class="buff shield" id="bf-shield" hidden>护盾<b>0.0s</b></span>
+    <span class="buff feather" id="bf-feather" hidden>羽落<b>0.0s</b></span>
+    <span class="buff burst" id="bf-burst" hidden>清场<b>0.0s</b></span>
   </div>
 
   <main class="stage" id="stage">
     <canvas id="cv" aria-label="是鸟弟就下100层游戏区"></canvas>
+    <div class="cast" id="cast"><b id="castN"></b><i id="castS"></i></div>
     <div id="boot" role="status" aria-live="polite">
       <div class="ring"></div>
       <p id="bootText">正在载入波吕克斯…</p>
@@ -232,7 +360,14 @@ canvas#cv{
       <div class="card">
         <p class="k">Morimens · Fan Works</p>
         <h1>是鸟弟就下<em>100</em>层</h1>
-        <p class="lead">镜头一直在往下滚，脚下平台踩着踩着就塌。<br>头顶有尖刺压下来，井底也有一排——掉得太急会扎上去。<br>一路下到 <b>第 100 层</b>。</p>
+        <div class="diffs" id="diffs">
+          <button class="df" id="df-easy" data-k="easy" data-c="easy"><b>简单</b><em>还没下过</em></button>
+          <button class="df" id="df-normal" data-k="normal" data-c="normal"><b>普通</b><em>还没下过</em></button>
+          <button class="df" id="df-hard" data-k="hard" data-c="hard"><b>困难</b><em>还没下过</em></button>
+          <button class="df" id="df-mad" data-k="mad" data-c="mad"><b>癫狂</b><em>还没下过</em></button>
+        </div>
+        <p class="dfnote" id="dfnote">原本的节奏，掉一次血三分之一。</p>
+        <p class="lead">镜头一直往下滚，平台踩着踩着就塌，头顶和井底都是尖刺。<br>一路下到 <b>第 100 层</b>，路上会撞见四种影怪。</p>
         <div class="keys-hint">
           <span><kbd>←</kbd><kbd>→</kbd> 移动</span>
           <span><kbd>空格</kbd> 跳</span>
@@ -241,7 +376,7 @@ canvas#cv{
         </div>
         <div class="acts">
           <button class="btn primary" id="go">开始下坠</button>
-          <a class="btn" href="index.html">回首页</a>
+          <button class="btn" id="helpBtn">玩法速查</button>
         </div>
       </div>
     </div>
@@ -254,6 +389,7 @@ canvas#cv{
         <p class="lead" style="margin-top:8px">喘口气。回来时镜头还是继续往下滚。</p>
         <div class="acts">
           <button class="btn primary" id="resume">继续</button>
+          <button class="btn" id="helpBtn2">玩法</button>
           <button class="btn" id="quit">重开</button>
         </div>
       </div>
@@ -276,6 +412,50 @@ canvas#cv{
         </div>
       </div>
     </div>
+
+    <!-- 玩法速查：技能 / 影怪 / 掉落物一次说清 -->
+    <div class="ov top" id="ovHelp" hidden>
+      <div class="card help">
+        <p class="k">HOW TO PLAY</p>
+        <h2>玩法速查</h2>
+        <div class="helpbody">
+          <h3>操作</h3>
+          <ul>
+            <li>键盘：<kbd>←</kbd><kbd>→</kbd> 移动，<kbd>空格</kbd> 跳，<kbd>↓</kbd> 从能碎的平台上穿下去，<kbd>P</kbd> 暂停，<kbd>R</kbd> 重开</li>
+            <li>技能键：<kbd>J</kbd> 掠影斩 · <kbd>K</kbd> 碎星坠 · <kbd>L</kbd> 圣翼护 · <kbd>U</kbd> 狂气爆发</li>
+            <li>手机：左下 ◀ ▶ ▲ 移动跳跃，右下四个技能按钮</li>
+            <li><b>层数只认镜头推到的深度</b>：自己往下蹿抢出来的距离不算分，还会扎在井底尖刺上</li>
+          </ul>
+          <h3>四个技能（消耗 / 冷却）</h3>
+          <ul>
+            <li><b>掠影斩</b> 26 狂气 · 3.2 秒 —— 朝面向突进，撞碎沿途的影怪，突进期间无敌</li>
+            <li><b>碎星坠</b> 40 狂气 · 5.5 秒 —— 清掉视野里所有影怪，并把尖刺台拍平成普通台</li>
+            <li><b>圣翼护</b> 34 狂气 · 8 秒 —— 回 26 血，6 秒内受伤减半（状态条上会显示「减伤」倒计时）</li>
+            <li><b>狂气爆发</b> 68 狂气 · 12 秒 —— 4.5 秒清场：影怪全灭，平台不塌</li>
+          </ul>
+          <p>狂气靠下潜（每层 +3）和击破影怪（每只 +7）攒，上限 100。技能按钮够不够钱看有没有亮边，冷却时按钮上会转一圈暗色扇形并显示剩余秒数。</p>
+          <h3>四种影怪</h3>
+          <ul>
+            <li><b>影怪</b>（紫色，第 5 层起）—— 在平台上左右巡，从上方踩死</li>
+            <li><b>飞蛾</b>（青色，第 14 层起）—— 挂在平台上方上下飘，位置算不准，踩准才踩得死</li>
+            <li><b>棘球</b>（红色带刺，第 38 层起）—— 钉在原地转圈，<b>踩不破</b>，只能用技能清或绕开</li>
+            <li><b>吐刺者</b>（金色，第 38 层起）—— 你在它下方时每隔两秒朝你吐一根刺</li>
+          </ul>
+          <h3>七种掉落物</h3>
+          <ul>
+            <li><b>血羽</b> +20 血 &nbsp;·&nbsp; <b>大血羽</b> +45 血（越深越常见）</li>
+            <li><b>狂气晶</b> +18 狂气 &nbsp;·&nbsp; <b>护盾</b> 3.2 秒无敌</li>
+            <li><b>羽落</b> 4.2 秒内下坠速度减半，用来安全落到下一层窄台</li>
+            <li><b>星屑</b> +150 分（再乘难度倍率） &nbsp;·&nbsp; <b>净化</b> 清掉视野里所有影怪</li>
+          </ul>
+          <h3>难度</h3>
+          <p>简单 / 普通 / 困难 / 癫狂只改环境（滚速、平台宽窄、尖刺与影怪密度、受伤倍率、掉落率）和计分倍率，跑速跳跃四档一样。纪录按难度分开记，简单档是练习档、不计入云端。</p>
+        </div>
+        <div class="acts">
+          <button class="btn primary" id="helpClose">知道了</button>
+        </div>
+      </div>
+    </div>
   </main>
 
   <div class="pad">
@@ -284,7 +464,17 @@ canvas#cv{
       <button id="kR" aria-label="向右">▶</button>
       <button id="kJ" aria-label="跳跃">▲</button>
     </div>
-    <div class="skills" id="skills"></div>
+    <div class="skillbox">
+      <div class="bar rg" id="rgbar">
+        <i id="rgf"></i>
+        <span class="tk" style="left:26%"></span>
+        <span class="tk" style="left:34%"></span>
+        <span class="tk" style="left:40%"></span>
+        <span class="tk" style="left:68%"></span>
+        <span class="tx"><em class="g">✦</em>狂气<b id="rgv">30</b><em class="mx">/ 100</em></span>
+      </div>
+      <div class="skills" id="skills"></div>
+    </div>
   </div>
 </div>
 

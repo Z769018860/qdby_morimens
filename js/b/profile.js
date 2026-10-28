@@ -2399,7 +2399,7 @@ function storeBox(u) {
         class: 'btn ghost danger',
         onclick: async () => {
           if (!confirm(t('pfClearAsk'))) return;
-          ['credits', 'cg', 'failed', 'stats', 'myPuzzles', 'profile', 'hist', 'bird:best', 'bird:bestLv'].forEach((k) => store.del(k));
+          ['credits', 'cg', 'failed', 'stats', 'myPuzzles', 'profile', 'hist', 'bird:best', 'bird:bestLv', 'bird:diff'].concat(...['easy', 'normal', 'hard', 'mad'].map((d) => [`bird:best:${d}`, `bird:bestLv:${d}`])).forEach((k) => store.del(k));
           if (u) await account.push().catch(() => {});
           toast(t('pfCleared'));
           setTimeout(() => location.reload(), 500);

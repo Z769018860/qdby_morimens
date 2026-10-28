@@ -41,6 +41,31 @@ const RUN = 238;           // 地面水平速度
 const JUMP = 436;
 const FLOOR_H = 34;        // 井底尖刺带高度（贴着视口底部，跟着镜头走）
 
+// ---------------------------------------------------------------- 难度
+// 四档难度只动"环境参数"，不动操作手感（跑速/跳跃/终端速度四档一样）：
+// 滚得多快、平台多宽、陷阱多密、影怪多凶、掉多少血、掉多少东西、给多少分。
+// sc 是计分倍率——难档的分本来就该更值钱，否则没人愿意碰癫狂。
+const DIFFS = [
+  { k: 'easy', n: '简单', tag: '入门', c: 'easy',
+    d: '滚得慢，平台宽，影怪稀疏。先摸清手感。',
+    scroll: 0.70, pw: 1.20, spike: 0.45, mob: 0.50, dmg: 0.70,
+    drop: 1.40, rage: 1.25, sc: 0.80, hp: 120, fuse: 1.25 },
+  { k: 'normal', n: '普通', tag: '标准', c: 'normal',
+    d: '原本的节奏，掉一次血三分之一。',
+    scroll: 1.00, pw: 1.00, spike: 1.00, mob: 1.00, dmg: 1.00,
+    drop: 1.00, rage: 1.00, sc: 1.00, hp: 100, fuse: 1.00 },
+  { k: 'hard', n: '困难', tag: '熬人', c: 'hard',
+    d: '滚得更快，平台变窄，尖刺台和影怪都多起来。',
+    scroll: 1.26, pw: 0.87, spike: 1.50, mob: 1.45, dmg: 1.25,
+    drop: 0.85, rage: 0.95, sc: 1.40, hp: 100, fuse: 0.90 },
+  { k: 'mad', n: '癫狂', tag: '找死', c: 'mad',
+    d: '塔底在追你。血薄、刺多、平台窄到只放得下一只脚。',
+    scroll: 1.52, pw: 0.76, spike: 1.90, mob: 1.90, dmg: 1.50,
+    drop: 0.72, rage: 0.88, sc: 1.85, hp: 90, fuse: 0.82 },
+];
+const DIFF = Object.fromEntries(DIFFS.map((x) => [x.k, x]));
+let D = DIFF.normal;       // 当前难度（整局不变，换档会重开世界）
+
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (a) => a[(Math.random() * a.length) | 0];
@@ -53,8 +78,8 @@ const G = {
   t: 0, camY: 0, cur: 0, depth: 0,
   score: 0, kills: 0, rage: 30,
   freezeT: 0, shake: 0, flash: 0,
-  sound: true, best: 0, bestLv: 0,
-  plats: [], mobs: [], orbs: [], parts: [], texts: [], fx: [],
+  sound: true, best: 0, bestLv: 0, diff: 'normal', bests: null, cloudLv: 0, cloudSc: 0,
+  plats: [], mobs: [], orbs: [], shots: [], parts: [], texts: [], fx: [],
   cd: { dash: 0, star: 0, ward: 0, burst: 0 },
   keys: { left: false, right: false, down: false },
   hint: {},
@@ -64,6 +89,8 @@ const P = {
   x: VW / 2, y: TOP, vx: 0, vy: 0, w: 26, h: 34,
   face: 1, ground: null, ignore: null, ignoreT: 0,
   hp: 100, hpMax: 100, invuln: 0, dashT: 0, wardT: 0, hurtT: 0, idle: 0,
+  featherT: 0,          // 羽落：缓降道具的剩余秒数
+  shieldT: 0,           // 护盾道具的剩余秒数（和 invuln 分开，只为在状态条上显示）
 };
 
 const SKILLS = [
@@ -155,6 +182,26 @@ const PT = {
   boost: { a: '#7a6526', b: '#42351a', edge: '#e6c25a' },
 };
 
+// 影怪类型。stomp=false 的是「踩不死」的：撞上去只能挨打，得绕开或用技能清。
+// fly 沿正弦上下飘、still 钉在原地、shoot 定期朝下吐刺。
+const MOBK = {
+  shade:   { w: 26, h: 22, hp: 1, pts: 25, stomp: true,  c1: '#a06ad6', c2: '#4a2468', glow: 'rgba(150,90,220,.75)', n: '影怪' },
+  moth:    { w: 24, h: 18, hp: 1, pts: 30, stomp: true,  fly: true,  c1: '#6fc4e8', c2: '#173a52', glow: 'rgba(96,190,235,.75)', n: '飞蛾' },
+  thorn:   { w: 24, h: 24, hp: 2, pts: 45, stomp: false, still: true, c1: '#c9706f', c2: '#481a20', glow: 'rgba(220,96,96,.7)', n: '棘球' },
+  spitter: { w: 26, h: 22, hp: 1, pts: 40, stomp: true,  shoot: 2.5, c1: '#dcb654', c2: '#4a3818', glow: 'rgba(226,186,80,.72)', n: '吐刺者' },
+};
+
+// 掉落物类型。除了回血/狂气/护盾，新加了缓降、加分和清场三种。
+const ORBK = {
+  heart:    { n: '血羽',   c: '#ef6a60' },
+  bigheart: { n: '大血羽', c: '#ff8f9c' },
+  rage:     { n: '狂气晶', c: '#b79bff' },
+  shield:   { n: '护盾',   c: '#6fe3e3' },
+  feather:  { n: '羽落',   c: '#cfe4ff' },
+  star:     { n: '星屑',   c: '#e3b341' },
+  purge:    { n: '净化',   c: '#8bf0c0' },
+};
+
 // 浮尘：位置用固定哈希生成，重开一局也长得差不多（不会每帧闪）
 const DUST = Array.from({ length: 54 }, (_, i) => {
   const h = (n) => ((Math.sin(i * n) * 43758.5453) % 1 + 1) % 1;
@@ -183,24 +230,64 @@ function hasOverlap(x, w, y) {
 }
 
 function rollType(t) {
-  const r = Math.random();
-  if (r < 0.20 + 0.12 * t) return 'frail';
-  if (r < 0.30 + 0.22 * t) return 'spike';
-  if (r < 0.44 + 0.16 * t) return 'belt';
-  if (r < 0.55) return 'boost';
-  if (r < 0.66) return 'solid';
+  // 权重表（原来是一串累加阈值，深层的和会超过 1，把 normal 挤没了）。
+  // 尖刺台的权重乘难度系数，最高档刺多到几乎每层都有。
+  const w = {
+    frail: 20 + 8 * t,
+    spike: (9 + 18 * t) * D.spike,
+    belt: 13 + 12 * t,
+    boost: 10,
+    solid: 14 - 6 * t,
+    normal: 42 - 30 * t,
+  };
+  let sum = 0;
+  for (const k in w) sum += w[k];
+  let r = Math.random() * sum;
+  for (const k in w) { r -= w[k]; if (r <= 0) return k; }
   return 'normal';
 }
 
+// 掉落判定：基础概率乘难度掉落系数，再按权重挑种类。
+// star / purge 只在深处出现，免得前几层就白送清场。
+function rollOrb(y01) {
+  if (Math.random() > 0.245 * D.drop) return null;
+  const w = {
+    heart: 30,
+    bigheart: 4 + 4 * y01,
+    rage: 26,
+    shield: 9,
+    feather: 8,
+    star: 6 + 12 * y01,
+    purge: 2 + 6 * y01,
+  };
+  let sum = 0;
+  for (const k in w) sum += w[k];
+  let r = Math.random() * sum;
+  for (const k in w) { r -= w[k]; if (r <= 0) return k; }
+  return 'heart';
+}
+
+// 影怪种类：浅层只有影怪，20 层后出飞蛾，40 层后出棘球和吐刺者。
+function rollMob(n) {
+  const bag = ['shade', 'shade'];
+  if (n >= 14) bag.push('shade', 'moth');
+  if (n >= 26) bag.push('moth', 'moth');
+  if (n >= 38) bag.push('thorn', 'spitter');
+  if (n >= 55) bag.push('thorn', 'spitter', 'moth');
+  return pick(bag);
+}
+
 function buildWorld() {
-  G.plats = []; G.mobs = []; G.orbs = []; G.parts = []; G.texts = []; G.fx = [];
+  G.plats = []; G.mobs = []; G.orbs = []; G.shots = [];
+  G.parts = []; G.texts = []; G.fx = [];
   G.camY = 0; G.depth = 0; G.cur = 0; G.score = 0; G.kills = 0;
   G.rage = 30; G.freezeT = 0; G.shake = 0; G.flash = 0;
   for (const k in G.cd) G.cd[k] = 0;
 
+  P.hpMax = D.hp;
   Object.assign(P, {
     x: VW / 2, y: TOP, vx: 0, vy: 0, face: 1, ground: null, ignore: null, ignoreT: 0,
-    hp: P.hpMax, invuln: 0, dashT: 0, wardT: 0, hurtT: 0,
+    hp: D.hp, invuln: 0, dashT: 0, wardT: 0, hurtT: 0, featherT: 0, shieldT: 0,
   });
 
   // 起跳台：够宽，开局不用抢
@@ -210,7 +297,8 @@ function buildWorld() {
   for (let n = 1; n <= GOAL; n++) {
     const y = TOP + n * GAP;
     const t = n / GOAL;
-    const pw = Math.round(94 - 46 * t + rnd(-10, 10));
+    // 难度直接缩放平台宽度，但留一个 34px 下限——再窄就站不住人了
+    const pw = Math.max(34, Math.round((94 - 46 * t) * D.pw + rnd(-10, 10)));
     // 相邻层中心最多错开 reach：从上一层自由落体约 0.36s，横向够跑 RUN*0.36
     const reach = 76 - 30 * t;
     const cx = clamp(anchor + rnd(-reach, reach), WALL + pw / 2 + 6, VW - WALL - pw / 2 - 6);
@@ -221,7 +309,7 @@ function buildWorld() {
     const extra = Math.random() < 0.42 ? 0 : Math.random() < 0.62 ? 1 : 2;
     for (let i = 0; i < extra; i++) {
       for (let tryN = 0; tryN < 6; tryN++) {
-        const w2 = Math.round(rnd(52, 82) - 12 * t);
+        const w2 = Math.max(34, Math.round((rnd(52, 82) - 12 * t) * D.pw));
         const x2 = rnd(WALL + 4, VW - WALL - w2 - 4);
         if (hasOverlap(x2, w2, y)) continue;
         addPlat(x2, y, w2, rollType(t));
@@ -229,29 +317,41 @@ function buildWorld() {
       }
     }
 
-    // 影怪：从第 5 层开始，越往下越密
-    if (n >= 5 && Math.random() < 0.12 + 0.36 * t) {
-      const host = G.plats.filter((p) => Math.abs(p.y - y) < 1 && p.type !== 'spike' && p.w > 56);
+    // 影怪：从第 5 层开始，越往下越密，种类也越杂
+    // （平台宽度门槛放到 46：困难/癫狂的平台只有 40~50px，门槛卡 60 会让
+    //   高难度反而见不到几只怪，跟"越难越凶"正好反着）
+    if (n >= 5 && Math.random() < (0.12 + 0.36 * t) * D.mob) {
+      const host = G.plats.filter((p) => Math.abs(p.y - y) < 1 && p.type !== 'spike' && p.w >= 46);
       if (host.length) {
         const h = pick(host);
-        const w = Math.min(26, h.w - 8);
-        G.mobs.push({
-          x: h.x + h.w / 2, y: h.y, w, h: 22, x0: h.x + w / 2, x1: h.x + h.w - w / 2,
-          vx: rnd(30, 58) * (Math.random() < 0.5 ? -1 : 1), ph: rnd(0, 6), dead: false,
-        });
+        const kind = rollMob(n);
+        const k = MOBK[kind];
+        const w = Math.max(16, Math.min(k.w, h.w - 10));
+        const cx2 = h.x + h.w / 2;
+        if (kind === 'moth') {
+          // 飞蛾挂在平台上方飘，不给落脚点也不占平台宽度
+          G.mobs.push({
+            kind, x: cx2, y: h.y - 38, by: h.y - 38, w, h: k.h, hp: k.hp,
+            x0: WALL + w, x1: VW - WALL - w, vx: rnd(40, 70) * (Math.random() < 0.5 ? -1 : 1),
+            ph: rnd(0, 6), dead: false, hit: 0,
+          });
+        } else {
+          G.mobs.push({
+            kind, x: cx2, y: h.y, w, h: k.h, hp: k.hp,
+            x0: h.x + w / 2, x1: h.x + h.w - w / 2,
+            vx: kind === 'thorn' ? 0 : rnd(30, 58) * (Math.random() < 0.5 ? -1 : 1),
+            ph: rnd(0, 6), sc: rnd(1.2, 3.4), dead: false, hit: 0,
+          });
+        }
       }
     }
 
-    // 道具：红心回血 / 狂气结晶 / 护盾
-    const r = Math.random();
-    let kind = null;
-    if (r < 0.105) kind = 'heart';
-    else if (r < 0.225) kind = 'rage';
-    else if (r < 0.265) kind = 'shield';
+    // 道具
+    const kind = rollOrb(t);
     if (kind) {
       const host = G.plats.filter((p) => Math.abs(p.y - y) < 1 && p.type !== 'spike');
       const h = host.length ? pick(host) : null;
-      if (h) G.orbs.push({ x: h.x + h.w / 2, y: h.y - 20, kind, ph: rnd(0, 6), dead: false });
+      if (h) G.orbs.push({ x: h.x + h.w / 2, y: h.y - 22, kind, ph: rnd(0, 6), dead: false });
     }
   }
 
@@ -259,7 +359,10 @@ function buildWorld() {
   for (let n = 40; n <= GOAL; n += 15) {
     const y = TOP + n * GAP;
     const host = G.plats.filter((p) => Math.abs(p.y - y) < 1 && p.type !== 'spike');
-    if (host.length) G.orbs.push({ x: pick(host).x + 30, y: y - 20, kind: 'heart', ph: rnd(0, 6), dead: false });
+    if (host.length) {
+      const kind = D.dmg > 1 ? 'bigheart' : 'heart';
+      G.orbs.push({ x: pick(host).x + 30, y: y - 22, kind, ph: rnd(0, 6), dead: false });
+    }
   }
 }
 
@@ -304,7 +407,8 @@ function hurtP(amount, cause) {
   if (G.state !== 'play') return;
   const p = P;
   if (p.invuln > 0) return;
-  let dmg = amount;
+  // 难度只改伤害系数，不改判定：简单档挨一下没那么疼，癫狂档一样的位置双倍疼
+  let dmg = amount * D.dmg;
   if (p.wardT > 0) dmg *= 0.5;
   p.hp -= dmg;
   p.invuln = 0.85;
@@ -333,7 +437,7 @@ function landOn(pl) {
     return;
   }
   if (pl.type !== 'solid' && pl.type !== 'belt' && pl.fuse <= 0) {
-    pl.fuseMax = pl.fuse = pl.type === 'frail' ? 0.38 : 0.92;
+    pl.fuseMax = pl.fuse = (pl.type === 'frail' ? 0.38 : 0.92) * D.fuse;
   }
   spark(p.x, pl.y, 4, PT[pl.type].edge, 90, 0.3);
   Snd.land();
@@ -352,32 +456,57 @@ function killMob(m, byPlayer) {
   if (m.dead) return;
   m.dead = true;
   G.kills++;
-  G.score += 25;
-  G.rage = Math.min(100, G.rage + 7);
-  floatText(m.x, m.y - 30, '+25', '#e3b341');
-  spark(m.x, m.y - m.h / 2, 14, '#b07ce8', 230, 0.55);
+  const k = MOBK[m.kind] || MOBK.shade;
+  const pts = Math.round(k.pts * D.sc);
+  G.score += pts;
+  G.rage = Math.min(100, G.rage + Math.round(7 * D.rage));
+  floatText(m.x, m.y - 30, '+' + pts, '#e3b341');
+  spark(m.x, m.y - m.h / 2, 14, k.c1, 230, 0.55);
   Snd.kill();
   if (byPlayer && Math.random() < 0.35) {
-    // 踩死的怪有概率掉狂气，给「玩得凶」一点回报
-    G.orbs.push({ x: m.x, y: m.y - 24, kind: 'rage', ph: 0, dead: false });
+    // 踩死的怪有概率掉东西，给「玩得凶」一点回报
+    G.orbs.push({ x: m.x, y: m.y - 26, kind: pick(['rage', 'rage', 'star', 'feather']), ph: 0, dead: false });
   }
 }
 
 function pickOrb(o) {
   o.dead = true;
   const p = P;
-  if (o.kind === 'heart') {
-    p.hp = Math.min(p.hpMax, p.hp + 20);
-    floatText(o.x, o.y - 8, '+20 HP', '#7ee08a');
-    spark(o.x, o.y, 12, '#7ee08a', 170, 0.55);
+  if (o.kind === 'heart' || o.kind === 'bigheart') {
+    const add = o.kind === 'bigheart' ? 45 : 20;
+    p.hp = Math.min(p.hpMax, p.hp + add);
+    floatText(o.x, o.y - 8, '+' + add + ' HP', '#7ee08a');
+    spark(o.x, o.y, o.kind === 'bigheart' ? 18 : 12, '#7ee08a', 170, 0.55);
   } else if (o.kind === 'rage') {
-    G.rage = Math.min(100, G.rage + 18);
-    floatText(o.x, o.y - 8, '+18 狂气', '#b79bff');
+    const add = Math.round(18 * D.rage);
+    G.rage = Math.min(100, G.rage + add);
+    floatText(o.x, o.y - 8, '+' + add + ' 狂气', '#b79bff');
     spark(o.x, o.y, 12, '#b79bff', 170, 0.55);
-  } else {
+  } else if (o.kind === 'shield') {
     p.invuln = Math.max(p.invuln, 3.2);
-    floatText(o.x, o.y - 8, '护盾', '#6fe3e3');
+    p.shieldT = 3.2;
+    floatText(o.x, o.y - 8, '护盾 3.2s', '#6fe3e3');
     spark(o.x, o.y, 14, '#6fe3e3', 180, 0.6);
+  } else if (o.kind === 'feather') {
+    // 羽落：四秒内下坠速度减半，用来安全落到下一层的窄台上
+    p.featherT = 4.2;
+    floatText(o.x, o.y - 8, '羽落 4s', '#cfe4ff');
+    spark(o.x, o.y, 14, '#cfe4ff', 130, 0.7);
+  } else if (o.kind === 'star') {
+    const add = Math.round(150 * D.sc);
+    G.score += add;
+    floatText(o.x, o.y - 8, '+' + add + ' 分', '#e3b341');
+    spark(o.x, o.y, 14, '#e3b341', 190, 0.6);
+  } else if (o.kind === 'purge') {
+    // 净化：视野里的影怪全清，还白送一层狂气
+    let n = 0;
+    for (const m of G.mobs) {
+      if (!m.dead && m.y > G.camY - 40 && m.y < G.camY + VH + 40) { killMob(m, false); n++; }
+    }
+    G.rage = Math.min(100, G.rage + Math.round(20 * D.rage));
+    floatText(o.x, o.y - 8, n ? `净化 ${n}` : '净化', '#8bf0c0');
+    spark(o.x, o.y, 20, '#8bf0c0', 240, 0.75);
+    G.shake = Math.max(G.shake, 5);
   }
   Snd.pick();
 }
@@ -391,36 +520,50 @@ function useSkill(id) {
   if (G.rage < s.cost) { toast('狂气不够，往下走能攒'); return; }
   G.rage -= s.cost;
   G.cd[id] = s.cd;
-  spawnFx(s.anim, id === 'burst' ? 236 : 200, id === 'burst' ? 1.7 : 1.3, s.n);
+  // 演出里不再重复印技能名：头顶的 cast 条已经写了名字和这一下的效果
+  spawnFx(s.anim, id === 'burst' ? 236 : 200, id === 'burst' ? 1.7 : 1.3);
   Snd.skill();
+  const btn = btnOf[id];
+  if (btn) { btn.el.classList.remove('flash'); void btn.el.offsetWidth; btn.el.classList.add('flash'); }
   const p = P;
   const inView = (o) => o.y > G.camY - 40 && o.y < G.camY + VH + 40;
+  let killed = 0;
 
   if (id === 'dash') {
     p.dashT = 0.32; p.vx = p.face * 830; p.invuln = Math.max(p.invuln, 0.5);
     G.shake = Math.max(G.shake, 5);
     spark(p.x, p.y - 16, 12, '#9fd0ff', 260, 0.4);
+    // 沿途撞碎影怪这件事在 update 的接触判定里做（p.dashT > 0 就碾过去），
+    // 不在这里按距离预杀——那样会隔着平台杀掉还没撞到的怪
+    castSkill(s.n, '突进 · 沿途影怪全部撞碎');
   } else if (id === 'star') {
-    for (const m of G.mobs) if (!m.dead && inView(m)) killMob(m, false);
+    for (const m of G.mobs) if (!m.dead && inView(m)) { killMob(m, false); killed++; }
     // 尖刺台被星矛拍平，顺便给玩家开条路
+    let flat = 0;
     for (const pl of G.plats) {
       if (!pl.dead && pl.type === 'spike' && inView(pl)) {
-        pl.type = 'normal'; pl.fuse = 0; pl.fuseMax = 1.05;
+        pl.type = 'normal'; pl.fuse = 0; pl.fuseMax = 1.05 * D.fuse;
         spark(pl.x + pl.w / 2, pl.y, 8, '#c9a05d', 200, 0.5);
+        flat++;
       }
     }
     G.shake = Math.max(G.shake, 9);
+    castSkill(s.n, `击破 ${killed} 只 · 拍平 ${flat} 块尖刺台`);
   } else if (id === 'ward') {
+    const before = p.hp;
     p.hp = Math.min(p.hpMax, p.hp + 26);
     p.wardT = 6; p.invuln = Math.max(p.invuln, 1.2);
-    floatText(p.x, p.y - 46, '+26 HP', '#7ee08a');
+    const heal = Math.round(p.hp - before);
+    floatText(p.x, p.y - 46, '+' + heal + ' HP', '#7ee08a');
     spark(p.x, p.y - 16, 18, '#9ff0d8', 190, 0.7);
+    castSkill(s.n, heal ? `回 ${heal} 血 · 6 秒内受伤减半` : '满血 · 6 秒内受伤减半');
   } else if (id === 'burst') {
-    for (const m of G.mobs) if (!m.dead && inView(m)) killMob(m, false);
+    for (const m of G.mobs) if (!m.dead && inView(m)) { killMob(m, false); killed++; }
     G.freezeT = 4.5;
     p.invuln = Math.max(p.invuln, 3);
     G.shake = Math.max(G.shake, 14);
     spark(p.x, p.y - 20, 30, '#b79bff', 320, 0.8);
+    castSkill(s.n, `4.5 秒清场 · 击破 ${killed} 只 · 平台不塌`);
   }
 }
 
@@ -435,6 +578,8 @@ function update(dt) {
   p.hurtT = Math.max(0, p.hurtT - dt);
   p.dashT = Math.max(0, p.dashT - dt);
   p.ignoreT = Math.max(0, p.ignoreT - dt);
+  p.featherT = Math.max(0, p.featherT - dt);
+  p.shieldT = Math.max(0, p.shieldT - dt);
   G.freezeT = Math.max(0, G.freezeT - dt);
   G.shake *= Math.pow(0.0015, dt);
   G.flash = Math.max(0, G.flash - dt * 2.4);
@@ -470,7 +615,10 @@ function update(dt) {
     }
   } else {
     const prevY = p.y;
-    p.vy = Math.min(p.vy + GRAV * dt, VMAX);
+    // 羽落期间重力只有四成、终端速度砍半：用来从高台安全落到下一层窄台
+    const grav = p.featherT > 0 ? GRAV * 0.40 : GRAV;
+    const vmax = p.featherT > 0 ? VMAX * 0.44 : VMAX;
+    p.vy = Math.min(p.vy + grav * dt, vmax);
     // 按住 ↓ 只是"从能碎的平台上穿下去"，不再额外加重力——
     // 否则一路按 ↓ 直接蹿到井底，层数白拿，还躲掉所有平台上的风险。
     p.x = clamp(p.x + p.vx * dt, WALL + p.w / 2, VW - WALL - p.w / 2);
@@ -496,29 +644,71 @@ function update(dt) {
     if (pl.fuse <= 0) shatter(pl);
   }
 
-  // ---- 影怪
+  // ---- 影怪 / 陷阱：四种各有各的动法
   for (const m of G.mobs) {
     if (m.dead) continue;
-    if (m.y < G.camY - 260 || m.y > G.camY + VH + 260) continue;
-    m.ph += dt * 3.4;
-    m.x += m.vx * dt;
-    if (m.x <= m.x0) { m.x = m.x0; m.vx = Math.abs(m.vx); }
-    if (m.x >= m.x1) { m.x = m.x1; m.vx = -Math.abs(m.vx); }
+    if (m.y < G.camY - 300 || m.y > G.camY + VH + 300) continue;
+    const k = MOBK[m.kind] || MOBK.shade;
+    m.ph += dt * (k.fly ? 2.1 : 3.4);
+    if (m.hit > 0) m.hit = Math.max(0, m.hit - dt * 2.5);
+
+    if (k.fly) {
+      // 飞蛾：横着巡逻，纵向按正弦飘，所以同一个位置永远抓不准
+      m.x += m.vx * dt;
+      if (m.x <= m.x0) { m.x = m.x0; m.vx = Math.abs(m.vx); }
+      if (m.x >= m.x1) { m.x = m.x1; m.vx = -Math.abs(m.vx); }
+      m.y = m.by + Math.sin(m.ph) * 15;
+    } else if (!k.still) {
+      m.x += m.vx * dt;
+      if (m.x <= m.x0) { m.x = m.x0; m.vx = Math.abs(m.vx); }
+      if (m.x >= m.x1) { m.x = m.x1; m.vx = -Math.abs(m.vx); }
+    }
+
+    // 吐刺者：只在玩家在下方时开火，弹道往人身上瞄
+    if (k.shoot && p.y > m.y) {
+      m.sc -= dt;
+      if (m.sc <= 0) {
+        m.sc = k.shoot * rnd(0.75, 1.3);
+        const sx = m.x, sy = m.y - m.h * 0.45;
+        const dx = p.x - sx, dy = (p.y - 14) - sy;
+        const d = Math.hypot(dx, dy) || 1;
+        G.shots.push({ x: sx, y: sy, vx: dx / d * 215, vy: dy / d * 215, life: 3.6, dead: false, ph: 0 });
+        spark(sx, sy, 4, k.c1, 90, 0.3);
+      }
+    }
 
     const ox = Math.abs(m.x - p.x) < (m.w + p.w) / 2 - 3;
     const oy = p.y > m.y - m.h && p.y - p.h < m.y;
     if (ox && oy) {
-      // 从上方落下来 = 踩死；否则挨打
-      if (p.vy > 80 && p.y - p.h < m.y - m.h * 0.3) {
+      // 突进中撞上去 = 直接碾碎（掠影斩卖的就是这个）
+      if (p.dashT > 0) { killMob(m, true); continue; }
+      // 从上方落下来 = 踩死；踩不死的（棘球）撞上去只会挨打
+      const fromTop = p.vy > 80 && p.y - p.h < m.y - m.h * 0.3;
+      if (k.stomp && fromTop) {
         killMob(m, true);
         p.vy = -330;
       } else {
-        hurtP(14, 'mob');
+        hurtP(k.stomp ? 14 : 18, 'mob');
         const s = p.x < m.x ? -1 : 1;
         p.vx = s * 260; p.vy = -140; p.ground = null;
       }
     }
   }
+
+  // ---- 吐刺者打出来的刺
+  for (const s of G.shots) {
+    if (s.dead) continue;
+    s.life -= dt;
+    s.ph += dt * 12;
+    s.x += s.vx * dt; s.y += s.vy * dt;
+    if (s.life <= 0 || s.y > G.camY + VH + 40 || s.y < G.camY - 80) { s.dead = true; continue; }
+    if (Math.abs(s.x - p.x) < p.w / 2 + 5 && s.y > p.y - p.h - 3 && s.y < p.y + 5) {
+      s.dead = true;
+      hurtP(9, 'shot');
+      spark(s.x, s.y, 8, '#dcb654', 170, 0.4);
+    }
+  }
+  if (G.shots.some((s) => s.dead)) G.shots = G.shots.filter((s) => !s.dead);
 
   // ---- 道具
   for (const o of G.orbs) {
@@ -530,7 +720,7 @@ function update(dt) {
   // ---- 镜头：只由滚速推进，不跟着玩家跑。
   // 这样一来顶刺（推你下）和井底尖刺（拦你下）就把人夹在中间：
   // 蹿得太狠会扎在井底尖刺上，站着不动会被顶刺推下去。层数也就是镜头推进的深度。
-  const scroll = 68 + G.cur * 0.32;
+  const scroll = (68 + G.cur * 0.32) * D.scroll;
   G.camY += scroll * dt;
 
   // ---- 顶部尖刺
@@ -583,8 +773,8 @@ function update(dt) {
   G.cur = cur;
   if (cur > G.depth) {
     G.depth = cur;
-    G.score += 10 + Math.floor(cur / 10) * 5;
-    G.rage = Math.min(100, G.rage + 3);
+    G.score += Math.round((10 + Math.floor(cur / 10) * 5) * D.sc);
+    G.rage = Math.min(100, G.rage + 3 * D.rage);
     if (cur % 10 === 0 && cur > 0) {
       toast(`第 ${cur} 层`);
       G.shake = Math.max(G.shake, 3);
@@ -725,45 +915,116 @@ function drawPlat(pl) {
 function drawMob(m) {
   const y = m.y - G.camY;
   if (y < -60 || y > VH + 60) return;
-  const bob = Math.sin(m.ph) * 2.5;
+  const k = MOBK[m.kind] || MOBK.shade;
+  const bob = k.fly ? 0 : Math.sin(m.ph) * 2.5;
   const cx = m.x, cy = y - m.h / 2 + bob;
   const r = m.w / 2;
 
   ctx.save();
-  ctx.shadowColor = 'rgba(150,90,220,.75)';
-  ctx.shadowBlur = 12;
-  const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.4, 1, cx, cy, r * 1.3);
-  g.addColorStop(0, '#a06ad6'); g.addColorStop(1, '#4a2468');
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.ellipse(cx, cy, r, r * 0.92, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowColor = k.glow;
+  ctx.shadowBlur = m.hit > 0 ? 20 : 12;
+  const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.4, 1, cx, cy, r * 1.35);
+  g.addColorStop(0, k.c1); g.addColorStop(1, k.c2);
+
+  if (m.kind === 'moth') {
+    // 飞蛾：一对随波扇动的翅膀 + 细长身子
+    const flap = Math.abs(Math.sin(m.ph * 2.6));
+    ctx.fillStyle = g;
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - r * 0.2);
+      ctx.quadraticCurveTo(cx + s * (r * 0.7 + 9 * flap), cy - r * 1.2, cx + s * (r * 1.3 + 5 * flap), cy + r * 0.1);
+      ctx.quadraticCurveTo(cx + s * (r * 0.8 + 7 * flap), cy + r * 0.8, cx, cy + r * 0.25);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = k.c1;
+    ctx.beginPath(); ctx.ellipse(cx, cy, r * 0.4, r * 0.9, 0, 0, Math.PI * 2); ctx.fill();
+  } else if (m.kind === 'thorn') {
+    // 棘球：一圈慢慢转的刺，踩不破，只能绕开或用技能清
+    const spin = m.ph * 0.55;
+    ctx.fillStyle = k.c1;
+    for (let i = 0; i < 8; i++) {
+      const a = spin + i * Math.PI / 4;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a - 0.24) * r * 0.72, cy + Math.sin(a - 0.24) * r * 0.72);
+      ctx.lineTo(cx + Math.cos(a) * r * 1.44, cy + Math.sin(a) * r * 1.44);
+      ctx.lineTo(cx + Math.cos(a + 0.24) * r * 0.72, cy + Math.sin(a + 0.24) * r * 0.72);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.84, 0, Math.PI * 2); ctx.fill();
+    const pulse = 0.35 + 0.25 * Math.sin(m.ph * 3);
+    ctx.fillStyle = `rgba(255,124,124,${pulse})`;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.3, 0, Math.PI * 2); ctx.fill();
+  } else {
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(cx, cy, r, r * 0.92, 0, 0, Math.PI * 2); ctx.fill();
+    if (m.kind === 'spitter') {
+      // 朝下的小炮口，快开火时会亮一下
+      const hot = m.sc != null && m.sc < 0.6;
+      ctx.fillStyle = hot ? '#ffeaa8' : k.c1;
+      ctx.beginPath();
+      ctx.moveTo(cx - 5, cy + r * 0.5); ctx.lineTo(cx + 5, cy + r * 0.5); ctx.lineTo(cx, cy + r * 1.55);
+      ctx.closePath(); ctx.fill();
+    }
+  }
   ctx.restore();
 
-  // 两只眼睛，随移动方向偏
+  if (m.kind === 'thorn') return;
+
+  // 眼睛：随移动方向偏，飞蛾的眼睛小一号
   const look = m.vx > 0 ? 1.6 : -1.6;
-  ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.ellipse(cx - r * 0.32 + look, cy - 1, 2.6, 3.2, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(cx + r * 0.32 + look, cy - 1, 2.6, 3.2, 0, 0, Math.PI * 2); ctx.fill();
+  const er = m.kind === 'moth' ? 2.2 : 2.6;
+  const ey = m.kind === 'spitter' ? cy - r * 0.25 : cy - 1;
+  ctx.fillStyle = m.kind === 'moth' ? '#dff6ff' : '#fff';
+  ctx.beginPath(); ctx.ellipse(cx - r * 0.3 + look, ey, er, er * 1.2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx + r * 0.3 + look, ey, er, er * 1.2, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#1b0f26';
-  ctx.beginPath(); ctx.arc(cx - r * 0.32 + look * 1.5, cy - 0.5, 1.3, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx + r * 0.32 + look * 1.5, cy - 0.5, 1.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx - r * 0.3 + look * 1.5, ey + 0.5, 1.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + r * 0.3 + look * 1.5, ey + 0.5, 1.3, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawShot(s) {
+  const y = s.y - G.camY;
+  if (y < -30 || y > VH + 30) return;
+  const a = Math.atan2(s.vy, s.vx);
+  ctx.save();
+  ctx.translate(s.x, y);
+  ctx.rotate(a);
+  ctx.shadowColor = 'rgba(240,200,90,.85)';
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = '#e8c96a';
+  ctx.beginPath();
+  ctx.moveTo(7, 0); ctx.lineTo(-4, 3); ctx.lineTo(-2, 0); ctx.lineTo(-4, -3);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
 }
 
 function drawOrb(o) {
   const y = o.y - G.camY + Math.sin(o.ph) * 3;
   if (y < -40 || y > VH + 40) return;
   const x = o.x;
+  const c = (ORBK[o.kind] || ORBK.heart).c;
   ctx.save();
-  if (o.kind === 'heart') {
-    ctx.shadowColor = 'rgba(231,86,77,.8)'; ctx.shadowBlur = 10;
-    ctx.fillStyle = '#ef6a60';
+  ctx.shadowColor = c;
+  ctx.shadowBlur = o.kind === 'bigheart' ? 16 : 11;
+  ctx.fillStyle = c;
+
+  if (o.kind === 'heart' || o.kind === 'bigheart') {
+    const s = o.kind === 'bigheart' ? 1.42 : 1;
     ctx.beginPath();
-    ctx.moveTo(x, y + 6);
-    ctx.bezierCurveTo(x - 9, y - 1, x - 7, y - 9, x, y - 4.5);
-    ctx.bezierCurveTo(x + 7, y - 9, x + 9, y - 1, x, y + 6);
+    ctx.moveTo(x, y + 6 * s);
+    ctx.bezierCurveTo(x - 9 * s, y - 1 * s, x - 7 * s, y - 9 * s, x, y - 4.5 * s);
+    ctx.bezierCurveTo(x + 7 * s, y - 9 * s, x + 9 * s, y - 1 * s, x, y + 6 * s);
     ctx.fill();
+    if (o.kind === 'bigheart') {
+      // 大血羽多一圈脉动的光环，隔着半个屏幕就看得出来
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(255,170,185,.72)';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.arc(x, y, 11 + Math.sin(o.ph * 2) * 2, 0, Math.PI * 2); ctx.stroke();
+    }
   } else if (o.kind === 'rage') {
-    ctx.shadowColor = 'rgba(160,124,255,.85)'; ctx.shadowBlur = 12;
-    ctx.fillStyle = '#b79bff';
     ctx.beginPath();
     ctx.moveTo(x, y - 8); ctx.lineTo(x + 6, y); ctx.lineTo(x, y + 8); ctx.lineTo(x - 6, y);
     ctx.closePath(); ctx.fill();
@@ -771,16 +1032,50 @@ function drawOrb(o) {
     ctx.beginPath();
     ctx.moveTo(x, y - 4); ctx.lineTo(x + 2.2, y); ctx.lineTo(x, y + 4); ctx.lineTo(x - 2.2, y);
     ctx.closePath(); ctx.fill();
-  } else {
-    ctx.shadowColor = 'rgba(111,227,227,.85)'; ctx.shadowBlur = 12;
-    ctx.strokeStyle = '#6fe3e3'; ctx.lineWidth = 2;
+  } else if (o.kind === 'shield') {
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.fillStyle = 'rgba(111,227,227,.18)';
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
       const a = -Math.PI / 2 + i * Math.PI / 3;
-      const px = x + Math.cos(a) * 7, py = y + Math.sin(a) * 7;
+      const px = x + Math.cos(a) * 7.4, py = y + Math.sin(a) * 7.4;
       i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
     }
-    ctx.closePath(); ctx.stroke();
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if (o.kind === 'feather') {
+    // 一根羽毛：缓降用
+    ctx.translate(x, y);
+    ctx.rotate(-0.55);
+    ctx.beginPath();
+    ctx.moveTo(0, -9);
+    ctx.quadraticCurveTo(6.4, -2, 0, 9);
+    ctx.quadraticCurveTo(-6.4, -2, 0, -9);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(70,105,160,.9)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, -7.5); ctx.lineTo(0, 9); ctx.stroke();
+  } else if (o.kind === 'star') {
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 5;
+      const rr = i % 2 ? 3.4 : 8.6;
+      const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    ctx.closePath(); ctx.fill();
+  } else {
+    // 净化：一个亮芯 + 四道散开的射线
+    ctx.beginPath(); ctx.arc(x, y, 4.6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = c; ctx.lineWidth = 1.6;
+    const k = 8 + Math.sin(o.ph * 2.4) * 1.6;
+    for (let i = 0; i < 4; i++) {
+      const a = o.ph + i * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * 5.6, y + Math.sin(a) * 5.6);
+      ctx.lineTo(x + Math.cos(a) * k, y + Math.sin(a) * k);
+      ctx.stroke();
+    }
   }
   ctx.restore();
 }
@@ -793,7 +1088,7 @@ function drawPlayer() {
 
   const dir = (G.keys.right ? 1 : 0) - (G.keys.left ? 1 : 0);
   const running = !!p.ground && dir !== 0;
-  const low = p.hp <= 36;
+  const low = p.hp <= p.hpMax * 0.3;
 
   // 站立 → idle 呼吸循环；左右移动 / 空中 → attack 战斗立绘循环。
   // （原来用的 chibi 两张是单帧静图，左右移动时人像一根木棍）
@@ -833,11 +1128,26 @@ function drawPlayer() {
   }
 
   // 护盾
-  if (p.invuln > 0.5 || p.wardT > 0) {
-    const k = p.wardT > 0 ? 0.55 : 0.35;
+  // 受伤减免/无敌要看得出来：圣翼护是绿色实心罩，护盾道具是青色虚线环，
+  // 两种颜色不一样，玩家才知道现在是不是「减伤」状态
+  if (p.wardT > 0) {
+    const r = hh * 0.54 + Math.sin(G.t * 5) * 1.5;
     ctx.save();
-    ctx.strokeStyle = `rgba(111,227,227,${k})`;
+    const g2 = ctx.createRadialGradient(p.x, sy - hh * 0.45, r * 0.5, p.x, sy - hh * 0.45, r);
+    g2.addColorStop(0, 'rgba(111,224,192,0)');
+    g2.addColorStop(0.75, 'rgba(111,224,192,.16)');
+    g2.addColorStop(1, 'rgba(111,224,192,.42)');
+    ctx.fillStyle = g2;
+    ctx.beginPath(); ctx.arc(p.x, sy - hh * 0.45, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(140,255,220,.85)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.arc(p.x, sy - hh * 0.45, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  } else if (p.invuln > 0.5) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(111,227,227,.38)';
     ctx.lineWidth = 1.6;
+    ctx.setLineDash([5, 5]);
     ctx.beginPath(); ctx.arc(p.x, sy - hh * 0.45, hh * 0.52 + Math.sin(G.t * 6) * 1.5, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
@@ -983,6 +1293,7 @@ function drawWorld() {
   for (const pl of G.plats) if (!pl.dead) drawPlat(pl);
   for (const o of G.orbs) if (!o.dead) drawOrb(o);
   for (const m of G.mobs) if (!m.dead) drawMob(m);
+  for (const s of G.shots) drawShot(s);
 
   drawFloor();
 
@@ -1095,9 +1406,9 @@ function draw() {
     ctx.fillRect(0, 0, VW, VH);
   }
 
-  // 低血警示暗角
-  if (G.state === 'play' && P.hp <= 30) {
-    const k = (1 - P.hp / 30) * (0.25 + Math.sin(G.t * 5) * 0.08);
+  // 低血警示暗角（阈值按血量上限算：简单档 120、癫狂档 90 都是三成）
+  if (G.state === 'play' && P.hp <= P.hpMax * 0.3) {
+    const k = (1 - P.hp / (P.hpMax * 0.3)) * (0.25 + Math.sin(G.t * 5) * 0.08);
     const g = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.3, VW / 2, VH / 2, VH * 0.66);
     g.addColorStop(0, 'rgba(200,40,40,0)');
     g.addColorStop(1, `rgba(200,40,40,${clamp(k, 0, 0.42)})`);
@@ -1105,21 +1416,36 @@ function draw() {
     ctx.fillRect(0, 0, VW, VH);
   }
 
-  // 狂气爆发期间：画面边缘泛紫
+  // 狂气爆发期间：紫色暗角 + 顶部剩余秒数，别让人不知道这四秒还剩多久
   if (G.freezeT > 0) {
-    ctx.strokeStyle = `rgba(160,124,255,${0.18 + Math.sin(G.t * 8) * 0.08})`;
-    ctx.lineWidth = 5;
-    ctx.strokeRect(2.5, 2.5, VW - 5, VH - 5);
+    const g = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.22, VW / 2, VH / 2, VH * 0.8);
+    g.addColorStop(0, 'rgba(160,124,255,0)');
+    g.addColorStop(1, `rgba(160,124,255,${0.16 + Math.sin(G.t * 8) * 0.05})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, VW, VH);
+    ctx.strokeStyle = `rgba(180,150,255,${0.34 + Math.sin(G.t * 8) * 0.12})`;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(2, 2, VW - 4, VH - 4);
+
   }
 }
 
 // ---------------------------------------------------------------- HUD
 const el = {
-  lv: $('#lv'), sc: $('#sc'), bs: $('#bs'),
-  hpf: $('#hpf'), hpt: $('#hpt'), hpbar: $('#hpbar'),
-  rgf: $('#rgf'), rgt: $('#rgt'),
+  lv: $('#lv'), sc: $('#sc'), bs: $('#bs'), dtag: $('#dtag'),
+  hpf: $('#hpf'), hpbar: $('#hpbar'), hpv: $('#hpv'), hpm: $('#hpm'),
+  rgf: $('#rgf'), rgv: $('#rgv'), face: $('#face'),
   skills: $('#skills'), send: $('#snd'),
+  cast: $('#cast'), castN: $('#castN'), castS: $('#castS'),
 };
+// 状态条的四个格子是写死在 HTML 里的，这里只负责显示/隐藏与秒数
+const BUFFS = [
+  { k: 'ward', id: 'bf-ward', get: () => P.wardT },
+  { k: 'shield', id: 'bf-shield', get: () => P.shieldT },
+  { k: 'feather', id: 'bf-feather', get: () => P.featherT },
+  { k: 'burst', id: 'bf-burst', get: () => G.freezeT },
+];
+for (const b of BUFFS) b.el = $('#' + b.id);
 const shown = {};
 
 function syncHud() {
@@ -1129,29 +1455,59 @@ function syncHud() {
   if (shown.bs !== best) { shown.bs = best; el.bs.textContent = best; }
 
   const hp = Math.round(P.hp);
-  if (shown.hp !== hp) {
-    shown.hp = hp;
+  if (shown.hp !== hp || shown.hpMax !== P.hpMax) {
+    shown.hp = hp; shown.hpMax = P.hpMax;
     el.hpf.style.width = clamp(P.hp / P.hpMax * 100, 0, 100) + '%';
-    el.hpt.textContent = `${hp} / ${P.hpMax}`;
-    el.hpbar.classList.toggle('low', hp <= 30);
+    el.hpv.textContent = hp;
+    el.hpm.textContent = '/ ' + P.hpMax;
+    const low = hp <= P.hpMax * 0.3;
+    el.hpbar.classList.toggle('low', low);
+    el.face.classList.toggle('low', low);
   }
   const rg = Math.round(G.rage);
   if (shown.rg !== rg) {
     shown.rg = rg;
     el.rgf.style.width = rg + '%';
-    el.rgt.textContent = `狂气 ${rg}`;
+    el.rgv.textContent = rg;
   }
 
   for (const s of SKILLS) {
     const b = btnOf[s.id];
     const cd = G.cd[s.id];
     const poor = G.rage < s.cost;
-    if (b.cdShown !== (cd > 0)) { b.cdShown = cd > 0; b.el.classList.toggle('cooling', cd > 0); }
-    b.el.classList.toggle('ready', cd <= 0 && !poor);
-    b.el.classList.toggle('poor', poor);
-    const txt = cd > 0 ? cd.toFixed(1) : '';
+    const cooling = cd > 0;
+    if (b.cdShown !== cooling) { b.cdShown = cooling; b.el.classList.toggle('cooling', cooling); }
+    // 扇形遮罩按「剩余比例」收，剩得越少缺口越大
+    if (cooling) {
+      const p = Math.round(clamp(cd / s.cd, 0, 1) * 100);
+      if (b.sweepP !== p) { b.sweepP = p; b.el.style.setProperty('--p', p); }
+    }
+    if (b.ready !== (!cooling && !poor)) { b.ready = !cooling && !poor; b.el.classList.toggle('ready', b.ready); }
+    if (b.poor !== poor) { b.poor = poor; b.el.classList.toggle('poor', poor); }
+    const txt = cooling ? (cd >= 1 ? String(Math.ceil(cd)) : cd.toFixed(1)) : '';
     if (b.txt !== txt) { b.txt = txt; b.cd.textContent = txt; }
   }
+
+  // 状态条：有东西才显示，秒数留着一位小数
+  for (const b of BUFFS) {
+    const v = b.get();
+    const on = v > 0.05;
+    if (b.on !== on) { b.on = on; b.el.hidden = !on; }
+    if (!on) continue;
+    const t = v.toFixed(1) + 's';
+    if (b.t !== t) { b.t = t; b.el.lastElementChild.textContent = t; }
+  }
+}
+
+// 技能生效时在画面上方挂一条「名字 + 这次到底发生了什么」。
+// 光有演出看不出打到了什么，这样才说得清。
+let castTm = 0;
+function castSkill(name, sub) {
+  el.castN.textContent = name;
+  el.castS.textContent = sub;
+  el.cast.classList.add('on');
+  clearTimeout(castTm);
+  castTm = setTimeout(() => el.cast.classList.remove('on'), 1100);
 }
 
 function toast(msg) {
@@ -1163,27 +1519,100 @@ function toast(msg) {
 }
 
 // ---------------------------------------------------------------- 流程
-function loadBest() {
+// 存档按难度分开：简单档一局能到 100 层，混在一起记会把困难档的纪录冲掉。
+// 老版本只有一个全局 bestLv/best；只有「四档一条记录都没有」时（真正的旧存档）
+// 才把它当作普通档接过来，否则会给别的档凭空白送一份纪录
+// （踩过：简单档打 88 层之后，普通档也显示「最深 88」）。
+function readBest(key, allowLegacy) {
+  let lv = 0, sc = 0;
   try {
-    G.best = parseInt(localStorage.getItem('zjtt:bird:best') || '0', 10) || 0;
-    G.bestLv = parseInt(localStorage.getItem('zjtt:bird:bestLv') || '0', 10) || 0;
-    G.sound = localStorage.getItem('zjtt:bird:snd') !== '0';
+    lv = parseInt(localStorage.getItem(`zjtt:bird:bestLv:${key}`) || '0', 10) || 0;
+    sc = parseInt(localStorage.getItem(`zjtt:bird:best:${key}`) || '0', 10) || 0;
+    if (allowLegacy && !lv && !sc) {
+      lv = parseInt(localStorage.getItem('zjtt:bird:bestLv') || '0', 10) || 0;
+      sc = parseInt(localStorage.getItem('zjtt:bird:best') || '0', 10) || 0;
+    }
   } catch { /* 无痕模式 */ }
+  return { lv, sc };
+}
+
+function loadBest() {
+  let any = false;
+  try {
+    for (const d of DIFFS) {
+      if (localStorage.getItem(`zjtt:bird:bestLv:${d.k}`) != null
+        || localStorage.getItem(`zjtt:bird:best:${d.k}`) != null) { any = true; break; }
+    }
+  } catch { /* 无痕模式 */ }
+  G.bests = {};
+  for (const d of DIFFS) G.bests[d.k] = readBest(d.k, !any && d.k === 'normal');
+  const b = G.bests[G.diff] || { lv: 0, sc: 0 };
+  G.best = b.sc; G.bestLv = b.lv;
+  try { G.sound = localStorage.getItem('zjtt:bird:snd') !== '0'; } catch { /* 无痕模式 */ }
   el.bs.textContent = G.bestLv;
   el.send.classList.toggle('off', !G.sound);
 }
 
-function saveBest() {
-  let changed = false;
-  if (G.score > G.best) { G.best = G.score; changed = true; }
-  if (G.depth > G.bestLv) { G.bestLv = G.depth; changed = true; }
+// 账号档案（js/account.js）和个人页只认 zjtt:bird:bestLv / best 这两个
+// 「不分难度」的键，所以分档存完之后再维护一份普通及以上的最大值。
+// 简单档不进这份：它是练习档，一局就能到 100 层，放进去就把云端纪录顶死了。
+function syncGlobalBest() {
+  let lv = 0, sc = 0;
+  for (const d of DIFFS) {
+    if (d.k === 'easy') continue;
+    const b = G.bests[d.k];
+    if (!b) continue;
+    if (b.lv > lv) lv = b.lv;
+    if (b.sc > sc) sc = b.sc;
+  }
   try {
-    if (changed) {
-      localStorage.setItem('zjtt:bird:best', String(G.best));
-      localStorage.setItem('zjtt:bird:bestLv', String(G.bestLv));
-    }
+    localStorage.setItem('zjtt:bird:bestLv', String(lv));
+    localStorage.setItem('zjtt:bird:best', String(sc));
   } catch { /* 无痕模式 */ }
+}
+
+function saveBest() {
+  const b = G.bests[G.diff] || (G.bests[G.diff] = { lv: 0, sc: 0 });
+  let changed = false;
+  if (G.score > b.sc) { b.sc = G.score; G.best = b.sc; changed = true; }
+  if (G.depth > b.lv) { b.lv = G.depth; G.bestLv = b.lv; changed = true; }
+  if (changed) {
+    try {
+      localStorage.setItem(`zjtt:bird:bestLv:${G.diff}`, String(b.lv));
+      localStorage.setItem(`zjtt:bird:best:${G.diff}`, String(b.sc));
+    } catch { /* 无痕模式 */ }
+    syncGlobalBest();
+  }
   return changed;
+}
+
+// ---------------------------------------------------------------- 难度切换
+function paintDiffs() {
+  for (const d of DIFFS) {
+    const n = $('#df-' + d.k);
+    if (!n) continue;
+    n.classList.toggle('on', d.k === G.diff);
+    const b = (G.bests && G.bests[d.k]) || { lv: 0 };
+    const em = n.querySelector('em');
+    if (em) em.textContent = b.lv ? '最深 ' + b.lv : '还没下过';
+  }
+  const note = $('#dfnote');
+  if (note) note.textContent = DIFF[G.diff].d;
+}
+
+function setDiff(k) {
+  if (!DIFF[k] || k === G.diff) return;
+  D = DIFF[k];
+  G.diff = k;
+  const b = (G.bests && G.bests[k]) || { lv: 0, sc: 0 };
+  G.bestLv = b.lv; G.best = b.sc;
+  try { localStorage.setItem('zjtt:bird:diff', k); } catch { /* 无痕模式 */ }
+  paintDiffs();
+  if (el.dtag) { el.dtag.textContent = D.n; el.dtag.dataset.c = D.c; }
+  el.bs.textContent = G.bestLv;
+  shown.lv = -1; shown.sc = -1; shown.hp = -1; shown.rg = -1;
+  // 待机时换档要顺手把预览的那一屏重建成新难度，否则看见的还是旧塔
+  if (G.state === 'ready') { buildWorld(); syncHud(); }
 }
 
 // ---------------------------------------------------------------- 账号同步
@@ -1198,9 +1627,11 @@ function armSync() {
       .then((m) => { SYNC = m; return m.pullBest(); })
       .then((b) => {
         if (!b) return;
-        if (b.lv > G.bestLv) { G.bestLv = b.lv; el.bs.textContent = b.lv; }
-        if (b.sc > G.best) G.best = b.sc;
-        if (b.lv > 0) toast(`云端纪录：最深 ${b.lv} 层`);
+        // 云端存的是「不分难度的最深层数」，只拿来判断要不要往上推。
+        // 不覆盖本地分档纪录——否则简单档的 100 层会把困难档的 40 层顶掉。
+        G.cloudLv = b.lv || 0;
+        G.cloudSc = b.sc || 0;
+        if (G.cloudLv > 0) toast(`云端最深 ${G.cloudLv} 层（不分难度）`);
       })
       .catch(() => { /* 没网 / 没登录 / 老浏览器：当单机玩 */ });
   };
@@ -1208,10 +1639,13 @@ function armSync() {
   else setTimeout(load, 1500);
 }
 
-// 只在「一局结束」时推，别每下一层推一次——那会把接口刷爆
+// 只在「一局结束」时推，别每下一层推一次——那会把接口刷爆。
+// 简单档是练习档不上云：一局就能到 100 层，推上去云端纪录就再也动不了。
 function flushBest() {
-  if (!SYNC || !SYNC.pushBest || G.depth <= pushedLv) return;
-  pushedLv = G.depth;
+  if (G.diff === 'easy') return;
+  if (!SYNC || !SYNC.pushBest) return;
+  if (G.depth <= (G.cloudLv || 0) || G.depth <= pushedLv) return;
+  pushedLv = G.cloudLv = G.depth;
   try { SYNC.pushBest(G.depth, G.score); SYNC.flush(); } catch { /* 同步失败不影响游戏 */ }
 }
 
@@ -1229,9 +1663,10 @@ function endRun(win) {
   G.state = win ? 'win' : 'end';
   saveBest();
   flushBest();
+  paintDiffs();
   const rank = RANKS.find((r) => G.depth >= r[0]) || RANKS[RANKS.length - 1];
 
-  $('#endK').textContent = win ? '塔底到底了' : '羽毛散了一地';
+  $('#endK').textContent = (win ? '塔底到底了' : '羽毛散了一地') + ' · ' + D.n;
   $('#endLv').textContent = G.depth;
   $('#endSc').textContent = G.score;
   $('#endKill').textContent = G.kills;
@@ -1252,6 +1687,7 @@ function hideOv() {
   $('#ovStart').hidden = true;
   $('#ovEnd').hidden = true;
   $('#ovPause').hidden = true;
+  $('#ovHelp').hidden = true;
 }
 
 function readyGo() {
@@ -1292,25 +1728,47 @@ function pause(on) {
   }
 }
 
+// HUD 左边那张头像：直接把雪碧图里的 head 帧画进一个小 canvas，
+// 不额外发请求（图已经在内存里了）。
+function paintFace() {
+  const cv2 = $('#faceCv');
+  const a = ANIMS.head;
+  if (!cv2 || !a || !imgOk) return;
+  const c = cv2.getContext('2d');
+  const f = a.f[0];
+  c.clearRect(0, 0, cv2.width, cv2.height);
+  c.drawImage(sheet, f[0], f[1], f[2], f[3], 0, 0, cv2.width, cv2.height);
+}
+
 function boot() {
   const b = $('#boot');
   if (b) b.remove();
+  // 上次选的难度先恢复出来，再读对应档的纪录
+  try {
+    const saved = localStorage.getItem('zjtt:bird:diff');
+    if (saved && DIFF[saved]) G.diff = saved;
+  } catch { /* 无痕模式 */ }
+  D = DIFF[G.diff];
   fit();
   loadBest();
+  paintFace();
+  paintDiffs();
+  if (el.dtag) { el.dtag.textContent = D.n; el.dtag.dataset.c = D.c; }
   readyGo();
   armSync();
 }
 
 // ---------------------------------------------------------------- 输入
 const btnOf = {};
-SKILLS.forEach((s, i) => {
+SKILLS.forEach((s) => {
   const b = document.createElement('button');
   b.className = 'sk';
-  b.title = s.tip + `（耗 ${s.cost} 狂气）`;
-  b.innerHTML = `<b>${s.ic}</b><i>${s.cost}</i><span class="cd"></span>`;
+  b.dataset.id = s.id;
+  b.title = `${s.tip}（${s.cost} 狂气 / ${s.cd} 秒冷却）`;
+  b.innerHTML = `<span class="sweep"></span><span class="nm">${s.n}</span><span class="ct">${s.cost}</span><span class="cd"></span>`;
   b.addEventListener('pointerdown', (e) => { e.preventDefault(); useSkill(s.id); });
   el.skills.appendChild(b);
-  btnOf[s.id] = { el: b, cd: b.querySelector('.cd'), txt: '', cdShown: false };
+  btnOf[s.id] = { el: b, cd: b.querySelector('.cd'), txt: '', cdShown: false, sweepP: -1, ready: null, poor: null };
 });
 
 const holdKey = (node, on, off) => {
@@ -1348,6 +1806,29 @@ window.addEventListener('keyup', (e) => {
 });
 
 $('#go').addEventListener('click', play);
+// 玩法速查：技能效果 / 影怪 / 掉落物都写在里面，省得靠猜
+const openHelp = () => { $('#ovHelp').hidden = false; };
+$('#helpBtn').addEventListener('click', openHelp);
+$('#helpBtn2').addEventListener('click', openHelp);
+$('#helpClose').addEventListener('click', () => { $('#ovHelp').hidden = true; });
+// 难度按钮：待机时点选直接换塔，一局中间不给换（换档等于换一座塔）
+for (const d of DIFFS) {
+  const n = $('#df-' + d.k);
+  if (n) n.addEventListener('click', () => setDiff(d.k));
+}
+if (el.dtag) {
+  el.dtag.addEventListener('click', () => {
+    if (G.state === 'play') { toast('这一局已经在跑了，停下来才能改难度'); return; }
+    if (G.state === 'pause') {
+      pause(false);
+      toast('这一局还没结束，出结算后才能改难度');
+      return;
+    }
+    // 结算完了点难度徽标 = 回选档界面，重新挑一座塔
+    if (G.state === 'end' || G.state === 'win') { readyGo(); return; }
+    $('#ovStart').hidden = false;
+  });
+}
 $('#again').addEventListener('click', restart);
 $('#resume').addEventListener('click', () => pause(false));
 $('#quit').addEventListener('click', restart);
@@ -1398,7 +1879,11 @@ setTimeout(() => { if (G.state === 'load') boot(); }, 10000);
 // 自动化测试用：?_test=1 时把内部状态挂出来，方便无头浏览器核对层数/血量/结算。
 // 和合成大杜勒的 __mergeState 是同一套约定。
 if (TEST) {
-  window.__bird = { G, P, SKILLS, useSkill, play, pause, endRun, buildWorld, readyGo, hurtP, update };
+  window.__bird = {
+    G, P, SKILLS, DIFFS, MOBK, ORBK,
+    useSkill, play, pause, endRun, buildWorld, readyGo, hurtP, update,
+    setDiff, getDiff: () => D,
+  };
 }
 return {  };
 })();
