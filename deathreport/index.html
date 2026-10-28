@@ -30,12 +30,13 @@
     <main class="cols">
       <aside id="idx" class="pane">
         <form id="recForm" autocomplete="off"><label for="recIn">记录名:</label><div class="row"><input id="recIn" placeholder="05-D2-29 ／ 00-ORDER" spellcheck="false" autocapitalize="characters"><button class="btn" type="submit">复原</button></div><div id="recMsg" class="msg"></div></form>
-        <div class="sortbar"><button data-sort="order" class="on">复原顺序</button><button data-sort="name">名称</button><button data-sort="refs">参考数</button></div>
+        <div id="leadsum" class="leadsum"></div>
+        <div class="sortbar"><button data-sort="order" class="on">复原顺序</button><button data-sort="name">名称</button><button data-sort="refs">可推理数</button></div>
         <ul id="list" class="list"></ul>
       </aside>
       <article id="rd" class="pane reader"><div id="rdHead" class="rdhead"></div><div id="rdBody" class="rdbody"><p class="dim">在左侧选择记录，或在输入栏里键入记录名。</p></div></article>
       <aside id="tl" class="pane tools">
-        <div class="tabs" id="tabs"><button data-t="ros" class="on">名册</button><button data-t="map">地图</button><button data-t="rep">报告</button><button data-t="note">记事本</button><button data-t="hint">提示</button></div>
+        <div class="tabs" id="tabs"><button data-t="ros" class="on">名册</button><button data-t="map">地图</button><button data-t="infer">推理</button><button data-t="graph">结构</button><button data-t="rep">报告</button><button data-t="note">笔记</button><button data-t="hint">提示</button></div>
         <div id="tp" class="tp"></div>
       </aside>
     </main>

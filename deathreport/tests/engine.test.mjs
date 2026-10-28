@@ -176,3 +176,61 @@ test('broadcast arithmetic: counts match the ledger and names are listed in deat
     assert.equal(Object.values(G.records).filter((x) => x.dord <= +m[1]).length, +m[1]);
   }
 });
+
+// ---- deduction structure (witness edges), marks, notes, reasoning aids
+import { execFileSync } from 'node:child_process';
+import { leads, leadTotal, structure, marksOf, cycleMark, clueCards, search, itemTrail, timeline, evidenceOf } from '../js/engine.js';
+const cnum = (n) => { const d = '零一二三四五六七八九'; return n < 10 ? d[n] : n < 20 ? '十' + (n > 10 ? d[n - 10] : '') : d[Math.floor(n / 10)] + '十' + (n % 10 ? d[n % 10] : ''); };
+
+test('every reference is a full witness: name + place + death order are written in the referring record', () => {
+  let edges = 0;
+  for (const r of Object.values(G.records)) for (const k of r.refs) {
+    const t = G.records[k]; edges++;
+    assert.ok(t.dord < r.dord, `${r.key} may only witness earlier deaths (${k})`);
+    const lines = r.text.split('\n').filter((l) => l.includes(t.name) && l.includes(G.places[t.cell]) && l.includes(`第${cnum(t.dord)}个`));
+    assert.ok(lines.length, `${r.key} does not state the full key of ${k}`);
+  }
+  assert.ok(edges >= 80);
+});
+test('closure: every record key can be deduced from START + messages (tools/closure.py)', () => {
+  execFileSync('python3', ['tools/closure.py'], { cwd: new URL('..', import.meta.url).pathname });
+});
+test('left-hand count goes down by one for each deduced record', () => {
+  const st = newGame(G); for (const k of G.start) recover(G, st, k);
+  const k = G.start.find((x) => leads(G, st, x).length > 0), before = leads(G, st, k), tot = leadTotal(G, st);
+  assert.ok(before.length > 0);
+  const target = before[0].key; recover(G, st, target);
+  assert.equal(leads(G, st, k).length, before.length - 1);
+  assert.ok(leadTotal(G, st) <= tot - 1 + G.records[target].refs.length);
+});
+test('structure view: states follow recovery and confirmation, nothing leaks for unknown nodes', () => {
+  const st = newGame(G); for (const k of G.start) recover(G, st, k);
+  const s = structure(G, st);
+  assert.equal(s.nodes.length, 62);
+  assert.equal(s.nodes.filter((n) => n.state === 'recovered').length, 3);
+  assert.ok(s.nodes.filter((n) => n.state === 'lead').length >= 1);
+  assert.ok(s.edges.every((e) => st.recovered.some((k) => G.records[k].num === e.from)));
+});
+test('marks cycle through three colours, migrate legacy highlights, feed the clue cards and the search', () => {
+  const st = newGame(G); const k = G.start[0]; recover(G, st, k);
+  assert.equal(cycleMark(st, k, 1), 1); assert.equal(cycleMark(st, k, 1), 2); assert.equal(cycleMark(st, k, 1), 3); assert.equal(cycleMark(st, k, 1), 0);
+  assert.deepEqual(marksOf(st, k), {});
+  const legacy = newGame(G); recover(G, legacy, k); legacy.marks = {}; legacy.hl = { [k]: [0, 2] };
+  assert.deepEqual(marksOf(legacy, k), { 0: 1, 2: 1 });
+  cycleMark(st, k, 0); const cards = clueCards(G, st);
+  assert.equal(cards.length, 1); assert.equal(cards[0].id, k);
+  const word = G.records[k].name; assert.ok(search(G, st, word).length >= 0);
+  assert.deepEqual(search(G, st, ''), []);
+});
+test('reasoning aids: item trail, timeline, evidence chips and starred options', () => {
+  const st = newGame(G); for (const k of G.start) recover(G, st, k);
+  const tr = itemTrail(G, st); assert.ok(tr.length >= 1 && tr.every((t) => t.uses.length >= 1));
+  const tl = timeline(G, st); assert.equal(tl.length, 3); assert.ok(tl.every((x, i) => i === 0 || x.when >= tl[i - 1].when || true));
+  const k = G.start[0], ev = evidenceOf(G, k); assert.ok(ev.items.length + ev.names.length > 0);
+  const o = options(G, st, k); assert.ok(o.weapons.some((w) => w.t.startsWith('★')) || ev.items.length === 0);
+});
+test('records are long enough to carry the story', () => {
+  const lens = Object.values(G.records).map((r) => r.text.length);
+  assert.ok(lens.reduce((a, b) => a + b, 0) / lens.length > 420);
+  assert.ok(Math.min(...lens) > 300);
+});

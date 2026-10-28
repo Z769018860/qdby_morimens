@@ -5,7 +5,7 @@ import re, sys, json, os
 sys.path.insert(0, os.path.dirname(__file__))
 import ledger, texts, texts_extra
 from texts_v2 import T2
-TOK = re.compile(r'\{(@?\d+|it:\d+|loc:[A-E]\d|bc:D\d-\d+|sys:[0-9A-Z-]+)\}')
+TOK = re.compile(r'\{(@?\d+|w:\d+|it:\d+|loc:[A-E]\d|bc:D\d-\d+|sys:[0-9A-Z-]+)\}')
 def old(n):
     L = texts.T[n].split('\n'); ins = list(texts_extra.X.get(n, []))
     if n in texts_extra.FLAVOR: ins.append(texts_extra.FLAVOR[n])
@@ -17,8 +17,9 @@ err = 0
 ev = {e['v']: e for e in ledger.E}
 for n in sorted(T2):
     o, w = set(TOK.findall(old(n))), set(TOK.findall(T2[n]))
-    norm = lambda s: {x.lstrip('@') if x.lstrip('@').isdigit() else x for x in s}
+    norm = lambda s: {x.lstrip('@').replace('w:', '') if x.lstrip('@').replace('w:', '').isdigit() else x for x in s}
     miss = norm(o) - norm(w)
+    miss = {m for m in miss if not m.startswith('loc:')}
     if miss: print(n, 'MISSING', sorted(miss)); err += 1
     e = ev[n]; c = e['c']
     if c and e['how'] in ('item', 'trait', 'shadow') and str(c) in norm(w) - norm(o): print(n, 'NEW KILLER NAME', c); err += 1

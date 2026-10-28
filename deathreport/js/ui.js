@@ -1,10 +1,10 @@
-import { newGame, recover, index, options, setDraft, submit, rosterView, hint, finish, canFinish, stats, summary, confirmedCount, total, unrecoveredRefs, shadowUnlocked } from './engine.js';
+import { newGame, recover, index, options, setDraft, submit, rosterView, leads, leadTotal, structure, marksOf, cycleMark, MARK_NAMES, clueCards, search, itemTrail, timeline, evidenceOf, hint, finish, canFinish, stats, summary, confirmedCount, total, unrecoveredRefs, shadowUnlocked } from './engine.js';
 
 const SAVE = 'morimens-deathreport-save-v1', PREF = 'morimens-deathreport-pref-v1';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-let G, st, ui = { sel: null, sort: 'order', tab: 'ros', rep: null, pane: 'idx', hintLog: [], q: '' };
-let pref = { crt: true, size: 15, sound: true, ...(() => { try { return JSON.parse(localStorage.getItem(PREF)) || {}; } catch { return {}; } })() };
+let G, st, AUTO, ui = { sel: null, sort: 'order', tab: 'ros', rep: null, pane: 'idx', hintLog: [], q: '' };
+let pref = { crt: true, size: 15, sound: true, auto: { name: true, loc: true, item: true, bc: true }, ...(() => { try { return JSON.parse(localStorage.getItem(PREF)) || {}; } catch { return {}; } })() };
 const savePref = () => { try { localStorage.setItem(PREF, JSON.stringify(pref)); } catch { /* ignore */ } };
 const hasSave = () => { try { return !!localStorage.getItem(SAVE); } catch { return false; } };
 const save = () => { try { st.playMs += Date.now() - (ui.t0 || Date.now()); ui.t0 = Date.now(); localStorage.setItem(SAVE, JSON.stringify(st)); } catch { /* ignore */ } };
@@ -20,15 +20,34 @@ const sfx = { key: () => tone(400 + Math.random() * 200, 0.025, 0.025), ok: () =
 function toast(t, ms = 2600) { const d = document.createElement('div'); d.textContent = t; $('#toast').appendChild(d); setTimeout(() => d.remove(), ms); }
 
 // ---------------------------------------------------------------- markup
+const reEsc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function buildAuto() {
+  const map = new Map(), add = (list, cls) => list.forEach((t) => t && map.set(esc(t), cls));
+  add(G.roster.map((p) => p.name), 'a-name'); add(Object.values(G.places), 'a-loc'); add(G.roster.map((p) => p.item), 'a-item');
+  const keys = [...map.keys()].sort((x, y) => y.length - x.length);
+  AUTO = { re: new RegExp(keys.map(reEsc).join('|') + '|“目前已死亡[^”]*”|第[一二三四五六七八九十]+个', 'g'), map };
+}
+function auto(html) {
+  if (!AUTO) return html;
+  return html.split(/(<[^>]+>)/).map((seg) => (seg.startsWith('<') ? seg : seg.replace(AUTO.re, (m) => {
+    const c = AUTO.map.get(m) || (m.startsWith('“') ? 'a-bc' : 'a-ord');
+    const on = { 'a-name': pref.auto.name, 'a-loc': pref.auto.loc, 'a-item': pref.auto.item, 'a-bc': pref.auto.bc, 'a-ord': pref.auto.bc }[c];
+    return on ? `<span class="${c}">${m}</span>` : m;
+  }))).join('');
+}
 function paras(text, id) {
-  const hl = new Set(st.hl[id] || []); let n = 0, html = '';
+  const mk = marksOf(st, id); let n = 0, html = '';
   const inline = (s) => esc(s).replace(/\[b\](.*?)\[\/b\]/g, '<b>$1</b>').replace(/\[link\]([^[]+)\[\/link\]/g, '<span class="lnk" data-go="$1">$1</span>').replace(/(·?)(\d{2}|\?\?)-([A-E][1-5]|\?\?)-(\d{2}|\?\?)/g, (m) => (m.includes('??') ? `<span class="lnk" data-fill="${m.replace('·', '')}">${m}</span>` : m));
   for (const blk of text.split(/(\[sys\][\s\S]*?\[\/sys\])/)) {
     if (!blk.trim()) continue;
     if (blk.startsWith('[sys]')) { const inner = blk.slice(5, -6).trim(); html += `<div class="sys">${inner.split('\n').map((l) => (l.trim() ? `<p>${inline(l)}</p>` : '<p class="gap"></p>')).join('')}</div>`; continue; }
-    for (const l of blk.split('\n')) { if (!l.trim()) continue; html += `<p data-i="${n}" class="${hl.has(n) ? 'hl' : ''}">${inline(l)}</p>`; n++; }
+    for (const l of blk.split('\n')) { if (!l.trim()) continue; html += `<p data-i="${n}" class="${mk[n] ? 'hl hl' + mk[n] : ''}">${auto(inline(l))}</p>`; n++; }
   }
   return html;
+}
+function readerTools() {
+  const t = pref.auto, b = (k, l) => `<button data-auto="${k}" class="${t[k] ? 'on' : ''}">${l}</button>`;
+  return `<div class="rdtools"><span class="dim">高亮</span>${b('name', '人名')}${b('loc', '地点')}${b('item', '装备')}${b('bc', '广播·序数')}<span class="dim legend">点击段落标记：<i class="m1">线索</i><i class="m2">证词</i><i class="m3">矛盾</i></span></div>`;
 }
 function openReader(id) {
   ui.sel = id; const head = $('#rdHead'), body = $('#rdBody');
@@ -36,19 +55,25 @@ function openReader(id) {
   if (rec) { head.innerHTML = `<b>${id}</b> | ${esc(rec.name)} | ${esc(rec.when)}<small>${esc(rec.cell)} ${esc(G.places[rec.cell])}　NO.${String(rec.num).padStart(2, '0')}</small>`; body.innerHTML = paras(rec.text, id); }
   else if (doc) { head.innerHTML = `<b>${id}</b> | ${esc(doc.title)} | ${esc(doc.source)}`; body.innerHTML = paras(doc.text, id); }
   else if (msg) { head.innerHTML = `<b>${id}</b> | 发件人不明 | --`; body.innerHTML = paras(msg.text, id); }
-  const x = unrecoveredRefs(G, st, id);
-  if (x > 0) body.insertAdjacentHTML('beforeend', `<p class="notice">-- 检测到对其他记忆的参考。未复原 ${x} 件 --</p>`);
+  if (rec) body.insertAdjacentHTML('afterbegin', readerTools());
+  const ld = leads(G, st, id);
+  if (ld.length) body.insertAdjacentHTML('beforeend', `<p class="notice">-- 检测到对其他记忆的参考。可推理出 ${ld.length} 条新记录：${ld.map((x) => esc(x.name)).join('、')} --</p>`);
+  else if (rec && (rec.refs || []).length) body.insertAdjacentHTML('beforeend', '<p class="notice done">-- 这条记录能推理出的记录，已全部复原 --</p>');
+  if (rec || doc || msg) body.insertAdjacentHTML('beforeend', `<details class="rn" ${st.rnotes?.[id] ? 'open' : ''}><summary>本条笔记</summary><textarea data-rn="${id}" placeholder="针对这条记录的推理（自动保存）">${esc(st.rnotes?.[id] || '')}</textarea></details>`);
   body.parentElement.scrollTop = 0;
   showPane('rd'); renderList();
 }
 $('#rdBody').addEventListener('click', (e) => {
+  const au = e.target.closest('[data-auto]'); if (au) { pref.auto[au.dataset.auto] = !pref.auto[au.dataset.auto]; savePref(); openReaderKeep(); return; }
   const go = e.target.closest('[data-go]'); if (go) { doRecover(go.dataset.go); return; }
   const fill = e.target.closest('[data-fill]'); if (fill) { $('#recIn').value = fill.dataset.fill; showPane('idx'); $('#recIn').focus(); return; }
   const p = e.target.closest('p[data-i]'); if (!p || !ui.sel) return;
-  const a = (st.hl[ui.sel] ||= []), i = +p.dataset.i, at = a.indexOf(i);
-  if (at >= 0) a.splice(at, 1); else a.push(i);
-  p.classList.toggle('hl'); sfx.key(); save();
+  const c = cycleMark(st, ui.sel, +p.dataset.i);
+  p.className = c ? `hl hl${c}` : ''; sfx.key(); save(); if (ui.tab === 'note') renderTools();
 });
+$('#rdBody').addEventListener('input', (e) => { const id = e.target.dataset.rn; if (id) { (st.rnotes ||= {})[id] = e.target.value; } });
+$('#rdBody').addEventListener('change', (e) => { if (e.target.dataset.rn) save(); });
+function openReaderKeep() { const y = $('#rdBody').parentElement.scrollTop; openReader(ui.sel); $('#rdBody').parentElement.scrollTop = y; }
 
 // ---------------------------------------------------------------- index
 function renderList() {
@@ -56,7 +81,8 @@ function renderList() {
   if (ui.sort === 'name') items.sort((a, b) => String(a.title).localeCompare(String(b.title), 'zh') || a.id.localeCompare(b.id));
   if (ui.sort === 'refs') items.sort((a, b) => b.refs - a.refs);
   const msgR = items.filter((i) => i.kind === 'msg'), recR = items.filter((i) => i.kind !== 'msg');
-  $('#list').innerHTML = [...recR, ...msgR].map((it) => `<li data-id="${it.id}" class="${it.kind === 'doc' ? 'sys' : it.kind === 'msg' ? 'msg' : ''} ${it.dotted ? 'dotted' : ''} ${ui.sel === it.id ? 'on' : ''}"><span class="badge">${it.refs > 0 ? `[${it.refs}]` : ''}</span><span class="id">${it.id}</span><span class="t">${esc(it.title)}${it.when ? ' ' + esc(it.when) : ''}</span>${it.status ? `<span class="chip ${it.status}">${{ ok: '确认', ng: '有误', draft: '待核' }[it.status]}</span>` : ''}</li>`).join('');
+  $('#leadsum').innerHTML = `可推理的新记录 <b>${leadTotal(G, st)}</b> 条　·　已复原 ${st.recovered.length}/${total(G)}`;
+  $('#list').innerHTML = [...recR, ...msgR].map((it) => `<li data-id="${it.id}" class="${it.kind === 'doc' ? 'sys' : it.kind === 'msg' ? 'msg' : ''} ${it.dotted ? 'dotted' : ''} ${ui.sel === it.id ? 'on' : ''}"><span class="badge ${it.refs > 0 ? 'on' : ''}" title="${it.refs > 0 ? `可推理出 ${it.refs} 条新记录` : ''}">${it.refs > 0 ? `[${it.refs}]` : it.kind === 'rec' && G.records[it.id].refs.length ? '✓' : ''}</span><span class="id">${it.id}</span><span class="t">${esc(it.title)}${it.when ? ' ' + esc(it.when) : ''}</span>${it.status ? `<span class="chip ${it.status}">${{ ok: '确认', ng: '有误', draft: '待核' }[it.status]}</span>` : ''}</li>`).join('');
 }
 $('#list').addEventListener('click', (e) => { const li = e.target.closest('li'); if (li) openReader(li.dataset.id); });
 document.querySelector('.sortbar').addEventListener('click', (e) => { const b = e.target.closest('[data-sort]'); if (!b) return; ui.sort = b.dataset.sort; document.querySelectorAll('.sortbar button').forEach((x) => x.classList.toggle('on', x === b)); renderList(); });
@@ -87,6 +113,22 @@ function renderTools() {
       modal(`<h3>■ ${String(p.n).padStart(2, '0')}　${esc(p.name)}</h3>${p.avatar ? `<img class="av" style="float:right;width:72px;height:72px;margin:0 0 6px 10px;border:1px solid var(--line)" src="../${p.avatar}" alt="">` : ''}<p>${rows.map((r) => `<b>${esc(r[0])}</b>　${esc(r[1])}`).join('<br>')}</p>${L['简介'] ? `<p>${esc(L['简介'])}</p>` : ''}${L['唤醒台词'] ? `<p class="dim">“${esc(L['唤醒台词'])}”</p>` : ''}<div class="btns"><button class="btn" data-close>关闭</button></div>`);
     }; });
     $('#rq').addEventListener('input', (e) => { ui.q = e.target.value; const pos = e.target.selectionStart; renderTools(); const i = $('#rq'); i.focus(); i.setSelectionRange(pos, pos); });
+  } else if (ui.tab === 'infer') {
+    const tl = timeline(G, st), tr = itemTrail(G, st), sec = ui.infer || 'tl';
+    let h = `<h4>■ 推理板</h4><div class="seg"><button data-inf="tl" class="${sec === 'tl' ? 'on' : ''}">时间线</button><button data-inf="it" class="${sec === 'it' ? 'on' : ''}">装备流转</button></div>`;
+    if (sec === 'tl') {
+      h += tl.length ? `<p class="dim">按死亡时刻排列已复原记录；封锁区块需先复原 00-ZONE。</p><ol class="tl">${tl.map((r) => `<li data-go="${r.key}"><b>${esc(r.when)}</b> <span class="cl">${r.cell}</span> ${esc(r.place)} · ${esc(r.name)}${r.confirmed ? ' <span class="chip ok">确认</span>' : ''}${r.closed ? `<div class="dim">此刻已封锁：${r.closed.length ? r.closed.join(' ') : '无'}</div>` : ''}</li>`).join('')}</ol>` : '<p class="dim">还没有复原任何死亡记录。</p>';
+    } else {
+      h += tr.length ? `<p class="dim">同一件装备，同一时刻只在一个人手里。下面是已复原记录里出现过的装备，按时间排列。</p>${tr.map((t) => `<div class="trail"><b>${esc(t.item)}</b> <span class="dim">配发：${esc(t.owner)}</span><div>${t.uses.map((u) => `<span class="use ${u.own ? 'own' : ''}" data-go="${u.key}">${esc(u.when)} ${esc(u.name)}</span>`).join(' → ')}</div></div>`).join('')}` : '<p class="dim">还没有记录提到装备。</p>';
+    }
+    tp.innerHTML = h;
+  } else if (ui.tab === 'graph') {
+    const g = structure(G, st), R = 150, C = 170, pos = (n) => { const a = ((n - 1) / g.nodes.length) * Math.PI * 2 - Math.PI / 2; return [C + R * Math.cos(a), C + R * Math.sin(a)]; };
+    const cnt = (k) => g.nodes.filter((x) => x.state === k).length;
+    const lines = g.edges.map((e) => { const [x1, y1] = pos(e.from), [x2, y2] = pos(e.to); return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="eg"/>`; }).join('');
+    const dots = g.nodes.map((x) => { const [px, py] = pos(x.n); return `<g class="nd ${x.state}" data-n="${x.n}"><circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${x.state === 'unknown' ? 4 : 7}"/>${x.state !== 'unknown' ? `<text x="${px.toFixed(1)}" y="${(py + 3).toFixed(1)}">${x.n}</text>` : ''}${x.out > 0 ? `<text class="out" x="${(px + 9).toFixed(1)}" y="${(py - 6).toFixed(1)}">+${x.out}</text>` : ''}<title>${String(x.n).padStart(2, '0')} ${esc(x.name)}</title></g>`; }).join('');
+    const h = `<h4>■ 记录对应结构</h4><p class="dim">每个点是一名唤醒体（按名册编号排列）。线 = “这条记录里写着它的下落”。<span class="lg c">●</span>已复原 <span class="lg k">●</span>已确认 <span class="lg l">●</span>已有人指向、尚未复原 <span class="lg u">●</span>尚无线索。点上的 +N = 这条记录还能推理出的新记录。</p><svg class="graph" viewBox="0 0 340 340">${lines}${dots}</svg><p class="dim">已复原 ${cnt('recovered') + cnt('confirmed')}　·　待复原的线索 ${cnt('lead')}　·　尚无线索 ${cnt('unknown')}</p>`;
+    tp.innerHTML = h;
   } else if (ui.tab === 'map') {
     const zones = st.docs.includes('00-ZONE'), cols = 'ABCDE'; const when = {}; for (const z of G.zones) when[z.cell] = `${z.day}日${String(z.hour).padStart(2, '0')}:00`;
     const dead = {}; for (const k of st.recovered) dead[G.records[k].cell] = (dead[G.records[k].cell] || 0) + 1;
@@ -100,19 +142,25 @@ function renderTools() {
     let h = `<h4>■ 死亡报告　<small class="dim">确认 ${sc.confirmed}/${sc.total}</small></h4>`;
     h += recs.length ? `<div class="replist">${recs.map((r) => `<button data-rep="${r.key}" class="${cur === r.key ? 'on' : ''}"><span>${r.key}</span><span>${esc(r.name)}</span>${st.confirmed[r.key] ? '<span class="chip ok">确认</span>' : st.wrong[r.key] ? '<span class="chip ng">存在错误的报告</span>' : ''}</button>`).join('')}</div>` : '<p class="dim">还没有复原任何死亡记录。</p>';
     if (cur) {
-      const o = options(G, st), d = st.drafts[cur] || {}, done = st.confirmed[cur], sel = (arr, v) => arr.map((x) => `<option value="${x.v}" ${String(v) === x.v ? 'selected' : ''}>${esc(x.t)}</option>`).join('');
+      const o = options(G, st, cur), ev = evidenceOf(G, cur), d = st.drafts[cur] || {}, done = st.confirmed[cur], sel = (arr, v) => arr.map((x) => `<option value="${x.v}" ${String(v) === x.v ? 'selected' : ''}>${esc(x.t)}</option>`).join('');
       h += `<div class="form"><b>${cur} ${esc(G.records[cur].name)}</b>
         <label>（死因）</label><select data-f="cause" ${done ? 'disabled' : ''}><option value="">——</option>${sel(o.causes, d.cause)}</select>
         <label>（凶器）</label><select data-f="weapon" ${done ? 'disabled' : ''}><option value="">——</option>${sel(o.weapons, d.weapon)}</select>
         <label>（加害人）</label><select data-f="culprit" ${done ? 'disabled' : ''}><option value="">——</option>${sel(o.culprits, d.culprit)}</select>
         <div class="row" style="margin-top:10px"><button class="btn gold" id="bSub" ${done ? 'disabled' : ''}>提交报告</button><button class="btn" id="bHintC">提示</button></div>
+        <div class="ev"><div class="dim">这条记录里出现过（点击填入）</div>${ev.items.map((n) => `<button class="chipb" data-pick="weapon:${n}" ${done ? 'disabled' : ''}>◆ ${esc(G.roster[n - 1].item)}</button>`).join('')}${ev.names.map((n) => `<button class="chipb" data-pick="culprit:${n}" ${done ? 'disabled' : ''}>● ${esc(G.roster[n - 1].name)}</button>`).join('')}</div>
         <div class="res ${done ? 'ok' : st.wrong[cur] ? 'ng' : ''}" id="repRes">${done ? `<span class="stamp">确认</span> ${esc(summary(G, cur))}` : st.wrong[cur] ? '存在错误的报告。' : ''}</div></div>`;
     }
     tp.innerHTML = h;
   } else if (ui.tab === 'note') {
-    tp.innerHTML = `<h4>■ 记事本</h4><textarea id="notes" placeholder="在这里记下推理……（自动保存）">${esc(st.notes)}</textarea>`;
-    $('#notes').addEventListener('input', (e) => { st.notes = e.target.value; });
-    $('#notes').addEventListener('change', save);
+    const sec = ui.noteSec || 'pad', cards = clueCards(G, st), hits = ui.nq ? search(G, st, ui.nq) : [];
+    let h = `<h4>■ 笔记</h4><div class="seg"><button data-ns="pad" class="${sec === 'pad' ? 'on' : ''}">记事本</button><button data-ns="cards" class="${sec === 'cards' ? 'on' : ''}">线索卡 ${cards.length}</button><button data-ns="find" class="${sec === 'find' ? 'on' : ''}">检索</button></div>`;
+    if (sec === 'pad') h += `<textarea id="notes" placeholder="在这里记下推理……（自动保存）。写下记录名（如 05-D2-29）可以点击复原。">${esc(st.notes)}</textarea><div class="nlinks">${[...new Set((st.notes.match(/\d{2}-[A-E][1-5]-\d{2}/g) || []))].map((k) => `<span class="lnk" data-go="${k}">${k}</span>`).join(' ')}</div>`;
+    if (sec === 'cards') h += cards.length ? `<p class="dim">在阅读时点击段落标记：<i class="m1">线索</i> <i class="m2">证词</i> <i class="m3">矛盾</i>。点卡片回到原文。</p>${cards.map((c) => `<div class="card m${c.c}" data-card="${c.id}"><small>${esc(c.title)} · ${esc(MARK_NAMES[c.c])}</small>${esc(c.text)}</div>`).join('')}` : '<p class="dim">还没有标记任何段落。阅读记录时，点击一个段落即可标记。</p>';
+    if (sec === 'find') h += `<div class="row"><input id="nq" placeholder="在已复原的记录中检索（人名 / 地名 / 装备……）" value="${esc(ui.nq || '')}"></div>${ui.nq ? `<p class="dim">${hits.length} 处</p>` : ''}${hits.slice(0, 60).map((c) => `<div class="card" data-card="${c.id}"><small>${esc(c.title)}</small>${esc(c.text).split(esc(ui.nq)).join(`<mark>${esc(ui.nq)}</mark>`)}</div>`).join('')}`;
+    tp.innerHTML = h;
+    if ($('#notes')) { $('#notes').addEventListener('input', (e) => { st.notes = e.target.value; }); $('#notes').addEventListener('change', () => { save(); renderTools(); }); }
+    if ($('#nq')) { $('#nq').addEventListener('input', (e) => { ui.nq = e.target.value; const pos = e.target.selectionStart; renderTools(); const i = $('#nq'); i.focus(); i.setSelectionRange(pos, pos); }); }
   } else if (ui.tab === 'hint') {
     tp.innerHTML = `<h4>■ 提示</h4><p class="dim">提示分三级，越往后越直白；已使用 ${st.hints} 次（影响最终评级）。</p><div class="row"><button class="btn" id="hRest">下一步该复原哪条？</button><button class="btn" id="hConf">核实当前报告</button></div><div class="hintlog">${ui.hintLog.map((x) => `<div>${esc(x)}</div>`).join('')}</div>`;
     $('#hRest').onclick = () => giveHint('restore'); $('#hConf').onclick = () => giveHint('confirm', ui.rep);
@@ -121,6 +169,12 @@ function renderTools() {
 $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (b) { ui.tab = b.dataset.t; renderTools(); } });
 $('#tp').addEventListener('click', (e) => {
   const rb = e.target.closest('[data-rep]'); if (rb) { ui.rep = rb.dataset.rep; renderTools(); return; }
+  const pk = e.target.closest('[data-pick]'); if (pk && ui.rep) { const [f, v] = pk.dataset.pick.split(':'); setDraft(st, ui.rep, f, v); save(); renderTools(); renderList(); return; }
+  const inf = e.target.closest('[data-inf]'); if (inf) { ui.infer = inf.dataset.inf; renderTools(); return; }
+  const ns = e.target.closest('[data-ns]'); if (ns) { ui.noteSec = ns.dataset.ns; renderTools(); return; }
+  const gg = e.target.closest('[data-go]'); if (gg && !gg.dataset.n) { const k = gg.dataset.go; if (st.recovered.includes(k)) openReader(k); else doRecover(k); return; }
+  const cd = e.target.closest('[data-card]'); if (cd) { openReader(cd.dataset.card); return; }
+  const nd = e.target.closest('.nd'); if (nd) { const rec = G.roster[+nd.dataset.n - 1]; if (st.recovered.includes(rec.key)) openReader(rec.key); else toast('这条记录还没有复原。'); return; }
   if (e.target.id === 'bSub') doSubmit();
   if (e.target.id === 'bHintC') { ui.tab = 'hint'; giveHint('confirm', ui.rep); }
 });
@@ -201,7 +255,7 @@ function start(saved) {
 }
 (async () => {
   applyPref();
-  G = await (await fetch('data/game.json')).json();
+  G = await (await fetch('data/game.json')).json(); buildAuto();
   window.__dr = { get G() { return G; }, get st() { return st; } };
   bootTitle();
 })();

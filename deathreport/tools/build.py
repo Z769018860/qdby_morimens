@@ -9,6 +9,8 @@ from texts import T
 from texts_extra import X, FLAVOR
 from texts_v2 import T2
 from docs import DOCS, MSGS
+from witness import WIT
+from texts_ext import EXT
 
 ap = argparse.ArgumentParser(); ap.add_argument('--repo', default='..'); args = ap.parse_args()
 REPO = Path(args.repo).resolve(); HERE = Path(__file__).resolve().parent.parent
@@ -29,26 +31,46 @@ def bc_text(day, hour):
     return "“" + s + "”"
 
 # ---------------- token rendering
-TOK = re.compile(r'\{(@?\d+|it:\d+|loc:[A-E]\d|bc:D\d-\d+|sys:[0-9A-Z-]+)\}')
+def cn(n):
+    d = '零一二三四五六七八九'
+    if n < 10: return d[n]
+    if n < 20: return '十' + (d[n - 10] if n > 10 else '')
+    return d[n // 10] + '十' + (d[n % 10] if n % 10 else '')
+CLAUSE = ['广播念过{B}的名字——{P}，第{N}个。', '{B}死在了{P}。我数过，那是第{N}个。', '有人在走廊里喊：{B}在{P}没了，第{N}个！', '听说{P}那边，{B}是第{N}个倒下的。',
+          '我在窗口看见{P}的方向暗了一下——后来才知道，那是{B}，第{N}个。', '{B}……在{P}。第{N}个。我把这三样东西在心里默念了一遍，怕自己忘掉。',
+          '我记得很清楚：{P}，{B}，第{N}个。', '无线电里的杂音间隙传来一句：{B}死在{P}，是第{N}个。']
+def clause(a, b):
+    e = BY_V[b]; t = CLAUSE[(a * 7 + b * 3) % len(CLAUSE)]
+    return t.replace('{B}', NAME[b]).replace('{P}', PLACES[e['cell']]).replace('{N}', cn(e['dord']))
+TOK = re.compile(r'\{(@?\d+|w:\d+|it:\d+|loc:[A-E]\d|bc:D\d-\d+|sys:[0-9A-Z-]+)\}')
 def full_prose(n):
-    if n in T2: return T2[n].strip('\n')
+    if n in T2:
+        L = T2[n].strip('\n').split('\n')
+        for k, txt in sorted(EXT.get(n, []), key=lambda a: -(a[0] if a[0] >= 0 else len(L) + a[0] - 1)):
+            L.insert(k + 1 if k >= 0 else len(L) + k, txt)
+        need = [b for b in WIT.get(n, []) if '{w:%d}' % b not in '\n'.join(L)]
+        for j, b in enumerate(need): L.insert(min(2 + j, len(L) - 1), '{w:%d}' % b)
+        return '\n'.join(L)
     L = T[n].split('\n')
     ins = list(X.get(n, []))
     if n in FLAVOR: ins.append(FLAVOR[n])
     for k, txt in sorted(ins, key=lambda a: -a[0]): L.insert(min(k + 1, len(L)), txt)
     return '\n'.join(L)
+FACTS = {}
 def render(n):
-    mentions, sysrefs = [], []
+    mentions, sysrefs, wits, items, locs, bcs = [], [], [], [], [], []
     def sub(m):
         t = m.group(1)
-        if t.startswith('it:'): return ITEM[int(t[3:])]
-        if t.startswith('loc:'): return PLACES[t[4:]]
-        if t.startswith('bc:'): d, h = t[4:].split('-'); return bc_text(int(d), int(h))
+        if t.startswith('w:'): b = int(t[2:]); wits.append(b); mentions.append(b); return clause(n, b)
+        if t.startswith('it:'): items.append(int(t[3:])); return ITEM[int(t[3:])]
+        if t.startswith('loc:'): locs.append(t[4:]); return PLACES[t[4:]]
+        if t.startswith('bc:'): bcs.append(t[3:]); d, h = t[4:].split('-'); return bc_text(int(d), int(h))
         if t.startswith('sys:'): sysrefs.append(t[4:]); return ''
         if t.startswith('@'): return NAME[int(t[1:])]
         k = int(t); mentions.append(k); return NAME[k]
     out = TOK.sub(sub, full_prose(n))
-    return out.replace('。。', '。'), mentions, sysrefs
+    FACTS[n] = dict(names=sorted(set(mentions)), items=sorted(set(items)), locs=sorted(set(locs)), bcs=sorted(set(bcs)), wits=list(dict.fromkeys(wits)))
+    return out.replace('。。', '。'), wits, sysrefs
 
 # ---------------- records
 records = {}
@@ -60,7 +82,7 @@ for e in E:
     for s in dict.fromkeys(sysrefs): 
         if e['dord'] != 1 or s != '00-CHIP': foot += f'\n-- 参考 [link]{s}[/link] --'
     body = prose.strip() + '\n\n[sys]\n' + foot + '\n[/sys]'
-    records[e['key']] = dict(key=e['key'], dord=e['dord'], cell=e['cell'], num=n, name=NAME[n], when=fmt(e['t']), min=e['min'], text=body, refs=refs, sys=list(dict.fromkeys(sysrefs)))
+    records[e['key']] = dict(key=e['key'], dord=e['dord'], cell=e['cell'], num=n, name=NAME[n], when=fmt(e['t']), min=e['min'], text=body, refs=refs, sys=list(dict.fromkeys(sysrefs)), facts=FACTS[n])
 
 # ---------------- reference graph / start selection
 edges = {k: set(r['refs']) for k, r in records.items()}
@@ -73,14 +95,13 @@ def reach(starts, extra=()):
         for y in edges.get(x, ()):
             if y not in seen: seen.add(y); st.append(y)
     return seen
-early = [e['key'] for e in E if e['dord'] <= 24]
-best = max(itertools.combinations(early, 3), key=lambda c: (len(reach(c)), -sum(records[k]['dord'] for k in c)))
+early = [e['key'] for e in E if 28 <= e['dord'] <= 58 and e['c'] != SHADOW]
+best = max(itertools.combinations(early, 3), key=lambda c: (len(reach(c)), sum(records[k]['dord'] for k in c)))
 START = sorted(best, key=lambda k: records[k]['dord'])
 covered = reach(START)
 rng = random.Random(63)
 def mask(key):
-    d, c, s = key.split('-'); r = rng.random()
-    return f'{d}-??-{s}' if r < .6 else (f'??-{c}-{s}' if r < .85 else f'{d}-{c}-??')
+    d, c, s = key.split('-'); return f'??-{c}-{s}'   # who and where; the order must be deduced (broadcasts / elimination)
 msg_lists = [[] for _ in range(5)]
 order = sorted((k for k in records if k not in covered), key=lambda k: records[k]['dord'])
 # assign uncovered records to messages 1..5 in dord order, extending the covered set as we go
@@ -94,7 +115,14 @@ for lst in msg_lists: lst.sort(key=lambda k: records[k]['dord'])
 unreached = set(records) - covered
 assert not unreached, unreached
 
-def bullet(keys, partial=True): return '\n'.join('·' + (mask(k) if partial else k) for k in keys)
+def bc_after(key):
+    e = BY_V[records[key]['num']]; H = e['min'] // 60 + 1
+    return bc_text(H // 24 + 1, H % 24)
+def bullet(keys, partial=True):
+    out = '\n'.join('·' + (mask(k) if partial else k) for k in keys)
+    tapes = list(dict.fromkeys(bc_after(k) for k in keys))
+    if tapes: out += '\n\n（附：我录下的广播）\n' + '\n'.join(tapes)
+    return out
 msgs = []
 for idx, (mid, text, need) in enumerate(MSGS):
     keys = msg_lists[idx] if idx < 5 else []
