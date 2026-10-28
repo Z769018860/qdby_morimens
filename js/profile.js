@@ -307,6 +307,24 @@ function storeBox(u) {
       }, t('pfClear'))));
 }
 
+// ------------------------------------------------------------------ 小游戏
+// 合成大杜勒的最高分存在账号档案的 mb 字段（js/account.js），这里只负责显示。
+// 未登录 / 没同步过时读的就是本机那个键，所以数字始终对得上。
+function miniBox() {
+  const best = account.mergeBest();
+  // 把「最高 {n} 分」拆成前后两段，中间的数字单独加粗显示（中英文语序都能对上）
+  const [pre, post] = t('pfMiniBest', { n: '\u0000' }).split('\u0000');
+  const line = best > 0
+    ? ['合成大杜勒 · ', pre, h('b', {}, String(best)), post || '']
+    : `合成大杜勒 · ${t('pfMiniNone')}`;
+  return h('section', { class: 'card' },
+    h('h3', {}, t('pfMiniTitle')),
+    h('p', { class: 'note' }, t('pfMiniNote')),
+    h('div', { class: 'minirow' },
+      h('span', { class: 'note dim' }, line),
+      h('a', { class: 'btn ghost sm', href: 'merge.html' }, t('pfMiniGo'))));
+}
+
 function render() {
   const u = auth.user;
   const kids = [
@@ -318,6 +336,7 @@ function render() {
     u ? histBox() : null,
     u ? impBox() : null,
     u ? cgBox() : null,
+    miniBox(),
     storeBox(u),
   ].filter(Boolean);
   // 顶栏里也有头像和昵称，一起刷新

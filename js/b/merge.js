@@ -119,9 +119,12 @@ const { LEVELS } = m_merge_art;
 // 一路合到最大级的杜勒赛因；两个杜勒赛因再撞一次会一起消失，换一笔大分。
 // 球堆高过警戒线一段时间就结束。
 //
-// 没有任何依赖：11 张头像由构建脚本内联成 data URI（js/merge-art.js），
+// 首屏没有依赖：11 张头像由构建脚本内联成 data URI（js/merge-art.js），
 // 页面只发一个脚本请求。物理是自己写的圆碰撞（位置修正 + 法向冲量，
 // 每帧 2 个子步、3 次松弛），球数最多几十个，手机上也扛得住。
+//
+// 账号同步（最高分）走的是空闲时的动态 import（js/merge-sync.js），不在首屏里，
+// 见下面「账号同步」一节。
 
 
 const MAX = LEVELS.length - 1;
@@ -553,6 +556,7 @@ function gameOver() {
   requestAnimationFrame(() => ov.classList.add('on'));
   bsEl.textContent = G.best;
   paintChain();
+  flushBest();
 }
 
 function summary() {
@@ -785,7 +789,9 @@ document.getElementById('snd').addEventListener('click', (e) => {
 document.addEventListener('visibilitychange', () => {
   G.paused = document.hidden;
   last = 0;
+  if (document.hidden) flushBest();     // 切走前把纪录推一次，手机端常常直接杀页面
 });
+window.addEventListener('pagehide', flushBest);
 window.addEventListener('resize', () => { layout(); });
 window.addEventListener('orientationchange', () => setTimeout(layout, 160));
 
@@ -799,6 +805,52 @@ function loadPrefs() {
 }
 function saveBest(v) {
   try { localStorage.setItem('zjtt:merge:best', String(v)); } catch { /* 无痕模式 */ }
+}
+
+// ------------------------------------------------------------------ 账号同步
+// 最高分同时也记在账号档案里（js/account.js 的 mb 字段），换设备登录能拿回来。
+// 但账号那条链有 60 多 KB，不能算进「点开就能玩」的首屏：这里等游戏跑起来、
+// 浏览器空闲了再动态 import（构建后是 js/b/merge-sync.js，一个额外请求）。
+// 拉不到就算了，本机分数照常存、照常玩。
+let SYNC = null;      // 拉到的模块
+let syncTried = false;
+function armSync() {
+  if (syncTried) return;
+  syncTried = true;
+  const load = () => {
+    Promise.resolve()
+      .then(() => import('./merge-sync.js'))
+      .then((m) => {
+        SYNC = m;
+        return m.pullBest ? m.pullBest() : null;
+      })
+      .then((b) => {
+        // 云端更高（比如换了台设备）：直接用云端的，并写回本机
+        if (b > G.best) {
+          G.best = b;
+          saveBest(b);
+          bsEl.textContent = G.best;
+          if (!G.over) toast('云端的最高分 ' + b + ' 分已同步');
+        }
+        // 本机更高（这局刚破纪录、还没推上去）：趁现在补推一次
+        else if (G.best > 0) flushBest();
+      })
+      .catch(() => { /* 没网、没登录、老浏览器不支持动态 import：一律当单机 */ });
+  };
+  if ('requestIdleCallback' in window) requestIdleCallback(load, { timeout: 3000 });
+  else setTimeout(load, 1500);
+}
+
+// 把本机最高分推进账号档案。只在「一局结束」和「页面要走」时调，
+// 别每涨一分调一次——那会把 localStorage 和接口都刷爆。
+let pushedBest = 0;      // 已经推上去的值，避免一局结束 + 切后台重复推
+function flushBest() {
+  if (!SYNC || !SYNC.pushBest || G.best <= pushedBest) return;
+  pushedBest = G.best;
+  try {
+    SYNC.pushBest(G.best);
+    SYNC.flush();
+  } catch { /* 同步失败不影响游戏 */ }
 }
 
 // ------------------------------------------------------------------ 启动
@@ -819,6 +871,7 @@ function boot() {
   const ph = document.getElementById('boot');
   if (ph) ph.remove();
   requestAnimationFrame(loop);
+  armSync();
   // 无头测试用：脚本里设了 window.__MERGE_TEST__ 才暴露内部状态，正式页面没有这个变量
   if (window.__MERGE_TEST__) window.__mergeState = () => G;
 }

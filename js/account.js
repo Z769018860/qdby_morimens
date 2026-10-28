@@ -1,6 +1,7 @@
 // 账号云端档案
-// 把「积分 / 解锁 CG / 失败题库 / 推理记录 / 工坊导入的战报 / 偏好唤醒体 / 背景主题」
-// 打包成一份文档存到自己的后端（server/worker.js 的 accounts 表），换设备登录即可恢复。
+// 把「积分 / 解锁 CG / 失败题库 / 推理记录 / 工坊导入的战报 / 偏好唤醒体 / 背景主题 /
+// 小游戏最高分」打包成一份文档存到自己的后端（server/worker.js 的 accounts 表），
+// 换设备登录即可恢复。
 //
 // 说明：
 //  · 每条档案带版本号：写入时比对版本，对不上说明别处先写过，合并后再推，多端不会互相覆盖。
@@ -65,8 +66,21 @@ export function snapshot() {
     lk: store.get('likeVote', {}),
     ld: store.get('likeDay', null),
     lc: store.get('likeCredited', {}),
+    // 合成大杜勒的最高分：游戏页只认 'merge:best' 这一个键（它自己也能单机跑），
+    // 这里把它一起带上档案，换设备登录就能拿回来。
+    mb: mergeBest(),
   };
 }
+
+// 合成大杜勒的最高分。键名与 js/merge.js 用的是同一个（zjtt:merge:best），
+// store 读的是 JSON、游戏写的是纯数字字符串，两种格式 JSON.parse 都吃得下，老存档不会丢。
+const MERGE_BEST = 'merge:best';
+export const mergeBest = () => Math.max(0, Math.round(Number(store.get(MERGE_BEST, 0)) || 0));
+export const setMergeBest = (v) => {
+  const n = Math.max(0, Math.round(Number(v) || 0));
+  if (n > mergeBest()) store.set(MERGE_BEST, n);
+  return mergeBest();
+};
 
 export function apply(d) {
   if (!d) return;
@@ -89,6 +103,10 @@ export function apply(d) {
   if (d.lk && typeof d.lk === 'object') store.set('likeVote', d.lk);
   if (d.ld && typeof d.ld === 'object') store.set('likeDay', d.ld);
   if (d.lc && typeof d.lc === 'object') store.set('likeCredited', d.lc);
+  // 最高分只增不减：云端比本机低（本机多打了一局还没推上去）时保留本机的
+  if (d.mb != null) setMergeBest(d.mb);
+  // 告诉页面「档案刚落下来」，合成大杜勒靠这个把云端分数显示出来
+  try { document.dispatchEvent(new CustomEvent('zjtt:acct', { detail: d })); } catch { /* 无 DOM 环境 */ }
 }
 
 // ------------------------------------------------------------------ 合并
@@ -171,6 +189,7 @@ export function mergeDoc(remote = {}, local = {}) {
     lk: mergeLikes(remote.lk, local.lk),
     ld: pickQuota(remote.ld, local.ld),
     lc: mergeLikes(remote.lc, local.lc),
+    mb: numMax(remote.mb, local.mb),
   };
 }
 
@@ -383,5 +402,5 @@ export function forget() {
 
 export const account = {
   pull, push, sync, schedule, ready, record, history, lastSync, pendingState, forget,
-  snapshot, apply, mergeDoc, pathOf,
+  snapshot, apply, mergeDoc, pathOf, mergeBest, setMergeBest,
 };

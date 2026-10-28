@@ -154,6 +154,29 @@ for (const f of pageFiles) {
   built.push({ name, src, entry: outName, modules, kb: Math.round(code.length / 1024) });
 }
 
+// --------------------------------------------------- 不进首屏的额外入口
+// 「合成大杜勒」的账号同步件：页面空闲时才 import()，不能算进首屏请求。
+// 打包成同名文件（js/merge-sync.js → js/b/merge-sync.js），这样
+// 页面里的 import('./merge-sync.js') 在「源码目录」和「打包目录」都能解析到。
+const EXTRA_ENTRIES = ['js/merge-sync.js'];
+
+const extras = [];
+for (const rel of EXTRA_ENTRIES) {
+  const { code, modules } = bundle(rel);
+  // 动态 import() 拿到的是模块的导出，而打包产物本身只有一堆 const：
+  // 所以这里把入口模块的导出原样转出去，页面里才能 m.pullBest()。
+  const id = ident(path.resolve(ROOT, rel));
+  const names = parseModule(path.resolve(ROOT, rel)).exports;
+  const tail = names.length
+    ? `\n// 给 import() 用：把入口模块的导出转出去\n${names.map((n) => `export const ${n} = ${id}.${n};`).join('\n')}\n`
+    : '';
+  const out = path.basename(rel);
+  const full = code + tail;
+  fs.writeFileSync(path.join(OUT_JS, out), full, 'utf8');
+  totalModules += modules;
+  extras.push({ out, modules, names, kb: Math.round(full.length / 1024) });
+}
+
 // ---- 启动数据合成一个文件
 const dict = readJson(path.join(ROOT, 'data/dictionary.json'));
 const tags = readJson(path.join(ROOT, 'data/creation-tags.json'));
@@ -169,6 +192,7 @@ h.update(bootJson);
 // 页面 HTML 也算进去：只改文案（比如首页）也要换缓存，否则老访客会先看到旧页面
 for (const b of built) h.update(b.src);
 for (const b of built) if (b.entry) h.update(read(path.join(OUT_JS, b.entry)));
+for (const e of extras) h.update(read(path.join(OUT_JS, e.out)));
 h.update(read(path.join(SRC, 'sw.js')));
 const stamp = h.digest('hex').slice(0, 10);
 
@@ -216,6 +240,8 @@ const precache = [
   'index.html',
   ...built.filter((b) => b.entry).map((b) => `${b.name}.html`),
   ...built.filter((b) => b.entry).map((b) => `js/b/${b.entry}?v=${stamp}`),
+  // 额外入口没有 ?v=：页面里的 import() 就是无参地址，缓存键要对上才命得中
+  ...extras.map((e) => `js/b/${e.out}`),
   'data/boot.json',
 ];
 const sw = read(path.join(SRC, 'sw.js'))
@@ -235,4 +261,5 @@ for (const p of built) {
   );
 }
 console.log(`共打包 ${totalModules} 次模块引用；data/boot.json ${Math.round(bootJson.length / 1024)}KB`);
+for (const e of extras) console.log(`  延迟加载 js/b/${e.out}`.padEnd(30), `${e.modules} 个模块 → ${e.kb}KB（不进首屏）`);
 console.log(`sw.js 预缓存 ${precache.length} 项`);

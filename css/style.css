@@ -39,6 +39,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .btn:disabled, button:disabled { opacity: .45; cursor: not-allowed; }
 .link { background: none; border: 0; color: var(--accent); padding: 0; font-size: 12px; }
 .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+/* 个人中心「同人小游戏」一行：左边成绩，右边按钮（.actions 是等距排，这里要两端对齐） */
+.minirow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.minirow b { color: var(--gold); font-size: 15px; }
 .toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); background: #000c; color: #fff; padding: 8px 18px; border-radius: 8px; z-index: 50; }
 
 /* controls */

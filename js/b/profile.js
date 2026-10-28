@@ -193,6 +193,9 @@ const I18N = {
     pfImpTitle: '工坊战报', pfImpNote: '从回放导入或自己出的题都会存进账号，可直接复现或看官方回放。',
     pfImpEmpty: '还没有导入战报。', pfImpTeam: '名唤醒体', pfImpPlay: '复现', pfImpReplay: '官方回放', pfImpDel: '删除',
     pfCgTitle: '典藏进度', pfCgNote: '已解锁 {a} / {b} 张，解锁后可在典藏馆设为背景主题。',
+    pfMiniTitle: '同人小游戏',
+    pfMiniNote: '合成大杜勒的最高分记在账号档案里，换设备登录也能接上。',
+    pfMiniBest: '最高 {n} 分', pfMiniNone: '还没玩过', pfMiniGo: '去玩一局',
     pfSyncTitle: '存档与同步', pfSyncNow: '立即同步', pfSyncing: '同步中…', pfSyncOk: '已同步', pfSyncFail: '同步失败',
     poolNote: '题池 {n} 题', poolDiff: '难度 {a}–{b} 档',
     pfLocal: '本地存档', pfLocalNote: '银芯、已解锁 CG、失败题库、自建题目都只存在这台设备的浏览器里，清空后无法恢复。',
@@ -356,6 +359,9 @@ const I18N = {
     pfImpTitle: 'Workshop reports', pfImpNote: 'Replay imports and self-made puzzles are saved to your account — reopen or replay them here.',
     pfImpEmpty: 'No imported reports yet.', pfImpTeam: 'awakeners', pfImpPlay: 'Replay it', pfImpReplay: 'Official replay', pfImpDel: 'Delete',
     pfCgTitle: 'Gallery progress', pfCgNote: '{a} / {b} unlocked — unlocked CG can be used as a page theme.',
+    pfMiniTitle: 'Fan mini-games',
+    pfMiniNote: 'Your best Merge Doresain score is stored in your account, so it follows you to other devices.',
+    pfMiniBest: 'Best {n}', pfMiniNone: 'Not played yet', pfMiniGo: 'Play a round',
     pfSyncTitle: 'Save & sync', pfSyncNow: 'Sync now', pfSyncing: 'Syncing…', pfSyncOk: 'Synced', pfSyncFail: 'Sync failed',
     poolNote: '{n} in pool', poolDiff: 'difficulty {a}–{b}',
     pfLocal: 'Local save', pfLocalNote: 'Credits, unlocked CG, the failed bank and your own puzzles are stored only in this browser. Clearing cannot be undone.',
@@ -1197,8 +1203,9 @@ const { store, wallet, failedBank, unlocked, STAT0, toast, t } = m_common;
 const { auth, wApi, nameOfMail } = m_auth;
 const { api } = m_api;
 // 账号云端档案
-// 把「积分 / 解锁 CG / 失败题库 / 推理记录 / 工坊导入的战报 / 偏好唤醒体 / 背景主题」
-// 打包成一份文档存到自己的后端（server/worker.js 的 accounts 表），换设备登录即可恢复。
+// 把「积分 / 解锁 CG / 失败题库 / 推理记录 / 工坊导入的战报 / 偏好唤醒体 / 背景主题 /
+// 小游戏最高分」打包成一份文档存到自己的后端（server/worker.js 的 accounts 表），
+// 换设备登录即可恢复。
 //
 // 说明：
 //  · 每条档案带版本号：写入时比对版本，对不上说明别处先写过，合并后再推，多端不会互相覆盖。
@@ -1263,8 +1270,21 @@ function snapshot() {
     lk: store.get('likeVote', {}),
     ld: store.get('likeDay', null),
     lc: store.get('likeCredited', {}),
+    // 合成大杜勒的最高分：游戏页只认 'merge:best' 这一个键（它自己也能单机跑），
+    // 这里把它一起带上档案，换设备登录就能拿回来。
+    mb: mergeBest(),
   };
 }
+
+// 合成大杜勒的最高分。键名与 js/merge.js 用的是同一个（zjtt:merge:best），
+// store 读的是 JSON、游戏写的是纯数字字符串，两种格式 JSON.parse 都吃得下，老存档不会丢。
+const MERGE_BEST = 'merge:best';
+const mergeBest = () => Math.max(0, Math.round(Number(store.get(MERGE_BEST, 0)) || 0));
+const setMergeBest = (v) => {
+  const n = Math.max(0, Math.round(Number(v) || 0));
+  if (n > mergeBest()) store.set(MERGE_BEST, n);
+  return mergeBest();
+};
 
 function apply(d) {
   if (!d) return;
@@ -1287,6 +1307,10 @@ function apply(d) {
   if (d.lk && typeof d.lk === 'object') store.set('likeVote', d.lk);
   if (d.ld && typeof d.ld === 'object') store.set('likeDay', d.ld);
   if (d.lc && typeof d.lc === 'object') store.set('likeCredited', d.lc);
+  // 最高分只增不减：云端比本机低（本机多打了一局还没推上去）时保留本机的
+  if (d.mb != null) setMergeBest(d.mb);
+  // 告诉页面「档案刚落下来」，合成大杜勒靠这个把云端分数显示出来
+  try { document.dispatchEvent(new CustomEvent('zjtt:acct', { detail: d })); } catch { /* 无 DOM 环境 */ }
 }
 
 // ------------------------------------------------------------------ 合并
@@ -1369,6 +1393,7 @@ function mergeDoc(remote = {}, local = {}) {
     lk: mergeLikes(remote.lk, local.lk),
     ld: pickQuota(remote.ld, local.ld),
     lc: mergeLikes(remote.lc, local.lc),
+    mb: numMax(remote.mb, local.mb),
   };
 }
 
@@ -1581,9 +1606,9 @@ function forget() {
 
 const account = {
   pull, push, sync, schedule, ready, record, history, lastSync, pendingState, forget,
-  snapshot, apply, mergeDoc, pathOf,
+  snapshot, apply, mergeDoc, pathOf, mergeBest, setMergeBest,
 };
-return { CAP, snapshot, apply, mergeDoc, pull, push, schedule, sync, ready, record, history, lastSync, pendingState, forget, account };
+return { CAP, snapshot, mergeBest, setMergeBest, apply, mergeDoc, pull, push, schedule, sync, ready, record, history, lastSync, pendingState, forget, account };
 })();
 
 // ---- js/checkin.js
@@ -2352,6 +2377,24 @@ function storeBox(u) {
       }, t('pfClear'))));
 }
 
+// ------------------------------------------------------------------ 小游戏
+// 合成大杜勒的最高分存在账号档案的 mb 字段（js/account.js），这里只负责显示。
+// 未登录 / 没同步过时读的就是本机那个键，所以数字始终对得上。
+function miniBox() {
+  const best = account.mergeBest();
+  // 把「最高 {n} 分」拆成前后两段，中间的数字单独加粗显示（中英文语序都能对上）
+  const [pre, post] = t('pfMiniBest', { n: '\u0000' }).split('\u0000');
+  const line = best > 0
+    ? ['合成大杜勒 · ', pre, h('b', {}, String(best)), post || '']
+    : `合成大杜勒 · ${t('pfMiniNone')}`;
+  return h('section', { class: 'card' },
+    h('h3', {}, t('pfMiniTitle')),
+    h('p', { class: 'note' }, t('pfMiniNote')),
+    h('div', { class: 'minirow' },
+      h('span', { class: 'note dim' }, line),
+      h('a', { class: 'btn ghost sm', href: 'merge.html' }, t('pfMiniGo'))));
+}
+
 function render() {
   const u = auth.user;
   const kids = [
@@ -2363,6 +2406,7 @@ function render() {
     u ? histBox() : null,
     u ? impBox() : null,
     u ? cgBox() : null,
+    miniBox(),
     storeBox(u),
   ].filter(Boolean);
   // 顶栏里也有头像和昵称，一起刷新
