@@ -139,12 +139,15 @@ export function runBattle(state, data, stage = state.stage) {
 // monster codex: how often each real monster was met / beaten
 export function recordCodex(state, enemies, win) {
   state.codex ||= {};
+  const fresh = [], bossFirst = [];
   for (const e of enemies) {
     if (!e.mid) continue;
     const c = (state.codex[e.mid] ||= { seen: 0, kills: 0 });
+    if (!c.seen && !fresh.includes(e.mid)) fresh.push(e.mid);
     c.seen++;
-    if (win) { if (!c.kills && e.rank === 'Boss') state.cores = (state.cores || 0) + 5; c.kills++; }
+    if (win) { if (!c.kills && e.rank === 'Boss') { state.cores = (state.cores || 0) + 5; bossFirst.push(e.mid); } c.kills++; }
   }
+  return { fresh, bossFirst };
 }
 
 // apply result to state; returns reward summary
@@ -152,7 +155,8 @@ export function applyResult(state, data, res) {
   const rng = mulberry32(res.prep.seed ^ 0xabcdef);
   const rw = { gold: 0, tickets: 0, cores: 0, items: [], firstClear: false, advanced: false };
   state.stats.battles++;
-  recordCodex(state, res.prep.enemies, res.win);
+  const cx = recordCodex(state, res.prep.enemies, res.win);
+  rw.newMon = cx.fresh; rw.firstBoss = cx.bossFirst; rw.coresBoss = cx.bossFirst.length * 5;
   if (res.win) {
     state.stats.wins++;
     state.stats.kills += res.kills;

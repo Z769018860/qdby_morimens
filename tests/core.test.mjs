@@ -484,3 +484,23 @@ test('7-day newcomer bonus unlocks day by day and expires', () => {
   assert.equal(claimSeven(s, data, 3, d0 + 14 * day), null, 'expired');
   assert.equal(SEVEN.length, 7);
 });
+
+// ---------------------------------------------------------------- M8: battle report
+import { analyzeBattle, grade } from '../src/core/report.js';
+test('battle report agrees with the engine stats and grades the result', () => {
+  const s = mkTeamState(40);
+  const r = runBattle(s, data, 10);
+  const rep = analyzeBattle(r, r.prep.allies, r.prep.enemies);
+  for (const [uid, st] of Object.entries(r.stats)) {
+    assert.equal(rep.units[uid].dmg, st.dmg, `${uid} dmg`); assert.equal(rep.units[uid].taken, st.taken, `${uid} taken`); assert.equal(rep.units[uid].heal, st.heal, `${uid} heal`);
+  }
+  assert.equal(rep.rounds, r.rounds); assert.equal(rep.timeline.length, r.rounds);
+  assert.equal(rep.totals.kills, rep.E.filter((u) => u.deaths).length);
+  assert.ok(Math.abs(rep.A.reduce((a, u) => a + u.share, 0) - 1) < 1e-9);
+  assert.ok(rep.totals.critRate >= 0 && rep.totals.critRate <= 1);
+  const g = grade(rep);
+  assert.equal(r.win, g.rank !== 'D'); assert.ok(g.stars >= (r.win ? 1 : 0));
+  assert.deepEqual(grade({ ...rep, win: false }), { stars: 0, rank: 'D', notes: [] });
+  // timeline sums to totals
+  assert.equal(rep.timeline.reduce((a, t) => a + t.dmgA, 0), rep.totals.dmg);
+});

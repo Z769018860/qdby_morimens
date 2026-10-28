@@ -2,6 +2,9 @@ import { THREATS, trialKey, trialUnlocked, towerTries, TOWER_DAILY, towerStage, 
 import { achievementList, claimableCount, CATEGORIES } from '../core/achievements.js';
 import { teamDefs } from '../core/game.js';
 import { esc, img, fmt, openModal, markup, rewardText } from './util.js';
+import { reportHtml } from './report.js';
+import { analyzeBattle } from '../core/report.js';
+
 
 const REWARD = rewardText;
 
@@ -55,7 +58,7 @@ export function trialResultModal(app, r) {
   const names = r.team.list.map((d) => d.name);
   openModal(`<h3>${r.win ? '试炼胜利' : '试炼失败'} · ${esc(r.trial.name)} ${r.th.k}</h3>
     <p>${r.rounds} 回合${r.win ? `　${REWARD(r.rw) || ''}${r.rw.first ? ' <em class="new">首通</em>' : ''}${r.rw.items.length ? `　装备 +${r.rw.items.length}` : ''}` : '　提升战力或调整队伍后再来。'}</p>
-    <h4>伤害 / 治疗</h4>${meterHtml(names, r.stats)}`, 'wide');
+    ${reportHtml(analyzeBattle(r, r.team.list, r.enemies))}`, 'wide');
 }
 
 /* ---------- achievements ---------- */

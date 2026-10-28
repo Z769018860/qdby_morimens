@@ -2,7 +2,8 @@ import { runBattle, applyResult, allyDef } from '../core/game.js';
 import { stageInfo } from '../core/enemies.js';
 import { REALMS, TYPES, STATUS } from '../core/constants.js';
 import { esc, img, fmt, $, toast, kwIcon, stripMarks } from './util.js';
-import { meterHtml } from './pages2.js';
+import { reportHtml, settlementModal, settleMode } from './report.js';
+import { analyzeBattle } from '../core/report.js';
 import { monsterModal, intentIcon } from './codex.js';
 import { sound } from './audio.js';
 import { FX, COLORS } from './fx.js';
@@ -27,7 +28,7 @@ export class BattleView {
       <div class="field" id="bv-field"><div class="side enemies" id="bv-e"></div><div class="vs" id="bv-round">—</div><div class="side allies" id="bv-a"></div></div>
       <div class="banner" id="bv-banner"></div>
       <div class="rewards" id="bv-rw"></div>
-      <details class="meterbox"><summary>伤害 / 治疗统计（上一战）</summary><div id="bv-meter"></div></details>
+      <details class="meterbox"><summary>战斗数据（上一战）</summary><div id="bv-meter"></div></details>
       <div class="log" id="bv-log"></div>`;
     root.addEventListener('click', (e) => {
       const b = e.target.closest('[data-bv]'); if (b) { this.ctl(b.dataset.bv); return; }
@@ -41,6 +42,7 @@ export class BattleView {
 
   ctl(a) {
     const s = this.app.state;
+    if (a === 'detail') { if (this.lastCtx) settlementModal(this.app, this.lastCtx); return; }
     if (a === 'auto') s.auto = !s.auto;
     if (a === 'speed') s.speed = { 1: 2, 2: 4, 4: 8, 8: 1 }[s.speed] || 1;
     if (a === 'skip') s.skipAnim = !s.skipAnim;
@@ -59,6 +61,14 @@ export class BattleView {
     $('#bv-skip', this.root).classList.toggle('on', s.skipAnim);
     $('#bv-auto', this.root).classList.toggle('on', s.auto);
     this.app.refreshTop();
+  }
+
+  // auto-opened settlement: pause the chain until it is closed
+  popSettle(ctx) {
+    this.paused = true;
+    settlementModal(this.app, ctx);
+    const mo = new MutationObserver(() => { if (!document.querySelector('.modal-bg')) { mo.disconnect(); this.paused = false; if (this.running) this.timer = setTimeout(() => this.next(), 300); } });
+    mo.observe(document.body, { childList: true });
   }
 
   start() { if (this.running) return; this.running = true; this.next(); }
@@ -222,11 +232,17 @@ export class BattleView {
     if (rw.retreat) parts.push('<span class="r">挑战失败，退回上一关挂机，提升战力再来</span>');
     if (res.win && !rw.advanced && !rw.comfortable && s.stage <= s.maxStage) parts.push('<span class="r">赢得不够从容，继续在此关积累</span>');
     $('#bv-rw', this.root).innerHTML = parts.join('');
-    $('#bv-meter', this.root).innerHTML = meterHtml(res.prep.allies.map((d) => d.name), res.stats);
+    const rep = analyzeBattle(res, res.prep.allies, res.prep.enemies), boss = res.prep.enemies.some((d) => d.boss);
+    const ctx = { title: `第 ${res.stage} 关 · ${stageInfo(res.stage).name}`, rep, rw, fast: boss ? 20 : 14 };
+    this.lastCtx = ctx;
+    $('#bv-meter', this.root).innerHTML = reportHtml(rep) + '<div class="row"><button class="btn sm" data-bv="detail">打开完整结算</button></div>';
+    const mode = settleMode.get();
+    const pop = mode === 'all' || (mode === 'key' && (rw.firstClear || (boss && res.win) || (rw.newMon?.length && res.win)));
     if (rw.firstClear && s.maxStage > before) this.log(`首次通关第 ${s.maxStage} 关`, 'rnd');
     this.app.save();
     this.refreshHead();
     this.app.onBattleDone?.(rw);
+    if (pop) { this.popSettle(ctx); return; }
     const wait = s.skipAnim ? 160 : 900 / s.speed;
     this.timer = setTimeout(() => this.next(), wait);
   }

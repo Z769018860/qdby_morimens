@@ -15,6 +15,7 @@ import { encodeCode, decodeCode } from './core/friend.js';
 import { codexPage, monsterModal } from './ui/codex.js';
 import { sound } from './ui/audio.js';
 import { fxMode } from './ui/fx.js';
+import { settleMode } from './ui/report.js';
 import { doTower, doTrial } from './core/challenge.js';
 import { claimAchievement, claimAllAchievements } from './core/achievements.js';
 import { signToday, backfill, claimCum } from './core/signin.js';
@@ -95,6 +96,7 @@ const rewardLine = (r) => `召唤券+${r.tickets} 银芯+${r.cores} 金币+${r.g
 const rerender = () => { app.save(); render(); };
 
 function onChange(e) {
+  if (e.target.matches('[data-settle]')) { settleMode.set(e.target.value); toast('结算弹窗：' + e.target.selectedOptions[0].textContent); return; }
   if (e.target.matches('[data-fx]')) { fxMode.set(e.target.value); toast('战斗特效：' + e.target.selectedOptions[0].textContent); return; }
   if (e.target.matches('[data-arena-name]')) { arenaState(app.state).name = e.target.value.trim().slice(0, 12) || '旅人'; app.save(); return; }
   const au = e.target.closest('[data-aud]');

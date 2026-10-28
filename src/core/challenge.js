@@ -95,7 +95,8 @@ export function doTrial(state, data, trialId, thIdx) {
   const res = simulate({ allies: team.list, enemies: trialEnemies(trial, th, data), seed, strategy: state.strategy });
   const rw = { gold: 0, tickets: 0, cores: 0, items: [], first: false };
   state.stats.battles++;
-  recordCodex(state, trialEnemies(trial, th, data), res.win);
+  const enemies = trialEnemies(trial, th, data);
+  recordCodex(state, enemies, res.win);
   if (res.win) {
     state.stats.wins++; state.stats.kills += res.kills;
     const key = trialKey(trial, th), rng = mulberry32(seed ^ 0x51ed);
@@ -106,5 +107,5 @@ export function doTrial(state, data, trialId, thIdx) {
     }
     state.gold += rw.gold; state.tickets += rw.tickets; state.cores += rw.cores; state.stats.gold += rw.gold;
   }
-  return { ...res, trial, th, rw, team };
+  return { ...res, trial, th, rw, team, enemies };
 }

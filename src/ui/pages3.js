@@ -7,6 +7,9 @@ import { encodeCode } from '../core/friend.js';
 import { teamDefs } from '../core/game.js';
 import { esc, img, fmt, openModal, rewardText } from './util.js';
 import { meterHtml } from './pages2.js';
+import { reportHtml } from './report.js';
+import { analyzeBattle } from '../core/report.js';
+
 import { intentIcon } from './codex.js';
 
 const REWARD = rewardText;
@@ -37,7 +40,7 @@ export function weeklyResultModal(app, r) {
   const names = r.team.list.map((d) => d.name);
   openModal(`<h3>周 Boss · ${esc(r.boss.zh)}</h3>
     <p>本次伤害 <b>${fmt(r.dmg)}</b>${r.newBest ? ' <em class="new">本周最高</em>' : ''}　本周累计 <b>${fmt(r.week.damage)}</b></p>
-    ${meterHtml(names, r.stats)}<p class="hint">累计伤害达到里程碑后回到页面领取奖励。</p>`, 'wide');
+    ${reportHtml(analyzeBattle(r, r.team.list, [{ name: r.boss.zh, img: r.boss.img, hp: 1e12, boss: true }]))}<p class="hint">累计伤害达到里程碑后回到页面领取奖励。</p>`, 'wide');
 }
 
 /* ---------- realm towers ---------- */
@@ -64,7 +67,7 @@ export function rtResultModal(app, list) {
   openModal(`<h3>${TOWER_NAME[last.realm]} · ${wins ? `通过 ${wins} 层` : '挑战失败'}</h3>
     <p>${list.map((x) => `第 ${x.floor} 层 ${x.win ? '✓' : '✗'}`).join('　')}</p>
     <p>${REWARD(rw) || '没有新的奖励'}${rw.items ? `　装备 +${rw.items}` : ''}${wins ? '' : '　提升战力或调整装备后再来。'}</p>
-    <h4>最后一战伤害 / 治疗</h4>${meterHtml(names, last.stats)}`, 'wide');
+    <h4>最后一战</h4>${reportHtml(analyzeBattle(last, last.team.list, last.enemies))}`, 'wide');
 }
 
 /* ---------- arena ---------- */
@@ -93,6 +96,6 @@ export function arenaResultModal(app, r, rw, newRank) {
   const mine = r.team.list.map((d) => d.name), foes = r.foes.map((d) => d.name), friend = r.entry.type === 'friend';
   openModal(`<h3>${r.win ? '胜利' : '失败'} · ${friend ? `好友 ${esc(r.entry.name)}` : `对手 ${esc(r.entry.name)}（人机，原第 ${r.entry.rank} 名）`}</h3>
     <p>${r.rounds} 回合${friend ? '　友谊赛，无奖励' : `　${r.win ? `名次：第 ${newRank} 名${rw.up ? ` <em class="new">最高名次提升 ${rw.up}</em>` : ''}` : '名次不变'}　${REWARD(rw)}`}</p>
-    <h4>我方</h4>${meterHtml(mine, r.stats, 'a')}<h4>对手</h4>${meterHtml(foes, r.stats, 'e')}`, 'wide');
+    ${reportHtml(analyzeBattle(r, r.team.list, r.foes))}`, 'wide');
 }
 export { hydrate };
