@@ -32,13 +32,14 @@ const { SHEET, ANIMS } = m_bird_art;
 const VW = 400;            // 逻辑视口宽（竖井）
 const VH = 660;
 const WALL = 22;           // 两侧石壁厚
-const GAP = 80;            // 层间距（一层 80px，画面里能同时看到 8 层）
+const GAP = 100;           // 层间距（一层 100px，画面里能同时看到 6 层）
 const TOP = 96;            // 第 0 层台面的世界 y
 const GOAL = 100;          // 通关层数
 const GRAV = 1560;
-const VMAX = 940;
+const VMAX = 620;          // 终端下坠速度：掉不了多快，靠"往下蹿"跳层行不通
 const RUN = 238;           // 地面水平速度
 const JUMP = 436;
+const FLOOR_H = 34;        // 井底尖刺带高度（贴着视口底部，跟着镜头走）
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -183,11 +184,11 @@ function hasOverlap(x, w, y) {
 
 function rollType(t) {
   const r = Math.random();
-  if (r < 0.18 + 0.10 * t) return 'frail';
-  if (r < 0.32 + 0.16 * t) return 'spike';
-  if (r < 0.46 + 0.14 * t) return 'belt';
-  if (r < 0.57) return 'boost';
-  if (r < 0.70) return 'solid';
+  if (r < 0.20 + 0.12 * t) return 'frail';
+  if (r < 0.30 + 0.22 * t) return 'spike';
+  if (r < 0.44 + 0.16 * t) return 'belt';
+  if (r < 0.55) return 'boost';
+  if (r < 0.66) return 'solid';
   return 'normal';
 }
 
@@ -209,9 +210,9 @@ function buildWorld() {
   for (let n = 1; n <= GOAL; n++) {
     const y = TOP + n * GAP;
     const t = n / GOAL;
-    const pw = Math.round(100 - 38 * t + rnd(-10, 10));
-    // 相邻层中心最多错开 reach：从上一层自由落体约 0.34s，横向够跑 RUN*0.34
-    const reach = 72 - 28 * t;
+    const pw = Math.round(94 - 46 * t + rnd(-10, 10));
+    // 相邻层中心最多错开 reach：从上一层自由落体约 0.36s，横向够跑 RUN*0.36
+    const reach = 76 - 30 * t;
     const cx = clamp(anchor + rnd(-reach, reach), WALL + pw / 2 + 6, VW - WALL - pw / 2 - 6);
     addPlat(cx - pw / 2, y, pw, Math.random() < 0.14 + 0.22 * t ? 'solid' : 'normal');
     anchor = cx;
@@ -229,7 +230,7 @@ function buildWorld() {
     }
 
     // 影怪：从第 5 层开始，越往下越密
-    if (n >= 5 && Math.random() < 0.10 + 0.34 * t) {
+    if (n >= 5 && Math.random() < 0.12 + 0.36 * t) {
       const host = G.plats.filter((p) => Math.abs(p.y - y) < 1 && p.type !== 'spike' && p.w > 56);
       if (host.length) {
         const h = pick(host);
@@ -332,7 +333,7 @@ function landOn(pl) {
     return;
   }
   if (pl.type !== 'solid' && pl.type !== 'belt' && pl.fuse <= 0) {
-    pl.fuseMax = pl.fuse = pl.type === 'frail' ? 0.42 : 1.05;
+    pl.fuseMax = pl.fuse = pl.type === 'frail' ? 0.38 : 0.92;
   }
   spark(p.x, pl.y, 4, PT[pl.type].edge, 90, 0.3);
   Snd.land();
@@ -470,7 +471,8 @@ function update(dt) {
   } else {
     const prevY = p.y;
     p.vy = Math.min(p.vy + GRAV * dt, VMAX);
-    if (G.keys.down) p.vy = Math.min(VMAX, p.vy + 1200 * dt);
+    // 按住 ↓ 只是"从能碎的平台上穿下去"，不再额外加重力——
+    // 否则一路按 ↓ 直接蹿到井底，层数白拿，还躲掉所有平台上的风险。
     p.x = clamp(p.x + p.vx * dt, WALL + p.w / 2, VW - WALL - p.w / 2);
     p.y += p.vy * dt;
 
@@ -525,11 +527,11 @@ function update(dt) {
     if (Math.abs(o.x - p.x) < 20 && Math.abs(o.y - (p.y - 15)) < 24) pickOrb(o);
   }
 
-  // ---- 镜头：恒定下滚 + 跟人（跟人有速度上限，掉太快会追出画面）
-  const scroll = 30 + G.cur * 0.95;
+  // ---- 镜头：只由滚速推进，不跟着玩家跑。
+  // 这样一来顶刺（推你下）和井底尖刺（拦你下）就把人夹在中间：
+  // 蹿得太狠会扎在井底尖刺上，站着不动会被顶刺推下去。层数也就是镜头推进的深度。
+  const scroll = 68 + G.cur * 0.32;
   G.camY += scroll * dt;
-  const want = p.y - VH * 0.60;
-  if (want > G.camY) G.camY = Math.min(want, G.camY + 760 * dt);
 
   // ---- 顶部尖刺
   const ceil = G.camY + 12;
@@ -540,10 +542,26 @@ function update(dt) {
     hurtP(8, 'ceil');
   }
 
-  // ---- 深渊（跑得比镜头快，摔出画面）
-  if (p.y > G.camY + VH + 26) {
+  // ---- 井底尖刺：贴着视口底部跟着镜头走，一路往下蹿就会扎上去
+  const floorY = G.camY + VH - FLOOR_H;
+  if (p.y > floorY) {
+    p.y = floorY;
+    p.ground = null; p.ignore = null;
+    p.vy = -560;
+    p.vx *= 0.5;
+    hurtP(16, 'floor');
+    spark(p.x, floorY - 2, 18, '#d76a7d', 280, 0.7);
+    G.shake = Math.max(G.shake, 7);
+    if (!G.hint.floor) {
+      G.hint.floor = 1;
+      toast('井底也是尖刺——别一个劲儿往下掉');
+    }
+  }
+
+  // ---- 兜底：真摔出画面了（顶刺和底刺同时夹住的极端情况）
+  if (p.y > G.camY + VH + 60) {
     hurtP(14, 'void');
-    p.y = G.camY + VH * 0.42;
+    p.y = G.camY + VH * 0.55;
     p.vy = 0; p.ground = null; p.ignore = null;
     spark(p.x, p.y, 12, '#6a4a8f', 200, 0.6);
   }
@@ -559,7 +577,9 @@ function update(dt) {
   }
 
   // ---- 层数 / 计分
-  const cur = clamp(Math.floor((p.y - TOP) / GAP + 0.03), 0, GOAL);
+  // 层数就是镜头推进到多深——你蹿得再快也只是把自己送到井底尖刺上去，
+  // 想刷层数只能老老实实跟着塔往下走。
+  const cur = clamp(Math.floor(G.camY / GAP + 0.02), 0, GOAL);
   G.cur = cur;
   if (cur > G.depth) {
     G.depth = cur;
@@ -610,6 +630,16 @@ function animFrame(name, t) {
   if (n <= 1) return 0;
   if (a.loop) return Math.floor(t * 1000 / a.d) % n;
   return Math.min(n - 1, Math.floor(t * 1000 / a.d));
+}
+
+// 强制循环取帧：立绘里的战斗动作原本是一次性的，
+// 拿来当"跑动 / 滞空"的循环播放，比单帧静图有生气得多。
+function loopFrame(name, t, spd = 1) {
+  const a = ANIMS[name];
+  if (!a) return 0;
+  const n = a.f.length;
+  if (n <= 1) return 0;
+  return Math.floor(t * 1000 * spd / a.d) % n;
 }
 
 function roundRect(x, y, w, h, r) {
@@ -758,16 +788,29 @@ function drawOrb(o) {
 function drawPlayer() {
   const p = P;
   const sy = p.y - G.camY;
-  if (sy < -80 || sy > VH + 80) return;
+  const hh = 80;
+  if (sy < -110 || sy > VH + 110) return;
+
+  const dir = (G.keys.right ? 1 : 0) - (G.keys.left ? 1 : 0);
+  const running = !!p.ground && dir !== 0;
+  const low = p.hp <= 36;
+
+  // 站立 → idle 呼吸循环；左右移动 / 空中 → attack 战斗立绘循环。
+  // （原来用的 chibi 两张是单帧静图，左右移动时人像一根木棍）
+  let anim = 'idle';
+  let spd = 1;
+  if (running) { anim = 'attack'; spd = 1.45; }
+  else if (!p.ground) { anim = 'attack'; spd = 1.15; }
+  const idx = loopFrame(anim, G.t, spd);
+  if (TEST) { G.lastAnim = anim; G.lastIdx = idx; }
+
   const blink = p.hurtT > 0 ? (Math.floor(G.t * 20) % 2 ? 0.4 : 1) : 1;
-  const art = p.hp <= 36 ? 'chibi1' : 'chibi2';
-  const hh = 66;
 
   // 身位光：不然后面一堆深色平台，根本找不到自己在哪
   ctx.save();
   const halo = ctx.createRadialGradient(p.x, sy - hh * 0.42, 3, p.x, sy - hh * 0.42, hh * 0.72);
-  halo.addColorStop(0, 'rgba(150,195,255,.22)');
-  halo.addColorStop(1, 'rgba(150,195,255,0)');
+  halo.addColorStop(0, low ? 'rgba(255,110,120,.26)' : 'rgba(150,195,255,.22)');
+  halo.addColorStop(1, low ? 'rgba(255,110,120,0)' : 'rgba(150,195,255,0)');
   ctx.fillStyle = halo;
   ctx.beginPath(); ctx.arc(p.x, sy - hh * 0.42, hh * 0.72, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
@@ -802,15 +845,22 @@ function drawPlayer() {
   // 冲刺残影
   if (p.dashT > 0) {
     for (let i = 1; i <= 3; i++) {
-      sprite(art, 0, p.x - p.face * i * 11, sy, hh, 'bottom', p.face < 0, 0.16 * (4 - i) / 3);
+      sprite(anim, idx, p.x - p.face * i * 11, sy, hh, 'bottom', p.face < 0, 0.16 * (4 - i) / 3);
     }
   }
 
-  // 立绘小人本身是张"纸牌"，加一圈冷光让它在暗井里立得住
+  // 立绘本体：跑动时整体前倾 + 轻微上下颠，跑起来的味道主要靠这两下
   ctx.save();
-  ctx.shadowColor = 'rgba(140,190,255,.75)';
+  ctx.shadowColor = low ? 'rgba(255,120,130,.8)' : 'rgba(140,190,255,.75)';
   ctx.shadowBlur = 18;
-  sprite(art, 0, p.x, sy, hh, 'bottom', p.face < 0, blink);
+  if (running) {
+    ctx.translate(p.x, sy);
+    ctx.rotate(p.face * 0.085);
+    ctx.translate(0, Math.sin(G.t * 17) * 1.7);
+    sprite(anim, idx, 0, 0, hh, 'bottom', p.face < 0, blink);
+  } else {
+    sprite(anim, idx, p.x, sy, hh, 'bottom', p.face < 0, blink);
+  }
   ctx.restore();
 
   // 头顶血条（只在掉过血时出现）
@@ -838,6 +888,43 @@ function drawCeiling() {
   }
   ctx.fillStyle = 'rgba(255,90,110,.16)';
   ctx.fillRect(0, h, VW, 3);
+}
+
+function drawFloor() {
+  // 井底尖刺：贴着视口底部，尖朝上。它跟着镜头一起下移，
+  // 所以掉得太狠就会直接撞上来——这是"往下蹿"的代价。
+  const y0 = VH - FLOOR_H;
+
+  // 底部的暗雾，让尖刺从黑里长出来
+  const g = ctx.createLinearGradient(0, y0 - 30, 0, VH);
+  g.addColorStop(0, 'rgba(40,16,24,0)');
+  g.addColorStop(0.5, 'rgba(52,20,30,.78)');
+  g.addColorStop(1, 'rgba(18,7,11,.97)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, y0 - 30, VW, FLOOR_H + 30);
+
+  // 尖刺本体
+  for (let x = -2; x < VW; x += 15) {
+    ctx.beginPath();
+    ctx.moveTo(x, VH + 1);
+    ctx.lineTo(x + 6.5, y0 + 3);
+    ctx.lineTo(x + 13, VH + 1);
+    ctx.closePath();
+    ctx.fillStyle = '#8c3a4a';
+    ctx.fill();
+    // 受光面
+    ctx.fillStyle = 'rgba(226,124,142,.55)';
+    ctx.beginPath();
+    ctx.moveTo(x + 6.5, y0 + 3);
+    ctx.lineTo(x + 4.6, VH + 1);
+    ctx.lineTo(x + 6.5, VH + 1);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 刺根的一道亮线，把尖刺和黑雾分开
+  ctx.fillStyle = 'rgba(255,120,140,.22)';
+  ctx.fillRect(0, y0 + 2, VW, 1.6);
 }
 
 function drawWorld() {
@@ -896,6 +983,8 @@ function drawWorld() {
   for (const pl of G.plats) if (!pl.dead) drawPlat(pl);
   for (const o of G.orbs) if (!o.dead) drawOrb(o);
   for (const m of G.mobs) if (!m.dead) drawMob(m);
+
+  drawFloor();
 
   if (G.state !== 'ready' && G.state !== 'load') drawPlayer();
 
