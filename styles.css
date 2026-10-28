@@ -128,3 +128,18 @@ main{max-width:980px;margin:0 auto;padding:12px}
 .ab .bar{height:6px}.ab .bar i{background:var(--gold)}
 .meterbox{margin:6px 0;font-size:12px}.meterbox summary{cursor:pointer;color:var(--acc)}
 .th{min-width:42px}
+
+/* ---- M4: monster design ---- */
+.u-int{display:flex;align-items:center;justify-content:center;gap:3px;font-size:10px;color:var(--dim);min-height:18px;white-space:nowrap;overflow:hidden}
+.u-int img{filter:drop-shadow(0 0 2px #000)}.unit.foe[data-mid]{cursor:pointer}
+img.intent{vertical-align:middle;image-rendering:auto}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;margin:10px 0}
+.mcard{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;background:var(--card,#1c2230);border:1px solid #2b3447;border-radius:8px;color:inherit;cursor:pointer;font:inherit}
+.mcard img{width:72px;height:72px;object-fit:cover;border-radius:50%;background:#10141d}
+.mcard b{font-size:12px;text-align:center;line-height:1.2}.mcard small{font-size:10px;color:var(--dim)}
+.mcard.unseen img{filter:grayscale(.85) brightness(.7)}.mcard.Boss{border-color:#a8453f}.mcard.Elite{border-color:#a8873f}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.filters input[type=search],.filters select{background:#10141d;color:inherit;border:1px solid #2b3447;border-radius:6px;padding:5px 8px}
+.mskill{display:flex;gap:8px;margin:8px 0;align-items:flex-start}.mskill em{color:var(--dim);font-size:11px;font-style:normal}
+.seq{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:4px 0;font-size:12px}.seq span{display:inline-flex;align-items:center;gap:2px;background:#10141d;padding:2px 6px;border-radius:10px}
+.tag.t2{background:#2b3447}.skill small.nums{display:block;color:#9ad1a0}

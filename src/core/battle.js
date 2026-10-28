@@ -17,7 +17,7 @@ export function makeUnit(def, side, idx) {
     surviveChance: def.surviveChance || 0, survived: false,
     openAli: def.openAli || 0, openKey: def.openKey || 0,
     firstBoost: def.firstBoost || 0,
-    kit: def.kit || null, pattern: def.pattern || null, boss: !!def.boss, affix: def.affix || null,
+    kit: def.kit || null, pattern: def.pattern || null, opening: def.opening || [], boss: !!def.boss, affix: def.affix || null,
     ali: def.openAli || 0, key: def.openKey || 0, shield: 0, buffs: [], dots: [], cd: {}, st: {}, sig: '',
     roused: false, patIdx: 0, enrage: 0, alive: true, acted: 0,
   };
@@ -227,6 +227,14 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     return 'Strike';
   }
 
+  // enemies play their opening once, then loop the cycle
+  const nextSkill = (u) => (u.patIdx < u.opening.length ? u.opening[u.patIdx] : u.pattern[(u.patIdx - u.opening.length) % u.pattern.length]);
+  function showIntent(u) {
+    if (u.side !== 'e' || !u.alive || !u.pattern) return;
+    const sk = nextSkill(u);
+    push({ k: 'intent', who: u.uid, name: sk.name, ic: sk.ic || null, text: sk.plain || '' });
+  }
+
   function act(u) {
     u.acted++;
     u.shield = 0;
@@ -236,10 +244,11 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       slot = chooseAllyCard(u);
       sk = u.kit[slot];
     } else {
-      sk = u.pattern[u.patIdx++ % u.pattern.length];
+      sk = nextSkill(u);
+      u.patIdx++;
       slot = 'Strike';
     }
-    push({ k: 'act', who: u.uid, slot, name: sk.name, round, ...(sk.text ? { text: sk.text } : {}) });
+    push({ k: 'act', who: u.uid, slot, name: sk.name, round, ...(sk.text ? { text: sk.text } : {}), ...(sk.ic ? { ic: sk.ic } : {}) });
     if (u.side === 'a') {
       if (slot === 'Rouse') { u.roused = true; gainGauge(u, 'key', 0); }
       if (slot === 'Exalt') { u.ali = 0; gainGauge(u, 'key', 34); }
@@ -252,6 +261,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     }
     run(u, sk.effects);
     emitAll();
+    showIntent(u);
     if (u.side === 'e' && u.affix === 'swift' && u.alive && rng() < 0.2) {
       push({ k: 'act', who: u.uid, slot: 'Strike', name: '疾袭', round });
       run(u, [{ t: 'dmg', m: 0.6, hits: 1, to: 'foe' }]);
@@ -260,6 +270,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
 
   const finished = () => !A.some((x) => x.alive) || !E.some((x) => x.alive);
 
+  for (const u of E) showIntent(u);
   while (round < maxRounds && !finished()) {
     round++;
     push({ k: 'round', n: round });

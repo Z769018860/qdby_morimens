@@ -6,11 +6,12 @@ import { TEAM_SIZE } from './core/constants.js';
 import { BattleView } from './ui/battleView.js';
 import * as P from './ui/pages.js';
 import * as P2 from './ui/pages2.js';
+import { codexPage, monsterModal } from './ui/codex.js';
 import { doTower, doTrial } from './core/challenge.js';
 import { claimAchievement } from './core/achievements.js';
 import { $, $$, fmt, esc, store, toast, closeModal, openModal, showKwPop } from './ui/util.js';
 
-const TABS = [['battle', '战斗'], ['team', '队伍'], ['roster', '唤醒体'], ['gear', '装备'], ['summon', '召唤'], ['challenge', '挑战'], ['ach', '成就'], ['settings', '设置']];
+const TABS = [['battle', '战斗'], ['team', '队伍'], ['roster', '唤醒体'], ['gear', '装备'], ['summon', '召唤'], ['challenge', '挑战'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']];
 
 const app = {
   ui: {}, tab: 'battle',
@@ -67,13 +68,15 @@ export function show(tab) {
   app.refreshTop();
 }
 function render() {
-  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, ach: P2.achievementPage }[app.tab];
+  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, ach: P2.achievementPage }[app.tab];
   if (f) { const y = window.scrollY; $('#view').innerHTML = f(app); window.scrollTo(0, y); }
   app.refreshTop();
 }
 const rerender = () => { app.save(); render(); };
 
 function onChange(e) {
+  const c = e.target.closest('[data-cf]');
+  if (c) { const f = (app.ui.codex ||= { q: '', rank: '', trait: '', seen: false, more: 1 }); f[c.dataset.cf] = c.type === 'checkbox' ? c.checked : c.value; f.more = 1; render(); return; }
   const t = e.target.closest('[data-filter]');
   if (!t) return;
   const f = (app.ui.rosterFilter ||= { realm: '', type: '', owned: false });
@@ -88,6 +91,8 @@ function onAct(e) {
   if (!el || el.disabled) return;
   const s = app.state, d = app.data, a = el.dataset.act;
   switch (a) {
+    case 'monster': monsterModal(app, el.dataset.id); break;
+    case 'codex-more': app.ui.codex.more++; render(); break;
     case 'detail': P.detailModal(app, el.dataset.slug); break;
     case 'lvup': levelUp(s, el.dataset.slug, +el.dataset.n); app.save(); P.detailModal(app, el.dataset.slug); render(); break;
     case 'lvmax': levelUpMax(s, el.dataset.slug); app.save(); P.detailModal(app, el.dataset.slug); render(); break;
@@ -121,7 +126,7 @@ function onAct(e) {
     case 'epull': { const out = equipPull(s, d, +el.dataset.n); if (out) { app.save(); render(); P.showItems(app, out); } break; }
     case 'tower-go': { const r = doTower(s, d); if (r) { app.save(); render(); P2.towerResultModal(app, r); } break; }
     case 'trial-go': { const r = doTrial(s, d, el.dataset.id, +el.dataset.i); if (r) { app.save(); render(); P2.trialResultModal(app, r); } break; }
-    case 'ach-claim': { const r = claimAchievement(s, el.dataset.id); if (r) { toast('成就奖励已领取'); rerender(); } break; }
+    case 'ach-claim': { const r = claimAchievement(s, el.dataset.id, app.data); if (r) { toast('成就奖励已领取'); rerender(); } break; }
     case 'daily': { const r = claimDaily(s); if (r) toast(`领取成功：召唤券+${r.tickets} 金币+${r.gold}`); rerender(); break; }
     case 'export': {
       const blob = new Blob([JSON.stringify(s)], { type: 'application/json' });

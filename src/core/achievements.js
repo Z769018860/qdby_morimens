@@ -6,6 +6,8 @@ const maxLv = (s) => Math.max(0, ...Object.values(s.roster).map((r) => r.lv));
 const gearCount = (s) => Object.keys(s.gear.items).length;
 const maxedGear = (s) => Object.values(s.gear.items).filter((i) => i.lv >= 10).length;
 
+const seenCount = (s) => Object.values(s.codex || {}).filter((c) => c.seen > 0).length;
+const beatenBosses = (s, data) => Object.entries(s.codex || {}).filter(([id, c]) => c.kills > 0 && data?.monById?.[id]?.rank === 'Boss').length;
 export const ACHIEVEMENTS = [
   { id: 'stage10', zh: '雾港初探', desc: '通关第 10 关', cur: (s) => s.maxStage, goal: 10, reward: { tickets: 3 } },
   { id: 'stage20', zh: '蚀刻回廊', desc: '通关第 20 关', cur: (s) => s.maxStage, goal: 20, reward: { tickets: 5 } },
@@ -28,24 +30,27 @@ export const ACHIEVEMENTS = [
   { id: 'tower10', zh: '回廊十层', desc: '无限塔到达 10 层', cur: (s) => s.tower.best, goal: 10, reward: { tickets: 4 } },
   { id: 'tower30', zh: '回廊三十层', desc: '无限塔到达 30 层', cur: (s) => s.tower.best, goal: 30, reward: { tickets: 10 } },
   { id: 'tower60', zh: '倒悬之巅', desc: '无限塔到达 60 层', cur: (s) => s.tower.best, goal: 60, reward: { tickets: 20, gold: 30000 } },
+  { id: 'codex30', zh: '初识异形', desc: '遭遇 30 种怪物', cur: seenCount, goal: 30, reward: { tickets: 3 } },
+  { id: 'codex100', zh: '融蚀图鉴', desc: '遭遇 100 种怪物', cur: seenCount, goal: 100, reward: { tickets: 8, gold: 8000 } },
+  { id: 'boss15', zh: '首领猎手', desc: '击败 15 种首领', cur: beatenBosses, goal: 15, reward: { tickets: 8 } },
   { id: 'trial1', zh: '融灾试炼', desc: '通关任意融灾试炼', cur: trialsCleared, goal: 1, reward: { tickets: 3 } },
   { id: 'trial8', zh: '灾厄猎手', desc: '累计通关 8 个融灾试炼等级', cur: trialsCleared, goal: 8, reward: { tickets: 10 } },
   { id: 'trialS', zh: 'S 级威胁', desc: '通关任意 S 级融灾试炼', cur: (s) => Object.keys(s.trials.cleared).filter((k) => k.endsWith('-S') || k.endsWith('-SS') || k.endsWith('-SSS')).length, goal: 1, reward: { tickets: 12, gold: 10000 } },
   { id: 'trialSSS', zh: '深渊终局', desc: '通关任意 SSS 级融灾试炼', cur: (s) => Object.keys(s.trials.cleared).filter((k) => k.endsWith('-SSS')).length, goal: 1, reward: { tickets: 30, gold: 50000 } },
 ];
 
-export function achievementList(state) {
+export function achievementList(state, data) {
   return ACHIEVEMENTS.map((a) => {
-    const cur = Math.min(a.goal, a.cur(state));
+    const cur = Math.min(a.goal, a.cur(state, data));
     return { ...a, cur, done: cur >= a.goal, claimed: !!state.ach[a.id] };
   });
 }
-export function claimAchievement(state, id) {
-  const a = achievementList(state).find((x) => x.id === id);
+export function claimAchievement(state, id, data) {
+  const a = achievementList(state, data).find((x) => x.id === id);
   if (!a || !a.done || a.claimed) return null;
   state.ach[id] = true;
   state.tickets += a.reward.tickets || 0; state.gold += a.reward.gold || 0;
   return a.reward;
 }
-export const claimableCount = (state) => achievementList(state).filter((a) => a.done && !a.claimed).length;
+export const claimableCount = (state, data) => achievementList(state, data).filter((a) => a.done && !a.claimed).length;
 export const THREAT_ORDER = THREATS.map((t) => t.k);

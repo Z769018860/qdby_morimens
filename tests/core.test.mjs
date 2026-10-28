@@ -128,7 +128,7 @@ import { simulate as sim2 } from '../src/core/battle.js';
 import { fx } from '../src/core/skills.js';
 import { doTower, doTrial, simulateTower, towerTries, THREATS, trialUnlocked, TOWER_DAILY } from '../src/core/challenge.js';
 import { achievementList, claimAchievement } from '../src/core/achievements.js';
-import { buildEnemies } from '../src/core/enemies.js';
+import { buildEnemies, makeEnemy } from '../src/core/enemies.js';
 
 const unit = (o = {}) => ({ name: 'x', hp: 5000, atk: 100, def: 50, type: 'ASSAULT', kit: null, ...o });
 const mkKit = (effects) => Object.fromEntries(SLOTS.map((s) => [s, { slot: s, name: s, effects }]));
@@ -177,10 +177,26 @@ test('damage stats add up', () => {
   assert.ok(dealt > 0 && Math.abs(dealt - taken) <= 1, `${dealt} vs ${taken}`);
 });
 
-test('enemies use real monster skill lines', () => {
-  const e = buildEnemies(12, data.monsters);
-  assert.ok(e.every((x) => x.pattern.length > 0 && x.pattern.some((p) => p.effects.some((f) => f.t === 'dmg'))));
-  assert.ok(e.some((x) => x.sk.length > 0 && x.pattern.some((p) => p.text)));
+test('enemies use the real monster design: stats, opening then cycle, intents', () => {
+  const e = buildEnemies(12, data.monsters, { msk: data.msk });
+  assert.ok(e.every((x) => x.pattern.length > 0 && [...x.opening, ...x.pattern].some((p) => p.effects.some((f) => f.t === 'dmg'))));
+  assert.ok(e.every((x) => x.skills.length > 0 && x.mid && x.pattern.every((p) => p.ic)));
+  const mon = data.monsters.find((m) => m.op?.length && m.cy?.length && m.op.join() !== m.cy.join());
+  const def = makeEnemy(mon, mon.rank, 10, () => 1, { msk: data.msk });
+  assert.equal(def.opening.length, mon.op.length);
+  assert.equal(def.pattern.length, mon.cy.length);
+  const r = sim2({ allies: [unit({ hp: 1e6, def: 1e6, kit: mkKit([fx.dmg(0.01)]) })], enemies: [def], seed: 1, maxRounds: mon.op.length + mon.cy.length + 1 });
+  const acts = r.events.filter((x) => x.k === 'act' && x.who === 'e0').map((x) => x.name);
+  const want = [...def.opening, ...def.pattern, ...def.pattern].map((x) => x.name).slice(0, acts.length);
+  assert.deepEqual(acts, want);
+  assert.ok(r.events.some((x) => x.k === 'intent' && x.who === 'e0'));
+});
+
+test('roster and skill table are consistent', () => {
+  assert.ok(data.monsters.length > 400 && Object.keys(data.msk).length > 800);
+  for (const m of data.monsters) for (const i of [...m.op, ...m.cy]) assert.ok(data.msk[i], `${m.id} -> ${i}`);
+  assert.ok(data.monsters.every((m) => /[\u4e00-\u9fff「]/.test(m.zh)));
+  for (const t of data.trials) assert.ok(t.boss.every((b) => data.trialMonsters[b]));
 });
 
 test('tower: deterministic, rewards new floors once, daily tries', () => {

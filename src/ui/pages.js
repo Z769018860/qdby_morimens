@@ -3,7 +3,7 @@ import {
   enhanceItem, dismantle, summon, equipPull, EQUIP_PULL_COST, claimDaily, PULL_PITY_GENESIS, newState, migrate,
 } from '../core/game.js';
 import { REALMS, TYPES, SLOTS, SLOT_ZH, MAX_LV, MAX_STAR, TEAM_SIZE, RARITY_ZH, RARITY_ORDER, GEAR_MAX_LV } from '../core/constants.js';
-import { lvUpCost, power } from '../core/stats.js';
+import { lvUpCost, power, skillLevel } from '../core/stats.js';
 import { describeSkill } from '../core/skills.js';
 import { wheelText, relicText, covTheme, gearCost, dismantleValue, MAINSTAT, COV_THEMES } from '../core/gear.js';
 import { esc, img, fmt, openModal, closeModal, toast, store, markup } from './util.js';
@@ -99,13 +99,21 @@ export function rosterPage(app) {
       <img src="${img(a.portrait)}" alt="" loading="lazy"><b>${esc(a.zh)}</b><small>${r ? `Lv${r.lv} ${'★'.repeat(r.star)}` : '未获得'} · ${TYPES[a.type].short}</small></div>`; }).join('')}</div></div>`;
 }
 
+const NUM_ZH = { dmg: '伤害', shield: '护盾', gauge: '狂气' };
+const numLine = (sk) => {
+  const n = sk.real?.nums, c = sk.real?.cur;
+  if (!n || !Object.keys(n).length) return '';
+  const part = (k) => `${NUM_ZH[k]} ${n[k][0] === n[k][1] ? n[k][0] : `${n[k][0]}–${n[k][1]}`}${k === 'gauge' ? '' : '%'} → <b>${c[k]}${k === 'gauge' ? '' : '%'}</b>`;
+  return `<small class="nums">原作数值（Lv.1–5 → 当前）：${Object.keys(n).map(part).join('　')}</small>`;
+};
+
 export function detailModal(app, slug) {
   const { state: s, data } = app;
   const a = data.bySlug[slug], r = s.roster[slug];
   const view = r ? allyDef(s, data, slug, [slug]) : null;
   const preview = r || { lv: 1, star: 0 };
   const st = view || (() => { const ghost = { ...s, roster: { ...s.roster, [slug]: preview } }; return allyDef(ghost, data, slug, [slug]); })();
-  const kit = data.kit(slug);
+  const lvl = skillLevel(preview.lv, preview.star), kit = data.kit(slug, lvl);
   const eq = s.gear.equip[slug] || {};
   const slotBox = (key, kind, label) => { const it = eq[key] && s.gear.items[eq[key]]; const def = it && itemDef(app, it); return `<div class="eqslot" data-act="equip-slot" data-slug="${slug}" data-kind="${kind}">${def ? `<img src="${img(def.img)}" alt=""><span><b>${esc(def.zh)}</b> Lv${it.lv}<br><small>${esc(itemText(app, it))}</small></span>` : `<span class="empty">＋ ${label}</span>`}</div>`; };
   const cost = r && r.lv < MAX_LV ? lvUpCost(r.lv) : 0;
@@ -117,7 +125,7 @@ export function detailModal(app, slug) {
       <div class="stats"><span>生命 <b>${fmt(st.hp)}</b></span><span>攻击 <b>${fmt(st.atk)}</b></span><span>防御 <b>${fmt(st.def)}</b></span><span>暴击 <b>${st.critRate.toFixed(1)}%</b></span><span>爆伤 <b>${st.critDmg.toFixed(0)}%</b></span><span>战力 <b>${fmt(power(st))}</b></span></div>
       ${r ? `<div class="row"><button class="btn" data-act="lvup" data-slug="${slug}" data-n="1" ${cost && s.gold >= cost ? '' : 'disabled'}>升级 (${fmt(cost)})</button><button class="btn" data-act="lvup" data-slug="${slug}" data-n="10" ${cost && s.gold >= cost ? '' : 'disabled'}>×10</button><button class="btn" data-act="lvmax" data-slug="${slug}">升至最高</button></div>
       <div class="eqrow">${slotBox('wheel', 'wheel', '命轮')}${slotBox('cov', 'covenant', '密契')}</div>` : ''}
-      <h4>技能</h4><div class="skills">${SLOTS.map((k) => `<div class="skill"><b class="sk ${k}">${SLOT_ZH[k]}</b> <em>${esc(kit[k].name)}</em>${kit[k].real?.e ? ` <small class="en">${esc(kit[k].real.e)}</small>` : ''}<small>本作效果：${esc(describeSkill(kit[k]))}</small>${kit[k].real ? `<details><summary>原作技能文本（译）</summary><p class="real">${markup(kit[k].real.d, data.kw)}</p></details>` : ''}</div>`).join('')}</div>
+      <h4>技能 <small class="dim">技能等级 Lv.${lvl + 1}/5（随角色等级与★提升）</small></h4><div class="skills">${SLOTS.map((k) => `<div class="skill"><b class="sk ${k}">${SLOT_ZH[k]}</b> <em>${esc(kit[k].name)}</em>${kit[k].real?.e ? ` <small class="en">${esc(kit[k].real.e)}</small>` : ''}<small>本作效果：${esc(describeSkill(kit[k]))}</small>${numLine(kit[k])}${kit[k].real ? `<details><summary>原作技能文本（译）</summary><p class="real">${markup(kit[k].real.d, data.kw)}</p></details>` : ''}</div>`).join('')}</div>
       ${a.rk_en?.length ? `<details class="en-box"><summary>启灵（原作文本，仅供参考）</summary>${a.rk_en.map((x) => `<div class="skill"><b>${esc(x.ty)}</b> <em>${esc(x.n)}</em><p class="real">${markup(x.d, data.kw)}</p></div>`).join('')}</details>` : ''}
       <p class="hint">星级：重复获得同一唤醒体 +1★（每★ 全属性 +8%，3★ 起增伤 +10%）。技能名称与文本取自原作（中文为译文），数值与效果由本作自行设计，与官方无关。</p>
     </div></div>`;

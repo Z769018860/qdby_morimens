@@ -3,14 +3,14 @@
 import { hash, mulberry32 } from './rng.js';
 import { simulate } from './battle.js';
 import { buildEnemies, makeEnemy, enemyScale } from './enemies.js';
-import { teamDefs, stageGold, battleSeed, addItem, rollItem } from './game.js';
+import { teamDefs, stageGold, battleSeed, addItem, rollItem, recordCodex } from './game.js';
 
 // ---------- tower ----------
 export const TOWER_DAILY = 3;
 export const TOWER_HEAL = 0.3;                       // share of max HP restored between floors
 export const towerStage = (floor) => Math.round(10 + floor * 0.95);
 export const towerInfo = (floor) => ({ stage: towerStage(floor), boss: floor % 10 === 0, elite: floor % 5 === 0 && floor % 10 !== 0, node: floor % 10 === 9 ? 9 : 3 });
-export const towerEnemies = (floor, data) => buildEnemies(towerStage(floor), data.monsters, { seed: `tower${floor}`, info: towerInfo(floor) });
+export const towerEnemies = (floor, data) => buildEnemies(towerStage(floor), data.monsters, { seed: `tower${floor}`, info: towerInfo(floor), msk: data.msk });
 
 export function towerTries(state, today = day()) {
   if (state.tower.day !== today) { state.tower.day = today; state.tower.tries = TOWER_DAILY; }
@@ -76,11 +76,11 @@ export const trialUnlocked = (state, t, i) => i === 0 || !!state.trials.cleared[
 export function trialEnemies(trial, th, data) {
   const rng = mulberry32(hash(`trial${trial.id}${th.k}`));
   const get = (id) => data.trialMonsters[id];
-  const out = trial.boss.map((id) => makeEnemy(get(id), 'Boss', th.stage, rng, { affixes: false }));
+  const out = trial.boss.map((id) => makeEnemy(get(id), 'Boss', th.stage, rng, { affixes: false, msk: data.msk }));
   if (trial.boss.length === 1) {
     // one boss is paired with an elite or two minions of the zone
     const pool = trial.elite.length ? [trial.elite[Math.floor(rng() * trial.elite.length)]] : trial.common.length ? [trial.common[Math.floor(rng() * trial.common.length)], trial.common[Math.floor(rng() * trial.common.length)]] : [];
-    for (const id of pool) { const m = get(id); out.push(makeEnemy(m, m.rank === 'Elite' ? 'Elite' : 'Normal', th.stage, rng, { affixes: false })); }
+    for (const id of pool) { const m = get(id); out.push(makeEnemy(m, m.rank === 'Elite' ? 'Elite' : 'Normal', th.stage, rng, { affixes: false, msk: data.msk })); }
   }
   // several bosses share the usual boss budget
   if (trial.boss.length > 1) for (const e of out) { e.hp = Math.round(e.hp * 0.65); e.atk = Math.round(e.atk * 0.85); }
@@ -95,6 +95,7 @@ export function doTrial(state, data, trialId, thIdx) {
   const res = simulate({ allies: team.list, enemies: trialEnemies(trial, th, data), seed, strategy: state.strategy });
   const rw = { gold: 0, tickets: 0, items: [], first: false };
   state.stats.battles++;
+  recordCodex(state, trialEnemies(trial, th, data), res.win);
   if (res.win) {
     state.stats.wins++; state.stats.kills += res.kills;
     const key = trialKey(trial, th), rng = mulberry32(seed ^ 0x51ed);

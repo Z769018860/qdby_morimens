@@ -84,7 +84,7 @@ function typeKit(type) {
   }
 }
 
-export function buildKit(a) {
+export function buildKit(a, level = 2, med = null) {
   const n = KIT_NAMES[a.type];
   const t = typeKit(a.type);
   const r = realmRider(a.realm);
@@ -112,8 +112,66 @@ export function buildKit(a) {
       if (i >= 0) eff = eff.map((x, j) => (j === i ? { ...x, to: 'foes', m: +(x.m * 0.7).toFixed(2) } : x));
     }
     k[slot].effects = [...eff, ...riders(slot, rk, a, f).filter((r) => !['shield', 'heal'].includes(r.t) || !eff.some((x) => x.t === r.t))];
+    scaleReal(k[slot], rk, slot, level, med);
   }
   return k;
+}
+
+// ---------- real numbers ----------
+// The real skill text carries ranges (lv1 – max): "造成 150–300%（攻击力） 点伤害", "获得 10–20%（防御力） 点护盾",
+// "获得 5–10 点狂气". We read them, compare each awakener with the median of the same slot at the same skill level and
+// scale this game's effect by that ratio, so strong real numbers stay strong without moving the overall balance.
+export const SKILL_LEVELS = 5; // levels 0..4 -> shown as Lv.1..5
+const RANGE = (m) => [+m[1], m[2] != null ? +m[2] : +m[1]];
+const addR = (arr) => (arr.length ? arr.reduce((s, x) => [s[0] + x[0], s[1] + x[1]], [0, 0]) : null);
+export function realNums(rk) {
+  const t = strip(rk.d || '');
+  const out = {};
+  const dmg = addR([...t.matchAll(/([\d.]+)(?:[–-]([\d.]+))?%（攻击力）\s*点伤害/g)].map(RANGE));
+  const sh = addR([...t.matchAll(/([\d.]+)(?:[–-]([\d.]+))?%（防御力）\s*点护盾/g)].map(RANGE));
+  const ga = addR([...t.matchAll(/获得\s*([\d.]+)(?:[–-]([\d.]+))?\s*点狂气/g)].map(RANGE));
+  if (dmg) out.dmg = dmg;
+  if (sh) out.shield = sh;
+  if (ga) out.gauge = ga;
+  return out;
+}
+const at = (r, level) => r[0] + (r[1] - r[0]) * (level / (SKILL_LEVELS - 1));
+export function makeMedians(awakeners) {
+  const table = {}, cache = {};
+  for (const a of awakeners) for (const [slot, rk] of Object.entries(a.rk || {})) {
+    const n = realNums(rk);
+    for (const key of Object.keys(n)) (table[`${slot}.${key}`] ||= []).push(n[key]);
+  }
+  return (slot, key, level) => {
+    const id = `${slot}.${key}.${level}`;
+    if (cache[id] != null) return cache[id];
+    const vals = (table[`${slot}.${key}`] || []).map((r) => at(r, level)).sort((x, y) => x - y);
+    return (cache[id] = vals.length ? vals[Math.floor(vals.length / 2)] : 0);
+  };
+}
+const GROWTH = (level) => 0.92 + 0.04 * level;
+function scaleReal(sk, rk, slot, level, med) {
+  const n = realNums(rk), g = GROWTH(level), cur = {};
+  const ratio = (key) => {
+    const m = med ? med(slot, key, level) : 0, v = at(n[key], level);
+    cur[key] = Math.round(v * 10) / 10;
+    return m > 0 ? Math.max(0.55, Math.min(1.8, v / m)) : 1;
+  };
+  const rd = n.dmg ? ratio('dmg') : 1, rs = n.shield ? ratio('shield') : 1, rg = n.gauge ? ratio('gauge') : 1;
+  let did = { dmg: !n.dmg, shield: !n.shield, gauge: !n.gauge };
+  sk.effects = sk.effects.map((e) => {
+    if (e.t === 'dmg') { const r = did.dmg ? 1 : (did.dmg = true, rd); return { ...e, m: +(e.m * r * g).toFixed(3) }; }
+    if (e.t === 'shield') { const r = did.shield ? 1 : (did.shield = true, rs); return { ...e, m: +(e.m * r * g).toFixed(3) }; }
+    if (e.t === 'heal') return { ...e, m: +(e.m * g).toFixed(3) };
+    if (e.t === 'gauge' && e.k === 'aliemus' && !did.gauge) { did.gauge = true; return { ...e, v: Math.round(e.v * rg) }; }
+    return e;
+  });
+  // real text damages/shields but this game's archetype kit does not: add the missing effect at slot budget
+  const aoe = /全体敌人|所有敌人/.test(strip(rk.d || ''));
+  const BUDGET = { Strike: 1.0, Skill1: 1.6, Skill2: 1.7, Rouse: 0, Exalt: 2.4, OverExalt: 1.5 };
+  if (n.dmg && !sk.effects.some((e) => e.t === 'dmg') && BUDGET[slot]) sk.effects = [E.dmg(+(BUDGET[slot] * rd * g * (aoe ? 0.7 : 1)).toFixed(3), { to: aoe ? 'foes' : 'foe' }), ...sk.effects];
+  if (n.shield && !sk.effects.some((e) => e.t === 'shield') && slot !== 'Defense') sk.effects = [...sk.effects, E.shield(+(0.9 * rs * g).toFixed(3), 'self')];
+  sk.real = { ...sk.real, nums: n, cur, level };
 }
 
 // ---------- keyword riders ----------

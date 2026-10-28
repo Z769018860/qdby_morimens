@@ -3,6 +3,7 @@ import { stageInfo } from '../core/enemies.js';
 import { REALMS, TYPES, STATUS } from '../core/constants.js';
 import { esc, img, fmt, $, toast, kwIcon, stripMarks } from './util.js';
 import { meterHtml } from './pages2.js';
+import { monsterModal, intentIcon } from './codex.js';
 
 const STAT_ZH = { atk: '攻击', def: '防御', crit: '暴击', amp: '增伤', vuln: '易伤' };
 
@@ -26,7 +27,10 @@ export class BattleView {
       <div class="rewards" id="bv-rw"></div>
       <details class="meterbox"><summary>伤害 / 治疗统计（上一战）</summary><div id="bv-meter"></div></details>
       <div class="log" id="bv-log"></div>`;
-    root.addEventListener('click', (e) => { const b = e.target.closest('[data-bv]'); if (b) this.ctl(b.dataset.bv); });
+    root.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-bv]'); if (b) { this.ctl(b.dataset.bv); return; }
+      const f = e.target.closest('.unit.foe[data-mid]'); if (f) monsterModal(this.app, f.dataset.mid);
+    });
     this.refreshHead();
   }
 
@@ -86,9 +90,10 @@ export class BattleView {
   draw(res) {
     const mk = (d, u, side) => {
       const id = `${side}${u}`;
-      return `<div class="unit ${side === 'e' ? 'foe' : ''} ${d.boss ? 'boss' : ''}" id="u-${id}" style="--rc:${REALMS[d.realm]?.color || '#6b7280'}">
+      return `<div class="unit ${side === 'e' ? 'foe' : ''} ${d.boss ? 'boss' : ''}" id="u-${id}" ${d.mid ? `data-mid="${d.mid}"` : ''} style="--rc:${REALMS[d.realm]?.color || '#6b7280'}">
         <div class="u-pic"><img src="${img(d.img)}" alt=""><span class="u-tag">${esc(d.type && side === 'a' ? TYPES[d.type].short : '')}</span><div class="u-say"></div></div>
-        <div class="u-name" ${side === 'e' && d.sk?.length ? `title="${esc(d.sk.map(stripMarks).join('\n'))}"` : ''}>${esc(d.name)}</div>
+        <div class="u-name" ${side === 'e' && d.skills?.length ? `title="${esc(d.skills.map((x) => `${x.name}：${stripMarks(x.plain)}`).join('\n'))}"` : ''}>${esc(d.name)}</div>
+        ${side === 'e' ? '<div class="u-int" title="下一步行动"></div>' : ''}
         <div class="u-st"></div>
         <div class="bar hp"><i style="width:100%"></i><b>${fmt(d.hp)}</b><u class="sh" style="width:0"></u></div>
         ${side === 'a' ? `<div class="bar ali"><i style="width:${Math.min(100, d.openAli || 0)}%"></i></div><div class="bar key"><i style="width:${Math.min(100, d.openKey || 0)}%"></i></div>` : ''}
@@ -148,6 +153,12 @@ export class BattleView {
         }
         break;
       }
+      case 'intent': {
+        const u = U(e.who); if (!u) break;
+        const el = u.el.querySelector('.u-int');
+        if (el) { el.innerHTML = `${intentIcon(e.ic, 18)}<span>${esc(e.name)}</span>`; el.title = `下一步：${e.name}${e.text ? '\n' + stripMarks(e.text) : ''}`; }
+        break;
+      }
       case 'st': { const u = U(e.who); if (u) this.setStatus(u, e.list); break; }
       case 'status': { const u = U(e.who); if (u && !quiet) this.float(u, STATUS[e.s]?.zh || '', u.el.classList.contains('foe') ? 'debuff' : 'buff'); break; }
       case 'dmg': case 'dot': case 'counter': {
@@ -166,7 +177,7 @@ export class BattleView {
       case 'shield': { const u = U(e.who); if (!u) break; u.el.querySelector('.sh').style.width = `${Math.min(100, (e.shield / u.max) * 100)}%`; if (!quiet) this.float(u, '盾 ' + fmt(e.amt), 'sh'); break; }
       case 'buff': if (!quiet) { const u = U(e.who); this.float(u, `${STAT_ZH[e.stat] || ''}${e.v > 0 ? '↑' : '↓'}`, e.v > 0 ? 'buff' : 'debuff'); } break;
       case 'gauge': { const u = U(e.who); if (!u || e.ali == null) break; const a = u.el.querySelector('.ali i'), k = u.el.querySelector('.key i'); if (a) a.style.width = e.ali + '%'; if (k) k.style.width = e.key + '%'; break; }
-      case 'die': { const u = U(e.who); if (u) { u.el.classList.add('dead'); this.setStatus(u, []); } if (!quiet) this.log(`　${nm(e.who)} 倒下了`, 'dead'); break; }
+      case 'die': { const u = U(e.who); if (u) { u.el.classList.add('dead'); this.setStatus(u, []); const ii = u.el.querySelector('.u-int'); if (ii) ii.innerHTML = ''; } if (!quiet) this.log(`　${nm(e.who)} 倒下了`, 'dead'); break; }
       case 'end': break;
     }
   }

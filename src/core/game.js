@@ -1,7 +1,7 @@
 import { hash, mulberry32 } from './rng.js';
 import { MAX_LV, MAX_STAR, TEAM_SIZE, RELIC_SLOTS, SAVE_VERSION, GEAR_MAX_LV } from './constants.js';
-import { baseStats, lvUpCost, power } from './stats.js';
-import { buildKit } from './skills.js';
+import { baseStats, lvUpCost, power, skillLevel } from './stats.js';
+import { buildKit, makeMedians } from './skills.js';
 import { ZERO, addBonus, wheelBonus, relicBonus, covenantBonus, gearCost, dismantleValue } from './gear.js';
 import { buildEnemies, stageInfo } from './enemies.js';
 import { simulate } from './battle.js';
@@ -15,11 +15,13 @@ const STARTERS = ['ogier', 'lotan', 'doll', 'ramona'];
 export function indexData(pack) {
   const by = (arr) => Object.fromEntries(arr.map((x) => [x.id, x]));
   const kits = {};
+  const med = makeMedians(pack.awakeners);
   const d = {
     ...pack,
     bySlug: Object.fromEntries(pack.awakeners.map((a) => [a.slug, a])),
+    monById: Object.fromEntries(pack.monsters.map((m) => [m.id, m])),
     wheelById: by(pack.wheels), covById: by(pack.covenants), relicById: by(pack.relics),
-    kit(slug) { return kits[slug] || (kits[slug] = buildKit(d.bySlug[slug])); },
+    kit(slug, level = 2) { const id = `${slug}:${level}`; return kits[id] || (kits[id] = buildKit(d.bySlug[slug], level, med)); },
   };
   return d;
 }
@@ -33,7 +35,7 @@ export function newState(data, now = Date.now()) {
     gold: 600, tickets: 12, stage: 1, maxStage: 0,
     auto: true, speed: 2, skipAnim: false,
     strategy: { defend: 0.4, target: 'low', preset: 'balanced' },
-    roster, team: [...STARTERS],
+    roster, team: [...STARTERS], codex: {},
     gear: { items: {}, next: 1, equip: {}, relics: Array(RELIC_SLOTS).fill(null) },
     pity: { genesis: 0, ssr: 0 },
     stats: { battles: 0, wins: 0, pulls: 0, kills: 0, gold: 0 },
@@ -45,7 +47,7 @@ export function newState(data, now = Date.now()) {
 export function migrate(s, data) {
   if (!s || typeof s !== 'object') return newState(data);
   const base = newState(data, s.created || Date.now());
-  const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity }, tower: { ...base.tower, ...s.tower }, trials: { cleared: { ...(s.trials?.cleared || {}) } }, ach: { ...s.ach } };
+  const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity }, tower: { ...base.tower, ...s.tower }, trials: { cleared: { ...(s.trials?.cleared || {}) } }, ach: { ...s.ach }, codex: { ...s.codex } };
   m.team = (m.team || []).filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
   if (!m.team.length) m.team = Object.keys(m.roster).slice(0, TEAM_SIZE);
   return m;
@@ -79,7 +81,7 @@ export function allyDef(state, data, slug, teamSlugs = state.team) {
     aliGain: st.aliGain + bonus.aliGain, keyGain: st.keyGain + bonus.keyGain,
     healBonus: bonus.healBonus, shieldBonus: bonus.shieldBonus, steal: bonus.steal,
     surviveChance: Math.min(0.9, bonus.surviveChance), openAli: bonus.openAli, openKey: bonus.openKey,
-    firstBoost: bonus.firstBoost, kit: data.kit(slug), goldBonus: bonus.gold,
+    firstBoost: bonus.firstBoost, kit: data.kit(slug, skillLevel(r.lv, r.star)), goldBonus: bonus.gold,
   };
   def.power = power(def);
   return def;
@@ -124,7 +126,7 @@ export function battleSeed(state) { return (state.seed = (Math.imul(state.seed, 
 
 export function prepareBattle(state, data, stage = state.stage) {
   const t = teamDefs(state, data);
-  const enemies = buildEnemies(stage, data.monsters);
+  const enemies = buildEnemies(stage, data.monsters, { msk: data.msk });
   return { team: t, enemies, seed: battleSeed(state), allies: t.list };
 }
 
@@ -134,11 +136,22 @@ export function runBattle(state, data, stage = state.stage) {
   return { ...res, prep: p, stage };
 }
 
+// monster codex: how often each real monster was met / beaten
+export function recordCodex(state, enemies, win) {
+  state.codex ||= {};
+  for (const e of enemies) {
+    if (!e.mid) continue;
+    const c = (state.codex[e.mid] ||= { seen: 0, kills: 0 });
+    c.seen++; if (win) c.kills++;
+  }
+}
+
 // apply result to state; returns reward summary
 export function applyResult(state, data, res) {
   const rng = mulberry32(res.prep.seed ^ 0xabcdef);
   const rw = { gold: 0, tickets: 0, items: [], firstClear: false, advanced: false };
   state.stats.battles++;
+  recordCodex(state, res.prep.enemies, res.win);
   if (res.win) {
     state.stats.wins++;
     state.stats.kills += res.kills;

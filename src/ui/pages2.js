@@ -60,7 +60,7 @@ export function trialResultModal(app, r) {
 
 /* ---------- achievements ---------- */
 export function achievementPage(app) {
-  const list = achievementList(app.state);
+  const list = achievementList(app.state, app.data);
   const done = list.filter((a) => a.claimed).length;
   return `<div class="page"><h2>成就 <small>${done}/${list.length}</small></h2><div class="list">${list.map((a) => `
     <div class="ach ${a.done ? 'done' : ''}"><div class="ab"><b>${esc(a.zh)}</b><small>${esc(a.desc)}</small>
