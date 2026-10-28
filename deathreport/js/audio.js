@@ -53,6 +53,9 @@ export function play(name, { gain = 1, rate = 1, spread = 0 } = {}) {
   if (!on || broken) return;
   try {
     graph(); if (ctx.state === 'suspended') ctx.resume();
+    // 这四个不落盘：黑影的低语、黑潮的闷响、心跳、锁扣，都用振荡器+噪声现场合成。
+    // 站点每个请求要 1~2 秒，为几声短音效多占四个请求不划算。
+    if (name === 'whisper' || name === 'boom' || name === 'heart' || name === 'lock') { synth(name, gain, rate); return; }
     const b = buffers[name];
     if (!b) { fallback(name); return; }
     const s = ctx.createBufferSource(); s.buffer = b;
@@ -73,6 +76,89 @@ function fallback(name) {
   o.frequency.value = f;
   g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
   o.connect(g); g.connect(master); o.start(t); o.stop(t + d + 0.02);
+}
+
+// ---------------------------------------------------------------- 现场合成的四个音效
+// whisper 黑影的气声 / boom 黑潮的闷响 / heart 心跳 / lock 锁扣
+let nbuf = null;
+const noise = () => (nbuf ||= noiseBuffer(2));
+
+function synth(name, gain = 1, rate = 1) {
+  try {
+    const c = ctx, t0 = c.currentTime + 0.006;
+    const out = c.createGain(); out.gain.value = name === 'whisper' ? 0 : gain; out.connect(master);
+
+    if (name === 'whisper') {
+      // 两段带通噪声叠一点低频共振，再用 LFO 做出“说话”的音节起伏
+      const src = c.createBufferSource(); src.buffer = noise(); src.loop = true;
+      const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 760 * rate; bp.Q.value = 2.4;
+      const bp2 = c.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 1850 * rate; bp2.Q.value = 3.2;
+      const g1 = c.createGain(); g1.gain.value = 0.55;
+      const g2 = c.createGain(); g2.gain.value = 0.16;
+      const syll = c.createGain(); syll.gain.value = 0.42;
+      const lfo = c.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 4.1 + Math.random() * 0.8;
+      const lg = c.createGain(); lg.gain.value = 0.4; lfo.connect(lg); lg.connect(syll.gain);
+      src.connect(bp); bp.connect(g1); g1.connect(syll);
+      src.connect(bp2); bp2.connect(g2); g2.connect(syll);
+      syll.connect(out);
+      out.gain.setValueAtTime(0, t0);
+      out.gain.linearRampToValueAtTime(gain * 0.5, t0 + 0.22);
+      out.gain.linearRampToValueAtTime(0, t0 + 1.55);
+      src.start(t0); lfo.start(t0); src.stop(t0 + 1.6); lfo.stop(t0 + 1.6);
+      return;
+    }
+
+    if (name === 'boom') {
+      // 频率下滑的低频 + 一层被低通闷住的噪声，像很远的地方塌了一块
+      const o = c.createOscillator(); o.type = 'sine';
+      o.frequency.setValueAtTime(78 * rate, t0);
+      o.frequency.exponentialRampToValueAtTime(27 * rate, t0 + 0.6);
+      const og = c.createGain();
+      og.gain.setValueAtTime(0, t0);
+      og.gain.linearRampToValueAtTime(gain * 0.85, t0 + 0.02);
+      og.gain.exponentialRampToValueAtTime(0.0008, t0 + 1.05);
+      o.connect(og); og.connect(out);
+      const src = c.createBufferSource(); src.buffer = noise();
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 380;
+      const ng = c.createGain();
+      ng.gain.setValueAtTime(gain * 0.42, t0);
+      ng.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.75);
+      src.connect(lp); lp.connect(ng); ng.connect(out);
+      src.start(t0); src.stop(t0 + 0.85); o.start(t0); o.stop(t0 + 1.1);
+      return;
+    }
+
+    if (name === 'heart') {
+      const beat = (at, amp) => {
+        const o = c.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(66 * rate, at);
+        o.frequency.exponentialRampToValueAtTime(36 * rate, at + 0.17);
+        const g = c.createGain();
+        g.gain.setValueAtTime(0, at);
+        g.gain.linearRampToValueAtTime(gain * amp, at + 0.018);
+        g.gain.exponentialRampToValueAtTime(0.0008, at + 0.23);
+        o.connect(g); g.connect(out); o.start(at); o.stop(at + 0.26);
+      };
+      beat(t0, 0.95); beat(t0 + 0.27, 0.58);
+      return;
+    }
+
+    // lock：两下金属咔哒
+    for (const [at, amp] of [[0, 0.7], [0.08, 0.42]]) {
+      const src = c.createBufferSource(); src.buffer = noise();
+      const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1700;
+      const g = c.createGain();
+      g.gain.setValueAtTime(gain * amp, t0 + at);
+      g.gain.exponentialRampToValueAtTime(0.0008, t0 + at + 0.055);
+      src.connect(hp); hp.connect(g); g.connect(out);
+      src.start(t0 + at); src.stop(t0 + at + 0.07);
+      const o = c.createOscillator(); o.type = 'triangle'; o.frequency.value = 2300 * rate;
+      const og = c.createGain();
+      og.gain.setValueAtTime(gain * amp * 0.22, t0 + at);
+      og.gain.exponentialRampToValueAtTime(0.0008, t0 + at + 0.04);
+      o.connect(og); og.connect(out); o.start(t0 + at); o.stop(t0 + at + 0.05);
+    }
+  } catch { /* 合成失败就静音，不影响阅读 */ }
 }
 
 // ---------------------------------------------------------------- 环境音

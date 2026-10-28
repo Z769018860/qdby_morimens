@@ -25,7 +25,16 @@ const sfx = {
   stamp: () => play('stamp', { gain: 0.9 }),
   msg: () => play('msg', { gain: 0.7 }),
   bell: () => play('bell', { gain: 0.75 }),
+  // 以下四个由 audio.js 现场合成，没有对应文件
+  whisper: () => play('whisper', { gain: 0.42 }),
+  boom: () => play('boom', { gain: 0.3 }),
+  heart: () => play('heart', { gain: 0.5 }),
+  lock: () => play('lock', { gain: 0.34 }),
 };
+// 安卓与部分浏览器支持震动；iOS 没有，静默失败即可
+const buzz = (p) => { try { navigator.vibrate?.(p); } catch { /* ignore */ } };
+// 黑影的低语与黑潮的闷响只在第一次打开这条记录时响；重读不再打断
+const heard = new Set();
 function toast(t, ms = 2600) { const d = document.createElement('div'); d.textContent = t; $('#toast').appendChild(d); setTimeout(() => d.remove(), ms); }
 
 // ---------------------------------------------------------------- 背景素材
@@ -74,9 +83,14 @@ function readerTools() {
   const t = pref.auto, b = (k, l) => `<button data-auto="${k}" class="${t[k] ? 'on' : ''}">${l}</button>`;
   return `<div class="rdtools"><span class="dim">高亮</span>${b('name', '人名')}${b('loc', '地点')}${b('item', '装备')}${b('bc', '广播·序数')}<span class="dim legend">点击段落标记：<i class="m1">线索</i><i class="m2">证词</i><i class="m3">矛盾</i></span></div>`;
 }
-function openReader(id) {
+function openReader(id, keep = false) {
   ui.sel = id; const head = $('#rdHead'), body = $('#rdBody');
   const rec = G.records[id], doc = G.docs[id], msg = G.msgs.find((m) => m.id === id), arc = G.arcs.find((a) => a.id === id);
+  // 黑影（名册外的那一个）与黑潮致死各有自己的画面与声音
+  const isShadow = !!(G.shadow && (G.shadow.keys || []).includes(id));
+  const isBlast = !!(rec && /爆炸/.test(G.solutions?.[id]?.causeZh || ''));
+  const rd = $('#rd');
+  rd.classList.toggle('shadowrec', isShadow);
   if (arc) { head.innerHTML = `<b>${id}</b> | ${esc(arc.title)} | ${esc(arc.source)}<small>${arc.hidden ? '隐藏档案　靠推理得到' : `补充档案　确认 ${arc.need} 份报告后送达`}</small>`; body.innerHTML = paras(arc.text, id); }
   else if (rec) { head.innerHTML = `<b>${id}</b> | ${esc(rec.name)} | ${esc(rec.when)}<small>${esc(rec.cell)} ${esc(G.places[rec.cell])}　NO.${String(rec.num).padStart(2, '0')}</small>`; body.innerHTML = paras(rec.text, id); }
   else if (doc) { head.innerHTML = `<b>${id}</b> | ${esc(doc.title)} | ${esc(doc.source)}`; body.innerHTML = paras(doc.text, id); }
@@ -87,6 +101,14 @@ function openReader(id) {
   else if (rec && (rec.refs || []).length) body.insertAdjacentHTML('beforeend', '<p class="notice done">-- 这条记录能推理出的记录，已全部复原 --</p>');
   if (rec || doc || msg || arc) body.insertAdjacentHTML('beforeend', `<details class="rn" ${st.rnotes?.[id] ? 'open' : ''}><summary>本条笔记</summary><textarea data-rn="${id}" placeholder="针对这条记录的推理（自动保存）">${esc(st.rnotes?.[id] || '')}</textarea></details>`);
   body.parentElement.scrollTop = 0;
+  // 正文逐段浮现，像记录一行一行被还原出来；重渲染（切换高亮）时不重播
+  if (!keep) {
+    const ps = [...body.querySelectorAll(':scope > p')].filter((p) => !p.classList.contains('sys'));
+    ps.forEach((p, i) => { p.style.animationDelay = Math.min(i, 22) * 22 + 'ms'; p.classList.add('fin'); });
+    if (isShadow && !heard.has(id)) { heard.add(id); sfx.whisper(); }
+    else if (isBlast && !heard.has(id)) { heard.add(id); sfx.boom(); }
+    else if (doc && doc.id === '00-ZONE' && !heard.has(id)) { heard.add(id); sfx.boom(); }
+  }
   showPane('rd'); renderList();
 }
 $('#rdBody').addEventListener('click', (e) => {
@@ -99,7 +121,7 @@ $('#rdBody').addEventListener('click', (e) => {
 });
 $('#rdBody').addEventListener('input', (e) => { const id = e.target.dataset.rn; if (id) { (st.rnotes ||= {})[id] = e.target.value; } });
 $('#rdBody').addEventListener('change', (e) => { if (e.target.dataset.rn) save(); });
-function openReaderKeep() { const y = $('#rdBody').parentElement.scrollTop; openReader(ui.sel); $('#rdBody').parentElement.scrollTop = y; }
+function openReaderKeep() { const y = $('#rdBody').parentElement.scrollTop; openReader(ui.sel, true); $('#rdBody').parentElement.scrollTop = y; }
 
 // ---------------------------------------------------------------- index
 function renderList() {
@@ -158,10 +180,11 @@ function renderTools() {
     tp.innerHTML = h;
   } else if (ui.tab === 'map') {
     const zones = st.docs.includes('00-ZONE'), cols = G.edition.grid.cols; const when = {}; for (const z of G.zones) when[z.cell] = `${z.day}日${String(z.hour).padStart(2, '0')}:00`;
+    const zorder = new Map(); G.zones.forEach((z, i) => zorder.set(z.cell, i));
     const dead = {}; for (const k of st.recovered) dead[G.records[k].cell] = (dead[G.records[k].cell] || 0) + 1;
     let h = `<h4>■ 地图　${G.edition.n === 63 ? '弥萨格复本（密境）' : G.edition.title + '（密境）'}</h4><div class="map" style="grid-template-columns:22px repeat(${cols.length},1fr)"><span></span>` + [...cols].map((c) => `<span class="ax">${c}</span>`).join('');
-    for (const r of G.edition.grid.rows) { h += `<span class="ax">${r}</span>`; for (const c of cols) { const id = c + r; h += `<div class="cell ${id === 'C3' && G.edition.n === 63 ? 'c3' : ''}"><b>${id} ${esc(G.places[id])}</b>${zones ? `<span class="z">封锁 ${when[id]}</span>` : ''}${dead[id] ? `<br><span class="d">复原 ${dead[id]} 条</span>` : ''}</div>`; } }
-    tp.innerHTML = h + '</div><p class="dim mapswipe">← 左右滑动查看整张地图 →</p>' + (zones ? '' : '<p class="dim">封锁时刻需要先复原 00-ZONE。</p>');
+    for (const r of G.edition.grid.rows) { h += `<span class="ax">${r}</span>`; for (const c of cols) { const id = c + r; h += `<div class="cell ${id === 'C3' && G.edition.n === 63 ? 'c3' : ''}${dead[id] ? ' has' : ''}" style="--i:${zorder.get(id) ?? 0}" data-cell="${id}"><b>${id} ${esc(G.places[id])}</b>${zones ? `<span class="z">封锁 ${when[id]}</span>` : ''}${dead[id] ? `<br><span class="d">复原 ${dead[id]} 条</span>` : ''}</div>`; } }
+    tp.innerHTML = h + '</div><p class="dim mapswipe">点一个区块，看这一区死了谁；屏幕太窄时可以左右滑动。</p>' + (zones ? '' : '<p class="dim">封锁时刻需要先复原 00-ZONE。</p>');
   } else if (ui.tab === 'rep') {
     const recs = st.recovered.map((k) => G.records[k]).sort((a, b) => a.dord - b.dord);
     const cur = ui.rep && G.records[ui.rep] && st.recovered.includes(ui.rep) ? ui.rep : null;
@@ -203,11 +226,25 @@ $('#tp').addEventListener('click', (e) => {
   const gg = e.target.closest('[data-go]'); if (gg && !gg.dataset.n) { const k = gg.dataset.go; if (st.recovered.includes(k)) openReader(k); else doRecover(k); return; }
   const cd = e.target.closest('[data-card]'); if (cd) { openReader(cd.dataset.card); return; }
   const nd = e.target.closest('.nd'); if (nd) { const rec = G.roster[+nd.dataset.n - 1]; if (st.recovered.includes(rec.key)) openReader(rec.key); else toast('这条记录还没有复原。'); return; }
+  const cc = e.target.closest('[data-cell]'); if (cc && ui.tab === 'map') { cellInfo(cc.dataset.cell); return; }
   if (e.target.id === 'bAssist') { pref.assist = !pref.assist; savePref(); renderTools(); return; }
   if (e.target.id === 'bSub') doSubmit();
   if (e.target.id === 'bHintC') { ui.tab = 'hint'; giveHint('confirm', ui.rep); }
 });
 $('#tp').addEventListener('change', (e) => { const f = e.target.dataset.f; if (f && ui.rep) { setDraft(st, ui.rep, f, e.target.value === '' ? null : e.target.value); save(); renderList(); } });
+function cellInfo(id) {
+  sfx.lock();
+  const zone = G.zones.find((z) => z.cell === id);
+  const recs = Object.values(G.records).filter((r) => r.cell === id).sort((a, b) => a.dord - b.dord);
+  const known = recs.filter((r) => st.recovered.includes(r.key));
+  const conf = known.filter((r) => st.confirmed[r.key]).length;
+  const m = modal(`<h3>■ ${id}　${esc(G.places[id])}</h3>
+    <p class="dim">${zone ? `融灾黑潮：第 ${zone.day} 天 ${String(zone.hour).padStart(2, '0')}:00 封锁${id === 'C3' ? '（最终收缩）' : ''}` : '这一区不设封锁'}</p>
+    <p>这一区有 <b>${recs.length}</b> 条记录，已复原 ${known.length} 条、已确认 ${conf} 份。</p>
+    ${known.length ? `<div class="celllist">${known.map((r) => `<button class="chipb" data-go="${r.key}">${r.key}　${esc(r.name)}${st.confirmed[r.key] ? ' ✔' : ''}</button>`).join('')}</div>` : '<p class="dim">还没有复原这一区的记录。</p>'}
+    <div class="btns"><button class="btn" data-close>关闭</button></div>`);
+  m.querySelectorAll('[data-go]').forEach((b) => { b.onclick = () => { $('#modal').hidden = true; openReader(b.dataset.go); }; });
+}
 function giveHint(kind, key) {
   const r = hint(G, st, kind, key);
   if (!r.ok) { toast(r.msg); return; }
@@ -215,10 +252,10 @@ function giveHint(kind, key) {
 }
 function doSubmit() {
   const key = ui.rep, r = submit(G, st, key);
-  if (!r.ok) { toast(r.msg); sfx.err(); return; }
+  if (!r.ok) { toast(r.msg); sfx.err(); buzz([14, 40, 14]); return; }
   renderTools();
-  if (r.correct) { sfx.stamp(); toast('● 报告已确认'); for (const m of r.arrived || []) { sfx.msg(); toast(/^(AR|HX)-/.test(m) ? `${m.startsWith('HX') ? '隐藏档案' : '新档案'} ${m}　${G.arcs.find((x) => x.id === m).title}` : m === 'MSG06' ? '新消息 MSG06 ——名册已更新：检测到名册之外的个体。' : `新消息 ${m}`, 4200); } if (r.arrived?.includes('MSG07')) { save(); endGame(); return; } if (r.milestone) { save(); resonance(r.milestone); } }
-  else sfx.err();
+  if (r.correct) { sfx.stamp(); buzz(24); toast('● 报告已确认'); for (const m of r.arrived || []) { sfx.msg(); toast(/^(AR|HX)-/.test(m) ? `${m.startsWith('HX') ? '隐藏档案' : '新档案'} ${m}　${G.arcs.find((x) => x.id === m).title}` : m === 'MSG06' ? '新消息 MSG06 ——名册已更新：检测到名册之外的个体。' : `新消息 ${m}`, 4200); } if (r.arrived?.includes('MSG07')) { save(); endGame(); return; } if (r.milestone) { save(); resonance(r.milestone); } }
+  else { sfx.err(); buzz([16, 46, 16]); }
   renderList(); refreshRate(); save();
 }
 function reward(w) {
@@ -256,6 +293,7 @@ async function endGame() {
   stopAmbient();
   const box = $('#ending'); box.hidden = false; epSkip = false;
   box.innerHTML = '<pre id="ep"></pre><div class="row" id="epBtns" hidden></div><button class="endskip" id="epSkip">跳过 ▶</button>';
+  sfx.heart(); buzz([30, 90, 30]);
   $('#epSkip').onclick = () => { epSkip = true; sfx.bell(); };
   const ep = $('#ep');
   if (res.ended === 'true' && ED !== 63) {
@@ -295,7 +333,7 @@ function help() {
   <p>· 在左侧输入栏键入<b>记录名</b>复原记录。记录名怎么拼，要自己从线索里推——名册、地图、广播与时间都是线索。<br>· 记录的每个段落都可以点击标记。<br>· 记录末尾和索引里的 [X] 表示还有几条参考没有复原；虚线表示正文提到了还没读的系统文档。<br>· 三项全对才会“确认”；填错只会提示“存在错误的报告”。<br>· 每确认一部分报告，会收到新的消息。<br>· 提示分三级，会影响评级。</p><div class="btns"><button class="btn" data-close>明白了</button></div>`);
 }
 async function loadEdition(n) {
-  ED = n; G = await (await fetch(EDS[n][0])).json(); buildAuto(); setTheme(n); setAudioTheme(n); setBg('title');
+  ED = n; G = await (await fetch(EDS[n][0])).json(); buildAuto(); setTheme(n); setAudioTheme(n); setBg('title'); heard.clear();
   document.title = n === 63 ? '死亡游戏调查报告 · 第六十三次回溯筛选' : `死亡游戏调查报告 · ${G.edition.label}回溯筛选（往届）`;
   $('.sub').textContent = n === 63 ? '第六十三次　回溯筛选　完全复原' : G.edition.subtitle + '（往届档案）';
 }

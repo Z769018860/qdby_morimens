@@ -233,6 +233,76 @@ def check_structure(G, ed, R, HOW):
 
 
 # ---------------------------------------------------------------- 届内叙事
+def check_fragments(G, ed, R):
+    """残片谜题必须真的拼得出来：同一符号按一、二取字，拼成的词要等于谜底。
+    这一条只对主线有意义（往届没有残片）。描述里写的“名册第 N 号”“地图上 A1”
+    都得能从数据里取到字，越界或对不上就说明谜题坏了——玩家会卡死。"""
+    if ed != '63':
+        return
+    try:
+        from puzzles import PUZZLES
+    except Exception as e:                                    # noqa: BLE001
+        R.section('残片拼图', ed, [('WARN', f'读不到 puzzles.PUZZLES：{e}')])
+        return
+    CN = '零一二三四五六七八九十'
+    ros = {p['n']: p for p in G['roster']}
+
+    def at(s, num):
+        k = CN.index(num)
+        return s[k - 1] if 0 < k <= len(s) else None
+
+    def take(desc):
+        m = re.search(r'取第(.)字', desc)
+        pos = m.group(1)
+        if '配发装备' in desc:
+            n = int(re.search(r'名册第(\d+)号', desc).group(1))
+            return at(ros[n]['item'], pos)
+        if '项特性' in desc:
+            n = int(re.search(r'名册第(\d+)号', desc).group(1))
+            j = CN.index(re.search(r'第(.)项特性', desc).group(1)) - 1
+            tr = (ros[n].get('lore') or {}).get('特性', '').split()
+            return at(tr[j], pos) if j < len(tr) else None
+        if desc.startswith('地图上'):
+            c = re.search(r'地图上([A-E]\d)', desc).group(1)
+            return at(G['places'].get(c, ''), pos)
+        if desc.startswith('补充档案'):
+            aid = re.search(r'([A-Z]{2}-\d+)', desc).group(1)
+            t = next((a['title'] for a in G['arcs'] if a['id'] == aid), '')
+            return at(t, pos)
+        if desc.startswith('文档'):
+            did = re.search(r'文档([0-9A-Z-]+)的标题', desc).group(1)
+            return at(G['docs'].get(did, {}).get('title', ''), pos)
+        if '个死者的名字' in desc:
+            d = CN.index(re.search(r'第(.)个死者', desc).group(1))
+            r = next((r for r in G['records'].values() if r['dord'] == d), None)
+            return at(r['name'], pos) if r else None
+        return None
+
+    rx = re.compile(r'〔([◇◆▲▽○●★☆◎▣□])([一二三四])〕(.+)')
+    by = {}
+    for txt in [r['text'] for r in G['records'].values()] + [d['text'] for d in G['docs'].values()] + [a['text'] for a in G['arcs']]:
+        for line in txt.split('\n'):
+            m = rx.search(line)
+            if m:
+                by.setdefault(m.group(1), {}).setdefault(m.group(2), []).append(m.group(3).rstrip('。'))
+    rows = []
+    for hid, ans, _src, sym, _badge in PUZZLES:
+        got, detail = '', []
+        for seq in ('一', '二'):
+            ds = [d for d in by.get(sym, {}).get(seq, []) if '……' not in d]
+            if not ds:
+                got += '?'
+                detail.append(f'缺{seq}')
+                continue
+            c = take(ds[0])
+            got += c or '?'
+            detail.append(ds[0][:28])
+        if got != ans:
+            rows.append(('ERROR', f'{hid}（{sym}）拼出来是「{got}」，谜底却是「{ans}」：' + ' ／ '.join(detail)))
+    rows.append(('INFO', f'{len(PUZZLES)} 个残片谜题，{len(PUZZLES) - sum(1 for r in rows if r[0] == "ERROR")} 个能拼出答案'))
+    R.section('残片拼图（散在正文里的字）', ed, rows)
+
+
 def check_narrative(G, ed, R):
     rows = []
     recs = G['records']
@@ -582,6 +652,7 @@ def main():
             print(f'         ERROR {x}')
             R.err(key, x)
         check_structure(G, key, R, ledger_how(key))
+        check_fragments(G, key, R)
         check_narrative(G, key, R)
         check_metrics(G, key, R)
         R.notes = []
