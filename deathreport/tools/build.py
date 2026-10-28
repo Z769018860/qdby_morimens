@@ -53,8 +53,8 @@ records = {}
 for e in E:
     n = e['v']; prose, ment, sysrefs = render(n)
     refs = [KEY[k] for k in dict.fromkeys(ment) if k != n]
-    foot = '-- 检测到钥印被强制引爆 --' if e['cause'] == 'blast' else '-- 检测到生命体征消失 --'
-    if e['dord'] == 1: foot = '-- 检测到钥印启动。关于钥印的说明请参考 [link]00-CHIP[/link] --\n' + foot
+    foot = '-- 检测到银芯被强制崩解 --' if e['cause'] == 'blast' else '-- 检测到生命体征消失 --'
+    if e['dord'] == 1: foot = '-- 检测到银芯启动。关于银芯的说明请参考 [link]00-CHIP[/link] --\n' + foot
     for s in dict.fromkeys(sysrefs): 
         if e['dord'] != 1 or s != '00-CHIP': foot += f'\n-- 参考 [link]{s}[/link] --'
     body = prose.strip() + '\n\n[sys]\n' + foot + '\n[/sys]'
@@ -115,7 +115,7 @@ for did, (title, src, body, secret) in DOCS.items():
 
 # ---------------- solutions & hints
 def manner(e): return CAUSES[e['cause']]
-FLAV = {'demo': '因开幕演示，钥印被管理方强制引爆而死', 'zone': '因滞留在融蚀潮区域，钥印被强制引爆而死', 'final': '因最终区域收缩，钥印被强制引爆而死'}
+FLAV = {'demo': '因开幕演示，银芯被管理方强制崩解而死', 'zone': '因滞留在融灾黑潮区域，银芯被强制崩解而死', 'final': '因最终区域收缩，银芯被强制崩解而死'}
 takes_event = {}
 for e in E:
     for t in e.get('takes', []): takes_event.setdefault(t, e)   # item owner -> first event where somebody takes it
@@ -137,7 +137,7 @@ for e in E:
     hints['restore'][k] = [s1, f"有线索的记录里提到了人物“{NAME[v]}”和地点“{PLACES[e['cell']]}”。", f"接下来应该复原的记录是“{k}”。"]
     # confirm ladder
     h2 = ''
-    if e['cause'] == 'blast': h2 = '这不是他杀。请阅读 00-CHIP 与 00-ZONE：钥印被引爆的死亡，没有加害人也没有凶器。' if e.get('sub') != 'zone' else f'这不是他杀。看看“{PLACES[e["cell"]]}”被封锁的时刻（00-ZONE），再对照死亡的时间。'
+    if e['cause'] == 'blast': h2 = '这不是他杀。请阅读 00-CHIP 与 00-ZONE：银芯崩解的死亡，没有加害人也没有凶器。' if e.get('sub') != 'zone' else f'这不是他杀。看看“{PLACES[e["cell"]]}”被封锁的时刻（00-ZONE），再对照死亡的时间。'
     elif e['cause'] == 'accident': h2 = '这不是他杀。请阅读 00-REPORT，确认意外死亡该怎么记。'
     elif e['cause'] == 'fall' and c == 0: h2 = '这不是他杀，是本人自己跳下去的。请阅读 00-REPORT，确认自杀时该怎么记。'
     elif e['cause'] == 'poison' and c == 0: h2 = '这不是他杀，是本人亲自服下的。请阅读 00-REPORT，确认自杀时凶器如何认定。'
@@ -147,18 +147,19 @@ for e in E:
     elif w == c: h2 = f'凶器是“{ITEM[w]}”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。'
     else:
         te = takes_event.get(w)
-        h2 = f'凶器是“{ITEM[w]}”。它原本配发给{NAME[w]}，但此刻不在他手里——它后来到了谁的手上？' + (f'请再仔细阅读一遍“{te["key"]}”。' if te else '')
+        h2 = f'凶器是“{ITEM[w]}”。它原本配发给{NAME[w]}，但此刻不在其手里——它后来到了谁的手上？' + (f'请再仔细阅读一遍“{te["key"]}”。' if te else '')
     ans = f"答案 —— 死因“{CAUSES[e['cause']]}”／ 凶器“{weapon}”／ 加害人“{culprit if c != SHADOW else '名册外的个体（黑影）'}”。"
     hints['confirm'][k] = [f"请再仔细阅读一遍“{k}”（{NAME[v]} 的记录）。", h2, ans]
 
 # ---------------- roster
+LORE = json.loads((HERE / 'data/lore.json').read_text(encoding='utf-8'))
 roster = []
 for n, slug, zh, realm, role, item, kind, cls in ROSTER:
     melted = (n == 50)
     img = None
     if kind == 'r' and item in cz: img = cz[item]['img']
     if kind == 'w' and item in wz: img = wz[item]['img']
-    roster.append(dict(n=n, slug=slug, name=zh, realm=realm, role=role, item=item, itemClass=cls, itemImg=img, avatar=av.get(zh.replace('「', '').replace('」', '')), melted=melted, key=KEY[n]))
+    roster.append(dict(n=n, slug=slug, name=zh, realm=realm, role=role, item=item, itemClass=cls, itemImg=img, avatar=av.get(zh.replace('「', '').replace('」', '')), melted=melted, key=KEY[n], lore=LORE.get(str(n), {})))
 game = dict(title='死亡游戏调查报告', subtitle='第六十三次 回溯筛选', roster=roster, places=PLACES, zones=[dict(day=d, hour=h, cell=c) for d, h, c in ZONES], causes=CAUSES,
             records=records, docs=docs, msgs=msgs, start=START, solutions=solutions, hints=hints, shadow=dict(num=SHADOW, keys=[e['key'] for e in E if e['c'] == SHADOW]),
             stats=dict(records=len(records), edges=sum(len(r['refs']) for r in records.values())))

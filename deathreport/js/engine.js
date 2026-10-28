@@ -98,7 +98,7 @@ export function summary(G, key) {
   const s = G.solutions[key], r = G.records[key];
   const who = s.culprit === 0 ? null : (s.culprit === 63 ? '名册外的个体（黑影）' : G.roster[s.culprit - 1].name);
   const cause = s.causeZh;
-  if (s.cause === 'blast') return `${r.name} 因钥印被强制引爆而死`;
+  if (s.cause === 'blast') return `${r.name} 因银芯被强制崩解而死`;
   if (s.cause === 'accident') return `${r.name} 因自身过失而死`;
   if (!who) return s.cause === 'fall' ? `${r.name} 主动从高处跳下而死` : `${r.name} 因自行服毒而死`;
   return `${r.name} 被${who}${s.weapon !== '无' ? `用${s.weapon}` : ''}杀死，死因：${cause}`;

@@ -79,12 +79,18 @@ function renderTools() {
   const tp = $('#tp'); document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.t === ui.tab));
   if (ui.tab === 'ros') {
     const q = ui.q.trim().toLowerCase(), rows = rosterView(G, st).filter((p) => !q || p.shownName.toLowerCase().includes(q) || String(p.n) === q || p.item.toLowerCase().includes(q) || REALM[p.realm].includes(q) || ROLE[p.role].includes(q));
-    tp.innerHTML = `<h4>■ 唤醒体名册（${G.roster.length} 名）</h4><div class="row"><input id="rq" placeholder="搜索 姓名 / 编号 / 装备 / 界域" value="${esc(ui.q)}"></div><div class="ros">${rows.map((p) => `<div class="rr ${p.melted ? 'melt' : ''}"><span class="no">${String(p.n).padStart(2, '0')}</span>${p.avatar ? `<img class="av" loading="lazy" src="../${p.avatar}" alt="">` : '<span></span>'}<span class="nm">${p.melted ? '▇▇（融蚀）' : esc(p.shownName)} <small class="dim">${REALM[p.realm]}／${ROLE[p.role]}</small>${st.confirmed[p.key] ? '<span class="st">✔</span>' : p.recordKnown ? '<span class="st" style="color:var(--amb)">●</span>' : ''}</span><span class="it">${p.itemImg ? `<img src="../${p.itemImg}" alt="">` : ''}配发: ${p.melted ? '（融蚀）' : esc(p.item)}</span></div>`).join('')}</div>`;
+    tp.innerHTML = `<h4>■ 唤醒体名册（${G.roster.length} 名）</h4><div class="row"><input id="rq" placeholder="搜索 姓名 / 编号 / 装备 / 界域" value="${esc(ui.q)}"></div><div class="ros">${rows.map((p) => `<div class="rr ${p.melted ? 'melt' : ''}" data-n="${p.n}"><span class="no">${String(p.n).padStart(2, '0')}</span>${p.avatar ? `<img class="av" loading="lazy" src="../${p.avatar}" alt="">` : '<span></span>'}<span class="nm">${p.melted ? '▇▇（融蚀）' : esc(p.shownName)} <small class="dim">${REALM[p.realm]}／${ROLE[p.role]}</small>${st.confirmed[p.key] ? '<span class="st">✔</span>' : p.recordKnown ? '<span class="st" style="color:var(--amb)">●</span>' : ''}</span><span class="it">${p.itemImg ? `<img src="../${p.itemImg}" alt="">` : ''}配发: ${p.melted ? '（融蚀）' : esc(p.item)}</span></div>`).join('')}</div>`;
+    tp.querySelectorAll('.rr').forEach((el) => { el.style.cursor = 'pointer'; el.onclick = () => {
+      const p = rosterView(G, st).find((x) => x.n === +el.dataset.n), L = p.lore || {};
+      if (p.melted) { modal('<h3>■ ▇▇　名册第 50 号</h3><p class="dim">档案已被融蚀，无法读取。</p><div class="btns"><button class="btn" data-close>关闭</button></div>'); return; }
+      const rows = [['性别', L['性别']], ['生日', L['生日']], ['身高', L['身高']], ['Gi 值', L['Gi 值']], ['界域', REALM[p.realm] + '／' + ROLE[p.role]], ['特性', L['特性'] && L['特性'].replace(/\s{2,}/g, '　')], ['配发', p.item]].filter((r) => r[1]);
+      modal(`<h3>■ ${String(p.n).padStart(2, '0')}　${esc(p.name)}</h3>${p.avatar ? `<img class="av" style="float:right;width:72px;height:72px;margin:0 0 6px 10px;border:1px solid var(--line)" src="../${p.avatar}" alt="">` : ''}<p>${rows.map((r) => `<b>${esc(r[0])}</b>　${esc(r[1])}`).join('<br>')}</p>${L['简介'] ? `<p>${esc(L['简介'])}</p>` : ''}${L['唤醒台词'] ? `<p class="dim">“${esc(L['唤醒台词'])}”</p>` : ''}<div class="btns"><button class="btn" data-close>关闭</button></div>`);
+    }; });
     $('#rq').addEventListener('input', (e) => { ui.q = e.target.value; const pos = e.target.selectionStart; renderTools(); const i = $('#rq'); i.focus(); i.setSelectionRange(pos, pos); });
   } else if (ui.tab === 'map') {
     const zones = st.docs.includes('00-ZONE'), cols = 'ABCDE'; const when = {}; for (const z of G.zones) when[z.cell] = `${z.day}日${String(z.hour).padStart(2, '0')}:00`;
     const dead = {}; for (const k of st.recovered) dead[G.records[k].cell] = (dead[G.records[k].cell] || 0) + 1;
-    let h = '<h4>■ 地图　忘岛</h4><div class="map"><span></span>' + [...cols].map((c) => `<span class="ax">${c}</span>`).join('');
+    let h = '<h4>■ 地图　弥萨格复本（密境）</h4><div class="map"><span></span>' + [...cols].map((c) => `<span class="ax">${c}</span>`).join('');
     for (let r = 1; r <= 5; r++) { h += `<span class="ax">${r}</span>`; for (const c of cols) { const id = c + r; h += `<div class="cell ${id === 'C3' ? 'c3' : ''}"><b>${id} ${esc(G.places[id])}</b>${zones ? `<span class="z">封锁 ${when[id]}</span>` : ''}${dead[id] ? `<br><span class="d">复原 ${dead[id]} 条</span>` : ''}</div>`; } }
     tp.innerHTML = h + '</div>' + (zones ? '' : '<p class="dim">封锁时刻需要先复原 00-ZONE。</p>');
   } else if (ui.tab === 'rep') {
@@ -168,12 +174,12 @@ function settings() {
   $('#sCrt').onchange = (e) => { pref.crt = e.target.checked; applyPref(); savePref(); }; $('#sSnd').onchange = (e) => { pref.sound = e.target.checked; savePref(); }; $('#sSize').onchange = (e) => { pref.size = +e.target.value; applyPref(); savePref(); };
 }
 function help() {
-  modal(`<h3>■ 玩法说明</h3><p>你是第七档案局的档案官，要复原“第六十三次回溯筛选”里每一个人的死亡记录，并为每一起死亡填写报告：<b>死因、凶器、加害人</b>。</p>
+  modal(`<h3>■ 玩法说明</h3><p>你是弥萨格的守密人，手持银钥匙，借助溯梦终端复原“第六十三次回溯筛选”里每一个人的死亡记录，并为每一起死亡填写报告：<b>死因、凶器、加害人</b>。</p>
   <p>· 在左侧输入栏键入<b>记录名</b>复原记录。记录名怎么拼，要自己从线索里推——名册、地图、广播与时间都是线索。<br>· 记录的每个段落都可以点击标记。<br>· 记录末尾和索引里的 [X] 表示还有几条参考没有复原；虚线表示正文提到了还没读的系统文档。<br>· 三项全对才会“确认”；填错只会提示“存在错误的报告”。<br>· 每确认一部分报告，会收到新的消息。<br>· 提示分三级，会影响评级。</p><div class="btns"><button class="btn" data-close>明白了</button></div>`);
 }
 function bootTitle() {
   const log = $('#bootlog'); log.textContent = '';
-  const lines = ['> 记录复原终端　启动中……', '> 内网链路　………　已确认（特级）', '> 检测到记录库遭到篡改　部分索引损坏', '> 参加者：六十二名　·　生存者：零', '> 请档案官尽快开始复原。'];
+  const lines = ['> 记录复原终端　启动中……', '> 钥冢档案室内网　………　已确认（特级）', '> 检测到记录库遭到篡改　部分索引损坏', '> 参加者：六十二名　·　生存者：零', '> 请守密人尽快开始复原。'];
   let i = 0; (function next() { if (i >= lines.length) return; log.textContent += lines[i++] + '\n'; sfx.key(); setTimeout(next, 260); })();
   const items = [['continue', '继续调查', hasSave()], ['new', '新的游戏', true], ['settings', '系统设置', true], ['help', '玩法说明', true], ['home', '返回首页', true]].filter((x) => x[2]);
   $('#menu').innerHTML = items.map(([k, t]) => `<button data-m="${k}">${t}</button>`).join('');

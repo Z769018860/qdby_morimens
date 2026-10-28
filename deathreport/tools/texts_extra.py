@@ -128,3 +128,18 @@ FLAVOR = {
 # ---- make sure every victim's name is read out in at least one broadcast that appears in some record
 for _n, _h in [(3, 'D1-09'), (12, 'D1-11'), (56, 'D1-13'), (6, 'D1-15'), (18, 'D1-20'), (43, 'D2-07'), (41, 'D2-11'), (4, 'D2-14'), (61, 'D2-17'), (59, 'D2-18')]:
     X.setdefault(_n, []).append((0, "刚才的广播是这样说的——{bc:%s}" % _h))
+
+# lore hints for the shadow (神王·图鲁): hates water, spiked crown, translucent tentacles, absent from every archive
+_SHADOW_HINTS = {
+ 14: (1, "地上有一滩水，黑影绕了过去，影子里的几条细长的东西缩了一下。"),
+ 26: (1, "窗外在下雨。黑影背对着窗，像是不愿意听见雨声。"),
+ 40: (2, "它走过颜料桶的时候，影子里伸出几条半透明的触腕，把水桶推远了。"),
+ 49: (1, "黑影戴着一顶满是尖刺的王冠，王冠的影子投在地上，像一圈荆棘。"),
+ 54: (1, "地上积着昨夜的雨水，黑影踮着脚绕了过去。"),
+ 58: (1, "黑影抬起头，王冠下面是一双困倦的眼睛——像一个很久没睡醒的孩子。"),
+ 15: (1, "我是弥萨格最大的数据库。可我的检索里没有这个人——不在名册，不在校史，不在任何一本书里。"),
+ 55: (1, "黑影的触腕缠过来，湿滑，却不是水。"),
+ 48: (1, "它站在台阶上，王冠的尖刺在暗处泛着一点绿光。"),
+}
+for _k, _v in _SHADOW_HINTS.items():
+    X.setdefault(_k, []).append(_v)
