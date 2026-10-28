@@ -11,12 +11,12 @@
 // 表现层只负责把这些数翻译成位移、缩放、粒子。粒子（spark）的轨迹在渲染时按
 // f.t 解析算，不占 engine 的每帧循环。
 
-import { G } from './engine.js';
+import { G, lanePath } from './engine.js';
 import { ART, SHEET } from './gen.js';
 import {
   COLS, ROWS, CELLS, HEX_W, HEX_H, R, ROW_PITCH, BOARD_W, BOARD_H,
   CORE_X, SPAWN_X, DEPLOY_COLS, cellXY, cellOf, colOf, rowOf, STAR_NAME,
-  REALM_COLOR, ROLE_COLOR, TERRAIN,
+  REALM_COLOR, ROLE_COLOR, TERRAIN, ENEMY,
 } from './defs.js';
 import { unitAt } from './engine.js';
 
@@ -64,12 +64,14 @@ function fit() {
   const bh = band.h || h;
   const bx = band.w ? band.x : 0;
   const by = band.h ? band.y : 0;
-  // 窄屏（手机）把核心与出怪的留白收紧，否则棋盘会被压成一条
+  // 窄屏（手机）把核心与出怪的留白收紧，否则棋盘会被压成一条；
+  // 宽屏则是因为左侧有 DOM 信息面板（#side）在显示核心与波次，画布上不必再画一遍环
   const narrow = bw < 620;
+  const wide = window.innerWidth >= 1000;
   narrowView = narrow;
   PAD_R = narrow ? 96 : 168;
   // PAD_R 必须留住 96：敌人出生点是 SPAWN_X = BOARD_W + 96，再窄影怪就飘到板子外了
-  LX0 = narrow ? -30 : -170;
+  LX0 = narrow || wide ? -30 : -170;
   LX1 = BOARD_W + PAD_R + 6;
   LW = LX1 - LX0;
   const s = Math.min(bw / LW, bh / LH);
@@ -126,7 +128,8 @@ function unitFrame(u) {
   if (!a) return null;
   if (u.atkAnim > 0) {
     const list = a.attack.f;
-    const prog = 1 - u.atkAnim / 0.42;
+    const dur = u.atkDur || 0.42;
+    const prog = 1 - u.atkAnim / dur;
     const i = Math.min(list.length - 1, Math.max(0, Math.floor(prog * list.length)));
     return list[i];
   }
@@ -183,12 +186,116 @@ export function draw() {
   ctx.setTransform(view.s * dpr, 0, 0, view.s * dpr, (view.ox + sx) * dpr, (view.oy + sy) * dpr);
   drawGlow();
   drawBoard();
-  if (!narrowView) drawCore();
+  if (LX0 < -100) drawCore();
+  drawIntent();
+  drawRange();
   drawUnits();
   drawEnemies();
   drawShots();
   drawFx();
   drawFloats();
+}
+
+// 备战期的「怪物意图」：把下一波会走的路线画成流动虚线，入口格标出来的是什么怪、几只。
+// 玩家因此能在开战前决定「哪条通道要先堵」——这正是自走棋里最该提前知道的信息。
+function drawIntent() {
+  if (G.phase !== 'prep' || !G.plan || !G.plan.length) return;
+  const lanes = new Map();
+  for (const p of G.plan) {
+    if (!lanes.has(p.row)) lanes.set(p.row, []);
+    lanes.get(p.row).push(p);
+  }
+  const t = G.t || 0;
+  for (const [row, items] of lanes) {
+    const path = lanePath(row);
+    // 路线
+    ctx.save();
+    ctx.strokeStyle = 'rgba(200,140,240,0.34)';
+    ctx.lineWidth = 2.6;
+    ctx.setLineDash([7, 10]);
+    ctx.lineDashOffset = -t * 20;
+    ctx.beginPath();
+    for (let i = 0; i < path.length; i++) {
+      const q = cellXY(path[i]);
+      if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // 按种类统计，最多画两种小头像，剩下的并进数字
+    const counts = new Map();
+    for (const it of items) counts.set(it.key, (counts.get(it.key) || 0) + 1);
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2);
+    const ent = cellXY(path[0]);
+    const n = items.length;
+    // 入口格上一块半透明底，把「这里要来」标清楚
+    ctx.save();
+    hexPath(ent.x, ent.y, HEX_W - 5);
+    ctx.fillStyle = 'rgba(176,107,217,0.16)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(200,140,240,0.55)';
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([5, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const h = n > 3 ? 40 : 46;
+    const dxs = top.length > 1 ? [-13, 13] : [0];
+    for (let i = 0; i < top.length; i++) {
+      const def = ENEMY[top[i][0]];
+      const rec = ART.mobs[def.art];
+      if (rec) sprite(rec.r, ent.x + dxs[i], ent.y + 22, h, true);
+    }
+    ctx.font = '700 12px system-ui,"PingFang SC",sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(226,196,255,0.95)';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`×${n}`, ent.x + HEX_W * 0.42, ent.y - HEX_H * 0.30);
+    ctx.restore();
+  }
+}
+
+// 射程：选中的唤醒体（或手上有待放下的）把攻击范围画出来。
+// 在场上就是它自己的位置；在备战席 / 刚选中还没落子时，按鼠标悬停的那一格预览。
+function drawRange() {
+  const u = G.sel != null ? G.units.find((x) => x.uid === G.sel) : null;
+  if (!u) return;
+  let at = -1;
+  if (u.cell >= 0) at = u.cell;
+  else if (hover.cell >= 0 && colOf(hover.cell) < DEPLOY_COLS && G.terrain[hover.cell] !== 'rock') {
+    at = hover.cell;
+  }
+  if (at < 0) return;
+  const p = cellXY(at);
+  const r = u.range;
+  ctx.save();
+  boardPanel();
+  ctx.clip();
+  const g = ctx.createRadialGradient(p.x, p.y, r * 0.15, p.x, p.y, r);
+  g.addColorStop(0, 'rgba(110,168,255,0.22)');
+  g.addColorStop(0.72, 'rgba(110,168,255,0.09)');
+  g.addColorStop(1, 'rgba(110,168,255,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, 6.284);
+  ctx.fill();
+  // 射程内的格子描个边，六边形画法比一个圆更像「格子范围」
+  for (let c = 0; c < CELLS; c++) {
+    const q = cellXY(c);
+    if (Math.hypot(q.x - p.x, q.y - p.y) > r) continue;
+    hexPath(q.x, q.y, HEX_W - 8);
+    ctx.strokeStyle = 'rgba(130,190,255,0.34)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+  ctx.setLineDash([7, 7]);
+  ctx.lineDashOffset = -(G.t || 0) * 26;
+  ctx.strokeStyle = 'rgba(140,200,255,0.85)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, 6.284);
+  ctx.stroke();
+  ctx.restore();
 }
 
 // 地格上的小图形：不用字体（图集外的字体在小字号下会糊），全用线条画
@@ -555,7 +662,7 @@ function drawUnits() {
     let lean = 0;
     let lift = 0;
     if (u.atkAnim > 0) {
-      const k = 1 - u.atkAnim / 0.42;
+      const k = 1 - u.atkAnim / (u.atkDur || 0.42);
       lunge = Math.sin(k * Math.PI) * 11;
       lean = Math.sin(k * Math.PI) * 0.06;
       lift = -Math.sin(k * Math.PI) * 4;

@@ -50,6 +50,23 @@ export function cellAt(x, y) {
   return { cell: best, d: Math.sqrt(bd) };
 }
 
+// 六边形邻接表（尖顶布局）。相邻格中心距离正好等于 HEX_W，
+// 直接按距离筛，不用写奇偶行的六向公式，也就不会把某一行的邻居写错。
+export const NEIGHBORS = (() => {
+  const out = [];
+  for (let a = 0; a < CELLS; a++) {
+    const p = cellXY(a);
+    const arr = [];
+    for (let b = 0; b < CELLS; b++) {
+      if (a === b) continue;
+      const q = cellXY(b);
+      if (Math.abs(Math.hypot(p.x - q.x, p.y - q.y) - HEX_W) < 4) arr.push(b);
+    }
+    out.push(arr);
+  }
+  return out;
+})();
+
 // ---------------------------------------------------------------- 星阶
 export const STARS = [0, 1, 1.9, 3.4];      // 1★ / 2★ / 3★ 的属性倍率
 export const STAR_NAME = ['', '★', '★★', '★★★'];
@@ -122,6 +139,19 @@ export const REALM_COLOR = { caro: '#e8695f', aequor: '#5fe0d0', chaos: '#b06bd9
 export const ROLE_NAME = { dps: '伤害型', tank: '防御型', sup: '辅助型' };
 export const ROLE_COLOR = { dps: '#ff8a7a', tank: '#7fb3ff', sup: '#8bd450' };
 export const ROLE_SHORT = { dps: '伤', tank: '防', sup: '辅' };
+// 界域 / 职阶的图标（内联 SVG 的 path，见 ui.js 的 icon()）：
+// 商店卡、备战席、信息卡、羁绊条共用同一套，比小字好认，也不用额外请求图片。
+export const REALM_ICON = {
+  caro: 'M6 1.2C7.9 3.6 10 5.4 10 7.5A4 4 0 0 1 2 7.5C2 5.4 4.1 3.6 6 1.2Z',
+  aequor: 'M6 1.3c2.5 3 3.5 4.5 3.5 6a3.5 3.5 0 0 1-7 0c0-1.5 1-3 3.5-6z',
+  chaos: 'M6 1l1.3 3.7L11 6 7.3 7.3 6 11 4.7 7.3 1 6l3.7-1.3z',
+  ultra: 'M6 1l4.6 5L6 11 1.4 6z',
+};
+export const ROLE_ICON = {
+  dps: 'M2.2 9.8 9.4 2.6l.9.9-7.2 7.2zM9.6 1.4l1 .6-.2 1.4-1.4.2z',
+  tank: 'M6 1l4.6 1.7v3.5c0 2.4-1.9 4.2-4.6 4.8-2.7-.6-4.6-2.4-4.6-4.8V2.7z',
+  sup: 'M5 1.6h2V5h3.4v2H7v3.4H5V7H1.6V5H5z',
+};
 
 // ---------------------------------------------------------------- 敌人
 // 每一项的 id 对应 data/protocol-art.json 里 mobs 的键（图集帧表）。
@@ -176,11 +206,13 @@ export const waveAtkMul = (w) => ENEMY_TUNE.atk * (1 + 0.17 * (w - 1));
 // 每一局（同一个种子）在可部署区里随机摆几块特殊地格，摆上去的东西不一样：
 // 高台给远程架枪、祭坛给大招、裂隙换伤害、岩壁直接堵死一格。
 // 效果在 engine 的 restat() 里统一挂到站在这格上的单位身上。
+// 地形。单位吃加成（见 engine 的 terrainStats），影怪吃惩罚：
+// 岩壁直接不通（寻路要绕），裂隙 / 高台让它们慢下来 —— 地形对两边都有意义，不只是装饰。
 export const TERRAIN = {
-  high: { n: '高台', col: '#6f9fe0', glyph: '▲', desc: '射程 +0.6 格，攻速 +10%' },
-  altar: { n: '祭坛', col: '#b06bd9', glyph: '✦', desc: '狂气获取 +70%' },
-  rift: { n: '裂隙', col: '#e8695f', glyph: '✧', desc: '攻击力 +18%，但受到伤害 +12%' },
-  rock: { n: '岩壁', col: '#7d8598', glyph: '▮', desc: '不能部署，这一格没有防线' },
+  high: { n: '高台', col: '#6f9fe0', glyph: '▲', desc: '射程 +0.6 格，攻速 +10%', eslow: 0.72 },
+  altar: { n: '祭坛', col: '#b06bd9', glyph: '✦', desc: '狂气获取 +70%', eslow: 1 },
+  rift: { n: '裂隙', col: '#e8695f', glyph: '✧', desc: '攻击力 +18%，但受到伤害 +12%', eslow: 0.55 },
+  rock: { n: '岩壁', col: '#7d8598', glyph: '▮', desc: '不能部署，影怪也过不去', eslow: 0, block: 1 },
 };
 
 // 每局摆几块：数量不多，是为了让「这一局的地形」有存在感但不至于把棋盘切碎

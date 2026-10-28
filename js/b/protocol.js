@@ -67,6 +67,23 @@ function cellAt(x, y) {
   return { cell: best, d: Math.sqrt(bd) };
 }
 
+// 六边形邻接表（尖顶布局）。相邻格中心距离正好等于 HEX_W，
+// 直接按距离筛，不用写奇偶行的六向公式，也就不会把某一行的邻居写错。
+const NEIGHBORS = (() => {
+  const out = [];
+  for (let a = 0; a < CELLS; a++) {
+    const p = cellXY(a);
+    const arr = [];
+    for (let b = 0; b < CELLS; b++) {
+      if (a === b) continue;
+      const q = cellXY(b);
+      if (Math.abs(Math.hypot(p.x - q.x, p.y - q.y) - HEX_W) < 4) arr.push(b);
+    }
+    out.push(arr);
+  }
+  return out;
+})();
+
 // ---------------------------------------------------------------- 星阶
 const STARS = [0, 1, 1.9, 3.4];      // 1★ / 2★ / 3★ 的属性倍率
 const STAR_NAME = ['', '★', '★★', '★★★'];
@@ -139,6 +156,19 @@ const REALM_COLOR = { caro: '#e8695f', aequor: '#5fe0d0', chaos: '#b06bd9', ultr
 const ROLE_NAME = { dps: '伤害型', tank: '防御型', sup: '辅助型' };
 const ROLE_COLOR = { dps: '#ff8a7a', tank: '#7fb3ff', sup: '#8bd450' };
 const ROLE_SHORT = { dps: '伤', tank: '防', sup: '辅' };
+// 界域 / 职阶的图标（内联 SVG 的 path，见 ui.js 的 icon()）：
+// 商店卡、备战席、信息卡、羁绊条共用同一套，比小字好认，也不用额外请求图片。
+const REALM_ICON = {
+  caro: 'M6 1.2C7.9 3.6 10 5.4 10 7.5A4 4 0 0 1 2 7.5C2 5.4 4.1 3.6 6 1.2Z',
+  aequor: 'M6 1.3c2.5 3 3.5 4.5 3.5 6a3.5 3.5 0 0 1-7 0c0-1.5 1-3 3.5-6z',
+  chaos: 'M6 1l1.3 3.7L11 6 7.3 7.3 6 11 4.7 7.3 1 6l3.7-1.3z',
+  ultra: 'M6 1l4.6 5L6 11 1.4 6z',
+};
+const ROLE_ICON = {
+  dps: 'M2.2 9.8 9.4 2.6l.9.9-7.2 7.2zM9.6 1.4l1 .6-.2 1.4-1.4.2z',
+  tank: 'M6 1l4.6 1.7v3.5c0 2.4-1.9 4.2-4.6 4.8-2.7-.6-4.6-2.4-4.6-4.8V2.7z',
+  sup: 'M5 1.6h2V5h3.4v2H7v3.4H5V7H1.6V5H5z',
+};
 
 // ---------------------------------------------------------------- 敌人
 // 每一项的 id 对应 data/protocol-art.json 里 mobs 的键（图集帧表）。
@@ -193,11 +223,13 @@ const waveAtkMul = (w) => ENEMY_TUNE.atk * (1 + 0.17 * (w - 1));
 // 每一局（同一个种子）在可部署区里随机摆几块特殊地格，摆上去的东西不一样：
 // 高台给远程架枪、祭坛给大招、裂隙换伤害、岩壁直接堵死一格。
 // 效果在 engine 的 restat() 里统一挂到站在这格上的单位身上。
+// 地形。单位吃加成（见 engine 的 terrainStats），影怪吃惩罚：
+// 岩壁直接不通（寻路要绕），裂隙 / 高台让它们慢下来 —— 地形对两边都有意义，不只是装饰。
 const TERRAIN = {
-  high: { n: '高台', col: '#6f9fe0', glyph: '▲', desc: '射程 +0.6 格，攻速 +10%' },
-  altar: { n: '祭坛', col: '#b06bd9', glyph: '✦', desc: '狂气获取 +70%' },
-  rift: { n: '裂隙', col: '#e8695f', glyph: '✧', desc: '攻击力 +18%，但受到伤害 +12%' },
-  rock: { n: '岩壁', col: '#7d8598', glyph: '▮', desc: '不能部署，这一格没有防线' },
+  high: { n: '高台', col: '#6f9fe0', glyph: '▲', desc: '射程 +0.6 格，攻速 +10%', eslow: 0.72 },
+  altar: { n: '祭坛', col: '#b06bd9', glyph: '✦', desc: '狂气获取 +70%', eslow: 1 },
+  rift: { n: '裂隙', col: '#e8695f', glyph: '✧', desc: '攻击力 +18%，但受到伤害 +12%', eslow: 0.55 },
+  rock: { n: '岩壁', col: '#7d8598', glyph: '▮', desc: '不能部署，影怪也过不去', eslow: 0, block: 1 },
 };
 
 // 每局摆几块：数量不多，是为了让「这一局的地形」有存在感但不至于把棋盘切碎
@@ -269,13 +301,13 @@ function nextTier(score) {
 
 // 波次节奏：备战不限时；开战后一只怪都不剩就算清完。
 const HEAL_PER_WAVE = 0.4;      // 每波结束回 40% 最大生命
-return { COLS, ROWS, HEX_W, R, HEX_H, ROW_PITCH, BOARD_W, BOARD_H, CORE_X, SPAWN_X, DEPLOY_COLS, CELLS, cellOf, colOf, rowOf, cellXY, cellAt, STARS, STAR_NAME, START_GOLD, START_LEVEL, MAX_LEVEL, LEVEL_COST, REROLL_COST, WAVE_GOLD, INTEREST_CAP, BENCH_SIZE, MAX_STAR, shopOdds, TRAITS, TRAIT_BY_KEY, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, ENEMY, WAVES, ENEMY_TUNE, waveHpMul, waveAtkMul, TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, WHEEL_BY_ID, CREATION_BY_ID, ITEM_SLOTS, ITEM_REROLL, INV_SIZE, MERGE_REWARD, LEVEL_REWARD, CREDIT_TIERS, creditsAt, nextTier, HEAL_PER_WAVE };
+return { COLS, ROWS, HEX_W, R, HEX_H, ROW_PITCH, BOARD_W, BOARD_H, CORE_X, SPAWN_X, DEPLOY_COLS, CELLS, cellOf, colOf, rowOf, cellXY, cellAt, NEIGHBORS, STARS, STAR_NAME, START_GOLD, START_LEVEL, MAX_LEVEL, LEVEL_COST, REROLL_COST, WAVE_GOLD, INTEREST_CAP, BENCH_SIZE, MAX_STAR, shopOdds, TRAITS, TRAIT_BY_KEY, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON, ENEMY, WAVES, ENEMY_TUNE, waveHpMul, waveAtkMul, TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, WHEEL_BY_ID, CREATION_BY_ID, ITEM_SLOTS, ITEM_REROLL, INV_SIZE, MERGE_REWARD, LEVEL_REWARD, CREDIT_TIERS, creditsAt, nextTier, HEAL_PER_WAVE };
 })();
 
 // ---- js/pf/engine.js
 const m_engine = await (async () => {
 const { UNITS, ART } = m_gen;
-const { COLS, ROWS, CELLS, HEX_W, BOARD_W, SPAWN_X, CORE_X, DEPLOY_COLS, cellXY, colOf, rowOf, cellOf, STARS, MAX_STAR, MAX_LEVEL, LEVEL_COST, REROLL_COST, WAVE_GOLD, INTEREST_CAP, BENCH_SIZE, START_GOLD, START_LEVEL, shopOdds, TRAITS, TRAIT_BY_KEY, ENEMY, WAVES, waveHpMul, waveAtkMul, HEAL_PER_WAVE, creditsAt, TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, ITEM_SLOTS, ITEM_REROLL, INV_SIZE, MERGE_REWARD, LEVEL_REWARD } = m_defs;
+const { COLS, ROWS, CELLS, HEX_W, BOARD_W, SPAWN_X, CORE_X, DEPLOY_COLS, cellXY, colOf, rowOf, cellOf, NEIGHBORS, STARS, MAX_STAR, MAX_LEVEL, LEVEL_COST, REROLL_COST, WAVE_GOLD, INTEREST_CAP, BENCH_SIZE, START_GOLD, START_LEVEL, shopOdds, TRAITS, TRAIT_BY_KEY, ENEMY, WAVES, waveHpMul, waveAtkMul, HEAL_PER_WAVE, creditsAt, TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, ITEM_SLOTS, ITEM_REROLL, INV_SIZE, MERGE_REWARD, LEVEL_REWARD } = m_defs;
 // 《忘却协议》规则引擎：商店、布阵、波次战斗、经济结算。
 //
 // 结构上跟「幸存体幸存者」一样拆成「状态 + update(dt)」：渲染只是读 G 画出来，
@@ -319,6 +351,8 @@ const G = {
   itemShop: [],           // ITEM_SLOTS 个 { kind, id } 或 null
   inv: [],                // 装备栏：{ kind:'wheel'|'creation', id }（最多 INV_SIZE）
   terrain: {},            // cell → 'high'|'altar'|'rift'|'rock'
+  paths: {},              // row → 该通道的格路径（开战时算一次，地形不变就一直有效）
+  plan: [],               // 下一波的出兵计划：{ key, row, t, slot }，备战期就定下来给界面看
   enemies: [],
   fx: [], floats: [], shots: [],
   t: 0, waveT: 0, shake: 0,
@@ -357,6 +391,8 @@ function reset(s) {
   uidSeq = 1;
   G.inv = [];
   G.terrain = rollTerrain();
+  G.paths = {};
+  G.plan = planWave(1);
   G.shop = [];
   rollShop(true);
   rollItemShop(true);
@@ -752,6 +788,38 @@ function place(uid, cell) {
   return true;
 }
 
+// 放到备战席的指定格（点某个备战席格子）。跟 place 的 -1 区别是「放哪一格你说了算」：
+// 空槽就放进去，有人的槽就跟它换 —— 场上的换下来、备战席的顶上去，人数不变。
+function placeBench(uid, idx) {
+  const u = G.units.find((x) => x.uid === uid);
+  if (!u || G.phase === 'fight') return false;
+  if (idx == null || idx < 0 || idx >= BENCH_SIZE) return false;
+  const other = G.bench[idx];
+  if (other === u) return false;
+  const fromCell = u.cell;
+  const fromBench = u.bench;
+  if (!other) {
+    if (fromCell >= 0) G.board.delete(fromCell);
+    else if (fromBench >= 0) G.bench[fromBench] = null;
+    else return false;
+    u.cell = -1; u.bench = idx; G.bench[idx] = u;
+    recount();
+    return true;
+  }
+  // 互换：场上 ↔ 备战席不查人口（一上一下，人数不变）
+  if (fromCell >= 0) {
+    G.board.delete(fromCell);
+    other.cell = fromCell; other.bench = -1;
+    G.board.set(fromCell, other);
+  } else if (fromBench >= 0) {
+    G.bench[fromBench] = other;
+    other.cell = -1; other.bench = fromBench;
+  }
+  u.cell = -1; u.bench = idx; G.bench[idx] = u;
+  recount();
+  return true;
+}
+
 function levelUp() {
   if (G.phase === 'fight' || G.level >= MAX_LEVEL) return false;
   if (G.gold < LEVEL_COST) { G.msg = '金币不够'; return false; }
@@ -818,6 +886,61 @@ function traitList() {
 }
 
 // ---------------------------------------------------------------- 战斗
+// ---------------------------------------------------------------- 来敌路线
+// 影怪不再直线穿过棋盘：从右侧通道格进，沿着六边形格子一格一格走到最左列，
+// 再往左走出棋盘去戳协议核心。岩壁这一格它们也过不去（BFS 自己绕路），
+// 裂隙和高台会把它们拖慢 —— 地形对两边都有意义，不只是装饰。
+function pathFor(row) {
+  const start = cellOf(COLS - 1, row);
+  const prev = new Map([[start, -1]]);
+  const q = [start];
+  let goal = -1;
+  while (q.length) {
+    const cur = q.shift();
+    if (colOf(cur) === 0) { goal = cur; break; }
+    for (const nb of NEIGHBORS[cur]) {
+      if (prev.has(nb)) continue;
+      const t = TERRAIN[G.terrain[nb]];
+      if (t && t.block) continue;
+      prev.set(nb, cur);
+      q.push(nb);
+    }
+  }
+  const out = [];
+  if (goal < 0) { out.push(start); return out; }   // 理论上到不了，兜底成原地
+  for (let c = goal; c >= 0; c = prev.get(c)) out.unshift(c);
+  return out;
+}
+
+function lanePath(row) {
+  if (!G.paths[row]) G.paths[row] = pathFor(row);
+  return G.paths[row];
+}
+
+// 这一波从哪几条通道、按什么顺序来。备战期就先算好，界面才能在开战前
+// 把「怪物意图」画出来（从哪条通道进、来的是什么、几只）。
+function planWave(w) {
+  const cfg = WAVES[w - 1];
+  if (!cfg) return [];
+  const lanes = [0, 1, 2, 3];
+  for (let i = lanes.length - 1; i > 0; i--) {
+    const j = (rnd() * (i + 1)) | 0;
+    const t = lanes[i]; lanes[i] = lanes[j]; lanes[j] = t;
+  }
+  const plan = [];
+  let t = 0.35;
+  let ri = 0;
+  for (const [key, count, gap] of cfg.e) {
+    for (let i = 0; i < count; i++) plan.push({ key, row: lanes[ri++ % lanes.length], t });
+    t += gap;
+  }
+  plan.sort((a, b) => a.t - b.t);
+  // 同一条通道的第几只：在格子宽度里错开站位，不至于几张贴纸完全叠在一起
+  const n = {};
+  for (const s of plan) { n[s.row] = (n[s.row] || 0) + 1; s.slot = (n[s.row] - 1) % 3; }
+  return plan;
+}
+
 function beginWave() {
   if (G.phase !== 'prep') return false;
   if (G.wave >= WAVES.length) return false;
@@ -829,18 +952,8 @@ function beginWave() {
   G.phase = 'fight';
   G.waveT = 0;
   G.enemies = [];
-  G.spawnQ = [];
-  let t = 0.35;
-  const rows = [0, 1, 2, 3].sort(() => rnd() - 0.5);
-  let ri = 0;
-  for (const [key, count, gap] of cfg.e) {
-    for (let i = 0; i < count; i++) {
-      const row = rows[ri++ % rows.length];
-      G.spawnQ.push({ key, t, row });
-      t += gap;
-    }
-  }
-  G.spawnQ.sort((a, b) => a.t - b.t);
+  // 计划是备战期算好的（界面已经把它当「怪物意图」显示过），开战直接照单出兵
+  G.spawnQ = (G.plan.length ? G.plan : planWave(w)).map((x) => ({ ...x }));
   for (const u of G.units) { u.timer = rnd() * 0.4; u.target = null; }
   G.msg = cfg.n;
   return true;
@@ -851,10 +964,13 @@ function spawn(e) {
   const w = G.wave;
   const mod = G.mod || { hp: 1, atk: 1 };
   const hp = def.hp * waveHpMul(w) * mod.hp * TUNE.hp;
-  const rowY = cellXY(cellOf(0, e.row)).y;
+  // 出生在通道里，先走到入口格，然后沿格子一路往左
+  const path = lanePath(e.row);
+  const p0 = cellXY(path[0]);
+  const laneOff = ((e.slot || 0) - 1) * 15;
   G.enemies.push({
-    key: e.key, def, row: e.row,
-    x: SPAWN_X + rnd() * 50, y: rowY + (rnd() - 0.5) * 14,
+    key: e.key, def, row: e.row, path, pi: 0, cell: -1, laneOff,
+    x: SPAWN_X + 8 + rnd() * 34, y: p0.y + laneOff,
     hp, hpMax: hp, atk: def.atk * waveAtkMul(w) * mod.atk * TUNE.atk, spd: def.spd * TUNE.spd,
     timer: 0.4, stunT: 0, hurtT: 0, atkAnim: 0, target: null, wound: 0,
     size: def.big ? 1.35 : 1,
@@ -901,7 +1017,10 @@ function unitAttack(u, e) {
 
   if (e.hp <= 0) killEnemy(e, u);
   u.ult = Math.min(100, u.ult + 13 * (u.ultGainMul || 1));
-  u.atkAnim = 0.42;
+  // 打击动画按攻速定长：攻速高的时候压缩播放时间，保证每一帧都能走完
+  // （固定 0.42 秒的话，攻速上了 2.4 就会被下一次攻击打断，动图永远只播个头）
+  u.atkDur = Math.min(0.42, 0.9 / Math.max(0.7, u.aspd));
+  u.atkAnim = u.atkDur;
 }
 
 // 命中火花：一次撒几粒，比一圈光环更「有手感」
@@ -983,6 +1102,9 @@ function castUlt(u) {
     .map((e) => ({ e, d: Math.hypot(e.x - p.x, e.y - p.y) }))
     .sort((a, b) => a.d - b.d);
   u.ult = 0;
+  // 放大招也播一遍打击动图：这一下是全场最该看到动作的时刻
+  u.atkDur = 0.56;
+  u.atkAnim = 0.56;
   addFx({ k: 'ring', x: p.x, y: p.y - 24, d: 0.5, r: 52, col: '#ffe066' });
   G.shake = Math.max(G.shake || 0, u.def.cost >= 3 ? 4.5 : 2.2);
   G.ultSeq = (G.ultSeq || 0) + 1;
@@ -1074,7 +1196,14 @@ function update(dt) {
   if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 22);
   if (G.lastUlt) { G.lastUlt.t += dt; if (G.lastUlt.t > 1.6) G.lastUlt = null; }
   if (G.phase !== 'fight') {
-    // 备战期也让特效收尾，画面不会突然定住
+    // 备战期也让特效收尾，画面不会突然定住。
+    // 出手/挨打的计时器同样要往下走：不然打完一波还停在打击帧上摆着，
+    // 像所有人都僵在半空 —— 这是「战斗结束还在保持战斗立绘」的原因。
+    for (const u of G.units) {
+      if (u.atkAnim > 0) u.atkAnim = Math.max(0, u.atkAnim - dt);
+      if (u.hurtT > 0) u.hurtT = Math.max(0, u.hurtT - dt);
+      u.target = null;
+    }
     tickFx(dt);
     return;
   }
@@ -1126,50 +1255,53 @@ function update(dt) {
     }
   }
 
-  // 敌人
+  // 敌人：沿格子路径推进。不再「无视棋盘直线往左飘」——
+  // 每一只都走在自己的通道路径上，路径的下一格站着人就被挡住，开打。
   for (const e of [...G.enemies]) {
     if (e.hurtT > 0) e.hurtT -= dt;
     if (e.atkAnim > 0) e.atkAnim -= dt;
     if (e.stunT > 0) { e.stunT -= dt; continue; }
-    // 谁在挡路：身位落在「相邻格」范围里就打他。
-    // 这个半径必须小于近战最小射程（1.15 格），否则怪会停在打不着的位置互相僵住。
-    let blocker = null;
-    let bd = HEX_W * 0.95;
-    for (const u of G.units) {
-      if (u.cell < 0 || u.hp <= 0) continue;
-      const p = cellXY(u.cell);
-      const d = Math.hypot(p.x - e.x, p.y - (e.y - 20));
-      if (d < bd) { bd = d; blocker = u; }
-    }
-    if (blocker) {
+
+    const nextCell = e.pi < e.path.length ? e.path[e.pi] : -1;
+    const blocker = nextCell >= 0 ? G.board.get(nextCell) : null;
+    if (blocker && blocker.hp > 0) {
       e.target = blocker;
-      // 排队：被挡住的怪会挤在同一格上，后面的往右退一点，不然一堆立绘糊成一团
-      for (const o of G.enemies) {
-        if (o === e || Math.abs(o.y - e.y) > 26) continue;
-        if (o.x < e.x && e.x - o.x < 34) {
-          e.x = Math.min(SPAWN_X + 34, e.x + 26 * dt);
-          break;
-        }
-      }
       e.timer -= dt;
       if (e.timer <= 0) {
         e.timer = 1.05;
         e.atkAnim = 0.3;
         damageUnit(blocker, e.atk * (0.92 + rnd() * 0.16), e);
       }
-    } else {
-      e.target = null;
-      e.x -= e.spd * dt;
-      if (e.x <= CORE_X + 26) {
+      continue;                        // 停在原地打，不硬挤过这一格
+    }
+    e.target = null;
+
+    // 目标点：下一格中心；走完最后一格就朝棋盘左侧外面去（那里是协议核心）
+    const last = cellXY(e.path[e.path.length - 1]);
+    const gp = nextCell >= 0 ? cellXY(nextCell) : { x: CORE_X + 26, y: last.y };
+    const ty = gp.y + (e.laneOff || 0);
+    const dx = gp.x - e.x;
+    const dy = ty - e.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 3) {
+      if (nextCell >= 0) { e.cell = nextCell; e.pi++; }
+      else {
         // 漏怪：扣协议核心
         G.core -= e.def.leak;
         G.stats.leaks++;
         const i = G.enemies.indexOf(e);
         if (i >= 0) G.enemies.splice(i, 1);
-        addFloat(CORE_X + 30, 150, '-' + e.def.leak, '#e8695f', 1.2);
+        addFloat(CORE_X + 30, e.y - 24, '-' + e.def.leak, '#e8695f', 1.2);
         if (G.core <= 0) { G.core = 0; G.phase = 'over'; }
       }
+      continue;
     }
+    // 走进裂隙 / 高台要减速（岩壁不会出现在路径里，BFS 已经绕开了）
+    const terr = nextCell >= 0 ? TERRAIN[G.terrain[nextCell]] : null;
+    const slow = terr && terr.eslow != null ? Math.max(0.25, terr.eslow) : 1;
+    const stepLen = e.spd * slow * dt;
+    if (stepLen >= dist) { e.x = gp.x; e.y = ty; }
+    else { e.x += (dx / dist) * stepLen; e.y += (dy / dist) * stepLen; }
   }
 
   tickFx(dt);
@@ -1212,11 +1344,16 @@ function tickFx(dt) {
 
 function clearWave() {
   G.gold += WAVE_GOLD + Math.min(INTEREST_CAP, Math.floor(G.gold / 10));
-  for (const u of G.units) u.hp = Math.min(u.hpMax, u.hp + u.hpMax * HEAL_PER_WAVE);
+  for (const u of G.units) {
+    u.hp = Math.min(u.hpMax, u.hp + u.hpMax * HEAL_PER_WAVE);
+    // 收招：下一波之前所有人回到待机，别顶着打击帧站一整段备战期
+    u.atkAnim = 0; u.hurtT = 0; u.target = null; u.timer = 0;
+  }
   if (G.wave >= WAVES.length) {
     G.phase = 'win';
   } else {
     G.phase = 'prep';
+    G.plan = planWave(G.wave + 1);
     G.msg = `第 ${G.wave} 波清完，下一波：${WAVES[G.wave].n}`;
     rollShop(true);
     rollItemShop(true);
@@ -1261,14 +1398,14 @@ function summary() {
 function waveLeft() {
   return G.enemies.length + G.spawnQ.length;
 }
-return { UNITS_BY_ID, ALL_IDS, setSeed, G, TUNE, reset, restat, unitAt, benchIndex, deployed, unitPos, rollShop, buy, freeCell, grantItem, itemDef, rollItemShop, buyItem, equip, unequip, sell, place, levelUp, recount, computeBonus, traitList, beginWave, update, summary, waveLeft };
+return { UNITS_BY_ID, ALL_IDS, setSeed, G, TUNE, reset, restat, unitAt, benchIndex, deployed, unitPos, rollShop, buy, freeCell, grantItem, itemDef, rollItemShop, buyItem, equip, unequip, sell, place, placeBench, levelUp, recount, computeBonus, traitList, pathFor, lanePath, planWave, beginWave, update, summary, waveLeft };
 })();
 
 // ---- js/pf/render.js
 const m_render = await (async () => {
-const { G } = m_engine;
+const { G, lanePath } = m_engine;
 const { ART, SHEET } = m_gen;
-const { COLS, ROWS, CELLS, HEX_W, HEX_H, R, ROW_PITCH, BOARD_W, BOARD_H, CORE_X, SPAWN_X, DEPLOY_COLS, cellXY, cellOf, colOf, rowOf, STAR_NAME, REALM_COLOR, ROLE_COLOR, TERRAIN } = m_defs;
+const { COLS, ROWS, CELLS, HEX_W, HEX_H, R, ROW_PITCH, BOARD_W, BOARD_H, CORE_X, SPAWN_X, DEPLOY_COLS, cellXY, cellOf, colOf, rowOf, STAR_NAME, REALM_COLOR, ROLE_COLOR, TERRAIN, ENEMY } = m_defs;
 const { unitAt } = m_engine;
 // 《忘却协议》绘制层：六边形棋盘、地形、唤醒体立绘、影怪、弹道、特效、飘字。
 //
@@ -1332,12 +1469,14 @@ function fit() {
   const bh = band.h || h;
   const bx = band.w ? band.x : 0;
   const by = band.h ? band.y : 0;
-  // 窄屏（手机）把核心与出怪的留白收紧，否则棋盘会被压成一条
+  // 窄屏（手机）把核心与出怪的留白收紧，否则棋盘会被压成一条；
+  // 宽屏则是因为左侧有 DOM 信息面板（#side）在显示核心与波次，画布上不必再画一遍环
   const narrow = bw < 620;
+  const wide = window.innerWidth >= 1000;
   narrowView = narrow;
   PAD_R = narrow ? 96 : 168;
   // PAD_R 必须留住 96：敌人出生点是 SPAWN_X = BOARD_W + 96，再窄影怪就飘到板子外了
-  LX0 = narrow ? -30 : -170;
+  LX0 = narrow || wide ? -30 : -170;
   LX1 = BOARD_W + PAD_R + 6;
   LW = LX1 - LX0;
   const s = Math.min(bw / LW, bh / LH);
@@ -1394,7 +1533,8 @@ function unitFrame(u) {
   if (!a) return null;
   if (u.atkAnim > 0) {
     const list = a.attack.f;
-    const prog = 1 - u.atkAnim / 0.42;
+    const dur = u.atkDur || 0.42;
+    const prog = 1 - u.atkAnim / dur;
     const i = Math.min(list.length - 1, Math.max(0, Math.floor(prog * list.length)));
     return list[i];
   }
@@ -1451,12 +1591,116 @@ function draw() {
   ctx.setTransform(view.s * dpr, 0, 0, view.s * dpr, (view.ox + sx) * dpr, (view.oy + sy) * dpr);
   drawGlow();
   drawBoard();
-  if (!narrowView) drawCore();
+  if (LX0 < -100) drawCore();
+  drawIntent();
+  drawRange();
   drawUnits();
   drawEnemies();
   drawShots();
   drawFx();
   drawFloats();
+}
+
+// 备战期的「怪物意图」：把下一波会走的路线画成流动虚线，入口格标出来的是什么怪、几只。
+// 玩家因此能在开战前决定「哪条通道要先堵」——这正是自走棋里最该提前知道的信息。
+function drawIntent() {
+  if (G.phase !== 'prep' || !G.plan || !G.plan.length) return;
+  const lanes = new Map();
+  for (const p of G.plan) {
+    if (!lanes.has(p.row)) lanes.set(p.row, []);
+    lanes.get(p.row).push(p);
+  }
+  const t = G.t || 0;
+  for (const [row, items] of lanes) {
+    const path = lanePath(row);
+    // 路线
+    ctx.save();
+    ctx.strokeStyle = 'rgba(200,140,240,0.34)';
+    ctx.lineWidth = 2.6;
+    ctx.setLineDash([7, 10]);
+    ctx.lineDashOffset = -t * 20;
+    ctx.beginPath();
+    for (let i = 0; i < path.length; i++) {
+      const q = cellXY(path[i]);
+      if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // 按种类统计，最多画两种小头像，剩下的并进数字
+    const counts = new Map();
+    for (const it of items) counts.set(it.key, (counts.get(it.key) || 0) + 1);
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2);
+    const ent = cellXY(path[0]);
+    const n = items.length;
+    // 入口格上一块半透明底，把「这里要来」标清楚
+    ctx.save();
+    hexPath(ent.x, ent.y, HEX_W - 5);
+    ctx.fillStyle = 'rgba(176,107,217,0.16)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(200,140,240,0.55)';
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([5, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const h = n > 3 ? 40 : 46;
+    const dxs = top.length > 1 ? [-13, 13] : [0];
+    for (let i = 0; i < top.length; i++) {
+      const def = ENEMY[top[i][0]];
+      const rec = ART.mobs[def.art];
+      if (rec) sprite(rec.r, ent.x + dxs[i], ent.y + 22, h, true);
+    }
+    ctx.font = '700 12px system-ui,"PingFang SC",sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(226,196,255,0.95)';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`×${n}`, ent.x + HEX_W * 0.42, ent.y - HEX_H * 0.30);
+    ctx.restore();
+  }
+}
+
+// 射程：选中的唤醒体（或手上有待放下的）把攻击范围画出来。
+// 在场上就是它自己的位置；在备战席 / 刚选中还没落子时，按鼠标悬停的那一格预览。
+function drawRange() {
+  const u = G.sel != null ? G.units.find((x) => x.uid === G.sel) : null;
+  if (!u) return;
+  let at = -1;
+  if (u.cell >= 0) at = u.cell;
+  else if (hover.cell >= 0 && colOf(hover.cell) < DEPLOY_COLS && G.terrain[hover.cell] !== 'rock') {
+    at = hover.cell;
+  }
+  if (at < 0) return;
+  const p = cellXY(at);
+  const r = u.range;
+  ctx.save();
+  boardPanel();
+  ctx.clip();
+  const g = ctx.createRadialGradient(p.x, p.y, r * 0.15, p.x, p.y, r);
+  g.addColorStop(0, 'rgba(110,168,255,0.22)');
+  g.addColorStop(0.72, 'rgba(110,168,255,0.09)');
+  g.addColorStop(1, 'rgba(110,168,255,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, 6.284);
+  ctx.fill();
+  // 射程内的格子描个边，六边形画法比一个圆更像「格子范围」
+  for (let c = 0; c < CELLS; c++) {
+    const q = cellXY(c);
+    if (Math.hypot(q.x - p.x, q.y - p.y) > r) continue;
+    hexPath(q.x, q.y, HEX_W - 8);
+    ctx.strokeStyle = 'rgba(130,190,255,0.34)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+  ctx.setLineDash([7, 7]);
+  ctx.lineDashOffset = -(G.t || 0) * 26;
+  ctx.strokeStyle = 'rgba(140,200,255,0.85)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, 6.284);
+  ctx.stroke();
+  ctx.restore();
 }
 
 // 地格上的小图形：不用字体（图集外的字体在小字号下会糊），全用线条画
@@ -1823,7 +2067,7 @@ function drawUnits() {
     let lean = 0;
     let lift = 0;
     if (u.atkAnim > 0) {
-      const k = 1 - u.atkAnim / 0.42;
+      const k = 1 - u.atkAnim / (u.atkDur || 0.42);
       lunge = Math.sin(k * Math.PI) * 11;
       lean = Math.sin(k * Math.PI) * 0.06;
       lift = -Math.sin(k * Math.PI) * 4;
@@ -2007,9 +2251,9 @@ return { hover, init, setBand, layout, toLogic, draw, screenPos };
 
 // ---- js/pf/ui.js
 const m_ui = await (async () => {
-const { G, buy, sell, levelUp, rollShop, rollItemShop, beginWave, reset, traitList, deployed, summary, UNITS_BY_ID, buyItem, equip, unequip, itemDef } = m_engine;
+const { G, buy, sell, levelUp, rollShop, rollItemShop, beginWave, reset, traitList, deployed, summary, UNITS_BY_ID, buyItem, equip, unequip, itemDef, placeBench } = m_engine;
 const { ART, SHEET } = m_gen;
-const { WAVES, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, STAR_NAME, LEVEL_COST, REROLL_COST, MAX_LEVEL, BENCH_SIZE, creditsAt, nextTier, ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS } = m_defs;
+const { WAVES, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON, STAR_NAME, LEVEL_COST, REROLL_COST, MAX_LEVEL, BENCH_SIZE, creditsAt, nextTier, ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS, ENEMY } = m_defs;
 // 《忘却协议》界面层：顶栏、商店（唤醒体 / 命轮·造物两个页签）、装备栏、备战席、
 // 羁绊条、单位卡、遮罩层。
 //
@@ -2055,19 +2299,30 @@ const roleCol = (r) => ROLE_COLOR[r] || '#8a93a8';
 const itemKindName = (k) => (k === 'wheel' ? '命轮' : '造物');
 const itemSigil = (k) => (k === 'wheel' ? '命' : '造');
 
+// 界域 / 职阶的小图标：内联 SVG path（不用字体符号，跨平台不会缺字），
+// 颜色跟着 --c 走，同一套在商店卡、备战席、信息卡、羁绊条里复用。
+const svgIcon = (d, cls = '') =>
+  `<svg class="${cls}" viewBox="0 0 12 12" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="${d}"/></svg>`;
+const realmTag = (r) =>
+  `<em class="tg" style="--c:${realmCol(r)}">${svgIcon(REALM_ICON[r] || '')}<u>${REALM_NAME[r] || ''}</u></em>`;
+const roleTag = (r, short) =>
+  `<em class="tg" style="--c:${roleCol(r)}">${svgIcon(ROLE_ICON[r] || '')}<u>${short ? ROLE_SHORT[r] || '' : ROLE_NAME[r] || ''}</u></em>`;
+
 function itemTone(it) {
   const d = itemDef(it);
   if (!d) return '#8a93a8';
   return it.kind === 'wheel' ? realmCol(d.realm) : '#b06bd9';
 }
 
-// 画布可用区：顶栏下沿到商店上沿之间那条带子
+// 画布可用区：顶栏下沿到商店上沿之间那条带子。
+// 宽屏（>=1000px）左边有一块信息面板，画布从它右边开始，棋盘才会落在剩余区域的正中。
 function bandRect() {
   const hud = $('hud').getBoundingClientRect();
   const bottom = $('bottom').getBoundingClientRect();
+  const pad = window.innerWidth >= 1000 ? 232 : 0;
   const y = hud.bottom + 6;
   const h = bottom.top - y - 6;
-  return { x: 0, y, w: window.innerWidth, h: Math.max(200, h) };
+  return { x: pad, y, w: window.innerWidth - pad, h: Math.max(200, h) };
 }
 
 // ---------------------------------------------------------------- 装配
@@ -2151,6 +2406,14 @@ function sync() {
   renderCard();
 }
 
+// 同名同星的现有数量：商店卡片上用它画「还差几个升星」的三个点。
+// 只数 1 星 —— 商店卖的都是 1 星，合成也只在同星之间发生。
+function sameStar(id, star) {
+  let n = 0;
+  for (const u of G.units) if (u.id === id && u.star === star) n++;
+  return n;
+}
+
 function renderShop() {
   const box = $('shop');
   if (ui.tab === 'unit') {
@@ -2158,11 +2421,17 @@ function renderShop() {
       if (!s) return `<div class="scard empty"><span>已买走</span></div>`;
       const d = UNITS_BY_ID[s.id];
       const can = G.gold >= d.cost;
-      return `<button class="scard c${d.cost}${can ? '' : ' poor'}" data-i="${i}" title="${d.n} · ${d.ult.name}">
-        <span class="cost">${d.cost}</span>
+      const own = sameStar(s.id, 1);
+      // own === 2：再买这一个就三合一，整张卡亮起来
+      const near = own >= 2;
+      const tip = `${d.n} · ${d.ult.name} · ${d.cost} 金`
+        + (own ? `（已有 ${own} 个一星${near ? '，再买一个升 2 星' : ''}）` : '');
+      return `<button class="scard c${d.cost}${can ? '' : ' poor'}${near ? ' near' : ''}" data-i="${i}" title="${tip}">
+        ${own ? `<span class="prog">${[0, 1, 2].map((k) => `<i class="${k < own ? 'on' : ''}"></i>`).join('')}</span>` : ''}
         ${portrait(d.id, 42)}
         <b>${d.n}</b>
-        <span class="chips"><i style="color:${realmCol(d.realm)}">${REALM_NAME[d.realm]}</i><i style="color:${roleCol(d.role)}">${ROLE_SHORT[d.role]}</i></span>
+        <span class="chips">${realmTag(d.realm)}${roleTag(d.role, true)}</span>
+        <span class="price"><i>◈</i>${d.cost}</span>
       </button>`;
     }).join('');
     box.querySelectorAll('.scard[data-i]').forEach((el) => {
@@ -2177,11 +2446,11 @@ function renderShop() {
     if (!d) return `<div class="scard empty"><span>—</span></div>`;
     const can = G.gold >= d.cost;
     const col = s.kind === 'wheel' ? realmCol(d.realm) : '#b06bd9';
-    return `<button class="scard item c${d.cost}${can ? '' : ' poor'}" data-ii="${i}" title="${d.n}：${d.text}">
-      <span class="cost">${d.cost}</span>
+    return `<button class="scard item c${d.cost}${can ? '' : ' poor'}" data-ii="${i}" title="${d.n}：${d.text}（${d.cost} 金）">
       <i class="sig" style="--c:${col}">${itemSigil(s.kind)}</i>
       <b>${d.n}</b>
       <span class="chips"><i style="color:${col}">${itemKindName(s.kind)}</i></span>
+      <span class="price"><i>◈</i>${d.cost}</span>
     </button>`;
   }).join('');
   // 装备一次只摆 3 件：补两个占位，卡片宽度才跟唤醒体页签对齐
@@ -2221,18 +2490,48 @@ function renderBench() {
   let html = '';
   for (let i = 0; i < BENCH_SIZE; i++) {
     const u = G.bench[i];
-    if (!u) { html += `<div class="bslot"></div>`; continue; }
+    if (!u) {
+      // 空槽也能点：手上有场上的人时，点它就是把这个人收回备战席
+      html += `<button class="bslot" data-b="${i}"></button>`;
+      continue;
+    }
     const sel = ui.sel === u.uid ? ' on' : '';
-    html += `<button class="bslot has${sel}" data-u="${u.uid}" title="${u.def.n}">
-      ${portrait(u.id, 30)}
-      <b>${STAR_NAME[u.star]}</b>
+    const armed = ui.sel != null && ui.sel !== u.uid ? ' swap' : '';
+    html += `<button class="bslot has${sel}${armed}" data-u="${u.uid}" data-b="${i}"
+      style="--rc:${realmCol(u.def.realm)}" title="${u.def.n} ${STAR_NAME[u.star]}（点它选中，选中后再点别的格可以换位）">
+      ${portrait(u.id, 32)}
+      <b class="star">${STAR_NAME[u.star]}</b>
       ${u.wheel || u.creation ? `<em class="eqdot"></em>` : ''}
     </button>`;
   }
   box.innerHTML = html;
   box.querySelectorAll('.bslot[data-u]').forEach((el) => {
-    el.onclick = () => { tapUnit(Number(el.dataset.u)); };
+    el.onclick = () => { tapBench(Number(el.dataset.u)); };
   });
+  box.querySelectorAll('.bslot[data-b]:not([data-u])').forEach((el) => {
+    el.onclick = () => { tapBenchSlot(Number(el.dataset.b)); };
+  });
+}
+
+// 点备战席上的头像：手里有装备就装；否则如果正选着别的单位就是「换位」，
+// 没选就是选中它自己。
+function tapBench(uid) {
+  if (ui.item != null) { tapUnit(uid); return; }
+  if (ui.sel != null && ui.sel !== uid) {
+    const idx = G.bench.findIndex((x) => x && x.uid === uid);
+    if (idx < 0) { select(uid); return; }
+    if (placeBench(ui.sel, idx)) { ui.sel = null; G.sel = null; }
+    sync();
+    return;
+  }
+  select(uid);
+}
+
+// 点备战席的空格：选中的单位直接收进来（场上 / 另一个席位的都行）
+function tapBenchSlot(idx) {
+  if (ui.sel == null) { if (G.msg !== '点一个唤醒体，再点这里收进来') G.msg = '点一个唤醒体，再点这里收进来'; return; }
+  if (placeBench(ui.sel, idx)) { ui.sel = null; G.sel = null; }
+  sync();
 }
 
 // 点一个唤醒体：手上拿着装备就装，否则选中看属性
@@ -2254,21 +2553,26 @@ function select(uid) {
 function renderTraits() {
   const list = traitList();
   const box = $('traits');
+  const side = $('sdTraits');
   if (!list.length) {
-    box.innerHTML = `<span class="traithint">把唤醒体摆上场，界域 / 职阶羁绊会亮起来</span>`;
+    if (box) box.innerHTML = `<span class="traithint">把唤醒体摆上场，界域 / 职阶羁绊会亮起来</span>`;
+    if (side) side.innerHTML = `<span class="traithint">还没有上场的人</span>`;
     return;
   }
-  box.innerHTML = list.map((t) => {
+  const html = list.map((t) => {
     const d = t.def;
     const on = t.active >= 0;
     const nextNeed = t.next != null ? t.next : null;
+    const ic = d.kind === 'realm' ? REALM_ICON[d.key] : ROLE_ICON[d.key];
     return `<div class="tr${on ? ' on' : ''}" style="--c:${d.color}">
-      <b>${d.n}</b><span>${t.n}</span>${nextNeed ? `<em>/${nextNeed}</em>` : ''}
+      <i class="tri">${svgIcon(ic || '')}</i><b>${d.n}</b><span>${t.n}</span>${nextNeed ? `<em>/${nextNeed}</em>` : ''}
       <div class="trtip">
         ${d.stepsText.map((s, i) => `<u class="${i <= t.active ? 'on' : ''}">${d.steps[i]} 人 · ${s}</u>`).join('')}
       </div>
     </div>`;
   }).join('');
+  if (box) box.innerHTML = html;
+  if (side) side.innerHTML = html;
 }
 
 function eqRow(u) {
@@ -2299,7 +2603,7 @@ function renderCard() {
       ${portrait(d.id, 50)}
       <div>
         <h4>${d.n}<em>${STAR_NAME[u.star]}</em></h4>
-        <p><span style="color:${realmCol(d.realm)}">${REALM_NAME[d.realm]}</span> · <span style="color:${roleCol(d.role)}">${ROLE_NAME[d.role]}</span> · ${d.cost} 费</p>
+        <p class="tags">${realmTag(d.realm)}${roleTag(d.role)}<span class="costb">${d.cost} 费</span></p>
       </div>
     </div>
     <div class="nums">
@@ -2347,6 +2651,76 @@ function tickBanner() {
 }
 
 // ---------------------------------------------------------------- 高频数字
+// 顶栏与左侧面板显示同一批数字：宽屏看面板，窄屏看顶栏胶囊。
+const TWIN = { sWave: 'sdWave', sGold: 'sdGold', sPop: 'sdPop', sCore: 'sdCore' };
+
+// 商店左手的金币池：余额、利息档位、以及加减时飘一下的 +n / -n。
+// 每帧都跑，但只有值变了才动 DOM（否则一串 set 会把布局抖出噪点）。
+function tickPurse() {
+  const L = ui.last;
+  if (L.goldVal === G.gold) return;
+  const prev = L.goldVal;
+  L.goldVal = G.gold;
+  const b = $('sGold2');
+  if (b) b.textContent = G.gold;
+  const purse = $('purse');
+  if (purse) purse.classList.toggle('low', G.gold < 2);
+  // 利息：每存 10 金 +1，最多 5 —— 写在数字下面的小字里，存钱时看得见收益在涨
+  const interest = Math.min(5, Math.floor(G.gold / 10));
+  const txt = interest > 0 ? `息 +${interest}` : '金';
+  const em = $('purseInt');
+  if (em && L.interest !== txt) { L.interest = txt; em.textContent = txt; }
+  const int2 = $('sdInt');
+  if (int2 && L.interest2 !== txt) { L.interest2 = txt; int2.textContent = interest > 0 ? `利息 +${interest}` : '无利息'; }
+  if (prev === undefined || !purse) return;      // 开局第一次不计动画
+  const d = G.gold - prev;
+  if (!d) return;
+  const fly = document.createElement('i');
+  fly.className = 'd ' + (d > 0 ? 'up' : 'down');
+  fly.textContent = (d > 0 ? '+' : '') + d;
+  purse.appendChild(fly);
+  setTimeout(() => fly.remove(), 900);
+  purse.classList.remove('pop');
+  void purse.offsetWidth;              // 强制重排，动画才能重播
+  purse.classList.add('pop');
+}
+
+// 下一波的构成（同一批计划里的怪按种类归并）。备战期把「会从哪来、来的是什么」
+// 提前写给玩家，是自走棋里最该明说的信息。
+function waveComposition() {
+  const m = new Map();
+  for (const p of G.plan || []) m.set(p.key, (m.get(p.key) || 0) + 1);
+  return [...m.entries()].map(([k, n]) => `${(ENEMY[k] || {}).n || k}×${n}`).join('  ');
+}
+
+// 左侧面板的「下一波来敌」：按通道分组列出种类与数量。
+// 棋盘上的紫色虚线已经画了路线，这里是同一份计划的文字版。
+function tickSideNext() {
+  const box = $('sdNext');
+  if (!box) return;
+  const sig = (G.plan || []).map((p) => `${p.key}${p.row}`).join(',') + '|' + G.wave + G.phase;
+  if (ui.last.planSig === sig) return;
+  ui.last.planSig = sig;
+  const use = G.phase === 'prep' ? (G.plan || []) : (G.spawnQ || []);
+  if (!use.length) { box.innerHTML = '<li style="color:var(--dim)">—</li>'; return; }
+  const byRow = new Map();
+  for (const p of use) {
+    if (!byRow.has(p.row)) byRow.set(p.row, new Map());
+    const m = byRow.get(p.row);
+    m.set(p.key, (m.get(p.key) || 0) + 1);
+  }
+  const COL = { 普通: '#b06bd9', 精英: '#e8695f', Boss: '#ff5c5c' };
+  let html = '';
+  for (const [row, m] of [...byRow.entries()].sort((a, b) => a[0] - b[0])) {
+    for (const [k, n] of m) {
+      const def = ENEMY[k] || {};
+      html += `<li><span class="lane">通道${row + 1}</span><i style="--c:${COL[def.cls] || '#b06bd9'}"></i>
+        ${def.n || k}<b>×${n}</b></li>`;
+    }
+  }
+  box.innerHTML = html;
+}
+
 function updateHUD() {
   const L = ui.last;
   const set = (id, v) => {
@@ -2354,12 +2728,15 @@ function updateHUD() {
     L[id] = v;
     const el = $(id);
     if (el) el.textContent = v;
+    const t = TWIN[id];
+    if (t) { const te = $(t); if (te) te.textContent = v; }
   };
   const shown = Math.min(G.wave + (G.phase === 'fight' ? 0 : 1), WAVES.length);
   set('sWave', `${shown}/${WAVES.length}`);
   set('sGold', String(G.gold));
   set('sPop', `${deployed()}/${G.level}`);
   set('sCore', `${G.core}`);
+  tickPurse();
   const pct = Math.round((G.core / G.coreMax) * 100);
   if (L.corePct !== pct) {
     L.corePct = pct;
@@ -2368,7 +2745,20 @@ function updateHUD() {
       f.style.width = pct + '%';
       f.classList.toggle('low', pct <= 34);
     }
+    const f2 = $('sdCoreFill');
+    if (f2) {
+      f2.style.width = pct + '%';
+      f2.classList.toggle('low', pct <= 34);
+    }
+    const c2 = $('sdCore');
+    if (c2) c2.textContent = `${G.core}/${G.coreMax}`;
   }
+  // 左侧面板的波名：战斗中写这一波，备战期写下一波
+  const nameTxt = G.phase === 'fight'
+    ? `第 ${G.wave} 波 · ${(WAVES[G.wave - 1] || {}).n || ''}`
+    : `下一波 · ${(WAVES[Math.min(G.wave, WAVES.length - 1)] || {}).n || ''}`;
+  if (L.sdName !== nameTxt) { L.sdName = nameTxt; const e = $('sdName'); if (e) e.textContent = nameTxt; }
+  tickSideNext();
   const lvTxt = G.level >= MAX_LEVEL ? '人口已满' : `升级 ${LEVEL_COST}`;
   if (L.lvTxt !== lvTxt) { L.lvTxt = lvTxt; $('btnLevel').textContent = lvTxt; }
   const rollTxt = ui.tab === 'unit' ? `刷新 ${REROLL_COST}` : `刷新 ${ITEM_REROLL}`;
@@ -2384,9 +2774,11 @@ function updateHUD() {
   const msg = G.msg || '';
   if (L.msg !== msg) { L.msg = msg; $('msg').textContent = msg; }
   const nxt = WAVES[Math.min(G.wave, WAVES.length - 1)];
+  // 备战期把下一波的「来的是什么、几只」也写出来：路线画在棋盘上，构成写在这里
+  const comp = G.phase === 'prep' ? waveComposition() : '';
   const nextTxt = G.phase === 'fight'
     ? `第 ${G.wave} 波 · 场上 ${G.enemies.length + G.spawnQ.length}`
-    : `下一波 · ${nxt.n}`;
+    : `下一波 · ${nxt.n}${comp ? ` ｜ ${comp}` : ''}`;
   if (L.nextTxt !== nextTxt) { L.nextTxt = nextTxt; $('sNext').textContent = nextTxt; }
 
   // 开战横幅：从备战切到战斗的那一帧弹一下，比只改数字更像「进入下一波」

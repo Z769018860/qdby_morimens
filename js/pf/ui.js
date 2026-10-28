@@ -9,13 +9,13 @@
 
 import {
   G, buy, sell, levelUp, rollShop, rollItemShop, beginWave, reset, traitList, deployed,
-  summary, UNITS_BY_ID, buyItem, equip, unequip, itemDef,
+  summary, UNITS_BY_ID, buyItem, equip, unequip, itemDef, placeBench,
 } from './engine.js';
 import { ART, SHEET } from './gen.js';
 import {
-  WAVES, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT,
+  WAVES, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON,
   STAR_NAME, LEVEL_COST, REROLL_COST, MAX_LEVEL, BENCH_SIZE, creditsAt, nextTier,
-  ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS,
+  ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS, ENEMY,
 } from './defs.js';
 
 const $ = (id) => document.getElementById(id);
@@ -50,19 +50,30 @@ const roleCol = (r) => ROLE_COLOR[r] || '#8a93a8';
 const itemKindName = (k) => (k === 'wheel' ? '命轮' : '造物');
 const itemSigil = (k) => (k === 'wheel' ? '命' : '造');
 
+// 界域 / 职阶的小图标：内联 SVG path（不用字体符号，跨平台不会缺字），
+// 颜色跟着 --c 走，同一套在商店卡、备战席、信息卡、羁绊条里复用。
+const svgIcon = (d, cls = '') =>
+  `<svg class="${cls}" viewBox="0 0 12 12" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="${d}"/></svg>`;
+const realmTag = (r) =>
+  `<em class="tg" style="--c:${realmCol(r)}">${svgIcon(REALM_ICON[r] || '')}<u>${REALM_NAME[r] || ''}</u></em>`;
+const roleTag = (r, short) =>
+  `<em class="tg" style="--c:${roleCol(r)}">${svgIcon(ROLE_ICON[r] || '')}<u>${short ? ROLE_SHORT[r] || '' : ROLE_NAME[r] || ''}</u></em>`;
+
 function itemTone(it) {
   const d = itemDef(it);
   if (!d) return '#8a93a8';
   return it.kind === 'wheel' ? realmCol(d.realm) : '#b06bd9';
 }
 
-// 画布可用区：顶栏下沿到商店上沿之间那条带子
+// 画布可用区：顶栏下沿到商店上沿之间那条带子。
+// 宽屏（>=1000px）左边有一块信息面板，画布从它右边开始，棋盘才会落在剩余区域的正中。
 export function bandRect() {
   const hud = $('hud').getBoundingClientRect();
   const bottom = $('bottom').getBoundingClientRect();
+  const pad = window.innerWidth >= 1000 ? 232 : 0;
   const y = hud.bottom + 6;
   const h = bottom.top - y - 6;
-  return { x: 0, y, w: window.innerWidth, h: Math.max(200, h) };
+  return { x: pad, y, w: window.innerWidth - pad, h: Math.max(200, h) };
 }
 
 // ---------------------------------------------------------------- 装配
@@ -146,6 +157,14 @@ export function sync() {
   renderCard();
 }
 
+// 同名同星的现有数量：商店卡片上用它画「还差几个升星」的三个点。
+// 只数 1 星 —— 商店卖的都是 1 星，合成也只在同星之间发生。
+function sameStar(id, star) {
+  let n = 0;
+  for (const u of G.units) if (u.id === id && u.star === star) n++;
+  return n;
+}
+
 function renderShop() {
   const box = $('shop');
   if (ui.tab === 'unit') {
@@ -153,11 +172,17 @@ function renderShop() {
       if (!s) return `<div class="scard empty"><span>已买走</span></div>`;
       const d = UNITS_BY_ID[s.id];
       const can = G.gold >= d.cost;
-      return `<button class="scard c${d.cost}${can ? '' : ' poor'}" data-i="${i}" title="${d.n} · ${d.ult.name}">
-        <span class="cost">${d.cost}</span>
+      const own = sameStar(s.id, 1);
+      // own === 2：再买这一个就三合一，整张卡亮起来
+      const near = own >= 2;
+      const tip = `${d.n} · ${d.ult.name} · ${d.cost} 金`
+        + (own ? `（已有 ${own} 个一星${near ? '，再买一个升 2 星' : ''}）` : '');
+      return `<button class="scard c${d.cost}${can ? '' : ' poor'}${near ? ' near' : ''}" data-i="${i}" title="${tip}">
+        ${own ? `<span class="prog">${[0, 1, 2].map((k) => `<i class="${k < own ? 'on' : ''}"></i>`).join('')}</span>` : ''}
         ${portrait(d.id, 42)}
         <b>${d.n}</b>
-        <span class="chips"><i style="color:${realmCol(d.realm)}">${REALM_NAME[d.realm]}</i><i style="color:${roleCol(d.role)}">${ROLE_SHORT[d.role]}</i></span>
+        <span class="chips">${realmTag(d.realm)}${roleTag(d.role, true)}</span>
+        <span class="price"><i>◈</i>${d.cost}</span>
       </button>`;
     }).join('');
     box.querySelectorAll('.scard[data-i]').forEach((el) => {
@@ -172,11 +197,11 @@ function renderShop() {
     if (!d) return `<div class="scard empty"><span>—</span></div>`;
     const can = G.gold >= d.cost;
     const col = s.kind === 'wheel' ? realmCol(d.realm) : '#b06bd9';
-    return `<button class="scard item c${d.cost}${can ? '' : ' poor'}" data-ii="${i}" title="${d.n}：${d.text}">
-      <span class="cost">${d.cost}</span>
+    return `<button class="scard item c${d.cost}${can ? '' : ' poor'}" data-ii="${i}" title="${d.n}：${d.text}（${d.cost} 金）">
       <i class="sig" style="--c:${col}">${itemSigil(s.kind)}</i>
       <b>${d.n}</b>
       <span class="chips"><i style="color:${col}">${itemKindName(s.kind)}</i></span>
+      <span class="price"><i>◈</i>${d.cost}</span>
     </button>`;
   }).join('');
   // 装备一次只摆 3 件：补两个占位，卡片宽度才跟唤醒体页签对齐
@@ -216,18 +241,48 @@ function renderBench() {
   let html = '';
   for (let i = 0; i < BENCH_SIZE; i++) {
     const u = G.bench[i];
-    if (!u) { html += `<div class="bslot"></div>`; continue; }
+    if (!u) {
+      // 空槽也能点：手上有场上的人时，点它就是把这个人收回备战席
+      html += `<button class="bslot" data-b="${i}"></button>`;
+      continue;
+    }
     const sel = ui.sel === u.uid ? ' on' : '';
-    html += `<button class="bslot has${sel}" data-u="${u.uid}" title="${u.def.n}">
-      ${portrait(u.id, 30)}
-      <b>${STAR_NAME[u.star]}</b>
+    const armed = ui.sel != null && ui.sel !== u.uid ? ' swap' : '';
+    html += `<button class="bslot has${sel}${armed}" data-u="${u.uid}" data-b="${i}"
+      style="--rc:${realmCol(u.def.realm)}" title="${u.def.n} ${STAR_NAME[u.star]}（点它选中，选中后再点别的格可以换位）">
+      ${portrait(u.id, 32)}
+      <b class="star">${STAR_NAME[u.star]}</b>
       ${u.wheel || u.creation ? `<em class="eqdot"></em>` : ''}
     </button>`;
   }
   box.innerHTML = html;
   box.querySelectorAll('.bslot[data-u]').forEach((el) => {
-    el.onclick = () => { tapUnit(Number(el.dataset.u)); };
+    el.onclick = () => { tapBench(Number(el.dataset.u)); };
   });
+  box.querySelectorAll('.bslot[data-b]:not([data-u])').forEach((el) => {
+    el.onclick = () => { tapBenchSlot(Number(el.dataset.b)); };
+  });
+}
+
+// 点备战席上的头像：手里有装备就装；否则如果正选着别的单位就是「换位」，
+// 没选就是选中它自己。
+function tapBench(uid) {
+  if (ui.item != null) { tapUnit(uid); return; }
+  if (ui.sel != null && ui.sel !== uid) {
+    const idx = G.bench.findIndex((x) => x && x.uid === uid);
+    if (idx < 0) { select(uid); return; }
+    if (placeBench(ui.sel, idx)) { ui.sel = null; G.sel = null; }
+    sync();
+    return;
+  }
+  select(uid);
+}
+
+// 点备战席的空格：选中的单位直接收进来（场上 / 另一个席位的都行）
+function tapBenchSlot(idx) {
+  if (ui.sel == null) { if (G.msg !== '点一个唤醒体，再点这里收进来') G.msg = '点一个唤醒体，再点这里收进来'; return; }
+  if (placeBench(ui.sel, idx)) { ui.sel = null; G.sel = null; }
+  sync();
 }
 
 // 点一个唤醒体：手上拿着装备就装，否则选中看属性
@@ -249,21 +304,26 @@ export function select(uid) {
 function renderTraits() {
   const list = traitList();
   const box = $('traits');
+  const side = $('sdTraits');
   if (!list.length) {
-    box.innerHTML = `<span class="traithint">把唤醒体摆上场，界域 / 职阶羁绊会亮起来</span>`;
+    if (box) box.innerHTML = `<span class="traithint">把唤醒体摆上场，界域 / 职阶羁绊会亮起来</span>`;
+    if (side) side.innerHTML = `<span class="traithint">还没有上场的人</span>`;
     return;
   }
-  box.innerHTML = list.map((t) => {
+  const html = list.map((t) => {
     const d = t.def;
     const on = t.active >= 0;
     const nextNeed = t.next != null ? t.next : null;
+    const ic = d.kind === 'realm' ? REALM_ICON[d.key] : ROLE_ICON[d.key];
     return `<div class="tr${on ? ' on' : ''}" style="--c:${d.color}">
-      <b>${d.n}</b><span>${t.n}</span>${nextNeed ? `<em>/${nextNeed}</em>` : ''}
+      <i class="tri">${svgIcon(ic || '')}</i><b>${d.n}</b><span>${t.n}</span>${nextNeed ? `<em>/${nextNeed}</em>` : ''}
       <div class="trtip">
         ${d.stepsText.map((s, i) => `<u class="${i <= t.active ? 'on' : ''}">${d.steps[i]} 人 · ${s}</u>`).join('')}
       </div>
     </div>`;
   }).join('');
+  if (box) box.innerHTML = html;
+  if (side) side.innerHTML = html;
 }
 
 function eqRow(u) {
@@ -294,7 +354,7 @@ function renderCard() {
       ${portrait(d.id, 50)}
       <div>
         <h4>${d.n}<em>${STAR_NAME[u.star]}</em></h4>
-        <p><span style="color:${realmCol(d.realm)}">${REALM_NAME[d.realm]}</span> · <span style="color:${roleCol(d.role)}">${ROLE_NAME[d.role]}</span> · ${d.cost} 费</p>
+        <p class="tags">${realmTag(d.realm)}${roleTag(d.role)}<span class="costb">${d.cost} 费</span></p>
       </div>
     </div>
     <div class="nums">
@@ -342,6 +402,76 @@ function tickBanner() {
 }
 
 // ---------------------------------------------------------------- 高频数字
+// 顶栏与左侧面板显示同一批数字：宽屏看面板，窄屏看顶栏胶囊。
+const TWIN = { sWave: 'sdWave', sGold: 'sdGold', sPop: 'sdPop', sCore: 'sdCore' };
+
+// 商店左手的金币池：余额、利息档位、以及加减时飘一下的 +n / -n。
+// 每帧都跑，但只有值变了才动 DOM（否则一串 set 会把布局抖出噪点）。
+function tickPurse() {
+  const L = ui.last;
+  if (L.goldVal === G.gold) return;
+  const prev = L.goldVal;
+  L.goldVal = G.gold;
+  const b = $('sGold2');
+  if (b) b.textContent = G.gold;
+  const purse = $('purse');
+  if (purse) purse.classList.toggle('low', G.gold < 2);
+  // 利息：每存 10 金 +1，最多 5 —— 写在数字下面的小字里，存钱时看得见收益在涨
+  const interest = Math.min(5, Math.floor(G.gold / 10));
+  const txt = interest > 0 ? `息 +${interest}` : '金';
+  const em = $('purseInt');
+  if (em && L.interest !== txt) { L.interest = txt; em.textContent = txt; }
+  const int2 = $('sdInt');
+  if (int2 && L.interest2 !== txt) { L.interest2 = txt; int2.textContent = interest > 0 ? `利息 +${interest}` : '无利息'; }
+  if (prev === undefined || !purse) return;      // 开局第一次不计动画
+  const d = G.gold - prev;
+  if (!d) return;
+  const fly = document.createElement('i');
+  fly.className = 'd ' + (d > 0 ? 'up' : 'down');
+  fly.textContent = (d > 0 ? '+' : '') + d;
+  purse.appendChild(fly);
+  setTimeout(() => fly.remove(), 900);
+  purse.classList.remove('pop');
+  void purse.offsetWidth;              // 强制重排，动画才能重播
+  purse.classList.add('pop');
+}
+
+// 下一波的构成（同一批计划里的怪按种类归并）。备战期把「会从哪来、来的是什么」
+// 提前写给玩家，是自走棋里最该明说的信息。
+function waveComposition() {
+  const m = new Map();
+  for (const p of G.plan || []) m.set(p.key, (m.get(p.key) || 0) + 1);
+  return [...m.entries()].map(([k, n]) => `${(ENEMY[k] || {}).n || k}×${n}`).join('  ');
+}
+
+// 左侧面板的「下一波来敌」：按通道分组列出种类与数量。
+// 棋盘上的紫色虚线已经画了路线，这里是同一份计划的文字版。
+function tickSideNext() {
+  const box = $('sdNext');
+  if (!box) return;
+  const sig = (G.plan || []).map((p) => `${p.key}${p.row}`).join(',') + '|' + G.wave + G.phase;
+  if (ui.last.planSig === sig) return;
+  ui.last.planSig = sig;
+  const use = G.phase === 'prep' ? (G.plan || []) : (G.spawnQ || []);
+  if (!use.length) { box.innerHTML = '<li style="color:var(--dim)">—</li>'; return; }
+  const byRow = new Map();
+  for (const p of use) {
+    if (!byRow.has(p.row)) byRow.set(p.row, new Map());
+    const m = byRow.get(p.row);
+    m.set(p.key, (m.get(p.key) || 0) + 1);
+  }
+  const COL = { 普通: '#b06bd9', 精英: '#e8695f', Boss: '#ff5c5c' };
+  let html = '';
+  for (const [row, m] of [...byRow.entries()].sort((a, b) => a[0] - b[0])) {
+    for (const [k, n] of m) {
+      const def = ENEMY[k] || {};
+      html += `<li><span class="lane">通道${row + 1}</span><i style="--c:${COL[def.cls] || '#b06bd9'}"></i>
+        ${def.n || k}<b>×${n}</b></li>`;
+    }
+  }
+  box.innerHTML = html;
+}
+
 export function updateHUD() {
   const L = ui.last;
   const set = (id, v) => {
@@ -349,12 +479,15 @@ export function updateHUD() {
     L[id] = v;
     const el = $(id);
     if (el) el.textContent = v;
+    const t = TWIN[id];
+    if (t) { const te = $(t); if (te) te.textContent = v; }
   };
   const shown = Math.min(G.wave + (G.phase === 'fight' ? 0 : 1), WAVES.length);
   set('sWave', `${shown}/${WAVES.length}`);
   set('sGold', String(G.gold));
   set('sPop', `${deployed()}/${G.level}`);
   set('sCore', `${G.core}`);
+  tickPurse();
   const pct = Math.round((G.core / G.coreMax) * 100);
   if (L.corePct !== pct) {
     L.corePct = pct;
@@ -363,7 +496,20 @@ export function updateHUD() {
       f.style.width = pct + '%';
       f.classList.toggle('low', pct <= 34);
     }
+    const f2 = $('sdCoreFill');
+    if (f2) {
+      f2.style.width = pct + '%';
+      f2.classList.toggle('low', pct <= 34);
+    }
+    const c2 = $('sdCore');
+    if (c2) c2.textContent = `${G.core}/${G.coreMax}`;
   }
+  // 左侧面板的波名：战斗中写这一波，备战期写下一波
+  const nameTxt = G.phase === 'fight'
+    ? `第 ${G.wave} 波 · ${(WAVES[G.wave - 1] || {}).n || ''}`
+    : `下一波 · ${(WAVES[Math.min(G.wave, WAVES.length - 1)] || {}).n || ''}`;
+  if (L.sdName !== nameTxt) { L.sdName = nameTxt; const e = $('sdName'); if (e) e.textContent = nameTxt; }
+  tickSideNext();
   const lvTxt = G.level >= MAX_LEVEL ? '人口已满' : `升级 ${LEVEL_COST}`;
   if (L.lvTxt !== lvTxt) { L.lvTxt = lvTxt; $('btnLevel').textContent = lvTxt; }
   const rollTxt = ui.tab === 'unit' ? `刷新 ${REROLL_COST}` : `刷新 ${ITEM_REROLL}`;
@@ -379,9 +525,11 @@ export function updateHUD() {
   const msg = G.msg || '';
   if (L.msg !== msg) { L.msg = msg; $('msg').textContent = msg; }
   const nxt = WAVES[Math.min(G.wave, WAVES.length - 1)];
+  // 备战期把下一波的「来的是什么、几只」也写出来：路线画在棋盘上，构成写在这里
+  const comp = G.phase === 'prep' ? waveComposition() : '';
   const nextTxt = G.phase === 'fight'
     ? `第 ${G.wave} 波 · 场上 ${G.enemies.length + G.spawnQ.length}`
-    : `下一波 · ${nxt.n}`;
+    : `下一波 · ${nxt.n}${comp ? ` ｜ ${comp}` : ''}`;
   if (L.nextTxt !== nextTxt) { L.nextTxt = nextTxt; $('sNext').textContent = nextTxt; }
 
   // 开战横幅：从备战切到战斗的那一帧弹一下，比只改数字更像「进入下一波」

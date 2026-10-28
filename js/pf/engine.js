@@ -10,7 +10,7 @@
 import { UNITS, ART } from './gen.js';
 import {
   COLS, ROWS, CELLS, HEX_W, BOARD_W, SPAWN_X, CORE_X, DEPLOY_COLS,
-  cellXY, colOf, rowOf, cellOf, STARS, MAX_STAR, MAX_LEVEL, LEVEL_COST, REROLL_COST,
+  cellXY, colOf, rowOf, cellOf, NEIGHBORS, STARS, MAX_STAR, MAX_LEVEL, LEVEL_COST, REROLL_COST,
   WAVE_GOLD, INTEREST_CAP, BENCH_SIZE, START_GOLD, START_LEVEL, shopOdds,
   TRAITS, TRAIT_BY_KEY, ENEMY, WAVES, waveHpMul, waveAtkMul, HEAL_PER_WAVE, creditsAt,
   TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, ITEM_SLOTS, ITEM_REROLL, INV_SIZE,
@@ -48,6 +48,8 @@ export const G = {
   itemShop: [],           // ITEM_SLOTS 个 { kind, id } 或 null
   inv: [],                // 装备栏：{ kind:'wheel'|'creation', id }（最多 INV_SIZE）
   terrain: {},            // cell → 'high'|'altar'|'rift'|'rock'
+  paths: {},              // row → 该通道的格路径（开战时算一次，地形不变就一直有效）
+  plan: [],               // 下一波的出兵计划：{ key, row, t, slot }，备战期就定下来给界面看
   enemies: [],
   fx: [], floats: [], shots: [],
   t: 0, waveT: 0, shake: 0,
@@ -86,6 +88,8 @@ export function reset(s) {
   uidSeq = 1;
   G.inv = [];
   G.terrain = rollTerrain();
+  G.paths = {};
+  G.plan = planWave(1);
   G.shop = [];
   rollShop(true);
   rollItemShop(true);
@@ -481,6 +485,38 @@ export function place(uid, cell) {
   return true;
 }
 
+// 放到备战席的指定格（点某个备战席格子）。跟 place 的 -1 区别是「放哪一格你说了算」：
+// 空槽就放进去，有人的槽就跟它换 —— 场上的换下来、备战席的顶上去，人数不变。
+export function placeBench(uid, idx) {
+  const u = G.units.find((x) => x.uid === uid);
+  if (!u || G.phase === 'fight') return false;
+  if (idx == null || idx < 0 || idx >= BENCH_SIZE) return false;
+  const other = G.bench[idx];
+  if (other === u) return false;
+  const fromCell = u.cell;
+  const fromBench = u.bench;
+  if (!other) {
+    if (fromCell >= 0) G.board.delete(fromCell);
+    else if (fromBench >= 0) G.bench[fromBench] = null;
+    else return false;
+    u.cell = -1; u.bench = idx; G.bench[idx] = u;
+    recount();
+    return true;
+  }
+  // 互换：场上 ↔ 备战席不查人口（一上一下，人数不变）
+  if (fromCell >= 0) {
+    G.board.delete(fromCell);
+    other.cell = fromCell; other.bench = -1;
+    G.board.set(fromCell, other);
+  } else if (fromBench >= 0) {
+    G.bench[fromBench] = other;
+    other.cell = -1; other.bench = fromBench;
+  }
+  u.cell = -1; u.bench = idx; G.bench[idx] = u;
+  recount();
+  return true;
+}
+
 export function levelUp() {
   if (G.phase === 'fight' || G.level >= MAX_LEVEL) return false;
   if (G.gold < LEVEL_COST) { G.msg = '金币不够'; return false; }
@@ -547,6 +583,61 @@ export function traitList() {
 }
 
 // ---------------------------------------------------------------- 战斗
+// ---------------------------------------------------------------- 来敌路线
+// 影怪不再直线穿过棋盘：从右侧通道格进，沿着六边形格子一格一格走到最左列，
+// 再往左走出棋盘去戳协议核心。岩壁这一格它们也过不去（BFS 自己绕路），
+// 裂隙和高台会把它们拖慢 —— 地形对两边都有意义，不只是装饰。
+export function pathFor(row) {
+  const start = cellOf(COLS - 1, row);
+  const prev = new Map([[start, -1]]);
+  const q = [start];
+  let goal = -1;
+  while (q.length) {
+    const cur = q.shift();
+    if (colOf(cur) === 0) { goal = cur; break; }
+    for (const nb of NEIGHBORS[cur]) {
+      if (prev.has(nb)) continue;
+      const t = TERRAIN[G.terrain[nb]];
+      if (t && t.block) continue;
+      prev.set(nb, cur);
+      q.push(nb);
+    }
+  }
+  const out = [];
+  if (goal < 0) { out.push(start); return out; }   // 理论上到不了，兜底成原地
+  for (let c = goal; c >= 0; c = prev.get(c)) out.unshift(c);
+  return out;
+}
+
+export function lanePath(row) {
+  if (!G.paths[row]) G.paths[row] = pathFor(row);
+  return G.paths[row];
+}
+
+// 这一波从哪几条通道、按什么顺序来。备战期就先算好，界面才能在开战前
+// 把「怪物意图」画出来（从哪条通道进、来的是什么、几只）。
+export function planWave(w) {
+  const cfg = WAVES[w - 1];
+  if (!cfg) return [];
+  const lanes = [0, 1, 2, 3];
+  for (let i = lanes.length - 1; i > 0; i--) {
+    const j = (rnd() * (i + 1)) | 0;
+    const t = lanes[i]; lanes[i] = lanes[j]; lanes[j] = t;
+  }
+  const plan = [];
+  let t = 0.35;
+  let ri = 0;
+  for (const [key, count, gap] of cfg.e) {
+    for (let i = 0; i < count; i++) plan.push({ key, row: lanes[ri++ % lanes.length], t });
+    t += gap;
+  }
+  plan.sort((a, b) => a.t - b.t);
+  // 同一条通道的第几只：在格子宽度里错开站位，不至于几张贴纸完全叠在一起
+  const n = {};
+  for (const s of plan) { n[s.row] = (n[s.row] || 0) + 1; s.slot = (n[s.row] - 1) % 3; }
+  return plan;
+}
+
 export function beginWave() {
   if (G.phase !== 'prep') return false;
   if (G.wave >= WAVES.length) return false;
@@ -558,18 +649,8 @@ export function beginWave() {
   G.phase = 'fight';
   G.waveT = 0;
   G.enemies = [];
-  G.spawnQ = [];
-  let t = 0.35;
-  const rows = [0, 1, 2, 3].sort(() => rnd() - 0.5);
-  let ri = 0;
-  for (const [key, count, gap] of cfg.e) {
-    for (let i = 0; i < count; i++) {
-      const row = rows[ri++ % rows.length];
-      G.spawnQ.push({ key, t, row });
-      t += gap;
-    }
-  }
-  G.spawnQ.sort((a, b) => a.t - b.t);
+  // 计划是备战期算好的（界面已经把它当「怪物意图」显示过），开战直接照单出兵
+  G.spawnQ = (G.plan.length ? G.plan : planWave(w)).map((x) => ({ ...x }));
   for (const u of G.units) { u.timer = rnd() * 0.4; u.target = null; }
   G.msg = cfg.n;
   return true;
@@ -580,10 +661,13 @@ function spawn(e) {
   const w = G.wave;
   const mod = G.mod || { hp: 1, atk: 1 };
   const hp = def.hp * waveHpMul(w) * mod.hp * TUNE.hp;
-  const rowY = cellXY(cellOf(0, e.row)).y;
+  // 出生在通道里，先走到入口格，然后沿格子一路往左
+  const path = lanePath(e.row);
+  const p0 = cellXY(path[0]);
+  const laneOff = ((e.slot || 0) - 1) * 15;
   G.enemies.push({
-    key: e.key, def, row: e.row,
-    x: SPAWN_X + rnd() * 50, y: rowY + (rnd() - 0.5) * 14,
+    key: e.key, def, row: e.row, path, pi: 0, cell: -1, laneOff,
+    x: SPAWN_X + 8 + rnd() * 34, y: p0.y + laneOff,
     hp, hpMax: hp, atk: def.atk * waveAtkMul(w) * mod.atk * TUNE.atk, spd: def.spd * TUNE.spd,
     timer: 0.4, stunT: 0, hurtT: 0, atkAnim: 0, target: null, wound: 0,
     size: def.big ? 1.35 : 1,
@@ -630,7 +714,10 @@ function unitAttack(u, e) {
 
   if (e.hp <= 0) killEnemy(e, u);
   u.ult = Math.min(100, u.ult + 13 * (u.ultGainMul || 1));
-  u.atkAnim = 0.42;
+  // 打击动画按攻速定长：攻速高的时候压缩播放时间，保证每一帧都能走完
+  // （固定 0.42 秒的话，攻速上了 2.4 就会被下一次攻击打断，动图永远只播个头）
+  u.atkDur = Math.min(0.42, 0.9 / Math.max(0.7, u.aspd));
+  u.atkAnim = u.atkDur;
 }
 
 // 命中火花：一次撒几粒，比一圈光环更「有手感」
@@ -712,6 +799,9 @@ function castUlt(u) {
     .map((e) => ({ e, d: Math.hypot(e.x - p.x, e.y - p.y) }))
     .sort((a, b) => a.d - b.d);
   u.ult = 0;
+  // 放大招也播一遍打击动图：这一下是全场最该看到动作的时刻
+  u.atkDur = 0.56;
+  u.atkAnim = 0.56;
   addFx({ k: 'ring', x: p.x, y: p.y - 24, d: 0.5, r: 52, col: '#ffe066' });
   G.shake = Math.max(G.shake || 0, u.def.cost >= 3 ? 4.5 : 2.2);
   G.ultSeq = (G.ultSeq || 0) + 1;
@@ -803,7 +893,14 @@ export function update(dt) {
   if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 22);
   if (G.lastUlt) { G.lastUlt.t += dt; if (G.lastUlt.t > 1.6) G.lastUlt = null; }
   if (G.phase !== 'fight') {
-    // 备战期也让特效收尾，画面不会突然定住
+    // 备战期也让特效收尾，画面不会突然定住。
+    // 出手/挨打的计时器同样要往下走：不然打完一波还停在打击帧上摆着，
+    // 像所有人都僵在半空 —— 这是「战斗结束还在保持战斗立绘」的原因。
+    for (const u of G.units) {
+      if (u.atkAnim > 0) u.atkAnim = Math.max(0, u.atkAnim - dt);
+      if (u.hurtT > 0) u.hurtT = Math.max(0, u.hurtT - dt);
+      u.target = null;
+    }
     tickFx(dt);
     return;
   }
@@ -855,50 +952,53 @@ export function update(dt) {
     }
   }
 
-  // 敌人
+  // 敌人：沿格子路径推进。不再「无视棋盘直线往左飘」——
+  // 每一只都走在自己的通道路径上，路径的下一格站着人就被挡住，开打。
   for (const e of [...G.enemies]) {
     if (e.hurtT > 0) e.hurtT -= dt;
     if (e.atkAnim > 0) e.atkAnim -= dt;
     if (e.stunT > 0) { e.stunT -= dt; continue; }
-    // 谁在挡路：身位落在「相邻格」范围里就打他。
-    // 这个半径必须小于近战最小射程（1.15 格），否则怪会停在打不着的位置互相僵住。
-    let blocker = null;
-    let bd = HEX_W * 0.95;
-    for (const u of G.units) {
-      if (u.cell < 0 || u.hp <= 0) continue;
-      const p = cellXY(u.cell);
-      const d = Math.hypot(p.x - e.x, p.y - (e.y - 20));
-      if (d < bd) { bd = d; blocker = u; }
-    }
-    if (blocker) {
+
+    const nextCell = e.pi < e.path.length ? e.path[e.pi] : -1;
+    const blocker = nextCell >= 0 ? G.board.get(nextCell) : null;
+    if (blocker && blocker.hp > 0) {
       e.target = blocker;
-      // 排队：被挡住的怪会挤在同一格上，后面的往右退一点，不然一堆立绘糊成一团
-      for (const o of G.enemies) {
-        if (o === e || Math.abs(o.y - e.y) > 26) continue;
-        if (o.x < e.x && e.x - o.x < 34) {
-          e.x = Math.min(SPAWN_X + 34, e.x + 26 * dt);
-          break;
-        }
-      }
       e.timer -= dt;
       if (e.timer <= 0) {
         e.timer = 1.05;
         e.atkAnim = 0.3;
         damageUnit(blocker, e.atk * (0.92 + rnd() * 0.16), e);
       }
-    } else {
-      e.target = null;
-      e.x -= e.spd * dt;
-      if (e.x <= CORE_X + 26) {
+      continue;                        // 停在原地打，不硬挤过这一格
+    }
+    e.target = null;
+
+    // 目标点：下一格中心；走完最后一格就朝棋盘左侧外面去（那里是协议核心）
+    const last = cellXY(e.path[e.path.length - 1]);
+    const gp = nextCell >= 0 ? cellXY(nextCell) : { x: CORE_X + 26, y: last.y };
+    const ty = gp.y + (e.laneOff || 0);
+    const dx = gp.x - e.x;
+    const dy = ty - e.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 3) {
+      if (nextCell >= 0) { e.cell = nextCell; e.pi++; }
+      else {
         // 漏怪：扣协议核心
         G.core -= e.def.leak;
         G.stats.leaks++;
         const i = G.enemies.indexOf(e);
         if (i >= 0) G.enemies.splice(i, 1);
-        addFloat(CORE_X + 30, 150, '-' + e.def.leak, '#e8695f', 1.2);
+        addFloat(CORE_X + 30, e.y - 24, '-' + e.def.leak, '#e8695f', 1.2);
         if (G.core <= 0) { G.core = 0; G.phase = 'over'; }
       }
+      continue;
     }
+    // 走进裂隙 / 高台要减速（岩壁不会出现在路径里，BFS 已经绕开了）
+    const terr = nextCell >= 0 ? TERRAIN[G.terrain[nextCell]] : null;
+    const slow = terr && terr.eslow != null ? Math.max(0.25, terr.eslow) : 1;
+    const stepLen = e.spd * slow * dt;
+    if (stepLen >= dist) { e.x = gp.x; e.y = ty; }
+    else { e.x += (dx / dist) * stepLen; e.y += (dy / dist) * stepLen; }
   }
 
   tickFx(dt);
@@ -941,11 +1041,16 @@ function tickFx(dt) {
 
 function clearWave() {
   G.gold += WAVE_GOLD + Math.min(INTEREST_CAP, Math.floor(G.gold / 10));
-  for (const u of G.units) u.hp = Math.min(u.hpMax, u.hp + u.hpMax * HEAL_PER_WAVE);
+  for (const u of G.units) {
+    u.hp = Math.min(u.hpMax, u.hp + u.hpMax * HEAL_PER_WAVE);
+    // 收招：下一波之前所有人回到待机，别顶着打击帧站一整段备战期
+    u.atkAnim = 0; u.hurtT = 0; u.target = null; u.timer = 0;
+  }
   if (G.wave >= WAVES.length) {
     G.phase = 'win';
   } else {
     G.phase = 'prep';
+    G.plan = planWave(G.wave + 1);
     G.msg = `第 ${G.wave} 波清完，下一波：${WAVES[G.wave].n}`;
     rollShop(true);
     rollItemShop(true);
