@@ -16,6 +16,9 @@ import { localOpponents, localSettle, fightFriend } from './core/arena.js';
 import { encodeCode, decodeCode } from './core/friend.js';
 import { codexPage, monsterModal } from './ui/codex.js';
 import { sound } from './ui/audio.js';
+import { TRACK_ZH } from './ui/audio.js';
+import { saveSquad, loadSquad, clearSquad, setSquadPick, teamSlugsFor, SQUAD_ZH } from './core/squad.js';
+import { emptyGacha } from './core/gacha.js';
 import { fxMode } from './ui/fx.js';
 import { settleMode } from './ui/report.js';
 import { doTower, doTrial } from './core/challenge.js';
@@ -65,6 +68,13 @@ function setBg(tab) {
 }
 const GROUP_BY_K = Object.fromEntries(GROUPS.map((g) => [g.k, g]));
 const GROUP_OF = Object.fromEntries(GROUPS.flatMap((g) => g.tabs.map(([k]) => [k, g.k])));
+// 每个页面配一首 BGM（audio.js 里的六首）。战斗页由 BattleView 按是否 Boss 战自己切。
+const MOOD_OF = {
+  team: 'home', roster: 'home', gear: 'home', orders: 'home', summon: 'summon',
+  challenge: 'tower', weekly: 'tower', rtower: 'tower', arena: 'battle',
+  signin: 'home', codex: 'home', ach: 'home', settings: 'home',
+};
+const gachaSound = (out) => (out.some((p) => p.rarity === 'Genesis') ? 'reveal3' : out.some((p) => p.rarity === 'SSR') ? 'reveal2' : 'reveal1');
 
 const app = {
   ui: { lastTab: {} }, tab: 'battle',
@@ -90,6 +100,13 @@ async function boot() {
   app.state = saved ? migrate(saved, app.data) : newState(app.data);
   app.root = $('#view');
   buildChrome();
+  syncSnd();
+  $('#sndq')?.addEventListener('click', () => {
+    sound.set('mute', !sound.cfg.mute);
+    syncSnd();
+    toast(sound.cfg.mute ? '已静音（点右上角喇叭恢复）' : '声音已开启');
+    sound.play('click');
+  });
   app.bv = new BattleView($('#battle'), app);
   app.onBattleDone = () => { if (app.tab !== 'battle') app.refreshTop(); };
   const rep = saved ? offlineReport(app.state, app.data) : null;
@@ -122,8 +139,15 @@ function onVisibility() {
   else { claimOffline(app.state, null); app.bv.start(); }
 }
 
-function buildChrome() {
-  $('#tabs').innerHTML = GROUPS.map((g) => `<button data-group="${g.k}" title="${g.zh}"><i class="ti">${g.icon}</i><span>${g.zh}</span></button>`).join('');
+// 顶栏那个喇叭：一声点击就能静音，不用钻到设置页
+function syncSnd() {
+  const b = $('#sndq');
+  if (!b) return;
+  b.textContent = sound.cfg.mute ? '🔇' : '🔊';
+  b.classList.toggle('off', !!sound.cfg.mute);
+  b.title = sound.cfg.mute ? '已静音，点击开启' : '声音开，点击静音';
+}
+function buildChrome() {  $('#tabs').innerHTML = GROUPS.map((g) => `<button data-group="${g.k}" title="${g.zh}"><i class="ti">${g.icon}</i><span>${g.zh}</span></button>`).join('');
   $('#tabs').addEventListener('click', (e) => {
     const b = e.target.closest('[data-group]');
     if (!b) return;
@@ -163,6 +187,9 @@ export function show(tab) {
     // 只有跨组才给触感，组内切二级页太密会发麻
     if (GROUP_OF[prev] !== gk) navigator.vibrate?.(6);
   }
+  // 背景音乐跟着页面走（用户在设置里锁了曲目时 setMood 会自己忽略）
+  if (tab === 'battle') sound.setMood(app.bv?.bossNow ? 'boss' : 'field');
+  else sound.setMood(MOOD_OF[tab] || 'home');
   app.refreshTop();
 }
 function refreshArena() {
@@ -182,7 +209,7 @@ function onChange(e) {
   if (e.target.matches('[data-fx]')) { fxMode.set(e.target.value); toast('战斗特效：' + e.target.selectedOptions[0].textContent); return; }
   if (e.target.matches('[data-arena-name]')) { arenaState(app.state).name = e.target.value.trim().slice(0, 12) || '旅人'; app.save(); return; }
   const au = e.target.closest('[data-aud]');
-  if (au) { sound.set(au.dataset.aud, au.type === 'checkbox' ? au.checked : +au.value / 100); if (au.dataset.aud === 'sfx') sound.play('hit'); return; }
+  if (au) { sound.set(au.dataset.aud, au.type === 'checkbox' ? au.checked : +au.value / 100); if (au.dataset.aud === 'sfx') sound.play('hit'); syncSnd(); return; }
   const c = e.target.closest('[data-cf]');
   if (c) { const f = (app.ui.codex ||= { q: '', rank: '', trait: '', seen: false, more: 1 }); f[c.dataset.cf] = c.type === 'checkbox' ? c.checked : c.value; f.more = 1; render(); return; }
   const t = e.target.closest('[data-filter]');
@@ -201,6 +228,38 @@ function onAct(e) {
   if (el.tagName === 'BUTTON' && !['pull', 'epull', 'ach-claim', 'tower-go', 'trial-go', 'lvup', 'lvmax', 'sign-today', 'welcome-claim', 'welcome-7', 'cpull', 'cepull', 'shop-buy', 'ach-all', 'snd-test', 'awaken', 'brk', 'order-up'].includes(a)) sound.play('click');
   switch (a) {
     case 'snd-test': sound.play(el.dataset.k); break;
+    case 'bgm-track': sound.pickTrack(el.dataset.k); toast(`背景音乐：${TRACK_ZH[el.dataset.k] || el.dataset.k}`); render(); break;
+    case 'bgm-auto': sound.followPage(); toast('背景音乐：跟随页面'); render(); break;
+    case 'gacha-log': sound.play('open'); P.gachaLogModal(app); break;
+    case 'gacha-filter': app.ui.gachaLog = { ...(app.ui.gachaLog || {}), filter: el.dataset.k }; P.gachaLogModal(app); break;
+    case 'gacha-clear':
+      if (confirm(`清空抽卡记录？累计 ${s.gacha?.agg?.pulls || 0} 抽的统计也会一起归零（已获得的唤醒体、叠位不受影响）。`)) {
+        s.gacha = emptyGacha(); app.save(); render(); toast('抽卡记录已清空');
+      }
+      break;
+    case 'squad-save': {
+      const k = el.dataset.k, r = saveSquad(s, k);
+      if (r) { sound.play('stamp'); app.save(); rerender(); toast(`已把当前 ${r.length} 人存为「${SQUAD_ZH[k]}」`); }
+      else toast('当前队伍是空的，先选人');
+      break;
+    }
+    case 'squad-load': {
+      const r = loadSquad(s, el.dataset.k);
+      if (r) { sound.play('open'); app.save(); rerender(); toast(`「${SQUAD_ZH[el.dataset.k]}」已上阵：${r.length} 人`); }
+      break;
+    }
+    case 'squad-clear': {
+      if (clearSquad(s, el.dataset.k)) { sound.play('deny'); app.save(); rerender(); toast(`「${SQUAD_ZH[el.dataset.k]}」已清空`); }
+      break;
+    }
+    case 'squad-pick': {
+      if (setSquadPick(s, el.dataset.mode, el.dataset.k)) {
+        sound.play('click'); app.save(); rerender();
+        const k = el.dataset.k;
+        if (k !== 'cur' && !(s.squads?.[k]?.team || []).length) toast(`「${SQUAD_ZH[k]}」还是空的，先去队伍页存一套`);
+      }
+      break;
+    }
     case 'guide-growth': P.growthGuideModal(app); break;
     case 'go-orders': show('orders'); break;
     case 'pick-order': {
@@ -224,11 +283,12 @@ function onAct(e) {
       else toast('银芯不足');
       break;
     }
-    case 'weekly-go': { const r = doWeekly(s, d); if (r) { app.save(); render(); sound.play('win'); P3.weeklyResultModal(app, r); } break; }
+    case 'weekly-go': { const r = doWeekly(s, d, teamSlugsFor(s, 'weekly')); if (r) { app.save(); render(); sound.play('win'); P3.weeklyResultModal(app, r); } break; }
     case 'weekly-claim': { const r = claimWeekly(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`领取成功：召唤券+${r.tickets} 金币+${r.gold}${r.items.length ? ' 装备+1' : ''}${r.orders?.length ? ' 钥令+1' : ''}`); if (r.orders?.length) P.showOrders(app, r.orders); rerender(); } break; }
     case 'rt-go': case 'rt-auto': {
       const out = [];
-      for (let i = 0; i < (a === 'rt-auto' ? 10 : 1); i++) { const r = doRTower(s, d, el.dataset.realm); if (!r) break; out.push(r); if (!r.win) break; }
+      const slugs = teamSlugsFor(s, 'rtower');
+      for (let i = 0; i < (a === 'rt-auto' ? 10 : 1); i++) { const r = doRTower(s, d, el.dataset.realm, slugs); if (!r) break; out.push(r); if (!r.win) break; }
       if (out.length) { app.save(); render(); sound.play(out[out.length - 1].win ? 'win' : 'lose'); P3.rtResultModal(app, out); }
       break;
     }
@@ -236,7 +296,7 @@ function onAct(e) {
     case 'arena-go': {
       const entry = app.ui.arena?.list?.find((x) => x.rank === +el.dataset.rank);
       if (!entry || arenaTries(s) <= 0) break;
-      const fight = fightArena(s, d, entry);
+      const fight = fightArena(s, d, entry, teamSlugsFor(s, 'arena'));
       const rw = applyArena(s, d, fight, localSettle(s, entry, fight.win).rank);
       app.save(); sound.play(fight.win ? 'win' : 'lose');
       refreshArena();
@@ -252,7 +312,7 @@ function onAct(e) {
     case 'friend-go': {
       const f = decodeCode($('#friend-code')?.value, d);
       if (f.error) { toast(f.error); break; }
-      const fight = fightFriend(s, d, f);
+      const fight = fightFriend(s, d, f, teamSlugsFor(s, 'arena'));
       fight.entry = { type: 'friend', name: f.name, rank: 0 };
       app.save(); sound.play(fight.win ? 'win' : 'lose');
       render();
@@ -302,12 +362,12 @@ function onAct(e) {
       P.pickAwakener(app, `装备给…`, (slug) => { equipItem(s, d, slug, it.uid); rerender(); toast('已装备'); });
       break;
     }
-    case 'pull': { const out = summon(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play(out.some((p) => ['SSR', 'Genesis'].includes(p.rarity) && p.isNew !== false) ? 'summonSSR' : 'summon'); P.showPulls(app, out); } break; }
+    case 'pull': { const out = summon(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play(gachaSound(out)); P.showPulls(app, out); } break; }
     case 'epull': { const out = equipPull(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play('summon'); P.showItems(app, out); } break; }
-    case 'tower-go': { const r = doTower(s, d); if (r) { app.save(); render(); sound.play(r.reached > 0 ? 'win' : 'lose'); P2.towerResultModal(app, r); } break; }
-    case 'trial-go': { const r = doTrial(s, d, el.dataset.id, +el.dataset.i); if (r) { app.save(); render(); sound.play(r.win ? 'win' : 'lose'); P2.trialResultModal(app, r); } break; }
+    case 'tower-go': { const r = doTower(s, d, { slugs: teamSlugsFor(s, 'tower') }); if (r) { app.save(); render(); sound.play(r.reached > 0 ? 'win' : 'lose'); P2.towerResultModal(app, r); } break; }
+    case 'trial-go': { const r = doTrial(s, d, el.dataset.id, +el.dataset.i, teamSlugsFor(s, 'trial')); if (r) { app.save(); render(); sound.play(r.win ? 'win' : 'lose'); P2.trialResultModal(app, r); } break; }
     case 'ach-claim': { const r = claimAchievement(s, el.dataset.id, app.data); if (r) { sound.play('ach'); toast('成就奖励已领取'); rerender(); } break; }
-    case 'cpull': { const out = summonCores(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play(out.some((p) => ['SSR', 'Genesis'].includes(p.rarity)) ? 'summonSSR' : 'summon'); P.showPulls(app, out); } break; }
+    case 'cpull': { const out = summonCores(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play(gachaSound(out)); P.showPulls(app, out); } break; }
     case 'cepull': { const out = equipPullCores(s, d, 1); if (out) { app.save(); render(); sound.play('summon'); P.showItems(app, out); } break; }
     case 'shop-buy': { const r = shopBuy(s, d, el.dataset.id); if (r) { sound.play('gold'); toast(`已购买：${SHOP.find((x) => x.id === el.dataset.id).zh}`); if (r.items.length) P.showItems(app, r.items); if (r.orders?.length) P.showOrders(app, r.orders); rerender(); } break; }
     case 'gear-refine': if (refineItem(s, el.dataset.uid)) { sound.play('lvup'); rerender(); } break;

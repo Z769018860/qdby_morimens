@@ -25,8 +25,9 @@ export function towerTries(state, today = day()) {
 export const day = () => new Date().toISOString().slice(0, 10);
 
 // Pure simulation of one climb. Does not touch the state.
-export function simulateTower(state, data, { maxFloors = TOWER_MAX_FLOOR, seed = battleSeed({ seed: state.seed }) } = {}) {
-  const team = teamDefs(state, data);
+// slugs：挑战阵容（编队页存好的 4 人），不传就用当前队伍。
+export function simulateTower(state, data, { maxFloors = TOWER_MAX_FLOOR, seed = battleSeed({ seed: state.seed }), slugs = null } = {}) {
+  const team = teamDefs(state, data, slugs && slugs.length ? slugs : state.team);
   let allies = team.list.map((d) => ({ ...d, hpNow: d.hp }));
   const floors = [];
   for (let f = 1; f <= maxFloors; f++) {
@@ -78,10 +79,13 @@ export function towerReward(state, data, reached, rng) {
   return rw;
 }
 
-export function doTower(state, data, today = day()) {
+// opts 兼容老写法（直接传 today 字符串）：doTower(s, data, '2026-01-01')
+export function doTower(state, data, opts = {}) {
+  const o = typeof opts === 'string' ? { today: opts } : (opts || {});
+  const today = o.today || day();
   if (towerTries(state, today) <= 0) return null;
   state.tower.tries--;
-  const sim = simulateTower(state, data);
+  const sim = simulateTower(state, data, { slugs: o.slugs || null });
   const rng = mulberry32(hash(`tw${state.seed}${state.tower.best}${sim.reached}`));
   const rw = towerReward(state, data, sim.reached, rng);
   state.tower.runs = (state.tower.runs || 0) + 1;
@@ -110,10 +114,10 @@ export function trialEnemies(trial, th, data) {
   return out;
 }
 
-export function doTrial(state, data, trialId, thIdx) {
+export function doTrial(state, data, trialId, thIdx, slugs = null) {
   const trial = data.trials.find((t) => t.id === trialId), th = THREATS[thIdx];
   if (!trial || !th || !trialUnlocked(state, trial, thIdx)) return null;
-  const team = teamDefs(state, data);
+  const team = teamDefs(state, data, slugs && slugs.length ? slugs : state.team);
   const seed = battleSeed(state);
   const res = simulate({ allies: team.list, enemies: trialEnemies(trial, th, data), seed, strategy: state.strategy, maxRounds: roundLimitFor({ boss: thIdx >= 2 }) });
   const rw = { gold: 0, tickets: 0, cores: 0, items: [], first: false };

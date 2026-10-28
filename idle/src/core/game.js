@@ -11,6 +11,8 @@ import {
 import { ordersBonus, orderUpCost, orderBonus, orderSlotCount } from './orders.js';
 import { buildEnemies, stageInfo } from './enemies.js';
 import { simulate, roundLimitFor } from './battle.js';
+import { emptySquads, emptyPick, normalizeSquads, normalizePick } from './squad.js';
+import { emptyGacha, normalizeGacha, recordPull, recordBatch } from './gacha.js';
 
 export const BATTLE_SECONDS = 25;       // assumed wall-clock length of one farm battle (offline maths)
 export const OFFLINE_CAP_HOURS = 8;
@@ -58,6 +60,7 @@ export function newState(data, now = Date.now()) {
     stats: { battles: 0, wins: 0, pulls: 0, kills: 0, gold: 0 },
     daily: { day: '' }, log: [],
     tower: { best: 0, day: '', tries: 0, runs: 0 }, trials: { cleared: {} }, ach: {}, tutorial: false,
+    squads: emptySquads(), squadPick: emptyPick(), gacha: emptyGacha(),
   };
 }
 
@@ -89,6 +92,10 @@ export function migrate(s, data) {
   m.orders.slots = m.orders.slots.map((id) => (id && m.orders.owned[id] != null ? id : null));
   if (!Object.keys(m.orders.owned).length) { m.orders = { ...base.orders }; }
   if (!m.orders.slots.some(Boolean)) m.orders.slots = [Object.keys(m.orders.owned)[0] || null, ...m.orders.slots.slice(1)];
+  // 编队 / 挑战阵容 / 抽卡记录（M13）：老存档补空位；不存在的唤醒体、非法的编队位直接剔掉
+  m.squads = normalizeSquads(s.squads, m.roster);
+  m.squadPick = normalizePick(s.squadPick);
+  m.gacha = normalizeGacha(s.gacha);
   return m;
 }
 
@@ -556,7 +563,13 @@ export function summon(state, data, n) {
   state.tickets -= n;
   const rng = mulberry32(battleSeed(state));
   const out = [];
-  for (let i = 0; i < n; i++) out.push(pullOnce(state, data, rng));
+  const now = Date.now();
+  for (let i = 0; i < n; i++) {
+    const p = pullOnce(state, data, rng);
+    recordPull(state, { ...p, banner: 'ticket', idx: i, t: now });   // 流水：面板上的「抽卡记录 / 欧非」
+    out.push(p);
+  }
+  recordBatch(state, out);
   return out;
 }
 // 银芯召唤: 200 each, 10-pull 1900 (shares the pity counters with 召唤券)
@@ -567,7 +580,13 @@ export function summonCores(state, data, n) {
   state.cores -= cost; state.stats.coresSpent = (state.stats.coresSpent || 0) + cost;
   const rng = mulberry32(battleSeed(state));
   const out = [];
-  for (let i = 0; i < n; i++) out.push(pullOnce(state, data, rng));
+  const now = Date.now();
+  for (let i = 0; i < n; i++) {
+    const p = pullOnce(state, data, rng);
+    recordPull(state, { ...p, banner: 'core', idx: i, t: now });
+    out.push(p);
+  }
+  recordBatch(state, out);
   return out;
 }
 export const EQUIP_CORE_COST = 80;     // 银芯祈愿: one item, rarity SR or better

@@ -26,16 +26,20 @@ export const rtEnemies = (realm, f, data) => {
   return buildEnemies(rtStage(f), cat && !pool.includes(cat) ? [...pool, cat] : pool, { seed: `rt${realm}${f}`, info: rtInfo(f), msk: data.msk });
 };
 
-export function rtTeam(state, data, realm) {
+export function rtTeam(state, data, realm, slugs = null) {
   const owned = Object.keys(state.roster).filter((s) => data.bySlug[s]?.realm === realm);
   if (!owned.length) return null;
-  const ranked = owned.map((s) => ({ s, p: power(allyDef(state, data, s, [s])) })).sort((a, b) => b.p - a.p).slice(0, 4).map((x) => x.s);
+  // 编队里属于本界域的成员优先（属性塔只放行本界域）；一个都不符合就退回「自动挑最强的 4 个」
+  const picked = (slugs || []).filter((s) => owned.includes(s)).slice(0, 4);
+  const ranked = picked.length
+    ? picked
+    : owned.map((s) => ({ s, p: power(allyDef(state, data, s, [s])) })).sort((a, b) => b.p - a.p).slice(0, 4).map((x) => x.s);
   return { slugs: ranked, ...teamDefs(state, data, ranked) };
 }
 export const rtBest = (state, realm) => (state.rtower?.[realm]?.best || 0);
 
-export function doRTower(state, data, realm) {
-  const team = rtTeam(state, data, realm);
+export function doRTower(state, data, realm, slugs = null) {
+  const team = rtTeam(state, data, realm, slugs);
   if (!team) return null;
   state.rtower ||= {};
   const t = (state.rtower[realm] ||= { best: 0 });

@@ -37,11 +37,12 @@ export function weeklyEnemy(data, wk = weekId()) {
   e.hp = 1e12; e.weekly = true;
   return e;
 }
-export function doWeekly(state, data) {
+export function doWeekly(state, data, slugs = null) {
   const w = weeklyState(state);
   if (w.tries <= 0) return null;
   w.tries--;
-  const team = teamDefs(state, data), boss = weeklyEnemy(data);
+  // 编队页存好的阵容可以单独指定（不传就用当前队伍）
+  const team = teamDefs(state, data, slugs && slugs.length ? slugs : state.team), boss = weeklyEnemy(data);
   const res = simulate({ allies: team.list, enemies: [boss], seed: battleSeed(state), strategy: state.strategy, maxRounds: WEEKLY_ROUNDS });
   const dmg = Object.entries(res.stats).filter(([k]) => k[0] === 'a').reduce((s, [, v]) => s + v.dmg, 0);
   w.damage += dmg; w.runs++; state.stats.battles++;

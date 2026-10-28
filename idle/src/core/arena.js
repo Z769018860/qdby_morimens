@@ -82,8 +82,8 @@ export function localOpponents(state, data) {
 export const localSettle = (state, entry, win) => ({ rank: win ? Math.min(arenaState(state).rank, entry.rank) : arenaState(state).rank });
 
 // ---- fighting & rewards
-export function fightArena(state, data, entry) {
-  const team = teamDefs(state, data);
+export function fightArena(state, data, entry, slugs = null) {
+  const team = teamDefs(state, data, slugs && slugs.length ? slugs : state.team);
   const foes = hydrate(entry.snap, data);
   const seed = battleSeed(state);
   const res = simulate({ allies: team.list, enemies: foes, seed, strategy: state.strategy, maxRounds: ROUND_LIMIT.boss });
@@ -120,8 +120,8 @@ export function claimArenaDaily(state) {
 export const canClaimArenaDaily = (state) => { const a = arenaState(state); return a.rank <= LADDER && a.rewardDay !== day(); };
 
 // friendly match against a decoded battle code; only the record is stored (no rewards)
-export function fightFriend(state, data, friend) {
-  const res = fightArena(state, data, { rank: 0, type: 'friend', name: friend.name, snap: friend.snap });
+export function fightFriend(state, data, friend, slugs = null) {
+  const res = fightArena(state, data, { rank: 0, type: 'friend', name: friend.name, snap: friend.snap }, slugs);
   const a = arenaState(state);
   const rec = a.friends.find((f) => f.name === friend.name) || (a.friends.unshift({ name: friend.name, wins: 0, losses: 0, power: friend.power }), a.friends[0]);
   rec.power = friend.power; if (res.win) rec.wins++; else rec.losses++;

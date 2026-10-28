@@ -166,6 +166,7 @@ export class BattleView {
     this.phase = 'playing';
     this.renderFightBar();
     const bossFight = res.prep.enemies.some((d) => d.boss);
+    this.bossNow = bossFight;   // 切回战斗页时 show() 用它决定放「战场」还是「威压」
     sound.setMood(bossFight ? 'boss' : 'field');
     if (bossFight) { sound.play('boss'); this.fx.bossIntro(); }
     $('#bv-banner', this.root).textContent = '';

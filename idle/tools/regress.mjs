@@ -296,7 +296,92 @@ check(farm.lo.per > farm.hi.per && farm.lo.core > farm.hi.core,
   `挂机越深越值钱：券 ${farm.lo.per} → ${farm.hi.per} 场 1 张、银芯 ${farm.lo.core} → ${farm.hi.core} 场 1 枚`);
 await cdp.shot('farm');
 
-// 8) 全局报错 / 4xx
+// 8) 编队：存两套 → 挑战页给周 Boss 指定其中一套
+const squad = await cdp.evalIife(`(() => {
+  const s = __game.state;
+  window.__go('team');
+  const cur = s.team.slice();
+  document.querySelector('[data-act="squad-save"][data-k="a"]').click();
+  const a = (s.squads.a.team || []).slice();
+  // 换掉一个人再存「二队」，让两队确实不一样（新存档只有 4 个初始唤醒体，先补一个）
+  let spare = Object.keys(s.roster).find((x) => !cur.includes(x));
+  if (!spare) {
+    spare = Object.keys(__game.data.bySlug).find((x) => !cur.includes(x));
+    s.roster[spare] = { lv: 60, star: 2, brk: 2 };
+  }
+  const mixed = cur.slice();
+  if (spare) mixed[3] = spare;
+  s.team = mixed;
+  document.querySelector('[data-act="squad-save"][data-k="b"]').click();
+  const b = (s.squads.b.team || []).slice();
+  window.__go('weekly');
+  const bar = document.querySelectorAll('.squadbar').length;
+  document.querySelector('[data-act="squad-pick"][data-mode="weekly"][data-k="a"]').click();
+  const on = document.querySelectorAll('.sqchip.on').length;
+  return { cur, a, b, different: a.join() !== b.join(), pick: s.squadPick.weekly, on, bar,
+    note: (document.querySelector('.sqchip.on')?.innerText || '').replace(/\\s+/g, ' ') };
+})()`);
+check(squad.a.length === 4 && squad.different, `编队：一队 ${squad.a.length} 人 · 二队与一队不同（${squad.a.join('>')} / ${squad.b.join('>')}）`);
+check(squad.bar >= 1 && squad.pick === 'a' && squad.on >= 1, `周 Boss 出战阵容切到「${squad.note}」（${squad.on} 个选中）`);
+await cdp.shot('squad');
+// 再回队伍页确认编队卡片上写了「挑战在用」
+const usage = await cdp.evalIife(`(() => {
+  window.__go('team');
+  const card = document.querySelector('.squad[data-squad="a"]');
+  return { cards: document.querySelectorAll('.squad').length, use: (card?.querySelector('.squse')?.innerText || '') };
+})()`);
+check(usage.cards === 3 && /周Boss/.test(usage.use), `队伍页 3 套编队，一队标注「${usage.use}」`);
+await cdp.evalIife(`(() => { document.querySelector('.squads')?.scrollIntoView({ block: 'center' }); return 1; })()`);
+await sleep(300);
+await cdp.shot('team-squad');
+
+// 9) 抽卡记录 + 欧非评估
+const gacha = await cdp.evalIife(`(() => {
+  const s = __game.state;
+  s.tickets = Math.max(s.tickets, 500);
+  window.__go('summon');
+  document.querySelector('[data-act="pull"][data-n="10"]').click();
+  window.__closeModal();
+  const card = document.querySelector('.luckcard');
+  const txt = (card?.innerText || '').replace(/\\s+/g, ' ');
+  const idx = txt.match(/幸运指数\\s*(\\d+)/);
+  const pulls = s.gacha.agg.pulls, log = s.gacha.log.length;
+  const chips = document.querySelectorAll('.gchip').length;
+  document.querySelector('[data-act="gacha-log"]').click();
+  const modal = document.querySelector('.modal');
+  const rows = modal ? modal.querySelectorAll('.glog').length : 0;
+  const crow = modal ? modal.querySelectorAll('.gcrow > div').length : 0;
+  window.__closeModal();
+  return { pulls, log, chips, idx: idx && idx[1], txt: txt.slice(0, 96), rows, crow };
+})()`);
+check(gacha.pulls >= 10 && gacha.log >= 10, `抽卡记录写入 ${gacha.pulls} 抽 / 明细 ${gacha.log} 条`);
+check(!!gacha.idx && gacha.chips > 0, `面板显示幸运指数 ${gacha.idx} · 最近 ${gacha.chips} 条：${gacha.txt}`);
+check(gacha.rows >= 10 && gacha.crow === 3, `完整记录弹窗 ${gacha.rows} 条明细 · ${gacha.crow} 组稀有度对照`);
+await cdp.shot('gacha');
+
+// 10) BGM 曲目可以手动锁定，顶栏喇叭能静音 / 恢复
+const audio = await cdp.evalIife(`(() => {
+  window.__go('settings');
+  const tracks = document.querySelectorAll('[data-act="bgm-track"]').length;
+  document.querySelector('[data-act="bgm-track"][data-k="boss"]').click();
+  const q = document.querySelector('#sndq');
+  q.click(); const muted = q.classList.contains('off');
+  q.click(); const unmuted = !q.classList.contains('off');
+  const on = [...document.querySelectorAll('.tracks .btn.on')].map((b) => b.innerText.trim());
+  // 再点「跟随页面」，恢复自动换曲
+  document.querySelector('[data-act="bgm-auto"]').click();
+  const autoOn = [...document.querySelectorAll('.tracks .btn.on')].map((b) => b.innerText.trim());
+  return { tracks, muted, unmuted, on, autoOn };
+})()`);
+check(audio.tracks >= 6, `设置页有 ${audio.tracks} 首 BGM 可选`);
+check(audio.muted && audio.unmuted, '顶栏喇叭可以静音 / 恢复');
+check(audio.on.some((x) => /威压/.test(x)), `手动锁定曲目：${audio.on.join(' / ') || '(无)'}`);
+check(audio.autoOn.some((x) => /跟随页面/.test(x)), `恢复跟随页面：${audio.autoOn.join(' / ') || '(无)'}`);
+await cdp.evalIife(`(() => { document.querySelector('.tracks')?.scrollIntoView({ block: 'center' }); return 1; })()`);
+await sleep(300);
+await cdp.shot('settings-audio');
+
+// 11) 全局报错 / 4xx
 const errs = [...new Set([...cdp.runtime, ...cdp.logs])];
 check(errs.length === 0, errs.length ? '页面报错：\n  ' + errs.slice(0, 8).join('\n  ') : '0 个 JS 报错');
 const http = [...new Set(cdp.http)];

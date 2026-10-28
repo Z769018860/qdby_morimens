@@ -8,7 +8,11 @@ import {
   RELIC_SLOTS, RELIC_BASE_SLOTS, RELIC_UNLOCK, ORDER_SLOTS, ORDER_UNLOCK, ORDER_MAX_LV, LEVEL_GATE,
   AWAKEN_STAT_PER, AWAKEN_AMP_EVERY, AWAKEN_AMP_PER, AWAKEN_SKILL_EVERY,
 } from '../core/constants.js';
-import { sound } from './audio.js';
+import { sound, TRACK_LIST } from './audio.js';
+import {
+  SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, squadMembers, squadUsage, pickedSquad,
+} from '../core/squad.js';
+import { luckOf, luckBarPct, GACHA_LOG_MAX, RARITY_WORTH, RARITY_RATE } from '../core/gacha.js';
 import { roundLimitFor, ROUND_LIMIT, FRONT_SLOTS } from '../core/battle.js';
 import { fxMode } from './fx.js';
 import { settleMode } from './report.js';
@@ -115,6 +119,39 @@ export function covenantSetText(app) {
   return sets.length ? sets.join('、') : '';
 }
 
+/* -------- 编队：预先存 3 套阵容，挑战页各自选用 -------- */
+export function squadCard(app, key) {
+  const { state: s, data } = app;
+  const slugs = squadMembers(s, key);
+  const t = slugs.length ? teamDefs(s, data, slugs) : null;
+  const used = squadUsage(s, key);
+  const av = slugs.length
+    ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
+    : '<span class="sqempty">还没有保存队伍</span>';
+  return `<div class="squad ${slugs.length ? 'on' : ''}" data-squad="${key}">
+    <header><b>${SQUAD_ZH[key]}</b><small>${slugs.length ? `${slugs.length} 人 · 战力 ${fmt(t.power)}` : '空位'}</small></header>
+    <div class="sqav">${av}</div>
+    <div class="squse">${used.length ? `挑战在用：${used.join('、')}` : '未被挑战引用'}</div>
+    <div class="row">
+      <button class="btn sm" data-act="squad-save" data-k="${key}">存为当前队伍</button>
+      <button class="btn sm" data-act="squad-load" data-k="${key}" ${slugs.length ? '' : 'disabled'}>上阵</button>
+      <button class="btn sm danger" data-act="squad-clear" data-k="${key}" ${slugs.length ? '' : 'disabled'}>清空</button>
+    </div></div>`;
+}
+
+/** 挑战页顶部的「出战阵容」选择条：当前队伍 / 一队 / 二队 / 三队 */
+export function squadBar(app, mode, note = '') {
+  const s = app.state;
+  const cur = pickedSquad(s, mode);
+  const chip = (k, label, on) => `<button class="sqchip ${on ? 'on' : ''}" data-act="squad-pick" data-mode="${mode}" data-k="${k}">${label}</button>`;
+  const list = SQUAD_KEYS.map((k) => {
+    const n = squadMembers(s, k).length;
+    return chip(k, `${SQUAD_ZH[k]}${n ? `<em>${n}人</em>` : '<em class="dim">空</em>'}`, cur === k);
+  }).join('');
+  return `<div class="squadbar"><span class="sqh">出战阵容</span>${chip('cur', '当前队伍', cur === 'cur')}${list}
+    <small class="dim">${note || '在「队伍 → 编队」里存好预设阵容'}</small></div>`;
+}
+
 export function teamPage(app) {
   const { state: s, data } = app;
   const t = teamDefs(s, data);
@@ -155,6 +192,9 @@ export function teamPage(app) {
     <div class="slots">${cards}</div>
     <div class="row"><button class="btn gold" data-act="autoteam">一键配队</button><button class="btn sm" data-act="guide-growth">养成指南</button></div>
     <p class="hint">「一键配队」会一起排好：4 人队伍（含同界域加成）、<b>每人 1 件命轮 + 1 件密契</b>、已解锁格里的造物（优先凑羁绊）、3 个钥令位。下面的命轮 / 密契格子可以直接点开换。</p>
+    <h3>编队 <small>预先存 3 套，挑战时直接选用</small></h3>
+    <div class="squads">${SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
+    <p class="hint">编队只记 4 名唤醒体——命轮、密契绑在人身上会跟着走，造物与钥令本来就是全队共用，不必重复存。挑战（${SQUAD_MODES.map(([, zh]) => zh).join(' / ')}）可以各自指定用哪一套；<b>推图挂机始终用「当前队伍」</b>，想换阵容就点编队里的「上阵」。</p>
     <h3>命轮 · 密契 <small>每人各 1 件 · 点格子直接换</small></h3>
     <div class="eqpanel">${equipPanel(app)}</div>
     <p class="hint">命轮与密契<b>绑在单个唤醒体身上</b>；密契全队同款凑到 2 / 4 件触发套装（当前：${covenantSetText(app) || '还没有凑成套'}）。造物与钥令是全队被动，在下面配置。</p>
@@ -385,6 +425,43 @@ export function ordersPage(app) {
 }
 
 /* ----------------------------- SUMMON ----------------------------- */
+const clock = (t) => { const d = new Date(t || Date.now()); const z = (n) => String(n).padStart(2, '0'); return `${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; };
+const RAR_ZH = { Genesis: '创生', SSR: '史诗', SR: '精良' };
+
+/* 抽卡记录 + 欧非评估：指数 = 实际货值 ÷ 公示概率应有的货值 × 100（100 就是平均水平） */
+function luckCard(app) {
+  const s = app.state;
+  const luck = luckOf(s);
+  const g = s.gacha || { log: [] };
+  const pct = luckBarPct(luck.index);
+  const tier = luck.tier;
+  const avg = luck.avgGenesis ? `${Math.round(luck.avgGenesis)} 抽/个` : '—';
+  const recent = (g.log || []).slice(0, 14);
+  const chips = recent.map((r) => {
+    const a = app.data.bySlug[r.slug];
+    const tag = r.isNew ? 'NEW' : r.dup ? `叠位 ${r.star}` : '';
+    return `<span class="gchip r-${r.rarity}" title="${esc(a?.zh || r.slug)} · ${RAR_ZH[r.rarity]} · ${clock(r.t)}${tag ? ' · ' + tag : ''}">
+      <img src="${img(a?.portrait)}" alt="" loading="lazy"><em>${esc(a?.zh || r.slug)}</em><small>${RAR_ZH[r.rarity]}${tag ? ' · ' + tag : ''}</small></span>`;
+  }).join('') || '<p class="hint">还没有记录。抽一次就会出现在这里，记录只存在本机。</p>';
+  return `<div class="banner-card luckcard"><h3>抽卡记录 · 欧非评估 <small>累计 ${luck.pulls} 抽${luck.pulls > GACHA_LOG_MAX ? ` · 只保留最近 ${GACHA_LOG_MAX} 条明细` : ''}</small></h3>
+    <div class="luckhead">
+      <b class="lk lk-${tier.key}">${tier.zh}</b>
+      <span class="lkidx">幸运指数 <b>${luck.index == null ? '—' : luck.index}</b></span>
+    </div>
+    <div class="luckbar" title="100 = 完全符合公示概率"><i class="lk-${tier.key}" style="width:${pct}%"></i><u></u></div>
+    <p class="hint">${tier.desc} 竖线是平均线（100）；货值 ${fmt(luck.worth)} / 期望 ${fmt(luck.expected)}（创生记 ${RARITY_WORTH.Genesis}、史诗记 ${RARITY_WORTH.SSR}、精良记 ${RARITY_WORTH.SR}，基准按公示概率 ${Math.round(RARITY_RATE.Genesis * 100)}% / ${Math.round(RARITY_RATE.SSR * 100)}% / ${Math.round(RARITY_RATE.SR * 100)}%）。</p>
+    <div class="luckstats">
+      <span>总抽数 <b>${luck.pulls}</b></span>
+      <span>创生 <b>${luck.genesis}</b><em>${luck.pulls ? `${(luck.genesisRate * 100).toFixed(2)}%` : '—'}</em></span>
+      <span>平均出创生 <b>${avg}</b></span>
+      <span>史诗 <b>${luck.ssr}</b></span>
+      <span>最好十连 <b>${g.best10 || 0}</b> 个史诗以上</span>
+      <span>距创生保底 <b>${Math.max(0, PULL_PITY_GENESIS - (s.pity?.genesis || 0))}</b> 抽</span>    </div>
+    <div class="gchips">${chips}</div>
+    <div class="row"><button class="btn sm" data-act="gacha-log">完整记录</button><button class="btn sm danger" data-act="gacha-clear" ${luck.pulls ? '' : 'disabled'}>清空记录</button></div>
+    <p class="hint">记录保存在本机存档里（最近 ${GACHA_LOG_MAX} 条明细 + 全程累计统计）。换设备前请先导出存档。</p></div>`;
+}
+
 export function summonPage(app) {
   const { state: s } = app;
   const p = s.pity;
@@ -397,6 +474,7 @@ export function summonPage(app) {
       <p class="hint">银芯来自首通、成就、签到、周 Boss、属性塔、竞技场和分解装备。与召唤券共用保底。</p>
       <div class="row"><button class="btn big" data-act="cpull" data-n="1" ${s.cores >= CORE_PULL_COST ? '' : 'disabled'}>单抽 💠${CORE_PULL_COST}</button><button class="btn big gold" data-act="cpull" data-n="10" ${s.cores >= CORE_PULL10_COST ? '' : 'disabled'}>十连 💠${CORE_PULL10_COST}</button>
       <button class="btn big" data-act="cepull" ${s.cores >= EQUIP_CORE_COST ? '' : 'disabled'}>精选祈愿（SR 以上装备）💠${EQUIP_CORE_COST}</button></div></div>
+    ${luckCard(app)}
     <div class="banner-card"><h3>银芯商店 <small>每日 0 点（UTC）刷新限购</small></h3>
       <div class="shop">${SHOP.map((x) => { const n = boughtToday(s, x.id); return `<div class="shopi"><b>${x.zh}</b><small>今日 ${n}/${x.limit}</small><button class="btn sm" data-act="shop-buy" data-id="${x.id}" ${n < x.limit && s.cores >= x.cost ? '' : 'disabled'}>💠 ${x.cost}</button></div>`; }).join('')}</div></div>
     <div class="banner-card"><h3>装备祈愿</h3>
@@ -404,10 +482,57 @@ export function summonPage(app) {
       <div class="row"><button class="btn big" data-act="epull" data-n="1" ${s.gold >= EQUIP_PULL_COST ? '' : 'disabled'}>祈愿 ×1</button><button class="btn big" data-act="epull" data-n="5" ${s.gold >= EQUIP_PULL_COST * 5 ? '' : 'disabled'}>祈愿 ×5</button></div></div>
   </div>`;
 }
+
+/* 抽卡结果：稀有度越高越亮，逐张弹出；十连额外给一行汇总 */
 export function showPulls(app, out) {
   const { data } = app;
-  const html = `<h3>召唤结果</h3><div class="grid mini pulls">${out.map((p) => { const a = data.bySlug[p.slug]; return `<div class="tile ${rarCls(p.rarity)} pull" style="--rc:${R(a).color}"><img src="${img(a.portrait)}" alt=""><b>${esc(a.zh)}</b><small>${p.isNew ? '<em class="new">NEW</em>' : p.gold ? `+${p.gold}金币` : `叠位 ${p.star}`}</small></div>`; }).join('')}</div>`;
+  const best = out.reduce((b, p) => (RARITY_ORDER[p.rarity] ?? 0) > (RARITY_ORDER[b] ?? 0) ? p.rarity : b, 'SR');
+  const cnt = (r) => out.filter((p) => p.rarity === r).length;
+  const summary = [`${out.length} 抽`];
+  if (cnt('Genesis')) summary.push(`<b class="r-Genesis">创生 ×${cnt('Genesis')}</b>`);
+  if (cnt('SSR')) summary.push(`<b class="r-SSR">史诗 ×${cnt('SSR')}</b>`);
+  summary.push(`精良 ×${cnt('SR')}`);
+  const newN = out.filter((p) => p.isNew).length;
+  if (newN) summary.push(`<em class="new">新唤醒体 ${newN}</em>`);
+  const html = `<h3 class="pull-h">召唤结果 <small>${summary.join('　')}</small></h3>
+    <div class="grid mini pulls best-${best}">${out.map((p, i) => {
+    const a = data.bySlug[p.slug];
+    return `<div class="tile ${rarCls(p.rarity)} pull" style="--rc:${R(a).color};--d:${(i * 0.055).toFixed(3)}s">
+      <span class="rr">${RAR_ZH[p.rarity]}</span>
+      <img src="${img(a.portrait)}" alt=""><b>${esc(a.zh)}</b>
+      <small>${p.isNew ? '<em class="new">NEW</em>' : p.gold ? `满叠位 +${p.gold} 金币` : `叠位 ${p.star}`}</small></div>`;
+  }).join('')}</div>`;
   openModal(html, 'wide');
+}
+
+/* 完整抽卡记录：按稀有度筛选，附「实际 vs 期望」对照 */
+export function gachaLogModal(app) {
+  const s = app.state;
+  const g = app.ui.gachaLog ||= { filter: '' };
+  const luck = luckOf(s);
+  const log = (s.gacha?.log || []).filter((r) => !g.filter || r.rarity === g.filter);
+  const tab = (k, zh) => `<button class="btn sm ${g.filter === k ? 'on' : ''}" data-act="gacha-filter" data-k="${k}">${zh}</button>`;
+  const rows = log.map((r) => {
+    const a = app.data.bySlug[r.slug];
+    return `<div class="glog r-${r.rarity}">
+      <span class="gs">#${r.seq}</span>
+      <img src="${img(a?.portrait)}" alt="">
+      <span class="gn"><b>${esc(a?.zh || r.slug)}</b><small>${RAR_ZH[r.rarity]} · ${r.banner === 'core' ? '银芯召唤' : '召唤券'}</small></span>
+      <span class="gt">${r.isNew ? '<em class="new">NEW</em>' : r.dup ? `叠位 ${r.star}` : ''}</span>
+      <span class="gd">${clock(r.t)}</span></div>`;
+  }).join('') || '<p class="hint">这个筛选下没有记录。</p>';
+  const cmp = [['Genesis', '创生'], ['SSR', '史诗'], ['SR', '精良']].map(([k, zh]) => {
+    const n = { Genesis: luck.genesis, SSR: luck.ssr, SR: luck.sr }[k];
+    const rate = luck.pulls ? ((n / luck.pulls) * 100).toFixed(2) : '0.00';
+    const exp = (RARITY_RATE[k] * 100).toFixed(0);
+    const diff = luck.pulls ? (n / luck.pulls) * 100 - RARITY_RATE[k] * 100 : 0;
+    return `<div><span>${zh}</span><b>${n}</b><em>${rate}% <small class="dim">（期望 ${exp}%）</small></em><i class="${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%</i></div>`;
+  }).join('');
+  openModal(`<h3>抽卡记录 <small>累计 ${luck.pulls} 抽 · ${luck.tier.zh} · 幸运指数 ${luck.index ?? '—'}</small></h3>
+    <div class="gcrow">${cmp}</div>
+    <div class="row">${tab('', `全部 ${luck.pulls}`)}${tab('Genesis', `创生 ${luck.genesis}`)}${tab('SSR', `史诗 ${luck.ssr}`)}${tab('SR', `精良 ${luck.sr}`)}</div>
+    <div class="glogs">${rows}</div>
+    <p class="hint">只列最近 ${GACHA_LOG_MAX} 条明细；上面的累计数、幸运指数是全程统计，不受裁剪影响。装备祈愿不计入。</p>`, 'wide');
 }
 export function showItems(app, items) {
   openModal(`<h3>获得装备</h3><div class="list">${items.map((i) => itemCard(app, i)).join('')}</div>`, 'wide');
@@ -430,11 +555,18 @@ export function settingsPage(app) {
     <div class="banner-card"><h3>声音</h3>
       <label class="snd"><input type="checkbox" data-aud="mute" ${sound.cfg.mute ? 'checked' : ''}> 静音</label>
       <label class="snd">音效 <input type="range" min="0" max="100" value="${Math.round(sound.cfg.sfx * 100)}" data-aud="sfx"></label>
-      <label class="snd">背景氛围 <input type="range" min="0" max="100" value="${Math.round(sound.cfg.bgm * 100)}" data-aud="bgm"></label>
-      <div class="row">${[['hit', '命中'], ['crit', '暴击'], ['heal', '治疗'], ['shield', '护盾'], ['exalt', '共鸣'], ['win', '胜利'], ['summon', '召唤'], ['ach', '成就']].map(([k, z]) => `<button class="btn sm" data-act="snd-test" data-k="${k}">${z}</button>`).join('')}</div>
+      <label class="snd">音乐 <input type="range" min="0" max="100" value="${Math.round(sound.cfg.bgm * 100)}" data-aud="bgm"></label>
+      <h4>背景音乐 <small>六首曲子都由浏览器实时合成演奏</small></h4>
+      <div class="row tracks">
+        <button class="btn sm ${sound.cfg.autoMood === false ? '' : 'on'}" data-act="bgm-auto">跟随页面</button>
+        ${TRACK_LIST.map((t) => `<button class="btn sm ${sound.cfg.autoMood === false && sound.mood === t.k ? 'on' : ''}" data-act="bgm-track" data-k="${t.k}">${t.zh}</button>`).join('')}
+      </div>
+      <p class="hint">城镇 / 推图 / 战斗 / 首领 / 召唤 / 挑战各一首；换页面自动换曲并交叉淡入，战斗遇到 Boss 会切到「威压」。点上面的曲名可以锁定一首，点「跟随页面」恢复自动。</p>
+      <h4>音效试听</h4>
+      <div class="row">${[['hit', '命中'], ['crit', '暴击'], ['heal', '治疗'], ['shield', '护盾'], ['exalt', '共鸣'], ['summon', '召唤'], ['reveal3', '创生'], ['win', '胜利'], ['lose', '失败'], ['coin', '金币'], ['deny', '不可用']].map(([k, z]) => `<button class="btn sm" data-act="snd-test" data-k="${k}">${z}</button>`).join('')}</div>
       <label class="snd">结算弹窗 <select data-settle>${[['key', '首通 / Boss / 新怪物时'], ['all', '每场战斗'], ['off', '从不（在战斗页手动打开）']].map(([k, z]) => `<option value="${k}" ${settleMode.get() === k ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
       <label class="snd">战斗特效 <select data-fx>${[['full', '完整'], ['lite', '简化（少粒子、不震屏）'], ['off', '关闭']].map(([k, z]) => `<option value="${k}" ${fxMode.get() === k ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
-      <p class="hint">所有声音均由浏览器实时合成，没有音频文件；首次点击页面后才会发声。命中音色随攻击者界域变化（混沌/血肉/深海/超维）。</p></div>
+      <p class="hint">音效与音乐都是实时合成的，没有音频文件；首次点击页面后才会发声。命中音色随攻击者界域变化（混沌/血肉/深海/超维）。</p></div>
     <div class="banner-card"><h3>统计</h3><p>战斗 ${st.battles} 场 · 胜利 ${st.wins} · 击杀 ${st.kills} · 累计金币 ${fmt(st.gold)} · 召唤 ${st.pulls} 次 · 最高通关 ${s.maxStage}</p></div>
     <div class="banner-card"><h3>存档</h3>
       <div class="row"><button class="btn" data-act="export">导出存档</button><button class="btn" data-act="import">导入存档</button><button class="btn danger" data-act="reset">重置游戏</button></div>

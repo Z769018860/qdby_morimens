@@ -874,3 +874,123 @@ test('挂机券/银芯：在线零头与离线结算走同一条曲线', () => {
   assert.ok(Math.abs(off.drip.tickets - (before.tickets + rep.ticketFrac)) < 1e-9, '零头要留在 drip 里');
   assert.ok(Math.abs(off.drip.cores - (before.cores + rep.coreFrac)) < 1e-9);
 });
+
+/* ---------- M13：编队 / 抽卡记录与欧非 ---------- */
+
+import { saveSquad, loadSquad, clearSquad, setSquadPick, teamSlugsFor, squadMembers, normalizeSquads } from '../src/core/squad.js';
+import { luckOf, GACHA_LOG_MAX, EXPECTED_WORTH } from '../src/core/gacha.js';
+
+test('编队：存三套阵容，挑战入口各自指定', () => {
+  const s = newState(data, 31);
+  s.roster = Object.fromEntries(data.awakeners.slice(0, 8).map((a) => [a.slug, { lv: 40, star: 2, brk: 2 }]));
+  const A = data.awakeners.slice(0, 4).map((a) => a.slug);
+  const B = data.awakeners.slice(4, 8).map((a) => a.slug);
+  s.team = [...A];
+  assert.deepEqual(saveSquad(s, 'a'), A);
+  s.team = [...B];
+  assert.deepEqual(saveSquad(s, 'b'), B);
+  assert.equal(squadMembers(s, 'a').length, 4);
+
+  // 默认跟随当前队伍；指定编队后只影响那一个入口
+  assert.deepEqual(teamSlugsFor(s, 'tower'), B);
+  assert.ok(setSquadPick(s, 'tower', 'a'));
+  assert.deepEqual(teamSlugsFor(s, 'tower'), A);
+  assert.deepEqual(teamSlugsFor(s, 'weekly'), B);
+  // 指到空编队 = 退回当前队伍，不会拿空阵去送
+  setSquadPick(s, 'weekly', 'c');
+  assert.deepEqual(teamSlugsFor(s, 'weekly'), B);
+  // 上阵：把编队读回当前队伍（推图用它）
+  assert.deepEqual(loadSquad(s, 'a'), A);
+  assert.deepEqual(s.team, A);
+  // 清空编队时，引用它的入口一起退回「当前队伍」
+  setSquadPick(s, 'arena', 'a');
+  assert.ok(clearSquad(s, 'a'));
+  assert.deepEqual(squadMembers(s, 'a'), []);
+  assert.equal(s.squadPick.arena, 'cur');
+  assert.deepEqual(teamSlugsFor(s, 'arena'), s.team);
+  // 非法入口 / 非法编队位一律拒绝
+  assert.equal(setSquadPick(s, 'nope', 'a'), false);
+  assert.equal(setSquadPick(s, 'tower', 'z'), false);
+});
+
+test('编队存档迁移：剔除不存在的唤醒体与非法入口', () => {
+  const roster = { ogier: { lv: 1, star: 0, brk: 0 }, lotan: { lv: 1, star: 0, brk: 0 } };
+  const sq = normalizeSquads({ a: { team: ['ogier', 'ghost', 'lotan', 'ogier'] }, b: 5 }, roster);
+  assert.deepEqual(sq.a.team, ['ogier', 'lotan']);
+  assert.deepEqual(sq.b.team, []);
+
+  const s = newState(data, 33);
+  s.roster = { ogier: { lv: 1, star: 0, brk: 0 } };
+  const m = migrate({ ...s, squads: { a: { team: ['ogier', 'nope'] } }, squadPick: { tower: 'a', weekly: 'zzz' } }, data);
+  assert.deepEqual(m.squads.a.team, ['ogier']);
+  assert.equal(m.squadPick.tower, 'a');
+  assert.equal(m.squadPick.weekly, 'cur');
+});
+
+test('挑战按编队出战：周 Boss / 属性塔 / 无限塔都吃指定的那套阵容', () => {
+  const s = newState(data, 61);
+  const strong = data.awakeners.slice(0, 4).map((a) => a.slug);
+  s.roster = Object.fromEntries(strong.map((x) => [x, { lv: 90, star: 8, brk: 4 }]));
+  const four = doWeekly(s, data, strong);
+  const solo = doWeekly(s, data, [strong[0]]);
+  assert.equal(four.team.list.length, 4);
+  assert.equal(solo.team.list.length, 1);
+  assert.ok(four.dmg > 0 && solo.dmg > 0);
+  assert.ok(solo.dmg < four.dmg, `单人 ${solo.dmg} 不该高于四人 ${four.dmg}`);
+
+  // 无限塔：传 1 人就只有 1 人爬
+  const one = simulateTower(s, data, { slugs: [strong[0]], maxFloors: 1 });
+  assert.equal(one.team.list.length, 1);
+
+  // 属性塔：编队里跨界域的成员会被剔掉，只留本界域
+  const chaos = data.awakeners.filter((a) => a.realm === 'CHAOS').slice(0, 4).map((a) => a.slug);
+  s.roster = Object.fromEntries([...chaos, ...strong].map((x) => [x, { lv: 80, star: 6, brk: 3 }]));
+  const rt = doRTower(s, data, 'CHAOS', [...strong, ...chaos]);
+  assert.ok(rt, '有混沌唤醒体就应该能挑战');
+  assert.ok(rt.team.list.length > 0);
+  assert.ok(rt.team.list.every((d) => d.realm === 'CHAOS'), '属性塔只放行本界域');
+});
+
+test('抽卡记录：每抽都进流水，聚合统计与幸运指数可复算', () => {
+  const s = newState(data, 41); s.tickets = 1000; s.cores = 20000;
+  const out = summon(s, data, 100);
+  assert.equal(s.gacha.agg.pulls, 100);
+  assert.equal(s.gacha.log.length, 100);
+  assert.equal(s.gacha.agg.Genesis + s.gacha.agg.SSR + s.gacha.agg.SR, 100);
+  // 流水新到旧，抽序号连续
+  assert.equal(s.gacha.log[0].seq, 100);
+  assert.equal(s.gacha.log[99].seq, 1);
+  assert.deepEqual(new Set(s.gacha.log.map((r) => r.slug)), new Set(out.map((p) => p.slug)));
+
+  const luck = luckOf(s);
+  const a = s.gacha.agg;
+  assert.equal(luck.worth, a.Genesis * 100 + a.SSR * 18 + a.SR);
+  assert.equal(luck.expected, Math.round(100 * EXPECTED_WORTH));
+  assert.equal(luck.index, Math.round((luck.worth / (100 * EXPECTED_WORTH)) * 100));
+  assert.ok(luck.tier.zh.length > 0);
+  assert.equal(luck.genesis, a.Genesis);
+  assert.equal(luck.pulls, 100);
+
+  // 银芯召唤共用同一份流水，但 banner 记得区分
+  const out2 = summonCores(s, data, 10);
+  assert.equal(out2.length, 10);
+  assert.equal(s.gacha.agg.pulls, 110);
+  assert.ok(s.gacha.log.slice(0, 10).every((r) => r.banner === 'core'));
+  assert.ok(s.gacha.log.slice(10, 20).every((r) => r.banner === 'ticket'));
+});
+
+test('抽卡记录裁剪到上限，但累计统计不受影响；十连最好成绩留档', () => {
+  const s = newState(data, 43); s.tickets = 20000;
+  for (let i = 0; i < 36; i++) summon(s, data, 10);
+  assert.equal(s.gacha.agg.pulls, 360);
+  assert.equal(s.gacha.log.length, GACHA_LOG_MAX, `明细应裁剪到 ${GACHA_LOG_MAX} 条`);
+  assert.equal(s.gacha.log[0].seq, 360);
+  assert.equal(luckOf(s).pulls, 360, '幸运指数用累计数，不看明细长度');
+  assert.ok(s.gacha.best10 >= 1, '十连记录里至少 1 个史诗以上');
+
+  // 老存档没有 gacha 字段 → 迁移出空结构而不是崩
+  const m = migrate({ ...newState(data, 45) }, data);
+  assert.deepEqual(m.gacha.agg, { pulls: 0, Genesis: 0, SSR: 0, SR: 0 });
+  assert.deepEqual(m.gacha.log, []);
+  assert.equal(luckOf(m).index, null);
+});

@@ -5,6 +5,8 @@ import { REALM_TOWERS, TOWER_NAME, rtBest, rtTeam, rtEnemies, rtStage, rtInfo } 
 import { arenaState, arenaTries, ARENA_DAILY, LADDER, dailyRankReward, canClaimArenaDaily, hydrate } from '../core/arena.js';
 import { encodeCode } from '../core/friend.js';
 import { teamDefs } from '../core/game.js';
+import { teamSlugsFor } from '../core/squad.js';
+import { squadBar } from './pages.js';
 import { esc, img, fmt, openModal, rewardText } from './util.js';
 import { meterHtml } from './pages2.js';
 import { reportHtml } from './report.js';
@@ -19,14 +21,16 @@ const daysLeft = () => { const d = new Date(); const n = d.getUTCDay() || 7; ret
 export function weeklyPage(app) {
   const { state: s, data } = app;
   const w = weeklyState(s), boss = weeklyBoss(data), e = weeklyEnemy(data);
-  const t = teamDefs(s, data);
+  // 战力和人数都按「周 Boss 指定的那套阵容」算，别拿当前队伍糊弄人
+  const t = teamDefs(s, data, teamSlugsFor(s, 'weekly'));
   const rows = MILESTONES.map((m, i) => {
     const done = w.damage >= m.dmg, got = w.claimed.includes(i);
     return `<div class="ach ${done ? 'done' : ''}"><div class="ab"><b>累计伤害 ${fmt(m.dmg)}</b><div class="bar"><i style="width:${Math.min(100, (w.damage / m.dmg) * 100)}%"></i></div>
       <small>奖励：${REWARD(m)}${m.item ? '　装备 ×1' : ''}</small></div>
       <button class="btn sm ${done && !got ? 'gold' : ''}" data-act="weekly-claim" data-i="${i}" ${done && !got ? '' : 'disabled'}>${got ? '已领取' : done ? '领取' : '未达成'}</button></div>`;
   }).join('');
-  return `<div class="page"><h2>周 Boss <small>${weekId()} · 本周剩余约 ${daysLeft()} 天 · 队伍战力 ${fmt(t.power)}</small></h2>
+  return `<div class="page"><h2>周 Boss <small>${weekId()} · 本周剩余约 ${daysLeft()} 天 · 出战战力 ${fmt(t.power)}</small></h2>
+    ${squadBar(app, 'weekly')}
     <div class="banner-card wk"><img src="${img(boss.img)}" alt=""><div><h3>${esc(boss.zh)}</h3>
       <p class="hint">${esc(boss.desc)}</p>
       <p>本周累计伤害 <b>${fmt(w.damage)}</b>　单次最高 <b>${fmt(w.best)}</b>　今日剩余 <b>${w.tries}/${WEEKLY_DAILY}</b></p>
@@ -46,8 +50,9 @@ export function weeklyResultModal(app, r) {
 /* ---------- realm towers ---------- */
 export function rtowerPage(app) {
   const { state: s, data } = app;
+  const pick = teamSlugsFor(s, 'rtower');
   const cards = REALM_TOWERS.map((realm) => {
-    const best = rtBest(s, realm), team = rtTeam(s, data, realm), next = best + 1;
+    const best = rtBest(s, realm), team = rtTeam(s, data, realm, pick), next = best + 1;
     const foes = rtEnemies(realm, next, data);
     const R = REALMS[realm];
     return `<div class="banner-card rt" style="--rc:${R.color}"><h3 style="color:${R.color}">${TOWER_NAME[realm]} <small>${R.zh}界域</small></h3>
@@ -57,6 +62,7 @@ export function rtowerPage(app) {
       <button class="btn" data-act="rt-auto" data-realm="${realm}" ${team ? '' : 'disabled'}>连续挑战（最多 10 层）</button></div></div>`;
   }).join('');
   return `<div class="page"><h2>属性塔</h2>
+    ${squadBar(app, 'rtower', '属性塔只取编队里本界域的成员；一个都没有就自动挑最强的 4 个')}
     <p class="hint">四座塔分别只允许对应界域的唤醒体进入，自动选取你拥有的战力最高的 4 名（凑满 3 名同界域有 +8%、4 名 +15% 加成）。每层只打一场，失败可无限重试，只有首次通关的层数给奖励：金币、每 3 层 1 张召唤券、每 10 层 3 张召唤券与装备。敌人优先从带有对应界域特征的怪物中抽取（混沌无对应特征，抽全部）。</p>
     ${cards}</div>`;
 }
@@ -81,6 +87,7 @@ export function arenaPage(app) {
       <button class="btn sm gold" data-act="arena-go" data-rank="${o.rank}" ${tries > 0 ? '' : 'disabled'}>挑战</button></div>`;
   const code = app.ui.arena?.code || '';
   return `<div class="page"><h2>竞技场 <small>${ranked ? `当前第 ${a.rank} 名` : '未上榜'} · 最高 ${a.best <= LADDER ? `第 ${a.best} 名` : '—'} · ${a.wins}胜${a.losses}负 · 今日 ${tries}/${ARENA_DAILY}</small></h2>
+    ${squadBar(app, 'arena', '天梯与好友对战都用这套阵容出战')}
     <div class="banner-card"><h3>天梯（人机）</h3><p>${LADDER} 个名次，对手都是人机，名次越靠前越强。战胜名次更高的对手即可取代其名次；候选对手分别落后你 1 / 3 / 7 / 15 / 31 名，越往上跨的跨度越大。每天 ${ARENA_DAILY} 次。</p>
       <div class="row"><button class="btn ${canClaimArenaDaily(s) ? 'gold' : ''}" data-act="arena-daily" ${canClaimArenaDaily(s) ? '' : 'disabled'}>每日排名奖励${ranked ? `（召唤券 ${dailyRankReward(a.rank)} + 金币 1500）` : '（上榜后可领）'}</button></div>
       <div class="opps">${opp.length ? opp.map(entry).join('') : '<p class="dim">你已经是第 1 名了。</p>'}</div></div>
