@@ -161,9 +161,20 @@ export function teamDefs(state, data, slugs = state.team) {
 // ---------- rewards ----------
 export const stageGold = (stage) => Math.round(18 * Math.pow(1.085, stage) + 9 * stage);
 const DROP_RATE = 0.1;
-// 每场胜利的固定掉落：金币 + 10% 装备 + 1/40 召唤券 + 1/90 银芯。
+// 每场胜利的基础掉落：金币 + 10% 装备 + 1/40 召唤券 + 1/90 银芯。
 // 在线和离线用同一套比率（不足 1 的零头存进 state.drip，攒够就发），所以收益面板上的数字既是离线预估也是在线实收。
 export const TICKET_PER_WIN = 1 / 40, CORE_PER_WIN = 1 / 90;
+
+/* 挂机收益随关卡缓慢提升：召唤券每关 +1.8%、银芯每关 +2.6%，纯线性、不会指数爆炸。
+   第 60 关约 2.1× / 2.6×，第 100 关约 2.8× / 3.6×——队伍能挂得越深，抽卡与淬炼才跟得上消耗。
+   低于第 1 关（不该出现）按第 1 关算，避免负增长。 */
+export const ticketBoost = (stage) => 1 + Math.max(0, stage) * 0.018;
+export const coreBoost = (stage) => 1 + Math.max(0, stage) * 0.026;
+export const ticketPerWin = (stage) => TICKET_PER_WIN * ticketBoost(stage);
+export const corePerWin = (stage) => CORE_PER_WIN * coreBoost(stage);
+// 面板上「平均几场掉一张券 / 一枚银芯」，方便玩家直观比较不同关卡
+export const winsPerTicket = (stage) => 1 / ticketPerWin(stage);
+export const winsPerCore = (stage) => 1 / corePerWin(stage);
 
 /* 挂机收益：一场战斗按 BATTLE_SECONDS 秒算，收益 = 胜率 × 单场收益。
    这套公式同时给「当前关 / 下一关收益」面板和离线结算用，保证两处口径一致。 */
@@ -182,7 +193,9 @@ export function farmRate(state, data, stage, rate) {
   return {
     stage, rate: r, perBattle, power: t.power,
     goldPerHour: Math.round(perBattle * winsPerHour),
-    ticketsPerHour: winsPerHour * TICKET_PER_WIN, coresPerHour: winsPerHour * CORE_PER_WIN, dropsPerHour: winsPerHour * DROP_RATE,
+    ticketsPerHour: winsPerHour * ticketPerWin(stage), coresPerHour: winsPerHour * corePerWin(stage), dropsPerHour: winsPerHour * DROP_RATE,
+    ticketBoost: ticketBoost(stage), coreBoost: coreBoost(stage),
+    winsPerTicket: winsPerTicket(stage), winsPerCore: winsPerCore(stage),
   };
 }
 // 首通奖励（面板上标出来，方便判断值不值得攻坚）
@@ -297,9 +310,9 @@ export function applyResult(state, data, res) {
         rw.items.push(addItem(state, ...Object.values(rollItem(rng, res.stage + 12, data))));
       }
     }
-    // 挂机零头：召唤券 / 银芯按 1/40、1/90 场累积，攒满 1 就进账（与离线结算同口径）
+    // 挂机零头：召唤券 / 银芯按关卡加成后的比率累积（越深的关每场给得越多），攒满 1 就进账
     const drip = (state.drip ||= { tickets: 0, cores: 0 });
-    drip.tickets += TICKET_PER_WIN; drip.cores += CORE_PER_WIN;
+    drip.tickets += ticketPerWin(res.stage); drip.cores += corePerWin(res.stage);
     const dt = Math.floor(drip.tickets), dc = Math.floor(drip.cores);
     if (dt) { drip.tickets -= dt; rw.tickets += dt; }
     if (dc) { drip.cores -= dc; rw.cores += dc; rw.dripCores = dc; }
@@ -338,16 +351,20 @@ export function offlineReport(state, data, now = Date.now()) {
   const w = Math.round(n * rate);
   const t = teamDefs(state, data);
   const gold = Math.round(w * stageGold(stage) * (1 + t.goldBonus / 100));
-  const tickets = Math.floor(w * TICKET_PER_WIN), cores = Math.floor(w * CORE_PER_WIN);
+  const tickets = Math.floor(w * ticketPerWin(stage)), cores = Math.floor(w * corePerWin(stage));
+  const ticketFrac = w * ticketPerWin(stage) - tickets, coreFrac = w * corePerWin(stage) - cores;
   const rng = mulberry32(hash(String(state.lastSeen)));
   const drops = [];
   const nd = Math.min(25, Math.round(w * DROP_RATE));
   for (let i = 0; i < nd; i++) { const it = rollItem(rng, stage, data); drops.push(it); }
-  return { secs, capped, battles: n, wins: w, rate, stage, gold, tickets, cores, drops };
+  return { secs, capped, battles: n, wins: w, rate, stage, gold, tickets, cores, drops, ticketFrac, coreFrac };
 }
 export function claimOffline(state, rep, now = Date.now()) {
   if (rep) {
     state.gold += rep.gold; state.tickets += rep.tickets; state.cores += rep.cores || 0;
+    // 离线的零头也留在 drip 里，别把它丢掉（和在线挂机完全同一套账）
+    const drip = (state.drip ||= { tickets: 0, cores: 0 });
+    drip.tickets += rep.ticketFrac || 0; drip.cores += rep.coreFrac || 0;
     for (const d of rep.drops) addItem(state, d.kind, d.defId);
     state.stats.gold += rep.gold;
   }

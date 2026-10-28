@@ -1,13 +1,15 @@
 // 无头回归：用 Edge 的 CDP 跑一遍 14 个页面，检查报错 / 4xx，
 // 以及 M10 的三处新交互（命轮密契页换装 / 一键配队 / 手动挂机不推进）。
 // 用法：node tools/regress.mjs [http://127.0.0.1:8777/index.html]
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const URL0 = process.argv[2] || 'http://127.0.0.1:8777/index.html';
-const PORT = 9333;
+// 每次换一个随机端口：上一轮要是异常退出留下了无头实例，固定端口会让新实例连不上，
+// 报出来的却是「页面没起来」这种驴唇不对马嘴的错。
+const PORT = 9330 + Math.floor(Math.random() * 200);
 const OUT = process.env.SHOT_DIR || join(tmpdir(), 'qdby-shots');
 mkdirSync(OUT, { recursive: true });
 
@@ -17,6 +19,15 @@ const EDGE = [
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
 ].find((p) => existsSync(p));
 if (!EDGE) { console.error('找不到 Edge/Chrome'); process.exit(1); }
+
+// 无头 Edge 会派生子进程，只 kill 父进程会留一堆孤儿；用 taskkill /T 连子树一起收，
+// 并且挂在 exit 上——脚本中途抛错也要收干净，否则下次跑会被旧实例的端口挡住。
+const cleanup = () => {
+  try { spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* 已经退了 */ }
+  try { child.kill(); } catch { /* 已经退了 */ }
+};
+process.on('exit', cleanup);
+process.on('SIGINT', () => { cleanup(); process.exit(130); });
 
 const prof = mkdtempSync(join(tmpdir(), 'edgeprof-'));
 const child = spawn(EDGE, ['--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${prof}`,
@@ -68,12 +79,18 @@ class CDP {
     writeFileSync(join(OUT, name + '.png'), Buffer.from(r.data, 'base64'));
   }
   async boot(url) {
-    await this.send('Page.navigate', { url });
-    for (let i = 0; i < 60; i++) {
-      try { if ((await this.evalIife('typeof window.__game')) === 'object') { await sleep(500); return; } } catch { /* 还在导航 */ }
-      await sleep(300);
+    // 偶发：上一个无头实例刚退、或本地静态服务还在收尾时，首次导航会撞上连接被拒。
+    // 重试一次再判死，并把收集到的报错一起抛出来，别只丢一句「__game 未定义」。
+    for (let tryNo = 0; tryNo < 2; tryNo++) {
+      await this.send('Page.navigate', { url });
+      for (let i = 0; i < 70; i++) {
+        try { if ((await this.evalIife('typeof window.__game')) === 'object') { await sleep(500); return; } } catch { /* 还在导航 */ }
+        await sleep(300);
+      }
+      this.http.length = 0; this.logs.length = 0;
     }
-    throw new Error('页面没起来：__game 未定义');
+    const why = [...this.runtime.slice(0, 4), ...this.http.slice(0, 4)].join('\n  ');
+    throw new Error('页面没起来：__game 未定义' + (why ? '\n  ' + why : ''));
   }
 }
 
@@ -220,9 +237,10 @@ check(ordersInfo.n > 0 && ordersInfo.loaded === ordersInfo.n,
 await cdp.shot('orders');
 
 // 6) 手动挂机：横幅出现、关卡不再往前推
+// maxStage 抬到 14，让第 12 关不是首通，横幅里才会出现「留在第 12 关继续挂机」
 await cdp.evalIife(`(() => { const s = __game.state;
   for (const k of Object.keys(s.roster)) s.roster[k].lv = 80;
-  s.maxStage = Math.max(s.maxStage, 12); s.stage = 12; s.auto = true; window.__go('battle'); })()`);
+  s.maxStage = Math.max(s.maxStage, 14); s.stage = 12; s.auto = true; window.__go('battle'); })()`);
 await sleep(500);
 const manual = await cdp.evalIife(`(async () => {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -231,7 +249,9 @@ const manual = await cdp.evalIife(`(async () => {
   await wait(500);
   const note = (document.querySelector('.manual-note')?.innerText || '').replace(/\\s+/g, ' ');
   const stage0 = s.stage, b0 = s.stats.battles;
-  await wait(12000);                                     // 让它连打几场
+  // 等「真打完 2 场」而不是死等 12 秒：机器负载高时一场能拖到七八秒，死等会误判成 0 场
+  const t0 = Date.now();
+  while (s.stats.battles - b0 < 2 && Date.now() - t0 < 30000) await wait(400);
   return { auto: s.auto, note, stage0, stage1: s.stage,
     fought: s.stats.battles - b0, label: document.querySelector('#bv-auto')?.textContent || '',
     banner: (document.querySelector('#bv-rw')?.innerText || '').replace(/\\s+/g, ' ') };
@@ -254,6 +274,28 @@ const back = await cdp.evalIife(`(async () => {
 })()`);
 check(back.auto === true && back.note === 0, `切回自动挂机：提示条消失，关卡 ${back.from} → ${back.to}`);
 
+// 7b) 挂机收益：券/银芯的关数加成随关卡提升（面板上真的看得见）
+const farm = await cdp.evalIife(`(async () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const s = __game.state;
+  for (const k of Object.keys(s.roster)) s.roster[k].lv = 90;
+  const read = () => {
+    const t = (document.querySelector('.farmc .farmbst')?.innerText || '').replace(/\\s+/g, ' ');
+    const per = +(t.match(/(\\d+) 场 1 张/) || [])[1];
+    const core = +(t.match(/(\\d+) 场 1 枚/) || [])[1];
+    return { note: t, per, core };
+  };
+  s.maxStage = 80; s.stage = 6; __game.bv.refreshHead(); await wait(400);
+  const lo = read();
+  s.stage = 70; __game.bv.refreshHead(); await wait(400);
+  const hi = read();
+  return { lo, hi };
+})()`);
+check(/关数加成/.test(farm.lo.note), `收益面板关数加成：${farm.lo.note.slice(0, 60)}`);
+check(farm.lo.per > farm.hi.per && farm.lo.core > farm.hi.core,
+  `挂机越深越值钱：券 ${farm.lo.per} → ${farm.hi.per} 场 1 张、银芯 ${farm.lo.core} → ${farm.hi.core} 场 1 枚`);
+await cdp.shot('farm');
+
 // 8) 全局报错 / 4xx
 const errs = [...new Set([...cdp.runtime, ...cdp.logs])];
 check(errs.length === 0, errs.length ? '页面报错：\n  ' + errs.slice(0, 8).join('\n  ') : '0 个 JS 报错');
@@ -261,5 +303,5 @@ const http = [...new Set(cdp.http)];
 check(http.length === 0, http.length ? '4xx / 资源失败：\n  ' + http.slice(0, 8).join('\n  ') : '0 个 4xx / 资源失败');
 
 console.log(`\n截图目录：${OUT}`);
-child.kill();
+cleanup();
 process.exit(fails.length ? 1 : 0);

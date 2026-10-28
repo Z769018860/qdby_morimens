@@ -103,20 +103,25 @@ export class BattleView {
   renderFarm() {
     const s = this.app.state;
     const f = this.farmData();
+    // 关数加成：挂机越深，每场的券/银芯掉率越高（金币本来就跟关数走，不用标）
+    const bst = (r) => `<div class="farmbst">关数加成　券 ×${r.ticketBoost.toFixed(2)}（${r.winsPerTicket.toFixed(0)} 场 1 张）· 银芯 ×${r.coreBoost.toFixed(2)}（${r.winsPerCore.toFixed(0)} 场 1 枚）</div>`;
     const col = (label, r, extra = '') => `<div class="farmc">
       <div class="farmh"><span>${label}</span><b>第 ${r.stage} 关</b></div>
       <div class="farmrows">
         <div><span>胜率</span><b class="${r.rate >= 1 ? 'ok' : r.rate <= 0 ? 'bad' : ''}">${Math.round(r.rate * 100)}%</b></div>
         <div><span>金币/小时</span><b class="g">${fmt(r.goldPerHour)}</b></div>
         <div><span>单场金币</span><b>${fmt(r.perBattle)}</b></div>
-        <div><span>召唤券/小时</span><b class="t">${r.ticketsPerHour.toFixed(1)}</b></div>
-        <div><span>银芯/小时</span><b class="c">${r.coresPerHour.toFixed(1)}</b></div>
+        <div><span>召唤券/小时</span><b class="t">${r.ticketsPerHour.toFixed(2)}</b></div>
+        <div><span>银芯/小时</span><b class="c">${r.coresPerHour.toFixed(2)}</b></div>
         <div><span>装备/小时</span><b class="i">${r.dropsPerHour.toFixed(2)}</b></div>
-      </div>${extra}</div>`;
+      </div>${bst(r)}${extra}</div>`;
     const nf = f.nxtRate;
-    const delta = f.cur.goldPerHour > 0 ? (nf.goldPerHour / f.cur.goldPerHour - 1) * 100 : 0;
+    const pct = (a, b) => (b >= a ? '+' : '') + ((b / a - 1) * 100).toFixed(1) + '%';
+    // 胜率为 0 的科目不参与对比（算出来没意义），一项都比不了就直说打不过
+    const deltas = [['金币', f.cur.goldPerHour, nf.goldPerHour], ['召唤券', f.cur.ticketsPerHour, nf.ticketsPerHour], ['银芯', f.cur.coresPerHour, nf.coresPerHour]]
+      .filter(([, a]) => a > 0).map(([n, a, b]) => `${pct(a, b)} ${n}`);
     const first = firstClearReward(f.nxt);
-    const extra = `<div class="farmx">${delta >= 0 ? '+' : ''}${delta.toFixed(1)}% 金币收益${f.nxt > s.maxStage ? `　首通：券+${first.tickets} 银芯+${first.cores}${first.order ? ' 钥令+1' : ''}${first.gear ? ' 装备+1' : ''}` : ''}</div>`;
+    const extra = `<div class="farmx">${deltas.length ? `下一关 ${deltas.join(' · ')}` : '下一关：当前队伍还打不过（胜率 0）'}${f.nxt > s.maxStage ? `　首通：券+${first.tickets} 银芯+${first.cores}${first.order ? ' 钥令+1' : ''}${first.gear ? ' 装备+1' : ''}` : ''}</div>`;
     // 校猫奖励关：每 40 关一次，提示一下，别让人以为只是普通 Boss
     const catNote = (st) => (stageInfo(st)?.reward ? `<div class="farmx cat">🐈 第 ${st} 关是「校猫」奖励关：打赢额外掉召唤券 5 + 银芯 60 + 装备，首杀翻倍</div>` : '');
     $('#bv-farm', this.root).innerHTML = `
@@ -124,7 +129,7 @@ export class BattleView {
         ${col('当前挂机', f.cur, catNote(f.cur.stage))}
         ${col('下一关', nf, extra + catNote(f.nxt))}
       </div>
-      <p class="hint">一场按 25 秒结算：金币 = 单场金币 × 胜率；召唤券每 40 场 1 张、银芯每 90 场 1 枚、装备每场 10% 掉落。在线与离线同一口径（离线最多累计 8 小时）。
+      <p class="hint">一场按 25 秒结算：金币 = 单场金币 × 胜率；召唤券与银芯的基础掉率是 40 场 1 张 / 90 场 1 枚，并<b>随关卡缓慢提升</b>——每深一关 +1.8% / +2.6%（第 60 关约 2.1× / 2.6×，第 100 关约 2.8× / 3.6×），挂得越深越值钱；装备每场 10% 掉落。在线与离线同一口径（离线最多累计 8 小时）。
         ${s.auto ? '自动挂机中：打赢且「从容」（存活 ≥3 人、回合数达标）才自动推进，否则原地刷。' : '手动挂机中：<b>不会自动推进关卡</b>，只在这一关反复刷（收益按本关算）；要打更高关用右上角 ▶ 自己走过去。'}</p>`;
   }
 
@@ -313,6 +318,11 @@ export class BattleView {
     if (res.win) parts.push(`<span class="g">金币 +${fmt(rw.gold)}</span>`);
     if (rw.tickets) parts.push(`<span class="t">召唤券 +${rw.tickets}</span>`);
     if (rw.cores) parts.push(`<span class="c">银芯 +${rw.cores}</span>`);
+    // 挂机零头：券/银芯一场给不满 1 个，把当前攒到多少写出来，玩家能看到进度
+    if (res.win) {
+      const dt = Math.max(0, s.drip?.tickets || 0), dc = Math.max(0, s.drip?.cores || 0);
+      if (dt < 1 || dc < 1) parts.push(`<span class="d">挂机零头：券 ${dt.toFixed(2)} / 银芯 ${dc.toFixed(2)}</span>`);
+    }
     for (const it of rw.items) parts.push(`<span class="i">获得装备：${esc(this.app.itemName(it))}</span>`);
     for (const od of rw.orders) parts.push(`<span class="i">获得钥令：${esc(this.app.data.orderById[od.id]?.zh || od.id)}</span>`);
     if (rw.firstClear) parts.push('<span class="n">首通!</span>');

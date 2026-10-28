@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { data } from './helpers.mjs';
-import { newState, runBattle, applyResult, summon, equipPull, equipItem, allyDef, teamDefs, levelUp, migrate, offlineReport, claimOffline, autoTeam, PULL_PITY_GENESIS, dismantle, enhanceItem, addItem } from '../src/core/game.js';
+import { newState, runBattle, applyResult, summon, equipPull, equipItem, allyDef, teamDefs, levelUp, migrate, offlineReport, claimOffline, autoTeam, PULL_PITY_GENESIS, dismantle, enhanceItem, addItem, farmRate, ticketPerWin, corePerWin, ticketBoost, coreBoost, winsPerTicket, winsPerCore } from '../src/core/game.js';
 import { simulate } from '../src/core/battle.js';
 import { towerReward } from '../src/core/challenge.js';
 import { mulberry32 } from '../src/core/rng.js';
@@ -513,7 +513,7 @@ test('battle report agrees with the engine stats and grades the result', () => {
 });
 
 // ---------------------------------------------------------------- M9: 叠位 99 / 突破 / 挂机收益 / 造物羁绊 / 钥令
-import { breakThrough, awakenUp, farmRate, winRateOf, firstClearReward, relicItemsOf, addOrder, upgradeOrder } from '../src/core/game.js';
+import { breakThrough, awakenUp, winRateOf, firstClearReward, relicItemsOf, addOrder, upgradeOrder } from '../src/core/game.js';
 import { levelCap, awakenCost, breakCost, growthPerLevel } from '../src/core/stats.js';
 import { relicTheme, relicBond, relicSlotCount, RELIC_BONDS } from '../src/core/gear.js';
 import { setOrderSlot, ordersBonus, orderSlotCount, orderUpCost } from '../src/core/orders.js';
@@ -815,4 +815,62 @@ test('塔每层都给券和银芯，越往上越多', () => {
   assert.ok(b.c < 20, `每层银芯涨太快：${b.c.toFixed(2)}`);
   // 零头会留在 state 里，下次继续攒
   assert.ok(low.tower.tkFrac < 1 && low.tower.coFrac < 1);
+});
+
+/* ---------- M12：挂机收益的召唤券 / 银芯随关卡缓慢提升 ---------- */
+
+test('挂机召唤券与银芯：越深的关给得越多，但涨幅很小', () => {
+  // 基准仍是 40 场 1 张券、90 场 1 枚银芯（第 1 关只带一点点加成）
+  assert.ok(winsPerTicket(1) > 38 && winsPerTicket(1) < 40, `第 1 关 ${winsPerTicket(1).toFixed(1)} 场 1 张券`);
+  assert.ok(winsPerCore(1) > 85 && winsPerCore(1) < 90, `第 1 关 ${winsPerCore(1).toFixed(1)} 场 1 枚银芯`);
+
+  // 单调递增：爬得越深，同样一场给得越多
+  let lastT = 0, lastC = 0;
+  for (const st of [1, 10, 30, 60, 100, 150]) {
+    assert.ok(ticketPerWin(st) > lastT, `第 ${st} 关的券掉率没有比上一档高`);
+    assert.ok(corePerWin(st) > lastC, `第 ${st} 关的银芯掉率没有比上一档高`);
+    lastT = ticketPerWin(st); lastC = corePerWin(st);
+  }
+
+  // 幅度可控：第 60 关约 2× 券 / 2.6× 银芯，第 100 关也还在 4× 以内
+  assert.ok(ticketBoost(60) > 1.9 && ticketBoost(60) < 2.3, `60 关券商 ${ticketBoost(60).toFixed(2)}`);
+  assert.ok(coreBoost(60) > 2.4 && coreBoost(60) < 2.8, `60 关银芯 ${coreBoost(60).toFixed(2)}`);
+  assert.ok(coreBoost(100) < 4 && ticketBoost(100) < 3, '不能让收益指数爆炸');
+  // 银芯是淬炼/叠位的大头，涨得比券快
+  assert.ok(coreBoost(80) > ticketBoost(80));
+
+  // 收益面板读到的每小时数字真的变了（胜率固定为 1，只比关卡）
+  const s = newState(data, 71);
+  const lo = farmRate(s, data, 5, 1), hi = farmRate(s, data, 80, 1);
+  assert.ok(hi.ticketsPerHour > lo.ticketsPerHour * 1.8, `${lo.ticketsPerHour.toFixed(1)} → ${hi.ticketsPerHour.toFixed(1)} 券/小时`);
+  assert.ok(hi.coresPerHour > lo.coresPerHour * 2, `${lo.coresPerHour.toFixed(1)} → ${hi.coresPerHour.toFixed(1)} 银芯/小时`);
+  assert.ok(hi.winsPerTicket < lo.winsPerTicket);
+});
+
+test('挂机券/银芯：在线零头与离线结算走同一条曲线', () => {
+  // 在线：每场按 ticketPerWin(stage) / corePerWin(stage) 累进 drip
+  const s = mkTeamState(80);
+  s.maxStage = s.stage = 8; s.auto = false; s.drip = { tickets: 0, cores: 0 };
+  const rw = applyResult(s, data, runBattle(s, data, 8));
+  assert.ok(rw.stayed, '这场应该是手动挂机的胜利');
+  assert.equal(rw.tickets, 0, '一场还不够 1 张券');
+  assert.ok(Math.abs(s.drip.tickets - ticketPerWin(8)) < 1e-9, `drip 券 ${s.drip.tickets}`);
+  assert.ok(Math.abs(s.drip.cores - corePerWin(8)) < 1e-9, `drip 银芯 ${s.drip.cores}`);
+  // 第 8 关的掉率应该比第 1 关基准高一点点
+  assert.ok(s.drip.tickets > 1 / 40 && s.drip.cores > 1 / 90);
+
+  // 离线：整场数 × 同一掉率后取整，小数余量交给 claimOffline 写回 drip
+  const off = mkTeamState(120);
+  off.stage = off.maxStage = 40; off.lastSeen = Date.now() - 6 * 3600e3;
+  const rep = offlineReport(off, data);
+  assert.ok(rep.wins > 0);
+  assert.ok(rep.ticketFrac >= 0 && rep.ticketFrac < 1);
+  assert.ok(rep.coreFrac >= 0 && rep.coreFrac < 1);
+  assert.ok(rep.tickets >= Math.floor(rep.wins * ticketPerWin(40)) - 1);
+  assert.ok(rep.cores >= Math.floor(rep.wins * corePerWin(40)) - 1);
+
+  const before = { ...(off.drip || { tickets: 0, cores: 0 }) };
+  claimOffline(off, rep, Date.now());
+  assert.ok(Math.abs(off.drip.tickets - (before.tickets + rep.ticketFrac)) < 1e-9, '零头要留在 drip 里');
+  assert.ok(Math.abs(off.drip.cores - (before.cores + rep.coreFrac)) < 1e-9);
 });
