@@ -5,6 +5,7 @@ import { esc, img, fmt, $, toast, kwIcon, stripMarks } from './util.js';
 import { meterHtml } from './pages2.js';
 import { monsterModal, intentIcon } from './codex.js';
 import { sound } from './audio.js';
+import { FX, COLORS } from './fx.js';
 
 const STAT_ZH = { atk: '攻击', def: '防御', crit: '暴击', amp: '增伤', vuln: '易伤' };
 
@@ -32,8 +33,11 @@ export class BattleView {
       const b = e.target.closest('[data-bv]'); if (b) { this.ctl(b.dataset.bv); return; }
       const f = e.target.closest('.unit.foe[data-mid]'); if (f) monsterModal(this.app, f.dataset.mid);
     });
+    this.fx = new FX($('#bv-field', root));
     this.refreshHead();
   }
+
+  colorOf(u) { return (u && COLORS[u.realm]) || (u?.el.classList.contains('foe') ? '#ff8c7a' : COLORS.none); }
 
   ctl(a) {
     const s = this.app.state;
@@ -70,9 +74,10 @@ export class BattleView {
     this.res = res;
     this.units = {};
     this.draw(res);
+    this.fx.clear(); this.fx.speed = s.speed;
     const bossFight = res.prep.enemies.some((d) => d.boss);
     sound.setMood(bossFight ? 'boss' : 'field');
-    if (bossFight && !s.skipAnim) sound.play('boss');
+    if (bossFight && !s.skipAnim) { sound.play('boss'); this.fx.bossIntro(); }
     $('#bv-banner', this.root).textContent = '';
     $('#bv-banner', this.root).className = 'banner';
     const evs = res.events;
@@ -154,6 +159,9 @@ export class BattleView {
           u.el.classList.add('acting');
           const say = u.el.querySelector('.u-say'); say.textContent = e.name; say.classList.remove('pop'); void say.offsetWidth; say.classList.add('pop');
           const fu = u.el.classList.contains('foe');
+          const side = fu ? 'e' : 'a';
+          u.el.classList.remove('lunge-a', 'lunge-e'); void u.el.offsetWidth; u.el.classList.add(`lunge-${side}`);
+          if (e.slot === 'Exalt' || e.slot === 'OverExalt') { this.fx.exalt(u.el, this.colorOf(u), e.slot === 'OverExalt'); u.el.classList.remove('exalting'); void u.el.offsetWidth; u.el.classList.add('exalting'); }
           if (e.slot === 'Exalt' || e.slot === 'OverExalt') sound.play('exalt');
           else if (e.slot === 'Skill1' || e.slot === 'Skill2' || e.slot === 'Rouse') sound.play('skill', { realm: u.realm });
           else if (!fu) sound.play('swing', { realm: u.realm });
@@ -168,13 +176,16 @@ export class BattleView {
         break;
       }
       case 'st': { const u = U(e.who); if (u) this.setStatus(u, e.list); break; }
-      case 'status': { const u = U(e.who); if (u && !quiet) { this.float(u, STATUS[e.s]?.zh || '', u.el.classList.contains('foe') ? 'debuff' : 'buff'); sound.play('status'); } break; }
+      case 'status': { const u = U(e.who); if (u && !quiet) { this.float(u, STATUS[e.s]?.zh || '', u.el.classList.contains('foe') ? 'debuff' : 'buff'); sound.play('status'); this.fx.aura(u.el, u.el.classList.contains('foe') ? COLORS.debuff : COLORS.buff, !u.el.classList.contains('foe')); } break; }
       case 'dmg': case 'dot': case 'counter': {
         const u = U(e.who); if (!u) break;
         this.setBars(u, e);
         if (e.blocked) { if (!quiet) { this.float(u, '屏障!', 'sh'); sound.play('block'); } break; }
         if (!quiet) {
           const att = e.by ? this.units[e.by] : null, foe = u.el.classList.contains('foe');
+          const col = this.colorOf(att);
+          if (e.k === 'dot') (e.s === 'poison' ? this.fx.poison(u.el) : this.fx.bleed(u.el));
+          else { this.fx.hit(u.el, col, { crit: e.crit, amt: e.amt }); if (e.k === 'dmg') this.fx.trail(att?.el, u.el, col); if (e.crit) { this.fx.flash('#fff', 0.18); this.fx.shake(5); } }
           sound.play(e.k === 'counter' ? 'counter' : e.k === 'dot' ? 'dot' : e.crit ? 'crit' : 'hit', { realm: att?.realm, foe, s: e.s, amt: e.amt });
           this.float(u, (e.crit ? '暴击 ' : e.k === 'counter' ? '反击 ' : e.s === 'poison' ? '中毒 ' : '') + '-' + fmt(e.amt), e.crit ? 'crit' : e.k === 'dot' ? 'dot' : 'dmg');
           u.el.classList.remove('hit'); void u.el.offsetWidth; u.el.classList.add('hit');
@@ -183,11 +194,11 @@ export class BattleView {
         }
         break;
       }
-      case 'heal': { const u = U(e.who); if (!u) break; this.setBars(u, { hp: e.hp }); if (!quiet && e.amt) { sound.play('heal'); this.float(u, '+' + fmt(e.amt), 'heal'); this.log(`　${nm(e.who)} +${fmt(e.amt)}`, 'hl'); } break; }
-      case 'shield': { const u = U(e.who); if (!u) break; u.el.querySelector('.sh').style.width = `${Math.min(100, (e.shield / u.max) * 100)}%`; if (!quiet) { this.float(u, '盾 ' + fmt(e.amt), 'sh'); sound.play('shield'); } break; }
-      case 'buff': if (!quiet) { sound.play(e.v > 0 ? 'buff' : 'debuff'); const u = U(e.who); this.float(u, `${STAT_ZH[e.stat] || ''}${e.v > 0 ? '↑' : '↓'}`, e.v > 0 ? 'buff' : 'debuff'); } break;
+      case 'heal': { const u = U(e.who); if (!u) break; this.setBars(u, { hp: e.hp }); if (!quiet && e.amt) { sound.play('heal'); this.fx.heal(u.el); this.float(u, '+' + fmt(e.amt), 'heal'); this.log(`　${nm(e.who)} +${fmt(e.amt)}`, 'hl'); } break; }
+      case 'shield': { const u = U(e.who); if (!u) break; u.el.querySelector('.sh').style.width = `${Math.min(100, (e.shield / u.max) * 100)}%`; if (!quiet) { this.float(u, '盾 ' + fmt(e.amt), 'sh'); sound.play('shield'); this.fx.shield(u.el); } break; }
+      case 'buff': if (!quiet) { sound.play(e.v > 0 ? 'buff' : 'debuff'); const u = U(e.who); if (u) this.fx.aura(u.el, e.v > 0 ? COLORS.buff : COLORS.debuff, e.v > 0); this.float(u, `${STAT_ZH[e.stat] || ''}${e.v > 0 ? '↑' : '↓'}`, e.v > 0 ? 'buff' : 'debuff'); } break;
       case 'gauge': { const u = U(e.who); if (!u || e.ali == null) break; const a = u.el.querySelector('.ali i'), k = u.el.querySelector('.key i'); if (a) a.style.width = e.ali + '%'; if (k) k.style.width = e.key + '%'; break; }
-      case 'die': { const u = U(e.who); if (u) { u.el.classList.add('dead'); this.setStatus(u, []); const ii = u.el.querySelector('.u-int'); if (ii) ii.innerHTML = ''; } if (!quiet) { sound.play('die', { foe: u?.el.classList.contains('foe') }); this.log(`　${nm(e.who)} 倒下了`, 'dead'); } break; }
+      case 'die': { const u = U(e.who); if (u) { u.el.classList.add('dead'); this.setStatus(u, []); const ii = u.el.querySelector('.u-int'); if (ii) ii.innerHTML = ''; } if (!quiet) { sound.play('die', { foe: u?.el.classList.contains('foe') }); if (u) this.fx.death(u.el, this.colorOf(u)); this.log(`　${nm(e.who)} 倒下了`, 'dead'); } break; }
       case 'end': break;
     }
   }
@@ -200,7 +211,7 @@ export class BattleView {
     s.lastSeen = Date.now();
     const b = $('#bv-banner', this.root);
     b.className = `banner ${res.win ? 'win' : 'lose'}`;
-    if (!s.skipAnim) sound.play(res.win ? 'win' : 'lose');
+    if (!s.skipAnim) { sound.play(res.win ? 'win' : 'lose'); if (res.win) { this.fx.confetti(); this.fx.flash('#ffd36b', 0.12); } }
     b.textContent = res.win ? `胜利 · ${res.rounds} 回合` : (res.rounds >= 30 ? '超时 · 战斗失败' : '全员倒下 · 战斗失败');
     const parts = [];
     if (res.win) parts.push(`<span class="g">金币 +${fmt(rw.gold)}</span>`);

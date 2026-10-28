@@ -449,3 +449,38 @@ test('achievements: unique ids, rich categories, claim-all pays tickets/银芯/g
   assert.ok(r.n >= 8 && s.tickets > t0 && s.cores > c0);
   assert.equal(claimAllAchievements(s, data), null);
 });
+
+// ---------------------------------------------------------------- M7: 注册福利
+import { portalUser, welcomeStatus, claimWelcome, claimSeven, sevenState, WELCOME, SEVEN } from '../src/core/welcome.js';
+const fakeStore = (o = {}) => { const m = { ...o }; return { getItem: (k) => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); } }; };
+
+test('注册福利: needs a portal login, once per account, survives a save reset', () => {
+  const guest = fakeStore();
+  assert.equal(portalUser(guest), null);
+  const s = newState(data, 21);
+  assert.equal(welcomeStatus(s, null, guest).canClaim, false);
+  assert.equal(claimWelcome(s, data, null, Date.now(), guest), null);
+  const st = fakeStore({ 'zjtt:authToken': JSON.stringify('tok'), 'zjtt:authUser': JSON.stringify({ name: 'Ａlice', email: 'alice@zjtt.local' }) });
+  const u = portalUser(st);
+  assert.equal(u.key, 'alice');
+  const c0 = s.cores;
+  const r = claimWelcome(s, data, u, Date.UTC(2026, 9, 28), st);
+  assert.equal(r.cores, WELCOME.cores); assert.equal(s.cores, c0 + WELCOME.cores); assert.equal(r.items.length, 1);
+  assert.equal(claimWelcome(s, data, u, Date.now(), st), null, 'only once');
+  // a fresh save on the same browser cannot claim again
+  const s2 = newState(data, 22);
+  assert.equal(welcomeStatus(s2, u, st).claimedElsewhere, true); assert.equal(claimWelcome(s2, data, u, Date.now(), st), null);
+});
+
+test('7-day newcomer bonus unlocks day by day and expires', () => {
+  const st = fakeStore({ 'zjtt:authToken': '"t"', 'zjtt:authUser': JSON.stringify({ name: 'bob' }) });
+  const u = portalUser(st), s = newState(data, 23), d0 = Date.UTC(2026, 9, 28), day = 86400000;
+  claimWelcome(s, data, u, d0, st);
+  assert.equal(sevenState(s, d0).idx, 1);
+  assert.ok(claimSeven(s, data, 0, d0)); assert.equal(claimSeven(s, data, 0, d0), null); assert.equal(claimSeven(s, data, 1, d0), null, 'day 2 not open yet');
+  assert.ok(claimSeven(s, data, 1, d0 + day));
+  assert.ok(claimSeven(s, data, 6, d0 + 6 * day)); assert.equal(s.welcome.days.length, 3);
+  assert.ok(claimSeven(s, data, 2, d0 + 10 * day), 'catch-up window');
+  assert.equal(claimSeven(s, data, 3, d0 + 14 * day), null, 'expired');
+  assert.equal(SEVEN.length, 7);
+});

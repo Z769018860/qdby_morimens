@@ -14,11 +14,13 @@ import { localOpponents, localSettle, fightFriend } from './core/arena.js';
 import { encodeCode, decodeCode } from './core/friend.js';
 import { codexPage, monsterModal } from './ui/codex.js';
 import { sound } from './ui/audio.js';
+import { fxMode } from './ui/fx.js';
 import { doTower, doTrial } from './core/challenge.js';
 import { claimAchievement, claimAllAchievements } from './core/achievements.js';
 import { signToday, backfill, claimCum } from './core/signin.js';
 import { buy as shopBuy, SHOP } from './core/shop.js';
 import { signinPage } from './ui/pages4.js';
+import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
 import { $, $$, fmt, esc, store, toast, closeModal, openModal, showKwPop } from './ui/util.js';
 
 const TABS = [['battle', '战斗'], ['team', '队伍'], ['roster', '唤醒体'], ['gear', '装备'], ['summon', '召唤'], ['challenge', '挑战'], ['signin', '签到'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']];
@@ -45,6 +47,7 @@ async function boot() {
   app.onBattleDone = () => { if (app.tab !== 'battle') app.refreshTop(); };
   const rep = saved ? offlineReport(app.state, app.data) : null;
   show('battle');
+  if (welcomeStatus(app.state, portalUser()).canClaim) setTimeout(() => toast('🎁 注册福利可领取：去「签到」页领取银芯', 4000), 1500);
   if (!app.state.tutorial) setTimeout(() => P2.tutorial(app, 0, () => { app.state.tutorial = true; app.save(); }), 300);
   if (rep && (rep.gold || rep.tickets)) {
     P.offlineModal(app, rep, () => { claimOffline(app.state, rep); app.save(); app.refreshTop(); toast('已领取离线收益'); app.bv.start(); });
@@ -92,6 +95,7 @@ const rewardLine = (r) => `召唤券+${r.tickets} 银芯+${r.cores} 金币+${r.g
 const rerender = () => { app.save(); render(); };
 
 function onChange(e) {
+  if (e.target.matches('[data-fx]')) { fxMode.set(e.target.value); toast('战斗特效：' + e.target.selectedOptions[0].textContent); return; }
   if (e.target.matches('[data-arena-name]')) { arenaState(app.state).name = e.target.value.trim().slice(0, 12) || '旅人'; app.save(); return; }
   const au = e.target.closest('[data-aud]');
   if (au) { sound.set(au.dataset.aud, au.type === 'checkbox' ? au.checked : +au.value / 100); if (au.dataset.aud === 'sfx') sound.play('hit'); return; }
@@ -110,7 +114,7 @@ function onAct(e) {
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
   const s = app.state, d = app.data, a = el.dataset.act;
-  if (el.tagName === 'BUTTON' && !['pull', 'epull', 'ach-claim', 'tower-go', 'trial-go', 'lvup', 'lvmax', 'sign-today', 'cpull', 'cepull', 'shop-buy', 'ach-all', 'snd-test'].includes(a)) sound.play('click');
+  if (el.tagName === 'BUTTON' && !['pull', 'epull', 'ach-claim', 'tower-go', 'trial-go', 'lvup', 'lvmax', 'sign-today', 'welcome-claim', 'welcome-7', 'cpull', 'cepull', 'shop-buy', 'ach-all', 'snd-test'].includes(a)) sound.play('click');
   switch (a) {
     case 'snd-test': sound.play(el.dataset.k); break;
     case 'weekly-go': { const r = doWeekly(s, d); if (r) { app.save(); render(); sound.play('win'); P3.weeklyResultModal(app, r); } break; }
@@ -188,6 +192,8 @@ function onAct(e) {
     case 'cepull': { const out = equipPullCores(s, d, 1); if (out) { app.save(); render(); sound.play('summon'); P.showItems(app, out); } break; }
     case 'shop-buy': { const r = shopBuy(s, d, el.dataset.id); if (r) { sound.play('gold'); toast(`已购买：${SHOP.find((x) => x.id === el.dataset.id).zh}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
     case 'gear-refine': if (refineItem(s, el.dataset.uid)) { sound.play('lvup'); rerender(); } break;
+    case 'welcome-claim': { const r = claimWelcome(s, d, portalUser()); if (r) { sound.play('summonSSR'); toast(`注册福利已到账：银芯+${r.cores} 召唤券+${r.tickets} 金币+${r.gold}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
+    case 'welcome-7': { const r = claimSeven(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`新手福利：银芯+${r.cores} 召唤券+${r.tickets}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
     case 'sign-today': { const r = signToday(s, d); if (r) { sound.play('ach'); toast(`签到成功：${rewardLine(r)}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
     case 'sign-back': { const r = backfill(s, d, +el.dataset.d); if (r) { sound.play('gold'); toast(`补签成功：${rewardLine(r)}`); rerender(); } break; }
     case 'sign-cum': { const r = claimCum(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`累计奖励：${rewardLine(r)}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
