@@ -231,6 +231,31 @@ export const shareCode = {
 export const KIND_EN = { awakener: 'Awakener', wheel: 'Wheel of Destiny', covenant: 'Covenant', key: 'Key Token', creation: 'Relic', monster: 'Monster' };
 export const kindName = (k) => (lang.cur === 'en' ? KIND_EN[k] : KINDS[k]);
 
+// ------------------------------------------------------------------ 配队规则
+// 忘却前夜的界域（阵营）规则：除「混沌」外，唤醒体只能与「自身界域 + 混沌」同队。
+// 换成可以直接判定的说法：一支队伍里，混沌以外的界域最多只能出现一种。
+// 所以队伍已有「血肉」和「混沌」时，再填「超维」就是非法配队——填不进去。
+export const REALM_CHAOS = '混沌';
+
+// 队内已经确定的「锚界域」（混沌不算）：返回第一个非混沌界域，没有则空串
+export const realmAnchor = (realms) => {
+  const list = (realms || []).map(String).filter(Boolean);
+  const hit = list.find(r => r !== REALM_CHAOS);
+  return hit || '';
+};
+
+// 候选界域能不能进这支队伍
+export function realmFits(realms, candidate) {
+  const c = String(candidate || '');
+  if (!c || c === REALM_CHAOS) return true;   // 混沌跟谁都能组
+  const a = realmAnchor(realms);
+  return !a || a === c;
+}
+
+// 界域名的中英显示（字典里只有中文名，英文界面按官方译名兜底）
+export const REALM_EN_ZH = { 深海: 'Aequor', 混沌: 'Chaos', 血肉: 'Caro', 超维: 'Ultra', 褪色遗产: 'Faded Legacy', 通用: 'Universal', 其他: 'Other' };
+export const realmName = (r) => (lang.cur === 'en' ? (REALM_EN_ZH[r] || r) : r);
+
 export async function loadDict() {
   const [D] = await Promise.all([fetch('data/dictionary.json').then(r => r.json()), loadKeywords()]);
   const idx = {};

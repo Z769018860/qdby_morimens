@@ -139,6 +139,13 @@ input[type=search], select { background: var(--panel2); color: var(--text); bord
 .pitem:hover { border-color: var(--accent); }
 .pitem.chosen { border-color: var(--green); }
 .pitem.used { opacity: .4; }
+/* 被配队规则挡住的选项：仍然显示，但明显不可点，旁边写清原因 */
+.pitem.blocked { opacity: .32; filter: grayscale(1); cursor: not-allowed; }
+.pitem.blocked:hover { border-color: transparent; }
+.pitem.blocked .decoy { color: var(--warn, #c98); font-size: 10px; }
+.picknote { margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.realmnote.bad { color: var(--warn, #d08a5a); }
+.relicnote { display: block; margin: 2px 0 6px; }
 
 /* codex */
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; }

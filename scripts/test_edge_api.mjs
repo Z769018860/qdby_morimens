@@ -51,7 +51,10 @@ function check(name, cond, extra) {
 const eq = (name, got, want) => check(name, JSON.stringify(got) === JSON.stringify(want), { got, want });
 
 // ---------------------------------------------------------------- 请求工具
+// 测试环境没有 Blob 凭据（要连 STS），所以默认把存储钉到 KV 的假实现上，
+// 这样下面所有业务断言都跑在 fakeKV 上；要验证「默认行为」就显式传 ZJTT_STORE: ''。
 function makeCaller(env) {
+  const e = { ZJTT_STORE: 'kv', ...(env || {}) };
   return async function call(path, { method = 'GET', body, headers = {}, origin = '' } = {}) {
     const h = { ...headers };
     if (origin) h.Origin = origin;
@@ -59,7 +62,7 @@ function makeCaller(env) {
     const req = new Request('https://morimens.qingdengbuyi.top/api' + path, {
       method, headers: h, body: body === undefined ? undefined : JSON.stringify(body),
     });
-    const res = await onRequest({ request: req, env, params: {}, waitUntil: () => {} });
+    const res = await onRequest({ request: req, env: e, params: {}, waitUntil: () => {} });
     const text = await res.text();
     let json = null;
     try { json = text ? JSON.parse(text) : null; } catch { json = { raw: text }; }
@@ -91,14 +94,14 @@ console.log('\n[1] 健康检查 / 路由 /api 前缀剥离');
 
 console.log('\n[2] 没有任何存储时给出可读错误');
 {
-  const call = makeCaller({});
+  const call = makeCaller({ ZJTT_STORE: '' });   // 不钉死，也没有 Blob 凭据、没有 KV
   const r = await call('/health');
   eq('→ 503（探活仍能答话，只是 ok:false）', r.status, 503);
   eq('→ ok:false', r.json.ok, false);
-  eq('→ kv:false', r.json.kv, false);
+  eq('→ storeOk:false', r.json.storeOk, false);
   eq('→ store:null', r.json.store, null);
   eq('→ no_store', r.json.error, 'no_store');
-  check('提示里同时写了 KV 与 Blob 两条路', /KV/.test(String(r.json.detail)) && /ZJTT_BLOB_TOKEN/.test(String(r.json.detail)));
+  check('提示里写了 Blob 凭据怎么补', /ZJTT_BLOB_TOKEN/.test(String(r.json.detail)));
 
   // 业务接口没存储时仍然是 500，前端按「后端不可用」降级
   const rb = await call('/likes?ids=a');
@@ -111,10 +114,11 @@ console.log('\n[2b] 绑定名字挂在全局变量上也要认（EdgeOne 官方�
   const kv = fakeKV();
   globalThis.zjtt_kv = kv;
   try {
-    const call = makeCaller({});           // env 里什么都没有
+    const call = makeCaller({});           // env 里没有 KV，只有全局变量
     const r = await call('/health');
     eq('→ 200', r.status, 200);
-    eq('→ kv:true', r.json.kv, true);
+    eq('→ store:kv', r.json.store, 'kv');
+    eq('→ kvBound:true', r.json.kvBound, true);
   } finally {
     delete globalThis.zjtt_kv;
   }
@@ -122,9 +126,10 @@ console.log('\n[2b] 绑定名字挂在全局变量上也要认（EdgeOne 官方�
 
 console.log('\n[2c] env 里有同名但不像 KV 的东西时不能误判');
 {
-  const call = makeCaller({ zjtt_kv: 'oops', KV: { foo: 1 } });
+  const call = makeCaller({ zjtt_kv: 'oops', KV: { foo: 1 }, ZJTT_STORE: '' });
   const r = await call('/health');
   eq('→ 503 而不是当成可用存储', r.status, 503);
+  eq('→ kvBound:false', r.json.kvBound, false);
 }
 
 console.log('\n[2d] ZJTT_STORE 可以钉死存储，避免 KV 审核通过后突然切库');
@@ -142,6 +147,20 @@ console.log('\n[2d] ZJTT_STORE 可以钉死存储，避免 KV 审核通过后突
   eq('钉 blob 但没凭据 → 503', r2.status, 503);
   eq('钉 blob 但没凭据 → no_store', r2.json.error, 'no_store');
   check('错误里点明是钉死导致的', /ZJTT_STORE/.test(String(r2.json.detail)));
+}
+
+console.log('\n[2e] 默认不碰 KV：绑了 KV 也不会被悄悄拿来当主存储');
+{
+  // 线上就是这种状态：Blob 在跑（真实凭据只有部署时才有），KV 绑不绑都无所谓。
+  // 这里没有 Blob 凭据，所以只能 503 —— 关键是「不能因为 env 里有 KV 就切过去」。
+  const kv = fakeKV();
+  kv._m.set('cnt_x', '7');
+  const call = makeCaller({ zjtt_kv: kv, ZJTT_STORE: '' });
+  const r = await call('/health');
+  eq('有 KV 但默认仍走 Blob → 503', r.status, 503);
+  eq('错误里点明默认不用 KV', /KV/.test(String(r.json.detail)) && /ZJTT_STORE/.test(String(r.json.detail)), true);
+  eq('kvBound 仍然如实回报 true', r.json.kvBound, true);
+  eq('KV 里的旧赞数没有被当成主数据读出来', r.json.store, null);
 }
 
 console.log('\n[3] CORS 白名单');

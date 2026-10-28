@@ -1,5 +1,6 @@
 // 创意工坊：导入战报 → 生成自己的推理题 → 分享码 / 云题库
-import { $, h, store, nav, t, lang, loadDict, imgEl, nameOf, shareCode, REPLAY, markDirty } from './common.js';
+import { $, h, store, nav, t, lang, loadDict, imgEl, nameOf, shareCode, REPLAY, markDirty,
+  realmFits, realmAnchor, realmName, REALM_CHAOS } from './common.js';
 import { cloud, cloudConfig } from './cloud.js';
 import { account } from './account.js';
 import { decodeReplay, replayTeam } from './replay.js';
@@ -111,11 +112,30 @@ function fromJson(text) {
 }
 
 // ------------------------------------------------------------------ 编辑区
-function pickBtn(kind, id, set, label) {
+// 界域规则：混沌之外只能有一种界域。队伍里已有「血肉」时，超维/深海/第二套界域都填不进去。
+const realmOfSlot = (k) => {
+  const a = draft.team[k];
+  const e = a && a.tid != null ? idx.awakener.get(String(a.tid)) : null;
+  return e ? e.realm : '';
+};
+const otherRealms = (k) => draft.team.map((_, i) => (i === k ? '' : realmOfSlot(i))).filter(Boolean);
+const anchorOf = (k) => realmAnchor(otherRealms(k));
+
+// 某个唤醒体在这个卡位能不能选：返回空串=能选，否则是「为什么不能」
+function blockReason(k, e) {
+  if (!e) return '';
+  const usedElsewhere = draft.team.some((a, i) => i !== k && a.tid != null && String(a.tid) === String(e.id));
+  if (usedElsewhere) return t('wsRealmUsed');
+  const others = otherRealms(k);
+  if (!realmFits(others, e.realm)) return t('wsRealmBlocked', { r: realmName(realmAnchor(others)) });
+  return '';
+}
+
+function pickBtn(kind, id, set, label, opts) {
   const e = id != null ? idx[kind].get(String(id)) : null;
   return h('button', {
     type: 'button', class: `pick ${kind}`,
-    onclick: () => openPicker(kind, (v) => { set(v); draw(); }),
+    onclick: () => openPicker(kind, (v) => { set(v); draw(); }, opts),
   }, e ? imgEl(e.img, nameOf(e)) : h('span', { class: 'plus' }, '＋'), h('small', {}, e ? nameOf(e) : (label || KINDS[kind])));
 }
 
@@ -124,7 +144,13 @@ function slotEditor(k) {
   return h('div', { class: 'slot' },
     h('div', { class: 'shead' }, h('b', {}, `${LETTERS[k]} 位`),
       h('span', { class: 'chips' }, a.dmg ? h('span', { class: 'chip' }, `伤害 ${Math.round(a.dmg).toLocaleString()}`) : null)),
-    pickBtn('awakener', a.tid, v => { a.tid = v; }, '选唤醒体'),
+    pickBtn('awakener', a.tid, v => { a.tid = v; }, '选唤醒体', {
+      block: (e) => blockReason(k, e),
+      note: () => {
+        const anchor = anchorOf(k);
+        return anchor ? t('wsRealmAnchor', { r: realmName(anchor) }) : t('wsRealmRule');
+      },
+    }),
     h('div', { class: 'row2' },
       pickBtn('wheel', (a.wheels || [])[0], v => { a.wheels = [v, (a.wheels || [])[1] || null].filter(Boolean); }, '命轮 1'),
       pickBtn('wheel', (a.wheels || [])[1], v => { a.wheels = [(a.wheels || [])[0] || null, v].filter(Boolean); }, '命轮 2')),
@@ -133,6 +159,18 @@ function slotEditor(k) {
       h('small', {}, '等级/灵塑'),
       h('input', { type: 'number', min: 1, max: 90, value: a.lv, class: 'tiny', oninput: ev => { a.lv = num(ev.target.value, 60); } }),
       h('input', { type: 'number', min: 0, max: 15, value: a.pot, class: 'tiny', oninput: ev => { a.pot = num(ev.target.value, 0); } })));
+}
+
+// 队伍界域现状：冲突时直接点出来，别让人选完才发现不自洽
+function teamRealmNote() {
+  const rs = draft.team.map((_, i) => realmOfSlot(i)).filter(Boolean);
+  const uniq = [...new Set(rs)];
+  const nonChaos = uniq.filter(r => r !== REALM_CHAOS);
+  const bad = nonChaos.length > 1;
+  const label = uniq.length ? uniq.map(realmName).join(' + ') : t('wsTeamNoRealm');
+  return h('p', { class: `note realmnote${bad ? ' bad' : ''}` },
+    t('wsTeamRealm', { r: label }),
+    bad ? h('b', {}, ' · ' + t('wsRealmRule')) : null);
 }
 
 function metaEditor() {
@@ -256,10 +294,12 @@ function draw() {
           h('button', { class: 'btn ghost', onclick: () => loadCloud() }, t('wsCloudLoad'))))),
     h('section', { class: 'card' },
       h('h3', {}, t('wsManual')),
+      teamRealmNote(),
       h('div', { class: 'slots' }, LETTERS.map((_, k) => slotEditor(k))),
       h('div', { class: 'extras' },
         h('div', { class: 'extra' }, h('b', {}, t('keyLabel') || '钥令'), pickBtn('key', draft.key, v => { draft.key = v; })),
         h('div', { class: 'extra wide' }, h('b', {}, '造物'),
+          h('small', { class: 'note relicnote' }, t('wsRelicOrderNote')),
           h('div', { class: 'relics' },
             draft.relics.map(id => {
               const e = idx.creation.get(String(id));
@@ -673,23 +713,34 @@ function copyText(txt) {
 const dlg = h('dialog', { class: 'picker' });
 document.body.append(dlg);
 
-function openPicker(kind, apply) {
+// opts.block(e) 返回「不能选的原因」，返回空串表示可选；被挡住的仍然显示，
+// 只是标灰不可点——总比凭空消失好，用户至少知道这类唤醒体为什么填不进来。
+function openPicker(kind, apply, opts = {}) {
   const all = D[kind].filter(e => e.id != null);
+  const block = typeof opts.block === 'function' ? opts.block : () => '';
   let q = '';
   const grid = h('div', { class: 'pgrid' });
   const drawList = () => {
     const list = all.filter(e => !q || ((e.zh || '') + (e.en || '')).toLowerCase().includes(q));
-    grid.replaceChildren(...list.slice(0, 400).map(e => h('button', {
-      type: 'button', class: 'pitem', title: e.en,
-      onclick: () => { apply(String(e.id)); dlg.close(); },
-    }, imgEl(e.img, nameOf(e)), h('small', {}, nameOf(e)))));
+    // 能选的排前面，被规则挡住的沉底，位置稳定（不排序名字，避免看起来像另一套顺序）
+    const rows = list.slice(0, 400).map(e => ({ e, why: block(e) }));
+    rows.sort((a, b) => (a.why ? 1 : 0) - (b.why ? 1 : 0));
+    grid.replaceChildren(...rows.map(({ e, why }) => h('button', {
+      type: 'button', class: `pitem${why ? ' blocked' : ''}`, title: why || e.en,
+      disabled: Boolean(why),
+      onclick: why ? null : () => { apply(String(e.id)); dlg.close(); },
+    },
+    imgEl(e.img, nameOf(e)), h('small', {}, nameOf(e)),
+    why ? h('em', { class: 'decoy' }, why) : null)));
     if (!list.length) grid.append(h('p', { class: 'note' }, t('noMatch')));
   };
+  const note = typeof opts.note === 'function' ? opts.note() : (opts.note || '');
   dlg.replaceChildren(
     h('div', { class: 'phead' }, h('b', {}, KINDS[kind] || kind),
       h('input', { type: 'search', placeholder: t('searchName'), oninput: ev => { q = ev.target.value.trim().toLowerCase(); drawList(); } }),
       h('button', { class: 'btn sm ghost', onclick: () => { apply(null); dlg.close(); } }, t('clear')),
       h('button', { class: 'btn sm', onclick: () => dlg.close() }, t('close'))),
+    note ? h('p', { class: 'note picknote' }, note) : null,
     grid);
   drawList();
   dlg.showModal();

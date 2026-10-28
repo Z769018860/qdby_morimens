@@ -23,16 +23,14 @@
 //   2. 没有原子自增，读改写之间可能撞车。点赞量级很小，偶尔少记一个赞比
 //      维护分布式锁划算；作者结算用的是「只升不降」的最大值，不会重复发钱。
 //
-// 绑定方式（控制台）：存储 → KV → 开通 → 建命名空间 → 项目里「绑定 Namespace」，
-// 变量名填 zjtt_kv（代码里也认 ZJTT_KV / KV）。
-//
-// 存储有两条路，代码自动挑：
-//   · KV   —— 控制台绑定命名空间（白名单审核，1–3 个工作日）
-//   · Blob —— 免审核，首次调用自动建命名空间。SDK 需要凭据，两种给法：
-//             a) 平台注入（部署时把 {{PAGES_BLOB_DEPLOY_CREDENTIAL}} 换掉，零配置）
-//             b) 自己在「项目设置 → 环境变量」里配 ZJTT_BLOB_TOKEN + ZJTT_BLOB_PROJECT
+// 存储用 Blob（免审核、部署时平台自动注入凭据，线上已实测可写）：
+//            a) 平台注入（部署时把 {{PAGES_BLOB_DEPLOY_CREDENTIAL}} 换掉，零配置）
+//            b) 自己在「项目设置 → 环境变量」里配 ZJTT_BLOB_TOKEN + ZJTT_BLOB_PROJECT
 //            Blob 只有 set/get/delete/list，没有原子自增，语义和 KV 一致，
 //            下面套一层 blobKV 抹平差异；读默认强一致，显示用的赞数走边缘缓存。
+// KV 仍然保留实现（控制台绑命名空间即可），但**默认不启用**：它要白名单审核，
+// 而且与 Blob 的数据互不相通，中途换库会让所有赞数像被清零。要换必须显式
+// 配 ZJTT_STORE=kv。详见 storeOf()。
 //
 // 部署路径：edge-functions/api/[[default]].js  →  线上 /api/*，下面会自己剥掉 /api 前缀。
 
@@ -181,34 +179,41 @@ function blobOf(env) {
   }
 }
 
-// KV 绑定：控制台里变量名怎么填都可能，这里挨个认一遍。
+// KV 绑定探测：控制台里变量名怎么填都可能，这里挨个认一遍。
 // 注意 EdgeOne 的绑定是「注入同名全局变量」（官方示例直接 my_kv.put()），
 // 不一定出现在 env 上，所以两边都找：先 env 再 globalThis。
-//
-// ZJTT_STORE=kv|blob 可以钉死用哪一套。为什么需要：默认「先 KV 后 Blob」，
-// 万一先用着 Blob、几天后 KV 审核通过，会突然切到空库，赞数看起来像被清零。
-// 哪套开始存真数据，就用这个变量钉住它。
-function storeOf(env) {
-  const pin = String((env && env.ZJTT_STORE) || '').toLowerCase();
-
+function kvBinding(env) {
   const g = typeof globalThis !== 'undefined' ? globalThis : {};
   const hit = (env && (env.zjtt_kv || env.ZJTT_KV || env.KV || env.KV_STORE))
     || g.zjtt_kv || g.ZJTT_KV || g.KV || null;
   // 只认真正实现了存储接口的对象，别把 env 里别的配置当成存储
-  const kv = looksLikeKV(hit) ? hit : null;
+  return looksLikeKV(hit) ? hit : null;
+}
 
-  if (pin !== 'blob' && kv) return kv;
-  if (pin !== 'kv') {
-    const blob = blobOf(env);
-    if (blob) return blob;
+// 主存储固定为 Blob。理由：
+//   · KV 要白名单审核，Blob 免审核，部署时平台自动注入凭据，零配置就能写；
+//   · 两套存储的数据互不相通，KV 哪天审核通过一绑，默认实现就会切到一个空库，
+//     所有赞数像被清零 —— 这种「悄悄换库」比「没有 KV」危险得多。
+// 所以默认只认 Blob。真要换回 KV，必须显式配 ZJTT_STORE=kv。
+function storeOf(env) {
+  const pin = String((env && env.ZJTT_STORE) || '').toLowerCase();
+  const kv = kvBinding(env);
+
+  if (pin === 'kv') {
+    if (kv) return kv;
+    throw new HttpError(500, 'no_store', '存储钉死为 KV（ZJTT_STORE=kv），但这套环境里没有绑定 KV 命名空间');
   }
 
-  const why = pin
-    ? `（ZJTT_STORE 钉死为 ${pin}，但那一套不可用）`
-    : '';
+  const blob = blobOf(env);
+  if (blob) return blob;
+
+  const why = pin ? `（ZJTT_STORE 钉死为 ${pin}）` : '';
   throw new HttpError(500, 'no_store',
-    '没有可用的存储：KV 未绑定（控制台 → 存储 → KV，审核通过后绑到项目），'
-    + 'Blob 也没拿到凭据（项目设置 → 环境变量，配 ZJTT_BLOB_TOKEN 与 ZJTT_BLOB_PROJECT）'
+    '没有可用的存储：Blob 没拿到凭据'
+    + '（正常情况下部署时平台会自动注入；若报这个错，检查项目是否开通了 Blob 存储，'
+    + '或在「项目设置 → 环境变量」里补 ZJTT_BLOB_TOKEN 与 ZJTT_BLOB_PROJECT）'
+    + (kv ? '。注意：KV 已绑定但本服务默认不用 KV（两套数据不互通，换库会让赞数看起来清零），'
+      + '确实要用就配 ZJTT_STORE=kv' : '')
     + why);
 }
 
@@ -599,22 +604,23 @@ export async function onRequest(context) {
   const method = request.method;
 
   try {
-    // /health 先于 KV 检查：没绑 KV 时也要能答话，否则探活永远是 500 说不清原因
+    // /health 先于存储检查：存储不可用时也要能答话，否则探活永远是 500 说不清原因
     if (path === '/health' || path === '/') {
-      let kv = null;
+      let store = null;
       let why = null;
-      try { kv = storeOf(env); } catch (e) { kv = null; why = (e && e.detail) || null; }
-      const kind = kv ? (kv.__kind || 'kv') : null;
+      try { store = storeOf(env); } catch (e) { store = null; why = (e && e.detail) || null; }
+      const kind = store ? (store.__kind || 'kv') : null;
       const pin = String((env && env.ZJTT_STORE) || '').toLowerCase() || null;
       return reply({
-        ok: Boolean(kv), service: 'zjtt', v: 2, runtime: 'edgeone',
-        store: kind, pin, kv: Boolean(kv), day: dayKey(),
-        ...(kv ? {} : {
+        ok: Boolean(store), service: 'zjtt', v: 2, runtime: 'edgeone',
+        store: kind, pin, storeOk: Boolean(store),
+        // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
+        kvBound: Boolean(kvBinding(env)), day: dayKey(),
+        ...(store ? {} : {
           error: 'no_store',
-          detail: why || ('KV 未绑定（存储 → KV，审核通过后绑到项目），Blob 也没凭据'
-            + '（项目设置 → 环境变量，配 ZJTT_BLOB_TOKEN 与 ZJTT_BLOB_PROJECT）'),
+          detail: why || 'Blob 没拿到凭据（项目设置 → 环境变量，配 ZJTT_BLOB_TOKEN 与 ZJTT_BLOB_PROJECT）',
         }),
-      }, kv ? 200 : 503, cors);
+      }, store ? 200 : 503, cors);
     }
 
     const kv = storeOf(env);

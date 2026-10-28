@@ -1,5 +1,6 @@
 import { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang,
-  wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf, scIcon, scNum, emptyState } from './common.js';
+  wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf, scIcon, scNum, emptyState,
+  realmFits, realmAnchor, realmName } from './common.js';
 import { PEPPER } from './pepper.js';
 import { auth, openLogin } from './auth.js';
 import { account } from './account.js';
@@ -374,6 +375,12 @@ const covNameOf = (id) => {
 // 玩家只需要补齐剩下那些。老题库（自建题 / 早期题）没有 inn 字段时，退回按「维度影像」判定。
 const INNATE_KIND = '维度影像';
 const creationOf = (id) => idx.creation.get(String(id)) || null;
+// 造物说明书原文（中文库；英文界面也读这份，宁可中文也别不给）
+const relicDesc = (id) => {
+  const e = creationOf(id);
+  return e ? (e.desc || []).map(x => (x && x.t) || '').join(' ') : '';
+};
+const relicRarity = (id) => ((creationOf(id) || {}).rarity || '');
 const relicList = () => puzzle.relics || [];
 const innateIds = () => (Array.isArray(puzzle.inn) && puzzle.inn.length
   ? puzzle.inn.map(String)
@@ -416,6 +423,18 @@ const RELIC_CLUES = [
   { id: 'relRage', cost: 4, tags: ['rage'], label: 'clueRelRage' },
   { id: 'relCost', cost: 4, tags: ['energy', 'exhaust'], label: 'clueRelCost' },
   { id: 'relGuard', cost: 4, tags: ['guard'], label: 'clueRelGuard' },
+  // 下面三条不看人工标签，直接按造物数据本身判（稀有度 / 说明书原文），
+  // 覆盖率更好，也不怕标签漏打。
+  { id: 'relGold', cost: 6, label: 'clueRelGold', value: (ids) => {
+    // 稀有度有缺失（事件/摆锤造物常见）时不说死，改成「至少 n 件 + m 件未知」
+    const known = ids.filter(id => /^(SSR|SR|N)$/.test(relicRarity(id)));
+    const unknown = ids.length - known.length;
+    const n = known.filter(id => relicRarity(id) === 'SSR').length;
+    if (!unknown) return n ? t('clueRelN', { n }) : t('clueRelNone');
+    return t('clueRelGoldMin', { n, m: unknown });
+  } },
+  { id: 'relBase', cost: 6, label: 'clueRelBase', test: id => /基础伤害|base damage/i.test(relicDesc(id)) },
+  { id: 'relHeal', cost: 5, label: 'clueRelHeal', test: id => /治疗|回复.{0,6}生命|恢复.{0,6}生命|heal|restore .{0,6}HP/i.test(relicDesc(id)) },
 ];
 
 // 用题目 id 做种子的确定性打散：每次渲染顺序一致，但不能是「按 A→D 排」，
@@ -545,7 +564,9 @@ function clueList() {
     ? RELIC_CLUES.map(c => ({
       id: c.id, cost: c.cost, label: t(c.label),
       value: () => {
-        const n = relicList().filter(id => relicTags(id).some(x => c.tags.includes(x))).length;
+        const ids = relicList();
+        if (c.value) return c.value(ids);
+        const n = ids.filter(id => relicTags(id).some(x => (c.tags || []).includes(x)) || (c.test && c.test(id))).length;
         return n ? t('clueRelN', { n }) : t('clueRelNone');
       },
     }))
@@ -1013,6 +1034,19 @@ function openPicker(kind, apply, slot) {
   const f2key = { awakener: 'role', wheel: 'rarity', creation: 'rarity' }[kind];
   const opts = (key) => key ? [...new Set(all.map(e => e[key]).filter(Boolean))].sort() : [];
   const grid = h('div', { class: 'pgrid' });
+  // 界域规则：混沌之外只能有一种界域。题目的真实队伍一定守这条，所以把违反规则的
+  // 唤醒体直接挡掉，既不会让人选进死路，也不泄露任何答案信息（规则本来就写在题面上）。
+  const otherRealms = () => sel.slots
+    .filter((s, i) => i !== slot)
+    .map(s => (s.awk != null ? (idx.awakener.get(String(s.awk)) || {}).realm : ''))
+    .filter(Boolean);
+  const usedOther = (id) => sel.slots.some((s, i) => i !== slot && s.awk != null && String(s.awk) === String(id));
+  const blockWhy = (e) => {
+    if (kind !== 'awakener') return '';
+    if (usedOther(e.id)) return t('wsRealmUsed');
+    const others = otherRealms();
+    return realmFits(others, e.realm) ? '' : t('wsRealmBlocked', { r: realmName(realmAnchor(others)) });
+  };
   const draw = () => {
     grid.replaceChildren();
     // 固有造物已经在题面给出去了，选择器里不再列出来
@@ -1021,15 +1055,17 @@ function openPicker(kind, apply, slot) {
     list.forEach(e => {
       const chosen = multi && sel.relics.includes(String(e.id));
       const full = multi && !chosen && sel.relics.length >= fillRelics().length;
-      grid.append(h('button', { type: 'button', class: `pitem${chosen ? ' chosen' : ''}${used.has(String(e.id)) ? ' used' : ''}`, disabled: full, title: e.en,
-        onclick: () => {
+      const why = blockWhy(e);
+      grid.append(h('button', { type: 'button', class: `pitem${chosen ? ' chosen' : ''}${used.has(String(e.id)) ? ' used' : ''}${why ? ' blocked' : ''}`, disabled: full || Boolean(why), title: why || e.en,
+        onclick: why ? null : () => {
           const id = String(e.id);
           if (multi) {
             sel.relics = chosen ? sel.relics.filter(x => x !== id) : [...sel.relics, id];
             persist(); draw(); count.textContent = `${sel.relics.length}/${fillRelics().length}`; return;
           }
           apply(id); persist(); dlg.close(); render();
-        } }, imgEl(e.img, nameOf(e)), h('small', {}, nameOf(e)), e.real === false ? h('em', { class: 'decoy' }, t('decoy')) : null));
+        } }, imgEl(e.img, nameOf(e)), h('small', {}, nameOf(e)),
+        why ? h('em', { class: 'decoy' }, why) : (e.real === false ? h('em', { class: 'decoy' }, t('decoy')) : null)));
     });
     if (!list.length) grid.append(h('p', { class: 'note' }, t('noMatch')));
   };
@@ -1045,6 +1081,13 @@ function openPicker(kind, apply, slot) {
       Object.entries(KW_TYPE).map(([ty, label]) => { const g = ks.filter(k => k.t === ty); return g.length ? h('optgroup', { label: lang.cur === 'en' ? KW_TYPE_EN[ty] : label }, g.map(k => h('option', { value: k.s }, lang.cur === 'en' ? k.e : k.n))) : null; }));
   };
   const count = h('span', { class: 'note' }, multi ? `${sel.relics.length}/${fillRelics().length}` : '');
+  // 唤醒体选择器上把界域规则写清楚：选了血肉，超维/深海就会灰掉
+  const realmNote = (kind === 'awakener' && slot != null)
+    ? (() => {
+      const a = realmAnchor(otherRealms());
+      return h('p', { class: 'note picknote' }, a ? t('wsRealmAnchor', { r: realmName(a) }) : t('wsRealmRule'));
+    })()
+    : null;
   dlg.replaceChildren(
     h('div', { class: 'phead' }, h('b', {}, `${kindName(kind)}`), count,
       h('input', { type: 'search', placeholder: t('searchName'), oninput: ev => { q = ev.target.value.trim().toLowerCase(); draw(); } }),
@@ -1052,6 +1095,7 @@ function openPicker(kind, apply, slot) {
       kwSelect(),
       !multi ? h('button', { class: 'btn ghost sm', onclick: () => { apply(null); persist(); dlg.close(); render(); } }, t('clear')) : null,
       h('button', { class: 'btn sm', onclick: () => { dlg.close(); render(); } }, multi ? t('done') : t('close'))),
+    realmNote,
     grid);
   draw();
   dlg.showModal();
@@ -1064,7 +1108,7 @@ function teamRules() {
     t: 'Morimens team rules (for newcomers)',
     items: [
       'Realm (阵营/界域): each Awakener belongs to one of 4 realms — Chaos, Caro (Flesh), Aequor (Deep Sea), Ultra.',
-      'Teaming: except Chaos, an Awakener can only team with its own realm plus Chaos. Chaos teams with any realm.',
+      'Teaming: except Chaos, an Awakener can only team with its own realm plus Chaos. Chaos teams with any realm. (The picker already enforces this — conflicting Awakeners cannot be picked.)',
       'A team = 4 Awakeners + 1 Keeper (you, who carries a Key Token skill).',
       'Each Awakener: 2 Wheels of Destiny (weapons) + 1 Covenant set (3/6-piece bonuses) + Command cards (Strike/Defense/Skill).',
       'Aliemus (狂气): the ultimate energy bar. When full, the Awakener unleashes Exalt (狂气爆发) — it costs Aliemus, NOT Arithmetica.',
@@ -1076,7 +1120,7 @@ function teamRules() {
     t: '忘却前夜配队规则（给圈外人）',
     items: [
       '界域（阵营）：每个唤醒体属于四大界域之一——混沌、血肉、深海、超维。',
-      '组队：除「混沌」外，唤醒体只能与「自身界域 + 混沌」组队；「混沌」可与任意界域组队。',
+      '组队：除「混沌」外，唤醒体只能与「自身界域 + 混沌」组队；「混沌」可与任意界域组队。（选卡位时已按这条过滤，会冲突的唤醒体直接选不了）',
       '一支队伍 = 4 名唤醒体 + 1 名守密人（你，携带钥令技能）。',
       '每个唤醒体：2 个命轮（武器）+ 1 套密契（3/6 件套效果）+ 指令卡（打击/防御/技能）。',
       '狂气：大招能量条，集满触发「狂气爆发」——消耗的是狂气，不是算力。',
