@@ -60,3 +60,5 @@ input,select,textarea{background:#06100f;color:var(--hi);border:1px solid var(--
 .stamp{display:inline-block;border:3px solid var(--ok);color:var(--ok);padding:0 10px;transform:rotate(-8deg);font-weight:700;letter-spacing:.2em;animation:stampin .35s}@keyframes stampin{from{transform:rotate(-8deg) scale(2.4);opacity:0}}
 @media(max-width:980px){.cols{grid-template-columns:1fr;grid-template-rows:1fr}.pane{display:none;border-right:0}.pane.show{display:block}.tabsm{display:flex;border-bottom:1px solid var(--line)}.tabsm button{flex:1;background:var(--panel);border:0;padding:8px;color:var(--dim)}.tabsm .on{color:var(--hi);box-shadow:inset 0 -2px var(--fg)}.rate{width:110px}h1{font-size:28px}}
 @media(prefers-reduced-motion:reduce){.rr.melt .nm,.rr.melt img.av{animation:none}}
+
+.rdbody .sys p.gap{height:.35em;margin:0;padding:0}.tb,.logo{white-space:nowrap}@media(max-width:980px){.logo{display:none}.top{gap:6px;padding:6px 8px}.tb{padding:3px 8px}}

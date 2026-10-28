@@ -25,7 +25,7 @@ function paras(text, id) {
   const inline = (s) => esc(s).replace(/\[b\](.*?)\[\/b\]/g, '<b>$1</b>').replace(/\[link\]([^[]+)\[\/link\]/g, '<span class="lnk" data-go="$1">$1</span>').replace(/(·?)(\d{2}|\?\?)-([A-E][1-5]|\?\?)-(\d{2}|\?\?)/g, (m) => (m.includes('??') ? `<span class="lnk" data-fill="${m.replace('·', '')}">${m}</span>` : m));
   for (const blk of text.split(/(\[sys\][\s\S]*?\[\/sys\])/)) {
     if (!blk.trim()) continue;
-    if (blk.startsWith('[sys]')) { const inner = blk.slice(5, -6).trim(); html += `<div class="sys">${inner.split('\n').map((l) => `<p>${inline(l) || '&nbsp;'}</p>`).join('')}</div>`; continue; }
+    if (blk.startsWith('[sys]')) { const inner = blk.slice(5, -6).trim(); html += `<div class="sys">${inner.split('\n').map((l) => (l.trim() ? `<p>${inline(l)}</p>` : '<p class="gap"></p>')).join('')}</div>`; continue; }
     for (const l of blk.split('\n')) { if (!l.trim()) continue; html += `<p data-i="${n}" class="${hl.has(n) ? 'hl' : ''}">${inline(l)}</p>`; n++; }
   }
   return html;

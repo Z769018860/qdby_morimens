@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ledger import E, ROSTER, NAME, ITEM, ICLASS, PLACES, ZONES, CAUSES, SHADOW, BY_V, fmt, validate, tmin
 from texts import T
-from texts_extra import X
+from texts_extra import X, FLAVOR
 from docs import DOCS, MSGS
 
 ap = argparse.ArgumentParser(); ap.add_argument('--repo', default='..'); args = ap.parse_args()
@@ -25,13 +25,15 @@ def bc_text(day, hour):
     dead = [e for e in E if e['min'] < m]; new = [e for e in E if m - 60 <= e['min'] < m]
     s = f"目前已死亡{len(dead)}人。"
     s += ("新增的死者：" + '、'.join(NAME[e['v']] for e in new) + "。") if new else "上一个小时没有新增的死者。"
-    return s
+    return "“" + s + "”"
 
 # ---------------- token rendering
 TOK = re.compile(r'\{(@?\d+|it:\d+|loc:[A-E]\d|bc:D\d-\d+|sys:[0-9A-Z-]+)\}')
 def full_prose(n):
     L = T[n].split('\n')
-    for k, txt in sorted(X.get(n, []), key=lambda a: -a[0]): L.insert(k + 1, txt)
+    ins = list(X.get(n, []))
+    if n in FLAVOR: ins.append(FLAVOR[n])
+    for k, txt in sorted(ins, key=lambda a: -a[0]): L.insert(min(k + 1, len(L)), txt)
     return '\n'.join(L)
 def render(n):
     mentions, sysrefs = [], []
