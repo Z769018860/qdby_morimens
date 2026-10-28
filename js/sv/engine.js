@@ -65,6 +65,8 @@ export const G = {
   bossEta: 999, warn: 0, warnName: '',
   // 地形：idx 变一次，渲染层就重建一次地面 pattern；fade 负责交叉淡化
   terrainIdx: 0, terrainFade: 0,
+  // 主动收兵：和「被打死」一样走 over，只是结算文案与得分口径要区别对待
+  gaveUp: false,
   world: { w: 2400, h: 2400 },  // 只在绘制里当地面参考，玩家其实不设边界
   stats: { dmg: 0, taken: 0 },
 };
@@ -123,6 +125,7 @@ export function reset(charId, diffKey) {
   G.rage = 0; G.rageT = 0; G.rageReady = false; G.rageUsed = 0;
   G.bossEta = BOSS_AT[0]; G.warn = 0; G.warnName = '';
   G.terrainIdx = terrainAt(0); G.terrainFade = 0;
+  G.gaveUp = false;
   G.stats = { dmg: 0, taken: 0, rageDmg: 0 };
   for (const k of ['enemies', 'bullets', 'fields', 'orbs', 'summons', 'pickups', 'fx', 'texts']) G[k].length = 0;
   G.weapons = []; G.passives = []; G.wheels = []; G.covs = [];
@@ -1135,6 +1138,18 @@ export function releaseRage() {
   return true;
 }
 
+// 主动收兵：暂停面板上的「放弃这局」。
+// 以前这个按钮直接调 restart()，但 restart 只清了结算层，暂停层还盖在选角层
+// 上面；此时点「继续」又因为 phase 已经不是 run/pause 而什么都不做 —— 整个页面
+// 就这么僵在那儿，玩家只能刷新。现在改成一局正常收尾：照常结算、照常给银芯，
+// 只是标题不对着「倒在了半路」写，避免主动放弃被当成阵亡。
+export function giveUp() {
+  if (G.phase !== 'run' && G.phase !== 'pause') return false;
+  G.gaveUp = true;
+  G.phase = 'over';
+  return true;
+}
+
 // ---------------------------------------------------------------- 伤害
 // src 是「这一下是谁打出来的」：武器对象、'rage'（狂气爆发）、或 null（环境伤害）。
 // 结算面板要靠它把伤害分到每一把技能上 —— 不归因的话，玩家只能看到一个总数，
@@ -1421,6 +1436,7 @@ export function summary() {
     char: G.char ? G.char.n : '',
     charImg: G.char ? G.char.img : null,
     win: G.phase === 'win',
+    gaveUp: !!G.gaveUp,
     // 每个技能的伤害明细：结算面板靠它回答「到底哪把武器在干活」。
     // 引擎只给原始数字，百分比和条形由 UI 算 —— 免得以后改算法还要动这里。
     weapons: G.weapons

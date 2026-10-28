@@ -356,6 +356,8 @@ const G = {
   bossEta: 999, warn: 0, warnName: '',
   // 地形：idx 变一次，渲染层就重建一次地面 pattern；fade 负责交叉淡化
   terrainIdx: 0, terrainFade: 0,
+  // 主动收兵：和「被打死」一样走 over，只是结算文案与得分口径要区别对待
+  gaveUp: false,
   world: { w: 2400, h: 2400 },  // 只在绘制里当地面参考，玩家其实不设边界
   stats: { dmg: 0, taken: 0 },
 };
@@ -414,6 +416,7 @@ function reset(charId, diffKey) {
   G.rage = 0; G.rageT = 0; G.rageReady = false; G.rageUsed = 0;
   G.bossEta = BOSS_AT[0]; G.warn = 0; G.warnName = '';
   G.terrainIdx = terrainAt(0); G.terrainFade = 0;
+  G.gaveUp = false;
   G.stats = { dmg: 0, taken: 0, rageDmg: 0 };
   for (const k of ['enemies', 'bullets', 'fields', 'orbs', 'summons', 'pickups', 'fx', 'texts']) G[k].length = 0;
   G.weapons = []; G.passives = []; G.wheels = []; G.covs = [];
@@ -1426,6 +1429,18 @@ function releaseRage() {
   return true;
 }
 
+// 主动收兵：暂停面板上的「放弃这局」。
+// 以前这个按钮直接调 restart()，但 restart 只清了结算层，暂停层还盖在选角层
+// 上面；此时点「继续」又因为 phase 已经不是 run/pause 而什么都不做 —— 整个页面
+// 就这么僵在那儿，玩家只能刷新。现在改成一局正常收尾：照常结算、照常给银芯，
+// 只是标题不对着「倒在了半路」写，避免主动放弃被当成阵亡。
+function giveUp() {
+  if (G.phase !== 'run' && G.phase !== 'pause') return false;
+  G.gaveUp = true;
+  G.phase = 'over';
+  return true;
+}
+
 // ---------------------------------------------------------------- 伤害
 // src 是「这一下是谁打出来的」：武器对象、'rage'（狂气爆发）、或 null（环境伤害）。
 // 结算面板要靠它把伤害分到每一把技能上 —— 不归因的话，玩家只能看到一个总数，
@@ -1712,6 +1727,7 @@ function summary() {
     char: G.char ? G.char.n : '',
     charImg: G.char ? G.char.img : null,
     win: G.phase === 'win',
+    gaveUp: !!G.gaveUp,
     // 每个技能的伤害明细：结算面板靠它回答「到底哪把武器在干活」。
     // 引擎只给原始数字，百分比和条形由 UI 算 —— 免得以后改算法还要动这里。
     weapons: G.weapons
@@ -1733,7 +1749,7 @@ function summary() {
 }
 
 function remaining() { return Math.max(0, RUN_TIME - G.t); }
-return { VIEW_H, setSeed, G, addText, reset, recompute, addWeapon, addCreation, addWheel, addCovenant, rollChoices, applyChoice, skipChoice, update, releaseRage, damageEnemy, hurtPlayer, summary, remaining };
+return { VIEW_H, setSeed, G, addText, reset, recompute, addWeapon, addCreation, addWheel, addCovenant, rollChoices, applyChoice, skipChoice, update, releaseRage, giveUp, damageEnemy, hurtPlayer, summary, remaining };
 })();
 
 // ---- js/sv/render.js
@@ -3040,10 +3056,23 @@ function showPause() {
 
 function showEnd(sm) {
   const ov = $('ovEnd');
+  // 「放弃这局」是从暂停面板点出来的，不关掉它，结算卡就和暂停卡叠在一起；
+  // 升级面板同理（极端情况下两者会同时在栈上）。
+  $('ovPause').hidden = true;
+  $('ovUp').hidden = true;
   ov.hidden = false;
-  $('endTitle').textContent = sm.win ? '撑到潮水退去' : '倒在了半路';
+  $('endTitle').textContent = sm.win ? '撑到潮水退去' : sm.gaveUp ? '主动收兵' : '倒在了半路';
   const best0 = Number(localStorage.getItem('zjtt:survivors:best') || 0);
-  const sub = sm.win ? `15 分钟打满，${sm.char} 活着走了出来` : `${sm.char} 在第 ${Math.floor(sm.t / 60)} 分 ${String(Math.floor(sm.t % 60)).padStart(2, '0')} 秒力竭`;
+  // 不足 1 分钟别写成「第 0 分 04 秒」——刚开局就放弃/阵亡时特别刺眼
+  const clock = sm.t >= 60
+    ? `${Math.floor(sm.t / 60)} 分 ${String(Math.floor(sm.t % 60)).padStart(2, '0')} 秒`
+    : `${Math.max(1, Math.floor(sm.t))} 秒`;
+  // 主动收兵不是阵亡：文案要写清楚「战果照常算」，否则玩家会以为这一局白打了
+  const sub = sm.win
+    ? `15 分钟打满，${sm.char} 活着走了出来`
+    : sm.gaveUp
+      ? `${sm.char} 在第 ${clock}时主动收兵，战果照常结算`
+      : `${sm.char} 在第 ${clock}时力竭`;
   $('endSub').textContent = sm.score > best0 ? `${sub} · 新纪录` : sub;
   const cred = creditsAt(sm.score);
   const nxt = nextTier(sm.score);
@@ -3054,8 +3083,14 @@ function showEnd(sm) {
     <div class="es"><b>${sm.kills}</b><span>击杀</span></div>
     <div class="es"><b>${sm.lv}</b><span>等级</span></div>
     <div class="es"><b>${sm.bossKills}</b><span>强敌</span></div>
-    <div class="es"><b>+${cred}</b><span>银芯</span></div>`;
-  $('endTier').textContent = nxt ? `再拿 ${(nxt[0] - sm.score).toLocaleString()} 分可换 ${nxt[1]} 银芯` : '已达最高档';
+    <div class="es"><b>${cred > 0 ? '+' + cred : '—'}</b><span>银芯</span></div>`;
+  // 得 0 银芯时别只写「+0」——那句话看不出是「打得太少」还是「奖励没发」。
+  // 已入账的一次性说清楚，没够档的直接告诉还差多少。
+  $('endTier').textContent = cred > 0
+    ? `${cred} 银芯已存入账户${nxt ? ` · 再拿 ${(nxt[0] - sm.score).toLocaleString()} 分可换 ${nxt[1]} 银芯` : ' · 已达最高档'}`
+    : nxt
+      ? `本局还差 ${(nxt[0] - sm.score).toLocaleString()} 分够到 ${nxt[1]} 银芯（最低档 ${nxt[0].toLocaleString()} 分）`
+      : '已达最高档';
   renderDmgBreakdown(sm);
   if (cred > 0) grantCredits(cred);
 }
@@ -3111,7 +3146,7 @@ return { ui, atlasStyle, showPick, buildHUD, openInfo, closeInfo, updateHUD, sho
 
 // ---- js/survivors.js
 const m_survivors = await (async () => {
-const { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage } = m_engine;
+const { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage, giveUp } = m_engine;
 const { init, resize, draw } = m_render;
 const { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo } = m_ui;
 const { DIFFS } = m_defs;
@@ -3283,6 +3318,8 @@ function startGame() {
   closeInfo();
   document.getElementById('ovPick').hidden = true;
   document.getElementById('ovEnd').hidden = true;
+  document.getElementById('ovPause').hidden = true;
+  document.getElementById('ovUp').hidden = true;
   document.getElementById('hud').hidden = false;
   document.getElementById('stick').style.opacity = '0';
   ended = false;
@@ -3295,9 +3332,17 @@ function startGame() {
 }
 
 function restart() {
-  document.getElementById('ovEnd').hidden = true;
+  // 所有弹层都要收干净：以前这里只关了结算层，一旦是从暂停面板出来的，
+  // 暂停层就留在选角层上面，点「继续」又因为 phase 已经不是 run/pause 而无反应 ——
+  // 玩家看到的是一张点不动的界面，只能刷新。
+  for (const id of ['ovEnd', 'ovPause', 'ovUp', 'ovInfo', 'ovPick']) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = true;
+  }
   document.getElementById('hud').hidden = true;
   closeInfo();
+  ended = false;
+  upShown = false;
   G.phase = 'idle';
   showPick();
 }
@@ -3319,7 +3364,9 @@ async function boot() {
   document.getElementById('btnAgain').onclick = restart;
   document.getElementById('btnMenu').onclick = restart;
   document.getElementById('btnResume').onclick = () => togglePause(false);
-  document.getElementById('btnQuit').onclick = restart;
+  // 放弃 = 立刻按当前战果结算（结算面板里给银芯）。以前这里直接 restart()，
+  // 等于把打了一半的成绩静默丢掉，玩家还以为卡住了。
+  document.getElementById('btnQuit').onclick = giveUp;
   // 狂气按钮走 ui 的回调：buildHUD 只在启动时建一次，不能直接绑死
   ui.onRage = releaseRage;
   document.getElementById('hud').hidden = true;

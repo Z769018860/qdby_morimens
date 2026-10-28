@@ -4,7 +4,7 @@
 // 跑得更快，掉帧时也不会瞬移穿过敌人 —— 每帧最多补 6 步，防止切标签页回来
 // 一次补上千步直接把自己补死。
 
-import { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage } from './sv/engine.js';
+import { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage, giveUp } from './sv/engine.js';
 import { init, resize, draw } from './sv/render.js';
 import { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo } from './sv/ui.js';
 import { DIFFS } from './sv/defs.js';
@@ -166,6 +166,8 @@ function startGame() {
   closeInfo();
   document.getElementById('ovPick').hidden = true;
   document.getElementById('ovEnd').hidden = true;
+  document.getElementById('ovPause').hidden = true;
+  document.getElementById('ovUp').hidden = true;
   document.getElementById('hud').hidden = false;
   document.getElementById('stick').style.opacity = '0';
   ended = false;
@@ -178,9 +180,17 @@ function startGame() {
 }
 
 function restart() {
-  document.getElementById('ovEnd').hidden = true;
+  // 所有弹层都要收干净：以前这里只关了结算层，一旦是从暂停面板出来的，
+  // 暂停层就留在选角层上面，点「继续」又因为 phase 已经不是 run/pause 而无反应 ——
+  // 玩家看到的是一张点不动的界面，只能刷新。
+  for (const id of ['ovEnd', 'ovPause', 'ovUp', 'ovInfo', 'ovPick']) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = true;
+  }
   document.getElementById('hud').hidden = true;
   closeInfo();
+  ended = false;
+  upShown = false;
   G.phase = 'idle';
   showPick();
 }
@@ -202,7 +212,9 @@ async function boot() {
   document.getElementById('btnAgain').onclick = restart;
   document.getElementById('btnMenu').onclick = restart;
   document.getElementById('btnResume').onclick = () => togglePause(false);
-  document.getElementById('btnQuit').onclick = restart;
+  // 放弃 = 立刻按当前战果结算（结算面板里给银芯）。以前这里直接 restart()，
+  // 等于把打了一半的成绩静默丢掉，玩家还以为卡住了。
+  document.getElementById('btnQuit').onclick = giveUp;
   // 狂气按钮走 ui 的回调：buildHUD 只在启动时建一次，不能直接绑死
   ui.onRage = releaseRage;
   document.getElementById('hud').hidden = true;

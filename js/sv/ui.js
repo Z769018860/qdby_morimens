@@ -431,10 +431,23 @@ function showPause() {
 
 export function showEnd(sm) {
   const ov = $('ovEnd');
+  // 「放弃这局」是从暂停面板点出来的，不关掉它，结算卡就和暂停卡叠在一起；
+  // 升级面板同理（极端情况下两者会同时在栈上）。
+  $('ovPause').hidden = true;
+  $('ovUp').hidden = true;
   ov.hidden = false;
-  $('endTitle').textContent = sm.win ? '撑到潮水退去' : '倒在了半路';
+  $('endTitle').textContent = sm.win ? '撑到潮水退去' : sm.gaveUp ? '主动收兵' : '倒在了半路';
   const best0 = Number(localStorage.getItem('zjtt:survivors:best') || 0);
-  const sub = sm.win ? `15 分钟打满，${sm.char} 活着走了出来` : `${sm.char} 在第 ${Math.floor(sm.t / 60)} 分 ${String(Math.floor(sm.t % 60)).padStart(2, '0')} 秒力竭`;
+  // 不足 1 分钟别写成「第 0 分 04 秒」——刚开局就放弃/阵亡时特别刺眼
+  const clock = sm.t >= 60
+    ? `${Math.floor(sm.t / 60)} 分 ${String(Math.floor(sm.t % 60)).padStart(2, '0')} 秒`
+    : `${Math.max(1, Math.floor(sm.t))} 秒`;
+  // 主动收兵不是阵亡：文案要写清楚「战果照常算」，否则玩家会以为这一局白打了
+  const sub = sm.win
+    ? `15 分钟打满，${sm.char} 活着走了出来`
+    : sm.gaveUp
+      ? `${sm.char} 在第 ${clock}时主动收兵，战果照常结算`
+      : `${sm.char} 在第 ${clock}时力竭`;
   $('endSub').textContent = sm.score > best0 ? `${sub} · 新纪录` : sub;
   const cred = creditsAt(sm.score);
   const nxt = nextTier(sm.score);
@@ -445,8 +458,14 @@ export function showEnd(sm) {
     <div class="es"><b>${sm.kills}</b><span>击杀</span></div>
     <div class="es"><b>${sm.lv}</b><span>等级</span></div>
     <div class="es"><b>${sm.bossKills}</b><span>强敌</span></div>
-    <div class="es"><b>+${cred}</b><span>银芯</span></div>`;
-  $('endTier').textContent = nxt ? `再拿 ${(nxt[0] - sm.score).toLocaleString()} 分可换 ${nxt[1]} 银芯` : '已达最高档';
+    <div class="es"><b>${cred > 0 ? '+' + cred : '—'}</b><span>银芯</span></div>`;
+  // 得 0 银芯时别只写「+0」——那句话看不出是「打得太少」还是「奖励没发」。
+  // 已入账的一次性说清楚，没够档的直接告诉还差多少。
+  $('endTier').textContent = cred > 0
+    ? `${cred} 银芯已存入账户${nxt ? ` · 再拿 ${(nxt[0] - sm.score).toLocaleString()} 分可换 ${nxt[1]} 银芯` : ' · 已达最高档'}`
+    : nxt
+      ? `本局还差 ${(nxt[0] - sm.score).toLocaleString()} 分够到 ${nxt[1]} 银芯（最低档 ${nxt[0].toLocaleString()} 分）`
+      : '已达最高档';
   renderDmgBreakdown(sm);
   if (cred > 0) grantCredits(cred);
 }
