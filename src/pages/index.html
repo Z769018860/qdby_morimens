@@ -111,6 +111,7 @@ dialog.auth::backdrop{background:rgba(6,9,14,.62)}
 .authbox input:focus{outline:none; border-color:var(--accent)}
 .tip{margin:0; min-height:17px; font-size:12px; line-height:1.45; color:var(--gold)}
 .tip.bad{color:#e8695f}
+.authrule{margin:0; font-size:11.5px; line-height:1.5; color:var(--dim)}
 .authacts{display:flex; gap:8px; margin-top:2px}
 .authacts .btn{flex:1}
 .authnote{margin:0; font-size:11.5px; color:var(--dim); line-height:1.55}
@@ -362,8 +363,28 @@ a.proj:hover .arrow{transform:translateX(3px)}
   }
 
   // ------------------------------------------------------------ 账号接口
+  // 归一化规则必须跟 js/auth.js 的 normalizeName() 一模一样：
+  // 全角→半角、去掉零宽/控制字符、裁空白。否则「Ａlice」「alice<零宽>」
+  // 会各自注册成一个号，界面上却是同一个名字（题库署名、赠礼都会串）。
+  function normalizeName(raw) {
+    var s = String(raw == null ? '' : raw);
+    if (s.normalize) s = s.normalize('NFKC');
+    return s.replace(/[\u00AD\u200B-\u200F\u2028\u2029\u2060\uFEFF]/g, '')
+      .replace(/[\u0000-\u001F\u007F]/g, '')
+      .trim();
+  }
+  var NAME_RE = /^[\p{L}\p{N}_\-·]+$/u;
+
+  function checkName(raw) {
+    var s = normalizeName(raw);
+    if (s.length < 2) return '用户名至少 2 个字符';
+    if (s.length > 20) return '用户名最多 20 个字符';
+    if (!NAME_RE.test(s)) return '用户名只能用中文、字母、数字和 _ - ·（不要空格和标点）';
+    return '';
+  }
+
   function enc(name) {
-    var s = String(name || '').trim();
+    var s = normalizeName(name);
     return s.indexOf('@') >= 0 ? s : (s.toLowerCase() + '@' + DOMAIN);
   }
   function wapi(path, opt) {
@@ -377,11 +398,22 @@ a.proj:hover .arrow{transform:translateX(3px)}
       body: opt.body ? JSON.stringify(opt.body) : undefined
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
-        if (j && j.errno) throw new Error(j.errmsg || ('errno ' + j.errno));
+        if (j && j.errno) {
+          // errno 1000 既可能是「没这个号」也可能是「密码错」，能用的只有 errmsg：
+          // 同名注册固定回 USER_EXIST。把原始码挂上，别靠猜文案。
+          var err = new Error(j.errmsg || ('errno ' + j.errno));
+          err.errno = Number(j.errno);
+          err.code = String(j.errmsg || '');
+          throw err;
+        }
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return j.data;
       });
     });
+  }
+  // 服务端判重的唯一可靠信号
+  function isNameTaken(e) {
+    return Boolean(e) && (e.code === 'USER_EXIST' || /USER_EXIST/i.test(String(e.message || '')));
   }
   // 与 js/auth.js 的 persist() 字段一一对应：换页面才认得出是同一个人
   function persist(u) {
@@ -408,25 +440,38 @@ a.proj:hover .arrow{transform:translateX(3px)}
 
   function login(name, pass) {
     return wapi('/api/token', { method: 'POST', auth: false, body: { email: enc(name), password: pass } })
+      .catch(function (e) {
+        // 没这个号和密码不对在服务端是同一个错误码，只能给一句合并提示
+        if (e && e.errno === 1000 && !e.code) throw new Error('badAuth');
+        throw e;
+      })
       .then(function (u) { return afterLogin(u); });
   }
 
   function register(name, pass) {
-    var mail = enc(name);
-    return wapi('/api/user', { method: 'POST', auth: false, body: { email: mail, password: pass, name: name, url: '' } })
+    // 用归一化后的名字注册和判重，重名（含大小写/全角差异）才会被服务端挡住
+    var clean = normalizeName(name);
+    var mail = enc(clean);
+    return wapi('/api/user', { method: 'POST', auth: false, body: { email: mail, password: pass, name: clean, url: '' } })
+      .catch(function (e) {
+        // 归一化后撞到别人的邮箱 → 服务端回 USER_EXIST，这一步没有任何写入，
+        // 所以不会出现「两个人共用一份存档」的情况
+        if (isNameTaken(e)) throw new Error('nameTaken');
+        throw e;
+      })
       .then(function () { return wapi('/api/token', { method: 'POST', auth: false, body: { email: mail, password: pass } }); })
       .then(function (u) {
-        var clean = afterLogin(u);
+        var got = afterLogin(u);
         // 昵称偶尔没写进去（display_name 还是邮箱前缀），补一次
-        if (!clean.name || clean.name === mail.replace(new RegExp('@' + DOMAIN + '$', 'i'), '')) {
-          return wapi('/api/user', { method: 'PUT', body: { display_name: String(name).trim() } })
+        if (!got.name || got.name === mail.replace(new RegExp('@' + DOMAIN + '$', 'i'), '')) {
+          return wapi('/api/user', { method: 'PUT', body: { display_name: clean } })
             .then(function (p) {
-              if (p && p.display_name) clean = persist(Object.assign({}, u, { display_name: p.display_name }));
-              return clean;
+              if (p && p.display_name) got = persist(Object.assign({}, u, { display_name: p.display_name }));
+              return got;
             })
-            .catch(function () { return clean; });
+            .catch(function () { return got; });
         }
-        return clean;
+        return got;
       });
   }
 
@@ -558,6 +603,7 @@ a.proj:hover .arrow{transform:translateX(3px)}
     tabLogin.type = 'button'; tabReg.type = 'button';
 
     var title = el('h3', '', '登录后进度跟着账号走');
+    var ruleEl = el('p', 'authrule', '用户名唯一（不区分大小写，全角会自动转半角），2–20 个字，只能用中文、字母、数字和 _ - ·');
     var tip = el('p', 'tip', '');
     var btn = el('button', 'btn primary');
     btn.type = 'button';
@@ -571,7 +617,7 @@ a.proj:hover .arrow{transform:translateX(3px)}
     var tabs = el('div', 'tabs');
     tabs.append(tabLogin, tabReg);
     box.append(tabs, title);
-    box.append(uEl, pEl, p2El, tip, acts);
+    box.append(uEl, pEl, p2El, ruleEl, tip, acts);
     box.append(el('p', 'authnote', '同一个账号在全部项目里通用；忘记密码只能重新注册一个。'));
 
     var dlg = el('dialog', 'auth');
@@ -582,6 +628,8 @@ a.proj:hover .arrow{transform:translateX(3px)}
       tabLogin.classList.toggle('on', m === 'login');
       tabReg.classList.toggle('on', m === 'register');
       p2El.hidden = m !== 'register';
+      ruleEl.hidden = m !== 'register';
+      ruleEl.style.display = m === 'register' ? '' : 'none';
       title.textContent = m === 'login' ? '登录后进度跟着账号走' : '注册一个账号';
       btn.textContent = m === 'login' ? '登录' : '注册并登录';
       pEl.autocomplete = m === 'login' ? 'current-password' : 'new-password';
@@ -602,11 +650,15 @@ a.proj:hover .arrow{transform:translateX(3px)}
     }
 
     btn.onclick = function () {
-      var name = uEl.value.trim();
+      // 一律按归一化后的名字提交，并把结果显示回输入框：
+      // 「Ａlice」会被改成 alice，用户才知道自己注册的到底是哪个名字
+      var name = normalizeName(uEl.value);
+      if (name !== uEl.value) uEl.value = name;
       var pass = pEl.value;
-      if (name.length < 2) { say('用户名至少 2 个字符', true); return; }
-      if (name.length > 20) { say('用户名最多 20 个字符', true); return; }
-      if (/[\s@]/.test(name)) { say('用户名不能包含空格或 @', true); return; }
+      if (mode === 'register') {
+        var bad = checkName(name);
+        if (bad) { say(bad, true); return; }
+      } else if (name.length < 2) { say('用户名至少 2 个字符', true); return; }
       if (pass.length < 6) { say('密码至少 6 位', true); return; }
       if (mode === 'register' && pass !== p2El.value) { say('两次密码不一致', true); return; }
 
@@ -624,10 +676,22 @@ a.proj:hover .arrow{transform:translateX(3px)}
         pullForShow().then(function () { render(); });
       }).catch(function (e) {
         var msg = String((e && e.message) || '');
-        if (/already|exist|重复/i.test(msg)) say('这个用户名已被注册，换一个或直接登录', true);
-        else if (/password|密码/i.test(msg)) say('用户名或密码不对', true);
-        else if (/Failed to fetch|NetworkError|offline/i.test(msg)) say('连不上账号服务器，检查网络后重试', true);
-        else say('失败：' + (msg || '未知错误'), true);
+        if (msg === 'nameTaken' || isNameTaken(e)) {
+          say('用户名「' + name + '」已经有人用了，换一个，或者切到「登录」', true);
+          // 重名时别让用户一直换名字硬试：切到登录并把名字填好
+          setTimeout(function () {
+            if (!dlg.isConnected) return;
+            setMode('login');
+            uEl.value = name;
+            pEl.focus();
+          }, 900);
+        } else if (msg === 'badAuth' || /password|密码/i.test(msg)) {
+          say('用户名或密码不对；没注册过就先切到「注册」', true);
+        } else if (/Failed to fetch|NetworkError|offline/i.test(msg)) {
+          say('连不上账号服务器，检查网络后重试', true);
+        } else {
+          say('失败：' + (msg || '未知错误'), true);
+        }
       }).then(function () {
         btn.disabled = false;
         cancel.disabled = false;

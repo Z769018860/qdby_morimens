@@ -1099,7 +1099,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
 @keyframes bootspin { to { transform: rotate(360deg); } }
 </style>
 
-<meta name="build" content="456403594a">
+<meta name="build" content="2d834a46d0">
 </head>
 <body>
 <main id="app" class="wrap">
@@ -1142,6 +1142,8 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
 <ul>
 <li><b>只有两种状态</b>：<b>游客</b>（不登录，进度读本机 <code>localStorage</code>）和<b>账号</b>（登录后进度跟账号走）。没有「本地昵称」这类中间态——想留名字就注册，不想注册就用游客。</li>
 <li><b>注册 / 登录</b>：首页（「忘忘同人小游戏」入口）右上角、游戏内右上角头像，或「个人中心」页面，三种入口都行——账号只有一个，在首页登录完，进任何项目都已经是登录状态。用户名 2–20 个字符（中文可以），密码至少 6 位；用户名在后台会映射成 <code>用户名@zjtt.local</code> 的邮箱形式，所以不需要你填邮箱。</li>
+<li><b>用户名唯一、不能重名</b>：注册时若这个名字已被占用，服务端会直接拒绝（<code>USER_EXIST</code>），不会建号、也不会动到别人的存档，界面会提示「已经有人用了」并把你带到「登录」。判重前会先<b>归一化</b>：全角转半角、去掉零宽字符、忽略大小写，所以「Ａlice」「alice 」「alice<wbr>」算同一个名字，不会出现两个看起来一样的账号。字符只允许中文、字母、数字和 <code>_ - ·</code>。</li>
+<li><b>昵称和登录名是两件事</b>：昵称（个人中心可改）只影响显示，可以和人重复，不参与任何存档的键；账号档案按登录身份区分，工坊题目按用户 id 归属，所以重名不会串数据。站内赠礼（<code>data/grants.json</code>）按<b>登录名</b>匹配，改名不会影响领取。</li>
 <li><b>个人中心 = 账号数据中枢</b>：昵称与头像、<b>偏好唤醒体</b>、<b>推理记录</b>、<b>工坊战报</b>、<b>典藏进度</b>、银芯与失败题库，全都在这一页，也全都会随账号同步。右上角有「上次同步」时间和「立即同步」按钮。</li>
 <li><b>每一局都落库</b>：每日一题、随机一题、自建题、工坊导入的回放，结算后都会写一条记录（时间、题目、模式、档位、胜负、评级、分数、回放链接），同一道题只计一次；最多保留最近 300 条。</li>
 <li><b>偏好唤醒体</b>：在个人中心选好之后会存进账号，作为你自己的喜好收藏。<b>不会</b>用来筛题——那样难度会掉得太多，所以推理页不提供这个开关。</li>
@@ -1330,7 +1332,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
 
 </main>
 <footer class="foot">同人作品，与官方无关。</footer>
-<script type="module" src="js/b/about.js?v=456403594a"></script>
+<script type="module" src="js/b/about.js?v=2d834a46d0"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

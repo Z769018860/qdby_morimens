@@ -124,7 +124,12 @@ function editBox(u) {
       toast(t('pfSaved'));
       render();
     } catch (e) {
-      toast(`${t('pfSaveFail')}：${e.message}`);
+      // auth.update 会按注册同一套规则校验昵称（长度 / 字符 / 归一化）
+      const why = {
+        tooShort: '昵称至少 2 个字', tooLong: '昵称最多 20 个字',
+        badChar: '昵称只能用中文、字母、数字和 _ - ·（不要空格和标点）',
+      };
+      toast(`${t('pfSaveFail')}：${why[e.message] || e.message}`);
     } finally {
       saveBtn.disabled = false;
     }
@@ -135,7 +140,7 @@ function editBox(u) {
     h('div', { class: 'pfeditrow' },
       preview,
       h('div', { class: 'pfeditflds' },
-        h('label', { class: 'fld' }, h('small', {}, t('pfNick')), nameEl),
+        h('label', { class: 'fld' }, h('small', {}, `${t('pfNick')}（${t('pfNickNote')}）`), nameEl),
         h('label', { class: 'fld' }, h('small', {}, t('pfAvatarUrl')), urlEl))),
     h('div', { class: 'avpick' },
       h('div', { class: 'avpickhead' }, h('b', {}, t('pfAvatarPick')), count),

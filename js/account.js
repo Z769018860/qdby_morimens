@@ -7,7 +7,7 @@
 //  · 老用户的数据还留在 Waline 的评论里，第一次连上新后端时会自动搬过来（只搬一次）。
 //  · 后端不可用时退回 Waline 老路径读写，功能不至于整块消失。
 import { store, wallet, failedBank, unlocked, STAT0, toast, t } from './common.js';
-import { auth, wApi } from './auth.js';
+import { auth, wApi, nameOfMail } from './auth.js';
 import { api } from './api.js';
 
 const MAGIC = 'ZJ1D:';
@@ -301,7 +301,10 @@ async function grants() {
 async function claimGrants() {
   if (!auth.logged) return 0;
   const list = await grants();
-  const me = String((auth.user && auth.user.name) || '').trim().toLowerCase();
+  // 按「登录名」匹配，不按昵称：昵称谁都能改，也可能和别人重名，
+  // 用它当钥匙会漏领（改名后领不到）或者误领（同名的人各领一份）。
+  const u = auth.user || {};
+  const me = String(nameOfMail(u.mail || '') || u.name || '').trim().toLowerCase();
   if (!me) return 0;
   const mine = list.filter((g) => g && g.id && String(g.user || '').trim().toLowerCase() === me);
   if (!mine.length) return 0;

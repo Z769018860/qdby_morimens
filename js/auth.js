@@ -6,8 +6,24 @@ const SERVER = 'https://textbox.qingdengbuyi.top';
 const DOMAIN = 'zjtt.local';
 const KEY = { token: 'authToken', user: 'authUser' };
 
+// 用户名归一化：全角→半角（NFKC）、去掉零宽 / 控制字符、裁掉首尾空白。
+// 不做这一步会漏出「看起来重名、实际是两个账号」的口子：
+//   「Ａlice」「Alice」「Alice<零宽>」「 Alice 」在界面上完全一样，
+//   但邮箱分别是 ａlice@zjtt.local / alice@zjtt.local / alice<零宽>@zjtt.local …，
+//   服务端的唯一约束管不到它们，于是题库署名、赠礼、排行榜会出现两个同名的人。
+// 归一化之后它们都落成 alice@zjtt.local，重名才会被服务端以 USER_EXIST 拦住。
+export const normalizeName = (raw) => String(raw == null ? '' : raw)
+  .normalize('NFKC')
+  .replace(/[\u00AD\u200B-\u200F\u2028\u2029\u2060\uFEFF]/g, '')
+  .replace(/[\u0000-\u001F\u007F]/g, '')
+  .trim();
+
+// 允许的字符：任何语言的字母、数字，加下划线 / 连字符 / 间隔号。
+// 不收空格和标点：空格进邮箱会被 Waline 判非法，标点则是各种仿冒重名的主要来源。
+const NAME_RE = /^[\p{L}\p{N}_\-·]+$/u;
+
 const enc = (name) => {
-  const s = String(name || '').trim();
+  const s = normalizeName(name);
   return s.includes('@') ? s : `${s.toLowerCase()}@${DOMAIN}`;
 };
 export const nameOfMail = (mail) => String(mail || '').replace(new RegExp(`@${DOMAIN}$`, 'i'), '');
@@ -22,10 +38,23 @@ async function api(path, { method = 'GET', body, auth = true } = {}) {
   });
   let json = {};
   try { json = await res.json(); } catch { /* 非 JSON 响应 */ }
-  if (json && json.errno) throw new Error(json.errmsg || `errno ${json.errno}`);
+  if (json && json.errno) {
+    // Waline 的错误码不区分场景（errno 1000 既可能是「没这个号」也可能是「密码错」），
+    // 能用的只有 errmsg：同名注册固定回 USER_EXIST。把原始码挂到 error 上，别靠猜文案。
+    const err = new Error(json.errmsg || `errno ${json.errno}`);
+    err.errno = Number(json.errno);
+    err.code = String(json.errmsg || '');
+    throw err;
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return json.data;
 }
+
+// 服务端判重的唯一可靠信号
+const isNameTaken = (e) => Boolean(e) && (
+  e.code === 'USER_EXIST' || /USER_EXIST/i.test(String(e.message || ''))
+);
+
 
 // 给 js/account.js 复用：同一套 token 与错误处理
 export const wApi = api;
@@ -54,25 +83,34 @@ export const auth = {
   get logged() { return !!store.get(KEY.token, ''); },
 
   checkName(name) {
-    const s = String(name || '').trim();
+    const s = normalizeName(name);
     if (s.length < 2) return 'tooShort';
     if (s.length > 20) return 'tooLong';
-    if (/[\s@]/.test(s)) return 'badChar';
+    if (!NAME_RE.test(s)) return 'badChar';
     return '';
   },
 
   async register(name, pass) {
-    const bad = this.checkName(name);
+    // 一律用归一化后的名字注册与判重，免得「Ａlice」「 alice<零宽> 」各占一个号
+    const clean = normalizeName(name);
+    const bad = this.checkName(clean);
     if (bad) throw new Error(bad);
     if (String(pass || '').length < 6) throw new Error('shortPass');
-    const mail = enc(name);
-    await api('/api/user', { method: 'POST', auth: false, body: { email: mail, password: pass, name, url: '' } });
+    const mail = enc(clean);
+    try {
+      await api('/api/user', { method: 'POST', auth: false, body: { email: mail, password: pass, name: clean, url: '' } });
+    } catch (e) {
+      // 同名（归一化后落在同一个邮箱）由服务端唯一约束挡住，这里翻译成「已被占用」。
+      // 注意：这一步失败时服务端没有写入任何东西，所以不会出现「两个人共用一份存档」。
+      if (isNameTaken(e)) throw new Error('nameTaken');
+      throw e;
+    }
     const user = await api('/api/token', { method: 'POST', auth: false, body: { email: mail, password: pass } });
-    const clean = persist(user);
-    document.dispatchEvent(new CustomEvent('zjtt:login', { detail: clean }));
-    if (!clean.name || clean.name === nameOfMail(mail)) {
+    const out = persist(user);
+    document.dispatchEvent(new CustomEvent('zjtt:login', { detail: out }));
+    if (!out.name || out.name === nameOfMail(mail)) {
       try {
-        const patched = await api('/api/user', { method: 'PUT', body: { display_name: String(name).trim() } });
+        const patched = await api('/api/user', { method: 'PUT', body: { display_name: clean } });
         if (patched && patched.display_name) persist({ ...user, display_name: patched.display_name });
       } catch { /* 昵称补写失败不影响登录 */ }
     }
@@ -80,7 +118,14 @@ export const auth = {
   },
 
   async login(name, pass) {
-    const user = await api('/api/token', { method: 'POST', auth: false, body: { email: enc(name), password: pass } });
+    let user;
+    try {
+      user = await api('/api/token', { method: 'POST', auth: false, body: { email: enc(name), password: pass } });
+    } catch (e) {
+      // 没这个号和密码不对在服务端是同一个错误码，只能给一句合并提示
+      if (e && e.errno === 1000 && !e.code) throw new Error('badAuth');
+      throw e;
+    }
     const clean = persist(user);
     document.dispatchEvent(new CustomEvent('zjtt:login', { detail: clean }));
     return clean;
@@ -102,7 +147,19 @@ export const auth = {
   async update(patch) {
     if (!this.logged) throw new Error('needLogin');
     const body = {};
-    if (patch.name != null) body.display_name = String(patch.name).trim().slice(0, 20);
+    if (patch.name != null) {
+      // 昵称也走同一套归一化与字符规则：它会作为作者名快照写进工坊题目里，
+      // 混进零宽字符或全角仿冒字，别人看到的作者名就跟你一模一样了。
+      // 例外：名字没改动就放行——早年注册的名字可能不满足新规则，
+      // 不能因为改个头像就卡住老用户。
+      const n = normalizeName(patch.name);
+      const cur = normalizeName(this.user && this.user.name);
+      if (n !== cur) {
+        const bad = this.checkName(n);
+        if (bad) throw new Error(bad);
+      }
+      body.display_name = n.slice(0, 20);
+    }
     if (patch.avatar != null) body.avatar = String(patch.avatar).slice(0, 250);
     if (patch.url != null) body.url = String(patch.url).slice(0, 250);
     await api('/api/user', { method: 'PUT', body });
@@ -141,6 +198,7 @@ export function openLogin(onDone) {
   const passEl = h('input', { type: 'password', placeholder: '密码（至少 6 位）', autocomplete: 'current-password' });
   const pass2El = h('input', { type: 'password', placeholder: '确认密码', autocomplete: 'new-password' });
   const tip = h('p', { class: 'note' }, '');
+  const rule = h('p', { class: 'note hide' }, '用户名唯一（不区分大小写，全角会自动转半角），2–20 个字，只能用中文、字母、数字和 _ - ·');
   const btn = h('button', { type: 'button', class: 'btn' }, '登录');
   const tabLogin = h('button', { type: 'button', class: 'link on' }, '登录');
   const tabReg = h('button', { type: 'button', class: 'link' }, '注册');
@@ -151,6 +209,7 @@ export function openLogin(onDone) {
       h('label', { class: 'fld' }, userEl),
       h('label', { class: 'fld' }, passEl),
       h('label', { class: 'fld hide', id: 'auth-p2' }, pass2El),
+      rule,
       tip,
       h('div', { class: 'actions' },
         btn,
@@ -162,6 +221,7 @@ export function openLogin(onDone) {
     tabReg.classList.toggle('on', m === 'register');
     h; // keep tree stable
     dlg.querySelector('#auth-p2').classList.toggle('hide', m !== 'register');
+    rule.classList.toggle('hide', m !== 'register');
     btn.textContent = m === 'login' ? '登录' : '注册并登录';
     passEl.setAttribute('autocomplete', m === 'login' ? 'current-password' : 'new-password');
     tip.textContent = '';
@@ -170,8 +230,11 @@ export function openLogin(onDone) {
   tabReg.onclick = () => setMode('register');
 
   btn.onclick = async () => {
-    const name = userEl.value.trim();
+    // 一律按归一化后的名字提交（全角自动转半角、不可见字符去掉），
+    // 并把结果显示回输入框，让用户看清自己到底注册了哪个名字
+    const name = normalizeName(userEl.value);
     const pass = passEl.value;
+    if (name !== userEl.value) userEl.value = name;
     if (mode === 'register' && pass !== pass2El.value) { tip.textContent = '两次密码不一致'; return; }
     btn.disabled = true;
     tip.textContent = '处理中…';
@@ -186,11 +249,20 @@ export function openLogin(onDone) {
     } catch (e) {
       const map = {
         tooShort: '用户名至少 2 个字符', tooLong: '用户名最多 20 个字符',
-        badChar: '用户名不能包含空格或 @', shortPass: '密码至少 6 位',
+        badChar: '用户名只能用中文、字母、数字和 _ - ·（不要空格和标点）',
+        shortPass: '密码至少 6 位',
         needLogin: '请先登录',
+        badAuth: '用户名或密码不对；没注册过就先切到「注册」',
+        nameTaken: `用户名「${name}」已经有人用了，换一个，或者切到「登录」`,
       };
       const msg = String(e.message || '');
-      tip.textContent = map[msg] || (/already|exist|重复/i.test(msg) ? '这个用户名已被注册' : `失败：${msg}`);
+      tip.textContent = map[msg] || (/USER_EXIST|already|exist|重复/i.test(msg)
+        ? `用户名「${name}」已经有人用了，换一个，或者切到「登录」`
+        : `失败：${msg}`);
+      // 重名时不留在注册 tab（用户会一直试点）：直接切到登录并把名字填好
+      if (msg === 'nameTaken' || /USER_EXIST/i.test(msg)) {
+        setTimeout(() => { setMode('login'); userEl.value = name; passEl.focus(); }, 900);
+      }
     } finally {
       btn.disabled = false;
     }

@@ -11,7 +11,7 @@
 // 预缓存不放在 install 里：那会让「装上」这个动作被 400KB 的下载拖住，
 // 期间页面还不受控。这里改成 activate 之后在后台慢慢填——当前页先受控，
 // 等它填完，之后切页就都是本地读取了。
-const VERSION = '456403594a';
+const VERSION = '2d834a46d0';
 const CACHE = 'zjtt-' + VERSION;
 const PRECACHE = [
   "index.html",
@@ -21,12 +21,12 @@ const PRECACHE = [
   "gallery.html",
   "profile.html",
   "workshop.html",
-  "js/b/about.js?v=456403594a",
-  "js/b/codex.js?v=456403594a",
-  "js/b/detective.js?v=456403594a",
-  "js/b/gallery.js?v=456403594a",
-  "js/b/profile.js?v=456403594a",
-  "js/b/workshop.js?v=456403594a",
+  "js/b/about.js?v=2d834a46d0",
+  "js/b/codex.js?v=2d834a46d0",
+  "js/b/detective.js?v=2d834a46d0",
+  "js/b/gallery.js?v=2d834a46d0",
+  "js/b/profile.js?v=2d834a46d0",
+  "js/b/workshop.js?v=2d834a46d0",
   "data/boot.json"
 ];
 
