@@ -1137,6 +1137,7 @@ function playScene(id, onDone) {
   G.mode = 'story';
   G.paused = false;
   hideOverlays();            // 开局时标题页还盖在上面，不清掉的话剧情在下面演
+  document.body.classList.add('storymode');
   $('dlg').classList.add('on');
   $('dlg').className = 'dlg on k-' + (scene.lines[0].k || 'narr');
   $('stage').classList.add('storying');
@@ -1178,6 +1179,7 @@ function endStory() {
   G.story = null;
   $('dlg').classList.remove('on');
   $('stage').classList.remove('storying');
+  document.body.classList.remove('storymode');
   Audio2.duck(false);
   const done = st && st.onDone;
   if (G.run && !G.run.dead) {
@@ -1217,7 +1219,25 @@ function drawStoryBg() {
   if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
   const c = cv.getContext('2d');
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  drawScene(c, G.story.scene.bg, G.t, w, h);
+  const sc = G.story.scene;
+  drawScene(c, sc.bg, G.t, w, h);
+  // 首领场：把真立绘摆在场景里，而不是只让旁白说「走廊尽头站着一个人」
+  if (sc.fig) {
+    const r = Math.min(w, h) * 0.155;
+    const cx = w * 0.5, cy = h * 0.44 + Math.sin(G.t * 1.1) * r * 0.05;
+    // 地面投影：不然圆框像贴纸一样浮在画面中间
+    const sh = c.createRadialGradient(cx, cy + r * 1.5, 1, cx, cy + r * 1.5, r * 1.5);
+    sh.addColorStop(0, 'rgba(0,0,0,.5)');
+    sh.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = sh;
+    c.beginPath(); c.ellipse(cx, cy + r * 1.5, r * 1.5, r * 0.28, 0, 0, TAU); c.fill();
+    const g = c.createRadialGradient(cx, cy, r * 0.2, cx, cy, r * 2.6);
+    g.addColorStop(0, 'rgba(255,120,110,.20)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = g;
+    c.fillRect(cx - r * 2.6, cy - r * 2.6, r * 5.2, r * 5.2);
+    drawPortrait(c, { x: cx, y: cy, r, t: G.t, art: sc.fig, glow: 'rgba(255,110,100,.4)' });
+  }
 }
 
 // 说话人立绘：猫用当前皮肤现画，首领用真立绘套圆框，通讯器画一条波形
@@ -1329,6 +1349,8 @@ function renderCodex(tab) {
     for (const tr of TRINKETS) rows.push({ k: 'tr:' + tr.k, n: tr.n, q: '密契', ic: ART_ICON_T(tr.ic), lore: LORE[tr.k], t: tr.t, kind: '密契' });
     for (const ac of ACTIVES) rows.push({ k: 'ac:' + ac.k, n: ac.n, q: '钥令', ic: ART_ACTIVE(ac.ic), lore: LORE[ac.k], t: ac.t, kind: '钥令' });
     const own = rows.filter((r) => G.meta.codex[r.k]).length;
+    // 捡到过的排前面，没捡到的按原顺序跟在后面（V8 的 sort 稳定，不用另存索引）
+    rows.sort((a, b) => (G.meta.codex[b.k] ? 1 : 0) - (G.meta.codex[a.k] ? 1 : 0));
     let html = `<p class="codexcount">已拾得 ${own} / ${rows.length} 件。捡到过的东西会留下档案——包括官方收藏馆里那句原话。</p>`;
     for (const r of rows) {
       const has = !!G.meta.codex[r.k];
@@ -2001,6 +2023,8 @@ async function boot() {
   G.bg.cv = $('bgcv');
   if (G.bg.cv) G.bg.ctx = G.bg.cv.getContext('2d');
   Audio2.muted = !!G.meta.muted;
+  // 开局先结算一次「不看剧情也该有的」条目：弥萨格、融蚀、银芯、小煤球
+  unlockCodexByProgress();
   bindUi();
   fit();
   toTitle();

@@ -11,7 +11,7 @@
 // 预缓存不放在 install 里：那会让「装上」这个动作被 400KB 的下载拖住，
 // 期间页面还不受控。这里改成 activate 之后在后台慢慢填——当前页先受控，
 // 等它填完，之后切页就都是本地读取了。
-const VERSION = '0b6d1cca28';
+const VERSION = 'cc6d9718b3';
 const CACHE = 'zjtt-' + VERSION;
 const PRECACHE = [
   "index.html",
@@ -23,18 +23,20 @@ const PRECACHE = [
   "gallery.html",
   "merge.html",
   "profile.html",
+  "protocol.html",
   "survivors.html",
   "workshop.html",
-  "js/b/about.js?v=0b6d1cca28",
-  "js/b/binding.js?v=0b6d1cca28",
-  "js/b/bird.js?v=0b6d1cca28",
-  "js/b/codex.js?v=0b6d1cca28",
-  "js/b/detective.js?v=0b6d1cca28",
-  "js/b/gallery.js?v=0b6d1cca28",
-  "js/b/merge.js?v=0b6d1cca28",
-  "js/b/profile.js?v=0b6d1cca28",
-  "js/b/survivors.js?v=0b6d1cca28",
-  "js/b/workshop.js?v=0b6d1cca28",
+  "js/b/about.js?v=cc6d9718b3",
+  "js/b/binding.js?v=cc6d9718b3",
+  "js/b/bird.js?v=cc6d9718b3",
+  "js/b/codex.js?v=cc6d9718b3",
+  "js/b/detective.js?v=cc6d9718b3",
+  "js/b/gallery.js?v=cc6d9718b3",
+  "js/b/merge.js?v=cc6d9718b3",
+  "js/b/profile.js?v=cc6d9718b3",
+  "js/b/protocol.js?v=cc6d9718b3",
+  "js/b/survivors.js?v=cc6d9718b3",
+  "js/b/workshop.js?v=cc6d9718b3",
   "js/b/merge-sync.js",
   "js/b/bird-sync.js",
   "data/boot.json"
@@ -82,7 +84,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (STATIC_RE.test(url.pathname)) {
-    event.respondWith(staticFirst(req));
+    // 子项目 idle/ 没有构建、文件名也不带指纹，缓存优先会让老访客一直卡在旧版本
+    // （旧数据里的钥令在本地已经删掉，图标就只剩一个问号）。所以它跟页面一样走网络优先。
+    event.respondWith(url.pathname.startsWith('/idle/') ? networkFirst(req, event) : staticFirst(req));
   }
 });
 

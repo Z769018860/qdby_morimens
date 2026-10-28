@@ -57,7 +57,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (STATIC_RE.test(url.pathname)) {
-    event.respondWith(staticFirst(req));
+    // 子项目 idle/ 没有构建、文件名也不带指纹，缓存优先会让老访客一直卡在旧版本
+    // （旧数据里的钥令在本地已经删掉，图标就只剩一个问号）。所以它跟页面一样走网络优先。
+    event.respondWith(url.pathname.startsWith('/idle/') ? networkFirst(req, event) : staticFirst(req));
   }
 });
 

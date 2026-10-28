@@ -189,7 +189,7 @@ button{font:inherit; color:inherit; cursor:pointer}
 }
 .chip:hover{border-color:var(--accent)}
 .chip.on{border-color:var(--accent); background:color-mix(in oklab, var(--accent) 18%, var(--panel2)); color:var(--text); font-weight:600}
-.chip.locked{opacity:.42; color:var(--dim)}
+.chip.locked{opacity:.75; color:var(--dim); border-style:dashed; background:transparent}
 .chip i{font-style:normal; font-size:9px; color:var(--gold); margin-left:3px}
 @media (max-width:520px){
   .dress{flex-direction:column; gap:8px}
@@ -246,7 +246,26 @@ body.titlestate .app{background:transparent}
 /* 标题/结算时舞台要让位给夜景：不然那张 canvas 被不透明的游戏区整个盖住，等于没画 */
 body.titlestate .stage{background:transparent; border-color:transparent; box-shadow:none}
 body.titlestate .stage #cv{opacity:0}
-body.titlestate .ov#ovTitle{background:radial-gradient(120% 90% at 50% 6%, rgba(8,11,20,.16), rgba(4,6,11,.5)); backdrop-filter:none}
+/* 标题页不该带着血条和小地图看夜景 */
+body.titlestate .stage .minimap,
+body.titlestate .stage .trinket,
+body.titlestate .stage .strip,
+body.titlestate .stage .active,
+body.titlestate .stage .hint,
+body.titlestate .stage .card,
+body.titlestate .stage .toast{display:none}
+
+/* 剧情：舞台铺满整屏，当一段过场看 */
+body.storymode .app{max-width:none; padding:0; gap:0}
+body.storymode .hud{display:none}
+body.storymode #bgcv{display:none}
+body.storymode .stage{border-radius:0; border:none; box-shadow:none}
+body.storymode .dlg{left:max(12px, calc(50% - 430px)); right:max(12px, calc(50% - 430px)); bottom:max(14px, env(safe-area-inset-bottom))}
+/* 卡片靠上，把底下那排校舍露出来（居中会正好压住楼身） */
+body.titlestate .ov#ovTitle{
+  background:radial-gradient(120% 90% at 50% 6%, rgba(8,11,20,.16), rgba(4,6,11,.5));
+  backdrop-filter:none; align-items:start; padding-top:max(14px, 5.5vh);
+}
 body.titlestate .ov#ovTitle .panel{
   background:linear-gradient(180deg, color-mix(in oklab, var(--panel) 94%, #fff 6%), var(--panel));
   border-color:color-mix(in oklab, var(--line) 78%, var(--accent));
@@ -262,6 +281,11 @@ body.titlestate .ov#ovTitle .panel{
 .icobtn.off{color:color-mix(in oklab, var(--dim) 70%, transparent)}
 .icobtn.off svg{opacity:.6}
 .icobtn.off .wav{display:none}
+/* 窄屏顶栏塞不下图标 + 文字：收成纯图标（title 里还有说明），别让「地图」竖排成两行 */
+@media (max-width:560px){
+  .icobtn span{display:none}
+  .icobtn{padding-left:7px; padding-right:7px}
+}
 
 /* ---------------------------------------------------------------- 剧情 */
 #storyCv{position:absolute; inset:0; width:100%; height:100%; display:none; z-index:10}
@@ -354,6 +378,13 @@ body.titlestate .ov#ovTitle .panel{
   max-height:min(58vh, 460px); overflow:auto; padding-right:4px;
   display:flex; flex-direction:column; gap:8px;
   overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+.codexlist::-webkit-scrollbar{width:8px}
+.codexlist::-webkit-scrollbar-track{background:transparent}
+.codexlist::-webkit-scrollbar-thumb{
+  background:color-mix(in oklab, var(--dim) 45%, transparent);
+  border-radius:99px; border:2px solid transparent; background-clip:padding-box;
 }
 .codexcount{margin:0 0 2px; font-size:11.5px; color:var(--dim)}
 .entry{
@@ -367,8 +398,9 @@ body.titlestate .ov#ovTitle .panel{
   letter-spacing:.04em; margin-bottom:4px;
 }
 .entry p{margin:0; font-size:12.5px; line-height:1.85; color:var(--dim)}
-.entry.locked{opacity:.62}
+.entry.locked{opacity:.78}
 .entry.locked h4{color:var(--dim)}
+.entry.locked p{opacity:.85}
 .entry .row{display:flex; gap:10px; align-items:flex-start}
 .entry .row img{width:32px; height:32px; flex:0 0 32px; border-radius:7px; background:#0b0f16}
 

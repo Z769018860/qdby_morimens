@@ -1973,7 +1973,7 @@ const SCENES = {
     ],
   },
   b1pre: {
-    bg: 'hall', music: 'boss', title: '守灯人', codex: ['lantern'],
+    fig: 'b1', bg: 'hall', music: 'boss', title: '守灯人', codex: ['lantern'],
     lines: [
       { k: 'narr', t: '走廊尽头站着一个提灯的人。灯很亮，亮到看不清他的脸。' },
       { k: 'boss', who: '守灯人', t: '你闻到了吗，孩子。这盏灯里的油，是从很多人身上榨出来的。' },
@@ -2004,7 +2004,7 @@ const SCENES = {
     ],
   },
   b2pre: {
-    bg: 'wax', music: 'wax', title: '劳伦斯先生', codex: ['wax'],
+    fig: 'b2', bg: 'wax', music: 'wax', title: '劳伦斯先生', codex: ['wax'],
     lines: [
       { k: 'narr', t: '教室中央立着一尊蜡像。绅士打扮，手套雪白，脚下没有影子。' },
       { k: 'boss', who: '劳伦斯先生', t: '晚上好。请不要碰展品。' },
@@ -2035,7 +2035,7 @@ const SCENES = {
     ],
   },
   b3pre: {
-    bg: 'roof', music: 'boss', title: '「以眼还眼」', codex: ['eye'],
+    fig: 'b3', bg: 'roof', music: 'boss', title: '「以眼还眼」', codex: ['eye'],
     lines: [
       { k: 'narr', t: '天台中央悬着一只眼睛。它不眨，也没有身体。' },
       { k: 'boss', who: '「以眼还眼」', t: '你终于上来了。' },
@@ -2178,13 +2178,25 @@ function vignette(c, W, H, a) {
   c.fillRect(0, 0, W, H);
 }
 
+// 剪影树：树冠是一丛重叠的圆。用三颗椭圆拼会留出缺口，透出天空像块白三角。
+function tree(c, x, gy, w, h, ink) {
+  c.fillStyle = ink;
+  c.fillRect(x - w * 0.14, gy - h * 0.52, w * 0.28, h * 0.58);
+  const cy = gy - h * 0.70;
+  c.beginPath();
+  for (const [dx, dy, r] of [[0, 0, 1], [-0.62, 0.16, 0.74], [0.62, 0.16, 0.76], [-0.34, -0.28, 0.62], [0.36, -0.26, 0.60]]) {
+    c.arc(x + dx * w, cy + dy * h, w * r, 0, TAU);
+  }
+  c.fill();
+}
+
 // ------------------------------------------------------------------ 走廊
 function hall(c, t, W, H) {
   sky(c, W, H, [[0, '#0a0d14'], [0.45, '#121722'], [1, '#080b10']]);
   const vx = W * 0.5, vy = H * 0.47;
 
   // 尽头那扇窗：唯一的光源
-  const ww = W * 0.09, wh = H * 0.1;
+  const ww = W * 0.055, wh = H * 0.075;
   glow(c, vx, vy, Math.min(W, H) * 0.42, 'rgba(150,190,255,0.42)', 0.5);
   c.fillStyle = '#20304a';
   c.fillRect(vx - ww, vy - wh * 1.1, ww * 2, wh * 2);
@@ -2198,6 +2210,23 @@ function hall(c, t, W, H) {
   c.moveTo(vx, vy - wh * 1.1); c.lineTo(vx, vy + wh * 0.9);
   c.moveTo(vx - ww, vy - wh * 0.1); c.lineTo(vx + ww, vy - wh * 0.1);
   c.stroke();
+
+  // 天花板：从消失点向上收的梯形，比墙更暗，走廊才有顶
+  c.fillStyle = '#0a0910';
+  c.beginPath();
+  c.moveTo(0, 0); c.lineTo(W, 0);
+  c.lineTo(vx + ww * 1.2, vy - wh * 1.1);
+  c.lineTo(vx - ww * 1.2, vy - wh * 1.1);
+  c.closePath(); c.fill();
+  // 横梁
+  for (let i = 0; i < 3; i++) {
+    const p = 0.28 + i * 0.26;
+    const y = H * (0.13 * p + 0.06);
+    const half = W * (0.5 - 0.44 * p) + ww;
+    c.strokeStyle = 'rgba(60,48,44,.36)';
+    c.lineWidth = Math.max(2, H * 0.008 * (1 - p * 0.5));
+    c.beginPath(); c.moveTo(vx - half * 1.5, y); c.lineTo(vx + half * 1.5, y); c.stroke();
+  }
 
   // 地板：木条朝消失点收敛
   c.save();
@@ -2233,24 +2262,47 @@ function hall(c, t, W, H) {
     c.lineTo(vx + side * ww * 1.2, vy + wh * 0.9); c.lineTo(ex, H);
     c.closePath(); c.fill();
 
-    // 三扇门：靠近观众的更大更靠外，越远越挤向中心（透视缩比 0.42 / 0.30 / 0.20）
-    const persp = [0.42, 0.30, 0.20];
-    for (let i = 0; i < 3; i++) {
-      const p = persp[i];
-      const dw = W * 0.075 * p * 2.4;
-      const dh = H * 0.62 * p * 1.7;
-      const yTop = H * (0.50 - dh * 0.5) + i * H * 0.012;
-      const xOuter = side < 0 ? W * (0.03 + (1 - p) * 0.45) : W * (0.97 - (1 - p) * 0.45);
-      const x0 = side < 0 ? xOuter : xOuter - dw;
-      c.fillStyle = 'rgba(6,5,9,.92)';
-      c.fillRect(x0, yTop, dw, dh);
-      c.strokeStyle = 'rgba(150,170,215,.07)';
+    // 墙上的竖向条纹，给出「这是木墙板」的纵深
+    for (let k = 1; k <= 6; k++) {
+      const p = k / 7;
+      const xt = ex + (vx + side * ww * 1.2 - ex) * p;
+      c.strokeStyle = 'rgba(255,240,220,.03)';
       c.lineWidth = 1;
-      c.strokeRect(x0 + 0.5, yTop + 0.5, dw - 1, dh - 1);
-      // 门缝里漏出来的光：只有最近那扇门是暖的
-      c.fillStyle = i === 0 ? 'rgba(255,205,140,.13)' : 'rgba(130,160,210,.06)';
-      c.fillRect(x0 + dw * 0.06, yTop + dh * 0.04, Math.max(2, dw * 0.06), dh * 0.92);
+      c.beginPath(); c.moveTo(xt, H * 0.10); c.lineTo(xt, H * 0.52); c.stroke();
     }
+
+    // 两扇门：门洞 + 门框 + 门缝底光。近处那扇更大更亮
+    for (let i = 0; i < 2; i++) {
+      const near = i === 0;
+      const dx0 = side < 0 ? W * (near ? 0.055 : 0.205) : W * (near ? 0.945 : 0.795);
+      const dw = W * (near ? 0.085 : 0.055);
+      const dh = H * (near ? 0.40 : 0.27);
+      const x0 = side < 0 ? dx0 : dx0 - dw;
+      const y0 = H * (near ? 0.30 : 0.35);
+      // 门框
+      c.strokeStyle = 'rgba(150,170,215,.16)';
+      c.lineWidth = Math.max(1.5, W * 0.0022);
+      c.strokeRect(x0 - 2, y0 - 2, dw + 4, dh + 4);
+      // 门板
+      c.fillStyle = 'rgba(8,6,11,.95)';
+      c.fillRect(x0, y0, dw, dh);
+      // 门板上的凹格
+      c.strokeStyle = 'rgba(120,140,180,.10)';
+      c.lineWidth = 1;
+      c.strokeRect(x0 + dw * 0.14, y0 + dh * 0.10, dw * 0.72, dh * 0.34);
+      c.strokeRect(x0 + dw * 0.14, y0 + dh * 0.54, dw * 0.72, dh * 0.34);
+      // 门缝漏光（只有最近那扇是暖的）
+      c.fillStyle = near ? 'rgba(255,205,140,.20)' : 'rgba(130,160,210,.10)';
+      c.fillRect(side < 0 ? x0 + dw - 2 : x0, y0 + 2, 2, dh - 4);
+      c.fillRect(x0 + 2, y0 + dh - 3, dw - 4, 2.5);
+    }
+
+    // 踢脚线：沿墙脚一条微亮线，把墙和地板分开
+    c.strokeStyle = 'rgba(190,170,150,.09)';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(ex, H); c.lineTo(vx + side * ww * 1.2, vy + wh * 0.9);
+    c.stroke();
   }
 
   // 吊灯
@@ -2268,7 +2320,7 @@ function hall(c, t, W, H) {
     c.beginPath(); c.ellipse(lx, ly + lw * 0.22, lw * 0.55, lw * 0.3, 0, 0, TAU); c.fill();
   }
 
-  vignette(c, W, H, 0.72);
+  vignette(c, W, H, 0.62);
 }
 
 // ------------------------------------------------------------------ 解剖教室
@@ -2513,45 +2565,81 @@ function abyss(c, t, W, H) {
 // ------------------------------------------------------------------ 天亮
 function dawn(c, t, W, H) {
   sky(c, W, H, [
-    [0, '#101a3a'], [0.35, '#2c3163'], [0.6, '#7a5470'], [0.78, '#d88a63'], [1, '#f0b57a'],
+    [0, '#0e1834'], [0.3, '#2a2f60'], [0.55, '#7b5674'], [0.76, '#d9895f'], [0.9, '#f3bd83'], [1, '#f8cf9a'],
   ]);
+  // 打散渐变的色阶断层（8bit 画宽渐变一定会出带）
+  const rndN = seedRnd(4242);
+  for (let i = 0; i < 900; i++) {
+    const x = rndN() * W, y = rndN() * H;
+    c.fillStyle = rndN() > 0.5 ? 'rgba(255,255,255,.035)' : 'rgba(0,0,0,.03)';
+    c.fillRect(x, y, 2, 2);
+  }
   // 云带
   const rnd = seedRnd(9917);
-  for (let i = 0; i < 7; i++) {
-    const y = H * (0.22 + i * 0.06);
+  for (let i = 0; i < 8; i++) {
+    const y = H * (0.20 + i * 0.055);
     const x = ((rnd() * W + t * (2 + i)) % (W * 1.4)) - W * 0.2;
     const w = W * (0.3 + rnd() * 0.5);
-    const a = 0.05 + rnd() * 0.07;
-    c.fillStyle = `rgba(255,220,200,${a})`;
+    const a = 0.05 + rnd() * 0.08;
+    c.fillStyle = `rgba(255,214,190,${a})`;
     c.beginPath(); c.ellipse(x, y, w, H * 0.012, 0, 0, TAU); c.fill();
   }
-  // 太阳
-  const sx = W * 0.66, sy = H * 0.66;
-  glow(c, sx, sy, Math.min(W, H) * 0.6, 'rgba(255,220,160,0.75)', 0.55);
-  c.fillStyle = 'rgba(255,246,225,.95)';
-  c.beginPath(); c.arc(sx, sy, Math.min(W, H) * 0.048, 0, TAU); c.fill();
-  // 校舍剪影
-  c.fillStyle = '#1c1a2a';
-  const gy = H * 0.74;
-  c.fillRect(0, gy, W, H * 0.26);
-  for (let i = 0; i < 5; i++) {
-    const bw = W * 0.15;
-    const bx = W * 0.02 + i * W * 0.2;
-    const bh = H * (0.1 + (i % 2) * 0.05);
+  // 太阳：已经升到屋顶线以上，整个人能看见；暖光留在天际
+  const mn = Math.min(W, H);
+  const sx = W * 0.30, sy = H * 0.50;
+  glow(c, sx, sy, mn * 0.8, 'rgba(255,225,170,0.9)', 0.5);
+  glow(c, W * 0.48, H * 0.74, mn * 1.2, 'rgba(255,190,128,0.85)', 0.45);
+  c.fillStyle = 'rgba(255,251,236,.98)';
+  c.beginPath(); c.arc(sx, sy, mn * 0.050, 0, TAU); c.fill();
+  // 校舍剪影：宽窄高矮都不一样，还有一根烟囱，别排成一模一样的房子
+  const gy = H * 0.76;
+  const inkD = '#1a1826';
+  c.fillStyle = inkD;
+  c.fillRect(0, gy, W, H - gy);
+  const blocks = [
+    [0.00, 0.10, 0.085, 1], [0.09, 0.07, 0.125, 0], [0.155, 0.115, 0.075, 1],
+    [0.265, 0.075, 0.155, 1], [0.335, 0.075, 0.105, 0], [0.405, 0.115, 0.135, 1],
+    [0.515, 0.085, 0.185, 1], [0.595, 0.065, 0.115, 0], [0.655, 0.105, 0.09, 1],
+    [0.755, 0.095, 0.145, 1], [0.845, 0.075, 0.10, 0], [0.915, 0.085, 0.125, 1],
+  ];
+  for (const [x0, w0, h0, gable] of blocks) {
+    const bx = W * x0, bw = W * w0, bh = H * h0;
     c.fillRect(bx, gy - bh, bw, bh);
-    // 尖顶
-    c.beginPath();
-    c.moveTo(bx, gy - bh); c.lineTo(bx + bw / 2, gy - bh - H * 0.05); c.lineTo(bx + bw, gy - bh);
-    c.closePath(); c.fill();
+    if (gable) {
+      c.beginPath();
+      c.moveTo(bx, gy - bh);
+      c.lineTo(bx + bw / 2, gy - bh - Math.min(H * 0.045, bw * 0.55));
+      c.lineTo(bx + bw, gy - bh);
+      c.closePath(); c.fill();
+    }
   }
-  // 树影
-  for (let i = 0; i < 6; i++) {
-    const tx = W * (0.05 + i * 0.17);
-    c.beginPath();
-    c.ellipse(tx, gy + H * 0.06, W * 0.05, H * 0.05, 0, 0, TAU);
-    c.fill();
+  // 烟囱
+  c.fillRect(W * 0.545, gy - H * 0.225, W * 0.012, H * 0.05);
+  // 窗：太阳一出来，还有几间亮着
+  const rndW = seedRnd(3137);
+  for (const [x0, w0, h0, gable] of blocks) {
+    if (h0 < 0.09) continue;
+    const cols = Math.max(1, Math.round(w0 * 26));
+    for (let i = 0; i < cols; i++) {
+      if (rndW() < 0.55) continue;
+      const wx2 = W * x0 + W * w0 * ((i + 0.5) / cols) - W * 0.006;
+      const wy2 = gy - H * h0 + H * (gable ? 0.055 : 0.028);
+      c.fillStyle = `rgba(255,206,142,${0.16 + rndW() * 0.2})`;
+      c.fillRect(wx2, wy2, W * 0.012, H * 0.016);
+    }
   }
-  vignette(c, W, H, 0.4);
+  // 栏杆：把地面和楼脚分开
+  c.fillStyle = 'rgba(255,196,140,.10)';
+  c.fillRect(0, gy + H * 0.008, W, H * 0.003);
+  // 树影：立在地面上、盖住楼脚，别让它们变成地上的椭圆
+  const rndT = seedRnd(7311);
+  for (let i = 0; i < 5; i++) {
+    const tx = W * (0.05 + i * 0.21) + rndT() * W * 0.02;
+    const tw = W * (0.024 + rndT() * 0.009);
+    const th = H * (0.075 + rndT() * 0.035);
+    tree(c, tx, gy, tw, th, '#121120');
+  }
+  vignette(c, W, H, 0.34);
 }
 
 // ------------------------------------------------------------------ 标题：夜空下的校舍
@@ -2565,13 +2653,15 @@ function title(c, t, W, H) {
     c.fillStyle = `rgba(214,228,255,${0.3 + tw * 0.7})`;
     c.fillRect(x, y, s, s);
   }
-  // 月
-  const mx = W * 0.82, my = H * 0.16, mr = Math.min(W, H) * 0.06;
-  glow(c, mx, my, mr * 6, 'rgba(180,205,255,0.5)', 0.5);
-  c.fillStyle = '#eef3ff';
+  // 月：亮但不是死白，环形山压到极淡
+  const mx = W * 0.875, my = H * 0.14, mr = Math.min(W, H) * 0.045;
+  glow(c, mx, my, mr * 7, 'rgba(190,212,255,0.45)', 0.55);
+  c.fillStyle = '#e8eeff';
   c.beginPath(); c.arc(mx, my, mr, 0, TAU); c.fill();
-  c.fillStyle = 'rgba(170,185,220,.35)';
-  c.beginPath(); c.arc(mx - mr * 0.28, my - mr * 0.22, mr * 0.2, 0, TAU); c.fill();
+  c.fillStyle = 'rgba(198,210,240,.3)';
+  c.beginPath(); c.arc(mx - mr * 0.3, my - mr * 0.26, mr * 0.26, 0, TAU); c.fill();
+  c.beginPath(); c.arc(mx + mr * 0.34, my + mr * 0.12, mr * 0.17, 0, TAU); c.fill();
+  c.beginPath(); c.arc(mx - mr * 0.08, my + mr * 0.44, mr * 0.12, 0, TAU); c.fill();
   // 云
   const rnd3 = seedRnd(881);
   for (let i = 0; i < 5; i++) {
@@ -2580,50 +2670,98 @@ function title(c, t, W, H) {
     c.fillStyle = `rgba(140,165,220,${0.05 + rnd3() * 0.05})`;
     c.beginPath(); c.ellipse(cx, cy, W * (0.12 + rnd3() * 0.18), H * 0.018, 0, 0, TAU); c.fill();
   }
-  // 校舍
-  const gy = H * 0.80;
-  const rnd2 = seedRnd(6611);
-  c.fillStyle = '#060a14';
-  // 主楼
-  const mw = W * 0.52, mx0 = W * 0.24;
-  c.fillRect(mx0, gy - H * 0.30, mw, H * 0.30);
+  // 校舍占下半张画面：标题卡片靠上放，楼从卡片底下露出来
+  const bT = H * 0.52, bH = H - bT;
+  const Y = (v) => bT + bH * v;
+  const gy = Y(0.90);
+  const mid = W * 0.5;
+  const ink = '#04070e', ink2 = '#070b15';
+
+  // 窗光在天上留一层暖雾（画在楼之前，不然会把剪影洗灰）
+  glow(c, mid, H * 0.44, W * 0.5, 'rgba(255,180,110,0.28)', 0.4);
+
+  // 远处两栋
+  c.fillStyle = ink2;
+  c.fillRect(0, Y(0.46), W * 0.15, gy - Y(0.46));
+  c.fillRect(W * 0.855, Y(0.40), W * 0.145, gy - Y(0.40));
+
+  // 两翼
+  c.fillStyle = ink;
+  c.fillRect(W * 0.185, Y(0.32), W * 0.16, gy - Y(0.32));
+  c.fillRect(W * 0.655, Y(0.32), W * 0.16, gy - Y(0.32));
+
+  // 主楼 + 山墙
+  const cTop = Y(0.03);
+  c.fillRect(W * 0.31, cTop, W * 0.38, gy - cTop);
   c.beginPath();
-  c.moveTo(mx0, gy - H * 0.30); c.lineTo(mx0 + mw / 2, gy - H * 0.42); c.lineTo(mx0 + mw, gy - H * 0.30);
+  c.moveTo(W * 0.31, cTop); c.lineTo(mid, cTop - bH * 0.34); c.lineTo(W * 0.69, cTop);
   c.closePath(); c.fill();
-  // 钟楼
-  c.fillRect(W * 0.47, gy - H * 0.50, W * 0.06, H * 0.22);
-  c.beginPath();
-  c.moveTo(W * 0.47, gy - H * 0.50); c.lineTo(W * 0.50, gy - H * 0.58); c.lineTo(W * 0.53, gy - H * 0.50);
-  c.closePath(); c.fill();
-  // 彩色玻璃窗：唯一暖色
-  for (let i = 0; i < 9; i++) {
-    const wx = mx0 + mw * (0.06 + i * 0.1);
-    const wy = gy - H * 0.24;
-    const hue = [255, 205, 155][i % 3];
-    const pulse = 0.5 + 0.3 * Math.abs(Math.sin(t * 0.8 + i));
-    c.fillStyle = `rgba(${hue},${Math.round(hue * 0.66)},${Math.round(hue * 0.44)},${pulse})`;
-    c.fillRect(wx, wy, W * 0.028, H * 0.075);
-    glow(c, wx + W * 0.014, wy + H * 0.037, W * 0.06, 'rgba(255,190,120,0.45)', 0.34 * pulse);
-  }
-  // 侧楼
-  c.fillStyle = '#060a14';
-  for (let i = 0; i < 2; i++) {
-    const bw = W * 0.14;
-    const bx = i === 0 ? W * 0.04 : W * 0.80;
-    const bh = H * (0.2 + rnd2() * 0.06);
-    c.fillRect(bx, gy - bh, bw, bh);
-    c.beginPath();
-    c.moveTo(bx, gy - bh); c.lineTo(bx + bw / 2, gy - bh - H * 0.06); c.lineTo(bx + bw, gy - bh);
-    c.closePath(); c.fill();
-  }
-  // 地面雾
-  const fg = c.createLinearGradient(0, gy - H * 0.02, 0, H);
-  fg.addColorStop(0, 'rgba(10,14,26,0)');
-  fg.addColorStop(0.35, 'rgba(9,12,22,.85)');
-  fg.addColorStop(1, 'rgba(6,8,16,.96)');
+
+  // 地面
+  const gd = c.createLinearGradient(0, gy, 0, H);
+  gd.addColorStop(0, '#080d18');
+  gd.addColorStop(1, '#03050a');
+  c.fillStyle = gd;
+  c.fillRect(0, gy, W, H - gy);
+  // 地平线上一道雾，把楼脚糊掉
+  const fg = c.createLinearGradient(0, gy - H * 0.035, 0, gy + H * 0.025);
+  fg.addColorStop(0, 'rgba(26,36,60,0)');
+  fg.addColorStop(0.6, 'rgba(34,46,74,.4)');
+  fg.addColorStop(1, 'rgba(10,16,28,.10)');
   c.fillStyle = fg;
-  c.fillRect(0, gy - H * 0.02, W, H - gy + H * 0.02);
-  vignette(c, W, H, 0.32);
+  c.fillRect(0, gy - H * 0.035, W, H * 0.06);
+
+  // 窗：两层拱窗，十字窗棂，个别几间黑着
+  const rw = W * 0.019, rh = bH * 0.15;
+  const pulseAt = (i) => 0.55 + 0.45 * Math.abs(Math.sin(t * 0.7 + i * 1.9));
+  const pane = (x, y, w, h, a) => {
+    c.fillStyle = `rgba(255,201,132,${a})`;
+    c.fillRect(x, y, w, h);
+    c.fillStyle = 'rgba(4,7,14,.5)';
+    c.fillRect(x + w * 0.44, y, Math.max(1, w * 0.13), h);
+    c.fillRect(x, y + h * 0.42, w, Math.max(1, h * 0.08));
+  };
+  const rows = [Y(0.30), Y(0.58)];
+  const colX = mid - (4 * W * 0.062 + rw) / 2;
+  for (let r = 0; r < 2; r++) {
+    for (let i = 0; i < 5; i++) {
+      const x = colX + i * W * 0.062;
+      const on = (i * 3 + r * 5) % 7 !== 0;
+      if (on) pane(x, rows[r], rw, rh, 0.22 + 0.5 * pulseAt(i + r));
+      else { c.fillStyle = 'rgba(120,150,200,.05)'; c.fillRect(x, rows[r], rw, rh); }
+    }
+  }
+  // 两翼各三扇，只亮一两扇
+  for (const wx0 of [W * 0.205, W * 0.675]) {
+    for (let i = 0; i < 3; i++) {
+      if (i % 2 === 0) pane(wx0 + i * W * 0.045, rows[1], rw * 0.95, rh * 0.95, 0.18 + 0.32 * pulseAt(i));
+    }
+  }
+  // 山墙上的圆窗（就是画面里那口钟）
+  glow(c, mid, cTop - bH * 0.15, W * 0.07, 'rgba(255,214,150,0.85)', 0.35);
+  c.fillStyle = 'rgba(255,228,172,.9)';
+  c.beginPath(); c.arc(mid, cTop - bH * 0.15, W * 0.014, 0, TAU); c.fill();
+  c.strokeStyle = 'rgba(6,9,16,.75)'; c.lineWidth = Math.max(1, W * 0.0018);
+  c.beginPath();
+  c.moveTo(mid, cTop - bH * 0.15); c.lineTo(mid, cTop - bH * 0.15 - W * 0.009);
+  c.moveTo(mid, cTop - bH * 0.15); c.lineTo(mid + W * 0.006, cTop - bH * 0.15 + W * 0.0015);
+  c.stroke();
+
+  // 门：暖光从门里漫出来，落到地上
+  const dw = W * 0.042, dx = mid - dw / 2, dy = Y(0.52);
+  glow(c, mid, gy + H * 0.004, W * 0.13, 'rgba(255,186,110,0.6)', 0.55);
+  c.fillStyle = 'rgba(255,208,148,.8)';
+  c.beginPath();
+  c.moveTo(dx, gy); c.lineTo(dx, dy + dw * 0.6);
+  c.quadraticCurveTo(mid, dy - dw * 0.3, dx + dw, dy + dw * 0.6);
+  c.lineTo(dx + dw, gy); c.closePath(); c.fill();
+
+  // 两棵树，压住画面两角
+  for (const [tx2, sc] of [[W * 0.055, 0.76], [W * 0.955, 0.68]]) {
+    tree(c, tx2, gy, W * 0.036 * sc, bH * 0.62 * sc, '#03060c');
+  }
+
+  vignette(c, W, H, 0.4);
 }
 
 const DRAW = { hall, lab, wax, roof, abyss, dawn, title };
@@ -3783,6 +3921,7 @@ function playScene(id, onDone) {
   G.mode = 'story';
   G.paused = false;
   hideOverlays();            // 开局时标题页还盖在上面，不清掉的话剧情在下面演
+  document.body.classList.add('storymode');
   $('dlg').classList.add('on');
   $('dlg').className = 'dlg on k-' + (scene.lines[0].k || 'narr');
   $('stage').classList.add('storying');
@@ -3824,6 +3963,7 @@ function endStory() {
   G.story = null;
   $('dlg').classList.remove('on');
   $('stage').classList.remove('storying');
+  document.body.classList.remove('storymode');
   Audio2.duck(false);
   const done = st && st.onDone;
   if (G.run && !G.run.dead) {
@@ -3863,7 +4003,25 @@ function drawStoryBg() {
   if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
   const c = cv.getContext('2d');
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  drawScene(c, G.story.scene.bg, G.t, w, h);
+  const sc = G.story.scene;
+  drawScene(c, sc.bg, G.t, w, h);
+  // 首领场：把真立绘摆在场景里，而不是只让旁白说「走廊尽头站着一个人」
+  if (sc.fig) {
+    const r = Math.min(w, h) * 0.155;
+    const cx = w * 0.5, cy = h * 0.44 + Math.sin(G.t * 1.1) * r * 0.05;
+    // 地面投影：不然圆框像贴纸一样浮在画面中间
+    const sh = c.createRadialGradient(cx, cy + r * 1.5, 1, cx, cy + r * 1.5, r * 1.5);
+    sh.addColorStop(0, 'rgba(0,0,0,.5)');
+    sh.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = sh;
+    c.beginPath(); c.ellipse(cx, cy + r * 1.5, r * 1.5, r * 0.28, 0, 0, TAU); c.fill();
+    const g = c.createRadialGradient(cx, cy, r * 0.2, cx, cy, r * 2.6);
+    g.addColorStop(0, 'rgba(255,120,110,.20)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = g;
+    c.fillRect(cx - r * 2.6, cy - r * 2.6, r * 5.2, r * 5.2);
+    drawPortrait(c, { x: cx, y: cy, r, t: G.t, art: sc.fig, glow: 'rgba(255,110,100,.4)' });
+  }
 }
 
 // 说话人立绘：猫用当前皮肤现画，首领用真立绘套圆框，通讯器画一条波形
@@ -3975,6 +4133,8 @@ function renderCodex(tab) {
     for (const tr of TRINKETS) rows.push({ k: 'tr:' + tr.k, n: tr.n, q: '密契', ic: ART_ICON_T(tr.ic), lore: LORE[tr.k], t: tr.t, kind: '密契' });
     for (const ac of ACTIVES) rows.push({ k: 'ac:' + ac.k, n: ac.n, q: '钥令', ic: ART_ACTIVE(ac.ic), lore: LORE[ac.k], t: ac.t, kind: '钥令' });
     const own = rows.filter((r) => G.meta.codex[r.k]).length;
+    // 捡到过的排前面，没捡到的按原顺序跟在后面（V8 的 sort 稳定，不用另存索引）
+    rows.sort((a, b) => (G.meta.codex[b.k] ? 1 : 0) - (G.meta.codex[a.k] ? 1 : 0));
     let html = `<p class="codexcount">已拾得 ${own} / ${rows.length} 件。捡到过的东西会留下档案——包括官方收藏馆里那句原话。</p>`;
     for (const r of rows) {
       const has = !!G.meta.codex[r.k];
@@ -4647,6 +4807,8 @@ async function boot() {
   G.bg.cv = $('bgcv');
   if (G.bg.cv) G.bg.ctx = G.bg.cv.getContext('2d');
   Audio2.muted = !!G.meta.muted;
+  // 开局先结算一次「不看剧情也该有的」条目：弥萨格、融蚀、银芯、小煤球
+  unlockCodexByProgress();
   bindUi();
   fit();
   toTitle();

@@ -118,7 +118,7 @@ export const SCENES = {
     ],
   },
   b1pre: {
-    bg: 'hall', music: 'boss', title: '守灯人', codex: ['lantern'],
+    fig: 'b1', bg: 'hall', music: 'boss', title: '守灯人', codex: ['lantern'],
     lines: [
       { k: 'narr', t: '走廊尽头站着一个提灯的人。灯很亮，亮到看不清他的脸。' },
       { k: 'boss', who: '守灯人', t: '你闻到了吗，孩子。这盏灯里的油，是从很多人身上榨出来的。' },
@@ -149,7 +149,7 @@ export const SCENES = {
     ],
   },
   b2pre: {
-    bg: 'wax', music: 'wax', title: '劳伦斯先生', codex: ['wax'],
+    fig: 'b2', bg: 'wax', music: 'wax', title: '劳伦斯先生', codex: ['wax'],
     lines: [
       { k: 'narr', t: '教室中央立着一尊蜡像。绅士打扮，手套雪白，脚下没有影子。' },
       { k: 'boss', who: '劳伦斯先生', t: '晚上好。请不要碰展品。' },
@@ -180,7 +180,7 @@ export const SCENES = {
     ],
   },
   b3pre: {
-    bg: 'roof', music: 'boss', title: '「以眼还眼」', codex: ['eye'],
+    fig: 'b3', bg: 'roof', music: 'boss', title: '「以眼还眼」', codex: ['eye'],
     lines: [
       { k: 'narr', t: '天台中央悬着一只眼睛。它不眨，也没有身体。' },
       { k: 'boss', who: '「以眼还眼」', t: '你终于上来了。' },
