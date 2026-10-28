@@ -298,49 +298,95 @@ export function doorRect(dir, W, H) {
   return { x: W - WALL, y: H / 2 - half, w: WALL, h: half * 2 };
 }
 
+// 门后面是什么，门里就透什么颜色的光——玩家不用打开地图也知道该往哪走
+const DOOR_TINT = {
+  fight: [255, 198, 128], item: [255, 226, 122], shop: [124, 236, 196],
+  boss: [255, 108, 96], start: [186, 208, 255], trap: [255, 158, 118],
+};
+
 // 门关上时的木板（运行时叠在烘焙图上层，随房间清空与否切换）
-export function drawDoorState(ctx, room, W, H, t, open) {
+// open 为真画「能走的门」：洞里透光、门框亮一圈、地上一道光带、门口一个呼吸的箭头。
+// peek(dir) 返回隔壁房间的 type，用来决定光色。
+export function drawDoorState(ctx, room, W, H, t, open, peek) {
+  // 统一到「门在上、房间在下」的坐标系里画，省的四种方向各写一遍
+  const ROT = { n: 0, s: Math.PI, w: -Math.PI / 2, e: Math.PI / 2 };
   for (const [dir, on] of Object.entries(room.doors)) {
     if (!on) continue;
     const d = doorRect(dir, W, H);
-    const horiz = dir === 'n' || dir === 's';
+    const cx = d.x + d.w / 2, cy = d.y + d.h / 2;
+    const back = peek ? peek(dir) : null;
+    const rgb = DOOR_TINT[back] || DOOR_TINT.fight;
+    const col = (a) => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
+    const half = 30, hh = WALL / 2;
+
     ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(ROT[dir]);
+
     if (!open) {
-      // 铁栅栏
+      // 铁栅栏 + 一把锁：这间房还没清
+      ctx.fillStyle = '#0a0d14';
+      ctx.fillRect(-half, -hh, half * 2, hh * 2);
       ctx.strokeStyle = '#5d6478';
       ctx.lineWidth = 3;
-      const n = horiz ? 4 : 3;
-      for (let i = 0; i < n; i++) {
-        const p = (i + 1) / (n + 1);
-        ctx.beginPath();
-        if (horiz) {
-          const x = d.x + d.w * p;
-          ctx.moveTo(x, d.y + 4); ctx.lineTo(x, d.y + d.h - 4);
-        } else {
-          const y = d.y + d.h * p;
-          ctx.moveTo(d.x + 4, y); ctx.lineTo(d.x + d.w - 4, y);
-        }
-        ctx.stroke();
+      for (let i = 1; i <= 4; i++) {
+        const x = -half + (half * 2 * i) / 5;
+        ctx.beginPath(); ctx.moveTo(x, -hh + 2); ctx.lineTo(x, hh - 2); ctx.stroke();
       }
-      ctx.strokeStyle = 'rgba(190,205,235,.35)';
+      ctx.strokeStyle = 'rgba(190,205,235,.32)';
       ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      if (horiz) {
-        ctx.moveTo(d.x + 3, d.y + d.h / 2); ctx.lineTo(d.x + d.w - 3, d.y + d.h / 2);
-      } else {
-        ctx.moveTo(d.x + d.w / 2, d.y + 3); ctx.lineTo(d.x + d.w / 2, d.y + d.h - 3);
-      }
-      ctx.stroke();
-    } else {
-      // 开着：门口透一点光，提示可以走
-      const cx = d.x + d.w / 2, cy = d.y + d.h / 2;
-      const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, 34);
-      const a = 0.16 + 0.06 * Math.sin(t * 3);
-      g.addColorStop(0, `rgba(140,180,255,${a})`);
-      g.addColorStop(1, 'rgba(140,180,255,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(cx, cy, 34, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-half + 2, 0); ctx.lineTo(half - 2, 0); ctx.stroke();
+      ctx.fillStyle = '#8d94a6';
+      ctx.fillRect(-4.5, -3.5, 9, 8);
+      ctx.fillStyle = '#ff6b5e';
+      ctx.beginPath(); ctx.arc(0, 0.5, 1.7, 0, 7); ctx.fill();
+      ctx.restore();
+      continue;
     }
+
+    const pulse = 0.74 + 0.2 * Math.sin(t * 2.2 + (ROT[dir] === 0 ? 0 : 1.7));
+
+    // 洞里：隔壁的黑
+    ctx.fillStyle = '#070a11';
+    ctx.fillRect(-half, -hh, half * 2, hh * 2);
+
+    // 从门口往房间里铺的一道光带，把「可以走过去」写在地方上
+    const deep = 32;
+    const lg = ctx.createLinearGradient(0, hh, 0, hh + deep);
+    lg.addColorStop(0, col(0.34 * pulse));
+    lg.addColorStop(1, col(0));
+    ctx.fillStyle = lg;
+    ctx.beginPath();
+    ctx.moveTo(-half, hh); ctx.lineTo(half, hh);
+    ctx.lineTo(half + 13, hh + deep); ctx.lineTo(-half - 13, hh + deep);
+    ctx.closePath(); ctx.fill();
+
+    // 洞里的光：越靠门口越亮
+    const g = ctx.createRadialGradient(0, 0, 1, 0, 0, 36);
+    g.addColorStop(0, col(0.82 * pulse));
+    g.addColorStop(0.38, col(0.4 * pulse));
+    g.addColorStop(1, col(0));
+    ctx.fillStyle = g;
+    ctx.fillRect(-half - 16, -hh - 16, half * 2 + 32, hh * 2 + 32);
+
+    // 门框：外深内亮，让这地方读起来是「门」而不是墙上的洞
+    ctx.strokeStyle = 'rgba(0,0,0,.62)';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(-half - 2, -hh - 2, half * 2 + 4, hh * 2 + 4);
+    ctx.strokeStyle = col(0.55 + 0.22 * pulse);
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-half - 2, -hh - 2, half * 2 + 4, hh * 2 + 4);
+
+    // 门口那个呼吸的箭头，指进洞里
+    const r = 6.4 + 1.2 * Math.sin(t * 3);
+    const ay = hh + 19;
+    ctx.fillStyle = col(0.5 + 0.26 * Math.sin(t * 3));
+    ctx.beginPath();
+    ctx.moveTo(0, ay - r);
+    ctx.lineTo(r * 0.86, ay + r * 0.52);
+    ctx.lineTo(-r * 0.86, ay + r * 0.52);
+    ctx.closePath(); ctx.fill();
+
     ctx.restore();
   }
 }
@@ -417,7 +463,13 @@ export function drawEnemy(ctx, e, t) {
     }
     ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0, 7); ctx.fill();
     ctx.fillStyle = c2;
-    for (const s of [-1, 1]) ctx.beginPath(); ctx.arc(s * r * 0.3, -r * 0.1, r * 0.13, 0, 7); ctx.fill();
+    // 这里以前是「一行 for 不带括号」：for (...) ctx.beginPath(); ctx.arc(s * ...) —— s 在循环外，
+    // 一画蝙蝠就抛 ReferenceError，整个 render() 断在半路（敌人、玩家、HUD 全没了）
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(s * r * 0.3, -r * 0.1, r * 0.13, 0, 7);
+      ctx.fill();
+    }
   } else if (e.draw === 'spider') {
     ctx.strokeStyle = c1;
     ctx.lineWidth = 2.6;

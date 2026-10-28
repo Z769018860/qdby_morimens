@@ -325,10 +325,9 @@ function startRun() {
 function beginRun() {
   Audio2.ensure();
   Audio2.setMuted(G.meta.muted);
-  playScene('intro', () => {
-    startRun();
-    playScene('f1');
-  });
+  // 开场只放一段：以前这里紧接着又播 f1，等于把两段独白摞在门外面，
+  // 人还没摸到手就以为在放视觉小说。f1 改成第一次推开普通房门时再说。
+  playScene('intro', () => startRun());
 }
 
 // ------------------------------------------------------------------ 移动与碰撞
@@ -361,8 +360,11 @@ function clampInside(e, allowDoor) {
   const sGap = open('s') && Math.abs(e.x - cx) < 26;
   const wGap = open('w') && Math.abs(e.y - cy) < 26;
   const eGap = open('e') && Math.abs(e.y - cy) < 26;
-  const minX = (wGap ? 4 : WALL) + e.r, maxX = (eGap ? W - 4 : W - WALL) - e.r;
-  const minY = (nGap ? 4 : WALL) + e.r, maxY = (sGap ? H - 4 : H - WALL) - e.r;
+  // 门口开着时，边界要放到墙外——不然「夹在墙里」比 checkDoorLeave 的判定线还远，永远出不去。
+  // （以前这里写的是 4，玩家的半径 12 一夹就成了 16，而判定线在 12，门等于死的。）
+  const OUT = -e.r * 2;
+  const minX = (wGap ? OUT : WALL) + e.r, maxX = (eGap ? W + e.r * 2 : W - WALL) - e.r;
+  const minY = (nGap ? OUT : WALL) + e.r, maxY = (sGap ? H + e.r * 2 : H - WALL) - e.r;
   e.x = clamp(e.x, minX, maxX);
   e.y = clamp(e.y, minY, maxY);
 }
@@ -1012,6 +1014,11 @@ function goRoom(next, fromDir) {
   } else if (next.type === 'item') {
     banner('宝箱房', '基座上的东西碰一下就拿走');
   }
+  // 第一层第一次推开普通房门时，才把「一层 · 晚自习走廊」那段环境描写补上
+  if (next.type === 'fight' && r.floor === 0 && !r.f1Done) {
+    r.f1Done = true;
+    playScene('f1');
+  }
 }
 
 function goNext() {
@@ -1423,6 +1430,34 @@ const ART_ICON = (ic) => ART.items[ic] || '';
 const ART_ICON_T = (ic) => ART.trinkets[ic] || '';
 const ART_ACTIVE = (ic) => ART.actives[ic] || '';
 
+// 舞台顶上那句话：现在到底该干什么。
+// 空房间里没有敌人、门又只是墙上的一个洞，第一次玩的人会就地站住——这句就是给这种情况的。
+let goalSig = '';
+function updateGoal() {
+  const el = $('goal');
+  if (!el) return;
+  const r = G.run, rm = r && r.room;
+  if (!r || !rm || G.mode !== 'play') { el.classList.add('off'); goalSig = ''; return; }
+  el.classList.remove('off');
+  let html;
+  if (rm.boss && !rm.cleared) {
+    html = '打倒 <b>' + rm.boss.n + '</b>';
+  } else if (!rm.cleared) {
+    const n = rm.ents.length;
+    html = '清掉这间房的 <b>' + n + '</b> 个东西 · 清空才开门';
+  } else if (rm.pickups.some((p) => p.kind === 'stair' && !p.taken)) {
+    html = '踩上 <b>楼梯</b> 下一层';
+  } else if (Object.values(rm.doors).some(Boolean)) {
+    html = '走进 <b>亮着的门</b>';
+  } else {
+    html = '';
+  }
+  if (html === goalSig) return;
+  goalSig = html;
+  el.innerHTML = html;
+  el.classList.toggle('off', !html);
+}
+
 function banner(title, sub) {
   G.banner = { title, sub, t: 0, life: 2.6 };
 }
@@ -1546,7 +1581,11 @@ function render() {
 
   // 房间
   if (rm.baked) ctx.drawImage(rm.baked, 0, 0, G.W, G.H);
-  drawDoorState(ctx, rm, G.W, G.H, G.t, rm.cleared);
+  drawDoorState(ctx, rm, G.W, G.H, G.t, rm.cleared, (dir) => {
+    const dd = DIRS[dir];
+    const nb = G.run.map && G.run.map.cells.get((rm.x + dd[0]) + ',' + (rm.y + dd[1]));
+    return nb ? nb.type : null;
+  });
 
   // 掉落
   for (const pk of rm.pickups) drawPickup(ctx, pk, G.t);
@@ -1723,6 +1762,8 @@ function loop(now) {
     if (G.mode === 'title') { drawTitleCat(now / 1000); drawBgCanvas(); }
     if (G.mode === 'codex') drawBgCanvas();
     if (G.mode === 'story') drawSpeakerTick();
+    // 顶上那句目标，四分之一秒刷一次就够（内部还做了去重，不会每帧写 DOM）
+    if (G.t - (G.goalT || 0) > 0.25) { G.goalT = G.t; updateGoal(); }
   } catch (err) {
     // 游戏循环里任何一帧出错都不该把整局冻住：记一次日志，下一帧照常跑
     if (!G.warned) {
@@ -1821,8 +1862,8 @@ function bindUi() {
   $('btnMap').onclick = () => { renderMinimap(); $('ovMap').classList.add('on'); };
   $('btnMapClose').onclick = () => $('ovMap').classList.remove('on');
   $('coinIcon').src = ART.coin;
-  // 开局的按键说明，玩起来 8 秒后自己淡掉
-  setTimeout(() => $('hintBar').classList.add('off'), 8000);
+  // 开局的按键说明：第一次玩的人要多看一会儿（连「清空才开门」也写在这），老手 7 秒就够
+  setTimeout(() => $('hintBar').classList.add('off'), G.meta.seen.intro ? 7000 : 17000);
   $('activeBtn').onclick = () => useActive();
   $('muteBtn').onclick = () => {
     G.meta.muted = !G.meta.muted;

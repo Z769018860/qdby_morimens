@@ -1300,49 +1300,95 @@ function doorRect(dir, W, H) {
   return { x: W - WALL, y: H / 2 - half, w: WALL, h: half * 2 };
 }
 
+// 门后面是什么，门里就透什么颜色的光——玩家不用打开地图也知道该往哪走
+const DOOR_TINT = {
+  fight: [255, 198, 128], item: [255, 226, 122], shop: [124, 236, 196],
+  boss: [255, 108, 96], start: [186, 208, 255], trap: [255, 158, 118],
+};
+
 // 门关上时的木板（运行时叠在烘焙图上层，随房间清空与否切换）
-function drawDoorState(ctx, room, W, H, t, open) {
+// open 为真画「能走的门」：洞里透光、门框亮一圈、地上一道光带、门口一个呼吸的箭头。
+// peek(dir) 返回隔壁房间的 type，用来决定光色。
+function drawDoorState(ctx, room, W, H, t, open, peek) {
+  // 统一到「门在上、房间在下」的坐标系里画，省的四种方向各写一遍
+  const ROT = { n: 0, s: Math.PI, w: -Math.PI / 2, e: Math.PI / 2 };
   for (const [dir, on] of Object.entries(room.doors)) {
     if (!on) continue;
     const d = doorRect(dir, W, H);
-    const horiz = dir === 'n' || dir === 's';
+    const cx = d.x + d.w / 2, cy = d.y + d.h / 2;
+    const back = peek ? peek(dir) : null;
+    const rgb = DOOR_TINT[back] || DOOR_TINT.fight;
+    const col = (a) => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
+    const half = 30, hh = WALL / 2;
+
     ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(ROT[dir]);
+
     if (!open) {
-      // 铁栅栏
+      // 铁栅栏 + 一把锁：这间房还没清
+      ctx.fillStyle = '#0a0d14';
+      ctx.fillRect(-half, -hh, half * 2, hh * 2);
       ctx.strokeStyle = '#5d6478';
       ctx.lineWidth = 3;
-      const n = horiz ? 4 : 3;
-      for (let i = 0; i < n; i++) {
-        const p = (i + 1) / (n + 1);
-        ctx.beginPath();
-        if (horiz) {
-          const x = d.x + d.w * p;
-          ctx.moveTo(x, d.y + 4); ctx.lineTo(x, d.y + d.h - 4);
-        } else {
-          const y = d.y + d.h * p;
-          ctx.moveTo(d.x + 4, y); ctx.lineTo(d.x + d.w - 4, y);
-        }
-        ctx.stroke();
+      for (let i = 1; i <= 4; i++) {
+        const x = -half + (half * 2 * i) / 5;
+        ctx.beginPath(); ctx.moveTo(x, -hh + 2); ctx.lineTo(x, hh - 2); ctx.stroke();
       }
-      ctx.strokeStyle = 'rgba(190,205,235,.35)';
+      ctx.strokeStyle = 'rgba(190,205,235,.32)';
       ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      if (horiz) {
-        ctx.moveTo(d.x + 3, d.y + d.h / 2); ctx.lineTo(d.x + d.w - 3, d.y + d.h / 2);
-      } else {
-        ctx.moveTo(d.x + d.w / 2, d.y + 3); ctx.lineTo(d.x + d.w / 2, d.y + d.h - 3);
-      }
-      ctx.stroke();
-    } else {
-      // 开着：门口透一点光，提示可以走
-      const cx = d.x + d.w / 2, cy = d.y + d.h / 2;
-      const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, 34);
-      const a = 0.16 + 0.06 * Math.sin(t * 3);
-      g.addColorStop(0, `rgba(140,180,255,${a})`);
-      g.addColorStop(1, 'rgba(140,180,255,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(cx, cy, 34, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-half + 2, 0); ctx.lineTo(half - 2, 0); ctx.stroke();
+      ctx.fillStyle = '#8d94a6';
+      ctx.fillRect(-4.5, -3.5, 9, 8);
+      ctx.fillStyle = '#ff6b5e';
+      ctx.beginPath(); ctx.arc(0, 0.5, 1.7, 0, 7); ctx.fill();
+      ctx.restore();
+      continue;
     }
+
+    const pulse = 0.74 + 0.2 * Math.sin(t * 2.2 + (ROT[dir] === 0 ? 0 : 1.7));
+
+    // 洞里：隔壁的黑
+    ctx.fillStyle = '#070a11';
+    ctx.fillRect(-half, -hh, half * 2, hh * 2);
+
+    // 从门口往房间里铺的一道光带，把「可以走过去」写在地方上
+    const deep = 32;
+    const lg = ctx.createLinearGradient(0, hh, 0, hh + deep);
+    lg.addColorStop(0, col(0.34 * pulse));
+    lg.addColorStop(1, col(0));
+    ctx.fillStyle = lg;
+    ctx.beginPath();
+    ctx.moveTo(-half, hh); ctx.lineTo(half, hh);
+    ctx.lineTo(half + 13, hh + deep); ctx.lineTo(-half - 13, hh + deep);
+    ctx.closePath(); ctx.fill();
+
+    // 洞里的光：越靠门口越亮
+    const g = ctx.createRadialGradient(0, 0, 1, 0, 0, 36);
+    g.addColorStop(0, col(0.82 * pulse));
+    g.addColorStop(0.38, col(0.4 * pulse));
+    g.addColorStop(1, col(0));
+    ctx.fillStyle = g;
+    ctx.fillRect(-half - 16, -hh - 16, half * 2 + 32, hh * 2 + 32);
+
+    // 门框：外深内亮，让这地方读起来是「门」而不是墙上的洞
+    ctx.strokeStyle = 'rgba(0,0,0,.62)';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(-half - 2, -hh - 2, half * 2 + 4, hh * 2 + 4);
+    ctx.strokeStyle = col(0.55 + 0.22 * pulse);
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-half - 2, -hh - 2, half * 2 + 4, hh * 2 + 4);
+
+    // 门口那个呼吸的箭头，指进洞里
+    const r = 6.4 + 1.2 * Math.sin(t * 3);
+    const ay = hh + 19;
+    ctx.fillStyle = col(0.5 + 0.26 * Math.sin(t * 3));
+    ctx.beginPath();
+    ctx.moveTo(0, ay - r);
+    ctx.lineTo(r * 0.86, ay + r * 0.52);
+    ctx.lineTo(-r * 0.86, ay + r * 0.52);
+    ctx.closePath(); ctx.fill();
+
     ctx.restore();
   }
 }
@@ -1419,7 +1465,13 @@ function drawEnemy(ctx, e, t) {
     }
     ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0, 7); ctx.fill();
     ctx.fillStyle = c2;
-    for (const s of [-1, 1]) ctx.beginPath(); ctx.arc(s * r * 0.3, -r * 0.1, r * 0.13, 0, 7); ctx.fill();
+    // 这里以前是「一行 for 不带括号」：for (...) ctx.beginPath(); ctx.arc(s * ...) —— s 在循环外，
+    // 一画蝙蝠就抛 ReferenceError，整个 render() 断在半路（敌人、玩家、HUD 全没了）
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(s * r * 0.3, -r * 0.1, r * 0.13, 0, 7);
+      ctx.fill();
+    }
   } else if (e.draw === 'spider') {
     ctx.strokeStyle = c1;
     ctx.lineWidth = 2.6;
@@ -1951,15 +2003,16 @@ const SCENES = {
     bg: 'hall', music: 'hall', title: '十点三十一分', codex: ['misag', 'erosion'],
     lines: [
       { k: 'narr', t: '十点三十一分，弥萨格的走廊比熄灯前长了一点。' },
-      { k: 'cat', t: '（墙是凉的。凉的就不是梦。梦里的墙是温的。）' },
+      { k: 'cat', t: '墙是凉的。凉的就不是梦。梦里的墙是温的。' },
       { k: 'narr', t: '走廊尽头有一扇平时没有的门。门缝下面漏出光，颜色像泡过银芯的水。' },
-      { k: 'cat', t: '（守门的二年级生说过：看见没见过的门，要去找守密人。）' },
-      { k: 'cat', t: '（可是守密人今晚在补考。）' },
+      { k: 'cat', t: '守门的二年级生说过：看见没见过的门，要去找守密人。' },
+      { k: 'cat', t: '可是守密人今晚在补考。' },
       { k: 'narr', t: '门里飘出来的味道像罐头。于是这只猫做了一个猫会做的决定。' },
       { k: 'voice', t: '……喂？谁把通讯器打开了。这里信号很差——你已经在下面了？' },
-      { k: 'cat', t: '（咪。）' },
+      { k: 'cat', t: '咪。' },
       { k: 'voice', t: '是猫。居然真的是猫。行吧，往下的路我记得一点，你跟着我说的走。' },
       { k: 'voice', t: '第一件事：别用爪子碰墙上的黑东西。第二件事：银芯都捡着，下面能换东西。' },
+      { k: 'voice', t: '还有——把房间里的东西清干净，门才会开。亮着的那扇门，就是能走的路。' },
       { k: 'narr', t: '门在身后合上。走廊的灯，一盏接一盏地灭了。' },
     ],
   },
@@ -1967,9 +2020,9 @@ const SCENES = {
     bg: 'hall', music: 'hall', title: '一层 · 晚自习走廊', codex: ['floor1'],
     lines: [
       { k: 'narr', t: '自习室的门全开着。学生坐得很整齐，笔尖一直在动。' },
-      { k: 'cat', t: '（他们的本子上没有字。写了很久了，一页都没有字。）' },
+      { k: 'cat', t: '他们的本子上没有字。写了很久了，一页都没有字。' },
       { k: 'voice', t: '别看他们。看见他们的人会被记进考勤表。' },
-      { k: 'cat', t: '（考勤表比融蚀可怕。）' },
+      { k: 'cat', t: '考勤表比融蚀可怕。' },
     ],
   },
   b1pre: {
@@ -1981,7 +2034,7 @@ const SCENES = {
       { k: 'narr', t: '灯举高了一点。光落在地板上，地板就往下陷了一点。' },
       { k: 'boss', who: '守灯人', t: '融蚀是赐福。这是教会说的。而教会从不撒谎——他们只是不说全。' },
       { k: 'boss', who: '守灯人', t: '别怕。光会指引方向。' },
-      { k: 'cat', t: '（方向朝下。）' },
+      { k: 'cat', t: '方向朝下。' },
     ],
   },
   b1post: {
@@ -1989,7 +2042,7 @@ const SCENES = {
     lines: [
       { k: 'narr', t: '灯灭了。走廊没有变亮，反而更暗了一点，像谁松了一只手。' },
       { k: 'narr', t: '灯座底下压着一枚银芯，还有一段往下的楼梯。' },
-      { k: 'cat', t: '（凿痕朝上。不是从下面凿的。）' },
+      { k: 'cat', t: '凿痕朝上。不是从下面凿的。' },
       { k: 'voice', t: '……你赢了？一只猫赢了守灯人。我要把这条写进报告，没人会信。' },
       { k: 'voice', t: '下层是解剖教室。罐子里的东西别碰，蜡做的也别碰。' },
     ],
@@ -1998,7 +2051,7 @@ const SCENES = {
     bg: 'lab', music: 'lab', title: '二层 · 解剖教室', codex: ['floor2'],
     lines: [
       { k: 'narr', t: '瓷砖墙，白得发青。架子上排着一列标本罐，里面的东西都侧着身。' },
-      { k: 'cat', t: '（它们在装睡。装得不好，尾巴露出来了。）' },
+      { k: 'cat', t: '它们在装睡。装得不好，尾巴露出来了。' },
       { k: 'voice', t: '解剖教室的规矩：只看，不摸，不问这具是谁。' },
       { k: 'voice', t: '……对了。如果你看见一尊会走路的蜡像，那说明今天他心情不错。' },
     ],
@@ -2012,7 +2065,7 @@ const SCENES = {
       { k: 'narr', t: '蜡像的关节响了一声，像有人在他身体里慢慢转一把钥匙。' },
       { k: 'boss', who: '劳伦斯先生', t: '他没来。来的是你。' },
       { k: 'boss', who: '劳伦斯先生', t: '既然我们都被留在这里，就陪我站一会儿吧。站到蜡凉下来为止。' },
-      { k: 'cat', t: '（蜡本来就是凉的。）' },
+      { k: 'cat', t: '蜡本来就是凉的。' },
     ],
   },
   b2post: {
@@ -2020,7 +2073,7 @@ const SCENES = {
     lines: [
       { k: 'narr', t: '蜡像碎成一地。里面没有骨架，只有一卷胶片。' },
       { k: 'narr', t: '胶片上是这只猫，站在同一条走廊里。毛色不同，眼睛也不同。' },
-      { k: 'cat', t: '（……这是第几次了？）' },
+      { k: 'cat', t: '……这是第几次了？' },
       { k: 'voice', t: '别看了。上面那层的东西，看得越久越像自己。' },
       { k: 'voice', t: '楼梯在解剖台后面。第三层不在图纸上——那上面本来什么都没有。' },
     ],
@@ -2029,7 +2082,7 @@ const SCENES = {
     bg: 'roof', music: 'roof', title: '三层 · 天台与梦', codex: ['floor3'],
     lines: [
       { k: 'narr', t: '楼梯的尽头是夜空。可弥萨格的天台没有这么高。' },
-      { k: 'cat', t: '（星星的位置不对。左边那几颗，是教室天花板上的图钉。）' },
+      { k: 'cat', t: '星星的位置不对。左边那几颗，是教室天花板上的图钉。' },
       { k: 'voice', t: '……通讯器进水里了。听得见吗？' },
       { k: 'voice', t: '如果上面有只眼睛，别和它对视。它靠这个认人。' },
     ],
@@ -2041,7 +2094,7 @@ const SCENES = {
       { k: 'boss', who: '「以眼还眼」', t: '你终于上来了。' },
       { k: 'boss', who: '「以眼还眼」', t: '我替你看了一整晚：走廊、教室、蜡像、每一扇门后面。' },
       { k: 'boss', who: '「以眼还眼」', t: '我看见了你还不知道的事。比如你为什么会在门口。' },
-      { k: 'cat', t: '（它没有身体。它只有一只眼睛，和很多很多影子。）' },
+      { k: 'cat', t: '它没有身体。它只有一只眼睛，和很多很多影子。' },
       { k: 'boss', who: '「以眼还眼」', t: '现在，轮到你还我点什么了。' },
       { k: 'boss', who: '「以眼还眼」', t: '以眼还眼，以牙还牙。这是弥萨格最古老的一条校规。' },
     ],
@@ -2052,8 +2105,8 @@ const SCENES = {
       { k: 'narr', t: '眼睛闭上了。天上的图钉一颗一颗掉下来。' },
       { k: 'narr', t: '天台终于有了天台的样子：栏杆、风、远处的城市，和一颗不肯天亮的星。' },
       { k: 'narr', t: '然后天就亮了。' },
-      { k: 'cat', t: '（身上挂满了不属于我的东西。有一半我认不出来。）' },
-      { k: 'cat', t: '（另一半……我记得。是别人的。）' },
+      { k: 'cat', t: '身上挂满了不属于我的东西。有一半我认不出来。' },
+      { k: 'cat', t: '另一半……我记得。是别人的。' },
       { k: 'narr', t: '十点三十一分，走廊恢复了原来的长度。猫从楼梯口走上来，尾巴上多了一件小东西。' },
       { k: 'narr', t: '没有人看见。除了门口那个抱着作业本的二年级生。' },
       { k: 'voice', who: '二年级生', t: '……小煤球？你怎么弄得这么脏。' },
@@ -3109,10 +3162,9 @@ function startRun() {
 function beginRun() {
   Audio2.ensure();
   Audio2.setMuted(G.meta.muted);
-  playScene('intro', () => {
-    startRun();
-    playScene('f1');
-  });
+  // 开场只放一段：以前这里紧接着又播 f1，等于把两段独白摞在门外面，
+  // 人还没摸到手就以为在放视觉小说。f1 改成第一次推开普通房门时再说。
+  playScene('intro', () => startRun());
 }
 
 // ------------------------------------------------------------------ 移动与碰撞
@@ -3145,8 +3197,11 @@ function clampInside(e, allowDoor) {
   const sGap = open('s') && Math.abs(e.x - cx) < 26;
   const wGap = open('w') && Math.abs(e.y - cy) < 26;
   const eGap = open('e') && Math.abs(e.y - cy) < 26;
-  const minX = (wGap ? 4 : WALL) + e.r, maxX = (eGap ? W - 4 : W - WALL) - e.r;
-  const minY = (nGap ? 4 : WALL) + e.r, maxY = (sGap ? H - 4 : H - WALL) - e.r;
+  // 门口开着时，边界要放到墙外——不然「夹在墙里」比 checkDoorLeave 的判定线还远，永远出不去。
+  // （以前这里写的是 4，玩家的半径 12 一夹就成了 16，而判定线在 12，门等于死的。）
+  const OUT = -e.r * 2;
+  const minX = (wGap ? OUT : WALL) + e.r, maxX = (eGap ? W + e.r * 2 : W - WALL) - e.r;
+  const minY = (nGap ? OUT : WALL) + e.r, maxY = (sGap ? H + e.r * 2 : H - WALL) - e.r;
   e.x = clamp(e.x, minX, maxX);
   e.y = clamp(e.y, minY, maxY);
 }
@@ -3796,6 +3851,11 @@ function goRoom(next, fromDir) {
   } else if (next.type === 'item') {
     banner('宝箱房', '基座上的东西碰一下就拿走');
   }
+  // 第一层第一次推开普通房门时，才把「一层 · 晚自习走廊」那段环境描写补上
+  if (next.type === 'fight' && r.floor === 0 && !r.f1Done) {
+    r.f1Done = true;
+    playScene('f1');
+  }
 }
 
 function goNext() {
@@ -4207,6 +4267,34 @@ const ART_ICON = (ic) => ART.items[ic] || '';
 const ART_ICON_T = (ic) => ART.trinkets[ic] || '';
 const ART_ACTIVE = (ic) => ART.actives[ic] || '';
 
+// 舞台顶上那句话：现在到底该干什么。
+// 空房间里没有敌人、门又只是墙上的一个洞，第一次玩的人会就地站住——这句就是给这种情况的。
+let goalSig = '';
+function updateGoal() {
+  const el = $('goal');
+  if (!el) return;
+  const r = G.run, rm = r && r.room;
+  if (!r || !rm || G.mode !== 'play') { el.classList.add('off'); goalSig = ''; return; }
+  el.classList.remove('off');
+  let html;
+  if (rm.boss && !rm.cleared) {
+    html = '打倒 <b>' + rm.boss.n + '</b>';
+  } else if (!rm.cleared) {
+    const n = rm.ents.length;
+    html = '清掉这间房的 <b>' + n + '</b> 个东西 · 清空才开门';
+  } else if (rm.pickups.some((p) => p.kind === 'stair' && !p.taken)) {
+    html = '踩上 <b>楼梯</b> 下一层';
+  } else if (Object.values(rm.doors).some(Boolean)) {
+    html = '走进 <b>亮着的门</b>';
+  } else {
+    html = '';
+  }
+  if (html === goalSig) return;
+  goalSig = html;
+  el.innerHTML = html;
+  el.classList.toggle('off', !html);
+}
+
 function banner(title, sub) {
   G.banner = { title, sub, t: 0, life: 2.6 };
 }
@@ -4330,7 +4418,11 @@ function render() {
 
   // 房间
   if (rm.baked) ctx.drawImage(rm.baked, 0, 0, G.W, G.H);
-  drawDoorState(ctx, rm, G.W, G.H, G.t, rm.cleared);
+  drawDoorState(ctx, rm, G.W, G.H, G.t, rm.cleared, (dir) => {
+    const dd = DIRS[dir];
+    const nb = G.run.map && G.run.map.cells.get((rm.x + dd[0]) + ',' + (rm.y + dd[1]));
+    return nb ? nb.type : null;
+  });
 
   // 掉落
   for (const pk of rm.pickups) drawPickup(ctx, pk, G.t);
@@ -4507,6 +4599,8 @@ function loop(now) {
     if (G.mode === 'title') { drawTitleCat(now / 1000); drawBgCanvas(); }
     if (G.mode === 'codex') drawBgCanvas();
     if (G.mode === 'story') drawSpeakerTick();
+    // 顶上那句目标，四分之一秒刷一次就够（内部还做了去重，不会每帧写 DOM）
+    if (G.t - (G.goalT || 0) > 0.25) { G.goalT = G.t; updateGoal(); }
   } catch (err) {
     // 游戏循环里任何一帧出错都不该把整局冻住：记一次日志，下一帧照常跑
     if (!G.warned) {
@@ -4605,8 +4699,8 @@ function bindUi() {
   $('btnMap').onclick = () => { renderMinimap(); $('ovMap').classList.add('on'); };
   $('btnMapClose').onclick = () => $('ovMap').classList.remove('on');
   $('coinIcon').src = ART.coin;
-  // 开局的按键说明，玩起来 8 秒后自己淡掉
-  setTimeout(() => $('hintBar').classList.add('off'), 8000);
+  // 开局的按键说明：第一次玩的人要多看一会儿（连「清空才开门」也写在这），老手 7 秒就够
+  setTimeout(() => $('hintBar').classList.add('off'), G.meta.seen.intro ? 7000 : 17000);
   $('activeBtn').onclick = () => useActive();
   $('muteBtn').onclick = () => {
     G.meta.muted = !G.meta.muted;

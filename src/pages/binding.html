@@ -144,6 +144,19 @@ button{font:inherit; color:inherit; cursor:pointer}
 }
 .hint.off{opacity:0}
 .hint b{color:var(--glasstext); font-weight:600}
+/* 键鼠和触屏是两套操作说明，别同时糊在屏幕上（手机上 WASD 那句纯属噪音） */
+.hint .tc{display:none}
+
+/* 当前该做什么：常驻在舞台顶上，一句话。以撒不写这句，但第一次玩的人真的会站在空房间里发呆 */
+.goal{
+  position:absolute; top:40px; left:50%; transform:translateX(-50%);
+  padding:4px 12px; border-radius:99px; white-space:nowrap;
+  background:var(--glass); border:1px solid var(--glassline); color:var(--glassdim);
+  font-size:11.5px; letter-spacing:.02em; pointer-events:none; z-index:6;
+  transition:opacity .3s ease;
+}
+.goal b{color:var(--glassgold); font-weight:600}
+.goal.off{opacity:0}
 
 /* ---------------------------------------------------------------- 载入 */
 #boot{
@@ -252,12 +265,14 @@ body.titlestate .stage .trinket,
 body.titlestate .stage .strip,
 body.titlestate .stage .active,
 body.titlestate .stage .hint,
+body.titlestate .stage .goal,
 body.titlestate .stage .card,
 body.titlestate .stage .toast{display:none}
 
 /* 剧情：舞台铺满整屏，当一段过场看 */
 body.storymode .app{max-width:none; padding:0; gap:0}
 body.storymode .hud{display:none}
+body.storymode .goal{display:none}
 body.storymode #bgcv{display:none}
 body.storymode .stage{border-radius:0; border:none; box-shadow:none}
 body.storymode .dlg{left:max(12px, calc(50% - 430px)); right:max(12px, calc(50% - 430px)); bottom:max(14px, env(safe-area-inset-bottom))}
@@ -285,6 +300,23 @@ body.titlestate .ov#ovTitle .panel{
 @media (max-width:560px){
   .icobtn span{display:none}
   .icobtn{padding-left:7px; padding-right:7px}
+  /* 竖屏手机上顶栏塞不下这么多东西：字缩一档、楼层名给个上限，别把「0 造物」挤成竖排 */
+  .hud{gap:6px}
+  .pill{font-size:11.5px; padding:2px 6px 2px 3px}
+  .pill.ghosted{white-space:nowrap}
+  .floorline{font-size:10.5px; max-width:106px; overflow:hidden; text-overflow:ellipsis}
+  .hp{width:15px; height:15px}
+  .hint{
+    font-size:11px; line-height:1.7; left:10px; right:10px; transform:none; bottom:8px;
+    padding:0 54px;   /* 右下角是钥令按钮，文字别钻到它下面 */
+  }
+  .hint .kb{display:none}
+  .hint .tc{display:inline}
+}
+@media (max-width:430px){
+  /* 再窄就只留心、金币和三个图标；造物数量在下面那条造物带上看得见 */
+  .pill.ghosted{display:none}
+  .floorline{max-width:84px}
 }
 
 /* ---------------------------------------------------------------- 剧情 */
@@ -389,7 +421,9 @@ body.titlestate .ov#ovTitle .panel{
 .codexcount{margin:0 0 2px; font-size:11.5px; color:var(--dim)}
 .entry{
   padding:10px 12px; border-radius:11px; border:1px solid var(--line);
-  background:linear-gradient(180deg, var(--panel2), color-mix(in oklab, var(--panel2) 70%, #000));
+  /* 别拿 panel2 混黑做渐变：浅色主题下那道「越往下越黑」会把底压成灰，
+     压在灰底上的 --dim 正文几乎读不出来。纯色底就够分层了。 */
+  background:var(--panel2);
 }
 .entry h4{margin:0 0 2px; font-size:14px; display:flex; align-items:baseline; gap:7px}
 .entry h4 span{font-size:10px; letter-spacing:.1em; color:var(--dim); font-weight:400; text-transform:uppercase}
@@ -397,10 +431,10 @@ body.titlestate .ov#ovTitle .panel{
   display:block; font-style:normal; font-size:10.5px; color:var(--gold);
   letter-spacing:.04em; margin-bottom:4px;
 }
-.entry p{margin:0; font-size:12.5px; line-height:1.85; color:var(--dim)}
-.entry.locked{opacity:.78}
+.entry p{margin:0; font-size:13px; line-height:1.85; color:color-mix(in oklab, var(--text) 74%, var(--dim))}
+.entry.locked{border-style:dashed; border-color:color-mix(in oklab, var(--line) 70%, var(--dim))}
 .entry.locked h4{color:var(--dim)}
-.entry.locked p{opacity:.85}
+.entry.locked p{color:var(--dim)}
 .entry .row{display:flex; gap:10px; align-items:flex-start}
 .entry .row img{width:32px; height:32px; flex:0 0 32px; border-radius:7px; background:#0b0f16}
 
@@ -425,6 +459,7 @@ body.titlestate .ov#ovTitle .panel{
   <main class="stage" id="stage">
     <canvas id="cv" aria-label="校猫的结合游戏区"></canvas>
     <canvas id="storyCv" aria-hidden="true"></canvas>
+    <div class="goal" id="goal" aria-live="polite"></div>
     <div class="minimap"><canvas id="mm"></canvas></div>
     <div class="trinket" id="trinketSlot"><img alt=""></div>
     <div class="strip" id="itemStrip"></div>
@@ -442,8 +477,9 @@ body.titlestate .ov#ovTitle .panel{
     </div>
     <button class="dlgskip" id="dlgSkip" aria-label="跳过这段剧情">跳过</button>
     <div class="hint" id="hintBar">
-      <b>WASD</b> 移动 · <b>鼠标</b>或<b>方向键</b> 射击 · <b>空格</b> 钥令 · <b>Esc</b> 暂停<br>
-      手机：左半屏拖动移动，右半屏拖动射击
+      <span class="kb"><b>WASD</b> 移动 · <b>鼠标</b>或<b>方向键</b> 射击 · <b>空格</b> 钥令 · <b>Esc</b> 暂停<br>
+        清掉房间里的东西 → 门会亮 → 走进亮着的那扇门</span>
+      <span class="tc">左半屏拖动移动 · 右半屏拖动射击 · <b>清空房间门才会开</b></span>
     </div>
     <div id="boot" role="status" aria-live="polite">
       <div class="ring"></div>
