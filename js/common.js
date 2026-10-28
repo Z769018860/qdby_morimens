@@ -256,8 +256,10 @@ export function realmFits(realms, candidate) {
 export const REALM_EN_ZH = { 深海: 'Aequor', 混沌: 'Chaos', 血肉: 'Caro', 超维: 'Ultra', 褪色遗产: 'Faded Legacy', 通用: 'Universal', 其他: 'Other' };
 export const realmName = (r) => (lang.cur === 'en' ? (REALM_EN_ZH[r] || r) : r);
 
-export async function loadDict() {
-  const [D] = await Promise.all([fetch('data/dictionary.json').then(r => r.json()), loadKeywords()]);
+export async function loadDict(prefetched) {
+  // prefetched：index.html 里已经先开拉的字典 promise，省掉「等模块图加载完再拉数据」
+  const dictP = prefetched || fetch('data/dictionary.json').then(r => r.json());
+  const [D] = await Promise.all([dictP, loadKeywords()]);
   const idx = {};
   for (const k of Object.keys(KINDS)) idx[k] = new Map(D[k].filter(e => e.id != null).map(e => [String(e.id), e]));
   return { D, idx };

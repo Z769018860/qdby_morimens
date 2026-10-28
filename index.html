@@ -11,6 +11,28 @@
 <body>
 <main id="app" class="wrap"></main>
 <footer class="foot">同人作品，与官方无关。素材版权归原权利人所有；战报数据来自公开榜单，玩家信息已匿名。</footer>
+<script>
+/* 首屏最贵的两个数据文件，在这里就开拉。
+   模块图是一层层下载的（edge 只给 HTTP/1.1，每个请求约 1 秒），等 js/game.js
+   执行完再去拉字典，等于白等两三秒。这里先起的请求交给 game.js 复用（window.__boot），
+   同一 URL 只发一次，不会重复下载。
+   （页面禁用 JS 时这段不生效，不影响任何功能。） */
+(function () {
+  var start = function (url, opt) {
+    var p = fetch(url, opt).then(function (r) {
+      if (!r.ok) throw new Error(url + ' ' + r.status);
+      return r.json();
+    });
+    p.catch(function () {}); // 标记已处理，真正的错误由 game.js 捕获并提示重试
+    return p;
+  };
+  window.__boot = {
+    dict: start('data/dictionary.json'),
+    tags: start('data/creation-tags.json').catch(function () { return {}; }),
+    index: start('data/bank/index.json', { cache: 'no-cache' })
+  };
+})();
+</script>
 <script type="module" src="js/game.js"></script>
 </body>
 </html>

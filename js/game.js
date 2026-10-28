@@ -2,6 +2,7 @@ import { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, r
   wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf, scIcon, scNum, emptyState,
   realmFits, realmAnchor, realmName } from './common.js';
 import { PEPPER } from './pepper.js';
+import { bank } from './bank.js';
 import { auth, openLogin } from './auth.js';
 import { account } from './account.js';
 import * as likes from './likes.js';
@@ -35,39 +36,63 @@ document.body.prepend(nav('game'));
 const root = $('#app');
 root.textContent = t('loading');
 
-const { D, idx } = await loadDict();
-// 造物的功能标签（scripts/tag_creations.py 生成），没有也能玩
-const RELIC_TAGS = await fetch('data/creation-tags.json', { cache: 'no-cache' })
-  .then(r => (r.ok ? r.json() : {}))
-  .catch(() => ({}));
-const CORE_JSON = await (await fetch('data/puzzles.json', { cache: 'no-cache' })).json();
-const P = CORE_JSON.puzzles;
-// 扩充题库（data/puzzles-extra.json 等）后台加载，不拖慢首屏
-let EXTRA = [];
-const allP = () => P.concat(EXTRA);
+// 字典（772KB）、造物标签、题库索引（几十 KB）并行拉，别串着等。
+// 题库本体不再是整包下载，改成用到哪道取哪片（见 js/bank.js）。
+// window.__boot：index.html 里已经先开拉的同一批请求，直接复用，不重复下载。
+const boot = (typeof window !== 'undefined' && window.__boot) || {};
+let dictRes;
+let RELIC_TAGS;
+try {
+  [dictRes, RELIC_TAGS] = await Promise.all([
+    loadDict(boot.dict),
+    boot.tags || fetch('data/creation-tags.json', { cache: 'force-cache' })
+      .then(r => (r.ok ? r.json() : {}))
+      .catch(() => ({})),
+    bank.load(boot.index),
+  ]);
+} catch (e) {
+  // 慢网/断网时别停在「载入中」不动，给个能重试的界面
+  console.error('初始化失败', e);
+  root.replaceChildren(h('div', { class: 'card' },
+    h('p', {}, t('loadFail')),
+    h('button', { class: 'btn', onclick: () => location.reload() }, t('retry'))));
+  throw e;
+}
+const { D, idx } = dictRes;
+
 // 自建题目（创意工坊）以 team 明文存在本地，与官方题库一起参与随机
 const customPuzzles = () => store.get('myPuzzles', []);
 
 // 失败题库里的题不再出现；难度档对应不同的题目难度带（入门只出简单题，大师只出难题）
 const LV_RANGE = { 1: [1, 2], 2: [1, 3], 3: [2, 4], 4: [3, 4] };
+// 题池里放的是索引条目 { id, diff, core, c }，不是题目本身——
+// 题目要在真正抽中之后才去取它所在的那一片。
 function basePool() {
-  const all = allP();
+  const all = bank.items();
   const ok = all.filter(p => !failedBank.has(p.id));
   const src = ok.length > 8 ? ok : all;
   const [lo, hi] = LV_RANGE[level] || [1, 4];
-  const band = src.filter(p => (p.diff || 2) >= lo && (p.diff || 2) <= hi);
+  const band = src.filter(p => p.diff >= lo && p.diff <= hi);
   return (band.length >= 12 ? band : src).concat(customPuzzles());
 }
-// 每天一题只在核心题库里挑，避免扩充题库加载后题目跳变
+// 每天一题只在核心题库里挑（核心 = 原来的 puzzles.json，顺序和以前一致，
+// 所以同一天抽到的题跟改造前是同一道）
 const corePool = () => {
-  const ok = P.filter(p => !failedBank.has(p.id));
-  return ok.length ? ok : P;
+  const core = bank.coreItems();
+  const ok = core.filter(p => !failedBank.has(p.id));
+  return ok.length ? ok : core;
 };
 
-// 随机抽题：从当前难度带（含自建题）里挑
-const pickAny = () => {
+// 随机抽题：从当前难度带（含自建题）里挑，再取那一片
+const pickAny = async () => {
   const l = basePool();
-  return l[Math.floor(Math.random() * l.length)];
+  if (!l.length) throw new Error('题池为空');
+  const e = l[Math.floor(Math.random() * l.length)];
+  if (e && e.team) return e;                 // 自建题：本地就是明文
+  const p = await bank.fetchPuzzle(e.id);
+  if (!p) throw new Error('题目加载失败');
+  bank.warm(e.id);
+  return p;
 };
 
 // 题目的积分价值：难度分越高给得越多
@@ -83,15 +108,18 @@ const todayKey = () => {
   return d.toISOString().slice(0, 10);
 };
 const dayNumber = () => Math.floor((Date.now() + 8 * 3600e3) / 864e5);
-const dailyPuzzle = () => {
+const dailyPuzzle = async () => {
   const list = corePool();
-  const start = (dayNumber() * 7919) % list.length;
+  if (!list.length) throw new Error('题库为空');
+  const from = (dayNumber() * 7919) % list.length;
   // 每日题若已进失败题库，顺延到下一题
   for (let i = 0; i < list.length; i++) {
-    const p = list[(start + i) % list.length];
-    if (!failedBank.has(p.id)) return p;
+    const e = list[(from + i) % list.length];
+    if (failedBank.has(e.id)) continue;
+    const p = await bank.fetchPuzzle(e.id);
+    if (p) { bank.warm(e.id); return p; }
   }
-  return list[start];
+  return bank.fetchPuzzle(list[from].id);
 };
 
 function newSel() {
@@ -117,7 +145,15 @@ async function unseal(p) {
 }
 
 async function start(p0, m) {
-  const p = await unseal(p0);
+  // p0 既可以是题目对象，也可以是「还在加载中」的 promise（抽题要先取分片）
+  let p;
+  try {
+    p = await unseal(await p0);
+  } catch (e) {
+    console.error('题目加载失败', e);
+    toast(t('loadFail'));
+    return;
+  }
   puzzle = p; mode = m;
   ans = p.team; // already sorted by damage desc: slot A = top damage
   sel = newSel(); fb = {}; history = []; hintsUsed = 0; finished = false; won = false;
@@ -946,7 +982,7 @@ const ansDlg = h('dialog', { class: 'picker review' });
 document.body.append(ansDlg);
 
 async function viewFailed(id) {
-  const p0 = P.find(x => x.id === id) || customPuzzles().find(x => x.id === id);
+  const p0 = (await bank.fetchPuzzle(id)) || customPuzzles().find(x => x.id === id);
   if (!p0) return;
   const p = await unseal(p0);
   const mk = (kind, i) => { const e = idx[kind].get(String(i)); return h('span', { class: 'ans-i', title: e ? nameOf(e) : i }, imgEl(e && e.img, e && nameOf(e)), h('small', {}, e ? nameOf(e) : i)); };
@@ -1155,32 +1191,16 @@ function render() {
   ].filter(Boolean));
 }
 
-// 登录态：先把云端档案合并下来（最多等 4.5 秒），保证积分 / 解锁 / 记录是最新的
-await account.ready();
+// 云端档案不再挡首屏：先用本机存档把界面画出来，云端合并回来再补一次。
+// 以前这里是 await account.ready()，最长要等 4.5 秒，白白一段「载入中」。
+account.ready()
+  .then((merged) => { if (merged && puzzle && !finished) render(); })
+  .catch(() => {});
 
 await start(dailyPuzzle(), 'daily');
 
-// 扩充题库后台加载：不阻塞首屏，加载完并入题池。
-// extraFile 可以是单个路径或路径数组（题库分片），逐片加载、边到边用。
-(() => {
-  const files = CORE_JSON.extraFiles || (CORE_JSON.extraFile ? [CORE_JSON.extraFile] : []);
-  if (!files.length) return;
-  (async () => {
-    for (const f of files) {
-      try {
-        const r = await fetch(f, { cache: 'no-cache' });
-        if (!r.ok) continue;
-        const j = await r.json();
-        if (!j || !Array.isArray(j.puzzles) || !j.puzzles.length) continue;
-        const have = new Set(allP().map(p => p.id));
-        const add = j.puzzles.filter(p => !have.has(p.id));
-        if (!add.length) continue;
-        EXTRA = EXTRA.concat(add);
-        if (!finished) render();
-      } catch { /* 单个分片失败不影响其他分片 */ }
-    }
-  })();
-})();
+// 扩充题库（puzzles-extra / puzzles-more）不再整包预载：
+// 现在题库是「索引 + 分片」，抽到哪道才取哪片，见 js/bank.js。
 
 // 工坊 / 好友分享的题目：index.html?p=ZJ2-...
 const sharedCode = new URLSearchParams(location.search).get('p');
@@ -1195,8 +1215,10 @@ if (sharedCode) {
   }
 }
 
-// 上次没发完的赞，进页面后接着发
-likes.resume();
+// 上次没发完的赞，进页面后接着发。
+// 延后 1 秒：HTTP/1.1 下一个域名只有 6 个连接，这条预热请求（只为了同步
+// 「我赞过谁 / 还剩几次」）不该跟首屏的图片抢连接。
+setTimeout(() => likes.resume(), 1000);
 
 // 队列里的赞发出去了：服务端回来的权威计数与额度会改本地缓存，重画一下赞数条
 // （数字和「排队发送中」任一变化就重画，否则发完了提示会赖着不走）

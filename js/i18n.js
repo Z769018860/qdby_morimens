@@ -11,6 +11,8 @@ export const I18N = {
     navCodex: '图鉴',
     navAbout: '说明',
     loading: '载入中…',
+    loadFail: '题目加载失败，检查网络后重试',
+    retry: '重试',
     // 难度档
     lv1: '入门', lv2: '进阶', lv3: '老手', lv4: '大师',
     lv1d: '只猜 4 名唤醒体', lv2d: '+ 命轮', lv3d: '+ 密契、钥令', lv4d: '+ 潜能进阶、造物',
@@ -206,6 +208,8 @@ export const I18N = {
     navCodex: 'Codex',
     navAbout: 'Help',
     loading: 'Loading…',
+    loadFail: 'Could not load the puzzle — check your connection and retry',
+    retry: 'Retry',
     lv1: 'Novice', lv2: 'Advanced', lv3: 'Veteran', lv4: 'Master',
     lv1d: '4 awakeners only', lv2d: '+ wheels', lv3d: '+ covenant & key', lv4d: '+ potency & relics',
     daily: 'Daily', random: 'Random',
