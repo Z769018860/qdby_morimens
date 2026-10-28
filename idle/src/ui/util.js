@@ -17,12 +17,16 @@ export const store = {
   clear() { try { localStorage.removeItem(KEY); } catch { /* ignore */ } },
 };
 
+// 单例 toast：后一条覆盖前一条，避免连点时两条叠在一起糊住屏幕
+let toastEl = null, toastTimer = 0;
 export function toast(msg, ms = 2200) {
+  if (toastEl) { toastEl.remove(); toastEl = null; }
+  clearTimeout(toastTimer);
   const t = document.createElement('div');
   t.className = 'toast'; t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => t.classList.add('out'), ms);
-  setTimeout(() => t.remove(), ms + 400);
+  toastEl = t;
+  toastTimer = setTimeout(() => { t.classList.add('out'); setTimeout(() => { t.remove(); if (toastEl === t) toastEl = null; }, 400); }, ms);
 }
 
 let modalRoot;

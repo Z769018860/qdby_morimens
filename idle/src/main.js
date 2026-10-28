@@ -1,7 +1,9 @@
 import {
   indexData, newState, migrate, offlineReport, claimOffline, levelUp, levelUpMax, setTeam, autoTeam, setPreset,
-  equipItem, unequipItem, enhanceItem, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem, dismantleCores,
+  equipItem, unequipItem, enhanceItem, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem,
+  dismantleCores, breakThrough, awakenUp, upgradeOrder,
 } from './core/game.js';
+import { setOrderSlot } from './core/orders.js';
 import { TEAM_SIZE } from './core/constants.js';
 import { BattleView } from './ui/battleView.js';
 import * as P from './ui/pages.js';
@@ -38,11 +40,28 @@ const ICON = {
 
 const GROUPS = [
   { k: 'battle', zh: '战斗', icon: ICON.battle, tabs: [['battle', '战斗']] },
-  { k: 'team', zh: '养成', icon: ICON.team, tabs: [['team', '队伍'], ['roster', '唤醒体'], ['gear', '装备']] },
+  { k: 'team', zh: '养成', icon: ICON.team, tabs: [['team', '队伍'], ['roster', '唤醒体'], ['gear', '装备'], ['orders', '钥令']] },
   { k: 'summon', zh: '召唤', icon: ICON.summon, tabs: [['summon', '召唤']] },
   { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '挑战'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场']] },
   { k: 'more', zh: '更多', icon: ICON.more, tabs: [['signin', '签到'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']] },
 ];
+
+/* 每个页面用一张典藏馆（原作 CG 壁纸）当底，压暗后铺在内容后面。
+   同一组内换个页面也换背景，切换底部主导航时观感差别最明显。 */
+const BG = {
+  battle: '01', team: '02', roster: '03', gear: '04', orders: '05', summon: '06',
+  challenge: '07', weekly: '08', rtower: '09', arena: '10', signin: '11', codex: '12', ach: '11', settings: '12',
+};
+let bgNow = '';
+function setBg(tab) {
+  const n = BG[tab] || '01';
+  if (n === bgNow) return;
+  bgNow = n;
+  const el = document.getElementById('bg');
+  if (!el) return;
+  el.style.opacity = '0';
+  setTimeout(() => { el.style.backgroundImage = `url(public/img/bg/hall-${n}.webp)`; el.style.opacity = '1'; }, 160);
+}
 const GROUP_BY_K = Object.fromEntries(GROUPS.map((g) => [g.k, g]));
 const GROUP_OF = Object.fromEntries(GROUPS.flatMap((g) => g.tabs.map(([k]) => [k, g.k])));
 
@@ -58,7 +77,11 @@ const app = {
 };
 
 async function boot() {
-  const pack = await (await fetch('public/data/game-data.json')).json();
+  const [pack, orders] = await Promise.all([
+    fetch('public/data/game-data.json').then((r) => r.json()),
+    fetch('public/data/orders.json').then((r) => r.json()).catch(() => ({ items: [] })),
+  ]);
+  pack.orders = orders.items || [];
   app.data = indexData(pack);
   const saved = store.read();
   app.state = saved ? migrate(saved, app.data) : newState(app.data);
@@ -128,6 +151,8 @@ export function show(tab) {
   v.hidden = tab === 'battle';
   if (tab !== 'battle') render();
   if (tab === 'arena') refreshArena();
+  setBg(tab);
+  document.body.dataset.tab = tab;
   // 切页淡入，避免内容「啪」地整块换掉
   v.classList.remove('fadein'); void v.offsetWidth; v.classList.add('fadein');
   if (prev !== tab) {
@@ -142,7 +167,7 @@ function refreshArena() {
   if (app.tab === 'arena') render();
 }
 function render() {
-  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, ach: P2.achievementPage }[app.tab];
+  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, orders: P.ordersPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, ach: P2.achievementPage }[app.tab];
   if (f) { const y = window.scrollY; $('#view').innerHTML = f(app); window.scrollTo(0, y); }
   app.refreshTop();
 }
@@ -170,11 +195,34 @@ function onAct(e) {
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
   const s = app.state, d = app.data, a = el.dataset.act;
-  if (el.tagName === 'BUTTON' && !['pull', 'epull', 'ach-claim', 'tower-go', 'trial-go', 'lvup', 'lvmax', 'sign-today', 'welcome-claim', 'welcome-7', 'cpull', 'cepull', 'shop-buy', 'ach-all', 'snd-test'].includes(a)) sound.play('click');
+  if (el.tagName === 'BUTTON' && !['pull', 'epull', 'ach-claim', 'tower-go', 'trial-go', 'lvup', 'lvmax', 'sign-today', 'welcome-claim', 'welcome-7', 'cpull', 'cepull', 'shop-buy', 'ach-all', 'snd-test', 'awaken', 'brk', 'order-up'].includes(a)) sound.play('click');
   switch (a) {
     case 'snd-test': sound.play(el.dataset.k); break;
+    case 'guide-growth': P.growthGuideModal(app); break;
+    case 'go-orders': show('orders'); break;
+    case 'pick-order': {
+      const i = +el.dataset.i;
+      P.pickOrder(app, i, (id) => { setOrderSlot(s, i, id); rerender(); });
+      break;
+    }
+    case 'order-up': {
+      if (upgradeOrder(s, el.dataset.id)) { sound.play('lvup'); toast('钥令淬炼成功'); render(); }
+      break;
+    }
+    case 'brk': {
+      const r = breakThrough(s, el.dataset.slug);
+      if (r) { sound.play('lvup'); toast(`突破成功：金币-${fmt(r.gold)} 银芯-${r.cores}`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
+      else toast('材料不足');
+      break;
+    }
+    case 'awaken': {
+      const c = awakenUp(s, el.dataset.slug);
+      if (c) { sound.play('lvup'); toast(`叠位 +1（银芯 -${c}）`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
+      else toast('银芯不足');
+      break;
+    }
     case 'weekly-go': { const r = doWeekly(s, d); if (r) { app.save(); render(); sound.play('win'); P3.weeklyResultModal(app, r); } break; }
-    case 'weekly-claim': { const r = claimWeekly(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`领取成功：召唤券+${r.tickets} 金币+${r.gold}${r.items.length ? ' 装备+1' : ''}`); rerender(); } break; }
+    case 'weekly-claim': { const r = claimWeekly(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`领取成功：召唤券+${r.tickets} 金币+${r.gold}${r.items.length ? ' 装备+1' : ''}${r.orders?.length ? ' 钥令+1' : ''}`); if (r.orders?.length) P.showOrders(app, r.orders); rerender(); } break; }
     case 'rt-go': case 'rt-auto': {
       const out = [];
       for (let i = 0; i < (a === 'rt-auto' ? 10 : 1); i++) { const r = doRTower(s, d, el.dataset.realm); if (!r) break; out.push(r); if (!r.win) break; }
@@ -248,7 +296,7 @@ function onAct(e) {
     case 'ach-claim': { const r = claimAchievement(s, el.dataset.id, app.data); if (r) { sound.play('ach'); toast('成就奖励已领取'); rerender(); } break; }
     case 'cpull': { const out = summonCores(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play(out.some((p) => ['SSR', 'Genesis'].includes(p.rarity)) ? 'summonSSR' : 'summon'); P.showPulls(app, out); } break; }
     case 'cepull': { const out = equipPullCores(s, d, 1); if (out) { app.save(); render(); sound.play('summon'); P.showItems(app, out); } break; }
-    case 'shop-buy': { const r = shopBuy(s, d, el.dataset.id); if (r) { sound.play('gold'); toast(`已购买：${SHOP.find((x) => x.id === el.dataset.id).zh}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
+    case 'shop-buy': { const r = shopBuy(s, d, el.dataset.id); if (r) { sound.play('gold'); toast(`已购买：${SHOP.find((x) => x.id === el.dataset.id).zh}`); if (r.items.length) P.showItems(app, r.items); if (r.orders?.length) P.showOrders(app, r.orders); rerender(); } break; }
     case 'gear-refine': if (refineItem(s, el.dataset.uid)) { sound.play('lvup'); rerender(); } break;
     case 'welcome-claim': { const r = claimWelcome(s, d, portalUser()); if (r) { sound.play('summonSSR'); toast(`注册福利已到账：银芯+${r.cores} 召唤券+${r.tickets} 金币+${r.gold}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
     case 'welcome-7': { const r = claimSeven(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`新手福利：银芯+${r.cores} 召唤券+${r.tickets}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }

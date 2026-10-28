@@ -1,4 +1,5 @@
 import { THREATS } from './challenge.js';
+import { relicTheme } from './gear.js';
 
 // ---- progress readers
 const trialsCleared = (s) => Object.keys(s.trials.cleared).length;
@@ -15,6 +16,19 @@ const arenaRank = (s) => (s.arena ? Math.max(0, 101 - s.arena.best) : 0);   // 0
 const owned = (s, data, rar) => Object.keys(s.roster).filter((k) => data?.bySlug?.[k]?.rarity === rar).length;
 const friendDuels = (s) => (s.arena?.friends || []).reduce((a, f) => a + f.wins + f.losses, 0);
 const trialTier = (s, ks) => Object.keys(s.trials.cleared).filter((k) => ks.some((x) => k.endsWith('-' + x))).length;
+const orderCount = (s) => Object.keys(s.orders?.owned || {}).length;
+const orderMaxLv = (s) => Math.max(0, ...Object.values(s.orders?.owned || {}));
+// 造物羁绊：装上（且栏位已解锁）的同主题造物 ≥2 件即算一种
+const bondCount = (s, data) => {
+  if (!data?.relicById) return 0;
+  const cnt = {};
+  for (const uid of (s.gear.relics || []).slice(0, 6)) {
+    const it = uid && s.gear.items?.[uid]; if (!it) continue;
+    const def = data.relicById[it.defId]; if (!def) continue;
+    const th = relicTheme(def.id); cnt[th.zh] = (cnt[th.zh] || 0) + 1;
+  }
+  return Object.values(cnt).filter((n) => n >= 2).length;
+};
 const claimedCount = (s) => Object.keys(s.ach || {}).length;
 
 // reward ladder by tier (tier 0 = easiest)
@@ -35,17 +49,23 @@ export const ACHIEVEMENTS = [
   ...tiers('battle', 'kills', ['清道夫', '收割者', '融蚀猎手', '深渊清洁工'], (g) => `累计击杀 ${g} 个敌人`, (s) => s.stats.kills, [1000, 5000, 20000, 80000]),
   ...tiers('battle', 'gold', ['小有积蓄', '财源广进', '金库', '无底洞'], (g) => `累计获得 ${fm(g)} 金币`, (s) => s.stats.gold, [20000, 200000, 2000000, 20000000]),
   ...tiers('collect', 'own', ['小队集结', '唤醒者的圈子', '银钥回廊', '半数收藏', '全员集结'], (g) => `拥有 ${g} 名唤醒体`, (s) => Object.keys(s.roster).length, [10, 25, 45, 55, 62]),
-  ...tiers('collect', 'star', ['初次突破', '二星', '三星闪耀', '四星', '满星'], (g) => `任一唤醒体达到 ${g}★`, maxStar, [1, 2, 3, 4, 5]),
+  ...tiers('collect', 'star', ['初次叠位', '叠位 · 五', '叠位 · 十五', '叠位 · 三十', '叠位 · 六十', '叠位 · 九十九'], (g) => `任一唤醒体达到 ${g} 叠位`, maxStar, [1, 5, 15, 30, 60, 99]),
   ...tiers('collect', 'ssr', ['史诗入手', '史诗小队', '史诗收藏家'], (g) => `拥有 ${g} 名史诗唤醒体`, (s, d) => owned(s, d, 'SSR'), [1, 4, 10]),
   ...tiers('collect', 'gen', ['创生降临', '创生双子', '创生群像'], (g) => `拥有 ${g} 名创生唤醒体`, (s, d) => owned(s, d, 'Genesis'), [1, 2, 4]),
-  ...tiers('grow', 'lv', ['初露锋芒', '渐入佳境', '炉火纯青', '登峰'], (g) => `任一唤醒体达到 ${g} 级`, maxLv, [20, 30, 45, 60]),
-  ...tiers('grow', 'team', ['整装', '精锐', '满编'], (g) => `出战队伍总等级达到 ${g}`, (s) => (s.team || []).reduce((a, x) => a + (s.roster[x]?.lv || 0), 0), [80, 160, 240]),
+  { id: 'brk1', cat: 'grow', zh: '初次突破', desc: '完成任意唤醒体的第一次等级突破', cur: (s) => Math.max(0, ...Object.values(s.roster).map((r) => r.brk || 0)), goal: 1, reward: reward(0) },
+  ...tiers('grow', 'lv', ['初露锋芒', '渐入佳境', '炉火纯青', '登峰', '越限', '极境'], (g) => `任一唤醒体达到 ${g} 级`, maxLv, [20, 45, 70, 100, 130, 159]),
+  ...tiers('grow', 'team', ['整装', '精锐', '满编'], (g) => `出战队伍总等级达到 ${g}`, (s) => (s.team || []).reduce((a, x) => a + (s.roster[x]?.lv || 0), 0), [100, 250, 450]),
   ...tiers('gear', 'gear', ['收藏家', '军械库', '博物馆'], (g) => `持有 ${g} 件装备`, gearCount, [20, 60, 120]),
   { id: 'gearmax', cat: 'gear', zh: '千锤百炼', desc: '强化 1 件装备到满级', cur: maxedGear, goal: 1, reward: reward(1) },
   { id: 'gearmax5', cat: 'gear', zh: '锻造大师', desc: '强化 5 件装备到满级', cur: maxedGear, goal: 5, reward: reward(3) },
   { id: 'refine1', cat: 'gear', zh: '初次精炼', desc: '精炼任意装备 1 次（需要银芯）', cur: (s) => refined(s, 1), goal: 1, reward: reward(0) },
   { id: 'refine3', cat: 'gear', zh: '精炼三成', desc: '拥有 3 件精炼 ≥3 阶的装备', cur: (s) => refined(s, 3), goal: 3, reward: reward(3) },
   { id: 'refine5', cat: 'gear', zh: '登峰造极', desc: '拥有 1 件精炼满 5 阶的装备', cur: (s) => refined(s, 5), goal: 1, reward: reward(4) },
+  { id: 'order3', cat: 'gear', zh: '钥令入门', desc: '拥有 3 个钥令', cur: orderCount, goal: 3, reward: reward(0) },
+  { id: 'order6', cat: 'gear', zh: '钥令收藏', desc: '拥有 6 个钥令', cur: orderCount, goal: 6, reward: reward(2) },
+  { id: 'ordermax', cat: 'gear', zh: '淬炼大师', desc: '把任意钥令淬炼到 Lv5', cur: orderMaxLv, goal: 5, reward: reward(3) },
+  { id: 'bond2', cat: 'gear', zh: '羁绊初成', desc: '同时激活 2 种造物羁绊', cur: bondCount, goal: 2, reward: reward(2) },
+  { id: 'bond4', cat: 'gear', zh: '羁绊大师', desc: '同时激活 4 种造物羁绊', cur: bondCount, goal: 4, reward: reward(4) },
   ...tiers('gacha', 'pull', ['祈愿者', '虔诚者', '千次祈愿', '命运之轮'], (g) => `累计召唤 ${g} 次`, (s) => s.stats.pulls, [100, 300, 1000, 3000]),
   ...tiers('gacha', 'spent', ['银芯初试', '银芯常客', '银芯豪客'], (g) => `累计花费 ${g} 银芯`, (s) => s.stats.coresSpent || 0, [500, 3000, 12000]),
   ...tiers('challenge', 'tower', ['回廊十层', '回廊二十层', '回廊三十层', '回廊四十五层', '倒悬之巅', '无尽回廊'], (g) => `无限塔到达 ${g} 层`, (s) => s.tower.best, [10, 20, 30, 45, 60, 90]),

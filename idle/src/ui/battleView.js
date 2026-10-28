@@ -1,4 +1,4 @@
-import { runBattle, applyResult, allyDef } from '../core/game.js';
+import { runBattle, applyResult, prepareBattle, farmRate, firstClearReward, winRateOf } from '../core/game.js';
 import { stageInfo } from '../core/enemies.js';
 import { REALMS, TYPES, STATUS } from '../core/constants.js';
 import { esc, img, fmt, $, toast, kwIcon, stripMarks } from './util.js';
@@ -10,21 +10,28 @@ import { FX, COLORS } from './fx.js';
 
 const STAT_ZH = { atk: '攻击', def: '防御', crit: '暴击', amp: '增伤', vuln: '易伤' };
 
-// Plays a pre-computed battle log; battles chain forever while the tab is visible.
+/* 播放节奏：固定一套，不再有倍速 / 极速开关。
+   数值约等于原来默认的 ×2，既看得到演出，也不至于一场打太久。 */
+const PACE = { act: 150, dmg: 56, dot: 42, heal: 52, shield: 42, round: 74, die: 86, end: 0 };
+const GAP = 24;            // 默认事件间隔
+const NEXT_GAP = 700;      // 一场结束到下一场开始的停顿
+
+// Plays a pre-computed battle log. 自动挂机时无限连战；手动攻坚时每场都要点「开战」。
 export class BattleView {
   constructor(root, app) {
     this.root = root; this.app = app; this.timer = null; this.running = false; this.token = 0;
+    this.phase = 'idle';
     root.innerHTML = `
       <div class="stage-head">
         <div><div class="stage-name" id="bv-name"></div><div class="stage-sub" id="bv-sub"></div></div>
         <div class="stage-ctl">
-          <button class="btn sm" data-bv="prev" title="上一关">◀</button>
-          <button class="btn sm" data-bv="next" title="挑战下一关">▶</button>
+          <button class="btn sm" data-bv="prev" id="bv-prev" title="上一关">◀</button>
+          <button class="btn sm" data-bv="next" id="bv-next" title="下一关">▶</button>
           <button class="btn sm" data-bv="auto" id="bv-auto"></button>
-          <button class="btn sm" data-bv="speed" id="bv-speed"></button>
-          <button class="btn sm" data-bv="skip" id="bv-skip"></button>
         </div>
       </div>
+      <div class="farm" id="bv-farm"></div>
+      <div class="fightbar" id="bv-fight"></div>
       <div class="field" id="bv-field"><div class="side enemies" id="bv-e"></div><div class="vs" id="bv-round">—</div><div class="side allies" id="bv-a"></div></div>
       <div class="banner" id="bv-banner"></div>
       <div class="rewards" id="bv-rw"></div>
@@ -35,45 +42,121 @@ export class BattleView {
       const f = e.target.closest('.unit.foe[data-mid]'); if (f) monsterModal(this.app, f.dataset.mid);
     });
     this.fx = new FX($('#bv-field', root));
+    this.fx.speed = 1;
     this.refreshHead();
   }
 
   colorOf(u) { return (u && COLORS[u.realm]) || (u?.el.classList.contains('foe') ? '#ff8c7a' : COLORS.none); }
 
+  maxTarget() { return this.app.state.maxStage + 1; }
+
   ctl(a) {
     const s = this.app.state;
     if (a === 'detail') { if (this.lastCtx) settlementModal(this.app, this.lastCtx); return; }
-    if (a === 'auto') s.auto = !s.auto;
-    if (a === 'speed') s.speed = { 1: 2, 2: 4, 4: 8, 8: 1 }[s.speed] || 1;
-    if (a === 'skip') s.skipAnim = !s.skipAnim;
+    if (a === 'auto') {
+      s.auto = !s.auto;
+      toast(s.auto ? '自动挂机：循环刷本关，从容胜利才推进' : '手动攻坚：点「开战」打一场，胜利即推进');
+      this.app.save(); this.refreshHead(); this.restart();
+      return;
+    }
+    if (a === 'fight') { if (this.phase !== 'playing') this.next(); return; }
     if (a === 'prev' && s.stage > 1) { s.stage--; this.restart(); }
-    if (a === 'next') { if (s.stage <= s.maxStage) { s.stage++; this.restart(); } else toast('先通关当前关卡'); }
+    if (a === 'next') {
+      if (s.stage < this.maxTarget()) { s.stage++; this.restart(); }
+      else toast('先通关当前关卡才能继续');
+    }
     this.app.save(); this.refreshHead();
   }
 
   refreshHead() {
     const s = this.app.state, i = stageInfo(s.stage);
     $('#bv-name', this.root).textContent = `第 ${s.stage} 关 · ${i.name}`;
-    $('#bv-sub', this.root).textContent = `${i.node}/10 ${i.boss ? '· BOSS' : i.elite ? '· 精英' : ''}　最高通关：${s.maxStage}`;
-    $('#bv-auto', this.root).textContent = s.auto ? '自动推进:开' : '自动推进:关';
-    $('#bv-speed', this.root).textContent = `×${s.speed}`;
-    $('#bv-skip', this.root).textContent = s.skipAnim ? '极速:开' : '极速:关';
-    $('#bv-skip', this.root).classList.toggle('on', s.skipAnim);
+    $('#bv-sub', this.root).textContent = `${i.node}/10 ${i.boss ? '· BOSS' : i.elite ? '· 精英' : ''}　最高通关：${s.maxStage}　${s.stage > s.maxStage ? '· 攻坚中' : ''}`;
+    $('#bv-auto', this.root).textContent = s.auto ? '自动挂机：开' : '自动挂机：关';
     $('#bv-auto', this.root).classList.toggle('on', s.auto);
+    $('#bv-next', this.root).disabled = s.stage >= this.maxTarget();
+    const prev = $('#bv-prev', this.root); if (prev) prev.disabled = s.stage <= 1;
+    this.renderFarm();
     this.app.refreshTop();
   }
 
-  // auto-opened settlement: pause the chain until it is closed
-  popSettle(ctx) {
-    this.paused = true;
-    settlementModal(this.app, ctx);
-    const mo = new MutationObserver(() => { if (!document.querySelector('.modal-bg')) { mo.disconnect(); this.paused = false; if (this.running) this.timer = setTimeout(() => this.next(), 300); } });
-    mo.observe(document.body, { childList: true });
+  /* ---------- 挂机收益面板：当前关 / 下一关，口径与离线结算一致 ---------- */
+  farmSig() {
+    const s = this.app.state;
+    return [s.stage, s.maxStage, s.auto ? 1 : 0, s.team.join(','), Object.values(s.roster).map((r) => `${r.lv}.${r.star}.${r.brk}`).join('|'), (s.gear.relics || []).join(','), (s.orders?.slots || []).join(','), Object.keys(s.gear.items).length].join('#');
+  }
+  farmData() {
+    const s = this.app.state, d = this.app.data;
+    const sig = this.farmSig();
+    if (this._farm?.sig === sig) return this._farm;
+    const cur = farmRate(s, d, s.stage);
+    const nxtStage = s.stage + 1;
+    const nxt = farmRate(s, d, nxtStage);
+    this._farm = { sig, cur, nxt: nxtStage, nxtRate: nxt };
+    return this._farm;
   }
 
-  start() { if (this.running) return; this.running = true; this.next(); }
-  stop() { this.running = false; this.token++; clearTimeout(this.timer); }
+  renderFarm() {
+    const s = this.app.state;
+    const f = this.farmData();
+    const col = (label, r, extra = '') => `<div class="farmc">
+      <div class="farmh"><span>${label}</span><b>第 ${r.stage} 关</b></div>
+      <div class="farmrows">
+        <div><span>胜率</span><b class="${r.rate >= 1 ? 'ok' : r.rate <= 0 ? 'bad' : ''}">${Math.round(r.rate * 100)}%</b></div>
+        <div><span>金币/小时</span><b class="g">${fmt(r.goldPerHour)}</b></div>
+        <div><span>单场金币</span><b>${fmt(r.perBattle)}</b></div>
+        <div><span>召唤券/小时</span><b class="t">${r.ticketsPerHour.toFixed(1)}</b></div>
+        <div><span>银芯/小时</span><b class="c">${r.coresPerHour.toFixed(1)}</b></div>
+        <div><span>装备/小时</span><b class="i">${r.dropsPerHour.toFixed(2)}</b></div>
+      </div>${extra}</div>`;
+    const nf = f.nxtRate;
+    const delta = f.cur.goldPerHour > 0 ? (nf.goldPerHour / f.cur.goldPerHour - 1) * 100 : 0;
+    const first = firstClearReward(f.nxt);
+    const extra = `<div class="farmx">${delta >= 0 ? '+' : ''}${delta.toFixed(1)}% 金币收益${f.nxt > s.maxStage ? `　首通：券+${first.tickets} 银芯+${first.cores}${first.order ? ' 钥令+1' : ''}${first.gear ? ' 装备+1' : ''}` : ''}</div>`;
+    $('#bv-farm', this.root).innerHTML = `
+      <div class="farmgrid">
+        ${col('当前挂机', f.cur)}
+        ${col('下一关', nf, extra)}
+      </div>
+      <p class="hint">一场按 25 秒结算：金币 = 单场金币 × 胜率；召唤券每 40 场 1 张、银芯每 90 场 1 枚、装备每场 10% 掉落。在线与离线同一口径（离线最多累计 8 小时）。
+        ${s.auto ? '自动挂机中：打赢且「从容」（存活 ≥3 人、回合数达标）才自动推进，否则原地刷。' : '手动攻坚中：战斗不会自动重开，点「开战」打一场；<b>赢了就推进</b>，不看是否从容，适合硬闯高关拿更高挂机收益。'}</p>`;
+  }
+
+  /* ---------- 战斗流 ---------- */
+  start() {
+    if (this.running) return;
+    this.running = true;
+    if (this.app.state.auto) this.next();
+    else this.preview();
+  }
+  stop() { this.running = false; this.token++; clearTimeout(this.timer); this.phase = 'idle'; }
   restart() { this.stop(); this.start(); }
+
+  // 手动模式下的「待战」画面：把这一关的敌人摆出来，等玩家点开战
+  preview(keepBanner = false) {
+    const s = this.app.state;
+    const prep = prepareBattle(s, this.app.data, s.stage);
+    this.res = null; this.units = {};
+    this.draw({ prep });
+    this.fx.clear();
+    $('#bv-round', this.root).textContent = '—';
+    if (!keepBanner) {
+      const b = $('#bv-banner', this.root);
+      b.className = 'banner'; b.textContent = '';
+      $('#bv-rw', this.root).innerHTML = '';
+    }
+    this.phase = 'ready';
+    this.renderFightBar();
+  }
+
+  renderFightBar() {
+    const s = this.app.state, bar = $('#bv-fight', this.root);
+    if (s.auto) { bar.innerHTML = ''; return; }
+    if (this.phase === 'playing') { bar.innerHTML = `<span class="dim">战斗中…</span>`; return; }
+    const frontier = s.stage > s.maxStage;
+    bar.innerHTML = `<button class="btn big gold" data-bv="fight">开战 · 第 ${s.stage} 关${frontier ? '（攻坚）' : ''}</button>
+      <span class="hint">手动攻坚不会自动重开：赢一场推进一关，输了退回第 ${Math.max(1, s.maxStage)} 关。</span>`;
+  }
 
   next() {
     if (!this.running) return;
@@ -84,24 +167,23 @@ export class BattleView {
     this.res = res;
     this.units = {};
     this.draw(res);
-    this.fx.clear(); this.fx.speed = s.speed;
+    this.fx.clear(); this.fx.speed = 1;
+    this.phase = 'playing';
+    this.renderFightBar();
     const bossFight = res.prep.enemies.some((d) => d.boss);
     sound.setMood(bossFight ? 'boss' : 'field');
-    if (bossFight && !s.skipAnim) { sound.play('boss'); this.fx.bossIntro(); }
+    if (bossFight) { sound.play('boss'); this.fx.bossIntro(); }
     $('#bv-banner', this.root).textContent = '';
     $('#bv-banner', this.root).className = 'banner';
     const evs = res.events;
     let i = 0;
-    const skip = s.skipAnim;
     const step = () => {
       if (tok !== this.token) return;
-      if (skip) { for (; i < evs.length; i++) this.apply(evs[i], true); this.finish(res, tok); return; }
       const e = evs[i++];
       if (!e) { this.finish(res, tok); return; }
       this.apply(e, false);
-      const sp = this.app.state.speed;
-      const d = { act: 300, dmg: 110, dot: 80, heal: 100, shield: 80, round: 140, die: 160, end: 0 }[e.k] ?? 40;
-      this.timer = setTimeout(step, d / sp);
+      const d = PACE[e.k] ?? GAP;
+      this.timer = setTimeout(step, d);
     };
     step();
   }
@@ -124,7 +206,7 @@ export class BattleView {
   }
 
   float(u, text, cls) {
-    if (this.app.state.skipAnim || !u?.el) return;
+    if (!u?.el) return;
     const f = document.createElement('span');
     f.className = `float ${cls}`; f.textContent = text;
     f.style.left = 20 + Math.random() * 50 + '%';
@@ -219,16 +301,20 @@ export class BattleView {
     const before = s.maxStage;
     const rw = applyResult(s, this.app.data, res);
     s.lastSeen = Date.now();
+    this.phase = 'done';
     const b = $('#bv-banner', this.root);
     b.className = `banner ${res.win ? 'win' : 'lose'}`;
-    if (!s.skipAnim) { sound.play(res.win ? 'win' : 'lose'); if (res.win) { this.fx.confetti(); this.fx.flash('#ffd36b', 0.12); } }
+    sound.play(res.win ? 'win' : 'lose');
+    if (res.win) { this.fx.confetti(); this.fx.flash('#ffd36b', 0.12); }
     b.textContent = res.win ? `胜利 · ${res.rounds} 回合` : (res.rounds >= 30 ? '超时 · 战斗失败' : '全员倒下 · 战斗失败');
     const parts = [];
     if (res.win) parts.push(`<span class="g">金币 +${fmt(rw.gold)}</span>`);
     if (rw.tickets) parts.push(`<span class="t">召唤券 +${rw.tickets}</span>`);
     if (rw.cores) parts.push(`<span class="c">银芯 +${rw.cores}</span>`);
     for (const it of rw.items) parts.push(`<span class="i">获得装备：${esc(this.app.itemName(it))}</span>`);
+    for (const od of rw.orders) parts.push(`<span class="i">获得钥令：${esc(this.app.data.orderById[od.id]?.zh || od.id)}</span>`);
     if (rw.firstClear) parts.push('<span class="n">首通!</span>');
+    if (rw.advanced) parts.push(`<span class="n">${rw.manual ? '攻坚成功' : '推进'} → 第 ${s.stage} 关</span>`);
     if (rw.retreat) parts.push('<span class="r">挑战失败，退回上一关挂机，提升战力再来</span>');
     if (res.win && !rw.advanced && !rw.comfortable && s.stage <= s.maxStage) parts.push('<span class="r">赢得不够从容，继续在此关积累</span>');
     $('#bv-rw', this.root).innerHTML = parts.join('');
@@ -242,8 +328,32 @@ export class BattleView {
     this.app.save();
     this.refreshHead();
     this.app.onBattleDone?.(rw);
+
+    if (!s.auto) {
+      // 手动攻坚：不自动重开，摆出下一场的待战画面并等点击
+      const txt = b.textContent, cls = b.className, rwHtml = $('#bv-rw', this.root).innerHTML;
+      this.preview(true);
+      const nb = $('#bv-banner', this.root);
+      nb.className = cls; nb.textContent = txt;
+      $('#bv-rw', this.root).innerHTML = rwHtml;
+      if (pop) this.popSettle(ctx);
+      return;
+    }
     if (pop) { this.popSettle(ctx); return; }
-    const wait = s.skipAnim ? 160 : 900 / s.speed;
-    this.timer = setTimeout(() => this.next(), wait);
+    this.timer = setTimeout(() => this.next(), NEXT_GAP);
+  }
+
+  // auto-opened settlement: pause the chain until it is closed
+  popSettle(ctx) {
+    this.paused = true;
+    settlementModal(this.app, ctx);
+    const mo = new MutationObserver(() => {
+      if (!document.querySelector('.modal-bg')) {
+        mo.disconnect(); this.paused = false;
+        if (this.running && this.app.state.auto) this.timer = setTimeout(() => this.next(), 320);
+        else if (this.running) this.renderFightBar();
+      }
+    });
+    mo.observe(document.body, { childList: true });
   }
 }

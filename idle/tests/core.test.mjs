@@ -56,7 +56,7 @@ test('summon: pity, duplicates raise star, cost tickets', () => {
   for (const p of all) { sinceG++; if (p.rarity === 'Genesis') { genesis++; maxGap = Math.max(maxGap, sinceG); sinceG = 0; } }
   assert.ok(genesis >= 3 && maxGap <= PULL_PITY_GENESIS);
   assert.equal(s.tickets, 700);
-  assert.ok(Object.values(s.roster).every((r) => r.star <= 5));
+  assert.ok(Object.values(s.roster).every((r) => r.star <= 99));
   assert.equal(summon(newState(data, 1), data, 99), null);
 });
 
@@ -93,7 +93,8 @@ test('leveling costs gold and raises power', () => {
 test('save migration tolerates junk and old saves', () => {
   assert.ok(migrate(null, data).team.length > 0);
   const m = migrate({ gold: 5, roster: { ogier: { lv: 3, star: 0 } }, team: ['nobody', 'ogier'] }, data);
-  assert.deepEqual(m.team, ['ogier']); assert.equal(m.gold, 5); assert.equal(m.gear.relics.length, 3);
+  assert.deepEqual(m.team, ['ogier']); assert.equal(m.gold, 5); assert.equal(m.gear.relics.length, 6);
+  assert.ok(m.orders && m.orders.slots.length === 3, '旧存档补上钥令位');
   assert.deepEqual(JSON.parse(JSON.stringify(m)), m);
 });
 
@@ -260,7 +261,7 @@ test('real skill ranges are parsed and scale with skill level', () => {
   const n = realNums({ d: '造成 150–300%（攻击力） 点伤害。获得 10–20%（防御力） 点护盾。获得 5–10 点狂气。' });
   assert.deepEqual(n.dmg, [150, 300]); assert.deepEqual(n.shield, [10, 20]); assert.deepEqual(n.gauge, [5, 10]);
   assert.equal(SKILL_LEVELS, 5);
-  assert.ok(skillLevel(1, 0) === 0 && skillLevel(60, 5) === 4 && skillLevel(30, 0) >= skillLevel(10, 0));
+  assert.ok(skillLevel(1, 0) === 0 && skillLevel(60, 0) === 3 && skillLevel(60, 80) === 4 && skillLevel(30, 0) >= skillLevel(10, 0));
   const lo = data.kit('xu', 0).Skill1.effects.find((e) => e.t === 'dmg'), hi = data.kit('xu', 4).Skill1.effects.find((e) => e.t === 'dmg');
   assert.ok(lo && hi && hi.m > lo.m, 'higher skill level hits harder');
   assert.ok(data.kit('xu', 4).Skill1.real.cur.dmg > data.kit('xu', 0).Skill1.real.cur.dmg);
@@ -343,7 +344,7 @@ test('arena: bots scale with rank, snapshots round-trip, winning moves you up', 
   assert.ok(localOpponents(s, data)[0].rank === 99);
   // hostile snapshots are clamped
   const evil = hydrate([{ slug: 'xu', lv: 999, star: 99, hp: 1e18, atk: -5 }], data)[0];
-  assert.ok(evil.lv === 60 && evil.star === 5 && evil.hp <= 5e6 && evil.atk === 0);
+  assert.ok(evil.lv === 159 && evil.star === 99 && evil.hp <= 5e6 && evil.atk === 0);
 });
 
 test('friend battle codes round-trip, reject damage, and fight without rewards', () => {
@@ -442,7 +443,7 @@ test('achievements: unique ids, rich categories, claim-all pays tickets/银芯/g
   const ids = ACHIEVEMENTS.map((a) => a.id);
   assert.equal(new Set(ids).size, ids.length); assert.ok(ids.length >= 90);
   assert.ok(ACHIEVEMENTS.every((a) => a.cat && a.reward.cores > 0));
-  for (const old of ['stage10', 'wins100', 'lv30', 'tower10', 'trial1', 'codex30', 'week1', 'arena70', 'rt40']) assert.ok(ids.includes(old), old);
+  for (const old of ['stage10', 'wins100', 'lv20', 'lv45', 'tower10', 'trial1', 'codex30', 'week1', 'arena70', 'rt40']) assert.ok(ids.includes(old), old);
   const s = mkTeamState(60); s.maxStage = 45; s.stats.wins = 500; s.tower.best = 12;
   const t0 = s.tickets, c0 = s.cores;
   const r = claimAllAchievements(s, data);
@@ -503,4 +504,109 @@ test('battle report agrees with the engine stats and grades the result', () => {
   assert.deepEqual(grade({ ...rep, win: false }), { stars: 0, rank: 'D', notes: [] });
   // timeline sums to totals
   assert.equal(rep.timeline.reduce((a, t) => a + t.dmgA, 0), rep.totals.dmg);
+});
+
+// ---------------------------------------------------------------- M9: 叠位 99 / 突破 / 挂机收益 / 造物羁绊 / 钥令
+import { breakThrough, awakenUp, farmRate, winRateOf, firstClearReward, relicItemsOf, addOrder, upgradeOrder } from '../src/core/game.js';
+import { levelCap, awakenCost, breakCost, growthPerLevel } from '../src/core/stats.js';
+import { relicTheme, relicBond, relicSlotCount, RELIC_BONDS } from '../src/core/gear.js';
+import { setOrderSlot, ordersBonus, orderSlotCount, orderUpCost } from '../src/core/orders.js';
+
+test('叠位 opens the level cap up to 99 and stops there', () => {
+  const s = newState(data, 21);
+  s.cores = 1e9;
+  assert.equal(levelCap(0), 60);
+  assert.equal(levelCap(99), 159);
+  const slug = 'ogier';
+  const p0 = allyDef(s, data, slug, [slug]).power;
+  assert.equal(awakenUp(s, slug, 1), awakenCost(0));
+  assert.equal(s.roster[slug].star, 1);
+  assert.equal(levelCap(s.roster[slug].star), 61);
+  assert.ok(allyDef(s, data, slug, [slug]).power > p0);
+  // 直接叠到 99 再试一次：不再变化
+  s.roster[slug].star = 99;
+  assert.equal(awakenUp(s, slug), 0);
+  assert.equal(s.roster[slug].star, 99);
+  assert.ok(allyDef(s, data, slug, [slug]).amp >= 27, '99 叠位至少 +27% 增伤');
+});
+
+test('突破卡在每 20 级，付金币+银芯才能继续升级', () => {
+  const s = newState(data, 22);
+  const slug = 'ogier', r = s.roster[slug];
+  s.gold = 1e9;
+  levelUp(s, slug, 100);
+  assert.equal(r.lv, 20, '先卡在第一个突破点');
+  s.cores = 0;
+  assert.equal(breakThrough(s, slug), null, '没有银芯不能突破');
+  assert.equal(levelUp(s, slug, 1), 0, '没突破就不能继续升级');
+  s.cores = 1e6;
+  const c = breakCost(20);
+  s.gold = c.gold + 1000;
+  const paid = breakThrough(s, slug);
+  assert.ok(paid && paid.cores === c.cores && r.brk === 1);
+  assert.equal(s.gold, 1000);
+  s.gold = 1e9;
+  assert.equal(levelUp(s, slug, 100), 20, '突破后可继续到 40');
+  assert.equal(r.lv, 40);
+});
+
+test('farming rate rises with stage and matches the offline formula', () => {
+  const s = newState(data, 23); s.maxStage = 10; s.stage = 10;
+  const a = farmRate(s, data, 10, 1), b = farmRate(s, data, 11, 1);
+  assert.ok(a.goldPerHour > 0 && b.goldPerHour > a.goldPerHour);
+  assert.ok(a.perBattle === Math.round(a.perBattle) && a.rate === 1);
+  const half = farmRate(s, data, 10, 0.5);
+  assert.ok(Math.abs(half.goldPerHour - a.goldPerHour / 2) <= 1, '收益与胜率线性相关');
+  assert.ok(winRateOf(s, data, 1) > 0.5, '第一关一定打得过');
+  assert.ok(firstClearReward(10).order === 1, 'Boss 关首通给钥令');
+});
+
+test('造物栏按最高关解锁，同主题 2 件激活羁绊', () => {
+  const s = newState(data, 24);
+  assert.equal(relicSlotCount(0), 3);
+  assert.equal(relicSlotCount(20), 4);
+  assert.equal(relicSlotCount(999), 6);
+  // 找一个有 >=2 件同主题造物的主题
+  const byTheme = {};
+  for (const d of data.relics) { const th = relicTheme(d.id).zh; (byTheme[th] = byTheme[th] || []).push(d); }
+  const PWR = ['战意', '生机', '壁垒', '星辉', '蚀刻', '锋锐'];
+  const [zh, list] = PWR.map((k) => [k, byTheme[k]]).find(([, l]) => l && l.length >= 2);
+  s.maxStage = 999;
+  const before = allyDef(s, data, s.team[0], s.team);
+  const ids = list.slice(0, 2).map((d) => addItem(s, 'relic', d.id).uid);
+  s.gear.relics[0] = ids[0]; s.gear.relics[1] = ids[1];
+  const defs = relicItemsOf(s).map((it) => it && data.relicById[it.defId]);
+  const b = relicBond(defs);
+  assert.equal(b.count[zh], 2);
+  assert.ok(b.active.some((x) => x.zh === zh && x.tier === 2));
+  const after = allyDef(s, data, s.team[0], s.team);
+  assert.ok(after.power > before.power, '羁绊生效后战力更高');
+  assert.ok(Object.keys(RELIC_BONDS).includes(zh));
+});
+
+test('钥令：配置、全队加成、淬炼、重复折算', () => {
+  const s = newState(data, 25);
+  assert.equal(orderSlotCount(0), 1);
+  assert.equal(orderSlotCount(35), 3);
+  const base = ordersBonus(s, data);
+  const id = Object.keys(s.orders.owned)[0];
+  assert.ok(id && base.atkPct + base.hpPct + base.defPct + base.gold > 0, '开局送的钥令已经生效');
+  // 清空后加成归零
+  assert.ok(setOrderSlot(s, 0, null));
+  assert.equal(ordersBonus(s, data).gold + ordersBonus(s, data).atkPct, 0);
+  assert.ok(setOrderSlot(s, 0, id));
+  // 同一钥令不能占两个位置
+  s.maxStage = 40;
+  assert.equal(setOrderSlot(s, 1, id), false);
+  // 淬炼
+  s.cores = 1e6;
+  const lv0 = s.orders.owned[id];
+  assert.ok(upgradeOrder(s, id) && s.orders.owned[id] === lv0 + 1);
+  assert.ok(orderUpCost(lv0) > 0);
+  const up = ordersBonus(s, data);
+  assert.ok(up.atkPct + up.hpPct + up.defPct + up.gold > base.atkPct + base.hpPct + base.defPct + base.gold);
+  // 重复钥令折算银芯
+  const c0 = s.cores;
+  const dup = addOrder(s, id);
+  assert.equal(dup.isNew, false); assert.ok(s.cores > c0);
 });

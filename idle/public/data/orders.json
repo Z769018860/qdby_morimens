@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "note": "钥令：本作自创的第三套队伍配置（命轮给个人、造物给全队、钥令给开局）。名字与数值为本作设计，与官方系统无关。",
+  "sources": [
+    "每个关卡 Boss 首通必掉 1 个钥令",
+    "无限塔每 10 层",
+    "周 Boss 累计伤害里程碑",
+    "银芯商店「钥令匣」"
+  ],
+  "items": [
+    { "id": "kd-dawn", "zh": "破晓之钥", "rarity": "R", "glyph": "晓", "bonus": { "atkPct": 6 }, "desc": "天将亮未亮时的第一声钟——让全队出手更重。" },
+    { "id": "kd-tide", "zh": "潮汐之钥", "rarity": "R", "glyph": "潮", "bonus": { "hpPct": 8 }, "desc": "退潮后仍留在礁石上的水，比海更耐活。" },
+    { "id": "kd-bulwark", "zh": "壁垒之钥", "rarity": "R", "glyph": "垒", "bonus": { "defPct": 10 }, "desc": "所有来不及逃的人，最后都学会了站住。" },
+    { "id": "kd-greed", "zh": "贪欲之钥", "rarity": "R", "glyph": "贪", "bonus": { "gold": 10 }, "desc": "它不打开门，只打开口袋。" },
+    { "id": "kd-ember", "zh": "余烬之钥", "rarity": "SR", "glyph": "烬", "bonus": { "critRate": 4 }, "desc": "熄了三次还亮着的火，最容易伤到人。" },
+    { "id": "kd-echo", "zh": "回响之钥", "rarity": "SR", "glyph": "响", "bonus": { "openAli": 15 }, "desc": "战斗一开始，共鸣就已经在账上了。" },
+    { "id": "kd-pyro", "zh": "燃焰之钥", "rarity": "SR", "glyph": "焰", "bonus": { "openKey": 15 }, "desc": "钥焰不等人，先烧起来的人先动。" },
+    { "id": "kd-mend", "zh": "愈疗之钥", "rarity": "SR", "glyph": "愈", "bonus": { "healBonus": 12 }, "desc": "缝合伤口的针脚，也是缝合队伍的针脚。" },
+    { "id": "kd-aegis", "zh": "庇护之钥", "rarity": "SR", "glyph": "庇", "bonus": { "shieldBonus": 15 }, "desc": "挡住一次，就多一次选择的机会。" },
+    { "id": "kd-oath", "zh": "誓约之钥", "rarity": "SSR", "glyph": "誓", "bonus": { "atkPct": 8, "hpPct": 8 }, "desc": "说好一起回去的人，通常回不去得最晚。" },
+    { "id": "kd-eclipse", "zh": "蚀日之钥", "rarity": "SSR", "glyph": "蚀", "bonus": { "amp": 10, "firstBoost": 20 }, "desc": "太阳被吃掉的那一瞬，所有影子都在替你出手。" },
+    { "id": "kd-grave", "zh": "不灭之钥", "rarity": "SSR", "glyph": "灭", "bonus": { "surviveChance": 0.08, "defPct": 8 }, "desc": "死过一次的人，第二次会站得比之前稳。" }
+  ]
+}

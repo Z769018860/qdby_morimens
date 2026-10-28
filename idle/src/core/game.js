@@ -1,8 +1,14 @@
 import { hash, mulberry32 } from './rng.js';
-import { MAX_LV, MAX_STAR, TEAM_SIZE, RELIC_SLOTS, SAVE_VERSION, GEAR_MAX_LV } from './constants.js';
-import { baseStats, lvUpCost, power, skillLevel } from './stats.js';
+import {
+  MAX_LV_HARD, MAX_AWAKEN, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, SAVE_VERSION, GEAR_MAX_LV,
+} from './constants.js';
+import { baseStats, lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost } from './stats.js';
 import { buildKit, makeMedians } from './skills.js';
-import { ZERO, addBonus, wheelBonus, relicBonus, covenantBonus, gearCost, dismantleValue, refineMult, refineCost, scaleBonus, REFINE_COST } from './gear.js';
+import {
+  ZERO, addBonus, wheelBonus, relicBonus, relicBond, relicSlotCount, covenantBonus, gearCost, dismantleValue,
+  refineMult, refineCost, scaleBonus, REFINE_COST,
+} from './gear.js';
+import { ordersBonus, orderUpCost } from './orders.js';
 import { buildEnemies, stageInfo } from './enemies.js';
 import { simulate } from './battle.js';
 
@@ -18,9 +24,11 @@ export function indexData(pack) {
   const med = makeMedians(pack.awakeners);
   const d = {
     ...pack,
+    orders: pack.orders || [],
     bySlug: Object.fromEntries(pack.awakeners.map((a) => [a.slug, a])),
     monById: Object.fromEntries(pack.monsters.map((m) => [m.id, m])),
     wheelById: by(pack.wheels), covById: by(pack.covenants), relicById: by(pack.relics),
+    orderById: by(pack.orders || []),
     kit(slug, level = 2) { const id = `${slug}:${level}`; return kits[id] || (kits[id] = buildKit(d.bySlug[slug], level, med)); },
   };
   return d;
@@ -29,14 +37,18 @@ export function indexData(pack) {
 // ---------- state ----------
 export function newState(data, now = Date.now()) {
   const roster = {};
-  for (const s of STARTERS) roster[s] = { lv: 1, star: 0 };
+  for (const s of STARTERS) roster[s] = { lv: 1, star: 0, brk: 0 };
+  // 开局送三个稀有钥令，让「钥令配置」一进游戏就能用（不是空系统）
+  const free = (data?.orders || []).filter((o) => o.rarity === 'R').slice(0, 3).map((o) => o.id);
   return {
     v: SAVE_VERSION, created: now, lastSeen: now, seed: (now ^ 0x9e3779b9) >>> 0,
     gold: 600, tickets: 12, cores: 300, stage: 1, maxStage: 0,
-    auto: true, speed: 2, skipAnim: false,
+    auto: true,
     strategy: { defend: 0.4, target: 'low', preset: 'balanced' },
     roster, team: [...STARTERS], codex: {},
     gear: { items: {}, next: 1, equip: {}, relics: Array(RELIC_SLOTS).fill(null) },
+    drip: { tickets: 0, cores: 0 },
+    orders: { owned: Object.fromEntries(free.map((id) => [id, 0])), slots: [free[0] || null, null, null] },
     pity: { genesis: 0, ssr: 0 },
     stats: { battles: 0, wins: 0, pulls: 0, kills: 0, gold: 0 },
     daily: { day: '' }, log: [],
@@ -48,9 +60,46 @@ export function migrate(s, data) {
   if (!s || typeof s !== 'object') return newState(data);
   const base = newState(data, s.created || Date.now());
   const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity }, tower: { ...base.tower, ...s.tower }, trials: { cleared: { ...(s.trials?.cleared || {}) } }, ach: { ...s.ach }, signin: s.signin ? { ...s.signin } : null, welcome: s.welcome ? { ...s.welcome } : null, shop: s.shop ? { ...s.shop } : null, codex: { ...s.codex }, weekly: s.weekly ? { ...s.weekly } : null, rtower: { ...s.rtower }, arena: s.arena ? { ...s.arena } : null };
+  // 加速 / 极速已下线：老存档里的字段直接丢掉，免得 UI 以为还有开关
+  delete m.speed; delete m.skipAnim;
   m.team = (m.team || []).filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
   if (!m.team.length) m.team = Object.keys(m.roster).slice(0, TEAM_SIZE);
+  // roster：补 brk（突破档数），并按新的叠位上限收紧
+  for (const [k, r] of Object.entries(m.roster)) {
+    if (!data.bySlug[k]) { delete m.roster[k]; continue; }
+    r.star = Math.max(0, Math.min(MAX_AWAKEN, Math.floor(r.star || 0)));
+    r.lv = Math.max(1, Math.min(levelCap(r.star), Math.floor(r.lv || 1)));
+    if (r.brk == null) r.brk = Math.min(6, Math.floor(r.lv / LEVEL_GATE));
+  }
+  // 造物栏 3 -> 6 格：老存档补齐空位
+  const rel = Array.isArray(m.gear.relics) ? m.gear.relics.slice(0, RELIC_SLOTS) : [];
+  while (rel.length < RELIC_SLOTS) rel.push(null);
+  m.gear.relics = rel.map((uid) => (uid && m.gear.items[uid] ? uid : null));
+  m.drip = { tickets: 0, cores: 0, ...(s.drip || {}) };
+  // 钥令：老存档没有就按开局配置补上
+  const o = m.orders || {};
+  m.orders = { owned: { ...(o.owned || base.orders.owned) }, slots: Array.isArray(o.slots) ? o.slots.slice(0, 3) : base.orders.slots };
+  while (m.orders.slots.length < 3) m.orders.slots.push(null);
+  m.orders.slots = m.orders.slots.map((id) => (id && m.orders.owned[id] != null ? id : null));
   return m;
+}
+
+/* ---------- equipment helpers ---------- */
+// 只有「已解锁」的造物栏位里装的造物才算数（栏位按最高通关解锁）
+export function relicItemsOf(state) {
+  const n = relicSlotCount(state.maxStage || 0);
+  return (state.gear.relics || []).slice(0, n).map((uid) => (uid && state.gear.items[uid]) || null);
+}
+export function relicBonuses(state, data) {
+  const items = relicItemsOf(state);
+  const defs = [], bonus = ZERO();
+  for (const it of items) {
+    const def = it && data.relicById[it.defId];
+    if (!def) { defs.push(null); continue; }
+    defs.push(def);
+    addBonus(bonus, scaleBonus(relicBonus(def, it.lv), refineMult(it)));
+  }
+  return { items, defs, bonus, bond: relicBond(defs) };
 }
 
 // ---------- stats pipeline ----------
@@ -67,11 +116,13 @@ export function allyDef(state, data, slug, teamSlugs = state.team) {
     const count = teamSlugs.filter((t) => { const e = state.gear.equip[t]; const it = e?.cov && state.gear.items[e.cov]; return it && it.defId === ci.defId; }).length;
     addBonus(bonus, scaleBonus(covenantBonus(ci.defId, ci.lv, count), refineMult(ci)));
   }
-  for (const uid of state.gear.relics) {
-    const it = uid && state.gear.items[uid];
-    if (it) addBonus(bonus, scaleBonus(relicBonus(data.relicById[it.defId], it.lv), refineMult(it)));
-  }
-  if (r.star >= 3) bonus.amp += 10;
+  // 造物（含主题羁绊）与钥令都是全队被动
+  const rel = relicBonuses(state, data);
+  addBonus(bonus, rel.bonus);
+  addBonus(bonus, rel.bond.bonus);
+  addBonus(bonus, ordersBonus(state, data));
+  // 叠位：每 10 层 +3% 增伤（属性与等级上限在 baseStats / levelCap 里）
+  bonus.amp += Math.floor(r.star / 10) * 3;
   const def = {
     slug, name: a.zh, img: a.portrait, type: a.type, realm: a.realm, lv: r.lv, star: r.star,
     hp: Math.round(st.hp * (1 + bonus.hpPct / 100)),
@@ -102,6 +153,32 @@ export function teamDefs(state, data, slugs = state.team) {
 // ---------- rewards ----------
 export const stageGold = (stage) => Math.round(18 * Math.pow(1.085, stage) + 9 * stage);
 const DROP_RATE = 0.1;
+// 每场胜利的固定掉落：金币 + 10% 装备 + 1/40 召唤券 + 1/90 银芯。
+// 在线和离线用同一套比率（不足 1 的零头存进 state.drip，攒够就发），所以收益面板上的数字既是离线预估也是在线实收。
+export const TICKET_PER_WIN = 1 / 40, CORE_PER_WIN = 1 / 90;
+
+/* 挂机收益：一场战斗按 BATTLE_SECONDS 秒算，收益 = 胜率 × 单场收益。
+   这套公式同时给「当前关 / 下一关收益」面板和离线结算用，保证两处口径一致。 */
+export const BATTLES_PER_HOUR = 3600 / BATTLE_SECONDS;
+export function winRateOf(state, data, stage, probes = 3) {
+  const copy = JSON.parse(JSON.stringify(state));
+  let w = 0;
+  for (let i = 0; i < probes; i++) if (runBattle(copy, data, stage).win) w++;
+  return w / probes;
+}
+export function farmRate(state, data, stage, rate) {
+  const t = teamDefs(state, data);
+  const r = rate == null ? winRateOf(state, data, stage) : rate;
+  const winsPerHour = BATTLES_PER_HOUR * r;
+  const perBattle = Math.round(stageGold(stage) * (1 + t.goldBonus / 100));
+  return {
+    stage, rate: r, perBattle, power: t.power,
+    goldPerHour: Math.round(perBattle * winsPerHour),
+    ticketsPerHour: winsPerHour * TICKET_PER_WIN, coresPerHour: winsPerHour * CORE_PER_WIN, dropsPerHour: winsPerHour * DROP_RATE,
+  };
+}
+// 首通奖励（面板上标出来，方便判断值不值得攻坚）
+export const firstClearReward = (stage) => (stageInfo(stage).boss ? { tickets: 3, cores: 20, gear: 1, order: 1 } : { tickets: 1, cores: 4 });
 
 export function rollItem(rng, stage, data) {
   const kinds = ['wheel', 'wheel', 'covenant', 'covenant', 'relic'];
@@ -120,6 +197,30 @@ export function addItem(state, kind, defId) {
   const uid = `g${state.gear.next++}`;
   state.gear.items[uid] = { uid, kind, defId, lv: 0 };
   return state.gear.items[uid];
+}
+
+// ---------- 钥令 ----------
+export function rollOrder(rng, data) {
+  const pool = data.orders || [];
+  if (!pool.length) return null;
+  const r = rng();
+  const want = r < 0.08 ? 'SSR' : r < 0.42 ? 'SR' : 'R';
+  const cand = pool.filter((x) => x.rarity === want);
+  const list = cand.length ? cand : pool;
+  return list[Math.floor(rng() * list.length)];
+}
+export function addOrder(state, id) {
+  const o = (state.orders ||= { owned: {}, slots: [null, null, null] });
+  o.owned ||= {};
+  if (o.owned[id] == null) { o.owned[id] = 0; return { id, isNew: true, cores: 0 }; }
+  state.cores += 30; state.stats.coresEarned = (state.stats.coresEarned || 0) + 30;
+  return { id, isNew: false, cores: 30 };
+}
+export function upgradeOrder(state, id) {
+  const o = state.orders; if (!o?.owned || o.owned[id] == null) return false;
+  const c = orderUpCost(o.owned[id]); if (!c || state.cores < c) return false;
+  state.cores -= c; state.stats.coresSpent = (state.stats.coresSpent || 0) + c;
+  o.owned[id] += 1; return true;
 }
 
 export function battleSeed(state) { return (state.seed = (Math.imul(state.seed, 1664525) + 1013904223) >>> 0); }
@@ -153,7 +254,7 @@ export function recordCodex(state, enemies, win) {
 // apply result to state; returns reward summary
 export function applyResult(state, data, res) {
   const rng = mulberry32(res.prep.seed ^ 0xabcdef);
-  const rw = { gold: 0, tickets: 0, cores: 0, items: [], firstClear: false, advanced: false };
+  const rw = { gold: 0, tickets: 0, cores: 0, items: [], orders: [], firstClear: false, advanced: false };
   state.stats.battles++;
   const cx = recordCodex(state, res.prep.enemies, res.win);
   rw.newMon = cx.fresh; rw.firstBoss = cx.bossFirst; rw.coresBoss = cx.bossFirst.length * 5;
@@ -166,17 +267,33 @@ export function applyResult(state, data, res) {
       state.maxStage = res.stage; rw.firstClear = true;
       rw.tickets = stageInfo(res.stage).boss ? 3 : 1;
       rw.cores = stageInfo(res.stage).boss ? 20 : 4;
-      if (stageInfo(res.stage).boss) rw.items.push(addItem(state, ...Object.values(rollItem(rng, res.stage, data))));
+      if (stageInfo(res.stage).boss) {
+        rw.items.push(addItem(state, ...Object.values(rollItem(rng, res.stage, data))));
+        const od = rollOrder(rng, data);
+        if (od) { const got = addOrder(state, od.id); if (got.isNew) rw.orders.push(got); else rw.cores += got.cores; }
+      }
     }
     if (rng() < DROP_RATE * (stageInfo(res.stage).boss ? 3 : 1)) {
       const it = rollItem(rng, res.stage, data);
       rw.items.push(addItem(state, it.kind, it.defId));
     }
+    // 挂机零头：召唤券 / 银芯按 1/40、1/90 场累积，攒满 1 就进账（与离线结算同口径）
+    const drip = (state.drip ||= { tickets: 0, cores: 0 });
+    drip.tickets += TICKET_PER_WIN; drip.cores += CORE_PER_WIN;
+    const dt = Math.floor(drip.tickets), dc = Math.floor(drip.cores);
+    if (dt) { drip.tickets -= dt; rw.tickets += dt; }
+    if (dc) { drip.cores -= dc; rw.cores += dc; rw.dripCores = dc; }
     state.gold += rw.gold; state.tickets += rw.tickets; state.cores += rw.cores; state.stats.gold += rw.gold;
     const alive = res.allies.filter((a) => a.alive).length;
     rw.comfortable = alive >= 3 && res.rounds <= (stageInfo(res.stage).boss ? 20 : 14);
-    if (state.auto && res.stage === state.stage && rw.comfortable && state.stage <= state.maxStage) {
-      state.stage = Math.min(state.maxStage + 1, state.stage + 1); rw.advanced = true;
+    if (state.auto) {
+      // 自动挂机：只有「从容胜利」才推进，否则留在本关继续积累
+      if (res.stage === state.stage && rw.comfortable && state.stage <= state.maxStage) {
+        state.stage = Math.min(state.maxStage + 1, state.stage + 1); rw.advanced = true;
+      }
+    } else if (res.stage === state.stage) {
+      // 手动攻坚：赢了就推进，不看是否从容；目标自动指向下一关（最高关只到 maxStage+1）
+      state.stage = Math.min(state.maxStage + 1, state.stage + 1); rw.advanced = true; rw.manual = true;
     }
   } else if (state.stage > state.maxStage) {
     // lost on the frontier: fall back to the last cleared stage and farm there
@@ -200,7 +317,7 @@ export function offlineReport(state, data, now = Date.now()) {
   const w = Math.round(n * rate);
   const t = teamDefs(state, data);
   const gold = Math.round(w * stageGold(stage) * (1 + t.goldBonus / 100));
-  const tickets = Math.floor(w / 40), cores = Math.floor(w / 90);
+  const tickets = Math.floor(w * TICKET_PER_WIN), cores = Math.floor(w * CORE_PER_WIN);
   const rng = mulberry32(hash(String(state.lastSeen)));
   const drops = [];
   const nd = Math.min(25, Math.round(w * DROP_RATE));
@@ -217,12 +334,39 @@ export function claimOffline(state, rep, now = Date.now()) {
 }
 
 // ---------- progression ----------
+export const capOf = (state, slug) => levelCap(state.roster[slug]?.star || 0);
 export function levelUp(state, slug, times = 1) {
   const r = state.roster[slug]; let n = 0;
-  while (n < times && r.lv < MAX_LV && state.gold >= lvUpCost(r.lv)) { state.gold -= lvUpCost(r.lv); r.lv++; n++; }
+  const cap = levelCap(r.star);
+  // 碰到 20 级的突破关卡就停下，等玩家付材料
+  while (n < times && r.lv < cap && !breakNeeded(r.lv, r.brk) && state.gold >= lvUpCost(r.lv)) {
+    state.gold -= lvUpCost(r.lv); r.lv++; n++;
+  }
   return n;
 }
-export function levelUpMax(state, slug) { return levelUp(state, slug, MAX_LV); }
+export function levelUpMax(state, slug) { return levelUp(state, slug, MAX_LV_HARD); }
+
+// 突破：每 20 级一次，材料 = 金币 + 银芯（银芯是全作通用材料，见详情页的「材料来源」）
+export function breakThrough(state, slug) {
+  const r = state.roster[slug];
+  if (!r || r.lv >= levelCap(r.star) || !breakNeeded(r.lv, r.brk)) return null;
+  const c = breakCost(r.lv);
+  if (state.gold < c.gold || state.cores < c.cores) return null;
+  state.gold -= c.gold; state.cores -= c.cores;
+  state.stats.coresSpent = (state.stats.coresSpent || 0) + c.cores;
+  r.brk = Math.floor(r.lv / LEVEL_GATE);
+  return c;
+}
+// 叠位：抽到重复唤醒体 +1，也可以在详情页用银芯共鸣（成本随叠位线性上升）
+export function awakenUp(state, slug) {
+  const r = state.roster[slug];
+  if (!r || r.star >= MAX_AWAKEN) return 0;
+  const c = awakenCost(r.star);
+  if (state.cores < c) return 0;
+  state.cores -= c; state.stats.coresSpent = (state.stats.coresSpent || 0) + c;
+  r.star += 1;
+  return c;
+}
 
 export function setTeam(state, slots) {
   const seen = new Set();
@@ -254,8 +398,10 @@ export function equipItem(state, data, slug, uid) {
   const it = state.gear.items[uid]; if (!it) return false;
   if (it.kind === 'relic') {
     if (state.gear.relics.includes(uid)) return true;
-    const i = state.gear.relics.indexOf(null);
-    state.gear.relics[i < 0 ? 0 : i] = uid; return true;
+    const n = relicSlotCount(state.maxStage || 0);
+    let i = state.gear.relics.indexOf(null, 0);
+    if (i < 0 || i >= n) i = 0;
+    state.gear.relics[i] = uid; return true;
   }
   const key = it.kind === 'wheel' ? 'wheel' : 'cov';
   // unequip from previous holder
@@ -305,8 +451,8 @@ export function pullOnce(state, data, rng) {
   const a = pool[Math.floor(rng() * pool.length)];
   const own = state.roster[a.slug];
   let dup = false, gold = 0;
-  if (!own) state.roster[a.slug] = { lv: 1, star: 0 };
-  else if (own.star < MAX_STAR) { own.star++; dup = true; }
+  if (!own) state.roster[a.slug] = { lv: 1, star: 0, brk: 0 };
+  else if (own.star < MAX_AWAKEN) { own.star++; dup = true; }
   else { gold = 800; state.gold += gold; state.cores += 30; dup = true; }
   state.stats.pulls++;
   return { slug: a.slug, rarity, isNew: !own, dup, gold, star: state.roster[a.slug].star };

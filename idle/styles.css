@@ -235,5 +235,88 @@ svg.tl{width:100%;height:120px;background:#0a0d13;border-radius:8px}.tlg{font-si
 .gp-next{background:linear-gradient(#a57d1c,#6e5210);border:1px solid #c9a13a;border-radius:8px;color:#fff8e6;font-size:13px;font-weight:600;padding:7px 18px}
 .gp-next:active{transform:scale(.97)}
 .modal-bg.art-dark{background:#000000ed}
-/* 窄屏把详情立绘放到原图 1:1（240px），两侧留白不至于太空 */
-@media(max-width:560px){.d-art{flex-basis:auto;width:min(60vw,240px)}.d-art img{width:100%}}
+/* 窄屏：立绘限高，免得详情第一屏全被图占满（想细看可以点开大图） */
+@media(max-width:560px){.d-art{flex-basis:auto;width:auto}.d-art img{width:auto;max-width:62vw;max-height:42vh;aspect-ratio:auto;object-fit:contain}}
+
+/* ---- M9: 分界面背景（典藏馆 CG） / 挂机收益 / 造物羁绊 / 钥令 / 养成数值 ---- */
+#bg{position:fixed;inset:-2%;z-index:-1;background:#0d1117 center center/cover no-repeat;filter:blur(1.5px) saturate(.85);transition:opacity .34s ease;pointer-events:none}
+#bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,13,19,.76) 0%,rgba(10,13,19,.87) 46%,rgba(8,11,17,.94) 100%)}
+body{background:#0a0d13}
+
+/* 收益面板：当前关 / 下一关并排 */
+.farm{margin:8px 0 4px;background:#101620f2;border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.farmgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.farmc{background:#0b1017;border:1px solid #222b3b;border-radius:10px;padding:7px 9px}
+.farmc:last-child{border-color:#3a3520}
+.farmh{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--dim);margin-bottom:4px}
+.farmh b{color:#ead9b9;font-size:13px}
+.farmrows{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;font-size:12px}
+.farmrows>div{display:flex;justify-content:space-between;gap:6px}
+.farmrows span{color:var(--dim)}
+.farmrows b.g{color:var(--gold)}.farmrows b.t{color:#7ec8ff}.farmrows b.c{color:#7fd6ff}.farmrows b.i{color:#c59bff}
+.farmrows b.ok{color:var(--ok)}.farmrows b.bad{color:var(--bad)}
+.farmx{margin-top:5px;font-size:11.5px;color:#9ad1a0;line-height:1.45}
+.farm .hint{margin:7px 0 0}
+@media(max-width:560px){.farmgrid{grid-template-columns:1fr}}
+
+/* 手动攻坚的开战条 */
+.fightbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;margin:4px 0 8px;font-size:12px}
+.fightbar:empty{display:none}
+
+/* 造物栏解锁格 / 羁绊 */
+.relic-slot.locked{color:var(--dim);justify-content:center;border-style:dashed;font-size:12px;text-align:center;opacity:.75;cursor:default;line-height:1.35}
+.bonds{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:8px;margin:6px 0}
+.bond{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:7px 9px;font-size:12px}
+.bond.on{border-color:color-mix(in srgb,var(--gold) 55%,transparent);background:color-mix(in srgb,var(--gold) 8%,var(--panel2))}
+.bond b{font-size:13px}
+.bond small{display:block;color:var(--dim);font-size:11px;margin-top:2px}
+.btiers{display:flex;gap:6px;margin:4px 0}
+.btiers span{font-size:11px;color:var(--dim);border:1px dashed var(--line);border-radius:999px;padding:0 7px}
+.btiers span.on{color:var(--gold);border-style:solid;border-color:color-mix(in srgb,var(--gold) 55%,transparent)}
+
+/* 钥令 */
+.orderbar{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}
+.ochip{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:12px;color:var(--dim)}
+.ochip.on{color:var(--tx);border-color:color-mix(in srgb,var(--gold) 45%,transparent)}
+.ochip em{font-style:normal;font-size:11px;color:var(--gold)}
+.ochip.locked{opacity:.7;border-style:dashed}
+.oslots{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin:8px 0}
+.oslot{display:flex;gap:9px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;cursor:pointer;min-height:62px;font-size:12px}
+.oslot.on{border-color:color-mix(in srgb,var(--gold) 50%,transparent)}
+.oslot.empty{justify-content:center;color:var(--dim);border-style:dashed;text-align:center}
+.oslot.locked{justify-content:center;color:var(--dim);border-style:dashed;text-align:center;cursor:default;opacity:.8;line-height:1.35}
+.oslot small{display:block;color:var(--dim);font-size:11px}
+.oglyph{flex:none;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;background:#0b1017;border:1px solid var(--line);color:#cfd6e4}
+.oglyph.r-SSR{color:#ffd36b;border-color:#a5862f;box-shadow:0 0 8px #e5b84b44}
+.oglyph.r-SR{color:#9ec1ff;border-color:#3f5f96}
+.oglyph.r-R{color:#b9c3d4}
+.olist{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px}
+.olist.dim{opacity:.8}
+.order{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
+.order.on{border-color:color-mix(in srgb,var(--gold) 40%,transparent)}
+.order.locked{filter:grayscale(.55)}
+.order .ob{flex:1;min-width:0}
+.order .ob b{display:block}
+.order .ob em{font-style:normal;font-size:11px;color:var(--dim)}
+.order .ob small{display:block;font-size:11px;color:#9ad1a0}
+.order .flavor{color:#7f8a9c}
+.order .ibtns{flex:none}
+
+/* 养成数值 */
+.awaken{color:#9ec1ff}
+.growbox{display:grid;gap:4px;background:#0b1017;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px;margin:4px 0 10px}
+.growbox>div{display:grid;grid-template-columns:92px 1fr auto;gap:8px;align-items:baseline}
+.growbox span{color:var(--dim)}
+.growbox b{font-weight:600}
+.growbox em{font-style:normal;color:var(--gold);font-size:11px}
+.growtable{display:grid;gap:4px;font-size:12px;margin:8px 0}
+.growtable>div{display:grid;grid-template-columns:70px 1fr 62px 1.3fr;gap:8px;padding:5px 8px;background:var(--panel2);border-radius:6px;line-height:1.45}
+.growtable>div>span:first-child{color:#ead9b9}
+.growtable .gt-h{background:none;color:var(--dim);font-size:11px}
+.growtable .gt-h>span:first-child{color:var(--dim)}
+.matsrc{margin-top:10px;background:#0b1017;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px}
+.matsrc>b{display:block;margin-bottom:3px}
+.matsrc>div{display:grid;grid-template-columns:118px 1fr;gap:8px;padding:4px 0;border-top:1px solid #1a2333}
+.matsrc span{color:var(--gold);font-size:11.5px}
+.matsrc em{font-style:normal;color:var(--dim)}
+@media(max-width:560px){.growtable>div{grid-template-columns:1fr;gap:2px}.growtable .gt-h{display:none}.growtable>div>span:first-child{font-weight:700}.matsrc>div{grid-template-columns:1fr;gap:2px}}

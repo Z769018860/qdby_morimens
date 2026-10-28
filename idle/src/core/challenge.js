@@ -3,7 +3,7 @@
 import { hash, mulberry32 } from './rng.js';
 import { simulate } from './battle.js';
 import { buildEnemies, makeEnemy, enemyScale } from './enemies.js';
-import { teamDefs, stageGold, battleSeed, addItem, rollItem, recordCodex } from './game.js';
+import { teamDefs, stageGold, battleSeed, addItem, rollItem, addOrder, rollOrder, recordCodex } from './game.js';
 
 // ---------- tower ----------
 export const TOWER_DAILY = 3;
@@ -42,12 +42,16 @@ export function simulateTower(state, data, { maxFloors = 150, seed = battleSeed(
 }
 
 export function towerReward(state, data, reached, rng) {
-  const rw = { gold: 0, tickets: 0, cores: 0, items: [], newBest: false };
+  const rw = { gold: 0, tickets: 0, cores: 0, items: [], orders: [], newBest: false };
   const prev = state.tower.best;
   for (let f = prev + 1; f <= reached; f++) {
     rw.gold += Math.round(stageGold(towerStage(f)) * 0.9);
     if (f % 5 === 0) { rw.tickets += 2; rw.cores += 15; }
-    if (f % 10 === 0) rw.items.push(addItem(state, ...Object.values(rollItem(rng, towerStage(f), data))));
+    if (f % 10 === 0) {
+      rw.items.push(addItem(state, ...Object.values(rollItem(rng, towerStage(f), data))));
+      const od = rollOrder(rng, data);
+      if (od) { const got = addOrder(state, od.id); if (got.isNew) rw.orders.push(got); else rw.cores += got.cores; }
+    }
   }
   rw.gold += Math.round(stageGold(towerStage(Math.max(1, reached))) * Math.min(reached, 10) * 0.2); // participation
   if (reached > prev) { state.tower.best = reached; rw.newBest = true; }

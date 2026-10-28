@@ -33,7 +33,7 @@ const CAP = { hp: 5e6, atk: 2e5, def: 2e5, critRate: 100, critDmg: 400, amp: 300
 export function hydrate(snap, data) {
   return (snap || []).filter((s) => data.bySlug[s.slug]).slice(0, 4).map((s) => {
     const a = data.bySlug[s.slug];
-    const lv = Math.max(1, Math.min(60, +s.lv || 1)), star = Math.max(0, Math.min(5, +s.star || 0));
+    const lv = Math.max(1, Math.min(159, +s.lv || 1)), star = Math.max(0, Math.min(99, +s.star || 0));
     const d = { slug: s.slug, name: a.zh, img: a.portrait, type: a.type, realm: a.realm, lv, star, kit: data.kit(s.slug, skillLevel(lv, star)), boss: false };
     for (const k of KEYS) d[k] = Math.max(k === 'hp' ? 1 : 0, Math.min(CAP[k], +s[k] || 0));
     return d;

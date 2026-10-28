@@ -1,5 +1,5 @@
 import { hash } from './rng.js';
-import { GEAR_MAX_LV } from './constants.js';
+import { GEAR_MAX_LV, RELIC_BASE_SLOTS, RELIC_SLOTS, RELIC_UNLOCK } from './constants.js';
 
 export const ZERO = () => ({
   atkPct: 0, hpPct: 0, defPct: 0, critRate: 0, critDmg: 0, amp: 0, aliGain: 0, keyGain: 0,
@@ -72,6 +72,57 @@ export const relicText = (def, lv) => {
   const open = th.key.startsWith('open');
   return `全队${th.zh}：${v.toFixed(1)}${open ? ' 点起始能量' : '%'}`;
 };
+
+/* ---------- 造物栏位 & 造物羁绊 ----------
+   栏位从 3 格起，按最高通关逐格解锁；同一主题（战意 / 生机 / …）的造物在栏位里
+   凑够 2 / 4 / 6 件就激活该主题的羁绊，羁绊是「全队被动」，与单件加成叠加。 */
+export const relicSlotCount = (maxStage = 0) => {
+  let n = RELIC_BASE_SLOTS;
+  for (const s of RELIC_UNLOCK) if (maxStage >= s) n++;
+  return Math.min(RELIC_SLOTS, n);
+};
+export const relicLockedHint = (i, maxStage = 0) => RELIC_UNLOCK[i - RELIC_BASE_SLOTS] ?? null;
+
+export const RELIC_BONDS = {
+  战意: { 2: { atkPct: 6 }, 4: { atkPct: 10, amp: 6 }, 6: { atkPct: 15, amp: 12 } },
+  生机: { 2: { hpPct: 8 }, 4: { hpPct: 12, healBonus: 10 }, 6: { hpPct: 18, shieldBonus: 12 } },
+  壁垒: { 2: { defPct: 10 }, 4: { defPct: 14, hpPct: 8 }, 6: { defPct: 20, surviveChance: 0.05 } },
+  星辉: { 2: { critRate: 5 }, 4: { critRate: 8, critDmg: 15 }, 6: { critRate: 12, critDmg: 26 } },
+  蚀刻: { 2: { critDmg: 12 }, 4: { critDmg: 20, amp: 6 }, 6: { critDmg: 32, amp: 10 } },
+  回响: { 2: { openAli: 12 }, 4: { openAli: 18, aliGain: 10 }, 6: { openAli: 28, aliGain: 18 } },
+  祝福: { 2: { healBonus: 12 }, 4: { healBonus: 18, hpPct: 8 }, 6: { healBonus: 28, shieldBonus: 15 } },
+  财富: { 2: { gold: 8 }, 4: { gold: 14, atkPct: 5 }, 6: { gold: 22, atkPct: 10 } },
+  引火: { 2: { openKey: 12 }, 4: { openKey: 18, keyGain: 10 }, 6: { openKey: 28, keyGain: 18 } },
+  锋锐: { 2: { amp: 5 }, 4: { amp: 9, firstBoost: 15 }, 6: { amp: 14, firstBoost: 30 } },
+};
+export const BOND_TIERS = [2, 4, 6];
+
+// defs: 已装备造物的定义数组（null 忽略） -> { count, active, bonus }
+export function relicBond(defs = []) {
+  const count = {};
+  for (const d of defs) { if (!d) continue; const th = relicTheme(d.id); count[th.zh] = (count[th.zh] || 0) + 1; }
+  const bonus = ZERO(), active = [];
+  for (const [zh, n] of Object.entries(count)) {
+    const t = RELIC_BONDS[zh];
+    if (!t) continue;
+    for (const tier of [6, 4, 2]) if (n >= tier) { addBonus(bonus, t[tier]); active.push({ zh, tier }); }
+  }
+  return { count, active, bonus };
+}
+
+// stat key -> 中文，羁绊/钥令文案共用
+export const STAT_ZH = {
+  atkPct: '攻击', hpPct: '生命', defPct: '防御', critRate: '暴击率', critDmg: '暴击伤害', amp: '增伤',
+  aliGain: '共鸣回复', keyGain: '钥焰回复', healBonus: '治疗', shieldBonus: '护盾', steal: '吸血',
+  surviveChance: '濒死存活', openAli: '起始共鸣', openKey: '起始钥焰', firstBoost: '首击增伤', gold: '金币',
+};
+const PCT_KEYS = new Set(['surviveChance']);
+export function bonusText(b = {}) {
+  return Object.entries(b).filter(([, v]) => v).map(([k, v]) => {
+    const n = PCT_KEYS.has(k) ? `${Math.round(v * 100)}%` : `+${Math.round(v * 10) / 10}${k.startsWith('open') ? '' : '%'}`;
+    return `${STAT_ZH[k] || k} ${n}`;
+  }).join(' · ');
+}
 
 export function covenantBonus(defId, lv, count) {
   const th = covTheme(defId);
