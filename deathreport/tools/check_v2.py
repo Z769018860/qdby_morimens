@@ -18,10 +18,13 @@ ev = {e['v']: e for e in ledger.E}
 for n in sorted(T2):
     o, w = set(TOK.findall(old(n))), set(TOK.findall(T2[n]))
     norm = lambda s: {x.lstrip('@').replace('w:', '') if x.lstrip('@').replace('w:', '').isdigit() else x for x in s}
+    e = ev[n]; c = e['c']
     miss = norm(o) - norm(w)
     miss = {m for m in miss if not m.startswith('loc:')}
+    # 靠物证 / 行为 / 黑影推断的加害人，重写时本来就不该点名——删掉这个名字是设计要求，不算丢事实
+    if c and e['how'] in ('item', 'trait', 'shadow'):
+        miss.discard(str(c))
     if miss: print(n, 'MISSING', sorted(miss)); err += 1
-    e = ev[n]; c = e['c']
     if c and e['how'] in ('item', 'trait', 'shadow') and str(c) in norm(w) - norm(o): print(n, 'NEW KILLER NAME', c); err += 1
     for m in re.finditer(r'\{@?(\d+)\}([^{}。！？\n]{0,12}?)([他她])', T2[n]):
         g = G.get(int(m.group(1)))

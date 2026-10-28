@@ -13,8 +13,10 @@ export function startBg() {
   function draw(ts) {
     requestAnimationFrame(draw); if (document.hidden || ts - last < 33) return; last = ts; t += 0.033;
     const [r, gg, b] = tint, d = W / innerWidth;
-    const bgr = g.createLinearGradient(0, 0, 0, H); bgr.addColorStop(0, '#04070d'); bgr.addColorStop(0.6, '#070d16'); bgr.addColorStop(1, `rgb(${r * 0.07 | 0},${gg * 0.1 | 0},${b * 0.13 | 0})`);
-    g.fillStyle = bgr; g.fillRect(0, 0, W, H);
+    // 画布要透明：底下的 #bglayer 是背景插画，这里只叠一层很薄的雾色与装饰
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = 'rgba(4,7,13,.34)'; g.fillRect(0, 0, W, H);
+    const bgr = g.createLinearGradient(0, 0, 0, H); bgr.addColorStop(0, 'rgba(4,7,13,0)'); bgr.addColorStop(1, `rgba(${r * 0.07 | 0},${gg * 0.1 | 0},${b * 0.13 | 0},.55)`); g.fillStyle = bgr; g.fillRect(0, 0, W, H);
     // moon
     const mx = W * 0.82, my = H * 0.16, mg = g.createRadialGradient(mx, my, 0, mx, my, H * 0.28); mg.addColorStop(0, `rgba(${r},${gg},${b},.20)`); mg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = mg; g.fillRect(0, 0, W, H);
     g.fillStyle = `rgba(${r},${gg},${b},.55)`; g.beginPath(); g.arc(mx, my, 16 * d, 0, 7); g.fill();

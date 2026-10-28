@@ -59,8 +59,16 @@ CLAUSE = ['广播念过{B}的名字——{P}，第{N}个。', '{B}死在了{P}�
           '我在窗口看见{P}的方向暗了一下——后来才知道，那是{B}，第{N}个。', '{B}……在{P}。第{N}个。我把这三样东西在心里默念了一遍，怕自己忘掉。',
           '我记得很清楚：{P}，{B}，第{N}个。', '无线电里的杂音间隙传来一句：{B}死在{P}，是第{N}个。']
 ACLAUSE = ['记录在案：{B}，死亡地点{P}，死亡顺序第{N}个。', '{B}——{P}——第{N}个（据广播记录）。', '{B}：{P}，第{N}个死者。']
+CLAUSE_ED = ['{B}那一条，后来是{P}的广播念出来的——第{N}个。', '我记着{P}：{B}，第{N}个。顺序不会错，是我自己数的。',
+             '有人从{P}那边过来，说{B}是第{N}个。', '{P}的灯灭的时候，{B}是第{N}个。',
+             '清单上写着：第{N}个，{B}，{P}。', '我在{P}听见人念{B}的名字，念到“第{N}个”就停了。',
+             '广播说，第{N}个是{B}，死在{P}。', '{B}，{P}，第{N}个——我把它抄在手心，怕忘。']
 def clause(a, b):
-    e = BY_V[b]; t = (ACLAUSE[b % 3] if a == 0 else CLAUSE[(a * 7 + b * 3) % len(CLAUSE)])
+    e = BY_V[b]
+    if ED:
+        t = (ACLAUSE[b % 3] if a == 0 else (CLAUSE + CLAUSE_ED)[(a * 7 + b * 3) % (len(CLAUSE) + len(CLAUSE_ED))])
+    else:
+        t = (ACLAUSE[b % 3] if a == 0 else CLAUSE[(a * 7 + b * 3) % len(CLAUSE)])
     return t.replace('{B}', NAME[b]).replace('{P}', PLACES[e['cell']]).replace('{N}', cn(e['dord']))
 TOK = re.compile(r'\{(@?\d+|w:\d+|it:\d+|loc:[A-E]\d|bc:D\d-\d+|sys:[0-9A-Z-]+)\}')
 def full_prose(n):
@@ -71,6 +79,14 @@ def _prose(n):
         for k, txt in sorted(EXT.get(n, []), key=lambda a: -(a[0] if a[0] >= 0 else len(L) + a[0] - 1)):
             L.insert(k + 1 if k >= 0 else len(L) + k, txt)
         need = [b for b in WIT.get(n, []) if '{w:%d}' % b not in '\n'.join(L)]
+        if ED:
+            # 往届：最多两句见证，一句放在开场之后，一句放在收尾之前，中间不要连成广播清单
+            need = need[:2]
+            if need:
+                L.insert(min(2, len(L) - 2), '{w:%d}' % need[0])
+            if len(need) > 1:
+                L.insert(max(3, len(L) - 1), '{w:%d}' % need[1])
+            need = []
         for j, b in enumerate(need): L.insert(min(2 + j, len(L) - 1), '{w:%d}' % b)
         return '\n'.join(L)
     L = T[n].split('\n')
@@ -225,9 +241,9 @@ for hid, title, cond, riddle, text in HIDDEN:
     t, wits, _ = render_raw(text, 0)
     arcs.append(dict(id=hid, title=title, source=ARC_SRC, text=t, refs=[KEY[b] for b in dict.fromkeys(wits)], need=999, hidden=True, cond=cond, riddle=riddle, badge=BADGES.get(hid, '')))
 puzzles = [dict(id=m['id'], h=h32(m['answer']), src=m['src']) for m in PUZ_META]
-game = dict(edition=(dict(_m.META, grid=dict(cols=cols, rows=rows, size=len(PLACES))) if ED else dict(n=63, label='第六十三次', title='死亡游戏调查报告', theme=63, grid=dict(cols='ABCDE', rows=[1, 2, 3, 4, 5], size=25))), endings=ENDINGS, puzzles=puzzles, arcs=arcs, milestones=MILE, title='死亡游戏调查报告', subtitle='第六十三次 回溯筛选', roster=roster, places=PLACES, zones=[dict(day=d, hour=h, cell=c) for d, h, c in ZONES], causes=CAUSES,
-            records=records, docs=docs, msgs=msgs, start=START, solutions=solutions, hints=hints, shadow=dict(num=SHADOW, keys=[e['key'] for e in E if e['c'] == SHADOW], msg=(getattr(_m, 'SHADOW_MSG', 'MSG06') if ED else 'MSG06'), label=(getattr(_m, 'SHADOW_LABEL', '') if ED else '')),
+game = dict(edition=(dict(_m.META, grid=dict(cols=cols, rows=rows, size=len(PLACES))) if ED else dict(n=63, label='第六十三次', title='死亡游戏调查报告', theme=63, grid=dict(cols='ABCDE', rows=[1, 2, 3, 4, 5], size=25))), endings=ENDINGS, puzzles=puzzles, arcs=arcs, milestones=MILE, title='死亡游戏调查报告', subtitle=(_m.META.get('subtitle') if ED else '第六十三次 回溯筛选'), roster=roster, places=PLACES, zones=[dict(day=d, hour=h, cell=c) for d, h, c in ZONES], causes=CAUSES,
+            records=records, docs=docs, msgs=msgs, start=START, solutions=solutions, hints=hints, shadow=dict(num=SHADOW, keys=[e['key'] for e in E if e['c'] == SHADOW], msg=(getattr(_m, 'SHADOW_MSG', 'MSG06') if ED else 'MSG06'), label=(getattr(_m, 'SHADOW_LABEL', '') if ED else '名册外的个体（黑影）')),
             stats=dict(records=len(records), edges=sum(len(r['refs']) for r in records.values())))
 (HERE / 'data').mkdir(exist_ok=True)
-(HERE / ('data/game.json' if not ED else f'data/game-{ED}.json')).write_text(json.dumps(game, ensure_ascii=False, indent=1), encoding='utf-8')
+(HERE / ('data/game.json' if not ED else f'data/game-{ED}.json')).write_text(json.dumps(game, ensure_ascii=False, indent=1), encoding='utf-8', newline='\n')
 print('records', len(records), 'refs', game['stats']['edges'], 'start', START, 'msg lists', [len(x) for x in msg_lists])

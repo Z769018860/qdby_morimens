@@ -122,3 +122,108 @@ h1{background:linear-gradient(180deg,#fff,rgb(var(--tint)));-webkit-background-c
 .edrow{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);padding:8px 10px;margin:8px 0;background:rgba(8,20,28,.6)}.edrow.on{border-color:rgb(var(--tint))}
 
 .endimg{width:96px;height:96px;object-fit:cover;border:1px solid rgba(var(--tint),.6);border-radius:3px;margin:14px 0 4px;display:block;box-shadow:0 0 24px rgba(var(--tint),.3)}
+
+/* =====================================================================
+   背景素材层（img/bg-*.webp，每届两张：标题页 / 阅读页）
+   ===================================================================== */
+#bglayer{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;background:#04070d}
+#bglayer img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 42%;opacity:0;transition:opacity .9s ease}
+#bglayer img.on{opacity:1}
+/* 压暗分两层：一层平铺的雾色，一层从上到下渐深，正文压在上面才读得清 */
+#bglayer::before{content:"";position:absolute;inset:0;background:rgba(4,7,13,.34);z-index:1}
+#bglayer::after{content:"";position:absolute;inset:0;z-index:2;background:
+  linear-gradient(180deg,rgba(4,7,13,.22) 0%,rgba(4,7,13,.42) 46%,rgba(4,7,13,.8) 100%),
+  radial-gradient(95% 70% at 50% 42%,transparent 0%,rgba(4,7,13,.42) 100%)}
+.tcard{background:linear-gradient(180deg,rgba(6,13,22,.66),rgba(5,9,16,.44));backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
+#bg{z-index:1}
+#app{z-index:2}
+/* 有背景图之后，面板要更实一点，正文才不会被画面干扰 */
+.pane{background:rgba(7,12,19,.74)}
+.reader{background:rgba(6,10,17,.88)}
+.rdhead{background:rgba(6,10,17,.94)}
+@media(prefers-reduced-motion:reduce){#bglayer i{transition:none}}
+
+/* =====================================================================
+   手机端：底栏导航 + 触控尺寸 + 安全区
+   ===================================================================== */
+@media(max-width:820px){
+  /* 顶栏收紧，核实率变成贴着顶边的细线 */
+  .top{gap:6px;padding:calc(6px + env(safe-area-inset-top)) 8px 6px;flex-wrap:wrap}
+  .logo{display:none}
+  .scorebox{font-size:12px;max-width:52vw;overflow:hidden;text-overflow:ellipsis}
+  .rate{position:fixed;top:0;left:0;right:0;width:auto;height:3px;border:0;background:#0a1a22;z-index:60;pointer-events:none}
+  .rate i{height:100%}
+  .rate span{display:none}
+  .tb{min-height:34px;padding:4px 10px;font-size:12px}
+
+  /* 单列 + 底部导航条（在流内，不会盖住内容） */
+  .cols{grid-template-columns:1fr;grid-template-rows:1fr}
+  .tabsm{display:flex;flex:0 0 auto;border-top:1px solid rgba(var(--tint),.3);background:rgba(6,12,20,.94);
+    padding-bottom:env(safe-area-inset-bottom);backdrop-filter:blur(8px)}
+  .tabsm button{flex:1;background:none;border:0;padding:12px 4px;color:var(--dim);font-size:14px;letter-spacing:.1em;min-height:52px}
+  .tabsm .on{color:var(--hi);box-shadow:inset 0 2px rgb(var(--tint))}
+  .pane{padding:10px 12px calc(10px + env(safe-area-inset-bottom))}
+
+  /* 触控目标 */
+  .btn{min-height:44px;padding:8px 14px}
+  .list li{padding:9px 6px;min-height:46px;font-size:14px}
+  .list .id{min-width:6.8em;font-size:14px}
+  .sortbar button{min-height:34px;font-size:13px}
+  .rdtools button{min-height:34px;padding:0 10px;font-size:13px}
+  .chipb{padding:6px 10px;font-size:13px}
+  /* iOS 上字号小于 16px 会在聚焦时自动放大页面 */
+  input,select,textarea{font-size:16px}
+  input,select{min-height:44px}
+
+  /* 阅读器：行距与段距放大，段落更好点 */
+  .rdhead{font-size:15px}
+  .rdbody p{margin:.72em 0;line-height:1.85;padding:3px 8px}
+  .rdbody .sys{font-size:14px;line-height:1.75}
+  .reader{background:rgba(5,9,15,.82)}
+
+  /* 工具页签：横向滚动，不换行、不挤成两排 */
+  .tabs{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs button{flex:0 0 auto;min-height:38px;padding:6px 14px}
+
+  /* 地图：窄屏横向滚动，格子给足宽度 */
+  .tp{overflow-x:auto}
+  .map{min-width:480px;gap:4px}
+  .cell{min-height:72px}
+  .graph{max-width:100%}
+
+  /* 报告表单：下拉与按钮全宽，提交键够大 */
+  .replist{max-height:26vh}
+  .form select{height:46px}
+  .form .row .btn{flex:1}
+
+  /* 弹窗与提示避开安全区 */
+  .modal{padding:calc(8px + env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom))}
+  /* 底部有导航条，提示要抬到它上面，否则会盖住页签 */
+  #toast{bottom:calc(70px + env(safe-area-inset-bottom))}
+  .mbox{padding:14px}
+  .ending{padding:calc(6vh + env(safe-area-inset-top)) 6vw calc(6vh + env(safe-area-inset-bottom))}
+  .endskip{bottom:calc(70px + env(safe-area-inset-bottom))}
+
+  /* 标题页 */
+  h1{font-size:26px;letter-spacing:.1em}
+  .tcard{padding:20px 16px 16px}
+  .sub{font-size:13px;letter-spacing:.1em}
+  .menu{max-width:none}
+  .menu button{min-height:46px}
+  .fine{margin-top:16px;font-size:11px}
+}
+
+@media(max-width:380px){
+  h1{font-size:22px}
+  .scorebox{max-width:44vw}
+}
+
+/* 结局里的“跳过” */
+.endskip{position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:61;
+  background:rgba(10,22,28,.9);border:1px solid rgba(var(--tint),.6);color:var(--dim);padding:6px 14px;font:inherit;font-size:13px}
+.endskip:hover{color:var(--hi)}
+
+/* 窄屏才提示地图可以横向滑动 */
+.mapswipe{display:none;margin:4px 0 0;text-align:center;font-size:12px}
+@media(max-width:820px){.mapswipe{display:block}}

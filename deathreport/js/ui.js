@@ -2,6 +2,7 @@ import { newGame, recover, index, options, setDraft, submit, rosterView, lockedH
 
 import { burst } from './fx.js';
 import { startBg, setTheme } from './bg.js';
+import { unlock as unlockAudio, play, setSound, setTheme as setAudioTheme, startAmbient, stopAmbient } from './audio.js';
 let ED = 63;
 const EDS = { 63: ['data/game.json', 'morimens-deathreport-save-v1'], 62: ['data/game-62.json', 'morimens-deathreport-save-ed62-v1'], 61: ['data/game-61.json', 'morimens-deathreport-save-ed61-v1'] };
 const SAVE = { toString: () => EDS[ED][1] }, PREF = 'morimens-deathreport-pref-v1';
@@ -14,14 +15,33 @@ const hasSave = () => { try { return !!localStorage.getItem(EDS[ED][1]); } catch
 const save = () => { try { st.playMs += Date.now() - (ui.t0 || Date.now()); ui.t0 = Date.now(); localStorage.setItem(EDS[ED][1], JSON.stringify(st)); } catch { /* ignore */ } };
 const loadSave = () => { try { const j = JSON.parse(localStorage.getItem(EDS[ED][1])); if (j && j.v === 1) return j; } catch { /* ignore */ } return null; };
 
-// ---------------------------------------------------------------- audio (tiny synth)
-let ac;
-function tone(f, d = 0.05, v = 0.04, type = 'square', at = 0) {
-  if (!pref.sound) return;
-  try { ac ||= new (window.AudioContext || window.webkitAudioContext)(); const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + at; o.type = type; o.frequency.value = f; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + d + 0.02); } catch { /* ignore */ }
-}
-const sfx = { key: () => tone(400 + Math.random() * 200, 0.025, 0.025), ok: () => { tone(660, 0.08); tone(990, 0.12, 0.04, 'square', 0.08); }, err: () => tone(140, 0.18, 0.06, 'sawtooth'), stamp: () => { tone(90, 0.2, 0.12, 'sine'); tone(180, 0.08, 0.06, 'square'); }, msg: () => { [523, 659, 784].forEach((f, i) => tone(f, 0.12, 0.04, 'triangle', i * 0.09)); } };
+// ---------------------------------------------------------------- audio
+// 短音效来自 audio/*.wav（tools/make_audio.py 合成），环境音由 audio.js 实时合成。
+const sfx = {
+  key: () => play('key', { gain: 0.5, spread: 0.06 }),
+  open: () => play('paper', { gain: 0.55 }),
+  ok: () => play('chime', { gain: 0.75 }),
+  err: () => play('buzz', { gain: 0.6 }),
+  stamp: () => play('stamp', { gain: 0.9 }),
+  msg: () => play('msg', { gain: 0.7 }),
+  bell: () => play('bell', { gain: 0.75 }),
+};
 function toast(t, ms = 2600) { const d = document.createElement('div'); d.textContent = t; $('#toast').appendChild(d); setTimeout(() => d.remove(), ms); }
+
+// ---------------------------------------------------------------- 背景素材
+const BG = { 63: ['img/bg-63-title.webp', 'img/bg-63-read.webp'], 62: ['img/bg-62-title.webp', 'img/bg-62-read.webp'], 61: ['img/bg-61-title.webp', 'img/bg-61-read.webp'] };
+let bgCur = -1, bgAt = 0;
+function setBg(kind) {
+  const pair = BG[ED] || BG[63], url = pair[kind === 'read' ? 1 : 0];
+  if (url === bgCur) return;
+  bgCur = url;
+  const layers = document.querySelectorAll('#bglayer img');
+  if (!layers.length) return;
+  const next = layers[bgAt % 2], prev = layers[(bgAt + 1) % 2];
+  next.src = url;
+  next.classList.add('on'); prev.classList.remove('on');
+  bgAt++;
+}
 
 // ---------------------------------------------------------------- markup
 const reEsc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -90,7 +110,7 @@ function renderList() {
   $('#leadsum').innerHTML = `可推理的新记录 <b>${leadTotal(G, st)}</b> 条　·　已复原 ${st.recovered.length}/${total(G)}`;
   $('#list').innerHTML = [...recR, ...msgR].map((it) => `<li data-id="${it.id}" class="${it.kind === 'doc' ? 'sys' : it.kind === 'msg' ? 'msg' : it.kind === 'arc' ? 'arc' : ''}${it.id.startsWith('HX') ? ' hid' : ''} ${it.dotted ? 'dotted' : ''} ${ui.sel === it.id ? 'on' : ''}"><span class="badge ${it.refs > 0 ? 'on' : ''}" title="${it.refs > 0 ? `可推理出 ${it.refs} 条新记录` : ''}">${it.refs > 0 ? `[${it.refs}]` : it.kind === 'rec' && G.records[it.id].refs.length ? '✓' : ''}</span><span class="id">${it.id}</span><span class="t">${esc(it.title)}${it.when ? ' ' + esc(it.when) : ''}</span>${it.status ? `<span class="chip ${it.status}">${{ ok: '确认', ng: '有误', draft: '待核' }[it.status]}</span>` : ''}</li>`).join('') + lockedHidden(G, st).map((x) => `<li class="locked" title="${esc(x.riddle)}"><span class="badge">？</span><span class="id">${x.id}</span><span class="t">${esc(x.riddle)}</span></li>`).join('');
 }
-$('#list').addEventListener('click', (e) => { const li = e.target.closest('li'); if (li) openReader(li.dataset.id); });
+$('#list').addEventListener('click', (e) => { const li = e.target.closest('li'); if (li) { sfx.open(); openReader(li.dataset.id); } });
 document.querySelector('.sortbar').addEventListener('click', (e) => { const b = e.target.closest('[data-sort]'); if (!b) return; ui.sort = b.dataset.sort; document.querySelectorAll('.sortbar button').forEach((x) => x.classList.toggle('on', x === b)); renderList(); });
 function doRecover(name) {
   const before = st.recovered.length;
@@ -141,7 +161,7 @@ function renderTools() {
     const dead = {}; for (const k of st.recovered) dead[G.records[k].cell] = (dead[G.records[k].cell] || 0) + 1;
     let h = `<h4>■ 地图　${G.edition.n === 63 ? '弥萨格复本（密境）' : G.edition.title + '（密境）'}</h4><div class="map" style="grid-template-columns:22px repeat(${cols.length},1fr)"><span></span>` + [...cols].map((c) => `<span class="ax">${c}</span>`).join('');
     for (const r of G.edition.grid.rows) { h += `<span class="ax">${r}</span>`; for (const c of cols) { const id = c + r; h += `<div class="cell ${id === 'C3' && G.edition.n === 63 ? 'c3' : ''}"><b>${id} ${esc(G.places[id])}</b>${zones ? `<span class="z">封锁 ${when[id]}</span>` : ''}${dead[id] ? `<br><span class="d">复原 ${dead[id]} 条</span>` : ''}</div>`; } }
-    tp.innerHTML = h + '</div>' + (zones ? '' : '<p class="dim">封锁时刻需要先复原 00-ZONE。</p>');
+    tp.innerHTML = h + '</div><p class="dim mapswipe">← 左右滑动查看整张地图 →</p>' + (zones ? '' : '<p class="dim">封锁时刻需要先复原 00-ZONE。</p>');
   } else if (ui.tab === 'rep') {
     const recs = st.recovered.map((k) => G.records[k]).sort((a, b) => a.dord - b.dord);
     const cur = ui.rep && G.records[ui.rep] && st.recovered.includes(ui.rep) ? ui.rep : null;
@@ -202,12 +222,12 @@ function doSubmit() {
   renderList(); refreshRate(); save();
 }
 function reward(w) {
-  const a = G.arcs.find((x) => x.id === w.id); sfx.stamp(); [659, 784, 988, 1319].forEach((f, i) => tone(f, 0.18, 0.05, 'triangle', 0.1 + i * 0.1)); burst(4);
+  const a = G.arcs.find((x) => x.id === w.id); sfx.stamp(); sfx.ok(); burst(4);
   modal(`<div class="reso"><h3>■ 隐藏档案　${esc(w.id)}</h3><p class="mline">${esc(a.title)}</p><div class="arcn">勋章　「${esc(w.badge)}」</div><p class="dim">+${w.points} 分　·　提示券 +1（下一次提示免费，不影响评级）</p><div class="btns"><button class="btn" data-close>阅读</button></div></div>`);
   refreshRate();
 }
 function resonance(m) {
-  sfx.stamp(); [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, 0.05, 'triangle', 0.12 + i * 0.09)); burst(Math.min(5, 1 + Math.floor(m.k / 4)));
+  sfx.bell(); burst(Math.min(5, 1 + Math.floor(m.k / 4)));
   const pct = Math.round((m.confirmed / total(G)) * 100);
   modal(`<div class="reso"><h3>■ 共鸣　${m.k}／${G.milestones.length}</h3><p class="mline">${esc(m.line.replace(/^共鸣 \d+\/\d+　/, ''))}</p><div class="bar"><i style="width:${pct}%"></i></div><p class="dim">已确认 ${m.confirmed}／${total(G)} 份报告</p>${m.arcs.map((a) => `<div class="arcn" data-arc="${a.id}">◆ 新档案 ${a.id}　${esc(a.title)}　<small>（点击阅读）</small></div>`).join('')}${m.nudge.length ? `<div class="nudge">提示（不计入评级）：已复原的记录与档案里，写明了这些人的下落——${m.nudge.map(esc).join('、')}。</div>` : '<div class="nudge">提示（不计入评级）：已复原的记录里没有新的线索了。去读读还没读的系统文档、消息与档案吧。</div>'}<div class="btns"><button class="btn" data-close>继续</button></div></div>`);
   $('#modal').querySelectorAll('[data-arc]').forEach((el) => { el.onclick = () => { $('#modal').hidden = true; openReader(el.dataset.arc); }; });
@@ -221,12 +241,22 @@ const META = 'morimens-deathreport-meta-v1';
 const meta = () => { try { return JSON.parse(localStorage.getItem(META)) || {}; } catch { return {}; } };
 function unlockEditions() { try { localStorage.setItem(META, JSON.stringify({ ...meta(), editions: true })); } catch { /* ignore */ } }
 // ---------------------------------------------------------------- ending
+let epSkip = false;
 async function typeLines(el, lines, speed = 22) {
-  for (const l of lines) { const d = document.createElement('div'); el.appendChild(d); for (const ch of l) { d.textContent += ch; if (speed) await new Promise((r) => setTimeout(r, speed)); if (ch !== ' ') sfx.key(); } await new Promise((r) => setTimeout(r, 160)); }
+  for (const l of lines) {
+    const d = document.createElement('div');
+    el.appendChild(d);
+    if (epSkip) { d.textContent = l; continue; }
+    for (const ch of l) { d.textContent += ch; if (epSkip) { d.textContent = l; break; } if (speed) await new Promise((r) => setTimeout(r, speed)); if (ch !== ' ') sfx.key(); }
+    if (!epSkip) await new Promise((r) => setTimeout(r, 160));
+  }
 }
 async function endGame() {
   const res = finish(G, st), s = stats(G, st); save();
-  const box = $('#ending'); box.hidden = false; box.innerHTML = '<pre id="ep"></pre><div class="row" id="epBtns" hidden></div>';
+  stopAmbient();
+  const box = $('#ending'); box.hidden = false; epSkip = false;
+  box.innerHTML = '<pre id="ep"></pre><div class="row" id="epBtns" hidden></div><button class="endskip" id="epSkip">跳过 ▶</button>';
+  $('#epSkip').onclick = () => { epSkip = true; sfx.bell(); };
   const ep = $('#ep');
   if (res.ended === 'true' && ED !== 63) {
     const en = G.endings[0], rt = s.rating;
@@ -245,27 +275,27 @@ async function endGame() {
   } else {
     await typeLines(ep, ['报告已受理。', `核实率 ${s.rate}%（${s.confirmed}/${s.total}）`, '', '终端里还有没有复原的记录，也有没有对上的报告。', '有一道很小的影子在屏幕边缘停了一下，然后走远了。', '', '……再看看名册上那个糊掉的名字吧。'], 26);
   }
-  const b = $('#epBtns'); b.hidden = false;
+  const b = $('#epBtns'); b.hidden = false; $('#epSkip')?.remove();
   b.innerHTML = res.ended === 'true' ? '<button class="btn" id="eDoc">查看机密文档</button><button class="btn" id="eTitle">回到标题</button>' : '<button class="btn gold" id="eCont">继续调查</button><button class="btn" id="eTitle">回到标题</button>';
   $('#eTitle').onclick = () => { box.hidden = true; toTitle(); };
   if ($('#eDoc')) $('#eDoc').onclick = () => { box.hidden = true; renderList(); openReader('00-SEALED'); };
-  if ($('#eCont')) $('#eCont').onclick = () => { st.ended = null; save(); box.hidden = true; };
+  if ($('#eCont')) $('#eCont').onclick = () => { st.ended = null; save(); box.hidden = true; startAmbient(); };
 }
 $('#bFinish').onclick = () => { if (confirm('现在提交最终报告？还有未确认的报告，你将得到一个不完整的结局（之后仍可继续调查）。')) endGame(); };
 
 // ---------------------------------------------------------------- settings / title
-function applyPref() { $('#app').classList.toggle('crt-on', pref.crt); document.documentElement.style.fontSize = pref.size + 'px'; document.body.style.fontSize = pref.size + 'px'; }
+function applyPref() { $('#app').classList.toggle('crt-on', pref.crt); document.documentElement.style.fontSize = pref.size + 'px'; document.body.style.fontSize = pref.size + 'px'; setSound(pref.sound); }
 function modal(html) { const m = $('#modal'); m.innerHTML = `<div class="mbox">${html}</div>`; m.hidden = false; m.onclick = (e) => { if (e.target === m || e.target.closest('[data-close]')) m.hidden = true; }; return m; }
 function settings() {
   modal(`<h3>■ 设置</h3><label><input type="checkbox" id="sCrt" ${pref.crt ? 'checked' : ''}> CRT 滤镜</label><label><input type="checkbox" id="sSnd" ${pref.sound ? 'checked' : ''}> 键入与提示音效</label><label>正文文字大小 <select id="sSize">${[14, 15, 17, 19].map((x) => `<option ${x === pref.size ? 'selected' : ''}>${x}</option>`).join('')}</select></label><div class="btns"><button class="btn" data-close>关闭</button></div>`);
-  $('#sCrt').onchange = (e) => { pref.crt = e.target.checked; applyPref(); savePref(); }; $('#sSnd').onchange = (e) => { pref.sound = e.target.checked; savePref(); }; $('#sSize').onchange = (e) => { pref.size = +e.target.value; applyPref(); savePref(); };
+  $('#sCrt').onchange = (e) => { pref.crt = e.target.checked; applyPref(); savePref(); }; $('#sSnd').onchange = (e) => { pref.sound = e.target.checked; applyPref(); savePref(); }; $('#sSize').onchange = (e) => { pref.size = +e.target.value; applyPref(); savePref(); };
 }
 function help() {
   modal(`<h3>■ 玩法说明</h3><p>你是弥萨格的守密人，手持银钥匙，借助溯梦终端复原${G.edition.help || '“第六十三次回溯筛选”'}里每一个人的死亡记录，并为每一起死亡填写报告：<b>死因、凶器、加害人</b>。</p>
   <p>· 在左侧输入栏键入<b>记录名</b>复原记录。记录名怎么拼，要自己从线索里推——名册、地图、广播与时间都是线索。<br>· 记录的每个段落都可以点击标记。<br>· 记录末尾和索引里的 [X] 表示还有几条参考没有复原；虚线表示正文提到了还没读的系统文档。<br>· 三项全对才会“确认”；填错只会提示“存在错误的报告”。<br>· 每确认一部分报告，会收到新的消息。<br>· 提示分三级，会影响评级。</p><div class="btns"><button class="btn" data-close>明白了</button></div>`);
 }
 async function loadEdition(n) {
-  ED = n; G = await (await fetch(EDS[n][0])).json(); buildAuto(); setTheme(n);
+  ED = n; G = await (await fetch(EDS[n][0])).json(); buildAuto(); setTheme(n); setAudioTheme(n); setBg('title');
   document.title = n === 63 ? '死亡游戏调查报告 · 第六十三次回溯筛选' : `死亡游戏调查报告 · ${G.edition.label}回溯筛选（往届）`;
   $('.sub').textContent = n === 63 ? '第六十三次　回溯筛选　完全复原' : G.edition.subtitle + '（往届档案）';
 }
@@ -291,12 +321,13 @@ $('#menu').addEventListener('click', (e) => {
   if (m === 'eds') editions();
   if (m === 'settings') settings(); if (m === 'help') help(); if (m === 'home') location.href = '../index.html';
 });
-function toTitle() { save(); $('#game').hidden = true; $('#title').hidden = false; bootTitle(); }
+function toTitle() { save(); $('#game').hidden = true; $('#title').hidden = false; setBg('title'); stopAmbient(); bootTitle(); }
 $('#bTitle').onclick = toTitle; $('#bSave').onclick = () => { save(); toast('已保存。'); }; $('#bSet').onclick = settings;
 function start(saved) {
   st = saved || newGame(G); if (!saved) { try { localStorage.removeItem(EDS[ED][1]); } catch { /* ignore */ } }
   ui = { sel: null, sort: 'order', tab: 'ros', rep: null, pane: 'idx', hintLog: [], q: '', t0: Date.now() };
-  $('#title').hidden = true; $('#game').hidden = false; $('#rdHead').innerHTML = ''; $('#rdBody').innerHTML = '<p class="dim">在左侧选择记录，或在输入栏里键入记录名。</p>';
+  $('#title').hidden = true; $('#game').hidden = false; $('#rdHead').innerHTML = ''; $('#rdBody').innerHTML = '<p class="dim">在索引里选择记录，或在上方键入记录名。</p>';
+  setBg('read'); startAmbient();
   showPane('idx'); renderList(); renderTools(); refreshRate(); save();
   if (!saved) { openReader('00-ORDER'); toast('新消息 MSG01', 3000); sfx.msg(); } else if (st.ended === 'true') toast('案件已结案。', 2400);
 }
@@ -306,5 +337,14 @@ function start(saved) {
   window.__dr = { get G() { return G; }, get st() { return st; } };
   bootTitle();
 })();
+// 浏览器不允许自动播放：第一次交互时解锁音频，之后环境音才会响
+const firstGesture = () => {
+  unlockAudio();
+  if (!$('#game').hidden) startAmbient();
+  document.removeEventListener('pointerdown', firstGesture);
+  document.removeEventListener('keydown', firstGesture);
+};
+document.addEventListener('pointerdown', firstGesture);
+document.addEventListener('keydown', firstGesture);
 document.addEventListener('visibilitychange', () => { if (st && document.hidden) save(); });
 window.addEventListener('beforeunload', () => { if (st && !$('#game').hidden) save(); });

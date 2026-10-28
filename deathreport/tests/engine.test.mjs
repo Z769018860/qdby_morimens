@@ -1,3 +1,10 @@
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+// Windows 上没有 python3，退回 python（两个都试一遍；都失败才算没装）
+const PY = (() => { for (const c of ['python3', 'python']) { try { execFileSync(c, ['-c', 'pass'], { stdio: 'ignore' }); return c; } catch { /* next */ } } throw new Error('python not found'); })();
+const py = (args, cwd) => execFileSync(PY, args, { cwd });
+// fileURLToPath 才是 Windows 下的正确路径（URL.pathname 会给出 /H:/... 这种假路径）
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -178,7 +185,6 @@ test('broadcast arithmetic: counts match the ledger and names are listed in deat
 });
 
 // ---- deduction structure (witness edges), marks, notes, reasoning aids
-import { execFileSync } from 'node:child_process';
 import { rating, pickEnding, h32, grant, score, lockedHidden, leads, leadTotal, structure, marksOf, cycleMark, clueCards, search, itemTrail, timeline, evidenceOf } from '../js/engine.js';
 const cnum = (n) => { const d = '零一二三四五六七八九'; return n < 10 ? d[n] : n < 20 ? '十' + (n > 10 ? d[n - 10] : '') : d[Math.floor(n / 10)] + '十' + (n % 10 ? d[n % 10] : ''); };
 
@@ -193,8 +199,8 @@ test('every reference is a full witness: name + place + death order are written 
   assert.ok(edges >= 80);
 });
 test('closure: every record key can be deduced from START + messages (tools/closure.py, also without broadcast arithmetic)', () => {
-  const cwd = new URL('..', import.meta.url).pathname;
-  execFileSync('python3', ['tools/closure.py'], { cwd }); execFileSync('python3', ['tools/closure.py', '--strict'], { cwd });
+  const cwd = ROOT;
+  py(['tools/closure.py'], cwd); py(['tools/closure.py', '--strict'], cwd);
 });
 test('left-hand count goes down by one for each deduced record', () => {
   const st = newGame(G); for (const k of G.start) recover(G, st, k);

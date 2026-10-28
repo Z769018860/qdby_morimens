@@ -1,7 +1,13 @@
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+// Windows 上没有 python3，退回 python（两个都试一遍；都失败才算没装）
+const PY = (() => { for (const c of ['python3', 'python']) { try { execFileSync(c, ['-c', 'pass'], { stdio: 'ignore' }); return c; } catch { /* next */ } } throw new Error('python not found'); })();
+const py = (args, cwd) => execFileSync(PY, args, { cwd });
+// fileURLToPath 才是 Windows 下的正确路径（URL.pathname 会给出 /H:/... 这种假路径）
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { newGame, recover, setDraft, submit, hint, finish, stats, confirmedCount, total, options, rating, leads } from '../js/engine.js';
 const load = (f) => JSON.parse(fs.readFileSync(new URL(`../data/${f}`, import.meta.url), 'utf8'));
 const eds = { 62: load('game-62.json'), 61: load('game-61.json') };
@@ -21,8 +27,8 @@ for (const [n, G] of Object.entries(eds)) {
     const alive = G.roster.filter((p) => !keys.some((k) => G.records[k].num === p.n)); assert.equal(alive.length, 1);
   });
   test(`edition ${n}: closure (also strict) and every record reachable`, () => {
-    const cwd = new URL('..', import.meta.url).pathname;
-    execFileSync('python3', ['tools/closure.py', `--game=data/game-${n}.json`], { cwd }); execFileSync('python3', ['tools/closure.py', '--strict', `--game=data/game-${n}.json`], { cwd });
+    const cwd = ROOT;
+    py(['tools/closure.py', `--game=data/game-${n}.json`], cwd); py(['tools/closure.py', '--strict', `--game=data/game-${n}.json`], cwd);
   });
   test(`edition ${n}: full playthrough, resonance, rating, vague hints, true ending`, () => {
     const st = newGame(G), keys = Object.keys(G.records).sort().sort((a, b) => (G.shadow.keys.includes(a) ? 1 : 0) - (G.shadow.keys.includes(b) ? 1 : 0)); let mile = 0;
