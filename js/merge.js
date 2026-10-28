@@ -104,7 +104,8 @@ function layout() {
   cv.height = Math.round(H * G.dpr);
   ctx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
 
-  G.top = Math.max(G.H * 0.115, rad(0) * 1.6);
+  // 投放区要能完整放下最大的可投放球（第 5 级），否则大球会贴到画面外
+  G.top = Math.max(G.H * 0.115, rad(SPAWN_W.length - 1) * 2.1);
   G.lineY = G.top + G.H * 0.045;
 
   // 世界等比缩放：W 和 H 是按比例算出来的，所以只需一个系数
