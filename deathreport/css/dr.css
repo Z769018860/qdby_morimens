@@ -89,3 +89,7 @@ input,select,textarea{background:#06100f;color:var(--hi);border:1px solid var(--
 .list li.arc .id{color:var(--amb)}.list li.arc .t{color:#d9bf7a}.chip.arcchip{color:var(--amb);border-color:var(--amb)}
 
 .list li.locked{cursor:default;opacity:.55}.list li.locked .id{color:#6a5a8a}.list li.locked .t{font-style:italic;white-space:normal}.list li.hid .id{color:var(--mag)}
+
+.scorebox{color:var(--amb);font-size:13px;white-space:nowrap}.rdbody p.frag{color:var(--mag);border-left-color:var(--mag);background:#160f22;font-size:13px}
+.badges{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 10px}.badge2{border:1px solid var(--amb);color:var(--amb);padding:0 8px;font-size:12px;background:#1a1405}
+.rdbody .sys p.frag{color:var(--mag);background:#160f22}

@@ -3,7 +3,7 @@ export const SAVE_VERSION = 1;
 export const REC_RE = /^(\d{2})-([A-E][1-5])-(\d{2})$/, DOC_RE = /^00-[A-Z]+$/;
 
 export function newGame(G) {
-  const st = { v: SAVE_VERSION, recovered: [], docs: [], msgs: [], arcs: [], lastMile: 0, drafts: {}, confirmed: {}, wrong: {}, hl: {}, marks: {}, rnotes: {}, notes: '', hintStep: {}, hints: 0, tries: 0, bad: 0, ended: null, startedAt: Date.now(), playMs: 0 };
+  const st = { v: SAVE_VERSION, recovered: [], docs: [], msgs: [], arcs: [], lastMile: 0, badges: [], tokens: 0, freeHints: 0, bonus: 0, firstTry: 0, missed: {}, drafts: {}, confirmed: {}, wrong: {}, hl: {}, marks: {}, rnotes: {}, notes: '', hintStep: {}, hints: 0, tries: 0, bad: 0, ended: null, startedAt: Date.now(), playMs: 0 };
   st.docs.push('00-ORDER');
   deliver(G, st);
   return st;
@@ -17,11 +17,24 @@ export function deliver(G, st) {
   const got = [], n = confirmedCount(st);
   for (const m of G.msgs) if (m.need <= n && !st.msgs.includes(m.id)) { st.msgs.push(m.id); got.push(m.id); }
   st.arcs ||= [];
-  for (const a of G.arcs || []) if (!st.arcs.includes(a.id) && (a.cond ? condMet(G, st, a.cond) : a.need <= n)) { st.arcs.push(a.id); got.push(a.id); }
+  for (const a of G.arcs || []) {
+    if (st.arcs.includes(a.id)) continue;
+    if (a.hidden) { if (a.cond && condMet(G, st, a.cond)) { grant(G, st, a.id, a.cond.streak ? 'streak' : 'set'); got.push(a.id); } }
+    else if (a.need <= n) { st.arcs.push(a.id); got.push(a.id); }
+  }
   return got;
 }
 
 // hidden archives open when something specific has been deduced, not when enough has been done
+export function h32(str) { let h = 0x811c9dc5; for (const b of new TextEncoder().encode(str)) { h ^= b; h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; }
+const BONUS = { puzzle: 500, set: 250, streak: 300 };
+// opening a hidden archive: the archive itself, a badge, a free-hint voucher and score
+export function grant(G, st, id, how) {
+  const a = G.arcs.find((x) => x.id === id); st.arcs ||= [];
+  if (!a || st.arcs.includes(id)) return null;
+  st.arcs.push(id); (st.badges ||= []).push(id); st.tokens = (st.tokens || 0) + 1; st.bonus = (st.bonus || 0) + BONUS[how];
+  return { id, badge: a.badge, points: BONUS[how], how };
+}
 export function condMet(G, st, c) {
   if (c.streak) return (st.streak || 0) >= c.streak;
   const done = new Set(Object.keys(st.confirmed).map((k) => G.records[k].num));
@@ -37,7 +50,17 @@ export function recover(G, st, input) {
   const s = normalizeName(input);
   st.tries++;
   if (!s) return { ok: false, code: 'empty', msg: '× 尚未输入。请输入记录名。' };
-  if (!REC_RE.test(s) && !DOC_RE.test(s)) { st.bad++; return { ok: false, code: 'format', msg: '× 输入格式不正确。（例：05-D2-29 ／ 00-ORDER）' }; }
+  if (!REC_RE.test(s) && !DOC_RE.test(s)) {
+    const pz = (G.puzzles || []).find((p) => p.h === h32(s));
+    if (pz) {
+      st.arcs ||= [];
+      if (st.arcs.includes(pz.id)) return { ok: true, again: true, kind: 'arc', id: pz.id, msg: '● 该档案已经打开。' };
+      const seen = (src) => { const [k, v] = src.split(':'); return k === 'rec' ? st.recovered.includes(G.roster[+v - 1].key) : k === 'arc' ? st.arcs.includes(v) : st.docs.includes(v); };
+      if (!pz.src.every(seen)) { st.bad++; return { ok: false, code: 'silent', msg: '× 没有回应。' }; }
+      const reward = grant(G, st, pz.id, 'puzzle'); deliver(G, st);
+      return { ok: true, kind: 'arc', id: pz.id, puzzle: true, reward, msg: '● 有回应——隐藏档案已打开。' };
+    }
+    st.bad++; return { ok: false, code: 'format', msg: '× 输入格式不正确。（例：05-D2-29 ／ 00-ORDER）' }; }
   if (DOC_RE.test(s)) {
     const d = G.docs[s];
     if (!d) { st.bad++; return { ok: false, code: '404', msg: `× ERROR 404 ― 无对应记录: ${s}` }; }
@@ -174,8 +197,8 @@ export function submit(G, st, key) {
   if (!d || d.cause == null || d.weapon == null || d.culprit == null) return { ok: false, msg: '三项都需要填写。' };
   if (String(d.culprit) === '63' && !shadowUnlocked(G, st)) return { ok: false, msg: '该选项尚不可用。' };
   const okAll = d.cause === sol.cause && String(d.weapon) === String(sol.weaponNum || 0) && String(d.culprit) === String(sol.culprit);
-  if (okAll) { st.streak = (st.streak || 0) + 1; st.confirmed[key] = true; delete st.wrong[key]; const arrived = deliver(G, st); return { ok: true, correct: true, arrived, milestone: milestone(G, st, arrived), msg: '报告已确认。' }; }
-  st.streak = 0; st.wrong[key] = true;
+  if (okAll) { st.streak = (st.streak || 0) + 1; if (!(st.missed || {})[key]) st.firstTry = (st.firstTry || 0) + 1; st.confirmed[key] = true; delete st.wrong[key]; const arrived = deliver(G, st); return { ok: true, correct: true, arrived, milestone: milestone(G, st, arrived), msg: '报告已确认。' }; }
+  st.streak = 0; st.missed[key] = (st.missed[key] || 0) + 1; st.wrong[key] = true;
   return { ok: true, correct: false, msg: '存在错误的报告。' };
 }
 // every third confirmed report: a resonance (popup + effect), a free nudge toward what can be deduced next, and the archives that just arrived
@@ -214,21 +237,25 @@ export function hint(G, st, kind, key) {
   if (kind === 'confirm' && !st.recovered.includes(id)) return { ok: false, msg: '这条记录还没有复原。' };
   const stepKey = `${kind}:${id}`, step = Math.min(2, st.hintStep[stepKey] ?? -1) ;
   const next = Math.min(2, (st.hintStep[stepKey] ?? -1) + 1);
-  st.hintStep[stepKey] = next; st.hints++;
-  return { ok: true, id, step: next, total: 3, text: G.hints[kind][id][next], kind };
+  st.hintStep[stepKey] = next;
+  const free = (st.tokens || 0) > 0; if (free) { st.tokens--; st.freeHints = (st.freeHints || 0) + 1; } else st.hints++;
+  return { ok: true, id, step: next, total: 3, text: G.hints[kind][id][next], kind, free };
 }
 
 // ---- ending
+export function score(G, st) { return Math.max(0, confirmedCount(st) * 100 + (st.firstTry || 0) * 50 + (st.bonus || 0) - st.hints * 30 - st.bad * 5); }
+export const hiddenTotal = (G) => G.arcs.filter((a) => a.hidden).length;
 export function stats(G, st) {
   const n = confirmedCount(st), t = total(G);
-  return { confirmed: n, total: t, rate: Math.round((n / t) * 100), hints: st.hints, tries: st.tries, bad: st.bad, minutes: Math.round(st.playMs / 60000) };
+  return { score: score(G, st), badges: (st.badges || []).length, hiddenTotal: hiddenTotal(G), firstTry: st.firstTry || 0, tokens: st.tokens || 0, confirmed: n, total: t, rate: Math.round((n / t) * 100), hints: st.hints, tries: st.tries, bad: st.bad, minutes: Math.round(st.playMs / 60000) };
 }
 export function canFinish(G, st) { return confirmedCount(st) >= Math.ceil(total(G) / 2); }
 export function finish(G, st) {
   const n = confirmedCount(st);
   st.ended = n >= total(G) ? 'true' : 'partial';
   if (!st.docs.includes('00-DECREE') && st.ended === 'true') st.docs.push('00-DECREE', '00-SEALED');
-  const r = st.ended === 'true' ? (st.hints === 0 ? 'S' : st.hints <= 20 ? 'A' : 'B') : 'C';
+  const sc = score(G, st), r = st.ended === 'true' ? (sc >= 12500 ? 'SS' : sc >= 10500 ? 'S' : sc >= 8500 ? 'A' : 'B') : 'C';
+  st.finalScore = sc;
   st.rank = r;
   return { ended: st.ended, rank: r };
 }

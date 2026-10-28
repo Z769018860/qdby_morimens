@@ -12,6 +12,7 @@ from docs import DOCS, MSGS
 from witness import WIT
 from arcs import ARCS, MILE, SRC as ARC_SRC
 from hidden import HIDDEN
+from puzzles import FRAGS, META as PUZ_META, BADGES, h32
 from texts_ext import EXT
 
 ap = argparse.ArgumentParser(); ap.add_argument('--repo', default='..'); args = ap.parse_args()
@@ -47,6 +48,8 @@ def clause(a, b):
     return t.replace('{B}', NAME[b]).replace('{P}', PLACES[e['cell']]).replace('{N}', cn(e['dord']))
 TOK = re.compile(r'\{(@?\d+|w:\d+|it:\d+|loc:[A-E]\d|bc:D\d-\d+|sys:[0-9A-Z-]+)\}')
 def full_prose(n):
+    return _prose(n) + ''.join('\n' + l for l in FRAGS.get(('rec', n), []))
+def _prose(n):
     if n in T2:
         L = T2[n].strip('\n').split('\n')
         for k, txt in sorted(EXT.get(n, []), key=lambda a: -(a[0] if a[0] >= 0 else len(L) + a[0] - 1)):
@@ -142,6 +145,7 @@ dead1 = len(roll_names)
 docs = {}
 for did, (title, src, body, secret) in DOCS.items():
     t = body.replace('{ZONES}', zones_txt).replace('{MAP}', map_txt)
+    for fl in FRAGS.get(('doc', did), []): t = t.replace('[/sys]', fl + '\n[/sys]', 1) if '[/sys]' in t else t + '\n' + fl
     t = t.replace('{ROLL}', '、'.join(NAME[n] for n in roll_names)).replace('{DEAD}', str(dead1)).replace('{ALIVE}', str(63 - dead1))
     t = t.replace('{START}', '\n'.join(f'·[link]{k}[/link]' for k in START))
     refs = roll_keys if did == '00-ROLL' else []
@@ -195,13 +199,14 @@ for n, slug, zh, realm, role, item, kind, cls in ROSTER:
     roster.append(dict(n=n, slug=slug, name=zh, realm=realm, role=role, item=item, itemClass=cls, itemImg=img, avatar=av.get(zh.replace('「', '').replace('」', '')), melted=melted, key=KEY[n], lore=LORE.get(str(n), {})))
 arcs = []
 for aid, title, need, text in ARCS:
-    t, wits, _ = render_raw(text, 0)
+    t, wits, _ = render_raw(text + ''.join('\n' + l for l in FRAGS.get(('arc', aid), [])), 0)
     t = t.replace('{DEAD}', str(dead1)).replace('{ALIVE}', str(63 - dead1))
     arcs.append(dict(id=aid, title=title, source=ARC_SRC, text=t, refs=[KEY[b] for b in dict.fromkeys(wits)], need=need))
 for hid, title, cond, riddle, text in HIDDEN:
     t, wits, _ = render_raw(text, 0)
-    arcs.append(dict(id=hid, title=title, source=ARC_SRC, text=t, refs=[KEY[b] for b in dict.fromkeys(wits)], need=999, hidden=True, cond=cond, riddle=riddle))
-game = dict(arcs=arcs, milestones=MILE, title='死亡游戏调查报告', subtitle='第六十三次 回溯筛选', roster=roster, places=PLACES, zones=[dict(day=d, hour=h, cell=c) for d, h, c in ZONES], causes=CAUSES,
+    arcs.append(dict(id=hid, title=title, source=ARC_SRC, text=t, refs=[KEY[b] for b in dict.fromkeys(wits)], need=999, hidden=True, cond=cond, riddle=riddle, badge=BADGES.get(hid, '')))
+puzzles = [dict(id=m['id'], h=h32(m['answer']), src=m['src']) for m in PUZ_META]
+game = dict(puzzles=puzzles, arcs=arcs, milestones=MILE, title='死亡游戏调查报告', subtitle='第六十三次 回溯筛选', roster=roster, places=PLACES, zones=[dict(day=d, hour=h, cell=c) for d, h, c in ZONES], causes=CAUSES,
             records=records, docs=docs, msgs=msgs, start=START, solutions=solutions, hints=hints, shadow=dict(num=SHADOW, keys=[e['key'] for e in E if e['c'] == SHADOW]),
             stats=dict(records=len(records), edges=sum(len(r['refs']) for r in records.values())))
 (HERE / 'data').mkdir(exist_ok=True)

@@ -134,7 +134,7 @@ test('full playthrough: recover everything, confirm all 62, messages arrive, tru
   for (const k of shadowKeys) assert.ok(solve(st, k).correct, k);
   assert.equal(confirmedCount(st), 62); assert.ok(st.msgs.includes('MSG07'));
   assert.deepEqual(arrivals.filter((x) => x !== 'MSG07' && !/^(AR|HX)-/.test(x)), ['MSG02', 'MSG03', 'MSG04', 'MSG05', 'MSG06']);
-  const end = finish(G, st); assert.equal(end.ended, 'true'); assert.ok(['S', 'A', 'B'].includes(end.rank));
+  const end = finish(G, st); assert.equal(end.ended, 'true'); assert.ok(['SS', 'S', 'A', 'B'].includes(end.rank));
   assert.ok(recover(G, st, '00-SEALED').ok && recover(G, st, '00-DECREE').ok);
   assert.equal(stats(G, st).rate, 100);
 });
@@ -179,7 +179,7 @@ test('broadcast arithmetic: counts match the ledger and names are listed in deat
 
 // ---- deduction structure (witness edges), marks, notes, reasoning aids
 import { execFileSync } from 'node:child_process';
-import { lockedHidden, leads, leadTotal, structure, marksOf, cycleMark, clueCards, search, itemTrail, timeline, evidenceOf } from '../js/engine.js';
+import { h32, grant, score, lockedHidden, leads, leadTotal, structure, marksOf, cycleMark, clueCards, search, itemTrail, timeline, evidenceOf } from '../js/engine.js';
 const cnum = (n) => { const d = '零一二三四五六七八九'; return n < 10 ? d[n] : n < 20 ? '十' + (n > 10 ? d[n - 10] : '') : d[Math.floor(n / 10)] + '十' + (n % 10 ? d[n % 10] : ''); };
 
 test('every reference is a full witness: name + place + death order are written in the referring record', () => {
@@ -270,16 +270,68 @@ test('hints stay vague: never a full record name, never the culprit or the weapo
 });
 
 test('hidden archives: opened by deduction (sets of confirmed reports, a streak), never by plain progress', () => {
-  const hid = G.arcs.filter((a) => a.hidden); assert.equal(hid.length, 7);
-  const st = newGame(G); assert.equal(lockedHidden(G, st).length, 7);
+  const hid = G.arcs.filter((a) => a.hidden); assert.equal(hid.length, 11);
+  const st = newGame(G); assert.equal(lockedHidden(G, st).length, 11);
   // confirming reports in an order that never completes any set keeps them shut; a wrong report resets the streak
   const unlock = (nums) => { for (const n of nums) { const k = G.roster[n - 1].key; recover(G, st, k); const r = solve(st, k); if (r.correct && r.arrived?.includes('HX-02')) return true; } return false; };
   assert.ok(unlock([12, 46, 42]) && st.arcs.includes('HX-02') && !st.arcs.includes('HX-01'));
-  assert.equal(lockedHidden(G, st).length, 6); assert.ok(lockedHidden(G, st).every((x) => x.riddle && !x.riddle.includes('HX')));
+  assert.equal(lockedHidden(G, st).length, 10); assert.ok(lockedHidden(G, st).every((x) => x.riddle && !x.riddle.includes('HX')));
   const s2 = newGame(G); let streakOpened = false;
   for (const k of keys.filter((x) => !G.shadow.keys.includes(x)).slice(0, 15)) { recover(G, s2, k); if (solve(s2, k).arrived?.includes('HX-06')) streakOpened = true; }
   assert.ok(streakOpened, '15 correct in a row opens HX-06');
   const s3 = newGame(G); const k0 = keys[0]; recover(G, s3, k0); setDraft(s3, k0, 'cause', 'slash'); setDraft(s3, k0, 'weapon', '0'); setDraft(s3, k0, 'culprit', '0'); submit(G, s3, k0);
   assert.equal(s3.streak, G.solutions[k0].cause === 'slash' && G.solutions[k0].culprit === 0 ? 1 : 0);
   for (const a of hid) assert.ok(a.text.length > 120 && !a.text.includes('{'), a.id);
+});
+
+// ---- word puzzles (残片)
+const CNI = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+const cn2 = (t) => (t.includes('十') ? (t[0] === '十' ? 10 : CNI[t[0]] * 10) + (t.length > (t[0] === '十' ? 1 : 2) ? CNI[t.at(-1)] : 0) : CNI[t]);
+function resolve(line) {   // what a careful player would do with a fragment line
+  const m = line.match(/^〔(\S)([一二三])〕(.+?)，取第([一二三四五六七八九十]+)字。$/); if (!m) return null;
+  const [, sym, ord, what, pos] = m, i = cn2(pos) - 1; let str = null, x;
+  if ((x = what.match(/^名册第(\d+)号的名字$/))) str = G.roster[+x[1] - 1].name;
+  else if ((x = what.match(/^名册第(\d+)号的配发装备$/))) str = G.roster[+x[1] - 1].item;
+  else if ((x = what.match(/^名册第(\d+)号的第([一二三四五六七八九十]+)项特性/))) str = G.roster[+x[1] - 1].lore['特性'].split(/\s+/)[cn2(x[2]) - 1];
+  else if ((x = what.match(/^地图上([A-E][1-5])的区块名$/))) str = G.places[x[1]];
+  else if ((x = what.match(/^第([一二三四五六七八九十]+)个死者的名字$/))) str = Object.values(G.records).find((r) => r.dord === cn2(x[1])).name;
+  else if ((x = what.match(/^补充档案(AR-\d+)的标题$/))) str = G.arcs.find((a) => a.id === x[1]).title;
+  else if ((x = what.match(/^文档(00-[A-Z]+)的标题$/))) str = G.docs[x[1]].title;
+  return str ? { sym, ord: cn2(ord), ch: [...str][i] } : null;
+}
+test('every puzzle answer can be rebuilt from its fragments, which sit in the declared texts only', () => {
+  const texts = {};
+  for (const r of Object.values(G.records)) texts['rec:' + r.num] = r.text;
+  for (const a of G.arcs) texts['arc:' + a.id] = a.text; for (const d of Object.values(G.docs)) texts['doc:' + d.id] = d.text;
+  const bySym = {};
+  for (const [src, t] of Object.entries(texts)) for (const l of t.split('\n')) { const f = resolve(l.trim()); if (f) (bySym[f.sym] ||= []).push({ ...f, src }); }
+  assert.equal(Object.keys(bySym).length, G.puzzles.length);
+  for (const p of G.puzzles) {
+    const fr = Object.values(bySym).find((v) => p.src.includes(v[0].src)); assert.ok(fr, p.id);
+    const ans = fr.sort((a, b) => a.ord - b.ord).map((f) => f.ch).join('');
+    assert.equal(h32(ans), p.h, `${p.id}: ${ans}`); assert.deepEqual(fr.sort((a, b) => a.ord - b.ord).map((f) => f.src), p.src, 'order of sources = order of fragments');
+    assert.equal(new Set(fr.map((f) => f.src.split(':')[0] + f.src)).size, fr.length, 'fragments live in different texts');
+  }
+});
+test('typing a puzzle answer opens the hidden archive only when its fragments have been found; rewards are granted once', () => {
+  const ans = (id) => { const p = G.puzzles.find((x) => x.id === id); return p; };
+  const st = newGame(G), p = ans('HX-10'), word = '点名';
+  assert.equal(h32(word), p.h);
+  let r = recover(G, st, word); assert.equal(r.ok, false); assert.equal(r.code, 'silent');
+  // make the sources available (documents / archives / records) the way play would
+  for (const src of p.src) { const [k, v] = src.split(':'); if (k === 'doc') st.docs.push(v); if (k === 'arc') st.arcs.push(v); if (k === 'rec') st.recovered.push(G.roster[+v - 1].key); }
+  const before = st.tokens, bonus = st.bonus;
+  r = recover(G, st, ' 点名 '); assert.ok(r.ok && r.puzzle && r.id === 'HX-10' && r.reward.badge === '点名官');
+  assert.equal(st.tokens, before + 1); assert.equal(st.bonus, bonus + 500); assert.ok(st.arcs.includes('HX-10') && st.badges.includes('HX-10'));
+  r = recover(G, st, '点名'); assert.ok(r.again); assert.equal(st.tokens, before + 1, 'no second reward');
+  assert.equal(grant(G, st, 'HX-10', 'puzzle'), null);
+});
+test('score: confirmed + first-try + hidden bonuses - hints; a free-hint voucher is spent before rating is hurt', () => {
+  const st = newGame(G); const k = G.start[0]; recover(G, st, k);
+  setDraft(st, k, 'cause', 'xx'); setDraft(st, k, 'weapon', '0'); setDraft(st, k, 'culprit', '0'); submit(G, st, k);   // a miss
+  solve(st, k); assert.equal(st.firstTry || 0, 0);
+  const k2 = G.start[1]; recover(G, st, k2); solve(st, k2); assert.equal(st.firstTry, 1);
+  assert.equal(score(G, st), 2 * 100 + 50);
+  st.tokens = 1; const h = hint(G, st, 'restore'); assert.ok(h.free); assert.equal(st.hints, 0); assert.equal(st.tokens, 0);
+  const h2 = hint(G, st, 'restore'); assert.ok(!h2.free); assert.equal(st.hints, 1); assert.equal(score(G, st), 2 * 100 + 50 - 30);
 });

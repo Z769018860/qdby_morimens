@@ -41,8 +41,9 @@ function paras(text, id) {
   const inline = (s) => esc(s).replace(/\[b\](.*?)\[\/b\]/g, '<b>$1</b>').replace(/\[link\]([^[]+)\[\/link\]/g, '<span class="lnk" data-go="$1">$1</span>').replace(/(·?)(\d{2}|\?\?)-([A-E][1-5]|\?\?)-(\d{2}|\?\?)/g, (m) => (m.includes('??') ? `<span class="lnk" data-fill="${m.replace('·', '')}">${m}</span>` : m));
   for (const blk of text.split(/(\[sys\][\s\S]*?\[\/sys\])/)) {
     if (!blk.trim()) continue;
-    if (blk.startsWith('[sys]')) { const inner = blk.slice(5, -6).trim(); html += `<div class="sys">${inner.split('\n').map((l) => (l.trim() ? `<p>${inline(l)}</p>` : '<p class="gap"></p>')).join('')}</div>`; continue; }
-    for (const l of blk.split('\n')) { if (!l.trim()) continue; html += `<p data-i="${n}" class="${mk[n] ? 'hl hl' + mk[n] : ''}">${auto(inline(l))}</p>`; n++; }
+    if (blk.startsWith('[sys]')) { const inner = blk.slice(5, -6).trim(); html += `<div class="sys">${inner.split('\n').map((l) => (l.trim() ? `<p${/^〔[◇◆▲▽○●★☆◎▣][一二三]〕/.test(l) ? ' class="frag"' : ''}>${inline(l)}</p>` : '<p class="gap"></p>')).join('')}</div>`; continue; }
+    for (const l of blk.split('\n')) { if (!l.trim()) continue; const fr = /^〔[◇◆▲▽○●★☆◎▣][一二三]〕/.test(l);
+      html += `<p data-i="${n}" class="${(mk[n] ? 'hl hl' + mk[n] : '') + (fr ? ' frag' : '')}">${fr ? esc(l) : auto(inline(l))}</p>`; n++; }
   }
   return html;
 }
@@ -92,7 +93,8 @@ function doRecover(name) {
   const before = st.recovered.length;
   const r = recover(G, st, name);
   const msg = $('#recMsg'); msg.textContent = r.msg; msg.className = 'msg ' + (r.ok ? '' : 'err');
-  if (r.ok) { sfx.ok(); if (!r.again) toast(r.kind === 'doc' ? '● 已复原系统文档' : '● 已复原死亡记录'); $('#recIn').value = ''; openReader(r.id); if (st.recovered.length > before) save(); else save(); }
+  if (r.ok && r.puzzle) { reward(r.reward); }
+  if (r.ok) { sfx.ok(); if (!r.again && !r.puzzle) toast(r.kind === 'doc' ? '● 已复原系统文档' : '● 已复原死亡记录'); $('#recIn').value = ''; openReader(r.id); if (st.recovered.length > before) save(); else save(); }
   else sfx.err();
   renderList(); renderTools(); refreshRate();
 }
@@ -164,7 +166,8 @@ function renderTools() {
     if ($('#notes')) { $('#notes').addEventListener('input', (e) => { st.notes = e.target.value; }); $('#notes').addEventListener('change', () => { save(); renderTools(); }); }
     if ($('#nq')) { $('#nq').addEventListener('input', (e) => { ui.nq = e.target.value; const pos = e.target.selectionStart; renderTools(); const i = $('#nq'); i.focus(); i.setSelectionRange(pos, pos); }); }
   } else if (ui.tab === 'hint') {
-    tp.innerHTML = `<h4>■ 提示</h4><p class="dim">提示分三级，越往后越直白；已使用 ${st.hints} 次（影响最终评级）。</p><div class="row"><button class="btn" id="hRest">下一步该复原哪条？</button><button class="btn" id="hConf">核实当前报告</button></div><div class="hintlog">${ui.hintLog.map((x) => `<div>${esc(x)}</div>`).join('')}</div>`;
+    const bd = (st.badges || []).map((id) => `<span class="badge2" title="${esc(G.arcs.find((a) => a.id === id).title)}">${esc(G.arcs.find((a) => a.id === id).badge)}</span>`).join('');
+    tp.innerHTML = `<h4>■ 提示</h4><p class="dim">提示分三级，越往后越直白；已使用 ${st.hints} 次（每次扣 30 分）。提示券 <b>${st.tokens || 0}</b> 张（解出隐藏档案获得，免费且不扣分）。</p><h4>■ 勋章 ${(st.badges || []).length}/${G.arcs.filter((a) => a.hidden).length}</h4><div class="badges">${bd || '<span class="dim">还没有勋章。隐藏档案，要靠推理。</span>'}</div><div class="row"><button class="btn" id="hRest">下一步该复原哪条？</button><button class="btn" id="hConf">核实当前报告</button></div><div class="hintlog">${ui.hintLog.map((x) => `<div>${esc(x)}</div>`).join('')}</div>`;
     $('#hRest').onclick = () => giveHint('restore'); $('#hConf').onclick = () => giveHint('confirm', ui.rep);
   }
 }
@@ -185,7 +188,7 @@ $('#tp').addEventListener('change', (e) => { const f = e.target.dataset.f; if (f
 function giveHint(kind, key) {
   const r = hint(G, st, kind, key);
   if (!r.ok) { toast(r.msg); return; }
-  ui.hintLog.unshift(`［${kind === 'restore' ? '复原' : '核实'} ${r.step + 1}/3］${r.text}`); ui.tab = 'hint'; renderTools(); save(); sfx.key();
+  ui.hintLog.unshift(`［${kind === 'restore' ? '复原' : '核实'} ${r.step + 1}/3${r.free ? '·提示券' : ''}］${r.text}`); refreshRate(); ui.tab = 'hint'; renderTools(); save(); sfx.key();
 }
 function doSubmit() {
   const key = ui.rep, r = submit(G, st, key);
@@ -195,6 +198,11 @@ function doSubmit() {
   else sfx.err();
   renderList(); refreshRate(); save();
 }
+function reward(w) {
+  const a = G.arcs.find((x) => x.id === w.id); sfx.stamp(); [659, 784, 988, 1319].forEach((f, i) => tone(f, 0.18, 0.05, 'triangle', 0.1 + i * 0.1)); burst(4);
+  modal(`<div class="reso"><h3>■ 隐藏档案　${esc(w.id)}</h3><p class="mline">${esc(a.title)}</p><div class="arcn">勋章　「${esc(w.badge)}」</div><p class="dim">+${w.points} 分　·　提示券 +1（下一次提示免费，不影响评级）</p><div class="btns"><button class="btn" data-close>阅读</button></div></div>`);
+  refreshRate();
+}
 function resonance(m) {
   sfx.stamp(); [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, 0.05, 'triangle', 0.12 + i * 0.09)); burst(Math.min(5, 1 + Math.floor(m.k / 4)));
   const pct = Math.round((m.confirmed / total(G)) * 100);
@@ -202,7 +210,7 @@ function resonance(m) {
   $('#modal').querySelectorAll('[data-arc]').forEach((el) => { el.onclick = () => { $('#modal').hidden = true; openReader(el.dataset.arc); }; });
 }
 function refreshRate() {
-  const s = stats(G, st); $('#ratebar').style.width = s.rate + '%'; $('#ratetxt').textContent = `核实率 ${s.rate}%（${s.confirmed}/${s.total}）`;
+  const s = stats(G, st); $('#score').textContent = `${s.score} 分　勋章 ${s.badges}/${s.hiddenTotal}`; $('#ratebar').style.width = s.rate + '%'; $('#ratetxt').textContent = `核实率 ${s.rate}%（${s.confirmed}/${s.total}）`;
   $('#bFinish').hidden = !(canFinish(G, st) && s.confirmed < s.total);
 }
 
@@ -217,7 +225,7 @@ async function endGame() {
   if (res.ended === 'true') {
     await typeLines(ep, ['第六十三次　回溯筛选　记录复原　完毕', '对象：弥萨格学院　回溯班', '', '生存者　……　一名', '', '报告　完毕', '', '—— 新收到一条消息 ——', ''], 28);
     for (const ln of G.msgs.find((m) => m.id === 'MSG07').text.split('\n')) await typeLines(ep, [ln], 14);
-    await typeLines(ep, ['', `评级 ${res.rank}　　核实率 ${s.rate}%　提示 ${s.hints} 次　错误输入 ${s.bad} 次　用时约 ${s.minutes} 分钟`, '', '回溯，启动。'], 24);
+    await typeLines(ep, ['', `评级 ${res.rank}　　得分 ${s.score}　勋章 ${s.badges}/${s.hiddenTotal}　核实率 ${s.rate}%　提示 ${s.hints} 次　错误输入 ${s.bad} 次　用时约 ${s.minutes} 分钟`, '', '回溯，启动。'], 24);
   } else {
     await typeLines(ep, ['报告已受理。', `核实率 ${s.rate}%（${s.confirmed}/${s.total}）`, '', '终端里还有没有复原的记录，也有没有对上的报告。', '有一道很小的影子在屏幕边缘停了一下，然后走远了。', '', '……再看看名册上那个糊掉的名字吧。'], 26);
   }
