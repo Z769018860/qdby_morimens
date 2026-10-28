@@ -15,9 +15,16 @@ import { LEVELS } from './merge-art.js';
 const MAX = LEVELS.length - 1;
 const TAU = Math.PI * 2;
 const RATIO = 1.58;                 // 游戏区 高 / 宽
-const SPAWN_W = [5, 4, 3, 2, 1];    // 前 5 级的投放权重：越小越常见
+// 投放池：0~9 级（杜勒赛因只能合出来）。权重按等级递减，越大的球越少见。
+// 早先只放 0~4 级，瓶子根本装不下「合到杜勒」需要的当量（算面积最多爬到 6 级），
+// 玩家体感就是「合着合着突然满了」。放开到 9 级后才够用。
+const SPAWN_W = [10, 9, 8, 7, 6, 1.8, 1.0, 0.5, 0.12, 0.06];
+const MAX_SPAWN = SPAWN_W.length - 1;
+const OPENER = 5;                   // 开局前几颗只出小球，别一上来就塞大球
 const CLEAR_BONUS = 120;            // 两个杜勒赛因一起消失的奖励
-const DANGER_HOLD = 1.15;           // 越线坚持多久算输（秒）
+const DANGER_HOLD = 2.0;            // 越线坚持多久算输（秒）
+const SETTLE = 1.4;                 // 刚投下 / 刚合成的球多久之后才参与越线判定
+const WARN_AT = 0.5;                // 球堆顶离警戒线还剩多少屏高就开始「接近」预警
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d', { alpha: false });
@@ -26,15 +33,16 @@ const ov = document.getElementById('ov');
 const scEl = document.getElementById('sc');
 const bsEl = document.getElementById('bs');
 const nxEl = document.getElementById('nx');
+const hotEl = document.getElementById('hot');
 
 // ------------------------------------------------------------------ 状态
 const G = {
   W: 0, H: 0, dpr: 1, top: 0, lineY: 0,      // 世界尺寸（CSS px）
   t: 0,                                       // 世界时间
   balls: [],
-  aimX: 0, spawnLv: 0, cooldown: 0,
+  aimX: 0, spawnLv: 0, nextLv: 0, cooldown: 0, drops: 0,
   score: 0, best: 0, over: false, cleared: false,
-  danger: 0, merged: 0, seen: new Set([0]),
+  danger: 0, warn: 0, approach: 0, merged: 0, finest: 0, seen: new Set([0]),
   fx: [], texts: [],
   bg: null, tiles: new Map(),
   sound: true, paused: false, started: false,
@@ -49,21 +57,52 @@ const IMG = LEVELS.map((l) => {
 // ------------------------------------------------------------------ 工具
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const rad = (lv) => (G.W * LEVELS[lv].d) / 2;
-const aimY = () => G.top * 0.62;
+const aimY = () => Math.max(G.top * 0.62, rad(MAX_SPAWN) * 1.06);
+
+// ------------------------------------------------------------------ 随机
+// 不用「按权重直接摇」：那样会连着出四五个小煤球，或者十几颗都不见潘狄娅，
+// 玩起来手感很假。这里做成洗牌袋（bag shuffle，和俄罗斯方块的出块一个道理）：
+// 先把权重铺成一副牌，洗散了一张张发，发完再洗。同一级最多连出两颗。
+let bag = [];
+let lastPicks = [];
+
+function refillBag() {
+  const pool = [];
+  // 权重放大 4 倍再铺牌：不放大时 0.1 这种小权重会被 round 成 1，
+  // 结果「极稀有的大球」和「普通小球」在袋子里一样多，配置就白写了
+  SPAWN_W.forEach((w, lv) => {
+    for (let i = 0; i < Math.max(1, Math.round(w * 4)); i++) pool.push(lv);
+  });
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+  }
+  bag = pool;
+}
+
+function pickSpawn() {
+  if (!bag.length) refillBag();
+  let lv = bag.pop();
+  // 连续三颗一样不好玩：把这张塞回袋底，重新发一张
+  for (let guard = 0; guard < 6 && lv === lastPicks[0] && lv === lastPicks[1] && bag.length; guard++) {
+    bag.unshift(lv);
+    lv = bag.pop();
+  }
+  lastPicks.unshift(lv);
+  if (lastPicks.length > 2) lastPicks.pop();
+  // 开局几颗只给小球，让瓶子先有个底
+  if (G.drops < OPENER) lv = Math.min(lv, 2);
+  return lv;
+}
+
+function resetSpawn() {
+  bag = [];
+  lastPicks = [];
+}
 
 function hexA(hex, a) {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
-}
-
-function pickSpawn() {
-  const tot = SPAWN_W.reduce((a, b) => a + b, 0);
-  let r = Math.random() * tot;
-  for (let i = 0; i < SPAWN_W.length; i++) {
-    r -= SPAWN_W[i];
-    if (r <= 0) return i;
-  }
-  return 0;
 }
 
 // ------------------------------------------------------------------ 音效
@@ -107,8 +146,9 @@ function layout() {
   cv.height = Math.round(H * G.dpr);
   ctx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
 
-  // 投放区要能完整放下最大的可投放球（第 5 级），否则大球会贴到画面外
-  G.top = Math.max(G.H * 0.115, rad(SPAWN_W.length - 1) * 2.1);
+  // 投放区只需要刚好放得下「最大那颗可投放的球」——这块留得越多，警戒线就被压得越低，
+  // 瓶子能堆的高度越少（以前这里是 2.1 倍半径，白白吃掉五十多像素）
+  G.top = Math.max(G.H * 0.10, rad(MAX_SPAWN) * 1.08);
   G.lineY = G.top + G.H * 0.045;
 
   // 世界等比缩放：W 和 H 是按比例算出来的，所以只需一个系数
@@ -243,6 +283,56 @@ function mkBall(lv, x, y, vx, vy) {
   return { lv, x, y, vx, vy, r: rad(lv), born: G.t, mg: null };
 }
 
+// ------------------------------------------------------------------ 预警
+// 分两档，别等人越过线才反应：
+//   1) 接近（near）：球堆顶离警戒线不到 10% 屏高，橙色提示「快到线了」
+//   2) 越线（hot） ：真过了线，danger 开始倒计时，红色 + 进度条 + 越急越密的滴答
+let warnShown = false;
+let warnHot = false;
+let warnTickAt = 0;
+
+function syncWarn() {
+  const hot = G.started && !G.over && G.danger > 0.02;
+  const near = G.started && !G.over && !hot && G.approach > WARN_AT;
+  const on = hot || near;
+
+  if (on !== warnShown || hot !== warnHot) {
+    warnShown = on;
+    warnHot = hot;
+    document.body.classList.toggle('danger', hot);
+    if (hotEl) {
+      hotEl.classList.toggle('on', on);
+      hotEl.classList.toggle('near', near);
+    }
+    if (hot) beep(340, 0.18, 'triangle', 0.055);
+    else if (near) beep(460, 0.1, 'sine', 0.035);
+  }
+  if (hotEl && on) {
+    hotEl.textContent = near
+      ? '球堆快到警戒线了'
+      : G.warn > 0.74 ? '过线了！快把它消掉' : '球堆过线了，快消掉';
+    if (hot) hotEl.style.setProperty('--p', G.warn.toFixed(3));
+    else hotEl.style.setProperty('--p', '0');
+  }
+  // 越线倒计时：滴答声随剩余时间加快；只是接近的话偶尔轻点一下，别吵
+  if (hot && G.t - warnTickAt > 0.68 - 0.44 * G.warn) {
+    warnTickAt = G.t;
+    beep(560 + 300 * G.warn, 0.055, 'square', 0.016 + 0.022 * G.warn);
+  } else if (near && G.t - warnTickAt > 2.8) {
+    warnTickAt = G.t;
+    beep(430, 0.07, 'sine', 0.026);
+  }
+}
+
+function clearWarn() {
+  warnShown = false;
+  warnHot = false;
+  warnTickAt = 0;
+  G.approach = 0;
+  document.body.classList.remove('danger');
+  if (hotEl) { hotEl.classList.remove('on', 'near'); hotEl.style.removeProperty('--p'); }
+}
+
 function step(dt) {
   const g = 3.1 * G.W;
   const balls = G.balls;
@@ -251,7 +341,7 @@ function step(dt) {
     b.vy += g * dt;
     b.x += b.vx * dt;
     b.y += b.vy * dt;
-    const vmax = 4.5 * G.W;
+    const vmax = 3.6 * G.W;         // 上限压小一点：帧内位移太大会从别的球身上「跳」过去
     if (b.vy > vmax) b.vy = vmax;
     if (b.vy < -vmax) b.vy = -vmax;
     if (b.vx > vmax) b.vx = vmax;
@@ -266,12 +356,60 @@ function step(dt) {
     }
   }
 
-  for (let iter = 0; iter < 3; iter++) {
-    for (let i = 0; i < balls.length; i++) {
-      const a = balls[i];
+  // 球一多就少推一轮，手机上别为了「绝对稳」把帧率拖死
+  const iters = G.balls.length > 26 ? 3 : 4;
+  resolve(iters, 0.82);
+
+  // 刚合成的球是「撑」出来的，和周围一定重叠。只推一遍的话它会顶着球堆慢慢往上爬，
+  // 爬到线上就把人判死了——所以合成那一帧额外多推几次，让重叠当场解开。
+  const wave = flushMerges();
+  if (wave) resolve(Math.min(6, 2 + wave), 0.72);
+
+  // 位置修正可能把球推出墙外一点点，收个尾，别让球画到瓶子外面
+  for (const b of G.balls) {
+    if (b.x < b.r) { b.x = b.r; if (b.vx < 0) b.vx = 0; }
+    else if (b.x > G.W - b.r) { b.x = G.W - b.r; if (b.vx > 0) b.vx = 0; }
+    if (b.y > G.H - b.r) { b.y = G.H - b.r; if (b.vy > 0) b.vy = 0; }
+  }
+
+  // 越线判定：球落定之后再越线才算，刚投下来 / 刚合成的那一秒半不算
+  // （不能按半径算「沉得多深」——球越大越永远达不到，塔顶的大球就会白嫖）
+  let dan = false;
+  let topMost = Infinity;
+  for (const b of G.balls) {
+    if (G.t - b.born < 0.35) continue;      // 还在空中的不算
+    if (b.y - b.r < topMost) topMost = b.y - b.r;
+    if (!dan && G.t - b.born > SETTLE && b.y - b.r < G.lineY) dan = true;
+  }
+  // 离警戒线还有多远，换算成 0~1：1 = 贴着线，0 = 还有一屏高的富余。
+  // 这一步是给「预警」用的——人得在越线之前看到提示，而不是判负之后才明白。
+  const GAP = G.H * 0.10;
+  G.approach = topMost === Infinity ? 0 : clamp(1 - (topMost - G.lineY) / GAP, 0, 1);
+
+  G.danger = dan ? G.danger + dt : Math.max(0, G.danger - dt * 2.4);
+  G.warn = clamp(G.danger / DANGER_HOLD, 0, 1);
+  syncWarn();
+  if (G.danger > DANGER_HOLD) gameOver();
+}
+
+// 圆碰撞的位置修正 + 法向冲量 + 切向摩擦。
+// 球多的时候 O(n²) 会有点吃力，所以先按 y 排一遍：一旦某个球的 y 已经超出
+// 「最大半径 + 自己的半径」，后面的球只会更远，直接 break。
+function resolve(iterations, pushK) {
+  const balls = G.balls;
+  if (balls.length < 2) return;
+  let maxR = 0;
+  for (const b of balls) if (b.r > maxR) maxR = b.r;
+
+  for (let iter = 0; iter < iterations; iter++) {
+    const s = balls.slice().sort((p, q) => p.y - q.y);
+    for (let i = 0; i < s.length; i++) {
+      const a = s[i];
       if (a.mg) continue;
-      for (let j = i + 1; j < balls.length; j++) {
-        const b = balls[j];
+      const limit = a.r + maxR;
+      for (let j = i + 1; j < s.length; j++) {
+        const b = s[j];
+        if (b.y - a.y > limit) break;      // 后面只会更高，不用再看了
         if (b.mg) continue;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
@@ -292,7 +430,7 @@ function step(dt) {
         const wa = 1 / (a.r * a.r);
         const wb = 1 / (b.r * b.r);
         const ws = wa + wb;
-        const push = (rr - d) * 0.85;
+        const push = (rr - d) * pushK;
         a.x -= nx * push * (wa / ws);
         a.y -= ny * push * (wa / ws);
         b.x += nx * push * (wb / ws);
@@ -314,24 +452,6 @@ function step(dt) {
       }
     }
   }
-
-  flushMerges();
-
-  // 位置修正可能把球推出墙外一点点，收个尾，别让球画到瓶子外面
-  for (const b of G.balls) {
-    if (b.x < b.r) { b.x = b.r; if (b.vx < 0) b.vx = 0; }
-    else if (b.x > G.W - b.r) { b.x = G.W - b.r; if (b.vx > 0) b.vx = 0; }
-    if (b.y > G.H - b.r) { b.y = G.H - b.r; if (b.vy > 0) b.vy = 0; }
-  }
-
-  // 越线判定：球落定之后再越线才算，刚投下来的那一两秒不算
-  // （不能按半径算「沉得多深」——球越大越永远达不到，塔顶的大球就会白嫖）
-  let dan = false;
-  for (const b of G.balls) {
-    if (G.t - b.born > 1 && b.y - b.r < G.lineY) { dan = true; break; }
-  }
-  G.danger = dan ? G.danger + dt : Math.max(0, G.danger - dt * 2.2);
-  if (G.danger > DANGER_HOLD) gameOver();
 }
 
 function flushMerges() {
@@ -347,6 +467,7 @@ function flushMerges() {
     wave++;
   }
   if (wave) G.balls = G.balls.filter((b) => !b.dead);
+  return wave;
 }
 
 function merge(a, b) {
@@ -368,7 +489,14 @@ function merge(a, b) {
   }
 
   const nlv = lv + 1;
-  const nb = mkBall(nlv, x, y, (a.vx + b.vx) / 2, (a.vy + b.vy) / 2);
+  if (nlv > G.finest) G.finest = nlv;
+  // 新球比两个旧球都大。中心还搁在两球中点上，新球就会往上「涨」出去——
+  // 球堆正好贴线的时候，这一涨就把自己顶死了。所以往下挪半个半径差：
+  // 让它在原地长，长的方向朝瓶底。
+  const rNew = rad(nlv);
+  const drop = Math.max(0, rNew - Math.max(a.r, b.r)) * 0.55;
+  const ny2 = clamp(y + drop, rNew, G.H - rNew);
+  const nb = mkBall(nlv, clamp(x, rNew, G.W - rNew), ny2, (a.vx + b.vx) / 2, (a.vy + b.vy) / 2);
   nb.scale = 1.32;
   G.balls.push(nb);
   G.score += LEVELS[nlv].pts;
@@ -419,8 +547,11 @@ function drop() {
   const b = mkBall(lv, x, aimY(), 0, G.W * 0.35);
   G.balls.push(b);
   G.seen.add(lv);
-  G.spawnLv = pickSpawn();
-  G.cooldown = 0.38;
+  // 手上这颗投出去了，预览的「下一颗」顶上来，再摇一颗新的排到后面
+  G.spawnLv = G.nextLv;
+  G.nextLv = pickSpawn();
+  G.drops++;
+  G.cooldown = 0.36;
   beep(190, 0.05, 'triangle', 0.04);
   paintNext();
   paintChain();
@@ -430,6 +561,7 @@ function gameOver() {
   if (G.over) return;
   G.over = true;
   G.danger = DANGER_HOLD;
+  clearWarn();
   if (G.score > G.best) { G.best = G.score; saveBest(G.best); }
   beep(300, 0.16, 'sawtooth', 0.07);
   setTimeout(() => beep(190, 0.42, 'sawtooth', 0.07), 130);
@@ -445,8 +577,9 @@ function gameOver() {
 }
 
 function summary() {
-  const top = [...G.seen].sort((a, b) => b - a)[0] || 0;
-  return `合成了 ${G.merged} 次，最高做到${LEVELS[top].n}`;
+  // 用「合出来的最高一级」，不是「见过」——见过里混着投放时白送的大球
+  if (!G.merged) return '一颗都没合出来，下次把一样的两颗丢在一起';
+  return `合成了 ${G.merged} 次，最高合到${LEVELS[G.finest].n}`;
 }
 
 // ------------------------------------------------------------------ 绘制
@@ -454,13 +587,24 @@ function draw() {
   ctx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
   if (G.bg) ctx.drawImage(G.bg, 0, 0, G.W, G.H);
 
-  // 警戒线
-  const hot = G.danger > 0.1;
+  // 警戒线：平时是一条几乎看不见的虚线，危险时变红、加粗、跟着心跳闪
+  const hot = G.warn > 0.02;
   ctx.save();
+  if (hot) {
+    // 线上方一层红光，越危险越浓，远处也能瞥见
+    const band = G.H * (0.03 + 0.05 * G.warn);
+    const lg = ctx.createLinearGradient(0, G.lineY - band, 0, G.lineY + band * 0.6);
+    lg.addColorStop(0, 'rgba(232,105,95,0)');
+    lg.addColorStop(0.5, `rgba(232,105,95,${0.1 + 0.26 * G.warn})`);
+    lg.addColorStop(1, 'rgba(232,105,95,0)');
+    ctx.fillStyle = lg;
+    ctx.fillRect(0, G.lineY - band, G.W, band * 1.6);
+  }
   ctx.setLineDash([6, 7]);
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.5 + 1.8 * G.warn;
+  const pulse = 0.5 + 0.5 * Math.sin(G.t * (6 + 8 * G.warn));
   ctx.strokeStyle = hot
-    ? `rgba(232,105,95,${0.3 + 0.5 * Math.abs(Math.sin(G.t * 9))})`
+    ? `rgba(232,105,95,${0.28 + 0.55 * G.warn * (0.6 + 0.4 * pulse)})`
     : 'rgba(227,179,65,.20)';
   ctx.beginPath();
   ctx.moveTo(0, G.lineY);
@@ -578,10 +722,13 @@ function loop(now) {
 }
 
 // ------------------------------------------------------------------ 界面
+// 预览的是「下一颗」，不是手上这颗（手上那颗画在瞄准线上，用不着再放一个图）
 function paintNext() {
-  nxEl.src = LEVELS[G.spawnLv].art;
-  nxEl.alt = LEVELS[G.spawnLv].n;
-  nxEl.title = LEVELS[G.spawnLv].n;
+  const l = LEVELS[G.nextLv];
+  if (!l) return;
+  nxEl.src = l.art;
+  nxEl.alt = l.n;
+  nxEl.title = l.n;
 }
 
 function paintChain() {
@@ -611,17 +758,24 @@ function reset() {
   G.texts = [];
   G.score = 0;
   G.merged = 0;
+  G.finest = 0;
+  G.cleared = false;
   G.over = false;
   G.danger = 0;
+  G.warn = 0;
   G.cooldown = 0;
   G.t = 0;
+  G.drops = 0;
   G.seen = new Set([0]);
   G.aimX = G.W / 2;
+  resetSpawn();
   G.spawnLv = pickSpawn();
+  G.nextLv = pickSpawn();
   G.seen.add(G.spawnLv);
   G.started = true;
   acc = 0;
   last = 0;
+  clearWarn();
   ov.classList.remove('on');
   ov.hidden = true;
   G.shown = 0;
@@ -757,8 +911,11 @@ function boot() {
   if (ph) ph.remove();
   requestAnimationFrame(loop);
   armSync();
-  // 无头测试用：脚本里设了 window.__MERGE_TEST__ 才暴露内部状态，正式页面没有这个变量
-  if (window.__MERGE_TEST__) window.__mergeState = () => G;
+  // 无头测试用：脚本里设了 window.__MERGE_TEST__（或地址带 ?_test=1）才暴露内部状态，正式页面没有
+  if (window.__MERGE_TEST__ || /[?&]_test=1\b/.test(location.search)) {
+    window.__mergeState = () => G;
+    window.__mergeDrop = (x) => { G.aimX = clamp(x, 0, G.W); drop(); };
+  }
 }
 
 if (IMG.every((im) => im.complete) && IMG[0].decode) {

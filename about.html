@@ -1102,7 +1102,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
 @keyframes bootspin { to { transform: rotate(360deg); } }
 </style>
 
-<meta name="build" content="affe05631c">
+<meta name="build" content="0102d5c82f">
 </head>
 <body>
 <main id="app" class="wrap">
@@ -1216,7 +1216,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
 <p>战报来自公开的融灾排行榜（第 71、72 期），玩家 UID 已去除。同位置的辅助型角色在数据上难以唯一确定，所以评分按字段命中率计算，不要求一次性全对。答案已做混淆封装，但纯前端站点无法真正防作弊。</p>
 <p>技能数据来自 <a href="https://github.com/dansa/SKeyDB">SKeyDB</a>（CC BY-NC-SA 4.0，仅限非商业使用）；官方中文对照来自 <a href="https://github.com/BIAVGit/Morimens-Localizations">Morimens-Localizations</a> 与 <a href="https://morimens.huijiwiki.com/">忘却前夜中文维基</a>。</p>
 <p><b>状态/机制图标</b>取自 SKeyDB 的战斗图标库（<code>Battle_Card_Buff_*</code>、界域徽记 <code>realm-badge-*</code>），按官方 <code>iconId</code> 与词条映射，共 30 个图标覆盖 39 个常用关键词；没有官方图标的词条仍用文字字形显示。<b>CG 与唤醒体档案</b>（生日、身高、体重、诺斯指数、获取途径、语音）来自中文维基的角色条目与图片库。<b>回放</b>指向官方战报服务与忘忘看报复盘工具，本站不转存战斗数据。</p>
-<p><b>合成大杜勒</b>用的是同一套唤醒体头像与剧情角色头像（校猫小煤球），11 张图在构建时内联成一个模块，游戏本身不额外请求图片。最高分记在账号档案的 <code>mb</code> 字段里（本机键是 <code>zjtt:merge:best</code>），换设备登录后会自动接上；游戏页本身不依赖账号也能玩，同步是在游戏跑起来之后才去连的。</p>
+<p><b>合成大杜勒</b>用的是同一套唤醒体头像与剧情角色头像（校猫小煤球），11 张图在构建时内联成一个模块，游戏本身不额外请求图片。除杜勒赛因之外的 10 级都可能直接投放，越大的球越少见，出球用洗牌袋轮转，同一级不会连着出三颗。球堆顶离警戒线还剩一屏高的 10% 左右会先给橙色预警，真过线后是 1.5 秒倒计时（红色 + 滴答），期间把堆压下去就没事。最高分记在账号档案的 <code>mb</code> 字段里（本机键是 <code>zjtt:merge:best</code>），换设备登录后会自动接上；游戏页本身不依赖账号也能玩，同步是在游戏跑起来之后才去连的。</p>
 <p>所有进度（银芯、解锁的 CG、失败题库、自建题目、偏好唤醒体、答题记录、语言与背景主题）默认存在浏览器 <code>localStorage</code> 的 <code>zjtt:</code> 前缀下；<b>登录后</b>会打包成账号档案同步到云端，换设备登录即可恢复，退出登录则回到只用本机数据。上传到云题库的题目是公开的，请不要把不想公开的内容放进去。</p>
 <p>题库共 <b>4101 道</b>：<code>data/puzzles.json</code>（1000 道核心题，每日一题只从这里出，保证扩充题库异步加载时题目不跳变）、<code>data/puzzles-extra.json</code>（1000 道扩充题）与 <code>data/puzzles-more.json</code>（2101 道追加题），后两份按顺序在后台加载、边到边用。难度分统一重算后按分位切成 4 档（1 档 1149 / 2 档 1148 / 3 档 1066 / 4 档 738），分档依据是「同签名题数」分布与伤害构成熵等公开信息，构建脚本 <code>scripts/finalize_puzzles.py</code> 会一并做结构审计：队伍 4 人唯一、命轮 1–2 件、密契齐全、钥令有效、造物 ≤18、UUID 完整、分桶号 4 个、公开线索 4 条；当前全部 4101 道通过，且没有任何两道题的公开线索完全重复。</p>
 <p>数据由 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 生成，脚本见 <code>scripts/build_data.py</code>、<code>scripts/build_puzzles_more.py</code>、<code>scripts/enhance_data.py</code>、<code>scripts/build_official_terms.py</code>、<code>scripts/score_difficulty.py</code>、<code>scripts/finalize_puzzles.py</code>、<code>scripts/enrich_clues.py</code>（把线索用的隐藏数据封进答案）与 <code>scripts/build_card_types.py</code>（卡牌类型表，取自官方回放的 <code>Skill</code> 表）。</p>
@@ -1336,7 +1336,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
 
 </main>
 <footer class="foot">同人作品，与官方无关。</footer>
-<script type="module" src="js/b/about.js?v=affe05631c"></script>
+<script type="module" src="js/b/about.js?v=0102d5c82f"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

@@ -134,6 +134,36 @@ canvas#cv{
 .ch.on{background:transparent; box-shadow:none}
 .ch.on img{filter:none; opacity:1}
 
+/* ---------------------------------------------------------------- 越线预警 */
+/* 球堆开始压线时不等到判负再说话：先给一条提示，同时把游戏区描一圈红光 */
+body.danger canvas#cv{
+  box-shadow:0 0 0 2px rgba(232,105,95,.45),
+             0 0 46px -6px rgba(232,105,95,.42),
+             0 26px 60px -34px rgba(0,0,0,.95);
+}
+.hot{
+  position:fixed; left:50%; top:13%; z-index:55;
+  padding:7px 15px 8px; border-radius:999px; overflow:hidden;
+  font-size:12.5px; letter-spacing:.02em; white-space:nowrap;
+  color:#ffe2dc; background:rgba(72,22,20,.9);
+  border:1px solid rgba(232,105,95,.52);
+  box-shadow:0 12px 28px -16px rgba(232,105,95,.95);
+  opacity:0; transform:translate(-50%,-8px); pointer-events:none;
+  transition:opacity .16s ease, transform .16s ease;
+}
+.hot.on{opacity:1; transform:translate(-50%,0)}
+.hot.near{
+  color:#ffeccc; background:rgba(70,52,16,.9);
+  border-color:rgba(227,179,65,.5);
+  box-shadow:0 12px 28px -16px rgba(227,179,65,.9);
+}
+.hot::after{
+  content:''; position:absolute; left:0; bottom:0; height:2px;
+  width:calc(var(--p,0) * 100%); background:#e8695f;
+  box-shadow:0 0 8px rgba(232,105,95,.9);
+}
+.hot.near::after{width:0}
+
 /* ---------------------------------------------------------------- 提示 */
 .toast{
   position:fixed; left:50%; bottom:16%; transform:translate(-50%, 6px); z-index:60;
@@ -186,6 +216,8 @@ canvas#cv{
       </div>
     </div>
   </main>
+
+  <div id="hot" class="hot" role="status" aria-live="polite"></div>
 
   <footer class="chain" id="chain" aria-label="合成链：从校猫到杜勒赛因"></footer>
 </div>
