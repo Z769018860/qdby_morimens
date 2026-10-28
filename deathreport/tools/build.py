@@ -11,6 +11,7 @@ from texts_v2 import T2
 from docs import DOCS, MSGS
 from witness import WIT
 from arcs import ARCS, MILE, SRC as ARC_SRC
+from hidden import HIDDEN
 from texts_ext import EXT
 
 ap = argparse.ArgumentParser(); ap.add_argument('--repo', default='..'); args = ap.parse_args()
@@ -161,28 +162,27 @@ for e in E:
     weapon = ITEM[w] if w else '无'
     culprit = '其他' if c == 0 else ('63' if c == SHADOW else NAME[c])
     solutions[k] = dict(cause=e['cause'], causeZh=CAUSES[e['cause']], weapon=weapon, weaponNum=w, culprit=c, culpritZh=culprit)
-    # restore ladder
+    # restore ladder (vague -> pointer to a source -> who and where, never the full key)
     srcs = sorted(src_of.get(k, []), key=lambda x: records[x]['dord'])
-    if srcs: s1 = f"请再仔细阅读一遍“{srcs[0]}”（{records[srcs[0]]['name']} 的记录）。"
+    s1 = "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。"
+    if srcs: s2 = f"有一句线索，在“{records[srcs[0]]['name']}”的记录里。"
     else:
         m = next((m for m in msgs if k in m['refs']), None)
-        s1 = f"请重新阅读收到的 {m['id']}。里面写着接下来该复原的记录名的线索。" if m else "请重新阅读早晨点名与任务指示书。"
-    hints['restore'][k] = [s1, f"有线索的记录里提到了人物“{NAME[v]}”和地点“{PLACES[e['cell']]}”。", f"接下来应该复原的记录是“{k}”。"]
-    # confirm ladder
+        s2 = f"有一句线索，在你收到的 {m['id']} 里。" if m else "有一句线索，在早晨点名或任务指示书里。"
+    hints['restore'][k] = [s1, s2, f"要找的人是“{NAME[v]}”，死在“{PLACES[e['cell']]}”。顺序，需要你自己数。"]
+    # confirm ladder (a direction -> a narrower question -> one field of the answer)
     h2 = ''
-    if e['cause'] == 'blast': h2 = '这不是他杀。请阅读 00-CHIP 与 00-ZONE：银芯崩解的死亡，没有加害人也没有凶器。' if e.get('sub') != 'zone' else f'这不是他杀。看看“{PLACES[e["cell"]]}”被封锁的时刻（00-ZONE），再对照死亡的时间。'
-    elif e['cause'] == 'accident': h2 = '这不是他杀。请阅读 00-REPORT，确认意外死亡该怎么记。'
-    elif e['cause'] == 'fall' and c == 0: h2 = '这不是他杀，是本人自己跳下去的。请阅读 00-REPORT，确认自杀时该怎么记。'
-    elif e['cause'] == 'poison' and c == 0: h2 = '这不是他杀，是本人亲自服下的。请阅读 00-REPORT，确认自杀时凶器如何认定。'
-    elif c == SHADOW: h2 = f'凶器是“{ITEM[w]}”。它的原主早已死去，尸体所在的区块也早已封锁——谁有能力走进去取走它？名册里找不到这个人。'
-    elif w == 0: h2 = '杀害时没有使用配发装备。请根据记录里的证言与描写，确认加害人——留意加害人身上带着什么。' if e['how'] == 'trait' else '杀害时没有使用配发装备，凶器记为“无”。请从记录里的证言确认加害人。'
-    elif e.get('snatch'): h2 = f'凶器是“{ITEM[w]}”，原本是被害者自己的东西。加害人是从谁手里夺过来、再下手的？'
-    elif w == c: h2 = f'凶器是“{ITEM[w]}”。只要在名册里核实这件装备配发给了谁，就能锁定加害人。'
-    else:
-        te = takes_event.get(w)
-        h2 = f'凶器是“{ITEM[w]}”。它原本配发给{NAME[w]}，但此刻不在其手里——它后来到了谁的手上？' + (f'请再仔细阅读一遍“{te["key"]}”。' if te else '')
-    ans = f"答案 —— 死因“{CAUSES[e['cause']]}”／ 凶器“{weapon}”／ 加害人“{culprit if c != SHADOW else '名册外的个体（黑影）'}”。"
-    hints['confirm'][k] = [f"请再仔细阅读一遍“{k}”（{NAME[v]} 的记录）。", h2, ans]
+    if e['cause'] == 'blast': h2 = '这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。'
+    elif e['cause'] == 'accident': h2 = '这一起，也许没有加害人。重读 00-REPORT 里关于“过失”的部分。'
+    elif e['cause'] == 'fall' and c == 0: h2 = '这一起，也许是本人的选择。重读 00-REPORT，想想“自杀”该怎么记。'
+    elif e['cause'] == 'poison' and c == 0: h2 = '这一起，也许是本人的选择。重读 00-REPORT，想想“凶器”该怎么记。'
+    elif c == SHADOW: h2 = '凶器的原主早已死去，那个地方也早已封锁。想一想：谁能走进去？'
+    elif w == 0: h2 = '这一起没有用到配发装备。看看记录里的证言，谁和被害者有过照面？' if e['how'] != 'trait' else '这一起没有用到配发装备。留意加害人身上带着什么。'
+    elif e.get('snatch'): h2 = '这件凶器本是被害者自己的东西。'
+    elif w == c: h2 = '凶器是谁配发的，可以在名册里查。'
+    else: h2 = '凶器不在原主手里。在这之前，它经过了谁的手？'
+    ans = f"死因是“{CAUSES[e['cause']]}”。"
+    hints['confirm'][k] = [f"请再仔细阅读一遍“{NAME[v]}”的记录，留意装备与人物。", h2, ans]
 
 # ---------------- roster
 LORE = json.loads((HERE / 'data/lore.json').read_text(encoding='utf-8'))
@@ -198,6 +198,9 @@ for aid, title, need, text in ARCS:
     t, wits, _ = render_raw(text, 0)
     t = t.replace('{DEAD}', str(dead1)).replace('{ALIVE}', str(63 - dead1))
     arcs.append(dict(id=aid, title=title, source=ARC_SRC, text=t, refs=[KEY[b] for b in dict.fromkeys(wits)], need=need))
+for hid, title, cond, riddle, text in HIDDEN:
+    t, wits, _ = render_raw(text, 0)
+    arcs.append(dict(id=hid, title=title, source=ARC_SRC, text=t, refs=[KEY[b] for b in dict.fromkeys(wits)], need=999, hidden=True, cond=cond, riddle=riddle))
 game = dict(arcs=arcs, milestones=MILE, title='死亡游戏调查报告', subtitle='第六十三次 回溯筛选', roster=roster, places=PLACES, zones=[dict(day=d, hour=h, cell=c) for d, h, c in ZONES], causes=CAUSES,
             records=records, docs=docs, msgs=msgs, start=START, solutions=solutions, hints=hints, shadow=dict(num=SHADOW, keys=[e['key'] for e in E if e['c'] == SHADOW]),
             stats=dict(records=len(records), edges=sum(len(r['refs']) for r in records.values())))

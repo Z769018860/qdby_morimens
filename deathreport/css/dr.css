@@ -87,3 +87,5 @@ input,select,textarea{background:#06100f;color:var(--hi);border:1px solid var(--
 .reso{text-align:center}.reso h3{letter-spacing:.2em;color:var(--amb);animation:stampin .5s}.reso .mline{color:var(--hi);font-size:16px}.reso .bar{height:8px;border:1px solid var(--line);margin:8px 0;background:#06100f}.reso .bar i{display:block;height:100%;background:linear-gradient(90deg,#14483e,var(--cy))}
 .reso .arcn{border:1px solid var(--amb);padding:6px 8px;margin:8px 0;text-align:left;color:var(--amb);cursor:pointer}.reso .nudge{text-align:left;border-left:2px solid var(--cy);padding-left:8px;color:var(--cy);margin:8px 0;font-size:13px}
 .list li.arc .id{color:var(--amb)}.list li.arc .t{color:#d9bf7a}.chip.arcchip{color:var(--amb);border-color:var(--amb)}
+
+.list li.locked{cursor:default;opacity:.55}.list li.locked .id{color:#6a5a8a}.list li.locked .t{font-style:italic;white-space:normal}.list li.hid .id{color:var(--mag)}

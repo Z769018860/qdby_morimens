@@ -1,4 +1,4 @@
-import { newGame, recover, index, options, setDraft, submit, rosterView, leads, leadTotal, structure, marksOf, cycleMark, MARK_NAMES, clueCards, search, itemTrail, timeline, evidenceOf, hint, finish, canFinish, stats, summary, confirmedCount, total, unrecoveredRefs, shadowUnlocked } from './engine.js';
+import { newGame, recover, index, options, setDraft, submit, rosterView, lockedHidden, leads, leadTotal, structure, marksOf, cycleMark, MARK_NAMES, clueCards, search, itemTrail, timeline, evidenceOf, hint, finish, canFinish, stats, summary, confirmedCount, total, unrecoveredRefs, shadowUnlocked } from './engine.js';
 
 import { burst } from './fx.js';
 const SAVE = 'morimens-deathreport-save-v1', PREF = 'morimens-deathreport-pref-v1';
@@ -53,7 +53,7 @@ function readerTools() {
 function openReader(id) {
   ui.sel = id; const head = $('#rdHead'), body = $('#rdBody');
   const rec = G.records[id], doc = G.docs[id], msg = G.msgs.find((m) => m.id === id), arc = G.arcs.find((a) => a.id === id);
-  if (arc) { head.innerHTML = `<b>${id}</b> | ${esc(arc.title)} | ${esc(arc.source)}<small>补充档案　确认 ${arc.need} 份报告后送达</small>`; body.innerHTML = paras(arc.text, id); }
+  if (arc) { head.innerHTML = `<b>${id}</b> | ${esc(arc.title)} | ${esc(arc.source)}<small>${arc.hidden ? '隐藏档案　靠推理得到' : `补充档案　确认 ${arc.need} 份报告后送达`}</small>`; body.innerHTML = paras(arc.text, id); }
   else if (rec) { head.innerHTML = `<b>${id}</b> | ${esc(rec.name)} | ${esc(rec.when)}<small>${esc(rec.cell)} ${esc(G.places[rec.cell])}　NO.${String(rec.num).padStart(2, '0')}</small>`; body.innerHTML = paras(rec.text, id); }
   else if (doc) { head.innerHTML = `<b>${id}</b> | ${esc(doc.title)} | ${esc(doc.source)}`; body.innerHTML = paras(doc.text, id); }
   else if (msg) { head.innerHTML = `<b>${id}</b> | 发件人不明 | --`; body.innerHTML = paras(msg.text, id); }
@@ -84,7 +84,7 @@ function renderList() {
   if (ui.sort === 'refs') items.sort((a, b) => b.refs - a.refs);
   const msgR = items.filter((i) => i.kind === 'msg'), recR = items.filter((i) => i.kind !== 'msg');
   $('#leadsum').innerHTML = `可推理的新记录 <b>${leadTotal(G, st)}</b> 条　·　已复原 ${st.recovered.length}/${total(G)}`;
-  $('#list').innerHTML = [...recR, ...msgR].map((it) => `<li data-id="${it.id}" class="${it.kind === 'doc' ? 'sys' : it.kind === 'msg' ? 'msg' : it.kind === 'arc' ? 'arc' : ''} ${it.dotted ? 'dotted' : ''} ${ui.sel === it.id ? 'on' : ''}"><span class="badge ${it.refs > 0 ? 'on' : ''}" title="${it.refs > 0 ? `可推理出 ${it.refs} 条新记录` : ''}">${it.refs > 0 ? `[${it.refs}]` : it.kind === 'rec' && G.records[it.id].refs.length ? '✓' : ''}</span><span class="id">${it.id}</span><span class="t">${esc(it.title)}${it.when ? ' ' + esc(it.when) : ''}</span>${it.status ? `<span class="chip ${it.status}">${{ ok: '确认', ng: '有误', draft: '待核' }[it.status]}</span>` : ''}</li>`).join('');
+  $('#list').innerHTML = [...recR, ...msgR].map((it) => `<li data-id="${it.id}" class="${it.kind === 'doc' ? 'sys' : it.kind === 'msg' ? 'msg' : it.kind === 'arc' ? 'arc' : ''}${it.id.startsWith('HX') ? ' hid' : ''} ${it.dotted ? 'dotted' : ''} ${ui.sel === it.id ? 'on' : ''}"><span class="badge ${it.refs > 0 ? 'on' : ''}" title="${it.refs > 0 ? `可推理出 ${it.refs} 条新记录` : ''}">${it.refs > 0 ? `[${it.refs}]` : it.kind === 'rec' && G.records[it.id].refs.length ? '✓' : ''}</span><span class="id">${it.id}</span><span class="t">${esc(it.title)}${it.when ? ' ' + esc(it.when) : ''}</span>${it.status ? `<span class="chip ${it.status}">${{ ok: '确认', ng: '有误', draft: '待核' }[it.status]}</span>` : ''}</li>`).join('') + lockedHidden(G, st).map((x) => `<li class="locked" title="${esc(x.riddle)}"><span class="badge">？</span><span class="id">${x.id}</span><span class="t">${esc(x.riddle)}</span></li>`).join('');
 }
 $('#list').addEventListener('click', (e) => { const li = e.target.closest('li'); if (li) openReader(li.dataset.id); });
 document.querySelector('.sortbar').addEventListener('click', (e) => { const b = e.target.closest('[data-sort]'); if (!b) return; ui.sort = b.dataset.sort; document.querySelectorAll('.sortbar button').forEach((x) => x.classList.toggle('on', x === b)); renderList(); });
@@ -150,7 +150,7 @@ function renderTools() {
         <label>（凶器）</label><select data-f="weapon" ${done ? 'disabled' : ''}><option value="">——</option>${sel(o.weapons, d.weapon)}</select>
         <label>（加害人）</label><select data-f="culprit" ${done ? 'disabled' : ''}><option value="">——</option>${sel(o.culprits, d.culprit)}</select>
         <div class="row" style="margin-top:10px"><button class="btn gold" id="bSub" ${done ? 'disabled' : ''}>提交报告</button><button class="btn" id="bHintC">提示</button></div>
-        <div class="ev"><div class="dim">这条记录里出现过（点击填入）</div>${ev.items.map((n) => `<button class="chipb" data-pick="weapon:${n}" ${done ? 'disabled' : ''}>◆ ${esc(G.roster[n - 1].item)}</button>`).join('')}${ev.names.map((n) => `<button class="chipb" data-pick="culprit:${n}" ${done ? 'disabled' : ''}>● ${esc(G.roster[n - 1].name)}</button>`).join('')}</div>
+        <div class="ev"><button class="chipb" id="bAssist">证据清单 ${pref.assist ? '▾' : '▸'}（辅助）</button>${pref.assist ? `<div class="dim">这条记录里出现过的装备与人物（点击填入）</div>${ev.items.map((n) => `<button class="chipb" data-pick="weapon:${n}" ${done ? 'disabled' : ''}>◆ ${esc(G.roster[n - 1].item)}</button>`).join('')}${ev.names.map((n) => `<button class="chipb" data-pick="culprit:${n}" ${done ? 'disabled' : ''}>● ${esc(G.roster[n - 1].name)}</button>`).join('')}` : ''}</div>
         <div class="res ${done ? 'ok' : st.wrong[cur] ? 'ng' : ''}" id="repRes">${done ? `<span class="stamp">确认</span> ${esc(summary(G, cur))}` : st.wrong[cur] ? '存在错误的报告。' : ''}</div></div>`;
     }
     tp.innerHTML = h;
@@ -177,6 +177,7 @@ $('#tp').addEventListener('click', (e) => {
   const gg = e.target.closest('[data-go]'); if (gg && !gg.dataset.n) { const k = gg.dataset.go; if (st.recovered.includes(k)) openReader(k); else doRecover(k); return; }
   const cd = e.target.closest('[data-card]'); if (cd) { openReader(cd.dataset.card); return; }
   const nd = e.target.closest('.nd'); if (nd) { const rec = G.roster[+nd.dataset.n - 1]; if (st.recovered.includes(rec.key)) openReader(rec.key); else toast('这条记录还没有复原。'); return; }
+  if (e.target.id === 'bAssist') { pref.assist = !pref.assist; savePref(); renderTools(); return; }
   if (e.target.id === 'bSub') doSubmit();
   if (e.target.id === 'bHintC') { ui.tab = 'hint'; giveHint('confirm', ui.rep); }
 });
@@ -190,7 +191,7 @@ function doSubmit() {
   const key = ui.rep, r = submit(G, st, key);
   if (!r.ok) { toast(r.msg); sfx.err(); return; }
   renderTools();
-  if (r.correct) { sfx.stamp(); toast('● 报告已确认'); for (const m of r.arrived || []) { sfx.msg(); toast(m.startsWith('AR-') ? `新档案 ${m}　${G.arcs.find((x) => x.id === m).title}` : m === 'MSG06' ? '新消息 MSG06 ——名册已更新：检测到名册之外的个体。' : `新消息 ${m}`, 4200); } if (r.arrived?.includes('MSG07')) { save(); endGame(); return; } if (r.milestone) { save(); resonance(r.milestone); } }
+  if (r.correct) { sfx.stamp(); toast('● 报告已确认'); for (const m of r.arrived || []) { sfx.msg(); toast(/^(AR|HX)-/.test(m) ? `${m.startsWith('HX') ? '隐藏档案' : '新档案'} ${m}　${G.arcs.find((x) => x.id === m).title}` : m === 'MSG06' ? '新消息 MSG06 ——名册已更新：检测到名册之外的个体。' : `新消息 ${m}`, 4200); } if (r.arrived?.includes('MSG07')) { save(); endGame(); return; } if (r.milestone) { save(); resonance(r.milestone); } }
   else sfx.err();
   renderList(); refreshRate(); save();
 }

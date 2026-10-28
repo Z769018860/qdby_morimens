@@ -17,9 +17,17 @@ export function deliver(G, st) {
   const got = [], n = confirmedCount(st);
   for (const m of G.msgs) if (m.need <= n && !st.msgs.includes(m.id)) { st.msgs.push(m.id); got.push(m.id); }
   st.arcs ||= [];
-  for (const a of G.arcs || []) if (a.need <= n && !st.arcs.includes(a.id)) { st.arcs.push(a.id); got.push(a.id); }
+  for (const a of G.arcs || []) if (!st.arcs.includes(a.id) && (a.cond ? condMet(G, st, a.cond) : a.need <= n)) { st.arcs.push(a.id); got.push(a.id); }
   return got;
 }
+
+// hidden archives open when something specific has been deduced, not when enough has been done
+export function condMet(G, st, c) {
+  if (c.streak) return (st.streak || 0) >= c.streak;
+  const done = new Set(Object.keys(st.confirmed).map((k) => G.records[k].num));
+  return c.nums.every((n) => done.has(n));
+}
+export const lockedHidden = (G, st) => (G.arcs || []).filter((a) => a.hidden && !(st.arcs || []).includes(a.id)).map((a) => ({ id: a.id, riddle: a.riddle }));
 
 // ---- recovering by name
 export function normalizeName(s) {
@@ -146,11 +154,11 @@ export function rosterView(G, st) {
 export function options(G, st, key) {
   const ev = key && G.records[key] ? G.records[key].facts.items : [], nm = key && G.records[key] ? G.records[key].facts.names : [];
   const ros = rosterView(G, st);
-  const culprits = [{ v: '0', t: '其他（无加害人）' }, ...ros.map((p) => ({ v: String(p.n), t: `${nm.includes(p.n) ? '★ ' : ''}${String(p.n).padStart(2, '0')} ${p.shownName}${p.melted ? '（融蚀）' : ''}` }))];
+  const culprits = [{ v: '0', t: '其他（无加害人）' }, ...ros.map((p) => ({ v: String(p.n), t: `${String(p.n).padStart(2, '0')} ${p.shownName}${p.melted ? '（融蚀）' : ''}` }))];
   if (shadowUnlocked(G, st)) culprits.push({ v: '63', t: '63 名册外的个体（黑影）' });
   return {
     causes: Object.entries(G.causes).map(([v, t]) => ({ v, t })),
-    weapons: [{ v: '0', t: '无' }, ...ros.filter((p) => p.itemClass !== 'none' || !p.melted).map((p) => ({ v: String(p.n), t: (ev.includes(p.n) ? '★ ' : '') + (p.melted ? '（融蚀）' : p.item) }))].sort((a, b) => (b.t.startsWith('★') ? 1 : 0) - (a.t.startsWith('★') ? 1 : 0)),
+    weapons: [{ v: '0', t: '无' }, ...ros.filter((p) => p.itemClass !== 'none' || !p.melted).map((p) => ({ v: String(p.n), t: (p.melted ? '（融蚀）' : p.item) }))],
     culprits,
   };
 }
@@ -166,8 +174,8 @@ export function submit(G, st, key) {
   if (!d || d.cause == null || d.weapon == null || d.culprit == null) return { ok: false, msg: '三项都需要填写。' };
   if (String(d.culprit) === '63' && !shadowUnlocked(G, st)) return { ok: false, msg: '该选项尚不可用。' };
   const okAll = d.cause === sol.cause && String(d.weapon) === String(sol.weaponNum || 0) && String(d.culprit) === String(sol.culprit);
-  if (okAll) { st.confirmed[key] = true; delete st.wrong[key]; const arrived = deliver(G, st); return { ok: true, correct: true, arrived, milestone: milestone(G, st, arrived), msg: '报告已确认。' }; }
-  st.wrong[key] = true;
+  if (okAll) { st.streak = (st.streak || 0) + 1; st.confirmed[key] = true; delete st.wrong[key]; const arrived = deliver(G, st); return { ok: true, correct: true, arrived, milestone: milestone(G, st, arrived), msg: '报告已确认。' }; }
+  st.streak = 0; st.wrong[key] = true;
   return { ok: true, correct: false, msg: '存在错误的报告。' };
 }
 // every third confirmed report: a resonance (popup + effect), a free nudge toward what can be deduced next, and the archives that just arrived
@@ -175,7 +183,7 @@ export function milestone(G, st, arrived = []) {
   const n = confirmedCount(st);
   if (n % 3 !== 0 || n <= (st.lastMile || 0) || n > 60) return null;
   st.lastMile = n;
-  return { k: n / 3, confirmed: n, line: (G.milestones || [])[n / 3 - 1] || '', arcs: arrived.filter((x) => x.startsWith('AR-')).map((x) => G.arcs.find((a) => a.id === x)), nudge: nudge(G, st) };
+  return { k: n / 3, confirmed: n, line: (G.milestones || [])[n / 3 - 1] || '', arcs: arrived.filter((x) => /^(AR|HX)-/.test(x)).map((x) => G.arcs.find((a) => a.id === x)), nudge: nudge(G, st) };
 }
 export function nudge(G, st) {
   const out = new Set(); const feed = (r) => (r.refs || []).forEach((k) => { if (!st.recovered.includes(k)) out.add(G.records[k].name); });

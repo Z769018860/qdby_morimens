@@ -113,7 +113,7 @@ test('hint ladders have three steps and cost rating', () => {
   const st = newGame(G);
   const a = hint(G, st, 'restore'), b = hint(G, st, 'restore'), c = hint(G, st, 'restore'), d = hint(G, st, 'restore');
   assert.deepEqual([a.step, b.step, c.step, d.step], [0, 1, 2, 2]); assert.equal(c.id, a.id);
-  assert.match(c.text, /接下来应该复原的记录是/); assert.equal(st.hints, 4);
+  assert.match(c.text, /要找的人是/); assert.equal(st.hints, 4);
   const k = G.start[0]; recover(G, st, k);
   assert.match(hint(G, st, 'confirm', k).text, /仔细阅读/); assert.match(hint(G, st, 'confirm', k).text.length > 5 ? 'x' : '', /x/);
   assert.equal(hint(G, st, 'confirm', '99-A1-99').ok, false);
@@ -133,7 +133,7 @@ test('full playthrough: recover everything, confirm all 62, messages arrive, tru
   assert.equal(String(G.solutions[sk].culprit), '63');
   for (const k of shadowKeys) assert.ok(solve(st, k).correct, k);
   assert.equal(confirmedCount(st), 62); assert.ok(st.msgs.includes('MSG07'));
-  assert.deepEqual(arrivals.filter((x) => x !== 'MSG07' && !x.startsWith('AR-')), ['MSG02', 'MSG03', 'MSG04', 'MSG05', 'MSG06']);
+  assert.deepEqual(arrivals.filter((x) => x !== 'MSG07' && !/^(AR|HX)-/.test(x)), ['MSG02', 'MSG03', 'MSG04', 'MSG05', 'MSG06']);
   const end = finish(G, st); assert.equal(end.ended, 'true'); assert.ok(['S', 'A', 'B'].includes(end.rank));
   assert.ok(recover(G, st, '00-SEALED').ok && recover(G, st, '00-DECREE').ok);
   assert.equal(stats(G, st).rate, 100);
@@ -179,7 +179,7 @@ test('broadcast arithmetic: counts match the ledger and names are listed in deat
 
 // ---- deduction structure (witness edges), marks, notes, reasoning aids
 import { execFileSync } from 'node:child_process';
-import { leads, leadTotal, structure, marksOf, cycleMark, clueCards, search, itemTrail, timeline, evidenceOf } from '../js/engine.js';
+import { lockedHidden, leads, leadTotal, structure, marksOf, cycleMark, clueCards, search, itemTrail, timeline, evidenceOf } from '../js/engine.js';
 const cnum = (n) => { const d = '零一二三四五六七八九'; return n < 10 ? d[n] : n < 20 ? '十' + (n > 10 ? d[n - 10] : '') : d[Math.floor(n / 10)] + '十' + (n % 10 ? d[n % 10] : ''); };
 
 test('every reference is a full witness: name + place + death order are written in the referring record', () => {
@@ -228,7 +228,7 @@ test('reasoning aids: item trail, timeline, evidence chips and starred options',
   const tr = itemTrail(G, st); assert.ok(tr.length >= 1 && tr.every((t) => t.uses.length >= 1));
   const tl = timeline(G, st); assert.equal(tl.length, 3); assert.ok(tl.every((x, i) => i === 0 || x.when >= tl[i - 1].when || true));
   const k = G.start[0], ev = evidenceOf(G, k); assert.ok(ev.items.length + ev.names.length > 0);
-  const o = options(G, st, k); assert.ok(o.weapons.some((w) => w.t.startsWith('★')) || ev.items.length === 0);
+  const o = options(G, st, k); assert.ok(!o.weapons.some((w) => w.t.startsWith('★')) && !o.culprits.some((c) => c.t.startsWith('★')), 'no stars: the options do not betray the evidence');
 });
 test('records are long enough to carry the story', () => {
   const lens = Object.values(G.records).map((r) => r.text.length);
@@ -245,10 +245,10 @@ test('every third correct report is a resonance; archives arrive with progress a
   assert.deepEqual(seen.map((m) => m.confirmed), Array.from({ length: 17 }, (_, i) => (i + 1) * 3));
   assert.ok(seen.every((m, i) => m.k === i + 1 && m.line && Array.isArray(m.nudge)));
   assert.ok(seen.some((m) => m.arcs.length), 'a milestone announces the archives that just arrived');
-  assert.equal(G.arcs.length, 18); assert.equal(new Set(G.arcs.map((a) => a.need)).size, 18);
-  assert.deepEqual(got, G.arcs.filter((a) => a.need <= 53).map((a) => a.id));
+  const prog = G.arcs.filter((a) => !a.hidden); assert.equal(prog.length, 18); assert.equal(new Set(prog.map((a) => a.need)).size, 18);
+  assert.deepEqual(got, prog.filter((a) => a.need <= 53).map((a) => a.id));
   const again = solve(st, keys[0]); assert.ok(!again.milestone, 'no second popup for the same count');
-  assert.ok(index(G, st).filter((i) => i.kind === 'arc').length === got.length);
+  assert.ok(index(G, st).filter((i) => i.kind === 'arc' && i.id.startsWith('AR')).length === got.length);
 });
 test('archives: full keys in them are written out completely (name + place + order) and lead to records', () => {
   let n = 0;
@@ -258,4 +258,28 @@ test('archives: full keys in them are written out completely (name + place + ord
   }
   assert.ok(n >= 12);
   assert.ok(G.arcs.find((a) => a.id === 'AR-11').text.includes('死亡') && !G.arcs.some((a) => a.text.includes('{')));
+});
+
+test('hints stay vague: never a full record name, never the culprit or the weapon', () => {
+  for (const k of keys) {
+    const all = [...G.hints.restore[k], ...G.hints.confirm[k]].join('\n'), sol = G.solutions[k];
+    assert.ok(!/\d{2}-[A-E][1-5]-\d{2}/.test(all), `${k} hint leaks a record name`);
+    if (sol.culprit && sol.culprit !== 63) assert.ok(!G.hints.confirm[k].join('').split(G.records[k].name).join('').includes(G.roster[sol.culprit - 1].name), `${k} hint names the culprit`);
+    if (sol.weaponNum) assert.ok(!G.hints.confirm[k].join('').includes(sol.weapon), `${k} hint names the weapon`);
+  }
+});
+
+test('hidden archives: opened by deduction (sets of confirmed reports, a streak), never by plain progress', () => {
+  const hid = G.arcs.filter((a) => a.hidden); assert.equal(hid.length, 7);
+  const st = newGame(G); assert.equal(lockedHidden(G, st).length, 7);
+  // confirming reports in an order that never completes any set keeps them shut; a wrong report resets the streak
+  const unlock = (nums) => { for (const n of nums) { const k = G.roster[n - 1].key; recover(G, st, k); const r = solve(st, k); if (r.correct && r.arrived?.includes('HX-02')) return true; } return false; };
+  assert.ok(unlock([12, 46, 42]) && st.arcs.includes('HX-02') && !st.arcs.includes('HX-01'));
+  assert.equal(lockedHidden(G, st).length, 6); assert.ok(lockedHidden(G, st).every((x) => x.riddle && !x.riddle.includes('HX')));
+  const s2 = newGame(G); let streakOpened = false;
+  for (const k of keys.filter((x) => !G.shadow.keys.includes(x)).slice(0, 15)) { recover(G, s2, k); if (solve(s2, k).arrived?.includes('HX-06')) streakOpened = true; }
+  assert.ok(streakOpened, '15 correct in a row opens HX-06');
+  const s3 = newGame(G); const k0 = keys[0]; recover(G, s3, k0); setDraft(s3, k0, 'cause', 'slash'); setDraft(s3, k0, 'weapon', '0'); setDraft(s3, k0, 'culprit', '0'); submit(G, s3, k0);
+  assert.equal(s3.streak, G.solutions[k0].cause === 'slash' && G.solutions[k0].culprit === 0 ? 1 : 0);
+  for (const a of hid) assert.ok(a.text.length > 120 && !a.text.includes('{'), a.id);
 });
