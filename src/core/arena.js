@@ -1,20 +1,22 @@
-// Arena (PvP ladder). 100 ranks. Everyone starts unranked (101) and the ladder is full of bots (人机): their teams are
-// generated deterministically from the rank. Real players only meet each other after climbing into the top HUMAN_ZONE
-// ranks — only there are players' team snapshots published as defenders (asynchronous PvP: you fight a saved snapshot,
-// the server never simulates). Below the zone every opponent is a bot, even when a real player is sitting on that rank.
-// Local mode (no server) works with the same rules but without humans. Win = take that rank; everyone between shifts down by one.
+// Arena (PvP). Two parts:
+//  · 天梯: 100 ranks of bots (人机). Their teams are generated deterministically from the rank (higher = stronger).
+//    Everyone starts unranked (101); beating rank r takes that rank.
+//  · 好友对战: fight a friend's team from a battle code (see friend.js). No server, no rewards, no limits.
 import { hash, mulberry32 } from './rng.js';
 import { simulate } from './battle.js';
 import { newState, teamDefs, stageGold, battleSeed } from './game.js';
 import { skillLevel } from './stats.js';
 
-export const LADDER = 100, HUMAN_ZONE = 30, UNRANKED = LADDER + 1, ARENA_DAILY = 5, WINDOW = 5;
+export const LADDER = 100, UNRANKED = LADDER + 1, ARENA_DAILY = 5, WINDOW = 5;
 const SURNAME = ['雾', '灰', '沉', '蚀', '潮', '霜', '烬', '夜', '铁', '白', '赤', '墨', '星', '黯', '琥珀', '银'];
 const GIVEN = ['行者', '看守', '拾荒人', '缝补匠', '巡礼者', '守夜人', '调香师', '摆渡人', '誊写员', '旅伴', '歌者', '猎手'];
 const day = () => new Date().toISOString().slice(0, 10);
 
 export function arenaState(state) {
-  return (state.arena ||= { pid: '', name: '', rank: UNRANKED, best: UNRANKED, wins: 0, losses: 0, day: '', tries: ARENA_DAILY, rewardDay: '' });
+  const a = (state.arena ||= { name: '', rank: UNRANKED, best: UNRANKED, wins: 0, losses: 0, day: '', tries: ARENA_DAILY, rewardDay: '' });
+  a.name ||= '旅人';
+  a.friends ||= [];
+  return a;
 }
 export function arenaTries(state) {
   const a = arenaState(state);
@@ -102,3 +104,14 @@ export function claimArenaDaily(state) {
   return { tickets: t, gold: 1500 };
 }
 export const canClaimArenaDaily = (state) => { const a = arenaState(state); return a.rank <= LADDER && a.rewardDay !== day(); };
+
+// friendly match against a decoded battle code; only the record is stored (no rewards)
+export function fightFriend(state, data, friend) {
+  const res = fightArena(state, data, { rank: 0, type: 'friend', name: friend.name, snap: friend.snap });
+  const a = arenaState(state);
+  const rec = a.friends.find((f) => f.name === friend.name) || (a.friends.unshift({ name: friend.name, wins: 0, losses: 0, power: friend.power }), a.friends[0]);
+  rec.power = friend.power; if (res.win) rec.wins++; else rec.losses++;
+  a.friends = a.friends.slice(0, 20);
+  state.stats.battles++;
+  return res;
+}

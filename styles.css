@@ -156,3 +156,4 @@ img.intent{vertical-align:middle;image-rendering:auto}
 .opp .ob{flex:1;display:flex;flex-direction:column;gap:3px}.opp small{color:var(--dim)}.oteam{display:flex;gap:4px}.oteam img{width:38px;height:38px;border-radius:6px;object-fit:cover}
 input.wide{width:100%;max-width:420px;background:#10141d;color:inherit;border:1px solid #2b3447;border-radius:6px;padding:6px 8px}
 @media(max-width:560px){.banner-card.wk{flex-direction:column}}
+.code{width:100%;background:#10141d;color:#9fb0cc;border:1px solid #2b3447;border-radius:6px;padding:6px;font:11px/1.3 monospace;word-break:break-all}

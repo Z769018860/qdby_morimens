@@ -2,8 +2,8 @@
 import { REALMS } from '../core/constants.js';
 import { weeklyState, weeklyBoss, MILESTONES, WEEKLY_DAILY, WEEKLY_ROUNDS, weekId, weeklyEnemy } from '../core/weekly.js';
 import { REALM_TOWERS, TOWER_NAME, rtBest, rtTeam, rtEnemies, rtStage } from '../core/rtower.js';
-import { arenaState, arenaTries, ARENA_DAILY, HUMAN_ZONE, UNRANKED, LADDER, dailyRankReward, canClaimArenaDaily, hydrate } from '../core/arena.js';
-import { arenaServer } from '../core/arenaApi.js';
+import { arenaState, arenaTries, ARENA_DAILY, LADDER, dailyRankReward, canClaimArenaDaily, hydrate } from '../core/arena.js';
+import { encodeCode } from '../core/friend.js';
 import { teamDefs } from '../core/game.js';
 import { esc, img, fmt, openModal } from './util.js';
 import { meterHtml } from './pages2.js';
@@ -69,32 +69,30 @@ export function rtResultModal(app, list) {
 
 /* ---------- arena ---------- */
 export function arenaPage(app) {
-  const { state: s } = app;
-  const a = arenaState(s), tries = arenaTries(s), ranked = a.rank <= LADDER, base = arenaServer.get();
-  const opp = app.ui.arena?.list;
-  const entry = (o) => {
-    const human = o.type === 'human';
-    return `<div class="opp ${human ? 'human' : ''}"><div class="rk">#${o.rank}</div>
-      <div class="ob"><b>${esc(o.name)}</b> <span class="tag ${human ? 'gold' : ''}">${human ? '真人' : '人机'}</span><small>战力 ${fmt(o.power || 0)}</small>
-      <div class="oteam">${(o.snap || []).map((x) => { const d = app.data.bySlug[x.slug]; return d ? `<img src="${img(d.portrait)}" title="${esc(d.zh)} Lv${x.lv}★${x.star}" alt="">` : ''; }).join('')}</div></div>
+  const { state: s, data } = app;
+  const a = arenaState(s), tries = arenaTries(s), ranked = a.rank <= LADDER;
+  const opp = app.ui.arena?.list || [];
+  const entry = (o) => `<div class="opp"><div class="rk">#${o.rank}</div>
+      <div class="ob"><b>${esc(o.name)}</b> <span class="tag">人机</span><small>战力 ${fmt(o.power || 0)}</small>
+      <div class="oteam">${(o.snap || []).map((x) => { const d = data.bySlug[x.slug]; return d ? `<img src="${img(d.portrait)}" title="${esc(d.zh)} Lv${x.lv}★${x.star}" alt="">` : ''; }).join('')}</div></div>
       <button class="btn sm gold" data-act="arena-go" data-rank="${o.rank}" ${tries > 0 ? '' : 'disabled'}>挑战</button></div>`;
-  };
-  const top = app.ui.arena?.top;
+  const code = app.ui.arena?.code || '';
   return `<div class="page"><h2>竞技场 <small>${ranked ? `当前第 ${a.rank} 名` : '未上榜'} · 最高 ${a.best <= LADDER ? `第 ${a.best} 名` : '—'} · ${a.wins}胜${a.losses}负 · 今日 ${tries}/${ARENA_DAILY}</small></h2>
-    <div class="banner-card"><p>天梯共 ${LADDER} 个名次，初始全部是<b>人机</b>。战胜名次更高的对手即可取代其名次。<b>只有爬进前 ${HUMAN_ZONE} 名</b>，才会开始遇到真人玩家的队伍（异步对战：你打的是对方保存的队伍快照）。${base ? `已连接竞技场服务器：<code>${esc(base)}</code>` : '当前没有配置服务器，只有人机（可在「设置」里填入竞技场服务器地址）。'}</p>
-      <div class="row"><button class="btn" data-act="arena-refresh">刷新对手</button>
-      <button class="btn ${canClaimArenaDaily(s) ? 'gold' : ''}" data-act="arena-daily" ${canClaimArenaDaily(s) ? '' : 'disabled'}>每日排名奖励${ranked ? `（召唤券 ${dailyRankReward(a.rank)} + 金币 1500）` : '（上榜后可领）'}</button>
-      <label class="snd">昵称 <input type="text" maxlength="12" value="${esc(a.name)}" data-arena-name></label></div></div>
-    <h3>可挑战的对手</h3>
-    <div class="opps">${opp ? (opp.length ? opp.map(entry).join('') : '<p class="dim">你已经是第 1 名了。</p>') : '<p class="dim">加载中…</p>'}</div>
-    ${app.ui.arena?.error ? `<p class="hint">服务器暂时不可用，已改用本地人机（${esc(app.ui.arena.error)}）</p>` : ''}
-    ${top?.top?.length ? `<h3>真人榜（前 ${HUMAN_ZONE}）</h3><div class="list">${top.top.map((p) => `<div class="frow"><span>#${p.rank}</span><span>${esc(p.name)}</span><span>战力 ${fmt(p.power)} · ${p.wins} 胜</span></div>`).join('')}</div>` : ''}
-    <p class="hint">说明：战斗由挑战者本机模拟，服务器只保存名次与队伍快照，因此结果是「信任」的——适合朋友间的小天梯，不适合有真实奖励的比赛。</p></div>`;
+    <div class="banner-card"><h3>天梯（人机）</h3><p>${LADDER} 个名次，对手都是人机，名次越靠前越强。战胜名次更高的对手即可取代其名次。每天 ${ARENA_DAILY} 次。</p>
+      <div class="row"><button class="btn ${canClaimArenaDaily(s) ? 'gold' : ''}" data-act="arena-daily" ${canClaimArenaDaily(s) ? '' : 'disabled'}>每日排名奖励${ranked ? `（召唤券 ${dailyRankReward(a.rank)} + 金币 1500）` : '（上榜后可领）'}</button></div>
+      <div class="opps">${opp.length ? opp.map(entry).join('') : '<p class="dim">你已经是第 1 名了。</p>'}</div></div>
+    <div class="banner-card"><h3>好友对战</h3>
+      <p class="hint">把<b>对战码</b>发给好友，好友粘贴后就能和你当前的队伍（含装备、等级、星级）对战；你也可以输入好友的对战码挑战 TA 的队伍。对战码是队伍快照，不联网，不限次数，没有奖励，只记录胜负。队伍或装备变了请重新生成。</p>
+      <label class="snd">我的昵称 <input type="text" maxlength="12" value="${esc(a.name)}" data-arena-name></label>
+      <div class="row"><button class="btn gold" data-act="friend-make">生成我的对战码</button>${code ? '<button class="btn" data-act="friend-copy">复制</button>' : ''}</div>
+      ${code ? `<textarea class="code" readonly rows="4" id="my-code">${esc(code)}</textarea>` : ''}
+      <div class="row"><input type="text" class="wide" id="friend-code" placeholder="粘贴好友的对战码（MMX1-…）"><button class="btn gold" data-act="friend-go">挑战好友</button></div>
+      ${a.friends.length ? `<h4>好友战绩</h4><div class="list">${a.friends.map((f) => `<div class="frow"><span>${esc(f.name)}</span><span>战力 ${fmt(f.power)}</span><span>${f.wins} 胜 ${f.losses} 负</span></div>`).join('')}</div>` : ''}</div></div>`;
 }
 export function arenaResultModal(app, r, rw, newRank) {
-  const mine = r.team.list.map((d) => d.name), foes = r.foes.map((d) => d.name);
-  openModal(`<h3>${r.win ? '胜利' : '失败'} · 对手 ${esc(r.entry.name)}（${r.entry.type === 'human' ? '真人' : '人机'}，原第 ${r.entry.rank} 名）</h3>
-    <p>${r.rounds} 回合　${r.win ? `名次：${newRank <= LADDER ? `第 ${newRank} 名` : '未上榜'}${rw.up ? ` <em class="new">最高名次提升 ${rw.up}</em>` : ''}` : '名次不变'}　${REWARD(rw)}</p>
+  const mine = r.team.list.map((d) => d.name), foes = r.foes.map((d) => d.name), friend = r.entry.type === 'friend';
+  openModal(`<h3>${r.win ? '胜利' : '失败'} · ${friend ? `好友 ${esc(r.entry.name)}` : `对手 ${esc(r.entry.name)}（人机，原第 ${r.entry.rank} 名）`}</h3>
+    <p>${r.rounds} 回合${friend ? '　友谊赛，无奖励' : `　${r.win ? `名次：第 ${newRank} 名${rw.up ? ` <em class="new">最高名次提升 ${rw.up}</em>` : ''}` : '名次不变'}　${REWARD(rw)}`}</p>
     <h4>我方</h4>${meterHtml(mine, r.stats, 'a')}<h4>对手</h4>${meterHtml(foes, r.stats, 'e')}`, 'wide');
 }
 export { hydrate };

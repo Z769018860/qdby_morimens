@@ -10,7 +10,8 @@ import * as P3 from './ui/pages3.js';
 import { doWeekly, claimWeekly } from './core/weekly.js';
 import { doRTower } from './core/rtower.js';
 import { arenaState, arenaTries, fightArena, applyArena, claimArenaDaily } from './core/arena.js';
-import { arenaServer, loadOpponents, reportResult, loadTop, ensureIdentity } from './core/arenaApi.js';
+import { localOpponents, localSettle, fightFriend } from './core/arena.js';
+import { encodeCode, decodeCode } from './core/friend.js';
 import { codexPage, monsterModal } from './ui/codex.js';
 import { sound } from './ui/audio.js';
 import { doTower, doTrial } from './core/challenge.js';
@@ -74,12 +75,9 @@ export function show(tab) {
   if (tab === 'arena') refreshArena();
   app.refreshTop();
 }
-async function refreshArena() {
-  const o = await loadOpponents(app.state, app.data);
-  app.ui.arena = { ...(app.ui.arena || {}), list: o.opponents, remote: o.remote, error: o.error };
-  app.save();
+function refreshArena() {
+  app.ui.arena = { ...(app.ui.arena || {}), list: localOpponents(app.state, app.data) };
   if (app.tab === 'arena') render();
-  loadTop().then((t) => { app.ui.arena.top = t; if (app.tab === 'arena') render(); });
 }
 function render() {
   const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, ach: P2.achievementPage }[app.tab];
@@ -89,8 +87,7 @@ function render() {
 const rerender = () => { app.save(); render(); };
 
 function onChange(e) {
-  if (e.target.matches('[data-arena-name]')) { ensureIdentity(app.state).name = e.target.value.trim().slice(0, 12) || arenaState(app.state).name; app.save(); return; }
-  if (e.target.matches('[data-arena-url]')) { arenaServer.set(e.target.value); toast('竞技场服务器已保存'); return; }
+  if (e.target.matches('[data-arena-name]')) { arenaState(app.state).name = e.target.value.trim().slice(0, 12) || '旅人'; app.save(); return; }
   const au = e.target.closest('[data-aud]');
   if (au) { sound.set(au.dataset.aud, au.type === 'checkbox' ? au.checked : +au.value / 100); if (au.dataset.aud === 'sfx') sound.play('hit'); return; }
   const c = e.target.closest('[data-cf]');
@@ -119,20 +116,31 @@ function onAct(e) {
       if (out.length) { app.save(); render(); sound.play(out[out.length - 1].win ? 'win' : 'lose'); P3.rtResultModal(app, out); }
       break;
     }
-    case 'arena-refresh': refreshArena(); break;
     case 'arena-daily': { const r = claimArenaDaily(s); if (r) { sound.play('gold'); toast(`每日排名奖励：召唤券+${r.tickets} 金币+${r.gold}`); rerender(); } break; }
     case 'arena-go': {
-      const ar = app.ui.arena, entry = ar?.list?.find((x) => x.rank === +el.dataset.rank);
+      const entry = app.ui.arena?.list?.find((x) => x.rank === +el.dataset.rank);
       if (!entry || arenaTries(s) <= 0) break;
-      ensureIdentity(s);
       const fight = fightArena(s, d, entry);
-      el.disabled = true;
-      reportResult(s, d, entry, fight.win, ar.remote).then((res) => {
-        const rw = applyArena(s, d, fight, res.rank);
-        app.save(); sound.play(fight.win ? 'win' : 'lose');
-        P3.arenaResultModal(app, fight, rw, res.rank);
-        refreshArena();
-      });
+      const rw = applyArena(s, d, fight, localSettle(s, entry, fight.win).rank);
+      app.save(); sound.play(fight.win ? 'win' : 'lose');
+      refreshArena();
+      P3.arenaResultModal(app, fight, rw, arenaState(s).rank);
+      break;
+    }
+    case 'friend-make': { app.ui.arena = { ...(app.ui.arena || {}), code: encodeCode(s, d, arenaState(s).name) }; render(); break; }
+    case 'friend-copy': {
+      const t = app.ui.arena?.code || '';
+      (navigator.clipboard?.writeText(t) || Promise.reject()).then(() => toast('对战码已复制'), () => { const ta = $('#my-code'); if (ta) { ta.select(); toast('请手动复制（Ctrl+C）'); } });
+      break;
+    }
+    case 'friend-go': {
+      const f = decodeCode($('#friend-code')?.value, d);
+      if (f.error) { toast(f.error); break; }
+      const fight = fightFriend(s, d, f);
+      fight.entry = { type: 'friend', name: f.name, rank: 0 };
+      app.save(); sound.play(fight.win ? 'win' : 'lose');
+      render();
+      P3.arenaResultModal(app, fight, {}, 0);
       break;
     }
     case 'monster': monsterModal(app, el.dataset.id); break;

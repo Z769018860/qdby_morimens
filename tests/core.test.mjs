@@ -289,7 +289,8 @@ test('codex records encounters and kills; codex achievements count them', () => 
 // ---------------------------------------------------------------- M5: weekly boss, realm towers, arena
 import { doWeekly, weeklyState, claimWeekly, weekId, weeklyBoss, MILESTONES } from '../src/core/weekly.js';
 import { doRTower, rtTeam, rtPool } from '../src/core/rtower.js';
-import { botEntry, snapshot, hydrate, localOpponents, fightArena, applyArena, localSettle, arenaState, UNRANKED, HUMAN_ZONE } from '../src/core/arena.js';
+import { encodeCode, decodeCode } from '../src/core/friend.js';
+import { botEntry, snapshot, hydrate, localOpponents, fightArena, applyArena, localSettle, arenaState, UNRANKED, fightFriend } from '../src/core/arena.js';
 
 const mkTeamState = (lv = 30) => { const s = newState(data, 11); for (const a of ['salvador', 'xu', 'vivian', 'caraboo']) s.roster[a] = { lv, star: 1 }; s.team = ['salvador', 'caraboo', 'xu', 'vivian']; return s; };
 
@@ -343,5 +344,22 @@ test('arena: bots scale with rank, snapshots round-trip, winning moves you up', 
   // hostile snapshots are clamped
   const evil = hydrate([{ slug: 'xu', lv: 999, star: 99, hp: 1e18, atk: -5 }], data)[0];
   assert.ok(evil.lv === 60 && evil.star === 5 && evil.hp <= 5e6 && evil.atk === 0);
-  assert.ok(HUMAN_ZONE < 100);
+});
+
+test('friend battle codes round-trip, reject damage, and fight without rewards', () => {
+  const s = mkTeamState(35);
+  const code = encodeCode(s, data, '阿狸');
+  assert.match(code, /^MMX1-[A-Za-z0-9_-]+-[0-9a-z]{4}$/);
+  const f = decodeCode(code, data);
+  assert.equal(f.name, '阿狸'); assert.equal(f.snap.length, 4);
+  assert.ok(f.power > 0);
+  assert.deepEqual(decodeCode(` ${code.slice(0, 30)}\n${code.slice(30)} `, data).snap, f.snap, 'whitespace is tolerated');
+  assert.ok(decodeCode(code.slice(0, -6) + 'zzzzzz', data).error);
+  assert.ok(decodeCode('hello', data).error);
+  const gold = s.gold, tickets = s.tickets;
+  const r = fightFriend(s, data, f);
+  assert.ok(typeof r.win === 'boolean' && r.foes.length === 4);
+  assert.equal(s.gold, gold); assert.equal(s.tickets, tickets);
+  assert.equal(arenaState(s).friends[0].wins + arenaState(s).friends[0].losses, 1);
+  assert.equal(arenaState(s).rank, UNRANKED);
 });
