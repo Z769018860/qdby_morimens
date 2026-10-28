@@ -11,7 +11,7 @@
 // 预缓存不放在 install 里：那会让「装上」这个动作被 400KB 的下载拖住，
 // 期间页面还不受控。这里改成 activate 之后在后台慢慢填——当前页先受控，
 // 等它填完，之后切页就都是本地读取了。
-const VERSION = '73b8989249';
+const VERSION = '99fa898329';
 const CACHE = 'zjtt-' + VERSION;
 const PRECACHE = [
   "index.html",
@@ -26,17 +26,17 @@ const PRECACHE = [
   "protocol.html",
   "survivors.html",
   "workshop.html",
-  "js/b/about.js?v=73b8989249",
-  "js/b/binding.js?v=73b8989249",
-  "js/b/bird.js?v=73b8989249",
-  "js/b/codex.js?v=73b8989249",
-  "js/b/detective.js?v=73b8989249",
-  "js/b/gallery.js?v=73b8989249",
-  "js/b/merge.js?v=73b8989249",
-  "js/b/profile.js?v=73b8989249",
-  "js/b/protocol.js?v=73b8989249",
-  "js/b/survivors.js?v=73b8989249",
-  "js/b/workshop.js?v=73b8989249",
+  "js/b/about.js?v=99fa898329",
+  "js/b/binding.js?v=99fa898329",
+  "js/b/bird.js?v=99fa898329",
+  "js/b/codex.js?v=99fa898329",
+  "js/b/detective.js?v=99fa898329",
+  "js/b/gallery.js?v=99fa898329",
+  "js/b/merge.js?v=99fa898329",
+  "js/b/profile.js?v=99fa898329",
+  "js/b/protocol.js?v=99fa898329",
+  "js/b/survivors.js?v=99fa898329",
+  "js/b/workshop.js?v=99fa898329",
   "js/b/merge-sync.js",
   "js/b/bird-sync.js",
   "data/boot.json"
@@ -63,6 +63,9 @@ self.addEventListener('activate', (event) => {
 });
 
 const STATIC_RE = /\.(?:js|mjs|css|json|webp|png|jpe?g|svg|gif|ico|woff2?|ttf)$/i;
+// 子项目：自己迭代、文件名不带指纹，缓存优先会让老访客一直卡在旧版本，所以走网络优先
+const SUBS = ['/idle/', '/deathreport/', '/casefile/'];
+const isSub = (p) => SUBS.some((x) => p.startsWith(x));
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
@@ -74,9 +77,9 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/')) return;   // 接口和点赞计数必须实时
 
   if (req.mode === 'navigate') {
-    // 子项目（idle/）是独立迭代的：页面外壳只有 4KB，走网络拿最新的，
+    // 子项目（idle/ / deathreport/ / casefile/）是独立迭代的：页面外壳很小，走网络拿最新的，
     // 免得「先给缓存」让老访客一直看到旧界面。离线时才回落到缓存。
-    if (url.pathname.startsWith('/idle/')) {
+    if (isSub(url.pathname)) {
       event.respondWith(networkFirst(req, event));
       return;
     }
@@ -84,9 +87,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (STATIC_RE.test(url.pathname)) {
-    // 子项目 idle/ 没有构建、文件名也不带指纹，缓存优先会让老访客一直卡在旧版本
+    // 子项目的脚本 / 数据文件名不带指纹，缓存优先会让老访客一直卡在旧版本
     // （旧数据里的钥令在本地已经删掉，图标就只剩一个问号）。所以它跟页面一样走网络优先。
-    event.respondWith(url.pathname.startsWith('/idle/') ? networkFirst(req, event) : staticFirst(req));
+    event.respondWith(isSub(url.pathname) ? networkFirst(req, event) : staticFirst(req));
   }
 });
 
@@ -120,7 +123,13 @@ async function networkFirst(req, event) {
   } catch (err) {
     const hit = await cache.match(req, { ignoreSearch: true });
     if (hit) return hit;
-    const fallback = await cache.match('/idle/index.html', { ignoreSearch: true });
+    // 先回落到自己所在子项目的首页，再回落站点首页
+    const seg = new URL(req.url).pathname.split('/')[1];
+    if (seg) {
+      const own = await cache.match(`/${seg}/index.html`, { ignoreSearch: true });
+      if (own) return own;
+    }
+    const fallback = await cache.match('index.html', { ignoreSearch: true });
     if (fallback) return fallback;
     return new Response('离线，且这一页还没缓存。', {
       status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' },

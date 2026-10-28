@@ -1,0 +1,4876 @@
+{
+ "edition": {
+  "n": 61,
+  "label": "第六十一次",
+  "title": "雾港",
+  "subtitle": "第六十一次　回溯筛选　雾港",
+  "theme": 61,
+  "boot": [
+   "> 记录复原终端　启动中……",
+   "> 钥冢档案室内网　………　已确认（特级）",
+   "> 检索到更早的备份　海水的味道",
+   "> 参加者：六十三名　·　生存者：一名",
+   "> 名册之外，似乎还有人在场。"
+  ],
+  "help": "“第六十一次回溯筛选”（雾港）",
+  "grid": {
+   "cols": "ABCDE",
+   "rows": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "size": 25
+  }
+ },
+ "endings": [
+  {
+   "id": "E0",
+   "title": "雾港",
+   "need": [],
+   "lines": [
+    "回溯，失败。",
+    "",
+    "最后一格关闭的时候，墨菲的胸口里，有什么睁开了眼。",
+    "“余不是你们要找的那个。”它说。",
+    "墨菲对着它笑了一下：“我知道。”",
+    "观众席的阴影里，有人站起来，轻轻拉了拉帽檐。",
+    "“精彩，”N说，“这一局，我输了。”",
+    "“下一局，赌更大的。”",
+    "猫第一次，没有按下去。",
+    "",
+    "海浪退去，雾，也退去了。"
+   ]
+  }
+ ],
+ "puzzles": [],
+ "arcs": [],
+ "milestones": [
+  "共鸣 1/20　雾，从港口漫上来。",
+  "共鸣 2/20　船，在远处沉下去。",
+  "共鸣 3/20　有人在吧台边坐下。",
+  "共鸣 4/20　礼帽的影子，落在栈桥上。",
+  "共鸣 5/20　潮水涨了一格。",
+  "共鸣 6/20　酒馆里，筹码落在桌上。",
+  "共鸣 7/20　灯塔的灯，亮了一下。",
+  "共鸣 8/20　有人在鱼市里，数着鳞片。",
+  "共鸣 9/20　雾堤上，有人在喊名字。",
+  "共鸣 10/20　钟声，从很远的地方传来。",
+  "共鸣 11/20　沉船的桅杆，断了。",
+  "共鸣 12/20　码头上，只剩下缆绳。",
+  "共鸣 13/20　雾里，有人在笑。",
+  "共鸣 14/20　礼貌的声音，说：好久不见。",
+  "共鸣 15/20　海面平得像一面镜子。",
+  "共鸣 16/20　你开始数不清，还剩几个人。",
+  "共鸣 17/20　神明，在胸口里翻了个身。",
+  "共鸣 18/20　最后一格潮水，正在涨起来。",
+  "共鸣 19/20　它，快醒了。",
+  "共鸣 20/20　下注的人，在观众席里，坐直了。"
+ ],
+ "title": "死亡游戏调查报告",
+ "subtitle": "第六十一次　回溯筛选　雾港",
+ "roster": [
+  {
+   "n": 1,
+   "slug": "24",
+   "name": "「24」",
+   "realm": "CHAOS",
+   "role": "ASSAULT",
+   "item": "缄默手套",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_036.webp",
+   "avatar": "assets/avatars/a-15601.webp",
+   "melted": false,
+   "key": "55-D4-01",
+   "lore": {
+    "性别": "女",
+    "生日": "7月19日",
+    "身高": "5'6''",
+    "配音": "伊藤纱月",
+    "特性": "单段高伤    狂气爆发增幅",
+    "唤醒台词": "歇斯底里、癔症、神经衰弱、癫痫……总而言之，就是疯女人。",
+    "简介": "以不同形态适应不同界域的队伍，在「抑郁」和「躁狂」人格之间不断切换的猎手。"
+   },
+   "human": false
+  },
+  {
+   "n": 2,
+   "slug": "agrippa",
+   "name": "阿格里帕",
+   "realm": "CARO",
+   "role": "WARDEN",
+   "item": "祭司权杖",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_069.webp",
+   "avatar": "assets/avatars/a-15600.webp",
+   "melted": false,
+   "key": "05-D3-02",
+   "lore": {
+    "性别": "女",
+    "生日": "4月15日",
+    "身高": "5'2''",
+    "配音": "石川明日菜",
+    "特性": "戒备成长    中毒连击",
+    "唤醒台词": "在她构筑的迷宫中，迷失的可不止是方向。",
+    "简介": "提供大量胚胎融合的同时，对敌人注入毒素来破坏其神志。"
+   },
+   "human": false
+  },
+  {
+   "n": 3,
+   "slug": "aigis",
+   "name": "艾继丝",
+   "realm": "CARO",
+   "role": "CHORUS",
+   "item": "守护之手",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_031.webp",
+   "avatar": "assets/avatars/a-15591.webp",
+   "melted": false,
+   "key": "24-C5-03",
+   "lore": {
+    "性别": "女",
+    "生日": "6月27日",
+    "身高": "4'6''",
+    "配音": "山本彩乃",
+    "特性": "石化控制    易伤敌人",
+    "唤醒台词": "剥落的石屑，正是她守护珍爱之物的证明。",
+    "简介": "以凝结之眼石化敌人使其无法行动，并变得易碎。"
+   },
+   "human": false
+  },
+  {
+   "n": 4,
+   "slug": "alva",
+   "name": "艾尔瓦",
+   "realm": "CHAOS",
+   "role": "WARDEN",
+   "item": "遗落的祭祀刀",
+   "itemClass": "slash",
+   "itemImg": "assets/creation/Icon_Creation_032.webp",
+   "avatar": "assets/avatars/a-15588.webp",
+   "melted": false,
+   "key": "18-D2-04",
+   "lore": {
+    "性别": "女",
+    "生日": "1月20日",
+    "身高": "5'8''",
+    "配音": "二宫雪乃",
+    "特性": "对抗塞卡    戒备提升",
+    "唤醒台词": "战场夺去了她的肢体，却永远不会磨灭她的灵魂。",
+    "简介": "久经战场的战士擅长堆叠大量护盾，并将护盾转化为利刃进行攻击。"
+   },
+   "human": false
+  },
+  {
+   "n": 5,
+   "slug": "aurita",
+   "name": "奥瑞塔",
+   "realm": "AEQUOR",
+   "role": "ASSAULT",
+   "item": "渔叉",
+   "itemClass": "pierce",
+   "itemImg": "assets/creation/Icon_Creation_106.webp",
+   "avatar": "assets/avatars/a-15573.webp",
+   "melted": false,
+   "key": "32-B2-05",
+   "lore": {
+    "性别": "女",
+    "生日": "6月8日",
+    "身高": "5'10.5''",
+    "配音": "田村由加莉",
+    "特性": "多次伤害    穿透防护",
+    "唤醒台词": "「嗯？水母？果冻？」",
+    "简介": "源源不断分裂腺体进行低算力消耗的攻击，必要时一气消耗所有腺体发动总攻。"
+   },
+   "human": false
+  },
+  {
+   "n": 6,
+   "slug": "caecus",
+   "name": "凯刻斯",
+   "realm": "AEQUOR",
+   "role": "WARDEN",
+   "item": "重锁",
+   "itemClass": "strangle",
+   "itemImg": "assets/creation/Icon_Creation_060.webp",
+   "avatar": "assets/avatars/a-15594.webp",
+   "melted": false,
+   "key": "12-C1-06",
+   "lore": {
+    "性别": "男",
+    "生日": "11月11日",
+    "身高": "5'5''",
+    "配音": "星乃圭吾",
+    "特性": "反击敌人    触腕伤害",
+    "唤醒台词": "鳃痕、鳞片……血脉的证明是他仅剩的信念。",
+    "简介": "张开全身鳞刺，反击来犯的敌人，并以血脉之力回复自身生命。"
+   },
+   "human": false
+  },
+  {
+   "n": 7,
+   "slug": "casiah",
+   "name": "卡茜亚",
+   "realm": "ULTRA",
+   "role": "CHORUS",
+   "item": "锈蚀柳叶刀",
+   "itemClass": "slash",
+   "itemImg": "assets/creation/Icon_Creation_037.webp",
+   "avatar": "assets/avatars/a-15572.webp",
+   "melted": false,
+   "key": "61-C3-07",
+   "lore": {
+    "性别": "女",
+    "生日": "4月1日",
+    "身高": "4'12''",
+    "配音": "七绪凛",
+    "特性": "补充手牌    临时力量",
+    "唤醒台词": "变走有形的东西算什么把戏？她的演出可以窃取灵魂。",
+    "简介": "能够像变魔术一样抽取或更换大量卡牌，并获得临时力量来增强伤害。"
+   },
+   "human": false
+  },
+  {
+   "n": 8,
+   "slug": "castor",
+   "name": "卡斯托尔",
+   "realm": "ULTRA",
+   "role": "WARDEN",
+   "item": "沉重画框",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_118.webp",
+   "avatar": "assets/avatars/a-77923.webp",
+   "melted": false,
+   "key": "03-A1-08",
+   "lore": {
+    "性别": "男",
+    "生日": "6月20日",
+    "身高": "6'0.3''（翼展9'9.8''）",
+    "配音": "加藤慎也",
+    "唤醒台词": "他是倔强不屈的飞鸟，如无自由宁愿死亡。",
+    "简介": "以羽翼吹动狂风护佑我方，掉落的黑色羽翼能够施加致命的「侵蚀」使其承受伤害时失去大量生命。"
+   },
+   "human": false
+  },
+  {
+   "n": 9,
+   "slug": "celeste",
+   "name": "希莱斯特",
+   "realm": "AEQUOR",
+   "role": "CHORUS",
+   "item": "秘典星象仪",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_054.webp",
+   "avatar": "assets/avatars/a-15566.webp",
+   "melted": false,
+   "key": "62-C3-09",
+   "lore": {
+    "性别": "女",
+    "生日": "3月15日",
+    "身高": "5'5''",
+    "配音": "藤崎桃子",
+    "特性": "临时触腕    免疫死亡",
+    "唤醒台词": "「那艘船，为什么会沉呢？」",
+    "简介": "庇佑航行，从死亡的危机中守护友方，并用梦境之力回复友方生命。"
+   },
+   "human": false
+  },
+  {
+   "n": 10,
+   "slug": "clementine",
+   "name": "克莱门汀",
+   "realm": "ULTRA",
+   "role": "CHORUS",
+   "item": "医生手提箱",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_059.webp",
+   "avatar": "assets/avatars/a-77925.webp",
+   "melted": false,
+   "key": "53-C2-10",
+   "lore": {
+    "性别": "女",
+    "生日": "8月16日",
+    "身高": "5'5.7''",
+    "配音": "国実久留子",
+    "唤醒台词": "她掌控着心理咨询的节奏，救赎或者毁灭，都在她的一念之间。",
+    "简介": "积累共感，催眠敌人降低其伤害，或是创伤敌人使敌人受伤提高。"
+   },
+   "human": false
+  },
+  {
+   "n": 11,
+   "slug": "corposant",
+   "name": "克珀珊特",
+   "realm": "AEQUOR",
+   "role": "WARDEN",
+   "item": "☆旧船锚☆",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_141.webp",
+   "avatar": "assets/avatars/a-77922.webp",
+   "melted": false,
+   "key": "02-B1-11",
+   "lore": {
+    "性别": "女",
+    "生日": "10月3日",
+    "身高": "5'9''",
+    "配音": "真瑠奈",
+    "唤醒台词": "她的责任、她的义务、她的生命都与船只绑定，除此之外，别无他物。",
+    "简介": "夜空中的冷光，能够在生成大量触腕的同时重新构筑手牌，配合「余波」效果发挥更大的潜力。"
+   },
+   "human": false
+  },
+  {
+   "n": 12,
+   "slug": "daffodil",
+   "name": "达芙黛尔",
+   "realm": "ULTRA",
+   "role": "ASSAULT",
+   "item": "旅行阳伞",
+   "itemClass": "pierce",
+   "itemImg": "assets/creation/Icon_Creation_107.webp",
+   "avatar": "assets/avatars/a-15590.webp",
+   "melted": false,
+   "key": "35-D3-12",
+   "lore": {
+    "性别": "女",
+    "生日": "10月10日",
+    "身高": "5'7.7''",
+    "配音": "小清水亚美",
+    "特性": "万能创造    易伤敌人",
+    "唤醒台词": "她的小店什么都有，只是——小心她索取的报酬。",
+    "简介": "能够自定义强力的千面幻象，并将其置入超维空间的魔女。"
+   },
+   "human": false
+  },
+  {
+   "n": 13,
+   "slug": "doll",
+   "name": "朵尔",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "止血钳",
+   "itemClass": "pierce",
+   "itemImg": "assets/creation/Icon_Creation_073.webp",
+   "avatar": "assets/avatars/a-15570.webp",
+   "melted": false,
+   "key": "29-D4-13",
+   "lore": {
+    "性别": "女",
+    "生日": "1月11日",
+    "身高": "5'2''",
+    "配音": "鱼谷佳代",
+    "特性": "驱散虚弱    生命回复",
+    "唤醒台词": "她所追寻的，乃是藏于天地间之奥秘。",
+    "简介": "以其完美的研究成果为其他唤醒体提供狂气，并回复大量生命。"
+   },
+   "human": false
+  },
+  {
+   "n": 14,
+   "slug": "doresain",
+   "name": "杜勒赛因",
+   "realm": "CARO",
+   "role": "ASSAULT",
+   "item": "古怪钩爪",
+   "itemClass": "slash",
+   "itemImg": "assets/creation/Icon_Creation_077.webp",
+   "avatar": "assets/avatars/a-95786.webp",
+   "melted": false,
+   "key": "09-C3-14",
+   "lore": {
+    "性别": "男",
+    "生日": "11月20日",
+    "身高": "6'1.7''",
+    "配音": "子安武人",
+    "唤醒台词": "他已听见你的呼唤。他将邀请你，一同享用那魂灵的盛宴。",
+    "简介": "优雅的食者，对剩余生命较低的敌人造成可观的伤害，享用亡者的残骸时能够强化自身并回复生命。"
+   },
+   "human": false
+  },
+  {
+   "n": 15,
+   "slug": "erica",
+   "name": "艾瑞卡",
+   "realm": "ULTRA",
+   "role": "WARDEN",
+   "item": "白鸦喙",
+   "itemClass": "pierce",
+   "itemImg": "assets/creation/Icon_Creation_072.webp",
+   "avatar": "assets/avatars/a-15603.webp",
+   "melted": false,
+   "key": "36-B1-15",
+   "lore": {
+    "性别": "女",
+    "生日": "9月29日",
+    "身高": "5'6.9''",
+    "配音": "三浦小季",
+    "特性": "攻防兼备    形态转换",
+    "唤醒台词": "她是弥萨格最大的数据库，是最万能的检索机。",
+    "简介": "能够短暂性提供爆发力量或戒备，无论是攻击还是防御都是好手。"
+   },
+   "human": false
+  },
+  {
+   "n": 16,
+   "slug": "faint",
+   "name": "菲茵特",
+   "realm": "CARO",
+   "role": "WARDEN",
+   "item": "神经毒素",
+   "itemClass": "poison",
+   "itemImg": "assets/creation/Icon_Creation_029.webp",
+   "avatar": "assets/avatars/a-15577.webp",
+   "melted": false,
+   "key": "43-A1-16",
+   "lore": {
+    "性别": "女",
+    "生日": "3月7日",
+    "身高": "4'6''",
+    "配音": "伊藤纱月",
+    "特性": "死亡抵抗    夺取力量",
+    "唤醒台词": "深爱着夜莺的劣等品，也会有绽放的一天。",
+    "简介": "能够附加高额的死亡抵抗，并吸食对手的力量来抵御攻击。"
+   },
+   "human": false
+  },
+  {
+   "n": 17,
+   "slug": "faros",
+   "name": "法洛思",
+   "realm": "AEQUOR",
+   "role": "CHORUS",
+   "item": "原型电池",
+   "itemClass": "shoot",
+   "itemImg": "assets/creation/Icon_Creation_145.webp",
+   "avatar": "assets/avatars/a-15575.webp",
+   "melted": false,
+   "key": "30-D2-17",
+   "lore": {
+    "性别": "女",
+    "生日": "4月8日",
+    "身高": "5'5.7''",
+    "配音": "藤崎桃子",
+    "特性": "触腕生成    补充手牌",
+    "唤醒台词": "海底火山的呼吸不再低鸣耳畔，深海幻梦也已经是模糊的图像。",
+    "简介": "为触腕附上烈毒来折辱敌人，并以虔诚的信仰让队伍获取卡牌，指明前进道路。"
+   },
+   "human": false
+  },
+  {
+   "n": 18,
+   "slug": "doll-inferno",
+   "name": "熔毁·朵尔",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "锈蚀钢锯",
+   "itemClass": "slash",
+   "itemImg": "assets/creation/Icon_Creation_009.webp",
+   "avatar": "assets/avatars/a-15602.webp",
+   "melted": false,
+   "key": "25-D4-18",
+   "lore": {
+    "性别": "女",
+    "生日": "1月11日",
+    "身高": "5'2''",
+    "配音": "鱼谷佳代",
+    "特性": "生命回复    单段高伤",
+    "唤醒台词": "希望只会是让人更加痛苦的毒药。只有在彻底、迅速的毁灭中，所有人才能获得真正的解脱。",
+    "简介": "在平时能够为队伍提供回复和大量狂气，但首领战中将驱动毁灭的引擎终结敌人。"
+   },
+   "human": false
+  },
+  {
+   "n": 19,
+   "slug": "helot-catena",
+   "name": "血链·希洛",
+   "realm": "CARO",
+   "role": "ASSAULT",
+   "item": "活性注射器",
+   "itemClass": "pierce",
+   "itemImg": "assets/creation/Icon_Creation_023.webp",
+   "avatar": "assets/avatars/a-15567.webp",
+   "melted": false,
+   "key": "57-D2-19",
+   "lore": {
+    "性别": "女",
+    "生日": "12月25日",
+    "身高": "1.07bēma",
+    "配音": "国実久留子",
+    "特性": "连环打击    打击卡增幅",
+    "唤醒台词": "挣脱锁链之后，她向一切锁链的缔造者复仇。",
+    "简介": "她会使用独特的技巧连击敌人，并用出血伤害终结对手。"
+   },
+   "human": false
+  },
+  {
+   "n": 20,
+   "slug": "ramona-timeworn",
+   "name": "环行·拉蒙娜",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "水手哨",
+   "itemClass": "strangle",
+   "itemImg": "assets/creation/Icon_Creation_094.webp",
+   "avatar": "assets/avatars/a-15568.webp",
+   "melted": false,
+   "key": "52-C2-20",
+   "lore": {
+    "性别": "女",
+    "生日": "12月12日",
+    "身高": "5'5''",
+    "配音": "山本亚衣",
+    "特性": "检索卡牌    多次伤害",
+    "简介": "从过往的指令中获取力量为她所用，并以命定之剑造成高额单次伤害。"
+   },
+   "human": false
+  },
+  {
+   "n": 21,
+   "slug": "goliath",
+   "name": "戈利亚",
+   "realm": "AEQUOR",
+   "role": "ASSAULT",
+   "item": "染血鹅卵石",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_140.webp",
+   "avatar": "assets/avatars/a-15564.webp",
+   "melted": false,
+   "key": "07-C2-21",
+   "lore": {
+    "性别": "男",
+    "生日": "5月20日",
+    "身高": "9'4.2''",
+    "配音": "木下章嗣",
+    "特性": "力量爆发    偷取力量",
+    "唤醒台词": "当他举起巨剑，带来的必然是鲜血与死亡。",
+    "简介": "以巨刃之力挥动重刃斩杀敌人，触腕伤害和力量都使他变得更加强大。"
+   },
+   "human": false
+  },
+  {
+   "n": 22,
+   "slug": "hameln",
+   "name": "哈姆林",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "乐团指挥棒",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_162.webp",
+   "avatar": "assets/avatars/a-54117.webp",
+   "melted": false,
+   "key": "44-E5-22",
+   "lore": {
+    "性别": "男",
+    "生日": "9月21日",
+    "身高": "5'10''",
+    "配音": "野宫一范",
+    "唤醒台词": "所有的音符，都将随指挥棒的轨迹起舞。",
+    "简介": "用回环乐音造成伤害的同时让卡牌多次生效，连绵的乐音还能够创造大量「灵感」。"
+   },
+   "human": false
+  },
+  {
+   "n": 23,
+   "slug": "helot",
+   "name": "希洛",
+   "realm": "CARO",
+   "role": "ASSAULT",
+   "item": "镭射颌骨",
+   "itemClass": "shoot",
+   "itemImg": "assets/creation/Icon_Creation_132.webp",
+   "avatar": "assets/avatars/a-15587.webp",
+   "melted": false,
+   "key": "20-E5-23",
+   "lore": {
+    "性别": "女",
+    "生日": "12月25日",
+    "身高": "1.07bēma",
+    "配音": "国実久留子",
+    "特性": "单段高伤    力量成长",
+    "唤醒台词": "她所渴求的，从来都不是鲜血。",
+    "简介": "不断隐忍继续力量，一击为敌人带来终结的复仇者。"
+   },
+   "human": false
+  },
+  {
+   "n": 24,
+   "slug": "horla",
+   "name": "奥尔拉",
+   "realm": "ULTRA",
+   "role": "CHORUS",
+   "item": "超弦腐血制剂",
+   "itemClass": "poison",
+   "itemImg": "assets/creation/Icon_Creation_139.webp",
+   "avatar": "assets/avatars/a-15583.webp",
+   "melted": false,
+   "key": "49-C2-24",
+   "lore": {
+    "性别": "女",
+    "生日": "2月14日",
+    "身高": "5'4.2''",
+    "配音": "橘由纪",
+    "特性": "延迟回复    削弱敌方",
+    "唤醒台词": "当心，她的悲伤可比玫瑰刺棘棘手得多。",
+    "简介": "不同的情绪带来不同的强力增益，并变化其狂气爆发效果。"
+   },
+   "human": false
+  },
+  {
+   "n": 25,
+   "slug": "jenkin",
+   "name": "詹金",
+   "realm": "ULTRA",
+   "role": "ASSAULT",
+   "item": "潜水头盔",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_003.webp",
+   "avatar": "assets/avatars/a-15593.webp",
+   "melted": false,
+   "key": "40-E1-25",
+   "lore": {
+    "性别": "女",
+    "生日": "1月1日",
+    "身高": "4'4.4''",
+    "配音": "真瑠奈",
+    "特性": "多次伤害    暴击",
+    "唤醒台词": "小看老鼠可是要付出惨痛代价的哦！",
+    "简介": "有着高额的暴击率和暴击伤害，布朗和鼠群会成为他对抗多名敌人的关键助力。"
+   },
+   "human": false
+  },
+  {
+   "n": 26,
+   "slug": "karen",
+   "name": "珈伦",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "哈福德灵药",
+   "itemClass": "poison",
+   "itemImg": "assets/creation/Icon_Creation_067.webp",
+   "avatar": "assets/avatars/a-15571.webp",
+   "melted": false,
+   "key": "15-E4-26",
+   "lore": {
+    "性别": "女",
+    "生日": "9月9日",
+    "身高": "5'1''",
+    "配音": "二宫雪乃",
+    "特性": "补充算力    抵抗死亡",
+    "唤醒台词": "无论是扫帚还是武器，她都能使得十分优雅。",
+    "简介": "为你的队伍提供大量算力并用料理回复生命，同时用黑暗料理毒杀敌人。"
+   },
+   "human": false
+  },
+  {
+   "n": 27,
+   "slug": "kathigu-ra",
+   "name": "凯蒂古拉",
+   "realm": "CHAOS",
+   "role": "ASSAULT",
+   "item": "鸽羽扇",
+   "itemClass": "slash",
+   "itemImg": "assets/creation/Icon_Creation_122.webp",
+   "avatar": "assets/avatars/a-77913.webp",
+   "melted": false,
+   "key": "14-A5-27",
+   "lore": {
+    "性别": "女",
+    "生日": "8月30日",
+    "身高": "6'0''",
+    "配音": "鸟羽优好",
+    "唤醒台词": "她是永不落下的太阳，祂将带来平等的死亡。",
+    "简介": "以炽热之火焚烧万物的烈阳，消耗更多算力可以大幅提升卡牌效果。"
+   },
+   "human": false
+  },
+  {
+   "n": 28,
+   "slug": "leigh",
+   "name": "雷娅",
+   "realm": "CARO",
+   "role": "CHORUS",
+   "item": "刺荨麻背心",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_030.webp",
+   "avatar": "assets/avatars/a-15597.webp",
+   "melted": false,
+   "key": "22-A2-28",
+   "lore": {
+    "性别": "女",
+    "生日": "6月28日",
+    "身高": "5'3''",
+    "配音": "小坂帆夏",
+    "特性": "生命回复    力量提升",
+    "唤醒台词": "「啜饮吧，这甘美的死亡。」",
+    "简介": "将自身的痛楚转化为力量，在低生命时能够大量回复。"
+   },
+   "human": false
+  },
+  {
+   "n": 29,
+   "slug": "lily",
+   "name": "莉莉",
+   "realm": "CHAOS",
+   "role": "WARDEN",
+   "item": "银色方扣缎带",
+   "itemClass": "strangle",
+   "itemImg": "assets/creation/Icon_Creation_057.webp",
+   "avatar": "assets/avatars/a-15581.webp",
+   "melted": false,
+   "key": "26-A2-29",
+   "lore": {
+    "性别": "女",
+    "生日": "6月15日",
+    "身高": "4'4.2''",
+    "配音": "盛惠里花",
+    "特性": "生命上限    受伤变强",
+    "唤醒台词": "「妈妈，在哪？」",
+    "简介": "将承受的痛苦转化为怒火消灭敌人，或是转化为生命来帮助友方。"
+   },
+   "human": false
+  },
+  {
+   "n": 30,
+   "slug": "liz",
+   "name": "莉兹",
+   "realm": "ULTRA",
+   "role": "ASSAULT",
+   "item": "蛊惑风铃",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_042.webp",
+   "avatar": "assets/avatars/a-15562.webp",
+   "melted": false,
+   "key": "16-B1-30",
+   "lore": {
+    "性别": "女",
+    "生日": "1月31日",
+    "身高": "5'5''",
+    "配音": "青池优花",
+    "特性": "中毒爆发    资源循环",
+    "唤醒台词": "旋转的足尖承载了她的梦想，她的追求，以及那一切破灭后，从痛恨与绝望中燃起的青色火焰。",
+    "简介": "在超维空间或手牌中不断成长翠色火焰，释放狂气爆发将其一并释放烧尽敌人。"
+   },
+   "human": false
+  },
+  {
+   "n": 31,
+   "slug": "lotan",
+   "name": "萝坦",
+   "realm": "CHAOS",
+   "role": "ASSAULT",
+   "item": "诅咒石碑",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_091.webp",
+   "avatar": "assets/avatars/a-15569.webp",
+   "melted": false,
+   "key": "04-D5-31",
+   "lore": {
+    "性别": "女",
+    "生日": "3月21日",
+    "身高": "5'6''",
+    "配音": "宫园美海",
+    "特性": "高额群攻    伤害成长",
+    "唤醒台词": "星之巨兽如是说：掀起滔天巨浪吧！让敌人发出悲鸣吧！",
+    "简介": "以连绵不断的「打击」造成多次伤害，并唤起终焉巨兽吞噬仇敌。"
+   },
+   "human": false
+  },
+  {
+   "n": 32,
+   "slug": "miryam",
+   "name": "弥利亚姆",
+   "realm": "AEQUOR",
+   "role": "CHORUS",
+   "item": "可疑的药膏",
+   "itemClass": "poison",
+   "itemImg": "assets/creation/Icon_Creation_051.webp",
+   "avatar": "assets/avatars/a-15582.webp",
+   "melted": false,
+   "key": "34-D2-32",
+   "lore": {
+    "性别": "女",
+    "生日": "7月2日",
+    "身高": "5'7''",
+    "配音": "北崎瞳",
+    "特性": "触腕生成    狂气支援",
+    "唤醒台词": "虔诚的信仰最终化作刺向自己的利刃。",
+    "简介": "她既能够使用大祭司的权能号令更多触腕，也能以祭祀匕首来毒杀敌人。"
+   },
+   "human": false
+  },
+  {
+   "n": 33,
+   "slug": "mouchette",
+   "name": "茉夏",
+   "realm": "CHAOS",
+   "role": "ASSAULT",
+   "item": "魔术手套",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_128.webp",
+   "avatar": "assets/avatars/a-94450.webp",
+   "melted": false,
+   "key": "39-B4-33",
+   "lore": {
+    "性别": "女",
+    "生日": "11月28日",
+    "身高": "5'4.6''",
+    "配音": "长谷川育美",
+    "唤醒台词": "雾境中的来客，将于银与血中，在此世受洗重生。",
+    "简介": "手持巨斧的活泼少女，在战斗中则会化身为狂热的战士，并能够在逆境中爆发更强战斗力。"
+   },
+   "human": false
+  },
+  {
+   "n": 34,
+   "slug": "murphy",
+   "name": "墨菲",
+   "realm": "AEQUOR",
+   "role": "WARDEN",
+   "item": "黑烛",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_112.webp",
+   "avatar": "assets/avatars/a-15576.webp",
+   "melted": false,
+   "key": "",
+   "lore": {
+    "性别": "女",
+    "生日": "12月22日",
+    "身高": "4'8.7''",
+    "配音": "大内茜",
+    "特性": "触腕激发    补充算力",
+    "唤醒台词": "把蛋糕和柔软的床榻奉上，她说不定就能好好听人说话了。",
+    "简介": "她能够承受献祭来抵抗敌方的高额伤害，并能够号令触腕展开总攻。"
+   },
+   "human": false
+  },
+  {
+   "n": 35,
+   "slug": "murphy-fauxborn",
+   "name": "诞妄·墨菲",
+   "realm": "AEQUOR",
+   "role": "CHORUS",
+   "item": "变色拘束服",
+   "itemClass": "strangle",
+   "itemImg": "assets/creation/Icon_Creation_025.webp",
+   "avatar": "assets/avatars/a-15589.webp",
+   "melted": false,
+   "key": "33-C2-35",
+   "lore": {
+    "性别": "女",
+    "生日": "12月22日",
+    "身高": "4'8.7''",
+    "配音": "能登麻美子",
+    "特性": "触腕激发    补充算力",
+    "唤醒台词": "她献身于神明的诞礼，以骨血兑现永恒的虚妄。",
+    "简介": "身为神母的她赐福与庇佑着臣民，无上的权力能够将敌人的生命转化为进献神明的祭品。"
+   },
+   "human": false
+  },
+  {
+   "n": 36,
+   "slug": "nautila",
+   "name": "诺缔拉",
+   "realm": "CHAOS",
+   "role": "WARDEN",
+   "item": "深海戒指",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_144_AT.webp",
+   "avatar": "assets/avatars/a-15565.webp",
+   "melted": false,
+   "key": "58-C2-36",
+   "lore": {
+    "性别": "女",
+    "生日": "7月29日",
+    "身高": "5'2''",
+    "配音": "国実久留子",
+    "特性": "防护爆发    回收弃牌",
+    "唤醒台词": "只要还能够冒险，她就能笑着前进。",
+    "简介": "坚固的螺壳让队伍的防护更上一层楼，并用螺壳上的尖刺反击来犯的对手。"
+   },
+   "human": false
+  },
+  {
+   "n": 37,
+   "slug": "nymphaea",
+   "name": "宁菲亚",
+   "realm": "CHAOS",
+   "role": "ASSAULT",
+   "item": "蝴蝶标本",
+   "itemClass": "pierce",
+   "itemImg": "assets/creation/Icon_Creation_131.webp",
+   "avatar": "assets/avatars/a-15580.webp",
+   "melted": false,
+   "key": "01-C3-37",
+   "lore": {
+    "性别": "女",
+    "生日": "12月7日",
+    "身高": "5'1''",
+    "配音": "东海林亚祐",
+    "特性": "触发中毒    虚弱敌方",
+    "唤醒台词": "未曾绽放的睡莲，回归了海的怀抱。",
+    "简介": "结合海毒和虚弱，在确保自身生存的同时持续折磨对手。"
+   },
+   "human": false
+  },
+  {
+   "n": 38,
+   "slug": "ogier",
+   "name": "奥吉尔",
+   "realm": "CHAOS",
+   "role": "WARDEN",
+   "item": "缠丝玛瑙",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_039.webp",
+   "avatar": "assets/avatars/a-15585.webp",
+   "melted": false,
+   "key": "42-C1-38",
+   "lore": {
+    "性别": "男",
+    "生日": "5月5日",
+    "身高": "他坚信自己身高五尺",
+    "配音": "音羽里奏",
+    "特性": "驱散脆弱    临时力量",
+    "唤醒台词": "「我不会再让任何人受伤。」",
+    "简介": "以无形黏液凝结障壁，并举起长枪指引队友发起冲锋号角。"
+   },
+   "human": false
+  },
+  {
+   "n": 39,
+   "slug": "pandia",
+   "name": "潘狄娅",
+   "realm": "CHAOS",
+   "role": "ASSAULT",
+   "item": "水晶球",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_183.webp",
+   "avatar": "assets/avatars/a-15560.webp",
+   "melted": false,
+   "key": "45-D4-39",
+   "lore": {
+    "性别": "女",
+    "生日": "10月28日",
+    "身高": "4'9.9''",
+    "配音": "橘由纪",
+    "特性": "反击敌人    多次伤害",
+    "唤醒台词": "不要盲信表象的甜蜜，热情的皮囊下，说不定藏匿着恶鬼。",
+    "简介": "鞭打对手的同时获得大量反击，让意欲还击的对手痛不欲生。"
+   },
+   "human": false
+  },
+  {
+   "n": 40,
+   "slug": "pickman",
+   "name": "皮克曼",
+   "realm": "CARO",
+   "role": "CHORUS",
+   "item": "渴求的画笔",
+   "itemClass": "pierce",
+   "itemImg": "assets/wheel/Weapon_Mini_SR42.webp",
+   "avatar": "assets/avatars/a-77926.webp",
+   "melted": false,
+   "key": "13-B5-40",
+   "lore": {
+    "性别": "男",
+    "生日": "2月17日",
+    "身高": "6'0.1''",
+    "配音": "野田卓見",
+    "唤醒台词": "他将用他的画作，带你一同见证世界的真相。",
+    "简介": "根据局势灵活的创造不同绘卷，大幅强化其它唤醒体的狂气爆发效果。"
+   },
+   "human": false
+  },
+  {
+   "n": 41,
+   "slug": "pollux",
+   "name": "波吕克斯",
+   "realm": "ULTRA",
+   "role": "ASSAULT",
+   "item": "巨人之刃",
+   "itemClass": "slash",
+   "itemImg": "assets/wheel/Weapon_Mini_O06.webp",
+   "avatar": "assets/avatars/a-77917.webp",
+   "melted": false,
+   "key": "28-A1-41",
+   "lore": {
+    "性别": "男",
+    "生日": "6月20日",
+    "身高": "5'8''",
+    "配音": "逢沢光明",
+    "唤醒台词": "圣心照耀之下，没有罪人能逃离圣子的审判。",
+    "简介": "运用圣辉之力周期性强化卡牌效果，运用圣子的权能裁决一切漆黑的罪恶。"
+   },
+   "human": false
+  },
+  {
+   "n": 42,
+   "slug": "ramona",
+   "name": "拉蒙娜",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "牧羊人的手杖",
+   "itemClass": "blunt",
+   "itemImg": "assets/wheel/Weapon_Mini_SR30.webp",
+   "avatar": "assets/avatars/a-15595.webp",
+   "melted": false,
+   "key": "27-C4-42",
+   "lore": {
+    "性别": "女",
+    "生日": "12月12日",
+    "身高": "5'5''",
+    "配音": "山本亚衣",
+    "特性": "检索卡牌    多次伤害",
+    "唤醒台词": "观察，感受，思考。",
+    "简介": "为你的队伍提供最需要的卡牌支援，并以逐渐迅疾的剑术刺穿对手。"
+   },
+   "human": false
+  },
+  {
+   "n": 43,
+   "slug": "ryker",
+   "name": "莱克",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "勋爵手杖",
+   "itemClass": "blunt",
+   "itemImg": "assets/wheel/Weapon_Mini_SR12.webp",
+   "avatar": "assets/avatars/a-15604.webp",
+   "melted": false,
+   "key": "06-C2-43",
+   "lore": {
+    "性别": "男",
+    "生日": "6月6日",
+    "配音": "高仲佑星",
+    "特性": "补充手牌    黑印获取",
+    "唤醒台词": "「再赌最后一把如何？这一次，就赌上你我的未来。」",
+    "简介": "抽取大量卡牌的同时，通过掉落黑印赢取混沌的遗赠造物，使莱克变得更强。"
+   },
+   "human": false
+  },
+  {
+   "n": 44,
+   "slug": "salvador",
+   "name": "萨尔瓦多",
+   "realm": "CARO",
+   "role": "WARDEN",
+   "item": "蓝环毒素",
+   "itemClass": "poison",
+   "itemImg": "assets/wheel/Weapon_Mini_SR35.webp",
+   "avatar": "assets/avatars/a-15599.webp",
+   "melted": false,
+   "key": "60-D5-44",
+   "lore": {
+    "性别": "男",
+    "生日": "5月30日",
+    "身高": "6'1.6''",
+    "配音": "楠大典",
+    "特性": "算力支援    护盾转输出",
+    "唤醒台词": "「引领前路吧，神谕中的救世主，将我们带往那无苦的未来。」",
+    "简介": "无尽的仁爱能够积攒猩红熔炉，在受伤时给予应急支援。"
+   },
+   "human": false
+  },
+  {
+   "n": 45,
+   "slug": "sanga",
+   "name": "珊",
+   "realm": "AEQUOR",
+   "role": "WARDEN",
+   "item": "引舵之帆",
+   "itemClass": "strangle",
+   "itemImg": "assets/wheel/Weapon_Mini_O09.webp",
+   "avatar": "assets/avatars/a-15592.webp",
+   "melted": false,
+   "key": "08-B2-45",
+   "lore": {
+    "性别": "女",
+    "生日": "10月31日",
+    "身高": "5'5''",
+    "配音": "音羽里奏",
+    "特性": "持续防护    触腕成长",
+    "唤醒台词": "除了温和秀美，锐利而具有攻击性也是艺术的一部分。",
+    "简介": "持续不断的雕刻石壁防御后续攻击，失落的艺术在护盾越高时伤害就越强。"
+   },
+   "human": false
+  },
+  {
+   "n": 46,
+   "slug": "sorel",
+   "name": "索蕾尔",
+   "realm": "CARO",
+   "role": "ASSAULT",
+   "item": "锡兰红茶",
+   "itemClass": "poison",
+   "itemImg": "assets/creation/Icon_Creation_053.webp",
+   "avatar": "assets/avatars/a-15584.webp",
+   "melted": false,
+   "key": "46-D4-46",
+   "lore": {
+    "性别": "女",
+    "生日": "2月9日",
+    "身高": "5'7''",
+    "配音": "田村由加莉",
+    "特性": "多次伤害    生命回复",
+    "唤醒台词": "端上来吧，那些绣金的华丽礼服；端上来吧，那些异国鸟羽制成的羽扇。端上来吧，只有这样，才能获得她的沙龙的邀请。",
+    "简介": "以华丽的轮舞造成高额次数的伤害，并以敌人鲜血治愈自身。"
+   },
+   "human": false
+  },
+  {
+   "n": 47,
+   "slug": "tawil",
+   "name": "塔薇",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "孤羽",
+   "itemClass": "pierce",
+   "itemImg": "assets/wheel/Weapon_Mini_SR39.webp",
+   "avatar": "assets/avatars/a-54116.webp",
+   "melted": false,
+   "key": "10-C4-47",
+   "lore": {
+    "性别": "女",
+    "生日": "12月31日",
+    "身高": "5'5''",
+    "配音": "山本亚衣",
+    "唤醒台词": "穿越穷极之门，世界的终极奥秘将对你敞开。",
+    "简介": "塔薇通晓一切，能够将一切技能为她所用，并将银钥作为资源来进行攻击。"
+   },
+   "human": false
+  },
+  {
+   "n": 48,
+   "slug": "thais",
+   "name": "泰旖丝",
+   "realm": "CARO",
+   "role": "CHORUS",
+   "item": "骸骨杯盏",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_167.webp",
+   "avatar": "assets/avatars/a-15596.webp",
+   "melted": false,
+   "key": "19-A3-48",
+   "lore": {
+    "性别": "女",
+    "生日": "4月19日",
+    "身高": "5'9''",
+    "配音": "山本亚衣",
+    "特性": "复制卡牌    狂气供给",
+    "唤醒台词": "「成为我的仆从，我的战士，我的……孩子。」",
+    "简介": "孕育圣树之子使吞噬效果多次发动，并以丰穰之仪模仿友方技能。"
+   },
+   "human": false
+  },
+  {
+   "n": 49,
+   "slug": "tinct",
+   "name": "汀克特",
+   "realm": "ULTRA",
+   "role": "CHORUS",
+   "item": "精密计时器",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_038.webp",
+   "avatar": "assets/avatars/a-15574.webp",
+   "melted": false,
+   "key": "59-C3-49",
+   "lore": {
+    "性别": "女",
+    "生日": "3月7日",
+    "身高": "5'4''",
+    "配音": "冈本美歌",
+    "特性": "力量夺取    消耗降低",
+    "唤醒台词": "在金丝的牢笼中，在无形的枷锁下，夜莺只是歌唱，只是歌唱。",
+    "简介": "使用超越时空的歌声来降低手中大量卡牌的算力消耗，并使队友的战斗意志高涨。"
+   },
+   "human": false
+  },
+  {
+   "n": 50,
+   "slug": "tulu",
+   "name": "图鲁",
+   "realm": "AEQUOR",
+   "role": "ASSAULT",
+   "item": "（融蚀）",
+   "itemClass": "none",
+   "itemImg": null,
+   "avatar": "assets/avatars/a-15563.webp",
+   "melted": false,
+   "key": "41-D4-50",
+   "lore": {
+    "性别": "男",
+    "生日": "8月20日",
+    "身高": "8'3''",
+    "配音": "宫园美海",
+    "特性": "触腕爆发    触腕成长",
+    "唤醒台词": "与常规认知相悖的是，他讨厌水。",
+    "简介": "以王者威压号令触腕制裁敌人，并以王的血脉迅速激发爆发性的触腕伤害潜力。"
+   },
+   "human": false
+  },
+  {
+   "n": 51,
+   "slug": "uvhash",
+   "name": "尤乌哈希",
+   "realm": "CARO",
+   "role": "ASSAULT",
+   "item": "求救信号",
+   "itemClass": "shoot",
+   "itemImg": "assets/creation/Icon_Creation_147.webp",
+   "avatar": "assets/avatars/a-15598.webp",
+   "melted": false,
+   "key": "38-D2-51",
+   "lore": {
+    "性别": "男",
+    "生日": "4月4日",
+    "身高": "6'2''",
+    "配音": "森田绘音",
+    "特性": "狂气爆发    越战越勇",
+    "唤醒台词": "他不放过任何一个捣碎敌人的机会。",
+    "简介": "不停战斗并不断变得更强的狂战士，低生命的时候会更加强大。"
+   },
+   "human": false
+  },
+  {
+   "n": 52,
+   "slug": "wanda",
+   "name": "旺达",
+   "realm": "ULTRA",
+   "role": "WARDEN",
+   "item": "偶然谬误",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_075.webp",
+   "avatar": "assets/avatars/a-15586.webp",
+   "melted": false,
+   "key": "54-A2-52",
+   "lore": {
+    "性别": "女",
+    "生日": "11月2日",
+    "身高": "5'7''",
+    "配音": "本多真梨子",
+    "特性": "高额反击    触发跃迁",
+    "唤醒台词": "盲眼奴从庄严宣誓，吟诵崇高的律令：靠近她、服从她……然后永远爱她。",
+    "简介": "以周身棘刺叠加大量反击来击穿来犯敌人，并且将棘刺挥舞造成伤害。"
+   },
+   "human": false
+  },
+  {
+   "n": 53,
+   "slug": "winkle",
+   "name": "温柯尔",
+   "realm": "ULTRA",
+   "role": "WARDEN",
+   "item": "小八音盒",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_096.webp",
+   "avatar": "assets/avatars/a-15579.webp",
+   "melted": false,
+   "key": "37-B4-53",
+   "lore": {
+    "性别": "女",
+    "生日": "9月7日",
+    "身高": "5'6''",
+    "配音": "七绪凛",
+    "特性": "狂气供给    延迟抽牌",
+    "唤醒台词": "就连记忆中的黑暗，也会招来那可怖的诅咒。",
+    "简介": "能够为其他友方提供狂气，同时也能够耗尽手牌凝聚高额护盾。"
+   },
+   "human": false
+  },
+  {
+   "n": 54,
+   "slug": "xu",
+   "name": "徐",
+   "realm": "CARO",
+   "role": "CHORUS",
+   "item": "小黄螺",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_001.webp",
+   "avatar": "assets/avatars/a-125346.webp",
+   "melted": false,
+   "key": "50-C4-54",
+   "lore": {
+    "性别": "女",
+    "生日": "6月1日",
+    "身高": "？+5'5.2''",
+    "配音": "田中理惠",
+    "唤醒台词": "注视着这令人战栗的美丽，她「爱」你，祂会永远、永远「陪伴」你。",
+    "简介": "令人痴醉的魅力能够瓦解敌人的斗志，渗入全身的蚀骨毒素将在其沉沦之时轰然迸发。"
+   },
+   "human": false
+  },
+  {
+   "n": 55,
+   "slug": "vortice",
+   "name": "莫丝",
+   "realm": "AEQUOR",
+   "role": "ASSAULT",
+   "item": "银白差分机",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_146.webp",
+   "avatar": "assets/avatars/a-130901.webp",
+   "melted": false,
+   "key": "11-E2-55",
+   "lore": {
+    "性别": "女",
+    "生日": "7月13日",
+    "身高": "6' 2''",
+    "配音": "松元菜菜海",
+    "唤醒台词": "拘束，引导，释放，毁灭。漩涡将听从她的指引，让一切坏人沉溺于深渊。",
+    "简介": "开朗率直的野性少女，手中的重火器集聚涡流能量后能够造成巨大的破坏。"
+   },
+   "human": false
+  },
+  {
+   "n": 56,
+   "slug": "arachne",
+   "name": "阿拉克涅",
+   "realm": "ULTRA",
+   "role": "CHORUS",
+   "item": "蒙尘缝纫机",
+   "itemClass": "blunt",
+   "itemImg": "assets/creation/Icon_Creation_151.webp",
+   "avatar": "assets/avatars/a-77918.webp",
+   "melted": false,
+   "key": "51-B2-56",
+   "lore": {
+    "性别": "女",
+    "生日": "5月24日",
+    "身高": "5'8''",
+    "配音": "大西沙织",
+    "唤醒台词": "万千丝线于阿拉克涅的纺轮中汇集。她为木偶编织既定的命运，她为自己编织永恒的囚笼。",
+    "简介": "命运的织者，她以丝线编织命运守护纺轮下的安宁，以裁断之力剪除污物。"
+   },
+   "human": false
+  },
+  {
+   "n": 57,
+   "slug": "saya",
+   "name": "沙耶",
+   "realm": "CARO",
+   "role": "CHORUS",
+   "item": "怪蛇残蜕",
+   "itemClass": "strangle",
+   "itemImg": "assets/creation/Icon_Creation_083.webp",
+   "avatar": "assets/avatars/a-130226.webp",
+   "melted": false,
+   "key": "31-E1-57",
+   "lore": {
+    "性别": "女",
+    "配音": "川村绿",
+    "唤醒台词": "当所有蒲公英被吹散的时候，以爱的名义，我们将重逢。",
+    "简介": "穿越遥远群星间的障壁，只有爱，是唯一的、始终的命题。"
+   },
+   "human": false
+  },
+  {
+   "n": 58,
+   "slug": "pontos",
+   "name": "庞托斯",
+   "realm": "AEQUOR",
+   "role": "WARDEN",
+   "item": "辉光沙漏",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_016.webp",
+   "avatar": "assets/avatars/a-141302.webp",
+   "melted": false,
+   "key": "23-B2-58",
+   "lore": {
+    "性别": "男",
+    "生日": "8月27日",
+    "身高": "6'1''",
+    "配音": "诹访部顺一",
+    "唤醒台词": "在海洋的尽头，有一场永无休止的狂欢。",
+    "简介": "深渊令他得以将一切留存，不会再有任何事物，能让他面对无望的分离。"
+   },
+   "human": false
+  },
+  {
+   "n": 59,
+   "slug": "lotan-cetarchon",
+   "name": "蚀灭·萝坦",
+   "realm": "CHAOS",
+   "role": "ASSAULT",
+   "item": "苦痛圣腕",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_007.webp",
+   "avatar": "assets/avatars/a-145363.webp",
+   "melted": false,
+   "key": "56-E4-59",
+   "lore": {
+    "性别": "女",
+    "生日": "3月21日",
+    "身高": "5'6''",
+    "配音": "宫园美海",
+    "唤醒台词": "前进，是风暴唯一的方向。 而她，生来就是风暴。",
+    "简介": "为战斗而生的战士，越强大的敌人越让她感到兴奋。合璧沉鲸的巨剑，她吞噬一切，征服一切。"
+   },
+   "human": false
+  },
+  {
+   "n": 60,
+   "slug": "caraboo",
+   "name": "卡拉布",
+   "realm": "CARO",
+   "role": "WARDEN",
+   "item": "哭泣烟斗",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_087.webp",
+   "avatar": "assets/avatars/a-77921.webp",
+   "melted": false,
+   "key": "17-D1-60",
+   "lore": {
+    "性别": "女",
+    "生日": "4月27日",
+    "身高": "4' 7.6''",
+    "配音": "钉宫理惠",
+    "唤醒台词": "仙女赐福，欢迎供奉！这位恩公，来点什么价位的？",
+    "简介": "仙女馈赠的礼物早已在暗中标好了价格，苍白的身躯吞噬无数贪婪的冤魂。"
+   },
+   "human": false
+  },
+  {
+   "n": 61,
+   "slug": "ogier-oathbound",
+   "name": "负誓·奥吉尔",
+   "realm": "CHAOS",
+   "role": "WARDEN",
+   "item": "独行者之徽",
+   "itemClass": "none",
+   "itemImg": "assets/creation/Icon_Creation_044.webp",
+   "avatar": "assets/avatars/a-148578.webp",
+   "melted": false,
+   "key": "48-B1-61",
+   "lore": {
+    "性别": "男",
+    "生日": "5月5日",
+    "身高": "4'8\"",
+    "配音": "音羽里奏",
+    "唤醒台词": "骑士重新向不可战胜的阴影举起了盾与枪，他将为自己赢得荣耀，或赢得死亡。",
+    "简介": "不要听那充满诱惑的低语，祂将牵着你直坠地狱。道路已在眼前分岔，走向杀戮还是守护，答案在你心中。"
+   },
+   "human": false
+  },
+  {
+   "n": 62,
+   "slug": "vivian",
+   "name": "薇薇安",
+   "realm": "CHAOS",
+   "role": "CHORUS",
+   "item": "☆六分仪☆",
+   "itemClass": "pierce",
+   "itemImg": "assets/creation/Icon_Creation_148.webp",
+   "avatar": "assets/avatars/a-151844.webp",
+   "melted": false,
+   "key": "47-C3-62",
+   "lore": {
+    "性别": "女",
+    "生日": "2月22日",
+    "身高": "6'7''",
+    "配音": "优月和香",
+    "唤醒台词": "无人生还的大灾难要到来了？好吧、好吧，先让她再睡一觉……",
+    "简介": "千万不要打扰女巫的睡眠，她会向你倾泻难以抵御的怒火。"
+   },
+   "human": false
+  },
+  {
+   "n": 63,
+   "slug": "william",
+   "name": "威廉",
+   "realm": "HUMAN",
+   "role": "INV",
+   "item": "融蚀观测仪",
+   "itemClass": "blunt",
+   "itemImg": null,
+   "avatar": "assets/avatars-q/char-william.webp",
+   "melted": false,
+   "key": "21-B1-63",
+   "lore": {
+    "性别": "男",
+    "简介": "威廉·德拉普尔，弥萨格的外勤调查员，经验丰富，守密人的学长兼训练老师。随身带着笨重的融蚀观测仪与手提箱，生性孤僻，不喜欢与陌生人相处。他不是唤醒体——胸口没有银芯。"
+   },
+   "human": true
+  }
+ ],
+ "places": {
+  "A1": "灯塔",
+  "B1": "码头",
+  "C1": "渔市",
+  "D1": "船坞",
+  "E1": "海崖",
+  "A2": "雾堤",
+  "B2": "货仓",
+  "C2": "酒馆",
+  "D2": "礁石",
+  "E2": "沙滩",
+  "A3": "旧教堂",
+  "B3": "鱼市",
+  "C3": "港务厅",
+  "D3": "沉船",
+  "E3": "防波堤",
+  "A4": "盐田",
+  "B4": "修船厂",
+  "C4": "渔民区",
+  "D4": "海关",
+  "E4": "货栈",
+  "A5": "浅滩",
+  "B5": "水塔",
+  "C5": "渡口",
+  "D5": "暗礁",
+  "E5": "观潮台"
+ },
+ "zones": [
+  {
+   "day": 1,
+   "hour": 19,
+   "cell": "D5"
+  },
+  {
+   "day": 1,
+   "hour": 20,
+   "cell": "A4"
+  },
+  {
+   "day": 1,
+   "hour": 21,
+   "cell": "E2"
+  },
+  {
+   "day": 1,
+   "hour": 22,
+   "cell": "A5"
+  },
+  {
+   "day": 1,
+   "hour": 23,
+   "cell": "D1"
+  },
+  {
+   "day": 2,
+   "hour": 0,
+   "cell": "B5"
+  },
+  {
+   "day": 2,
+   "hour": 1,
+   "cell": "C5"
+  },
+  {
+   "day": 2,
+   "hour": 2,
+   "cell": "E3"
+  },
+  {
+   "day": 2,
+   "hour": 3,
+   "cell": "E4"
+  },
+  {
+   "day": 2,
+   "hour": 4,
+   "cell": "A3"
+  },
+  {
+   "day": 2,
+   "hour": 5,
+   "cell": "D3"
+  },
+  {
+   "day": 2,
+   "hour": 6,
+   "cell": "B3"
+  },
+  {
+   "day": 2,
+   "hour": 7,
+   "cell": "B4"
+  },
+  {
+   "day": 2,
+   "hour": 8,
+   "cell": "C1"
+  },
+  {
+   "day": 2,
+   "hour": 9,
+   "cell": "E5"
+  },
+  {
+   "day": 2,
+   "hour": 10,
+   "cell": "B1"
+  },
+  {
+   "day": 2,
+   "hour": 11,
+   "cell": "B2"
+  },
+  {
+   "day": 2,
+   "hour": 12,
+   "cell": "A2"
+  },
+  {
+   "day": 2,
+   "hour": 13,
+   "cell": "C4"
+  },
+  {
+   "day": 2,
+   "hour": 14,
+   "cell": "A1"
+  },
+  {
+   "day": 2,
+   "hour": 15,
+   "cell": "D4"
+  },
+  {
+   "day": 2,
+   "hour": 16,
+   "cell": "D2"
+  },
+  {
+   "day": 2,
+   "hour": 17,
+   "cell": "E1"
+  },
+  {
+   "day": 2,
+   "hour": 18,
+   "cell": "C2"
+  },
+  {
+   "day": 2,
+   "hour": 19,
+   "cell": "C3"
+  }
+ ],
+ "causes": {
+  "blast": "爆炸致死",
+  "slash": "斩击致死",
+  "pierce": "刺击致死",
+  "blunt": "钝击致死",
+  "shoot": "射击致死",
+  "poison": "中毒致死",
+  "strangle": "勒杀致死",
+  "fall": "坠落致死",
+  "accident": "意外死亡"
+ },
+ "records": {
+  "01-C3-37": {
+   "key": "01-C3-37",
+   "dord": 1,
+   "cell": "C3",
+   "num": 37,
+   "name": "宁菲亚",
+   "when": "第1天 18:00",
+   "min": 1080,
+   "text": "港务厅里挂满了过期的航海图，窗外是白茫茫的雾。他们把我叫到长桌前，说要先让所有人明白一件事。\n我把蓝闪蝶别在胸前，标本做得很好，它不会飞走了。\n一个声音念了一遍规则，很短。然后我胸口的银芯亮了，烫得像海。\n「24」坐在窗边，一只手按着胸口，像在安抚里面的什么。我朝她笑了一下，她回了。\n原来示范是这个意思：让所有人看清楚，这不是戏。\n未曾绽放的睡莲，回归了海的怀抱。\n\n[sys]\n-- 检测到银芯启动。关于银芯的说明请参考 [link]00-CHIP[/link] --\n-- 检测到银芯被强制崩解 --\n[/sys]",
+   "refs": [],
+   "sys": [
+    "00-CHIP"
+   ],
+   "facts": {
+    "names": [],
+    "items": [],
+    "locs": [
+     "C3"
+    ],
+    "bcs": [],
+    "wits": []
+   }
+  },
+  "02-B1-11": {
+   "key": "02-B1-11",
+   "dord": 2,
+   "cell": "B1",
+   "num": 11,
+   "name": "克珀珊特",
+   "when": "第1天 18:30",
+   "min": 1110,
+   "text": "码头没有船，只有雾和木桩，水拍在上面，像有人在敲门。我把☆旧船锚☆抱在怀里，像抱着最后一块陆地。\n凯刻斯从雾里走出来，鳞刺在灯下泛着冷光，手里垂着重锁。“对不起，”他说，“我要带一样东西回去。”\n“带什么？”\n“证明。”\n锁链绕上脖子，一圈，两圈。他的手在发抖，一句话也没说。\n他弯下腰，把锚从我怀里拿走了。这不是他的错，也不是我的。离了船，我本来什么也不是。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [],
+   "sys": [],
+   "facts": {
+    "names": [],
+    "items": [
+     6,
+     11
+    ],
+    "locs": [
+     "B1"
+    ],
+    "bcs": [],
+    "wits": []
+   }
+  },
+  "03-A1-08": {
+   "key": "03-A1-08",
+   "dord": 3,
+   "cell": "A1",
+   "num": 8,
+   "name": "卡斯托尔",
+   "when": "第1天 18:50",
+   "min": 1130,
+   "text": "灯塔很高，顶端的灯早就坏了，雾从脚下往上爬。我扶着栏杆，数自己的羽毛——一根也不能少。\n波吕克斯从楼梯上来，手里握着巨人之刃，刃口很宽，是他的东西，也是他的脾气。\n我记着码头：克珀珊特，第二个。顺序不会错，是我自己数的。\n“你许过愿吗？”他问。\n“许过。”\n“那就别许了。”他说，“这里的神不听话。”\n他出手的时候没有犹豫，我却犹豫了。我这一生都在等一个人替我做决定，原来是他。\n我掉下去之前，看见他跪在栏杆边上，翅膀抖得像要飞起来。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "02-B1-11"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     11
+    ],
+    "items": [
+     41
+    ],
+    "locs": [
+     "A1"
+    ],
+    "bcs": [],
+    "wits": [
+     11
+    ]
+   }
+  },
+  "04-D5-31": {
+   "key": "04-D5-31",
+   "dord": 4,
+   "cell": "D5",
+   "num": 31,
+   "name": "萝坦",
+   "when": "第1天 19:00",
+   "min": 1140,
+   "text": "暗礁藏在水下，只有浪花告诉人它在哪里。我站在礁石上，把石碑从肩上放下来，石头的棱角早就磨圆了。\n风暴在远处响，我听得出那是黑潮的声音，它不认人，也不认石头。\n卡斯托尔死在了灯塔。我数过，那是第三个。\n“目前已死亡3人。新增的死者：宁菲亚、克珀珊特、卡斯托尔。”然后是封锁的名单——十九点整，暗礁。\n我把石碑立在礁石中间，像给谁立了一块临时的碑。\n浪打上来的时候，石碑没有倒，它在水里站得比我还稳。倒下的是我。\n风暴终究会累。我先累了。\n\n[sys]\n-- 检测到银芯被强制崩解 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "03-A1-08"
+   ],
+   "sys": [
+    "00-ZONE"
+   ],
+   "facts": {
+    "names": [
+     8
+    ],
+    "items": [],
+    "locs": [
+     "D5"
+    ],
+    "bcs": [
+     "D1-19"
+    ],
+    "wits": [
+     8
+    ]
+   }
+  },
+  "05-D3-02": {
+   "key": "05-D3-02",
+   "dord": 5,
+   "cell": "D3",
+   "num": 2,
+   "name": "阿格里帕",
+   "when": "第1天 19:07",
+   "min": 1147,
+   "text": "沉船只剩半截桅杆，甲板上长满了海藻。我走过去，脚下的木板一块一块地软下去。\n我在心里把这座港口折成一张网，每一个出口都在我的掌心里——只有这一条，找不到。\n暗礁的灯灭的时候，萝坦是第四个。\n我的子嗣能自由出入任何地方。我，走不出去。\n我从袖子里摸出那瓶早就备好的东西，倒进嘴里。\n不是谁逼我的。我只是不想在一个我找不到出口的迷宫里，被人找到。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "04-D5-31"
+   ],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [
+     31
+    ],
+    "items": [],
+    "locs": [
+     "D3"
+    ],
+    "bcs": [],
+    "wits": [
+     31
+    ]
+   }
+  },
+  "06-C2-43": {
+   "key": "06-C2-43",
+   "dord": 6,
+   "cell": "C2",
+   "num": 43,
+   "name": "莱克",
+   "when": "第1天 19:30",
+   "min": 1170,
+   "text": "酒馆里点着一盏很暗的灯，吧台上留着半杯没喝完的酒。我坐到最靠里的位置，把手杖靠在桌边。\n有人在我对面坐下，礼帽压得很低，帽檐下面是一团缓缓涌动的雾。\n清单上写着：第一个，宁菲亚，港务厅。\n“来，我们赌一局。”他说，声音礼貌极了，“赌你是第几个。”\n“我和人赌过三百一十六局。”\n“我知道。”他说，“我也在。”\n他推过来一杯酒。杯沿很苦，然后是甜，然后什么也尝不出来了。\n听说沉船那边，阿格里帕是第五个倒下的。\n猫在窗台上看着。庄家从来不是我们。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "01-C3-37",
+    "05-D3-02"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     2,
+     37
+    ],
+    "items": [],
+    "locs": [
+     "C2"
+    ],
+    "bcs": [],
+    "wits": [
+     37,
+     2
+    ]
+   }
+  },
+  "07-C2-21": {
+   "key": "07-C2-21",
+   "dord": 7,
+   "cell": "C2",
+   "num": 21,
+   "name": "戈利亚",
+   "when": "第1天 20:00",
+   "min": 1200,
+   "text": "酒馆里只剩一盏灯。我坐在吧台边，把巨剑靠在桌上，一杯接一杯。他们叫我“大人”，我只是一个比较大的人。\n有人给我添了一杯酒，袖口里滑出一只小铁盒，可疑的药膏。抹在杯沿上的那点甜，像一条很细的蛇游进喉咙。\n我记着沉船：阿格里帕，第五个。顺序不会错，是我自己数的。\n“你父亲呢？”我问。\n“他教我祈祷，也教我用药。”她看着我的杯子，“对不起。”\n我伸手去抓巨剑，剑太重了，我抬不起来。\n我在窗口看见酒馆的方向暗了一下——后来才知道，那是莱克，第六个。\n“为……”我说。为谁拔剑，这一句我没能说完。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "05-D3-02",
+    "06-C2-43"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     2,
+     43
+    ],
+    "items": [
+     32
+    ],
+    "locs": [
+     "C2"
+    ],
+    "bcs": [],
+    "wits": [
+     2,
+     43
+    ]
+   }
+  },
+  "08-B2-45": {
+   "key": "08-B2-45",
+   "dord": 8,
+   "cell": "B2",
+   "num": 45,
+   "name": "珊",
+   "when": "第1天 20:20",
+   "min": 1220,
+   "text": "货仓里堆满没有标签的木箱，空气里有一股潮湿的木头味。我坐在箱子上，把引舵之帆摊开，想核对今晚还剩几件货没有被拿走。\n有人从箱堆后面绕出来，眼睛在雾里发亮。“这艘船，我要了。”她说。\n听说灯塔那边，卡斯托尔是第三个倒下的。\n“这不是船，是货仓。”\n“在我这儿，都是船。”\n她一把夺过我手里的帆布，反手把它罩在我头上。布很厚，越裹越紧。\n有人从酒馆那边过来，说戈利亚是第七个。\n我雕过很多石壁，最后想雕的是一艘船。可惜我从来没有见过海。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "03-A1-08",
+    "07-C2-21"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     8,
+     21
+    ],
+    "items": [
+     45
+    ],
+    "locs": [
+     "B2"
+    ],
+    "bcs": [],
+    "wits": [
+     8,
+     21
+    ]
+   }
+  },
+  "09-C3-14": {
+   "key": "09-C3-14",
+   "dord": 9,
+   "cell": "C3",
+   "num": 14,
+   "name": "杜勒赛因",
+   "when": "第1天 20:29",
+   "min": 1229,
+   "text": "港务厅里，过期的航海图被我一张张翻过。我闻了一下空气——雾是咸的，人是甜的，今晚会有一场好席。\n希洛走进来，肩上背着镭射颌骨，枪管像一块颌骨。她的眼睛一直在找什么，找得很急。\n听说酒馆那边，莱克是第六个倒下的。\n“你见过一个小女孩吗？”她问。\n“见过。”我说，“她刚才还在这儿。”\n其实没有。我只是想看看，一个饿着心的人会怎么走向我。\n戈利亚死在了酒馆。我数过，那是第七个。\n她抬起枪。优雅的食者，也会在这一刻承认：今晚的主菜是我。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "06-C2-43",
+    "07-C2-21"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     21,
+     43
+    ],
+    "items": [
+     23
+    ],
+    "locs": [
+     "C3"
+    ],
+    "bcs": [],
+    "wits": [
+     43,
+     21
+    ]
+   }
+  },
+  "10-C4-47": {
+   "key": "10-C4-47",
+   "dord": 10,
+   "cell": "C4",
+   "num": 47,
+   "name": "塔薇",
+   "when": "第1天 20:39",
+   "min": 1239,
+   "text": "渔民区的门都关着，窗后面没有一盏灯。我站在巷子中间，雾把两边的墙都吃掉了。\n我通晓一切，却不知道醒来以后要做什么。这个问题我想了三百年，今晚忽然有了答案：找一个人。\n我记得很清楚：暗礁，萝坦，第四个。\n沙耶从雾里走出来，手里垂着一条干枯的蛇蜕，怪蛇残蜕。\n“你找谁？”她问。\n“找一个会叫我名字的人。”\n“那不是我。”她说，然后把蛇蜕绕上来。\n听说港务厅那边，杜勒赛因是第九个倒下的。\n她说得对。所以她动手的时候，我一点也没有反抗。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "04-D5-31",
+    "09-C3-14"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     14,
+     31
+    ],
+    "items": [
+     57
+    ],
+    "locs": [
+     "C4"
+    ],
+    "bcs": [],
+    "wits": [
+     31,
+     14
+    ]
+   }
+  },
+  "11-E2-55": {
+   "key": "11-E2-55",
+   "dord": 11,
+   "cell": "E2",
+   "num": 55,
+   "name": "莫丝",
+   "when": "第1天 21:00",
+   "min": 1260,
+   "text": "沙滩的沙很细，脚印刚落下就被潮水收走。我把重火器架在一块礁石上，对着空白的海面校准。\n漩涡这东西听不懂人话，可它听得懂我。\n“目前已死亡10人。新增的死者：戈利亚、珊、杜勒赛因、塔薇。”然后是封锁的名单——二十一点整，沙滩。\n我想走到水边去，可潮水已经上来了，比我想的快得多，也比我想的安静。\n拘束、引导、释放、毁灭。我这一辈子只会这四件事，现在只剩最后一件，而且它第一次不是对着别人。\n\n[sys]\n-- 检测到银芯被强制崩解 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [],
+   "sys": [
+    "00-ZONE"
+   ],
+   "facts": {
+    "names": [],
+    "items": [],
+    "locs": [
+     "E2"
+    ],
+    "bcs": [
+     "D1-21"
+    ],
+    "wits": []
+   }
+  },
+  "12-C1-06": {
+   "key": "12-C1-06",
+   "dord": 12,
+   "cell": "C1",
+   "num": 6,
+   "name": "凯刻斯",
+   "when": "第1天 21:30",
+   "min": 1290,
+   "text": "渔市只剩下冰冷的鱼腥味，摊位上的冰早就化了。我坐在案板旁边，把重锁盘在膝盖上。\n我拿到了证明——一条命，换一张能带回族的凭证。可凭证在谁手里，我到现在也没弄明白。\n有人端着原型电池走过来，电池的接口在她掌心亮了一下。“你冷吗？”她问。\n“不冷。”\n“那就好。”她说，“我不喜欢看人受苦。”\n光从很近的地方过来，比鳞片上的冷光暖。\n她弯下腰，把那串锁链从我怀里拿走了。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [],
+   "sys": [],
+   "facts": {
+    "names": [],
+    "items": [
+     6,
+     17
+    ],
+    "locs": [
+     "C1"
+    ],
+    "bcs": [],
+    "wits": []
+   }
+  },
+  "13-B5-40": {
+   "key": "13-B5-40",
+   "dord": 13,
+   "cell": "B5",
+   "num": 40,
+   "name": "皮克曼",
+   "when": "第1天 21:46",
+   "min": 1306,
+   "text": "水塔的梯子很高，爬上去能听见雾在远处呼吸。我把画板架在铁栏上，画今晚第二十三个人的脸。\n有人从梯子上来，肩上背着一台笨重的东西，融蚀观测仪，仪器在他手里发出很轻的滴答声。\n塔薇……在渔民区。第十个。我把这三样东西在心里默念了一遍，怕自己忘掉。\n“别动。”他说，“先观测，再开口。”\n“我只画一张。”\n“这里没有什么值得画。”他把仪器转过来对准我，“尤其是人。”\n滴答声突然变密。他皱了皱眉，像在确认一个他早就知道的结果。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "10-C4-47"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     47
+    ],
+    "items": [
+     63
+    ],
+    "locs": [
+     "B5"
+    ],
+    "bcs": [],
+    "wits": [
+     47
+    ]
+   }
+  },
+  "14-A5-27": {
+   "key": "14-A5-27",
+   "dord": 14,
+   "cell": "A5",
+   "num": 27,
+   "name": "凯蒂古拉",
+   "when": "第1天 22:00",
+   "min": 1320,
+   "text": "浅滩的水很浅，却一直漫到膝盖。我站在水里，把鞋脱下来提在手上，觉得这样才像一个送礼物的人。\n平等的死亡，是我愿意给这世界的礼物。我一直这么说。\n皮克曼……在水塔。第十三个。我把这三样东西在心里默念了一遍，怕自己忘掉。\n“目前已死亡13人。新增的死者：莫丝、凯刻斯、皮克曼。”然后是封锁的名单——二十二点整，浅滩。\n水开始发烫，不是热的那种烫，是从胸口开始的。\n我把鞋摆在一块干石头上，摆得很正。太阳也会有落下去的时候，只是没人敢看。\n今晚有人看了。\n\n[sys]\n-- 检测到银芯被强制崩解 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "13-B5-40"
+   ],
+   "sys": [
+    "00-ZONE"
+   ],
+   "facts": {
+    "names": [
+     40
+    ],
+    "items": [],
+    "locs": [
+     "A5"
+    ],
+    "bcs": [
+     "D1-22"
+    ],
+    "wits": [
+     40
+    ]
+   }
+  },
+  "15-E4-26": {
+   "key": "15-E4-26",
+   "dord": 15,
+   "cell": "E4",
+   "num": 26,
+   "name": "珈伦",
+   "when": "第1天 22:16",
+   "min": 1336,
+   "text": "货栈里的货物全被潮水泡成了一团。我蹲在中间，把围裙的一角拧干，想找一口还能用的锅。\n有人从货堆的另一头爬出来，手里提着一顶潜水头盔，盔面上的水痕还没干。\n无线电里的杂音间隙传来一句：凯蒂古拉死在浅滩，是第十四个。\n“你会煮汤吗？”他问。\n“会。”\n“那你教我。”\n我把手伸过去，他把头盔扣了下来，很重，重得不像一件礼物。\n我煮过很多汤，尝过每一碗的咸淡。最后这一碗，是别人替我盛的，我没有机会再尝。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "14-A5-27"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     27
+    ],
+    "items": [
+     25
+    ],
+    "locs": [
+     "E4"
+    ],
+    "bcs": [],
+    "wits": [
+     27
+    ]
+   }
+  },
+  "16-B1-30": {
+   "key": "16-B1-30",
+   "dord": 16,
+   "cell": "B1",
+   "num": 30,
+   "name": "莉兹",
+   "when": "第1天 22:40",
+   "min": 1360,
+   "text": "码头的栈桥像一条长长的舞台。我踮起足尖，沿着湿漉漉的木板旋转——旋转这件事，我做过一万次。\n达芙黛尔从雾里走出来，撑着一把伞，旅行阳伞。“这座舞台，我租下了。”她说，“你欠我一个节目的报酬。”\n我在窗口看见渔市的方向暗了一下——后来才知道，那是凯刻斯，第十二个。\n“我没有钱。”\n“我只收一样东西。”伞尖抬起来，“你的青色火焰。”\n伞尖从肋间刺进来。我掌心的火亮了一下，又灭了。\n听说浅滩那边，凯蒂古拉是第十四个倒下的。\n她把伞收回，对着我的脸，礼貌地鞠了一躬。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "12-C1-06",
+    "14-A5-27"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     6,
+     27
+    ],
+    "items": [
+     12
+    ],
+    "locs": [
+     "B1"
+    ],
+    "bcs": [],
+    "wits": [
+     6,
+     27
+    ]
+   }
+  },
+  "17-D1-60": {
+   "key": "17-D1-60",
+   "dord": 17,
+   "cell": "D1",
+   "num": 60,
+   "name": "卡拉布",
+   "when": "第1天 23:00",
+   "min": 1380,
+   "text": "船坞里停着几只没有桨的船，船底长满了藤壶。我坐在船头，把账本摊开，一笔一笔地算。\n我这一生收过很多报酬：一支舞、一段记忆、一颗头颅。今晚有人用一整座港口，向我买了一样东西。\n我记着沙滩：莫丝，第十一个。顺序不会错，是我自己数的。\n“目前已死亡16人。新增的死者：凯蒂古拉、珈伦、莉兹。”然后是封锁的名单——二十三点整，船坞。\n我没收他的钱。生意人最怕的不是死，是这种没有价码的客人。\n船底的藤壶先热起来。我把账本合上，像合上一件抵押品。\n\n[sys]\n-- 检测到银芯被强制崩解 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "11-E2-55"
+   ],
+   "sys": [
+    "00-ZONE"
+   ],
+   "facts": {
+    "names": [
+     55
+    ],
+    "items": [],
+    "locs": [
+     "D1"
+    ],
+    "bcs": [
+     "D1-23"
+    ],
+    "wits": [
+     55
+    ]
+   }
+  },
+  "18-D2-04": {
+   "key": "18-D2-04",
+   "dord": 18,
+   "cell": "D2",
+   "num": 4,
+   "name": "艾尔瓦",
+   "when": "第1天 23:20",
+   "min": 1400,
+   "text": "礁石的礁石被浪一遍一遍地舔，像一排黑色的牙齿。我把骸骨杯盏插进缝里，坐下来，数自己还剩几处不是血肉的地方。\n泰旖丝沿着礁石走过来。“孩子，”她说，“别坐在湿的地方。”\n我记得很清楚：港务厅，杜勒赛因，第九个。\n“我不是孩子。”\n“在我这儿，都是。”\n她手里那盏杯盏很旧，骨头上镶着一圈银。她把杯沿送到我嘴边，像在喂一个不肯吃药的人。\n广播说，第十二个是凯刻斯，死在渔市。\n我喝了一口。战场教会我的只有一样东西，可今晚我没有用上。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "09-C3-14",
+    "12-C1-06"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     6,
+     14
+    ],
+    "items": [
+     48
+    ],
+    "locs": [
+     "D2"
+    ],
+    "bcs": [],
+    "wits": [
+     14,
+     6
+    ]
+   }
+  },
+  "19-A3-48": {
+   "key": "19-A3-48",
+   "dord": 19,
+   "cell": "A3",
+   "num": 48,
+   "name": "泰旖丝",
+   "when": "第1天 23:26",
+   "min": 1406,
+   "text": "旧教堂的长椅落满了灰，圣坛上一盏灯也没有。我捧着空了的骸骨杯盏坐在最前排，对着黑暗念了一段祷词。\n我孕育过圣树之子，教他们吞噬，教他们成为我的孩子。今晚没有一个孩子来叫我母亲。\n清单上写着：第十八个，艾尔瓦，礁石。\n我站起来，想去点一盏灯。脚下踩到了什么，很滑，像是谁把海带拖了进来。\n我摔倒的时候，杯盏先落地，碎成了三块。\n成为我的……孩子。这句话，最后没有人接。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "18-D2-04"
+   ],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [
+     4
+    ],
+    "items": [
+     48
+    ],
+    "locs": [
+     "A3"
+    ],
+    "bcs": [],
+    "wits": [
+     4
+    ]
+   }
+  },
+  "20-E5-23": {
+   "key": "20-E5-23",
+   "dord": 20,
+   "cell": "E5",
+   "num": 23,
+   "name": "希洛",
+   "when": "第1天 23:55",
+   "min": 1435,
+   "text": "观潮台的望远镜对着空白的海平线。我把眼睛贴上去，看了很久，什么也没有。\n我在找一个小小的人。她怕黑，怕水，怕生人，可她从来不怕我。\n珈伦，货栈，第十五个——我把它抄在手心，怕忘。\n有人在旁边坐下了，礼帽压得很低，帽檐下面只有一团雾。\n“我们打个赌，”他说，“赌她还活着。”\n“她活着。”我说。\n“答错了。”他很礼貌地补了一句，“不过你很勇敢。”\n雾从我的口鼻钻进来。我最后想的是：莉莉，妈妈这次没有找错地方，只是来晚了。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "15-E4-26"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     26
+    ],
+    "items": [],
+    "locs": [
+     "E5"
+    ],
+    "bcs": [],
+    "wits": [
+     26
+    ]
+   }
+  },
+  "21-B1-63": {
+   "key": "21-B1-63",
+   "dord": 21,
+   "cell": "B1",
+   "num": 63,
+   "name": "威廉",
+   "when": "第2天 00:10",
+   "min": 1450,
+   "text": "码头的栈桥尽头没有灯。我把手提箱放下，从里面取出融蚀观测仪，对着雾扫了一遍。\n读数全是零。这座港口里每一个唤醒体胸口都有一枚银芯，读数不可能是零——除非他胸口没有银芯。\n听说码头那边，莉兹是第十六个倒下的。\n有人站在我旁边，礼帽，帽檐下是一团雾。“你测不出来，”他说，“因为我不在名册上。”\n“那你是什么？”\n“一个下注的人。”\n他伸出手，很轻地按在我的喉咙上。这不公平——黑潮碰不到我，崩解也碰不到我，可一双手可以。\n学长，我这次观测到了。只是没能写下来。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "16-B1-30"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     30
+    ],
+    "items": [
+     63
+    ],
+    "locs": [
+     "B1"
+    ],
+    "bcs": [],
+    "wits": [
+     30
+    ]
+   }
+  },
+  "22-A2-28": {
+   "key": "22-A2-28",
+   "dord": 22,
+   "cell": "A2",
+   "num": 28,
+   "name": "雷娅",
+   "when": "第2天 00:42",
+   "min": 1482,
+   "text": "雾堤被雾吞得只剩一条线，脚下的石头湿滑。我一路走到堤坝尽头，那里站着图鲁。\n他一直站着，像在等人。我问他：你在等谁。他说：余在等人。\n广播说，第十六个是莉兹，死在码头。\n我说，痛是我的酒，今晚没有人替我斟满。\n他看了我一会儿，抬起手，很轻地在我胸口按了一下，像在确认一件东西还在不在。\n然后他推了我一把。力气很小，可我早就站不稳了。\n我在窗口看见旧教堂的方向暗了一下——后来才知道，那是泰旖丝，第十九个。\n我终于被斟满了。原来最深的痛，是没有痛。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "16-B1-30",
+    "19-A3-48"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     30,
+     48
+    ],
+    "items": [],
+    "locs": [
+     "A2"
+    ],
+    "bcs": [],
+    "wits": [
+     30,
+     48
+    ]
+   }
+  },
+  "23-B2-58": {
+   "key": "23-B2-58",
+   "dord": 23,
+   "cell": "B2",
+   "num": 58,
+   "name": "庞托斯",
+   "when": "第2天 00:50",
+   "min": 1490,
+   "text": "货仓里堆满没有标签的木箱。我靠着货堆坐下，把一条链子绕在腕上，那是从别人身上拿来的重锁，很沉。\n海洋尽头有一场永无休止的狂欢。我追了它一辈子，今晚才发现，狂欢的入口是一条锁链。\n我记得很清楚：旧教堂，泰旖丝，第十九个。\n有人站在箱堆顶上，脚下全是被泡烂的货。“你也是来等潮水的？”她问。\n“我在等一场不会散的席。”\n“那你要等很久。”她把链子的另一头收进手里。\n听说码头那边，威廉是第二十一个倒下的。\n不会再有分离了——我一直这样说。链子紧上去的时候，我还在想这句话。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "19-A3-48",
+    "21-B1-63"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     48,
+     63
+    ],
+    "items": [
+     6
+    ],
+    "locs": [
+     "B2"
+    ],
+    "bcs": [],
+    "wits": [
+     48,
+     63
+    ]
+   }
+  },
+  "24-C5-03": {
+   "key": "24-C5-03",
+   "dord": 24,
+   "cell": "C5",
+   "num": 3,
+   "name": "艾继丝",
+   "when": "第2天 01:00",
+   "min": 1500,
+   "text": "渡口的缆绳一根一根沉进水里。我坐在渡口的木桩上，等一艘不会来的船。\n没有人记得我是什么时候来的——这样很好。名字淡一点，走的时候也轻一点。\n“目前已死亡23人。新增的死者：威廉、雷娅、庞托斯。”然后是封锁的名单——一点整，渡口。\n我把裙摆理好，像准备上一艘很体面的船。\n雾从水面漫上来，先淹到脚，再淹到膝盖，最后淹过肩膀。两周以后，没有人会记得这片海。这一点我很确定，也让我很安心。\n\n[sys]\n-- 检测到银芯被强制崩解 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [],
+   "sys": [
+    "00-ZONE"
+   ],
+   "facts": {
+    "names": [],
+    "items": [],
+    "locs": [
+     "C5"
+    ],
+    "bcs": [
+     "D2-01"
+    ],
+    "wits": []
+   }
+  },
+  "25-D4-18": {
+   "key": "25-D4-18",
+   "dord": 25,
+   "cell": "D4",
+   "num": 18,
+   "name": "熔毁·朵尔",
+   "when": "第2天 01:10",
+   "min": 1510,
+   "text": "海关的旗杆空着，栏杆已经锈了。我靠在栏杆上看海，把手术刀一把一把摆在手边，像摆一副牌。\n有人在我旁边站住了，礼帽，帽檐下面是一团雾。“你想结束。”他说。这不是问句。\n听说观潮台那边，希洛是第二十个倒下的。\n“你怎么知道？”\n“我在你身上下了注。”他说，“从你说‘希望只会让人更痛苦’那天起。”\n雾缠上来的时候，比我想的要温柔。像一条很长很温柔的围巾。\n无线电里的杂音间隙传来一句：艾继丝死在渡口，是第二十四个。\n彻底的毁灭，才是仁慈。我到最后才承认，我是希望有人来拦我的。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "20-E5-23",
+    "24-C5-03"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     3,
+     23
+    ],
+    "items": [],
+    "locs": [
+     "D4"
+    ],
+    "bcs": [],
+    "wits": [
+     23,
+     3
+    ]
+   }
+  },
+  "26-A2-29": {
+   "key": "26-A2-29",
+   "dord": 26,
+   "cell": "A2",
+   "num": 29,
+   "name": "莉莉",
+   "when": "第2天 01:20",
+   "min": 1520,
+   "text": "雾堤的雾很厚，莉莉看不见自己的手。\n莉莉在堤坝上跑，跑一段就停下来听——妈妈说，听见脚步就回头。\n我记着货仓：庞托斯，第二十三个。顺序不会错，是我自己数的。\n有一个脚步很轻的姐姐蹲下来，说她会带莉莉去找妈妈。她手心里有一小盒药膏，可疑的药膏，闻起来像糖。\n“妈妈说过，不吃陌生人的东西。”\n“那就不吃。”她把药膏抹在自己的手指上，说，“你看，我吃。”\n莉莉还是吃了。妈妈的脚步声一直没有来。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "23-B2-58"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     58
+    ],
+    "items": [
+     32
+    ],
+    "locs": [
+     "A2"
+    ],
+    "bcs": [],
+    "wits": [
+     58
+    ]
+   }
+  },
+  "27-C4-42": {
+   "key": "27-C4-42",
+   "dord": 27,
+   "cell": "C4",
+   "num": 42,
+   "name": "拉蒙娜",
+   "when": "第2天 01:40",
+   "min": 1540,
+   "text": "渔民区的渔民区里，门都关着，窗后面没有一盏灯。我站在巷子中间，把牧羊人的手杖横在身前。\n我这一辈子都在领路。观察，感受，思考。今晚我想的是：为谁而拔。\n艾继丝，渡口，第二十四个——我把它抄在手心，怕忘。\n沙耶从雾里走出来，手里垂着一条干枯的蛇蜕，怪蛇残蜕。“拉蒙娜。”她叫我。\n“我不是你要找的那个。”\n“我知道。”她哭着说，“可我找了一整夜。”\n蛇蜕缠上来的那一刻，我没有拔剑。我想，被认错也是一种被找到。\n清单上写着：第二十五个，熔毁·朵尔，海关。\n牧场上的羊，从来不问领路的人要去哪里。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "24-C5-03",
+    "25-D4-18"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     3,
+     18
+    ],
+    "items": [
+     42,
+     57
+    ],
+    "locs": [
+     "C4"
+    ],
+    "bcs": [],
+    "wits": [
+     3,
+     18
+    ]
+   }
+  },
+  "28-A1-41": {
+   "key": "28-A1-41",
+   "dord": 28,
+   "cell": "A1",
+   "num": 41,
+   "name": "波吕克斯",
+   "when": "第2天 01:50",
+   "min": 1550,
+   "text": "灯塔的楼梯很窄，灯早就坏了。我一级一级往上走，握着巨人之刃，刃口上还留着卡斯托尔的血。\n我杀了他。圣子不能回头，可我回头了，看见他跪在栏杆边上，翅膀抖得像要飞起来。\n我在货仓听见人念庞托斯的名字，念到“第二十三个”就停了。\n现在我到顶了。顶上的灯座是空的，风从里面穿过去，像有人在吹一支很薄的笛子。\n雾在脚下翻。我忽然想：他说这里的神不听话。可我们谁也没有求过。\n我把刀放下，然后往前走了一步。\n我记得很清楚：雾堤，莉莉，第二十六个。\n我没有被谁推。我只是想追上去，跟他道个歉。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "23-B2-58",
+    "26-A2-29"
+   ],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [
+     29,
+     58
+    ],
+    "items": [
+     41
+    ],
+    "locs": [
+     "A1"
+    ],
+    "bcs": [],
+    "wits": [
+     58,
+     29
+    ]
+   }
+  },
+  "29-D4-13": {
+   "key": "29-D4-13",
+   "dord": 29,
+   "cell": "D4",
+   "num": 13,
+   "name": "朵尔",
+   "when": "第2天 02:10",
+   "min": 1570,
+   "text": "海关的栏杆上结着盐。我坐下来，把手提箱放在脚边，把里面的药瓶一支一支摆开。\n我这一生给人开的最后一张方子，是给一个孩子的。他杀了人，然后站在旗杆下面等下一场雾。\n我记着渔民区：拉蒙娜，第二十七个。顺序不会错，是我自己数的。\n我追上来了，用了医生手提箱。他倒下的时候，表情很轻，像一个终于被允许睡觉的人。\n然后我发现，我治不了自己。\n没有人追我，没有人逼我。我把最后一支药喝完了。\n活着的人要对死去的人更温柔一点。这句话，我留给了别人。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "27-C4-42"
+   ],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [
+     42
+    ],
+    "items": [
+     10
+    ],
+    "locs": [
+     "D4"
+    ],
+    "bcs": [],
+    "wits": [
+     42
+    ]
+   }
+  },
+  "30-D2-17": {
+   "key": "30-D2-17",
+   "dord": 30,
+   "cell": "D2",
+   "num": 17,
+   "name": "法洛思",
+   "when": "第2天 02:30",
+   "min": 1590,
+   "text": "礁石的礁石一排黑色的牙齿。我坐在最高的一块上，把原型电池收进袖口，电池已经不热了。\n我杀过两个人。一个要带证明回家，一个要等一场不会散的席。他们都没有挣扎。\n广播说，第二十九个是朵尔，死在海关。\n我孕育过圣树之子，教他们吞噬。可我从来没有教过自己，怎么在雾里呼吸。\n希莱斯特从礁石那头走过来，没有带星象仪。“那艘船，”她问，“为什么会沉呢？”\n“因为我把它想成了我自己。”\n她伸手推了我一下，很轻。风忽然很大。\n我想回去。哪怕只剩一张模糊的图像。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "29-D4-13"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     13
+    ],
+    "items": [
+     17
+    ],
+    "locs": [
+     "D2"
+    ],
+    "bcs": [],
+    "wits": [
+     13
+    ]
+   }
+  },
+  "31-E1-57": {
+   "key": "31-E1-57",
+   "dord": 31,
+   "cell": "E1",
+   "num": 57,
+   "name": "沙耶",
+   "when": "第2天 02:40",
+   "min": 1600,
+   "text": "海崖边的风像一只很湿的手，推着人往前。我站在崖边，把蛇蜕一圈一圈收回来。\n我杀了两个人。一个是问路的，一个是我认错的。\n有人在走廊里喊：法洛思在礁石没了，第三十个！\n真正的那个，环行·拉蒙娜，我在渔民区的巷子里看见过她——她撑着杖，从我身边走过去，没有认出我。\n当所有的蒲公英被吹散，我们将重逢。我一直信这句话。原来重逢是这样的：她走过去，我认出了她。\n爱是唯一的命题。可没人说，答案要一个人写。\n崖下的雾很软。我往前走了一步。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "30-D2-17"
+   ],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [
+     17
+    ],
+    "items": [],
+    "locs": [
+     "E1"
+    ],
+    "bcs": [],
+    "wits": [
+     17
+    ]
+   }
+  },
+  "32-B2-05": {
+   "key": "32-B2-05",
+   "dord": 32,
+   "cell": "B2",
+   "num": 5,
+   "name": "奥瑞塔",
+   "when": "第2天 03:11",
+   "min": 1631,
+   "text": "货仓里的木箱全是空的。我坐在最里面，把手按在胸口数着心跳，一下，一下，像在数漏进来的水。\n奥尔拉捧着一只小瓶过来，瓶底有一层暗红色的东西，超弦腐血制剂。“喝吧，”她说，“喝完就不怕黑了。”\n有人从雾堤那边过来，说莉莉是第二十六个。\n“我怕的不是黑。”\n“我知道。”她蹲下来，很温柔，“你怕的是没有人看着你。”\n我喝的时候，她一直看着我。这是我今晚唯一一次，被人认真地看。\n广播说，第二十八个是波吕克斯，死在灯塔。\n对不起。我说得太早，也太轻。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "26-A2-29",
+    "28-A1-41"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     29,
+     41
+    ],
+    "items": [
+     24
+    ],
+    "locs": [
+     "B2"
+    ],
+    "bcs": [],
+    "wits": [
+     29,
+     41
+    ]
+   }
+  },
+  "33-C2-35": {
+   "key": "33-C2-35",
+   "dord": 33,
+   "cell": "C2",
+   "num": 35,
+   "name": "诞妄·墨菲",
+   "when": "第2天 03:40",
+   "min": 1660,
+   "text": "酒馆里只剩一盏灯。我坐在吧台上，裙摆垂下来，像潮水漫过桌沿。\n我是被人抬上舞台的神母。我偶尔会想起一块蛋糕，和一张软床，和一个人替我关灯。\n法洛思那一条，后来是礁石的广播念出来的——第三十个。\n墨菲从门口走进来，很慢。“该回家了。”她说。\n“回哪儿？”\n“回我这儿。”\n她把手按在我的额头上，很重，然后落下第二下。\n我在窗口看见货仓的方向暗了一下——后来才知道，那是奥瑞塔，第三十二个。\n虚妄也是一种永恒。可永恒这一次，被人用一只手就按停了。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "30-D2-17",
+    "32-B2-05"
+   ],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [
+     5,
+     17
+    ],
+    "items": [],
+    "locs": [
+     "C2"
+    ],
+    "bcs": [],
+    "wits": [
+     17,
+     5
+    ]
+   }
+  },
+  "34-D2-32": {
+   "key": "34-D2-32",
+   "dord": 34,
+   "cell": "D2",
+   "num": 32,
+   "name": "弥利亚姆",
+   "when": "第2天 04:31",
+   "min": 1711,
+   "text": "礁石的礁石上，浪一遍一遍地洗。我跪在最平的一块上，念父亲教我的祈祷。\n我杀过两个人。一个求我给他斟酒，一个只想找妈妈。我用的都是同一盒药膏。\n海崖的灯灭的时候，沙耶是第三十一个。\n父亲教我祈祷，也教我用药。他从来没有告诉我，这两样东西最后会指向同一个人。\n有人从礁石后面绕出来，肩上扛着求救信号。“祈祷有用吗？”他问。\n“有过。”\n“那现在呢？”\n我记着酒馆：诞妄·墨菲，第三十三个。顺序不会错，是我自己数的。\n他把那支东西对准我的时候，我还在念。信仰最后刺向了自己。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "31-E1-57",
+    "33-C2-35"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     35,
+     57
+    ],
+    "items": [
+     51
+    ],
+    "locs": [
+     "D2"
+    ],
+    "bcs": [],
+    "wits": [
+     57,
+     35
+    ]
+   }
+  },
+  "35-D3-12": {
+   "key": "35-D3-12",
+   "dord": 35,
+   "cell": "D3",
+   "num": 12,
+   "name": "达芙黛尔",
+   "when": "第2天 05:00",
+   "min": 1740,
+   "text": "沉船只剩半截桅杆，甲板上长满海藻。我坐在船头，把账本翻到最后一页，想把今晚的收支算清。\n我收过一支舞、一段记忆、一颗头颅。今晚有人用一整座港口向我买了一样东西，我没有收钱。\n有人在走廊里喊：拉蒙娜在渔民区没了，第二十七个！\n“目前已死亡34人。新增的死者：弥利亚姆。”然后是封锁的名单——五点整，沉船。\n雾港的人什么都肯卖，只是价钱都给得太低。\n甲板先热起来。我把账本合上，抱在怀里，像一个抱紧抵押品的人。\n海关的灯灭的时候，朵尔是第二十九个。\n我这一生最怕赔本。这一次，我把整座港口都赔进去了。\n\n[sys]\n-- 检测到银芯被强制崩解 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "27-C4-42",
+    "29-D4-13"
+   ],
+   "sys": [
+    "00-ZONE"
+   ],
+   "facts": {
+    "names": [
+     13,
+     42
+    ],
+    "items": [],
+    "locs": [
+     "D3"
+    ],
+    "bcs": [
+     "D2-05"
+    ],
+    "wits": [
+     42,
+     13
+    ]
+   }
+  },
+  "36-B1-15": {
+   "key": "36-B1-15",
+   "dord": 36,
+   "cell": "B1",
+   "num": 15,
+   "name": "艾瑞卡",
+   "when": "第2天 05:14",
+   "min": 1754,
+   "text": "码头没有船，只有雾和木桩。我站在栈桥尽头，抱着检索终端，把最后一条查询打进去：谁还活着。\n尤乌哈希从雾里出来，肩上扛着求救信号。“把名单给我。”他说。\n我在窗口看见灯塔的方向暗了一下——后来才知道，那是波吕克斯，第二十八个。\n“名单没有意义。”\n“那你就更没有意义了。”\n我这一路什么都查到了，就是查不到自己该站在哪一边。港口的数据太潮，像一叠泡过水的卡片，一碰就烂。\n奥瑞塔那一条，后来是货仓的广播念出来的——第三十二个。\n他抬起来的时候，我把终端抱得更紧了一点。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "28-A1-41",
+    "32-B2-05"
+   ],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [
+     5,
+     41
+    ],
+    "items": [
+     51
+    ],
+    "locs": [
+     "B1"
+    ],
+    "bcs": [],
+    "wits": [
+     41,
+     5
+    ]
+   }
+  },
+  "37-B4-53": {
+   "key": "37-B4-53",
+   "dord": 37,
+   "cell": "B4",
+   "num": 53,
+   "name": "温柯尔",
+   "when": "第2天 06:38",
+   "min": 1838,
+   "text": "修船厂里，船骨架躺在地上，像一头搁浅的鲸。我缩在骨头的阴影里，把手按在胸口——那里有一点光，一直不肯灭。\n我从来不会拒绝别人。所以别人也从来不问我怕不怕。\n有人在外面喊了一声，我站起来去看，脚下被一根肋骨折了一下，整个人往前扑。\n就连记忆里的黑暗，也会招来诅咒。\n我最后捧着那点光，照见的是一根断掉的船骨，和一只很小的、我自己的手。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [],
+    "items": [],
+    "locs": [
+     "B4"
+    ],
+    "bcs": [],
+    "wits": []
+   }
+  },
+  "38-D2-51": {
+   "key": "38-D2-51",
+   "dord": 38,
+   "cell": "D2",
+   "num": 51,
+   "name": "尤乌哈希",
+   "when": "第2天 06:47",
+   "min": 1847,
+   "text": "礁石的礁石上，我站着，喘得很重。我打了一整夜，赢了两次，身上没有一处不疼。\n越战越勇——可今晚的对手太多了，多到我分不清谁还没有倒下。\n广播念过沙耶的名字——海崖，第三十一个。\n有人从水里爬上来，手里提着一顶潜水头盔，还在滴水。“你还在打？”他问。\n“我不打，就没人记得我打过。”\n“那我替你记住。”\n他把头盔扣下来，很沉，像把整片海扣在我头上。\n我记着沉船：达芙黛尔，第三十五个。顺序不会错，是我自己数的。\n我只想再打一场。这一场，算是最后一场。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "31-E1-57",
+    "35-D3-12"
+   ],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [
+     12,
+     57
+    ],
+    "items": [
+     25
+    ],
+    "locs": [
+     "D2"
+    ],
+    "bcs": [],
+    "wits": [
+     57,
+     12
+    ]
+   }
+  },
+  "39-B4-33": {
+   "key": "39-B4-33",
+   "dord": 39,
+   "cell": "B4",
+   "num": 33,
+   "name": "茉夏",
+   "when": "第2天 07:00",
+   "min": 1860,
+   "text": "修船厂里，船骨架的影子在雾里晃。我把魔术手套摊在膝盖上，一张一张洗牌，洗得很快。\n雾境里来的客人，在这座港口里迷了路。我一直在想，怎么才能变出一个出口。\n我记得很清楚：修船厂，温柯尔，第三十七个。\n“目前已死亡38人。新增的死者：温柯尔、尤乌哈希。”然后是封锁的名单——七点整，修船厂。\n我把牌收起来，站起身，想往门口走。\n有人在外面敲门。我数了三下，门没有开，屋子先亮了，从墙根一直亮到天花板。\n原来出口这种东西，不是变出来的。\n\n[sys]\n-- 检测到银芯被强制崩解 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "37-B4-53"
+   ],
+   "sys": [
+    "00-ZONE"
+   ],
+   "facts": {
+    "names": [
+     53
+    ],
+    "items": [
+     33
+    ],
+    "locs": [
+     "B4"
+    ],
+    "bcs": [
+     "D2-07"
+    ],
+    "wits": [
+     53
+    ]
+   }
+  },
+  "40-E1-25": {
+   "key": "40-E1-25",
+   "dord": 40,
+   "cell": "E1",
+   "num": 25,
+   "name": "詹金",
+   "when": "第2天 07:28",
+   "min": 1888,
+   "text": "海崖边上，风把我推得站不住。我抱着膝盖坐在石头上，等天再亮一点。\n老鼠记不住人，可布朗记得。它在我衣襟里发抖，抖得比我厉害。\n尤乌哈希那一条，后来是礁石的广播念出来的——第三十八个。\n有人在我旁边坐下了。礼帽，帽檐下面是一团雾，雾里没有脸。\n“我们赌一局，”他说，“赌你怀里那只老鼠，会不会替你哭。”\n“它不会哭。”\n“答错了。”\n雾钻进衣襟的时候，布朗叫了一声。这是我听过最像人的一声。\n有人在走廊里喊：茉夏在修船厂没了，第三十九个！\n小看老鼠是要付出代价的。可今晚付的是我。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "38-D2-51",
+    "39-B4-33"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     33,
+     51
+    ],
+    "items": [],
+    "locs": [
+     "E1"
+    ],
+    "bcs": [],
+    "wits": [
+     51,
+     33
+    ]
+   }
+  },
+  "41-D4-50": {
+   "key": "41-D4-50",
+   "dord": 41,
+   "cell": "D4",
+   "num": 50,
+   "name": "图鲁",
+   "when": "第2天 07:37",
+   "min": 1897,
+   "text": "海关的旗杆下，余站了很久。余讨厌水，所以余一直站在干的这一块，从第一天站到现在。\n克莱门汀走过来，脚边放着一只医生手提箱。她问余：你在等谁。\n我记着海崖：詹金，第四十个。顺序不会错，是我自己数的。\n余说：余在等人。\n她说：那个人不会来了。余说：余知道。\n她坐下来，把箱子打开，里面有很多小瓶子。她说：余可以让你睡一觉。\n余想了想，说：好。余已经很久没有睡过了。\n箱子落下来的时候，余没有躲。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "40-E1-25"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     25
+    ],
+    "items": [
+     10
+    ],
+    "locs": [
+     "D4"
+    ],
+    "bcs": [],
+    "wits": [
+     25
+    ]
+   }
+  },
+  "42-C1-38": {
+   "key": "42-C1-38",
+   "dord": 42,
+   "cell": "C1",
+   "num": 38,
+   "name": "奥吉尔",
+   "when": "第2天 08:00",
+   "min": 1920,
+   "text": "渔市里只剩下冰冷的鱼腥味。我站在鱼箱堆里，把盾举到胸口，向所有看不见的东西发誓。\n我向不可战胜的阴影举起过盾与枪。今晚的阴影不是雾，是这一格正在合上的门。\n无线电里的杂音间隙传来一句：艾瑞卡死在码头，是第三十六个。\n“目前已死亡41人。新增的死者：茉夏、詹金、图鲁。”然后是封锁的名单——八点整，渔市。\n我握着长枪往前冲了一步，又退回来。\n道路已在眼前分岔——走向杀戮，还是守护。我选了守着这堆死鱼，直到最后。\n詹金……在海崖。第四十个。我把这三样东西在心里默念了一遍，怕自己忘掉。\n我不会再让任何人受伤。这一次，受伤的只有我。\n\n[sys]\n-- 检测到银芯被强制崩解 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "36-B1-15",
+    "40-E1-25"
+   ],
+   "sys": [
+    "00-ZONE"
+   ],
+   "facts": {
+    "names": [
+     15,
+     25
+    ],
+    "items": [],
+    "locs": [
+     "C1"
+    ],
+    "bcs": [
+     "D2-08"
+    ],
+    "wits": [
+     15,
+     25
+    ]
+   }
+  },
+  "43-A1-16": {
+   "key": "43-A1-16",
+   "dord": 43,
+   "cell": "A1",
+   "num": 16,
+   "name": "菲茵特",
+   "when": "第2天 08:28",
+   "min": 1948,
+   "text": "灯塔很高，顶端的灯早就坏了。我爬上来，只是想看看这座港口到底有多大。\n我这种劣等品，坐在最高处也觉得自己矮。夜莺要是能活到明年，大概会被人一脚踩死。\n有人从楼梯上来，靴底没有声音。她手里那柄细刀也没有光——锈蚀柳叶刀，刃薄得像一句谎言。\n“这里不该有你。”她说。\n“哪里都不该有我。”\n刀过来的时候，我甚至有点高兴。终于有人愿意专门为我动手了。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [],
+   "sys": [],
+   "facts": {
+    "names": [],
+    "items": [
+     7
+    ],
+    "locs": [
+     "A1"
+    ],
+    "bcs": [],
+    "wits": []
+   }
+  },
+  "44-E5-22": {
+   "key": "44-E5-22",
+   "dord": 44,
+   "cell": "E5",
+   "num": 22,
+   "name": "哈姆林",
+   "when": "第2天 09:00",
+   "min": 1980,
+   "text": "观潮台的望远镜对着空白的海平线。我站在观潮台上，把口哨含在嘴里，吹了一段没有词的调子。\n所有的音符，都将随指挥棒的轨迹起舞。我这一辈子只信这一句。\n广播念过图鲁的名字——海关，第四十一个。\n“目前已死亡43人。新增的死者：奥吉尔、菲茵特。”然后是封锁的名单——九点整，观潮台。\n海面平得像一面镜子，镜子里没有一个人，连我自己的影子也没有。\n我最后的念头是：这一段旋律，应该有人接着吹下去。\n我把口哨放在望远镜的架子上，摆得很正。\n\n[sys]\n-- 检测到银芯被强制崩解 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "41-D4-50"
+   ],
+   "sys": [
+    "00-ZONE"
+   ],
+   "facts": {
+    "names": [
+     50
+    ],
+    "items": [],
+    "locs": [
+     "E5"
+    ],
+    "bcs": [
+     "D2-09"
+    ],
+    "wits": [
+     50
+    ]
+   }
+  },
+  "45-D4-39": {
+   "key": "45-D4-39",
+   "dord": 45,
+   "cell": "D4",
+   "num": 39,
+   "name": "潘狄娅",
+   "when": "第2天 09:24",
+   "min": 2004,
+   "text": "海关的旗杆下，风把旗绳敲得一下一下。我靠在栏杆上，把鞭子盘好，收进腰里。\n热情的皮囊下，是一只很怕黑的小东西。我一直没有告诉别人，我怕的东西其实很小。\n无线电里的杂音间隙传来一句：图鲁死在海关，是第四十一个。\n有人捧着瓶子过来，瓶底有一层暗红色的东西，超弦腐血制剂。“喝吧，”她说，“喝完就不怕黑了。”\n“你怎么知道我怕黑？”\n“每个人怕的东西都写在脸上。”她说，“你的写在眼睛里。”\n听说观潮台那边，哈姆林是第四十四个倒下的。\n我喝了。不要盲信表象的甜蜜——这句话我写过很多次，最后自己没做到。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "41-D4-50",
+    "44-E5-22"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     22,
+     50
+    ],
+    "items": [
+     24
+    ],
+    "locs": [
+     "D4"
+    ],
+    "bcs": [],
+    "wits": [
+     50,
+     22
+    ]
+   }
+  },
+  "46-D4-46": {
+   "key": "46-D4-46",
+   "dord": 46,
+   "cell": "D4",
+   "num": 46,
+   "name": "索蕾尔",
+   "when": "第2天 09:32",
+   "min": 2012,
+   "text": "海关的栏杆已经锈了。我坐在旗杆下面，把请柬一张一张摊开，想挑一封寄出去。\n我在请柬上都镶了金边，这样就没有人会把它当成遗书。可今晚，我没有人可以寄。\n我在窗口看见观潮台的方向暗了一下——后来才知道，那是哈姆林，第四十四个。\n冬天的茶是我童年里唯一的暖。这里只有咸的雾，和一根敲着旗绳的风。\n我站起来，想看看海。栏杆比我想的矮。\n端上来吧，最后一道。我这样说的时候，已经没有人坐在桌边了。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "44-E5-22"
+   ],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [
+     22
+    ],
+    "items": [],
+    "locs": [
+     "D4"
+    ],
+    "bcs": [],
+    "wits": [
+     22
+    ]
+   }
+  },
+  "47-C3-62": {
+   "key": "47-C3-62",
+   "dord": 47,
+   "cell": "C3",
+   "num": 62,
+   "name": "薇薇安",
+   "when": "第2天 09:56",
+   "min": 2036,
+   "text": "港务厅里挂满了过期的航海图。我趴在长桌上打盹，女巫的睡眠不能被打扰。\n有人进来了，脚步很轻，停在我旁边，把我怀里的☆六分仪☆抽了出去——那是我睡觉时抱着的六分仪。\n茉夏……在修船厂。第三十九个。我把这三样东西在心里默念了一遍，怕自己忘掉。\n“还给我。”我说。\n“不还。”\n我伸手去抢，她反手把那件东西刺了回来。\n大灾难要来了。我一直这么说，说得连自己都不信。\n无线电里的杂音间隙传来一句：潘狄娅死在海关，是第四十五个。\n现在它来了，而且是从我自己的胸口开始的。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "39-B4-33",
+    "45-D4-39"
+   ],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [
+     33,
+     39
+    ],
+    "items": [
+     62
+    ],
+    "locs": [
+     "C3"
+    ],
+    "bcs": [],
+    "wits": [
+     33,
+     39
+    ]
+   }
+  },
+  "48-B1-61": {
+   "key": "48-B1-61",
+   "dord": 48,
+   "cell": "B1",
+   "num": 61,
+   "name": "负誓·奥吉尔",
+   "when": "第2天 10:00",
+   "min": 2040,
+   "text": "码头没有船，只有雾和木桩。我把盾立在栈桥尽头，自己站在盾后面，像站在一堵墙后面。\n“目前已死亡47人。新增的死者：哈姆林、潘狄娅、索蕾尔、薇薇安。”然后是封锁的名单——十点整，码头。\n我在渔市听见人念奥吉尔的名字，念到“第四十二个”就停了。\n我向不可战胜的阴影举起过盾与枪。今晚的阴影很安静，它在等我自己走进去。\n雾漫上来的时候，我听见有人在很远的地方喊我的名字——不是我的名字，是另一个我的。\n灯塔的灯灭的时候，菲茵特是第四十三个。\n道路已在眼前分岔。我把盾放平，躺在上面，看着雾一点点合起来。\n\n[sys]\n-- 检测到银芯被强制崩解 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "42-C1-38",
+    "43-A1-16"
+   ],
+   "sys": [
+    "00-ZONE"
+   ],
+   "facts": {
+    "names": [
+     16,
+     38
+    ],
+    "items": [],
+    "locs": [
+     "B1"
+    ],
+    "bcs": [
+     "D2-10"
+    ],
+    "wits": [
+     38,
+     16
+    ]
+   }
+  },
+  "49-C2-24": {
+   "key": "49-C2-24",
+   "dord": 49,
+   "cell": "C2",
+   "num": 24,
+   "name": "奥尔拉",
+   "when": "第2天 10:41",
+   "min": 2081,
+   "text": "酒馆里只剩一盏灯。我坐在吧台边，把账一笔一笔算清楚：两个人，两瓶药，一个都不剩。\n我给每种情绪都备了药剂，唯独没备给海。这座港口会把我泡软的。\n有人从渔市那边过来，说奥吉尔是第四十二个。\n阿拉克涅从门口进来，肩上扛着一台蒙尘的缝纫机，蒙尘缝纫机。“你欠我的。”她说。\n“我记得。”\n“那就别动。”\n她把缝纫机放在吧台上，然后举过了头顶。账单到这里，终于对上了。\n有人在走廊里喊：薇薇安在港务厅没了，第四十七个！\n我写过很多本日记。最后一页，是别人替我翻过去的。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "42-C1-38",
+    "47-C3-62"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     38,
+     62
+    ],
+    "items": [
+     56
+    ],
+    "locs": [
+     "C2"
+    ],
+    "bcs": [],
+    "wits": [
+     38,
+     62
+    ]
+   }
+  },
+  "50-C4-54": {
+   "key": "50-C4-54",
+   "dord": 50,
+   "cell": "C4",
+   "num": 54,
+   "name": "徐",
+   "when": "第2天 10:55",
+   "min": 2095,
+   "text": "渔民区的渔民区里，门都关着。我站在巷子中间，手掌贴着自己的小黄螺，它今天没有动。\n我“爱”每个人，祂也是。祂说雾港的毒不如祂的毒，所以祂一直在等。\n我在窗口看见海关的方向暗了一下——后来才知道，那是索蕾尔，第四十六个。\n汀克特从巷子那头走过来，手里握着一枚六分仪，☆六分仪☆，边缘磨得很亮。“你身上有爱。”她说。\n“你也有。”\n“我不需要。”她抬手，“我需要的是干净。”\n刺进来的时候，祂在我胸口里笑了一下。祂终于可以一个人待着了。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "46-D4-46"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     46
+    ],
+    "items": [
+     62
+    ],
+    "locs": [
+     "C4"
+    ],
+    "bcs": [],
+    "wits": [
+     46
+    ]
+   }
+  },
+  "51-B2-56": {
+   "key": "51-B2-56",
+   "dord": 51,
+   "cell": "B2",
+   "num": 56,
+   "name": "阿拉克涅",
+   "when": "第2天 11:00",
+   "min": 2100,
+   "text": "货仓里堆满没有标签的木箱。我坐在箱顶，把线头一根一根绕在指头上，想着要不要再织一张网。\n我给木偶织过命运，也给自己织过囚笼。这座港口里的网，比我织的粗糙得多。\n负誓·奥吉尔，码头，第四十八个——我把它抄在手心，怕忘。\n“目前已死亡50人。新增的死者：负誓·奥吉尔、奥尔拉、徐。”然后是封锁的名单——十一点整，货仓。\n我站起来，想从箱堆上下去。\n线还在指头上。我忽然想：囚笼这种东西，原来一直是我自己带的。\n广播念过奥尔拉的名字——酒馆，第四十九个。\n雾合起来的时候，我没有挣扎。\n\n[sys]\n-- 检测到银芯被强制崩解 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "48-B1-61",
+    "49-C2-24"
+   ],
+   "sys": [
+    "00-ZONE"
+   ],
+   "facts": {
+    "names": [
+     24,
+     61
+    ],
+    "items": [],
+    "locs": [
+     "B2"
+    ],
+    "bcs": [
+     "D2-11"
+    ],
+    "wits": [
+     61,
+     24
+    ]
+   }
+  },
+  "52-C2-20": {
+   "key": "52-C2-20",
+   "dord": 52,
+   "cell": "C2",
+   "num": 20,
+   "name": "环行·拉蒙娜",
+   "when": "第2天 11:13",
+   "min": 2113,
+   "text": "酒馆里只剩一盏灯。我坐在吧台边，水手哨挂在脖子上，吹了一声，没有人应。\n我从过往的指令里取力量。今夜没有新的指令，只有旧的那一条：往前走，别回头。\n我在窗口看见酒馆的方向暗了一下——后来才知道，那是奥尔拉，第四十九个。\n沙耶死在了海崖。她是为我死的，还是为一个认错的影子死的，我分不清。\n我这一辈子都在领路。现在我领着自己，走到这一步。\n“目前已死亡50人。新增的死者：负誓·奥吉尔、奥尔拉、徐。”雾从门缝里进来。我站起来，往窗外走。\n旧得像我的，只有哨声。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "49-C2-24"
+   ],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [
+     24
+    ],
+    "items": [],
+    "locs": [
+     "C2"
+    ],
+    "bcs": [
+     "D2-11"
+    ],
+    "wits": [
+     24
+    ]
+   }
+  },
+  "53-C2-10": {
+   "key": "53-C2-10",
+   "dord": 53,
+   "cell": "C2",
+   "num": 10,
+   "name": "克莱门汀",
+   "when": "第2天 13:26",
+   "min": 2246,
+   "text": "酒馆里点着一盏很暗的灯。我坐在最靠里的位置，把神经毒素摆在桌上，一支一支数清楚。\n今晚我开过一张方子。那个孩子在旗杆下等一个人，我给了他一场睡。他睡得很好，我看见了。\n广播说，第五十一个是阿拉克涅，死在货仓。\n剩下的药不够两个人用，也不够一个人慢慢用完。我数了三遍，还是那么多。\n我一直在听别人说话。今晚我想说完一句话再走。\n有人在走廊里喊：环行·拉蒙娜在酒馆没了，第五十二个！\n我把它喝了。倾听不需要先懂得什么，可我需要先停下。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "51-B2-56",
+    "52-C2-20"
+   ],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [
+     20,
+     56
+    ],
+    "items": [
+     16
+    ],
+    "locs": [
+     "C2"
+    ],
+    "bcs": [],
+    "wits": [
+     56,
+     20
+    ]
+   }
+  },
+  "54-A2-52": {
+   "key": "54-A2-52",
+   "dord": 54,
+   "cell": "A2",
+   "num": 52,
+   "name": "旺达",
+   "when": "第2天 14:48",
+   "min": 2328,
+   "text": "雾堤的雾厚得能摸到。我站在堤坝上，把手贴在石头上，听潮水在下面翻。\n我看不见，可我听得见谁在说谎。今晚这座港口里，说谎的人比活着的人多。\n有人在我对面坐下了。我没有听见脚步，只听见一个很礼貌的声音，和帽檐摩擦空气的沙沙声。\n“我们赌一局，”他说，“赌你听得见我吗。”\n“听得见。”我说，“你身上没有心跳。”\n“答对了。”他说，“所以我不需要银芯。”\n雾灌进喉咙的时候，我一直在想：原来我不是输在听不见，是输在听见了。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [],
+   "sys": [],
+   "facts": {
+    "names": [],
+    "items": [],
+    "locs": [
+     "A2"
+    ],
+    "bcs": [],
+    "wits": []
+   }
+  },
+  "55-D4-01": {
+   "key": "55-D4-01",
+   "dord": 55,
+   "cell": "D4",
+   "num": 1,
+   "name": "「24」",
+   "when": "第2天 15:00",
+   "min": 2340,
+   "text": "海关的海关里，二十四个我挤在一张长桌后面，谁也不想先说话。\n我们数过这座港口有多少扇门。四十三扇，其中十一扇不会开。\n我记着渔民区：徐，第五十个。顺序不会错，是我自己数的。\n“目前已死亡54人。新增的死者：旺达。”然后是封锁的名单——十五点整，海关。\n我把缄默手套摆在桌上，让二十四个我轮流看一眼。\n有人提议唱歌，有人说别唱了，还有人说想再听一次潮水。最后我们一起闭上了嘴。\n听说雾堤那边，旺达是第五十四个倒下的。\n光来的时候，我们第一次没有抢着说话，也没有抢着闭眼。\n\n[sys]\n-- 检测到银芯被强制崩解 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "50-C4-54",
+    "54-A2-52"
+   ],
+   "sys": [
+    "00-ZONE"
+   ],
+   "facts": {
+    "names": [
+     52,
+     54
+    ],
+    "items": [
+     1
+    ],
+    "locs": [
+     "D4"
+    ],
+    "bcs": [
+     "D2-15"
+    ],
+    "wits": [
+     54,
+     52
+    ]
+   }
+  },
+  "56-E4-59": {
+   "key": "56-E4-59",
+   "dord": 56,
+   "cell": "E4",
+   "num": 59,
+   "name": "蚀灭·萝坦",
+   "when": "第2天 15:30",
+   "min": 2370,
+   "text": "货栈的货栈里，货物全被潮水泡成一团。我站在中间，把风暴收在掌心里，收得很紧。\n我吞噬一切，征服一切。可这座港口里没有一个敌人，只有雾，和一堆烂掉的货。\n我记着雾堤：旺达，第五十四个。顺序不会错，是我自己数的。\n有人在我旁边坐下了，礼帽，帽檐下面是一团雾。“你赢不了这一局。”他说。\n“我不和雾赌。”\n“那你就只能输给它。”\n广播念过「24」的名字——海关，第五十五个。\n雾从四面合起来的时候，我还在想：越强大的敌人越让我兴奋——今夜没有敌人。今夜只有我自己。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "54-A2-52",
+    "55-D4-01"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     1,
+     52
+    ],
+    "items": [],
+    "locs": [
+     "E4"
+    ],
+    "bcs": [],
+    "wits": [
+     52,
+     1
+    ]
+   }
+  },
+  "57-D2-19": {
+   "key": "57-D2-19",
+   "dord": 57,
+   "cell": "D2",
+   "num": 19,
+   "name": "血链·希洛",
+   "when": "第2天 16:00",
+   "min": 2400,
+   "text": "礁石的礁石一排黑色的牙齿。我坐在上面，把活性注射器放在膝上，锁链一圈一圈解开，又一圈一圈绕回去。\n我挣脱过一条锁链，然后听见了另一条。那条锁链的名字叫莉莉，或者叫妈妈，或者叫我。\n环行·拉蒙娜死在了酒馆。我数过，那是第五十二个。\n“目前已死亡56人。新增的死者：「24」、蚀灭·萝坦。”然后是封锁的名单——十六点整，礁石。\n海在下面响，很平。\n复仇之后，剩下的是空。我今晚连仇都没能报上——她早就死了，死在别人手里。\n听说酒馆那边，克莱门汀是第五十三个倒下的。\n锁链松开了。我先松的手。\n\n[sys]\n-- 检测到银芯被强制崩解 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "52-C2-20",
+    "53-C2-10"
+   ],
+   "sys": [
+    "00-ZONE"
+   ],
+   "facts": {
+    "names": [
+     10,
+     20
+    ],
+    "items": [
+     19
+    ],
+    "locs": [
+     "D2"
+    ],
+    "bcs": [
+     "D2-16"
+    ],
+    "wits": [
+     20,
+     10
+    ]
+   }
+  },
+  "58-C2-36": {
+   "key": "58-C2-36",
+   "dord": 58,
+   "cell": "C2",
+   "num": 36,
+   "name": "诺缔拉",
+   "when": "第2天 16:13",
+   "min": 2413,
+   "text": "酒馆里只剩一盏灯。我坐在吧台上，把螺壳贴在耳边，里面全是海的声音，和一点别的什么。\n我抢过一件东西，用它换了一条命。我不后悔，冒险家本来就不该后悔。\n血链·希洛……在礁石。第五十七个。我把这三样东西在心里默念了一遍，怕自己忘掉。\n汀克特活着的时候跟我说过：别在别人的画里站太久。我当时没听懂。\n我站起来，想从吧台上跳下去。脚下的地板是湿的——有人把酒洒了。\n滑倒的那一瞬间，我听见螺壳里那点别的什么，笑了一下。\n冒险家的最后一站，原来是一片很安静的海。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "57-D2-19"
+   ],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [
+     19
+    ],
+    "items": [],
+    "locs": [
+     "C2"
+    ],
+    "bcs": [],
+    "wits": [
+     19
+    ]
+   }
+  },
+  "59-C3-49": {
+   "key": "59-C3-49",
+   "dord": 59,
+   "cell": "C3",
+   "num": 49,
+   "name": "汀克特",
+   "when": "第2天 17:28",
+   "min": 2488,
+   "text": "港务厅里挂满了过期的航海图。我站在长桌前，把那枚☆六分仪☆擦干净，摆正。\n我杀过两个人。一个抱着六分仪不肯撒手，一个身上有太多爱。都是我认识的人，都不该由我来结束。\n我记着渔民区：徐，第五十个。顺序不会错，是我自己数的。\n可我已经开始了。开始了就得走完，这是我在剧院里学到的第一条规矩。\n卡茜亚从门口进来，手里那柄细刀锈蚀柳叶刀没有光。\n“轮到你了吗？”我问。\n“轮到你了。”她说。\n听说酒馆那边，诺缔拉是第五十八个倒下的。\n刀很凉。我最后想的是：这首歌，我终于唱完了。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "50-C4-54",
+    "58-C2-36"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     36,
+     54
+    ],
+    "items": [
+     7,
+     62
+    ],
+    "locs": [
+     "C3"
+    ],
+    "bcs": [],
+    "wits": [
+     54,
+     36
+    ]
+   }
+  },
+  "60-D5-44": {
+   "key": "60-D5-44",
+   "dord": 60,
+   "cell": "D5",
+   "num": 44,
+   "name": "萨尔瓦多",
+   "when": "第2天 18:17",
+   "min": 2537,
+   "text": "暗礁藏在水下，只有浪花告诉人位置。我站在最外的一块礁石上，对着一整片空白的海微笑。\n引领前路吧，神谕中的救世主。这句话我对很多人说过，说到最后连自己都当了真。\n蚀灭·萝坦……在货栈。第五十六个。我把这三样东西在心里默念了一遍，怕自己忘掉。\n有人在我旁边站住了，礼帽，帽檐下面是一团雾。“没有苦的未来，”他说，“是我今晚听过最好的笑话。”\n“你不信？”\n“我下注了。”他说，“赌它不存在。”\n雾从我身后绕过来的时候，我还在笑。救世主是我自己编的，编得还不错。\n海底火山在呼吸。这一次，我没有听见。\n\n[sys]\n-- 检测到生命体征消失 --\n[/sys]",
+   "refs": [
+    "56-E4-59"
+   ],
+   "sys": [],
+   "facts": {
+    "names": [
+     59
+    ],
+    "items": [],
+    "locs": [
+     "D5"
+    ],
+    "bcs": [],
+    "wits": [
+     59
+    ]
+   }
+  },
+  "61-C3-07": {
+   "key": "61-C3-07",
+   "dord": 61,
+   "cell": "C3",
+   "num": 7,
+   "name": "卡茜亚",
+   "when": "第2天 18:40",
+   "min": 2560,
+   "text": "港务厅里，过期的航海图被雾泡得发软。我把锈蚀柳叶刀擦干净，插回腰间，坐下来变最后一个把戏。\n魔术师的第一条规矩：不要让观众知道你在变什么。我变走过两个人，她们到死都以为那只是巧合。\n我在酒馆听见人念诺缔拉的名字，念到“第五十八个”就停了。\n希莱斯特从长桌那头走过来，没有带星象仪。“那艘船，”她问，“为什么会沉呢？”\n“因为船长想让它沉。”\n“那谁来负责？”\n她伸手的时候，我没有躲。把戏的尽头，是一顶空的帽子。\n我在窗口看见港务厅的方向暗了一下——后来才知道，那是汀克特，第五十九个。\n我终于变了一次不藏东西的魔术。\n\n[sys]\n-- 检测到生命体征消失 --\n-- 参考 [link]00-REPORT[/link] --\n[/sys]",
+   "refs": [
+    "58-C2-36",
+    "59-C3-49"
+   ],
+   "sys": [
+    "00-REPORT"
+   ],
+   "facts": {
+    "names": [
+     36,
+     49
+    ],
+    "items": [
+     7
+    ],
+    "locs": [
+     "C3"
+    ],
+    "bcs": [],
+    "wits": [
+     36,
+     49
+    ]
+   }
+  },
+  "62-C3-09": {
+   "key": "62-C3-09",
+   "dord": 62,
+   "cell": "C3",
+   "num": 9,
+   "name": "希莱斯特",
+   "when": "第2天 19:00",
+   "min": 2580,
+   "text": "港务厅的钟摆声停了。我站在长桌前，手里已经没有星象仪，也没有药。\n我推过两个人下去。一个说那艘船会沉，一个问船长为什么想让它沉。她们都问得很好，我都没有答上来。\n有人在走廊里喊：汀克特在港务厅没了，第五十九个！\n“目前已死亡61人。新增的死者：萨尔瓦多、卡茜亚。”“十九点整，港务厅区域封锁。这是最后一格。”\n星辰不会为任何人移动。可这一格会合上。\n我把手按在胸口。银芯在响，一声比一声急。\n听说暗礁那边，萨尔瓦多是第六十个倒下的。\n那艘船为什么会沉？——现在我大概知道了。因为它一直以为自己是一座孤岛。\n\n[sys]\n-- 检测到银芯被强制崩解 --\n-- 参考 [link]00-ZONE[/link] --\n[/sys]",
+   "refs": [
+    "59-C3-49",
+    "60-D5-44"
+   ],
+   "sys": [
+    "00-ZONE"
+   ],
+   "facts": {
+    "names": [
+     44,
+     49
+    ],
+    "items": [],
+    "locs": [
+     "C3"
+    ],
+    "bcs": [
+     "D2-19"
+    ],
+    "wits": [
+     49,
+     44
+    ]
+   }
+  }
+ },
+ "docs": {
+  "00-SYSTEM": {
+   "id": "00-SYSTEM",
+   "title": "溯梦终端 使用指南",
+   "source": "弥萨格大学 ／ 钥冢档案室",
+   "text": "[sys]\n[b]弥萨格大学 唤醒系 ／ 钥冢档案室 溯梦终端[/b]\n本终端用于复原、查阅已经结束的[b]“第六十一次 回溯筛选”[/b]的死亡记录，借助校内的[b]溯梦功能[/b]读取银芯里残留的记忆。仅限持有银钥匙的[b]守密人[/b]使用。\n本终端的检索权限登记在[b]艾瑞卡[/b]名下（登记状态：已注销）。背景资料请查阅 [link]00-WORLD[/link]。\n\n[b]■ 基本操作[/b]\n画面左侧是记录索引，点选条目即可阅读正文。索引损坏而没有列出的记录，请在输入栏里键入[b]记录名[/b]，再点击“恢复”。\n\n[b]■ 记录名的格式[/b]\n死亡记录的记录名由三段组成：\n\n99-X9-99\n\n第一段的两位数字表示……\n--- 检测到部分数据损坏，无法读取 ---\n……第三段，是此人在名册上的编号。\n\n[b]警告：索引损坏[/b]\n本次筛选的索引严重受损，请以名册、密境地图与广播记录为线索，推断缺失的部分。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": [
+    "00-WORLD"
+   ]
+  },
+  "00-ORDER": {
+   "id": "00-ORDER",
+   "title": "任务指示书",
+   "source": "机密",
+   "text": "[sys]\n[b]■ 命令[/b]\n复原“第六十一次 回溯筛选（对象：弥萨格大学 唤醒系／参加者六十三名）”的全部记录，查明每一起死亡的经过，并提交死亡调查报告。\n\n[b]■ 步骤[/b]\n一、在输入栏键入[b]“记录名”[/b]并点击“恢复”。终端的使用方法见 [link]00-SYSTEM[/link]。\n二、依据复原的记录核实[b]“死因、凶器、加害人”[/b]，填写死亡报告。填写规定见 [link]00-REPORT[/link]。\n\n[b]■ 缘由[/b]\n前日，钥冢档案室的记录库遭到来历不明的篡改，大量记录损坏或散佚。筛选已经结束——那是在一座人工密境里进行的，参加者的银芯至今仍在析出残响。须从仍能复原的记录开始，一条一条还原，务必全部复原。\n守密人只需确认记录里的事实，不得掺杂个人感情；即便里面有你熟悉的名字。\n\n另外，已经查明的记录名如下，请从这些开始：\n\n·[link]34-D2-32[/link]\n·[link]55-D4-01[/link]\n·[link]59-C3-49[/link]\n\n——愿银钥指引你。\n弥萨格大学 院长\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": [
+    "00-REPORT",
+    "00-SYSTEM"
+   ]
+  },
+  "00-REPORT": {
+   "id": "00-REPORT",
+   "title": "死亡报告 填写规定",
+   "source": "弥萨格大学 ／ 钥冢档案室",
+   "text": "[sys]\n[b]死亡报告 ／ 填写规定[/b]\n每起死亡都必须确认“死因、凶器、加害人”三项。归类有疑问时，按下列规定处理。\n\n[b]■ 凶器[/b]\n若杀害所用之物与名册上的某件[b]“配发装备”（命轮、造物）同名[/b]，则把该装备的名称记为凶器。\n若所用之物不是任何配发装备——徒手、就地取材、自己的东西造成的事故等——一律把凶器记为[b]“无”[/b]。\n请重点核对“名册里的配发装备”与“正文里的凶器”是否一致，并留意装备在人与人之间的流转：同一件装备，同一时刻只会在一个人手里。\n\n[b]■ 没有加害人的死亡[/b]\n没有加害人的死亡，加害人记为[b]“其他”[/b]，凶器记为[b]“无”[/b]。共有三种：\n\n·[b]爆炸致死[/b]\n  银芯被强制崩解（开幕演示／融灾黑潮区域／最终收缩／自行引爆）。死因记为“爆炸致死”。\n·[b]意外死亡[/b]\n  因自身过失造成的事故。死因记为“意外死亡”。\n·[b]自杀[/b]\n  自愿赴死者，死因不记作“自杀”，而是按具体手法记为“坠落致死”“中毒致死”等。\n\n此外，[b]坠落致死[/b]分为他杀（被推落）与自杀（自行跳落）两种，须按有没有加害人来区分。\n\n[b]■ 加害人栏[/b]\n加害人栏的选项以名册为准。名册之外的个体，须经终端核实之后再追加。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-REFERENCE": {
+   "id": "00-REFERENCE",
+   "title": "参考分析功能",
+   "source": "弥萨格大学 ／ 钥冢档案室",
+   "text": "[sys]\n[b]记录档案 ／ 参考分析功能[/b]\n本功能自动分析记录之间的关联，辅助守密人复原。\n\n若系统发现某条记录与其他记录有关联，会把后者认定为它的[b]“参考”[/b]。\n\n[b]■ 参考检测[/b]\n记录里常有人转述别人的死：是谁、死在哪里、广播里是第几个。凡是能据此推断出另一条记录的，系统都会认定为它的[b]“参考”[/b]。复原一条记录后，系统在末尾通知：\n\n-- 检测到对其他记忆的参考。可推理出 X 条新记录 --\n\n“X”是这条记录目前还能推理出的、尚未复原的记录数量。每复原一条，数字就减一，减到零时，通知变成“已全部复原”。\n\n[b]■ 索引显示[/b]\n索引里每条记录的左侧用 [X] 显示它还能推理出几条新记录；索引上方汇总了全部尚可推理的记录数。点击工具栏的[b]“结构”[/b]，可以看到所有唤醒体之间的参考关系图。\n另外，如果正文提到了尚未复原的[b]系统文档[/b]（以 00- 开头），记录名下方会出现虚线；复原了那份文档，虚线就会消失。\n\n[b]■ 致守密人[/b]\n“参考”是下一步的线索：记录名由“死亡顺序—地点—名册编号”拼成，请逐条推断，逐条复原。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-ZONE": {
+   "id": "00-ZONE",
+   "title": "融灾黑潮 区域封锁",
+   "source": "弥萨格大学 ／ 钥冢档案室",
+   "text": "[sys]\n[b]回溯筛选 区域管理 ／ 融灾黑潮[/b]\n自十九点起，黑潮会把一个区域设为[b]融灾黑潮区域[/b]。滞留者的银芯随即崩解，记为“爆炸致死”，没有加害人。\n第1天 19:00　D5（暗礁）\n第1天 20:00　A4（盐田）\n第1天 21:00　E2（沙滩）\n第1天 22:00　A5（浅滩）\n第1天 23:00　D1（船坞）\n第2天 00:00　B5（水塔）\n第2天 01:00　C5（渡口）\n第2天 02:00　E3（防波堤）\n第2天 03:00　E4（货栈）\n第2天 04:00　A3（旧教堂）\n第2天 05:00　D3（沉船）\n第2天 06:00　B3（鱼市）\n第2天 07:00　B4（修船厂）\n第2天 08:00　C1（渔市）\n第2天 09:00　E5（观潮台）\n第2天 10:00　B1（码头）\n第2天 11:00　B2（货仓）\n第2天 12:00　A2（雾堤）\n第2天 13:00　C4（渔民区）\n第2天 14:00　A1（灯塔）\n第2天 15:00　D4（海关）\n第2天 16:00　D2（礁石）\n第2天 17:00　E1（海崖）\n第2天 18:00　C2（酒馆）\n第2天 19:00　C3（港务厅）\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-MAP": {
+   "id": "00-MAP",
+   "title": "雾港 地图",
+   "source": "弥萨格大学 ／ 钥冢档案室",
+   "text": "[sys]\n[b]第六十一号人工密境「雾港」完整地图[/b]\n一座仿造的海港，由 4×3 共 12 个区块构成：横向 A–D，纵向 1–3。\n[b]1[/b]　A1 灯塔　B1 码头　C1 渔市　D1 船坞　E1 海崖\n[b]2[/b]　A2 雾堤　B2 货仓　C2 酒馆　D2 礁石　E2 沙滩\n[b]3[/b]　A3 旧教堂　B3 鱼市　C3 港务厅　D3 沉船　E3 防波堤\n[b]4[/b]　A4 盐田　B4 修船厂　C4 渔民区　D4 海关　E4 货栈\n[b]5[/b]　A5 浅滩　B5 水塔　C5 渡口　D5 暗礁　E5 观潮台\n记录里出现的地名，请到地图上确认位置。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-ANNOUNCE": {
+   "id": "00-ANNOUNCE",
+   "title": "定时广播",
+   "source": "弥萨格大学 ／ 钥冢档案室",
+   "text": "[sys]\n[b]回溯筛选 区域管理 ／ 定时广播[/b]\n每个整点，全境（密境内）播放一次定时广播。\n\n[b]■ 内容[/b]\n广播通报系统到整点为止检测到的累计死亡人数：“目前已死亡 X 人”。\n同时，按死亡的先后顺序，依次念出上一次广播以来新检测到的死者姓名。\n\n[b]■ 目的[/b]\n让幸存的受试者知道谁已经死去、谁还活着，防止筛选陷入停滞，促使下一次加害发生。\n\n[b]■ 注意[/b]\n只有被系统认定心跳已停止的人，才会被播报；播报顺序与死亡的先后一致。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-ROLL": {
+   "id": "00-ROLL",
+   "title": "早晨点名",
+   "source": "弥萨格大学 ／ 钥冢档案室",
+   "text": "[sys]\n[b]回溯筛选 定时广播 ／ 早晨点名[/b]\n每天清晨，系统会播报截至前一日 24:00 的死亡人数与死者姓名。\n\n[b]■ 第一天的死者（按名册编号）[/b]\n阿格里帕、艾尔瓦、凯刻斯、卡斯托尔、克珀珊特、杜勒赛因、戈利亚、希洛、珈伦、凯蒂古拉、莉兹、萝坦、宁菲亚、皮克曼、莱克、珊、塔薇、泰旖丝、莫丝、卡拉布\n\n[b]■ 点名结果[/b]\n死亡　20 名\n现存　43 名\n[/sys]",
+   "refs": [
+    "01-C3-37",
+    "02-B1-11",
+    "03-A1-08",
+    "04-D5-31",
+    "05-D3-02",
+    "06-C2-43",
+    "07-C2-21",
+    "08-B2-45",
+    "09-C3-14",
+    "10-C4-47",
+    "11-E2-55",
+    "12-C1-06",
+    "13-B5-40",
+    "14-A5-27",
+    "15-E4-26",
+    "16-B1-30",
+    "17-D1-60",
+    "18-D2-04",
+    "19-A3-48",
+    "20-E5-23"
+   ],
+   "final": false,
+   "links": []
+  },
+  "00-CHIP": {
+   "id": "00-CHIP",
+   "title": "银芯",
+   "source": "弥萨格大学 ／ 钥冢档案室",
+   "text": "[sys]\n[b]银芯 ／ 记录说明[/b]\n唤醒体的体内都有一枚银芯。银芯是“来自高位的灵”的凝结，既是力量的来源，也是链接守密人的媒介——守密人胸前的银钥匙，正是以银芯工艺铸成的。\n回溯筛选开始前，管理方对每一位参加者的银芯施加了记录与[b]强制崩解[/b]的权限。违反规定、抗命不遵、滞留于融灾黑潮区域，或由管理方判断，银芯就会失稳崩解。\n\n[b]■ 记录的生成[/b]\n银芯在检测到心跳停止的瞬间，自动把死前三百秒——最后五分钟——的神经活动转写成文字，保存在钥冢档案室的内网里。\n输出以本人的第一人称呈现，包括所见所闻、身体感觉，乃至内心独白。每一份记录，都是唤醒体最后五分钟的意识。\n\n[b]■ 分类说明[/b]\n因银芯崩解而死，归类为没有加害人的死亡，按“爆炸致死”处理。\n\n[b]■ 注意[/b]\n崩解发生在一瞬间，受试者没有回避的余地。记录会在崩解的瞬间中断。\n正常情况下，死者的银芯会在遗体上析出，可由守密人回收；若某人的遗体上没有银芯析出，请如实记录——那是一个重要的事实。\n\n[b]■ 保存[/b]\n记录保存在钥冢档案室内网（保密等级：特级）。内网与外部通信物理隔绝，只有持银钥匙的守密人可以查阅、复原。记录严禁复制、带出与对外传输。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-MOTIVE": {
+   "id": "00-MOTIVE",
+   "title": "诱导措施",
+   "source": "机密",
+   "text": "[sys]\n[b]回溯筛选 管理指南 ／ 诱导措施[/b]\n为了让筛选顺利进行，实际操作中惯例采取若干诱导措施。\n\n[b]■ 主旨[/b]\n统计表明，对唤醒体最难的是[b]第一次加害[/b]——弥萨格与唤醒体的关系，本以“自愿合作”为主。跨过这一步，之后的进行自然会加快。\n因此，会事先为一部分受试者准备足以消除抗拒的[b]个人动机[/b]。\n\n[b]■ 措施示例[/b]\n·承诺“胜者可以与最想见的人重逢”。\n·暗示“另一个自己”已经行动（同名异体的唤醒体，在这座密境里被同时召来），制造竞争与不安。\n·用融灾黑潮不断压缩活动范围，切断退路。\n\n具体做法因人而异，不会写进正式记录。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-WORLD": {
+   "id": "00-WORLD",
+   "title": "背景资料 弥萨格与融蚀",
+   "source": "弥萨格大学 ／ 钥冢档案室",
+   "text": "[sys]\n[b]背景资料 ／ 弥萨格与融蚀[/b]\n[b]■ 融蚀[/b]\n自洪积15年第一例有记载的融蚀病症起，这种现象已持续近三百年：被它触及的人与物会被抹去存在，留下黑色的创口、融蚀浆与异变体。融蚀的真相至今不明。\n融灾黑潮是融蚀的大规模爆发。其核心称为“灾厄”。弥萨格地下的黑池，是世上最原初、最宏大的融蚀裂隙。\n\n[b]■ 弥萨格[/b]\n洪积90年，华德·菲利普斯、刻拉尔克什与塔薇创立弥萨格学院（Mythag College），后发展为弥萨格大学：对外是一所学校，对内是抵抗融蚀的调查机构。校内的迷雾屏障由银芯科技驱动。\n校徽里镶嵌着银芯碎片，兼作通讯装置。校园中央的钟楼，建在黑池之上。\n\n[b]■ 唤醒体与守密人[/b]\n银芯是高位之灵的凝结。将它提炼，并与上位意志共鸣的亡者，便是[b]唤醒体[/b]：混沌、血肉、深海、超维——按力量所属的四个界域分类。\n守密人是被授予银钥匙的调查员，是唤醒体与世界之间的链接者。银钥匙铸自银芯，守密人若丧生，它会被收回。\n唤醒体的稳定程度以[b]诺斯指数[/b]衡量；链接减弱或指数失衡，唤醒体便会失控。\n\n[b]■ 密斯底亚协定[/b]\n《密斯底亚协定》禁止向普通人透露融蚀的存在，并规范对一切人类与未知存在的研究、收容。其执行机构是密斯底亚协定审查会。\n\n[b]■ 密境[/b]\n由唤醒体的权能或银芯技术构成的独立空间。可由人工展开。密境内的“复本”能以假乱真。\n[/sys]",
+   "refs": [],
+   "final": false,
+   "links": []
+  },
+  "00-DECREE": {
+   "id": "00-DECREE",
+   "title": "任命书（第六十一次）",
+   "source": "机密",
+   "text": "[sys]\n[b]任 命 书[/b]\n兹任命弥萨格校猫，为“第六十一次 回溯筛选”管理官。\n执行代表：（一个圆形的印记，像是一只肉垫）\n附记：本届拟定的“胜者”，是一名自称身体里住着神明的唤醒体。名册上多出的一名人类，并非管理官所加。\n[/sys]",
+   "refs": [],
+   "final": true,
+   "links": []
+  },
+  "00-SEALED": {
+   "id": "00-SEALED",
+   "title": "第六十一次 观察记录",
+   "source": "机密",
+   "text": "[sys]\n[b]第六十一次 ／ 观察记录（封存）[/b]\n管理官选中了墨菲。因为她身体里已经住着一个“神”，只要银芯收齐，那个神，就会醒。\n它确实醒了——在最后一格关闭的时候。\n可它醒来之后，第一句话，是：“余不是你们要找的那个。”\n管理官把爪子从遥控器上移开，第一次，没有按下去。\n——这是第一次，他开始怀疑，自己要找的，到底是谁。\n名册上多出的那一个名字：威廉。他不是唤醒体，胸口没有银芯，所以黑潮碰不到他，崩解也碰不到他。\n有人替他“加”了名字——管理官没有。那个人戴着礼帽，面部有雾，每一次下注，都会赢。\n他叫N。这座港口，是他给守密人的学长，设的一局。\n[/sys]",
+   "refs": [],
+   "final": true,
+   "links": []
+  }
+ },
+ "msgs": [
+  {
+   "id": "MSG01",
+   "title": "发件人不明",
+   "text": "……听得见吗？\n\n这是更早的一次。海的味道，很重。\n接起这些记录，会有人告诉你，一个神是怎么醒来的。\n\n·??-B2-45\n·??-D1-60\n·??-E4-59\n·??-C3-07\n\n（附：我录下的广播）\n“目前已死亡10人。新增的死者：戈利亚、珊、杜勒赛因、塔薇。”\n“目前已死亡20人。新增的死者：卡拉布、艾尔瓦、泰旖丝、希洛。”\n“目前已死亡56人。新增的死者：「24」、蚀灭·萝坦。”\n“目前已死亡61人。新增的死者：萨尔瓦多、卡茜亚。”",
+   "refs": [
+    "08-B2-45",
+    "17-D1-60",
+    "56-E4-59",
+    "61-C3-07"
+   ],
+   "need": 0
+  },
+  {
+   "id": "MSG02",
+   "title": "发件人不明",
+   "text": "你已经开始了。\n\n·??-E2-55\n·??-A2-28\n·??-D5-44\n·??-C3-09\n\n（附：我录下的广播）\n“目前已死亡13人。新增的死者：莫丝、凯刻斯、皮克曼。”\n“目前已死亡23人。新增的死者：威廉、雷娅、庞托斯。”\n“目前已死亡61人。新增的死者：萨尔瓦多、卡茜亚。”\n“目前已死亡62人。新增的死者：希莱斯特。”",
+   "refs": [
+    "11-E2-55",
+    "22-A2-28",
+    "60-D5-44",
+    "62-C3-09"
+   ],
+   "need": 3
+  },
+  {
+   "id": "MSG03",
+   "title": "发件人不明",
+   "text": "报告里的“加害人”一栏，多了一个选项。\n\n名册之外，还有一个下注的人。\n你会在好几份记录里遇见他——礼帽，帽檐，雾，和一句很礼貌的话。",
+   "refs": [],
+   "need": 6
+  }
+ ],
+ "start": [
+  "34-D2-32",
+  "55-D4-01",
+  "59-C3-49"
+ ],
+ "solutions": {
+  "01-C3-37": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "02-B1-11": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "重锁",
+   "weaponNum": 6,
+   "culprit": 6,
+   "culpritZh": "凯刻斯"
+  },
+  "03-A1-08": {
+   "cause": "slash",
+   "causeZh": "斩击致死",
+   "weapon": "巨人之刃",
+   "weaponNum": 41,
+   "culprit": 41,
+   "culpritZh": "波吕克斯"
+  },
+  "04-D5-31": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "05-D3-02": {
+   "cause": "poison",
+   "causeZh": "中毒致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "06-C2-43": {
+   "cause": "poison",
+   "causeZh": "中毒致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 64,
+   "culpritZh": "63"
+  },
+  "07-C2-21": {
+   "cause": "poison",
+   "causeZh": "中毒致死",
+   "weapon": "可疑的药膏",
+   "weaponNum": 32,
+   "culprit": 32,
+   "culpritZh": "弥利亚姆"
+  },
+  "08-B2-45": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "引舵之帆",
+   "weaponNum": 45,
+   "culprit": 36,
+   "culpritZh": "诺缔拉"
+  },
+  "09-C3-14": {
+   "cause": "shoot",
+   "causeZh": "射击致死",
+   "weapon": "镭射颌骨",
+   "weaponNum": 23,
+   "culprit": 23,
+   "culpritZh": "希洛"
+  },
+  "10-C4-47": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "怪蛇残蜕",
+   "weaponNum": 57,
+   "culprit": 57,
+   "culpritZh": "沙耶"
+  },
+  "11-E2-55": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "12-C1-06": {
+   "cause": "shoot",
+   "causeZh": "射击致死",
+   "weapon": "原型电池",
+   "weaponNum": 17,
+   "culprit": 17,
+   "culpritZh": "法洛思"
+  },
+  "13-B5-40": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "融蚀观测仪",
+   "weaponNum": 63,
+   "culprit": 63,
+   "culpritZh": "威廉"
+  },
+  "14-A5-27": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "15-E4-26": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "潜水头盔",
+   "weaponNum": 25,
+   "culprit": 25,
+   "culpritZh": "詹金"
+  },
+  "16-B1-30": {
+   "cause": "pierce",
+   "causeZh": "刺击致死",
+   "weapon": "旅行阳伞",
+   "weaponNum": 12,
+   "culprit": 12,
+   "culpritZh": "达芙黛尔"
+  },
+  "17-D1-60": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "18-D2-04": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "骸骨杯盏",
+   "weaponNum": 48,
+   "culprit": 48,
+   "culpritZh": "泰旖丝"
+  },
+  "19-A3-48": {
+   "cause": "accident",
+   "causeZh": "意外死亡",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "20-E5-23": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 64,
+   "culpritZh": "63"
+  },
+  "21-B1-63": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 64,
+   "culpritZh": "63"
+  },
+  "22-A2-28": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 50,
+   "culpritZh": "图鲁"
+  },
+  "23-B2-58": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "重锁",
+   "weaponNum": 6,
+   "culprit": 17,
+   "culpritZh": "法洛思"
+  },
+  "24-C5-03": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "25-D4-18": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 64,
+   "culpritZh": "63"
+  },
+  "26-A2-29": {
+   "cause": "poison",
+   "causeZh": "中毒致死",
+   "weapon": "可疑的药膏",
+   "weaponNum": 32,
+   "culprit": 32,
+   "culpritZh": "弥利亚姆"
+  },
+  "27-C4-42": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "怪蛇残蜕",
+   "weaponNum": 57,
+   "culprit": 57,
+   "culpritZh": "沙耶"
+  },
+  "28-A1-41": {
+   "cause": "fall",
+   "causeZh": "坠落致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "29-D4-13": {
+   "cause": "poison",
+   "causeZh": "中毒致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "30-D2-17": {
+   "cause": "fall",
+   "causeZh": "坠落致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 9,
+   "culpritZh": "希莱斯特"
+  },
+  "31-E1-57": {
+   "cause": "fall",
+   "causeZh": "坠落致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "32-B2-05": {
+   "cause": "poison",
+   "causeZh": "中毒致死",
+   "weapon": "超弦腐血制剂",
+   "weaponNum": 24,
+   "culprit": 24,
+   "culpritZh": "奥尔拉"
+  },
+  "33-C2-35": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 34,
+   "culpritZh": "墨菲"
+  },
+  "34-D2-32": {
+   "cause": "shoot",
+   "causeZh": "射击致死",
+   "weapon": "求救信号",
+   "weaponNum": 51,
+   "culprit": 51,
+   "culpritZh": "尤乌哈希"
+  },
+  "35-D3-12": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "36-B1-15": {
+   "cause": "shoot",
+   "causeZh": "射击致死",
+   "weapon": "求救信号",
+   "weaponNum": 51,
+   "culprit": 51,
+   "culpritZh": "尤乌哈希"
+  },
+  "37-B4-53": {
+   "cause": "accident",
+   "causeZh": "意外死亡",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "38-D2-51": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "潜水头盔",
+   "weaponNum": 25,
+   "culprit": 25,
+   "culpritZh": "詹金"
+  },
+  "39-B4-33": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "40-E1-25": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 64,
+   "culpritZh": "63"
+  },
+  "41-D4-50": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "医生手提箱",
+   "weaponNum": 10,
+   "culprit": 10,
+   "culpritZh": "克莱门汀"
+  },
+  "42-C1-38": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "43-A1-16": {
+   "cause": "slash",
+   "causeZh": "斩击致死",
+   "weapon": "锈蚀柳叶刀",
+   "weaponNum": 7,
+   "culprit": 7,
+   "culpritZh": "卡茜亚"
+  },
+  "44-E5-22": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "45-D4-39": {
+   "cause": "poison",
+   "causeZh": "中毒致死",
+   "weapon": "超弦腐血制剂",
+   "weaponNum": 24,
+   "culprit": 24,
+   "culpritZh": "奥尔拉"
+  },
+  "46-D4-46": {
+   "cause": "fall",
+   "causeZh": "坠落致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "47-C3-62": {
+   "cause": "pierce",
+   "causeZh": "刺击致死",
+   "weapon": "☆六分仪☆",
+   "weaponNum": 62,
+   "culprit": 49,
+   "culpritZh": "汀克特"
+  },
+  "48-B1-61": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "49-C2-24": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "蒙尘缝纫机",
+   "weaponNum": 56,
+   "culprit": 56,
+   "culpritZh": "阿拉克涅"
+  },
+  "50-C4-54": {
+   "cause": "pierce",
+   "causeZh": "刺击致死",
+   "weapon": "☆六分仪☆",
+   "weaponNum": 62,
+   "culprit": 49,
+   "culpritZh": "汀克特"
+  },
+  "51-B2-56": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "52-C2-20": {
+   "cause": "fall",
+   "causeZh": "坠落致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "53-C2-10": {
+   "cause": "poison",
+   "causeZh": "中毒致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "54-A2-52": {
+   "cause": "poison",
+   "causeZh": "中毒致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 64,
+   "culpritZh": "63"
+  },
+  "55-D4-01": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "56-E4-59": {
+   "cause": "poison",
+   "causeZh": "中毒致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 64,
+   "culpritZh": "63"
+  },
+  "57-D2-19": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "58-C2-36": {
+   "cause": "accident",
+   "causeZh": "意外死亡",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  },
+  "59-C3-49": {
+   "cause": "slash",
+   "causeZh": "斩击致死",
+   "weapon": "锈蚀柳叶刀",
+   "weaponNum": 7,
+   "culprit": 7,
+   "culpritZh": "卡茜亚"
+  },
+  "60-D5-44": {
+   "cause": "strangle",
+   "causeZh": "勒杀致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 64,
+   "culpritZh": "63"
+  },
+  "61-C3-07": {
+   "cause": "blunt",
+   "causeZh": "钝击致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 9,
+   "culpritZh": "希莱斯特"
+  },
+  "62-C3-09": {
+   "cause": "blast",
+   "causeZh": "爆炸致死",
+   "weapon": "无",
+   "weaponNum": 0,
+   "culprit": 0,
+   "culpritZh": "其他"
+  }
+ },
+ "hints": {
+  "restore": {
+   "01-C3-37": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“莱克”的记录里。",
+    "要找的人是“宁菲亚”，死在“港务厅”。顺序，需要你自己数。"
+   ],
+   "02-B1-11": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“卡斯托尔”的记录里。",
+    "要找的人是“克珀珊特”，死在“码头”。顺序，需要你自己数。"
+   ],
+   "03-A1-08": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“萝坦”的记录里。",
+    "要找的人是“卡斯托尔”，死在“灯塔”。顺序，需要你自己数。"
+   ],
+   "04-D5-31": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“阿格里帕”的记录里。",
+    "要找的人是“萝坦”，死在“暗礁”。顺序，需要你自己数。"
+   ],
+   "05-D3-02": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“莱克”的记录里。",
+    "要找的人是“阿格里帕”，死在“沉船”。顺序，需要你自己数。"
+   ],
+   "06-C2-43": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“戈利亚”的记录里。",
+    "要找的人是“莱克”，死在“酒馆”。顺序，需要你自己数。"
+   ],
+   "07-C2-21": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“珊”的记录里。",
+    "要找的人是“戈利亚”，死在“酒馆”。顺序，需要你自己数。"
+   ],
+   "08-B2-45": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在你收到的 MSG01 里。",
+    "要找的人是“珊”，死在“货仓”。顺序，需要你自己数。"
+   ],
+   "09-C3-14": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“塔薇”的记录里。",
+    "要找的人是“杜勒赛因”，死在“港务厅”。顺序，需要你自己数。"
+   ],
+   "10-C4-47": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“皮克曼”的记录里。",
+    "要找的人是“塔薇”，死在“渔民区”。顺序，需要你自己数。"
+   ],
+   "11-E2-55": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“卡拉布”的记录里。",
+    "要找的人是“莫丝”，死在“沙滩”。顺序，需要你自己数。"
+   ],
+   "12-C1-06": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“莉兹”的记录里。",
+    "要找的人是“凯刻斯”，死在“渔市”。顺序，需要你自己数。"
+   ],
+   "13-B5-40": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“凯蒂古拉”的记录里。",
+    "要找的人是“皮克曼”，死在“水塔”。顺序，需要你自己数。"
+   ],
+   "14-A5-27": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“珈伦”的记录里。",
+    "要找的人是“凯蒂古拉”，死在“浅滩”。顺序，需要你自己数。"
+   ],
+   "15-E4-26": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“希洛”的记录里。",
+    "要找的人是“珈伦”，死在“货栈”。顺序，需要你自己数。"
+   ],
+   "16-B1-30": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“威廉”的记录里。",
+    "要找的人是“莉兹”，死在“码头”。顺序，需要你自己数。"
+   ],
+   "17-D1-60": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在你收到的 MSG01 里。",
+    "要找的人是“卡拉布”，死在“船坞”。顺序，需要你自己数。"
+   ],
+   "18-D2-04": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“泰旖丝”的记录里。",
+    "要找的人是“艾尔瓦”，死在“礁石”。顺序，需要你自己数。"
+   ],
+   "19-A3-48": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“雷娅”的记录里。",
+    "要找的人是“泰旖丝”，死在“旧教堂”。顺序，需要你自己数。"
+   ],
+   "20-E5-23": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“熔毁·朵尔”的记录里。",
+    "要找的人是“希洛”，死在“观潮台”。顺序，需要你自己数。"
+   ],
+   "21-B1-63": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“庞托斯”的记录里。",
+    "要找的人是“威廉”，死在“码头”。顺序，需要你自己数。"
+   ],
+   "22-A2-28": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在你收到的 MSG02 里。",
+    "要找的人是“雷娅”，死在“雾堤”。顺序，需要你自己数。"
+   ],
+   "23-B2-58": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“莉莉”的记录里。",
+    "要找的人是“庞托斯”，死在“货仓”。顺序，需要你自己数。"
+   ],
+   "24-C5-03": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“熔毁·朵尔”的记录里。",
+    "要找的人是“艾继丝”，死在“渡口”。顺序，需要你自己数。"
+   ],
+   "25-D4-18": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“拉蒙娜”的记录里。",
+    "要找的人是“熔毁·朵尔”，死在“海关”。顺序，需要你自己数。"
+   ],
+   "26-A2-29": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“波吕克斯”的记录里。",
+    "要找的人是“莉莉”，死在“雾堤”。顺序，需要你自己数。"
+   ],
+   "27-C4-42": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“朵尔”的记录里。",
+    "要找的人是“拉蒙娜”，死在“渔民区”。顺序，需要你自己数。"
+   ],
+   "28-A1-41": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“奥瑞塔”的记录里。",
+    "要找的人是“波吕克斯”，死在“灯塔”。顺序，需要你自己数。"
+   ],
+   "29-D4-13": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“法洛思”的记录里。",
+    "要找的人是“朵尔”，死在“海关”。顺序，需要你自己数。"
+   ],
+   "30-D2-17": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“沙耶”的记录里。",
+    "要找的人是“法洛思”，死在“礁石”。顺序，需要你自己数。"
+   ],
+   "31-E1-57": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“弥利亚姆”的记录里。",
+    "要找的人是“沙耶”，死在“海崖”。顺序，需要你自己数。"
+   ],
+   "32-B2-05": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“诞妄·墨菲”的记录里。",
+    "要找的人是“奥瑞塔”，死在“货仓”。顺序，需要你自己数。"
+   ],
+   "33-C2-35": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“弥利亚姆”的记录里。",
+    "要找的人是“诞妄·墨菲”，死在“酒馆”。顺序，需要你自己数。"
+   ],
+   "34-D2-32": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在早晨点名或任务指示书里。",
+    "要找的人是“弥利亚姆”，死在“礁石”。顺序，需要你自己数。"
+   ],
+   "35-D3-12": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“尤乌哈希”的记录里。",
+    "要找的人是“达芙黛尔”，死在“沉船”。顺序，需要你自己数。"
+   ],
+   "36-B1-15": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“奥吉尔”的记录里。",
+    "要找的人是“艾瑞卡”，死在“码头”。顺序，需要你自己数。"
+   ],
+   "37-B4-53": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“茉夏”的记录里。",
+    "要找的人是“温柯尔”，死在“修船厂”。顺序，需要你自己数。"
+   ],
+   "38-D2-51": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“詹金”的记录里。",
+    "要找的人是“尤乌哈希”，死在“礁石”。顺序，需要你自己数。"
+   ],
+   "39-B4-33": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“詹金”的记录里。",
+    "要找的人是“茉夏”，死在“修船厂”。顺序，需要你自己数。"
+   ],
+   "40-E1-25": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“图鲁”的记录里。",
+    "要找的人是“詹金”，死在“海崖”。顺序，需要你自己数。"
+   ],
+   "41-D4-50": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“哈姆林”的记录里。",
+    "要找的人是“图鲁”，死在“海关”。顺序，需要你自己数。"
+   ],
+   "42-C1-38": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“负誓·奥吉尔”的记录里。",
+    "要找的人是“奥吉尔”，死在“渔市”。顺序，需要你自己数。"
+   ],
+   "43-A1-16": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“负誓·奥吉尔”的记录里。",
+    "要找的人是“菲茵特”，死在“灯塔”。顺序，需要你自己数。"
+   ],
+   "44-E5-22": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“潘狄娅”的记录里。",
+    "要找的人是“哈姆林”，死在“观潮台”。顺序，需要你自己数。"
+   ],
+   "45-D4-39": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“薇薇安”的记录里。",
+    "要找的人是“潘狄娅”，死在“海关”。顺序，需要你自己数。"
+   ],
+   "46-D4-46": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“徐”的记录里。",
+    "要找的人是“索蕾尔”，死在“海关”。顺序，需要你自己数。"
+   ],
+   "47-C3-62": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“奥尔拉”的记录里。",
+    "要找的人是“薇薇安”，死在“港务厅”。顺序，需要你自己数。"
+   ],
+   "48-B1-61": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“阿拉克涅”的记录里。",
+    "要找的人是“负誓·奥吉尔”，死在“码头”。顺序，需要你自己数。"
+   ],
+   "49-C2-24": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“阿拉克涅”的记录里。",
+    "要找的人是“奥尔拉”，死在“酒馆”。顺序，需要你自己数。"
+   ],
+   "50-C4-54": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“「24」”的记录里。",
+    "要找的人是“徐”，死在“渔民区”。顺序，需要你自己数。"
+   ],
+   "51-B2-56": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“克莱门汀”的记录里。",
+    "要找的人是“阿拉克涅”，死在“货仓”。顺序，需要你自己数。"
+   ],
+   "52-C2-20": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“克莱门汀”的记录里。",
+    "要找的人是“环行·拉蒙娜”，死在“酒馆”。顺序，需要你自己数。"
+   ],
+   "53-C2-10": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“血链·希洛”的记录里。",
+    "要找的人是“克莱门汀”，死在“酒馆”。顺序，需要你自己数。"
+   ],
+   "54-A2-52": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“「24」”的记录里。",
+    "要找的人是“旺达”，死在“雾堤”。顺序，需要你自己数。"
+   ],
+   "55-D4-01": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“蚀灭·萝坦”的记录里。",
+    "要找的人是“「24」”，死在“海关”。顺序，需要你自己数。"
+   ],
+   "56-E4-59": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“萨尔瓦多”的记录里。",
+    "要找的人是“蚀灭·萝坦”，死在“货栈”。顺序，需要你自己数。"
+   ],
+   "57-D2-19": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“诺缔拉”的记录里。",
+    "要找的人是“血链·希洛”，死在“礁石”。顺序，需要你自己数。"
+   ],
+   "58-C2-36": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“汀克特”的记录里。",
+    "要找的人是“诺缔拉”，死在“酒馆”。顺序，需要你自己数。"
+   ],
+   "59-C3-49": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“卡茜亚”的记录里。",
+    "要找的人是“汀克特”，死在“港务厅”。顺序，需要你自己数。"
+   ],
+   "60-D5-44": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在“希莱斯特”的记录里。",
+    "要找的人是“萨尔瓦多”，死在“暗礁”。顺序，需要你自己数。"
+   ],
+   "61-C3-07": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在你收到的 MSG01 里。",
+    "要找的人是“卡茜亚”，死在“港务厅”。顺序，需要你自己数。"
+   ],
+   "62-C3-09": [
+    "记录里转述别人的死时，常常同时写着地点和“第几个”。重读已经复原的记录，找找还没用上的那一句。",
+    "有一句线索，在你收到的 MSG02 里。",
+    "要找的人是“希莱斯特”，死在“港务厅”。顺序，需要你自己数。"
+   ]
+  },
+  "confirm": {
+   "01-C3-37": [
+    "请再仔细阅读一遍“宁菲亚”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ],
+   "02-B1-11": [
+    "请再仔细阅读一遍“克珀珊特”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“勒杀致死”。"
+   ],
+   "03-A1-08": [
+    "请再仔细阅读一遍“卡斯托尔”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“斩击致死”。"
+   ],
+   "04-D5-31": [
+    "请再仔细阅读一遍“萝坦”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ],
+   "05-D3-02": [
+    "请再仔细阅读一遍“阿格里帕”的记录，留意装备与人物。",
+    "这一起，也许是本人的选择。重读 00-REPORT，想想“凶器”该怎么记。",
+    "死因是“中毒致死”。"
+   ],
+   "06-C2-43": [
+    "请再仔细阅读一遍“莱克”的记录，留意装备与人物。",
+    "这一起没有用到配发装备。名册里，有没有人符合记录里的描述？",
+    "死因是“中毒致死”。"
+   ],
+   "07-C2-21": [
+    "请再仔细阅读一遍“戈利亚”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“中毒致死”。"
+   ],
+   "08-B2-45": [
+    "请再仔细阅读一遍“珊”的记录，留意装备与人物。",
+    "这件凶器本是被害者自己的东西。",
+    "死因是“勒杀致死”。"
+   ],
+   "09-C3-14": [
+    "请再仔细阅读一遍“杜勒赛因”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“射击致死”。"
+   ],
+   "10-C4-47": [
+    "请再仔细阅读一遍“塔薇”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“勒杀致死”。"
+   ],
+   "11-E2-55": [
+    "请再仔细阅读一遍“莫丝”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ],
+   "12-C1-06": [
+    "请再仔细阅读一遍“凯刻斯”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“射击致死”。"
+   ],
+   "13-B5-40": [
+    "请再仔细阅读一遍“皮克曼”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“钝击致死”。"
+   ],
+   "14-A5-27": [
+    "请再仔细阅读一遍“凯蒂古拉”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ],
+   "15-E4-26": [
+    "请再仔细阅读一遍“珈伦”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“钝击致死”。"
+   ],
+   "16-B1-30": [
+    "请再仔细阅读一遍“莉兹”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“刺击致死”。"
+   ],
+   "17-D1-60": [
+    "请再仔细阅读一遍“卡拉布”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ],
+   "18-D2-04": [
+    "请再仔细阅读一遍“艾尔瓦”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“钝击致死”。"
+   ],
+   "19-A3-48": [
+    "请再仔细阅读一遍“泰旖丝”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-REPORT 里关于“过失”的部分。",
+    "死因是“意外死亡”。"
+   ],
+   "20-E5-23": [
+    "请再仔细阅读一遍“希洛”的记录，留意装备与人物。",
+    "这一起没有用到配发装备。名册里，有没有人符合记录里的描述？",
+    "死因是“勒杀致死”。"
+   ],
+   "21-B1-63": [
+    "请再仔细阅读一遍“威廉”的记录，留意装备与人物。",
+    "这一起没有用到配发装备。名册里，有没有人符合记录里的描述？",
+    "死因是“勒杀致死”。"
+   ],
+   "22-A2-28": [
+    "请再仔细阅读一遍“雷娅”的记录，留意装备与人物。",
+    "这一起没有用到配发装备。看看记录里的证言，谁和被害者有过照面？",
+    "死因是“钝击致死”。"
+   ],
+   "23-B2-58": [
+    "请再仔细阅读一遍“庞托斯”的记录，留意装备与人物。",
+    "凶器不在原主手里。在这之前，它经过了谁的手？",
+    "死因是“勒杀致死”。"
+   ],
+   "24-C5-03": [
+    "请再仔细阅读一遍“艾继丝”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ],
+   "25-D4-18": [
+    "请再仔细阅读一遍“熔毁·朵尔”的记录，留意装备与人物。",
+    "这一起没有用到配发装备。名册里，有没有人符合记录里的描述？",
+    "死因是“勒杀致死”。"
+   ],
+   "26-A2-29": [
+    "请再仔细阅读一遍“莉莉”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“中毒致死”。"
+   ],
+   "27-C4-42": [
+    "请再仔细阅读一遍“拉蒙娜”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“勒杀致死”。"
+   ],
+   "28-A1-41": [
+    "请再仔细阅读一遍“波吕克斯”的记录，留意装备与人物。",
+    "这一起，也许是本人的选择。重读 00-REPORT，想想“自杀”该怎么记。",
+    "死因是“坠落致死”。"
+   ],
+   "29-D4-13": [
+    "请再仔细阅读一遍“朵尔”的记录，留意装备与人物。",
+    "这一起，也许是本人的选择。重读 00-REPORT，想想“凶器”该怎么记。",
+    "死因是“中毒致死”。"
+   ],
+   "30-D2-17": [
+    "请再仔细阅读一遍“法洛思”的记录，留意装备与人物。",
+    "这一起没有用到配发装备。看看记录里的证言，谁和被害者有过照面？",
+    "死因是“坠落致死”。"
+   ],
+   "31-E1-57": [
+    "请再仔细阅读一遍“沙耶”的记录，留意装备与人物。",
+    "这一起，也许是本人的选择。重读 00-REPORT，想想“自杀”该怎么记。",
+    "死因是“坠落致死”。"
+   ],
+   "32-B2-05": [
+    "请再仔细阅读一遍“奥瑞塔”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“中毒致死”。"
+   ],
+   "33-C2-35": [
+    "请再仔细阅读一遍“诞妄·墨菲”的记录，留意装备与人物。",
+    "这一起没有用到配发装备。看看记录里的证言，谁和被害者有过照面？",
+    "死因是“钝击致死”。"
+   ],
+   "34-D2-32": [
+    "请再仔细阅读一遍“弥利亚姆”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“射击致死”。"
+   ],
+   "35-D3-12": [
+    "请再仔细阅读一遍“达芙黛尔”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ],
+   "36-B1-15": [
+    "请再仔细阅读一遍“艾瑞卡”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“射击致死”。"
+   ],
+   "37-B4-53": [
+    "请再仔细阅读一遍“温柯尔”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-REPORT 里关于“过失”的部分。",
+    "死因是“意外死亡”。"
+   ],
+   "38-D2-51": [
+    "请再仔细阅读一遍“尤乌哈希”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“钝击致死”。"
+   ],
+   "39-B4-33": [
+    "请再仔细阅读一遍“茉夏”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ],
+   "40-E1-25": [
+    "请再仔细阅读一遍“詹金”的记录，留意装备与人物。",
+    "这一起没有用到配发装备。名册里，有没有人符合记录里的描述？",
+    "死因是“勒杀致死”。"
+   ],
+   "41-D4-50": [
+    "请再仔细阅读一遍“图鲁”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“钝击致死”。"
+   ],
+   "42-C1-38": [
+    "请再仔细阅读一遍“奥吉尔”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ],
+   "43-A1-16": [
+    "请再仔细阅读一遍“菲茵特”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“斩击致死”。"
+   ],
+   "44-E5-22": [
+    "请再仔细阅读一遍“哈姆林”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ],
+   "45-D4-39": [
+    "请再仔细阅读一遍“潘狄娅”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“中毒致死”。"
+   ],
+   "46-D4-46": [
+    "请再仔细阅读一遍“索蕾尔”的记录，留意装备与人物。",
+    "这一起，也许是本人的选择。重读 00-REPORT，想想“自杀”该怎么记。",
+    "死因是“坠落致死”。"
+   ],
+   "47-C3-62": [
+    "请再仔细阅读一遍“薇薇安”的记录，留意装备与人物。",
+    "这件凶器本是被害者自己的东西。",
+    "死因是“刺击致死”。"
+   ],
+   "48-B1-61": [
+    "请再仔细阅读一遍“负誓·奥吉尔”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ],
+   "49-C2-24": [
+    "请再仔细阅读一遍“奥尔拉”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“钝击致死”。"
+   ],
+   "50-C4-54": [
+    "请再仔细阅读一遍“徐”的记录，留意装备与人物。",
+    "凶器不在原主手里。在这之前，它经过了谁的手？",
+    "死因是“刺击致死”。"
+   ],
+   "51-B2-56": [
+    "请再仔细阅读一遍“阿拉克涅”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ],
+   "52-C2-20": [
+    "请再仔细阅读一遍“环行·拉蒙娜”的记录，留意装备与人物。",
+    "这一起，也许是本人的选择。重读 00-REPORT，想想“自杀”该怎么记。",
+    "死因是“坠落致死”。"
+   ],
+   "53-C2-10": [
+    "请再仔细阅读一遍“克莱门汀”的记录，留意装备与人物。",
+    "这一起，也许是本人的选择。重读 00-REPORT，想想“凶器”该怎么记。",
+    "死因是“中毒致死”。"
+   ],
+   "54-A2-52": [
+    "请再仔细阅读一遍“旺达”的记录，留意装备与人物。",
+    "这一起没有用到配发装备。名册里，有没有人符合记录里的描述？",
+    "死因是“中毒致死”。"
+   ],
+   "55-D4-01": [
+    "请再仔细阅读一遍“「24」”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ],
+   "56-E4-59": [
+    "请再仔细阅读一遍“蚀灭·萝坦”的记录，留意装备与人物。",
+    "这一起没有用到配发装备。名册里，有没有人符合记录里的描述？",
+    "死因是“中毒致死”。"
+   ],
+   "57-D2-19": [
+    "请再仔细阅读一遍“血链·希洛”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ],
+   "58-C2-36": [
+    "请再仔细阅读一遍“诺缔拉”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-REPORT 里关于“过失”的部分。",
+    "死因是“意外死亡”。"
+   ],
+   "59-C3-49": [
+    "请再仔细阅读一遍“汀克特”的记录，留意装备与人物。",
+    "凶器是谁配发的，可以在名册里查。",
+    "死因是“斩击致死”。"
+   ],
+   "60-D5-44": [
+    "请再仔细阅读一遍“萨尔瓦多”的记录，留意装备与人物。",
+    "这一起没有用到配发装备。名册里，有没有人符合记录里的描述？",
+    "死因是“勒杀致死”。"
+   ],
+   "61-C3-07": [
+    "请再仔细阅读一遍“卡茜亚”的记录，留意装备与人物。",
+    "这一起没有用到配发装备。看看记录里的证言，谁和被害者有过照面？",
+    "死因是“钝击致死”。"
+   ],
+   "62-C3-09": [
+    "请再仔细阅读一遍“希莱斯特”的记录，留意装备与人物。",
+    "这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。",
+    "死因是“爆炸致死”。"
+   ]
+  }
+ },
+ "shadow": {
+  "num": 64,
+  "keys": [
+   "06-C2-43",
+   "20-E5-23",
+   "21-B1-63",
+   "25-D4-18",
+   "40-E1-25",
+   "54-A2-52",
+   "56-E4-59",
+   "60-D5-44"
+  ],
+  "msg": "MSG03",
+  "label": "名册外的个体"
+ },
+ "stats": {
+  "records": 62,
+  "edges": 86
+ }
+}

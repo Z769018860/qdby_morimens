@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#04070d">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>死亡游戏调查报告 · 第六十三次回溯筛选</title>
+<meta name="description" content="档案终端式推理：复原六十二名唤醒体的死亡记录，核对名册、地图与广播，填写死亡报告——名册上真的只有六十二个人吗？">
+<link rel="stylesheet" href="css/dr.css">
+</head>
+<body>
+<div id="bglayer" aria-hidden="true"><img alt="" decoding="async"><img alt="" decoding="async"></div>
+<canvas id="bg"></canvas>
+<div id="app" class="crt-on">
+  <section id="title" class="screen">
+    <div class="tcard">
+      <svg class="tower" viewBox="0 0 120 220" aria-hidden="true"><path d="M52 220V92l-8-4V74l16-26 16 26v14l-8 4v128z" fill="currentColor"/><path d="M60 22v26" stroke="currentColor" stroke-width="3"/><circle cx="60" cy="108" r="11" fill="none" stroke="#04070d" stroke-width="3"/><path d="M60 102v7l5 3" stroke="#04070d" stroke-width="2.4" fill="none"/><rect x="40" y="150" width="8" height="18" fill="#04070d"/><rect x="72" y="150" width="8" height="18" fill="#04070d"/></svg>
+      <p class="kick">弥萨格大学　钥冢档案室　溯梦终端</p>
+      <h1>死亡游戏调查报告</h1>
+      <p class="sub">第六十三次　回溯筛选　完全复原</p>
+      <pre id="bootlog" class="boot" aria-live="polite"></pre>
+      <nav class="menu" id="menu"></nav>
+      <p class="fine">同人虚构作品，使用《忘却前夜》的角色与素材，与官方无关。玩法灵感来自“填写死亡报告”类推理游戏，故事、文本、名册与谜题均为原创。</p>
+    </div>
+  </section>
+  <section id="game" class="screen" hidden>
+    <header class="top">
+      <b class="logo">记录复原终端</b>
+      <span id="score" class="scorebox"></span><div class="rate" title="核实率"><i id="ratebar"></i><span id="ratetxt">核实率 0%</span></div>
+      <span class="grow"></span>
+      <button id="bSave" class="tb">保存</button><button id="bSet" class="tb">设置</button><button id="bFinish" class="tb gold" hidden>提交最终报告</button><button id="bTitle" class="tb">标题</button>
+    </header>
+    <main class="cols">
+      <aside id="idx" class="pane">
+        <form id="recForm" autocomplete="off"><label for="recIn">记录名</label><div class="row"><input id="recIn" placeholder="05-D2-29 ／ 00-ORDER" spellcheck="false" autocapitalize="characters" autocorrect="off" enterkeyhint="go"><button class="btn" type="submit">复原</button></div><div id="recMsg" class="msg"></div></form>
+        <div id="leadsum" class="leadsum"></div>
+        <div class="sortbar"><button data-sort="order" class="on">复原顺序</button><button data-sort="name">名称</button><button data-sort="refs">可推理数</button></div>
+        <ul id="list" class="list"></ul>
+      </aside>
+      <article id="rd" class="pane reader"><div id="rdHead" class="rdhead"></div><div id="rdBody" class="rdbody"><p class="dim">在索引里选择记录，或在上方键入记录名。</p></div></article>
+      <aside id="tl" class="pane tools">
+        <div class="tabs" id="tabs"><button data-t="ros" class="on">名册</button><button data-t="map">地图</button><button data-t="infer">推理</button><button data-t="graph">结构</button><button data-t="rep">报告</button><button data-t="note">笔记</button><button data-t="hint">提示</button></div>
+        <div id="tp" class="tp"></div>
+      </aside>
+    </main>
+    <nav class="tabsm" id="tabsm"><button data-p="idx" class="on">索引</button><button data-p="rd">阅读</button><button data-p="tl">工具</button></nav>
+  </section>
+  <div id="modal" class="modal" hidden></div>
+  <div id="ending" class="ending" hidden></div>
+  <canvas id="fx"></canvas>
+  <div id="toast" role="status"></div>
+</div>
+<script type="module" src="js/ui.js"></script>
+</body>
+</html>
