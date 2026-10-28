@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -154,12 +155,50 @@ function genBirdArt() {
   return Object.keys(meta.anims).length;
 }
 
+// ------------------------------------------- 唤醒体幸存者的图集与数据表
+// 这游戏要显示 62 名唤醒体 + 一批怪物 + 造物 / 命轮 / 契物，全部逐个请求
+// 在边缘就是几百个 1~2 秒的来回。素材已经在 scripts/build_survivors_art.py
+// 里拼成一张 webp（assets/survivors/atlas.webp），这里把它连同帧表和
+// scripts/build_survivors_data.mjs 整理好的角色/武器表一起内联成一个模块，
+// 整局游戏依然只有一个脚本请求。
+function genSurvivors() {
+  const atlasPath = path.join(ROOT, 'assets/survivors/atlas.webp');
+  if (!has(atlasPath)) throw new Error('缺少图集，先跑 python scripts/build_survivors_art.py');
+  const meta = readJson(path.join(ROOT, 'data/survivors-atlas.json'));
+  const data = readJson(path.join(ROOT, 'data/survivors-data.json'));
+  const uri = 'data:image/webp;base64,' + fs.readFileSync(atlasPath).toString('base64');
+  const code = [
+    '// 由 scripts/build.mjs 生成，请勿手改。',
+    '// 源：assets/survivors/atlas.webp + data/survivors-atlas.json + data/survivors-data.json',
+    `export const ATLAS = ${JSON.stringify(uri)};`,
+    `export const META = ${JSON.stringify({ cell: meta.cell, cols: meta.cols, w: meta.w, h: meta.h, frames: meta.frames })};`,
+    `export const CHARS = ${JSON.stringify(data.chars)};`,
+    `export const WEAPONS = ${JSON.stringify(data.weapons)};`,
+    `export const MOBS = ${JSON.stringify(data.monsters)};`,
+    `export const CREATIONS = ${JSON.stringify(data.creations)};`,
+    `export const WHEELS = ${JSON.stringify(data.wheels)};`,
+    `export const COVENANTS = ${JSON.stringify(data.covenants)};`,
+    '',
+  ].join('\n');
+  const out = path.join(ROOT, 'js/sv/gen.js');
+  if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
+  return { chars: data.chars.length, weapons: data.weapons.length, kb: Math.round(code.length / 1024) };
+}
+
 // ------------------------------------------------------------------ 主流程
 const artCount = genMergeArt();
 const birdArt = genBirdArt();
+const sv = genSurvivors();
+// 「校猫的结合」要内联四十多张图（猫 + 造物 + 密契 + 钥令 + 首领），逻辑单独放一个脚本，
+// 这里只负责在构建时调它，保证 js/binding-art.js 不会和 data/binding-art.json 走散。
+execFileSync(process.execPath, [path.join(ROOT, 'scripts/build_binding_art.mjs')], { stdio: 'pipe' });
 
-fs.rmSync(OUT_JS, { recursive: true, force: true });
+// 不 rmSync 整个 js/b：这台机器的删除是被「异步送进回收站」的垫片接管的，
+// rmSync 会在文件还没真正消失时 rmdir → 偶发 ENOTEMPTY；更糟的是延迟删除可能落在
+// 新文件写入之后，把刚打包好的 bundle 又删掉，表现成「构建成功但产物缺文件」。
+// 所以只建目录、按需覆盖写，最后再清一次不再需要的旧文件名（清不掉也无所谓）。
 fs.mkdirSync(OUT_JS, { recursive: true });
+const staleNames = new Set(fs.readdirSync(OUT_JS));
 
 const pageFiles = fs.readdirSync(PAGES).filter((f) => f.endsWith('.html')).sort();
 const built = [];
@@ -173,6 +212,7 @@ for (const f of pageFiles) {
   const { code, modules } = bundle('js/' + entry);
   const outName = `${name}.js`;
   fs.writeFileSync(path.join(OUT_JS, outName), code + '\n', 'utf8');
+  staleNames.delete(outName);
   totalModules += modules;
   built.push({ name, src, entry: outName, modules, kb: Math.round(code.length / 1024) });
 }
@@ -196,6 +236,7 @@ for (const rel of EXTRA_ENTRIES) {
   const out = path.basename(rel);
   const full = code + tail;
   fs.writeFileSync(path.join(OUT_JS, out), full, 'utf8');
+  staleNames.delete(out);
   totalModules += modules;
   extras.push({ out, modules, names, kb: Math.round(full.length / 1024) });
 }
@@ -235,6 +276,12 @@ h.update(read(path.join(SRC, 'sw.js')));
   }
 }
 const stamp = h.digest('hex').slice(0, 10);
+
+// 清理不再产出的旧 bundle（页面改名/下线后留下的孤儿文件）。放在所有读写之后，
+// 即使删除被垫片延迟执行也不会影响刚刚写好的产物；删不掉就留着，下轮再试。
+for (const f of staleNames) {
+  try { fs.rmSync(path.join(OUT_JS, f), { force: true }); } catch { /* 被占用就下次 */ }
+}
 
 // ---- 页面拼装
 const css = read(path.join(ROOT, 'css/style.css'));
@@ -301,5 +348,6 @@ for (const p of built) {
   );
 }
 console.log(`共打包 ${totalModules} 次模块引用；data/boot.json ${Math.round(bootJson.length / 1024)}KB`);
+console.log(`  唤醒体幸存者：${sv.chars} 名角色 / ${sv.weapons} 把武器，js/sv/gen.js ${sv.kb}KB（图集已内联）`);
 for (const e of extras) console.log(`  延迟加载 js/b/${e.out}`.padEnd(30), `${e.modules} 个模块 → ${e.kb}KB（不进首屏）`);
 console.log(`sw.js 预缓存 ${precache.length} 项`);

@@ -178,6 +178,8 @@ const teamOut = await cdp.evalIife(`(() => {
   const s = __game.state;
   const t = document.querySelector('.toast');
   const eq = s.team.map((x) => s.gear.equip[x] || {});
+  const v = window.__view();
+  const heads = [...v.querySelectorAll('h3')].map((h) => h.innerText.replace(/\\s+/g, ' ').trim());
   return {
     toast: t ? t.textContent : '',
     team: s.team.length,
@@ -185,12 +187,22 @@ const teamOut = await cdp.evalIife(`(() => {
     covs: eq.filter((e) => e.cov).length,
     relics: (s.gear.relics || []).filter(Boolean).length,
     orders: (s.orders.slots || []).filter(Boolean).length,
+    heads,
+    slots: v.querySelectorAll('.eqpanel .eqslot').length,
+    filled: v.querySelectorAll('.eqpanel .eqslot.on').length,
   };
 })()`);
 check(/一键配队完成/.test(teamOut.toast), `toast：${teamOut.toast}`);
 check(teamOut.team === 4 && teamOut.wheels === 4 && teamOut.covs === 4,
   `一键配队：队伍 ${teamOut.team} 人 / 命轮 ${teamOut.wheels} / 密契 ${teamOut.covs}`);
 check(teamOut.relics > 0 && teamOut.orders > 0, `造物 ${teamOut.relics} 件 / 钥令 ${teamOut.orders} 个`);
+check(teamOut.heads.some((h) => h.includes('命轮') && h.includes('密契')), `队伍页有命轮·密契区块：${teamOut.heads.join(' | ')}`);
+check(teamOut.slots === 8 && teamOut.filled === 8, `队伍页槽位 ${teamOut.slots} 格 / 已装 ${teamOut.filled} 格`);
+await cdp.shot('team');
+// 往下滚一屏，把命轮 · 密契面板整块拍下来
+await cdp.evalIife(`(() => { window.__view().querySelector('.eqpanel')?.scrollIntoView({ block: 'start' }); return 1; })()`);
+await sleep(300);
+await cdp.shot('team-gear');
 
 // 5) 钥令页：原作图标真的加载出来了（lazy 图得先滚进视口）
 await cdp.evalIife(`window.__go('orders')`);

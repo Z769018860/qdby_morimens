@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>唤醒体幸存者 · 忘忘同人小游戏</title>
+<meta name="description" content="吸血鬼幸存者的玩法，素材全部取自《忘却前夜》：62 名唤醒体的 124 个技能都是可抽的武器，一路捡造物、开命轮，在忘川里活过 15 分钟。">
+<meta name="theme-color" content="#0a0d14">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
+<style>
+/* 这一页不引用 css/style.css：整站那份 65KB 是给多页应用的，
+   游戏页只要一个壳 + 一个脚本请求。样式全部走 CSS 变量，浅色也跟着系统走。 */
+:root{
+  --bg:#0a0d14; --panel:#121722; --panel2:#1a2130; --line:#28324a;
+  --text:#e6e9f0; --dim:#8a93a8; --accent:#6ea8ff; --gold:#e3b341; --bad:#e8695f;
+  --chaos:#b06bd9; --caro:#e8695f; --aequor:#5fe0d0; --ultra:#e3b341;
+}
+/* 这一页固定深色：战斗画面是深色地格，界面跟着系统切成浅色会割裂。
+   （整站其余页面仍然跟随系统。） */
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{
+  background:var(--bg); color:var(--text); -webkit-tap-highlight-color:transparent;
+  background-image:radial-gradient(760px 420px at 50% -8%, rgba(110,168,255,.12), transparent 70%);
+  background-repeat:no-repeat;
+  font:15px/1.5 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+}
+button{font:inherit}
+
+.app{position:relative; width:100%; height:100dvh; overflow:hidden}
+#cv{display:block; width:100%; height:100%; touch-action:none; background:#0a0d14; cursor:crosshair}
+
+/* ------------------------------------------------------------------ HUD */
+#hud[hidden]{display:none}
+#hud{position:absolute; inset:0; pointer-events:none; padding:max(10px,env(safe-area-inset-top)) 12px 12px;
+  display:flex; flex-direction:column; gap:8px}
+.hud-top{display:flex; align-items:center; gap:10px}
+.hud-time{display:flex; flex-direction:column; line-height:1.1}
+.hud-time b{font-size:20px; font-variant-numeric:tabular-nums; letter-spacing:.02em}
+.hud-time span{font-size:11px; color:var(--dim)}
+.hud-lv{flex:1 1 auto; display:flex; align-items:center; gap:7px; min-width:0}
+.hud-lv span{font-size:11.5px; color:var(--dim); white-space:nowrap}
+.hud-lv b{color:var(--gold); font-size:13px}
+.xp{flex:1 1 auto; height:6px; border-radius:999px; background:color-mix(in oklab, var(--line) 80%, transparent); overflow:hidden}
+.xp i{display:block; height:100%; width:0; border-radius:999px; background:linear-gradient(90deg,#4aa3ff,#7ee0ff); transition:width .12s linear}
+.hud-pause{pointer-events:auto; width:34px; height:34px; flex:0 0 34px; border-radius:10px;
+  border:1px solid var(--line); background:color-mix(in oklab, var(--panel) 88%, transparent);
+  color:var(--dim); font-size:12px; cursor:pointer}
+.hud-pause:hover{color:var(--accent); border-color:var(--accent)}
+
+.hud-bars{display:flex; flex-direction:column; gap:5px; width:min(240px, 52%)}
+.bar{position:relative; height:15px; border-radius:999px; overflow:hidden;
+  background:color-mix(in oklab, #000 50%, var(--panel)); border:1px solid var(--line)}
+.bar i{display:block; height:100%; width:100%; transition:width .12s linear}
+.bar.hp i{background:linear-gradient(90deg,#d64a5a,#ff8a7a)}
+.bar.sh{height:8px}
+.bar.sh i{background:linear-gradient(90deg,#3b7dd8,#8ec5ff)}
+.bar em{position:absolute; inset:0; display:grid; place-items:center; font-style:normal;
+  font-size:10px; letter-spacing:.04em; text-shadow:0 1px 2px rgba(0,0,0,.8); color:#fff}
+
+.hud-weapons{display:flex; flex-wrap:wrap; gap:5px; margin-top:auto}
+.slot{position:relative; width:34px; height:34px; border-radius:9px; border:1px solid var(--line);
+  background:color-mix(in oklab, var(--panel) 90%, transparent); display:grid; place-items:center; overflow:hidden}
+.slot i{display:block; border-radius:6px}
+.slot .pips{position:absolute; bottom:2px; left:0; right:0; display:flex; gap:1px; justify-content:center}
+.slot .pips b{width:3px; height:3px; border-radius:50%; background:rgba(255,255,255,.22)}
+.slot .pips b.on{background:var(--gold); box-shadow:0 0 4px color-mix(in oklab,var(--gold) 70%,transparent)}
+.slot.p{border-color:color-mix(in oklab,#7ad6a0 40%,var(--line)); display:flex; gap:2px; align-items:center; justify-content:center}
+.slot.p u{width:3px; height:14px; background:#7ad6a0; border-radius:2px; opacity:.8}
+.slot.w{color:var(--gold); font-size:12px; border-color:color-mix(in oklab,var(--gold) 55%,var(--line));
+  background:color-mix(in oklab,var(--gold) 12%,var(--panel))}
+.slot.c{color:var(--chaos); font-size:12px; border-color:color-mix(in oklab,var(--chaos) 55%,var(--line));
+  background:color-mix(in oklab,var(--chaos) 12%,var(--panel))}
+.hud-passives{display:flex; flex-wrap:wrap; gap:5px; margin-top:5px}
+.bossbar[hidden]{display:none}
+.bossbar{position:absolute; left:50%; bottom:calc(26px + env(safe-area-inset-bottom)); transform:translateX(-50%);
+  width:min(420px, 84%); display:flex; flex-direction:column; gap:3px; align-items:center}
+.bossbar span{font-size:11.5px; color:var(--bad); letter-spacing:.06em;
+  text-shadow:0 1px 3px rgba(0,0,0,.9)}
+.bossbar i{display:block; width:100%; height:7px; border-radius:999px; overflow:hidden;
+  background:color-mix(in oklab,#000 60%, var(--panel)); border:1px solid color-mix(in oklab,var(--bad) 45%,var(--line))}
+.bossbar b{display:block; height:100%; background:linear-gradient(90deg,#b83a3a,#ff8a7a); transition:width .12s linear}
+
+/* 触屏摇杆 */
+#stick{position:fixed; z-index:5; width:96px; height:96px; margin:-48px 0 0 -48px;
+  border-radius:50%; border:1.5px solid color-mix(in oklab, var(--accent) 45%, transparent);
+  background:color-mix(in oklab, var(--accent) 8%, transparent);
+  pointer-events:none; opacity:0; transition:opacity .12s ease}
+#stick i{position:absolute; left:50%; top:50%; width:38px; height:38px; margin:-19px 0 0 -19px;
+  border-radius:50%; background:color-mix(in oklab, var(--accent) 55%, transparent);
+  border:1.5px solid color-mix(in oklab, #fff 45%, transparent)}
+
+/* --------------------------------------------------------------- 遮罩层 */
+.ov{position:absolute; inset:0; z-index:10; display:flex; align-items:center; justify-content:center;
+  background:color-mix(in oklab, var(--bg) 82%, transparent); backdrop-filter:blur(6px);
+  padding:max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom))}
+.ov[hidden]{display:none}
+.ov.mid .card{max-width:min(560px, 100%)}
+
+/* --------------------------------------------------------------- 选人 */
+.pick{position:relative; width:100%; max-width:640px; height:100%; display:flex; flex-direction:column; gap:10px; min-height:0;
+  padding-bottom:max(2px, env(safe-area-inset-bottom))}
+/* 回首页：选人页左上角一个小胶囊。战斗中不显示，避免误触退出整局。 */
+.pick .home{position:absolute; top:10px; left:10px; z-index:2; display:inline-flex; align-items:center; gap:4px;
+  height:26px; padding:0 10px; border-radius:999px; border:1px solid var(--line);
+  background:var(--panel); color:var(--dim); font-size:12px; text-decoration:none}
+.pick .home:hover{color:var(--accent); border-color:var(--accent)}
+.pick header{text-align:center; flex:0 0 auto; padding-top:6px}
+.pick h1{margin:0; font-size:25px; letter-spacing:.04em}
+.pick h1 span{color:var(--accent)}
+.pick .sub{margin:5px 0 0; color:var(--dim); font-size:12.5px}
+
+.diff{display:flex; gap:5px; flex:0 0 auto}
+.diff button{flex:1 1 0; height:30px; border-radius:999px; border:1px solid var(--line);
+  background:var(--panel); color:var(--dim); font-size:12.5px; cursor:pointer; transition:.12s}
+.diff button.on{color:var(--gold); font-weight:600; border-color:color-mix(in oklab,var(--gold) 58%,var(--line));
+  background:color-mix(in oklab,var(--gold) 13%,var(--panel))}
+.tip{margin:-4px 0 0; font-size:11.5px; color:var(--dim); text-align:center}
+
+.char-list{flex:1 1 auto; min-height:0; overflow:auto; display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(62px, 1fr)); gap:6px; padding:2px;
+  background:color-mix(in oklab, var(--panel) 55%, transparent); border:1px solid var(--line);
+  border-radius:14px; padding:8px}
+.char-list::-webkit-scrollbar{width:6px}
+.char-list::-webkit-scrollbar-thumb{background:var(--line); border-radius:3px}
+.ch{position:relative; display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:5px 2px 4px; border-radius:10px; border:1px solid transparent; background:transparent;
+  color:var(--dim); cursor:pointer; transition:.12s}
+.ch:hover{background:color-mix(in oklab, var(--accent) 10%, transparent)}
+.ch i{border-radius:50%; display:block; filter:grayscale(.25) brightness(.92)}
+.ch b{font-size:10.5px; font-weight:500; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ch.on{border-color:var(--accent); background:color-mix(in oklab, var(--accent) 16%, transparent); color:var(--text)}
+.ch.on i{filter:none}
+.ch.r-chaos.on{border-color:var(--chaos); background:color-mix(in oklab, var(--chaos) 16%, transparent)}
+.ch.r-caro.on{border-color:var(--caro); background:color-mix(in oklab, var(--caro) 16%, transparent)}
+.ch.r-aequor.on{border-color:var(--aequor); background:color-mix(in oklab, var(--aequor) 16%, transparent)}
+.ch.r-ultra.on{border-color:var(--ultra); background:color-mix(in oklab, var(--ultra) 16%, transparent)}
+
+.char-info{flex:0 0 auto; padding:9px 11px; border-radius:13px; border:1px solid var(--line);
+  background:var(--panel); font-size:12px; line-height:1.5; max-height:38vh; overflow:auto}
+.ci-top{display:flex; gap:10px; align-items:flex-start}
+.ci-portrait{border-radius:12px; display:block; flex:0 0 auto}
+.char-info h3{margin:0 0 3px; font-size:15px}
+.char-info h3 small{color:var(--dim); font-weight:400; font-size:11px; margin-left:4px}
+.ci-tags{display:flex; gap:5px; margin:0 0 4px}
+.tg{font-size:10.5px; padding:1px 7px; border-radius:999px; border:1px solid var(--line); color:var(--dim)}
+.tg.r-chaos{color:var(--chaos); border-color:color-mix(in oklab,var(--chaos) 50%,var(--line))}
+.tg.r-caro{color:var(--caro); border-color:color-mix(in oklab,var(--caro) 50%,var(--line))}
+.tg.r-aequor{color:var(--aequor); border-color:color-mix(in oklab,var(--aequor) 50%,var(--line))}
+.tg.r-ultra{color:var(--ultra); border-color:color-mix(in oklab,var(--ultra) 50%,var(--line))}
+.ci-line{margin:0; color:var(--dim); font-size:11.5px}
+.ci-line b{color:var(--accent); font-weight:600; margin-right:6px; font-size:11px}
+.ci-talent{margin:7px 0 6px; color:var(--dim); font-size:11.5px}
+.ci-talent b{display:block; color:var(--gold); font-size:12px; margin-bottom:1px}
+.ci-w{display:flex; flex-direction:column; gap:4px}
+.wi{display:flex; align-items:baseline; gap:7px; padding:3px 7px; border-radius:8px;
+  background:color-mix(in oklab, var(--panel2) 80%, transparent)}
+.wi .pk{font-size:9.5px; padding:0 5px; border-radius:999px; background:color-mix(in oklab,var(--accent) 22%,transparent); color:var(--accent)}
+.wi b{font-size:12px; font-weight:600}
+.wi em{font-size:11px; color:var(--dim); font-style:normal; margin-left:auto}
+
+.btn{height:44px; border-radius:12px; border:1px solid var(--line); background:var(--panel);
+  color:var(--text); cursor:pointer; font-size:14.5px; font-weight:600; transition:.14s}
+.btn.primary{background:linear-gradient(180deg, color-mix(in oklab,var(--accent) 90%, #fff), var(--accent));
+  border-color:transparent; color:#03101f}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{color:var(--dim)}
+.btn:active{transform:scale(.985)}
+.btn:disabled{opacity:.55; cursor:default; filter:saturate(.6)}
+.btn:disabled:active{transform:none}
+
+/* --------------------------------------------------------- 升级三选一 */
+.card{width:100%; max-height:100%; overflow:auto; border-radius:16px; border:1px solid var(--line);
+  background:var(--panel); padding:16px}
+.card h2{margin:0 0 4px; font-size:18px; text-align:center}
+.card .hint{margin:0 0 12px; text-align:center; color:var(--dim); font-size:12px}
+#upList{display:flex; flex-direction:column; gap:8px}
+.up{position:relative; display:flex; align-items:center; gap:11px; width:100%; text-align:left;
+  padding:10px 34px 10px 11px; border-radius:13px; cursor:pointer;
+  border:1px solid var(--line); background:var(--panel2); color:var(--text); transition:.13s}
+.up:hover{border-color:var(--accent); transform:translateY(-1px)}
+.up.w{border-color:color-mix(in oklab,var(--accent) 42%,var(--line))}
+.up.k{border-color:color-mix(in oklab,#7ad6a0 38%,var(--line))}
+.up-img{flex:0 0 auto; border-radius:10px; display:block; background:var(--panel)}
+.up-txt{display:flex; flex-direction:column; gap:1px; min-width:0}
+.up-txt b{font-size:13.5px}
+.up-txt em{font-size:11.5px; color:var(--dim); font-style:normal;
+  overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
+.up-txt u{font-size:11px; color:var(--accent); text-decoration:none}
+.up-tag{position:absolute; right:8px; top:6px; font-size:9.5px; color:var(--dim)}
+.up-key{position:absolute; right:8px; bottom:6px; font-size:9.5px; color:var(--dim);
+  border:1px solid var(--line); border-radius:4px; padding:0 4px}
+/* 不同稀有度的边框：新/升级技能=蓝，造物=绿，命轮=金，契物=紫 */
+.up.wnew{border-color:color-mix(in oklab,var(--accent) 55%,var(--line))}
+.up.wlv{border-color:color-mix(in oklab,var(--accent) 35%,var(--line))}
+.up.creation{border-color:color-mix(in oklab,#7ad6a0 50%,var(--line))}
+.up.wheel{border-color:color-mix(in oklab,var(--gold) 60%,var(--line));
+  background:color-mix(in oklab,var(--gold) 8%,var(--panel2))}
+.up.cov{border-color:color-mix(in oklab,var(--chaos) 60%,var(--line));
+  background:color-mix(in oklab,var(--chaos) 9%,var(--panel2))}
+
+/* --------------------------------------------------------------- 结算 */
+#endStats{display:grid; grid-template-columns:repeat(auto-fit,minmax(76px,1fr)); gap:8px; margin:14px 0 6px}
+.es{display:flex; flex-direction:column; align-items:center; gap:1px; background:var(--panel2);
+  border-radius:11px; padding:9px 4px; margin:0}
+.es b{font-size:19px; color:var(--gold); font-variant-numeric:tabular-nums}
+.es span{font-size:10.5px; color:var(--dim); text-align:center}
+.row{display:flex; gap:8px; margin-top:12px}
+.row .btn{flex:1 1 0}
+
+#pauseWeapons{display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:6px; margin:12px 0}
+.pw{display:flex; align-items:center; gap:7px; padding:5px 8px; border-radius:9px; background:var(--panel2); font-size:12px}
+.pw i{display:block; border-radius:8px; flex:0 0 auto}
+.pw em{margin-left:auto; font-style:normal; color:var(--gold); font-size:11px}
+#pauseStats{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; color:var(--dim); font-size:12px}
+#pauseStats b{color:var(--text)}
+.dim{color:var(--dim)}
+
+@media (max-width:520px){
+  .pick h1{font-size:21px}
+  .char-list{grid-template-columns:repeat(auto-fill, minmax(56px, 1fr))}
+  .char-info{max-height:34vh}
+}
+@media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
+</style>
+<meta name="build" content="0b6d1cca28">
+</head>
+<body>
+<div class="app">
+  <canvas id="cv"></canvas>
+
+  <div id="hud" hidden></div>
+  <div id="stick"><i></i></div>
+
+  <!-- ------------------------------------------------------- 选人 -->
+  <div class="ov" id="ovPick">
+    <div class="pick">
+      <a class="home" href="index.html">← 首页</a>
+      <header>
+        <h1>唤醒体<span>幸存者</span></h1>
+        <p class="sub">素材全部取自《忘却前夜》· 62 名唤醒体的 124 个技能都是可抽的武器</p>
+      </header>
+
+      <div class="diff" id="diffBox"></div>
+      <p class="tip" id="diffTip"></p>
+
+      <div class="char-list" id="charList" aria-label="选择唤醒体"></div>
+      <div class="char-info" id="charInfo"></div>
+
+      <button class="btn primary" id="btnStart" disabled>进入忘川</button>
+    </div>
+  </div>
+
+  <!-- --------------------------------------------------- 升级三选一 -->
+  <div class="ov mid" id="ovUp" hidden>
+    <div class="card">
+      <h2>获得一份馈赠</h2>
+      <p class="hint">选一个带走 · 键盘 1 / 2 / 3</p>
+      <div id="upList"></div>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------- 暂停 -->
+  <div class="ov mid" id="ovPause" hidden>
+    <div class="card">
+      <h2>暂停</h2>
+      <p class="hint">这一局还在等着你</p>
+      <div id="pauseStats"></div>
+      <div id="pauseWeapons"></div>
+      <div class="row">
+        <button class="btn primary" id="btnResume">继续</button>
+        <button class="btn ghost" id="btnQuit">放弃这局</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------- 结算 -->
+  <div class="ov mid" id="ovEnd" hidden>
+    <div class="card">
+      <h2 id="endTitle">结束</h2>
+      <p class="hint" id="endSub"></p>
+      <div id="endStats"></div>
+      <p class="hint" id="endTier"></p>
+      <div class="row">
+        <button class="btn primary" id="btnAgain">再来一局</button>
+        <button class="btn ghost" id="btnMenu">回到选人</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 载入守护（内联，不占请求）：脚本卡住时至少给个说法和一个按钮 */
+(function () {
+  var t0 = Date.now();
+  setTimeout(function () {
+    var b = document.getElementById('btnStart');
+    // 已经就绪就不要盖掉按钮文案：图集解码通常 1 秒内就完了，
+    // 原先这里无条件改写，结果素材早好了按钮却一直挂着「正在载入素材…」。
+    if (b && !b.dataset.ready) { b.textContent = '正在载入素材…'; b.disabled = true; }
+  }, 4000);
+  setTimeout(function () {
+    if (Date.now() - t0 < 18000) return;
+    var b = document.getElementById('btnStart');
+    if (!b || b.dataset.ready) return;
+    b.textContent = '载入超时，点这里重试';
+    b.disabled = false;
+    b.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
+  }, 18000);
+})();
+</script>
+<script type="module" src="js/b/survivors.js?v=0b6d1cca28"></script>
+<script>
+/* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
+   Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
+   而边缘一个来回就要 1~2 秒；SW 缓存能把这部分彻底省掉。 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>

@@ -80,6 +80,40 @@ function bondPanel(app) {
   return `<div class="bonds">${chips}</div><p class="hint">${on}。羁绊是全队被动，与单件造物加成叠加。</p>`;
 }
 
+/* -------- 命轮 / 密契槽位：队伍页与装备页共用，点一下弹候选直接换 -------- */
+function equipSlot(app, slug, kind) {
+  const s = app.state, eq = s.gear.equip[slug] || {};
+  const uid = eq[kind === 'wheel' ? 'wheel' : 'cov'], it = uid && s.gear.items[uid];
+  const label = kind === 'wheel' ? '命轮' : '密契';
+  if (!it) return `<button class="eqslot empty" data-act="gear-slot" data-slug="${slug}" data-kind="${kind}" title="还没装${label}"><span class="plus">＋</span><small>${label}</small></button>`;
+  const def = itemDef(app, it);
+  return `<button class="eqslot on ${rarCls(def.rarity)}" data-act="gear-slot" data-slug="${slug}" data-kind="${kind}" title="${esc(itemText(app, it))}">
+    <img src="${img(def.img)}" alt=""><b>${esc(def.zh)}</b><small>Lv${it.lv}${it.rf ? ` · 精炼+${it.rf}` : ''}</small></button>`;
+}
+
+/** 队伍 4 人各一行：头像一个 + 命轮槽 + 密契槽 */
+export function equipPanel(app) {
+  return (app.state.team || []).map((slug) => {
+    const a = app.data.bySlug[slug], r = app.state.roster[slug];
+    if (!a || !r) return '';
+    const p = allyDef(app.state, app.data, slug, app.state.team).power;
+    return `<div class="eqrow">
+      <div class="eqwho"><img src="${img(a.portrait)}" alt=""><b>${esc(a.zh)}</b><small>${TYPES[a.type].short} Lv${r.lv} · ${awk(r.star)} · 战力 ${fmt(p)}</small></div>
+      ${equipSlot(app, slug, 'wheel')}${equipSlot(app, slug, 'covenant')}</div>`;
+  }).join('');
+}
+
+/** 密契套装统计：同款 2 / 4 件 */
+export function covenantSetText(app) {
+  const s = app.state, n = {};
+  for (const slug of s.team) {
+    const ci = (s.gear.equip[slug] || {}).cov && s.gear.items[(s.gear.equip[slug] || {}).cov];
+    if (ci) n[ci.defId] = (n[ci.defId] || 0) + 1;
+  }
+  const sets = Object.entries(n).filter(([, c]) => c >= 2).map(([id, c]) => `${esc(app.data.covById[id]?.zh || id)} ×${c}`);
+  return sets.length ? sets.join('、') : '';
+}
+
 export function teamPage(app) {
   const { state: s, data } = app;
   const t = teamDefs(s, data);
@@ -118,7 +152,10 @@ export function teamPage(app) {
     <p class="hint">${synText}。站位按从左到右依次行动；守护被敌人攻击的概率更高。</p>
     <div class="slots">${cards}</div>
     <div class="row"><button class="btn gold" data-act="autoteam">一键配队</button><button class="btn sm" data-act="guide-growth">养成指南</button></div>
-    <p class="hint">「一键配队」会一起排好：4 人队伍（含同界域加成）、每人的命轮与密契、已解锁格里的造物（优先凑羁绊）、3 个钥令位。</p>
+    <p class="hint">「一键配队」会一起排好：4 人队伍（含同界域加成）、<b>每人 1 件命轮 + 1 件密契</b>、已解锁格里的造物（优先凑羁绊）、3 个钥令位。下面的命轮 / 密契格子可以直接点开换。</p>
+    <h3>命轮 · 密契 <small>每人各 1 件 · 点格子直接换</small></h3>
+    <div class="eqpanel">${equipPanel(app)}</div>
+    <p class="hint">命轮与密契<b>绑在单个唤醒体身上</b>；密契全队同款凑到 2 / 4 件触发套装（当前：${covenantSetText(app) || '还没有凑成套'}）。造物与钥令是全队被动，在下面配置。</p>
     <h3>战斗策略 <small>全自动，仅可设定倾向</small></h3>
     <div class="row">${pre}</div>
     <p class="hint">${PRESETS[s.strategy.preset]?.zh || ''}：血量低于 ${Math.round(s.strategy.defend * 100)}% 时优先架势；目标选择：${{ low: '血量最低', first: '前排优先', atk: '攻击最高' }[s.strategy.target]}。</p>
@@ -278,7 +315,7 @@ export function artModal(app, slug) {
 
 /* ----------------------------- GEAR ----------------------------- */
 export function gearPage(app) {
-  const { state: s, data } = app;
+  const { state: s } = app;
   const tab = app.ui.gearTab ||= 'wheel';
   const items = Object.values(s.gear.items).filter((i) => i.kind === tab)
     .sort((a, b) => (RARITY_ORDER[itemDef(app, b).rarity || 'SR'] - RARITY_ORDER[itemDef(app, a).rarity || 'SR']) || b.lv - a.lv);
@@ -292,28 +329,12 @@ export function gearPage(app) {
   }).join('') || '<p class="hint">暂无。推图有概率掉落，也可在「召唤」页用金币祈愿。</p>';
 
   // 队伍里每个人的命轮 / 密契槽位：点一下直接换，不用先点进角色详情
-  const slot = (slug, kind) => {
-    const eq = s.gear.equip[slug] || {};
-    const uid = eq[kind === 'wheel' ? 'wheel' : 'cov'], it = uid && s.gear.items[uid];
-    if (!it) return `<button class="eqslot empty" data-act="gear-slot" data-slug="${slug}" data-kind="${kind}"><span class="plus">＋</span><small>${kind === 'wheel' ? '命轮' : '密契'}</small></button>`;
-    const def = itemDef(app, it);
-    return `<button class="eqslot on ${rarCls(def.rarity)}" data-act="gear-slot" data-slug="${slug}" data-kind="${kind}" title="${esc(itemText(app, it))}">
-      <img src="${img(def.img)}" alt=""><b>${esc(def.zh)}</b><small>Lv${it.lv}${it.rf ? ` · 精炼+${it.rf}` : ''}</small></button>`;
-  };
-  const teamRows = (s.team || []).map((slug) => {
-    const a = data.bySlug[slug], r = s.roster[slug];
-    if (!a || !r) return '';
-    return `<div class="eqrow">
-      <div class="eqwho"><img src="${img(a.portrait)}" alt=""><b>${esc(a.zh)}</b><small>${TYPES[a.type].short} Lv${r.lv} · ${awk(r.star)}</small></div>
-      ${slot(slug, 'wheel')}${slot(slug, 'covenant')}</div>`;
-  }).join('');
-  const covCount = {};
-  for (const slug of s.team) { const ci = (s.gear.equip[slug] || {}).cov && s.gear.items[(s.gear.equip[slug] || {}).cov]; if (ci) covCount[ci.defId] = (covCount[ci.defId] || 0) + 1; }
-  const sets = Object.entries(covCount).filter(([, n]) => n >= 2).map(([id, n]) => `${esc(data.covById[id]?.zh || id)} ×${n}`);
+  const teamRows = equipPanel(app);
+  const sets = covenantSetText(app);
   return `<div class="page"><h2>命轮 · 密契 <small>每人各 1 件</small></h2>
-    <p class="hint">命轮与密契是<b>绑在单个唤醒体身上</b>的两件装备：点下面的槽位直接更换，点「已装备」的槽位可以卸下。密契全队同款凑到 2 / 4 件会触发套装效果（当前：${sets.length ? sets.join('、') : '还没有凑成套'}）。造物与钥令是全队被动，分别在队伍页与钥令页配置。</p>
+    <p class="hint">命轮与密契是<b>绑在单个唤醒体身上</b>的两件装备：点下面的槽位直接更换，点「已装备」的槽位可以卸下。密契全队同款凑到 2 / 4 件会触发套装效果（当前：${sets || '还没有凑成套'}）。造物与钥令是全队被动，分别在队伍页与钥令页配置。</p>
     <div class="eqpanel">${teamRows}</div>
-    <p class="hint">想一次性配好？回队伍页点「一键配队」，会连着命轮、密契、造物、钥令一起排。</p>
+    <p class="hint">想一次性配好？回队伍页点「一键配队」，会连着命轮、密契、造物、钥令一起排；队伍页也有同一块槽位面板，不用来回切页。</p>
     <h3>${tab === 'relic' ? '造物库存' : '库存'} <small>${items.length} 件</small></h3>
     <div class="row">${tabs}</div><div class="list">${rows}</div></div>`;
 }
