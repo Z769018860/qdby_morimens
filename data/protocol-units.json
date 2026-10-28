@@ -1,0 +1,1361 @@
+{
+  "realm": {
+    "caro": {
+      "n": "血肉",
+      "color": "#e8695f",
+      "tiers": [
+        2,
+        3,
+        4
+      ]
+    },
+    "aequor": {
+      "n": "深海",
+      "color": "#5fe0d0",
+      "tiers": [
+        2,
+        3,
+        4
+      ]
+    },
+    "chaos": {
+      "n": "混沌",
+      "color": "#b06bd9",
+      "tiers": [
+        2,
+        3,
+        4
+      ]
+    },
+    "ultra": {
+      "n": "超维",
+      "color": "#e3b341",
+      "tiers": [
+        2,
+        3,
+        4
+      ]
+    }
+  },
+  "role": {
+    "dps": {
+      "n": "伤害型",
+      "color": "#ff8a7a",
+      "short": "伤"
+    },
+    "tank": {
+      "n": "防御型",
+      "color": "#7fb3ff",
+      "short": "防"
+    },
+    "sup": {
+      "n": "辅助型",
+      "color": "#8bd450",
+      "short": "辅"
+    }
+  },
+  "units": [
+    {
+      "id": "mason",
+      "n": "「24」",
+      "en": "Mason",
+      "gid": "15601",
+      "src": "「24」",
+      "avatar": "assets/avatars/a-15601.webp",
+      "realm": "chaos",
+      "role": "dps",
+      "cost": 3,
+      "hp": 690,
+      "atk": 78,
+      "aspd": 0.88,
+      "armor": 12,
+      "range": 1.3,
+      "ult": {
+        "kind": "splash",
+        "name": "狂气爆发",
+        "text": "清算人格接管身体，对周围敌人造成三段伤害"
+      }
+    },
+    {
+      "id": "agrippa",
+      "n": "阿格里帕",
+      "en": "Agrippa",
+      "gid": "15600",
+      "src": "阿格里帕",
+      "avatar": "assets/avatars/a-15600.webp",
+      "realm": "caro",
+      "role": "tank",
+      "cost": 1,
+      "hp": 760,
+      "atk": 44,
+      "aspd": 0.82,
+      "armor": 20,
+      "range": 1.15,
+      "ult": {
+        "kind": "guard",
+        "name": "蛛网迷宫",
+        "text": "给自己与最近的友军套上一层护盾，护盾存在期间受击减伤"
+      }
+    },
+    {
+      "id": "aigis",
+      "n": "艾继丝",
+      "en": "Aigis",
+      "gid": "15591",
+      "src": "艾继丝",
+      "avatar": "assets/avatars/a-15591.webp",
+      "realm": "caro",
+      "role": "sup",
+      "cost": 2,
+      "hp": 826,
+      "atk": 48.0,
+      "aspd": 0.87,
+      "armor": 18,
+      "range": 2.3,
+      "ult": {
+        "kind": "nuke",
+        "name": "小小愿望",
+        "text": "造成 20–40%（攻击力） 点伤害，并施加 1 回合易伤"
+      }
+    },
+    {
+      "id": "alva",
+      "n": "艾尔瓦",
+      "en": "Alva",
+      "gid": "15588",
+      "src": "艾尔瓦",
+      "avatar": "assets/avatars/a-15588.webp",
+      "realm": "chaos",
+      "role": "tank",
+      "cost": 1,
+      "hp": 861,
+      "atk": 37.3,
+      "aspd": 0.79,
+      "armor": 26,
+      "range": 1.15,
+      "ult": {
+        "kind": "guard",
+        "name": "临战体势",
+        "text": "获得 10–20%（防御力） 点护盾"
+      }
+    },
+    {
+      "id": "aurita",
+      "n": "奥瑞塔",
+      "en": "Aurita",
+      "gid": "15573",
+      "src": "奥瑞塔",
+      "avatar": "assets/avatars/a-15573.webp",
+      "realm": "aequor",
+      "role": "dps",
+      "cost": 2,
+      "hp": 610,
+      "atk": 62,
+      "aspd": 0.82,
+      "armor": 10,
+      "range": 3.2,
+      "ult": {
+        "kind": "splash",
+        "name": "深水回响",
+        "text": "在目标脚下爆开潮涌，对一片区域造成伤害"
+      }
+    },
+    {
+      "id": "caecus",
+      "n": "凯刻斯",
+      "en": "Caecus",
+      "gid": "15594",
+      "src": "凯刻斯",
+      "avatar": "assets/avatars/a-15594.webp",
+      "realm": "aequor",
+      "role": "tank",
+      "cost": 3,
+      "hp": 980,
+      "atk": 52,
+      "aspd": 0.72,
+      "armor": 26,
+      "range": 1.15,
+      "ult": {
+        "kind": "stun",
+        "name": "冷光锚定",
+        "text": "寒流沿地面铺开，冻住周围敌人并造成伤害"
+      }
+    },
+    {
+      "id": "casiah",
+      "n": "卡茜亚",
+      "en": "Casiah",
+      "gid": "15572",
+      "src": "卡茜亚",
+      "avatar": "assets/avatars/a-15572.webp",
+      "realm": "ultra",
+      "role": "sup",
+      "cost": 2,
+      "hp": 590,
+      "atk": 42,
+      "aspd": 0.9,
+      "armor": 12,
+      "range": 3.2,
+      "ult": {
+        "kind": "haste",
+        "name": "时隙回响",
+        "text": "把全场友军的行动节奏拨快一档，攻速提升"
+      }
+    },
+    {
+      "id": "castor",
+      "n": "卡斯托尔",
+      "en": "Castor",
+      "gid": "77923",
+      "src": "卡斯托尔",
+      "avatar": "assets/avatars/a-77923.webp",
+      "realm": "ultra",
+      "role": "tank",
+      "cost": 1,
+      "hp": 740,
+      "atk": 42,
+      "aspd": 0.8,
+      "armor": 18,
+      "range": 1.15,
+      "ult": {
+        "kind": "stun",
+        "name": "双子枷锁",
+        "text": "锁链甩出，把最近的敌人钉在原地"
+      }
+    },
+    {
+      "id": "celeste",
+      "n": "希莱斯特",
+      "en": "Celeste",
+      "gid": "15566",
+      "src": "希莱斯特",
+      "avatar": "assets/avatars/a-15566.webp",
+      "realm": "aequor",
+      "role": "sup",
+      "cost": 1,
+      "hp": 580,
+      "atk": 38,
+      "aspd": 0.88,
+      "armor": 10,
+      "range": 3.0,
+      "ult": {
+        "kind": "heal",
+        "name": "潮汐抚慰",
+        "text": "治疗周围全部友军，治疗量按自身攻击力结算"
+      }
+    },
+    {
+      "id": "clementine",
+      "n": "克莱门汀",
+      "en": "Clementine",
+      "gid": "77925",
+      "src": "克莱门汀",
+      "avatar": "assets/avatars/a-77925.webp",
+      "realm": "ultra",
+      "role": "sup",
+      "cost": 1,
+      "hp": 661,
+      "atk": 37.4,
+      "aspd": 0.89,
+      "armor": 22,
+      "range": 2.3,
+      "ult": {
+        "kind": "nuke",
+        "name": "痛苦榨取",
+        "text": "造成 20–40%（攻击力） 点伤害 3 次"
+      }
+    },
+    {
+      "id": "corposant",
+      "n": "克珀珊特",
+      "en": "Corposant",
+      "gid": "77922",
+      "src": "克珀珊特",
+      "avatar": "assets/avatars/a-77922.webp",
+      "realm": "aequor",
+      "role": "tank",
+      "cost": 2,
+      "hp": 1074,
+      "atk": 47.6,
+      "aspd": 0.87,
+      "armor": 28,
+      "range": 1.15,
+      "ult": {
+        "kind": "nuke",
+        "name": "惩戒雷霆",
+        "text": "随机造成 35–70%（攻击力） 点伤害 5 次，享受 75–100% 触腕伤害加成，每…"
+      }
+    },
+    {
+      "id": "daffodil",
+      "n": "达芙黛尔",
+      "en": "Daffodil",
+      "gid": "15590",
+      "src": "达芙黛尔",
+      "avatar": "assets/avatars/a-15590.webp",
+      "realm": "ultra",
+      "role": "dps",
+      "cost": 2,
+      "hp": 600,
+      "atk": 64,
+      "aspd": 0.92,
+      "armor": 10,
+      "range": 3.0,
+      "ult": {
+        "kind": "splash",
+        "name": "花瓣风暴",
+        "text": "掀起花瓣旋风，对一条通路上的敌人连续切割"
+      }
+    },
+    {
+      "id": "doll",
+      "n": "朵尔",
+      "en": "Doll",
+      "gid": "15570",
+      "src": "朵尔",
+      "avatar": "assets/avatars/a-15570.webp",
+      "realm": "chaos",
+      "role": "sup",
+      "cost": 1,
+      "hp": 657,
+      "atk": 37.2,
+      "aspd": 0.87,
+      "armor": 16,
+      "range": 2.3,
+      "ult": {
+        "kind": "nuke",
+        "name": "体外手术",
+        "text": "回复 15–30%（体质） 点生命"
+      }
+    },
+    {
+      "id": "doresain",
+      "n": "杜勒赛因",
+      "en": "Doresain",
+      "gid": "95786",
+      "src": "杜勒赛因",
+      "avatar": "assets/avatars/a-95786.webp",
+      "realm": "caro",
+      "role": "dps",
+      "cost": 1,
+      "hp": 640,
+      "atk": 53.6,
+      "aspd": 1.0,
+      "armor": 14,
+      "range": 1.15,
+      "ult": {
+        "kind": "splash",
+        "name": "陨落者的挽歌",
+        "text": "对生命最低的敌人造成 80–160%（攻击力） 点伤害"
+      }
+    },
+    {
+      "id": "erica",
+      "n": "艾瑞卡",
+      "en": "Erica",
+      "gid": "15603",
+      "src": "艾瑞卡",
+      "avatar": "assets/avatars/a-15603.webp",
+      "realm": "ultra",
+      "role": "tank",
+      "cost": 1,
+      "hp": 879,
+      "atk": 37.3,
+      "aspd": 0.83,
+      "armor": 32,
+      "range": 1.15,
+      "ult": {
+        "kind": "haste",
+        "name": "释放：机甲",
+        "text": "获得 15–30%（攻击力） 点临时力量"
+      }
+    },
+    {
+      "id": "faint",
+      "n": "菲茵特",
+      "en": "Faint",
+      "gid": "15577",
+      "src": "菲茵特",
+      "avatar": "assets/avatars/a-15577.webp",
+      "realm": "caro",
+      "role": "tank",
+      "cost": 2,
+      "hp": 1147,
+      "atk": 45.6,
+      "aspd": 0.83,
+      "armor": 28,
+      "range": 1.15,
+      "ult": {
+        "kind": "heal",
+        "name": "养分吸收",
+        "text": "获得 12–24%（攻击力） 点力量"
+      }
+    },
+    {
+      "id": "faros",
+      "n": "法洛思",
+      "en": "Faros",
+      "gid": "15575",
+      "src": "法洛思",
+      "avatar": "assets/avatars/a-15575.webp",
+      "realm": "aequor",
+      "role": "sup",
+      "cost": 1,
+      "hp": 627,
+      "atk": 35.9,
+      "aspd": 0.96,
+      "armor": 16,
+      "range": 2.3,
+      "ult": {
+        "kind": "stun",
+        "name": "欢欣之海",
+        "text": "造成 16–32%（攻击力） 点伤害及等量中毒，享受 50% 触腕伤害加成"
+      }
+    },
+    {
+      "id": "dollinferno",
+      "n": "熔毁·朵尔",
+      "en": "Doll: Inferno",
+      "gid": "15602",
+      "src": "熔毁·朵尔",
+      "avatar": "assets/avatars/a-15602.webp",
+      "realm": "chaos",
+      "role": "sup",
+      "cost": 4,
+      "hp": 1130,
+      "atk": 74.2,
+      "aspd": 0.87,
+      "armor": 22,
+      "range": 2.3,
+      "ult": {
+        "kind": "splash",
+        "name": "自毁",
+        "text": "选择「欢欣」或「诅咒」。 「自毁·终章」"
+      }
+    },
+    {
+      "id": "helotcatena",
+      "n": "血链·希洛",
+      "en": "Helot: Catena",
+      "gid": "15567",
+      "src": "血链·希洛",
+      "avatar": "assets/avatars/a-15567.webp",
+      "realm": "caro",
+      "role": "dps",
+      "cost": 4,
+      "hp": 1025,
+      "atk": 104.6,
+      "aspd": 0.95,
+      "armor": 20,
+      "range": 1.15,
+      "ult": {
+        "kind": "splash",
+        "name": "恨意宣泄",
+        "text": "对全体敌人造成 40–80%（攻击力） 点伤害，并施加等量出血"
+      }
+    },
+    {
+      "id": "ramonatimeworn",
+      "n": "环行·拉蒙娜",
+      "en": "Ramona: Timeworn",
+      "gid": "15568",
+      "src": "环行·拉蒙娜",
+      "avatar": "assets/avatars/a-15568.webp",
+      "realm": "chaos",
+      "role": "sup",
+      "cost": 4,
+      "hp": 1096,
+      "atk": 72.4,
+      "aspd": 0.89,
+      "armor": 22,
+      "range": 2.3,
+      "ult": {
+        "kind": "nuke",
+        "name": "命定之剑",
+        "text": "造成 50–100%（攻击力） 点伤害，力量对「命定之剑」的效果提高 3 倍"
+      }
+    },
+    {
+      "id": "goliath",
+      "n": "戈利亚",
+      "en": "Goliath",
+      "gid": "15564",
+      "src": "戈利亚",
+      "avatar": "assets/avatars/a-15564.webp",
+      "realm": "aequor",
+      "role": "dps",
+      "cost": 1,
+      "hp": 634,
+      "atk": 53.4,
+      "aspd": 0.99,
+      "armor": 14,
+      "range": 2.55,
+      "ult": {
+        "kind": "nuke",
+        "name": "断首之伤",
+        "text": "造成 60–120%（攻击力） 点伤害"
+      }
+    },
+    {
+      "id": "hamelin",
+      "n": "哈姆林",
+      "en": "Hameln",
+      "gid": "54117",
+      "src": "哈姆林",
+      "avatar": "assets/avatars/a-54117.webp",
+      "realm": "chaos",
+      "role": "sup",
+      "cost": 1,
+      "hp": 560,
+      "atk": 36,
+      "aspd": 0.9,
+      "armor": 10,
+      "range": 2.6,
+      "ult": {
+        "kind": "haste",
+        "name": "吹笛人",
+        "text": "全场友军攻速提升 35%，持续 6 秒"
+      }
+    },
+    {
+      "id": "hilaire",
+      "n": "希洛",
+      "en": "Helot",
+      "gid": "15587",
+      "src": "希洛",
+      "avatar": "assets/avatars/a-15587.webp",
+      "realm": "caro",
+      "role": "dps",
+      "cost": 2,
+      "hp": 620,
+      "atk": 58,
+      "aspd": 0.95,
+      "armor": 10,
+      "range": 1.35,
+      "ult": {
+        "kind": "nuke",
+        "name": "嗜血链球",
+        "text": "抡起血链砸向当前目标，造成 320% 攻击力的伤害并回血"
+      }
+    },
+    {
+      "id": "horla",
+      "n": "奥尔拉",
+      "en": "Horla",
+      "gid": "15583",
+      "src": "奥尔拉",
+      "avatar": "assets/avatars/a-15583.webp",
+      "realm": "ultra",
+      "role": "sup",
+      "cost": 3,
+      "hp": 922,
+      "atk": 56.4,
+      "aspd": 0.9,
+      "armor": 26,
+      "range": 2.3,
+      "ult": {
+        "kind": "heal",
+        "name": "颂歌圣咏",
+        "text": "选择 1 名其他唤醒体获得 10–15 点狂气"
+      }
+    },
+    {
+      "id": "jenkin",
+      "n": "詹金",
+      "en": "Jenkin",
+      "gid": "15593",
+      "src": "詹金",
+      "avatar": "assets/avatars/a-15593.webp",
+      "realm": "ultra",
+      "role": "dps",
+      "cost": 3,
+      "hp": 680,
+      "atk": 76,
+      "aspd": 0.86,
+      "armor": 12,
+      "range": 3.4,
+      "ult": {
+        "kind": "nuke",
+        "name": "坍缩射击",
+        "text": "把超维的坐标点钉在敌人身上，单体高额伤害"
+      }
+    },
+    {
+      "id": "karen",
+      "n": "珈伦",
+      "en": "Karen",
+      "gid": "15571",
+      "src": "珈伦",
+      "avatar": "assets/avatars/a-15571.webp",
+      "realm": "chaos",
+      "role": "sup",
+      "cost": 2,
+      "hp": 750,
+      "atk": 50.1,
+      "aspd": 0.85,
+      "armor": 18,
+      "range": 2.3,
+      "ult": {
+        "kind": "stun",
+        "name": "蟾蜍浓汤",
+        "text": "对全体敌人施加 【中毒】Arg1 层中毒与 1 回合虚弱，并回复 10–20%（体质） …"
+      }
+    },
+    {
+      "id": "kathigura",
+      "n": "凯蒂古拉",
+      "en": "Kathigu-Ra",
+      "gid": "77913",
+      "src": "凯蒂古拉",
+      "avatar": "assets/avatars/a-77913.webp",
+      "realm": "chaos",
+      "role": "dps",
+      "cost": 1,
+      "hp": 582,
+      "atk": 53.0,
+      "aspd": 0.96,
+      "armor": 14,
+      "range": 2.55,
+      "ult": {
+        "kind": "nuke",
+        "name": "末路枪声",
+        "text": "造成 25–50%（攻击力） 点伤害两次，获得 3–6%（攻击力） 点力量"
+      }
+    },
+    {
+      "id": "raya",
+      "n": "雷娅",
+      "en": "Leigh",
+      "gid": "15597",
+      "src": "雷娅",
+      "avatar": "assets/avatars/a-15597.webp",
+      "realm": "caro",
+      "role": "sup",
+      "cost": 2,
+      "hp": 600,
+      "atk": 40,
+      "aspd": 0.85,
+      "armor": 12,
+      "range": 2.6,
+      "ult": {
+        "kind": "heal",
+        "name": "血肉缝合",
+        "text": "治疗全场最虚弱的友军，并让其攻击力提升 20%"
+      }
+    },
+    {
+      "id": "lily",
+      "n": "莉莉",
+      "en": "Lily",
+      "gid": "15581",
+      "src": "莉莉",
+      "avatar": "assets/avatars/a-15581.webp",
+      "realm": "chaos",
+      "role": "tank",
+      "cost": 2,
+      "hp": 880,
+      "atk": 46,
+      "aspd": 0.78,
+      "armor": 22,
+      "range": 1.15,
+      "ult": {
+        "kind": "guard",
+        "name": "替身游戏",
+        "text": "招来一个幻影替身替自己承伤，并嘲讽周围敌人"
+      }
+    },
+    {
+      "id": "liz",
+      "n": "莉兹",
+      "en": "Liz",
+      "gid": "15562",
+      "src": "莉兹",
+      "avatar": "assets/avatars/a-15562.webp",
+      "realm": "ultra",
+      "role": "dps",
+      "cost": 3,
+      "hp": 904,
+      "atk": 85.9,
+      "aspd": 1.0,
+      "armor": 24,
+      "range": 2.55,
+      "ult": {
+        "kind": "nuke",
+        "name": "扑蛾之火",
+        "text": "获得 20–40%（防御力） 点护盾，将 1 张带消耗的「绿色火焰」加入手牌"
+      }
+    },
+    {
+      "id": "lotan",
+      "n": "萝坦",
+      "en": "Lotan",
+      "gid": "15569",
+      "src": "萝坦",
+      "avatar": "assets/avatars/a-15569.webp",
+      "realm": "chaos",
+      "role": "dps",
+      "cost": 1,
+      "hp": 601,
+      "atk": 56.9,
+      "aspd": 0.95,
+      "armor": 14,
+      "range": 1.15,
+      "ult": {
+        "kind": "splash",
+        "name": "桀骜之刃",
+        "text": "对随机敌人造成 7.5–15%（攻击力） 点伤害，重复 3 次"
+      }
+    },
+    {
+      "id": "miryam",
+      "n": "弥利亚姆",
+      "en": "Miryam",
+      "gid": "15582",
+      "src": "弥利亚姆",
+      "avatar": "assets/avatars/a-15582.webp",
+      "realm": "aequor",
+      "role": "sup",
+      "cost": 1,
+      "hp": 628,
+      "atk": 37.2,
+      "aspd": 0.95,
+      "armor": 16,
+      "range": 2.3,
+      "ult": {
+        "kind": "splash",
+        "name": "升华火刑",
+        "text": "造成 60–120%（攻击力） 点穿透伤害并施加等量中毒"
+      }
+    },
+    {
+      "id": "mouchette",
+      "n": "茉夏",
+      "en": "Mouchette",
+      "gid": "94450",
+      "src": "茉夏",
+      "avatar": "assets/avatars/a-94450.webp",
+      "realm": "chaos",
+      "role": "dps",
+      "cost": 1,
+      "hp": 605,
+      "atk": 54.8,
+      "aspd": 1.01,
+      "armor": 14,
+      "range": 2.55,
+      "ult": {
+        "kind": "nuke",
+        "name": "致命冲击",
+        "text": "视为「打击」"
+      }
+    },
+    {
+      "id": "murphy",
+      "n": "墨菲",
+      "en": "Murphy",
+      "gid": "15576",
+      "src": "墨菲",
+      "avatar": "assets/avatars/a-15576.webp",
+      "realm": "aequor",
+      "role": "tank",
+      "cost": 2,
+      "hp": 1096,
+      "atk": 49.9,
+      "aspd": 0.85,
+      "armor": 28,
+      "range": 1.15,
+      "ult": {
+        "kind": "splash",
+        "name": "逆转漩涡",
+        "text": "对全体敌人造成 25–50%（攻击力） 点伤害，享受 35–50% 的触腕伤害加成"
+      }
+    },
+    {
+      "id": "murphyfauxborn",
+      "n": "诞妄·墨菲",
+      "en": "Murphy: Fauxborn",
+      "gid": "15589",
+      "src": "诞妄·墨菲",
+      "avatar": "assets/avatars/a-15589.webp",
+      "realm": "aequor",
+      "role": "sup",
+      "cost": 4,
+      "hp": 1068,
+      "atk": 74.8,
+      "aspd": 0.9,
+      "armor": 22,
+      "range": 2.3,
+      "ult": {
+        "kind": "splash",
+        "name": "利莫里亚华尔兹",
+        "text": "获得相当于银钥充能 200–300% 的银钥"
+      }
+    },
+    {
+      "id": "nautila",
+      "n": "诺缔拉",
+      "en": "Nautila",
+      "gid": "15565",
+      "src": "诺缔拉",
+      "avatar": "assets/avatars/a-15565.webp",
+      "realm": "chaos",
+      "role": "tank",
+      "cost": 1,
+      "hp": 872,
+      "atk": 38.8,
+      "aspd": 0.8,
+      "armor": 26,
+      "range": 1.15,
+      "ult": {
+        "kind": "guard",
+        "name": "禁止入内",
+        "text": "获得 20–40%（防御力） 点护盾与 120–240%（攻击力） 层临时反击"
+      }
+    },
+    {
+      "id": "nymphaea",
+      "n": "宁菲亚",
+      "en": "Nymphaea",
+      "gid": "15580",
+      "src": "宁菲亚",
+      "avatar": "assets/avatars/a-15580.webp",
+      "realm": "chaos",
+      "role": "dps",
+      "cost": 2,
+      "hp": 717,
+      "atk": 72.6,
+      "aspd": 0.98,
+      "armor": 16,
+      "range": 2.55,
+      "ult": {
+        "kind": "splash",
+        "name": "午夜之潮",
+        "text": "对生命最高的敌人造成 22.5–45%（攻击力） 点伤害并施加等量中毒，享受 2 倍力量…"
+      }
+    },
+    {
+      "id": "ogier",
+      "n": "奥吉尔",
+      "en": "Ogier",
+      "gid": "15585",
+      "src": "奥吉尔",
+      "avatar": "assets/avatars/a-15585.webp",
+      "realm": "chaos",
+      "role": "tank",
+      "cost": 3,
+      "hp": 1309,
+      "atk": 62.3,
+      "aspd": 0.83,
+      "armor": 30,
+      "range": 1.15,
+      "ult": {
+        "kind": "guard",
+        "name": "不稳屏障",
+        "text": "获得 7–14%（防御力） 点护盾 X+1 次"
+      }
+    },
+    {
+      "id": "pandia",
+      "n": "潘狄娅",
+      "en": "Pandia",
+      "gid": "15560",
+      "src": "潘狄娅",
+      "avatar": "assets/avatars/a-15560.webp",
+      "realm": "chaos",
+      "role": "dps",
+      "cost": 4,
+      "hp": 720,
+      "atk": 92,
+      "aspd": 0.95,
+      "armor": 12,
+      "range": 3.2,
+      "ult": {
+        "kind": "splash",
+        "name": "混沌礼赞",
+        "text": "抛出混沌礼盒，炸开一大片，并留下持续灼烧"
+      }
+    },
+    {
+      "id": "pickman",
+      "n": "皮克曼",
+      "en": "Pickman",
+      "gid": "77926",
+      "src": "皮克曼",
+      "avatar": "assets/avatars/a-77926.webp",
+      "realm": "caro",
+      "role": "sup",
+      "cost": 1,
+      "hp": 688,
+      "atk": 37.6,
+      "aspd": 0.88,
+      "armor": 16,
+      "range": 2.3,
+      "ult": {
+        "kind": "splash",
+        "name": "噬色者",
+        "text": "对全体敌人造成 3 次 30–60%（攻击力） 点必定暴击的伤害，每次从目标处「窃取」 …"
+      }
+    },
+    {
+      "id": "pollux",
+      "n": "波吕克斯",
+      "en": "Pollux",
+      "gid": "77917",
+      "src": "波吕克斯",
+      "avatar": "assets/avatars/a-77917.webp",
+      "realm": "ultra",
+      "role": "dps",
+      "cost": 2,
+      "hp": 715,
+      "atk": 65.4,
+      "aspd": 0.96,
+      "armor": 22,
+      "range": 2.55,
+      "ult": {
+        "kind": "nuke",
+        "name": "灼魂之光",
+        "text": "对全体敌人造成 40–80%（攻击力） 点伤害，并抽取 2 张算力消耗最低的指令卡"
+      }
+    },
+    {
+      "id": "ramona",
+      "n": "拉蒙娜",
+      "en": "Ramona",
+      "gid": "15595",
+      "src": "拉蒙娜",
+      "avatar": "assets/avatars/a-15595.webp",
+      "realm": "chaos",
+      "role": "sup",
+      "cost": 2,
+      "hp": 813,
+      "atk": 47.1,
+      "aspd": 0.87,
+      "armor": 18,
+      "range": 2.3,
+      "ult": {
+        "kind": "splash",
+        "name": "女王之剑",
+        "text": "造成 15–30%（攻击力） 点伤害 2 次"
+      }
+    },
+    {
+      "id": "ryker",
+      "n": "莱克",
+      "en": "Ryker",
+      "gid": "15604",
+      "src": "莱克",
+      "avatar": "assets/avatars/a-15604.webp",
+      "realm": "chaos",
+      "role": "sup",
+      "cost": 1,
+      "hp": 672,
+      "atk": 36.8,
+      "aspd": 0.87,
+      "armor": 16,
+      "range": 2.3,
+      "ult": {
+        "kind": "nuke",
+        "name": "意外之财",
+        "text": "造成 20–40%（攻击力） 点伤害"
+      }
+    },
+    {
+      "id": "salvador",
+      "n": "萨尔瓦多",
+      "en": "Salvador",
+      "gid": "15599",
+      "src": "萨尔瓦多",
+      "avatar": "assets/avatars/a-15599.webp",
+      "realm": "caro",
+      "role": "tank",
+      "cost": 2,
+      "hp": 1074,
+      "atk": 48.6,
+      "aspd": 0.82,
+      "armor": 28,
+      "range": 1.15,
+      "ult": {
+        "kind": "guard",
+        "name": "受祝福的白骨",
+        "text": "对全体敌人施加 1 回合虚弱"
+      }
+    },
+    {
+      "id": "sanga",
+      "n": "珊",
+      "en": "Sanga",
+      "gid": "15592",
+      "src": "珊",
+      "avatar": "assets/avatars/a-15592.webp",
+      "realm": "aequor",
+      "role": "tank",
+      "cost": 2,
+      "hp": 1089,
+      "atk": 48.6,
+      "aspd": 0.84,
+      "armor": 28,
+      "range": 1.15,
+      "ult": {
+        "kind": "heal",
+        "name": "美丽的慈悲",
+        "text": "获得 24–48%（防御力） 点护盾"
+      }
+    },
+    {
+      "id": "soleil",
+      "n": "索蕾尔",
+      "en": "Sorel",
+      "gid": "15584",
+      "src": "索蕾尔",
+      "avatar": "assets/avatars/a-15584.webp",
+      "realm": "caro",
+      "role": "dps",
+      "cost": 3,
+      "hp": 700,
+      "atk": 72,
+      "aspd": 0.9,
+      "armor": 12,
+      "range": 2.4,
+      "ult": {
+        "kind": "nuke",
+        "name": "灼血之刃",
+        "text": "对单体倾泻血焰，伤害按目标已损失生命提高，最多 +80%"
+      }
+    },
+    {
+      "id": "tawil",
+      "n": "塔薇",
+      "en": "Tawil",
+      "gid": "54116",
+      "src": "塔薇",
+      "avatar": "assets/avatars/a-54116.webp",
+      "realm": "chaos",
+      "role": "sup",
+      "cost": 2,
+      "hp": 805,
+      "atk": 50.1,
+      "aspd": 0.91,
+      "armor": 18,
+      "range": 2.3,
+      "ult": {
+        "kind": "nuke",
+        "name": "全知真理",
+        "text": "在手牌中时，若抽牌堆顶的牌是指令卡，则变为其复制"
+      }
+    },
+    {
+      "id": "thais",
+      "n": "泰旖丝",
+      "en": "Thais",
+      "gid": "15596",
+      "src": "泰旖丝",
+      "avatar": "assets/avatars/a-15596.webp",
+      "realm": "caro",
+      "role": "sup",
+      "cost": 3,
+      "hp": 986,
+      "atk": 59.9,
+      "aspd": 0.9,
+      "armor": 20,
+      "range": 2.3,
+      "ult": {
+        "kind": "heal",
+        "name": "远古爱抚",
+        "text": "选择 1 名其他唤醒体，使该唤醒体与「被选中之人」均获得 15–20 点狂气"
+      }
+    },
+    {
+      "id": "tinct",
+      "n": "汀克特",
+      "en": "Tinct",
+      "gid": "15574",
+      "src": "汀克特",
+      "avatar": "assets/avatars/a-15574.webp",
+      "realm": "ultra",
+      "role": "sup",
+      "cost": 3,
+      "hp": 893,
+      "atk": 55.4,
+      "aspd": 0.91,
+      "armor": 26,
+      "range": 2.3,
+      "ult": {
+        "kind": "stun",
+        "name": "安魂曲",
+        "text": "驱散自身脆弱、虚弱与易伤状态"
+      }
+    },
+    {
+      "id": "tulu",
+      "n": "图鲁",
+      "en": "Tulu",
+      "gid": "15563",
+      "src": "图鲁",
+      "avatar": "assets/avatars/a-15563.webp",
+      "realm": "aequor",
+      "role": "dps",
+      "cost": 4,
+      "hp": 780,
+      "atk": 96,
+      "aspd": 0.9,
+      "armor": 14,
+      "range": 2.8,
+      "ult": {
+        "kind": "nuke",
+        "name": "深海巨口",
+        "text": "把当前目标拖进深海，造成 420% 攻击力的伤害"
+      }
+    },
+    {
+      "id": "uvhash",
+      "n": "尤乌哈希",
+      "en": "Uvhash",
+      "gid": "15598",
+      "src": "尤乌哈希",
+      "avatar": "assets/avatars/a-15598.webp",
+      "realm": "caro",
+      "role": "dps",
+      "cost": 1,
+      "hp": 620,
+      "atk": 50.5,
+      "aspd": 0.96,
+      "armor": 14,
+      "range": 2.55,
+      "ult": {
+        "kind": "stun",
+        "name": "沸腾吧，鲜血！",
+        "text": "造成 12–24%（攻击力） 点伤害三次"
+      }
+    },
+    {
+      "id": "wanda",
+      "n": "旺达",
+      "en": "Wanda",
+      "gid": "15586",
+      "src": "旺达",
+      "avatar": "assets/avatars/a-15586.webp",
+      "realm": "ultra",
+      "role": "tank",
+      "cost": 1,
+      "hp": 910,
+      "atk": 38.6,
+      "aspd": 0.83,
+      "armor": 32,
+      "range": 1.15,
+      "ult": {
+        "kind": "guard",
+        "name": "迷途之守",
+        "text": "获得 30–60%（攻击力） 层反击"
+      }
+    },
+    {
+      "id": "winkle",
+      "n": "温柯尔",
+      "en": "Winkle",
+      "gid": "15579",
+      "src": "温柯尔",
+      "avatar": "assets/avatars/a-15579.webp",
+      "realm": "ultra",
+      "role": "tank",
+      "cost": 3,
+      "hp": 1311,
+      "atk": 57.2,
+      "aspd": 0.79,
+      "armor": 36,
+      "range": 1.15,
+      "ult": {
+        "kind": "nuke",
+        "name": "能量光束",
+        "text": "移除所有敌人的屏障，造成 40–80%（攻击力） 点伤害并施加 1 回合虚弱"
+      }
+    },
+    {
+      "id": "xu",
+      "n": "徐",
+      "en": "Xu",
+      "gid": "125346",
+      "src": "徐",
+      "avatar": "assets/avatars/a-125346.webp",
+      "realm": "caro",
+      "role": "sup",
+      "cost": 1,
+      "hp": 685,
+      "atk": 38.2,
+      "aspd": 0.86,
+      "armor": 16,
+      "range": 2.3,
+      "ult": {
+        "kind": "splash",
+        "name": "思骨之苦",
+        "text": "对全体敌人造成 150–300%（攻击力） 点必定暴击的伤害并触发 80% 的中毒"
+      }
+    },
+    {
+      "id": "vortice",
+      "n": "莫丝",
+      "en": "Vortice",
+      "gid": "130901",
+      "src": "莫丝",
+      "avatar": "assets/avatars/a-130901.webp",
+      "realm": "aequor",
+      "role": "dps",
+      "cost": 1,
+      "hp": 592,
+      "atk": 54.4,
+      "aspd": 0.99,
+      "armor": 14,
+      "range": 2.55,
+      "ult": {
+        "kind": "nuke",
+        "name": "蓄力",
+        "text": "获得 50–75 点狂气，莫丝的下一次狂气爆发暴击率 +25–35%"
+      }
+    },
+    {
+      "id": "arachne",
+      "n": "阿拉克涅",
+      "en": "Arachne",
+      "gid": "77918",
+      "src": "阿拉克涅",
+      "avatar": "assets/avatars/a-77918.webp",
+      "realm": "ultra",
+      "role": "sup",
+      "cost": 2,
+      "hp": 803,
+      "atk": 47.9,
+      "aspd": 0.85,
+      "armor": 24,
+      "range": 2.3,
+      "ult": {
+        "kind": "stun",
+        "name": "永恒编织",
+        "text": "对全体敌人施加 300–600%（攻击力） 层「终局裁决」，然后创造 1 张「引导之线」"
+      }
+    },
+    {
+      "id": "saya",
+      "n": "沙耶",
+      "en": "Saya",
+      "gid": "130226",
+      "src": "沙耶",
+      "avatar": "assets/avatars/a-130226.webp",
+      "realm": "caro",
+      "role": "sup",
+      "cost": 1,
+      "hp": 700,
+      "atk": 37.7,
+      "aspd": 0.86,
+      "armor": 16,
+      "range": 2.3,
+      "ult": {
+        "kind": "haste",
+        "name": "脏腑之花",
+        "text": "失去 10% 当前生命，对全体敌人施加 5500–11000%（攻击力） 层侵蚀"
+      }
+    },
+    {
+      "id": "pontos",
+      "n": "庞托斯",
+      "en": "Pontos",
+      "gid": "141302",
+      "src": "庞托斯",
+      "avatar": "assets/avatars/a-141302.webp",
+      "realm": "aequor",
+      "role": "tank",
+      "cost": 3,
+      "hp": 1246,
+      "atk": 59.9,
+      "aspd": 0.86,
+      "armor": 30,
+      "range": 1.15,
+      "ult": {
+        "kind": "stun",
+        "name": "憔悴肆虐",
+        "text": "对全体敌人造成 30–60%（攻击力） 点必定暴击的伤害"
+      }
+    },
+    {
+      "id": "lotancetarchon",
+      "n": "蚀灭·萝坦",
+      "en": "Lotan: Cetarchon",
+      "gid": "145363",
+      "src": "蚀灭·萝坦",
+      "avatar": "assets/avatars/a-145363.webp",
+      "realm": "chaos",
+      "role": "dps",
+      "cost": 4,
+      "hp": 994,
+      "atk": 102.6,
+      "aspd": 0.95,
+      "armor": 20,
+      "range": 2.55,
+      "ult": {
+        "kind": "nuke",
+        "name": "长刃：殒灭",
+        "text": "视为「打击」"
+      }
+    },
+    {
+      "id": "caraboo",
+      "n": "卡拉布",
+      "en": "Caraboo",
+      "gid": "77921",
+      "src": "卡拉布",
+      "avatar": "assets/avatars/a-77921.webp",
+      "realm": "caro",
+      "role": "tank",
+      "cost": 1,
+      "hp": 877,
+      "atk": 36.1,
+      "aspd": 0.78,
+      "armor": 26,
+      "range": 1.15,
+      "ult": {
+        "kind": "heal",
+        "name": "奇迹祝福",
+        "text": "获得 35–70%（防御力） 点护盾"
+      }
+    },
+    {
+      "id": "ogieroathbound",
+      "n": "负誓·奥吉尔",
+      "en": "Ogier: Oathbound",
+      "gid": "148578",
+      "src": "负誓·奥吉尔",
+      "avatar": "assets/avatars/a-148578.webp",
+      "realm": "chaos",
+      "role": "tank",
+      "cost": 4,
+      "hp": 1510,
+      "atk": 74.1,
+      "aspd": 0.83,
+      "armor": 32,
+      "range": 1.15,
+      "ult": {
+        "kind": "nuke",
+        "name": "罪染之枪",
+        "text": "造成 100–200%（攻击力） 点伤害，享受 300% 的力量加成"
+      }
+    },
+    {
+      "id": "vivian",
+      "n": "薇薇安",
+      "en": "Vivian",
+      "gid": "151844",
+      "src": "薇薇安",
+      "avatar": "assets/avatars/a-151844.webp",
+      "realm": "chaos",
+      "role": "sup",
+      "cost": 3,
+      "hp": 973,
+      "atk": 59.4,
+      "aspd": 0.89,
+      "armor": 20,
+      "range": 2.3,
+      "ult": {
+        "kind": "nuke",
+        "name": "天降汤雨",
+        "text": "对全体敌人施加 5000–10000%（攻击力）（+1000% 力量）层侵蚀"
+      }
+    }
+  ]
+}

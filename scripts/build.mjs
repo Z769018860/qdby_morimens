@@ -185,10 +185,35 @@ function genSurvivors() {
   return { chars: data.chars.length, weapons: data.weapons.length, kb: Math.round(code.length / 1024) };
 }
 
+// ------------------------------------------- 忘却协议的立绘图集与单位表
+// 62 名唤醒体的待机 / 打击动图 + 头像 + 15 种怪物立绘已经在
+// scripts/build_protocol_art.py 里拼成一张 webp（assets/protocol/proto-sheet.webp）。
+// 这里把它连同帧表、单位数值表一起内联成一个模块：整局依然只有一个脚本请求。
+// 改素材跑那个 py 脚本，改数值改 data/protocol-units.json，都别手改 js/pf/gen.js。
+function genProtocol() {
+  const sheetPath = path.join(ROOT, 'assets/protocol/proto-sheet.webp');
+  if (!has(sheetPath)) throw new Error('缺少图集，先跑 python scripts/build_protocol_art.py');
+  const art = readJson(path.join(ROOT, 'data/protocol-art.json'));
+  const cfg = readJson(path.join(ROOT, 'data/protocol-units.json'));
+  const uri = 'data:image/webp;base64,' + fs.readFileSync(sheetPath).toString('base64');
+  const code = [
+    '// 由 scripts/build.mjs 生成，请勿手改。',
+    '// 源：assets/protocol/proto-sheet.webp + data/protocol-art.json + data/protocol-units.json',
+    `export const SHEET = ${JSON.stringify(uri)};`,
+    `export const ART = ${JSON.stringify({ w: art.w, h: art.h, anims: art.anims, mobs: art.mobs })};`,
+    `export const UNITS = ${JSON.stringify(cfg.units)};`,
+    '',
+  ].join('\n');
+  const out = path.join(ROOT, 'js/pf/gen.js');
+  if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
+  return { units: cfg.units.length, mobs: Object.keys(art.mobs).length, kb: Math.round(code.length / 1024) };
+}
+
 // ------------------------------------------------------------------ 主流程
 const artCount = genMergeArt();
 const birdArt = genBirdArt();
 const sv = genSurvivors();
+const pf = genProtocol();
 // 「校猫的结合」要内联四十多张图（猫 + 造物 + 密契 + 钥令 + 首领），逻辑单独放一个脚本，
 // 这里只负责在构建时调它，保证 js/binding-art.js 不会和 data/binding-art.json 走散。
 execFileSync(process.execPath, [path.join(ROOT, 'scripts/build_binding_art.mjs')], { stdio: 'pipe' });
@@ -349,5 +374,6 @@ for (const p of built) {
 }
 console.log(`共打包 ${totalModules} 次模块引用；data/boot.json ${Math.round(bootJson.length / 1024)}KB`);
 console.log(`  唤醒体幸存者：${sv.chars} 名角色 / ${sv.weapons} 把武器，js/sv/gen.js ${sv.kb}KB（图集已内联）`);
+console.log(`  忘却协议：${pf.units} 名唤醒体 / ${pf.mobs} 种怪物，js/pf/gen.js ${pf.kb}KB（图集已内联）`);
 for (const e of extras) console.log(`  延迟加载 js/b/${e.out}`.padEnd(30), `${e.modules} 个模块 → ${e.kb}KB（不进首屏）`);
 console.log(`sw.js 预缓存 ${precache.length} 项`);

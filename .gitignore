@@ -18,3 +18,8 @@ server/data/
 # 成品是 assets/pollux-bird/bird-sheet.webp（849KB），原始文件删了重跑
 # scripts/build_bird_art.py 会自己从灰机 wiki 下回来。
 assets/pollux-bird/_raw/
+
+# 忘却协议：从灰机 wiki 下回来的原始战斗动图（62 人 × 待机/打击两段，约 540MB）。
+# 成品是 assets/protocol/proto-sheet.webp（1539KB），原始文件删了重跑
+# scripts/build_protocol_art.py 会自己下回来。
+assets/protocol/_raw/

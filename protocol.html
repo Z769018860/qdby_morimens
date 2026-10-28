@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>忘却协议 · 忘忘同人小游戏</title>
+<meta name="description" content="自走棋玩法的六边形防线：62 名唤醒体的战斗动态立绘上场，命轮与造物当装备，凑界域与职阶羁绊，守住十二波影怪。">
+<meta name="theme-color" content="#0a0d14">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
+<style>
+/* 这一页不引用 css/style.css：整站那份是给多页应用的，游戏页只要一个壳 + 一个脚本请求。
+   立绘全部内联在图集里，所以整局零图片请求。
+   深色固定不跟随系统：棋盘地格本身就是深色，切浅色会割裂。 */
+:root{
+  --bg:#0a0d14; --panel:#121722; --panel2:#1a2130; --line:#28324a;
+  --text:#e6e9f0; --dim:#8a93a8; --accent:#6ea8ff; --gold:#e3b341; --bad:#e8695f;
+  --caro:#e8695f; --aequor:#5fe0d0; --chaos:#b06bd9; --ultra:#e3b341;
+  --rune:#9db6e8;
+}
+*{box-sizing:border-box}
+html,body{margin:0; height:100%; overflow:hidden}
+body{
+  background:var(--bg); color:var(--text); -webkit-tap-highlight-color:transparent;
+  background-image:
+    radial-gradient(760px 420px at 50% -8%, rgba(110,168,255,.13), transparent 70%),
+    radial-gradient(520px 320px at 8% 104%, rgba(176,107,217,.10), transparent 70%);
+  background-repeat:no-repeat;
+  font:15px/1.5 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+}
+button{font:inherit; color:inherit}
+
+.app{position:relative; width:100%; height:100dvh; overflow:hidden}
+#cv{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none}
+
+/* ------------------------------------------------------------------ 顶栏 */
+#hud{position:absolute; left:0; right:0; top:0; padding:max(8px,env(safe-area-inset-top)) 10px 0;
+  pointer-events:none; display:flex; flex-direction:column; gap:5px}
+.hud-top{display:flex; align-items:center; gap:6px}
+.home{pointer-events:auto; display:inline-flex; align-items:center; height:27px; padding:0 10px;
+  border-radius:999px; border:1px solid var(--line); background:var(--panel);
+  color:var(--dim); font-size:12px; text-decoration:none; flex:0 0 auto; transition:.14s}
+.home:hover{color:var(--accent); border-color:var(--accent); transform:translateX(-1px)}
+.pill{display:flex; align-items:baseline; gap:4px; white-space:nowrap; height:27px; padding:0 10px; border-radius:999px;
+  border:1px solid var(--line); background:color-mix(in oklab, var(--panel) 90%, transparent);
+  box-shadow:0 1px 0 rgba(255,255,255,.04) inset}
+.pill b{font-size:14.5px; font-variant-numeric:tabular-nums; line-height:27px; letter-spacing:.01em}
+.pill span{font-size:10.5px; color:var(--dim)}
+.pill.gold{border-color:color-mix(in oklab,var(--gold) 26%, var(--line))}
+.pill.gold b{color:var(--gold); text-shadow:0 0 12px rgba(227,179,65,.35)}
+.core{position:relative; flex:1 1 auto; max-width:300px; min-width:70px; height:27px; border-radius:999px; overflow:hidden;
+  border:1px solid color-mix(in oklab,#7fb3ff 40%, var(--line));
+  background:color-mix(in oklab, #000 45%, var(--panel))}
+.core i{display:block; height:100%; width:100%; background:linear-gradient(90deg,#2f6fd0,#7ec2ff); transition:width .22s ease}
+.core i.low{background:linear-gradient(90deg,#8a2620,#e8695f)}
+.core em{position:absolute; inset:0; display:grid; place-items:center; font-style:normal; font-size:11px; white-space:nowrap;
+  letter-spacing:.04em; text-shadow:0 1px 3px rgba(0,0,0,.9)}
+.help{pointer-events:auto; flex:0 0 27px; width:27px; height:27px; border-radius:50%;
+  border:1px solid var(--line); background:var(--panel); color:var(--dim); font-size:12px; cursor:pointer; transition:.14s}
+.help:hover{color:var(--accent); border-color:var(--accent)}
+
+.hud-sub{display:flex; align-items:center; gap:8px; height:16px; font-size:11px; color:var(--dim);
+  padding:0 2px; overflow:hidden; white-space:nowrap}
+.hud-sub #sNext{color:var(--accent)}
+.hud-sub #msg{color:var(--gold); min-width:0; overflow:hidden; text-overflow:ellipsis}
+
+.traits{display:flex; gap:4px; height:24px; overflow-x:auto; overflow-y:visible; scrollbar-width:none}
+.traits::-webkit-scrollbar{display:none}
+.traithint{font-size:11px; color:var(--dim); line-height:24px}
+.tr{position:relative; flex:0 0 auto; display:flex; align-items:center; gap:3px; height:24px; padding:0 8px;
+  border-radius:7px; border:1px solid var(--line); background:color-mix(in oklab, var(--panel) 80%, transparent);
+  font-size:11px; color:var(--dim); transition:.14s}
+.tr.on{color:var(--text); border-color:color-mix(in oklab, var(--c) 60%, var(--line));
+  background:color-mix(in oklab, var(--c) 16%, var(--panel));
+  box-shadow:0 0 0 1px color-mix(in oklab, var(--c) 22%, transparent) inset}
+.tr b{font-weight:600}
+.tr span{color:var(--c); font-variant-numeric:tabular-nums; font-weight:700}
+.tr em{font-style:normal; opacity:.55; font-size:10px; margin-left:-2px}
+.tr .trtip{position:absolute; left:0; top:28px; z-index:30; display:none; width:216px;
+  padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:#0d1220;
+  box-shadow:0 18px 34px -18px #000; font-size:11.5px; line-height:1.55; color:var(--dim)}
+.tr .trtip u{display:block; text-decoration:none; opacity:.55}
+.tr .trtip u.on{color:var(--text); opacity:1}
+.tr:hover .trtip{display:block}
+
+/* --------------------------------------------------------------- 底栏 */
+#bottom{position:absolute; left:0; right:0; bottom:0; padding:0 8px max(6px,env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; gap:5px;
+  background:linear-gradient(180deg, transparent, rgba(8,11,18,.88) 18%)}
+.bench{display:flex; gap:4px}
+.bslot{flex:1 1 0; min-width:0; height:38px; border-radius:9px; border:1px dashed color-mix(in oklab,var(--line) 80%, transparent);
+  background:rgba(18,23,34,.55); display:grid; place-items:center; padding:0; position:relative; transition:.12s}
+.bslot.has{border-style:solid; background:var(--panel2); cursor:pointer}
+.bslot.has:hover{border-color:var(--accent)}
+.bslot.on{border-color:var(--gold); box-shadow:0 0 0 1px color-mix(in oklab,var(--gold) 55%, transparent) inset}
+.bslot b{position:absolute; right:2px; bottom:0; font-size:8px; color:var(--gold); letter-spacing:-1px}
+.bslot .eqdot{position:absolute; left:3px; top:3px; width:5px; height:5px; border-radius:50%;
+  background:#b06bd9; box-shadow:0 0 6px #b06bd9}
+
+/* 装备栏 + 页签那一行 */
+.slim{display:flex; align-items:center; gap:6px; height:24px}
+.tab{flex:0 0 auto; height:22px; padding:0 9px; border-radius:7px; border:1px solid var(--line);
+  background:var(--panel); color:var(--dim); font-size:11px; cursor:pointer; transition:.14s}
+.tab.on{color:var(--text); border-color:color-mix(in oklab,var(--accent) 55%, var(--line));
+  background:color-mix(in oklab,var(--accent) 16%, var(--panel))}
+.inv{display:flex; gap:3px; margin-left:auto; min-width:0; overflow:hidden}
+.eqbar.arming .inv{outline:1px solid color-mix(in oklab,var(--gold) 55%, transparent); outline-offset:2px; border-radius:6px}
+.islot{width:22px; height:22px; border-radius:5px; border:1px dashed color-mix(in oklab,var(--line) 85%, transparent);
+  background:rgba(18,23,34,.5); display:grid; place-items:center; font-size:10px; color:var(--dim); padding:0}
+.islot.has{border-style:solid; cursor:pointer; color:var(--text); font-weight:700;
+  border-color:color-mix(in oklab, var(--c) 60%, var(--line));
+  background:color-mix(in oklab, var(--c) 18%, var(--panel))}
+.islot.has:hover{transform:translateY(-1px)}
+.islot.on{border-color:var(--gold); box-shadow:0 0 0 2px color-mix(in oklab,var(--gold) 45%, transparent)}
+#btnEqClear{display:none}
+.eqbar.arming #btnEqClear{display:block}
+
+.shop{display:flex; gap:5px}
+.scard{position:relative; flex:1 1 0; min-width:0; height:84px; border-radius:10px; cursor:pointer;
+  border:1px solid var(--line); background:linear-gradient(180deg, var(--panel2), var(--panel));
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:1px;
+  padding:5px 3px 3px; transition:.12s}
+.scard:hover{transform:translateY(-2px); border-color:var(--accent); box-shadow:0 8px 18px -12px #6ea8ff}
+.scard.poor{opacity:.5; filter:saturate(.5)}
+.scard.poor:hover{transform:none}
+.scard.empty{justify-content:center; border-style:dashed; background:transparent; cursor:default}
+.scard.empty span{font-size:10.5px; color:var(--dim)}
+.scard.pad{border-style:dashed; border-color:color-mix(in oklab,var(--line) 45%, transparent); background:transparent; pointer-events:none; opacity:.5}
+.scard .cost{position:absolute; left:3px; top:3px; font-size:9.5px; color:var(--gold); font-weight:700}
+.scard b{font-size:10.5px; font-weight:600; max-width:100%; white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; line-height:1.25}
+.scard .chips{display:flex; gap:3px; font-size:9px; line-height:1.2}
+.scard .chips i{font-style:normal}
+.scard.c1{border-color:color-mix(in oklab,#7f8b9f 55%, var(--line))}
+.scard.c2{border-color:color-mix(in oklab,#5fe0d0 55%, var(--line))}
+.scard.c3{border-color:color-mix(in oklab,#b06bd9 60%, var(--line))}
+.scard.c4{border-color:color-mix(in oklab,#e3b341 65%, var(--line))}
+
+/* 命轮 / 造物卡片：没有立绘，用色环 + 一个汉字当徽记 */
+.scard.item{padding-top:6px}
+.scard .sig{width:34px; height:34px; border-radius:50%; display:grid; place-items:center;
+  font-size:14px; font-weight:700; font-style:normal; color:var(--c);
+  border:1.5px solid color-mix(in oklab, var(--c) 70%, transparent);
+  background:radial-gradient(circle at 50% 40%, color-mix(in oklab, var(--c) 26%, transparent), transparent 72%);
+  box-shadow:0 0 12px -4px var(--c) inset; margin-bottom:1px}
+
+.pt{display:block; border-radius:8px; background-repeat:no-repeat; flex:0 0 auto}
+.pt.round{border-radius:50%}
+
+.acts{display:flex; gap:5px}
+.acts button{height:36px; border-radius:10px; border:1px solid var(--line); background:var(--panel);
+  color:var(--text); font-size:13px; font-weight:600; cursor:pointer; flex:1 1 0; transition:.12s}
+.acts button:hover:not(:disabled){border-color:var(--accent)}
+.acts button:disabled{opacity:.45; cursor:default}
+.acts .fight{flex:1.5 1 0; border-color:transparent; color:#03101f;
+  background:linear-gradient(180deg, color-mix(in oklab,var(--accent) 92%, #fff), var(--accent))}
+.acts .fight:hover:not(:disabled){filter:brightness(1.07)}
+.acts .fight:disabled{background:var(--panel); color:var(--dim); border-color:var(--line); filter:none}
+
+/* --------------------------------------------------------- 单位信息卡 */
+.ucard{position:absolute; left:10px; top:104px; width:224px; z-index:12; padding:9px 10px 10px;
+  border-radius:13px; border:1px solid var(--line); background:rgba(13,18,30,.97);
+  box-shadow:0 22px 44px -24px #000, 0 0 0 1px rgba(255,255,255,.03) inset; font-size:11.5px}
+.ucard .x{position:absolute; right:6px; top:4px; width:20px; height:20px; border-radius:50%;
+  border:1px solid var(--line); background:transparent; color:var(--dim); font-size:12px; cursor:pointer}
+.ucard .ch{display:flex; gap:8px; align-items:flex-start}
+.ucard h4{margin:0; font-size:13.5px; display:flex; align-items:baseline; gap:4px}
+.ucard h4 em{font-style:normal; color:var(--gold); font-size:10px}
+.ucard .ch p{margin:1px 0 0; color:var(--dim); font-size:10.5px}
+.ucard .nums{display:grid; grid-template-columns:1fr 1fr; gap:2px 8px; margin:7px 0 5px; color:var(--dim)}
+.ucard .nums b{color:var(--text); font-variant-numeric:tabular-nums}
+.ucard .eqs{display:flex; gap:4px; margin:2px 0 5px}
+.ucard .eq{flex:1 1 0; min-width:0; height:30px; padding:2px 5px; border-radius:8px; text-align:left;
+  border:1px solid var(--line); background:rgba(255,255,255,.02); color:var(--text);
+  display:flex; flex-direction:column; justify-content:center; cursor:pointer; overflow:hidden}
+.ucard .eq em{font-style:normal; font-size:9px; color:var(--dim); letter-spacing:.04em}
+.ucard .eq span{font-size:10.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.ucard .eq.empty{color:var(--dim); cursor:default}
+.ucard .eq.has{border-color:color-mix(in oklab, var(--c) 55%, var(--line));
+  background:color-mix(in oklab, var(--c) 12%, transparent)}
+.ucard .eq.has span{color:var(--c); font-weight:600}
+.ucard .eqline{margin:0 0 3px; color:var(--dim); font-size:10.5px; line-height:1.4}
+.ucard .eqline b{color:var(--gold); font-weight:600; margin-right:3px}
+.ucard .ult{margin:4px 0 7px; color:var(--dim); line-height:1.45}
+.ucard .ult b{display:block; color:var(--gold); font-size:11.5px; margin-bottom:1px}
+.ucard .sell{width:100%; height:28px; border-radius:8px; border:1px solid color-mix(in oklab,var(--bad) 45%, var(--line));
+  background:color-mix(in oklab,var(--bad) 14%, transparent); color:var(--bad); font-size:12px; cursor:pointer}
+.ucard #btnEquipNow{border-color:color-mix(in oklab,var(--gold) 50%, var(--line));
+  background:color-mix(in oklab,var(--gold) 16%, transparent); color:var(--gold)}
+
+/* ------------------------------------------------------------- 波次横幅 */
+#banner{position:absolute; left:0; right:0; top:42%; z-index:14; text-align:center; pointer-events:none;
+  opacity:0; transform:translateY(6px); transition:opacity .22s, transform .22s}
+#banner.show{opacity:1; transform:translateY(0)}
+#bannerMain{display:block; font-size:26px; font-weight:700; letter-spacing:.30em; text-indent:.30em;
+  color:#f2f6ff; text-shadow:0 0 22px rgba(110,168,255,.75), 0 2px 12px #000}
+#bannerSub{display:block; margin-top:3px; font-size:11.5px; letter-spacing:.18em; color:var(--rune);
+  text-shadow:0 2px 10px #000}
+
+/* --------------------------------------------------------------- 遮罩 */
+.ov{position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
+  background:color-mix(in oklab, var(--bg) 84%, transparent); backdrop-filter:blur(6px);
+  padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}
+.ov[hidden]{display:none}
+.card{width:100%; max-width:540px; max-height:100%; overflow:auto; border-radius:16px;
+  border:1px solid var(--line); background:linear-gradient(180deg, #141a27, var(--panel)); padding:18px;
+  box-shadow:0 30px 60px -30px #000}
+.card h1{margin:0; font-size:25px; letter-spacing:.10em; text-align:center}
+.card h1 span{color:var(--accent); text-shadow:0 0 18px rgba(110,168,255,.6)}
+.card h2{margin:0 0 4px; font-size:18px; text-align:center}
+.card .sub{margin:6px 0 0; text-align:center; color:var(--dim); font-size:12px; letter-spacing:.04em}
+.card .hint{margin:6px 0 12px; text-align:center; color:var(--dim); font-size:12px}
+.rule{display:flex; flex-direction:column; gap:7px; margin:14px 0 4px; font-size:12.5px; color:var(--dim); line-height:1.55}
+.rule li{display:list-item; list-style:none; position:relative; padding-left:16px}
+.rule li::before{content:''; position:absolute; left:4px; top:8px; width:5px; height:5px; border-radius:50%;
+  background:var(--accent)}
+.rule b{color:var(--text)}
+.legend{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 2px}
+.legend span{font-size:11px; padding:2px 7px; border-radius:999px; border:1px solid var(--line); color:var(--dim)}
+.legend b{font-weight:600}
+.diff{display:flex; gap:6px; margin:14px 0 0}
+.diff button{flex:1 1 0; height:32px; border-radius:999px; border:1px solid var(--line);
+  background:var(--panel2); color:var(--dim); font-size:12.5px; cursor:pointer}
+.diff button.on{color:var(--gold); font-weight:600; border-color:color-mix(in oklab,var(--gold) 58%, var(--line));
+  background:color-mix(in oklab,var(--gold) 13%, var(--panel))}
+.tip{margin:6px 0 0; font-size:11px; color:var(--dim); text-align:center}
+.btn{height:44px; border-radius:12px; border:1px solid var(--line); background:var(--panel);
+  color:var(--text); cursor:pointer; font-size:14.5px; font-weight:600; transition:.14s}
+.btn.primary{margin-top:14px; width:100%;
+  background:linear-gradient(180deg, color-mix(in oklab,var(--accent) 90%, #fff), var(--accent));
+  border-color:transparent; color:#03101f}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{color:var(--dim)}
+.row{display:flex; gap:8px; margin-top:10px}
+.row .btn{flex:1 1 0}
+#endStats{display:grid; grid-template-columns:repeat(auto-fit,minmax(66px,1fr)); gap:8px; margin:14px 0 4px}
+.es{display:flex; flex-direction:column; align-items:center; gap:1px; background:var(--panel2);
+  border-radius:11px; padding:9px 4px; border:1px solid rgba(255,255,255,.04)}
+.es b{font-size:18px; color:var(--gold); font-variant-numeric:tabular-nums}
+.es span{font-size:10.5px; color:var(--dim)}
+
+@media (max-width:520px){
+  .card{padding:14px}
+  .card h1{font-size:21px}
+  /* 竖屏棋盘受宽度限制（六列摆不下），上下本来就会空一截：把底栏做大一点，
+     既补掉那份空，也让商店/备战席的手指落点从 38px 变成 46~96px */
+  .scard{height:96px; padding:6px 3px 4px}
+  .scard b{font-size:12px}
+  .bslot{height:46px}
+  .slim{height:28px}
+  .tab{height:26px; padding:0 10px; font-size:12px}
+  .islot{width:26px; height:26px}
+  .acts button{height:44px; font-size:14px}
+  .ucard{top:120px; width:196px}
+  .pill{padding:0 8px}
+  .pill b{font-size:13.5px}
+  .isSlot{width:20px;height:20px}
+  #bannerMain{font-size:21px; letter-spacing:.22em}
+  /* 竖屏一行塞不下：核心条换到第二行占满，免得被挤成一条缝 */
+  .hud-top{flex-wrap:wrap}
+  .core{order:8; flex:1 1 100%; max-width:none; height:22px}
+  .help{order:2; margin-left:auto}
+  /* 竖屏棋盘只有二百多高，信息卡得压扁，不然整块盖住战场 */
+  .ucard{left:8px; right:8px; width:auto; top:104px; padding:8px}
+  .ucard .nums{grid-template-columns:1fr 1fr 1fr; font-size:10.5px; margin:5px 0 4px}
+  .ucard .ult{display:none}
+  .ucard .eqline{display:none}
+  .ucard .eqs{margin:2px 0 4px}
+}
+@media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
+</style>
+<meta name="build" content="73b8989249">
+</head>
+<body>
+<div class="app">
+  <canvas id="cv"></canvas>
+
+  <div id="hud">
+    <div class="hud-top">
+      <a class="home" href="index.html">← 首页</a>
+      <div class="pill"><b id="sWave">1/12</b><span>波次</span></div>
+      <div class="pill gold"><b id="sGold">12</b><span>金币</span></div>
+      <div class="pill"><b id="sPop">0/2</b><span>人口</span></div>
+      <div class="core"><i id="coreFill"></i><em><b id="sCore">20</b> 核心</em></div>
+      <button class="help" id="btnHelp" title="玩法说明">?</button>
+    </div>
+    <div class="hud-sub"><span id="sNext"></span><span id="msg"></span></div>
+    <div class="traits" id="traits"></div>
+  </div>
+
+  <div class="ucard" id="unitCard" hidden></div>
+
+  <div id="banner"><b id="bannerMain"></b><span id="bannerSub"></span></div>
+
+  <div id="bottom">
+    <div class="bench" id="bench"></div>
+    <div class="slim eqbar" id="eqbar">
+      <button class="tab on" data-tab="unit">唤醒体</button>
+      <button class="tab" data-tab="item">命轮·造物</button>
+      <button class="tab" id="btnEqClear">取消装备</button>
+      <div class="inv" id="inv"></div>
+    </div>
+    <div class="shop" id="shop"></div>
+    <div class="acts">
+      <button id="btnLevel">升级 5</button>
+      <button id="btnRoll">刷新 2</button>
+      <button id="btnFight" class="fight">开战</button>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------- 开始 -->
+  <div class="ov" id="ovStart">
+    <div class="card">
+      <h1>忘<span>却</span>协议</h1>
+      <p class="sub">六边形防线 · 自走棋 · 《忘却前夜》同人</p>
+      <ul class="rule">
+        <li><b>布阵</b>：在左侧四列六边形格子里摆唤醒体，敌人从右边按通道走进来。每局地格不一样，<b>高台 / 祭坛 / 裂隙</b>站上去有加成，<b>岩壁</b>站不了人。</li>
+        <li><b>商店</b>：62 名唤醒体，每波结束免费换一批；同一名买三个合成 2 星，再三个合成 3 星，<b>升星送命轮 / 造物</b>。</li>
+        <li><b>装备</b>：切到「命轮·造物」页签买装备，点装备栏里的一件再点唤醒体就装上。命轮是纯数值，造物带机制（反伤、追击、回血……）。</li>
+        <li><b>羁绊</b>：界域（血肉 / 深海 / 混沌 / 超维）与职阶（伤害 / 防御 / 辅助）凑够人数就生效，升级人口时商店白刷一次。</li>
+        <li><b>目标</b>：守住十二波，漏怪扣协议核心，核心归零就结束。</li>
+      </ul>
+      <div class="diff">
+        <button data-d="normal" class="on">标准</button>
+        <button data-d="hard">癫狂</button>
+      </div>
+      <p class="tip" id="diffTip"></p>
+      <button class="btn primary" id="btnStart">进入协议</button>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------- 帮助 -->
+  <div class="ov" id="ovHelp" hidden>
+    <div class="card">
+      <h2>玩法说明</h2>
+      <p class="hint">照着打两波就懂了，这里只写容易漏的</p>
+      <ul class="rule">
+        <li><b>操作</b>：点商店买人 → 自动落到合适的空格（人满就进备战席）→ 点备战席上的人再点格子可以挪位置，点人再点空格可以换位。</li>
+        <li><b>装备</b>：点「命轮·造物」页签买，买进装备栏 → 点装备栏里的一件 → 点棋盘上的立绘（或备战席头像）装上；点信息卡上的装备格可以卸下。一个唤醒体各带一件命轮、一件造物。</li>
+        <li><b>合成奖励</b>：合成 2 星给 +1 金与一件随机命轮，3 星给 +2 金、一件随机造物并白刷商店。升级人口返 1 金、商店与命轮商店都自动刷新。</li>
+        <li><b>卖出</b>：选中单位后按 E，或点信息卡上的「卖出」。1 星原价退，2 星 3 倍，3 星 9 倍，身上的装备会退回装备栏。</li>
+        <li><b>人口</b>：上场人数上限就是等级，升级固定 5 金，最高 8 级。等级越高，商店里高费唤醒体越常见。</li>
+        <li><b>狂气</b>：每条紫色狂气条攻击和挨打都会涨，满了自动放大招；站在祭坛上攒得快，带活性注射器更快。</li>
+        <li><b>经济</b>：每清一波给 4 金，手里每存 10 金额外给 1 金（最多 5 金）。存钱升人口是这套玩法的核心。</li>
+        <li><b>快捷键</b>：空格开战 / R 刷新 / F 升级 / E 卖出 / Q 放回备战席 / Esc 取消选中。</li>
+      </ul>
+      <p class="hint" style="margin:10px 0 0;text-align:left">地形：</p>
+      <div class="legend">
+        <span><b style="color:#6f9fe0">高台</b> 射程 +0.6 格、攻速 +10%</span>
+        <span><b style="color:#b06bd9">祭坛</b> 狂气获取 +70%</span>
+        <span><b style="color:#e8695f">裂隙</b> 攻击 +18%，受伤 +12%</span>
+        <span><b style="color:#7d8598">岩壁</b> 不能部署</span>
+      </div>
+      <div class="row"><button class="btn primary" id="btnHelpClose">知道了</button></div>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------- 结算 -->
+  <div class="ov" id="ovEnd" hidden>
+    <div class="card">
+      <h2 id="endTitle">结束</h2>
+      <p class="hint" id="endSub"></p>
+      <div id="endStats"></div>
+      <p class="hint" id="endTier"></p>
+      <div class="row">
+        <button class="btn primary" id="btnAgain">再来一局</button>
+        <button class="btn ghost" id="btnMenu">回到首页面</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 载入守护（内联，不占请求）：脚本卡住时至少给个说法和一个按钮 */
+(function () {
+  var t0 = Date.now();
+  var btn = document.getElementById('btnStart');
+  setTimeout(function () {
+    if (btn && !btn.dataset.ready) { btn.textContent = '正在载入立绘…'; btn.disabled = true; }
+  }, 4000);
+  setTimeout(function () {
+    if (Date.now() - t0 < 18000) return;
+    if (!btn || btn.dataset.ready) return;
+    btn.textContent = '载入超时，点这里重试';
+    btn.disabled = false;
+    btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
+  }, 18000);
+  // 图集解码完把按钮交还给正常流程
+  document.addEventListener('pf:ready', function () {
+    if (!btn) return;
+    btn.textContent = '进入协议';
+    btn.disabled = false;
+    btn.dataset.ready = '1';
+  });
+})();
+</script>
+<script type="module" src="js/b/protocol.js?v=73b8989249"></script>
+<script>
+/* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
+   Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
+   而边缘一个来回就要 1~2 秒；SW 缓存能把这部分彻底省掉。 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>
