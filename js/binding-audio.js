@@ -22,6 +22,8 @@ const SONGS = {
   roof: { bpm: 54, root: 54, wave: 'sine', chords: [[0, 7, 12], [-2, 5, 10], [0, 7, 14], [-4, 3, 8]], arp: 0.4, pad: 1, bass: 0, hat: 0, vol: 0.024 },
   // 首领：低音脉冲 + 三全音
   boss: { bpm: 104, root: 45, wave: 'sawtooth', chords: [[0, 6, 12], [-1, 5, 11], [0, 6, 13], [-2, 4, 10]], arp: 1, pad: 1, bass: 1, hat: 1, vol: 0.030, drive: 1 },
+  // 深渊：最慢的一层，低音撑着，上面的音偶尔才出现
+  abyss: { bpm: 46, root: 41, wave: 'sawtooth', chords: [[0, 6, 11], [-1, 5, 10], [0, 7, 12], [-3, 4, 9]], arp: 0.35, pad: 1, bass: 1, hat: 0, vol: 0.025 },
   // 天亮：大调，收束
   dawn: { bpm: 70, root: 62, wave: 'triangle', chords: [[0, 4, 7, 12], [2, 5, 9, 14], [-3, 0, 4, 9], [0, 4, 7, 12]], arp: 1, pad: 1, bass: 1, hat: 0, vol: 0.028 },
 };

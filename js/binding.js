@@ -1,4 +1,4 @@
-// 「校猫的结合」——以撒式房间地牢，主角是弥萨格大学的校猫小煤球。
+// 「校猫的结合」——以撒式房间地牢，主角是弥萨格大学的校猫（就叫弥萨格校猫）。
 //
 // 结构：
 //   G.mode  title → play →（dead / win）       暂停只是 play 上的一个开关
@@ -34,6 +34,7 @@ function defaultMeta() {
     unlock: ['fur:coal', 'eye:gold', 'cos:plain'],
     stats: { kills: 0, deaths: 0, runs: 0, clears: 0, itemsMax: 0, coinsMax: 0, bestFloor: 0, bestScore: 0, rooms: 0, bossKills: 0 },
     muted: false,
+    autoFire: false,  // 自动攻击：猫自己瞄准最近的敌人并持续开火，只需要走位
     codex: {},       // 已读的世界观条目（设定集）
     seen: {},        // 已看过的剧情场景，避免每次重开都重播
   };
@@ -184,9 +185,18 @@ function makeFloor(idx) {
   const rest = list.filter((c) => c !== start).sort((a, b) => (seen.get(key(b.x, b.y)) || 0) - (seen.get(key(a.x, a.y)) || 0));
   const boss = rest.shift();
   if (boss) boss.type = 'boss';
+  // 死胡同优先拿来当特殊房，走到底才有东西，比在半路上撞见更像「一间屋子」
   const deadEnds = rest.filter((c) => Object.values(c.doors).filter(Boolean).length === 1);
   const item = deadEnds.shift() || rest.shift();
   if (item) item.type = 'item';
+  // 祭坛房：拿半颗心换一件造物。二层之后才出现——第一层就让新手割血太狠了
+  if (idx >= 1) {
+    const altar = deadEnds.shift() || rest.shift();
+    if (altar) altar.type = 'altar';
+  }
+  // 挑战房：一群精英挤在一起，清完给两件
+  const chal = deadEnds.shift() || rest.shift();
+  if (chal) chal.type = 'challenge';
   const shop = deadEnds.shift() || rest.shift();
   if (shop) shop.type = 'shop';
   for (const c of list) c.seed = Math.floor(Math.random() * 1e9);
@@ -205,7 +215,7 @@ function buildRoom(rm) {
   const F = FLOORS[G.run.floor];
   const spawnPt = { x: W / 2, y: H / 2 };
 
-  if (rm.type === 'fight' || rm.type === 'boss') {
+  if (rm.type === 'fight' || rm.type === 'boss' || rm.type === 'challenge') {
     // 课桌：避开门口和中心
     const n = rm.type === 'boss' ? 0 : 2 + Math.floor(Math.random() * 3);
     for (let i = 0; i < n; i++) {
@@ -222,16 +232,28 @@ function buildRoom(rm) {
     }
   }
 
-  if (rm.type === 'fight') {
-    const cnt = Math.min(7, 2 + G.run.floor + Math.floor(Math.random() * 2) + Math.floor(G.run.roomsCleared / 3));
+  if (rm.type === 'fight' || rm.type === 'challenge') {
+    const chal = rm.type === 'challenge';
+    const cap = chal ? 9 : 7;
+    let cnt = 2 + G.run.floor + Math.floor(Math.random() * 2) + Math.floor(G.run.roomsCleared / 3);
+    if (chal) cnt += 2;
+    cnt = Math.min(cap, cnt);
     for (let i = 0; i < cnt; i++) {
       const pts = { x: rnd(WALL + 50, W - WALL - 50), y: rnd(WALL + 50, H - WALL - 50) };
       if (dist(pts.x, pts.y, spawnPt.x, spawnPt.y) < 110) { i--; continue; }
-      rm.ents.push(makeEnemy(pickOne(F.pool), pts.x, pts.y));
+      const key = chal ? pickOne(elitePool(F)) : pickOne(F.pool);
+      rm.ents.push(makeEnemy(key, pts.x, pts.y, chal ? 1.12 : 1));
     }
   } else if (rm.type === 'item') {
     const key = rollItemKeyFor(rm);
     rm.pickups.push({ kind: 'item', x: W / 2, y: H / 2 - 10, item: key, icon: (ITEMS.find((i) => i.k === key) || {}).ic, seed: 0 });
+  } else if (rm.type === 'altar') {
+    // 祭坛房：东西摆在那儿，拿走要留半颗心。血不够就先别碰，拿走就没有回头路
+    const key = rollItemKeyFor(rm);
+    rm.pickups.push({
+      kind: 'item', x: W / 2, y: H / 2 - 10, item: key,
+      icon: (ITEMS.find((i) => i.k === key) || {}).ic, seed: 0, hpCost: 1,
+    });
   } else if (rm.type === 'shop') {
     const opts = [
       { kind: 'heart', half: false, price: 6 },
@@ -253,10 +275,15 @@ function buildRoom(rm) {
       phase: 1, atkCd: 1.6, atkIdx: 0, windup: 0, dash: 0, dvx: 0, dvy: 0, hurt: 0,
       t: 0, a: 0, seed: Math.random() * 9,
     };
-    G.mode = G.mode === 'title' ? G.mode : G.mode;
   }
-  rm.cleared = !(rm.type === 'fight' || rm.type === 'boss');
+  rm.cleared = !(rm.type === 'fight' || rm.type === 'boss' || rm.type === 'challenge');
   rm.built = true;
+}
+
+// 挑战房优先放这一层的精英，没有精英就退回普通池
+function elitePool(F) {
+  const e = F.pool.filter((k) => ENEMIES[k].cls === '精英');
+  return e.length ? e : F.pool;
 }
 
 function rollItemKey() { return pickOne(ITEMS).k; }
@@ -305,7 +332,9 @@ function startRun() {
   m.start.visited = true;
   p.x = G.W / 2;
   p.y = G.H / 2;
-  const act = pickOne(ACTIVES);
+  // 钥令优先给还没见过的：十种钥令，前十局一局一个，不用靠运气
+  const unseen = ACTIVES.filter((a) => !G.meta.codex['ac:' + a.k]);
+  const act = pickOne(unseen.length ? unseen : ACTIVES);
   G.run.active = { k: act.k, cd: 0, max: act.cd, twinT: 0, slowT: 0 };
   G.run.fxFresh = true;
   G.mode = 'play';
@@ -372,15 +401,21 @@ function clampInside(e, allowDoor) {
 }
 
 // ------------------------------------------------------------------ 输入
+// 自动瞄准有两个来源：义眼（造物，永久）和「自动攻击」开关（设置里手动开）。
+// 区别是：义眼只管瞄，扣扳机还是你自己；自动攻击开关连扳机一起管。
+const autoAimOn = () => !!(G.meta.autoFire || (G.run && G.run.p && G.run.p.stats.autoAim));
+
 function aimAngle() {
   const p = run().p;
-  // 鼠标优先（桌面）
-  if (G.mouse.active) {
+  const auto = autoAimOn();
+  const lock = !!G.meta.autoFire;   // 自动攻击开着时，手动瞄准得「明确表态」才抢得走
+  // 右摇杆（触屏）：手上还在搓，就听手的
+  if (G.touch.aim && (G.touch.aim.dx || G.touch.aim.dy)) return Math.atan2(G.touch.aim.dy, G.touch.aim.dx);
+  // 鼠标（桌面）
+  if (G.mouse.active && (G.mouse.down || !lock)) {
     const w = toWorld(G.mouse.x, G.mouse.y);
     return Math.atan2(w.y - p.y, w.x - p.x);
   }
-  // 右摇杆（触屏）
-  if (G.touch.aim && (G.touch.aim.dx || G.touch.aim.dy)) return Math.atan2(G.touch.aim.dy, G.touch.aim.dx);
   // 方向键（正统以撒）
   const k = G.keys;
   let ax = 0, ay = 0;
@@ -388,10 +423,11 @@ function aimAngle() {
   if (k.ArrowRight) ax += 1;
   if (k.ArrowUp) ay -= 1;
   if (k.ArrowDown) ay += 1;
+  if ((ax || ay) && !lock) return Math.atan2(ay, ax);
+  // 自动锁定最近的敌人（自动攻击时范围放宽一点，省的差两像素就不打）
+  const tgt = auto ? nearestEnemy(p.x, p.y, lock ? 620 : 520) : null;
+  if (tgt) return Math.atan2(tgt.y - p.y, tgt.x - p.x);
   if (ax || ay) return Math.atan2(ay, ax);
-  // 自动瞄准
-  const tgt = nearestEnemy(p.x, p.y, 520);
-  if (tgt && p.stats.autoAim) return Math.atan2(tgt.y - p.y, tgt.x - p.x);
   return p.aim;
 }
 
@@ -412,7 +448,13 @@ function wantShoot() {
   if (G.mouse.down) return true;
   if (G.touch.aim) return true;
   const k = G.keys;
-  return !!(k.ArrowLeft || k.ArrowRight || k.ArrowUp || k.ArrowDown);
+  if (k.ArrowLeft || k.ArrowRight || k.ArrowUp || k.ArrowDown) return true;
+  // 自动攻击：房间里有活东西才开火。空房间一直放声音，是自己给自己制造噪音
+  if (G.meta.autoFire) {
+    const rm = room();
+    if (rm && (rm.ents.length > 0 || rm.boss)) return true;
+  }
+  return false;
 }
 
 // ------------------------------------------------------------------ 射击
@@ -551,8 +593,12 @@ function update(dt) {
   // ---- 特效
   for (let i = G.fx.length - 1; i >= 0; i--) {
     const f = G.fx[i];
-    f.x += f.vx * dt; f.y += f.vy * dt;
-    f.vx *= 0.94; f.vy *= 0.94;
+    // 特效里有些是不动的（爆炸、闪电），它们没有 vx/vy。以前直接 += f.vx 会算成 NaN，
+    // 下一帧 createRadialGradient 拿 NaN 就抛，整帧渲染断在那儿。
+    f.x += (f.vx || 0) * dt;
+    f.y += (f.vy || 0) * dt;
+    if (f.vx) f.vx *= 0.94;
+    if (f.vy) f.vy *= 0.94;
     f.life -= dt;
     if (f.life <= 0) G.fx.splice(i, 1);
   }
@@ -593,6 +639,20 @@ function updateEnemies(dt) {
   const slow = r.active && r.active.slowT > 0 ? 0.4 : 1;
   for (const e of rm.ents) {
     e.hurt = Math.max(0, e.hurt - dt * 4);
+    // 瘟疫：每秒结一次账，零头留在 acc 里，不然 3 点/秒会被帧率吃掉
+    if (e.psn) {
+      e.psn.t -= dt;
+      e.psn.acc += dt * e.psn.dps;
+      if (e.psn.acc >= 1) {
+        const d = Math.floor(e.psn.acc);
+        e.psn.acc -= d;
+        hurtEnemy(e, d, false, 0, 0);
+      }
+      if (Math.random() < dt * 5) {
+        G.fx.push({ x: e.x + rnd(-9, 9), y: e.y + rnd(-9, 9), vx: 0, vy: -20, life: 0.55, kind: 'dot', c: '#8ad07a', s: 2.2 });
+      }
+      if (e.psn.t <= 0) delete e.psn;
+    }
     const dp = dist(e.x, e.y, p.x, p.y);
     const ang = Math.atan2(p.y - e.y, p.x - e.x);
     e.aimA = ang;
@@ -790,13 +850,24 @@ function onRoomClear() {
   const r = G.run, rm = r.room;
   rm.cleared = true;
   r.roomsCleared += 1;
-  r.score += 20;
+  r.score += rm.type === 'challenge' ? 60 : 20;
   Audio2.door();
-  banner(rm.type === 'boss' ? '门开了' : '清空', '');
+  banner(rm.type === 'boss' ? '门开了' : rm.type === 'challenge' ? '挑战完成' : '清空', '');
   // 掉落
   const bonus = r.p.stats.roomCoins || 0;
   const n = 1 + Math.floor(Math.random() * 2) + bonus;
   for (let i = 0; i < n; i++) dropCoin(G.W / 2, G.H / 2 + 8, 1);
+  // 挑战房：一次给两件，摆在房间中间
+  if (rm.type === 'challenge') {
+    const pool = ITEMS.filter((i) => !r.items.includes(i.k));
+    for (let i = 0; i < 2; i++) {
+      const it = pickOne(pool.length ? pool : ITEMS);
+      rm.pickups.push({
+        kind: 'item', x: G.W / 2 + (i === 0 ? -48 : 48), y: G.H / 2 - 14,
+        item: it.k, icon: it.ic, seed: i + 3,
+      });
+    }
+  }
   if (r.p.stats.healRoom) heal(r.p.stats.healRoom / 2);
   if (Math.random() < 0.09 + r.p.stats.luck * 0.02) {
     rm.pickups.push({ kind: 'trinket', x: G.W / 2 + rnd(-30, 30), y: G.H / 2 + 30, icon: pickOne(TRINKETS).ic, trinket: pickOne(TRINKETS).k, seed: Math.random() * 9 });
@@ -840,6 +911,17 @@ function updateBoss(dt) {
   const r = G.run, rm = r.room, b = rm.boss, p = r.p;
   if (!b) return;
   b.hurt = Math.max(0, b.hurt - dt * 4);
+  // 首领也吃瘟疫，不然这一招只对小怪有用
+  if (b.psn) {
+    b.psn.t -= dt;
+    b.psn.acc += dt * b.psn.dps;
+    if (b.psn.acc >= 1) {
+      const d = Math.floor(b.psn.acc);
+      b.psn.acc -= d;
+      hurtEnemy(b, d, false, 0, 0);
+    }
+    if (b.psn.t <= 0) delete b.psn;
+  }
   b.t += dt;
   b.phase = b.hp / b.maxHp < 0.45 ? 2 : 1;
   const ang = Math.atan2(p.y - b.y, p.x - b.x);
@@ -880,6 +962,8 @@ function updateBoss(dt) {
       else if (atk === 'aimed') bossAimed(b, ang);
       else if (atk === 'summon') bossSummon(b);
       else if (atk === 'charge') { b.windup = 0.75; }
+      else if (atk === 'spiral') bossSpiral(b);
+      else if (atk === 'rain') bossRain(b);
     }
   }
   // 首领也算「敌人」，让子弹能打中（在 update 的眼泪循环里已包含 rm.boss）
@@ -912,11 +996,43 @@ function bossSummon(b) {
   burst(b.x, b.y, 14, '#b0a0ff');
 }
 
+// 螺旋：三条旋臂，波与波之间靠速度差拉开，所以看起来是在转而不是三圈一起到
+function bossSpiral(b) {
+  const n = 8 + (b.phase === 2 ? 3 : 0);
+  for (let w = 0; w < 3; w++) {
+    const off = b.t * 0.9 + w * 0.5;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + off;
+      const sp = 68 + w * 34;
+      room().eshot.push({ x: b.x, y: b.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 5, life: 4.2, dmg: 1 });
+    }
+  }
+  Audio2.blip(220, 0.2, 'sawtooth', 0.03, 0.55);
+}
+
+// 落弹：从房间上沿砸到玩家周围。看得见它下来，所以躲得开——这是唯一一个「讲道理」的招
+function bossRain(b) {
+  const n = b.phase === 2 ? 8 : 5;
+  const p = G.run.p;
+  for (let i = 0; i < n; i++) {
+    const tx = clamp(p.x + rnd(-120, 120), WALL + 10, G.W - WALL - 10);
+    room().eshot.push({ x: tx, y: WALL + 2, vx: 0, vy: 260 + rnd(0, 60), r: 5.5, life: 3.2, dmg: 1 });
+  }
+  Audio2.blip(180, 0.22, 'square', 0.03, 0.5);
+}
+
 // ------------------------------------------------------------------ 拾取
 function tryPickup(pk) {
   const r = G.run, p = r.p;
   if (pk.kind === 'heart' && p.hp >= p.maxHp) { toast('血是满的，先别浪费'); return; }
   if (pk.kind === 'stair') { pk.taken = true; goNext(); return; }
+  // 祭坛：标价是血。留一口气才换得动，只剩半颗心的时候碰它等于自杀
+  if (pk.hpCost != null && !pk.taken) {
+    if (p.hp <= pk.hpCost) { toast('血不够换（要半颗心）'); return; }
+    p.hp -= pk.hpCost;
+    refreshHud();
+    Audio2.hurt();
+  }
   if (pk.price != null && !pk.taken) {
     if (r.coins < pk.price) { toast('银芯不够（要 ' + pk.price + '）'); pk.afford = false; return; }
     r.coins -= pk.price;
@@ -1022,6 +1138,11 @@ function goRoom(next, fromDir) {
     banner('商店', '银芯换东西，价格贴在下面');
   } else if (next.type === 'item') {
     banner('宝箱房', '基座上的东西碰一下就拿走');
+  } else if (next.type === 'altar') {
+    banner('祭坛房', '东西白拿，代价是半颗心');
+  } else if (next.type === 'challenge') {
+    banner('挑战房', '这一层最不好惹的都在这儿，清完给两件');
+    Audio2.boom();
   }
   // 第一层第一次推开普通房门时，才把「一层 · 晚自习走廊」那段环境描写补上
   if (next.type === 'fight' && r.floor === 0 && !r.f1Done) {
@@ -1056,7 +1177,7 @@ function nextFloor() {
   refreshHud();
   banner(FLOORS[r.floor].n, FLOORS[r.floor].tip);
   Audio2.item();
-  Audio2.music(['hall', 'lab', 'roof'][r.floor] || 'hall');
+  Audio2.music(FLOORS[r.floor].music || 'hall');
   // 新一层开场：说完再把操作还给人
   playScene('f' + (r.floor + 1));
 }
@@ -1135,7 +1256,7 @@ function sceneArt(id, scene) {
 }
 
 function storySpeaker(line) {
-  if (line.k === 'cat') return '小煤球';
+  if (line.k === 'cat') return '弥萨格校猫';
   if (line.k === 'narr') return '旁白';
   if (line.k === 'voice') return line.who || '通讯器';
   if (line.k === 'boss') return line.who || '？？？';
@@ -1200,7 +1321,8 @@ function endStory() {
   const done = st && st.onDone;
   if (G.run && !G.run.dead) {
     G.mode = 'play';
-    Audio2.music(G.run.room && G.run.room.type === 'boss' ? 'boss' : (['hall', 'lab', 'roof'][G.run.floor] || 'hall'));
+    const F = FLOORS[G.run.floor];
+    Audio2.music(G.run.room && G.run.room.type === 'boss' ? 'boss' : (F ? F.music : 'hall'));
   } else {
     G.mode = 'title';
     Audio2.music('title');
@@ -1459,6 +1581,8 @@ function updateGoal() {
     html = '清掉这间房的 <b>' + n + '</b> 个东西 · 清空才开门';
   } else if (rm.pickups.some((p) => p.kind === 'stair' && !p.taken)) {
     html = '踩上 <b>楼梯</b> 下一层';
+  } else if (rm.pickups.some((p) => p.hpCost != null && !p.taken)) {
+    html = '碰一下 <b>祭坛上的东西</b> · 代价是半颗心';
   } else if (Object.values(rm.doors).some(Boolean)) {
     html = '走进 <b>亮着的门</b>';
   } else {
@@ -1553,6 +1677,8 @@ function drawMapTo(canvas, S) {
     if (cell.type === 'boss') col = '#8c3038';
     else if (cell.type === 'item') col = '#8a6a2a';
     else if (cell.type === 'shop') col = '#2f6b4f';
+    else if (cell.type === 'altar') col = '#6b3a7a';
+    else if (cell.type === 'challenge') col = '#7d5426';
     else if (cell.cleared) col = '#44536e';
     c.fillStyle = col;
     c.beginPath();
@@ -1661,6 +1787,18 @@ function render() {
       ctx.textAlign = 'center';
       ctx.fillText(f.txt, f.x, f.y);
       ctx.restore();
+    } else if (f.kind === 'bolt') {
+      // 雷光的每一折：一段发光直线，几帧就没了
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = '#cfe9ff';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(140,190,255,.5)';
+      ctx.lineWidth = 5.5;
+      ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+      ctx.restore();
     } else if (f.kind === 'boom') {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -1726,7 +1864,9 @@ function render() {
   if (rm.boss) {
     const b = rm.boss;
     const w = G.W * 0.56, h = 8;
-    const x = (G.W - w) / 2, y = G.H - 34;
+    // 拾取卡片是压在画布底部的 DOM，卡片在的时候把血条抬上去，别让一张 5 秒的卡片糊住首领血量
+    const cardUp = $('itemCard').classList.contains('on');
+    const x = (G.W - w) / 2, y = G.H - (cardUp ? 96 : 34);
     const ratio = clamp(b.hp / b.maxHp, 0, 1);
     const dying = ratio <= 0.3;                    // 残血：整条换成跳动的亮红
     const beat = 0.5 + 0.5 * Math.sin(G.t * 7.5);
@@ -1915,6 +2055,21 @@ function bindUi() {
   // 开局的按键说明：第一次玩的人要多看一会儿（连「清空才开门」也写在这），老手 7 秒就够
   setTimeout(() => $('hintBar').classList.add('off'), G.meta.seen.intro ? 7000 : 17000);
   $('activeBtn').onclick = () => useActive();
+  // 自动攻击开关：状态存进档案，下次打开还是你上次选的
+  const syncAuto = () => {
+    const b = $('autoBtn');
+    b.classList.toggle('on', !!G.meta.autoFire);
+    b.setAttribute('aria-pressed', G.meta.autoFire ? 'true' : 'false');
+  };
+  G.ui.syncAuto = syncAuto;
+  $('autoBtn').onclick = () => {
+    G.meta.autoFire = !G.meta.autoFire;
+    saveMeta();
+    syncAuto();
+    Audio2.blip(760, 0.06, 'triangle', 0.03);
+    toast(G.meta.autoFire ? '自动攻击：开 · 猫自己瞄最近的，你只管走位' : '自动攻击：关 · 自己瞄准再开火');
+  };
+  syncAuto();
   $('muteBtn').onclick = () => {
     G.meta.muted = !G.meta.muted;
     saveMeta();
@@ -1942,6 +2097,7 @@ function bindUi() {
     G.keys[e.code] = true;
     if (e.code === 'Escape') togglePause();
     if (e.code === 'Space') useActive();
+    if (e.code === 'KeyF') $('autoBtn').click();
     if (e.code === 'KeyM') $('btnMap').click();
   });
   window.addEventListener('keyup', (e) => { G.keys[e.code] = false; });
@@ -2073,6 +2229,70 @@ function useActive() {
     for (const e of rm.ents) e.cd += 0.4;
     toast('仲夏之梦：敌人慢下来了');
     Audio2.blip(420, 0.3, 'sine', 0.04, 0.7);
+  } else if (r.active.k === 'shield') {
+    // 免疫 3 秒 + 顺手把身边的弹幕擦掉。用来穿那种「一圈全是弹」的局面
+    p.invuln = Math.max(p.invuln, 3);
+    let cleared = 0;
+    for (const b of rm.eshot.slice()) {
+      if (dist(b.x, b.y, p.x, p.y) < 150) { rm.eshot.splice(rm.eshot.indexOf(b), 1); cleared++; }
+    }
+    G.fx.push({ x: p.x, y: p.y, life: 0.5, kind: 'boom', s: 110 });
+    toast(cleared ? `注射守护：3 秒免伤，擦掉 ${cleared} 发` : '注射守护：3 秒免伤');
+    Audio2.item();
+  } else if (r.active.k === 'snipe') {
+    const ang = aimAngle();
+    rm.shots.push({
+      x: p.x + Math.cos(ang) * 14, y: p.y + Math.sin(ang) * 14,
+      vx: Math.cos(ang) * 980, vy: Math.sin(ang) * 980,
+      r: 9, dmg: 40, life: 1.6, pierce: 99, crit: false, hit: [], t: 0,
+    });
+    G.shake = 11;
+    Audio2.shoot();
+    Audio2.boom();
+  } else if (r.active.k === 'plague') {
+    for (const e of rm.ents) e.psn = { t: 8, dps: 3, acc: 0 };
+    if (rm.boss) rm.boss.psn = { t: 8, dps: 3, acc: 0 };
+    toast('虚无瘟疫：8 秒内一直在掉血');
+    Audio2.blip(300, 0.3, 'sawtooth', 0.03, 0.6);
+  } else if (r.active.k === 'chain') {
+    // 雷光在敌人之间跳：每次跳到最近的一个，跳过的不会再跳回去
+    let from = { x: p.x, y: p.y };
+    const jumped = new Set();
+    for (let i = 0; i < 6; i++) {
+      let best = null, bd = 250;
+      for (const e of rm.ents.concat(rm.boss ? [rm.boss] : [])) {
+        if (jumped.has(e)) continue;
+        const d = dist(from.x, from.y, e.x, e.y);
+        if (d < bd) { bd = d; best = e; }
+      }
+      if (!best) break;
+      jumped.add(best);
+      // 折几段画成一道闪电，直的拉一条线不好看
+      const seg = 4;
+      for (let k = 0; k < seg; k++) {
+        const a0 = k / seg, a1 = (k + 1) / seg;
+        G.fx.push({
+          x: from.x + (best.x - from.x) * a0, y: from.y + (best.y - from.y) * a0,
+          x2: from.x + (best.x - from.x) * a1 + rnd(-7, 7),
+          y2: from.y + (best.y - from.y) * a1 + rnd(-7, 7),
+          life: 0.24, kind: 'bolt',
+        });
+      }
+      hurtEnemy(best, 14, false, 0, 0);
+      from = { x: best.x, y: best.y };
+    }
+    G.shake = 8;
+    Audio2.blip(1300, 0.18, 'sawtooth', 0.035, 0.45);
+  } else if (r.active.k === 'draw') {
+    const pool = ITEMS.filter((i) => !r.items.includes(i.k));
+    const it = pickOne(pool.length ? pool : ITEMS);
+    takeItem(it.k);
+    toast('不平等交换：' + it.n);
+  } else if (r.active.k === 'mend') {
+    heal(4);
+    G.fx.push({ x: p.x, y: p.y, life: 0.5, kind: 'boom', s: 70 });
+    toast('泣血的圣心：回了 2 颗心');
+    Audio2.item();
   }
   r.active.cd = a.cd;
   refreshHud();
@@ -2087,7 +2307,7 @@ function showEnd(win, fresh) {
   $('endSub').textContent = win ? TEXT.winSub : pickOne(DEATHS);
   const got = Object.keys(G.meta.codex).filter((k) => G.meta.codex[k]).length;
   const rows = [
-    ['到达', win ? '三层全部打通' : FLOORS[r.floor].n],
+    ['到达', win ? FLOORS.length + ' 层全部打通' : FLOORS[r.floor].n],
     ['击杀', r.kills],
     ['造物', r.items.length + ' 件'],
     ['银芯', r.coins],
@@ -2114,7 +2334,7 @@ async function boot() {
   G.bg.cv = $('bgcv');
   if (G.bg.cv) G.bg.ctx = G.bg.cv.getContext('2d');
   Audio2.muted = !!G.meta.muted;
-  // 开局先结算一次「不看剧情也该有的」条目：弥萨格、融蚀、银芯、小煤球
+  // 开局先结算一次「不看剧情也该有的」条目：弥萨格、融蚀、银芯、小煤球（那个名号）
   unlockCodexByProgress();
   bindUi();
   fit();
@@ -2126,8 +2346,10 @@ async function boot() {
   if (location.search.includes('_test=1')) {
     window.__binding = {
       G, startRun, beginRun, room, ITEMS, FURS, EYES, COSTUMES, TRINKETS, ACTIVES, WORLD, SCENES,
+      FLOORS, BOSSES, ENEMIES, TEXT,
       useActive, nextFloor, goNext, goRoom, takeItem, recalcStats, refreshHud, renderMinimap,
       playScene, advanceStory, endStory, openCodex, renderCodex, unlockCodexByProgress, Audio2,
+      makeFloor, buildRoom, aimAngle, wantShoot, tryPickup, onRoomClear,
     };
   }
 }

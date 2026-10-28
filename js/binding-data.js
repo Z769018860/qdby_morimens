@@ -47,10 +47,11 @@ export const EYES = [
 ];
 
 // ------------------------------------------------------------------ 造型
-// officer 直接换一张原图（小煤球二世，戴军帽），所以轮廓都不一样。
+// 主角是弥萨格校猫，就叫「弥萨格校猫」。这两个造型只是换一张原图（第二张是戴军帽的
+// 那一版，轮廓都不一样），名字描述的是「长什么样」，不是它叫什么。
 export const COSTUMES = [
-  { k: 'plain', n: '小煤球', hint: '校门口那只，谁都能摸。', unlock: null },
-  { k: 'officer', n: '小煤球二世', hint: '戴上军帽的二代目，表情都没变。', unlock: { type: 'clear', v: 1 } },
+  { k: 'plain', n: '校猫', hint: '校门口那只，谁都能摸。', unlock: null },
+  { k: 'officer', n: '戴军帽', hint: '换一张原图，帽檐压得很低，表情一点没变。', unlock: { type: 'clear', v: 1 } },
 ];
 
 // ------------------------------------------------------------------ 造物
@@ -85,6 +86,16 @@ export const ITEMS = [
   { k: 'core', n: '纯银之核', ic: 'core', q: 'SR', look: 'coreAura', eff: { floorCoins: 25 }, t: '每通过一层额外获得 25 银芯。' },
   { k: 'wine', n: '群星之酒', ic: 'wine', q: 'N', look: 'stars', eff: { critMul: 0.6 }, t: '暴击伤害 +60%。喝多了眼前全是星星。' },
   { k: 'jaw', n: '镭射颌骨', ic: 'jaw', q: 'N', look: 'jawGlow', eff: { explodeKill: true }, t: '击杀敌人时引发小范围爆炸。下巴那道缝在发红光。' },
+
+  // ---- 第二批：这一批全身上下都能挂，戴上去一眼看得出来是哪件
+  { k: 'tophat', n: '诡术礼帽', ic: 'tophat', q: 'N', look: 'topHat', eff: { dmgMul: 1.18, luck: 1 }, t: '泪弹伤害 +18%，幸运 +1。帽子里有东西在动，别往里看。' },
+  { k: 'chime', n: '蛊惑风铃', ic: 'chime', q: 'N', look: 'windChime', eff: { rate: 1.12, tearSize: 0.9 }, t: '射击频率 +12%，泪弹小一点。风铃响的时候，房间里的东西会慢半拍。' },
+  { k: 'bell', n: '哀嚎摇铃', ic: 'bell', q: 'N', look: 'collarBell', eff: { dmg: 1.1, thorns: 5 }, t: '泪弹伤害 +1.1，碰到你的敌人受 5 点伤害。摇一下，它就叫。' },
+  { k: 'veil', n: '无名之神的面纱', ic: 'veil', q: 'SR', look: 'veil', eff: { dmgTaken: 0.8, vision: -55 }, t: '受到的伤害 -20%，但视野变小。看不见的东西，也一样看不见你。' },
+  { k: 'wallet', n: '崭新的钱包', ic: 'wallet', q: 'N', look: 'satchel', eff: { roomCoins: 3 }, t: '清空房间时额外掉 3 银芯。里面的钱不是你的，但也没人来要。' },
+  { k: 'crow', n: '厄运仪式鸟', ic: 'crow', q: 'N', look: 'crow', eff: { crit: 0.1, dmgMul: 1.05 }, t: '暴击率 +10%，伤害 +5%。它落在肩上就不走了，赶也赶不走。' },
+  { k: 'pipe', n: '哭泣烟斗', ic: 'pipe', q: 'N', look: 'pipe', eff: { healKill: 7, speed: 0.93 }, t: '每击杀 7 个敌人回复半颗心，移动速度 -7%。烟一直往眼睛上飘。' },
+  { k: 'ring', n: '深海戒指', ic: 'ring', q: 'SR', look: 'pawRing', eff: { pierce: 1, tearSpeed: 0.92 }, t: '泪弹多穿透 1 个敌人，速度 -8%。戴在前爪上，有点松。' },
 ];
 
 // ------------------------------------------------------------------ 密契（小饰品，一局最多带一件）
@@ -100,11 +111,19 @@ export const TRINKETS = [
 ];
 
 // ------------------------------------------------------------------ 钥令（主动道具，占一格，按空格 / 点按钮放）
+// 名字全部是游戏自带的钥令（data/boot.json 的 dict.key），效果按地牢的需要重写：
+// 原作是卡牌回合制，这里得是一按就见效的东西。cd 是冷却秒数，charges 只用于说明强度。
 export const ACTIVES = [
   { k: 'dash', n: '跨越回溯之扉', ic: 'dash', cd: 5, charges: 3, t: '朝瞄准方向瞬移一段，落地有 0.5 秒无敌。' },
   { k: 'nova', n: '不落的太阳', ic: 'nova', cd: 7, charges: 2, t: '以自身为中心炸开一圈，造成 26 点伤害并击退。' },
   { k: 'twin', n: '全部的她', ic: 'twin', cd: 12, charges: 2, t: '分出一只小猫，12 秒内自己帮你打。' },
   { k: 'slow', n: '仲夏之梦', ic: 'slow', cd: 9, charges: 2, t: '全房间的敌人减速 60%，持续 6 秒。' },
+  { k: 'shield', n: '注射守护', ic: 'shield', cd: 13, charges: 2, t: '3 秒内免疫伤害，并把身边的弹幕一起清掉。换成血就打折了。' },
+  { k: 'snipe', n: '一声枪响', ic: 'snipe', cd: 9, charges: 2, t: '朝瞄准方向打出一发贯穿一切的重弹，40 点伤害，墙才会拦住它。' },
+  { k: 'plague', n: '虚无瘟疫', ic: 'plague', cd: 11, charges: 2, t: '给房间里每个敌人上毒，8 秒内每秒掉 3 点，毒死也算击杀。' },
+  { k: 'chain', n: '不灭的雷光', ic: 'chain', cd: 8, charges: 3, t: '雷光在敌人之间连跳 6 次，每跳 14 点伤害，越跳越远。' },
+  { k: 'draw', n: '不平等交换', ic: 'draw', cd: 30, charges: 1, t: '立刻从这一层的东西里拿一件造物。等价交换的意思是：你说不上话。' },
+  { k: 'mend', n: '泣血的圣心', ic: 'mend', cd: 22, charges: 1, t: '原地回 2 颗心。心是别人的，疼是自己的。' },
 ];
 
 // ------------------------------------------------------------------ 敌人
@@ -166,8 +185,10 @@ export const ENEMIES = {
 };
 
 // ------------------------------------------------------------------ 首领
-// 三层的首领都是图鉴里真有的 Boss（13956 / 13958 / 13986），立绘取 BOSSSIZE 那张。
+// 五个首领都是图鉴里真有的 Boss（13956 / 13958 / 14047 / 13986 / 13976），立绘取 BOSSSIZE 那张。
 // 画成「悬着的肖像」：圆形底 + 真素材 + 旋转的框，和以撒里那种飘着的头是同一个路数。
+// atks 是行为表，按顺序循环：ring 环射 / aimed 散射 / summon 召唤 / charge 蓄力冲 /
+// spiral 旋转螺旋 / rain 落点砸下
 export const BOSSES = {
   b1: {
     n: '「守灯人」', en: 'Guardian of the Lantern', art: 'b1', cls: 'Boss',
@@ -179,31 +200,45 @@ export const BOSSES = {
     n: '「劳伦斯先生」', en: 'Mr. Lawrence', art: 'b2', cls: 'Boss',
     desc: '他早已被繁重的任务压弯了背脊。工作、工作、工作——这就是他现在的全部。',
     sub: '解剖教室里的蜡像绅士，走路没有声音',
-    hp: 230, r: 38, sp: 58, atks: ['charge', 'ring', 'summon'], ringN: 18, ringSp: 118,
+    hp: 210, r: 38, sp: 58, atks: ['charge', 'ring', 'summon'], ringN: 18, ringSp: 118,
   },
   b3: {
-    n: '「以眼还眼」', en: 'An Eye for an Eye', art: 'b3', cls: 'Boss',
+    n: '「查泰德夫人」', en: 'Lady Chatterley', art: 'b3', cls: 'Boss',
+    desc: '红酒、甜品、美好的恋爱都已离她远去。站在你面前的，是一位充满怨念的失意者。',
+    sub: '蜡像馆的现任馆长，第七尊，也是唯一还在动的那尊',
+    hp: 280, r: 36, sp: 50, atks: ['summon', 'aimed', 'spiral'], ringN: 16, ringSp: 112,
+  },
+  b4: {
+    n: '「以眼还眼」', en: 'An Eye for an Eye', art: 'b4', cls: 'Boss',
     desc: '群聚在地下的蜡像弃儿。时刻准备着，为罗杰斯大人的艺术献出一切！',
     sub: '天台上面那一群蜡像弃儿，替你看了整晚',
-    hp: 320, r: 40, sp: 54, atks: ['ring', 'aimed', 'charge', 'summon'], ringN: 22, ringSp: 128,
+    hp: 340, r: 40, sp: 54, atks: ['ring', 'aimed', 'charge', 'summon'], ringN: 22, ringSp: 128,
+  },
+  b5: {
+    n: '「万物寂灭」', en: 'The Void Claims All', art: 'b5', cls: 'Boss',
+    desc: '融蚀浆平等地赐予万物死亡。万物寂灭合一。',
+    sub: '深渊底部那一滩会站起来的东西，它记得每一个掉下来的人',
+    hp: 430, r: 42, sp: 44, atks: ['rain', 'ring', 'spiral', 'summon'], ringN: 24, ringSp: 122,
   },
 };
 
 // ------------------------------------------------------------------ 楼层
-// pool 里放的是 ENEMIES 的 key。一层提灯教会的地盘，二层解剖教室与蜡像，
-// 三层是撕开的维度——越往下，精英越多。
+// pool 里放的是 ENEMIES 的 key。music 对应 js/binding-audio.js 的曲目键，
+// theme 对应 js/binding-draw.js 的地板/墙面配色。越往下，精英越多。
 export const FLOORS = [
-  { n: '一层 · 晚自习走廊', theme: 'wood', rooms: 9, pool: ['follower', 'follower', 'dog', 'clump'], boss: 'b1', tip: '走廊尽头的灯是坏的' },
-  { n: '二层 · 解剖教室', theme: 'tile', rooms: 10, pool: ['surgeon', 'waxman', 'abscess', 'dog'], boss: 'b2', tip: '别碰泡在罐子里的东西' },
-  { n: '三层 · 天台与梦', theme: 'stone', rooms: 11, pool: ['claw', 'chanter', 'hunter', 'waxman'], boss: 'b3', tip: '上面没有天台，只有一群不肯散的东西' },
+  { n: '一层 · 晚自习走廊', theme: 'wood', music: 'hall', rooms: 9, pool: ['follower', 'follower', 'dog', 'clump'], boss: 'b1', tip: '走廊尽头的灯是坏的' },
+  { n: '二层 · 解剖教室', theme: 'tile', music: 'lab', rooms: 10, pool: ['surgeon', 'waxman', 'abscess', 'dog'], boss: 'b2', tip: '别碰泡在罐子里的东西' },
+  { n: '三层 · 蜡像馆', theme: 'wax', music: 'wax', rooms: 10, pool: ['waxman', 'waxman', 'surgeon', 'abscess', 'chanter'], boss: 'b3', tip: '馆里的规矩只有一条：不要碰展品' },
+  { n: '四层 · 天台与梦', theme: 'stone', music: 'roof', rooms: 11, pool: ['claw', 'chanter', 'hunter', 'waxman'], boss: 'b4', tip: '上面没有天台，只有一群不肯散的东西' },
+  { n: '五层 · 融蚀深渊', theme: 'abyss', music: 'abyss', rooms: 12, pool: ['claw', 'hunter', 'chanter', 'abscess'], boss: 'b5', tip: '融蚀的尽头是梦，梦的尽头也是融蚀' },
 ];
 
 // ------------------------------------------------------------------ 文案
 export const TEXT = {
   title: '校猫的结合',
   sub: 'The Binding of School Cat',
-  intro: '弥萨格大学的夜里，校猫小煤球掉进了地下室。往下走，捡起这里散落的造物，把自己改造成另一只猫。',
-  tip: 'WASD / 摇杆 移动 · 鼠标或方向键 射击 · 空格 钥令 · Esc 暂停',
+  intro: '弥萨格大学的夜里，校猫掉进了地下室。往下走五层，捡起这里散落的造物，把自己改造成另一只猫。',
+  tip: 'WASD / 摇杆 移动 · 鼠标或方向键 射击 · 空格 钥令 · F 自动攻击 · Esc 暂停',
   deadTitle: '这一夜到此为止',
   winTitle: '校猫爬出来了',
   winSub: '天亮了。走廊还是那条走廊，猫不太一样了。',

@@ -765,6 +765,202 @@ const FRONT = {
     ctx.beginPath(); ctx.moveTo(41, 56); ctx.lineTo(53, 56); ctx.stroke();
     ctx.restore();
   },
+
+  // ---- 第二批挂件：帽子 / 风铃 / 项圈铃 / 面纱 / 挎包 / 肩上的鸟 / 烟斗 / 前爪的戒指
+  // 坐标系和上面一样：头占 0..96，脖子在 88~98，前爪在 (37,103)。
+  topHat(ctx, t) {
+    ctx.save();
+    ctx.translate(48, 3 + Math.sin(t * 2.2) * 0.5);
+    ctx.rotate(-0.07);
+    // 帽筒
+    const g = ctx.createLinearGradient(-14, 0, 14, 0);
+    g.addColorStop(0, '#161922'); g.addColorStop(0.42, '#343945'); g.addColorStop(1, '#0f1116');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(-13, 0);
+    ctx.lineTo(-10.5, -26);
+    ctx.quadraticCurveTo(0, -30.5, 10.5, -26);
+    ctx.lineTo(13, 0);
+    ctx.closePath();
+    ctx.fill();
+    // 帽带
+    ctx.fillStyle = '#8c1f24';
+    ctx.fillRect(-13.2, -8.6, 26.4, 4.4);
+    // 帽沿
+    ctx.fillStyle = '#1a1e27';
+    ctx.beginPath(); ctx.ellipse(0, 0, 24, 4.2, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(190,205,235,.34)';
+    ctx.lineWidth = 0.9;
+    ctx.beginPath(); ctx.ellipse(0, 0, 24, 4.2, 0, 0, 7); ctx.stroke();
+    ctx.restore();
+  },
+  windChime(ctx, t) {
+    const sway = Math.sin(t * 1.6) * 3;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(200,210,230,.45)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(48, -34);
+    ctx.quadraticCurveTo(48 + sway * 0.4, -22, 48 + sway, -12);
+    ctx.stroke();
+    ctx.translate(48 + sway, -12);
+    ctx.rotate(sway * 0.022);
+    // 顶盘
+    ctx.fillStyle = '#c9a94a';
+    ctx.beginPath(); ctx.ellipse(0, 0, 7, 2.2, 0, 0, 7); ctx.fill();
+    // 三根管：中间那根最长，撞在一起才响
+    const cols = ['#e3b341', '#9fb4d8', '#d98fb0'];
+    for (let i = -1; i <= 1; i++) {
+      ctx.fillStyle = cols[i + 1];
+      const h = i === 0 ? 13 : 10;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(i * 5 - 1.2, 1, 2.4, h, 1.2);
+      else ctx.rect(i * 5 - 1.2, 1, 2.4, h);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(255,242,205,.9)';
+    ctx.beginPath(); ctx.arc(0, 15, 1.7, 0, 7); ctx.fill();
+    ctx.restore();
+  },
+  collarBell(ctx, t) {
+    ctx.save();
+    // 项圈：贴着下巴下面那一圈的弧
+    ctx.strokeStyle = '#7a2f36';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.ellipse(48, 88, 23, 12, 0, 0.14 * Math.PI, 0.86 * Math.PI); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,210,150,.32)';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.ellipse(48, 88, 23, 12, 0, 0.22 * Math.PI, 0.78 * Math.PI); ctx.stroke();
+    // 铃铛
+    ctx.translate(48, 99);
+    ctx.rotate(Math.sin(t * 3.1) * 0.13);
+    const g = ctx.createRadialGradient(-1.5, -2, 0.5, 0, 0, 6);
+    g.addColorStop(0, '#ffe9a8'); g.addColorStop(0.55, '#d8a838'); g.addColorStop(1, '#7a5a14');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, 4.6, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(90,70,20,.55)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(-3.6, 1.1); ctx.lineTo(3.6, 1.1); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 2.4, 1, 0, 7); ctx.stroke();
+    ctx.restore();
+  },
+  veil(ctx, t) {
+    ctx.save();
+    const w = Math.sin(t * 1.4) * 1.5;
+    const g = ctx.createLinearGradient(0, 4, 0, 88);
+    g.addColorStop(0, 'rgba(228,234,250,.44)');
+    g.addColorStop(0.62, 'rgba(200,214,244,.22)');
+    g.addColorStop(1, 'rgba(180,196,236,.04)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(24, 10);
+    ctx.quadraticCurveTo(48, -2, 72, 10);
+    ctx.quadraticCurveTo(80, 52, 74 + w, 84);
+    ctx.quadraticCurveTo(60, 90, 48, 86);
+    ctx.quadraticCurveTo(36, 90, 22 - w, 84);
+    ctx.quadraticCurveTo(16, 52, 24, 10);
+    ctx.closePath();
+    ctx.fill();
+    // 织纹：几道竖褶，不然就是一块白布
+    ctx.strokeStyle = 'rgba(240,246,255,.15)';
+    ctx.lineWidth = 0.9;
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(48 + i * 15, 6);
+      ctx.quadraticCurveTo(48 + i * 19, 50, 48 + i * 17 + w, 84);
+      ctx.stroke();
+    }
+    ctx.restore();
+  },
+  satchel(ctx, t) {
+    ctx.save();
+    // 斜跨的背带
+    ctx.strokeStyle = '#5a3a28';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(30, 74); ctx.quadraticCurveTo(52, 86, 70, 95); ctx.stroke();
+    // 包体
+    const g = ctx.createLinearGradient(56, 90, 84, 106);
+    g.addColorStop(0, '#6b4630'); g.addColorStop(1, '#33200f');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(62, 88, 22, 17, 3);
+    else ctx.rect(62, 88, 22, 17);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(240,220,180,.22)';
+    ctx.lineWidth = 0.9;
+    ctx.stroke();
+    // 盖 + 扣
+    ctx.fillStyle = '#7c5238';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(62, 88, 22, 7, 3);
+    else ctx.rect(62, 88, 22, 7);
+    ctx.fill();
+    ctx.fillStyle = '#d8b060';
+    ctx.beginPath(); ctx.arc(73, 95.4, 1.7, 0, 7); ctx.fill();
+    ctx.restore();
+  },
+  crow(ctx, t) {
+    ctx.save();
+    // 停在头顶两只耳朵中间：再往右就钻到耳后去了，只剩一坨黑影
+    ctx.translate(50, 2 + Math.sin(t * 2.6) * 0.8);
+    ctx.scale(1.34, 1.34);
+    ctx.rotate(0.08);
+    // 尾羽
+    ctx.fillStyle = '#12151d';
+    ctx.beginPath(); ctx.moveTo(-6, 2); ctx.lineTo(-17, 9); ctx.lineTo(-13, 1); ctx.closePath(); ctx.fill();
+    // 身体
+    ctx.beginPath(); ctx.ellipse(0, 0, 8, 6.4, -0.2, 0, 7); ctx.fill();
+    // 头
+    ctx.beginPath(); ctx.arc(6.4, -5.6, 4.2, 0, 7); ctx.fill();
+    // 喙
+    ctx.fillStyle = '#c9a94a';
+    ctx.beginPath(); ctx.moveTo(9.8, -6.2); ctx.lineTo(15.4, -4.6); ctx.lineTo(9.8, -3.2); ctx.closePath(); ctx.fill();
+    // 眼
+    ctx.fillStyle = '#ff6a5e';
+    ctx.beginPath(); ctx.arc(7.6, -6.5, 1.15, 0, 7); ctx.fill();
+    // 翅羽的层次
+    ctx.strokeStyle = 'rgba(160,180,215,.26)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(-4.5, 1); ctx.lineTo(3, -2); ctx.stroke();
+    ctx.restore();
+  },
+  pipe(ctx, t) {
+    ctx.save();
+    ctx.strokeStyle = '#8a6a44';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(50, 58); ctx.quadraticCurveTo(60, 60.5, 68, 55); ctx.stroke();
+    ctx.fillStyle = '#5c4227';
+    ctx.beginPath(); ctx.ellipse(70, 53.4, 3.4, 3.8, -0.3, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(255,190,90,.5)';
+    ctx.beginPath(); ctx.ellipse(70, 51.4, 2.3, 1.2, -0.3, 0, 7); ctx.fill();
+    // 烟：三缕往上飘，循环
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 3; i++) {
+      const p = (t * 0.55 + i * 0.33) % 1;
+      ctx.globalAlpha = 0.3 * (1 - p);
+      ctx.fillStyle = 'rgba(210,220,245,.5)';
+      ctx.beginPath();
+      ctx.arc(70 + Math.sin(p * 5 + i * 2) * 6, 48 - p * 46, 2.4 + p * 4, 0, 7);
+      ctx.fill();
+    }
+    ctx.restore();
+  },
+  pawRing(ctx, t) {
+    ctx.save();
+    ctx.translate(37, 101);
+    ctx.strokeStyle = '#cfd8e8';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.ellipse(0, 0, 4.6, 3.1, -0.2, 0, 7); ctx.stroke();
+    const g = ctx.createRadialGradient(1.5, -2.6, 0.3, 1.5, -2.6, 3.4);
+    g.addColorStop(0, '#bfeaff'); g.addColorStop(0.6, '#3f8fd8'); g.addColorStop(1, '#123a63');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(1.5, -2.6, 2.3, 0, 7); ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = `rgba(140,200,255,${0.16 + 0.12 * Math.sin(t * 3)})`;
+    ctx.beginPath(); ctx.arc(1.5, -2.6, 5.6, 0, 7); ctx.fill();
+    ctx.restore();
+  },
 };
 
 // ------------------------------------------------------------------ 肖像（首领 / 精英）

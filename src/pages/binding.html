@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>校猫的结合 · 忘忘同人小游戏</title>
-<meta name="description" content="以撒的结合式房间地牢，主角是弥萨格大学的校猫小煤球：往下打三层，捡起散落的造物，猫身上就会多出帽子、眼镜、披风、提灯——八种毛色、六种瞳色、二十多种饰品，把同一只黑猫改成完全不同的样子。带剧情与设定集：世界观整理自《忘却前夜》的剧情文本与收藏馆档案。">
+<meta name="description" content="以撒的结合式房间地牢，主角是弥萨格大学的校猫：往下打五层，捡起散落的造物，猫身上就会多出帽子、眼镜、披风、提灯——八种毛色、六种瞳色、三十多种饰品，把同一只黑猫改成完全不同的样子。有自动攻击开关，手机上也能只走位。带剧情与设定集：世界观整理自《忘却前夜》的剧情文本与收藏馆档案。">
 <meta name="theme-color" content="#080b11">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0e16'/%3E%3Cg fill='%23e6e9f0'%3E%3Cellipse cx='11' cy='12' rx='3.1' ry='3.9'/%3E%3Cellipse cx='21' cy='12' rx='3.1' ry='3.9'/%3E%3Cellipse cx='7' cy='19.4' rx='2.7' ry='3.3'/%3E%3Cellipse cx='25' cy='19.4' rx='2.7' ry='3.3'/%3E%3Cpath d='M16 17.2c4.3 0 7.2 3.3 7.2 6 0 2.3-2 3.7-4.5 3.7-1.5 0-2.3-.6-2.7-.6s-1.2.6-2.7.6c-2.5 0-4.5-1.4-4.5-3.7 0-2.7 2.9-6 7.2-6Z'/%3E%3C/g%3E%3C/svg%3E">
 <style>
@@ -125,11 +125,24 @@ button{font:inherit; color:inherit; cursor:pointer}
 .active.ready{border-color:color-mix(in oklab, var(--gold) 60%, transparent)}
 .active.ready img{opacity:1}
 .active.ready .ch{color:var(--gold)}
+/* 自动攻击开关：压在钥令键上面一行，手机上单手也够得着 */
+.autofire{
+  position:absolute; right:10px; bottom:70px; display:flex; align-items:center; gap:4px;
+  padding:5px 9px 5px 7px; border-radius:999px; font-size:10.5px; line-height:1;
+  border:1px solid var(--glassline); background:rgba(12,17,26,.82); color:var(--glassdim);
+  letter-spacing:.04em;
+}
+.autofire svg{width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round}
+.autofire.on{
+  color:var(--gold); background:rgba(42,33,14,.88);
+  border-color:color-mix(in oklab, var(--gold) 55%, transparent);
+}
 @media (max-width:520px){
   .active{width:46px; height:46px; border-radius:12px}
   .active img{width:28px; height:28px}
   .minimap canvas{width:58px; height:58px}
   .strip img{width:19px; height:19px}
+  .autofire{bottom:62px; padding:4px 8px 4px 6px; font-size:10px}
 }
 
 /* 拾取卡片 */
@@ -480,6 +493,9 @@ body.titlestate .ov#ovTitle .panel{
     <div class="trinket" id="trinketSlot"><img alt=""></div>
     <div class="strip" id="itemStrip"></div>
     <button class="active" id="activeBtn" aria-label="使用钥令"><img alt=""><span class="ch">就绪</span></button>
+    <button class="autofire" id="autoBtn" aria-pressed="false" title="自动攻击：猫自己瞄准最近的敌人并开火，你只管走位（F）">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.4v2.2M8 12.4v2.2M1.4 8h2.2M12.4 8h2.2"/></svg><span id="autoLabel">自动</span>
+    </button>
     <div class="card" id="itemCard"><img alt=""><div><em></em><h4></h4><p></p></div></div>
     <div class="toast" id="toast"></div>
     <!-- 剧情对话：压在场景背景上，点哪儿都继续 -->
@@ -493,9 +509,9 @@ body.titlestate .ov#ovTitle .panel{
     </div>
     <button class="dlgskip" id="dlgSkip" aria-label="跳过这段剧情">跳过</button>
     <div class="hint" id="hintBar">
-      <span class="kb"><b>WASD</b> 移动 · <b>鼠标</b>或<b>方向键</b> 射击 · <b>空格</b> 钥令 · <b>Esc</b> 暂停<br>
+      <span class="kb"><b>WASD</b> 移动 · <b>鼠标</b>或<b>方向键</b> 射击 · <b>空格</b> 钥令 · <b>F</b> 自动攻击 · <b>Esc</b> 暂停<br>
         清掉房间里的东西 → 门会亮 → 走进亮着的那扇门</span>
-      <span class="tc">左半屏拖动移动 · 右半屏拖动射击 · <b>清空房间门才会开</b></span>
+      <span class="tc">左半屏拖动移动 · 右半屏拖动射击 · 右下角可以开<b>自动攻击</b> · <b>清空房间门才会开</b></span>
     </div>
     <div id="boot" role="status" aria-live="polite">
       <div class="ring"></div>
@@ -510,7 +526,7 @@ body.titlestate .ov#ovTitle .panel{
     <p class="kicker">Morimens · Fan Works</p>
     <h1>校猫的结合</h1>
     <p class="en">The Binding of School Cat</p>
-    <p class="intro">弥萨格大学的夜里，校猫小煤球掉进了地下室。往下打三层，捡起这里散落的造物——帽子、眼镜、披风、提灯会一件件挂到猫身上，捡得越多，越不像原来那只。</p>
+    <p class="intro">弥萨格大学的夜里，校猫掉进了地下室。往下打五层，捡起这里散落的造物——帽子、眼镜、披风、提灯会一件件挂到猫身上，捡得越多，越不像原来那只。</p>
 
     <div class="dress">
       <canvas id="titleCat" aria-label="校猫外观预览"></canvas>

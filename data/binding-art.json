@@ -29,7 +29,15 @@
     "lamp": "assets/creation/Icon_Creation_047.webp",
     "core": "assets/creation/Icon_Creation_116.webp",
     "wine": "assets/creation/Icon_Creation_040.webp",
-    "jaw": "assets/creation/Icon_Creation_132.webp"
+    "jaw": "assets/creation/Icon_Creation_132.webp",
+    "tophat": "assets/creation/Icon_Creation_084.webp",
+    "chime": "assets/creation/Icon_Creation_042.webp",
+    "bell": "assets/creation/Icon_Creation_154.webp",
+    "veil": "assets/creation/Icon_Creation_061.webp",
+    "wallet": "assets/creation/Icon_Creation_043.webp",
+    "crow": "assets/creation/Icon_Creation_056.webp",
+    "pipe": "assets/creation/Icon_Creation_087.webp",
+    "ring": "assets/creation/Icon_Creation_144_AT.webp"
   },
   "trinkets": {
     "deus": "assets/covenant/Icon_Trinket_001.webp",
@@ -45,12 +53,20 @@
     "dash": "assets/key/KeyToken_Skill_16.webp",
     "nova": "assets/key/KeyToken_Skill_40.webp",
     "twin": "assets/key/KeyToken_Skill_22.webp",
-    "slow": "assets/key/KeyToken_Skill_18.webp"
+    "slow": "assets/key/KeyToken_Skill_18.webp",
+    "shield": "assets/key/KeyToken_Skill_03.webp",
+    "snipe": "assets/key/KeyToken_Skill_27.webp",
+    "plague": "assets/key/KeyToken_Skill_30.webp",
+    "chain": "assets/key/KeyToken_Skill_35.webp",
+    "draw": "assets/key/KeyToken_Skill_07.webp",
+    "mend": "assets/key/KeyToken_Skill_41.webp"
   },
   "bosses": {
     "b1": "assets/monster/Portrait_Small_Monster_S0402_BOSSSIZE.webp",
     "b2": "assets/monster/Portrait_Small_Monster_C0202_BOSSSIZE.webp",
-    "b3": "assets/monster/Portrait_Small_Monster_C0204_BOSSSIZE.webp"
+    "b3": "assets/monster/Portrait_Small_Monster_C0203_BOSSSIZE.webp",
+    "b4": "assets/monster/Portrait_Small_Monster_C0204_BOSSSIZE.webp",
+    "b5": "assets/monster/Portrait_Small_Monster_A0002_BOSSSIZE.webp"
   },
   "monsters": {
     "_note": "全部取自游戏自带的怪物图鉴（data/boot.json 的 dict.monster，img 字段那张 Portrait_Small_Monster_*）。key 是游戏里 ENEMIES 的 art，名字与出处写在 js/binding-data.js 的注释里。",

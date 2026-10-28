@@ -23,6 +23,24 @@ const THEMES = {
     floorA: '#2a2a30', floorB: '#25252b', line: '#1a1a1f', grain: 'rgba(220,220,255,.04)',
     wall: '#1c1c22', wallTop: '#262630', skirt: '#131317', trim: '#3a3a48',
   },
+  // 蜡像馆：暖一点的石地，墙上全是烛光
+  wax: {
+    floorA: '#322a27', floorB: '#2c2523', line: '#1c1615', grain: 'rgba(255,232,196,.05)',
+    wall: '#241c1e', wallTop: '#33272b', skirt: '#171112', trim: '#4d3a38',
+  },
+  // 融蚀深渊：偏紫的软墙，地面会反光
+  abyss: {
+    floorA: '#1d1a2c', floorB: '#191627', line: '#100e1b', grain: 'rgba(200,170,255,.055)',
+    wall: '#151228', wallTop: '#1f1a33', skirt: '#0d0b18', trim: '#3b2f5e',
+  },
+};
+
+// 障碍物（课桌 / 病床 / 基座）的上下两截颜色
+const OBS_COL = {
+  wood: ['#4a382b', '#2c2118'],
+  tile: ['#4a5568', '#2c3543'],
+  wax: ['#4c3a33', '#2b201c'],
+  abyss: ['#3a3358', '#1e1a34'],
 };
 
 function rnd(seed) {
@@ -160,8 +178,9 @@ export function bakeRoom(room, themeKey, W, H) {
     else c.rect(ob.x + 3, ob.y + 5, ob.w, ob.h);
     c.fill();
     const g = c.createLinearGradient(ob.x, ob.y, ob.x, ob.y + ob.h);
-    g.addColorStop(0, themeKey === 'tile' ? '#4a5568' : '#4a382b');
-    g.addColorStop(1, themeKey === 'tile' ? '#2c3543' : '#2c2118');
+    const oc = OBS_COL[themeKey] || OBS_COL.wood;
+    g.addColorStop(0, oc[0]);
+    g.addColorStop(1, oc[1]);
     c.fillStyle = g;
     c.beginPath();
     if (c.roundRect) c.roundRect(ob.x, ob.y, ob.w, ob.h, 5);
@@ -262,7 +281,7 @@ function decorate(c, themeKey, W, H, rand) {
         c.beginPath(); c.moveTo(gx - 5, H - m - 3 + k * 3); c.lineTo(gx + 5, H - m - 3 + k * 3); c.stroke();
       }
     }
-  } else {
+  } else if (themeKey === 'stone') {
     // 天台：墙面星点 + 一条裂缝
     for (let i = 0; i < 26; i++) {
       const x = rand() * W, y = rand() * m;
@@ -285,6 +304,57 @@ function decorate(c, themeKey, W, H, rand) {
       c.fillStyle = g;
       c.beginPath(); c.ellipse(x, y, 20, 8, 0, 0, 7); c.fill();
     }
+  } else if (themeKey === 'wax') {
+    // 蜡像馆：墙上一排烛台（火苗在闪），地上流下来的蜡
+    for (let i = 0; i < 5; i++) {
+      const x = W * (0.1 + i * 0.2) + rand() * 6 - 3;
+      const h = 12 + rand() * 6;
+      // 烛身
+      c.fillStyle = 'rgba(232,222,200,.5)';
+      c.fillRect(x, m - h, 4.6, h);
+      // 烛泪
+      c.fillStyle = 'rgba(232,222,200,.28)';
+      c.beginPath(); c.ellipse(x + 2.3, m - h + 1, 3.4, 1.6, 0, 0, 7); c.fill();
+      // 火苗
+      const fy = m - h - 3.4;
+      const fg = c.createRadialGradient(x + 2.3, fy, 0.4, x + 2.3, fy, 8);
+      fg.addColorStop(0, 'rgba(255,226,150,.55)');
+      fg.addColorStop(0.45, 'rgba(255,170,70,.22)');
+      fg.addColorStop(1, 'rgba(255,150,60,0)');
+      c.fillStyle = fg;
+      c.beginPath(); c.arc(x + 2.3, fy, 8, 0, 7); c.fill();
+      c.fillStyle = 'rgba(255,244,214,.9)';
+      c.beginPath(); c.ellipse(x + 2.3, fy, 1.1, 2.4, 0, 0, 7); c.fill();
+    }
+    // 地上：几摊流开又凝住的蜡
+    for (let i = 0; i < 4; i++) {
+      const x = W * (0.12 + rand() * 0.76), y = H - m + 8 + rand() * 20;
+      c.fillStyle = 'rgba(226,216,196,.10)';
+      c.beginPath(); c.ellipse(x, y, 14 + rand() * 16, 5 + rand() * 4, 0, 0, 7); c.fill();
+      c.strokeStyle = 'rgba(255,244,220,.07)';
+      c.lineWidth = 1;
+      c.stroke();
+    }
+  } else {
+    // 融蚀深渊：墙上爬的紫脉、地上一层会反光的浆
+    for (let i = 0; i < 4; i++) {
+      c.strokeStyle = `rgba(150,110,230,${0.08 + rand() * 0.12})`;
+      c.lineWidth = 1.2 + rand() * 2;
+      c.beginPath();
+      let px = W * (0.1 + rand() * 0.8), py = 0;
+      c.moveTo(px, py);
+      while (py < m) { px += rand() * 14 - 7; py += 4 + rand() * 4; c.lineTo(px, py); }
+      c.stroke();
+    }
+    for (let i = 0; i < 3; i++) {
+      const x = W * (0.16 + rand() * 0.68), y = H - m + 12 + rand() * 16;
+      const g = c.createRadialGradient(x, y, 1, x, y, 24 + rand() * 16);
+      g.addColorStop(0, 'rgba(150,110,235,.20)');
+      g.addColorStop(0.55, 'rgba(120,80,200,.10)');
+      g.addColorStop(1, 'rgba(120,80,200,0)');
+      c.fillStyle = g;
+      c.beginPath(); c.ellipse(x, y, 26, 9, 0, 0, 7); c.fill();
+    }
   }
   c.restore();
 }
@@ -302,6 +372,7 @@ export function doorRect(dir, W, H) {
 const DOOR_TINT = {
   fight: [255, 198, 128], item: [255, 226, 122], shop: [124, 236, 196],
   boss: [255, 108, 96], start: [186, 208, 255], trap: [255, 158, 118],
+  altar: [226, 146, 255], challenge: [255, 172, 92],
 };
 
 // 门关上时的木板（运行时叠在烘焙图上层，随房间清空与否切换）
@@ -755,6 +826,12 @@ export function drawPickup(ctx, p, t) {
     ctx.font = 'bold 11px system-ui,sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(p.price + ' 银芯', p.x, p.y + 30);
+  } else if (p.hpCost != null && !p.taken) {
+    // 祭坛：标价是血，不是钱
+    ctx.fillStyle = '#e8695f';
+    ctx.font = 'bold 11px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('半颗心', p.x, p.y + 30);
   }
   ctx.restore();
 }

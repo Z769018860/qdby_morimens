@@ -9,8 +9,8 @@ const m_merge_art = await (async () => {
 const LEVELS = [
  {
   "key": "cat",
-  "n": "小煤球",
-  "en": "Coal Ball",
+  "n": "校猫",
+  "en": "School Cat",
   "d": 0.0729,
   "pts": 0,
   "tint": "#cfd6e4",
