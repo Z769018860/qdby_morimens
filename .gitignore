@@ -13,3 +13,8 @@ server/data/
 *.db
 *.db-wal
 *.db-shm
+
+# 是鸟弟就下100层的原始 gif（37MB，9 段动图）。
+# 成品是 assets/pollux-bird/bird-sheet.webp（849KB），原始文件删了重跑
+# scripts/build_bird_art.py 会自己从灰机 wiki 下回来。
+assets/pollux-bird/_raw/

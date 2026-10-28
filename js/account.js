@@ -69,8 +69,29 @@ export function snapshot() {
     // 合成大杜勒的最高分：游戏页只认 'merge:best' 这一个键（它自己也能单机跑），
     // 这里把它一起带上档案，换设备登录就能拿回来。
     mb: mergeBest(),
+    // 是鸟弟就下100层：bb = 最深到达的层数，bs = 最高分。
+    // 同样是「游戏页自己也能跑」的键（zjtt:bird:bestLv / zjtt:bird:best），这里只负责带上档案。
+    bb: birdBest().lv,
+    bs: birdBest().sc,
   };
 }
+
+// 是鸟弟就下100层的纪录。键名与 js/bird.js 用的一致，store 读 JSON、
+// 游戏写纯数字字符串，两种格式 JSON.parse 都吃得下。
+const BIRD_LV = 'bird:bestLv';
+const BIRD_SC = 'bird:best';
+export const birdBest = () => ({
+  lv: Math.max(0, Math.round(Number(store.get(BIRD_LV, 0)) || 0)),
+  sc: Math.max(0, Math.round(Number(store.get(BIRD_SC, 0)) || 0)),
+});
+export const setBirdBest = (lv, sc) => {
+  const cur = birdBest();
+  const nlv = Math.max(cur.lv, Math.max(0, Math.round(Number(lv) || 0)));
+  const nsc = Math.max(cur.sc, Math.max(0, Math.round(Number(sc) || 0)));
+  if (nlv > cur.lv) store.set(BIRD_LV, nlv);
+  if (nsc > cur.sc) store.set(BIRD_SC, nsc);
+  return { lv: nlv, sc: nsc };
+};
 
 // 合成大杜勒的最高分。键名与 js/merge.js 用的是同一个（zjtt:merge:best），
 // store 读的是 JSON、游戏写的是纯数字字符串，两种格式 JSON.parse 都吃得下，老存档不会丢。
@@ -105,6 +126,7 @@ export function apply(d) {
   if (d.lc && typeof d.lc === 'object') store.set('likeCredited', d.lc);
   // 最高分只增不减：云端比本机低（本机多打了一局还没推上去）时保留本机的
   if (d.mb != null) setMergeBest(d.mb);
+  if (d.bb != null || d.bs != null) setBirdBest(d.bb, d.bs);
   // 告诉页面「档案刚落下来」，合成大杜勒靠这个把云端分数显示出来
   try { document.dispatchEvent(new CustomEvent('zjtt:acct', { detail: d })); } catch { /* 无 DOM 环境 */ }
 }
@@ -190,6 +212,8 @@ export function mergeDoc(remote = {}, local = {}) {
     ld: pickQuota(remote.ld, local.ld),
     lc: mergeLikes(remote.lc, local.lc),
     mb: numMax(remote.mb, local.mb),
+    bb: numMax(remote.bb, local.bb),
+    bs: numMax(remote.bs, local.bs),
   };
 }
 
@@ -402,5 +426,5 @@ export function forget() {
 
 export const account = {
   pull, push, sync, schedule, ready, record, history, lastSync, pendingState, forget,
-  snapshot, apply, mergeDoc, pathOf, mergeBest, setMergeBest,
+  snapshot, apply, mergeDoc, pathOf, mergeBest, setMergeBest, birdBest, setBirdBest,
 };

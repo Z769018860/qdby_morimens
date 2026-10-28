@@ -5,8 +5,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = 'D:/软件所/morimens/qdby_morimens';
+// 仓库搬到 H 盘之后这里还写着旧路径，改成从脚本位置推：拷到哪都能跑
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, '.preview');
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -42,6 +44,10 @@ const profile = process.env.PREVIEW_PROFILE || fs.mkdtempSync(path.join(os.tmpdi
 fs.mkdirSync(profile, { recursive: true });
 const proc = spawn(EDGE, [
   '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+  // 无头模式下没这几个开关，页面失焦后 rAF 会被节流到 1fps 左右，
+  // 游戏类页面测出来的「跑了几秒」全是假的（合成大杜勒那次就吃过这个亏）。
+  '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
+  '--disable-backgrounding-occluded-windows', '--disable-features=CalculateNativeWinOcclusion',
   `--remote-debugging-port=${process.env.PREVIEW_PORT || 9333}`, `--user-data-dir=${profile}`,
   `--window-size=${process.env.PREVIEW_SIZE || '1440,1500'}`, '--hide-scrollbars', '--force-device-scale-factor=1',
   'about:blank',

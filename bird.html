@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>是鸟弟就下100层 · 忘忘同人小游戏</title>
+<meta name="description" content="是男人就下一百层的玩法，主角换成《忘却前夜》的波吕克斯（鸟弟）：镜头一直往下滚，平台踩着踩着就塌，一路下到第 100 层。带血条、恢复道具和四个技能，技能演出用的是灰机 wiki 上的战斗动图。">
+<meta name="theme-color" content="#0b0e15">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
+<style>
+/* 和合成大杜勒一样，这一页不引 css/style.css：整站那份 65KB 是给内容页的，
+   游戏壳只要自己这一份样式 + 一个脚本请求（动图已经内联在脚本里）。 */
+:root{
+  --bg:#0a0d14; --panel:#121722; --panel2:#1a2130; --line:#28324a; --text:#e6e9f0;
+  --dim:#8a93a8; --accent:#6ea8ff; --gold:#e3b341; --bad:#e8695f; --hp:#e7564d; --rg:#a07cff;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#eef1f7; --panel:#fff; --panel2:#f4f6fb; --line:#d7dce8; --text:#1b2130;
+    --dim:#667088; --accent:#2c6fdb; --gold:#9a6f00; --bad:#c8413a; --hp:#d8412f; --rg:#7a4fd6; }
+}
+*{box-sizing:border-box}
+html,body{margin:0; height:100%}
+body{
+  background:var(--bg); color:var(--text); overflow:hidden;
+  font:15px/1.5 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-tap-highlight-color:transparent; user-select:none;
+  background-image:radial-gradient(760px 460px at 50% -12%, color-mix(in oklab, var(--accent) 15%, transparent), transparent 70%);
+  background-repeat:no-repeat;
+}
+.app{
+  height:100dvh; max-width:520px; margin:0 auto;
+  padding:max(8px, env(safe-area-inset-top)) 10px max(8px, env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; gap:6px;
+}
+
+/* ---------------------------------------------------------------- 顶栏 */
+.hud{display:flex; align-items:center; gap:6px; flex:0 0 auto}
+.back{
+  width:32px; height:32px; flex:0 0 32px; border-radius:9px; display:grid; place-items:center;
+  border:1px solid var(--line); background:var(--panel); color:var(--text);
+  text-decoration:none; font-size:15px; line-height:1;
+}
+.back:hover{border-color:var(--accent); color:var(--accent)}
+.num{display:flex; flex-direction:column; line-height:1.1; min-width:44px}
+.num b{font-size:18px; font-variant-numeric:tabular-nums; letter-spacing:.01em}
+.num span{font-size:10px; color:var(--dim); letter-spacing:.06em}
+.num.dim b{font-size:14px; color:var(--dim); font-weight:600; margin-top:2px}
+.ico{
+  width:32px; height:32px; flex:0 0 32px; margin-left:auto; border-radius:9px;
+  display:grid; place-items:center; border:1px solid var(--line); background:var(--panel);
+  color:var(--dim); cursor:pointer; font:inherit; padding:0;
+}
+.ico + .ico{margin-left:0}
+.ico:hover{border-color:var(--accent); color:var(--accent)}
+.ico.off{opacity:.45}
+.ico svg{width:16px; height:16px; display:block}
+
+/* ---------------------------------------------------------------- 血条 */
+.bars{display:flex; gap:6px; flex:0 0 auto}
+.bar{
+  position:relative; flex:1 1 0; height:16px; border-radius:999px; overflow:hidden;
+  background:var(--panel2); box-shadow:inset 0 0 0 1px var(--line);
+}
+.bar i{
+  position:absolute; inset:0 auto 0 0; width:0%;
+  transition:width .18s cubic-bezier(.3,.9,.3,1);
+}
+.bar.hp i{background:linear-gradient(90deg,#b2362d,var(--hp))}
+.bar.rg i{background:linear-gradient(90deg,#5a3fa8,var(--rg))}
+.bar span{
+  position:absolute; inset:0; display:grid; place-items:center;
+  font-size:10px; letter-spacing:.04em; color:#fff;
+  text-shadow:0 1px 2px rgba(0,0,0,.95), 0 0 4px rgba(0,0,0,.85);
+  font-variant-numeric:tabular-nums;
+}
+.bar.low i{animation:pulseHp .7s ease-in-out infinite}
+/* 浅色模式下两条血的底太浅，白字压不住：把空槽压深一档 */
+@media (prefers-color-scheme: light){
+  .bar{background:#b5bfd2; box-shadow:inset 0 0 0 1px #9aa6bd}
+}
+@keyframes pulseHp{50%{filter:brightness(1.55)}}
+
+/* ---------------------------------------------------------------- 舞台 */
+.stage{position:relative; flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center}
+canvas#cv{
+  display:block; border-radius:14px; touch-action:none;
+  box-shadow:0 26px 60px -34px rgba(0,0,0,.95), 0 0 0 1px var(--line);
+  background:#070a11;
+}
+#boot{
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:10px; text-align:center; border-radius:14px;
+  background:#070a11; color:#8a93a8; font-size:13px;
+}
+#boot .ring{
+  width:26px; height:26px; border-radius:50%;
+  border:2px solid rgba(150,170,210,.22); border-top-color:var(--accent);
+  animation:spin .9s linear infinite;
+}
+#bootText{margin:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------------------------------------------------------------- 覆盖层 */
+.ov{
+  position:absolute; inset:0; z-index:5; display:flex; align-items:flex-end;
+  justify-content:center; padding:12px;
+  border-radius:14px; background:linear-gradient(180deg, rgba(6,9,14,0) 32%, rgba(6,9,14,.86) 74%);
+  transition:opacity .18s ease;
+}
+.ov[hidden]{display:none}
+.ov.top{align-items:center; background:rgba(6,9,14,.72); backdrop-filter:blur(6px)}
+.card{
+  width:100%; max-width:340px; padding:14px 15px 13px; text-align:center;
+  background:#121722; border:1px solid #2b3448; border-radius:14px; color:#e6e9f0;
+  box-shadow:0 24px 50px -26px rgba(0,0,0,.9);
+}
+.card h1{margin:0 0 4px; font-size:20px; letter-spacing:.02em}
+.card h1 em{font-style:normal; color:var(--gold)}
+.card .k{margin:0 0 8px; font-size:11px; letter-spacing:.22em; color:#8a93a8}
+.card .lead{margin:0 0 8px; font-size:12px; line-height:1.6; color:#c3cad8}
+.card .lead b{color:#e3b341; font-weight:600}
+.keys-hint{
+  display:flex; flex-wrap:wrap; gap:4px 9px; justify-content:center;
+  margin:0 0 10px; font-size:10.5px; color:#8a93a8;
+}
+.keys-hint kbd{
+  font:inherit; font-size:10.5px; padding:1px 5px; border-radius:5px;
+  border:1px solid #2b3448; background:#1a2130; color:#c3cad8;
+}
+.big{margin:2px 0 0; display:flex; align-items:baseline; justify-content:center; gap:5px}
+.big b{font-size:40px; line-height:1; font-variant-numeric:tabular-nums; color:#e3b341}
+.big span{font-size:12px; color:#8a93a8}
+.stat{display:flex; justify-content:center; gap:16px; margin:10px 0 2px}
+.stat div{display:flex; flex-direction:column; gap:1px}
+.stat b{font-size:15px; font-variant-numeric:tabular-nums}
+.stat span{font-size:10.5px; color:#8a93a8; letter-spacing:.05em}
+.rank{margin:10px 0 2px; font-size:13px; color:#e3b341}
+.rank small{display:block; margin-top:2px; font-size:11.5px; color:#8a93a8}
+.acts{display:flex; gap:8px; margin-top:12px}
+.btn{
+  flex:1; display:inline-flex; align-items:center; justify-content:center;
+  padding:9px 0; border-radius:10px; border:1px solid #2b3448; background:#1a2130;
+  color:#e6e9f0; font:inherit; font-size:13.5px; text-decoration:none; cursor:pointer;
+}
+.btn:hover{border-color:#6ea8ff; color:#6ea8ff}
+.btn.primary{background:linear-gradient(100deg,#6ea8ff,#a07cff); border-color:transparent; color:#fff; font-weight:600}
+.btn.primary:hover{color:#fff; opacity:.92}
+
+.toast{
+  position:fixed; left:50%; bottom:22%; z-index:9; transform:translate(-50%,6px);
+  padding:7px 15px; border-radius:999px; font-size:12.5px; white-space:nowrap;
+  background:var(--panel); border:1px solid var(--line); color:var(--text);
+  box-shadow:0 16px 34px -18px rgba(0,0,0,.9); pointer-events:none;
+  opacity:0; transition:opacity .2s ease, transform .2s ease;
+}
+.toast.on{opacity:1; transform:translate(-50%,0)}
+
+/* ---------------------------------------------------------------- 操作区 */
+.pad{display:flex; align-items:flex-end; gap:8px; flex:0 0 auto}
+.keys{display:flex; gap:6px}
+.keys button{
+  width:50px; height:46px; border-radius:12px; border:1px solid var(--line);
+  background:var(--panel); color:var(--text); font:inherit; font-size:17px;
+  display:grid; place-items:center; cursor:pointer; touch-action:none; padding:0;
+  transition:background .1s ease, border-color .1s ease, transform .08s ease;
+}
+.keys button:active,.keys button.on{
+  border-color:color-mix(in srgb,var(--accent) 60%,var(--line));
+  background:color-mix(in srgb,var(--accent) 16%,var(--panel)); transform:scale(.96);
+}
+.skills{margin-left:auto; display:grid; grid-template-columns:1fr 1fr; gap:6px}
+.sk{
+  position:relative; width:52px; height:34px; border-radius:10px; overflow:hidden;
+  border:1px solid var(--line); background:var(--panel); color:var(--text);
+  font:inherit; cursor:pointer; padding:0; display:grid; place-items:center; gap:0;
+  touch-action:none; transition:transform .08s ease, border-color .1s ease;
+}
+.sk:active{transform:scale(.95)}
+.sk b{font-size:13px; line-height:1; letter-spacing:.04em}
+.sk i{font-size:9px; font-style:normal; color:var(--dim); letter-spacing:.03em}
+.sk .cd{
+  position:absolute; inset:0; background:rgba(6,9,14,.72);
+  display:none; place-items:center; font-size:12px; color:#c3cad8;
+  font-variant-numeric:tabular-nums;
+}
+.sk.cooling .cd{display:grid}
+.sk.ready{border-color:color-mix(in srgb,var(--rg) 70%,var(--line)); background:color-mix(in srgb,var(--rg) 14%,var(--panel))}
+.sk.poor{opacity:.55}
+@media (max-width:400px){
+  .keys button{width:44px; height:44px}
+  .sk{width:48px; height:32px}
+  .card{padding:12px 13px 11px}
+  .card h1{font-size:18px}
+  .card .lead{font-size:11.5px}
+}
+@media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
+</style>
+<meta name="build" content="a6cc7227c0">
+</head>
+<body>
+<div class="app">
+  <header class="hud">
+    <a class="back" href="index.html" title="回首页" aria-label="回首页">←</a>
+    <div class="num"><b id="lv">0</b><span>层</span></div>
+    <div class="num"><b id="sc">0</b><span>分数</span></div>
+    <div class="num dim"><b id="bs">0</b><span>最高</span></div>
+    <button class="ico" id="snd" aria-pressed="true" title="音效开关">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9.5h3.2L12 5.5v13L7.2 14.5H4z"/><path d="M16 9.2a4 4 0 0 1 0 5.6"/>
+      </svg>
+    </button>
+    <button class="ico" id="pz" title="暂停（P）">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <path d="M9 6v12M15 6v12"/>
+      </svg>
+    </button>
+  </header>
+
+  <div class="bars">
+    <div class="bar hp" id="hpbar"><i id="hpf"></i><span id="hpt">100 / 100</span></div>
+    <div class="bar rg" id="rgbar"><i id="rgf"></i><span id="rgt">30 / 100</span></div>
+  </div>
+
+  <main class="stage" id="stage">
+    <canvas id="cv" aria-label="是鸟弟就下100层游戏区"></canvas>
+    <div id="boot" role="status" aria-live="polite">
+      <div class="ring"></div>
+      <p id="bootText">正在载入波吕克斯…</p>
+    </div>
+
+    <!-- 开始 -->
+    <div class="ov" id="ovStart">
+      <div class="card">
+        <p class="k">Morimens · Fan Works</p>
+        <h1>是鸟弟就下<em>100</em>层</h1>
+        <p class="lead">镜头一直在往下滚，脚下平台踩着踩着就塌。<br>一路下到 <b>第 100 层</b>，别被顶到尖刺上，也别掉进深渊。</p>
+        <div class="keys-hint">
+          <span><kbd>←</kbd><kbd>→</kbd> 移动</span>
+          <span><kbd>空格</kbd> 跳</span>
+          <span><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd><kbd>U</kbd> 技能</span>
+        </div>
+        <div class="acts">
+          <button class="btn primary" id="go">开始下坠</button>
+          <a class="btn" href="index.html">回首页</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 暂停 -->
+    <div class="ov top" id="ovPause" hidden>
+      <div class="card">
+        <p class="k">PAUSED</p>
+        <div class="big"><b id="pvLv">0</b><span>层</span></div>
+        <p class="lead" style="margin-top:8px">喘口气。回来时镜头还是继续往下滚。</p>
+        <div class="acts">
+          <button class="btn primary" id="resume">继续</button>
+          <button class="btn" id="quit">重开</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 结算 -->
+    <div class="ov top" id="ovEnd" hidden>
+      <div class="card">
+        <p class="k" id="endK">羽毛散了一地</p>
+        <div class="big"><b id="endLv">0</b><span>层</span></div>
+        <div class="stat">
+          <div><b id="endSc">0</b><span>分数</span></div>
+          <div><b id="endKill">0</b><span>击破</span></div>
+          <div><b id="endBest">0</b><span>最高层</span></div>
+        </div>
+        <p class="rank" id="endRank">刚学会扑腾</p>
+        <div class="acts">
+          <button class="btn primary" id="again">再下一次</button>
+          <a class="btn" href="index.html">回首页</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="pad">
+    <div class="keys">
+      <button id="kL" aria-label="向左">◀</button>
+      <button id="kR" aria-label="向右">▶</button>
+      <button id="kJ" aria-label="跳跃">▲</button>
+    </div>
+    <div class="skills" id="skills"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* 载入守护（内联，不占请求）：动图在脚本里，第一次要把 1MB 传下来 */
+(function () {
+  var t0 = Date.now();
+  setTimeout(function () {
+    var t = document.getElementById('bootText');
+    if (t) t.textContent = '还在载入波吕克斯的动图…（首次访问会慢一些）';
+  }, 4500);
+  setTimeout(function () {
+    var b = document.getElementById('boot');
+    if (!b || Date.now() - t0 < 16000) return;
+    b.innerHTML = '<p id="bootText">载入超时</p>';
+    var btn = document.createElement('button');
+    btn.textContent = '重新载入';
+    btn.style.cssText = 'padding:7px 16px;border-radius:9px;border:1px solid #28324a;background:#1a2130;color:#e6e9f0;font:inherit;cursor:pointer';
+    btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
+    b.appendChild(btn);
+  }, 16000);
+})();
+</script>
+<script type="module" src="js/b/bird.js?v=a6cc7227c0"></script>
+<script>
+/* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
+   Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
+   而边缘一个来回就要 1~2 秒；SW 缓存能把这部分彻底省掉。 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>

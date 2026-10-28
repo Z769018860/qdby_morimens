@@ -299,7 +299,7 @@ function storeBox(u) {
         class: 'btn ghost danger',
         onclick: async () => {
           if (!confirm(t('pfClearAsk'))) return;
-          ['credits', 'cg', 'failed', 'stats', 'myPuzzles', 'profile', 'hist'].forEach((k) => store.del(k));
+          ['credits', 'cg', 'failed', 'stats', 'myPuzzles', 'profile', 'hist', 'bird:best', 'bird:bestLv'].forEach((k) => store.del(k));
           if (u) await account.push().catch(() => {});
           toast(t('pfCleared'));
           setTimeout(() => location.reload(), 500);
@@ -312,17 +312,26 @@ function storeBox(u) {
 // 未登录 / 没同步过时读的就是本机那个键，所以数字始终对得上。
 function miniBox() {
   const best = account.mergeBest();
+  const bird = account.birdBest();
   // 把「最高 {n} 分」拆成前后两段，中间的数字单独加粗显示（中英文语序都能对上）
   const [pre, post] = t('pfMiniBest', { n: '\u0000' }).split('\u0000');
   const line = best > 0
     ? ['合成大杜勒 · ', pre, h('b', {}, String(best)), post || '']
     : `合成大杜勒 · ${t('pfMiniNone')}`;
+  // 鸟弟这边记的是「下到过第几层」，比分数更能说明水平
+  const [bpre, bpost] = t('pfMiniBird', { n: '\u0000' }).split('\u0000');
+  const bline = bird.lv > 0
+    ? ['是鸟弟就下100层 · ', bpre, h('b', {}, String(bird.lv)), bpost || '']
+    : `是鸟弟就下100层 · ${t('pfMiniNone')}`;
   return h('section', { class: 'card' },
     h('h3', {}, t('pfMiniTitle')),
     h('p', { class: 'note' }, t('pfMiniNote')),
     h('div', { class: 'minirow' },
       h('span', { class: 'note dim' }, line),
-      h('a', { class: 'btn ghost sm', href: 'merge.html' }, t('pfMiniGo'))));
+      h('a', { class: 'btn ghost sm', href: 'merge.html' }, t('pfMiniGo'))),
+    h('div', { class: 'minirow' },
+      h('span', { class: 'note dim' }, bline),
+      h('a', { class: 'btn ghost sm', href: 'bird.html' }, t('pfMiniGo'))));
 }
 
 function render() {

@@ -197,8 +197,8 @@ const I18N = {
     pfImpEmpty: '还没有导入战报。', pfImpTeam: '名唤醒体', pfImpPlay: '复现', pfImpReplay: '官方回放', pfImpDel: '删除',
     pfCgTitle: '典藏进度', pfCgNote: '已解锁 {a} / {b} 张，解锁后可在典藏馆设为背景主题。',
     pfMiniTitle: '同人小游戏',
-    pfMiniNote: '合成大杜勒的最高分记在账号档案里，换设备登录也能接上。',
-    pfMiniBest: '最高 {n} 分', pfMiniNone: '还没玩过', pfMiniGo: '去玩一局',
+    pfMiniNote: '两个小游戏的纪录都记在账号档案里，换设备登录也能接上。',
+    pfMiniBest: '最高 {n} 分', pfMiniBird: '最深 {n} 层', pfMiniNone: '还没玩过', pfMiniGo: '去玩一局',
     pfSyncTitle: '存档与同步', pfSyncNow: '立即同步', pfSyncing: '同步中…', pfSyncOk: '已同步', pfSyncFail: '同步失败',
     poolNote: '题池 {n} 题', poolDiff: '难度 {a}–{b} 档',
     pfLocal: '本地存档', pfLocalNote: '银芯、已解锁 CG、失败题库、自建题目都只存在这台设备的浏览器里，清空后无法恢复。',
@@ -366,8 +366,8 @@ const I18N = {
     pfImpEmpty: 'No imported reports yet.', pfImpTeam: 'awakeners', pfImpPlay: 'Replay it', pfImpReplay: 'Official replay', pfImpDel: 'Delete',
     pfCgTitle: 'Gallery progress', pfCgNote: '{a} / {b} unlocked — unlocked CG can be used as a page theme.',
     pfMiniTitle: 'Fan mini-games',
-    pfMiniNote: 'Your best Merge Doresain score is stored in your account, so it follows you to other devices.',
-    pfMiniBest: 'Best {n}', pfMiniNone: 'Not played yet', pfMiniGo: 'Play a round',
+    pfMiniNote: 'Your best runs in both mini-games are stored in your account, so they follow you to other devices.',
+    pfMiniBest: 'Best {n}', pfMiniBird: 'Deepest {n}', pfMiniNone: 'Not played yet', pfMiniGo: 'Play a round',
     pfSyncTitle: 'Save & sync', pfSyncNow: 'Sync now', pfSyncing: 'Syncing…', pfSyncOk: 'Synced', pfSyncFail: 'Sync failed',
     poolNote: '{n} in pool', poolDiff: 'difficulty {a}–{b}',
     pfLocal: 'Local save', pfLocalNote: 'Credits, unlocked CG, the failed bank and your own puzzles are stored only in this browser. Clearing cannot be undone.',
@@ -1279,8 +1279,29 @@ function snapshot() {
     // 合成大杜勒的最高分：游戏页只认 'merge:best' 这一个键（它自己也能单机跑），
     // 这里把它一起带上档案，换设备登录就能拿回来。
     mb: mergeBest(),
+    // 是鸟弟就下100层：bb = 最深到达的层数，bs = 最高分。
+    // 同样是「游戏页自己也能跑」的键（zjtt:bird:bestLv / zjtt:bird:best），这里只负责带上档案。
+    bb: birdBest().lv,
+    bs: birdBest().sc,
   };
 }
+
+// 是鸟弟就下100层的纪录。键名与 js/bird.js 用的一致，store 读 JSON、
+// 游戏写纯数字字符串，两种格式 JSON.parse 都吃得下。
+const BIRD_LV = 'bird:bestLv';
+const BIRD_SC = 'bird:best';
+const birdBest = () => ({
+  lv: Math.max(0, Math.round(Number(store.get(BIRD_LV, 0)) || 0)),
+  sc: Math.max(0, Math.round(Number(store.get(BIRD_SC, 0)) || 0)),
+});
+const setBirdBest = (lv, sc) => {
+  const cur = birdBest();
+  const nlv = Math.max(cur.lv, Math.max(0, Math.round(Number(lv) || 0)));
+  const nsc = Math.max(cur.sc, Math.max(0, Math.round(Number(sc) || 0)));
+  if (nlv > cur.lv) store.set(BIRD_LV, nlv);
+  if (nsc > cur.sc) store.set(BIRD_SC, nsc);
+  return { lv: nlv, sc: nsc };
+};
 
 // 合成大杜勒的最高分。键名与 js/merge.js 用的是同一个（zjtt:merge:best），
 // store 读的是 JSON、游戏写的是纯数字字符串，两种格式 JSON.parse 都吃得下，老存档不会丢。
@@ -1315,6 +1336,7 @@ function apply(d) {
   if (d.lc && typeof d.lc === 'object') store.set('likeCredited', d.lc);
   // 最高分只增不减：云端比本机低（本机多打了一局还没推上去）时保留本机的
   if (d.mb != null) setMergeBest(d.mb);
+  if (d.bb != null || d.bs != null) setBirdBest(d.bb, d.bs);
   // 告诉页面「档案刚落下来」，合成大杜勒靠这个把云端分数显示出来
   try { document.dispatchEvent(new CustomEvent('zjtt:acct', { detail: d })); } catch { /* 无 DOM 环境 */ }
 }
@@ -1400,6 +1422,8 @@ function mergeDoc(remote = {}, local = {}) {
     ld: pickQuota(remote.ld, local.ld),
     lc: mergeLikes(remote.lc, local.lc),
     mb: numMax(remote.mb, local.mb),
+    bb: numMax(remote.bb, local.bb),
+    bs: numMax(remote.bs, local.bs),
   };
 }
 
@@ -1612,9 +1636,9 @@ function forget() {
 
 const account = {
   pull, push, sync, schedule, ready, record, history, lastSync, pendingState, forget,
-  snapshot, apply, mergeDoc, pathOf, mergeBest, setMergeBest,
+  snapshot, apply, mergeDoc, pathOf, mergeBest, setMergeBest, birdBest, setBirdBest,
 };
-return { CAP, snapshot, mergeBest, setMergeBest, apply, mergeDoc, pull, push, schedule, sync, ready, record, history, lastSync, pendingState, forget, account };
+return { CAP, snapshot, birdBest, setBirdBest, mergeBest, setMergeBest, apply, mergeDoc, pull, push, schedule, sync, ready, record, history, lastSync, pendingState, forget, account };
 })();
 
 // ---- js/checkin.js
@@ -2375,7 +2399,7 @@ function storeBox(u) {
         class: 'btn ghost danger',
         onclick: async () => {
           if (!confirm(t('pfClearAsk'))) return;
-          ['credits', 'cg', 'failed', 'stats', 'myPuzzles', 'profile', 'hist'].forEach((k) => store.del(k));
+          ['credits', 'cg', 'failed', 'stats', 'myPuzzles', 'profile', 'hist', 'bird:best', 'bird:bestLv'].forEach((k) => store.del(k));
           if (u) await account.push().catch(() => {});
           toast(t('pfCleared'));
           setTimeout(() => location.reload(), 500);
@@ -2388,17 +2412,26 @@ function storeBox(u) {
 // 未登录 / 没同步过时读的就是本机那个键，所以数字始终对得上。
 function miniBox() {
   const best = account.mergeBest();
+  const bird = account.birdBest();
   // 把「最高 {n} 分」拆成前后两段，中间的数字单独加粗显示（中英文语序都能对上）
   const [pre, post] = t('pfMiniBest', { n: '\u0000' }).split('\u0000');
   const line = best > 0
     ? ['合成大杜勒 · ', pre, h('b', {}, String(best)), post || '']
     : `合成大杜勒 · ${t('pfMiniNone')}`;
+  // 鸟弟这边记的是「下到过第几层」，比分数更能说明水平
+  const [bpre, bpost] = t('pfMiniBird', { n: '\u0000' }).split('\u0000');
+  const bline = bird.lv > 0
+    ? ['是鸟弟就下100层 · ', bpre, h('b', {}, String(bird.lv)), bpost || '']
+    : `是鸟弟就下100层 · ${t('pfMiniNone')}`;
   return h('section', { class: 'card' },
     h('h3', {}, t('pfMiniTitle')),
     h('p', { class: 'note' }, t('pfMiniNote')),
     h('div', { class: 'minirow' },
       h('span', { class: 'note dim' }, line),
-      h('a', { class: 'btn ghost sm', href: 'merge.html' }, t('pfMiniGo'))));
+      h('a', { class: 'btn ghost sm', href: 'merge.html' }, t('pfMiniGo'))),
+    h('div', { class: 'minirow' },
+      h('span', { class: 'note dim' }, bline),
+      h('a', { class: 'btn ghost sm', href: 'bird.html' }, t('pfMiniGo'))));
 }
 
 function render() {
