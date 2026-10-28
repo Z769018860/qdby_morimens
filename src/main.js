@@ -5,9 +5,12 @@ import {
 import { TEAM_SIZE } from './core/constants.js';
 import { BattleView } from './ui/battleView.js';
 import * as P from './ui/pages.js';
-import { $, $$, fmt, esc, store, toast, closeModal, openModal } from './ui/util.js';
+import * as P2 from './ui/pages2.js';
+import { doTower, doTrial } from './core/challenge.js';
+import { claimAchievement } from './core/achievements.js';
+import { $, $$, fmt, esc, store, toast, closeModal, openModal, showKwPop } from './ui/util.js';
 
-const TABS = [['battle', '战斗'], ['team', '队伍'], ['roster', '唤醒体'], ['gear', '装备'], ['summon', '召唤'], ['settings', '设置']];
+const TABS = [['battle', '战斗'], ['team', '队伍'], ['roster', '唤醒体'], ['gear', '装备'], ['summon', '召唤'], ['challenge', '挑战'], ['ach', '成就'], ['settings', '设置']];
 
 const app = {
   ui: {}, tab: 'battle',
@@ -30,6 +33,7 @@ async function boot() {
   app.onBattleDone = () => { if (app.tab !== 'battle') app.refreshTop(); };
   const rep = saved ? offlineReport(app.state, app.data) : null;
   show('battle');
+  if (!app.state.tutorial) setTimeout(() => P2.tutorial(app, 0, () => { app.state.tutorial = true; app.save(); }), 300);
   if (rep && (rep.gold || rep.tickets)) {
     P.offlineModal(app, rep, () => { claimOffline(app.state, rep); app.save(); app.refreshTop(); toast('已领取离线收益'); app.bv.start(); });
   } else { claimOffline(app.state, null); app.bv.start(); }
@@ -63,7 +67,7 @@ export function show(tab) {
   app.refreshTop();
 }
 function render() {
-  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, summon: P.summonPage, settings: P.settingsPage }[app.tab];
+  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, ach: P2.achievementPage }[app.tab];
   if (f) { const y = window.scrollY; $('#view').innerHTML = f(app); window.scrollTo(0, y); }
   app.refreshTop();
 }
@@ -78,6 +82,8 @@ function onChange(e) {
 }
 
 function onAct(e) {
+  const kwEl = e.target.closest('[data-kw]');
+  if (kwEl) { showKwPop(app.data.kw, kwEl.dataset.kw, kwEl); return; }
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
   const s = app.state, d = app.data, a = el.dataset.act;
@@ -113,6 +119,9 @@ function onAct(e) {
     }
     case 'pull': { const out = summon(s, d, +el.dataset.n); if (out) { app.save(); render(); P.showPulls(app, out); } break; }
     case 'epull': { const out = equipPull(s, d, +el.dataset.n); if (out) { app.save(); render(); P.showItems(app, out); } break; }
+    case 'tower-go': { const r = doTower(s, d); if (r) { app.save(); render(); P2.towerResultModal(app, r); } break; }
+    case 'trial-go': { const r = doTrial(s, d, el.dataset.id, +el.dataset.i); if (r) { app.save(); render(); P2.trialResultModal(app, r); } break; }
+    case 'ach-claim': { const r = claimAchievement(s, el.dataset.id); if (r) { toast('成就奖励已领取'); rerender(); } break; }
     case 'daily': { const r = claimDaily(s); if (r) toast(`领取成功：召唤券+${r.tickets} 金币+${r.gold}`); rerender(); break; }
     case 'export': {
       const blob = new Blob([JSON.stringify(s)], { type: 'application/json' });

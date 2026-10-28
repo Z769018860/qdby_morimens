@@ -2,13 +2,16 @@
 
 《忘却前夜》（Morimens）**非官方同人**挂机自动战斗小游戏。免费、非商业。角色与美术素材版权归原权利方所有；数值与技能效果为本作自行设计。
 
-当前进度：**M0–M2（网页可玩原型）**。
+当前进度：**M0–M3（网页可玩原型 + 真实技能/状态系统 + 挑战模式）**。
 
 ## 玩法
 - 4 人小队全自动战斗：每人 7 个技能槽（攻击/防御/技能一/技能二/唤醒/共鸣/超共鸣），共鸣与超共鸣能量满后自动释放。
 - 推图挂机（每 10 关一个 Boss），离线最多结算 8 小时。
 - 62 名唤醒体、149 命轮、21 密契（套装 2/4 件）、310 造物，召唤带保底，重复获得提升星级。
 - 战斗策略预设：均衡 / 强攻 / 稳守 / 集火强敌。存档在浏览器本地，可导入导出。
+- **真实技能名与文本**：62 名唤醒体的 7 个技能槽使用原作卡牌名称与中文说明（译文），再按其中的关键词（中毒、易伤、反击、屏障……）附加本作效果；敌人的招式同样来自原作怪物的技能文本。
+- **状态系统**：中毒、出血、易伤、虚弱、反击、力量、屏障、护垒、脆弱、封印，战斗中显示带图标的状态，点击查看原作关键词说明。
+- **挑战**：无限塔（每日 3 次，生命继承）、融灾试炼（第 71/72 期的真实区域首领，C 到 SSS 六档威胁）、25 个成就、新手引导、伤害 / 治疗统计。
 
 ## 运行
 ```bash
@@ -19,20 +22,23 @@ npm run sim                      # 平衡机器人：贪心玩 4000 场并打印
 纯静态，无需构建。推送到 `main` 后由 GitHub Pages 工作流自动部署。
 
 ## 数据管线
-`public/data/game-data.json` 与 `public/img/` 由 `tools/build_data.py` 从 `qdby_chinese` 仓库生成（需要 Pillow）：
+`public/data/game-data.json` 与 `public/img/` 分两步生成（需要 Pillow）：
 ```bash
-python3 tools/build_data.py --src ../qdby_chinese
+python3 tools/build_data.py --src ../qdby_chinese            # 角色、命轮、密契、造物、怪物
+python3 tools/build_morimens.py --morimens ../qdby_morimens --chinese ../qdby_chinese   # 真实技能文本、关键词、融灾试炼
 ```
-图片已压缩为 webp 缩略图（总计约 5MB）。
+第二步读取《战报侦探》仓库（`qdby_morimens`）里整理好的中文技能与关键词数据。图片已压缩为 webp 缩略图（总计约 6MB）。技能中文为 AI 辅助译文，数据来源 SKeyDB（CC BY-NC-SA 4.0），故本项目仅限非商业使用。
 
 ## 目录
 ```
 index.html / styles.css   页面
 src/core/                 纯逻辑（无 DOM，可在 Node 与小程序复用）
   battle.js               回合制自动战斗引擎（种子随机、可回放事件流）
-  skills.js               技能效果原型 + 7 槽技能组生成 + 招牌技能
+  skills.js               技能效果原型 + 7 槽技能组生成 + 关键词附加效果 + 招牌技能
   gear.js                 命轮/密契/造物数值
-  enemies.js              关卡与敌人生成
+  enemies.js              关卡与敌人生成（敌人招式来自原作怪物技能文本）
+  challenge.js            无限塔与融灾试炼
+  achievements.js         成就
   game.js                 存档、养成、召唤、掉落、离线收益
 src/ui/                   网页界面
 tools/                    数据管线、平衡机器人、浏览器冒烟脚本

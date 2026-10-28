@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { indexData, newState, runBattle, applyResult, levelUp, autoTeam, summon, equipPull, equipItem, enhanceItem, allyDef, teamDefs, claimDaily } from '../src/core/game.js';
 import { MAX_LV } from '../src/core/constants.js';
+import { doTower, doTrial, THREATS, trialUnlocked } from '../src/core/challenge.js';
 import { lvUpCost } from '../src/core/stats.js';
 
 const data = indexData(JSON.parse(readFileSync(new URL('../public/data/game-data.json', import.meta.url), 'utf8')));
@@ -31,13 +32,17 @@ function spend() {
 let fails = 0;
 for (let i = 1; i <= BATTLES; i++) {
   if (i % 50 === 0) spend();
-  if (i % 400 === 0) claimDaily(s, String(i));
+  if (i % 400 === 0) {
+    claimDaily(s, String(i));
+    for (let k = 0; k < 3; k++) doTower(s, data, String(i));
+    for (const t of data.trials) for (let th = 0; th < THREATS.length; th++) { if (!trialUnlocked(s, t, th)) break; const q = doTrial(s, data, t.id, th); if (!q || !q.win) break; }
+  }
   const r = runBattle(s, data);
   const rw = applyResult(s, data, r);
   if (!r.win) fails++;
   if (i - lastReport >= BATTLES / 10) {
     lastReport = i;
     const t = teamDefs(s, data);
-    console.log(`#${i} stage=${s.stage} max=${s.maxStage} gold=${s.gold} tickets=${s.tickets} roster=${Object.keys(s.roster).length} pow=${t.power} lvs=${s.team.map((x) => s.roster[x].lv)} fails=${fails}`);
+    console.log(`#${i} stage=${s.stage} max=${s.maxStage} gold=${s.gold} tickets=${s.tickets} roster=${Object.keys(s.roster).length} pow=${t.power} lvs=${s.team.map((x) => s.roster[x].lv)} fails=${fails} tower=${s.tower.best} trials=${Object.keys(s.trials.cleared).length}(${['C','B','A','S','SS','SSS'].map((k) => Object.keys(s.trials.cleared).filter((x) => x.endsWith('-' + k)).length).join('/')})`);
   }
 }

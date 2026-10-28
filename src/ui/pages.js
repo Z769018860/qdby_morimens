@@ -6,7 +6,7 @@ import { REALMS, TYPES, SLOTS, SLOT_ZH, MAX_LV, MAX_STAR, TEAM_SIZE, RARITY_ZH, 
 import { lvUpCost, power } from '../core/stats.js';
 import { describeSkill } from '../core/skills.js';
 import { wheelText, relicText, covTheme, gearCost, dismantleValue, MAINSTAT, COV_THEMES } from '../core/gear.js';
-import { esc, img, fmt, openModal, closeModal, toast, store } from './util.js';
+import { esc, img, fmt, openModal, closeModal, toast, store, markup } from './util.js';
 
 const R = (a) => REALMS[a.realm];
 const stars = (n) => '★'.repeat(n) + '☆'.repeat(MAX_STAR - n);
@@ -117,8 +117,9 @@ export function detailModal(app, slug) {
       <div class="stats"><span>生命 <b>${fmt(st.hp)}</b></span><span>攻击 <b>${fmt(st.atk)}</b></span><span>防御 <b>${fmt(st.def)}</b></span><span>暴击 <b>${st.critRate.toFixed(1)}%</b></span><span>爆伤 <b>${st.critDmg.toFixed(0)}%</b></span><span>战力 <b>${fmt(power(st))}</b></span></div>
       ${r ? `<div class="row"><button class="btn" data-act="lvup" data-slug="${slug}" data-n="1" ${cost && s.gold >= cost ? '' : 'disabled'}>升级 (${fmt(cost)})</button><button class="btn" data-act="lvup" data-slug="${slug}" data-n="10" ${cost && s.gold >= cost ? '' : 'disabled'}>×10</button><button class="btn" data-act="lvmax" data-slug="${slug}">升至最高</button></div>
       <div class="eqrow">${slotBox('wheel', 'wheel', '命轮')}${slotBox('cov', 'covenant', '密契')}</div>` : ''}
-      <h4>技能</h4><div class="skills">${SLOTS.map((k) => `<div class="skill"><b class="sk ${k}">${SLOT_ZH[k]}</b> <em>${esc(kit[k].name)}</em><small>${esc(describeSkill(kit[k]))}</small></div>`).join('')}</div>
-      <p class="hint">星级：重复获得同一唤醒体 +1★（每★ 全属性 +8%，3★ 起增伤 +10%）。技能为本作同人化设计，非官方数值。</p>
+      <h4>技能</h4><div class="skills">${SLOTS.map((k) => `<div class="skill"><b class="sk ${k}">${SLOT_ZH[k]}</b> <em>${esc(kit[k].name)}</em>${kit[k].real?.e ? ` <small class="en">${esc(kit[k].real.e)}</small>` : ''}<small>本作效果：${esc(describeSkill(kit[k]))}</small>${kit[k].real ? `<details><summary>原作技能文本（译）</summary><p class="real">${markup(kit[k].real.d, data.kw)}</p></details>` : ''}</div>`).join('')}</div>
+      ${a.rk_en?.length ? `<details class="en-box"><summary>启灵（原作文本，仅供参考）</summary>${a.rk_en.map((x) => `<div class="skill"><b>${esc(x.ty)}</b> <em>${esc(x.n)}</em><p class="real">${markup(x.d, data.kw)}</p></div>`).join('')}</details>` : ''}
+      <p class="hint">星级：重复获得同一唤醒体 +1★（每★ 全属性 +8%，3★ 起增伤 +10%）。技能名称与文本取自原作（中文为译文），数值与效果由本作自行设计，与官方无关。</p>
     </div></div>`;
   openModal(html, 'wide');
 }

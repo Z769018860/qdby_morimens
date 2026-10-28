@@ -1,7 +1,8 @@
 import { runBattle, applyResult, allyDef } from '../core/game.js';
 import { stageInfo } from '../core/enemies.js';
-import { REALMS, TYPES } from '../core/constants.js';
-import { esc, img, fmt, $, toast } from './util.js';
+import { REALMS, TYPES, STATUS } from '../core/constants.js';
+import { esc, img, fmt, $, toast, kwIcon, stripMarks } from './util.js';
+import { meterHtml } from './pages2.js';
 
 const STAT_ZH = { atk: '攻击', def: '防御', crit: '暴击', amp: '增伤', vuln: '易伤' };
 
@@ -23,6 +24,7 @@ export class BattleView {
       <div class="field" id="bv-field"><div class="side enemies" id="bv-e"></div><div class="vs" id="bv-round">—</div><div class="side allies" id="bv-a"></div></div>
       <div class="banner" id="bv-banner"></div>
       <div class="rewards" id="bv-rw"></div>
+      <details class="meterbox"><summary>伤害 / 治疗统计（上一战）</summary><div id="bv-meter"></div></details>
       <div class="log" id="bv-log"></div>`;
     root.addEventListener('click', (e) => { const b = e.target.closest('[data-bv]'); if (b) this.ctl(b.dataset.bv); });
     this.refreshHead();
@@ -86,7 +88,8 @@ export class BattleView {
       const id = `${side}${u}`;
       return `<div class="unit ${side === 'e' ? 'foe' : ''} ${d.boss ? 'boss' : ''}" id="u-${id}" style="--rc:${REALMS[d.realm]?.color || '#6b7280'}">
         <div class="u-pic"><img src="${img(d.img)}" alt=""><span class="u-tag">${esc(d.type && side === 'a' ? TYPES[d.type].short : '')}</span><div class="u-say"></div></div>
-        <div class="u-name">${esc(d.name)}</div>
+        <div class="u-name" ${side === 'e' && d.sk?.length ? `title="${esc(d.sk.map(stripMarks).join('\n'))}"` : ''}>${esc(d.name)}</div>
+        <div class="u-st"></div>
         <div class="bar hp"><i style="width:100%"></i><b>${fmt(d.hp)}</b><u class="sh" style="width:0"></u></div>
         ${side === 'a' ? `<div class="bar ali"><i style="width:${Math.min(100, d.openAli || 0)}%"></i></div><div class="bar key"><i style="width:${Math.min(100, d.openKey || 0)}%"></i></div>` : ''}
       </div>`;
@@ -114,6 +117,15 @@ export class BattleView {
     l.scrollTop = l.scrollHeight;
   }
 
+  setStatus(u, list) {
+    const kw = this.app.data.kw;
+    u.el.querySelector('.u-st').innerHTML = (list || []).map((x) => {
+      const st = STATUS[x.id];
+      const k = kw?.[st.kw];
+      return `<span class="sti" data-kw="${st.kw}" title="${esc(st.zh)} ${x.n}">${kwIcon(kw, st.kw, 14) || `<em>${esc(st.zh.slice(0, 1))}</em>`}<b>${x.n}</b></span>`;
+    }).join('');
+  }
+
   setBars(u, e) {
     const hp = u.el.querySelector('.hp');
     hp.firstElementChild.style.width = `${Math.max(0, (e.hp / u.max) * 100)}%`;
@@ -132,18 +144,21 @@ export class BattleView {
           for (const x of Object.values(this.units)) x.el.classList.remove('acting');
           u.el.classList.add('acting');
           const say = u.el.querySelector('.u-say'); say.textContent = e.name; say.classList.remove('pop'); void say.offsetWidth; say.classList.add('pop');
-          this.log(`${nm(e.who)} 使用 <i class="sk ${e.slot}">${esc(e.name)}</i>`);
+          this.log(`${nm(e.who)} 使用 <i class="sk ${e.slot}" ${e.text ? `title="${esc(e.text)}"` : ''}>${esc(e.name)}</i>`);
         }
         break;
       }
-      case 'dmg': case 'dot': {
+      case 'st': { const u = U(e.who); if (u) this.setStatus(u, e.list); break; }
+      case 'status': { const u = U(e.who); if (u && !quiet) this.float(u, STATUS[e.s]?.zh || '', u.el.classList.contains('foe') ? 'debuff' : 'buff'); break; }
+      case 'dmg': case 'dot': case 'counter': {
         const u = U(e.who); if (!u) break;
         this.setBars(u, e);
+        if (e.blocked) { if (!quiet) this.float(u, '屏障!', 'sh'); break; }
         if (!quiet) {
-          this.float(u, (e.crit ? '暴击 ' : '') + '-' + fmt(e.amt), e.crit ? 'crit' : e.k === 'dot' ? 'dot' : 'dmg');
+          this.float(u, (e.crit ? '暴击 ' : e.k === 'counter' ? '反击 ' : e.s === 'poison' ? '中毒 ' : '') + '-' + fmt(e.amt), e.crit ? 'crit' : e.k === 'dot' ? 'dot' : 'dmg');
           u.el.classList.remove('hit'); void u.el.offsetWidth; u.el.classList.add('hit');
           if (e.saved) this.float(u, '死扛!', 'heal');
-          this.log(`　${e.k === 'dot' ? '流血 ' : ''}${nm(e.who)} −${fmt(e.amt)}${e.absorbed ? `（盾 ${fmt(e.absorbed)}）` : ''}${e.crit ? ' 暴击' : ''}`, 'dm');
+          this.log(`　${e.k === 'dot' ? (e.s === 'poison' ? '中毒 ' : '流血 ') : e.k === 'counter' ? '反击 ' : ''}${nm(e.who)} −${fmt(e.amt)}${e.absorbed ? `（盾 ${fmt(e.absorbed)}）` : ''}${e.crit ? ' 暴击' : ''}`, 'dm');
         }
         break;
       }
@@ -151,7 +166,7 @@ export class BattleView {
       case 'shield': { const u = U(e.who); if (!u) break; u.el.querySelector('.sh').style.width = `${Math.min(100, (e.shield / u.max) * 100)}%`; if (!quiet) this.float(u, '盾 ' + fmt(e.amt), 'sh'); break; }
       case 'buff': if (!quiet) { const u = U(e.who); this.float(u, `${STAT_ZH[e.stat] || ''}${e.v > 0 ? '↑' : '↓'}`, e.v > 0 ? 'buff' : 'debuff'); } break;
       case 'gauge': { const u = U(e.who); if (!u || e.ali == null) break; const a = u.el.querySelector('.ali i'), k = u.el.querySelector('.key i'); if (a) a.style.width = e.ali + '%'; if (k) k.style.width = e.key + '%'; break; }
-      case 'die': { const u = U(e.who); if (u) u.el.classList.add('dead'); if (!quiet) this.log(`　${nm(e.who)} 倒下了`, 'dead'); break; }
+      case 'die': { const u = U(e.who); if (u) { u.el.classList.add('dead'); this.setStatus(u, []); } if (!quiet) this.log(`　${nm(e.who)} 倒下了`, 'dead'); break; }
       case 'end': break;
     }
   }
@@ -173,6 +188,7 @@ export class BattleView {
     if (rw.retreat) parts.push('<span class="r">挑战失败，退回上一关挂机，提升战力再来</span>');
     if (res.win && !rw.advanced && !rw.comfortable && s.stage <= s.maxStage) parts.push('<span class="r">赢得不够从容，继续在此关积累</span>');
     $('#bv-rw', this.root).innerHTML = parts.join('');
+    $('#bv-meter', this.root).innerHTML = meterHtml(res.prep.allies.map((d) => d.name), res.stats);
     if (rw.firstClear && s.maxStage > before) this.log(`首次通关第 ${s.maxStage} 关`, 'rnd');
     this.app.save();
     this.refreshHead();

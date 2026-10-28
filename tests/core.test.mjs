@@ -122,3 +122,114 @@ test('simulate: timeouts count as loss', () => {
   const r = simulate({ allies: [tank], enemies: [foe], seed: 1 });
   assert.equal(r.win, false); assert.equal(r.rounds, 30);
 });
+
+// ---------------------------------------------------------------- M3: real kits, statuses, challenge modes
+import { simulate as sim2 } from '../src/core/battle.js';
+import { fx } from '../src/core/skills.js';
+import { doTower, doTrial, simulateTower, towerTries, THREATS, trialUnlocked, TOWER_DAILY } from '../src/core/challenge.js';
+import { achievementList, claimAchievement } from '../src/core/achievements.js';
+import { buildEnemies } from '../src/core/enemies.js';
+
+const unit = (o = {}) => ({ name: 'x', hp: 5000, atk: 100, def: 50, type: 'ASSAULT', kit: null, ...o });
+const mkKit = (effects) => Object.fromEntries(SLOTS.map((s) => [s, { slot: s, name: s, effects }]));
+
+test('every awakener carries real card names and the keyword pack', () => {
+  assert.ok(Object.keys(data.kw).length >= 90);
+  for (const a of data.awakeners) {
+    const k = data.kit(a.slug);
+    for (const s of SLOTS) assert.ok(k[s].name && k[s].real?.d, `${a.slug}.${s}`);
+  }
+  const salvador = data.kit('salvador');
+  assert.equal(salvador.Skill1.name, '受祝福的白骨');
+});
+
+test('keyword riders add statuses for tagged skills', () => {
+  const xu = data.kit('xu');
+  assert.ok(Object.values(xu).some((sk) => sk.effects.some((e) => e.t === 'status' && e.s === 'poison')));
+});
+
+test('poison ticks, barrier blocks, counter retaliates, sealed stops exalt', () => {
+  const poisoner = unit({ kit: mkKit([fx.status('poison', 5, 4, 'foe')]), openAli: 100 });
+  const dummy = { ...unit({ hp: 100000 }), pattern: [{ name: 'idle', effects: [] }] };
+  const r = sim2({ allies: [poisoner], enemies: [dummy], seed: 3, maxRounds: 4 });
+  assert.ok(r.events.some((e) => e.k === 'dot' && e.s === 'poison' && e.amt > 0));
+  assert.ok(r.events.some((e) => e.k === 'st' && e.list.some((x) => x.id === 'poison')));
+
+  const hitter = { ...unit({ hp: 100000, atk: 300 }), pattern: [{ name: 'hit', effects: [fx.dmg(1.0)] }] };
+  const shielded = unit({ kit: mkKit([fx.status('barrier', 2, 3, 'self')]) });
+  const r2 = sim2({ allies: [shielded], enemies: [hitter], seed: 3, maxRounds: 3 });
+  assert.ok(r2.events.some((e) => e.k === 'dmg' && e.blocked), 'barrier should block');
+  const thorny = unit({ kit: mkKit([fx.status('counter', 3, 3, 'self')]) });
+  const r2b = sim2({ allies: [thorny], enemies: [hitter], seed: 3, maxRounds: 3 });
+  assert.ok(r2b.events.some((e) => e.k === 'counter' && e.amt > 0), 'counter should hit back');
+
+  const sealer = { ...unit({ hp: 100000 }), pattern: [{ name: 'seal', effects: [fx.status('sealed', 1, 5, 'foe')] }] };
+  const exalter = unit({ kit: mkKit([fx.dmg(0.1)]), openAli: 100, openKey: 100 });
+  const r3 = sim2({ allies: [exalter], enemies: [sealer], seed: 3, maxRounds: 4 });
+  assert.ok(!r3.events.some((e) => e.k === 'act' && e.who === 'a0' && (e.slot === 'Exalt' || e.slot === 'OverExalt')), 'sealed units cannot exalt');
+});
+
+test('damage stats add up', () => {
+  const s = newState(data, 1);
+  const r = runBattle(s, data, 3);
+  const dealt = Object.entries(r.stats).filter(([k]) => k[0] === 'a').reduce((x, [, v]) => x + v.dmg, 0);
+  const taken = Object.entries(r.stats).filter(([k]) => k[0] === 'e').reduce((x, [, v]) => x + v.taken, 0);
+  assert.ok(dealt > 0 && Math.abs(dealt - taken) <= 1, `${dealt} vs ${taken}`);
+});
+
+test('enemies use real monster skill lines', () => {
+  const e = buildEnemies(12, data.monsters);
+  assert.ok(e.every((x) => x.pattern.length > 0 && x.pattern.some((p) => p.effects.some((f) => f.t === 'dmg'))));
+  assert.ok(e.some((x) => x.sk.length > 0 && x.pattern.some((p) => p.text)));
+});
+
+test('tower: deterministic, rewards new floors once, daily tries', () => {
+  const mk = () => { const s = newState(data, 7); for (const a of ['salvador', 'xu', 'vivian', 'caraboo']) s.roster[a] = { lv: 35, star: 1 }; s.team = ['salvador', 'caraboo', 'xu', 'vivian']; return s; };
+  const a = simulateTower(mk(), data), b = simulateTower(mk(), data);
+  assert.equal(a.reached, b.reached);
+  const s = mk();
+  const r1 = doTower(s, data, 'd1');
+  assert.ok(r1.reached >= 1 && s.tower.best === r1.reached);
+  const goldAfter1 = s.gold;
+  const r2 = doTower(s, data, 'd1');
+  assert.equal(towerTries(s, 'd1'), TOWER_DAILY - 2);
+  assert.ok(r2.rw.gold < r1.rw.gold + 1, 'second run only gets participation gold unless it beats the best');
+  assert.ok(s.gold >= goldAfter1);
+  doTower(s, data, 'd1'); assert.equal(doTower(s, data, 'd1'), null);
+  assert.equal(towerTries(s, 'd2'), TOWER_DAILY);
+});
+
+test('trials unlock in order and pay first-clear rewards once', () => {
+  const s = newState(data, 9);
+  for (const a of ['salvador', 'xu', 'vivian', 'caraboo', 'agrippa', 'thais']) s.roster[a] = { lv: 45, star: 3 };
+  s.team = ['salvador', 'agrippa', 'xu', 'thais'];
+  const t = data.trials[0];
+  assert.ok(trialUnlocked(s, t, 0) && !trialUnlocked(s, t, 1));
+  assert.equal(doTrial(s, data, t.id, 1), null);
+  const tk0 = s.tickets;
+  const r = doTrial(s, data, t.id, 0);
+  assert.ok(r && r.win, 'a strong team clears the C trial');
+  assert.equal(s.tickets, tk0 + THREATS[0].tickets);
+  assert.ok(trialUnlocked(s, t, 1));
+  const tk1 = s.tickets;
+  doTrial(s, data, t.id, 0);
+  assert.equal(s.tickets, tk1, 'no second first-clear reward');
+});
+
+test('achievements track progress and pay out once', () => {
+  const s = newState(data, 1);
+  s.maxStage = 12;
+  const a = achievementList(s).find((x) => x.id === 'stage10');
+  assert.ok(a.done && !a.claimed);
+  const t = s.tickets;
+  assert.ok(claimAchievement(s, 'stage10'));
+  assert.equal(s.tickets, t + 3);
+  assert.equal(claimAchievement(s, 'stage10'), null);
+  assert.equal(claimAchievement(s, 'stage20'), null);
+});
+
+test('old saves migrate to the new state shape', () => {
+  const old = { v: 1, roster: { ogier: { lv: 5, star: 0 } }, team: ['ogier'], gold: 5, tickets: 1, stage: 2, maxStage: 1, gear: { items: {}, next: 1, equip: {}, relics: [null, null, null] } };
+  const m = migrate(old, data);
+  assert.ok(m.tower && m.trials.cleared && m.ach && m.tutorial === false);
+});

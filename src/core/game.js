@@ -38,13 +38,14 @@ export function newState(data, now = Date.now()) {
     pity: { genesis: 0, ssr: 0 },
     stats: { battles: 0, wins: 0, pulls: 0, kills: 0, gold: 0 },
     daily: { day: '' }, log: [],
+    tower: { best: 0, day: '', tries: 0, runs: 0 }, trials: { cleared: {} }, ach: {}, tutorial: false,
   };
 }
 
 export function migrate(s, data) {
   if (!s || typeof s !== 'object') return newState(data);
   const base = newState(data, s.created || Date.now());
-  const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity } };
+  const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity }, tower: { ...base.tower, ...s.tower }, trials: { cleared: { ...(s.trials?.cleared || {}) } }, ach: { ...s.ach } };
   m.team = (m.team || []).filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
   if (!m.team.length) m.team = Object.keys(m.roster).slice(0, TEAM_SIZE);
   return m;
@@ -100,7 +101,7 @@ export function teamDefs(state, data, slugs = state.team) {
 export const stageGold = (stage) => Math.round(18 * Math.pow(1.085, stage) + 9 * stage);
 const DROP_RATE = 0.1;
 
-function rollItem(rng, stage, data) {
+export function rollItem(rng, stage, data) {
   const kinds = ['wheel', 'wheel', 'covenant', 'covenant', 'relic'];
   const kind = kinds[Math.floor(rng() * kinds.length)];
   const pool = kind === 'wheel' ? data.wheels : kind === 'covenant' ? data.covenants : data.relics;
