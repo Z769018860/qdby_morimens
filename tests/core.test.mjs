@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { data } from './helpers.mjs';
-import { newState, runBattle, applyResult, summon, equipPull, equipItem, allyDef, teamDefs, levelUp, migrate, offlineReport, claimOffline, autoTeam, claimDaily, PULL_PITY_GENESIS, dismantle, enhanceItem, addItem } from '../src/core/game.js';
+import { newState, runBattle, applyResult, summon, equipPull, equipItem, allyDef, teamDefs, levelUp, migrate, offlineReport, claimOffline, autoTeam, PULL_PITY_GENESIS, dismantle, enhanceItem, addItem } from '../src/core/game.js';
 import { simulate } from '../src/core/battle.js';
 import { buildKit, describeSkill } from '../src/core/skills.js';
 import { SLOTS } from '../src/core/constants.js';
@@ -105,9 +105,9 @@ test('offline report accrues capped income', () => {
   assert.equal(offlineReport({ ...s, lastSeen: 1000 }, data, 2000), null);
 });
 
-test('auto team picks a warden/support when available; daily claim once', () => {
+test('auto team picks a warden/support when available; ', () => {
   const s = newState(data, 1); autoTeam(s, data); assert.equal(s.team.length, 4);
-  assert.ok(claimDaily(s, '2026-01-01')); assert.equal(claimDaily(s, '2026-01-01'), null);
+  
 });
 
 test('equip pull consumes gold', () => {
@@ -239,7 +239,7 @@ test('achievements track progress and pay out once', () => {
   assert.ok(a.done && !a.claimed);
   const t = s.tickets;
   assert.ok(claimAchievement(s, 'stage10'));
-  assert.equal(s.tickets, t + 3);
+  assert.equal(s.tickets, t + 2);
   assert.equal(claimAchievement(s, 'stage10'), null);
   assert.equal(claimAchievement(s, 'stage20'), null);
 });
@@ -362,4 +362,90 @@ test('friend battle codes round-trip, reject damage, and fight without rewards',
   assert.equal(s.gold, gold); assert.equal(s.tickets, tickets);
   assert.equal(arenaState(s).friends[0].wins + arenaState(s).friends[0].losses, 1);
   assert.equal(arenaState(s).rank, UNRANKED);
+});
+
+// ---------------------------------------------------------------- M6: 银芯, refine, shop, sign-in, achievements
+import { summonCores, equipPullCores, refineItem, dismantleCores, CORE_PULL_COST, CORE_PULL10_COST } from '../src/core/game.js';
+import { refineMult } from '../src/core/gear.js';
+import { signToday, backfill, claimCum, signinState, dayReward, CUM, BACKFILL_COST } from '../src/core/signin.js';
+import { buy, SHOP, boughtToday } from '../src/core/shop.js';
+import { claimAllAchievements, ACHIEVEMENTS } from '../src/core/achievements.js';
+
+test('银芯 income: first clears, bosses and codex pay out', () => {
+  const s = mkTeamState(60);
+  const c0 = s.cores;
+  const r = runBattle(s, data, 1); const rw = applyResult(s, data, r);
+  assert.ok(r.win && rw.cores === 4 && s.cores === c0 + 4);
+});
+
+test('银芯召唤 and 精选祈愿 spend 银芯 and share pity', () => {
+  const s = newState(data, 4); s.cores = 5000;
+  const p0 = s.pity.genesis;
+  assert.equal(summonCores(s, data, 10).length, 10); assert.equal(s.cores, 5000 - CORE_PULL10_COST);
+  assert.equal(summonCores(s, data, 1).length, 1); assert.equal(s.cores, 5000 - CORE_PULL10_COST - CORE_PULL_COST);
+  assert.ok(s.pity.genesis !== p0 || s.pity.genesis === 0);
+  const g = equipPullCores(s, data, 1); assert.equal(g.length, 1);
+  s.cores = 10; assert.equal(summonCores(s, data, 1), null); assert.equal(equipPullCores(s, data, 1), null);
+  assert.ok(s.stats.coresSpent >= CORE_PULL10_COST);
+});
+
+test('refine raises the item bonus by 8% per tier, costs 银芯, refunds half on dismantle', () => {
+  const s = newState(data, 6); s.cores = 2000;
+  const it = addItem(s, 'wheel', data.wheels[0].id);
+  assert.equal(refineMult(it), 1);
+  assert.ok(refineItem(s, it.uid) && it.rf === 1); assert.ok(Math.abs(refineMult(it) - 1.08) < 1e-9);
+  for (let i = 0; i < 4; i++) assert.ok(refineItem(s, it.uid));
+  assert.equal(refineItem(s, it.uid), false, 'max 5 tiers');
+  const spent = 40 + 80 + 140 + 220 + 320;
+  assert.equal(s.cores, 2000 - spent);
+  const back = dismantleCores(data.wheels[0].rarity, it);
+  assert.ok(back >= Math.floor(spent / 2));
+  const before = s.cores; dismantle(s, data, it.uid); assert.equal(s.cores, before + back);
+  // an equipped refined wheel really is stronger
+  const t = mkTeamState(); t.cores = 999;
+  const w = addItem(t, 'wheel', data.wheels.find((x) => x.rarity === 'SSR').id); equipItem(t, data, 'salvador', w.uid);
+  const a0 = allyDef(t, data, 'salvador').atk + allyDef(t, data, 'salvador').hp;
+  refineItem(t, w.uid); refineItem(t, w.uid); refineItem(t, w.uid);
+  assert.ok(allyDef(t, data, 'salvador').atk + allyDef(t, data, 'salvador').hp > a0);
+});
+
+test('shop limits, extra attempts and daily reset', () => {
+  const s = newState(data, 8); s.cores = 3000;
+  const t0 = s.tickets;
+  for (let i = 0; i < 10; i++) assert.ok(buy(s, data, 'ticket'));
+  assert.equal(buy(s, data, 'ticket'), null); assert.equal(s.tickets, t0 + 10);
+  assert.equal(boughtToday(s, 'ticket'), 10);
+  assert.ok(buy(s, data, 'try-weekly')); assert.equal(weeklyState(s).tries, 4);
+  assert.ok(buy(s, data, 'gear').items.length === 1);
+  s.shop.day = '2000-01-01'; assert.equal(boughtToday(s, 'ticket'), 0);
+  s.cores = 0; assert.equal(buy(s, data, 'gold'), null);
+  assert.ok(SHOP.every((x) => x.cost > 0 && x.limit > 0));
+});
+
+test('sign-in: once a day, backfill costs 银芯, cumulative chests', () => {
+  const s = newState(data, 9); s.cores = 500;
+  const day = (d) => new Date(Date.UTC(2026, 9, d));
+  const r = signToday(s, data, day(10)); assert.ok(r && r.cores === 10);
+  assert.equal(signToday(s, data, day(10)), null);
+  assert.ok(backfill(s, data, 3, day(10))); assert.equal(s.cores, 500 + 10 + 10 - BACKFILL_COST);
+  assert.equal(backfill(s, data, 3, day(10)), null); assert.equal(backfill(s, data, 10, day(10)), null, 'today is not a backfill');
+  assert.equal(dayReward(7).item, true);
+  for (const d of [1, 2, 4]) backfill(s, data, d, day(10));
+  assert.equal(signinState(s, day(10)).claimed.length, 5);
+  assert.ok(claimCum(s, data, 0, day(10))); assert.equal(claimCum(s, data, 0, day(10)), null); assert.equal(claimCum(s, data, 1, day(10)), null);
+  // new month resets
+  assert.equal(signinState(s, new Date(Date.UTC(2026, 10, 1))).claimed.length, 0);
+  assert.equal(CUM.length, 6);
+});
+
+test('achievements: unique ids, rich categories, claim-all pays tickets/银芯/gold', () => {
+  const ids = ACHIEVEMENTS.map((a) => a.id);
+  assert.equal(new Set(ids).size, ids.length); assert.ok(ids.length >= 90);
+  assert.ok(ACHIEVEMENTS.every((a) => a.cat && a.reward.cores > 0));
+  for (const old of ['stage10', 'wins100', 'lv30', 'tower10', 'trial1', 'codex30', 'week1', 'arena70', 'rt40']) assert.ok(ids.includes(old), old);
+  const s = mkTeamState(60); s.maxStage = 45; s.stats.wins = 500; s.tower.best = 12;
+  const t0 = s.tickets, c0 = s.cores;
+  const r = claimAllAchievements(s, data);
+  assert.ok(r.n >= 8 && s.tickets > t0 && s.cores > c0);
+  assert.equal(claimAllAchievements(s, data), null);
 });

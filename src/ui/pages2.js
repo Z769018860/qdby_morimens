@@ -1,9 +1,9 @@
 import { THREATS, trialKey, trialUnlocked, towerTries, TOWER_DAILY, towerStage, towerInfo, towerEnemies } from '../core/challenge.js';
-import { achievementList, claimableCount } from '../core/achievements.js';
+import { achievementList, claimableCount, CATEGORIES } from '../core/achievements.js';
 import { teamDefs } from '../core/game.js';
-import { esc, img, fmt, openModal, markup } from './util.js';
+import { esc, img, fmt, openModal, markup, rewardText } from './util.js';
 
-const REWARD = (r) => [r.gold ? `金币 +${fmt(r.gold)}` : '', r.tickets ? `召唤券 +${r.tickets}` : ''].filter(Boolean).join('　');
+const REWARD = rewardText;
 
 /* ---------- damage meter (shared with the battle view) ---------- */
 export function meterHtml(names, stats, side = 'a') {
@@ -61,8 +61,15 @@ export function trialResultModal(app, r) {
 /* ---------- achievements ---------- */
 export function achievementPage(app) {
   const list = achievementList(app.state, app.data);
-  const done = list.filter((a) => a.claimed).length;
-  return `<div class="page"><h2>成就 <small>${done}/${list.length}</small></h2><div class="list">${list.map((a) => `
+  const cat = app.ui.achCat || 'all';
+  const shown = list.filter((a) => cat === 'all' || a.cat === cat)
+    .sort((x, y) => (Number(y.done && !y.claimed) - Number(x.done && !x.claimed)) || (Number(x.claimed) - Number(y.claimed)));
+  const done = list.filter((a) => a.claimed).length, ready = list.filter((a) => a.done && !a.claimed).length;
+  const cnt = (k) => { const l = list.filter((a) => k === 'all' || a.cat === k); return `${l.filter((a) => a.claimed).length}/${l.length}`; };
+  return `<div class="page"><h2>成就 <small>${done}/${list.length}${ready ? ` · ${ready} 个可领取` : ''}</small></h2>
+    <div class="row cats">${CATEGORIES.map(([k, z]) => `<button class="btn sm ${cat === k ? 'on' : ''}" data-act="ach-cat" data-k="${k}">${z} ${cnt(k)}</button>`).join('')}</div>
+    <div class="row"><button class="btn gold" data-act="ach-all" ${ready ? '' : 'disabled'}>一键领取（${ready}）</button></div>
+    <div class="list">${shown.map((a) => `
     <div class="ach ${a.done ? 'done' : ''}"><div class="ab"><b>${esc(a.zh)}</b><small>${esc(a.desc)}</small>
       <div class="bar"><i style="width:${(a.cur / a.goal) * 100}%"></i></div><small>${fmt(a.cur)} / ${fmt(a.goal)}　奖励：${REWARD(a.reward)}</small></div>
       <button class="btn sm ${a.done && !a.claimed ? 'gold' : ''}" data-act="ach-claim" data-id="${a.id}" ${a.done && !a.claimed ? '' : 'disabled'}>${a.claimed ? '已领取' : a.done ? '领取' : '进行中'}</button></div>`).join('')}</div></div>`;

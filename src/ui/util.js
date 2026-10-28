@@ -71,3 +71,6 @@ export function showKwPop(kw, slug, anchor) {
   const h = pop.offsetHeight;
   pop.style.top = (r.bottom + h + 10 > innerHeight && r.top > h + 10 ? r.top - h - 6 : r.bottom + 6) + 'px';
 }
+
+// reward object -> text ({ gold, tickets, cores })
+export const rewardText = (r) => [r.gold ? `金币 +${fmt(r.gold)}` : '', r.tickets ? `召唤券 +${r.tickets}` : '', r.cores ? `银芯 +${r.cores}` : ''].filter(Boolean).join('　');

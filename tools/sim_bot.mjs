@@ -1,11 +1,14 @@
 // Balance bot: plays the idle loop greedily and prints the progress curve.
 import { readFileSync } from 'node:fs';
-import { indexData, newState, runBattle, applyResult, levelUp, autoTeam, summon, equipPull, equipItem, enhanceItem, allyDef, teamDefs, claimDaily } from '../src/core/game.js';
+import { indexData, newState, runBattle, applyResult, levelUp, autoTeam, summon, equipPull, equipItem, enhanceItem, allyDef, teamDefs } from '../src/core/game.js';
 import { MAX_LV } from '../src/core/constants.js';
 import { doTower, doTrial, THREATS, trialUnlocked } from '../src/core/challenge.js';
 import { doWeekly, weeklyState, MILESTONES } from '../src/core/weekly.js';
 import { doRTower, REALM_TOWERS } from '../src/core/rtower.js';
 import { arenaState, localOpponents, fightArena, applyArena, localSettle } from '../src/core/arena.js';
+import { signToday } from '../src/core/signin.js';
+import { claimAllAchievements } from '../src/core/achievements.js';
+import { summonCores } from '../src/core/game.js';
 import { lvUpCost } from '../src/core/stats.js';
 
 const data = indexData(JSON.parse(readFileSync(new URL('../public/data/game-data.json', import.meta.url), 'utf8')));
@@ -36,7 +39,9 @@ let fails = 0;
 for (let i = 1; i <= BATTLES; i++) {
   if (i % 50 === 0) spend();
   if (i % 400 === 0) {
-    claimDaily(s, String(i));
+    signToday(s, data, new Date(Date.UTC(2026, 0, 1 + Math.floor(i / 400))));
+    claimAllAchievements(s, data);
+    while (s.cores >= 1900) summonCores(s, data, 10);
     for (let k = 0; k < 3; k++) doTower(s, data, String(i));
     const w = weeklyState(s); w.tries = 3; for (let k = 0; k < 3; k++) { w.tries = 3 - k; doWeekly(s, data); }
     for (const realm of REALM_TOWERS) for (let k = 0; k < 6; k++) { const q = doRTower(s, data, realm); if (!q || !q.win) break; }
@@ -50,6 +55,6 @@ for (let i = 1; i <= BATTLES; i++) {
   if (i - lastReport >= BATTLES / 10) {
     lastReport = i;
     const t = teamDefs(s, data);
-    console.log(`#${i} stage=${s.stage} max=${s.maxStage} gold=${s.gold} tickets=${s.tickets} roster=${Object.keys(s.roster).length} pow=${t.power} lvs=${s.team.map((x) => s.roster[x].lv)} fails=${fails} tower=${s.tower.best} wk=${s.weekly?.best | 0}/${MILESTONES.filter((m) => (s.weekly?.damage || 0) >= m.dmg).length} rt=${REALM_TOWERS.map((r) => s.rtower?.[r]?.best | 0).join('/')} arena=${s.arena?.rank} trials=${Object.keys(s.trials.cleared).length}(${['C','B','A','S','SS','SSS'].map((k) => Object.keys(s.trials.cleared).filter((x) => x.endsWith('-' + k)).length).join('/')})`);
+    console.log(`#${i} stage=${s.stage} max=${s.maxStage} gold=${s.gold} tickets=${s.tickets} cores=${s.cores} roster=${Object.keys(s.roster).length} pow=${t.power} lvs=${s.team.map((x) => s.roster[x].lv)} fails=${fails} tower=${s.tower.best} wk=${s.weekly?.best | 0}/${MILESTONES.filter((m) => (s.weekly?.damage || 0) >= m.dmg).length} rt=${REALM_TOWERS.map((r) => s.rtower?.[r]?.best | 0).join('/')} arena=${s.arena?.rank} trials=${Object.keys(s.trials.cleared).length}(${['C','B','A','S','SS','SSS'].map((k) => Object.keys(s.trials.cleared).filter((x) => x.endsWith('-' + k)).length).join('/')})`);
   }
 }

@@ -1,6 +1,6 @@
 import {
   indexData, newState, migrate, offlineReport, claimOffline, levelUp, levelUpMax, setTeam, autoTeam, setPreset,
-  equipItem, unequipItem, enhanceItem, dismantle, summon, equipPull, claimDaily, isEquipped,
+  equipItem, unequipItem, enhanceItem, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem, dismantleCores,
 } from './core/game.js';
 import { TEAM_SIZE } from './core/constants.js';
 import { BattleView } from './ui/battleView.js';
@@ -15,10 +15,13 @@ import { encodeCode, decodeCode } from './core/friend.js';
 import { codexPage, monsterModal } from './ui/codex.js';
 import { sound } from './ui/audio.js';
 import { doTower, doTrial } from './core/challenge.js';
-import { claimAchievement } from './core/achievements.js';
+import { claimAchievement, claimAllAchievements } from './core/achievements.js';
+import { signToday, backfill, claimCum } from './core/signin.js';
+import { buy as shopBuy, SHOP } from './core/shop.js';
+import { signinPage } from './ui/pages4.js';
 import { $, $$, fmt, esc, store, toast, closeModal, openModal, showKwPop } from './ui/util.js';
 
-const TABS = [['battle', '战斗'], ['team', '队伍'], ['roster', '唤醒体'], ['gear', '装备'], ['summon', '召唤'], ['challenge', '挑战'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']];
+const TABS = [['battle', '战斗'], ['team', '队伍'], ['roster', '唤醒体'], ['gear', '装备'], ['summon', '召唤'], ['challenge', '挑战'], ['signin', '签到'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']];
 
 const app = {
   ui: {}, tab: 'battle',
@@ -27,6 +30,7 @@ const app = {
   refreshTop() {
     $('#gold').textContent = fmt(this.state.gold);
     $('#tickets').textContent = this.state.tickets;
+    $('#cores').textContent = fmt(this.state.cores || 0);
   },
 };
 
@@ -80,10 +84,11 @@ function refreshArena() {
   if (app.tab === 'arena') render();
 }
 function render() {
-  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, ach: P2.achievementPage }[app.tab];
+  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, ach: P2.achievementPage }[app.tab];
   if (f) { const y = window.scrollY; $('#view').innerHTML = f(app); window.scrollTo(0, y); }
   app.refreshTop();
 }
+const rewardLine = (r) => `召唤券+${r.tickets} 银芯+${r.cores} 金币+${r.gold}`;
 const rerender = () => { app.save(); render(); };
 
 function onChange(e) {
@@ -105,7 +110,7 @@ function onAct(e) {
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
   const s = app.state, d = app.data, a = el.dataset.act;
-  if (el.tagName === 'BUTTON' && !['pull', 'epull', 'ach-claim', 'tower-go', 'trial-go', 'lvup', 'lvmax', 'daily', 'snd-test'].includes(a)) sound.play('click');
+  if (el.tagName === 'BUTTON' && !['pull', 'epull', 'ach-claim', 'tower-go', 'trial-go', 'lvup', 'lvmax', 'sign-today', 'cpull', 'cepull', 'shop-buy', 'ach-all', 'snd-test'].includes(a)) sound.play('click');
   switch (a) {
     case 'snd-test': sound.play(el.dataset.k); break;
     case 'weekly-go': { const r = doWeekly(s, d); if (r) { app.save(); render(); sound.play('win'); P3.weeklyResultModal(app, r); } break; }
@@ -179,7 +184,15 @@ function onAct(e) {
     case 'tower-go': { const r = doTower(s, d); if (r) { app.save(); render(); sound.play(r.reached > 0 ? 'win' : 'lose'); P2.towerResultModal(app, r); } break; }
     case 'trial-go': { const r = doTrial(s, d, el.dataset.id, +el.dataset.i); if (r) { app.save(); render(); sound.play(r.win ? 'win' : 'lose'); P2.trialResultModal(app, r); } break; }
     case 'ach-claim': { const r = claimAchievement(s, el.dataset.id, app.data); if (r) { sound.play('ach'); toast('成就奖励已领取'); rerender(); } break; }
-    case 'daily': { const r = claimDaily(s); if (r) sound.play('gold'); if (r) toast(`领取成功：召唤券+${r.tickets} 金币+${r.gold}`); rerender(); break; }
+    case 'cpull': { const out = summonCores(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play(out.some((p) => ['SSR', 'Genesis'].includes(p.rarity)) ? 'summonSSR' : 'summon'); P.showPulls(app, out); } break; }
+    case 'cepull': { const out = equipPullCores(s, d, 1); if (out) { app.save(); render(); sound.play('summon'); P.showItems(app, out); } break; }
+    case 'shop-buy': { const r = shopBuy(s, d, el.dataset.id); if (r) { sound.play('gold'); toast(`已购买：${SHOP.find((x) => x.id === el.dataset.id).zh}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
+    case 'gear-refine': if (refineItem(s, el.dataset.uid)) { sound.play('lvup'); rerender(); } break;
+    case 'sign-today': { const r = signToday(s, d); if (r) { sound.play('ach'); toast(`签到成功：${rewardLine(r)}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
+    case 'sign-back': { const r = backfill(s, d, +el.dataset.d); if (r) { sound.play('gold'); toast(`补签成功：${rewardLine(r)}`); rerender(); } break; }
+    case 'sign-cum': { const r = claimCum(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`累计奖励：${rewardLine(r)}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
+    case 'ach-cat': app.ui.achCat = el.dataset.k; render(); break;
+    case 'ach-all': { const r = claimAllAchievements(s, d); if (r) { sound.play('ach'); toast(`领取 ${r.n} 个成就：召唤券+${r.tickets} 银芯+${r.cores} 金币+${r.gold}`); rerender(); } break; }
     case 'export': {
       const blob = new Blob([JSON.stringify(s)], { type: 'application/json' });
       const l = document.createElement('a'); l.href = URL.createObjectURL(blob); l.download = `morimens-idle-${Date.now()}.json`; l.click(); break;

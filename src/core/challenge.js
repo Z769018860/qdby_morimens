@@ -42,16 +42,16 @@ export function simulateTower(state, data, { maxFloors = 150, seed = battleSeed(
 }
 
 export function towerReward(state, data, reached, rng) {
-  const rw = { gold: 0, tickets: 0, items: [], newBest: false };
+  const rw = { gold: 0, tickets: 0, cores: 0, items: [], newBest: false };
   const prev = state.tower.best;
   for (let f = prev + 1; f <= reached; f++) {
     rw.gold += Math.round(stageGold(towerStage(f)) * 0.9);
-    if (f % 5 === 0) rw.tickets += 2;
+    if (f % 5 === 0) { rw.tickets += 2; rw.cores += 15; }
     if (f % 10 === 0) rw.items.push(addItem(state, ...Object.values(rollItem(rng, towerStage(f), data))));
   }
   rw.gold += Math.round(stageGold(towerStage(Math.max(1, reached))) * Math.min(reached, 10) * 0.2); // participation
   if (reached > prev) { state.tower.best = reached; rw.newBest = true; }
-  state.gold += rw.gold; state.tickets += rw.tickets; state.stats.gold += rw.gold;
+  state.gold += rw.gold; state.tickets += rw.tickets; state.cores += rw.cores; state.stats.gold += rw.gold;
   return rw;
 }
 
@@ -93,7 +93,7 @@ export function doTrial(state, data, trialId, thIdx) {
   const team = teamDefs(state, data);
   const seed = battleSeed(state);
   const res = simulate({ allies: team.list, enemies: trialEnemies(trial, th, data), seed, strategy: state.strategy });
-  const rw = { gold: 0, tickets: 0, items: [], first: false };
+  const rw = { gold: 0, tickets: 0, cores: 0, items: [], first: false };
   state.stats.battles++;
   recordCodex(state, trialEnemies(trial, th, data), res.win);
   if (res.win) {
@@ -101,10 +101,10 @@ export function doTrial(state, data, trialId, thIdx) {
     const key = trialKey(trial, th), rng = mulberry32(seed ^ 0x51ed);
     rw.gold = Math.round(stageGold(th.stage) * 0.6 * (1 + team.goldBonus / 100));
     if (!state.trials.cleared[key]) {
-      state.trials.cleared[key] = true; rw.first = true; rw.tickets = th.tickets;
+      state.trials.cleared[key] = true; rw.first = true; rw.tickets = th.tickets; rw.cores = th.tickets * 15;
       for (let i = 0; i < 1 + (thIdx >= 3 ? 1 : 0); i++) rw.items.push(addItem(state, ...Object.values(rollItem(rng, th.stage + 20, data))));
     }
-    state.gold += rw.gold; state.tickets += rw.tickets; state.stats.gold += rw.gold;
+    state.gold += rw.gold; state.tickets += rw.tickets; state.cores += rw.cores; state.stats.gold += rw.gold;
   }
   return { ...res, trial, th, rw, team };
 }

@@ -5,11 +5,11 @@ import { REALM_TOWERS, TOWER_NAME, rtBest, rtTeam, rtEnemies, rtStage } from '..
 import { arenaState, arenaTries, ARENA_DAILY, LADDER, dailyRankReward, canClaimArenaDaily, hydrate } from '../core/arena.js';
 import { encodeCode } from '../core/friend.js';
 import { teamDefs } from '../core/game.js';
-import { esc, img, fmt, openModal } from './util.js';
+import { esc, img, fmt, openModal, rewardText } from './util.js';
 import { meterHtml } from './pages2.js';
 import { intentIcon } from './codex.js';
 
-const REWARD = (r) => [r.gold ? `金币 +${fmt(r.gold)}` : '', r.tickets ? `召唤券 +${r.tickets}` : ''].filter(Boolean).join('　');
+const REWARD = rewardText;
 const daysLeft = () => { const d = new Date(); const n = d.getUTCDay() || 7; return 8 - n; };
 
 /* ---------- weekly boss ---------- */

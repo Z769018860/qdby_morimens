@@ -41,15 +41,16 @@ export function doRTower(state, data, realm) {
   const res = simulate({ allies: team.list, enemies, seed, strategy: state.strategy });
   state.stats.battles++;
   recordCodex(state, enemies, res.win);
-  const rw = { gold: 0, tickets: 0, items: [] };
+  const rw = { gold: 0, tickets: 0, cores: 0, items: [] };
   if (res.win) {
     state.stats.wins++; state.stats.kills += res.kills;
     t.best = floor;
     const rng = mulberry32(seed ^ 0x77aa);
     rw.gold = Math.round(stageGold(rtStage(floor)) * 0.8);
     if (floor % 3 === 0) rw.tickets += 1;
-    if (floor % 10 === 0) { rw.tickets += 3; rw.items.push(addItem(state, ...Object.values(rollItem(rng, rtStage(floor), data)))); }
-    state.gold += rw.gold; state.tickets += rw.tickets; state.stats.gold += rw.gold;
+    if (floor % 5 === 0) rw.cores += 12;
+    if (floor % 10 === 0) { rw.tickets += 3; rw.cores += 20; rw.items.push(addItem(state, ...Object.values(rollItem(rng, rtStage(floor), data)))); }
+    state.gold += rw.gold; state.tickets += rw.tickets; state.cores += rw.cores; state.stats.gold += rw.gold;
   }
   return { ...res, floor, realm, team, enemies, rw };
 }

@@ -84,15 +84,15 @@ export function applyArena(state, data, fight, newRank) {
   const a = arenaState(state);
   a.tries--;
   state.stats.battles++;
-  const rw = { gold: 0, tickets: 0, up: 0 };
+  const rw = { gold: 0, tickets: 0, cores: 0, up: 0 };
   if (fight.win) {
     a.wins++; state.stats.wins++;
     rw.gold = Math.round(stageGold(20 + (LADDER - fight.entry.rank) * 0.45) * 0.7);
     const prevBest = a.best;
     a.rank = newRank;
-    if (newRank < prevBest) { rw.up = prevBest - newRank; rw.tickets = Math.max(1, Math.floor(rw.up / 2)); a.best = newRank; }
+    if (newRank < prevBest) { rw.up = prevBest - newRank; rw.tickets = Math.max(1, Math.floor(rw.up / 2)); rw.cores = Math.min(60, rw.up * 2); a.best = newRank; }
   } else { a.losses++; rw.gold = Math.round(stageGold(15) * 0.15); }
-  state.gold += rw.gold; state.tickets += rw.tickets; state.stats.gold += rw.gold;
+  state.gold += rw.gold; state.tickets += rw.tickets; state.cores += rw.cores; state.stats.gold += rw.gold;
   return rw;
 }
 export function claimArenaDaily(state) {
@@ -100,8 +100,8 @@ export function claimArenaDaily(state) {
   if (a.rank > LADDER || a.rewardDay === day()) return null;
   a.rewardDay = day();
   const t = dailyRankReward(a.rank);
-  state.tickets += t; state.gold += 1500;
-  return { tickets: t, gold: 1500 };
+  state.tickets += t; state.gold += 1500; state.cores += t * 5;
+  return { tickets: t, gold: 1500, cores: t * 5 };
 }
 export const canClaimArenaDaily = (state) => { const a = arenaState(state); return a.rank <= LADDER && a.rewardDay !== day(); };
 

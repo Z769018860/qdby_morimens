@@ -87,3 +87,10 @@ export const canEnhance = (it) => it.lv < GEAR_MAX_LV;
 export const dismantleValue = (rarity, lv) => Math.round(({ N: 40, R: 70, SR: 120, SSR: 260 }[rarity] || 80) * (1 + lv * 0.6));
 
 export function addBonus(into, b) { for (const k of Object.keys(into)) into[k] += b[k] || 0; return into; }
+
+// 精炼 (refine, paid in 银芯): +8% of an item's whole bonus per tier, up to 5 tiers
+export const REFINE_MAX = 5;
+export const REFINE_COST = [40, 80, 140, 220, 320];
+export const refineMult = (it) => 1 + 0.08 * (it?.rf || 0);
+export const refineCost = (it) => ((it?.rf || 0) >= REFINE_MAX ? 0 : REFINE_COST[it?.rf || 0]);
+export function scaleBonus(b, m) { if (m === 1) return b; for (const k of Object.keys(b)) b[k] *= m; return b; }

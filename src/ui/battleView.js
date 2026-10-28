@@ -205,6 +205,7 @@ export class BattleView {
     const parts = [];
     if (res.win) parts.push(`<span class="g">金币 +${fmt(rw.gold)}</span>`);
     if (rw.tickets) parts.push(`<span class="t">召唤券 +${rw.tickets}</span>`);
+    if (rw.cores) parts.push(`<span class="c">银芯 +${rw.cores}</span>`);
     for (const it of rw.items) parts.push(`<span class="i">获得装备：${esc(this.app.itemName(it))}</span>`);
     if (rw.firstClear) parts.push('<span class="n">首通!</span>');
     if (rw.retreat) parts.push('<span class="r">挑战失败，退回上一关挂机，提升战力再来</span>');

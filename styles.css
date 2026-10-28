@@ -157,3 +157,11 @@ img.intent{vertical-align:middle;image-rendering:auto}
 input.wide{width:100%;max-width:420px;background:#10141d;color:inherit;border:1px solid #2b3447;border-radius:6px;padding:6px 8px}
 @media(max-width:560px){.banner-card.wk{flex-direction:column}}
 .code{width:100%;background:#10141d;color:#9fb0cc;border:1px solid #2b3447;border-radius:6px;padding:6px;font:11px/1.3 monospace;word-break:break-all}
+
+/* ---- M6: 银芯 / 签到 / 商店 / 成就分类 ---- */
+.res span{margin-left:8px}.rewards .c{color:#7fd6ff}
+.cats{flex-wrap:wrap;gap:6px}.btn.on{border-color:var(--gold);color:var(--gold)}
+.shop{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}.shopi{display:flex;flex-direction:column;gap:4px;background:#10141d;border:1px solid #2b3447;border-radius:8px;padding:8px}.shopi small{color:var(--dim)}
+.scal{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px;margin:10px 0}
+.sday{display:flex;flex-direction:column;gap:3px;align-items:center;background:#10141d;border:1px solid #2b3447;border-radius:8px;padding:6px 4px;min-height:84px;text-align:center}
+.sday b{font-size:15px}.sday small{font-size:10px;color:var(--dim)}.sday.big{border-color:#8a6d2b}.sday.today{border-color:var(--gold);box-shadow:0 0 8px #c9a24b66}.sday.got{opacity:.6}.sday.miss{border-style:dashed}.sday .ok{color:#6fcf97}

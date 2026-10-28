@@ -7,9 +7,9 @@ import { teamDefs, battleSeed, addItem, rollItem, recordCodex } from './game.js'
 
 export const WEEKLY_DAILY = 3, WEEKLY_ROUNDS = 12, WEEKLY_STAGE = 48;
 export const MILESTONES = [
-  { dmg: 10000, tickets: 2, gold: 2000 }, { dmg: 30000, tickets: 3, gold: 4000 }, { dmg: 70000, tickets: 4, gold: 8000 },
-  { dmg: 120000, tickets: 6, gold: 15000, item: true }, { dmg: 200000, tickets: 8, gold: 30000 },
-  { dmg: 320000, tickets: 12, gold: 60000, item: true }, { dmg: 480000, tickets: 18, gold: 100000 }, { dmg: 700000, tickets: 30, gold: 200000, item: true },
+  { dmg: 10000, tickets: 2, cores: 20, gold: 2000 }, { dmg: 30000, tickets: 3, cores: 30, gold: 4000 }, { dmg: 70000, tickets: 4, cores: 40, gold: 8000 },
+  { dmg: 120000, tickets: 6, cores: 60, gold: 15000, item: true }, { dmg: 200000, tickets: 8, cores: 80, gold: 30000 },
+  { dmg: 320000, tickets: 12, cores: 120, gold: 60000, item: true }, { dmg: 480000, tickets: 18, cores: 180, gold: 100000 }, { dmg: 700000, tickets: 30, cores: 300, gold: 200000, item: true },
 ];
 
 const dayKey = () => new Date().toISOString().slice(0, 10);
@@ -54,7 +54,7 @@ export function claimWeekly(state, data, i) {
   const w = weeklyState(state), m = MILESTONES[i];
   if (!m || w.damage < m.dmg || w.claimed.includes(i)) return null;
   w.claimed.push(i);
-  state.tickets += m.tickets; state.gold += m.gold;
+  state.tickets += m.tickets; state.gold += m.gold; state.cores += m.cores;
   const items = m.item ? [addItem(state, ...Object.values(rollItem(mulberry32(hash(`wk${w.week}${i}${state.seed}`)), 60, data)))] : [];
-  return { tickets: m.tickets, gold: m.gold, items };
+  return { tickets: m.tickets, gold: m.gold, cores: m.cores, items };
 }
