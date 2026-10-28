@@ -13,6 +13,7 @@ import {
   PROTOS, LV, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX,
   RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY,
   PLAYER, expNeed, scoreOf,
+  MAX_WEAPON, POOL_PER_PROTO, RAGE, TERRAINS, terrainAt,
 } from './defs.js';
 import { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS } from './gen.js';
 
@@ -57,6 +58,13 @@ export const G = {
   bossKills: 0, pending: 0, choices: [],
   revived: 0, killTimer: 0, bloodTimer: 0, burstTimer: 0, dilate: 0,
   spawnT: 0, eliteT: 0, bossIdx: 0, pressure: 0,
+  // 狂气槽
+  rage: 0, rageT: 0, rageReady: false, rageUsed: 0,
+  // Boss 警报：bossEta 是「还有几秒出现」（<2.5 时渲染层做边缘预警），
+  // warn 是「已经出现、横幅还剩几秒淡出」。
+  bossEta: 999, warn: 0, warnName: '',
+  // 地形：idx 变一次，渲染层就重建一次地面 pattern；fade 负责交叉淡化
+  terrainIdx: 0, terrainFade: 0,
   world: { w: 2400, h: 2400 },  // 只在绘制里当地面参考，玩家其实不设边界
   stats: { dmg: 0, taken: 0 },
 };
@@ -68,6 +76,7 @@ const emptyMods = () => ({
   pierce: 0, dmgMul: 1, enemySlow: 1, revives: 0,
   summonBonus: 0, fieldWide: 1, healDrop: 0, thorns: 0,
   maxHpBonus: 0, maxShieldBonus: 0, frenzy: 0, echo: 0,
+  rageGain: 0,
   autoMagnet: false, autoBurst: 0, firstStrike: false, timeDilate: false,
 });
 
@@ -111,7 +120,10 @@ export function reset(charId, diffKey) {
   G.bossKills = 0; G.pending = 0; G.choices = [];
   G.revived = 0; G.killTimer = 0; G.bloodTimer = 0; G.burstTimer = 0; G.dilate = 0;
   G.spawnT = 1.2; G.eliteT = ELITE_EVERY; G.bossIdx = 0; G.pressure = 0;
-  G.stats = { dmg: 0, taken: 0 };
+  G.rage = 0; G.rageT = 0; G.rageReady = false; G.rageUsed = 0;
+  G.bossEta = BOSS_AT[0]; G.warn = 0; G.warnName = '';
+  G.terrainIdx = terrainAt(0); G.terrainFade = 0;
+  G.stats = { dmg: 0, taken: 0, rageDmg: 0 };
   for (const k of ['enemies', 'bullets', 'fields', 'orbs', 'summons', 'pickups', 'fx', 'texts']) G[k].length = 0;
   G.weapons = []; G.passives = []; G.wheels = []; G.covs = [];
   G.mods = emptyMods();
@@ -143,8 +155,11 @@ export function reset(charId, diffKey) {
   return G;
 }
 
-// 候选武器池：本命第二把 + 每个原型随机 1 把（共 12 把）。
-// 这样每局能抽到的技能都不一样 —— 62 名唤醒体的 124 个技能都有可能出现在牌堆里。
+// 候选武器池：本命第二把 + 每个原型随机 POOL_PER_PROTO 把。
+//
+// 原来每个原型只放 1 把，一整局牌堆里最多出现 13 个技能 —— 62 名唤醒体的
+// 124 条技能绝大部分永远抽不到，也谈不上「用技能组出流派」。现在每原型放
+// 2 把（约 24 把），再叠加「技能栏满了可以替换」，每局的 Build 都不一样。
 function buildPool(c, mine) {
   const pool = new Set();
   if (mine[1]) pool.add(mine[1].id);
@@ -156,7 +171,22 @@ function buildPool(c, mine) {
   for (const k of Object.keys(PROTOS)) {
     const arr = byProto[k];
     if (!arr || !arr.length) continue;
-    pool.add(arr[(rnd() * arr.length) | 0].id);
+    // 洗牌后取前 N 个，而不是独立随机抽 N 次 —— 后者会抽重
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = (rnd() * (i + 1)) | 0;
+      const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    for (let i = 0; i < Math.min(POOL_PER_PROTO, arr.length); i++) pool.add(arr[i].id);
+  }
+  // 治疗类保底：heal 原型一共十几把，按「每原型随机 2 把」很容易一把都抽不到，
+  // 那一局就完全没有主动续航，只能靠升级回的那 8% 硬撑。
+  const hasHeal = [...pool].some((id) => {
+    const w = WEAPONS.find((x) => x.id === id);
+    return w && w.proto === 'heal';
+  });
+  if (!hasHeal) {
+    const hl = WEAPONS.filter((w) => w.proto === 'heal' && !(mine[0] && w.id === mine[0].id));
+    if (hl.length) pool.add(hl[(rnd() * hl.length) | 0].id);
   }
   return [...pool];
 }
@@ -198,7 +228,7 @@ function applyCreation(p, m) {
     case 'maxHp': m.maxHpBonus += fx.v; break;
     case 'pick': m.pick += fx.v; if (p.fx === 'draw') m.exp += 0.06; break;
     case 'cd': m.cd *= (1 + fx.v); break;
-    case 'rage': m.cd *= 0.985; m.atk += 0.02; break;
+    case 'rage': m.rageGain += fx.v; m.atk += 0.02; break;
     case 'dmgTaken': m.dmgTaken += fx.v; m.dmgMul += 0.06; break;
     case 'spd': m.spd += fx.v; break;
     case 'regen': m.regen += fx.v; break;
@@ -221,7 +251,7 @@ function applyWheel(key, m) {
     case 'revive': m.revives += 1; break;
     case 'summon_extra': m.summonBonus += 2; break;
     case 'field_wide': m.fieldWide += 0.35; break;
-    case 'golden_touch': m.healDrop += 0.12; break;
+    case 'golden_touch': m.healDrop += 0.06; break;
     case 'thorns': m.thorns += 25; break;
     case 'first_strike': m.firstStrike = true; break;
     case 'time_dilate': m.timeDilate = true; break;
@@ -244,7 +274,7 @@ function applyCovenant(key, m) {
   }
 }
 
-export function addWeapon(wid) {
+export function addWeapon(wid, replaceId) {
   const def = WEAPONS.find((w) => w.id === wid);
   if (!def) return null;
   const have = G.weapons.find((w) => w.def.id === wid);
@@ -252,8 +282,27 @@ export function addWeapon(wid) {
     if (have.lv < LV.max) { have.lv++; return have; }
     return null;
   }
-  if (G.weapons.length >= 6) return null;
-  const w = { def, lv: 0, timer: rr(0.1, 0.5), ang: rnd() * TAU };
+  const cdMax = PROTOS[def.proto] ? PROTOS[def.proto].cd : 1;
+  // 技能栏满了也能换：替换掉调用方指定的那把，没指定就换等级最低的。
+  // 新技能从 0 级起算，这是「转流派」的代价 —— 否则槽位一满就只剩升级，
+  // 后半局的三选一只剩造物和命轮，Build 完全定型。
+  if (G.weapons.length >= MAX_WEAPON) {
+    const target = G.weapons.find((x) => x.def.id === replaceId)
+      || G.weapons.reduce((a, b) => (a.lv <= b.lv ? a : b), G.weapons[0]);
+    if (!target) return null;
+    // 环绕光刃是常驻实体，换掉武器时要把对应的刀刃也作废，
+    // 否则场上会留下一圈没人维护、伤害不再更新的刀刃。召唤物同理。
+    for (const o of G.orbs) if (o.w === target) o.dead = true;
+    for (let i = G.summons.length - 1; i >= 0; i--) if (G.summons[i].src === target) G.summons.splice(i, 1);
+    target.def = def;
+    target.lv = 0;
+    target.timer = rr(0.1, 0.4);
+    target.orb = null;
+    target.cdMax = cdMax;
+    target.swapped = 1;
+    return target;
+  }
+  const w = { def, lv: 0, timer: rr(0.1, 0.5), ang: rnd() * TAU, cdMax, cdLeft: 0 };
   G.weapons.push(w);
   return w;
 }
@@ -300,7 +349,7 @@ export function rollChoices() {
   // 三张卡全被当成同一个 key=undefined，结果永远只弹一张。
   const keyOf = (o) => {
     if (o.kind === 'wlv') return 'w:' + o.w.def.id;
-    if (o.kind === 'wnew') return 'w:' + o.def.id;
+    if (o.kind === 'wnew' || o.kind === 'wswap') return 'w:' + o.def.id;
     if (o.kind === 'creation') return 'k:' + o.c.id;
     if (o.kind === 'wheel') return 'wl:' + o.i;
     return 'cv:' + o.i;
@@ -312,10 +361,17 @@ export function rollChoices() {
   const news = G.candidatePool
     .map((id) => WEAPONS.find((w) => w.id === id))
     .filter((d) => d && !G.weapons.some((w) => w.def.id === d.id));
-  const weaponSlot = G.weapons.length < 6;
+  const weaponSlot = G.weapons.length < MAX_WEAPON;
   const wpool = [];
   for (const w of ups) wpool.push({ kind: 'wlv', w });
-  if (weaponSlot) for (const d of news) wpool.push({ kind: 'wnew', def: d });
+  if (weaponSlot) {
+    for (const d of news) wpool.push({ kind: 'wnew', def: d });
+  } else {
+    // 满了也照抽，只是变成「替换」：drop 是要让位的那一把。
+    // 默认挑等级最低的（同等看谁先拿），玩家在卡面上能直接看到换掉谁。
+    const weakest = G.weapons.reduce((a, b) => (a.lv <= b.lv ? a : b), G.weapons[0]);
+    for (const d of news) wpool.push({ kind: 'wswap', def: d, drop: weakest });
+  }
 
   // 2. 造物：未满 8 件时进池，已有的可以叠到 3 层
   const cpool = CREATIONS
@@ -344,6 +400,7 @@ export function rollChoices() {
   const groups = [
     { w: 42, list: wpool.filter((o) => o.kind === 'wlv') },
     { w: 18, list: wpool.filter((o) => o.kind === 'wnew') },
+    { w: 16, list: wpool.filter((o) => o.kind === 'wswap') },
     { w: 30, list: cpool },
     { w: 8, list: wlpool },
     { w: 2, list: cvpool },
@@ -365,16 +422,36 @@ export function rollChoices() {
 
 
 export function applyChoice(o) {
-  if (!o) return;
+  if (!o) { skipChoice(); return; }
   if (o.kind === 'wlv') { o.w.lv = Math.min(LV.max, o.w.lv + 1); }
   else if (o.kind === 'wnew') addWeapon(o.def.id);
+  else if (o.kind === 'wswap') addWeapon(o.def.id, o.drop && o.drop.def ? o.drop.def.id : null);
   else if (o.kind === 'creation') addCreation(o.c.id);
   else if (o.kind === 'wheel') addWheel(o.i);
   else if (o.kind === 'cov') addCovenant(o.i);
-  G.pending = Math.max(0, G.pending - 1);
   if (G.mods.timeDilate) G.dilate = 3;
-  if (G.pending > 0) G.choices = rollChoices();
-  else { G.choices = []; G.phase = 'run'; }
+  advancePending();
+}
+
+// 什么都不选：玩家明确要的「这次不要」。技能栏满了、造物都叠满了之后，
+// 强行塞东西反而是负收益，所以留一个出口。
+export function skipChoice() {
+  advancePending();
+}
+
+// 消耗一次待选次数，并把下一屏准备好。
+// 关键点：如果池子真的空了（武器全满级 + 造物叠满 + 命轮契物都拿过），
+// 一次 rollChoices 会返回空数组 —— 旧代码照样进入 levelup，于是弹出一个
+// 「一张卡都没有」的死面板，游戏直接卡住。这里把空的 pending 就地消化掉。
+function advancePending() {
+  G.pending = Math.max(0, G.pending - 1);
+  while (G.pending > 0) {
+    const next = rollChoices();
+    if (next.length) { G.choices = next; return; }
+    G.pending--;
+  }
+  G.choices = [];
+  G.phase = 'run';
 }
 
 // ---------------------------------------------------------------- 敌人
@@ -441,6 +518,7 @@ function spawnEnemy(tier, ax, ay) {
   e.n = d.m.n;
   e.flash = 0; e.kx = 0; e.ky = 0; e.wob = rnd() * TAU;
   e.hitCd = 0;
+  e.windT = 0; e.lungeT = 0;
   e.boss = tier === 2;
   e.dashT = 0;
   G.enemies.push(e);
@@ -486,11 +564,26 @@ export function update(dt) {
 
   G.t += dt;
 
+  // ---- 狂气爆发计时
+  if (G.rageT > 0) {
+    G.rageT -= dt;
+    if (G.rageT <= 0) { G.rageT = 0; addText(P.x, P.y - 30, '狂气消退', 5); }
+  }
+
+  // ---- 地形推进：每 3 分钟换一段地貌，只换视觉，不动任何数值
+  const ti = terrainAt(G.t);
+  if (ti !== G.terrainIdx) {
+    G.terrainIdx = ti;
+    G.terrainFade = 1;
+    addText(P.x, P.y - 76, '进入 · ' + (TERRAINS[ti] ? TERRAINS[ti].n : ''), 5);
+  }
+  if (G.terrainFade > 0) G.terrainFade = Math.max(0, G.terrainFade - dt / 1.4);
+
   // ---- 玩家移动（摇杆/键盘向量在 input.js 里写入 P.ix / P.iy）
   const ix = P.ix || 0, iy = P.iy || 0;
   const len = Math.hypot(ix, iy) || 1;
   const nx = ix / len, ny = iy / len;
-  const spd = PLAYER.speed * G.mods.spd;
+  const spd = PLAYER.speed * G.mods.spd * (G.rageT > 0 ? 1 + RAGE.spd : 1);
   P.vx = nx * spd * (ix || iy ? 1 : 0);
   P.vy = ny * spd * (ix || iy ? 1 : 0);
   P.x += (P.vx + P.kx) * dt;
@@ -532,6 +625,7 @@ export function update(dt) {
   updateOrbs(dt);
   updatePickups(dt);
   tickFx(dt);
+  if (G.warn > 0) G.warn = Math.max(0, G.warn - dt);
 
   // ---- 刷怪
   updateSpawns(dt);
@@ -564,14 +658,22 @@ function tickFx(dt) {
 // ---------------------------------------------------------------- 武器开火
 function updateWeapons(dt) {
   const P = G.player;
+  // 狂气爆发期间：攻击力抬升、冷却缩短。两个都乘在这里而不是写进 mods，
+  // 免得 recompute 之后被覆盖掉。
+  const rageAtk = G.rageT > 0 ? 1 + RAGE.atk : 1;
+  const rageCd = G.rageT > 0 ? RAGE.cd : 1;
   for (const w of G.weapons) {
     const proto = PROTOS[w.def.proto];
     if (!proto) continue;
     w.timer -= dt;
+    // 给 HUD 的冷却环用：cdLeft/cdMax 是「这一发还要多久」和「整格多长」
+    w.cdLeft = Math.max(0, w.timer);
     if (w.timer > 0) continue;
-    const cd = proto.cd * LV.cd(w.lv) * G.mods.cd * (G.mods.echo && rnd() < G.mods.echo ? 0.4 : 1);
+    const cd = proto.cd * LV.cd(w.lv) * G.mods.cd * rageCd * (G.mods.echo && rnd() < G.mods.echo ? 0.4 : 1);
     w.timer = cd;
-    const dmg = proto.dmg * LV.dmg(w.lv) * G.mods.atk * G.mods.dmgMul;
+    w.cdMax = cd;
+    w.cdLeft = cd;
+    const dmg = proto.dmg * LV.dmg(w.lv) * G.mods.atk * G.mods.dmgMul * rageAtk;
     fireProto(w, proto, dmg);
     // 契物「回响」：30% 概率立刻再触发一次
     if (G.mods.echo > 0 && rnd() < G.mods.echo * 0.35) fireProto(w, proto, dmg * 0.7);
@@ -592,12 +694,13 @@ function fireProto(w, proto, dmg) {
   const lv = w.lv;
   const cnt = LV.count(lv, proto);
   const color = proto.color;
+  const src = w;
   switch (w.def.proto) {
     case 'bolt': {
       for (let i = 0; i < cnt; i++) {
         const tgt = nearest(P.x, P.y, 900);
         const a = tgt ? Math.atan2(tgt.y - P.y, tgt.x - P.x) : rnd() * TAU;
-        shot(P.x, P.y, Math.cos(a) * 470, Math.sin(a) * 470, { dmg, r: 6, life: 1.5, color, kind: 'bolt', pierce: lv >= 4 ? 1 : 0 });
+        shot(P.x, P.y, Math.cos(a) * 470, Math.sin(a) * 470, { dmg, r: 6, life: 1.5, color, kind: 'bolt', pierce: lv >= 4 ? 1 : 0, src });
       }
       break;
     }
@@ -608,7 +711,7 @@ function fireProto(w, proto, dmg) {
     }
     case 'nova': {
       const R = (90 + lv * 14) * G.mods.area;
-      shockwave(P.x, P.y, R, dmg, color);
+      shockwave(P.x, P.y, R, dmg, color, src);
       G.shake = Math.min(9, G.shake + 2.4);
       break;
     }
@@ -616,38 +719,38 @@ function fireProto(w, proto, dmg) {
       const tgt = nearest(P.x, P.y, 900);
       const a = tgt ? Math.atan2(tgt.y - P.y, tgt.x - P.x) : rnd() * TAU;
       const life = 0.3 + lv * 0.05;
-      shot(P.x, P.y, Math.cos(a) * 900, Math.sin(a) * 900, { dmg, r: 13, life, color, kind: 'ray', pierce: 99, w: 13 + lv * 2 });
+      shot(P.x, P.y, Math.cos(a) * 900, Math.sin(a) * 900, { dmg, r: 13, life, color, kind: 'ray', pierce: 99, w: 13 + lv * 2, src });
       break;
     }
     case 'chain': {
       const tgt = nearest(P.x, P.y, 620);
-      if (tgt) chainFrom(tgt, 2 + lv, dmg, color);
+      if (tgt) chainFrom(tgt, 2 + lv, dmg, color, src);
       break;
     }
     case 'field': {
       const tgt = nearest(P.x, P.y, 520) || { x: P.x + rr(-80, 80), y: P.y + rr(-80, 80) };
       for (let i = 0; i < cnt; i++) {
-        addField(tgt.x + rr(-40, 40), tgt.y + rr(-40, 40), (2.4 + lv * 0.3), 52 * G.mods.area, dmg, color);
+        addField(tgt.x + rr(-40, 40), tgt.y + rr(-40, 40), (2.4 + lv * 0.3), 52 * G.mods.area, dmg, color, false, src);
       }
       break;
     }
     case 'summon': {
       const want = cnt + G.mods.summonBonus;
-      while (G.summons.length < want && G.summons.length < 8) addSummon(dmg, color, lv);
+      while (G.summons.length < want && G.summons.length < 8) addSummon(dmg, color, lv, src);
       break;
     }
     case 'boomerang': {
       for (let i = 0; i < cnt; i++) {
         const tgt = nearest(P.x, P.y, 700);
         const a = (tgt ? Math.atan2(tgt.y - P.y, tgt.x - P.x) : rnd() * TAU) + rr(-0.3, 0.3);
-        shot(P.x, P.y, Math.cos(a) * 330, Math.sin(a) * 330, { dmg, r: 11, life: 1.9, color, kind: 'boomerang', back: 0.52, pierce: 99 });
+        shot(P.x, P.y, Math.cos(a) * 330, Math.sin(a) * 330, { dmg, r: 11, life: 1.9, color, kind: 'boomerang', back: 0.52, pierce: 99, src });
       }
       break;
     }
     case 'missile': {
       for (let i = 0; i < cnt; i++) {
         const a = rnd() * TAU;
-        shot(P.x, P.y, Math.cos(a) * 150, Math.sin(a) * 150, { dmg, r: 7, life: 2.4, color, kind: 'missile', home: 6.5, pierce: 0 });
+        shot(P.x, P.y, Math.cos(a) * 150, Math.sin(a) * 150, { dmg, r: 7, life: 2.4, color, kind: 'missile', home: 6.5, pierce: 0, src });
       }
       break;
     }
@@ -656,18 +759,18 @@ function fireProto(w, proto, dmg) {
         const e = G.enemies[(rnd() * G.enemies.length) | 0];
         const x = e ? e.x : P.x + rr(-120, 120);
         const y = e ? e.y : P.y + rr(-120, 120);
-        addField(x, y, 0.45, 46 * G.mods.area, dmg, color, true);
+        addField(x, y, 0.45, 46 * G.mods.area, dmg, color, true, src);
       }
       break;
     }
     case 'shield': {
       G.player.shield = Math.min(G.player.maxShield, G.player.shield + 8 + lv * 6);
-      shockwave(P.x, P.y, 76 * G.mods.area, dmg, color);
+      shockwave(P.x, P.y, 76 * G.mods.area, dmg, color, src);
       break;
     }
     case 'heal': {
       G.player.hp = Math.min(G.player.maxHp, G.player.hp + 2 + lv);
-      shockwave(P.x, P.y, 66 * G.mods.area, dmg, color);
+      shockwave(P.x, P.y, 66 * G.mods.area, dmg, color, src);
       break;
     }
     default: break;
@@ -701,7 +804,7 @@ function updateOrbs(dt) {
         const y = P.y + Math.sin(ang) * cfg.r;
         if ((e.x - x) ** 2 + (e.y - y) ** 2 < (e.r + 13) ** 2) {
           o.hitCd.set(e, 0.35);
-          damageEnemy(e, cfg.dmg, x, y);
+          damageEnemy(e, cfg.dmg, x, y, o.w);
           break;
         }
       }
@@ -711,19 +814,19 @@ function updateOrbs(dt) {
 }
 
 // ---------------------------------------------------------------- 范围与链
-function shockwave(x, y, r, dmg, color) {
+function shockwave(x, y, r, dmg, color, src) {
   G.fx.push({ x, y, vx: 0, vy: 0, life: 0.42, max: 0.42, color, r: 0, ring: r, kind: 'ring' });
   for (const e of G.enemies) {
     const d = Math.hypot(e.x - x, e.y - y);
     if (d < r + e.r) {
-      damageEnemy(e, dmg * (1 - (d / (r + e.r)) * 0.1), x, y);
+      damageEnemy(e, dmg * (1 - (d / (r + e.r)) * 0.1), x, y, src);
       const a = Math.atan2(e.y - y, e.x - x);
       e.kx += Math.cos(a) * 90; e.ky += Math.sin(a) * 90;
     }
   }
 }
 
-function chainFrom(from, jumps, dmg, color) {
+function chainFrom(from, jumps, dmg, color, src) {
   let cur = from;
   let prev = { x: G.player.x, y: G.player.y };
   let d = dmg;
@@ -731,7 +834,7 @@ function chainFrom(from, jumps, dmg, color) {
   for (let i = 0; i <= jumps; i++) {
     if (!cur) break;
     hit.add(cur);
-    damageEnemy(cur, d, cur.x, cur.y);
+    damageEnemy(cur, d, cur.x, cur.y, src);
     G.fx.push({ x: prev.x, y: prev.y, x2: cur.x, y2: cur.y, life: 0.22, max: 0.22, color, kind: 'line' });
     prev = { x: cur.x, y: cur.y };
     d *= 0.92;
@@ -746,8 +849,8 @@ function chainFrom(from, jumps, dmg, color) {
 }
 
 // ---------------------------------------------------------------- 领域
-function addField(x, y, life, r, dmg, color, delayed) {
-  G.fields.push({ x, y, r, life, max: life, dmg, color, delay: delayed ? 0.45 : 0, tick: 0 });
+function addField(x, y, life, r, dmg, color, delayed, src) {
+  G.fields.push({ x, y, r, life, max: life, dmg, color, delay: delayed ? 0.45 : 0, tick: 0, src: src || null });
 }
 
 function updateFields(dt) {
@@ -760,7 +863,7 @@ function updateFields(dt) {
     if (f.tick <= 0) {
       f.tick = 0.28;
       for (const e of G.enemies) {
-        if ((e.x - f.x) ** 2 + (e.y - f.y) ** 2 < (f.r + e.r) ** 2) damageEnemy(e, f.dmg * 0.28 * G.mods.atk, f.x, f.y);
+        if ((e.x - f.x) ** 2 + (e.y - f.y) ** 2 < (f.r + e.r) ** 2) damageEnemy(e, f.dmg * 0.28 * G.mods.atk, f.x, f.y, f.src);
       }
     }
     if (f.life <= 0) G.fields.splice(i, 1);
@@ -768,12 +871,13 @@ function updateFields(dt) {
 }
 
 // ---------------------------------------------------------------- 召唤物
-function addSummon(dmg, color, lv) {
+function addSummon(dmg, color, lv, src) {
   const a = rnd() * TAU;
   G.summons.push({
     x: G.player.x + Math.cos(a) * 40,
     y: G.player.y + Math.sin(a) * 40,
     r: 12, dmg: dmg * 1.25, color, cd: 0, life: 999, img: G.char ? G.char.img : 0, spin: rnd() * TAU,
+    src: src || null,
   });
 }
 
@@ -785,7 +889,7 @@ function updateSummons(dt) {
       s.x += Math.cos(a) * 150 * dt;
       s.y += Math.sin(a) * 150 * dt;
       if (Math.hypot(tgt.x - s.x, tgt.y - s.y) < tgt.r + s.r + 4 && (s.cd || 0) <= 0) {
-        damageEnemy(tgt, s.dmg, s.x, s.y);
+        damageEnemy(tgt, s.dmg, s.x, s.y, s.src);
         s.cd = 0.5;
       }
     } else {
@@ -811,7 +915,7 @@ function updateBullets(dt) {
       for (const e of G.enemies) {
         if (segDist(e.x, e.y, b.x, b.y, nx2, ny2) < b.w + e.r) {
           e._rayCd = e._rayCd || 0;
-          if (e._rayCd <= 0) { e._rayCd = 0.14; damageEnemy(e, b.dmg * 0.34, e.x, e.y); }
+          if (e._rayCd <= 0) { e._rayCd = 0.14; damageEnemy(e, b.dmg * 0.34, e.x, e.y, b.src); }
         }
       }
       b.x = nx2; b.y = ny2;
@@ -849,7 +953,10 @@ function updateBullets(dt) {
     }
 
     b.x += b.vx * dt; b.y += b.vy * dt;
-    b.spin += dt * 12;
+    // 弹道类让朝向跟着速度走：追踪弹是三角形、单发弹是橄榄形，之前统一累加
+    // 角度导致它们在斜着飞的时候「横着漂」，看起来像贴图没对齐。
+    if (b.kind === 'bolt' || b.kind === 'missile') b.spin = Math.atan2(b.vy, b.vx);
+    else b.spin += dt * 12;
 
     if (b.kind !== 'ray') {
       for (const e of G.enemies) {
@@ -857,8 +964,8 @@ function updateBullets(dt) {
         if (b.hitSet && b.hitSet.has(e)) continue;
         if (!b.hitSet) b.hitSet = new Set();
         b.hitSet.add(e);
-        damageEnemy(e, b.dmg, b.x, b.y);
-        bustSmall(b.x, b.y, b.color);
+        damageEnemy(e, b.dmg, b.x, b.y, b.src);
+        bustSmall(b.x, b.y, b.color, b.kind);
         if (b.pierce-- <= 0) { b.life = 0; break; }
       }
     }
@@ -877,13 +984,19 @@ function segDist(px, py, x1, y1, x2, y2) {
   return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
 }
 
-function bustSmall(x, y, color) {
+function bustSmall(x, y, color, kind) {
   if (G.fx.length > 380) return;
-  for (let i = 0; i < 2; i++) {
+  // 命中火花按弹种分：追踪弹炸得更散、单发弹更尖，回旋镖带一点横向拖尾。
+  // 之前所有弹种都是「2 个火星」，满屏弹道时根本分不清哪发打中了什么。
+  const n = kind === 'missile' ? 5 : kind === 'bolt' ? 3 : kind === 'boomerang' ? 4 : 2;
+  const sp = kind === 'missile' ? 165 : kind === 'boomerang' ? 130 : 105;
+  for (let i = 0; i < n; i++) {
     const o = take('fx', () => ({}));
-    const a = rnd() * TAU;
-    o.x = x; o.y = y; o.vx = Math.cos(a) * 90; o.vy = Math.sin(a) * 90;
-    o.life = 0.2; o.max = 0.2; o.color = color; o.r = 2;
+    const a = kind === 'boomerang' ? (i / n) * TAU + 0.4 : rnd() * TAU;
+    o.x = x; o.y = y;
+    o.vx = Math.cos(a) * rr(sp * 0.5, sp);
+    o.vy = Math.sin(a) * rr(sp * 0.5, sp);
+    o.life = rr(0.16, 0.28); o.max = o.life; o.color = color; o.r = rr(1.6, 3);
     G.fx.push(o);
   }
 }
@@ -969,18 +1082,73 @@ function updateEnemies(dt, slow) {
       }
     }
 
-    // 撞到玩家。接触冷却按体型分：小怪 0.45 秒，精英 0.65，首领 0.9 ——
-    // 首领体积 40，一旦贴上就是持续伤害，它的威胁应该来自「逼你走位」，
-    // 而不是「贴住你半秒打死你」。
-    if (d < e.r + PLAYER.r && e.hitCd <= 0) {
-      e.hitCd = e.boss ? 0.9 : e.tier === 1 ? 0.65 : 0.45;
-      hurtPlayer(e.dmg);
+    // 贴身攻击：先蓄力 0.28 秒（渲染层画一圈红色爪光），蓄满才真正咬下去。
+    //
+    // 之前是「贴上来就直接掉血」，玩家既看不出是哪只怪打的，也没有任何躲避
+    // 窗口——三档难度都在 300 秒团灭，一部分原因就是伤害来得无声无息。
+    // 加了前摇之后，同一套数值变成了「看到红光就该横移」。
+    // 接触冷却按体型分：小怪 0.45 秒，精英 0.65，首领 0.9 —— 首领体积 40，
+    // 一旦贴上就是持续伤害，它的威胁应该来自「逼你走位」，而不是「贴住打死你」。
+    if (e.lungeT > 0) e.lungeT -= dt;
+    const strikeRange = e.r + PLAYER.r + 18;
+    if (d < strikeRange) {
+      if (e.windT > 0) {
+        e.windT -= dt;
+        if (e.windT <= 0 && d < strikeRange + 10 && e.hitCd <= 0) {
+          e.hitCd = e.boss ? 0.9 : e.tier === 1 ? 0.65 : 0.45;
+          e.lungeT = 0.3;
+          hurtPlayer(e.dmg, e);
+        }
+      } else if (e.hitCd <= 0) {
+        e.windT = 0.28;
+      }
+    } else if (e.windT > 0) {
+      // 走开了就取消前摇，不然绕到背后会被一只「空气怪」咬
+      e.windT = 0;
     }
   }
 }
 
+// ---------------------------------------------------------------- 狂气
+// 两条来路：造成伤害（细水长流）+ 击杀（爆发式）。爆发期间停止积攒，
+// 所以节奏是「攒一波 → 放一波」，而不是攒满就永久变强。
+function addRage(n, raw) {
+  if (G.phase !== 'run' || G.rageT > 0 || G.rageReady) return;
+  const gain = raw ? n : n * (1 + (G.mods ? G.mods.rageGain : 0));
+  G.rage = Math.min(RAGE.max, G.rage + gain);
+  if (G.rage >= RAGE.max) {
+    G.rageReady = true;
+    const P = G.player;
+    addText(P.x, P.y - 46, '狂气已满 · 空格释放', 4);
+    G.flash = Math.max(G.flash, 0.18);
+  }
+}
+
+export function releaseRage() {
+  if (!G.rageReady || G.rageT > 0 || G.phase !== 'run') return false;
+  const P = G.player;
+  G.rage = 0; G.rageReady = false; G.rageT = RAGE.dur; G.rageUsed++;
+  G.shake = Math.min(18, G.shake + 10);
+  G.flash = Math.max(G.flash, 0.35);
+  shockwave(P.x, P.y, 260 * G.mods.area, RAGE.blast * G.mods.atk * G.mods.dmgMul, '#ff5f4a', 'rage');
+  addText(P.x, P.y - 52, '狂气爆发', 4);
+  return true;
+}
+
 // ---------------------------------------------------------------- 伤害
-export function damageEnemy(e, amount, sx, sy) {
+// src 是「这一下是谁打出来的」：武器对象、'rage'（狂气爆发）、或 null（环境伤害）。
+// 结算面板要靠它把伤害分到每一把技能上 —— 不归因的话，玩家只能看到一个总数，
+// 根本不知道哪把武器在真干活。
+function creditDmg(src, dmg) {
+  if (!src) return;
+  if (src === 'rage') { G.stats.rageDmg = (G.stats.rageDmg || 0) + dmg; return; }
+  if (typeof src === 'object') {
+    src.dmgTotal = (src.dmgTotal || 0) + dmg;
+    src.hits = (src.hits || 0) + 1;
+  }
+}
+
+export function damageEnemy(e, amount, sx, sy, src) {
   if (e.hp <= 0) return;
   const crit = rnd() < G.mods.crit;
   let dmg = amount * (crit ? G.mods.critMul : 1);
@@ -991,6 +1159,8 @@ export function damageEnemy(e, amount, sx, sy) {
   e.hp -= dmg;
   e.flash = 0.1;
   G.stats.dmg += dmg;
+  creditDmg(src, dmg);
+  addRage(dmg * RAGE.perDmg);
   addText(e.x + rr(-6, 6), e.y - e.r * 0.7, Math.round(dmg), crit ? 1 : 0);
   if (G.mods.lifesteal > 0) {
     G.player.hp = Math.min(G.player.maxHp, G.player.hp + dmg * G.mods.lifesteal);
@@ -1003,6 +1173,7 @@ function killEnemy(e, sx, sy) {
   const idx = G.enemies.indexOf(e);
   if (idx >= 0) G.enemies.splice(idx, 1);
   G.kills++;
+  addRage(RAGE.perKill);
   burst(e.x, e.y, e.tier === 2 ? 22 : e.tier === 1 ? 12 : 5, e.tier ? '#ffd479' : '#9aa4bb', e.tier ? 190 : 120);
   give('enemies', e);
 
@@ -1015,9 +1186,12 @@ function killEnemy(e, sx, sy) {
     G.pickups.push({ x: e.x, y: e.y, kind: 'wheel', val: 1, vx: 0, vy: 0, life: 999, bob: rnd() * TAU });
     G.shake = 12;
   }
-  if (G.mods.healDrop > 0 && rnd() < G.mods.healDrop) {
+  // 这类「按击杀判定」的掉落后期会失控：每秒几十杀时 12% 等于每秒三个药包，
+  // 叠两层就是无限回血。和 dropLoot 一样加血量门控 —— 满血时不掉，供给自然收敛。
+  if (G.mods.healDrop > 0 && G.player.hp < G.player.maxHp * 0.75 && rnd() < G.mods.healDrop) {
     G.pickups.push({ x: e.x, y: e.y, kind: 'heal', val: 8, vx: rr(-30, 30), vy: rr(-30, 30), life: 14, bob: rnd() * TAU });
   }
+  dropLoot(e);
   if (G.wheels.some((w) => w.key === 'killburst')) {
     shockwave(e.x, e.y, 46, 12 * G.mods.atk, '#d94f6a');
   }
@@ -1035,7 +1209,46 @@ function dropExp(x, y, val, tier) {
   }
 }
 
-export function hurtPlayer(amount) {
+// ---------------------------------------------------------------- 掉落
+// 「有拾取范围，但场上没什么可捡」——经验结晶之外必须还有别的东西，
+// 否则吸力这条属性完全没有体感，也让「回血」变成只能靠升级的那一下。
+//
+//   治疗结晶（绿）：普通 1.2%（且只在受伤后掉、地上最多 3 个）/ 精英 30% / 首领必掉 2 个
+//   狂气球（橙）：普通 0.5% / 精英 25% / 首领必掉 1 个
+//
+// 概率是按「每分钟能捡到几个」估的：普通局每分钟杀十几只，约 1 个治疗；
+// 精英每 70 秒刷两只，各有一小半概率带治疗，中期续航就接得上了。
+// 早期版本按 1.8% + 12% 造物叠算，实测一局掉 498 个治疗（4104 点）而全局只承受 79 点，
+// 等于配了 37 条命 —— 所以这里既压概率，也加了「受伤才掉 / 地上限 3 个」两道闸。
+function dropLoot(e) {
+  const heal = (val) => {
+    if (G.pickups.filter((p) => p.kind === 'heal').length >= 3) return;
+    G.pickups.push({
+      x: e.x + rr(-12, 12), y: e.y + rr(-12, 12), kind: 'heal', val,
+      vx: rr(-40, 40), vy: rr(-40, 40), life: 16, bob: rnd() * TAU,
+    });
+  };
+  const rage = (val) => G.pickups.push({
+    x: e.x + rr(-12, 12), y: e.y + rr(-12, 12), kind: 'rage', val,
+    vx: rr(-40, 40), vy: rr(-40, 40), life: 16, bob: rnd() * TAU,
+  });
+  // 血量还富裕的时候小怪不掉治疗：满地药包既没人捡，也会把「回血」变成
+  // 无限补给（实测普通难度曾掉出 498 个治疗 = 4104 点，而全局只承受 79 点）。
+  // 治疗只在真的受伤之后才出现，玩家才会觉得「这个掉落是来救我的」。
+  const needHeal = G.player.hp < G.player.maxHp * 0.75;
+  if (e.tier === 2) {
+    heal(16); heal(16);
+    rage(45);
+  } else if (e.tier === 1) {
+    if (needHeal && rnd() < 0.30) heal(10);
+    if (rnd() < 0.25) rage(22);
+  } else {
+    if (needHeal && rnd() < 0.012) heal(8);
+    if (rnd() < 0.005) rage(15);
+  }
+}
+
+export function hurtPlayer(amount, src) {
   const P = G.player;
   if (P.inv > 0 || G.phase !== 'run') return;
   let dmg = amount * G.mods.dmgTaken;
@@ -1053,6 +1266,16 @@ export function hurtPlayer(amount) {
     P.inv = PLAYER.iframe;
     G.flash = 0.5;
     G.shake = Math.min(8, G.shake + 3);
+    // 打击反馈：火花 + 一道爪痕。爪痕带方向，玩家能立刻知道该往哪边闪，
+    // 「贴上来直接掉血」和「被这边抓了一下」在体感上完全是两回事。
+    burst(P.x, P.y, 7, '#ff7a6a', 170);
+    if (src) {
+      G.fx.push({
+        x: P.x, y: P.y, vx: 0, vy: 0, kind: 'claw',
+        a: Math.atan2(P.y - src.y, P.x - src.x),
+        life: 0.34, max: 0.34, color: '#ff9a88', r: 2,
+      });
+    }
     if (G.mods.thorns > 0) shockwave(P.x, P.y, 90, G.mods.thorns, '#ff9d6e');
   }
   if (P.hp <= 0) {
@@ -1092,14 +1315,23 @@ function updatePickups(dt) {
     if (d < grab) {
       G.pickups.splice(i, 1);
       if (p.kind === 'exp') gainExp(p.val);
-      else if (p.kind === 'heal') { P.hp = Math.min(P.maxHp, P.hp + p.val); addText(P.x, P.y - 30, '+' + p.val, 2); }
-      else if (p.kind === 'chest') { G.pending++; addText(P.x, P.y - 34, '宝箱', 2); }
+      else if (p.kind === 'heal') {
+        P.hp = Math.min(P.maxHp, P.hp + p.val);
+        addText(P.x, P.y - 30, '+' + p.val, 2);
+        burst(P.x, P.y, 5, '#7de3a0', 120);
+      } else if (p.kind === 'rage') {
+        addRage(p.val, true);
+        addText(P.x, P.y - 30, '+' + Math.round(p.val) + ' 狂气', 4);
+        burst(P.x, P.y, 5, '#ff9350', 130);
+      } else if (p.kind === 'chest') { G.pending++; addText(P.x, P.y - 34, '宝箱', 2); }
       else if (p.kind === 'wheel') { G.pending += 2; P.hp = Math.min(P.maxHp, P.hp + 30); }
     }
   }
   if (G.pending > 0 && G.phase === 'run') {
-    G.choices = rollChoices();
-    G.phase = 'levelup';
+    const ch = rollChoices();
+    if (ch.length) { G.choices = ch; G.phase = 'levelup'; }
+    // 一张都抽不出来就别开弹窗了 —— 开出来也是死路，直接把这些次数消化掉
+    else G.pending = 0;
   }
 }
 
@@ -1150,14 +1382,31 @@ function updateSpawns(dt) {
     spawnEnemy(1);
     spawnEnemy(1);
   }
-  if (G.bossIdx < BOSS_AT.length && G.t >= BOSS_AT[G.bossIdx]) {
-    G.bossIdx++;
-    const b = spawnEnemy(2);
-    if (b) {
-      b.hp = b.maxHp = Math.round(b.maxHp * (1 + G.bossIdx * 0.4));
-      G.shake = 16;
-      addText(G.player.x, G.player.y - 60, '强敌降临', 2);
+  // Boss 预警分两段：
+  //   出现前 2.5 秒 —— 屏幕边缘红光脉动（渲染层读 bossEta），给玩家收拢的时间；
+  //   出现瞬间     —— 横幅「强敌降临 · 名字」+ 强震屏 + 一圈冲击波。
+  // 之前只有一句飘字，玩家往往一抬头发现自己已经被围在中间了。
+  if (G.bossIdx < BOSS_AT.length) {
+    G.bossEta = BOSS_AT[G.bossIdx] - G.t;
+    if (G.bossEta <= 0) {
+      G.bossIdx++;
+      G.bossEta = G.bossIdx < BOSS_AT.length ? BOSS_AT[G.bossIdx] - G.t : 999;
+      const b = spawnEnemy(2);
+      if (b) {
+        b.hp = b.maxHp = Math.round(b.maxHp * (1 + G.bossIdx * 0.4));
+        G.shake = 18;
+        G.flash = 0.7;
+        G.warn = 2.6;
+        G.warnName = b.n;
+        // 降临冲击只做视觉（伤害为 0 会让 damageEnemy 刷出一堆「0」飘字）
+        G.fx.push({
+          x: b.x, y: b.y, vx: 0, vy: 0, kind: 'ring',
+          life: 0.7, max: 0.7, color: '#ff6a5a', r: 0, ring: 210,
+        });
+      }
     }
+  } else {
+    G.bossEta = 999;
   }
 }
 
@@ -1170,7 +1419,25 @@ export function summary() {
     score: Math.round(base * G.diff.mul),
     diff: G.diff.k,
     char: G.char ? G.char.n : '',
+    charImg: G.char ? G.char.img : null,
     win: G.phase === 'win',
+    // 每个技能的伤害明细：结算面板靠它回答「到底哪把武器在干活」。
+    // 引擎只给原始数字，百分比和条形由 UI 算 —— 免得以后改算法还要动这里。
+    weapons: G.weapons
+      .map((w) => ({
+        id: w.def.id, n: w.def.n, char: w.def.charName, charId: w.def.char,
+        lv: w.lv + 1, proto: w.def.proto,
+        color: (PROTOS[w.def.proto] || {}).color || '#9ecbff',
+        dmg: Math.round(w.dmgTotal || 0), hits: w.hits || 0,
+      }))
+      .sort((a, b) => b.dmg - a.dmg),
+    totalDmg: Math.round(G.stats.dmg || 0),
+    rageDmg: Math.round(G.stats.rageDmg || 0),
+    rageUsed: G.rageUsed,
+    passives: G.passives.map((p) => ({ id: p.id, n: p.n, stack: p.stack, fx: p.fx })),
+    wheels: G.wheels.map((w) => ({ idx: w.idx, n: w.n, key: w.key })),
+    covs: G.covs.map((c) => ({ idx: c.idx, n: c.n, key: c.key })),
+    taken: Math.round(G.stats.taken || 0),
   };
 }
 

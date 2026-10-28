@@ -82,6 +82,73 @@ const LV = {
   max: 5,
 };
 
+// 技能栏：6 格。满了之后不再「抽不到新技能」，而是出现「替换」选项——
+// 幸存者类的乐趣一半在Build 试错，卡死在上限会让人后半局没得选。
+const MAX_WEAPON = 6;
+// 每个原型往候选池里放几把。原本只放 1 把，整局最多见到 13 个技能，
+// 124 条里九成永远抽不到；放到 2 把之后候选池 24 把左右，每局都长得不一样。
+const POOL_PER_PROTO = 2;
+
+// ---------------------------------------------------------------- 狂气
+// 原作里「狂气」是打出来的资源，这里落成一条能量槽：
+// 造成伤害与击杀都攒，攒满可以主动放一次爆发（攻击力/攻速/移速一起抬）。
+// 释放期间不再积攒，所以它是「一波流」而不是常驻增益。
+// 这两个数是按「整局 15 分钟」实测调出来的，别只看前 200 秒：
+// 前 200 秒 bot 只放了 6~7 次，同一套参数跑到 900 秒会变成 86 次 —— 后期击杀
+// 密度是指数上涨的，按击杀线性攒能量必然失控。现在整局约 20 次（平均 45 秒一波），
+// 爆发期占全局时间约 13%，是「憋出来的一波」而不是常驻增益。
+const RAGE = {
+  max: 100,
+  perKill: 0.1,        // 每击杀
+  perDmg: 0.0012,      // 每一丝丝伤害（按点算）
+  dur: 6,              // 爆发持续（秒）
+  atk: 0.6,            // 爆发期攻击力 +60%
+  cd: 0.7,             // 爆发期冷却 ×0.7
+  spd: 0.15,           // 爆发期移速 +15%
+  blast: 130,          // 释放瞬间的冲击波伤害（会被 atk 再乘一次）
+};
+
+// ---------------------------------------------------------------- 地形
+// 15 分钟切五段地貌，只改视觉不动数值 —— 这条平衡曲线微调 20% 就能让
+// 普通难度从「打满 15 分钟」变成「10 分钟团灭」，地形不该是第六个变量。
+//   base   地面底色        blob 深浅斑块用的颜色（rgba 前缀）
+//   grid   网格线颜色      glow 该地形的氛围光（屏幕边缘）
+//   deco   地面装饰物类型（绘制细节在 render.js 里按 k 分派）
+const TERRAINS = [
+  {
+    k: 'ash', n: '灰烬废土', base: '#111621', blob: 'rgba(105,140,200,',
+    grid: 'rgba(130,160,215,0.06)', glow: 'rgba(110,168,255,0.10)',
+    deco: ['rubble', 'crack', 'pebble'],
+  },
+  {
+    k: 'swamp', n: '蚀水沼泽', base: '#0d1512', blob: 'rgba(90,170,110,',
+    grid: 'rgba(120,200,150,0.05)', glow: 'rgba(90,200,140,0.10)',
+    deco: ['pool', 'reed', 'pebble'],
+  },
+  {
+    k: 'snow', n: '骨白雪原', base: '#141a24', blob: 'rgba(190,215,245,',
+    grid: 'rgba(200,225,255,0.07)', glow: 'rgba(180,215,255,0.12)',
+    deco: ['snowdrift', 'ice', 'pebble'],
+  },
+  {
+    k: 'ember', n: '熔核裂谷', base: '#170f10', blob: 'rgba(220,110,60,',
+    grid: 'rgba(240,130,80,0.06)', glow: 'rgba(240,110,60,0.11)',
+    deco: ['lava', 'crack', 'rubble'],
+  },
+  {
+    k: 'void', n: '虚空回廊', base: '#0d0b16', blob: 'rgba(150,110,220,',
+    grid: 'rgba(170,140,240,0.06)', glow: 'rgba(150,110,230,0.12)',
+    deco: ['star', 'rune', 'crack'],
+  },
+];
+// 每 3 分钟换一次；第 15 分钟刚好走完最后一段
+const TERRAIN_AT = [0, 180, 360, 540, 720];
+const terrainAt = (t) => {
+  let i = 0;
+  for (let k = 0; k < TERRAIN_AT.length; k++) if (t >= TERRAIN_AT[k]) i = k;
+  return i;
+};
+
 // ---------------------------------------------------------------- 造物（被动）
 // 官方造物本身是战斗内效果，跟这里的实时动作游戏对不上，所以按它的
 // tags（dmg / crit / guard / draw / energy / rage / str / exhaust）映射成
@@ -120,7 +187,7 @@ const WHEEL_FX = [
   { key: 'revive', txt: '濒死时以 40% 生命复活一次' },
   { key: 'summon_extra', txt: '召唤物 +2，且伤害 +25%' },
   { key: 'field_wide', txt: '领域与爆发范围 +35%' },
-  { key: 'golden_touch', txt: '击杀有 12% 概率掉落治疗光球' },
+  { key: 'golden_touch', txt: '血量低于 75% 时，击杀有 6% 概率掉落治疗光球' },
   { key: 'thorns', txt: '受击时对周围反弹 25 点伤害' },
   { key: 'first_strike', txt: '进入战斗时立刻触发一次全武器齐射' },
   { key: 'time_dilate', txt: '每次升级后 3 秒内敌人减速 60%' },
@@ -204,7 +271,7 @@ const creditsAt = (score) => {
   return base;
 };
 const nextTier = (score) => CREDIT_TIERS.find(([s]) => score < s) || null;
-return { PROTOS, PROTO_ORDER, LV, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX, RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, PLAYER, expNeed, scoreOf, CREDIT_TIERS, creditsAt, nextTier };
+return { PROTOS, PROTO_ORDER, LV, MAX_WEAPON, POOL_PER_PROTO, RAGE, TERRAINS, TERRAIN_AT, terrainAt, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX, RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, PLAYER, expNeed, scoreOf, CREDIT_TIERS, creditsAt, nextTier };
 })();
 
 // ---- js/sv/gen.js
@@ -225,7 +292,7 @@ return { ATLAS, META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS };
 
 // ---- js/sv/engine.js
 const m_engine = await (async () => {
-const { PROTOS, LV, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX, RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, PLAYER, expNeed, scoreOf } = m_defs;
+const { PROTOS, LV, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX, RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, PLAYER, expNeed, scoreOf, MAX_WEAPON, POOL_PER_PROTO, RAGE, TERRAINS, terrainAt } = m_defs;
 const { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS } = m_gen;
 // 《唤醒体幸存者》引擎：状态、刷新、战斗、掉落、升级结算。
 //
@@ -282,6 +349,13 @@ const G = {
   bossKills: 0, pending: 0, choices: [],
   revived: 0, killTimer: 0, bloodTimer: 0, burstTimer: 0, dilate: 0,
   spawnT: 0, eliteT: 0, bossIdx: 0, pressure: 0,
+  // 狂气槽
+  rage: 0, rageT: 0, rageReady: false, rageUsed: 0,
+  // Boss 警报：bossEta 是「还有几秒出现」（<2.5 时渲染层做边缘预警），
+  // warn 是「已经出现、横幅还剩几秒淡出」。
+  bossEta: 999, warn: 0, warnName: '',
+  // 地形：idx 变一次，渲染层就重建一次地面 pattern；fade 负责交叉淡化
+  terrainIdx: 0, terrainFade: 0,
   world: { w: 2400, h: 2400 },  // 只在绘制里当地面参考，玩家其实不设边界
   stats: { dmg: 0, taken: 0 },
 };
@@ -293,6 +367,7 @@ const emptyMods = () => ({
   pierce: 0, dmgMul: 1, enemySlow: 1, revives: 0,
   summonBonus: 0, fieldWide: 1, healDrop: 0, thorns: 0,
   maxHpBonus: 0, maxShieldBonus: 0, frenzy: 0, echo: 0,
+  rageGain: 0,
   autoMagnet: false, autoBurst: 0, firstStrike: false, timeDilate: false,
 });
 
@@ -336,7 +411,10 @@ function reset(charId, diffKey) {
   G.bossKills = 0; G.pending = 0; G.choices = [];
   G.revived = 0; G.killTimer = 0; G.bloodTimer = 0; G.burstTimer = 0; G.dilate = 0;
   G.spawnT = 1.2; G.eliteT = ELITE_EVERY; G.bossIdx = 0; G.pressure = 0;
-  G.stats = { dmg: 0, taken: 0 };
+  G.rage = 0; G.rageT = 0; G.rageReady = false; G.rageUsed = 0;
+  G.bossEta = BOSS_AT[0]; G.warn = 0; G.warnName = '';
+  G.terrainIdx = terrainAt(0); G.terrainFade = 0;
+  G.stats = { dmg: 0, taken: 0, rageDmg: 0 };
   for (const k of ['enemies', 'bullets', 'fields', 'orbs', 'summons', 'pickups', 'fx', 'texts']) G[k].length = 0;
   G.weapons = []; G.passives = []; G.wheels = []; G.covs = [];
   G.mods = emptyMods();
@@ -368,8 +446,11 @@ function reset(charId, diffKey) {
   return G;
 }
 
-// 候选武器池：本命第二把 + 每个原型随机 1 把（共 12 把）。
-// 这样每局能抽到的技能都不一样 —— 62 名唤醒体的 124 个技能都有可能出现在牌堆里。
+// 候选武器池：本命第二把 + 每个原型随机 POOL_PER_PROTO 把。
+//
+// 原来每个原型只放 1 把，一整局牌堆里最多出现 13 个技能 —— 62 名唤醒体的
+// 124 条技能绝大部分永远抽不到，也谈不上「用技能组出流派」。现在每原型放
+// 2 把（约 24 把），再叠加「技能栏满了可以替换」，每局的 Build 都不一样。
 function buildPool(c, mine) {
   const pool = new Set();
   if (mine[1]) pool.add(mine[1].id);
@@ -381,7 +462,22 @@ function buildPool(c, mine) {
   for (const k of Object.keys(PROTOS)) {
     const arr = byProto[k];
     if (!arr || !arr.length) continue;
-    pool.add(arr[(rnd() * arr.length) | 0].id);
+    // 洗牌后取前 N 个，而不是独立随机抽 N 次 —— 后者会抽重
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = (rnd() * (i + 1)) | 0;
+      const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    for (let i = 0; i < Math.min(POOL_PER_PROTO, arr.length); i++) pool.add(arr[i].id);
+  }
+  // 治疗类保底：heal 原型一共十几把，按「每原型随机 2 把」很容易一把都抽不到，
+  // 那一局就完全没有主动续航，只能靠升级回的那 8% 硬撑。
+  const hasHeal = [...pool].some((id) => {
+    const w = WEAPONS.find((x) => x.id === id);
+    return w && w.proto === 'heal';
+  });
+  if (!hasHeal) {
+    const hl = WEAPONS.filter((w) => w.proto === 'heal' && !(mine[0] && w.id === mine[0].id));
+    if (hl.length) pool.add(hl[(rnd() * hl.length) | 0].id);
   }
   return [...pool];
 }
@@ -423,7 +519,7 @@ function applyCreation(p, m) {
     case 'maxHp': m.maxHpBonus += fx.v; break;
     case 'pick': m.pick += fx.v; if (p.fx === 'draw') m.exp += 0.06; break;
     case 'cd': m.cd *= (1 + fx.v); break;
-    case 'rage': m.cd *= 0.985; m.atk += 0.02; break;
+    case 'rage': m.rageGain += fx.v; m.atk += 0.02; break;
     case 'dmgTaken': m.dmgTaken += fx.v; m.dmgMul += 0.06; break;
     case 'spd': m.spd += fx.v; break;
     case 'regen': m.regen += fx.v; break;
@@ -446,7 +542,7 @@ function applyWheel(key, m) {
     case 'revive': m.revives += 1; break;
     case 'summon_extra': m.summonBonus += 2; break;
     case 'field_wide': m.fieldWide += 0.35; break;
-    case 'golden_touch': m.healDrop += 0.12; break;
+    case 'golden_touch': m.healDrop += 0.06; break;
     case 'thorns': m.thorns += 25; break;
     case 'first_strike': m.firstStrike = true; break;
     case 'time_dilate': m.timeDilate = true; break;
@@ -469,7 +565,7 @@ function applyCovenant(key, m) {
   }
 }
 
-function addWeapon(wid) {
+function addWeapon(wid, replaceId) {
   const def = WEAPONS.find((w) => w.id === wid);
   if (!def) return null;
   const have = G.weapons.find((w) => w.def.id === wid);
@@ -477,8 +573,27 @@ function addWeapon(wid) {
     if (have.lv < LV.max) { have.lv++; return have; }
     return null;
   }
-  if (G.weapons.length >= 6) return null;
-  const w = { def, lv: 0, timer: rr(0.1, 0.5), ang: rnd() * TAU };
+  const cdMax = PROTOS[def.proto] ? PROTOS[def.proto].cd : 1;
+  // 技能栏满了也能换：替换掉调用方指定的那把，没指定就换等级最低的。
+  // 新技能从 0 级起算，这是「转流派」的代价 —— 否则槽位一满就只剩升级，
+  // 后半局的三选一只剩造物和命轮，Build 完全定型。
+  if (G.weapons.length >= MAX_WEAPON) {
+    const target = G.weapons.find((x) => x.def.id === replaceId)
+      || G.weapons.reduce((a, b) => (a.lv <= b.lv ? a : b), G.weapons[0]);
+    if (!target) return null;
+    // 环绕光刃是常驻实体，换掉武器时要把对应的刀刃也作废，
+    // 否则场上会留下一圈没人维护、伤害不再更新的刀刃。召唤物同理。
+    for (const o of G.orbs) if (o.w === target) o.dead = true;
+    for (let i = G.summons.length - 1; i >= 0; i--) if (G.summons[i].src === target) G.summons.splice(i, 1);
+    target.def = def;
+    target.lv = 0;
+    target.timer = rr(0.1, 0.4);
+    target.orb = null;
+    target.cdMax = cdMax;
+    target.swapped = 1;
+    return target;
+  }
+  const w = { def, lv: 0, timer: rr(0.1, 0.5), ang: rnd() * TAU, cdMax, cdLeft: 0 };
   G.weapons.push(w);
   return w;
 }
@@ -525,7 +640,7 @@ function rollChoices() {
   // 三张卡全被当成同一个 key=undefined，结果永远只弹一张。
   const keyOf = (o) => {
     if (o.kind === 'wlv') return 'w:' + o.w.def.id;
-    if (o.kind === 'wnew') return 'w:' + o.def.id;
+    if (o.kind === 'wnew' || o.kind === 'wswap') return 'w:' + o.def.id;
     if (o.kind === 'creation') return 'k:' + o.c.id;
     if (o.kind === 'wheel') return 'wl:' + o.i;
     return 'cv:' + o.i;
@@ -537,10 +652,17 @@ function rollChoices() {
   const news = G.candidatePool
     .map((id) => WEAPONS.find((w) => w.id === id))
     .filter((d) => d && !G.weapons.some((w) => w.def.id === d.id));
-  const weaponSlot = G.weapons.length < 6;
+  const weaponSlot = G.weapons.length < MAX_WEAPON;
   const wpool = [];
   for (const w of ups) wpool.push({ kind: 'wlv', w });
-  if (weaponSlot) for (const d of news) wpool.push({ kind: 'wnew', def: d });
+  if (weaponSlot) {
+    for (const d of news) wpool.push({ kind: 'wnew', def: d });
+  } else {
+    // 满了也照抽，只是变成「替换」：drop 是要让位的那一把。
+    // 默认挑等级最低的（同等看谁先拿），玩家在卡面上能直接看到换掉谁。
+    const weakest = G.weapons.reduce((a, b) => (a.lv <= b.lv ? a : b), G.weapons[0]);
+    for (const d of news) wpool.push({ kind: 'wswap', def: d, drop: weakest });
+  }
 
   // 2. 造物：未满 8 件时进池，已有的可以叠到 3 层
   const cpool = CREATIONS
@@ -569,6 +691,7 @@ function rollChoices() {
   const groups = [
     { w: 42, list: wpool.filter((o) => o.kind === 'wlv') },
     { w: 18, list: wpool.filter((o) => o.kind === 'wnew') },
+    { w: 16, list: wpool.filter((o) => o.kind === 'wswap') },
     { w: 30, list: cpool },
     { w: 8, list: wlpool },
     { w: 2, list: cvpool },
@@ -590,16 +713,36 @@ function rollChoices() {
 
 
 function applyChoice(o) {
-  if (!o) return;
+  if (!o) { skipChoice(); return; }
   if (o.kind === 'wlv') { o.w.lv = Math.min(LV.max, o.w.lv + 1); }
   else if (o.kind === 'wnew') addWeapon(o.def.id);
+  else if (o.kind === 'wswap') addWeapon(o.def.id, o.drop && o.drop.def ? o.drop.def.id : null);
   else if (o.kind === 'creation') addCreation(o.c.id);
   else if (o.kind === 'wheel') addWheel(o.i);
   else if (o.kind === 'cov') addCovenant(o.i);
-  G.pending = Math.max(0, G.pending - 1);
   if (G.mods.timeDilate) G.dilate = 3;
-  if (G.pending > 0) G.choices = rollChoices();
-  else { G.choices = []; G.phase = 'run'; }
+  advancePending();
+}
+
+// 什么都不选：玩家明确要的「这次不要」。技能栏满了、造物都叠满了之后，
+// 强行塞东西反而是负收益，所以留一个出口。
+function skipChoice() {
+  advancePending();
+}
+
+// 消耗一次待选次数，并把下一屏准备好。
+// 关键点：如果池子真的空了（武器全满级 + 造物叠满 + 命轮契物都拿过），
+// 一次 rollChoices 会返回空数组 —— 旧代码照样进入 levelup，于是弹出一个
+// 「一张卡都没有」的死面板，游戏直接卡住。这里把空的 pending 就地消化掉。
+function advancePending() {
+  G.pending = Math.max(0, G.pending - 1);
+  while (G.pending > 0) {
+    const next = rollChoices();
+    if (next.length) { G.choices = next; return; }
+    G.pending--;
+  }
+  G.choices = [];
+  G.phase = 'run';
 }
 
 // ---------------------------------------------------------------- 敌人
@@ -666,6 +809,7 @@ function spawnEnemy(tier, ax, ay) {
   e.n = d.m.n;
   e.flash = 0; e.kx = 0; e.ky = 0; e.wob = rnd() * TAU;
   e.hitCd = 0;
+  e.windT = 0; e.lungeT = 0;
   e.boss = tier === 2;
   e.dashT = 0;
   G.enemies.push(e);
@@ -711,11 +855,26 @@ function update(dt) {
 
   G.t += dt;
 
+  // ---- 狂气爆发计时
+  if (G.rageT > 0) {
+    G.rageT -= dt;
+    if (G.rageT <= 0) { G.rageT = 0; addText(P.x, P.y - 30, '狂气消退', 5); }
+  }
+
+  // ---- 地形推进：每 3 分钟换一段地貌，只换视觉，不动任何数值
+  const ti = terrainAt(G.t);
+  if (ti !== G.terrainIdx) {
+    G.terrainIdx = ti;
+    G.terrainFade = 1;
+    addText(P.x, P.y - 76, '进入 · ' + (TERRAINS[ti] ? TERRAINS[ti].n : ''), 5);
+  }
+  if (G.terrainFade > 0) G.terrainFade = Math.max(0, G.terrainFade - dt / 1.4);
+
   // ---- 玩家移动（摇杆/键盘向量在 input.js 里写入 P.ix / P.iy）
   const ix = P.ix || 0, iy = P.iy || 0;
   const len = Math.hypot(ix, iy) || 1;
   const nx = ix / len, ny = iy / len;
-  const spd = PLAYER.speed * G.mods.spd;
+  const spd = PLAYER.speed * G.mods.spd * (G.rageT > 0 ? 1 + RAGE.spd : 1);
   P.vx = nx * spd * (ix || iy ? 1 : 0);
   P.vy = ny * spd * (ix || iy ? 1 : 0);
   P.x += (P.vx + P.kx) * dt;
@@ -757,6 +916,7 @@ function update(dt) {
   updateOrbs(dt);
   updatePickups(dt);
   tickFx(dt);
+  if (G.warn > 0) G.warn = Math.max(0, G.warn - dt);
 
   // ---- 刷怪
   updateSpawns(dt);
@@ -789,14 +949,22 @@ function tickFx(dt) {
 // ---------------------------------------------------------------- 武器开火
 function updateWeapons(dt) {
   const P = G.player;
+  // 狂气爆发期间：攻击力抬升、冷却缩短。两个都乘在这里而不是写进 mods，
+  // 免得 recompute 之后被覆盖掉。
+  const rageAtk = G.rageT > 0 ? 1 + RAGE.atk : 1;
+  const rageCd = G.rageT > 0 ? RAGE.cd : 1;
   for (const w of G.weapons) {
     const proto = PROTOS[w.def.proto];
     if (!proto) continue;
     w.timer -= dt;
+    // 给 HUD 的冷却环用：cdLeft/cdMax 是「这一发还要多久」和「整格多长」
+    w.cdLeft = Math.max(0, w.timer);
     if (w.timer > 0) continue;
-    const cd = proto.cd * LV.cd(w.lv) * G.mods.cd * (G.mods.echo && rnd() < G.mods.echo ? 0.4 : 1);
+    const cd = proto.cd * LV.cd(w.lv) * G.mods.cd * rageCd * (G.mods.echo && rnd() < G.mods.echo ? 0.4 : 1);
     w.timer = cd;
-    const dmg = proto.dmg * LV.dmg(w.lv) * G.mods.atk * G.mods.dmgMul;
+    w.cdMax = cd;
+    w.cdLeft = cd;
+    const dmg = proto.dmg * LV.dmg(w.lv) * G.mods.atk * G.mods.dmgMul * rageAtk;
     fireProto(w, proto, dmg);
     // 契物「回响」：30% 概率立刻再触发一次
     if (G.mods.echo > 0 && rnd() < G.mods.echo * 0.35) fireProto(w, proto, dmg * 0.7);
@@ -817,12 +985,13 @@ function fireProto(w, proto, dmg) {
   const lv = w.lv;
   const cnt = LV.count(lv, proto);
   const color = proto.color;
+  const src = w;
   switch (w.def.proto) {
     case 'bolt': {
       for (let i = 0; i < cnt; i++) {
         const tgt = nearest(P.x, P.y, 900);
         const a = tgt ? Math.atan2(tgt.y - P.y, tgt.x - P.x) : rnd() * TAU;
-        shot(P.x, P.y, Math.cos(a) * 470, Math.sin(a) * 470, { dmg, r: 6, life: 1.5, color, kind: 'bolt', pierce: lv >= 4 ? 1 : 0 });
+        shot(P.x, P.y, Math.cos(a) * 470, Math.sin(a) * 470, { dmg, r: 6, life: 1.5, color, kind: 'bolt', pierce: lv >= 4 ? 1 : 0, src });
       }
       break;
     }
@@ -833,7 +1002,7 @@ function fireProto(w, proto, dmg) {
     }
     case 'nova': {
       const R = (90 + lv * 14) * G.mods.area;
-      shockwave(P.x, P.y, R, dmg, color);
+      shockwave(P.x, P.y, R, dmg, color, src);
       G.shake = Math.min(9, G.shake + 2.4);
       break;
     }
@@ -841,38 +1010,38 @@ function fireProto(w, proto, dmg) {
       const tgt = nearest(P.x, P.y, 900);
       const a = tgt ? Math.atan2(tgt.y - P.y, tgt.x - P.x) : rnd() * TAU;
       const life = 0.3 + lv * 0.05;
-      shot(P.x, P.y, Math.cos(a) * 900, Math.sin(a) * 900, { dmg, r: 13, life, color, kind: 'ray', pierce: 99, w: 13 + lv * 2 });
+      shot(P.x, P.y, Math.cos(a) * 900, Math.sin(a) * 900, { dmg, r: 13, life, color, kind: 'ray', pierce: 99, w: 13 + lv * 2, src });
       break;
     }
     case 'chain': {
       const tgt = nearest(P.x, P.y, 620);
-      if (tgt) chainFrom(tgt, 2 + lv, dmg, color);
+      if (tgt) chainFrom(tgt, 2 + lv, dmg, color, src);
       break;
     }
     case 'field': {
       const tgt = nearest(P.x, P.y, 520) || { x: P.x + rr(-80, 80), y: P.y + rr(-80, 80) };
       for (let i = 0; i < cnt; i++) {
-        addField(tgt.x + rr(-40, 40), tgt.y + rr(-40, 40), (2.4 + lv * 0.3), 52 * G.mods.area, dmg, color);
+        addField(tgt.x + rr(-40, 40), tgt.y + rr(-40, 40), (2.4 + lv * 0.3), 52 * G.mods.area, dmg, color, false, src);
       }
       break;
     }
     case 'summon': {
       const want = cnt + G.mods.summonBonus;
-      while (G.summons.length < want && G.summons.length < 8) addSummon(dmg, color, lv);
+      while (G.summons.length < want && G.summons.length < 8) addSummon(dmg, color, lv, src);
       break;
     }
     case 'boomerang': {
       for (let i = 0; i < cnt; i++) {
         const tgt = nearest(P.x, P.y, 700);
         const a = (tgt ? Math.atan2(tgt.y - P.y, tgt.x - P.x) : rnd() * TAU) + rr(-0.3, 0.3);
-        shot(P.x, P.y, Math.cos(a) * 330, Math.sin(a) * 330, { dmg, r: 11, life: 1.9, color, kind: 'boomerang', back: 0.52, pierce: 99 });
+        shot(P.x, P.y, Math.cos(a) * 330, Math.sin(a) * 330, { dmg, r: 11, life: 1.9, color, kind: 'boomerang', back: 0.52, pierce: 99, src });
       }
       break;
     }
     case 'missile': {
       for (let i = 0; i < cnt; i++) {
         const a = rnd() * TAU;
-        shot(P.x, P.y, Math.cos(a) * 150, Math.sin(a) * 150, { dmg, r: 7, life: 2.4, color, kind: 'missile', home: 6.5, pierce: 0 });
+        shot(P.x, P.y, Math.cos(a) * 150, Math.sin(a) * 150, { dmg, r: 7, life: 2.4, color, kind: 'missile', home: 6.5, pierce: 0, src });
       }
       break;
     }
@@ -881,18 +1050,18 @@ function fireProto(w, proto, dmg) {
         const e = G.enemies[(rnd() * G.enemies.length) | 0];
         const x = e ? e.x : P.x + rr(-120, 120);
         const y = e ? e.y : P.y + rr(-120, 120);
-        addField(x, y, 0.45, 46 * G.mods.area, dmg, color, true);
+        addField(x, y, 0.45, 46 * G.mods.area, dmg, color, true, src);
       }
       break;
     }
     case 'shield': {
       G.player.shield = Math.min(G.player.maxShield, G.player.shield + 8 + lv * 6);
-      shockwave(P.x, P.y, 76 * G.mods.area, dmg, color);
+      shockwave(P.x, P.y, 76 * G.mods.area, dmg, color, src);
       break;
     }
     case 'heal': {
       G.player.hp = Math.min(G.player.maxHp, G.player.hp + 2 + lv);
-      shockwave(P.x, P.y, 66 * G.mods.area, dmg, color);
+      shockwave(P.x, P.y, 66 * G.mods.area, dmg, color, src);
       break;
     }
     default: break;
@@ -926,7 +1095,7 @@ function updateOrbs(dt) {
         const y = P.y + Math.sin(ang) * cfg.r;
         if ((e.x - x) ** 2 + (e.y - y) ** 2 < (e.r + 13) ** 2) {
           o.hitCd.set(e, 0.35);
-          damageEnemy(e, cfg.dmg, x, y);
+          damageEnemy(e, cfg.dmg, x, y, o.w);
           break;
         }
       }
@@ -936,19 +1105,19 @@ function updateOrbs(dt) {
 }
 
 // ---------------------------------------------------------------- 范围与链
-function shockwave(x, y, r, dmg, color) {
+function shockwave(x, y, r, dmg, color, src) {
   G.fx.push({ x, y, vx: 0, vy: 0, life: 0.42, max: 0.42, color, r: 0, ring: r, kind: 'ring' });
   for (const e of G.enemies) {
     const d = Math.hypot(e.x - x, e.y - y);
     if (d < r + e.r) {
-      damageEnemy(e, dmg * (1 - (d / (r + e.r)) * 0.1), x, y);
+      damageEnemy(e, dmg * (1 - (d / (r + e.r)) * 0.1), x, y, src);
       const a = Math.atan2(e.y - y, e.x - x);
       e.kx += Math.cos(a) * 90; e.ky += Math.sin(a) * 90;
     }
   }
 }
 
-function chainFrom(from, jumps, dmg, color) {
+function chainFrom(from, jumps, dmg, color, src) {
   let cur = from;
   let prev = { x: G.player.x, y: G.player.y };
   let d = dmg;
@@ -956,7 +1125,7 @@ function chainFrom(from, jumps, dmg, color) {
   for (let i = 0; i <= jumps; i++) {
     if (!cur) break;
     hit.add(cur);
-    damageEnemy(cur, d, cur.x, cur.y);
+    damageEnemy(cur, d, cur.x, cur.y, src);
     G.fx.push({ x: prev.x, y: prev.y, x2: cur.x, y2: cur.y, life: 0.22, max: 0.22, color, kind: 'line' });
     prev = { x: cur.x, y: cur.y };
     d *= 0.92;
@@ -971,8 +1140,8 @@ function chainFrom(from, jumps, dmg, color) {
 }
 
 // ---------------------------------------------------------------- 领域
-function addField(x, y, life, r, dmg, color, delayed) {
-  G.fields.push({ x, y, r, life, max: life, dmg, color, delay: delayed ? 0.45 : 0, tick: 0 });
+function addField(x, y, life, r, dmg, color, delayed, src) {
+  G.fields.push({ x, y, r, life, max: life, dmg, color, delay: delayed ? 0.45 : 0, tick: 0, src: src || null });
 }
 
 function updateFields(dt) {
@@ -985,7 +1154,7 @@ function updateFields(dt) {
     if (f.tick <= 0) {
       f.tick = 0.28;
       for (const e of G.enemies) {
-        if ((e.x - f.x) ** 2 + (e.y - f.y) ** 2 < (f.r + e.r) ** 2) damageEnemy(e, f.dmg * 0.28 * G.mods.atk, f.x, f.y);
+        if ((e.x - f.x) ** 2 + (e.y - f.y) ** 2 < (f.r + e.r) ** 2) damageEnemy(e, f.dmg * 0.28 * G.mods.atk, f.x, f.y, f.src);
       }
     }
     if (f.life <= 0) G.fields.splice(i, 1);
@@ -993,12 +1162,13 @@ function updateFields(dt) {
 }
 
 // ---------------------------------------------------------------- 召唤物
-function addSummon(dmg, color, lv) {
+function addSummon(dmg, color, lv, src) {
   const a = rnd() * TAU;
   G.summons.push({
     x: G.player.x + Math.cos(a) * 40,
     y: G.player.y + Math.sin(a) * 40,
     r: 12, dmg: dmg * 1.25, color, cd: 0, life: 999, img: G.char ? G.char.img : 0, spin: rnd() * TAU,
+    src: src || null,
   });
 }
 
@@ -1010,7 +1180,7 @@ function updateSummons(dt) {
       s.x += Math.cos(a) * 150 * dt;
       s.y += Math.sin(a) * 150 * dt;
       if (Math.hypot(tgt.x - s.x, tgt.y - s.y) < tgt.r + s.r + 4 && (s.cd || 0) <= 0) {
-        damageEnemy(tgt, s.dmg, s.x, s.y);
+        damageEnemy(tgt, s.dmg, s.x, s.y, s.src);
         s.cd = 0.5;
       }
     } else {
@@ -1036,7 +1206,7 @@ function updateBullets(dt) {
       for (const e of G.enemies) {
         if (segDist(e.x, e.y, b.x, b.y, nx2, ny2) < b.w + e.r) {
           e._rayCd = e._rayCd || 0;
-          if (e._rayCd <= 0) { e._rayCd = 0.14; damageEnemy(e, b.dmg * 0.34, e.x, e.y); }
+          if (e._rayCd <= 0) { e._rayCd = 0.14; damageEnemy(e, b.dmg * 0.34, e.x, e.y, b.src); }
         }
       }
       b.x = nx2; b.y = ny2;
@@ -1074,7 +1244,10 @@ function updateBullets(dt) {
     }
 
     b.x += b.vx * dt; b.y += b.vy * dt;
-    b.spin += dt * 12;
+    // 弹道类让朝向跟着速度走：追踪弹是三角形、单发弹是橄榄形，之前统一累加
+    // 角度导致它们在斜着飞的时候「横着漂」，看起来像贴图没对齐。
+    if (b.kind === 'bolt' || b.kind === 'missile') b.spin = Math.atan2(b.vy, b.vx);
+    else b.spin += dt * 12;
 
     if (b.kind !== 'ray') {
       for (const e of G.enemies) {
@@ -1082,8 +1255,8 @@ function updateBullets(dt) {
         if (b.hitSet && b.hitSet.has(e)) continue;
         if (!b.hitSet) b.hitSet = new Set();
         b.hitSet.add(e);
-        damageEnemy(e, b.dmg, b.x, b.y);
-        bustSmall(b.x, b.y, b.color);
+        damageEnemy(e, b.dmg, b.x, b.y, b.src);
+        bustSmall(b.x, b.y, b.color, b.kind);
         if (b.pierce-- <= 0) { b.life = 0; break; }
       }
     }
@@ -1102,13 +1275,19 @@ function segDist(px, py, x1, y1, x2, y2) {
   return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
 }
 
-function bustSmall(x, y, color) {
+function bustSmall(x, y, color, kind) {
   if (G.fx.length > 380) return;
-  for (let i = 0; i < 2; i++) {
+  // 命中火花按弹种分：追踪弹炸得更散、单发弹更尖，回旋镖带一点横向拖尾。
+  // 之前所有弹种都是「2 个火星」，满屏弹道时根本分不清哪发打中了什么。
+  const n = kind === 'missile' ? 5 : kind === 'bolt' ? 3 : kind === 'boomerang' ? 4 : 2;
+  const sp = kind === 'missile' ? 165 : kind === 'boomerang' ? 130 : 105;
+  for (let i = 0; i < n; i++) {
     const o = take('fx', () => ({}));
-    const a = rnd() * TAU;
-    o.x = x; o.y = y; o.vx = Math.cos(a) * 90; o.vy = Math.sin(a) * 90;
-    o.life = 0.2; o.max = 0.2; o.color = color; o.r = 2;
+    const a = kind === 'boomerang' ? (i / n) * TAU + 0.4 : rnd() * TAU;
+    o.x = x; o.y = y;
+    o.vx = Math.cos(a) * rr(sp * 0.5, sp);
+    o.vy = Math.sin(a) * rr(sp * 0.5, sp);
+    o.life = rr(0.16, 0.28); o.max = o.life; o.color = color; o.r = rr(1.6, 3);
     G.fx.push(o);
   }
 }
@@ -1194,18 +1373,73 @@ function updateEnemies(dt, slow) {
       }
     }
 
-    // 撞到玩家。接触冷却按体型分：小怪 0.45 秒，精英 0.65，首领 0.9 ——
-    // 首领体积 40，一旦贴上就是持续伤害，它的威胁应该来自「逼你走位」，
-    // 而不是「贴住你半秒打死你」。
-    if (d < e.r + PLAYER.r && e.hitCd <= 0) {
-      e.hitCd = e.boss ? 0.9 : e.tier === 1 ? 0.65 : 0.45;
-      hurtPlayer(e.dmg);
+    // 贴身攻击：先蓄力 0.28 秒（渲染层画一圈红色爪光），蓄满才真正咬下去。
+    //
+    // 之前是「贴上来就直接掉血」，玩家既看不出是哪只怪打的，也没有任何躲避
+    // 窗口——三档难度都在 300 秒团灭，一部分原因就是伤害来得无声无息。
+    // 加了前摇之后，同一套数值变成了「看到红光就该横移」。
+    // 接触冷却按体型分：小怪 0.45 秒，精英 0.65，首领 0.9 —— 首领体积 40，
+    // 一旦贴上就是持续伤害，它的威胁应该来自「逼你走位」，而不是「贴住打死你」。
+    if (e.lungeT > 0) e.lungeT -= dt;
+    const strikeRange = e.r + PLAYER.r + 18;
+    if (d < strikeRange) {
+      if (e.windT > 0) {
+        e.windT -= dt;
+        if (e.windT <= 0 && d < strikeRange + 10 && e.hitCd <= 0) {
+          e.hitCd = e.boss ? 0.9 : e.tier === 1 ? 0.65 : 0.45;
+          e.lungeT = 0.3;
+          hurtPlayer(e.dmg, e);
+        }
+      } else if (e.hitCd <= 0) {
+        e.windT = 0.28;
+      }
+    } else if (e.windT > 0) {
+      // 走开了就取消前摇，不然绕到背后会被一只「空气怪」咬
+      e.windT = 0;
     }
   }
 }
 
+// ---------------------------------------------------------------- 狂气
+// 两条来路：造成伤害（细水长流）+ 击杀（爆发式）。爆发期间停止积攒，
+// 所以节奏是「攒一波 → 放一波」，而不是攒满就永久变强。
+function addRage(n, raw) {
+  if (G.phase !== 'run' || G.rageT > 0 || G.rageReady) return;
+  const gain = raw ? n : n * (1 + (G.mods ? G.mods.rageGain : 0));
+  G.rage = Math.min(RAGE.max, G.rage + gain);
+  if (G.rage >= RAGE.max) {
+    G.rageReady = true;
+    const P = G.player;
+    addText(P.x, P.y - 46, '狂气已满 · 空格释放', 4);
+    G.flash = Math.max(G.flash, 0.18);
+  }
+}
+
+function releaseRage() {
+  if (!G.rageReady || G.rageT > 0 || G.phase !== 'run') return false;
+  const P = G.player;
+  G.rage = 0; G.rageReady = false; G.rageT = RAGE.dur; G.rageUsed++;
+  G.shake = Math.min(18, G.shake + 10);
+  G.flash = Math.max(G.flash, 0.35);
+  shockwave(P.x, P.y, 260 * G.mods.area, RAGE.blast * G.mods.atk * G.mods.dmgMul, '#ff5f4a', 'rage');
+  addText(P.x, P.y - 52, '狂气爆发', 4);
+  return true;
+}
+
 // ---------------------------------------------------------------- 伤害
-function damageEnemy(e, amount, sx, sy) {
+// src 是「这一下是谁打出来的」：武器对象、'rage'（狂气爆发）、或 null（环境伤害）。
+// 结算面板要靠它把伤害分到每一把技能上 —— 不归因的话，玩家只能看到一个总数，
+// 根本不知道哪把武器在真干活。
+function creditDmg(src, dmg) {
+  if (!src) return;
+  if (src === 'rage') { G.stats.rageDmg = (G.stats.rageDmg || 0) + dmg; return; }
+  if (typeof src === 'object') {
+    src.dmgTotal = (src.dmgTotal || 0) + dmg;
+    src.hits = (src.hits || 0) + 1;
+  }
+}
+
+function damageEnemy(e, amount, sx, sy, src) {
   if (e.hp <= 0) return;
   const crit = rnd() < G.mods.crit;
   let dmg = amount * (crit ? G.mods.critMul : 1);
@@ -1216,6 +1450,8 @@ function damageEnemy(e, amount, sx, sy) {
   e.hp -= dmg;
   e.flash = 0.1;
   G.stats.dmg += dmg;
+  creditDmg(src, dmg);
+  addRage(dmg * RAGE.perDmg);
   addText(e.x + rr(-6, 6), e.y - e.r * 0.7, Math.round(dmg), crit ? 1 : 0);
   if (G.mods.lifesteal > 0) {
     G.player.hp = Math.min(G.player.maxHp, G.player.hp + dmg * G.mods.lifesteal);
@@ -1228,6 +1464,7 @@ function killEnemy(e, sx, sy) {
   const idx = G.enemies.indexOf(e);
   if (idx >= 0) G.enemies.splice(idx, 1);
   G.kills++;
+  addRage(RAGE.perKill);
   burst(e.x, e.y, e.tier === 2 ? 22 : e.tier === 1 ? 12 : 5, e.tier ? '#ffd479' : '#9aa4bb', e.tier ? 190 : 120);
   give('enemies', e);
 
@@ -1240,9 +1477,12 @@ function killEnemy(e, sx, sy) {
     G.pickups.push({ x: e.x, y: e.y, kind: 'wheel', val: 1, vx: 0, vy: 0, life: 999, bob: rnd() * TAU });
     G.shake = 12;
   }
-  if (G.mods.healDrop > 0 && rnd() < G.mods.healDrop) {
+  // 这类「按击杀判定」的掉落后期会失控：每秒几十杀时 12% 等于每秒三个药包，
+  // 叠两层就是无限回血。和 dropLoot 一样加血量门控 —— 满血时不掉，供给自然收敛。
+  if (G.mods.healDrop > 0 && G.player.hp < G.player.maxHp * 0.75 && rnd() < G.mods.healDrop) {
     G.pickups.push({ x: e.x, y: e.y, kind: 'heal', val: 8, vx: rr(-30, 30), vy: rr(-30, 30), life: 14, bob: rnd() * TAU });
   }
+  dropLoot(e);
   if (G.wheels.some((w) => w.key === 'killburst')) {
     shockwave(e.x, e.y, 46, 12 * G.mods.atk, '#d94f6a');
   }
@@ -1260,7 +1500,46 @@ function dropExp(x, y, val, tier) {
   }
 }
 
-function hurtPlayer(amount) {
+// ---------------------------------------------------------------- 掉落
+// 「有拾取范围，但场上没什么可捡」——经验结晶之外必须还有别的东西，
+// 否则吸力这条属性完全没有体感，也让「回血」变成只能靠升级的那一下。
+//
+//   治疗结晶（绿）：普通 1.2%（且只在受伤后掉、地上最多 3 个）/ 精英 30% / 首领必掉 2 个
+//   狂气球（橙）：普通 0.5% / 精英 25% / 首领必掉 1 个
+//
+// 概率是按「每分钟能捡到几个」估的：普通局每分钟杀十几只，约 1 个治疗；
+// 精英每 70 秒刷两只，各有一小半概率带治疗，中期续航就接得上了。
+// 早期版本按 1.8% + 12% 造物叠算，实测一局掉 498 个治疗（4104 点）而全局只承受 79 点，
+// 等于配了 37 条命 —— 所以这里既压概率，也加了「受伤才掉 / 地上限 3 个」两道闸。
+function dropLoot(e) {
+  const heal = (val) => {
+    if (G.pickups.filter((p) => p.kind === 'heal').length >= 3) return;
+    G.pickups.push({
+      x: e.x + rr(-12, 12), y: e.y + rr(-12, 12), kind: 'heal', val,
+      vx: rr(-40, 40), vy: rr(-40, 40), life: 16, bob: rnd() * TAU,
+    });
+  };
+  const rage = (val) => G.pickups.push({
+    x: e.x + rr(-12, 12), y: e.y + rr(-12, 12), kind: 'rage', val,
+    vx: rr(-40, 40), vy: rr(-40, 40), life: 16, bob: rnd() * TAU,
+  });
+  // 血量还富裕的时候小怪不掉治疗：满地药包既没人捡，也会把「回血」变成
+  // 无限补给（实测普通难度曾掉出 498 个治疗 = 4104 点，而全局只承受 79 点）。
+  // 治疗只在真的受伤之后才出现，玩家才会觉得「这个掉落是来救我的」。
+  const needHeal = G.player.hp < G.player.maxHp * 0.75;
+  if (e.tier === 2) {
+    heal(16); heal(16);
+    rage(45);
+  } else if (e.tier === 1) {
+    if (needHeal && rnd() < 0.30) heal(10);
+    if (rnd() < 0.25) rage(22);
+  } else {
+    if (needHeal && rnd() < 0.012) heal(8);
+    if (rnd() < 0.005) rage(15);
+  }
+}
+
+function hurtPlayer(amount, src) {
   const P = G.player;
   if (P.inv > 0 || G.phase !== 'run') return;
   let dmg = amount * G.mods.dmgTaken;
@@ -1278,6 +1557,16 @@ function hurtPlayer(amount) {
     P.inv = PLAYER.iframe;
     G.flash = 0.5;
     G.shake = Math.min(8, G.shake + 3);
+    // 打击反馈：火花 + 一道爪痕。爪痕带方向，玩家能立刻知道该往哪边闪，
+    // 「贴上来直接掉血」和「被这边抓了一下」在体感上完全是两回事。
+    burst(P.x, P.y, 7, '#ff7a6a', 170);
+    if (src) {
+      G.fx.push({
+        x: P.x, y: P.y, vx: 0, vy: 0, kind: 'claw',
+        a: Math.atan2(P.y - src.y, P.x - src.x),
+        life: 0.34, max: 0.34, color: '#ff9a88', r: 2,
+      });
+    }
     if (G.mods.thorns > 0) shockwave(P.x, P.y, 90, G.mods.thorns, '#ff9d6e');
   }
   if (P.hp <= 0) {
@@ -1317,14 +1606,23 @@ function updatePickups(dt) {
     if (d < grab) {
       G.pickups.splice(i, 1);
       if (p.kind === 'exp') gainExp(p.val);
-      else if (p.kind === 'heal') { P.hp = Math.min(P.maxHp, P.hp + p.val); addText(P.x, P.y - 30, '+' + p.val, 2); }
-      else if (p.kind === 'chest') { G.pending++; addText(P.x, P.y - 34, '宝箱', 2); }
+      else if (p.kind === 'heal') {
+        P.hp = Math.min(P.maxHp, P.hp + p.val);
+        addText(P.x, P.y - 30, '+' + p.val, 2);
+        burst(P.x, P.y, 5, '#7de3a0', 120);
+      } else if (p.kind === 'rage') {
+        addRage(p.val, true);
+        addText(P.x, P.y - 30, '+' + Math.round(p.val) + ' 狂气', 4);
+        burst(P.x, P.y, 5, '#ff9350', 130);
+      } else if (p.kind === 'chest') { G.pending++; addText(P.x, P.y - 34, '宝箱', 2); }
       else if (p.kind === 'wheel') { G.pending += 2; P.hp = Math.min(P.maxHp, P.hp + 30); }
     }
   }
   if (G.pending > 0 && G.phase === 'run') {
-    G.choices = rollChoices();
-    G.phase = 'levelup';
+    const ch = rollChoices();
+    if (ch.length) { G.choices = ch; G.phase = 'levelup'; }
+    // 一张都抽不出来就别开弹窗了 —— 开出来也是死路，直接把这些次数消化掉
+    else G.pending = 0;
   }
 }
 
@@ -1375,14 +1673,31 @@ function updateSpawns(dt) {
     spawnEnemy(1);
     spawnEnemy(1);
   }
-  if (G.bossIdx < BOSS_AT.length && G.t >= BOSS_AT[G.bossIdx]) {
-    G.bossIdx++;
-    const b = spawnEnemy(2);
-    if (b) {
-      b.hp = b.maxHp = Math.round(b.maxHp * (1 + G.bossIdx * 0.4));
-      G.shake = 16;
-      addText(G.player.x, G.player.y - 60, '强敌降临', 2);
+  // Boss 预警分两段：
+  //   出现前 2.5 秒 —— 屏幕边缘红光脉动（渲染层读 bossEta），给玩家收拢的时间；
+  //   出现瞬间     —— 横幅「强敌降临 · 名字」+ 强震屏 + 一圈冲击波。
+  // 之前只有一句飘字，玩家往往一抬头发现自己已经被围在中间了。
+  if (G.bossIdx < BOSS_AT.length) {
+    G.bossEta = BOSS_AT[G.bossIdx] - G.t;
+    if (G.bossEta <= 0) {
+      G.bossIdx++;
+      G.bossEta = G.bossIdx < BOSS_AT.length ? BOSS_AT[G.bossIdx] - G.t : 999;
+      const b = spawnEnemy(2);
+      if (b) {
+        b.hp = b.maxHp = Math.round(b.maxHp * (1 + G.bossIdx * 0.4));
+        G.shake = 18;
+        G.flash = 0.7;
+        G.warn = 2.6;
+        G.warnName = b.n;
+        // 降临冲击只做视觉（伤害为 0 会让 damageEnemy 刷出一堆「0」飘字）
+        G.fx.push({
+          x: b.x, y: b.y, vx: 0, vy: 0, kind: 'ring',
+          life: 0.7, max: 0.7, color: '#ff6a5a', r: 0, ring: 210,
+        });
+      }
     }
+  } else {
+    G.bossEta = 999;
   }
 }
 
@@ -1395,18 +1710,37 @@ function summary() {
     score: Math.round(base * G.diff.mul),
     diff: G.diff.k,
     char: G.char ? G.char.n : '',
+    charImg: G.char ? G.char.img : null,
     win: G.phase === 'win',
+    // 每个技能的伤害明细：结算面板靠它回答「到底哪把武器在干活」。
+    // 引擎只给原始数字，百分比和条形由 UI 算 —— 免得以后改算法还要动这里。
+    weapons: G.weapons
+      .map((w) => ({
+        id: w.def.id, n: w.def.n, char: w.def.charName, charId: w.def.char,
+        lv: w.lv + 1, proto: w.def.proto,
+        color: (PROTOS[w.def.proto] || {}).color || '#9ecbff',
+        dmg: Math.round(w.dmgTotal || 0), hits: w.hits || 0,
+      }))
+      .sort((a, b) => b.dmg - a.dmg),
+    totalDmg: Math.round(G.stats.dmg || 0),
+    rageDmg: Math.round(G.stats.rageDmg || 0),
+    rageUsed: G.rageUsed,
+    passives: G.passives.map((p) => ({ id: p.id, n: p.n, stack: p.stack, fx: p.fx })),
+    wheels: G.wheels.map((w) => ({ idx: w.idx, n: w.n, key: w.key })),
+    covs: G.covs.map((c) => ({ idx: c.idx, n: c.n, key: c.key })),
+    taken: Math.round(G.stats.taken || 0),
   };
 }
 
 function remaining() { return Math.max(0, RUN_TIME - G.t); }
-return { VIEW_H, setSeed, G, addText, reset, recompute, addWeapon, addCreation, addWheel, addCovenant, rollChoices, applyChoice, update, damageEnemy, hurtPlayer, summary, remaining };
+return { VIEW_H, setSeed, G, addText, reset, recompute, addWeapon, addCreation, addWheel, addCovenant, rollChoices, applyChoice, skipChoice, update, releaseRage, damageEnemy, hurtPlayer, summary, remaining };
 })();
 
 // ---- js/sv/render.js
 const m_render = await (async () => {
 const { G, VIEW_H } = m_engine;
 const { META, ATLAS } = m_gen;
+const { TERRAINS, RAGE } = m_defs;
 // 《唤醒体幸存者》绘制层：地面、角色、敌人、弹道、特效、飘字。
 //
 // 全部用 canvas 2D。视觉上刻意做成「低饱和深色调 + 高饱和弹道」：
@@ -1419,13 +1753,22 @@ const { META, ATLAS } = m_gen;
 
 
 
+
 let cv = null;
 let ctx = null;
 let img = null;
-let ground = null;      // 离屏地面 tile
 let glow = null;        // 预渲染的光晕精灵（三类敌人各一张）
 let shadow = null;      // 预渲染的脚下椭圆阴影
+let vignetteC = null;   // 暗角
+let rageEdge = null;    // 狂气爆发时的红色边缘
 let dpr = 1;
+
+// 地形图块与 pattern 都按主题缓存：一共五种，512² 各一张，
+// 切换时只在第一次生成，之后就是 createPattern + fillRect。
+const tiles = {};
+const pats = {};
+let weather = null;     // 天气粒子（雪花/火星/灰烬）
+let weatherKind = '';
 
 function init(canvas) {
   cv = canvas;
@@ -1433,46 +1776,53 @@ function init(canvas) {
   img = new Image();
   img.decoding = 'async';
   img.src = ATLAS;
-  ground = makeGround();
   glow = { 0: makeGlow('150,120,190'), 1: makeGlow('227,179,65'), 2: makeGlow('232,105,95') };
   shadow = makeShadow();
   return img.decode ? img.decode().catch(() => {}) : Promise.resolve();
 }
 
-// 地面：生成一次 512×512 的 tile，之后用 pattern 平铺。
+// 地面：按地形生成一张 512×512 的 tile，之后用 pattern 平铺。
 // 每帧画几百个石子会直接把帧率吃掉，pattern 一次 fill 就够。
-function makeGround() {
+function groundTile(T) {
+  if (tiles[T.k]) return tiles[T.k];
   const S = 512;
   const c = document.createElement('canvas');
   c.width = c.height = S;
   const g = c.getContext('2d');
-  g.fillStyle = '#111621';
+  g.fillStyle = T.base;
   g.fillRect(0, 0, S, S);
 
   // 底噪：几十块深浅不一的暗斑，让平铺时看不出接缝
-  let seed = 20261029;
+  let seed = 20261029 + T.k.length * 7919;
   const rnd = () => {
     seed = (seed * 1664525 + 1013904223) >>> 0;
     return seed / 4294967296;
   };
   for (let i = 0; i < 90; i++) {
     const x = rnd() * S, y = rnd() * S, r = 8 + rnd() * 46;
-    const a = 0.02 + rnd() * 0.05;
+    const a = 0.02 + rnd() * 0.06;
     const grd = g.createRadialGradient(x, y, 0, x, y, r);
-    grd.addColorStop(0, `rgba(105,140,200,${a * 1.5})`);
-    grd.addColorStop(1, 'rgba(90,120,180,0)');
+    grd.addColorStop(0, T.blob + (a * 1.6).toFixed(3) + ')');
+    grd.addColorStop(1, T.blob + '0)');
     g.fillStyle = grd;
     g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
   }
   // 网格：每 64 一格，很淡，只用来提供移动参照
-  g.strokeStyle = 'rgba(130,160,215,0.06)';
+  g.strokeStyle = T.grid;
   g.lineWidth = 1;
   for (let i = 0; i <= S; i += 64) {
     g.beginPath(); g.moveTo(i + 0.5, 0); g.lineTo(i + 0.5, S); g.stroke();
     g.beginPath(); g.moveTo(0, i + 0.5); g.lineTo(S, i + 0.5); g.stroke();
   }
+  tiles[T.k] = c;
   return c;
 }
+
+function patternOf(T) {
+  if (!pats[T.k]) pats[T.k] = ctx.createPattern(groundTile(T), 'repeat');
+  return pats[T.k];
+}
+
 
 // 光晕精灵：以前每个敌人每帧 createRadialGradient 一次，300 个敌人就是
 // 300 次渐变对象分配 —— 实测直接掉到 30 帧。预渲染一张 64×64 的软圆，
@@ -1579,23 +1929,294 @@ function draw() {
   drawFx();
   drawTexts();
 
-  // 屏幕层：受伤红闪 / 暗角
+  // 屏幕层：受伤红闪 / 狂气红晕 / Boss 警报 / 暗角 / 天气
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (G.flash > 0) {
     ctx.fillStyle = `rgba(232,80,70,${G.flash * 0.24})`;
     ctx.fillRect(0, 0, W, H);
   }
+  if (G.rageT > 0) drawRageVeil(W, H);
+  drawBossWarn(W, H);
   vignette(W, H);
+  drawWeather(W, H);
 }
 
-function drawGround(L, T, R, B) {
-  // pattern 建一次就够：图块不变，每帧重建会白烧一次纹理解码。
-  if (!drawGround.pat) drawGround.pat = ctx.createPattern(ground, 'repeat');
-  if (!drawGround.pat) return;
-  // pattern 在 user space（= 世界坐标）里平铺，所以不做额外变换：
-  // 一格就是 512 世界单位，跟着相机走，缩放由外层 setTransform 统一处理。
-  ctx.fillStyle = drawGround.pat;
-  ctx.fillRect(L, T, R - L, B - T);
+// ---------------------------------------------------------------- 天气
+// 每种地貌一层很淡的大气：雪原下雪、熔谷飘火星、虚空浮星尘、废土落灰。
+// 全在屏幕坐标里走，不为每个粒子建世界对象 —— 它们本来就该贴在镜头上。
+function initWeather(k) {
+  weatherKind = k;
+  const n = k === 'snow' ? 44 : k === 'ember' ? 34 : k === 'void' ? 30 : k === 'ash' ? 24 : 16;
+  weather = [];
+  for (let i = 0; i < n; i++) {
+    weather.push({
+      x: Math.random(), y: Math.random(),
+      r: 0.7 + Math.random() * 1.9,
+      v: 0.018 + Math.random() * 0.05,
+      p: Math.random() * Math.PI * 2,
+    });
+  }
+}
+
+function drawWeather(W, H) {
+  const ter = TERRAINS[G.terrainIdx] || TERRAINS[0];
+  if (weatherKind !== ter.k) initWeather(ter.k);
+  if (!weather || !weather.length) return;
+  const rising = ter.k === 'ember' || ter.k === 'void';
+  const color = ter.k === 'snow' ? 'rgba(214,232,255,'
+    : ter.k === 'ember' ? 'rgba(255,150,70,'
+      : ter.k === 'void' ? 'rgba(190,165,255,'
+        : 'rgba(150,163,190,';
+  for (const p of weather) {
+    const x = p.x * W + Math.sin(G.t * 0.7 + p.p) * 12;
+    const span = H * 1.15;
+    const y = rising
+      ? H - ((p.y * span + G.t * p.v * H * 1.6) % span)
+      : (p.y * span + G.t * p.v * H) % span;
+    const a = 0.16 + Math.abs(Math.sin(G.t * 1.4 + p.p)) * 0.2;
+    ctx.fillStyle = color + a.toFixed(2) + ')';
+    ctx.beginPath(); ctx.arc(x, y, p.r, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// ---------------------------------------------------------------- 狂气
+// 爆发期间屏幕四周泛一层红，像镜头被血糊住 —— 玩家不用看条也知道自己在爆发。
+function drawRageVeil(W, H) {
+  if (!rageEdge || rageEdge.w !== W || rageEdge.h !== H) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(W * 0.5));
+    c.height = Math.max(1, Math.round(H * 0.5));
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(c.width / 2, c.height / 2, Math.min(c.width, c.height) * 0.18,
+      c.width / 2, c.height / 2, Math.max(c.width, c.height) * 0.62);
+    grd.addColorStop(0, 'rgba(255,70,45,0)');
+    grd.addColorStop(0.65, 'rgba(255,70,45,0.10)');
+    grd.addColorStop(1, 'rgba(255,50,35,0.42)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, c.width, c.height);
+    rageEdge = { w: W, h: H, c };
+  }
+  // 结束前 0.6 秒淡出，不要「啪」地消失
+  const k = Math.min(1, G.rageT / 0.6) * (0.85 + Math.sin(G.t * 9) * 0.15);
+  ctx.globalAlpha = k;
+  ctx.drawImage(rageEdge.c, 0, 0, W, H);
+  ctx.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------- Boss 警报
+// 两段：出现前 2.5 秒边缘红光脉动（预告），出现瞬间一条横幅（确认）。
+// 全靠屏幕层绘制，不进世界坐标，所以不会因为玩家跑到地图角落就看不见。
+function drawBossWarn(W, H) {
+  const eta = G.bossEta;
+  if (eta > 0 && eta <= 2.5) {
+    // 越接近出现，脉动越急、越亮
+    const k = 1 - eta / 2.5;
+    const pulse = 0.5 + 0.5 * Math.sin(G.t * (7 + k * 9));
+    const a = (0.10 + k * 0.22) * pulse;
+    const th = Math.min(W, H) * 0.16;
+    const g1 = ctx.createLinearGradient(0, 0, 0, th);
+    g1.addColorStop(0, `rgba(235,70,60,${a})`);
+    g1.addColorStop(1, 'rgba(235,70,60,0)');
+    ctx.fillStyle = g1;
+    ctx.fillRect(0, 0, W, th);
+    const g2 = ctx.createLinearGradient(0, H, 0, H - th);
+    g2.addColorStop(0, `rgba(235,70,60,${a})`);
+    g2.addColorStop(1, 'rgba(235,70,60,0)');
+    ctx.fillStyle = g2;
+    ctx.fillRect(0, H - th, W, th);
+    const g3 = ctx.createLinearGradient(0, 0, th, 0);
+    g3.addColorStop(0, `rgba(235,70,60,${a * 0.8})`);
+    g3.addColorStop(1, 'rgba(235,70,60,0)');
+    ctx.fillStyle = g3;
+    ctx.fillRect(0, 0, th, H);
+    const g4 = ctx.createLinearGradient(W, 0, W - th, 0);
+    g4.addColorStop(0, `rgba(235,70,60,${a * 0.8})`);
+    g4.addColorStop(1, 'rgba(235,70,60,0)');
+    ctx.fillStyle = g4;
+    ctx.fillRect(W - th, 0, th, H);
+  }
+
+  if (G.warn <= 0) return;
+  const t = 1 - G.warn / 2.6;            // 0 → 1
+  const fade = G.warn > 2.1 ? (2.6 - G.warn) / 0.5 : Math.min(1, G.warn / 0.7);
+  const bandH = 54;
+  const y = H * 0.28;
+  ctx.globalAlpha = Math.min(1, fade);
+  const bg = ctx.createLinearGradient(0, y - bandH / 2, 0, y + bandH / 2);
+  bg.addColorStop(0, 'rgba(30,8,10,0)');
+  bg.addColorStop(0.5, 'rgba(38,8,12,0.82)');
+  bg.addColorStop(1, 'rgba(30,8,10,0)');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, y - bandH / 2, W, bandH);
+  // 上下两条红线往两边拉开，制造「撕开」的感觉
+  ctx.strokeStyle = 'rgba(255,90,75,0.85)';
+  ctx.lineWidth = 2;
+  const grow = Math.min(1, t / 0.35);
+  const half = (W / 2) * grow;
+  ctx.beginPath(); ctx.moveTo(W / 2 - half, y - bandH / 2 + 4); ctx.lineTo(W / 2 + half, y - bandH / 2 + 4); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W / 2 - half, y + bandH / 2 - 4); ctx.lineTo(W / 2 + half, y + bandH / 2 - 4); ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const size = Math.min(26, W * 0.062);
+  ctx.font = `800 ${size}px system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif`;
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = 'rgba(20,4,6,0.9)';
+  const label = `⚠ 强敌降临 · ${G.warnName || ''}`;
+  ctx.strokeText(label, W / 2, y);
+  ctx.fillStyle = '#ff6f5e';
+  ctx.fillText(label, W / 2, y);
+  ctx.globalAlpha = 1;
+}
+
+function drawGround(L, Tp, R, Bp) {
+  const idx = G.terrainIdx || 0;
+  const cur = TERRAINS[idx] || TERRAINS[0];
+  const prev = TERRAINS[idx - 1];
+  // 换地形时交叉淡化 1.4 秒：硬切像是画面闪了一下
+  if (prev && G.terrainFade > 0) {
+    const pa = patternOf(prev);
+    if (pa) { ctx.fillStyle = pa; ctx.fillRect(L, Tp, R - L, Bp - Tp); }
+    const pb = patternOf(cur);
+    if (pb) {
+      ctx.globalAlpha = 1 - G.terrainFade;
+      ctx.fillStyle = pb;
+      ctx.fillRect(L, Tp, R - L, Bp - Tp);
+      ctx.globalAlpha = 1;
+    }
+  } else {
+    const p = patternOf(cur);
+    if (p) { ctx.fillStyle = p; ctx.fillRect(L, Tp, R - L, Bp - Tp); }
+  }
+  drawDeco(cur, L, Tp, R, Bp);
+}
+
+// 确定性 hash：同一个格子永远算出同一个值。
+// 装饰物位置必须由格子坐标推出来，不能用 Math.random —— 否则每帧位置都在跳，
+// 地上会是一片闪烁的噪点，而不是「几块石头」。
+const hash2 = (x, y) => {
+  let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+};
+
+function drawDeco(ter, L, Tp, R, Bp) {
+  const CS = 140;
+  const x0 = Math.floor(L / CS), x1 = Math.floor(R / CS);
+  const y0 = Math.floor(Tp / CS), y1 = Math.floor(Bp / CS);
+  for (let gx = x0; gx <= x1; gx++) {
+    for (let gy = y0; gy <= y1; gy++) {
+      const n = 1 + (((hash2(gx, gy) * 10) | 0) % 2);
+      for (let i = 0; i < n; i++) {
+        const h1 = hash2(gx * 37 + i * 11, gy * 53 + i * 7);
+        const h2 = hash2(gx * 91 + i * 3, gy * 17 + i * 5);
+        const h3 = hash2(gx * 13 + i * 101, gy * 29 + i * 41);
+        const kind = ter.deco[((h3 * 10) | 0) % ter.deco.length];
+        deco(kind, (gx + 0.14 + h1 * 0.72) * CS, (gy + 0.14 + h2 * 0.72) * CS, h1, h3);
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// 地面装饰：每种地貌三样，全部是纯路径绘制（不用图片，零请求）。
+// 每种都刻意压得很暗、很淡 —— 它们只是让地面有「走过的地方」的实感，
+// 不该抢怪和弹道的注意力。
+function deco(kind, x, y, h1, h3) {
+  const s = 4 + h1 * 9;
+  ctx.globalAlpha = 0.32 + h3 * 0.26;
+  switch (kind) {
+    case 'rubble': {
+      ctx.fillStyle = '#2b3448';
+      ctx.beginPath();
+      ctx.moveTo(x - s, y + s * 0.5);
+      ctx.lineTo(x - s * 0.4, y - s * 0.6);
+      ctx.lineTo(x + s * 0.5, y - s * 0.4);
+      ctx.lineTo(x + s, y + s * 0.6);
+      ctx.closePath(); ctx.fill();
+      break;
+    }
+    case 'crack': {
+      ctx.strokeStyle = 'rgba(10,13,20,0.85)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(x - s * 1.6, y - s * 0.5);
+      ctx.lineTo(x - s * 0.2, y);
+      ctx.lineTo(x + s * 0.7, y - s * 0.8);
+      ctx.lineTo(x + s * 1.8, y + s * 0.3);
+      ctx.stroke();
+      break;
+    }
+    case 'pebble': {
+      ctx.fillStyle = 'rgba(150,165,200,0.55)';
+      ctx.beginPath(); ctx.arc(x, y, s * 0.36, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + s * 0.7, y + s * 0.4, s * 0.22, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'pool': {
+      // 沼泽水洼：一潭死水 + 一圈亮边
+      ctx.fillStyle = 'rgba(24,52,42,0.9)';
+      ctx.beginPath(); ctx.ellipse(x, y, s * 1.9, s * 1.1, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(120,200,150,0.20)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      break;
+    }
+    case 'reed': {
+      ctx.strokeStyle = 'rgba(110,170,120,0.45)';
+      ctx.lineWidth = 1.2;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x + i * s * 0.5 - s * 0.5, y + s * 0.6);
+        ctx.quadraticCurveTo(x + i * s * 0.5, y - s * 0.4, x + i * s * 0.5 + s * 0.3, y - s * 1.1);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'snowdrift': {
+      ctx.fillStyle = 'rgba(215,232,255,0.16)';
+      ctx.beginPath(); ctx.ellipse(x, y, s * 2, s * 0.85, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'ice': {
+      ctx.strokeStyle = 'rgba(190,225,255,0.42)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.55, y); ctx.lineTo(x, y + s); ctx.lineTo(x - s * 0.55, y);
+      ctx.closePath(); ctx.stroke();
+      break;
+    }
+    case 'lava': {
+      // 熔岩裂缝：靠自身发光，所以用 lighter 而不是普通描边
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = `rgba(255,120,50,${0.16 + h3 * 0.16})`;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(x - s * 1.7, y + s * 0.4);
+      ctx.lineTo(x - s * 0.5, y - s * 0.3);
+      ctx.lineTo(x + s * 0.4, y + s * 0.3);
+      ctx.lineTo(x + s * 1.7, y - s * 0.4);
+      ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+      break;
+    }
+    case 'star': {
+      ctx.fillStyle = 'rgba(200,180,255,0.5)';
+      ctx.beginPath(); ctx.arc(x, y, s * 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha *= 0.4;
+      ctx.beginPath(); ctx.arc(x + s * 1.3, y - s * 0.7, s * 0.16, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'rune': {
+      ctx.strokeStyle = 'rgba(175,145,245,0.35)';
+      ctx.lineWidth = 1.1;
+      ctx.strokeRect(x - s * 0.7, y - s * 0.7, s * 1.4, s * 1.4);
+      ctx.beginPath(); ctx.moveTo(x - s * 0.7, y); ctx.lineTo(x + s * 0.7, y); ctx.stroke();
+      break;
+    }
+    default: break;
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawPlayer() {
@@ -1643,12 +2264,22 @@ function drawPlayer() {
     ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.arc(P.x, P.y, size / 2 + 6, 0, Math.PI * 2); ctx.stroke();
   }
+
+  // 狂气爆发：一圈翻涌的红环，比任何 UI 条都直观
+  if (G.rageT > 0) {
+    const t = G.t * 8;
+    ctx.strokeStyle = `rgba(255,110,70,${(0.35 + Math.sin(t) * 0.16).toFixed(3)})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(P.x, P.y, size / 2 + 10 + Math.sin(t * 0.7) * 3, 0, Math.PI * 2); ctx.stroke();
+  }
 }
 
 function drawEnemies(L, R, T, B) {
   for (const e of G.enemies) {
     if (e.x < L || e.x > R || e.y < T || e.y > B) continue;
-    const sz = e.r * 2.3;
+    // 扑击：咬下去的瞬间整只怪往前顶一下，看得出「它在打你」而不是贴着蹭
+    const lunge = e.lungeT > 0 ? 1 + (e.lungeT / 0.3) * 0.22 : 1;
+    const sz = e.r * 2.3 * lunge;
     const bob = Math.sin(e.wob) * 2;
     if (shadow) ctx.drawImage(shadow, e.x - e.r * 1.05, e.y + e.r * 0.58, e.r * 2.1, e.r * 0.9);
     // 一圈浅色描边：怪物立绘本身是深色剪影，压在深色地格上会糊成一团
@@ -1664,6 +2295,14 @@ function drawEnemies(L, R, T, B) {
       ctx.fillStyle = `rgba(255,255,255,${Math.min(0.55, e.flash * 5)})`;
       ctx.beginPath(); ctx.arc(e.x, e.y + bob, e.r * 0.92, 0, Math.PI * 2); ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
+    }
+    // 攻击前摇：0.28 秒里一圈红环由外向内收拢，收到身上就是它咬下来的瞬间。
+    // 这是「能躲」的前提 —— 没有前摇的贴身伤害只能挨着。
+    if (e.windT > 0) {
+      const k = 1 - e.windT / 0.28;
+      ctx.strokeStyle = `rgba(255,92,80,${0.30 + k * 0.55})`;
+      ctx.lineWidth = 1.4 + k * 2.2;
+      ctx.beginPath(); ctx.arc(e.x, e.y + bob, e.r * (1.95 - k * 0.6), 0, Math.PI * 2); ctx.stroke();
     }
     // 首领冲刺预警：0.6 秒里红环由细到粗，玩家能提前横移。场上首领最多三只，
     // 这点开销可以忽略。
@@ -1701,6 +2340,11 @@ function drawBullets(L, R, T, B) {
       ctx.lineWidth = Math.max(2, b.w * 0.35);
       ctx.strokeStyle = '#fff';
       ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(b.x, b.y); ctx.stroke();
+      // 射线头部一小团光 —— 不给的话高速射线看起来像一根断掉的棍子
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = b.color;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.w * 1.15, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
       continue;
     }
     if (b.x < L || b.x > R || b.y < T || b.y > B) continue;
@@ -1725,6 +2369,16 @@ function drawBullets(L, R, T, B) {
       ctx.lineTo(-b.r, -b.r * 0.7);
       ctx.closePath();
       ctx.fill();
+    } else if (b.kind === 'bolt') {
+      // 单发弹拉成橄榄形：朝向已经跟着速度走，看起来是「射出去」而不是「飘着」
+      ctx.globalAlpha = 0.26;
+      ctx.fillStyle = b.color;
+      ctx.beginPath(); ctx.ellipse(0, 0, b.r * 2.7, b.r * 1.45, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = b.color;
+      ctx.beginPath(); ctx.ellipse(0, 0, b.r * 1.55, b.r * 0.82, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.beginPath(); ctx.ellipse(b.r * 0.4, 0, b.r * 0.72, b.r * 0.32, 0, 0, Math.PI * 2); ctx.fill();
     } else {
       // 外层柔光 + 内芯，成本比 shadowBlur 低得多
       ctx.globalAlpha = 0.3;
@@ -1812,11 +2466,42 @@ function drawPickups(L, R, T, B) {
       ctx.lineTo(p.x, p.y + bob + s); ctx.lineTo(p.x - s * 0.72, p.y + bob);
       ctx.closePath(); ctx.fill();
     } else if (p.kind === 'heal') {
-      ctx.fillStyle = 'rgba(120,230,150,0.9)';
-      ctx.beginPath(); ctx.arc(p.x, p.y + bob, 7, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#0c1018';
-      ctx.fillRect(p.x - 1.4, p.y + bob - 4, 2.8, 8);
-      ctx.fillRect(p.x - 4, p.y + bob - 1.4, 8, 2.8);
+      // 治疗结晶：绿色六边形 + 十字，外面套一圈脉动光晕。
+      // 血量见底时玩家是冲着它跑的，必须一眼能认出来 —— 原来只是个绿圆点，
+      // 混在几十颗经验结晶里根本找不到。
+      const pulse = 0.5 + Math.sin(p.bob * 2) * 0.5;
+      ctx.globalAlpha = 0.16 + pulse * 0.18;
+      ctx.fillStyle = '#5fe08a';
+      ctx.beginPath(); ctx.arc(p.x, p.y + bob, 17 + pulse * 4, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#7de3a0';
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const a = -Math.PI / 2 + (k / 6) * Math.PI * 2;
+        const r = 10;
+        if (k) ctx.lineTo(p.x + Math.cos(a) * r, p.y + bob + Math.sin(a) * r);
+        else ctx.moveTo(p.x + Math.cos(a) * r, p.y + bob + Math.sin(a) * r);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#0c2016';
+      ctx.fillRect(p.x - 1.6, p.y + bob - 4.6, 3.2, 9.2);
+      ctx.fillRect(p.x - 4.6, p.y + bob - 1.6, 9.2, 3.2);
+    } else if (p.kind === 'rage') {
+      // 狂气球：橙色火焰形，同样带脉动光晕
+      const pulse = 0.5 + Math.sin(p.bob * 2.2) * 0.5;
+      ctx.globalAlpha = 0.15 + pulse * 0.17;
+      ctx.fillStyle = '#ff9350';
+      ctx.beginPath(); ctx.arc(p.x, p.y + bob, 16 + pulse * 4, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#ff9350';
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y + bob - 11);
+      ctx.quadraticCurveTo(p.x + 7, p.y + bob - 2, p.x + 4, p.y + bob + 6);
+      ctx.quadraticCurveTo(p.x, p.y + bob + 10, p.x - 4, p.y + bob + 6);
+      ctx.quadraticCurveTo(p.x - 7, p.y + bob - 2, p.x, p.y + bob - 11);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,236,196,0.88)';
+      ctx.beginPath(); ctx.ellipse(p.x, p.y + bob + 3, 2.6, 4, 0, 0, Math.PI * 2); ctx.fill();
     } else {
       // 宝箱 / 命轮：金色宝箱，脉动光圈提示「这块一定要捡」
       const r = p.kind === 'wheel' ? 15 : 12;
@@ -1838,15 +2523,37 @@ function drawFx() {
     const a = Math.max(0, f.life / f.max);
     if (f.kind === 'ring') {
       const t = 1 - a;
-      ctx.globalAlpha = a * 0.45;
+      const rr = f.ring * (0.35 + t * 0.75);
+      // 内层填充 + 主环 + 一道淡余波：只描一圈细线时，几百个弹道里看不出是「爆炸」
+      ctx.globalAlpha = a * 0.11;
+      ctx.fillStyle = f.color;
+      ctx.beginPath(); ctx.arc(f.x, f.y, rr, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = a * 0.5;
       ctx.strokeStyle = f.color;
       ctx.lineWidth = 1.6 * a + 0.6;
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.ring * (0.35 + t * 0.75), 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(f.x, f.y, rr, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = a * 0.2;
+      ctx.beginPath(); ctx.arc(f.x, f.y, rr * 1.07, 0, Math.PI * 2); ctx.stroke();
     } else if (f.kind === 'line') {
       ctx.globalAlpha = a;
       ctx.strokeStyle = f.color;
       ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+    } else if (f.kind === 'claw') {
+      // 三道爪痕，带方向 —— 玩家一眼能看出「从哪边抓过来的」
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.a);
+      ctx.globalAlpha = a * 0.9;
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = 2.6;
+      ctx.lineCap = 'round';
+      for (let i = -1; i <= 1; i++) {
+        ctx.beginPath();
+        ctx.arc(i * 9, 0, 15, -0.95, 0.95);
+        ctx.stroke();
+      }
+      ctx.restore();
     } else {
       ctx.globalAlpha = a;
       ctx.fillStyle = f.color;
@@ -1861,10 +2568,15 @@ function drawTexts() {
   ctx.textBaseline = 'middle';
   for (const t of G.texts) {
     const a = Math.min(1, t.life * 2.4);
-    const big = t.kind === 1 || t.kind === 2;
+    const big = t.kind === 1 || t.kind === 2 || t.kind === 4;
     ctx.globalAlpha = a;
-    ctx.font = `${big ? 700 : 600} ${big ? 15 : 12}px system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif`;
-    ctx.fillStyle = t.kind === 1 ? '#ffd479' : t.kind === 2 ? '#8ce0a8' : t.kind === 3 ? '#ff7b72' : '#e6e9f0';
+    ctx.font = `${big ? 700 : 600} ${big ? 15 : t.kind === 5 ? 13 : 12}px system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.fillStyle = t.kind === 1 ? '#ffd479'
+      : t.kind === 2 ? '#8ce0a8'
+        : t.kind === 3 ? '#ff7b72'
+          : t.kind === 4 ? '#ff9350'
+            : t.kind === 5 ? '#9fc4ff'
+              : '#e6e9f0';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(6,9,14,0.85)';
     ctx.strokeText(t.txt, t.x, t.y);
@@ -1895,9 +2607,9 @@ return { init, resize, draw };
 
 // ---- js/sv/ui.js
 const m_ui = await (async () => {
-const { G, applyChoice, summary, remaining } = m_engine;
+const { G, applyChoice, skipChoice, summary, remaining } = m_engine;
 const { CHARS, WEAPONS, META, ATLAS, CREATIONS, WHEELS, COVENANTS } = m_gen;
-const { PROTOS, LV, WHEEL_FX, COVENANT_FX, CREATION_FX, DIFFS, creditsAt, nextTier } = m_defs;
+const { PROTOS, LV, WHEEL_FX, COVENANT_FX, CREATION_FX, DIFFS, RAGE, creditsAt, nextTier } = m_defs;
 // 《唤醒体幸存者》界面层：选人、HUD、升级三选一、暂停与结算。
 //
 // 界面全部是叠在 canvas 上的 DOM —— 文字排版、滚动列表、按钮反馈交给浏览器
@@ -1919,6 +2631,7 @@ const ui = {
   charId: null,
   onChoice: null,
   onRestart: null,
+  onRage: null,
   last: {},
 };
 
@@ -2030,11 +2743,84 @@ function buildHUD() {
     <div class="hud-bars">
       <div class="bar hp"><i id="hHp"></i><em id="hHpTxt">100 / 100</em></div>
       <div class="bar sh" id="hShBox" hidden><i id="hSh"></i></div>
+      <div class="ragebox" id="hRageBox">
+        <div class="bar rage" id="hRageBar"><i id="hRage"></i><em id="hRageTxt">狂气 0</em></div>
+        <button class="ragebtn" id="btnRage" title="狂气爆发（空格）" disabled>狂</button>
+      </div>
     </div>
     <div class="hud-weapons" id="hWeapons"></div>
     <div class="hud-passives" id="hPassives"></div>
     <div class="bossbar" id="hBoss" hidden><span id="hBossName"></span><i><b id="hBossFill"></b></i></div>`;
   $('hPause').onclick = () => togglePause();
+  $('btnRage').onclick = () => { if (ui.onRage) ui.onRage(); };
+  // 点技能/造物/命轮 → 弹出构筑详情（会顺带暂停，否则一边看面板一边挨打）
+  $('hWeapons').onclick = (e) => { if (e.target.closest('[data-info]')) openInfo(); };
+  $('hPassives').onclick = (e) => { if (e.target.closest('[data-info]')) openInfo(); };
+  const ic = $('btnInfoClose');
+  if (ic) ic.onclick = closeInfo;
+}
+
+// ---------------------------------------------------------------- 构筑详情
+// 一块面板把「我到底拿了什么、每个东西在干什么」列全。
+// 战斗中随时可开（自动暂停），关掉继续打。
+let infoPaused = false;
+
+function openInfo() {
+  const ov = $('ovInfo');
+  if (!ov) return;
+  infoPaused = G.phase === 'run';
+  if (infoPaused) G.phase = 'pause';
+  $('infoBody').innerHTML = buildInfo();
+  ov.hidden = false;
+}
+
+function closeInfo() {
+  const ov = $('ovInfo');
+  if (!ov) return;
+  ov.hidden = true;
+  $('ovPause').hidden = true;
+  if (infoPaused) { infoPaused = false; G.phase = 'run'; }
+}
+
+function buildInfo() {
+  const ws = G.weapons.map((x) => {
+    const proto = PROTOS[x.def.proto];
+    const cd = proto ? proto.cd * LV.cd(x.lv) * G.mods.cd : 0;
+    const dmg = proto ? proto.dmg * LV.dmg(x.lv) * G.mods.atk * G.mods.dmgMul : 0;
+    return `<div class="if-row">
+      <i style="${atlasStyle(charFrame(x.def.char), 34)}"></i>
+      <div>
+        <b>${esc(x.def.n)} <em>Lv.${x.lv + 1}</em></b>
+        <span>${esc(x.def.charName)} · ${proto ? proto.name : ''} · 单发约 ${Math.round(dmg)} · 每 ${cd.toFixed(2)} 秒</span>
+        <u>${esc(proto ? proto.desc(x.lv) : '')}</u>
+      </div></div>`;
+  }).join('') || '<p class="dim">还没有技能</p>';
+
+  const ps = G.passives.map((x) => {
+    const fx = CREATION_FX[x.fx];
+    return `<div class="if-row sm">
+      <i style="${atlasStyle(META.frames['k:' + x.id], 26)}"></i>
+      <div><b>${esc(x.n)} <em>×${x.stack}</em></b><span>${fx ? fx.txt : '通用强化'}</span></div></div>`;
+  }).join('') || '<p class="dim">还没有造物</p>';
+
+  const wheelRows = G.wheels.map((x) => {
+    const fx = WHEEL_FX.find((f) => f.key === x.key);
+    return `<div class="if-row sm">
+      <i style="${atlasStyle(META.frames['w:' + x.id], 26)}"></i>
+      <div><b>${esc(x.n)}</b><span>${fx ? fx.txt : ''}</span></div></div>`;
+  }).join('');
+  const covRows = G.covs.map((x) => {
+    const fx = COVENANT_FX.find((f) => f.key === x.key);
+    return `<div class="if-row sm">
+      <i style="${atlasStyle(META.frames['v:' + x.id], 26)}"></i>
+      <div><b>${esc(x.n)}</b><span>${fx ? fx.txt : ''}</span></div></div>`;
+  }).join('');
+
+  return `
+    <h3 class="if-h">技能 · ${G.weapons.length}/6</h3>${ws}
+    <h3 class="if-h">命轮 · ${G.wheels.length}</h3>${wheelRows || '<p class="dim">第 3 分钟开始出现</p>'}
+    <h3 class="if-h">契物 · ${G.covs.length}</h3>${covRows || '<p class="dim">第 10 分钟后出现</p>'}
+    <h3 class="if-h">造物 · ${G.passives.length}/8</h3>${ps}`;
 }
 
 let hudCache = {};
@@ -2063,6 +2849,23 @@ function updateHUD() {
       hudCache.sh = sr; $('hSh').style.width = (sr * 100).toFixed(1) + '%';
     }
   }
+  // ---- 狂气：一条槽 + 一个「狂」按钮。满了按钮才可点，爆发期间显示倒计时。
+  const rk = Math.max(0, Math.min(1, G.rage / RAGE.max));
+  if (hudCache.rage == null || Math.abs(hudCache.rage - rk) > 0.008) {
+    hudCache.rage = rk;
+    $('hRage').style.width = (rk * 100).toFixed(1) + '%';
+  }
+  const rageTxt = G.rageT > 0 ? `狂气爆发 ${G.rageT.toFixed(1)}s` : `狂气 ${Math.floor(G.rage)}`;
+  if (hudCache.rageTxt !== rageTxt) { hudCache.rageTxt = rageTxt; $('hRageTxt').textContent = rageTxt; }
+  const rOn = G.rageReady || G.rageT > 0;
+  const rBurst = G.rageT > 0;
+  if (hudCache.rOn !== rOn || hudCache.rBurst !== rBurst) {
+    hudCache.rOn = rOn; hudCache.rBurst = rBurst;
+    $('hRageBox').classList.toggle('ready', G.rageReady && !rBurst);
+    $('hRageBox').classList.toggle('burst', rBurst);
+    $('btnRage').disabled = !G.rageReady || rBurst;
+  }
+
   // Boss 血条：场上有强敌时出现在底部，没有就整块收起来
   const boss = G.enemies.find((e) => e.tier === 2);
   if (hudCache.boss !== !!boss) { hudCache.boss = !!boss; $('hBoss').hidden = !boss; }
@@ -2074,17 +2877,52 @@ function updateHUD() {
   if (hudCache.wkey !== wkey) {
     hudCache.wkey = wkey;
     $('hWeapons').innerHTML = G.weapons.map((w) => `
-      <div class="slot" title="${esc(w.def.n)} · ${esc(w.def.charName)}">
+      <div class="slot" data-info="1" title="${esc(w.def.n)} · ${esc(w.def.charName)}">
         <i style="${atlasStyle(charFrame(w.def.char), 30)}"></i>
+        <b class="cdm"></b>
         <span class="pips">${'<b class="on"></b>'.repeat(w.lv + 1)}${'<b></b>'.repeat(LV.max - w.lv)}</span>
       </div>`).join('');
+    // 缓存遮罩节点：每帧 querySelector 会让这套 HUD 变成瓶颈
+    hudCache.cdEls = [...$('hWeapons').children].map((el) => el.querySelector('.cdm'));
+    hudCache.cdK = [];
+  }
+  // 冷却：一层从上往下收的暗色遮罩，收完就是这一发打出去的瞬间。
+  // 只在变化超过 3% 时写 style —— 六个槽每帧无条件写会触发样式重算。
+  if (hudCache.cdEls) {
+    for (let i = 0; i < hudCache.cdEls.length; i++) {
+      const w = G.weapons[i];
+      const el = hudCache.cdEls[i];
+      if (!w || !el) continue;
+      const k = w.cdMax > 0.02 ? Math.max(0, Math.min(1, (w.cdLeft || 0) / w.cdMax)) : 0;
+      if (hudCache.cdK[i] == null || Math.abs(hudCache.cdK[i] - k) > 0.03) {
+        hudCache.cdK[i] = k;
+        el.style.transform = `scaleY(${k.toFixed(2)})`;
+      }
+    }
   }
   const pkey = G.passives.map((p) => p.id + p.stack).join(',') + '|' + G.wheels.map((w) => w.idx).join(',') + '|' + G.covs.map((c) => c.idx).join(',');
   if (hudCache.pkey !== pkey) {
     hudCache.pkey = pkey;
-    const ps = G.passives.map((p) => `<div class="slot p" title="${esc(p.n)}">${'<u></u>'.repeat(p.stack)}</div>`).join('');
-    const ws = G.wheels.map((w) => `<div class="slot w" title="${esc(w.n)}">命</div>`).join('');
-    const cs = G.covs.map((c) => `<div class="slot c" title="${esc(c.n)}">契</div>`).join('');
+    // 造物/命轮/契物全部换成真实图标 + 层数角标。
+    // 之前造物是几根绿条、命轮只有个「命」字 —— 玩家根本不知道自己捡了什么、
+    // 叠了几层、到底加的是什么。点一下会弹出构筑详情（含每条效果的原文）。
+    const slot = (frameIdx, cls, title, badge) => `
+      <div class="slot ${cls}" data-info="1" title="${esc(title)}">
+        <i style="${atlasStyle(frameIdx, 26)}"></i>
+        ${badge ? `<em class="stk">${badge}</em>` : ''}
+      </div>`;
+    const ps = G.passives.map((p) => {
+      const fx = CREATION_FX[p.fx];
+      return slot(META.frames['k:' + p.id], 'p', `${p.n} ×${p.stack} · ${fx ? fx.txt : '通用强化'}`, p.stack > 1 ? p.stack : '');
+    }).join('');
+    const ws = G.wheels.map((w) => {
+      const fx = WHEEL_FX.find((x) => x.key === w.key);
+      return slot(META.frames['w:' + w.id], 'w', `${w.n} · ${fx ? fx.txt : ''}`, '');
+    }).join('');
+    const cs = G.covs.map((c) => {
+      const fx = COVENANT_FX.find((x) => x.key === c.key);
+      return slot(META.frames['v:' + c.id], 'c', `${c.n} · ${fx ? fx.txt : ''}`, '');
+    }).join('');
     $('hPassives').innerHTML = ws + cs + ps;
   }
 }
@@ -2095,37 +2933,62 @@ function charFrame(id) {
 }
 
 // ---------------------------------------------------------------- 升级三选一
-const KIND_LABEL = { wnew: '新技能', wlv: '技能升级', creation: '造物', wheel: '命轮', cov: '契物' };
+const KIND_LABEL = { wnew: '新技能', wlv: '技能升级', wswap: '替换技能', creation: '造物', wheel: '命轮', cov: '契物' };
 
 function showUpgrade(choices) {
   const ov = $('ovUp');
   ov.hidden = false;
-  $('upList').innerHTML = choices.map((o, i) => {
-    if (o.kind === 'wnew' || o.kind === 'wlv') {
-      const d = o.kind === 'wlv' ? o.w.def : o.def;
-      const lv = o.kind === 'wlv' ? o.w.lv + 1 : 0;
-      const proto = PROTOS[d.proto];
-      const title = o.kind === 'wlv' ? `${d.n} → ${lv + 1} 级` : `${d.n}（${d.charName}）`;
-      const desc = proto ? proto.desc(lv) : '';
-      return card(i, o.kind === 'wlv' ? 'wlv' : 'wnew', title, desc, d.text || '', atlasStyle(charFrame(d.char), 46), KIND_LABEL[o.kind]);
-    }
-    if (o.kind === 'creation') {
-      const fx = CREATION_FX[o.c.fx];
-      const desc = fx ? fx.txt : '通用强化';
-      const have = G.passives.find((p) => p.id === String(o.c.id));
-      return card(i, 'creation', o.c.n, desc, have ? `已叠 ${have.stack} 层 · 可叠 3 层` : '可叠 3 层', atlasStyle(META.frames['k:' + o.c.id], 46), KIND_LABEL[o.kind]);
-    }
-    if (o.kind === 'wheel') {
-      return card(i, 'wheel', o.w.n, WHEEL_FX[o.i % WHEEL_FX.length].txt, '命轮 · 质变', atlasStyle(META.frames['w:' + o.w.id], 46), KIND_LABEL[o.kind]);
-    }
-    return card(i, 'cov', o.c.n, COVENANT_FX[o.i % COVENANT_FX.length].txt, '契物 · 唯一', atlasStyle(META.frames['v:' + o.c.id], 46), KIND_LABEL[o.kind]);
-  }).join('');
+  const list = choices || [];
+  // 逐张兜底：以前是一整段 map，任何一张卡取图/取文案出错就会让整块 innerHTML
+  // 赋值失败，面板只剩标题和提示，既没有卡也点不动（只能刷新页面）。
+  const html = [];
+  for (let i = 0; i < list.length; i++) {
+    try { html.push(upgradeCard(list[i], i)); }
+    catch (e) { console.warn('[升级卡] 渲染失败，已跳过', list[i], e); }
+  }
+  $('upList').innerHTML = html.length
+    ? html.join('')
+    : '<p class="up-none">技能都满级了、造物也叠满了，这一轮确实没什么可给的</p>';
+  // 一张卡都没有的时候还写「键盘 1 / 2 / 3」，玩家会以为是自己没看清
+  $('upHint').textContent = html.length
+    ? '选一个带走 · 键盘 1 / 2 / 3 · 0 跳过'
+    : '按 0 或点下面直接继续';
 
   $('upList').onclick = (e) => {
     const b = e.target.closest('button[data-i]');
     if (!b) return;
     choose(Number(b.dataset.i));
   };
+  $('btnSkipUp').onclick = () => choose(-1);
+}
+
+// 一张卡的文案拼装。抽出来是为了单独 try/catch —— 见 showUpgrade 里的说明。
+function upgradeCard(o, i) {
+  if (o.kind === 'wnew' || o.kind === 'wlv' || o.kind === 'wswap') {
+    const isSwap = o.kind === 'wswap';
+    const d = o.kind === 'wlv' ? o.w.def : o.def;
+    const lv = o.kind === 'wlv' ? o.w.lv + 1 : 0;
+    const proto = PROTOS[d.proto];
+    const title = o.kind === 'wlv' ? `${d.n} → ${lv + 1} 级` : `${d.n}（${d.charName}）`;
+    const desc = proto ? proto.desc(lv) : '';
+    // 替换卡必须写清楚「换掉谁」，否则玩家点了之后才发现少了一把满级武器
+    const foot = isSwap
+      ? `替换掉 · ${o.drop ? o.drop.def.n : '等级最低的技能'}（新技能从 1 级起）`
+      : (d.text || '');
+    return card(i, isSwap ? 'wswap' : o.kind === 'wlv' ? 'wlv' : 'wnew', title, desc, foot, atlasStyle(charFrame(d.char), 46), KIND_LABEL[o.kind]);
+  }
+  if (o.kind === 'creation') {
+    const fx = CREATION_FX[o.c.fx];
+    const desc = fx ? fx.txt : '通用强化';
+    const have = G.passives.find((p) => p.id === String(o.c.id));
+    return card(i, 'creation', o.c.n, desc, have ? `已叠 ${have.stack} 层 · 可叠 3 层` : '可叠 3 层', atlasStyle(META.frames['k:' + o.c.id], 46), KIND_LABEL[o.kind]);
+  }
+  if (o.kind === 'wheel') {
+    const fx = WHEEL_FX[o.i % WHEEL_FX.length];
+    return card(i, 'wheel', o.w.n, fx ? fx.txt : '命轮质变', '命轮 · 质变', atlasStyle(META.frames['w:' + o.w.id], 46), KIND_LABEL[o.kind]);
+  }
+  const cfx = COVENANT_FX[o.i % COVENANT_FX.length];
+  return card(i, 'cov', o.c.n, cfx ? cfx.txt : '契物强化', '契物 · 唯一', atlasStyle(META.frames['v:' + o.c.id], 46), KIND_LABEL[o.kind]);
 }
 
 function card(i, tier, title, sub, foot, imgStyle, tag) {
@@ -2143,10 +3006,11 @@ function card(i, tier, title, sub, foot, imgStyle, tag) {
 }
 
 function choose(i) {
-  const o = G.choices[i];
-  if (!o) return;
+  // i < 0 是「跳过」：不拿任何东西，但同样要消耗掉这次待选次数
+  const o = i >= 0 ? G.choices[i] : null;
+  if (i >= 0 && !o) return;
   $('ovUp').hidden = true;
-  applyChoice(o);
+  if (o) applyChoice(o); else skipChoice();
   if (G.phase === 'run') hudCache = {};
   else if (G.phase === 'levelup') showUpgrade(G.choices);
 }
@@ -2192,7 +3056,46 @@ function showEnd(sm) {
     <div class="es"><b>${sm.bossKills}</b><span>强敌</span></div>
     <div class="es"><b>+${cred}</b><span>银芯</span></div>`;
   $('endTier').textContent = nxt ? `再拿 ${(nxt[0] - sm.score).toLocaleString()} 分可换 ${nxt[1]} 银芯` : '已达最高档';
+  renderDmgBreakdown(sm);
   if (cred > 0) grantCredits(cred);
+}
+
+// ---------------------------------------------------------------- 结算伤害明细
+// 「每个技能打了多少」是这局唯一能复盘的东西：谁在划水、谁是真主力。
+// 条形按「本局最高那把」归一化，不是按占比 —— 占比会让主力条永远接近满格，
+// 看不出第二名和第六名的差距。
+function renderDmgBreakdown(sm) {
+  const box = $('endDmg');
+  if (!box) return;
+  const ws = sm.weapons || [];
+  const max = Math.max(1, ...ws.map((w) => w.dmg), sm.rageDmg || 0);
+  const total = sm.totalDmg || 0;
+  // 小于 0.5% 直接四舍五入会显示成 0%，看上去像「一点伤害都没打」，
+  // 这种情况统一写 <1%，读者才不会误判成辅助技能。
+  const pct = (v) => {
+    if (total <= 0 || v <= 0) return '0';
+    const p = (v / total) * 100;
+    return p < 1 ? '<1' : String(Math.round(p));
+  };
+  const row = (imgHtml, name, sub, dmg, color) => `
+    <div class="dmg-row">
+      ${imgHtml}
+      <div class="dmg-meta"><b>${esc(name)}</b><em>${esc(sub)}</em></div>
+      <div class="dmg-bar"><u style="width:${Math.max(2, (dmg / max) * 100).toFixed(1)}%;background:${color}"></u></div>
+      <span class="dmg-num">${dmg > 0 ? dmg.toLocaleString() : '—'}<em>${dmg > 0 ? pct(dmg) + '%' : '辅助'}</em></span>
+    </div>`;
+  const rows = ws.map((w) => row(
+    `<i style="${atlasStyle(charFrame(w.charId), 24)}"></i>`,
+    w.n, `Lv.${w.lv} · ${w.char}`, w.dmg, w.color,
+  )).join('');
+  const rageRow = sm.rageDmg > 0
+    ? row('<i class="dmg-ico">狂</i>', '狂气爆发', `${sm.rageUsed} 次`, sm.rageDmg, '#ff9350')
+    : '';
+  box.innerHTML = `
+    <h3 class="if-h">技能伤害 · 合计 ${total.toLocaleString()}</h3>
+    ${rows || '<p class="dim">这局没有打出伤害</p>'}
+    ${rageRow}
+    <p class="dmg-sub">共承受 ${(sm.taken || 0).toLocaleString()} 点伤害</p>`;
 }
 
 // 银芯走与「合成大杜勒」「战报侦探」同一个钱包键（zjtt:credits）
@@ -2203,14 +3106,14 @@ function grantCredits(n) {
     document.dispatchEvent(new CustomEvent('zjtt:credits', { detail: { add: n } }));
   } catch { /* 隐私模式 */ }
 }
-return { ui, atlasStyle, showPick, buildHUD, updateHUD, showUpgrade, choose, togglePause, showEnd };
+return { ui, atlasStyle, showPick, buildHUD, openInfo, closeInfo, updateHUD, showUpgrade, choose, togglePause, showEnd };
 })();
 
 // ---- js/survivors.js
 const m_survivors = await (async () => {
-const { G, reset, update, summary, setSeed, applyChoice, rollChoices, addWeapon, addCreation } = m_engine;
+const { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage } = m_engine;
 const { init, resize, draw } = m_render;
-const { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui } = m_ui;
+const { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo } = m_ui;
 const { DIFFS } = m_defs;
 // 《唤醒体幸存者》入口：装配渲染、输入、主循环。
 //
@@ -2265,12 +3168,23 @@ function applyInput() {
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Escape') {
+    // 构筑详情是「暂停态」的一种，Esc 应该先关它，而不是把游戏直接放跑
+    const info = document.getElementById('ovInfo');
+    if (info && !info.hidden) { closeInfo(); e.preventDefault(); return; }
+    // 三选一时 Esc 等同于「这次不要」：万一卡片没渲染出来，还有个退路
+    if (G.phase === 'levelup') { choose(-1); e.preventDefault(); return; }
     if (G.phase === 'run' || G.phase === 'pause') { togglePause(); e.preventDefault(); }
+    return;
+  }
+  // 空格放狂气：只在这一局进行中生效，弹窗上按空格不应该误触
+  if (e.code === 'Space') {
+    if (G.phase === 'run') { releaseRage(); e.preventDefault(); }
     return;
   }
   if (G.phase === 'levelup') {
     const n = Number(e.key);
-    if (n >= 1 && n <= 3) { choose(n - 1); e.preventDefault(); }
+    if (n >= 1 && n <= 3) { choose(n - 1); e.preventDefault(); return; }
+    if (e.key === '0') { choose(-1); e.preventDefault(); }
     return;
   }
   if (KEYMAP[e.code]) { keys.add(e.code); applyInput(); e.preventDefault(); }
@@ -2366,6 +3280,7 @@ function frame(dt) {
 function startGame() {
   setSeed((Date.now() ^ (Math.random() * 1e9)) >>> 0);
   reset(ui.charId, ui.diff);
+  closeInfo();
   document.getElementById('ovPick').hidden = true;
   document.getElementById('ovEnd').hidden = true;
   document.getElementById('hud').hidden = false;
@@ -2382,6 +3297,7 @@ function startGame() {
 function restart() {
   document.getElementById('ovEnd').hidden = true;
   document.getElementById('hud').hidden = true;
+  closeInfo();
   G.phase = 'idle';
   showPick();
 }
@@ -2404,6 +3320,8 @@ async function boot() {
   document.getElementById('btnMenu').onclick = restart;
   document.getElementById('btnResume').onclick = () => togglePause(false);
   document.getElementById('btnQuit').onclick = restart;
+  // 狂气按钮走 ui 的回调：buildHUD 只在启动时建一次，不能直接绑死
+  ui.onRage = releaseRage;
   document.getElementById('hud').hidden = true;
   showPick();
   requestAnimationFrame((t) => { last = t; loop(t); });
@@ -2415,6 +3333,9 @@ async function boot() {
 if (/[?&]_test=1/.test(location.search)) {
   window.__sv = {
     G, summary, update, applyChoice, rollChoices, addWeapon, addCreation,
+    rage: releaseRage,
+    skip: skipChoice, // 「这次不要」：测试里要能直接调
+    seed: setSeed,   // 平衡测量用：固定种子才能把两次改动的差异看出来
     start: (c, d) => { ui.charId = c; ui.diff = d || 'normal'; startGame(); },
     bot: (seconds) => {
       window.__svFrozen = true;
@@ -2433,6 +3354,7 @@ if (/[?&]_test=1/.test(location.search)) {
           continue;
         }
         if (G.phase !== 'run') break;
+        if (G.rageReady && G.rageT <= 0) releaseRage();
         if (i % 10 === 0) {
           let best = dirs[0], bestD = -1;
           for (const [dx, dy] of dirs) {

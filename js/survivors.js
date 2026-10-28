@@ -4,9 +4,9 @@
 // 跑得更快，掉帧时也不会瞬移穿过敌人 —— 每帧最多补 6 步，防止切标签页回来
 // 一次补上千步直接把自己补死。
 
-import { G, reset, update, summary, setSeed, applyChoice, rollChoices, addWeapon, addCreation } from './sv/engine.js';
+import { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage } from './sv/engine.js';
 import { init, resize, draw } from './sv/render.js';
-import { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui } from './sv/ui.js';
+import { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo } from './sv/ui.js';
 import { DIFFS } from './sv/defs.js';
 
 const FIXED = 1 / 60;
@@ -51,12 +51,23 @@ function applyInput() {
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Escape') {
+    // 构筑详情是「暂停态」的一种，Esc 应该先关它，而不是把游戏直接放跑
+    const info = document.getElementById('ovInfo');
+    if (info && !info.hidden) { closeInfo(); e.preventDefault(); return; }
+    // 三选一时 Esc 等同于「这次不要」：万一卡片没渲染出来，还有个退路
+    if (G.phase === 'levelup') { choose(-1); e.preventDefault(); return; }
     if (G.phase === 'run' || G.phase === 'pause') { togglePause(); e.preventDefault(); }
+    return;
+  }
+  // 空格放狂气：只在这一局进行中生效，弹窗上按空格不应该误触
+  if (e.code === 'Space') {
+    if (G.phase === 'run') { releaseRage(); e.preventDefault(); }
     return;
   }
   if (G.phase === 'levelup') {
     const n = Number(e.key);
-    if (n >= 1 && n <= 3) { choose(n - 1); e.preventDefault(); }
+    if (n >= 1 && n <= 3) { choose(n - 1); e.preventDefault(); return; }
+    if (e.key === '0') { choose(-1); e.preventDefault(); }
     return;
   }
   if (KEYMAP[e.code]) { keys.add(e.code); applyInput(); e.preventDefault(); }
@@ -152,6 +163,7 @@ function frame(dt) {
 function startGame() {
   setSeed((Date.now() ^ (Math.random() * 1e9)) >>> 0);
   reset(ui.charId, ui.diff);
+  closeInfo();
   document.getElementById('ovPick').hidden = true;
   document.getElementById('ovEnd').hidden = true;
   document.getElementById('hud').hidden = false;
@@ -168,6 +180,7 @@ function startGame() {
 function restart() {
   document.getElementById('ovEnd').hidden = true;
   document.getElementById('hud').hidden = true;
+  closeInfo();
   G.phase = 'idle';
   showPick();
 }
@@ -190,6 +203,8 @@ async function boot() {
   document.getElementById('btnMenu').onclick = restart;
   document.getElementById('btnResume').onclick = () => togglePause(false);
   document.getElementById('btnQuit').onclick = restart;
+  // 狂气按钮走 ui 的回调：buildHUD 只在启动时建一次，不能直接绑死
+  ui.onRage = releaseRage;
   document.getElementById('hud').hidden = true;
   showPick();
   requestAnimationFrame((t) => { last = t; loop(t); });
@@ -201,6 +216,9 @@ async function boot() {
 if (/[?&]_test=1/.test(location.search)) {
   window.__sv = {
     G, summary, update, applyChoice, rollChoices, addWeapon, addCreation,
+    rage: releaseRage,
+    skip: skipChoice, // 「这次不要」：测试里要能直接调
+    seed: setSeed,   // 平衡测量用：固定种子才能把两次改动的差异看出来
     start: (c, d) => { ui.charId = c; ui.diff = d || 'normal'; startGame(); },
     bot: (seconds) => {
       window.__svFrozen = true;
@@ -219,6 +237,7 @@ if (/[?&]_test=1/.test(location.search)) {
           continue;
         }
         if (G.phase !== 'run') break;
+        if (G.rageReady && G.rageT <= 0) releaseRage();
         if (i % 10 === 0) {
           let best = dirs[0], bestD = -1;
           for (const [dx, dy] of dirs) {

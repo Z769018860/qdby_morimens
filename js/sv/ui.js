@@ -6,10 +6,10 @@
 //
 // 图标不额外请求：全部按格位从图集里用 background-position 切出来。
 
-import { G, applyChoice, summary, remaining } from './engine.js';
+import { G, applyChoice, skipChoice, summary, remaining } from './engine.js';
 import { CHARS, WEAPONS, META, ATLAS, CREATIONS, WHEELS, COVENANTS } from './gen.js';
 import {
-  PROTOS, LV, WHEEL_FX, COVENANT_FX, CREATION_FX, DIFFS,
+  PROTOS, LV, WHEEL_FX, COVENANT_FX, CREATION_FX, DIFFS, RAGE,
   creditsAt, nextTier,
 } from './defs.js';
 
@@ -22,6 +22,7 @@ export const ui = {
   charId: null,
   onChoice: null,
   onRestart: null,
+  onRage: null,
   last: {},
 };
 
@@ -133,11 +134,84 @@ export function buildHUD() {
     <div class="hud-bars">
       <div class="bar hp"><i id="hHp"></i><em id="hHpTxt">100 / 100</em></div>
       <div class="bar sh" id="hShBox" hidden><i id="hSh"></i></div>
+      <div class="ragebox" id="hRageBox">
+        <div class="bar rage" id="hRageBar"><i id="hRage"></i><em id="hRageTxt">狂气 0</em></div>
+        <button class="ragebtn" id="btnRage" title="狂气爆发（空格）" disabled>狂</button>
+      </div>
     </div>
     <div class="hud-weapons" id="hWeapons"></div>
     <div class="hud-passives" id="hPassives"></div>
     <div class="bossbar" id="hBoss" hidden><span id="hBossName"></span><i><b id="hBossFill"></b></i></div>`;
   $('hPause').onclick = () => togglePause();
+  $('btnRage').onclick = () => { if (ui.onRage) ui.onRage(); };
+  // 点技能/造物/命轮 → 弹出构筑详情（会顺带暂停，否则一边看面板一边挨打）
+  $('hWeapons').onclick = (e) => { if (e.target.closest('[data-info]')) openInfo(); };
+  $('hPassives').onclick = (e) => { if (e.target.closest('[data-info]')) openInfo(); };
+  const ic = $('btnInfoClose');
+  if (ic) ic.onclick = closeInfo;
+}
+
+// ---------------------------------------------------------------- 构筑详情
+// 一块面板把「我到底拿了什么、每个东西在干什么」列全。
+// 战斗中随时可开（自动暂停），关掉继续打。
+let infoPaused = false;
+
+export function openInfo() {
+  const ov = $('ovInfo');
+  if (!ov) return;
+  infoPaused = G.phase === 'run';
+  if (infoPaused) G.phase = 'pause';
+  $('infoBody').innerHTML = buildInfo();
+  ov.hidden = false;
+}
+
+export function closeInfo() {
+  const ov = $('ovInfo');
+  if (!ov) return;
+  ov.hidden = true;
+  $('ovPause').hidden = true;
+  if (infoPaused) { infoPaused = false; G.phase = 'run'; }
+}
+
+function buildInfo() {
+  const ws = G.weapons.map((x) => {
+    const proto = PROTOS[x.def.proto];
+    const cd = proto ? proto.cd * LV.cd(x.lv) * G.mods.cd : 0;
+    const dmg = proto ? proto.dmg * LV.dmg(x.lv) * G.mods.atk * G.mods.dmgMul : 0;
+    return `<div class="if-row">
+      <i style="${atlasStyle(charFrame(x.def.char), 34)}"></i>
+      <div>
+        <b>${esc(x.def.n)} <em>Lv.${x.lv + 1}</em></b>
+        <span>${esc(x.def.charName)} · ${proto ? proto.name : ''} · 单发约 ${Math.round(dmg)} · 每 ${cd.toFixed(2)} 秒</span>
+        <u>${esc(proto ? proto.desc(x.lv) : '')}</u>
+      </div></div>`;
+  }).join('') || '<p class="dim">还没有技能</p>';
+
+  const ps = G.passives.map((x) => {
+    const fx = CREATION_FX[x.fx];
+    return `<div class="if-row sm">
+      <i style="${atlasStyle(META.frames['k:' + x.id], 26)}"></i>
+      <div><b>${esc(x.n)} <em>×${x.stack}</em></b><span>${fx ? fx.txt : '通用强化'}</span></div></div>`;
+  }).join('') || '<p class="dim">还没有造物</p>';
+
+  const wheelRows = G.wheels.map((x) => {
+    const fx = WHEEL_FX.find((f) => f.key === x.key);
+    return `<div class="if-row sm">
+      <i style="${atlasStyle(META.frames['w:' + x.id], 26)}"></i>
+      <div><b>${esc(x.n)}</b><span>${fx ? fx.txt : ''}</span></div></div>`;
+  }).join('');
+  const covRows = G.covs.map((x) => {
+    const fx = COVENANT_FX.find((f) => f.key === x.key);
+    return `<div class="if-row sm">
+      <i style="${atlasStyle(META.frames['v:' + x.id], 26)}"></i>
+      <div><b>${esc(x.n)}</b><span>${fx ? fx.txt : ''}</span></div></div>`;
+  }).join('');
+
+  return `
+    <h3 class="if-h">技能 · ${G.weapons.length}/6</h3>${ws}
+    <h3 class="if-h">命轮 · ${G.wheels.length}</h3>${wheelRows || '<p class="dim">第 3 分钟开始出现</p>'}
+    <h3 class="if-h">契物 · ${G.covs.length}</h3>${covRows || '<p class="dim">第 10 分钟后出现</p>'}
+    <h3 class="if-h">造物 · ${G.passives.length}/8</h3>${ps}`;
 }
 
 let hudCache = {};
@@ -166,6 +240,23 @@ export function updateHUD() {
       hudCache.sh = sr; $('hSh').style.width = (sr * 100).toFixed(1) + '%';
     }
   }
+  // ---- 狂气：一条槽 + 一个「狂」按钮。满了按钮才可点，爆发期间显示倒计时。
+  const rk = Math.max(0, Math.min(1, G.rage / RAGE.max));
+  if (hudCache.rage == null || Math.abs(hudCache.rage - rk) > 0.008) {
+    hudCache.rage = rk;
+    $('hRage').style.width = (rk * 100).toFixed(1) + '%';
+  }
+  const rageTxt = G.rageT > 0 ? `狂气爆发 ${G.rageT.toFixed(1)}s` : `狂气 ${Math.floor(G.rage)}`;
+  if (hudCache.rageTxt !== rageTxt) { hudCache.rageTxt = rageTxt; $('hRageTxt').textContent = rageTxt; }
+  const rOn = G.rageReady || G.rageT > 0;
+  const rBurst = G.rageT > 0;
+  if (hudCache.rOn !== rOn || hudCache.rBurst !== rBurst) {
+    hudCache.rOn = rOn; hudCache.rBurst = rBurst;
+    $('hRageBox').classList.toggle('ready', G.rageReady && !rBurst);
+    $('hRageBox').classList.toggle('burst', rBurst);
+    $('btnRage').disabled = !G.rageReady || rBurst;
+  }
+
   // Boss 血条：场上有强敌时出现在底部，没有就整块收起来
   const boss = G.enemies.find((e) => e.tier === 2);
   if (hudCache.boss !== !!boss) { hudCache.boss = !!boss; $('hBoss').hidden = !boss; }
@@ -177,17 +268,52 @@ export function updateHUD() {
   if (hudCache.wkey !== wkey) {
     hudCache.wkey = wkey;
     $('hWeapons').innerHTML = G.weapons.map((w) => `
-      <div class="slot" title="${esc(w.def.n)} · ${esc(w.def.charName)}">
+      <div class="slot" data-info="1" title="${esc(w.def.n)} · ${esc(w.def.charName)}">
         <i style="${atlasStyle(charFrame(w.def.char), 30)}"></i>
+        <b class="cdm"></b>
         <span class="pips">${'<b class="on"></b>'.repeat(w.lv + 1)}${'<b></b>'.repeat(LV.max - w.lv)}</span>
       </div>`).join('');
+    // 缓存遮罩节点：每帧 querySelector 会让这套 HUD 变成瓶颈
+    hudCache.cdEls = [...$('hWeapons').children].map((el) => el.querySelector('.cdm'));
+    hudCache.cdK = [];
+  }
+  // 冷却：一层从上往下收的暗色遮罩，收完就是这一发打出去的瞬间。
+  // 只在变化超过 3% 时写 style —— 六个槽每帧无条件写会触发样式重算。
+  if (hudCache.cdEls) {
+    for (let i = 0; i < hudCache.cdEls.length; i++) {
+      const w = G.weapons[i];
+      const el = hudCache.cdEls[i];
+      if (!w || !el) continue;
+      const k = w.cdMax > 0.02 ? Math.max(0, Math.min(1, (w.cdLeft || 0) / w.cdMax)) : 0;
+      if (hudCache.cdK[i] == null || Math.abs(hudCache.cdK[i] - k) > 0.03) {
+        hudCache.cdK[i] = k;
+        el.style.transform = `scaleY(${k.toFixed(2)})`;
+      }
+    }
   }
   const pkey = G.passives.map((p) => p.id + p.stack).join(',') + '|' + G.wheels.map((w) => w.idx).join(',') + '|' + G.covs.map((c) => c.idx).join(',');
   if (hudCache.pkey !== pkey) {
     hudCache.pkey = pkey;
-    const ps = G.passives.map((p) => `<div class="slot p" title="${esc(p.n)}">${'<u></u>'.repeat(p.stack)}</div>`).join('');
-    const ws = G.wheels.map((w) => `<div class="slot w" title="${esc(w.n)}">命</div>`).join('');
-    const cs = G.covs.map((c) => `<div class="slot c" title="${esc(c.n)}">契</div>`).join('');
+    // 造物/命轮/契物全部换成真实图标 + 层数角标。
+    // 之前造物是几根绿条、命轮只有个「命」字 —— 玩家根本不知道自己捡了什么、
+    // 叠了几层、到底加的是什么。点一下会弹出构筑详情（含每条效果的原文）。
+    const slot = (frameIdx, cls, title, badge) => `
+      <div class="slot ${cls}" data-info="1" title="${esc(title)}">
+        <i style="${atlasStyle(frameIdx, 26)}"></i>
+        ${badge ? `<em class="stk">${badge}</em>` : ''}
+      </div>`;
+    const ps = G.passives.map((p) => {
+      const fx = CREATION_FX[p.fx];
+      return slot(META.frames['k:' + p.id], 'p', `${p.n} ×${p.stack} · ${fx ? fx.txt : '通用强化'}`, p.stack > 1 ? p.stack : '');
+    }).join('');
+    const ws = G.wheels.map((w) => {
+      const fx = WHEEL_FX.find((x) => x.key === w.key);
+      return slot(META.frames['w:' + w.id], 'w', `${w.n} · ${fx ? fx.txt : ''}`, '');
+    }).join('');
+    const cs = G.covs.map((c) => {
+      const fx = COVENANT_FX.find((x) => x.key === c.key);
+      return slot(META.frames['v:' + c.id], 'c', `${c.n} · ${fx ? fx.txt : ''}`, '');
+    }).join('');
     $('hPassives').innerHTML = ws + cs + ps;
   }
 }
@@ -198,37 +324,62 @@ function charFrame(id) {
 }
 
 // ---------------------------------------------------------------- 升级三选一
-const KIND_LABEL = { wnew: '新技能', wlv: '技能升级', creation: '造物', wheel: '命轮', cov: '契物' };
+const KIND_LABEL = { wnew: '新技能', wlv: '技能升级', wswap: '替换技能', creation: '造物', wheel: '命轮', cov: '契物' };
 
 export function showUpgrade(choices) {
   const ov = $('ovUp');
   ov.hidden = false;
-  $('upList').innerHTML = choices.map((o, i) => {
-    if (o.kind === 'wnew' || o.kind === 'wlv') {
-      const d = o.kind === 'wlv' ? o.w.def : o.def;
-      const lv = o.kind === 'wlv' ? o.w.lv + 1 : 0;
-      const proto = PROTOS[d.proto];
-      const title = o.kind === 'wlv' ? `${d.n} → ${lv + 1} 级` : `${d.n}（${d.charName}）`;
-      const desc = proto ? proto.desc(lv) : '';
-      return card(i, o.kind === 'wlv' ? 'wlv' : 'wnew', title, desc, d.text || '', atlasStyle(charFrame(d.char), 46), KIND_LABEL[o.kind]);
-    }
-    if (o.kind === 'creation') {
-      const fx = CREATION_FX[o.c.fx];
-      const desc = fx ? fx.txt : '通用强化';
-      const have = G.passives.find((p) => p.id === String(o.c.id));
-      return card(i, 'creation', o.c.n, desc, have ? `已叠 ${have.stack} 层 · 可叠 3 层` : '可叠 3 层', atlasStyle(META.frames['k:' + o.c.id], 46), KIND_LABEL[o.kind]);
-    }
-    if (o.kind === 'wheel') {
-      return card(i, 'wheel', o.w.n, WHEEL_FX[o.i % WHEEL_FX.length].txt, '命轮 · 质变', atlasStyle(META.frames['w:' + o.w.id], 46), KIND_LABEL[o.kind]);
-    }
-    return card(i, 'cov', o.c.n, COVENANT_FX[o.i % COVENANT_FX.length].txt, '契物 · 唯一', atlasStyle(META.frames['v:' + o.c.id], 46), KIND_LABEL[o.kind]);
-  }).join('');
+  const list = choices || [];
+  // 逐张兜底：以前是一整段 map，任何一张卡取图/取文案出错就会让整块 innerHTML
+  // 赋值失败，面板只剩标题和提示，既没有卡也点不动（只能刷新页面）。
+  const html = [];
+  for (let i = 0; i < list.length; i++) {
+    try { html.push(upgradeCard(list[i], i)); }
+    catch (e) { console.warn('[升级卡] 渲染失败，已跳过', list[i], e); }
+  }
+  $('upList').innerHTML = html.length
+    ? html.join('')
+    : '<p class="up-none">技能都满级了、造物也叠满了，这一轮确实没什么可给的</p>';
+  // 一张卡都没有的时候还写「键盘 1 / 2 / 3」，玩家会以为是自己没看清
+  $('upHint').textContent = html.length
+    ? '选一个带走 · 键盘 1 / 2 / 3 · 0 跳过'
+    : '按 0 或点下面直接继续';
 
   $('upList').onclick = (e) => {
     const b = e.target.closest('button[data-i]');
     if (!b) return;
     choose(Number(b.dataset.i));
   };
+  $('btnSkipUp').onclick = () => choose(-1);
+}
+
+// 一张卡的文案拼装。抽出来是为了单独 try/catch —— 见 showUpgrade 里的说明。
+function upgradeCard(o, i) {
+  if (o.kind === 'wnew' || o.kind === 'wlv' || o.kind === 'wswap') {
+    const isSwap = o.kind === 'wswap';
+    const d = o.kind === 'wlv' ? o.w.def : o.def;
+    const lv = o.kind === 'wlv' ? o.w.lv + 1 : 0;
+    const proto = PROTOS[d.proto];
+    const title = o.kind === 'wlv' ? `${d.n} → ${lv + 1} 级` : `${d.n}（${d.charName}）`;
+    const desc = proto ? proto.desc(lv) : '';
+    // 替换卡必须写清楚「换掉谁」，否则玩家点了之后才发现少了一把满级武器
+    const foot = isSwap
+      ? `替换掉 · ${o.drop ? o.drop.def.n : '等级最低的技能'}（新技能从 1 级起）`
+      : (d.text || '');
+    return card(i, isSwap ? 'wswap' : o.kind === 'wlv' ? 'wlv' : 'wnew', title, desc, foot, atlasStyle(charFrame(d.char), 46), KIND_LABEL[o.kind]);
+  }
+  if (o.kind === 'creation') {
+    const fx = CREATION_FX[o.c.fx];
+    const desc = fx ? fx.txt : '通用强化';
+    const have = G.passives.find((p) => p.id === String(o.c.id));
+    return card(i, 'creation', o.c.n, desc, have ? `已叠 ${have.stack} 层 · 可叠 3 层` : '可叠 3 层', atlasStyle(META.frames['k:' + o.c.id], 46), KIND_LABEL[o.kind]);
+  }
+  if (o.kind === 'wheel') {
+    const fx = WHEEL_FX[o.i % WHEEL_FX.length];
+    return card(i, 'wheel', o.w.n, fx ? fx.txt : '命轮质变', '命轮 · 质变', atlasStyle(META.frames['w:' + o.w.id], 46), KIND_LABEL[o.kind]);
+  }
+  const cfx = COVENANT_FX[o.i % COVENANT_FX.length];
+  return card(i, 'cov', o.c.n, cfx ? cfx.txt : '契物强化', '契物 · 唯一', atlasStyle(META.frames['v:' + o.c.id], 46), KIND_LABEL[o.kind]);
 }
 
 function card(i, tier, title, sub, foot, imgStyle, tag) {
@@ -246,10 +397,11 @@ function card(i, tier, title, sub, foot, imgStyle, tag) {
 }
 
 export function choose(i) {
-  const o = G.choices[i];
-  if (!o) return;
+  // i < 0 是「跳过」：不拿任何东西，但同样要消耗掉这次待选次数
+  const o = i >= 0 ? G.choices[i] : null;
+  if (i >= 0 && !o) return;
   $('ovUp').hidden = true;
-  applyChoice(o);
+  if (o) applyChoice(o); else skipChoice();
   if (G.phase === 'run') hudCache = {};
   else if (G.phase === 'levelup') showUpgrade(G.choices);
 }
@@ -295,7 +447,46 @@ export function showEnd(sm) {
     <div class="es"><b>${sm.bossKills}</b><span>强敌</span></div>
     <div class="es"><b>+${cred}</b><span>银芯</span></div>`;
   $('endTier').textContent = nxt ? `再拿 ${(nxt[0] - sm.score).toLocaleString()} 分可换 ${nxt[1]} 银芯` : '已达最高档';
+  renderDmgBreakdown(sm);
   if (cred > 0) grantCredits(cred);
+}
+
+// ---------------------------------------------------------------- 结算伤害明细
+// 「每个技能打了多少」是这局唯一能复盘的东西：谁在划水、谁是真主力。
+// 条形按「本局最高那把」归一化，不是按占比 —— 占比会让主力条永远接近满格，
+// 看不出第二名和第六名的差距。
+function renderDmgBreakdown(sm) {
+  const box = $('endDmg');
+  if (!box) return;
+  const ws = sm.weapons || [];
+  const max = Math.max(1, ...ws.map((w) => w.dmg), sm.rageDmg || 0);
+  const total = sm.totalDmg || 0;
+  // 小于 0.5% 直接四舍五入会显示成 0%，看上去像「一点伤害都没打」，
+  // 这种情况统一写 <1%，读者才不会误判成辅助技能。
+  const pct = (v) => {
+    if (total <= 0 || v <= 0) return '0';
+    const p = (v / total) * 100;
+    return p < 1 ? '<1' : String(Math.round(p));
+  };
+  const row = (imgHtml, name, sub, dmg, color) => `
+    <div class="dmg-row">
+      ${imgHtml}
+      <div class="dmg-meta"><b>${esc(name)}</b><em>${esc(sub)}</em></div>
+      <div class="dmg-bar"><u style="width:${Math.max(2, (dmg / max) * 100).toFixed(1)}%;background:${color}"></u></div>
+      <span class="dmg-num">${dmg > 0 ? dmg.toLocaleString() : '—'}<em>${dmg > 0 ? pct(dmg) + '%' : '辅助'}</em></span>
+    </div>`;
+  const rows = ws.map((w) => row(
+    `<i style="${atlasStyle(charFrame(w.charId), 24)}"></i>`,
+    w.n, `Lv.${w.lv} · ${w.char}`, w.dmg, w.color,
+  )).join('');
+  const rageRow = sm.rageDmg > 0
+    ? row('<i class="dmg-ico">狂</i>', '狂气爆发', `${sm.rageUsed} 次`, sm.rageDmg, '#ff9350')
+    : '';
+  box.innerHTML = `
+    <h3 class="if-h">技能伤害 · 合计 ${total.toLocaleString()}</h3>
+    ${rows || '<p class="dim">这局没有打出伤害</p>'}
+    ${rageRow}
+    <p class="dmg-sub">共承受 ${(sm.taken || 0).toLocaleString()} 点伤害</p>`;
 }
 
 // 银芯走与「合成大杜勒」「战报侦探」同一个钱包键（zjtt:credits）

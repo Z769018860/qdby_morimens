@@ -9,14 +9,23 @@
 
 import { G, VIEW_H } from './engine.js';
 import { META, ATLAS } from './gen.js';
+import { TERRAINS, RAGE } from './defs.js';
 
 let cv = null;
 let ctx = null;
 let img = null;
-let ground = null;      // 离屏地面 tile
 let glow = null;        // 预渲染的光晕精灵（三类敌人各一张）
 let shadow = null;      // 预渲染的脚下椭圆阴影
+let vignetteC = null;   // 暗角
+let rageEdge = null;    // 狂气爆发时的红色边缘
 let dpr = 1;
+
+// 地形图块与 pattern 都按主题缓存：一共五种，512² 各一张，
+// 切换时只在第一次生成，之后就是 createPattern + fillRect。
+const tiles = {};
+const pats = {};
+let weather = null;     // 天气粒子（雪花/火星/灰烬）
+let weatherKind = '';
 
 export function init(canvas) {
   cv = canvas;
@@ -24,46 +33,53 @@ export function init(canvas) {
   img = new Image();
   img.decoding = 'async';
   img.src = ATLAS;
-  ground = makeGround();
   glow = { 0: makeGlow('150,120,190'), 1: makeGlow('227,179,65'), 2: makeGlow('232,105,95') };
   shadow = makeShadow();
   return img.decode ? img.decode().catch(() => {}) : Promise.resolve();
 }
 
-// 地面：生成一次 512×512 的 tile，之后用 pattern 平铺。
+// 地面：按地形生成一张 512×512 的 tile，之后用 pattern 平铺。
 // 每帧画几百个石子会直接把帧率吃掉，pattern 一次 fill 就够。
-function makeGround() {
+function groundTile(T) {
+  if (tiles[T.k]) return tiles[T.k];
   const S = 512;
   const c = document.createElement('canvas');
   c.width = c.height = S;
   const g = c.getContext('2d');
-  g.fillStyle = '#111621';
+  g.fillStyle = T.base;
   g.fillRect(0, 0, S, S);
 
   // 底噪：几十块深浅不一的暗斑，让平铺时看不出接缝
-  let seed = 20261029;
+  let seed = 20261029 + T.k.length * 7919;
   const rnd = () => {
     seed = (seed * 1664525 + 1013904223) >>> 0;
     return seed / 4294967296;
   };
   for (let i = 0; i < 90; i++) {
     const x = rnd() * S, y = rnd() * S, r = 8 + rnd() * 46;
-    const a = 0.02 + rnd() * 0.05;
+    const a = 0.02 + rnd() * 0.06;
     const grd = g.createRadialGradient(x, y, 0, x, y, r);
-    grd.addColorStop(0, `rgba(105,140,200,${a * 1.5})`);
-    grd.addColorStop(1, 'rgba(90,120,180,0)');
+    grd.addColorStop(0, T.blob + (a * 1.6).toFixed(3) + ')');
+    grd.addColorStop(1, T.blob + '0)');
     g.fillStyle = grd;
     g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
   }
   // 网格：每 64 一格，很淡，只用来提供移动参照
-  g.strokeStyle = 'rgba(130,160,215,0.06)';
+  g.strokeStyle = T.grid;
   g.lineWidth = 1;
   for (let i = 0; i <= S; i += 64) {
     g.beginPath(); g.moveTo(i + 0.5, 0); g.lineTo(i + 0.5, S); g.stroke();
     g.beginPath(); g.moveTo(0, i + 0.5); g.lineTo(S, i + 0.5); g.stroke();
   }
+  tiles[T.k] = c;
   return c;
 }
+
+function patternOf(T) {
+  if (!pats[T.k]) pats[T.k] = ctx.createPattern(groundTile(T), 'repeat');
+  return pats[T.k];
+}
+
 
 // 光晕精灵：以前每个敌人每帧 createRadialGradient 一次，300 个敌人就是
 // 300 次渐变对象分配 —— 实测直接掉到 30 帧。预渲染一张 64×64 的软圆，
@@ -170,23 +186,294 @@ export function draw() {
   drawFx();
   drawTexts();
 
-  // 屏幕层：受伤红闪 / 暗角
+  // 屏幕层：受伤红闪 / 狂气红晕 / Boss 警报 / 暗角 / 天气
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (G.flash > 0) {
     ctx.fillStyle = `rgba(232,80,70,${G.flash * 0.24})`;
     ctx.fillRect(0, 0, W, H);
   }
+  if (G.rageT > 0) drawRageVeil(W, H);
+  drawBossWarn(W, H);
   vignette(W, H);
+  drawWeather(W, H);
 }
 
-function drawGround(L, T, R, B) {
-  // pattern 建一次就够：图块不变，每帧重建会白烧一次纹理解码。
-  if (!drawGround.pat) drawGround.pat = ctx.createPattern(ground, 'repeat');
-  if (!drawGround.pat) return;
-  // pattern 在 user space（= 世界坐标）里平铺，所以不做额外变换：
-  // 一格就是 512 世界单位，跟着相机走，缩放由外层 setTransform 统一处理。
-  ctx.fillStyle = drawGround.pat;
-  ctx.fillRect(L, T, R - L, B - T);
+// ---------------------------------------------------------------- 天气
+// 每种地貌一层很淡的大气：雪原下雪、熔谷飘火星、虚空浮星尘、废土落灰。
+// 全在屏幕坐标里走，不为每个粒子建世界对象 —— 它们本来就该贴在镜头上。
+function initWeather(k) {
+  weatherKind = k;
+  const n = k === 'snow' ? 44 : k === 'ember' ? 34 : k === 'void' ? 30 : k === 'ash' ? 24 : 16;
+  weather = [];
+  for (let i = 0; i < n; i++) {
+    weather.push({
+      x: Math.random(), y: Math.random(),
+      r: 0.7 + Math.random() * 1.9,
+      v: 0.018 + Math.random() * 0.05,
+      p: Math.random() * Math.PI * 2,
+    });
+  }
+}
+
+function drawWeather(W, H) {
+  const ter = TERRAINS[G.terrainIdx] || TERRAINS[0];
+  if (weatherKind !== ter.k) initWeather(ter.k);
+  if (!weather || !weather.length) return;
+  const rising = ter.k === 'ember' || ter.k === 'void';
+  const color = ter.k === 'snow' ? 'rgba(214,232,255,'
+    : ter.k === 'ember' ? 'rgba(255,150,70,'
+      : ter.k === 'void' ? 'rgba(190,165,255,'
+        : 'rgba(150,163,190,';
+  for (const p of weather) {
+    const x = p.x * W + Math.sin(G.t * 0.7 + p.p) * 12;
+    const span = H * 1.15;
+    const y = rising
+      ? H - ((p.y * span + G.t * p.v * H * 1.6) % span)
+      : (p.y * span + G.t * p.v * H) % span;
+    const a = 0.16 + Math.abs(Math.sin(G.t * 1.4 + p.p)) * 0.2;
+    ctx.fillStyle = color + a.toFixed(2) + ')';
+    ctx.beginPath(); ctx.arc(x, y, p.r, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// ---------------------------------------------------------------- 狂气
+// 爆发期间屏幕四周泛一层红，像镜头被血糊住 —— 玩家不用看条也知道自己在爆发。
+function drawRageVeil(W, H) {
+  if (!rageEdge || rageEdge.w !== W || rageEdge.h !== H) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(W * 0.5));
+    c.height = Math.max(1, Math.round(H * 0.5));
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(c.width / 2, c.height / 2, Math.min(c.width, c.height) * 0.18,
+      c.width / 2, c.height / 2, Math.max(c.width, c.height) * 0.62);
+    grd.addColorStop(0, 'rgba(255,70,45,0)');
+    grd.addColorStop(0.65, 'rgba(255,70,45,0.10)');
+    grd.addColorStop(1, 'rgba(255,50,35,0.42)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, c.width, c.height);
+    rageEdge = { w: W, h: H, c };
+  }
+  // 结束前 0.6 秒淡出，不要「啪」地消失
+  const k = Math.min(1, G.rageT / 0.6) * (0.85 + Math.sin(G.t * 9) * 0.15);
+  ctx.globalAlpha = k;
+  ctx.drawImage(rageEdge.c, 0, 0, W, H);
+  ctx.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------- Boss 警报
+// 两段：出现前 2.5 秒边缘红光脉动（预告），出现瞬间一条横幅（确认）。
+// 全靠屏幕层绘制，不进世界坐标，所以不会因为玩家跑到地图角落就看不见。
+function drawBossWarn(W, H) {
+  const eta = G.bossEta;
+  if (eta > 0 && eta <= 2.5) {
+    // 越接近出现，脉动越急、越亮
+    const k = 1 - eta / 2.5;
+    const pulse = 0.5 + 0.5 * Math.sin(G.t * (7 + k * 9));
+    const a = (0.10 + k * 0.22) * pulse;
+    const th = Math.min(W, H) * 0.16;
+    const g1 = ctx.createLinearGradient(0, 0, 0, th);
+    g1.addColorStop(0, `rgba(235,70,60,${a})`);
+    g1.addColorStop(1, 'rgba(235,70,60,0)');
+    ctx.fillStyle = g1;
+    ctx.fillRect(0, 0, W, th);
+    const g2 = ctx.createLinearGradient(0, H, 0, H - th);
+    g2.addColorStop(0, `rgba(235,70,60,${a})`);
+    g2.addColorStop(1, 'rgba(235,70,60,0)');
+    ctx.fillStyle = g2;
+    ctx.fillRect(0, H - th, W, th);
+    const g3 = ctx.createLinearGradient(0, 0, th, 0);
+    g3.addColorStop(0, `rgba(235,70,60,${a * 0.8})`);
+    g3.addColorStop(1, 'rgba(235,70,60,0)');
+    ctx.fillStyle = g3;
+    ctx.fillRect(0, 0, th, H);
+    const g4 = ctx.createLinearGradient(W, 0, W - th, 0);
+    g4.addColorStop(0, `rgba(235,70,60,${a * 0.8})`);
+    g4.addColorStop(1, 'rgba(235,70,60,0)');
+    ctx.fillStyle = g4;
+    ctx.fillRect(W - th, 0, th, H);
+  }
+
+  if (G.warn <= 0) return;
+  const t = 1 - G.warn / 2.6;            // 0 → 1
+  const fade = G.warn > 2.1 ? (2.6 - G.warn) / 0.5 : Math.min(1, G.warn / 0.7);
+  const bandH = 54;
+  const y = H * 0.28;
+  ctx.globalAlpha = Math.min(1, fade);
+  const bg = ctx.createLinearGradient(0, y - bandH / 2, 0, y + bandH / 2);
+  bg.addColorStop(0, 'rgba(30,8,10,0)');
+  bg.addColorStop(0.5, 'rgba(38,8,12,0.82)');
+  bg.addColorStop(1, 'rgba(30,8,10,0)');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, y - bandH / 2, W, bandH);
+  // 上下两条红线往两边拉开，制造「撕开」的感觉
+  ctx.strokeStyle = 'rgba(255,90,75,0.85)';
+  ctx.lineWidth = 2;
+  const grow = Math.min(1, t / 0.35);
+  const half = (W / 2) * grow;
+  ctx.beginPath(); ctx.moveTo(W / 2 - half, y - bandH / 2 + 4); ctx.lineTo(W / 2 + half, y - bandH / 2 + 4); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W / 2 - half, y + bandH / 2 - 4); ctx.lineTo(W / 2 + half, y + bandH / 2 - 4); ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const size = Math.min(26, W * 0.062);
+  ctx.font = `800 ${size}px system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif`;
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = 'rgba(20,4,6,0.9)';
+  const label = `⚠ 强敌降临 · ${G.warnName || ''}`;
+  ctx.strokeText(label, W / 2, y);
+  ctx.fillStyle = '#ff6f5e';
+  ctx.fillText(label, W / 2, y);
+  ctx.globalAlpha = 1;
+}
+
+function drawGround(L, Tp, R, Bp) {
+  const idx = G.terrainIdx || 0;
+  const cur = TERRAINS[idx] || TERRAINS[0];
+  const prev = TERRAINS[idx - 1];
+  // 换地形时交叉淡化 1.4 秒：硬切像是画面闪了一下
+  if (prev && G.terrainFade > 0) {
+    const pa = patternOf(prev);
+    if (pa) { ctx.fillStyle = pa; ctx.fillRect(L, Tp, R - L, Bp - Tp); }
+    const pb = patternOf(cur);
+    if (pb) {
+      ctx.globalAlpha = 1 - G.terrainFade;
+      ctx.fillStyle = pb;
+      ctx.fillRect(L, Tp, R - L, Bp - Tp);
+      ctx.globalAlpha = 1;
+    }
+  } else {
+    const p = patternOf(cur);
+    if (p) { ctx.fillStyle = p; ctx.fillRect(L, Tp, R - L, Bp - Tp); }
+  }
+  drawDeco(cur, L, Tp, R, Bp);
+}
+
+// 确定性 hash：同一个格子永远算出同一个值。
+// 装饰物位置必须由格子坐标推出来，不能用 Math.random —— 否则每帧位置都在跳，
+// 地上会是一片闪烁的噪点，而不是「几块石头」。
+const hash2 = (x, y) => {
+  let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+};
+
+function drawDeco(ter, L, Tp, R, Bp) {
+  const CS = 140;
+  const x0 = Math.floor(L / CS), x1 = Math.floor(R / CS);
+  const y0 = Math.floor(Tp / CS), y1 = Math.floor(Bp / CS);
+  for (let gx = x0; gx <= x1; gx++) {
+    for (let gy = y0; gy <= y1; gy++) {
+      const n = 1 + (((hash2(gx, gy) * 10) | 0) % 2);
+      for (let i = 0; i < n; i++) {
+        const h1 = hash2(gx * 37 + i * 11, gy * 53 + i * 7);
+        const h2 = hash2(gx * 91 + i * 3, gy * 17 + i * 5);
+        const h3 = hash2(gx * 13 + i * 101, gy * 29 + i * 41);
+        const kind = ter.deco[((h3 * 10) | 0) % ter.deco.length];
+        deco(kind, (gx + 0.14 + h1 * 0.72) * CS, (gy + 0.14 + h2 * 0.72) * CS, h1, h3);
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// 地面装饰：每种地貌三样，全部是纯路径绘制（不用图片，零请求）。
+// 每种都刻意压得很暗、很淡 —— 它们只是让地面有「走过的地方」的实感，
+// 不该抢怪和弹道的注意力。
+function deco(kind, x, y, h1, h3) {
+  const s = 4 + h1 * 9;
+  ctx.globalAlpha = 0.32 + h3 * 0.26;
+  switch (kind) {
+    case 'rubble': {
+      ctx.fillStyle = '#2b3448';
+      ctx.beginPath();
+      ctx.moveTo(x - s, y + s * 0.5);
+      ctx.lineTo(x - s * 0.4, y - s * 0.6);
+      ctx.lineTo(x + s * 0.5, y - s * 0.4);
+      ctx.lineTo(x + s, y + s * 0.6);
+      ctx.closePath(); ctx.fill();
+      break;
+    }
+    case 'crack': {
+      ctx.strokeStyle = 'rgba(10,13,20,0.85)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(x - s * 1.6, y - s * 0.5);
+      ctx.lineTo(x - s * 0.2, y);
+      ctx.lineTo(x + s * 0.7, y - s * 0.8);
+      ctx.lineTo(x + s * 1.8, y + s * 0.3);
+      ctx.stroke();
+      break;
+    }
+    case 'pebble': {
+      ctx.fillStyle = 'rgba(150,165,200,0.55)';
+      ctx.beginPath(); ctx.arc(x, y, s * 0.36, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + s * 0.7, y + s * 0.4, s * 0.22, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'pool': {
+      // 沼泽水洼：一潭死水 + 一圈亮边
+      ctx.fillStyle = 'rgba(24,52,42,0.9)';
+      ctx.beginPath(); ctx.ellipse(x, y, s * 1.9, s * 1.1, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(120,200,150,0.20)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      break;
+    }
+    case 'reed': {
+      ctx.strokeStyle = 'rgba(110,170,120,0.45)';
+      ctx.lineWidth = 1.2;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x + i * s * 0.5 - s * 0.5, y + s * 0.6);
+        ctx.quadraticCurveTo(x + i * s * 0.5, y - s * 0.4, x + i * s * 0.5 + s * 0.3, y - s * 1.1);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'snowdrift': {
+      ctx.fillStyle = 'rgba(215,232,255,0.16)';
+      ctx.beginPath(); ctx.ellipse(x, y, s * 2, s * 0.85, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'ice': {
+      ctx.strokeStyle = 'rgba(190,225,255,0.42)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.55, y); ctx.lineTo(x, y + s); ctx.lineTo(x - s * 0.55, y);
+      ctx.closePath(); ctx.stroke();
+      break;
+    }
+    case 'lava': {
+      // 熔岩裂缝：靠自身发光，所以用 lighter 而不是普通描边
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = `rgba(255,120,50,${0.16 + h3 * 0.16})`;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(x - s * 1.7, y + s * 0.4);
+      ctx.lineTo(x - s * 0.5, y - s * 0.3);
+      ctx.lineTo(x + s * 0.4, y + s * 0.3);
+      ctx.lineTo(x + s * 1.7, y - s * 0.4);
+      ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+      break;
+    }
+    case 'star': {
+      ctx.fillStyle = 'rgba(200,180,255,0.5)';
+      ctx.beginPath(); ctx.arc(x, y, s * 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha *= 0.4;
+      ctx.beginPath(); ctx.arc(x + s * 1.3, y - s * 0.7, s * 0.16, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'rune': {
+      ctx.strokeStyle = 'rgba(175,145,245,0.35)';
+      ctx.lineWidth = 1.1;
+      ctx.strokeRect(x - s * 0.7, y - s * 0.7, s * 1.4, s * 1.4);
+      ctx.beginPath(); ctx.moveTo(x - s * 0.7, y); ctx.lineTo(x + s * 0.7, y); ctx.stroke();
+      break;
+    }
+    default: break;
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawPlayer() {
@@ -234,12 +521,22 @@ function drawPlayer() {
     ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.arc(P.x, P.y, size / 2 + 6, 0, Math.PI * 2); ctx.stroke();
   }
+
+  // 狂气爆发：一圈翻涌的红环，比任何 UI 条都直观
+  if (G.rageT > 0) {
+    const t = G.t * 8;
+    ctx.strokeStyle = `rgba(255,110,70,${(0.35 + Math.sin(t) * 0.16).toFixed(3)})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(P.x, P.y, size / 2 + 10 + Math.sin(t * 0.7) * 3, 0, Math.PI * 2); ctx.stroke();
+  }
 }
 
 function drawEnemies(L, R, T, B) {
   for (const e of G.enemies) {
     if (e.x < L || e.x > R || e.y < T || e.y > B) continue;
-    const sz = e.r * 2.3;
+    // 扑击：咬下去的瞬间整只怪往前顶一下，看得出「它在打你」而不是贴着蹭
+    const lunge = e.lungeT > 0 ? 1 + (e.lungeT / 0.3) * 0.22 : 1;
+    const sz = e.r * 2.3 * lunge;
     const bob = Math.sin(e.wob) * 2;
     if (shadow) ctx.drawImage(shadow, e.x - e.r * 1.05, e.y + e.r * 0.58, e.r * 2.1, e.r * 0.9);
     // 一圈浅色描边：怪物立绘本身是深色剪影，压在深色地格上会糊成一团
@@ -255,6 +552,14 @@ function drawEnemies(L, R, T, B) {
       ctx.fillStyle = `rgba(255,255,255,${Math.min(0.55, e.flash * 5)})`;
       ctx.beginPath(); ctx.arc(e.x, e.y + bob, e.r * 0.92, 0, Math.PI * 2); ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
+    }
+    // 攻击前摇：0.28 秒里一圈红环由外向内收拢，收到身上就是它咬下来的瞬间。
+    // 这是「能躲」的前提 —— 没有前摇的贴身伤害只能挨着。
+    if (e.windT > 0) {
+      const k = 1 - e.windT / 0.28;
+      ctx.strokeStyle = `rgba(255,92,80,${0.30 + k * 0.55})`;
+      ctx.lineWidth = 1.4 + k * 2.2;
+      ctx.beginPath(); ctx.arc(e.x, e.y + bob, e.r * (1.95 - k * 0.6), 0, Math.PI * 2); ctx.stroke();
     }
     // 首领冲刺预警：0.6 秒里红环由细到粗，玩家能提前横移。场上首领最多三只，
     // 这点开销可以忽略。
@@ -292,6 +597,11 @@ function drawBullets(L, R, T, B) {
       ctx.lineWidth = Math.max(2, b.w * 0.35);
       ctx.strokeStyle = '#fff';
       ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(b.x, b.y); ctx.stroke();
+      // 射线头部一小团光 —— 不给的话高速射线看起来像一根断掉的棍子
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = b.color;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.w * 1.15, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
       continue;
     }
     if (b.x < L || b.x > R || b.y < T || b.y > B) continue;
@@ -316,6 +626,16 @@ function drawBullets(L, R, T, B) {
       ctx.lineTo(-b.r, -b.r * 0.7);
       ctx.closePath();
       ctx.fill();
+    } else if (b.kind === 'bolt') {
+      // 单发弹拉成橄榄形：朝向已经跟着速度走，看起来是「射出去」而不是「飘着」
+      ctx.globalAlpha = 0.26;
+      ctx.fillStyle = b.color;
+      ctx.beginPath(); ctx.ellipse(0, 0, b.r * 2.7, b.r * 1.45, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = b.color;
+      ctx.beginPath(); ctx.ellipse(0, 0, b.r * 1.55, b.r * 0.82, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.beginPath(); ctx.ellipse(b.r * 0.4, 0, b.r * 0.72, b.r * 0.32, 0, 0, Math.PI * 2); ctx.fill();
     } else {
       // 外层柔光 + 内芯，成本比 shadowBlur 低得多
       ctx.globalAlpha = 0.3;
@@ -403,11 +723,42 @@ function drawPickups(L, R, T, B) {
       ctx.lineTo(p.x, p.y + bob + s); ctx.lineTo(p.x - s * 0.72, p.y + bob);
       ctx.closePath(); ctx.fill();
     } else if (p.kind === 'heal') {
-      ctx.fillStyle = 'rgba(120,230,150,0.9)';
-      ctx.beginPath(); ctx.arc(p.x, p.y + bob, 7, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#0c1018';
-      ctx.fillRect(p.x - 1.4, p.y + bob - 4, 2.8, 8);
-      ctx.fillRect(p.x - 4, p.y + bob - 1.4, 8, 2.8);
+      // 治疗结晶：绿色六边形 + 十字，外面套一圈脉动光晕。
+      // 血量见底时玩家是冲着它跑的，必须一眼能认出来 —— 原来只是个绿圆点，
+      // 混在几十颗经验结晶里根本找不到。
+      const pulse = 0.5 + Math.sin(p.bob * 2) * 0.5;
+      ctx.globalAlpha = 0.16 + pulse * 0.18;
+      ctx.fillStyle = '#5fe08a';
+      ctx.beginPath(); ctx.arc(p.x, p.y + bob, 17 + pulse * 4, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#7de3a0';
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const a = -Math.PI / 2 + (k / 6) * Math.PI * 2;
+        const r = 10;
+        if (k) ctx.lineTo(p.x + Math.cos(a) * r, p.y + bob + Math.sin(a) * r);
+        else ctx.moveTo(p.x + Math.cos(a) * r, p.y + bob + Math.sin(a) * r);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#0c2016';
+      ctx.fillRect(p.x - 1.6, p.y + bob - 4.6, 3.2, 9.2);
+      ctx.fillRect(p.x - 4.6, p.y + bob - 1.6, 9.2, 3.2);
+    } else if (p.kind === 'rage') {
+      // 狂气球：橙色火焰形，同样带脉动光晕
+      const pulse = 0.5 + Math.sin(p.bob * 2.2) * 0.5;
+      ctx.globalAlpha = 0.15 + pulse * 0.17;
+      ctx.fillStyle = '#ff9350';
+      ctx.beginPath(); ctx.arc(p.x, p.y + bob, 16 + pulse * 4, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#ff9350';
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y + bob - 11);
+      ctx.quadraticCurveTo(p.x + 7, p.y + bob - 2, p.x + 4, p.y + bob + 6);
+      ctx.quadraticCurveTo(p.x, p.y + bob + 10, p.x - 4, p.y + bob + 6);
+      ctx.quadraticCurveTo(p.x - 7, p.y + bob - 2, p.x, p.y + bob - 11);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,236,196,0.88)';
+      ctx.beginPath(); ctx.ellipse(p.x, p.y + bob + 3, 2.6, 4, 0, 0, Math.PI * 2); ctx.fill();
     } else {
       // 宝箱 / 命轮：金色宝箱，脉动光圈提示「这块一定要捡」
       const r = p.kind === 'wheel' ? 15 : 12;
@@ -429,15 +780,37 @@ function drawFx() {
     const a = Math.max(0, f.life / f.max);
     if (f.kind === 'ring') {
       const t = 1 - a;
-      ctx.globalAlpha = a * 0.45;
+      const rr = f.ring * (0.35 + t * 0.75);
+      // 内层填充 + 主环 + 一道淡余波：只描一圈细线时，几百个弹道里看不出是「爆炸」
+      ctx.globalAlpha = a * 0.11;
+      ctx.fillStyle = f.color;
+      ctx.beginPath(); ctx.arc(f.x, f.y, rr, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = a * 0.5;
       ctx.strokeStyle = f.color;
       ctx.lineWidth = 1.6 * a + 0.6;
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.ring * (0.35 + t * 0.75), 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(f.x, f.y, rr, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = a * 0.2;
+      ctx.beginPath(); ctx.arc(f.x, f.y, rr * 1.07, 0, Math.PI * 2); ctx.stroke();
     } else if (f.kind === 'line') {
       ctx.globalAlpha = a;
       ctx.strokeStyle = f.color;
       ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+    } else if (f.kind === 'claw') {
+      // 三道爪痕，带方向 —— 玩家一眼能看出「从哪边抓过来的」
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.a);
+      ctx.globalAlpha = a * 0.9;
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = 2.6;
+      ctx.lineCap = 'round';
+      for (let i = -1; i <= 1; i++) {
+        ctx.beginPath();
+        ctx.arc(i * 9, 0, 15, -0.95, 0.95);
+        ctx.stroke();
+      }
+      ctx.restore();
     } else {
       ctx.globalAlpha = a;
       ctx.fillStyle = f.color;
@@ -452,10 +825,15 @@ function drawTexts() {
   ctx.textBaseline = 'middle';
   for (const t of G.texts) {
     const a = Math.min(1, t.life * 2.4);
-    const big = t.kind === 1 || t.kind === 2;
+    const big = t.kind === 1 || t.kind === 2 || t.kind === 4;
     ctx.globalAlpha = a;
-    ctx.font = `${big ? 700 : 600} ${big ? 15 : 12}px system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif`;
-    ctx.fillStyle = t.kind === 1 ? '#ffd479' : t.kind === 2 ? '#8ce0a8' : t.kind === 3 ? '#ff7b72' : '#e6e9f0';
+    ctx.font = `${big ? 700 : 600} ${big ? 15 : t.kind === 5 ? 13 : 12}px system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.fillStyle = t.kind === 1 ? '#ffd479'
+      : t.kind === 2 ? '#8ce0a8'
+        : t.kind === 3 ? '#ff7b72'
+          : t.kind === 4 ? '#ff9350'
+            : t.kind === 5 ? '#9fc4ff'
+              : '#e6e9f0';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(6,9,14,0.85)';
     ctx.strokeText(t.txt, t.x, t.y);
