@@ -1,0 +1,104 @@
+{
+  "_note": "「合成大杜勒」的合成链。d = 直径占游戏区宽度的比例（递增），pts = 合成到这一级得到的分数。src 指向库里已有的头像素材，构建时会以 data URI 内联（见 js/merge-art.js）——11 张图就是 11 个请求，而边缘每个请求要 1~2 秒，必须合成一次。",
+  "levels": [
+    {
+      "key": "cat",
+      "n": "小煤球",
+      "en": "Coal Ball",
+      "src": "assets/avatars-q/story-小煤球.webp",
+      "d": 0.099,
+      "pts": 0,
+      "tint": "#cfd6e4"
+    },
+    {
+      "key": "aigis",
+      "n": "艾继丝",
+      "en": "Aigis",
+      "src": "assets/avatars/a-15591.webp",
+      "d": 0.123,
+      "pts": 1,
+      "tint": "#7688e8"
+    },
+    {
+      "key": "celeste",
+      "n": "希莱斯特",
+      "en": "Celeste",
+      "src": "assets/avatars/a-15566.webp",
+      "d": 0.15,
+      "pts": 3,
+      "tint": "#dcae5e"
+    },
+    {
+      "key": "doll",
+      "n": "朵尔",
+      "en": "Doll",
+      "src": "assets/avatars/a-15570.webp",
+      "d": 0.179,
+      "pts": 6,
+      "tint": "#e8a0ac"
+    },
+    {
+      "key": "ramona",
+      "n": "拉蒙娜",
+      "en": "Ramona",
+      "src": "assets/avatars/a-15595.webp",
+      "d": 0.211,
+      "pts": 10,
+      "tint": "#c9d0df"
+    },
+    {
+      "key": "pandia",
+      "n": "潘狄娅",
+      "en": "Pandia",
+      "src": "assets/avatars/a-15560.webp",
+      "d": 0.246,
+      "pts": 15,
+      "tint": "#c04a4f"
+    },
+    {
+      "key": "murphy",
+      "n": "墨菲",
+      "en": "Murphy",
+      "src": "assets/avatars/a-15576.webp",
+      "d": 0.285,
+      "pts": 21,
+      "tint": "#a48ada"
+    },
+    {
+      "key": "lily",
+      "n": "莉莉",
+      "en": "Lily",
+      "src": "assets/avatars/a-15581.webp",
+      "d": 0.327,
+      "pts": 28,
+      "tint": "#8fa4cc"
+    },
+    {
+      "key": "nodira",
+      "n": "诺缔拉",
+      "en": "Nodira",
+      "src": "assets/avatars/a-15565.webp",
+      "d": 0.372,
+      "pts": 36,
+      "tint": "#dc7440"
+    },
+    {
+      "key": "katigura",
+      "n": "凯蒂古拉",
+      "en": "Katigura",
+      "src": "assets/avatars/a-77913.webp",
+      "d": 0.42,
+      "pts": 45,
+      "tint": "#d8a444"
+    },
+    {
+      "key": "doresain",
+      "n": "杜勒赛因",
+      "en": "Doresain",
+      "src": "assets/avatars/a-95786.webp",
+      "d": 0.473,
+      "pts": 66,
+      "tint": "#5c81e0"
+    }
+  ]
+}

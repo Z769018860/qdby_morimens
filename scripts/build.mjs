@@ -108,7 +108,33 @@ function bundle(entryRel) {
   return { code: parts.join('\n'), modules: order.length };
 }
 
+// ------------------------------------------------------- 合成大杜勒的头像
+// 11 张头像如果各自请求一次，在边缘就是 11 个来回（每个 1~2 秒），没人受得了。
+// 所以构建时把它们读成 data URI 塞进一个模块，页面还是只有一个脚本请求。
+function genMergeArt() {
+  const cfg = readJson(path.join(ROOT, 'data/merge-levels.json'));
+  const levels = cfg.levels.map((l) => {
+    const file = path.join(ROOT, l.src);
+    if (!has(file)) throw new Error('头像不存在：' + l.src);
+    return {
+      key: l.key, n: l.n, en: l.en, d: l.d, pts: l.pts | 0, tint: l.tint || '#9aa4bb',
+      art: 'data:image/webp;base64,' + fs.readFileSync(file).toString('base64'),
+    };
+  });
+  const code = [
+    '// 由 scripts/build.mjs 从 data/merge-levels.json 生成，请勿手改。',
+    '// 每级头像是 data URI：11 张图合成一次传输，页面只发一个脚本请求。',
+    `export const LEVELS = ${JSON.stringify(levels, null, 1)};`,
+    '',
+  ].join('\n');
+  const out = path.join(ROOT, 'js/merge-art.js');
+  if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
+  return levels.length;
+}
+
 // ------------------------------------------------------------------ 主流程
+const artCount = genMergeArt();
+
 fs.rmSync(OUT_JS, { recursive: true, force: true });
 fs.mkdirSync(OUT_JS, { recursive: true });
 

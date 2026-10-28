@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>合成大杜勒 · 忘忘同人小游戏</title>
+<meta name="description" content="合成大西瓜的玩法，素材是《忘却前夜》的头像：把校猫小煤球丢进瓶子，两个同级头像相撞就合成下一级，一路合到杜勒赛因。">
+<meta name="theme-color" content="#0b0e15">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+/* 这一页不引用 css/style.css：那边 65KB 是给整站的，这里只要一个游戏壳。
+   页面自带的样式 + 一个脚本请求就够跑起来（头像已经内联在脚本里）。 */
+:root{
+  --bg:#0a0d14; --panel:#121722; --panel2:#1a2130; --line:#28324a; --text:#e6e9f0;
+  --dim:#8a93a8; --accent:#6ea8ff; --gold:#e3b341; --bad:#e8695f;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#eef1f7; --panel:#fff; --panel2:#f4f6fb; --line:#d7dce8; --text:#1b2130;
+    --dim:#667088; --accent:#2c6fdb; --gold:#9a6f00; --bad:#c8413a; }
+}
+*{box-sizing:border-box}
+html,body{margin:0; height:100%}
+body{
+  background:var(--bg); color:var(--text); overflow:hidden;
+  font:15px/1.5 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-tap-highlight-color:transparent;
+  background-image:
+    radial-gradient(760px 420px at 50% -10%, color-mix(in oklab, var(--accent) 16%, transparent), transparent 70%);
+  background-repeat:no-repeat;
+}
+.app{
+  height:100dvh; max-width:560px; margin:0 auto;
+  padding:max(10px, env(safe-area-inset-top)) 12px max(10px, env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; gap:8px;
+}
+
+/* ---------------------------------------------------------------- 顶栏 */
+.hud{display:flex; align-items:center; gap:8px; flex:0 0 auto}
+.back{
+  width:34px; height:34px; flex:0 0 34px; border-radius:10px; display:grid; place-items:center;
+  border:1px solid var(--line); background:var(--panel); color:var(--text);
+  text-decoration:none; font-size:15px; line-height:1;
+}
+.back:hover{border-color:var(--accent); color:var(--accent)}
+.num{display:flex; flex-direction:column; line-height:1.15; min-width:52px}
+.num b{font-size:19px; font-variant-numeric:tabular-nums; letter-spacing:.02em}
+.num span{font-size:10.5px; color:var(--dim); letter-spacing:.06em}
+.num.dim b{font-size:15px; color:var(--dim); font-weight:600}
+.next{
+  margin-left:auto; display:flex; align-items:center; gap:7px;
+  padding:3px 10px 3px 4px; border:1px solid var(--line); border-radius:999px;
+  background:var(--panel);
+}
+.next img{width:26px; height:26px; border-radius:50%; background:var(--panel2); display:block}
+.next span{font-size:10.5px; color:var(--dim); letter-spacing:.04em}
+.ico{
+  width:34px; height:34px; flex:0 0 34px; border-radius:10px; display:grid; place-items:center;
+  border:1px solid var(--line); background:var(--panel); color:var(--dim); cursor:pointer;
+  font:inherit; padding:0;
+}
+.ico:hover{border-color:var(--accent); color:var(--accent)}
+.ico.off{color:var(--dim); opacity:.5}
+.ico svg{width:17px; height:17px; display:block}
+
+/* ---------------------------------------------------------------- 舞台 */
+.stage{
+  position:relative; flex:1 1 auto; min-height:0;
+  display:flex; align-items:center; justify-content:center;
+}
+canvas#cv{
+  display:block; border-radius:16px; touch-action:none; cursor:pointer;
+  box-shadow:0 26px 60px -34px rgba(0,0,0,.95), 0 0 0 1px var(--line);
+  background:#0d111b;
+}
+/* 载入占位：纯 HTML，脚本没到也有东西看 */
+#boot{
+  position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:10px; text-align:center;
+  border-radius:16px; background:#0d111b; color:#8a93a8; font-size:13px;
+}
+#boot .ring{
+  width:26px; height:26px; border-radius:50%;
+  border:2px solid rgba(150,170,210,.22); border-top-color:#6ea8ff;
+  animation:spin .9s linear infinite;
+}
+#bootText{margin:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------------------------------------------------------------- 结算 */
+.ov{
+  position:absolute; inset:0; display:grid; place-items:center; padding:16px;
+  border-radius:16px; background:rgba(6,9,14,.72); backdrop-filter:blur(6px);
+  opacity:0; transition:opacity .18s ease;
+}
+.ov.on{opacity:1}
+.ov[hidden]{display:none}
+.card{
+  width:min(300px,100%); padding:20px 20px 18px; text-align:center;
+  background:#121722; border:1px solid #2b3448; border-radius:16px; color:#e6e9f0;
+  box-shadow:0 28px 60px -30px rgba(0,0,0,.9);
+}
+.card .k{margin:0 0 6px; font-size:11.5px; letter-spacing:.2em; color:#8a93a8}
+.card .big{margin:0; display:flex; align-items:baseline; justify-content:center; gap:4px}
+.card .big b{font-size:40px; line-height:1; font-variant-numeric:tabular-nums; color:#e3b341}
+.card .big span{font-size:12px; color:#8a93a8}
+.card .sub{margin:10px 0 3px; font-size:12.5px; line-height:1.6; color:#c3cad8}
+.card .sub2{margin:0 0 16px; font-size:11.5px; color:#8a93a8}
+.acts{display:flex; gap:8px}
+.btn{
+  flex:1; display:inline-flex; align-items:center; justify-content:center;
+  padding:9px 0; border-radius:10px; border:1px solid #2b3448; background:#1a2130;
+  color:#e6e9f0; font:inherit; font-size:13.5px; text-decoration:none; cursor:pointer;
+}
+.btn:hover{border-color:#6ea8ff; color:#6ea8ff}
+.btn.primary{
+  background:linear-gradient(100deg, #6ea8ff, #a07cff); border-color:transparent;
+  color:#fff; font-weight:600;
+}
+.btn.primary:hover{color:#fff; opacity:.92}
+
+/* ---------------------------------------------------------------- 合成链 */
+.chain{
+  flex:0 0 auto; display:flex; justify-content:center; align-items:center;
+  gap:clamp(1px,0.6vw,5px); height:42px;
+}
+.ch{
+  display:block; width:100%; max-width:30px; aspect-ratio:1; border-radius:50%;
+  background:var(--panel2); box-shadow:inset 0 0 0 1px var(--line);
+}
+.ch img{
+  width:100%; height:100%; display:block; border-radius:50%;
+  filter:grayscale(1) brightness(.9); opacity:.26; transition:filter .2s ease, opacity .2s ease;
+}
+.ch.on{background:transparent; box-shadow:none}
+.ch.on img{filter:none; opacity:1}
+
+/* ---------------------------------------------------------------- 提示 */
+.toast{
+  position:fixed; left:50%; bottom:16%; transform:translate(-50%, 6px); z-index:60;
+  padding:8px 16px; border-radius:999px; font-size:13px; white-space:nowrap;
+  background:var(--panel); border:1px solid var(--line); color:var(--text);
+  box-shadow:0 16px 34px -18px rgba(0,0,0,.9);
+  transform:translate(-50%,0);
+  transition:opacity .25s ease, transform .25s ease;
+  pointer-events:none;
+}
+.toast.out{opacity:0; transform:translate(-50%,-8px)}
+@media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="hud">
+    <a class="back" href="index.html" title="回首页" aria-label="回首页">←</a>
+    <div class="num"><b id="sc">0</b><span>分数</span></div>
+    <div class="num dim"><b id="bs">0</b><span>最高</span></div>
+    <div class="next"><img id="nx" alt="下一颗"><span>下一颗</span></div>
+    <button class="ico" id="snd" aria-pressed="true" title="音效开关">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9.5h3.2L12 5.5v13L7.2 14.5H4z"/><path d="M16 9.2a4 4 0 0 1 0 5.6"/>
+      </svg>
+    </button>
+    <button class="ico" id="rst" title="重新开始（R）">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 11a8 8 0 1 1-2.6-5.6"/><path d="M20 4.5V10h-5.4"/>
+      </svg>
+    </button>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="cv" aria-label="合成大杜勒游戏区"></canvas>
+    <div id="boot" role="status" aria-live="polite">
+      <div class="ring"></div>
+      <p id="bootText">正在载入…</p>
+    </div>
+    <div class="ov" id="ov" hidden>
+      <div class="card">
+        <p class="k" id="ovk">瓶子满了</p>
+        <p class="big"><b id="ovs">0</b><span>分</span></p>
+        <p class="sub" id="ovd"></p>
+        <p class="sub2" id="ovb"></p>
+        <div class="acts">
+          <button class="btn primary" id="again">再来一局</button>
+          <a class="btn" href="index.html">回首页</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="chain" id="chain" aria-label="合成链：从校猫到杜勒赛因"></footer>
+</div>
+<script>
+/* 载入守护（内联，不占请求）：脚本卡住时至少给个说法和一个按钮 */
+(function () {
+  var t0 = Date.now();
+  setTimeout(function () {
+    var t = document.getElementById('bootText');
+    if (t) t.textContent = '还在载入头像…（首次访问会慢一些）';
+  }, 5000);
+  setTimeout(function () {
+    var b = document.getElementById('boot');
+    if (!b || Date.now() - t0 < 18000) return;
+    b.innerHTML = '<p id="bootText">载入超时</p>';
+    var btn = document.createElement('button');
+    btn.textContent = '重新载入';
+    btn.style.cssText = 'padding:7px 16px;border-radius:9px;border:1px solid #28324a;background:#1a2130;color:#e6e9f0;font:inherit;cursor:pointer';
+    btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
+    b.appendChild(btn);
+  }, 18000);
+})();
+</script>
+<script type="module" src="js/merge.js"></script>
+</body>
+</html>
