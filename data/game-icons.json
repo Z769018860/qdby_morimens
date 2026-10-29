@@ -1,46 +1,46 @@
 {
   "detective": {
-    "src": "assets/ui/gameicons\\detective.webp",
+    "src": "assets/ui/gameicons/detective.webp",
     "from": "assets/avatars-q/char-keeperm.webp",
     "who": "守密人"
   },
   "merge": {
-    "src": "assets/ui/gameicons\\merge.webp",
+    "src": "assets/ui/gameicons/merge.webp",
     "from": "assets/avatars-q/char-b10.webp",
     "who": "杜勒赛因"
   },
   "bird": {
-    "src": "assets/ui/gameicons\\bird.webp",
+    "src": "assets/ui/gameicons/bird.webp",
     "from": "assets/avatars-q/char-d14.webp",
     "who": "波吕克斯"
   },
   "binding": {
-    "src": "assets/ui/gameicons\\binding.webp",
+    "src": "assets/ui/gameicons/binding.webp",
     "from": "assets/avatars-q/story-莱特.webp",
-    "who": "弥萨格校猫"
+    "who": "弥萨格校猫（莱特）"
   },
   "idle": {
-    "src": "assets/ui/gameicons\\idle.webp",
+    "src": "assets/ui/gameicons/idle.webp",
     "from": "assets/avatars-q/char-c06.webp",
     "who": "24"
   },
   "survivors": {
-    "src": "assets/ui/gameicons\\survivors.webp",
+    "src": "assets/ui/gameicons/survivors.webp",
     "from": "assets/avatars-q/char-c16.webp",
     "who": "凯蒂古拉"
   },
   "protocol": {
-    "src": "assets/ui/gameicons\\protocol.webp",
+    "src": "assets/ui/gameicons/protocol.webp",
     "from": "assets/avatars-q/char-c09.webp",
     "who": "潘狄娅"
   },
   "deathreport": {
-    "src": "assets/ui/gameicons\\deathreport.webp",
+    "src": "assets/ui/gameicons/deathreport.webp",
     "from": "assets/avatars-q/char-d07.webp",
     "who": "詹金"
   },
   "wolf": {
-    "src": "assets/ui/gameicons\\wolf.webp",
+    "src": "assets/ui/gameicons/wolf.webp",
     "from": "assets/avatars-q/char-c05.webp",
     "who": "莱克"
   }

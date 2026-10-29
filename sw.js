@@ -11,7 +11,7 @@
 // 预缓存不放在 install 里：那会让「装上」这个动作被 400KB 的下载拖住，
 // 期间页面还不受控。这里改成 activate 之后在后台慢慢填——当前页先受控，
 // 等它填完，之后切页就都是本地读取了。
-const VERSION = 'e061fd3231';
+const VERSION = '758eefb6ac';
 const CACHE = 'zjtt-' + VERSION;
 // 用户主动「下载离线包」写进这里：独立命名、activate 时不清理，重装浏览器才没
 const OFFLINE = 'zjtt-offline-v1';
@@ -137,15 +137,32 @@ async function networkFirst(req, event) {
 }
 
 async function staticFirst(req) {
+  const url = new URL(req.url);
   const cache = await caches.open(CACHE);
-  const hit = await cache.match(req);
+
+  // 离线版「检查更新」会给 data/offline.json 挂一个 ?t= 时间戳来绕过 HTTP 缓存。
+  // 这种请求必须直连网络：走缓存就等于永远读到旧清单，永远提示「已经是最新」。
+  if (/\/data\/offline\.json$/.test(url.pathname)) {
+    try {
+      return await fetch(req);
+    } catch (err) {
+      const old = await cache.match(url.origin + url.pathname);
+      return old || Response.error();
+    }
+  }
+
+  // 其余静态资源拿「路径」当缓存键，忽略 ?v=构建戳。
+  // 脚本引用一律是 js/b/xxx.js?v=<构建戳>，按原始 URL 存的话，同一份 cache
+  // 里会为每次发版多存一整套脚本；归一化之后一个文件只有一份。
+  const key = url.origin + url.pathname;
+  const hit = await cache.match(key);
   if (hit) return hit;
   try {
     const res = await fetch(req);
-    if (res && res.status === 200 && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
+    if (res && res.status === 200 && (res.ok || res.type === 'opaque')) cache.put(key, res.clone());
     return res;
   } catch (err) {
-    const alt = await cache.match(req, { ignoreSearch: true });
+    const alt = await cache.match(key, { ignoreSearch: true });
     if (alt) return alt;
     throw err;
   }

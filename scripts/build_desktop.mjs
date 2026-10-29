@@ -102,7 +102,7 @@ const seven = path.join(DESKTOP, 'node_modules', '7zip-bin', 'win', 'x64', '7za.
 const FRIENDLY = `忘忘同人小游戏-v${version}`;
 const unpacked = path.join(DIST, 'win-unpacked');
 const folder = path.join(DIST, FRIENDLY);
-const outName = `${FRIENDLY}-win-x64.zip`;
+const outName = `wangwang-fangames-${version}-win-x64.zip`;
 
 try { fs.rmSync(folder, { recursive: true, force: true }); } catch { /* 安全删除垫片可能拦，忽略 */ }
 try { fs.renameSync(unpacked, folder); } catch { /* 已经改过名就继续用 */ }
