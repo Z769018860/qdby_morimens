@@ -352,11 +352,18 @@ farmableStage(state, data, from) // 从 from 往下扫，每关最多试 FARM_PR
 - `state.event = { day, daily: { battles, wins, clears, claimed }, fame, tiers, miles }`，`migrate` 里补默认值，`eventState` 惰性按日重置。
 
 ### 20.4 立绘与头像
-没有可用的真人素材（也不能直接抓别人的头像），`tools/build_creators.py` 用 Pillow 画「姓名符印」：界域色光晕 + 圆环 + 印章方框 + 首字，输出 120×120 头像与 240×600 立绘（与官方角色同规格）。有授权图时直接覆盖：
+素材直接用主播本人的 B 站公开头像：原图存在 `tools/faces/<slug>.jpg`，来源（UID / 昵称 / 原始 CDN 地址 / 抓取时间）记在 `tools/faces/source.json`，重跑不用联网。`python tools/build_creators.py --face-dir=tools/faces` 出两套图：
+
+- **头像 120×120**：头像居中裁切直出，唤醒体列表、战斗单位、嘉宾席共用（圆角/圆形由 CSS 裁）。
+- **立绘 240×600**：名片式——头像模糊铺满后压暗、染界域色；中间一枚圆形头像带界域色描边环；下半部竖排名字 + 界域 + 「联名嘉宾」；四角描金角标。
+
+不给 `--face-dir` 时退化成程序画的「姓名符印」占位卡（界域色光晕 + 圆环 + 首字篆刻）；要换单张授权图直接指路径：
 ```
+python tools/build_creators.py --face-dir=tools/faces
 python tools/build_creators.py --portrait samo=D:/图/samo.png --card samo=D:/图/samo-card.png
+python tools/build_creators.py --only samo
 ```
-`CAST` 表里的中文名 / 主色要和 `creators.js` 对得上。
+`CAST` 表里的中文名 / 主色要和 `creators.js` 对得上（立绘名字按竖排逐字画，`_` 会被去掉，所以「魔龙_D」显示成「魔龙D」）。
 
 ### 20.5 界面
 - 新增「更多 → 联动」页（`pages4.js` 的 `eventPage`）：人气条（含「距下一档还差 N」/「人气够了去解锁」）、每日任务与里程碑（可领取的描金边）、嘉宾席 9 张卡（3 列，含界域类型、招牌技能、按钮）、签到赠送一栏。
@@ -371,6 +378,6 @@ python tools/build_creators.py --portrait samo=D:/图/samo.png --card samo=D:/�
 - 唤醒体技能数值是「原型 + 原文数值比例缩放」；中文文本为译文，未经官方校对。
 - 密契/造物效果为本作设计，非官方数值。
 - 召唤、弃牌等怪物特有机制未实现，仅保留文本；周 Boss、公会等长线内容未做；特征名为英文标签直译；融灾区域 3 缺少客户端节点数据。
-- 联名嘉宾的立绘是程序生成的符印占位图，不是本人形象；技能只按昵称意象设计，未经本人确认。
+- 联名嘉宾的头像 / 立绘取自主播本人的 B 站公开头像（同人二创用途，详情页已标注出处与「非本人设定」免责声明）；若本人提出下架或提供新形象，把图放进 `tools/faces/<slug>.jpg` 或走 `--portrait/--card` 重跑即可，不用改代码。其中「朝星」的头像本身是黑底金色线稿，在深色卡片里偏暗，属原图特征。
 - 联动活动的人气档位是线性解锁，没有「本期限定 / 复刻」的概念——如果要长期运营，需要给 `state.event` 加期号与重置规则。
 - 小程序（M5）：`src/core` 无 DOM 依赖，可直接复用；图片需走远程 CDN。
