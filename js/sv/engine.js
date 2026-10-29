@@ -342,9 +342,9 @@ export function recompute() {
   } else if (mech === 'starlit') {
     base.crit += 0.08;
     base.critMul += 0.15;
-  } else if (mech === 'gatekeep') {
+  } else if (mech === 'powerbank') {
     base.maxShieldBonus += 30;      // 基础 30 → 60，约 +30% 上限
-    base.spd -= 0.08;               // 走得慢是设定：他本来就在遛弯
+    base.spd -= 0.08;               // 背着一包充电宝，走得慢是设定
   }
   Object.assign(m, base);
 
@@ -1141,7 +1141,8 @@ function fireProto(w, proto, dmg) {
   // 范围：超武的 area 是「只强化这一把」，造物的 area 是全局
   const areaMul = (ev && ev.area ? 1 + ev.area : 1) * G.mods.area;
   const exPierce = ev && ev.pierce ? ev.pierce : 0;
-  const color = proto.color;
+  // 彩蛋武器可以自带配色（鼠王的黄绿鼠群、安卓佬的绿色更新包），没写就用原型的
+  const color = w.def.color || proto.color;
   const src = w;
   switch (w.def.proto) {
     case 'bolt': {
@@ -1437,7 +1438,7 @@ function fireProto(w, proto, dmg) {
       break;
     }
     case 'stroll': {
-      // 挡在路口：横着占一块地。伤害很低，价值是拖住 + 给一层护盾。
+      // 一键清后台：横着扫一片地。伤害很低，价值是拖住 + 回一层护盾（顺便充上电）。
       const tgt = nearest(P.x, P.y, 460);
       const a = tgt ? Math.atan2(tgt.y - P.y, tgt.x - P.x) : (P.face > 0 ? 0 : Math.PI);
       const R = (86 + lv * 8) * areaMul;
@@ -2363,11 +2364,14 @@ function updateMech(dt) {
     if (far.length) sfx.play('shot');
   }
 
-  // 挡路：每 12 秒在脚下横一道拖慢敌人的路障，顺便补一点护盾
-  if (id === 'gatekeep' && G.mech.t >= 12) {
+  // 移动电源：护盾每 4 秒自行回 3 点。不炸场、不加伤害，就是电从来不断 ——
+  // 安卓佬的招牌不是爆发，是「你怎么还没关机」。
+  if (id === 'powerbank' && G.mech.t >= 4) {
     G.mech.t = 0;
-    addField(P.x, P.y, 2.6, 84, 6 * G.mods.atk, '#a9a29a', false, null, { slow: 0.65 });
-    P.shield = Math.min(P.maxShield, P.shield + 4);
+    if (P.shield < P.maxShield) {
+      P.shield = Math.min(P.maxShield, P.shield + 3);
+      P.shieldBroke = false;
+    }
   }
 
   // 兔子洞：被围住时自动脱身。判定用 96 半径内的敌人数，超过 7 只才算「被围」；

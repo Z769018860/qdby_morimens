@@ -147,8 +147,8 @@ export const PROTOS = {
     desc: (lv) => `沿一条线依次落下 ${2 + Math.floor(lv / 2)} 颗星，越往后落得越重`,
   },
   stroll: {
-    name: '挡住路口', color: '#a9a29a', cd: 2.6, dmg: 9, n: 1, nStep: 2,
-    desc: (lv) => `在身前横一道 ${(2.2 + lv * 0.2).toFixed(1)} 秒的路障，敌人被拖住，自己补一层护盾`,
+    name: '一键清后台', color: '#3ddc84', cd: 2.6, dmg: 9, n: 1, nStep: 2,
+    desc: (lv) => `在身前扫出一片 ${(2.2 + lv * 0.2).toFixed(1)} 秒的清理区，敌人粘在里面挪不动，自己补一层护盾`,
   },
 };
 
@@ -583,10 +583,10 @@ export const EVOS = [
     txt: '朝星专属：星轨多落 2 颗，伤害 +45%',
   },
   {
-    id: 'sw_maodie', char: 'egg-maodie', n: '耄耋之年', color: '#a9a29a',
+    id: 'sw_maodie', char: 'egg-maodie', n: '系统重装', color: '#3ddc84',
     need: { level: 4 },
     fx: { area: 0.4, dmg: 0.25 },
-    txt: '路过的耄耋专属：路障更宽，伤害 +25%',
+    txt: '安卓佬专属：清理区更宽，伤害 +25%',
   },
 ];
 
@@ -761,9 +761,9 @@ export const MECHS = {
     short: '星轨',
   },
   'egg-maodie': {
-    id: 'gatekeep', n: '挡路', color: '#a9a29a',
-    text: '护盾上限 +30%，移动速度 -8%；每 12 秒在脚下横一道拖慢敌人的路障',
-    short: '挡路',
+    id: 'powerbank', n: '移动电源', color: '#3ddc84',
+    text: '护盾上限 +30%、移动速度 -8%（背着一包充电宝）；护盾每 4 秒自行回 3 点，边打边充',
+    short: '充电',
   },
 };
 

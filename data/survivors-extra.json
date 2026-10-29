@@ -311,26 +311,27 @@
       "img": null,
       "egg": true,
       "glyph": "耄",
-      "color": "#a9a29a",
-      "talent": "我什么都没看见",
-      "talentText": "挨完全部伤害之后摆摆手：我什么都没看见",
-      "kind": "B 站主播",
-      "bio": "说是路过，其实每场团战都站在最前面。挡完这一波，他还要接着遛弯。",
+      "color": "#3ddc84",
+      "talent": "刷机保平安",
+      "talentText": "「卡了？刷个机就好了。」这句话他大概说过一千遍",
+      "kind": "B 站主播 · 安卓佬",
+      "bio": "B 站的老观众管他叫「安卓佬」：别人的手机卡了、烫了、掉电快了，第一反应都是先来问他。他的维修哲学只有一句——能刷机就别修，能重启就别拆。至于团战为什么总站在最前面，他说站在后面看不清屏幕。",
       "bioSrc": "B 站空间 · space.bilibili.com/1475217387",
       "weapons": [
         {
-          "n": "挡在路口",
-          "e": "Roadblock",
+          "n": "一键清后台",
+          "e": "Clear Background",
           "proto": "stroll",
-          "text": "在身前横着占一块地，谁想过先被拖住，顺手给自己补一层护盾"
+          "text": "在身前扫出一片清理区，敌人粘在里面挪不动，自己顺手补一层护盾"
         },
         {
-          "n": "拐杖敲",
-          "e": "Cane Tap",
-          "proto": "nova",
-          "text": "敲一下地面，把围上来的都震开",
-          "dmgMul": 1.1,
-          "color": "#a9a29a"
+          "n": "推送更新包",
+          "e": "Push Update",
+          "proto": "rain",
+          "text": "把没装的更新包从天上砸下去，落地才炸——等它读完条",
+          "dmgMul": 1.5,
+          "cdMul": 1.15,
+          "color": "#3ddc84"
         }
       ],
       "face": "assets/survivors/faces/maodie.webp"
