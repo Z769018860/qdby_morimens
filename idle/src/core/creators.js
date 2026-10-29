@@ -51,7 +51,7 @@ export const CREATORS = [
     },
     creator: {
       uid: '345114332', url: 'https://space.bilibili.com/345114332', color: '#e8dcc8', tag: CREATOR_TAG, emoji: '🐾',
-      bio: '把「雪橇三傻」精神带进忘却前夜的主播：全场最白、最热情、也最容易把队伍拆了。社区里都叫他「一哥」。',
+      bio: '把「雪橇三傻」精神带进忘却前夜的主播：全场最白、最热情、也最容易把校猫的台拆了。社区里都叫他「一哥」。',
       hook: '雪原守望 · 拆家',
     },
   },
