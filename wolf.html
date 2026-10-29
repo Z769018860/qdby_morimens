@@ -166,9 +166,16 @@ body.night::after{
 }
 .msg .av img{width:100%; height:100%; display:block; object-fit:cover}
 .msg .body{
-  min-width:0; background:var(--panel); border:1px solid var(--line);
+  min-width:0; border:1px solid var(--line);
   border-radius:4px 13px 13px 13px; padding:7px 12px 8px;
+  /* --pc 是 JS 按席位写进来的：每人一个颜色，气泡、头像框、名字共用 */
+  background:linear-gradient(180deg,color-mix(in oklab,var(--pc,var(--panel)) 16%,var(--panel)),var(--panel));
+  border-color:color-mix(in srgb,var(--pc,var(--line)) 40%,var(--line));
 }
+.msg .av{border-color:color-mix(in srgb,var(--pc,var(--line)) 40%,var(--line))}
+.msg .who > span:first-child{color:color-mix(in oklab,var(--pc,var(--text)) 70%,var(--text)); font-weight:600}
+.msg.me{--pc:var(--gold)}
+.msg.me .who > span:first-child{color:var(--gold)}
 .msg .who{
   display:flex; align-items:center; gap:6px; margin-bottom:2px;
   font-size:11px; color:var(--dim); letter-spacing:.02em;
@@ -302,7 +309,11 @@ body.night::after{
 .pl:hover{background:var(--panel); border-color:var(--line)}
 .pl .av{width:26px; height:26px; flex:0 0 26px; border-radius:8px; overflow:hidden; border:1px solid var(--line)}
 .pl .av img{width:100%; height:100%; display:block}
-.pl .nm{font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.pl .nm{
+  font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:color-mix(in oklab,var(--pc,var(--text)) 66%,var(--text));
+}
+.pl.me .nm{color:var(--gold)}
 .pl .cl{font-size:10px; color:var(--dim); margin-left:auto; flex:0 0 auto}
 .pl.dead{opacity:.4}
 .pl.dead .nm{text-decoration:line-through}
@@ -332,6 +343,87 @@ body.night::after{
 .pick img,.pick .av{width:46px; height:46px; border-radius:12px; display:block; object-fit:cover; border:1px solid var(--line)}
 .pick .rn{font-size:10.5px; color:var(--dim)}
 .pick.tied{border-color:var(--gold)}
+
+/* ---------------------------------------------------------------- 记录（便签 / 往期投票 / 纪要） */
+.rec{min-height:180px}
+.rechead{display:flex; align-items:center; gap:10px}
+.rechead h3{margin:0; flex:1 1 auto; font-size:16px}
+.recx{
+  width:28px; height:28px; flex:0 0 28px; border-radius:8px; padding:0; line-height:1;
+  border:1px solid var(--line); background:var(--panel2); color:var(--dim);
+  font:inherit; font-size:16px; cursor:pointer;
+}
+.recx:hover{border-color:var(--blue); color:var(--blue)}
+.tabs{display:flex; gap:6px; margin:12px 0 12px; border-bottom:1px solid var(--line)}
+.tab{
+  appearance:none; border:1px solid transparent; border-bottom:0; border-radius:9px 9px 0 0;
+  background:transparent; color:var(--dim); font:inherit; font-size:12.5px;
+  padding:7px 14px; cursor:pointer; position:relative; top:1px;
+}
+.tab:hover{color:var(--text)}
+.tab.on{background:var(--panel2); border-color:var(--line); color:var(--gold); font-weight:700}
+
+.nrow{
+  display:grid; grid-template-columns:28px minmax(0,1fr) auto; gap:6px 9px; align-items:center;
+  padding:8px 9px 9px; margin-bottom:7px; border-radius:12px; border:1px solid var(--line);
+  background:color-mix(in oklab,var(--pc,var(--panel)) 6%,var(--panel));
+  transition:border-color .3s ease, box-shadow .3s ease;
+}
+.nrow.flash{border-color:var(--gold); box-shadow:0 0 0 2px color-mix(in srgb,var(--gold) 28%,transparent)}
+.nrow.dead{opacity:.6}
+.nrow img{width:28px; height:28px; border-radius:9px; border:1px solid var(--line); display:block}
+.nmain{min-width:0}
+.nmain b{
+  display:block; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:color-mix(in oklab,var(--pc,var(--text)) 62%,var(--text));
+}
+.nmain span{font-size:10.5px; color:var(--dim2)}
+.nseg{
+  display:inline-flex; flex:0 0 auto; border:1px solid var(--line); border-radius:9px;
+  overflow:hidden; background:var(--panel2);
+}
+.nb{
+  appearance:none; border:0; background:transparent; color:var(--dim2);
+  font:inherit; font-size:11.5px; padding:4px 10px; cursor:pointer;
+}
+.nb + .nb{border-left:1px solid var(--line)}
+.nb:hover{color:var(--text)}
+.nb.on{font-weight:700}
+.nb.bad.on{background:color-mix(in srgb,var(--red) 18%,transparent); color:var(--red)}
+.nb.mid.on{background:color-mix(in srgb,var(--gold) 16%,transparent); color:var(--gold)}
+.nb.good.on{background:color-mix(in srgb,var(--blue) 18%,transparent); color:var(--blue)}
+.nin{
+  grid-column:2 / 4; width:100%; font:inherit; font-size:12px; color:var(--text);
+  background:var(--panel2); border:1px solid var(--line); border-radius:9px;
+  padding:5px 9px; outline:none;
+}
+.nin::placeholder{color:var(--dim2)}
+.nin:focus{border-color:var(--blue)}
+.nfoot{margin-top:10px; display:flex; gap:8px; flex-wrap:wrap}
+
+.vsec{
+  border:1px solid var(--line); border-radius:13px; padding:10px 11px 11px;
+  margin-bottom:9px; background:var(--panel);
+}
+.vhead{display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; margin-bottom:7px}
+.vhead b{font-size:12.5px}
+.vout{font-size:11px; color:var(--red)}
+.vrow{display:flex; flex-wrap:wrap; gap:6px}
+.vchip b{color:color-mix(in oklab,var(--pc,var(--text)) 62%,var(--text))}
+.vbars{margin-top:9px; display:flex; flex-direction:column; gap:4px}
+.vbar{display:grid; grid-template-columns:86px minmax(0,1fr) 46px; align-items:center; gap:8px; font-size:11px}
+.vbl{
+  color:color-mix(in oklab,var(--pc,var(--text)) 62%,var(--text));
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.vbt{height:7px; border-radius:99px; background:var(--panel2); border:1px solid var(--line); overflow:hidden}
+.vbt i{display:block; height:100%; border-radius:99px; background:var(--pc,var(--blue))}
+.vbn{text-align:right; color:var(--dim); font-weight:500}
+.digest{
+  margin:0; white-space:pre-wrap; font:inherit; font-size:12px; line-height:1.85; color:var(--dim);
+  background:var(--panel2); border:1px solid var(--line); border-radius:12px;
+  padding:11px 12px; max-height:52vh; overflow:auto;
+}
 
 /* 身份牌 */
 .card{
@@ -415,11 +507,13 @@ body.night::after{
   .roster h3{padding-right:34px}
   .msg{max-width:94%}
   .msg .tx{font-size:13.5px}
+  .nrow{grid-template-columns:26px minmax(0,1fr) auto; gap:5px 8px}
+  .vbar{grid-template-columns:70px minmax(0,1fr) 42px}
   .rolegrid{grid-template-columns:1fr}
 }
 @media (prefers-reduced-motion: reduce){*{animation:none !important; transition:none !important}}
 </style>
-<meta name="build" content="c0a07a38e9">
+<meta name="build" content="2783aa34cd">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -435,12 +529,13 @@ body.night::after{
       <span id="sub">人机对局 · 你是守密人</span>
     </div>
     <span class="tag" id="diffTag" data-c="normal">夜巡</span>
+    <button class="ico hide" id="recBtn" type="button" aria-label="记录：便签 / 往期投票 / 纪要">▤</button>
     <button class="ico" id="helpBtn" type="button" aria-label="规则与身份牌">?</button>
     <button class="ico hide" id="rosterBtn" type="button" aria-label="在场名单">☰</button>
   </header>
   <main id="stage"></main>
 </div>
-<script type="module" src="js/b/wolf.js?v=c0a07a38e9"></script>
+<script type="module" src="js/b/wolf.js?v=2783aa34cd"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
