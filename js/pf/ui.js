@@ -11,12 +11,15 @@ import {
   G, buy, sell, levelUp, rollShop, rollItemShop, beginWave, reset, traitList, deployed,
   summary, UNITS_BY_ID, buyItem, equip, unequip, itemDef, placeBench,
 } from './engine.js';
-import { ART, SHEET } from './gen.js';
+import { ART, SHEET, REALM_ART } from './gen.js';
 import {
   WAVES, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON,
+  FAC_ICON, GMK_ICON, TRAIT_KINDS,
   STAR_NAME, LEVEL_COST, REROLL_COST, MAX_LEVEL, BENCH_SIZE, creditsAt, nextTier,
   ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS, ENEMY,
 } from './defs.js';
+import { sfx } from './audio.js';
+
 
 const $ = (id) => document.getElementById(id);
 
@@ -50,14 +53,30 @@ const roleCol = (r) => ROLE_COLOR[r] || '#8a93a8';
 const itemKindName = (k) => (k === 'wheel' ? '命轮' : '造物');
 const itemSigil = (k) => (k === 'wheel' ? '命' : '造');
 
-// 界域 / 职阶的小图标：内联 SVG path（不用字体符号，跨平台不会缺字），
-// 颜色跟着 --c 走，同一套在商店卡、备战席、信息卡、羁绊条里复用。
+// 界域 / 职阶 / 组织 / 流派的小图标：
+//   界域用官方徽记（构建时内联成 data URI，见 build.mjs 的 genProtocol），
+//   其余三类是内联 SVG path（不用字体符号，跨平台不会缺字），颜色跟着 --c 走。
+// 同一套在商店卡、备战席、信息卡、羁绊条里复用，不额外请求图片。
 const svgIcon = (d, cls = '') =>
   `<svg class="${cls}" viewBox="0 0 12 12" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="${d}"/></svg>`;
+
+// 官方徽记是彩色的，不能像 SVG 那样靠 currentColor 上色，所以走 background-image。
+// 没有内联图（构建时 assets/protocol/realm-*.webp 缺失）就退回原来的单色 SVG。
+function realmIcon(r, cls = '') {
+  const uri = REALM_ART && REALM_ART[r];
+  if (uri) return `<i class="ri${cls ? ' ' + cls : ''}" style="background-image:url(${uri})"></i>`;
+  return svgIcon(REALM_ICON[r] || '', cls);
+}
+const traitIcon = (t, cls = '') => {
+  if (t.kind === 'realm') return realmIcon(t.key, cls);
+  const path = t.kind === 'fac' ? FAC_ICON[t.key] : t.kind === 'gmk' ? GMK_ICON[t.key] : ROLE_ICON[t.key];
+  return svgIcon(path || '', cls);
+};
 const realmTag = (r) =>
-  `<em class="tg" style="--c:${realmCol(r)}">${svgIcon(REALM_ICON[r] || '')}<u>${REALM_NAME[r] || ''}</u></em>`;
+  `<em class="tg" style="--c:${realmCol(r)}">${realmIcon(r)}<u>${REALM_NAME[r] || ''}</u></em>`;
 const roleTag = (r, short) =>
   `<em class="tg" style="--c:${roleCol(r)}">${svgIcon(ROLE_ICON[r] || '')}<u>${short ? ROLE_SHORT[r] || '' : ROLE_NAME[r] || ''}</u></em>`;
+
 
 function itemTone(it) {
   const d = itemDef(it);
@@ -73,11 +92,23 @@ export function bandRect() {
   const pad = window.innerWidth >= 1000 ? 232 : 0;
   const y = hud.bottom + 6;
   const h = bottom.top - y - 6;
+  // 左侧面板的高度上限靠这个变量算（羁绊多了之后它会超出屏幕）
+  document.documentElement.style.setProperty('--botH', Math.round(window.innerHeight - bottom.top) + 'px');
+  // 溢出、且还没滚到底时，在面板底部盖一层渐隐：不这么提示的话，
+  // 最后一个「流派」组被裁掉半截，看着像布局坏了而不是「下面还有」。
+  const side = $('side');
+  if (side) {
+    const more = side.scrollHeight > side.clientHeight + 2
+      && side.scrollTop + side.clientHeight < side.scrollHeight - 2;
+    if (side.classList.contains('more') !== more) side.classList.toggle('more', more);
+  }
   return { x: pad, y, w: window.innerWidth - pad, h: Math.max(200, h) };
 }
 
+
 // ---------------------------------------------------------------- 装配
 export function build() {
+  const click = () => sfx.play('click');
   $('btnRoll').onclick = () => {
     if (ui.tab === 'unit') { if (rollShop(false)) G.msg = '刷新了商店'; }
     else if (rollItemShop(false)) G.msg = '刷新了命轮商店';
@@ -85,26 +116,58 @@ export function build() {
   };
   $('btnLevel').onclick = () => { levelUp(); sync(); };
   $('btnFight').onclick = () => { beginWave(); sync(); };
-  $('btnHelp').onclick = () => { $('ovHelp').hidden = false; };
-  $('btnHelpClose').onclick = () => { $('ovHelp').hidden = true; };
+  $('btnHelp').onclick = () => { sfx.play('tab'); $('ovHelp').hidden = false; };
+  $('btnHelpClose').onclick = () => { click(); $('ovHelp').hidden = true; };
+  // 声音开关：状态存 localStorage（audio.js 里），按钮本身也把「关」写清楚
+  const mute = $('btnMute');
+  if (mute) {
+    const paint = () => {
+      mute.textContent = sfx.on ? '♪' : '✕';
+      mute.classList.toggle('off', !sfx.on);
+      mute.title = sfx.on ? '声音：开（点一下静音）' : '声音：关（点一下打开）';
+    };
+    paint();
+    mute.onclick = () => { sfx.setMuted(sfx.on); paint(); if (sfx.on) sfx.play('click'); };
+  }
+  // 战斗倍速：只改「每帧推几步」，不改固定步长，2× 下的战果和 1× 是同一套规则。
+  // 选择存 localStorage，下次进来还是上次的速度。
+  const spd = $('btnSpeed');
+  if (spd) {
+    try { G.speed = Number(localStorage.getItem('zjtt:pf:speed')) === 2 ? 2 : 1; } catch { /* 隐私模式 */ }
+    const paint = () => {
+      spd.textContent = G.speed + '×';
+      spd.classList.toggle('on', G.speed > 1);
+      spd.title = G.speed > 1 ? '战斗速度：2×（点一下变回 1×）' : '战斗速度：1×（点一下变 2×）';
+    };
+    paint();
+    spd.onclick = () => {
+      G.speed = G.speed > 1 ? 1 : 2;
+      try { localStorage.setItem('zjtt:pf:speed', String(G.speed)); } catch { /* 同上 */ }
+      paint();
+      sfx.play('tab');
+      G.msg = G.speed > 1 ? '战斗速度 2×' : '战斗速度 1×';
+    };
+  }
   document.querySelectorAll('.diff button').forEach((b) => {
-    b.onclick = () => setDiff(b.dataset.d);
+    b.onclick = () => { setDiff(b.dataset.d); sfx.play('tab'); };
   });
   document.querySelectorAll('.tab').forEach((b) => {
-    b.onclick = () => setTab(b.dataset.tab);
+    b.onclick = () => { setTab(b.dataset.tab); sfx.play('tab'); };
   });
-  $('btnEqClear').onclick = () => { ui.item = null; G.selItem = null; sync(); };
+  $('btnEqClear').onclick = () => { click(); ui.item = null; G.selItem = null; sync(); };
   setDiff('normal');
   setTab('unit');
-  $('btnStart').onclick = () => startRun();
-  $('btnAgain').onclick = () => { $('ovEnd').hidden = true; startRun(); };
+  $('btnStart').onclick = () => { sfx.play('click'); startRun(); };
+  $('btnAgain').onclick = () => { sfx.play('click'); $('ovEnd').hidden = true; startRun(); };
   $('btnMenu').onclick = () => {
+    click();
     $('ovEnd').hidden = true;
     document.querySelector('.app').classList.remove('playing');
     $('ovStart').hidden = false;
     ui.sel = null; G.sel = null; ui.item = null; G.selItem = null;
   };
 }
+
 
 export function setTab(t) {
   ui.tab = t;
@@ -168,16 +231,28 @@ function sameStar(id, star) {
 function renderShop() {
   const box = $('shop');
   if (ui.tab === 'unit') {
+    // 店里同名卡各有几张：两张同名 + 手上有一张 = 一次买两张就升星，
+    // 这种「店里自己凑够了」的情况也该亮，不然玩家得自己数。
+    const inShop = {};
+    for (const s of G.shop) if (s) inShop[s.id] = (inShop[s.id] || 0) + 1;
     box.innerHTML = G.shop.map((s, i) => {
       if (!s) return `<div class="scard empty"><span>已买走</span></div>`;
       const d = UNITS_BY_ID[s.id];
       const can = G.gold >= d.cost;
       const own = sameStar(s.id, 1);
-      // own === 2：再买这一个就三合一，整张卡亮起来
-      const near = own >= 2;
+      const mine = inShop[s.id] || 0;
+      // own>=2：买下这一张立刻三合一；own+店里≥3：把店里的同名一起买也能合。
+      // 两种都算「可以合成」，但前者更该喊出来，所以给两档样式。
+      const instant = own >= 2;
+      const pair = !instant && own + mine >= 3;
+      const cls = instant ? ' mergeable' : pair ? ' pairing' : '';
+      const badge = instant
+        ? `<span class="mb">升星</span>`
+        : pair ? `<span class="mb alt">同名×${mine}</span>` : '';
       const tip = `${d.n} · ${d.ult.name} · ${d.cost} 金`
-        + (own ? `（已有 ${own} 个一星${near ? '，再买一个升 2 星' : ''}）` : '');
-      return `<button class="scard c${d.cost}${can ? '' : ' poor'}${near ? ' near' : ''}" data-i="${i}" title="${tip}">
+        + (own ? `（已有 ${own} 个一星${instant ? '，再买一个升 2 星' : ''}）` : '');
+      return `<button class="scard c${d.cost}${can ? '' : ' poor'}${cls}" data-i="${i}" title="${tip}">
+        ${badge}
         ${own ? `<span class="prog">${[0, 1, 2].map((k) => `<i class="${k < own ? 'on' : ''}"></i>`).join('')}</span>` : ''}
         ${portrait(d.id, 42)}
         <b>${d.n}</b>
@@ -190,6 +265,7 @@ function renderShop() {
     });
     return;
   }
+
   // 命轮 / 造物页签
   box.innerHTML = G.itemShop.map((s, i) => {
     if (!s) return `<div class="scard empty"><span>已买走</span></div>`;
@@ -301,30 +377,47 @@ export function select(uid) {
   sync();
 }
 
+// 羁绊：一共 20 条（4 界域 + 3 职阶 + 7 组织 + 6 流派），平铺会看不清，所以左侧面板
+// 按「界域 / 职阶 / 组织 / 流派」分四组；顶栏那条窄，只放已经亮起来的。
+function traitChip(t) {
+  const d = t.def;
+  const on = t.active >= 0;
+  const nextNeed = t.next != null ? t.next : null;
+  return `<div class="tr${on ? ' on' : ''}" style="--c:${d.color}">
+    <i class="tri">${traitIcon(d)}</i><b>${d.n}</b><span>${t.n}</span>${nextNeed ? `<em>/${nextNeed}</em>` : ''}
+    <div class="trtip">
+      ${d.stepsText.map((s, i) => `<u class="${i <= t.active ? 'on' : ''}">${d.steps[i]} 人 · ${s}</u>`).join('')}
+    </div>
+  </div>`;
+}
+
 function renderTraits() {
   const list = traitList();
   const box = $('traits');
   const side = $('sdTraits');
   if (!list.length) {
-    if (box) box.innerHTML = `<span class="traithint">把唤醒体摆上场，界域 / 职阶羁绊会亮起来</span>`;
+    if (box) box.innerHTML = `<span class="traithint">把唤醒体摆上场，界域 / 职阶 / 组织 / 流派羁绊会亮起来</span>`;
     if (side) side.innerHTML = `<span class="traithint">还没有上场的人</span>`;
     return;
   }
-  const html = list.map((t) => {
-    const d = t.def;
-    const on = t.active >= 0;
-    const nextNeed = t.next != null ? t.next : null;
-    const ic = d.kind === 'realm' ? REALM_ICON[d.key] : ROLE_ICON[d.key];
-    return `<div class="tr${on ? ' on' : ''}" style="--c:${d.color}">
-      <i class="tri">${svgIcon(ic || '')}</i><b>${d.n}</b><span>${t.n}</span>${nextNeed ? `<em>/${nextNeed}</em>` : ''}
-      <div class="trtip">
-        ${d.stepsText.map((s, i) => `<u class="${i <= t.active ? 'on' : ''}">${d.steps[i]} 人 · ${s}</u>`).join('')}
-      </div>
-    </div>`;
-  }).join('');
-  if (box) box.innerHTML = html;
-  if (side) side.innerHTML = html;
+  const live = list.filter((t) => t.active >= 0);
+  if (box) {
+    box.innerHTML = live.length
+      ? live.map(traitChip).join('')
+      : `<span class="traithint">把唤醒体摆上场，界域 / 职阶 / 组织 / 流派羁绊会亮起来</span>`;
+  }
+  if (side) {
+    // 左侧面板位置宽裕，四组全列（没人的组不占位置）
+    side.innerHTML = TRAIT_KINDS.map(([kind, label]) => {
+      const items = list.filter((t) => t.def.kind === kind);
+      if (!items.length) return '';
+      const lit = items.filter((t) => t.active >= 0).length;
+      return `<div class="tgrp"><h5>${label}<em>${lit}/${items.length}</em></h5>
+        <div class="tlist">${items.map(traitChip).join('')}</div></div>`;
+    }).join('');
+  }
 }
+
 
 function eqRow(u) {
   const one = (slot, label) => {
@@ -387,14 +480,17 @@ function renderCard() {
 
 // ---------------------------------------------------------------- 横幅
 let bannerT = 0;
-function showBanner(main, sub) {
+function showBanner(main, sub, col) {
   const b = $('banner');
   if (!b) return;
   $('bannerMain').textContent = main;
   $('bannerSub').textContent = sub || '';
+  // 横幅按事件上色：合成是金色、六种大招各有各的颜色（engine 的 ULT_FX 定的）
+  b.style.setProperty('--bc', col || 'var(--gold)');
   b.classList.add('show');
   bannerT = performance.now();
 }
+
 function tickBanner() {
   const b = $('banner');
   if (!b || !b.classList.contains('show')) return;
@@ -536,15 +632,32 @@ export function updateHUD() {
   if (L.phase !== G.phase) {
     if (G.phase === 'fight' && WAVES[G.wave - 1]) {
       const cfg = WAVES[G.wave - 1];
-      showBanner(cfg.n, cfg.boss ? '首领波 · 撑住就有奖励' : `第 ${G.wave} 波`);
+      showBanner(cfg.n, cfg.boss ? '首领波 · 撑住就有奖励' : `第 ${G.wave} 波`, cfg.boss ? '#ff6b6b' : undefined);
     }
     L.phase = G.phase;
+    // 背景乐跟着阶段走：备战慢、战斗紧、首领更低更重
+    const want = G.phase === 'fight'
+      ? ((WAVES[G.wave - 1] || {}).boss ? 'boss' : 'fight')
+      : (G.phase === 'prep' ? 'prep' : null);
+    if (L.bgm !== want) {
+      L.bgm = want;
+      if (want) sfx.music(want); else sfx.stopMusic();
+    }
   }
-  // 大招横幅：engine 把最近一次大招写在 G.lastUlt 上（带自增序号），只弹一次
+  // 大招横幅：engine 把最近一次大招写在 G.lastUlt 上（带自增序号与配色），只弹一次
   if (G.lastUlt && L.ultSeq !== G.lastUlt.seq) {
     if (G.lastUlt.t < 0.3) {
-      showBanner(G.lastUlt.name, `${G.lastUlt.n} · 狂气爆发`);
+      showBanner(G.lastUlt.name, `${G.lastUlt.n} · 狂气爆发`, G.lastUlt.col);
       L.ultSeq = G.lastUlt.seq;
+    }
+  }
+  // 升星横幅：这是「合成之后到底给了什么」唯一说得清的地方 ——
+  // 以前奖励只写在底部那行小字里，玩家合完只看到星级变了，以为什么都没给。
+  if (G.lastMerge && L.mergeSeq !== G.lastMerge.seq) {
+    if (G.lastMerge.t < 0.6) {
+      const m = G.lastMerge;
+      showBanner(`${m.n} 升到 ${m.star} 星`, m.extra || '属性大幅提升', '#e3b341');
+      L.mergeSeq = m.seq;
     }
   }
   tickBanner();

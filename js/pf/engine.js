@@ -12,10 +12,11 @@ import {
   COLS, ROWS, CELLS, HEX_W, BOARD_W, SPAWN_X, CORE_X, DEPLOY_COLS,
   cellXY, colOf, rowOf, cellOf, NEIGHBORS, STARS, MAX_STAR, MAX_LEVEL, LEVEL_COST, REROLL_COST,
   WAVE_GOLD, INTEREST_CAP, BENCH_SIZE, START_GOLD, START_LEVEL, shopOdds,
-  TRAITS, TRAIT_BY_KEY, ENEMY, WAVES, waveHpMul, waveAtkMul, HEAL_PER_WAVE, creditsAt,
+  TRAITS, TRAIT_BY_KEY, FAC_EFF, GMK_EFF, ENEMY, WAVES, waveHpMul, waveAtkMul, HEAL_PER_WAVE, creditsAt,
   TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, ITEM_SLOTS, ITEM_REROLL, INV_SIZE,
   MERGE_REWARD, LEVEL_REWARD,
 } from './defs.js';
+import { sfx } from './audio.js';
 
 export const UNITS_BY_ID = Object.fromEntries(UNITS.map((u) => [u.id, u]));
 export const ALL_IDS = UNITS.map((u) => u.id);
@@ -60,7 +61,9 @@ export const G = {
   msg: '',                // 顶部滚动提示（最近发生的事）
   sel: null,              // 选中的单位 uid（ui 用）
   selItem: null,          // 选中待装备的装备在 inv 里的下标（ui 用）
+  speed: 1,               // 战斗倍速（1 / 2）。不属于一局的状态，reset 不动它
 };
+
 
 let uidSeq = 1;
 
@@ -126,10 +129,19 @@ function makeUnit(id) {
     hasteT: 0, atkBuff: 0, atkBuffT: 0, guardT: 0,
     hurtT: 0, atkAnim: 0, target: null, alive: true,
     x: 0, y: 0,
-    // 装备：命轮一个槽、造物一个槽；killStacks 是「红宝石胸针」的永久叠加
+    // 装备：命轮一个槽、造物一个槽；killStacks 是「红宝石胸针」/ 吞噬的永久叠加
     wheel: null, creation: null, killStacks: 0,
     crit: 0, critDmg: 1.75, lifesteal: 0, dmgCutExtra: 0, ultGainMul: 1,
     regenT: 0, healFx: 0,
+    // 组织 / 流派羁绊挂上来的机制数值（在 restat 里重算，进场时都是 0）
+    splash: 0,        // 触手：攻击溅射到相邻敌人的比例
+    poison: 0,        // 中毒：每秒伤害占攻击力的比例
+    thorns: 0,        // 反击：受击反弹比例
+    killHeal: 0,      // 吞噬：击杀回血
+    killAtkStep: 0,   // 吞噬 / 红宝石胸针：每层击杀的攻击加成
+    killAtkMax: 0,    // 叠加上限
+    pierce: 0,        // 穿透：无视目标减伤的比例
+    ultPower: 1,      // 大招伤害倍率
   };
   restat(u, true);
   return u;
@@ -150,15 +162,42 @@ function equipStats(u) {
   const out = {
     hp: 0, atk: 0, aspd: 0, armor: 0, crit: 0, critDmg: 0,
     lifesteal: 0, dmgCut: 0, rangeAdd: 0, ultGain: 0,
+    killAtkStep: 0, killAtkMax: 0,
   };
   const w = u.wheel && u.wheel.stat;
   if (w) for (const k in out) if (w[k]) out[k] += w[k];
   const fx = u.creation && u.creation.fx;
   if (fx === 'critChain') out.crit += 0.18;
   if (fx === 'ultGain') out.ultGain += 0.7;
-  if (u.killStacks) out.atk += 0.04 * u.killStacks;
+  if (fx === 'killAtk') { out.killAtkStep += 0.04; out.killAtkMax = Math.max(out.killAtkMax, 10); }
   return out;
 }
+
+// 组织 / 流派：只对「同组织」「同流派」的人生效，所以这里按单位自己查档位。
+// 返回一个扁平的加成对象，restat 直接往数值上叠。
+function socialStats(u, bn) {
+  const out = {
+    hp: 0, atk: 0, aspd: 0, armor: 0, crit: 0, ultGain: 0, dmgCut: 0,
+    splash: 0, poison: 0, thorns: 0, killHeal: 0, killAtkStep: 0, killAtkMax: 0,
+    pierce: 0, ultPower: 0,
+  };
+  const add = (eff, lv) => {
+    if (!eff || lv < 0) return;
+    for (const k in eff) {
+      const arr = eff[k];
+      if (!arr || arr[lv] == null) continue;
+      if (k in out) out[k] += arr[lv];
+    }
+  };
+  const flv = bn.fac ? (bn.fac[u.def.fac] == null ? -1 : bn.fac[u.def.fac]) : -1;
+  add(FAC_EFF[u.def.fac], flv);
+  for (const t of u.def.tags || []) {
+    const lv = bn.gmk ? (bn.gmk[t] == null ? -1 : bn.gmk[t]) : -1;
+    add(GMK_EFF[t], lv);
+  }
+  return out;
+}
+
 
 // 地形对站在这一格上的单位的影响
 function terrainStats(u) {
@@ -175,26 +214,39 @@ export function restat(u, fresh) {
   const bn = G.bonus || {};
   const eq = equipStats(u);
   const tr = terrainStats(u) || {};
+  const so = socialStats(u, bn);
   const isTank = u.def.role === 'tank';
   const isDps = u.def.role === 'dps';
-  const isAeq = u.def.realm === 'aequor';
-  let hp = b.hp * (1 + (isTank ? (bn.tankHp || 0) : 0) + eq.hp + (tr.hp || 0));
-  let atk = b.atk * (1 + (isDps ? (bn.dpsAtk || 0) : 0) + (u.atkBuff || 0) + eq.atk + (tr.atk || 0));
-  let aspd = b.aspd * (1 + (bn.aspd || 0) + (isAeq ? (bn.aequorAspd || 0) : 0)
-    + (u.hasteT > 0 ? 0.35 : 0) + eq.aspd + (tr.aspd || 0));
+  // 击杀叠攻（红宝石胸针 / 吞噬）：每层多少、叠到几层，由两处加成取最大步长
+  u.killAtkStep = eq.killAtkStep + so.killAtkStep;
+  u.killAtkMax = Math.max(eq.killAtkMax, so.killAtkMax);
+  if (u.killStacks > u.killAtkMax) u.killStacks = u.killAtkMax;
+  let hp = b.hp * (1 + (isTank ? (bn.tankHp || 0) : 0) + eq.hp + so.hp + (tr.hp || 0));
+  let atk = b.atk * (1 + (isDps ? (bn.dpsAtk || 0) : 0) + (u.atkBuff || 0)
+    + eq.atk + so.atk + (tr.atk || 0) + u.killAtkStep * u.killStacks);
+  let aspd = b.aspd * (1 + (bn.aspd || 0) + (u.def.realm === 'aequor' ? (bn.aequorAspd || 0) : 0)
+    + (u.hasteT > 0 ? 0.35 : 0) + eq.aspd + so.aspd + (tr.aspd || 0));
   const ratio = u.hpMax > 0 ? u.hp / u.hpMax : 1;
   u.hpMax = Math.round(hp);
   u.hp = fresh ? u.hpMax : Math.round(u.hpMax * clamp(ratio, 0, 1));
   u.atk = atk;
   u.aspd = aspd;
-  u.armor = b.armor + eq.armor;
+  u.armor = b.armor + eq.armor + so.armor;
   u.range = b.range + (eq.rangeAdd + (tr.rangeAdd || 0)) * HEX_W;
-  u.crit = (bn.crit || 0) + eq.crit;
+  u.crit = (bn.crit || 0) + eq.crit + so.crit;
   u.critDmg = 1.75 + eq.critDmg;
   u.lifesteal = (bn.lifesteal || 0) + eq.lifesteal;
-  u.dmgCutExtra = (bn.dmgCut || 0) + eq.dmgCut + (tr.dmgCut || 0);
-  u.ultGainMul = 1 + eq.ultGain + (tr.ultGain || 0);
+  u.dmgCutExtra = (bn.dmgCut || 0) + eq.dmgCut + so.dmgCut + (tr.dmgCut || 0);
+  u.ultGainMul = 1 + eq.ultGain + so.ultGain + (tr.ultGain || 0);
+  // 流派机制（不叠加到属性上，战斗里单独判定）
+  u.splash = so.splash;
+  u.poison = so.poison;
+  u.thorns = so.thorns;
+  u.killHeal = so.killHeal;
+  u.pierce = so.pierce;
+  u.ultPower = 1 + so.ultPower;
 }
+
 
 export function unitAt(cell) { return G.board.get(cell) || null; }
 export function benchIndex(u) { return G.bench.indexOf(u); }
@@ -236,8 +288,8 @@ function rollOne() {
 }
 
 export function rollShop(free) {
-  if (!free && G.gold < REROLL_COST) return false;
-  if (!free) G.gold -= REROLL_COST;
+  if (!free && G.gold < REROLL_COST) { sfx.play('deny'); return false; }
+  if (!free) { G.gold -= REROLL_COST; sfx.play('reroll'); }
   G.shop = [];
   for (let i = 0; i < 5; i++) G.shop.push({ id: rollOne() });
   return true;
@@ -248,7 +300,7 @@ export function buy(i) {
   const slot = G.shop[i];
   if (!slot || G.phase === 'fight' || G.phase === 'over' || G.phase === 'win') return false;
   const def = UNITS_BY_ID[slot.id];
-  if (G.gold < def.cost) { G.msg = '金币不够'; return false; }
+  if (G.gold < def.cost) { G.msg = '金币不够'; sfx.play('deny'); return false; }
   if (G.units.length >= BENCH_SIZE + CELLS) { G.msg = '没有空位了'; return false; }
   G.gold -= def.cost;
   G.shop[i] = null;
@@ -262,6 +314,7 @@ export function buy(i) {
     u.cell = -1; u.bench = b; G.bench[b] = u;
   }
   G.units.push(u);
+  sfx.play('buy');
   mergeAll(slot.id, 1);
   recount();
   return true;
@@ -318,17 +371,32 @@ function mergeAll(id, star) {
   keep.star++;
   restat(keep, true);
   const p = keep.cell >= 0 ? cellXY(keep.cell) : { x: BOARD_W / 2, y: 120 };
+  // 升星是整局最值得看见的一刻：光柱 + 冲击波 + 一圈金火花，星级越高越夸张。
+  // 早先这里只有一圈小光环，玩家基本注意不到，也就以为「合成了却什么都没给」。
+  const big = keep.star >= MAX_STAR;
   addFx({ k: 'ring', x: p.x, y: p.y, d: 0.6, r: 40, col: '#e3b341' });
-  addFloat(p.x, p.y - 60, '★'.repeat(keep.star), '#e3b341', 1.1);
+  addFx({
+    k: 'blast', x: p.x, y: p.y - 18, d: big ? 0.9 : 0.7,
+    r: HEX_W * (big ? 1.6 : 1.15), col: '#e3b341',
+  });
+  spark(p.x, p.y - 46, '#ffe9a8', big ? 18 : 11);
+  addFloat(p.x, p.y - 60, '★'.repeat(keep.star), '#e3b341', big ? 1.4 : 1.1);
   G.stats.merged++;
+  sfx.play(big ? 'merge3' : 'merge2');
 
   const rw = MERGE_REWARD[keep.star] || { gold: 0 };
   let extra = '';
-  if (rw.gold) G.gold += rw.gold;
-  if (rw.wheel) extra = ' · ' + grantItem('wheel');
-  if (rw.creation) extra = ' · ' + grantItem('creation');
+  if (rw.gold) { G.gold += rw.gold; extra += ` · +${rw.gold} 金`; }
+  if (rw.wheel) extra += ' · ' + grantItem('wheel');
+  if (rw.creation) extra += ' · ' + grantItem('creation');
   if (keep.star >= MAX_STAR) { rollShop(true); extra += ' · 商店已刷新'; }
   G.msg = `${keep.def.n} 升到 ${keep.star} 星${extra}`;
+  // 界面层靠这个弹横幅：合成奖励只写在底部那行小字里是看不见的
+  G.mergeSeq = (G.mergeSeq || 0) + 1;
+  G.lastMerge = {
+    n: keep.def.n, star: keep.star, seq: G.mergeSeq, extra: extra.replace(/^ · /, ''),
+    gold: rw.gold || 0, t: 0,
+  };
   if (keep.star < MAX_STAR) mergeAll(id, keep.star);
 }
 
@@ -385,13 +453,14 @@ export function buyItem(i) {
   if (!it || G.phase === 'fight') return false;
   const d = itemDef(it);
   if (!d) return false;
-  if (G.inv.length >= INV_SIZE) { G.msg = '装备栏满了，先给唤醒体装上'; return false; }
-  if (G.gold < d.cost) { G.msg = '金币不够'; return false; }
+  if (G.inv.length >= INV_SIZE) { G.msg = '装备栏满了，先给唤醒体装上'; sfx.play('deny'); return false; }
+  if (G.gold < d.cost) { G.msg = '金币不够'; sfx.play('deny'); return false; }
   G.gold -= d.cost;
   G.itemShop[i] = null;
   G.inv.push({ kind: it.kind, id: it.id });
   G.stats.items++;
   G.msg = `买到${it.kind === 'wheel' ? '命轮' : '造物'}「${d.n}」`;
+  sfx.play('buy');
   return true;
 }
 
@@ -408,6 +477,7 @@ export function equip(uid, idx) {
   restat(u, false);
   recount();
   G.msg = `${u.def.n} 装上「${itemName(it)}」`;
+  sfx.play('equip');
   return true;
 }
 
@@ -423,6 +493,7 @@ export function unequip(uid, kind) {
   restat(u, false);
   recount();
   G.msg = `卸下「${cur.n}」`;
+  sfx.play('click');
   return true;
 }
 
@@ -440,6 +511,7 @@ export function sell(uid) {
   if (G.sel === uid) G.sel = null;
   recount();
   G.msg = `${u.def.n} 卖出 +${refund} 金`;
+  sfx.play('sell');
 }
 
 // 拖动/点选布阵：cell<0 表示放回备战席。
@@ -519,9 +591,10 @@ export function placeBench(uid, idx) {
 
 export function levelUp() {
   if (G.phase === 'fight' || G.level >= MAX_LEVEL) return false;
-  if (G.gold < LEVEL_COST) { G.msg = '金币不够'; return false; }
+  if (G.gold < LEVEL_COST) { G.msg = '金币不够'; sfx.play('deny'); return false; }
   G.gold -= LEVEL_COST;
   G.level++;
+  sfx.play('level');
   // 升级奖励：返 1 金 + 商店与装备商店白刷一次（不是白送人，但等于省 3 金刷新费）
   G.gold += LEVEL_REWARD.gold;
   rollShop(true);
@@ -543,6 +616,9 @@ export function recount() {
   for (const [id, u] of seen) {
     cnt[u.def.realm] = (cnt[u.def.realm] || 0) + 1;
     cnt[u.def.role] = (cnt[u.def.role] || 0) + 1;
+    // 组织（fools / outlander / …）与流派（poison / tentacle / …）
+    if (u.def.fac) cnt[u.def.fac] = (cnt[u.def.fac] || 0) + 1;
+    for (const t of u.def.tags || []) cnt[t] = (cnt[t] || 0) + 1;
   }
   G.traitCount = cnt;
   G.bonus = computeBonus(cnt);
@@ -550,26 +626,40 @@ export function recount() {
   return cnt;
 }
 
+// 档位序号：-1 表示还没凑够第一档
+function traitLevel(key, cnt) {
+  const t = TRAIT_BY_KEY[key];
+  if (!t) return -1;
+  const n = cnt[key] || 0;
+  let idx = -1;
+  for (let i = 0; i < t.steps.length; i++) if (n >= t.steps[i]) idx = i;
+  return idx;
+}
+
 export function computeBonus(cnt) {
   const b = {
     lifesteal: 0, crit: 0, dmgCut: 0, aspd: 0, dpsAtk: 0, tankHp: 0, aequorAspd: 0,
+    fac: {}, gmk: {},
   };
-  const step = (key, vals) => {
-    const t = TRAIT_BY_KEY[key];
-    const n = cnt[key] || 0;
-    let idx = -1;
-    for (let i = 0; i < t.steps.length; i++) if (n >= t.steps[i]) idx = i;
-    return idx < 0 ? 0 : vals[idx];
+  const pick = (key, vals) => {
+    const i = traitLevel(key, cnt);
+    return i < 0 ? 0 : vals[i];
   };
-  b.lifesteal = step('caro', [0.06, 0.10, 0.16]);
-  b.aequorAspd = step('aequor', [0.14, 0.24, 0.38]);
-  b.crit = step('chaos', [0.14, 0.24, 0.38]);
-  b.dmgCut = step('ultra', [0.06, 0.10, 0.16]);
-  b.dpsAtk = step('dps', [0.16, 0.30, 0.50]);
-  b.tankHp = step('tank', [0.24, 0.44, 0.68]);
-  b.aspd = step('sup', [0.08, 0.14, 0.22]);
+  b.lifesteal = pick('caro', [0.06, 0.10, 0.16]);
+  b.aequorAspd = pick('aequor', [0.14, 0.24, 0.38]);
+  b.crit = pick('chaos', [0.14, 0.24, 0.38]);
+  b.dmgCut = pick('ultra', [0.06, 0.10, 0.16]);
+  b.dpsAtk = pick('dps', [0.16, 0.30, 0.50]);
+  b.tankHp = pick('tank', [0.24, 0.44, 0.68]);
+  b.aspd = pick('sup', [0.08, 0.14, 0.22]);
+  // 组织与流派只记「档位」，具体数值在 restat 里按单位自己的组织 / 流派去查
+  for (const t of TRAITS) {
+    if (t.kind === 'fac') b.fac[t.key] = traitLevel(t.key, cnt);
+    else if (t.kind === 'gmk') b.gmk[t.key] = traitLevel(t.key, cnt);
+  }
   return b;
 }
+
 
 // 面板用：每个羁绊当前人数 + 已达档位 + 下一档还差几人
 export function traitList() {
@@ -653,6 +743,7 @@ export function beginWave() {
   G.spawnQ = (G.plan.length ? G.plan : planWave(w)).map((x) => ({ ...x }));
   for (const u of G.units) { u.timer = rnd() * 0.4; u.target = null; }
   G.msg = cfg.n;
+  sfx.play('wave');
   return true;
 }
 
@@ -678,7 +769,8 @@ function unitAttack(u, e) {
   const crit = rnd() < (u.crit || 0);
   const fx = u.creation ? u.creation.fx : null;
   let dmg = u.atk * (crit ? (u.critDmg || 1.75) : 1) * (0.92 + rnd() * 0.16);
-  const mit = e.def.cls === 'Boss' ? 0.18 : e.def.cls === '精英' ? 0.12 : 0.05;
+  let mit = e.def.cls === 'Boss' ? 0.18 : e.def.cls === '精英' ? 0.12 : 0.05;
+  if (u.pierce) mit *= 1 - u.pierce;           // 穿透流派：无视一部分减伤
   dmg *= 1 - mit;
   if (e.wound) dmg *= 1 + 0.03 * e.wound;      // 锈蚀柳叶刀的创口
   e.hp -= dmg;
@@ -696,6 +788,27 @@ function unitAttack(u, e) {
   addFloat(e.x, e.y - 26, Math.round(dmg), crit ? '#ffe066' : '#ffb0a6', crit ? 1.15 : 0.9);
   if (crit) spark(e.x, e.y - 18, '#ffe066', 4);
   if (u.lifesteal > 0) u.hp = Math.min(u.hpMax, u.hp + dmg * u.lifesteal);
+  sfx.play(crit ? 'crit' : 'hit');
+
+  // ---- 流派：中毒（挂一个持续伤害，每秒结算）
+  if (u.poison > 0) {
+    e.poison = 1;
+    e.poisonBy = u;
+    e.poisonDps = u.atk * u.poison;
+    e.poisonT = 3;
+  }
+  // ---- 流派：触手（打目标两侧的怪，不产生新的溅射）
+  if (u.splash > 0) {
+    for (const o of [...G.enemies]) {
+      if (o === e) continue;
+      if (Math.abs(o.y - e.y) > HEX_W * 0.7 || o.x > e.x + HEX_W || o.x < e.x - HEX_W) continue;
+      const sd = dmg * u.splash;
+      o.hp -= sd; o.hurtT = 0.12;
+      G.stats.dmg += sd;
+      addFloat(o.x, o.y - 34, Math.round(sd), '#c98cf0', 0.72);
+      if (o.hp <= 0) killEnemy(o, u);
+    }
+  }
 
   // ---- 造物：命中时的附加效果
   if (fx === 'trueDmg') {
@@ -720,6 +833,7 @@ function unitAttack(u, e) {
   u.atkAnim = u.atkDur;
 }
 
+
 // 命中火花：一次撒几粒，比一圈光环更「有手感」
 function spark(x, y, col, n) {
   for (let i = 0; i < n; i++) {
@@ -738,12 +852,14 @@ function killEnemy(e, by) {
   G.stats.kills++;
   addFx({ k: 'ring', x: e.x, y: e.y - 6, d: 0.42, r: 18 + e.size * 16, col: '#b06bd9' });
   spark(e.x, e.y - 20, '#c98cf0', 5);
+  if (G.enemies.length < 10) sfx.play('kill');
   if (by) {
     const fx = by.creation ? by.creation.fx : null;
-    if (fx === 'killAtk' && by.killStacks < 10) { by.killStacks++; restat(by, false); }
-    if (by.wheel && by.wheel.stat && by.wheel.stat.killHeal) {
-      by.hp = Math.min(by.hpMax, by.hp + by.hpMax * by.wheel.stat.killHeal);
-    }
+    // 击杀叠攻：红宝石胸针（10 层）与吞噬流派（5 层）共用一份计数，步长来自 restat
+    if (by.killAtkStep > 0 && by.killStacks < by.killAtkMax) { by.killStacks++; restat(by, false); }
+    // 击杀回血：命轮的 killHeal 与吞噬流派叠加
+    const kh = (by.wheel && by.wheel.stat && by.wheel.stat.killHeal ? by.wheel.stat.killHeal : 0) + (by.killHeal || 0);
+    if (kh > 0) by.hp = Math.min(by.hpMax, by.hp + by.hpMax * kh);
     if (fx === 'teamHeal') {
       for (const a of G.units) {
         if (a.cell < 0 || a.hp <= 0) continue;
@@ -752,6 +868,7 @@ function killEnemy(e, by) {
     }
   }
 }
+
 
 // 相邻（一格内）有没有别的友军 —— 守护之手的判定
 function hasAllyNear(u) {
@@ -778,9 +895,13 @@ function damageUnit(u, raw, src) {
   u.ult = Math.min(100, u.ult + 7 * (u.ultGainMul || 1));
   const p = cellXY(u.cell);
   addFloat(p.x + (rnd() - 0.5) * 12, p.y - 60, Math.round(dmg), '#ff8a7a', 0.85);
-  if (u.creation && u.creation.fx === 'thorns' && src && src.hp > 0) {
-    src.hp -= dmg * 0.3;
-    addFloat(src.x, src.y - 34, Math.round(dmg * 0.3), '#8bd450', 0.75);
+  sfx.play('hurt');
+  // 反弹：造物「怪蛇残蜕」30%，反击流派按档位另算 —— 两者可以同时存在
+  const th = (u.creation && u.creation.fx === 'thorns' ? 0.3 : 0) + (u.thorns || 0);
+  if (th > 0 && src && src.hp > 0) {
+    const back = dmg * th;
+    src.hp -= back;
+    addFloat(src.x, src.y - 34, Math.round(back), '#8bd450', 0.75);
     if (src.hp <= 0) killEnemy(src, u);
   }
   if (u.hp <= 0) {
@@ -791,9 +912,22 @@ function damageUnit(u, raw, src) {
 }
 
 // ---------------------------------------------------------------- 大招
+// 六种大招各有各的动作：颜色、震屏、音效、以及 render 里画的那套特效都不一样。
+// 之前它们都只是「一圈金环 + 一行字」，六种技能看起来一模一样 —— 这一版把它们分开，
+// 玩家不看文字也能从画面上认出这是落雷还是护罩。
+const ULT_FX = {
+  nuke: { col: '#ffe066', sfx: 'ultNuke', shake: 8.0 },      // 落雷：天降光柱，最狠的一震
+  splash: { col: '#ff8a5c', sfx: 'ultSplash', shake: 6.0 },  // 冲击波：三层环炸开
+  guard: { col: '#7fb3ff', sfx: 'ultGuard', shake: 1.6 },    // 护罩：六边形网格罩住
+  haste: { col: '#8bd450', sfx: 'ultHaste', shake: 2.0 },    // 加速：横向速度线
+  stun: { col: '#8ecbff', sfx: 'ultStun', shake: 4.2 },      // 眩晕：电波扩散 + 星星
+  heal: { col: '#8bd450', sfx: 'ultHeal', shake: 1.0 },      // 治疗：上升的光点
+};
+
 function castUlt(u) {
   const p = cellXY(u.cell);
   const ult = u.def.ult;
+  const tone = ULT_FX[ult.kind] || ULT_FX.nuke;
   const allies = G.units.filter((x) => x.cell >= 0 && x.hp > 0);
   const near = G.enemies
     .map((e) => ({ e, d: Math.hypot(e.x - p.x, e.y - p.y) }))
@@ -802,13 +936,16 @@ function castUlt(u) {
   // 放大招也播一遍打击动图：这一下是全场最该看到动作的时刻
   u.atkDur = 0.56;
   u.atkAnim = 0.56;
-  addFx({ k: 'ring', x: p.x, y: p.y - 24, d: 0.5, r: 52, col: '#ffe066' });
-  G.shake = Math.max(G.shake || 0, u.def.cost >= 3 ? 4.5 : 2.2);
+  // 起手：脚下炸开一圈专属颜色的光环 + 上升的光柱，六种共用这一层
+  addFx({ k: 'ring', x: p.x, y: p.y - 24, d: 0.52, r: 56, col: tone.col });
+  addFx({ k: 'ult', x: p.x, y: p.y - 30, d: 0.72, r: 96, col: tone.col, kind: ult.kind });
+  G.shake = Math.max(G.shake || 0, tone.shake);
   G.ultSeq = (G.ultSeq || 0) + 1;
-  G.lastUlt = { n: u.def.n, name: ult.name, t: 0, seq: G.ultSeq };
+  G.lastUlt = { n: u.def.n, name: ult.name, kind: ult.kind, col: tone.col, t: 0, seq: G.ultSeq };
   G.msg = `${u.def.n} 施放「${ult.name}」`;
-  // 彩蛋时间：大招伤害 +35%
-  const uMul = u.creation && u.creation.fx === 'ultPower' ? 1.35 : 1;
+  sfx.play(tone.sfx);
+  // 彩蛋时间（大招伤害 +35%）与胚胎流派（大招伤害 +12%/22%）叠在一起
+  const uMul = (u.creation && u.creation.fx === 'ultPower' ? 1.35 : 1) * (u.ultPower || 1);
   // 定向罗盘：友军放大招时，其它带罗盘的友军回狂气
   for (const a of allies) {
     if (a !== u && a.creation && a.creation.fx === 'ultEcho') {
@@ -816,6 +953,7 @@ function castUlt(u) {
     }
   }
   if (ult.kind === 'nuke') {
+    // 落雷：一道光柱从天上砸到最近的敌人身上，落点溅出碎片
     const tgt = near[0] ? near[0].e : null;
     if (tgt) {
       let mul = 3.2;
@@ -824,11 +962,16 @@ function castUlt(u) {
       tgt.hp -= dmg;
       tgt.hurtT = 0.3;
       G.stats.dmg += dmg;
-      addFloat(tgt.x, tgt.y - 40, Math.round(dmg), '#ffe066', 1.5);
-      addFx({ k: 'ring', x: tgt.x, y: tgt.y - 10, d: 0.4, r: 46, col: '#ffe066' });
+      addFx({ k: 'beam', x: tgt.x, y: tgt.y, d: 0.55, w: 16, col: tone.col });
+      addFx({ k: 'ring', x: tgt.x, y: tgt.y - 10, d: 0.42, r: 52, col: tone.col });
+      addFloat(tgt.x, tgt.y - 40, Math.round(dmg), tone.col, 1.5);
+      spark(tgt.x, tgt.y - 6, tone.col, 9);
       if (tgt.hp <= 0) killEnemy(tgt, u);
+    } else {
+      addFx({ k: 'beam', x: p.x, y: p.y, d: 0.55, w: 14, col: tone.col });
     }
   } else if (ult.kind === 'splash') {
+    // 冲击波：以目标为圆心炸开三层不同速度的环
     const tgt = near[0] ? near[0].e : null;
     const cx = tgt ? tgt.x : p.x + HEX_W * 2;
     const cy = tgt ? tgt.y : p.y;
@@ -842,8 +985,10 @@ function castUlt(u) {
         if (e.hp <= 0) killEnemy(e, u);
       }
     }
-    addFx({ k: 'ring', x: cx, y: cy - 10, d: 0.5, r: R, col: u.def.role === 'dps' ? '#ff8a5c' : '#b06bd9' });
+    addFx({ k: 'blast', x: cx, y: cy - 6, d: 0.62, r: R, col: tone.col });
+    spark(cx, cy - 6, tone.col, 12);
   } else if (ult.kind === 'heal') {
+    // 治疗：不是「补一口血」，是脚下升起一串光点
     const low = allies.slice().sort((a, b) => a.hp / a.hpMax - b.hp / b.hpMax);
     const one = u.id === 'celeste' ? allies : low.slice(0, 1);
     for (const a of one) {
@@ -851,22 +996,28 @@ function castUlt(u) {
       a.hp = Math.min(a.hpMax, a.hp + heal);
       const q = cellXY(a.cell);
       addFloat(q.x, q.y - 66, '+' + Math.round(heal), '#8bd450', 1.0);
-      addFx({ k: 'ring', x: q.x, y: q.y - 26, d: 0.45, r: 34, col: '#8bd450' });
+      addFx({ k: 'bloom', x: q.x, y: q.y - 8, d: 0.85, r: 34, col: tone.col });
       if (u.id === 'raya') { a.atkBuff = 0.2; a.atkBuffT = 6; restat(a, false); }
     }
   } else if (ult.kind === 'guard') {
+    // 护罩：六边形网格把受保护的人罩住，比一圈环更像「防护」
     const targets = [u].concat(allies.filter((a) => a !== u && Math.hypot(cellXY(a.cell).x - p.x, cellXY(a.cell).y - p.y) < HEX_W * 2.4).slice(0, 1));
     for (const a of targets) {
       a.shield = Math.max(a.shield, a.hpMax * 0.3);
       const q = cellXY(a.cell);
-      addFx({ k: 'ring', x: q.x, y: q.y - 24, d: 0.45, r: 40, col: '#7fb3ff' });
+      addFx({ k: 'shield', x: q.x, y: q.y, d: 0.9, r: HEX_W * 0.72, col: tone.col });
       addFloat(q.x, q.y - 62, '护盾', '#7fb3ff', 0.95);
     }
   } else if (ult.kind === 'haste') {
+    // 加速：一片横着扫过去的线，所有人都「快」了一截
     for (const a of allies) { a.hasteT = 6; restat(a, false); }
-    addFx({ k: 'ring', x: p.x, y: p.y - 24, d: 0.7, r: 90, col: '#8bd450' });
+    for (const a of allies) {
+      const q = cellXY(a.cell);
+      addFx({ k: 'gust', x: q.x, y: q.y - 34, d: 0.55, r: 44, col: tone.col });
+    }
     addFloat(p.x, p.y - 74, '攻速 +35%', '#8bd450', 1.1);
   } else if (ult.kind === 'stun') {
+    // 眩晕：电波一圈圈扩出去，被击中的怪头上再补一圈星星
     const R = HEX_W * 1.9;
     for (const e of [...G.enemies]) {
       if (Math.hypot(e.x - p.x, e.y - p.y) <= R) {
@@ -875,11 +1026,13 @@ function castUlt(u) {
         e.hp -= dmg; e.hurtT = 0.2;
         G.stats.dmg += dmg;
         addFloat(e.x, e.y - 30, Math.round(dmg), '#8ecbff', 1.0);
+        addFx({ k: 'shock', x: e.x, y: e.y - 22, d: 0.7, r: 22, col: tone.col });
         if (e.hp <= 0) killEnemy(e, u);
       }
     }
-    addFx({ k: 'ring', x: p.x, y: p.y - 10, d: 0.55, r: R, col: '#8ecbff' });
+    addFx({ k: 'shock', x: p.x, y: p.y - 10, d: 0.8, r: R, col: tone.col });
   }
+
 }
 
 // ---------------------------------------------------------------- 特效队列
@@ -892,6 +1045,7 @@ function addFloat(x, y, txt, col, size) {
 export function update(dt) {
   if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 22);
   if (G.lastUlt) { G.lastUlt.t += dt; if (G.lastUlt.t > 1.6) G.lastUlt = null; }
+  if (G.lastMerge) { G.lastMerge.t += dt; if (G.lastMerge.t > 2.4) G.lastMerge = null; }
   if (G.phase !== 'fight') {
     // 备战期也让特效收尾，画面不会突然定住。
     // 出手/挨打的计时器同样要往下走：不然打完一波还停在打击帧上摆着，
@@ -957,6 +1111,20 @@ export function update(dt) {
   for (const e of [...G.enemies]) {
     if (e.hurtT > 0) e.hurtT -= dt;
     if (e.atkAnim > 0) e.atkAnim -= dt;
+    // 中毒：先结算持续伤害再判眩晕 —— 被毒死的怪不该还在原地站着
+    if (e.poisonT > 0) {
+      e.poisonT -= dt;
+      const pd = (e.poisonDps || 0) * dt;
+      e.hp -= pd;
+      G.stats.dmg += pd;
+      e.poisonTick = (e.poisonTick || 0) + dt;
+      if (e.poisonTick > 0.5) {
+        e.poisonTick = 0;
+        addFloat(e.x + (rnd() - 0.5) * 10, e.y - 30, Math.round((e.poisonDps || 0) * 0.5), '#8bd450', 0.7);
+        sfx.play('poison');
+      }
+      if (e.hp <= 0) { killEnemy(e, e.poisonBy || null); continue; }
+    }
     if (e.stunT > 0) { e.stunT -= dt; continue; }
 
     const nextCell = e.pi < e.path.length ? e.path[e.pi] : -1;
@@ -986,10 +1154,11 @@ export function update(dt) {
         // 漏怪：扣协议核心
         G.core -= e.def.leak;
         G.stats.leaks++;
+        sfx.play('leak');
         const i = G.enemies.indexOf(e);
         if (i >= 0) G.enemies.splice(i, 1);
         addFloat(CORE_X + 30, e.y - 24, '-' + e.def.leak, '#e8695f', 1.2);
-        if (G.core <= 0) { G.core = 0; G.phase = 'over'; }
+        if (G.core <= 0) { G.core = 0; G.phase = 'over'; sfx.play('lose'); }
       }
       continue;
     }
@@ -1048,7 +1217,9 @@ function clearWave() {
   }
   if (G.wave >= WAVES.length) {
     G.phase = 'win';
+    sfx.play('win');
   } else {
+    sfx.play('clear');
     G.phase = 'prep';
     G.plan = planWave(G.wave + 1);
     G.msg = `第 ${G.wave} 波清完，下一波：${WAVES[G.wave].n}`;

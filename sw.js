@@ -11,7 +11,7 @@
 // 预缓存不放在 install 里：那会让「装上」这个动作被 400KB 的下载拖住，
 // 期间页面还不受控。这里改成 activate 之后在后台慢慢填——当前页先受控，
 // 等它填完，之后切页就都是本地读取了。
-const VERSION = '8ff52d1902';
+const VERSION = '90e1d63b67';
 const CACHE = 'zjtt-' + VERSION;
 const PRECACHE = [
   "index.html",
@@ -25,18 +25,20 @@ const PRECACHE = [
   "profile.html",
   "protocol.html",
   "survivors.html",
+  "wolf.html",
   "workshop.html",
-  "js/b/about.js?v=8ff52d1902",
-  "js/b/binding.js?v=8ff52d1902",
-  "js/b/bird.js?v=8ff52d1902",
-  "js/b/codex.js?v=8ff52d1902",
-  "js/b/detective.js?v=8ff52d1902",
-  "js/b/gallery.js?v=8ff52d1902",
-  "js/b/merge.js?v=8ff52d1902",
-  "js/b/profile.js?v=8ff52d1902",
-  "js/b/protocol.js?v=8ff52d1902",
-  "js/b/survivors.js?v=8ff52d1902",
-  "js/b/workshop.js?v=8ff52d1902",
+  "js/b/about.js?v=90e1d63b67",
+  "js/b/binding.js?v=90e1d63b67",
+  "js/b/bird.js?v=90e1d63b67",
+  "js/b/codex.js?v=90e1d63b67",
+  "js/b/detective.js?v=90e1d63b67",
+  "js/b/gallery.js?v=90e1d63b67",
+  "js/b/merge.js?v=90e1d63b67",
+  "js/b/profile.js?v=90e1d63b67",
+  "js/b/protocol.js?v=90e1d63b67",
+  "js/b/survivors.js?v=90e1d63b67",
+  "js/b/wolf.js?v=90e1d63b67",
+  "js/b/workshop.js?v=90e1d63b67",
   "js/b/merge-sync.js",
   "js/b/bird-sync.js",
   "data/boot.json"

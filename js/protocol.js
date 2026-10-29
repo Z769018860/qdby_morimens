@@ -85,9 +85,13 @@ function loop(now) {
 
 function frame(dt) {
   if (!window.__pfFrozen) {
-    acc += dt;
+    // 倍速是「这一帧多推几步」，不是把固定步长拉长 —— 拉长会改变追击/命中的判定，
+    // 2× 下同一套阵容会打出不一样的战果。步长永远是 1/60，只是跑几步的问题。
+    const sp = G.speed || 1;
+    acc += dt * sp;
     let guard = 0;
-    while (acc >= FIXED && guard++ < 5) { update(FIXED); acc -= FIXED; }
+    const cap = 5 * sp;
+    while (acc >= FIXED && guard++ < cap) { update(FIXED); acc -= FIXED; }
   } else {
     acc = 0;
   }

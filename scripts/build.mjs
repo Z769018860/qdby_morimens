@@ -205,17 +205,28 @@ function genProtocol() {
   const art = readJson(path.join(ROOT, 'data/protocol-art.json'));
   const cfg = readJson(path.join(ROOT, 'data/protocol-units.json'));
   const uri = 'data:image/webp;base64,' + fs.readFileSync(sheetPath).toString('base64');
+  // 界域徽记（官方素材，scripts/build_protocol_realm.py 裁过灰雾、缩到 44px）：
+  // 四个加起来不到 10KB，内联之后仍然只有「页面 + 一个脚本」两个请求。
+  const realm = {};
+  for (const k of ['caro', 'aequor', 'chaos', 'ultra']) {
+    const p = path.join(ROOT, `assets/protocol/realm-${k}.webp`);
+    if (has(p)) realm[k] = 'data:image/webp;base64,' + fs.readFileSync(p).toString('base64');
+  }
   const code = [
     '// 由 scripts/build.mjs 生成，请勿手改。',
-    '// 源：assets/protocol/proto-sheet.webp + data/protocol-art.json + data/protocol-units.json',
+    '// 源：assets/protocol/proto-sheet.webp + realm-*.webp + data/protocol-art.json + data/protocol-units.json',
     `export const SHEET = ${JSON.stringify(uri)};`,
+    `export const REALM_ART = ${JSON.stringify(realm)};`,
     `export const ART = ${JSON.stringify({ w: art.w, h: art.h, anims: art.anims, mobs: art.mobs })};`,
     `export const UNITS = ${JSON.stringify(cfg.units)};`,
     '',
   ].join('\n');
   const out = path.join(ROOT, 'js/pf/gen.js');
   if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
-  return { units: cfg.units.length, mobs: Object.keys(art.mobs).length, kb: Math.round(code.length / 1024) };
+  return {
+    units: cfg.units.length, mobs: Object.keys(art.mobs).length,
+    realm: Object.keys(realm).length, kb: Math.round(code.length / 1024),
+  };
 }
 
 // ------------------------------------------------------------------ 主流程

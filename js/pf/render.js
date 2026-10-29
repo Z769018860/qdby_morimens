@@ -815,10 +815,269 @@ function drawFx() {
       const x = f.x + f.vx * f.t;
       const y = f.y + f.vy * f.t + 260 * f.t * f.t;
       ctx.beginPath(); ctx.arc(x, y, f.r * (1 - k * 0.6), 0, 6.284); ctx.fill();
+    } else if (f.k === 'ult') {
+      drawUltStart(f, k);
+    } else if (f.k === 'beam') {
+      drawBeam(f, k);
+    } else if (f.k === 'blast') {
+      drawBlast(f, k);
+    } else if (f.k === 'shield') {
+      drawShield(f, k);
+    } else if (f.k === 'gust') {
+      drawGust(f, k);
+    } else if (f.k === 'shock') {
+      drawShock(f, k);
+    } else if (f.k === 'bloom') {
+      drawBloom(f, k);
     }
     ctx.restore();
   }
 }
+
+// ---- 六种大招的专属特效 -------------------------------------------------
+// 共同的取舍：全部按 f.t 解析算位置，不往 engine 里塞每帧循环的东西；
+// 都在 0.6~0.9 秒内收干净，二十个人同时放也不会糊成一团。
+
+// 起手：脚下升起一道收束的光柱，外圈再扩一圈 —— 用颜色区分技能（落雷黄、护罩蓝…）
+function drawUltStart(f, k) {
+  // 光柱不能窜出棋盘：窜出去会画到页面底色上，看着像贴纸没贴住
+  const top = Math.max(f.y - f.r * 1.75, -PAD_Y + 4);
+  const h = f.y - top;
+  const w = f.r * 0.3 * (1 - k * 0.55);
+  // 起手光柱用流派本色收尾：白色打头会显得灰，六种大招一开局就分不出来。
+  // 走 'lighter' 叠加而不是普通 alpha：淡黄 #ffe066 用 alpha 叠在深色底上会脱色成灰，
+  // 加法混合才能保住颜色（这也是「光」该有的行为）。
+  const g = ctx.createLinearGradient(0, f.y - h, 0, f.y);
+  g.addColorStop(0, hexA(f.col, 0));
+  g.addColorStop(0.45, hexA(f.col, 0.22 * (1 - k)));
+  g.addColorStop(1, hexA(f.col, 0.55 * (1 - k)));
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = 1 - k * k;
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.moveTo(f.x - w * 0.35, f.y);
+  ctx.lineTo(f.x - w, f.y - h);
+  ctx.lineTo(f.x + w, f.y - h);
+  ctx.lineTo(f.x + w * 0.35, f.y);
+  ctx.closePath();
+  ctx.fill();
+  // 柱脚压一条亮边，把「从哪儿冒出来的」定住
+  ctx.globalAlpha = (1 - k) * 0.9;
+  ctx.fillStyle = hexA(f.col, 0.9);
+  ctx.fillRect(f.x - w * 0.5, f.y - 3, w, 3);
+  ctx.strokeStyle = hexA(f.col, 0.85 * (1 - k));
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.ellipse(f.x, f.y, f.r * (0.3 + k * 0.9), f.r * (0.11 + k * 0.34), 0, 0, 6.284);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// 落雷：从画面顶上砸下来的光柱，前 1/4 最亮，之后碎成几道细闪电
+function drawBeam(f, k) {
+  const top = f.y - 620;
+  const flash = k < 0.22 ? 1 : Math.max(0, 1 - (k - 0.22) / 0.5);
+  ctx.globalAlpha = flash;
+  const g = ctx.createLinearGradient(0, top, 0, f.y);
+  g.addColorStop(0, hexA(f.col, 0));
+  g.addColorStop(0.55, hexA(f.col, 0.42 * flash));
+  g.addColorStop(1, hexA(f.col, 0.95 * flash));
+  ctx.fillStyle = g;
+  const w = (f.w || 14) * 2.1 * (1 - k * 0.35);
+  ctx.fillRect(f.x - w / 2, top, w, f.y - top);
+  // 柱心：一条几乎不透明的白线，比整束光更容易一眼看出来
+  ctx.fillStyle = hexA('#ffffff', 0.7 * flash);
+  const cw = Math.max(2, (f.w || 14) * 0.22);
+  ctx.fillRect(f.x - cw / 2, top, cw, f.y - top);
+  // 分叉：两条随机折线，种子用 x/y 定死，同一道雷每次画都一样
+  ctx.strokeStyle = hexA('#ffffff', 0.75 * flash);
+  ctx.lineWidth = 1.8;
+  for (let i = 0; i < 2; i++) {
+    const s = Math.sin((f.x + i * 37) * 0.7);
+    ctx.beginPath();
+    ctx.moveTo(f.x + s * 6, top + 120);
+    for (let t = 1; t <= 5; t++) {
+      const yy = top + 120 + (f.y - top - 120) * (t / 5);
+      ctx.lineTo(f.x + s * 6 + Math.sin(t * 2.1 + i) * (14 - t * 1.6), yy);
+    }
+    ctx.stroke();
+  }
+  // 落点：白核 + 一圈扩散的环，交代「砸在这儿」
+  ctx.globalAlpha = flash * 0.9;
+  ctx.fillStyle = hexA('#ffffff', 0.85 * flash);
+  ctx.beginPath(); ctx.arc(f.x, f.y - 8, 9 * (1 - k * 0.5), 0, 6.284); ctx.fill();
+  ctx.globalAlpha = flash * (1 - k);
+  ctx.strokeStyle = hexA(f.col, 0.9);
+  ctx.lineWidth = 2.6;
+  ctx.beginPath(); ctx.arc(f.x, f.y - 8, 14 + k * f.r * 0.7, 0, 6.284); ctx.stroke();
+}
+
+// 冲击波：三层不同速度的环 + 一层径向渐变，比单环「炸」得明显
+function drawBlast(f, k) {
+  const layers = [[0, 1], [0.13, 0.72], [0.26, 0.46]];
+  for (const [delay, scale] of layers) {
+    const kk = (k - delay) / (1 - delay);
+    if (kk < 0 || kk > 1) continue;
+    ctx.globalAlpha = (1 - kk) * 0.95;
+    ctx.strokeStyle = f.col;
+    ctx.lineWidth = 3.4 * (1 - kk) + 0.7;
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, f.r * scale * (0.2 + kk * 0.95), 0, 6.284);
+    ctx.stroke();
+  }
+  const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r * 0.9);
+  g.addColorStop(0, hexA(f.col, 0.45 * (1 - k)));
+  g.addColorStop(1, hexA(f.col, 0));
+  ctx.globalAlpha = 1 - k;
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.9, 0, 6.284); ctx.fill();
+}
+
+// 护罩：一个六边形罩子（外框 + 三个内层环），像给这个人扣了个玻璃罩
+function drawShield(f, k) {
+  const pop = k < 0.25 ? k / 0.25 : 1;                 // 先涨开
+  const fade = k > 0.6 ? 1 - (k - 0.6) / 0.4 : 1;      // 再淡出
+  const r = f.r * (0.55 + pop * 0.45) * (1 + k * 0.06);
+  ctx.globalAlpha = fade;
+  ctx.strokeStyle = f.col;
+  ctx.lineWidth = 2.2;
+  for (let pass = 0; pass < 2; pass++) {
+    const rr = r * (1 - pass * 0.34);
+    ctx.beginPath();
+    for (let i = 0; i <= 6; i++) {
+      const a = -Math.PI / 2 + (i / 6) * 6.284;
+      const px = f.x + Math.cos(a) * rr;
+      const py = f.y + Math.sin(a) * rr * 1.05;
+      if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+    }
+    ctx.stroke();
+  }
+  // 内部的横向扫描线
+  ctx.globalAlpha = fade * 0.5;
+  ctx.beginPath();
+  for (let i = -2; i <= 2; i++) {
+    const yy = f.y + i * r * 0.32;
+    const half = Math.sqrt(Math.max(0, r * r - (yy - f.y) * (yy - f.y))) * 0.9;
+    ctx.moveTo(f.x - half, yy);
+    ctx.lineTo(f.x + half, yy);
+  }
+  ctx.stroke();
+}
+
+// 加速：一排横向速度线从中心甩出去，再叠三层指向敌人的箭头
+// （只画线的话在棋盘上看不出来，加了箭头才有「推力」的方向感）
+function drawGust(f, k) {
+  const n = 7;
+  for (let i = 0; i < n; i++) {
+    const off = (i - (n - 1) / 2) * 7.2;
+    const len = f.r * (0.55 + k * 1.1) * (1 - Math.abs(off) / (f.r * 0.9));
+    if (len <= 2) continue;
+    const x0 = f.x - len * 0.5;
+    const yy = f.y + off - (i - (n - 1) / 2) * 2 * k;
+    ctx.globalAlpha = (1 - k) * 0.95;
+    ctx.strokeStyle = f.col;
+    ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x0 + len, yy); ctx.stroke();
+    // 白芯，避免和护罩/治疗同色时糊在一起
+    ctx.globalAlpha = (1 - k) * 0.55;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x0 + len * 0.35, yy); ctx.lineTo(x0 + len, yy); ctx.stroke();
+  }
+  // 朝右的箭头（速度方向）：三道，越靠外越细
+  ctx.strokeStyle = f.col;
+  for (let i = 0; i < 3; i++) {
+    const kk = (k - i * 0.1) / (1 - i * 0.1);
+    if (kk < 0 || kk > 1) continue;
+    const px = f.x + f.r * (0.55 + kk * 0.85);
+    const py = f.y - 6 + i * 7;
+    const a = 7 * (1 - kk * 0.4);
+    ctx.globalAlpha = (1 - kk) * 0.9;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(px - a, py - a); ctx.lineTo(px, py); ctx.lineTo(px - a, py + a);
+    ctx.stroke();
+  }
+}
+
+// 眩晕：同心电波（用短线段拼出来的虚线圆）+ 中心星芒
+function drawShock(f, k) {
+  const rings = [[0, 1], [0.18, 0.7]];
+  for (const [delay, scale] of rings) {
+    const kk = (k - delay) / (1 - delay);
+    if (kk < 0 || kk > 1) continue;
+    const r = f.r * scale * (0.15 + kk * 1.0);
+    // 底下一层实线圆让电波「有体量」，上面再压一层虚线碎环
+    ctx.globalAlpha = (1 - kk) * 0.34;
+    ctx.strokeStyle = f.col;
+    ctx.lineWidth = 4.5;
+    ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, 6.284); ctx.stroke();
+    ctx.globalAlpha = (1 - kk) * 0.95;
+    ctx.lineWidth = 2.4;
+    const seg = 12;
+    for (let i = 0; i < seg; i++) {
+      const a0 = (i / seg) * 6.284 + kk * 1.2;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, r, a0, a0 + 0.3);
+      ctx.stroke();
+    }
+  }
+  // 星芒：四个白点绕着中心转，越大越像「懵了」
+  ctx.globalAlpha = Math.max(0, 1 - k * 1.6);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  const s = 12 * (1 + k);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * 6.284 + k * 0.8;
+    ctx.beginPath();
+    ctx.moveTo(f.x + Math.cos(a) * s * 0.25, f.y + Math.sin(a) * s * 0.25);
+    ctx.lineTo(f.x + Math.cos(a) * s, f.y + Math.sin(a) * s);
+    ctx.stroke();
+  }
+}
+
+// 治疗：一串光点从脚下升起来，越往上越淡
+function drawBloom(f, k) {
+  ctx.globalAlpha = 1 - k;
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * 6.284 + 0.4;
+    const rise = 56 * (k * 1.15 - i * 0.018);
+    const px = f.x + Math.cos(a) * f.r * 0.62 * (0.5 + k * 0.5);
+    const py = f.y - rise + Math.sin(a) * 4;
+    const rr = 3.4 * (1 - k * 0.4);
+    // 每个光点带一层自己的柔光，单点太小在棋盘上直接看不见
+    ctx.globalAlpha = Math.max(0, (1 - k) * (0.55 - i * 0.02));
+    ctx.fillStyle = f.col;
+    ctx.beginPath(); ctx.arc(px, py, rr * 2.6, 0, 6.284); ctx.fill();
+    ctx.globalAlpha = Math.max(0, (1 - k) * (0.95 - i * 0.03));
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(px, py, rr * 0.75, 0, 6.284); ctx.fill();
+  }
+  // 底下的柔光环
+  const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r * 0.9);
+  g.addColorStop(0, hexA(f.col, 0.4 * (1 - k)));
+  g.addColorStop(1, hexA(f.col, 0));
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.9, 0, 6.284); ctx.fill();
+  // 贴地一圈「愈合」环，和眩晕/冲击波区分开（那俩也是环，但这个是慢慢收拢的）
+  ctx.globalAlpha = (1 - k) * 0.8;
+  ctx.strokeStyle = hexA(f.col, 0.9);
+  ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.ellipse(f.x, f.y + 6, f.r * (0.9 - k * 0.45), f.r * 0.3 * (0.9 - k * 0.45), 0, 0, 6.284); ctx.stroke();
+}
+
+// '#rrggbb' + alpha → 'rgba(...)'。特效里到处都是「同色不同透明度」，
+// 用 globalAlpha 会连带影响描边宽度的手感，所以直接拼颜色。
+function hexA(hex, a) {
+  if (!hex || hex[0] !== '#' || hex.length < 7) return `rgba(255,255,255,${a})`;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
 
 function drawFloats() {
   ctx.save();

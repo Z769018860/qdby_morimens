@@ -1,0 +1,101 @@
+{
+  "src": "SKeyDB awakeners.json 的 faction 字段（dansa/SKeyDB，数据 CC-BY-NC-SA-4.0），经 data/dictionary.json 的 pid 与协议单位对数",
+  "names": {
+    "fools": [
+      "愚者",
+      "The Fools"
+    ],
+    "outlander": [
+      "界外者",
+      "Outlanders"
+    ],
+    "hybrid": [
+      "混血者",
+      "Hybrid"
+    ],
+    "unknowable": [
+      "不可知者",
+      "The Unknowable"
+    ],
+    "stars": [
+      "星之间",
+      "Among the Stars"
+    ],
+    "aeons": [
+      "万古之外",
+      "Out of the Aeons"
+    ],
+    "unknown": [
+      "未定",
+      "Unknown"
+    ]
+  },
+  "fac": {
+    "15601": "hybrid",
+    "15600": "outlander",
+    "15591": "hybrid",
+    "15588": "outlander",
+    "15573": "fools",
+    "15594": "hybrid",
+    "15572": "unknowable",
+    "77923": "fools",
+    "15566": "outlander",
+    "77925": "unknowable",
+    "77922": "fools",
+    "15590": "unknowable",
+    "15570": "stars",
+    "95786": "aeons",
+    "15603": "hybrid",
+    "15577": "stars",
+    "15575": "fools",
+    "15602": "stars",
+    "15567": "fools",
+    "15568": "unknowable",
+    "15564": "fools",
+    "54117": "unknowable",
+    "15587": "fools",
+    "15583": "outlander",
+    "15593": "fools",
+    "15571": "outlander",
+    "77913": "stars",
+    "15597": "hybrid",
+    "15581": "hybrid",
+    "15562": "fools",
+    "15569": "aeons",
+    "15582": "aeons",
+    "94450": "outlander",
+    "15576": "hybrid",
+    "15589": "aeons",
+    "15565": "fools",
+    "15580": "outlander",
+    "15585": "fools",
+    "15560": "outlander",
+    "77926": "fools",
+    "77917": "hybrid",
+    "15595": "unknowable",
+    "15604": "fools",
+    "15599": "aeons",
+    "15592": "outlander",
+    "15584": "outlander",
+    "54116": "unknown",
+    "15596": "aeons",
+    "15574": "stars",
+    "15563": "aeons",
+    "15598": "outlander",
+    "15586": "stars",
+    "15579": "stars",
+    "125346": "unknowable",
+    "130901": "fools",
+    "77918": "unknowable",
+    "130226": "unknown",
+    "141302": "unknown",
+    "145363": "unknown",
+    "77921": "unknown",
+    "148578": "unknown",
+    "151844": "unknown"
+  },
+  "missing": [
+    "负誓·奥吉尔",
+    "薇薇安"
+  ]
+}

@@ -74,7 +74,12 @@
         "kind": "splash",
         "name": "狂气爆发",
         "text": "清算人格接管身体，对周围敌人造成三段伤害"
-      }
+      },
+      "fac": "hybrid",
+      "tags": [
+        "tentacle",
+        "poison"
+      ]
     },
     {
       "id": "agrippa",
@@ -95,7 +100,12 @@
         "kind": "guard",
         "name": "蛛网迷宫",
         "text": "给自己与最近的友军套上一层护盾，护盾存在期间受击减伤"
-      }
+      },
+      "fac": "outlander",
+      "tags": [
+        "poison",
+        "devour"
+      ]
     },
     {
       "id": "aigis",
@@ -116,7 +126,12 @@
         "kind": "nuke",
         "name": "小小愿望",
         "text": "造成 20–40%（攻击力） 点伤害，并施加 1 回合易伤"
-      }
+      },
+      "fac": "hybrid",
+      "tags": [
+        "devour",
+        "embryo"
+      ]
     },
     {
       "id": "alva",
@@ -137,7 +152,9 @@
         "kind": "guard",
         "name": "临战体势",
         "text": "获得 10–20%（防御力） 点护盾"
-      }
+      },
+      "fac": "outlander",
+      "tags": []
     },
     {
       "id": "aurita",
@@ -158,7 +175,12 @@
         "kind": "splash",
         "name": "深水回响",
         "text": "在目标脚下爆开潮涌，对一片区域造成伤害"
-      }
+      },
+      "fac": "fools",
+      "tags": [
+        "tentacle",
+        "pierce"
+      ]
     },
     {
       "id": "caecus",
@@ -179,7 +201,12 @@
         "kind": "stun",
         "name": "冷光锚定",
         "text": "寒流沿地面铺开，冻住周围敌人并造成伤害"
-      }
+      },
+      "fac": "hybrid",
+      "tags": [
+        "tentacle",
+        "counter"
+      ]
     },
     {
       "id": "casiah",
@@ -200,7 +227,9 @@
         "kind": "haste",
         "name": "时隙回响",
         "text": "把全场友军的行动节奏拨快一档，攻速提升"
-      }
+      },
+      "fac": "unknowable",
+      "tags": []
     },
     {
       "id": "castor",
@@ -221,7 +250,9 @@
         "kind": "stun",
         "name": "双子枷锁",
         "text": "锁链甩出，把最近的敌人钉在原地"
-      }
+      },
+      "fac": "fools",
+      "tags": []
     },
     {
       "id": "celeste",
@@ -242,7 +273,11 @@
         "kind": "heal",
         "name": "潮汐抚慰",
         "text": "治疗周围全部友军，治疗量按自身攻击力结算"
-      }
+      },
+      "fac": "outlander",
+      "tags": [
+        "tentacle"
+      ]
     },
     {
       "id": "clementine",
@@ -263,7 +298,9 @@
         "kind": "nuke",
         "name": "痛苦榨取",
         "text": "造成 20–40%（攻击力） 点伤害 3 次"
-      }
+      },
+      "fac": "unknowable",
+      "tags": []
     },
     {
       "id": "corposant",
@@ -284,7 +321,11 @@
         "kind": "nuke",
         "name": "惩戒雷霆",
         "text": "随机造成 35–70%（攻击力） 点伤害 5 次，享受 75–100% 触腕伤害加成，每…"
-      }
+      },
+      "fac": "fools",
+      "tags": [
+        "tentacle"
+      ]
     },
     {
       "id": "daffodil",
@@ -305,7 +346,12 @@
         "kind": "splash",
         "name": "花瓣风暴",
         "text": "掀起花瓣旋风，对一条通路上的敌人连续切割"
-      }
+      },
+      "fac": "unknowable",
+      "tags": [
+        "poison",
+        "pierce"
+      ]
     },
     {
       "id": "doll",
@@ -326,7 +372,9 @@
         "kind": "nuke",
         "name": "体外手术",
         "text": "回复 15–30%（体质） 点生命"
-      }
+      },
+      "fac": "stars",
+      "tags": []
     },
     {
       "id": "doresain",
@@ -347,7 +395,12 @@
         "kind": "splash",
         "name": "陨落者的挽歌",
         "text": "对生命最低的敌人造成 80–160%（攻击力） 点伤害"
-      }
+      },
+      "fac": "aeons",
+      "tags": [
+        "devour",
+        "pierce"
+      ]
     },
     {
       "id": "erica",
@@ -368,7 +421,9 @@
         "kind": "haste",
         "name": "释放：机甲",
         "text": "获得 15–30%（攻击力） 点临时力量"
-      }
+      },
+      "fac": "hybrid",
+      "tags": []
     },
     {
       "id": "faint",
@@ -389,7 +444,12 @@
         "kind": "heal",
         "name": "养分吸收",
         "text": "获得 12–24%（攻击力） 点力量"
-      }
+      },
+      "fac": "stars",
+      "tags": [
+        "devour",
+        "counter"
+      ]
     },
     {
       "id": "faros",
@@ -410,7 +470,12 @@
         "kind": "stun",
         "name": "欢欣之海",
         "text": "造成 16–32%（攻击力） 点伤害及等量中毒，享受 50% 触腕伤害加成"
-      }
+      },
+      "fac": "fools",
+      "tags": [
+        "tentacle",
+        "poison"
+      ]
     },
     {
       "id": "dollinferno",
@@ -431,7 +496,12 @@
         "kind": "splash",
         "name": "自毁",
         "text": "选择「欢欣」或「诅咒」。 「自毁·终章」"
-      }
+      },
+      "fac": "stars",
+      "tags": [
+        "poison",
+        "counter"
+      ]
     },
     {
       "id": "helotcatena",
@@ -452,7 +522,11 @@
         "kind": "splash",
         "name": "恨意宣泄",
         "text": "对全体敌人造成 40–80%（攻击力） 点伤害，并施加等量出血"
-      }
+      },
+      "fac": "fools",
+      "tags": [
+        "devour"
+      ]
     },
     {
       "id": "ramonatimeworn",
@@ -473,7 +547,9 @@
         "kind": "nuke",
         "name": "命定之剑",
         "text": "造成 50–100%（攻击力） 点伤害，力量对「命定之剑」的效果提高 3 倍"
-      }
+      },
+      "fac": "unknowable",
+      "tags": []
     },
     {
       "id": "goliath",
@@ -494,7 +570,11 @@
         "kind": "nuke",
         "name": "断首之伤",
         "text": "造成 60–120%（攻击力） 点伤害"
-      }
+      },
+      "fac": "fools",
+      "tags": [
+        "tentacle"
+      ]
     },
     {
       "id": "hamelin",
@@ -515,7 +595,11 @@
         "kind": "haste",
         "name": "吹笛人",
         "text": "全场友军攻速提升 35%，持续 6 秒"
-      }
+      },
+      "fac": "unknowable",
+      "tags": [
+        "pierce"
+      ]
     },
     {
       "id": "hilaire",
@@ -536,7 +620,11 @@
         "kind": "nuke",
         "name": "嗜血链球",
         "text": "抡起血链砸向当前目标，造成 320% 攻击力的伤害并回血"
-      }
+      },
+      "fac": "fools",
+      "tags": [
+        "devour"
+      ]
     },
     {
       "id": "horla",
@@ -557,7 +645,9 @@
         "kind": "heal",
         "name": "颂歌圣咏",
         "text": "选择 1 名其他唤醒体获得 10–15 点狂气"
-      }
+      },
+      "fac": "outlander",
+      "tags": []
     },
     {
       "id": "jenkin",
@@ -578,7 +668,9 @@
         "kind": "nuke",
         "name": "坍缩射击",
         "text": "把超维的坐标点钉在敌人身上，单体高额伤害"
-      }
+      },
+      "fac": "fools",
+      "tags": []
     },
     {
       "id": "karen",
@@ -599,7 +691,11 @@
         "kind": "stun",
         "name": "蟾蜍浓汤",
         "text": "对全体敌人施加 【中毒】Arg1 层中毒与 1 回合虚弱，并回复 10–20%（体质） …"
-      }
+      },
+      "fac": "outlander",
+      "tags": [
+        "poison"
+      ]
     },
     {
       "id": "kathigura",
@@ -620,7 +716,11 @@
         "kind": "nuke",
         "name": "末路枪声",
         "text": "造成 25–50%（攻击力） 点伤害两次，获得 3–6%（攻击力） 点力量"
-      }
+      },
+      "fac": "stars",
+      "tags": [
+        "pierce"
+      ]
     },
     {
       "id": "raya",
@@ -641,7 +741,12 @@
         "kind": "heal",
         "name": "血肉缝合",
         "text": "治疗全场最虚弱的友军，并让其攻击力提升 20%"
-      }
+      },
+      "fac": "hybrid",
+      "tags": [
+        "devour",
+        "embryo"
+      ]
     },
     {
       "id": "lily",
@@ -662,7 +767,11 @@
         "kind": "guard",
         "name": "替身游戏",
         "text": "招来一个幻影替身替自己承伤，并嘲讽周围敌人"
-      }
+      },
+      "fac": "hybrid",
+      "tags": [
+        "poison"
+      ]
     },
     {
       "id": "liz",
@@ -683,7 +792,12 @@
         "kind": "nuke",
         "name": "扑蛾之火",
         "text": "获得 20–40%（防御力） 点护盾，将 1 张带消耗的「绿色火焰」加入手牌"
-      }
+      },
+      "fac": "fools",
+      "tags": [
+        "poison",
+        "pierce"
+      ]
     },
     {
       "id": "lotan",
@@ -704,7 +818,9 @@
         "kind": "splash",
         "name": "桀骜之刃",
         "text": "对随机敌人造成 7.5–15%（攻击力） 点伤害，重复 3 次"
-      }
+      },
+      "fac": "aeons",
+      "tags": []
     },
     {
       "id": "miryam",
@@ -725,7 +841,12 @@
         "kind": "splash",
         "name": "升华火刑",
         "text": "造成 60–120%（攻击力） 点穿透伤害并施加等量中毒"
-      }
+      },
+      "fac": "aeons",
+      "tags": [
+        "tentacle",
+        "poison"
+      ]
     },
     {
       "id": "mouchette",
@@ -746,7 +867,9 @@
         "kind": "nuke",
         "name": "致命冲击",
         "text": "视为「打击」"
-      }
+      },
+      "fac": "outlander",
+      "tags": []
     },
     {
       "id": "murphy",
@@ -767,7 +890,11 @@
         "kind": "splash",
         "name": "逆转漩涡",
         "text": "对全体敌人造成 25–50%（攻击力） 点伤害，享受 35–50% 的触腕伤害加成"
-      }
+      },
+      "fac": "hybrid",
+      "tags": [
+        "tentacle"
+      ]
     },
     {
       "id": "murphyfauxborn",
@@ -788,7 +915,11 @@
         "kind": "splash",
         "name": "利莫里亚华尔兹",
         "text": "获得相当于银钥充能 200–300% 的银钥"
-      }
+      },
+      "fac": "aeons",
+      "tags": [
+        "tentacle"
+      ]
     },
     {
       "id": "nautila",
@@ -809,7 +940,11 @@
         "kind": "guard",
         "name": "禁止入内",
         "text": "获得 20–40%（防御力） 点护盾与 120–240%（攻击力） 层临时反击"
-      }
+      },
+      "fac": "fools",
+      "tags": [
+        "counter"
+      ]
     },
     {
       "id": "nymphaea",
@@ -830,7 +965,11 @@
         "kind": "splash",
         "name": "午夜之潮",
         "text": "对生命最高的敌人造成 22.5–45%（攻击力） 点伤害并施加等量中毒，享受 2 倍力量…"
-      }
+      },
+      "fac": "outlander",
+      "tags": [
+        "poison"
+      ]
     },
     {
       "id": "ogier",
@@ -851,7 +990,11 @@
         "kind": "guard",
         "name": "不稳屏障",
         "text": "获得 7–14%（防御力） 点护盾 X+1 次"
-      }
+      },
+      "fac": "fools",
+      "tags": [
+        "pierce"
+      ]
     },
     {
       "id": "pandia",
@@ -872,7 +1015,11 @@
         "kind": "splash",
         "name": "混沌礼赞",
         "text": "抛出混沌礼盒，炸开一大片，并留下持续灼烧"
-      }
+      },
+      "fac": "outlander",
+      "tags": [
+        "counter"
+      ]
     },
     {
       "id": "pickman",
@@ -893,7 +1040,12 @@
         "kind": "splash",
         "name": "噬色者",
         "text": "对全体敌人造成 3 次 30–60%（攻击力） 点必定暴击的伤害，每次从目标处「窃取」 …"
-      }
+      },
+      "fac": "fools",
+      "tags": [
+        "devour",
+        "embryo"
+      ]
     },
     {
       "id": "pollux",
@@ -914,7 +1066,9 @@
         "kind": "nuke",
         "name": "灼魂之光",
         "text": "对全体敌人造成 40–80%（攻击力） 点伤害，并抽取 2 张算力消耗最低的指令卡"
-      }
+      },
+      "fac": "hybrid",
+      "tags": []
     },
     {
       "id": "ramona",
@@ -935,7 +1089,9 @@
         "kind": "splash",
         "name": "女王之剑",
         "text": "造成 15–30%（攻击力） 点伤害 2 次"
-      }
+      },
+      "fac": "unknowable",
+      "tags": []
     },
     {
       "id": "ryker",
@@ -956,7 +1112,9 @@
         "kind": "nuke",
         "name": "意外之财",
         "text": "造成 20–40%（攻击力） 点伤害"
-      }
+      },
+      "fac": "fools",
+      "tags": []
     },
     {
       "id": "salvador",
@@ -977,7 +1135,12 @@
         "kind": "guard",
         "name": "受祝福的白骨",
         "text": "对全体敌人施加 1 回合虚弱"
-      }
+      },
+      "fac": "aeons",
+      "tags": [
+        "devour",
+        "embryo"
+      ]
     },
     {
       "id": "sanga",
@@ -998,7 +1161,11 @@
         "kind": "heal",
         "name": "美丽的慈悲",
         "text": "获得 24–48%（防御力） 点护盾"
-      }
+      },
+      "fac": "outlander",
+      "tags": [
+        "tentacle"
+      ]
     },
     {
       "id": "soleil",
@@ -1019,7 +1186,12 @@
         "kind": "nuke",
         "name": "灼血之刃",
         "text": "对单体倾泻血焰，伤害按目标已损失生命提高，最多 +80%"
-      }
+      },
+      "fac": "outlander",
+      "tags": [
+        "devour",
+        "embryo"
+      ]
     },
     {
       "id": "tawil",
@@ -1040,7 +1212,11 @@
         "kind": "nuke",
         "name": "全知真理",
         "text": "在手牌中时，若抽牌堆顶的牌是指令卡，则变为其复制"
-      }
+      },
+      "fac": "unknown",
+      "tags": [
+        "pierce"
+      ]
     },
     {
       "id": "thais",
@@ -1061,7 +1237,12 @@
         "kind": "heal",
         "name": "远古爱抚",
         "text": "选择 1 名其他唤醒体，使该唤醒体与「被选中之人」均获得 15–20 点狂气"
-      }
+      },
+      "fac": "aeons",
+      "tags": [
+        "poison",
+        "devour"
+      ]
     },
     {
       "id": "tinct",
@@ -1082,7 +1263,9 @@
         "kind": "stun",
         "name": "安魂曲",
         "text": "驱散自身脆弱、虚弱与易伤状态"
-      }
+      },
+      "fac": "stars",
+      "tags": []
     },
     {
       "id": "tulu",
@@ -1103,7 +1286,12 @@
         "kind": "nuke",
         "name": "深海巨口",
         "text": "把当前目标拖进深海，造成 420% 攻击力的伤害"
-      }
+      },
+      "fac": "aeons",
+      "tags": [
+        "tentacle",
+        "pierce"
+      ]
     },
     {
       "id": "uvhash",
@@ -1124,7 +1312,11 @@
         "kind": "stun",
         "name": "沸腾吧，鲜血！",
         "text": "造成 12–24%（攻击力） 点伤害三次"
-      }
+      },
+      "fac": "outlander",
+      "tags": [
+        "devour"
+      ]
     },
     {
       "id": "wanda",
@@ -1145,7 +1337,11 @@
         "kind": "guard",
         "name": "迷途之守",
         "text": "获得 30–60%（攻击力） 层反击"
-      }
+      },
+      "fac": "stars",
+      "tags": [
+        "counter"
+      ]
     },
     {
       "id": "winkle",
@@ -1166,7 +1362,11 @@
         "kind": "nuke",
         "name": "能量光束",
         "text": "移除所有敌人的屏障，造成 40–80%（攻击力） 点伤害并施加 1 回合虚弱"
-      }
+      },
+      "fac": "stars",
+      "tags": [
+        "counter"
+      ]
     },
     {
       "id": "xu",
@@ -1187,7 +1387,12 @@
         "kind": "splash",
         "name": "思骨之苦",
         "text": "对全体敌人造成 150–300%（攻击力） 点必定暴击的伤害并触发 80% 的中毒"
-      }
+      },
+      "fac": "unknowable",
+      "tags": [
+        "poison",
+        "devour"
+      ]
     },
     {
       "id": "vortice",
@@ -1208,7 +1413,11 @@
         "kind": "nuke",
         "name": "蓄力",
         "text": "获得 50–75 点狂气，莫丝的下一次狂气爆发暴击率 +25–35%"
-      }
+      },
+      "fac": "fools",
+      "tags": [
+        "tentacle"
+      ]
     },
     {
       "id": "arachne",
@@ -1229,7 +1438,12 @@
         "kind": "stun",
         "name": "永恒编织",
         "text": "对全体敌人施加 300–600%（攻击力） 层「终局裁决」，然后创造 1 张「引导之线」"
-      }
+      },
+      "fac": "unknowable",
+      "tags": [
+        "tentacle",
+        "poison"
+      ]
     },
     {
       "id": "saya",
@@ -1250,7 +1464,12 @@
         "kind": "haste",
         "name": "脏腑之花",
         "text": "失去 10% 当前生命，对全体敌人施加 5500–11000%（攻击力） 层侵蚀"
-      }
+      },
+      "fac": "unknown",
+      "tags": [
+        "tentacle",
+        "poison"
+      ]
     },
     {
       "id": "pontos",
@@ -1271,7 +1490,11 @@
         "kind": "stun",
         "name": "憔悴肆虐",
         "text": "对全体敌人造成 30–60%（攻击力） 点必定暴击的伤害"
-      }
+      },
+      "fac": "unknown",
+      "tags": [
+        "tentacle"
+      ]
     },
     {
       "id": "lotancetarchon",
@@ -1292,7 +1515,12 @@
         "kind": "nuke",
         "name": "长刃：殒灭",
         "text": "视为「打击」"
-      }
+      },
+      "fac": "unknown",
+      "tags": [
+        "tentacle",
+        "poison"
+      ]
     },
     {
       "id": "caraboo",
@@ -1313,7 +1541,12 @@
         "kind": "heal",
         "name": "奇迹祝福",
         "text": "获得 35–70%（防御力） 点护盾"
-      }
+      },
+      "fac": "unknown",
+      "tags": [
+        "tentacle",
+        "poison"
+      ]
     },
     {
       "id": "ogieroathbound",
@@ -1334,7 +1567,12 @@
         "kind": "nuke",
         "name": "罪染之枪",
         "text": "造成 100–200%（攻击力） 点伤害，享受 300% 的力量加成"
-      }
+      },
+      "fac": "unknown",
+      "tags": [
+        "tentacle",
+        "poison"
+      ]
     },
     {
       "id": "vivian",
@@ -1355,7 +1593,12 @@
         "kind": "nuke",
         "name": "天降汤雨",
         "text": "对全体敌人施加 5000–10000%（攻击力）（+1000% 力量）层侵蚀"
-      }
+      },
+      "fac": "unknown",
+      "tags": [
+        "tentacle",
+        "poison"
+      ]
     }
   ]
 }

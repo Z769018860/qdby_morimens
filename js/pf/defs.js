@@ -76,7 +76,9 @@ export const START_GOLD = 12;
 export const START_LEVEL = 2;
 export const MAX_LEVEL = 8;
 export const LEVEL_COST = 5;                // 升一级固定 5 金
-export const REROLL_COST = 2;
+// 刷新 1 金：池子 62 人、还要凑同名升星，2 金一次等于「一手好牌也不敢刷」。
+// 降到 1 金之后一局平均能多刷十几次，凑同名才跟得上池子的稀释。
+export const REROLL_COST = 1;
 export const WAVE_GOLD = 4;                 // 每波清完的基础收入
 export const INTEREST_CAP = 5;
 export const BENCH_SIZE = 8;
@@ -94,7 +96,14 @@ export function shopOdds(level) {
 }
 
 // ---------------------------------------------------------------- 羁绊
-// kind:'realm' 看界域，'role' 看职阶；steps 里 need 是「最少几个人」。
+// 四层：
+//   kind:'realm'   界域（血肉 / 深海 / 混沌 / 超维）—— 全队生效，档位最高
+//   kind:'role'    职阶（伤害 / 防御 / 辅助）—— 只对同职阶，人数要求高
+//   kind:'fac'     所属组织 —— 来自 SKeyDB 的 faction 字段，只对同组织
+//   kind:'gmk'     流派 —— 从角色关键词（中毒 / 触手 / 吞噬 / 反击 / 胚胎 / 穿透）提炼，
+//                  只对同流派的单位生效，凑齐两个人就亮
+// steps 里是「最少几个人」，eff 是与之一一对应的加成（由 engine 的 computeBonus 读）。
+// stepsText 是给玩家看的文案，改 eff 的时候务必一起改。
 export const TRAITS = [
   {
     key: 'caro', kind: 'realm', n: '血肉', color: '#e8695f',
@@ -131,16 +140,111 @@ export const TRAITS = [
     steps: [2, 3, 4],
     stepsText: ['全体攻速 +8%', '全体攻速 +14%', '全体攻速 +22%'],
   },
+
+  // ---- 所属组织（SKeyDB 的 faction，中文直译，界面并列英文原名）----
+  {
+    key: 'fools', kind: 'fac', n: '愚者', en: 'The Fools', color: '#f0c674',
+    steps: [2, 3, 4],
+    stepsText: ['愚者攻速 +8%', '愚者攻速 +15%', '愚者攻速 +24%'],
+  },
+  {
+    key: 'outlander', kind: 'fac', n: '界外者', en: 'Outlanders', color: '#c89b6a',
+    steps: [2, 3, 4],
+    stepsText: ['界外者生命 +10%', '界外者生命 +19%', '界外者生命 +30%'],
+  },
+  {
+    key: 'hybrid', kind: 'fac', n: '混血者', en: 'Hybrid', color: '#e07a9a',
+    steps: [2, 3, 4],
+    stepsText: ['混血者攻击力 +10%', '混血者攻击力 +19%', '混血者攻击力 +30%'],
+  },
+  {
+    key: 'unknowable', kind: 'fac', n: '不可知者', en: 'The Unknowable', color: '#9a8cd0',
+    steps: [2, 3, 4],
+    stepsText: ['不可知者狂气获取 +25%', '不可知者狂气获取 +45%', '不可知者狂气获取 +70%'],
+  },
+  {
+    key: 'stars', kind: 'fac', n: '星之间', en: 'Among the Stars', color: '#8ecbff',
+    steps: [2, 3, 4],
+    stepsText: ['星之间暴击率 +12%', '星之间暴击率 +21%', '星之间暴击率 +32%'],
+  },
+  {
+    key: 'aeons', kind: 'fac', n: '万古之外', en: 'Out of the Aeons', color: '#7fd4a8',
+    steps: [2, 3, 4],
+    stepsText: ['万古之外护甲 +8', '万古之外护甲 +15', '万古之外护甲 +24'],
+  },
+  {
+    key: 'unknown', kind: 'fac', n: '未定', en: 'Unknown', color: '#8a93a8',
+    steps: [2, 3, 4],
+    stepsText: ['未定受到伤害 -5%', '未定受到伤害 -9%', '未定受到伤害 -14%'],
+  },
+
+  // ---- 流派（角色关键词）----
+  {
+    key: 'tentacle', kind: 'gmk', n: '触手', color: '#b06bd9',
+    steps: [2, 3],
+    stepsText: ['触手攻击溅射到相邻敌人 18% 伤害', '触手攻击溅射到相邻敌人 32% 伤害'],
+  },
+  {
+    key: 'poison', kind: 'gmk', n: '中毒', color: '#8bd450',
+    steps: [2, 3],
+    stepsText: ['命中使目标中毒，每秒 2.5% 攻击力（3 秒）', '命中使目标中毒，每秒 4.5% 攻击力（3 秒）'],
+  },
+  {
+    key: 'devour', kind: 'gmk', n: '吞噬', color: '#e8695f',
+    steps: [2, 3],
+    stepsText: ['击杀回复 6% 生命，永久 +2% 攻击（5 层）', '击杀回复 10% 生命，永久 +4% 攻击（5 层）'],
+  },
+  {
+    key: 'counter', kind: 'gmk', n: '反击', color: '#7fb3ff',
+    steps: [2, 3],
+    stepsText: ['受击反弹 10% 伤害给攻击者', '受击反弹 18% 伤害给攻击者'],
+  },
+  {
+    key: 'embryo', kind: 'gmk', n: '胚胎', color: '#5fe0d0',
+    steps: [2, 3],
+    stepsText: ['狂气获取 +15%，大招伤害 +12%', '狂气获取 +28%，大招伤害 +22%'],
+  },
+  {
+    key: 'pierce', kind: 'gmk', n: '穿透', color: '#e3b341',
+    steps: [2, 3],
+    stepsText: ['攻击无视目标 20% 护甲', '攻击无视目标 35% 护甲'],
+  },
 ];
 
 export const TRAIT_BY_KEY = Object.fromEntries(TRAITS.map((t) => [t.key, t]));
+export const TRAIT_KINDS = [
+  ['realm', '界域'], ['role', '职阶'], ['fac', '组织'], ['gmk', '流派'],
+];
+
+// 组织 / 流派的数值。key 必须与上面 TRAITS 对应，数组长度必须与 steps 一致。
+// 阵营只加到「同组织」的单位身上，流派只加到「同流派」的单位身上 —— 这是它们
+// 能比界域（全队）给得更猛的原因，也是凑人的动力。
+export const FAC_EFF = {
+  fools: { aspd: [0.08, 0.15, 0.24] },
+  outlander: { hp: [0.10, 0.19, 0.30] },
+  hybrid: { atk: [0.10, 0.19, 0.30] },
+  unknowable: { ultGain: [0.25, 0.45, 0.70] },
+  stars: { crit: [0.12, 0.21, 0.32] },
+  aeons: { armor: [8, 15, 24] },
+  unknown: { dmgCut: [0.05, 0.09, 0.14] },
+};
+export const GMK_EFF = {
+  tentacle: { splash: [0.18, 0.32] },
+  poison: { poison: [0.025, 0.045] },
+  devour: { killHeal: [0.06, 0.10], killAtk: [0.02, 0.04] },
+  counter: { thorns: [0.10, 0.18] },
+  embryo: { ultGain: [0.15, 0.28], ultPower: [0.12, 0.22] },
+  pierce: { pierce: [0.20, 0.35] },
+};
+
 export const REALM_NAME = { caro: '血肉', aequor: '深海', chaos: '混沌', ultra: '超维' };
 export const REALM_COLOR = { caro: '#e8695f', aequor: '#5fe0d0', chaos: '#b06bd9', ultra: '#e3b341' };
 export const ROLE_NAME = { dps: '伤害型', tank: '防御型', sup: '辅助型' };
 export const ROLE_COLOR = { dps: '#ff8a7a', tank: '#7fb3ff', sup: '#8bd450' };
 export const ROLE_SHORT = { dps: '伤', tank: '防', sup: '辅' };
-// 界域 / 职阶的图标（内联 SVG 的 path，见 ui.js 的 icon()）：
-// 商店卡、备战席、信息卡、羁绊条共用同一套，比小字好认，也不用额外请求图片。
+
+// 界域改用自己的官方徽记（assets/realm/*.webp，构建时裁掉外圈灰雾、内联成 data URI 写进
+// js/pf/gen.js 的 REALM_ART，所以仍然不额外请求图片）。没有图的时候退回下面的内联 SVG。
 export const REALM_ICON = {
   caro: 'M6 1.2C7.9 3.6 10 5.4 10 7.5A4 4 0 0 1 2 7.5C2 5.4 4.1 3.6 6 1.2Z',
   aequor: 'M6 1.3c2.5 3 3.5 4.5 3.5 6a3.5 3.5 0 0 1-7 0c0-1.5 1-3 3.5-6z',
@@ -152,6 +256,40 @@ export const ROLE_ICON = {
   tank: 'M6 1l4.6 1.7v3.5c0 2.4-1.9 4.2-4.6 4.8-2.7-.6-4.6-2.4-4.6-4.8V2.7z',
   sup: 'M5 1.6h2V5h3.4v2H7v3.4H5V7H1.6V5H5z',
 };
+// 组织的纹章：都是 12×12 的简单几何，不追求「看得出是什么」，只求七个之间互相不像。
+// （官方没有为组织出过图标，自造一个比继续用界域图标冒充要诚实。）
+export const FAC_ICON = {
+  // 愚者：歪着的菱形 + 一个点，牌面上的傻瓜
+  fools: 'M6 1 11 6 6 11 1 6zM4.6 4.6 7.4 7.4 6 8.8 3.2 6z',
+  // 界外者：缺了一角的方框
+  outlander: 'M1.6 1.6h6.2v2H3.6v6.8h-2zM6 8.2l1.5 1.5L10.4 6.8l-1.5-1.5zM8.6 1.6h1.8v1.8H8.6z',
+  // 混血者：两个交叠的环
+  hybrid: 'M5 2.2a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 1 0 0-6.8zm0 1.5a1.9 1.9 0 1 1 0 3.8 1.9 1.9 0 1 1 0-3.8zM7.8 3.6a3.4 3.4 0 0 1 0 4.8 3.4 3.4 0 0 0 0-4.8z',
+  // 不可知者：一只眼睛
+  unknowable: 'M6 2.6c2.6 0 4.6 2 5.2 3.4-.6 1.4-2.6 3.4-5.2 3.4S1.4 7.4.8 6C1.4 4.6 3.4 2.6 6 2.6zm0 1.6a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6z',
+  // 星之间：四芒星
+  stars: 'M6 .8l1.4 3.8L11.2 6 7.4 7.4 6 11.2 4.6 7.4.8 6l3.8-1.4z',
+  // 万古之外：螺旋（三段等距弧）
+  aeons: 'M6 1.4a4.6 4.6 0 1 0 0 9.2A3.4 3.4 0 1 1 6 4.2a1.8 1.8 0 1 0 0 3.6',
+  // 未定：虚线方框里的问号
+  unknown: 'M1.4 1.4h3v1.2h-1.8v1.8H1.4zM9.6 1.4h1.2v3H9.6V2.6H7.8V1.4zM6 3.8c1.3 0 2.2.8 2.2 1.9 0 .9-.5 1.3-1.1 1.7-.5.4-.6.6-.6 1.1H5c0-1 .3-1.4.9-1.9.5-.4.7-.6.7-1 0-.4-.3-.7-.7-.7-.5 0-.7.3-.8.7l-1.4-.3c.3-1 1.1-1.5 2.3-1.5zM5.1 9h1.6v1.3H5.1z',
+};
+// 流派的记号
+export const GMK_ICON = {
+  // 触手：一条卷曲的线
+  tentacle: 'M2 10.6c0-3.2 1.4-4.4 3-4.4 1.4 0 2.2 1 2.2 2 0 .9-.6 1.5-1.3 1.5-.6 0-1-.4-1-.9',
+  // 中毒：水滴加一颗核
+  poison: 'M6 1.2c2.2 2.7 3.2 4.2 3.2 5.6A3.2 3.2 0 0 1 2.8 6.8c0-1.4 1-2.9 3.2-5.6z',
+  // 吞噬：张开的嘴
+  devour: 'M1.4 4.4c3-.8 6.2-.8 9.2 0-.6 2.6-2.6 4.4-4.6 4.4S2 7 1.4 4.4z',
+  // 反击：折返箭头
+  counter: 'M2 3.4h5.4v2.2H4.2v2.6h3.4l-3.4 3.2-3.4-3.2h1.2z',
+  // 胚胎：卵
+  embryo: 'M6 1.4c2.3 0 3.9 2.2 3.9 4.6S8.3 10.6 6 10.6 2.1 8.4 2.1 6 3.7 1.4 6 1.4zm0 2.4a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4z',
+  // 穿透：箭头穿过一条线
+  pierce: 'M1 6h2.2v-1.6L6.6 6 3.2 7.6V6H1zm7.4-4.2 2.4 4.2-2.4 4.2-.7-1.2 1.6-3-1.6-3z',
+};
+
 
 // ---------------------------------------------------------------- 敌人
 // 每一项的 id 对应 data/protocol-art.json 里 mobs 的键（图集帧表）。
