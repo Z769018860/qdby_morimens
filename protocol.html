@@ -85,8 +85,12 @@ button{font:inherit; color:inherit}
 .tr .trtip u{display:block; text-decoration:none; opacity:.55}
 .tr .trtip u.on{color:var(--text); opacity:1}
 .tr:hover .trtip{display:block}
-/* 左侧面板里的羁绊按四类分组（界域 / 职阶 / 组织 / 流派），每组一个小标题 */
+/* 左侧面板里的羁绊按四类分组（界域 / 职阶 / 组织 / 流派），每组一个小标题。
+   这里必须是竖排的块：.sd-traits 是 flex-wrap 横排容器，让 .tgrp 当 flex item
+   会随内容宽度两两并排（某组只有 1 个人时就会「组织 / 流派」挤一行）。 */
+#sdTraits{display:block; margin-top:6px}
 .tgrp{margin-bottom:6px}
+.tgrp:last-child{margin-bottom:0}
 .tgrp h5{margin:0 0 4px; display:flex; align-items:center; gap:4px; font-size:10.5px; font-weight:600;
   letter-spacing:.14em; color:var(--dim)}
 .tgrp h5::after{content:''; flex:1; height:1px; background:var(--line); opacity:.7}
@@ -444,7 +448,7 @@ button{font:inherit; color:inherit}
 }
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
 </style>
-<meta name="build" content="3ee6964aaf">
+<meta name="build" content="c7ac4c0d9e">
 </head>
 <body>
 <div class="app">
@@ -606,7 +610,7 @@ button{font:inherit; color:inherit}
   });
 })();
 </script>
-<script type="module" src="js/b/protocol.js?v=3ee6964aaf"></script>
+<script type="module" src="js/b/protocol.js?v=c7ac4c0d9e"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

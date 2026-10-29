@@ -407,12 +407,13 @@ function renderTraits() {
       : `<span class="traithint">把唤醒体摆上场，界域 / 职阶 / 组织 / 流派羁绊会亮起来</span>`;
   }
   if (side) {
-    // 左侧面板位置宽裕，四组全列（没人的组不占位置）
+    // 左侧面板位置宽裕，四组全列（没人的组不占位置）。
+    // 组标题只放标签：右边再挂一个「已亮 / 出现」的分数会和 chip 自己的 n/需求
+    // 撞在一起（「组织 0/1」旁边写着「愚者 1/2」），反而让人以为数字对不上。
     side.innerHTML = TRAIT_KINDS.map(([kind, label]) => {
       const items = list.filter((t) => t.def.kind === kind);
       if (!items.length) return '';
-      const lit = items.filter((t) => t.active >= 0).length;
-      return `<div class="tgrp"><h5>${label}<em>${lit}/${items.length}</em></h5>
+      return `<div class="tgrp"><h5>${label}</h5>
         <div class="tlist">${items.map(traitChip).join('')}</div></div>`;
     }).join('');
   }
