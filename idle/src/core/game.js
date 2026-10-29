@@ -213,6 +213,52 @@ export function farmRate(state, data, stage, rate) {
     winsPerTicket: winsPerTicket(stage), winsPerCore: winsPerCore(stage),
   };
 }
+/* ---------- 挂机层：默认挂在「有收益的最高层」 ---------- */
+/* 收益 = 胜率 × 单场收益，所以胜率 0 的关就是零收益。
+   但挂机层一直跟着「正在攻打的那一关」走：攻坚（stage = maxStage + 1）时挂机也跟过去，
+   一旦这一关——或者 maxStage 本身——打不过（一次侥幸首通、换过队伍、叠位被清、装备换掉……），
+   挂机就永远卡在 0，离线结算也一直是 0。
+   这里的判定统一成一句话：从想打的那一关往下扫，第一个打得过的层才是真正该挂的层。 */
+export const FARM_SCAN_MAX = 60;   // 最多往下扫 60 关（单场模拟约 1ms，扫满也不会卡）
+const FARM_PROBES = 2;             // 每关最多试 2 场，避免一次运气差就把能挂的关跳过去
+export const FARM_STUCK_LOSSES = 3; // 在已通关的关上连输这么多场，就认为这一关也打不过了
+
+// 战斗结果只跟这些字段有关（关卡另算），用它给扫描结果做缓存：升级 / 换装备 / 换队伍后自动失效
+export function battleSig(state) {
+  return [
+    state.maxStage || 0,
+    (state.team || []).join(','),
+    Object.entries(state.roster || {}).map(([k, r]) => `${k}.${r.lv}.${r.star}.${r.brk ?? 0}`).join('|'),
+    (state.gear?.relics || []).join(','),
+    Object.entries(state.gear?.equip || {}).map(([k, e]) => `${k}:${e?.wheel || ''}/${e?.cov || ''}`).join(';'),
+    Object.entries(state.orders?.owned || {}).map(([k, v]) => `${k}.${v}`).join('|'),
+    (state.orders?.slots || []).join(','),
+    Object.keys(state.gear?.items || {}).length,
+    `${state.strategy?.defend ?? ''}/${state.strategy?.target ?? ''}`,
+  ].join('#');
+}
+
+// 想挂的那一关：攻坚时不能超过最高通关（推图的下一关还没打过，不能按它结算）
+export function farmTargetStage(state) {
+  return Math.max(1, Math.min(state.stage || 1, state.maxStage || state.stage || 1));
+}
+
+const farmCache = new Map();
+export function farmableStage(state, data, from = farmTargetStage(state)) {
+  const key = `${from}|${battleSig(state)}`;
+  if (farmCache.has(key)) return farmCache.get(key);
+  const copy = JSON.parse(JSON.stringify(state));
+  let out = null;
+  for (let st = from; st >= 1 && from - st < FARM_SCAN_MAX; st--) {
+    for (let i = 0; i < FARM_PROBES; i++) if (runBattle(copy, data, st).win) { out = { stage: st, from, fellBack: st !== from }; break; }
+    if (out) break;
+  }
+  if (!out) out = { stage: Math.max(1, from - FARM_SCAN_MAX), from, fellBack: true, hopeless: true };
+  if (farmCache.size > 12) farmCache.clear();
+  farmCache.set(key, out);
+  return out;
+}
+
 // 首通奖励（面板上标出来，方便判断值不值得攻坚）
 export const firstClearReward = (stage) => (stageInfo(stage).boss ? { tickets: 3, cores: 20, gear: 1, order: 1 } : { tickets: 1, cores: 4 });
 
@@ -344,9 +390,22 @@ export function applyResult(state, data, res) {
       // 就地留在这一关继续刷，收益按这一关算。
       rw.stayed = true;
     }
-  } else if (state.auto && state.stage > state.maxStage) {
-    // lost on the frontier: fall back to the last cleared stage and farm there
-    state.stage = Math.max(1, state.maxStage); rw.retreat = true;
+  } else if (state.auto) {
+    /* 打输了。原来只在前线失败时退回 maxStage，可 maxStage 自己也可能打不过
+       （首通靠运气、换过队伍、装备被卸了……），那样挂机就一直零收益。
+       现在统一问 farmableStage 要「有收益的最高层」：前线失败退回去，
+       在已通关的关上连输 FARM_STUCK_LOSSES 场也退回去。 */
+    const miss = (state.miss ||= { stage: 0, n: 0 });
+    const frontier = state.stage > state.maxStage;
+    if (miss.stage === state.stage) miss.n += 1; else { miss.stage = state.stage; miss.n = 1; }
+    if (frontier || miss.n >= FARM_STUCK_LOSSES) {
+      const farm = farmableStage(state, data, Math.max(1, Math.min(state.stage, state.maxStage || 1)));
+      if (farm.stage !== state.stage) {
+        state.stage = farm.stage; rw.retreat = true; rw.retreatTo = farm.stage;
+        rw.fellBack = !!farm.fellBack; rw.stuck = !frontier;
+      }
+      miss.stage = state.stage; miss.n = 0;
+    }
   }
   return rw;
 }
@@ -358,11 +417,16 @@ export function offlineReport(state, data, now = Date.now()) {
   const capped = Math.min(secs, OFFLINE_CAP_HOURS * 3600);
   const n = Math.floor(capped / BATTLE_SECONDS);
   // estimate win rate on the stage we would be farming
-  const stage = Math.max(1, Math.min(state.stage, state.maxStage || 1));
+  /* 结算层 = 真正在挂的那一关。玩家停在攻坚层（胜率 0）时不能按它结算，
+     否则离线收益永远是 0——所以默认退到「有收益的最高层」（farmableStage）。 */
+  const want = farmTargetStage(state);
+  const farm = farmableStage(state, data, want);
+  const stage = farm.stage;
   const copy = JSON.parse(JSON.stringify(state));
   let wins = 0; const probes = 6;
   for (let i = 0; i < probes; i++) if (runBattle(copy, data, stage).win) wins++;
-  const rate = wins / probes;
+  // 扫描时赢过、这里 6 次全擦边（胜率本来就很低）时按 1/6 兜底，避免又变成零收益
+  const rate = wins ? wins / probes : (farm.hopeless ? 0 : 1 / probes);
   const w = Math.round(n * rate);
   const t = teamDefs(state, data);
   const gold = Math.round(w * stageGold(stage) * (1 + t.goldBonus / 100));
@@ -372,7 +436,10 @@ export function offlineReport(state, data, now = Date.now()) {
   const drops = [];
   const nd = Math.min(25, Math.round(w * DROP_RATE));
   for (let i = 0; i < nd; i++) { const it = rollItem(rng, stage, data); drops.push(it); }
-  return { secs, capped, battles: n, wins: w, rate, stage, gold, tickets, cores, drops, ticketFrac, coreFrac };
+  return {
+    secs, capped, battles: n, wins: w, rate, stage, gold, tickets, cores, drops, ticketFrac, coreFrac,
+    wantStage: want, fellBack: farm.fellBack, hopeless: !!farm.hopeless,
+  };
 }
 export function claimOffline(state, rep, now = Date.now()) {
   if (rep) {
@@ -382,6 +449,9 @@ export function claimOffline(state, rep, now = Date.now()) {
     drip.tickets += rep.ticketFrac || 0; drip.cores += rep.coreFrac || 0;
     for (const d of rep.drops) addItem(state, d.kind, d.defId);
     state.stats.gold += rep.gold;
+    /* 结算时已经按「有收益的最高层」算过了，就把挂机层也切过去：
+       否则领完收益又回去对着零收益的关卡打，下一次离线还是 0。 */
+    if (rep.fellBack && rep.stage) { state.stage = rep.stage; const miss = (state.miss ||= { stage: 0, n: 0 }); miss.stage = rep.stage; miss.n = 0; }
   }
   state.lastSeen = now;
 }

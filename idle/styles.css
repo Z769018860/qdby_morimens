@@ -338,6 +338,16 @@ body{background:#0a0d13}
 .manual-note{display:block;font-size:12px;line-height:1.5;color:var(--dim);padding:6px 10px;background:#0b1017;border:1px solid var(--line);border-radius:10px}
 .manual-note b{color:var(--gold)}
 
+/* ---------- M16：挂机层默认取「有收益的最高层」 ---------- */
+/* 当前关胜率 0 时挂机没有任何收益，面板上直接标黄并给一颗一键退回的按钮 */
+.farmx.warn{color:#ffbd5c;background:rgba(255,189,92,.08);border:1px solid rgba(255,189,92,.28);border-radius:8px;padding:5px 8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.farmx.warn b{color:#ffd79a}
+.farmx.warn .btn.sm{padding:3px 8px;font-size:11.5px;border-color:rgba(255,189,92,.45);background:rgba(255,189,92,.1);color:#ffd79a}
+.farmx.warn .btn.sm:hover{border-color:#ffd79a}
+/* 离线弹窗里说明「已改按有收益的最高层结算」的那一段 */
+.offback{color:#ffd79a;background:rgba(255,189,92,.08);border:1px solid rgba(255,189,92,.28);border-radius:8px;padding:6px 9px;line-height:1.5}
+.offback b{color:#ffe4b3}
+
 /* 钥令图标改用原作 KeyToken 素材：图标本身有底色，容器只负责圆角与稀有度描边 */
 .oglyph img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:8px;display:block;z-index:1}
 .ochip .oglyph{width:18px;height:18px;border-radius:5px;font-size:12px;vertical-align:-3px;margin-right:2px}

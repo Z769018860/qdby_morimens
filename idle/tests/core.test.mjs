@@ -1253,3 +1253,75 @@ test('融灾禁区：老存档补字段，越界层数被夹回 0~100', () => {
   // 五套编队都要能存（老存档只有三套）
   assert.equal(Object.keys(crazy.squads).length, 5);
 });
+
+/* ---------------------------------------------------------------- M16: 挂机层默认取「有收益的最高层」 */
+
+import { farmableStage, farmTargetStage, battleSig, FARM_STUCK_LOSSES, FARM_SCAN_MAX } from '../src/core/game.js';
+
+test('挂机层：攻坚层胜率 0 时往下扫到打得过的那一层', () => {
+  const s = newState(data, 71); s.maxStage = 60; s.stage = 61;   // 正在攻坚第 61 关
+  assert.equal(farmTargetStage(s), 60, '攻坚层不能拿没打过的关去结算');
+  const farm = farmableStage(s, data);
+  assert.equal(farm.from, 60);
+  assert.ok(farm.fellBack, '第 60 关打不过，必须退回');
+  assert.ok(farm.stage < 60 && farm.stage >= 1, `退回的层要合法：${farm.stage}`);
+
+  // 打得过的关不用退（第 1 关一定打得过）
+  const ok = farmableStage(s, data, 1);
+  assert.equal(ok.stage, 1); assert.equal(ok.fellBack, false);
+
+  // 同一份队伍 + 同一层，第二次直接命中缓存（不再跑战斗）
+  assert.deepEqual(farmableStage(s, data), farm);
+  // 队伍变了缓存就失效（sig 里带着 roster）
+  const before = battleSig(s);
+  s.roster[s.team[0]].lv += 5;
+  assert.notEqual(battleSig(s), before);
+
+  // 扫满上限也没赢过：不许死循环，给一个合法层并标 hopeless
+  const t = newState(data, 76); t.maxStage = 400; t.stage = 401;
+  const deep = farmableStage(t, data, 400);
+  assert.ok(deep.stage >= 1 && deep.stage <= 400);
+  assert.ok(400 - deep.stage <= FARM_SCAN_MAX, '最多只往下扫 FARM_SCAN_MAX 关');
+  assert.equal(deep.hopeless, true);
+});
+
+test('离线结算：攻坚层胜率为 0 时按有收益的最高层结算，并把挂机层切过去', () => {
+  const s = newState(data, 72); s.maxStage = 60; s.stage = 61; s.lastSeen = 0;
+  const rep = offlineReport(s, data, 100 * 3600 * 1000);
+  assert.equal(rep.capped, 8 * 3600);
+  assert.ok(rep.fellBack, '应当判定为退回有收益的层');
+  assert.equal(rep.wantStage, 60);
+  assert.ok(rep.stage < 60, `结算层应当是打得过的那一层：${rep.stage}`);
+  assert.ok(rep.rate > 0 && rep.wins > 0 && rep.gold > 0, '退回之后不能再是零收益');
+  const g = s.gold;
+  claimOffline(s, rep, 5);
+  assert.ok(s.gold > g);
+  assert.equal(s.stage, rep.stage, '领完离线收益，挂机层切到有收益的最高层');
+
+  // 收益为 0 的那一支（hopeless）也要切层：main.js 传 rep 而不是 null 就是为了这个
+  const z = newState(data, 77); z.maxStage = 400; z.stage = 401; z.lastSeen = 0;
+  const r2 = offlineReport(z, data, 100 * 3600 * 1000);
+  claimOffline(z, r2, 5);
+  assert.ok(z.stage < 401, `零收益也要退层：${z.stage}`);
+});
+
+test('自动挂机：前线失手会退到有收益的最高层，不会死守零收益的关卡', () => {
+  // 前线攻坚（stage = maxStage + 1）失败
+  const s = newState(data, 73); s.maxStage = 60; s.stage = 61; s.auto = true;
+  const res = runBattle(s, data, 61);
+  assert.equal(res.win, false, '这套新手队伍打不过第 61 关');
+  const rw = applyResult(s, data, res);
+  assert.ok(rw.retreat && rw.retreatTo, '应当撤退');
+  assert.equal(s.stage, rw.retreatTo);
+  assert.ok(s.stage < 60, `不能退到同样打不过的第 60 关：${s.stage}`);
+
+  // 已通关的关上连输：连输到阈值也退（否则挂机一直零收益）
+  const t = newState(data, 74); t.maxStage = 60; t.stage = 60; t.auto = true;
+  for (let i = 0; i < FARM_STUCK_LOSSES; i++) applyResult(t, data, runBattle(t, data, 60));
+  assert.ok(t.stage < 60, `连输 ${FARM_STUCK_LOSSES} 场后应退回有收益的层：${t.stage}`);
+
+  // 手动挂机不受影响：玩家自己选的关，输了也留在原地
+  const m = newState(data, 75); m.maxStage = 60; m.stage = 61; m.auto = false;
+  applyResult(m, data, runBattle(m, data, 61));
+  assert.equal(m.stage, 61, '手动挂机输了不退');
+});

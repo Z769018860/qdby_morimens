@@ -717,12 +717,16 @@ export function settingsPage(app) {
       <div class="row"><button class="btn" data-act="export">导出存档</button><button class="btn" data-act="import">导入存档</button><button class="btn danger" data-act="reset">重置游戏</button></div>
       <p class="hint">存档保存在浏览器本地（localStorage）。换设备请先导出。离线最多结算 8 小时收益。</p></div>
     <div class="banner-card"><h3>关于</h3>
-      <p class="hint">《忘却之夜·挂机录》是基于《忘却前夜》（Morimens）的非官方同人作品，免费、非商业。游戏内的角色、图像素材版权归原权利方所有，数值与技能效果为本作自行设计。如有请联系删除。</p></div></div>`;
+      <p class="hint">《挂机前夜》是基于《忘却前夜》（Morimens）的非官方同人作品，免费、非商业。游戏内的角色、图像素材版权归原权利方所有，数值与技能效果为本作自行设计。如有请联系删除。</p></div></div>`;
 }
 
 export function offlineModal(app, rep, onClaim) {
   const items = rep.drops.length;
+  /* 攻坚层胜率 0 时不能按它结算（那样离线永远是 0），这里说明「已经按有收益的最高层算过」。 */
+  const note = rep.fellBack
+    ? `<p class="hint offback">⚠ 第 ${rep.wantStage || rep.stage} 关打不过（胜率 0，挂在那儿没有收益），已按<b>有收益的最高层 · 第 ${rep.stage} 关</b>结算；挂机层也切到第 ${rep.stage} 关，之后继续在这儿刷。</p>`
+    : '';
   const m = openModal(`<h3>欢迎回来</h3><p>离线 ${Math.round(rep.secs / 60)} 分钟（结算 ${Math.round(rep.capped / 60)} 分钟），在第 ${rep.stage} 关挂机 ${rep.battles} 场，预计胜 ${rep.wins} 场。</p>
-    <p>金币 <b>+${fmt(rep.gold)}</b>　召唤券 <b>+${rep.tickets}</b>　银芯 <b>+${rep.cores || 0}</b>　装备 <b>+${items}</b></p><button class="btn big gold" data-act="claim-offline">领取</button>`);
+    ${note}<p>金币 <b>+${fmt(rep.gold)}</b>　召唤券 <b>+${rep.tickets}</b>　银芯 <b>+${rep.cores || 0}</b>　装备 <b>+${items}</b></p><button class="btn big gold" data-act="claim-offline">领取</button>`);
   m.addEventListener('click', (e) => { if (e.target.closest('[data-act="claim-offline"]')) { closeModal(); onClaim(); } });
 }

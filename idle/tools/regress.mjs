@@ -549,6 +549,51 @@ const riftDone = await cdp.evalIife(`(() => {
 check(riftDone.passed && riftDone.rows >= 1 && riftDone.det === 5, `跳过回放后出结算：${riftDone.title}（${riftDone.rows} 层 · 最后一层 5 队）`);
 check(riftDone.state >= 1 && riftDone.tries === 2, `层数推进到第 ${riftDone.state} 层，次数 3 → ${riftDone.tries}`);
 
+// 14.5) M16：挂机层默认取「有收益的最高层」
+const farmStall = await cdp.evalIife(`(() => {
+  const s = __game.state;
+  s.auto = true; s.maxStage = 60; s.stage = 61; s.miss = { stage: 0, n: 0 };
+  __game.save(); __game.bv.refreshHead();
+  const box = document.querySelector('#bv-farm');
+  const btn = box.querySelector('[data-bv="fallback"]');
+  const warn = box.querySelector('.farmx.warn');
+  return { warn: !!warn, text: warn ? warn.innerText.replace(/\\s+/g, ' ') : '', btn: btn ? btn.innerText.trim() : '', stage: s.stage };
+})()`);
+check(farmStall.warn && /胜率 0/.test(farmStall.text) && /有收益的最高层/.test(farmStall.text),
+  `胜率 0 时警告并给出有收益的层：${farmStall.text.slice(0, 48)}…`);
+await cdp.shot('farm-stall');
+
+const farmBack = await cdp.evalIife(`(async () => {
+  document.querySelector('#bv-farm [data-bv="fallback"]').click();
+  await new Promise((r) => setTimeout(r, 400));
+  return { stage: __game.state.stage, toast: document.querySelector('.toast')?.innerText || '' };
+})()`);
+check(farmBack.stage > 0 && farmBack.stage < 60, `点「${farmStall.btn}」后挂机层切到第 ${farmBack.stage} 关`);
+check(/已退回第/.test(farmBack.toast), `toast：${farmBack.toast}`);
+
+const offback = await cdp.evalIife(`(async () => {
+  const g = await import('/src/core/game.js');
+  const P = await import('/src/ui/pages.js');
+  const s = __game.state;
+  s.auto = true; s.maxStage = 60; s.stage = 61;
+  s.lastSeen = Date.now() - 9 * 3600 * 1000;   // 假装离线 9 小时（封顶 8 小时）
+  const r = g.offlineReport(s, __game.data, Date.now());
+  P.offlineModal(__game, r, () => g.claimOffline(__game.state, r, Date.now()));
+  await new Promise((x) => setTimeout(x, 200));
+  const note = document.querySelector('.modal-bg .offback');
+  document.querySelector('.modal-bg [data-act="claim-offline"]').click();
+  await new Promise((x) => setTimeout(x, 300));
+  return { w: r.wantStage, stage: r.stage, gold: r.gold, fellBack: !!r.fellBack,
+    note: note ? note.innerText.replace(/\\s+/g, ' ') : '', now: s.stage };
+})()`);
+check(offback.fellBack && offback.stage < 60 && offback.gold > 0,
+  `离线结算退回有收益的最高层：第 ${offback.w} 关 → 第 ${offback.stage} 关（金币 +${offback.gold}）`);
+check(/有收益的最高层/.test(offback.note), '离线弹窗说明已按有收益的最高层结算');
+check(offback.now === offback.stage, `领完收益后挂机层切到第 ${offback.now} 关`);
+
+const catImg = await cdp.evalIife(`__game.data.monById.catboss.img`);
+check(/catboss_black\.webp$/.test(catImg), `校猫用节奏榜那张头像：${catImg}`);
+
 // 15) 全局报错 / 4xx
 const errs = [...new Set([...cdp.runtime, ...cdp.logs])];
 check(errs.length === 0, errs.length ? '页面报错：\n  ' + errs.slice(0, 8).join('\n  ') : '0 个 JS 报错');

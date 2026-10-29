@@ -1,4 +1,4 @@
-import { runBattle, applyResult, farmRate, firstClearReward, winRateOf } from '../core/game.js';
+import { runBattle, applyResult, farmRate, firstClearReward, winRateOf, farmableStage } from '../core/game.js';
 import { roundLimitFor, FRONT_SLOTS } from '../core/battle.js';
 import { stageInfo } from '../core/enemies.js';
 import { REALMS, TYPES, STATUS } from '../core/constants.js';
@@ -65,6 +65,17 @@ export class BattleView {
       if (s.stage < this.maxTarget()) { s.stage++; this.restart(); }
       else toast('先通关当前关卡才能继续');
     }
+    // 当前关胜率 0：一键退到「有收益的最高层」（和自动挂机的兜底、离线结算同一套判定）
+    if (a === 'fallback') {
+      const cur = s.stage;
+      const farm = farmableStage(s, this.app.data);
+      if (farm.fellBack) {
+        s.stage = farm.stage;
+        toast(`第 ${cur} 关打不过（胜率 0），已退回第 ${farm.stage} 关挂机`);
+        this.app.save(); this.refreshHead(); this.restart();
+      } else toast('这一关打得过，不用退');
+      return;
+    }
     this.app.save(); this.refreshHead();
   }
 
@@ -124,13 +135,19 @@ export class BattleView {
     const extra = `<div class="farmx">${deltas.length ? `下一关 ${deltas.join(' · ')}` : '下一关：当前队伍还打不过（胜率 0）'}${f.nxt > s.maxStage ? `　首通：券+${first.tickets} 银芯+${first.cores}${first.order ? ' 钥令+1' : ''}${first.gear ? ' 装备+1' : ''}` : ''}</div>`;
     // 校猫奖励关：每 40 关一次，提示一下，别让人以为只是普通 Boss
     const catNote = (st) => (stageInfo(st)?.reward ? `<div class="farmx cat">🐈 第 ${st} 关是「校猫」奖励关：打赢额外掉召唤券 5 + 银芯 60 + 装备，首杀翻倍</div>` : '');
+    /* 当前这一关胜率 0 = 挂机没有收益。攻坚时挂机跟着攻打层走，很容易撞上这种情况，
+       所以直接把「有收益的最高层」找出来，给一颗一键退回的按钮。 */
+    const best = f.cur.rate <= 0 ? farmableStage(s, this.app.data) : null;
+    const stall = best?.fellBack
+      ? `<div class="farmx warn">⚠ 第 ${f.cur.stage} 关胜率 0，挂在这儿<b>没有收益</b>；有收益的最高层是第 ${best.stage} 关。<button class="btn sm" data-bv="fallback">退回第 ${best.stage} 关挂机</button></div>`
+      : '';
     $('#bv-farm', this.root).innerHTML = `
       <div class="farmgrid">
-        ${col('当前挂机', f.cur, catNote(f.cur.stage))}
+        ${col('当前挂机', f.cur, stall + catNote(f.cur.stage))}
         ${col('下一关', nf, extra + catNote(f.nxt))}
       </div>
       <p class="hint">一场按 25 秒结算：金币 = 单场金币 × 胜率；召唤券与银芯的基础掉率是 40 场 1 张 / 90 场 1 枚，并<b>随关卡缓慢提升</b>——每深一关 +1.8% / +2.6%（第 60 关约 2.1× / 2.6×，第 100 关约 2.8× / 3.6×），挂得越深越值钱；装备每场 10% 掉落。在线与离线同一口径（离线最多累计 8 小时）。
-        ${s.auto ? '自动挂机中：打赢且「从容」（存活 ≥3 人、回合数达标）才自动推进，否则原地刷。' : '手动挂机中：<b>不会自动推进关卡</b>，只在这一关反复刷（收益按本关算）；要打更高关用右上角 ▶ 自己走过去。'}</p>`;
+        ${s.auto ? '自动挂机中：打赢且「从容」（存活 ≥3 人、回合数达标）才自动推进，否则原地刷；<b>打不过的关不会死守</b>——前线失手、或在已通关的关上连输 3 场，都会自动退到有收益的最高层。' : '手动挂机中：<b>不会自动推进关卡</b>，只在这一关反复刷（收益按本关算）；要打更高关用右上角 ▶ 自己走过去。'}</p>`;
   }
 
   /* ---------- 战斗流 ---------- */
@@ -329,7 +346,7 @@ export class BattleView {
     if (rw.firstClear) parts.push('<span class="n">首通!</span>');
     if (rw.advanced) parts.push(`<span class="n">推进 → 第 ${s.stage} 关</span>`);
     if (rw.stayed && res.win) parts.push(`<span class="n">留在第 ${s.stage} 关继续挂机</span>`);
-    if (rw.retreat) parts.push('<span class="r">挑战失败，退回上一关挂机，提升战力再来</span>');
+    if (rw.retreat) parts.push(`<span class="r">打不过第 ${res.stage} 关，退回第 ${rw.retreatTo || s.stage} 关挂机（有收益的最高层），提升战力再来</span>`);
     if (res.win && !rw.advanced && !rw.comfortable && s.stage <= s.maxStage) parts.push('<span class="r">赢得不够从容，继续在此关积累</span>');
     $('#bv-rw', this.root).innerHTML = parts.join('');
     const rep = analyzeBattle(res, res.prep.allies, res.prep.enemies), boss = res.prep.enemies.some((d) => d.boss);

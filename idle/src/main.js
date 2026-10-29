@@ -129,7 +129,7 @@ async function boot() {
   };
   if (rep && (rep.gold || rep.tickets)) {
     P.offlineModal(app, rep, () => { claimOffline(app.state, rep); app.save(); app.refreshTop(); toast('已领取离线收益'); app.bv.start(); maybeGuide(); });
-  } else { claimOffline(app.state, null); app.bv.start(); maybeGuide(); }
+  } else { claimOffline(app.state, rep || null); app.bv.start(); maybeGuide(); }
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('beforeunload', () => app.save());
   setInterval(() => app.save(), 15000);
@@ -140,7 +140,7 @@ function onVisibility() {
   if (document.hidden) { app.bv.stop(); app.save(); return; }
   const rep = offlineReport(app.state, app.data);
   if (rep && (rep.gold || rep.tickets)) P.offlineModal(app, rep, () => { claimOffline(app.state, rep); app.save(); app.refreshTop(); app.bv.start(); });
-  else { claimOffline(app.state, null); app.bv.start(); }
+  else { claimOffline(app.state, rep || null); app.bv.start(); }
 }
 
 // 顶栏那个喇叭：一声点击就能静音，不用钻到设置页
