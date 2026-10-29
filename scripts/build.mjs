@@ -218,6 +218,10 @@ const pf = genProtocol();
 // 这里只负责在构建时调它，保证 js/binding-art.js 不会和 data/binding-art.json 走散。
 execFileSync(process.execPath, [path.join(ROOT, 'scripts/build_binding_art.mjs')], { stdio: 'pipe' });
 
+// 「弥萨格狼人杀」的 62 张头像同理：一局里要用到十几张，逐个请求在边缘就是十几个来回。
+// 清单写在 js/wolf/data.js 里（每名唤醒体的 av 字段），由这个脚本读成 data URI。
+execFileSync(process.execPath, [path.join(ROOT, 'scripts/build_wolf_art.mjs')], { stdio: 'pipe' });
+
 // 不 rmSync 整个 js/b：这台机器的删除是被「异步送进回收站」的垫片接管的，
 // rmSync 会在文件还没真正消失时 rmdir → 偶发 ENOTEMPTY；更糟的是延迟删除可能落在
 // 新文件写入之后，把刚打包好的 bundle 又删掉，表现成「构建成功但产物缺文件」。
