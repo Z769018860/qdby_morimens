@@ -7,7 +7,7 @@ import { hash, mulberry32 } from './rng.js';
 import { simulate, roundLimitFor } from './battle.js';
 import { buildEnemies } from './enemies.js';
 import { teamDefs, stageGold, battleSeed, addItem, rollItem, addOrder, rollOrder, recordCodex } from './game.js';
-import { SQUAD_KEYS, SQUAD_ZH, squadMembers } from './squad.js';
+import { SQUAD_KEYS, RIFT_SQUAD_KEYS, SQUAD_ZH, squadMembers } from './squad.js';
 
 export const RIFT_FLOORS = 100;          // 本期层数上限
 export const RIFT_TEAMS = 5;             // 每层出战的队伍数
@@ -76,13 +76,22 @@ export function riftState(state, now = new Date()) {
   return r;
 }
 
-/** 五队：一队~五队按顺序上；某套还没编就用当前队伍顶上（界面会标出来） */
+/**
+ * 五队：优先用禁区专用编队（禁区一队~五队），没编就退回通用同序号那一套
+ * （一队顶禁区一队……），再没有才用当前队伍。界面会标出每队是从哪儿来的。
+ */
 export function riftParty(state, data) {
-  return SQUAD_KEYS.map((key, slot) => {
-    const members = squadMembers(state, key);
-    const filled = members.length > 0;
-    const slugs = (filled ? members : [...(state.team || [])]).slice(0, 4);
-    return { key, zh: SQUAD_ZH[key], slot, filled, slugs, team: teamDefs(state, data, slugs) };
+  return RIFT_SQUAD_KEYS.map((key, slot) => {
+    const own = squadMembers(state, key);
+    const shared = squadMembers(state, SQUAD_KEYS[slot]);
+    const from = own.length ? 'rift' : shared.length ? 'shared' : 'cur';
+    const slugs = (own.length ? own : shared.length ? shared : [...(state.team || [])]).slice(0, 4);
+    return {
+      key, zh: SQUAD_ZH[key], slot, slugs,
+      filled: own.length > 0,
+      from, sharedKey: SQUAD_KEYS[slot], sharedZh: SQUAD_ZH[SQUAD_KEYS[slot]],
+      team: teamDefs(state, data, slugs),
+    };
   });
 }
 

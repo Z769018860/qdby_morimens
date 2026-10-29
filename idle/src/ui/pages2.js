@@ -47,8 +47,8 @@ export function challengePage(app) {
       <p class="hint">从第 1 层开始连续战斗，存活者保留生命并回复 30%，倒下的不会复活；全灭即止。每 5 层奖励召唤券，每 10 层掉落装备，<b>每 20 层是「校猫」奖励层</b>（额外给券、银芯与一件装备），首次到达的新层数才有奖励。塔共 ${TOWER_MAX_FLOOR} 层。</p>
       <div class="row"><button class="btn big gold" data-act="tower-go" ${tries > 0 ? '' : 'disabled'}>${tries > 0 ? '开始爬塔' : '今日次数已用完'}</button></div></div>
     <div class="banner-card riftcard"><h3>融灾禁区 <small>第 ${rc.id.slice(1)} 期 · ${rc.startText}–${rc.endText} · 剩 ${rc.daysLeft} 天</small></h3>
-      <p>本期进度：<b>${rs.floor}</b> / ${RIFT_FLOORS}${riftClear ? ' <em class="new">已通关</em>' : ''}　今日剩余挑战：<b>${rs.tries}/${RIFT_DAILY}</b>　已编队伍：<b>${filled}/${RIFT_TEAMS}</b>${filled < RIFT_TEAMS ? '<span class="dim">（空位用当前队伍顶上）</span>' : ''}</p>
-      <p class="hint">一层要同时派出 <b>五个队伍</b>：一队~五队各打一组敌人，<b>5 场胜 4 场</b>即通过该层（漏掉的那队只影响这一层的评价）。每层都是满状态，不继承血量；一次挑战最多连爬 10 层。塔共 ${RIFT_FLOORS} 层，<b>每两周换一期</b>：敌人重排、层数从头爬、每层奖励重发，历史最高层永久保留。</p>
+      <p>本期进度：<b>${rs.floor}</b> / ${RIFT_FLOORS}${riftClear ? ' <em class="new">已通关</em>' : ''}　今日剩余挑战：<b>${rs.tries}/${RIFT_DAILY}</b>　禁区编队：<b>${filled}/${RIFT_TEAMS}</b>${filled < RIFT_TEAMS ? '<span class="dim">（没编的先借用通用一队~五队，再没有才用当前队伍）</span>' : ''}</p>
+      <p class="hint">一层要同时派出 <b>五个队伍</b>：禁区一队~五队各打一组敌人，<b>5 场胜 4 场</b>即通过该层（漏掉的那队只影响这一层的评价）。这五套是<b>融灾禁区专用</b>的编队，不会动到推图 / 塔 / 周 Boss 在用的通用编队。每层都是满状态，不继承血量；一次挑战最多连爬 10 层。塔共 ${RIFT_FLOORS} 层，<b>每两周换一期</b>：敌人重排、层数从头爬、每层奖励重发，历史最高层永久保留。</p>
       ${riftClear ? '<p>本期已经打穿第 100 层了，等下期刷新再来。</p>' : `<div class="riftfoes">${riftFoes.map((en, i) => `<div class="rf ${i === RIFT_TEAMS - 1 ? 'boss' : ''}"><span>第 ${i + 1} 队</span><small>${en.map((e) => esc(e.name)).join('、')}</small></div>`).join('')}</div>`}
       <div class="row"><button class="btn big gold" data-act="go-rift">${riftClear ? '查看本期战绩' : `进入融灾禁区（第 ${nextRift} 层）`}</button></div></div>
     <div class="banner-card"><h3>融灾试炼</h3>
