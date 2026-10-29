@@ -15,7 +15,7 @@ if ED:
     from ed_common import make_docs
     from witness import WIT
     T = {}; X = {}; FLAVOR = {}; T2 = _m.PROSE; T3 = {}; EXT = {}; FRAGS = {}; ARCS = []; HIDDEN = []; ENDINGS = [_m.ENDING]; MILE = _m.MILE; ARC_SRC = ''
-    PUZ_META = []; BADGES = {}; h32 = lambda x: 0; MELT = {}
+    PUZ_META = []; BADGES = {}; h32 = lambda x: 0; MELT = {}; CLUTTER = {}
     from docs import MELTNOTE
     DOCS = make_docs(_m.META, len(_m.CAST), _m.OVER, _m.FINALS); MSGS = _m.MSGS
     LORE_X = getattr(_m, 'LORE_EXTRA', {}); AVATAR_X = getattr(_m, 'AVATAR_EXTRA', {})
@@ -33,6 +33,7 @@ else:
     from puzzles import FRAGS, META as PUZ_META, BADGES, h32
     from texts_ext import EXT
     from melt import MELT
+    from clutter import CLUTTER
 
 ap = argparse.ArgumentParser(); ap.add_argument('--repo', default='..'); args = ap.parse_args()
 REPO = Path(args.repo).resolve(); HERE = Path(__file__).resolve().parent.parent
@@ -130,6 +131,13 @@ def _prose(n):
                 L.insert(k + 1 if k >= 0 else len(L) + k, txt)
         for k, txt in sorted(MELT.get(('rec', n), []), key=lambda a: -a[0]):
             L.insert(min(k, len(L)), txt)
+        # 混淆段按锚点插，不用行号：EXT 会插在开头，行号整体偏一位，插错一行就打断语序。
+        # 锚点必须在本条里恰好命中一行，否则直接构建失败 —— 宁可炸掉，也不静默插到错的地方。
+        for anchor, txt in CLUTTER.get(('rec', n), []):
+            hit = [i for i, ln in enumerate(L) if anchor in ln]
+            if len(hit) != 1:
+                raise SystemExit(f'clutter: 名册 {n} 的锚点「{anchor}」命中 {len(hit)} 行（需恰好 1 行）')
+            L.insert(hit[0], txt)
         have = '\n'.join(L)
         # 只在“这条记录已经把某人的下落写全了（名字＋地点＋第几个）”时才不再补一句“听说”。
         # 光提到名字不算——那样会把推理边也一起去掉，往届就断链了。

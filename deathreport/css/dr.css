@@ -285,3 +285,12 @@ h1{background:linear-gradient(180deg,#fff,rgb(var(--tint)));-webkit-background-c
 .rdbody > p.meltp::first-letter{color:#c8d4d0}
 @keyframes meltdrift{0%,100%{opacity:1;transform:none}38%{opacity:.72;transform:translateX(.6px)}62%{opacity:.9;transform:translateX(-.4px)}}
 @media(prefers-reduced-motion:reduce){.rdbody > p.meltp{animation:none}}
+
+/* 进入界面的 OOC 声明：紧跟菜单，比页脚那行显眼，但不抢标题 */
+.ooc{
+  margin:14px 0 0;max-width:520px;font-size:12.5px;line-height:1.8;color:#aebfc2;
+  border-left:2px solid rgba(var(--tint),.5);padding:8px 10px 8px 12px;
+  background:rgba(12,22,30,.5);
+}
+.ooc b{display:block;margin-bottom:2px;color:var(--amb);letter-spacing:.09em;font-size:13px}
+@media(max-width:640px){.ooc{font-size:11.5px;line-height:1.75;margin-top:12px}.ooc b{font-size:12px}}
