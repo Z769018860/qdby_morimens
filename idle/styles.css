@@ -12,7 +12,14 @@ h3{margin:14px 0 6px;font-size:15px}h4{margin:12px 0 6px;font-size:13px;color:va
 .hl{display:flex;align-items:center;gap:8px;min-width:0}
 .back{display:flex;align-items:center;justify-content:center;width:26px;height:26px;flex:0 0 auto;border:1px solid var(--line);border-radius:7px;color:var(--dim);text-decoration:none;font-size:15px;line-height:1}
 .back:hover{color:var(--gold);border-color:var(--gold)}
-.res{display:flex;gap:14px}.res b{color:var(--gold)}
+.res{display:flex;gap:14px}.res b{color:var(--gold);margin-left:3px}
+/* 资源图标（召唤券 = 流明之芯 / 银芯 = 银芯）：原作图标本身带金属高光，深色底下不用再加滤镜。
+   尺寸比 emoji 以前那版大一点（16 → 18）：图里本身还有留白，太小会显得模糊 */
+.res .ico{width:18px; height:18px; display:inline-block; vertical-align:-4px; object-fit:contain}
+/* 正文里的同款小图标（签到、奖励预览那些用 emoji 的位置）。
+   签到格子只有六十几像素宽，图标缩到 14 以下就认不出来了，所以固定 15 并轻微提亮
+   （原作图标本身偏灰，压在深色底上会发闷） */
+.ico-sm{width:15px; height:15px; display:inline-block; vertical-align:-3px; object-fit:contain; filter:brightness(1.12) saturate(1.05)}
 main{max-width:980px;margin:0 auto;padding:12px}
 /* ---- 底部导航：5 个功能域（原来 13 个页签横滚，手机上挤成一排） ---- */
 #tabs{position:fixed;inset:auto 0 0 0;height:calc(58px + env(safe-area-inset-bottom));display:flex;background:linear-gradient(#0b0f16,#0a0d13);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:20}

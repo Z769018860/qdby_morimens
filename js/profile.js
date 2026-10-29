@@ -57,7 +57,10 @@ function gamesBox() {
         h('span', { class: 'nm' }, g.n)),
       h('div', { class: 'items' }, d.items.map((it) => h('div', {},
         h('b', {}, it.v), h('small', {}, it.k)))),
-      h('div', { class: 'extra' }, d.extra || g.tip),
+      // 挂机那一格用带图标的一句（券 / 银芯），其余仍是纯文本
+      d.extraHtml
+        ? h('div', { class: 'extra', html: d.extraHtml })
+        : h('div', { class: 'extra' }, d.extra || g.tip),
       h('div', { class: 'go' }, '进入 →'));
   });
   return h('section', { class: 'card' },

@@ -100,6 +100,11 @@ function idle() {
       { k: '唤醒体', v: String(team) },
     ],
     extra: s.gold != null ? `金币 ${n(s.gold)} · 券 ${n(s.tickets)} · 核心 ${n(s.cores)}` : '',
+    // 同一句带图标版：券 = 流明之芯、核心 = 银芯（都用原作图标，跟挂机版顶栏一致）
+    extraHtml: s.gold != null
+      ? `金币 ${n(s.gold)} · <img class="ico-inl" src="assets/ui/lumen.webp" alt="召唤券">${n(s.tickets)}`
+        + ` · <img class="ico-inl" src="assets/ui/silvercore.webp" alt="银芯">${n(s.cores)}`
+      : '',
   };
 }
 

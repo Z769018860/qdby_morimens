@@ -438,7 +438,7 @@ export function detailModal(app, slug) {
       <button class="btn" data-act="lvup" data-slug="${slug}" data-n="1" ${cost && s.gold >= cost ? '' : 'disabled'}>升级 (${fmt(cost)})</button>
       <button class="btn" data-act="lvup" data-slug="${slug}" data-n="10" ${cost && s.gold >= cost ? '' : 'disabled'}>×10</button>
       <button class="btn" data-act="lvmax" data-slug="${slug}" ${cost ? '' : 'disabled'}>升至最高</button>
-      ${needBrk ? `<button class="btn gold" data-act="brk" data-slug="${slug}" ${s.gold >= brkCost.gold && s.cores >= brkCost.cores ? '' : 'disabled'}>突破 Lv${r.lv}→${r.lv + 1}（🪙${fmt(brkCost.gold)} 💠${brkCost.cores}）</button>` : ''}
+      ${needBrk ? `<button class="btn gold" data-act="brk" data-slug="${slug}" ${s.gold >= brkCost.gold && s.cores >= brkCost.cores ? '' : 'disabled'}>突破 Lv${r.lv}→${r.lv + 1}（🪙${fmt(brkCost.gold)} <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${brkCost.cores}）</button>` : ''}
     </div>` : '';
 
   const html = `<div class="detail" style="--rc:${R(a).color}">
@@ -454,7 +454,7 @@ export function detailModal(app, slug) {
       <div class="stats"><span>生命 <b>${fmt(st.hp)}</b></span><span>攻击 <b>${fmt(st.atk)}</b></span><span>防御 <b>${fmt(st.def)}</b></span><span>暴击 <b>${st.critRate.toFixed(1)}%</b></span><span>爆伤 <b>${st.critDmg.toFixed(0)}%</b></span><span>增伤 <b>${st.amp.toFixed(0)}%</b></span><span>战力 <b>${fmt(power(st))}</b></span>${st.openAli ? `<span>起始共鸣 <b>${Math.round(st.openAli)}</b></span>` : ''}${st.openKey ? `<span>起始钥焰 <b>${Math.round(st.openKey)}</b></span>` : ''}</div>
       <p class="hint">每级成长：生命 +${g.hp}　攻击 +${g.atk}　防御 +${g.def}（已含叠位加成）。技能等级 Lv.${lvl + 1}/5。</p>
       ${growBtns}
-      ${r ? `<div class="row"><button class="btn sm" data-act="awaken" data-slug="${slug}" ${awkCost && s.cores >= awkCost ? '' : 'disabled'} title="重复抽取同一唤醒体也能 +1 叠位">叠位 +1（💠${awkCost || '满'}）</button>
+      ${r ? `<div class="row"><button class="btn sm" data-act="awaken" data-slug="${slug}" ${awkCost && s.cores >= awkCost ? '' : 'disabled'} title="重复抽取同一唤醒体也能 +1 叠位">叠位 +1（<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${awkCost || '满'}）</button>
         <button class="btn sm" data-act="guide-growth">升级材料从哪来？</button></div>` : ''}
       <h4>叠位效果 <small class="dim">${awk(r?.star || 0)} / ${MAX_AWAKEN}</small></h4>
       ${awakenTable(preview)}
@@ -484,7 +484,7 @@ export function growthGuideModal(app) {
       <div class="gt-h"><span>做什么</span><span>花什么</span><span>上限</span><span>主要来源</span></div>
       <div><span>升级</span><span>金币，${fmt(lvUpCost(1))} 起 ×1.45^等级</span><span>叠位决定</span><span>挂机 ${fmt(perBattle)}/场 · 首通 · 周 Boss · 塔</span></div>
       <div><span>突破</span><span>金币×4 + 银芯（20+等级）</span><span>每 ${LEVEL_GATE} 级</span><span>银芯：Boss 首通 / 成就 / 签到 / 竞技场 / 分解</span></div>
-      <div><span>叠位</span><span>重复唤醒体，或 💠${awakenCost(0)} 起</span><span>${MAX_AWAKEN}</span><span>召唤（含保底）、银芯共鸣</span></div>
+      <div><span>叠位</span><span>重复唤醒体，或 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${awakenCost(0)} 起</span><span>${MAX_AWAKEN}</span><span>召唤（含保底）、银芯共鸣</span></div>
       <div><span>命轮 / 密契</span><span>金币强化、银芯精炼</span><span>Lv${GEAR_MAX_LV}</span><span>推图掉落、装备祈愿、银芯商店</span></div>
       <div><span>造物</span><span>同上 + 凑同主题</span><span>${RELIC_SLOTS} 格</span><span>推图掉落、塔每 10 层</span></div>
       <div><span>钥令</span><span>银芯淬炼</span><span>Lv${ORDER_MAX_LV}</span><span>Boss 首通、塔每 10 层、周 Boss、银芯商店</span></div>
@@ -516,7 +516,7 @@ export function gearPage(app) {
     const def = itemDef(app, it);
     const cost = it.lv < GEAR_MAX_LV ? gearCost(it.kind, it.lv) : 0, rc = refineCost(it);
     const eqd = isEquipped(s, it.uid);
-    const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 💠${rc}` : '精炼满'}</button><button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity, it) ? ` +💠${dismantleCores(def.rarity, it)}` : ''}</button></div>`;
+    const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button><button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity, it) ? ` +<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${dismantleCores(def.rarity, it)}` : ''}</button></div>`;
     return itemCard(app, it, btns);
   }).join('') || '<p class="hint">暂无。推图有概率掉落，也可在「召唤」页用金币祈愿。</p>';
 
@@ -561,7 +561,7 @@ export function ordersPage(app) {
         <small>${have ? esc(orderText(def, lv)) : '未获得'}</small>
         ${have && lv < ORDER_MAX_LV ? `<small class="dim">下一级：${esc(bonusText(Object.fromEntries(Object.entries(def.bonus).map(([k, v]) => [k, v * (orderLvMult(lv + 1) - orderLvMult(lv))]))))}</small>` : ''}
         <small class="flavor">${esc(def.desc)}</small></div>
-      ${have ? `<div class="ibtns"><button class="btn sm" data-act="order-up" data-id="${def.id}" ${c && s.cores >= c ? '' : 'disabled'}>${c ? `淬炼 💠${c}` : '已满'}</button></div>` : ''}
+      ${have ? `<div class="ibtns"><button class="btn sm" data-act="order-up" data-id="${def.id}" ${c && s.cores >= c ? '' : 'disabled'}>${c ? `淬炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${c}` : '已满'}</button></div>` : ''}
     </div>`;
   };
   return `<div class="page"><h2>钥令 <small>已开 ${n}/${ORDER_SLOTS} 位 · 全队生效</small></h2>
@@ -570,7 +570,7 @@ export function ordersPage(app) {
     <h3>已获得 <small>${owned.length}/${data.orders.length}</small></h3>
     <div class="olist">${owned.map((o) => card(o, true)).join('') || '<p class="hint">还没有钥令——打第一个 Boss 首通就会掉。</p>'}</div>
     <details class="en-box"><summary>未获得的钥令（${locked.length}）</summary><div class="olist dim">${locked.map((o) => card(o, false)).join('')}</div></details>
-    <p class="hint">掉落：每关 Boss 首通必掉 1 个 · 无限塔每 10 层 · 周 Boss 累计伤害里程碑 · 银芯商店「钥令匣」。重复获得的钥令折算 💠30。</p>
+    <p class="hint">掉落：每关 Boss 首通必掉 1 个 · 无限塔每 10 层 · 周 Boss 累计伤害里程碑 · 银芯商店「钥令匣」。重复获得的钥令折算 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">30。</p>
   </div>`;
 }
 
@@ -620,13 +620,13 @@ export function summonPage(app) {
       <p>召唤券：<b>${s.tickets}</b>　　创生保底：<b>${p.genesis}/${PULL_PITY_GENESIS}</b>　　史诗保底：<b>${p.ssr}/10</b></p>
       <div class="row"><button class="btn big" data-act="pull" data-n="1" ${s.tickets >= 1 ? '' : 'disabled'}>单抽 ×1</button><button class="btn big gold" data-act="pull" data-n="10" ${s.tickets >= 10 ? '' : 'disabled'}>十连 ×10</button></div>
       <p class="hint">概率：精良 60% · 史诗 37% · 创生 3%（第 38 抽起逐步提升，${PULL_PITY_GENESIS} 抽必出）。十连至少 1 个史诗以上。重复获得 = 叠位 +1（上限 ${MAX_AWAKEN}），满叠位折算金币与银芯。</p></div>
-    <div class="banner-card"><h3>银芯召唤 <small>💠 ${fmt(s.cores)}</small></h3>
+    <div class="banner-card"><h3>银芯召唤 <small><img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯"> ${fmt(s.cores)}</small></h3>
       <p class="hint">银芯来自首通、成就、签到、周 Boss、属性塔、竞技场和分解装备。与召唤券共用保底。</p>
-      <div class="row"><button class="btn big" data-act="cpull" data-n="1" ${s.cores >= CORE_PULL_COST ? '' : 'disabled'}>单抽 💠${CORE_PULL_COST}</button><button class="btn big gold" data-act="cpull" data-n="10" ${s.cores >= CORE_PULL10_COST ? '' : 'disabled'}>十连 💠${CORE_PULL10_COST}</button>
-      <button class="btn big" data-act="cepull" ${s.cores >= EQUIP_CORE_COST ? '' : 'disabled'}>精选祈愿（SR 以上装备）💠${EQUIP_CORE_COST}</button></div></div>
+      <div class="row"><button class="btn big" data-act="cpull" data-n="1" ${s.cores >= CORE_PULL_COST ? '' : 'disabled'}>单抽 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${CORE_PULL_COST}</button><button class="btn big gold" data-act="cpull" data-n="10" ${s.cores >= CORE_PULL10_COST ? '' : 'disabled'}>十连 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${CORE_PULL10_COST}</button>
+      <button class="btn big" data-act="cepull" ${s.cores >= EQUIP_CORE_COST ? '' : 'disabled'}>精选祈愿（SR 以上装备）<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${EQUIP_CORE_COST}</button></div></div>
     ${luckCard(app)}
     <div class="banner-card"><h3>银芯商店 <small>每日 0 点（UTC）刷新限购</small></h3>
-      <div class="shop">${SHOP.map((x) => { const n = boughtToday(s, x.id); return `<div class="shopi"><b>${x.zh}</b><small>今日 ${n}/${x.limit}</small><button class="btn sm" data-act="shop-buy" data-id="${x.id}" ${n < x.limit && s.cores >= x.cost ? '' : 'disabled'}>💠 ${x.cost}</button></div>`; }).join('')}</div></div>
+      <div class="shop">${SHOP.map((x) => { const n = boughtToday(s, x.id); return `<div class="shopi"><b>${x.zh}</b><small>今日 ${n}/${x.limit}</small><button class="btn sm" data-act="shop-buy" data-id="${x.id}" ${n < x.limit && s.cores >= x.cost ? '' : 'disabled'}><img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯"> ${x.cost}</button></div>`; }).join('')}</div></div>
     <div class="banner-card"><h3>装备祈愿</h3>
       <p>金币：<b>${fmt(s.gold)}</b>　每次 ${EQUIP_PULL_COST} 金币，随机获得命轮 / 密契 / 造物。</p>
       <div class="row"><button class="btn big" data-act="epull" data-n="1" ${s.gold >= EQUIP_PULL_COST ? '' : 'disabled'}>祈愿 ×1</button><button class="btn big" data-act="epull" data-n="5" ${s.gold >= EQUIP_PULL_COST * 5 ? '' : 'disabled'}>祈愿 ×5</button></div></div>

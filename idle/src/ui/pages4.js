@@ -13,8 +13,8 @@ export function signinPage(app) {
   const cells = Array.from({ length: n }, (_, i) => {
     const d = i + 1, got = st.claimed.includes(d), r = dayReward(d), big = d % 7 === 0;
     const state = got ? 'got' : d === today ? 'today' : d < today ? 'miss' : 'future';
-    return `<div class="sday ${state} ${big ? 'big' : ''}"><b>${d}</b><small>${r.tickets}🎫 ${r.cores}💠${r.item ? ' +装备' : ''}</small>
-      ${state === 'today' ? `<button class="btn sm gold" data-act="sign-today">签到</button>` : state === 'miss' ? `<button class="btn sm" data-act="sign-back" data-d="${d}" ${s.cores >= BACKFILL_COST ? '' : 'disabled'}>补签 💠${BACKFILL_COST}</button>` : state === 'got' ? '<span class="ok">✓</span>' : ''}</div>`;
+    return `<div class="sday ${state} ${big ? 'big' : ''}"><b>${d}</b><small>${r.tickets} <img class="ico-sm" src="public/img/ui/lumen.webp" alt="召唤券"> ${r.cores} <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${r.item ? ' +装备' : ''}</small>
+      ${state === 'today' ? `<button class="btn sm gold" data-act="sign-today">签到</button>` : state === 'miss' ? `<button class="btn sm" data-act="sign-back" data-d="${d}" ${s.cores >= BACKFILL_COST ? '' : 'disabled'}>补签  <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${BACKFILL_COST}</button>` : state === 'got' ? '<span class="ok">✓</span>' : ''}</div>`;
   }).join('');
   const cum = CUM.map((c, i) => {
     const ok = st.claimed.length >= c.n, got = st.cum.includes(i);
@@ -38,11 +38,11 @@ export function welcomeCard(app) {
   else {
     const sv = sevenState(s), days = SEVEN.map((r, i) => {
       const got = sv.days.includes(i), open = i + 1 <= sv.idx && !sv.over;
-      return `<div class="sday ${got ? 'got' : open ? 'today' : 'future'}"><b>第 ${i + 1} 天</b><small>${r.cores}💠 ${r.tickets}🎫${r.item ? ' +装备' : ''}</small>${got ? '<span class="ok">✓</span>' : `<button class="btn sm ${open ? 'gold' : ''}" data-act="welcome-7" data-i="${i}" ${open ? '' : 'disabled'}>${open ? '领取' : '未到'}</button>`}</div>`;
+      return `<div class="sday ${got ? 'got' : open ? 'today' : 'future'}"><b>第 ${i + 1} 天</b><small>${r.cores} <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯"> ${r.tickets} <img class="ico-sm" src="public/img/ui/lumen.webp" alt="召唤券">${r.item ? ' +装备' : ''}</small>${got ? '<span class="ok">✓</span>' : `<button class="btn sm ${open ? 'gold' : ''}" data-act="welcome-7" data-i="${i}" ${open ? '' : 'disabled'}>${open ? '领取' : '未到'}</button>`}</div>`;
     }).join('');
     body = `<p>账号 <b>${esc(st.name)}</b> · 注册福利已领取。7 日新手福利（从领取当天起算，错过的天数可在之后 7 天内补领）：</p><div class="scal">${days}</div>`;
   }
-  return `<div class="banner-card welcome"><h3>🎁 注册福利 <small>银芯 💠</small></h3>${body}</div>`;
+  return `<div class="banner-card welcome"><h3>🎁 注册福利 <small>银芯  <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯"></small></h3>${body}</div>`;
 }
 
 /* --------------------------- 联动活动「星辉直播间」 --------------------------- */
