@@ -41,6 +41,19 @@ function liveCache() {
   return v && v.base && Date.now() - Number(v.at || 0) < LIVE_TTL ? v : null;
 }
 
+// 带超时的 fetch。
+// 探活只是「顺手问一句」，一处来回本来 1~2 秒；没有上限的话，碰上挂住的后端
+// 整个页面就停在那儿（管理页的「正在检查后端…」就是这么卡住的）。
+// 不用 Promise.prototype.finally：Safari 11 没有，老浏览器会直接抛 TypeError。
+function fetchT(url, opts, ms) {
+  if (typeof AbortController !== 'function') return fetch(url, opts);
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), ms || 6000);
+  const stop = () => clearTimeout(timer);
+  const o = Object.assign({}, opts, { signal: ac.signal });
+  return fetch(url, o).then((r) => { stop(); return r; }, (e) => { stop(); throw e; });
+}
+
 // 当前该打哪个后端。管理页要自己拼 Authorization（不走 js/api.js），从这里取。
 export function base() {
   const hit = liveCache();
@@ -59,7 +72,7 @@ export async function probe(force = false) {
   }
   for (const b of candidates()) {
     try {
-      const r = await fetch(b + '/health', { headers: { Accept: 'application/json' } });
+      const r = await fetchT(b + '/health', { headers: { Accept: 'application/json' } }, 6000);
       const j = await r.json().catch(() => null);
       if (j && j.service === 'zjtt') {
         store.set(LIVE, {
@@ -102,7 +115,7 @@ export async function stats(force = false) {
   const b = await probe();
   if (!b) return c ? pick(c) : null;
   try {
-    const r = await fetch(b + '/stats', { headers: { Accept: 'application/json' } });
+    const r = await fetchT(b + '/stats', { headers: { Accept: 'application/json' } }, 8000);
     const j = await r.json();
     if (!r.ok || !j || j.ok === false) throw new Error('bad');
     const out = pick(j);
@@ -159,9 +172,9 @@ export async function whoami() {
   if (!b) return { logged: true, admin: false, error: 'no_api' };
 
   try {
-    const r = await fetch(b + '/whoami', {
+    const r = await fetchT(b + '/whoami', {
       headers: { Accept: 'application/json', Authorization: 'Bearer ' + t },
-    });
+    }, 8000);
     const j = await r.json().catch(() => null);
     // 老后端没有这个路由，返回的是 404 + {"ok":false,"error":"not_found"}
     if (r.status === 404) return { logged: true, admin: false, error: 'old_api', status: 404, base: b };

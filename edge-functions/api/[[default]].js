@@ -298,14 +298,29 @@ async function whoami(request, env, kv) {
 
   const base = String((env && env.WALINE_URL) || 'https://textbox.qingdengbuyi.top').replace(/\/+$/, '');
 
+  // 验身份打的是「带 Bearer 的 GET /api/token」，不是 GET /api/user。
+  // Waline 的 /api/user 只有 POST(注册) / PUT(改资料) / DELETE(注销)，压根没有 GET ——
+  // 打它固定回 500 {"errmsg":"(unknown path) …Cannot read properties of null"}。
+  // 之前这里就是打 /api/user 的，于是 whoami 永远返回 null：
+  //   · 管理页永远停在「需要登录」
+  //   · /account 读写一律 401，云端档案从来没同步成功过（usr_n 一直是 0）
+  // 而 GET /api/token 带有效 token 时回 {errno:0, data:{objectId, display_name, …}}，
+  // 无效或缺 token 时回 {errno:0, data:{}} —— 用 data.objectId 判真假就够了。
   let data = null;
   try {
-    const r = await fetch(`${base}/api/user`, {
+    const r = await fetch(`${base}/api/token`, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     });
-    if (!r.ok) return null;
-    const j = await r.json();
-    data = j && j.data;
+    const j = await r.json().catch(() => null);
+    data = (j && j.data) || null;
+    // 老版本 Waline 若是只认 /api/user 的，再兜一次（同一个 token，代价一次往返）
+    if ((!data || !data.objectId) && r.status === 404) {
+      const r2 = await fetch(`${base}/api/user`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      });
+      const j2 = await r2.json().catch(() => null);
+      data = (j2 && j2.data) || null;
+    }
   } catch {
     return null;
   }
@@ -935,8 +950,9 @@ export async function onRequest(context) {
       const pin = String((env && env.ZJTT_STORE) || '').toLowerCase() || null;
       return reply({
         // v 是接口版本，不是代码版本：v2 只有点赞/档案/题库，
-        // v3 才有 /stats /whoami /admin/*（管理页靠它判断要不要提示「重新部署」）
-        ok: Boolean(store), service: 'zjtt', v: 3, runtime: 'edgeone',
+        // v3 才有 /stats /whoami /admin/*（管理页靠它判断要不要提示「重新部署」），
+        // v4 修好 whoami 的验票地址（GET /api/token），管理页与云端档案才真正能用
+        ok: Boolean(store), service: 'zjtt', v: 4, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),

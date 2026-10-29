@@ -1130,11 +1130,17 @@ const auth = {
   logout() { persist(null); },
 
   // 刷新头像 / 昵称（改完之后拿一次最新资料）
+  //
+  // 打的是「带 Bearer 的 GET /api/token」：Waline 的 /api/token 只有 POST 需要邮箱密码，
+  // 之前这里 POST 一个空 body，固定回 errno 1001（email/password 不能为空），
+  // catch 之后原样返回旧资料 —— 所以改完昵称头像，页面上永远不会变。
+  // GET 的返回里没有 token 字段，persist 时要把本机的 token 带上，否则等于把自己登出。
   async refresh() {
     if (!this.logged) return null;
     try {
-      const data = await api(`/api/token`, { method: 'POST', auth: false, body: {} });
-      return persist(data);
+      const data = await api('/api/token');
+      if (!data || !data.objectId) return this.user;
+      return persist({ ...data, token: this.token });
     } catch {
       return this.user;
     }

@@ -42,7 +42,7 @@ function tokenOf() {
   try { return store.get('authToken', '') || ''; } catch { return ''; }
 }
 
-async function req(path, { method = 'GET', body } = {}) {
+async function req(path, { method = 'GET', body, timeout = 20000 } = {}) {
   const b = sitestats.base();
   if (!b) {
     const e = new Error('no_api'); e.status = 0; e.code = 'no_api'; throw e;
@@ -51,11 +51,24 @@ async function req(path, { method = 'GET', body } = {}) {
   const t = tokenOf();
   if (t) headers.Authorization = 'Bearer ' + t;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
+  // 一定要有上限：边缘函数的 /admin/overview 要扫全部用户，碰上慢请求能挂几十秒，
+  // 没有超时的话页面就一直停在「正在检查后端…」，看起来像卡死。
+  const ac = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = ac ? setTimeout(() => ac.abort(), timeout) : null;
   let res;
   try {
-    res = await fetch(b + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
-  } catch {
-    const e = new Error('offline'); e.status = 0; e.code = 'offline'; throw e;
+    res = await fetch(b + path, {
+      method, headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: ac ? ac.signal : undefined,
+    });
+  } catch (err) {
+    const slow = err && err.name === 'AbortError';
+    const e = new Error(slow ? 'timeout' : 'offline');
+    e.status = 0; e.code = slow ? 'timeout' : 'offline'; e.ms = timeout;
+    throw e;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
   const j = await res.json().catch(() => ({}));
   if (!res.ok || j.ok === false) {
@@ -84,8 +97,21 @@ function diag(rows) {
 }
 
 function needsLogin() {
+  const t = tokenOf();
   gate('需要登录', h('p', {}, '这个页面只对站长的账号开放。请先用「姜酒」登录。'),
-    h('div', {}, h('button', { class: 'btn', onclick: () => openLogin(() => location.reload()) }, '登录 / 注册')));
+    t ? diag([
+      ['本机登录状态', '有 token，但后端不认'],
+      ['后端地址', sitestats.base() || '（一个都没探通）'],
+      ['提示', '后端要是 v3 之前的版本，验票接口是坏的，重新部署 edge-functions 后再点重试'],
+    ]) : null,
+    h('div', { class: 'acts', style: 'margin-top:14px' },
+      h('button', { class: 'btn', onclick: () => openLogin(() => location.reload()) }, '登录 / 注册'),
+      t ? retryBtn() : null));
+}
+
+// 阶段提示：这一步可能要等十几秒，写清楚在等什么，别让人以为卡死了
+function loading(title, sub) {
+  gate(title, h('p', {}, sub || '最多等 20 秒；超时会自动报错并给重试按钮，不用刷新页面。'));
 }
 
 function denied(d) {
@@ -253,15 +279,27 @@ function oldBackend(h0) {
       retryBtn()));
 }
 
-async function load() {
+async function load(mode) {
   try {
     const data = await req('/admin/overview');
     USERS = data.users || [];
     render(data, BACKEND);
+    void mode;
   } catch (e) {
     if (e.status === 401) { needsLogin(); return; }
     if (e.status === 403) { denied(e.detail); return; }
     if (e.code === 'not_found' || e.status === 404) { oldBackend(BACKEND); return; }
+    if (e.code === 'timeout') {
+      gate('读取超时',
+        h('p', {}, `等了 ${Math.round((e.ms || 20000) / 1000)} 秒还没返回。这一屏要把全部用户和云端档案扫一遍，用户多了会慢；也可能是边缘函数那边卡住了。`),
+        diag([
+          ['后端地址', sitestats.base()],
+          ['接口版本', 'v' + (BACKEND.v || 0)],
+          ['状态', '请求已中止'],
+        ]),
+        h('div', { class: 'acts', style: 'margin-top:14px' }, retryBtn()));
+      return;
+    }
     if (e.status === 0) { noBackend(BACKEND); return; }
     gate('载入失败',
       h('p', {}, `接口没返回数据：${e.message || '未知错误'}。`),
@@ -273,12 +311,24 @@ async function load() {
 // 先问后端版本，再决定是「没部署」「没权限」还是真的坏了。
 // 这三种在前端看起来都是「进不去」，但要做的事完全不同。
 async function boot() {
-  gate('正在检查后端…', h('p', {}, '先确认站点函数是哪一版，再决定给不给看。'));
-  const h0 = await sitestats.health(true);
-  BACKEND = h0;
-  if (!h0.base) { noBackend(h0); return; }
+  loading('正在检查后端…', '先确认站点函数是哪一版，再决定给不给看。最多等 20 秒。');
+  let h0;
+  try {
+    h0 = await sitestats.health(true);
+  } catch (e) {
+    // 之前这里没有 catch：探测一抛异常，页面就永远停在「正在检查后端…」，
+    // 站长看到的只有一句「载入中」，连错在哪都不知道。
+    gate('检查后端出错',
+      h('p', {}, `探测接口时抛了异常：${(e && e.message) || e}。`),
+      diag([['当前页面', location.host], ['候选后端', sitestats.EDGE_API]]),
+      h('div', { class: 'acts', style: 'margin-top:14px' }, retryBtn()));
+    return;
+  }
+  BACKEND = h0 || { base: '', v: 0, store: '', storeOk: true };
+  if (!h0 || !h0.base) { noBackend(BACKEND); return; }
   if (h0.v < 3) { oldBackend(h0); return; }
-  await load();
+  loading('正在读取用户列表…', `后端 ${h0.base} · 接口 v${h0.v}，这一屏要扫一遍用户表，最多等 20 秒。`);
+  await load('boot');
 }
 
 if (!auth.logged) {
