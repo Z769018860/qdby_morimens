@@ -105,6 +105,20 @@ def add_frame(key, rel):
 
 for a in D['awakener']:
     add_frame('c:' + a['id'], a['img'])
+
+# 四位神秘唤醒体不在官方图鉴里，头像单独放在 assets/hidden/。
+# 素材来源已写进 data/survivors-data.json 的 bioSrc 字段，界面会标出处：
+#   图鲁 / 威廉·德拉普尔 / 守密人（西维斯特）  ← 灰机wiki·忘却前夜中文维基的角色头像
+#   N                                          ← 原作怪物立绘 Portrait_Small_Monster_DCB04
+# 注意这几张都是方图、本来就小（N 只有 160px），别在上游放大，缩到 120 格反而干净。
+EXTRA_ART = {
+    '90001': 'assets/hidden/tulu.webp',
+    '90002': 'assets/hidden/n.webp',
+    '90003': 'assets/hidden/william.webp',
+    '90004': 'assets/hidden/keeper.webp',
+}
+for cid, rel in EXTRA_ART.items():
+    add_frame('c:' + cid, rel)
 for m in monsters:
     add_frame('m:' + m['id'], m['img'])
 for c in creations:

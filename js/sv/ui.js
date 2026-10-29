@@ -142,9 +142,13 @@ function renderCharInfo() {
     </div>` : '';
   const mechBox = mech && !locked ? `
     <p class="ci-mech"><b>机制 · ${esc(mech.n)}</b>${esc(mech.text)}</p>` : '';
+  // 档案：解锁前连人都不给看，解锁后才亮出来 —— 和技能同一套逻辑。
+  // 出处单独标在底部，别让「这是官方设定」和「这是我们编的」混在一起。
+  const bioBox = !locked && c.bio ? `
+    <div class="ci-bio"><b>档案</b><span>${esc(c.bio)}</span>${c.bioSrc ? `<u>出处 · ${esc(c.bioSrc)}</u>` : ''}</div>` : '';
   $('charInfo').innerHTML = `
     <div class="ci-top">
-      <i class="ci-portrait${c.img == null ? ' sil' : ''}" style="${atlasStyle(c.img, 72)}"></i>
+      <i class="ci-portrait${locked || c.img == null ? ' sil' : ''}" style="${atlasStyle(locked ? null : c.img, 72)}"></i>
       <div>
         <h3>${locked ? '???' : esc(c.n)} <small>${locked ? '未解锁' : esc(c.en)}</small></h3>
         <p class="ci-tags">
@@ -159,6 +163,7 @@ function renderCharInfo() {
     ${lockBox}
     ${mechBox}
     <p class="ci-talent"><b>天赋 · ${esc(c.talent)}</b>${esc(c.talentText || '')}</p>
+    ${bioBox}
     <div class="ci-w">${ws}</div>`;
 }
 
@@ -719,7 +724,7 @@ function renderUnlockBox(ids) {
     if (!c) return '';
     const m = MECHS[c.id];
     return `<div class="ul-row">
-      <i style="${atlasStyle(null, 40)}"></i>
+      <i style="${atlasStyle(c.img, 40)}"></i>
       <div><b>${esc(c.n)}</b><span>${esc(m ? m.text : c.talentText || '')}</span></div>
     </div>`;
   }).join('');

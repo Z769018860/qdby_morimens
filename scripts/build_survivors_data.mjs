@@ -145,21 +145,26 @@ for (const a of dict.awakener) {
 
 // ---------------------------------------------------------------- 神秘唤醒体
 // 这四名不是从官方图鉴里读出来的，是照着世界观补的「未登场者」：
-// 图鉴里没有立绘，选人面板上就是一块黑色剪影，要靠解锁条件放出来。
+// 解锁之前选人面板上只是一块黑色剪影，要靠解锁条件把真身放出来。
+// 头像（assets/hidden/）与档案文案都来自灰机wiki·忘却前夜中文维基，
+// 出处写在 bioSrc 里，界面会在档案块底部标出来。
 //
 // 他们的两条技能走 PROTOS 里 judge/paradox/lantern/seal 四种专属原型 ——
 // 这四种不进 protoOf 的判定表，所以普通 62 名唤醒体的技能一条都不会落进来，
 // 反过来这四名也永远不会出现在别人的卡池里（除非玩家已经把他们解锁）。
 //
-// img: null 会让界面走剪影渲染分支；lock 字段既是解锁表的键，也是「要不要
-// 从卡池里剔除」的判据。
+// img 指向图集格位（见 scripts/build_survivors_art.py 的 EXTRA_ART）；
+// lock 字段既是解锁表的键，也是「未解锁时用剪影代替头像」和「要不要从卡池里
+// 剔除」的判据 —— 有 img 但锁着，照样只画剪影。
 const EXTRA = [
   {
     id: '90001', pid: 'hidden-tulu', n: '神王·图鲁', en: 'Tulu the Godking',
     realm: '混沌', realmCode: 'CHAOS', role: '伤害型', roleCode: 'ASSAULT', rarity: 'UR',
-    img: null, lock: '90001',
+    img: 'c:90001', lock: '90001',
     talent: '王权',
     talentText: '每击杀 20 名敌人累积 1 层王权，攻击与范围随之增长',
+    bio: '「顺应天命，不好吗？为什么要反抗命运的意志。」年幼的王沉睡于王座之上，于梦醒时分示下诏谕，权威遍及天下王土。他厌倦了自身的权能，也厌倦了超人的智慧与信徒狂热的崇拜，也厌倦了超越万古的长梦——没人知道他在漫长的睡眠里梦见了什么，但他们应当庆幸自己享有此等无知的。',
+    bioSrc: '灰机wiki · 唤醒体档案「图鲁」（神王形态为其本源降临）',
     weapons: [
       { n: '断罪王座', e: 'Throne of Judgement', proto: 'judge', text: '王座自天而降，柱下无人得以站立' },
       { n: '王土加冕', e: 'Coronation of Ash', proto: 'nova', text: '以王座为中心，把整片土地掀翻' },
@@ -168,9 +173,11 @@ const EXTRA = [
   {
     id: '90002', pid: 'hidden-n', n: 'N', en: 'N',
     realm: '超维', realmCode: 'ULTRA', role: '辅助型', roleCode: 'CHORUS', rarity: 'UR',
-    img: null, lock: '90002',
+    img: 'c:90002', lock: '90002',
     talent: '悖论',
     talentText: '每次升级有几率多获得一次三选一，代价是更薄的血',
+    bio: '「伏行世间的混沌之雾，祂因人类的痛苦与绝望而愉悦。」——名录上还留着另一行：「N?」，注解只有四个字：一个玩笑。',
+    bioSrc: '灰机wiki · 怪物「N」/「N?」（原初投影·欢愉眷属）',
     weapons: [
       { n: '无限递归', e: 'Infinite Recursion', proto: 'paradox', text: '把已经发生过的伤害，再发生一次' },
       { n: '逻辑闭环', e: 'Closed Loop', proto: 'shield', text: '一个自洽的圆，挡下所有不自洽的东西' },
@@ -179,9 +186,11 @@ const EXTRA = [
   {
     id: '90003', pid: 'hidden-william', n: '威廉', en: 'William',
     realm: '深海', realmCode: 'AEQUOR', role: '防御型', roleCode: 'WARDEN', rarity: 'UR',
-    img: null, lock: '90003',
+    img: 'c:90003', lock: '90003',
     talent: '守夜',
     talentText: '受伤时反击，越是濒死越是难缠',
+    bio: '威廉·德拉普尔。弥萨格的资深调查员，被守密人尊称为「学长」的存在。曾因某些无法言说的原因害怕外出，在校内学习的同时兼任情报组人员。好友死后，一改以往的作风转投前线，以「做他曾经做过的事」的方式来纪念逝去的朋友。随身携带一把破碎的银钥匙，艰难地维持着那些日渐消逝的记忆。',
+    bioSrc: '灰机wiki · 剧情角色「威廉·德拉普尔」',
     weapons: [
       { n: '长明灯', e: 'Everlasting Lamp', proto: 'lantern', text: '灯亮着的时候，雾里的东西不敢靠太近' },
       { n: '夜巡', e: 'Night Watch', proto: 'orbit', text: '绕着灯走的一圈脚步，从不熄灭' },
@@ -190,9 +199,11 @@ const EXTRA = [
   {
     id: '90004', pid: 'hidden-keeper', n: '守密人', en: 'The Keeper',
     realm: '血肉', realmCode: 'CARO', role: '辅助型', roleCode: 'SUPPORT', rarity: 'UR',
-    img: null, lock: '90004',
+    img: 'c:90004', lock: '90004',
     talent: '缄默契约',
     talentText: '缄默者知道得更多，也老得更快',
+    bio: '弥萨格的调查员，持银钥匙者。所谓守密人，是与唤醒体「链接」、把祂们带进密境又带回来的人。他的记忆一直在漏——那是链接的代价，也是他还在往前走的理由。',
+    bioSrc: '灰机wiki · 剧情页整理（该角色无独立条目，头像取自其默认头像「西维斯特」）',
     weapons: [
       { n: '封页之印', e: 'Sealing Sigil', proto: 'seal', text: '把敌人夹进书页，让它连呼吸都停住' },
       { n: '禁书记忆', e: 'Forbidden Recollection', proto: 'chain', text: '不该被读到的东西，沿着锁链爬出来' },
@@ -201,11 +212,17 @@ const EXTRA = [
 ];
 for (const e of EXTRA) {
   if (chars.some((c) => c.id === e.id)) continue;
+  // e.img 写的是图集里的帧**键名**（c:90001），这里要换成帧序号 —— atlasStyle()
+  // 收的是数字，直接把键名塞进去会算出 NaN 的 background-position，
+  // 浏览器会把它当 0 0，于是四个人全显示图集第一格（同一个头像）。
+  const idx = frames[e.img];
   chars.push({
     id: e.id, pid: e.pid, n: e.n, en: e.en,
     realm: e.realm, realmCode: e.realmCode, role: e.role, roleCode: e.roleCode,
-    rarity: e.rarity, img: e.img, lock: e.lock,
-    talent: e.talent, talentText: e.talentText, weapons: e.weapons,
+    rarity: e.rarity, img: idx == null ? null : idx, lock: e.lock,
+    talent: e.talent, talentText: e.talentText,
+    bio: e.bio, bioSrc: e.bioSrc,
+    weapons: e.weapons,
   });
 }
 
