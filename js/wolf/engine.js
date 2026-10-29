@@ -45,7 +45,7 @@ export function createGame(opt) {
   const seats = diff.players - 1;
   const upPool = CHARS.filter((c) => c.up);
   const restPool = CHARS.filter((c) => !c.up);
-  const upN = Math.min(upPool.length, Math.max(2, Math.round(seats * 0.22)));
+  const upN = Math.min(upPool.length, Math.max(2, Math.round(seats * 0.3)));
   const roster = shuffle(
     shuffle(upPool, rnd).slice(0, upN).concat(shuffle(restPool, rnd).slice(0, seats - upN)),
     rnd,

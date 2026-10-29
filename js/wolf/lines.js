@@ -31,6 +31,7 @@ import { K } from './lines-k.js';
 import { U1 } from './lines-up1.js';
 import { U2 } from './lines-up2.js';
 import { U3 } from './lines-up3.js';
+import { U4 } from './lines-up4.js';
 
 // 语气原型表在 tones.js，这里的兜底取句逻辑直接用，不再转出去一份
 
@@ -50,7 +51,7 @@ function merge(dst, src) {
 }
 
 export const LINES = {};
-for (const chunk of [A, B, C, D, E, X, R, F, G, H, I, J, K, U1, U2, U3]) {
+for (const chunk of [A, B, C, D, E, X, R, F, G, H, I, J, K, U1, U2, U3, U4]) {
   for (const name of Object.keys(chunk)) LINES[name] = merge(LINES[name] || {}, chunk[name]);
 }
 

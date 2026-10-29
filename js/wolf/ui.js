@@ -1030,11 +1030,15 @@ function showRules() {
         }
         box.append(grid);
       }
-      box.append(el('h4', '', '桌上还坐着八个人'));
-      const upP = el('p', 'sub', '弥萨格的梦漏了信号出去。有八个人顺着信号坐进来——他们在另一个世界做着同一件事：把这款游戏讲给别人听。所以他们会说「省流」「抽取建议」「这个不建议抽」，会管你叫主播。别觉得奇怪，他们只是改不掉。');
+      // 人数以后还会变，别在这里写死「八个」
+      const upList = CHARS.filter((x) => x.up);
+      const CN = ['零', '一', '两', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
+      const cnN = CN[upList.length] || String(upList.length);
+      box.append(el('h4', '', '桌上还坐着' + cnN + '位'));
+      const upP = el('p', 'sub', '弥萨格的梦漏了信号出去。有' + cnN + '位顺着信号坐进来——他们在另一个世界做着同一件事：把这款游戏讲给别人听。所以他们会说「省流」「抽取建议」「这个不建议抽」，会管你叫主播。别觉得奇怪，他们只是改不掉。');
       box.append(upP);
       const upGrid = el('div', 'upgrid');
-      for (const c of CHARS.filter((x) => x.up)) {
+      for (const c of upList) {
         const it = el('div', 'upitem');
         it.append(el('b', '', c.zh));
         it.append(el('span', '', c.hint.replace('B站 · ', 'B站 @')));
