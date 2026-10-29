@@ -15,6 +15,7 @@ const subEl = $('#sub');
 const diffTag = $('#diffTag');
 const rosterBtn = $('#rosterBtn');
 const helpBtn = $('#helpBtn');
+const recBtn = $('#recBtn');
 
 // 守密人没有立绘，用一枚现场画的「提灯之眼」代替，省一个图片请求
 const KEEPER_AV = 'data:image/svg+xml,' + encodeURIComponent(
@@ -28,9 +29,19 @@ const KEEPER_AV = 'data:image/svg+xml,' + encodeURIComponent(
   + '</svg>'
 );
 
+// ---------------------------------------------------------------- 每个人的颜色
+// 14 个席位各一个固定色调。刻意避开纯红（融蚀 / 危险）和纯金（你自己）——
+// 那两个颜色在这张桌子上已经有意思了，再拿来当「某人的颜色」就会误读。
+const HUES = [205, 188, 172, 155, 128, 96, 62, 40, 268, 250, 288, 312, 330, 222];
+const hueOf = (pid) => HUES[(pid - 1 + HUES.length * 4) % HUES.length];
+function paintPc(node, pid) {
+  node.style.setProperty('--pc', `hsl(${hueOf(pid)} 64% 56%)`);
+}
 const STATE = {
   diff: 'normal',
   G: null,
+  outs: [],          // 本局出局记录（投票一览要用）
+  recTab: 'note',    // 记录面板当前页签
   speed: 1,
   // manual：每一句都等你点；fast：对话压到最短，决定还是你做；auto：连你的那一手也替你打
   mode: 'manual',
@@ -131,6 +142,7 @@ function showTitle() {
     + '你是<b>守密人</b>——在这里，你的身份每局都是重新抽的：可能是守夜人、灵视者，也可能，你自己就是那个渗着黑液的东西。';
   hero.append(lead);
   hero.append(el('div', 'rule'));
+  recBtn.classList.add('hide');
   scr.append(hero);
 
   const diffs = el('div', 'diffs');
@@ -202,8 +214,11 @@ function startGame() {
   STATE.turn = null;
   STATE.autoToken += 1;
   STATE.mode = loadMode();
+  STATE.outs = [];
+  STATE.recTab = 'note';
   document.body.classList.remove('night');
   rosterBtn.classList.remove('hide');
+  recBtn.classList.remove('hide');
   clear(stage);
 
   const scr = el('section', 'scr on');
@@ -378,6 +393,7 @@ function addSay(e) {
   const p = byId(G, e.pid);
   if (!p) return;
   const msg = el('div', 'msg' + (p.isPlayer ? ' me' : '') + (p.alive ? '' : ' dead'));
+  if (!p.isPlayer) paintPc(msg, e.pid);
   msg.append(avBox(e.pid));
   const body = el('div', 'body');
   const who = el('div', 'who');
@@ -401,6 +417,7 @@ function addOut(e) {
   const G = STATE.G;
   const p = byId(G, e.pid);
   if (!p) return;
+  STATE.outs.push({ day: G.day, pid: e.pid, role: e.role, cause: e.cause });
   const card = el('div', 'outcard');
   card.append(avBox(e.pid));
   const txt = el('div', '');
@@ -474,6 +491,7 @@ function refreshRoster() {
     b.type = 'button';
     b.append(avBox(p.id, 'av'));
     const nm = el('span', 'nm', p.name);
+    if (!p.isPlayer) paintPc(b, p.id);
     b.append(nm);
     if (p.isPlayer) b.append(el('span', 'you', '你'));
     const cl = G.claims[p.id];
@@ -512,6 +530,13 @@ function showPlayerInfo(pid) {
       t.textContent = p.isPlayer ? '你。守密人。' : (p.char.hint || '');
       row.append(t);
       box.append(row);
+      // 从这里直接进便签，省得「想到什么却要退出去找入口」
+      const mine = gameNotes()[pid];
+      const nb = el('button', 'btn sm', mine && (mine.t || mine.v) ? '改这张便签' : '给他记一张便签');
+      nb.type = 'button';
+      nb.style.marginTop = '12px';
+      nb.onclick = () => showRecords('note', pid);
+      box.append(nb);
     },
   });
 }
@@ -1178,8 +1203,290 @@ function finish(e) {
   stage.append(scr);
 }
 
+// ---------------------------------------------------------------- 记录
+// 三页签：自己的便签 / 往期投票 / 自动纪要。
+// 推理游戏最烦的是「我记得有人说过，但想不起是谁」——这一块就是为了这个问题。
+const NOTE_KEY = 'zjtt:wolf:notes';
+const VERDICTS = [['bad', '疑'], ['mid', '中'], ['good', '保']];
+
+function loadAllNotes() {
+  try { return JSON.parse(localStorage.getItem(NOTE_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+function gameNotes() {
+  const G = STATE.G;
+  if (!G) return {};
+  return loadAllNotes()[G.seed] || {};
+}
+function setNote(pid, patch) {
+  const G = STATE.G;
+  if (!G) return;
+  const all = loadAllNotes();
+  const g = all[G.seed] || (all[G.seed] = {});
+  const cur = g[pid] || (g[pid] = { v: '', t: '' });
+  Object.assign(cur, patch);
+  // 只留最近 8 局：这是便签，不是数据库
+  const keys = Object.keys(all);
+  if (keys.length > 8) keys.slice(0, keys.length - 8).forEach((k) => { delete all[k]; });
+  try { localStorage.setItem(NOTE_KEY, JSON.stringify(all)); } catch (e) { /* 隐私模式写不进去 */ }
+  refreshRoster();
+}
+
+const nmOf = (G, id) => (byId(G, id) || {}).name || '?';
+
+function showRecords(tab, focusPid) {
+  const G = STATE.G;
+  if (!G) return;
+  STATE.recTab = tab || STATE.recTab || 'note';
+  const box = el('div', 'rec');
+  const head = el('div', 'rechead');
+  head.append(el('h3', '', '记录'));
+  const x = el('button', 'recx', '×');
+  x.type = 'button';
+  x.setAttribute('aria-label', '关闭');
+  x.onclick = () => closeSheet();
+  head.append(x);
+  box.append(head);
+
+  const bar = el('div', 'tabs');
+  const body = el('div', 'recbody');
+  const paint = () => {
+    bar.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b.dataset.t === STATE.recTab));
+    clear(body);
+    if (STATE.recTab === 'note') recNotes(body);
+    else if (STATE.recTab === 'vote') recVotes(body);
+    else recDigest(body);
+  };
+  for (const [k, n] of [['note', '笔记'], ['vote', '往期投票'], ['digest', '纪要']]) {
+    const b = el('button', 'tab', n);
+    b.type = 'button';
+    b.dataset.t = k;
+    b.onclick = () => { STATE.recTab = k; paint(); };
+    bar.append(b);
+  }
+  box.append(bar, body);
+  paint();
+  sheet({ wide: true, raw: box });
+
+  if (focusPid != null) {
+    const row = body.querySelector('[data-pid="' + focusPid + '"]');
+    if (row) {
+      row.classList.add('flash');
+      row.scrollIntoView({ block: 'center' });
+      setTimeout(() => row.classList.remove('flash'), 1400);
+    }
+  }
+}
+
+function recNotes(body) {
+  const G = STATE.G;
+  const notes = gameNotes();
+  body.append(el('p', 'sub', '给每个位置标个态度，写一句自己的判断。便签只存在这台设备上，按局分开存——换一局就是新的一张。'));
+
+  for (const p of G.players) {
+    const n = notes[p.id] || {};
+    const row = el('div', 'nrow' + (p.alive ? '' : ' dead'));
+    row.dataset.pid = p.id;
+    if (!p.isPlayer) paintPc(row, p.id);
+    row.append(avatarOf(p.id, 28));
+
+    const main = el('div', 'nmain');
+    main.append(el('b', '', p.name + (p.isPlayer ? '（你）' : '')));
+    const facts = [];
+    if (p.isPlayer) facts.push('守密人');
+    else if (!p.alive) facts.push('已出局');
+    if (G.claims[p.id]) facts.push('自称 ' + ROLES[G.claims[p.id]].zh);
+    const acc = G.acc.filter((a) => a.to === p.id).length;
+    const by = G.acc.filter((a) => a.by === p.id).length;
+    // 0 次就别写了，一排「被指认 0 · 指认 0」只是噪音
+    if (acc) facts.push('被指认 ' + acc + ' 次');
+    if (by) facts.push('指认过 ' + by + ' 次');
+    if (!p.isPlayer && !acc && !by) facts.push('还没人提过他');
+    main.append(el('span', '', facts.join(' · ')));
+    row.append(main);
+
+    const seg = el('div', 'nseg');
+    for (const [k, label] of VERDICTS) {
+      const b = el('button', 'nb ' + k + (n.v === k ? ' on' : ''), label);
+      b.type = 'button';
+      b.dataset.k = k;
+      b.onclick = () => {
+        const next = n.v === k ? '' : k;
+        n.v = next;
+        setNote(p.id, { v: next });
+        seg.querySelectorAll('.nb').forEach((e2) => e2.classList.toggle('on', e2.dataset.k === next));
+      };
+      seg.append(b);
+    }
+    row.append(seg);
+
+    const inp = el('input', 'nin');
+    inp.type = 'text';
+    inp.placeholder = '记一句…（例：第二天的说法对不上）';
+    inp.value = n.t || '';
+    let timer = 0;
+    inp.oninput = () => {
+      const v = inp.value;
+      clearTimeout(timer);
+      timer = setTimeout(() => setNote(p.id, { t: v }), 400);
+    };
+    row.append(inp);
+    body.append(row);
+  }
+
+  const foot = el('div', 'nfoot');
+  const clr = el('button', 'btn sm ghost', '清空本局笔记');
+  clr.type = 'button';
+  clr.onclick = () => {
+    const all = loadAllNotes();
+    delete all[G.seed];
+    try { localStorage.setItem(NOTE_KEY, JSON.stringify(all)); } catch (e) { /* 忽略 */ }
+    showRecords('note');
+    refreshRoster();
+  };
+  foot.append(clr);
+  body.append(foot);
+}
+
+function recVotes(body) {
+  const G = STATE.G;
+  const hist = G.tallyHist || [];
+  if (!hist.length) {
+    body.append(el('p', 'sub', '这一局还没投过票。等到第一次投票，这里会把每一轮的票型都留档。'));
+    return;
+  }
+  body.append(el('p', 'sub', '每一轮谁投了谁、票数落在谁头上。往期不会因为翻页而消失。'));
+  for (const t of hist) {
+    const sec = el('div', 'vsec');
+    const head = el('div', 'vhead');
+    head.append(el('b', '', '第 ' + t.day + ' 天' + (t.runoff ? ' · 再投' : '')));
+    const out = STATE.outs.find((o) => o.day === t.day && (o.cause === 'vote' || o.cause === 'molt' || o.cause === 'chain'));
+    if (out) {
+      const role = out.role && ROLES[out.role] ? '（' + ROLES[out.role].zh + '）' : '';
+      head.append(el('span', 'vout', '送出门：' + nmOf(G, out.pid) + role));
+    } else if (t.tied) {
+      head.append(el('span', 'vout', '平票，再投'));
+    } else {
+      head.append(el('span', 'vout', '没人被送出去'));
+    }
+    sec.append(head);
+
+    const chips = el('div', 'vrow');
+    for (const k of Object.keys(t.votes)) {
+      const voter = byId(G, Number(k));
+      const chip = el('span', 'vchip');
+      if (voter && voter.isPlayer) chip.style.setProperty('--pc', 'var(--gold)');
+      else if (voter) paintPc(chip, voter.id);
+      chip.append(el('b', '', voter ? voter.name : '?'), el('i', '', '→'));
+      const to = t.votes[k];
+      chip.append(el('span', '', to == null ? '弃票' : nmOf(G, to)));
+      chips.append(chip);
+    }
+    sec.append(chips);
+
+    const c = {};
+    for (const k of Object.keys(t.votes)) {
+      const to = t.votes[k];
+      if (to != null) c[to] = (c[to] || 0) + 1;
+    }
+    const items = Object.entries(c).sort((a, b) => b[1] - a[1]);
+    const max = items.length ? items[0][1] : 1;
+    const bars = el('div', 'vbars');
+    for (const [pid, n] of items) {
+      const line = el('div', 'vbar');
+      paintPc(line, Number(pid));
+      line.append(el('span', 'vbl', nmOf(G, Number(pid))));
+      const track = el('span', 'vbt');
+      const fill = el('i', '');
+      fill.style.width = Math.max(6, Math.round((100 * n) / max)) + '%';
+      track.append(fill);
+      line.append(track, el('b', 'vbn', n + ' 票'));
+      bars.append(line);
+    }
+    if (items.length) sec.append(bars);
+    body.append(sec);
+  }
+}
+
+function digestText() {
+  const G = STATE.G;
+  const out = [];
+  const days = Math.max(G.day, 1);
+  for (let d = 1; d <= days; d++) {
+    const part = [];
+    for (const c of G.claimHist) if (c.day === d) part.push(nmOf(G, c.id) + ' 自称 ' + (ROLES[c.role] ? ROLES[c.role].zh : c.role));
+    for (const r of G.reports) {
+      if (r.day !== d) continue;
+      const res = r.res === 'eroded' ? '是融蚀' : (r.res === 'void' ? '是空白' : '是干净的');
+      part.push(nmOf(G, r.by) + ' 验了 ' + nmOf(G, r.to) + '：' + res);
+    }
+    for (const c of G.calls) if (c.day === d) part.push(nmOf(G, c.by) + ' 号召有身份的人站出来');
+    for (const o of STATE.outs) {
+      if (o.day !== d) continue;
+      const role = o.role && ROLES[o.role] ? '（' + ROLES[o.role].zh + '）' : '（身份不明）';
+      part.push((o.cause === 'night' ? '夜里没回来：' : '被送出门：') + nmOf(G, o.pid) + role);
+    }
+    const acc = G.acc.filter((a) => a.day === d);
+    if (acc.length) {
+      // 按被指认的人归并：十来个「A→B」堆成一段读不下去，按人头排反而看得清谁在被围
+      const grouped = {};
+      // 同一个人一天指认两次很常见，按人去重，别写成「墨菲、墨菲、萝坦」
+      for (const a of acc) (grouped[a.to] = grouped[a.to] || new Set()).add(nmOf(G, a.by));
+      const parts = Object.keys(grouped)
+        .sort((x, y) => grouped[y].size - grouped[x].size)
+        .map((to) => {
+          const ns = [...grouped[to]];
+          const head = ns.slice(0, 3).join('、');
+          return nmOf(G, Number(to)) + '（' + (ns.length > 3 ? head + ' 等 ' + ns.length + ' 人' : head) + '）';
+        });
+      part.push('被指认：' + parts.join('、'));
+    }
+    const tl = (G.tallyHist || []).filter((t) => t.day === d && !t.round);
+    if (tl.length) {
+      const c = {};
+      for (const k of Object.keys(tl[0].votes)) {
+        const to = tl[0].votes[k];
+        if (to != null) c[to] = (c[to] || 0) + 1;
+      }
+      const top = Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 3);
+      if (top.length) part.push('票型：' + top.map(([pid, n]) => nmOf(G, pid) + ' ' + n + ' 票').join('、'));
+    }
+    if (part.length) out.push('第 ' + d + ' 天');
+    for (const p of part) out.push('　· ' + p);
+  }
+  return out.join('\n');
+}
+
+function recDigest(body) {
+  const text = digestText();
+  body.append(el('p', 'sub', '按天把这一局发生过的事排了一遍：谁报了什么、谁指认谁、谁被送出门。可以整段复制出去。'));
+  const pre = el('pre', 'digest');
+  pre.textContent = text || '这一局还没有任何记录。';
+  body.append(pre);
+  const foot = el('div', 'nfoot');
+  const cp = el('button', 'btn sm', '复制全部');
+  cp.type = 'button';
+  cp.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      cp.textContent = '已复制';
+    } catch (e) {
+      // 剪贴板没权限时退回到「选中让它自己复制」
+      const r = document.createRange();
+      r.selectNodeContents(pre);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+      cp.textContent = '已选中，按 Ctrl+C';
+    }
+    setTimeout(() => { cp.textContent = '复制全部'; }, 1600);
+  };
+  foot.append(cp);
+  body.append(foot);
+}
+
 // ---------------------------------------------------------------- 入口
 helpBtn.onclick = () => showRules();
+recBtn.onclick = () => showRecords();
 rosterBtn.onclick = () => {
   const r = document.getElementById('roster');
   if (!r) return;

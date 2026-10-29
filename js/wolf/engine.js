@@ -70,7 +70,7 @@ export function createGame(opt) {
   const G = {
     seed, rnd, diff, diffKey: diff.k, players, queue: [],
     day: 0, round: 0, phase: 'brief', si: 0, speakers: [],
-    claims: {}, claimHist: [], reports: [], acc: [], def: [], voteHist: [],
+    claims: {}, claimHist: [], reports: [], acc: [], def: [], voteHist: [], tallyHist: [],
     calls: [], callDay: {},
     votes: {}, preVotes: null, packTarget: null, runoff: false, waitingStart: true,
     night: null, pendingRevive: null, pendingChain: null, silenceMap: {},
@@ -229,6 +229,8 @@ function resolveVote(G, target) {
   const votes = Object.assign({}, G.votes);
   if (G.player.alive) votes[0] = target != null ? target : null;
   const { top } = tally(votes);
+  // 记一份账：结算页之外，「投票一览」也要能把往期每一轮翻出来
+  G.tallyHist.push({ day: G.day, round: G.round, runoff: !!G.runoff, votes, tied: top.length > 1 ? top : null });
   push(G, { t: 'tally', votes, tied: top.length > 1 ? top : null });
 
   // 一个人都没投出来（全场弃票）：没人出门，直接进夜里
