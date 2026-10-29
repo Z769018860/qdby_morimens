@@ -341,14 +341,15 @@ const WAVES = [
   { n: '第四波 · 布道', e: [['pastor', 4, 0.5], ['gent', 3, 0.6], ['grunt', 4, 0.4]] },
   { n: '第五波 · 创痛疯马', boss: 1, e: [['horse', 1, 0], ['grunt', 6, 0.4], ['dog', 3, 0.4]] },
   { n: '第六波 · 绅士们', e: [['gent', 4, 0.5], ['blob', 4, 0.6], ['dog', 5, 0.35]] },
-  { n: '第七波 · 碎石', e: [['digger', 1, 0], ['collab', 4, 0.5], ['dog', 5, 0.35]] },
-  { n: '第八波 · 替代品', e: [['repl', 1, 0], ['gent', 4, 0.5], ['pastor', 3, 0.6], ['blob', 3, 0.6]] },
+  { n: '第七波 · 碎石', e: [['digger', 1, 0], ['collab', 4, 0.5], ['dog', 6, 0.3]] },
+  { n: '第八波 · 替代品', e: [['repl', 1, 0], ['gent', 4, 0.5], ['pastor', 3, 0.6], ['blob', 4, 0.55]] },
   { n: '第九波 · 大裙摆', e: [['skirt', 1, 0], ['horse', 2, 0.8], ['blob', 4, 0.6], ['dog', 4, 0.35]] },
   { n: '第十波 · 守灯人', boss: 1, e: [['lamp', 1, 0], ['grunt', 7, 0.35], ['dog', 3, 0.4]] },
-  { n: '第十一波 · 潮声', e: [['deacon', 2, 0.9], ['repl', 1, 0], ['collab', 5, 0.45], ['dog', 5, 0.3]] },
+  { n: '第十一波 · 潮声', e: [['deacon', 2, 0.9], ['repl', 1, 0], ['collab', 6, 0.4], ['dog', 5, 0.3]] },
   // 末波是全套里唯一的硬坎：实测机器人满编 16 人、18 星也会被打穿（8 局里 3 局零血）。
   // 颂歌本身 leak 5，再叠三匹精英就是「一次漏怪直接没命」。现在靠商店对已有角色的加权
   // （见 engine 的 rollOne）让玩家真能凑出二星去扛，所以阵容恢复成 3 马 4 协作。
+  // 第七 / 八 / 十一波各加一只：之前这三波在 16 局里平均掉血不到 0.1，中段完全是走过场。
   { n: '第十二波 · 波纳佩颂歌', boss: 1, e: [['song', 1, 0], ['deacon', 2, 1.0], ['horse', 3, 0.7], ['collab', 4, 0.5]] },
 ];
 
@@ -465,21 +466,47 @@ const MUTE_KEY = 'zjtt:pf:mute';
 // 同一种音效的最小间隔（毫秒）。二十个人同时普攻，不限流会糊成一片噪音。
 const GAP = {
   hit: 55, crit: 90, kill: 70, poison: 240, coin: 60, click: 30, deny: 260, hurt: 120,
+  select: 40, cancel: 60, swap: 70, interest: 600, shield: 140, tally: 45,
+  ultReady: 900, bossIn: 1500, danger: 2500,
 };
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
-// 三首循环的背景乐。chords 是相对 root 的半音，四个小节循环一次。
+// 曲库。chords 是相对 root 的半音，四小节循环一次；lead 是每小节第 0、2 拍
+// 各一个长音（八个数＝四小节 × 2），取 chord 里的第几个音 —— 有主旋律之后
+// 才不像「一直在练琶音」。-1 表示这一拍留白。
 const SONGS = {
   // 备战：慢、空，只有垫音和偶尔的琶音 —— 让玩家能听清自己在点按钮
   prep: { bpm: 62, root: 53, wave: 'triangle', vol: 0.020, arp: 0.45, pad: 1, bass: 0.6,
-    chords: [[0, 3, 7, 10], [-4, 0, 3, 7], [-2, 2, 5, 9], [0, 3, 7, 10]] },
+    chords: [[0, 3, 7, 10], [-4, 0, 3, 7], [-2, 2, 5, 9], [0, 3, 7, 10]],
+    lead: [2, 3, 1, 2, 0, 2, 3, 1] },
   // 战斗：加了低音脉冲和噪声拍，A 小调，八分音符的紧迫感
   fight: { bpm: 96, root: 45, wave: 'sawtooth', vol: 0.019, arp: 1, pad: 0.7, bass: 1, hat: 1,
-    chords: [[0, 3, 7, 10], [0, 3, 7, 10], [-4, 0, 3, 7], [-5, 0, 2, 7]] },
+    chords: [[0, 3, 7, 10], [0, 3, 7, 10], [-4, 0, 3, 7], [-5, 0, 2, 7]],
+    lead: [3, 2, 3, 1, 2, 3, -1, 1] },
+  // 中期（第七波起）：同一个调但更快、加了十六分的琶音与更重的低音，
+  // 让人听出「这一局已经过半」而不是从头到尾一个节奏
+  drive: { bpm: 112, root: 45, wave: 'sawtooth', vol: 0.019, arp: 1, pad: 0.55, bass: 1, hat: 1,
+    drive: 0.6, sixteenth: 1,
+    chords: [[0, 3, 7, 10], [0, 3, 7, 10], [-2, 2, 5, 9], [-4, 0, 3, 7]],
+    lead: [2, 3, 2, 0, 1, 2, 3, 2] },
   // 首领：更低、更慢、三全音 —— 一听就知道这一波不一样
   boss: { bpm: 84, root: 41, wave: 'square', vol: 0.021, arp: 1, pad: 1, bass: 1, hat: 1, drive: 1,
-    chords: [[0, 6, 12], [-1, 5, 11], [0, 6, 13], [-2, 4, 10]] },
+    chords: [[0, 6, 12], [-1, 5, 11], [0, 6, 13], [-2, 4, 10]],
+    lead: [1, 2, 1, 0, 2, 1, 0, 1] },
+  // 末波：全曲最高张力，半音推上去又砸回来
+  final: { bpm: 104, root: 43, wave: 'square', vol: 0.020, arp: 1, pad: 0.9, bass: 1, hat: 1,
+    drive: 1, sixteenth: 1,
+    chords: [[0, 6, 12], [0, 6, 13], [-1, 5, 11], [0, 6, 12]],
+    lead: [2, 1, 2, 0, 1, 2, 2, 1] },
+  // 结算（守住）：大调、慢慢往上抬，给一口气
+  endWin: { bpm: 72, root: 53, wave: 'triangle', vol: 0.020, arp: 0.55, pad: 1, bass: 0.7,
+    chords: [[0, 4, 7, 12], [-3, 2, 7, 11], [-5, 0, 4, 9], [0, 4, 7, 12]],
+    lead: [2, 3, 3, 2, 1, 2, 3, 2] },
+  // 结算（破碎）：小调、往下坠，但不刺耳 —— 结算页要看数字，不能吵
+  endLose: { bpm: 56, root: 48, wave: 'sine', vol: 0.019, arp: 0.3, pad: 1, bass: 0.6,
+    chords: [[0, 3, 7, 10], [-2, 1, 5, 8], [-4, 0, 3, 7], [-5, -1, 2, 7]],
+    lead: [2, 1, 0, 1, 2, 1, -1, 0] },
 };
 
 const sfx = {
@@ -595,6 +622,17 @@ const sfx = {
         this.tone(900, now + 0.07, 0.09, 'triangle', 0.024 * v); break;
       case 'deploy': this.tone(240, now, 0.1, 'sine', 0.036 * v, 150);
         this.noise(now, 0.09, 0.022 * v, 600, 1.2); break;
+      // 选中 / 取消 / 换位：三种「点一下」要能听出区别，不然连点只觉得在按键盘
+      case 'select': this.tone(820, now, 0.05, 'triangle', 0.026 * v);
+        this.tone(1230, now + 0.022, 0.045, 'sine', 0.013 * v); break;
+      case 'cancel': this.tone(560, now, 0.09, 'triangle', 0.026 * v, 360); break;
+      case 'swap': this.tone(620, now, 0.055, 'triangle', 0.026 * v);
+        this.tone(760, now + 0.05, 0.07, 'triangle', 0.026 * v); break;
+      // 金币：买东西、卖人、利息到档都用得上，清脆一点，别盖住别的
+      case 'coin': this.tone(1568, now, 0.05, 'triangle', 0.020 * v);
+        this.tone(2093, now + 0.035, 0.05, 'sine', 0.014 * v); break;
+      case 'interest': [659, 880, 1174].forEach((f, i) =>
+        this.tone(f, now + i * 0.055, 0.24, 'triangle', 0.026 * v)); break;
       // 升星：这是整局最该听见的声音之一，做得比买东西隆重
       case 'merge2': [523, 659, 784, 1046, 1318].forEach((f, i) =>
         this.tone(f, now + i * 0.055, 0.3, 'triangle', 0.040 * v));
@@ -612,6 +650,22 @@ const sfx = {
         this.noise(now, 0.12, 0.024 * v, 900, 1.1); break;
       case 'hurt': this.tone(120, now, 0.16, 'sawtooth', 0.036 * v, 80); break;
       case 'poison': this.tone(300, now, 0.22, 'sine', 0.020 * v, 190); break;
+      // 护盾吃掉伤害：短促的玻璃音，跟「被打」的低频撞开
+      case 'shield': this.noise(now, 0.09, 0.020 * v, 700, 2.2);
+        this.tone(330, now, 0.12, 'sine', 0.024 * v, 220); break;
+      // 大招就绪：整局只会响几次，做成一段上扬的铃声，值得被听见
+      case 'ultReady': [784, 1046, 1318, 1568].forEach((f, i) =>
+        this.tone(f, now + i * 0.05, 0.44, 'triangle', 0.030 * v));
+        this.tone(mtof(57), now, 0.7, 'sine', 0.026 * v); break;
+      // 首领登场：压在很低的地方，加上一层沙沙的噪声
+      case 'bossIn': this.tone(55, now, 1.1, 'sawtooth', 0.050 * v, 41);
+        this.tone(92, now + 0.12, 0.9, 'square', 0.032 * v, 74);
+        this.noise(now, 0.7, 0.034 * v, 420, 0.7); break;
+      // 核心见底：两声闷响，不刺耳但一定听得出来
+      case 'danger': this.tone(110, now, 0.18, 'square', 0.036 * v);
+        this.tone(110, now + 0.24, 0.18, 'square', 0.036 * v); break;
+      // 结算数字一行行落下来时的小刻度音
+      case 'tally': this.tone(1180, now, 0.035, 'square', 0.013 * v); break;
       // 漏怪：全屏欠打的一声
       case 'leak': this.tone(90, now, 0.5, 'sawtooth', 0.055 * v, 55);
         this.noise(now, 0.34, 0.04 * v, 320, 0.9);
@@ -713,6 +767,21 @@ const sfx = {
       const idx = (step + bar) % chord.length;
       const oct = step % 8 < 4 ? 0 : 12;
       this.tone(mtof(song.root + 12 + chord[idx] + oct), at, beat * 0.8, song.wave, v * 0.62);
+    }
+    // 主旋律：每小节第 0、2 拍各一个长音（lead 数组里 -1 是留白）
+    if (song.lead && (inBar === 0 || inBar === 2)) {
+      const li = (bar * 2 + (inBar === 2 ? 1 : 0)) % song.lead.length;
+      const idx = song.lead[li];
+      if (idx >= 0) {
+        this.tone(mtof(song.root + 12 + chord[idx % chord.length]), at, beat * 1.5, 'triangle', v * 0.5);
+      }
+    }
+    // 十六分琶音：只给中期与末波，把密度顶起来（一拍里补两个音）
+    if (song.sixteenth) {
+      for (let i = 1; i < 4; i += 2) {
+        const idx = (step + i) % chord.length;
+        this.tone(mtof(song.root + 24 + chord[idx]), at + (beat / 4) * i, beat * 0.22, song.wave, v * 0.26);
+      }
     }
     // 噪声：当节拍器用；首领层加密
     if (song.hat && inBar % (song.drive ? 1 : 2) === 0) this.noise(at, 0.045, v * 0.3, song.drive ? 2800 : 3800, 1.1);
@@ -1250,6 +1319,7 @@ function place(uid, cell) {
     G.board.delete(u.cell);
     u.cell = -1; u.bench = b; G.bench[b] = u;
     recount();
+    sfx.play('cancel');
     return true;
   }
   if (colOf(cell) >= DEPLOY_COLS) { G.msg = '这一列不归你'; return false; }
@@ -1265,6 +1335,7 @@ function place(uid, cell) {
     else { const b = G.bench.indexOf(u); if (b >= 0) G.bench[b] = other; other.cell = -1; other.bench = b; }
     u.cell = cell; u.bench = -1;
     recount();
+    sfx.play('swap');
     return true;
   }
   if (u.cell < 0) {
@@ -1279,6 +1350,7 @@ function place(uid, cell) {
     G.board.set(cell, u);
   }
   recount();
+  sfx.play('deploy');
   return true;
 }
 
@@ -1298,6 +1370,7 @@ function placeBench(uid, idx) {
     else return false;
     u.cell = -1; u.bench = idx; G.bench[idx] = u;
     recount();
+    sfx.play('cancel');
     return true;
   }
   // 互换：场上 ↔ 备战席不查人口（一上一下，人数不变）
@@ -1311,6 +1384,7 @@ function placeBench(uid, idx) {
   }
   u.cell = -1; u.bench = idx; G.bench[idx] = u;
   recount();
+  sfx.play('swap');
   return true;
 }
 
@@ -1469,6 +1543,8 @@ function beginWave() {
   for (const u of G.units) { u.timer = rnd() * 0.4; u.target = null; }
   G.msg = cfg.n;
   sfx.play('wave');
+  // 首领波再补一记低音：错开半秒，不然跟开波号角糊成一团
+  if (cfg.boss) setTimeout(() => sfx.play('bossIn'), 450);
   return true;
 }
 
@@ -1614,6 +1690,7 @@ function damageUnit(u, raw, src) {
   if (u.shield > 0) {
     const use = Math.min(u.shield, dmg);
     u.shield -= use; dmg -= use;
+    if (use > 0.5) sfx.play('shield');
   }
   u.hp -= dmg;
   u.hurtT = 0.18;
@@ -1668,6 +1745,8 @@ function castUlt(u) {
   G.ultSeq = (G.ultSeq || 0) + 1;
   G.lastUlt = { n: u.def.n, name: ult.name, kind: ult.kind, col: tone.col, t: 0, seq: G.ultSeq };
   G.msg = `${u.def.n} 施放「${ult.name}」`;
+  // 先一声蓄力铃，再上这个流派专属的音色 —— 六种大招的第一耳朵就不一样
+  sfx.play('ultReady', { vol: 0.55 });
   sfx.play(tone.sfx);
   // 彩蛋时间（大招伤害 +35%）与胚胎流派（大招伤害 +12%/22%）叠在一起
   const uMul = (u.creation && u.creation.fx === 'ultPower' ? 1.35 : 1) * (u.ultPower || 1);
@@ -1883,6 +1962,8 @@ function update(dt) {
         const i = G.enemies.indexOf(e);
         if (i >= 0) G.enemies.splice(i, 1);
         addFloat(CORE_X + 30, e.y - 24, '-' + e.def.leak, '#e8695f', 1.2);
+        // 核心见底时给一声闷响：最后一格血跟前面几格不该是同一个音量
+        if (G.core > 0 && G.core <= 5) sfx.play('danger');
         if (G.core <= 0) { G.core = 0; G.phase = 'over'; sfx.play('lose'); }
       }
       continue;
@@ -3266,6 +3347,7 @@ function build() {
     document.querySelector('.app').classList.remove('playing');
     $('ovStart').hidden = false;
     ui.sel = null; G.sel = null; ui.item = null; G.selItem = null;
+    sfx.stopMusic();          // 回到开始界面就别留着结算曲
   };
 }
 
@@ -3473,8 +3555,10 @@ function tapUnit(uid) {
 }
 
 function select(uid) {
-  ui.sel = ui.sel === uid ? null : uid;
+  const same = ui.sel === uid;
+  ui.sel = same ? null : uid;
   G.sel = ui.sel;
+  sfx.play(same ? 'cancel' : 'select');
   sync();
 }
 
@@ -3616,6 +3700,9 @@ function tickPurse() {
   if (purse) purse.classList.toggle('low', G.gold < 2);
   // 利息：每存 10 金 +1，最多 5 —— 写在数字下面的小字里，存钱时看得见收益在涨
   const interest = Math.min(5, Math.floor(G.gold / 10));
+  // 利息升一档响一下：存钱这件事在备战期没有别的反馈，全靠这声和数字
+  if (L.intLv != null && interest > L.intLv) sfx.play('interest');
+  L.intLv = interest;
   const txt = interest > 0 ? `息 +${interest}` : '金';
   const em = $('purseInt');
   if (em && L.interest !== txt) { L.interest = txt; em.textContent = txt; }
@@ -3734,13 +3821,23 @@ function updateHUD() {
   if (L.phase !== G.phase) {
     if (G.phase === 'fight' && WAVES[G.wave - 1]) {
       const cfg = WAVES[G.wave - 1];
-      showBanner(cfg.n, cfg.boss ? '首领波 · 撑住就有奖励' : `第 ${G.wave} 波`, cfg.boss ? '#ff6b6b' : undefined);
+      const last = G.wave >= WAVES.length;
+      showBanner(cfg.n,
+        last ? '最终波 · 守住就赢' : (cfg.boss ? '首领波 · 撑住就有奖励' : `第 ${G.wave} 波`),
+        last ? '#ffd76a' : (cfg.boss ? '#ff6b6b' : undefined));
     }
     L.phase = G.phase;
-    // 背景乐跟着阶段走：备战慢、战斗紧、首领更低更重
-    const want = G.phase === 'fight'
-      ? ((WAVES[G.wave - 1] || {}).boss ? 'boss' : 'fight')
-      : (G.phase === 'prep' ? 'prep' : null);
+    // 背景乐跟着阶段与进度走：备战慢 / 前六波紧 / 第七波起加密 / 首领更低更重 /
+    // 末波最高张力 / 结算按胜负收尾 —— 一局里听得出来自己在第几段。
+    const want = (() => {
+      if (G.phase === 'win') return 'endWin';
+      if (G.phase === 'over') return 'endLose';
+      if (G.phase !== 'fight') return G.phase === 'prep' ? 'prep' : null;
+      const cfg = WAVES[G.wave - 1] || {};
+      if (G.wave >= WAVES.length) return 'final';
+      if (cfg.boss) return 'boss';
+      return G.wave >= 7 ? 'drive' : 'fight';
+    })();
     if (L.bgm !== want) {
       L.bgm = want;
       if (want) sfx.music(want); else sfx.stopMusic();
@@ -3800,6 +3897,10 @@ function showEnd() {
     <div class="es"><b>${sm.equips}</b><span>装备</span></div>
     <div class="es"><b>${sm.score}</b><span>得分</span></div>
     <div class="es"><b>+${credit}</b><span>银芯</span></div>`;
+  // 八项数字一行行落下来时各响一下刻度音：结算页只看静态卡片会像「刚才白打了」
+  for (let i = 0; i < 8; i++) setTimeout(() => sfx.play('tally'), 110 + i * 75);
+  // 结算曲直接在这里起：这一帧之后主循环就停了，别指望 updateHUD 来切
+  sfx.music(sm.win ? 'endWin' : 'endLose');
   const nt = nextTier(sm.score);
   $('endTier').textContent = nt
     ? `再拿 ${nt[0] - sm.score} 分可换 ${nt[1]} 银芯（当前 +${credit}）`
@@ -3827,10 +3928,12 @@ const { G, update, beginWave, place, sell, reset, summary, UNITS_BY_ID, buy, buy
 const { init, draw, setBand, toLogic, hover, layout, screenPos } = m_render;
 const { build, startRun, sync, updateHUD, showEnd, bandRect, select, tapUnit, ui } = m_ui;
 const { cellAt, colOf, DEPLOY_COLS, MAX_LEVEL, LEVEL_COST, INV_SIZE } = m_defs;
+const { sfx } = m_audio;
 // 《忘却协议》入口：装配渲染、输入、主循环。
 //
 // 固定步长（1/60 秒）推进战斗，渲染跟着屏幕刷新率走：高刷屏上不会打得更快，
 // 掉帧时也不会一帧跨过好几只怪。每帧最多补 5 步，切标签页回来不会一次补上千步。
+
 
 
 
@@ -3964,7 +4067,7 @@ async function boot() {
 // 固定步长推进，备战期自动买/升级/开战，几秒钟就能跑完十二波，调平衡不用守着屏幕。
 if (/[?&]_test=1/.test(location.search)) {
   window.__pf = {
-    G, TUNE, summary, update, beginWave, place, sell, reset, startRun, ui, sync, screenPos, toLogic,
+    G, TUNE, summary, update, beginWave, place, sell, reset, startRun, ui, sync, screenPos, toLogic, sfx,
     start: (diff, seed) => { if (diff) ui.diff = diff; startRun(seed); },
     // 一步决策：先把备战席摆上场，再买人（能合成的优先），人口满了就升级
     think() {

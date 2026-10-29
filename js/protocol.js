@@ -7,6 +7,7 @@ import { G, update, beginWave, place, sell, reset, summary, UNITS_BY_ID, buy, bu
 import { init, draw, setBand, toLogic, hover, layout, screenPos } from './pf/render.js';
 import { build, startRun, sync, updateHUD, showEnd, bandRect, select, tapUnit, ui } from './pf/ui.js';
 import { cellAt, colOf, DEPLOY_COLS, MAX_LEVEL, LEVEL_COST, INV_SIZE } from './pf/defs.js';
+import { sfx } from './pf/audio.js';
 
 const FIXED = 1 / 60;
 const cv = document.getElementById('cv');
@@ -135,7 +136,7 @@ async function boot() {
 // 固定步长推进，备战期自动买/升级/开战，几秒钟就能跑完十二波，调平衡不用守着屏幕。
 if (/[?&]_test=1/.test(location.search)) {
   window.__pf = {
-    G, TUNE, summary, update, beginWave, place, sell, reset, startRun, ui, sync, screenPos, toLogic,
+    G, TUNE, summary, update, beginWave, place, sell, reset, startRun, ui, sync, screenPos, toLogic, sfx,
     start: (diff, seed) => { if (diff) ui.diff = diff; startRun(seed); },
     // 一步决策：先把备战席摆上场，再买人（能合成的优先），人口满了就升级
     think() {

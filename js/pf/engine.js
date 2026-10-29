@@ -525,6 +525,7 @@ export function place(uid, cell) {
     G.board.delete(u.cell);
     u.cell = -1; u.bench = b; G.bench[b] = u;
     recount();
+    sfx.play('cancel');
     return true;
   }
   if (colOf(cell) >= DEPLOY_COLS) { G.msg = '这一列不归你'; return false; }
@@ -540,6 +541,7 @@ export function place(uid, cell) {
     else { const b = G.bench.indexOf(u); if (b >= 0) G.bench[b] = other; other.cell = -1; other.bench = b; }
     u.cell = cell; u.bench = -1;
     recount();
+    sfx.play('swap');
     return true;
   }
   if (u.cell < 0) {
@@ -554,6 +556,7 @@ export function place(uid, cell) {
     G.board.set(cell, u);
   }
   recount();
+  sfx.play('deploy');
   return true;
 }
 
@@ -573,6 +576,7 @@ export function placeBench(uid, idx) {
     else return false;
     u.cell = -1; u.bench = idx; G.bench[idx] = u;
     recount();
+    sfx.play('cancel');
     return true;
   }
   // 互换：场上 ↔ 备战席不查人口（一上一下，人数不变）
@@ -586,6 +590,7 @@ export function placeBench(uid, idx) {
   }
   u.cell = -1; u.bench = idx; G.bench[idx] = u;
   recount();
+  sfx.play('swap');
   return true;
 }
 
@@ -744,6 +749,8 @@ export function beginWave() {
   for (const u of G.units) { u.timer = rnd() * 0.4; u.target = null; }
   G.msg = cfg.n;
   sfx.play('wave');
+  // 首领波再补一记低音：错开半秒，不然跟开波号角糊成一团
+  if (cfg.boss) setTimeout(() => sfx.play('bossIn'), 450);
   return true;
 }
 
@@ -889,6 +896,7 @@ function damageUnit(u, raw, src) {
   if (u.shield > 0) {
     const use = Math.min(u.shield, dmg);
     u.shield -= use; dmg -= use;
+    if (use > 0.5) sfx.play('shield');
   }
   u.hp -= dmg;
   u.hurtT = 0.18;
@@ -943,6 +951,8 @@ function castUlt(u) {
   G.ultSeq = (G.ultSeq || 0) + 1;
   G.lastUlt = { n: u.def.n, name: ult.name, kind: ult.kind, col: tone.col, t: 0, seq: G.ultSeq };
   G.msg = `${u.def.n} 施放「${ult.name}」`;
+  // 先一声蓄力铃，再上这个流派专属的音色 —— 六种大招的第一耳朵就不一样
+  sfx.play('ultReady', { vol: 0.55 });
   sfx.play(tone.sfx);
   // 彩蛋时间（大招伤害 +35%）与胚胎流派（大招伤害 +12%/22%）叠在一起
   const uMul = (u.creation && u.creation.fx === 'ultPower' ? 1.35 : 1) * (u.ultPower || 1);
@@ -1158,6 +1168,8 @@ export function update(dt) {
         const i = G.enemies.indexOf(e);
         if (i >= 0) G.enemies.splice(i, 1);
         addFloat(CORE_X + 30, e.y - 24, '-' + e.def.leak, '#e8695f', 1.2);
+        // 核心见底时给一声闷响：最后一格血跟前面几格不该是同一个音量
+        if (G.core > 0 && G.core <= 5) sfx.play('danger');
         if (G.core <= 0) { G.core = 0; G.phase = 'over'; sfx.play('lose'); }
       }
       continue;

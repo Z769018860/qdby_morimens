@@ -165,6 +165,7 @@ export function build() {
     document.querySelector('.app').classList.remove('playing');
     $('ovStart').hidden = false;
     ui.sel = null; G.sel = null; ui.item = null; G.selItem = null;
+    sfx.stopMusic();          // 回到开始界面就别留着结算曲
   };
 }
 
@@ -372,8 +373,10 @@ export function tapUnit(uid) {
 }
 
 export function select(uid) {
-  ui.sel = ui.sel === uid ? null : uid;
+  const same = ui.sel === uid;
+  ui.sel = same ? null : uid;
   G.sel = ui.sel;
+  sfx.play(same ? 'cancel' : 'select');
   sync();
 }
 
@@ -515,6 +518,9 @@ function tickPurse() {
   if (purse) purse.classList.toggle('low', G.gold < 2);
   // 利息：每存 10 金 +1，最多 5 —— 写在数字下面的小字里，存钱时看得见收益在涨
   const interest = Math.min(5, Math.floor(G.gold / 10));
+  // 利息升一档响一下：存钱这件事在备战期没有别的反馈，全靠这声和数字
+  if (L.intLv != null && interest > L.intLv) sfx.play('interest');
+  L.intLv = interest;
   const txt = interest > 0 ? `息 +${interest}` : '金';
   const em = $('purseInt');
   if (em && L.interest !== txt) { L.interest = txt; em.textContent = txt; }
@@ -633,13 +639,23 @@ export function updateHUD() {
   if (L.phase !== G.phase) {
     if (G.phase === 'fight' && WAVES[G.wave - 1]) {
       const cfg = WAVES[G.wave - 1];
-      showBanner(cfg.n, cfg.boss ? '首领波 · 撑住就有奖励' : `第 ${G.wave} 波`, cfg.boss ? '#ff6b6b' : undefined);
+      const last = G.wave >= WAVES.length;
+      showBanner(cfg.n,
+        last ? '最终波 · 守住就赢' : (cfg.boss ? '首领波 · 撑住就有奖励' : `第 ${G.wave} 波`),
+        last ? '#ffd76a' : (cfg.boss ? '#ff6b6b' : undefined));
     }
     L.phase = G.phase;
-    // 背景乐跟着阶段走：备战慢、战斗紧、首领更低更重
-    const want = G.phase === 'fight'
-      ? ((WAVES[G.wave - 1] || {}).boss ? 'boss' : 'fight')
-      : (G.phase === 'prep' ? 'prep' : null);
+    // 背景乐跟着阶段与进度走：备战慢 / 前六波紧 / 第七波起加密 / 首领更低更重 /
+    // 末波最高张力 / 结算按胜负收尾 —— 一局里听得出来自己在第几段。
+    const want = (() => {
+      if (G.phase === 'win') return 'endWin';
+      if (G.phase === 'over') return 'endLose';
+      if (G.phase !== 'fight') return G.phase === 'prep' ? 'prep' : null;
+      const cfg = WAVES[G.wave - 1] || {};
+      if (G.wave >= WAVES.length) return 'final';
+      if (cfg.boss) return 'boss';
+      return G.wave >= 7 ? 'drive' : 'fight';
+    })();
     if (L.bgm !== want) {
       L.bgm = want;
       if (want) sfx.music(want); else sfx.stopMusic();
@@ -699,6 +715,10 @@ export function showEnd() {
     <div class="es"><b>${sm.equips}</b><span>装备</span></div>
     <div class="es"><b>${sm.score}</b><span>得分</span></div>
     <div class="es"><b>+${credit}</b><span>银芯</span></div>`;
+  // 八项数字一行行落下来时各响一下刻度音：结算页只看静态卡片会像「刚才白打了」
+  for (let i = 0; i < 8; i++) setTimeout(() => sfx.play('tally'), 110 + i * 75);
+  // 结算曲直接在这里起：这一帧之后主循环就停了，别指望 updateHUD 来切
+  sfx.music(sm.win ? 'endWin' : 'endLose');
   const nt = nextTier(sm.score);
   $('endTier').textContent = nt
     ? `再拿 ${nt[0] - sm.score} 分可换 ${nt[1]} 银芯（当前 +${credit}）`
