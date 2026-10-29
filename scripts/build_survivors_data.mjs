@@ -143,6 +143,72 @@ for (const a of dict.awakener) {
   byPid.set(a.pid, c);
 }
 
+// ---------------------------------------------------------------- 神秘唤醒体
+// 这四名不是从官方图鉴里读出来的，是照着世界观补的「未登场者」：
+// 图鉴里没有立绘，选人面板上就是一块黑色剪影，要靠解锁条件放出来。
+//
+// 他们的两条技能走 PROTOS 里 judge/paradox/lantern/seal 四种专属原型 ——
+// 这四种不进 protoOf 的判定表，所以普通 62 名唤醒体的技能一条都不会落进来，
+// 反过来这四名也永远不会出现在别人的卡池里（除非玩家已经把他们解锁）。
+//
+// img: null 会让界面走剪影渲染分支；lock 字段既是解锁表的键，也是「要不要
+// 从卡池里剔除」的判据。
+const EXTRA = [
+  {
+    id: '90001', pid: 'hidden-tulu', n: '神王·图鲁', en: 'Tulu the Godking',
+    realm: '混沌', realmCode: 'CHAOS', role: '伤害型', roleCode: 'ASSAULT', rarity: 'UR',
+    img: null, lock: '90001',
+    talent: '王权',
+    talentText: '每击杀 20 名敌人累积 1 层王权，攻击与范围随之增长',
+    weapons: [
+      { n: '断罪王座', e: 'Throne of Judgement', proto: 'judge', text: '王座自天而降，柱下无人得以站立' },
+      { n: '王土加冕', e: 'Coronation of Ash', proto: 'nova', text: '以王座为中心，把整片土地掀翻' },
+    ],
+  },
+  {
+    id: '90002', pid: 'hidden-n', n: 'N', en: 'N',
+    realm: '超维', realmCode: 'ULTRA', role: '辅助型', roleCode: 'CHORUS', rarity: 'UR',
+    img: null, lock: '90002',
+    talent: '悖论',
+    talentText: '每次升级有几率多获得一次三选一，代价是更薄的血',
+    weapons: [
+      { n: '无限递归', e: 'Infinite Recursion', proto: 'paradox', text: '把已经发生过的伤害，再发生一次' },
+      { n: '逻辑闭环', e: 'Closed Loop', proto: 'shield', text: '一个自洽的圆，挡下所有不自洽的东西' },
+    ],
+  },
+  {
+    id: '90003', pid: 'hidden-william', n: '威廉', en: 'William',
+    realm: '深海', realmCode: 'AEQUOR', role: '防御型', roleCode: 'WARDEN', rarity: 'UR',
+    img: null, lock: '90003',
+    talent: '守夜',
+    talentText: '受伤时反击，越是濒死越是难缠',
+    weapons: [
+      { n: '长明灯', e: 'Everlasting Lamp', proto: 'lantern', text: '灯亮着的时候，雾里的东西不敢靠太近' },
+      { n: '夜巡', e: 'Night Watch', proto: 'orbit', text: '绕着灯走的一圈脚步，从不熄灭' },
+    ],
+  },
+  {
+    id: '90004', pid: 'hidden-keeper', n: '守密人', en: 'The Keeper',
+    realm: '血肉', realmCode: 'CARO', role: '辅助型', roleCode: 'SUPPORT', rarity: 'UR',
+    img: null, lock: '90004',
+    talent: '缄默契约',
+    talentText: '缄默者知道得更多，也老得更快',
+    weapons: [
+      { n: '封页之印', e: 'Sealing Sigil', proto: 'seal', text: '把敌人夹进书页，让它连呼吸都停住' },
+      { n: '禁书记忆', e: 'Forbidden Recollection', proto: 'chain', text: '不该被读到的东西，沿着锁链爬出来' },
+    ],
+  },
+];
+for (const e of EXTRA) {
+  if (chars.some((c) => c.id === e.id)) continue;
+  chars.push({
+    id: e.id, pid: e.pid, n: e.n, en: e.en,
+    realm: e.realm, realmCode: e.realmCode, role: e.role, roleCode: e.roleCode,
+    rarity: e.rarity, img: e.img, lock: e.lock,
+    talent: e.talent, talentText: e.talentText, weapons: e.weapons,
+  });
+}
+
 // 武器池：每名角色的两个技能各成一把，id 用 pid + 槽位，稳定不复用。
 const WEAPONS = [];
 for (const c of chars) {

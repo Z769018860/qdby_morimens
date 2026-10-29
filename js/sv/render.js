@@ -553,6 +553,22 @@ function drawEnemies(L, R, T, B) {
       ctx.beginPath(); ctx.arc(e.x, e.y + bob, e.r * 0.92, 0, Math.PI * 2); ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
     }
+    // 被封印：脚下压一圈方印 + 两道竖线，表示「它现在动不了」。
+    // 定身是玩家最需要反馈的状态（打不动就白打），所以画得比迟滞更硬。
+    if (e.bindT > 0) {
+      ctx.strokeStyle = 'rgba(154,167,255,0.85)';
+      ctx.lineWidth = 1.8;
+      ctx.strokeRect(e.x - e.r * 0.9, e.y + e.r * 0.5, e.r * 1.8, e.r * 0.34);
+      ctx.beginPath();
+      ctx.moveTo(e.x - e.r * 0.55, e.y - e.r * 0.9); ctx.lineTo(e.x + e.r * 0.55, e.y + e.r * 0.5);
+      ctx.moveTo(e.x + e.r * 0.55, e.y - e.r * 0.9); ctx.lineTo(e.x - e.r * 0.55, e.y + e.r * 0.5);
+      ctx.stroke();
+    } else if (e.slowT > 0) {
+      // 迟滞：脚下一圈雾，颜色跟着减速强度走，玩家能看出「柱子还压着它」
+      ctx.strokeStyle = `rgba(180,220,255,${0.18 + (1 - (e.slowMul || 1)) * 0.5})`;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 0.62, e.r * 0.95, e.r * 0.3, 0, 0, Math.PI * 2); ctx.stroke();
+    }
     // 攻击前摇：0.28 秒里一圈红环由外向内收拢，收到身上就是它咬下来的瞬间。
     // 这是「能躲」的前提 —— 没有前摇的贴身伤害只能挨着。
     if (e.windT > 0) {
@@ -728,7 +744,9 @@ function drawFields(L, R, T, B) {
     if (f.x < L || f.x > R || f.y < T || f.y > B) continue;
     const t = f.delay > 0 ? f.delay / 0.45 : 1;
     // 地雷只有一个小圆点，不画领域那种大圆盘 —— 否则满地的「领域」看起来像踩在彩纸上
-    if (!f.arm) {
+    // 审判柱与长明灯同理：它们各自有更像样的画法（光柱 / 灯晕），
+    // 底下再糊一层大圆盘会把整片战场压成一片黄。
+    if (!f.arm && !f.lamp && !(f.pillar && f.delay <= 0)) {
       ctx.globalAlpha = f.delay > 0 ? 0.35 + Math.sin(G.t * 40) * 0.15 : Math.min(0.5, f.life / f.max) * 0.55;
       ctx.fillStyle = f.color;
       ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (f.delay > 0 ? (1.15 - t * 0.15) : 1), 0, Math.PI * 2); ctx.fill();
@@ -770,6 +788,43 @@ function drawFields(L, R, T, B) {
       ctx.globalAlpha = 0.5;
       ctx.beginPath(); ctx.moveTo(f.x - 8, f.y); ctx.lineTo(f.x + 8, f.y);
       ctx.moveTo(f.x, f.y - 8); ctx.lineTo(f.x, f.y + 8); ctx.stroke();
+    }
+    // 审判柱：不是「地上一个圈」，而是一根从天上钉下来的光柱 ——
+    // 圈只说明范围，柱子才说明「这里站着会死」。
+    if (f.pillar && f.delay <= 0) {
+      const g = ctx.createLinearGradient(f.x, f.y - 320, f.x, f.y + 12);
+      g.addColorStop(0, 'rgba(255,215,106,0)');
+      g.addColorStop(0.55, 'rgba(255,215,106,0.16)');
+      g.addColorStop(1, 'rgba(255,215,106,0.42)');
+      ctx.globalAlpha = Math.min(1, f.life / f.max) * 0.9;
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(f.x - f.r * 0.34, f.y + 8);
+      ctx.lineTo(f.x - f.r * 0.6, f.y - 320);
+      ctx.lineTo(f.x + f.r * 0.6, f.y - 320);
+      ctx.lineTo(f.x + f.r * 0.34, f.y + 8);
+      ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(f.x, f.y, f.r * 0.9, f.r * 0.34, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    // 长明灯：暖色光晕 + 灯芯。灯光是威廉唯一的安全区，要一眼看得见边界。
+    if (f.lamp) {
+      const pulse = 0.85 + Math.sin(G.t * 3) * 0.15;
+      const rg = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r * pulse);
+      rg.addColorStop(0, 'rgba(255,233,168,0.5)');
+      rg.addColorStop(0.7, 'rgba(255,196,110,0.16)');
+      rg.addColorStop(1, 'rgba(255,196,110,0)');
+      ctx.globalAlpha = Math.min(1, f.life / f.max);
+      ctx.fillStyle = rg;
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * pulse, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = '#ffe9a8';
+      ctx.beginPath(); ctx.arc(f.x, f.y - 2, 4.2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(120,90,40,.8)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(f.x, f.y + 2); ctx.lineTo(f.x, f.y + 10); ctx.stroke();
     }
     ctx.globalAlpha = 1;
   }

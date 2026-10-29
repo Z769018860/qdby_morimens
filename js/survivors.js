@@ -4,11 +4,12 @@
 // 跑得更快，掉帧时也不会瞬移穿过敌人 —— 每帧最多补 6 步，防止切标签页回来
 // 一次补上千步直接把自己补死。
 
-import { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage, giveUp, recompute } from './sv/engine.js';
+import { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage, giveUp, recompute, addGrowth, addItem, useItem, gainExp, hurtPlayer } from './sv/engine.js';
 import { init, resize, draw } from './sv/render.js';
 import { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo, pickSwap, closeSwap } from './sv/ui.js';
 import { DIFFS } from './sv/defs.js';
-import { WEAPONS } from './sv/gen.js';
+import { isUnlocked, unlockNeed, svProgress, saveProgress } from './sv/unlock.js';
+import { WEAPONS, CHARS } from './sv/gen.js';
 
 const FIXED = 1 / 60;
 const cv = document.getElementById('cv');
@@ -165,12 +166,36 @@ function frame(dt) {
 
   if ((G.phase === 'over' || G.phase === 'win') && !ended) {
     ended = true;
-    setTimeout(() => showEnd(summary()), 520);
+    // 结算数据在这里就取好：520ms 后如果玩家已经点了「再来一局」，
+    // 回调用 summary() 会读到下一局的空状态（分数、存活时间全归零）。
+    const sm = summary();
+    setTimeout(() => {
+      // 同理，重启后不要再把上一局的结算盖在新一局上
+      if (G.phase === 'over' || G.phase === 'win') showEnd(sm);
+    }, 520);
   }
+}
+
+// 点「进入融灾禁区」但角色未解锁时的提示。放在难度提示下面而不是弹窗：
+// 弹窗要额外点一次才能关，而这里玩家只是想换个角色。
+function startMsg(txt) {
+  const el = document.getElementById('pickTip');
+  if (!el) return;
+  el.textContent = txt;
+  el.hidden = false;
+  clearTimeout(startMsg._t);
+  startMsg._t = setTimeout(() => { el.hidden = true; }, 3600);
 }
 
 // ---------------------------------------------------------------- 装配
 function startGame() {
+  // 解锁守卫放在这里而不是「禁用按钮」：选人面板允许点开看条件，
+  // 但进了这一层就得拦住 —— 未解锁的角色连初始技能都不该发出去。
+  const c = CHARS.find((x) => String(x.id) === String(ui.charId));
+  if (c && c.lock && !isUnlocked(c.lock)) {
+    startMsg(`「${c.n}」还没解锁：${unlockNeed(c.lock)}`);
+    return;
+  }
   setSeed((Date.now() ^ (Math.random() * 1e9)) >>> 0);
   reset(ui.charId, ui.diff);
   closeInfo();
@@ -217,7 +242,7 @@ async function boot() {
   await init(cv);
   resize();
   window.addEventListener('resize', () => { resize(); });
-  startBtn.textContent = '进入忘川';
+  startBtn.textContent = '进入融灾禁区';
   startBtn.disabled = false;
   startBtn.dataset.ready = '1';
   startBtn.onclick = startGame;
@@ -248,6 +273,14 @@ if (/[?&]_test=1/.test(location.search)) {
     skip: skipChoice, // 「这次不要」：测试里要能直接调
     seed: setSeed,   // 平衡测量用：固定种子才能把两次改动的差异看出来
     start: (c, d) => { ui.charId = c; ui.diff = d || 'normal'; startGame(); },
+    // 神秘唤醒体 / 后期成长相关：解锁判定与存档直接暴露，方便在无头环境里
+    // 造出「已经打了十把」的存档，而不必真的跑十局 15 分钟。
+    allChars: CHARS,
+    unlocked: isUnlocked,
+    progress: svProgress,
+    setProgress: saveProgress,
+    addGrowth, addItem, useItem, gainExp, hurt: hurtPlayer,
+    chars: CHARS,
     bot: (seconds) => {
       window.__svFrozen = true;
       const marks = [];

@@ -14,7 +14,9 @@ import {
   RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, eliteGap, eliteCount,
   PLAYER, expNeed, scoreOf,
   MAX_WEAPON, POOL_PER_PROTO, RAGE, TERRAINS, terrainAt,
+  MECHS, GROWTHS, ITEMS, ITEM_MAX,
 } from './defs.js';
+import { isUnlocked, recordRun } from './unlock.js';
 import { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS } from './gen.js';
 
 const TAU = Math.PI * 2;
@@ -69,7 +71,14 @@ export const G = {
   gaveUp: false,
   // 超武觉醒播报队列（由 refreshEvo 入队，update 在战斗帧里消费）
   evoQueue: [],
-  world: { w: 2400, h: 2400 },  // 只在绘制里当地面参考，玩家其实不设边界
+  // 神秘唤醒体的独有机制状态：stacks 是累积层（王权 / 封印），low 是威廉的
+  // 「血量低于 40%」开关（用它判断跨线，避免每帧重算 mods）。
+  mech: { id: null, stacks: 0, low: false, procs: 0 },
+  // 后期成长与一次性道具
+  growth: [], items: [],
+  // 悖论的伤害回响池：每 0.5 秒把这段时间的输出记一笔，滚动保留 3 秒
+  echo: [],
+  world: { w: 2400, h: 2400 },  // 只在绘制里当世界参考，玩家其实不设边界
   stats: { dmg: 0, taken: 0 },
 };
 
@@ -134,6 +143,11 @@ export function reset(charId, diffKey) {
   G.terrainIdx = terrainAt(0); G.terrainFade = 0;
   G.gaveUp = false;
   G.evoQueue = [];
+  G.growth = [];
+  G.items = [];
+  G.echo = [];
+  G.echoT = 0; G.echoMark = 0;
+  G.mech = { id: null, stacks: 0, low: false, procs: 0 };
   G.stats = { dmg: 0, taken: 0, rageDmg: 0 };
   for (const k of ['enemies', 'bullets', 'fields', 'orbs', 'summons', 'pickups', 'fx', 'texts']) G[k].length = 0;
   G.weapons = []; G.passives = []; G.wheels = []; G.covs = [];
@@ -150,6 +164,11 @@ export function reset(charId, diffKey) {
   if (c.role === '伤害型') G.mods.atk += 0.08;
   if (c.role === '防御型') G.mods.maxHpBonus += 25;
   if (c.role === '辅助型') G.mods.exp += 0.12;
+
+  // 神秘唤醒体的机制是「这名角色的规则」，不随装备变化，但要在 recompute
+  // 里一起算 —— 否则每次拿造物重算 mods 都会被抹掉。
+  const mm = MECHS[c.id];
+  G.mech.id = mm ? mm.id : null;
 
   const P = G.player;
   P.x = 0; P.y = 0; P.vx = 0; P.vy = 0; P.kx = 0; P.ky = 0;
@@ -175,9 +194,17 @@ export function reset(charId, diffKey) {
 function buildPool(c, mine) {
   const pool = new Set();
   if (mine[1]) pool.add(mine[1].id);
+  // 未解锁的神秘唤醒体，技能一条都不进池 —— 这是「抽不到」而不是「抽到了
+  // 但用不了」，玩家不会在选人面板之外的地方看到他们的名字（连技能卡都不出现）。
+  // 解锁判定在这里读一次，整局不变：中途改 localStorage 也不该改变这一局的牌堆。
+  const locked = new Set();
+  for (const ch of CHARS) {
+    if (ch.lock && !isUnlocked(ch.lock)) locked.add(String(ch.id));
+  }
   const byProto = {};
   for (const w of WEAPONS) {
     if (pool.has(w.id) || (mine[0] && w.id === mine[0].id)) continue;
+    if (locked.has(String(w.char))) continue;
     (byProto[w.proto] = byProto[w.proto] || []).push(w);
   }
   for (const k of Object.keys(PROTOS)) {
@@ -218,6 +245,22 @@ export function recompute() {
     if (c.role === '防御型') base.maxHpBonus += 25;
     if (c.role === '辅助型') base.exp += 0.12;
   }
+  // 神秘唤醒体的固有机制。王权的层数会随击杀变化，所以它必须走 recompute：
+  // 击杀到整十的时候调一次，比每帧改 mods 便宜，也不会和造物互相覆盖。
+  const mech = G.mech && G.mech.id;
+  if (mech === 'royalty') {
+    const s = G.mech.stacks || 0;
+    base.atk += s * 0.012;
+    base.area += s * 0.004;
+  } else if (mech === 'paradox') {
+    base.cd *= 0.92;
+    base.maxHpBonus -= 12;
+  } else if (mech === 'seal') {
+    base.exp *= 1.45;
+  } else if (mech === 'nightwatch' && G.mech.low) {
+    base.atk += 0.35;
+    base.maxShieldBonus += 50;
+  }
   Object.assign(m, base);
 
   for (const p of G.passives) {
@@ -225,6 +268,8 @@ export function recompute() {
   }
   for (const w of G.wheels) applyWheel(w.key, m);
   for (const v of G.covs) applyCovenant(v.key, m);
+  // 后期成长：每一项都是永久叠加，所以和造物一样逐层重放
+  for (const g of G.growth) applyGrowth(g, m);
 
   G.player.maxHp = Math.round(PLAYER.hp + m.maxHpBonus);
   G.player.maxShield = Math.round(30 + m.maxShieldBonus);
@@ -399,6 +444,74 @@ export function addCreation(creationId) {
   recompute();
 }
 
+// ---------------------------------------------------------------- 后期成长
+// 造物有 8 件上限、技能有 6 格上限、命轮契物各有张数上限 —— 一局打到 10 分钟
+// 之后这些线会同时见底，三选一就只剩「这次不要」。极限淬炼就是补在见底之后
+// 的那条线：数值小（3% 一档），但没有上限，玩家攒得再久都有东西可选。
+function applyGrowth(g, m) {
+  const fx = g.fx || {};
+  if (fx.atk) m.atk += fx.atk;
+  if (fx.crit) m.crit += fx.crit;
+  if (fx.critMul) m.critMul += fx.critMul;
+  if (fx.maxHpBonus) m.maxHpBonus += fx.maxHpBonus;
+  if (fx.regen) m.regen += fx.regen;
+  if (fx.cd) m.cd *= fx.cd;
+  if (fx.spd) m.spd *= fx.spd;
+  if (fx.area) m.area += fx.area;
+  if (fx.fieldRadius) m.fieldRadius += fx.fieldRadius;
+  if (fx.dur) m.dur += fx.dur;
+}
+
+export function addGrowth(id) {
+  const meta = GROWTHS.find((g) => g.id === id);
+  if (!meta) return null;
+  G.growth.push({ id: meta.id, n: meta.n, icon: meta.icon, fx: meta.fx, stack: 1 });
+  recompute();
+  return G.growth[G.growth.length - 1];
+}
+
+// 一次性道具：拿到就进背包，用掉就没了。持有上限 3 件，
+// 所以后期真正要做的是「留哪几件」而不是无脑全收。
+export function addItem(id) {
+  const meta = ITEMS.find((i) => i.id === id);
+  if (!meta) return null;
+  if (G.items.length >= ITEM_MAX) return null;
+  const o = { id: meta.id, n: meta.n, icon: meta.icon, color: meta.color, txt: meta.txt };
+  G.items.push(o);
+  return o;
+}
+
+// 使用一件道具。返回是否真的用掉了 —— UI 靠它决定要不要刷道具栏。
+export function useItem(id) {
+  const i = G.items.findIndex((x) => x.id === id);
+  if (i < 0) return false;
+  const it = G.items[i];
+  if (it.id === 'i_medkit') {
+    const P = G.player;
+    if (P.hp >= P.maxHp) return false;   // 满血就别浪费
+    P.hp = Math.min(P.maxHp, P.hp + P.maxHp * 0.45);
+  } else if (it.id === 'i_nuke') {
+    // 「约 3 秒的输出量」：取最近回响池的总和，保底给一个能在后期清场的数值
+    const bank = (G.echo || []).reduce((a, b) => a + b, 0);
+    const hit = Math.max(220, bank * 1.2);
+    for (const e of G.enemies) damageEnemy(e, hit, G.player.x, G.player.y, null);
+    G.flash = 0.6; G.shake = Math.max(G.shake, 14);
+    G.fx.push({ x: G.player.x, y: G.player.y, vx: 0, vy: 0, life: 0.6, max: 0.6, color: '#ff7a45', r: 0, ring: 900, kind: 'ring' });
+    addText(G.player.x, G.player.y - 60, '湮灭', 6);
+  } else if (it.id === 'i_rage') {
+    G.rage = RAGE.max; G.rageReady = true;
+    addText(G.player.x, G.player.y - 50, '狂气满盈', 6);
+  } else if (it.id === 'i_dice') {
+    // 重掷本次三选一：只允许在升级面板开着的时候用，否则等于白扔
+    if (G.phase !== 'levelup') return false;
+    G.choices = rollChoices();
+    addText(G.player.x, G.player.y - 50, '命运重掷', 6);
+    return true;   // 不消耗：由 UI 在刷新卡面后再决定
+  }
+  G.items.splice(i, 1);
+  return true;
+}
+
 // 造物的效果由其 tags 决定（官方数据里 tags 就是它在卡组里干的活）
 function creationFx(meta) {
   const tags = meta.t || [];
@@ -434,6 +547,8 @@ export function rollChoices() {
     if (o.kind === 'wnew' || o.kind === 'wswap') return 'w:' + o.def.id;
     if (o.kind === 'creation') return 'k:' + o.c.id;
     if (o.kind === 'wheel') return 'wl:' + o.i;
+    if (o.kind === 'growth') return 'g:' + o.g.id;
+    if (o.kind === 'item') return 'i:' + o.it.id;
     return 'cv:' + o.i;
   };
   const add = (o) => { const k = keyOf(o); if (!seen.has(k)) { seen.add(k); out.push(o); } };
@@ -478,6 +593,16 @@ export function rollChoices() {
   // 类别权重：武器升级 42% / 新武器 18% / 造物 30% / 命轮 8% / 契物 2%。
   // 先按类别抽，再从类别内部均匀抽 —— 之前把类别权重除以了池子大小，
   // 结果造物（42 件）把武器（十来件）的份额整个吃掉了，十几次升级一次武器都升不到。
+  //
+  // 后期两条线（淬炼 / 道具）在「6 格技能全满级」之后才解锁：
+  // 那时候 wlv/wnew/wswap 三个池子同时空了，只剩造物和命轮，
+  // 而造物 8 件叠满也要不了多久 —— 不给新东西，后半局就只剩「这次不要」。
+  const allMax = G.weapons.length >= MAX_WEAPON && G.weapons.every((w) => w.lv >= LV.max);
+  const gpool = allMax ? GROWTHS.map((g) => ({ kind: 'growth', g })) : [];
+  const ipool = allMax && G.items.length < ITEM_MAX
+    ? ITEMS.filter((i) => !G.items.some((x) => x.id === i.id)).map((it) => ({ kind: 'item', it }))
+    : [];
+
   const groups = [
     { w: 42, list: wpool.filter((o) => o.kind === 'wlv') },
     { w: 18, list: wpool.filter((o) => o.kind === 'wnew') },
@@ -485,6 +610,8 @@ export function rollChoices() {
     { w: 30, list: cpool },
     { w: 8, list: wlpool },
     { w: 2, list: cvpool },
+    { w: 16, list: gpool },
+    { w: 9, list: ipool },
   ].filter((g) => g.list.length);
 
   for (let k = 0; k < 3 && groups.length; k++) {
@@ -513,6 +640,8 @@ export function applyChoice(o) {
   else if (o.kind === 'creation') addCreation(o.c.id);
   else if (o.kind === 'wheel') addWheel(o.i);
   else if (o.kind === 'cov') addCovenant(o.i);
+  else if (o.kind === 'growth') addGrowth(o.g.id);
+  else if (o.kind === 'item') addItem(o.it.id);
   // 专武的条件是「这把技能练到 4 级」，升级本身不会走 recompute，
   // 所以每次选完都要重判一次超武状态。
   refreshEvo();
@@ -597,6 +726,8 @@ function spawnEnemy(tier, ax, ay) {
   e.y = G.player.y + oy;
   e.r = d.base.r;
   e.maxHp = Math.round(d.base.hp * hpMul * (tier === 2 ? 1 : rr(0.9, 1.1)));
+  // 守密人的缄默契约：敌人整体更硬，换经验 +45%（在 recompute 里给的）
+  if (G.mech && G.mech.id === 'seal') e.maxHp = Math.round(e.maxHp * 1.12);
   e.hp = e.maxHp;
   e.dmg = d.base.dmg * G.diff.dmg * dmgScale(G.t);
   e.spd = d.base.spd * G.diff.spd * G.mods.enemySlow * rr(0.94, 1.06);
@@ -605,6 +736,8 @@ function spawnEnemy(tier, ax, ay) {
   e.n = d.m.n;
   e.flash = 0; e.kx = 0; e.ky = 0; e.wob = rnd() * TAU;
   e.hitCd = 0;
+  // 迟滞 / 定身：由审判柱、长明灯、封印书页写入，主循环里逐帧衰减
+  e.slowT = 0; e.slowMul = 1; e.bindT = 0;
   e.windT = 0; e.lungeT = 0;
   e.boss = tier === 2;
   e.dashT = 0;
@@ -701,6 +834,30 @@ export function update(dt) {
   // ---- 再生 / 命轮脉冲
   if (G.mods.regen > 0) {
     P.hp = Math.min(P.maxHp, P.hp + G.mods.regen * dt);
+  }
+  // 王权 15 层起每秒回 1 点：图鲁的续航来源，和「升级回 8%」是两条线，
+  // 后者靠经验，前者靠杀得动 —— 杀不动的时候它也救不了你。
+  if (G.mech && G.mech.id === 'royalty' && G.mech.stacks >= 15) {
+    P.hp = Math.min(P.maxHp, P.hp + dt);
+  }
+  // 威廉的守夜：跨过 40% 这条线时才重算一次 mods（atk +35%、护盾上限 +50%）。
+  // 每帧都算的话 mods 会被反复覆盖，而且 maxShield 抖动会让护盾条一直闪。
+  if (G.mech && G.mech.id === 'nightwatch') {
+    const low = P.hp < P.maxHp * 0.4;
+    if (low !== G.mech.low) {
+      G.mech.low = low;
+      recompute();
+      if (low) addText(P.x, P.y - 46, '守夜 · 燃灯', 6);
+    }
+  }
+  // 悖论的伤害回响池：每 0.5 秒记一笔，只保留最近 3 秒。
+  // 它同时给 i_nuke（湮灭符）当「3 秒输出量」的估算依据。
+  G.echoT = (G.echoT || 0) + dt;
+  if (G.echoT >= 0.5) {
+    G.echoT = 0;
+    G.echo.push(G.stats.dmg - (G.echoMark || 0));
+    G.echoMark = G.stats.dmg;
+    if (G.echo.length > 6) G.echo.shift();
   }
   G.killTimer += dt;
   if (G.wheels.some((w) => w.key === 'regen_pulse') && G.killTimer > 8) {
@@ -954,6 +1111,56 @@ function fireProto(w, proto, dmg) {
       }
       break;
     }
+    // ------------------------------------------------ 四位神秘唤醒体的专属原型
+    case 'judge': {
+      // 审判柱：插在敌群中心，持续 3 秒并且一直迟滞 —— 它的价值不在伤害，
+      // 而在于把「一堆怪」钉在原地，让别的技能打得实。
+      const tgt = nearest(P.x, P.y, 620) || { x: P.x + rr(-90, 90), y: P.y + rr(-90, 90) };
+      for (let i = 0; i < cnt; i++) {
+        const x = tgt.x + (i ? rr(-70, 70) : 0);
+        const y = tgt.y + (i ? rr(-70, 70) : 0);
+        addField(x, y, 3, 54 * areaMul, dmg, color, false, src, { pillar: true, slow: 0.55 });
+      }
+      G.shake = Math.min(10, G.shake + 2);
+      break;
+    }
+    case 'paradox': {
+      // 悖论回响：把最近 3 秒的输出再复现一次。上限压到单发基准的 5 倍，
+      // 否则后期输出一高，这一发会把整屏怪直接抹平（boss 也扛不住）。
+      const bank = G.echo.reduce((a, b) => a + b, 0);
+      const ratio = 0.25 + lv * 0.05;
+      const hit = dmg + Math.min(bank * ratio, dmg * 5);
+      shockwave(P.x, P.y, (86 + lv * 10) * areaMul, hit, color, src);
+      G.fx.push({
+        x: P.x, y: P.y, vx: 0, vy: 0, life: 0.45, max: 0.45,
+        color, r: 0, ring: (86 + lv * 10) * areaMul * 1.2, kind: 'ring',
+      });
+      break;
+    }
+    case 'lantern': {
+      // 长明灯：落在脚下不动，靠领域持续灼烧 + 迟滞维持一小片安全区。
+      // 用领域而不是召唤物，是为了复用 updateFields 的 tick 与减速逻辑。
+      addField(P.x, P.y, 5 + lv * 0.5, 112 * areaMul, dmg * 1.6, color, false, src, { lamp: true, slow: 0.7 });
+      break;
+    }
+    case 'seal': {
+      // 封印书页：只封「最近的几个」，定身 1.2 秒。它是控制技，
+      // 伤害给得比同级 strike 还高一点，否则满场跑的小怪不值得为它占一格。
+      const near = [];
+      for (const e of G.enemies) {
+        const d2 = (e.x - P.x) ** 2 + (e.y - P.y) ** 2;
+        if (d2 < 420 * 420) near.push({ e, d2 });
+      }
+      near.sort((a, b) => a.d2 - b.d2);
+      const n = Math.min(cnt, near.length);
+      for (let i = 0; i < n; i++) {
+        const e = near[i].e;
+        e.bindT = 1.2; e.slowT = 1.2; e.slowMul = 0.0001;
+        damageEnemy(e, dmg, P.x, P.y, src);
+        G.fx.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0.4, max: 0.4, color, r: 0, ring: 34, kind: 'ring' });
+      }
+      break;
+    }
     default: break;
   }
 }
@@ -1049,6 +1256,9 @@ function addField(x, y, life, r, dmg, color, delayed, src, opt) {
     tick: 0, src: src || null,
     pull: o.pull || 0,
     arm: !!o.arm, burst: !!o.burst, sky: !!o.sky, pillar: !!o.pillar,
+    // 迟滞：审判柱与长明灯靠它把敌人按在范围里；0 表示不减速。
+    slow: o.slow || 0,
+    lamp: !!o.lamp,
   });
 }
 
@@ -1102,9 +1312,11 @@ function updateFields(dt) {
       for (const e of G.enemies) {
         if ((e.x - f.x) ** 2 + (e.y - f.y) ** 2 < (f.r + e.r) ** 2) {
           damageEnemy(e, f.dmg * mult, f.x, f.y, f.src);
+          // 迟滞每 tick 续一次而不是一次给满：敌人走出范围就会慢慢恢复速度，
+          // 这样「站在柱子里」和「刚从柱子里出来」的手感是不一样的。
+          if (f.slow > 0 && e.bindT <= 0) { e.slowT = 0.42; e.slowMul = f.slow; }
         }
-      }
-    }
+      }    }
     if (f.life <= 0) G.fields.splice(i, 1);
   }
 }
@@ -1298,6 +1510,14 @@ function updateEnemies(dt, slow) {
       }
     }
     let sp = e.spd * slow;
+    // 定身优先于减速：封印书页是「完全停住」，不能和迟滞叠加成 0.0001 倍速
+    if (e.bindT > 0) {
+      e.bindT -= dt;
+      sp = 0;
+    } else if (e.slowT > 0) {
+      e.slowT -= dt;
+      sp *= (e.slowMul == null ? 1 : e.slowMul);
+    }
     if (e.boss) {
       // Boss 每 5 秒冲一次：最后 0.6 秒是预警（渲染层画一圈红环），
       // 冲刺本身持续 0.5 秒、速度 ×2.4，比玩家快，逼你提前横移。
@@ -1463,6 +1683,17 @@ function killEnemy(e, sx, sy) {
   if (G.covs.some((c) => c.key === 'c_blood')) {
     G.player.hp = Math.min(G.player.maxHp, G.player.hp + 1);
   }
+  // 神王·图鲁的王权：每 20 杀一层，满 25 层封顶。
+  // 只在「层数真的变了」的时候重算一次 mods —— 每杀都算的话，后期一秒几十杀
+  // 会把 recompute 跑成每秒几十次。
+  if (G.mech && G.mech.id === 'royalty') {
+    const s = Math.min(25, Math.floor(G.kills / 20));
+    if (s !== G.mech.stacks) {
+      G.mech.stacks = s;
+      recompute();
+      if (s === 15) addText(G.player.x, G.player.y - 46, '王权 15 层 · 开始回复', 6);
+    }
+  }
   burst(e.x, e.y, e.tier === 2 ? 22 : e.tier === 1 ? 12 : 5, e.tier ? '#ffd479' : '#9aa4bb', e.tier ? 190 : 120);
   give('enemies', e);
 
@@ -1571,6 +1802,12 @@ export function hurtPlayer(amount, src) {
       });
     }
     if (G.mods.thorns > 0) shockwave(P.x, P.y, 90, G.mods.thorns, '#ff9d6e');
+    // 威廉的守夜：挨打必反一下，不依赖造物。它是这名角色「越打越凶」的
+    // 唯一进攻手段，所以给的是固定值而不是百分比 —— 前期靠它清场，后期靠它续命。
+    if (G.mech && G.mech.id === 'nightwatch') {
+      shockwave(P.x, P.y, 104, 14 + G.lv * 3, '#7fb3ff');
+      G.mech.procs++;
+    }
   }
   if (P.hp <= 0) {
     if (G.mods.revives > G.revived && G.phase === 'run') {
@@ -1631,7 +1868,7 @@ function updatePickups(dt) {
   }
 }
 
-function gainExp(n) {
+export function gainExp(n) {
   G.exp += n * G.mods.exp;
   while (G.exp >= G.expNext) {
     G.exp -= G.expNext;
@@ -1644,6 +1881,29 @@ function gainExp(n) {
     // 升得越快越耐打，是玩家能自己控制的续航来源。
     const P = G.player;
     P.hp = Math.min(P.maxHp, P.hp + P.maxHp * 0.08);
+
+    // N 的悖论：35% 概率多给一次三选一。它不额外给经验，只是把一次升级
+    // 变成「连选两次」，所以对强度的影响是可控的（牌还是那副牌）。
+    if (G.mech && G.mech.id === 'paradox' && rnd() < 0.35) {
+      G.pending++;
+      addText(P.x, P.y - 52, '悖论 · 多一次选择', 6);
+    }
+
+    // 守密人的封印：每升 1 级攒 1 道，满 5 道处决场上最虚弱的 4 名敌人。
+    // 处决按「当前生命最低」选，打 Boss 时它等于白送一次清场，
+    // 所以对首领只造成 30% 的伤害而不是直接抹掉。
+    if (G.mech && G.mech.id === 'seal') {
+      G.mech.stacks++;
+      if (G.mech.stacks >= 5) {
+        G.mech.stacks = 0;
+        const list = G.enemies.slice().sort((a, b) => a.hp - b.hp).slice(0, 4);
+        for (const t of list) {
+          damageEnemy(t, t.boss ? t.hp * 0.3 : t.hp * 999, P.x, P.y, null);
+          G.fx.push({ x: t.x, y: t.y, vx: 0, vy: 0, life: 0.45, max: 0.45, color: '#9aa7ff', r: 0, ring: 46, kind: 'ring' });
+        }
+        if (list.length) addText(P.x, P.y - 52, '缄默 · 封印 ' + list.length, 6);
+      }
+    }
   }
 }
 
@@ -1717,9 +1977,16 @@ export function summary() {
     score: Math.round(base * G.diff.mul),
     diff: G.diff.k,
     char: G.char ? G.char.n : '',
+    charId: G.char ? G.char.id : '',
+    realm: G.char ? G.char.realm : '',
     charImg: G.char ? G.char.img : null,
     win: G.phase === 'win',
     gaveUp: !!G.gaveUp,
+    // 机制与后期成长要能在结算里复盘：王权叠到几层、封印触发几次、
+    // 攒了多少次淬炼、包里还剩什么道具。
+    mech: G.mech ? { ...G.mech, n: (MECHS[G.char && G.char.id] || {}).n || '' } : null,
+    growth: G.growth.map((g) => ({ id: g.id, n: g.n, icon: g.icon })),
+    items: G.items.map((i) => ({ id: i.id, n: i.n, icon: i.icon })),
     // 每个技能的伤害明细：结算面板靠它回答「到底哪把武器在干活」。
     // 引擎只给原始数字，百分比和条形由 UI 算 —— 免得以后改算法还要动这里。
     weapons: G.weapons

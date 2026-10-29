@@ -6,12 +6,13 @@
 //
 // 图标不额外请求：全部按格位从图集里用 background-position 切出来。
 
-import { G, applyChoice, skipChoice, summary, remaining } from './engine.js';
+import { G, applyChoice, skipChoice, summary, remaining, useItem, rollChoices } from './engine.js';
 import { CHARS, WEAPONS, META, ATLAS, CREATIONS, WHEELS, COVENANTS } from './gen.js';
 import {
   PROTOS, LV, WHEEL_FX, COVENANT_FX, CREATION_FX, DIFFS, RAGE, EVOS,
-  creditsAt, nextTier,
+  creditsAt, nextTier, MECHS, GROWTHS,
 } from './defs.js';
+import { isUnlocked, unlockNeed, unlockProg, svProgress, recordRun, unlockedByRun } from './unlock.js';
 
 const ATLAS_URI = ATLAS;
 
@@ -28,7 +29,20 @@ export const ui = {
 
 // ---------------------------------------------------------------- 图集取图
 export function atlasStyle(idx, size) {
-  if (idx == null) return '';
+  // 没有立绘的唤醒体（四位神秘唤醒体）走剪影：一块深色渐变圆，
+  // 没有细节、没有配色，只留一个轮廓。这是「它是谁你得自己打出来」的一部分。
+  if (idx == null) {
+    // 三层叠出一个「有个人站在那儿」的剪影：头、肩、底光。
+    // 只画一块纯黑方块的话，四位神秘人看起来像四个占位符。
+    return [
+      'background:',
+      'radial-gradient(34% 32% at 50% 34%, #46516b 0%, #333c50 62%, transparent 74%),',
+      'radial-gradient(50% 38% at 50% 98%, #3b4560 0%, #2a3345 60%, transparent 76%),',
+      'radial-gradient(76% 76% at 50% 42%, #1a202b 0%, #0c0f16 100%);',
+      'box-shadow:inset 0 0 0 1px rgba(150,170,210,.2), inset 0 -6px 12px rgba(0,0,0,.6);',
+      `width:${size}px;height:${size}px;`,
+    ].join('');
+  }
   const col = idx % META.cols;
   const row = (idx / META.cols) | 0;
   const scale = size / META.cell;
@@ -55,14 +69,23 @@ export function showPick() {
   if (sw) sw.hidden = true;
 
   const list = $('charList');
-  if (!list.dataset.built) {
-    list.innerHTML = CHARS.map((c) => `
-      <button class="ch ${REALM_CLASS[c.realm] || ''}" data-id="${c.id}" title="${esc(c.n)}">
-        <i style="${atlasStyle(c.img, 54)}"></i>
-        <b>${esc(c.n)}</b>
-      </button>`).join('');
-    list.dataset.built = '1';
-  }
+  // 每次打开都重建：解锁状态会在结算后变化，缓存 DOM 会出现「已经解锁了
+  // 但列表里还是剪影」的错觉。66 个按钮重建一次是毫秒级的，不值得为它做脏检查。
+  list.innerHTML = CHARS.map((c) => {
+    const locked = c.lock && !isUnlocked(c.lock);
+    const cls = ['' , REALM_CLASS[c.realm] || ''];
+    if (c.lock) cls.push('hidden-one');
+    if (locked) cls.push('locked');
+    const label = locked ? '???' : c.n;
+    const tip = locked ? `${c.n} · 未解锁` : c.n;
+    return `
+      <button class="ch${cls.join(' ')}" data-id="${c.id}" title="${esc(tip)}">
+        <i style="${atlasStyle(locked || c.img == null ? null : c.img, 54)}"></i>
+        ${locked ? '<em class="lkb">锁</em>' : (c.lock ? '<em class="lkb open">✦</em>' : '')}
+        <b>${esc(label)}</b>
+      </button>`;
+  }).join('');
+  list.dataset.built = '1';
 
   const diffBox = $('diffBox');
   diffBox.innerHTML = DIFFS.map((d) => `<button data-k="${d.k}" class="${d.k === ui.diff ? 'on' : ''}">${d.n}</button>`).join('');
@@ -94,6 +117,8 @@ export function showPick() {
 function renderCharInfo() {
   const c = CHARS.find((x) => x.id === ui.charId);
   if (!c) return;
+  const locked = c.lock && !isUnlocked(c.lock);
+  const mech = MECHS[c.id];
   const realmFx = {
     混沌: '暴击率 +8%，暴击伤害 +30%',
     血肉: '伤害的 3% 转为治疗，攻击力 +10%',
@@ -101,17 +126,27 @@ function renderCharInfo() {
     超维: '冷却 -10%，作用范围 +10%',
   }[c.realm];
   const roleFx = { 伤害型: '攻击力 +8%', 防御型: '最大生命 +25', 辅助型: '经验获取 +12%' }[c.role];
-  const ws = c.weapons.map((w, i) => `
+  // 未解锁时不剧透技能：只给剪影、名字和条件。名字本身是钩子，
+  // 技能与机制留到解锁后自己看，才值得为它打那十把。
+  const ws = (locked ? [] : c.weapons).map((w, i) => `
     <div class="wi">
       <span class="pk">${i === 0 ? '初始' : '可抽'}</span>
       <b>${esc(w.n)}</b>
       <em>${PROTOS[w.proto] ? PROTOS[w.proto].name : ''}</em>
     </div>`).join('');
+  const lockBox = locked ? `
+    <div class="ci-lock">
+      <b>未解锁</b>
+      <p>${esc(unlockNeed(c.lock))}</p>
+      <u>进度 ${esc(unlockProg(c.lock))}</u>
+    </div>` : '';
+  const mechBox = mech && !locked ? `
+    <p class="ci-mech"><b>机制 · ${esc(mech.n)}</b>${esc(mech.text)}</p>` : '';
   $('charInfo').innerHTML = `
     <div class="ci-top">
-      <i class="ci-portrait" style="${atlasStyle(c.img, 72)}"></i>
+      <i class="ci-portrait${c.img == null ? ' sil' : ''}" style="${atlasStyle(c.img, 72)}"></i>
       <div>
-        <h3>${esc(c.n)} <small>${esc(c.en)}</small></h3>
+        <h3>${locked ? '???' : esc(c.n)} <small>${locked ? '未解锁' : esc(c.en)}</small></h3>
         <p class="ci-tags">
           <span class="tg ${REALM_CLASS[c.realm] || ''}">${esc(c.realm)}</span>
           <span class="tg">${esc(c.role)}</span>
@@ -121,6 +156,8 @@ function renderCharInfo() {
         <p class="ci-line"><b>定位</b>${roleFx}</p>
       </div>
     </div>
+    ${lockBox}
+    ${mechBox}
     <p class="ci-talent"><b>天赋 · ${esc(c.talent)}</b>${esc(c.talentText || '')}</p>
     <div class="ci-w">${ws}</div>`;
 }
@@ -143,12 +180,20 @@ export function buildHUD() {
     </div>
     <div class="hud-weapons" id="hWeapons"></div>
     <div class="hud-passives" id="hPassives"></div>
+    <div class="hud-items" id="hItems" hidden></div>
+    <div class="mechchip" id="hMech" hidden></div>
     <div class="bossbar" id="hBoss" hidden><span id="hBossName"></span><i><b id="hBossFill"></b></i></div>`;
   $('hPause').onclick = () => togglePause();
   $('btnRage').onclick = () => { if (ui.onRage) ui.onRage(); };
   // 点技能/造物/命轮 → 弹出构筑详情（会顺带暂停，否则一边看面板一边挨打）
   $('hWeapons').onclick = (e) => { if (e.target.closest('[data-info]')) openInfo(); };
   $('hPassives').onclick = (e) => { if (e.target.closest('[data-info]')) openInfo(); };
+  // 道具是「点了就用」，没有二次确认：危急时刻多一步确认等于没有这个道具
+  $('hItems').onclick = (e) => {
+    const b = e.target.closest('[data-use]');
+    if (!b) return;
+    if (useItem(b.dataset.use)) hudCache.ikey = '';
+  };
   const ic = $('btnInfoClose');
   if (ic) ic.onclick = closeInfo;
 }
@@ -234,11 +279,41 @@ function buildInfo() {
       <div><b>${esc(x.n)}</b><span>${fx ? fx.txt : ''}</span></div></div>`;
   }).join('');
 
+  // 机制：神秘唤醒体的规则条目单独列，不和造物混在一起 ——
+  // 它不是「捡到的」，而是「这个人自带」的，位置不同才不会看混。
+  const mm = G.char ? MECHS[G.char.id] : null;
+  const mechRow = mm ? (() => {
+    let now = '';
+    if (mm.id === 'royalty') now = `当前 ${G.mech.stacks}/25 层`;
+    else if (mm.id === 'seal') now = `当前 ${G.mech.stacks}/5 道`;
+    else if (mm.id === 'paradox') now = '已生效';
+    else if (mm.id === 'nightwatch') now = G.mech.low ? '燃灯中' : '待触发';
+    return `<div class="if-row mech">
+      <i class="if-glyph" style="color:${mm.color}">◈</i>
+      <div><b>${esc(mm.n)} <em>${esc(now)}</em></b><span>${esc(mm.text)}</span></div></div>`;
+  })() : '';
+
+  const growRows = G.growth.length ? G.growth.reduce((acc, g) => {
+    const hit = acc.find((x) => x.id === g.id);
+    if (hit) hit.n++;
+    else acc.push({ id: g.id, n: 1, name: g.n, icon: g.icon, fx: g.fx });
+    return acc;
+  }, []).map((g) => `<div class="if-row sm">
+      <i class="if-glyph" style="color:#ffd479">${g.icon}</i>
+      <div><b>${esc(g.name)} <em>×${g.n}</em></b><span>${esc((GROWTHS.find((x) => x.id === g.id) || {}).txt || '')}</span></div></div>`).join('') : '';
+
+  const itemRows = G.items.map((it) => `<div class="if-row sm">
+      <i class="if-glyph" style="color:${it.color}">${it.icon}</i>
+      <div><b>${esc(it.n)}</b><span>${esc(it.txt)}</span></div></div>`).join('');
+
   return `
+    ${mechRow ? `<h3 class="if-h">机制</h3>${mechRow}` : ''}
     <h3 class="if-h">技能 · ${G.weapons.length}/6</h3>${ws}
     <h3 class="if-h">命轮 · ${G.wheels.length}</h3>${wheelRows || '<p class="dim">第 3 分钟开始出现</p>'}
     <h3 class="if-h">契物 · ${G.covs.length}</h3>${covRows || '<p class="dim">第 10 分钟后出现</p>'}
-    <h3 class="if-h">造物 · ${G.passives.length}/8</h3>${ps}`;
+    <h3 class="if-h">造物 · ${G.passives.length}/8</h3>${ps}
+    ${growRows ? `<h3 class="if-h">极限淬炼 · ${G.growth.length} 次</h3>${growRows}` : ''}
+    ${itemRows ? `<h3 class="if-h">道具 · ${G.items.length}/3</h3>${itemRows}` : ''}`;
 }
 
 let hudCache = {};
@@ -346,6 +421,41 @@ export function updateHUD() {
     }).join('');
     $('hPassives').innerHTML = ws + cs + ps;
   }
+
+  // ---- 道具栏：只在内容变化时重建（点一下用掉一件，key 就变了）
+  const ikey = G.items.map((i) => i.id).join(',');
+  if (hudCache.ikey !== ikey) {
+    hudCache.ikey = ikey;
+    const box = $('hItems');
+    if (box) {
+      box.hidden = G.items.length === 0;
+      box.innerHTML = G.items.map((it) => `
+        <button class="itm" data-use="${esc(it.id)}" title="${esc(it.n)} · ${esc(it.txt)}" style="--c:${it.color}">
+          <b>${it.icon}</b><span>${esc(it.n)}</span>
+        </button>`).join('');
+    }
+  }
+
+  // ---- 机制角标：王权层数 / 封印道数 / 守夜的燃灯状态都在这里
+  const mm = G.char ? MECHS[G.char.id] : null;
+  let mkey = '';
+  if (mm) {
+    if (mm.id === 'royalty') mkey = `王权 ${G.mech.stacks}/25`;
+    else if (mm.id === 'seal') mkey = `封印 ${G.mech.stacks}/5`;
+    else if (mm.id === 'paradox') mkey = '悖论';
+    else if (mm.id === 'nightwatch') mkey = G.mech.low ? '守夜 · 燃灯' : '守夜';
+  }
+  if (hudCache.mkey !== mkey) {
+    hudCache.mkey = mkey;
+    const el = $('hMech');
+    if (el) {
+      el.hidden = !mkey;
+      el.textContent = mkey;
+      el.style.color = mm ? mm.color : '';
+      el.style.borderColor = mm ? mm.color + '55' : '';
+      el.classList.toggle('hot', mm && mm.id === 'nightwatch' && G.mech.low);
+    }
+  }
 }
 
 function charFrame(id) {
@@ -354,7 +464,10 @@ function charFrame(id) {
 }
 
 // ---------------------------------------------------------------- 升级三选一
-const KIND_LABEL = { wnew: '新技能', wlv: '技能升级', wswap: '替换技能', creation: '造物', wheel: '命轮', cov: '契物' };
+const KIND_LABEL = {
+  wnew: '新技能', wlv: '技能升级', wswap: '替换技能', creation: '造物', wheel: '命轮', cov: '契物',
+  growth: '极限淬炼', item: '一次性道具',
+};
 
 export function showUpgrade(choices) {
   const ov = $('ovUp');
@@ -409,15 +522,36 @@ function upgradeCard(o, i) {
     const fx = WHEEL_FX[o.i % WHEEL_FX.length];
     return card(i, 'wheel', o.w.n, fx ? fx.txt : '命轮质变', '命轮 · 质变', atlasStyle(META.frames['w:' + o.w.id], 46), KIND_LABEL[o.kind]);
   }
+  // 后期两条线：淬炼用文字图标（没有对应的图集格位），道具同样走 emoji 图标，
+  // 这样不必为几张卡再占图集格位，也不会和已有的造物图标撞脸。
+  if (o.kind === 'growth') {
+    const n = (G.growth || []).filter((g) => g.id === o.g.id).length;
+    return card(i, 'growth', o.g.n, o.g.txt, n ? `已淬炼 ${n} 次 · 可无限叠加` : '永久成长 · 可无限叠加',
+      iconStyle('#ffd479'), KIND_LABEL[o.kind], o.g.icon);
+  }
+  if (o.kind === 'item') {
+    return card(i, 'item', o.it.n, o.it.txt, `一次性 · 持有 ${G.items.length}/3`, iconStyle(o.it.color), KIND_LABEL[o.kind], o.it.icon);
+  }
   const cfx = COVENANT_FX[o.i % COVENANT_FX.length];
   return card(i, 'cov', o.c.n, cfx ? cfx.txt : '契物强化', '契物 · 唯一', atlasStyle(META.frames['v:' + o.c.id], 46), KIND_LABEL[o.kind]);
 }
 
-function card(i, tier, title, sub, foot, imgStyle, tag) {
+// 文字图标：和立绘同尺寸的方块，中间放一个符号。宽度/高度必须在这里给全 ——
+// 立绘是用 background-size 撑出来的，符号没有内在尺寸，不给就是一块 0px 的空格。
+function iconStyle(color) {
+  return [
+    'display:flex;align-items:center;justify-content:center;',
+    `color:${color};font-size:22px;line-height:1;width:46px;height:46px;`,
+    `background:radial-gradient(circle at 50% 40%, ${color}33 0%, ${color}0d 62%, transparent 100%);`,
+    `box-shadow:inset 0 0 0 1px ${color}55;border-radius:12px;`,
+  ].join('');
+}
+
+function card(i, tier, title, sub, foot, imgStyle, tag, glyph) {
   return `
     <button class="up ${tier}" data-i="${i}">
       <span class="up-tag">${tag}</span>
-      <span class="up-img" style="${imgStyle}"></span>
+      <span class="up-img" style="${imgStyle}">${glyph || ''}</span>
       <span class="up-txt">
         <b>${esc(title)}</b>
         <em>${esc(sub)}</em>
@@ -533,6 +667,11 @@ export function showEnd(sm) {
   $('ovPause').hidden = true;
   $('ovUp').hidden = true;
   ov.hidden = false;
+  // 解锁记账：每局结束都要记（输掉的局也累计强敌数），再比对这一次刚好
+  // 放出了谁。必须在渲染文案之前做，否则「新解锁」要等下一局才显示。
+  const beforeP = svProgress();
+  const afterP = recordRun(sm);
+  const fresh = unlockedByRun(beforeP, afterP);
   $('endTitle').textContent = sm.win ? '撑到潮水退去' : sm.gaveUp ? '主动收兵' : '倒在了半路';
   const best0 = Number(localStorage.getItem('zjtt:survivors:best') || 0);
   // 不足 1 分钟别写成「第 0 分 04 秒」——刚开局就放弃/阵亡时特别刺眼
@@ -564,7 +703,28 @@ export function showEnd(sm) {
       ? `本局还差 ${(nxt[0] - sm.score).toLocaleString()} 分够到 ${nxt[1]} 银芯（最低档 ${nxt[0].toLocaleString()} 分）`
       : '已达最高档';
   renderDmgBreakdown(sm);
+  renderUnlockBox(fresh);
   if (cred > 0) grantCredits(cred);
+}
+
+// 结算里的「解锁」区块：平时不占位置（空着就整块收起来），
+// 刚好放出神秘唤醒体时才出现 —— 这是长线玩家唯一能立刻拿到的反馈。
+function renderUnlockBox(ids) {
+  const box = $('endUnlock');
+  if (!box) return;
+  if (!ids || !ids.length) { box.innerHTML = ''; box.hidden = true; return; }
+  box.hidden = false;
+  const rows = ids.map((id) => {
+    const c = CHARS.find((x) => String(x.id) === String(id));
+    if (!c) return '';
+    const m = MECHS[c.id];
+    return `<div class="ul-row">
+      <i style="${atlasStyle(null, 40)}"></i>
+      <div><b>${esc(c.n)}</b><span>${esc(m ? m.text : c.talentText || '')}</span></div>
+    </div>`;
+  }).join('');
+  box.innerHTML = `<div class="ul-box"><h3>新的唤醒体已解锁</h3>${rows}
+    <p class="ul-tip">回到选人面板即可选用 · 他们的技能从此会出现在抽取池里</p></div>`;
 }
 
 // ---------------------------------------------------------------- 结算伤害明细

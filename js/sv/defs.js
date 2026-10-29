@@ -91,6 +91,25 @@ export const PROTOS = {
     name: '光雨轰击', color: '#ffe9a8', cd: 2.9, dmg: 9, n: 3, nStep: 2,
     desc: (lv) => `向随机敌人落下 ${3 + Math.floor(lv / 2)} 道光柱`,
   },
+  // ---- 2026-10 四位「神秘唤醒体」的专属原型
+  // 这四种不参与普通角色的技能分配（build_survivors_data.mjs 里只给 EXTRA 用），
+  // 所以每一种的场面表现都能做得更极端：一根柱子、一次回响、一盏灯、一页封印。
+  judge: {
+    name: '审判之柱', color: '#ffd76a', cd: 2.8, dmg: 18, n: 1, nStep: 2,
+    desc: (lv) => `在敌群中心插下 ${1 + Math.floor(lv / 2)} 座审判柱，3 秒内持续灼烧并迟滞敌人`,
+  },
+  paradox: {
+    name: '悖论回响', color: '#c69bff', cd: 3.8, dmg: 14, n: 1, nStep: 99,
+    desc: (lv) => `把你最近 3 秒造成的伤害复现 ${25 + lv * 5}%，在身周炸开`,
+  },
+  lantern: {
+    name: '长明灯', color: '#ffe9a8', cd: 4.2, dmg: 6, n: 1, nStep: 99,
+    desc: (lv) => `点燃长明灯，${(5 + lv * 0.5).toFixed(1)} 秒内持续灼烧并迟滞范围内的敌人`,
+  },
+  seal: {
+    name: '封印书页', color: '#9aa7ff', cd: 2.4, dmg: 22, n: 1, nStep: 2,
+    desc: (lv) => `封住最近的 ${1 + Math.floor(lv / 2)} 名敌人，定身 1.2 秒并造成伤害`,
+  },
 };
 
 // 12 原型里各挑一个「代表武器」的兜底顺序：某个原型一把都抽不到时不至于空池。
@@ -407,6 +426,58 @@ export const EVOS = [
     fx: { count: 2, cd: 0.85, dmg: 0.2 },
     txt: '潘狄娅专属：投射 +2，冷却 -15%，伤害 +20%',
   },
+
+  // ---------------- 四种神秘原型自己的超武
+  {
+    id: 'evo_judge', proto: 'judge', n: '王座永临', color: '#ffd76a',
+    need: { creation: { fx: 'knock', n: 2 } },
+    fx: { count: 1, area: 0.4, dmg: 0.3 },
+    txt: '审判柱 +1，范围 +40%，伤害 +30%',
+  },
+  {
+    id: 'evo_paradox', proto: 'paradox', n: '因果崩塌', color: '#c69bff',
+    need: { creation: { fx: 'critdmg', n: 2 } },
+    fx: { dmg: 0.6, area: 0.3 },
+    txt: '回响伤害 +60%，范围 +30%',
+  },
+  {
+    id: 'evo_lantern', proto: 'lantern', n: '不灭灯火', color: '#ffe9a8',
+    need: { creation: { fx: 'fieldr', n: 2 } },
+    fx: { area: 0.55, dmg: 0.4 },
+    txt: '灯光半径 +55%，灼烧伤害 +40%',
+  },
+  {
+    id: 'evo_seal', proto: 'seal', n: '禁书全卷', color: '#9aa7ff',
+    need: { creation: { fx: 'crit', n: 2 } },
+    fx: { count: 2, dmg: 0.35 },
+    txt: '封印目标 +2，伤害 +35%',
+  },
+
+  // ---------------- 神秘唤醒体的专武
+  {
+    id: 'sw_tulu', char: '90001', n: '王权永续', color: '#ffd76a',
+    need: { level: 3 },
+    fx: { dmg: 0.5, area: 0.35, onHit: 'burst' },
+    txt: '图鲁专属：伤害 +50%，范围 +35%，命中溅射',
+  },
+  {
+    id: 'sw_n', char: '90002', n: '自指悖论', color: '#c69bff',
+    need: { level: 3 },
+    fx: { cd: 0.7, dmg: 0.4 },
+    txt: 'N 专属：冷却 -30%，伤害 +40%',
+  },
+  {
+    id: 'sw_wil', char: '90003', n: '长夜不熄', color: '#7fb3ff',
+    need: { level: 3 },
+    fx: { area: 0.45, dmg: 0.4 },
+    txt: '威廉专属：范围 +45%，伤害 +40%',
+  },
+  {
+    id: 'sw_keeper', char: '90004', n: '终章之印', color: '#9aa7ff',
+    need: { level: 3 },
+    fx: { count: 1, dmg: 0.45 },
+    txt: '守密人专属：投射/封印 +1，伤害 +45%',
+  },
 ];
 
 // ---------------------------------------------------------------- 波次
@@ -479,3 +550,83 @@ export const creditsAt = (score) => {
   return base;
 };
 export const nextTier = (score) => CREDIT_TIERS.find(([s]) => score < s) || null;
+
+// ---------------------------------------------------------------- 神秘唤醒体
+// 四位没有立绘的唤醒体（选人面板上是黑色剪影）。他们不进普通卡池，
+// 要先满足条件才放出来 —— 条件写在 UNLOCKS 里，进度存在 js/sv/unlock.js。
+//
+// 条件设计的取舍：四条线分别考「广度 / 难度 / 深度 / 全面」，
+// 而不是「通关 N 次」这种同一件事数量堆叠，否则四条会变成同一件事的四种写法。
+export const UNLOCKS = {
+  // 广度：换着人玩
+  90001: {
+    need: '用 10 名不同的唤醒体各通关一次（普通及以上）',
+    prog: (p) => `${Math.min(10, p.clears.length)}/10`,
+    cond: (p) => new Set(p.clears).size >= 10,
+  },
+  // 难度：至少把最硬的那档打穿
+  90002: {
+    need: '在「癫狂」难度下撑满 15 分钟',
+    prog: (p) => (p.diffs.includes('frenzy') ? '已达成' : '未达成'),
+    cond: (p) => p.diffs.includes('frenzy'),
+  },
+  // 深度：硬碰硬地清强敌
+  90003: {
+    need: '累计击败 60 名强敌，且至少通关过一次',
+    prog: (p) => `${Math.min(60, p.bosses)}/60`,
+    cond: (p) => p.bosses >= 60 && p.clears.length >= 1,
+  },
+  // 全面：四个界域各自打穿一遍
+  90004: {
+    need: '用混沌 / 血肉 / 深海 / 超维四个界域各通关一次',
+    prog: (p) => `${new Set(p.realms).size}/4`,
+    cond: (p) => new Set(p.realms).size >= 4,
+  },
+};
+
+// 每名神秘唤醒体的独有机制。数值在引擎里读，文案在 HUD 与选人面板直接显示。
+// 这些机制不走 mods —— mods 是「装备加成」，机制是「这名角色的规则」。
+export const MECHS = {
+  90001: {
+    id: 'royalty', n: '王权', color: '#ffd76a',
+    text: '每击杀 20 名敌人累积 1 层王权（最多 25 层）：每层攻击 +1.2%、范围 +0.4%；15 层起每秒回复 1 点生命',
+    short: '王权',
+  },
+  90002: {
+    id: 'paradox', n: '悖论', color: '#c69bff',
+    text: '每次升级有 35% 概率多获得 1 次三选一；技能冷却 -8%，但最大生命 -10%',
+    short: '悖论',
+  },
+  90003: {
+    id: 'nightwatch', n: '守夜', color: '#7fb3ff',
+    text: '受伤时向四周放出反击冲击波；生命低于 40% 时攻击 +35%、护盾上限 +50%',
+    short: '守夜',
+  },
+  90004: {
+    id: 'seal', n: '缄默契约', color: '#9aa7ff',
+    text: '敌人生命 +12%，但经验 +45%；每升 1 级累积 1 道封印，满 5 道处决场上最虚弱的 4 名敌人',
+    short: '封印',
+  },
+};
+
+// ---------------------------------------------------------------- 后期成长
+// 6 格技能全满级之后，武器/造物这两条线会同时见底，三选一就只剩「跳过」。
+// 这里补两组「不会见底」的选项：极限淬炼（永久小幅成长）与一次性道具。
+export const GROWTHS = [
+  { id: 'g_atk', n: '淬炼 · 锋', icon: '⚔', txt: '攻击力 +3%', fx: { atk: 0.03 } },
+  { id: 'g_crit', n: '淬炼 · 锐', icon: '✦', txt: '暴击率 +2%，暴击伤害 +4%', fx: { crit: 0.02, critMul: 0.04 } },
+  { id: 'g_hp', n: '淬炼 · 韧', icon: '❤', txt: '最大生命 +8，每秒回复 +0.3', fx: { maxHpBonus: 8, regen: 0.3 } },
+  { id: 'g_cd', n: '淬炼 · 疾', icon: '⚡', txt: '冷却 -2%，移速 +2%', fx: { cd: 0.98, spd: 1.02 } },
+  { id: 'g_reach', n: '淬炼 · 广', icon: '◎', txt: '作用范围、领域半径、持续时间各 +3%', fx: { area: 0.03, fieldRadius: 0.03, dur: 0.03 } },
+  { id: 'g_edge', n: '淬炼 · 极', icon: '✧', txt: '暴击伤害 +8%，但最大生命 -3', fx: { critMul: 0.08, maxHpBonus: -3 } },
+];
+
+// 一次性道具：持有上限 3 件，用掉就没了。它们不占技能格、不进 mods，
+// 只在关键时刻给一次「翻盘权」，所以数值可以做得比长线成长大方。
+export const ITEMS = [
+  { id: 'i_medkit', n: '应急针剂', icon: '✚', color: '#8ce0a8', txt: '立刻回复 45% 最大生命' },
+  { id: 'i_nuke', n: '湮灭符', icon: '☄', color: '#ff7a45', txt: '对全屏敌人造成一次重击（约 3 秒的输出量）' },
+  { id: 'i_rage', n: '狂气血清', icon: '☣', color: '#ff9350', txt: '狂气直接充满，可立刻释放一次爆发' },
+  { id: 'i_dice', n: '命运骰子', icon: '⚄', color: '#6ea8ff', txt: '立刻重掷本次三选一' },
+];
+export const ITEM_MAX = 3;
