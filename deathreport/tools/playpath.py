@@ -448,6 +448,62 @@ def check_ending(G, ed, R, st):
     R.dump('结局可达性')
 
 
+def check_classify(G, ed, R, st=None):
+    """《死亡报告 填写规定》里写的判据，在账本上是否真的成立。
+
+    文档与账本不符时，玩家照文档填就会错——这是最隐蔽的一类歧义，
+    audit 查不出来（它只验结构），只有把文档规则逐条拿去对账才发现。
+    """
+    sol, recs = G['solutions'], G['records']
+    closed = {(z['day'], z['hour']): z['cell'] for z in (G.get('zones') or [])}
+    bad = []
+    blast_zone = blast_demo = 0
+    no_cul = {}
+    bare = 0                       # 凶器记“无”但确有加害人（就地取材 / 徒手）
+    for k, s in sol.items():
+        r, cause, w, cu = recs[k], s['cause'], s['weaponNum'], s['culprit']
+        minute = r['min']
+        day, hour = minute // 1440 + 1, (minute // 60) % 24
+        if cu and int(cu) == r['num']:
+            bad.append(f'{k}: 加害人填成了死者本人（{r["name"]}）')
+        if cause == 'blast':
+            if cu:
+                bad.append(f'{k}: 爆炸致死却填了加害人')
+            if w:
+                bad.append(f'{k}: 爆炸致死却填了凶器')
+            if minute % 60:
+                bad.append(f'{k}: 爆炸致死不在整点（{r["when"]}）—— 文档判据是“整点 + 该区正被封锁”')
+            elif closed.get((day, hour)) == r['cell']:
+                blast_zone += 1
+            else:
+                blast_demo += 1     # 开幕演示 / 自行引爆，文档已声明不受限
+        elif cause == 'accident':
+            if cu:
+                bad.append(f'{k}: 意外死亡却填了加害人')
+            if w:
+                bad.append(f'{k}: 意外死亡却填了凶器')
+            no_cul[cause] = no_cul.get(cause, 0) + 1
+        elif not cu:
+            # 无加害人却不是意外/爆炸，只剩“自杀”：按手法记，用不上配发装备
+            if w:
+                bad.append(f'{k}: 无加害人的自杀却填了凶器')
+            no_cul[cause] = no_cul.get(cause, 0) + 1
+        if not w and cu:
+            bare += 1
+    for f in bad[:10]:
+        R.b(f)
+    names = G.get('causes') or {}
+    R.i(f'无加害人的死亡：爆炸 {blast_zone + blast_demo}（其中封锁区整点 {blast_zone}、'
+        f'演示/自爆 {blast_demo}）、意外 {no_cul.get("accident", 0)}、'
+        f'自杀按手法记为 {", ".join(f"{names.get(c, c)} {n}" for c, n in sorted(no_cul.items()) if c != "accident") or "无"}')
+    if bare == 0:
+        R.w('“凶器：无”却“有加害人”的记录一条都没有 —— 填写规定里对应那条说明'
+            '（徒手／就地取材）在本届用不上，属于写了但不会遇到的规则')
+    else:
+        R.i(f'凶器记“无”、加害人照常填的记录 {bare} 条（徒手／就地取材）')
+    R.dump('归类判据与填写规定对得上')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--ed', default=None)
@@ -467,7 +523,7 @@ def main():
             r = R()
             fn(G, key, r)
             total_block += len(r.block)
-        for fn in (check_paths, check_hints, check_ending, check_puzzles):
+        for fn in (check_paths, check_hints, check_ending, check_puzzles, check_classify):
             r = R()
             fn(G, key, r, st)
             total_block += len(r.block)

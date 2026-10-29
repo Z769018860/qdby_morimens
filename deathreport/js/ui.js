@@ -279,7 +279,7 @@ function renderTools() {
         <label>（凶器）</label><select data-f="weapon" ${done ? 'disabled' : ''}><option value="">——</option>${sel(o.weapons, d.weapon)}</select>
         <label>（加害人）</label><select data-f="culprit" ${done ? 'disabled' : ''}><option value="">——</option>${sel(o.culprits, d.culprit)}</select>
         <div class="row" style="margin-top:10px"><button class="btn gold" id="bSub" ${done ? 'disabled' : ''}>提交报告</button><button class="btn" id="bHintC">提示</button></div>
-        <div class="ev"><button class="chipb" id="bAssist">证据清单 ${pref.assist ? '▾' : '▸'}（辅助）</button>${pref.assist ? `<div class="dim">这条记录里出现过的装备与人物（点击填入）</div>${ev.items.map((n) => `<button class="chipb" data-pick="weapon:${n}" ${done ? 'disabled' : ''}>◆ ${esc(G.roster[n - 1].item)}</button>`).join('')}${ev.names.map((n) => `<button class="chipb" data-pick="culprit:${n}" ${done ? 'disabled' : ''}>● ${esc(G.roster[n - 1].name)}</button>`).join('')}` : ''}</div>
+        <div class="ev"><button class="chipb" id="bAssist">证据清单 ${pref.assist ? '▾' : '▸'}（辅助）</button>${pref.assist ? `<div class="dim">这条记录里出现过的装备与人物（点击填入）。装备在场，不等于它就是凶器。</div>${ev.items.map((n) => `<button class="chipb" data-pick="weapon:${n}" ${done ? 'disabled' : ''}>◆ ${esc(G.roster[n - 1].item)}</button>`).join('')}${ev.names.map((n) => `<button class="chipb" data-pick="culprit:${n}" ${done ? 'disabled' : ''}>● ${esc(G.roster[n - 1].name)}</button>`).join('')}` : ''}</div>
         <div class="res ${done ? 'ok' : st.wrong[cur] ? 'ng' : ''}" id="repRes">${done ? `<span class="stamp">确认</span> ${esc(summary(G, cur))}` : st.wrong[cur] ? '存在错误的报告。' : ''}</div></div>`;
     }
     tp.innerHTML = h;
