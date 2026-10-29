@@ -96,7 +96,7 @@ a{color:var(--accent)}
 }
 footer{margin-top:26px; text-align:center; color:var(--dim); font-size:11.5px; line-height:1.9}
 </style>
-<meta name="build" content="1403c4ee05">
+<meta name="build" content="acdf26b173">
 </head>
 <body>
 <main class="wrap">
@@ -158,7 +158,7 @@ footer{margin-top:26px; text-align:center; color:var(--dim); font-size:11.5px; l
       </details>
     </section>
 
-    <section class="card">
+    <section class="card" id="save">
       <h2>存档</h2>
       <p class="hint">导出的文件<b>用密码加密</b>（AES-GCM 256 + PBKDF2），防止随手改数值。忘了密码就打不开，请自己记好。</p>
       <div class="fld">
@@ -170,6 +170,7 @@ footer{margin-top:26px; text-align:center; color:var(--dim); font-size:11.5px; l
         <label class="btn" style="cursor:pointer">导入存档<input type="file" id="impFile" accept=".zjtt,.json" hidden></label>
       </div>
       <p class="stat" id="savStat"></p>
+      <p class="hint" style="margin-top:8px">已经在网页上登录了账号？到 <a href="profile.html#save"><b>个人中心</b></a> 的「存档与同步」导入同一个文件，导完会直接并进云端档案，不用再手动同步。</p>
     </section>
   </div>
 
@@ -178,7 +179,7 @@ footer{margin-top:26px; text-align:center; color:var(--dim); font-size:11.5px; l
     <ol class="steps">
       <li><b>网页离线版</b>：点「下载离线包」→ 浏览器装到桌面/主屏（安卓 Chrome、桌面 Chrome/Edge 都有「安装」；iOS 用 Safari 的「添加到主屏幕」）。之后从图标进入，断网也能玩。</li>
       <li><b>桌面版</b>：下载压缩包解压，双击 exe。整个站点在本地，除了检查更新不联网。</li>
-      <li><b>换设备</b>：在旧设备导出存档 → 把 <code>.zjtt</code> 文件传过去 → 在新设备导入，账号、进度、银芯都在。</li>
+      <li><b>换设备</b>：在旧设备导出存档 → 把 <code>.zjtt</code> 文件传过去 → 在新设备导入，账号、进度、银芯都在。在网页上换设备的话，导入口在 <a href="profile.html#save">个人中心</a> 的「存档与同步」，导完会直接并进云端账号。</li>
       <li><b>存档加密</b>：密码只在你手里，解密在本机做，文件不会上传到任何地方。</li>
     </ol>
   </section>
@@ -461,11 +462,20 @@ footer{margin-top:26px; text-align:center; color:var(--dim); font-size:11.5px; l
         );
       });
   }
+  // 收两个前缀：zjtt: 是本站主命名空间，morimens- 是挂机版（idle）和死亡调查报告的存档。
+  // 早期只收 zjtt:，那两款游戏的进度根本没进导出文件，换设备就丢——别改回去。
+  // 这份实现要和 js/savedata.js 保持一致（个人中心用的是那一份）。
+  var SAVE_PREFIX = ['zjtt:', 'morimens-'];
+  function isMine(k) {
+    if (!k) return false;
+    for (var j = 0; j < SAVE_PREFIX.length; j++) if (k.indexOf(SAVE_PREFIX[j]) === 0) return true;
+    return false;
+  }
   function collect() {
     var out = {};
     for (var i = 0; i < localStorage.length; i++) {
       var k = localStorage.key(i);
-      if (!k || k.indexOf('zjtt:') !== 0) continue;
+      if (!isMine(k)) continue;
       out[k] = localStorage.getItem(k);
     }
     return out;
@@ -524,12 +534,13 @@ footer{margin-top:26px; text-align:center; color:var(--dim); font-size:11.5px; l
         var doc = JSON.parse(new TextDecoder().decode(buf));
         var n = 0;
         Object.keys(doc.data || {}).forEach(function (k) {
+          if (!isMine(k)) return;                 // 不是本站的键就不写进来
           localStorage.setItem(k, doc.data[k]); n++;
         });
         return n;
       });
     }).then(function (n) {
-      say($('#savStat'), '已导入 ' + n + ' 项，正在刷新…', 'ok');
+      say($('#savStat'), '已导入 ' + n + ' 项，正在刷新…（想并进账号就去「个人中心 → 存档与同步 → 立即同步」）', 'ok');
       setTimeout(function () { location.reload(); }, 700);
     }).catch(function (e) {
       var msg = String((e && e.message) || e);

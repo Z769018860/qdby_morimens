@@ -129,8 +129,19 @@ b,strong{font-weight:700}
 /* ---------------------------------------------------------------- 资料编辑 */
 .fld{display:flex; flex-direction:column; gap:4px; margin-bottom:10px}
 .fld small{font-size:11.5px; color:var(--dim)}
-input[type=text]{font:inherit; font-size:13px; padding:8px 11px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--text); outline:none; max-width:340px}
-input[type=text]:focus{border-color:#9aa3af; box-shadow:0 0 0 3px rgba(17,24,39,.06)}
+input[type=text],input[type=password]{font:inherit; font-size:13px; padding:8px 11px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--text); outline:none; max-width:340px}
+input[type=text]:focus,input[type=password]:focus{border-color:#9aa3af; box-shadow:0 0 0 3px rgba(17,24,39,.06)}
+
+/* ---------------------------------------------------------------- 离线存档导入 */
+.savebox{margin-top:12px; padding:12px 13px; border:1px dashed #d3d7de; border-radius:12px; background:var(--panel2)}
+.savebox[hidden]{display:none}
+.savebox .savetip{font-size:12px; line-height:1.65; color:var(--dim); margin:0 0 10px}
+.savebox .saverow{display:flex; gap:8px; flex-wrap:wrap}
+.savebox .saverow input{flex:1 1 200px; max-width:380px}
+.savebox .actions{margin-top:10px}
+.savemsg{font-size:12px; line-height:1.6; margin:9px 0 0; color:var(--dim); min-height:1em}
+.savemsg.ok{color:#137a3c}
+.savemsg.bad{color:#b42318}
 .pfeditrow{display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap}
 .pfeditrow .pfavatar.small{width:58px; height:58px; border-radius:50%; object-fit:cover; border:1px solid var(--line); background:var(--panel2)}
 .avpickhead{display:flex; align-items:baseline; gap:8px}

@@ -2058,6 +2058,155 @@ function fmt(n) {
 return { cached, stats, ping, whoami, fmt };
 })();
 
+// ---- js/savedata.js
+const m_savedata = await (async () => {
+
+// 加密存档：本机 localStorage → AES-GCM 包 → .zjtt 文件，反方向也能走。
+//
+// 这套逻辑原本只写在 src/pages/offline.html 的内联脚本里，结果是：
+// 从离线版/桌面版导出来的文件，换设备后必须回到「离线版」那一页才找得到导入按钮，
+// 而用户真正想做的事是「登录后把离线数据并进账号」，那一步在个人中心。所以抽成模块。
+//
+// 格式必须与 offline.html 那份完全一致，谁改了都要两边一起改：
+//   app='zjtt-save', v=1, kdf=PBKDF2-SHA256/200000, 正文 AES-GCM 256
+//
+// 注意：crypto.subtle 只在安全上下文（https / localhost / 127.0.0.1）里有值，
+// 用局域网 IP 走 http 打开时它是 undefined，这时要明确告诉用户，而不是抛 TypeError。
+
+const SAVE_APP = 'zjtt-save';
+const MIN_PASS = 6;
+
+// zjtt: 是本站主命名空间；morimens- 是挂机版（idle）和死亡调查报告（deathreport）的存档，
+// 它们历史原因没加 zjtt: 前缀，早期导出漏了这两个，换设备就丢进度。
+const PREFIXES = ['zjtt:', 'morimens-'];
+
+const secure = () => !!(globalThis.crypto && globalThis.crypto.subtle && globalThis.crypto.getRandomValues);
+
+const UNSAFE_MSG = '当前地址不是安全上下文（要用 https，或 localhost / 127.0.0.1 打开），浏览器不给用加密接口。';
+
+const isMine = (k) => !!k && PREFIXES.some((p) => k.startsWith(p));
+
+function b64(buf) {
+  const b = new Uint8Array(buf);
+  let s = '';
+  // 一次拼一大段，避免逐字节 += 在几 MB 的存档上卡死
+  const CH = 0x8000;
+  for (let i = 0; i < b.length; i += CH) s += String.fromCharCode.apply(null, b.subarray(i, i + CH));
+  return btoa(s);
+}
+
+function unb64(str) {
+  const s = atob(str);
+  const b = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+  return b;
+}
+
+function derive(pass, salt) {
+  const enc = new TextEncoder();
+  return crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey'])
+    .then((km) => crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' },
+      km, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'],
+    ));
+}
+
+// 本机所有属于本站的键（原样取出，不解码）
+function collect() {
+  const out = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!isMine(k)) continue;
+      out[k] = localStorage.getItem(k);
+    }
+  } catch { /* 隐私模式读不了就返回空 */ }
+  return out;
+}
+
+const count = () => Object.keys(collect()).length;
+
+function fileName(now = new Date()) {
+  const p = (x) => String(x).padStart(2, '0');
+  return `忘忘存档-${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}.zjtt`;
+}
+
+// 导出：返回 { blob, name, count }，下载交给调用方（要用户手势触发 a.click）
+async function exportPack(pass) {
+  if (!secure()) throw new Error(UNSAFE_MSG);
+  if (String(pass || '').length < MIN_PASS) throw new Error(`密码至少 ${MIN_PASS} 位。`);
+  const data = collect();
+  const keys = Object.keys(data);
+  if (!keys.length) throw new Error('本机还没有可导出的存档。');
+
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const plain = new TextEncoder().encode(JSON.stringify({
+    app: SAVE_APP, v: 1, at: Date.now(), url: location.origin, data,
+  }));
+  const key = await derive(pass, salt);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plain);
+  const pack = {
+    app: SAVE_APP,
+    v: 1,
+    at: Date.now(),
+    kdf: { alg: 'PBKDF2-SHA256', iter: 200000, salt: b64(salt) },
+    iv: b64(iv),
+    ct: b64(ct),
+  };
+  return {
+    blob: new Blob([JSON.stringify(pack)], { type: 'application/octet-stream' }),
+    name: fileName(),
+    count: keys.length,
+    keys,
+  };
+}
+
+// 解密但先不落盘：让调用方先看清「会覆盖什么」再决定
+async function readPack(file, pass) {
+  if (!secure()) throw new Error(UNSAFE_MSG);
+  if (String(pass || '').length < MIN_PASS) throw new Error(`先填导出时用的密码（至少 ${MIN_PASS} 位）。`);
+  let pack;
+  try {
+    pack = JSON.parse(await file.text());
+  } catch {
+    throw new Error('这不是有效的存档文件（读不出 JSON）。');
+  }
+  if (!pack || pack.app !== SAVE_APP || !pack.kdf || !pack.ct) throw new Error('不是本站导出的存档文件。');
+  const key = await derive(pass, unb64(pack.kdf.salt));
+  let buf;
+  try {
+    buf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(pack.iv) }, key, unb64(pack.ct));
+  } catch {
+    throw new Error('密码不对，或者文件被改过。');
+  }
+  const doc = JSON.parse(new TextDecoder().decode(buf));
+  const data = doc && doc.data && typeof doc.data === 'object' ? doc.data : {};
+  const keys = Object.keys(data).filter(isMine);
+  return { at: Number(doc.at) || 0, data, keys };
+}
+
+// 落盘：只写属于本站的键，别的（比如别人的站点数据）不碰
+function write(doc) {
+  const data = (doc && doc.data) || {};
+  let n = 0;
+  for (const k of Object.keys(data)) {
+    if (!isMine(k)) continue;
+    try { localStorage.setItem(k, data[k]); n++; } catch { /* 配额满了就停 */ }
+  }
+  return n;
+}
+
+// 一步到位：读文件 + 解密 + 落盘
+async function importPack(file, pass) {
+  const doc = await readPack(file, pass);
+  const n = write(doc);
+  if (!n) throw new Error('文件里没有本站的存档项。');
+  return { count: n, at: doc.at, keys: doc.keys };
+}
+return { SAVE_APP, MIN_PASS, PREFIXES, secure, UNSAFE_MSG, collect, count, fileName, exportPack, readPack, write, importPack };
+})();
+
 // ---- js/profile.js
 const m_profile = await (async () => {
 const { $, h, store, wallet, toast, markDirty, scNum, emptyState } = m_common;
@@ -2065,6 +2214,7 @@ const { auth, openLogin, avatarLib, nameOfMail } = m_auth;
 const { account, CAP } = m_account;
 const { GAMES, readAll, credits } = m_gamestats;
 const sitestats = m_sitestats;
+const savedata = m_savedata;
 // 忘忘同人小游戏 · 个人中心
 //
 // 和原来的「战报侦探 个人中心」最大的区别：这个页面属于整个同人合集，
@@ -2074,6 +2224,7 @@ const sitestats = m_sitestats;
 //   · 左上角显示站点计数（注册用户 / 今日浏览 / 总浏览），数据来自后端 /stats。
 //
 // 账号那部分（登录、昵称、头像、云端同步）沿用 auth.js / account.js，不重写。
+
 
 
 
@@ -2253,7 +2404,110 @@ function editCard(u) {
 }
 
 // ------------------------------------------------------------------ 存档与同步
-function syncCard(u) {
+// 离线版 / 桌面版导出的 .zjtt 就从这个面板导进来——放在个人中心而不是只留在
+// offline.html，是因为「导入之后并进账号」发生在这里：导完直接 push 一次，
+// 换机器的人不用再自己找「同步」按钮。
+// 展开状态和密码存在模块里：account.ready() 回来后 render() 会整页重绘，
+// 不记着的话用户正输密码时面板会突然收起、输入内容也没了。
+const SAVE_UI = { open: false, pass: '' };
+
+function saveBox(u) {
+  const msg = h('p', { class: 'savemsg' });
+  const say = (t, cls) => { msg.textContent = t || ''; msg.className = 'savemsg' + (cls ? ' ' + cls : ''); };
+  const fail = (e) => say(String((e && e.message) || e || '出错了'), 'bad');
+
+  const pass = h('input', {
+    type: 'password',
+    autocomplete: 'new-password',
+    placeholder: '至少 6 位；导出和导入要用同一个',
+    value: SAVE_UI.pass,
+  });
+  pass.addEventListener('input', () => { SAVE_UI.pass = pass.value; });
+
+  const expBtn = h('button', {
+    class: 'btn sm ghost',
+    onclick: async () => {
+      const n = savedata.count();
+      if (!n) { say('本机还没有可导出的存档。', 'bad'); return; }
+      expBtn.disabled = true;
+      say('正在加密…');
+      try {
+        const r = await savedata.exportPack(pass.value);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(r.blob);
+        a.download = r.name;
+        document.body.append(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        say(`已导出 ${r.count} 项（加密）。换设备时用同一个密码导入。`, 'ok');
+      } catch (e) { fail(e); }
+      expBtn.disabled = false;
+    },
+  }, '导出本机存档');
+
+  const file = h('input', { type: 'file', accept: '.zjtt,.json', hidden: true });
+
+  async function doImport(f) {
+    say('正在解密…');
+    try {
+      const doc = await savedata.readPack(f, pass.value);
+      const n = doc.keys.length;
+      if (!n) throw new Error('文件里没有本站的存档项。');
+      // 覆盖是有意的：导入语义就是「用这份文件恢复成导出那台机器的样子」。
+      // 所以文件不是二次确认，谁都可能点错文件，写坏本机进度没法撤销。
+      if (!confirm(`文件里有 ${n} 项存档。\n\n会写进这台设备并覆盖同名的本机进度（账号、银芯、各游戏纪录）。云端档案不会因此被删。继续？`)) {
+        say('已取消。');
+        return;
+      }
+      const cnt = savedata.write(doc);
+      if (u) {
+        say('已导入，正在并进云端档案…');
+        // 用 sync() 而不是 push()：sync 会先拉云端再 mergeDoc（各数值取大），
+        // 免得把「另一台设备上打出来的更高纪录」用这份文件压回去。
+        const r = await account.sync().catch(() => ({ ok: false }));
+        toast(r && r.ok ? `已导入 ${cnt} 项并同步到云端` : `已导入 ${cnt} 项，云端同步失败（稍后可点「立即同步」）`);
+      } else {
+        toast(`已导入 ${cnt} 项；登录后会随档案一起上传`);
+      }
+      setTimeout(() => location.reload(), 1000);
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  file.addEventListener('change', () => {
+    const f = file.files && file.files[0];
+    file.value = '';
+    if (f) doImport(f);
+  });
+
+  const impBtn = h('button', {
+    class: 'btn sm',
+    onclick: () => {
+      if (!pass.value) { pass.focus(); say('先在下面填密码——就是导出那台机器上设的那个。', 'bad'); return; }
+      file.click();
+    },
+  }, '导入离线存档');
+
+  const panel = h('div', { class: 'savebox' },
+    h('p', { class: 'savetip' }, '从离线版 / 桌面版的「存档」区导出的 .zjtt 文件，拷到这台设备后从这里导入。加密包里有账号、银芯、各小游戏进度，也包括挂机前夜和死亡调查报告（那两款不在主命名空间，别处导不到）。'),
+    h('div', { class: 'saverow' }, pass, file),
+    h('div', { class: 'actions' }, impBtn, expBtn),
+    msg,
+  );
+
+  const moreBtn = h('button', {
+    class: 'btn sm ghost',
+    onclick: () => {
+      SAVE_UI.open = panel.hidden;            // 现在是关着的 → 这次要打开
+      panel.hidden = !SAVE_UI.open;
+      moreBtn.textContent = SAVE_UI.open ? '收起' : '导入 / 导出离线存档';
+      if (SAVE_UI.open) pass.focus();
+    },
+  }, SAVE_UI.open ? '收起' : '导入 / 导出离线存档');
+  panel.hidden = !SAVE_UI.open;
+
   const syncBtn = h('button', {
     class: 'btn sm',
     onclick: async () => {
@@ -2287,13 +2541,15 @@ function syncCard(u) {
     },
   }, '清空本机进度');
 
-  return h('section', { class: 'card' },
+  return h('section', { class: 'card', id: 'save' },
     h('h2', {}, '存档与同步'),
     h('p', { class: 'sub' }, u
-      ? `云端档案最多保留 ${CAP.hist} 条推理记录；小游戏的最高分只增不减，手机上打的纪录不会覆盖电脑上的。`
-      : '现在是游客状态，进度只在这台设备上。登录后才会同步到云端。'),
-    h('div', { class: 'actions' }, u ? syncBtn : null, clearBtn));
+      ? `云端档案最多保留 ${CAP.hist} 条推理记录；小游戏的最高分只增不减，手机上打的纪录不会覆盖电脑上的。换设备时用下面的加密存档整包搬。`
+      : '现在是游客状态，进度只在这台设备上。登录后才会同步到云端；先登录再导入，导完会直接上传。'),
+    h('div', { class: 'actions' }, u ? syncBtn : null, moreBtn, clearBtn),
+    panel);
 }
+
 
 // ------------------------------------------------------------------ 管理员入口（只有姜酒能看到）
 function adminCard() {
@@ -2327,7 +2583,7 @@ function render() {
     u ? heroCard(u) : guestCard(),
     gamesBox(),
     u ? editCard(u) : null,
-    syncCard(u),
+    saveBox(u),
     u && IS_ADMIN ? adminCard() : null,
   ].filter(Boolean);
   app.replaceChildren(...kids);
@@ -2338,9 +2594,25 @@ function render() {
 // 先把本机数据画出来，再等云端档案合并完刷一次。
 // 反过来（等 ready() 再 render）会出现整页转圈 3~4 秒——边缘一次往返 1~2 秒，
 // 而本机数据本来就够画完这一页了。
+//
+// 从离线版/桌面版的「存档」区点「到个人中心导入」过来时带 #save：
+// 直接把那个面板展开并滚到位，少点一次。
+if (location.hash === '#save') SAVE_UI.open = true;
+const jumpSave = () => {
+  if (location.hash !== '#save') return;
+  // 刚 replaceChildren 完时布局还没稳定，一次 scrollIntoView 会停在半路，
+  // 所以硬滚一次、再等两帧补两次。
+  const go = () => {
+    const el = document.getElementById('save');
+    if (el) el.scrollIntoView({ block: 'start' });
+  };
+  go();
+  requestAnimationFrame(() => { go(); requestAnimationFrame(go); });
+};
 paintSiteStat();               // 不等账号，先把左上角点亮
 render();
-account.ready().then((ok) => { if (ok) render(); }).catch(() => {});
+jumpSave();
+account.ready().then((ok) => { if (ok) { render(); jumpSave(); } }).catch(() => {});
 sitestats.whoami().then((me) => {
   IS_ADMIN = !!me.admin;
   if (IS_ADMIN) render();
