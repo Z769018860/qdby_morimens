@@ -51,7 +51,7 @@ function corsHeaders(origin, env) {
   const list = allow.length ? allow : DEFAULT_ORIGINS;
   const h = {
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Dev-Id',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Dev-Id,X-Device',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -423,6 +423,99 @@ async function deletePuzzle(request, env, id, cors) {
 }
 
 // ------------------------------------------------------------------ 路由
+
+// ------------------------------------------------------------------ 首页评分 / BUG 反馈
+// 规则和 EdgeOne 版一致：一人一游戏一条评分（重复提交 = 改分），
+// 综合分 = SUM(stars)/COUNT(*)。表结构见 schema.sql 的 home_ratings / home_bugs。
+const HOME_GAMES = new Set(['detective', 'merge', 'bird', 'binding', 'idle', 'survivors', 'protocol', 'wolf', 'deathreport']);
+
+async function homeVoter(request, env) {
+  const me = await whoami(request, env);
+  if (me && me.uid) return 'u:' + me.uid;
+  const dev = str(request.headers.get('X-Device') || request.headers.get('X-Dev-Id'), 40)
+    .replace(/[^A-Za-z0-9_-]/g, '');
+  return dev ? 'd:' + dev : '';
+}
+
+// GET /home/ratings?games=a,b
+async function getHomeRatings(request, env, url, cors) {
+  const games = [...new Set(String(url.searchParams.get('games') || '')
+    .split(',').map((x) => x.trim()).filter((g) => HOME_GAMES.has(g)))].slice(0, 20);
+
+  const items = {};
+  for (const g of games) items[g] = { n: 0, sum: 0, avg: 0 };
+  if (games.length) {
+    const ph = games.map(() => '?').join(',');
+    const rows = await env.DB
+      .prepare(`SELECT game, COUNT(*) AS n, SUM(stars) AS sum FROM home_ratings WHERE game IN (${ph}) GROUP BY game`)
+      .bind(...games).all();
+    for (const row of rows.results || []) {
+      const n = Number(row.n) || 0;
+      const sum = Number(row.sum) || 0;
+      items[String(row.game)] = { n, sum, avg: n ? Math.round((sum / n) * 10) / 10 : 0 };
+    }
+  }
+
+  const voter = await homeVoter(request, env);
+  const mine = {};
+  if (voter && games.length) {
+    const ph = games.map(() => '?').join(',');
+    const rows = await env.DB
+      .prepare(`SELECT game, stars, body FROM home_ratings WHERE voter = ? AND game IN (${ph})`)
+      .bind(voter, ...games).all();
+    for (const row of rows.results || []) mine[String(row.game)] = { stars: Number(row.stars) || 0, text: String(row.body || '') };
+  }
+
+  return reply({ ok: true, items, mine, canVote: Boolean(voter) }, 200, cors);
+}
+
+// POST /home/rate { game, stars, text }
+async function postHomeRate(request, env, cors) {
+  const b = await readJson(request, 4 * 1024);
+  const game = str(b.game, 32).trim();
+  const stars = Math.round(Number(b.stars));
+  if (!HOME_GAMES.has(game)) throw new HttpError(400, 'bad_game');
+  if (!(stars >= 1 && stars <= 5)) throw new HttpError(400, 'bad_stars');
+
+  const voter = await homeVoter(request, env);
+  if (!voter) throw new HttpError(401, 'need_device');
+
+  await env.DB
+    .prepare('INSERT INTO home_ratings (game, voter, stars, body, at) VALUES (?,?,?,?,?) '
+      + 'ON CONFLICT(game, voter) DO UPDATE SET stars = excluded.stars, body = excluded.body, at = excluded.at')
+    .bind(game, voter, stars, str(b.text, 120), Date.now())
+    .run();
+
+  const row = await env.DB
+    .prepare('SELECT COUNT(*) AS n, SUM(stars) AS sum FROM home_ratings WHERE game = ?')
+    .bind(game).first();
+  const n = Number(row && row.n) || 0;
+  const sum = Number(row && row.sum) || 0;
+
+  return reply({
+    ok: true,
+    item: { n, sum, avg: n ? Math.round((sum / n) * 10) / 10 : 0 },
+    mine: { stars, text: str(b.text, 120) },
+  }, 200, cors);
+}
+
+// POST /home/bug { game, text, contact, ver, ua }
+async function postHomeBug(request, env, cors) {
+  const b = await readJson(request, 16 * 1024);
+  const text = str(b.text, 1200).trim();
+  if (text.length < 8) throw new HttpError(400, 'too_short');
+  const game = HOME_GAMES.has(str(b.game, 32)) ? str(b.game, 32) : 'home';
+  const id = 'B-' + Date.now().toString(36).slice(-6).toUpperCase() + '-' +
+    Math.random().toString(36).slice(2, 5).toUpperCase();
+
+  await env.DB
+    .prepare('INSERT INTO home_bugs (id, game, body, contact, ver, ua, at) VALUES (?,?,?,?,?,?,?)')
+    .bind(id, game, text, str(b.contact, 80), str(b.ver, 16), str(b.ua || request.headers.get('User-Agent'), 300), Date.now())
+    .run();
+
+  return reply({ ok: true, id }, 200, cors);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -442,6 +535,10 @@ export default {
       if (path === '/likes' && method === 'GET') return await getLikes(request, env, url, cors);
       if (path === '/like' && method === 'POST') return await postLike(request, env, cors);
       if (path === '/claim' && method === 'POST') return await postClaim(request, env, cors);
+
+      if (path === '/home/ratings' && method === 'GET') return await getHomeRatings(request, env, url, cors);
+      if (path === '/home/rate' && method === 'POST') return await postHomeRate(request, env, cors);
+      if (path === '/home/bug' && method === 'POST') return await postHomeBug(request, env, cors);
 
       if (path === '/account' && method === 'GET') return await getAccount(request, env, cors);
       if (path === '/account' && method === 'PUT') return await putAccount(request, env, cors);

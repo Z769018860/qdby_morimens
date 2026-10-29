@@ -11,10 +11,16 @@
 // 预缓存不放在 install 里：那会让「装上」这个动作被 400KB 的下载拖住，
 // 期间页面还不受控。这里改成 activate 之后在后台慢慢填——当前页先受控，
 // 等它填完，之后切页就都是本地读取了。
-const VERSION = 'afe2fb9232';
+const VERSION = '5645fb1a28';
 const CACHE = 'zjtt-' + VERSION;
+// 用户主动「下载离线包」写进这里：独立命名、activate 时不清理，重装浏览器才没
+const OFFLINE = 'zjtt-offline-v1';
 const PRECACHE = [
   "index.html",
+  "offline.html",
+  "manifest.webmanifest",
+  "assets/app/icon-192.png",
+  "assets/app/icon-512.png",
   "data/boot.json"
 ];
 
@@ -25,7 +31,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+    await Promise.all(keys.filter((k) => k !== CACHE && k !== OFFLINE).map((k) => caches.delete(k)));
     await self.clients.claim();
     // 后台把各页面的 HTML 与打包脚本填进缓存，失败不影响已经能用的部分
     const cache = await caches.open(CACHE);
@@ -43,6 +49,16 @@ const STATIC_RE = /\.(?:js|mjs|css|json|webp|png|jpe?g|svg|gif|ico|woff2?|ttf)$/
 const SUBS = ['/idle/', '/deathreport/', '/casefile/'];
 const isSub = (p) => SUBS.some((x) => p.startsWith(x));
 
+// 离线包命中：用户明确「下载」过这一份，就按这一份跑（更新由 offline.html 重新下载覆盖）
+async function offlineHit(req) {
+  try {
+    const cache = await caches.open(OFFLINE);
+    return await cache.match(req, { ignoreSearch: true });
+  } catch (e) {
+    return null;
+  }
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -52,22 +68,29 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/')) return;   // 接口和点赞计数必须实时
 
+  event.respondWith(route(req, event, url));
+});
+
+async function route(req, event, url) {
+  // offline.html 自己永远走网络（它要拿最新的清单和逻辑），其余一律先看离线包
+  if (!/\/offline\.html$/i.test(url.pathname)) {
+    const off = await offlineHit(req);
+    if (off) return off;
+  }
+
   if (req.mode === 'navigate') {
     // 子项目（idle/ / deathreport/ / casefile/）是独立迭代的：页面外壳很小，走网络拿最新的，
     // 免得「先给缓存」让老访客一直看到旧界面。离线时才回落到缓存。
-    if (isSub(url.pathname)) {
-      event.respondWith(networkFirst(req, event));
-      return;
-    }
-    event.respondWith(navigate(req, event));
-    return;
+    if (isSub(url.pathname)) return networkFirst(req, event);
+    return navigate(req, event);
   }
   if (STATIC_RE.test(url.pathname)) {
     // 子项目的脚本 / 数据文件名不带指纹，缓存优先会让老访客一直卡在旧版本
     // （旧数据里的钥令在本地已经删掉，图标就只剩一个问号）。所以它跟页面一样走网络优先。
-    event.respondWith(isSub(url.pathname) ? networkFirst(req, event) : staticFirst(req));
+    return isSub(url.pathname) ? networkFirst(req, event) : staticFirst(req);
   }
-});
+  return fetch(req);
+}
 
 async function navigate(req, event) {
   const cache = await caches.open(CACHE);

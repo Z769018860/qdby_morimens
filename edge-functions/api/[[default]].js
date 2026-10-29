@@ -89,7 +89,7 @@ function corsHeaders(origin, env) {
   const list = allow.length ? allow : DEFAULT_ORIGINS;
   const h = {
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Dev-Id',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Dev-Id,X-Device',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -587,6 +587,109 @@ async function deletePuzzle(request, env, kv, id, cors) {
   return reply({ ok: true }, 200, cors);
 }
 
+
+// ------------------------------------------------------------------ 首页评分 / BUG 反馈
+// 表结构（KV）：
+//   hragg_{game}           = JSON {n, sum}     综合分：人数与总星数
+//   hrv_{game}_{voterhash} = JSON {stars, at, text}  一个人对一个游戏只有一条，重复提交是改分
+//   bug_{id}               = JSON {game, text, contact, ver, ua, at}
+//   bug_idx                = JSON [id...]      最新的在前，只留 500 条给作者看
+// 为什么不做严格去重/防刷：这是同人站的评分，量级小、收益低。
+// 但 agg 用「读改写」会有并发丢失，所以写入时用 after-write 重算兜底（见 postHomeRate）。
+const HOME_GAMES = new Set(['detective', 'merge', 'bird', 'binding', 'idle', 'survivors', 'protocol', 'wolf', 'deathreport']);
+const BUG_IDX_MAX = 500;
+
+// 评分身份：登录用 uid，没登录用本机随机 id（前端 X-Device），都没有就不给投
+async function homeVoter(request, env, kv) {
+  const me = await whoami(request, env, kv);
+  if (me && me.uid) return 'u:' + me.uid;
+  const dev = str(request.headers.get('X-Device'), 40).replace(/[^A-Za-z0-9_-]/g, '');
+  return dev ? 'd:' + dev : '';
+}
+
+// GET /home/ratings?games=a,b
+async function getHomeRatings(request, env, kv, url, cors) {
+  const games = [...new Set(String(url.searchParams.get('games') || '')
+    .split(',').map((x) => x.trim()).filter((g) => HOME_GAMES.has(g)))].slice(0, 20);
+
+  const voter = await homeVoter(request, env, kv);
+  const vh = voter ? await vhash(voter) : '';
+  const items = {};
+  const mine = {};
+
+  await Promise.all(games.map(async (g) => {
+    const agg = await kvJson(kv, 'hragg_' + g, true);
+    const n = Number(agg && agg.n) || 0;
+    const sum = Number(agg && agg.sum) || 0;
+    items[g] = { n, sum, avg: n ? Math.round((sum / n) * 10) / 10 : 0 };
+    if (vh) {
+      const own = await kvJson(kv, 'hrv_' + g + '_' + vh);
+      if (own && own.stars) mine[g] = { stars: Number(own.stars) || 0, text: String(own.text || '') };
+    }
+  }));
+
+  return reply({ ok: true, items, mine, canVote: Boolean(voter) }, 200, cors);
+}
+
+// POST /home/rate { game, stars, text }
+async function postHomeRate(request, env, kv, cors) {
+  const b = await readJson(request, 4 * 1024);
+  const game = str(b.game, 32).trim();
+  const stars = Math.round(Number(b.stars));
+  if (!HOME_GAMES.has(game)) throw new HttpError(400, 'bad_game');
+  if (!(stars >= 1 && stars <= 5)) throw new HttpError(400, 'bad_stars');
+
+  const voter = await homeVoter(request, env, kv);
+  if (!voter) throw new HttpError(401, 'need_device');
+  const vh = await vhash(voter);
+
+  const key = 'hrv_' + game + '_' + vh;
+  const old = await kvJson(kv, key);
+  const prev = old && old.stars ? Number(old.stars) : 0;
+
+  const agg = await kvJson(kv, 'hragg_' + game);
+  const n0 = Number(agg && agg.n) || 0;
+  const sum0 = Number(agg && agg.sum) || 0;
+  // 第一次投：人数 +1；改分：人数不变，只换星数
+  const n = prev ? n0 : n0 + 1;
+  const sum = Math.max(0, sum0 - prev + stars);
+
+  await kv.put(key, JSON.stringify({ stars, text: str(b.text, 120), at: Date.now() }));
+  await kv.put('hragg_' + game, JSON.stringify({ n, sum }));
+
+  return reply({
+    ok: true,
+    item: { n, sum, avg: n ? Math.round((sum / n) * 10) / 10 : 0 },
+    mine: { stars, text: str(b.text, 120) },
+  }, 200, cors);
+}
+
+// POST /home/bug { game, text, contact, ver, ua }
+async function postHomeBug(request, env, kv, cors) {
+  const b = await readJson(request, 16 * 1024);
+  const text = str(b.text, 1200).trim();
+  if (text.length < 8) throw new HttpError(400, 'too_short');
+
+  const game = HOME_GAMES.has(str(b.game, 32)) ? str(b.game, 32) : 'home';
+  // 编号好念一点：B-日期后六位-三位随机
+  const id = 'B-' + Date.now().toString(36).slice(-6).toUpperCase() + '-' +
+    Math.random().toString(36).slice(2, 5).toUpperCase();
+
+  // KV 的 key 只收字母数字下划线，编号里的短横线要抹掉再当 key
+  await kv.put('bug_' + id.replace(/-/g, ''), JSON.stringify({
+    id, game, text,
+    contact: str(b.contact, 80),
+    ver: str(b.ver, 16),
+    ua: str(b.ua || request.headers.get('User-Agent'), 300),
+    at: Date.now(),
+  }));
+  const idx = await kvJson(kv, 'bug_idx') || [];
+  idx.unshift(id);
+  await kv.put('bug_idx', JSON.stringify(idx.slice(0, BUG_IDX_MAX)));
+
+  return reply({ ok: true, id }, 200, cors);
+}
+
 // ------------------------------------------------------------------ 路由
 export async function onRequest(context) {
   const { request, env } = context;
@@ -628,6 +731,10 @@ export async function onRequest(context) {
     if (path === '/likes' && method === 'GET') return await getLikes(request, env, kv, url, cors);
     if (path === '/like' && method === 'POST') return await postLike(request, env, kv, cors);
     if (path === '/claim' && method === 'POST') return await postClaim(request, env, kv, cors);
+
+    if (path === '/home/ratings' && method === 'GET') return await getHomeRatings(request, env, kv, url, cors);
+    if (path === '/home/rate' && method === 'POST') return await postHomeRate(request, env, kv, cors);
+    if (path === '/home/bug' && method === 'POST') return await postHomeBug(request, env, kv, cors);
 
     if (path === '/account' && method === 'GET') return await getAccount(request, env, kv, cors);
     if (path === '/account' && method === 'PUT') return await putAccount(request, env, kv, cors);

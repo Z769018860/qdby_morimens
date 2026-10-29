@@ -23,3 +23,8 @@ assets/pollux-bird/_raw/
 # 成品是 assets/protocol/proto-sheet.webp（1539KB），原始文件删了重跑
 # scripts/build_protocol_art.py 会自己下回来。
 assets/protocol/_raw/
+
+# 桌面版（Electron）：依赖、打包进安装包的整站副本、产物都不入库
+desktop/node_modules/
+desktop/web/
+desktop/dist/

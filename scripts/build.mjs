@@ -250,6 +250,7 @@ function genProtocol() {
   };
 }
 
+
 // ------------------------------------------------------------------ 主流程
 const artCount = genMergeArt();
 const birdArt = genBirdArt();
@@ -372,6 +373,10 @@ const bootPartial = read(path.join(SRC, 'partials/boot.html')).trimEnd();
 // 其余页面（合成 / 鸟弟 / 结合 / 幸存者 / 协议 / 首页 / 说明 / 典藏馆 / 狼人杀）
 // 压根不读 boot.json，就别让它们各下一个一百多 KB 的 JSON——首屏守护仍然照常工作。
 const DATA_PAGES = new Set(['detective', 'codex', 'workshop', 'profile']);
+
+const orientPartial = read(path.join(SRC, 'partials/orient.html')).trimEnd();
+// 哪些页面挂方向开关：六个小游戏（挂机版与死亡报告是独立子项目，各自内联一份）
+const ORIENT_PAGES = new Set(['detective', 'merge', 'bird', 'binding', 'survivors', 'protocol', 'wolf']);
 const swReg = `<script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
@@ -382,6 +387,14 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>`;
+
+// PWA：清单与图标挂到每个页面的 <head> 里，这样从任何一页都能「安装到桌面」。
+// （Chrome 只要求当前页有 manifest；用户常常是从某个游戏页直接装的）
+const pwaHead = `<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/app/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="忘忘小游戏">`;
 
 for (const p of built) {
   let s = p.src;
@@ -404,7 +417,11 @@ for (const p of built) {
   }
   // 构建戳 + SW 注册
   s = s.replace('</head>', `<meta name="build" content="${stamp}">\n</head>`);
-  s = s.replace('</body>', `${swReg}\n</body>`);
+  // 横屏/竖屏开关：「所有小游戏共用一份」，只给游戏页注入，工具页（图鉴/工坊）不需要
+  const orient = ORIENT_PAGES.has(p.name) ? orientPartial + '\n' : '';
+  // 已经有 manifest 的页面（离线版自己写了）不要重复插
+  if (!/<link[^>]+rel="manifest"/i.test(s)) s = s.replace('</head>', `${pwaHead}\n</head>`);
+  s = s.replace('</body>', `${orient}${swReg}\n</body>`);
   fs.writeFileSync(path.join(ROOT, p.name + '.html'), s, 'utf8');
 }
 
@@ -415,12 +432,21 @@ for (const p of built) {
 // 用户点进去过就会进缓存，第二遍打开就是本地读取。
 const precache = [
   'index.html',
+  // 离线版这一页必须能离线打开自己，否则断网就回不到「检查更新 / 导出存档」
+  'offline.html',
+  'manifest.webmanifest',
+  'assets/app/icon-192.png',
+  'assets/app/icon-512.png',
   'data/boot.json',
 ];
 const sw = read(path.join(SRC, 'sw.js'))
   .replace('__STAMP__', stamp)
   .replace('__PRECACHE__', JSON.stringify(precache, null, 2));
 fs.writeFileSync(path.join(ROOT, 'sw.js'), sw, 'utf8');
+
+// ---- 离线包清单（PWA / 桌面版共用）
+// 必须在页面与 bundle 都写完之后再扫，否则扫到的是上一版
+execFileSync(process.execPath, [path.join(ROOT, 'scripts/build_offline_manifest.mjs'), stamp], { stdio: 'inherit' });
 
 // ---- 报告
 console.log(`构建戳 ${stamp}`);

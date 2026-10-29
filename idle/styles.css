@@ -613,3 +613,19 @@ body{background:#0a0d13}
   .rfl{grid-template-columns:52px 90px 1fr;gap:6px}
   .rfl small{display:none}
 }
+
+/* 横屏 / 竖屏开关：顶栏声音按钮左边那颗。样式跟着顶栏走，不另起一套配色 */
+.orient-btn{background:none;border:1px solid var(--line);border-radius:7px;padding:0 6px;height:24px;font-size:11px;line-height:1;color:var(--dim);display:inline-flex;align-items:center;gap:3px;font-family:inherit;cursor:pointer}
+.orient-btn:hover{border-color:var(--gold);color:var(--gold)}
+.orient-btn:active{transform:scale(.96)}
+
+/* 锁不住横屏时的转屏提示（盖住整页，给两条出路） */
+.zj-rot{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:rgba(8,11,18,.94);color:var(--text);text-align:center;padding:24px;font:14px/1.7 inherit}
+.zj-rot.on{display:flex}
+.zj-rot svg{width:62px;height:62px;opacity:.85;animation:zjrot 2.4s ease-in-out infinite}
+@keyframes zjrot{0%,45%{transform:rotate(0)}70%,100%{transform:rotate(90deg)}}
+.zj-rot b{font-size:16px}
+.zj-rot p{margin:0;max-width:22em;color:var(--dim);font-size:13px}
+.zj-rot .acts{display:flex;gap:10px;margin-top:4px}
+.zj-rot button{font:inherit;font-size:13px;padding:8px 16px;border-radius:9px;border:1px solid var(--line);background:#1a2130;color:var(--text);cursor:pointer}
+.zj-rot button.pri{background:linear-gradient(100deg,var(--gold),#e08a3c);border-color:transparent;color:#1a1206;font-weight:600}

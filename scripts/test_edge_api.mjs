@@ -443,6 +443,49 @@ console.log('\n[11] Blob 适配层：换个存储引擎，规则必须一条不�
   check('显示用赞数吃了缓存（reads.eventual > 0）', blob._reads.eventual > 0, blob._reads);
 }
 
+
+console.log('\n[12] 首页评分 / BUG 反馈');
+{
+  const kv = fakeKV();
+  const call = makeCaller({ zjtt_kv: kv });
+
+  // 一个人第一次打分：人数 1，均分就是他给的
+  const r1 = await call('/home/rate', { method: 'POST', headers: { 'X-Device': 'dev-home-a' }, body: { game: 'merge', stars: 4, text: '好玩' } });
+  eq('首次打分 ok', r1.json.ok, true);
+  eq('人数 = 1', r1.json.item.n, 1);
+  eq('均分 = 4', r1.json.item.avg, 4);
+
+  // 同一个人改分：人数不变，只换星数
+  const r2 = await call('/home/rate', { method: 'POST', headers: { 'X-Device': 'dev-home-a' }, body: { game: 'merge', stars: 5 } });
+  eq('改分后人数仍是 1', r2.json.item.n, 1);
+  eq('改分后均分 5', r2.json.item.avg, 5);
+
+  // 第二个人打 3 星 → 均分 4
+  await call('/home/rate', { method: 'POST', headers: { 'X-Device': 'dev-home-b' }, body: { game: 'merge', stars: 3 } });
+  const list = await call('/home/ratings?games=merge,bird', { headers: { 'X-Device': 'dev-home-a' } });
+  eq('两个人 → n=2', list.json.items.merge.n, 2);
+  eq('均分 4', list.json.items.merge.avg, 4);
+  eq('没投过的游戏 n=0', list.json.items.bird.n, 0);
+  eq('返回我的评分', list.json.mine.merge.stars, 5);
+
+  // 校验
+  const bad = await call('/home/rate', { method: 'POST', headers: { 'X-Device': 'dev-home-a' }, body: { game: 'merge', stars: 9 } });
+  eq('星数越界 → 400', bad.status, 400);
+  const noDev = await call('/home/rate', { method: 'POST', headers: {}, body: { game: 'merge', stars: 5 } });
+  eq('没有身份 → 401', noDev.status, 401);
+
+  // BUG 反馈：返回可读编号
+  const bug = await call('/home/bug', { method: 'POST', headers: { 'X-Device': 'dev-home-a' }, body: { game: 'idle', text: '融灾第 12 层点了开始没反应，刷新后次数被扣了' } });
+  if (!bug.json.ok) console.log('    DEBUG bug →', bug.status, JSON.stringify(bug.json));
+  eq('反馈 ok', bug.json.ok, true);
+  check('编号形如 B-XXX-XXX', /^B-[A-Z0-9]+-[A-Z0-9]+$/.test(String(bug.json.id)), bug.json.id);
+  const short = await call('/home/bug', { method: 'POST', body: { game: 'idle', text: '太短' } });
+  eq('太短 → 400', short.status, 400);
+
+  const idx = JSON.parse(await kv.get('bug_idx'));
+  check('bug_idx 里记了这条', Array.isArray(idx) && idx[0] === bug.json.id, idx);
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
   console.log('\n失败项：');
   for (const f of fails) console.log('  - ' + f);

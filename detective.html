@@ -1148,7 +1148,12 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
 </style>
 <!-- 整个模块依赖一次预加载：不然浏览器要「先下 game.js，才知道要下 common.js」，
      在只给 HTTP/1.1 的边缘上这就是两三秒的白屏。 -->
-<meta name="build" content="afe2fb9232">
+<meta name="build" content="5645fb1a28">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/app/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="忘忘小游戏">
 </head>
 <body>
 <div class="wrap noticewrap">
@@ -1304,7 +1309,257 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
   if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
 })();
 </script>
-<script type="module" src="js/b/detective.js?v=afe2fb9232" onerror="window.__bootFailed && window.__bootFailed('主脚本 js/game.js 未能加载')"></script>
+<script type="module" src="js/b/detective.js?v=5645fb1a28" onerror="window.__bootFailed && window.__bootFailed('主脚本 js/game.js 未能加载')"></script>
+<!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
+     为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
+     但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
+     行为：
+       · 记在每个游戏自己的键上（zjtt:orient:<游戏>），换游戏不会互相影响
+       · 优先用 screen.orientation.lock 真正锁方向（Chrome / PWA / 桌面版可用）
+       · 锁不住（iOS Safari、桌面浏览器）时：横屏但手机竖着 → 提示「把手机横过来」
+       · 改完方向补一次 resize，canvas 游戏会按新尺寸重排 -->
+<style>
+.zj-orient{
+  position:fixed; left:10px; bottom:10px; z-index:80;
+  display:flex; align-items:center; gap:2px; padding:3px;
+  background:rgba(18,23,33,.82); border:1px solid rgba(150,165,195,.28);
+  border-radius:11px; backdrop-filter:blur(6px);
+  font:12px/1 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  color:#c8d1e3; box-shadow:0 10px 24px -14px #000;
+}
+.zj-orient button{
+  appearance:none; border:0; background:none; cursor:pointer;
+  color:inherit; font:inherit; padding:5px 8px; border-radius:8px;
+  display:flex; align-items:center; gap:4px;
+}
+.zj-orient button:hover{background:rgba(120,150,210,.16)}
+.zj-orient button.on{background:rgba(110,168,255,.2); color:#dfe8ff}
+.zj-orient .sep{width:1px; height:14px; background:rgba(150,165,195,.25)}
+.zj-orient .lbl{font-size:10.5px; opacity:.62; padding:0 3px}
+/* 窄屏：只剩一颗循环切换的小钮，别压住游戏底部的摇杆 / 预览条 */
+.zj-orient.narrow{padding:2px; gap:0}
+.zj-orient.narrow button{padding:6px 7px; line-height:1}
+@media (max-width:720px){ .zj-orient{bottom:8px; left:8px; padding:2px} .zj-orient .lbl{display:none} }
+
+.zj-rot{
+  position:fixed; inset:0; z-index:9999; display:none;
+  align-items:center; justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(8,11,18,.94); color:#e6e9f0; text-align:center; padding:24px;
+  font:14px/1.7 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+}
+.zj-rot.on{display:flex}
+.zj-rot svg{width:64px; height:64px; opacity:.85; animation:zjrot 2.4s ease-in-out infinite}
+@keyframes zjrot{0%,45%{transform:rotate(0)}70%,100%{transform:rotate(90deg)}}
+.zj-rot b{font-size:16px}
+.zj-rot p{margin:0; max-width:22em; color:#98a3ba; font-size:13px}
+.zj-rot .acts{display:flex; gap:10px; margin-top:4px}
+.zj-rot button{
+  appearance:none; font:inherit; font-size:13px; padding:8px 16px; border-radius:9px;
+  border:1px solid rgba(150,165,195,.3); background:rgba(30,37,50,.9); color:#dfe6f5; cursor:pointer;
+}
+.zj-rot button.pri{background:linear-gradient(100deg,#6ea8ff,#a07cff); border-color:transparent; color:#fff}
+</style>
+<script>
+(function () {
+  'use strict';
+  var path = location.pathname;
+  var file = (path.split('/').pop() || '').replace(/\.html?$/i, '');
+  var game = /\/idle\//.test(path) ? 'idle'
+    : /\/deathreport\//.test(path) ? 'deathreport'
+    : (file || 'index');
+  var KEY = 'zjtt:orient:' + game;
+  var MODES = [
+    { k: 'auto', t: '自动', icon: '⟲' },
+    { k: 'land', t: '横屏', icon: '▭' },
+    { k: 'port', t: '竖屏', icon: '▯' }
+  ];
+
+  function read() {
+    try { return localStorage.getItem(KEY) || 'auto'; } catch (e) { return 'auto'; }
+  }
+  var pref = read();
+  var baseTitle = document.title;
+
+  // 窄屏（手机）上游戏画面本来就挤，左下角只留一颗小圆钮，点一下循环切换；
+  // 宽屏才摊开成三个按钮。判定只在加载时做一次，避免旋屏时反复重建 DOM。
+  var mqNarrow = window.matchMedia ? window.matchMedia('(max-width:720px)') : null;
+  var narrow = !!(mqNarrow && mqNarrow.matches);
+
+  // ---- UI
+  var bar = document.createElement('div');
+  bar.className = 'zj-orient';
+  bar.setAttribute('role', 'group');
+  bar.setAttribute('aria-label', '游玩方向');
+
+  function modeOf(k) {
+    for (var i = 0; i < MODES.length; i++) if (MODES[i].k === k) return MODES[i];
+    return MODES[0];
+  }
+
+  function buildBar() {
+    bar.innerHTML = '';
+    if (narrow) {
+      bar.classList.add('narrow');
+      var cur = modeOf(pref);
+      var b1 = document.createElement('button');
+      b1.type = 'button';
+      b1.dataset.k = cur.k;
+      b1.className = 'on';
+      b1.title = '方向：' + cur.t + '（点一下换）';
+      b1.setAttribute('aria-label', '游玩方向：' + cur.t + '，点按切换');
+      b1.innerHTML = '<span aria-hidden="true">' + cur.icon + '</span>';
+      b1.addEventListener('click', function () {
+        var i = MODES.map(function (m) { return m.k; }).indexOf(pref);
+        set(MODES[(i + 1) % MODES.length].k, true);
+      });
+      bar.appendChild(b1);
+      return;
+    }
+    bar.innerHTML = '<span class="lbl">方向</span>';
+    MODES.forEach(function (m) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.k = m.k;
+      b.title = m.t === '自动' ? '跟随手机方向' : ('锁定' + m.t);
+      b.innerHTML = '<span aria-hidden="true">' + m.icon + '</span><span>' + m.t + '</span>';
+      b.addEventListener('click', function () { set(m.k, true); });
+      bar.appendChild(b);
+    });
+  }
+  buildBar();
+
+  var overlay = document.createElement('div');
+  overlay.className = 'zj-rot';
+  overlay.innerHTML = [
+    '<svg viewBox="0 0 24 24" fill="none" stroke="#c8d1e3" stroke-width="1.4" stroke-linecap="round">',
+    '<rect x="6.5" y="2.5" width="11" height="19" rx="2.4"/>',
+    '<path d="M10 5.4h4"/><circle cx="12" cy="18.4" r="1.05" fill="#c8d1e3" stroke="none"/>',
+    '</svg>',
+    '<b>把手机横过来</b>',
+    '<p>这个游戏按横屏排版。手机系统不让网页锁方向时，转一下机身就好；不想转也可以先竖着玩。</p>',
+    '<div class="acts"><button type="button" class="pri" data-act="keep">已经横过来了</button>',
+    '<button type="button" data-act="port">仍要竖屏玩</button></div>'
+  ].join('');
+
+  function ready(fn) {
+    if (document.body) fn();
+    else document.addEventListener('DOMContentLoaded', fn, { once: true });
+  }
+
+  function applyCss() {
+    var r = document.documentElement;
+    if (pref === 'auto') r.removeAttribute('data-orient');
+    else r.setAttribute('data-orient', pref);
+    document.dispatchEvent(new CustomEvent('zj:orient', { detail: { mode: pref } }));
+    setTimeout(function () {
+      window.dispatchEvent(new Event('resize'));
+      if (window.visualViewport) window.dispatchEvent(new Event('resize'));
+    }, 80);
+  }
+
+  function paint() {
+    if (narrow) {
+      var cur = modeOf(pref);
+      var only = bar.querySelector('button');
+      if (only) {
+        only.dataset.k = cur.k;
+        only.title = '方向：' + cur.t + '（点一下换）';
+        only.setAttribute('aria-label', '游玩方向：' + cur.t + '，点按切换');
+        only.innerHTML = '<span aria-hidden="true">' + cur.icon + '</span>';
+      }
+    } else {
+      [].forEach.call(bar.querySelectorAll('button'), function (b) {
+        b.classList.toggle('on', b.dataset.k === pref);
+        b.setAttribute('aria-pressed', b.dataset.k === pref ? 'true' : 'false');
+      });
+    }
+    checkRotateHint();
+  }
+
+  // 锁定失败 + 手机竖着 = 给个转屏提示；已锁住时系统自己会转，不用提示
+  function checkRotateHint() {
+    var portrait = window.matchMedia && window.matchMedia('(orientation: portrait)').matches;
+    var small = Math.min(screen.width || 9999, screen.height || 9999) < 820;
+    var need = pref === 'land' && portrait && small && !locked;
+    overlay.classList.toggle('on', need && !dismissed);
+    document.body.style.overflow = overlay.classList.contains('on') ? 'hidden' : '';
+  }
+
+  var locked = false;
+  var dismissed = false;
+
+  function lock(mode) {
+    if (!screen.orientation || typeof screen.orientation.lock !== 'function') return Promise.reject();
+    return screen.orientation.lock(mode === 'land' ? 'landscape' : mode === 'port' ? 'portrait' : 'any')
+      .then(function () { locked = mode !== 'auto'; })
+      .catch(function () { locked = false; });
+  }
+
+  function fs(on) {
+    try {
+      if (on && document.documentElement.requestFullscreen && !document.fullscreenElement) {
+        return document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(function () {});
+      }
+      if (!on && document.fullscreenElement && document.exitFullscreen) return document.exitFullscreen().catch(function () {});
+    } catch (e) { /* 桌面/老浏览器没有全屏，忽略 */ }
+    return Promise.resolve();
+  }
+
+  function set(mode, fromUser) {
+    pref = mode;
+    try { localStorage.setItem(KEY, mode); } catch (e) {}
+    dismissed = false;
+    locked = false;
+    if (!fromUser) { paint(); return; }
+    // 只有用户主动点才要全屏（浏览器要求锁方向必须在手势里、且多为全屏态）
+    var seq = mode === 'auto'
+      ? Promise.all([lock('auto'), fs(false)])
+      : fs(true).then(function () { return lock(mode); });
+    Promise.resolve(seq).then(function () {
+      applyCss();
+      paint();
+      if (mode === 'land' && !locked) {
+        // 锁不上：至少别让用户以为按钮坏了
+        setTimeout(checkRotateHint, 60);
+      }
+    });
+  }
+
+  overlay.addEventListener('click', function (e) {
+    var act = e.target.closest ? e.target.closest('[data-act]') : null;
+    if (!act) return;
+    if (act.dataset.act === 'keep') {
+      dismissed = true; overlay.classList.remove('on'); document.body.style.overflow = '';
+      window.dispatchEvent(new Event('resize'));
+    } else {
+      set('port', true);
+      overlay.classList.remove('on'); document.body.style.overflow = '';
+    }
+  });
+
+  ready(function () {
+    document.body.appendChild(bar);
+    document.body.appendChild(overlay);
+    // 页面自己已经有「全屏」按钮时别抢：只在面板里改状态
+    if (pref !== 'auto') {
+      // 回访直接恢复：不请求全屏（无手势会被拒），能锁就锁
+      lock(pref).then(applyCss).catch(applyCss);
+    } else {
+      applyCss();
+    }
+    paint();
+    window.addEventListener('resize', checkRotateHint);
+    window.addEventListener('orientationchange', function () {
+      setTimeout(function () { checkRotateHint(); window.dispatchEvent(new Event('resize')); }, 260);
+    });
+    if (screen.orientation && screen.orientation.addEventListener) {
+      screen.orientation.addEventListener('change', function () {
+        setTimeout(function () { checkRotateHint(); window.dispatchEvent(new Event('resize')); }, 160);
+      });
+    }
+  });
+})();
+</script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

@@ -1,0 +1,21 @@
+{
+  "name": "忘忘同人小游戏 · 离线版",
+  "short_name": "忘忘小游戏",
+  "description": "《忘却前夜》非官方同人小游戏合集。整包下到本机，断网也能玩；只有「检查更新」时才联网。",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "id": "./",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0e1118",
+  "theme_color": "#0e1118",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "assets/app/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/app/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

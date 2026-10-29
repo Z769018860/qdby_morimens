@@ -1,3 +1,4 @@
+import './ui/orient.js';   // 横屏 / 竖屏开关（顶栏那颗方向按钮）
 import {
   indexData, newState, migrate, offlineReport, claimOffline, levelUp, levelUpMax, setTeam, autoTeam, autoLoadout, setPreset,
   equipItem, unequipItem, enhanceItem, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem,

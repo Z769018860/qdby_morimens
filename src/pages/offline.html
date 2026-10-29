@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e1118">
+<title>离线版 · 忘忘同人小游戏</title>
+<meta name="description" content="把全部小游戏整包下到本机，断网也能玩；只在检查更新时联网，支持导出加密存档。">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+/* 这一页和首页一样做成零依赖：一个请求画完，断网时也能打开自己 */
+:root{
+  --bg:#0e1118; --panel:#171c27; --panel2:#1f2635; --line:#2b3448; --text:#e6e9f0;
+  --dim:#8a93a8; --accent:#6ea8ff; --gold:#e3b341; --green:#2ea66a; --violet:#a07cff; --bad:#e8695f;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#f3f5f9; --panel:#fff; --panel2:#eef1f7; --line:#d6dbe7; --text:#1b2130;
+    --dim:#667088; --accent:#2c6fdb; --gold:#a77a00; --green:#1f8a55; --violet:#6b45c8; --bad:#c33; }
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}   /* .btn 的 display 会盖掉 hidden，得显式压回去 */
+html,body{margin:0}
+body{
+  min-height:100vh; background:var(--bg); color:var(--text);
+  font:15px/1.65 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background-image:
+    radial-gradient(900px 420px at 10% -8%, color-mix(in oklab, var(--violet) 20%, transparent), transparent 70%),
+    radial-gradient(760px 380px at 94% 2%, color-mix(in oklab, var(--accent) 16%, transparent), transparent 72%);
+  background-repeat:no-repeat;
+}
+.wrap{max-width:900px; margin:0 auto; padding:22px 18px 56px}
+.topbar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:26px}
+.back{display:inline-flex; align-items:center; gap:7px; text-decoration:none; color:var(--dim); font-size:13px}
+.back:hover{color:var(--accent)}
+.tag{font-size:11.5px; color:var(--gold); border:1px solid color-mix(in oklab,var(--gold) 45%,transparent); border-radius:999px; padding:2px 10px}
+
+header.hero{text-align:center; margin:0 0 26px}
+.kicker{margin:0 0 8px; font-size:11px; letter-spacing:.3em; color:var(--dim); text-transform:uppercase}
+h1{margin:0; font-size:clamp(24px,4.6vw,34px); letter-spacing:.04em}
+.hero p{margin:12px auto 0; max-width:40em; color:var(--dim); font-size:13.5px}
+
+.card{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px; margin:0 0 14px}
+.card h2{margin:0 0 4px; font-size:15.5px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.card .hint{margin:0 0 14px; color:var(--dim); font-size:12.5px; line-height:1.7}
+.card .hint b{color:var(--text)}
+.rowbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+.btn{
+  appearance:none; display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  font:inherit; font-size:13.5px; padding:9px 16px; border-radius:10px; cursor:pointer;
+  border:1px solid var(--line); background:var(--panel2); color:var(--text); text-decoration:none;
+  transition:border-color .16s, color .16s, opacity .16s;
+}
+.btn:hover{border-color:var(--accent); color:var(--accent)}
+.btn.primary{background:linear-gradient(100deg,var(--accent),var(--violet)); border-color:transparent; color:#fff; font-weight:600}
+.btn.primary:hover{color:#fff; opacity:.92}
+.btn.danger:hover{border-color:var(--bad); color:var(--bad)}
+.btn:disabled{opacity:.5; cursor:default}
+.btn.sm{padding:6px 12px; font-size:12.5px}
+
+.kv{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin:14px 0 0}
+.kv div{background:var(--panel2); border:1px solid var(--line); border-radius:11px; padding:9px 12px}
+.kv b{display:block; font-size:15px; font-variant-numeric:tabular-nums}
+.kv span{font-size:11.5px; color:var(--dim)}
+
+.prog{height:8px; border-radius:999px; background:var(--panel2); border:1px solid var(--line); overflow:hidden; margin:12px 0 8px; display:none}
+.prog.on{display:block}
+.prog i{display:block; height:100%; width:0; background:linear-gradient(90deg,var(--accent),var(--violet)); transition:width .18s ease}
+.stat{margin:0; font-size:12.5px; color:var(--dim); min-height:18px}
+.stat.ok{color:var(--green)}
+.stat.bad{color:var(--bad)}
+
+.split{display:grid; gap:14px; grid-template-columns:1fr 1fr}
+@media (max-width:720px){ .split{grid-template-columns:1fr} }
+
+.fld{margin:0 0 10px}
+.fld label{display:block; font-size:12px; color:var(--dim); margin-bottom:5px}
+input[type=password], input[type=file]{
+  width:100%; font:inherit; font-size:13.5px; color:var(--text); background:var(--bg);
+  border:1px solid var(--line); border-radius:10px; padding:9px 11px;
+}
+input[type=password]:focus{outline:none; border-color:var(--accent)}
+details{border-top:1px solid var(--line); padding-top:12px; margin-top:12px}
+summary{cursor:pointer; font-size:13px; color:var(--dim)}
+summary:hover{color:var(--accent)}
+details .body{padding-top:10px}
+
+.steps{margin:0; padding-left:18px; color:var(--dim); font-size:12.5px; line-height:1.9}
+.steps b{color:var(--text)}
+.small{font-size:11.5px; color:var(--dim); line-height:1.8}
+a{color:var(--accent)}
+.toast{
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:99;
+  padding:9px 16px; border-radius:10px; font-size:13px; background:var(--panel);
+  border:1px solid var(--line); color:var(--text); box-shadow:0 18px 34px -20px #000;
+}
+footer{margin-top:26px; text-align:center; color:var(--dim); font-size:11.5px; line-height:1.9}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="topbar">
+    <a class="back" href="index.html">← 返回首页</a>
+    <span class="tag" id="modeTag">网页离线版</span>
+  </div>
+
+  <header class="hero">
+    <p class="kicker">Offline Build</p>
+    <h1>离线版</h1>
+    <p>把全部小游戏整包下到本机，之后<b>不联网也能玩</b>。只有点「检查更新」时才会联网，其它时候一个请求都不发。</p>
+  </header>
+
+  <section class="card" id="packCard">
+    <h2>本机离线包 <span class="stat" id="packState" style="font-weight:400"></span></h2>
+    <p class="hint">一次下完全部内容（含图鉴、立绘、BGM），装到桌面/主屏后就是一个独立的小应用。下载完可以断网试一下。</p>
+    <div class="prog" id="prog"><i id="progBar"></i></div>
+    <p class="stat" id="packStat">正在读取清单…</p>
+    <div class="kv">
+      <div><b id="kSize">—</b><span>体积</span></div>
+      <div><b id="kFiles">—</b><span>文件数</span></div>
+      <div><b id="kVer">—</b><span>内容版本</span></div>
+      <div><b id="kAt">—</b><span>下载时间</span></div>
+    </div>
+    <div class="rowbar" style="margin-top:14px">
+      <button class="btn primary" id="dlBtn" type="button">下载离线包</button>
+      <button class="btn" id="upBtn" type="button" hidden>更新到新版本</button>
+      <button class="btn danger sm" id="rmBtn" type="button" hidden>删除离线数据</button>
+      <button class="btn sm" id="installBtn" type="button" hidden>安装到桌面</button>
+    </div>
+  </section>
+
+  <section class="card" id="desktopCard">
+    <h2>桌面版（Windows）</h2>
+    <p class="hint">不想开浏览器就用桌面版：双击即开、完全离线、窗口可缩放，还能记住窗口位置和大小。功能与离线版一致。</p>
+    <div class="rowbar">
+      <a class="btn" id="deskDl" href="https://github.com/Z769018860/qdby_morimens/releases/latest" target="_blank" rel="noopener">去下载桌面版</a>
+      <span class="small">解压后运行 <b>忘忘同人小游戏.exe</b>；首次启动不需要联网。</span>
+    </div>
+  </section>
+
+  <div class="split">
+    <section class="card">
+      <h2>设置</h2>
+      <p class="hint">检查更新是这里唯一会联网的动作；更新只拉清单，内容还是你自己按需下载。</p>
+      <div class="rowbar">
+        <button class="btn" id="checkBtn" type="button">检查更新</button>
+        <button class="btn sm" id="clearBtn" type="button">清理网页缓存</button>
+      </div>
+      <p class="stat" id="checkStat"></p>
+      <details>
+        <summary>为什么「检查更新」要联网？</summary>
+        <div class="body small">
+          离线版的内容是死在本机的，不联网就永远不知道外面出了新版本。所以只在点这个按钮时请求一次
+          <code>data/offline.json</code>（几 KB，只有版本号和文件清单），对比之后再决定要不要下新内容。
+          页面本身、图片、音频在游玩过程中不会发任何请求。
+        </div>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2>存档</h2>
+      <p class="hint">导出的文件<b>用密码加密</b>（AES-GCM 256 + PBKDF2），防止随手改数值。忘了密码就打不开，请自己记好。</p>
+      <div class="fld">
+        <label for="pass">设置一个密码（至少 6 位）</label>
+        <input type="password" id="pass" autocomplete="new-password" placeholder="导出和导入都用这个密码">
+      </div>
+      <div class="rowbar">
+        <button class="btn primary" id="expBtn" type="button">导出存档</button>
+        <label class="btn" style="cursor:pointer">导入存档<input type="file" id="impFile" accept=".zjtt,.json" hidden></label>
+      </div>
+      <p class="stat" id="savStat"></p>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>怎么用</h2>
+    <ol class="steps">
+      <li><b>网页离线版</b>：点「下载离线包」→ 浏览器装到桌面/主屏（安卓 Chrome、桌面 Chrome/Edge 都有「安装」；iOS 用 Safari 的「添加到主屏幕」）。之后从图标进入，断网也能玩。</li>
+      <li><b>桌面版</b>：下载压缩包解压，双击 exe。整个站点在本地，除了检查更新不联网。</li>
+      <li><b>换设备</b>：在旧设备导出存档 → 把 <code>.zjtt</code> 文件传过去 → 在新设备导入，账号、进度、银芯都在。</li>
+      <li><b>存档加密</b>：密码只在你手里，解密在本机做，文件不会上传到任何地方。</li>
+    </ol>
+  </section>
+
+  <footer>
+    同人作品，与官方无关；无盈利、无充值。素材版权归原权利人所有。<br>
+    <a href="index.html">回首页</a> · <a href="about.html">项目说明与素材来源</a>
+  </footer>
+</main>
+
+<script>
+/* ------------------------------------------------------------------ 离线版
+   两套运行环境共用这一页：
+   · 网页 / PWA：内容存在 CacheStorage（cache 名 zjtt-offline-v1），sw.js 优先命中它
+   · 桌面版（Electron）：内容就在 app 目录里，window.zjttDesktop 存在，下载区自动隐藏
+   存档导出/导入两边一样：本机 localStorage → AES-GCM → .zjtt 文件。 */
+(function () {
+  'use strict';
+
+  var CACHE = 'zjtt-offline-v1';
+  var META = 'zjtt:offline';
+  var MANIFEST = 'data/offline.json';
+  var SAVE_APP = 'zjtt-save';
+
+  var $ = function (s) { return document.querySelector(s); };
+  var native = window.zjttDesktop || null;
+
+  function fmtBytes(n) {
+    n = Number(n) || 0;
+    if (n >= 1073741824) return (n / 1073741824).toFixed(2) + ' GB';
+    if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+    if (n >= 1024) return Math.round(n / 1024) + ' KB';
+    return n + ' B';
+  }
+  function fmtTime(ts) {
+    if (!ts) return '—';
+    var d = new Date(ts);
+    var p = function (x) { return String(x).padStart(2, '0'); };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function toast(msg) {
+    var t = document.createElement('div');
+    t.className = 'toast'; t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function () { t.remove(); }, 2400);
+  }
+  function read(k, d) {
+    try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }
+    catch (e) { return d; }
+  }
+  function write(k, v) {
+    try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; }
+  }
+  function say(el, text, tone) {
+    el.textContent = text || '';
+    el.className = 'stat' + (tone ? ' ' + tone : '');
+  }
+
+  // ------------------------------------------------------------ 环境
+  var isDesktop = !!native;
+  $('#modeTag').textContent = isDesktop ? '桌面版' : '网页离线版';
+  if (isDesktop) {
+    $('#packCard').hidden = true;
+    $('#desktopCard').hidden = true;
+  }
+
+  // ------------------------------------------------------------ 清单
+  var manifest = null;
+  var meta = read(META, null);
+
+  function loadManifest(bust) {
+    var url = MANIFEST + (bust ? '?t=' + Date.now() : '');
+    return fetch(url, { cache: bust ? 'no-store' : 'default' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+
+  function paintPack() {
+    if (isDesktop) return;
+    var dlBtn = $('#dlBtn'), upBtn = $('#upBtn'), rmBtn = $('#rmBtn');
+    if (!manifest) {
+      say($('#packStat'), '读不到离线清单（data/offline.json），先联网打开一次本站。', 'bad');
+      dlBtn.disabled = true;
+      return;
+    }
+    $('#kSize').textContent = fmtBytes(manifest.bytes);
+    $('#kFiles').textContent = (manifest.files || []).length + ' 个';
+    $('#kVer').textContent = (manifest.stamp || '').slice(0, 8) || '—';
+
+    if (meta && meta.stamp) {
+      $('#kAt').textContent = fmtTime(meta.at);
+      $('#packState').textContent = '已下载';
+      dlBtn.textContent = '重新下载';
+      // 清单比本机新 → 提供更新；一致就提示已是最新
+      if (manifest.stamp !== meta.stamp) {
+        upBtn.hidden = false;
+        upBtn.textContent = '更新到新版本';
+        say($('#packStat'), '本机是旧版本（' + (meta.stamp || '').slice(0, 8) + '），可以更新到 ' + (manifest.stamp || '').slice(0, 8) + '。', 'ok');
+      } else {
+        upBtn.hidden = true;
+        say($('#packStat'), '离线包已就绪，断网也能玩。', 'ok');
+      }
+      rmBtn.hidden = false;
+    } else {
+      $('#kAt').textContent = '—';
+      $('#packState').textContent = '未下载';
+      upBtn.hidden = true;
+      rmBtn.hidden = true;
+      say($('#packStat'), '一共 ' + fmtBytes(manifest.bytes) + '，下载一次就能离线玩。');
+    }
+  }
+
+  loadManifest(false).then(function (m) {
+    manifest = m;
+    paintPack();
+  }).catch(function () {
+    if (!isDesktop) say($('#packStat'), '读不到离线清单，先联网刷新一次。', 'bad');
+  });
+
+  // ------------------------------------------------------------ 下载
+  var busy = false;
+  function download() {
+    if (busy || !manifest) return Promise.resolve();
+    if (!('caches' in window)) {
+      say($('#packStat'), '这个浏览器不支持离线缓存（需要 https 或 localhost）。', 'bad');
+      return Promise.resolve();
+    }
+    busy = true;
+    var files = manifest.files || [];
+    var total = files.length;
+    var idx = 0, bytes = 0, fail = 0;
+    var dlBtn = $('#dlBtn'), upBtn = $('#upBtn'), rmBtn = $('#rmBtn');
+    dlBtn.disabled = upBtn.disabled = rmBtn.disabled = true;
+    $('#prog').classList.add('on');
+    $('#progBar').style.width = '0%';
+    say($('#packStat'), '准备中…');
+
+    return caches.open(CACHE).then(function (cache) {
+      var CONC = 4;
+      function one() {
+        if (idx >= total) return Promise.resolve();
+        var i = idx++;
+        var file = files[i];
+        var url = file;
+        return fetch(url, { cache: 'reload' })
+          .then(function (res) {
+            if (!res.ok) throw new Error(file + ' HTTP ' + res.status);
+            return res.clone().blob().then(function (b) {
+              bytes += b.size;
+              return cache.put(url, res);
+            });
+          })
+          .catch(function () { fail++; })
+          .then(function () {
+            var pct = Math.round((i + 1) / total * 100);
+            $('#progBar').style.width = pct + '%';
+            if ((i + 1) % 6 === 0 || i + 1 === total) {
+              say($('#packStat'), '正在下载 ' + (i + 1) + ' / ' + total + ' 个文件 · ' + fmtBytes(bytes));
+            }
+          });
+      }
+      var lanes = [];
+      for (var k = 0; k < CONC; k++) lanes.push((function loop() { return one().then(function () { return idx < total ? loop() : null; }); })());
+      return Promise.all(lanes);
+    }).then(function () {
+      var ok = fail === 0;
+      meta = { stamp: manifest.stamp, at: Date.now(), files: total, bytes: bytes, failed: fail };
+      write(META, meta);
+      $('#prog').classList.remove('on');
+      paintPack();
+      if (ok) {
+        say($('#packStat'), '下载完成：' + total + ' 个文件 · ' + fmtBytes(bytes) + '。可以断网试玩了。', 'ok');
+        toast('离线包下载完成');
+      } else {
+        say($('#packStat'), '有 ' + fail + ' 个文件没下下来（可能是网络抖动），再点一次「重新下载」补齐。', 'bad');
+      }
+    }).catch(function (e) {
+      $('#prog').classList.remove('on');
+      say($('#packStat'), '下载中断：' + (e && e.message ? e.message : e) + '。可以再点一次继续。', 'bad');
+    }).then(function () {
+      busy = false;
+      dlBtn.disabled = upBtn.disabled = rmBtn.disabled = false;
+    });
+  }
+
+  $('#dlBtn').addEventListener('click', function () {
+    if (meta && meta.stamp) {
+      if (!confirm('本机已经有离线包了，要重新下载覆盖吗？')) return;
+    }
+    download();
+  });
+  $('#upBtn').addEventListener('click', download);
+  $('#rmBtn').addEventListener('click', function () {
+    if (!confirm('删掉本机的离线包？游戏进度不会删，只是下次要重新下载。')) return;
+    caches.delete(CACHE).then(function () {
+      localStorage.removeItem(META);
+      meta = null;
+      paintPack();
+      toast('离线包已删除');
+    });
+  });
+
+  // ------------------------------------------------------------ 安装到桌面（PWA）
+  var installEvt = null;
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    installEvt = e;
+    $('#installBtn').hidden = false;
+  });
+  $('#installBtn').addEventListener('click', function () {
+    if (!installEvt) return;
+    installEvt.prompt();
+    installEvt = null;
+    $('#installBtn').hidden = true;
+  });
+  window.addEventListener('appinstalled', function () { toast('已安装到桌面'); });
+  // iOS：没有安装事件，给一句手动指引
+  if (!isDesktop && /iPad|iPhone|iPod/.test(navigator.userAgent)) {
+    var b = $('#installBtn');
+    b.hidden = false;
+    b.textContent = 'iOS：添加到主屏幕';
+    b.addEventListener('click', function () {
+      alert('Safari 里点「分享」→「添加到主屏幕」，之后从主屏图标进入即为离线版。');
+    });
+  }
+
+  // ------------------------------------------------------------ 检查更新 / 清理
+  $('#checkBtn').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    say($('#checkStat'), '正在联网检查…');
+    if (isDesktop && native.checkUpdate) {
+      native.checkUpdate().then(function (r) {
+        if (!r) { say($('#checkStat'), '检查失败，稍后再试。', 'bad'); return; }
+        if (r.newer) {
+          say($('#checkStat'), '发现新版本 ' + r.version + '，可以去 Releases 下载。', 'ok');
+        } else {
+          say($('#checkStat'), '已经是最新的（' + r.version + '）。', 'ok');
+        }
+      }).catch(function () {
+        say($('#checkStat'), '连不上更新服务器（离线时这是正常的）。', 'bad');
+      }).then(function () { btn.disabled = false; });
+      return;
+    }
+    loadManifest(true).then(function (m) {
+      manifest = m;
+      paintPack();
+      if (meta && meta.stamp === m.stamp) say($('#checkStat'), '已经是最新内容（' + (m.stamp || '').slice(0, 8) + '）。', 'ok');
+      else if (meta && meta.stamp) say($('#checkStat'), '有新内容，点上方的「更新到新版本」下载。', 'ok');
+      else say($('#checkStat'), '云端版本 ' + (m.stamp || '').slice(0, 8) + '，点「下载离线包」就能离线玩。', 'ok');
+    }).catch(function () {
+      say($('#checkStat'), '连不上（断网时这是正常的），内容还是本机这份。', 'bad');
+    }).then(function () { btn.disabled = false; });
+  });
+
+  $('#clearBtn').addEventListener('click', function () {
+    if (!confirm('清理网页缓存？离线包不会动，只是把旧的缓存目录清掉。')) return;
+    caches.keys().then(function (keys) {
+      return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+    }).then(function () { toast('缓存已清理'); });
+  });
+
+  // ------------------------------------------------------------ 存档：加密导出 / 导入
+  function b64(buf) {
+    var b = new Uint8Array(buf), s = '';
+    for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+    return btoa(s);
+  }
+  function unb64(str) {
+    var s = atob(str), b = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+    return b;
+  }
+  function derive(pass, salt) {
+    var enc = new TextEncoder();
+    return crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey'])
+      .then(function (km) {
+        return crypto.subtle.deriveKey(
+          { name: 'PBKDF2', salt: salt, iterations: 200000, hash: 'SHA-256' },
+          km, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+        );
+      });
+  }
+  function collect() {
+    var out = {};
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (!k || k.indexOf('zjtt:') !== 0) continue;
+      out[k] = localStorage.getItem(k);
+    }
+    return out;
+  }
+
+  $('#expBtn').addEventListener('click', function () {
+    var pass = $('#pass').value;
+    if (pass.length < 6) { say($('#savStat'), '密码至少 6 位。', 'bad'); return; }
+    var data = collect();
+    var keys = Object.keys(data);
+    if (!keys.length) { say($('#savStat'), '本机还没有可导出的存档。', 'bad'); return; }
+    var btn = this;
+    btn.disabled = true;
+    say($('#savStat'), '正在加密…');
+    var salt = crypto.getRandomValues(new Uint8Array(16));
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var plain = new TextEncoder().encode(JSON.stringify({
+      app: SAVE_APP, v: 1, at: Date.now(), url: location.origin, data: data
+    }));
+    derive(pass, salt).then(function (key) {
+      return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, plain);
+    }).then(function (ct) {
+      var pack = {
+        app: SAVE_APP, v: 1, at: Date.now(),
+        kdf: { alg: 'PBKDF2-SHA256', iter: 200000, salt: b64(salt) },
+        iv: b64(iv), ct: b64(ct)
+      };
+      var blob = new Blob([JSON.stringify(pack)], { type: 'application/octet-stream' });
+      var a = document.createElement('a');
+      var d = new Date();
+      a.download = '忘忘存档-' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') + '.zjtt';
+      a.href = URL.createObjectURL(blob);
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+      say($('#savStat'), '已导出 ' + keys.length + ' 项（加密）。换设备时用同一个密码导入。', 'ok');
+    }).catch(function (e) {
+      say($('#savStat'), '导出失败：' + (e && e.message ? e.message : e), 'bad');
+    }).then(function () { btn.disabled = false; });
+  });
+
+  $('#impFile').addEventListener('change', function () {
+    var f = this.files && this.files[0];
+    this.value = '';
+    if (!f) return;
+    var pass = $('#pass').value;
+    if (pass.length < 6) { say($('#savStat'), '先在上面填导出时用的密码。', 'bad'); return; }
+    say($('#savStat'), '正在解密…');
+    f.text().then(function (txt) { return JSON.parse(txt); }).then(function (pack) {
+      if (!pack || pack.app !== SAVE_APP) throw new Error('不是本站的存档文件');
+      var salt = unb64(pack.kdf.salt);
+      var iv = unb64(pack.iv);
+      var ct = unb64(pack.ct);
+      return derive(pass, salt).then(function (key) {
+        return crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, ct);
+      }).then(function (buf) {
+        var doc = JSON.parse(new TextDecoder().decode(buf));
+        var n = 0;
+        Object.keys(doc.data || {}).forEach(function (k) {
+          localStorage.setItem(k, doc.data[k]); n++;
+        });
+        return n;
+      });
+    }).then(function (n) {
+      say($('#savStat'), '已导入 ' + n + ' 项，正在刷新…', 'ok');
+      setTimeout(function () { location.reload(); }, 700);
+    }).catch(function (e) {
+      var msg = String((e && e.message) || e);
+      if (/OperationError|decrypt/i.test(msg)) msg = '密码不对，或者文件被改过';
+      say($('#savStat'), '导入失败：' + msg, 'bad');
+    });
+  });
+
+  // 桌面版：把版本号写进标签
+  if (isDesktop && native.version) {
+    document.getElementById('modeTag').textContent = '桌面版 v' + native.version;
+  }
+})();
+</script>
+</body>
+</html>

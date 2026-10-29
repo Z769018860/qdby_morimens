@@ -52,3 +52,24 @@ CREATE TABLE IF NOT EXISTS sessions (
   name  TEXT,
   at    INTEGER NOT NULL
 );
+
+-- 首页：每个游戏一人一条评分（重复提交是改分）
+CREATE TABLE IF NOT EXISTS home_ratings (
+  game   TEXT NOT NULL,
+  voter  TEXT NOT NULL,            -- u<uid> 登录用户 / d<device> 本机随机 id
+  stars  INTEGER NOT NULL,         -- 1..5
+  body   TEXT,                     -- 一句短评（可空）
+  at     INTEGER NOT NULL,
+  PRIMARY KEY (game, voter)
+);
+
+-- 首页：BUG 反馈（只有作者看，不做公开列表）
+CREATE TABLE IF NOT EXISTS home_bugs (
+  id      TEXT PRIMARY KEY,
+  game    TEXT NOT NULL,
+  body    TEXT NOT NULL,
+  contact TEXT,
+  ver     TEXT,
+  ua      TEXT,
+  at      INTEGER NOT NULL
+);

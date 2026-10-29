@@ -127,7 +127,7 @@ dialog.auth::backdrop{background:rgba(6,9,14,.62)}
   background:linear-gradient(100deg, var(--text) 10%, var(--accent) 58%, var(--violet) 92%);
   -webkit-background-clip:text; background-clip:text; color:transparent;
 }
-.hero .sub{margin:14px auto 0; max-width:38em; color:var(--dim); font-size:14px}
+.hero .sub{margin:14px auto 0; max-width:36em; color:var(--dim); font-size:14px}
 .hero .rule{
   width:64px; height:3px; margin:20px auto 0; border-radius:3px;
   background:linear-gradient(90deg, var(--accent), var(--violet));
@@ -175,7 +175,7 @@ a.proj:hover::after{opacity:1}
   display:flex; align-items:center; gap:6px;
 }
 a.proj:hover .go{gap:10px}
-.go .arrow{transition:transform .18s ease}
+.go .arrow{display:inline-flex; align-items:center; transition:transform .18s ease}
 a.proj:hover .arrow{transform:translateX(3px)}
 
 .soon{opacity:.72}
@@ -211,6 +211,148 @@ a.proj:hover .arrow{transform:translateX(3px)}
   .acct .hint{display:none}
 }
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
+
+/* ------------------------------------------------------------ 顶栏按钮 / 公告 / 评分 */
+.bar{gap:8px; flex-wrap:wrap}
+.bar>.btn{font-size:12.5px; padding:6px 12px; color:var(--dim)}
+.bar>.btn:hover{color:var(--accent)}
+.bar>.btn .bt{margin-left:4px}
+.hero .sub b{color:var(--text); font-weight:600}
+.stamps{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:16px 0 0}
+.stamps span{
+  font-size:11.5px; color:var(--dim); background:var(--panel);
+  border:1px solid var(--line); border-radius:999px; padding:3px 11px;
+}
+
+.notice{
+  display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 10px; margin:0 0 18px;
+  padding:11px 14px; border-radius:12px; font-size:12.5px; line-height:1.6;
+  background:linear-gradient(120deg, color-mix(in oklab, var(--gold) 13%, var(--panel)), var(--panel) 60%);
+  border:1px solid color-mix(in oklab, var(--gold) 38%, var(--line));
+}
+.notice b{color:var(--gold); white-space:nowrap; font-size:12px; letter-spacing:.04em}
+.notice p{margin:0; flex:1 1 260px; color:var(--dim)}
+.notice p b{color:var(--text)}
+.notice .more{
+  appearance:none; background:none; border:0; padding:0; cursor:pointer;
+  font:inherit; font-size:12px; color:var(--accent);
+}
+.notice .more:hover{text-decoration:underline}
+
+/* 卡片：版本号、两行简介、评分、底部动作 */
+.proj{gap:8px}
+.proj:hover{border-color:color-mix(in oklab, var(--accent) 55%, var(--line))}
+.ver{
+  margin-left:6px; font-size:10.5px; font-weight:500; letter-spacing:.02em;
+  color:var(--dim); font-variant-numeric:tabular-nums;
+  border:1px solid var(--line); border-radius:5px; padding:0 4px; vertical-align:2px;
+}
+.proj .desc{
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden; min-height:2.9em;
+}
+.rate{
+  display:flex; align-items:center; gap:7px; margin-top:2px; padding-top:8px;
+  border-top:1px dashed var(--line); font-size:12px; color:var(--dim);
+}
+.rate .stars{color:var(--gold); letter-spacing:1.5px; font-size:12.5px; line-height:1}
+.rate .stars i{font-style:normal; color:color-mix(in oklab, var(--gold) 20%, transparent)}
+.rate .score{color:var(--text); font-size:13px; font-variant-numeric:tabular-nums}
+.rate .cnt{font-size:11.5px}
+.rate .add{
+  margin-left:auto; appearance:none; background:none; border:0; padding:0; cursor:pointer;
+  font:inherit; font-size:11.5px; color:var(--accent);
+}
+.rate .add:hover{text-decoration:underline}
+.pfoot{display:flex; align-items:center; gap:14px; margin-top:auto; padding-top:9px; border-top:1px solid var(--line)}
+.pfoot .go{padding:0; margin:0; font-weight:600}
+.pfoot .mini{
+  appearance:none; background:none; border:0; padding:0; cursor:pointer; text-decoration:none;
+  font:inherit; font-size:11.5px; color:var(--dim);
+}
+.pfoot .mini:hover{color:var(--accent)}
+.soon-go{color:var(--dim); font-size:13px; display:flex; align-items:center; gap:6px}
+.soon-go .dot{width:6px; height:6px; border-radius:50%; background:var(--gold)}
+
+/* 离线版横条 */
+.dl{
+  margin:26px 0 0; padding:16px 18px; border-radius:14px;
+  display:flex; flex-wrap:wrap; gap:14px; align-items:center; justify-content:space-between;
+  border:1px solid var(--line);
+  background:linear-gradient(120deg, color-mix(in oklab, var(--accent) 11%, var(--panel)), var(--panel) 62%);
+}
+.dl h3{margin:0 0 5px; font-size:14.5px; letter-spacing:.02em}
+.dl p{margin:0; max-width:56em; font-size:12.5px; line-height:1.65; color:var(--dim)}
+.dl .acts{display:flex; gap:8px; flex-wrap:wrap}
+
+/* 官方与社区链接：居中 */
+.links{display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(196px,1fr)); margin:26px 0 0}
+.links a{
+  display:flex; align-items:center; justify-content:center; gap:10px;
+  padding:11px 13px; border-radius:12px; text-decoration:none;
+  background:var(--panel); border:1px solid var(--line); color:var(--text); font-size:13px;
+  transition:border-color .16s ease, color .16s ease;
+}
+.links a:hover{border-color:var(--accent); color:var(--accent)}
+.links .lk-ico{font-size:16px; line-height:1}
+.links small{display:block; margin-top:1px; font-size:10.5px; color:var(--dim); font-variant-numeric:tabular-nums}
+
+/* 权利说明 */
+.legal{
+  margin:26px auto 0; max-width:760px; padding:16px 18px; border-radius:14px;
+  background:var(--panel); border:1px solid var(--line);
+  font-size:11.5px; line-height:1.9; color:var(--dim);
+}
+.legal p{margin:0 0 6px}
+.legal p:last-child{margin:0}
+.legal b{color:var(--text); font-size:12px}
+.legal a{color:var(--dim); text-decoration:underline; text-underline-offset:2px}
+.legal a:hover{color:var(--accent)}
+
+/* 弹层 */
+dialog.sheet{
+  border:0; padding:0; background:transparent; color:var(--text);
+  width:min(540px,calc(100vw - 28px)); max-width:min(540px,calc(100vw - 28px));
+}
+dialog.sheet::backdrop{background:rgba(6,9,16,.66); backdrop-filter:blur(2px)}
+.sheet-in{
+  max-height:min(86vh,760px); overflow:auto;
+  background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px 20px 18px;
+  box-shadow:0 30px 60px -30px rgba(0,0,0,.9);
+}
+.sheet h3{margin:0 0 6px; font-size:17px; letter-spacing:.02em}
+.sheet .sub{margin:0 0 14px; font-size:12px; line-height:1.65; color:var(--dim)}
+.sheet ul{margin:0 0 4px; padding-left:17px; font-size:13px; line-height:1.85; color:var(--dim)}
+.sheet ul li{margin-bottom:8px}
+.sheet ul b{color:var(--text)}
+.sheet .fld{margin:0 0 12px}
+.sheet .fld label{display:block; margin-bottom:5px; font-size:12px; color:var(--dim)}
+.sheet textarea,.sheet select,.sheet input{
+  width:100%; font:inherit; font-size:13.5px; color:var(--text);
+  background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:9px 11px;
+}
+.sheet textarea{min-height:92px; resize:vertical; line-height:1.6}
+.sheet textarea:focus,.sheet select:focus,.sheet input:focus{outline:none; border-color:var(--accent)}
+.sheet .tip{margin:0; min-height:17px; font-size:12px; color:var(--gold)}
+.sheet .tip.bad{color:#e8695f}
+.sheet .acts{display:flex; gap:8px; justify-content:flex-end; margin-top:14px}
+.starpick{display:flex; gap:2px; margin:0 0 12px}
+.starpick button{
+  appearance:none; background:none; border:0; cursor:pointer; padding:0 3px;
+  font-size:30px; line-height:1.1; color:color-mix(in oklab, var(--gold) 22%, transparent);
+  transition:color .12s ease, transform .12s ease;
+}
+.starpick button.on{color:var(--gold)}
+.starpick button:active{transform:scale(.94)}
+#doneBody{min-height:120px; font-size:12px}
+
+@media (max-width:600px){
+  .bar{justify-content:center}
+  .bar>.btn .ic{display:none}
+  .bar>.btn{padding:6px 10px; font-size:12px}
+  .notice .more{margin-left:auto}
+  .links{grid-template-columns:1fr 1fr}
+}
 </style>
 </head>
 <body>
@@ -219,48 +361,78 @@ a.proj:hover .arrow{transform:translateX(3px)}
     <!-- 账号：未登录是「登录 / 注册」，登录后是头像 + 名字，点开是同步概况。
          状态直接写在 localStorage 的 zjtt:authUser / zjtt:authToken 里，
          和 js/auth.js 完全同一份，所以在这里登录 = 所有项目都已登录。 -->
+    <button class="btn ghost" id="noticeBtn" type="button" title="查看公告"><span class="ic">📌</span><span class="bt">公告</span></button>
+    <button class="btn ghost" id="bugBtn" type="button" title="反馈 bug"><span class="ic">🐞</span><span class="bt">BUG 反馈</span></button>
+    <a class="btn ghost" href="offline.html" title="下载离线版 / 桌面版"><span class="ic">⬇</span><span class="bt">离线版</span></a>
     <div class="acct" id="acct"></div>
   </div>
 
   <header class="hero">
     <p class="kicker">Morimens · Fan Works</p>
     <h1>忘忘同人小游戏</h1>
-    <p class="sub">《忘却前夜》同人小游戏合集，挑一个项目进去玩——一个账号，全部项目通用。</p>
+    <p class="sub">《忘却前夜》同人小游戏合集。纯属恶搞——<b>无盈利、无充值</b>，与官方无关。</p>
+    <div class="stamps">
+      <span>8 个可玩</span><span>手机可玩</span><span>点开就玩，不用注册</span><span>支持断网离线版</span>
+    </div>
     <div class="rule"></div>
   </header>
 
-  <section class="grid">
-    <a class="proj" href="detective.html">
+  <div class="notice" id="noticeBar">
+    <b>刚上线</b>
+    <p>所有游戏都是刚上线的新版本，一定会有 bug，也可能卡；能接受再玩，遇到问题请点右上角 <b>BUG 反馈</b>，核实后发少量银芯感谢。</p>
+    <button class="more" id="noticeMore" type="button">完整公告</button>
+  </div>
+
+  <section class="grid" id="games">
+    <article class="proj" data-game="detective" data-version="1.3.0">
       <div class="phead">
         <span class="ico" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/><path d="M8 10.5h5M10.5 8v5"/>
           </svg>
         </span>
-        <h2>战报侦探</h2>
+        <h2>战报侦探<span class="ver">v1.3.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
-      <p class="desc">只看一份战报的伤害占比、回合数与状态，反推这一局用了谁、带什么命轮密契、造物有几件。每日一题，也能自己出题考别人。</p>
-      <ul class="tags"><li>4101 道题</li><li>每日一题</li><li>创意工坊</li><li>排行榜</li></ul>
-      <span class="go">立即进入 <span class="arrow">→</span></span>
-    </a>
+      <p class="desc">只看一份匿名战报的伤害、格挡和治疗，反推这局上了谁、带了什么命轮密契。每日一题，也能自己出题考别人。</p>
+      <ul class="tags"><li>推理</li><li>4101 题</li><li>每日一题</li></ul>
+      <div class="rate" data-rate>
+        <span class="stars" aria-hidden="true">★★★★★</span>
+        <b class="score">—</b><span class="cnt">暂无评分</span>
+        <button class="add" type="button" data-rate-btn>评分</button>
+      </div>
+      <div class="pfoot">
+        <a class="go" href="detective.html">进入<span class="arrow" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9M8.6 4.3 12.4 8l-3.8 3.7"/></svg></span></a>
+        <button class="mini" type="button" data-bug="detective">报 bug</button>
+        <a class="mini" href="offline.html#detective">离线版</a>
+      </div>
+    </article>
 
-    <a class="proj" href="merge.html">
+    <article class="proj" data-game="merge" data-version="1.2.0">
       <div class="phead">
         <span class="ico" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="9" cy="14.5" r="4.5"/><circle cx="15.5" cy="9.5" r="3"/><circle cx="18.2" cy="16.4" r="2"/>
           </svg>
         </span>
-        <h2>合成大杜勒</h2>
+        <h2>合成大杜勒<span class="ver">v1.2.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
-      <p class="desc">合成大西瓜的玩法，素材换成游戏里的头像：把校猫丢进瓶子，两个同级头像相撞就合成下一级，一路合到杜勒赛因。四档难度从简单到癫狂，手里卡了大球可以按「随机」换一颗小的，每局按分数换银芯。</p>
-      <ul class="tags"><li>10 级合成</li><li>四档难度</li><li>分数换银芯</li><li>手机可玩</li></ul>
-      <span class="go">立即进入 <span class="arrow">→</span></span>
-    </a>
+      <p class="desc">合成大西瓜，头像换成游戏角色。两个同级相撞合成下一级，一路合到杜勒赛因。</p>
+      <ul class="tags"><li>休闲</li><li>10 级合成</li><li>四档难度</li></ul>
+      <div class="rate" data-rate>
+        <span class="stars" aria-hidden="true">★★★★★</span>
+        <b class="score">—</b><span class="cnt">暂无评分</span>
+        <button class="add" type="button" data-rate-btn>评分</button>
+      </div>
+      <div class="pfoot">
+        <a class="go" href="merge.html">进入<span class="arrow" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9M8.6 4.3 12.4 8l-3.8 3.7"/></svg></span></a>
+        <button class="mini" type="button" data-bug="merge">报 bug</button>
+        <a class="mini" href="offline.html#merge">离线版</a>
+      </div>
+    </article>
 
-    <a class="proj" href="bird.html">
+    <article class="proj" data-game="bird" data-version="1.1.0">
       <div class="phead">
         <span class="ico" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -268,15 +440,24 @@ a.proj:hover .arrow{transform:translateX(3px)}
             <circle cx="12" cy="8.2" r="1.7" fill="currentColor" stroke="none"/>
           </svg>
         </span>
-        <h2>是鸟弟就下100层</h2>
+        <h2>是鸟弟就下100层<span class="ver">v1.1.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
-      <p class="desc">是男人就下一百层的玩法，主角换成波吕克斯（鸟弟）：镜头一直往下滚，平台踩上去就开始塌，走慢了会被头顶的尖刺顶住，掉太快又会摔在井底尖刺上，一路下到第 100 层。井里的怪是原作自带的那五只（融蚀鼠王 / 提灯 / 吟诵者 / 自爆脓疱 / 融蚀野犬），八种平台里还有能把人弹回去四层的蹦床跳板。带血条、狂气条、七种掉落物，简单 / 普通 / 困难 / 癫狂四档难度，四个技能演出直接用维基上的战斗动图。</p>
-      <ul class="tags"><li>四档难度</li><li>五种原作怪物</li><li>蹦床跳板</li><li>七种掉落</li><li>手机可玩</li></ul>
-      <span class="go">立即进入 <span class="arrow">→</span></span>
-    </a>
+      <p class="desc">平台踩上去就开始塌，边往下掉边躲怪，一路下到第 100 层。</p>
+      <ul class="tags"><li>下落</li><li>100 层</li><li>四档难度</li></ul>
+      <div class="rate" data-rate>
+        <span class="stars" aria-hidden="true">★★★★★</span>
+        <b class="score">—</b><span class="cnt">暂无评分</span>
+        <button class="add" type="button" data-rate-btn>评分</button>
+      </div>
+      <div class="pfoot">
+        <a class="go" href="bird.html">进入<span class="arrow" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9M8.6 4.3 12.4 8l-3.8 3.7"/></svg></span></a>
+        <button class="mini" type="button" data-bug="bird">报 bug</button>
+        <a class="mini" href="offline.html#bird">离线版</a>
+      </div>
+    </article>
 
-    <a class="proj" href="binding.html">
+    <article class="proj" data-game="binding" data-version="1.4.0">
       <div class="phead">
         <span class="ico" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -287,45 +468,72 @@ a.proj:hover .arrow{transform:translateX(3px)}
             <path d="M10.6 16.1h2.8"/>
           </svg>
         </span>
-        <h2>校猫的结合</h2>
+        <h2>校猫的结合<span class="ver">v1.4.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
-      <p class="desc">以撒的结合的玩法，主角是弥萨格校猫：一间间房间打过去，泪弹打出去会弹、会拐、会分裂，捡到的造物和密契直接挂在猫身上——礼帽、面纱、项圈铃、挎包、肩上的乌鸦，捡一件变一个样。毛色、瞳色、造型都能在开局前自己调，三档难度（简单三层 / 困难五层 / 癫狂八层，层数越多走得越深、终点首领也越强），每层末尾坐着一个首领；有祭坛房、挑战房，还有十种钥令和一个「自动攻击」开关（开着只管走位，手机上尤其省事）。带一条完整的剧情线（25 场、148 句，打字机推进）和一整本设定集：世界条目与造物档案取自官方剧情与收藏馆原文，捡到过、走到过就解锁。</p>
-      <ul class="tags"><li>三档难度</li><li>3 / 5 / 8 层</li><li>34 件造物</li><li>8 个首领</li><li>自动攻击</li><li>手机可玩</li></ul>
-      <span class="go">立即进入 <span class="arrow">→</span></span>
-    </a>
+      <p class="desc">以撒的玩法，主角是弥萨格校猫。一间间打过去，捡到的造物会真的挂在猫身上。</p>
+      <ul class="tags"><li>地牢射击</li><li>3–8 层</li><li>34 件造物</li></ul>
+      <div class="rate" data-rate>
+        <span class="stars" aria-hidden="true">★★★★★</span>
+        <b class="score">—</b><span class="cnt">暂无评分</span>
+        <button class="add" type="button" data-rate-btn>评分</button>
+      </div>
+      <div class="pfoot">
+        <a class="go" href="binding.html">进入<span class="arrow" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9M8.6 4.3 12.4 8l-3.8 3.7"/></svg></span></a>
+        <button class="mini" type="button" data-bug="binding">报 bug</button>
+        <a class="mini" href="offline.html#binding">离线版</a>
+      </div>
+    </article>
 
-    <a class="proj" href="idle/index.html">
+    <article class="proj" data-game="idle" data-version="0.5.0">
       <div class="phead">
         <span class="ico" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 15.5 6.5 8h11L20 15.5"/><path d="M3 15.5h18v3H3z"/><circle cx="7.5" cy="19.5" r="1.6"/><circle cx="16.5" cy="19.5" r="1.6"/><path d="M9 5.5h6"/>
           </svg>
         </span>
-        <h2>弥萨格挂机版</h2>
+        <h2>弥萨格挂机版<span class="ver">v0.5.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
-      <p class="desc">四人小队自动战斗，14 个页面按功能收进 5 个分组（养成 / 召唤 / 挑战 / 更多），主线推图、周本 Boss、属性塔、竞技场、融灾试炼、109 个成就与签到日历都在里面。战斗页直接给出当前关与下一关的胜率、金币、召唤券、银芯和掉落；关掉「自动挂机」就切成手动攻坚，每场自己开战、赢了即推进。养成有等级 · 突破 · 叠位（上限 99，满叠位 159 级）三档，另有造物六格羁绊与钥令配置；62 名唤醒体、149 命轮、21 密契、310 造物、12 钥令按真实数据实装，各页用原作典藏馆 CG 分界面做背景，点开角色能看官方素材的完整立绘。</p>
-      <ul class="tags"><li>放置挂机</li><li>手动攻坚</li><li>5 组 14 页</li><li>叠位 99</li><li>完整立绘</li></ul>
-      <span class="go">立即进入 <span class="arrow">→</span></span>
-    </a>
+      <p class="desc">四人小队自动战斗，推图、周本、属性塔、竞技场、融灾禁区都在里面；关掉自动就切手动。</p>
+      <ul class="tags"><li>放置</li><li>五人编队</li><li>100 层融灾</li></ul>
+      <div class="rate" data-rate>
+        <span class="stars" aria-hidden="true">★★★★★</span>
+        <b class="score">—</b><span class="cnt">暂无评分</span>
+        <button class="add" type="button" data-rate-btn>评分</button>
+      </div>
+      <div class="pfoot">
+        <a class="go" href="idle/index.html">进入<span class="arrow" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9M8.6 4.3 12.4 8l-3.8 3.7"/></svg></span></a>
+        <button class="mini" type="button" data-bug="idle">报 bug</button>
+        <a class="mini" href="offline.html#idle">离线版</a>
+      </div>
+    </article>
 
-    <a class="proj" href="survivors.html">
+    <article class="proj" data-game="survivors" data-version="1.2.0">
       <div class="phead">
         <span class="ico" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><path d="M12 6.5a5.5 5.5 0 0 1 5.5 5.5"/><path d="M12 17.5A5.5 5.5 0 0 1 6.5 12"/>
           </svg>
         </span>
-        <h2>唤醒体幸存者</h2>
+        <h2>唤醒体幸存者<span class="ver">v1.2.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
-      <p class="desc">吸血鬼幸存者的玩法，主角换成 62 名唤醒体任你挑：只带出生技进场，剩下全靠一路捡。技能池就是全员的 Skill1 / Skill2 共 124 把，按弹道、范围、环绕、召唤等 12 种原型自动开火；升级三选一里还会掉造物与命轮——造物叠满三件才满效，命轮三分钟后才开槽。撑满 15 分钟就算通关，每 70 秒来一只精英，三分钟起首领轮番登场，四档难度从简单到癫狂，结束按分数换银芯。</p>
-      <ul class="tags"><li>62 名唤醒体</li><li>124 把技能</li><li>造物 · 命轮</li><li>四档难度</li><li>手机可玩</li></ul>
-      <span class="go">立即进入 <span class="arrow">→</span></span>
-    </a>
+      <p class="desc">只带出生技进场，剩下全靠升级三选一。撑满 15 分钟算通关，62 名唤醒体任选。</p>
+      <ul class="tags"><li>割草</li><li>15 分钟一局</li><li>62 人</li></ul>
+      <div class="rate" data-rate>
+        <span class="stars" aria-hidden="true">★★★★★</span>
+        <b class="score">—</b><span class="cnt">暂无评分</span>
+        <button class="add" type="button" data-rate-btn>评分</button>
+      </div>
+      <div class="pfoot">
+        <a class="go" href="survivors.html">进入<span class="arrow" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9M8.6 4.3 12.4 8l-3.8 3.7"/></svg></span></a>
+        <button class="mini" type="button" data-bug="survivors">报 bug</button>
+        <a class="mini" href="offline.html#survivors">离线版</a>
+      </div>
+    </article>
 
-    <a class="proj" href="protocol.html">
+    <article class="proj" data-game="protocol" data-version="1.1.0">
       <div class="phead">
         <span class="ico" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -333,30 +541,42 @@ a.proj:hover .arrow{transform:translateX(3px)}
             <path d="M4.4 13.2 8 15.2v4.4l-3.6-2zM19.6 13.2 16 15.2v4.4l3.6-2z"/>
           </svg>
         </span>
-        <h2>忘却协议</h2>
+        <h2>忘却协议<span class="ver">v1.1.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
-      <p class="desc">自走棋的玩法，战场换成六边形格子：花金币在商店里买唤醒体，摆进左侧四列的格子里组成防线，同名买三个合成 2 星、再三个合成 3 星，升星还送命轮与造物。界域（血肉 / 深海 / 混沌 / 超维）与职阶（伤害 / 防御 / 辅助）凑够人数就开羁绊，狂气条满了自动放大招。每局地格都不一样：高台给射程、祭坛攒狂气、裂隙拿攻击、岩壁立不了人。敌人从右侧通道（每行一条）走进来，挡住就对砍、走到底就扣协议核心的血，守住十二波算赢，每局按得分换银芯。60 多名唤醒体用的都是维基上的战斗动态立绘，待机循环、打击动作逐帧播。</p>
-      <ul class="tags"><li>六边形防线</li><li>62 名唤醒体</li><li>命轮 · 造物</li><li>七种羁绊</li><li>随机地形</li><li>手机可玩</li></ul>
-      <span class="go">立即进入 <span class="arrow">→</span></span>
-    </a>
+      <p class="desc">六边形自走棋：买人、摆阵、凑界域与职阶羁绊，守住十二波。</p>
+      <ul class="tags"><li>自走棋</li><li>六边形棋盘</li><li>62 人</li></ul>
+      <div class="rate" data-rate>
+        <span class="stars" aria-hidden="true">★★★★★</span>
+        <b class="score">—</b><span class="cnt">暂无评分</span>
+        <button class="add" type="button" data-rate-btn>评分</button>
+      </div>
+      <div class="pfoot">
+        <a class="go" href="protocol.html">进入<span class="arrow" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9M8.6 4.3 12.4 8l-3.8 3.7"/></svg></span></a>
+        <button class="mini" type="button" data-bug="protocol">报 bug</button>
+        <a class="mini" href="offline.html#protocol">离线版</a>
+      </div>
+    </article>
 
-    <div class="proj soon" aria-disabled="true">
+    <article class="proj" data-game="deathreport" data-version="0.1.0">
       <div class="phead">
         <span class="ico" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h6M9 16h4"/>
           </svg>
         </span>
-        <h2>忘却前夜死亡调查报告</h2>
+        <h2>死亡调查报告<span class="ver">v0.1.0</span></h2>
         <span class="badge soon">开发中</span>
       </div>
-      <p class="desc">以案件档案的形式复盘一场翻车：逐条质询当时的队伍、命轮与造物选择，找出真正的死因。</p>
-      <ul class="tags"><li>案件档案</li><li>逐条质询</li><li>复盘推理</li></ul>
-      <span class="go"><span class="dot"></span>开发中，还不能进入</span>
-    </div>
+      <p class="desc">以案件档案的形式复盘一场翻车：逐条质询当时的队伍与选择，找出真正的死因。</p>
+      <ul class="tags"><li>推理</li><li>开发中</li></ul>
+      <div class="pfoot">
+        <span class="go soon-go"><span class="dot"></span>还没开放</span>
+        <button class="mini" type="button" data-bug="deathreport">报 bug</button>
+      </div>
+    </article>
 
-    <a class="proj" href="wolf.html">
+    <article class="proj" data-game="wolf" data-version="1.0.0">
       <div class="phead">
         <span class="ico" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -365,20 +585,152 @@ a.proj:hover .arrow{transform:translateX(3px)}
             <circle cx="14.4" cy="11.8" r=".95" fill="currentColor" stroke="none"/>
           </svg>
         </span>
-        <h2>弥萨格狼人杀</h2>
+        <h2>弥萨格狼人杀<span class="ver">v1.0.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
-      <p class="desc">人机狼人杀，你是坐在主位上的守密人，其余席位从 62 名唤醒体里随机来客。每局重新发牌，身份按世界观重新设计：融蚀体与潜伏者藏在桌上，清醒者要找出他们，守夜人守人、灵视者验人、解剖助手看尸体、灯守管住提灯、链缚者被投出时拖一个人一起走，低语者不动手，只让灵视者第二天说不出话；共谋者被验成好人，忘却者只等场上剩四个人。参考 Gnosia 的随机配置——同一个人这局是灵视者、下局可能是融蚀体，而他们说话会跟着自己的身份、口癖和对别人的私心变。轮到你说话时可以亮牌、指认、替人辩护，也可以当众号召「有身份的人站出来」，看谁敢应、谁在对着跳。五档难度从九人小桌到十四人终夜局，随时可以重开一局。不想一句句点也行——切到「快进」只把对话压短，切到「自动」就连你的发言、投票、过夜都由它代打，中途点「接管」就能拿回来。</p>
-      <ul class="tags"><li>12 种身份</li><li>62 名唤醒体</li><li>随机发牌</li><li>3500+ 句台词</li><li>五档难度</li><li>可自动对局</li><li>手机可玩</li></ul>
-      <span class="go">立即进入 <span class="arrow">→</span></span>
+      <p class="desc">人机狼人杀，你是主位上的守密人。参考 Gnosia 的随机发牌：身份跟着人走，这局灵视者、下局可能是融蚀体，发言也跟着身份变。轮到你说话时可亮牌、指认、替人辩护，也能号召「有身份的人站出来」看谁敢应。</p>
+      <ul class="tags"><li>12 种身份</li><li>五档难度</li><li>可自动对局</li></ul>
+      <div class="rate" data-rate>
+        <span class="stars" aria-hidden="true">★★★★★</span>
+        <b class="score">—</b><span class="cnt">暂无评分</span>
+        <button class="add" type="button" data-rate-btn>评分</button>
+      </div>
+      <div class="pfoot">
+        <a class="go" href="wolf.html">进入<span class="arrow" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9M8.6 4.3 12.4 8l-3.8 3.7"/></svg></span></a>
+        <button class="mini" type="button" data-bug="wolf">报 bug</button>
+        <a class="mini" href="offline.html#wolf">离线版</a>
+      </div>
+    </article>
+  </section>
+
+  <section class="dl" id="download">
+    <div>
+      <h3>离线版 / 桌面版</h3>
+      <p>把游戏整包下到本机，断网也能玩，只在「设置 → 检查更新」时才联网。可导出加密存档，换设备或换装机时导入继续。</p>
+    </div>
+    <div class="acts">
+      <a class="btn primary" href="offline.html">下载离线版</a>
+      <a class="btn ghost" href="offline.html#desktop">桌面版</a>
+    </div>
+  </section>
+
+  <section class="links" id="links" aria-label="官方与社区">
+    <a href="https://morimens.qookkagames.com/" target="_blank" rel="noopener">
+      <span class="lk-ico">🏛</span><span>官方网站<small>morimens.qookkagames.com</small></span>
+    </a>
+    <a href="https://store.steampowered.com/app/3052450/" target="_blank" rel="noopener">
+      <span class="lk-ico">🎮</span><span>Steam 商店<small>忘却前夜 · app 3052450</small></span>
+    </a>
+    <a href="https://discord.com/invite/2hsGcAPcs9" target="_blank" rel="noopener">
+      <span class="lk-ico">💬</span><span>官方 Discord<small>discord.gg/2hsGcAPcs9</small></span>
+    </a>
+    <a href="https://z769018860.github.io/qdby_chinese/" target="_blank" rel="noopener">
+      <span class="lk-ico">📰</span><span>忘忘看报<small>汉化 / 攻略 / 工具箱</small></span>
     </a>
   </section>
 
+  <section class="legal">
+    <p><b>数据来源与权利说明</b></p>
+    <p>粉丝向免费工具；《忘却前夜》相关角色、图片与游戏素材版权归原权利方所有。本站整理、统计与说明内容按 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans" target="_blank" rel="noopener noreferrer license">CC BY-NC-SA 4.0</a> 协议共享（署名—非商业性使用—相同方式共享）。数据来源：<a href="https://github.com/dansa/SKeyDB" target="_blank" rel="noopener">SKeyDB</a>、<a href="https://morimens.info.kr/" target="_blank" rel="noopener">Morimens.Info.kr</a>、<a href="https://morimens.aiden.gg/" target="_blank" rel="noopener">Morimens.aiden.gg</a>、<a href="https://wiki.biligame.com/qdby" target="_blank" rel="noopener">灰机维基</a>、<a href="https://z769018860.github.io/qdby_chinese/" target="_blank" rel="noopener">忘忘看报</a>，均以其各自授权为准；游戏素材版权归原权利方所有。</p>
+    <p>同一句也写在<a href="https://z769018860.github.io/qdby_chinese/morimens-tools.html" target="_blank" rel="noopener">忘忘看报</a>页脚：本站与它一样，只做非商业的同人整理，不提供任何官方资源下载。若你是权利人且不希望被引用，联系后立即撤下。</p>
+  </section>
+
   <footer class="foot">
-    <span>同人作品，与官方无关。素材版权归原权利人所有；战报数据来自公开榜单，玩家信息已匿名。</span>
-    <span><a href="about.html">项目说明与素材来源</a></span>
+    <span>同人作品，与官方无关；无盈利、无充值。素材版权归原权利人所有，战报数据来自公开榜单且已匿名。</span>
+    <span><a href="about.html">项目说明与素材来源</a> · <a href="offline.html">离线版</a> · <a href="https://github.com/Z769018860/qdby_morimens" target="_blank" rel="noopener">源码</a></span>
   </footer>
 </main>
+
+<!-- 公告 -->
+<dialog class="sheet" id="noticeDlg">
+  <div class="sheet-in">
+    <h3>先说几句 · 刚上线公告</h3>
+    <p class="sub">更新于 2026-10-29 · 全部游戏都是同人作品，和官方无关</p>
+    <ul>
+      <li><b>全是刚上线的版本。</b>一定会有 bug、数值不合理、偶尔卡住或者存档出问题，能接受再玩。</li>
+      <li><b>没有充值，也不卖任何东西。</b>这站是纯恶搞的同人合集；觉得好玩欢迎反馈，能联系上作者的话会酌情发一点银芯当友情福利（纯友情，不是购买）。</li>
+      <li><b>人多可能会卡。</b>服务器和带宽都是自己贴的，卡了就过一会儿再来，进度不会丢。</li>
+      <li><b>遇到 bug 请点右上角「BUG 反馈」</b>，写清哪个游戏、发生了什么。核实后会发少量银芯感谢。</li>
+      <li><b>想断网玩可以装「离线版」</b>：整包下到本机，只在设置里检查更新时联网；支持导出加密存档，换设备能继续。</li>
+    </ul>
+    <div class="acts">
+      <button class="btn ghost" type="button" data-close>关闭</button>
+      <button class="btn primary" type="button" data-close>我知道了</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 评分 -->
+<dialog class="sheet" id="rateDlg">
+  <div class="sheet-in">
+    <h3 id="rateTitle">给游戏打分</h3>
+    <p class="sub">1–5 星，可以顺手写一句感受。综合评分是所有玩家打分的平均分。</p>
+    <div class="starpick" id="starpick" role="radiogroup" aria-label="星级">
+      <button type="button" data-v="1" aria-label="1 星">★</button>
+      <button type="button" data-v="2" aria-label="2 星">★</button>
+      <button type="button" data-v="3" aria-label="3 星">★</button>
+      <button type="button" data-v="4" aria-label="4 星">★</button>
+      <button type="button" data-v="5" aria-label="5 星">★</button>
+    </div>
+    <textarea id="rateText" maxlength="120" placeholder="一句短评（可不填）：哪里好玩、哪里劝退"></textarea>
+    <p class="tip" id="rateTip"></p>
+    <div class="acts">
+      <button class="btn ghost" type="button" data-close>取消</button>
+      <button class="btn primary" type="button" id="rateSend">提交评分</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- BUG 反馈 -->
+<dialog class="sheet" id="bugDlg">
+  <div class="sheet-in">
+    <h3>BUG 反馈</h3>
+    <p class="sub">核实后会发少量银芯感谢（站内积分，不是充值）。写清「哪个游戏 + 怎么触发的」最有用。</p>
+    <div class="fld">
+      <label for="bugGame">哪个游戏</label>
+      <select id="bugGame">
+        <option value="detective">战报侦探</option>
+        <option value="merge">合成大杜勒</option>
+        <option value="bird">是鸟弟就下100层</option>
+        <option value="binding">校猫的结合</option>
+        <option value="idle">弥萨格挂机版</option>
+        <option value="survivors">唤醒体幸存者</option>
+        <option value="protocol">忘却协议</option>
+        <option value="wolf">弥萨格狼人杀</option>
+        <option value="deathreport">死亡调查报告</option>
+        <option value="home">首页 / 账号 / 其他</option>
+      </select>
+    </div>
+    <div class="fld">
+      <label for="bugText">遇到什么 bug</label>
+      <textarea id="bugText" maxlength="600" placeholder="例：挂机版打融灾禁区第 12 层，点开始后一直转圈，刷新后次数被扣了但没结算。"></textarea>
+    </div>
+    <div class="fld">
+      <label for="bugContact">联系方式（可不填，方便发银芯）</label>
+      <input id="bugContact" maxlength="60" placeholder="站内用户名 / 邮箱 / B站 / Discord">
+    </div>
+    <p class="tip" id="bugTip"></p>
+    <div class="acts">
+      <button class="btn ghost" type="button" data-close>取消</button>
+      <button class="btn primary" type="button" id="bugSend">提交反馈</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 提交成功 / 兜底复制 -->
+<dialog class="sheet" id="doneDlg">
+  <div class="sheet-in">
+    <h3 id="doneTitle">收到，谢谢</h3>
+    <p class="sub" id="doneSub"></p>
+    <textarea id="doneBody" readonly hidden></textarea>
+    <div class="acts" id="doneActs">
+      <button class="btn ghost" type="button" data-close>关闭</button>
+      <button class="btn" type="button" id="doneCopy" hidden>复制内容</button>
+      <a class="btn primary" href="#" id="doneIssue" target="_blank" rel="noopener" hidden>去 GitHub 提交</a>
+    </div>
+  </div>
+</dialog>
+
 
 <script>
 /* ------------------------------------------------------------------ 首页账号
@@ -812,5 +1164,308 @@ a.proj:hover .arrow{transform:translateX(3px)}
   render();
 })();
 </script>
+
+<script>
+/* ------------------------------------------------------------------ 首页互动
+   公告 / 评分 / BUG 反馈三块。都尽量不依赖后端：
+   · 评分先读本机，再尝试拉 /api/home/ratings 的综合分（站点后端在线时才有）；
+   · BUG 反馈能提交就提交，提交不了就生成一份可复制的内容 + GitHub issue 链接。
+   这样在 GitHub Pages 镜像（没有 /api）上也不会点一下就死。 */
+(function () {
+  'use strict';
+
+  var NOTICE_ID = '2026-10-29';
+  var GITHUB_ISSUE = 'https://github.com/Z769018860/qdby_morimens/issues/new';
+  var RATE_KEY = 'zjtt:homeRate';
+  var BUG_KEY = 'zjtt:bugOutbox';
+
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return [].slice.call((r || document).querySelectorAll(s)); };
+
+  function read(k, d) {
+    try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }
+    catch (e) { return d; }
+  }
+  function write(k, v) {
+    try { localStorage.setItem(k, JSON.stringify(v)); return true; }
+    catch (e) { return false; }
+  }
+  function toast(msg) {
+    var t = document.createElement('div');
+    t.className = 'toast'; t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function () { t.remove(); }, 2400);
+  }
+
+  // 没有后端（GitHub Pages 镜像、纯静态预览）时返回空串，直接走本机逻辑
+  function apiBase() {
+    if (/\.github\.io$/i.test(location.hostname)) return '';
+    if (!/^https?:$/.test(location.protocol)) return '';
+    return location.origin + '/api';
+  }
+  function deviceId() {
+    var id = read('zjtt:did', '');
+    if (!id) {
+      id = 'd_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+      write('zjtt:did', id);
+    }
+    return id;
+  }
+  function post(path, body) {
+    var base = apiBase();
+    if (!base) return Promise.reject(new Error('offline'));
+    return fetch(base + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Device': deviceId() },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok || !j || j.ok === false) throw new Error((j && (j.error || j.detail)) || ('HTTP ' + r.status));
+        return j;
+      });
+    });
+  }
+
+  // ------------------------------------------------------------ 弹层
+  function openDlg(dlg) {
+    if (!dlg) return;
+    if (typeof dlg.showModal === 'function') { if (!dlg.open) dlg.showModal(); }
+    else dlg.setAttribute('open', '');
+  }
+  function closeDlg(dlg) {
+    if (typeof dlg.close === 'function') dlg.close();
+    else dlg.removeAttribute('open');
+  }
+  $$('dialog.sheet').forEach(function (d) {
+    d.addEventListener('click', function (e) {
+      if (e.target === d) { closeDlg(d); return; }         // 点遮罩关掉
+      if (e.target.closest('[data-close]')) closeDlg(d);
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    $$('dialog.sheet[open]').forEach(closeDlg);
+  });
+
+  // ------------------------------------------------------------ 公告
+  var noticeDlg = $('#noticeDlg');
+  function openNotice() { openDlg(noticeDlg); }
+  $('#noticeBtn').addEventListener('click', openNotice);
+  $('#noticeMore').addEventListener('click', openNotice);
+  // 每个版本的公告只自动弹一次，别每次回首页都糊一脸
+  if (read('zjtt:noticeSeen', '') !== NOTICE_ID) {
+    setTimeout(function () {
+      openNotice();
+      write('zjtt:noticeSeen', NOTICE_ID);
+    }, 420);
+  }
+
+  // ------------------------------------------------------------ 评分
+  var GAMES = {};
+  $$('.proj[data-game]').forEach(function (card) {
+    GAMES[card.dataset.game] = card.querySelector('h2').textContent.replace(/v[\d.]+$/, '').trim();
+  });
+
+  function mineAll() { return read(RATE_KEY, {}) || {}; }
+  function paintRate(card, avg, n, mine) {
+    var box = card.querySelector('.rate');
+    if (!box) return;
+    var starsEl = box.querySelector('.stars');
+    var scoreEl = box.querySelector('.score');
+    var cntEl = box.querySelector('.cnt');
+    var btn = box.querySelector('.add');
+    if (!n) {
+      starsEl.innerHTML = '★★★★★'.replace(/★/g, '<i>★</i>');
+      scoreEl.textContent = '—';
+      cntEl.textContent = '暂无评分';
+    } else {
+      var full = Math.round(avg);
+      var html = '';
+      for (var i = 0; i < 5; i++) html += i < full ? '★' : '<i>★</i>';
+      starsEl.innerHTML = html;
+      scoreEl.textContent = avg.toFixed(1);
+      cntEl.textContent = '（' + n + ' 人' + (mine ? ' · 你打过 ' + mine + ' 星' : '') + '）';
+    }
+    btn.textContent = mine ? '改评分' : '评分';
+    box.title = '综合评分 = 所有玩家打分的平均分';
+  }
+
+  // 本机记录先画一遍（秒出），再拿服务端的综合分覆盖
+  var mine = mineAll();
+  $$('.proj[data-game]').forEach(function (card) {
+    var m = mine[card.dataset.game];
+    paintRate(card, m ? m.stars : 0, m ? 1 : 0, m ? m.stars : 0);
+  });
+
+  (function loadServerRatings() {
+    var base = apiBase();
+    if (!base) return;
+    var ids = Object.keys(GAMES).join(',');
+    fetch(base + '/home/ratings?games=' + encodeURIComponent(ids), { headers: { 'X-Device': deviceId() } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.items) return;
+        if (j.mine) { mine = Object.assign(mine, j.mine); write(RATE_KEY, mine); }
+        Object.keys(j.items).forEach(function (id) {
+          var it = j.items[id];
+          var card = $('.proj[data-game="' + id + '"]');
+          if (!card || !it || !it.n) return;
+          paintRate(card, Number(it.avg) || 0, Number(it.n) || 0, mine[id] ? mine[id].stars : 0);
+        });
+      })
+      .catch(function () { /* 后端没起来就用本机评分 */ });
+  })();
+
+  var rateDlg = $('#rateDlg');
+  var rateGame = '';
+  var rateStars = 0;
+  var starBtns = $$('#starpick button');
+
+  function paintStars(v) {
+    starBtns.forEach(function (b) { b.classList.toggle('on', Number(b.dataset.v) <= v); });
+  }
+  starBtns.forEach(function (b) {
+    b.addEventListener('click', function () { rateStars = Number(b.dataset.v); paintStars(rateStars); $('#rateTip').textContent = ''; });
+    b.addEventListener('mouseenter', function () { paintStars(Number(b.dataset.v)); });
+  });
+  $('#starpick').addEventListener('mouseleave', function () { paintStars(rateStars); });
+
+  function openRate(game) {
+    rateGame = game;
+    var m = mineAll()[game];
+    rateStars = m ? m.stars : 0;
+    $('#rateTitle').textContent = '给「' + (GAMES[game] || game) + '」打分';
+    $('#rateText').value = m ? (m.text || '') : '';
+    $('#rateTip').textContent = '';
+    $('#rateTip').className = 'tip';
+    paintStars(rateStars);
+    openDlg(rateDlg);
+  }
+
+  $('#rateSend').addEventListener('click', function () {
+    var btn = this;
+    if (!rateStars) { $('#rateTip').textContent = '先点星星选个分数'; $('#rateTip').className = 'tip bad'; return; }
+    var text = $('#rateText').value.trim().slice(0, 120);
+    btn.disabled = true;
+    var local = mineAll();
+    local[rateGame] = { stars: rateStars, text: text, at: Date.now() };
+    write(RATE_KEY, local);
+    mine = local;
+
+    var card = $('.proj[data-game="' + rateGame + '"]');
+    paintRate(card, rateStars, 1, rateStars);
+
+    post('/home/rate', { game: rateGame, stars: rateStars, text: text })
+      .then(function (j) {
+        if (j && j.item && j.item.n) paintRate(card, Number(j.item.avg) || rateStars, Number(j.item.n), rateStars);
+        toast('评分已提交，谢谢');
+        closeDlg(rateDlg);
+      })
+      .catch(function () {
+        toast('评分已记在本机（评分服务没连上）');
+        closeDlg(rateDlg);
+      })
+      .then(function () { btn.disabled = false; });
+  });
+
+  // ------------------------------------------------------------ BUG 反馈
+  var bugDlg = $('#bugDlg');
+  var doneDlg = $('#doneDlg');
+
+  function openBug(game) {
+    if (game && $('#bugGame').querySelector('option[value="' + game + '"]')) $('#bugGame').value = game;
+    $('#bugTip').textContent = '';
+    $('#bugTip').className = 'tip';
+    openDlg(bugDlg);
+  }
+  $('#bugBtn').addEventListener('click', function () { openBug(''); });
+  $$('[data-bug]').forEach(function (b) {
+    b.addEventListener('click', function (e) { e.preventDefault(); openBug(b.dataset.bug); });
+  });
+
+  function bugText() {
+    var game = $('#bugGame');
+    var name = game.options[game.selectedIndex].textContent;
+    var card = $('.proj[data-game="' + game.value + '"]');
+    var ver = card ? card.dataset.version : '';
+    return {
+      game: game.value,
+      name: name,
+      ver: ver,
+      text: $('#bugText').value.trim(),
+      contact: $('#bugContact').value.trim()
+    };
+  }
+
+  function issueUrl(b) {
+    var body = [
+      '**游戏**：' + b.name + (b.ver ? '（v' + b.ver + '）' : ''),
+      '**现象**：' + b.text,
+      b.contact ? '**联系方式**：' + b.contact : '',
+      '',
+      '---',
+      '页面：' + location.href,
+      'UA：' + navigator.userAgent
+    ].filter(Boolean).join('\n');
+    return GITHUB_ISSUE + '?labels=bug&title=' + encodeURIComponent('[BUG] ' + b.name + '：' + b.text.slice(0, 30)) +
+      '&body=' + encodeURIComponent(body);
+  }
+
+  function showDone(title, sub, copyText, url) {
+    $('#doneTitle').textContent = title;
+    $('#doneSub').textContent = sub;
+    var ta = $('#doneBody');
+    ta.hidden = !copyText;
+    ta.value = copyText || '';
+    $('#doneCopy').hidden = !copyText;
+    var a = $('#doneIssue');
+    a.hidden = !url;
+    if (url) a.href = url;
+    openDlg(doneDlg);
+  }
+  $('#doneCopy').addEventListener('click', function () {
+    var ta = $('#doneBody');
+    ta.hidden = false;
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    if (!ok && navigator.clipboard) navigator.clipboard.writeText(ta.value).catch(function () {});
+    toast(ok || navigator.clipboard ? '已复制' : '复制失败，手动选中复制吧');
+  });
+
+  $('#bugSend').addEventListener('click', function () {
+    var btn = this;
+    var b = bugText();
+    if (b.text.length < 8) { $('#bugTip').textContent = '多写几个字，至少说清发生了什么'; $('#bugTip').className = 'tip bad'; return; }
+    btn.disabled = true;
+    $('#bugTip').textContent = '提交中…';
+    $('#bugTip').className = 'tip';
+
+    post('/home/bug', {
+      game: b.game, text: b.text, contact: b.contact, ver: b.ver, ua: navigator.userAgent
+    }).then(function (j) {
+      closeDlg(bugDlg);
+      $('#bugText').value = ''; $('#bugContact').value = '';
+      showDone('收到，谢谢', '反馈已提交' + (j && j.id ? '，编号 ' + j.id : '') + '。核实后会发少量银芯感谢。', '', '');
+      toast('反馈已提交');
+    }).catch(function () {
+      // 后端不可用：留一份在本机，同时给一条能直接发出去的路径
+      var out = read(BUG_KEY, []) || [];
+      out.unshift({ game: b.game, text: b.text, contact: b.contact, at: Date.now() });
+      write(BUG_KEY, out.slice(0, 30));
+      closeDlg(bugDlg);
+      var copy = '【' + b.name + (b.ver ? ' v' + b.ver : '') + '】\n' + b.text + (b.contact ? '\n联系方式：' + b.contact : '');
+      showDone('没连上反馈服务器', '已先记在本机。可以点「去 GitHub 提交」，或者复制下面的内容发给作者。核实后同样发银芯。', copy, issueUrl(b));
+    }).then(function () { btn.disabled = false; });
+  });
+
+  // 卡片里的「评分」按钮
+  $$('.proj[data-game]').forEach(function (card) {
+    var btn = card.querySelector('[data-rate-btn]');
+    if (btn) btn.addEventListener('click', function () { openRate(card.dataset.game); });
+  });
+})();
+</script>
+
 </body>
 </html>

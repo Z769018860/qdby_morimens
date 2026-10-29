@@ -1,0 +1,48 @@
+{
+  "name": "wangwang-fan-games",
+  "productName": "忘忘同人小游戏",
+  "version": "1.0.0",
+  "private": true,
+  "description": "《忘却前夜》非官方同人小游戏合集 · 完全离线的桌面版",
+  "author": "忘忘同人小游戏",
+  "license": "CC-BY-NC-SA-4.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "node ../scripts/build_desktop.mjs"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "io.github.z769018860.wangwang",
+    "productName": "忘忘同人小游戏",
+    "asar": false,
+    "files": [
+      "main.js",
+      "preload.js",
+      "web/**"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "../assets/app/icon-512.png",
+      "artifactName": "wangwang-fangames-${version}-win-x64.${ext}"
+    },
+    "publish": null
+  },
+  "dependencies": {
+    "resedit": "^3.1.0"
+  }
+}
