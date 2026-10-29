@@ -1,5 +1,5 @@
 // 死亡游戏调查报告 · 纯逻辑引擎（无 DOM）。数据来自 data/game.json（tools/build.py 生成）。
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;   // 2：多存界面位置（读到哪条 / 哪个页签），老档 v1 由 ui.js 的 migrate() 并进来
 export const REC_RE = /^(\d{2})-([A-E][1-5])-(\d{2})$/, DOC_RE = /^00-[A-Z]+$/;
 
 export function newGame(G) {

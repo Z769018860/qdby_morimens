@@ -5,6 +5,9 @@ import re, sys, json, os
 sys.path.insert(0, os.path.dirname(__file__))
 import ledger, texts, texts_extra
 from texts_v2 import T2
+from texts_v3 import T3
+# T3 是再一次改写的批次，优先于 T2；校验的是「最终进游戏的那一版」
+EFF = {n: (T3.get(n) or T2[n]) for n in T2}
 TOK = re.compile(r'\{(@?\d+|w:\d+|it:\d+|loc:[A-E]\d|bc:D\d-\d+|sys:[0-9A-Z-]+)\}')
 def old(n):
     L = texts.T[n].split('\n'); ins = list(texts_extra.X.get(n, []))
@@ -15,19 +18,19 @@ prof = json.load(open(os.path.join(os.path.dirname(__file__), '../data/lore.json
 G = {int(k): v.get('性别') for k, v in prof.items()}
 err = 0
 ev = {e['v']: e for e in ledger.E}
-for n in sorted(T2):
-    o, w = set(TOK.findall(old(n))), set(TOK.findall(T2[n]))
+for n in sorted(EFF):
+    o, W = set(TOK.findall(old(n))), set(TOK.findall(EFF[n]))
     norm = lambda s: {x.lstrip('@').replace('w:', '') if x.lstrip('@').replace('w:', '').isdigit() else x for x in s}
     e = ev[n]; c = e['c']
-    miss = norm(o) - norm(w)
+    miss = norm(o) - norm(W)
     miss = {m for m in miss if not m.startswith('loc:')}
     # 靠物证 / 行为 / 黑影推断的加害人，重写时本来就不该点名——删掉这个名字是设计要求，不算丢事实
     if c and e['how'] in ('item', 'trait', 'shadow'):
         miss.discard(str(c))
     if miss: print(n, 'MISSING', sorted(miss)); err += 1
-    if c and e['how'] in ('item', 'trait', 'shadow') and str(c) in norm(w) - norm(o): print(n, 'NEW KILLER NAME', c); err += 1
-    for m in re.finditer(r'\{@?(\d+)\}([^{}。！？\n]{0,12}?)([他她])', T2[n]):
+    if c and e['how'] in ('item', 'trait', 'shadow') and str(c) in norm(W) - norm(o): print(n, 'NEW KILLER NAME', c); err += 1
+    for m in re.finditer(r'\{@?(\d+)\}([^{}。！？\n]{0,12}?)([他她])', EFF[n]):
         g = G.get(int(m.group(1)))
         if g and ((g == '女' and m.group(3) == '他') or (g == '男' and m.group(3) == '她')): print(n, 'PRONOUN', m.group(0)); err += 1
-    if len(re.sub(r'\{[^}]*\}', '', T2[n])) < 230: print(n, 'SHORT', len(T2[n]))
-print('done', len(T2), 'errors', err)
+    if len(re.sub(r'\{[^}]*\}', '', EFF[n])) < 230: print(n, 'SHORT', len(EFF[n]))
+print('done', len(EFF), '(T3', len(T3), ') errors', err)

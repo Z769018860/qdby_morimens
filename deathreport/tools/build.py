@@ -14,8 +14,8 @@ if ED:
     _m = importlib.import_module('ed_' + ED)
     from ed_common import make_docs
     from witness import WIT
-    T = {}; X = {}; FLAVOR = {}; T2 = _m.PROSE; EXT = {}; FRAGS = {}; ARCS = []; HIDDEN = []; ENDINGS = [_m.ENDING]; MILE = _m.MILE; ARC_SRC = ''
-    PUZ_META = []; BADGES = {}; h32 = lambda x: 0
+    T = {}; X = {}; FLAVOR = {}; T2 = _m.PROSE; T3 = {}; EXT = {}; FRAGS = {}; ARCS = []; HIDDEN = []; ENDINGS = [_m.ENDING]; MILE = _m.MILE; ARC_SRC = ''
+    PUZ_META = []; BADGES = {}; h32 = lambda x: 0; MELT = {}
     DOCS = make_docs(_m.META, len(_m.CAST), _m.OVER, _m.FINALS); MSGS = _m.MSGS
     LORE_X = getattr(_m, 'LORE_EXTRA', {}); AVATAR_X = getattr(_m, 'AVATAR_EXTRA', {})
 else:
@@ -23,6 +23,7 @@ else:
     from texts import T
     from texts_extra import X, FLAVOR
     from texts_v2 import T2
+    from texts_v3 import T3
     from docs import DOCS, MSGS
     from witness import WIT
     from arcs import ARCS, MILE, SRC as ARC_SRC
@@ -30,6 +31,7 @@ else:
     from endings import ENDINGS
     from puzzles import FRAGS, META as PUZ_META, BADGES, h32
     from texts_ext import EXT
+    from melt import MELT
 
 ap = argparse.ArgumentParser(); ap.add_argument('--repo', default='..'); args = ap.parse_args()
 REPO = Path(args.repo).resolve(); HERE = Path(__file__).resolve().parent.parent
@@ -55,38 +57,91 @@ def cn(n):
     if n < 10: return d[n]
     if n < 20: return '十' + (d[n - 10] if n > 10 else '')
     return d[n // 10] + '十' + (d[n % 10] if n % 10 else '')
-CLAUSE = ['广播念过{B}的名字——{P}，第{N}个。', '{B}死在了{P}。我数过，那是第{N}个。', '有人在走廊里喊：{B}在{P}没了，第{N}个！', '听说{P}那边，{B}是第{N}个倒下的。',
-          '{MSG}', '{B}……在{P}。第{N}个。我把这个数字念了一遍，怕自己忘掉。',
-          '我记得很清楚：{P}，{B}，第{N}个。', '无线电里的杂音间隙传来一句：{B}死在{P}，是第{N}个。']
+SECONDHAND = ['广播念过{B}的名字——{P}，第{N}个。', '{B}死在了{P}。我数过，那是第{N}个。', '有人在远处喊：{B}在{P}没了，第{N}个！', '听说{P}那边，{B}是第{N}个倒下的。',
+              '{B}……在{P}。第{N}个。我把这个数字念了一遍，怕自己忘掉。',
+              '我记得很清楚：{P}，{B}，第{N}个。', '无线电里的杂音间隙传来一句：{B}死在{P}，是第{N}个。',
+              '名单又长了一行：{B}，{P}，第{N}个。写到这里笔尖顿了一下。',
+              '有人一边走一边念：{B}、{P}、第{N}个——像在背一张乘法表。',
+              '我不认识{B}，可我知道{P}，也知道那是第{N}个。',
+              '“{P}那边呢？”“没了。{B}，第{N}个。”',
+              '吃饭的时候听来的：{B}死在{P}，第{N}个。没有人接话。',
+              '手心写的字被汗洇开了：{B}，{P}，“第{N}个”还认得出。',
+              '值夜的人回来说，{P}抬走了一个，是{B}，第{N}个。',
+              '我把它记在袖口：{B}，{P}，第{N}个。这几笔比我的名字要紧。',
+              '有人小声说{B}，有人补了地点{P}，还有人报数：第{N}个。',
+              '“第{N}个是谁？”“{B}。”“在哪儿？”“{P}。”',
+              '有人在数人头：{B}，{P}……数到第{N}个就停了。',
+              '{B}的事传过来时已经变了形：地点还是{P}，数没错，第{N}个。',
+              '名单上添了一笔：第{N}个，{B}，{P}，字很小。',
+              '有人闲谈时提过一句：{B}没了，{P}，第{N}个。',
+              '有人隔着很远在报：{B}，{P}，第{N}个。声音断断续续。',
+              '有人念完{B}的名字，又补了一句地点：{P}。数到第{N}个就停了。', '{MSG}']
 # 原先这一格写的是“我在窗口看见{P}的方向暗了一下”。它有两个硬伤：一是把银芯崩解、
 # 黑潮漫过的景象安在了被刀砍死、被勒死的人身上；二是“我在窗口”预设了观察位置，
-# 而半数记录发生在溶洞、竹林、操场这种没有窗口的地方。改成三种“传话”的说法轮换。
+# 而半数记录发生在溶洞、竹林、操场这种没有窗口的地方。改成“传话”的说法。
+# 现在整池都只写“听来的 / 记下来的 / 有人念过”，不预设目击位置，也就不可能再套错死法。
 MSG_LINES = ['消息传到这里时，只剩下一句：{B}，{P}，第{N}个。',
              '{B}，{P}，第{N}个——这几个字被人一路念了过来。',
-             '第{N}个是{B}。{P}的事，传到这里就没有下文了。']
+             '第{N}个是{B}。{P}的事，传到这里就没有下文了。',
+             '传到这一格只剩数字对得上：第{N}个，{B}，{P}。',
+             '没有人说得清经过，只有人记得顺序：{B}，第{N}个，死在{P}。']
 ACLAUSE = ['记录在案：{B}，死亡地点{P}，死亡顺序第{N}个。', '{B}——{P}——第{N}个（据广播记录）。', '{B}：{P}，第{N}个死者。']
 CLAUSE_ED = ['{B}那一条，后来是{P}的广播念出来的——第{N}个。', '我记着{P}：{B}，第{N}个。顺序不会错，是我自己数的。',
              '有人从{P}那边过来，说{B}是第{N}个。', '{P}的灯灭的时候，{B}是第{N}个。',
              '清单上写着：第{N}个，{B}，{P}。', '我在{P}听见人念{B}的名字，念到“第{N}个”就停了。',
              '广播说，第{N}个是{B}，死在{P}。', '{B}，{P}，第{N}个——我把它抄在手心，怕忘。']
-def clause(a, b):
+_SEEN = {}
+for _t in SECONDHAND + CLAUSE_ED + ACLAUSE:
+    if _t == '{MSG}':
+        continue
+    assert '{B}' in _t and '{P}' in _t and '{N}' in _t, '见证句缺字段: ' + _t
+def clause(a, b, j=0):
     e = BY_V[b]
+    pool = SECONDHAND
     if ED:
-        t = (ACLAUSE[b % 3] if a == 0 else (CLAUSE + CLAUSE_ED)[(a * 7 + b * 3) % (len(CLAUSE) + len(CLAUSE_ED))])
+        t = (ACLAUSE[b % 3] if a == 0 else (pool + CLAUSE_ED)[(a * 7 + b * 3) % (len(pool) + len(CLAUSE_ED))])
     else:
-        t = (ACLAUSE[b % 3] if a == 0 else CLAUSE[(a * 7 + b * 3) % len(CLAUSE)])
+        # j = 这是这条记录里的第几处见证。混进去，让同一份记录里的几句不会用同一个说法，
+        # 也让“谁作证”与“用哪句”不再是一对一的死映射；同一份记录里更不许撞车。
+        if a == 0:
+            t = ACLAUSE[b % 3]
+        else:
+            idx = (a * 31 + b * 17 + a * b + j * 7) % len(pool)
+            hist = _SEEN.setdefault(a, [])
+            while idx in hist and len(hist) < len(pool):
+                idx = (idx + 1) % len(pool)
+            hist.append(idx)
+            t = pool[idx]
     if t == '{MSG}':
-        t = MSG_LINES[(a + b) % len(MSG_LINES)]
+        t = MSG_LINES[(a + b + j) % len(MSG_LINES)]
     return t.replace('{B}', NAME[b]).replace('{P}', PLACES[e['cell']]).replace('{N}', cn(e['dord']))
 TOK = re.compile(r'\{(@?\d+|w:\d+|it:\d+|loc:[A-E]\d|bc:D\d-\d+|sys:[0-9A-Z-]+)\}')
 def full_prose(n):
     return _prose(n) + ''.join('\n' + l for l in FRAGS.get(('rec', n), []))
 def _prose(n):
-    if n in T2:
-        L = T2[n].strip('\n').split('\n')
-        for k, txt in sorted(EXT.get(n, []), key=lambda a: -(a[0] if a[0] >= 0 else len(L) + a[0] - 1)):
-            L.insert(k + 1 if k >= 0 else len(L) + k, txt)
-        need = [b for b in WIT.get(n, []) if '{w:%d}' % b not in '\n'.join(L)]
+    src = T3.get(n) or T2.get(n)
+    if src:
+        L = src.strip('\n').split('\n')
+        # 融蚀段落：字被「吃掉」的那几处，插在记录中间。T3 重写过的记录不再叠 texts_ext 的追加句，
+        # 那一批是按旧稿的行号写的，插进去会打断新的语序。
+        if n not in T3:
+            for k, txt in sorted(EXT.get(n, []), key=lambda a: -(a[0] if a[0] >= 0 else len(L) + a[0] - 1)):
+                L.insert(k + 1 if k >= 0 else len(L) + k, txt)
+        for k, txt in sorted(MELT.get(('rec', n), []), key=lambda a: -a[0]):
+            L.insert(min(k, len(L)), txt)
+        have = '\n'.join(L)
+        # 只在“这条记录已经把某人的下落写全了（名字＋地点＋第几个）”时才不再补一句“听说”。
+        # 光提到名字不算——那样会把推理边也一起去掉，往届就断链了。
+        def keyed(b):
+            e2 = BY_V[b]; cell = e2['cell']
+            for ln in L:
+                # 只有明文令牌才真的产生参考边（{@N} 只显示名字，不算边），所以这里只认 {N}
+                hit = ('{%d}' % b in ln) and \
+                      ('{loc:%s}' % cell in ln or PLACES[cell] in ln) and ('第%s个' % cn(e2['dord'])) in ln
+                if hit:
+                    return True
+            return False
+        need = [b for b in WIT.get(n, []) if '{w:%d}' % b not in have and not keyed(b)]
         if ED:
             # 往届：最多两句见证，一句放在开场之后，一句放在收尾之前，中间不要连成广播清单
             need = need[:2]
@@ -95,7 +150,14 @@ def _prose(n):
             if len(need) > 1:
                 L.insert(max(3, len(L) - 1), '{w:%d}' % need[1])
             need = []
-        for j, b in enumerate(need): L.insert(min(2 + j, len(L) - 1), '{w:%d}' % b)
+        # 见证句统一放在开头（开场那一段回忆之后），不往正文中间插：
+        # 插到中间会把对话劈成两半，读者会以为「有人隔着很远在报」是现场台词。
+        base = 1
+        ambi = lambda x: x.strip().startswith('开场前') or re.fullmatch(r'\{bc:D\d-\d+\}', x.strip())
+        while base < len(L) and ambi(L[base]):
+            base += 1
+        for j, b in enumerate(need):
+            L.insert(min(base + j, len(L) - 1), '{w:%d}' % b)
         return '\n'.join(L)
     L = T[n].split('\n')
     ins = list(X.get(n, []))
@@ -106,9 +168,10 @@ FACTS = {}
 def render(n): return render_raw(full_prose(n), n)
 def render_raw(src, n):
     mentions, sysrefs, wits, items, locs, bcs = [], [], [], [], [], []
+    _SEEN.pop(n, None)
     def sub(m):
         t = m.group(1)
-        if t.startswith('w:'): b = int(t[2:]); wits.append(b); mentions.append(b); return clause(n, b)
+        if t.startswith('w:'): b = int(t[2:]); wits.append(b); mentions.append(b); return clause(n, b, len(wits) - 1)
         if t.startswith('it:'): items.append(int(t[3:])); return ITEM[int(t[3:])]
         if t.startswith('loc:'): locs.append(t[4:]); return PLACES[t[4:]]
         if t.startswith('bc:'): bcs.append(t[3:]); d, h = t[4:].split('-'); return bc_text(int(d), int(h))

@@ -12,8 +12,85 @@ let G, st, AUTO, ui = { sel: null, sort: 'order', tab: 'ros', rep: null, pane: '
 let pref = { crt: true, size: 15, sound: true, auto: { name: true, loc: true, item: true, bc: true }, ...(() => { try { return JSON.parse(localStorage.getItem(PREF)) || {}; } catch { return {}; } })() };
 const savePref = () => { try { localStorage.setItem(PREF, JSON.stringify(pref)); } catch { /* ignore */ } };
 const hasSave = () => { try { return !!localStorage.getItem(EDS[ED][1]); } catch { return false; } };
-const save = () => { try { st.playMs += Date.now() - (ui.t0 || Date.now()); ui.t0 = Date.now(); localStorage.setItem(EDS[ED][1], JSON.stringify(st)); } catch { /* ignore */ } };
-const loadSave = () => { try { const j = JSON.parse(localStorage.getItem(EDS[ED][1])); if (j && j.v === 1) return j; } catch { /* ignore */ } return null; };
+// 存档版本 2：多存一份界面位置（读到哪条、哪个页签、报告选的是谁），下次进来接着读。
+// 版本 1 的老存档直接并进新档的默认值里继续用，不丢进度。
+const SAVE_V = 2;
+function flashSaved() {
+  const b = $('#bSave'); if (!b || b.textContent === '已保存 ✔') return;
+  b.textContent = '已保存 ✔'; clearTimeout(flashSaved.t);
+  flashSaved.t = setTimeout(() => { b.textContent = '保存'; }, 1200);
+}
+const save = (silent) => {
+  if (!st) return;
+  try {
+    st.ui = { sel: ui.sel, tab: ui.tab, pane: ui.pane, rep: ui.rep, sort: ui.sort, infer: ui.infer, noteSec: ui.noteSec };
+    st.savedAt = Date.now();
+    st.playMs = (st.playMs || 0) + Math.max(0, Date.now() - (ui.t0 || Date.now()));
+    ui.t0 = Date.now();
+    localStorage.setItem(EDS[ED][1], JSON.stringify(st));
+    if (!silent) flashSaved();
+  } catch { /* 隐私模式 / 配额满：写不进去就算了，别打断阅读 */ }
+};
+function migrate(j) {
+  const st = { ...newGame(G), ...j, v: SAVE_V };
+  const keep = (k) => !!G.records[k];
+  const arcs = (G.arcs || []).map((a) => a.id);
+  st.recovered = (Array.isArray(j.recovered) ? j.recovered : []).filter(keep);
+  st.docs = ['00-ORDER', ...(Array.isArray(j.docs) ? j.docs : []).filter((d) => G.docs[d] && d !== '00-ORDER')];
+  st.msgs = (Array.isArray(j.msgs) ? j.msgs : []).filter((id) => G.msgs.some((m) => m.id === id));
+  st.arcs = (Array.isArray(j.arcs) ? j.arcs : []).filter((id) => arcs.includes(id));
+  st.badges = (Array.isArray(j.badges) ? j.badges : []).filter((id) => arcs.includes(id));
+  for (const f of ['drafts', 'confirmed', 'wrong', 'hl', 'marks', 'rnotes', 'hintStep', 'missed'])
+    st[f] = (j[f] && typeof j[f] === 'object') ? j[f] : (f === 'hintStep' || f === 'missed' ? {} : {});
+  for (const f of ['drafts', 'confirmed', 'wrong', 'hl', 'marks', 'rnotes'])
+    for (const k of Object.keys(st[f])) if (!keep(k)) delete st[f][k];
+  st.notes = typeof j.notes === 'string' ? j.notes : '';
+  st.playMs = Number(j.playMs) || 0;
+  return st;
+}
+function loadSave() {
+  const key = EDS[ED][1];
+  let raw = null;
+  try { raw = localStorage.getItem(key); } catch { return null; }
+  if (!raw) return null;
+  try {
+    const j = JSON.parse(raw);
+    if (!j || typeof j !== 'object' || !Array.isArray(j.recovered)) throw new Error('bad');
+    return migrate(j);
+  } catch {
+    // 坏档不要直接覆盖：挪到 -bad 留个证据，再当没有存档处理
+    try { localStorage.setItem(key + '-bad', raw); localStorage.removeItem(key); } catch { /* ignore */ }
+    return null;
+  }
+}
+// 标题页只读摘要，不动整份存档
+function peekSave() {
+  try {
+    const j = JSON.parse(localStorage.getItem(EDS[ED][1]));
+    if (!j || typeof j !== 'object') return null;
+    return { at: +j.savedAt || 0, confirmed: Object.keys(j.confirmed || {}).length, recovered: (j.recovered || []).length, total: total(G), ended: j.ended };
+  } catch { return null; }
+}
+const ago = (ts) => {
+  if (!ts) return '刚刚';
+  const m = Math.floor((Date.now() - ts) / 60000);
+  if (m < 1) return '刚刚';
+  if (m < 60) return `${m} 分钟前`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `${h} 小时前` : `${Math.floor(h / 24)} 天前`;
+};
+// 启动时先体检一遍：坏档挪到 -bad 存着，别让它一直占着键、把「继续调查」卡成灰色
+function sanitizeSave() {
+  const key = EDS[ED][1];
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+    const j = JSON.parse(raw);
+    if (!j || typeof j !== 'object' || !Array.isArray(j.recovered)) throw new Error('bad');
+  } catch {
+    try { const raw = localStorage.getItem(key); if (raw) localStorage.setItem(key + '-bad', raw); localStorage.removeItem(key); } catch { /* ignore */ }
+  }
+}
 
 // ---------------------------------------------------------------- audio
 // 短音效来自 audio/*.wav（tools/make_audio.py 合成），环境音由 audio.js 实时合成。
@@ -30,6 +107,7 @@ const sfx = {
   boom: () => play('boom', { gain: 0.3 }),
   heart: () => play('heart', { gain: 0.5 }),
   lock: () => play('lock', { gain: 0.34 }),
+  melt: () => play('melt', { gain: 0.4 }),
 };
 // 安卓与部分浏览器支持震动；iOS 没有，静默失败即可
 const buzz = (p) => { try { navigator.vibrate?.(p); } catch { /* ignore */ } };
@@ -75,7 +153,8 @@ function paras(text, id) {
     if (!blk.trim()) continue;
     if (blk.startsWith('[sys]')) { const inner = blk.slice(5, -6).trim(); html += `<div class="sys">${inner.split('\n').map((l) => (l.trim() ? `<p${/^〔[◇◆▲▽○●★☆◎▣][一二三]〕/.test(l) ? ' class="frag"' : ''}>${inline(l)}</p>` : '<p class="gap"></p>')).join('')}</div>`; continue; }
     for (const l of blk.split('\n')) { if (!l.trim()) continue; const fr = /^〔[◇◆▲▽○●★☆◎▣][一二三]〕/.test(l);
-      html += `<p data-i="${n}" class="${(mk[n] ? 'hl hl' + mk[n] : '') + (fr ? ' frag' : '')}">${fr ? esc(l) : auto(inline(l))}</p>`; n++; }
+      const ml = /^〔融蚀/.test(l);   // 被融蚀吃掉的那一段：另给一套字色与抖动
+      html += `<p data-i="${n}" class="${(mk[n] ? 'hl hl' + mk[n] : '') + (fr ? ' frag' : '') + (ml ? ' meltp' : '')}">${fr ? esc(l) : auto(inline(l))}</p>`; n++; }
   }
   return html;
 }
@@ -89,6 +168,7 @@ function openReader(id, keep = false) {
   // 黑影（名册外的那一个）与黑潮致死各有自己的画面与声音
   const isShadow = !!(G.shadow && (G.shadow.keys || []).includes(id));
   const isBlast = !!(rec && /爆炸/.test(G.solutions?.[id]?.causeZh || ''));
+  const isMelt = !!(rec && /〔融蚀/.test(rec.text));
   const rd = $('#rd');
   rd.classList.toggle('shadowrec', isShadow);
   if (arc) { head.innerHTML = `<b>${id}</b> | ${esc(arc.title)} | ${esc(arc.source)}<small>${arc.hidden ? '隐藏档案　靠推理得到' : `补充档案　确认 ${arc.need} 份报告后送达`}</small>`; body.innerHTML = paras(arc.text, id); }
@@ -106,6 +186,7 @@ function openReader(id, keep = false) {
     const ps = [...body.querySelectorAll(':scope > p')].filter((p) => !p.classList.contains('sys'));
     ps.forEach((p, i) => { p.style.animationDelay = Math.min(i, 22) * 22 + 'ms'; p.classList.add('fin'); });
     if (isShadow && !heard.has(id)) { heard.add(id); sfx.whisper(); }
+    else if (isMelt && !heard.has(id)) { heard.add(id); sfx.melt(); }
     else if (isBlast && !heard.has(id)) { heard.add(id); sfx.boom(); }
     else if (doc && doc.id === '00-ZONE' && !heard.has(id)) { heard.add(id); sfx.boom(); }
   }
@@ -342,8 +423,18 @@ function bootTitle() {
   const lines = G.edition.boot || ['> 记录复原终端　启动中……', '> 钥冢档案室内网　………　已确认（特级）', '> 检测到记录库遭到篡改　部分索引损坏', '> 参加者：六十二名　·　生存者：零', '> 请守密人尽快开始复原。'];
   let i = 0; (function next() { if (i >= lines.length) return; log.textContent += lines[i++] + '\n'; sfx.key(); setTimeout(next, 260); })();
   const un = meta().editions;
-  const items = [['continue', '继续调查', hasSave()], ['new', '新的游戏', true], ['eds', un ? '往届档案' : '往届档案　？？？', true], ['settings', '系统设置', true], ['help', '玩法说明', true], ['home', '返回首页', true]].filter((x) => x[2]);
-  $('#menu').innerHTML = items.map(([k, t]) => `<button data-m="${k}" class="${k === 'eds' && !un ? 'locked' : ''}">${t}</button>`).join('');
+  const pv = peekSave();
+  const items = [
+    ['continue', pv ? `继续调查　已读 ${pv.recovered} 条` : '继续调查', !!pv],
+    ['new', pv ? '重新开始' : '新的游戏', true],
+    ['eds', un ? '往届档案' : '往届档案　？？？', true],
+    ['settings', '系统设置', true], ['help', '玩法说明', true], ['home', '返回首页', true],
+  ].filter((x) => x[2]);
+  $('#menu').innerHTML = items.map(([k, t]) => `<button data-m="${k}" class="${k === 'eds' && !un ? 'locked' : ''}${k === 'continue' ? ' cont' : ''}">${t}</button>`).join('');
+  const si = $('#saveinfo');
+  if (si) si.innerHTML = pv
+    ? `上次保存 ${ago(pv.at)}　·　已复原 ${pv.recovered} 条　·　已确认 ${pv.confirmed}/${pv.total} 份报告${pv.ended === 'true' ? '　·　已结案' : ''}<br><span class="dim">进度会自动保存，关掉页面也不会丢。</span>`
+    : '还没有存档　·　开始之后每十几秒自动存一次，下次从这里接着读。';
 }
 function editions() {
   const un = meta().editions, cl = meta().cleared || {};
@@ -363,15 +454,24 @@ function toTitle() { save(); $('#game').hidden = true; $('#title').hidden = fals
 $('#bTitle').onclick = toTitle; $('#bSave').onclick = () => { save(); toast('已保存。'); }; $('#bSet').onclick = settings;
 function start(saved) {
   st = saved || newGame(G); if (!saved) { try { localStorage.removeItem(EDS[ED][1]); } catch { /* ignore */ } }
-  ui = { sel: null, sort: 'order', tab: 'ros', rep: null, pane: 'idx', hintLog: [], q: '', t0: Date.now() };
+  ui = { sel: null, sort: 'order', tab: 'ros', rep: null, pane: 'idx', hintLog: [], q: '', t0: Date.now(), ...(saved && saved.ui ? saved.ui : {}) };
+  const wantPane = ui.pane;   // showPane('idx') 会改写 ui.pane，先把上次的面板记下来
   $('#title').hidden = true; $('#game').hidden = false; $('#rdHead').innerHTML = ''; $('#rdBody').innerHTML = '<p class="dim">在索引里选择记录，或在上方键入记录名。</p>';
   setBg('read'); startAmbient();
-  showPane('idx'); renderList(); renderTools(); refreshRate(); save();
-  if (!saved) { openReader('00-ORDER'); toast('新消息 MSG01', 3000); sfx.msg(); } else if (st.ended === 'true') toast('案件已结案。', 2400);
+  showPane('idx'); renderList(); renderTools(); refreshRate(); save(true);
+  const back = saved && saved.ui && saved.ui.sel;
+  if (!saved) { openReader('00-ORDER'); toast('新消息 MSG01', 3000); sfx.msg(); }
+  else if (back && (G.records[back] || G.docs[back] || G.msgs.some((m) => m.id === back) || (G.arcs || []).some((a) => a.id === back))) {
+    openReader(back, true);
+    if (wantPane && wantPane !== 'rd') showPane(wantPane);   // 上次停在哪个面板就回哪个面板
+    toast(`接着上次的进度：已确认 ${stats(G, st).confirmed}/${stats(G, st).total} 份报告`, 3200);
+  } else if (st.ended === 'true') toast('案件已结案。', 2400);
+  else toast('已读取存档。', 2200);
 }
 (async () => {
   applyPref();
   startBg(); await loadEdition(63);
+  sanitizeSave();
   window.__dr = { get G() { return G; }, get st() { return st; } };
   bootTitle();
 })();
@@ -384,5 +484,9 @@ const firstGesture = () => {
 };
 document.addEventListener('pointerdown', firstGesture);
 document.addEventListener('keydown', firstGesture);
-document.addEventListener('visibilitychange', () => { if (st && document.hidden) save(); });
-window.addEventListener('beforeunload', () => { if (st && !$('#game').hidden) save(); });
+// 自动保存：每 12 秒落一次盘，切后台 / 关页面再补一次。
+// beforeunload 在手机浏览器上常常不触发，pagehide 更可靠——两个都挂，重复写一次也不要紧。
+setInterval(() => { if (st && !$('#game').hidden) save(true); }, 12000);
+document.addEventListener('visibilitychange', () => { if (st && document.hidden) save(true); });
+window.addEventListener('pagehide', () => { if (st && !$('#game').hidden) save(true); });
+window.addEventListener('beforeunload', () => { if (st && !$('#game').hidden) save(true); });

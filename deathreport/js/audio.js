@@ -55,7 +55,7 @@ export function play(name, { gain = 1, rate = 1, spread = 0 } = {}) {
     graph(); if (ctx.state === 'suspended') ctx.resume();
     // 这四个不落盘：黑影的低语、黑潮的闷响、心跳、锁扣，都用振荡器+噪声现场合成。
     // 站点每个请求要 1~2 秒，为几声短音效多占四个请求不划算。
-    if (name === 'whisper' || name === 'boom' || name === 'heart' || name === 'lock') { synth(name, gain, rate); return; }
+    if (name === 'whisper' || name === 'boom' || name === 'heart' || name === 'lock' || name === 'melt') { synth(name, gain, rate); return; }
     const b = buffers[name];
     if (!b) { fallback(name); return; }
     const s = ctx.createBufferSource(); s.buffer = b;
@@ -140,6 +140,31 @@ function synth(name, gain = 1, rate = 1) {
         o.connect(g); g.connect(out); o.start(at); o.stop(at + 0.26);
       };
       beat(t0, 0.95); beat(t0 + 0.27, 0.58);
+      return;
+    }
+
+    // melt：融蚀。低频闷着往下沉，上面那层细噪声被一点点抽走——
+    // 字被吃掉的时候，声音也像少了几个频段。
+    if (name === 'melt') {
+      const o = c.createOscillator(); o.type = 'sine';
+      o.frequency.setValueAtTime(52 * rate, t0);
+      o.frequency.linearRampToValueAtTime(31 * rate, t0 + 1.5);
+      const o2 = c.createOscillator(); o2.type = 'sine'; o2.frequency.setValueAtTime(77 * rate, t0);
+      o2.frequency.linearRampToValueAtTime(46 * rate, t0 + 1.5);
+      const og = c.createGain();
+      og.gain.setValueAtTime(0, t0);
+      og.gain.linearRampToValueAtTime(gain * 0.5, t0 + 0.18);
+      og.gain.linearRampToValueAtTime(0, t0 + 1.7);
+      o.connect(og); o2.connect(og); og.connect(out);
+      const src = c.createBufferSource(); src.buffer = noise(); src.loop = true;
+      const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
+      bp.frequency.setValueAtTime(2400 * rate, t0);
+      bp.frequency.exponentialRampToValueAtTime(320 * rate, t0 + 1.5);   // 频带一路塌下去
+      const ng = c.createGain();
+      ng.gain.setValueAtTime(gain * 0.22, t0);
+      ng.gain.linearRampToValueAtTime(0.0006, t0 + 1.55);
+      src.connect(bp); bp.connect(ng); ng.connect(out);
+      src.start(t0); src.stop(t0 + 1.7); o.start(t0); o.stop(t0 + 1.75); o2.start(t0); o2.stop(t0 + 1.75);
       return;
     }
 

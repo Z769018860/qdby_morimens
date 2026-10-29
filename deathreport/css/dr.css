@@ -269,3 +269,19 @@ h1{background:linear-gradient(180deg,#fff,rgb(var(--tint)));-webkit-background-c
 .tp{overflow-x:auto}
 .map{min-width:360px}
 .cell b{line-height:1.15;word-break:keep-all}
+
+/* 标题页的存档摘要：告诉玩家「进度还在、上次停在哪」 */
+.saveinfo{margin:12px 0 0;font-size:12px;line-height:1.7;color:var(--dim);max-width:520px;min-height:2.6em}
+.saveinfo .dim{opacity:.75}
+.menu button.cont{border-color:rgba(var(--tint),.55);color:var(--hi);background:rgba(10,32,40,.85)}
+
+/* 融蚀段落：被吃掉的那几行。字色更淡、字距略散，缓慢地抖一下，绝不影响阅读 */
+.rdbody > p.meltp{
+  color:#93a09c;letter-spacing:.05em;margin:.35em 0;padding-left:10px;
+  border-left:1px solid rgba(120,140,138,.35);
+  background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.014) 0 1px,transparent 1px 3px);
+  animation:meltdrift 9s ease-in-out infinite;
+}
+.rdbody > p.meltp::first-letter{color:#c8d4d0}
+@keyframes meltdrift{0%,100%{opacity:1;transform:none}38%{opacity:.72;transform:translateX(.6px)}62%{opacity:.9;transform:translateX(-.4px)}}
+@media(prefers-reduced-motion:reduce){.rdbody > p.meltp{animation:none}}
