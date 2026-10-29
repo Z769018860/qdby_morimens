@@ -61,7 +61,7 @@ export const CREATORS = [
     portrait: portraitOf('mengyi'), card: cardOf('mengyi'),
     creator: {
       uid: '1800901917', url: 'https://space.bilibili.com/1800901917', color: '#b9a7e0', tag: CREATOR_TAG, emoji: '🧵',
-      bio: '说话像流苏一样慢，落针却比谁都快；队伍血线在她手里总能被一针一线缝回来。',
+      bio: '说话像流苏一样慢，落针却比谁都快；队伍血线在他手里总能被一针一线缝回来。',
       hook: '织梦 · 千丝缠',
     },
   },
@@ -111,7 +111,7 @@ export const CREATORS = [
     portrait: portraitOf('xiamolin'), card: cardOf('xiamolin'),
     creator: {
       uid: '515298109', url: 'https://space.bilibili.com/515298109', color: '#8ec9a4', tag: CREATOR_TAG, emoji: '🌿',
-      bio: '夏天的茉莉、凉风和一杯接一杯的茶。她上场以后，队伍的血条就没再黄过。',
+      bio: '夏天的茉莉、凉风和一杯接一杯的茶。他上场以后，队伍的血条就没再黄过。',
       hook: '一盏茉莉 · 满庭芳',
     },
   },
