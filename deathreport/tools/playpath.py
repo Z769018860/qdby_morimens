@@ -133,7 +133,13 @@ def walk(G, strict_shadow=True):
             if a.get('hidden'):
                 c = a.get('cond') or {}
                 if c.get('streak'):
-                    continue                      # 要看玩家手法，静态判不了
+                    continue                      # 连着答对要看玩家手法，静态判不了
+                if c.get('firstTry'):
+                    # 严格路径假设一次没错，所以已确认的每一条都算首答正确
+                    if len(confirmed) >= c['firstTry']:
+                        arcs.add(a['id'])
+                        changed = True
+                    continue
                 if c.get('nums') and set(c['nums']) <= {G['records'][k]['num'] for k in confirmed}:
                     arcs.add(a['id'])
                     changed = True
@@ -230,7 +236,8 @@ def check_paths(G, ed, R, st):
     if lost_a:
         R.b(f'普通档案永远打不开：{lost_a}')
     hid = [a for a in G['arcs'] if a.get('hidden')]
-    no_cond = [a['id'] for a in hid if not (a.get('cond') or {}).get('nums') and not (a.get('cond') or {}).get('streak')]
+    no_cond = [a['id'] for a in hid if not (a.get('cond') or {}).get('nums')
+               and not (a.get('cond') or {}).get('streak') and not (a.get('cond') or {}).get('firstTry')]
     if no_cond:
         R.i(f'只能靠输入谜底的隐藏档案：{no_cond}')
 
@@ -240,6 +247,13 @@ def check_paths(G, ed, R, st):
         if peak >= 0.6 * len(G['records']):
             R.w(f'最宽一轮一次摊开 {peak} 条（{peak * 100 // len(G["records"])}%），'
                 f'多半是某份文档一次性给了太多线索')
+    # 单份文档的线路量：点名表这类"名单"不该承当线索来源
+    cap = max(4, int(0.2 * len(G['records'])))
+    for d, v in G['docs'].items():
+        n = len(v.get('refs') or [])
+        if n > cap:
+            R.w(f'文档 {d} 一次给出 {n} 条线路（{n * 100 // len(G["records"])}%），'
+                f'超过 {cap} 条的上限——它是不是只该当名单用？')
     R.dump('严格可达性：记录 / 文档 / 消息 / 档案')
 
 
@@ -260,6 +274,7 @@ def check_puzzles(G, ed, R, st=None):
     bypuzzle = {p['id'] for p in ps}
     only_riddle = sorted(hid - bypuzzle)
     streak = [a['id'] for a in G['arcs'] if a.get('hidden') and (a.get('cond') or {}).get('streak')]
+    firsts = [a['id'] for a in G['arcs'] if a.get('hidden') and (a.get('cond') or {}).get('firstTry')]
     cond = [a['id'] for a in G['arcs'] if a.get('hidden') and (a.get('cond') or {}).get('nums')]
 
     # 同一个符号的同一个序号只能有一条真残片，否则玩家不知道该取哪一块的字
@@ -285,12 +300,18 @@ def check_puzzles(G, ed, R, st=None):
             R.b(f'残片 {sym}{seq} 出现在 {len(where)} 处（{where}），玩家不知道该取哪一块')
     if only_riddle:
         R.i(f'不靠谜底、靠手法/条件拿的：{sorted(only_riddle)}'
-            f'（其中条件集 {cond}，连续答对 {streak}）')
+            f'（其中条件集 {cond}，累计首答正确 {firsts}，连续答对 {streak}）')
     for a in G['arcs']:
         c = a.get('cond') or {}
         if c.get('streak'):
             R.w(f'{a["id"]} 要连续 {c["streak"]} 次首答正确才给，答错一次清零 —— '
                 f'全收集和 SSS 实际上卡在这上面')
+        if c.get('firstTry'):
+            if c['firstTry'] > len(G['records']):
+                R.b(f'{a["id"]} 要 {c["firstTry"]} 份首答正确，但全场只有 {len(G["records"])} 条记录')
+            else:
+                R.i(f'{a["id"]} 要累计 {c["firstTry"]} 份首答正确（同一份答错过就不再算，'
+                    f'错在别的条上不清零）')
         for n in c.get('nums') or []:
             k = key_of_num.get(n)
             if not k:
@@ -402,12 +423,12 @@ def check_ending(G, ed, R, st):
         R.dump('结局可达性')
         return
     openable = puzzle_open(G, st)
-    streak = {a['id']: (a.get('cond') or {}).get('streak') for a in G['arcs']
-              if a.get('hidden') and (a.get('cond') or {}).get('streak')}
+    streak = {a['id']: ((a.get('cond') or {}).get('streak') or (a.get('cond') or {}).get('firstTry')) for a in G['arcs']
+              if a.get('hidden') and ((a.get('cond') or {}).get('streak') or (a.get('cond') or {}).get('firstTry'))}
     reach = hid & (st['arcs'] | openable)
     R.i(f'结局按顺序判定：{[e["id"] for e in ends]}')
     R.i(f'隐藏档案（{len(hid)} 个）：条件给 {len(hid & st["arcs"])}、谜底可开 {len(openable)}、'
-        f'需连续首答正确 {sorted(streak)}')
+        f'需首答正确 {sorted(streak)}')
     for e in ends:
         need = hid if e['need'] == 'all' else set(e['need'])
         lack = need - reach
@@ -416,7 +437,7 @@ def check_ending(G, ed, R, st):
             R.b(f'{e["id"]}（{e["title"]}）要的 {sorted(lack - hard)} 拿不到')
         elif hard:
             R.w(f'{e["id"]}（{e["title"]}）只差 {sorted(hard)}，'
-                f'要连续 {sorted(streak.values())[0]} 次首答正确')
+                f'要累计 {sorted(streak.values())[0]} 份首答正确')
         else:
             R.i(f'{e["id"]}（{e["title"]}）可达')
     first = ends[0]

@@ -294,7 +294,10 @@ function renderTools() {
     if ($('#nq')) { $('#nq').addEventListener('input', (e) => { ui.nq = e.target.value; const pos = e.target.selectionStart; renderTools(); const i = $('#nq'); i.focus(); i.setSelectionRange(pos, pos); }); }
   } else if (ui.tab === 'hint') {
     const bd = (st.badges || []).map((id) => `<span class="badge2" title="${esc(G.arcs.find((a) => a.id === id).title)}">${esc(G.arcs.find((a) => a.id === id).badge)}</span>`).join('');
-    tp.innerHTML = `<h4>■ 提示</h4><p class="dim">提示分三级，越往后越直白；已使用 ${st.hints} 次（每次扣 30 分）。提示券 <b>${st.tokens || 0}</b> 张（解出隐藏档案获得，免费且不扣分）。</p>${G.arcs.some((a) => a.hidden) ? `<h4>■ 勋章 ${(st.badges || []).length}/${G.arcs.filter((a) => a.hidden).length}</h4><div class="badges">${bd || '<span class="dim">还没有勋章。隐藏档案，要靠推理。</span>'}</div>` : ''}<div class="row"><button class="btn" id="hRest">下一步该复原哪条？</button><button class="btn" id="hConf">核实当前报告</button></div><div class="hintlog">${ui.hintLog.map((x) => `<div>${esc(x)}</div>`).join('')}</div>`;
+    const ftGoal = Math.max(0, ...G.arcs.filter((a) => a.hidden && a.cond && a.cond.firstTry).map((a) => a.cond.firstTry));
+    const ftTxt = ftGoal && !(st.arcs || []).some((id) => G.arcs.find((a) => a.id === id && a.cond && a.cond.firstTry))
+      ? `首答正确 <b>${st.firstTry || 0}</b> 份（${Math.min(st.firstTry || 0, ftGoal)}/${ftGoal}，不要求连着）` : '';
+    tp.innerHTML = `<h4>■ 提示</h4><p class="dim">提示分三级，越往后越直白；已使用 ${st.hints} 次（每次扣 30 分）。提示券 <b>${st.tokens || 0}</b> 张（解出隐藏档案获得，免费且不扣分）。${ftTxt ? '<br>' + ftTxt + '。' : ''}</p>${G.arcs.some((a) => a.hidden) ? `<h4>■ 勋章 ${(st.badges || []).length}/${G.arcs.filter((a) => a.hidden).length}</h4><div class="badges">${bd || '<span class="dim">还没有勋章。隐藏档案，要靠推理。</span>'}</div>` : ''}<div class="row"><button class="btn" id="hRest">下一步该复原哪条？</button><button class="btn" id="hConf">核实当前报告</button></div><div class="hintlog">${ui.hintLog.map((x) => `<div>${esc(x)}</div>`).join('')}</div>`;
     $('#hRest').onclick = () => giveHint('restore'); $('#hConf').onclick = () => giveHint('confirm', ui.rep);
   }
 }

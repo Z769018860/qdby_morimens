@@ -19,7 +19,7 @@ export function deliver(G, st) {
   st.arcs ||= [];
   for (const a of G.arcs || []) {
     if (st.arcs.includes(a.id)) continue;
-    if (a.hidden) { if (a.cond && condMet(G, st, a.cond)) { grant(G, st, a.id, a.cond.streak ? 'streak' : 'set'); got.push(a.id); } }
+    if (a.hidden) { if (a.cond && condMet(G, st, a.cond)) { grant(G, st, a.id, (a.cond.streak || a.cond.firstTry) ? 'streak' : 'set'); got.push(a.id); } }
     else if (a.need <= n) { st.arcs.push(a.id); got.push(a.id); }
   }
   return got;
@@ -36,7 +36,8 @@ export function grant(G, st, id, how) {
   return { id, badge: a.badge, points: BONUS[how], how };
 }
 export function condMet(G, st, c) {
-  if (c.streak) return (st.streak || 0) >= c.streak;
+  if (c.streak) return (st.streak || 0) >= c.streak;                 // 早期写法：连着答对，答错清零
+  if (c.firstTry) return (st.firstTry || 0) >= c.firstTry;           // 累计首答正确，中间的错不算清零
   const done = new Set(Object.keys(st.confirmed).map((k) => G.records[k].num));
   return c.nums.every((n) => done.has(n));
 }

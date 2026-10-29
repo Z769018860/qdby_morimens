@@ -275,16 +275,30 @@ test('hints stay vague: never a full record name, never the culprit or the weapo
   }
 });
 
-test('hidden archives: opened by deduction (sets of confirmed reports, a streak), never by plain progress', () => {
+test('hidden archives: opened by deduction (sets of confirmed reports, a first-try tally), never by plain progress', () => {
   const hid = G.arcs.filter((a) => a.hidden); assert.equal(hid.length, 11);
   const st = newGame(G); assert.equal(lockedHidden(G, st).length, 11);
   // confirming reports in an order that never completes any set keeps them shut; a wrong report resets the streak
   const unlock = (nums) => { for (const n of nums) { const k = G.roster[n - 1].key; recover(G, st, k); const r = solve(st, k); if (r.correct && r.arrived?.includes('HX-02')) return true; } return false; };
   assert.ok(unlock([12, 46, 42]) && st.arcs.includes('HX-02') && !st.arcs.includes('HX-01'));
   assert.equal(lockedHidden(G, st).length, 10); assert.ok(lockedHidden(G, st).every((x) => x.riddle && !x.riddle.includes('HX')));
-  const s2 = newGame(G); let streakOpened = false;
-  for (const k of keys.filter((x) => !G.shadow.keys.includes(x)).slice(0, 15)) { recover(G, s2, k); if (solve(s2, k).arrived?.includes('HX-06')) streakOpened = true; }
-  assert.ok(streakOpened, '15 correct in a row opens HX-06');
+  // 累计 15 份首答正确：中间写错一条不清零，只是那一条不再计入
+  const s2 = newGame(G); const free = keys.filter((x) => !G.shadow.keys.includes(x));
+  let opened = false;
+  const doOne = (k) => { recover(G, s2, k); if (solve(s2, k).arrived?.includes('HX-06')) opened = true; };
+  free.slice(0, 7).forEach(doOne);
+  assert.ok(!opened, 'HX-06 stays shut at 7');
+  const kBad = free[7];
+  recover(G, s2, kBad);
+  setDraft(s2, kBad, 'cause', G.solutions[kBad].cause === 'blast' ? 'fall' : 'blast');
+  setDraft(s2, kBad, 'weapon', '0'); setDraft(s2, kBad, 'culprit', '0');
+  submit(G, s2, kBad);
+  assert.ok(!s2.confirmed[kBad], 'the wrong report is not accepted');
+  assert.equal(s2.firstTry, 7, 'a miss does not reset the first-try tally');
+  free.slice(8, 16).forEach(doOne);
+  assert.equal(s2.firstTry, 15);
+  assert.ok(opened, '15 first-try reports, not necessarily consecutive, open HX-06');
+  assert.equal(s2.arcs.includes('HX-06'), true);
   const s3 = newGame(G); const k0 = keys[0]; recover(G, s3, k0); setDraft(s3, k0, 'cause', 'slash'); setDraft(s3, k0, 'weapon', '0'); setDraft(s3, k0, 'culprit', '0'); submit(G, s3, k0);
   assert.equal(s3.streak, G.solutions[k0].cause === 'slash' && G.solutions[k0].culprit === 0 ? 1 : 0);
   for (const a of hid) assert.ok(a.text.length > 120 && !a.text.includes('{'), a.id);

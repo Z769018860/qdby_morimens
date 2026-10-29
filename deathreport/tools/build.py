@@ -254,7 +254,7 @@ for did, (title, src, body, secret) in DOCS.items():
     for fl in FRAGS.get(('doc', did), []): t = t.replace('[/sys]', fl + '\n[/sys]', 1) if '[/sys]' in t else t + '\n' + fl
     t = t.replace('{ROLL}', '、'.join(NAME[n] for n in roll_names)).replace('{DEAD}', str(dead1)).replace('{ALIVE}', str(TOTAL - dead1))
     t = t.replace('{START}', '\n'.join(f'·[link]{k}[/link]' for k in START))
-    refs = roll_keys if did == '00-ROLL' else []
+    refs = []
     docs[did] = dict(id=did, title=title, source=src, text=t, refs=refs, final=secret, links=sorted(set(re.findall(r'\[link\](00-[A-Z]+)\[/link\]', t))))
 
 # 没有任何入口的文档，玩家永远看不见（往届的 00-ROLL 就是这么丢的）。
@@ -298,7 +298,7 @@ for e in E:
         m = next((m for m in msgs if k in m['refs']), None)
         s2 = f"有一句线索，在你收到的 {m['id']} 里。" if m else "有一句线索，在早晨点名或任务指示书里。"
     hints['restore'][k] = [s1, s2, f"要找的人是“{NAME[v]}”，死在“{PLACES[e['cell']]}”。顺序，需要你自己数。"]
-    # confirm ladder (a direction -> a narrower question -> one field of the answer)
+    # confirm ladder (a direction -> the trap in this record -> all three fields)
     h2 = ''
     if e['cause'] == 'blast': h2 = '这一起，也许没有加害人。重读 00-CHIP 与 00-ZONE。'
     elif e['cause'] == 'accident': h2 = '这一起，也许没有加害人。重读 00-REPORT 里关于“过失”的部分。'
@@ -310,7 +310,24 @@ for e in E:
     elif e.get('snatch'): h2 = '这件凶器本是被害者自己的东西。'
     elif w == c: h2 = '凶器是谁配发的，可以在名册里查。'
     else: h2 = '凶器不在原主手里。在这之前，它经过了谁的手？'
-    ans = f"死因是“{CAUSES[e['cause']]}”。"
+    # 第 3 级：三个字段都要能落笔——死因明说，凶器给出来路，加害人给出判定
+    if w == 0:
+        own = '这一起没有用到配发装备，凶器一栏记“无”。'
+    elif w == v:
+        own = f'凶器是{NAME[v]}自己带着的东西，名册上他那一栏就是。'
+    elif c != SHADOW and w == c:
+        own = '凶器是加害人自己配发的那一件——查他的名册栏。'
+    else:
+        own = f'凶器原本是{NAME[w]}的，后来经了别人的手。'
+    if c == 0:
+        who = '加害人一栏记“其他”——这一起没有人动手。'
+    elif c == SHADOW:
+        who = '加害人不在名册上：名册里没有能对上的那个人。'
+    elif w:
+        who = '加害人就是凶器最后经手的那个人。'
+    else:
+        who = '加害人在名册上，看记录里谁和他照过面。'
+    ans = f"死因是“{CAUSES[e['cause']]}”。{own}{who}"
     hints['confirm'][k] = [f"请再仔细阅读一遍“{NAME[v]}”的记录，留意装备与人物。", h2, ans]
 
 # ---------------- roster
@@ -330,6 +347,18 @@ for aid, title, need, text in ARCS:
 for hid, title, cond, riddle, text in HIDDEN:
     t, wits, _ = render_raw(text, 0)
     arcs.append(dict(id=hid, title=title, source=ARC_SRC, text=t, refs=[KEY[b] for b in dict.fromkeys(wits)], need=999, hidden=True, cond=cond, riddle=riddle, badge=BADGES.get(hid, '')))
+# 早晨点名只播报“谁死了”，不交代地点与先后次序——它是一份名单，不是线索来源。
+# 所以它不给 40 条线路，只兜底那些“别处没人指到”的第一天死者；其余的要从记录之间推出来。
+if '00-ROLL' in docs:
+    _pointed = set(START)
+    for _r in records.values(): _pointed |= set(_r['refs'])
+    for _mm in msgs: _pointed |= set(_mm['refs'])
+    for _a in arcs: _pointed |= set(_a['refs'])
+    roll_only = [k for k in roll_keys if k not in _pointed]
+    docs['00-ROLL']['refs'] = roll_only
+    if not ED:
+        print(f'  点名表线路 {len(roll_only)} 条（名单 {len(roll_keys)} 人，其余靠记录互推）'
+              + ('：' + '、'.join(roll_only) if roll_only else ''))
 puzzles = [dict(id=m['id'], h=h32(m['answer']), src=m['src']) for m in PUZ_META]
 game = dict(edition=(dict(_m.META, grid=dict(cols=cols, rows=rows, size=len(PLACES))) if ED else dict(n=63, label='第六十三次', title='死亡游戏调查报告', theme=63, grid=dict(cols='ABCDE', rows=[1, 2, 3, 4, 5], size=25))), endings=ENDINGS, puzzles=puzzles, arcs=arcs, milestones=MILE, title='死亡游戏调查报告', subtitle=(_m.META.get('subtitle') if ED else '第六十三次 回溯筛选'), roster=roster, places=PLACES, zones=[dict(day=d, hour=h, cell=c) for d, h, c in ZONES], causes=CAUSES,
             records=records, docs=docs, msgs=msgs, start=START, solutions=solutions, hints=hints, shadow=dict(num=SHADOW, keys=[e['key'] for e in E if e['c'] == SHADOW], msg=(getattr(_m, 'SHADOW_MSG', 'MSG06') if ED else 'MSG06'), label=(getattr(_m, 'SHADOW_LABEL', '') if ED else '名册外的个体（黑影）')),
