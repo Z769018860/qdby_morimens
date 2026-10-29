@@ -10,7 +10,9 @@
 //
 // 所有动图都内联在 js/bird-art.js 里，页面只发一个脚本请求 —— 边缘每个请求要
 // 1~2 秒，7 段动图各自请求一次的话开局就能卡半分钟。
-import { SHEET, ANIMS } from './bird-art.js';
+// MOB_SHEET / MOB_RECT 是井里那几只怪的原作立绘（scripts/build_bird_mobs.py 拼的），
+// 同样内联，不额外发图片请求。
+import { SHEET, ANIMS, MOB_SHEET, MOB_RECT } from './bird-art.js';
 
 // ---------------------------------------------------------------- 尺寸
 const VW = 400;            // 逻辑视口宽（竖井）
@@ -23,15 +25,16 @@ const GRAV = 1560;
 const VMAX = 620;          // 终端下坠速度：掉不了多快，靠"往下蹿"跳层行不通
 const RUN = 238;           // 地面水平速度
 const JUMP = 436;
+const TRAMP = 1120;        // 蹦床弹力：弹起高度 ≈ 1120²/(2·1560) ≈ 402px，正好四层
 const FLOOR_H = 34;        // 井底尖刺带高度（贴着视口底部，跟着镜头走）
 
 // ---------------------------------------------------------------- 难度
 // 四档难度只动"环境参数"，不动操作手感（跑速/跳跃/终端速度四档一样）：
-// 滚得多快、平台多宽、陷阱多密、影怪多凶、掉多少血、掉多少东西、给多少分。
+// 滚得多快、平台多宽、陷阱多密、怪物多凶、掉多少血、掉多少东西、给多少分。
 // sc 是计分倍率——难档的分本来就该更值钱，否则没人愿意碰癫狂。
 const DIFFS = [
   { k: 'easy', n: '简单', tag: '入门', c: 'easy',
-    d: '滚得慢，平台宽，影怪稀疏。先摸清手感。',
+    d: '滚得慢，平台宽，怪物稀疏。先摸清手感。',
     scroll: 0.70, pw: 1.20, spike: 0.45, mob: 0.50, dmg: 0.70,
     drop: 1.40, rage: 1.25, sc: 0.80, hp: 120, fuse: 1.25 },
   { k: 'normal', n: '普通', tag: '标准', c: 'normal',
@@ -39,7 +42,7 @@ const DIFFS = [
     scroll: 1.00, pw: 1.00, spike: 1.00, mob: 1.00, dmg: 1.00,
     drop: 1.00, rage: 1.00, sc: 1.00, hp: 100, fuse: 1.00 },
   { k: 'hard', n: '困难', tag: '熬人', c: 'hard',
-    d: '滚得更快，平台变窄，尖刺台和影怪都多起来。',
+    d: '滚得更快，平台变窄，尖刺台和怪物都多起来。',
     scroll: 1.26, pw: 0.87, spike: 1.50, mob: 1.45, dmg: 1.25,
     drop: 0.85, rage: 0.95, sc: 1.40, hp: 100, fuse: 0.90 },
   { k: 'mad', n: '癫狂', tag: '找死', c: 'mad',
@@ -67,6 +70,8 @@ const G = {
   cd: { dash: 0, star: 0, ward: 0, burst: 0 },
   keys: { left: false, right: false, down: false },
   hint: {},
+  met: {},                 // 已经见过哪些怪（跨局保留，只为了「第一次遇到」的提示）
+  tramps: 0,               // 本局踩了多少次蹦床，结算时给一句评价
 };
 
 const P = {
@@ -78,18 +83,27 @@ const P = {
 };
 
 const SKILLS = [
-  { id: 'dash', ic: '掠', n: '掠影斩', cost: 26, cd: 3.2, anim: 'skill1', tip: '向前突进，撞碎沿路的影怪' },
-  { id: 'star', ic: '碎', n: '碎星坠', cost: 40, cd: 5.5, anim: 'skill2', tip: '星矛落下，清掉视野里的影怪，把尖刺台拍平' },
+  { id: 'dash', ic: '掠', n: '掠影斩', cost: 26, cd: 3.2, anim: 'skill1', tip: '向前突进，撞碎沿路的怪物' },
+  { id: 'star', ic: '碎', n: '碎星坠', cost: 40, cd: 5.5, anim: 'skill2', tip: '星矛落下，清掉视野里的怪物，把尖刺台拍平' },
   { id: 'ward', ic: '圣', n: '圣翼护', cost: 34, cd: 8.0, anim: 'defend', tip: '回血 26，六秒内受伤减半' },
-  { id: 'burst', ic: '爆', n: '狂气爆发', cost: 68, cd: 12.0, anim: 'burst', tip: '四秒清场：平台不塌、影怪全灭' },
+  { id: 'burst', ic: '爆', n: '狂气爆发', cost: 68, cd: 12.0, anim: 'burst', tip: '四秒清场：平台不塌、怪物全灭' },
 ];
 
 // ---------------------------------------------------------------- 素材
+// 两张图（角色动图 + 怪物立绘）都到齐才开局；任何一张挂了也照常开局，
+// 只是那只没有立绘——不能因为一张图 404 就整个页面卡在加载态。
 const sheet = new Image();
 let imgOk = false;
-sheet.onload = () => { imgOk = true; boot(); };
-sheet.onerror = () => { boot(); };          // 图废了也要能玩，只是没有立绘
+const mobSheet = new Image();
+let mobOk = false;
+let artLeft = 2;
+const artDone = () => { if (--artLeft <= 0) boot(); };
+sheet.onload = () => { imgOk = true; artDone(); };
+sheet.onerror = () => { artDone(); };
 sheet.src = SHEET;
+mobSheet.onload = () => { mobOk = true; artDone(); };
+mobSheet.onerror = () => { artDone(); };
+mobSheet.src = MOB_SHEET;
 
 const cv = $('#cv');
 const ctx = cv.getContext('2d');
@@ -149,6 +163,10 @@ const Snd = (() => {
     kill() { noise(0.1, 0.05, 1200); tone(320, 0.09, 'triangle', 0.03, 140); },
     skill() { tone(300, 0.28, 'sawtooth', 0.04, 780); tone(600, 0.3, 'sine', 0.03, 1200); },
     boost() { tone(200, 0.16, 'square', 0.04, 520); },
+    // 蹦床：一个上滑的弹簧音（低→高），和踩塌、下坠加速板的声音区分得开
+    tramp() { tone(180, 0.26, 'triangle', 0.05, 720); tone(360, 0.2, 'sine', 0.03, 1100); },
+    // 自爆脓疱：低频闷响 + 一段噪声，别用 hurt 那种刺耳声
+    boom() { noise(0.26, 0.07, 260); tone(90, 0.3, 'sawtooth', 0.06, 44); },
     win() { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone(f, 0.26, 'triangle', 0.05), i * 120)); },
     over() { [420, 330, 262, 196].forEach((f, i) => setTimeout(() => tone(f, 0.3, 'triangle', 0.05), i * 130)); },
   };
@@ -156,7 +174,8 @@ const Snd = (() => {
 
 // ---------------------------------------------------------------- 世界
 // 平台类型：normal 踩上倒计时塌 / solid 坚固 / frail 一踩就碎 /
-//           spike 尖刺（碰到扣血） / belt 传送带 / boost 下坠加速板
+//           spike 尖刺（碰到扣血） / belt 传送带 / boost 下坠加速板 /
+//           tramp 蹦床跳板（踩上去直接弹回上面几层）
 const PT = {
   normal: { a: '#3d5680', b: '#20304b', edge: '#6d8fc4' },
   solid: { a: '#5b6a80', b: '#31404f', edge: '#9fb0c6' },
@@ -164,15 +183,43 @@ const PT = {
   spike: { a: '#6a3346', b: '#3a1b26', edge: '#d76a7d' },
   belt: { a: '#4a3d78', b: '#282046', edge: '#9b86e0' },
   boost: { a: '#7a6526', b: '#42351a', edge: '#e6c25a' },
+  tramp: { a: '#1c5566', b: '#0d2c36', edge: '#67e8e0' },
 };
 
-// 影怪类型。stomp=false 的是「踩不死」的：撞上去只能挨打，得绕开或用技能清。
-// fly 沿正弦上下飘、still 钉在原地、shoot 定期朝下吐刺。
+// 井里的怪全部取自《忘却前夜》自带的怪物图鉴（data/dictionary.json 的 monster 表），
+// 立绘是原作的 Portrait_Small_Monster_*，名字和行为都对得上：
+//   融蚀鼠王  沾满融蚀的尾巴粘在一起，在台面上来回爬 —— 从头顶踩死
+//   提灯      提灯教会的象征物，浮在半空按正弦上下飘 —— 踩得准才能踩死
+//   自爆脓疱  眼球状的黑色脓泡，「总感觉要爆裂开来」—— 踩上去就开始倒计时，会炸
+//   吟诵者    神王的仆人，站在台面上朝你「吟诵」（吐一颗音弹）
+//   融蚀野犬  攻击迅猛而连续，跑得比鼠王快一倍，深层替换鼠王
+// ah 是画出来的立绘高度，w/h 才是碰撞盒——立绘比判定框大，手感才不别扭。
 const MOBK = {
-  shade:   { w: 26, h: 22, hp: 1, pts: 25, stomp: true,  c1: '#a06ad6', c2: '#4a2468', glow: 'rgba(150,90,220,.75)', n: '影怪' },
-  moth:    { w: 24, h: 18, hp: 1, pts: 30, stomp: true,  fly: true,  c1: '#6fc4e8', c2: '#173a52', glow: 'rgba(96,190,235,.75)', n: '飞蛾' },
-  thorn:   { w: 24, h: 24, hp: 2, pts: 45, stomp: false, still: true, c1: '#c9706f', c2: '#481a20', glow: 'rgba(220,96,96,.7)', n: '棘球' },
-  spitter: { w: 26, h: 22, hp: 1, pts: 40, stomp: true,  shoot: 2.5, c1: '#dcb654', c2: '#4a3818', glow: 'rgba(226,186,80,.72)', n: '吐刺者' },
+  rat: {
+    w: 26, h: 20, ah: 36, pts: 25, stomp: true, c: '#8f78d8', glow: 'rgba(150,120,235,.55)', face0: -1,
+    n: '融蚀鼠王', art: 'rat',
+    tip: '沾满融蚀的尾巴把它们粘在一起 —— 从上方踩死',
+  },
+  lantern: {
+    w: 22, h: 24, ah: 40, pts: 30, stomp: true, fly: true, c: '#a99cff', glow: 'rgba(160,140,255,.7)',
+    n: '提灯', art: 'lantern',
+    tip: '浮在半空上下飘 —— 落点算不准，踩空了就挨一下',
+  },
+  pustule: {
+    w: 26, h: 24, ah: 34, pts: 50, stomp: false, still: true, bomb: true, c: '#d6b240',
+    glow: 'rgba(214,178,64,.7)', n: '自爆脓疱', art: 'pustule',
+    tip: '踩不破 —— 站上去就开始倒计时，跳开或者吃爆炸',
+  },
+  chanter: {
+    w: 24, h: 26, ah: 42, pts: 45, stomp: true, shoot: 2.4, c: '#9692e8', glow: 'rgba(150,146,232,.72)', face0: -1,
+    n: '吟诵者', art: 'chanter',
+    tip: '你在它下面时会「吟诵」出一颗音弹打过来',
+  },
+  hound: {
+    w: 30, h: 20, ah: 36, pts: 40, stomp: true, fast: true, c: '#d24a4a', glow: 'rgba(210,74,74,.72)', face0: 1,
+    n: '融蚀野犬', art: 'hound',
+    tip: '攻击迅猛而连续 —— 跑得比鼠王快一倍，别站在它前面',
+  },
 };
 
 // 掉落物类型。除了回血/狂气/护盾，新加了缓降、加分和清场三种。
@@ -200,7 +247,7 @@ const DUST = Array.from({ length: 54 }, (_, i) => {
 });
 
 function addPlat(x, y, w, type) {
-  const pl = { x, y, w, type, fuse: 0, fuseMax: 1, dead: false, dir: Math.random() < 0.5 ? -1 : 1, hit: 0 };
+  const pl = { x, y, w, type, fuse: 0, fuseMax: 1, dead: false, dir: Math.random() < 0.5 ? -1 : 1, hit: 0, cd: 0 };
   G.plats.push(pl);
   return pl;
 }
@@ -216,11 +263,13 @@ function hasOverlap(x, w, y) {
 function rollType(t) {
   // 权重表（原来是一串累加阈值，深层的和会超过 1，把 normal 挤没了）。
   // 尖刺台的权重乘难度系数，最高档刺多到几乎每层都有。
+  // 蹦床始终有一点，深层的稍多：越往下越需要它把"掉太快"的那几层拉回来。
   const w = {
     frail: 20 + 8 * t,
     spike: (9 + 18 * t) * D.spike,
     belt: 13 + 12 * t,
     boost: 10,
+    tramp: 6 + 5 * t,
     solid: 14 - 6 * t,
     normal: 42 - 30 * t,
   };
@@ -251,13 +300,15 @@ function rollOrb(y01) {
   return 'heart';
 }
 
-// 影怪种类：浅层只有影怪，20 层后出飞蛾，40 层后出棘球和吐刺者。
+// 井里出现哪些怪：5 层起是鼠王，14 层加提灯，30 层加吟诵者，38 层加自爆脓疱，
+// 62 层之后鼠王开始被融蚀野犬顶掉（它俩行为一样，野犬快一倍、分数更高）。
 function rollMob(n) {
-  const bag = ['shade', 'shade'];
-  if (n >= 14) bag.push('shade', 'moth');
-  if (n >= 26) bag.push('moth', 'moth');
-  if (n >= 38) bag.push('thorn', 'spitter');
-  if (n >= 55) bag.push('thorn', 'spitter', 'moth');
+  const bag = ['rat', 'rat'];
+  if (n >= 14) bag.push('rat', 'lantern');
+  if (n >= 30) bag.push('lantern', 'chanter');
+  if (n >= 38) bag.push('pustule', 'pustule');
+  if (n >= 52) bag.push('pustule', 'chanter', 'lantern');
+  if (n >= 62) bag.push('hound', 'hound', 'pustule');
   return pick(bag);
 }
 
@@ -265,7 +316,7 @@ function buildWorld() {
   G.plats = []; G.mobs = []; G.orbs = []; G.shots = [];
   G.parts = []; G.texts = []; G.fx = [];
   G.camY = 0; G.depth = 0; G.cur = 0; G.score = 0; G.kills = 0;
-  G.rage = 30; G.freezeT = 0; G.shake = 0; G.flash = 0;
+  G.rage = 30; G.freezeT = 0; G.shake = 0; G.flash = 0; G.tramps = 0;
   for (const k in G.cd) G.cd[k] = 0;
 
   P.hpMax = D.hp;
@@ -278,60 +329,105 @@ function buildWorld() {
   addPlat(VW / 2 - 82, TOP, 164, 'solid');
 
   let anchor = VW / 2;
+  let spikeRun = 0;            // 连续几层的侧边平台带尖刺，用来掐掉"必死排列"
   for (let n = 1; n <= GOAL; n++) {
     const y = TOP + n * GAP;
+    // 难度曲线不再线性爬：t 开 1.3 次方，前 25 层只是「热身段」，中间 40 层是主菜，
+    // 最后 35 层才开始真的压人。线性的话前 10 层就已经窄到站不住，
+    // 新手根本活不过第一个十层。
     const t = n / GOAL;
-    // 难度直接缩放平台宽度，但留一个 34px 下限——再窄就站不住人了
-    const pw = Math.max(34, Math.round((94 - 46 * t) * D.pw + rnd(-10, 10)));
+    const tEase = Math.pow(t, 1.3);
+
+    // ---- 段落节拍：每 10 层一段，段首「喘息层」、段尾两层「关卡层」
+    //   喘息层：宽台、没怪、必掉一件恢复品 —— 每十层能回一口气
+    //   关卡层：窄台、更容易碎、至少一只怪 —— 每段的高潮
+    // 一条道匀速变难会变成「慢慢被磨死」，有起伏才有「这波我顶过去了」的爽点。
+    const segIn = (n - 1) % 10;
+    const breathe = segIn === 0 && n >= 11;
+    const choke = segIn === 8 || segIn === 9;
+
+    let pw = (94 - 46 * tEase) * D.pw;
+    if (breathe) pw *= 1.45;
+    if (choke) pw *= 0.86;
+    // 留一个 38px 下限——再窄就站不住人了
+    pw = Math.max(38, Math.round(pw + rnd(-8, 8)));
+
     // 相邻层中心最多错开 reach：从上一层自由落体约 0.36s，横向够跑 RUN*0.36
-    const reach = 76 - 30 * t;
+    const reach = (76 - 30 * tEase) * (breathe ? 1.3 : choke ? 0.88 : 1);
     const cx = clamp(anchor + rnd(-reach, reach), WALL + pw / 2 + 6, VW - WALL - pw / 2 - 6);
-    addPlat(cx - pw / 2, y, pw, Math.random() < 0.14 + 0.22 * t ? 'solid' : 'normal');
+    // 主路径平台从来不会是尖刺台（那等于每层都必死），但可以偶尔是蹦床：
+    // 踩上去被弹回上面几层，是「我掉太快了」时唯一的自救手段。
+    let mainType = 'normal';
+    if (breathe) mainType = 'solid';
+    else {
+      const r = Math.random();
+      if (r < 0.09) mainType = 'tramp';
+      else if (r < 0.24 + 0.22 * tEase) mainType = 'solid';
+    }
+    const mainPlat = addPlat(cx - pw / 2, y, pw, mainType);
+    // 喘息层打个标记：画的时候会给它一圈暖色的"安全区"光晕，
+    // 让玩家能提前看见「下一块是能歇脚的地方」，而不是全靠记层号。
+    if (breathe) mainPlat.zen = 1;
     anchor = cx;
 
-    // 侧边再补 0~2 个，类型随层数变刁
-    const extra = Math.random() < 0.42 ? 0 : Math.random() < 0.62 ? 1 : 2;
+    // 侧边再补 0~2 个，类型随层数变刁（喘息层不加，留着让人喘气）
+    const extra = breathe ? 0 : Math.random() < 0.42 ? 0 : Math.random() < 0.62 ? 1 : 2;
+    let spikeHere = 0;
     for (let i = 0; i < extra; i++) {
       for (let tryN = 0; tryN < 6; tryN++) {
-        const w2 = Math.max(34, Math.round((rnd(52, 82) - 12 * t) * D.pw));
+        const w2 = Math.max(34, Math.round((rnd(52, 82) - 12 * tEase) * D.pw));
         const x2 = rnd(WALL + 4, VW - WALL - w2 - 4);
         if (hasOverlap(x2, w2, y)) continue;
-        addPlat(x2, y, w2, rollType(t));
+        let type = rollType(tEase);
+        // 掐尖刺连段：已经连着两层各有两块以上的尖刺台，这一层就不再添刺。
+        // 不掐的话会出现「三整层全是刺、没有一个落脚点」的无解排列。
+        if (type === 'spike' && spikeRun >= 2) type = Math.random() < 0.5 ? 'frail' : 'normal';
+        if (type === 'spike') spikeHere++;
+        // 关卡层的普通台换成脆台，踩上去就得马上走
+        if (choke && type === 'normal' && Math.random() < 0.35) type = 'frail';
+        addPlat(x2, y, w2, type);
         break;
       }
     }
+    spikeRun = spikeHere >= 2 ? spikeRun + 1 : 0;
 
-    // 影怪：从第 5 层开始，越往下越密，种类也越杂
+    // ---- 井里的怪
     // （平台宽度门槛放到 46：困难/癫狂的平台只有 40~50px，门槛卡 60 会让
     //   高难度反而见不到几只怪，跟"越难越凶"正好反着）
-    if (n >= 5 && Math.random() < (0.12 + 0.36 * t) * D.mob) {
-      const host = G.plats.filter((p) => Math.abs(p.y - y) < 1 && p.type !== 'spike' && p.w >= 46);
+    // 喘息层不刷怪；关卡层强制来一只，其余按概率。
+    const wantMob = !breathe && n >= 5 && (choke || Math.random() < (0.12 + 0.36 * tEase) * D.mob);
+    if (wantMob) {
+      // 平台宽度门槛 38：癫狂档的台子只有 47~53px，卡 46 会让最高难度反而
+      // 比困难档少几只怪（实测 40 → 38），跟「越难越凶」正好反着。
+      // 怪的实际宽度在下面按平台宽度收，不会站出台面。
+      const host = G.plats.filter((p) => Math.abs(p.y - y) < 1 && p.type !== 'spike' && p.type !== 'tramp' && p.w >= 38);
       if (host.length) {
         const h = pick(host);
         const kind = rollMob(n);
         const k = MOBK[kind];
         const w = Math.max(16, Math.min(k.w, h.w - 10));
         const cx2 = h.x + h.w / 2;
-        if (kind === 'moth') {
-          // 飞蛾挂在平台上方飘，不给落脚点也不占平台宽度
+        if (k.fly) {
+          // 提灯浮在平台上方：不给落脚点，也不占平台宽度
           G.mobs.push({
-            kind, x: cx2, y: h.y - 38, by: h.y - 38, w, h: k.h, hp: k.hp,
+            kind, x: cx2, y: h.y - 40, by: h.y - 40, w, h: k.h, ah: k.ah,
             x0: WALL + w, x1: VW - WALL - w, vx: rnd(40, 70) * (Math.random() < 0.5 ? -1 : 1),
-            ph: rnd(0, 6), dead: false, hit: 0,
+            ph: rnd(0, 6), dead: false, hit: 0, armT: 0,
           });
         } else {
+          const spd = k.fast ? rnd(72, 108) : rnd(30, 58);
           G.mobs.push({
-            kind, x: cx2, y: h.y, w, h: k.h, hp: k.hp,
+            kind, x: cx2, y: h.y, w, h: k.h, ah: k.ah,
             x0: h.x + w / 2, x1: h.x + h.w - w / 2,
-            vx: kind === 'thorn' ? 0 : rnd(30, 58) * (Math.random() < 0.5 ? -1 : 1),
-            ph: rnd(0, 6), sc: rnd(1.2, 3.4), dead: false, hit: 0,
+            vx: k.still ? 0 : spd * (Math.random() < 0.5 ? -1 : 1),
+            ph: rnd(0, 6), sc: rnd(1.2, 3.4), dead: false, hit: 0, armT: 0,
           });
         }
       }
     }
 
-    // 道具
-    const kind = rollOrb(t);
+    // ---- 道具：喘息层必掉一件恢复品，其余按概率
+    const kind = breathe ? (n % 20 === 1 ? 'bigheart' : 'heart') : rollOrb(t);
     if (kind) {
       const host = G.plats.filter((p) => Math.abs(p.y - y) < 1 && p.type !== 'spike');
       const h = host.length ? pick(host) : null;
@@ -387,15 +483,19 @@ function spawnFx(anim, h = 208, dur = 1.35, name = '') {
 }
 
 // ---------------------------------------------------------------- 玩家
-function hurtP(amount, cause) {
+// pierce = 穿透那 0.85 秒的受伤无敌。目前只有自爆脓疱的爆炸用它：
+// 玩家往往是"先撞上脓疱挨一下 → 0.45 秒后它炸"，如果爆炸也被无敌吃掉，
+// 这个机制等于不存在 —— 引信点了却永远炸不到人。
+function hurtP(amount, cause, pierce) {
   if (G.state !== 'play') return;
   const p = P;
-  if (p.invuln > 0) return;
+  if (p.invuln > 0 && !pierce) return;
   // 难度只改伤害系数，不改判定：简单档挨一下没那么疼，癫狂档一样的位置双倍疼
   let dmg = amount * D.dmg;
   if (p.wardT > 0) dmg *= 0.5;
   p.hp -= dmg;
-  p.invuln = 0.85;
+  // 爆炸不刷新无敌，否则同一次爆炸里被别的怪撞到也免了，连锁起来太便宜
+  if (!pierce) p.invuln = 0.85;
   p.hurtT = 0.45;
   G.flash = 0.55;
   G.shake = Math.max(G.shake, 7);
@@ -413,6 +513,33 @@ function landOn(pl) {
     pl.hit = 1;
     return;
   }
+  // 蹦床跳板：不塌，踩上去直接弹回去四层左右。
+  // 弹起来会撞顶刺（镜头只往下滚，上面永远在压），所以它不是白给的好处——
+  // 是「我掉太快了、快扎到井底尖刺」时唯一能把距离拉回来的东西。
+  //
+  // 弹完有 1.8 秒复位（cd）：不加这个的话，玩家被弹起来、沿原路落回同一块
+  // 蹦床、再被弹起来，会卡在原地无限弹——实测机器人在 5 秒里被弹了 13 次、
+  // 一层都没往下走。复位期间它当一块坚固台用，玩家可以站着走开。
+  if (pl.type === 'tramp') {
+    if (pl.cd > 0) {
+      p.y = pl.y; p.vy = 0; p.ground = pl;
+      return;
+    }
+    p.y = pl.y; p.vy = -TRAMP; p.ground = null;
+    p.invuln = Math.max(p.invuln, 0.4);
+    pl.hit = 1;
+    pl.cd = 1.8;
+    G.shake = Math.max(G.shake, 4);
+    G.tramps = (G.tramps || 0) + 1;
+    spark(p.x, pl.y, 16, '#67e8e0', 260, 0.5);
+    floatText(p.x, pl.y - 14, '弹起', '#67e8e0');
+    if (!G.hint.tramp) {
+      G.hint.tramp = 1;
+      toast('蹦床把你弹回上面几层——掉太急时用它救一下');
+    }
+    Snd.tramp();
+    return;
+  }
   p.y = pl.y; p.vy = 0; p.ground = pl;
   if (pl.type === 'boost') {
     p.ground = null; p.vy = 600; p.invuln = Math.max(p.invuln, 0.15);
@@ -420,7 +547,7 @@ function landOn(pl) {
     Snd.boost();
     return;
   }
-  if (pl.type !== 'solid' && pl.type !== 'belt' && pl.fuse <= 0) {
+  if (pl.type !== 'solid' && pl.type !== 'belt' && pl.type !== 'tramp' && pl.fuse <= 0) {
     pl.fuseMax = pl.fuse = (pl.type === 'frail' ? 0.38 : 0.92) * D.fuse;
   }
   spark(p.x, pl.y, 4, PT[pl.type].edge, 90, 0.3);
@@ -440,16 +567,57 @@ function killMob(m, byPlayer) {
   if (m.dead) return;
   m.dead = true;
   G.kills++;
-  const k = MOBK[m.kind] || MOBK.shade;
+  const k = MOBK[m.kind] || MOBK.rat;
   const pts = Math.round(k.pts * D.sc);
   G.score += pts;
   G.rage = Math.min(100, G.rage + Math.round(7 * D.rage));
   floatText(m.x, m.y - 30, '+' + pts, '#e3b341');
-  spark(m.x, m.y - m.h / 2, 14, k.c1, 230, 0.55);
+  spark(m.x, m.y - m.h / 2, 14, k.c, 230, 0.55);
   Snd.kill();
+  meet(m.kind, k);
   if (byPlayer && Math.random() < 0.35) {
     // 踩死的怪有概率掉东西，给「玩得凶」一点回报
     G.orbs.push({ x: m.x, y: m.y - 26, kind: pick(['rage', 'rage', 'star', 'feather']), ph: 0, dead: false });
+  }
+}
+
+// 统一入口：脓疱不能「被杀死」，只能被引爆 —— 踩碎它、技能清它，
+// 都要走爆炸流程，否则一个踩下去本该炸的东西就这么没了很出戏。
+function killAny(m, byPlayer) {
+  if (m.dead) return;
+  if (MOBK[m.kind] && MOBK[m.kind].bomb) explodePustule(m);
+  else killMob(m, byPlayer);
+}
+
+// 第一次见到某种怪时，用顶部提示条报一下名字和它的脾气 —— 比在角落里
+// 挂一行图例有用：玩家是在挨打的那一刻才真的记住「这玩意儿不能踩」。
+function meet(kind, k) {
+  if (G.met[kind]) return;
+  G.met[kind] = 1;
+  castSkill(k.n, k.tip);
+}
+
+// 自爆脓疱炸开：范围伤害 + 冲击波。躲开了才给分 —— 硬顶着挨炸不给，
+// 不然「往脓疱身上站」反而成了刷分手段。
+function explodePustule(m) {
+  if (m.dead) return;
+  const p = P;
+  const hit = Math.abs(m.x - p.x) < 56 && Math.abs(m.y - p.y) < 60;
+  m.dead = true;
+  G.kills++;
+  spark(m.x, m.y - 14, 26, '#ffb055', 330, 0.7);
+  spark(m.x, m.y - 14, 14, '#ff6a4a', 210, 0.55);
+  G.shake = Math.max(G.shake, 11);
+  G.flash = Math.max(G.flash, 0.28);
+  G.rage = Math.min(100, G.rage + Math.round(7 * D.rage));
+  Snd.boom();
+  meet(m.kind, MOBK.pustule);
+  if (hit) {
+    hurtP(20, 'boom', true);
+  } else {
+    const pts = Math.round(MOBK.pustule.pts * 0.6 * D.sc);
+    G.score += pts;
+    floatText(m.x, m.y - 34, '躲开了 +' + pts, '#8bf0c0');
   }
 }
 
@@ -482,10 +650,13 @@ function pickOrb(o) {
     floatText(o.x, o.y - 8, '+' + add + ' 分', '#e3b341');
     spark(o.x, o.y, 14, '#e3b341', 190, 0.6);
   } else if (o.kind === 'purge') {
-    // 净化：视野里的影怪全清，还白送一层狂气
+    // 净化：视野里的怪物全清，还白送一层狂气
     let n = 0;
     for (const m of G.mobs) {
-      if (!m.dead && m.y > G.camY - 40 && m.y < G.camY + VH + 40) { killMob(m, false); n++; }
+      if (!m.dead && m.y > G.camY - 40 && m.y < G.camY + VH + 40) {
+        if (MOBK[m.kind] && MOBK[m.kind].bomb) { explodePustule(m); } else { killMob(m, false); }
+        n++;
+      }
     }
     G.rage = Math.min(100, G.rage + Math.round(20 * D.rage));
     floatText(o.x, o.y - 8, n ? `净化 ${n}` : '净化', '#8bf0c0');
@@ -517,11 +688,11 @@ function useSkill(id) {
     p.dashT = 0.32; p.vx = p.face * 830; p.invuln = Math.max(p.invuln, 0.5);
     G.shake = Math.max(G.shake, 5);
     spark(p.x, p.y - 16, 12, '#9fd0ff', 260, 0.4);
-    // 沿途撞碎影怪这件事在 update 的接触判定里做（p.dashT > 0 就碾过去），
+    // 沿途撞碎怪物这件事在 update 的接触判定里做（p.dashT > 0 就碾过去），
     // 不在这里按距离预杀——那样会隔着平台杀掉还没撞到的怪
-    castSkill(s.n, '突进 · 沿途影怪全部撞碎');
+    castSkill(s.n, '突进 · 沿途怪物全部撞碎');
   } else if (id === 'star') {
-    for (const m of G.mobs) if (!m.dead && inView(m)) { killMob(m, false); killed++; }
+    for (const m of G.mobs) if (!m.dead && inView(m)) { killAny(m); killed++; }
     // 尖刺台被星矛拍平，顺便给玩家开条路
     let flat = 0;
     for (const pl of G.plats) {
@@ -542,7 +713,7 @@ function useSkill(id) {
     spark(p.x, p.y - 16, 18, '#9ff0d8', 190, 0.7);
     castSkill(s.n, heal ? `回 ${heal} 血 · 6 秒内受伤减半` : '满血 · 6 秒内受伤减半');
   } else if (id === 'burst') {
-    for (const m of G.mobs) if (!m.dead && inView(m)) { killMob(m, false); killed++; }
+    for (const m of G.mobs) if (!m.dead && inView(m)) { killAny(m); killed++; }
     G.freezeT = 4.5;
     p.invuln = Math.max(p.invuln, 3);
     G.shake = Math.max(G.shake, 14);
@@ -623,21 +794,22 @@ function update(dt) {
   // ---- 平台倒计时
   for (const pl of G.plats) {
     if (pl.hit > 0) pl.hit = Math.max(0, pl.hit - dt * 3);
+    if (pl.cd > 0) pl.cd = Math.max(0, pl.cd - dt);
     if (pl.dead || pl.fuse <= 0 || G.freezeT > 0) continue;
     pl.fuse -= dt;
     if (pl.fuse <= 0) shatter(pl);
   }
 
-  // ---- 影怪 / 陷阱：四种各有各的动法
+  // ---- 井里的怪：五种各有各的动法
   for (const m of G.mobs) {
     if (m.dead) continue;
     if (m.y < G.camY - 300 || m.y > G.camY + VH + 300) continue;
-    const k = MOBK[m.kind] || MOBK.shade;
-    m.ph += dt * (k.fly ? 2.1 : 3.4);
+    const k = MOBK[m.kind] || MOBK.rat;
+    m.ph += dt * (k.fly ? 2.1 : k.fast ? 5.2 : 3.4);
     if (m.hit > 0) m.hit = Math.max(0, m.hit - dt * 2.5);
 
     if (k.fly) {
-      // 飞蛾：横着巡逻，纵向按正弦飘，所以同一个位置永远抓不准
+      // 提灯：横着巡逻，纵向按正弦飘，所以同一个位置永远抓不准
       m.x += m.vx * dt;
       if (m.x <= m.x0) { m.x = m.x0; m.vx = Math.abs(m.vx); }
       if (m.x >= m.x1) { m.x = m.x1; m.vx = -Math.abs(m.vx); }
@@ -648,7 +820,7 @@ function update(dt) {
       if (m.x >= m.x1) { m.x = m.x1; m.vx = -Math.abs(m.vx); }
     }
 
-    // 吐刺者：只在玩家在下方时开火，弹道往人身上瞄
+    // 吟诵者：玩家在下方时开始「吟诵」，弹道往人身上瞄
     if (k.shoot && p.y > m.y) {
       m.sc -= dt;
       if (m.sc <= 0) {
@@ -657,16 +829,41 @@ function update(dt) {
         const dx = p.x - sx, dy = (p.y - 14) - sy;
         const d = Math.hypot(dx, dy) || 1;
         G.shots.push({ x: sx, y: sy, vx: dx / d * 215, vy: dy / d * 215, life: 3.6, dead: false, ph: 0 });
-        spark(sx, sy, 4, k.c1, 90, 0.3);
+        spark(sx, sy, 4, k.c, 90, 0.3);
       }
+    }
+
+    // 自爆脓疱：玩家靠近才开始鼓胀，0.45 秒后炸。
+    // 一旦点着（lit）就锁定，不会因为玩家跑开而缩回去 —— 「自爆」是它的
+    // 特性，不是玩家的选择；玩家能选的只有「跑出爆炸半径」。
+    // 这段预警是给人看的：看见鼓起来还有 0.45 秒可以跳开。
+    if (k.bomb) {
+      if (m.lit) {
+        m.armT += dt;
+      } else {
+        const near = Math.abs(m.x - p.x) < 34 && Math.abs(m.y - p.y) < 42;
+        if (near) { m.lit = 1; m.armT += dt; }
+      }
+      if (m.armT >= 0.45) { explodePustule(m); continue; }
     }
 
     const ox = Math.abs(m.x - p.x) < (m.w + p.w) / 2 - 3;
     const oy = p.y > m.y - m.h && p.y - p.h < m.y;
     if (ox && oy) {
       // 突进中撞上去 = 直接碾碎（掠影斩卖的就是这个）
-      if (p.dashT > 0) { killMob(m, true); continue; }
-      // 从上方落下来 = 踩死；踩不死的（棘球）撞上去只会挨打
+      if (p.dashT > 0) { killAny(m, true); continue; }
+      // 自爆脓疱撞不得也踩不破：碰到它只是把引信点着（0.3 秒后炸），
+      // 不额外造成撞击伤害 —— 它的威胁是"炸"，不是"撞"。
+      // 这样玩家撞上去时还有 0.3 秒可以跳开，躲开才算真躲开。
+      if (k.bomb) {
+        m.lit = 1;
+        m.armT = Math.max(m.armT, 0.30);
+        const s2 = p.x < m.x ? -1 : 1;
+        p.vx = s2 * 190; p.vy = -190; p.ground = null;
+        spark(p.x, p.y - 14, 6, k.c, 150, 0.4);
+        continue;
+      }
+      // 从上方落下来 = 踩死
       const fromTop = p.vy > 80 && p.y - p.h < m.y - m.h * 0.3;
       if (k.stomp && fromTop) {
         killMob(m, true);
@@ -679,7 +876,7 @@ function update(dt) {
     }
   }
 
-  // ---- 吐刺者打出来的刺
+  // ---- 吟诵者吐出来的音弹
   for (const s of G.shots) {
     if (s.dead) continue;
     s.life -= dt;
@@ -835,6 +1032,25 @@ function drawPlat(pl) {
   const x = pl.x + shaking;
   const hgt = 13;
 
+  // 喘息层的安全区光晕：一圈很淡的青绿，和尖刺台的红、蹦床的青区分得开。
+  // 必须用椭圆路径填（早先用 fillRect 把径向渐变框住，四条边被切成了直角的方块）。
+  if (pl.zen) {
+    const pulse = 0.5 + 0.5 * Math.sin(G.t * 2.2);
+    const zx = x + pl.w / 2;
+    const rx = pl.w * 0.56, ry = pl.w * 0.30;
+    const zg = ctx.createRadialGradient(zx, y, 2, zx, y, rx);
+    zg.addColorStop(0, `rgba(126,224,150,${0.20 + pulse * 0.12})`);
+    zg.addColorStop(0.6, `rgba(126,224,150,${0.07 + pulse * 0.05})`);
+    zg.addColorStop(1, 'rgba(126,224,150,0)');
+    ctx.fillStyle = zg;
+    ctx.beginPath();
+    ctx.ellipse(zx, y - ry * 0.25, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = `rgba(170,248,190,${0.5 + pulse * 0.35})`;
+    ctx.beginPath(); ctx.arc(x + 7, y + hgt / 2, 1.8, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + pl.w - 7, y + hgt / 2, 1.8, 0, Math.PI * 2); ctx.fill();
+  }
+
   // 底座阴影
   ctx.fillStyle = 'rgba(0,0,0,.35)';
   roundRect(x + 2, y + 4, pl.w, hgt, 6); ctx.fill();
@@ -844,7 +1060,7 @@ function drawPlat(pl) {
   ctx.fillStyle = g;
   roundRect(x, y, pl.w, hgt, 6); ctx.fill();
   // 台面顶线：深色井里平台全靠这一条亮边被认出来
-  ctx.fillStyle = pal.edge;
+  ctx.fillStyle = pl.zen ? 'rgba(178,248,200,.9)' : pal.edge;
   ctx.globalAlpha = pl.hit > 0 ? 0.5 + pl.hit * 0.5 : 0.75;
   ctx.fillRect(x + 4, y, pl.w - 8, 1.6);
   ctx.globalAlpha = 1;
@@ -879,6 +1095,34 @@ function drawPlat(pl) {
     ctx.beginPath();
     ctx.moveTo(x + pl.w / 2 - 5, y + 3); ctx.lineTo(x + pl.w / 2 + 5, y + 3); ctx.lineTo(x + pl.w / 2, y + 11);
     ctx.closePath(); ctx.fill();
+  } else if (pl.type === 'tramp') {
+    // 蹦床：台面上一排弹簧圈 + 中间一个朝上的箭头。弹完 1.8 秒复位，
+    // 复位期间弹簧压扁、箭头变暗 —— 玩家一眼能看出「这块现在踩了不弹」。
+    const ready = pl.cd <= 0;
+    const sq = pl.hit > 0 ? Math.sin((1 - pl.hit) * Math.PI) : 0;
+    const hgt2 = ready ? 1 : 0.34;                 // 复位中弹簧只剩三成高
+    const top = y - sq * 6;
+    ctx.strokeStyle = ready ? 'rgba(103,232,224,.9)' : 'rgba(103,232,224,.35)';
+    ctx.lineWidth = ready ? 1.6 : 1.1;
+    const coils = Math.max(2, Math.floor(pl.w / 12));
+    for (let i = 0; i < coils; i++) {
+      const sx = x + 6 + i * ((pl.w - 12) / Math.max(1, coils - 1));
+      const ch = (9 + sq * 4) * hgt2;
+      ctx.beginPath();
+      ctx.moveTo(sx, top);
+      ctx.quadraticCurveTo(sx + 3 * hgt2, top - ch * 0.55, sx, top - ch);
+      ctx.stroke();
+    }
+    if (ready) {
+      // 朝上的箭头：一眼看出这是往上弹的，不是往下掉的
+      const ay = top - 13 - sq * 5;
+      ctx.fillStyle = 'rgba(150,255,246,.92)';
+      ctx.beginPath();
+      ctx.moveTo(x + pl.w / 2, ay);
+      ctx.lineTo(x + pl.w / 2 - 5.5, ay + 7);
+      ctx.lineTo(x + pl.w / 2 + 5.5, ay + 7);
+      ctx.closePath(); ctx.fill();
+    }
   }
 
   // 碎裂预警：裂纹随倒计时变亮
@@ -898,74 +1142,94 @@ function drawPlat(pl) {
 
 function drawMob(m) {
   const y = m.y - G.camY;
-  if (y < -60 || y > VH + 60) return;
-  const k = MOBK[m.kind] || MOBK.shade;
-  const bob = k.fly ? 0 : Math.sin(m.ph) * 2.5;
-  const cx = m.x, cy = y - m.h / 2 + bob;
-  const r = m.w / 2;
+  if (y < -80 || y > VH + 80) return;
+  const k = MOBK[m.kind] || MOBK.rat;
+  const rect = MOB_RECT[k.art];
+  const bob = Math.sin(m.ph) * (k.fly ? 2.2 : 1.1);
+  const cx = m.x;
+  const footY = y + bob;
+
+  // 自爆脓疱的倒计时：越接近爆炸鼓起得越大
+  const swell = m.armT > 0 ? 1 - Math.min(1, m.armT / 0.45) : 0;
+  const ah = k.ah * (1 + swell * 0.20);
 
   ctx.save();
-  ctx.shadowColor = k.glow;
-  ctx.shadowBlur = m.hit > 0 ? 20 : 12;
-  const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.4, 1, cx, cy, r * 1.35);
-  g.addColorStop(0, k.c1); g.addColorStop(1, k.c2);
 
-  if (m.kind === 'moth') {
-    // 飞蛾：一对随波扇动的翅膀 + 细长身子
-    const flap = Math.abs(Math.sin(m.ph * 2.6));
-    ctx.fillStyle = g;
-    for (const s of [-1, 1]) {
-      ctx.beginPath();
-      ctx.moveTo(cx, cy - r * 0.2);
-      ctx.quadraticCurveTo(cx + s * (r * 0.7 + 9 * flap), cy - r * 1.2, cx + s * (r * 1.3 + 5 * flap), cy + r * 0.1);
-      ctx.quadraticCurveTo(cx + s * (r * 0.8 + 7 * flap), cy + r * 0.8, cx, cy + r * 0.25);
-      ctx.closePath(); ctx.fill();
-    }
-    ctx.fillStyle = k.c1;
-    ctx.beginPath(); ctx.ellipse(cx, cy, r * 0.4, r * 0.9, 0, 0, Math.PI * 2); ctx.fill();
-  } else if (m.kind === 'thorn') {
-    // 棘球：一圈慢慢转的刺，踩不破，只能绕开或用技能清
-    const spin = m.ph * 0.55;
-    ctx.fillStyle = k.c1;
-    for (let i = 0; i < 8; i++) {
-      const a = spin + i * Math.PI / 4;
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(a - 0.24) * r * 0.72, cy + Math.sin(a - 0.24) * r * 0.72);
-      ctx.lineTo(cx + Math.cos(a) * r * 1.44, cy + Math.sin(a) * r * 1.44);
-      ctx.lineTo(cx + Math.cos(a + 0.24) * r * 0.72, cy + Math.sin(a + 0.24) * r * 0.72);
-      ctx.closePath(); ctx.fill();
-    }
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(cx, cy, r * 0.84, 0, Math.PI * 2); ctx.fill();
-    const pulse = 0.35 + 0.25 * Math.sin(m.ph * 3);
-    ctx.fillStyle = `rgba(255,124,124,${pulse})`;
-    ctx.beginPath(); ctx.arc(cx, cy, r * 0.3, 0, Math.PI * 2); ctx.fill();
-  } else {
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.ellipse(cx, cy, r, r * 0.92, 0, 0, Math.PI * 2); ctx.fill();
-    if (m.kind === 'spitter') {
-      // 朝下的小炮口，快开火时会亮一下
-      const hot = m.sc != null && m.sc < 0.6;
-      ctx.fillStyle = hot ? '#ffeaa8' : k.c1;
-      ctx.beginPath();
-      ctx.moveTo(cx - 5, cy + r * 0.5); ctx.lineTo(cx + 5, cy + r * 0.5); ctx.lineTo(cx, cy + r * 1.55);
-      ctx.closePath(); ctx.fill();
-    }
+  // 脚下投影：立绘是「站」在台上，不是浮着的
+  ctx.fillStyle = 'rgba(0,0,0,.34)';
+  ctx.beginPath();
+  ctx.ellipse(cx, y + 1, m.w * 0.44, 2.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 背后一圈本色光晕：原作立绘偏暗，深色井里全靠这层把轮廓托出来
+  const gr = ah * 0.66;
+  const gg = ctx.createRadialGradient(cx, footY - ah * 0.5, 2, cx, footY - ah * 0.5, gr);
+  gg.addColorStop(0, k.glow);
+  gg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gg;
+  ctx.beginPath();
+  ctx.ellipse(cx, footY - ah * 0.5, gr, gr * 0.95, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 原作立绘本体（雪碧图里的一条），底对齐、朝哪边跑就翻哪边
+  if (rect && mobOk) {
+    const w = ah * rect.w / rect.h;
+    ctx.save();
+    ctx.translate(cx, footY);
+    // 原图朝 face0，要显示成巡逻方向：两者不一致才翻。
+    // （鼠王的头在左边、野犬的头在右边，一律按 vx 翻会让其中一只倒着跑）
+    const want = m.vx > 1 ? 1 : m.vx < -1 ? -1 : (k.face0 || 1);
+    if (want !== (k.face0 || 1)) ctx.scale(-1, 1);
+    ctx.shadowColor = k.glow;
+    ctx.shadowBlur = m.hit > 0 ? 22 : 9;
+    ctx.drawImage(mobSheet, rect.x, rect.y, rect.w, rect.h, -w / 2, -ah, w, ah);
+    ctx.restore();
   }
+
+  // 挨打 / 快炸的时候整个人发白光：比整只变白干净
+  if (m.hit > 0 || swell > 0.55) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = Math.max(m.hit * 0.5, swell > 0.55 ? (swell - 0.55) * 0.7 : 0);
+    ctx.fillStyle = swell > 0.55 ? '#ff8a6a' : '#ffffff';
+    ctx.beginPath();
+    ctx.ellipse(cx, footY - ah * 0.48, m.w * 0.55, ah * 0.48, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
+
+  // 快开火时脚下亮一下，提醒「它在瞄你」
+  if (k.shoot && m.sc != null && m.sc < 0.6) {
+    ctx.globalAlpha = 0.55 + 0.45 * Math.sin(G.t * 22);
+    ctx.fillStyle = k.c;
+    ctx.beginPath();
+    ctx.ellipse(cx, footY - ah * 0.82, 3.4, 3.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // 自爆倒计时：外面套一圈会收紧的橙红光环，再加一层随心跳的两层光
+  // （原来只有一道细红环，在暗井里几乎看不见 —— 而它恰恰是"要炸了"的唯一预警）
+  if (m.armT > 0) {
+    const beat = 0.5 + 0.5 * Math.sin(G.t * (10 + swell * 26));
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,120,80,${0.45 + swell * 0.5})`;
+    ctx.lineWidth = 2.6;
+    ctx.shadowColor = 'rgba(255,120,70,.9)';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.ellipse(cx, footY - ah * 0.45, m.w * 0.5 + 22 * (1 - swell), ah * 0.58 + 8 * (1 - swell), 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // 心跳光圈
+    ctx.strokeStyle = `rgba(255,170,110,${(0.15 + swell * 0.35) * beat})`;
+    ctx.lineWidth = 3.4;
+    ctx.beginPath();
+    ctx.ellipse(cx, footY - ah * 0.45, m.w * 0.62 + 30 * (1 - swell), ah * 0.7 + 12 * (1 - swell), 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   ctx.restore();
-
-  if (m.kind === 'thorn') return;
-
-  // 眼睛：随移动方向偏，飞蛾的眼睛小一号
-  const look = m.vx > 0 ? 1.6 : -1.6;
-  const er = m.kind === 'moth' ? 2.2 : 2.6;
-  const ey = m.kind === 'spitter' ? cy - r * 0.25 : cy - 1;
-  ctx.fillStyle = m.kind === 'moth' ? '#dff6ff' : '#fff';
-  ctx.beginPath(); ctx.ellipse(cx - r * 0.3 + look, ey, er, er * 1.2, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(cx + r * 0.3 + look, ey, er, er * 1.2, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#1b0f26';
-  ctx.beginPath(); ctx.arc(cx - r * 0.3 + look * 1.5, ey + 0.5, 1.3, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx + r * 0.3 + look * 1.5, ey + 0.5, 1.3, 0, Math.PI * 2); ctx.fill();
 }
 
 function drawShot(s) {
@@ -975,12 +1239,20 @@ function drawShot(s) {
   ctx.save();
   ctx.translate(s.x, y);
   ctx.rotate(a);
-  ctx.shadowColor = 'rgba(240,200,90,.85)';
-  ctx.shadowBlur = 8;
-  ctx.fillStyle = '#e8c96a';
+  // 吟诵者的音弹：一颗带拖尾的青紫光点，和「刺」区分开
+  const grd = ctx.createLinearGradient(-18, 0, 6, 0);
+  grd.addColorStop(0, 'rgba(150,146,232,0)');
+  grd.addColorStop(1, 'rgba(180,176,255,.75)');
+  ctx.fillStyle = grd;
   ctx.beginPath();
-  ctx.moveTo(7, 0); ctx.lineTo(-4, 3); ctx.lineTo(-2, 0); ctx.lineTo(-4, -3);
+  ctx.moveTo(-18, -2.6); ctx.lineTo(2, -1.4); ctx.lineTo(2, 1.4); ctx.lineTo(-18, 2.6);
   ctx.closePath(); ctx.fill();
+  ctx.shadowColor = 'rgba(170,160,255,.9)';
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = '#cfc8ff';
+  ctx.beginPath(); ctx.arc(0, 0, 3.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  ctx.beginPath(); ctx.arc(0, 0, 1.5, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 
@@ -1655,7 +1927,9 @@ function endRun(win) {
   $('#endSc').textContent = G.score;
   $('#endKill').textContent = G.kills;
   $('#endBest').textContent = G.bestLv;
-  $('#endRank').innerHTML = `${rank[1]}<small>${rank[2]}</small>`;
+  // 踩蹦床的次数塞进评价的第二行：不改结算面板的布局（窄屏上三栏已经满了）
+  const trampNote = G.tramps > 0 ? ` · 踩了 ${G.tramps} 次蹦床` : '';
+  $('#endRank').innerHTML = `${rank[1]}<small>${rank[2]}${trampNote}</small>`;
 
   if (win) {
     spawnFx('awaken', 300, 2.4, '塔底');
@@ -1790,7 +2064,7 @@ window.addEventListener('keyup', (e) => {
 });
 
 $('#go').addEventListener('click', play);
-// 玩法速查：技能效果 / 影怪 / 掉落物都写在里面，省得靠猜
+// 玩法速查：技能效果 / 怪物 / 掉落物都写在里面，省得靠猜
 const openHelp = () => { $('#ovHelp').hidden = false; };
 $('#helpBtn').addEventListener('click', openHelp);
 $('#helpBtn2').addEventListener('click', openHelp);

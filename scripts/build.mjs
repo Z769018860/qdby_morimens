@@ -143,11 +143,20 @@ function genBirdArt() {
   const sheetPath = path.join(ROOT, 'assets/pollux-bird/bird-sheet.webp');
   if (!has(sheetPath)) throw new Error('缺少雪碧图，先跑 scripts/build_bird_art.py');
   const sheet = 'data:image/webp;base64,' + fs.readFileSync(sheetPath).toString('base64');
+  // 怪物图集单独一张：原作 assets/monster 里是五张 160x160 的立绘，
+  // scripts/build_bird_mobs.py 已经裁边、缩放、横向拼好（约 19KB），
+  // 这里和内联角色图一样塞成 data URI，游戏页仍然只发一个脚本请求。
+  const mobsPath = path.join(ROOT, 'assets/pollux-bird/bird-mobs.webp');
+  if (!has(mobsPath)) throw new Error('缺少怪物图集，先跑 scripts/build_bird_mobs.py');
+  const mobMeta = readJson(path.join(ROOT, 'data/bird-mobs.json'));
+  const mobSheet = 'data:image/webp;base64,' + fs.readFileSync(mobsPath).toString('base64');
   const code = [
     '// 由 scripts/build.mjs 从 data/bird-art.json + bird-sheet.webp 生成，请勿手改。',
     '// 一张雪碧图承载全部技能动图，帧矩形按底对齐排列（所以脚在同一水平线上）。',
     `export const SHEET = ${JSON.stringify(sheet)};`,
     `export const ANIMS = ${JSON.stringify(meta.anims)};`,
+    `export const MOB_SHEET = ${JSON.stringify(mobSheet)};`,
+    `export const MOB_RECT = ${JSON.stringify(mobMeta.rects)};`,
     '',
   ].join('\n');
   const out = path.join(ROOT, 'js/bird-art.js');
