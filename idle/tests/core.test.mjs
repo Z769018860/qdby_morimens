@@ -1342,6 +1342,8 @@ test('彩蛋角色：9 位都进了表、带完整 7 槽技能、不进抽卡池
     assert.ok(a.portrait && a.card, `${a.slug} 缺图`);
     assert.equal(a.avail, 'GIFT', `${a.slug} 不该进抽卡池`);
     assert.ok(a.creator.uid && a.creator.url.includes('space.bilibili.com'), `${a.slug} 缺主播信息`);
+    // 九位主播都是男性，简介别按昵称想当然写成「她」
+    assert.ok(!/[她姑娘妹]/.test(a.creator.bio), `${a.slug} 的简介写了女性称呼`);
     const k = data.kit(a.slug, 2);
     for (const s of SLOTS) {
       assert.ok(k[s]?.name, `${a.slug}.${s} 没有名字`);
