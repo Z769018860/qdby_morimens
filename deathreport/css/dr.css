@@ -294,3 +294,73 @@ h1{background:linear-gradient(180deg,#fff,rgb(var(--tint)));-webkit-background-c
 }
 .ooc b{display:block;margin-bottom:2px;color:var(--amb);letter-spacing:.09em;font-size:13px}
 @media(max-width:640px){.ooc{font-size:11.5px;line-height:1.75;margin-top:12px}.ooc b{font-size:12px}}
+
+/* ───────────────────────────────────────────── 工坊
+   写卷宗是另一种活儿：左边表单、右边体检。窄屏时体检落到表单下面。 */
+.wstabs2{display:flex;gap:6px;padding:8px 12px 0;border-bottom:1px solid var(--line);background:var(--panel)}
+.wstabs2 button{background:none;border:1px solid var(--line);border-bottom:0;padding:4px 14px;color:var(--dim);font-size:13px}
+.wstabs2 button.on{color:var(--hi);border-color:var(--fg);background:#0b2427}
+.wsbody{flex:1;min-height:0;overflow:auto;padding:14px 16px 48px;width:100%;max-width:1180px;margin:0 auto}
+.wsbar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.wscards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.wscard{border:1px solid #1f4048;background:rgba(9,17,23,.93);padding:12px 14px;display:flex;flex-direction:column;gap:6px;box-shadow:0 2px 14px rgba(0,0,0,.35)}
+.wscard p{margin:0;font-size:13px}
+.wscard .small{font-size:12px;line-height:1.6}
+.wsh{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.wsh b{color:var(--hi);font-size:15px}
+.wsbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.chip.amb{color:var(--amb);border-color:var(--amb)}
+.wsnone{font-size:13px;line-height:1.9}
+.wsfoot{font-size:12px;margin-top:16px}
+.wsdoc h3{color:var(--hi);font-size:14px;letter-spacing:.06em;margin:18px 0 6px}
+.wsdoc p{font-size:13.5px;line-height:1.9;margin:.4em 0}
+.wsdoc code{color:var(--amb);background:#0a1a1c;padding:0 4px}
+
+/* 编辑器 */
+.wsedit{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+.wsform fieldset{border:1px solid var(--line);padding:10px 12px 12px;margin:0 0 14px}
+.wsform legend{color:var(--amb);font-size:12px;letter-spacing:.1em;padding:0 6px}
+.wsform label{display:block;font-size:12px;color:var(--dim);margin:8px 0}
+.wsform label input,.wsform label textarea,.wsform label select{display:block;width:100%;margin-top:3px}
+.wsform textarea{min-height:56px}
+.wsrow{display:grid;grid-template-columns:30px 1fr 1fr 34px;gap:6px;align-items:center;margin:5px 0}
+.wsrow .no{color:var(--dim);font-size:12px}
+.btn.tiny{padding:2px 7px;font-size:12px}
+.wsrec{border:1px solid var(--line);background:#081114;padding:8px 10px;margin:10px 0}
+.wsrec.bad{border-color:#5c2a24}
+.wsrh{display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:6px}
+.wsrh b{color:var(--hi)}
+.wsrh .dim{font-size:12px}
+.wsrh .btn{margin-left:auto}
+.wsgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px 8px}
+.wsgrid label{margin:2px 0;font-size:11px}
+.wsgrid .wide{grid-column:span 2}
+.wsrec textarea{min-height:120px;margin-top:8px;line-height:1.75}
+.wscnt{text-align:right}
+
+/* 体检栏 */
+.wsside{border:1px solid #1f4048;background:rgba(9,17,23,.93);padding:10px 12px;position:sticky;top:0}
+.wsside h4{color:var(--hi);font-size:12px;letter-spacing:.1em;margin:14px 0 6px}
+.wsside h4:first-child{margin-top:0}
+.wserr{border-left:2px solid var(--red);padding:2px 0 2px 8px;margin:6px 0}
+.wserr b{color:var(--red);font-size:12px}
+.wserr ul,.wswarn ul{margin:4px 0;padding-left:18px}
+.wserr li,.wswarn li{font-size:12px;line-height:1.65;margin:3px 0}
+.wsok{color:var(--ok);font-size:12px}
+.wswarn{border-left:2px solid var(--amb);padding:2px 0 2px 8px;margin:6px 0}
+.wswarn summary{color:var(--amb);font-size:12px;cursor:pointer}
+.wslinks,.wsans{list-style:none;margin:4px 0;padding:0;font-size:12px;line-height:1.8}
+.wslinks li,.wsans li{border-bottom:1px dotted #16333a;padding:2px 0}
+.wslinks code,.wsans code{color:var(--cy)}
+.wsstars{display:flex;gap:4px;margin:10px 0}
+.wsstars button{background:none;border:1px solid var(--line);color:#3c4a4d;font-size:20px;line-height:1;padding:3px 7px}
+.wsstars button.on{color:var(--amb);border-color:var(--amb)}
+.wsnlabel{display:block;font-size:12px;color:var(--dim);margin:6px 0}
+.wsnlabel input{display:block;width:100%;margin-top:3px}
+
+@media(max-width:860px){
+  .wsedit{grid-template-columns:1fr}
+  .wsside{position:static;order:2}
+  .wsgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .wsbody{padding:12px 10px 40px}
+}

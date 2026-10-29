@@ -269,7 +269,8 @@ export function canFinish(G, st) { return confirmedCount(st) >= Math.ceil(total(
 export function finish(G, st) {
   const n = confirmedCount(st);
   st.ended = n >= total(G) ? 'true' : 'partial';
-  if (!st.docs.includes('00-DECREE') && st.ended === 'true') st.docs.push('00-DECREE', '00-SEALED');
+  // 机密文档只有正篇有；工坊卷宗没有这两篇，别往存档里塞不存在的 id
+  if (st.ended === 'true') for (const d of ['00-DECREE', '00-SEALED']) if (G.docs[d] && !st.docs.includes(d)) st.docs.push(d);
   const rt = rating(G, st), r = st.ended === 'true' ? rt.rank : (rt.rank === 'SSS' || rt.rank === 'SS' ? 'S' : rt.rank);
   st.finalScore = rt.total; st.ending = st.ended === 'true' ? (pickEnding(G, st) || {}).id || 'E0' : 'P';
   st.rank = r;

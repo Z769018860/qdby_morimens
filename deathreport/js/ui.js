@@ -3,17 +3,24 @@ import { newGame, recover, index, options, setDraft, submit, rosterView, lockedH
 import { burst } from './fx.js';
 import { startBg, setTheme } from './bg.js';
 import { unlock as unlockAudio, play, setSound, setTheme as setAudioTheme, startAmbient, stopAmbient } from './audio.js';
+import { toGame, validate } from './workshop.js';
+import { initWs, openWs, bindWs, openRate } from './workshop-ui.js';
+import * as cloud from './cloud.js';
+
 let ED = 63;
 const EDS = { 63: ['data/game.json', 'morimens-deathreport-save-v1'], 62: ['data/game-62.json', 'morimens-deathreport-save-ed62-v1'], 61: ['data/game-61.json', 'morimens-deathreport-save-ed61-v1'] };
+// 工坊：从云端/本地卷宗进来时，G 是编译出来的，没有对应的 data/*.json；存档也按卷宗分开
+let WS = null;
 // 上次停在哪一届。存档是按届分开的，刷新后如果一律跳回本篇，往届玩家会以为进度丢了。
 const EDKEY = 'morimens-deathreport-ed';
-const SAVE = { toString: () => EDS[ED][1] }, PREF = 'morimens-deathreport-pref-v1';
+const saveKey = () => (WS ? `morimens-deathreport-save-ws-${WS.id}` : EDS[ED][1]);
+const SAVE = { toString: () => saveKey() }, PREF = 'morimens-deathreport-pref-v1';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let G, st, AUTO, ui = { sel: null, sort: 'order', tab: 'ros', rep: null, pane: 'idx', hintLog: [], q: '' };
 let pref = { crt: true, size: 15, sound: true, auto: { name: true, loc: true, item: true, bc: true }, ...(() => { try { return JSON.parse(localStorage.getItem(PREF)) || {}; } catch { return {}; } })() };
 const savePref = () => { try { localStorage.setItem(PREF, JSON.stringify(pref)); } catch { /* ignore */ } };
-const hasSave = () => { try { return !!localStorage.getItem(EDS[ED][1]); } catch { return false; } };
+const hasSave = () => { try { return !!localStorage.getItem(saveKey()); } catch { return false; } };
 // 存档版本 2：多存一份界面位置（读到哪条、哪个页签、报告选的是谁），下次进来接着读。
 // 版本 1 的老存档直接并进新档的默认值里继续用，不丢进度。
 const SAVE_V = 2;
@@ -29,7 +36,7 @@ const save = (silent) => {
     st.savedAt = Date.now();
     st.playMs = (st.playMs || 0) + Math.max(0, Date.now() - (ui.t0 || Date.now()));
     ui.t0 = Date.now();
-    localStorage.setItem(EDS[ED][1], JSON.stringify(st));
+    localStorage.setItem(saveKey(), JSON.stringify(st));
     if (!silent) flashSaved();
   } catch { /* 隐私模式 / 配额满：写不进去就算了，别打断阅读 */ }
 };
@@ -51,7 +58,7 @@ function migrate(j) {
   return st;
 }
 function loadSave() {
-  const key = EDS[ED][1];
+  const key = saveKey();
   let raw = null;
   try { raw = localStorage.getItem(key); } catch { return null; }
   if (!raw) return null;
@@ -68,7 +75,7 @@ function loadSave() {
 // 标题页只读摘要，不动整份存档
 function peekSave() {
   try {
-    const j = JSON.parse(localStorage.getItem(EDS[ED][1]));
+    const j = JSON.parse(localStorage.getItem(saveKey()));
     if (!j || typeof j !== 'object') return null;
     return { at: +j.savedAt || 0, confirmed: Object.keys(j.confirmed || {}).length, recovered: (j.recovered || []).length, total: total(G), ended: j.ended };
   } catch { return null; }
@@ -83,7 +90,7 @@ const ago = (ts) => {
 };
 // 启动时先体检一遍：坏档挪到 -bad 存着，别让它一直占着键、把「继续调查」卡成灰色
 function sanitizeSave() {
-  const key = EDS[ED][1];
+  const key = saveKey();
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return;
@@ -267,7 +274,7 @@ function renderTools() {
     const dead = {}; for (const k of st.recovered) dead[G.records[k].cell] = (dead[G.records[k].cell] || 0) + 1;
     let h = `<h4>■ 地图　${G.edition.n === 63 ? '弥萨格复本（密境）' : G.edition.title + '（密境）'}</h4><div class="map" style="grid-template-columns:22px repeat(${cols.length},1fr)"><span></span>` + [...cols].map((c) => `<span class="ax">${c}</span>`).join('');
     for (const r of G.edition.grid.rows) { h += `<span class="ax">${r}</span>`; for (const c of cols) { const id = c + r; h += `<div class="cell ${id === 'C3' && G.edition.n === 63 ? 'c3' : ''}${dead[id] ? ' has' : ''}" style="--i:${zorder.get(id) ?? 0}" data-cell="${id}"><b>${id} ${esc(G.places[id])}</b>${zones ? `<span class="z">封锁 ${when[id]}</span>` : ''}${dead[id] ? `<br><span class="d">复原 ${dead[id]} 条</span>` : ''}</div>`; } }
-    tp.innerHTML = h + '</div><p class="dim mapswipe">点一个区块，看这一区死了谁；屏幕太窄时可以左右滑动。</p>' + (zones ? '' : '<p class="dim">封锁时刻需要先复原 00-ZONE。</p>');
+    tp.innerHTML = h + '</div><p class="dim mapswipe">点一个区块，看这一区死了谁；屏幕太窄时可以左右滑动。</p>' + (zones ? '' : G.noZone ? '<p class="dim">这一卷不设融灾黑潮封锁。</p>' : '<p class="dim">封锁时刻需要先复原 00-ZONE。</p>');
   } else if (ui.tab === 'rep') {
     const recs = st.recovered.map((k) => G.records[k]).sort((a, b) => a.dord - b.dord);
     const cur = ui.rep && G.records[ui.rep] && st.recovered.includes(ui.rep) ? ui.rep : null;
@@ -374,6 +381,7 @@ async function typeLines(el, lines, speed = 22) {
     if (!epSkip) await new Promise((r) => setTimeout(r, 160));
   }
 }
+let wsResult = null;   // 工坊结案时的成绩，等玩家点「评分」再一起发出去（Waline 限制两条评论的间隔）
 async function endGame() {
   const res = finish(G, st), s = stats(G, st); save();
   stopAmbient();
@@ -382,7 +390,15 @@ async function endGame() {
   sfx.heart(); buzz([30, 90, 30]);
   $('#epSkip').onclick = () => { epSkip = true; sfx.bell(); };
   const ep = $('#ep');
-  if (res.ended === 'true' && ED !== 63) {
+  if (WS) {
+    const rt = s.rating;
+    wsResult = res.ended === 'true' ? { rank: res.rank, score: rt.total, rate: s.rate, hints: s.hints } : null;
+    await typeLines(ep, [`《${WS.title}》　记录复原　完毕`, '', '报告　完毕', ''], 26);
+    const en = G.endings[0];
+    await typeLines(ep, [`■ 结案　${en.title}`, '', ...en.lines], 24);
+    await typeLines(ep, ['', `评价 ${res.rank}（${rt.total}）　完成度 ${rt.comp}%　提示节制 ${rt.hint}%`, `核实率 ${s.rate}%　提示 ${s.hints} 次　用时约 ${s.minutes} 分钟`, ''], 20);
+    if (res.ended === 'true') await typeLines(ep, ['评分会把这份成绩一起交给作者。', ''], 20);
+  } else if (res.ended === 'true' && ED !== 63) {
     const en = G.endings[0], rt = s.rating;
     await typeLines(ep, [`${G.edition.label}　回溯筛选　记录复原　完毕`, '', '报告　完毕', ''], 28);
     await typeLines(ep, [`■ 结局　${en.title}`, '', ...en.lines], 24);
@@ -400,7 +416,11 @@ async function endGame() {
     await typeLines(ep, ['报告已受理。', `核实率 ${s.rate}%（${s.confirmed}/${s.total}）`, '', '终端里还有没有复原的记录，也有没有对上的报告。', '有一道很小的影子在屏幕边缘停了一下，然后走远了。', '', '……再看看名册上那个糊掉的名字吧。'], 26);
   }
   const b = $('#epBtns'); b.hidden = false; $('#epSkip')?.remove();
-  b.innerHTML = res.ended === 'true' ? '<button class="btn" id="eDoc">查看机密文档</button><button class="btn" id="eTitle">回到标题</button>' : '<button class="btn gold" id="eCont">继续调查</button><button class="btn" id="eTitle">回到标题</button>';
+  const rateBtn = WS ? `<button class="btn gold" id="eRate">${wsResult ? '评分 · 提交成绩' : '给这份卷宗评分'}</button>` : '';
+  b.innerHTML = res.ended === 'true'
+    ? `${rateBtn}${G.docs['00-SEALED'] ? '<button class="btn" id="eDoc">查看机密文档</button>' : ''}<button class="btn" id="eTitle">${WS ? '回到工坊' : '回到标题'}</button>`
+    : `${rateBtn}<button class="btn gold" id="eCont">继续调查</button><button class="btn" id="eTitle">${WS ? '回到工坊' : '回到标题'}</button>`;
+  if ($('#eRate')) $('#eRate').onclick = () => { box.hidden = true; openRate(WS.cs, wsResult); };
   $('#eTitle').onclick = () => { box.hidden = true; toTitle(); };
   if ($('#eDoc')) $('#eDoc').onclick = () => { box.hidden = true; renderList(); openReader('00-SEALED'); };
   if ($('#eCont')) $('#eCont').onclick = () => { st.ended = null; save(); box.hidden = true; startAmbient(); };
@@ -419,7 +439,7 @@ function help() {
   <p>· 在左侧输入栏键入<b>记录名</b>复原记录。记录名怎么拼，要自己从线索里推——名册、地图、广播与时间都是线索。<br>· 记录的每个段落都可以点击标记。<br>· 记录末尾和索引里的 [X] 表示还有几条参考没有复原；虚线表示正文提到了还没读的系统文档。<br>· 三项全对才会“确认”；填错只会提示“存在错误的报告”。<br>· 每确认一部分报告，会收到新的消息。<br>· 提示分三级，会影响评级。</p><div class="btns"><button class="btn" data-close>明白了</button></div>`);
 }
 async function loadEdition(n) {
-  ED = n; G = await (await fetch(EDS[n][0])).json(); buildAuto(); setTheme(n); setAudioTheme(n); setBg('title'); heard.clear();
+  WS = null; ED = n; G = await (await fetch(EDS[n][0])).json(); buildAuto(); setTheme(n); setAudioTheme(n); setBg('title'); heard.clear();
   try { localStorage.setItem(EDKEY, String(n)); } catch { /* ignore */ }
   document.title = n === 63 ? '死亡游戏调查报告 · 第六十三次回溯筛选' : `死亡游戏调查报告 · ${G.edition.label}回溯筛选（往届）`;
   $('.sub').textContent = n === 63 ? '第六十三次　回溯筛选　完全复原' : G.edition.subtitle + '（往届档案）';
@@ -434,6 +454,7 @@ function bootTitle() {
     ['continue', pv ? `继续调查　已读 ${pv.recovered} 条` : '继续调查', !!pv],
     ['new', pv ? '重新开始' : '新的游戏', true],
     ['eds', un ? '往届档案' : '往届档案　？？？', true],
+    ['ws', '工坊　自撰卷宗', true],
     ['settings', '系统设置', true], ['help', '玩法说明', true], ['home', '返回首页', true],
   ].filter((x) => x[2]);
   $('#menu').innerHTML = items.map(([k, t]) => `<button data-m="${k}" class="${k === 'eds' && !un ? 'locked' : ''}${k === 'continue' ? ' cont' : ''}">${t}</button>`).join('');
@@ -454,19 +475,53 @@ $('#menu').addEventListener('click', (e) => {
   if (m === 'continue') start(loadSave());
   if (m === 'new') { if (hasSave() && !confirm('开始新的游戏会覆盖当前存档，确定吗？')) return; start(null); }
   if (m === 'eds') editions();
+  if (m === 'ws') openWorkshop();
   if (m === 'settings') settings(); if (m === 'help') help(); if (m === 'home') location.href = '../index.html';
 });
-function toTitle() { save(); $('#game').hidden = true; $('#title').hidden = false; setBg('title'); stopAmbient(); bootTitle(); }
+
+// ---------------------------------------------------------------- 工坊入口
+function openWorkshop(t = 'mine') { $('#title').hidden = true; $('#game').hidden = true; $('#ws').hidden = false; openWs(t); }
+function toMainTitle() { $('#ws').hidden = true; $('#title').hidden = false; setBg('title'); stopAmbient(); bootTitle(); }
+
+// 把一份卷宗编译成 G 直接开打；存档按卷宗分开，玩到一半退出下次还在
+function enterWorkshop(cs) {
+  const v = validate(cs);
+  if (v.errors.length) { toast(`这份卷宗还有 ${v.errors.length} 处必须修：${v.errors[0]}`); return; }
+  G = toGame(cs);
+  WS = { id: cs.id, title: cs.t, author: cs.a, cs };
+  ED = 'w';
+  buildAuto(); setTheme(63); setAudioTheme(63); heard.clear();
+  document.title = `${cs.t} · 工坊卷宗`;
+  $('#title').hidden = true; $('#ws').hidden = true; $('#game').hidden = false;
+  start(loadSave());
+}
+
+// ?w=<id> 直接打开云端某一份卷宗，分享出去别人点开就能玩
+async function openShared(id) {
+  toast('正在从云端取这份卷宗…', 3000);
+  const r = await cloud.list();
+  if (!r.ok) { toast(`云端取不到：${r.err}`, 3600); return; }
+  const w = r.works.find((x) => x.cs.id === id);
+  if (!w) { toast('这份卷宗已经不在云端了（可能被作者撤回）。', 4000); return; }
+  enterWorkshop(w.cs);
+}
+function toTitle() {
+  save();
+  $('#game').hidden = true; $('#modal').hidden = true; stopAmbient();
+  // 从工坊进来的，退出就回工坊；正篇才回标题页
+  if (WS) { WS = null; $('#title').hidden = true; $('#ws').hidden = false; openWs(); return; }
+  $('#title').hidden = false; $('#ws').hidden = true; setBg('title'); bootTitle();
+}
 $('#bTitle').onclick = toTitle; $('#bSave').onclick = () => { save(); toast('已保存。'); }; $('#bSet').onclick = settings;
 function start(saved) {
-  st = saved || newGame(G); if (!saved) { try { localStorage.removeItem(EDS[ED][1]); } catch { /* ignore */ } }
+  st = saved || newGame(G); if (!saved) { try { localStorage.removeItem(saveKey()); } catch { /* ignore */ } }
   ui = { sel: null, sort: 'order', tab: 'ros', rep: null, pane: 'idx', hintLog: [], q: '', t0: Date.now(), ...(saved && saved.ui ? saved.ui : {}) };
   const wantPane = ui.pane;   // showPane('idx') 会改写 ui.pane，先把上次的面板记下来
   $('#title').hidden = true; $('#game').hidden = false; $('#rdHead').innerHTML = ''; $('#rdBody').innerHTML = '<p class="dim">在索引里选择记录，或在上方键入记录名。</p>';
   setBg('read'); startAmbient();
   showPane('idx'); renderList(); renderTools(); refreshRate(); save(true);
   const back = saved && saved.ui && saved.ui.sel;
-  if (!saved) { openReader('00-ORDER'); toast('新消息 MSG01', 3000); sfx.msg(); }
+  if (!saved) { openReader('00-ORDER'); if (!WS) { toast('新消息 MSG01', 3000); sfx.msg(); } }
   else if (back && (G.records[back] || G.docs[back] || G.msgs.some((m) => m.id === back) || (G.arcs || []).some((a) => a.id === back))) {
     openReader(back, true);
     if (wantPane && wantPane !== 'rd') showPane(wantPane);   // 上次停在哪个面板就回哪个面板
@@ -482,7 +537,12 @@ function start(saved) {
   try { const v = +localStorage.getItem(EDKEY); if ((v === 62 || v === 61) && localStorage.getItem(EDS[v][1])) n = v; } catch { /* ignore */ }
   await loadEdition(n);
   sanitizeSave();
+  initWs({ play: enterWorkshop, toast, modal, close: toMainTitle });
+  bindWs();
   window.__dr = { get G() { return G; }, get st() { return st; } };
+  // 分享链接：?w=<卷宗id> 直接把那一卷拉下来开打
+  const want = new URLSearchParams(location.search).get('w');
+  if (want) { openWorkshop('cloud'); openShared(want); return; }
   bootTitle();
 })();
 // 浏览器不允许自动播放：第一次交互时解锁音频，之后环境音才会响
