@@ -104,9 +104,16 @@ td.num{font-variant-numeric:tabular-nums; text-align:right}
 .gate{padding:44px 16px; text-align:center}
 .gate h1{font-size:22px; margin-bottom:8px}
 .gate p{margin:0 0 16px; color:var(--dim); font-size:13px}
+/* 诊断表：门禁页要把「服务端看到的」摊开，否则「你不是站长」这句话没法排查 */
+.gate .diag{display:inline-flex; flex-direction:column; gap:0; margin:6px 0 0; text-align:left; width:min(440px, 100%)}
+.gate .diagrow{display:flex; gap:14px; align-items:baseline; justify-content:space-between; font-size:12px; padding:6px 0; border-bottom:1px dashed var(--line)}
+.gate .diagrow:last-child{border-bottom:0}
+.gate .diagrow span{color:var(--dim); white-space:nowrap}
+.gate .diagrow b{font-weight:600; word-break:break-all; text-align:right}
+.gate .acts{display:flex; gap:8px; justify-content:center; flex-wrap:wrap}
 @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
 </style>
-<meta name="build" content="3c2f1d7c8b">
+<meta name="build" content="db1f063316">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -261,7 +268,7 @@ td.num{font-variant-numeric:tabular-nums; text-align:right}
   if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
 })();
 </script>
-<script type="module" src="js/b/admin.js?v=3c2f1d7c8b"></script>
+<script type="module" src="js/b/admin.js?v=db1f063316"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

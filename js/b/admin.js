@@ -1161,126 +1161,6 @@ function avatarChip(size = 26) {
 return { normalizeName, nameOfMail, wApi, WALINE, auth, DEFAULT_AVATAR, avatarLib, openLogin, avatarChip };
 })();
 
-// ---- js/api.js
-const m_api = await (async () => {
-const { store } = m_common;
-// 后端客户端：所有需要服务端记账的请求都从这里走。
-//
-// 线上跑的是 EdgeOne Pages 的 Edge Functions + KV（代码在 edge-functions/api/），
-// 和站点同域同证书，所以没有跨域、也没有 https 页面调 http 接口被拦的问题。
-// 另外还留着两份等价实现，规则逐条对齐：
-//   · server/worker.js  —— Cloudflare Worker + D1
-//   · server/node.js    —— Node + 内置 SQLite（自托管 / Docker）
-//
-// 三个模块：点赞（每人每天 10 次、同题只能赞一次）、账号档案（带版本号乐观锁）、工坊题库。
-//
-// 地址优先取 store 里的 apiBase（设置里可改，方便临时指向本地后端），其次是下面的常量。
-
-
-// 部署后把这里换成接口地址（末尾要带 /api）。只有「站点不在自家域名下」时才会用到它，
-// 比如 GitHub Pages 那份镜像站；站点本身就部署在 EdgeOne 上时走同源 /api，不用配。
-// 用 `node scripts/set_api_base.mjs https://<你的域名>/api` 改这一行，别手改错。
-const API_BASE = 'https://zjtt-api.workers.dev';
-
-// 还是占位符就当作「没配后端」：各模块退回纯本机模式，不会去打一个不存在的域名
-const PLACEHOLDER = 'https://zjtt-api.workers.dev';
-
-// 本地开发：站点由 scripts/preview.mjs 起在 8899（可用 PREVIEW_SITE_PORT 改），
-// 后端用 `node server/node.js`（这里按 8795 起；换端口就改这一行，
-// 或在控制台 store.set('apiBase', 'http://127.0.0.1:端口') 临时覆盖）
-const LOCAL = 'http://127.0.0.1:8795';
-
-class ApiError extends Error {
-  constructor(status, code, data) {
-    super(code || `HTTP ${status}`);
-    this.status = status;
-    this.code = code;
-    this.data = data || null;
-  }
-}
-
-function isLocalDev() {
-  const h = location.hostname;
-  return h === 'localhost' || h === '127.0.0.1';
-}
-
-const api = {
-  get base() {
-    const custom = String(store.get('apiBase', '') || '').trim().replace(/\/+$/, '');
-    if (custom) return custom;
-    if (isLocalDev()) return LOCAL;
-    // 站点和函数在同一个项目里（EdgeOne 的自定义域名、预览域都算）就直接同源调，
-    // 好处是换域名、换预览地址都不用改代码，也不会因为域名写错打到别人的站上
-    if (!/\.github\.io$/i.test(location.hostname)) return location.origin + '/api';
-    // 只剩 GitHub Pages 镜像站这种异源情况，才需要绝对地址
-    return String(API_BASE || '').replace(/\/+$/, '');
-  },
-
-  set base(v) {
-    const s = String(v || '').trim().replace(/\/+$/, '');
-    if (s) store.set('apiBase', s); else store.del('apiBase');
-  },
-
-  // 有没有可用的后端地址（没配好时各模块自动退回本机模式）
-  ready() {
-    const b = this.base;
-    return Boolean(b) && b !== PLACEHOLDER;
-  },
-
-  // 本机随机身份：游客点赞、未登录时的「我赞过谁」都靠它
-  devId() {
-    let v = store.get('likeDev', '');
-    if (!v) {
-      v = Math.random().toString(36).slice(2, 10);
-      store.set('likeDev', v);
-    }
-    return v;
-  },
-
-  token() { return store.get('authToken', '') || ''; },
-
-  async call(path, { method = 'GET', body, timeout = 9000 } = {}) {
-    const base = this.base;
-    if (!this.ready()) throw new ApiError(0, 'no_api');
-
-    const headers = { Accept: 'application/json', 'X-Dev-Id': this.devId() };
-    const token = this.token();
-    if (token) headers.Authorization = `Bearer ${token}`;
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
-
-    const ac = typeof AbortController === 'function' ? new AbortController() : null;
-    const tmr = ac ? setTimeout(() => ac.abort(), timeout) : 0;
-    let res;
-    try {
-      res = await fetch(base + path, {
-        method,
-        headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
-        signal: ac ? ac.signal : undefined,
-      });
-    } catch (e) {
-      throw new ApiError(0, /abort/i.test(String((e && e.name) || e)) ? 'timeout' : 'offline');
-    } finally {
-      if (tmr) clearTimeout(tmr);
-    }
-
-    let data = {};
-    try { data = await res.json(); } catch { data = {}; }
-
-    if (!res.ok || (data && data.ok === false)) {
-      throw new ApiError(res.status, (data && data.error) || `http_${res.status}`, data);
-    }
-    return data;
-  },
-
-  get(path) { return this.call(path); },
-  post(path, body) { return this.call(path, { method: 'POST', body }); },
-  put(path, body) { return this.call(path, { method: 'PUT', body }); },
-  del(path) { return this.call(path, { method: 'DELETE' }); },
-};
-return { API_BASE, ApiError, api };
-})();
-
 // ---- js/sitestats.js
 const m_sitestats = await (async () => {
 const { store } = m_common;
@@ -1290,29 +1170,83 @@ const { store } = m_common;
 // 边缘一个来回 1~2 秒，所以这里做三件事，避免每页都去问一遍：
 //   1. 结果缓存 60 秒（localStorage），过期了先给旧数、后台再刷新；
 //   2. 打点 POST /visit 走 keepalive 且不 await，页面跳走也不会被取消；
-//   3. 后端不可用（GitHub Pages 镜像、纯静态预览）时静默返回 null，界面直接不显示这一块。
+//   3. 后端不可用时给缓存值，界面显示「—」而不是把整块藏起来。
 
 
-const CACHE = 'site:stats';
+const CACHE = 'site:stats';       // 上一次拿到的数字
 const TTL = 60e3;
+const LIVE = 'site:api';          // 探测结果：{ base, at, v, store, storeOk }
+const LIVE_TTL = 10 * 60e3;
 
-// 与 js/api.js 同一套判断：同源 /api；GitHub Pages 镜像没有后端，直接放弃
-function apiBase() {
+// GitHub Pages 那份镜像没有自己的后端。但 EdgeOne 那套函数回了 CORS
+// （Access-Control-Allow-Origin 回显请求方，OPTIONS 也放行 Authorization），
+// 所以镜像站可以跨域读统计、也能调管理接口。
+//
+// 这条别删：删了镜像站上三个数永远是「—」，管理页永远说「你不是站长」——
+// 因为前端连请求都没发，只能当没登录/没权限。
+const EDGE_API = 'https://morimens.qingdengbuyi.top/api';
+
+// 候选后端，按优先级排队：手填的 → 同源 → EdgeOne
+function candidates() {
+  const out = [];
   try {
     const custom = String(store.get('apiBase', '') || '').trim().replace(/\/+$/, '');
-    if (custom) return custom;
-    if (/\.github\.io$/i.test(location.hostname)) return '';
-    if (!/^https?:$/.test(location.protocol)) return '';
-    return location.origin + '/api';
-  } catch { return ''; }
+    if (custom) out.push(custom);
+  } catch { /* 隐私模式 */ }
+  try {
+    if (/^https?:$/.test(location.protocol) && !/\.github\.io$/i.test(location.hostname)) {
+      out.push(location.origin + '/api');
+    }
+  } catch { /* 非浏览器环境 */ }
+  if (out.indexOf(EDGE_API) < 0) out.push(EDGE_API);
+  return out;
 }
 
-const token = () => { try { return store.get('authToken', '') || ''; } catch { return ''; } };
-const devId = () => {
-  let v = store.get('did', '');
-  if (!v) { v = 'd_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); store.set('did', v); }
-  return v;
-};
+function liveCache() {
+  const v = store.get(LIVE, null);
+  return v && v.base && Date.now() - Number(v.at || 0) < LIVE_TTL ? v : null;
+}
+
+// 当前该打哪个后端。管理页要自己拼 Authorization（不走 js/api.js），从这里取。
+function base() {
+  const hit = liveCache();
+  if (hit) return hit.base;
+  const list = candidates();
+  return list[0] || '';
+}
+
+// 探一次活的后端，结果缓存 10 分钟；返回 '' 表示一个都不通。
+// 判定用 service==='zjtt' 而不是 r.ok：/health 在存储没配好时是 503，
+// 但那种情况正需要报给用户（说明接口在、存储坏了），不能当成「后端不存在」。
+async function probe(force = false) {
+  if (!force) {
+    const hit = liveCache();
+    if (hit) return hit.base;
+  }
+  for (const b of candidates()) {
+    try {
+      const r = await fetch(b + '/health', { headers: { Accept: 'application/json' } });
+      const j = await r.json().catch(() => null);
+      if (j && j.service === 'zjtt') {
+        store.set(LIVE, {
+          base: b, at: Date.now(), v: Number(j.v) || 0,
+          store: String(j.store || ''), storeOk: !!j.storeOk,
+        });
+        return b;
+      }
+    } catch { /* 试下一个 */ }
+  }
+  return '';
+}
+
+// 后端版本 + 存储状态。管理页用它区分「函数没部署」和「你没权限」——
+// 这两种情况在前端看起来都是「进不去」，但处理办法完全不同。
+async function health(force = true) {
+  const b = await probe(force);
+  if (!b) return { ok: false, base: '', v: 0, store: '', storeOk: false };
+  const hit = store.get(LIVE, null) || {};
+  return { ok: true, base: b, v: Number(hit.v) || 0, store: hit.store || '', storeOk: !!hit.storeOk };
+}
 
 const pick = (j) => ({
   users: Number(j && j.users) || 0,
@@ -1325,40 +1259,42 @@ function cached() {
   return c && typeof c === 'object' && Number.isFinite(Number(c.total)) ? pick(c) : null;
 }
 
-// 拿最新数字：force=false 时优先给缓存（同时后台刷新）
+// 拿最新数字：force=false 时优先给缓存（同时在后台刷新）
 async function stats(force = false) {
-  const base = apiBase();
-  if (!base) return cached();
   const c = store.get(CACHE, null);
   const fresh = c && Date.now() - Number(c.at || 0) < TTL;
   if (c && fresh && !force) return pick(c);
+
+  const b = await probe();
+  if (!b) return c ? pick(c) : null;
   try {
-    const r = await fetch(base + '/stats', { headers: { Accept: 'application/json' } });
+    const r = await fetch(b + '/stats', { headers: { Accept: 'application/json' } });
     const j = await r.json();
     if (!r.ok || !j || j.ok === false) throw new Error('bad');
     const out = pick(j);
     store.set(CACHE, { ...out, at: Date.now() });
     return out;
   } catch {
-    return cached();
+    return c ? pick(c) : null;
   }
 }
 
 // 浏览打点。同一页面同一次会话只算一次（刷新算新的一次，符合 PV 口径），
 // 免得 SPA 内部反复调用把数字刷飞。
 let pinged = false;
-function ping() {
+async function ping() {
   if (pinged) return;
   pinged = true;
-  const base = apiBase();
-  if (!base) return;
   try {
     const key = 'pv:' + location.pathname;
     if (sessionStorage.getItem(key)) return;
     sessionStorage.setItem(key, '1');
   } catch { /* 隐私模式：照发 */ }
+
+  const b = await probe();
+  if (!b) return;
   try {
-    fetch(base + '/visit', {
+    fetch(b + '/visit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Device': devId() },
       body: JSON.stringify({ p: location.pathname }),
@@ -1367,18 +1303,43 @@ function ping() {
   } catch { /* 忽略 */ }
 }
 
+const token = () => { try { return store.get('authToken', '') || ''; } catch { return ''; } };
+const devId = () => {
+  let v = store.get('did', '');
+  if (!v) { v = 'd_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); store.set('did', v); }
+  return v;
+};
+
 // 我是不是管理员（服务端判定，前端只拿来决定要不要显示入口）
+//
+// 返回值里的 error 很重要，别一律当「没权限」：
+//   no_token  本机没登录
+//   no_api    一个后端都连不上
+//   old_api   后端是老版本，没有 /whoami（需要重新部署 edge-functions）
+//   http_xxx  其他状态码
 async function whoami() {
-  const base = apiBase();
   const t = token();
-  if (!base || !t) return { logged: false, admin: false };
+  if (!t) return { logged: false, admin: false, error: 'no_token' };
+
+  const b = await probe();
+  if (!b) return { logged: true, admin: false, error: 'no_api' };
+
   try {
-    const r = await fetch(base + '/whoami', { headers: { Accept: 'application/json', Authorization: 'Bearer ' + t } });
-    const j = await r.json();
-    if (!r.ok || !j) return { logged: false, admin: false };
-    return { logged: !!j.logged, admin: !!j.admin, name: j.name || '', uid: j.uid || '' };
+    const r = await fetch(b + '/whoami', {
+      headers: { Accept: 'application/json', Authorization: 'Bearer ' + t },
+    });
+    const j = await r.json().catch(() => null);
+    // 老后端没有这个路由，返回的是 404 + {"ok":false,"error":"not_found"}
+    if (r.status === 404) return { logged: true, admin: false, error: 'old_api', status: 404, base: b };
+    if (!r.ok || !j) return { logged: true, admin: false, error: 'http_' + r.status, status: r.status, base: b };
+    return {
+      logged: !!j.logged, admin: !!j.admin,
+      name: j.name || '', uid: j.uid || '',
+      reason: j.reason || '', pinned: j.pinned || '', hint: j.hint || '',
+      base: b,
+    };
   } catch {
-    return { logged: false, admin: false };
+    return { logged: true, admin: false, error: 'offline', base: b };
   }
 }
 
@@ -1389,14 +1350,13 @@ function fmt(n) {
   if (n >= 1e4) return (n / 1e4).toFixed(1) + '万';
   return String(n);
 }
-return { cached, stats, ping, whoami, fmt };
+return { EDGE_API, base, probe, health, cached, stats, ping, whoami, fmt };
 })();
 
 // ---- js/admin.js
 const m_admin = await (async () => {
-const { $, h, toast } = m_common;
+const { $, h, toast, store } = m_common;
 const { auth, openLogin } = m_auth;
-const { api } = m_api;
 const sitestats = m_sitestats;
 // 管理后台 —— 只有「姜酒」这个账号能进。
 //
@@ -1407,7 +1367,9 @@ const sitestats = m_sitestats;
 
 
 
-
+// 不用 js/api.js：那份在 GitHub Pages 上认为「没有后端」（ready() 为 false → 直接抛 no_api），
+// 而镜像站其实能跨域打到 EdgeOne 的函数（对方回了 CORS）。这里自己拼请求，
+// 地址从 sitestats.base() 拿，跟统计口径保持一致。
 
 const app = $('#app');
 const sheet = $('#sheet');
@@ -1434,22 +1396,73 @@ const ago = (ms) => {
   return when(n).slice(0, 10);
 };
 
+// ------------------------------------------------------------------ 请求
+// 自己拼，不吃 js/api.js 的「github.io 就当没后端」
+function tokenOf() {
+  try { return store.get('authToken', '') || ''; } catch { return ''; }
+}
+
+async function req(path, { method = 'GET', body } = {}) {
+  const b = sitestats.base();
+  if (!b) {
+    const e = new Error('no_api'); e.status = 0; e.code = 'no_api'; throw e;
+  }
+  const headers = { Accept: 'application/json' };
+  const t = tokenOf();
+  if (t) headers.Authorization = 'Bearer ' + t;
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  let res;
+  try {
+    res = await fetch(b + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  } catch {
+    const e = new Error('offline'); e.status = 0; e.code = 'offline'; throw e;
+  }
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || j.ok === false) {
+    const e = new Error(j.error || ('http_' + res.status));
+    e.status = res.status;
+    e.code = j.error || '';
+    e.detail = j.detail || null;
+    throw e;
+  }
+  return j;
+}
+
 // ------------------------------------------------------------------ 门禁
-function gate(title, sub, extra) {
-  app.replaceChildren(h('section', { class: 'card gate' },
-    h('h1', {}, title),
-    h('p', {}, sub),
-    extra || null));
+function gate(title, ...parts) {
+  app.replaceChildren(h('section', { class: 'card gate' }, h('h1', {}, title), ...parts));
+}
+
+// 诊断块：把「前端以为的」和「服务端看到的」都摊开。
+// 之前这里只写一句「不是站长账号」，站长本人看到了也无从下手——
+// 搞不清是昵称不对、位置被占、还是函数根本没部署。
+function diag(rows) {
+  return h('div', { class: 'diag' },
+    rows.map(([k, v]) => h('div', { class: 'diagrow' },
+      h('span', {}, k),
+      h('b', {}, String(v == null || v === '' ? '—' : v)))));
 }
 
 function needsLogin() {
-  gate('需要登录', '这个页面只对站长的账号开放。请先用「姜酒」登录。',
+  gate('需要登录', h('p', {}, '这个页面只对站长的账号开放。请先用「姜酒」登录。'),
     h('div', {}, h('button', { class: 'btn', onclick: () => openLogin(() => location.reload()) }, '登录 / 注册')));
 }
 
-function denied(name) {
-  gate('没有权限', `当前登录的是「${name || '未知'}」，不是站长账号。`,
-    h('div', {}, h('a', { class: 'btn ghost', href: 'index.html' }, '回首页')));
+function denied(d) {
+  const name = (d && d.name) || (auth.user && auth.user.name) || '未知';
+  const uid = String((d && d.uid) || '');
+  const pinned = d && d.pinned ? String(d.pinned) : '';
+  gate('没有权限',
+    h('p', {}, d && d.hint ? d.hint : `当前登录的是「${name}」，不是站长账号。`),
+    diag([
+      ['当前显示名', name],
+      ['当前 UID', uid ? uid.slice(0, 16) + '…' : ''],
+      ['服务端钉住的 UID', pinned ? pinned.slice(0, 16) + '…' : '还没被认领'],
+      ['后端地址', sitestats.base()],
+    ]),
+    h('div', { class: 'acts', style: 'margin-top:14px' },
+      h('a', { class: 'btn ghost', href: 'index.html' }, '回首页'),
+      h('button', { class: 'btn ghost', onclick: () => location.reload() }, '重新判定')));
 }
 
 // ------------------------------------------------------------------ 发放面板
@@ -1467,7 +1480,7 @@ function openGrant(u, onDone) {
     okBtn.disabled = true;
     okBtn.textContent = '发放中…';
     try {
-      const r = await api.post('/admin/grant', { uid: u.uid, amount, note: noteEl.value.trim() });
+      const r = await req('/admin/grant', { method: 'POST', body: { uid: u.uid, amount, note: noteEl.value.trim() } });
       toast(`已给「${u.name || u.uid}」发放 ${r.amount} 银芯（对方下次打开站点时到账）`);
       closeSheet();
       if (onDone) onDone();
@@ -1542,7 +1555,7 @@ function table() {
       h('tbody', {}, list.slice(0, 300).map(row))));
 }
 
-function render(data) {
+function render(data, h0) {
   const me = data.me || {};
   const stats = data.stats || { users: 0, today: 0, total: 0, bugs: 0 };
   const who = me.name || (auth.user && auth.user.name) || '管理员';
@@ -1557,7 +1570,8 @@ function render(data) {
   app.replaceChildren(
     h('section', { class: 'pagehead' },
       h('h1', {}, '管理后台'),
-      h('p', {}, `当前登录：${who} · 只对站长可见。用户数据是「登录过本站的账号」，不是 Waline 全站注册表。`)),
+      h('p', {}, `当前登录：${who} · 只对站长可见。用户数据是「登录过本站的账号」，不是 Waline 全站注册表。`),
+      h('p', { class: 'sub' }, `后端 ${(h0 && h0.base) || sitestats.base()} · 接口 v${(h0 && h0.v) || 0} · 存储 ${(h0 && h0.store) || '未知'}${h0 && h0.storeOk === false ? '（不可写！）' : ''}`)),
     h('section', { class: 'card' },
       h('h2', {}, '站点概况'),
       h('p', { class: 'sub' }, '浏览数从 2026-10 起统计；注册用户指用过本站的账号。'),
@@ -1570,27 +1584,67 @@ function render(data) {
 }
 
 // ------------------------------------------------------------------ 载入
+let BACKEND = { base: '', v: 0, store: '', storeOk: true };
+
+const retryBtn = () => h('button', { class: 'btn ghost', onclick: () => location.reload() }, '重试');
+
+function noBackend(h0) {
+  gate('连不上后端',
+    h('p', {}, '统计和管理都放在站点后端里，但这一次一个地址都没探通。GitHub Pages 那份镜像自己没有函数，只能借 EdgeOne 的；那边要是没部署或挂了，这里就是空的。'),
+    diag([
+      ['试过的地址', sitestats.EDGE_API],
+      ['当前页面', location.host],
+      ['本机配置的后端', (() => { try { return store.get('apiBase', '') || '（没配）'; } catch { return ''; } })()],
+    ]),
+    h('div', { class: 'acts', style: 'margin-top:14px' }, retryBtn()));
+}
+
+function oldBackend(h0) {
+  gate('后端还是旧版本',
+    h('p', {}, `线上这版函数是 v${h0.v}，只有点赞 / 账号档案 / 工坊题库，没有 /stats、/whoami、/admin/*。`),
+    h('p', {}, '代码已经在仓库里了，去 EdgeOne 控制台把这个项目重新部署一次就会生效。数据不会丢——存储还是同一个 Blob 命名空间（zjtt），新函数读的是同一份。'),
+    diag([
+      ['探测到的后端', h0.base],
+      ['接口版本', 'v' + h0.v],
+      ['存储', (h0.store || '未知') + (h0.storeOk ? '' : '（不可写）')],
+    ]),
+    h('div', { class: 'acts', style: 'margin-top:14px' },
+      h('a', { class: 'btn ghost', href: 'https://console.cloud.tencent.com/edgeone/pages', target: '_blank', rel: 'noopener' }, '打开 EdgeOne 控制台'),
+      retryBtn()));
+}
+
 async function load() {
   try {
-    const data = await api.get('/admin/overview');
+    const data = await req('/admin/overview');
     USERS = data.users || [];
-    render(data);
+    render(data, BACKEND);
   } catch (e) {
     if (e.status === 401) { needsLogin(); return; }
-    if (e.status === 403) { denied((auth.user && auth.user.name) || ''); return; }
-    gate('载入失败', `接口没返回数据：${e.message || e.code || '未知错误'}。站点后端可能暂时不可用。`,
-      h('div', {}, h('button', { class: 'btn ghost', onclick: () => location.reload() }, '重试')));
+    if (e.status === 403) { denied(e.detail); return; }
+    if (e.code === 'not_found' || e.status === 404) { oldBackend(BACKEND); return; }
+    if (e.status === 0) { noBackend(BACKEND); return; }
+    gate('载入失败',
+      h('p', {}, `接口没返回数据：${e.message || '未知错误'}。`),
+      diag([['后端地址', sitestats.base()], ['状态码', e.status || ''], ['错误码', e.code || '']]),
+      h('div', { class: 'acts', style: 'margin-top:14px' }, retryBtn()));
   }
+}
+
+// 先问后端版本，再决定是「没部署」「没权限」还是真的坏了。
+// 这三种在前端看起来都是「进不去」，但要做的事完全不同。
+async function boot() {
+  gate('正在检查后端…', h('p', {}, '先确认站点函数是哪一版，再决定给不给看。'));
+  const h0 = await sitestats.health(true);
+  BACKEND = h0;
+  if (!h0.base) { noBackend(h0); return; }
+  if (h0.v < 3) { oldBackend(h0); return; }
+  await load();
 }
 
 if (!auth.logged) {
   needsLogin();
 } else {
-  // 先用 /whoami 判一次权限，再拉数据——不然被拒的人也会先看到一次 403 的错误页
-  sitestats.whoami().then((me) => {
-    if (!me.admin) { denied(me.name || (auth.user && auth.user.name) || ''); return; }
-    load();
-  }).catch(() => load());
+  boot();
 }
 return {  };
 })();

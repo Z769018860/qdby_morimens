@@ -767,17 +767,40 @@ function adminPinned(env) {
     .split(',').map((s) => s.trim()).filter(Boolean);
 }
 
+// 昵称里常有首尾空格、全角空格、零宽字符；比较前先归一化，否则「姜酒 」认领不了
+const normName = (s) => String(s || '').replace(/[\s\u3000\u200b-\u200d\ufeff]/g, '').toLowerCase();
+
 async function isAdmin(env, kv, me) {
   if (!me || !me.uid) return false;
   const fixed = adminPinned(env);
   if (fixed.length) return fixed.includes(String(me.uid));
   const pin = await kv.get('admin_uid');
   if (pin) return String(pin) === String(me.uid);
-  if (String(me.name || '').trim() === ADMIN_NAME) {
+  if (normName(me.name) === normName(ADMIN_NAME)) {
     await kv.put('admin_uid', String(me.uid));
     return true;
   }
   return false;
+}
+
+// 403 时把「为什么不是」一起回给前端。不给的话管理页只能写「你不是站长」，
+// 站长本人看到了也没法判断是昵称不对、还是这个位置已经被别人的账号占了。
+async function adminWhy(env, kv, me) {
+  const name = (me && me.name) || '';
+  const uid = (me && me.uid) || '';
+  const fixed = adminPinned(env);
+  if (fixed.length) {
+    return { name, uid, pinned: null, reason: 'allowlist',
+      hint: '服务端配了 ZJTT_ADMIN_UIDS，只认名单里的 uid。把下面这个 uid 加进去再重新部署。' };
+  }
+  const pin = await kv.get('admin_uid');
+  if (pin) {
+    const same = String(pin) === String(uid);
+    return { name, uid, pinned: String(pin), reason: same ? 'ok' : 'pinned',
+      hint: same ? '' : 'admin_uid 已经被另一个账号占住了（可能是同名的另一个人先登录过）。删掉这个键，或改用 ZJTT_ADMIN_UIDS 指定。' };
+  }
+  return { name, uid, pinned: null, reason: 'name',
+    hint: `当前显示名是「${name}」，第一次认领要求正好是「${ADMIN_NAME}」（不区分首尾空格）。` };
 }
 
 // 从账号档案里挑出「数据情况」——只取概览用的几个数，别把整份文档甩给列表
@@ -801,7 +824,7 @@ function acctBrief(doc) {
 async function getAdminOverview(request, env, kv, cors) {
   const me = await whoami(request, env, kv);
   if (!me) throw new HttpError(401, 'need_login');
-  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin');
+  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', await adminWhy(env, kv, me));
 
   const keys = await kv.list('usr_', 1000);
   const rows = await mapLimit(keys.slice(0, 300), 6, async (k) => {
@@ -838,7 +861,7 @@ async function getAdminOverview(request, env, kv, cors) {
 async function postAdminGrant(request, env, kv, cors) {
   const me = await whoami(request, env, kv);
   if (!me) throw new HttpError(401, 'need_login');
-  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin');
+  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', await adminWhy(env, kv, me));
 
   const b = await readJson(request, 4 * 1024);
   const uid = str(b.uid, 64).trim();
@@ -882,7 +905,8 @@ async function getWhoami(request, env, kv, cors) {
   const me = await whoami(request, env, kv);
   if (!me) return reply({ ok: true, logged: false, admin: false }, 200, cors);
   const admin = await isAdmin(env, kv, me);
-  return reply({ ok: true, logged: true, name: me.name, uid: me.uid, admin }, 200, cors);
+  const why = admin ? {} : await adminWhy(env, kv, me);
+  return reply({ ok: true, logged: true, name: me.name, uid: me.uid, admin, ...why }, 200, cors);
 }
 
 // ------------------------------------------------------------------ 路由
@@ -910,7 +934,9 @@ export async function onRequest(context) {
       const kind = store ? (store.__kind || 'kv') : null;
       const pin = String((env && env.ZJTT_STORE) || '').toLowerCase() || null;
       return reply({
-        ok: Boolean(store), service: 'zjtt', v: 2, runtime: 'edgeone',
+        // v 是接口版本，不是代码版本：v2 只有点赞/档案/题库，
+        // v3 才有 /stats /whoami /admin/*（管理页靠它判断要不要提示「重新部署」）
+        ok: Boolean(store), service: 'zjtt', v: 3, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),

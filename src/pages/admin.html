@@ -108,6 +108,13 @@ td.num{font-variant-numeric:tabular-nums; text-align:right}
 .gate{padding:44px 16px; text-align:center}
 .gate h1{font-size:22px; margin-bottom:8px}
 .gate p{margin:0 0 16px; color:var(--dim); font-size:13px}
+/* 诊断表：门禁页要把「服务端看到的」摊开，否则「你不是站长」这句话没法排查 */
+.gate .diag{display:inline-flex; flex-direction:column; gap:0; margin:6px 0 0; text-align:left; width:min(440px, 100%)}
+.gate .diagrow{display:flex; gap:14px; align-items:baseline; justify-content:space-between; font-size:12px; padding:6px 0; border-bottom:1px dashed var(--line)}
+.gate .diagrow:last-child{border-bottom:0}
+.gate .diagrow span{color:var(--dim); white-space:nowrap}
+.gate .diagrow b{font-weight:600; word-break:break-all; text-align:right}
+.gate .acts{display:flex; gap:8px; justify-content:center; flex-wrap:wrap}
 @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
 </style>
 </head>
