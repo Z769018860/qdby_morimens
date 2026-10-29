@@ -155,6 +155,7 @@ function renderCharInfo() {
           <span class="tg ${REALM_CLASS[c.realm] || ''}">${esc(c.realm)}</span>
           <span class="tg">${esc(c.role)}</span>
           <span class="tg">${esc(c.rarity)}</span>
+          ${!locked && c.kind ? `<span class="tg kind">${esc(c.kind)}</span>` : ''}
         </p>
         <p class="ci-line"><b>界域</b>${realmFx}</p>
         <p class="ci-line"><b>定位</b>${roleFx}</p>
@@ -728,7 +729,7 @@ function renderUnlockBox(ids) {
       <div><b>${esc(c.n)}</b><span>${esc(m ? m.text : c.talentText || '')}</span></div>
     </div>`;
   }).join('');
-  box.innerHTML = `<div class="ul-box"><h3>新的唤醒体已解锁</h3>${rows}
+  box.innerHTML = `<div class="ul-box"><h3>新的神秘人已解锁</h3>${rows}
     <p class="ul-tip">回到选人面板即可选用 · 他们的技能从此会出现在抽取池里</p></div>`;
 }
 
