@@ -1,5 +1,6 @@
+(async () => {
 // 由 scripts/build.mjs 生成，请改 js/ 下的源文件后重新构建。
-// 每个原模块被包进一个 async IIFE：作用域隔离 + 支持顶层 await，顺序即依赖顺序。
+// 每个原模块被包进一个 async IIFE：作用域隔离 + 支持 await，顺序即依赖顺序。
 
 // ---- js/binding-data.js
 const m_binding_data = await (async () => {
@@ -6514,4 +6515,11 @@ async function boot() {
 boot();
 return {  };
 })();
+
+})().catch(function (e) {
+  if (window.__bootFailed) window.__bootFailed((e && e.message) || String(e));
+  else if (window.console) console.error(e);
+});
+// 主脚本已经跑起来了（给 HTML 里的看门狗一个准信号，替代原来的顶层 await 探测）
+window.__bootMain = 1;
 

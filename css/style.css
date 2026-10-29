@@ -138,6 +138,10 @@ dialog { border: 1px solid var(--line); background: var(--panel); color: var(--t
 dialog::backdrop { background: #000a; }
 .picker { width: min(960px, 96vw); height: min(720px, 90vh); }
 .picker[open] { display: flex; flex-direction: column; }
+/* iOS 15.4 之前没有 <dialog>：这时它是普通元素，closed 状态不会自动隐藏，
+   也没有「顶层居中的模态」，所以这两条同时给原生和不支持的内核兜底。 */
+.picker:not([open]) { display: none; }
+.picker[open] { position: fixed; top: 0; right: 0; bottom: 0; left: 0; margin: auto; z-index: 60; }
 .phead { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .phead input { flex: 1; min-width: 140px; }
 input[type=search], select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: inherit; }
@@ -1075,6 +1079,12 @@ body:not(.themed) .card {
   background: color-mix(in srgb, var(--gold) 11%, var(--panel2));
 }
 .clue.on small { color: color-mix(in srgb, var(--gold) 70%, var(--dim)); }
+/* 开局白送的线索：标题下面挂一枚「赠送」小签，和自己花银芯买的区分开 */
+.clue .gift {
+  font-style: normal; justify-self: start; font-size: 10.5px; letter-spacing: .3px;
+  padding: 0 6px; border-radius: 999px; color: var(--gold);
+  border: 1px solid var(--gold); background: transparent; opacity: .9;
+}
 @media (max-width: 720px) {
   .cluegrid, .cluegrid.four { grid-template-columns: 1fr 1fr; gap: 7px; }
   .clue { padding: 8px 9px; }

@@ -20,6 +20,20 @@
   border: 1px solid rgba(120,130,150,.45); background: transparent; color: inherit; }
 @keyframes bootspin { to { transform: rotate(360deg); } }
 @media (prefers-color-scheme: dark) { #boot { color: #a8b0bd; } }
+/* 置顶公告：静态写在 HTML 里，JS 还没跑起来（或者根本没跑起来）也能看见 */
+.noticewrap { padding-bottom: 0; }
+.notice { display: flex; gap: 10px; align-items: flex-start;
+  border: 1px solid var(--line); border-left: 3px solid var(--gold);
+  border-radius: 10px; background: var(--panel); color: var(--text);
+  padding: 10px 14px 10px 12px; font-size: 13px; line-height: 1.65; }
+.notice .ntag { flex: none; margin-top: 1px; padding: 0 8px; border-radius: 999px;
+  font-size: 11px; letter-spacing: .12em; color: var(--gold); border: 1px solid var(--gold); }
+.notice p { margin: 0; color: var(--dim); }
+.notice b { color: var(--text); }
+@media (max-width: 720px) {
+  .notice { font-size: 12.5px; padding: 9px 11px; gap: 8px; }
+  .notice .ntag { font-size: 10.5px; padding: 0 6px; }
+}
 </style>
 <!-- 整个模块依赖一次预加载：不然浏览器要「先下 game.js，才知道要下 common.js」，
      在只给 HTTP/1.1 的边缘上这就是两三秒的白屏。 -->
@@ -35,6 +49,13 @@
 <link rel="modulepreload" href="js/checkin.js">
 </head>
 <body>
+<div class="wrap noticewrap">
+  <div class="notice" role="note">
+    <span class="ntag">公告</span>
+    <p><b>难度提示</b>：目前除了「入门」以外的三档（进阶 / 老手 / 大师）难度过高，不太推荐游玩；非常想挑战的可以试试。
+      这三档已经各加了一组<b>免费开局线索</b>（命轮、造物、潜能这些最贵的），开局就直接摊在线索台上，不用花银芯。</p>
+  </div>
+</div>
 <main id="app" class="wrap">
   <div id="boot" role="status" aria-live="polite">
     <div class="ring"></div>

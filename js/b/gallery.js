@@ -1,5 +1,6 @@
+(async () => {
 // 由 scripts/build.mjs 生成，请改 js/ 下的源文件后重新构建。
-// 每个原模块被包进一个 async IIFE：作用域隔离 + 支持顶层 await，顺序即依赖顺序。
+// 每个原模块被包进一个 async IIFE：作用域隔离 + 支持 await，顺序即依赖顺序。
 
 // ---- js/i18n.js
 const m_i18n = await (async () => {
@@ -58,6 +59,10 @@ const I18N = {
     acctTag: '账号', guestTag2: '', lvTag: '等级', brkTag: '内在灵格',
     clueTitle: '线索台', clueNote: '花银芯解锁，本局内一直有效',
     clueBrk: '内在灵格', cluePot: '灵塑等级',
+    cluePotTeam: '潜能（灵塑）汇总', cluePotSum: '合计 {n}',
+    // 开局线索：除入门外的三档白送几条最贵的
+    giftTag: '赠送', giftToast: '本档开局赠送 {n} 条线索', clueGiftOn: '已赠送 {n} 条',
+    loadMore: '加载更多',
     clueBuild: '养成（指令卡 / 疯狂预兆）', clueAssist: '助战',
     clueAssistN: '没有借用助战', clueAssistY: '借用了 {n} 位助战',
     cluePeak: '单回合极值 / 守密人', cluePeakCard: '最高出牌 {n}', cluePeakEnergy: '最高耗能 {n}',
@@ -256,6 +261,9 @@ const I18N = {
     acctTag: 'Account', guestTag2: '', lvTag: 'Lv', brkTag: 'Gnostic Potential',
     clueTitle: 'Clue desk', clueNote: 'Spend Silver Core — stays unlocked for this puzzle',
     clueBrk: 'Gnostic Potential', cluePot: 'Potency',
+    cluePotTeam: 'Potency overview', cluePotSum: 'total {n}',
+    giftTag: 'FREE', giftToast: '{n} clue(s) unlocked free for this tier', clueGiftOn: '{n} free',
+    loadMore: 'Load more',
     clueBuild: 'Build (cards / omen)', clueAssist: 'Assist',
     clueAssistN: 'No assist borrowed', clueAssistY: '{n} assist borrowed',
     cluePeak: 'Single-turn peak / Keeper', cluePeakCard: 'most cards {n}', cluePeakEnergy: 'most energy {n}',
@@ -426,9 +434,11 @@ const lang = {
 document.documentElement.lang = lang.cur === 'en' ? 'en' : 'zh-CN';
 
 // t(key, vars)：取当前语言文案，支持 {x} 占位符
+// 用 split/join 而不是 replaceAll：后者要 Chrome 85+ / Safari 13.1+，
+// 老一点的手机内置浏览器直接抛 TypeError，整页文案全变成报错。
 function t(key, vars = {}) {
   let s = (I18N[lang.cur] && I18N[lang.cur][key]) ?? I18N.zh[key] ?? key;
-  for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, v);
+  for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(v);
   return s;
 }
 
@@ -668,13 +678,81 @@ const bootDataP = () => (typeof window !== 'undefined' && window.__boot && windo
 
 async function loadDict(prefetched, kwPrefetched) {
   const boot = bootDataP();
+  const bootDict = (typeof window !== 'undefined' && window.__boot && window.__boot.dict) || null;
   const dictP = prefetched
+    || bootDict
     || (boot ? boot.then(j => j.dict) : fetch('data/dictionary.json').then(r => r.json()));
   const kwP = kwPrefetched || (boot ? boot.then(j => j.kw) : null);
   const [D] = await Promise.all([dictP, loadKeywords(kwP)]);
   const idx = {};
   for (const k of Object.keys(KINDS)) idx[k] = new Map(D[k].filter(e => e.id != null).map(e => [String(e.id), e]));
   return { D, idx };
+}
+
+// ------------------------------------------------------------------ SHA-256
+// 题库答案是拿 SHA-256 当密钥流异或出来的（见 scripts/build_data.py）。
+// 优先用浏览器的 crypto.subtle —— 但它在「非安全上下文」里是 undefined：
+// 手机上从 http 打开、或在某些内置浏览器 / WebView 里，题目就会「解码失败」、
+// 一题都出不来。所以带一份纯 JS 的实现兜底，慢一点但一定能用。
+const K256 = [
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+];
+
+function sha256Raw(bytes) {
+  const H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+  const len = bytes.length;
+  // padding：0x80 + 若干 0 + 64 位长度
+  const withPad = new Uint8Array((((len + 9) + 63) >> 6) << 6);
+  withPad.set(bytes);
+  withPad[len] = 0x80;
+  const bits = len * 8;
+  const dv = new DataView(withPad.buffer);
+  dv.setUint32(withPad.length - 4, bits >>> 0, false);
+  dv.setUint32(withPad.length - 8, Math.floor(bits / 4294967296), false);
+
+  const w = new Uint32Array(64);
+  const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+  for (let off = 0; off < withPad.length; off += 64) {
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4, false);
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+      const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, hh] = H;
+    for (let i = 0; i < 64; i++) {
+      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (hh + S1 + ch + K256[i] + w[i]) | 0;
+      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) | 0;
+      hh = g; g = f; f = e; e = (d + t1) | 0;
+      d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+    H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + hh) | 0;
+  }
+  const out = new Uint8Array(32);
+  const odv = new DataView(out.buffer);
+  H.forEach((x, i) => odv.setUint32(i * 4, x >>> 0, false));
+  return out;
+}
+
+// 字符串 → SHA-256 字节；crypto.subtle 不可用（http / 老内置浏览器）时走纯 JS
+async function sha256(text) {
+  const bytes = new TextEncoder().encode(text);
+  if (typeof crypto !== 'undefined' && crypto && crypto.subtle && crypto.subtle.digest) {
+    try { return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); } catch { /* 落到下面 */ }
+  }
+  return sha256Raw(bytes);
 }
 
 function imgEl(src, alt = '', cls = '') {
@@ -791,7 +869,7 @@ function showKwPop(slug, anchor) {
   const hgt = pop.offsetHeight;
   pop.style.top = (r.bottom + hgt + 12 > innerHeight && r.top > hgt + 12 ? r.top - hgt - 6 : r.bottom + 6) + 'px';
 }
-return { $, $$, store, lang, t, nameOf, h, emptyState, toast, syncCreditsDom, markDirty, STAT0, statsOf, parseColor, solidOf, themeVars, applyThemeSkin, upgradeThemeImage, authUser, KINDS, SC_ICON, scIcon, scNum, wallet, failedBank, REPLAY, unlocked, shareCode, KIND_EN, kindName, REALM_CHAOS, realmAnchor, realmFits, REALM_EN_ZH, realmName, loadDict, imgEl, wan, RARITY_CLASS, nav, KW, loadKeywords, KW_TYPE, plain, slugsIn, kwChip, renderText, kwIcon, showKwPop };
+return { $, $$, store, lang, t, nameOf, h, emptyState, toast, syncCreditsDom, markDirty, STAT0, statsOf, parseColor, solidOf, themeVars, applyThemeSkin, upgradeThemeImage, authUser, KINDS, SC_ICON, scIcon, scNum, wallet, failedBank, REPLAY, unlocked, shareCode, KIND_EN, kindName, REALM_CHAOS, realmAnchor, realmFits, REALM_EN_ZH, realmName, loadDict, sha256, imgEl, wan, RARITY_CLASS, nav, KW, loadKeywords, KW_TYPE, plain, slugsIn, kwChip, renderText, kwIcon, showKwPop };
 })();
 
 // ---- js/theme.js
@@ -1937,4 +2015,11 @@ root.replaceChildren(
 render();
 return {  };
 })();
+
+})().catch(function (e) {
+  if (window.__bootFailed) window.__bootFailed((e && e.message) || String(e));
+  else if (window.console) console.error(e);
+});
+// 主脚本已经跑起来了（给 HTML 里的看门狗一个准信号，替代原来的顶层 await 探测）
+window.__bootMain = 1;
 

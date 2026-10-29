@@ -1,6 +1,6 @@
 // 创意工坊：导入战报 → 生成自己的推理题 → 分享码 / 云题库
 import { $, h, store, nav, t, lang, loadDict, imgEl, nameOf, shareCode, REPLAY, markDirty,
-  realmFits, realmAnchor, realmName, REALM_CHAOS } from './common.js';
+  realmFits, realmAnchor, realmName, REALM_CHAOS, sha256 } from './common.js';
 import { cloud, cloudConfig } from './cloud.js';
 import { account } from './account.js';
 import { decodeReplay, replayTeam } from './replay.js';
@@ -443,9 +443,8 @@ async function unsealPuzzle(p) {
   if (p.team) return p;
   const raw = Uint8Array.from(atob(p.ans), (c) => c.charCodeAt(0));
   const out = new Uint8Array(raw.length);
-  const enc = new TextEncoder();
   for (let i = 0; i < raw.length; i += 32) {
-    const ks = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(`${PEPPER}|${p.id}|${i / 32}`)));
+    const ks = await sha256(`${PEPPER}|${p.id}|${i / 32}`);
     for (let j = 0; j < 32 && i + j < raw.length; j++) out[i + j] = raw[i + j] ^ ks[j];
   }
   const txt = new TextDecoder().decode(out);

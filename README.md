@@ -30,15 +30,19 @@ node scripts/build.mjs
 
 它会做这几件事（都是为了把首屏请求数压到最低，见下面的「为什么有构建」）：
 
-1. 把每个页面的 ES 模块依赖图打包成 `js/b/<页面>.js`（10 个请求 → 1 个）
+1. 把每个页面的 ES 模块依赖图打包成 `js/b/<页面>.js`（10 个请求 → 1 个），
+   整包套一层 async IIFE——产物里没有顶层 await，Chrome 61+ / Safari 11+ 都能跑
+   （顶层 await 要 Chrome 89+ / Safari 15+，微信内置浏览器和 iOS 14 就死在这一点上）
 2. 把 `css/style.css` 内联进 HTML（去掉一个阻塞渲染的请求）
-3. 把字典 / 造物标签 / 关键词 / 题库索引合成 `data/boot.json`（4 个 → 1 个）
+3. 把造物标签 / 关键词 / 题库索引合成 `data/boot.json`，字典单独放 `data/dict.json`
+   （原来挤成一个 918KB 的文件；现在 124KB + 772KB 并行，而且只有侦探 / 图鉴 / 工坊 /
+   个人中心四页会下字典，其余页面一个字节都不下）
 4. 把「合成大杜勒」的 10 张头像读成 data URI 塞进 `js/merge-art.js`（10 个请求 → 1 个）
 5. 把「校猫的结合」的 72 张素材（校猫、34 造物、8 密契、10 钥令、8 首领立绘、9 种怪物，
    清单在 `data/binding-art.json`）读成 data URI 塞进 `js/binding-art.js`（72 个请求 → 1 个，约 407KB）
 6. 把 `js/merge-sync.js`（合成大杜勒的账号同步件）单独打成一个延迟加载块，
    页面空闲时才 `import()`，不占首屏请求
-7. 生成 `sw.js`，用构建戳做版本号
+7. 生成 `sw.js`，用构建戳做版本号（`src/partials/boot.html` 也在哈希里）
 
 本地预览（纯静态，需要用 HTTP 服务器打开，`fetch` 读 JSON）：
 

@@ -1,5 +1,6 @@
+(async () => {
 // 由 scripts/build.mjs 生成，请改 js/ 下的源文件后重新构建。
-// 每个原模块被包进一个 async IIFE：作用域隔离 + 支持顶层 await，顺序即依赖顺序。
+// 每个原模块被包进一个 async IIFE：作用域隔离 + 支持 await，顺序即依赖顺序。
 
 // ---- js/i18n.js
 const m_i18n = await (async () => {
@@ -58,6 +59,10 @@ const I18N = {
     acctTag: '账号', guestTag2: '', lvTag: '等级', brkTag: '内在灵格',
     clueTitle: '线索台', clueNote: '花银芯解锁，本局内一直有效',
     clueBrk: '内在灵格', cluePot: '灵塑等级',
+    cluePotTeam: '潜能（灵塑）汇总', cluePotSum: '合计 {n}',
+    // 开局线索：除入门外的三档白送几条最贵的
+    giftTag: '赠送', giftToast: '本档开局赠送 {n} 条线索', clueGiftOn: '已赠送 {n} 条',
+    loadMore: '加载更多',
     clueBuild: '养成（指令卡 / 疯狂预兆）', clueAssist: '助战',
     clueAssistN: '没有借用助战', clueAssistY: '借用了 {n} 位助战',
     cluePeak: '单回合极值 / 守密人', cluePeakCard: '最高出牌 {n}', cluePeakEnergy: '最高耗能 {n}',
@@ -256,6 +261,9 @@ const I18N = {
     acctTag: 'Account', guestTag2: '', lvTag: 'Lv', brkTag: 'Gnostic Potential',
     clueTitle: 'Clue desk', clueNote: 'Spend Silver Core — stays unlocked for this puzzle',
     clueBrk: 'Gnostic Potential', cluePot: 'Potency',
+    cluePotTeam: 'Potency overview', cluePotSum: 'total {n}',
+    giftTag: 'FREE', giftToast: '{n} clue(s) unlocked free for this tier', clueGiftOn: '{n} free',
+    loadMore: 'Load more',
     clueBuild: 'Build (cards / omen)', clueAssist: 'Assist',
     clueAssistN: 'No assist borrowed', clueAssistY: '{n} assist borrowed',
     cluePeak: 'Single-turn peak / Keeper', cluePeakCard: 'most cards {n}', cluePeakEnergy: 'most energy {n}',
@@ -426,9 +434,11 @@ const lang = {
 document.documentElement.lang = lang.cur === 'en' ? 'en' : 'zh-CN';
 
 // t(key, vars)：取当前语言文案，支持 {x} 占位符
+// 用 split/join 而不是 replaceAll：后者要 Chrome 85+ / Safari 13.1+，
+// 老一点的手机内置浏览器直接抛 TypeError，整页文案全变成报错。
 function t(key, vars = {}) {
   let s = (I18N[lang.cur] && I18N[lang.cur][key]) ?? I18N.zh[key] ?? key;
-  for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, v);
+  for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(v);
   return s;
 }
 
@@ -668,13 +678,81 @@ const bootDataP = () => (typeof window !== 'undefined' && window.__boot && windo
 
 async function loadDict(prefetched, kwPrefetched) {
   const boot = bootDataP();
+  const bootDict = (typeof window !== 'undefined' && window.__boot && window.__boot.dict) || null;
   const dictP = prefetched
+    || bootDict
     || (boot ? boot.then(j => j.dict) : fetch('data/dictionary.json').then(r => r.json()));
   const kwP = kwPrefetched || (boot ? boot.then(j => j.kw) : null);
   const [D] = await Promise.all([dictP, loadKeywords(kwP)]);
   const idx = {};
   for (const k of Object.keys(KINDS)) idx[k] = new Map(D[k].filter(e => e.id != null).map(e => [String(e.id), e]));
   return { D, idx };
+}
+
+// ------------------------------------------------------------------ SHA-256
+// 题库答案是拿 SHA-256 当密钥流异或出来的（见 scripts/build_data.py）。
+// 优先用浏览器的 crypto.subtle —— 但它在「非安全上下文」里是 undefined：
+// 手机上从 http 打开、或在某些内置浏览器 / WebView 里，题目就会「解码失败」、
+// 一题都出不来。所以带一份纯 JS 的实现兜底，慢一点但一定能用。
+const K256 = [
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+];
+
+function sha256Raw(bytes) {
+  const H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+  const len = bytes.length;
+  // padding：0x80 + 若干 0 + 64 位长度
+  const withPad = new Uint8Array((((len + 9) + 63) >> 6) << 6);
+  withPad.set(bytes);
+  withPad[len] = 0x80;
+  const bits = len * 8;
+  const dv = new DataView(withPad.buffer);
+  dv.setUint32(withPad.length - 4, bits >>> 0, false);
+  dv.setUint32(withPad.length - 8, Math.floor(bits / 4294967296), false);
+
+  const w = new Uint32Array(64);
+  const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+  for (let off = 0; off < withPad.length; off += 64) {
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4, false);
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+      const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, hh] = H;
+    for (let i = 0; i < 64; i++) {
+      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (hh + S1 + ch + K256[i] + w[i]) | 0;
+      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) | 0;
+      hh = g; g = f; f = e; e = (d + t1) | 0;
+      d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+    H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + hh) | 0;
+  }
+  const out = new Uint8Array(32);
+  const odv = new DataView(out.buffer);
+  H.forEach((x, i) => odv.setUint32(i * 4, x >>> 0, false));
+  return out;
+}
+
+// 字符串 → SHA-256 字节；crypto.subtle 不可用（http / 老内置浏览器）时走纯 JS
+async function sha256(text) {
+  const bytes = new TextEncoder().encode(text);
+  if (typeof crypto !== 'undefined' && crypto && crypto.subtle && crypto.subtle.digest) {
+    try { return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); } catch { /* 落到下面 */ }
+  }
+  return sha256Raw(bytes);
 }
 
 function imgEl(src, alt = '', cls = '') {
@@ -791,7 +869,7 @@ function showKwPop(slug, anchor) {
   const hgt = pop.offsetHeight;
   pop.style.top = (r.bottom + hgt + 12 > innerHeight && r.top > hgt + 12 ? r.top - hgt - 6 : r.bottom + 6) + 'px';
 }
-return { $, $$, store, lang, t, nameOf, h, emptyState, toast, syncCreditsDom, markDirty, STAT0, statsOf, parseColor, solidOf, themeVars, applyThemeSkin, upgradeThemeImage, authUser, KINDS, SC_ICON, scIcon, scNum, wallet, failedBank, REPLAY, unlocked, shareCode, KIND_EN, kindName, REALM_CHAOS, realmAnchor, realmFits, REALM_EN_ZH, realmName, loadDict, imgEl, wan, RARITY_CLASS, nav, KW, loadKeywords, KW_TYPE, plain, slugsIn, kwChip, renderText, kwIcon, showKwPop };
+return { $, $$, store, lang, t, nameOf, h, emptyState, toast, syncCreditsDom, markDirty, STAT0, statsOf, parseColor, solidOf, themeVars, applyThemeSkin, upgradeThemeImage, authUser, KINDS, SC_ICON, scIcon, scNum, wallet, failedBank, REPLAY, unlocked, shareCode, KIND_EN, kindName, REALM_CHAOS, realmAnchor, realmFits, REALM_EN_ZH, realmName, loadDict, sha256, imgEl, wan, RARITY_CLASS, nav, KW, loadKeywords, KW_TYPE, plain, slugsIn, kwChip, renderText, kwIcon, showKwPop };
 })();
 
 // ---- js/pepper.js
@@ -2108,7 +2186,7 @@ return { REWARD, dayKey, state, done, claim, checkinBar };
 
 // ---- js/game.js
 const m_game = await (async () => {
-const { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang, wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf, scIcon, scNum, emptyState } = m_common;
+const { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang, wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf, scIcon, scNum, emptyState, sha256 } = m_common;
 const { PEPPER } = m_pepper;
 const { bank } = m_bank;
 const { auth, openLogin } = m_auth;
@@ -2145,21 +2223,22 @@ const root = $('#app');
 // 模块已经跑起来了，占位继续留着，别把它抹成一行干字——首屏观感差别很大。
 if (!document.getElementById('boot')) root.textContent = t('loading');
 
-// 启动数据合成一个请求（data/boot.json = 字典 + 造物标签 + 关键词 + 题库索引）。
-// 为什么合并：边缘每个请求固定 1~2 秒，4 个请求就是 4 个轮次，体积反而不是瓶颈。
-// window.__boot 是 HTML 里先开拉的同一个请求，直接复用，不会重复下载。
-// 题库本体仍然按片取（见 js/bank.js），不参与这次合并。
+// 启动数据：boot.json（索引 / 标签 / 关键词）先到，拿到它就能开始取题库分片；
+// dict.json（图鉴字典）大得多，和分片并行下载，谁也不等谁。
+// window.__boot 是 HTML 里先开拉的同一批请求，直接复用，不会重复下载。
 const bootData = ((typeof window !== 'undefined' && window.__boot) || {}).data
   || fetch('data/boot.json').then(r => r.json());
 let dictRes;
-let RELIC_TAGS;
+let RELIC_TAGS = {};
+let firstPuzzle = null;
 try {
   const bd = await bootData;
-  [dictRes, RELIC_TAGS] = await Promise.all([
-    loadDict(bd.dict, bd.kw),
-    bd.tags || {},
-    bank.load(bd.bank),
-  ]);
+  RELIC_TAGS = bd.tags || {};
+  await bank.load(bd.bank);
+  // 索引到手就先把「今天这道题」的分片请求发出去，别等 520KB 的字典
+  firstPuzzle = dailyPuzzle();
+  firstPuzzle.catch(() => {});
+  dictRes = await loadDict();
 } catch (e) {
   // 慢网/断网时别停在「载入中」不动，给个能重试的界面
   console.error('初始化失败', e);
@@ -2187,11 +2266,11 @@ function basePool() {
 }
 // 每天一题只在核心题库里挑（核心 = 原来的 puzzles.json，顺序和以前一致，
 // 所以同一天抽到的题跟改造前是同一道）
-const corePool = () => {
+function corePool() {
   const core = bank.coreItems();
   const ok = core.filter(p => !failedBank.has(p.id));
   return ok.length ? ok : core;
-};
+}
 
 // 随机抽题：从当前难度带（含自建题）里挑，再取那一片
 const pickAny = async () => {
@@ -2215,12 +2294,14 @@ let swapFrom = null;
 level = store.get('level', 1);
 mode = 'daily';
 
-const todayKey = () => {
+// 这几个是函数声明（不是 const 箭头函数）：启动时要在字典下完之前就把分片请求发出去，
+// 那时候 const 还处在 TDZ 里，调用会直接抛 ReferenceError。
+function todayKey() {
   const d = new Date(Date.now() + 8 * 3600e3); // UTC+8, same as the leaderboard
   return d.toISOString().slice(0, 10);
-};
-const dayNumber = () => Math.floor((Date.now() + 8 * 3600e3) / 864e5);
-const dailyPuzzle = async () => {
+}
+function dayNumber() { return Math.floor((Date.now() + 8 * 3600e3) / 864e5); }
+async function dailyPuzzle() {
   const list = corePool();
   if (!list.length) throw new Error('题库为空');
   const from = (dayNumber() * 7919) % list.length;
@@ -2232,7 +2313,7 @@ const dailyPuzzle = async () => {
     if (p) { bank.warm(e.id); return p; }
   }
   return bank.fetchPuzzle(list[from].id);
-};
+}
 
 function newSel() {
   return {
@@ -2242,13 +2323,14 @@ function newSel() {
 }
 
 // answers ship obfuscated (see scripts/build_data.py); this keeps them out of plain sight, nothing more
+// 密钥流用 common.js 的 sha256：crypto.subtle 不可用（http / 老内置浏览器）时自动走纯 JS，
+// 否则手机上会「题目解码失败」、一题都出不来。
 async function unseal(p) {
   if (p.team) return p;
   const raw = Uint8Array.from(atob(p.ans), c => c.charCodeAt(0));
   const out = new Uint8Array(raw.length);
-  const enc = new TextEncoder();
   for (let i = 0; i < raw.length; i += 32) {
-    const ks = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(`${PEPPER}|${p.id}|${i / 32}`)));
+    const ks = await sha256(`${PEPPER}|${p.id}|${i / 32}`);
     for (let j = 0; j < 32 && i + j < raw.length; j++) out[i + j] = raw[i + j] ^ ks[j];
   }
   const txt = new TextDecoder().decode(out);
@@ -2280,7 +2362,10 @@ async function start(p0, m) {
   // 固有造物现在由题面直接给出：老存档里如果填过它，得剔掉，否则会被倒扣分
   if (Array.isArray(sel.relics)) sel.relics = sel.relics.filter(id => !isInnateRelic(id));
   if (p.custom) loadLike(p.id);
+  // 开局线索：把这一档白送的那几条直接摊开（已经答完的局就不再弹提示）
+  const gift = grantGift();
   render();
+  if (gift && !finished) setTimeout(() => toast(t('giftToast', { n: gift })), 350);
 }
 
 function persist() {
@@ -2499,6 +2584,41 @@ function openClue(key) {
 }
 const isOpen = (key) => opened.has(key);
 
+// ------------------------------------------------------------------ 开局线索
+// 除「入门」外的三档被反馈太硬，所以每档开局白送几条最贵的线索
+// （不是打折、不是提示次数，是直接摊开在桌上，开局就能看）：
+//   进阶：命轮 ×3
+//   老手：命轮 ×4 + 密契 ×2
+//   大师：命轮 ×4 + 密契 ×2 + 造物 ×3 + 潜能（灵塑）汇总 ×1
+// 命轮线索本身是按题目 id 打散过的，送的这几条不会固定落在 A 位。
+const OPEN_GIFT = {
+  2: { wheel: 3 },
+  3: { wheel: 4, cov: 2 },
+  4: { wheel: 4, cov: 2, relic: 3, pot: 1 },
+};
+let giftKeys = new Set();
+
+function grantGift() {
+  giftKeys = new Set();
+  const g = OPEN_GIFT[level];
+  if (!g) return 0;
+  const L = clueList();
+  const ids = [];
+  const take = (arr, n) => { for (const c of (arr || []).slice(0, n || 0)) ids.push(c.id); };
+  take(L.slots.filter(c => c.group === 'wheel'), g.wheel);
+  take(L.slots.filter(c => c.group === 'cov'), g.cov);
+  take(L.relics, g.relic);
+  take(L.team.filter(c => c.id === 'pot'), g.pot);
+  let fresh = 0;
+  for (const id of ids) {
+    const key = `c:${id}`;
+    if (!opened.has(key)) { opened.add(key); fresh++; }
+    giftKeys.add(key);          // 已经买过的那条也标上「赠送」，不然玩家会以为白送没生效
+  }
+  if (ids.length) store.set(clueStoreKey(), [...opened]);
+  return fresh;
+}
+
 // 传进来的都是「基础价」，实际扣费按当前难度档乘以系数
 function payHint(base = HINT_COST) {
   const cost = priceOf(base);
@@ -2669,6 +2789,16 @@ function clueList() {
     });
   }
 
+  // 潜能（灵塑）：四个卡位的数值本来就印在战报面板的「养成」行里，
+  // 这里给一条汇总（含合计），省得玩家在面板和卡位之间来回对；只在要填潜能的档上架。
+  if (A.pot && full('pot')) {
+    team.push({
+      id: 'pot', cost: 8, label: t('cluePotTeam'),
+      value: () => `${ans.map((a, k) => `${LETTERS[k]} ${a.pot}`).join(' · ')}`
+        + ` · ${t('cluePotSum', { n: ans.reduce((s, a) => s + (a.pot || 0), 0) })}`,
+    });
+  }
+
   // 命轮：一次解锁一条，只说这局用了哪几件，不说在哪一位，也不成对给出
   if (A.wheels && full('wheels')) {
     const all = appeared(ans.flatMap((a, k) => wheelIds(k)));
@@ -2758,8 +2888,10 @@ function buyClue(c) {
 }
 
 function clueCard(c) {
-  if (isOpen(`c:${c.id}`)) {
-    return h('div', { class: 'clue on' }, h('small', {}, c.label), h('b', {}, c.value()));
+  const key = `c:${c.id}`;
+  if (isOpen(key)) {
+    return h('div', { class: 'clue on' }, h('small', {}, c.label), h('b', {}, c.value()),
+      giftKeys.has(key) ? h('em', { class: 'gift' }, t('giftTag')) : null);
   }
   // 卡上显示的是这一档的真实价格（payHint 会按难度系数扣；作者线索是固定价）
   return h('button', { type: 'button', class: 'clue lock', onclick: () => buyClue(c) },
@@ -2772,7 +2904,8 @@ function cluePanel() {
   const wheels = slots.filter(c => c.group === 'wheel');
   const covs = slots.filter(c => c.group === 'cov');
   const mul = LV_COST_MUL[level] || 1;
-  const note = mul > 1 ? `${t('clueNote')} · ${t('clueMul', { m: mul })}` : t('clueNote');
+  const note = (mul > 1 ? `${t('clueNote')} · ${t('clueMul', { m: mul })}` : t('clueNote'))
+    + (giftKeys.size ? ` · ${t('clueGiftOn', { n: giftKeys.size })}` : '');
   return h('section', { class: 'card clues' },
     h('div', { class: 'cluehead' },
       h('h3', {}, t('clueTitle')),
@@ -3135,6 +3268,11 @@ function share() {
 }
 
 // ------------------------------------------------------------------ 失败题库
+// <dialog> 在 iOS 15.4 之前根本不存在：没有 showModal 时退化成「加 open 属性」，
+// 版式由 css/style.css 的 dialog.picker[open] 兜住——选卡能用，不会整页崩掉。
+function openModal(d) { if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', ''); }
+function closeModal(d) { if (typeof d.close === 'function') d.close(); else d.removeAttribute('open'); }
+
 const ansDlg = h('dialog', { class: 'picker review' });
 document.body.append(ansDlg);
 
@@ -3147,13 +3285,13 @@ async function viewFailed(id) {
     h('div', { class: 'phead' },
       h('b', {}, `${t('failedTitle')} · ${p.id}`),
       h('span', { class: 'note' }, `${t('season', { s: p.season })} · ${t('score', { s: p.score })}`),
-      h('button', { class: 'btn sm', onclick: () => ansDlg.close() }, t('close'))),
+      h('button', { class: 'btn sm', onclick: () => closeModal(ansDlg) }, t('close'))),
     h('div', { class: 'ans-wrap' },
       teamBlock(p.team),
       h('div', { class: 'ans-row' }, h('b', {}, t('keyLabel')), mk('key', p.key)),
       h('div', { class: 'ans-row wrap' }, h('b', {}, t('relicLabel')), (p.relics || []).map(r => mk('creation', r))),
       replayBox(p)));
-  ansDlg.showModal();
+  openModal(ansDlg);
 }
 
 function failedPanel() {
@@ -3232,27 +3370,62 @@ function openPicker(kind, apply, slot) {
   // 思路先摆位置都做不到，反而像 bug。现在四大界域随便选。
   const usedOther = (id) => sel.slots.some((s, i) => i !== slot && s.awk != null && String(s.awk) === String(id));
   const blockWhy = (e) => (kind === 'awakener' && usedOther(e.id) ? t('wsRealmUsed') : '');
+  // 分批铺卡片：造物有 390 件，一次性铺开会同时发 390 个图片请求，
+  // 手机上一个域名只有 6 条连接，表现就是「点开面板一片白、等半分钟」。
+  // 先铺 60 张，滚到底再续 60 张。
+  const PAGE = 60;
+  let items = [];
+  let shown = 0;
+  const more = h('button', {
+    type: 'button', class: 'btn ghost sm', style: 'grid-column:1/-1',
+    onclick: () => { grow(); if (shown < items.length) grid.append(more); },
+  }, t('loadMore'));
+  const cell = (e) => {
+    const id = String(e.id);
+    const chosen = multi && sel.relics.includes(id);
+    const full = multi && !chosen && sel.relics.length >= fillRelics().length;
+    const why = blockWhy(e);
+    const btn = h('button', { type: 'button', class: `pitem${chosen ? ' chosen' : ''}${used.has(id) ? ' used' : ''}${why ? ' blocked' : ''}`, disabled: full || Boolean(why), title: why || e.en,
+      onclick: why ? null : () => {
+        if (multi) { toggleRelic(id); return; }
+        apply(id); persist(); closeModal(dlg); render();
+      } }, imgEl(e.img, nameOf(e)), h('small', {}, nameOf(e)),
+      why ? h('em', { class: 'decoy' }, why) : (e.real === false ? h('em', { class: 'decoy' }, t('decoy')) : null));
+    btn.__id = id;
+    return btn;
+  };
+  // 造物多选：只改这一格的状态和计数，不重画整张网格（重画会把滚动位置弹回顶部）
+  const toggleRelic = (id) => {
+    const max = fillRelics().length;
+    sel.relics = sel.relics.includes(id) ? sel.relics.filter(x => x !== id) : [...sel.relics, id];
+    persist();
+    count.textContent = `${sel.relics.length}/${max}`;
+    const pick = new Set(sel.relics);
+    for (const el of grid.children) {
+      if (!el.__id) continue;
+      const on = pick.has(el.__id);
+      el.classList.toggle('chosen', on);
+      if (!el.classList.contains('blocked')) el.disabled = !on && sel.relics.length >= max;
+    }
+  };
+  const grow = () => {
+    const end = Math.min(shown + PAGE, items.length);
+    const frag = document.createDocumentFragment();
+    for (let i = shown; i < end; i++) frag.append(cell(items[i]));
+    grid.append(frag);
+    shown = end;
+    if (shown >= items.length) more.remove();
+    else more.textContent = `${t('loadMore')}（${shown}/${items.length}）`;
+  };
   const draw = () => {
-    grid.replaceChildren();
     // 固有造物已经在题面给出去了，选择器里不再列出来
-    const list = all.filter(e => (!multi || !isInnateRelic(e.id))
+    items = all.filter(e => (!multi || !isInnateRelic(e.id))
       && (!q || ((e.zh || '') + (e.en || '')).toLowerCase().includes(q)) && (!f1 || e[f1key] === f1) && (!f2 || e[f2key] === f2) && (!fk || (e.kw || []).includes(fk)));
-    list.forEach(e => {
-      const chosen = multi && sel.relics.includes(String(e.id));
-      const full = multi && !chosen && sel.relics.length >= fillRelics().length;
-      const why = blockWhy(e);
-      grid.append(h('button', { type: 'button', class: `pitem${chosen ? ' chosen' : ''}${used.has(String(e.id)) ? ' used' : ''}${why ? ' blocked' : ''}`, disabled: full || Boolean(why), title: why || e.en,
-        onclick: why ? null : () => {
-          const id = String(e.id);
-          if (multi) {
-            sel.relics = chosen ? sel.relics.filter(x => x !== id) : [...sel.relics, id];
-            persist(); draw(); count.textContent = `${sel.relics.length}/${fillRelics().length}`; return;
-          }
-          apply(id); persist(); dlg.close(); render();
-        } }, imgEl(e.img, nameOf(e)), h('small', {}, nameOf(e)),
-        why ? h('em', { class: 'decoy' }, why) : (e.real === false ? h('em', { class: 'decoy' }, t('decoy')) : null)));
-    });
-    if (!list.length) grid.append(h('p', { class: 'note' }, t('noMatch')));
+    shown = 0;
+    grid.replaceChildren();
+    if (!items.length) { grid.append(h('p', { class: 'note' }, t('noMatch'))); return; }
+    grow();
+    if (shown < items.length) grid.append(more);
   };
   const sub = (key, label, set) => {
     const o = opts(key);
@@ -3273,12 +3446,12 @@ function openPicker(kind, apply, slot) {
       h('input', { type: 'search', placeholder: t('searchName'), oninput: ev => { q = ev.target.value.trim().toLowerCase(); draw(); } }),
       sub(f1key, f1key === 'kind' ? t('allType') : t('allRealm'), v => { f1 = v; }), sub(f2key, f2key === 'role' ? t('allRole') : t('allRarity'), v => { f2 = v; }),
       kwSelect(),
-      !multi ? h('button', { class: 'btn ghost sm', onclick: () => { apply(null); persist(); dlg.close(); render(); } }, t('clear')) : null,
-      h('button', { class: 'btn sm', onclick: () => { dlg.close(); render(); } }, multi ? t('done') : t('close'))),
+      !multi ? h('button', { class: 'btn ghost sm', onclick: () => { apply(null); persist(); closeModal(dlg); render(); } }, t('clear')) : null,
+      h('button', { class: 'btn sm', onclick: () => { closeModal(dlg); render(); } }, multi ? t('done') : t('close'))),
     realmNote,
     grid);
   draw();
-  dlg.showModal();
+  openModal(dlg);
 }
 
 // ------------------------------------------------------------------ render
@@ -3347,7 +3520,9 @@ account.ready()
   .then((merged) => { if (merged && puzzle && !finished) render(); })
   .catch(() => {});
 
-await start(dailyPuzzle(), 'daily');
+// 每日题的分片请求在启动时就发出去了（见文件开头的 firstPuzzle），这里只是等它回来；
+// 万一那一次失败了（手机切网、边缘挂起连接），再顺次重试一次。
+await start(firstPuzzle ? firstPuzzle.catch(() => dailyPuzzle()) : dailyPuzzle(), 'daily');
 
 // 扩充题库（puzzles-extra / puzzles-more）不再整包预载：
 // 现在题库是「索引 + 分片」，抽到哪道才取哪片，见 js/bank.js。
@@ -3386,4 +3561,11 @@ document.addEventListener('zjtt:likes', () => {
 });
 return {  };
 })();
+
+})().catch(function (e) {
+  if (window.__bootFailed) window.__bootFailed((e && e.message) || String(e));
+  else if (window.console) console.error(e);
+});
+// 主脚本已经跑起来了（给 HTML 里的看门狗一个准信号，替代原来的顶层 await 探测）
+window.__bootMain = 1;
 

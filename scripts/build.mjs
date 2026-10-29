@@ -63,7 +63,12 @@ function resolveDep(fromFile, spec) {
 
 const ident = (file) => 'm_' + path.basename(file, '.js').replace(/\W/g, '_');
 
-function bundle(entryRel) {
+// wrap=true（页面入口用）：整包再套一层 async IIFE，产物里就没有顶层 await。
+// 顶层 await 要 Chrome 89+ / Safari 15+，而微信 / QQ 内置浏览器、iOS 14 都在下面：
+// 表现是模块「解析失败、整段不执行」，页面只剩一行页脚——手机上「加载不出来」多半是它。
+// 收进函数作用域之后 Chrome 61+ / Safari 11+ 都能跑。
+// 延迟入口（merge-sync / bird-sync）要往模块外抛 export，不能套 IIFE，保持原样。
+function bundle(entryRel, { wrap = true } = {}) {
   const entry = path.resolve(ROOT, entryRel);
   const seen = new Set();
   const visiting = new Set();
@@ -80,7 +85,7 @@ function bundle(entryRel) {
 
   const parts = [
     '// 由 scripts/build.mjs 生成，请改 js/ 下的源文件后重新构建。',
-    '// 每个原模块被包进一个 async IIFE：作用域隔离 + 支持顶层 await，顺序即依赖顺序。',
+    '// 每个原模块被包进一个 async IIFE：作用域隔离 + 支持 await，顺序即依赖顺序。',
     '',
   ];
   for (const file of order) {
@@ -106,7 +111,23 @@ function bundle(entryRel) {
       '',
     );
   }
-  return { code: parts.join('\n'), modules: order.length };
+  const body = parts.join('\n');
+  if (!wrap) return { code: body, modules: order.length };
+  // 外层 IIFE 只负责「把 await 关进函数里」，并且把未捕获的异常转成首屏守护能显示的文案
+  return {
+    code: [
+      '(async () => {',
+      body,
+      '})().catch(function (e) {',
+      "  if (window.__bootFailed) window.__bootFailed((e && e.message) || String(e));",
+      '  else if (window.console) console.error(e);',
+      '});',
+      '// 主脚本已经跑起来了（给 HTML 里的看门狗一个准信号，替代原来的顶层 await 探测）',
+      'window.__bootMain = 1;',
+      '',
+    ].join('\n'),
+    modules: order.length,
+  };
 }
 
 // ------------------------------------------------------- 合成大杜勒的头像
@@ -274,7 +295,7 @@ const EXTRA_ENTRIES = ['js/merge-sync.js', 'js/bird-sync.js'];
 
 const extras = [];
 for (const rel of EXTRA_ENTRIES) {
-  const { code, modules } = bundle(rel);
+  const { code, modules } = bundle(rel, { wrap: false });
   // 动态 import() 拿到的是模块的导出，而打包产物本身只有一堆 const：
   // 所以这里把入口模块的导出原样转出去，页面里才能 m.pullBest()。
   const id = ident(path.resolve(ROOT, rel));
@@ -290,20 +311,30 @@ for (const rel of EXTRA_ENTRIES) {
   extras.push({ out, modules, names, kb: Math.round(full.length / 1024) });
 }
 
-// ---- 启动数据合成一个文件
+// ---- 启动数据拆两个文件
+// boot.json：题库索引 + 造物标签 + 关键词（约 110KB）——决定「今天出哪道题」，
+//   拿到它就能开始取分片，所以它必须小、必须最先到。
+// dict.json：图鉴字典（约 520KB）——只在画名字/头像时才用得上，和分片并行下载，
+//   并在不需要它的页面（合成、鸟弟、结合、幸存者、协议、首页）完全不下载。
+// 拆开之前这两份合成 918KB 的一个文件：分片要等它下完才开始，白白多一个轮次。
 const dict = readJson(path.join(ROOT, 'data/dictionary.json'));
 const tags = readJson(path.join(ROOT, 'data/creation-tags.json'));
 const kw = readJson(path.join(ROOT, 'data/keywords.json'));
 const bankIdx = readJson(path.join(ROOT, 'data/bank/index.json'));
-const bootJson = JSON.stringify({ dict, tags, kw, bank: bankIdx });
+const bootJson = JSON.stringify({ tags, kw, bank: bankIdx });
+const dictJson = JSON.stringify(dict);
 fs.writeFileSync(path.join(ROOT, 'data/boot.json'), bootJson, 'utf8');
+fs.writeFileSync(path.join(ROOT, 'data/dict.json'), dictJson, 'utf8');
 
 // ---- 构建戳：代码或题库一变就换版本，Service Worker 据此换缓存
 const h = crypto.createHash('sha1');
 h.update(read(path.join(ROOT, 'css/style.css')));
 h.update(bootJson);
+h.update(dictJson);
 // 页面 HTML 也算进去：只改文案（比如首页）也要换缓存，否则老访客会先看到旧页面
 for (const b of built) h.update(b.src);
+// 首屏守护那一段是各页共用的 partial，改了它同样要换戳（它直接改写每页的 HTML）
+h.update(read(path.join(SRC, 'partials/boot.html')));
 for (const b of built) if (b.entry) h.update(read(path.join(OUT_JS, b.entry)));
 for (const e of extras) h.update(read(path.join(OUT_JS, e.out)));
 h.update(read(path.join(SRC, 'sw.js')));
@@ -337,6 +368,10 @@ const css = read(path.join(ROOT, 'css/style.css'));
 const favicon = read(path.join(ROOT, 'favicon.svg'));
 const faviconUri = 'data:image/svg+xml,' + encodeURIComponent(favicon).replace(/'/g, '%27');
 const bootPartial = read(path.join(SRC, 'partials/boot.html')).trimEnd();
+// 哪些页面真的要启动数据：侦探（题库索引 + 字典）、图鉴 / 工坊 / 个人中心（字典）。
+// 其余页面（合成 / 鸟弟 / 结合 / 幸存者 / 协议 / 首页 / 说明 / 典藏馆 / 狼人杀）
+// 压根不读 boot.json，就别让它们各下一个一百多 KB 的 JSON——首屏守护仍然照常工作。
+const DATA_PAGES = new Set(['detective', 'codex', 'workshop', 'profile']);
 const swReg = `<script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
@@ -358,8 +393,10 @@ for (const p of built) {
     `<link rel="icon" href="${faviconUri}" type="image/svg+xml">`);
   // 模块预加载不再需要：已经是单文件
   s = s.replace(/<link rel="modulepreload" href="js\/[^"]+">\n?/g, '');
-  // 注入首屏守护
-  s = s.replace('<!-- @boot -->', bootPartial);
+  // 注入首屏守护（__DATA__ / __DICT__ 换成这一页要不要启动数据 / 字典：'' = 不下载）
+  s = s.replace('<!-- @boot -->', bootPartial
+    .replace(/__DATA__/g, () => (DATA_PAGES.has(p.name) ? 'data/boot.json' : ''))
+    .replace(/__DICT__/g, () => (DATA_PAGES.has(p.name) ? 'data/dict.json' : '')));
   // 入口脚本换成打包文件
   if (p.entry) {
     s = s.replace(/(<script type="module" src="js\/)[\w.-]+\.js"/,
@@ -372,12 +409,12 @@ for (const p of built) {
 }
 
 // ---- Service Worker
+// 预缓存只放首页：以前这里塞了 13 个页面 + 13 个打包产物（协议 2.2MB、鸟弟 1.2MB…），
+// 首次访问装好 SW 后会在后台并发拉 5~6MB，正好和当前这一页抢手机那 6 条连接，
+// 表现就是「首屏图片半天不出来」。其余页面交给 navigate 的「先给缓存、后台更新」，
+// 用户点进去过就会进缓存，第二遍打开就是本地读取。
 const precache = [
   'index.html',
-  ...built.filter((b) => b.entry).map((b) => `${b.name}.html`),
-  ...built.filter((b) => b.entry).map((b) => `js/b/${b.entry}?v=${stamp}`),
-  // 额外入口没有 ?v=：页面里的 import() 就是无参地址，缓存键要对上才命得中
-  ...extras.map((e) => `js/b/${e.out}`),
   'data/boot.json',
 ];
 const sw = read(path.join(SRC, 'sw.js'))
@@ -396,7 +433,7 @@ for (const p of built) {
     `| html ${Math.round(size / 1024)}KB`,
   );
 }
-console.log(`共打包 ${totalModules} 次模块引用；data/boot.json ${Math.round(bootJson.length / 1024)}KB`);
+console.log(`共打包 ${totalModules} 次模块引用；data/boot.json ${Math.round(bootJson.length / 1024)}KB + data/dict.json ${Math.round(dictJson.length / 1024)}KB`);
 console.log(`  唤醒体幸存者：${sv.chars} 名角色 / ${sv.weapons} 把武器，js/sv/gen.js ${sv.kb}KB（图集已内联）`);
 console.log(`  忘却协议：${pf.units} 名唤醒体 / ${pf.mobs} 种怪物，js/pf/gen.js ${pf.kb}KB（图集已内联）`);
 for (const e of extras) console.log(`  延迟加载 js/b/${e.out}`.padEnd(30), `${e.modules} 个模块 → ${e.kb}KB（不进首屏）`);

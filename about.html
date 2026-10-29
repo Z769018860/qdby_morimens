@@ -146,6 +146,10 @@ dialog { border: 1px solid var(--line); background: var(--panel); color: var(--t
 dialog::backdrop { background: #000a; }
 .picker { width: min(960px, 96vw); height: min(720px, 90vh); }
 .picker[open] { display: flex; flex-direction: column; }
+/* iOS 15.4 之前没有 <dialog>：这时它是普通元素，closed 状态不会自动隐藏，
+   也没有「顶层居中的模态」，所以这两条同时给原生和不支持的内核兜底。 */
+.picker:not([open]) { display: none; }
+.picker[open] { position: fixed; top: 0; right: 0; bottom: 0; left: 0; margin: auto; z-index: 60; }
 .phead { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .phead input { flex: 1; min-width: 140px; }
 input[type=search], select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: inherit; }
@@ -1083,6 +1087,12 @@ body:not(.themed) .card {
   background: color-mix(in srgb, var(--gold) 11%, var(--panel2));
 }
 .clue.on small { color: color-mix(in srgb, var(--gold) 70%, var(--dim)); }
+/* 开局白送的线索：标题下面挂一枚「赠送」小签，和自己花银芯买的区分开 */
+.clue .gift {
+  font-style: normal; justify-self: start; font-size: 10.5px; letter-spacing: .3px;
+  padding: 0 6px; border-radius: 999px; color: var(--gold);
+  border: 1px solid var(--gold); background: transparent; opacity: .9;
+}
 @media (max-width: 720px) {
   .cluegrid, .cluegrid.four { grid-template-columns: 1fr 1fr; gap: 7px; }
   .clue { padding: 8px 9px; }
@@ -1108,7 +1118,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
 @keyframes bootspin { to { transform: rotate(360deg); } }
 </style>
 
-<meta name="build" content="0c580ed21b">
+<meta name="build" content="98dce00ddf">
 </head>
 <body>
 <main id="app" class="wrap">
@@ -1127,6 +1137,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
 <h3>难度档与难度分</h3>
 <ul>
 <li>入门：只猜 4 名唤醒体；进阶：+ 命轮（每人 2 件）；老手：+ 密契套装、钥令；大师：+ 潜能进阶、造物（固有造物已经给出，只需补其余）。</li>
+<li><b>难度提醒</b>：目前除「入门」外的三档偏高，不推荐一上来就玩（页顶有置顶公告）。为此每档都加了一组<b>免费开局线索</b>，开局就在线索台上摊着、不用花银芯：进阶 3 条命轮；老手 4 条命轮 + 2 条密契；大师 4 条命轮 + 2 条密契 + 3 条造物线索 + 潜能（灵塑）汇总 1 条。赠送的线索卡上标「赠送」，答完这一题为止一直有效。</li>
 <li>每道题另有一个 <b>难度分（0–100）</b>，只由公开信息决定，三项加权：
   <b>信息排除度</b>（把回合数/出牌数/能量/单回合最高伤害/死扛/剩余生命做粗分桶后，题库里同桶的题越多，越难靠排除法锁定）；
   <b>伤害集中度</b>（队内伤害越集中在一两人身上，越容易判断主 C，越简单）；
@@ -1363,7 +1374,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
 
 </main>
 <footer class="foot">同人作品，与官方无关。</footer>
-<script type="module" src="js/b/about.js?v=0c580ed21b"></script>
+<script type="module" src="js/b/about.js?v=98dce00ddf"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

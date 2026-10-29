@@ -147,6 +147,10 @@ dialog { border: 1px solid var(--line); background: var(--panel); color: var(--t
 dialog::backdrop { background: #000a; }
 .picker { width: min(960px, 96vw); height: min(720px, 90vh); }
 .picker[open] { display: flex; flex-direction: column; }
+/* iOS 15.4 之前没有 <dialog>：这时它是普通元素，closed 状态不会自动隐藏，
+   也没有「顶层居中的模态」，所以这两条同时给原生和不支持的内核兜底。 */
+.picker:not([open]) { display: none; }
+.picker[open] { position: fixed; top: 0; right: 0; bottom: 0; left: 0; margin: auto; z-index: 60; }
 .phead { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .phead input { flex: 1; min-width: 140px; }
 input[type=search], select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: inherit; }
@@ -1084,6 +1088,12 @@ body:not(.themed) .card {
   background: color-mix(in srgb, var(--gold) 11%, var(--panel2));
 }
 .clue.on small { color: color-mix(in srgb, var(--gold) 70%, var(--dim)); }
+/* 开局白送的线索：标题下面挂一枚「赠送」小签，和自己花银芯买的区分开 */
+.clue .gift {
+  font-style: normal; justify-self: start; font-size: 10.5px; letter-spacing: .3px;
+  padding: 0 6px; border-radius: 999px; color: var(--gold);
+  border: 1px solid var(--gold); background: transparent; opacity: .9;
+}
 @media (max-width: 720px) {
   .cluegrid, .cluegrid.four { grid-template-columns: 1fr 1fr; gap: 7px; }
   .clue { padding: 8px 9px; }
@@ -1108,7 +1118,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
   border: 1px solid rgba(120,130,150,.45); background: transparent; color: inherit; }
 @keyframes bootspin { to { transform: rotate(360deg); } }
 </style>
-<meta name="build" content="0c580ed21b">
+<meta name="build" content="98dce00ddf">
 </head>
 <body>
 <main id="app" class="wrap">
@@ -1123,9 +1133,36 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
 /* 首屏守护 + 启动数据预取（构建时注入，各页共用一份）
    1) 占位是纯 HTML，HTML 一到就能画，不等任何 JS；
    2) 模块或数据卡住时给出可点的界面，绝不留只有页脚的白屏；
-   3) 一个请求拿全字典 / 造物标签 / 关键词 / 题库索引（data/boot.json）。
-      原来这是 4 个请求，而边缘每个请求固定 1~2 秒——少一个就是一个轮次。 */
+   3) 启动数据拆两路并行：data/boot.json（索引/标签/关键词，约 110KB）与
+      data/dict.json（图鉴字典，约 520KB，只有要用字典的页面才下）。
+      拿到 boot.json 就能开拉题库分片，字典在后台并行走——原来挤成一个 918KB 的文件，
+      分片必须等它下完才能开始，手机上白白多一个「1~2 秒」的轮次。 */
 (function () {
+  // ---------------------------------------------------------------- 兼容垫片
+  // 手机上的内置浏览器（微信 / QQ / 各家浏览器）内核普遍比 Chrome 慢两三年，
+  // 少一个 API 就是整页报错、什么都不显示。这里补两个最常用的。
+  if (window.Element && !Element.prototype.replaceChildren) {
+    Element.prototype.replaceChildren = function () {
+      while (this.firstChild) this.removeChild(this.firstChild);
+      for (var i = 0; i < arguments.length; i++) {
+        var n = arguments[i];
+        if (n == null) continue;
+        this.appendChild(typeof n === 'string' ? document.createTextNode(n) : n);
+      }
+    };
+  }
+  if (!String.prototype.replaceAll) {
+    String.prototype.replaceAll = function (find, rep) { return this.split(find).join(rep); };
+  }
+  // <dialog> 在 iOS 15.4 之前根本没有：没有 showModal 时退回「加 open 属性」，
+  // 版式由 css/style.css 的 dialog.picker[open] 兜住，至少还能选、不会整页崩掉。
+  (function () {
+    var proto = window.HTMLDialogElement && HTMLDialogElement.prototype;
+    if (!proto || proto.showModal) return;
+    proto.showModal = function () { this.setAttribute('open', ''); };
+    proto.close = function () { this.removeAttribute('open'); };
+  })();
+
   var bootEl = document.getElementById('boot');
   var textEl = document.getElementById('bootText');
   var hintEl = document.getElementById('bootHint');
@@ -1148,7 +1185,9 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
     setHint('网络较慢，正在继续载入（站点在新加坡节点，首次访问会慢一些）…');
   }, 7000);
 
-  // 看门狗：20 秒还没渲染出内容，给一个明确的按钮
+  // 看门狗：20 秒还没渲染出内容，给一个明确的按钮。
+  // 这时候如果主脚本压根没跑起来（语法太旧 / 被插件或代理拦了），提示要说清楚，
+  // 否则用户只会反复点「重新载入」。
   var dog = setInterval(function () {
     if (!document.getElementById('boot')) { clearInterval(dog); clearTimeout(hintTimer); settled = true; return; }
     if (Date.now() - t0 < 20000) return;
@@ -1156,21 +1195,20 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
     if (settled) return;
     settled = true;
     bootEl.className = 'err';
-    textEl.textContent = '载入超时';
-    setHint('可能是到服务器的连接卡住了，点下面的按钮重试（会重新拉一次）。');
+    if (!window.__bootMain) {
+      textEl.textContent = '脚本没能启动';
+      setHint('浏览器可能太旧了：请用 Chrome / Edge 90 以上、或 iOS 15 以上的 Safari 打开；'
+        + '360、QQ 浏览器请在地址栏切到「极速」模式。');
+    } else {
+      textEl.textContent = '载入超时';
+      setHint('可能是到服务器的连接卡住了，点下面的按钮重试（会重新拉一次）。');
+    }
     bootEl.appendChild(retryBtn('重新载入'));
   }, 1000);
 
-  // 内核探测：下面那个只有一行 await 0 的 module 脚本用到了顶层 await，
-  // Chrome 89 以下会直接语法报错、整段不执行，页面只会剩一行页脚。
-  setTimeout(function () {
-    if (window.__tla || !document.getElementById('boot')) return;
-    clearInterval(dog);
-    settled = true;
-    bootEl.className = 'err';
-    textEl.textContent = '浏览器内核版本过低';
-    setHint('本站需要 Chrome / Edge 89 及以上（360、QQ 浏览器请切到「极速模式」）。');
-  }, 1500);
+  // 内核探测：以前靠「顶层 await 能不能解析」判断内核新旧。现在打包产物里已经没有
+  // 顶层 await（Chrome 61+ / Safari 11+ 都能跑），这条路不需要了——真的跑不起来时，
+  // 脚本的 onerror 和下面的看门狗会接手。
 
   function fail(msg) {
     if (settled || !document.getElementById('boot')) return;
@@ -1211,12 +1249,16 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
     });
   }
 
-  var data = get('data/boot.json');
-  data.catch(function () {});
-  window.__boot = { data: data };
+  // data/boot.json / data/dict.json 由构建替换：要用启动数据的页面是真地址，其余是空串（一个字节都不下）
+  var dataUrl = 'data/boot.json';
+  var data = dataUrl ? get(dataUrl) : null;
+  if (data) data.catch(function () {});
+  var dictUrl = 'data/dict.json';
+  var dict = dictUrl ? get(dictUrl) : null;
+  if (dict) dict.catch(function () {});
+  window.__boot = { data: data, dict: dict };
 })();
 </script>
-<script type="module">await 0; window.__tla = true;</script>
 <script nomodule>/* 老到不支持 ES module（多半是 360/QQ 浏览器的「兼容模式」= IE 内核） */
 (function () {
   var el = document.getElementById('boot'); if (el) el.className = 'err';
@@ -1225,7 +1267,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
   if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
 })();
 </script>
-<script type="module" src="js/b/workshop.js?v=0c580ed21b"></script>
+<script type="module" src="js/b/workshop.js?v=98dce00ddf"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

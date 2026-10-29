@@ -11,36 +11,10 @@
 // 预缓存不放在 install 里：那会让「装上」这个动作被 400KB 的下载拖住，
 // 期间页面还不受控。这里改成 activate 之后在后台慢慢填——当前页先受控，
 // 等它填完，之后切页就都是本地读取了。
-const VERSION = '0c580ed21b';
+const VERSION = '98dce00ddf';
 const CACHE = 'zjtt-' + VERSION;
 const PRECACHE = [
   "index.html",
-  "about.html",
-  "binding.html",
-  "bird.html",
-  "codex.html",
-  "detective.html",
-  "gallery.html",
-  "merge.html",
-  "profile.html",
-  "protocol.html",
-  "survivors.html",
-  "wolf.html",
-  "workshop.html",
-  "js/b/about.js?v=0c580ed21b",
-  "js/b/binding.js?v=0c580ed21b",
-  "js/b/bird.js?v=0c580ed21b",
-  "js/b/codex.js?v=0c580ed21b",
-  "js/b/detective.js?v=0c580ed21b",
-  "js/b/gallery.js?v=0c580ed21b",
-  "js/b/merge.js?v=0c580ed21b",
-  "js/b/profile.js?v=0c580ed21b",
-  "js/b/protocol.js?v=0c580ed21b",
-  "js/b/survivors.js?v=0c580ed21b",
-  "js/b/wolf.js?v=0c580ed21b",
-  "js/b/workshop.js?v=0c580ed21b",
-  "js/b/merge-sync.js",
-  "js/b/bird-sync.js",
   "data/boot.json"
 ];
 
