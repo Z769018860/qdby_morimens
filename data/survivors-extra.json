@@ -1,5 +1,5 @@
 {
-  "_note": "《唤醒体幸存者》彩蛋角色。官方 66 人来自 data/survivors-data.json（脚本生成），这里手写：B 站《忘却前夜》内容创作者 9 人 + 最终隐藏首领「弥萨格校猫」。由 scripts/build.mjs 的 genSurvivors() 追加进 CHARS / WEAPONS / MOBS，不参与官方数据重建。face 指向 assets/survivors/faces/*.webp（主播本人的 B 站头像，构建时转 data URI 内联）；glyph 只是头像还没解码出来时的兜底字。",
+  "_note": "《唤醒体幸存者》彩蛋角色。官方 66 人来自 data/survivors-data.json（脚本生成），这里手写：B 站《忘却前夜》内容创作者 9 人 + 最终隐藏首领「弥萨格校猫」。由 scripts/build.mjs 的 genSurvivors() 追加进 CHARS / WEAPONS / MOBS，不参与官方数据重建。face 指向 assets/survivors/faces/*.webp（主播本人的 B 站头像，构建时转 data URI 内联）；glyph 只是头像还没解码出来时的兜底字。 bio 与 bioSrc 一律照抄主播 B 站空间的公开签名原文（接口 x/web-interface/card 的 data.card.sign），签名为空就留空，不要自己编人设。",
   "chars": [
     {
       "id": "egg-samo",
@@ -18,7 +18,7 @@
       "talent": "节拍器",
       "talentText": "狗尾巴一甩就是四拍，打不准的地方他替你补上",
       "kind": "B 站主播",
-      "bio": "把攻略写成节奏的人。他说打这一关不难，难的是别在第三次三选一之前就手抖。",
+      "bio": "再见了，忘却前夜。",
       "bioSrc": "B 站空间 · space.bilibili.com/345114332",
       "weapons": [
         {
@@ -56,7 +56,7 @@
       "talent": "不做梦的人",
       "talentText": "醒着的人才怕疼，他只是睡在别人的梦里",
       "kind": "B 站主播",
-      "bio": "打不过就睡。他的直播间里最常出现的一句话是「这一把梦里能过」。",
+      "bio": "融灾主线深潜pvp请+q1839055149 myls的忘却银夜群（个人粉丝向）：884208560 最近因现生问题减少开播时长",
       "bioSrc": "B 站空间 · space.bilibili.com/1800901917",
       "weapons": [
         {
@@ -93,7 +93,7 @@
       "talent": "洞口的兔子",
       "talentText": "追着他跑的人，最后都掉进了自己的洞",
       "kind": "B 站主播",
-      "bio": "他坚称自己不是走位失误，是去了一趟洞的另一头，顺便带了点东西回来。",
+      "bio": "主播的粉丝群：1098633910 二群：698722677",
       "bioSrc": "B 站空间 · space.bilibili.com/545164270",
       "weapons": [
         {
@@ -130,7 +130,7 @@
       "talent": "数不清",
       "talentText": "他的臣民太多了，多到连他自己也数不明白",
       "kind": "B 站主播",
-      "bio": "数量就是力量。他从不数自己带了多少只，只数对面还剩几只。",
+      "bio": "",
       "bioSrc": "B 站空间 · space.bilibili.com/399273416",
       "weapons": [
         {
@@ -167,7 +167,7 @@
       "talent": "逆鳞",
       "talentText": "龙鳞底下那一片，碰了要拿命还",
       "kind": "B 站主播",
-      "bio": "别人堆输出，他堆防御。理由很简单：站得住的人才配谈输出。",
+      "bio": "PKU 本硕 | AI | 在数据的噪音中寻找信号| 深度解构《忘却前夜》等卡牌游戏",
       "bioSrc": "B 站空间 · space.bilibili.com/190977084",
       "weapons": [
         {
@@ -204,7 +204,7 @@
       "talent": "一分不花",
       "talentText": "前九十秒他一分不花，全花在刀口上",
       "kind": "B 站主播",
-      "bio": "一分钱不花，全靠开局那口气。他自己的说法是：免费的才是最贵的，也是最爽的。",
+      "bio": "（忘却前夜神秘玩家）主播的校车群：498236522（最近在做新手攻略）",
       "bioSrc": "B 站空间 · space.bilibili.com/3493105187687321",
       "weapons": [
         {
@@ -240,7 +240,7 @@
       "talent": "花间行走",
       "talentText": "他走路的时候，路自己开成花",
       "kind": "B 站主播",
-      "bio": "他的路线永远绕着一片花走。问他为什么不直线跑，他说花在那里。",
+      "bio": "红色沙漠真好玩",
       "bioSrc": "B 站空间 · space.bilibili.com/515298109",
       "weapons": [
         {
@@ -277,7 +277,7 @@
       "talent": "破晓",
       "talentText": "他说自己是早上的第一颗星，直播却总开到天亮",
       "kind": "B 站主播",
-      "bio": "凌晨三点还在播的人。他的星轨从屏幕这头铺到那头，中间不留空隙。",
+      "bio": "神赐予野性，人得了愚昧",
       "bioSrc": "B 站空间 · space.bilibili.com/14997071",
       "weapons": [
         {
@@ -315,7 +315,7 @@
       "talent": "我什么都没看见",
       "talentText": "挨完全部伤害之后摆摆手：我什么都没看见",
       "kind": "B 站主播 · 安卓佬",
-      "bio": "说是路过，其实每场团战都站在最前面。挡完这一波，他还要接着遛弯。B 站的老观众管他叫「安卓佬」——名字是别人起的，他自己只承认路过。",
+      "bio": "1033650434，安卓科研群",
       "bioSrc": "B 站空间 · space.bilibili.com/1475217387",
       "weapons": [
         {

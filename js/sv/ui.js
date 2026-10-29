@@ -185,9 +185,11 @@ function renderCharInfo() {
   const mechBox = mech && !locked ? `
     <p class="ci-mech"><b>机制 · ${esc(mech.n)}</b>${esc(mech.text)}</p>` : '';
   // 档案：解锁前连人都不给看，解锁后才亮出来 —— 和技能同一套逻辑。
-  // 出处单独标在底部，别让「这是官方设定」和「这是我们编的」混在一起。
-  const bioBox = !locked && c.bio ? `
-    <div class="ci-bio"><b>档案</b><span>${esc(c.bio)}</span>${c.bioSrc ? `<u>出处 · ${esc(c.bioSrc)}</u>` : ''}</div>` : '';
+  // 彩蛋角色的档案一律用主播 B 站公开签名的原文，出处标在底部；
+  // 签名本来就是空的（比如鼠王）就如实留空，不替他想一句。
+  const bioText = c.bio || (c.egg && !locked ? '（这位没写 B 站签名）' : '');
+  const bioBox = !locked && bioText ? `
+    <div class="ci-bio"><b>档案</b><span>${esc(bioText)}</span>${c.bioSrc ? `<u>出处 · ${esc(c.bioSrc)}</u>` : ''}</div>` : '';
   $('charInfo').innerHTML = `
     <div class="ci-top">
       <i class="ci-portrait${c.egg ? ' egg' : ''}${locked || c.img == null ? ' sil' : ''}" style="${faceStyle(locked ? null : c, 72)}">${c.egg && !locked && !c.face ? esc(c.glyph || '') : ''}</i>

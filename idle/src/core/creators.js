@@ -53,7 +53,7 @@ export const CREATORS = [
     },
     creator: {
       uid: '345114332', url: 'https://space.bilibili.com/345114332', color: '#e8dcc8', tag: CREATOR_TAG, emoji: '🐾',
-      bio: '把「雪橇三傻」精神带进忘却前夜的主播：全场最白、最热情、也最容易把校猫的台拆了。社区里都叫他「一哥」。',
+      bio: '再见了，忘却前夜。',
       hook: '雪原守望 · 拆家',
     },
   },
@@ -63,7 +63,7 @@ export const CREATORS = [
     portrait: portraitOf('mengyi'), card: cardOf('mengyi'),
     creator: {
       uid: '1800901917', url: 'https://space.bilibili.com/1800901917', color: '#b9a7e0', tag: CREATOR_TAG, emoji: '🧵',
-      bio: '说话像流苏一样慢，落针却比谁都快；队伍血线在他手里总能被一针一线缝回来。',
+      bio: '融灾主线深潜pvp请+q1839055149 myls的忘却银夜群（个人粉丝向）：884208560 最近因现生问题减少开播时长',
       hook: '织梦 · 千丝缠',
     },
   },
@@ -73,7 +73,7 @@ export const CREATORS = [
     portrait: portraitOf('alice'), card: cardOf('alice'),
     creator: {
       uid: '545164270', url: 'https://space.bilibili.com/545164270', color: '#7fb8e8', tag: CREATOR_TAG, emoji: '🫖',
-      bio: '掉进兔子洞就再没出来过的那位。上一秒在喝下午茶，下一秒已经把对面全员点名。',
+      bio: '主播的粉丝群：1098633910 二群：698722677',
       hook: '兔子洞 · 砍头！',
     },
   },
@@ -83,7 +83,7 @@ export const CREATORS = [
     portrait: portraitOf('ratking'), card: cardOf('ratking'),
     creator: {
       uid: '399273416', url: 'https://space.bilibili.com/399273416', color: '#8d7b6a', tag: CREATOR_TAG, emoji: '🐀',
-      bio: '你以为他在打一只怪，其实他身后还排队跟着一整支鼠群——打不完，根本打不完。',
+      bio: '（这位没写 B 站签名）',
       hook: '鼠群奔涌 · 瘟疫之牙',
     },
   },
@@ -93,7 +93,7 @@ export const CREATORS = [
     portrait: portraitOf('dragond'), card: cardOf('dragond'),
     creator: {
       uid: '190977084', url: 'https://space.bilibili.com/190977084', color: '#d94f3d', tag: CREATOR_TAG, emoji: '🐉',
-      bio: '龙息一开就是全屏，队友只来得及在语音里喊一句「等一下」。输出高，仇恨也高。',
+      bio: 'PKU 本硕 | AI | 在数据的噪音中寻找信号| 深度解构《忘却前夜》等卡牌游戏',
       hook: '龙息 · 灭世咆哮',
     },
   },
@@ -103,7 +103,7 @@ export const CREATORS = [
     portrait: portraitOf('zerok'), card: cardOf('zerok'),
     creator: {
       uid: '3493105187687321', url: 'https://space.bilibili.com/3493105187687321', color: '#c9b458', tag: CREATOR_TAG, emoji: '🪙',
-      bio: '立过誓一分钱不氪，靠攒、靠算、靠把每一张券掰成两半花——然后照样把队伍养起来。',
+      bio: '（忘却前夜神秘玩家）主播的校车群：498236522（最近在做新手攻略）',
       hook: '零氪宣言 · 攒着不花',
     },
   },
@@ -113,7 +113,7 @@ export const CREATORS = [
     portrait: portraitOf('xiamolin'), card: cardOf('xiamolin'),
     creator: {
       uid: '515298109', url: 'https://space.bilibili.com/515298109', color: '#8ec9a4', tag: CREATOR_TAG, emoji: '🌿',
-      bio: '夏天的茉莉、凉风和一杯接一杯的茶。他上场以后，队伍的血条就没再黄过。',
+      bio: '红色沙漠真好玩',
       hook: '一盏茉莉 · 满庭芳',
     },
   },
@@ -123,7 +123,7 @@ export const CREATORS = [
     portrait: portraitOf('chaoxing'), card: cardOf('chaoxing'),
     creator: {
       uid: '14997071', url: 'https://space.bilibili.com/14997071', color: '#8fa8ff', tag: CREATOR_TAG, emoji: '⭐',
-      bio: '他说自己是「早上的第一颗星」，但直播永远从深夜开到天亮。星轨铺到哪儿，伤害就到哪儿。',
+      bio: '神赐予野性，人得了愚昧',
       hook: '星光坠落 · 破晓',
     },
   },
@@ -133,7 +133,7 @@ export const CREATORS = [
     portrait: portraitOf('maodie'), card: cardOf('maodie'),
     creator: {
       uid: '1475217387', url: 'https://space.bilibili.com/1475217387', color: '#a9a29a', tag: CREATOR_TAG, emoji: '🚶',
-      bio: '说是路过，其实每场团战都站在最前面。挨完全部伤害之后摆摆手：我什么都没看见。B 站的老观众管他叫「安卓佬」——名字是别人起的，他自己只承认路过。',
+      bio: '1033650434，安卓科研群',
       hook: '安卓佬 · 让让，路过',
     },
   },
