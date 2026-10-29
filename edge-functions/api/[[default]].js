@@ -20,6 +20,10 @@
 //                              hrv_{game}_{身份hash}        = JSON {stars, text, at}（一人一游戏一条）
 //   home_bugs(id)          →   bug_{编号去横线}            = JSON {game, text, contact, ver, ua, at}
 //   home_bugs 索引         →   bug_idx                     = JSON [编号…]，最新在前，只留 500 条
+//   站点浏览               →   pv                          = JSON {t 总浏览, d 今天, n 今天浏览}
+//   登录过本站的账号       →   usr_{uidhash}               = JSON {uid, name, at, seen}；usr_n 是计数
+//   管理员                 →   admin_uid                   = uid（第一次由显示名「姜酒」认领后钉死）
+//   赠礼（管理员发放）     →   grant_{id} / grant_idx / gm_{uidhash}
 //
 // KV 的两个脾气，改数据模型时必须顺着它：
 //   1. 最终一致（跨节点最长 60 秒才看到别人的写）。所以「赞数」用计数器而不是
@@ -163,6 +167,11 @@ function blobKV(store) {
     async delete(key) {
       await store.delete(String(key));
     },
+    // 前缀列举：管理员要「全部注册用户」，只能靠 list。limit 直接透给 COS 的 max-keys。
+    async list(prefix, limit = 1000) {
+      const r = await store.list({ prefix: prefix || undefined, limit });
+      return ((r && r.blobs) || []).map((b) => String(b.key));
+    },
   };
 }
 
@@ -249,6 +258,29 @@ async function kvNum(kv, key, weak = false) {
 }
 
 // ------------------------------------------------------------------ 身份
+// 「本站用过这个账号」的名册。个人中心左上角要显示注册用户量、管理员页要列出全部用户，
+// 都靠这份 usr_ 前缀的键。写得很省：只有第一次见到这个 uid 才落一条，昵称改了才补写一次。
+// 注意别把它当 Waline 的注册表 —— 它记的是「登录过本站的账号」，没来过的 Waline 用户不在里面。
+async function touchUser(kv, me) {
+  if (!me || !me.uid) return;
+  const key = 'usr_' + (await uhash(me.uid));
+  let raw = null;
+  try { raw = await kv.get(key, { weak: true }); } catch { raw = null; }
+  const name = str(me.name, 40);
+  if (raw) {
+    let old = null;
+    try { old = JSON.parse(raw); } catch { old = null; }
+    if (!old || old.name !== name) {
+      await kv.put(key, JSON.stringify({ uid: String(me.uid), name, at: Number(old && old.at) || Date.now(), seen: Date.now() }));
+    }
+    return;
+  }
+  await kv.put(key, JSON.stringify({ uid: String(me.uid), name, at: Date.now(), seen: Date.now() }));
+  // 计数单独存：列表要扫全表，计数只要一次读
+  const n = await kvNum(kv, 'usr_n');
+  await kv.put('usr_n', String(n + 1));
+}
+
 // 前端把 Waline 登录得到的 token 放在 Authorization 里；这里回源验一次，验过缓存进 sess
 async function whoami(request, env, kv) {
   const raw = String(request.headers.get('Authorization') || '');
@@ -259,7 +291,9 @@ async function whoami(request, env, kv) {
   const th = await thash(token);
   const hit = await kvJson(kv, 'sess_' + th);
   if (hit && Date.now() - Number(hit.at) < SESSION_TTL) {
-    return { uid: String(hit.uid), name: String(hit.name || ''), token };
+    const me = { uid: String(hit.uid), name: String(hit.name || ''), token };
+    await touchUser(kv, me);
+    return me;
   }
 
   const base = String((env && env.WALINE_URL) || 'https://textbox.qingdengbuyi.top').replace(/\/+$/, '');
@@ -279,7 +313,9 @@ async function whoami(request, env, kv) {
 
   const name = str(data.display_name || data.nick || '', 40);
   await kv.put('sess_' + th, JSON.stringify({ uid: String(data.objectId), name, at: Date.now() }));
-  return { uid: String(data.objectId), name, token };
+  const me = { uid: String(data.objectId), name, token };
+  await touchUser(kv, me);
+  return me;
 }
 
 // 点赞身份：登录用户由服务端从 token 推出（前端伪造不了），游客用本机随机 id
@@ -694,6 +730,161 @@ async function postHomeBug(request, env, kv, cors) {
   return reply({ ok: true, id }, 200, cors);
 }
 
+// ------------------------------------------------------------------ 站点统计（注册用户 / 今日浏览 / 总浏览）
+// 存储只有两个键，读一次写一次，别为了「好看」拆成四个：
+//   pv  = { t: 总浏览, d: 'YYYY-MM-DD', n: 当天浏览 }
+//   usr_n = 登录过本站的账号数（touchUser 里维护）
+// 为什么不做 UV / 来源分析：Blob 没有自增也没有查询，量级小的时候多记一个维度就是多一次写入。
+const ADMIN_NAME = '姜酒';       // 首次认领用显示名，认领后钉死 uid（见 isAdmin）
+
+async function getStats(request, env, kv, cors) {
+  const pv = await kvJson(kv, 'pv', true);
+  const day = dayKey();
+  const total = Number(pv && pv.t) || 0;
+  const today = pv && pv.d === day ? (Number(pv.n) || 0) : 0;
+  const users = await kvNum(kv, 'usr_n', true);
+  return reply({ ok: true, users, today, total, day }, 200, cors);
+}
+
+// POST /visit { p } —— 页面自己打点。不做去重：PV 本来就是「看了几次」。
+async function postVisit(request, env, kv, cors) {
+  const day = dayKey();
+  const pv = await kvJson(kv, 'pv');
+  const total = (Number(pv && pv.t) || 0) + 1;
+  const today = (pv && pv.d === day ? (Number(pv.n) || 0) : 0) + 1;
+  await kv.put('pv', JSON.stringify({ t: total, d: day, n: today }));
+  const users = await kvNum(kv, 'usr_n', true);
+  return reply({ ok: true, users, today, total, day }, 200, cors);
+}
+
+// ------------------------------------------------------------------ 管理员
+// 「仅姜酒可见」怎么保证：先看 kv 里钉住的 admin_uid；没有钉的时候，
+// 显示名必须是「姜酒」的那次登录才能认领，认领后 uid 写死，
+// 别人把昵称改成「姜酒」也进不来（昵称可以重名、可以随时改，拿它当钥匙是不安全的）。
+// 也可以在环境变量里配 ZJTT_ADMIN_UIDS（逗号分隔）直接指定，省掉认领这一步。
+function adminPinned(env) {
+  return String((env && env.ZJTT_ADMIN_UIDS) || '')
+    .split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+async function isAdmin(env, kv, me) {
+  if (!me || !me.uid) return false;
+  const fixed = adminPinned(env);
+  if (fixed.length) return fixed.includes(String(me.uid));
+  const pin = await kv.get('admin_uid');
+  if (pin) return String(pin) === String(me.uid);
+  if (String(me.name || '').trim() === ADMIN_NAME) {
+    await kv.put('admin_uid', String(me.uid));
+    return true;
+  }
+  return false;
+}
+
+// 从账号档案里挑出「数据情况」——只取概览用的几个数，别把整份文档甩给列表
+function acctBrief(doc) {
+  const d = doc && typeof doc === 'object' ? doc : null;
+  if (!d) return null;
+  const st = d.st && typeof d.st === 'object' ? d.st : {};
+  return {
+    cr: Number(d.cr) || 0,
+    played: Number(st.played) || 0,
+    won: Number(st.won) || 0,
+    cg: Array.isArray(d.cg) ? d.cg.length : 0,
+    mb: Number(d.mb) || 0,
+    bb: Number(d.bb) || 0,
+    hi: Array.isArray(d.hi) ? d.hi.length : 0,
+    at: Number(d.at) || 0,
+  };
+}
+
+// GET /admin/overview
+async function getAdminOverview(request, env, kv, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) throw new HttpError(401, 'need_login');
+  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin');
+
+  const keys = await kv.list('usr_', 1000);
+  const rows = await mapLimit(keys.slice(0, 300), 6, async (k) => {
+    let u = null;
+    try { u = JSON.parse((await kv.get(k, { weak: true })) || 'null'); } catch { u = null; }
+    if (!u || !u.uid) return null;
+    let acct = null;
+    try { acct = acctBrief((await kvJson(kv, 'acct_' + (await uhash(u.uid)), true) || {}).doc); } catch { acct = null; }
+    return { uid: String(u.uid), name: u.name || '', at: Number(u.at) || 0, seen: Number(u.seen) || 0, acct };
+  });
+
+  const users = rows.filter(Boolean).sort((a, b) => (b.seen || b.at) - (a.seen || a.at));
+  const pv = await kvJson(kv, 'pv', true);
+  const day = dayKey();
+  const bugs = await kvJson(kv, 'bug_idx', true);
+
+  return reply({
+    ok: true,
+    me: { uid: me.uid, name: me.name },
+    stats: {
+      users: Number(await kvNum(kv, 'usr_n', true)) || users.length,
+      today: pv && pv.d === day ? (Number(pv.n) || 0) : 0,
+      total: Number(pv && pv.t) || 0,
+      bugs: Array.isArray(bugs) ? bugs.length : 0,
+      synced: users.filter((u) => u.acct).length,
+    },
+    users,
+  }, 200, cors);
+}
+
+// POST /admin/grant { uid, amount, note }
+// 走「赠礼」而不是直接改别人的档案：账号档案有版本号乐观锁，管理员硬写会和
+// 用户那次同步撞车。赠礼是追加式记录，用户下次同步时幂等领取（js/account.js 的 claimGrants）。
+async function postAdminGrant(request, env, kv, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) throw new HttpError(401, 'need_login');
+  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin');
+
+  const b = await readJson(request, 4 * 1024);
+  const uid = str(b.uid, 64).trim();
+  const amount = Math.round(Number(b.amount) || 0);
+  const note = str(b.note, 120).trim();
+  if (!uid) throw new HttpError(400, 'bad_uid');
+  if (!(amount > 0 && amount <= 100000)) throw new HttpError(400, 'bad_amount');
+
+  const gid = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const rec = { id: gid, amount, note, at: Date.now(), by: me.name || me.uid };
+
+  await kv.put('grant_' + gid, JSON.stringify(rec));
+  const idx = await kvJson(kv, 'grant_idx') || [];
+  idx.unshift(gid);
+  await kv.put('grant_idx', JSON.stringify(idx.slice(0, 500)));
+
+  // 按人存一份：领取时只要读一个键，不用扫全表
+  const mineKey = 'gm_' + (await uhash(uid));
+  const mine = await kvJson(kv, mineKey) || [];
+  mine.unshift(rec);
+  await kv.put(mineKey, JSON.stringify(mine.slice(0, 100)));
+
+  return reply({ ok: true, id: gid, amount, uid, note }, 200, cors);
+}
+
+// GET /grants/mine —— 登录用户拉自己还没领的赠礼（前端按已领 id 过滤，天然幂等）
+async function getMyGrants(request, env, kv, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) return reply({ ok: true, items: [] }, 200, cors);
+  const list = await kvJson(kv, 'gm_' + (await uhash(me.uid))) || [];
+  return reply({
+    ok: true,
+    items: (Array.isArray(list) ? list : []).map((g) => ({
+      id: String(g.id || ''), amount: Number(g.amount) || 0, note: String(g.note || ''), at: Number(g.at) || 0,
+    })).filter((g) => g.id && g.amount > 0),
+  }, 200, cors);
+}
+
+// GET /whoami —— 前端用来判断「我是不是管理员」（只回名字与 flag，不回 uid）
+async function getWhoami(request, env, kv, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) return reply({ ok: true, logged: false, admin: false }, 200, cors);
+  const admin = await isAdmin(env, kv, me);
+  return reply({ ok: true, logged: true, name: me.name, uid: me.uid, admin }, 200, cors);
+}
+
 // ------------------------------------------------------------------ 路由
 export async function onRequest(context) {
   const { request, env } = context;
@@ -739,6 +930,14 @@ export async function onRequest(context) {
     if (path === '/home/ratings' && method === 'GET') return await getHomeRatings(request, env, kv, url, cors);
     if (path === '/home/rate' && method === 'POST') return await postHomeRate(request, env, kv, cors);
     if (path === '/home/bug' && method === 'POST') return await postHomeBug(request, env, kv, cors);
+
+    // 站点统计 / 赠礼 / 管理员
+    if (path === '/stats' && method === 'GET') return await getStats(request, env, kv, cors);
+    if (path === '/visit' && method === 'POST') return await postVisit(request, env, kv, cors);
+    if (path === '/whoami' && method === 'GET') return await getWhoami(request, env, kv, cors);
+    if (path === '/grants/mine' && method === 'GET') return await getMyGrants(request, env, kv, cors);
+    if (path === '/admin/overview' && method === 'GET') return await getAdminOverview(request, env, kv, cors);
+    if (path === '/admin/grant' && method === 'POST') return await postAdminGrant(request, env, kv, cors);
 
     if (path === '/account' && method === 'GET') return await getAccount(request, env, kv, cors);
     if (path === '/account' && method === 'PUT') return await putAccount(request, env, kv, cors);

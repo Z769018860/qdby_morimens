@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>管理后台 · 忘忘同人小游戏</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#f6f7fb">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
+<style>
+:root{
+  --bg:#f6f7fb; --card:#fff; --panel2:#f3f4f6; --line:#e5e7eb;
+  --text:#1f2937; --dim:#6b7280; --accent:#111827; --accent2:#334155;
+  --gold:#c2410c; --green:#137a3c; --red:#b42318; --blue:#1f5fa8;
+  --shadow:0 10px 25px rgba(17,24,39,.08);
+  --shadow2:0 2px 8px rgba(17,24,39,.06);
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--text); min-height:100vh;
+  font:14px/1.6 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background-image:
+    radial-gradient(760px 420px at 8% -8%, rgba(99,102,241,.055), transparent 62%),
+    radial-gradient(680px 420px at 96% 2%, rgba(14,165,233,.05), transparent 60%);
+  background-attachment:fixed;
+  -webkit-text-size-adjust:100%;
+}
+a{color:inherit;text-decoration:none}
+h1,h2,h3{margin:0;line-height:1.3}
+.dim{color:var(--dim)}
+
+.pfh{position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:9px clamp(12px,3vw,28px); background:rgba(246,247,251,.86);
+  backdrop-filter:blur(12px) saturate(1.2); border-bottom:1px solid var(--line)}
+.pfh .brand{display:flex; flex-direction:column; line-height:1.15}
+.pfh .brand b{font-size:15px}
+.pfh .brand small{font-size:9.5px; letter-spacing:.22em; color:#9aa3af}
+.tag{font-size:11px; padding:2px 9px; border-radius:999px; background:#fef3c7; color:#92400e; border:1px solid #fde68a}
+.pfh-right{margin-left:auto; display:flex; align-items:center; gap:8px}
+.ghostlink{font-size:12.5px; color:var(--dim); padding:6px 8px; border-radius:8px}
+.ghostlink:hover{background:#fff; color:var(--text)}
+
+.wrap{max-width:1180px; margin:0 auto; padding:clamp(14px,2.4vw,26px) clamp(12px,3vw,28px) 56px}
+.card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px 17px; box-shadow:var(--shadow2); margin-bottom:14px}
+.card h2{font-size:15px}
+.card .sub{font-size:12.5px; color:var(--dim); margin:3px 0 12px}
+.pagehead{margin:4px 0 16px}
+.pagehead h1{font-size:clamp(21px,3.2vw,28px)}
+.pagehead p{margin:6px 0 0; color:var(--dim); font-size:13px}
+
+.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:10px}
+.kpi{background:var(--panel2); border:1px solid var(--line); border-radius:13px; padding:11px 13px; display:flex; flex-direction:column; gap:1px}
+.kpi small{font-size:11px; color:var(--dim)}
+.kpi b{font-size:21px; font-variant-numeric:tabular-nums; line-height:1.25}
+.kpi span{font-size:11px; color:var(--dim)}
+
+.toolbar{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px}
+input[type=text],input[type=number]{font:inherit; font-size:13px; padding:7px 11px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--text); outline:none}
+input:focus{border-color:#9aa3af; box-shadow:0 0 0 3px rgba(17,24,39,.06)}
+.btn{display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 15px; border-radius:10px;
+  border:1px solid transparent; cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:#fff;
+  background:linear-gradient(90deg,var(--accent),var(--accent2)); box-shadow:0 6px 16px -8px rgba(17,24,39,.5)}
+.btn:hover{filter:brightness(1.12)}
+.btn:disabled{opacity:.55; cursor:default; filter:none}
+.btn.ghost{background:#fff; color:var(--text); border-color:var(--line); box-shadow:none}
+.btn.ghost:hover{border-color:#c7cbd3; filter:none}
+.btn.sm{padding:5px 11px; font-size:12px; border-radius:8px}
+.btn.gold{background:linear-gradient(90deg,#b45309,#d97706)}
+
+.tblwrap{overflow:auto; border:1px solid var(--line); border-radius:13px}
+table{width:100%; border-collapse:collapse; font-size:12.5px; min-width:820px}
+th,td{padding:9px 11px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap}
+th{background:#fafbfc; font-weight:600; font-size:11.5px; color:var(--dim); position:sticky; top:0}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:#fafbfc}
+td.num{font-variant-numeric:tabular-nums; text-align:right}
+.namecell{display:flex; align-items:center; gap:7px; min-width:0}
+.namecell b{font-weight:700}
+.badge{font-size:10.5px; padding:1px 7px; border-radius:999px; border:1px solid var(--line); color:var(--dim); background:#fff}
+.badge.ok{color:var(--green); border-color:#bfe0cb; background:#f2fbf5}
+.badge.no{color:var(--dim)}
+.empty{margin:6px 0 0; padding:26px 12px; text-align:center; color:var(--dim); font-size:12.5px; border:1px dashed var(--line); border-radius:12px; background:#fafbfc}
+
+/* 发放面板 */
+.sheet{position:fixed; inset:0; z-index:80; display:none; place-items:center; padding:16px; background:rgba(17,24,39,.36); backdrop-filter:blur(3px)}
+.sheet.on{display:grid}
+.sheet .box{width:min(420px,100%); background:#fff; border-radius:16px; padding:18px; box-shadow:0 24px 60px -20px rgba(17,24,39,.5)}
+.sheet h3{font-size:16px; margin-bottom:4px}
+.sheet .who{font-size:12.5px; color:var(--dim); margin:0 0 12px}
+.sheet .row{display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap}
+.sheet .row input[type=number]{width:110px}
+.sheet .row input[type=text]{flex:1 1 180px}
+.sheet .quick{display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap}
+.sheet .quick button{font:inherit; font-size:11.5px; padding:3px 10px; border-radius:999px; border:1px solid var(--line); background:#fff; color:var(--dim); cursor:pointer}
+.sheet .quick button:hover{border-color:#c7cbd3; color:var(--text)}
+.sheet .acts{display:flex; gap:8px; justify-content:flex-end; margin-top:6px}
+
+.toast{position:fixed; left:50%; bottom:8%; transform:translateX(-50%); z-index:90; padding:9px 16px; border-radius:999px; background:#111827; color:#fff; font-size:13px; box-shadow:var(--shadow)}
+#boot{display:grid; place-items:center; gap:10px; padding:80px 0; color:var(--dim)}
+#boot .ring{width:26px; height:26px; border-radius:50%; border:2.5px solid var(--line); border-top-color:var(--accent); animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.gate{padding:44px 16px; text-align:center}
+.gate h1{font-size:22px; margin-bottom:8px}
+.gate p{margin:0 0 16px; color:var(--dim); font-size:13px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+<meta name="build" content="1403c4ee05">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/app/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="忘忘小游戏">
+</head>
+<body>
+<header class="pfh">
+  <a class="brand" href="index.html"><b>忘忘同人小游戏</b><small>ADMIN</small></a>
+  <span class="tag">管理后台</span>
+  <div class="pfh-right" id="pfhRight"><a class="ghostlink" href="profile.html">个人中心</a><a class="ghostlink" href="index.html">回首页</a></div>
+</header>
+<main id="app" class="wrap">
+  <div id="boot" role="status" aria-live="polite"><div class="ring"></div><p id="bootText">正在核对身份…</p><p id="bootHint"></p></div>
+</main>
+<div class="sheet" id="sheet"><div class="box" id="sheetBox"></div></div>
+<script>
+/* 首屏守护 + 启动数据预取（构建时注入，各页共用一份）
+   1) 占位是纯 HTML，HTML 一到就能画，不等任何 JS；
+   2) 模块或数据卡住时给出可点的界面，绝不留只有页脚的白屏；
+   3) 启动数据拆两路并行：data/boot.json（索引/标签/关键词，约 110KB）与
+      data/dict.json（图鉴字典，约 520KB，只有要用字典的页面才下）。
+      拿到 boot.json 就能开拉题库分片，字典在后台并行走——原来挤成一个 918KB 的文件，
+      分片必须等它下完才能开始，手机上白白多一个「1~2 秒」的轮次。 */
+(function () {
+  // ---------------------------------------------------------------- 兼容垫片
+  // 手机上的内置浏览器（微信 / QQ / 各家浏览器）内核普遍比 Chrome 慢两三年，
+  // 少一个 API 就是整页报错、什么都不显示。这里补两个最常用的。
+  if (window.Element && !Element.prototype.replaceChildren) {
+    Element.prototype.replaceChildren = function () {
+      while (this.firstChild) this.removeChild(this.firstChild);
+      for (var i = 0; i < arguments.length; i++) {
+        var n = arguments[i];
+        if (n == null) continue;
+        this.appendChild(typeof n === 'string' ? document.createTextNode(n) : n);
+      }
+    };
+  }
+  if (!String.prototype.replaceAll) {
+    String.prototype.replaceAll = function (find, rep) { return this.split(find).join(rep); };
+  }
+  // <dialog> 在 iOS 15.4 之前根本没有：没有 showModal 时退回「加 open 属性」，
+  // 版式由 css/style.css 的 dialog.picker[open] 兜住，至少还能选、不会整页崩掉。
+  (function () {
+    var proto = window.HTMLDialogElement && HTMLDialogElement.prototype;
+    if (!proto || proto.showModal) return;
+    proto.showModal = function () { this.setAttribute('open', ''); };
+    proto.close = function () { this.removeAttribute('open'); };
+  })();
+
+  var bootEl = document.getElementById('boot');
+  var textEl = document.getElementById('bootText');
+  var hintEl = document.getElementById('bootHint');
+  var t0 = Date.now();
+  var settled = false;
+
+  function setHint(s) { if (hintEl) hintEl.textContent = s; }
+
+  function retryBtn(label) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
+    return btn;
+  }
+
+  // 慢一点就说句话，别让人以为死了
+  var hintTimer = setTimeout(function () {
+    if (!document.getElementById('boot')) return;
+    setHint('网络较慢，正在继续载入（站点在新加坡节点，首次访问会慢一些）…');
+  }, 7000);
+
+  // 看门狗：20 秒还没渲染出内容，给一个明确的按钮。
+  // 这时候如果主脚本压根没跑起来（语法太旧 / 被插件或代理拦了），提示要说清楚，
+  // 否则用户只会反复点「重新载入」。
+  var dog = setInterval(function () {
+    if (!document.getElementById('boot')) { clearInterval(dog); clearTimeout(hintTimer); settled = true; return; }
+    if (Date.now() - t0 < 20000) return;
+    clearInterval(dog);
+    if (settled) return;
+    settled = true;
+    bootEl.className = 'err';
+    if (!window.__bootMain) {
+      textEl.textContent = '脚本没能启动';
+      setHint('浏览器可能太旧了：请用 Chrome / Edge 90 以上、或 iOS 15 以上的 Safari 打开；'
+        + '360、QQ 浏览器请在地址栏切到「极速」模式。');
+    } else {
+      textEl.textContent = '载入超时';
+      setHint('可能是到服务器的连接卡住了，点下面的按钮重试（会重新拉一次）。');
+    }
+    bootEl.appendChild(retryBtn('重新载入'));
+  }, 1000);
+
+  // 内核探测：以前靠「顶层 await 能不能解析」判断内核新旧。现在打包产物里已经没有
+  // 顶层 await（Chrome 61+ / Safari 11+ 都能跑），这条路不需要了——真的跑不起来时，
+  // 脚本的 onerror 和下面的看门狗会接手。
+
+  function fail(msg) {
+    if (settled || !document.getElementById('boot')) return;
+    settled = true;
+    clearInterval(dog);
+    bootEl.className = 'err';
+    textEl.textContent = '载入失败';
+    setHint(msg || '');
+    bootEl.appendChild(retryBtn('重试'));
+  }
+  window.__bootFailed = fail;
+
+  window.addEventListener('error', function (e) {
+    var t = e && e.target;
+    if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+      fail('脚本加载失败：' + (t.src || t.href || ''));
+    } else if (e && e.message && /import|module|MIME|Failed to fetch/i.test(e.message)) {
+      fail(e.message);
+    }
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e && e.reason;
+    fail(r && (r.message || String(r)));
+  });
+
+  // 带超时与一次重试的 JSON 拉取：实测边缘偶尔会挂起连接不返回
+  function get(url, retried) {
+    var ctl = new AbortController();
+    var timer = setTimeout(function () { ctl.abort(); }, 10000);
+    return fetch(url, { signal: ctl.signal }).then(function (r) {
+      clearTimeout(timer);
+      if (!r.ok) throw new Error(url + ' ' + r.status);
+      return r.json();
+    }).catch(function (err) {
+      clearTimeout(timer);
+      if (retried) throw err;
+      return get(url + (url.indexOf('?') < 0 ? '?' : '&') + 'rt=' + Date.now(), true);
+    });
+  }
+
+  //  /  由构建替换：要用启动数据的页面是真地址，其余是空串（一个字节都不下）
+  var dataUrl = '';
+  var data = dataUrl ? get(dataUrl) : null;
+  if (data) data.catch(function () {});
+  var dictUrl = '';
+  var dict = dictUrl ? get(dictUrl) : null;
+  if (dict) dict.catch(function () {});
+  window.__boot = { data: data, dict: dict };
+})();
+</script>
+<script nomodule>/* 老到不支持 ES module（多半是 360/QQ 浏览器的「兼容模式」= IE 内核） */
+(function () {
+  var el = document.getElementById('boot'); if (el) el.className = 'err';
+  var t = document.getElementById('bootText'); if (t) t.textContent = '浏览器内核太旧';
+  var h = document.getElementById('bootHint');
+  if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
+})();
+</script>
+<script type="module" src="js/b/admin.js?v=1403c4ee05"></script>
+<script>
+/* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
+   Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
+   而边缘一个来回就要 1~2 秒；SW 缓存能把这部分彻底省掉。 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>

@@ -116,6 +116,26 @@ canvas#cv{
 .diff .rand.out{color:var(--dim); border-color:var(--line); background:var(--panel); opacity:.5}
 .diff .rand.out i{background:var(--panel2)}
 
+/* 换皮：和「随机」同形不同色（随机是救命绳，金色；换皮是装饰，紫色），
+   换过之后描边亮起来，一眼知道当前不是原图 */
+.diff .skin{
+  color:#a99cff; border-color:color-mix(in srgb, #a99cff 40%, var(--line));
+  background:color-mix(in srgb, #a99cff 8%, var(--panel));
+}
+.diff .skin.on{
+  color:#cdc4ff; border-color:color-mix(in srgb, #a99cff 70%, var(--line));
+  background:color-mix(in srgb, #a99cff 18%, var(--panel));
+  box-shadow:0 0 0 1px color-mix(in srgb, #a99cff 24%, transparent);
+}
+.diff .skin svg{width:14px; height:14px; display:block; flex:none}
+
+/* 银芯图标：字内排版，跟着字号走，不撑高行框 */
+img.sc{
+  width:16px; height:16px; display:inline-block; vertical-align:-3px;
+  margin:0 3px 0 1px; border-radius:4px;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.45));
+}
+
 /* ---------------------------------------------------------------- 结算 */
 .ov{
   position:absolute; inset:0; display:grid; place-items:center; padding:16px;
@@ -219,6 +239,11 @@ body.danger canvas#cv{
     <div class="num"><b id="sc">0</b><span>分数</span></div>
     <div class="num dim"><b id="bs">0</b><span>最高</span></div>
     <div class="next"><img id="nx" alt="下一颗"><span>下一颗</span></div>
+    <button class="ico" id="bgm" aria-pressed="true" title="背景音乐开关（M）">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 18V6.5l9-2v10.2"/><circle cx="6.6" cy="18" r="2.4"/><circle cx="15.6" cy="16.9" r="2.4"/>
+      </svg>
+    </button>
     <button class="ico" id="snd" aria-pressed="true" title="音效开关">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 9.5h3.2L12 5.5v13L7.2 14.5H4z"/><path d="M16 9.2a4 4 0 0 1 0 5.6"/>
@@ -244,6 +269,12 @@ body.danger canvas#cv{
         <circle cx="15.4" cy="15.4" r="1.15" fill="currentColor" stroke="none"/>
       </svg>
       <span>随机</span><i id="randn">5</i>
+    </button>
+    <button class="rand skin" id="skin" title="随机换掉 0~8 级的头像（Y），杜勒赛因固定" aria-label="随机换头像">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 7.5h6l7 9h3"/><path d="M4 16.5h6l2.4-3.1"/><path d="M17.6 4.6 20 7l-2.4 2.4"/><path d="M20 16.5h-2.4"/>
+      </svg>
+      <span>换皮</span>
     </button>
   </div>
 

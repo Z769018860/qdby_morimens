@@ -94,14 +94,6 @@ export function bandRect() {
   const h = bottom.top - y - 6;
   // 左侧面板的高度上限靠这个变量算（羁绊多了之后它会超出屏幕）
   document.documentElement.style.setProperty('--botH', Math.round(window.innerHeight - bottom.top) + 'px');
-  // 溢出、且还没滚到底时，在面板底部盖一层渐隐：不这么提示的话，
-  // 最后一个「流派」组被裁掉半截，看着像布局坏了而不是「下面还有」。
-  const side = $('side');
-  if (side) {
-    const more = side.scrollHeight > side.clientHeight + 2
-      && side.scrollTop + side.clientHeight < side.scrollHeight - 2;
-    if (side.classList.contains('more') !== more) side.classList.toggle('more', more);
-  }
   return { x: pad, y, w: window.innerWidth - pad, h: Math.max(200, h) };
 }
 
@@ -410,13 +402,12 @@ function renderTraits() {
       : `<span class="traithint">把唤醒体摆上场，界域 / 职阶 / 组织 / 流派羁绊会亮起来</span>`;
   }
   if (side) {
-    // 左侧面板位置宽裕，四组全列（没人的组不占位置）。
-    // 组标题只放标签：右边再挂一个「已亮 / 出现」的分数会和 chip 自己的 n/需求
-    // 撞在一起（「组织 0/1」旁边写着「愚者 1/2」），反而让人以为数字对不上。
+    // 左侧面板位置宽裕，四组全列（没人的组不占位置）
     side.innerHTML = TRAIT_KINDS.map(([kind, label]) => {
       const items = list.filter((t) => t.def.kind === kind);
       if (!items.length) return '';
-      return `<div class="tgrp"><h5>${label}</h5>
+      const lit = items.filter((t) => t.active >= 0).length;
+      return `<div class="tgrp"><h5>${label}<em>${lit}/${items.length}</em></h5>
         <div class="tlist">${items.map(traitChip).join('')}</div></div>`;
     }).join('');
   }
@@ -731,6 +722,22 @@ export function showEnd() {
       document.dispatchEvent(new CustomEvent('zjtt:credits', { detail: { add: credit } }));
     } catch { /* 隐私模式写不进去就算了 */ }
   }
+  // 个人中心要显示「打到第几波」：忘却协议原来什么都不存，这里补一条只增不减的纪录。
+  // wave 用「守住/清过的波数」，首次通关另外记 win 次数。
+  try {
+    const raw = JSON.parse(localStorage.getItem('zjtt:pf:best') || 'null') || {};
+    const prev = {
+      wave: Number(raw.wave) || 0, score: Number(raw.score) || 0,
+      wins: Number(raw.wins) || 0, runs: Number(raw.runs) || 0,
+    };
+    const next = {
+      wave: Math.max(prev.wave, sm.win ? sm.total : sm.cleared),
+      score: Math.max(prev.score, sm.score || 0),
+      wins: prev.wins + (sm.win ? 1 : 0),
+      runs: prev.runs + 1,
+    };
+    localStorage.setItem('zjtt:pf:best', JSON.stringify(next));
+  } catch { /* 忽略 */ }
   $('ovEnd').hidden = false;
 }
 

@@ -16,7 +16,7 @@
 //
 // 账号同步（最高分）走的是空闲时的动态 import（js/merge-sync.js），不在首屏里，
 // 见下面「账号同步」一节。
-import { LEVELS } from './merge-art.js';
+import { LEVELS, SC_ART } from './merge-art.js';
 
 const MAX = LEVELS.length - 1;
 const TAU = Math.PI * 2;
@@ -89,12 +89,37 @@ const G = {
 // 拿去跟癫狂档比没有意义，那是两个游戏。
 const bestOf = { easy: 0, normal: 0, hard: 0, frenzy: 0 };
 const diffOf = () => DIFF_OF[G.diff] || DIFF_OF.normal;
-const IMG = LEVELS.map((l) => {
-  const im = new Image();
-  im.decoding = 'async';
-  im.src = l.art;
+
+// ------------------------------------------------------------------ 头像 / 换皮
+// 每一级「当前用的是哪张脸」记在 SKIN 里：0 = 合成链原图，1..n = 换皮候选的第几张。
+// 换皮池本身在 js/merge-skins.js（几十张 data URI，四百来 KB），首屏不加载：
+// 只有玩家点了「换皮」、或者上次换过要还原时才动态 import。
+const SKIN = new Array(LEVELS.length).fill(0);
+let SKINS = null;                    // 换皮池，按等级分组
+const IMGC = new Map();              // lv|skin → Image，避免来回换皮时反复新建
+const skinOf = (lv) => (SKIN[lv] > 0 && SKINS && SKINS[lv] && SKINS[lv][SKIN[lv] - 1]) || null;
+const artOf = (lv) => {
+  const s = skinOf(lv);
+  return s ? s.art : LEVELS[lv].art;
+};
+// 换过皮之后，提示里要能看出「这一级本来是谁」——名字仍然按合成链走，
+// 换的只是脸，不然「两个克莱门汀合成塔微」会让人看不懂自己在合什么。
+const labelOf = (lv) => {
+  const s = skinOf(lv);
+  return s ? `${LEVELS[lv].n}（${s.n}）` : LEVELS[lv].n;
+};
+
+function imgOf(lv) {
+  const k = lv + '|' + SKIN[lv];
+  let im = IMGC.get(k);
+  if (!im) {
+    im = new Image();
+    im.decoding = 'async';
+    im.src = artOf(lv);
+    IMGC.set(k, im);
+  }
   return im;
-});
+}
 
 // ------------------------------------------------------------------ 工具
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -150,26 +175,153 @@ function hexA(hex, a) {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
-// ------------------------------------------------------------------ 音效
-// 只用振荡器，不加载任何音频文件。浏览器不给放就安静地玩。
+// ------------------------------------------------------------------ 音频
+// 音效与 BGM 全部现场合成，不加载任何音频文件（边缘每个请求 1~2 秒，音频更贵）。
+// 一条 fx 总线、一条 music 总线，都挂在同一个 AudioContext 上：
+// 两个开关（顶栏的喇叭 = 音效，音效旁边那颗音符 = BGM）互不影响。
 let AC = null;
+let FX = null;
+let MUS = null;
+let NOISE = null;
+
+function unlockAudio() {
+  if (AC) {
+    if (AC.state === 'suspended') AC.resume().catch(() => {});
+    return AC;
+  }
+  try {
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) return null;
+    AC = new Ctor();
+    FX = AC.createGain();
+    FX.gain.value = 0.9;
+    FX.connect(AC.destination);
+    MUS = AC.createGain();
+    MUS.gain.value = 0.5;
+    MUS.connect(AC.destination);
+  } catch {
+    AC = null;
+  }
+  return AC;
+}
+
 function beep(freq, dur, type, vol) {
   if (!G.sound) return;
   try {
-    const Ctor = window.AudioContext || window.webkitAudioContext;
-    if (!Ctor) return;
-    AC = AC || new Ctor();
-    if (AC.state === 'suspended') AC.resume();
+    if (!unlockAudio()) return;
     const o = AC.createOscillator();
     const g = AC.createGain();
     o.type = type || 'sine';
     o.frequency.setValueAtTime(freq, AC.currentTime);
     g.gain.setValueAtTime(vol || 0.05, AC.currentTime);
     g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + dur);
-    o.connect(g).connect(AC.destination);
+    o.connect(g).connect(FX);
     o.start();
     o.stop(AC.currentTime + dur + 0.03);
   } catch { /* 静音 */ }
+}
+
+// 白噪声（落地 / 合成 / 消球都用它补「质感」，纯正弦听着像玩具）
+function noiseSrc() {
+  if (NOISE || !AC) return NOISE;
+  const n = Math.round(AC.sampleRate * 0.35);
+  NOISE = AC.createBuffer(1, n, AC.sampleRate);
+  const d = NOISE.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n) ** 2;
+  return NOISE;
+}
+
+// 一记闷响：低通滤过的噪声 + 一个很低的三角波，用在地面和合成上
+function thump(vol, cut, at) {
+  if (!G.sound) return;
+  try {
+    if (!unlockAudio()) return;
+    const t = AC.currentTime + (at || 0);
+    const src = AC.createBufferSource();
+    src.buffer = noiseSrc();
+    const lp = AC.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(cut || 800, t);
+    lp.frequency.exponentialRampToValueAtTime(180, t + 0.16);
+    const g = AC.createGain();
+    g.gain.setValueAtTime(vol || 0.07, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    src.connect(lp).connect(g).connect(FX);
+    src.start(t);
+    src.stop(t + 0.22);
+  } catch { /* 静音 */ }
+}
+
+// ---- BGM：4 小节循环，低音 + 和弦垫 + 八分音符琶音。
+// 92 bpm、每小节 8 个八分音符；和弦走 Am - F - C - G 的转位（以 A2 为 0）。
+// 排程用 AudioContext 的时钟而不是 setTimeout 的「到点再响」，
+// 否则手机上每隔几秒就会听出一处卡顿。
+const MUSIC = { on: true, timer: 0, step: 0, next: 0, bpm: 92 };
+const CHORDS = [[0, 3, 7, 10], [5, 8, 12, 15], [3, 7, 10, 14], [4, 7, 11, 14]];
+const ARP = [0, 2, 1, 3, 2, 1, 3, 2];
+const semi = (n) => 110 * Math.pow(2, n / 12);   // 110Hz = A2
+
+function mnote(freq, at, dur, type, vol) {
+  try {
+    const o = AC.createOscillator();
+    const g = AC.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, at);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(vol, at + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(g).connect(MUS);
+    o.start(at);
+    o.stop(at + dur + 0.05);
+  } catch { /* 静音 */ }
+}
+
+function scheduleMusic() {
+  if (!MUSIC.on || !AC || !MUS || AC.state !== 'running') return;
+  const spb = 60 / MUSIC.bpm / 2;        // 一个八分音符多长
+  const now = AC.currentTime;
+  if (MUSIC.next < now) MUSIC.next = now + 0.06;
+  let guard = 0;
+  while (MUSIC.next < now + 0.32 && guard++ < 24) {
+    const i = MUSIC.step % 32;
+    const bar = (i / 8) | 0;
+    const beat = i % 8;
+    const ch = CHORDS[bar];
+    const at = MUSIC.next;
+    // 低音：每小节第一拍砸一下
+    if (beat === 0) mnote(semi(ch[0] - 12), at, 1.5, 'triangle', 0.09);
+    // 和弦垫：每两拍换一次，音量很小，只负责把空气填满
+    if (beat % 4 === 0) for (const n of ch) mnote(semi(n), at, 1.35, 'sine', 0.024);
+    // 琶音：一颗一颗往上走，高八度
+    mnote(semi(ch[ARP[beat]] + 12), at, 0.34, 'sine', 0.032);
+    MUSIC.step++;
+    MUSIC.next += spb;
+  }
+}
+
+function startMusic() {
+  if (!MUSIC.on || MUSIC.timer) return;
+  if (!unlockAudio() || !AC) return;
+  if (AC.state !== 'running') return;    // 还没解锁：等下一次手势
+  MUSIC.next = AC.currentTime + 0.1;
+  MUSIC.timer = setInterval(scheduleMusic, 110);
+  scheduleMusic();
+}
+
+function stopMusic() {
+  if (MUSIC.timer) { clearInterval(MUSIC.timer); MUSIC.timer = 0; }
+}
+
+function setMusic(on) {
+  MUSIC.on = Boolean(on);
+  try { localStorage.setItem('zjtt:merge:bgm', MUSIC.on ? '1' : '0'); } catch { /* 无痕模式 */ }
+  const b = document.getElementById('bgm');
+  if (b) {
+    b.setAttribute('aria-pressed', MUSIC.on ? 'true' : 'false');
+    b.classList.toggle('off', !MUSIC.on);
+  }
+  if (!MUSIC.on) stopMusic();
+  else startMusic();
 }
 
 // ------------------------------------------------------------------ 尺寸 / 背景
@@ -279,7 +431,8 @@ function buildBg() {
 
 // ------------------------------------------------------------------ 头像贴图（预渲染）
 function tileFor(lv) {
-  const key = lv + '|' + Math.round(G.W);
+  // 换皮之后同一级要对应对应那张脸：key 里带上当前皮肤序号，旧贴图自然被弃用
+  const key = lv + '|' + Math.round(G.W) + '|' + SKIN[lv];
   let t = G.tiles.get(key);
   if (t) return t;
 
@@ -310,7 +463,7 @@ function tileFor(lv) {
   g.beginPath(); g.arc(cx, cx, R * 0.995, 0, TAU); g.clip();
   g.imageSmoothingEnabled = true;
   g.imageSmoothingQuality = 'high';
-  g.drawImage(IMG[lv], cx - R, cx - R, R * 2, R * 2);
+  g.drawImage(imgOf(lv), cx - R, cx - R, R * 2, R * 2);
   g.restore();
 
   g.lineWidth = Math.max(1.2, R * 0.05);
@@ -540,8 +693,11 @@ function separate(passes, tol) {
     let moved = 0;
     for (let i = 0; i < balls.length; i++) {
       const a = balls[i];
+      // 已经配成对、这一帧就要合掉的球不用再分离：推开它们反而会把合成位置顶偏
+      if (a.mg) continue;
       for (let j = i + 1; j < balls.length; j++) {
         const b = balls[j];
+        if (b.mg) continue;
         const rr = a.r + b.r - tol;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
@@ -573,6 +729,28 @@ function separate(passes, tol) {
     }
     if (!moved) break;
   }
+}
+
+// 当前最深的一处「球插进球」有多少像素。合成后、被墙挤住时偶尔会冒出来几像素，
+// 光看截图看不出来；这里给它一个可量化的口子，回归脚本可以断言它不会失控。
+function maxOverlap() {
+  const balls = G.balls;
+  let worst = 0;
+  for (let i = 0; i < balls.length; i++) {
+    const a = balls[i];
+    for (let j = i + 1; j < balls.length; j++) {
+      const b = balls[j];
+      const rr = a.r + b.r;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      if (dy > rr) continue;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= rr * rr) continue;
+      const ov = rr - Math.sqrt(d2);
+      if (ov > worst) worst = ov;
+    }
+  }
+  return worst;
 }
 
 function merge(a, b) {
@@ -609,6 +787,11 @@ function merge(a, b) {
   burst(x, y, LEVELS[nlv].tint, 10 + nlv, 1);
   fly(x, y, '+' + LEVELS[nlv].pts, LEVELS[nlv].tint);
   beep(300 * Math.pow(1.085, nlv), 0.12, 'sine', 0.055);
+  // 大球合出来时补一记闷响和一点高频闪光，手感上区分「小合成」和「大合成」
+  if (nlv >= 5) {
+    thump(0.05 + 0.012 * nlv, 700);
+    beep(300 * Math.pow(1.085, nlv) * 2, 0.1, 'triangle', 0.022);
+  }
   if (nlv === MAX) toast('杜勒赛因降临');
 }
 
@@ -666,6 +849,7 @@ function drop() {
   G.drops++;
   G.cooldown = 0.36;
   beep(190, 0.05, 'triangle', 0.04);
+  thump(0.05, 1100);
   paintNext();
   paintChain();
 }
@@ -697,8 +881,8 @@ function gameOver() {
   document.getElementById('ovk').textContent = d.n + '难度 · 瓶子满了';
   document.getElementById('ovs').textContent = G.score;
   document.getElementById('ovd').textContent = summary();
-  document.getElementById('ovb').textContent =
-    `${d.n}最佳 ${G.best} 分 · 钱包 ${walletGet()} 银芯`;
+  document.getElementById('ovb').innerHTML =
+    `${d.n}最佳 ${G.best} 分 · 钱包 ${scTag(walletGet())}`;
 
   // 银芯那一行：拿到了就报数，没拿到就说差多少 —— 空手而归也得知道差几步
   const cr = document.getElementById('ovc');
@@ -708,8 +892,8 @@ function gameOver() {
     const mul = d.mul === 1 ? '' : ` ×${d.mul}`;
     cr.className = 'cred' + (G.gain > 0 ? ' on' : '');
     cr.innerHTML = G.gain > 0
-      ? `<b>+${G.gain}</b> 银芯${mul ? `<span>基础 ${base}${mul}</span>` : ''}`
-      : nx ? `再得 <b>${nx[0] - G.score}</b> 分就能换银芯` : '本局没有银芯';
+      ? `${scTag('+' + G.gain)}${mul ? `<span>基础 ${base}${mul}</span>` : ''}`
+      : nx ? `再得 <b>${nx[0] - G.score}</b> 分就能换${scTag('')}` : '本局没有银芯';
   }
 
   ov.hidden = false;
@@ -730,29 +914,103 @@ function draw() {
   ctx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
   if (G.bg) ctx.drawImage(G.bg, 0, 0, G.W, G.H);
 
-  // 警戒线：平时是一条几乎看不见的虚线，危险时变红、加粗、跟着心跳闪
+  // 警戒线：平时也得一眼看见 —— 一条实心金线 + 上方斜纹危险区 + 右端「警戒线」标签。
+  // 越线后整条转红、加粗、跟着心跳发光；虚线一直在慢慢往右走，静止画面里也能看出「这是条界」。
   const hot = G.warn > 0.02;
+  const near = !hot && G.approach > WARN_AT;
+  const pulse = 0.5 + 0.5 * Math.sin(G.t * (5 + 9 * G.warn));
   ctx.save();
-  if (hot) {
-    // 线上方一层红光，越危险越浓，远处也能瞥见
-    const band = G.H * (0.03 + 0.05 * G.warn);
-    const lg = ctx.createLinearGradient(0, G.lineY - band, 0, G.lineY + band * 0.6);
+
+  // 危险区：瓶口到警戒线之间铺斜纹，越危险越亮；贴线处再叠一层红光
+  const zoneTop = G.top + 2;
+  const zoneH = Math.max(0, G.lineY - zoneTop);
+  if (zoneH > 6) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, zoneTop, G.W, zoneH);
+    ctx.clip();
+    const hatchA = hot ? 0.08 + 0.2 * G.warn : near ? 0.13 : 0.075;
+    ctx.strokeStyle = hot ? `rgba(232,105,95,${hatchA})` : `rgba(227,179,65,${hatchA})`;
+    ctx.lineWidth = 1.2;
+    const gap = 12;
+    const off = (G.t * 16) % gap;
+    for (let x = -zoneH; x < G.W + zoneH; x += gap) {
+      ctx.beginPath();
+      ctx.moveTo(x + off, zoneTop);
+      ctx.lineTo(x + off + zoneH, G.lineY);
+      ctx.stroke();
+    }
+    const band = G.H * (0.03 + 0.06 * G.warn);
+    const lg = ctx.createLinearGradient(0, G.lineY - band, 0, G.lineY);
     lg.addColorStop(0, 'rgba(232,105,95,0)');
-    lg.addColorStop(0.5, `rgba(232,105,95,${0.1 + 0.26 * G.warn})`);
-    lg.addColorStop(1, 'rgba(232,105,95,0)');
+    lg.addColorStop(1, `rgba(232,105,95,${0.05 + 0.3 * G.warn})`);
     ctx.fillStyle = lg;
-    ctx.fillRect(0, G.lineY - band, G.W, band * 1.6);
+    ctx.fillRect(0, G.lineY - band, G.W, band);
+    ctx.restore();
   }
-  ctx.setLineDash([6, 7]);
-  ctx.lineWidth = 1.5 + 1.8 * G.warn;
-  const pulse = 0.5 + 0.5 * Math.sin(G.t * (6 + 8 * G.warn));
-  ctx.strokeStyle = hot
-    ? `rgba(232,105,95,${0.28 + 0.55 * G.warn * (0.6 + 0.4 * pulse)})`
-    : 'rgba(227,179,65,.20)';
+
+  const core = hot ? `rgba(255,122,106,${0.72 + 0.28 * pulse})`
+    : near ? `rgba(240,192,84,${0.82 + 0.18 * pulse})`
+      : 'rgba(227,179,65,.68)';
+  ctx.lineCap = 'round';
+  // 光晕底色 → 实线 → 走动的虚线，三层叠出「实体边界」的厚度
+  ctx.strokeStyle = hot ? `rgba(232,105,95,${0.16 + 0.3 * G.warn})` : 'rgba(227,179,65,.15)';
+  ctx.lineWidth = 9 + 11 * G.warn;
+  ctx.beginPath(); ctx.moveTo(0, G.lineY); ctx.lineTo(G.W, G.lineY); ctx.stroke();
+
+  // 外圈再叠一道宽而淡的暖光，深色底上才「亮」得出来（深底只加粗不加光会显脏）
+  ctx.strokeStyle = hot ? `rgba(255,110,96,${0.07 + 0.1 * G.warn})` : `rgba(255,214,120,${0.07 + 0.06 * pulse})`;
+  ctx.lineWidth = 18 + 16 * G.warn;
+  ctx.beginPath(); ctx.moveTo(0, G.lineY); ctx.lineTo(G.W, G.lineY); ctx.stroke();
+
+  ctx.strokeStyle = core;
+  ctx.lineWidth = 2 + 2.2 * G.warn;
+  ctx.beginPath(); ctx.moveTo(0, G.lineY); ctx.lineTo(G.W, G.lineY); ctx.stroke();
+
+  ctx.setLineDash([10, 12]);
+  ctx.lineDashOffset = -((G.t * 26) % 22);
+  ctx.strokeStyle = hot ? 'rgba(255,226,220,.5)' : 'rgba(255,240,200,.42)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(0, G.lineY); ctx.lineTo(G.W, G.lineY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineDashOffset = 0;
+
+  // 两端小三角：远看也能认出「这条线到头了」
+  const tsz = Math.max(6, G.W * 0.016);
+  ctx.fillStyle = core;
+  for (const dir of [1, -1]) {
+    const x = dir > 0 ? G.W - 2 : 2;
+    ctx.beginPath();
+    ctx.moveTo(x, G.lineY);
+    ctx.lineTo(x - dir * tsz, G.lineY - tsz * 0.75);
+    ctx.lineTo(x - dir * tsz, G.lineY + tsz * 0.75);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 左端标签：右上角是「手上这颗」悬停的地方，标签放右边会被球压住
+  const fs = Math.max(9.5, G.W * 0.022);
+  ctx.font = `600 ${fs}px system-ui, -apple-system, "PingFang SC", sans-serif`;
+  const label = hot ? '过线了' : '警戒线';
+  const padX = fs * 0.6;
+  const bw = ctx.measureText(label).width + padX * 2;
+  const bh = fs * 1.75;
+  const bx = 9;
+  const by = G.lineY - bh - 6;
+  const rr = bh / 2;
+  ctx.fillStyle = hot ? 'rgba(122,32,28,.86)' : 'rgba(44,31,7,.7)';
   ctx.beginPath();
-  ctx.moveTo(0, G.lineY);
-  ctx.lineTo(G.W, G.lineY);
-  ctx.stroke();
+  ctx.moveTo(bx + rr, by);
+  ctx.arcTo(bx + bw, by, bx + bw, by + bh, rr);
+  ctx.arcTo(bx + bw, by + bh, bx, by + bh, rr);
+  ctx.arcTo(bx, by + bh, bx, by, rr);
+  ctx.arcTo(bx, by, bx + bw, by, rr);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = hot ? '#ffe2dc' : '#ffeccc';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, bx + padX, by + bh / 2 + 0.5);
   ctx.restore();
 
   for (const b of G.balls) drawBall(b);
@@ -831,6 +1089,9 @@ function loop(now) {
       // 位置分离每帧做一次就够（它不是积分的一部分）：跑在软解算之后，
       // 把残留的插模彻底推开。放在这里比放进 step 里便宜一倍，画面上一模一样。
       separate(G.balls.length > 30 ? 12 : 20, 0.3);
+      // 极端情况（瓶底 + 两侧墙同时挤着、或者合成瞬间）会留下几像素的互相插入。
+      // 量一下，超过半个小球半径就再补一轮更狠的分离 —— 平时这条分支不会触发。
+      if (G.balls.length > 2 && maxOverlap() > Math.max(3, G.W * 0.012)) separate(8, 0.1);
     }
 
     // 合成时的弹一下
@@ -874,15 +1135,20 @@ function loop(now) {
 function paintNext() {
   const l = LEVELS[G.nextLv];
   if (!l) return;
-  nxEl.src = l.art;
-  nxEl.alt = l.n;
-  nxEl.title = l.n;
+  nxEl.src = artOf(G.nextLv);
+  nxEl.alt = labelOf(G.nextLv);
+  nxEl.title = labelOf(G.nextLv);
 }
 
 function paintChain() {
   const box = document.getElementById('chain');
   if (!box) return;
-  [...box.children].forEach((el, i) => el.classList.toggle('on', G.seen.has(i)));
+  [...box.children].forEach((el, i) => {
+    el.classList.toggle('on', G.seen.has(i));
+    const im = el.firstElementChild;
+    if (im && im.getAttribute('src') !== artOf(i)) im.src = artOf(i);
+    el.title = (i + 1) + '. ' + labelOf(i);
+  });
 }
 
 function buildChain() {
@@ -890,14 +1156,102 @@ function buildChain() {
   LEVELS.forEach((l, i) => {
     const s = document.createElement('span');
     s.className = 'ch';
-    s.title = (i + 1) + '. ' + l.n;
+    s.title = (i + 1) + '. ' + labelOf(i);
     const im = document.createElement('img');
-    im.src = l.art;
+    im.src = artOf(i);
     im.alt = l.n;
     im.draggable = false;
     s.appendChild(im);
     box.appendChild(s);
   });
+}
+
+// ------------------------------------------------------------------ 换皮
+// 0~8 级的脸可以换（最后一级杜勒赛因固定）。换皮池是单独模块：
+// 几十张 data URI 加起来四百来 KB，不能算进首屏 —— 点按钮 / 上次换过要还原时才拉。
+const SKIN_KEY = 'zjtt:merge:skins';
+let skinLoading = null;
+
+function loadSkins() {
+  if (SKINS) return Promise.resolve(SKINS);
+  if (skinLoading) return skinLoading;
+  skinLoading = import('./merge-skins.js')
+    .then((m) => { SKINS = m.SKINS || null; return SKINS; })
+    .catch(() => null);
+  return skinLoading;
+}
+
+function readSkins() {
+  try {
+    const v = JSON.parse(localStorage.getItem(SKIN_KEY) || 'null');
+    if (!Array.isArray(v)) return null;
+    return v.map((n) => Math.max(0, parseInt(n, 10) || 0));
+  } catch { return null; }
+}
+
+function writeSkins() {
+  try { localStorage.setItem(SKIN_KEY, JSON.stringify(SKIN)); } catch { /* 无痕模式 */ }
+}
+
+// 把 SKIN 应用到画面上：贴图缓存按皮肤分 key，所以这里只要清一次缓存再重画三处
+function applySkin(list, quiet) {
+  for (let i = 0; i < SKIN.length; i++) SKIN[i] = (list && list[i]) | 0;
+  // 越界的候选（换皮池变过、存档是旧的）退回原图，别画成空白
+  for (let i = 0; i < SKIN.length; i++) {
+    const max = SKINS && SKINS[i] ? SKINS[i].length : 0;
+    if (SKIN[i] > max) SKIN[i] = 0;
+  }
+  G.tiles.clear();
+  buildChainImgs();
+  paintNext();
+  paintChain();
+  if (!quiet) toast('头像换了：' + LEVELS.slice(0, MAX).map((l, i) => labelOf(i)).slice(0, 3).join('、') + '…');
+}
+
+// buildChain 已经建好 <span>，换皮时只换里面那张图，不重建 DOM
+function buildChainImgs() {
+  const box = document.getElementById('chain');
+  if (!box) return;
+  [...box.children].forEach((el, i) => {
+    const im = el.firstElementChild;
+    if (im) im.src = artOf(i);
+  });
+}
+
+// 「换皮」：能换的每一级都重新摇一张，且尽量不跟当前这张重复 ——
+// 点了按钮还是同一张脸，玩家会以为按钮没反应。
+function shuffleSkins() {
+  loadSkins().then((pool) => {
+    if (!pool) { toast('换皮素材没拉到，检查一下网络'); return; }
+    const next = SKIN.slice();
+    let changed = 0;
+    for (let i = 0; i < MAX; i++) {
+      const cand = pool[i] || [];
+      if (!cand.length) continue;                 // 固定级（杜勒赛因）
+      const total = cand.length + 1;              // +1 = 原图
+      if (total < 2) continue;
+      let pick = SKIN[i];
+      for (let guard = 0; guard < 8 && pick === SKIN[i]; guard++) pick = (Math.random() * total) | 0;
+      next[i] = pick;
+      changed++;
+    }
+    applySkin(next, true);
+    writeSkins();
+    paintSkinBtn();
+    beep(640, 0.07, 'triangle', 0.05);
+    setTimeout(() => beep(880, 0.1, 'sine', 0.035), 60);
+    const names = [];
+    for (let i = 0; i < MAX; i++) if (SKIN[i] > 0) names.push(labelOf(i));
+    toast(names.length ? '换成了 ' + names.slice(0, 3).join('、') + (names.length > 3 ? ' 等' : '') : '全部换回原图');
+  });
+}
+
+function paintSkinBtn() {
+  const b = document.getElementById('skin');
+  if (!b) return;
+  const n = SKIN.reduce((c, v, i) => c + (i < MAX && v > 0 ? 1 : 0), 0);
+  b.classList.toggle('on', n > 0);
+  b.title = n ? `已换 ${n} 级头像，点一下重新随机（Y）` : '随机换掉 0~8 级的头像（Y），杜勒赛因固定';
 }
 
 // 难度条与「随机低阶」按钮。两个都是本局状态的一部分，所以每次 reset 都要重画。
@@ -1026,6 +1380,9 @@ cv.addEventListener('pointermove', (e) => {
 cv.addEventListener('pointerdown', (e) => {
   G.aimX = localX(e);
   if (e.pointerType !== 'mouse') cv.setPointerCapture(e.pointerId);
+  // 第一次触摸/点击就是解锁音频的时机（浏览器只认手势里的 resume）
+  unlockAudio();
+  startMusic();
 });
 cv.addEventListener('pointerup', (e) => {
   if (e.pointerType !== 'mouse' && e.pointerType !== 'pen' && !cv.hasPointerCapture) {
@@ -1041,7 +1398,9 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowRight') { G.aimX = clamp(G.aimX + G.W * 0.045, 0, G.W); e.preventDefault(); }
   else if (e.key === ' ' || e.key === 'Enter') { drop(); e.preventDefault(); }
   else if (e.key === 'x' || e.key === 'X') { reroll(); e.preventDefault(); }
+  else if (e.key === 'y' || e.key === 'Y') { shuffleSkins(); e.preventDefault(); }
   else if (e.key === 'r' || e.key === 'R') { reset(); }
+  else if (e.key === 'm' || e.key === 'M') { setMusic(!MUSIC.on); e.preventDefault(); }
 });
 
 document.getElementById('again').addEventListener('click', reset);
@@ -1051,6 +1410,8 @@ document.getElementById('diff').addEventListener('click', (e) => {
   if (b) setDiff(b.dataset.diff);
 });
 document.getElementById('rand').addEventListener('click', reroll);
+document.getElementById('skin').addEventListener('click', shuffleSkins);
+document.getElementById('bgm').addEventListener('click', () => { setMusic(!MUSIC.on); });
 document.getElementById('snd').addEventListener('click', (e) => {
   G.sound = !G.sound;
   e.currentTarget.setAttribute('aria-pressed', G.sound ? 'true' : 'false');
@@ -1062,7 +1423,9 @@ document.getElementById('snd').addEventListener('click', (e) => {
 document.addEventListener('visibilitychange', () => {
   G.paused = document.hidden;
   last = 0;
-  if (document.hidden) flushBest();     // 切走前把纪录推一次，手机端常常直接杀页面
+  // 切到后台就停 BGM：手机上留着会一直占音频时钟，回来再续上
+  if (document.hidden) { stopMusic(); flushBest(); }   // 切走前把纪录推一次，手机端常常直接杀页面
+  else if (MUSIC.on) { unlockAudio(); startMusic(); }
 });
 window.addEventListener('pagehide', flushBest);
 window.addEventListener('resize', () => { layout(); });
@@ -1085,6 +1448,7 @@ function loadPrefs() {
     G.diff = DIFF_OF[s] ? s : 'normal';
     G.best = bestOf[G.diff];
     G.sound = localStorage.getItem('zjtt:merge:snd') !== '0';
+    MUSIC.on = localStorage.getItem('zjtt:merge:bgm') !== '0';
   } catch { /* 无痕模式 */ }
 }
 
@@ -1097,6 +1461,11 @@ function saveBest(k, v) {
 }
 
 // ------------------------------------------------------------------ 银芯
+// 「银芯」两个字不够直观：统一用原作那张图标（assets/ui/silvercore.webp，
+// 构建时和头像一起内联成 SC_ART，所以这里不会多出一个图片请求）。
+const scTag = (n) => `<img class="sc" src="${SC_ART}" alt="银芯" width="16" height="16" decoding="async">`
+  + (n === '' ? '' : `<b>${n}</b>`);
+
 // 和侦探页共用 zjtt:credits。这里不 import js/common.js —— 那一条链
 // （common + i18n + auth + account）有 60 多 KB，为了写一个数字把首屏请求
 // 翻几倍不值当。格式必须和 common.js 的 store.set() 完全一致（JSON.stringify），
@@ -1171,15 +1540,35 @@ function boot() {
   const snd = document.getElementById('snd');
   snd.setAttribute('aria-pressed', G.sound ? 'true' : 'false');
   snd.classList.toggle('off', !G.sound);
+  const bgmBtn = document.getElementById('bgm');
+  if (bgmBtn) {
+    bgmBtn.setAttribute('aria-pressed', MUSIC.on ? 'true' : 'false');
+    bgmBtn.classList.toggle('off', !MUSIC.on);
+  }
+  // 银芯图标用原作那张（构建时内联成 data URI，不额外发请求）
+  const sc = document.getElementById('scico');
+  if (sc) sc.src = SC_ART;
   buildChain();
   paintDiff();
   layout();
   reset();
+  // 上次换过皮：进页面就还原（这时才去拉那个四百来 KB 的模块）
+  const saved = readSkins();
+  if (saved && saved.some((v) => v > 0)) {
+    loadSkins().then((pool) => {
+      if (!pool) return;
+      applySkin(saved, true);
+      paintSkinBtn();
+    });
+  } else {
+    paintSkinBtn();
+  }
   try {
     if (!localStorage.getItem('zjtt:merge:played')) {
       localStorage.setItem('zjtt:merge:played', '1');
       setTimeout(() => toast('点一下屏幕把头像投下去，两个一样的碰在一起就合成'), 400);
       setTimeout(() => toast('手上卡着太大的球，就按「随机」换一颗小的'), 3200);
+      setTimeout(() => toast('想换换口味就按「换皮」：前九级的脸可以随机（Y）'), 6200);
     }
   } catch { /* 无痕模式 */ }
   const ph = document.getElementById('boot');
@@ -1237,7 +1626,7 @@ const readyOne = (im) => new Promise((r) => {
   if (im.decode) im.decode().then(r, r);
 });
 Promise.race([
-  Promise.all(IMG.map(readyOne)),
+  Promise.all(LEVELS.map((_, lv) => readyOne(imgOf(lv)))),
   new Promise((r) => setTimeout(r, 1200)),
 ]).then(start, start);
 

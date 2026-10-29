@@ -1629,6 +1629,17 @@ async function grants() {
   return GRANTS;
 }
 
+// 云端赠礼：管理员在后台发的（edge-functions 的 /grants/mine）。
+// 服务端已经按 uid 过滤过，这里只负责和本地「已领过」的记录对账，
+// 所以拿不到后端时就是空数组，不影响静态 grants.json 那条路。
+async function cloudGrants() {
+  if (!api.ready()) return [];
+  try {
+    const r = await api.get('/grants/mine');
+    return Array.isArray(r.items) ? r.items : [];
+  } catch { return []; }
+}
+
 async function claimGrants() {
   if (!auth.logged) return 0;
   const list = await grants();
@@ -1636,18 +1647,28 @@ async function claimGrants() {
   // 用它当钥匙会漏领（改名后领不到）或者误领（同名的人各领一份）。
   const u = auth.user || {};
   const me = String(nameOfMail(u.mail || '') || u.name || '').trim().toLowerCase();
-  if (!me) return 0;
-  const mine = list.filter((g) => g && g.id && String(g.user || '').trim().toLowerCase() === me);
-  if (!mine.length) return 0;
+  const mine = me
+    ? list.filter((g) => g && g.id && String(g.user || '').trim().toLowerCase() === me)
+    : [];
+  const cloud = await cloudGrants();
+  if (!mine.length && !cloud.length) return 0;
+
   const claimed = new Set(uniq(store.get('gr', [])));
   let gain = 0;
   for (const g of mine) {
     if (claimed.has(String(g.id))) continue;
     claimed.add(String(g.id));
-    const n = Math.max(0, Math.round(Number(g.amount) || 0));
-    gain += n;
+    gain += Math.max(0, Math.round(Number(g.amount) || 0));
   }
-  if (!gain) return 0;
+  for (const g of cloud) {
+    // 加前缀：静态赠礼的 id 是手写的，可能和云端生成的撞上
+    const key = 'c:' + String(g.id);
+    if (claimed.has(key)) continue;
+    claimed.add(key);
+    gain += Math.max(0, Math.round(Number(g.amount) || 0));
+    if (g.note) { try { toast(`收到一份赠礼：${g.note}`); } catch { /* 无 body */ } }
+  }
+  if (!gain) { store.set('gr', [...claimed]); return 0; }
   store.set('gr', [...claimed]);
   wallet.add(gain);                       // 会触发 dirty，但 sync 里紧接着会 push
   try { toast(t('pfGrant', { n: gain })); } catch { /* 页面还没挂 body 时忽略 */ }
@@ -1719,542 +1740,443 @@ const account = {
 return { CAP, snapshot, birdBest, setBirdBest, mergeBest, setMergeBest, apply, mergeDoc, pull, push, schedule, sync, ready, record, history, lastSync, pendingState, forget, account };
 })();
 
-// ---- js/checkin.js
-const m_checkin = await (async () => {
-const { store, wallet, markDirty, h, t, scIcon, toast } = m_common;
-// 每日签到：每天可签一次，+10 银芯，连续签到记录天数。
-// 状态存 zjtt:checkin，跟着账号档案同步（换设备当天也不能再签）。
+// ---- js/gamestats.js
+const m_gamestats = await (async () => {
 
+// 各小游戏的本机进度汇总。
+//
+// 个人中心要「一个页面看到所有游戏的数据」，但九个游戏各写各的存档键，
+// 有的用 store（JSON），有的用 localStorage 裸字符串，有的根本不在 zjtt 命名空间
+// （挂机版是 morimens-idle-*，死亡调查报告是 morimens-deathreport-*）。
+// 这里只做一件事：把全部键读成一个结构化的结果，读不到的字段给 0 / 空，
+// 让页面永远有东西可显示，而不是「这一块没接」。
+//
+// 三条约束：
+//   · 只读，不写、不发请求 —— 任何页面都能安全 import；
+//   · 全部 try/catch —— 无痕模式下 localStorage 会抛，不能连累整页；
+//   · 键名必须和各游戏里的字面量一致，改名请一起改（下面每组都标了出处）。
 
-const KEY = 'checkin';
-const REWARD = 10;
+const RD = (k) => { try { const v = localStorage.getItem('zjtt:' + k); return v == null ? null : JSON.parse(v); } catch { return null; } };
+const RAW = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const n = (v) => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
+const arr = (v) => (Array.isArray(v) ? v : []);
 
-const pad = (n) => String(n).padStart(2, '0');
-function dayKey(d = new Date()) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-const prevKey = () => {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return dayKey(d);
-};
+// 数字键既可能是 JSON（store.set）也可能是裸字符串（游戏里直接 setItem），
+// JSON.parse 对 "123" 和 123 都成立，所以统一走 RD。
+const numKey = (k) => n(RD(k));
 
-function state() {
-  const s = store.get(KEY, null);
-  return s && typeof s === 'object' ? { last: '', streak: 0, total: 0, ...s } : { last: '', streak: 0, total: 0 };
-}
-const done = () => state().last === dayKey();
+const DIFF_MERGE = [
+  { k: 'easy', n: '简单' }, { k: 'normal', n: '普通' }, { k: 'hard', n: '困难' }, { k: 'frenzy', n: '癫狂' },
+];
+const DIFF_BIRD = [
+  { k: 'easy', n: '简单' }, { k: 'normal', n: '普通' }, { k: 'hard', n: '困难' }, { k: 'mad', n: '癫狂' },
+];
 
-// 领取今天的签到。返回 { ok, gain, streak }；已签过时 ok=false。
-function claim() {
-  if (done()) return { ok: false, gain: 0, streak: state().streak };
-  const s = state();
-  const streak = s.last === prevKey() ? (s.streak || 0) + 1 : 1;
-  store.set(KEY, { last: dayKey(), streak, total: (s.total || 0) + 1 });
-  // 注意顺序：先记签到，再加银芯，这样中途失败也不会重复发放
-  wallet.add(REWARD);
-  markDirty('checkin');
-  return { ok: true, gain: REWARD, streak };
-}
-
-// 面板里的签到条：已签到时是静态状态，未签到时是可点的按钮
-function checkinBar(cls = '', onDone) {
-  const s = state();
-  const ok = done();
-  const btn = h('button', {
-    class: `btn ck-btn${ok ? ' ghost' : ''}`, type: 'button', disabled: ok,
-    onclick: () => {
-      const r = claim();
-      if (!r.ok) return;
-      toast(t('ckGain', { n: r.gain }));
-      const host = btn.closest('.ck');
-      if (host) host.replaceWith(checkinBar(cls, onDone));
-      if (onDone) onDone(r);
-    },
-  }, ok ? t('ckDone') : [t('ckBtn'), ' ', scIcon(13), ` ${REWARD}`]);
-
-  return h('div', { class: `ck ${cls}`.trim() },
-    h('div', { class: 'cktext' },
-      h('b', {}, t('ckTitle')),
-      h('small', { class: 'note' }, ok
-        ? `${t('ckStreak', { n: s.streak })} · ${t('ckTomorrow')}`
-        : t('ckNote'))),
-    btn);
-}
-return { REWARD, dayKey, state, done, claim, checkinBar };
-})();
-
-// ---- js/theme.js
-const m_theme = await (async () => {
-const { store, unlocked, toast, t, markDirty, themeVars } = m_common;
-// CG 背景主题：解锁某张 CG 后，可把它设成全站背景，并按这张图的主色重排 UI 配色。
-// 配色在构建期已经算好（scripts/build_themes.py → data/themes.json），运行时只做变量注入。
-
-
-let THEMES = null;
-let GALLERY = null;
-const CACHE_KEY = 'theme';
-
-async function loadJson(path) {
-  const r = await fetch(path, { cache: 'force-cache' });
-  if (!r.ok) throw new Error(path);
-  return r.json();
-}
-
-async function themeLib() {
-  if (!THEMES) THEMES = await loadJson('data/themes.json');
-  return THEMES;
-}
-
-async function galleryLib() {
-  if (!GALLERY) {
-    const g = await loadJson('data/gallery.json');
-    GALLERY = { list: g.items || [], by: new Map((g.items || []).map((i) => [i.id, i])) };
-  }
-  return GALLERY;
-}
-
-const activeTheme = () => store.get(CACHE_KEY, null);
-
-// 把主题写进 :root 的行内样式（行内优先级最高，能盖掉 prefers-color-scheme 的媒体查询）
-function paint(th) {
-  const root = document.documentElement;
-  if (!th || !th.vars) {
-    root.removeAttribute('data-themed');
-    ['--bg', '--panel', '--panel2', '--panel-solid', '--panel2-solid', '--line', '--text', '--dim', '--accent', '--gold', '--theme-img']
-      .forEach((k) => root.style.removeProperty(k));
-    document.body.classList.remove('themed');
-    return;
-  }
-  themeVars(th);
-}
-
-function applyStored() {
-  const th = activeTheme();
-  if (th && th.vars) paint(th);
-}
-
-async function setTheme(id) {
-  if (!id) return null;
-  if (!unlocked.has(id)) throw new Error('locked');
-  const [themes, gal] = await Promise.all([themeLib(), galleryLib()]);
-  const vars = themes[id];
-  const item = gal.by.get(id);
-  if (!vars || !item) throw new Error('missing');
-  // 背景铺满整屏，必须用 1920 宽的大图；没有大图时才退回 900 缩略图
-  const img = item.big || item.f;
-  // 先把新背景解出来再换变量，避免整屏先闪一张空白
-  await new Promise((res) => {
-    const im = new Image();
-    im.onload = im.onerror = () => res();
-    im.src = new URL(img, document.baseURI).href;
-  });
-  const th = { id, n: item.t, img, dark: vars.dark, vars };
-  store.set(CACHE_KEY, th);
-  markDirty('theme');
-  paint(th);
-  return th;
-}
-
-function clearTheme() {
-  store.del(CACHE_KEY);
-  markDirty('theme');
-  paint(null);
-}
-
-// 典藏馆大图里的「设为背景」按钮用得到
-function themeButton(id, { onChange } = {}) {
-  const cur = activeTheme();
-  if (cur && cur.id === id) {
-    return {
-      label: t('thmOn'), off: true,
-      run: () => { clearTheme(); toast(t('thmCleared')); if (onChange) onChange(null); },
-    };
-  }
+// ------------------------------------------------------------------ 各游戏
+function detective() {
+  const st = RD('stats') || {};
+  const hist = arr(RD('hist'));
+  const played = n(st.played);
+  const won = n(st.won);
+  const failed = arr(RD('failed')).length;
   return {
-    label: t('thmSet'), off: false,
-    run: async () => {
-      try {
-        const th = await setTheme(id);
-        toast(t('thmApplied', { n: th.n }));
-        if (onChange) onChange(th);
-      } catch (e) {
-        toast(e.message === 'locked' ? t('thmLocked') : t('thmFail'));
-      }
-    },
+    played, won,
+    items: [
+      { k: '已玩', v: String(played) },
+      { k: '胜率', v: played ? Math.round((won / played) * 100) + '%' : '—' },
+      { k: '最高分', v: String(n(st.best)) },
+    ],
+    extra: failed ? `失败题库 ${failed} 题` : (hist.length ? `最近一次 ${String(new Date(n(hist[0] && hist[0].at) || Date.now()).toLocaleDateString('zh-CN'))}` : ''),
   };
 }
-return { themeLib, galleryLib, activeTheme, paint, applyStored, setTheme, clearTheme, themeButton };
+
+function merge() {
+  const all = numKey('merge:best');
+  const byDiff = DIFF_MERGE.map((d) => ({ ...d, v: numKey('merge:best:' + d.k) }));
+  const skins = arr(RD('merge:skins')).filter((x) => n(x) > 0).length;
+  const bestDiff = byDiff.filter((d) => d.v > 0).sort((a, c) => c.v - a.v)[0];
+  return {
+    items: [
+      { k: '最高分', v: all ? String(all) : '—' },
+      { k: '最顺手', v: bestDiff ? bestDiff.n : '—' },
+      { k: '换皮', v: skins ? `${skins}/9` : '原样' },
+    ],
+    extra: byDiff.filter((d) => d.v > 0).map((d) => `${d.n} ${d.v}`).join(' · '),
+  };
+}
+
+function bird() {
+  const lvAll = numKey('bird:bestLv');
+  const scAll = numKey('bird:best');
+  const byDiff = DIFF_BIRD.map((d) => ({ ...d, lv: numKey('bird:bestLv:' + d.k), sc: numKey('bird:best:' + d.k) }));
+  return {
+    items: [
+      { k: '最深层数', v: lvAll ? `${lvAll} 层` : '—' },
+      { k: '最高分', v: scAll ? String(scAll) : '—' },
+      { k: '下过难度', v: String(byDiff.filter((d) => d.lv > 0).length) + '/4' },
+    ],
+    extra: byDiff.filter((d) => d.lv > 0).map((d) => `${d.n} ${d.lv} 层`).join(' · '),
+  };
+}
+
+function binding() {
+  const m = RD('binding') || null;
+  const st = (m && m.stats) || {};
+  return {
+    items: [
+      { k: '最深纪录', v: st.bestFloor ? `第 ${st.bestFloor} 层` : '—' },
+      { k: '通关次数', v: String(n(st.clears)) },
+      { k: '首领击杀', v: String(n(st.bossKills)) },
+    ],
+    extra: st.runs ? `共 ${n(st.runs)} 局 · 死亡 ${n(st.deaths)} 次` : '',
+  };
+}
+
+function idle() {
+  // 挂机版是独立子项目，键不带 zjtt: 前缀（idle/src/ui/util.js 的 KEY）
+  let s = null;
+  try { s = JSON.parse(RAW('morimens-idle-save-v1') || 'null'); } catch { s = null; }
+  if (!s) return { items: [{ k: '存档', v: '未开始' }], extra: '' };
+  const team = arr(s.roster).length;
+  return {
+    items: [
+      { k: '当前关卡', v: String(n(s.stage) || 1) },
+      { k: '最高关卡', v: String(n(s.maxStage)) },
+      { k: '唤醒体', v: String(team) },
+    ],
+    extra: s.gold != null ? `金币 ${n(s.gold)} · 券 ${n(s.tickets)} · 核心 ${n(s.cores)}` : '',
+  };
+}
+
+function survivors() {
+  const p = RD('survivors:progress') || {};
+  const best = numKey('survivors:best');
+  return {
+    items: [
+      { k: '最高分', v: best ? String(best) : '—' },
+      { k: '通关角色', v: String(arr(p.clears).length) },
+      { k: '累计局数', v: String(n(p.runs)) },
+    ],
+    extra: arr(p.diffs).length ? `通关难度：${arr(p.diffs).join(' / ')}` : (n(p.bosses) ? `击败强敌 ${n(p.bosses)} 只` : ''),
+  };
+}
+
+function protocol() {
+  // 2026-10 之后才记的键（js/pf/ui.js 的 showEnd）；老玩家这里会是空，显示「—」就行
+  const b = RD('pf:best') || null;
+  return {
+    items: [
+      { k: '最远波次', v: b && b.wave ? `第 ${n(b.wave)} 波` : '—' },
+      { k: '最高分', v: b && b.score ? String(n(b.score)) : '—' },
+      { k: '守住次数', v: String(n(b && b.wins)) },
+    ],
+    extra: b && b.runs ? `共 ${n(b.runs)} 局` : '',
+  };
+}
+
+function wolf() {
+  const st = RD('wolf:stat') || null;
+  const runs = n(st && st.n);
+  const win = n(st && st.win);
+  return {
+    items: [
+      { k: '局数', v: String(runs) },
+      { k: '胜场', v: String(win) },
+      { k: '胜率', v: runs ? Math.round((win / runs) * 100) + '%' : '—' },
+    ],
+    extra: '',
+  };
+}
+
+function deathreport() {
+  // 本篇 + 往届两届，各自一个存档键（deathreport/js/ui.js 的 EDS）
+  const EDS = [
+    ['本篇', 'morimens-deathreport-save-v1'],
+    ['62届', 'morimens-deathreport-save-ed62-v1'],
+    ['61届', 'morimens-deathreport-save-ed61-v1'],
+  ];
+  let recovered = 0;
+  let docs = 0;
+  let done = 0;
+  const parts = [];
+  for (const [tag, key] of EDS) {
+    let s = null;
+    try { s = JSON.parse(RAW(key) || 'null'); } catch { s = null; }
+    if (!s) continue;
+    const r = arr(s.recovered).length;
+    const d = arr(s.docs).length;
+    recovered += r;
+    docs += d;
+    if (s.ended) done += 1;
+    parts.push(`${tag} ${r} 条`);
+  }
+  return {
+    items: [
+      { k: '已复原', v: String(recovered) },
+      { k: '结案', v: String(done) },
+      { k: '归档卷宗', v: String(docs) },
+    ],
+    extra: parts.join(' · '),
+  };
+}
+
+// 卡片顺序 = 首页的排列顺序，用户不用重新认路
+const GAMES = [
+  { k: 'detective', n: '战报侦探', href: 'detective.html', icon: '🔍', read: detective, tip: '六边形自走棋推演' },
+  { k: 'merge', n: '合成大杜勒', href: 'merge.html', icon: '⚫', read: merge, tip: '两个同级合成下一级' },
+  { k: 'bird', n: '是鸟弟就下100层', href: 'bird.html', icon: '🐤', read: bird, tip: '往下跳，别被扎到' },
+  { k: 'binding', n: '校猫的结合', href: 'binding.html', icon: '🐱', read: binding, tip: '地牢射击' },
+  { k: 'idle', n: '弥萨格挂机版', href: 'idle/', icon: '🏰', read: idle, tip: '五人队爬塔' },
+  { k: 'survivors', n: '唤醒体幸存者', href: 'survivors.html', icon: '✨', read: survivors, tip: '15 分钟一局' },
+  { k: 'protocol', n: '忘却协议', href: 'protocol.html', icon: '⬡', read: protocol, tip: '守住十二波' },
+  { k: 'wolf', n: '弥萨格狼人杀', href: 'wolf.html', icon: '🐺', read: wolf, tip: '身份推理' },
+  { k: 'deathreport', n: '死亡调查报告', href: 'deathreport/', icon: '📄', read: deathreport, tip: '档案式复盘' },
+];
+
+// 一次性读全部：页面只调这一个
+function readAll() {
+  const out = {};
+  for (const g of GAMES) {
+    try { out[g.k] = g.read(); } catch { out[g.k] = { items: [], extra: '' }; }
+  }
+  return out;
+}
+
+// 银芯钱包（所有小游戏共用 zjtt:credits）
+const credits = () => numKey('credits');
+return { DIFF_MERGE, DIFF_BIRD, GAMES, readAll, credits };
 })();
 
-// ---- js/likes.js
-const m_likes = await (async () => {
-const { store, wallet, markDirty, toast, t } = m_common;
-const { auth } = m_auth;
-const { api } = m_api;
-// 点赞：自建题每被一个人点赞，作者得 1 银芯；每人每天最多 10 次。
+// ---- js/sitestats.js
+const m_sitestats = await (async () => {
+const { store } = m_common;
+// 站点计数 + 打点 + 「我是不是管理员」。
 //
-// 规则由后端执行（server/worker.js）：(题目, 身份) 主键唯一，每日额度服务端计数，
-// 所以清 localStorage 也刷不出额度，换设备也骗不到第二个赞。
-//
-// 前端仍然「先记账、后发送」：点下去数字立刻 +1，请求进队列慢慢发，
-// 网络恢复或下次打开页面继续。服务端回来的权威计数会覆盖本地乐观值。
+// 左上角那三个数（注册用户 / 今日浏览 / 总浏览）来自 edge-functions 的 /stats。
+// 边缘一个来回 1~2 秒，所以这里做三件事，避免每页都去问一遍：
+//   1. 结果缓存 60 秒（localStorage），过期了先给旧数、后台再刷新；
+//   2. 打点 POST /visit 走 keepalive 且不 await，页面跳走也不会被取消；
+//   3. 后端不可用（GitHub Pages 镜像、纯静态预览）时静默返回 null，界面直接不显示这一块。
 
 
+const CACHE = 'site:stats';
+const TTL = 60e3;
 
+// 与 js/api.js 同一套判断：同源 /api；GitHub Pages 镜像没有后端，直接放弃
+function apiBase() {
+  try {
+    const custom = String(store.get('apiBase', '') || '').trim().replace(/\/+$/, '');
+    if (custom) return custom;
+    if (/\.github\.io$/i.test(location.hostname)) return '';
+    if (!/^https?:$/.test(location.protocol)) return '';
+    return location.origin + '/api';
+  } catch { return ''; }
+}
 
-const LIKE_MAX = 10;      // 每人每天最多点几个
-const GAP = 800;                 // 两次发送之间稍等一下，别把请求堆成一串
-const HARD_TRIES = 4;            // 网络类错误重试几次后放弃
-
-// 后端在、但存储还没开通（EdgeOne 的 KV 是白名单审核，未通过时接口返回 503/no_kv）。
-// 这种情况重试多少次都不会好，所以整页生命周期内直接转「本机模式」：
-// 赞只记在这台设备上，界面明说，不再空转重试。审核通过后刷新页面即自动恢复。
-let cloudOff = false;
-let warned = false;              // 「存储没开通」只提示一次，别每点一个赞弹一遍
-const cloudReady = () => !cloudOff;
-const isNoStore = (e) => {
-  const code = String((e && e.code) || '');
-  const status = Number((e && e.status) || 0);
-  // no_store = 后端在但没有任何存储可用（KV 未绑定、Blob 也没凭据）
-  return code === 'no_kv' || code === 'no_store' || code === 'not_ready' || status === 503;
+const token = () => { try { return store.get('authToken', '') || ''; } catch { return ''; } };
+const devId = () => {
+  let v = store.get('did', '');
+  if (!v) { v = 'd_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); store.set('did', v); }
+  return v;
 };
 
-// 与签到、每日一题同一套「东八区今天」
-const dayKey = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
+const pick = (j) => ({
+  users: Number(j && j.users) || 0,
+  today: Number(j && j.today) || 0,
+  total: Number(j && j.total) || 0,
+});
 
-// 旧接口保留：路径形式不再用于存储，但分享码里可能还带着老 id
-const pathOf = (id) => `/zjtt/like/${String(id || '').replace(/[^A-Za-z0-9._-]/g, '_')}`;
-
-// ---------------------------------------------------------------- 本机缓存
-const votes = () => store.get('likeVote', {}) || {};
-const votedSet = () => store.get('likeVoted', {}) || {};
-const countsCache = () => store.get('likeCnt', {}) || {};
-
-const hasVoted = (id) => Boolean(votes()[String(id)] || votedSet()[String(id)]);
-const cachedCounts = () => countsCache();
-
-function setCount(id, n) {
-  const c = countsCache();
-  c[String(id)] = Math.max(0, Number(n) || 0);
-  store.set('likeCnt', c);
-  return c;
+function cached() {
+  const c = store.get(CACHE, null);
+  return c && typeof c === 'object' && Number.isFinite(Number(c.total)) ? pick(c) : null;
 }
 
-function markVoted(id) {
-  const v = votes();
-  if (!v[String(id)]) { v[String(id)] = Date.now(); store.set('likeVote', v); }
-  const s = votedSet();
-  if (!s[String(id)]) { s[String(id)] = 1; store.set('likeVoted', s); }
-}
-
-// 今日额度：服务端给的数优先，没拿到就用本机记的
-function dayState() {
-  const d = dayKey();
-  const srv = store.get('likeLeft', null);
-  if (srv && srv.d === d && typeof srv.n === 'number') {
-    return { d, n: Math.max(0, LIKE_MAX - Math.min(LIKE_MAX, srv.n)) };
-  }
-  const q = store.get('likeDay', null);
-  if (!q || q.d !== d) return { d, n: 0 };
-  return { d, n: Math.max(0, Number(q.n) || 0) };
-}
-
-function setLeft(n) {
-  const left = Math.max(0, Math.min(LIKE_MAX, Number(n) || 0));
-  store.set('likeLeft', { d: dayKey(), n: left });
-  store.set('likeDay', { d: dayKey(), n: LIKE_MAX - left });
-}
-
-const usedToday = () => dayState().n;
-const leftToday = () => Math.max(0, LIKE_MAX - dayState().n);
-
-const notify = () => {
-  try { document.dispatchEvent(new CustomEvent('zjtt:likes')); } catch { /* 非浏览器环境 */ }
-};
-
-// ---------------------------------------------------------------- 读赞数
-// 一次问一批，返回 { 题目 id: 赞数 }；顺便把「我赞过谁」和今日额度同步下来
-async function counts(ids) {
-  const list = [...new Set((ids || []).map((x) => String(x || '')).filter(Boolean))].slice(0, 60);
-  if (!api.ready()) {
-    const cache = countsCache();
-    const out = {};
-    for (const id of list) out[id] = Number(cache[id]) || 0;
-    return out;
-  }
+// 拿最新数字：force=false 时优先给缓存（同时后台刷新）
+async function stats(force = false) {
+  const base = apiBase();
+  if (!base) return cached();
+  const c = store.get(CACHE, null);
+  const fresh = c && Date.now() - Number(c.at || 0) < TTL;
+  if (c && fresh && !force) return pick(c);
   try {
-    const d = await api.get(`/likes?ids=${encodeURIComponent(list.join(','))}`);
-    const out = {};
-    for (const id of list) out[id] = Math.max(0, Number(d.counts && d.counts[id]) || 0);
-    if (d.counts) store.set('likeCnt', { ...countsCache(), ...d.counts });
-    if (d.voted) {
-      const s = votedSet();
-      for (const id of Object.keys(d.voted)) if (d.voted[id]) s[String(id)] = 1;
-      store.set('likeVoted', s);
-    }
-    if (typeof d.left === 'number') setLeft(d.left);
+    const r = await fetch(base + '/stats', { headers: { Accept: 'application/json' } });
+    const j = await r.json();
+    if (!r.ok || !j || j.ok === false) throw new Error('bad');
+    const out = pick(j);
+    store.set(CACHE, { ...out, at: Date.now() });
     return out;
-  } catch (e) {
-    if (isNoStore(e)) cloudOff = true;
-    const cache = countsCache();
-    const out = {};
-    for (const id of list) out[id] = Number(cache[id]) || 0;
-    return out;
+  } catch {
+    return cached();
   }
 }
 
-// ---------------------------------------------------------------- 发赞（排队）
-const queue = () => store.get('likeQ', []) || [];
-const setQueue = (q) => store.set('likeQ', q);
-const nextAt = () => Number(store.get('likeNext', 0)) || 0;
-const pending = () => queue().length;
-
-const drop = (id) => setQueue(queue().filter((x) => String(x.id) !== String(id)));
-
-// 服务端拒了（额度用完 / 自己的题 / 不是合法题目）：把乐观加上的那一次撤掉
-function revert(id, reason) {
-  const key = String(id);
-  const v = votes();
-  if (v[key]) { delete v[key]; store.set('likeVote', v); }
-  const s = votedSet();
-  if (s[key]) { delete s[key]; store.set('likeVoted', s); }
-
-  const c = countsCache();
-  if (c[key] > 0) { c[key] -= 1; store.set('likeCnt', c); }
-
-  const q = store.get('likeDay', null);
-  if (q && q.d === dayKey() && q.n > 0) store.set('likeDay', { d: q.d, n: q.n - 1 });
-  store.del('likeLeft');
-
-  if (reason === 'quota') toast(t('likeZero', { n: LIKE_MAX }));
-  else if (reason === 'self') toast(t('likeSelfFail'));
-  notify();
-}
-
-let running = false;
-let tmr = 0;
-function later(ms) {
-  clearTimeout(tmr);
-  tmr = setTimeout(() => { flush(); }, Math.max(200, ms));
-}
-
-// 把队列里的赞一条条发出去
-async function flush() {
-  if (running || !queue().length) return;
-  if (!api.ready()) return;
-  if (cloudOff) { setQueue([]); return; }   // 存储没开通：别再空转
-  running = true;
+// 浏览打点。同一页面同一次会话只算一次（刷新算新的一次，符合 PV 口径），
+// 免得 SPA 内部反复调用把数字刷飞。
+let pinged = false;
+function ping() {
+  if (pinged) return;
+  pinged = true;
+  const base = apiBase();
+  if (!base) return;
   try {
-    for (;;) {
-      if (!queue().length) break;
-      const wait = nextAt() - Date.now();
-      if (wait > 0) { later(wait); break; }
+    const key = 'pv:' + location.pathname;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+  } catch { /* 隐私模式：照发 */ }
+  try {
+    fetch(base + '/visit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Device': devId() },
+      body: JSON.stringify({ p: location.pathname }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch { /* 忽略 */ }
+}
 
-      const item = { ...queue()[0] };
-      try {
-        const d = await api.post('/like', { puzzle: String(item.id) });
-        if (d && typeof d.count === 'number') setCount(item.id, d.count);
-        if (d && typeof d.left === 'number') setLeft(d.left);
-        markVoted(item.id);
-        drop(item.id);
-        store.set('likeNext', Date.now() + GAP);
-        notify();
-      } catch (e) {
-        const code = String((e && e.code) || '');
-        const status = Number(e && e.status) || 0;
-
-        // 后端回来了但存储还没开通：不算失败，赞留在本机，之后统一说一次
-        if (isNoStore(e)) {
-          cloudOff = true;
-          drop(item.id);
-          setQueue([]);
-          if (!warned) { warned = true; toast(t('likeCloudOff')); }
-          notify();
-          break;
-        }
-
-        // 不可重试：额度没了、自己的题、题目不合法、没登录
-        if (code === 'quota' || code === 'self' || code === 'rate' || code === 'bad_puzzle' || code === 'no_voter' || status === 401 || status === 403) {
-          if (e && e.data && typeof e.data.count === 'number') setCount(item.id, e.data.count);
-          if (e && e.data && typeof e.data.left === 'number') setLeft(e.data.left);
-          revert(item.id, code);
-          drop(item.id);
-          continue;
-        }
-
-        // 网络类错误：记一次，等会儿再试
-        const n = (Number(item.n) || 0) + 1;
-        if (n >= HARD_TRIES) {
-          revert(item.id, 'offline');
-          drop(item.id);
-        } else {
-          const q = queue();
-          q[0] = { ...item, n };
-          setQueue(q);
-          store.set('likeNext', Date.now() + n * 5000);
-        }
-        later(n * 5000);
-        break;
-      }
-    }
-  } finally {
-    running = false;
+// 我是不是管理员（服务端判定，前端只拿来决定要不要显示入口）
+async function whoami() {
+  const base = apiBase();
+  const t = token();
+  if (!base || !t) return { logged: false, admin: false };
+  try {
+    const r = await fetch(base + '/whoami', { headers: { Accept: 'application/json', Authorization: 'Bearer ' + t } });
+    const j = await r.json();
+    if (!r.ok || !j) return { logged: false, admin: false };
+    return { logged: !!j.logged, admin: !!j.admin, name: j.name || '', uid: j.uid || '' };
+  } catch {
+    return { logged: false, admin: false };
   }
 }
 
-// 点赞：本机立刻记下、扣一次今日额度，网络交给队列
-function like(id) {
-  const key = String(id || '');
-  if (!key) return { ok: 'bad', left: leftToday() };
-  if (hasVoted(key)) return { ok: 'voted', left: leftToday() };
-  if (leftToday() <= 0) return { ok: 'quota', left: 0 };
-
-  markVoted(key);
-  setCount(key, (Number(countsCache()[key]) || 0) + 1);
-  store.set('likeDay', { d: dayKey(), n: dayState().n + 1 });
-  store.del('likeLeft');                    // 服务端数还没回来，先按本机记的走
-
-  // 没配后端、或后端存储还没开通，就只记本机，别让「排队发送中」永远挂着
-  if (api.ready() && !cloudOff) {
-    const q = queue();
-    if (!q.some((x) => String(x.id) === key)) q.push({ id: key, at: Date.now(), n: 0 });
-    setQueue(q);
-    later(400);
-  }
-  try { markDirty('like'); } catch { /* common 里没导出时忽略 */ }
-  return { ok: 'ok', left: leftToday() };
+// 一万以上折成「1.2 万」，左上角位置很窄
+function fmt(n) {
+  n = Number(n) || 0;
+  if (n >= 1e8) return (n / 1e8).toFixed(1) + '亿';
+  if (n >= 1e4) return (n / 1e4).toFixed(1) + '万';
+  return String(n);
 }
-
-// ---------------------------------------------------------------- 作者结算
-// 登录后走服务端 claim：每题已折过银芯的赞数记在 claims 表，只升不降，换设备也不会重复领。
-// 游客出的题没有归属记录，退回本机比较，银芯只加在本机。
-async function syncMine(list) {
-  const ids = (list || []).map((p) => (p && p.id ? String(p.id) : '')).filter(Boolean);
-  if (!ids.length) return { counts: {}, gain: 0, ok: false };
-
-  if (api.ready() && auth.logged) {
-    try {
-      const d = await api.post('/claim', { puzzles: ids });
-      const c = d.counts || {};
-      store.set('likeCnt', { ...countsCache(), ...c });
-      const gain = Math.max(0, Number(d.gain) || 0);
-      if (gain > 0) wallet.add(gain);
-      return { counts: c, gain, ok: true };
-    } catch { /* 落到本机算法，下面继续 */ }
-  }
-
-  const c = await counts(ids);
-  const cred = store.get('likeCredited', {}) || {};
-  let gain = 0;
-  for (const id of ids) {
-    const n = Number(c[id]) || 0;
-    const prev = Number(cred[id]) || 0;
-    if (n > prev) gain += n - prev;
-    // 结算基准只升不降：接口偶尔抽风返回 0 时不能把基准冲掉，否则下次会重复发钱
-    cred[id] = Math.max(prev, n);
-  }
-  store.set('likeCredited', cred);
-  if (gain > 0) wallet.add(gain);
-  return { counts: c, gain, ok: true };
-}
-
-// 页面打开时：同步一次「我赞过谁 / 今天还剩几次」，再把上次没发完的赞补上
-function resume() {
-  if (!api.ready()) return;
-  counts([]).catch(() => {});
-  if (queue().length) later(1200);
-}
-return { LIKE_MAX, cloudReady, pathOf, hasVoted, cachedCounts, usedToday, leftToday, counts, pending, flush, like, syncMine, resume };
+return { cached, stats, ping, whoami, fmt };
 })();
 
 // ---- js/profile.js
 const m_profile = await (async () => {
-const { $, h, store, nav, t, lang, wallet, failedBank, unlocked, loadDict, imgEl, nameOf, toast, markDirty, REPLAY, statsOf, scIcon, emptyState } = m_common;
+const { $, h, store, wallet, toast, markDirty, scNum, emptyState } = m_common;
 const { auth, openLogin, avatarLib, nameOfMail } = m_auth;
 const { account, CAP } = m_account;
-const { checkinBar } = m_checkin;
-const { galleryLib } = m_theme;
-const likes = m_likes;
-// 个人中心：账号资料、头像、偏好唤醒体、推理记录、工坊战报、典藏进度、云端同步
+const { GAMES, readAll, credits } = m_gamestats;
+const sitestats = m_sitestats;
+// 忘忘同人小游戏 · 个人中心
+//
+// 和原来的「战报侦探 个人中心」最大的区别：这个页面属于整个同人合集，
+// 不是某一个游戏。所以：
+//   · 顶栏自己写（不调 common.js 的 nav()，那份品牌是战报侦探、导航也是推理线）；
+//   · 主体是一张「九个游戏进度总览」，数据全部来自 js/gamestats.js；
+//   · 左上角显示站点计数（注册用户 / 今日浏览 / 总浏览），数据来自后端 /stats。
+//
+// 账号那部分（登录、昵称、头像、云端同步）沿用 auth.js / account.js，不重写。
 
 
 
 
 
 
-
-document.body.prepend(nav('profile'));
-const root = $('#app');
-
-const stat = () => statsOf();
-const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
-const day = (iso) => (iso ? String(iso).slice(0, 10) : '—');
+const app = $('#app');
+const head = $('#pfhRight');
 const stamp = (ms) => {
   const d = new Date(Number(ms) || 0);
   if (!Number.isFinite(d.getTime())) return '—';
-  const p = (n) => String(n).padStart(2, '0');
+  const p = (x) => String(x).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
+const day = (iso) => (iso ? String(iso).slice(0, 10) : '—');
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+const meter = (label, value, sub) => h('div', { class: 'statbox' },
+  h('small', {}, label), h('b', {}, value), sub ? h('small', { class: 'dim' }, sub) : null);
 
-let DICT = null;
-let GAL = [];
-
-const awakOf = (tid) => {
-  const e = DICT && DICT.awakener ? DICT.awakener.find((x) => String(x.id) === String(tid)) : null;
-  return e || null;
-};
-
-function meter(label, value, sub) {
-  return h('div', { class: 'statbox' }, h('small', {}, label), h('b', {}, value), sub ? h('small', { class: 'dim' }, sub) : null);
+// ------------------------------------------------------------------ 站点计数
+// 先给缓存里的旧数（立即有内容），再拿新的。后端不可用就整块隐藏，不显示「0」骗人。
+async function paintSiteStat() {
+  const box = $('#sitestat');
+  if (!box) return;
+  const put = (s) => {
+    if (!s || (!s.total && !s.users)) return;
+    box.classList.remove('off');
+    $('#st-users').textContent = sitestats.fmt(s.users);
+    $('#st-today').textContent = sitestats.fmt(s.today);
+    $('#st-total').textContent = sitestats.fmt(s.total);
+    box.title = `注册用户 ${s.users} · 今日浏览 ${s.today} · 总浏览 ${s.total}`;
+  };
+  put(sitestats.cached());
+  sitestats.ping();
+  const fresh = await sitestats.stats(true);
+  put(fresh);
 }
 
-// ------------------------------------------------------------------ 未登录：游客
-function guestView() {
-  const hists = account.history().length;
-  return h('section', { class: 'card authhero' },
-    h('div', { class: 'authart' }, h('img', { src: 'assets/avatars/cg-CG_C201_001.webp', alt: '' })),
-    h('div', {},
-      h('h2', {}, t('pfGuestTitle')),
-      h('p', { class: 'note' }, t('pfGuestSub')),
-      h('div', { class: 'pfstats four' },
-        meter(t('credits'), [scIcon(18), ` ${wallet.get()}`]),
-        meter(t('pfPlayed'), stat().played),
-        meter(t('pfUnlockedCg'), unlocked.list().length),
-        meter(t('pfHistTitle'), hists)),
-      h('div', { class: 'actions' },
-        h('button', { class: 'btn', onclick: () => openLogin(() => location.reload()) }, t('pfLoginBtn')),
-        h('a', { class: 'btn ghost', href: 'detective.html' }, t('navGame')))));
+// ------------------------------------------------------------------ 游戏总览
+function gamesBox() {
+  const all = readAll();
+  const cards = GAMES.map((g) => {
+    const d = all[g.k] || { items: [], extra: '' };
+    return h('a', { class: 'gcard', href: g.href },
+      h('div', { class: 'gh' },
+        h('span', { class: 'ic' }, g.icon),
+        h('span', { class: 'nm' }, g.n)),
+      h('div', { class: 'items' }, d.items.map((it) => h('div', {},
+        h('b', {}, it.v), h('small', {}, it.k)))),
+      h('div', { class: 'extra' }, d.extra || g.tip),
+      h('div', { class: 'go' }, '进入 →'));
+  });
+  return h('section', { class: 'card' },
+    h('h2', {}, '我的游戏数据'),
+    h('p', { class: 'sub' }, '九个同人小游戏的进度都存在这台设备上，登录后可以把账号数据同步到云端。'),
+    h('div', { class: 'games' }, cards));
 }
 
-// ------------------------------------------------------------------ 已登录：账号概览
-function hero(u) {
-  const sync = account.lastSync();
-  return h('section', { class: 'card pfhero' },
-    h('img', { class: 'pfavatar', src: auth.avatarOf(u), alt: '', width: 96, height: 96 }),
-    h('div', { class: 'pfmeta' },
-      h('h2', {}, u.name || t('pfNoName')),
-      h('p', { class: 'note' }, `@${nameOfMail(u.mail)} · ${t('pfJoined')} ${day(u.created)}`),
-      h('p', { class: 'note dim', id: 'pf-sync-line' },
-        sync ? t('pfLastSync', { t: stamp(sync) }) : t('pfSyncNever'))),
+// ------------------------------------------------------------------ 账号概览
+function guestCard() {
+  return h('section', { class: 'card' },
+    h('h2', {}, '还没有登录'),
+    h('p', { class: 'sub' }, '不登录也能玩全部游戏，进度只存在这台设备上。登录后可以换设备继续，也能收到管理员发放的银芯。'),
     h('div', { class: 'pfstats' },
-      meter(t('credits'), [scIcon(18), ` ${wallet.get()}`]),
-      meter(t('pfPlayed'), stat().played, `${t('pfWinRate')} ${pct(stat().won, stat().played)}%`),
-      meter(t('pfUnlockedCg'), `${unlocked.list().length}`),
-      meter(t('pfFailed'), failedBank.list().length)));
+      meter('银芯', [scNum(wallet.get(), 17)]),
+      meter('已解锁 CG', String((store.get('cg', []) || []).length)),
+      meter('推理记录', String((store.get('hist', []) || []).length)),
+      meter('失败题库', String((store.get('failed', []) || []).length))),
+    h('div', { class: 'actions' },
+      h('button', { class: 'btn', onclick: () => openLogin(() => location.reload()) }, '登录 / 注册'),
+      h('a', { class: 'btn ghost', href: 'index.html' }, '回首页挑个游戏')));
+}
+
+function heroCard(u) {
+  const st = store.get('stats', {}) || {};
+  const played = Number(st.played) || 0;
+  const won = Number(st.won) || 0;
+  const sync = account.lastSync();
+  return h('section', { class: 'card' },
+    h('div', { class: 'hero' },
+      h('img', { class: 'pfavatar', src: auth.avatarOf(u), alt: '', width: 76, height: 76 }),
+      h('div', { class: 'meta' },
+        h('h2', {}, u.name || '（未命名）'),
+        h('p', {}, `@${nameOfMail(u.mail)} · 加入于 ${day(u.created)}`),
+        h('p', { class: 'dim' }, sync ? `上次同步 ${stamp(sync)}` : '还没同步过云端档案'))),
+    h('div', { class: 'pfstats' },
+      meter('银芯', [scNum(wallet.get(), 17)]),
+      meter('推理局数', String(played), played ? `胜率 ${pct(won, played)}%` : ''),
+      meter('已解锁 CG', String((store.get('cg', []) || []).length)),
+      meter('失败题库', String((store.get('failed', []) || []).length))));
 }
 
 // ------------------------------------------------------------------ 资料与头像
 const isLocalAvatar = (s) => /^assets\//.test(String(s || ''));
 
-function editBox(u) {
+function editCard(u) {
   let picked = u.avatar || '';
-  const nameEl = h('input', { type: 'text', value: u.name || '', maxlength: 20, placeholder: t('pfNamePh') });
-  const urlEl = h('input', { type: 'text', value: u.avatar && !isLocalAvatar(u.avatar) ? u.avatar : '', placeholder: 'https://…' });
+  const nameEl = h('input', { type: 'text', value: u.name || '', maxlength: 20, placeholder: '昵称' });
+  const urlEl = h('input', { type: 'text', value: u.avatar && !isLocalAvatar(u.avatar) ? u.avatar : '', placeholder: 'https://…（也可以贴一张外链头像）' });
   const preview = h('img', { class: 'pfavatar small', src: auth.avatarOf(u), alt: '' });
   const grid = h('div', { class: 'avgv' });
   const tabs = h('div', { class: 'avtabs' });
-  const count = h('small', { class: 'note' });
+  const count = h('small', { class: 'dim' });
   let all = [];
   let cur = 'all';
 
@@ -2271,283 +2193,160 @@ function editBox(u) {
       type: 'button', class: `avg${a.src === picked ? ' on' : ''}`, 'data-src': a.src, title: a.n,
       onclick: () => setPick(a.src),
     }, h('img', { src: a.src, alt: a.n, loading: 'lazy' }))));
-    count.textContent = t('pfAvatarN', { n: list.length });
+    count.textContent = `共 ${list.length} 个`;
     tabs.querySelectorAll('.avtab').forEach((b) => b.classList.toggle('on', b.dataset.g === cur));
   };
 
+  // 头像库有几百张，收进 details 里：不展开就完全不请求图片
+  const picker = h('details', { class: 'avpick' },
+    h('summary', {}, h('b', {}, '换头像'), ' ', count),
+    tabs, grid);
   avatarLib().then((lib) => {
     all = lib.items || [];
     const mk = (g, label) => h('button', {
       type: 'button', class: `avtab${g === cur ? ' on' : ''}`, 'data-g': g,
       onclick: () => { cur = g; drawGrid(); },
     }, label);
-    tabs.replaceChildren(
-      mk('all', t('pfAvatarAll', { n: all.length })),
-      ...(lib.groups || []).map((gp) => mk(gp.k, lang.cur === 'en' ? gp.en : gp.n)));
+    tabs.replaceChildren(mk('all', `全部 ${all.length}`), ...(lib.groups || []).map((gp) => mk(gp.k, gp.n)));
     drawGrid();
     if (!picked && all[0]) setPick(all[0].src);
   });
 
-  urlEl.addEventListener('input', () => {
-    const v = urlEl.value.trim();
-    if (v) setPick(v);
-  });
+  urlEl.addEventListener('input', () => { const v = urlEl.value.trim(); if (v) setPick(v); });
 
-  const saveBtn = h('button', { class: 'btn', onclick: save }, t('save'));
+  const saveBtn = h('button', { class: 'btn', onclick: save }, '保存资料');
   async function save() {
     saveBtn.disabled = true;
     try {
       const avatar = (urlEl.value.trim() || picked || '').slice(0, 250);
       await auth.update({ name: nameEl.value.trim() || u.name, avatar });
-      toast(t('pfSaved'));
+      toast('已保存');
       render();
     } catch (e) {
-      // auth.update 会按注册同一套规则校验昵称（长度 / 字符 / 归一化）
       const why = {
         tooShort: '昵称至少 2 个字', tooLong: '昵称最多 20 个字',
         badChar: '昵称只能用中文、字母、数字和 _ - ·（不要空格和标点）',
+        nameTaken: '这个昵称已经被占用了',
       };
-      toast(`${t('pfSaveFail')}：${why[e.message] || e.message}`);
+      toast(`保存失败：${why[e.message] || e.message}`);
     } finally {
       saveBtn.disabled = false;
     }
   }
 
   return h('section', { class: 'card' },
-    h('h3', {}, t('pfEdit')),
+    h('h2', {}, '账号资料'),
+    h('p', { class: 'sub' }, '昵称和头像会显示在「我的推理记录」、工坊题目作者等地方。'),
     h('div', { class: 'pfeditrow' },
       preview,
-      h('div', { class: 'pfeditflds' },
-        h('label', { class: 'fld' }, h('small', {}, `${t('pfNick')}（${t('pfNickNote')}）`), nameEl),
-        h('label', { class: 'fld' }, h('small', {}, t('pfAvatarUrl')), urlEl))),
-    h('div', { class: 'avpick' },
-      h('div', { class: 'avpickhead' }, h('b', {}, t('pfAvatarPick')), count),
-      tabs,
-      grid),
+      h('div', { style: 'flex:1 1 240px;min-width:0' },
+        h('label', { class: 'fld' }, h('small', {}, '昵称（2–20 个字，只能用中文/字母/数字/_ - ·）'), nameEl),
+        h('label', { class: 'fld' }, h('small', {}, '外链头像'), urlEl),
+        picker)),
     h('div', { class: 'actions' },
       saveBtn,
+      h('a', { class: 'btn ghost', href: 'index.html' }, '回首页'),
       h('button', {
-        class: 'btn ghost',
-        onclick: () => { auth.logout(); account.forget(); toast(t('pfLoggedOut')); setTimeout(() => location.reload(), 400); },
-      }, t('pfLogout'))));
-}
-
-// ------------------------------------------------------------------ 偏好唤醒体
-function favBox() {
-  const prof = store.get('profile', { favs: [] });
-  let favs = new Set((prof.favs || []).map(String));
-  const list = (DICT ? DICT.awakener : []).filter((a) => a.id != null);
-  const counter = h('span', { class: 'note' }, `${t('pfFavPicked')} ${favs.size}`);
-  const grid = h('div', { class: 'favgrid' });
-
-  const paint = () => {
-    grid.replaceChildren(...list.map((a) => {
-      const on = favs.has(String(a.id));
-      return h('button', {
-        type: 'button', class: `fav${on ? ' on' : ''}`, title: nameOf(a),
-        onclick: () => {
-          const id = String(a.id);
-          if (favs.has(id)) favs.delete(id); else favs.add(id);
-          paint();
-        },
-      }, imgEl(a.img, nameOf(a)), h('small', {}, nameOf(a)));
-    }));
-    counter.textContent = `${t('pfFavPicked')} ${favs.size}`;
-  };
-  paint();
-
-  const save = () => {
-    prof.favs = [...favs];
-    store.set('profile', prof);
-    // 偏好变了，之前的筛选索引作废
-    Object.keys(localStorage).filter((k) => k.startsWith('zjtt:favIdx:')).forEach((k) => localStorage.removeItem(k));
-    markDirty('favs');
-    account.schedule(400);
-    toast(t('pfFavSaved'));
-    render();
-  };
-
-  return h('section', { class: 'card', id: 'fav' },
-    h('h3', {}, t('pfFavTitle'), ' ', counter),
-    h('p', { class: 'note' }, t('pfFavNote')),
-    grid,
-    h('div', { class: 'actions' },
-      h('button', { class: 'btn', onclick: save }, t('pfFavSave')),
-      h('button', { class: 'btn ghost', onclick: () => { favs = new Set(); paint(); } }, t('pfFavClear'))));
-}
-
-// ------------------------------------------------------------------ 推理记录
-function histBox() {
-  const list = account.history();
-  const modeName = (m) => (m === 'daily' ? t('pfModeDaily') : m === 'random' ? t('pfModeRandom') : t('pfModeCustom'));
-  const rows = list.slice(0, 40).map((e) => h('div', { class: 'hrow' },
-    h('span', { class: 'htime' }, stamp(e.at)),
-    h('span', { class: 'hname' }, e.ti || e.i || '—'),
-    h('span', { class: 'chip dim' }, modeName(e.m)),
-    h('span', { class: 'chip' }, `${t('lvShort', { n: e.l || 1 })}`),
-    h('span', { class: `hres ${e.w ? 'win' : 'lose'}` }, e.w ? `${t('pfWinTag')} ${e.g || ''}` : `${t('pfLoseTag')} ${e.g || ''}`),
-    h('span', { class: 'hsc' }, `${e.sc ?? '—'}`),
-    e.u ? h('a', { class: 'link', href: REPLAY.json(e.u), target: '_blank', rel: 'noopener' }, t('replayTitle')) : h('span', {})));
-  return h('section', { class: 'card' },
-    h('h3', {}, `${t('pfHistTitle')} · ${list.length}`),
-    h('p', { class: 'note' }, t('pfHistNote', { n: CAP.hist })),
-    list.length
-      ? h('div', { class: 'hlist' }, rows)
-      : emptyState(t('pfHistEmpty')));
-}
-
-// ------------------------------------------------------------------ 工坊战报
-function impBox() {
-  const list = store.get('myPuzzles', []);
-  const counts = likes.cachedCounts();
-  const opened = (p) => (p.uuid ? REPLAY.json(p.uuid) : '');
-  return h('section', { class: 'card' },
-    h('h3', {}, `${t('pfImpTitle')} · ${list.length}`),
-    h('p', { class: 'note' }, t('pfImpNote')),
-    list.length ? h('div', { class: 'implist' }, list.map((p, i) => {
-      const team = (p.team || []).filter((a) => a.tid);
-      return h('div', { class: 'imp' },
-        h('div', { class: 'imphead' },
-          h('b', {}, p.title || p.id),
-          counts[String(p.id)] ? h('span', { class: 'likebadge' }, `❤ ${counts[String(p.id)]}`) : null,
-          h('small', { class: 'note' }, `${team.length} ${t('pfImpTeam')} · ${(p.relics || []).length} ${t('relicLabel')} · ${stamp(p.at)}`)),
-        h('div', { class: 'improw' }, team.map((a) => {
-          const e = awakOf(a.tid);
-          return h('span', { class: 'impawk', title: e ? nameOf(e) : a.tid },
-            imgEl(e && e.img, e ? nameOf(e) : a.tid), h('small', {}, e ? nameOf(e) : a.tid));
-        })),
-        h('div', { class: 'impact' },
-          h('a', { class: 'link', href: `detective.html?p=${encodeURIComponent(shareCodeOf(p))}` }, t('pfImpPlay')),
-          opened(p) ? h('a', { class: 'link', href: opened(p), target: '_blank', rel: 'noopener' }, t('pfImpReplay')) : null,
-          h('button', { class: 'link', onclick: () => { const l = store.get('myPuzzles', []); l.splice(i, 1); store.set('myPuzzles', l); markDirty('mine'); account.schedule(400); render(); } }, t('pfImpDel'))));
-    })) : emptyState(t('pfImpEmpty')));
-}
-
-// 工坊里同一套分享码逻辑（避免循环依赖，这里内联一份最小实现）
-function shareCodeOf(d) {
-  const payload = {
-    v: 2, id: d.id, title: d.title, uuid: d.uuid,
-    rounds: d.rounds, cards: d.cards, maxBout: d.maxBout, deathResist: d.deathResist,
-    hp: d.hp, left: d.left, playerDmg: d.playerDmg, score: d.score, diff: d.diff, diffScore: d.diffScore,
-    key: d.key, relics: d.relics, team: d.team,
-    h: (Array.isArray(d.hints) ? d.hints : []).map(c => [c.n || '', c.v || '', c.c || 5]),
-  };
-  const bytes = new TextEncoder().encode(JSON.stringify(payload));
-  let bin = '';
-  for (let i = 0; i < bytes.length; i += 4096) bin += String.fromCharCode(...bytes.subarray(i, i + 4096));
-  return 'ZJ2-' + btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-// ------------------------------------------------------------------ 典藏进度
-function cgBox() {
-  const got = new Set(unlocked.list());
-  const items = GAL || [];
-  const total = items.length || 438;
-  const recent = [...got].slice(-8).reverse();
-  return h('section', { class: 'card' },
-    h('h3', {}, t('pfCgTitle')),
-    h('p', { class: 'note' }, t('pfCgNote', { a: got.size, b: total })),
-    h('div', { class: 'prog' }, h('div', { class: 'progbar', style: `width:${Math.min(100, got.size / total * 100)}%` })),
-    recent.length ? h('div', { class: 'cgmini' }, recent.map((id) => {
-      const it = items.find((x) => x.id === id);
-      return h('a', { class: 'cgm', href: 'gallery.html', title: it ? nameOf(it) : id }, imgEl(it && it.f, it ? nameOf(it) : id));
-    })) : null);
+        class: 'btn ghost danger',
+        onclick: () => { auth.logout(); account.forget(); toast('已退出登录'); setTimeout(() => location.reload(), 400); },
+      }, '退出登录')));
 }
 
 // ------------------------------------------------------------------ 存档与同步
-function storeBox(u) {
+function syncCard(u) {
   const syncBtn = h('button', {
-    class: 'btn ghost sm',
+    class: 'btn sm',
     onclick: async () => {
       syncBtn.disabled = true;
       const old = syncBtn.textContent;
-      syncBtn.textContent = t('pfSyncing');
+      syncBtn.textContent = '同步中…';
       const r = await account.push();
-      syncBtn.textContent = r.ok ? t('pfSyncOk') : t('pfSyncFail');
+      syncBtn.textContent = r.ok ? '已同步 ✓' : '同步失败';
       setTimeout(() => { syncBtn.textContent = old; syncBtn.disabled = false; render(); }, 1400);
     },
-  }, t('pfSyncNow'));
+  }, '立即同步到云端');
+
+  const clearBtn = h('button', {
+    class: 'btn ghost danger',
+    onclick: async () => {
+      if (!confirm('会清掉这台设备上的所有小游戏进度和银芯（云端档案不动），确定？')) return;
+      const keys = [
+        'credits', 'cg', 'failed', 'stats', 'myPuzzles', 'profile', 'hist', 'gr',
+        'merge:best', 'merge:played', 'merge:skins', 'merge:best:easy', 'merge:best:normal', 'merge:best:hard', 'merge:best:frenzy',
+        'bird:best', 'bird:bestLv', 'bird:diff',
+        'survivors:best', 'survivors:progress', 'binding', 'pf:best', 'wolf:stat',
+      ];
+      keys.forEach((k) => store.del(k));
+      ['easy', 'normal', 'hard', 'mad'].forEach((d) => { store.del(`bird:best:${d}`); store.del(`bird:bestLv:${d}`); });
+      // 挂机版与死亡调查报告不在 zjtt 命名空间，单独清
+      ['morimens-idle-save-v1', 'morimens-deathreport-save-v1', 'morimens-deathreport-save-ed62-v1', 'morimens-deathreport-save-ed61-v1']
+        .forEach((k) => { try { localStorage.removeItem(k); } catch { /* 忽略 */ } });
+      if (u) await account.push().catch(() => {});
+      toast('本机进度已清空');
+      setTimeout(() => location.reload(), 600);
+    },
+  }, '清空本机进度');
 
   return h('section', { class: 'card' },
-    h('h3', {}, t('pfSyncTitle')),
-    h('p', { class: 'note' }, u ? t('pfAccNote') : t('pfLocalNote')),
-    h('div', { class: 'actions' },
-      u ? syncBtn : null,
-      h('button', {
-        class: 'btn ghost danger',
-        onclick: async () => {
-          if (!confirm(t('pfClearAsk'))) return;
-          ['credits', 'cg', 'failed', 'stats', 'myPuzzles', 'profile', 'hist', 'bird:best', 'bird:bestLv', 'bird:diff'].concat(...['easy', 'normal', 'hard', 'mad'].map((d) => [`bird:best:${d}`, `bird:bestLv:${d}`])).forEach((k) => store.del(k));
-          if (u) await account.push().catch(() => {});
-          toast(t('pfCleared'));
-          setTimeout(() => location.reload(), 500);
-        },
-      }, t('pfClear'))));
+    h('h2', {}, '存档与同步'),
+    h('p', { class: 'sub' }, u
+      ? `云端档案最多保留 ${CAP.hist} 条推理记录；小游戏的最高分只增不减，手机上打的纪录不会覆盖电脑上的。`
+      : '现在是游客状态，进度只在这台设备上。登录后才会同步到云端。'),
+    h('div', { class: 'actions' }, u ? syncBtn : null, clearBtn));
 }
 
-// ------------------------------------------------------------------ 小游戏
-// 合成大杜勒的最高分存在账号档案的 mb 字段（js/account.js），这里只负责显示。
-// 未登录 / 没同步过时读的就是本机那个键，所以数字始终对得上。
-function miniBox() {
-  const best = account.mergeBest();
-  const bird = account.birdBest();
-  // 把「最高 {n} 分」拆成前后两段，中间的数字单独加粗显示（中英文语序都能对上）
-  const [pre, post] = t('pfMiniBest', { n: '\u0000' }).split('\u0000');
-  const line = best > 0
-    ? ['合成大杜勒 · ', pre, h('b', {}, String(best)), post || '']
-    : `合成大杜勒 · ${t('pfMiniNone')}`;
-  // 鸟弟这边记的是「下到过第几层」，比分数更能说明水平
-  const [bpre, bpost] = t('pfMiniBird', { n: '\u0000' }).split('\u0000');
-  const bline = bird.lv > 0
-    ? ['是鸟弟就下100层 · ', bpre, h('b', {}, String(bird.lv)), bpost || '']
-    : `是鸟弟就下100层 · ${t('pfMiniNone')}`;
-  return h('section', { class: 'card' },
-    h('h3', {}, t('pfMiniTitle')),
-    h('p', { class: 'note' }, t('pfMiniNote')),
-    h('div', { class: 'minirow' },
-      h('span', { class: 'note dim' }, line),
-      h('a', { class: 'btn ghost sm', href: 'merge.html' }, t('pfMiniGo'))),
-    h('div', { class: 'minirow' },
-      h('span', { class: 'note dim' }, bline),
-      h('a', { class: 'btn ghost sm', href: 'bird.html' }, t('pfMiniGo'))));
+// ------------------------------------------------------------------ 管理员入口（只有姜酒能看到）
+function adminCard() {
+  return h('section', { class: 'card adminlink' },
+    h('h2', {}, '管理员'),
+    h('p', { class: 'sub' }, '查看全部注册用户与数据情况、给指定账号发放银芯。'),
+    h('div', { class: 'actions' }, h('a', { class: 'btn', href: 'admin.html' }, '打开管理后台 →')));
+}
+
+// ------------------------------------------------------------------ 渲染
+let IS_ADMIN = false;
+
+function paintHead(u) {
+  if (!head) return;
+  const kids = [h('a', { class: 'ghost', href: 'index.html' }, '回首页')];
+  if (u) {
+    kids.push(h('a', { class: 'uchip', href: 'profile.html', title: '个人中心' },
+      h('img', { src: auth.avatarOf(u), alt: '', loading: 'lazy' }), h('span', {}, u.name || '我')));
+  } else {
+    kids.push(h('button', { class: 'btn sm', onclick: () => openLogin(() => location.reload()) }, '登录 / 注册'));
+  }
+  head.replaceChildren(...kids);
 }
 
 function render() {
   const u = auth.user;
   const kids = [
-    h('section', { class: 'pagehead' }, h('h1', {}, t('pfTitle')), h('p', { class: 'note' }, t('pfSub'))),
-    u ? hero(u) : guestView(),
-    h('section', { class: 'card ckcard' }, checkinBar('wide', () => render())),
-    u ? editBox(u) : null,
-    u ? favBox() : null,
-    u ? histBox() : null,
-    u ? impBox() : null,
-    u ? cgBox() : null,
-    miniBox(),
-    storeBox(u),
+    h('section', { class: 'pagehead' },
+      h('h1', {}, '个人中心'),
+      h('p', {}, '一个账号管九个同人小游戏：进度、银芯、存档同步都在这里。')),
+    u ? heroCard(u) : guestCard(),
+    gamesBox(),
+    u ? editCard(u) : null,
+    syncCard(u),
+    u && IS_ADMIN ? adminCard() : null,
   ].filter(Boolean);
-  // 顶栏里也有头像和昵称，一起刷新
-  const old = document.querySelector('.top');
-  if (old) { old.remove(); document.body.prepend(nav('profile')); }
-  root.replaceChildren(...kids);
-  if (location.hash === '#fav') {
-    const el = document.getElementById('fav');
-    if (el) el.scrollIntoView({ block: 'start' });
-  }
+  app.replaceChildren(...kids);
+  paintHead(u);
 }
 
-// 先把云端档案合并下来（登录态才有效），再渲染
-await account.ready();
-try { GAL = (await galleryLib()).list || []; } catch { GAL = []; }
-try { DICT = (await loadDict()).D; } catch { DICT = null; }
+// ------------------------------------------------------------------ 启动
+// 先把本机数据画出来，再等云端档案合并完刷一次。
+// 反过来（等 ready() 再 render）会出现整页转圈 3~4 秒——边缘一次往返 1~2 秒，
+// 而本机数据本来就够画完这一页了。
+paintSiteStat();               // 不等账号，先把左上角点亮
 render();
-window.__pfRender = render;   // 供 scripts/preview.mjs 的交互探针重绘
-
-// 我的题目：拉一次赞数（有新赞折算银芯，结果下次渲染就能看到徽标）
-likes.syncMine(store.get('myPuzzles', [])).then((r) => {
-  if (r.ok && r.gain > 0) { render(); toast(t('likeGain', { n: r.gain })); }
+account.ready().then((ok) => { if (ok) render(); }).catch(() => {});
+sitestats.whoami().then((me) => {
+  IS_ADMIN = !!me.admin;
+  if (IS_ADMIN) render();
 }).catch(() => {});
-likes.resume();
+
+window.__pfRender = render;
 return {  };
 })();
 

@@ -147,11 +147,63 @@ function genMergeArt() {
     '// 由 scripts/build.mjs 从 data/merge-levels.json 生成，请勿手改。',
     '// 每级头像是 data URI：11 张图合成一次传输，页面只发一个脚本请求。',
     `export const LEVELS = ${JSON.stringify(levels, null, 1)};`,
+    // 银芯图标：原作的图标（assets/ui/silvercore.webp），构建时内联，
+    // 页面上的「+N 银芯」都用它，不再只写两个字。
+    `export const SC_ART = ${JSON.stringify(
+      'data:image/webp;base64,' + fs.readFileSync(path.join(ROOT, 'assets/ui/silvercore.webp')).toString('base64'),
+    )};`,
     '',
   ].join('\n');
   const out = path.join(ROOT, 'js/merge-art.js');
   if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
+
+  genMergeSkins(cfg);
   return levels.length;
+}
+
+// ------------------------------------------------- 合成大杜勒的「换皮」头像池
+// 每级（杜勒赛因除外）可以换成别的唤醒体的脸。这些图不进首屏：
+// 单独一个模块，只有玩家点了「换皮」、或者之前换过要还原时才会去拉。
+// 名字从 data/avatars.json 取（id → 中文名），所以这里只写 id，别手写名字。
+const MERGE_SKIN_POOL = {
+  cat:     ['a-15588', 'a-15573', 'a-15590'],
+  aigis:   ['a-15594', 'a-15603', 'a-77922'],
+  celeste: ['a-15572', 'a-15577', 'a-15587'],
+  doll:    ['a-77925', 'a-15602', 'a-15564'],
+  ramona:  ['a-15568', 'a-15575', 'a-77923'],
+  pandia:  ['a-15601', 'a-15583', 'a-15593'],
+  murphy:  ['a-15567', 'a-15571', 'a-77913'],
+  lily:    ['a-15562', 'a-15569', 'a-15582'],
+  nodira:  ['a-15600', 'a-77925', 'a-54117'],
+};
+
+function genMergeSkins(cfg) {
+  const meta = readJson(path.join(ROOT, 'data/avatars.json'));
+  const nameOf = new Map((meta.items || []).map((x) => [x.id, x.n || x.en || x.id]));
+  const skins = cfg.levels.map((l) => {
+    // 最后一级（杜勒赛因）固定：它是终点，换掉就不叫合成大杜勒了
+    if (l.fixedSkin) return [];
+    const ids = MERGE_SKIN_POOL[l.key] || [];
+    return ids.map((id) => {
+      const src = `assets/avatars/${id}.webp`;
+      const file = path.join(ROOT, src);
+      if (!has(file)) throw new Error('换皮头像不存在：' + src);
+      return {
+        n: nameOf.get(id) || id,
+        art: 'data:image/webp;base64,' + fs.readFileSync(file).toString('base64'),
+      };
+    });
+  });
+  const code = [
+    '// 由 scripts/build.mjs 从 data/merge-levels.json + data/avatars.json 生成，请勿手改。',
+    '// 只给「换皮」用：首页/首屏不加载这个文件（动态 import，见 js/merge.js 的 ensureSkins）。',
+    '// 每级一个候选数组，元素是 { n: 角色名, art: data URI }；最后一级是空数组（固定）。',
+    `export const SKINS = ${JSON.stringify(skins)};`,
+    '',
+  ].join('\n');
+  const out = path.join(ROOT, 'js/merge-skins.js');
+  if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
+  return skins.reduce((n, a) => n + a.length, 0);
 }
 
 // ------------------------------------------------- 是鸟弟就下100层的技能动图
@@ -292,7 +344,7 @@ for (const f of pageFiles) {
 // 「合成大杜勒」的账号同步件：页面空闲时才 import()，不能算进首屏请求。
 // 打包成同名文件（js/merge-sync.js → js/b/merge-sync.js），这样
 // 页面里的 import('./merge-sync.js') 在「源码目录」和「打包目录」都能解析到。
-const EXTRA_ENTRIES = ['js/merge-sync.js', 'js/bird-sync.js'];
+const EXTRA_ENTRIES = ['js/merge-sync.js', 'js/bird-sync.js', 'js/merge-skins.js'];
 
 const extras = [];
 for (const rel of EXTRA_ENTRIES) {
@@ -372,7 +424,7 @@ const bootPartial = read(path.join(SRC, 'partials/boot.html')).trimEnd();
 // 哪些页面真的要启动数据：侦探（题库索引 + 字典）、图鉴 / 工坊 / 个人中心（字典）。
 // 其余页面（合成 / 鸟弟 / 结合 / 幸存者 / 协议 / 首页 / 说明 / 典藏馆 / 狼人杀）
 // 压根不读 boot.json，就别让它们各下一个一百多 KB 的 JSON——首屏守护仍然照常工作。
-const DATA_PAGES = new Set(['detective', 'codex', 'workshop', 'profile']);
+const DATA_PAGES = new Set(['detective', 'codex', 'workshop']);
 
 const orientPartial = read(path.join(SRC, 'partials/orient.html')).trimEnd();
 // 哪些页面挂方向开关：六个小游戏（挂机版与死亡报告是独立子项目，各自内联一份）

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>忘忘同人小游戏</title>
 <meta name="description" content="《忘却前夜》同人小游戏合集：战报侦探、合成大杜勒、挂机前夜、忘却前夜死亡调查报告。一个账号，全部项目通用。">
-<meta name="theme-color" content="#0e1118">
+<meta name="theme-color" content="#f6f7fb">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <style>
 /* 这个页面故意做成「零依赖」：没有外部 CSS、没有 JS 模块、没有图片，
@@ -13,28 +13,43 @@
    账号也是同一套思路：读写 localStorage 里的同一个 authUser/authToken，
    只有点「登录」时才发一次 POST，不回源拉脚本。 */
 :root{
-  --bg:#0e1118; --panel:#171c27; --panel2:#1f2635; --line:#2b3448; --text:#e6e9f0;
-  --dim:#8a93a8; --accent:#6ea8ff; --gold:#e3b341; --green:#2ea66a; --violet:#a07cff;
-}
-@media (prefers-color-scheme: light){
-  :root{ --bg:#f3f5f9; --panel:#fff; --panel2:#eef1f7; --line:#d6dbe7; --text:#1b2130;
-    --dim:#667088; --accent:#2c6fdb; --gold:#a77a00; --green:#1f8a55; --violet:#6b45c8; }
+  /* 配色直接抄忘忘看报（那边的 :root）：浅冷灰蓝底 + 白卡片 + 深炭灰字，
+     强调色是近乎黑的 #111827，主按钮走 #111827 → #334155 的深色渐变。
+     这里不跟系统深色模式走 —— 同一个链接点进去突然换一套颜色才叫怪。 */
+  --bg:#f6f7fb; --panel:#fff; --panel2:#f3f4f6; --line:#e5e7eb; --text:#1f2937;
+  --dim:#6b7280; --accent:#111827; --accent2:#334155;
+  --gold:#c2410c; --green:#137a3c; --violet:#6d4bd8;
+  --indigo:#6366f1; --cyan:#06b6d4; --emerald:#10b981;
+  --shadow:0 10px 25px rgba(17,24,39,.08);
 }
 *{box-sizing:border-box}
 html,body{margin:0}
 body{
   min-height:100vh; background:var(--bg); color:var(--text);
   font:15px/1.6 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  /* 三层极淡的光斑，和忘忘看报 body 上那三层同一处方子（靛蓝 / 天蓝 / 翠绿） */
   background-image:
-    radial-gradient(900px 420px at 12% -8%, color-mix(in oklab, var(--violet) 22%, transparent), transparent 70%),
-    radial-gradient(760px 380px at 92% 4%, color-mix(in oklab, var(--accent) 18%, transparent), transparent 72%);
+    radial-gradient(1100px 460px at 88% -8%, rgba(99,102,241,.055), transparent 62%),
+    radial-gradient(900px 420px at 4% 10%, rgba(14,165,233,.05), transparent 60%),
+    radial-gradient(760px 520px at 50% 118%, rgba(16,185,129,.04), transparent 65%);
   background-repeat:no-repeat;
+  background-attachment:fixed;
 }
 .wrap{max-width:1060px; margin:0 auto; padding:26px 20px 40px; min-height:100svh;
   display:flex; flex-direction:column; justify-content:center}
 
 /* ------------------------------------------------------------ 顶栏账号 */
 .bar{display:flex; align-items:center; justify-content:flex-end; gap:10px; min-height:40px; margin:0 0 22px}
+/* 左上角三个数：注册用户 / 今日浏览 / 总浏览。放 .bar 左端，靠 margin-right:auto 顶过去 */
+.sitenums{display:flex; align-items:center; margin-right:auto; border:1px solid var(--line); border-radius:999px; background:var(--panel); overflow:hidden}
+.sitenums[hidden]{display:none}
+.sitenums span{display:flex; align-items:baseline; gap:5px; padding:4px 12px; font-size:11px; color:var(--dim); white-space:nowrap}
+.sitenums span+span{border-left:1px solid var(--line)}
+.sitenums b{font-size:13px; color:var(--text); font-variant-numeric:tabular-nums}
+@media (max-width:720px){
+  .sitenums{order:-1; flex:1 0 100%; justify-content:space-between}
+  .sitenums span{flex:1 1 0; justify-content:center; padding:4px 6px}
+}
 .acct{position:relative; display:flex; align-items:center; gap:10px}
 .acct .hint{color:var(--dim); font-size:12px}
 .btn{
@@ -45,7 +60,7 @@ body{
 }
 .btn:hover{border-color:var(--accent); color:var(--accent)}
 .btn.primary{
-  background:linear-gradient(100deg, var(--accent), var(--violet));
+  background:linear-gradient(90deg, var(--accent) 0%, var(--accent2) 100%);
   border-color:transparent; color:#fff; font-weight:600;
 }
 .btn.primary:hover{color:#fff; opacity:.9}
@@ -72,7 +87,7 @@ img.av{border:1px solid var(--line)}
   position:absolute; right:0; top:calc(100% + 10px); z-index:30;
   width:min(296px, calc(100vw - 32px)); padding:14px;
   background:var(--panel); border:1px solid var(--line); border-radius:14px;
-  box-shadow:0 26px 48px -26px rgba(8,12,22,.9);
+  box-shadow:var(--shadow);
   display:none;
 }
 .panel.on{display:block; animation:drop .16s ease-out}
@@ -93,9 +108,9 @@ img.av{border:1px solid var(--line)}
 dialog.auth{
   width:min(352px, 92vw); padding:0; border:1px solid var(--line); border-radius:16px;
   background:var(--panel); color:var(--text);
-  box-shadow:0 30px 70px -34px rgba(4,8,16,.85);
+  box-shadow:0 24px 60px -30px rgba(17,24,39,.28);
 }
-dialog.auth::backdrop{background:rgba(6,9,14,.62)}
+dialog.auth::backdrop{background:rgba(17,24,39,.38)}
 .authbox{padding:16px 18px 16px; display:flex; flex-direction:column; gap:9px}
 .tabs{display:flex; gap:6px}
 .tab{
@@ -110,7 +125,7 @@ dialog.auth::backdrop{background:rgba(6,9,14,.62)}
 }
 .authbox input:focus{outline:none; border-color:var(--accent)}
 .tip{margin:0; min-height:17px; font-size:12px; line-height:1.45; color:var(--gold)}
-.tip.bad{color:#e8695f}
+.tip.bad{color:#b42318}
 .authrule{margin:0; font-size:11.5px; line-height:1.5; color:var(--dim)}
 .authacts{display:flex; gap:8px; margin-top:2px}
 .authacts .btn{flex:1}
@@ -148,7 +163,7 @@ dialog.auth::backdrop{background:rgba(6,9,14,.62)}
   background:linear-gradient(90deg, transparent, var(--accent), transparent);
   opacity:0; transition:opacity .18s ease;
 }
-a.proj:hover{transform:translateY(-3px); border-color:var(--accent); box-shadow:0 14px 30px -18px rgba(15,25,50,.85)}
+a.proj:hover{transform:translateY(-3px); border-color:var(--accent); box-shadow:0 14px 30px -18px rgba(17,24,39,.18)}
 a.proj:hover::after{opacity:1}
 
 .phead{display:flex; align-items:center; gap:10px; position:relative; padding-right:62px}
@@ -204,7 +219,7 @@ a.proj:hover .arrow{transform:translateX(3px)}
   position:fixed; left:50%; bottom:28px; transform:translateX(-50%); z-index:99;
   padding:8px 16px; border-radius:10px; font-size:13px;
   background:var(--panel); border:1px solid var(--line); color:var(--text);
-  box-shadow:0 18px 34px -20px rgba(0,0,0,.8);
+  box-shadow:0 14px 30px -18px rgba(17,24,39,.22);
 }
 @media (max-width:560px){
   .bar{margin-bottom:14px}
@@ -314,11 +329,11 @@ dialog.sheet{
   border:0; padding:0; background:transparent; color:var(--text);
   width:min(540px,calc(100vw - 28px)); max-width:min(540px,calc(100vw - 28px));
 }
-dialog.sheet::backdrop{background:rgba(6,9,16,.66); backdrop-filter:blur(2px)}
+dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
 .sheet-in{
   max-height:min(86vh,760px); overflow:auto;
   background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px 20px 18px;
-  box-shadow:0 30px 60px -30px rgba(0,0,0,.9);
+  box-shadow:0 24px 60px -30px rgba(17,24,39,.3);
 }
 .sheet h3{margin:0 0 6px; font-size:17px; letter-spacing:.02em}
 .sheet .sub{margin:0 0 14px; font-size:12px; line-height:1.65; color:var(--dim)}
@@ -334,7 +349,7 @@ dialog.sheet::backdrop{background:rgba(6,9,16,.66); backdrop-filter:blur(2px)}
 .sheet textarea{min-height:92px; resize:vertical; line-height:1.6}
 .sheet textarea:focus,.sheet select:focus,.sheet input:focus{outline:none; border-color:var(--accent)}
 .sheet .tip{margin:0; min-height:17px; font-size:12px; color:var(--gold)}
-.sheet .tip.bad{color:#e8695f}
+.sheet .tip.bad{color:#b42318}
 .sheet .acts{display:flex; gap:8px; justify-content:flex-end; margin-top:14px}
 .starpick{display:flex; gap:2px; margin:0 0 12px}
 .starpick button{
@@ -358,6 +373,11 @@ dialog.sheet::backdrop{background:rgba(6,9,16,.66); backdrop-filter:blur(2px)}
 <body>
 <main class="wrap">
   <div class="bar">
+    <div class="sitenums" id="sitenums" hidden>
+      <span><b id="snUsers">—</b>注册用户</span>
+      <span><b id="snToday">—</b>今日浏览</span>
+      <span><b id="snTotal">—</b>总浏览</span>
+    </div>
     <!-- 账号：未登录是「登录 / 注册」，登录后是头像 + 名字，点开是同步概况。
          状态直接写在 localStorage 的 zjtt:authUser / zjtt:authToken 里，
          和 js/auth.js 完全同一份，所以在这里登录 = 所有项目都已登录。 -->
@@ -1469,6 +1489,35 @@ dialog.sheet::backdrop{background:rgba(6,9,16,.66); backdrop-filter:blur(2px)}
     var btn = card.querySelector('[data-rate-btn]');
     if (btn) btn.addEventListener('click', function () { openRate(card.dataset.game); });
   });
+  // 左上角那三个数 + 浏览打点。
+  // 打点必须放在首页：这是唯一的入口页，只在个人中心计数的话数字永远长不起来。
+  (function siteNums() {
+    var box = $('#sitenums');
+    if (!box) return;
+    var CACHE = 'zjtt:site:stats';
+    function show(s) {
+      if (!s || (!s.total && !s.users)) return;
+      box.hidden = false;
+      $('#snUsers').textContent = s.users;
+      $('#snToday').textContent = s.today;
+      $('#snTotal').textContent = s.total >= 10000 ? (s.total / 10000).toFixed(1) + '万' : String(s.total);
+    }
+    try { show(JSON.parse(read(CACHE, 'null'))); } catch (e) { /* 没缓存就算了 */ }
+    if (!apiBase()) return;
+    fetch(apiBase() + '/stats', { headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (j && j.ok) { show(j); write(CACHE, j); } })
+      .catch(function () { /* 后端没上线就不显示 */ });
+    // 同一次会话只算一次浏览（刷新算新的），别让来回点卡片把数字刷飞
+    var k = 'pv:' + location.pathname;
+    try {
+      if (sessionStorage.getItem(k)) return;
+      sessionStorage.setItem(k, '1');
+    } catch (e) { /* 无痕模式：照发 */ }
+    post('/visit', { p: location.pathname })
+      .then(function (j) { if (j && j.ok) { show(j); write(CACHE, j); } })
+      .catch(function () {});
+  })();
 })();
 </script>
 

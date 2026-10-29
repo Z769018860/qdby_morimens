@@ -2,30 +2,188 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>个人中心 · 战报侦探</title>
-<meta name="description" content="战报侦探个人中心：账号、Q 版头像、偏好唤醒体、推理记录、银芯与收藏。">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>个人中心 · 忘忘同人小游戏</title>
+<meta name="description" content="忘忘同人小游戏个人中心：账号与头像、银芯、九个同人小游戏的进度总览、存档同步。">
+<meta name="theme-color" content="#f6f7fb">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/style.css">
 <link rel="modulepreload" href="js/account.js">
 <link rel="modulepreload" href="js/api.js">
 <link rel="modulepreload" href="js/auth.js">
-<link rel="modulepreload" href="js/checkin.js">
 <link rel="modulepreload" href="js/common.js">
+<link rel="modulepreload" href="js/gamestats.js">
 <link rel="modulepreload" href="js/i18n.js">
-<link rel="modulepreload" href="js/likes.js">
 <link rel="modulepreload" href="js/profile.js">
-<link rel="modulepreload" href="js/theme.js">
+<link rel="modulepreload" href="js/sitestats.js">
+<style>
+/* 配色调成和首页（忘忘看报）同一套：浅底、白卡、极淡光斑。
+   这里不引 css/style.css —— 那份是战报侦探的深色皮肤，套到个人中心上会把整页拉回旧样子。 */
+:root{
+  --bg:#f6f7fb; --card:#fff; --panel2:#f3f4f6; --line:#e5e7eb;
+  --text:#1f2937; --dim:#6b7280; --accent:#111827; --accent2:#334155;
+  --gold:#c2410c; --green:#137a3c; --violet:#6d4bd8; --blue:#1f5fa8;
+  --shadow:0 10px 25px rgba(17,24,39,.08);
+  --shadow2:0 2px 8px rgba(17,24,39,.06);
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--text); min-height:100vh;
+  font:14px/1.6 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background-image:
+    radial-gradient(760px 420px at 8% -8%, rgba(99,102,241,.055), transparent 62%),
+    radial-gradient(680px 420px at 96% 2%, rgba(14,165,233,.05), transparent 60%),
+    radial-gradient(700px 460px at 52% 104%, rgba(16,185,129,.04), transparent 62%);
+  background-attachment:fixed;
+  -webkit-text-size-adjust:100%;
+}
+a{color:inherit;text-decoration:none}
+h1,h2,h3{margin:0;line-height:1.3}
+b,strong{font-weight:700}
+.dim{color:var(--dim)}
+
+/* ---------------------------------------------------------------- 顶栏 */
+.pfh{
+  position:sticky; top:0; z-index:30;
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:9px clamp(12px,3vw,28px);
+  background:rgba(246,247,251,.86); backdrop-filter:blur(12px) saturate(1.2);
+  border-bottom:1px solid var(--line);
+}
+.pfh .brand{display:flex; flex-direction:column; line-height:1.15; min-width:0}
+.pfh .brand b{font-size:15px; letter-spacing:.01em; white-space:nowrap}
+.pfh .brand small{font-size:9.5px; letter-spacing:.22em; color:#9aa3af; white-space:nowrap}
+
+/* 左上角那三个数：注册用户 / 今日浏览 / 总浏览。
+   放 brand 右边，窄屏自动换行成一行小字，不挤掉右侧按钮。 */
+.sitestat{display:flex; align-items:center; gap:0; border:1px solid var(--line); border-radius:999px; background:#fff; overflow:hidden}
+.sitestat span{display:flex; align-items:baseline; gap:5px; padding:4px 11px; white-space:nowrap}
+.sitestat span+span{border-left:1px solid var(--line)}
+.sitestat b{font-size:13px; font-variant-numeric:tabular-nums}
+.sitestat small{font-size:10.5px; color:var(--dim)}
+.sitestat.off{display:none}
+
+.pfh-right{margin-left:auto; display:flex; align-items:center; gap:8px}
+.pfh-right .ghost{font-size:12.5px; color:var(--dim); padding:6px 8px; border-radius:8px}
+.pfh-right .ghost:hover{background:#fff; color:var(--text)}
+.uchip{display:flex; align-items:center; gap:7px; padding:4px 11px 4px 4px; border:1px solid var(--line); border-radius:999px; background:#fff; font-size:12.5px; max-width:190px}
+.uchip img{width:24px; height:24px; border-radius:50%; object-fit:cover; flex:0 0 auto}
+.uchip span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+/* ---------------------------------------------------------------- 版心 */
+.wrap{max-width:1080px; margin:0 auto; padding:clamp(14px,2.4vw,26px) clamp(12px,3vw,28px) 56px}
+.card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px 17px; box-shadow:var(--shadow2); margin-bottom:14px}
+.card>h2{font-size:15px; margin-bottom:2px}
+.card>.sub{font-size:12.5px; color:var(--dim); margin:2px 0 12px}
+.pagehead{margin:4px 0 16px}
+.pagehead h1{font-size:clamp(22px,3.4vw,30px); letter-spacing:-.01em}
+.pagehead p{margin:6px 0 0; color:var(--dim); font-size:13px}
+
+/* ---------------------------------------------------------------- 账号概览 */
+.hero{display:flex; gap:16px; align-items:center; flex-wrap:wrap}
+.hero .pfavatar{width:76px; height:76px; border-radius:50%; object-fit:cover; border:2px solid #fff; box-shadow:var(--shadow); flex:0 0 auto; background:var(--panel2)}
+.hero .meta{min-width:180px; flex:1 1 200px}
+.hero .meta h2{font-size:20px}
+.hero .meta p{margin:3px 0 0; font-size:12.5px; color:var(--dim)}
+.pfstats{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; width:100%; margin-top:12px}
+.statbox{background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:9px 11px; display:flex; flex-direction:column; gap:1px; min-width:0}
+.statbox small{font-size:10.5px; color:var(--dim)}
+.statbox b{font-size:17px; font-variant-numeric:tabular-nums; display:flex; align-items:center; gap:4px}
+.actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px}
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  padding:9px 16px; border-radius:10px; border:1px solid transparent; cursor:pointer;
+  font:inherit; font-size:13px; font-weight:600; color:#fff;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  box-shadow:0 6px 16px -8px rgba(17,24,39,.5); transition:transform .12s ease, filter .15s ease;
+}
+.btn:hover{filter:brightness(1.12)}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.55; cursor:default; filter:none}
+.btn.ghost{background:#fff; color:var(--text); border-color:var(--line); box-shadow:none}
+.btn.ghost:hover{border-color:#c7cbd3; filter:none}
+.btn.sm{padding:6px 12px; font-size:12px; border-radius:9px}
+.btn.danger{color:#b42318; border-color:#f0c8c4}
+.link{background:none; border:0; padding:0; font:inherit; font-size:12.5px; color:var(--blue); cursor:pointer; text-decoration:underline; text-underline-offset:2px}
+.empty{margin:6px 0 0; padding:22px 12px; text-align:center; color:var(--dim); font-size:12.5px; border:1px dashed var(--line); border-radius:12px; background:#fafbfc}
+
+/* 银芯图标（js/common.js 的 scNum 用的是这套类名） */
+.sc-ico{width:15px; height:15px; vertical-align:-2px; object-fit:contain}
+.sc-num{display:inline-flex; align-items:center; gap:4px}
+
+/* ---------------------------------------------------------------- 游戏数据 */
+.games{display:grid; grid-template-columns:repeat(auto-fill,minmax(232px,1fr)); gap:10px}
+.gcard{border:1px solid var(--line); border-radius:14px; padding:12px 13px; background:#fff; display:flex; flex-direction:column; gap:9px; transition:border-color .15s ease, transform .15s ease, box-shadow .18s ease}
+.gcard:hover{border-color:#cfd4dc; transform:translateY(-1px); box-shadow:var(--shadow2)}
+.gcard .gh{display:flex; align-items:center; gap:7px; min-width:0}
+.gcard .ic{width:24px; height:24px; border-radius:7px; display:grid; place-items:center; background:var(--panel2); font-size:13px; flex:0 0 auto}
+.gcard .nm{font-weight:700; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.gcard .items{display:flex; gap:12px; flex-wrap:wrap}
+.gcard .items div{display:flex; flex-direction:column; line-height:1.25; min-width:44px}
+.gcard .items b{font-size:14px; font-variant-numeric:tabular-nums}
+.gcard .items small{font-size:10.5px; color:var(--dim)}
+.gcard .extra{font-size:11.5px; color:var(--dim); min-height:17px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.gcard .go{font-size:12px; color:var(--blue); margin-top:auto}
+
+/* ---------------------------------------------------------------- 资料编辑 */
+.fld{display:flex; flex-direction:column; gap:4px; margin-bottom:10px}
+.fld small{font-size:11.5px; color:var(--dim)}
+input[type=text]{font:inherit; font-size:13px; padding:8px 11px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--text); outline:none; max-width:340px}
+input[type=text]:focus{border-color:#9aa3af; box-shadow:0 0 0 3px rgba(17,24,39,.06)}
+.pfeditrow{display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap}
+.pfeditrow .pfavatar.small{width:58px; height:58px; border-radius:50%; object-fit:cover; border:1px solid var(--line); background:var(--panel2)}
+.avpickhead{display:flex; align-items:baseline; gap:8px}
+.avpickhead b{font-size:12.5px}
+.avtabs{display:flex; gap:6px; flex-wrap:wrap; margin:8px 0}
+.avtab{font:inherit; font-size:11.5px; padding:4px 10px; border-radius:999px; border:1px solid var(--line); background:#fff; color:var(--dim); cursor:pointer}
+.avtab.on{background:var(--accent); border-color:var(--accent); color:#fff}
+.avgv{display:grid; grid-template-columns:repeat(auto-fill,minmax(52px,1fr)); gap:6px; max-height:230px; overflow:auto; padding:2px}
+.avg{padding:0; border:2px solid transparent; border-radius:11px; background:var(--panel2); cursor:pointer; overflow:hidden; aspect-ratio:1}
+.avg img{width:100%; height:100%; object-fit:cover; display:block}
+.avg.on{border-color:var(--accent)}
+
+/* ---------------------------------------------------------------- 管理员入口 */
+.adminlink{border-color:#e7d5b3; background:linear-gradient(180deg,#fffdf7,#fff)}
+
+/* ---------------------------------------------------------------- 骨架 / 提示 */
+#boot{display:grid; place-items:center; gap:10px; padding:80px 0; color:var(--dim)}
+#boot .ring{width:26px; height:26px; border-radius:50%; border:2.5px solid var(--line); border-top-color:var(--accent); animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#boot.off{display:none}
+.toast{position:fixed; left:50%; bottom:8%; transform:translateX(-50%); z-index:90; padding:9px 16px; border-radius:999px; background:#111827; color:#fff; font-size:13px; box-shadow:var(--shadow); opacity:0; animation:tin .2s ease forwards}
+@keyframes tin{to{opacity:1}}
+
+@media (max-width:720px){
+  /* 窄屏：品牌和右侧按钮占第一行，三个数字单独占第二行（不然会折成三行，顶栏太占地方） */
+  .pfh{gap:8px 10px; padding:8px 12px}
+  .sitestat{order:3; flex:1 0 100%; justify-content:space-between; border-radius:12px}
+  .sitestat span{flex:1 1 0; justify-content:center; padding:4px 6px}
+  .sitestat b{font-size:12.5px}
+  .sitestat small{font-size:10px}
+  .pfh-right{margin-left:auto}
+  .pfstats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hero .pfavatar{width:60px; height:60px}
+  .games{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
 </head>
 <body>
-<main id="app" class="wrap">
-  <div id="boot" role="status" aria-live="polite">
-    <div class="ring"></div>
-    <p class="bt" id="bootText">正在载入…</p>
-    <p class="bh" id="bootHint"></p>
+<header class="pfh">
+  <a class="brand" href="index.html"><b>忘忘同人小游戏</b><small>MORIMENS FAN WORKS</small></a>
+  <div class="sitestat off" id="sitestat" title="注册用户 / 今日浏览 / 总浏览">
+    <span><b id="st-users">—</b><small>注册用户</small></span>
+    <span><b id="st-today">—</b><small>今日浏览</small></span>
+    <span><b id="st-total">—</b><small>总浏览</small></span>
   </div>
+  <div class="pfh-right" id="pfhRight">
+    <a class="ghost" href="index.html">回首页</a>
+  </div>
+</header>
+<main id="app" class="wrap">
+  <div id="boot" role="status" aria-live="polite"><div class="ring"></div><p id="bootText">正在载入…</p><p id="bootHint"></p></div>
 </main>
-<footer class="foot">同人作品，与官方无关。账号服务由 Waline 提供。</footer>
 <!-- @boot -->
 <script type="module" src="js/profile.js"></script>
 </body>

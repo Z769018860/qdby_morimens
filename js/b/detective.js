@@ -1748,6 +1748,17 @@ async function grants() {
   return GRANTS;
 }
 
+// 云端赠礼：管理员在后台发的（edge-functions 的 /grants/mine）。
+// 服务端已经按 uid 过滤过，这里只负责和本地「已领过」的记录对账，
+// 所以拿不到后端时就是空数组，不影响静态 grants.json 那条路。
+async function cloudGrants() {
+  if (!api.ready()) return [];
+  try {
+    const r = await api.get('/grants/mine');
+    return Array.isArray(r.items) ? r.items : [];
+  } catch { return []; }
+}
+
 async function claimGrants() {
   if (!auth.logged) return 0;
   const list = await grants();
@@ -1755,18 +1766,28 @@ async function claimGrants() {
   // 用它当钥匙会漏领（改名后领不到）或者误领（同名的人各领一份）。
   const u = auth.user || {};
   const me = String(nameOfMail(u.mail || '') || u.name || '').trim().toLowerCase();
-  if (!me) return 0;
-  const mine = list.filter((g) => g && g.id && String(g.user || '').trim().toLowerCase() === me);
-  if (!mine.length) return 0;
+  const mine = me
+    ? list.filter((g) => g && g.id && String(g.user || '').trim().toLowerCase() === me)
+    : [];
+  const cloud = await cloudGrants();
+  if (!mine.length && !cloud.length) return 0;
+
   const claimed = new Set(uniq(store.get('gr', [])));
   let gain = 0;
   for (const g of mine) {
     if (claimed.has(String(g.id))) continue;
     claimed.add(String(g.id));
-    const n = Math.max(0, Math.round(Number(g.amount) || 0));
-    gain += n;
+    gain += Math.max(0, Math.round(Number(g.amount) || 0));
   }
-  if (!gain) return 0;
+  for (const g of cloud) {
+    // 加前缀：静态赠礼的 id 是手写的，可能和云端生成的撞上
+    const key = 'c:' + String(g.id);
+    if (claimed.has(key)) continue;
+    claimed.add(key);
+    gain += Math.max(0, Math.round(Number(g.amount) || 0));
+    if (g.note) { try { toast(`收到一份赠礼：${g.note}`); } catch { /* 无 body */ } }
+  }
+  if (!gain) { store.set('gr', [...claimed]); return 0; }
   store.set('gr', [...claimed]);
   wallet.add(gain);                       // 会触发 dirty，但 sync 里紧接着会 push
   try { toast(t('pfGrant', { n: gain })); } catch { /* 页面还没挂 body 时忽略 */ }
