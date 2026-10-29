@@ -54,11 +54,16 @@ function audit() {
       if (!ls[k] || !ls[k].length) problems.push(`${c.zh}：缺遗言 last.${k}`);
     }
     // 真跑一遍取句：键名对不上（比如查验结果的 eroded / wolf）会整段退化成「……」
+    // 池子里本来就有「……」这种沉默台词，所以单次撞上不算数，多抽几次看有没有真话
     const probe = (kind, ctx) => {
-      const g = { rnd: Math.random, day: 2, recentSaid: [] };
-      const pp = { char: c, saidSet: new Set() };
-      const t = pickLine(g, pp, kind, ctx || {});
-      if (!t || t === '……') problems.push(`${c.zh}：${kind} 取不到台词`);
+      let ok = false;
+      for (let k = 0; k < 5 && !ok; k++) {
+        const g = { rnd: Math.random, day: 2, recentSaid: [] };
+        const pp = { char: c, saidSet: new Set() };
+        const t = pickLine(g, pp, kind, ctx || {});
+        if (t && t !== '……') ok = true;
+      }
+      if (!ok) problems.push(`${c.zh}：${kind} 取不到台词`);
     };
     for (const res of ['eroded', 'clean', 'void']) probe('report', { who: '某人', res });
     for (const k of ['accuse', 'defend', 'defendSelf', 'idle', 'vote', 'refuse']) probe(k, { who: '某人' });

@@ -5108,6 +5108,221 @@ function relTable(G) {
 return { createGame, nextEvent, playerFaction, submit, canCall, nightOptions, playerFindings, relTable };
 })();
 
+// ---- js/wolf/auto.js
+const m_auto = await (async () => {
+const { ROLES, WOLF_SIDE, POWER_ROLES } = m_data;
+const { alive, byId } = m_util;
+const { suspicionOf, isAlly, credOf, publicLeft } = m_ai;
+const { relOf } = m_rel;
+// 弥萨格狼人杀：自动档
+//
+// 自动进行时，守密人的那一手也交给这里——它不是第二个引擎，
+// 只把「现在该做什么」压成一个动作对象，跟人点按钮一样交给 submit()。
+// 判断沿用 ai.js 的怀疑值，所以自动驾驶看到的依据，和人坐下来想的是同一条。
+
+
+
+
+
+
+const pickBest = (list, score) => {
+  let best = null;
+  let bs = -Infinity;
+  for (const x of list) {
+    const s = score(x);
+    if (s > bs) { bs = s; best = x; }
+  }
+  return best;
+};
+
+// 融蚀方眼里的「该先动谁」：自称能力的最危险，其次话多的
+function threatOf(G, p) {
+  const c = G.claims[p.id];
+  let s = 6;
+  if (c === 'seer') s += 50;
+  else if (c === 'coroner') s += 26;
+  else if (c === 'watch') s += 30;
+  else if (c === 'lamp') s += 18;
+  s += (p.talk || 0) * 1.5;
+  s += (G.acc || []).filter((a) => a.by === p.id).length * 6;
+  if (p.isPlayer) s += 5;
+  return s;
+}
+
+const IDLE = { type: 'talk', kind: 'idle' };
+
+// ---------------------------------------------------------------- 白天
+function autoTalk(G) {
+  const me = G.player;
+  if (!me || !me.alive) return IDLE;
+  if (me.silencedDay === G.day) return IDLE;
+
+  const others = alive(G).filter((p) => p.id !== 0);
+  const foes = others.filter((p) => !isAlly(me, p));
+  if (!foes.length) return IDLE;
+
+  const heat = (G.acc || []).filter((a) => a.to === 0 && a.day === G.day).length;
+  const pending = (me.checks || []).filter((c) => !c.pub && byId(G, c.to));
+  const myClaim = G.claims[0] || null;
+  const rivals = others.filter((p) => G.claims[p.id] === me.role).length;
+  const claimedPowers = foes.filter((p) => G.claims[p.id] && POWER_ROLES.has(G.claims[p.id]));
+
+  // 1) 手上有查验：一轮只能说一句，所以先亮牌、下一轮再报
+  if (POWER_ROLES.has(me.role) && pending.length) {
+    const wolfRes = pending.filter((c) => c.res === 'eroded' && byId(G, c.to).alive);
+    if (!myClaim && (wolfRes.length || rivals || heat >= 2 || G.day >= 2)) {
+      return { type: 'talk', kind: 'claim', role: me.role };
+    }
+    if (myClaim === me.role) {
+      const c = wolfRes[0] || pending.find((x) => byId(G, x.to).alive) || pending[0];
+      return { type: 'talk', kind: 'report', target: c.to, res: c.res };
+    }
+  }
+
+  // 2) 号召：桌上一个人都没报牌的时候值得逼一次。故意放在第二轮——
+  //    开场就喊太像剧本，先听别人说一轮，再问「谁有身份」更像人话。
+  const canCall = !(G.callDay && G.callDay[G.day]);
+  const noClaims = !others.some((p) => G.claims[p.id]);
+  if (canCall && noClaims) {
+    const eager = (G.day === 1 && G.round >= 1 && G.rnd() < 0.6) || (G.day === 2 && G.rnd() < 0.45);
+    if (eager) return { type: 'talk', kind: 'call' };
+  }
+
+  // 3) 被围攻：只能反咬（守密人没有「自辩」这一手）
+  if (heat >= 1) {
+    const accusers = (G.acc || []).filter((a) => a.to === 0 && a.day === G.day)
+      .map((a) => byId(G, a.by)).filter((p) => p && p.alive && !isAlly(me, p));
+    if (accusers.length && G.rnd() < 0.7) {
+      const t = pickBest(accusers, (p) => suspicionOf(G, me, p.id));
+      return { type: 'talk', kind: 'accuse', target: t.id };
+    }
+  }
+
+  // 4) 融蚀方：能对跳就对跳，不能就咬最危险的好人
+  if (WOLF_SIDE.has(me.role)) {
+    if (!myClaim && claimedPowers.length && G.day >= 2 && G.rnd() < 0.4) {
+      const role = G.claims[claimedPowers[0].id];
+      const left = publicLeft(G, me);
+      if ((left[role] || 0) > 0) return { type: 'talk', kind: 'claim', role };
+    }
+    const t = pickBest(foes, (p) => threatOf(G, p) + G.rnd() * 12);
+    if (t) return { type: 'talk', kind: 'accuse', target: t.id };
+    return IDLE;
+  }
+
+  // 5) 好人：证据够了就开火，不够就想保人
+  const best = pickBest(foes, (p) => suspicionOf(G, me, p.id));
+  if (best && suspicionOf(G, me, best.id) > 42) {
+    return { type: 'talk', kind: 'accuse', target: best.id };
+  }
+  const friend = foes.find((p) => relOf(me.name, p.name) > 0
+    && (G.acc || []).some((a) => a.to === p.id && a.day === G.day));
+  if (friend && G.rnd() < 0.45) return { type: 'talk', kind: 'defend', target: friend.id };
+  if (best && G.rnd() < 0.5) return { type: 'talk', kind: 'accuse', target: best.id };
+  return IDLE;
+}
+
+// ---------------------------------------------------------------- 投票
+function autoVote(G, e) {
+  const me = G.player;
+  const tied = e && e.opts && e.opts.tied && e.opts.tied.length ? e.opts.tied : null;
+  const pool = alive(G).filter((p) => p.id !== 0 && (!tied || tied.includes(p.id)));
+  if (!pool.length) return { type: 'vote', target: null };
+  const cands = pool.filter((p) => !isAlly(me, p));
+  const list = cands.length ? cands : pool;
+  const t = pickBest(list, (p) => suspicionOf(G, me, p.id) + G.rnd() * 6);
+  return { type: 'vote', target: t ? t.id : null };
+}
+
+// ---------------------------------------------------------------- 夜里
+function autoNight(G, o) {
+  const me = G.player;
+  if (!o || !o.list.length) return { type: 'night', target: null };
+  const cands = o.list.map((id) => byId(G, id)).filter(Boolean);
+  if (!cands.length) return { type: 'night', target: null };
+
+  const score = (p) => {
+    const c = G.claims[p.id];
+    let s = 0;
+    if (o.sub === 'kill') {
+      if (c && POWER_ROLES.has(c)) s += 48;
+      s += (p.talk || 0) * 2 + (G.acc || []).filter((a) => a.by === p.id).length * 6;
+      s += credOf(G, me, p.id) * 14;
+      if (relOf(me.name, p.name) > 0) s -= 12;
+    } else if (o.sub === 'check') {
+      s = suspicionOf(G, me, p.id) * 1.2 + (c && POWER_ROLES.has(c) ? 30 : 0);
+    } else if (o.sub === 'autopsy') {
+      s = (c ? 22 : 0) + (G.acc || []).filter((a) => a.to === p.id).length * 4;
+    } else if (o.sub === 'guard') {
+      if (c === 'seer') s += 48;
+      else if (c === 'coroner') s += 26;
+      else if (c === 'lamp') s += 18;
+      s += relOf(me.name, p.name) * 12 + (p.talk || 0);
+    } else if (o.sub === 'silence') {
+      if (c === 'seer') s += 60;
+      else if (c === 'coroner') s += 40;
+      else if (c === 'watch') s += 30;
+      s += (p.talk || 0) * 2;
+    }
+    return s + G.rnd() * 8;
+  };
+  const t = pickBest(cands, score);
+  return { type: 'night', target: t ? t.id : null };
+}
+
+// ---------------------------------------------------------------- 灯与链
+function autoRevive(G) {
+  const v = byId(G, G.pendingRevive);
+  if (!v) return { type: 'revive', yes: false };
+  const c = G.claims[v.id];
+  let chance = 0.22;
+  if (c && POWER_ROLES.has(c)) chance = 0.5 + 0.4 * credOf(G, G.player, v.id);
+  else if (relOf(G.player.name, v.name) > 0) chance = 0.5;
+  if ((v.talk || 0) >= 3) chance += 0.1;
+  return { type: 'revive', yes: G.rnd() < chance };
+}
+
+function autoChain(G, e) {
+  const list = (e && e.opts && e.opts.list) || [];
+  const cands = list.map((id) => byId(G, id)).filter(Boolean);
+  if (!cands.length) return { type: 'chain', target: null };
+  const t = pickBest(cands, (p) => suspicionOf(G, G.player, p.id) + G.rnd() * 8);
+  return { type: 'chain', target: t ? t.id : null };
+}
+
+// ---------------------------------------------------------------- 入口
+function autoAct(G, e, nightOpt) {
+  if (!e) return null;
+  if (e.kind === 'start') return { type: 'start' };
+  if (e.kind === 'talk') return autoTalk(G);
+  if (e.kind === 'vote') return autoVote(G, e);
+  if (e.kind === 'night') return autoNight(G, nightOpt);
+  if (e.kind === 'revive') return autoRevive(G);
+  if (e.kind === 'chain') return autoChain(G, e);
+  return null;
+}
+
+// 界面用：把决定翻成一句人话，让人知道刚刚替你做了什么
+function autoNote(G, act) {
+  if (!act) return '';
+  const nm = (id) => (byId(G, id) || {}).name || '?';
+  if (act.type === 'talk') {
+    if (act.kind === 'accuse') return '指认 ' + nm(act.target);
+    if (act.kind === 'claim') return '亮牌：' + (ROLES[act.role] ? ROLES[act.role].zh : act.role);
+    if (act.kind === 'defend') return '替 ' + nm(act.target) + ' 说话';
+    if (act.kind === 'report') return '公布查验：' + nm(act.target) + (act.res === 'eroded' ? ' 是融蚀' : (act.res === 'void' ? ' 不是人' : ' 干净'));
+    if (act.kind === 'call') return '号召有身份的人站出来';
+    return '先不说话';
+  }
+  if (act.type === 'vote') return act.target == null ? '弃票' : '投给 ' + nm(act.target);
+  if (act.type === 'night') return act.target == null ? '今晚什么都不做' : '选了 ' + nm(act.target);
+  if (act.type === 'revive') return act.yes ? '点灯救人' : '不点灯';
+  if (act.type === 'chain') return act.target == null ? '不拖人' : '拖走 ' + nm(act.target);
+  return '';
+}
+return { autoTalk, autoVote, autoNight, autoRevive, autoChain, autoAct, autoNote };
+})();
+
 // ---- js/wolf/art.js
 const m_art = await (async () => {
 
@@ -5121,12 +5336,14 @@ return { AVATARS };
 const m_ui = await (async () => {
 const { ROLES, DIFFS, KEEPER, WOLF_SIDE } = m_data;
 const { createGame, nextEvent, submit, nightOptions, playerFindings, canCall } = m_engine;
+const { autoAct, autoNote } = m_auto;
 const { alive, byId } = m_util;
 const { AVATARS } = m_art;
 // 弥萨格狼人杀：界面
 //
 // 引擎一次吐一个事件，这里一个事件画一条，所以整套流程读起来就是一场对话。
 // 玩家的选择只往引擎里递一个对象（见 engine.js 的 submit），规则不在这里。
+
 
 
 
@@ -5156,10 +5373,32 @@ const STATE = {
   diff: 'normal',
   G: null,
   speed: 1,
+  // manual：每一句都等你点；fast：对话压到最短，决定还是你做；auto：连你的那一手也替你打
+  mode: 'manual',
+  turn: null,
+  autoToken: 0,
   busy: false,
   rosterOn: false,
   skipNow: null,
 };
+
+const MODE_KEY = 'zjtt:wolf:mode';
+const MODES = {
+  manual: { n: '手动', hint: '每一句都等你点' },
+  fast: { n: '快进', hint: '对话压到最短，决定还是你来做' },
+  auto: { n: '自动', hint: '替你说话、投票、行动，随时可以接管' },
+};
+
+function loadMode() {
+  try {
+    const m = localStorage.getItem(MODE_KEY);
+    if (m === 'fast' || m === 'auto') return m;
+  } catch (e) { /* 隐私模式读不了就用手动 */ }
+  return 'manual';
+}
+function saveMode(m) {
+  try { localStorage.setItem(MODE_KEY, m); } catch (e) { /* 忽略 */ }
+}
 
 const STAT_KEY = 'zjtt:wolf:stat';
 
@@ -5171,10 +5410,15 @@ function el(tag, cls, text) {
   return n;
 }
 function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+// 快进就是真的快进：手动 1 倍，自动稍微慢一点（还看得清在说什么），快进基本不给停顿
+function pace(ms) {
+  const boost = STATE.mode === 'manual' ? 1 : (STATE.mode === 'fast' ? 7 : 2.6);
+  return Math.max(0, ms / (STATE.speed * boost));
+}
 function wait(ms) {
   return new Promise((res) => {
     let done = false;
-    const t = setTimeout(() => { if (!done) { done = true; STATE.skipNow = null; res(); } }, Math.max(0, ms / STATE.speed));
+    const t = setTimeout(() => { if (!done) { done = true; STATE.skipNow = null; res(); } }, pace(ms));
     STATE.skipNow = () => { if (!done) { done = true; clearTimeout(t); STATE.skipNow = null; res(); } };
   });
 }
@@ -5206,6 +5450,8 @@ function avBox(pid, cls) {
 // ---------------------------------------------------------------- 标题页
 function showTitle() {
   STATE.G = null;
+  STATE.turn = null;
+  STATE.autoToken += 1;
   document.body.classList.remove('night');
   rosterBtn.classList.add('hide');
   subEl.textContent = '人机对局 · 你是守密人';
@@ -5264,6 +5510,10 @@ function showTitle() {
   scr.append(stat);
   renderStatLine();
 
+  const pace = el('p', 'statline', '开局后在操作区上方可以切「快进」或「自动」——自动会替你把这一局打完，随时能接管。');
+  pace.style.marginTop = '6px';
+  scr.append(pace);
+
   const foot = el('p', 'statline', '');
   foot.style.marginTop = '10px';
   foot.textContent = '素材与设定取自《忘却前夜》，同人作品，与官方无关。';
@@ -5290,6 +5540,9 @@ function startGame() {
   STATE.G = createGame({ diff: STATE.diff });
   STATE.speed = 1;
   STATE.busy = false;
+  STATE.turn = null;
+  STATE.autoToken += 1;
+  STATE.mode = loadMode();
   document.body.classList.remove('night');
   rosterBtn.classList.remove('hide');
   clear(stage);
@@ -5305,7 +5558,7 @@ function startGame() {
   feed.onclick = () => { if (STATE.skipNow) STATE.skipNow(); };
   const composer = el('div', 'composer');
   composer.id = 'composer';
-  board.append(feed, composer);
+  board.append(feed, paceBar(), composer);
 
   const roster = el('aside', 'roster');
   roster.id = 'roster';
@@ -5318,6 +5571,7 @@ function startGame() {
   diffTag.dataset.c = d.c;
   subEl.textContent = d.sub;
 
+  paintPace();
   refreshRoster();
   pump();
 }
@@ -5326,6 +5580,9 @@ function startGame() {
 async function pump() {
   if (STATE.busy || !STATE.G) return;
   STATE.busy = true;
+  // 一交出去，刚才那个回合就作废了——切档时不能拿旧回合重画操作条，
+  // 否则等于把同一句话又说了一遍
+  STATE.turn = null;
   ensureWait('……');
   for (;;) {
     const e = nextEvent(STATE.G);
@@ -5358,9 +5615,11 @@ function spectatorBar() {
   if (!c) return;
   clear(c);
   const bar = waitBar('你已经出局了。剩下的只能看着。');
-  const sp = el('button', 'btn sm ghost', '快进');
+  const fast = STATE.mode !== 'manual';
+  const sp = el('button', 'btn sm ghost', fast ? '已加速' : '快进到结局');
   sp.type = 'button';
-  sp.onclick = () => { STATE.speed = 4; sp.textContent = '已快进'; sp.disabled = true; };
+  sp.disabled = fast;
+  sp.onclick = () => setMode('fast');
   bar.append(sp);
   c.append(bar);
 }
@@ -5610,6 +5869,7 @@ function showComposer(e) {
   clear(box);
   const G = STATE.G;
   if (!G || G.over) return;
+  STATE.turn = e;
 
   if (e.kind === 'start') {
     box.append(el('div', 'chint', '牌已经发到你手里了。'));
@@ -5619,34 +5879,116 @@ function showComposer(e) {
     b.onclick = () => showRoleCard();
     row.append(b);
     box.append(row);
+    // 自动档：连翻牌这一下也替你点，只留给人看的时间
+    if (STATE.mode === 'auto') {
+      const token = ++STATE.autoToken;
+      setTimeout(() => {
+        if (token === STATE.autoToken && STATE.mode === 'auto' && box.contains(b)) b.click();
+      }, 900);
+    }
     return;
   }
 
   // 已经出局：引擎不会再给你发言/投票/过夜的机会，只剩看着
   if (!G.player.alive) return spectatorBar();
 
+  if (STATE.mode === 'auto') return autoComposer(e);
+
   if (e.kind === 'talk') return composerTalk(box);
   if (e.kind === 'vote') return composerVote(box, e);
   if (e.kind === 'night') return composerNight(box);
   if (e.kind === 'revive') return composerRevive(box);
+  if (e.kind === 'chain') return composerChain(box, e);
 }
 
-function speedRow() {
-  const row = el('div', 'chint');
-  row.style.display = 'flex';
-  row.style.alignItems = 'center';
-  row.style.gap = '8px';
-  const t = el('span', '', '');
-  t.style.flex = '1';
-  t.id = 'hintText';
-  const sp = el('button', 'btn sm ghost', '速度 ×' + STATE.speed);
+// 自动档的操作区：先写「正在替你决定」，再亮出决定，最后才递进引擎。
+// 中间多停半拍，是为了让人看清它做了什么——不然整局像自己跑掉的。
+function autoComposer(e) {
+  const G = STATE.G;
+  const box = composerEl();
+  if (!box) return;
+  clear(box);
+  const bar = el('div', 'chint auto');
+  const tag = el('b', '', '自动进行中');
+  const note = el('span', '', '· 正在替你决定…');
+  bar.append(tag, note);
+  const stop = el('button', 'btn sm ghost', '接管');
+  stop.type = 'button';
+  stop.title = '切回手动，从现在开始由你决定';
+  stop.onclick = () => setMode('manual');
+  bar.append(stop);
+  box.append(bar);
+
+  const token = ++STATE.autoToken;
+  const ok = () => token === STATE.autoToken && STATE.mode === 'auto' && STATE.G === G && !G.over;
+  setTimeout(() => {
+    if (!ok()) return;
+    const o = e.kind === 'night' ? nightOptions(G) : null;
+    const act = autoAct(G, e, o);
+    if (!act) return;
+    note.textContent = '· ' + (autoNote(G, act) || '……');
+    setTimeout(() => {
+      if (!ok()) return;
+      submit(G, act);
+      clear(box);
+      pump();
+    }, Math.max(160, 520 / STATE.speed));
+  }, Math.max(240, 760 / STATE.speed));
+}
+
+// ---------------------------------------------------------------- 节奏条
+// 三档：手动 / 快进 / 自动。挂在操作区上方，出局以后也还在——
+// 死了还得一句句点，是最没必要的事。
+function paceBar() {
+  const bar = el('div', 'pace');
+  bar.id = 'pace';
+  const seg = el('div', 'seg');
+  for (const k of ['manual', 'fast', 'auto']) {
+    const b = el('button', 'pbtn', MODES[k].n);
+    b.type = 'button';
+    b.dataset.m = k;
+    b.title = MODES[k].hint;
+    b.onclick = () => setMode(k);
+    seg.append(b);
+  }
+  const hint = el('span', 'phint');
+  hint.id = 'paceHint';
+  const sp = el('button', 'btn sm ghost', '');
+  sp.id = 'speedBtn';
   sp.type = 'button';
+  sp.title = '同一档里再说快一点';
   sp.onclick = () => {
     STATE.speed = STATE.speed >= 4 ? 1 : STATE.speed * 2;
-    sp.textContent = '速度 ×' + STATE.speed;
+    paintPace();
   };
-  row.append(t, sp);
-  return row;
+  bar.append(seg, hint, sp);
+  paintPace();
+  return bar;
+}
+
+function paintPace() {
+  const bar = document.getElementById('pace');
+  if (!bar) return;
+  bar.querySelectorAll('.pbtn').forEach((b) => {
+    const on = b.dataset.m === STATE.mode;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  const h = document.getElementById('paceHint');
+  if (h) h.textContent = MODES[STATE.mode].hint;
+  const sp = document.getElementById('speedBtn');
+  if (sp) sp.textContent = '语速 ×' + STATE.speed;
+}
+
+function setMode(m) {
+  if (!MODES[m]) return;
+  const changed = STATE.mode !== m;
+  STATE.mode = m;
+  STATE.autoToken += 1;   // 作废还在等的那一手
+  saveMode(m);
+  paintPace();
+  const G = STATE.G;
+  if (changed && G && !G.over && STATE.turn) showComposer(STATE.turn);
 }
 
 function composerTalk(box) {
@@ -5669,7 +6011,6 @@ function composerTalk(box) {
     };
     acts0.append(b0);
     box.append(acts0);
-    box.append(speedRow());
     return;
   }
 
@@ -5778,8 +6119,6 @@ function composerTalk(box) {
   }, 'ghost');
 
   box.append(acts);
-  const sr = speedRow();
-  box.append(sr);
 }
 
 function composerVote(box, e) {
@@ -5819,7 +6158,6 @@ function composerVote(box, e) {
   };
   acts.append(ab);
   box.append(acts);
-  box.append(speedRow());
 }
 
 function composerNight(box) {
@@ -5864,7 +6202,6 @@ function composerNight(box) {
     acts.append(skip);
   }
   box.append(acts);
-  box.append(speedRow());
 }
 
 function composerRevive(box) {
@@ -5882,6 +6219,40 @@ function composerRevive(box) {
   no.type = 'button';
   no.onclick = () => { submit(G, { type: 'revive', yes: false }); clear(box); pump(); };
   acts.append(yes, no);
+  box.append(acts);
+}
+
+// 链缚者被投出去的那一刻：链子还在手上，可以拖一个人一起走
+function composerChain(box, e) {
+  const G = STATE.G;
+  const list = (e.opts && e.opts.list) || [];
+  if (!list.length) { submit(G, { type: 'chain', target: null }); pump(); return; }
+  const hint = el('div', 'chint');
+  hint.append(el('b', '', '链子还在你手上。'));
+  hint.append(el('span', '', '你被送出去的时候，可以再拖一个人。只有这一次。'));
+  box.append(hint);
+  const acts = el('div', 'acts');
+  for (const id of list) {
+    const p = byId(G, id);
+    const b = el('button', 'btn');
+    b.type = 'button';
+    b.style.padding = '6px 12px';
+    b.style.fontSize = '12.5px';
+    b.textContent = p.name;
+    b.onclick = () => {
+      submit(G, { type: 'chain', target: id });
+      clear(box);
+      box.append(el('div', 'waitbar', '链子响了一声。'));
+      pump();
+    };
+    acts.append(b);
+  }
+  const skip = el('button', 'btn ghost', '松开链子');
+  skip.type = 'button';
+  skip.style.padding = '6px 12px';
+  skip.style.fontSize = '12.5px';
+  skip.onclick = () => { submit(G, { type: 'chain', target: null }); clear(box); pump(); };
+  acts.append(skip);
   box.append(acts);
 }
 
@@ -5926,6 +6297,13 @@ function showRoleCard() {
   card.append(ok);
 
   sheet({ raw: card });
+  // 自动档：给两秒看清自己这局是什么身份，然后自己关掉
+  if (STATE.mode === 'auto') {
+    const token = ++STATE.autoToken;
+    setTimeout(() => {
+      if (token === STATE.autoToken && STATE.mode === 'auto' && document.body.contains(ok)) ok.click();
+    }, 2000);
+  }
 }
 
 function showRules() {
@@ -5977,6 +6355,7 @@ function showRules() {
         '低语者与共谋者不占刀口，也不挡清醒方的胜利——刀折了，它们再折腾也杀不死人。',
         '忘却者不属于任何一边：只要它活到最后一刻（场上不超过四人），胜利就被它吞掉。',
         '轮到你说话时，除了指认、辩护、亮牌，还可以「号召有身份的人站出来」——一天一次。有人会应声，有人会对跳，也有人一句话都不说。',
+        '操作区上方有三档节奏：手动、快进、自动。快进只把对话压短，决定还是你来做；自动连你的发言、投票、过夜都替你打，点「接管」随时拿回来。',
         '你出局之后，游戏会继续，你可以看完结局。',
       ].forEach((t) => ul.append(el('li', '', t)));
       box.append(ul);
@@ -6146,7 +6525,13 @@ rosterBtn.onclick = () => {
   r.classList.toggle('on', STATE.rosterOn);
 };
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { STATE.rosterOn = false; const r = document.getElementById('roster'); if (r) r.classList.remove('on'); closeSheet(); }
+  if (e.key === 'Escape') { STATE.rosterOn = false; const r = document.getElementById('roster'); if (r) r.classList.remove('on'); closeSheet(); return; }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!STATE.G || STATE.G.over) return;
+  // 快捷键：M 手动 / F 快进 / A 自动（和 1/2/3 一样）
+  const map = { m: 'manual', f: 'fast', a: 'auto', 1: 'manual', 2: 'fast', 3: 'auto' };
+  const m = map[String(e.key).toLowerCase()];
+  if (m) { setMode(m); paintPace(); }
 });
 window.addEventListener('resize', () => {
   const r = document.getElementById('roster');
@@ -6169,6 +6554,7 @@ const { boot } = m_ui;
 //   ai.js     每个 AI 的怀疑模型与发言决策
 //   engine.js 发牌、昼夜流程、投票、胜负
 //   ui.js     对话流、操作条、名单、身份牌、结算
+//   auto.js   自动档：替守密人说话、投票、过夜
 //   art.js    62 张头像（构建时内联，整页只有这一个脚本请求）
 
 

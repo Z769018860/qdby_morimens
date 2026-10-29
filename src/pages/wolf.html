@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>弥萨格狼人杀 · 忘忘同人小游戏</title>
-<meta name="description" content="《忘却前夜》同人狼人杀：你是守密人，其余位置由唤醒体扮演。12 种身份牌随机发，每只唤醒体在不同身份下有各自的说法、口癖和对别人的私心；还能当众号召有身份的人站出来。五档难度、随机阵容，可以反复开局。">
+<meta name="description" content="《忘却前夜》同人狼人杀：你是守密人，其余位置由唤醒体扮演。12 种身份牌随机发，每只唤醒体在不同身份下有各自的说法、口癖和对别人的私心；还能当众号召有身份的人站出来。五档难度、随机阵容，可以反复开局；也能切到「快进」或「自动」，让这一局自己打完。">
 <meta name="theme-color" content="#0a0d14">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23121826%22%2F%3E%3Cpath%20d%3D%22M32%2012c9%200%2016%207%2016%2016%200%2012-16%2024-16%2024S16%2040%2016%2028c0-9%207-16%2016-16z%22%20fill%3D%22none%22%20stroke%3D%22%23e3b341%22%20stroke-width%3D%223%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%224%22%20fill%3D%22%23e3b341%22%2F%3E%3C%2Fsvg%3E" type="image/svg+xml">
 <style>
@@ -254,6 +254,28 @@ body.night::after{
 .acts{display:flex; gap:8px; flex-wrap:wrap}
 .acts .btn{flex:0 0 auto}
 .acts .btn.wide{flex:1 1 140px}
+/* 节奏条：手动 / 快进 / 自动 */
+.pace{
+  flex:0 0 auto; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  margin-top:2px; padding:7px 2px 0; border-top:1px solid var(--line);
+}
+.pace .seg{
+  display:inline-flex; border:1px solid var(--line); border-radius:10px;
+  overflow:hidden; background:var(--panel2);
+}
+.pace .pbtn{
+  appearance:none; border:0; background:transparent; color:var(--dim);
+  font:inherit; font-size:12px; padding:6px 13px; cursor:pointer;
+  transition:background .16s ease, color .16s ease;
+}
+.pace .pbtn + .pbtn{border-left:1px solid var(--line)}
+.pace .pbtn:hover{color:var(--text)}
+.pace .pbtn.on{background:color-mix(in srgb,var(--gold) 15%,transparent); color:var(--gold); font-weight:700}
+.pace .phint{flex:1 1 120px; min-width:0; font-size:11px; color:var(--dim2); line-height:1.5}
+.chint.auto{display:flex; align-items:center; gap:6px}
+.chint.auto b{color:var(--violet)}
+.chint.auto span{flex:1 1 auto; min-width:0; color:var(--text)}
+.chint.auto .btn{flex:0 0 auto}
 .waitbar{
   display:flex; align-items:center; gap:8px; font-size:12px; color:var(--dim);
   padding:8px 2px;

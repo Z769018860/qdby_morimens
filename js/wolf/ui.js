@@ -5,6 +5,7 @@
 
 import { ROLES, DIFFS, KEEPER, WOLF_SIDE } from './data.js';
 import { createGame, nextEvent, submit, nightOptions, playerFindings, canCall } from './engine.js';
+import { autoAct, autoNote } from './auto.js';
 import { alive, byId } from './util.js';
 import { AVATARS } from './art.js';
 
@@ -31,10 +32,32 @@ const STATE = {
   diff: 'normal',
   G: null,
   speed: 1,
+  // manual：每一句都等你点；fast：对话压到最短，决定还是你做；auto：连你的那一手也替你打
+  mode: 'manual',
+  turn: null,
+  autoToken: 0,
   busy: false,
   rosterOn: false,
   skipNow: null,
 };
+
+const MODE_KEY = 'zjtt:wolf:mode';
+const MODES = {
+  manual: { n: '手动', hint: '每一句都等你点' },
+  fast: { n: '快进', hint: '对话压到最短，决定还是你来做' },
+  auto: { n: '自动', hint: '替你说话、投票、行动，随时可以接管' },
+};
+
+function loadMode() {
+  try {
+    const m = localStorage.getItem(MODE_KEY);
+    if (m === 'fast' || m === 'auto') return m;
+  } catch (e) { /* 隐私模式读不了就用手动 */ }
+  return 'manual';
+}
+function saveMode(m) {
+  try { localStorage.setItem(MODE_KEY, m); } catch (e) { /* 忽略 */ }
+}
 
 const STAT_KEY = 'zjtt:wolf:stat';
 
@@ -46,10 +69,15 @@ function el(tag, cls, text) {
   return n;
 }
 function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+// 快进就是真的快进：手动 1 倍，自动稍微慢一点（还看得清在说什么），快进基本不给停顿
+function pace(ms) {
+  const boost = STATE.mode === 'manual' ? 1 : (STATE.mode === 'fast' ? 7 : 2.6);
+  return Math.max(0, ms / (STATE.speed * boost));
+}
 function wait(ms) {
   return new Promise((res) => {
     let done = false;
-    const t = setTimeout(() => { if (!done) { done = true; STATE.skipNow = null; res(); } }, Math.max(0, ms / STATE.speed));
+    const t = setTimeout(() => { if (!done) { done = true; STATE.skipNow = null; res(); } }, pace(ms));
     STATE.skipNow = () => { if (!done) { done = true; clearTimeout(t); STATE.skipNow = null; res(); } };
   });
 }
@@ -81,6 +109,8 @@ function avBox(pid, cls) {
 // ---------------------------------------------------------------- 标题页
 function showTitle() {
   STATE.G = null;
+  STATE.turn = null;
+  STATE.autoToken += 1;
   document.body.classList.remove('night');
   rosterBtn.classList.add('hide');
   subEl.textContent = '人机对局 · 你是守密人';
@@ -139,6 +169,10 @@ function showTitle() {
   scr.append(stat);
   renderStatLine();
 
+  const pace = el('p', 'statline', '开局后在操作区上方可以切「快进」或「自动」——自动会替你把这一局打完，随时能接管。');
+  pace.style.marginTop = '6px';
+  scr.append(pace);
+
   const foot = el('p', 'statline', '');
   foot.style.marginTop = '10px';
   foot.textContent = '素材与设定取自《忘却前夜》，同人作品，与官方无关。';
@@ -165,6 +199,9 @@ function startGame() {
   STATE.G = createGame({ diff: STATE.diff });
   STATE.speed = 1;
   STATE.busy = false;
+  STATE.turn = null;
+  STATE.autoToken += 1;
+  STATE.mode = loadMode();
   document.body.classList.remove('night');
   rosterBtn.classList.remove('hide');
   clear(stage);
@@ -180,7 +217,7 @@ function startGame() {
   feed.onclick = () => { if (STATE.skipNow) STATE.skipNow(); };
   const composer = el('div', 'composer');
   composer.id = 'composer';
-  board.append(feed, composer);
+  board.append(feed, paceBar(), composer);
 
   const roster = el('aside', 'roster');
   roster.id = 'roster';
@@ -193,6 +230,7 @@ function startGame() {
   diffTag.dataset.c = d.c;
   subEl.textContent = d.sub;
 
+  paintPace();
   refreshRoster();
   pump();
 }
@@ -201,6 +239,9 @@ function startGame() {
 async function pump() {
   if (STATE.busy || !STATE.G) return;
   STATE.busy = true;
+  // 一交出去，刚才那个回合就作废了——切档时不能拿旧回合重画操作条，
+  // 否则等于把同一句话又说了一遍
+  STATE.turn = null;
   ensureWait('……');
   for (;;) {
     const e = nextEvent(STATE.G);
@@ -233,9 +274,11 @@ function spectatorBar() {
   if (!c) return;
   clear(c);
   const bar = waitBar('你已经出局了。剩下的只能看着。');
-  const sp = el('button', 'btn sm ghost', '快进');
+  const fast = STATE.mode !== 'manual';
+  const sp = el('button', 'btn sm ghost', fast ? '已加速' : '快进到结局');
   sp.type = 'button';
-  sp.onclick = () => { STATE.speed = 4; sp.textContent = '已快进'; sp.disabled = true; };
+  sp.disabled = fast;
+  sp.onclick = () => setMode('fast');
   bar.append(sp);
   c.append(bar);
 }
@@ -485,6 +528,7 @@ function showComposer(e) {
   clear(box);
   const G = STATE.G;
   if (!G || G.over) return;
+  STATE.turn = e;
 
   if (e.kind === 'start') {
     box.append(el('div', 'chint', '牌已经发到你手里了。'));
@@ -494,34 +538,116 @@ function showComposer(e) {
     b.onclick = () => showRoleCard();
     row.append(b);
     box.append(row);
+    // 自动档：连翻牌这一下也替你点，只留给人看的时间
+    if (STATE.mode === 'auto') {
+      const token = ++STATE.autoToken;
+      setTimeout(() => {
+        if (token === STATE.autoToken && STATE.mode === 'auto' && box.contains(b)) b.click();
+      }, 900);
+    }
     return;
   }
 
   // 已经出局：引擎不会再给你发言/投票/过夜的机会，只剩看着
   if (!G.player.alive) return spectatorBar();
 
+  if (STATE.mode === 'auto') return autoComposer(e);
+
   if (e.kind === 'talk') return composerTalk(box);
   if (e.kind === 'vote') return composerVote(box, e);
   if (e.kind === 'night') return composerNight(box);
   if (e.kind === 'revive') return composerRevive(box);
+  if (e.kind === 'chain') return composerChain(box, e);
 }
 
-function speedRow() {
-  const row = el('div', 'chint');
-  row.style.display = 'flex';
-  row.style.alignItems = 'center';
-  row.style.gap = '8px';
-  const t = el('span', '', '');
-  t.style.flex = '1';
-  t.id = 'hintText';
-  const sp = el('button', 'btn sm ghost', '速度 ×' + STATE.speed);
+// 自动档的操作区：先写「正在替你决定」，再亮出决定，最后才递进引擎。
+// 中间多停半拍，是为了让人看清它做了什么——不然整局像自己跑掉的。
+function autoComposer(e) {
+  const G = STATE.G;
+  const box = composerEl();
+  if (!box) return;
+  clear(box);
+  const bar = el('div', 'chint auto');
+  const tag = el('b', '', '自动进行中');
+  const note = el('span', '', '· 正在替你决定…');
+  bar.append(tag, note);
+  const stop = el('button', 'btn sm ghost', '接管');
+  stop.type = 'button';
+  stop.title = '切回手动，从现在开始由你决定';
+  stop.onclick = () => setMode('manual');
+  bar.append(stop);
+  box.append(bar);
+
+  const token = ++STATE.autoToken;
+  const ok = () => token === STATE.autoToken && STATE.mode === 'auto' && STATE.G === G && !G.over;
+  setTimeout(() => {
+    if (!ok()) return;
+    const o = e.kind === 'night' ? nightOptions(G) : null;
+    const act = autoAct(G, e, o);
+    if (!act) return;
+    note.textContent = '· ' + (autoNote(G, act) || '……');
+    setTimeout(() => {
+      if (!ok()) return;
+      submit(G, act);
+      clear(box);
+      pump();
+    }, Math.max(160, 520 / STATE.speed));
+  }, Math.max(240, 760 / STATE.speed));
+}
+
+// ---------------------------------------------------------------- 节奏条
+// 三档：手动 / 快进 / 自动。挂在操作区上方，出局以后也还在——
+// 死了还得一句句点，是最没必要的事。
+function paceBar() {
+  const bar = el('div', 'pace');
+  bar.id = 'pace';
+  const seg = el('div', 'seg');
+  for (const k of ['manual', 'fast', 'auto']) {
+    const b = el('button', 'pbtn', MODES[k].n);
+    b.type = 'button';
+    b.dataset.m = k;
+    b.title = MODES[k].hint;
+    b.onclick = () => setMode(k);
+    seg.append(b);
+  }
+  const hint = el('span', 'phint');
+  hint.id = 'paceHint';
+  const sp = el('button', 'btn sm ghost', '');
+  sp.id = 'speedBtn';
   sp.type = 'button';
+  sp.title = '同一档里再说快一点';
   sp.onclick = () => {
     STATE.speed = STATE.speed >= 4 ? 1 : STATE.speed * 2;
-    sp.textContent = '速度 ×' + STATE.speed;
+    paintPace();
   };
-  row.append(t, sp);
-  return row;
+  bar.append(seg, hint, sp);
+  paintPace();
+  return bar;
+}
+
+function paintPace() {
+  const bar = document.getElementById('pace');
+  if (!bar) return;
+  bar.querySelectorAll('.pbtn').forEach((b) => {
+    const on = b.dataset.m === STATE.mode;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  const h = document.getElementById('paceHint');
+  if (h) h.textContent = MODES[STATE.mode].hint;
+  const sp = document.getElementById('speedBtn');
+  if (sp) sp.textContent = '语速 ×' + STATE.speed;
+}
+
+function setMode(m) {
+  if (!MODES[m]) return;
+  const changed = STATE.mode !== m;
+  STATE.mode = m;
+  STATE.autoToken += 1;   // 作废还在等的那一手
+  saveMode(m);
+  paintPace();
+  const G = STATE.G;
+  if (changed && G && !G.over && STATE.turn) showComposer(STATE.turn);
 }
 
 function composerTalk(box) {
@@ -544,7 +670,6 @@ function composerTalk(box) {
     };
     acts0.append(b0);
     box.append(acts0);
-    box.append(speedRow());
     return;
   }
 
@@ -653,8 +778,6 @@ function composerTalk(box) {
   }, 'ghost');
 
   box.append(acts);
-  const sr = speedRow();
-  box.append(sr);
 }
 
 function composerVote(box, e) {
@@ -694,7 +817,6 @@ function composerVote(box, e) {
   };
   acts.append(ab);
   box.append(acts);
-  box.append(speedRow());
 }
 
 function composerNight(box) {
@@ -739,7 +861,6 @@ function composerNight(box) {
     acts.append(skip);
   }
   box.append(acts);
-  box.append(speedRow());
 }
 
 function composerRevive(box) {
@@ -757,6 +878,40 @@ function composerRevive(box) {
   no.type = 'button';
   no.onclick = () => { submit(G, { type: 'revive', yes: false }); clear(box); pump(); };
   acts.append(yes, no);
+  box.append(acts);
+}
+
+// 链缚者被投出去的那一刻：链子还在手上，可以拖一个人一起走
+function composerChain(box, e) {
+  const G = STATE.G;
+  const list = (e.opts && e.opts.list) || [];
+  if (!list.length) { submit(G, { type: 'chain', target: null }); pump(); return; }
+  const hint = el('div', 'chint');
+  hint.append(el('b', '', '链子还在你手上。'));
+  hint.append(el('span', '', '你被送出去的时候，可以再拖一个人。只有这一次。'));
+  box.append(hint);
+  const acts = el('div', 'acts');
+  for (const id of list) {
+    const p = byId(G, id);
+    const b = el('button', 'btn');
+    b.type = 'button';
+    b.style.padding = '6px 12px';
+    b.style.fontSize = '12.5px';
+    b.textContent = p.name;
+    b.onclick = () => {
+      submit(G, { type: 'chain', target: id });
+      clear(box);
+      box.append(el('div', 'waitbar', '链子响了一声。'));
+      pump();
+    };
+    acts.append(b);
+  }
+  const skip = el('button', 'btn ghost', '松开链子');
+  skip.type = 'button';
+  skip.style.padding = '6px 12px';
+  skip.style.fontSize = '12.5px';
+  skip.onclick = () => { submit(G, { type: 'chain', target: null }); clear(box); pump(); };
+  acts.append(skip);
   box.append(acts);
 }
 
@@ -801,6 +956,13 @@ function showRoleCard() {
   card.append(ok);
 
   sheet({ raw: card });
+  // 自动档：给两秒看清自己这局是什么身份，然后自己关掉
+  if (STATE.mode === 'auto') {
+    const token = ++STATE.autoToken;
+    setTimeout(() => {
+      if (token === STATE.autoToken && STATE.mode === 'auto' && document.body.contains(ok)) ok.click();
+    }, 2000);
+  }
 }
 
 function showRules() {
@@ -852,6 +1014,7 @@ function showRules() {
         '低语者与共谋者不占刀口，也不挡清醒方的胜利——刀折了，它们再折腾也杀不死人。',
         '忘却者不属于任何一边：只要它活到最后一刻（场上不超过四人），胜利就被它吞掉。',
         '轮到你说话时，除了指认、辩护、亮牌，还可以「号召有身份的人站出来」——一天一次。有人会应声，有人会对跳，也有人一句话都不说。',
+        '操作区上方有三档节奏：手动、快进、自动。快进只把对话压短，决定还是你来做；自动连你的发言、投票、过夜都替你打，点「接管」随时拿回来。',
         '你出局之后，游戏会继续，你可以看完结局。',
       ].forEach((t) => ul.append(el('li', '', t)));
       box.append(ul);
@@ -1021,7 +1184,13 @@ rosterBtn.onclick = () => {
   r.classList.toggle('on', STATE.rosterOn);
 };
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { STATE.rosterOn = false; const r = document.getElementById('roster'); if (r) r.classList.remove('on'); closeSheet(); }
+  if (e.key === 'Escape') { STATE.rosterOn = false; const r = document.getElementById('roster'); if (r) r.classList.remove('on'); closeSheet(); return; }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!STATE.G || STATE.G.over) return;
+  // 快捷键：M 手动 / F 快进 / A 自动（和 1/2/3 一样）
+  const map = { m: 'manual', f: 'fast', a: 'auto', 1: 'manual', 2: 'fast', 3: 'auto' };
+  const m = map[String(e.key).toLowerCase()];
+  if (m) { setMode(m); paintPace(); }
 });
 window.addEventListener('resize', () => {
   const r = document.getElementById('roster');
