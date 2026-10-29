@@ -18,6 +18,7 @@ import {
 } from './defs.js';
 import { isUnlocked, recordRun } from './unlock.js';
 import { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS } from './gen.js';
+import { sfx } from './audio.js';
 
 const TAU = Math.PI * 2;
 export const VIEW_H = 620;                 // 视口固定高度（世界单位）
@@ -62,6 +63,8 @@ export const G = {
   spawnT: 0, eliteT: 0, bossIdx: 0, pressure: 0,
   // 狂气槽
   rage: 0, rageT: 0, rageReady: false, rageUsed: 0,
+  // 「这次不要」补的狂气，攒到回到战斗再飘字
+  skipPop: 0,
   // Boss 警报：bossEta 是「还有几秒出现」（<2.5 时渲染层做边缘预警），
   // warn 是「已经出现、横幅还剩几秒淡出」。
   bossEta: 999, warn: 0, warnName: '',
@@ -71,6 +74,11 @@ export const G = {
   gaveUp: false,
   // 超武觉醒播报队列（由 refreshEvo 入队，update 在战斗帧里消费）
   evoQueue: [],
+  // 已经播报过、等界面取走弹「超武觉醒」卡的条目。UI 每帧取一次，
+  // 取空就什么都不做 —— 这样引擎不用知道 DOM 长什么样。
+  evoPops: [],
+  // 场上有没有首领：BGM 靠它切到 boss 层（每 0.4 秒扫一次，不逐帧算）
+  bossAlive: false, bossScanT: 0,
   // 神秘唤醒体的独有机制状态：stacks 是累积层（王权 / 封印），low 是威廉的
   // 「血量低于 40%」开关（用它判断跨线，避免每帧重算 mods）。
   mech: { id: null, stacks: 0, low: false, procs: 0 },
@@ -139,10 +147,13 @@ export function reset(charId, diffKey) {
   G.revived = 0; G.killTimer = 0; G.bloodTimer = 0; G.burstTimer = 0; G.dilate = 0;
   G.spawnT = 1.2; G.eliteT = ELITE_EVERY; G.bossIdx = 0; G.pressure = 0;
   G.rage = 0; G.rageT = 0; G.rageReady = false; G.rageUsed = 0;
+  G.skipPop = 0;
   G.bossEta = BOSS_AT[0]; G.warn = 0; G.warnName = '';
   G.terrainIdx = terrainAt(0); G.terrainFade = 0;
   G.gaveUp = false;
   G.evoQueue = [];
+  G.evoPops = [];
+  G.bossAlive = false; G.bossScanT = 0;
   G.growth = [];
   G.items = [];
   G.echo = [];
@@ -315,7 +326,14 @@ function refreshEvo() {
     w.evo = evo;
     if (evo) {
       if (!G.evoQueue) G.evoQueue = [];
-      G.evoQueue.push(evo.n);
+      // 不能只记名字：玩家「突然就多了一个超武」，根本不知道是哪把技能变的、
+      // 变成的这个东西到底干什么。所以连带来源技能、效果文案、达成条件一起带出去，
+      // 界面才有东西可展示。
+      G.evoQueue.push({
+        id: evo.id, n: evo.n, txt: evo.txt, color: evo.color, need: evo.need,
+        from: w.def.n, charName: w.def.charName, lv: w.lv,
+        frame: META.frames['c:' + w.def.char], char: w.def.char,
+      });
     }
   }
 }
@@ -405,8 +423,15 @@ export function addWeapon(wid, replaceId) {
   // 新技能从 0 级起算，这是「转流派」的代价 —— 否则槽位一满就只剩升级，
   // 后半局的三选一只剩造物和命轮，Build 完全定型。
   if (G.weapons.length >= MAX_WEAPON) {
-    const target = G.weapons.find((x) => x.def.id === replaceId)
-      || G.weapons.reduce((a, b) => (a.lv <= b.lv ? a : b), G.weapons[0]);
+    // 超武（质变）技能不能被替换下去。
+    // 以前这里直接在所有技能里找「等级最低的那把」兜底，而通用超武往往是
+    // 靠造物凑出来的、等级并不高 —— 于是「换流派」会静悄悄换掉一个超武，
+    // 玩家只会觉得是 bug。现在让位对象只在没质变的技能里挑；
+    // 六格全是质变时宁可不换（返回 null，调用方自己兜底）。
+    const pool = G.weapons.filter((x) => !x.evo);
+    if (!pool.length) return null;
+    const target = pool.find((x) => x.def.id === replaceId)
+      || pool.reduce((a, b) => (a.lv <= b.lv ? a : b), pool[0]);
     if (!target) return null;
     // 环绕光刃是常驻实体，换掉武器时要把对应的刀刃也作废，
     // 否则场上会留下一圈没人维护、伤害不再更新的刀刃。召唤物同理。
@@ -566,7 +591,13 @@ export function rollChoices() {
   } else {
     // 满了也照抽，只是变成「替换」。要让位的那一把交给玩家自己选 ——
     // 以前固定换等级最低的，想换掉一把满级却不合流派的技能根本没门路。
-    for (const d of news) wpool.push({ kind: 'wswap', def: d, drop: null });
+    //
+    // 但六格全是质变技能时不再给替换卡：换掉哪个都是纯亏，
+    // 玩家只会觉得「我明明都超武了，怎么还逼我换」。这种情况直接不给新武器。
+    const canSwap = G.weapons.some((w) => !w.evo);
+    if (canSwap) {
+      for (const d of news) wpool.push({ kind: 'wswap', def: d, drop: null });
+    }
   }
 
   // 2. 造物：未满 8 件时进池，已有的可以叠到 3 层
@@ -632,10 +663,16 @@ export function rollChoices() {
 export function applyChoice(o) {
   if (!o) { skipChoice(); return; }
   if (o.kind === 'wlv') { o.w.lv = Math.min(LV.max, o.w.lv + 1); }
-  else if (o.kind === 'wnew') addWeapon(o.def.id);
+  else if (o.kind === 'wnew') {
+    // 加不进去（六格全是质变技能时会返回 null）要说一声，
+    // 否则这张卡像是凭空消失，玩家只会以为卡了。
+    if (!addWeapon(o.def.id)) addText(G.player.x, G.player.y - 44, '六格都是超武 · 无法替换', 3);
+  }
   else if (o.kind === 'wswap') {
     // dropId 来自「替换选择面板」：玩家自己指定让位的那把技能
-    addWeapon(o.def.id, o.dropId || (o.drop && o.drop.def ? o.drop.def.id : null));
+    if (!addWeapon(o.def.id, o.dropId || (o.drop && o.drop.def ? o.drop.def.id : null))) {
+      addText(G.player.x, G.player.y - 44, '六格都是超武 · 无法替换', 3);
+    }
   }
   else if (o.kind === 'creation') addCreation(o.c.id);
   else if (o.kind === 'wheel') addWheel(o.i);
@@ -651,8 +688,23 @@ export function applyChoice(o) {
 
 // 什么都不选：玩家明确要的「这次不要」。技能栏满了、造物都叠满了之后，
 // 强行塞东西反而是负收益，所以留一个出口。
+//
+// 出口不能白给：放弃的是一次成长，补一小截狂气（RAGE.skip），让「跳过」在
+// 后期成为一种选择而不是一种损失。狂气已经满了就不给 —— 那会白白浪费。
 export function skipChoice() {
+  let gained = 0;
+  if (!G.rageReady && G.rageT <= 0) {
+    gained = Math.min(RAGE.skip, RAGE.max - G.rage);
+    if (gained > 0) {
+      G.rage = Math.min(RAGE.max, G.rage + gained);
+      if (G.rage >= RAGE.max) G.rageReady = true;
+      // 飘字留到回到战斗再放：现在 phase 还是 levelup，字会被弹窗盖住
+      G.skipPop = Math.round(gained);
+    }
+  }
+  sfx.play('skip');
   advancePending();
+  return gained;
 }
 
 // 消耗一次待选次数，并把下一屏准备好。
@@ -788,10 +840,16 @@ export function update(dt) {
 
   G.t += dt;
 
-  // ---- 超武觉醒播报：升级弹窗里判定出来的超武，等回到战斗再飘出来
+  // ---- 超武觉醒播报：升级弹窗里判定出来的超武，等回到战斗再飘出来。
+  // 除了飘字，还要交给界面弹一张说明卡 —— 只在头顶飘个名字，玩家记不住效果。
   if (G.evoQueue && G.evoQueue.length) {
-    const evoName = G.evoQueue.shift();
-    addText(P.x, P.y - 66, `超武 · ${evoName}`, 6);
+    while (G.evoQueue.length) {
+      const evo = G.evoQueue.shift();
+      addText(P.x, P.y - 66, `超武 · ${evo.n}`, 6);
+      if (!G.evoPops) G.evoPops = [];
+      G.evoPops.push(evo);
+      sfx.play('evo');
+    }
     G.flash = Math.max(G.flash, 0.3);
     G.shake = Math.min(12, G.shake + 5);
   }
@@ -800,6 +858,13 @@ export function update(dt) {
   if (G.rageT > 0) {
     G.rageT -= dt;
     if (G.rageT <= 0) { G.rageT = 0; addText(P.x, P.y - 30, '狂气消退', 5); }
+  }
+
+  // ---- 「这次不要」补的狂气：跳过发生在升级弹窗里，那时飘字会被盖住，
+  // 所以等回到战斗的第一帧再报出来。
+  if (G.skipPop) {
+    addText(P.x, P.y - 40, '+' + G.skipPop + ' 狂气', 4);
+    G.skipPop = 0;
   }
 
   // ---- 地形推进：每 3 分钟换一段地貌，只换视觉，不动任何数值
@@ -885,6 +950,18 @@ export function update(dt) {
 
   // ---- 刷怪
   updateSpawns(dt);
+
+  // ---- 场上有没有首领：BGM 要据此切到 boss 层。
+  // 每 0.4 秒扫一次数组就够了，没必要每帧遍历六十只怪。
+  G.bossScanT = (G.bossScanT || 0) + dt;
+  if (G.bossScanT >= 0.4) {
+    G.bossScanT = 0;
+    let alive = false;
+    for (let i = 0; i < G.enemies.length; i++) {
+      if (G.enemies[i].tier === 2) { alive = true; break; }
+    }
+    G.bossAlive = alive;
+  }
 
   // ---- 结束判定
   if (G.t >= RUN_TIME && G.phase === 'run') {
@@ -1596,6 +1673,7 @@ function addRage(n, raw) {
     const P = G.player;
     addText(P.x, P.y - 46, '狂气已满 · 空格释放', 4);
     G.flash = Math.max(G.flash, 0.18);
+    sfx.play('rageFull');
   }
 }
 
@@ -1607,6 +1685,7 @@ export function releaseRage() {
   G.flash = Math.max(G.flash, 0.35);
   shockwave(P.x, P.y, 260 * G.mods.area, RAGE.blast * G.mods.atk * G.mods.dmgMul, '#ff5f4a', 'rage');
   addText(P.x, P.y - 52, '狂气爆发', 4);
+  sfx.play('rage');
   return true;
 }
 
@@ -1649,6 +1728,7 @@ export function damageEnemy(e, amount, sx, sy, src) {
   }
   e.hp -= dmg;
   e.flash = 0.1;
+  sfx.play(crit ? 'crit' : 'hit');
   G.stats.dmg += dmg;
   creditDmg(src, dmg);
   addRage(dmg * RAGE.perDmg);
@@ -1677,6 +1757,9 @@ function killEnemy(e, sx, sy) {
   const idx = G.enemies.indexOf(e);
   if (idx >= 0) G.enemies.splice(idx, 1);
   G.kills++;
+  // 精英与首领的死法要比小怪重：同一套「击杀」音在 boss 倒下时会被后面的
+  // 结算音盖掉，所以按 tier 抬一下音量。
+  sfx.play('kill', { vol: e.tier === 2 ? 2.4 : e.tier === 1 ? 1.5 : 1 });
   addRage(RAGE.perKill);
   // 契物「血债」的卡面写的是「击杀回复 1 点生命，攻击力 +10%」，
   // 实际只实现了攻击力那一半，这里补上回复。
@@ -1786,6 +1869,7 @@ export function hurtPlayer(amount, src) {
   }
   if (dmg > 0) {
     P.hp -= dmg;
+    sfx.play('hurt');
     G.stats.taken += dmg;
     addText(P.x, P.y - 26, '-' + Math.round(dmg), 3);
     P.inv = PLAYER.iframe;
@@ -1845,7 +1929,7 @@ function updatePickups(dt) {
     const grab = p.kind === 'chest' || p.kind === 'wheel' ? 26 : 22;
     if (d < grab) {
       G.pickups.splice(i, 1);
-      if (p.kind === 'exp') gainExp(p.val);
+      if (p.kind === 'exp') { sfx.play('pickup'); gainExp(p.val); }
       else if (p.kind === 'heal') {
         // 造物「治疗量 +20%」对拾取物也要生效，否则卡面只对技能有效
         const gain = Math.max(1, Math.round(p.val * G.mods.healBoost));
@@ -1875,6 +1959,7 @@ export function gainExp(n) {
     G.lv++;
     G.expNext = expNeed(G.lv);
     G.pending++;
+    sfx.play('levelup');
     // 升级顺带回 8% 血。这游戏没有任何被动回血，指望玩家 15 分钟一次不挨打
     // 不现实——实测三档难度全在 5 分钟左右被磨死，反而是「武器太强、场上
     // 没怪」和「摸一下就永久掉血」两件事同时发生。等级回复把续航挂到成长上，
@@ -1956,6 +2041,8 @@ function updateSpawns(dt) {
         G.flash = 0.7;
         G.warn = 2.6;
         G.warnName = b.n;
+        sfx.play('boss');
+        G.bossAlive = true;
         // 降临冲击只做视觉（伤害为 0 会让 damageEnemy 刷出一堆「0」飘字）
         G.fx.push({
           x: b.x, y: b.y, vx: 0, vy: 0, kind: 'ring',

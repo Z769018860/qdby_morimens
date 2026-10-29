@@ -149,6 +149,7 @@ const RAGE = {
   max: 100,
   perKill: 0.1,        // 每击杀
   perDmg: 0.0012,      // 每一丝丝伤害（按点算）
+  skip: 12,            // 三选一点「这次不要」的补偿：放弃一次成长，换一小截狂气
   dur: 6,              // 爆发持续（秒）
   atk: 0.6,            // 爆发期攻击力 +60%
   cd: 0.7,             // 爆发期冷却 ×0.7
@@ -743,11 +744,291 @@ const COVENANTS = [{"id":"18344","n":"机械降神"},{"id":"18346","n":"再衍�
 return { ATLAS, META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS };
 })();
 
+// ---- js/sv/audio.js
+const m_audio = await (async () => {
+
+// 《唤醒体幸存者》的声音：全部用 WebAudio 现场合成，页面不带任何音频文件。
+//
+// 为什么不像其它页面那样挂几个 mp3：这一页的首屏被 EdgeOne 压到「每个请求
+// 1~2 秒」，现在整局只拉一个脚本（890KB 里还塞着图集）。再挂十几条音频，
+// 进游戏前的等待时间会翻倍，而音效恰恰是最经不起等的东西。
+//
+// 两层：
+//   · sfx.play(name)  短音效。每个音是「振荡器 + 包络」或「噪声 + 带通」，
+//                     同类音效按 GAP 限流 —— 后期一秒几十杀，不限流会糊成噪音。
+//   · sfx.music(key)  背景乐。pick（选人）/ run（战斗）/ boss（首领），
+//                     用前瞻调度器按 ac.currentTime 精确排期，主线程在算弹幕
+//                     的时候拍子也不会抖。
+//
+// 音量整体压得很低（sfx 0.02~0.05、music 0.018）：这一页是「有声音」，
+// 不是「在放歌」。静音存 zjtt:survivors:mute。
+
+const MUTE_KEY = 'zjtt:survivors:mute';
+
+// 同一音效的最小间隔（毫秒）
+const GAP = {
+  hit: 52, crit: 95, kill: 58, pickup: 90, coin: 70, click: 32, deny: 240,
+  hurt: 150, shoot: 70, wave: 400, boss: 900, evo: 600,
+};
+
+const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+
+// 三首循环曲。chords 是相对 root 的半音，四小节一轮。
+// 调性都比《忘却协议》低一截：这一页是「禁区」，底色是沉的。
+const SONGS = {
+  // 选人：极慢，只有垫音和偶发的钟 —— 让玩家听清自己在点哪个唤醒体
+  pick: { bpm: 48, root: 50, wave: 'triangle', vol: 0.016, pad: 1, bass: 0.5, bell: 0.5,
+    chords: [[0, 3, 7, 10], [-2, 2, 5, 9], [-4, 0, 3, 7], [0, 3, 7, 10]] },
+  // 战斗：低频脉冲推进 + 每两拍一记噪声，八分音符的紧迫感
+  run: { bpm: 92, root: 43, wave: 'sawtooth', vol: 0.015, pad: 0.7, bass: 1, hat: 1, arp: 0.85,
+    chords: [[0, 3, 7, 10], [0, 3, 7, 10], [-4, 0, 3, 7], [-5, 0, 2, 7]] },
+  // 首领：更低更慢，三全音 —— 一听就知道这一波不一样
+  boss: { bpm: 78, root: 39, wave: 'square', vol: 0.017, pad: 1, bass: 1, hat: 1, drive: 1, arp: 0.6,
+    chords: [[0, 6, 12], [-1, 5, 11], [0, 6, 13], [-2, 4, 10]] },
+};
+
+const sfx = {
+  ac: null,
+  master: null,
+  musicGain: null,
+  on: true,
+  key: null,
+  step: 0,
+  next: 0,
+  timer: 0,
+  last: {},
+
+  init() {
+    try { this.on = localStorage.getItem(MUTE_KEY) !== '1'; } catch { this.on = true; }
+    return this;
+  },
+
+  // 浏览器不允许在用户手势之前建 AudioContext，所以所有出口都先过这里
+  ensure() {
+    if (this.ac) {
+      if (this.ac.state === 'suspended') this.ac.resume();
+      return this.ac;
+    }
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      this.ac = new AC();
+      this.master = this.ac.createGain();
+      this.master.gain.value = this.on ? 1 : 0;
+      // 上下两条总线：音效直接进 master，音乐走 musicGain，方便单独压低
+      this.musicGain = this.ac.createGain();
+      this.musicGain.gain.value = 1;
+      this.musicGain.connect(this.master);
+      this.master.connect(this.ac.destination);
+      if (this.key) this.music(this.key, true);
+    } catch { this.ac = null; }
+    return this.ac;
+  },
+
+  setMuted(v) {
+    this.on = !v;
+    try { localStorage.setItem(MUTE_KEY, this.on ? '0' : '1'); } catch { /* 隐私模式算了 */ }
+    if (this.master && this.ac) {
+      try { this.master.gain.setTargetAtTime(this.on ? 1 : 0, this.ac.currentTime, 0.05); }
+      catch { this.master.gain.value = this.on ? 1 : 0; }
+    }
+    if (!this.on) this.stopMusic();
+    else if (this.key) this.music(this.key, true);
+    return this.on;
+  },
+
+  // ---------------------------------------------------------------- 基础音源
+  tone(freq, at, dur, type, vol, slideTo, bus) {
+    const ac = this.ac;
+    if (!ac || !this.on) return;
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = type || 'triangle';
+    o.frequency.setValueAtTime(freq, at);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(24, slideTo), at + dur);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(vol, at + Math.min(0.02, dur * 0.35));
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(g).connect(bus || this.master);
+    o.start(at);
+    o.stop(at + dur + 0.03);
+  },
+
+  noise(at, dur, vol, hp, q, bus) {
+    const ac = this.ac;
+    if (!ac || !this.on) return;
+    const n = Math.max(1, Math.floor(ac.sampleRate * dur));
+    const buf = ac.createBuffer(1, n, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const src = ac.createBufferSource();
+    const g = ac.createGain();
+    const f = ac.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = hp || 1400;
+    f.Q.value = q || 1;
+    g.gain.value = vol;
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    src.buffer = buf;
+    src.connect(f).connect(g).connect(bus || this.master);
+    src.start(at);
+  },
+
+  // ---------------------------------------------------------------- 一次性音效
+  play(name, opt) {
+    if (!this.on) return;
+    // 限流放在最前面：hit/crit 这类音效一帧可能被调用几十次，
+    // 先过一遍时间闸门，才不会每次都去问 ensure() 要 AudioContext。
+    const gap = GAP[name];
+    if (gap) {
+      const t = performance.now();
+      if (this.last[name] && t - this.last[name] < gap) return;
+      this.last[name] = t;
+    }
+    const ac = this.ensure();
+    if (!ac) return;
+    const now = ac.currentTime;
+    const v = (opt && opt.vol) || 1;
+    switch (name) {
+      // ---- 界面
+      case 'click': this.tone(720, now, 0.045, 'triangle', 0.026 * v); break;
+      case 'deny': this.tone(180, now, 0.12, 'square', 0.030 * v, 140);
+        this.tone(140, now + 0.08, 0.11, 'square', 0.024 * v, 110); break;
+      case 'pick':
+        this.tone(523, now, 0.08, 'triangle', 0.032 * v);
+        this.tone(784, now + 0.055, 0.14, 'triangle', 0.028 * v); break;
+      case 'skip':
+        // 跳过：一声「放下」，比选项低、短、不带希望
+        this.tone(330, now, 0.12, 'sine', 0.028 * v, 262);
+        this.noise(now, 0.1, 0.012 * v, 900, 1.2); break;
+      case 'item':
+        this.tone(300, now, 0.09, 'square', 0.024 * v, 520);
+        this.tone(900, now + 0.06, 0.12, 'triangle', 0.022 * v); break;
+      case 'levelup':
+        [523, 659, 784].forEach((f, i) => this.tone(f, now + i * 0.05, 0.17, 'triangle', 0.028 * v));
+        break;
+      // 超武觉醒：整局最该被听见的一声
+      case 'evo':
+        [392, 523, 659, 784, 1046].forEach((f, i) =>
+          this.tone(f, now + i * 0.06, 0.55, 'triangle', 0.034 * v));
+        this.tone(mtof(33), now, 0.9, 'sine', 0.045 * v);
+        this.noise(now, 0.45, 0.022 * v, 2600, 0.7);
+        break;
+
+      // ---- 战斗
+      case 'shoot': this.tone(640, now, 0.05, 'square', 0.012 * v, 880); break;
+      case 'hit': this.noise(now, 0.045, 0.016 * v, 1500, 1.7); break;
+      case 'crit':
+        this.noise(now, 0.09, 0.026 * v, 2500, 1.2);
+        this.tone(1180, now, 0.06, 'square', 0.022 * v, 1800); break;
+      case 'kill':
+        this.tone(150, now, 0.14, 'sawtooth', 0.026 * v, 85);
+        this.noise(now, 0.1, 0.018 * v, 880, 1.1); break;
+      case 'hurt': this.tone(115, now, 0.15, 'sawtooth', 0.034 * v, 75); break;
+      case 'pickup': this.tone(1180, now, 0.05, 'sine', 0.014 * v, 1600); break;
+      case 'rageFull':
+        [660, 880, 1108].forEach((f, i) => this.tone(f, now + i * 0.07, 0.3, 'sine', 0.030 * v));
+        this.tone(mtof(38), now, 0.5, 'sawtooth', 0.026 * v); break;
+      case 'rage':
+        this.tone(70, now, 0.6, 'sawtooth', 0.052 * v, 45);
+        this.noise(now, 0.5, 0.042 * v, 1600, 0.6);
+        this.tone(210, now + 0.06, 0.4, 'square', 0.030 * v, 90); break;
+      case 'boss':
+        this.tone(mtof(27), now, 1.1, 'sawtooth', 0.048 * v, mtof(24));
+        this.tone(mtof(39), now + 0.12, 0.9, 'square', 0.026 * v);
+        this.noise(now, 0.7, 0.028 * v, 420, 0.8); break;
+      case 'wave':
+        this.tone(196, now, 0.3, 'sawtooth', 0.030 * v, 262);
+        this.noise(now, 0.24, 0.020 * v, 760, 0.8);
+        this.tone(392, now + 0.14, 0.26, 'triangle', 0.026 * v, 523); break;
+      case 'win':
+        [523, 659, 784, 1046, 1318].forEach((f, i) => this.tone(f, now + i * 0.12, 0.7, 'triangle', 0.034 * v));
+        this.tone(mtof(36), now, 1.5, 'sine', 0.040 * v); break;
+      case 'lose':
+        [330, 277, 220, 165].forEach((f, i) => this.tone(f, now + i * 0.2, 0.65, 'sine', 0.036 * v));
+        this.tone(mtof(29), now + 0.28, 1.3, 'sawtooth', 0.026 * v); break;
+      default: break;
+    }
+  },
+
+  // ---------------------------------------------------------------- 背景乐
+  music(key, force) {
+    if (!key) { this.stopMusic(); return; }
+    if (this.key === key && !force) return;
+    this.key = key;
+    this.step = 0;
+    if (!this.on) return;
+    if (!this.ensure()) return;
+    this.next = this.ac.currentTime + 0.12;
+    if (!this.timer) this.timer = setInterval(() => this.sched(), 90);
+    this.sched();
+  },
+
+  stopMusic() {
+    this.key = null;
+    if (this.timer) { clearInterval(this.timer); this.timer = 0; }
+  },
+
+  sched() {
+    const ac = this.ac;
+    if (!ac || !this.key || !this.on) return;
+    // 还没被用户手势解锁时 currentTime 是冻住的，照常排期会把同一拍
+    // 反复塞进队列（每 90ms 24 个音符），纯属白烧 CPU。等真的跑起来再排。
+    if (ac.state !== 'running') return;
+    const song = SONGS[this.key];
+    if (!song) return;
+    const beat = 60 / song.bpm;
+    // 切标签页回来会落后一大截，直接跳到「现在」，别把攒下的音符一口气倒出来
+    if (this.next < ac.currentTime) this.next = ac.currentTime + 0.05;
+    let guard = 0;
+    while (this.next < ac.currentTime + 0.35 && guard++ < 24) {
+      this.playStep(song, this.step, this.next, beat);
+      this.step += 1;
+      this.next += beat;
+    }
+  },
+
+  playStep(song, step, at, beat) {
+    const bus = this.musicGain || this.master;
+    const bar = Math.floor(step / 4) % song.chords.length;
+    const chord = song.chords[bar];
+    const inBar = step % 4;
+    const v = song.vol;
+    // 低音：每两拍一次，很长
+    if (song.bass && inBar % 2 === 0) this.tone(mtof(song.root - 24 + chord[0]), at, beat * 2.0, 'sine', v * 0.9, 0, bus);
+    // 和弦垫：每小节头一拍
+    if (song.pad && inBar === 0) {
+      for (let i = 0; i < chord.length; i++) {
+        this.tone(mtof(song.root - 12 + chord[i]), at, beat * 3.8, song.wave, v * 0.38, 0, bus);
+      }
+    }
+    // 琶音
+    if (song.arp && (song.arp >= 1 || Math.random() < song.arp)) {
+      const idx = (step + bar) % chord.length;
+      const oct = step % 8 < 4 ? 0 : 12;
+      this.tone(mtof(song.root + 12 + chord[idx] + oct), at, beat * 0.75, song.wave, v * 0.5, 0, bus);
+    }
+    // 选人层的钟：每两小节一次，高、慢、远
+    if (song.bell && inBar === 0 && bar % 2 === 0) {
+      this.tone(mtof(song.root + 36), at, beat * 5, 'sine', v * 0.55, 0, bus);
+    }
+    // 噪声当节拍器；首领层加密
+    if (song.hat && inBar % (song.drive ? 1 : 2) === 0) this.noise(at, 0.04, v * 0.26, song.drive ? 2600 : 3600, 1.1, bus);
+    // 首领：每小节第一拍补一记低音冲击
+    if (song.drive && inBar === 0) this.tone(mtof(song.root - 12), at, beat * 0.45, 'square', v * 0.5, 0, bus);
+  },
+};
+
+sfx.init();
+return { sfx };
+})();
+
 // ---- js/sv/engine.js
 const m_engine = await (async () => {
 const { PROTOS, LV, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX, EVOS, RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, eliteGap, eliteCount, PLAYER, expNeed, scoreOf, MAX_WEAPON, POOL_PER_PROTO, RAGE, TERRAINS, terrainAt, MECHS, GROWTHS, ITEMS, ITEM_MAX } = m_defs;
 const { isUnlocked, recordRun } = m_unlock;
 const { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS } = m_gen;
+const { sfx } = m_audio;
 // 《唤醒体幸存者》引擎：状态、刷新、战斗、掉落、升级结算。
 //
 // 分工：本文件只管「世界里发生了什么」，绘制在 render.js，界面在 ui.js。
@@ -758,6 +1039,7 @@ const { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS } = m_gen;
 //   1. 敌人、子弹、粒子全部用对象池，跑起来不再 new；
 //   2. 敌人碰撞用网格哈希，O(n) 而不是 O(n²)；
 //   3. 每帧最多 300 个敌人、700 发子弹，超了就不再刷（宁可少刷也不掉帧）。
+
 
 
 
@@ -806,6 +1088,8 @@ const G = {
   spawnT: 0, eliteT: 0, bossIdx: 0, pressure: 0,
   // 狂气槽
   rage: 0, rageT: 0, rageReady: false, rageUsed: 0,
+  // 「这次不要」补的狂气，攒到回到战斗再飘字
+  skipPop: 0,
   // Boss 警报：bossEta 是「还有几秒出现」（<2.5 时渲染层做边缘预警），
   // warn 是「已经出现、横幅还剩几秒淡出」。
   bossEta: 999, warn: 0, warnName: '',
@@ -815,6 +1099,11 @@ const G = {
   gaveUp: false,
   // 超武觉醒播报队列（由 refreshEvo 入队，update 在战斗帧里消费）
   evoQueue: [],
+  // 已经播报过、等界面取走弹「超武觉醒」卡的条目。UI 每帧取一次，
+  // 取空就什么都不做 —— 这样引擎不用知道 DOM 长什么样。
+  evoPops: [],
+  // 场上有没有首领：BGM 靠它切到 boss 层（每 0.4 秒扫一次，不逐帧算）
+  bossAlive: false, bossScanT: 0,
   // 神秘唤醒体的独有机制状态：stacks 是累积层（王权 / 封印），low 是威廉的
   // 「血量低于 40%」开关（用它判断跨线，避免每帧重算 mods）。
   mech: { id: null, stacks: 0, low: false, procs: 0 },
@@ -883,10 +1172,13 @@ function reset(charId, diffKey) {
   G.revived = 0; G.killTimer = 0; G.bloodTimer = 0; G.burstTimer = 0; G.dilate = 0;
   G.spawnT = 1.2; G.eliteT = ELITE_EVERY; G.bossIdx = 0; G.pressure = 0;
   G.rage = 0; G.rageT = 0; G.rageReady = false; G.rageUsed = 0;
+  G.skipPop = 0;
   G.bossEta = BOSS_AT[0]; G.warn = 0; G.warnName = '';
   G.terrainIdx = terrainAt(0); G.terrainFade = 0;
   G.gaveUp = false;
   G.evoQueue = [];
+  G.evoPops = [];
+  G.bossAlive = false; G.bossScanT = 0;
   G.growth = [];
   G.items = [];
   G.echo = [];
@@ -1059,7 +1351,14 @@ function refreshEvo() {
     w.evo = evo;
     if (evo) {
       if (!G.evoQueue) G.evoQueue = [];
-      G.evoQueue.push(evo.n);
+      // 不能只记名字：玩家「突然就多了一个超武」，根本不知道是哪把技能变的、
+      // 变成的这个东西到底干什么。所以连带来源技能、效果文案、达成条件一起带出去，
+      // 界面才有东西可展示。
+      G.evoQueue.push({
+        id: evo.id, n: evo.n, txt: evo.txt, color: evo.color, need: evo.need,
+        from: w.def.n, charName: w.def.charName, lv: w.lv,
+        frame: META.frames['c:' + w.def.char], char: w.def.char,
+      });
     }
   }
 }
@@ -1149,8 +1448,15 @@ function addWeapon(wid, replaceId) {
   // 新技能从 0 级起算，这是「转流派」的代价 —— 否则槽位一满就只剩升级，
   // 后半局的三选一只剩造物和命轮，Build 完全定型。
   if (G.weapons.length >= MAX_WEAPON) {
-    const target = G.weapons.find((x) => x.def.id === replaceId)
-      || G.weapons.reduce((a, b) => (a.lv <= b.lv ? a : b), G.weapons[0]);
+    // 超武（质变）技能不能被替换下去。
+    // 以前这里直接在所有技能里找「等级最低的那把」兜底，而通用超武往往是
+    // 靠造物凑出来的、等级并不高 —— 于是「换流派」会静悄悄换掉一个超武，
+    // 玩家只会觉得是 bug。现在让位对象只在没质变的技能里挑；
+    // 六格全是质变时宁可不换（返回 null，调用方自己兜底）。
+    const pool = G.weapons.filter((x) => !x.evo);
+    if (!pool.length) return null;
+    const target = pool.find((x) => x.def.id === replaceId)
+      || pool.reduce((a, b) => (a.lv <= b.lv ? a : b), pool[0]);
     if (!target) return null;
     // 环绕光刃是常驻实体，换掉武器时要把对应的刀刃也作废，
     // 否则场上会留下一圈没人维护、伤害不再更新的刀刃。召唤物同理。
@@ -1310,7 +1616,13 @@ function rollChoices() {
   } else {
     // 满了也照抽，只是变成「替换」。要让位的那一把交给玩家自己选 ——
     // 以前固定换等级最低的，想换掉一把满级却不合流派的技能根本没门路。
-    for (const d of news) wpool.push({ kind: 'wswap', def: d, drop: null });
+    //
+    // 但六格全是质变技能时不再给替换卡：换掉哪个都是纯亏，
+    // 玩家只会觉得「我明明都超武了，怎么还逼我换」。这种情况直接不给新武器。
+    const canSwap = G.weapons.some((w) => !w.evo);
+    if (canSwap) {
+      for (const d of news) wpool.push({ kind: 'wswap', def: d, drop: null });
+    }
   }
 
   // 2. 造物：未满 8 件时进池，已有的可以叠到 3 层
@@ -1376,10 +1688,16 @@ function rollChoices() {
 function applyChoice(o) {
   if (!o) { skipChoice(); return; }
   if (o.kind === 'wlv') { o.w.lv = Math.min(LV.max, o.w.lv + 1); }
-  else if (o.kind === 'wnew') addWeapon(o.def.id);
+  else if (o.kind === 'wnew') {
+    // 加不进去（六格全是质变技能时会返回 null）要说一声，
+    // 否则这张卡像是凭空消失，玩家只会以为卡了。
+    if (!addWeapon(o.def.id)) addText(G.player.x, G.player.y - 44, '六格都是超武 · 无法替换', 3);
+  }
   else if (o.kind === 'wswap') {
     // dropId 来自「替换选择面板」：玩家自己指定让位的那把技能
-    addWeapon(o.def.id, o.dropId || (o.drop && o.drop.def ? o.drop.def.id : null));
+    if (!addWeapon(o.def.id, o.dropId || (o.drop && o.drop.def ? o.drop.def.id : null))) {
+      addText(G.player.x, G.player.y - 44, '六格都是超武 · 无法替换', 3);
+    }
   }
   else if (o.kind === 'creation') addCreation(o.c.id);
   else if (o.kind === 'wheel') addWheel(o.i);
@@ -1395,8 +1713,23 @@ function applyChoice(o) {
 
 // 什么都不选：玩家明确要的「这次不要」。技能栏满了、造物都叠满了之后，
 // 强行塞东西反而是负收益，所以留一个出口。
+//
+// 出口不能白给：放弃的是一次成长，补一小截狂气（RAGE.skip），让「跳过」在
+// 后期成为一种选择而不是一种损失。狂气已经满了就不给 —— 那会白白浪费。
 function skipChoice() {
+  let gained = 0;
+  if (!G.rageReady && G.rageT <= 0) {
+    gained = Math.min(RAGE.skip, RAGE.max - G.rage);
+    if (gained > 0) {
+      G.rage = Math.min(RAGE.max, G.rage + gained);
+      if (G.rage >= RAGE.max) G.rageReady = true;
+      // 飘字留到回到战斗再放：现在 phase 还是 levelup，字会被弹窗盖住
+      G.skipPop = Math.round(gained);
+    }
+  }
+  sfx.play('skip');
   advancePending();
+  return gained;
 }
 
 // 消耗一次待选次数，并把下一屏准备好。
@@ -1532,10 +1865,16 @@ function update(dt) {
 
   G.t += dt;
 
-  // ---- 超武觉醒播报：升级弹窗里判定出来的超武，等回到战斗再飘出来
+  // ---- 超武觉醒播报：升级弹窗里判定出来的超武，等回到战斗再飘出来。
+  // 除了飘字，还要交给界面弹一张说明卡 —— 只在头顶飘个名字，玩家记不住效果。
   if (G.evoQueue && G.evoQueue.length) {
-    const evoName = G.evoQueue.shift();
-    addText(P.x, P.y - 66, `超武 · ${evoName}`, 6);
+    while (G.evoQueue.length) {
+      const evo = G.evoQueue.shift();
+      addText(P.x, P.y - 66, `超武 · ${evo.n}`, 6);
+      if (!G.evoPops) G.evoPops = [];
+      G.evoPops.push(evo);
+      sfx.play('evo');
+    }
     G.flash = Math.max(G.flash, 0.3);
     G.shake = Math.min(12, G.shake + 5);
   }
@@ -1544,6 +1883,13 @@ function update(dt) {
   if (G.rageT > 0) {
     G.rageT -= dt;
     if (G.rageT <= 0) { G.rageT = 0; addText(P.x, P.y - 30, '狂气消退', 5); }
+  }
+
+  // ---- 「这次不要」补的狂气：跳过发生在升级弹窗里，那时飘字会被盖住，
+  // 所以等回到战斗的第一帧再报出来。
+  if (G.skipPop) {
+    addText(P.x, P.y - 40, '+' + G.skipPop + ' 狂气', 4);
+    G.skipPop = 0;
   }
 
   // ---- 地形推进：每 3 分钟换一段地貌，只换视觉，不动任何数值
@@ -1629,6 +1975,18 @@ function update(dt) {
 
   // ---- 刷怪
   updateSpawns(dt);
+
+  // ---- 场上有没有首领：BGM 要据此切到 boss 层。
+  // 每 0.4 秒扫一次数组就够了，没必要每帧遍历六十只怪。
+  G.bossScanT = (G.bossScanT || 0) + dt;
+  if (G.bossScanT >= 0.4) {
+    G.bossScanT = 0;
+    let alive = false;
+    for (let i = 0; i < G.enemies.length; i++) {
+      if (G.enemies[i].tier === 2) { alive = true; break; }
+    }
+    G.bossAlive = alive;
+  }
 
   // ---- 结束判定
   if (G.t >= RUN_TIME && G.phase === 'run') {
@@ -2340,6 +2698,7 @@ function addRage(n, raw) {
     const P = G.player;
     addText(P.x, P.y - 46, '狂气已满 · 空格释放', 4);
     G.flash = Math.max(G.flash, 0.18);
+    sfx.play('rageFull');
   }
 }
 
@@ -2351,6 +2710,7 @@ function releaseRage() {
   G.flash = Math.max(G.flash, 0.35);
   shockwave(P.x, P.y, 260 * G.mods.area, RAGE.blast * G.mods.atk * G.mods.dmgMul, '#ff5f4a', 'rage');
   addText(P.x, P.y - 52, '狂气爆发', 4);
+  sfx.play('rage');
   return true;
 }
 
@@ -2393,6 +2753,7 @@ function damageEnemy(e, amount, sx, sy, src) {
   }
   e.hp -= dmg;
   e.flash = 0.1;
+  sfx.play(crit ? 'crit' : 'hit');
   G.stats.dmg += dmg;
   creditDmg(src, dmg);
   addRage(dmg * RAGE.perDmg);
@@ -2421,6 +2782,9 @@ function killEnemy(e, sx, sy) {
   const idx = G.enemies.indexOf(e);
   if (idx >= 0) G.enemies.splice(idx, 1);
   G.kills++;
+  // 精英与首领的死法要比小怪重：同一套「击杀」音在 boss 倒下时会被后面的
+  // 结算音盖掉，所以按 tier 抬一下音量。
+  sfx.play('kill', { vol: e.tier === 2 ? 2.4 : e.tier === 1 ? 1.5 : 1 });
   addRage(RAGE.perKill);
   // 契物「血债」的卡面写的是「击杀回复 1 点生命，攻击力 +10%」，
   // 实际只实现了攻击力那一半，这里补上回复。
@@ -2530,6 +2894,7 @@ function hurtPlayer(amount, src) {
   }
   if (dmg > 0) {
     P.hp -= dmg;
+    sfx.play('hurt');
     G.stats.taken += dmg;
     addText(P.x, P.y - 26, '-' + Math.round(dmg), 3);
     P.inv = PLAYER.iframe;
@@ -2589,7 +2954,7 @@ function updatePickups(dt) {
     const grab = p.kind === 'chest' || p.kind === 'wheel' ? 26 : 22;
     if (d < grab) {
       G.pickups.splice(i, 1);
-      if (p.kind === 'exp') gainExp(p.val);
+      if (p.kind === 'exp') { sfx.play('pickup'); gainExp(p.val); }
       else if (p.kind === 'heal') {
         // 造物「治疗量 +20%」对拾取物也要生效，否则卡面只对技能有效
         const gain = Math.max(1, Math.round(p.val * G.mods.healBoost));
@@ -2619,6 +2984,7 @@ function gainExp(n) {
     G.lv++;
     G.expNext = expNeed(G.lv);
     G.pending++;
+    sfx.play('levelup');
     // 升级顺带回 8% 血。这游戏没有任何被动回血，指望玩家 15 分钟一次不挨打
     // 不现实——实测三档难度全在 5 分钟左右被磨死，反而是「武器太强、场上
     // 没怪」和「摸一下就永久掉血」两件事同时发生。等级回复把续航挂到成长上，
@@ -2700,6 +3066,8 @@ function updateSpawns(dt) {
         G.flash = 0.7;
         G.warn = 2.6;
         G.warnName = b.n;
+        sfx.play('boss');
+        G.bossAlive = true;
         // 降临冲击只做视觉（伤害为 0 会让 damageEnemy 刷出一堆「0」飘字）
         G.fx.push({
           x: b.x, y: b.y, vx: 0, vy: 0, kind: 'ring',
@@ -3755,6 +4123,7 @@ const { G, applyChoice, skipChoice, summary, remaining, useItem, rollChoices } =
 const { CHARS, WEAPONS, META, ATLAS, CREATIONS, WHEELS, COVENANTS } = m_gen;
 const { PROTOS, LV, WHEEL_FX, COVENANT_FX, CREATION_FX, DIFFS, RAGE, EVOS, creditsAt, nextTier, MECHS, GROWTHS } = m_defs;
 const { isUnlocked, unlockNeed, unlockProg, svProgress, recordRun, unlockedByRun } = m_unlock;
+const { sfx } = m_audio;
 // 《唤醒体幸存者》界面层：选人、HUD、升级三选一、暂停与结算。
 //
 // 界面全部是叠在 canvas 上的 DOM —— 文字排版、滚动列表、按钮反馈交给浏览器
@@ -3762,6 +4131,7 @@ const { isUnlocked, unlockNeed, unlockProg, svProgress, recordRun, unlockedByRun
 // 经验条、计时）才走这里的高频更新，而且都做了「值没变就不动 DOM」的判断。
 //
 // 图标不额外请求：全部按格位从图集里用 background-position 切出来。
+
 
 
 
@@ -3928,6 +4298,7 @@ function buildHUD() {
     <div class="hud-top">
       <div class="hud-time"><b id="hTime">15:00</b><span id="hKill">0 击杀</span></div>
       <div class="hud-lv"><span>Lv.<b id="hLv">1</b></span><div class="xp"><i id="hXp"></i></div></div>
+      <button class="hud-mute" id="hMute" title="声音">♪</button>
       <button class="hud-pause" id="hPause" title="暂停">❚❚</button>
     </div>
     <div class="hud-bars">
@@ -3944,6 +4315,20 @@ function buildHUD() {
     <div class="mechchip" id="hMech" hidden></div>
     <div class="bossbar" id="hBoss" hidden><span id="hBossName"></span><i><b id="hBossFill"></b></i></div>`;
   $('hPause').onclick = () => togglePause();
+  // 静音：这一页有音效和 BGM，得给一个不用进设置就能关掉的开关
+  const muteBtn = $('hMute');
+  if (muteBtn) {
+    muteBtn.classList.toggle('off', !sfx.on);
+    muteBtn.style.textDecoration = sfx.on ? '' : 'line-through';
+    muteBtn.title = sfx.on ? '声音：开（点击静音）' : '声音：关（点击打开）';
+    muteBtn.onclick = () => {
+      const on = sfx.setMuted(sfx.on);
+      muteBtn.classList.toggle('off', !on);
+      muteBtn.style.textDecoration = on ? '' : 'line-through';
+      muteBtn.title = on ? '声音：开（点击静音）' : '声音：关（点击打开）';
+      if (on) sfx.play('click');
+    };
+  }
   $('btnRage').onclick = () => { if (ui.onRage) ui.onRage(); };
   // 点技能/造物/命轮 → 弹出构筑详情（会顺带暂停，否则一边看面板一边挨打）
   $('hWeapons').onclick = (e) => { if (e.target.closest('[data-info]')) openInfo(); };
@@ -3952,7 +4337,7 @@ function buildHUD() {
   $('hItems').onclick = (e) => {
     const b = e.target.closest('[data-use]');
     if (!b) return;
-    if (useItem(b.dataset.use)) hudCache.ikey = '';
+    if (useItem(b.dataset.use)) { sfx.play('item'); hudCache.ikey = ''; }
   };
   const ic = $('btnInfoClose');
   if (ic) ic.onclick = closeInfo;
@@ -3978,6 +4363,98 @@ function closeInfo() {
   ov.hidden = true;
   $('ovPause').hidden = true;
   if (infoPaused) { infoPaused = false; G.phase = 'run'; }
+}
+
+// ---------------------------------------------------------------- 超武觉醒提示
+// 以前超武觉醒只在角色头顶飘一行「超武 · XX」：玩家打完一波才反应过来
+// 「我什么时候多了一个这东西」，更别说它到底改了什么。
+// 现在 engine 把觉醒事件连来源技能、效果、条件一起塞进 G.evoPops，
+// 这里每帧取一次，渲染成一张停留几秒的说明卡。一次只显示一张，
+// 同时觉醒两把就排队 —— 叠在一起会把战斗画面糊住。
+
+// 把「已满足的条件」翻成人话（不是「还差什么」，是「凭什么觉醒」）
+function evoCondText(need) {
+  const n = need || {};
+  const parts = [];
+  if (n.level != null) parts.push(`技能 Lv.${n.level + 1}`);
+  if (n.creation) {
+    const fx = CREATION_FX[n.creation.fx];
+    parts.push(`${fx ? fx.txt.split('，')[0] : n.creation.fx} ×${n.creation.n}`);
+  }
+  if (n.wheel) {
+    const wl = WHEEL_FX.find((x) => x.key === n.wheel);
+    parts.push(`命轮「${wl ? wl.txt : n.wheel}」`);
+  }
+  if (n.proto) parts.push(`同时持有 ${n.proto} 技能`);
+  return parts.length ? '达成：' + parts.join(' + ') : '达成：直接升级';
+}
+
+const evoUIPool = [];
+let evoUIBusy = false;
+
+function pumpEvoPops() {
+  if (!G.evoPops || !G.evoPops.length) return;
+  while (G.evoPops.length) evoUIPool.push(G.evoPops.shift());
+  drainEvo();
+}
+
+function drainEvo() {
+  const box = $('evoPop');
+  if (!box || evoUIBusy || !evoUIPool.length) return;
+  const e = evoUIPool.shift();
+  evoUIBusy = true;
+  box.hidden = false;
+  const el = document.createElement('div');
+  el.className = 'evo-card';
+  el.innerHTML = `
+    <i style="${atlasStyle(e.frame, 40)}"></i>
+    <div class="eb">
+      <span class="tag">⚡ 超武觉醒</span>
+      <p class="nm"><s>${esc(e.from)}</s> → <b>${esc(e.n)}</b></p>
+      <p class="cond">${esc(evoCondText(e.need))}</p>
+      <p class="fx">${esc(e.txt)}</p>
+    </div>
+    <button class="x" title="知道了">✕</button>`;
+  box.appendChild(el);
+  let done = false;
+  const close = () => {
+    if (done) return;
+    done = true;
+    el.classList.add('out');
+    setTimeout(() => {
+      el.remove();
+      evoUIBusy = false;
+      if (box && !box.children.length) box.hidden = true;
+      drainEvo();
+    }, 300);
+  };
+  el.querySelector('.x').onclick = close;
+  // 七秒：够看清「哪把 → 变成什么 → 什么效果」，又不至于一直挡着上半屏
+  setTimeout(close, 7000);
+}
+
+// 「这把技能升到第 lv+1 级会不会觉醒超武」：和 engine 的 checkNeed 同一套判定，
+// 只是这里要「假设」等级，用来在三选一卡上提前预告。
+function needOk(need, d, lv) {
+  const n = need || {};
+  if (n.level != null && lv < n.level) return false;
+  if (n.wheel && !G.wheels.some((x) => x.key === n.wheel)) return false;
+  if (n.proto && !G.weapons.some((x) => x.def.proto === n.proto)) return false;
+  if (n.creation) {
+    let got = 0;
+    for (const p of G.passives) if (p.fx === n.creation.fx) got += p.stack;
+    if (got < n.creation.n) return false;
+  }
+  return true;
+}
+
+function evoPreview(d, lv) {
+  for (const e of EVOS) {
+    if (e.char) { if (String(e.char) !== String(d.char)) continue; }
+    else if (e.proto !== d.proto) continue;
+    if (needOk(e.need, d, lv)) return e;
+  }
+  return null;
 }
 
 // 「这把技能的超武还差什么」：按 engine 相同的判定顺序（专武在前、通用原型在后）
@@ -4079,6 +4556,8 @@ function buildInfo() {
 let hudCache = {};
 function updateHUD() {
   if (G.phase === 'idle') return;
+  // 超武觉醒卡：engine 在战斗帧里攒好，这里取走渲染
+  pumpEvoPops();
   const P = G.player;
   const t = Math.ceil(remaining());
   const tm = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
@@ -4254,6 +4733,12 @@ function showUpgrade(choices) {
     choose(Number(b.dataset.i));
   };
   $('btnSkipUp').onclick = () => choose(-1);
+  // 跳过不是白跳：按钮上直接把补偿写清楚，否则没人会去发现这件事
+  const sk = $('btnSkipUp');
+  if (sk) {
+    const full = G.rageReady || G.rageT > 0 || G.rage >= RAGE.max;
+    sk.textContent = full ? '这次不要 · 跳过（狂气已满）' : `这次不要 · 跳过（+${RAGE.skip} 狂气）`;
+  }
 }
 
 // 一张卡的文案拼装。抽出来是为了单独 try/catch —— 见 showUpgrade 里的说明。
@@ -4267,9 +4752,18 @@ function upgradeCard(o, i) {
     const desc = proto ? proto.desc(lv) : '';
     // 替换卡是两段式的：点开之后自己指定「换掉哪一把」，
     // 以前固定换等级最低的那把，想把满级但不合流派的技能换掉根本没门路
-    const foot = isSwap
+    let foot = isSwap
       ? '点开后可自选要换掉的技能（新技能从 1 级起）'
       : (d.text || '');
+    // 超武要提前说清楚：玩家不会为了一个没听说过的机制去凑条件。
+    // 已经觉醒的不用再提示，否则每次升级都在重复同一句话。
+    const alreadyEvo = o.kind === 'wlv' && o.w.evo;
+    if (!isSwap && !alreadyEvo) {
+      const nowEvo = evoPreview(d, lv);
+      const nextEvo = evoPreview(d, lv + 1);
+      if (nowEvo) foot = `⚡ 选这张立即觉醒「${nowEvo.n}」：${nowEvo.txt}`;
+      else if (nextEvo) foot = `⚡ 再升 1 级可觉醒「${nextEvo.n}」`;
+    }
     return card(i, isSwap ? 'wswap' : o.kind === 'wlv' ? 'wlv' : 'wnew', title, desc, foot, atlasStyle(charFrame(d.char), 46), KIND_LABEL[o.kind]);
   }
   if (o.kind === 'creation') {
@@ -4328,6 +4822,7 @@ function choose(i) {
   // 替换卡要分两步：先让玩家点「哪一把技能让位」，再真正换上去
   if (o && o.kind === 'wswap') { openSwapPicker(o); return; }
   $('ovUp').hidden = true;
+  if (o) sfx.play('pick');
   if (o) applyChoice(o); else skipChoice();
   afterChoice();
 }
@@ -4355,13 +4850,17 @@ function openSwapPicker(o) {
   pendingSwap = o;
   $('ovUp').hidden = true;
   $('swapTitle').textContent = `用「${o.def.n}」替换掉哪一个？`;
+  // 超武（质变）技能不给点：换掉它等于把整条超武线扔了，而且不可逆。
+  // 以前这里只是标了个「超武」标签，手快一点就点下去了。
   $('swapList').innerHTML = G.weapons.map((w, i) => `
-    <button class="sw${w.evo ? ' evo' : ''}" data-i="${i}">
+    <button class="sw${w.evo ? ' evo lock' : ''}" data-i="${i}" ${w.evo ? 'disabled' : ''}>
       <i style="${atlasStyle(charFrame(w.def.char), 32)}"></i>
       <b>${esc(w.def.n)}</b>
       <em>Lv.${w.lv + 1}</em>
-      ${w.evo ? `<u class="evo-tag">超武 · ${esc(w.evo.n)}</u>` : ''}
-    </button>`).join('');
+      ${w.evo ? `<u class="evo-tag">超武 · ${esc(w.evo.n)} · 不可替换</u>` : ''}
+    </button>`).join('') + (G.weapons.some((w) => !w.evo)
+      ? ''
+      : '<p class="dim" style="grid-column:1/-1; margin:0; font-size:11.5px">六格都是超武技能，没有可以换掉的</p>');
   $('swapList').onclick = (e) => {
     const b = e.target.closest('button[data-i]');
     if (!b) return;
@@ -4375,6 +4874,8 @@ function confirmSwap(idx) {
   const o = pendingSwap;
   const target = G.weapons[idx];
   if (!o || !target) return;
+  // 双保险：面板里已经禁用了，键盘 1~6 仍可能绕过来
+  if (target.evo) return;
   pendingSwap = null;
   $('ovSwap').hidden = true;
   applyChoice({ kind: 'wswap', def: o.def, dropId: target.def.id });
@@ -4422,6 +4923,8 @@ function showPause() {
 
 function showEnd(sm) {
   const ov = $('ovEnd');
+  sfx.stopMusic();
+  sfx.play(sm.win ? 'win' : 'lose');
   // 「放弃这局」是从暂停面板点出来的，不关掉它，结算卡就和暂停卡叠在一起；
   // 升级面板同理（极端情况下两者会同时在栈上）。
   $('ovPause').hidden = true;
@@ -4542,6 +5045,7 @@ const { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices
 const { init, resize, draw } = m_render;
 const { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo, pickSwap, closeSwap } = m_ui;
 const { DIFFS } = m_defs;
+const { sfx } = m_audio;
 const { isUnlocked, unlockNeed, svProgress, saveProgress } = m_unlock;
 const { WEAPONS, CHARS } = m_gen;
 // 《唤醒体幸存者》入口：装配渲染、输入、主循环。
@@ -4549,6 +5053,7 @@ const { WEAPONS, CHARS } = m_gen;
 // 固定步长（1/60 秒）推进战斗，渲染跟着屏幕刷新率走。这样高刷屏上角色不会
 // 跑得更快，掉帧时也不会瞬移穿过敌人 —— 每帧最多补 6 步，防止切标签页回来
 // 一次补上千步直接把自己补死。
+
 
 
 
@@ -4688,6 +5193,15 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 
+// BGM 跟着战况走：选人一首、战斗一首、首领在场换一首。
+// sfx.music() 内部有「还是这首就不重开」的判断，所以每帧调一次也没关系。
+// 结算阶段直接停：胜负音效要听得见，底下不能再垫着一层循环。
+function syncMusic() {
+  if (G.phase === 'over' || G.phase === 'win') { sfx.stopMusic(); return; }
+  if (G.phase === 'idle') { sfx.music('pick'); return; }
+  sfx.music(G.bossAlive ? 'boss' : 'run');
+}
+
 function frame(dt) {
 
   if (G.phase === 'run' && !window.__svFrozen) {
@@ -4702,6 +5216,7 @@ function frame(dt) {
 
   draw();
   updateHUD();
+  syncMusic();
 
   if (G.phase === 'levelup' && !upShown) {
     upShown = true;
@@ -4760,6 +5275,10 @@ function startGame() {
   if (G.mods.firstStrike) {
     G.weapons.forEach((w) => { w.timer = 0; });
   }
+  // 音效必须在这个点击手势里建 AudioContext：浏览器只认用户操作
+  // 这一下，错过了整局都不会响。
+  sfx.ensure();
+  sfx.play('click');
 }
 
 function restart() {
@@ -4775,6 +5294,7 @@ function restart() {
   ended = false;
   upShown = false;
   G.phase = 'idle';
+  sfx.music('pick');
   showPick();
 }
 
@@ -4794,6 +5314,14 @@ async function boot() {
   startBtn.onclick = startGame;
   document.getElementById('btnAgain').onclick = restart;
   document.getElementById('btnMenu').onclick = restart;
+
+  // 按钮点击音统一在这里播，省得每个按钮各写一遍。
+  // 升级卡（.up）有自己更明显的「选走」音，跳过由引擎播，不能重复。
+  document.addEventListener('click', (e) => {
+    const b = e.target && e.target.closest ? e.target.closest('button') : null;
+    if (!b || b.id === 'btnStart' || b.classList.contains('up') || b.id === 'btnSkipUp') return;
+    sfx.play('click');
+  }, true);
   document.getElementById('btnResume').onclick = () => togglePause(false);
   // 放弃 = 立刻按当前战果结算（结算面板里给银芯）。以前这里直接 restart()，
   // 等于把打了一半的成绩静默丢掉，玩家还以为卡住了。
@@ -4826,6 +5354,7 @@ if (/[?&]_test=1/.test(location.search)) {
     progress: svProgress,
     setProgress: saveProgress,
     addGrowth, addItem, useItem, gainExp, hurt: hurtPlayer,
+    sfx,              // 测试用：读 AudioContext 状态、当前 BGM 曲目、静音开关
     chars: CHARS,
     bot: (seconds) => {
       window.__svFrozen = true;

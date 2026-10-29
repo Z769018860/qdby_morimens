@@ -8,6 +8,7 @@ import { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoice
 import { init, resize, draw } from './sv/render.js';
 import { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo, pickSwap, closeSwap } from './sv/ui.js';
 import { DIFFS } from './sv/defs.js';
+import { sfx } from './sv/audio.js';
 import { isUnlocked, unlockNeed, svProgress, saveProgress } from './sv/unlock.js';
 import { WEAPONS, CHARS } from './sv/gen.js';
 
@@ -142,6 +143,15 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 
+// BGM 跟着战况走：选人一首、战斗一首、首领在场换一首。
+// sfx.music() 内部有「还是这首就不重开」的判断，所以每帧调一次也没关系。
+// 结算阶段直接停：胜负音效要听得见，底下不能再垫着一层循环。
+function syncMusic() {
+  if (G.phase === 'over' || G.phase === 'win') { sfx.stopMusic(); return; }
+  if (G.phase === 'idle') { sfx.music('pick'); return; }
+  sfx.music(G.bossAlive ? 'boss' : 'run');
+}
+
 function frame(dt) {
 
   if (G.phase === 'run' && !window.__svFrozen) {
@@ -156,6 +166,7 @@ function frame(dt) {
 
   draw();
   updateHUD();
+  syncMusic();
 
   if (G.phase === 'levelup' && !upShown) {
     upShown = true;
@@ -214,6 +225,10 @@ function startGame() {
   if (G.mods.firstStrike) {
     G.weapons.forEach((w) => { w.timer = 0; });
   }
+  // 音效必须在这个点击手势里建 AudioContext：浏览器只认用户操作
+  // 这一下，错过了整局都不会响。
+  sfx.ensure();
+  sfx.play('click');
 }
 
 function restart() {
@@ -229,6 +244,7 @@ function restart() {
   ended = false;
   upShown = false;
   G.phase = 'idle';
+  sfx.music('pick');
   showPick();
 }
 
@@ -248,6 +264,14 @@ async function boot() {
   startBtn.onclick = startGame;
   document.getElementById('btnAgain').onclick = restart;
   document.getElementById('btnMenu').onclick = restart;
+
+  // 按钮点击音统一在这里播，省得每个按钮各写一遍。
+  // 升级卡（.up）有自己更明显的「选走」音，跳过由引擎播，不能重复。
+  document.addEventListener('click', (e) => {
+    const b = e.target && e.target.closest ? e.target.closest('button') : null;
+    if (!b || b.id === 'btnStart' || b.classList.contains('up') || b.id === 'btnSkipUp') return;
+    sfx.play('click');
+  }, true);
   document.getElementById('btnResume').onclick = () => togglePause(false);
   // 放弃 = 立刻按当前战果结算（结算面板里给银芯）。以前这里直接 restart()，
   // 等于把打了一半的成绩静默丢掉，玩家还以为卡住了。
@@ -280,6 +304,7 @@ if (/[?&]_test=1/.test(location.search)) {
     progress: svProgress,
     setProgress: saveProgress,
     addGrowth, addItem, useItem, gainExp, hurt: hurtPlayer,
+    sfx,              // 测试用：读 AudioContext 状态、当前 BGM 曲目、静音开关
     chars: CHARS,
     bot: (seconds) => {
       window.__svFrozen = true;

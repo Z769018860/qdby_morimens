@@ -13,6 +13,7 @@ import {
   creditsAt, nextTier, MECHS, GROWTHS,
 } from './defs.js';
 import { isUnlocked, unlockNeed, unlockProg, svProgress, recordRun, unlockedByRun } from './unlock.js';
+import { sfx } from './audio.js';
 
 const ATLAS_URI = ATLAS;
 
@@ -174,6 +175,7 @@ export function buildHUD() {
     <div class="hud-top">
       <div class="hud-time"><b id="hTime">15:00</b><span id="hKill">0 击杀</span></div>
       <div class="hud-lv"><span>Lv.<b id="hLv">1</b></span><div class="xp"><i id="hXp"></i></div></div>
+      <button class="hud-mute" id="hMute" title="声音">♪</button>
       <button class="hud-pause" id="hPause" title="暂停">❚❚</button>
     </div>
     <div class="hud-bars">
@@ -190,6 +192,20 @@ export function buildHUD() {
     <div class="mechchip" id="hMech" hidden></div>
     <div class="bossbar" id="hBoss" hidden><span id="hBossName"></span><i><b id="hBossFill"></b></i></div>`;
   $('hPause').onclick = () => togglePause();
+  // 静音：这一页有音效和 BGM，得给一个不用进设置就能关掉的开关
+  const muteBtn = $('hMute');
+  if (muteBtn) {
+    muteBtn.classList.toggle('off', !sfx.on);
+    muteBtn.style.textDecoration = sfx.on ? '' : 'line-through';
+    muteBtn.title = sfx.on ? '声音：开（点击静音）' : '声音：关（点击打开）';
+    muteBtn.onclick = () => {
+      const on = sfx.setMuted(sfx.on);
+      muteBtn.classList.toggle('off', !on);
+      muteBtn.style.textDecoration = on ? '' : 'line-through';
+      muteBtn.title = on ? '声音：开（点击静音）' : '声音：关（点击打开）';
+      if (on) sfx.play('click');
+    };
+  }
   $('btnRage').onclick = () => { if (ui.onRage) ui.onRage(); };
   // 点技能/造物/命轮 → 弹出构筑详情（会顺带暂停，否则一边看面板一边挨打）
   $('hWeapons').onclick = (e) => { if (e.target.closest('[data-info]')) openInfo(); };
@@ -198,7 +214,7 @@ export function buildHUD() {
   $('hItems').onclick = (e) => {
     const b = e.target.closest('[data-use]');
     if (!b) return;
-    if (useItem(b.dataset.use)) hudCache.ikey = '';
+    if (useItem(b.dataset.use)) { sfx.play('item'); hudCache.ikey = ''; }
   };
   const ic = $('btnInfoClose');
   if (ic) ic.onclick = closeInfo;
@@ -224,6 +240,98 @@ export function closeInfo() {
   ov.hidden = true;
   $('ovPause').hidden = true;
   if (infoPaused) { infoPaused = false; G.phase = 'run'; }
+}
+
+// ---------------------------------------------------------------- 超武觉醒提示
+// 以前超武觉醒只在角色头顶飘一行「超武 · XX」：玩家打完一波才反应过来
+// 「我什么时候多了一个这东西」，更别说它到底改了什么。
+// 现在 engine 把觉醒事件连来源技能、效果、条件一起塞进 G.evoPops，
+// 这里每帧取一次，渲染成一张停留几秒的说明卡。一次只显示一张，
+// 同时觉醒两把就排队 —— 叠在一起会把战斗画面糊住。
+
+// 把「已满足的条件」翻成人话（不是「还差什么」，是「凭什么觉醒」）
+function evoCondText(need) {
+  const n = need || {};
+  const parts = [];
+  if (n.level != null) parts.push(`技能 Lv.${n.level + 1}`);
+  if (n.creation) {
+    const fx = CREATION_FX[n.creation.fx];
+    parts.push(`${fx ? fx.txt.split('，')[0] : n.creation.fx} ×${n.creation.n}`);
+  }
+  if (n.wheel) {
+    const wl = WHEEL_FX.find((x) => x.key === n.wheel);
+    parts.push(`命轮「${wl ? wl.txt : n.wheel}」`);
+  }
+  if (n.proto) parts.push(`同时持有 ${n.proto} 技能`);
+  return parts.length ? '达成：' + parts.join(' + ') : '达成：直接升级';
+}
+
+const evoUIPool = [];
+let evoUIBusy = false;
+
+function pumpEvoPops() {
+  if (!G.evoPops || !G.evoPops.length) return;
+  while (G.evoPops.length) evoUIPool.push(G.evoPops.shift());
+  drainEvo();
+}
+
+function drainEvo() {
+  const box = $('evoPop');
+  if (!box || evoUIBusy || !evoUIPool.length) return;
+  const e = evoUIPool.shift();
+  evoUIBusy = true;
+  box.hidden = false;
+  const el = document.createElement('div');
+  el.className = 'evo-card';
+  el.innerHTML = `
+    <i style="${atlasStyle(e.frame, 40)}"></i>
+    <div class="eb">
+      <span class="tag">⚡ 超武觉醒</span>
+      <p class="nm"><s>${esc(e.from)}</s> → <b>${esc(e.n)}</b></p>
+      <p class="cond">${esc(evoCondText(e.need))}</p>
+      <p class="fx">${esc(e.txt)}</p>
+    </div>
+    <button class="x" title="知道了">✕</button>`;
+  box.appendChild(el);
+  let done = false;
+  const close = () => {
+    if (done) return;
+    done = true;
+    el.classList.add('out');
+    setTimeout(() => {
+      el.remove();
+      evoUIBusy = false;
+      if (box && !box.children.length) box.hidden = true;
+      drainEvo();
+    }, 300);
+  };
+  el.querySelector('.x').onclick = close;
+  // 七秒：够看清「哪把 → 变成什么 → 什么效果」，又不至于一直挡着上半屏
+  setTimeout(close, 7000);
+}
+
+// 「这把技能升到第 lv+1 级会不会觉醒超武」：和 engine 的 checkNeed 同一套判定，
+// 只是这里要「假设」等级，用来在三选一卡上提前预告。
+function needOk(need, d, lv) {
+  const n = need || {};
+  if (n.level != null && lv < n.level) return false;
+  if (n.wheel && !G.wheels.some((x) => x.key === n.wheel)) return false;
+  if (n.proto && !G.weapons.some((x) => x.def.proto === n.proto)) return false;
+  if (n.creation) {
+    let got = 0;
+    for (const p of G.passives) if (p.fx === n.creation.fx) got += p.stack;
+    if (got < n.creation.n) return false;
+  }
+  return true;
+}
+
+function evoPreview(d, lv) {
+  for (const e of EVOS) {
+    if (e.char) { if (String(e.char) !== String(d.char)) continue; }
+    else if (e.proto !== d.proto) continue;
+    if (needOk(e.need, d, lv)) return e;
+  }
+  return null;
 }
 
 // 「这把技能的超武还差什么」：按 engine 相同的判定顺序（专武在前、通用原型在后）
@@ -325,6 +433,8 @@ function buildInfo() {
 let hudCache = {};
 export function updateHUD() {
   if (G.phase === 'idle') return;
+  // 超武觉醒卡：engine 在战斗帧里攒好，这里取走渲染
+  pumpEvoPops();
   const P = G.player;
   const t = Math.ceil(remaining());
   const tm = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
@@ -500,6 +610,12 @@ export function showUpgrade(choices) {
     choose(Number(b.dataset.i));
   };
   $('btnSkipUp').onclick = () => choose(-1);
+  // 跳过不是白跳：按钮上直接把补偿写清楚，否则没人会去发现这件事
+  const sk = $('btnSkipUp');
+  if (sk) {
+    const full = G.rageReady || G.rageT > 0 || G.rage >= RAGE.max;
+    sk.textContent = full ? '这次不要 · 跳过（狂气已满）' : `这次不要 · 跳过（+${RAGE.skip} 狂气）`;
+  }
 }
 
 // 一张卡的文案拼装。抽出来是为了单独 try/catch —— 见 showUpgrade 里的说明。
@@ -513,9 +629,18 @@ function upgradeCard(o, i) {
     const desc = proto ? proto.desc(lv) : '';
     // 替换卡是两段式的：点开之后自己指定「换掉哪一把」，
     // 以前固定换等级最低的那把，想把满级但不合流派的技能换掉根本没门路
-    const foot = isSwap
+    let foot = isSwap
       ? '点开后可自选要换掉的技能（新技能从 1 级起）'
       : (d.text || '');
+    // 超武要提前说清楚：玩家不会为了一个没听说过的机制去凑条件。
+    // 已经觉醒的不用再提示，否则每次升级都在重复同一句话。
+    const alreadyEvo = o.kind === 'wlv' && o.w.evo;
+    if (!isSwap && !alreadyEvo) {
+      const nowEvo = evoPreview(d, lv);
+      const nextEvo = evoPreview(d, lv + 1);
+      if (nowEvo) foot = `⚡ 选这张立即觉醒「${nowEvo.n}」：${nowEvo.txt}`;
+      else if (nextEvo) foot = `⚡ 再升 1 级可觉醒「${nextEvo.n}」`;
+    }
     return card(i, isSwap ? 'wswap' : o.kind === 'wlv' ? 'wlv' : 'wnew', title, desc, foot, atlasStyle(charFrame(d.char), 46), KIND_LABEL[o.kind]);
   }
   if (o.kind === 'creation') {
@@ -574,6 +699,7 @@ export function choose(i) {
   // 替换卡要分两步：先让玩家点「哪一把技能让位」，再真正换上去
   if (o && o.kind === 'wswap') { openSwapPicker(o); return; }
   $('ovUp').hidden = true;
+  if (o) sfx.play('pick');
   if (o) applyChoice(o); else skipChoice();
   afterChoice();
 }
@@ -601,13 +727,17 @@ function openSwapPicker(o) {
   pendingSwap = o;
   $('ovUp').hidden = true;
   $('swapTitle').textContent = `用「${o.def.n}」替换掉哪一个？`;
+  // 超武（质变）技能不给点：换掉它等于把整条超武线扔了，而且不可逆。
+  // 以前这里只是标了个「超武」标签，手快一点就点下去了。
   $('swapList').innerHTML = G.weapons.map((w, i) => `
-    <button class="sw${w.evo ? ' evo' : ''}" data-i="${i}">
+    <button class="sw${w.evo ? ' evo lock' : ''}" data-i="${i}" ${w.evo ? 'disabled' : ''}>
       <i style="${atlasStyle(charFrame(w.def.char), 32)}"></i>
       <b>${esc(w.def.n)}</b>
       <em>Lv.${w.lv + 1}</em>
-      ${w.evo ? `<u class="evo-tag">超武 · ${esc(w.evo.n)}</u>` : ''}
-    </button>`).join('');
+      ${w.evo ? `<u class="evo-tag">超武 · ${esc(w.evo.n)} · 不可替换</u>` : ''}
+    </button>`).join('') + (G.weapons.some((w) => !w.evo)
+      ? ''
+      : '<p class="dim" style="grid-column:1/-1; margin:0; font-size:11.5px">六格都是超武技能，没有可以换掉的</p>');
   $('swapList').onclick = (e) => {
     const b = e.target.closest('button[data-i]');
     if (!b) return;
@@ -621,6 +751,8 @@ function confirmSwap(idx) {
   const o = pendingSwap;
   const target = G.weapons[idx];
   if (!o || !target) return;
+  // 双保险：面板里已经禁用了，键盘 1~6 仍可能绕过来
+  if (target.evo) return;
   pendingSwap = null;
   $('ovSwap').hidden = true;
   applyChoice({ kind: 'wswap', def: o.def, dropId: target.def.id });
@@ -668,6 +800,8 @@ function showPause() {
 
 export function showEnd(sm) {
   const ov = $('ovEnd');
+  sfx.stopMusic();
+  sfx.play(sm.win ? 'win' : 'lose');
   // 「放弃这局」是从暂停面板点出来的，不关掉它，结算卡就和暂停卡叠在一起；
   // 升级面板同理（极端情况下两者会同时在栈上）。
   $('ovPause').hidden = true;
