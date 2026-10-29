@@ -23,6 +23,7 @@ import { emptyGacha } from './core/gacha.js';
 import { fxMode } from './ui/fx.js';
 import { settleMode } from './ui/report.js';
 import { doTower, doTrial } from './core/challenge.js';
+import { doRift } from './core/rift.js';
 import { claimAchievement, claimAllAchievements } from './core/achievements.js';
 import { signToday, backfill, claimCum } from './core/signin.js';
 import { buy as shopBuy, SHOP } from './core/shop.js';
@@ -46,7 +47,7 @@ const GROUPS = [
   { k: 'battle', zh: '战斗', icon: ICON.battle, tabs: [['battle', '战斗']] },
   { k: 'team', zh: '养成', icon: ICON.team, tabs: [['team', '队伍'], ['roster', '唤醒体'], ['gear', '命轮密契'], ['orders', '钥令']] },
   { k: 'summon', zh: '召唤', icon: ICON.summon, tabs: [['summon', '召唤']] },
-  { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '挑战'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场']] },
+  { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '挑战'], ['rift', '融灾禁区'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场']] },
   { k: 'more', zh: '更多', icon: ICON.more, tabs: [['signin', '签到'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']] },
 ];
 
@@ -55,7 +56,7 @@ const GROUPS = [
    hall-01..12 是早期的一批，13 以后是 tools/build_bg.py 从典藏室重新压的一批。 */
 const BG = {
   battle: '17', team: '13', roster: '14', gear: '15', orders: '16', summon: '18',
-  challenge: '19', weekly: '20', rtower: '21', arena: '22', signin: '23', codex: '24', ach: '25', settings: '26',
+  challenge: '19', weekly: '20', rtower: '21', arena: '22', signin: '23', codex: '24', ach: '25', settings: '26', rift: '33',
 };
 let bgNow = '';
 function setBg(tab) {
@@ -199,7 +200,7 @@ function refreshArena() {
   if (app.tab === 'arena') render();
 }
 function render() {
-  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, orders: P.ordersPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, ach: P2.achievementPage }[app.tab];
+  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, orders: P.ordersPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, rift: P3.riftPage, ach: P2.achievementPage }[app.tab];
   if (f) { const y = window.scrollY; $('#view').innerHTML = f(app); window.scrollTo(0, y); }
   app.refreshTop();
 }
@@ -271,6 +272,7 @@ function onAct(e) {
     }
     case 'guide-growth': P.growthGuideModal(app); break;
     case 'go-orders': show('orders'); break;
+    case 'go-rift': show('rift'); break;
     case 'pick-order': {
       const i = +el.dataset.i;
       P.pickOrder(app, i, (id) => { setOrderSlot(s, i, id); rerender(); });
@@ -387,6 +389,20 @@ function onAct(e) {
     }
     case 'pull': { const out = summon(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play(gachaSound(out)); P.showPulls(app, out); } break; }
     case 'epull': { const out = equipPull(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play('summon'); P.showItems(app, out); } break; }
+    case 'rift-go': {
+      const r = doRift(s, d);
+      if (!r) break;
+      if (r.done) { toast('本期已经打穿 100 层了，等下期刷新'); break; }
+      app.save(); render(); sound.play(r.reached ? 'win' : 'lose');
+      // 一层五场，只回放「决定这一层」的那场（失败的那队，或全胜时的第五队）
+      const rp = r.replay ? replayOf(r.replay, {
+        title: `融灾禁区 · 第 ${r.replay.floor} 层 · ${r.replay.zh}`,
+        sub: `本次通过 ${r.reached} 层 · ${r.replay.win ? '这一场赢了' : '这一场没顶住'}`,
+        note: '一层五场，这里只回放决胜的那一场', kw: d.kw,
+      }) : null;
+      watchOrSkip(rp, () => P3.riftResultModal(app, r));
+      break;
+    }
     case 'tower-go': {
       const r = doTower(s, d, { slugs: teamSlugsFor(s, 'tower') });
       if (!r) break;

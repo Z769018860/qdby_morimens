@@ -105,7 +105,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${msg}`); if (
 const HELPERS = `
   window.__go = (tab) => {
     const G = { battle: 'battle', team: 'team', roster: 'team', gear: 'team', orders: 'team', summon: 'summon',
-      challenge: 'challenge', weekly: 'challenge', rtower: 'challenge', arena: 'challenge',
+      challenge: 'challenge', weekly: 'challenge', rtower: 'challenge', arena: 'challenge', rift: 'challenge',
       signin: 'more', codex: 'more', ach: 'more', settings: 'more' };
     document.querySelector('[data-group="' + G[tab] + '"]').click();
     const sub = document.querySelector('[data-sub="' + tab + '"]');
@@ -336,7 +336,7 @@ const usage = await cdp.evalIife(`(() => {
   const card = document.querySelector('.squad[data-squad="a"]');
   return { cards: document.querySelectorAll('.squad').length, use: (card?.querySelector('.squse')?.innerText || '') };
 })()`);
-check(usage.cards === 3 && /周Boss/.test(usage.use), `队伍页 3 套编队，一队标注「${usage.use}」`);
+check(usage.cards === 5 && /周Boss/.test(usage.use), `队伍页 5 套编队，一队标注「${usage.use}」`);
 await cdp.evalIife(`(() => { document.querySelector('.squads')?.scrollIntoView({ block: 'center' }); return 1; })()`);
 await sleep(300);
 await cdp.shot('team-squad');
@@ -388,7 +388,7 @@ await sleep(300);
 await cdp.shot('settings-audio');
 
 
-// 11) 队伍页的「挑战编队」：8 个模式各一行，现场编队能按界域一键上阵并直接给它用
+// 11) 队伍页的「挑战编队」：8 个模式 + 融灾禁区一行，现场编队能按界域一键上阵并直接给它用
 const assign = await cdp.evalIife(`(() => {
   const s = __game.state;
   // 先保证手里有混沌界域的人，否则「混沌塔一键上阵」会正确地返回空
@@ -409,13 +409,17 @@ const assign = await cdp.evalIife(`(() => {
     allChaos: team.every((x) => __game.data.bySlug[x].realm === 'CHAOS'),
     pick: s.squadPick.rt_CHAOS, closed: !document.querySelector('.sqeditor') };
 })()`);
-check(assign.rows === 8, `队伍页挑战编队 ${assign.rows} 个入口：${assign.modes.join(' / ')}`);
+check(assign.rows === 9, `队伍页挑战编队 ${assign.rows} 个入口：${assign.modes.join(' / ')}`);
+check(assign.modes.includes('融灾禁区'), `融灾禁区在队伍编成里也有一行（五队齐上）`);
 check(assign.opened && assign.slots === 4 && assign.allChaos, `现场编队一键上阵：${assign.picked.join('、')}（${assign.slots} 人，全混沌界域）`);
 check(assign.pick === 'c' && assign.closed && assign.team.length === 4, `存为三队后「混沌尖塔」自动指向它（${assign.pick}）`);
 check(assign.realmLocked.includes('血肉') && !assign.realmLocked.includes('混沌'), `混沌塔编辑器锁住其他界域（${assign.realmLocked.join('、') || '无'}）`);
 await cdp.evalIife(`(() => { document.querySelector('.assigns')?.scrollIntoView({ block: 'start' }); return 1; })()`);
 await sleep(300);
 await cdp.shot('team-assign');
+await cdp.evalIife(`(() => { const a = [...document.querySelectorAll('.assigns .assign')].pop(); a?.scrollIntoView({ block: 'center' }); return 1; })()`);
+await sleep(300);
+await cdp.shot('team-rift');
 
 // 12) 属性塔：四座塔各有自己的出战阵容条；挑战会先放一段战斗回放
 const rt = await cdp.evalIife(`(() => {
@@ -491,7 +495,61 @@ await cdp.evalIife(`(() => { document.querySelector('.sortbar')?.scrollIntoView(
 await sleep(300);
 await cdp.shot('roster-sort');
 
-// 14) 全局报错 / 4xx
+
+// 14) 融灾禁区：挑战页有入口、页面五队齐列、挑战先放回放再出结算
+const rift = await cdp.evalIife(`(() => {
+  const s = __game.state;
+  // 造出五套能打的队伍：前 20 名都拉到 lv95，一队~五队各 4 人
+  const all = __game.data.awakeners.slice(0, 20).map((a) => a.slug);
+  for (const x of all) s.roster[x] = { lv: 95, star: 9, brk: 5 };
+  ['a', 'b', 'c', 'd', 'e'].forEach((k, i) => { s.squads[k] = { team: all.slice(i * 4, i * 4 + 4) }; });
+  s.rift = { cycle: '', floor: 0, best: 0, day: '', tries: 3, tkFrac: 0, coFrac: 0, runs: 0 };
+  window.__go('challenge');
+  const card = !!document.querySelector('.riftcard');
+  const cardFoes = document.querySelectorAll('.riftfoes .rf').length;
+  window.__go('rift');
+  const teams = [...document.querySelectorAll('.rt-teams .rt-team')];
+  const bar = !!document.querySelector('.riftbar');
+  const filled = teams.filter((t) => t.classList.contains('on')).length;
+  const btn = document.querySelector('[data-act="rift-go"]');
+  const label = (btn && btn.innerText.trim()) || '';
+  return { card, cardFoes, teams: teams.length, bar, filled, label, tab: document.querySelector('[data-sub="rift"]') ? '有二级导航' : '无' };
+})()`);
+check(rift.card && rift.cardFoes === 5, `挑战页有融灾禁区入口（列出 5 组敌人）`);
+check(rift.teams === 5 && rift.filled === 5 && rift.bar, `融灾禁区页面五队齐列（${rift.filled}/5 已编，进度条正常）`);
+check(/第 1 层/.test(rift.label), `挑战按钮指向当前层：${rift.label}`);
+await cdp.shot('rift-page');
+await cdp.evalIife(`(() => { document.querySelector('.rt-teams')?.scrollIntoView({ block: 'center' }); return 1; })()`);
+await sleep(300);
+await cdp.shot('rift-teams');
+await cdp.evalIife(`window.scrollTo(0, 0)`);
+
+const riftFight = await cdp.evalIife(`(() => {
+  const btn = document.querySelector('[data-act="rift-go"]');
+  btn.click();
+  const rp = !!document.querySelector('.rp-modal');
+  const title = (document.querySelector('.rp-top b')?.innerText || '').trim();
+  return { rp, title };
+})()`);
+check(riftFight.rp && /融灾禁区/.test(riftFight.title), `融灾禁区挑战先放战斗回放：${riftFight.title}`);
+await sleep(700);
+await cdp.shot('rift-replay');
+await cdp.evalIife(`(() => { document.querySelector('[data-rp="skip"]').click(); return 1; })()`);
+await sleep(400);
+await cdp.shot('rift-result');
+const riftDone = await cdp.evalIife(`(() => {
+  const m = document.querySelector('.modal h3');
+  const body = document.querySelector('.modal')?.innerText || '';
+  const rows = document.querySelectorAll('.rfls .rfl').length;
+  const det = document.querySelectorAll('.riftdet .rd').length;
+  window.__closeModal();
+  return { title: (m?.innerText || '').replace(/\\s+/g, ' ').slice(0, 40), rows, det,
+    passed: /通过/.test(m?.innerText || ''), state: __game.state.rift.floor, tries: __game.state.rift.tries };
+})()`);
+check(riftDone.passed && riftDone.rows >= 1 && riftDone.det === 5, `跳过回放后出结算：${riftDone.title}（${riftDone.rows} 层 · 最后一层 5 队）`);
+check(riftDone.state >= 1 && riftDone.tries === 2, `层数推进到第 ${riftDone.state} 层，次数 3 → ${riftDone.tries}`);
+
+// 15) 全局报错 / 4xx
 const errs = [...new Set([...cdp.runtime, ...cdp.logs])];
 check(errs.length === 0, errs.length ? '页面报错：\n  ' + errs.slice(0, 8).join('\n  ') : '0 个 JS 报错');
 const http = [...new Set(cdp.http)];

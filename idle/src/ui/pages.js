@@ -10,7 +10,7 @@ import {
 } from '../core/constants.js';
 import { sound, TRACK_LIST } from './audio.js';
 import {
-  SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, MODE_GROUPS, squadMembers, squadUsage, pickedSquad,
+  SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, MODE_GROUPS, RIFT_MODE, squadMembers, squadUsage, pickedSquad,
   squadLabel, teamSlugsFor, setSquadTeam, setSquadPick, autoSquadSlugs,
 } from '../core/squad.js';
 import { ROSTER_SORTS, SORT_ZH, sortRoster } from '../core/roster.js';
@@ -178,8 +178,22 @@ export function squadAssignPanel(app) {
       <div class="sqav">${av}</div>
       <div class="achips">${chips}</div></div>`;
   };
-  return `<div class="assigns">${SQUAD_MODES.map(([m]) => row(m)).join('')}</div>
-    <p class="hint">属性塔的四个界域各存一份选择：编队里不属于该界域的成员会被剔掉，一个都不剩就自动挑你最强的 4 名本界域唤醒体。挑战页也能改，两处是同一份数据。</p>`;
+  // 融灾禁区不吃单选：它固定按一队~五队的顺序派五个队伍，这里只显示各队编没编、点进去改
+  const riftRow = () => {
+    const sets = SQUAD_KEYS.map((k) => ({ k, slugs: squadMembers(s, k) }));
+    const filled = sets.filter((x) => x.slugs.length).length;
+    const av = sets.map(({ k, slugs }) => `<span class="sqset ${slugs.length ? '' : 'e'}">${slugs.length
+      ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(SQUAD_ZH[k])} · ${esc(data.bySlug[x].zh)}">`).join('')
+      : '<i>空</i>'}</span>`).join('');
+    const chips = sets.map(({ k, slugs }) => `<button class="sqchip ${slugs.length ? '' : 'empty'}" data-act="squad-edit" data-k="${k}" data-mode="${RIFT_MODE}" title="${slugs.length ? `${SQUAD_ZH[k]} ${slugs.length} 人，点击编队` : `${SQUAD_ZH[k]}空着，会用当前队伍顶上`}">${SQUAD_ZH[k]}${slugs.length ? '' : '<em class="dim">空</em>'}</button>`).join('');
+    return `<div class="assign ${filled === SQUAD_KEYS.length ? 'on' : ''}">
+      <header><b>融灾禁区</b><small>五队齐上 · 已编 ${filled}/${SQUAD_KEYS.length} 队${filled < SQUAD_KEYS.length ? '（空位用当前队伍顶上）' : ''}</small>
+        <button class="btn sm" data-act="go-rift">去挑战 →</button></header>
+      <div class="sqav sqsets">${av}</div>
+      <div class="achips">${chips}</div></div>`;
+  };
+  return `<div class="assigns">${SQUAD_MODES.map(([m]) => row(m)).join('')}${riftRow()}</div>
+    <p class="hint">属性塔的四个界域各存一份选择：编队里不属于该界域的成员会被剔掉，一个都不剩就自动挑你最强的 4 名本界域唤醒体。<b>融灾禁区</b>一层要同时派五队，一队~五队按顺序各打一组敌人，所以那五行都得编好（空着的会用当前队伍顶上）。挑战页也能改，两处是同一份数据。</p>`;
 }
 
 /**
@@ -190,6 +204,9 @@ export function squadEditor(app, { key = 'a', mode = null } = {}) {
   const { state: s, data } = app;
   if (!SQUAD_KEYS.includes(key)) key = 'a';
   const lockRealm = mode && String(mode).startsWith('rt_') ? String(mode).slice(3) : null;
+  // 融灾禁区（rift）不吃「用哪一套」，而是五套一起上——所以保存时只存人，不改挑战选择
+  const modeZh = mode ? (MODE_ZH[mode] || (mode === RIFT_MODE ? '融灾禁区' : mode)) : '';
+  const isRift = mode === RIFT_MODE;
   const powerOf = (slug) => allyDef(s, data, slug, [slug]).power;
   const st = { key, mode, realm: lockRealm || '', team: [...squadMembers(s, key)] };
   if (!st.team.length && mode) st.team = teamSlugsFor(s, mode).filter((x) => s.roster[x]);
@@ -215,7 +232,7 @@ export function squadEditor(app, { key = 'a', mode = null } = {}) {
       .map(([k, zh]) => `<button class="sqchip ${st.realm === k ? 'on' : ''}" data-sq="realm" data-v="${k}" ${lockRealm && k !== lockRealm ? 'disabled' : ''}>${zh}</button>`).join('');
     return `<h3>编队 · ${SQUAD_ZH[st.key]} <small>${st.team.length}/${TEAM_SIZE} 人</small></h3>
       <p class="hint">点下面的头像加入这队，点上面的槽位移出；顺序就是站位（前两个是前排）。${lockRealm ? `<b>${REALMS[lockRealm].zh}塔只收${REALMS[lockRealm].zh}界域</b>，筛选已锁定。` : '「一键上阵」按当前筛选的界域取战力最高的 4 名（优先前排守护 + 治疗）。'}
-        ${mode ? `保存后 <b>${MODE_ZH[mode] || mode}</b> 就用这套出战。` : ''}</p>
+        ${mode ? (isRift ? `保存后 <b>${SQUAD_ZH[st.key]}</b> 就是融灾禁区里的第 ${SQUAD_KEYS.indexOf(st.key) + 1} 队。` : `保存后 <b>${modeZh}</b> 就用这套出战。`) : ''}</p>
       <div class="row sqrealms">${realmChips}</div>
       <div class="sqslots">${slots}</div>
       <div class="row"><button class="btn gold" data-sq="auto">一键上阵</button><button class="btn sm" data-sq="clear" ${st.team.length ? '' : 'disabled'}>清空</button>
@@ -260,9 +277,9 @@ export function squadEditor(app, { key = 'a', mode = null } = {}) {
       if (!st.team.length) { toast('先选人'); return; }
       const k = el.dataset.k;
       const saved = setSquadTeam(s, k, st.team);
-      if (st.mode) setSquadPick(s, st.mode, k);
+      if (st.mode && !isRift) setSquadPick(s, st.mode, k);
       app.save(); sound.play('stamp');
-      toast(`已存入「${SQUAD_ZH[k]}」：${saved.length} 人${st.mode ? ` · ${MODE_ZH[st.mode]} 用它出战` : ''}`);
+      toast(`已存入「${SQUAD_ZH[k]}」：${saved.length} 人${st.mode ? ` · ${isRift ? '融灾禁区第 ' + (SQUAD_KEYS.indexOf(k) + 1) + ' 队' : modeZh + ' 用它出战'}` : ''}`);
       closeModal();
       app.render?.();
     }

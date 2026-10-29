@@ -60,6 +60,8 @@ export function newState(data, now = Date.now()) {
     stats: { battles: 0, wins: 0, pulls: 0, kills: 0, gold: 0 },
     daily: { day: '' }, log: [],
     tower: { best: 0, day: '', tries: 0, runs: 0 }, trials: { cleared: {} }, ach: {}, tutorial: false,
+    // 融灾禁区（M15）：每两周一期，层数在期内累积，best 永久保留
+    rift: { cycle: '', floor: 0, best: 0, day: '', tries: 0, tkFrac: 0, coFrac: 0, runs: 0 },
     squads: emptySquads(), squadPick: emptyPick(), gacha: emptyGacha(),
   };
 }
@@ -96,6 +98,12 @@ export function migrate(s, data) {
   m.squads = normalizeSquads(s.squads, m.roster);
   m.squadPick = normalizePick(s.squadPick);
   m.gacha = normalizeGacha(s.gacha);
+  // 融灾禁区：老存档没有就从第 0 层开始；层数夹在 0..100（换期由 riftState 惰性重置）
+  const rf = { ...base.rift, ...(s.rift || {}) };
+  rf.floor = Math.max(0, Math.min(100, Math.floor(rf.floor || 0)));
+  rf.best = Math.max(rf.floor, Math.min(100, Math.floor(rf.best || 0)));
+  rf.tries = Math.max(0, Math.floor(rf.tries || 0));
+  m.rift = rf;
   return m;
 }
 

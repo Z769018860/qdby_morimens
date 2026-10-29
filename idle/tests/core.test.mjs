@@ -1116,3 +1116,140 @@ test('唤醒体排序：稀有度 / 战力 / 等级 / 叠位 / 获取顺序 / �
   // 非法排序键退回稀有度，不抛错
   assert.equal(sortRoster(rows, 'nope', -1).length, rows.length);
 });
+
+/* ---------- M15：融灾禁区（五队爬塔 / 每两周刷新） ---------- */
+import {
+  RIFT_FLOORS, RIFT_TEAMS, RIFT_DAILY, RIFT_CYCLE_DAYS, RIFT_RUN_MAX, RIFT_PASS,
+  riftCycle, riftState, riftParty, riftEnemies, riftStage, simulateRiftRun, doRift,
+} from '../src/core/rift.js';
+
+test('融灾禁区：14 天一期，换期重置层数但保留历史最高', () => {
+  const t0 = new Date('2026-03-02T00:00:00Z');
+  const c1 = riftCycle(t0);
+  assert.equal(c1.daysLeft, RIFT_CYCLE_DAYS);
+  // 同期内 13 天后还是这一期
+  assert.equal(riftCycle(new Date(t0.getTime() + 13 * 86400000)).id, c1.id);
+  // 第 14 天进入下一期
+  const c2 = riftCycle(new Date(t0.getTime() + RIFT_CYCLE_DAYS * 86400000));
+  assert.notEqual(c2.id, c1.id);
+  assert.equal(riftCycle(new Date(c2.start)).daysLeft, RIFT_CYCLE_DAYS);
+
+  const s = newState(data, 11);
+  const r = riftState(s, t0);
+  r.floor = 37; r.best = 52;
+  const after = riftState(s, new Date(t0.getTime() + RIFT_CYCLE_DAYS * 86400000));
+  assert.equal(after.cycle, c2.id);
+  assert.equal(after.floor, 0, '新一期从第 1 层重爬');
+  assert.equal(after.best, 52, '历史最高层永久保留');
+  assert.equal(after.tries, RIFT_DAILY, '新一期次数也重置');
+  // 同一天再取不会把次数刷回去
+  after.tries = 0;
+  assert.equal(riftState(s, new Date(t0.getTime() + RIFT_CYCLE_DAYS * 86400000)).tries, 0);
+});
+
+test('融灾禁区：五队按一队~五队上阵，空位用当前队伍顶上', () => {
+  const s = newState(data, 13);
+  const owned = data.awakeners.slice(0, 12).map((a) => a.slug);
+  s.roster = Object.fromEntries(owned.map((x) => [x, { lv: 80, star: 6, brk: 4 }]));
+  const A = owned.slice(0, 4), B = owned.slice(4, 8);
+  setSquadTeam(s, 'a', A);
+  setSquadTeam(s, 'b', B);
+  s.team = owned.slice(8, 12);
+
+  const party = riftParty(s, data);
+  assert.equal(party.length, RIFT_TEAMS);
+  assert.deepEqual(party[0].slugs, A);
+  assert.equal(party[0].filled, true);
+  assert.deepEqual(party[1].slugs, B);
+  // 三四五队空着 → 用当前队伍补位，并标出来
+  for (const i of [2, 3, 4]) {
+    assert.equal(party[i].filled, false);
+    assert.deepEqual(party[i].slugs, s.team);
+  }
+  for (const p of party) assert.equal(p.team.list.length, 4);
+  assert.ok(party.every((p) => p.team.power > 0));
+  // 五队都有独立的敌人组（同层不同种子）
+  const ids = Array.from({ length: RIFT_TEAMS }, (_, i) => riftEnemies(9, data, i, 'R1').map((e) => `${e.mid}${e.name}`).join('|'));
+  assert.equal(new Set(ids).size, RIFT_TEAMS, '五队打的是五组不同的敌人');
+});
+
+test('融灾禁区：五场胜四场即过关，输两场就停在这一层', () => {
+  const now = new Date('2026-03-02T00:00:00Z');
+  const s = newState(data, 15);
+  const owned = data.awakeners.slice(0, 20).map((a) => a.slug);
+  s.roster = Object.fromEntries(owned.map((x) => [x, { lv: 95, star: 9, brk: 5 }]));
+  for (let i = 0; i < 5; i++) setSquadTeam(s, ['a', 'b', 'c', 'd', 'e'][i], owned.slice(i * 4, i * 4 + 4));
+
+  // 满配打前两层：一路全胜
+  const sim = simulateRiftRun(s, data, { maxFloors: 2, startFloor: 1, cycle: riftCycle(now).id, seed: 12345 });
+  assert.equal(sim.floors.length, 2);
+  assert.equal(sim.reached, 2);
+  assert.equal(sim.win, true);
+  assert.ok(sim.floors.every((f) => f.wins >= RIFT_PASS && f.battles.length === RIFT_TEAMS));
+  // 第 1 层的第 5 队打的是 Boss 组（第 10 层才是 Boss 层，这里验证结构：有 5 场、每场都有敌人）
+  assert.ok(sim.floors[0].battles.every((b) => b.enemies.length >= 2));
+
+  // 高层用初始小队：一场都赢不了 → 不推进
+  const weak = newState(data, 17);
+  const bad = simulateRiftRun(weak, data, { maxFloors: 3, startFloor: 60, cycle: 'R9', seed: 777 });
+  assert.equal(bad.reached, 0);
+  assert.equal(bad.floors.length, 1, '第一层没过就停');
+  assert.ok(bad.floors[0].wins < RIFT_PASS);
+  assert.equal(bad.win, false);
+});
+
+test('融灾禁区：过关推进层数并发奖，重复挑战不再重复给已过的层', () => {
+  const now = new Date('2026-03-02T00:00:00Z');
+  const s = newState(data, 19);
+  const owned = data.awakeners.slice(0, 20).map((a) => a.slug);
+  s.roster = Object.fromEntries(owned.map((x) => [x, { lv: 95, star: 9, brk: 5 }]));
+  for (let i = 0; i < 5; i++) setSquadTeam(s, ['a', 'b', 'c', 'd', 'e'][i], owned.slice(i * 4, i * 4 + 4));
+
+  const before = { gold: s.gold, tickets: s.tickets, cores: s.cores };
+  const r = doRift(s, data, { now, maxFloors: 3 });
+  assert.ok(r.reached >= 1);
+  assert.equal(r.floor, r.reached);
+  assert.equal(r.newBest, true);
+  assert.ok(r.rw.gold > 0 && r.rw.tickets + r.rw.cores > 0);
+  assert.ok(s.gold > before.gold && s.tickets >= before.tickets && s.cores >= before.cores);
+  assert.equal(riftState(s, now).tries, RIFT_DAILY - 1);
+  assert.equal(r.floor, s.rift.floor);
+
+  // 再打一次：从第 4 层开始，奖励只算新层
+  const r2 = doRift(s, data, { now, maxFloors: 2 });
+  assert.equal(r2.from, r.floor + 1);
+  assert.equal(r2.floor, r.floor + r2.reached);
+
+  // 次数耗尽后返回 null
+  for (let i = 0; i < RIFT_DAILY; i++) doRift(s, data, { now });
+  assert.equal(doRift(s, data, { now }), null);
+});
+
+test('融灾禁区：敌人每期重排，层数越深越强', () => {
+  const combo = (cy) => Array.from({ length: 6 }, (_, f) => riftEnemies(f + 1, data, 0, cy).map((e) => e.mid).join(',')).join(';');
+  assert.notEqual(combo('R1'), combo('R2'), '换一期敌人组合会变');
+  assert.ok(riftStage(100) > riftStage(50) && riftStage(50) > riftStage(1));
+  assert.equal(riftStage(1), 11);
+  // 第 10 层是 Boss 层，第五队顶 Boss
+  const bossParty = riftEnemies(10, data, RIFT_TEAMS - 1, 'R1');
+  assert.ok(bossParty.some((e) => e.boss), '第五队要面对 Boss');
+  assert.ok(!riftEnemies(10, data, 0, 'R1').some((e) => e.boss), '其余队不打 Boss');
+  // 通关上限
+  assert.equal(RIFT_FLOORS, 100);
+  assert.equal(RIFT_RUN_MAX, 10);
+});
+
+test('融灾禁区：老存档补字段，越界层数被夹回 0~100', () => {
+  const base = newState(data, 21);
+  delete base.rift;
+  const m = migrate(base, data);
+  assert.equal(m.rift.floor, 0);
+  assert.equal(m.rift.best, 0);
+  assert.ok(typeof m.rift.cycle === 'string');
+
+  const crazy = migrate({ ...newState(data, 23), rift: { floor: 999, best: -5, tries: 99 } }, data);
+  assert.equal(crazy.rift.floor, RIFT_FLOORS);
+  assert.equal(crazy.rift.best, RIFT_FLOORS);
+  // 五套编队都要能存（老存档只有三套）
+  assert.equal(Object.keys(crazy.squads).length, 5);
+});

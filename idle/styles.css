@@ -551,3 +551,65 @@ body{background:#0a0d13}
   .rp-field .unit{width:24%}
   .rp-log{height:88px}
 }
+
+/* ---------- M15：融灾禁区（五队爬塔 / 每两周刷新） ---------- */
+/* 进度条：100 层 + 里程碑刻度 */
+.riftbar{position:relative;height:12px;border-radius:999px;background:#0b1017;border:1px solid #223047;margin:10px 0 18px}
+.riftbar>i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#7a3f9c,#d06ad0)}
+.riftbar .mk{position:absolute;top:-2px;bottom:-2px;width:1px;background:#2b3447}
+.riftbar .mk.on{background:#d06ad0;box-shadow:0 0 5px #d06ad088}
+.riftbar .now{position:absolute;top:calc(100% + 2px);transform:translateX(-50%);font-size:10.5px;color:#d9a6e6;white-space:nowrap}
+
+/* 当前层五组敌人 */
+.riftfoes{display:grid;gap:5px;margin:8px 0}
+.riftfoes .rf{display:flex;gap:8px;align-items:baseline;background:#0b1017;border:1px solid var(--line);border-radius:9px;padding:5px 9px}
+.riftfoes .rf>span{flex:none;width:52px;font-size:11.5px;color:var(--dim)}
+.riftfoes .rf>small{color:var(--tx);font-size:12px;line-height:1.4}
+.riftfoes .rf.boss{border-color:#6a3f78;box-shadow:inset 0 0 0 1px #2c1b33}
+.riftfoes .rf.boss>span{color:#d9a6e6}
+
+/* 出战五队 */
+.rt-teams{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin:8px 0}
+.rt-team{background:#0b1017;border:1px solid var(--line);border-radius:12px;padding:8px 9px;display:flex;flex-direction:column;gap:6px}
+.rt-team.on{border-color:#3a4a66}
+.rt-team.empty{border-style:dashed}
+.rt-team header{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+.rt-team header b{font-size:13px}
+.rt-team header small{font-size:11px;color:var(--dim)}
+.rt-team .sqav{min-height:38px}
+.rt-team .sqav img{width:34px;height:34px;border-radius:8px}
+.rt-team .row{margin:0}
+.rt-team .btn.sm{padding:2px 8px;font-size:11.5px}
+
+/* 队伍页 rift 行：五套各显示一排小头像 */
+.sqsets{gap:6px;flex-wrap:wrap}
+.sqsets .sqset{display:flex;gap:2px;padding:2px;border:1px solid #1b2431;border-radius:8px;background:#070a0f}
+.sqsets .sqset.e{border-style:dashed;align-items:center;padding:2px 6px}
+.sqsets .sqset i{font-style:normal;font-size:10.5px;color:var(--dim)}
+.sqsets .sqset img{width:22px;height:22px;border-radius:5px;object-fit:cover}
+
+/* 结算：逐层 + 最后一层五队明细 */
+.rfls{max-height:38vh;overflow:auto;display:flex;flex-direction:column;gap:4px;margin:6px 0}
+.rfl{display:grid;grid-template-columns:64px 108px 1fr;gap:8px;align-items:center;background:#0b1017;border:1px solid var(--line);border-radius:8px;padding:4px 9px;font-size:12px}
+.rfl b{font-size:12px}
+.rfl span{color:var(--dim);font-size:11.5px}
+.rfl small{color:#9aa4b5;font-size:11px}
+.rfl.w{border-color:#2f5a41}
+.rfl.l{border-color:#5c3630}
+.rfl.w span{color:var(--ok)}
+.rfl.l span{color:var(--bad)}
+.riftdet{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;margin-top:4px}
+.riftdet .rd{background:#0b1017;border:1px solid var(--line);border-radius:9px;padding:6px 9px}
+.riftdet .rd b{font-size:12px;display:block}
+.riftdet .rd small{display:block;color:var(--dim);font-size:11px;line-height:1.45;margin:2px 0}
+.riftdet .rd span{font-size:11.5px}
+.riftdet .rd.w{border-color:#2f5a41}
+.riftdet .rd.l{border-color:#5c3630}
+.riftdet .rd.w span{color:var(--ok)}
+.riftdet .rd.l span{color:var(--bad)}
+
+@media(max-width:560px){
+  .rt-teams{grid-template-columns:1fr}
+  .rfl{grid-template-columns:52px 90px 1fr;gap:6px}
+  .rfl small{display:none}
+}

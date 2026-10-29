@@ -3,30 +3,34 @@
 // 所以一套阵容不需要再额外存装备，换了人也就换了装备。
 import { TEAM_SIZE } from './constants.js';
 
-export const SQUAD_KEYS = ['a', 'b', 'c'];
-export const SQUAD_ZH = { a: '一队', b: '二队', c: '三队' };
+export const SQUAD_KEYS = ['a', 'b', 'c', 'd', 'e'];
+export const SQUAD_ZH = { a: '一队', b: '二队', c: '三队', d: '四队', e: '五队' };
 
 // 挑战入口：每个入口单独记「用哪套队」，默认跟随当前队伍。
 // 属性塔按界域拆开——混沌塔只能上混沌队，四个界域各存一份选择才讲得通。
+// 融灾禁区（rift）不在这里：它一次要 5 队齐上，固定按一队~五队的顺序派人，不做单选。
 export const SQUAD_MODES = [
   ['tower', '无限塔'],
   ['rt_CHAOS', '混沌尖塔'], ['rt_CARO', '血肉之塔'], ['rt_AEQUOR', '深海回廊'], ['rt_ULTRA', '超维阶梯'],
   ['weekly', '周Boss'], ['trial', '融灾'], ['arena', '竞技场'],
 ];
 export const MODE_ZH = Object.fromEntries(SQUAD_MODES);
-// 队伍页把入口分成三组显示，塔的四个界域压成一段，免得八行铺满一屏
+// 队伍页把入口分组显示，塔的四个界域压成一段，免得八行铺满一屏；
+// rift 单独一组：它不吃「用哪一套」，而是五套一起上。
 export const MODE_GROUPS = [
   ['无限塔', ['tower'], '一层层往上爬的连续战斗'],
   ['属性塔', ['rt_CHAOS', 'rt_CARO', 'rt_AEQUOR', 'rt_ULTRA'], '只收本界域成员，四座塔各存一套'],
   ['周 Boss', ['weekly'], '限 12 回合拼伤害'],
   ['融灾试炼', ['trial'], '区域首领，逐级解锁'],
   ['竞技场', ['arena'], '天梯与好友对战共用'],
+  ['融灾禁区', ['rift'], '一次派五队：一队~五队各打一组'],
 ];
+export const RIFT_MODE = 'rift';
 export const RT_MODES = ['rt_CHAOS', 'rt_CARO', 'rt_AEQUOR', 'rt_ULTRA'];
 export const rtModeOf = (realm) => `rt_${realm}`;
 export const realmOfMode = (mode) => (String(mode).startsWith('rt_') ? String(mode).slice(3) : null);
 
-export const emptySquads = () => ({ a: { team: [] }, b: { team: [] }, c: { team: [] } });
+export const emptySquads = () => Object.fromEntries(SQUAD_KEYS.map((k) => [k, { team: [] }]));
 export const emptyPick = () => Object.fromEntries(SQUAD_MODES.map(([k]) => [k, 'cur']));
 
 // 存档迁移：换版本后 roster 会变，编队里已经不存在的 slug 直接丢掉

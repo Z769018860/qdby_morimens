@@ -3,6 +3,7 @@ import { REALMS } from '../core/constants.js';
 import { weeklyState, weeklyBoss, MILESTONES, WEEKLY_DAILY, WEEKLY_ROUNDS, weekId, weeklyEnemy } from '../core/weekly.js';
 import { REALM_TOWERS, TOWER_NAME, rtBest, rtTeam, rtEnemies, rtStage, rtInfo } from '../core/rtower.js';
 import { arenaState, arenaTries, ARENA_DAILY, LADDER, dailyRankReward, canClaimArenaDaily, hydrate } from '../core/arena.js';
+import { RIFT_FLOORS, RIFT_TEAMS, RIFT_DAILY, RIFT_RUN_MAX, RIFT_PASS, RIFT_MILESTONES, riftCycle, riftState, riftParty, riftEnemies, riftStage } from '../core/rift.js';
 import { encodeCode } from '../core/friend.js';
 import { teamDefs } from '../core/game.js';
 import { teamSlugsFor, rtModeOf } from '../core/squad.js';
@@ -106,4 +107,52 @@ export function arenaResultModal(app, r, rw, newRank) {
     <p>${r.rounds} 回合${friend ? '　友谊赛，无奖励' : `　${r.win ? `名次：第 ${newRank} 名${rw.up ? ` <em class="new">最高名次提升 ${rw.up}</em>` : ''}` : '名次不变'}　${REWARD(rw)}`}</p>
     ${reportHtml(analyzeBattle(r, r.team.list, r.foes))}`, 'wide');
 }
+/* ---------- 融灾禁区：五队齐上的爬塔 ---------- */
+export function riftPage(app) {
+  const { state: s, data } = app;
+  const c = riftCycle(), r = riftState(s);
+  const party = riftParty(s, data);
+  const filled = party.filter((p) => p.filled).length;
+  const next = Math.min(RIFT_FLOORS, r.floor + 1), cleared = r.floor >= RIFT_FLOORS;
+  const foes = cleared ? [] : Array.from({ length: RIFT_TEAMS }, (_, i) => riftEnemies(next, data, i, c.id));
+  const pct = (r.floor / RIFT_FLOORS) * 100;
+  const marks = RIFT_MILESTONES.map((m) => `<i class="mk ${r.floor >= m ? 'on' : ''}" style="left:${(m / RIFT_FLOORS) * 100}%" title="第 ${m} 层"></i>`).join('');
+  const teams = party.map((p) => `<div class="rt-team ${p.filled ? 'on' : 'empty'}">
+      <header><b>${p.zh}</b><small>${p.filled ? `${p.slugs.length} 人 · 战力 ${fmt(p.team.power)}` : '空位 · 用当前队伍顶上'}</small></header>
+      <div class="sqav">${p.slugs.length
+        ? p.slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
+        : '<span class="sqempty">没有可上阵的唤醒体</span>'}</div>
+      <div class="row"><button class="btn sm" data-act="squad-edit" data-k="${p.key}" data-mode="rift">编队</button>
+        <button class="btn sm" data-act="squad-load" data-k="${p.key}" ${p.filled ? '' : 'disabled'}>上阵</button></div>
+    </div>`).join('');
+  const foeRows = foes.map((en, i) => `<div class="rf ${i === RIFT_TEAMS - 1 ? 'boss' : ''}">
+      <span>第 ${i + 1} 队</span><small>${en.map((e) => esc(e.name)).join('、')}</small></div>`).join('');
+  return `<div class="page"><h2>融灾禁区 <small>第 ${c.id.slice(1)} 期 · ${c.startText}–${c.endText} · 剩 ${c.daysLeft} 天 · 历史最高 ${r.best || 0} 层</small></h2>
+    <div class="banner-card riftcard">
+      <p>本期进度：<b>${r.floor}</b> / ${RIFT_FLOORS}${cleared ? ' <em class="new">已通关</em>' : ''}　今日剩余挑战：<b>${r.tries}/${RIFT_DAILY}</b>　已编队伍：<b>${filled}/${RIFT_TEAMS}</b>${filled < RIFT_TEAMS ? '<span class="dim">（空位用当前队伍顶上）</span>' : ''}</p>
+      <div class="riftbar"><i style="width:${pct}%"></i>${marks}${r.floor ? `<span class="now" style="left:${Math.min(96, Math.max(4, pct))}%">${r.floor}</span>` : ''}</div>
+      <p class="hint">一层同时派 <b>${RIFT_TEAMS} 个队伍</b>：一队~五队各打一组敌人，<b>${RIFT_TEAMS} 场胜 ${RIFT_PASS} 场</b>即通过。每层满状态、不继承血量；一次挑战最多连爬 ${RIFT_RUN_MAX} 层。最高 ${RIFT_FLOORS} 层，<b>每两周换一期</b>：敌人重排、层数从头爬、奖励重发，历史最高层永久保留。</p>
+      ${cleared ? '<p>本期已经打穿第 100 层，等下期刷新再来。</p>' : `<h4>第 ${next} 层 · 强度≈第 ${riftStage(next)} 关 <small class="dim">第 5 队负责顶 Boss / 精英</small></h4><div class="riftfoes">${foeRows}</div>`}
+      <div class="row"><button class="btn big gold" data-act="rift-go" ${cleared || r.tries <= 0 ? 'disabled' : ''}>${cleared ? '本期已通关' : r.tries > 0 ? `挑战第 ${next} 层起（连续最多 ${RIFT_RUN_MAX} 层）` : '今日次数已用完'}</button></div>
+      <p class="hint">奖励：每层金币与券/银芯（随层数增长），每 5 层额外召唤券与银芯，每 10 层一件装备，<b>每 25 层</b>钥令 + 校猫奖励（券 6 / 银芯 80），打穿第 ${RIFT_FLOORS} 层再额外给 40 券与 600 银芯。</p>
+    </div>
+    <h3>出战五队 <small>一队~五队分别对应第 1~5 组敌人</small></h3>
+    <div class="rt-teams">${teams}</div></div>`;
+}
+
+export function riftResultModal(app, r) {
+  const last = r.floors[r.floors.length - 1];
+  const total = r.floors.reduce((a, f) => a + f.wins, 0);
+  const rows = r.floors.map((f) => `<div class="rfl ${f.win ? 'w' : 'l'}"><b>第 ${f.floor} 层</b>
+      <span>${f.wins}/${RIFT_TEAMS} 胜 · ${f.win ? '通过' : '失败'}</span>
+      <small>${f.battles.map((b) => `${b.zh}${b.win ? '✓' : b.timeout ? '⌛' : '✗'}`).join('　')}</small></div>`).join('');
+  const detail = last ? `<h4>第 ${last.floor} 层五队明细</h4><div class="riftdet">${last.battles.map((b) => `<div class="rd ${b.win ? 'w' : 'l'}"><b>${b.zh}</b>
+      <small>${b.enemies.map((e) => esc(e.name)).join('、')}</small>
+      <span>${b.win ? '胜利' : b.timeout ? '超时' : `${b.alive}/${b.total} 存活`} · ${b.rounds} 回合</span></div>`).join('')}</div>` : '';
+  openModal(`<h3>融灾禁区 · ${r.reached ? `通过 ${r.reached} 层` : '挑战失败'}${r.newBest ? ' <em class="new">新纪录</em>' : ''}</h3>
+    <p>本期进度 <b>${r.floor}</b> / ${RIFT_FLOORS}　本次 ${r.floors.length} 层共 ${total}/${r.floors.length * RIFT_TEAMS} 场胜利${last && !last.win ? `　卡在第 ${last.floor} 层` : ''}</p>
+    <p>${r.rw ? (REWARD(r.rw) || '没有新的奖励') + (r.rw.items.length ? `　装备 +${r.rw.items.length}` : '') : '没有推进到新层数，本次没有奖励。'}</p>
+    <div class="rfls">${rows}</div>${detail}`, 'wide');
+}
+
 export { hydrate };
