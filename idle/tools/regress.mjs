@@ -550,6 +550,8 @@ check(riftDone.passed && riftDone.rows >= 1 && riftDone.det === 5, `跳过回放
 check(riftDone.state >= 1 && riftDone.tries === 2, `层数推进到第 ${riftDone.state} 层，次数 3 → ${riftDone.tries}`);
 
 // 14.5) M16：挂机层默认取「有收益的最高层」
+// 上一段停在融灾禁区页，先切回战斗页再断言（面板是同一个 DOM，但截图要看得到）
+await cdp.evalIife(`(async () => { window.__go('battle'); await new Promise((r) => setTimeout(r, 300)); return 1; })()`);
 const farmStall = await cdp.evalIife(`(() => {
   const s = __game.state;
   s.auto = true; s.maxStage = 60; s.stage = 61; s.miss = { stage: 0, n: 0 };
