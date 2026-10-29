@@ -255,6 +255,9 @@ function genSurvivors() {
   const extra = has(extraPath) ? readJson(extraPath) : { chars: [] };
   const chars = data.chars.slice();
   const weapons = data.weapons.slice();
+  // 羁绊写的是官方角色全名（「血链·希洛」比 id 好认），构建时解析成 id。
+  // 名字写错直接抛错 —— 静默跳过的话，玩家只会看到一条永远达不成的羁绊。
+  const idByName = new Map(chars.map((x) => [x.n, String(x.id)]));
   for (const c of extra.chars || []) {
     const body = { ...c };
     // 主播本人的 B 站头像：一张只有 3–7KB，直接转 data URI 内联进 gen.js。
@@ -264,6 +267,15 @@ function genSurvivors() {
       body.face = has(fp) ? 'data:image/webp;base64,' + fs.readFileSync(fp).toString('base64') : null;
       if (!body.face) delete body.face;
     }
+    const bonds = (body.bonds || []).map((b) => {
+      const cid = idByName.get(b.with);
+      if (!cid) throw new Error(`survivors-extra.json：「${c.n}」的羁绊对象「${b.with}」不在官方角色表里`);
+      return {
+        n: b.n, alias: b.alias || b.with, cid, cname: b.with,
+        need: b.need || 1, text: b.text, fx: b.fx || null,
+      };
+    });
+    if (bonds.length) body.bonds = bonds; else delete body.bonds;
     const ws = (body.weapons || []).map((w, i) => {
       // 官方武器的 id 形如 awakener-0001:0，彩蛋沿用同一套：guest-xxx:0
       const id = `${c.pid}:${i}`;

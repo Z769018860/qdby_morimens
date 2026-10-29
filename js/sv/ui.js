@@ -187,6 +187,13 @@ function renderCharInfo() {
   // 档案：解锁前连人都不给看，解锁后才亮出来 —— 和技能同一套逻辑。
   // 彩蛋角色的档案一律用主播 B 站公开签名的原文，出处标在底部；
   // 签名本来就是空的（比如鼠王）就如实留空，不替他想一句。
+  // 羁绊：只有彩蛋角色有。这里把「和谁、要什么、给什么」一次讲清，
+  // 否则玩家进局以后才发现池子里有一把不知名的技能，根本不知道是给他留的。
+  const bonds = !locked && c.bonds ? c.bonds : [];
+  const bondBox = bonds.length ? `
+    <div class="ci-bond"><b>羁绊</b>
+      ${bonds.map((b) => `<p><em>${esc(b.n)}</em><span>${esc(b.text)}</span><u>条件 · 「${esc(b.cname)}」的技能练到 Lv.${b.need + 1}</u></p>`).join('')}
+    </div>` : '';
   const bioText = c.bio || (c.egg && !locked ? '（这位没写 B 站签名）' : '');
   const bioBox = !locked && bioText ? `
     <div class="ci-bio"><b>档案</b><span>${esc(bioText)}</span>${c.bioSrc ? `<u>出处 · ${esc(c.bioSrc)}</u>` : ''}</div>` : '';
@@ -208,6 +215,7 @@ function renderCharInfo() {
     ${lockBox}
     ${mechBox}
     <p class="ci-talent"><b>天赋 · ${esc(c.talent)}</b>${esc(c.talentText || '')}</p>
+    ${bondBox}
     ${bioBox}
     <div class="ci-w">${ws}</div>`;
 }
@@ -324,14 +332,17 @@ function drainEvo() {
   const e = evoUIPool.shift();
   evoUIBusy = true;
   box.hidden = false;
+  // 羁绊走同一套卡片，只换标题、箭头和底色 —— 都是「你凑出了什么」的即时反馈，
+  // 分两套 UI 反而会让右上角弹出两条长得一样的东西。
+  const bond = e.kind === 'bond';
   const el = document.createElement('div');
-  el.className = 'evo-card';
+  el.className = bond ? 'evo-card bond' : 'evo-card';
   el.innerHTML = `
     ${charFaceHTML(e.char, 40)}
     <div class="eb">
-      <span class="tag">⚡ 超武觉醒</span>
-      <p class="nm"><s>${esc(e.from)}</s> → <b>${esc(e.n)}</b></p>
-      <p class="cond">${esc(evoCondText(e.need))}</p>
+      <span class="tag">${bond ? '✧ 羁绊达成' : '⚡ 超武觉醒'}</span>
+      <p class="nm"><s>${esc(e.from)}</s>${bond ? ' × ' : ' → '}<b>${esc(e.n)}</b></p>
+      <p class="cond">${esc(bond ? `「${e.from}」的技能练到 Lv.${((e.need && e.need.level) || 0) + 1}` : evoCondText(e.need))}</p>
       <p class="fx">${esc(e.txt)}</p>
     </div>
     <button class="x" title="知道了">✕</button>`;
@@ -450,6 +461,19 @@ function buildInfo() {
       <div><b>${esc(mm.n)} <em>${esc(now)}</em></b><span>${esc(mm.text)}</span></div></div>`;
   })() : '';
 
+  // 羁绊：达成与否一眼可见。没达成时把「现在几级 / 还差几级」写出来，
+  // 不然这一行就是永远灰着的字，没人知道该怎么凑。
+  const bondRows = ((G.char && G.char.bonds) || []).map((b) => {
+    const w = G.weapons.find((x) => String(x.def.char) === String(b.cid));
+    const on = !!w && w.lv >= b.need;
+    const now = !w ? '未持有' : on ? `已生效 · Lv.${w.lv + 1}` : `Lv.${w.lv + 1} / 需 Lv.${b.need + 1}`;
+    return `<div class="if-row bond${on ? ' on' : ''}">
+      <i class="if-glyph" style="color:${on ? '#ffd76a' : '#8790a6'}">✧</i>
+      <div><b>${esc(b.n)} <em>${esc(now)}</em></b>
+        <span>${esc(b.cname)} · ${esc(w ? w.def.n : '还没抽到他的技能')}</span>
+        <u>${esc(b.text)}</u></div></div>`;
+  }).join('');
+
   const growRows = G.growth.length ? G.growth.reduce((acc, g) => {
     const hit = acc.find((x) => x.id === g.id);
     if (hit) hit.n++;
@@ -465,6 +489,7 @@ function buildInfo() {
 
   return `
     ${mechRow ? `<h3 class="if-h">机制</h3>${mechRow}` : ''}
+    ${bondRows ? `<h3 class="if-h">羁绊</h3>${bondRows}` : ''}
     <h3 class="if-h">技能 · ${G.weapons.length}/6</h3>${ws}
     <h3 class="if-h">命轮 · ${G.wheels.length}</h3>${wheelRows || '<p class="dim">第 3 分钟开始出现</p>'}
     <h3 class="if-h">契物 · ${G.covs.length}</h3>${covRows || '<p class="dim">第 10 分钟后出现</p>'}

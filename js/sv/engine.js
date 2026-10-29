@@ -199,6 +199,7 @@ export function reset(charId, diffKey) {
   G.gaveUp = false;
   G.evoQueue = [];
   G.evoPops = [];
+  G.bondOn = {};
   G.bossAlive = false; G.bossScanT = 0;
   G.growth = [];
   G.items = [];
@@ -293,6 +294,24 @@ function buildPool(c, mine) {
     const hl = WEAPONS.filter((w) => w.proto === 'heal' && !w.egg && !(mine[0] && w.id === mine[0].id));
     if (hl.length) pool.add(hl[(rnd() * hl.length) | 0].id);
   }
+  // 羁绊保底：彩蛋角色的羁绊对象必须抽得到，否则那条羁绊只是一行文案 ——
+  // 三选一里永远不出现「血链·希洛」的技能，玩家再怎么打也达不成。
+  // 已经因为「每原型两把」进池的就跳过，不白占位置；否则优先挑原型还没被占的那把。
+  for (const b of c.bonds || []) {
+    const owned = (id) => {
+      const w = WEAPONS.find((x) => x.id === id);
+      return w && String(w.char) === String(b.cid);
+    };
+    if ([...pool].some(owned)) continue;
+    const cand = WEAPONS.filter((w) => String(w.char) === String(b.cid) && !w.egg
+      && !(mine[0] && w.id === mine[0].id));
+    const protoTaken = (proto) => [...pool].some((id) => {
+      const o = WEAPONS.find((x) => x.id === id);
+      return o && o.proto === proto;
+    });
+    const pick = cand.find((w) => !protoTaken(w.proto)) || cand[0];
+    if (pick) pool.add(pick.id);
+  }
   return [...pool];
 }
 
@@ -345,6 +364,31 @@ export function recompute() {
   } else if (mech === 'gatekeep') {
     base.maxShieldBonus += 30;      // 基础 30 → 60，约 +30% 上限
     base.spd -= 0.08;               // 走得慢是设定：他本来就在遛弯
+  }
+  // 羁绊：彩蛋角色和某位官方唤醒体的专属联动。判定只看「手上有没有那个人的技能、
+  // 练到几级」——技能被替换掉就自然失效，不需要额外的清理逻辑。
+  const bonds = (c && c.bonds) || [];
+  if (!G.bondOn) G.bondOn = {};
+  for (const b of bonds) {
+    const w = G.weapons.find((x) => String(x.def.char) === String(b.cid));
+    const on = !!w && w.lv >= (b.need || 1);
+    if (!on) { G.bondOn[b.n] = false; continue; }
+    if (b.fx) {
+      if (b.fx.mul) for (const k in b.fx.mul) if (typeof base[k] === 'number') base[k] *= b.fx.mul[k];
+      if (b.fx.add) for (const k in b.fx.add) if (typeof base[k] === 'number') base[k] += b.fx.add[k];
+    }
+    // 第一次达成才播报，用 t > 1 当门槛就够了：开局 t=0 时弹出的卡莫名其妙，
+    // 而升级那一刻 phase 是 levelup（不是 run），拿 phase 判会把播报整个吃掉。
+    if (!G.bondOn[b.n] && G.t > 1) {
+      if (!G.evoPops) G.evoPops = [];
+      G.evoPops.push({
+        kind: 'bond', char: c.id, n: b.n, from: b.alias || b.cname,
+        txt: b.text, need: { level: b.need || 1 },
+      });
+      addText(G.player.x, G.player.y - 58, `羁绊 · ${b.n}`, 6);
+      sfx.play('evo');
+    }
+    G.bondOn[b.n] = true;
   }
   Object.assign(m, base);
 
@@ -654,10 +698,26 @@ export function rollChoices() {
 
   // 1. 武器：优先已拥有且未满级的（升级），再补候选池里的新武器
   const ups = G.weapons.filter((w) => w.lv < LV.max);
+  // 羁绊武器：buildPool 保底放进候选池的那一把是给羁绊留的。池子三十多把、
+  // 「新武器」又只占 18%，纯均匀随机会变成整局一次都抽不到 —— 羁绊等于不存在。
+  // 所以把它单独拎成一组给权重；已经拿到（或羁绊已达成）就和普通新武器一样。
+  const bondDefs = [];
+  for (const b of (G.char && G.char.bonds) || []) {
+    if (G.bondOn && G.bondOn[b.n]) continue;
+    for (const id of G.candidatePool) {
+      const d = WEAPONS.find((w) => w.id === id);
+      if (d && String(d.char) === String(b.cid)
+        && !G.weapons.some((w) => w.def.id === d.id)
+        && !bondDefs.includes(d)) bondDefs.push(d);
+    }
+  }
+  const bondIds = new Set(bondDefs.map((d) => d.id));
   const news = G.candidatePool
     .map((id) => WEAPONS.find((w) => w.id === id))
-    .filter((d) => d && !G.weapons.some((w) => w.def.id === d.id));
+    .filter((d) => d && !bondIds.has(d.id) && !G.weapons.some((w) => w.def.id === d.id));
   const weaponSlot = G.weapons.length < MAX_WEAPON;
+  // 六格都是质变技能时不能换（换掉哪个都纯亏），wnew / 羁绊两组都要看这个
+  const canSwap = G.weapons.some((w) => !w.evo);
   const wpool = [];
   for (const w of ups) wpool.push({ kind: 'wlv', w });
   if (weaponSlot) {
@@ -668,7 +728,6 @@ export function rollChoices() {
     //
     // 但六格全是质变技能时不再给替换卡：换掉哪个都是纯亏，
     // 玩家只会觉得「我明明都超武了，怎么还逼我换」。这种情况直接不给新武器。
-    const canSwap = G.weapons.some((w) => !w.evo);
     if (canSwap) {
       for (const d of news) wpool.push({ kind: 'wswap', def: d, drop: null });
     }
@@ -695,7 +754,7 @@ export function rollChoices() {
     ? COVENANTS.map((c, i) => ({ kind: 'cov', i, c }))
     : [];
 
-  // 类别权重：武器升级 42% / 新武器 18% / 造物 30% / 命轮 8% / 契物 2%。
+  // 类别权重：武器升级 42 / 新武器 18 / 替换 16 / 造物 30 / 命轮 8 / 契物 2 / 羁绊 8。
   // 先按类别抽，再从类别内部均匀抽 —— 之前把类别权重除以了池子大小，
   // 结果造物（42 件）把武器（十来件）的份额整个吃掉了，十几次升级一次武器都升不到。
   //
@@ -712,6 +771,12 @@ export function rollChoices() {
     { w: 42, list: wpool.filter((o) => o.kind === 'wlv') },
     { w: 18, list: wpool.filter((o) => o.kind === 'wnew') },
     { w: 16, list: wpool.filter((o) => o.kind === 'wswap') },
+    // 羁绊：权重给 8（每次三选一约 18% 会带出这张卡），不占大头但也绝不是摆设。
+    // 试过 20，结果第一次升级就必出，羁绊变成白送；8 大概是「三四次升级内能遇到」。
+    // 拿到之后这一组自动消失，不会长期挤占别人的份额。
+    { w: 8, list: weaponSlot
+      ? bondDefs.map((d) => ({ kind: 'wnew', def: d }))
+      : (canSwap ? bondDefs.map((d) => ({ kind: 'wswap', def: d, drop: null })) : []) },
     { w: 30, list: cpool },
     { w: 8, list: wlpool },
     { w: 2, list: cvpool },
@@ -755,6 +820,9 @@ export function applyChoice(o) {
   else if (o.kind === 'item') addItem(o.it.id);
   // 专武的条件是「这把技能练到 4 级」，升级本身不会走 recompute，
   // 所以每次选完都要重判一次超武状态。
+  // 技能等级 / 持有变了 → 羁绊可能刚好达成（或者被换掉后失效），必须重算一次。
+  // recompute 内部会再调 refreshEvo，下面那行留着是为了「不加技能也重判超武」这条路径。
+  if (o.kind === 'wlv' || o.kind === 'wnew' || o.kind === 'wswap') recompute();
   refreshEvo();
   if (G.mods.timeDilate) G.dilate = 3;
   advancePending();

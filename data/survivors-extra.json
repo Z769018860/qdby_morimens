@@ -1,5 +1,5 @@
 {
-  "_note": "《唤醒体幸存者》彩蛋角色。官方 66 人来自 data/survivors-data.json（脚本生成），这里手写：B 站《忘却前夜》内容创作者 9 人 + 最终隐藏首领「弥萨格校猫」。由 scripts/build.mjs 的 genSurvivors() 追加进 CHARS / WEAPONS / MOBS，不参与官方数据重建。face 指向 assets/survivors/faces/*.webp（主播本人的 B 站头像，构建时转 data URI 内联）；glyph 只是头像还没解码出来时的兜底字。 bio 与 bioSrc 一律照抄主播 B 站空间的公开签名原文（接口 x/web-interface/card 的 data.card.sign），签名为空就留空，不要自己编人设。",
+  "_note": "《唤醒体幸存者》彩蛋角色。官方 66 人来自 data/survivors-data.json（脚本生成），这里手写：B 站《忘却前夜》内容创作者 9 人 + 最终隐藏首领「弥萨格校猫」。由 scripts/build.mjs 的 genSurvivors() 追加进 CHARS / WEAPONS / MOBS，不参与官方数据重建。face 指向 assets/survivors/faces/*.webp（主播本人的 B 站头像，构建时转 data URI 内联）；glyph 只是头像还没解码出来时的兜底字。 bio 与 bioSrc 一律照抄主播 B 站空间的公开签名原文（接口 x/web-interface/card 的 data.card.sign），签名为空就留空，不要自己编人设。bonds = 与官方唤醒体的专属羁绊：with 写官方角色全名（构建时解析成 id，写错会直接报错），need 是「那把技能要练到几级」（0 基，2 = 面板 Lv.3），fx.add 是直接加减、fx.mul 是乘算。羁绊对象的那把技能由 buildPool 保底放进候选池，否则羁绊等于不存在。",
   "chars": [
     {
       "id": "egg-samo",
@@ -20,6 +20,21 @@
       "kind": "B 站主播",
       "bio": "再见了，忘却前夜。",
       "bioSrc": "B 站空间 · space.bilibili.com/345114332",
+      "bonds": [
+        {
+          "with": "血链·希洛",
+          "alias": "血希",
+          "n": "血色节拍",
+          "need": 2,
+          "text": "攻击 +12%，伤害的 3% 转为治疗。拍子踩在心跳上，一下都不差。",
+          "fx": {
+            "add": {
+              "atk": 0.12,
+              "lifesteal": 0.03
+            }
+          }
+        }
+      ],
       "weapons": [
         {
           "n": "不耶连拍",
@@ -58,6 +73,36 @@
       "kind": "B 站主播",
       "bio": "融灾主线深潜pvp请+q1839055149 myls的忘却银夜群（个人粉丝向）：884208560 最近因现生问题减少开播时长",
       "bioSrc": "B 站空间 · space.bilibili.com/1800901917",
+      "bonds": [
+        {
+          "with": "凯蒂古拉",
+          "alias": "地瓜",
+          "n": "烤地瓜的余温",
+          "need": 2,
+          "text": "暴击伤害 +30%，每秒回复 0.5 生命。梦里也闻得到那股焦糖味。",
+          "fx": {
+            "add": {
+              "critMul": 0.3,
+              "regen": 0.5
+            }
+          }
+        },
+        {
+          "with": "波吕克斯",
+          "alias": "鸟弟",
+          "n": "梦里也有鸟",
+          "need": 2,
+          "text": "冷却 -8%，作用范围 +10%。他在梦里飞，她在梦里睡，谁也不吵谁。",
+          "fx": {
+            "mul": {
+              "cd": 0.92
+            },
+            "add": {
+              "area": 0.1
+            }
+          }
+        }
+      ],
       "weapons": [
         {
           "n": "流苏缠缚",
@@ -95,6 +140,36 @@
       "kind": "B 站主播",
       "bio": "主播的粉丝群：1098633910 二群：698722677",
       "bioSrc": "B 站空间 · space.bilibili.com/545164270",
+      "bonds": [
+        {
+          "with": "潘狄娅",
+          "alias": "潘狄娅",
+          "n": "予取予求的洞",
+          "need": 2,
+          "text": "拾取范围 +1，经验获取 +15%。洞的另一头什么都捡得到。",
+          "fx": {
+            "add": {
+              "pick": 1,
+              "exp": 0.15
+            }
+          }
+        },
+        {
+          "with": "旺达",
+          "alias": "旺达",
+          "n": "活死人的茶会",
+          "need": 2,
+          "text": "最大生命 +40，受到的伤害 -6%。茶凉了也照喝。",
+          "fx": {
+            "add": {
+              "maxHpBonus": 40
+            },
+            "mul": {
+              "dmgTaken": 0.94
+            }
+          }
+        }
+      ],
       "weapons": [
         {
           "n": "兔子洞",
@@ -132,6 +207,21 @@
       "kind": "B 站主播",
       "bio": "",
       "bioSrc": "B 站空间 · space.bilibili.com/399273416",
+      "bonds": [
+        {
+          "with": "詹金",
+          "alias": "鼠鼠",
+          "n": "一窝鼠",
+          "need": 2,
+          "text": "召唤物 +1，召唤物伤害 +25%。数不清的从来不止他一家。",
+          "fx": {
+            "add": {
+              "summonBonus": 1,
+              "summonDmg": 0.25
+            }
+          }
+        }
+      ],
       "weapons": [
         {
           "n": "鼠群奔涌",
@@ -169,6 +259,23 @@
       "kind": "B 站主播",
       "bio": "PKU 本硕 | AI | 在数据的噪音中寻找信号| 深度解构《忘却前夜》等卡牌游戏",
       "bioSrc": "B 站空间 · space.bilibili.com/190977084",
+      "bonds": [
+        {
+          "with": "艾瑞卡",
+          "alias": "嘀嗒人",
+          "n": "参数调优",
+          "need": 2,
+          "text": "冷却 -6%，暴击率 +5%。在数据的噪音里，他听得出哪一格是信号。",
+          "fx": {
+            "mul": {
+              "cd": 0.94
+            },
+            "add": {
+              "crit": 0.05
+            }
+          }
+        }
+      ],
       "weapons": [
         {
           "n": "龙息",
@@ -206,6 +313,21 @@
       "kind": "B 站主播",
       "bio": "（忘却前夜神秘玩家）主播的校车群：498236522（最近在做新手攻略）",
       "bioSrc": "B 站空间 · space.bilibili.com/3493105187687321",
+      "bonds": [
+        {
+          "with": "血链·希洛",
+          "alias": "血希",
+          "n": "一分不花的血誓",
+          "need": 2,
+          "text": "攻击 +10%，暴击率 +8%。别人的誓要代价，他这个不要钱。",
+          "fx": {
+            "add": {
+              "atk": 0.1,
+              "crit": 0.08
+            }
+          }
+        }
+      ],
       "weapons": [
         {
           "n": "立誓之刃",
@@ -242,6 +364,21 @@
       "kind": "B 站主播",
       "bio": "红色沙漠真好玩",
       "bioSrc": "B 站空间 · space.bilibili.com/515298109",
+      "bonds": [
+        {
+          "with": "索蕾尔",
+          "alias": "红夫人",
+          "n": "红色沙漠",
+          "need": 2,
+          "text": "伤害 +8%，每秒回复 0.4 生命。沙是红的，花也是。",
+          "fx": {
+            "add": {
+              "dmgMul": 0.08,
+              "regen": 0.4
+            }
+          }
+        }
+      ],
       "weapons": [
         {
           "n": "茉香花海",
@@ -279,6 +416,21 @@
       "kind": "B 站主播",
       "bio": "神赐予野性，人得了愚昧",
       "bioSrc": "B 站空间 · space.bilibili.com/14997071",
+      "bonds": [
+        {
+          "with": "菲茵特",
+          "alias": "星之芽",
+          "n": "摇篮里的星",
+          "need": 2,
+          "text": "作用范围 +12%，暴击伤害 +20%。神赐的那点野性，落下来就是星。",
+          "fx": {
+            "add": {
+              "area": 0.12,
+              "critMul": 0.2
+            }
+          }
+        }
+      ],
       "weapons": [
         {
           "n": "星光坠落",
@@ -317,6 +469,23 @@
       "kind": "B 站主播 · 安卓佬",
       "bio": "1033650434，安卓科研群",
       "bioSrc": "B 站空间 · space.bilibili.com/1475217387",
+      "bonds": [
+        {
+          "with": "奥吉尔",
+          "alias": "小骑士",
+          "n": "路过也挡",
+          "need": 2,
+          "text": "护盾上限 +25，受到的伤害 -5%。他只是路过，但路口归他管。",
+          "fx": {
+            "add": {
+              "maxShieldBonus": 25
+            },
+            "mul": {
+              "dmgTaken": 0.95
+            }
+          }
+        }
+      ],
       "weapons": [
         {
           "n": "挡在路口",

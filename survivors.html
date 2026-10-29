@@ -267,6 +267,18 @@ button{font:inherit}
   padding-left:8px; border-left:2px solid color-mix(in oklab,var(--gold) 55%,transparent)}
 .ci-mech b{display:block; color:var(--gold); font-size:12px}
 /* 档案：一段叙事文案，比分节行文长，所以给个淡底把「资料」和「数值」隔开 */
+/* 羁绊：彩蛋主播和某位官方唤醒体的专属联动。金底是为了和「档案」的蓝底分开 ——
+   上面一条是玩法，下面一条是资料，玩家扫一眼就能分辨 */
+.ci-bond{margin:8px 0 6px; padding:8px 10px; border-radius:10px;
+  background:color-mix(in oklab, #ffd76a 7%, transparent);
+  border-left:2px solid color-mix(in oklab, #ffd76a 58%, transparent)}
+.ci-bond b{display:block; color:#ffd76a; font-size:11.5px; letter-spacing:.05em; margin-bottom:4px}
+.ci-bond p{margin:0 0 6px}
+.ci-bond p:last-child{margin-bottom:0}
+.ci-bond em{display:block; font-style:normal; color:var(--text); font-size:12px; font-weight:600}
+.ci-bond span{display:block; font-size:11.5px; color:var(--dim); line-height:1.55}
+.ci-bond u{display:block; margin-top:2px; text-decoration:none; font-size:10.5px;
+  color:color-mix(in oklab, #ffd76a 52%, var(--dim))}
 .ci-bio{margin:8px 0 6px; padding:8px 10px; border-radius:10px;
   background:color-mix(in oklab, var(--panel2) 88%, transparent);
   border-left:2px solid color-mix(in oklab,#9aa7ff 55%, transparent)}
@@ -360,6 +372,15 @@ button{font:inherit}
   box-shadow:inset 0 0 0 1px color-mix(in oklab, currentColor 34%, transparent)}
 .if-row.mech{border-left:2px solid color-mix(in oklab,var(--gold) 60%,transparent);
   background:color-mix(in oklab,var(--gold) 6%,transparent)}
+/* 羁绊：没达成是灰的，达成后整行转金 —— 和机制那条常亮的金线不冲突，
+   机制是自带的，羁绊是自己凑出来的 */
+.if-row.bond{border-left:2px solid color-mix(in oklab,#8790a6 50%,transparent);
+  background:color-mix(in oklab,#8790a6 7%,transparent)}
+/* 没达成的等级用灰色，别跟着 .if-row b em 一起变金 —— 没生效还标金色会看着像已经生效 */
+.if-row.bond b em{color:color-mix(in oklab,#8790a6 70%, var(--dim))}
+.if-row.bond.on{border-left-color:var(--gold);
+  background:color-mix(in oklab,var(--gold) 9%,transparent)}
+.if-row.bond.on b em{color:var(--gold)}
 /* 替换目标选择：六个槽两列铺开，等级与超武状态一眼可见 */
 #swapList{display:grid; grid-template-columns:1fr 1fr; gap:7px; margin:10px 0 4px}
 .sw{display:flex; flex-wrap:wrap; align-items:center; gap:7px; padding:7px 9px; border-radius:10px;
@@ -429,6 +450,13 @@ button{font:inherit}
 .evo-card .eb .nm b{color:var(--gold); font-weight:600}
 .evo-card .eb .cond{font-size:10.5px; color:color-mix(in oklab, var(--gold) 62%, var(--dim)); line-height:1.4}
 .evo-card .eb .fx{margin-top:3px; font-size:11.5px; color:var(--text); line-height:1.45}
+/* 羁绊达成卡：同一套排版换蓝底，一眼能分出「凑出羁绊」和「技能质变」 */
+.evo-card.bond{border-color:color-mix(in oklab, #7fd8ff 55%, var(--line));
+  background:linear-gradient(180deg, rgba(16,32,42,.96), rgba(14,17,24,.97));
+  box-shadow:0 8px 26px rgba(0,0,0,.55), inset 0 0 26px color-mix(in oklab, #7fd8ff 11%, transparent)}
+.evo-card.bond .eb .tag{color:#7fd8ff}
+.evo-card.bond .eb .nm b{color:#9fe6ff}
+.evo-card.bond .eb .cond{color:color-mix(in oklab, #7fd8ff 58%, var(--dim))}
 .evo-card .x{position:absolute; top:6px; right:6px; width:22px; height:22px; border-radius:8px;
   border:1px solid transparent; background:transparent; color:var(--dim); font-size:12px; cursor:pointer}
 .evo-card .x:hover{color:var(--text); border-color:var(--line)}
@@ -463,7 +491,7 @@ button{font:inherit}
 }
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
 </style>
-<meta name="build" content="5cc5df9f42">
+<meta name="build" content="211e633358">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -484,7 +512,7 @@ button{font:inherit}
       <a class="home" href="index.html">← 首页</a>
       <header>
         <h1>唤醒体<span>幸存者</span></h1>
-        <p class="sub">素材全部取自《忘却前夜》· 62 名唤醒体的 124 个技能都是可抽的武器 · 4 位神秘人要靠自己打出来 · 名单最后站着 9 位 B 站主播</p>
+        <p class="sub">素材全部取自《忘却前夜》· 62 名唤醒体的 124 个技能都是可抽的武器 · 4 位神秘人要靠自己打出来 · 名单最后站着 9 位 B 站主播，各自和一位唤醒体绑着专属羁绊</p>
       </header>
 
       <div class="diff" id="diffBox"></div>
@@ -583,7 +611,7 @@ button{font:inherit}
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/survivors.js?v=5cc5df9f42"></script>
+<script type="module" src="js/b/survivors.js?v=211e633358"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
