@@ -117,6 +117,26 @@ function startRound(G) {
   G.si = 0;
 }
 
+// 桌上有人报了身份（或报了查验），旁人不一定忍得住——接一句能让「有人在听」这件事成立。
+// 一天最多两次，否则整局就是一片附和声。
+function bystander(G, about, chance) {
+  if (!about || G.rnd() > chance) return;
+  G.commentDay = G.commentDay || {};
+  if ((G.commentDay[G.day] || 0) >= 2) return;
+  const others = alive(G).filter((x) => x.id !== about.id && !x.isPlayer);
+  if (!others.length) return;
+  const q = others[Math.floor(G.rnd() * others.length)];
+  G.commentDay[G.day] = (G.commentDay[G.day] || 0) + 1;
+  q.talk = (q.talk || 0) + 1;
+  push(G, {
+    t: 'say', pid: q.id, stance: 'comment',
+    text: say(G, q, 'comment', {
+      who: about.name,
+      role: about.claimRole && ROLES[about.claimRole] ? ROLES[about.claimRole].zh : '',
+    }),
+  });
+}
+
 function stepDiscuss(G) {
   while (G.si < G.speakers.length) {
     const p = byId(G, G.speakers[G.si++]);
@@ -133,6 +153,9 @@ function stepDiscuss(G) {
         stance: a.stance || a.kind, why: a.why || null, act: a.kind,
       });
     }
+    // 他要是刚报了什么，桌上会有人当场评一句
+    const big = acts.find((a) => a.claim || a.kind === 'report');
+    if (big) bystander(G, p, big.claim ? 0.5 : 0.34);
     return;
   }
   if (G.round + 1 < G.diff.rounds) {
@@ -545,7 +568,16 @@ function playerTalk(G, act) {
   if (!me.alive) return;
   const rnd = G.rnd;
   const S = KEEPER.say;
-  const pickLine = (arr, ctx) => KEEPER_FILL(arr[Math.floor(rnd() * arr.length)], ctx);
+  // 守密人自己说的话也记账：一局里同一句不会说第二遍，池子用完才会绕回来。
+  // （原来纯 random，四句 accuse 说到第三次就必然重复。）
+  const mineSaid = me.keepSaid || (me.keepSaid = new Set());
+  const pickLine = (arr, ctx) => {
+    const fresh = arr.filter((x) => !mineSaid.has(x));
+    const use = fresh.length ? fresh : arr;
+    const s = use[Math.floor(rnd() * use.length)];
+    mineSaid.add(s);
+    return KEEPER_FILL(s, ctx);
+  };
 
   // 被低语过：今天张不开嘴。说什么都会被吞掉，所以直接把这一轮咽下去。
   if (me.silencedDay === G.day && act.kind !== 'idle') {
@@ -565,6 +597,8 @@ function playerTalk(G, act) {
       claim: act.role, stance: 'claim',
     });
     me.talk = (me.talk || 0) + 1;
+    // 你自己报了牌，桌上会有人接一句
+    bystander(G, me, 0.55);
   } else if (act.kind === 'accuse' && act.target != null) {
     const t = byId(G, act.target);
     if (t) {
@@ -589,11 +623,10 @@ function playerTalk(G, act) {
         G.claimHist.push({ id: 0, role: me.role, day: G.day, round: G.round });
       }
       G.reports.push({ by: 0, to: t.id, res, day: G.day, round: G.round });
-      const line = res === 'eroded'
-        ? (me.role === 'coroner' ? '我验过{who}。他的血是黑的。' : '我查过{who}。他体内有黑液。')
-        : res === 'void'
-          ? (me.role === 'coroner' ? '我验过{who}。他是空的。' : '我看过{who}——里面什么也没有，他不是人。')
-          : (me.role === 'coroner' ? '我验过{who}。他是干净的。' : '我看过{who}——他是干净的。');
+      // 报查验的说法也从池子里抽（并且不重复）——原来是一句写死的话，一局能说三遍
+      const verb = me.role === 'coroner' ? '验' : '查';
+      const pool = res === 'eroded' ? S.reportWolf : (res === 'void' ? S.reportVoid : S.reportClean);
+      const line = pickLine(pool, { who: t.name }).replace(/\{verb\}/g, verb);
       push(G, {
         t: 'say', pid: 0, text: KEEPER_FILL(line, { who: t.name }), claim: me.role,
         stance: res === 'eroded' ? 'reportWolf' : (res === 'void' ? 'reportVoid' : 'reportClean'),

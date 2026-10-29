@@ -456,9 +456,15 @@ export function aiStatement(G, ai) {
     // 平时：咬威胁最大的好人
     const target = weighted(foes, (p) => threatOf(G, ai, p) + hash01(G.seed, ai.id, p.id, G.day) * 14, rnd);
     if (target) {
+      const DODGE = [
+        '他说话一直在躲，我不敢信',
+        '他每句都在给自己留退路',
+        '他讲了很久，一个具体的人名都没提',
+        '他一开口就在解释自己，不是在找融蚀体',
+      ];
       const why = G.claims[target.id] && POWER_ROLES.has(G.claims[target.id])
         ? `他自称「${ROLES[G.claims[target.id]].zh}」，看着最像在装`
-        : '他说话一直在躲，我不敢信';
+        : DODGE[Math.floor(rnd() * DODGE.length)];
       doAccuse(target, why);
       return acts;
     }
@@ -477,8 +483,14 @@ export function aiStatement(G, ai) {
     const back = accusers.sort((a, b) => suspicionOf(G, ai, b.id) - suspicionOf(G, ai, a.id))[0]
       || topSuspects(G, ai, 1)[0].p;
     if (back) {
+      const BACK_WHY = [
+        '他带头发难，却一条证据都拿不出来',
+        '他先指着我，可他自己什么都没说过',
+        '他急着把我推出去，急得不像在找融蚀体',
+        '他要把我送出门，理由只有一句「我怀疑」',
+      ];
       const why = (G.acc || []).some((a) => a.by === back.id && a.to === ai.id)
-        ? '他带头发难，却一条证据都拿不出来' : null;
+        ? BACK_WHY[Math.floor(rnd() * BACK_WHY.length)] : null;
       doAccuse(back, why);
     }
     return acts;

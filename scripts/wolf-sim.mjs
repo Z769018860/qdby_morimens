@@ -19,6 +19,27 @@ import { LINES, pickLine } from '../js/wolf/lines.js';
 const N = Number(process.argv[2] || 400);
 const MODE = process.argv[3] || 'all';
 
+// 每种场合至少要写几句。数字是按「一局里会被用到几次」定的：
+// 一个人一晚说八到十句，其中大半是指认和沉默，所以 accuse / idle 要最深。
+const MIN_POOL = { accuse: 6, idle: 4, vote: 3, refuse: 2, comment: 2, defend: 2, defendSelf: 2 };
+
+// 最长公共子串长度：用来抓「同一句话换了个说法」
+function lcsub(a, b) {
+  let best = 0;
+  let prev = new Array(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = new Array(b.length + 1).fill(0);
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        cur[j] = prev[j - 1] + 1;
+        if (cur[j] > best) best = cur[j];
+      }
+    }
+    prev = cur;
+  }
+  return best;
+}
+
 // ---------------------------------------------------------------- 台词体检
 function audit() {
   const HIST = /昨天|昨夜|前天|上次|上一回|那晚|前几天|改口|换了说法|三天前|昨天说|昨夜说/;
@@ -36,7 +57,7 @@ function audit() {
     const acc = (say.accuse || []).filter((s) => !HIST.test(s));
     if (acc.length < 2) problems.push(`${c.zh}：第一天可用的指认句只有 ${acc.length} 句`);
     // 各种场合都要有
-    for (const k of ['claimCrew', 'claimWolf', 'claimThird', 'accuse', 'defend', 'defendSelf', 'idle', 'vote', 'death']) {
+    for (const k of ['claimCrew', 'claimWolf', 'claimThird', 'accuse', 'defend', 'defendSelf', 'idle', 'vote', 'death', 'refuse', 'comment']) {
       if (!(say[k] && say[k].length)) problems.push(`${c.zh}：缺 ${k}`);
     }
     if (!say.react) problems.push(`${c.zh}：缺 react`);
@@ -66,11 +87,35 @@ function audit() {
       if (!ok) problems.push(`${c.zh}：${kind} 取不到台词`);
     };
     for (const res of ['eroded', 'clean', 'void']) probe('report', { who: '某人', res });
-    for (const k of ['accuse', 'defend', 'defendSelf', 'idle', 'vote', 'refuse']) probe(k, { who: '某人' });
+    for (const k of ['accuse', 'defend', 'defendSelf', 'idle', 'vote', 'refuse', 'comment']) probe(k, { who: '某人' });
     probe('react', { sit: 'safe' });
     probe('react', { sit: 'dead' });
     for (const fac of ['crew', 'wolf', 'third']) probe('death', { faction: fac });
     for (const rk of ROLE_KEYS) probe('claim', { role: ROLES[rk].zh, roleKey: rk });
+
+    // 池子深度：一局里一个人要说十来句，高频场合太浅就是明着轮播
+    for (const [k, need] of Object.entries(MIN_POOL)) {
+      const n = (say[k] || []).length;
+      if (n < need) problems.push(`${c.zh}：${k} 只有 ${n} 句（至少要 ${need}）`);
+    }
+
+    // 近似重复：同一场合里两句共享一长段，读起来就是同一句话换了个说法
+    for (const k of Object.keys(say)) {
+      const arr = say[k];
+      if (!Array.isArray(arr) || arr.length < 2) continue;
+      for (let i = 0; i < arr.length; i++) {
+        for (let j = i + 1; j < arr.length; j++) {
+          const a = String(arr[i]).replace(/\{who\}/g, '');
+          const b = String(arr[j]).replace(/\{who\}/g, '');
+          const short = Math.min(a.length, b.length);
+          if (short < 8) continue;
+          const shared = lcsub(a, b);
+          if (shared / short >= 0.6) {
+            problems.push(`${c.zh}：${k} 有两句几乎一样 ——「${a.slice(0, 14)}…」/「${b.slice(0, 14)}…」`);
+          }
+        }
+      }
+    }
 
     // 统计总量 + 查重（同一批里重复的句子会让两个人说同样的话）
     const flat = (v) => (Array.isArray(v) ? v : (typeof v === 'string' ? [v] : []));
@@ -98,7 +143,7 @@ function audit() {
     for (const p of problems.slice(0, 40)) console.log('  · ' + p);
     process.exitCode = 1;
   } else {
-    console.log('体检通过：每位唤醒体 12 种身份 + 10 类场合 + 查验 + 遗言均已覆盖。');
+    console.log('体检通过：每位唤醒体 12 种身份 + 12 类场合 + 查验 + 遗言均已覆盖；高频场合池子够深，也没有换汤不换药的近似重复。');
   }
 }
 
