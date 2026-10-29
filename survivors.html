@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>唤醒体幸存者 · 忘忘同人小游戏</title>
-<meta name="description" content="吸血鬼幸存者的玩法，素材全部取自《忘却前夜》：62 名唤醒体的 124 个技能都是可抽的武器，一路捡造物、开命轮，在忘川里活过 15 分钟。">
+<meta name="description" content="吸血鬼幸存者的玩法，素材全部取自《忘却前夜》：62 名唤醒体 + 7 位 B 站主播彩蛋角色的技能都是可抽的武器，一路捡造物、开命轮，在忘川里活过 15 分钟。">
 <meta name="theme-color" content="#0a0d14">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
 <style>
@@ -210,6 +210,24 @@ button{font:inherit}
   background:color-mix(in oklab,#9aa7ff 90%, #fff);
   box-shadow:0 1px 5px rgba(0,0,0,.5)}
 .ch .lkb.open{background:var(--gold); color:#241a04}
+/* 彩蛋唤醒体（B 站主播）：没有官方立绘，用「主题色圆底 + 一个字」的徽章代替。
+   配色必须和 js/sv/ui.js 的 eggStyle()、js/sv/render.js 的 drawEggFace() 一致，
+   否则同一个人在选人面板和战场上会是两种颜色。 */
+.ch.egg{border-color:color-mix(in oklab, var(--gold) 26%, transparent);
+  background:linear-gradient(180deg, rgba(227,179,65,.06), transparent 70%)}
+.ch.egg i{filter:none}
+.ch.egg b{color:var(--gold); letter-spacing:.02em}
+.ch.egg.on{border-color:var(--gold); background:color-mix(in oklab, var(--gold) 15%, transparent)}
+.ch .lkb.egg{background:var(--gold); color:#241a04}
+.ch i.egg,.ci-portrait.egg,.up-img.egg{display:flex; align-items:center; justify-content:center;
+  font-weight:800; line-height:1; letter-spacing:0}
+.ch i.egg{font-size:21px}
+.ci-portrait.egg{font-size:29px}
+.up-img.egg{font-size:19px}
+/* 通用徽章类：ui.js 的 charFaceHTML() 用它给 HUD 技能槽、构筑详情、
+   超武觉醒卡画「这是谁的技能」。字号由内联 font-size 决定（跟着尺寸走）。 */
+.egg-face{display:flex; align-items:center; justify-content:center;
+  font-weight:800; line-height:1; letter-spacing:0; border-radius:50%; flex:0 0 auto}
 
 .char-info{flex:0 0 auto; padding:9px 11px; border-radius:13px; border:1px solid var(--line);
   background:var(--panel); font-size:12px; line-height:1.5; max-height:38vh; overflow:auto}
@@ -445,7 +463,7 @@ button{font:inherit}
 }
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
 </style>
-<meta name="build" content="acdf26b173">
+<meta name="build" content="3c2f1d7c8b">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -466,7 +484,7 @@ button{font:inherit}
       <a class="home" href="index.html">← 首页</a>
       <header>
         <h1>唤醒体<span>幸存者</span></h1>
-        <p class="sub">素材全部取自《忘却前夜》· 62 名唤醒体的 124 个技能都是可抽的武器 · 另有 4 位神秘人要靠自己打出来</p>
+        <p class="sub">素材全部取自《忘却前夜》· 62 名唤醒体的 124 个技能都是可抽的武器 · 4 位神秘人要靠自己打出来 · 名单最后蹲着 7 位 B 站主播</p>
       </header>
 
       <div class="diff" id="diffBox"></div>
@@ -565,7 +583,7 @@ button{font:inherit}
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/survivors.js?v=acdf26b173"></script>
+<script type="module" src="js/b/survivors.js?v=3c2f1d7c8b"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。

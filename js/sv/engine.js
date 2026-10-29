@@ -17,7 +17,7 @@ import {
   MECHS, GROWTHS, ITEMS, ITEM_MAX, VOICE,
 } from './defs.js';
 import { isUnlocked, recordRun } from './unlock.js';
-import { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS } from './gen.js';
+import { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS, BOSS_CAT } from './gen.js';
 import { sfx } from './audio.js';
 import { VOICES } from './voices.js';
 
@@ -80,9 +80,13 @@ export const G = {
   evoPops: [],
   // 场上有没有首领：BGM 靠它切到 boss 层（每 0.4 秒扫一次，不逐帧算）
   bossAlive: false, bossScanT: 0,
-  // 神秘唤醒体的独有机制状态：stacks 是累积层（王权 / 封印），low 是威廉的
-  // 「血量低于 40%」开关（用它判断跨线，避免每帧重算 mods）。
-  mech: { id: null, stacks: 0, low: false, procs: 0 },
+  // 神秘唤醒体与彩蛋角色的独有机制状态：stacks 是累积层（王权 / 节拍 / 鼠群），
+  // low 是威廉的「血量低于 40%」开关，t 是通用冷却计时，flag 是一次性开关
+  // （入梦免死用过没有、90 秒是否已经切过档）。
+  mech: { id: null, stacks: 0, low: false, procs: 0, t: 0, flag: false, cd: 0 },
+  // 最终隐藏首领：弥萨格校猫。三只首领都清掉、且撑到最后 30 秒才登场，
+  // 一局只来一次 —— spawned/killed 都要进存档摘要，用来给结算加一行。
+  catSpawned: false, catKilled: false, catIdx: -1,
   // 角色台词气泡。voice 是当前这句（t 倒数到 0 收），voiceAt 是上一次说话的
   // 时间戳（全局冷却），voiceDelay 用来把开场的「唤醒」台词延后一点，
   // 免得和选人面板/首屏 UI 同时出现。
@@ -200,7 +204,11 @@ export function reset(charId, diffKey) {
   G.items = [];
   G.echo = [];
   G.echoT = 0; G.echoMark = 0;
-  G.mech = { id: null, stacks: 0, low: false, procs: 0 };
+  G.mech = { id: null, stacks: 0, low: false, procs: 0, t: 0, flag: false, cd: 0 };
+  G.catSpawned = false; G.catKilled = false;
+  // MOBS 里带 cat 标记的那一条就是校猫。用 index 而不是 id 查，是因为
+  // spawnEnemy 本身按数组下标取 def；查一次存起来，省得每帧 find。
+  G.catIdx = MOBS.findIndex((m) => m && m.cat);
   G.voice = null; G.voiceAt = -99; G.voiceDelay = VOICE.wakeDelay;
   G.stats = { dmg: 0, taken: 0, rageDmg: 0 };
   for (const k of ['enemies', 'bullets', 'fields', 'orbs', 'summons', 'pickups', 'fx', 'texts']) G[k].length = 0;
@@ -259,6 +267,10 @@ function buildPool(c, mine) {
   for (const w of WEAPONS) {
     if (pool.has(w.id) || (mine[0] && w.id === mine[0].id)) continue;
     if (locked.has(String(w.char))) continue;
+    // 彩蛋角色的技能只在本人手上出现（mine[1] 已经在上面入池了）。
+    // 否则 73 个人共用一副牌，普通角色一升级就能抽到「不耶连拍」，
+    // 彩蛋就不再是彩蛋，而是所有人的常规武器。
+    if (w.egg) continue;
     (byProto[w.proto] = byProto[w.proto] || []).push(w);
   }
   for (const k of Object.keys(PROTOS)) {
@@ -278,7 +290,7 @@ function buildPool(c, mine) {
     return w && w.proto === 'heal';
   });
   if (!hasHeal) {
-    const hl = WEAPONS.filter((w) => w.proto === 'heal' && !(mine[0] && w.id === mine[0].id));
+    const hl = WEAPONS.filter((w) => w.proto === 'heal' && !w.egg && !(mine[0] && w.id === mine[0].id));
     if (hl.length) pool.add(hl[(rnd() * hl.length) | 0].id);
   }
   return [...pool];
@@ -314,6 +326,19 @@ export function recompute() {
   } else if (mech === 'nightwatch' && G.mech.low) {
     base.atk += 0.35;
     base.maxShieldBonus += 50;
+  } else if (mech === 'samobeat') {
+    // 节拍：每拍 +1.5% 攻击，30 拍封顶 = +45%。层数只在击杀时变，
+    // 所以和「王权」一样走 recompute，不做每帧改 mods。
+    base.atk += (G.mech.stacks || 0) * 0.015;
+  } else if (mech === 'dragonscale') {
+    base.dmgTaken *= 0.85;
+    base.maxShieldBonus += 50;      // 基础 30 → 80，约 +40% 上限
+  } else if (mech === 'zerokr') {
+    // 立誓：前 90 秒猛，之后回落到一个小加成。90 秒那道坎由 updateMech 触发重算。
+    base.atk += G.mech.flag ? 0.08 : 0.5;
+    if (!G.mech.flag) base.spd += 0.12;
+  } else if (mech === 'blossom') {
+    base.regen += 0.4;
   }
   Object.assign(m, base);
 
@@ -782,10 +807,20 @@ function enemyDef(i) {
   return { m, tier, base, img: META.frames['m:' + m.id] };
 }
 
-function spawnEnemy(tier, ax, ay) {
+function spawnEnemy(tier, ax, ay, forceIdx) {
   if (G.enemies.length >= MAX_ENEMY) return null;
   const normals = [];
-  for (let i = 0; i < MOBS.length; i++) if (enemyDef(i).tier === tier) normals.push(i);
+  if (forceIdx != null) {
+    // 指定怪（隐藏首领用）：绕开随机池，直接按索引取
+    normals.push(forceIdx);
+  } else {
+    for (let i = 0; i < MOBS.length; i++) {
+      const d0 = enemyDef(i);
+      // hidden 的那条（弥萨格校猫）不进普通首领轮换，否则第 5 分钟就能撞见它
+      if (d0.m.hidden) continue;
+      if (d0.tier === tier) normals.push(i);
+    }
+  }
   if (!normals.length) return null;
   const idx = normals[(rnd() * normals.length) | 0];
   const d = enemyDef(idx);
@@ -1004,6 +1039,9 @@ export function update(dt) {
 
   // ---- 刷怪
   updateSpawns(dt);
+  // ---- 角色机制的定时部分 + 最终隐藏首领
+  updateMech(dt);
+  updateCatBoss();
 
   // ---- 场上有没有首领：BGM 要据此切到 boss 层。
   // 每 0.4 秒扫一次数组就够了，没必要每帧遍历六十只怪。
@@ -1058,12 +1096,14 @@ function updateWeapons(dt) {
     if (w.timer > 0) continue;
     const ev = w.evo ? w.evo.fx : null;
     const cd = proto.cd * LV.cd(w.lv) * G.mods.cd * rageCd
+      * (w.def.cdMul || 1)
       * (ev && ev.cd ? ev.cd : 1)
       * (G.mods.echo && rnd() < G.mods.echo ? 0.4 : 1);
     w.timer = cd;
     w.cdMax = cd;
     w.cdLeft = cd;
     const dmg = proto.dmg * LV.dmg(w.lv) * G.mods.atk * G.mods.dmgMul * rageAtk
+      * (w.def.dmgMul || 1)
       * (ev && ev.dmg ? 1 + ev.dmg : 1);
     fireProto(w, proto, dmg);
     maybeSkillVoice(w);
@@ -1088,7 +1128,10 @@ function fireProto(w, proto, dmg) {
   const ev = w.evo ? w.evo.fx : null;
   // 投射数量的三个来源：原型等级成长 + 超武加成 + 造物「投射物 +1」。
   // 超武的 count 只给「凭空多出几发」的原型，范围类（nova/shield/heal）不吃。
-  const cnt = LV.count(lv, proto) + (ev && ev.count ? ev.count : 0) + G.mods.count;
+  // 单把武器的数量系数（countMul）只影响「凭空多出几个」的原型，
+  // 也就是原来就吃 cnt 的那几个；范围类的 cnt 本来就没被用到，乘了也无害。
+  const cnt = Math.max(1, Math.round(
+    (LV.count(lv, proto) + (ev && ev.count ? ev.count : 0) + G.mods.count) * (w.def.countMul || 1)));
   // 范围：超武的 area 是「只强化这一把」，造物的 area 是全局
   const areaMul = (ev && ev.area ? 1 + ev.area : 1) * G.mods.area;
   const exPierce = ev && ev.pierce ? ev.pierce : 0;
@@ -1291,6 +1334,88 @@ function fireProto(w, proto, dmg) {
         damageEnemy(e, dmg, P.x, P.y, src);
         G.fx.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0.4, max: 0.4, color, r: 0, ring: 34, kind: 'ring' });
       }
+      break;
+    }
+    // ------------------------------------------------ 彩蛋角色的专属原型
+    case 'cadence': {
+      // 节拍连打：基础 cd 只有 0.42 秒，所以单发很轻；真正的伤害在「每第 4 拍」。
+      // 拍数存在武器对象上而不是全局 —— 换掉这把技能之后，新技能不该接着别人的拍子数。
+      w.beat = ((w.beat || 0) + 1) % 4;
+      const heavy = w.beat === 0;
+      const tgt = nearest(P.x, P.y, 780);
+      const a = tgt ? Math.atan2(tgt.y - P.y, tgt.x - P.x) : rnd() * TAU;
+      for (let i = 0; i < cnt; i++) {
+        const aa = a + (i ? rr(-0.15, 0.15) : 0);
+        const sp = heavy ? 640 : 520;
+        shot(P.x, P.y, Math.cos(aa) * sp, Math.sin(aa) * sp, {
+          dmg: heavy ? dmg * 2.6 : dmg, r: heavy ? 10 : 6,
+          life: heavy ? 1.5 : 1.05, color, kind: 'bolt',
+          pierce: heavy ? 3 : 0, src,
+        });
+      }
+      if (heavy && tgt) {
+        // 重音要看得见：目标身上一圈短促冲击 + 一点震屏
+        G.fx.push({ x: tgt.x, y: tgt.y, vx: 0, vy: 0, life: 0.3, max: 0.3, color, r: 0, ring: 34, kind: 'ring' });
+        G.shake = Math.min(6, G.shake + 1.1);
+      }
+      break;
+    }
+    case 'ribbon': {
+      // 幻梦丝带：以自身为圆心扫一圈，附带迟滞。「缠住」必须留在原地才有意义，
+      // 所以用短时领域而不是投射物 —— 丝带扫过去之后怪还站在原地发懵。
+      const R = (132 + lv * 12) * areaMul;
+      addField(P.x, P.y, 0.9, R, dmg, color, false, src, { slow: 0.5 });
+      G.fx.push({ x: P.x, y: P.y, vx: 0, vy: 0, life: 0.42, max: 0.42, color, r: 0, ring: R * 1.05, kind: 'ring' });
+      break;
+    }
+    case 'burrow': {
+      // 兔子洞：在敌群中心开一个会拽人的坑。不追求爆发伤害，
+      // 价值在于把散开的怪堆成一坨，让别的技能打得实。
+      const tgt = nearest(P.x, P.y, 660) || { x: P.x + rr(-90, 90), y: P.y + rr(-90, 90) };
+      for (let i = 0; i < cnt; i++) {
+        addField(tgt.x + (i ? rr(-64, 64) : 0), tgt.y + (i ? rr(-64, 64) : 0),
+          (1.4 + lv * 0.15), 78 * areaMul, dmg, color, false, src, { pull: 320 });
+      }
+      break;
+    }
+    case 'swarm': {
+      // 鼠群：从脚边四散窜出去，各自带弱追踪。单发很轻，靠数量压人。
+      for (let i = 0; i < cnt; i++) {
+        const a = rnd() * TAU;
+        shot(P.x + Math.cos(a) * 16, P.y + Math.sin(a) * 16,
+          Math.cos(a) * 250, Math.sin(a) * 250, {
+            dmg, r: 5, life: 1.35, color, kind: 'orb', home: 4.2, pierce: 1, src,
+          });
+      }
+      break;
+    }
+    case 'breath': {
+      // 龙息：沿朝向铺三到四片重叠的领域，合起来读作一个锥形。
+      // 用重叠圆而不是真的画锥形，是为了复用 updateFields 的 tick / 减速 / 伤害统计。
+      const tgt = nearest(P.x, P.y, 720);
+      const a = tgt ? Math.atan2(tgt.y - P.y, tgt.x - P.x) : (P.face > 0 ? 0 : Math.PI);
+      const dur = (2.4 + lv * 0.2);
+      for (let i = 0; i < 3; i++) {
+        const d0 = 76 + i * 44;
+        addField(P.x + Math.cos(a) * d0, P.y + Math.sin(a) * d0,
+          dur, (66 - i * 6) * areaMul, dmg, color, false, src, { slow: 0.55 });
+      }
+      break;
+    }
+    case 'vow': {
+      // 立誓之刃：一次爆发换一层鳞。护盾给得不小，因为「立誓」的设定是
+      // 先把自己押上去，再谈收益。
+      shockwave(P.x, P.y, (96 + lv * 12) * areaMul, dmg, color, src);
+      P.shield = Math.min(P.maxShield, P.shield + 10 + lv * 7);
+      P.shieldBroke = false;
+      G.shake = Math.min(8, G.shake + 1.6);
+      break;
+    }
+    case 'bloom': {
+      // 茉香花海：脚下一片会回血的花（lamp 效果由领域负责），
+      // 开枪的瞬间顺手补一点，保证「站在花里」这件事立刻有反馈。
+      addField(P.x, P.y, (3.2 + lv * 0.3), 96 * areaMul, dmg, color, false, src, { lamp: true, slow: 0.6 });
+      P.hp = Math.min(P.maxHp, P.hp + 1 + lv * 0.4);
       break;
     }
     default: break;
@@ -1835,6 +1960,25 @@ function killEnemy(e, sx, sy) {
       if (s === 15) addText(G.player.x, G.player.y - 46, '王权 15 层 · 开始回复', 6);
     }
   }
+  // 不耶节拍：每杀 +1 拍（30 拍封顶）。每 5 拍才重算一次 mods ——
+  // 后期一秒几十杀，每杀一次 recompute 会让主循环直接卡死。
+  if (G.mech && G.mech.id === 'samobeat') {
+    const s = Math.min(30, (G.mech.stacks || 0) + 1);
+    G.mech.stacks = s;
+    if (s % 5 === 0) recompute();
+  }
+  // 鼠王加冕：每 20 杀放一波
+  if (G.mech && G.mech.id === 'ratcrown') {
+    G.mech.stacks = (G.mech.stacks || 0) + 1;
+    if (G.mech.stacks >= 20) { G.mech.stacks = 0; ratWave(); }
+  }
+  // 隐藏首领被清掉：结算里要单独记一行
+  if (e.cat) {
+    G.catKilled = true;
+    addText(e.x, e.y - 60, '弥萨格校猫 · 已放学', 6);
+    G.flash = 0.8;
+    G.shake = 20;
+  }
   burst(e.x, e.y, e.tier === 2 ? 22 : e.tier === 1 ? 12 : 5, e.tier ? '#ffd479' : '#9aa4bb', e.tier ? 190 : 120);
   give('enemies', e);
 
@@ -1914,6 +2058,19 @@ export function hurtPlayer(amount, src) {
   if (P.inv > 0 || G.phase !== 'run') return;
   let dmg = amount * G.mods.dmgTaken;
   dmg = Math.max(1, dmg - G.mods.armor);
+  // 梦依流苏的「入梦」：每局第一次致命伤直接免掉。
+  // 判定放在扣血之前、护盾结算之后 —— 否则护盾刚好够挡的那一下也会被算成致命。
+  if (dmg > 0 && dmg >= P.hp && G.mech && G.mech.id === 'dreamgate' && !G.mech.flag) {
+    G.mech.flag = true;
+    P.inv = 2;
+    P.hp = Math.min(P.maxHp, Math.max(1, P.hp) + P.maxHp * 0.35);
+    P.shield = 0;
+    G.flash = 0.7;
+    addText(P.x, P.y - 52, '入梦', 6);
+    G.fx.push({ x: P.x, y: P.y, vx: 0, vy: 0, life: 0.7, max: 0.7, color: '#9d8bff', r: 0, ring: 150, kind: 'ring' });
+    sfx.play('evo');
+    return;
+  }
   if (P.shield > 0) {
     const absorbed = Math.min(P.shield, dmg);
     P.shield -= absorbed;
@@ -2115,13 +2272,134 @@ function updateSpawns(dt) {
   }
 }
 
+// ---------------------------------------------------------------- 机制运行时
+// 机制里的被动加成走 recompute；这里只处理需要按时间推进的那几件：
+// 节拍满槽、龙鳞周期吐息、花信风、兔子洞、立誓的 90 秒切档。
+function updateMech(dt) {
+  const id = G.mech && G.mech.id;
+  if (!id) return;
+  const P = G.player;
+  G.mech.t = (G.mech.t || 0) + dt;
+  if (G.mech.cd > 0) G.mech.cd = Math.max(0, G.mech.cd - dt);
+
+  // 立誓：90 秒这道坎只重算一次。mods 是缓存值，不重算就会永远停在 +50%。
+  if (id === 'zerokr' && !G.mech.flag && G.t >= 90) {
+    G.mech.flag = true;
+    recompute();
+    addText(P.x, P.y - 54, '立誓期满 · 攻击回落', 6);
+  }
+
+  // 不耶节拍：满 30 拍放一次全拍冲击，然后从 0 重新数
+  if (id === 'samobeat' && G.mech.stacks >= 30) {
+    G.mech.stacks = 0;
+    recompute();
+    const R = 190;
+    shockwave(P.x, P.y, R, 26 * G.mods.atk, '#ff7a9c');
+    G.fx.push({ x: P.x, y: P.y, vx: 0, vy: 0, life: 0.5, max: 0.5, color: '#ff7a9c', r: 0, ring: R * 1.15, kind: 'ring' });
+    G.shake = Math.min(9, G.shake + 2.4);
+    addText(P.x, P.y - 46, '节拍满 · 全拍', 6);
+    sfx.play('evo');
+  }
+
+  // 龙鳞：每 8 秒朝最近的敌人补一口，不占技能格
+  if (id === 'dragonscale' && G.mech.t >= 8) {
+    G.mech.t = 0;
+    const tgt = nearest(P.x, P.y, 420);
+    if (tgt) {
+      const a = Math.atan2(tgt.y - P.y, tgt.x - P.x);
+      addField(P.x + Math.cos(a) * 70, P.y + Math.sin(a) * 70, 0.8, 62,
+        9 * G.mods.atk, '#ff9a4d', false, null, { slow: 0.5 });
+    }
+  }
+
+  // 花信风：每 9 秒在脚下开一片会回血的花
+  if (id === 'blossom' && G.mech.t >= 9) {
+    G.mech.t = 0;
+    addField(P.x, P.y, 3.4, 88, 7 * G.mods.atk, '#8ce0a8', false, null, { lamp: true, slow: 0.6 });
+    P.hp = Math.min(P.maxHp, P.hp + 1.5);
+  }
+
+  // 兔子洞：被围住时自动脱身。判定用 96 半径内的敌人数，超过 7 只才算「被围」；
+  // 冷却 18 秒，落地炸一圈 —— 瞬移本身不该是无声的。
+  if (id === 'rabbitfall' && G.mech.cd <= 0) {
+    let near = 0;
+    for (const e of G.enemies) {
+      if ((e.x - P.x) ** 2 + (e.y - P.y) ** 2 < 96 * 96) { near++; if (near > 7) break; }
+    }
+    if (near > 7) {
+      G.mech.cd = 18;
+      let bx = P.x, by = P.y, best = -1;
+      for (let i = 0; i < 12; i++) {
+        const a = rnd() * TAU;
+        const x = P.x + Math.cos(a) * 240, y = P.y + Math.sin(a) * 240;
+        let cnt = 0;
+        for (const e of G.enemies) if ((e.x - x) ** 2 + (e.y - y) ** 2 < 130 * 130) cnt++;
+        if (best < 0 || cnt < best) { best = cnt; bx = x; by = y; if (cnt === 0) break; }
+      }
+      G.fx.push({ x: P.x, y: P.y, vx: 0, vy: 0, life: 0.4, max: 0.4, color: '#5fd0ff', r: 0, ring: 60, kind: 'ring' });
+      P.x = bx; P.y = by;
+      P.inv = Math.max(P.inv, 0.7);
+      shockwave(bx, by, 120, 30 * G.mods.atk, '#5fd0ff');
+      G.fx.push({ x: bx, y: by, vx: 0, vy: 0, life: 0.45, max: 0.45, color: '#5fd0ff', r: 0, ring: 130, kind: 'ring' });
+      addText(bx, by - 46, '掉进洞里', 6);
+      sfx.play('evo');
+    }
+  }
+}
+
+// 鼠王加冕：每 20 杀放一波鼠群
+function ratWave() {
+  const P = G.player;
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * TAU + rr(-0.1, 0.1);
+    shot(P.x, P.y, Math.cos(a) * 430, Math.sin(a) * 430, {
+      dmg: 16 * G.mods.atk, r: 6, life: 1.0, color: '#c8e06a', kind: 'orb', pierce: 3, src: null,
+    });
+  }
+  addText(P.x, P.y - 44, '鼠王加冕', 6);
+  G.shake = Math.min(8, G.shake + 2);
+}
+
+// ---------------------------------------------------------------- 隐藏首领
+// 弥萨格校猫：三只首领都清掉、撑到最后 30 秒才登场，一局只来一次。
+// 条件故意挂在 bossKills 上而不是时间上 —— 它是「你把这一局打赢了才配见」的东西，
+// 光是苟到最后不该见到它。
+function updateCatBoss() {
+  const B = BOSS_CAT;
+  if (!B || G.catSpawned || G.phase !== 'run') return;
+  if (G.catIdx < 0) return;
+  if (G.t < (B.from || 870)) return;
+  if (G.bossKills < (B.needBossKills || 3)) return;
+  const e = spawnEnemy(2, null, null, G.catIdx);
+  if (!e) return;
+  G.catSpawned = true;
+  e.cat = true;
+  e.r = B.r || 54;
+  e.maxHp = Math.round(e.maxHp * (B.hpMul || 5));
+  e.hp = e.maxHp;
+  e.dmg *= 1.25;
+  e.spd *= 0.86;
+  e.n = B.n;
+  G.warnName = B.n;
+  G.warn = 3.4;
+  G.shake = 24; G.flash = 0.9;
+  sfx.play('boss');
+  G.bossAlive = true;
+  addText(G.player.x, G.player.y - 70, B.n + ' 来了', 6);
+  G.fx.push({ x: e.x, y: e.y, vx: 0, vy: 0, kind: 'ring', life: 0.9, max: 0.9, color: '#ffd76a', r: 0, ring: 300 });
+}
+
 // ---------------------------------------------------------------- 对外摘要
 export function summary() {
   const st = { kills: G.kills, t: G.t, lv: G.lv, bossKills: G.bossKills };
   const base = scoreOf(st);
   return {
     ...st,
-    score: Math.round(base * G.diff.mul),
+    cat: G.catKilled, catSpawned: G.catSpawned,
+    // 校猫是一局一次的收尾彩蛋：打赢了额外记 1500 分（约等于六只首领的分数），
+    // 打不过也没有惩罚 —— 它本来就不该出现在这里。
+    catName: (BOSS_CAT && BOSS_CAT.n) || '弥萨格校猫',
+    score: Math.round(base * G.diff.mul) + (G.catKilled ? 1500 : 0),
     diff: G.diff.k,
     char: G.char ? G.char.n : '',
     charId: G.char ? G.char.id : '',

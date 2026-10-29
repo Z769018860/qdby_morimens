@@ -561,6 +561,110 @@ function deco(kind, x, y, h1, h3) {
   ctx.globalAlpha = 1;
 }
 
+// 彩蛋角色没有立绘：用主题色圆底 + 一个字。配色与选人面板的 eggStyle() 一致，
+// 否则同一个人在面板里和在场上会是两种颜色。
+function drawEggFace(c, x, y, size) {
+  const col = c.color || '#8ba3c7';
+  const g = ctx.createRadialGradient(x, y - size * 0.2, size * 0.08, x, y, size * 0.56);
+  g.addColorStop(0, col + '66');
+  g.addColorStop(0.48, col + '22');
+  g.addColorStop(1, '#10141d');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, size / 2, 0, Math.PI * 2); ctx.fill();
+  const oldAlign = ctx.textAlign, oldBase = ctx.textBaseline;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = col;
+  ctx.font = `700 ${Math.round(size * 0.46)}px "PingFang SC","Microsoft YaHei",system-ui,sans-serif`;
+  ctx.fillText(c.glyph || '?', x, y + 1);
+  ctx.textAlign = oldAlign;
+  ctx.textBaseline = oldBase;
+}
+
+// 鼠群召唤物：没有立绘就画一只两只耳朵的团子，比一个光点更像活物
+function drawMouse(x, y, col) {
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.ellipse(x, y + 1, 9, 7.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x - 5.4, y - 5.2, 3.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 5.4, y - 5.2, 3.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,.6)';
+  ctx.beginPath(); ctx.arc(x - 3.1, y, 1.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 3.1, y, 1.5, 0, Math.PI * 2); ctx.fill();
+}
+
+// 弥萨格校猫：彩蛋首领，官方素材里没有它的图，干脆手画。
+// 圆脸 + 三角耳 + 竖瞳就够了 —— 细节越多越像「另一种融蚀体」，反而没有梗。
+function drawCat(e) {
+  const x = e.x, y = e.y + Math.sin(e.wob) * 2;
+  const r = e.r;
+  ctx.save();
+  // 耳朵（先画，脸压在上面）：外三角深色 + 内耳一点暖色，才看得出是「耳朵」
+  // 而不是两个角。之前只画了外三角，整只猫在深色背景上像一坨黑球。
+  const ear = (sx) => {
+    ctx.fillStyle = '#3b3244';
+    ctx.beginPath();
+    ctx.moveTo(x + sx * r * 0.9, y - r * 0.34);
+    ctx.lineTo(x + sx * r * 0.62, y - r * 1.34);
+    ctx.lineTo(x + sx * r * 0.1, y - r * 0.66);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,150,150,0.30)';
+    ctx.beginPath();
+    ctx.moveTo(x + sx * r * 0.74, y - r * 0.46);
+    ctx.lineTo(x + sx * r * 0.6, y - r * 1.1);
+    ctx.lineTo(x + sx * r * 0.28, y - r * 0.66);
+    ctx.closePath(); ctx.fill();
+  };
+  ear(-1); ear(1);
+  // 脸：毛色比背景亮一档，否则整只猫在暗场里读不出来
+  const g = ctx.createRadialGradient(x - r * 0.22, y - r * 0.3, r * 0.12, x, y, r * 0.98);
+  g.addColorStop(0, '#5d5368');
+  g.addColorStop(0.62, '#3a3244');
+  g.addColorStop(1, '#1b1622');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r * 0.9, 0, Math.PI * 2); ctx.fill();
+  // 轮廓光：彩蛋首领不该靠红圈才被看见
+  ctx.strokeStyle = 'rgba(255,215,106,0.30)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y, r * 0.9, 0, Math.PI * 2); ctx.stroke();
+
+  // 金瞳 + 竖瞳。白色只在受击瞬间由上层 flash 覆盖，这里不再单独判断，
+  // 否则「白眼睛」会被误读成怪物而不是猫。
+  ctx.fillStyle = '#ffd76a';
+  ctx.beginPath(); ctx.ellipse(x - r * 0.32, y - r * 0.1, r * 0.13, r * 0.185, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x + r * 0.32, y - r * 0.1, r * 0.13, r * 0.185, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#151019';
+  ctx.beginPath(); ctx.ellipse(x - r * 0.32, y - r * 0.1, r * 0.036, r * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x + r * 0.32, y - r * 0.1, r * 0.036, r * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+  // 高光：一点白，眼神才「活」
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath(); ctx.arc(x - r * 0.37, y - r * 0.17, r * 0.035, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + r * 0.27, y - r * 0.17, r * 0.035, 0, Math.PI * 2); ctx.fill();
+
+  // 鼻子（小三角）与嘴（w 形）
+  ctx.fillStyle = '#c98b93';
+  ctx.beginPath();
+  ctx.moveTo(x, y + r * 0.14);
+  ctx.lineTo(x - r * 0.07, y + r * 0.24);
+  ctx.lineTo(x + r * 0.07, y + r * 0.24);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.42)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x, y + r * 0.26); ctx.lineTo(x - r * 0.1, y + r * 0.36);
+  ctx.moveTo(x, y + r * 0.26); ctx.lineTo(x + r * 0.1, y + r * 0.36);
+  ctx.stroke();
+  // 胡须：左右各两根，长一点才看得出是猫
+  ctx.strokeStyle = 'rgba(255,255,255,0.34)';
+  ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.2, y + r * 0.2); ctx.lineTo(x - r * 0.86, y + r * 0.1);
+  ctx.moveTo(x - r * 0.2, y + r * 0.28); ctx.lineTo(x - r * 0.82, y + r * 0.36);
+  ctx.moveTo(x + r * 0.2, y + r * 0.2); ctx.lineTo(x + r * 0.86, y + r * 0.1);
+  ctx.moveTo(x + r * 0.2, y + r * 0.28); ctx.lineTo(x + r * 0.82, y + r * 0.36);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawPlayer() {
   const P = G.player;
   const c = G.char;
@@ -584,7 +688,8 @@ function drawPlayer() {
   const size = 52;
   ctx.save();
   ctx.beginPath(); ctx.arc(P.x, P.y, size / 2, 0, Math.PI * 2); ctx.clip();
-  frame(c.img, P.x, P.y, size, 1, false);
+  if (c.egg) drawEggFace(c, P.x, P.y, size);
+  else frame(c.img, P.x, P.y, size, 1, false);
   ctx.restore();
   // 外圈
   ctx.strokeStyle = P.inv > 0 && Math.sin(G.t * 40) > 0 ? 'rgba(255,255,255,0.95)' : `rgba(140,190,255,${pulse + 0.35})`;
@@ -631,7 +736,8 @@ function drawEnemies(L, R, T, B) {
     const gs = e.r * 2.9;
     const sp = glow[e.tier] || glow[0];
     if (sp) ctx.drawImage(sp, e.x - gs / 2, e.y + bob - gs / 2, gs, gs);
-    frame(e.img, e.x, e.y + bob, sz, 1, false);
+    if (e.cat) drawCat(e);
+    else frame(e.img, e.x, e.y + bob, sz, 1, false);
     if (e.flash > 0) {
       ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = `rgba(255,255,255,${Math.min(0.55, e.flash * 5)})`;
@@ -816,7 +922,8 @@ function drawSummons() {
     ctx.beginPath(); ctx.ellipse(s.x, s.y + 12, 9, 4, 0, 0, Math.PI * 2); ctx.fill();
     ctx.save();
     ctx.beginPath(); ctx.arc(s.x, s.y, 11, 0, Math.PI * 2); ctx.clip();
-    frame(s.img, s.x, s.y, 24, 0.95, false);
+    if (s.img == null) drawMouse(s.x, s.y, s.color || '#c8e06a');
+    else frame(s.img, s.x, s.y, 24, 0.95, false);
     ctx.restore();
     ctx.strokeStyle = s.color;
     ctx.lineWidth = 1.6;

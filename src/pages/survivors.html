@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>唤醒体幸存者 · 忘忘同人小游戏</title>
-<meta name="description" content="吸血鬼幸存者的玩法，素材全部取自《忘却前夜》：62 名唤醒体的 124 个技能都是可抽的武器，一路捡造物、开命轮，在忘川里活过 15 分钟。">
+<meta name="description" content="吸血鬼幸存者的玩法，素材全部取自《忘却前夜》：62 名唤醒体 + 7 位 B 站主播彩蛋角色的技能都是可抽的武器，一路捡造物、开命轮，在忘川里活过 15 分钟。">
 <meta name="theme-color" content="#0a0d14">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <style>
@@ -210,6 +210,24 @@ button{font:inherit}
   background:color-mix(in oklab,#9aa7ff 90%, #fff);
   box-shadow:0 1px 5px rgba(0,0,0,.5)}
 .ch .lkb.open{background:var(--gold); color:#241a04}
+/* 彩蛋唤醒体（B 站主播）：没有官方立绘，用「主题色圆底 + 一个字」的徽章代替。
+   配色必须和 js/sv/ui.js 的 eggStyle()、js/sv/render.js 的 drawEggFace() 一致，
+   否则同一个人在选人面板和战场上会是两种颜色。 */
+.ch.egg{border-color:color-mix(in oklab, var(--gold) 26%, transparent);
+  background:linear-gradient(180deg, rgba(227,179,65,.06), transparent 70%)}
+.ch.egg i{filter:none}
+.ch.egg b{color:var(--gold); letter-spacing:.02em}
+.ch.egg.on{border-color:var(--gold); background:color-mix(in oklab, var(--gold) 15%, transparent)}
+.ch .lkb.egg{background:var(--gold); color:#241a04}
+.ch i.egg,.ci-portrait.egg,.up-img.egg{display:flex; align-items:center; justify-content:center;
+  font-weight:800; line-height:1; letter-spacing:0}
+.ch i.egg{font-size:21px}
+.ci-portrait.egg{font-size:29px}
+.up-img.egg{font-size:19px}
+/* 通用徽章类：ui.js 的 charFaceHTML() 用它给 HUD 技能槽、构筑详情、
+   超武觉醒卡画「这是谁的技能」。字号由内联 font-size 决定（跟着尺寸走）。 */
+.egg-face{display:flex; align-items:center; justify-content:center;
+  font-weight:800; line-height:1; letter-spacing:0; border-radius:50%; flex:0 0 auto}
 
 .char-info{flex:0 0 auto; padding:9px 11px; border-radius:13px; border:1px solid var(--line);
   background:var(--panel); font-size:12px; line-height:1.5; max-height:38vh; overflow:auto}
@@ -460,7 +478,7 @@ button{font:inherit}
       <a class="home" href="index.html">← 首页</a>
       <header>
         <h1>唤醒体<span>幸存者</span></h1>
-        <p class="sub">素材全部取自《忘却前夜》· 62 名唤醒体的 124 个技能都是可抽的武器 · 另有 4 位神秘人要靠自己打出来</p>
+        <p class="sub">素材全部取自《忘却前夜》· 62 名唤醒体的 124 个技能都是可抽的武器 · 4 位神秘人要靠自己打出来 · 名单最后蹲着 7 位 B 站主播</p>
       </header>
 
       <div class="diff" id="diffBox"></div>

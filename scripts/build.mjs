@@ -248,23 +248,59 @@ function genSurvivors() {
   if (!has(atlasPath)) throw new Error('缺少图集，先跑 python scripts/build_survivors_art.py');
   const meta = readJson(path.join(ROOT, 'data/survivors-atlas.json'));
   const data = readJson(path.join(ROOT, 'data/survivors-data.json'));
+  // 彩蛋角色（B 站《忘却前夜》内容创作者）单独手写在 survivors-extra.json 里，
+  // 不跑 build_survivors_data.mjs —— 那个脚本的输入是游戏本体的 dictionary，
+  // 重跑会把没来源的人冲掉。这里只做「追加」：角色补进 CHARS，武器补进 WEAPONS。
+  const extraPath = path.join(ROOT, 'data/survivors-extra.json');
+  const extra = has(extraPath) ? readJson(extraPath) : { chars: [] };
+  const chars = data.chars.slice();
+  const weapons = data.weapons.slice();
+  for (const c of extra.chars || []) {
+    const body = { ...c };
+    const ws = (body.weapons || []).map((w, i) => {
+      // 官方武器的 id 形如 awakener-0001:0，彩蛋沿用同一套：guest-xxx:0
+      const id = `${c.pid}:${i}`;
+      const full = {
+        id, n: w.n, e: w.e, proto: w.proto, text: w.text,
+        char: c.id, charName: c.n, realm: c.realm, realmCode: c.realmCode, role: c.role,
+        egg: true,
+      };
+      // 单把武器的数值微调（原型的 cd/dmg/数量再乘这几个系数），
+      // 让「同一原型」的两把技能在彩蛋角色身上也能玩出不同手感。
+      for (const k of ['dmgMul', 'cdMul', 'countMul', 'color']) if (w[k] != null) full[k] = w[k];
+      weapons.push(full);
+      return { n: w.n, e: w.e, proto: w.proto, text: w.text };
+    });
+    body.weapons = ws;
+    delete body.lock;
+    chars.push(body);
+  }
   const uri = 'data:image/webp;base64,' + fs.readFileSync(atlasPath).toString('base64');
+  // 隐藏首领「弥萨格校猫」要能被 spawnEnemy 按索引取到，所以必须长在 MOBS 里；
+  // 但它带 hidden 标记，spawnEnemy 的普通首领轮换会跳过它，只能由 updateCatBoss
+  // 在满足条件时指名召唤。img 没有对应帧（它是手画的），所以留空。
+  const mobs = data.monsters.slice();
+  if (extra.boss) {
+    mobs.push({ id: extra.boss.id, n: extra.boss.n, cls: 'Boss', hidden: true, cat: true });
+  }
   const code = [
     '// 由 scripts/build.mjs 生成，请勿手改。',
     '// 源：assets/survivors/atlas.webp + data/survivors-atlas.json + data/survivors-data.json',
+    '//     + data/survivors-extra.json（彩蛋角色与隐藏首领）',
     `export const ATLAS = ${JSON.stringify(uri)};`,
     `export const META = ${JSON.stringify({ cell: meta.cell, cols: meta.cols, w: meta.w, h: meta.h, frames: meta.frames })};`,
-    `export const CHARS = ${JSON.stringify(data.chars)};`,
-    `export const WEAPONS = ${JSON.stringify(data.weapons)};`,
-    `export const MOBS = ${JSON.stringify(data.monsters)};`,
+    `export const CHARS = ${JSON.stringify(chars)};`,
+    `export const WEAPONS = ${JSON.stringify(weapons)};`,
+    `export const MOBS = ${JSON.stringify(mobs)};`,
     `export const CREATIONS = ${JSON.stringify(data.creations)};`,
     `export const WHEELS = ${JSON.stringify(data.wheels)};`,
     `export const COVENANTS = ${JSON.stringify(data.covenants)};`,
+    `export const BOSS_CAT = ${JSON.stringify(extra.boss || null)};`,
     '',
   ].join('\n');
   const out = path.join(ROOT, 'js/sv/gen.js');
   if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
-  return { chars: data.chars.length, weapons: data.weapons.length, kb: Math.round(code.length / 1024) };
+  return { chars: chars.length, weapons: weapons.length, kb: Math.round(code.length / 1024) };
 }
 
 // ------------------------------------------- 忘却协议的立绘图集与单位表

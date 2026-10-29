@@ -1,0 +1,269 @@
+{
+  "_note": "《唤醒体幸存者》彩蛋角色。官方 66 人来自 data/survivors-data.json（脚本生成），这里手写：B 站《忘却前夜》内容创作者 7 人 + 最终隐藏首领「弥萨格校猫」。由 scripts/build.mjs 的 genSurvivors() 追加进 CHARS / WEAPONS / MOBS，不参与官方数据重建。",
+  "chars": [
+    {
+      "id": "egg-samo",
+      "pid": "guest-samo",
+      "n": "萨摩不耶",
+      "en": "Samo",
+      "realm": "混沌",
+      "realmCode": "CHAOS",
+      "role": "伤害型",
+      "roleCode": "ASSAULT",
+      "rarity": "彩蛋",
+      "img": null,
+      "egg": true,
+      "glyph": "萨",
+      "color": "#ff7a9c",
+      "talent": "节拍器",
+      "talentText": "每击杀 1 名敌人积 1 拍（上限 30 拍），每拍攻击 +1.5%；满拍时下一发技能放出节拍冲击，清出一圈并重新计数",
+      "kind": "B 站主播",
+      "bio": "把攻略写成节奏的人。她说打这一关不难，难的是别在第三次三选一之前就手抖。",
+      "bioSrc": "B 站空间 · space.bilibili.com/345114332",
+      "weapons": [
+        {
+          "n": "不耶连拍",
+          "e": "Unbroken Beat",
+          "proto": "cadence",
+          "text": "按 4/4 拍连打，每拍一发贴脸快弹，第四拍加重"
+        },
+        {
+          "n": "节奏走位",
+          "e": "Metronome Step",
+          "proto": "bolt",
+          "text": "踩着拍点向前突进，顺手打出一发重弹",
+          "dmgMul": 1.45,
+          "cdMul": 1.12,
+          "color": "#ff7a9c"
+        }
+      ]
+    },
+    {
+      "id": "egg-susu",
+      "pid": "guest-susu",
+      "n": "梦依流苏",
+      "en": "Sue",
+      "realm": "深海",
+      "realmCode": "AEQUOR",
+      "role": "辅助型",
+      "roleCode": "CHORUS",
+      "rarity": "彩蛋",
+      "img": null,
+      "egg": true,
+      "glyph": "梦",
+      "color": "#9d8bff",
+      "talent": "不做梦的人",
+      "talentText": "每局第一次致命伤改为「入梦」：免除该次伤害，2 秒无敌并回复 35% 生命",
+      "kind": "B 站主播",
+      "bio": "打不过就睡。她的直播间里最常出现的一句话是「这一把梦里能过」。",
+      "bioSrc": "B 站空间 · space.bilibili.com/1800901917",
+      "weapons": [
+        {
+          "n": "流苏缠缚",
+          "e": "Tassel Bind",
+          "proto": "ribbon",
+          "text": "一条长丝带绕身扫过，被扫到的敌人被缠住减速"
+        },
+        {
+          "n": "梦中低语",
+          "e": "Whisper in Sleep",
+          "proto": "chain",
+          "text": "低语在敌群间一跳一跳地传开",
+          "cdMul": 0.9,
+          "color": "#9d8bff"
+        }
+      ]
+    },
+    {
+      "id": "egg-alice",
+      "pid": "guest-alice",
+      "n": "爱丽丝",
+      "en": "Alice",
+      "realm": "超维",
+      "realmCode": "ULTRA",
+      "role": "伤害型",
+      "roleCode": "ASSAULT",
+      "rarity": "彩蛋",
+      "img": null,
+      "egg": true,
+      "glyph": "爱",
+      "color": "#5fd0ff",
+      "talent": "洞口的兔子",
+      "talentText": "当周围 8 名以内敌人超过 7 名时，自动跳进兔子洞瞬移脱身（18 秒冷却），落地炸开一圈",
+      "kind": "B 站主播",
+      "bio": "她坚称自己不是走位失误，是去了一趟洞的另一头，顺便带了点东西回来。",
+      "bioSrc": "B 站空间 · space.bilibili.com/545164270",
+      "weapons": [
+        {
+          "n": "兔子洞",
+          "e": "Rabbit Hole",
+          "proto": "burrow",
+          "text": "在敌群中心开一个洞，把周围的敌人一起拽下去"
+        },
+        {
+          "n": "疯帽茶会",
+          "e": "Mad Tea Party",
+          "proto": "rain",
+          "text": "茶具从天上落下来，砸到谁算谁",
+          "dmgMul": 1.2,
+          "color": "#5fd0ff"
+        }
+      ]
+    },
+    {
+      "id": "egg-ratking",
+      "pid": "guest-ratking",
+      "n": "鼠王",
+      "en": "Rat King",
+      "realm": "血肉",
+      "realmCode": "CARO",
+      "role": "伤害型",
+      "roleCode": "ASSAULT",
+      "rarity": "彩蛋",
+      "img": null,
+      "egg": true,
+      "glyph": "鼠",
+      "color": "#c8e06a",
+      "talent": "数不清",
+      "talentText": "每击杀 20 名敌人，从脚边涌出一波鼠群冲向四周，撞到的敌人被推退并受伤",
+      "kind": "B 站主播",
+      "bio": "数量就是力量。她从不数自己带了多少只，只数对面还剩几只。",
+      "bioSrc": "B 站空间 · space.bilibili.com/399273416",
+      "weapons": [
+        {
+          "n": "鼠群奔涌",
+          "e": "Rat Tide",
+          "proto": "swarm",
+          "text": "一群小鼠从脚边窜出去，各自挑最近的敌人咬"
+        },
+        {
+          "n": "王的召见",
+          "e": "Royal Summons",
+          "proto": "summon",
+          "text": "召出随行的鼠群，替王先咬一轮",
+          "countMul": 2,
+          "color": "#c8e06a"
+        }
+      ]
+    },
+    {
+      "id": "egg-dragon",
+      "pid": "guest-dragon",
+      "n": "魔龙_D",
+      "en": "Dragon D",
+      "realm": "血肉",
+      "realmCode": "CARO",
+      "role": "防御型",
+      "roleCode": "WARDEN",
+      "rarity": "彩蛋",
+      "img": null,
+      "egg": true,
+      "glyph": "龙",
+      "color": "#ff9a4d",
+      "talent": "逆鳞",
+      "talentText": "受到伤害 -15%，护盾上限 +40%；每 8 秒向最近的敌人喷一口龙焰",
+      "kind": "B 站主播",
+      "bio": "别人堆输出，他堆防御。理由很简单：站得住的人才配谈输出。",
+      "bioSrc": "B 站空间 · space.bilibili.com/190977084",
+      "weapons": [
+        {
+          "n": "龙息",
+          "e": "Dragon Breath",
+          "proto": "breath",
+          "text": "朝最近的敌人喷出一道锥形火焰，持续 2.4 秒"
+        },
+        {
+          "n": "龙威",
+          "e": "Dragon Dread",
+          "proto": "nova",
+          "text": "以自身为中心震开一切，顺便给自己一层鳞",
+          "dmgMul": 1.25,
+          "color": "#ff9a4d"
+        }
+      ]
+    },
+    {
+      "id": "egg-zerokr",
+      "pid": "guest-zerokr",
+      "n": "立誓0氪",
+      "en": "Zero KR",
+      "realm": "混沌",
+      "realmCode": "CHAOS",
+      "role": "伤害型",
+      "roleCode": "ASSAULT",
+      "rarity": "彩蛋",
+      "img": null,
+      "egg": true,
+      "glyph": "誓",
+      "color": "#ffd76a",
+      "talent": "一分不花",
+      "talentText": "开局 90 秒内攻击 +50%、移速 +12%；90 秒后攻击 +8%（前半局猛，后半局靠技术）",
+      "kind": "B 站主播",
+      "bio": "一分钱不花，全靠开局那口气。他自己的说法是：免费的才是最贵的，也是最爽的。",
+      "bioSrc": "B 站空间 · space.bilibili.com/3493105187687321",
+      "weapons": [
+        {
+          "n": "立誓之刃",
+          "e": "Oath Blade",
+          "proto": "vow",
+          "text": "以誓约换一次爆发：震开四周，自身获得护盾"
+        },
+        {
+          "n": "白嫖刀法",
+          "e": "Freeloader Blade",
+          "proto": "saw",
+          "text": "能回收的刃才是好刃，来回都要割一遍",
+          "color": "#ffd76a"
+        }
+      ]
+    },
+    {
+      "id": "egg-moreen",
+      "pid": "guest-moreen",
+      "n": "夏茉琳",
+      "en": "Moreen",
+      "realm": "深海",
+      "realmCode": "AEQUOR",
+      "role": "辅助型",
+      "roleCode": "SUPPORT",
+      "rarity": "彩蛋",
+      "img": null,
+      "egg": true,
+      "glyph": "茉",
+      "color": "#8ce0a8",
+      "talent": "花间行走",
+      "talentText": "每 9 秒在脚下开一片花海：站在里面每秒回复 2 点生命，敌人进来则被减速并持续受伤",
+      "kind": "B 站主播",
+      "bio": "她的路线永远绕着一片花走。问她为什么不直线跑，她说花在那里。",
+      "bioSrc": "B 站空间 · space.bilibili.com/515298109",
+      "weapons": [
+        {
+          "n": "茉香花海",
+          "e": "Jasmine Bloom",
+          "proto": "bloom",
+          "text": "在脚下开出一片花海，站在里面回血，敌人踩进来掉血"
+        },
+        {
+          "n": "散花",
+          "e": "Scattered Petals",
+          "proto": "heal",
+          "text": "花瓣四散，顺手把伤也带走一点",
+          "dmgMul": 1.3,
+          "color": "#8ce0a8"
+        }
+      ]
+    }
+  ],
+  "boss": {
+    "id": "misago-cat",
+    "n": "弥萨格校猫",
+    "en": "Misago the Campus Cat",
+    "color": "#ffd76a",
+    "from": 840,
+    "needBossKills": 2,
+    "hpMul": 3.2,
+    "r": 54,
+    "text": "它蹲在弥萨格的台阶上，谁都知道它不该出现在这里。它不讲道理，只是因为今天有人忘了给它开罐头。血量约是普通首领的三倍，撑到时间结束前都在。",
+    "tip": "本局只出现一次。把前两只首领都清掉之后，最后 1 分钟它才会蹲到场上。"
+  }
+}

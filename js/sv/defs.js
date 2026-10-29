@@ -110,6 +110,38 @@ export const PROTOS = {
     name: '封印书页', color: '#9aa7ff', cd: 2.4, dmg: 22, n: 1, nStep: 2,
     desc: (lv) => `封住最近的 ${1 + Math.floor(lv / 2)} 名敌人，定身 1.2 秒并造成伤害`,
   },
+  // ---- 2026-10 彩蛋角色（B 站主播唤醒体）的专属原型
+  // 这七种只出现在彩蛋角色身上（build_survivors_data.mjs 不产出它们，
+  // 普通角色的抽取池也会跳过带 egg 标记的武器），所以可以做得更「像那个人」：
+  // 萨摩的拍子、流苏的丝带、爱丽丝的洞、鼠王的鼠群、魔龙的吐息、0 氪的誓、茉琳的花。
+  cadence: {
+    name: '节拍连打', color: '#ff7a9c', cd: 0.42, dmg: 9, n: 1, nStep: 3,
+    desc: (lv) => `按拍子连打，每 ${4} 拍补一记重音；${1 + Math.floor(lv / 3)} 拍一次加花`,
+  },
+  ribbon: {
+    name: '幻梦丝带', color: '#9d8bff', cd: 2.0, dmg: 13, n: 1, nStep: 2,
+    desc: (lv) => `丝带绕身扫出一整圈，扫到的敌人被缠住减速 ${(2.2 + lv * 0.3).toFixed(1)} 秒`,
+  },
+  burrow: {
+    name: '兔子洞', color: '#5fd0ff', cd: 2.4, dmg: 26, n: 1, nStep: 2,
+    desc: (lv) => `在敌群中心开洞，把 ${(1.4 + lv * 0.15).toFixed(1)} 秒内靠近的敌人拽进去，收口时炸开`,
+  },
+  swarm: {
+    name: '鼠群奔涌', color: '#c8e06a', cd: 1.3, dmg: 11, n: 3, nStep: 2,
+    desc: (lv) => `放出 ${3 + Math.floor(lv / 2)} 只小鼠各自扑咬，撞上就散`,
+  },
+  breath: {
+    name: '龙息', color: '#ff9a4d', cd: 2.2, dmg: 9, n: 1, nStep: 2,
+    desc: (lv) => `朝最近敌人喷出 ${(2.4 + lv * 0.2).toFixed(1)} 秒锥形火焰，持续灼烧并迟滞`,
+  },
+  vow: {
+    name: '立誓之刃', color: '#ffd76a', cd: 2.6, dmg: 30, n: 1, nStep: 2,
+    desc: (lv) => `以誓约换一次爆发：震开四周，同时获得 ${10 + lv * 7} 点护盾`,
+  },
+  bloom: {
+    name: '茉香花海', color: '#8ce0a8', cd: 2.8, dmg: 8, n: 1, nStep: 2,
+    desc: (lv) => `脚下开出 ${(3.2 + lv * 0.3).toFixed(1)} 秒花海，自己在里面回血，敌人踩进来掉血`,
+  },
 };
 
 // 12 原型里各挑一个「代表武器」的兜底顺序：某个原型一把都抽不到时不至于空池。
@@ -493,6 +525,49 @@ export const EVOS = [
     fx: { count: 1, dmg: 0.45 },
     txt: '守密人专属：投射/封印 +1，伤害 +45%',
   },
+  // ---------------- 彩蛋角色的专武超武：都是「这把技能」的质变，条件统一 4 级
+  {
+    id: 'sw_samo', char: 'egg-samo', n: '不耶终章', color: '#ff7a9c',
+    need: { level: 4 },
+    fx: { cd: 0.62, dmg: 0.5, count: 2 },
+    txt: '萨摩不耶专属：冷却 -38%，伤害 +50%，多打两拍',
+  },
+  {
+    id: 'sw_susu', char: 'egg-susu', n: '长梦不醒', color: '#9d8bff',
+    need: { level: 4 },
+    fx: { area: 0.55, dmg: 0.4 },
+    txt: '梦依流苏专属：丝带扫过范围 +55%，伤害 +40%',
+  },
+  {
+    id: 'sw_alice', char: 'egg-alice', n: '洞底茶会', color: '#5fd0ff',
+    need: { level: 4 },
+    fx: { area: 0.4, dmg: 0.55, count: 1 },
+    txt: '爱丽丝专属：洞更大、更深，伤害 +55%',
+  },
+  {
+    id: 'sw_ratking', char: 'egg-ratking', n: '万鼠之王', color: '#c8e06a',
+    need: { level: 4 },
+    fx: { count: 3, dmg: 0.35 },
+    txt: '鼠王专属：鼠群 +3 只，伤害 +35%',
+  },
+  {
+    id: 'sw_dragon', char: 'egg-dragon', n: '古龙之怒', color: '#ff9a4d',
+    need: { level: 4 },
+    fx: { area: 0.45, dmg: 0.45 },
+    txt: '魔龙_D 专属：吐息更宽，伤害 +45%',
+  },
+  {
+    id: 'sw_zerokr', char: 'egg-zerokr', n: '永不充值', color: '#ffd76a',
+    need: { level: 4 },
+    fx: { area: 0.35, dmg: 0.5 },
+    txt: '立誓0氪专属：誓约范围 +35%，伤害 +50%',
+  },
+  {
+    id: 'sw_moreen', char: 'egg-moreen', n: '花开不败', color: '#8ce0a8',
+    need: { level: 4 },
+    fx: { area: 0.5, dmg: 0.3 },
+    txt: '夏茉琳专属：花海范围 +50%，伤害 +30%',
+  },
 ];
 
 // ---------------------------------------------------------------- 波次
@@ -621,6 +696,44 @@ export const MECHS = {
     id: 'seal', n: '缄默契约', color: '#9aa7ff',
     text: '敌人生命 +12%，但经验 +45%；每升 1 级累积 1 道封印，满 5 道处决场上最虚弱的 4 名敌人',
     short: '封印',
+  },
+  // ---------------- 彩蛋角色（B 站主播唤醒体）的机制
+  // 和上面四位一样是「这名角色的规则」，不走 mods。数值都刻意做得不夸张：
+  // 彩蛋是给熟人玩梗的，不该变成强度榜上的第一梯队。
+  'egg-samo': {
+    id: 'samobeat', n: '不耶节拍', color: '#ff7a9c',
+    text: '每击杀 1 名敌人积 1 拍（上限 30 拍），每拍攻击 +1.5%；满拍时放出一次节拍冲击清出一圈，然后重新计数',
+    short: '节拍',
+  },
+  'egg-susu': {
+    id: 'dreamgate', n: '入梦', color: '#9d8bff',
+    text: '每局第一次致命伤改为入梦：免除伤害，2 秒无敌并回复 35% 生命',
+    short: '入梦',
+  },
+  'egg-alice': {
+    id: 'rabbitfall', n: '掉进洞里', color: '#5fd0ff',
+    text: '周围 7 名内敌人超过 7 只时，自动跳进兔子洞瞬移脱身（18 秒冷却），落地炸开一圈',
+    short: '兔子洞',
+  },
+  'egg-ratking': {
+    id: 'ratcrown', n: '鼠王加冕', color: '#c8e06a',
+    text: '每累计击杀 20 名敌人，脚边涌出一波鼠群冲向四周，撞到的敌人被推退并受伤',
+    short: '鼠群',
+  },
+  'egg-dragon': {
+    id: 'dragonscale', n: '龙鳞', color: '#ff9a4d',
+    text: '受到伤害 -15%，护盾上限 +40%；每 8 秒向最近的敌人喷一口龙焰',
+    short: '龙鳞',
+  },
+  'egg-zerokr': {
+    id: 'zerokr', n: '立誓', color: '#ffd76a',
+    text: '开局 90 秒内攻击 +50%、移速 +12%；90 秒后攻击 +8%',
+    short: '立誓',
+  },
+  'egg-moreen': {
+    id: 'blossom', n: '花信风', color: '#8ce0a8',
+    text: '每 9 秒在脚下开一片花海：站在里面每秒回复 2 点生命，敌人进来被减速并持续受伤',
+    short: '花信',
   },
 };
 

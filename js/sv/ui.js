@@ -54,6 +54,37 @@ export function atlasStyle(idx, size) {
     `width:${size}px;height:${size}px;`,
   ].join('');
 }
+// 彩蛋角色（B 站主播唤醒体）没有官方立绘，也不该硬塞一张别人的脸。
+// 统一走「主题色圆形渐变 + 一个字」的徽章：canvas 端 render.js 的 drawEggFace()
+// 用同一套配色和同一个字，选人面板与战斗里看起来才是同一个人。
+export function eggStyle(c, size) {
+  const col = (c && c.color) || '#8ba3c7';
+  const ch = (c && c.glyph) || '?';
+  return [
+    `background:radial-gradient(120% 120% at 50% 16%, ${col}66 0%, ${col}22 46%, #10141d 100%);`,
+    `box-shadow:inset 0 0 0 1px ${col}66, inset 0 -8px 14px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.4);`,
+    `color:${col}; text-shadow:0 1px 3px rgba(0,0,0,.65);`,
+    `width:${size}px;height:${size}px;`,
+  ].join('');
+}
+
+// 有立绘走图集，没有立绘走彩蛋徽章（null 仍然是神秘唤醒体的剪影）
+export function faceStyle(c, size) {
+  if (c && c.egg) return eggStyle(c, size);
+  return atlasStyle(c ? c.img : null, size);
+}
+
+// 直接给一段 <i>：HUD 技能槽、构筑详情、超武卡都要「这是谁的技能」，
+// 三处写法一样，抽出来免得每加一种头像就漏掉一处（漏了就是一块黑方块）。
+export function charFaceHTML(charId, size, cls) {
+  const c = CHARS.find((x) => String(x.id) === String(charId));
+  const k = cls ? cls + ' ' : '';
+  if (c && c.egg) {
+    return `<i class="${k}egg-face" style="${eggStyle(c, size)}font-size:${Math.round(size * 0.46)}px">${esc(c.glyph || '')}</i>`;
+  }
+  return `<i class="${k.trim()}" style="${atlasStyle(c ? c.img : null, size)}"></i>`;
+}
+
 // ATLAS 是 data URI，直接拼进 style 会让字符串比较变慢，单独取出引用
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -77,12 +108,14 @@ export function showPick() {
     const cls = ['' , REALM_CLASS[c.realm] || ''];
     if (c.lock) cls.push('hidden-one');
     if (locked) cls.push('locked');
+    // 彩蛋角色单独一档：金色虚线边 + 「蛋」角标，和官方 66 人分开看
+    if (c.egg) cls.push('egg');
     const label = locked ? '???' : c.n;
-    const tip = locked ? `${c.n} · 未解锁` : c.n;
+    const tip = locked ? `${c.n} · 未解锁` : (c.egg ? `${c.n} · 彩蛋唤醒体（${c.bioSrc || 'B 站'}）` : c.n);
     return `
       <button class="ch${cls.join(' ')}" data-id="${c.id}" title="${esc(tip)}">
-        <i style="${atlasStyle(locked || c.img == null ? null : c.img, 54)}"></i>
-        ${locked ? '<em class="lkb">锁</em>' : (c.lock ? '<em class="lkb open">✦</em>' : '')}
+        <i class="${c.egg ? 'egg' : ''}" style="${faceStyle(locked ? null : c, 54)}">${c.egg && !locked ? esc(c.glyph || '') : ''}</i>
+        ${locked ? '<em class="lkb">锁</em>' : (c.egg ? '<em class="lkb egg">蛋</em>' : (c.lock ? '<em class="lkb open">✦</em>' : ''))}
         <b>${esc(label)}</b>
       </button>`;
   }).join('');
@@ -149,7 +182,7 @@ function renderCharInfo() {
     <div class="ci-bio"><b>档案</b><span>${esc(c.bio)}</span>${c.bioSrc ? `<u>出处 · ${esc(c.bioSrc)}</u>` : ''}</div>` : '';
   $('charInfo').innerHTML = `
     <div class="ci-top">
-      <i class="ci-portrait${locked || c.img == null ? ' sil' : ''}" style="${atlasStyle(locked ? null : c.img, 72)}"></i>
+      <i class="ci-portrait${c.egg ? ' egg' : ''}${locked || c.img == null ? ' sil' : ''}" style="${faceStyle(locked ? null : c, 72)}">${c.egg && !locked ? esc(c.glyph || '') : ''}</i>
       <div>
         <h3>${locked ? '???' : esc(c.n)} <small>${locked ? '未解锁' : esc(c.en)}</small></h3>
         <p class="ci-tags">
@@ -284,7 +317,7 @@ function drainEvo() {
   const el = document.createElement('div');
   el.className = 'evo-card';
   el.innerHTML = `
-    <i style="${atlasStyle(e.frame, 40)}"></i>
+    ${charFaceHTML(e.char, 40)}
     <div class="eb">
       <span class="tag">⚡ 超武觉醒</span>
       <p class="nm"><s>${esc(e.from)}</s> → <b>${esc(e.n)}</b></p>
@@ -364,7 +397,7 @@ function buildInfo() {
     // 没觉醒的武器给出「还差什么」—— 不给线索的话，玩家根本不知道有超武这回事
     const hint = x.evo ? '' : evoNeedText(x);
     return `<div class="if-row${x.evo ? ' has-evo' : ''}">
-      <i style="${atlasStyle(charFrame(x.def.char), 34)}"></i>
+      ${charFaceHTML(x.def.char, 34)}
       <div>
         <b>${esc(x.def.n)} <em>Lv.${x.lv + 1}</em>${x.evo ? `<em class="evo-tag">超武 · ${esc(x.evo.n)}</em>` : ''}</b>
         <span>${esc(x.def.charName)} · ${proto ? proto.name : ''} · 单发约 ${Math.round(dmg)} · 每 ${cd.toFixed(2)} 秒</span>
@@ -489,7 +522,7 @@ export function updateHUD() {
     // 不标的话，玩家只会觉得「这把好像打得比别的疼」，根本不知道有机制。
     $('hWeapons').innerHTML = G.weapons.map((w) => `
       <div class="slot${w.evo ? ' evo' : ''}" data-info="1" title="${esc(w.def.n)} · ${esc(w.def.charName)}${w.evo ? ' · 超武「' + esc(w.evo.n) + '」' : ''}">
-        <i style="${atlasStyle(charFrame(w.def.char), 30)}"></i>
+        ${charFaceHTML(w.def.char, 30)}
         <b class="cdm"></b>
         ${w.evo ? '<em class="evb">超</em>' : ''}
         <span class="pips">${'<b class="on"></b>'.repeat(w.lv + 1)}${'<b></b>'.repeat(LV.max - w.lv)}</span>
@@ -560,6 +593,14 @@ export function updateHUD() {
     else if (mm.id === 'seal') mkey = `封印 ${G.mech.stacks}/5`;
     else if (mm.id === 'paradox') mkey = '悖论';
     else if (mm.id === 'nightwatch') mkey = G.mech.low ? '守夜 · 燃灯' : '守夜';
+    // 彩蛋角色的机制角标：有进度就给进度，没进度就给状态
+    else if (mm.id === 'samobeat') mkey = `节拍 ${G.mech.stacks}/30`;
+    else if (mm.id === 'ratcrown') mkey = `鼠群 ${(G.mech.stacks || 0)}/20`;
+    else if (mm.id === 'dreamgate') mkey = G.mech.flag ? '入梦 · 已用' : '入梦 · 待命';
+    else if (mm.id === 'rabbitfall') mkey = G.mech.cd > 0 ? `兔子洞 ${Math.ceil(G.mech.cd)}s` : '兔子洞 · 就绪';
+    else if (mm.id === 'dragonscale') mkey = '龙鳞';
+    else if (mm.id === 'zerokr') mkey = G.mech.flag ? '立誓 · 期满' : `立誓 ${Math.max(0, Math.ceil(90 - G.t))}s`;
+    else if (mm.id === 'blossom') mkey = '花信';
   }
   if (hudCache.mkey !== mkey) {
     hudCache.mkey = mkey;
@@ -572,11 +613,6 @@ export function updateHUD() {
       el.classList.toggle('hot', mm && mm.id === 'nightwatch' && G.mech.low);
     }
   }
-}
-
-function charFrame(id) {
-  const c = CHARS.find((x) => x.id === String(id));
-  return c ? c.img : null;
 }
 
 // ---------------------------------------------------------------- 升级三选一
@@ -641,7 +677,9 @@ function upgradeCard(o, i) {
       if (nowEvo) foot = `⚡ 选这张立即觉醒「${nowEvo.n}」：${nowEvo.txt}`;
       else if (nextEvo) foot = `⚡ 再升 1 级可觉醒「${nextEvo.n}」`;
     }
-    return card(i, isSwap ? 'wswap' : o.kind === 'wlv' ? 'wlv' : 'wnew', title, desc, foot, atlasStyle(charFrame(d.char), 46), KIND_LABEL[o.kind]);
+    const owner = CHARS.find((x) => String(x.id) === String(d.char));
+    return card(i, isSwap ? 'wswap' : o.kind === 'wlv' ? 'wlv' : 'wnew', title, desc, foot,
+      faceStyle(owner, 46), KIND_LABEL[o.kind], owner && owner.egg ? esc(owner.glyph || '') : '');
   }
   if (o.kind === 'creation') {
     const fx = CREATION_FX[o.c.fx];
@@ -731,7 +769,7 @@ function openSwapPicker(o) {
   // 以前这里只是标了个「超武」标签，手快一点就点下去了。
   $('swapList').innerHTML = G.weapons.map((w, i) => `
     <button class="sw${w.evo ? ' evo lock' : ''}" data-i="${i}" ${w.evo ? 'disabled' : ''}>
-      <i style="${atlasStyle(charFrame(w.def.char), 32)}"></i>
+      ${charFaceHTML(w.def.char, 32)}
       <b>${esc(w.def.n)}</b>
       <em>Lv.${w.lv + 1}</em>
       ${w.evo ? `<u class="evo-tag">超武 · ${esc(w.evo.n)} · 不可替换</u>` : ''}
@@ -790,7 +828,7 @@ function showPause() {
   const ov = $('ovPause');
   ov.hidden = false;
   $('pauseWeapons').innerHTML = G.weapons.map((w) => `
-    <div class="pw"><i style="${atlasStyle(charFrame(w.def.char), 34)}"></i>
+    <div class="pw">${charFaceHTML(w.def.char, 34)}
       <b>${esc(w.def.n)}</b><em>Lv.${w.lv + 1}</em></div>`).join('') || '<p class="dim">还没有技能</p>';
   $('pauseStats').innerHTML = `
     <span>击杀 <b>${G.kills}</b></span><span>等级 <b>${G.lv}</b></span>
@@ -812,7 +850,12 @@ export function showEnd(sm) {
   const beforeP = svProgress();
   const afterP = recordRun(sm);
   const fresh = unlockedByRun(beforeP, afterP);
-  $('endTitle').textContent = sm.win ? '撑到潮水退去' : sm.gaveUp ? '主动收兵' : '倒在了半路';
+  // 校猫这一局来没来、有没有打掉，要写在最显眼的那行标题上 ——
+  // 它是隐藏首领，玩家很可能整局都没注意到场上多了一只东西。
+  const catText = sm.cat
+    ? ` · ${sm.catName || '弥萨格校猫'}已放学`
+    : (sm.catSpawned ? ` · ${sm.catName || '弥萨格校猫'}还蹲在那儿` : '');
+  $('endTitle').textContent = (sm.win ? '撑到潮水退去' : sm.gaveUp ? '主动收兵' : '倒在了半路') + catText;
   const best0 = Number(localStorage.getItem('zjtt:survivors:best') || 0);
   // 不足 1 分钟别写成「第 0 分 04 秒」——刚开局就放弃/阵亡时特别刺眼
   const clock = sm.t >= 60
@@ -892,7 +935,7 @@ function renderDmgBreakdown(sm) {
       <span class="dmg-num">${dmg > 0 ? dmg.toLocaleString() : '—'}<em>${dmg > 0 ? pct(dmg) + '%' : '辅助'}</em></span>
     </div>`;
   const rows = ws.map((w) => row(
-    `<i style="${atlasStyle(charFrame(w.charId), 24)}"></i>`,
+    `${charFaceHTML(w.charId, 24)}`,
     w.n + (w.evo ? ' · 超武' : ''), `Lv.${w.lv} · ${w.char}`, w.dmg, w.color,
   )).join('');
   const rageRow = sm.rageDmg > 0
