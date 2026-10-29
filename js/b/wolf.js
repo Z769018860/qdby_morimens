@@ -243,22 +243,31 @@ const KEEPER = {
       '{who}说得很完整。完整得像是准备好了才开口的。', '我先问{who}一个问题——你刚才为什么先看别人再说话。',
       '{who}。你从坐下到现在，没有一次主动给过信息。', '我把话说明白：今天我最想听{who}解释。',
       '{who}的每一句都在躲。躲什么，我想知道。', '我不喜欢含糊。{who}，你给我一个明确的答案。',
+      '{who}，你刚才那句话，换个顺序说一遍我听听。',
+      '我盯{who}很久了。不是直觉，是他说的话对不上。',
+      '{who}一直在跟着别人走。跟着走的人，通常是不想被看见的人。',
+      '先别急着替{who}开脱。我要听他自己说。',
     ],
     defend: [
       '我认为{who}不是。', '先别急着投{who}。', '{who}的话还没说完。', '我替{who}说一句。',
       '投{who}之前，先想清楚明天还剩几个人。', '{who}至少给过一句有用的东西，别的人连这个都没有。',
       '我压一手{who}。错了算我的。', '{who}今天的表现不像在藏东西。',
+      '要推{who}，先拿得出比「感觉」更硬的东西。',
+      '{who}今天说的每句我都对得上，我暂时保他。',
     ],
     idle: [
       '……我先听着。', '再等等。今晚的答案会自己浮上来。', '（你把每个人的表情记在心里）', '我先不表态。',
       '（你没有说话。你在数谁先动。）', '都不急。急的人会先露出破绽。',
       '这一轮我没什么可加的。我看的不是话，是手。', '（桌面上安静了几秒。你把这份安静也记下了。）',
       '继续。我在听。', '（你端起杯子，把视线从一个人脸上挪到另一个人脸上。）',
+      '（有人想说又咽了回去。你记住了这个停顿。）',
+      '我不催。今天的话还没说完，急的人会自己补上。',
     ],
     vote: [
       '{who}。', '我投{who}。', '就{who}吧。', '票给{who}。',
       '{who}。我希望这是我的最后一次判断失误。', '我这一票给{who}。理由我刚才说过了。',
       '投{who}。要是错了，明天我认。', '{who}。别看我，看你自己今天说了什么。',
+      '这一票落{who}。我不想再听解释。', '{who}。今天所有对不上的地方，都指着他。',
     ],
     // 号召：让有身份的人自己报出来。说得越硬，越有人应，也越有人记恨。
     call: [
@@ -299,7 +308,20 @@ const KEEPER = {
     reportVoid: [
       '{who}里面是空的。我什么都看不见。', '我{verb}不出{who}的命。那不是空白，是没有人。',
       '{who}是空白。他不属于任何一边。', '我看了{who}——什么都没有。连尸体都不算。',
-      '{who}。我看不进去。那里没有东西可以被看见。',
+      '我{verb}进去，{who}里面什么都没有——不是空，是没有。',
+    ],
+    // 兜底：某一类被玩家点空了（一天点五次指认也会发生），就从这里借一句。
+    // 这些话不带人名、不带立场，放在任何回合里都不算答非所问——
+    // 总比把自己十分钟前说过的那句原样再说一遍好。
+    spare: [
+      '我把话放在这里：今天必须有人说清楚。',
+      '（你扫了一圈桌上的人，谁都没有先低头。）',
+      '我不急。急的人会先出错。',
+      '（你把这个回合记下来，等它以后自己长出意思。）',
+      '我看的不是谁说得响，是谁说得准。',
+      '（你在心里给每个人挪了一个位置。）',
+      '话我先说到这儿。剩下的看你们。',
+      '（你把杯子放下。桌面上没有人接这个动作。）',
     ],
   },
 };
@@ -326,7 +348,14 @@ const SYS = {
   winWolf: '剩下的人互相看着，谁也没有说话。黑液从地板缝里漫上来，很安静。',
   winForgotten: '最后一个人站在门口。他既不属于这边，也不属于那边。谁也没有记住他的名字。',
   silenceOn: '{who}张了张嘴，没发出声音。喉咙里全是黑液的味道。',
-  silenceSelf: '你想说话。喉咙里只有一股铁锈味——有人在夜里对你说过话。',
+  // 被低语过、今天开不了口。一局里会被吞好几次，所以这里也是池子，不是一句话。
+  silenceSelf: [
+    '你想说话。喉咙里只有一股铁锈味——有人在夜里对你说过话。',
+    '你张开嘴。没有声音出来，只有一点黑的、温的东西从舌根滑回去。',
+    '话在喉咙口散开了。像有人提前把你要说的那句从你身体里拿走了。',
+    '你试着开口，听见的是自己的心跳。那几句话还在，只是不归你管了。',
+    '声音被什么东西按住了。你只好把想说的写在心里——今天你不占这张桌子的声音。',
+  ],
 };
 
 // 每天开场的一句氛围（按日数轮换）
@@ -5858,6 +5887,8 @@ function checkRes(role) {
 const KEEPER_FILL = (s, ctx) => String(s)
   .replace(/\{who\}/g, ctx.who || '你')
   .replace(/\{role\}/g, ctx.role || '清醒者');
+// 系统文案有的是字符串、有的是池子，取句前统一成数组
+const oneOr = (v) => (Array.isArray(v) ? v : (v == null ? [] : [v]));
 
 // ---------------------------------------------------------------- 开局
 function createGame(opt) {
@@ -6339,6 +6370,13 @@ function submit(G, act) {
   if (act.type === 'talk') { playerTalk(G, act); return; }
   if (act.type === 'vote') {
     if (G.phase !== 'wait-vote') return;
+    // 守密人投票也有一句话，别让玩家像个哑巴——顺便把 vote 池子用起来
+    if (act.target != null && G.player.alive) {
+      const t = byId(G, act.target);
+      if (t) {
+        push(G, { t: 'say', pid: 0, text: keeperPick(G, KEEPER.say.vote, { who: t.name }, true), stance: 'vote' });
+      }
+    }
     resolveVote(G, act.target == null ? null : act.target);
     return;
   }
@@ -6392,26 +6430,31 @@ function submit(G, act) {
   }
 }
 
+// 守密人自己说的话也记账：一局里同一句不会说第二遍。
+// （原来纯 random，四句 accuse 说到第三次就必然重复。）
+// 池子被点空了就借 S.spare 的通用句（不带人名、不带立场），而不是原样复读。
+function keeperPick(G, arr, ctx, borrow) {
+  const me = G.player;
+  const mine = me.keepSaid || (me.keepSaid = new Set());
+  let use = arr.filter((x) => !mine.has(x));
+  if (!use.length && borrow) use = oneOr(KEEPER.say.spare).filter((x) => !mine.has(x));
+  if (!use.length) use = arr;
+  const s = use[Math.floor(G.rnd() * use.length)];
+  mine.add(s);
+  return KEEPER_FILL(s, ctx || {});
+}
+
 function playerTalk(G, act) {
   const me = G.player;
   if (!me.alive) return;
   const rnd = G.rnd;
   const S = KEEPER.say;
-  // 守密人自己说的话也记账：一局里同一句不会说第二遍，池子用完才会绕回来。
-  // （原来纯 random，四句 accuse 说到第三次就必然重复。）
-  const mineSaid = me.keepSaid || (me.keepSaid = new Set());
-  const pickLine = (arr, ctx) => {
-    const fresh = arr.filter((x) => !mineSaid.has(x));
-    const use = fresh.length ? fresh : arr;
-    const s = use[Math.floor(rnd() * use.length)];
-    mineSaid.add(s);
-    return KEEPER_FILL(s, ctx);
-  };
+  const pickLine = (arr, ctx, borrow) => keeperPick(G, arr, ctx, borrow);
 
   // 被低语过：今天张不开嘴。说什么都会被吞掉，所以直接把这一轮咽下去。
   if (me.silencedDay === G.day && act.kind !== 'idle') {
     me.talk = (me.talk || 0) + 1;
-    push(G, { t: 'say', pid: 0, text: SYS.silenceSelf, stance: 'silent' });
+    push(G, { t: 'say', pid: 0, text: pickLine(oneOr(SYS.silenceSelf), {}), stance: 'silent' });
     G.phase = 'discuss';
     fill(G);
     return;
@@ -6432,14 +6475,14 @@ function playerTalk(G, act) {
     const t = byId(G, act.target);
     if (t) {
       G.acc.push({ by: 0, to: t.id, day: G.day, round: G.round });
-      push(G, { t: 'say', pid: 0, text: pickLine(S.accuse, { who: t.name }), stance: 'accuse' });
+      push(G, { t: 'say', pid: 0, text: pickLine(S.accuse, { who: t.name }, true), stance: 'accuse' });
       me.talk = (me.talk || 0) + 1;
     }
   } else if (act.kind === 'defend' && act.target != null) {
     const t = byId(G, act.target);
     if (t) {
       G.def.push({ by: 0, to: t.id, day: G.day });
-      push(G, { t: 'say', pid: 0, text: pickLine(S.defend, { who: t.name }), stance: 'defend' });
+      push(G, { t: 'say', pid: 0, text: pickLine(S.defend, { who: t.name }, true), stance: 'defend' });
       me.talk = (me.talk || 0) + 1;
     }
   } else if (act.kind === 'report' && act.target != null) {
@@ -6469,7 +6512,7 @@ function playerTalk(G, act) {
     // 号召：一天只能喊一次，喊完桌上会有人应声、有人对跳、有人推脱
     if (G.callDay[G.day]) {
       me.talk = (me.talk || 0) + 1;
-      push(G, { t: 'say', pid: 0, text: pickLine(S.idle, {}), stance: 'idle' });
+      push(G, { t: 'say', pid: 0, text: pickLine(S.idle, {}, true), stance: 'idle' });
     } else {
       G.callDay[G.day] = true;
       G.calls.push({ by: 0, day: G.day, round: G.round });
@@ -6495,7 +6538,7 @@ function playerTalk(G, act) {
     }
   } else {
     me.talk = (me.talk || 0) + 1;
-    push(G, { t: 'say', pid: 0, text: pickLine(S.idle, {}), stance: 'idle' });
+    push(G, { t: 'say', pid: 0, text: pickLine(S.idle, {}, true), stance: 'idle' });
   }
   G.phase = 'discuss';
   fill(G);
@@ -6564,7 +6607,7 @@ function playerFindings(G) {
 function relTable(G) {
   return G.players.filter((p) => !p.isPlayer).map((p) => p.name);
 }
-return { createGame, nextEvent, playerFaction, submit, canCall, nightOptions, playerFindings, relTable };
+return { createGame, nextEvent, playerFaction, submit, keeperPick, canCall, nightOptions, playerFindings, relTable };
 })();
 
 // ---- js/wolf/auto.js
@@ -7150,6 +7193,7 @@ const STANCE = {
   reportClean: ['报干净', 'good'],
   refuse: ['推脱', 'dim'],
   comment: ['附和', 'dim'],
+  vote: ['投票', 'dim'],
   silent: ['失声', 'void'],
   taunt: ['挑衅', 'dim'],
   last: ['遗言', 'dim'],
