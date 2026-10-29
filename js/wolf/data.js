@@ -219,7 +219,7 @@ export const CHARS = [
   // 外面的十位记录者。弥萨格的梦漏了信号出去，他们顺着信号坐进来，
   // 看这场投票像看一场直播——所以他们会说「省流」「切片」「抽取建议」。
   // up: true 只是让组局时保证每局至少坐到两个（见 engine.js 的 pickRoster）。
-  { av: '9001', zh: '弥萨格校猫', en: 'Morimens Nightcat', tone: 'child', realm: '混沌', cls: '辅助型', call: '主播', hint: 'B站 · 弥萨格校猫Light', up: true },
+  { av: '9001', zh: '弥萨格校猫', en: 'Morimens Nightcat', tone: 'lord', realm: '混沌', cls: '辅助型', call: '守密人', hint: '制作人 · 弥萨格校猫Light', up: true, badge: '官' },
   { av: '9002', zh: '萨摩不耶', en: 'Samoyed', tone: 'cold', realm: '超维', cls: '辅助型', call: '主播', hint: 'B站 · 萨摩_不耶', up: true },
   { av: '9003', zh: '梦依流苏', en: 'Myls', tone: 'art', realm: '深海', cls: '伤害型', call: '主播', hint: 'B站 · 梦依流苏_myls', up: true },
   { av: '9004', zh: '爱丽丝', en: 'Alice', tone: 'lord', realm: '混沌', cls: '伤害型', call: '主播', hint: 'B站 · 金发女人丨型', up: true },

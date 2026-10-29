@@ -495,7 +495,8 @@ function refreshRoster() {
     b.append(nm);
     if (p.isPlayer) b.append(el('span', 'you', '你'));
     // 从外面接进来的八个记录者：名字后面挂个 UP，一眼看得出这桌谁不是唤醒体
-    else if (p.char && p.char.up) b.append(el('span', 'up', 'UP'));
+    // 校猫是官方的人（制作人莱特），角标写「官」；其余九位是主播，写 UP
+    else if (p.char && p.char.up) b.append(el('span', 'up', p.char.badge || 'UP'));
     const cl = G.claims[p.id];
     if (cl) b.append(el('span', 'cl', '自称 ' + ROLES[cl].zh));
     else if (mine.has(p.id) && p.id !== 0) b.append(el('span', 'cl', '同伙'));
@@ -1035,7 +1036,7 @@ function showRules() {
       const CN = ['零', '一', '两', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
       const cnN = CN[upList.length] || String(upList.length);
       box.append(el('h4', '', '桌上还坐着' + cnN + '位'));
-      const upP = el('p', 'sub', '弥萨格的梦漏了信号出去。有' + cnN + '位顺着信号坐进来——他们在另一个世界做着同一件事：把这款游戏讲给别人听。所以他们会说「省流」「抽取建议」「这个不建议抽」，会管你叫主播。别觉得奇怪，他们只是改不掉。');
+      const upP = el('p', 'sub', '弥萨格的梦漏了信号出去。有' + cnN + '位顺着信号坐进来——他们在另一个世界做着同一件事：把这款游戏讲给别人听。所以他们会说「省流」「抽取建议」「这个不建议抽」，会管你叫主播。别觉得奇怪，他们只是改不掉。其中有一位不太一样：弥萨格校猫是《忘却前夜》的制作人莱特，他说话像在念一份公告——会致歉、会分条说明、会承诺，也会管你叫「守密人」。');
       box.append(upP);
       const upGrid = el('div', 'upgrid');
       for (const c of upList) {
