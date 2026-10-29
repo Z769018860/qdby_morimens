@@ -610,7 +610,7 @@ export function updateHUD() {
     else if (mm.id === 'zerokr') mkey = G.mech.flag ? '立誓 · 期满' : `立誓 ${Math.max(0, Math.ceil(90 - G.t))}s`;
     else if (mm.id === 'blossom') mkey = '花信';
     else if (mm.id === 'starlit') mkey = '星轨 ' + Math.max(0, Math.ceil(8 - G.mech.t)) + 's';
-    else if (mm.id === 'powerbank') mkey = '充电 ' + Math.max(0, Math.ceil(4 - G.mech.t)) + 's';
+    else if (mm.id === 'gatekeep') mkey = '挡路 ' + Math.max(0, Math.ceil(12 - G.mech.t)) + 's';
   }
   if (hudCache.mkey !== mkey) {
     hudCache.mkey = mkey;
