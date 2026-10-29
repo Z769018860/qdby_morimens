@@ -728,7 +728,7 @@ export function nightOptions(G) {
   }
   if (sub === 'guard') {
     return {
-      sub, title: '今夜守谁？', hint: me.lastGuard != null ? '不能连着两晚守同一个人。' : '守对了，他今晚就不会死。',
+      sub, title: '今夜守谁？', hint: me.lastGuard != null ? '不能连着两晚守同一个人。' : '守对了，今夜就不会死人。',
       list: alive(G).filter((p) => p.id !== me.lastGuard).map((p) => p.id),
       optional: false,
     };
@@ -736,7 +736,7 @@ export function nightOptions(G) {
   if (sub === 'check') {
     const done = new Set((me.checks || []).map((c) => c.to));
     return {
-      sub, title: '观测谁？', hint: '你能看见他体内有没有黑液。',
+      sub, title: '观测谁？', hint: '你能看见目标体内有没有黑液。',
       list: alive(G).filter((p) => p.id !== 0 && !done.has(p.id)).map((p) => p.id),
       optional: false,
     };

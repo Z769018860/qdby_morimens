@@ -100,9 +100,9 @@ export function evidence(G, ai, tid) {
 
   // 0) 直接自爆：当众说自己是融蚀方
   if (tc === 'eroded' || tc === 'lurker' || tc === 'whisper') {
-    out.push({ k: 'selfOut', w: 200, why: '他自己说他是融蚀体' });
+    out.push({ k: 'selfOut', w: 200, why: '自己说自己是融蚀体' });
   } else if (tc === 'mole' || tc === 'forgotten') {
-    out.push({ k: 'thirdOut', w: 55, why: '他自己承认站在融蚀那边' });
+    out.push({ k: 'thirdOut', w: 55, why: '自己承认站在融蚀那边' });
   }
 
   // 1) 牌数对不上：最好用的一条
@@ -110,14 +110,14 @@ export function evidence(G, ai, tid) {
     const pool = left[tc] || 0;
     const others = claimCount(G, tc, tid);
     if (pool <= 0) {
-      out.push({ k: 'census', w: 85, why: `桌上已经没有「${ROLES[tc].zh}」这张牌了，他还在自称` });
+      out.push({ k: 'census', w: 85, why: `桌上已经没有「${ROLES[tc].zh}」这张牌了，还在自称` });
     } else if (others >= pool) {
       out.push({
         k: 'claimConflict', w: 34 + 11 * (others - pool + 1),
-        why: `他和另外 ${others} 个人都自称「${ROLES[tc].zh}」，可桌上只剩 ${pool} 张`,
+        why: `和另外 ${others} 个人都自称「${ROLES[tc].zh}」，可桌上只剩 ${pool} 张`,
       });
     } else if (others > 0) {
-      out.push({ k: 'claimConflict', w: 20, why: `他也自称「${ROLES[tc].zh}」，和別人撞了` });
+      out.push({ k: 'claimConflict', w: 20, why: `也自称「${ROLES[tc].zh}」，和别人撞了` });
     }
   }
 
@@ -129,7 +129,7 @@ export function evidence(G, ai, tid) {
     if (first.role !== last.role) {
       out.push({
         k: 'flip', w: 30 + 8 * Math.min(3, G.day - first.day),
-        why: `他第 ${first.day} 天自称「${ROLES[first.role].zh}」，第 ${last.day} 天改称「${ROLES[last.role].zh}」`,
+        why: `第 ${first.day} 天自称「${ROLES[first.role].zh}」，第 ${last.day} 天改称「${ROLES[last.role].zh}」`,
       });
     }
   }
@@ -140,11 +140,11 @@ export function evidence(G, ai, tid) {
     const cred = credOf(G, ai, r.by);
     if (cred <= 0.1) continue;
     if (r.res === 'eroded') {
-      out.push({ k: 'reportWolf', w: 46 * cred + 4, why: `${byId(G, r.by) ? byId(G, r.by).name : '有人'}公布过「他是融蚀体」` });
+      out.push({ k: 'reportWolf', w: 46 * cred + 4, why: `${byId(G, r.by) ? byId(G, r.by).name : '有人'}公布过「验出是融蚀体」` });
     } else if (r.res === 'void') {
-      out.push({ k: 'reportVoid', w: 26 * cred, why: `有人验出他「不是人」` });
+      out.push({ k: 'reportVoid', w: 26 * cred, why: `有人验出「不是人」` });
     } else {
-      out.push({ k: 'reportClean', w: -22 * cred, why: `有人验出他是干净的` });
+      out.push({ k: 'reportClean', w: -22 * cred, why: `有人验出是干净的` });
     }
   }
   // 报假账：翻牌之后能反查
@@ -154,10 +154,10 @@ export function evidence(G, ai, tid) {
     if (!actual) continue;
     const realWolf = WOLF_SIDE.has(actual) && actual !== 'mole';
     if (r.res === 'eroded' && !realWolf) {
-      out.push({ k: 'falseReport', w: 55, why: `他说${byId(G, r.to).name}是融蚀体，可那个人翻牌是「${ROLES[actual].zh}」` });
+      out.push({ k: 'falseReport', w: 55, why: `指认${byId(G, r.to).name}是融蚀体，可那个人翻牌是「${ROLES[actual].zh}」` });
     }
     if (r.res === 'clean' && realWolf) {
-      out.push({ k: 'shieldWolf', w: 55, why: `他替${byId(G, r.to).name}担保过，可那个人翻牌是「${ROLES[actual].zh}」` });
+      out.push({ k: 'shieldWolf', w: 55, why: `替${byId(G, r.to).name}担保过，可那个人翻牌是「${ROLES[actual].zh}」` });
     }
   }
 
@@ -167,9 +167,9 @@ export function evidence(G, ai, tid) {
     const tp = byId(G, d.to);
     if (!tp || !tp.revealed) continue;
     if (WOLF_SIDE.has(tp.role) && tp.role !== 'mole') {
-      out.push({ k: 'defendWolf', w: 24, why: `他替${tp.name}说过话，后来${tp.name}翻牌是融蚀体` });
+      out.push({ k: 'defendWolf', w: 24, why: `替${tp.name}说过话，后来${tp.name}翻牌是融蚀体` });
     } else if (!WOLF_SIDE.has(tp.role)) {
-      out.push({ k: 'defendGood', w: -8, why: `他替${tp.name}说过话，那个人是干净的` });
+      out.push({ k: 'defendGood', w: -8, why: `替${tp.name}说过话，那个人是干净的` });
     }
   }
   for (const a of G.acc || []) {
@@ -177,9 +177,9 @@ export function evidence(G, ai, tid) {
     const tp = byId(G, a.to);
     if (!tp || !tp.revealed) continue;
     if (WOLF_SIDE.has(tp.role) && tp.role !== 'mole') {
-      out.push({ k: 'accuseWolf', w: -14, why: `他指认过${tp.name}，那个人翻牌是融蚀体` });
+      out.push({ k: 'accuseWolf', w: -14, why: `指认过${tp.name}，那个人翻牌是融蚀体` });
     } else if (!WOLF_SIDE.has(tp.role)) {
-      out.push({ k: 'accuseGood', w: 16, why: `他指认过${tp.name}，那个人翻牌是「${ROLES[tp.role].zh}」` });
+      out.push({ k: 'accuseGood', w: 16, why: `指认过${tp.name}，那个人翻牌是「${ROLES[tp.role].zh}」` });
     }
   }
   for (const v of G.voteHist || []) {
@@ -187,38 +187,38 @@ export function evidence(G, ai, tid) {
     const tp = byId(G, v.to);
     if (!tp || !tp.revealed) continue;
     if (WOLF_SIDE.has(tp.role) && tp.role !== 'mole') {
-      out.push({ k: 'voteWolf', w: -10, why: `他把票投给过${tp.name}，那个人是融蚀体` });
+      out.push({ k: 'voteWolf', w: -10, why: `把票投给过${tp.name}，那个人是融蚀体` });
     } else if (!WOLF_SIDE.has(tp.role)) {
-      out.push({ k: 'voteGood', w: 11, why: `他把票投给过${tp.name}，那个人翻牌是「${ROLES[tp.role].zh}」` });
+      out.push({ k: 'voteGood', w: 11, why: `把票投给过${tp.name}，那个人翻牌是「${ROLES[tp.role].zh}」` });
     }
   }
 
   // 5) 行为面：只在前几天还看不出什么时起作用
   const bites = (G.acc || []).filter((a) => a.by === tid && a.day === G.day).length;
-  if (bites >= 3) out.push({ k: 'scatter', w: 9, why: '他今天到处咬人，咬了三个人' });
-  if (G.day >= 2 && (t.talk || 0) === 0) out.push({ k: 'quiet', w: 7, why: '他一整天一句话都没说' });
+  if (bites >= 3) out.push({ k: 'scatter', w: 9, why: '今天到处咬人，咬了三个人' });
+  if (G.day >= 2 && (t.talk || 0) === 0) out.push({ k: 'quiet', w: 7, why: '一整天一句话都没说' });
   if (G.day >= 2 && tc && POWER_ROLES.has(tc) && tc !== 'lamp') {
     const gave = (G.reports || []).some((r) => r.by === tid);
-    if (!gave) out.push({ k: 'claimNoInfo', w: 12, why: `他自称「${ROLES[tc].zh}」，却一条查验都没报过` });
+    if (!gave) out.push({ k: 'claimNoInfo', w: 12, why: `自称「${ROLES[tc].zh}」，却一条查验都没报过` });
   }
   // 一直逼别人亮身份、自己却不说：这不算证据，但聪明人会记着
   const fish = (G.calls || []).filter((c) => c.by === tid).length;
   if (fish >= 2 && !G.claims[tid]) {
-    out.push({ k: 'fishing', w: 7, why: `他已经 ${fish} 次要别人亮身份，自己一直不说` });
+    out.push({ k: 'fishing', w: 7, why: `已经 ${fish} 次要别人亮身份，自己一直不说` });
   }
 
   // 6) 私心：没有硬证据时才露出来的那一点
   const hard = out.reduce((s, e) => s + Math.max(0, e.w), 0);
   const rel = relOf(ai.name, t.name);
-  if (rel > 0) out.push({ k: 'like', w: -(12 + (hard < 20 ? 10 : 0)), why: `我看他不像那种东西` });
-  if (rel < 0) out.push({ k: 'war', w: 13 + (hard < 20 ? 12 : 0), why: `我一向觉得他不对劲` });
+  if (rel > 0) out.push({ k: 'like', w: -(12 + (hard < 20 ? 10 : 0)), why: `看着不像那种东西` });
+  if (rel < 0) out.push({ k: 'war', w: 13 + (hard < 20 ? 12 : 0), why: `总觉得哪里不对劲` });
   if (!wolfEyes && ai.char && ai.char.realm && ai.char.realm === t.char.realm) {
     out.push({ k: 'realm', w: -5, why: '同一个界域的人，总归多一点信任' });
   }
 
   // 7) 融蚀方的私心：把自称能力者的清醒方推上去（这是他们的战术，不是证据）
   if (wolfEyes && tc && POWER_ROLES.has(tc)) {
-    out.push({ k: 'wolfPush', w: 14, why: `他自称「${ROLES[tc].zh}」，威胁最大` });
+    out.push({ k: 'wolfPush', w: 14, why: `自称「${ROLES[tc].zh}」，威胁最大` });
   }
 
   // 记性：越久的证据越淡（mem 低的 AI 会忘事）
@@ -353,7 +353,7 @@ export function aiStatement(G, ai) {
     push({
       kind: 'defend', target: t.id, stance: 'defend',
       text: say(G, ai, 'defend', { who: t.name }),
-      why: relOf(ai.name, t.name) > 0 ? '我跟他有交情，我说不出他坏' : null,
+      why: relOf(ai.name, t.name) > 0 ? '有交情，说不出坏话' : null,
     });
     return true;
   };
@@ -451,19 +451,19 @@ export function aiStatement(G, ai) {
       if (rnd() < 0.5) { doDefend(allyInTrouble.p); return acts; }
       const other = topSuspects(G, { id: -1, role: 'crew', char: {} }, 4)
         .map((x) => x.p).find((p) => !isAlly(ai, p) && p.id !== allyInTrouble.p.id);
-      if (other) { doAccuse(other, '他一直在带节奏，先看他'); return acts; }
+      if (other) { doAccuse(other, '一直在带节奏，先盯住'); return acts; }
     }
     // 平时：咬威胁最大的好人
     const target = weighted(foes, (p) => threatOf(G, ai, p) + hash01(G.seed, ai.id, p.id, G.day) * 14, rnd);
     if (target) {
       const DODGE = [
-        '他说话一直在躲，我不敢信',
-        '他每句都在给自己留退路',
-        '他讲了很久，一个具体的人名都没提',
-        '他一开口就在解释自己，不是在找融蚀体',
+        '说话一直在躲，不敢信',
+        '每句都在给自己留退路',
+        '讲了很久，一个具体的人名都没提',
+        '一开口就在解释自己，不是在找融蚀体',
       ];
       const why = G.claims[target.id] && POWER_ROLES.has(G.claims[target.id])
-        ? `他自称「${ROLES[G.claims[target.id]].zh}」，看着最像在装`
+        ? `自称「${ROLES[G.claims[target.id]].zh}」，看着最像在装`
         : DODGE[Math.floor(rnd() * DODGE.length)];
       doAccuse(target, why);
       return acts;
@@ -484,10 +484,10 @@ export function aiStatement(G, ai) {
       || topSuspects(G, ai, 1)[0].p;
     if (back) {
       const BACK_WHY = [
-        '他带头发难，却一条证据都拿不出来',
-        '他先指着我，可他自己什么都没说过',
-        '他急着把我推出去，急得不像在找融蚀体',
-        '他要把我送出门，理由只有一句「我怀疑」',
+        '带头发难，却一条证据都拿不出来',
+        '先指着我，可自己什么都没说过',
+        '急着把我推出去，急得不像在找融蚀体',
+        '要把我送出门，理由只有一句「我怀疑」',
       ];
       const why = (G.acc || []).some((a) => a.by === back.id && a.to === ai.id)
         ? BACK_WHY[Math.floor(rnd() * BACK_WHY.length)] : null;
@@ -513,7 +513,7 @@ export function aiStatement(G, ai) {
     if (relOf(ai.name, hot.p.name) > 0 && rnd() < 0.5 + 0.3 * wit) { doDefend(hot.p); return acts; }
     if (rnd() < 0.4 + 0.5 * wit) {
       const why = reasonOf(G, ai, hot.p.id);
-      doAccuse(hot.p, why ? why.why : `大家都看着${hot.p.name}，我也觉得他不对`);
+      doAccuse(hot.p, why ? why.why : `大家都看着${hot.p.name}，我也觉得不对`);
       return acts;
     }
   }

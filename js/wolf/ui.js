@@ -535,7 +535,7 @@ function showPlayerInfo(pid) {
       box.append(row);
       // 从这里直接进便签，省得「想到什么却要退出去找入口」
       const mine = gameNotes()[pid];
-      const nb = el('button', 'btn sm', mine && (mine.t || mine.v) ? '改这张便签' : '给他记一张便签');
+      const nb = el('button', 'btn sm', mine && (mine.t || mine.v) ? '改这张便签' : '给这位记一张便签');
       nb.type = 'button';
       nb.style.marginTop = '12px';
       nb.onclick = () => showRecords('note', pid);
@@ -744,7 +744,7 @@ function composerTalk(box) {
       title: '当众喊一句？',
       sub: '喊完就收不回。有人会站出来，有人会对着站出来的人喊回去，也有人一句话都不说。',
       body: (b) => {
-        b.append(el('p', 'sub', '亮牌的人会被你看见，也会被融蚀体看见——今晚死的多半就是他。'
+        b.append(el('p', 'sub', '亮牌的人会被你看见，也会被融蚀体看见——今晚死的多半就是这个人。'
           + '融蚀体同样会借这一嗓子塞一张假身份进来，而台上的假牌越多，越难分清谁是真人。'));
         b.append(el('p', 'sub', '一天只能喊一次。'));
         const row = el('div', 'acts');
@@ -898,7 +898,7 @@ function composerRevive(box) {
   const victim = byId(G, G.pendingRevive);
   const hint = el('div', 'chint');
   hint.append(el('b', '', '灯还亮着。'));
-  hint.append(el('span', '', (victim ? victim.name : '他') + '还有一口气。你只有一次机会。'));
+  hint.append(el('span', '', (victim ? victim.name : '那个人') + '还有一口气。你只有一次机会。'));
   box.append(hint);
   const acts = el('div', 'acts');
   const yes = el('button', 'btn primary', '点灯，把人拉回来');
@@ -1319,7 +1319,7 @@ function recNotes(body) {
     // 0 次就别写了，一排「被指认 0 · 指认 0」只是噪音
     if (acc) facts.push('被指认 ' + acc + ' 次');
     if (by) facts.push('指认过 ' + by + ' 次');
-    if (!p.isPlayer && !acc && !by) facts.push('还没人提过他');
+    if (!p.isPlayer && !acc && !by) facts.push('还没人提过');
     main.append(el('span', '', facts.join(' · ')));
     row.append(main);
 
