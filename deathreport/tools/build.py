@@ -15,7 +15,10 @@ if ED:
     from ed_common import make_docs
     from witness import WIT
     T = {}; X = {}; FLAVOR = {}; T2 = _m.PROSE; T3 = {}; EXT = {}; FRAGS = {}; ARCS = []; HIDDEN = []; ENDINGS = [_m.ENDING]; MILE = _m.MILE; ARC_SRC = ''
-    PUZ_META = []; BADGES = {}; h32 = lambda x: 0; MELT = {}; CLUTTER = {}
+    PUZ_META = []; BADGES = {}; h32 = lambda x: 0; MELT = {}
+    # 往届也有混淆段，但按届分开存：同一个名册号在三届是同一个人、不同的死法与凶手。
+    from clutter import ED_CLUTTER
+    CLUTTER = ED_CLUTTER.get(ED, {})
     from docs import MELTNOTE
     DOCS = make_docs(_m.META, len(_m.CAST), _m.OVER, _m.FINALS); MSGS = _m.MSGS
     LORE_X = getattr(_m, 'LORE_EXTRA', {}); AVATAR_X = getattr(_m, 'AVATAR_EXTRA', {})
@@ -134,6 +137,11 @@ def _prose(n):
         # 混淆段按锚点插，不用行号：EXT 会插在开头，行号整体偏一位，插错一行就打断语序。
         # 锚点必须在本条里恰好命中一行，否则直接构建失败 —— 宁可炸掉，也不静默插到错的地方。
         for anchor, txt in CLUTTER.get(('rec', n), []):
+            # 混淆段必须是「纯文本」：带令牌会改写推导图，写序数会跟账本逐条对账时炸掉。
+            if '{' in txt:
+                raise SystemExit(f'clutter: 名册 {n} 的混淆段带了令牌：{txt[:24]}')
+            if re.search(r'第[一二三四五六七八九十百零两\d]+个', txt):
+                raise SystemExit(f'clutter: 名册 {n} 的混淆段写了序数：{txt[:24]}')
             hit = [i for i, ln in enumerate(L) if anchor in ln]
             if len(hit) != 1:
                 raise SystemExit(f'clutter: 名册 {n} 的锚点「{anchor}」命中 {len(hit)} 行（需恰好 1 行）')

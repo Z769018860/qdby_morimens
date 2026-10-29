@@ -5,6 +5,8 @@ import { startBg, setTheme } from './bg.js';
 import { unlock as unlockAudio, play, setSound, setTheme as setAudioTheme, startAmbient, stopAmbient } from './audio.js';
 let ED = 63;
 const EDS = { 63: ['data/game.json', 'morimens-deathreport-save-v1'], 62: ['data/game-62.json', 'morimens-deathreport-save-ed62-v1'], 61: ['data/game-61.json', 'morimens-deathreport-save-ed61-v1'] };
+// 上次停在哪一届。存档是按届分开的，刷新后如果一律跳回本篇，往届玩家会以为进度丢了。
+const EDKEY = 'morimens-deathreport-ed';
 const SAVE = { toString: () => EDS[ED][1] }, PREF = 'morimens-deathreport-pref-v1';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -418,6 +420,7 @@ function help() {
 }
 async function loadEdition(n) {
   ED = n; G = await (await fetch(EDS[n][0])).json(); buildAuto(); setTheme(n); setAudioTheme(n); setBg('title'); heard.clear();
+  try { localStorage.setItem(EDKEY, String(n)); } catch { /* ignore */ }
   document.title = n === 63 ? '死亡游戏调查报告 · 第六十三次回溯筛选' : `死亡游戏调查报告 · ${G.edition.label}回溯筛选（往届）`;
   $('.sub').textContent = n === 63 ? '第六十三次　回溯筛选　完全复原' : G.edition.subtitle + '（往届档案）';
 }
@@ -473,7 +476,11 @@ function start(saved) {
 }
 (async () => {
   applyPref();
-  startBg(); await loadEdition(63);
+  startBg();
+  // 回上次那一届（只在该届确实有存档时才回；没存档就回本篇，免得开局面对一份空档案）
+  let n = 63;
+  try { const v = +localStorage.getItem(EDKEY); if ((v === 62 || v === 61) && localStorage.getItem(EDS[v][1])) n = v; } catch { /* ignore */ }
+  await loadEdition(n);
   sanitizeSave();
   window.__dr = { get G() { return G; }, get st() { return st; } };
   bootTitle();
