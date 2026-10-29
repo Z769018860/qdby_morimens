@@ -389,9 +389,9 @@ export function rosterPage(app) {
   return `<div class="page"><h2>唤醒体 <small>${Object.keys(s.roster).length}/${data.awakeners.length}</small></h2>
     <div class="row filters"><span class="dim">界域</span>${opt(REALMS, f.realm, 'realm')}<span class="dim">类型</span>${opt(TYPES, f.type, 'type')}<label><input type="checkbox" data-filter="owned" ${f.owned ? 'checked' : ''}> 仅已拥有</label></div>
     <div class="row sortbar"><span class="dim">排序</span>${sorts}</div>
-    <div class="grid">${list.map(({ a, r, power: p }) => `<div class="tile ${r ? '' : 'locked'} ${rarCls(a.rarity)}" style="--rc:${R(a).color}" data-act="detail" data-slug="${a.slug}">
-      <img src="${img(a.portrait)}" alt="" loading="lazy"><b>${esc(a.zh)}</b><small>${r ? `Lv${r.lv} · 叠${r.star} · ${TYPES[a.type].short}` : `未获得 · ${TYPES[a.type].short}`}</small><small>${r ? `战力 ${fmt(p)}` : REALMS[a.realm].zh}</small></div>`).join('')}</div>
-    <p class="hint">排序：稀有度 / 战力 / 等级 / 叠位数 / 获取顺序 / 界域，再点一次当前排序可以反过来。未获得的永远排在后面，筛选里的「仅已拥有」可以只看已有。</p></div>`;
+    <div class="grid">${list.map(({ a, r, power: p }) => `<div class="tile ${r ? '' : 'locked'} ${rarCls(a.rarity)} ${a.creator ? 'gift' : ''}" style="--rc:${R(a).color}" data-act="detail" data-slug="${a.slug}">
+      <img src="${img(a.portrait)}" alt="" loading="lazy"><b>${esc(a.zh)}</b><small>${r ? `Lv${r.lv} · 叠${r.star} · ${TYPES[a.type].short}` : a.creator ? '未获得 · 联名赠送' : `未获得 · ${TYPES[a.type].short}`}</small><small>${r ? `战力 ${fmt(p)}` : REALMS[a.realm].zh}</small>${a.creator ? '<i class="gmark">联名</i>' : ''}</div>`).join('')}</div>
+    <p class="hint">排序：稀有度 / 战力 / 等级 / 叠位数 / 获取顺序 / 界域，再点一次当前排序可以反过来。未获得的永远排在后面，筛选里的「仅已拥有」可以只看已有。<b>带「联名」角标的是社区主播彩蛋</b>，不参与召唤，只从「更多 → 联动」的签到与活动里赠送。</p></div>`;
 }
 
 const NUM_ZH = { dmg: '伤害', shield: '护盾', gauge: '狂气' };
@@ -442,10 +442,13 @@ export function detailModal(app, slug) {
     </div>` : '';
 
   const html = `<div class="detail" style="--rc:${R(a).color}">
-    <div class="d-art"><img src="${img(a.card)}" alt="${esc(a.zh)}立绘" data-act="zoom" data-slug="${slug}" loading="lazy"><span class="zoomhint">点立绘看大图</span></div>
+    <div class="d-art"><img src="${img(a.card)}" alt="${esc(a.zh)}立绘" data-act="zoom" data-slug="${slug}" loading="lazy"><span class="zoomhint">${a.creator ? '点开看大图' : '点立绘看大图'}</span></div>
     <div class="d-body"><h3>${esc(a.zh)} <small>${esc(a.en)}</small></h3>
-      <div class="tags"><span class="tag" style="background:${R(a).color}">${R(a).zh}</span><span class="tag">${TYPES[a.type].zh}</span><span class="tag ${rarCls(a.rarity)}">${a.rarity === 'Genesis' ? '创生' : a.rarity}</span></div>
-      ${r ? `<div class="lv">Lv <b>${r.lv}</b>/${cap}　<span class="awaken">${awk(r.star)}/${MAX_AWAKEN}</span>${r.brk ? `　已突破 ${r.brk} 次` : ''}</div>` : '<div class="lv dim">尚未获得 · 通过召唤获取</div>'}
+      <div class="tags"><span class="tag" style="background:${R(a).color}">${R(a).zh}</span><span class="tag">${TYPES[a.type].zh}</span><span class="tag ${rarCls(a.rarity)}">${a.rarity === 'Genesis' ? '创生' : a.rarity}</span>${a.creator ? `<span class="tag ctag">${esc(a.creator.emoji)} 联名嘉宾</span>` : ''}</div>
+      ${a.creator ? `<div class="cbox"><b>${esc(a.creator.bio)}</b>
+        <small><a href="${esc(a.creator.url)}" target="_blank" rel="noopener">bilibili 空间 · UID ${esc(a.creator.uid)}</a> · 只送不抽（签到 / 活动）</small>
+        <small class="dim">技能按昵称里的意象原创，非本人设定，也不代表本人观点。</small></div>` : ''}
+      ${r ? `<div class="lv">Lv <b>${r.lv}</b>/${cap}　<span class="awaken">${awk(r.star)}/${MAX_AWAKEN}</span>${r.brk ? `　已突破 ${r.brk} 次` : ''}</div>` : `<div class="lv dim">尚未获得 · ${a.creator ? '签到 / 活动赠送' : '通过召唤获取'}</div>`}
       <div class="stats"><span>生命 <b>${fmt(st.hp)}</b></span><span>攻击 <b>${fmt(st.atk)}</b></span><span>防御 <b>${fmt(st.def)}</b></span><span>暴击 <b>${st.critRate.toFixed(1)}%</b></span><span>爆伤 <b>${st.critDmg.toFixed(0)}%</b></span><span>增伤 <b>${st.amp.toFixed(0)}%</b></span><span>战力 <b>${fmt(power(st))}</b></span>${st.openAli ? `<span>起始共鸣 <b>${Math.round(st.openAli)}</b></span>` : ''}${st.openKey ? `<span>起始钥焰 <b>${Math.round(st.openKey)}</b></span>` : ''}</div>
       <p class="hint">每级成长：生命 +${g.hp}　攻击 +${g.atk}　防御 +${g.def}（已含叠位加成）。技能等级 Lv.${lvl + 1}/5。</p>
       ${growBtns}

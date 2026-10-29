@@ -13,6 +13,8 @@ import { buildEnemies, stageInfo } from './enemies.js';
 import { simulate, roundLimitFor } from './battle.js';
 import { emptySquads, emptyPick, normalizeSquads, normalizePick } from './squad.js';
 import { emptyGacha, normalizeGacha, recordPull, recordBatch } from './gacha.js';
+import { CREATORS, creatorKit } from './creators.js';
+import { emptyEvent, noteBattle } from './event.js';
 
 export const BATTLE_SECONDS = 25;       // assumed wall-clock length of one farm battle (offline maths)
 export const OFFLINE_CAP_HOURS = 8;
@@ -28,15 +30,25 @@ export function indexData(pack) {
   const extra = pack.special || {};
   const monsters = extra.monsters?.length ? [...pack.monsters, ...extra.monsters] : pack.monsters;
   const msk = extra.msk ? { ...pack.msk, ...extra.msk } : pack.msk;
+  /* 彩蛋角色（联名主播）走 core/creators.js，和官方角色同一张表：
+     剧情 / 养成 / 编队全部通用，但 avail = 'GIFT'，抽卡池会按 a.creator 把他们排除。 */
+  const extraAw = (pack.creators || CREATORS).filter((a) => !pack.awakeners.some((x) => x.slug === a.slug));
+  const awakeners = extraAw.length ? [...pack.awakeners, ...extraAw] : pack.awakeners;
   const d = {
     ...pack,
-    monsters, msk,
+    awakeners, monsters, msk,
     orders: pack.orders || [],
-    bySlug: Object.fromEntries(pack.awakeners.map((a) => [a.slug, a])),
+    bySlug: Object.fromEntries(awakeners.map((a) => [a.slug, a])),
     monById: Object.fromEntries(monsters.map((m) => [m.id, m])),
     wheelById: by(pack.wheels), covById: by(pack.covenants), relicById: by(pack.relics),
     orderById: by(pack.orders || []),
-    kit(slug, level = 2) { const id = `${slug}:${level}`; return kits[id] || (kits[id] = buildKit(d.bySlug[slug], level, med)); },
+    kit(slug, level = 2) {
+      // 彩蛋角色的技能是手写的，不走「类型模板 + 原作文本反推」那一套
+      const ck = creatorKit(slug, level);
+      if (ck) return ck;
+      const id = `${slug}:${level}`;
+      return kits[id] || (kits[id] = buildKit(d.bySlug[slug], level, med));
+    },
   };
   return d;
 }
@@ -63,6 +75,8 @@ export function newState(data, now = Date.now()) {
     // 融灾禁区（M15）：每两周一期，层数在期内累积，best 永久保留
     rift: { cycle: '', floor: 0, best: 0, day: '', tries: 0, tkFrac: 0, coFrac: 0, runs: 0 },
     squads: emptySquads(), squadPick: emptyPick(), gacha: emptyGacha(),
+    // 联动活动「星辉直播间」：每日任务计数 + 人气 + 已解锁档位（core/event.js）
+    event: emptyEvent(),
   };
 }
 
@@ -104,6 +118,8 @@ export function migrate(s, data) {
   rf.best = Math.max(rf.floor, Math.min(100, Math.floor(rf.best || 0)));
   rf.tries = Math.max(0, Math.floor(rf.tries || 0));
   m.rift = rf;
+  // 联动活动：老存档没有就从零开始；每日计数按当天惰性重置（eventState）
+  m.event = { ...base.event, ...(s.event || {}), daily: { ...base.event.daily, ...(s.event?.daily || {}) } };
   return m;
 }
 
@@ -407,6 +423,9 @@ export function applyResult(state, data, res) {
       miss.stage = state.stage; miss.n = 0;
     }
   }
+  // 联动活动的每日任务只数在线战斗（离线那 1000 多场不算，否则睡一觉任务就满了）
+  rw.win = res.win;
+  noteBattle(state, rw);
   return rw;
 }
 
@@ -626,7 +645,8 @@ export function pullOnce(state, data, rng) {
   else rarity = 'SR';
   if (rarity === 'Genesis') p.genesis = 0;
   if (rarity !== 'SR') p.ssr = 0;
-  const pool = data.awakeners.filter((a) => a.rarity === rarity);
+  // 彩蛋角色（联名主播）不进池子：他们只从签到与活动赠送来（见 core/creators.js）
+  const pool = data.awakeners.filter((a) => a.rarity === rarity && !a.creator);
   const a = pool[Math.floor(rng() * pool.length)];
   const own = state.roster[a.slug];
   let dup = false, gold = 0;

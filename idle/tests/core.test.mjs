@@ -9,7 +9,7 @@ import { buildKit, describeSkill } from '../src/core/skills.js';
 import { SLOTS } from '../src/core/constants.js';
 
 test('data pack is complete', () => {
-  assert.equal(data.awakeners.length, 62);
+  assert.equal(data.awakeners.length, 71);   // 62 名官方 + 9 名联名彩蛋（core/creators.js）
   assert.ok(data.wheels.length >= 140 && data.relics.length >= 300 && data.covenants.length === 21);
   for (const a of data.awakeners) assert.ok(a.portrait && a.zh, a.slug);
 });
@@ -138,7 +138,8 @@ const mkKit = (effects) => Object.fromEntries(SLOTS.map((s) => [s, { slot: s, na
 
 test('every awakener carries real card names and the keyword pack', () => {
   assert.ok(Object.keys(data.kw).length >= 90);
-  for (const a of data.awakeners) {
+  // 彩蛋角色在原作里不存在，没有 rk 原文，只有手写技能名（下面单独测）
+  for (const a of data.awakeners.filter((x) => !x.creator)) {
     const k = data.kit(a.slug);
     for (const s of SLOTS) assert.ok(k[s].name && k[s].real?.d, `${a.slug}.${s}`);
   }
@@ -1324,4 +1325,127 @@ test('自动挂机：前线失手会退到有收益的最高层，不会死守�
   const m = newState(data, 75); m.maxStage = 60; m.stage = 61; m.auto = false;
   applyResult(m, data, runBattle(m, data, 61));
   assert.equal(m.stage, 61, '手动挂机输了不退');
+});
+
+/* ---------------------------------------------- M17: 联名彩蛋角色 + 联动活动「星辉直播间」 */
+
+import { CREATORS, SIGNIN_GIFTS, CREATOR_KITS, creatorKit, grantCreator, syncSigninGifts, CREATOR_BY_SLUG } from '../src/core/creators.js';
+import {
+  noteBattle, dailyView, claimDaily, claimMile, milePending, fameOf, tiersView, claimTier, eventSummary,
+  eventState, DAILY, TIERS, MILE, SIGNIN_FAME, dayKey,
+} from '../src/core/event.js';
+
+test('彩蛋角色：9 位都进了表、带完整 7 槽技能、不进抽卡池', () => {
+  const cr = data.awakeners.filter((a) => a.creator);
+  assert.equal(cr.length, 9);
+  for (const a of cr) {
+    assert.ok(a.portrait && a.card, `${a.slug} 缺图`);
+    assert.equal(a.avail, 'GIFT', `${a.slug} 不该进抽卡池`);
+    assert.ok(a.creator.uid && a.creator.url.includes('space.bilibili.com'), `${a.slug} 缺主播信息`);
+    const k = data.kit(a.slug, 2);
+    for (const s of SLOTS) {
+      assert.ok(k[s]?.name, `${a.slug}.${s} 没有名字`);
+      assert.ok(k[s].effects.length > 0, `${a.slug}.${s} 没有效果`);
+    }
+    assert.ok(k.Exalt.effects.some((e) => ['dmg', 'heal', 'shield', 'buff'].includes(e.t)), `${a.slug} 的共鸣没有实际作用`);
+  }
+  // 抽 300 次一个都抽不到
+  const s = newState(data, 11); s.tickets = 3000;
+  const out = summon(s, data, 300);
+  assert.equal(out.filter((p) => data.bySlug[p.slug].creator).length, 0);
+  // 官方角色仍在池子里
+  assert.ok(out.some((p) => !data.bySlug[p.slug].creator));
+});
+
+test('彩蛋角色：技能数值随技能等级成长，四界域都有', () => {
+  const lo = creatorKit('samo', 0), hi = creatorKit('samo', 4);
+  const dmgOf = (k) => k.Skill2.effects.find((e) => e.t === 'dmg').m;
+  assert.ok(dmgOf(hi) > dmgOf(lo), '技能等级高，伤害该更高');
+  const realms = new Set(CREATORS.map((a) => a.realm));
+  assert.deepEqual([...realms].sort(), ['AEQUOR', 'CARO', 'CHAOS', 'ULTRA'], '四个界域都要有人，才凑得出同域加成');
+  const types = new Set(CREATORS.map((a) => a.type));
+  assert.deepEqual([...types].sort(), ['ASSAULT', 'CHORUS', 'WARDEN']);
+});
+
+test('彩蛋角色：签到赠礼按累计天数补发，且不会重复发', () => {
+  const s = newState(data, 12);
+  assert.equal(syncSigninGifts(s).length, 0, '没签到时什么都不送');
+  s.stats.signins = 3;
+  const one = syncSigninGifts(s);
+  assert.equal(one.length, 1);
+  assert.equal(one[0].slug, SIGNIN_GIFTS[0].slug);
+  assert.ok(s.roster[one[0].slug], '人要在 roster 里');
+  assert.equal(syncSigninGifts(s).length, 0, '再调一次不重复发');
+  s.stats.signins = 15;
+  assert.equal(syncSigninGifts(s).length, 2, '补发剩下的两位');
+  assert.equal(Object.keys(s.roster).filter((k) => CREATOR_BY_SLUG[k]).length, 3);
+  // 直接发也幂等
+  assert.equal(grantCreator(s, SIGNIN_GIFTS[0].slug), null);
+});
+
+test('联动活动：每日任务只数在线战斗，跨日重置', () => {
+  const s = newState(data, 13);
+  const d1 = new Date('2026-03-01T10:00:00Z').getTime();
+  for (let i = 0; i < 20; i++) noteBattle(s, { win: true, firstClear: i < 2 }, d1);
+  let v = dailyView(s, d1);
+  assert.equal(v.find((t) => t.id === 'battles').cur, 20);
+  assert.equal(v.find((t) => t.id === 'wins').cur, 15);
+  assert.equal(v.find((t) => t.id === 'clears').cur, 2);
+  assert.ok(v.every((t) => t.done));
+  // 领取一次，人气进账，第二次领不到
+  const before = s.event.fame;
+  assert.equal(claimDaily(s, 'wins', d1).fame, DAILY.find((t) => t.id === 'wins').fame);
+  assert.equal(s.event.fame, before + DAILY.find((t) => t.id === 'wins').fame);
+  assert.equal(claimDaily(s, 'wins', d1), null);
+  // 第二天归零
+  const d2 = new Date('2026-03-02T09:00:00Z').getTime();
+  v = dailyView(s, d2);
+  assert.equal(v.find((t) => t.id === 'battles').cur, 0);
+  assert.equal(s.event.day, dayKey(d2));
+});
+
+test('联动活动：人气 = 领取的任务 + 里程碑 + 签到，档位够了解锁角色', () => {
+  const s = newState(data, 14);
+  s.stats.signins = 1;
+  assert.equal(fameOf(s), SIGNIN_FAME, '签到也给人气');
+  // 推图里程碑：最高通关 50 关 = 5 档
+  s.maxStage = 50;
+  assert.equal(milePending(s), 5);
+  claimMile(s);
+  assert.equal(milePending(s), 0, '里程碑只能领一次');
+  assert.equal(fameOf(s), SIGNIN_FAME + 5 * MILE.fame, `1 次签到 + 5 档里程碑 = ${SIGNIN_FAME + 5 * MILE.fame} 人气`);
+  // 人气不够时不能解锁
+  const first = TIERS[0];
+  assert.equal(claimTier(s, first.slug), null);
+  // 攒够之后解锁，且不能重复领
+  s.event.fame = 5000;
+  const got = claimTier(s, first.slug);
+  assert.equal(got.slug, first.slug);
+  assert.ok(s.roster[first.slug]);
+  assert.equal(claimTier(s, first.slug), null);
+  // 面板上能看到进度
+  const sum = eventSummary(s);
+  assert.equal(sum.owned, 1);
+  assert.equal(sum.total, TIERS.length);
+  assert.ok(tiersView(s).filter((t) => t.ready).length === TIERS.length - 1);
+  assert.equal(s.roster[first.slug].lv, 1);
+});
+
+test('联动活动：老存档迁移后带 event 字段，彩蛋角色能上阵打完一场', () => {
+  const old = newState(data, 15);
+  delete old.event;
+  const m = migrate(old, data);
+  assert.ok(m.event && m.event.daily && Array.isArray(m.event.tiers));
+  // 四位彩蛋角色组队真打一场
+  const s = newState(data, 16);
+  const slugs = CREATORS.slice(0, 4).map((a) => a.slug);
+  for (const k of slugs) s.roster[k] = { lv: 40, star: 5, brk: 2 };
+  s.team = slugs; s.stage = 10; s.maxStage = 20;
+  const res = runBattle(s, data, 10);
+  assert.ok(res.events.length > 0);
+  assert.ok(res.events.every((e) => !('amt' in e) || Number.isFinite(e.amt)));
+  // 打一场会记到活动任务里
+  const before = eventState(s).daily.battles;
+  applyResult(s, data, res);
+  assert.equal(eventState(s).daily.battles, before + 1);
 });

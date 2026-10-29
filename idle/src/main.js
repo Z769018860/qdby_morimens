@@ -28,7 +28,9 @@ import { doRift } from './core/rift.js';
 import { claimAchievement, claimAllAchievements } from './core/achievements.js';
 import { signToday, backfill, claimCum } from './core/signin.js';
 import { buy as shopBuy, SHOP } from './core/shop.js';
-import { signinPage } from './ui/pages4.js';
+import { signinPage, eventPage } from './ui/pages4.js';
+import { claimDaily, claimTier, claimMile } from './core/event.js';
+import { syncSigninGifts } from './core/creators.js';
 import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
 import { startGuide } from './ui/guide.js';
 import { $, $$, fmt, esc, store, toast, closeModal, openModal, showKwPop } from './ui/util.js';
@@ -49,7 +51,7 @@ const GROUPS = [
   { k: 'team', zh: '养成', icon: ICON.team, tabs: [['team', '队伍'], ['roster', '唤醒体'], ['gear', '命轮密契'], ['orders', '钥令']] },
   { k: 'summon', zh: '召唤', icon: ICON.summon, tabs: [['summon', '召唤']] },
   { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '挑战'], ['rift', '融灾禁区'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场']] },
-  { k: 'more', zh: '更多', icon: ICON.more, tabs: [['signin', '签到'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']] },
+  { k: 'more', zh: '更多', icon: ICON.more, tabs: [['signin', '签到'], ['event', '联动'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']] },
 ];
 
 /* 每个页面用一张典藏室（原作 CG 壁纸）当底，压暗后铺在内容后面。
@@ -58,6 +60,7 @@ const GROUPS = [
 const BG = {
   battle: '17', team: '13', roster: '14', gear: '15', orders: '16', summon: '18',
   challenge: '19', weekly: '20', rtower: '21', arena: '22', signin: '23', codex: '24', ach: '25', settings: '26', rift: '33',
+  event: '34',
 };
 let bgNow = '';
 function setBg(tab) {
@@ -75,7 +78,7 @@ const GROUP_OF = Object.fromEntries(GROUPS.flatMap((g) => g.tabs.map(([k]) => [k
 const MOOD_OF = {
   team: 'home', roster: 'home', gear: 'home', orders: 'home', summon: 'summon',
   challenge: 'tower', weekly: 'tower', rtower: 'tower', arena: 'battle',
-  signin: 'home', codex: 'home', ach: 'home', settings: 'home',
+  signin: 'home', codex: 'home', ach: 'home', settings: 'home', event: 'home',
 };
 const gachaSound = (out) => (out.some((p) => p.rarity === 'Genesis') ? 'reveal3' : out.some((p) => p.rarity === 'SSR') ? 'reveal2' : 'reveal1');
 
@@ -130,6 +133,8 @@ async function boot() {
   if (rep && (rep.gold || rep.tickets)) {
     P.offlineModal(app, rep, () => { claimOffline(app.state, rep); app.save(); app.refreshTop(); toast('已领取离线收益'); app.bv.start(); maybeGuide(); });
   } else { claimOffline(app.state, rep || null); app.bv.start(); maybeGuide(); }
+  // 累计签到送的那几位：达标就自动进包（老存档首次进游戏也会补发）
+  checkSigninGifts();
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('beforeunload', () => app.save());
   setInterval(() => app.save(), 15000);
@@ -201,12 +206,24 @@ function refreshArena() {
   if (app.tab === 'arena') render();
 }
 function render() {
-  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, orders: P.ordersPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, rift: P3.riftPage, ach: P2.achievementPage }[app.tab];
+  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, orders: P.ordersPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, rift: P3.riftPage, ach: P2.achievementPage, event: eventPage }[app.tab];
   if (f) { const y = window.scrollY; $('#view').innerHTML = f(app); window.scrollTo(0, y); }
   app.refreshTop();
 }
 const rewardLine = (r) => `召唤券+${r.tickets} 银芯+${r.cores} 金币+${r.gold}`;
 const rerender = () => { app.save(); render(); };
+
+/* 累计签到送的联名嘉宾（core/creators.js 的 SIGNIN_GIFTS）：达标自动进包，
+   已拥有就什么都不做，所以可以放心每次签到后都调一次。 */
+function checkSigninGifts() {
+  if (!app.state) return [];
+  const got = syncSigninGifts(app.state);
+  if (!got.length) return [];
+  app.save();
+  sound.play('summonSSR');
+  toast(`🎁 累计签到赠礼：${got.map((g) => g.zh).join('、')} 已加入队伍（更多 → 联动 可查看）`, 4200);
+  return got;
+}
 
 function onChange(e) {
   if (e.target.matches('[data-settle]')) { settleMode.set(e.target.value); toast('结算弹窗：' + e.target.selectedOptions[0].textContent); return; }
@@ -427,9 +444,32 @@ function onAct(e) {
     case 'gear-refine': if (refineItem(s, el.dataset.uid)) { sound.play('lvup'); rerender(); } break;
     case 'welcome-claim': { const r = claimWelcome(s, d, portalUser()); if (r) { sound.play('summonSSR'); toast(`注册福利已到账：银芯+${r.cores} 召唤券+${r.tickets} 金币+${r.gold}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
     case 'welcome-7': { const r = claimSeven(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`新手福利：银芯+${r.cores} 召唤券+${r.tickets}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
-    case 'sign-today': { const r = signToday(s, d); if (r) { sound.play('ach'); toast(`签到成功：${rewardLine(r)}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
-    case 'sign-back': { const r = backfill(s, d, +el.dataset.d); if (r) { sound.play('gold'); toast(`补签成功：${rewardLine(r)}`); rerender(); } break; }
+    case 'sign-today': { const r = signToday(s, d); if (r) { sound.play('ach'); toast(`签到成功：${rewardLine(r)}`); if (r.items.length) P.showItems(app, r.items); rerender(); checkSigninGifts(); } break; }
+    case 'sign-back': { const r = backfill(s, d, +el.dataset.d); if (r) { sound.play('gold'); toast(`补签成功：${rewardLine(r)}`); rerender(); checkSigninGifts(); } break; }
     case 'sign-cum': { const r = claimCum(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`累计奖励：${rewardLine(r)}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
+    // ---- 联动活动「星辉直播间」 ----
+    case 'event-daily': {
+      const r = claimDaily(s, el.dataset.id);
+      if (r) { sound.play('ach'); toast(`任务完成：人气 +${r.fame}`); rerender(); }
+      break;
+    }
+    case 'event-mile': {
+      const r = claimMile(s);
+      if (r) { sound.play('gold'); toast(`推图里程碑：人气 +${r.fame}（${r.n} 档）`); rerender(); }
+      break;
+    }
+    case 'event-tier': {
+      const slug = el.dataset.slug;
+      const r = claimTier(s, slug);
+      if (r) {
+        app.save();
+        sound.play('summonSSR');
+        toast(`🎉 联名嘉宾「${d.bySlug[slug].zh}」加入队伍`, 3000);
+        P.detailModal(app, slug);
+        render();
+      } else toast('人气还不够，或者已经解锁过了');
+      break;
+    }
     case 'ach-cat': app.ui.achCat = el.dataset.k; render(); break;
     case 'ach-all': { const r = claimAllAchievements(s, d); if (r) { sound.play('ach'); toast(`领取 ${r.n} 个成就：召唤券+${r.tickets} 银芯+${r.cores} 金币+${r.gold}`); rerender(); } break; }
     case 'export': {

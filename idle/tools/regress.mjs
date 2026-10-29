@@ -1,4 +1,4 @@
-// 无头回归：用 Edge 的 CDP 跑一遍 14 个页面，检查报错 / 4xx，
+// 无头回归：用 Edge 的 CDP 跑一遍 15 个页面，检查报错 / 4xx，
 // 以及 M10 的三处新交互（命轮密契页换装 / 一键配队 / 手动挂机不推进）。
 // 用法：node tools/regress.mjs [http://127.0.0.1:8777/index.html]
 import { spawn, spawnSync } from 'node:child_process';
@@ -106,7 +106,7 @@ const HELPERS = `
   window.__go = (tab) => {
     const G = { battle: 'battle', team: 'team', roster: 'team', gear: 'team', orders: 'team', summon: 'summon',
       challenge: 'challenge', weekly: 'challenge', rtower: 'challenge', arena: 'challenge', rift: 'challenge',
-      signin: 'more', codex: 'more', ach: 'more', settings: 'more' };
+      signin: 'more', event: 'more', codex: 'more', ach: 'more', settings: 'more' };
     document.querySelector('[data-group="' + G[tab] + '"]').click();
     const sub = document.querySelector('[data-sub="' + tab + '"]');
     if (sub) sub.click();
@@ -132,8 +132,8 @@ await cdp.evalIife(`(() => {
   return !!b;
 })()`);
 
-// 1) 14 个页面都能渲染
-const TABS = ['battle', 'team', 'roster', 'gear', 'orders', 'summon', 'challenge', 'weekly', 'rtower', 'arena', 'signin', 'codex', 'ach', 'settings'];
+// 1) 15 个页面都能渲染
+const TABS = ['battle', 'team', 'roster', 'gear', 'orders', 'summon', 'challenge', 'weekly', 'rtower', 'arena', 'signin', 'event', 'codex', 'ach', 'settings'];
 const rendered = await cdp.evalIife(`(() => {
   const out = [];
   for (const t of ${JSON.stringify(TABS)}) {
@@ -143,7 +143,7 @@ const rendered = await cdp.evalIife(`(() => {
   return out;
 })()`);
 const blank = rendered.filter(([, n]) => !(n > 100)).map(([t, n]) => `${t}(${n})`);
-check(blank.length === 0, `14 个页面都有内容${blank.length ? '，可疑：' + blank.join(', ') : ''}`);
+check(blank.length === 0, `15 个页面都有内容${blank.length ? '，可疑：' + blank.join(', ') : ''}`);
 
 // 2) 先抽一批装备（真实路径：召唤页的祈愿），后面配队才有货可用
 const pulled = await cdp.evalIife(`(() => {
@@ -595,6 +595,59 @@ check(offback.now === offback.stage, `领完收益后挂机层切到第 ${offbac
 
 const catImg = await cdp.evalIife(`__game.data.monById.catboss.img`);
 check(/catboss_black\.webp$/.test(catImg), `校猫用节奏榜那张头像：${catImg}`);
+
+// 14.5) 联动「星辉直播间」：彩蛋角色不进池子 / 活动页能解锁 / 组队真能打
+const crInfo = await cdp.evalIife(`(() => {
+  const cr = __game.data.awakeners.filter((a) => a.creator);
+  return { total: __game.data.awakeners.length, n: cr.length, names: cr.map((a) => a.zh), avail: [...new Set(cr.map((a) => a.avail))] };
+})()`);
+check(crInfo.n === 9 && crInfo.total === 71, `9 位联名嘉宾已并进唤醒体表（共 ${crInfo.total} 名）：${crInfo.names.join('、')}`);
+check(crInfo.avail.length === 1 && crInfo.avail[0] === 'GIFT', '彩蛋角色 avail = GIFT，不进召唤池');
+
+const crPull = await cdp.evalIife(`(async () => {
+  const g = await import('/src/core/game.js');
+  const s = __game.state; s.tickets = 2000; __game.save();
+  const out = g.summon(s, __game.data, 200);
+  return out.filter((p) => __game.data.bySlug[p.slug].creator).length;
+})()`);
+check(crPull === 0, '200 抽一个彩蛋角色都没出（池子确实排除了）');
+
+await cdp.evalIife(`(async () => { window.__go('event'); await new Promise((r) => setTimeout(r, 400)); return 1; })()`);
+const evPage = await cdp.evalIife(`(() => {
+  const t = document.querySelector('#view').innerText || '';
+  return { t: t.includes('星辉直播间'), guests: document.querySelectorAll('#view .guest').length,
+    tasks: document.querySelectorAll('[data-act="event-daily"]').length,
+    sub: document.querySelector('#subnav')?.innerText || '' };
+})()`);
+check(evPage.t && evPage.guests === 9 && evPage.tasks === 3, `活动页渲染：9 张嘉宾卡 + 3 条每日任务`);
+check(/联动/.test(evPage.sub), '「更多」组里多了「联动」页签');
+await cdp.shot('event-page');
+
+const evUnlock = await cdp.evalIife(`(async () => {
+  const s = __game.state; s.event.fame = 1000; __game.save();
+  window.__go('event'); await new Promise((r) => setTimeout(r, 300));
+  const b = document.querySelector('[data-act="event-tier"]');
+  const slug = b?.dataset.slug || '';
+  const before = Object.keys(s.roster).length;
+  b?.click(); await new Promise((r) => setTimeout(r, 350));
+  document.querySelectorAll('.modal-bg').forEach((e) => e.remove());
+  return { slug, delta: Object.keys(s.roster).length - before, zh: __game.data.bySlug[slug]?.zh || '' };
+})()`);
+check(evUnlock.delta === 1, `人气够了点「解锁」，联名「${evUnlock.zh}」进队`);
+await cdp.shot('event-guests');
+
+const crFight = await cdp.evalIife(`(async () => {
+  const g = await import('/src/core/game.js');
+  const s = __game.state;
+  const slugs = __game.data.awakeners.filter((a) => a.creator).slice(0, 4).map((a) => a.slug);
+  for (const k of slugs) s.roster[k] = { lv: 40, star: 4, brk: 2 };
+  s.team = slugs; s.stage = 12; s.maxStage = 20; s.auto = false;
+  const r = g.runBattle(s, __game.data, 12);
+  g.applyResult(s, __game.data, r);
+  return { win: r.win, rounds: r.rounds, ev: r.events.length, battles: s.event.daily.battles };
+})()`);
+check(crFight.ev > 0 && crFight.battles > 0,
+  `4 位联名嘉宾组队实打一场：${crFight.win ? '胜' : '负'} · ${crFight.rounds} 回合，并记进活动任务（${crFight.battles} 场）`);
 
 // 15) 全局报错 / 4xx
 const errs = [...new Set([...cdp.runtime, ...cdp.logs])];
