@@ -429,6 +429,281 @@ function abyss(c, t, W, H) {
   vignette(c, W, H, 0.86);
 }
 
+// ------------------------------------------------------------------ 锅炉房
+function boiler(c, t, W, H) {
+  sky(c, W, H, [[0, '#160d09'], [0.6, '#100906'], [1, '#070403']]);
+  // 墙上横穿的两根主管道
+  for (const [py, ph] of [[H * 0.16, H * 0.055], [H * 0.30, H * 0.04]]) {
+    const g = c.createLinearGradient(0, py, 0, py + ph);
+    g.addColorStop(0, '#4a2f20');
+    g.addColorStop(0.4, '#6b452e');
+    g.addColorStop(1, '#2c1a11');
+    c.fillStyle = g;
+    c.fillRect(0, py, W, ph);
+    c.strokeStyle = 'rgba(255,200,150,.13)';
+    c.lineWidth = Math.max(1, H * 0.002);
+    c.beginPath(); c.moveTo(0, py + ph * 0.2); c.lineTo(W, py + ph * 0.2); c.stroke();
+    // 法兰
+    for (let x = W * 0.06; x < W; x += W * 0.17) {
+      c.fillStyle = '#3d2718';
+      c.fillRect(x, py - ph * 0.14, W * 0.008, ph * 1.28);
+      c.fillStyle = 'rgba(255,214,170,.18)';
+      c.fillRect(x + W * 0.0015, py - ph * 0.1, W * 0.0018, ph * 1.2);
+    }
+  }
+  // 右边的锅炉罐体
+  const bx = W * 0.70, bw = W * 0.24, bTop = H * 0.34, bBot = H * 0.78;
+  // 从罐顶接上去的一根立管，把这台锅炉连到天花板的横管上
+  const pg = c.createLinearGradient(bx + bw * 0.38, 0, bx + bw * 0.62, 0);
+  pg.addColorStop(0, '#2c1a11');
+  pg.addColorStop(0.45, '#5c3c26');
+  pg.addColorStop(1, '#22140d');
+  c.fillStyle = pg;
+  c.fillRect(bx + bw * 0.38, H * 0.06, bw * 0.24, bTop - H * 0.06);
+  const bg = c.createLinearGradient(bx, 0, bx + bw, 0);
+  bg.addColorStop(0, '#2a1a12');
+  bg.addColorStop(0.35, '#453022');
+  bg.addColorStop(1, '#1d120c');
+  c.fillStyle = bg;
+  c.beginPath();
+  if (c.roundRect) c.roundRect(bx, bTop, bw, bBot - bTop, bw * 0.12);
+  else c.rect(bx, bTop, bw, bBot - bTop);
+  c.fill();
+  // 炉口：橙红的火
+  const fy = bBot - (bBot - bTop) * 0.28;
+  const fg = c.createRadialGradient(bx + bw * 0.5, fy, 2, bx + bw * 0.5, fy, bw * 0.55);
+  const fl = 0.85 + Math.sin(t * 5.4) * 0.1 + Math.sin(t * 11.3) * 0.05;
+  fg.addColorStop(0, `rgba(255,196,110,${0.85 * fl})`);
+  fg.addColorStop(0.35, `rgba(255,120,40,${0.5 * fl})`);
+  fg.addColorStop(1, 'rgba(180,50,10,0)');
+  c.fillStyle = fg;
+  c.beginPath(); c.arc(bx + bw * 0.5, fy, bw * 0.55, 0, TAU); c.fill();
+  c.fillStyle = 'rgba(10,6,4,.9)';
+  c.beginPath();
+  c.ellipse(bx + bw * 0.5, fy, bw * 0.17, bw * 0.13, 0, 0, TAU);
+  c.fill();
+  // 炉口洒到地上的那片暖光
+  const fgl = c.createRadialGradient(bx + bw * 0.5, H * 0.84, 2, bx + bw * 0.5, H * 0.84, bw * 1.1);
+  fgl.addColorStop(0, `rgba(255,150,60,${0.30 * fl})`);
+  fgl.addColorStop(0.5, `rgba(220,100,30,${0.12 * fl})`);
+  fgl.addColorStop(1, 'rgba(180,60,10,0)');
+  c.fillStyle = fgl;
+  c.beginPath(); c.ellipse(bx + bw * 0.5, H * 0.86, bw * 1.0, H * 0.12, 0, 0, TAU); c.fill();
+  // 压力表
+  c.fillStyle = '#c9b48c';
+  c.beginPath(); c.arc(bx + bw * 0.5, bTop + (bBot - bTop) * 0.18, bw * 0.13, 0, TAU); c.fill();
+  c.strokeStyle = '#2a1a12'; c.lineWidth = Math.max(1.5, W * 0.003); c.stroke();
+  const na = -2.2 + Math.sin(t * 1.6) * 0.35;
+  c.beginPath();
+  c.moveTo(bx + bw * 0.5, bTop + (bBot - bTop) * 0.18);
+  c.lineTo(bx + bw * 0.5 + Math.cos(na) * bw * 0.1, bTop + (bBot - bTop) * 0.18 + Math.sin(na) * bw * 0.1);
+  c.stroke();
+  // 蒸汽：从地面往上飘的几团
+  const rnd = seedRnd(8812);
+  for (let i = 0; i < 9; i++) {
+    const sx = rnd() * W;
+    const p = ((t * (0.06 + rnd() * 0.05) + rnd()) % 1);
+    const sy = H * 0.86 - p * H * 0.62;
+    const r = Math.min(W, H) * (0.04 + p * 0.07);
+    const a = 0.10 * (1 - p) * (0.6 + 0.4 * Math.sin(t * 2 + i));
+    c.fillStyle = `rgba(226,214,200,${a})`;
+    c.beginPath(); c.arc(sx + Math.sin(p * 5 + i) * W * 0.02, sy, r, 0, TAU); c.fill();
+  }
+  // 地面
+  c.fillStyle = '#0a0605';
+  c.fillRect(0, H * 0.82, W, H * 0.18);
+  const gg = c.createLinearGradient(0, H * 0.82, 0, H);
+  gg.addColorStop(0, 'rgba(90,52,26,.18)');
+  gg.addColorStop(1, 'rgba(20,10,6,.1)');
+  c.fillStyle = gg;
+  c.fillRect(0, H * 0.82, W, H * 0.18);
+  c.strokeStyle = 'rgba(255,180,120,.06)';
+  c.lineWidth = 1;
+  for (let i = 1; i < 6; i++) {
+    const y = H * 0.82 + Math.pow(i / 6, 1.6) * H * 0.18;
+    c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke();
+  }
+  vignette(c, W, H, 0.7);
+}
+
+// ------------------------------------------------------------------ 大礼堂
+function opera(c, t, W, H) {
+  sky(c, W, H, [[0, '#180a10'], [0.5, '#12070c'], [1, '#070307']]);
+  // 幕布：两侧各一幅厚重的帘子
+  for (const side of [0, 1]) {
+    const x0 = side ? W : 0, dir = side ? -1 : 1;
+    const cw = W * 0.19;
+    for (let i = 0; i < 7; i++) {
+      const x = x0 + dir * (i * cw) / 7;
+      const g = c.createLinearGradient(x, 0, x + dir * cw / 7, 0);
+      g.addColorStop(0, 'rgba(64,14,24,.96)');
+      g.addColorStop(0.5, 'rgba(122,28,44,.9)');
+      g.addColorStop(1, 'rgba(48,10,18,.96)');
+      c.fillStyle = g;
+      c.fillRect(Math.min(x, x + dir * cw / 7), 0, cw / 7, H);
+    }
+    // 束带
+    c.fillStyle = 'rgba(226,178,110,.22)';
+    c.fillRect(Math.min(x0, x0 + dir * cw), H * 0.52, cw, H * 0.028);
+  }
+  // 舞台后的幕：波浪下摆
+  c.fillStyle = '#20090f';
+  c.fillRect(W * 0.19, 0, W * 0.62, H * 0.42);
+  c.beginPath();
+  c.moveTo(W * 0.19, H * 0.42);
+  for (let i = 0; i <= 24; i++) {
+    const p = i / 24;
+    const x = W * 0.19 + p * W * 0.62;
+    c.lineTo(x, H * 0.42 + Math.sin(p * 9 + 0.6) * H * 0.022);
+  }
+  c.lineTo(W * 0.81, 0); c.lineTo(W * 0.19, 0);
+  c.closePath();
+  c.fill();
+  c.strokeStyle = 'rgba(226,178,110,.2)';
+  c.lineWidth = Math.max(1.5, H * 0.003);
+  c.stroke();
+  // 聚光灯：从顶上打到舞台上
+  const sp = W * 0.5;
+  const lg = c.createLinearGradient(sp, H * 0.08, sp, H * 0.72);
+  lg.addColorStop(0, `rgba(255,236,196,${0.16 + Math.sin(t * 1.1) * 0.02})`);
+  lg.addColorStop(1, 'rgba(255,236,196,0)');
+  c.fillStyle = lg;
+  c.beginPath();
+  c.moveTo(sp - W * 0.012, H * 0.06);
+  c.lineTo(sp + W * 0.012, H * 0.06);
+  c.lineTo(sp + W * 0.16, H * 0.72);
+  c.lineTo(sp - W * 0.16, H * 0.72);
+  c.closePath(); c.fill();
+  glow(c, sp, H * 0.72, Math.min(W, H) * 0.3, 'rgba(255,220,170,0.35)', 0.3);
+  // 舞台地面
+  c.fillStyle = '#150a0d';
+  c.fillRect(0, H * 0.72, W, H * 0.28);
+  c.strokeStyle = 'rgba(255,200,150,.06)';
+  for (let i = 1; i < 7; i++) {
+    const y = H * 0.72 + Math.pow(i / 7, 1.5) * H * 0.28;
+    c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke();
+  }
+  // 前景观众席剪影（只露椅背，压住画面底部）
+  c.fillStyle = '#050205';
+  for (let row = 0; row < 3; row++) {
+    const y = H * 0.885 + row * H * 0.042;
+    const w = W * (0.062 - row * 0.006);
+    for (let x = -w * 0.4; x < W + w; x += w * 1.12) {
+      c.beginPath();
+      if (c.roundRect) c.roundRect(x, y, w, H * 0.075, w * 0.32);
+      else c.rect(x, y, w, H * 0.075);
+      c.fill();
+    }
+  }
+  // 两侧壁灯
+  for (const wx of [W * 0.06, W * 0.94]) {
+    const f = 0.85 + Math.sin(t * 4.2 + wx) * 0.15;
+    glow(c, wx, H * 0.34, Math.min(W, H) * 0.22, 'rgba(255,190,120,0.45)', 0.5 * f);
+    c.fillStyle = '#f6d69a';
+    c.beginPath(); c.ellipse(wx, H * 0.34, W * 0.006, H * 0.014 * f, 0, 0, TAU); c.fill();
+  }
+  vignette(c, W, H, 0.76);
+}
+
+// ------------------------------------------------------------------ 长明礼拜堂
+function chapel(c, t, W, H) {
+  sky(c, W, H, [[0, '#0b1018'], [0.55, '#080c13'], [1, '#04060a']]);
+  // 拱顶
+  c.strokeStyle = 'rgba(120,140,180,.10)';
+  c.lineWidth = Math.max(1.5, H * 0.004);
+  for (let i = 0; i < 4; i++) {
+    c.beginPath();
+    c.arc(W / 2, H * 0.66, W * (0.18 + i * 0.11), Math.PI * 1.08, Math.PI * 1.92);
+    c.stroke();
+  }
+  // 三扇彩窗：中间大
+  const wins = [[0.28, 0.075, 0.30], [0.5, 0.10, 0.36], [0.72, 0.075, 0.30]];
+  const hud = [['#7fb0ff', '#c9a6ff'], ['#ffd28a', '#ff9c9c'], ['#8affc8', '#7fb0ff']];
+  for (let i = 0; i < 3; i++) {
+    const [cxr, rr, hh] = wins[i];
+    const x = W * cxr, w = W * rr, top = H * 0.30, bot = H * (0.30 + hh);
+    c.fillStyle = 'rgba(6,10,16,.92)';
+    c.beginPath();
+    c.moveTo(x - w / 2, bot);
+    c.lineTo(x - w / 2, top + w * 0.5);
+    c.quadraticCurveTo(x, top - w * 0.1, x + w / 2, top + w * 0.5);
+    c.lineTo(x + w / 2, bot);
+    c.closePath(); c.fill();
+    const rnd = seedRnd(300 + i * 77);
+    for (let r = 0; r < 6; r++) {
+      for (let q = 0; q < 2; q++) {
+        c.fillStyle = hud[i][(r + q) % 2];
+        c.globalAlpha = 0.16 + rnd() * 0.3;
+        c.fillRect(
+          x - w / 2 + 2 + q * (w - 4) / 2,
+          top + w * 0.42 + r * (bot - top - w * 0.42) / 6 + 1,
+          (w - 6) / 2, (bot - top - w * 0.42) / 6 - 2,
+        );
+      }
+    }
+    c.globalAlpha = 1;
+    c.strokeStyle = 'rgba(150,170,205,.28)';
+    c.lineWidth = Math.max(1.2, H * 0.003);
+    c.beginPath();
+    c.moveTo(x - w / 2, bot);
+    c.lineTo(x - w / 2, top + w * 0.5);
+    c.quadraticCurveTo(x, top - w * 0.1, x + w / 2, top + w * 0.5);
+    c.lineTo(x + w / 2, bot);
+    c.stroke();
+    c.beginPath(); c.moveTo(x, top + w * 0.18); c.lineTo(x, bot); c.stroke();
+    // 光柱：从窗里斜下来落到地上
+    const lg = c.createLinearGradient(x, bot, x, H * 0.92);
+    lg.addColorStop(0, 'rgba(190,210,255,.13)');
+    lg.addColorStop(1, 'rgba(190,210,255,0)');
+    c.fillStyle = lg;
+    c.beginPath();
+    c.moveTo(x - w / 2, bot);
+    c.lineTo(x + w / 2, bot);
+    c.lineTo(x + w * 0.9, H * 0.92);
+    c.lineTo(x - w * 0.9, H * 0.92);
+    c.closePath(); c.fill();
+  }
+  // 地面
+  c.fillStyle = '#080b10';
+  c.fillRect(0, H * 0.80, W, H * 0.20);
+  // 中央通道
+  const cg = c.createLinearGradient(W / 2 - W * 0.08, 0, W / 2 + W * 0.08, 0);
+  cg.addColorStop(0, 'rgba(60,20,30,.5)');
+  cg.addColorStop(0.5, 'rgba(96,32,44,.55)');
+  cg.addColorStop(1, 'rgba(60,20,30,.5)');
+  c.fillStyle = cg;
+  c.beginPath();
+  c.moveTo(W / 2 - W * 0.045, H * 0.80);
+  c.lineTo(W / 2 + W * 0.045, H * 0.80);
+  c.lineTo(W / 2 + W * 0.085, H);
+  c.lineTo(W / 2 - W * 0.085, H);
+  c.closePath(); c.fill();
+  // 长椅：中间留出通道，两侧各一列
+  c.fillStyle = '#04060a';
+  for (let row = 0; row < 4; row++) {
+    const y = H * (0.80 + row * 0.05);
+    const inset = W * (0.10 - row * 0.01);
+    const w = W * (0.055 + row * 0.012);
+    const gap = W * 0.10 + row * W * 0.01;
+    for (let x = inset; x < W / 2 - gap; x += w * 2.1) {
+      for (const bx of [x, x + w * 1.5]) {
+        if (bx + w > W / 2 - gap) break;
+        c.fillRect(bx, y, w, H * 0.018);
+        c.fillRect(W - bx - w, y, w, H * 0.018);
+      }
+    }
+  }
+  // 祭坛前的长明灯
+  for (let i = 0; i < 5; i++) {
+    const lx = W * (0.36 + i * 0.07);
+    const f = 0.75 + Math.sin(t * 5.8 + i * 1.3) * 0.25;
+    glow(c, lx, H * 0.80, Math.min(W, H) * 0.11, 'rgba(255,200,130,0.5)', 0.45 * f);
+    c.fillStyle = '#f8d79c';
+    c.beginPath(); c.ellipse(lx, H * 0.80, W * 0.004, H * 0.011 * f, 0, 0, TAU); c.fill();
+  }
+  vignette(c, W, H, 0.82);
+}
+
 // ------------------------------------------------------------------ 天亮
 function dawn(c, t, W, H) {
   sky(c, W, H, [
@@ -631,7 +906,7 @@ function title(c, t, W, H) {
   vignette(c, W, H, 0.4);
 }
 
-const DRAW = { hall, lab, wax, roof, abyss, dawn, title };
+const DRAW = { hall, lab, wax, roof, abyss, dawn, title, boiler, opera, chapel };
 
 // 对外只留一个入口：key 不认识就画走廊（宁可画错场景，也别让剧情卡住）
 export function drawScene(c, key, t, W, H) {

@@ -33,6 +33,21 @@ const THEMES = {
     floorA: '#1d1a2c', floorB: '#191627', line: '#100e1b', grain: 'rgba(200,170,255,.055)',
     wall: '#151228', wallTop: '#1f1a33', skirt: '#0d0b18', trim: '#3b2f5e',
   },
+  // 锅炉房：铁锈红，地上是拼起来的钢板
+  boiler: {
+    floorA: '#2e2019', floorB: '#291c16', line: '#150c08', grain: 'rgba(255,190,120,.045)',
+    wall: '#1f1410', wallTop: '#2c1b14', skirt: '#120a07', trim: '#5a3324',
+  },
+  // 大礼堂：木地板 + 中间一条红毯
+  opera: {
+    floorA: '#331b23', floorB: '#2c1720', line: '#170b0f', grain: 'rgba(255,200,190,.045)',
+    wall: '#231119', wallTop: '#31161f', skirt: '#12080c', trim: '#6b2b3a',
+  },
+  // 长明礼拜堂：冷石板，彩窗照下来的光
+  chapel: {
+    floorA: '#272b34', floorB: '#232730', line: '#14171d', grain: 'rgba(210,225,255,.05)',
+    wall: '#191d26', wallTop: '#222834', skirt: '#0f1218', trim: '#4a5470',
+  },
 };
 
 // 障碍物（课桌 / 病床 / 基座）的上下两截颜色
@@ -41,6 +56,9 @@ const OBS_COL = {
   tile: ['#4a5568', '#2c3543'],
   wax: ['#4c3a33', '#2b201c'],
   abyss: ['#3a3358', '#1e1a34'],
+  boiler: ['#5a3a28', '#2c1b12'],
+  opera: ['#5c2a36', '#2a1219'],
+  chapel: ['#434b5e', '#232833'],
 };
 
 function rnd(seed) {
@@ -96,6 +114,48 @@ export function bakeRoom(room, themeKey, W, H) {
     c.lineWidth = 1;
     for (let y = 0; y < H; y += s) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
     for (let x = 0; x < W; x += s) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); }
+  } else if (themeKey === 'boiler') {
+    // 钢板：大块拼接，每块上打铆钉
+    const s = 56;
+    for (let y = 0; y < H; y += s) {
+      const off = (Math.floor(y / s) % 2) * (s / 2);
+      for (let x = -s; x < W; x += s) {
+        const v = 0.86 + rand() * 0.26;
+        c.fillStyle = `rgba(${Math.round(46 * v)},${Math.round(32 * v)},${Math.round(25 * v)},1)`;
+        c.fillRect(x + off + 1.5, y + 1.5, s - 3, s - 3);
+        c.fillStyle = 'rgba(255,190,140,.10)';
+        for (let k = 0; k < 4; k++) c.fillRect(x + off + 7 + k * ((s - 20) / 3), y + 6, 2, 2);
+      }
+    }
+    c.strokeStyle = th.line;
+    c.lineWidth = 1.4;
+    for (let y = 0; y < H; y += s) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
+  } else if (themeKey === 'opera') {
+    // 木地板 + 正中间一条红毯
+    const ph = 22;
+    for (let y = 0; y < H; y += ph) {
+      const off = (Math.floor(y / ph) % 2) * 70;
+      for (let x = -70; x < W; x += 140) {
+        const v = 0.86 + rand() * 0.26;
+        c.fillStyle = `rgba(${Math.round(52 * v)},${Math.round(34 * v)},${Math.round(30 * v)},1)`;
+        c.fillRect(x + off, y, 138, ph - 1);
+      }
+      c.fillStyle = th.line;
+      c.fillRect(0, y + ph - 1, W, 1.3);
+    }
+    const cw = Math.min(170, W * 0.3);
+    const cg = c.createLinearGradient(W / 2 - cw / 2, 0, W / 2 + cw / 2, 0);
+    cg.addColorStop(0, 'rgba(72,20,32,.95)');
+    cg.addColorStop(0.5, 'rgba(104,30,46,.95)');
+    cg.addColorStop(1, 'rgba(72,20,32,.95)');
+    c.fillStyle = cg;
+    c.fillRect(W / 2 - cw / 2, 0, cw, H);
+    c.strokeStyle = 'rgba(255,208,168,.13)';
+    c.lineWidth = 1.6;
+    c.beginPath();
+    c.moveTo(W / 2 - cw / 2, 0); c.lineTo(W / 2 - cw / 2, H);
+    c.moveTo(W / 2 + cw / 2, 0); c.lineTo(W / 2 + cw / 2, H);
+    c.stroke();
   } else {
     for (let y = 0; y < H; y += 34) {
       const w = 50 + rand() * 40;
@@ -334,6 +394,147 @@ function decorate(c, themeKey, W, H, rand) {
       c.strokeStyle = 'rgba(255,244,220,.07)';
       c.lineWidth = 1;
       c.stroke();
+    }
+  } else if (themeKey === 'boiler') {
+    // 锅炉房：两道横穿墙面的粗管道 + 阀门手轮，地上是滴下来的锈水
+    for (const py of [10, 27]) {
+      const g = c.createLinearGradient(0, py, 0, py + 9);
+      g.addColorStop(0, 'rgba(126,86,60,.55)');
+      g.addColorStop(0.5, 'rgba(84,52,36,.6)');
+      g.addColorStop(1, 'rgba(44,26,18,.65)');
+      c.fillStyle = g;
+      c.fillRect(0, py, W, 9);
+      c.strokeStyle = 'rgba(255,200,150,.10)';
+      c.lineWidth = 1;
+      c.beginPath(); c.moveTo(0, py + 1.2); c.lineTo(W, py + 1.2); c.stroke();
+      // 法兰盘
+      for (let x = 24 + (py === 10 ? 0 : 30); x < W; x += 96) {
+        c.fillStyle = 'rgba(150,104,70,.55)';
+        c.fillRect(x, py - 1.5, 7, 12);
+        c.fillStyle = 'rgba(255,220,180,.16)';
+        c.fillRect(x + 1, py - 1, 1.6, 11);
+      }
+    }
+    // 手轮：三个，其中一个在转（画成偏一点的角度）
+    for (let i = 0; i < 3; i++) {
+      const x = W * (0.24 + i * 0.26), y = 22 + (i === 1 ? 0 : 16);
+      c.strokeStyle = 'rgba(198,150,110,.55)';
+      c.lineWidth = 2;
+      c.beginPath(); c.arc(x, y, 7, 0, 7); c.stroke();
+      c.beginPath();
+      for (let k = 0; k < 3; k++) {
+        const a = (i === 1 ? 0.4 : 0) + (k * Math.PI * 2) / 3;
+        c.moveTo(x - Math.cos(a) * 7, y - Math.sin(a) * 7);
+        c.lineTo(x + Math.cos(a) * 7, y + Math.sin(a) * 7);
+      }
+      c.stroke();
+    }
+    // 地上的锈水
+    for (let i = 0; i < 3; i++) {
+      const x = W * (0.15 + rand() * 0.7), y = H - m + 12 + rand() * 16;
+      c.fillStyle = 'rgba(150,88,44,.13)';
+      c.beginPath(); c.ellipse(x, y, 16 + rand() * 14, 5 + rand() * 3, 0, 0, 7); c.fill();
+    }
+  } else if (themeKey === 'opera') {
+    // 大礼堂：墙顶垂下来的幕布褶，两侧各一道追光
+    const folds = 16;
+    for (let i = 0; i < folds; i++) {
+      const x = (i * W) / folds;
+      const w = W / folds;
+      const g = c.createLinearGradient(x, 0, x + w, 0);
+      g.addColorStop(0, 'rgba(58,14,24,.85)');
+      g.addColorStop(0.45, 'rgba(112,30,46,.8)');
+      g.addColorStop(1, 'rgba(48,10,20,.85)');
+      c.fillStyle = g;
+      c.beginPath();
+      c.moveTo(x, 0);
+      c.lineTo(x + w, 0);
+      c.lineTo(x + w, 12 + Math.sin(i * 1.7) * 3);
+      c.quadraticCurveTo(x + w / 2, 20 + Math.sin(i * 1.7) * 3, x, 12 + Math.sin(i * 1.7) * 3);
+      c.closePath();
+      c.fill();
+    }
+    // 金边
+    c.strokeStyle = 'rgba(226,178,110,.20)';
+    c.lineWidth = 1.4;
+    c.beginPath();
+    for (let i = 0; i <= folds; i++) {
+      const x = (i * W) / folds;
+      const y = 12 + Math.sin(i * 1.7) * 3;
+      if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+    }
+    c.stroke();
+    // 追光
+    for (const [fx, tx] of [[W * 0.3, W * 0.2], [W * 0.7, W * 0.8]]) {
+      const g = c.createLinearGradient(fx, 4, tx, H - m);
+      g.addColorStop(0, 'rgba(255,232,186,.16)');
+      g.addColorStop(1, 'rgba(255,232,186,0)');
+      c.fillStyle = g;
+      c.beginPath();
+      c.moveTo(fx - 6, 4); c.lineTo(fx + 6, 4);
+      c.lineTo(tx + 46, H - m); c.lineTo(tx - 46, H - m);
+      c.closePath(); c.fill();
+    }
+    // 地上：几处反光的蜡油滴
+    for (let i = 0; i < 3; i++) {
+      const x = W * (0.2 + rand() * 0.6), y = H - m + 10 + rand() * 14;
+      c.fillStyle = 'rgba(255,222,180,.07)';
+      c.beginPath(); c.ellipse(x, y, 9 + rand() * 8, 3, 0, 0, 7); c.fill();
+    }
+  } else if (themeKey === 'chapel') {
+    // 长明礼拜堂：三扇彩窗 + 一排长明灯
+    const cols = [['#7fb0ff', '#c9a6ff'], ['#ffd28a', '#ff9c9c'], ['#8affc8', '#7fb0ff']];
+    for (let i = 0; i < 3; i++) {
+      const w = 30, x = W * (0.2 + i * 0.3) - w / 2, top = 6;
+      const hh = m - 12;
+      // 拱形窗洞
+      c.fillStyle = 'rgba(8,12,20,.9)';
+      c.beginPath();
+      c.moveTo(x, top + hh);
+      c.lineTo(x, top + 10);
+      c.quadraticCurveTo(x + w / 2, top - 6, x + w, top + 10);
+      c.lineTo(x + w, top + hh);
+      c.closePath();
+      c.fill();
+      // 彩色玻璃：四格，透明度随位置变
+      for (let r = 0; r < 4; r++) {
+        for (let q = 0; q < 2; q++) {
+          c.fillStyle = cols[i][(r + q) % 2];
+          c.globalAlpha = 0.16 + rand() * 0.22;
+          c.fillRect(x + 3 + q * (w - 6) / 2, top + 12 + r * (hh - 14) / 4 + 1, (w - 6) / 2 - 2, (hh - 14) / 4 - 2);
+        }
+      }
+      c.globalAlpha = 1;
+      // 窗框
+      c.strokeStyle = 'rgba(150,170,200,.30)';
+      c.lineWidth = 1.2;
+      c.beginPath();
+      c.moveTo(x, top + hh);
+      c.lineTo(x, top + 10);
+      c.quadraticCurveTo(x + w / 2, top - 6, x + w, top + 10);
+      c.lineTo(x + w, top + hh);
+      c.stroke();
+      c.beginPath(); c.moveTo(x + w / 2, top + 8); c.lineTo(x + w / 2, top + hh); c.stroke();
+      // 窗下往地上洒的一小片光
+      const g = c.createRadialGradient(x + w / 2, H - m, 2, x + w / 2, H - m, 46);
+      g.addColorStop(0, 'rgba(180,205,255,.10)');
+      g.addColorStop(1, 'rgba(180,205,255,0)');
+      c.fillStyle = g;
+      c.beginPath(); c.ellipse(x + w / 2, H - m + 8, 48, 16, 0, 0, 7); c.fill();
+    }
+    // 墙脚一排长明灯（小油灯 + 一点火）
+    for (let i = 0; i < 7; i++) {
+      const x = W * (0.09 + i * 0.135), y = m - 5;
+      c.fillStyle = 'rgba(196,178,140,.42)';
+      c.fillRect(x - 2.5, y - 4, 5, 5);
+      const f = 0.8 + Math.sin(i * 2.1) * 0.2;
+      c.fillStyle = 'rgba(255,224,160,.85)';
+      c.beginPath(); c.ellipse(x, y - 6.5, 1.3, 2.4 * f, 0, 0, 7); c.fill();
+      const g = c.createRadialGradient(x, y - 6.5, 0.5, x, y - 6.5, 12);
+      g.addColorStop(0, 'rgba(255,200,120,.20)');
+      g.addColorStop(1, 'rgba(255,200,120,0)');
+      c.fillStyle = g;
+      c.beginPath(); c.arc(x, y - 6.5, 12, 0, 7); c.fill();
     }
   } else {
     // 融蚀深渊：墙上爬的紫脉、地上一层会反光的浆

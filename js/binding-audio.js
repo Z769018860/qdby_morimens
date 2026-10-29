@@ -22,6 +22,12 @@ const SONGS = {
   roof: { bpm: 54, root: 54, wave: 'sine', chords: [[0, 7, 12], [-2, 5, 10], [0, 7, 14], [-4, 3, 8]], arp: 0.4, pad: 1, bass: 0, hat: 0, vol: 0.024 },
   // 首领：低音脉冲 + 三全音
   boss: { bpm: 104, root: 45, wave: 'sawtooth', chords: [[0, 6, 12], [-1, 5, 11], [0, 6, 13], [-2, 4, 10]], arp: 1, pad: 1, bass: 1, hat: 1, vol: 0.030, drive: 1 },
+  // 锅炉房：机械的、匀速的，底鼓像活塞一下一下顶
+  boiler: { bpm: 84, root: 43, wave: 'square', chords: [[0, 5, 8], [-2, 3, 7], [0, 5, 10], [-3, 4, 8]], arp: 0.8, pad: 0.5, bass: 1, hat: 1, vol: 0.024, drive: 0.7 },
+  // 大礼堂：圆舞曲的另一面，转得快一点，像有人还在跳
+  opera: { bpm: 108, root: 52, wave: 'triangle', chords: [[0, 4, 7], [-3, 1, 4], [-1, 2, 5], [-5, 0, 4]], arp: 1, pad: 1, bass: 1, hat: 0, vol: 0.026, waltz: 1 },
+  // 礼拜堂：管风琴的路子，慢、宽，只走和弦不走过门
+  chapel: { bpm: 58, root: 48, wave: 'sine', chords: [[0, 4, 7, 12], [-3, 2, 5, 9], [-5, 0, 4, 7], [-1, 4, 7, 11]], arp: 0.5, pad: 1, bass: 1, hat: 0, vol: 0.026 },
   // 深渊：最慢的一层，低音撑着，上面的音偶尔才出现
   abyss: { bpm: 46, root: 41, wave: 'sawtooth', chords: [[0, 6, 11], [-1, 5, 10], [0, 7, 12], [-3, 4, 9]], arp: 0.35, pad: 1, bass: 1, hat: 0, vol: 0.025 },
   // 天亮：大调，收束

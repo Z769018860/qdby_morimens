@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>校猫的结合 · 忘忘同人小游戏</title>
-<meta name="description" content="以撒的结合式房间地牢，主角是弥萨格大学的校猫：往下打五层，捡起散落的造物，猫身上就会多出帽子、眼镜、披风、提灯——八种毛色、六种瞳色、三十多种饰品，把同一只黑猫改成完全不同的样子。有自动攻击开关，手机上也能只走位。带剧情与设定集：世界观整理自《忘却前夜》的剧情文本与收藏馆档案。">
+<meta name="description" content="以撒的结合式房间地牢，主角是弥萨格大学的校猫：往下打八层，捡起散落的造物，猫身上就会多出帽子、眼镜、披风、提灯——八种毛色、六种瞳色、三十多种饰品，把同一只黑猫改成完全不同的样子。有自动攻击开关，手机上也能只走位。带剧情与设定集：世界观整理自《忘却前夜》的剧情文本与收藏馆档案。">
 <meta name="theme-color" content="#080b11">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0e16'/%3E%3Cg fill='%23e6e9f0'%3E%3Cellipse cx='11' cy='12' rx='3.1' ry='3.9'/%3E%3Cellipse cx='21' cy='12' rx='3.1' ry='3.9'/%3E%3Cellipse cx='7' cy='19.4' rx='2.7' ry='3.3'/%3E%3Cellipse cx='25' cy='19.4' rx='2.7' ry='3.3'/%3E%3Cpath d='M16 17.2c4.3 0 7.2 3.3 7.2 6 0 2.3-2 3.7-4.5 3.7-1.5 0-2.3-.6-2.7-.6s-1.2.6-2.7.6c-2.5 0-4.5-1.4-4.5-3.7 0-2.7 2.9-6 7.2-6Z'/%3E%3C/g%3E%3C/svg%3E">
 <style>
@@ -469,7 +469,7 @@ body.titlestate .ov#ovTitle .panel{
 
 .card p{white-space:pre-line}
 </style>
-<meta name="build" content="63c4a33a42">
+<meta name="build" content="c3d84c77b1">
 </head>
 <body>
 <canvas id="bgcv" aria-hidden="true"></canvas>
@@ -527,7 +527,7 @@ body.titlestate .ov#ovTitle .panel{
     <p class="kicker">Morimens · Fan Works</p>
     <h1>校猫的结合</h1>
     <p class="en">The Binding of School Cat</p>
-    <p class="intro">弥萨格大学的夜里，校猫掉进了地下室。往下打五层，捡起这里散落的造物——帽子、眼镜、披风、提灯会一件件挂到猫身上，捡得越多，越不像原来那只。</p>
+    <p class="intro">弥萨格大学的夜里，校猫掉进了地下室。往下打八层，捡起这里散落的造物——帽子、眼镜、披风、提灯会一件件挂到猫身上，捡得越多，越不像原来那只。</p>
 
     <div class="dress">
       <canvas id="titleCat" aria-label="校猫外观预览"></canvas>
@@ -545,13 +545,15 @@ body.titlestate .ov#ovTitle .panel{
       <button class="btn" id="btnHelp">怎么玩</button>
     </div>
     <div class="help" id="ovHelp">
-      <b>目标</b>：从一层打到三层，每层找到首领房，打倒首领后走楼梯下一层。<br>
-      <b>操作</b>：<kbd>WASD</kbd> 移动，<kbd>鼠标</kbd>瞄准并按住左键射击（也可以用<kbd>方向键</kbd>四向射击），<kbd>空格</kbd>放钥令，<kbd>Esc</kbd>暂停。<br>
+      <b>目标</b>：从一层打到八层，每层找到首领房，打倒首领后走楼梯下一层。<br>
+      <b>操作</b>：<kbd>WASD</kbd> 移动，<kbd>鼠标</kbd>瞄准并按住左键射击（也可以用<kbd>方向键</kbd>四向射击），<kbd>空格</kbd>放钥令，<kbd>F</kbd>开关自动攻击，<kbd>Esc</kbd>暂停。<br>
+      <b>自动攻击</b>：右下角那个「自动」按钮（金色是开着）。开了以后猫自己瞄最近的、自己开火，你只管走位；键盘、鼠标、触屏一动手就临时接回手动。<br>
       <b>剧情</b>：开场、每层入口、首领前后都有对话，点画面继续；<kbd>Esc</kbd> 可以跳过，看过的不会重播。<br>
       <b>造物</b>：宝箱房基座上的东西碰一下就拿到，除了加属性，还会在猫身上挂一件东西——这就是「改造」的来源。捡到过的东西会进设定集的「藏品」，附官方收藏馆里的原话。<br>
+      <b>房间</b>：战斗、宝箱、商店，还有两种特殊的——<b>祭坛</b>（东西白拿，代价是半颗心）和<b>挑战</b>（这一层的精英挤在一间，清完一次给两件造物）。<br>
       <b>密契</b>：清房间低概率掉的小饰品，一局只能带一件。<br>
       <b>解锁</b>：通关、累计击杀、单局捡多少件造物，都会解锁新的毛色 / 瞳色 / 造型，下次开局可以直接换。<br>
-      <b>手机</b>：左半屏拖动移动，右半屏拖动射击，右下角按钮放钥令。
+      <b>手机</b>：左半屏拖动移动，右半屏拖动射击，右下角按钮放钥令、开自动。
     </div>
   </div>
 </div>
@@ -639,7 +641,7 @@ body.titlestate .ov#ovTitle .panel{
   }, 1000);
 })();
 </script>
-<script type="module" src="js/b/binding.js?v=63c4a33a42"></script>
+<script type="module" src="js/b/binding.js?v=c3d84c77b1"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

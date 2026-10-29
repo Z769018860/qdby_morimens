@@ -215,10 +215,28 @@ export const BOSSES = {
     hp: 340, r: 40, sp: 54, atks: ['ring', 'aimed', 'charge', 'summon'], ringN: 22, ringSp: 128,
   },
   b5: {
-    n: '「万物寂灭」', en: 'The Void Claims All', art: 'b5', cls: 'Boss',
+    n: '扳手杰克逊', en: 'Wrench Jackson', art: 'b5', cls: 'Boss',
+    desc: '他的橄榄球护具看起来很不合身，但生满铁锈的扳手却不乏威力，能造成大量伤口。',
+    sub: '锅炉房的校工，一直在修一台早就没人用的锅炉',
+    hp: 300, r: 38, sp: 56, atks: ['charge', 'aimed', 'ring', 'summon'], ringN: 18, ringSp: 118,
+  },
+  b6: {
+    n: '「大魔术师霍迪妮」', en: 'The Great Magician Houdini', art: 'b6', cls: 'Boss',
+    desc: '大魔术师霍迪妮闪亮登场！根据海报上的自我介绍，曾有41人在她的演出现场失踪。',
+    sub: '礼堂的驻场魔术师，海报在那儿贴了四十一年',
+    hp: 360, r: 36, sp: 52, atks: ['summon', 'rain', 'ring', 'spiral'], ringN: 20, ringSp: 124,
+  },
+  b7: {
+    n: '「审判」的使徒', en: 'The Apostle of Judgment', art: 'b7', cls: 'Boss',
+    desc: '她抛却人形，抛却人性，只为带来虚幻的幸福。但极端的善举是否还能被称为善举？',
+    sub: '礼拜堂尽头那个不肯闭眼的使徒',
+    hp: 400, r: 40, sp: 50, atks: ['rain', 'ring', 'aimed', 'charge', 'summon'], ringN: 22, ringSp: 130,
+  },
+  b8: {
+    n: '「万物寂灭」', en: 'The Void Claims All', art: 'b8', cls: 'Boss',
     desc: '融蚀浆平等地赐予万物死亡。万物寂灭合一。',
     sub: '深渊底部那一滩会站起来的东西，它记得每一个掉下来的人',
-    hp: 430, r: 42, sp: 44, atks: ['rain', 'ring', 'spiral', 'summon'], ringN: 24, ringSp: 122,
+    hp: 520, r: 42, sp: 44, atks: ['rain', 'ring', 'spiral', 'summon'], ringN: 26, ringSp: 128,
   },
 };
 
@@ -230,14 +248,17 @@ export const FLOORS = [
   { n: '二层 · 解剖教室', theme: 'tile', music: 'lab', rooms: 10, pool: ['surgeon', 'waxman', 'abscess', 'dog'], boss: 'b2', tip: '别碰泡在罐子里的东西' },
   { n: '三层 · 蜡像馆', theme: 'wax', music: 'wax', rooms: 10, pool: ['waxman', 'waxman', 'surgeon', 'abscess', 'chanter'], boss: 'b3', tip: '馆里的规矩只有一条：不要碰展品' },
   { n: '四层 · 天台与梦', theme: 'stone', music: 'roof', rooms: 11, pool: ['claw', 'chanter', 'hunter', 'waxman'], boss: 'b4', tip: '上面没有天台，只有一群不肯散的东西' },
-  { n: '五层 · 融蚀深渊', theme: 'abyss', music: 'abyss', rooms: 12, pool: ['claw', 'hunter', 'chanter', 'abscess'], boss: 'b5', tip: '融蚀的尽头是梦，梦的尽头也是融蚀' },
+  { n: '五层 · 锅炉房', theme: 'boiler', music: 'boiler', rooms: 11, pool: ['surgeon', 'abscess', 'hunter', 'claw'], boss: 'b5', tip: '管子还是烫的，说明下面还在烧' },
+  { n: '六层 · 大礼堂', theme: 'opera', music: 'opera', rooms: 11, pool: ['waxman', 'chanter', 'hunter', 'claw'], boss: 'b6', tip: '海报上从来没印过这一场' },
+  { n: '七层 · 长明礼拜堂', theme: 'chapel', music: 'chapel', rooms: 12, pool: ['chanter', 'chanter', 'hunter', 'claw', 'abscess'], boss: 'b7', tip: '灯一直亮着，可这里没人祷告' },
+  { n: '八层 · 融蚀深渊', theme: 'abyss', music: 'abyss', rooms: 12, pool: ['claw', 'hunter', 'chanter', 'abscess'], boss: 'b8', tip: '融蚀的尽头是梦，梦的尽头也是融蚀' },
 ];
 
 // ------------------------------------------------------------------ 文案
 export const TEXT = {
   title: '校猫的结合',
   sub: 'The Binding of School Cat',
-  intro: '弥萨格大学的夜里，校猫掉进了地下室。往下走五层，捡起这里散落的造物，把自己改造成另一只猫。',
+  intro: '弥萨格大学的夜里，校猫掉进了地下室。往下走八层，捡起这里散落的造物，把自己改造成另一只猫。',
   tip: 'WASD / 摇杆 移动 · 鼠标或方向键 射击 · 空格 钥令 · F 自动攻击 · Esc 暂停',
   deadTitle: '这一夜到此为止',
   winTitle: '校猫爬出来了',
