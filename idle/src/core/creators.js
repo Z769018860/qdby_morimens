@@ -132,9 +132,9 @@ export const CREATORS = [
     base: { CON: 42, ATK: 27, DEF: 41 }, scale: { CON: 1.8, ATK: 1.3, DEF: 1.95 }, sub: { ...SUB }, subScale: { ...SUB_SCALE },
     portrait: portraitOf('maodie'), card: cardOf('maodie'),
     creator: {
-      uid: '1475217387', url: 'https://space.bilibili.com/1475217387', color: '#3ddc84', tag: CREATOR_TAG, emoji: '🤖',
-      bio: 'B 站老观众管他叫「安卓佬」：手机卡了、烫了、掉电快了，第一反应都是先来问他。维修哲学只有一句——能刷机就别修，能重启就别拆。至于团战为什么总站在最前面，他说站后面看不清屏幕。',
-      hook: '安卓佬 · 移动电源',
+      uid: '1475217387', url: 'https://space.bilibili.com/1475217387', color: '#a9a29a', tag: CREATOR_TAG, emoji: '🚶',
+      bio: '说是路过，其实每场团战都站在最前面。挨完全部伤害之后摆摆手：我什么都没看见。B 站的老观众管他叫「安卓佬」——名字是别人起的，他自己只承认路过。',
+      hook: '安卓佬 · 让让，路过',
     },
   },
 ];
@@ -238,15 +238,15 @@ export const CREATOR_KITS = {
     OverExalt: ['星海黎明', (lv) => [D(1.5, lv, { to: 'foes', hits: 2 }), E.buff('amp', 25, 3, 'allies')]],
   }),
 
-  // 路过的耄耋 = 安卓佬：清后台、背充电宝、随时系统重装 —— 最硬的盾，主题是「电从来不断」
+  // 路过的耄耋：挡在路口 —— 最硬的盾，屏障 + 嘲讽式降攻
   maodie: kit({
-    Strike: ['一键清后台', (lv) => [D(0.85, lv), E.debuff('atk', 10, 2)]],
-    Defense: ['移动电源', (lv) => [S(1.6, lv), E.status('fortress', 15, 3, 'self')]],
-    Skill1: ['推送更新包', (lv) => [S(1.1, lv, 'allies'), E.status('barrier', 1, 3, 'allies')]],
-    Skill2: ['强制更新', () => [E.debuff('atk', 25, 2, 'foes'), E.status('weakness', 1, 2, 'foes')]],
-    Rouse: ['刷机保平安', () => [E.buff('def', 25, 3, 'allies'), E.gauge('keyflare', 20)]],
-    Exalt: ['系统重装', (lv) => [S(1.8, lv, 'allies'), D(1.0, lv, { to: 'foes' }), E.status('counter', 2, 3, 'allies')]],
-    OverExalt: ['永不断电', (lv) => [S(2.4, lv, 'allies'), H(1.0, lv, 'allies'), E.debuff('atk', 22, 2, 'foes')]],
+    Strike: ['拐杖敲', (lv) => [D(0.85, lv), E.debuff('atk', 10, 2)]],
+    Defense: ['挡在路口', (lv) => [S(1.6, lv), E.status('fortress', 15, 3, 'self')]],
+    Skill1: ['让让，路过', (lv) => [S(1.1, lv, 'allies'), E.status('barrier', 1, 3, 'allies')]],
+    Skill2: ['我什么都没看见', () => [E.debuff('atk', 25, 2, 'foes'), E.status('weakness', 1, 2, 'foes')]],
+    Rouse: ['老骨头', () => [E.buff('def', 25, 3, 'allies'), E.gauge('keyflare', 20)]],
+    Exalt: ['散散步', (lv) => [S(1.8, lv, 'allies'), D(1.0, lv, { to: 'foes' }), E.status('counter', 2, 3, 'allies')]],
+    OverExalt: ['耄耋之年', (lv) => [S(2.4, lv, 'allies'), H(1.0, lv, 'allies'), E.debuff('atk', 22, 2, 'foes')]],
   }),
 };
 
