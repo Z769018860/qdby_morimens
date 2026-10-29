@@ -210,15 +210,15 @@ button{font:inherit}
   background:color-mix(in oklab,#9aa7ff 90%, #fff);
   box-shadow:0 1px 5px rgba(0,0,0,.5)}
 .ch .lkb.open{background:var(--gold); color:#241a04}
-/* 彩蛋唤醒体（B 站主播）：没有官方立绘，用「主题色圆底 + 一个字」的徽章代替。
-   配色必须和 js/sv/ui.js 的 eggStyle()、js/sv/render.js 的 drawEggFace() 一致，
-   否则同一个人在选人面板和战场上会是两种颜色。 */
+/* 彩蛋唤醒体（B 站主播）：头像用主播本人的 B 站图，外圈是角色主题色。
+   头像缺失时退回「主题色圆底 + 一个字」的徽章 —— 配色必须和 js/sv/ui.js 的
+   eggStyle()、js/sv/render.js 的 drawEggFace() 三处一致。 */
 .ch.egg{border-color:color-mix(in oklab, var(--gold) 26%, transparent);
   background:linear-gradient(180deg, rgba(227,179,65,.06), transparent 70%)}
 .ch.egg i{filter:none}
-.ch.egg b{color:var(--gold); letter-spacing:.02em}
+.ch.egg b{color:var(--gold); font-size:10px; letter-spacing:-.2px}
 .ch.egg.on{border-color:var(--gold); background:color-mix(in oklab, var(--gold) 15%, transparent)}
-.ch .lkb.egg{background:var(--gold); color:#241a04}
+.ch .lkb.egg{background:var(--gold); color:#241a04; font-size:9px; letter-spacing:0; padding:3px 4px}
 .ch i.egg,.ci-portrait.egg,.up-img.egg{display:flex; align-items:center; justify-content:center;
   font-weight:800; line-height:1; letter-spacing:0}
 .ch i.egg{font-size:21px}
@@ -478,7 +478,7 @@ button{font:inherit}
       <a class="home" href="index.html">← 首页</a>
       <header>
         <h1>唤醒体<span>幸存者</span></h1>
-        <p class="sub">素材全部取自《忘却前夜》· 62 名唤醒体的 124 个技能都是可抽的武器 · 4 位神秘人要靠自己打出来 · 名单最后蹲着 7 位 B 站主播</p>
+        <p class="sub">素材全部取自《忘却前夜》· 62 名唤醒体的 124 个技能都是可抽的武器 · 4 位神秘人要靠自己打出来 · 名单最后站着 9 位 B 站主播</p>
       </header>
 
       <div class="diff" id="diffBox"></div>

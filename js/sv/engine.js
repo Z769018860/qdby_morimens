@@ -339,6 +339,12 @@ export function recompute() {
     if (!G.mech.flag) base.spd += 0.12;
   } else if (mech === 'blossom') {
     base.regen += 0.4;
+  } else if (mech === 'starlit') {
+    base.crit += 0.08;
+    base.critMul += 0.15;
+  } else if (mech === 'gatekeep') {
+    base.maxShieldBonus += 30;      // 基础 30 → 60，约 +30% 上限
+    base.spd -= 0.08;               // 走得慢是设定：他本来就在遛弯
   }
   Object.assign(m, base);
 
@@ -1418,6 +1424,32 @@ function fireProto(w, proto, dmg) {
       P.hp = Math.min(P.maxHp, P.hp + 1 + lv * 0.4);
       break;
     }
+    case 'starfall': {
+      // 星轨：以最近的敌人为起点，沿一条随机方向依次落星。落点延迟递增，
+      // 读起来是「一串星扫过去」—— 和光雨（同时散落）、陨石（单颗重击）都不像。
+      const tgt = nearest(P.x, P.y, 760) || { x: P.x, y: P.y };
+      const a = rnd() * TAU;
+      for (let i = 0; i < cnt; i++) {
+        addField(tgt.x + Math.cos(a) * i * 58, tgt.y + Math.sin(a) * i * 58,
+          0.12, (44 + i * 4) * areaMul, dmg * (1 + i * 0.18), color, false, src,
+          { delay: 0.22 + i * 0.16, burst: true });
+      }
+      break;
+    }
+    case 'stroll': {
+      // 挡在路口：横着占一块地。伤害很低，价值是拖住 + 给一层护盾。
+      const tgt = nearest(P.x, P.y, 460);
+      const a = tgt ? Math.atan2(tgt.y - P.y, tgt.x - P.x) : (P.face > 0 ? 0 : Math.PI);
+      const R = (86 + lv * 8) * areaMul;
+      for (let i = 0; i < cnt; i++) {
+        const d0 = 78 + i * 40;
+        addField(P.x + Math.cos(a) * d0, P.y + Math.sin(a) * d0,
+          (2.2 + lv * 0.2), R, dmg, color, false, src, { slow: 0.7 });
+      }
+      P.shield = Math.min(P.maxShield, P.shield + 6 + lv * 5);
+      P.shieldBroke = false;
+      break;
+    }
     default: break;
   }
 }
@@ -2317,6 +2349,25 @@ function updateMech(dt) {
     G.mech.t = 0;
     addField(P.x, P.y, 3.4, 88, 7 * G.mods.atk, '#8ce0a8', false, null, { lamp: true, slow: 0.6 });
     P.hp = Math.min(P.maxHp, P.hp + 1.5);
+  }
+
+  // 星轨：每 8 秒挑场上最远的三个，各落一颗星（距离越远越值得点掉）
+  if (id === 'starlit' && G.mech.t >= 8) {
+    G.mech.t = 0;
+    const far = G.enemies.slice()
+      .sort((a, b) => ((b.x - P.x) ** 2 + (b.y - P.y) ** 2) - ((a.x - P.x) ** 2 + (a.y - P.y) ** 2))
+      .slice(0, 3);
+    for (const e of far) {
+      addField(e.x, e.y, 0.12, 40, 12 * G.mods.atk, '#8fa8ff', false, null, { delay: 0.3, burst: true });
+    }
+    if (far.length) sfx.play('shot');
+  }
+
+  // 挡路：每 12 秒在脚下横一道拖慢敌人的路障，顺便补一点护盾
+  if (id === 'gatekeep' && G.mech.t >= 12) {
+    G.mech.t = 0;
+    addField(P.x, P.y, 2.6, 84, 6 * G.mods.atk, '#a9a29a', false, null, { slow: 0.65 });
+    P.shield = Math.min(P.maxShield, P.shield + 4);
   }
 
   // 兔子洞：被围住时自动脱身。判定用 96 半径内的敌人数，超过 7 只才算「被围」；

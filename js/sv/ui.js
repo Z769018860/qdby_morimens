@@ -54,12 +54,18 @@ export function atlasStyle(idx, size) {
     `width:${size}px;height:${size}px;`,
   ].join('');
 }
-// 彩蛋角色（B 站主播唤醒体）没有官方立绘，也不该硬塞一张别人的脸。
-// 统一走「主题色圆形渐变 + 一个字」的徽章：canvas 端 render.js 的 drawEggFace()
-// 用同一套配色和同一个字，选人面板与战斗里看起来才是同一个人。
+// 彩蛋角色（B 站主播唤醒体）用主播本人的 B 站头像，外面套一圈角色主题色的圆环。
+// 头像还没解码出来、或者哪天素材被下架了，就退回「主题色圆底 + 一个字」的徽章；
+// canvas 端 render.js 的 drawEggFace() 走同一套降级，选了同一张图。
 export function eggStyle(c, size) {
   const col = (c && c.color) || '#8ba3c7';
-  const ch = (c && c.glyph) || '?';
+  if (c && c.face) {
+    return [
+      `background:#10141d url('${c.face}') center/cover no-repeat;`,
+      `box-shadow:inset 0 0 0 1.5px ${col}b0, inset 0 -6px 12px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.45);`,
+      `width:${size}px;height:${size}px;`,
+    ].join('');
+  }
   return [
     `background:radial-gradient(120% 120% at 50% 16%, ${col}66 0%, ${col}22 46%, #10141d 100%);`,
     `box-shadow:inset 0 0 0 1px ${col}66, inset 0 -8px 14px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.4);`,
@@ -80,7 +86,8 @@ export function charFaceHTML(charId, size, cls) {
   const c = CHARS.find((x) => String(x.id) === String(charId));
   const k = cls ? cls + ' ' : '';
   if (c && c.egg) {
-    return `<i class="${k}egg-face" style="${eggStyle(c, size)}font-size:${Math.round(size * 0.46)}px">${esc(c.glyph || '')}</i>`;
+    const fs = c.face ? '' : `font-size:${Math.round(size * 0.46)}px`;
+    return `<i class="${k}egg-face" style="${eggStyle(c, size)}${fs}">${c.face ? '' : esc(c.glyph || '')}</i>`;
   }
   return `<i class="${k.trim()}" style="${atlasStyle(c ? c.img : null, size)}"></i>`;
 }
@@ -108,14 +115,15 @@ export function showPick() {
     const cls = ['' , REALM_CLASS[c.realm] || ''];
     if (c.lock) cls.push('hidden-one');
     if (locked) cls.push('locked');
-    // 彩蛋角色单独一档：金色虚线边 + 「蛋」角标，和官方 66 人分开看
+    // 彩蛋角色单独一档：金色边 + 「UP」角标，和官方 66 人分开看。
+    // 角标不写「蛋」——那更像没做完的占位符，UP 才是这批人的身份。
     if (c.egg) cls.push('egg');
     const label = locked ? '???' : c.n;
     const tip = locked ? `${c.n} · 未解锁` : (c.egg ? `${c.n} · 彩蛋唤醒体（${c.bioSrc || 'B 站'}）` : c.n);
     return `
       <button class="ch${cls.join(' ')}" data-id="${c.id}" title="${esc(tip)}">
-        <i class="${c.egg ? 'egg' : ''}" style="${faceStyle(locked ? null : c, 54)}">${c.egg && !locked ? esc(c.glyph || '') : ''}</i>
-        ${locked ? '<em class="lkb">锁</em>' : (c.egg ? '<em class="lkb egg">蛋</em>' : (c.lock ? '<em class="lkb open">✦</em>' : ''))}
+        <i class="${c.egg ? 'egg' : ''}" style="${faceStyle(locked ? null : c, 54)}">${c.egg && !locked && !c.face ? esc(c.glyph || '') : ''}</i>
+        ${locked ? '<em class="lkb">锁</em>' : (c.egg ? '<em class="lkb egg">UP</em>' : (c.lock ? '<em class="lkb open">✦</em>' : ''))}
         <b>${esc(label)}</b>
       </button>`;
   }).join('');
@@ -182,7 +190,7 @@ function renderCharInfo() {
     <div class="ci-bio"><b>档案</b><span>${esc(c.bio)}</span>${c.bioSrc ? `<u>出处 · ${esc(c.bioSrc)}</u>` : ''}</div>` : '';
   $('charInfo').innerHTML = `
     <div class="ci-top">
-      <i class="ci-portrait${c.egg ? ' egg' : ''}${locked || c.img == null ? ' sil' : ''}" style="${faceStyle(locked ? null : c, 72)}">${c.egg && !locked ? esc(c.glyph || '') : ''}</i>
+      <i class="ci-portrait${c.egg ? ' egg' : ''}${locked || c.img == null ? ' sil' : ''}" style="${faceStyle(locked ? null : c, 72)}">${c.egg && !locked && !c.face ? esc(c.glyph || '') : ''}</i>
       <div>
         <h3>${locked ? '???' : esc(c.n)} <small>${locked ? '未解锁' : esc(c.en)}</small></h3>
         <p class="ci-tags">
@@ -601,6 +609,8 @@ export function updateHUD() {
     else if (mm.id === 'dragonscale') mkey = '龙鳞';
     else if (mm.id === 'zerokr') mkey = G.mech.flag ? '立誓 · 期满' : `立誓 ${Math.max(0, Math.ceil(90 - G.t))}s`;
     else if (mm.id === 'blossom') mkey = '花信';
+    else if (mm.id === 'starlit') mkey = '星轨 ' + Math.max(0, Math.ceil(8 - G.mech.t)) + 's';
+    else if (mm.id === 'gatekeep') mkey = '挡路 ' + Math.max(0, Math.ceil(12 - G.mech.t)) + 's';
   }
   if (hudCache.mkey !== mkey) {
     hudCache.mkey = mkey;
@@ -679,7 +689,7 @@ function upgradeCard(o, i) {
     }
     const owner = CHARS.find((x) => String(x.id) === String(d.char));
     return card(i, isSwap ? 'wswap' : o.kind === 'wlv' ? 'wlv' : 'wnew', title, desc, foot,
-      faceStyle(owner, 46), KIND_LABEL[o.kind], owner && owner.egg ? esc(owner.glyph || '') : '');
+      faceStyle(owner, 46), KIND_LABEL[o.kind], owner && owner.egg && !owner.face ? esc(owner.glyph || '') : '');
   }
   if (o.kind === 'creation') {
     const fx = CREATION_FX[o.c.fx];

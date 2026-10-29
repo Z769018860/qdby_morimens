@@ -561,10 +561,37 @@ function deco(kind, x, y, h1, h3) {
   ctx.globalAlpha = 1;
 }
 
-// 彩蛋角色没有立绘：用主题色圆底 + 一个字。配色与选人面板的 eggStyle() 一致，
-// 否则同一个人在面板里和在场上会是两种颜色。
+// 彩蛋角色用主播本人的 B 站头像（data URI，构建时内联）。同一个 src 只建一次 Image，
+// 六个人同屏也只解码六个。头像没解码出来就退回「主题色圆底 + 一个字」，
+// 配色与选人面板的 eggStyle() 一致，否则同一个人在面板里和在场上会是两种颜色。
+const faces = new Map();
+function faceImg(src) {
+  let im = faces.get(src);
+  if (!im) {
+    im = new Image();
+    im.decoding = 'async';
+    im.src = src;
+    faces.set(src, im);
+  }
+  return im;
+}
+
 function drawEggFace(c, x, y, size) {
   const col = c.color || '#8ba3c7';
+  const R = size / 2;
+  const im = c.face ? faceImg(c.face) : null;
+  if (im && im.complete && im.naturalWidth) {
+    // 圆形裁剪：圆槽里直接贴方图会露出四个角
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.clip();
+    ctx.drawImage(im, x - R, y - R, size, size);
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(x, y, R - 0.75, 0, Math.PI * 2);
+    ctx.strokeStyle = col + 'b0';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    return;
+  }
   const g = ctx.createRadialGradient(x, y - size * 0.2, size * 0.08, x, y, size * 0.56);
   g.addColorStop(0, col + '66');
   g.addColorStop(0.48, col + '22');

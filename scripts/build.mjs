@@ -257,6 +257,13 @@ function genSurvivors() {
   const weapons = data.weapons.slice();
   for (const c of extra.chars || []) {
     const body = { ...c };
+    // 主播本人的 B 站头像：一张只有 3–7KB，直接转 data URI 内联进 gen.js。
+    // 边缘每多一次请求就是一两秒，九张头像分开发请求不划算。
+    if (body.face) {
+      const fp = path.join(ROOT, body.face);
+      body.face = has(fp) ? 'data:image/webp;base64,' + fs.readFileSync(fp).toString('base64') : null;
+      if (!body.face) delete body.face;
+    }
     const ws = (body.weapons || []).map((w, i) => {
       // 官方武器的 id 形如 awakener-0001:0，彩蛋沿用同一套：guest-xxx:0
       const id = `${c.pid}:${i}`;

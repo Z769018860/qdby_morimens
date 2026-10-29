@@ -142,6 +142,14 @@ export const PROTOS = {
     name: '茉香花海', color: '#8ce0a8', cd: 2.8, dmg: 8, n: 1, nStep: 2,
     desc: (lv) => `脚下开出 ${(3.2 + lv * 0.3).toFixed(1)} 秒花海，自己在里面回血，敌人踩进来掉血`,
   },
+  starfall: {
+    name: '星轨坠落', color: '#8fa8ff', cd: 1.9, dmg: 16, n: 1, nStep: 2,
+    desc: (lv) => `沿一条线依次落下 ${2 + Math.floor(lv / 2)} 颗星，越往后落得越重`,
+  },
+  stroll: {
+    name: '挡住路口', color: '#a9a29a', cd: 2.6, dmg: 9, n: 1, nStep: 2,
+    desc: (lv) => `在身前横一道 ${(2.2 + lv * 0.2).toFixed(1)} 秒的路障，敌人被拖住，自己补一层护盾`,
+  },
 };
 
 // 12 原型里各挑一个「代表武器」的兜底顺序：某个原型一把都抽不到时不至于空池。
@@ -568,6 +576,18 @@ export const EVOS = [
     fx: { area: 0.5, dmg: 0.3 },
     txt: '夏茉琳专属：花海范围 +50%，伤害 +30%',
   },
+  {
+    id: 'sw_chaoxing', char: 'egg-chaoxing', n: '星海黎明', color: '#8fa8ff',
+    need: { level: 4 },
+    fx: { count: 2, dmg: 0.45 },
+    txt: '朝星专属：星轨多落 2 颗，伤害 +45%',
+  },
+  {
+    id: 'sw_maodie', char: 'egg-maodie', n: '耄耋之年', color: '#a9a29a',
+    need: { level: 4 },
+    fx: { area: 0.4, dmg: 0.25 },
+    txt: '路过的耄耋专属：路障更宽，伤害 +25%',
+  },
 ];
 
 // ---------------------------------------------------------------- 波次
@@ -734,6 +754,16 @@ export const MECHS = {
     id: 'blossom', n: '花信风', color: '#8ce0a8',
     text: '每 9 秒在脚下开一片花海：站在里面每秒回复 2 点生命，敌人进来被减速并持续受伤',
     short: '花信',
+  },
+  'egg-chaoxing': {
+    id: 'starlit', n: '星轨', color: '#8fa8ff',
+    text: '暴击率 +8%、暴击伤害 +15%；每 8 秒朝场上最远的 3 名敌人各落一颗星',
+    short: '星轨',
+  },
+  'egg-maodie': {
+    id: 'gatekeep', n: '挡路', color: '#a9a29a',
+    text: '护盾上限 +30%，移动速度 -8%；每 12 秒在脚下横一道拖慢敌人的路障',
+    short: '挡路',
   },
 };
 
