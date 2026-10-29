@@ -28,6 +28,31 @@ const TUNE = {
   contactIframe: 0.55,
 };
 
+// ------------------------------------------------------------------ 难度
+// 同一栋楼，只看你敢走到第几层。三层 / 五层 / 八层各拿一个首领当终点，地形、房间、
+// 剧情都不用另做一套——往下是同一段楼梯，区别是「到哪儿为止」。
+// hp/dmg/drop 是相对倍率（敌人血量、吃到的伤害、掉落概率），score 只乘在结算分上。
+const DIFFS = [
+  {
+    k: 'easy', n: '简单', en: 'Easy', floors: 3,
+    hp: 0.78, dmg: 0.6, drop: 1.25, score: 0.7, extraHp: 4,   // 多两颗心（4 = 2 颗）
+    hint: '三层为止。蜡像馆的夫人是这条路上的最后一个人，桌子底下那段楼梯当没看见。',
+    end: 'winE',
+  },
+  {
+    k: 'hard', n: '困难', en: 'Hard', floors: 5,
+    hp: 1, dmg: 1, drop: 1, score: 1, extraHp: 0,
+    hint: '五层。锅炉灭了火，路就断在那儿。上面的礼堂、礼拜堂、深渊都还是空的。',
+    end: 'winH',
+  },
+  {
+    k: 'mad', n: '癫狂', en: 'Madness', floors: 8,
+    hp: 1.3, dmg: 1.4, drop: 0.85, score: 1.6, extraHp: 0,
+    hint: '八层到底。融蚀深渊里那滩东西会站起来，而且没打算让你上来。',
+    end: 'win',
+  },
+];
+
 // ------------------------------------------------------------------ 毛色
 // d/m/l = 暗部 / 中间调 / 高光。原图是浅灰白的校猫，渲染时按亮度重新映射成「黑猫」，
 // 所以这里给的是调色板，不是滤镜——阴影层次会跟着保留下来。
@@ -40,6 +65,7 @@ const FURS = [
   { k: 'ghost', n: '幽灵猫', d: '#08110f', m: '#12211f', l: '#2b4a45', rim: '#6fe3c8', pat: 'ghost', hint: '半透明，尾巴尖会散成雾。', unlock: { type: 'kills', v: 150 } },
   { k: 'ember', n: '焦黑', d: '#0a0605', m: '#1b100c', l: '#40231a', rim: '#ff7a3c', pat: 'ember', hint: '从火灾里跑出来的猫，缝隙里有火。', unlock: { type: 'deaths', v: 8 } },
   { k: 'ink', n: '墨蓝', d: '#050a12', m: '#0e1a2c', l: '#2a4470', rim: '#5b9bff', pat: 'none', hint: '像被墨水泡过，光是蓝的。', unlock: { type: 'coins', v: 120 } },
+  { k: 'void', n: '寂灭', d: '#08050f', m: '#150e26', l: '#342a58', rim: '#a06bff', pat: 'stars', hint: '从深渊底下带上来的颜色，毛尖是紫的，抖一下会掉一点浆。', unlock: { type: 'mad', v: 1 } },
 ];
 
 // ------------------------------------------------------------------ 瞳色
@@ -270,7 +296,7 @@ const TEXT = {
   winTitle: '校猫爬出来了',
   winSub: '天亮了。走廊还是那条走廊，猫不太一样了。',
 };
-return { TUNE, FURS, EYES, COSTUMES, ITEMS, TRINKETS, ACTIVES, ENEMIES, BOSSES, FLOORS, TEXT };
+return { TUNE, DIFFS, FURS, EYES, COSTUMES, ITEMS, TRINKETS, ACTIVES, ENEMIES, BOSSES, FLOORS, TEXT };
 })();
 
 // ---- js/binding-art.js
@@ -2982,6 +3008,44 @@ const SCENES = {
       { k: 'cat', t: '它是好意。这才是最糟的地方。' },
     ],
   },
+  // 简单（三层）：到蜡像馆为止。桌子底下那段楼梯是给「下次」留的
+  winE: {
+    bg: 'wax', music: 'dawn', title: '今晚到这儿', codex: [],
+    lines: [
+      { k: 'narr', t: '夫人的椅子一动不动。蜡从裙角化到地上，积成一小滩，像谁把一整夜的蜡烛都点完了。' },
+      { k: 'narr', t: '桌子底下那段新砌的楼梯口还在。砖是干的，砂浆算得很准——封它的人不着急，他知道总有人来拆。' },
+      { k: 'cat', t: '今晚到这儿。' },
+      { k: 'narr', t: '猫绕着长桌走了一圈，把蜡像馆的门从里面顶上了。' },
+      { k: 'narr', t: '往上比往下慢。每一段楼梯都要重新认一遍，好像这栋楼趁它不在的时候偷偷挪过。' },
+      { k: 'voice', t: '你听见的都是第一层的回声。再往下，声音就不一样了。' },
+      { k: 'narr', t: '天亮之前，猫从走廊尽头的楼梯口钻了出来。灯还坏着，地上一层薄薄的蜡。' },
+      { k: 'voice', who: '二年级生', t: '……校猫？你今天怎么一身的蜡味。' },
+      { k: 'narr', t: '猫没有回答。猫从来不需要回答。' },
+      { k: 'narr', t: '它只是把爪子上的蜡在门框上蹭干净，跳上窗台，睡了。' },
+      { k: 'narr', t: '— 完 —' },
+    ],
+  },
+
+  // 困难（五层）：到锅炉房为止。炉子凉了，井口还在
+  winH: {
+    bg: 'boiler', music: 'dawn', title: '炉子凉了', codex: [],
+    lines: [
+      { k: 'narr', t: '扳手落地。炉口的火缩成一小块，最后连那一小块也没了。' },
+      { k: 'narr', t: '墙上的管子一根一根凉下去。四十年没停过的声音，停了。' },
+      { k: 'narr', t: '锅炉后面那道通风井还通着。铁梯锈得发红，一格一格往上，每一格都在响。' },
+      { k: 'cat', t: '上面是礼堂。今晚不去了。' },
+      { k: 'narr', t: '爬到一半，猫回头看了一眼。井底有一点红，像谁在很深的地方给自己留了一盏灯。' },
+      { k: 'voice', t: '……你听见掌声了吗。那就别再往下听了。' },
+      { k: 'narr', t: '从井口出来是后厨。锅还是温的，没有人。' },
+      { k: 'narr', t: '天亮之前，走廊恢复了原来的长度。猫从楼梯口走上来，身上一层煤灰。' },
+      { k: 'voice', who: '二年级生', t: '……是你啊，校猫。你怎么弄得这么脏。' },
+      { k: 'narr', t: '猫没有回答。猫从来不需要回答。' },
+      { k: 'narr', t: '它只是抖了抖身上的灰，跳上窗台。窗台外面，太阳正从教学楼后面爬出来。' },
+      { k: 'narr', t: '它没看见那只眼睛。那只眼睛还在下面，在最底下那一层。' },
+      { k: 'narr', t: '— 完 —' },
+    ],
+  },
+
   win: {
     bg: 'dawn', music: 'dawn', title: '天亮', codex: ['dream', 'dawn'],
     lines: [
@@ -4002,7 +4066,7 @@ return { drawScene };
 
 // ---- js/binding.js
 const m_binding = await (async () => {
-const { TUNE, FURS, EYES, COSTUMES, ITEMS, TRINKETS, ACTIVES, ENEMIES, BOSSES, FLOORS, TEXT } = m_binding_data;
+const { TUNE, DIFFS, FURS, EYES, COSTUMES, ITEMS, TRINKETS, ACTIVES, ENEMIES, BOSSES, FLOORS, TEXT } = m_binding_data;
 const { loadArt, drawCat, drawPortrait, artImage } = m_binding_cat;
 const { bakeRoom, drawDoorState, drawEnemy, drawBoss, drawPickup, drawHeart, WALL } = m_binding_draw;
 const { ART } = m_binding_art;
@@ -4043,7 +4107,9 @@ function defaultMeta() {
     v: SAVE_VER,
     fur: 'coal', eye: 'gold', costume: 'plain',
     unlock: ['fur:coal', 'eye:gold', 'cos:plain'],
-    stats: { kills: 0, deaths: 0, runs: 0, clears: 0, itemsMax: 0, coinsMax: 0, bestFloor: 0, bestScore: 0, rooms: 0, bossKills: 0 },
+    stats: { kills: 0, deaths: 0, runs: 0, clears: 0, itemsMax: 0, coinsMax: 0, bestFloor: 0, bestScore: 0, rooms: 0, bossKills: 0, madClears: 0 },
+    diff: 'hard',    // 上次选的难度：三层简单 / 五层困难 / 八层癫狂
+    byDiff: {},      // 按难度分开记：{ easy: { runs, clears, bestFloor, bestScore }, ... }
     muted: false,
     autoFire: false,  // 自动攻击：猫自己瞄准最近的敌人并持续开火，只需要走位
     codex: {},       // 已读的世界观条目（设定集）
@@ -4059,6 +4125,10 @@ function loadMeta() {
     if (!Array.isArray(m.unlock)) m.unlock = defaultMeta().unlock;
     if (!m.codex || typeof m.codex !== 'object') m.codex = {};
     if (!m.seen || typeof m.seen !== 'object') m.seen = {};
+    // 老存档没有难度：默认困难（五层），并按现有最深纪录反推一次分项成绩
+    if (!DIFFS.some((d) => d.k === m.diff)) m.diff = 'hard';
+    if (!m.byDiff || typeof m.byDiff !== 'object') m.byDiff = {};
+    for (const d of DIFFS) if (!m.byDiff[d.k] || typeof m.byDiff[d.k] !== 'object') m.byDiff[d.k] = {};
     return m;
   } catch (e) { return defaultMeta(); }
 }
@@ -4090,6 +4160,19 @@ const G = {
 };
 const run = () => G.run;
 const room = () => G.run && G.run.room;
+
+// 难度：一局开始就把 meta 里选的档拷进 run，局中不再受存档变动影响（重开才算）
+const diffOf = () => {
+  const k = (G.run && G.run.diff) || G.meta.diff;
+  return DIFFS.find((d) => d.k === k) || DIFFS[1];
+};
+// 这一局打到第几层为止。FLOORS 始终是完整的八层，难度只是「敢走多深」
+const floorCount = () => diffOf().floors;
+const diffStat = (k) => {
+  const d = G.meta.byDiff || (G.meta.byDiff = {});
+  if (!d[k]) d[k] = {};
+  return d[k];
+};
 
 // ------------------------------------------------------------------ 画布
 const cv = $('cv');
@@ -4124,7 +4207,7 @@ const toWorld = (clientX, clientY) => {
 // ------------------------------------------------------------------ 属性
 function baseStats() {
   return {
-    hp: TUNE.baseHp, dmg: TUNE.dmg, rate: TUNE.rate, shots: 1, pierce: 0,
+    hp: TUNE.baseHp + (diffOf().extraHp || 0), dmg: TUNE.dmg, rate: TUNE.rate, shots: 1, pierce: 0,
     crit: TUNE.crit, critMul: TUNE.critMul, speed: TUNE.speed, tearSpeed: TUNE.tearSpeed,
     range: TUNE.range, luck: 0, coinMul: 1, chargeMul: 1, vision: 0, thorns: 0,
     healKill: 0, healRoom: 0, revive: 0, autoAim: false, explodeKill: false,
@@ -4280,9 +4363,10 @@ function buildRoom(rm) {
     });
   } else if (rm.type === 'boss') {
     const B = BOSSES[F.boss];
+    const bh = Math.round(B.hp * diffOf().hp);
     rm.boss = {
       k: F.boss, n: B.n, sub: B.sub, art: B.art, x: W / 2, y: H / 2 - 20,
-      hp: B.hp, maxHp: B.hp, r: B.r, sp: B.sp, atks: B.atks, ringN: B.ringN, ringSp: B.ringSp,
+      hp: bh, maxHp: bh, r: B.r, sp: B.sp, atks: B.atks, ringN: B.ringN, ringSp: B.ringSp,
       phase: 1, atkCd: 1.6, atkIdx: 0, windup: 0, dash: 0, dvx: 0, dvy: 0, hurt: 0,
       t: 0, a: 0, seed: Math.random() * 9,
     };
@@ -4311,9 +4395,10 @@ const SHAPE_BY_AI = { chase: 'blob', keep: 'eye', orbit: 'eye', dash: 'spider', 
 function makeEnemy(type, x, y, scale) {
   const d = ENEMIES[type];
   const sc = scale || 1;
+  const dm = diffOf();
   return {
     type, art: d.art || null, draw: d.draw || SHAPE_BY_AI[d.ai] || 'blob', ai: d.ai, n: d.n, x, y, r: d.r * sc,
-    hp: d.hp * sc, maxHp: d.hp * sc, sp: d.sp, dmg: d.dmg, c: d.c, c2: d.c2,
+    hp: d.hp * sc * dm.hp, maxHp: d.hp * sc * dm.hp, sp: d.sp, dmg: d.dmg, c: d.c, c2: d.c2,
     shoot: d.shoot, keep: d.keep, split: d.split, art: d.art,
     vx: 0, vy: 0, hurt: 0, seed: Math.random() * 9, cd: rnd(0.6, 1.8), state: 0, timer: 0, aimA: 0,
   };
@@ -4325,14 +4410,20 @@ function startRun() {
   G.rows = G.cols === 9 ? 13 : 9;
   G.W = G.cols * T;
   G.H = G.rows * T;
+  // 难度在开局这一刻定死：不能靠 diffOf() 现读，那一局还没建出来，读到的是上一局的档
+  const dm = DIFFS.find((d) => d.k === G.meta.diff) || DIFFS[1];
   G.run = {
     floor: 0, p: null, room: null, items: [], trinket: null, active: null,
     coins: 0, hp: TUNE.baseHp, maxHp: TUNE.baseHp, score: 0, kills: 0, roomsCleared: 0,
     startTime: performance.now(), map: null, visitedRooms: 0, t: 0, dead: false, minFloorReached: 0,
+    diff: dm.k,
   };
+  const maxHp0 = TUNE.baseHp + (dm.extraHp || 0);
+  G.run.hp = maxHp0;
+  G.run.maxHp = maxHp0;
   const p = {
     x: G.W / 2, y: G.H / 2, vx: 0, vy: 0, r: TUNE.playerR,
-    hp: TUNE.baseHp, maxHp: TUNE.baseHp, invuln: 0, fireCd: 0, hurt: 0, blink: 0, blinkT: rnd(2, 5),
+    hp: maxHp0, maxHp: maxHp0, invuln: 0, fireCd: 0, hurt: 0, blink: 0, blinkT: rnd(2, 5),
     aim: -Math.PI / 2, moving: false, stats: baseStats(), alt: 0,
   };
   G.run.p = p;
@@ -4356,7 +4447,7 @@ function startRun() {
   refreshHud();
   renderMinimap();
   banner(FLOORS[0].n, FLOORS[0].tip);
-  toast('钥令：' + act.n + '（空格 / 右下角按钮）');
+  toast(`${dm.n} · 打到第 ${dm.floors} 层为止 · 钥令：${act.n}（空格 / 右下角按钮）`);
   Audio2.door();
   Audio2.music('hall');
   G.meta.codex['ac:' + act.k] = 1;
@@ -4790,9 +4881,10 @@ function killEnemy(e) {
   }
   // 掉落
   const luck = r.p.stats.luck;
-  const coinChance = 0.42 + luck * 0.05;
+  const dr = diffOf().drop;
+  const coinChance = (0.42 + luck * 0.05) * dr;
   if (Math.random() < coinChance) dropCoin(e.x, e.y, Math.random() < 0.12 + luck * 0.04 ? 5 : 1);
-  if (Math.random() < 0.035 + luck * 0.012) rm.pickups.push({ kind: 'heart', x: e.x, y: e.y, half: true, seed: Math.random() * 9 });
+  if (Math.random() < (0.035 + luck * 0.012) * dr) rm.pickups.push({ kind: 'heart', x: e.x, y: e.y, half: true, seed: Math.random() * 9 });
   if (r.p.stats.healKill) {
     r.healCounter = (r.healCounter || 0) + 1;
     if (r.healCounter >= r.p.stats.healKill) { r.healCounter = 0; heal(1); }
@@ -4829,7 +4921,8 @@ function heal(n) {
 function hurtPlayer(dmg) {
   const r = G.run, p = r.p;
   if (p.invuln > 0) return;
-  const amount = Math.max(1, Math.round(dmg * (p.stats.dmgTaken || 1)));
+  // 难度的伤害倍率统一乘在这里：接触、弹幕、爆裂全走这一条路径，不会漏
+  const amount = Math.max(1, Math.round(dmg * (p.stats.dmgTaken || 1) * diffOf().dmg));
   p.hp -= amount;
   p.invuln = TUNE.invuln + (p.stats.invulnBonus || 0);
   p.hurt = 1;
@@ -4880,7 +4973,7 @@ function onRoomClear() {
     }
   }
   if (r.p.stats.healRoom) heal(r.p.stats.healRoom / 2);
-  if (Math.random() < 0.09 + r.p.stats.luck * 0.02) {
+  if (Math.random() < (0.09 + r.p.stats.luck * 0.02) * diffOf().drop) {
     rm.pickups.push({ kind: 'trinket', x: G.W / 2 + rnd(-30, 30), y: G.H / 2 + 30, icon: pickOne(TRINKETS).ic, trinket: pickOne(TRINKETS).k, seed: Math.random() * 9 });
   }
   renderMinimap();
@@ -4901,14 +4994,15 @@ function onBossDown() {
   // 掉落：一堆银芯 + 一颗心
   for (let i = 0; i < 6; i++) dropCoin(G.W / 2 + rnd(-40, 40), G.H / 2 + rnd(-30, 30), 1);
   rm.pickups.push({ kind: 'heart', x: G.W / 2 + 46, y: G.H / 2, half: false, seed: 1 });
-  if (r.floor < FLOORS.length - 1) rm.pickups.push({ kind: 'stair', x: G.W / 2, y: G.H / 2 + 26, seed: 2 });
+  if (r.floor < floorCount() - 1) rm.pickups.push({ kind: 'stair', x: G.W / 2, y: G.H / 2 + 26, seed: 2 });
   if (r.p.stats.floorCoins) r.coins += r.p.stats.floorCoins;
   renderMinimap();
   refreshHud();
   saveMeta();
-  if (r.floor >= FLOORS.length - 1) {
-    // 最后一只首领倒下 → 结局。这里不放楼梯：上面已经没有地方可以去了
-    playScene('win', () => { finishRun(true); });
+  if (r.floor >= floorCount() - 1) {
+    // 最后一只首领倒下 → 结局。这里不放楼梯：上面已经没有地方可以去了。
+    // 三个难度各有各的收尾——三层从蜡像馆爬回去、五层从通风井爬回去、八层才是真结局
+    playScene(diffOf().end || 'win', () => { finishRun(true); });
   } else {
     playScene('b' + (r.floor + 1) + 'post', () => {
       banner('首领倒下', '楼梯出现了');
@@ -5167,14 +5261,14 @@ function goNext() {
   r.floorClear = (r.floorClear || 0) + 1;
   G.meta.stats.floorClear = Math.max(G.meta.stats.floorClear || 0, r.floorClear);
   Audio2.item();
-  if (r.floor + 1 >= FLOORS.length) { finishRun(true); return; }
+  if (r.floor + 1 >= floorCount()) { finishRun(true); return; }
   nextFloor();
 }
 
 function nextFloor() {
   const r = G.run;
   r.floor += 1;
-  if (r.floor >= FLOORS.length) { finishRun(true); return; }
+  if (r.floor >= floorCount()) { finishRun(true); return; }
   r.map = makeFloor(r.floor);
   r.room = r.map.start;
   buildRoom(r.map.start);
@@ -5197,16 +5291,27 @@ function nextFloor() {
 function finishRun(win) {
   const r = G.run;
   const st = G.meta.stats;
+  const dm = diffOf();
+  const reached = win ? floorCount() : r.floor + 1;
+  const sc = Math.round(r.score * (dm.score || 1));
+  r.finalScore = sc;
   st.runs += 1;
   st.kills += r.kills;
   if (!win) st.deaths += 1;
   if (win) st.clears += 1;
+  if (win && dm.k === 'mad') st.madClears = (st.madClears || 0) + 1;
   st.itemsMax = Math.max(st.itemsMax, r.items.length);
   st.coinsMax = Math.max(st.coinsMax, r.coins);
-  st.bestFloor = Math.max(st.bestFloor, win ? FLOORS.length : r.floor + 1);
+  st.bestFloor = Math.max(st.bestFloor, reached);
   st.floorClear = Math.max(st.floorClear || 0, r.floorClear || 0);
-  st.bestScore = Math.max(st.bestScore, r.score);
+  st.bestScore = Math.max(st.bestScore, sc);
   st.rooms += r.roomsCleared;
+  // 按难度分开记一份：三层的最深和八层的最深不能混在一个数里比较
+  const ds = diffStat(dm.k);
+  ds.runs = (ds.runs || 0) + 1;
+  if (win) ds.clears = (ds.clears || 0) + 1;
+  ds.bestFloor = Math.max(ds.bestFloor || 0, reached);
+  ds.bestScore = Math.max(ds.bestScore || 0, sc);
   const fresh = checkUnlocks();
   // 设定集和解锁一起结算：进度到了但没读过的东西，在这一刻补进档案
   for (const e of unlockCodexByProgress()) fresh.push({ id: 'codex:' + e.k, name: e.t, kind: '设定' });
@@ -5222,6 +5327,7 @@ function meets(u) {
   if (!u) return true;
   if (u.type === 'floor') return (s.floorClear || 0) >= u.v;
   if (u.type === 'clear') return (s.clears || 0) >= u.v;
+  if (u.type === 'mad') return (s.madClears || 0) >= u.v;
   if (u.type === 'boss') return (s.bossKills || 0) >= u.v;
   if (u.type === 'win') return (s.clears || 0) >= (u.v || 1);
   if (u.type === 'kills') return (s.kills || 0) >= u.v;
@@ -5277,8 +5383,8 @@ function storySpeaker(line) {
 function playScene(id, onDone) {
   const scene = SCENES[id];
   if (!scene || !scene.lines || !scene.lines.length) { if (onDone) onDone(); return; }
-  // 除结局外，看过的戏不重播（重开一局不该再看一遍同样的独白）
-  if (id !== 'win' && G.meta.seen[id]) { if (onDone) onDone(); return; }
+  // 除结局外，看过的戏不重播（重开一局不该再看一遍同样的独白）。结局三个难度各一段，都叫 win*
+  if (!/^win/.test(id) && G.meta.seen[id]) { if (onDone) onDone(); return; }
   G.meta.seen[id] = 1;
   saveMeta();
   G.story = { id, scene, i: 0, reveal: 0, onDone };
@@ -6047,6 +6153,46 @@ function bindUi() {
   G.ui.refreshChips = refreshChips;
   refreshChips();
 
+  // 标题页那行成绩：分难度记的，换一档就得跟着换，不然会显示上一档的数字
+  const renderBest = () => {
+    const st = G.meta.stats;
+    const dm = DIFFS.find((d) => d.k === G.meta.diff) || DIFFS[1];
+    const ds = diffStat(dm.k);
+    $('bestInfo').innerHTML = `<b class="dname">${dm.n}</b> · 最深 <b>${ds.bestFloor || 0}</b>/${dm.floors} 层 · 最高分 <b>${ds.bestScore || 0}</b> · 通关 <b>${ds.clears || 0}</b> 次`;
+    const got = Object.keys(G.meta.codex).filter((k) => G.meta.codex[k]).length;
+    $('codexInfo').textContent = `累计击杀 ${st.kills} · 设定集 ${got} / ${WORLD.length}`;
+  };
+  G.ui.renderBest = renderBest;
+
+  // 难度：整局的地图和数值都跟着这一档走，所以放在最显眼的位置、开局前才改
+  const renderDiff = () => {
+    const host = $('diffChips');
+    if (!host) return;
+    host.innerHTML = '';
+    for (const d of DIFFS) {
+      const on = G.meta.diff === d.k;
+      const b = document.createElement('button');
+      b.className = 'diffchip' + (on ? ' on' : '');
+      b.type = 'button';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+      b.innerHTML = `<b>${d.n}</b><i>${d.floors} 层</i>`;
+      b.onclick = () => {
+        G.meta.diff = d.k;
+        saveMeta();
+        renderDiff();
+        Audio2.blip(700, 0.06, 'triangle', 0.03);
+      };
+      host.appendChild(b);
+    }
+    const cur = DIFFS.find((d) => d.k === G.meta.diff) || DIFFS[1];
+    const hint = $('diffHint');
+    if (hint) hint.textContent = cur.hint;
+    renderBest();
+  };
+  G.ui.renderDiff = renderDiff;
+  renderDiff();
+
   $('btnStart').onclick = () => beginRun();
   $('btnHelp').onclick = () => $('ovHelp').classList.toggle('on');
   $('btnCodex').onclick = () => openCodex();
@@ -6192,10 +6338,8 @@ function toTitle() {
   G.mode = 'title';
   G.paused = false;
   G.run = null;
-  const st = G.meta.stats;
-  $('bestInfo').innerHTML = `最深 <b>${st.bestFloor}</b> 层 · 最高分 <b>${st.bestScore}</b> · 通关 <b>${st.clears}</b> 次 · 累计击杀 <b>${st.kills}</b>`;
-  const got = Object.keys(G.meta.codex).filter((k) => G.meta.codex[k]).length;
-  $('codexInfo').textContent = `设定集 ${got} / ${WORLD.length}`;
+  if (G.ui.renderDiff) G.ui.renderDiff();
+  else if (G.ui.renderBest) G.ui.renderBest();
   G.ui.refreshChips();
   document.body.classList.add('titlestate');
   $('ovTitle').classList.add('on');
@@ -6314,15 +6458,17 @@ function showEnd(win, fresh) {
   const r = G.run;
   const st = G.meta.stats;
   const secs = Math.round((performance.now() - r.startTime) / 1000);
+  const dm = diffOf();
   $('endTitle').textContent = win ? TEXT.winTitle : TEXT.deadTitle;
   $('endSub').textContent = win ? TEXT.winSub : pickOne(DEATHS);
   const got = Object.keys(G.meta.codex).filter((k) => G.meta.codex[k]).length;
   const rows = [
-    ['到达', win ? FLOORS.length + ' 层全部打通' : FLOORS[r.floor].n],
+    ['难度', dm.n + ' · ' + dm.floors + ' 层'],
+    ['到达', win ? floorCount() + ' 层全部打通' : FLOORS[r.floor].n],
     ['击杀', r.kills],
     ['造物', r.items.length + ' 件'],
     ['银芯', r.coins],
-    ['分数', r.score],
+    ['分数', r.finalScore != null ? r.finalScore : r.score],
     ['设定集', got + ' / ' + WORLD.length],
   ];
   $('endStats').innerHTML = rows.map(([a, b]) => `<div><span>${a}</span><b>${b}</b></div>`).join('');
@@ -6357,10 +6503,10 @@ async function boot() {
   if (location.search.includes('_test=1')) {
     window.__binding = {
       G, startRun, beginRun, room, ITEMS, FURS, EYES, COSTUMES, TRINKETS, ACTIVES, WORLD, SCENES,
-      FLOORS, BOSSES, ENEMIES, TEXT,
+      FLOORS, BOSSES, ENEMIES, TEXT, DIFFS, diffOf, floorCount,
       useActive, nextFloor, goNext, goRoom, takeItem, recalcStats, refreshHud, renderMinimap,
-      playScene, advanceStory, endStory, openCodex, renderCodex, unlockCodexByProgress, Audio2,
-      makeFloor, buildRoom, aimAngle, wantShoot, tryPickup, onRoomClear,
+      playScene, advanceStory, endStory, openCodex, renderCodex, unlockCodexByProgress, Audio2, toTitle,
+      makeFloor, buildRoom, aimAngle, wantShoot, tryPickup, onRoomClear, hurtPlayer, makeEnemy,
     };
   }
 }

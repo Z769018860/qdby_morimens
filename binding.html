@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>校猫的结合 · 忘忘同人小游戏</title>
-<meta name="description" content="以撒的结合式房间地牢，主角是弥萨格大学的校猫：往下打八层，捡起散落的造物，猫身上就会多出帽子、眼镜、披风、提灯——八种毛色、六种瞳色、三十多种饰品，把同一只黑猫改成完全不同的样子。有自动攻击开关，手机上也能只走位。带剧情与设定集：世界观整理自《忘却前夜》的剧情文本与收藏馆档案。">
+<meta name="description" content="以撒的结合式房间地牢，主角是弥萨格大学的校猫：三档难度（简单三层 / 困难五层 / 癫狂八层），捡起散落的造物，猫身上就会多出帽子、眼镜、披风、提灯——八种毛色、六种瞳色、三十多种饰品，把同一只黑猫改成完全不同的样子。有自动攻击开关，手机上也能只走位。带剧情与设定集：世界观整理自《忘却前夜》的剧情文本与收藏馆档案。">
 <meta name="theme-color" content="#080b11">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0e16'/%3E%3Cg fill='%23e6e9f0'%3E%3Cellipse cx='11' cy='12' rx='3.1' ry='3.9'/%3E%3Cellipse cx='21' cy='12' rx='3.1' ry='3.9'/%3E%3Cellipse cx='7' cy='19.4' rx='2.7' ry='3.3'/%3E%3Cellipse cx='25' cy='19.4' rx='2.7' ry='3.3'/%3E%3Cpath d='M16 17.2c4.3 0 7.2 3.3 7.2 6 0 2.3-2 3.7-4.5 3.7-1.5 0-2.3-.6-2.7-.6s-1.2.6-2.7.6c-2.5 0-4.5-1.4-4.5-3.7 0-2.7 2.9-6 7.2-6Z'/%3E%3C/g%3E%3C/svg%3E">
 <style>
@@ -239,7 +239,34 @@ button{font:inherit; color:inherit; cursor:pointer}
   .panel h1{font-size:26px}
 }
 
+/* 难度选择：三档横排，一档一格，下面跟一句这一档是什么样 */
+.diffbox{margin:12px 0 4px}
+.diffbox .dlab{font-size:10.5px; letter-spacing:.1em; color:var(--dim); margin-bottom:5px}
+.diffs{display:grid; grid-template-columns:repeat(3, 1fr); gap:6px}
+.diffchip{
+  display:flex; flex-direction:column; align-items:center; gap:1px;
+  padding:7px 4px 8px; border-radius:10px; cursor:pointer;
+  border:1px solid var(--line); background:var(--panel2); color:var(--dim);
+  font:inherit; transition:border-color .15s, background .15s, color .15s;
+}
+.diffchip b{font-size:13px; font-weight:600; letter-spacing:.06em; color:var(--text)}
+.diffchip i{font-style:normal; font-size:10px; opacity:.7; font-variant-numeric:tabular-nums}
+.diffchip:hover{border-color:color-mix(in oklab, var(--accent) 50%, var(--line))}
+.diffchip.on{
+  border-color:var(--accent);
+  background:color-mix(in oklab, var(--accent) 17%, var(--panel2));
+}
+.diffchip.on b{color:color-mix(in oklab, var(--accent) 62%, #fff)}
+.diffchip.on i{opacity:.95; color:color-mix(in oklab, var(--accent) 55%, #fff)}
+.diffhint{font-size:11px; line-height:1.65; color:var(--dim); margin-top:6px; min-height:2.6em}
+@media (max-width:420px){
+  .diffchip{padding:6px 2px 7px}
+  .diffchip b{font-size:12px}
+  .diffchip i{font-size:9.5px}
+}
+
 .best{font-size:11.5px; color:var(--dim); margin-bottom:14px}
+.best .dname{color:var(--text)}
 .best b{color:var(--gold); font-variant-numeric:tabular-nums}
 .acts{display:flex; gap:8px; flex-wrap:wrap}
 .btn{
@@ -469,7 +496,7 @@ body.titlestate .ov#ovTitle .panel{
 
 .card p{white-space:pre-line}
 </style>
-<meta name="build" content="608297ff44">
+<meta name="build" content="da9f622ee4">
 </head>
 <body>
 <canvas id="bgcv" aria-hidden="true"></canvas>
@@ -527,7 +554,7 @@ body.titlestate .ov#ovTitle .panel{
     <p class="kicker">Morimens · Fan Works</p>
     <h1>校猫的结合</h1>
     <p class="en">The Binding of School Cat</p>
-    <p class="intro">弥萨格大学的夜里，校猫掉进了地下室。往下打八层，捡起这里散落的造物——帽子、眼镜、披风、提灯会一件件挂到猫身上，捡得越多，越不像原来那只。</p>
+    <p class="intro">弥萨格大学的夜里，校猫掉进了地下室。捡起这里散落的造物——帽子、眼镜、披风、提灯会一件件挂到猫身上，捡得越多，越不像原来那只。往下能走多深，看你在门口选哪一档。</p>
 
     <div class="dress">
       <canvas id="titleCat" aria-label="校猫外观预览"></canvas>
@@ -538,6 +565,12 @@ body.titlestate .ov#ovTitle .panel{
       </div>
     </div>
 
+    <div class="diffbox">
+      <div class="dlab">难度 · 往下走多深</div>
+      <div class="diffs" id="diffChips" role="radiogroup" aria-label="难度"></div>
+      <div class="diffhint" id="diffHint"></div>
+    </div>
+
     <div class="best"><span id="bestInfo"></span><span class="codexinfo" id="codexInfo"></span></div>
     <div class="acts">
       <button class="btn primary" id="btnStart">开始这一夜</button>
@@ -545,7 +578,8 @@ body.titlestate .ov#ovTitle .panel{
       <button class="btn" id="btnHelp">怎么玩</button>
     </div>
     <div class="help" id="ovHelp">
-      <b>目标</b>：从一层打到八层，每层找到首领房，打倒首领后走楼梯下一层。<br>
+      <b>目标</b>：每层找到首领房，打倒首领后走楼梯下一层。<b>简单三层 / 困难五层 / 癫狂八层</b>，走到哪一层为止由标题页选的那档决定，打穿最后一只首领就算通关。<br>
+      <b>难度</b>：简单多两颗心、怪软、掉得多；困难是标准；癫狂的怪血量 ×1.3、伤害 ×1.4、掉落 ×0.85，分数 ×1.6。三档的终点各是一个不同的首领，结局也不一样——只有八层那条能走到融蚀深渊底下。<br>
       <b>操作</b>：<kbd>WASD</kbd> 移动，<kbd>鼠标</kbd>瞄准并按住左键射击（也可以用<kbd>方向键</kbd>四向射击），<kbd>空格</kbd>放钥令，<kbd>F</kbd>开关自动攻击，<kbd>Esc</kbd>暂停。<br>
       <b>自动攻击</b>：右下角那个「自动」按钮（金色是开着）。开了以后猫自己瞄最近的、自己开火，你只管走位；键盘、鼠标、触屏一动手就临时接回手动。<br>
       <b>剧情</b>：开场、每层入口、首领前后都有对话，点画面继续；<kbd>Esc</kbd> 可以跳过，看过的不会重播。<br>
@@ -641,7 +675,7 @@ body.titlestate .ov#ovTitle .panel{
   }, 1000);
 })();
 </script>
-<script type="module" src="js/b/binding.js?v=608297ff44"></script>
+<script type="module" src="js/b/binding.js?v=da9f622ee4"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
