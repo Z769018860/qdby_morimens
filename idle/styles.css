@@ -647,6 +647,9 @@ body{background:#0a0d13}
 .cbox small{display:block;margin-top:5px;font-size:11px;color:#9aa4b8}
 .cbox a{color:#8fb4ff;text-decoration:none}
 .cbox a:hover{text-decoration:underline}
+.traitbox{margin:6px 0 12px;padding:9px 11px;border-radius:10px;background:linear-gradient(180deg,#211b2c,#171320);border:1px solid #463a5c;border-left:3px solid var(--rc,#8f7ad0)}
+.traitbox b{display:block;font-size:13px;color:#f1e8ff;margin-bottom:4px}
+.traitbox p{margin:0;font-size:12px;line-height:1.65;color:#c8bfd8}
 .tile .gmark{position:absolute;top:6px;right:6px;font-size:9px;font-style:normal;padding:1px 5px;border-radius:6px;background:#2a2440cc;border:1px solid #6a5a9a;color:#d8c9ff}
 .tile.gift:not(.locked){box-shadow:0 0 0 1px #6a5a9a55}
 .famebar{background:linear-gradient(180deg,#1b2130,#141922);border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin:10px 0}

@@ -1449,3 +1449,30 @@ test('联动活动：老存档迁移后带 event 字段，彩蛋角色能上阵�
   applyResult(s, data, res);
   assert.equal(eventState(s).daily.battles, before + 1);
 });
+
+test('M18 萨摩不耶的特性「一哥护饺子」对校猫特攻 +50%', () => {
+  const samo = data.bySlug.samo;
+  assert.equal(samo.trait?.vs?.catboss, 0.5, '特性挂在萨摩不耶身上，目标是校猫');
+  assert.ok(data.monById.catboss, '校猫在怪物表里的 id 是 catboss');
+
+  const kit = data.kit('samo', 2);
+  // 同一只木桩怪，只换 mid：伤害差就只可能来自特性
+  const proto = data.monsters.find((m) => !m.boss && m.hp && m.cy?.length);
+  const mkFoe = (mid) => ({ ...makeEnemy(proto, 'Normal', 10, mulberry32(5), { affixes: false, msk: data.msk }), mid, hp: 200000, atk: 1, def: 0 });
+  const run = (mid, withTrait) => simulate({
+    allies: [{ name: '萨摩不耶', type: 'WARDEN', realm: 'CHAOS', hp: 50000, atk: 300, def: 200, critRate: 0, critDmg: 50, kit, trait: withTrait ? samo.trait : null }],
+    enemies: [mkFoe(mid)],
+    seed: 99, maxRounds: 8,
+  }).stats.a0.dmg;
+
+  const cat = run('catboss', true);
+  const catOff = run('catboss', false);
+  const other = run('slime', true);
+  const otherOff = run('slime', false);
+  assert.ok(cat > catOff * 1.3, `对校猫应有明显提升：${cat} vs ${catOff}`);
+  assert.ok(cat / catOff < 1.7, `提升幅度应在 50% 附近，实际 ${(cat / catOff).toFixed(2)}×`);
+  assert.equal(other, otherOff, '打别的怪不生效');
+  // 真实关卡：推图第 40 关是校猫奖励关，敌人里确实站着 catboss，特攻能打上
+  const foes = buildEnemies(40, data.monsters);
+  assert.ok(foes.some((f) => f.mid === 'catboss'), '第 40 关的 Boss 位是校猫');
+});

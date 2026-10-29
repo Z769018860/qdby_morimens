@@ -457,6 +457,8 @@ export function detailModal(app, slug) {
       <h4>叠位效果 <small class="dim">${awk(r?.star || 0)} / ${MAX_AWAKEN}</small></h4>
       ${awakenTable(preview)}
       ${r ? `<div class="eqrow">${slotBox('wheel', 'wheel', '命轮')}${slotBox('cov', 'covenant', '密契')}</div>` : ''}
+      ${a.trait ? `<h4>特性 <small class="dim">常驻，无需触发</small></h4>
+        <div class="traitbox"><b>${esc(a.trait.zh)}</b><p>${esc(a.trait.desc)}</p></div>` : ''}
       <h4>技能 <small class="dim">技能等级 Lv.${lvl + 1}/5（每 15 级 +1，每 ${AWAKEN_SKILL_EVERY} 叠位 +1）</small></h4><div class="skills">${SLOTS.map((k) => `<div class="skill"><b class="sk ${k}">${SLOT_ZH[k]}</b> <em>${esc(kit[k].name)}</em>${kit[k].real?.e ? ` <small class="en">${esc(kit[k].real.e)}</small>` : ''}<small>本作效果：${esc(describeSkill(kit[k]))}</small>${numLine(kit[k])}${kit[k].real ? `<details><summary>原作技能文本（译）</summary><p class="real">${markup(kit[k].real.d, data.kw)}</p></details>` : ''}</div>`).join('')}</div>
       ${a.rk_en?.length ? `<details class="en-box"><summary>启灵（原作文本，仅供参考）</summary>${a.rk_en.map((x) => `<div class="skill"><b>${esc(x.ty)}</b> <em>${esc(x.n)}</em><p class="real">${markup(x.d, data.kw)}</p></div>`).join('')}</details>` : ''}
       <div class="matsrc">

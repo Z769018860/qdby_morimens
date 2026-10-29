@@ -172,6 +172,7 @@ export function allyDef(state, data, slug, teamSlugs = state.team) {
     healBonus: bonus.healBonus, shieldBonus: bonus.shieldBonus, steal: bonus.steal,
     surviveChance: Math.min(0.9, bonus.surviveChance), openAli: bonus.openAli, openKey: bonus.openKey,
     firstBoost: bonus.firstBoost, kit: data.kit(slug, skillLevel(r.lv, r.star)), goldBonus: bonus.gold,
+    trait: a.trait || null,
   };
   def.power = power(def);
   return def;

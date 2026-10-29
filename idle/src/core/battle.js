@@ -27,6 +27,7 @@ export function makeUnit(def, side, idx) {
     openAli: def.openAli || 0, openKey: def.openKey || 0,
     firstBoost: def.firstBoost || 0,
     kit: def.kit || null, pattern: def.pattern || null, opening: def.opening || [], boss: !!def.boss, reward: !!def.reward, affix: def.affix || null,
+    mid: def.mid || null, trait: def.trait || null,
     ali: def.openAli || 0, key: def.openKey || 0, shield: 0, buffs: [], dots: [], cd: {}, st: {}, sig: '',
     roused: false, patIdx: 0, enrage: 0, alive: true, acted: 0,
   };
@@ -119,6 +120,9 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     if (src.firstBoost && src.acted <= 1) raw *= 1 + src.firstBoost / 100;
     if (crit) raw *= 1 + src.critDmg / 100;
     if (src.enrage) raw *= 1 + src.enrage;
+    // 特性特攻：按目标 id 匹配（例：萨摩不耶的「一哥护饺子」对校猫 catboss 额外 +50%）
+    const vs = src.trait && src.trait.vs;
+    if (vs && tgt.mid && vs[tgt.mid]) raw *= 1 + vs[tgt.mid];
     raw *= 0.95 + rng() * 0.1;
     raw *= src.side === 'a' ? DMG_SCALE : 1;
     const d = tgt.def * (1 + sumBuff(tgt, 'def') / 100);
