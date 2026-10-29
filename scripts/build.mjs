@@ -434,6 +434,17 @@ const dictJson = JSON.stringify(dict);
 fs.writeFileSync(path.join(ROOT, 'data/boot.json'), bootJson, 'utf8');
 fs.writeFileSync(path.join(ROOT, 'data/dict.json'), dictJson, 'utf8');
 
+// ---- 首页九宫格图标：Q 版头像内联成 data URI
+// 九张图各自是一个请求，而边缘一次往返就要 1~2 秒；内联后首页只多 30KB，
+// 比多九次往返划算。80×80 是 38px 图标的 2 倍屏尺寸。
+const gameIconMap = has(path.join(ROOT, 'data/game-icons.json'))
+  ? readJson(path.join(ROOT, 'data/game-icons.json')) : {};
+const gameIcons = {};
+for (const g of Object.keys(gameIconMap)) {
+  const p = path.join(ROOT, gameIconMap[g].src);
+  if (has(p)) gameIcons[g] = 'data:image/webp;base64,' + fs.readFileSync(p).toString('base64');
+}
+
 // ---- 构建戳：代码或题库一变就换版本，Service Worker 据此换缓存
 const h = crypto.createHash('sha1');
 h.update(read(path.join(ROOT, 'css/style.css')));
@@ -445,6 +456,8 @@ for (const b of built) h.update(b.src);
 h.update(read(path.join(SRC, 'partials/boot.html')));
 for (const b of built) if (b.entry) h.update(read(path.join(OUT_JS, b.entry)));
 for (const e of extras) h.update(read(path.join(OUT_JS, e.out)));
+// 九宫格图标内联进了首页 HTML，换图必须换戳，否则老访客还是旧头像
+for (const g of Object.keys(gameIcons)) h.update(gameIcons[g]);
 h.update(read(path.join(SRC, 'sw.js')));
 // 挂机版（idle/）是独立子项目，不参与上面的打包，但它的资源同样走 SW 的
 // cache-first：只改 idle 而版本号不动的话，老访客会一直拿到旧的 src/*.js 与
@@ -511,6 +524,10 @@ for (const p of built) {
   // favicon 内联，省掉一个请求（它只有 511B，却要占一个连接位）
   s = s.replace(/<link rel="icon" href="favicon\.svg" type="image\/svg\+xml">/,
     `<link rel="icon" href="${faviconUri}" type="image/svg+xml">`);
+  // 九宫格图标：占位注释换成内联的 Q 版头像
+  s = s.replace(/<!-- @ico:([\w-]+) -->/g, (m, g) => (gameIcons[g]
+    ? `<img src="${gameIcons[g]}" alt="" width="80" height="80" decoding="async">`
+    : m));
   // 模块预加载不再需要：已经是单文件
   s = s.replace(/<link rel="modulepreload" href="js\/[^"]+">\n?/g, '');
   // 注入首屏守护（__DATA__ / __DICT__ 换成这一页要不要启动数据 / 字典：'' = 不下载）

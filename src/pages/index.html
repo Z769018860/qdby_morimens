@@ -172,6 +172,9 @@ a.proj:hover::after{opacity:1}
   background:var(--panel2); border:1px solid var(--line); color:var(--accent);
 }
 .ico svg{width:21px; height:21px; display:block}
+/* 九宫格图标改成了 Q 版头像：整块铺满、圆角裁掉四角，别留内边距 */
+.ico.qav{padding:0; overflow:hidden; background:var(--panel); color:inherit}
+.ico.qav img{width:100%; height:100%; display:block; object-fit:cover}
 .proj h2{margin:0; font-size:17.5px; line-height:1.35; letter-spacing:.02em}
 .badge{
   position:absolute; right:0; top:1px; font-size:11px; padding:2px 9px; border-radius:999px;
@@ -420,11 +423,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
   <section class="grid" id="games">
     <article class="proj" data-game="detective" data-version="1.3.0">
       <div class="phead">
-        <span class="ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/><path d="M8 10.5h5M10.5 8v5"/>
-          </svg>
-        </span>
+        <span class="ico qav" aria-hidden="true"><!-- @ico:detective --></span>
         <h2>战报侦探<span class="ver">v1.3.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
@@ -444,11 +443,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
 
     <article class="proj" data-game="merge" data-version="1.2.0">
       <div class="phead">
-        <span class="ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="9" cy="14.5" r="4.5"/><circle cx="15.5" cy="9.5" r="3"/><circle cx="18.2" cy="16.4" r="2"/>
-          </svg>
-        </span>
+        <span class="ico qav" aria-hidden="true"><!-- @ico:merge --></span>
         <h2>合成大杜勒<span class="ver">v1.2.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
@@ -468,12 +463,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
 
     <article class="proj" data-game="bird" data-version="1.1.0">
       <div class="phead">
-        <span class="ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3.5 5h6M14 5h6.5"/><path d="M6.5 11h6.5M17 11h3.5"/><path d="M3.5 17.5h5.5M12.5 17.5h8"/>
-            <circle cx="12" cy="8.2" r="1.7" fill="currentColor" stroke="none"/>
-          </svg>
-        </span>
+        <span class="ico qav" aria-hidden="true"><!-- @ico:bird --></span>
         <h2>是鸟弟就下100层<span class="ver">v1.1.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
@@ -493,15 +483,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
 
     <article class="proj" data-game="binding" data-version="1.4.0">
       <div class="phead">
-        <span class="ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4.6 9.4 4 4.2l3.9 2.6M19.4 9.4 20 4.2l-3.9 2.6"/>
-            <path d="M12 6.4c4.1 0 7 2.9 7 6.6 0 3.9-3.1 6.6-7 6.6s-7-2.7-7-6.6c0-3.7 2.9-6.6 7-6.6z"/>
-            <circle cx="9.3" cy="12.4" r="1.05" fill="currentColor" stroke="none"/>
-            <circle cx="14.7" cy="12.4" r="1.05" fill="currentColor" stroke="none"/>
-            <path d="M10.6 16.1h2.8"/>
-          </svg>
-        </span>
+        <span class="ico qav" aria-hidden="true"><!-- @ico:binding --></span>
         <h2>校猫的结合<span class="ver">v1.4.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
@@ -521,11 +503,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
 
     <article class="proj" data-game="idle" data-version="0.5.0">
       <div class="phead">
-        <span class="ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 15.5 6.5 8h11L20 15.5"/><path d="M3 15.5h18v3H3z"/><circle cx="7.5" cy="19.5" r="1.6"/><circle cx="16.5" cy="19.5" r="1.6"/><path d="M9 5.5h6"/>
-          </svg>
-        </span>
+        <span class="ico qav" aria-hidden="true"><!-- @ico:idle --></span>
         <h2>挂机前夜<span class="ver">v0.5.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
@@ -545,11 +523,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
 
     <article class="proj" data-game="survivors" data-version="1.2.0">
       <div class="phead">
-        <span class="ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><path d="M12 6.5a5.5 5.5 0 0 1 5.5 5.5"/><path d="M12 17.5A5.5 5.5 0 0 1 6.5 12"/>
-          </svg>
-        </span>
+        <span class="ico qav" aria-hidden="true"><!-- @ico:survivors --></span>
         <h2>唤醒体幸存者<span class="ver">v1.2.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
@@ -569,12 +543,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
 
     <article class="proj" data-game="protocol" data-version="1.1.0">
       <div class="phead">
-        <span class="ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3.2 17.6 6.4v6.4L12 16l-5.6-3.2V6.4z"/>
-            <path d="M4.4 13.2 8 15.2v4.4l-3.6-2zM19.6 13.2 16 15.2v4.4l3.6-2z"/>
-          </svg>
-        </span>
+        <span class="ico qav" aria-hidden="true"><!-- @ico:protocol --></span>
         <h2>忘却协议<span class="ver">v1.1.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
@@ -594,11 +563,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
 
     <article class="proj" data-game="deathreport" data-version="1.0.0">
       <div class="phead">
-        <span class="ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h6M9 16h4"/>
-          </svg>
-        </span>
+        <span class="ico qav" aria-hidden="true"><!-- @ico:deathreport --></span>
         <h2>死亡调查报告<span class="ver">v1.0.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
@@ -617,13 +582,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
 
     <article class="proj" data-game="wolf" data-version="1.0.0">
       <div class="phead">
-        <span class="ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 8.6 6.6 4l3.4 2.2h4L17.4 4 19 8.6c0 5.1-3.1 9.4-7 9.4s-7-4.3-7-9.4z"/>
-            <circle cx="9.6" cy="11.8" r=".95" fill="currentColor" stroke="none"/>
-            <circle cx="14.4" cy="11.8" r=".95" fill="currentColor" stroke="none"/>
-          </svg>
-        </span>
+        <span class="ico qav" aria-hidden="true"><!-- @ico:wolf --></span>
         <h2>弥萨格狼人杀<span class="ver">v1.0.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
@@ -692,6 +651,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
       <li><b>没有充值，也不卖任何东西。</b>这站是纯恶搞的同人合集；觉得好玩欢迎反馈，能联系上作者的话会酌情发一点银芯当友情福利（纯友情，不是购买）。</li>
       <li><b>人多可能会卡。</b>服务器和带宽都是自己贴的，卡了就过一会儿再来，进度不会丢。</li>
       <li><b>遇到 bug 请点右上角「BUG 反馈」</b>，写清哪个游戏、发生了什么。核实后会发少量银芯感谢。</li>
+      <li><b>本来就是图一乐。</b>这就是个想作为万圣节彩蛋搓出来的东西，低脂小垃圾，不值什么钱；祝大家无论在本家游戏内外都能玩得开心。</li>
       <li><b>想断网玩可以装「离线版」</b>：整包下到本机，只在设置里检查更新时联网；支持导出加密存档，换设备能继续。</li>
     </ul>
     <div class="acts">
@@ -1217,7 +1177,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
 (function () {
   'use strict';
 
-  var NOTICE_ID = '2026-10-29';
+  var NOTICE_ID = '2026-10-30';
   var GITHUB_ISSUE = 'https://github.com/Z769018860/qdby_morimens/issues/new';
   var RATE_KEY = 'zjtt:homeRate';
   var BUG_KEY = 'zjtt:bugOutbox';
