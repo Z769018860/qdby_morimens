@@ -108,8 +108,12 @@ for a in D['awakener']:
 
 # 四位神秘唤醒体不在官方图鉴里，头像单独放在 assets/hidden/。
 # 素材来源已写进 data/survivors-data.json 的 bioSrc 字段，界面会标出处：
-#   图鲁 / 威廉·德拉普尔 / 守密人（西维斯特）  ← 灰机wiki·忘却前夜中文维基的角色头像
-#   N                                          ← 原作怪物立绘 Portrait_Small_Monster_DCB04
+#   神王·图鲁  ← 灰机wiki「图鲁」条目里的本源降临立绘「神王·图鲁无底.png」，
+#                原图是透明底的纯黑影（70% 面积是 #000），深色界面里看不出轮廓，
+#                所以合成了一层暗色背光 + 一圈极细金边（形状未改），
+#                合成脚本见 H:/work/tmp/mk_tulu.py
+#   威廉·德拉普尔 / 守密人（西维斯特）  ← 灰机wiki·忘却前夜中文维基的角色头像
+#   N                                   ← 原作怪物立绘 Portrait_Small_Monster_DCB04
 # 注意这几张都是方图、本来就小（N 只有 160px），别在上游放大，缩到 120 格反而干净。
 EXTRA_ART = {
     '90001': 'assets/hidden/tulu.webp',
