@@ -14,11 +14,12 @@ import {
   RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, eliteGap, eliteCount,
   PLAYER, expNeed, scoreOf,
   MAX_WEAPON, POOL_PER_PROTO, RAGE, TERRAINS, terrainAt,
-  MECHS, GROWTHS, ITEMS, ITEM_MAX,
+  MECHS, GROWTHS, ITEMS, ITEM_MAX, VOICE,
 } from './defs.js';
 import { isUnlocked, recordRun } from './unlock.js';
 import { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS } from './gen.js';
 import { sfx } from './audio.js';
+import { VOICES } from './voices.js';
 
 const TAU = Math.PI * 2;
 export const VIEW_H = 620;                 // 视口固定高度（世界单位）
@@ -82,6 +83,10 @@ export const G = {
   // 神秘唤醒体的独有机制状态：stacks 是累积层（王权 / 封印），low 是威廉的
   // 「血量低于 40%」开关（用它判断跨线，避免每帧重算 mods）。
   mech: { id: null, stacks: 0, low: false, procs: 0 },
+  // 角色台词气泡。voice 是当前这句（t 倒数到 0 收），voiceAt 是上一次说话的
+  // 时间戳（全局冷却），voiceDelay 用来把开场的「唤醒」台词延后一点，
+  // 免得和选人面板/首屏 UI 同时出现。
+  voice: null, voiceAt: -99, voiceDelay: 0,
   // 后期成长与一次性道具
   growth: [], items: [],
   // 悖论的伤害回响池：每 0.5 秒把这段时间的输出记一笔，滚动保留 3 秒
@@ -133,6 +138,43 @@ function burst(x, y, n, color, spd) {
   }
 }
 
+// ---------------------------------------------------------------- 角色台词
+// 每个唤醒体在 wiki 上都有成套台词（技能·一 / 技能·二 / 狂气爆发 / 灵知觉醒 /
+// 受击 / 获得提升 / 唤醒）。这里只负责「挑时机说一句」，气泡怎么画在 render.js。
+//
+// 三条克制：
+//   1. 全局冷却 VOICE.cd —— 技能一秒能触发好几次，次次念就是噪音；
+//   2. force 只给「爆发 / 觉醒 / 唤醒」这种一局没几次的事件；
+//   3. 没有台词的角色（N / 威廉 / 守密人 在 wiki 上没有词条）就安静，
+//      不拿别人的台词凑数。
+function voiceOf(id) {
+  return VOICES[id] || null;
+}
+
+export function say(slot, force) {
+  const c = G.char;
+  if (!c || G.phase !== 'run') return false;
+  const v = voiceOf(c.id);
+  if (!v) return false;
+  let txt = v[slot];
+  if (!txt) return false;
+  if (!force) {
+    if (G.t - G.voiceAt < VOICE.cd) return false;
+    if (G.voice && G.voice.t > VOICE.dur * 0.45) return false;  // 上一句还没说完
+  }
+  if (txt.length > VOICE.maxChars) txt = `${txt.slice(0, VOICE.maxChars - 1)}…`;
+  G.voice = { txt, t: VOICE.dur, max: VOICE.dur, name: c.n, slot };
+  G.voiceAt = G.t;
+  return true;
+}
+
+// 技能触发时说话：w.id 形如 "awakener-0001:0"，尾号 0/1 正好对上「技能·一/二」。
+function maybeSkillVoice(w) {
+  if (!G.char || String(w.def.char) !== String(G.char.id)) return;
+  if (Math.random() > VOICE.skillChance) return;
+  say(String(w.def.id).endsWith(':1') ? 's2' : 's1', false);
+}
+
 // ---------------------------------------------------------------- 开局
 export function reset(charId, diffKey) {
   const c = CHARS.find((x) => x.id === String(charId)) || CHARS[0];
@@ -159,6 +201,7 @@ export function reset(charId, diffKey) {
   G.echo = [];
   G.echoT = 0; G.echoMark = 0;
   G.mech = { id: null, stacks: 0, low: false, procs: 0 };
+  G.voice = null; G.voiceAt = -99; G.voiceDelay = VOICE.wakeDelay;
   G.stats = { dmg: 0, taken: 0, rageDmg: 0 };
   for (const k of ['enemies', 'bullets', 'fields', 'orbs', 'summons', 'pickups', 'fx', 'texts']) G[k].length = 0;
   G.weapons = []; G.passives = []; G.wheels = []; G.covs = [];
@@ -849,9 +892,20 @@ export function update(dt) {
       if (!G.evoPops) G.evoPops = [];
       G.evoPops.push(evo);
       sfx.play('evo');
+      // 觉醒念的是「灵知觉醒」那句 —— 游戏里灵知觉醒就是这件事。
+      say('evo', true);
     }
     G.flash = Math.max(G.flash, 0.3);
     G.shake = Math.min(12, G.shake + 5);
+  }
+
+  // ---- 角色台词：开场那句「唤醒」延后到 UI 稳定之后再念，其余是倒计时收尾
+  if (G.voiceDelay > 0) {
+    G.voiceDelay -= dt;
+    if (G.voiceDelay <= 0) { G.voiceDelay = 0; say('wake', true); }
+  } else if (G.voice) {
+    G.voice.t -= dt;
+    if (G.voice.t <= 0) G.voice = null;
   }
 
   // ---- 狂气爆发计时
@@ -1012,6 +1066,7 @@ function updateWeapons(dt) {
     const dmg = proto.dmg * LV.dmg(w.lv) * G.mods.atk * G.mods.dmgMul * rageAtk
       * (ev && ev.dmg ? 1 + ev.dmg : 1);
     fireProto(w, proto, dmg);
+    maybeSkillVoice(w);
     // 契物「回响」：30% 概率立刻再触发一次。
     // 原来这里乘了 0.35，实际只有 10.5%，和卡面写的 30% 对不上。
     if (G.mods.echo > 0 && rnd() < G.mods.echo) fireProto(w, proto, dmg * 0.7);
@@ -1686,6 +1741,9 @@ export function releaseRage() {
   shockwave(P.x, P.y, 260 * G.mods.area, RAGE.blast * G.mods.atk * G.mods.dmgMul, '#ff5f4a', 'rage');
   addText(P.x, P.y - 52, '狂气爆发', 4);
   sfx.play('rage');
+  // 「超限狂气爆发」留给首领战和本局第三次以后的爆发 —— 一局没几次的机会，
+  // 用来给后期一点情绪上的升级，而不是每次都念同一句。
+  say(G.bossAlive || G.rageUsed >= 3 ? 'rage2' : 'rage', true);
   return true;
 }
 
@@ -1871,6 +1929,7 @@ export function hurtPlayer(amount, src) {
     P.hp -= dmg;
     sfx.play('hurt');
     G.stats.taken += dmg;
+    if (Math.random() < VOICE.hurtChance) say('hurt', false);
     addText(P.x, P.y - 26, '-' + Math.round(dmg), 3);
     P.inv = PLAYER.iframe;
     G.flash = 0.5;
@@ -1960,6 +2019,7 @@ export function gainExp(n) {
     G.expNext = expNeed(G.lv);
     G.pending++;
     sfx.play('levelup');
+    if (Math.random() < VOICE.lvChance) say('lv', false);
     // 升级顺带回 8% 血。这游戏没有任何被动回血，指望玩家 15 分钟一次不挨打
     // 不现实——实测三档难度全在 5 分钟左右被磨死，反而是「武器太强、场上
     // 没怪」和「摸一下就永久掉血」两件事同时发生。等级回复把续航挂到成长上，

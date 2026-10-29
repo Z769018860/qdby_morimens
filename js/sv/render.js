@@ -188,6 +188,7 @@ export function draw() {
 
   // 屏幕层：受伤红闪 / 狂气红晕 / Boss 警报 / 暗角 / 天气
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawVoice(W, H);
   if (G.flash > 0) {
     ctx.fillStyle = `rgba(232,80,70,${G.flash * 0.24})`;
     ctx.fillRect(0, 0, W, H);
@@ -196,6 +197,90 @@ export function draw() {
   drawBossWarn(W, H);
   vignette(W, H);
   drawWeather(W, H);
+}
+
+// ---------------------------------------------------------------- 角色台词
+// 一句台词挂在角色头顶：深色圆角底 + 左侧金条 + 小名牌。
+// 走屏幕坐标（世界坐标乘 s 会把长句拉到屏幕外），并且夹在视口内 ——
+// 玩家贴边时气泡不能半截被切掉。
+const VOICE_FONT = '600 13px system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+const VOICE_PAD = 9;
+
+// 中文换行不能像英文那样「塞满就断」：引号与括号里的内容被拦腰截断
+// 会变成「「2 / 4」」，标点落在行首也难看。这里做最朴素的两条禁则：
+//   1. 在开引号/括号内部不换行（宁可让这一行溢出几个像素）；
+//   2. 收尾标点不放到下一行行首。
+const VOICE_OPENS = '「『（【《〈';
+const VOICE_CLOSES = '」』）】》〉';
+const VOICE_NO_START = '，。！？；：、…—·）」』%';
+
+function wrapVoice(txt, maxW) {
+  const out = [];
+  let cur = '';
+  let inQuote = 0;
+  for (const ch of txt) {
+    const over = cur && ctx.measureText(cur + ch).width > maxW;
+    const closing = VOICE_CLOSES.includes(ch);
+    if (over && inQuote === 0 && !closing && !VOICE_NO_START.includes(ch)
+      && !VOICE_OPENS.includes(cur.slice(-1))) {
+      out.push(cur);
+      cur = ch;
+    } else {
+      cur += ch;
+    }
+    if (VOICE_OPENS.includes(ch)) inQuote++;
+    else if (closing) inQuote = Math.max(0, inQuote - 1);
+    if (out.length >= 4) { out[3] += '…'; return out; }   // 四行还放不下就直接省略号收
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+function drawVoice(W, H) {
+  const v = G.voice;
+  if (!v || !v.txt || !G.player) return;
+  const s = G.s;
+  const sx = (G.player.x - G.cam.x) * s + W / 2;
+  const sy = (G.player.y - G.cam.y) * s + H / 2;
+  // 淡入 0.12 秒、末尾 0.45 秒淡出，中间保持不透明
+  const a = Math.min(1, (v.max - v.t) * 8) * Math.min(1, v.t * 2.2);
+  if (a <= 0.01) return;
+
+  const maxTextW = Math.min(232, W - 56);
+  ctx.font = VOICE_FONT;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const lines = wrapVoice(v.txt, maxTextW);
+  const lineH = 19;
+  let tw = 0;
+  for (const l of lines) tw = Math.max(tw, ctx.measureText(l).width);
+  const bw = tw + VOICE_PAD * 2;
+  const bh = lines.length * lineH + VOICE_PAD * 2 - 3;
+
+  let bx = sx - bw / 2;
+  let by = sy - 52 - bh;
+  bx = Math.max(8, Math.min(W - bw - 8, bx));
+  by = Math.max(56, Math.min(H - bh - 76, by));   // 上避 HUD、下避摇杆
+
+  ctx.globalAlpha = a;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 9);
+  else ctx.rect(bx, by, bw, bh);
+  ctx.fillStyle = 'rgba(12,17,26,0.9)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(227,179,65,0.34)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // 左侧金条：和超武卡片的金边同一套视觉语言
+  ctx.fillStyle = '#e3b341';
+  ctx.fillRect(bx, by + 5, 2.5, bh - 10);
+
+  ctx.fillStyle = '#eef2f8';
+  lines.forEach((l, i) => {
+    ctx.fillText(l, bx + VOICE_PAD, by + VOICE_PAD + lineH * i + lineH / 2 - 1);
+  });
+  ctx.globalAlpha = 1;
 }
 
 // ---------------------------------------------------------------- 天气

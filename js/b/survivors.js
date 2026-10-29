@@ -157,6 +157,20 @@ const RAGE = {
   blast: 130,          // 释放瞬间的冲击波伤害（会被 atk 再乘一次）
 };
 
+// ---------------------------------------------------------------- 角色台词
+// 台词文本来自灰机 wiki 的角色页「语音」段（data/sv-voices.json → js/sv/voices.js），
+// 这里只定「什么时候说、说多久、多容易说」。wiki 上没有音频，所以是纯文字气泡，
+// 靠时机而不是配音来塑造角色感：技能、爆发、觉醒、挨打、升级各一句。
+const VOICE = {
+  dur: 3.4,          // 一句停留时长（秒）
+  cd: 4.2,           // 全局冷却：再有意思也别刷屏
+  wakeDelay: 1.6,    // 开场「唤醒」台词延后，避开选人面板与首屏 UI
+  skillChance: 0.16, // 每次技能触发说话的概率（技能一秒好几次，不能次次都念）
+  hurtChance: 0.34,
+  lvChance: 0.5,
+  maxChars: 46,      // 超过这个长度就截断加省略号，气泡放不下
+};
+
 // ---------------------------------------------------------------- 地形
 // 15 分钟切五段地貌，只改视觉不动数值 —— 这条平衡曲线微调 20% 就能让
 // 普通难度从「打满 15 分钟」变成「10 分钟团灭」，地形不该是第六个变量。
@@ -638,7 +652,7 @@ const ITEMS = [
   { id: 'i_dice', n: '命运骰子', icon: '⚄', color: '#6ea8ff', txt: '立刻重掷本次三选一' },
 ];
 const ITEM_MAX = 3;
-return { PROTOS, PROTO_ORDER, LV, MAX_WEAPON, POOL_PER_PROTO, RAGE, TERRAINS, TERRAIN_AT, terrainAt, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX, EVOS, RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, eliteGap, eliteCount, PLAYER, expNeed, scoreOf, CREDIT_TIERS, creditsAt, nextTier, UNLOCKS, MECHS, GROWTHS, ITEMS, ITEM_MAX };
+return { PROTOS, PROTO_ORDER, LV, MAX_WEAPON, POOL_PER_PROTO, RAGE, VOICE, TERRAINS, TERRAIN_AT, terrainAt, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX, EVOS, RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, eliteGap, eliteCount, PLAYER, expNeed, scoreOf, CREDIT_TIERS, creditsAt, nextTier, UNLOCKS, MECHS, GROWTHS, ITEMS, ITEM_MAX };
 })();
 
 // ---- js/sv/unlock.js
@@ -1023,12 +1037,26 @@ sfx.init();
 return { sfx };
 })();
 
+// ---- js/sv/voices.js
+const m_voices = await (async () => {
+
+// 由 scripts/build_survivors_voices.mjs 生成，不要手改。
+// 数据源：data/sv-voices.json（灰机 wiki 角色页「语音」段的台词原文）
+//
+// 槽位：wake=唤醒 / s1=技能·一 / s2=技能·二 / rage=狂气爆发 / rage2=超限狂气爆发 / evo=灵知觉醒 / hurt=受击 / lv=获得提升
+// 说明：wiki 上只有文字台词，没有音频文件；这里只负责「说什么」，「什么时候说」
+// 由 js/sv/engine.js 的 say() 决定，气泡渲染在 js/sv/render.js 的 drawVoice()。
+const VOICES = {"15560":{"wake":"欢迎来到我的乐园！做好接受鞭笞的准备了吗？","s1":"滚烫的爱！","s2":"忍住哦！","rage":"感受这灼热的呼吸——","rage2":"沉溺在这独一无二的痛楚里！","evo":"好痛，好兴奋——","hurt":"（娇嗔）","lv":"又灼热了一点点~"},"15562":{"wake":"您为我提供落脚之处，我很感激。但请原谅，我已经不配再次立于舞台之上了。","s1":"不能原谅。","s2":"化成灰烬吧。","rage":"在此献上，永恒绿炎的告死之舞！","rage2":"沉沦吧，燃烧吧！告死之舞！","evo":"赐你永生！","hurt":"（轻哼）","lv":"继续提升仪态吧。"},"15563":{"wake":"打扰余长眠的人，就是你吗？","s1":"天罚！","s2":"跪倒御座之下。","rage":"沉眠梦境中的群星，去应去之处，指向神国之所在！","rage2":"是余兑现诺言之时了。","evo":"见证余的威仪吧。","hurt":"（痛呼）","lv":"权当做臣子的进献了。"},"15564":{"wake":"记住我的名字，戈利亚！这个名字注定会踏平人类微不足道的历史。","s1":"哈哈哈哈！","s2":"力量，源源不断。","rage":"世上不存在巨人无法匹敌之物！","rage2":"见识一下吧，这就是非利士人所依仗的力量！","evo":"复仇的狂浪永不停歇。","hurt":"哼。","lv":"有意思……你不害怕获得力量后我将你撕成碎片喂鱼吗？"},"15565":{"wake":"你好，我是……你能告诉我我叫什么吗？","s1":"该用上更多钢材了。","s2":"螺壳到哪去了啊？","rage":"遗忘也好，丢失也好，这次我们一定会返航！","rage2":"所有螺壳都在这里了！","evo":"超级硬的特制材料！","hurt":"（痛呼）","lv":"距离正式冒险又近了一步。"},"15566":{"wake":"我的名字是希菜斯特。只要你还需要我，我便会存在于此。","s1":"愿你有个好梦。","s2":"尽我所能。","rage":"你的祈祷，我听到了。","rage2":"翱翔碧空之鸟，请回应我的祈愿。","evo":"我会竭尽所能。","hurt":"还可以继续。","lv":"如你所愿，我的存在更为切实了。"},"15567":{"wake":"这种拙劣的手段……哼，不知天高地厚的家伙，我怎么可能那么轻易就被你束缚？","s1":"受死吧！","s2":"复仇……！","rage":"此即复仇三女神的旨意！","rage2":"在血链下颤抖……在血链下毁灭！","evo":"见识我的愤怒吧！","hurt":"呵。","lv":"仇恨的火焰熊熊燃烧，永不熄灭。"},"15568":{"wake":"如果你愿意承认我还是「拉蒙娜」的话，请继续这么称呼我吧。","s1":"消失吧！","s2":"可乘之机！","rage":"天地万象，轮回因果！","rage2":"此身即为，揭露未来之人！","evo":"终于……找到了！","hurt":"咳……","lv":"请不要有顾虑。"},"15569":{"wake":"新任守密人？使出你的全力吧，让我看看你是否有资格成为我的对手。","s1":"这招如何！","s2":"无路可逃！","rage":"认输吧！胜利是我的囊中之物！","rage2":"深渊之兽，吞噬一切！","evo":"唔——","hurt":"（不屑的隐忍）","lv":"能挥出更强的一剑了。"},"15570":{"wake":"你最好能展现出值得我离开实验室的价值，新任守密人。","s1":"补给在此。","rage":"以人类知性……解明世界本质！","rage2":"接下来，对世界本质进行解算！","evo":"真理…于此阐明。","hurt":"（惊呼）","lv":"转换率太低了，明天到我办公室报道重新学习。"},"15571":{"wake":"你好呀，我的新主人！今天的菜品有蛞蝓布丁、蟾蜍炖菜和绿焰酒，主人可以随意挑选哦~","s1":"大满足大满足。","s2":"一起舞蹈吧！","rage":"欢迎光临，一起来狂欢吧！","rage2":"客官请慢用！","evo":"灾厄降临！","hurt":"救命呀！","lv":"主人的恩情，珈伦一刻也不敢忘记！"},"15572":{"wake":"准备好了吗，卡茜亚的魔术秀就要开始了！不要移开眼睛，不要错过精彩的时刻。It's showtime!","s1":"不要眨眼哦！","s2":"开始变了！","rage":"开幕吧，想象力的盛宴！","rage2":"献上开幕的礼赞！","evo":"魔术，已就位！","hurt":"（惊呼）","lv":"学到了新的手法呢！"},"15573":{"wake":"呼呼——是奥瑞塔哟！一个，两个，三个……挖！欢迎欢迎！新伙伴增加啦！嗯？是我成为了大家的新伙伴？也可以这么说吧！","s1":"更多的伙伴！","s2":"加入奥瑞塔吧！","rage":"让这里成为大家的喧嚣海洋吧！","rage2":"大家一起上吧！","evo":"奥瑞塔，可以帮上忙吗？","hurt":"痛痛！","lv":"能去更远的地方玩了吗？去海边吧！"},"15574":{"wake":"感谢您的召唤。若有需要献声的场合，烦请您预先告知于我。","s1":"星辰啊……","s2":"流星啊……","rage":"仍歌颂，来自群星的色彩。","rage2":"咏唱吧，咏唱吧！","evo":"流淌的银河……","hurt":"（惊呼）","lv":"感谢您的垂爱。"},"15575":{"wake":"法洛思向你问好。将我呼唤至此，想必是已经做好航行准备了吧。","s1":"小心海之狂热。","s2":"这暗流，将会撕碎敌人。","rage":"臣服于永恒之国的瑰丽吧！","rage2":"寻找故国的步伐，没有人能阻挡！","evo":"一定要……回去……","hurt":"（痛呼）","lv":"与故国的连结更强劲了。"},"15576":{"wake":"哈啊？不觉得烦吗？别再为那家伙的事打扰我了！……算了，随你们便，就当是打发时间吧。","s1":"尝尝教训！","s2":"看着我！","rage":"既然冠我以圣女之名，那汝等应当臣服！","rage2":"虚假的使命，被定义的未来……我会反抗到底！","evo":"真不想用这力量。","hurt":"喂！","lv":"怎么，指望我向你道谢吗？"},"15577":{"wake":"请、请不要再靠近我了，很危险。","s1":"不要靠近了！","s2":"只要一点点……","rage":"没有人会受到伤害…的……世界……","rage2":"我仍是……来自群星的色彩！","evo":"尽情闪烁！","hurt":"（惊呼）","lv":"谢、谢谢款待……"},"15579":{"wake":"我是……还是叫我温柯尔吧，他们都这么叫我。是的，就这样叫我，和他们一样……","s1":"必须……要消灭……！","s2":"冷静冷静冷静……","rage":"逃…要逃！要逃离这里！","rage2":"就让我给予你吧，我仅剩的迁移能量……！","evo":"彻底逃离黑暗。","hurt":"不要！","lv":"不要、不要继续了……它会找到我、它会找到我！"},"15580":{"wake":"贵安，我是来自费弗尔的宁菲亚。您为我带来了这副能够自由呼吸的身体……我该做些什么来报答您呢？","s1":"就这样腐朽吧。","s2":"能听见吗？我的声音。","rage":"深海将赠予您永眠。","rage2":"“是的，孩子，你已葬身于汹涌的河流！”","evo":"现在，轮到我报答您了。","hurt":"好痛……","lv":"感觉舒畅了许多，谢谢您。"},"15581":{"wake":"主人……我需要命令，请给我下命令。","s1":"准备好了。","s2":"保护大家。","rage":"莉莉会抓住未来。 ……Tokuli—Li！","rage2":"我是、撕裂禁锢之人 ——Tokuli—Li！","evo":"不、不要离开！","hurt":"（惊呼）","lv":"莉莉，长大了。"},"15582":{"wake":"海中渺小的一滴，不朽浅薄的信徒，弥利亚姆……向你致意。","s1":"向吾主的进献。","s2":"无可避免的牺牲。","rage":"在迎得您归来前，我不能在此倒下。","rage2":"殉身！交还吾主——","evo":"这是，吾主的赐福。","hurt":"没用的。","lv":"你已认可我的愿望了吗？"},"15583":{"wake":"我是西岱岛的奥尔拉，笔名……我曾与人约定，不向任何人透露笔名，十分抱歉，但请叫我奥尔拉就好。","s1":"无法燃尽。","s2":"涌现……","rage":"玫瑰刺伤手指，流淌成诗。","rage2":"让来自往昔的诗篇，唤醒潜藏心底的花园。","evo":"焚烧吧，诗歌的灵魂。","hurt":"我的笔墨……","lv":"力量提升的感觉，如同火焰般炽热蚀骨。"},"15584":{"wake":"造访沙龙的客人，能得到最佳的款待……作为入场券，客人是否准备了足以匹配这场盛宴的密辛呢？","s1":"看招。","s2":"别挡路！","rage":"耻辱，就用这招来洗清！","rage2":"拜倒于裙摆之下，亲吻我的足尖吧！","evo":"这可是我的沙龙。","hurt":"大胆！","lv":"您的礼物，我就满怀敬意地收下了。"},"15585":{"wake":"我的名字是奥吉尔。依照与您的契约，我将向您献上骑士的忠义，守护您的安全，排除您的的敌人。今日誓言，永志不忘。","s1":"无礼之徒！","rage":"此身即为主君之盾！","rage2":"无定形之物啊，成为守护之盾吧！","evo":"啊嗯！","hurt":"还没结束！","lv":"感谢您的拔擢，不胜荣幸。"},"15586":{"wake":"噫！这满地的脏污与秽乱……我的双脚无处安放。那么，献出你柔软的背脊吧，凡人。","s1":"小小的惩罚","s2":"给我跪下！","rage":"臣服吧……欢迎来到享乐与梦的国度。","rage2":"此乃万千死者徘徊失乡之都。","evo":"动起来吧，奴仆！","hurt":"大胆！","lv":"很好，伺候得不错。"},"15587":{"wake":"目标在哪？作为将我唤醒的回报，我会为你解决掉对方。","s1":"到此为止！","s2":"品尝恶果吧！","rage":"为背叛之行付出代价吧！","rage2":"背叛者，品尝我的绝望与愤怒吧！","evo":"赶尽杀绝！","hurt":"（不屑的隐忍）","lv":"复仇的血，正在沸腾……"},"15588":{"wake":"需要护卫同行吗？如果你的追求是正义的，我会帮助你。","s1":"吹响号角！","s2":"为了和平。","rage":"正义之光在此点亮！","rage2":"深渊中…会有正义之光。","evo":"战斗到底！","hurt":"习惯了！","lv":"更加灵活了。"},"15589":{"wake":"不知好歹的东西，为何执着于唤醒我？","s1":"接受宿命吧。","s2":"深海的圣咏！","rage":"将它们……都交予我！","rage2":"虚妄，倒错，都是命运！","evo":"我将成为神之母！","hurt":"呀！","lv":"祂的孕育……在我腹中……"},"15590":{"wake":"您好，我叫达芙黛尔。我曾经与某位客人做过交换，那个人要求我来协助您。那么，让我听听看您的需求吧。 哎呀……您所期望之物可是价格不菲哦？","s1":"哭泣吧。","s2":"托付给我吧。","rage":"无尽的头颅啊，在此窥见你的面貌吧！","rage2":"于此浮现的千面幻象！","evo":"门扉之外！","hurt":"（惊呼）","lv":"用这种方式取代吸食原质吗？"},"15591":{"wake":"初、初次见面。我的名字是艾继丝……请、请您当我不存在就好！","s1":"停下吧！","s2":"……艾继丝，看见了！","rage":"啊……抱歉，请不要乱动！","rage2":"不准动不准动不准动！","evo":"我会一直忍受的。","hurt":"疼！","lv":"谢、谢谢您为艾继丝做的一切。艾继丝会尽量、尽量不辜负您的！"},"15592":{"wake":"来自西岱的雕砌者珊，为您献上刻刀。您或许充满缺陷，但仍值得雕琢。","s1":"完美！","s2":"匍匐于美吧。","rage":"真正的艺术无需解释。","rage2":"失落已久的螺湮之城，终于褪去了她的面纱。","evo":"如歌的雕琢！","hurt":"（痛呼）","lv":"您为了我选择了最合适的刻刀。"},"15593":{"wake":"还要自我介绍一次吗？真拿你没办法。我是詹金，这孩子是布朗。「吱！」别忘了啊！要是记错了我们的名字，就等着我用提灯狠狠抽你的*消音*吧！「吱吱？！」","s1":"看招！","s2":"瞧好了！","rage":"尝尝老鼠的厉害吧！","rage2":"别小看街头第一神偷！","evo":"钻破现实的壁垒吧！","hurt":"布朗……！","lv":"得到的食物立马就要吃掉，这是街头的法则。"},"15594":{"wake":"想起来了，我想起来了……！人类污浊的血困住了我…我，我没能蜕变！怎么会，我怎么……我的鳃呢？为什么它们不动？！为什么！","s1":"别再小瞧我！","s2":"是时候了！","rage":"我知道你就在我体内！","rage2":"所有侮辱我的人，都要付出代价！","evo":"来！","hurt":"区区小伤……","lv":"凡俗的历练也能激发血脉的价值吗？这倒是在我的意料之外。"},"15595":{"wake":"拉蒙娜·德克斯特，叫我拉蒙娜就好。期待接下来与你的合作，守密人。","s1":"交给我吧！","rage":"以此演绎法……解读世界！","rage2":"以此来认知世界。","hurt":"还能坚持。","lv":"提升方式走了捷径，但技艺的训练也不能落下。"},"15596":{"wake":"我的脉管中奔涌着求生的意志，它尖叫着，驱使着我将血洒在星球的每一寸土地上……啊啊，让您听了如此多牢骚，见笑了。我是泰旖丝，您呼唤我，是已经做好与我相融的准备了吗？","s1":"接受我的爱意吧。","s2":"会太粗暴吗？","rage":"繁衍吧，生长吧，我的小树苗。","rage2":"加入我的仪式吧，成为我的种子！","evo":"长大吧——","hurt":"请不要……","lv":"感谢您的努力，那么让我也给您相应的奖励吧。"},"15597":{"wake":"我循着血的香气找到这处所在。请问……这里提供新鲜的血包吗？","s1":"存在的证明。","s2":"尽情伤害我吧！","rage":"啜饮吧，甘美的死亡。","rage2":"自群星而来之物，向您献上邀约。","evo":"呵~哈哈哈！","hurt":"嗯……不错。","lv":"您不必如此……"},"15598":{"wake":"这是第几次被召唤了……人类，你最好给我准备了足量的「食物」，不然我可什么都不敢保证。","s1":"燃尽一切！","s2":"哈哈哈哈！","rage":"我是最后的罗马战士——尤乌哈希！","rage2":"尽情享受这场杀戮盛宴吧！","evo":"鲜血，沐浴全身！","hurt":"滚开！","lv":"源源不断的力量，充盈全身……"},"15599":{"wake":"你我能如此相见，想必是神对苦难者的应许——你即是那消除灾难的苍白火焰，而我自当为你臂膀，伴你左右。","s1":"献出即为所得。","s2":"遵照神的训诫。","rage":"羔羊啊，神的怜悯会救赎你们。","rage2":"一切皆为祂的安排。","evo":"神，一视同仁。","hurt":"（闷哼）","lv":"人的锤炼不止在躯体，还在内心。"},"15600":{"wake":"阿格里帕。我和你没什么好说的——要是够胆自请成为我手下的角斗士，那就另当别论。","s1":"不许靠近我。","s2":"慢慢地折磨。","rage":"这是自伟大之物而来的庇佑！","rage2":"蛰伏地底的迷宫之神，向诸位宣判！","evo":"来，深呼吸——","hurt":"（吃痛的呼喊）","lv":"呵，算你识相。"},"15601":{"wake":"……名字，呜，我想不起来。 对了，「24」，他们都这样叫我……不！不许出来！你不能，现在不能……","s1":"让我出去！（躁狂）","s2":"切碎！（躁狂）","rage":"欢迎来到——我们的盛宴。（躁狂）","rage2":"别妨碍我！","evo":"不洁、秽乱、混沌——这就是我们的力量。","hurt":"怎么会？！（躁狂）","lv":"嘘……关于我变强这件事，请别让「她们」发现。"},"15602":{"wake":"守密人？可笑至极，这场不切实际的梦，该醒了。","s1":"如何？","s2":"苟延残喘。","rage":"凝视深渊！","rage2":"勿反抗，勿哭泣，勿存活！","evo":"肆意而为吧！","hurt":"哼。","lv":"没意义，这么做根本没意义。"},"15603":{"wake":"自动人偶艾瑞卡，躯干编号EA307881，电机编号MF311028。很高兴为你效劳。","s1":"装载。","s2":"过载。","rage":"充能完毕，准备爆破。","rage2":"电流输入完毕。电流发射。","evo":"锁定解除。","hurt":"受击。","lv":"零件整备已完成。"},"15604":{"wake":"叫我出来，是要赌一把吗？……什么，探案？不要啦，太浪费运气了……","s1":"赚到了！","s2":"ALL-IN！","rage":"Hit、Stand、Black·Jack！","rage2":"轻轻松松、大获全胜！","evo":"我感觉……运气到了！","hurt":"唉呀！","lv":"感觉骰运上升了一点！"},"54116":{"wake":"与质体的直接链接会毁伤你的灵智……不过，既然你执意如此，我必将回应你的呼唤而来。","s1":"一切均在虚空之中。","s2":"宇宙循环不止。","rage":"穷极之门已然开启。于此，万物归一！","rage2":"过去、现在、未来，亿万光辉皆系于此！","evo":"穿越银钥之扉，抵达祂的王座。","hurt":"唔。","lv":"无限时空连续体中的某个碎片降临在我的灵识之中。"},"54117":{"wake":"哈姆林，愿意为您效劳。","s1":"注意节拍。","s2":"弦乐，起。","rage":"唯有音乐值得称颂。","rage2":"听吧，这最终的安魂曲！","evo":"以此曲，祭奠逝去的魂灵。","hurt":"唔。","lv":"调律完毕。"},"77913":{"wake":"小家伙遇到麻烦了？那么遵循召唤，凯蒂古拉将带着毁灭而来。让所有麻烦都——“碰”的灰飞烟灭。","s1":"迎接末路吧。","s2":"迎接琥珀色的死亡吧。","rage":"燃烧，毁灭，哀嚎吧！","rage2":"吾乃永不遗忘的爆燃之主！宣告！万物将亡！","evo":"爆燃之火啊，在此重燃吧！","hurt":"唔！","lv":"手感极佳，枪械保养的不错嘛。"},"77917":{"wake":"持灯者的使徒、诞于白夜之人、驱散黑暗者、圣心圣子，我，波吕克斯，应您的呼唤而来，为您奉上我黑暗的力量与光明的灵魂。","s1":"吟咏光明！","s2":"洗清你的罪孽！","rage":"我心光明！","rage2":"持灯者的光辉终将照彻长夜！","evo":"我将奉行那光明的道路，直到穷尽我的一生。","hurt":"可恶。","lv":"您的赐予，我会心怀感激地使用。"},"77918":{"wake":"命运的舞台之上，众生在各自的因果中静候登场，万般悲欢在齿轮转动间悄然成章……帷幕已启，守密人，你我之间的故事，至此便要开始了。","s1":"命运的丝线，已然垂下。","s2":"未来已至。","rage":"于此编织，于此衡量，于此裁断。","rage2":"命运悲哀的囚徒啊，受领你命定的判决吧。","evo":"我于无尽的丝缕间，纺织唯一的轨迹。","hurt":"意外的转折？","lv":"又一根丝线，清晰了。"},"77921":{"wake":"初次见面，我是来自远方的苍白仙女，有兴趣了解一下吗？仙女赐福根据会费档次有不同强度哦，嘻嘻~","s1":"仙女的光辉~","s2":"你们还嫩了点~","rage":"来吧，把想要割舍的事物都埋进深雪里……","rage2":"七重礼拜，三重宣誓，用它们来换取仙女的赦免吧！","evo":"记得朝拜教母哦，嘻嘻。","hurt":"好痛痛~","lv":"唉呀，真是虔诚的小羊羔呢。"},"77922":{"wake":"领航员克珀珊特前来报到！旗帜已整备完毕，个人状态良好，请守密人下达出航命令。","s1":"测量天体高度角。","s2":"E旗传达指令。","rage":"收前桅纵帆，左舷压浪，舵手按照我的测算重新调整航线。","rage2":"海员们，跟随我的指引，我们一定会安全到达海港。","evo":"我必会将船只，引领向正确的航向。","hurt":"我不会被风暴打倒。","lv":"我只是在履行自己身为领航员的职责，并不需要通报表扬。"},"77923":{"wake":"贵安，初次见面，我是卡斯托尔…………还需要说些别的吗？抱歉，我有些不善言辞，如果你有什么需要我知道的，请随时呼唤我。","s1":"躲到翅膀后面来！","s2":"风，将其吹向死亡之口吧！","rage":"你们无法摧毁我！","rage2":"凭此不灭之身，抵挡一切灾厄！","evo":"飞鸟终将翱翔于高空之上。","hurt":"不过如此……","lv":"这些黑暗的羽毛，变得更加深邃了。"},"77925":{"wake":"请恕我不请自来，我只是察觉到你低落的心理能量，前来关心。现在，守密人，要开启一段心灵之旅？","s1":"将你最真实的一面展露给我。","s2":"我会细细品味这甜美的痛苦。","rage":"嘘——安静，然后走向我引导的结局。","rage2":"无需隐瞒，无需羞怯，我是你最信任的唯一倾听者。来，向我倾吐你最深重的痛苦……","evo":"看着灵摆，眼睛跟着它转动……","hurt":"我在听，请继续。","lv":"若是想听我发表什么感想，那你可能要失望了。比起倾诉，我更擅长倾听。"},"77926":{"wake":"噢！这流畅的颌骨，明亮的眼睛，完美的身形，还有、还有这星空般浩瀚的精神世界……我是画家皮克曼，能有幸邀请您，成为我的模特吗？","s1":"看这生动的线条！","s2":"痛苦亦是艺术……","rage":"艺术的本质，即是疯狂……！","rage2":"我即光影，我即色彩，我……即绘画本身！","evo":"在这画作里，见证新生！","hurt":"唔……","lv":"啊！一种新奇的颜料……我会把它涂抹在最恰当的位置！"},"90001":{"wake":"打扰余长眠的人，就是你吗？","s1":"天罚！","s2":"跪倒御座之下。","rage":"沉眠梦境中的群星，去应去之处，指向神国之所在！","rage2":"是余兑现诺言之时了。","evo":"见证余的威仪吧。","hurt":"（痛呼）","lv":"权当做臣子的进献了。"},"94450":{"wake":"茉夏，调查团……哦不，现在已经不是调查团前锋了。那么，我再重新介绍一下自己——我叫茉夏，只是一个可爱的女孩子~","s1":"闪耀☆超新星——放射！","s2":"风暴冲击！","rage":"男女老少都爱看的！闪耀☆龙卷风——！！","rage2":"哈哈，果然比起无聊的日常，还是这种肾上腺飙升的生活更适合我！","evo":"终于不用再伪装了……接下来，让我们好好玩玩。","hurt":"该倒下的不是我……","lv":"一直提升我的能力，你就不怕我有天会失控吗……哈哈，开玩笑的。"},"95786":{"wake":"啊，多么令人刻骨铭心的香味……我已经迫不及待想要迎接你进入我的圣殿了。","s1":"我将带来洁净的安息。","s2":"在阴影中消散吧！","rage":"寻求死亡之人，我将满足你的愿望。","rage2":"将身体托付给我吧，让我仔细地品尝你，每一滴血、每一块肉、每一根骨头。","evo":"我已经有些等不及开动了。","hurt":"太不优雅了。","lv":"你芬芳的香味，真是令人陶醉。"},"125346":{"wake":"妾身乃不梦乡之主，徐。 若您心中，有想见却不得见之人，妾身愿摘扇，予君一观。","s1":"取悦妾身，在痛和惧中自相残杀吧~","s2":"您来不梦乡，想要找寻什么呢？","rage":"休怒休怨，万事成空。","rage2":"勿思勿扰，盲听哑从，凡尘皆为负累！","evo":"*轻笑 尔等可敢直视吾之真容？","hurt":"哎呀！","lv":"您在期待妾身更美貌，还是更可怖？"},"130226":{"wake":"你好！……这样说对吗？我是沙耶。嗯……请多关照——","s1":"不会让任何人妨碍我们的","s2":"是这里吗？","rage":"这就是，新世界的开始……","rage2":"这是送给你的、最后的礼物。","evo":"不管做多少次都很有趣！","hurt":"啊！","lv":"吃饱了，多谢款待！"},"130901":{"wake":"我！莫丝！你好！","s1":"莫丝！非常强！","s2":"莫丝，装弹！","rage":"吃掉吃掉，全部吃掉！","rage2":"深渊！螺旋！毁灭！全部——变成漩涡吧！","evo":"嘿嘿，莫丝，要玩！","hurt":"噫！","lv":"哇吼！"},"141302":{"wake":"宴饮、追猎、庇护？ 向我祈祷，最古老的海水会告诉你我的名字。 我乃深渊之主，庞托斯。","s1":"献出你的感官，永远在深渊中反省！","s2":"抬起头，把你的喉咙露出来。","rage":"你将化为灰白的齑粉。","rage2":"海洋面前，没有不可摧毁的敌人！","evo":"亘久地，留滞于此！","hurt":"唔！","lv":"很聪明的做法，小朋友，外来怪物的信徒总是笨到把尸体扔进海里，那可不算是礼物，对吧？"},"145363":{"wake":"在你的眼睛里，我看到了不属于这里的意志。它并不纯粹，但足够坚韧。来吧，向我证明，你是依靠着怎样的力量与渴望，站在我的面前。","s1":"为成为我的对手而感到荣幸吧！","s2":"让星海，见证毁灭！","rage":"地狱之口，为我洞开！","rage2":"星天的游鲸，将一切吞噬！","evo":"腐化的星骸，苏醒吧——","hurt":"……痛快。","lv":"不够，远远不够……"},"148578":{"wake":"荣誉、正义、忠诚……一切足以称之为美德之物，皆死于我自己手中。您所召唤而来的，并非心怀光明的骑士，不过是一介无能的罪人。即便如此，我仍会以此残躯竭力护卫您。请下令吧——倘若您尚且信任我的话。","s1":"休想靠近。","s2":"归于……无形！","rage":"以此身躯，铸为坚城。","rage2":"淤泥啊，以壁垒之形，矗立于此！","evo":"无定形之物，即可化作万物。","hurt":"这种程度而已。","lv":"真的要擢升我吗？……好吧，感谢您。"},"151844":{"wake":"诶？到起床的时候了？呜~哈——欠，好困……","s1":"咕噜咕噜，毒死祂们！","s2":"挣扎只是浪费时间。","rage":"休想染指公主的子民！","rage2":"堕于永无归路的星空吧！","evo":"杂碎该退场了。","hurt":"唔嗯！","lv":"我可以告诉你很多知识……你总不希望自己还不如一顶帽子知道得多吧？"}};
+return { VOICES };
+})();
+
 // ---- js/sv/engine.js
 const m_engine = await (async () => {
-const { PROTOS, LV, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX, EVOS, RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, eliteGap, eliteCount, PLAYER, expNeed, scoreOf, MAX_WEAPON, POOL_PER_PROTO, RAGE, TERRAINS, terrainAt, MECHS, GROWTHS, ITEMS, ITEM_MAX } = m_defs;
+const { PROTOS, LV, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX, EVOS, RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, eliteGap, eliteCount, PLAYER, expNeed, scoreOf, MAX_WEAPON, POOL_PER_PROTO, RAGE, TERRAINS, terrainAt, MECHS, GROWTHS, ITEMS, ITEM_MAX, VOICE } = m_defs;
 const { isUnlocked, recordRun } = m_unlock;
 const { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS } = m_gen;
 const { sfx } = m_audio;
+const { VOICES } = m_voices;
 // 《唤醒体幸存者》引擎：状态、刷新、战斗、掉落、升级结算。
 //
 // 分工：本文件只管「世界里发生了什么」，绘制在 render.js，界面在 ui.js。
@@ -1039,6 +1067,7 @@ const { sfx } = m_audio;
 //   1. 敌人、子弹、粒子全部用对象池，跑起来不再 new；
 //   2. 敌人碰撞用网格哈希，O(n) 而不是 O(n²)；
 //   3. 每帧最多 300 个敌人、700 发子弹，超了就不再刷（宁可少刷也不掉帧）。
+
 
 
 
@@ -1107,6 +1136,10 @@ const G = {
   // 神秘唤醒体的独有机制状态：stacks 是累积层（王权 / 封印），low 是威廉的
   // 「血量低于 40%」开关（用它判断跨线，避免每帧重算 mods）。
   mech: { id: null, stacks: 0, low: false, procs: 0 },
+  // 角色台词气泡。voice 是当前这句（t 倒数到 0 收），voiceAt 是上一次说话的
+  // 时间戳（全局冷却），voiceDelay 用来把开场的「唤醒」台词延后一点，
+  // 免得和选人面板/首屏 UI 同时出现。
+  voice: null, voiceAt: -99, voiceDelay: 0,
   // 后期成长与一次性道具
   growth: [], items: [],
   // 悖论的伤害回响池：每 0.5 秒把这段时间的输出记一笔，滚动保留 3 秒
@@ -1158,6 +1191,43 @@ function burst(x, y, n, color, spd) {
   }
 }
 
+// ---------------------------------------------------------------- 角色台词
+// 每个唤醒体在 wiki 上都有成套台词（技能·一 / 技能·二 / 狂气爆发 / 灵知觉醒 /
+// 受击 / 获得提升 / 唤醒）。这里只负责「挑时机说一句」，气泡怎么画在 render.js。
+//
+// 三条克制：
+//   1. 全局冷却 VOICE.cd —— 技能一秒能触发好几次，次次念就是噪音；
+//   2. force 只给「爆发 / 觉醒 / 唤醒」这种一局没几次的事件；
+//   3. 没有台词的角色（N / 威廉 / 守密人 在 wiki 上没有词条）就安静，
+//      不拿别人的台词凑数。
+function voiceOf(id) {
+  return VOICES[id] || null;
+}
+
+function say(slot, force) {
+  const c = G.char;
+  if (!c || G.phase !== 'run') return false;
+  const v = voiceOf(c.id);
+  if (!v) return false;
+  let txt = v[slot];
+  if (!txt) return false;
+  if (!force) {
+    if (G.t - G.voiceAt < VOICE.cd) return false;
+    if (G.voice && G.voice.t > VOICE.dur * 0.45) return false;  // 上一句还没说完
+  }
+  if (txt.length > VOICE.maxChars) txt = `${txt.slice(0, VOICE.maxChars - 1)}…`;
+  G.voice = { txt, t: VOICE.dur, max: VOICE.dur, name: c.n, slot };
+  G.voiceAt = G.t;
+  return true;
+}
+
+// 技能触发时说话：w.id 形如 "awakener-0001:0"，尾号 0/1 正好对上「技能·一/二」。
+function maybeSkillVoice(w) {
+  if (!G.char || String(w.def.char) !== String(G.char.id)) return;
+  if (Math.random() > VOICE.skillChance) return;
+  say(String(w.def.id).endsWith(':1') ? 's2' : 's1', false);
+}
+
 // ---------------------------------------------------------------- 开局
 function reset(charId, diffKey) {
   const c = CHARS.find((x) => x.id === String(charId)) || CHARS[0];
@@ -1184,6 +1254,7 @@ function reset(charId, diffKey) {
   G.echo = [];
   G.echoT = 0; G.echoMark = 0;
   G.mech = { id: null, stacks: 0, low: false, procs: 0 };
+  G.voice = null; G.voiceAt = -99; G.voiceDelay = VOICE.wakeDelay;
   G.stats = { dmg: 0, taken: 0, rageDmg: 0 };
   for (const k of ['enemies', 'bullets', 'fields', 'orbs', 'summons', 'pickups', 'fx', 'texts']) G[k].length = 0;
   G.weapons = []; G.passives = []; G.wheels = []; G.covs = [];
@@ -1874,9 +1945,20 @@ function update(dt) {
       if (!G.evoPops) G.evoPops = [];
       G.evoPops.push(evo);
       sfx.play('evo');
+      // 觉醒念的是「灵知觉醒」那句 —— 游戏里灵知觉醒就是这件事。
+      say('evo', true);
     }
     G.flash = Math.max(G.flash, 0.3);
     G.shake = Math.min(12, G.shake + 5);
+  }
+
+  // ---- 角色台词：开场那句「唤醒」延后到 UI 稳定之后再念，其余是倒计时收尾
+  if (G.voiceDelay > 0) {
+    G.voiceDelay -= dt;
+    if (G.voiceDelay <= 0) { G.voiceDelay = 0; say('wake', true); }
+  } else if (G.voice) {
+    G.voice.t -= dt;
+    if (G.voice.t <= 0) G.voice = null;
   }
 
   // ---- 狂气爆发计时
@@ -2037,6 +2119,7 @@ function updateWeapons(dt) {
     const dmg = proto.dmg * LV.dmg(w.lv) * G.mods.atk * G.mods.dmgMul * rageAtk
       * (ev && ev.dmg ? 1 + ev.dmg : 1);
     fireProto(w, proto, dmg);
+    maybeSkillVoice(w);
     // 契物「回响」：30% 概率立刻再触发一次。
     // 原来这里乘了 0.35，实际只有 10.5%，和卡面写的 30% 对不上。
     if (G.mods.echo > 0 && rnd() < G.mods.echo) fireProto(w, proto, dmg * 0.7);
@@ -2711,6 +2794,9 @@ function releaseRage() {
   shockwave(P.x, P.y, 260 * G.mods.area, RAGE.blast * G.mods.atk * G.mods.dmgMul, '#ff5f4a', 'rage');
   addText(P.x, P.y - 52, '狂气爆发', 4);
   sfx.play('rage');
+  // 「超限狂气爆发」留给首领战和本局第三次以后的爆发 —— 一局没几次的机会，
+  // 用来给后期一点情绪上的升级，而不是每次都念同一句。
+  say(G.bossAlive || G.rageUsed >= 3 ? 'rage2' : 'rage', true);
   return true;
 }
 
@@ -2896,6 +2982,7 @@ function hurtPlayer(amount, src) {
     P.hp -= dmg;
     sfx.play('hurt');
     G.stats.taken += dmg;
+    if (Math.random() < VOICE.hurtChance) say('hurt', false);
     addText(P.x, P.y - 26, '-' + Math.round(dmg), 3);
     P.inv = PLAYER.iframe;
     G.flash = 0.5;
@@ -2985,6 +3072,7 @@ function gainExp(n) {
     G.expNext = expNeed(G.lv);
     G.pending++;
     sfx.play('levelup');
+    if (Math.random() < VOICE.lvChance) say('lv', false);
     // 升级顺带回 8% 血。这游戏没有任何被动回血，指望玩家 15 分钟一次不挨打
     // 不现实——实测三档难度全在 5 分钟左右被磨死，反而是「武器太强、场上
     // 没怪」和「摸一下就永久掉血」两件事同时发生。等级回复把续航挂到成长上，
@@ -3121,7 +3209,7 @@ function summary() {
 }
 
 function remaining() { return Math.max(0, RUN_TIME - G.t); }
-return { VIEW_H, setSeed, G, addText, reset, recompute, addWeapon, addCreation, addGrowth, addItem, useItem, addWheel, addCovenant, rollChoices, applyChoice, skipChoice, update, releaseRage, giveUp, damageEnemy, hurtPlayer, gainExp, summary, remaining };
+return { VIEW_H, setSeed, G, addText, say, reset, recompute, addWeapon, addCreation, addGrowth, addItem, useItem, addWheel, addCovenant, rollChoices, applyChoice, skipChoice, update, releaseRage, giveUp, damageEnemy, hurtPlayer, gainExp, summary, remaining };
 })();
 
 // ---- js/sv/render.js
@@ -3319,6 +3407,7 @@ function draw() {
 
   // 屏幕层：受伤红闪 / 狂气红晕 / Boss 警报 / 暗角 / 天气
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawVoice(W, H);
   if (G.flash > 0) {
     ctx.fillStyle = `rgba(232,80,70,${G.flash * 0.24})`;
     ctx.fillRect(0, 0, W, H);
@@ -3327,6 +3416,90 @@ function draw() {
   drawBossWarn(W, H);
   vignette(W, H);
   drawWeather(W, H);
+}
+
+// ---------------------------------------------------------------- 角色台词
+// 一句台词挂在角色头顶：深色圆角底 + 左侧金条 + 小名牌。
+// 走屏幕坐标（世界坐标乘 s 会把长句拉到屏幕外），并且夹在视口内 ——
+// 玩家贴边时气泡不能半截被切掉。
+const VOICE_FONT = '600 13px system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+const VOICE_PAD = 9;
+
+// 中文换行不能像英文那样「塞满就断」：引号与括号里的内容被拦腰截断
+// 会变成「「2 / 4」」，标点落在行首也难看。这里做最朴素的两条禁则：
+//   1. 在开引号/括号内部不换行（宁可让这一行溢出几个像素）；
+//   2. 收尾标点不放到下一行行首。
+const VOICE_OPENS = '「『（【《〈';
+const VOICE_CLOSES = '」』）】》〉';
+const VOICE_NO_START = '，。！？；：、…—·）」』%';
+
+function wrapVoice(txt, maxW) {
+  const out = [];
+  let cur = '';
+  let inQuote = 0;
+  for (const ch of txt) {
+    const over = cur && ctx.measureText(cur + ch).width > maxW;
+    const closing = VOICE_CLOSES.includes(ch);
+    if (over && inQuote === 0 && !closing && !VOICE_NO_START.includes(ch)
+      && !VOICE_OPENS.includes(cur.slice(-1))) {
+      out.push(cur);
+      cur = ch;
+    } else {
+      cur += ch;
+    }
+    if (VOICE_OPENS.includes(ch)) inQuote++;
+    else if (closing) inQuote = Math.max(0, inQuote - 1);
+    if (out.length >= 4) { out[3] += '…'; return out; }   // 四行还放不下就直接省略号收
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+function drawVoice(W, H) {
+  const v = G.voice;
+  if (!v || !v.txt || !G.player) return;
+  const s = G.s;
+  const sx = (G.player.x - G.cam.x) * s + W / 2;
+  const sy = (G.player.y - G.cam.y) * s + H / 2;
+  // 淡入 0.12 秒、末尾 0.45 秒淡出，中间保持不透明
+  const a = Math.min(1, (v.max - v.t) * 8) * Math.min(1, v.t * 2.2);
+  if (a <= 0.01) return;
+
+  const maxTextW = Math.min(232, W - 56);
+  ctx.font = VOICE_FONT;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const lines = wrapVoice(v.txt, maxTextW);
+  const lineH = 19;
+  let tw = 0;
+  for (const l of lines) tw = Math.max(tw, ctx.measureText(l).width);
+  const bw = tw + VOICE_PAD * 2;
+  const bh = lines.length * lineH + VOICE_PAD * 2 - 3;
+
+  let bx = sx - bw / 2;
+  let by = sy - 52 - bh;
+  bx = Math.max(8, Math.min(W - bw - 8, bx));
+  by = Math.max(56, Math.min(H - bh - 76, by));   // 上避 HUD、下避摇杆
+
+  ctx.globalAlpha = a;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 9);
+  else ctx.rect(bx, by, bw, bh);
+  ctx.fillStyle = 'rgba(12,17,26,0.9)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(227,179,65,0.34)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // 左侧金条：和超武卡片的金边同一套视觉语言
+  ctx.fillStyle = '#e3b341';
+  ctx.fillRect(bx, by + 5, 2.5, bh - 10);
+
+  ctx.fillStyle = '#eef2f8';
+  lines.forEach((l, i) => {
+    ctx.fillText(l, bx + VOICE_PAD, by + VOICE_PAD + lineH * i + lineH / 2 - 1);
+  });
+  ctx.globalAlpha = 1;
 }
 
 // ---------------------------------------------------------------- 天气
@@ -5041,7 +5214,7 @@ return { ui, atlasStyle, showPick, buildHUD, openInfo, closeInfo, updateHUD, sho
 
 // ---- js/survivors.js
 const m_survivors = await (async () => {
-const { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage, giveUp, recompute, addGrowth, addItem, useItem, gainExp, hurtPlayer } = m_engine;
+const { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage, giveUp, recompute, addGrowth, addItem, useItem, gainExp, hurtPlayer, say } = m_engine;
 const { init, resize, draw } = m_render;
 const { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo, pickSwap, closeSwap } = m_ui;
 const { DIFFS } = m_defs;
@@ -5355,6 +5528,7 @@ if (/[?&]_test=1/.test(location.search)) {
     setProgress: saveProgress,
     addGrowth, addItem, useItem, gainExp, hurt: hurtPlayer,
     sfx,              // 测试用：读 AudioContext 状态、当前 BGM 曲目、静音开关
+    say,              // 测试用：直接念某一句台词（wake/s1/s2/rage/rage2/evo/hurt/lv）
     chars: CHARS,
     bot: (seconds) => {
       window.__svFrozen = true;

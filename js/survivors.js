@@ -4,7 +4,7 @@
 // 跑得更快，掉帧时也不会瞬移穿过敌人 —— 每帧最多补 6 步，防止切标签页回来
 // 一次补上千步直接把自己补死。
 
-import { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage, giveUp, recompute, addGrowth, addItem, useItem, gainExp, hurtPlayer } from './sv/engine.js';
+import { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage, giveUp, recompute, addGrowth, addItem, useItem, gainExp, hurtPlayer, say } from './sv/engine.js';
 import { init, resize, draw } from './sv/render.js';
 import { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo, pickSwap, closeSwap } from './sv/ui.js';
 import { DIFFS } from './sv/defs.js';
@@ -305,6 +305,7 @@ if (/[?&]_test=1/.test(location.search)) {
     setProgress: saveProgress,
     addGrowth, addItem, useItem, gainExp, hurt: hurtPlayer,
     sfx,              // 测试用：读 AudioContext 状态、当前 BGM 曲目、静音开关
+    say,              // 测试用：直接念某一句台词（wake/s1/s2/rage/rage2/evo/hurt/lv）
     chars: CHARS,
     bot: (seconds) => {
       window.__svFrozen = true;
