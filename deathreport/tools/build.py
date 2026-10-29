@@ -16,6 +16,7 @@ if ED:
     from witness import WIT
     T = {}; X = {}; FLAVOR = {}; T2 = _m.PROSE; T3 = {}; EXT = {}; FRAGS = {}; ARCS = []; HIDDEN = []; ENDINGS = [_m.ENDING]; MILE = _m.MILE; ARC_SRC = ''
     PUZ_META = []; BADGES = {}; h32 = lambda x: 0; MELT = {}
+    from docs import MELTNOTE
     DOCS = make_docs(_m.META, len(_m.CAST), _m.OVER, _m.FINALS); MSGS = _m.MSGS
     LORE_X = getattr(_m, 'LORE_EXTRA', {}); AVATAR_X = getattr(_m, 'AVATAR_EXTRA', {})
 else:
@@ -24,7 +25,7 @@ else:
     from texts_extra import X, FLAVOR
     from texts_v2 import T2
     from texts_v3 import T3
-    from docs import DOCS, MSGS
+    from docs import DOCS, MSGS, MELTNOTE
     from witness import WIT
     from arcs import ARCS, MILE, SRC as ARC_SRC
     from hidden import HIDDEN
@@ -249,12 +250,30 @@ roll_names = sorted((e['v'] for e in E if e['min'] < 1440))
 dead1 = len(roll_names); TOTAL = 63 if not ED else len(ROSTER)
 docs = {}
 for did, (title, src, body, secret) in DOCS.items():
-    t = body.replace('{ZONES}', zones_txt).replace('{MAP}', map_txt)
+    t = body.replace('{ZONES}', zones_txt).replace('{MAP}', map_txt).replace('{MELTNOTE}', MELTNOTE)
     for fl in FRAGS.get(('doc', did), []): t = t.replace('[/sys]', fl + '\n[/sys]', 1) if '[/sys]' in t else t + '\n' + fl
     t = t.replace('{ROLL}', '、'.join(NAME[n] for n in roll_names)).replace('{DEAD}', str(dead1)).replace('{ALIVE}', str(TOTAL - dead1))
     t = t.replace('{START}', '\n'.join(f'·[link]{k}[/link]' for k in START))
     refs = roll_keys if did == '00-ROLL' else []
     docs[did] = dict(id=did, title=title, source=src, text=t, refs=refs, final=secret, links=sorted(set(re.findall(r'\[link\](00-[A-Z]+)\[/link\]', t))))
+
+# 没有任何入口的文档，玩家永远看不见（往届的 00-ROLL 就是这么丢的）。
+# 给它挂到第二天最早的记录末尾：终端在那里多出一行「参考」，点得开。
+sys_used, linked = set(), set()
+for r in records.values(): sys_used |= set(r['sys'] or [])
+for d in docs.values(): linked |= set(d['links'] or [])
+orphan = [did for did, d in docs.items()
+          if not d['final'] and did != '00-ORDER' and did not in sys_used and did not in linked]
+if orphan:
+    cands = sorted([r for r in records.values() if r['min'] >= 1440], key=lambda r: (r['min'], r['dord']))
+    if not cands:
+        cands = sorted(records.values(), key=lambda r: -r['min'])[:8]
+    for i, did in enumerate(orphan):
+        tgt = cands[min(i, len(cands) - 1)]
+        tgt['text'] = tgt['text'].replace('[/sys]', f'-- 参考 [link]{did}[/link] --\n[/sys]')
+        tgt['sys'] = list(dict.fromkeys((tgt['sys'] or []) + [did]))
+    if not ED:
+        print('  孤立文档已挂到记录末尾：' + '、'.join(orphan))
 
 # ---------------- solutions & hints
 def manner(e): return CAUSES[e['cause']]
