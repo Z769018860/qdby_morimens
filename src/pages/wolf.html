@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>弥萨格狼人杀 · 忘忘同人小游戏</title>
-<meta name="description" content="《忘却前夜》同人狼人杀：你是守密人，其余位置由唤醒体扮演。十种身份牌随机发，每只唤醒体在不同身份下有各自的说法；四档难度、随机阵容，可以反复开局。">
+<meta name="description" content="《忘却前夜》同人狼人杀：你是守密人，其余位置由唤醒体扮演。12 种身份牌随机发，每只唤醒体在不同身份下有各自的说法、口癖和对别人的私心；还能当众号召有身份的人站出来。五档难度、随机阵容，可以反复开局。">
 <meta name="theme-color" content="#0a0d14">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23121826%22%2F%3E%3Cpath%20d%3D%22M32%2012c9%200%2016%207%2016%2016%200%2012-16%2024-16%2024S16%2040%2016%2028c0-9%207-16%2016-16z%22%20fill%3D%22none%22%20stroke%3D%22%23e3b341%22%20stroke-width%3D%223%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%224%22%20fill%3D%22%23e3b341%22%2F%3E%3C%2Fsvg%3E" type="image/svg+xml">
 <style>
@@ -72,6 +72,7 @@ body.night::after{
 .tag[data-c="normal"]{color:var(--blue); border-color:color-mix(in srgb,var(--blue) 45%,var(--line))}
 .tag[data-c="hard"]{color:#e09a4a; border-color:color-mix(in srgb,#e09a4a 45%,var(--line))}
 .tag[data-c="mad"]{color:var(--red); border-color:color-mix(in srgb,var(--red) 50%,var(--line))}
+.tag[data-c="abyss"]{color:var(--violet); border-color:color-mix(in srgb,var(--violet) 55%,var(--line))}
 .ico{
   width:32px; height:32px; flex:0 0 32px; border-radius:9px; display:grid; place-items:center;
   border:1px solid var(--line); background:var(--panel); color:var(--dim);
@@ -102,8 +103,8 @@ body.night::after{
   background:linear-gradient(90deg,var(--gold),var(--red)); opacity:.75}
 
 .diffs{
-  display:grid; gap:10px; grid-template-columns:repeat(4,1fr);
-  margin:26px auto 0; max-width:900px;
+  display:grid; gap:10px; grid-template-columns:repeat(5,minmax(0,1fr));
+  margin:26px auto 0; max-width:1000px;
 }
 .diff{
   text-align:left; cursor:pointer; padding:13px 13px 12px; border-radius:14px;
@@ -118,6 +119,7 @@ body.night::after{
 .diff[data-c="normal"] .dot{background:var(--blue)}
 .diff[data-c="hard"] .dot{background:#e09a4a}
 .diff[data-c="mad"] .dot{background:var(--red)}
+.diff[data-c="abyss"] .dot{background:var(--violet)}
 .diff .ds{display:block; margin-top:3px; font-size:11.5px; color:var(--dim)}
 .diff .dd{display:block; margin-top:7px; font-size:11.5px; line-height:1.6; color:var(--dim2)}
 
@@ -187,6 +189,23 @@ body.night::after{
 .claim[data-f="wolf"]{color:var(--red)}
 .claim[data-f="mole"]{color:#e09a4a}
 .claim[data-f="third"]{color:var(--violet)}
+
+/* 立场标签：这句是怀疑还是作保，扫一眼就知道 */
+.stance{
+  font-size:10px; padding:0 6px; border-radius:999px; line-height:16px;
+  border:1px solid currentColor; opacity:.85;
+}
+.stance.warn{color:var(--red)}
+.stance.good{color:var(--blue)}
+.stance.gold{color:var(--gold)}
+.stance.void{color:var(--violet)}
+.stance.dim{color:var(--dim2)}
+/* 台词里提到的名字 */
+.msg .tx .nmhl{
+  color:var(--text); font-weight:600;
+  border-bottom:1px solid color-mix(in srgb,var(--gold) 42%,transparent);
+}
+.msg .why{margin-top:4px; font-size:11px; line-height:1.55; color:var(--dim2)}
 
 .sys{
   align-self:center; max-width:84%; text-align:center;
@@ -387,7 +406,7 @@ body.night::after{
       <b>弥萨格狼人杀</b>
       <span id="sub">人机对局 · 你是守密人</span>
     </div>
-    <span class="tag" id="diffTag" data-c="normal">普通</span>
+    <span class="tag" id="diffTag" data-c="normal">夜巡</span>
     <button class="ico" id="helpBtn" type="button" aria-label="规则与身份牌">?</button>
     <button class="ico hide" id="rosterBtn" type="button" aria-label="在场名单">☰</button>
   </header>

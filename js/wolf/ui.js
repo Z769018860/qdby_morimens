@@ -3,8 +3,8 @@
 // 引擎一次吐一个事件，这里一个事件画一条，所以整套流程读起来就是一场对话。
 // 玩家的选择只往引擎里递一个对象（见 engine.js 的 submit），规则不在这里。
 
-import { ROLES, DIFFS, KEEPER } from './data.js';
-import { createGame, nextEvent, submit, nightOptions, playerFindings } from './engine.js';
+import { ROLES, DIFFS, KEEPER, WOLF_SIDE } from './data.js';
+import { createGame, nextEvent, submit, nightOptions, playerFindings, canCall } from './engine.js';
 import { alive, byId } from './util.js';
 import { AVATARS } from './art.js';
 
@@ -294,6 +294,40 @@ function setPhase(e) {
   toBottom();
 }
 
+// 发言的立场标签：一眼看出这句是「怀疑」还是「作保」，不用读完再回头想
+const STANCE = {
+  accuse: ['怀疑', 'warn'],
+  defend: ['作保', 'good'],
+  defendSelf: ['自辩', 'good'],
+  claim: ['自称', 'gold'],
+  stepUp: ['应声', 'gold'],
+  call: ['号召', 'gold'],
+  reportWolf: ['报融蚀', 'warn'],
+  reportVoid: ['报空白', 'void'],
+  reportClean: ['报干净', 'good'],
+  refuse: ['推脱', 'dim'],
+  silent: ['失声', 'void'],
+  taunt: ['挑衅', 'dim'],
+  last: ['遗言', 'dim'],
+};
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+// 台词里提到的名字要看得见：一屏字读下来，很难一直记着「他」是谁
+function speakNode(text) {
+  const G = STATE.G;
+  const node = el('div', 'tx');
+  const names = G.players.map((p) => p.name)
+    .filter((n) => n && n.length >= 2)
+    .sort((a, b) => b.length - a.length);
+  if (!names.length) { node.textContent = text; return node; }
+  const re = new RegExp(names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
+  node.innerHTML = esc(text).replace(re, (m) => '<span class="nmhl">' + m + '</span>');
+  return node;
+}
+
 function addSay(e) {
   const G = STATE.G;
   const p = byId(G, e.pid);
@@ -309,7 +343,10 @@ function addSay(e) {
     c.dataset.f = ROLES[e.claim].f;
     who.append(c);
   }
-  body.append(who, el('div', 'tx', e.text));
+  const st = STANCE[e.stance];
+  if (st) who.append(el('span', 'stance ' + st[1], st[0]));
+  body.append(who, speakNode(e.text));
+  if (e.why) body.append(el('div', 'why', '依据：' + e.why));
   msg.append(body);
   feedEl().append(msg);
   toBottom();
@@ -381,10 +418,10 @@ function refreshRoster() {
   box.append(el('h3', '', '在场名单'));
   const me = G.player;
   const mine = new Set();
-  if (me && (me.role === 'eroded' || me.role === 'lurker')) {
-    G.players.forEach((p) => { if (p.role === 'eroded' || p.role === 'lurker' || p.role === 'mole') mine.add(p.id); });
+  // 融蚀方（含低语者、共谋者）互相认得——这也是他们最难装的地方
+  if (me && WOLF_SIDE.has(me.role)) {
+    G.players.forEach((p) => { if (p.id !== 0 && WOLF_SIDE.has(p.role)) mine.add(p.id); });
   }
-  if (me && me.role === 'mole') G.players.forEach((p) => { if (p.role === 'eroded' || p.role === 'lurker') mine.add(p.id); });
   if (me && me.twinId != null) mine.add(me.twinId);
 
   for (const p of G.players) {
@@ -406,8 +443,8 @@ function showPlayerInfo(pid) {
   const G = STATE.G;
   const p = byId(G, pid);
   if (!p) return;
-  const mineWolf = G.player.role === 'eroded' || G.player.role === 'lurker' || G.player.role === 'mole';
-  const known = p.revealed || p.isPlayer || (mineWolf && (p.role === 'eroded' || p.role === 'lurker'));
+  const mineWolf = WOLF_SIDE.has(G.player.role);
+  const known = p.revealed || p.isPlayer || (mineWolf && WOLF_SIDE.has(p.role));
   const acc = G.acc.filter((a) => a.to === pid).length;
   const by = G.acc.filter((a) => a.by === pid).length;
   const lines = [];
@@ -489,6 +526,28 @@ function speedRow() {
 
 function composerTalk(box) {
   const G = STATE.G;
+  const me = G.player;
+
+  // 被低语过：今天说不出话。别让人点了按钮才发现没用。
+  if (me.silencedDay === G.day) {
+    const hint = el('div', 'chint');
+    hint.append(el('b', '', '你说不出话。'));
+    hint.append(el('span', '', '昨晚有人在耳边对你说了一整夜。今天你只能听，只能投票。'));
+    box.append(hint);
+    const acts0 = el('div', 'acts');
+    const b0 = el('button', 'btn ghost', '咽下去，听别人说');
+    b0.type = 'button';
+    b0.onclick = () => {
+      submit(G, { type: 'talk', kind: 'idle' });
+      clear(box);
+      pump();
+    };
+    acts0.append(b0);
+    box.append(acts0);
+    box.append(speedRow());
+    return;
+  }
+
   const hint = el('div', 'chint');
   hint.append(el('b', '', '轮到你说话了。'), el('span', '', '一句话就能改变今晚谁去死。'));
   box.append(hint);
@@ -522,6 +581,35 @@ function composerTalk(box) {
       pump();
     });
   });
+
+  // 号召：一天一次。全桌最贵的一次提问——逼别人亮牌，也把自己的算盘摊开。
+  const callable = canCall(G);
+  const cb = add(callable ? '号召有身份的人站出来' : '号召（今天已喊过）', () => {
+    sheet({
+      title: '当众喊一句？',
+      sub: '喊完就收不回。有人会站出来，有人会对着站出来的人喊回去，也有人一句话都不说。',
+      body: (b) => {
+        b.append(el('p', 'sub', '亮牌的人会被你看见，也会被融蚀体看见——今晚死的多半就是他。'
+          + '融蚀体同样会借这一嗓子塞一张假身份进来，而台上的假牌越多，越难分清谁是真人。'));
+        b.append(el('p', 'sub', '一天只能喊一次。'));
+        const row = el('div', 'acts');
+        const yes = el('button', 'btn primary', '喊');
+        yes.type = 'button';
+        yes.onclick = () => {
+          closeSheet();
+          submit(G, { type: 'talk', kind: 'call' });
+          clear(box);
+          pump();
+        };
+        const no = el('button', 'btn ghost', '算了');
+        no.type = 'button';
+        no.onclick = closeSheet;
+        row.append(yes, no);
+        b.append(row);
+      },
+    });
+  });
+  if (!callable) { cb.disabled = true; cb.classList.add('ghost'); }
 
   const findings = playerFindings(G);
   if (findings.length) {
@@ -637,6 +725,19 @@ function composerNight(box) {
     };
     acts.append(b);
   }
+  if (o.optional) {
+    const skip = el('button', 'btn ghost', '今晚不说');
+    skip.type = 'button';
+    skip.style.padding = '6px 12px';
+    skip.style.fontSize = '12.5px';
+    skip.onclick = () => {
+      submit(G, { type: 'night', target: null });
+      clear(box);
+      box.append(el('div', 'waitbar', '走廊的灯灭了。'));
+      pump();
+    };
+    acts.append(skip);
+  }
   box.append(acts);
   box.append(speedRow());
 }
@@ -673,12 +774,8 @@ function showRoleCard() {
   card.append(el('p', 'tagline', '「' + r.tag + '」'));
 
   const mates = [];
-  if (me.role === 'eroded' || me.role === 'lurker') {
-    G.players.forEach((p) => {
-      if (p.id !== 0 && (p.role === 'eroded' || p.role === 'lurker' || p.role === 'mole')) mates.push(p);
-    });
-  } else if (me.role === 'mole') {
-    G.players.forEach((p) => { if (p.role === 'eroded' || p.role === 'lurker') mates.push(p); });
+  if (WOLF_SIDE.has(me.role)) {
+    G.players.forEach((p) => { if (p.id !== 0 && WOLF_SIDE.has(p.role)) mates.push(p); });
   } else if (me.role === 'twin') {
     G.players.forEach((p) => { if (p.role === 'twin' && p.id !== 0) mates.push(p); });
   }
@@ -715,10 +812,10 @@ function showRules() {
   ];
   sheet({
     title: '规则与身份牌',
-    sub: '你是守密人，每一局抽到的身份不同。清醒方要找出所有融蚀体；融蚀体只要人数追平清醒方就赢。',
+    sub: '你是守密人，每一局抽到的身份不同。清醒方要把会动手的融蚀体清干净；融蚀体只要活着的数量追平清醒方就赢。',
     wide: true,
     body: (box) => {
-      box.append(el('p', 'sub', '白天所有人轮流说话，然后投票送一个人出门；夜里融蚀体融蚀一个人，能力者各自行动。出局的人翻开身份，夜里死的人不翻。'));
+      box.append(el('p', 'sub', '白天所有人轮流说话，然后投票送一个人出门；夜里融蚀体融蚀一个人，能力者各自行动。投票出局的人翻开身份，夜里死的人不翻。'));
       for (const [f, label] of groups) {
         box.append(el('h4', '', label));
         const grid = el('div', 'rolegrid');
@@ -731,6 +828,13 @@ function showRules() {
           const i = el('i', '', r.short);
           item.append(b, i);
           item.append(el('p', '', r.d));
+          if (r.lore) {
+            const lo = el('p', '', '「' + r.lore + '」');
+            lo.style.color = 'var(--dim2)';
+            lo.style.fontStyle = 'italic';
+            lo.style.marginTop = '6px';
+            item.append(lo);
+          }
           grid.append(item);
         }
         box.append(grid);
@@ -742,8 +846,12 @@ function showRules() {
         '守夜人守到的人，当晚不会被融蚀体拖走；但扶不住第二次同样的手法——不能连着两晚守同一个人。',
         '灵视者看到「融蚀」或「干净」；如果那个人既不是清醒也不是融蚀，你会看到一片空白。',
         '潜伏者第一次被投出去不会死，只是当场蜕壳，身份暴露。',
-        '共谋者被灵视者看成清醒方，但它和融蚀体一起赢。',
-        '忘却者不属于任何一边：只要它活到最后一刻（场上不超过五人），胜利就被它吞掉。',
+        '链缚者被投票送出时，可以拖一个人一起走；夜里被杀则不会有这条链子。',
+        '低语者不动手，只让一个人第二天说不出话：报不了查验，也开不了口。同一个人只会被低语一次，它自己的嗓子也撑不了几次。',
+        '共谋者被灵视者看成清醒方，但它和融蚀体一起赢，而且它认得融蚀体。',
+        '低语者与共谋者不占刀口，也不挡清醒方的胜利——刀折了，它们再折腾也杀不死人。',
+        '忘却者不属于任何一边：只要它活到最后一刻（场上不超过四人），胜利就被它吞掉。',
+        '轮到你说话时，除了指认、辩护、亮牌，还可以「号召有身份的人站出来」——一天一次。有人会应声，有人会对跳，也有人一句话都不说。',
         '你出局之后，游戏会继续，你可以看完结局。',
       ].forEach((t) => ul.append(el('li', '', t)));
       box.append(ul);
