@@ -55,6 +55,7 @@ function guestCard(app, a, foot) {
     <b>${esc(a.zh)}</b>
     <small>${REALMS[a.realm].zh} · ${TYPES[a.type].zh}</small>
     <small class="ghook">${esc(c.hook)}</small>
+    <a class="gbil" data-act="bil" href="${esc(c.url)}" target="_blank" rel="noopener" title="打开 ${esc(a.zh)} 的 B 站个人空间">B 站首页 ↗</a>
     <div class="gfoot">${foot}</div>
   </div>`;
 }

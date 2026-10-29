@@ -1357,6 +1357,16 @@ test('彩蛋角色：9 位都进了表、带完整 7 槽技能、不进抽卡池
   assert.ok(out.some((p) => !data.bySlug[p.slug].creator));
 });
 
+test('彩蛋角色：档案里的 B 站首页链接与 UID 一一对应', () => {
+  for (const a of CREATORS) {
+    const { uid, url } = a.creator;
+    assert.match(uid, /^\d+$/, `${a.slug} 的 UID 应是纯数字`);
+    assert.equal(url, `https://space.bilibili.com/${uid}`, `${a.slug} 的首页链接应指向本人空间`);
+  }
+  // 九个 UID 不能撞车（夏茉琳之前就和立誓0氪写重过）
+  assert.equal(new Set(CREATORS.map((a) => a.creator.uid)).size, CREATORS.length, 'UID 有重复');
+});
+
 test('彩蛋角色：技能数值随技能等级成长，四界域都有', () => {
   const lo = creatorKit('samo', 0), hi = creatorKit('samo', 4);
   const dmgOf = (k) => k.Skill2.effects.find((e) => e.t === 'dmg').m;
@@ -1450,8 +1460,9 @@ test('联动活动：老存档迁移后带 event 字段，彩蛋角色能上阵�
   assert.equal(eventState(s).daily.battles, before + 1);
 });
 
-test('M18 萨摩不耶的特性「一哥护饺子」对校猫特攻 +50%', () => {
+test('M18 萨摩不耶的特性「一哥」对校猫特攻 +50%', () => {
   const samo = data.bySlug.samo;
+  assert.equal(samo.trait?.zh, '一哥', '特性名称就是社区昵称「一哥」');
   assert.equal(samo.trait?.vs?.catboss, 0.5, '特性挂在萨摩不耶身上，目标是校猫');
   assert.ok(data.monById.catboss, '校猫在怪物表里的 id 是 catboss');
 

@@ -42,16 +42,16 @@ export const CREATORS = [
     id: 'creator-01', slug: 'samo', zh: '萨摩不耶', en: 'Samo-Buya', realm: 'CHAOS', type: 'WARDEN', rarity: 'SR', avail: 'GIFT',
     base: { CON: 40, ATK: 28, DEF: 40 }, scale: { CON: 1.75, ATK: 1.35, DEF: 1.9 }, sub: { ...SUB }, subScale: { ...SUB_SCALE },
     portrait: portraitOf('samo'), card: cardOf('samo'),
-    // 专属特性：社区管她叫「一哥」「饺子」，见了弥萨格那只校猫就护食。
+    // 专属特性：社区管他叫「一哥」，见了弥萨格那只校猫就来劲。
     // vs 里的 key 是敌人的 id（special.json 里校猫 = catboss），战斗里按目标 id 乘倍率。
     trait: {
-      zh: '一哥护饺子',
-      desc: '对上奖励首领「校猫」时，造成的伤害 +50%。饺子是她的，猫也别想伸手。',
+      zh: '一哥',
+      desc: '对上奖励首领「校猫」时，造成的伤害 +50%。',
       vs: { catboss: 0.5 },
     },
     creator: {
       uid: '345114332', url: 'https://space.bilibili.com/345114332', color: '#e8dcc8', tag: CREATOR_TAG, emoji: '🐾',
-      bio: '一只把「雪橇三傻」精神带进忘却前夜的主播：全场最白、最热情、也最容易把队伍拆了。社区里叫她「一哥」，也叫「饺子」。',
+      bio: '把「雪橇三傻」精神带进忘却前夜的主播：全场最白、最热情、也最容易把队伍拆了。社区里都叫他「一哥」。',
       hook: '雪原守望 · 拆家',
     },
   },

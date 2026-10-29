@@ -120,7 +120,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     if (src.firstBoost && src.acted <= 1) raw *= 1 + src.firstBoost / 100;
     if (crit) raw *= 1 + src.critDmg / 100;
     if (src.enrage) raw *= 1 + src.enrage;
-    // 特性特攻：按目标 id 匹配（例：萨摩不耶的「一哥护饺子」对校猫 catboss 额外 +50%）
+    // 特性特攻：按目标 id 匹配（例：萨摩不耶的「一哥」对校猫 catboss 额外 +50%）
     const vs = src.trait && src.trait.vs;
     if (vs && tgt.mid && vs[tgt.mid]) raw *= 1 + vs[tgt.mid];
     raw *= 0.95 + rng() * 0.1;

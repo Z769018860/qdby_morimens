@@ -647,6 +647,11 @@ body{background:#0a0d13}
 .cbox small{display:block;margin-top:5px;font-size:11px;color:#9aa4b8}
 .cbox a{color:#8fb4ff;text-decoration:none}
 .cbox a:hover{text-decoration:underline}
+.cbox .crow{display:flex;gap:8px;align-items:baseline;margin:6px 0 0;font-size:12px}
+.cbox .crow span{flex:none;color:#8b93a7;font-size:11px}
+.cbox .crow a{color:#8fb4ff;text-decoration:none;border-bottom:1px dashed rgba(143,180,255,.4);word-break:break-all}
+.guest .gbil{align-self:flex-start;font-size:11px;color:#a99ad6;text-decoration:none;border:1px solid #3d3358;border-radius:999px;padding:1px 8px;margin-top:3px}
+.guest .gbil:hover{color:#f1e8ff;border-color:#6b58a8;background:#241d33}
 .traitbox{margin:6px 0 12px;padding:9px 11px;border-radius:10px;background:linear-gradient(180deg,#211b2c,#171320);border:1px solid #463a5c;border-left:3px solid var(--rc,#8f7ad0)}
 .traitbox b{display:block;font-size:13px;color:#f1e8ff;margin-bottom:4px}
 .traitbox p{margin:0;font-size:12px;line-height:1.65;color:#c8bfd8}
