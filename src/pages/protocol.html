@@ -99,21 +99,55 @@ button{font:inherit; color:inherit}
 
 /* --------------------------------------------------------------- 底栏 */
 #bottom{position:absolute; left:0; right:0; bottom:0; padding:0 8px max(6px,env(safe-area-inset-bottom));
-  display:flex; flex-direction:column; gap:4px;
+  display:flex; flex-direction:column; gap:6px;
   background:linear-gradient(180deg, transparent, rgba(8,11,18,.90) 16%)}
 
-/* 备战席与商店是两块性质不同的区域，各给一块自己的底和左侧标签：
-   备战席是「手上的人」——内嵌、发暗、虚线格；
-   商店是「货架」——浮起一层、带金边、每张卡底下挂价签。 */
-.zone{display:flex; align-items:stretch; gap:5px; border-radius:11px}
+/* 备战席与商店是两块性质不同的区域，靠三样东西分开：
+   ① 冷暖相反的主色（备战=冷青，商店=金）；② 相反的立体感（备战内凹、商店浮起）；
+   ③ 各自的底纹（备战斜纹＝收纳格，商店正交网格＝货架），再用四角角标封边。 */
+.zone{position:relative; display:flex; align-items:stretch; gap:5px; border-radius:11px}
 .zlab{flex:0 0 34px; display:flex; align-items:center; justify-content:center;
   writing-mode:vertical-rl; font-size:10px; letter-spacing:.26em; color:var(--dim);
   border-radius:9px; background:rgba(255,255,255,.028); border:1px solid rgba(255,255,255,.05)}
-.benchzone{padding:3px; background:rgba(9,13,21,.66); border:1px solid rgba(255,255,255,.045);
-  box-shadow:0 1px 0 rgba(255,255,255,.03) inset}
-.shopzone{padding:3px; background:linear-gradient(180deg, rgba(31,40,58,.74), rgba(13,18,28,.84));
-  border:1px solid color-mix(in oklab, var(--gold) 20%, var(--line));
-  box-shadow:0 1px 0 rgba(255,255,255,.05) inset}
+/* 四角 L 形角标：八段渐变拼出来，颜色取各区域的 --zc，不加任何图片请求 */
+.zone::after{content:''; position:absolute; inset:2px; border-radius:9px; pointer-events:none;
+  --c:var(--zc, rgba(255,255,255,.18));
+  background:
+    linear-gradient(var(--c),var(--c)) left 0 top 0/15px 2px no-repeat,
+    linear-gradient(var(--c),var(--c)) left 0 top 0/2px 15px no-repeat,
+    linear-gradient(var(--c),var(--c)) right 0 top 0/15px 2px no-repeat,
+    linear-gradient(var(--c),var(--c)) right 0 top 0/2px 15px no-repeat,
+    linear-gradient(var(--c),var(--c)) left 0 bottom 0/15px 2px no-repeat,
+    linear-gradient(var(--c),var(--c)) left 0 bottom 0/2px 15px no-repeat,
+    linear-gradient(var(--c),var(--c)) right 0 bottom 0/15px 2px no-repeat,
+    linear-gradient(var(--c),var(--c)) right 0 bottom 0/2px 15px no-repeat}
+/* 顶边再压一条亮线：整圈边框在深底上本来就细，亮线负责「这块是独立面板」的第一眼 */
+.zone::before{content:''; position:absolute; left:14px; right:14px; top:0; height:2px;
+  border-radius:0 0 2px 2px; pointer-events:none; z-index:1}
+
+/* 备战席＝「手上的人」：冷青、内凹、45° 斜纹像收纳格的隔板 */
+.benchzone{padding:3px; --zc:rgba(120,175,255,.85);
+  background:
+    repeating-linear-gradient(135deg, rgba(120,175,255,.13) 0 1px, rgba(0,0,0,0) 1px 5px),
+    radial-gradient(120% 200% at 50% 0%, rgba(110,168,255,.16), rgba(0,0,0,0) 66%),
+    rgba(6,9,16,.82);
+  border:1px solid rgba(120,175,255,.36);
+  box-shadow:0 0 0 1px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.45) inset,
+    0 0 20px rgba(110,168,255,.09) inset}
+.benchzone::before{background:linear-gradient(90deg, transparent, rgba(120,175,255,.62), transparent)}
+.benchzone .zlab{color:#b6d2ff; background:rgba(120,175,255,.13); border-color:rgba(120,175,255,.38);
+  box-shadow:0 0 10px rgba(110,168,255,.16) inset}
+
+/* 商店＝「货架」：金色、浮起、正交网格当隔板，底下挂价签 */
+.shopzone{padding:3px; --zc:rgba(240,196,90,.9);
+  background:
+    repeating-linear-gradient(0deg, rgba(227,179,65,.085) 0 1px, rgba(0,0,0,0) 1px 14px),
+    repeating-linear-gradient(90deg, rgba(227,179,65,.085) 0 1px, rgba(0,0,0,0) 1px 14px),
+    linear-gradient(180deg, rgba(44,56,80,.92), rgba(13,18,28,.92));
+  border:1px solid rgba(227,179,65,.46);
+  box-shadow:0 0 0 1px rgba(0,0,0,.55), 0 3px 12px rgba(0,0,0,.34),
+    0 1px 0 rgba(255,255,255,.07) inset, 0 0 0 1px rgba(227,179,65,.09) inset}
+.shopzone::before{background:linear-gradient(90deg, transparent, rgba(240,196,90,.72), transparent)}
 .shopbody{flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:4px}
 
 /* 金币紧贴商店左边：买东西不用抬头看顶栏，扫一眼就知道还剩多少、利息够几档 */
@@ -139,7 +173,7 @@ button{font:inherit; color:inherit}
 
 .bench{flex:1 1 auto; min-width:0; display:flex; gap:4px}
 .bslot{flex:1 1 0; min-width:0; height:38px; border-radius:9px; padding:0; position:relative;
-  border:1px dashed color-mix(in oklab,var(--line) 80%, transparent); background:rgba(14,19,29,.5);
+  border:1px dashed rgba(110,168,255,.17); background:rgba(14,19,29,.5);
   display:grid; place-items:center; transition:.12s}
 .bslot.has{border-style:solid; background:linear-gradient(180deg, var(--panel2), var(--panel)); cursor:pointer;
   border-color:color-mix(in oklab, var(--rc, var(--line)) 55%, var(--line))}
