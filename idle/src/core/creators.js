@@ -7,6 +7,11 @@
 //
 // 9 位主播**都是男性**，所以文案里的第三人称统一用「他」——别按昵称 / 头像想当然。
 //
+// creator.bio 一律**照录 B 站个人签名原文**（快照见 tools/faces/source.json 的 sign 字段），
+// 不要自己编写人物设定或事迹——签名是空的就留空，界面上会显示「没有填写签名」。
+// 唯一例外是萨摩不耶（samo）：他的简介是定制的，按需求保留，不改回签名原文。
+// creator.nick 只放社区里真实流传的外号（如「一哥」「安卓佬」），同样不编。
+//
 // 技能设计一律从**昵称里的意象**出发（雪橇犬、流苏、兔子洞、鼠群、龙、零氪、茉莉、晨星、遛弯的老人），
 // 这样既贴人又没有替本人编造言论；界域 / 类型按各自的气质分配，保证四个界域都能凑出同域加成。
 //
@@ -35,7 +40,7 @@ const cardOf = (slug) => `img/card/${slug}.webp`;
  * @typedef {{ id:string, slug:string, zh:string, en:string, realm:string, type:string,
  *   rarity:string, avail:string, base:object, scale:object, sub:object, subScale:object,
  *   portrait:string, card:string, creator:{ uid:string, url:string, color:string, tag:string,
- *   emoji:string, bio:string, hook:string, since?:string } }} Creator
+ *   emoji:string, bio:string, hook:string, nick?:string, since?:string } }} Creator
  */
 
 /** @type {Creator[]} */
@@ -53,7 +58,7 @@ export const CREATORS = [
     },
     creator: {
       uid: '345114332', url: 'https://space.bilibili.com/345114332', color: '#e8dcc8', tag: CREATOR_TAG, emoji: '🐾',
-      bio: '再见了，忘却前夜。',
+      bio: '把「雪橇三傻」精神带进忘却前夜的主播：全场最白、最热情、也最容易把校猫的台拆了。社区里都叫他「一哥」。',
       hook: '雪原守望 · 拆家',
     },
   },
@@ -63,7 +68,7 @@ export const CREATORS = [
     portrait: portraitOf('mengyi'), card: cardOf('mengyi'),
     creator: {
       uid: '1800901917', url: 'https://space.bilibili.com/1800901917', color: '#b9a7e0', tag: CREATOR_TAG, emoji: '🧵',
-      bio: '融灾主线深潜pvp请+q1839055149 myls的忘却银夜群（个人粉丝向）：884208560 最近因现生问题减少开播时长',
+      bio: '融灾主线深潜pvp请+q1839055149\nmyls的忘却银夜群（个人粉丝向）：884208560\n最近因现生问题减少开播时长',
       hook: '织梦 · 千丝缠',
     },
   },
@@ -83,7 +88,7 @@ export const CREATORS = [
     portrait: portraitOf('ratking'), card: cardOf('ratking'),
     creator: {
       uid: '399273416', url: 'https://space.bilibili.com/399273416', color: '#8d7b6a', tag: CREATOR_TAG, emoji: '🐀',
-      bio: '（这位没写 B 站签名）',
+      bio: '',
       hook: '鼠群奔涌 · 瘟疫之牙',
     },
   },
@@ -134,7 +139,7 @@ export const CREATORS = [
     creator: {
       uid: '1475217387', url: 'https://space.bilibili.com/1475217387', color: '#a9a29a', tag: CREATOR_TAG, emoji: '🚶',
       bio: '1033650434，安卓科研群',
-      hook: '安卓佬 · 让让，路过',
+      hook: '让让，路过 · 耄耋之年', nick: '安卓佬',
     },
   },
 ];

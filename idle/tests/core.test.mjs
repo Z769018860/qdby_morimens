@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { data } from './helpers.mjs';
 import { newState, runBattle, applyResult, summon, equipPull, equipItem, allyDef, teamDefs, levelUp, migrate, offlineReport, claimOffline, autoTeam, PULL_PITY_GENESIS, dismantle, enhanceItem, addItem, farmRate, ticketPerWin, corePerWin, ticketBoost, coreBoost, winsPerTicket, winsPerCore } from '../src/core/game.js';
 import { simulate } from '../src/core/battle.js';
@@ -1367,6 +1368,22 @@ test('彩蛋角色：档案里的 B 站首页链接与 UID 一一对应', () => 
   }
   // 九个 UID 不能撞车（夏茉琳之前就和立誓0氪写重过）
   assert.equal(new Set(CREATORS.map((a) => a.creator.uid)).size, CREATORS.length, 'UID 有重复');
+});
+
+test('彩蛋角色：简介照录 B 站签名原文（萨摩不耶除外），不自己编写人设', () => {
+  const src = JSON.parse(readFileSync(new URL('../tools/faces/source.json', import.meta.url), 'utf8'));
+  assert.equal(Object.keys(src.faces).length, CREATORS.length, '来源表要覆盖九位');
+  for (const a of CREATORS) {
+    const f = src.faces[a.slug];
+    assert.ok(f, `${a.slug} 在来源表里缺记录`);
+    assert.equal(a.creator.uid, f.mid, `${a.slug} 的 UID 与来源表不一致`);
+    // 萨摩不耶是唯一例外：他的简介按需求定制，不照录签名
+    if (a.slug !== 'samo') assert.equal(a.creator.bio, f.sign, `${a.slug} 的简介应等于 B 站签名原文`);
+    assert.ok(a.creator.bio.length <= 200, `${a.slug} 的签名超长`);
+  }
+  // 空签名也照录，界面自己兜底，不要在数据里编一句
+  assert.equal(src.faces.ratking.sign, '');
+  assert.equal(CREATOR_BY_SLUG.ratking.creator.bio, '');
 });
 
 test('彩蛋角色：技能数值随技能等级成长，四界域都有', () => {

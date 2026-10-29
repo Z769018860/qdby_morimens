@@ -1,61 +1,71 @@
 {
-  "note": "九位联名主播的 B 站头像来源（同人二创用途）。换图：覆盖同名 <slug>.jpg 后重跑 python tools/build_creators.py --face-dir=tools/faces",
+  "note": "九位联名主播的 B 站头像与签名来源（同人二创用途）。sign 是个人签名原文快照，游戏里 creator.bio 必须照录它，不要自行编写人设；换图：覆盖同名 <slug>.jpg 后重跑 python tools/build_creators.py --face-dir=tools/faces",
   "api": "https://api.bilibili.com/x/web-interface/card?mid=<mid>",
   "fetched": "2026-10-30",
   "faces": {
     "samo": {
       "mid": "345114332",
       "name": "萨摩_不耶",
+      "sign": "再见了，忘却前夜。",
       "face": "https://i2.hdslb.com/bfs/face/b63dd9aa5b37ae693852f768704820b4cb7c9c58.jpg",
       "fans": 5928
     },
     "mengyi": {
       "mid": "1800901917",
       "name": "梦依流苏_myls",
+      "sign": "融灾主线深潜pvp请+q1839055149\nmyls的忘却银夜群（个人粉丝向）：884208560\n最近因现生问题减少开播时长",
       "face": "https://i0.hdslb.com/bfs/face/40db6f5f2cd0ca8236dc398ef75bfc066899f26f.jpg",
       "fans": 974
     },
     "alice": {
       "mid": "545164270",
       "name": "金发女人丨型",
+      "sign": "主播的粉丝群：1098633910 二群：698722677",
       "face": "https://i1.hdslb.com/bfs/face/780bd074330a8e6f7480cda972d74b70f6e1142a.jpg",
       "fans": 31645
     },
     "ratking": {
       "mid": "399273416",
       "name": "伊莎玛拉-大群来了",
+      "sign": "",
       "face": "https://i2.hdslb.com/bfs/face/4fcb553e8a6224e247132590246fb64491511f4e.jpg",
       "fans": 307
     },
     "dragond": {
       "mid": "190977084",
       "name": "魔龙_D",
+      "sign": "PKU 本硕 | AI | 在数据的噪音中寻找信号| 深度解构《忘却前夜》等卡牌游戏",
       "face": "https://i0.hdslb.com/bfs/face/5c8695b7ee0c7224aba8f0c46ad930272b40040c.jpg",
       "fans": 5218
     },
     "zerok": {
       "mid": "3493105187687321",
       "name": "立誓0氪吃400",
+      "sign": "（忘却前夜神秘玩家）主播的校车群：498236522（最近在做新手攻略）",
       "face": "https://i2.hdslb.com/bfs/face/36b53d0436be0db69fac43bf57812da7e9f7f5c1.jpg",
       "fans": 816
     },
     "xiamolin": {
       "mid": "515298109",
       "name": "夏茉琳summerring",
+      "sign": "红色沙漠真好玩",
       "face": "https://i1.hdslb.com/bfs/face/ca829cdfcd29c94a54479ddd20095dd79b8674ca.jpg",
       "fans": 2343
     },
     "chaoxing": {
       "mid": "14997071",
       "name": "朝星-",
+      "sign": "神赐予野性，人得了愚昧",
       "face": "https://i2.hdslb.com/bfs/face/a545415e5419012d94b1aa05564f6b8a1b29106e.jpg",
       "fans": 1621
     },
     "maodie": {
       "mid": "1475217387",
       "name": "路过的耄耋",
+      "sign": "1033650434，安卓科研群",
       "face": "https://i0.hdslb.com/bfs/face/21e956dc77eb6f06ad16d6197d548527059bdde8.jpg",
       "fans": 497
     }
-  }
+  },
+  "signFetched": "2026-10-30"
 }

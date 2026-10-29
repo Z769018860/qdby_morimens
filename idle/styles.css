@@ -643,7 +643,9 @@ body{background:#0a0d13}
 /* ---------- 联动活动「星辉直播间」+ 联名嘉宾（core/creators.js） ---------- */
 .ctag{background:linear-gradient(90deg,#3a2f52,#25324a);border:1px solid #6a5a9a;color:#d8c9ff}
 .cbox{margin:8px 0;padding:9px 11px;border-radius:10px;background:linear-gradient(180deg,#1b2130,#151a25);border:1px solid #33405c;border-left:3px solid #7d6ac0}
-.cbox b{display:block;font-weight:500;font-size:12.5px;line-height:1.55;color:#dcd6ea}
+.cbox .clabel{margin-top:0;color:#8b93a7;font-size:11px;letter-spacing:.04em}
+.cbox b{display:block;margin-top:2px;font-weight:500;font-size:12.5px;line-height:1.6;color:#dcd6ea;white-space:pre-line;word-break:break-word}
+.cbox .crow em{font-style:normal;color:#f1e8ff;font-size:12px}
 .cbox small{display:block;margin-top:5px;font-size:11px;color:#9aa4b8}
 .cbox a{color:#8fb4ff;text-decoration:none}
 .cbox a:hover{text-decoration:underline}
