@@ -487,3 +487,67 @@ body{background:#0a0d13}
   .squadbar .dim{display:none}
   .squads{grid-template-columns:1fr}
 }
+
+/* ---------- M14：挑战编队 / 编队编辑器 / 观战回放 / 唤醒体排序 ---------- */
+/* 队伍页的「挑战编队」：每个模式一行，绿点表示已经指定了具体某套队 */
+.assigns{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;margin:8px 0}
+.assign{background:#0b1017;border:1px solid var(--line);border-radius:12px;padding:8px 10px;display:flex;flex-direction:column;gap:5px}
+.assign.on{border-color:#3a4a66;box-shadow:inset 0 0 0 1px #1b2637}
+.assign header{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.assign header b{font-size:13px}
+.assign header small{color:var(--dim);font-size:11px;margin-right:auto}
+.assign header .btn.sm{padding:2px 8px;font-size:11.5px}
+.assign .sqav{min-height:34px;gap:4px}
+.assign .sqav img{width:32px;height:32px;border-radius:7px}
+.achips{display:flex;flex-wrap:wrap;gap:4px}
+.achips .sqchip{padding:2px 8px;font-size:11px}
+.squadbar .sqedit{margin-left:auto}
+.squadbar .dim{margin-left:6px}
+
+/* 编队编辑器 */
+.sqrealms{margin:6px 0}
+.sqslots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}
+.sqslot{display:flex;flex-direction:column;align-items:center;gap:3px;background:#0b1017;border:1px dashed #2b3447;border-radius:10px;padding:8px 6px;min-height:118px;justify-content:center;color:var(--dim);font-size:11.5px}
+.sqslot.on{border-style:solid;border-color:#3a4a66;color:var(--tx)}
+.sqslot img{width:46px;height:46px;border-radius:9px;object-fit:cover;border:1px solid #223047}
+.sqslot b{font-size:12px;line-height:1.2}
+.sqslot small{display:block;color:var(--dim);font-size:10.5px;line-height:1.3}
+.sqslot .plus{font-size:18px;color:#48708f}
+.sqpick{max-height:38vh;overflow:auto;padding-right:2px;margin-top:4px}
+.sqpick .tile{position:relative;border:1px solid var(--line)}
+.sqpick .tile.on{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.sqpick .tile.dis{opacity:.55}
+.sqpick .tick{position:absolute;top:3px;right:4px;font-style:normal;font-size:12px;color:var(--gold);text-shadow:0 0 4px #000}
+.sqsave{align-items:center;margin-top:10px}
+.sqsave .dim{margin-right:4px}
+
+/* 观战回放：复用战斗页的 .field / .unit / .bar，只补容器与外框 */
+.rp-modal .modal{width:min(940px,96vw)}
+.rp-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:4px;padding-right:26px}
+.rp-top b{font-size:15px}
+.rp-top small{display:block;color:var(--dim);font-size:11.5px;margin-top:2px}
+.rp-round{font-variant-numeric:tabular-nums;color:var(--dim);font-size:12.5px;white-space:nowrap;padding-top:2px}
+.rp-round.urgent{color:var(--bad);font-weight:700}
+.rp-field{max-height:46vh;overflow:auto}
+.rp-field .unit{width:22%}
+.rp-field .unit.boss{width:30%}
+.unit.shake .u-pic{animation:shake .22s}
+.rp-log{height:104px;overflow:auto;background:#0a0d13;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;line-height:1.6}
+.rp-log .rnd{color:var(--dim);text-align:center}
+.rp-log .dm{color:#c9ced8}.rp-log .hl{color:#7dffb0}.rp-log .dead{color:var(--bad)}
+.rp-log .ca{color:#8fd0ff}.rp-log .ce{color:#ff9a92}
+.rp-log .win{color:var(--ok);font-weight:700;border-top:1px solid var(--line);margin-top:4px;padding-top:4px}
+.rp-bar{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.rp-hint{font-size:11.5px;color:var(--dim);margin-right:auto}
+
+/* 唤醒体排序条 */
+.sortbar{align-items:center;gap:4px;margin:2px 0 8px;flex-wrap:wrap}
+.sortbar .dim{margin-right:4px}
+.sortbar .btn.sm{padding:3px 9px;font-size:11.5px}
+
+@media(max-width:560px){
+  .assigns{grid-template-columns:1fr}
+  .sqslots{grid-template-columns:repeat(2,1fr)}
+  .rp-field .unit{width:24%}
+  .rp-log{height:88px}
+}

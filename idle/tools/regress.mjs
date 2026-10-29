@@ -123,8 +123,14 @@ await cdp.evalIife(`localStorage.setItem('morimens-idle-settle', 'off')`);
 await cdp.boot(URL0);
 await cdp.evalIife(`(() => { const s = __game.state; s.skipAnim = true; s.speed = 16; return 1; })()`);
 await cdp.evalIife(HELPERS);
-// 首进会弹新手引导，跳过它，免得挡住截图和点击
-await cdp.evalIife(`(() => { const b = document.querySelector('[data-gskip]'); if (b) b.click(); return !!b; })()`);
+// 首进会弹新手引导（boot 后 420ms 才挂上去），等它出来再跳过，免得挡住截图和点击
+await sleep(900);
+await cdp.evalIife(`(() => {
+  __game.state.guide = 1; __game.state.tutorial = true;
+  const b = document.querySelector('[data-gskip]'); if (b) b.click();
+  document.querySelectorAll('.guide-bg,.guide-box,.guide-pop').forEach((n) => n.remove());
+  return !!b;
+})()`);
 
 // 1) 14 个页面都能渲染
 const TABS = ['battle', 'team', 'roster', 'gear', 'orders', 'summon', 'challenge', 'weekly', 'rtower', 'arena', 'signin', 'codex', 'ach', 'settings'];
@@ -381,7 +387,111 @@ await cdp.evalIife(`(() => { document.querySelector('.tracks')?.scrollIntoView({
 await sleep(300);
 await cdp.shot('settings-audio');
 
-// 11) 全局报错 / 4xx
+
+// 11) 队伍页的「挑战编队」：8 个模式各一行，现场编队能按界域一键上阵并直接给它用
+const assign = await cdp.evalIife(`(() => {
+  const s = __game.state;
+  // 先保证手里有混沌界域的人，否则「混沌塔一键上阵」会正确地返回空
+  const chaos = __game.data.awakeners.filter((a) => a.realm === 'CHAOS').slice(0, 5).map((a) => a.slug);
+  for (const x of chaos) s.roster[x] ||= { lv: 60, star: 3, brk: 3 };
+  window.__go('team');
+  const rows = document.querySelectorAll('.assigns .assign').length;
+  const modes = [...document.querySelectorAll('.assigns .assign')].map((a) => (a.querySelector('header b')?.innerText || '').trim());
+  document.querySelector('[data-act="squad-edit"][data-mode="rt_CHAOS"]').click();
+  const opened = !!document.querySelector('.sqeditor');
+  const realmLocked = [...document.querySelectorAll('.sqrealms .sqchip')].filter((b) => b.disabled).map((b) => b.innerText.trim());
+  document.querySelector('[data-sq="auto"]').click();
+  const slots = [...document.querySelectorAll('.sqslot.on')];
+  const picked = slots.map((x) => x.querySelector('b').innerText.trim());
+  document.querySelector('[data-sq="save"][data-k="c"]').click();
+  const team = (s.squads.c.team || []).slice();
+  return { rows, modes, opened, realmLocked, slots: slots.length, picked, team,
+    allChaos: team.every((x) => __game.data.bySlug[x].realm === 'CHAOS'),
+    pick: s.squadPick.rt_CHAOS, closed: !document.querySelector('.sqeditor') };
+})()`);
+check(assign.rows === 8, `队伍页挑战编队 ${assign.rows} 个入口：${assign.modes.join(' / ')}`);
+check(assign.opened && assign.slots === 4 && assign.allChaos, `现场编队一键上阵：${assign.picked.join('、')}（${assign.slots} 人，全混沌界域）`);
+check(assign.pick === 'c' && assign.closed && assign.team.length === 4, `存为三队后「混沌尖塔」自动指向它（${assign.pick}）`);
+check(assign.realmLocked.includes('血肉') && !assign.realmLocked.includes('混沌'), `混沌塔编辑器锁住其他界域（${assign.realmLocked.join('、') || '无'}）`);
+await cdp.evalIife(`(() => { document.querySelector('.assigns')?.scrollIntoView({ block: 'start' }); return 1; })()`);
+await sleep(300);
+await cdp.shot('team-assign');
+
+// 12) 属性塔：四座塔各有自己的出战阵容条；挑战会先放一段战斗回放
+const rt = await cdp.evalIife(`(() => {
+  window.__go('rtower');
+  const bars = document.querySelectorAll('.squadbar').length;
+  const locked = [...document.querySelectorAll('[data-act="squad-pick"][data-mode^="rt_"]')].length;
+  window.__go('challenge');
+  return { bars, locked };
+})()`);
+check(rt.bars === 4, `属性塔四座塔各一条出战阵容（${rt.bars} 条 / ${rt.locked} 个选择按钮）`);
+
+const replay = await cdp.evalIife(`(() => {
+  window.__go('rtower');
+  const btn = document.querySelector('[data-act="rt-go"][data-realm="CHAOS"]');
+  if (!btn) return { err: '没有混沌塔的挑战按钮' };
+  btn.click();
+  const rp = document.querySelector('.rp-modal');
+  const round = document.querySelector('#rp-round')?.innerText || '';
+  const foes = document.querySelectorAll('.rp-field .side.enemies .unit').length;
+  const allies = document.querySelectorAll('.rp-field .side.allies .unit').length;
+  const units = document.querySelectorAll('.rp-field .unit').length;
+  const log = document.querySelectorAll('.rp-log > div').length;
+  const names = [...document.querySelectorAll('.rp-field .u-name')].map((x) => x.innerText.trim()).slice(0, 4);
+  return { err: '', opened: !!rp, units, round, foes, allies, log, names };
+})()`);
+check(!replay.err && replay.opened && replay.units >= 2, `挑战先弹出战斗回放：${replay.allies} 打 ${replay.foes}（${replay.round}）`);
+await sleep(1400);
+const tick = await cdp.evalIife(`(() => ({
+  log: document.querySelectorAll('.rp-log > div').length,
+  round: document.querySelector('#rp-round')?.innerText || '',
+  hp: [...document.querySelectorAll('.rp-field .bar.hp i')].map((i) => i.style.width).slice(0, 4).join(' / '),
+}))()`);
+check(tick.log >= 2 && tick.round !== replay.round, `回放逐条推进：${tick.log} 行日志 · ${tick.round} · 血量 ${tick.hp}`);
+await cdp.shot('replay');
+const replayCtl = await cdp.evalIife(`(() => {
+  const speed = document.querySelector('[data-rp="speed"]');
+  speed.click(); const s1 = speed.innerText;
+  speed.click(); const s2 = speed.innerText;
+  document.querySelector('[data-rp="skip"]').click();
+  return { s1, s2, settled: !!document.querySelector('.modal-bg'), stillRp: !!document.querySelector('.rp-modal'),
+    title: (document.querySelector('.modal h3')?.innerText || '').replace(/\s+/g, ' ').slice(0, 30) };
+})()`);
+check(replayCtl.s1 === '2×' && replayCtl.s2 === '4×', `回放可以加速（1× → ${replayCtl.s1} → ${replayCtl.s2}）`);
+check(replayCtl.settled && !replayCtl.stillRp, `跳过过程后直接进结算弹窗（${replayCtl.title}）`);
+await cdp.evalIife(`window.__closeModal()`);
+
+// 13) 唤醒体排序：6 种排序，再点一次反向，未获得的始终在后
+await cdp.evalIife(`window.__go('roster')`);
+await sleep(500);   // 先让 62 张立绘加载完，再连着换排序
+const sortOut = await cdp.evalIife(`(() => {
+  const keys = [...document.querySelectorAll('[data-act="roster-sort"]')].map((b) => b.dataset.k);
+  const names = () => [...document.querySelectorAll('.grid .tile b')].slice(0, 6).map((b) => b.innerText.trim());
+  const byRarity = names();
+  document.querySelector('[data-act="roster-sort"][data-k="power"]').click();
+  const byPower = names();
+  const on1 = (document.querySelector('.sortbar .btn.on')?.innerText || '').trim();
+  document.querySelector('[data-act="roster-sort"][data-k="power"]').click();
+  const on2 = (document.querySelector('.sortbar .btn.on')?.innerText || '').trim();
+  document.querySelector('[data-act="roster-sort"][data-k="order"]').click();
+  const on3 = (document.querySelector('.sortbar .btn.on')?.innerText || '').trim();
+  const lockedAtEnd = (() => {
+    const tiles = [...document.querySelectorAll('.grid .tile')];
+    const i = tiles.findIndex((t) => t.classList.contains('locked'));
+    return i < 0 || tiles.slice(i).every((t) => t.classList.contains('locked'));
+  })();
+  return { keys, byRarity, byPower, on1, on2, on3, changed: byRarity.join() !== byPower.join(), lockedAtEnd };
+})()`);
+check(sortOut.keys.length === 6, `唤醒体可按 ${sortOut.keys.length} 种方式排序：${sortOut.keys.join(' / ')}`);
+check(sortOut.changed, `切换排序后顺序变了（稀有度 → 战力：${sortOut.byPower.join('、')}）`);
+check(/↓|↑/.test(sortOut.on1) && sortOut.on1 !== sortOut.on2, `再点一次反向：${sortOut.on1} → ${sortOut.on2}`);
+check(sortOut.on3.startsWith('获取顺序') && sortOut.lockedAtEnd, `获取顺序生效（${sortOut.on3}），未获得的排在最后`);
+await cdp.evalIife(`(() => { document.querySelector('.sortbar')?.scrollIntoView({ block: 'center' }); return 1; })()`);
+await sleep(300);
+await cdp.shot('roster-sort');
+
+// 14) 全局报错 / 4xx
 const errs = [...new Set([...cdp.runtime, ...cdp.logs])];
 check(errs.length === 0, errs.length ? '页面报错：\n  ' + errs.slice(0, 8).join('\n  ') : '0 个 JS 报错');
 const http = [...new Set(cdp.http)];

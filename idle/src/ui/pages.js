@@ -10,12 +10,15 @@ import {
 } from '../core/constants.js';
 import { sound, TRACK_LIST } from './audio.js';
 import {
-  SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, squadMembers, squadUsage, pickedSquad,
+  SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, MODE_GROUPS, squadMembers, squadUsage, pickedSquad,
+  squadLabel, teamSlugsFor, setSquadTeam, setSquadPick, autoSquadSlugs,
 } from '../core/squad.js';
+import { ROSTER_SORTS, SORT_ZH, sortRoster } from '../core/roster.js';
 import { luckOf, luckBarPct, GACHA_LOG_MAX, RARITY_WORTH, RARITY_RATE } from '../core/gacha.js';
 import { roundLimitFor, ROUND_LIMIT, FRONT_SLOTS } from '../core/battle.js';
 import { fxMode } from './fx.js';
 import { settleMode } from './report.js';
+import { watchMode } from './replay.js';
 import { SHOP, boughtToday } from '../core/shop.js';
 import { refineCost } from '../core/gear.js';
 import {
@@ -139,7 +142,7 @@ export function squadCard(app, key) {
     </div></div>`;
 }
 
-/** 挑战页顶部的「出战阵容」选择条：当前队伍 / 一队 / 二队 / 三队 */
+/** 挑战页顶部的「出战阵容」选择条：当前队伍 / 一队 / 二队 / 三队 + 现场编队 */
 export function squadBar(app, mode, note = '') {
   const s = app.state;
   const cur = pickedSquad(s, mode);
@@ -148,9 +151,124 @@ export function squadBar(app, mode, note = '') {
     const n = squadMembers(s, k).length;
     return chip(k, `${SQUAD_ZH[k]}${n ? `<em>${n}人</em>` : '<em class="dim">空</em>'}`, cur === k);
   }).join('');
+  const fb = cur !== 'cur' && !squadMembers(s, cur).length;
   return `<div class="squadbar"><span class="sqh">出战阵容</span>${chip('cur', '当前队伍', cur === 'cur')}${list}
-    <small class="dim">${note || '在「队伍 → 编队」里存好预设阵容'}</small></div>`;
+    <button class="btn sm sqedit" data-act="squad-edit" data-mode="${mode}" data-k="${cur === 'cur' ? 'a' : cur}">现场编队</button>
+    <small class="dim">${fb ? `「${SQUAD_ZH[cur]}」是空的，暂时按当前队伍打` : note || '在「队伍 → 挑战编队」里指定，或点「现场编队」当场排'}</small></div>`;
 }
+
+/* -------- 队伍页的「挑战编队」：每个模式一行，直接在这里指定用哪套 -------- */
+export function squadAssignPanel(app) {
+  const { state: s, data } = app;
+  const row = (m) => {
+    const lab = squadLabel(s, m);
+    const slugs = teamSlugsFor(s, m).filter((x) => s.roster[x]);
+    const t = slugs.length ? teamDefs(s, data, slugs) : null;
+    const av = slugs.length
+      ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
+      : '<span class="sqempty">空缺</span>';
+    const chips = ['cur', ...SQUAD_KEYS].map((k) => {
+      const n = k === 'cur' ? s.team.length : squadMembers(s, k).length;
+      const zh = k === 'cur' ? '当前队伍' : SQUAD_ZH[k];
+      return `<button class="sqchip ${lab.key === k ? 'on' : ''}" data-act="squad-pick" data-mode="${m}" data-k="${k}" title="${n ? `${n} 人` : '这套还空着'}">${zh}${k === 'cur' ? '' : n ? '' : '<em class="dim">空</em>'}</button>`;
+    }).join('');
+    return `<div class="assign ${lab.key !== 'cur' && !lab.fallback ? 'on' : ''}">
+      <header><b>${MODE_ZH[m]}</b><small>${lab.fallback ? `${lab.zh}（空）→ 当前队伍` : `${lab.zh} · ${slugs.length} 人${t ? ` · 战力 ${fmt(t.power)}` : ''}`}</small>
+        <button class="btn sm" data-act="squad-edit" data-mode="${m}" data-k="${lab.key === 'cur' ? 'a' : lab.key}">编队</button></header>
+      <div class="sqav">${av}</div>
+      <div class="achips">${chips}</div></div>`;
+  };
+  return `<div class="assigns">${SQUAD_MODES.map(([m]) => row(m)).join('')}</div>
+    <p class="hint">属性塔的四个界域各存一份选择：编队里不属于该界域的成员会被剔掉，一个都不剩就自动挑你最强的 4 名本界域唤醒体。挑战页也能改，两处是同一份数据。</p>`;
+}
+
+/**
+ * 编队编辑器：四个槽位 + 界域筛选 + 一键上阵，存到一/二/三队。
+ * mode 有值时，保存后把这个挑战入口直接指向刚存的编队。
+ */
+export function squadEditor(app, { key = 'a', mode = null } = {}) {
+  const { state: s, data } = app;
+  if (!SQUAD_KEYS.includes(key)) key = 'a';
+  const lockRealm = mode && String(mode).startsWith('rt_') ? String(mode).slice(3) : null;
+  const powerOf = (slug) => allyDef(s, data, slug, [slug]).power;
+  const st = { key, mode, realm: lockRealm || '', team: [...squadMembers(s, key)] };
+  if (!st.team.length && mode) st.team = teamSlugsFor(s, mode).filter((x) => s.roster[x]);
+
+  const rows = () => Object.keys(s.roster).map((x, i) => ({ x, a: data.bySlug[x], r: s.roster[x], idx: i, power: powerOf(x) }));
+  const cands = () => rows().filter((o) => o.a && (!st.realm || o.a.realm === st.realm)).sort((x, y) => y.power - x.power);
+
+  const body = () => {
+    const slots = Array.from({ length: TEAM_SIZE }, (_, i) => {
+      const slug = st.team[i], a = slug && data.bySlug[slug];
+      if (!a) return `<button class="sqslot empty" data-sq="del" data-i="${i}"><span class="plus">＋</span><small>${i < FRONT_SLOTS ? '前排' : '后排'} ${i + 1}</small></button>`;
+      const r = s.roster[slug];
+      return `<button class="sqslot on" data-sq="del" data-i="${i}" title="点一下移出"><img src="${img(a.portrait)}" alt="">
+        <b>${esc(a.zh)}</b><small>${REALMS[a.realm].zh} · Lv${r.lv} · ${awk(r.star)}</small><small>战力 ${fmt(powerOf(slug))}</small></button>`;
+    }).join('');
+    const list = cands().map((o) => {
+      const on = st.team.includes(o.x), full = st.team.length >= TEAM_SIZE;
+      return `<button class="tile ${on ? 'on' : ''} ${full && !on ? 'dis' : ''} ${rarCls(o.a.rarity)} ${o.r ? '' : 'locked'}" style="--rc:${R(o.a).color}" data-sq="add" data-slug="${o.x}">
+        <img src="${img(o.a.portrait)}" alt=""><b>${esc(o.a.zh)}</b><small>${REALMS[o.a.realm].zh} · ${TYPES[o.a.type].short} · Lv${o.r.lv} · 叠${o.r.star}</small><small>${fmt(o.power)}</small>
+        ${on ? '<i class="tick">✓</i>' : ''}</button>`;
+    }).join('');
+    const realmChips = [['', '全部'], ...Object.entries(REALMS).map(([k, v]) => [k, v.zh])]
+      .map(([k, zh]) => `<button class="sqchip ${st.realm === k ? 'on' : ''}" data-sq="realm" data-v="${k}" ${lockRealm && k !== lockRealm ? 'disabled' : ''}>${zh}</button>`).join('');
+    return `<h3>编队 · ${SQUAD_ZH[st.key]} <small>${st.team.length}/${TEAM_SIZE} 人</small></h3>
+      <p class="hint">点下面的头像加入这队，点上面的槽位移出；顺序就是站位（前两个是前排）。${lockRealm ? `<b>${REALMS[lockRealm].zh}塔只收${REALMS[lockRealm].zh}界域</b>，筛选已锁定。` : '「一键上阵」按当前筛选的界域取战力最高的 4 名（优先前排守护 + 治疗）。'}
+        ${mode ? `保存后 <b>${MODE_ZH[mode] || mode}</b> 就用这套出战。` : ''}</p>
+      <div class="row sqrealms">${realmChips}</div>
+      <div class="sqslots">${slots}</div>
+      <div class="row"><button class="btn gold" data-sq="auto">一键上阵</button><button class="btn sm" data-sq="clear" ${st.team.length ? '' : 'disabled'}>清空</button>
+        <button class="btn sm" data-sq="from-team">套用当前队伍</button></div>
+      <h4>可选唤醒体 <small class="dim">${cands().length} 名</small></h4>
+      <div class="grid mini sqpick">${list}</div>
+      <div class="row sqsave"><span class="dim">存到</span>
+        ${SQUAD_KEYS.map((k) => `<button class="btn ${k === st.key ? 'gold' : ''}" data-sq="save" data-k="${k}" ${st.team.length ? '' : 'disabled'}>${SQUAD_ZH[k]}</button>`).join('')}
+      </div>`;
+  };
+
+  const m = openModal(body(), 'wide sqeditor');
+  const paint = () => { m.querySelector('.modal').innerHTML = `<button class="modal-x" data-act="close">✕</button>${body()}`; };
+  m.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-sq]');
+    if (!el || el.disabled) return;
+    const a = el.dataset.sq;
+    if (a === 'realm') { st.realm = el.dataset.v; paint(); return; }
+    if (a === 'del') {
+      const i = +el.dataset.i;
+      if (st.team[i]) { st.team.splice(i, 1); paint(); sound.play('click'); }
+      return;
+    }
+    if (a === 'add') {
+      const slug = el.dataset.slug, i = st.team.indexOf(slug);
+      if (i >= 0) st.team.splice(i, 1);
+      else if (st.team.length < TEAM_SIZE) st.team.push(slug);
+      else { toast('已经 4 人了，先移出一个'); sound.play('deny'); return; }
+      sound.play('click'); paint(); return;
+    }
+    if (a === 'auto') {
+      const pick = autoSquadSlugs(s, data, st.realm, powerOf);
+      if (!pick.length) { toast(`没有可用的${st.realm ? REALMS[st.realm].zh : ''}唤醒体`); return; }
+      st.team = pick; sound.play('stamp'); paint(); return;
+    }
+    if (a === 'clear') { st.team = []; sound.play('deny'); paint(); return; }
+    if (a === 'from-team') {
+      st.team = [...s.team].filter((x) => s.roster[x] && (!st.realm || data.bySlug[x]?.realm === st.realm)).slice(0, TEAM_SIZE);
+      sound.play('click'); paint(); return;
+    }
+    if (a === 'save') {
+      if (!st.team.length) { toast('先选人'); return; }
+      const k = el.dataset.k;
+      const saved = setSquadTeam(s, k, st.team);
+      if (st.mode) setSquadPick(s, st.mode, k);
+      app.save(); sound.play('stamp');
+      toast(`已存入「${SQUAD_ZH[k]}」：${saved.length} 人${st.mode ? ` · ${MODE_ZH[st.mode]} 用它出战` : ''}`);
+      closeModal();
+      app.render?.();
+    }
+  });
+}
+
 
 export function teamPage(app) {
   const { state: s, data } = app;
@@ -194,7 +312,9 @@ export function teamPage(app) {
     <p class="hint">「一键配队」会一起排好：4 人队伍（含同界域加成）、<b>每人 1 件命轮 + 1 件密契</b>、已解锁格里的造物（优先凑羁绊）、3 个钥令位。下面的命轮 / 密契格子可以直接点开换。</p>
     <h3>编队 <small>预先存 3 套，挑战时直接选用</small></h3>
     <div class="squads">${SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
-    <p class="hint">编队只记 4 名唤醒体——命轮、密契绑在人身上会跟着走，造物与钥令本来就是全队共用，不必重复存。挑战（${SQUAD_MODES.map(([, zh]) => zh).join(' / ')}）可以各自指定用哪一套；<b>推图挂机始终用「当前队伍」</b>，想换阵容就点编队里的「上阵」。</p>
+    <p class="hint">编队只记 4 名唤醒体——命轮、密契绑在人身上会跟着走，造物与钥令本来就是全队共用，不必重复存。<b>推图挂机始终用「当前队伍」</b>，想换阵容就点编队里的「上阵」或直接改上面的 4 个槽位。</p>
+    <h3>挑战编队 <small>每个模式单独指定 · 也能现场编</small></h3>
+    ${squadAssignPanel(app)}
     <h3>命轮 · 密契 <small>每人各 1 件 · 点格子直接换</small></h3>
     <div class="eqpanel">${equipPanel(app)}</div>
     <p class="hint">命轮与密契<b>绑在单个唤醒体身上</b>；密契全队同款凑到 2 / 4 件触发套装（当前：${covenantSetText(app) || '还没有凑成套'}）。造物与钥令是全队被动，在下面配置。</p>
@@ -241,14 +361,20 @@ export function pickOrder(app, i, onPick) {
 /* ----------------------------- ROSTER ----------------------------- */
 export function rosterPage(app) {
   const { state: s, data } = app;
-  const f = app.ui.rosterFilter ||= { realm: '', type: '', owned: false };
-  const list = data.awakeners.filter((a) => (!f.realm || a.realm === f.realm) && (!f.type || a.type === f.type) && (!f.owned || s.roster[a.slug]))
-    .sort((a, b) => (!!s.roster[b.slug] - !!s.roster[a.slug]) || RARITY_ORDER[b.rarity] - RARITY_ORDER[a.rarity] || data.awakeners.indexOf(a) - data.awakeners.indexOf(b));
+  const f = (app.ui.rosterFilter ||= { realm: '', type: '', owned: false, sort: 'rarity', dir: -1 });
+  const idxOf = Object.fromEntries(Object.keys(s.roster).map((x, i) => [x, i]));
+  const rows = data.awakeners
+    .filter((a) => (!f.realm || a.realm === f.realm) && (!f.type || a.type === f.type) && (!f.owned || s.roster[a.slug]))
+    .map((a) => ({ a, r: s.roster[a.slug], idx: idxOf[a.slug], power: s.roster[a.slug] ? allyDef(s, data, a.slug, [a.slug]).power : 0 }));
+  const list = sortRoster(rows, f.sort, f.dir);
   const opt = (obj, cur, k) => `<select data-filter="${k}"><option value="">全部</option>${Object.entries(obj).map(([v, o]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${o.zh}</option>`).join('')}</select>`;
+  const sorts = ROSTER_SORTS.map(([k, zh]) => `<button class="btn sm ${f.sort === k ? 'on' : ''}" data-act="roster-sort" data-k="${k}">${zh}${f.sort === k ? (f.dir < 0 ? ' ↓' : ' ↑') : ''}</button>`).join('');
   return `<div class="page"><h2>唤醒体 <small>${Object.keys(s.roster).length}/${data.awakeners.length}</small></h2>
-    <div class="row filters">${opt(REALMS, f.realm, 'realm')}${opt(TYPES, f.type, 'type')}<label><input type="checkbox" data-filter="owned" ${f.owned ? 'checked' : ''}> 仅已拥有</label></div>
-    <div class="grid">${list.map((a) => { const r = s.roster[a.slug]; return `<div class="tile ${r ? '' : 'locked'} ${rarCls(a.rarity)}" style="--rc:${R(a).color}" data-act="detail" data-slug="${a.slug}">
-      <img src="${img(a.portrait)}" alt="" loading="lazy"><b>${esc(a.zh)}</b><small>${r ? `Lv${r.lv} · 叠${r.star}` : '未获得'} · ${TYPES[a.type].short}</small></div>`; }).join('')}</div></div>`;
+    <div class="row filters"><span class="dim">界域</span>${opt(REALMS, f.realm, 'realm')}<span class="dim">类型</span>${opt(TYPES, f.type, 'type')}<label><input type="checkbox" data-filter="owned" ${f.owned ? 'checked' : ''}> 仅已拥有</label></div>
+    <div class="row sortbar"><span class="dim">排序</span>${sorts}</div>
+    <div class="grid">${list.map(({ a, r, power: p }) => `<div class="tile ${r ? '' : 'locked'} ${rarCls(a.rarity)}" style="--rc:${R(a).color}" data-act="detail" data-slug="${a.slug}">
+      <img src="${img(a.portrait)}" alt="" loading="lazy"><b>${esc(a.zh)}</b><small>${r ? `Lv${r.lv} · 叠${r.star} · ${TYPES[a.type].short}` : `未获得 · ${TYPES[a.type].short}`}</small><small>${r ? `战力 ${fmt(p)}` : REALMS[a.realm].zh}</small></div>`).join('')}</div>
+    <p class="hint">排序：稀有度 / 战力 / 等级 / 叠位数 / 获取顺序 / 界域，再点一次当前排序可以反过来。未获得的永远排在后面，筛选里的「仅已拥有」可以只看已有。</p></div>`;
 }
 
 const NUM_ZH = { dmg: '伤害', shield: '护盾', gauge: '狂气' };
@@ -565,8 +691,10 @@ export function settingsPage(app) {
       <h4>音效试听</h4>
       <div class="row">${[['hit', '命中'], ['crit', '暴击'], ['heal', '治疗'], ['shield', '护盾'], ['exalt', '共鸣'], ['summon', '召唤'], ['reveal3', '创生'], ['win', '胜利'], ['lose', '失败'], ['coin', '金币'], ['deny', '不可用']].map(([k, z]) => `<button class="btn sm" data-act="snd-test" data-k="${k}">${z}</button>`).join('')}</div>
       <label class="snd">结算弹窗 <select data-settle>${[['key', '首通 / Boss / 新怪物时'], ['all', '每场战斗'], ['off', '从不（在战斗页手动打开）']].map(([k, z]) => `<option value="${k}" ${settleMode.get() === k ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
+      <label class="snd">挑战过程 <select data-watch>${[['watch', '先看战斗过程，再出结算'], ['skip', '直接出结算（快，省时间）']].map(([k, z]) => `<option value="${k}" ${watchMode.get() === k ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
       <label class="snd">战斗特效 <select data-fx>${[['full', '完整'], ['lite', '简化（少粒子、不震屏）'], ['off', '关闭']].map(([k, z]) => `<option value="${k}" ${fxMode.get() === k ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
-      <p class="hint">音效与音乐都是实时合成的，没有音频文件；首次点击页面后才会发声。命中音色随攻击者界域变化（混沌/血肉/深海/超维）。</p></div>
+      <p class="hint">音效与音乐都是实时合成的，没有音频文件；首次点击页面后才会发声。命中音色随攻击者界域变化（混沌/血肉/深海/超维）。</p>
+      <p class="hint">「挑战过程」只管挑战模式（无限塔 / 属性塔 / 周 Boss / 融灾 / 竞技场）：选「先看过程」时点挑战会先播一段战斗回放，中途可以加速到 2× / 4× 或直接跳过，播完再弹结算。推图挂机本来就有战斗画面，不受这项影响。</p></div>
     <div class="banner-card"><h3>统计</h3><p>战斗 ${st.battles} 场 · 胜利 ${st.wins} · 击杀 ${st.kills} · 累计金币 ${fmt(st.gold)} · 召唤 ${st.pulls} 次 · 最高通关 ${s.maxStage}</p></div>
     <div class="banner-card"><h3>存档</h3>
       <div class="row"><button class="btn" data-act="export">导出存档</button><button class="btn" data-act="import">导入存档</button><button class="btn danger" data-act="reset">重置游戏</button></div>

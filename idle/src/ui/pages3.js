@@ -5,7 +5,7 @@ import { REALM_TOWERS, TOWER_NAME, rtBest, rtTeam, rtEnemies, rtStage, rtInfo } 
 import { arenaState, arenaTries, ARENA_DAILY, LADDER, dailyRankReward, canClaimArenaDaily, hydrate } from '../core/arena.js';
 import { encodeCode } from '../core/friend.js';
 import { teamDefs } from '../core/game.js';
-import { teamSlugsFor } from '../core/squad.js';
+import { teamSlugsFor, rtModeOf } from '../core/squad.js';
 import { squadBar } from './pages.js';
 import { esc, img, fmt, openModal, rewardText } from './util.js';
 import { meterHtml } from './pages2.js';
@@ -50,19 +50,20 @@ export function weeklyResultModal(app, r) {
 /* ---------- realm towers ---------- */
 export function rtowerPage(app) {
   const { state: s, data } = app;
-  const pick = teamSlugsFor(s, 'rtower');
   const cards = REALM_TOWERS.map((realm) => {
+    // 四座塔各记一份出战阵容：混沌塔用混沌队，深海塔用深海队
+    const mode = rtModeOf(realm), pick = teamSlugsFor(s, mode);
     const best = rtBest(s, realm), team = rtTeam(s, data, realm, pick), next = best + 1;
     const foes = rtEnemies(realm, next, data);
     const R = REALMS[realm];
     return `<div class="banner-card rt" style="--rc:${R.color}"><h3 style="color:${R.color}">${TOWER_NAME[realm]} <small>${R.zh}界域</small></h3>
+      ${squadBar(app, mode, `${R.zh}塔只取编队里${R.zh}界域的成员`)}
       <p>已通关 <b>${best}</b> 层　下一层（第 ${next} 层${rtInfo(next).reward ? ' · 🐈 校猫奖励层' : next % 10 === 0 ? ' · BOSS' : next % 5 === 0 ? ' · 精英' : ''}，强度≈第 ${rtStage(next)} 关）：${foes.map((x) => esc(x.name)).join('、')}</p>
       <p class="hint">出战：${team ? team.slugs.map((x) => esc(data.bySlug[x].zh)).join('、') + `（${team.slugs.length}人${team.synergy ? ` · 同界域加成 +${Math.round(team.synergy * 100)}%` : ''}）` : `你还没有任何${R.zh}唤醒体，去召唤吧`}</p>
       <div class="row"><button class="btn gold" data-act="rt-go" data-realm="${realm}" ${team ? '' : 'disabled'}>挑战第 ${next} 层</button>
       <button class="btn" data-act="rt-auto" data-realm="${realm}" ${team ? '' : 'disabled'}>连续挑战（最多 10 层）</button></div></div>`;
   }).join('');
   return `<div class="page"><h2>属性塔</h2>
-    ${squadBar(app, 'rtower', '属性塔只取编队里本界域的成员；一个都没有就自动挑最强的 4 个')}
     <p class="hint">四座塔分别只允许对应界域的唤醒体进入，自动选取你拥有的战力最高的 4 名（凑满 3 名同界域有 +8%、4 名 +15% 加成）。每层只打一场，失败可无限重试，只有首次通关的层数给奖励：金币、每 3 层 1 张召唤券、每 10 层 3 张召唤券与装备。敌人优先从带有对应界域特征的怪物中抽取（混沌无对应特征，抽全部）。</p>
     ${cards}</div>`;
 }

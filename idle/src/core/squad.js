@@ -1,4 +1,4 @@
-// 编队：预先存好的几套阵容，挑战页可以各自指定用哪一套。
+// 编队：预先存好的几套阵容，队伍页统一编排，挑战按各自指定的那套出战。
 // 只存「4 个唤醒体 slug」——命轮 / 密契绑在人身上会跟着走，造物与钥令是全队被动、本来就是共用的，
 // 所以一套阵容不需要再额外存装备，换了人也就换了装备。
 import { TEAM_SIZE } from './constants.js';
@@ -6,11 +6,25 @@ import { TEAM_SIZE } from './constants.js';
 export const SQUAD_KEYS = ['a', 'b', 'c'];
 export const SQUAD_ZH = { a: '一队', b: '二队', c: '三队' };
 
-// 挑战入口：每个入口单独记「用哪套队」，默认跟随当前队伍
+// 挑战入口：每个入口单独记「用哪套队」，默认跟随当前队伍。
+// 属性塔按界域拆开——混沌塔只能上混沌队，四个界域各存一份选择才讲得通。
 export const SQUAD_MODES = [
-  ['tower', '无限塔'], ['rtower', '属性塔'], ['weekly', '周Boss'], ['trial', '融灾'], ['arena', '竞技场'],
+  ['tower', '无限塔'],
+  ['rt_CHAOS', '混沌尖塔'], ['rt_CARO', '血肉之塔'], ['rt_AEQUOR', '深海回廊'], ['rt_ULTRA', '超维阶梯'],
+  ['weekly', '周Boss'], ['trial', '融灾'], ['arena', '竞技场'],
 ];
 export const MODE_ZH = Object.fromEntries(SQUAD_MODES);
+// 队伍页把入口分成三组显示，塔的四个界域压成一段，免得八行铺满一屏
+export const MODE_GROUPS = [
+  ['无限塔', ['tower'], '一层层往上爬的连续战斗'],
+  ['属性塔', ['rt_CHAOS', 'rt_CARO', 'rt_AEQUOR', 'rt_ULTRA'], '只收本界域成员，四座塔各存一套'],
+  ['周 Boss', ['weekly'], '限 12 回合拼伤害'],
+  ['融灾试炼', ['trial'], '区域首领，逐级解锁'],
+  ['竞技场', ['arena'], '天梯与好友对战共用'],
+];
+export const RT_MODES = ['rt_CHAOS', 'rt_CARO', 'rt_AEQUOR', 'rt_ULTRA'];
+export const rtModeOf = (realm) => `rt_${realm}`;
+export const realmOfMode = (mode) => (String(mode).startsWith('rt_') ? String(mode).slice(3) : null);
 
 export const emptySquads = () => ({ a: { team: [] }, b: { team: [] }, c: { team: [] } });
 export const emptyPick = () => Object.fromEntries(SQUAD_MODES.map(([k]) => [k, 'cur']));
@@ -31,7 +45,12 @@ export function normalizeSquads(raw, roster = {}) {
 export function normalizePick(raw) {
   const out = emptyPick();
   if (!raw || typeof raw !== 'object') return out;
-  for (const [k] of SQUAD_MODES) if (raw[k] === 'cur' || SQUAD_KEYS.includes(raw[k])) out[k] = raw[k];
+  const ok = (v) => v === 'cur' || SQUAD_KEYS.includes(v);
+  const fallback = ok(raw.rtower) ? raw.rtower : null;   // M13 只有一个「属性塔」入口，升级后分给四座塔
+  for (const [k] of SQUAD_MODES) {
+    if (ok(raw[k])) out[k] = raw[k];
+    else if (fallback && RT_MODES.includes(k)) out[k] = fallback;
+  }
   return out;
 }
 
@@ -59,11 +78,31 @@ export function teamSlugsFor(state, mode) {
   return list.length ? list : [...(state.team || [])];
 }
 
+/** 把这套编队实际出战的阵容写出来（含「退回当前队伍」的情况），给界面显示 */
+export function squadLabel(state, mode) {
+  const key = pickedSquad(state, mode);
+  if (key === 'cur') return { key: 'cur', zh: '当前队伍', fallback: false };
+  const n = squadMembers(state, key).length;
+  return { key, zh: SQUAD_ZH[key], fallback: !n };
+}
+
 /** 把当前队伍的 4 个人存进某个编队位 */
 export function saveSquad(state, key) {
   if (!SQUAD_KEYS.includes(key)) return null;
   const slugs = [...(state.team || [])].filter((s) => state.roster?.[s]).slice(0, TEAM_SIZE);
   if (!slugs.length) return null;
+  squadsOf(state)[key] = { team: slugs, savedAt: Date.now() };
+  return slugs;
+}
+
+/** 直接写入一套阵容（编队编辑器里手动点选 / 一键上阵用） */
+export function setSquadTeam(state, key, team) {
+  if (!SQUAD_KEYS.includes(key)) return null;
+  const seen = new Set();
+  const slugs = (team || [])
+    .filter((s) => typeof s === 'string' && state.roster?.[s] && !seen.has(s) && seen.add(s))
+    .slice(0, TEAM_SIZE);
+  if (!slugs.length) { squadsOf(state)[key] = { team: [] }; return []; }
   squadsOf(state)[key] = { team: slugs, savedAt: Date.now() };
   return slugs;
 }
@@ -87,4 +126,24 @@ export function clearSquad(state, key) {
 /** 这个编队位被哪些挑战入口用着（给队伍页显示「使用中」） */
 export function squadUsage(state, key) {
   return SQUAD_MODES.filter(([m]) => pickedSquad(state, m) === key).map(([, zh]) => zh);
+}
+
+/**
+ * 一键上阵：按界域筛出候选，取战力最高的 4 名。
+ * powerOf 由调用方提供（core 不反向依赖 game.js，避免循环引用）；
+ * 先按「能凑同界域加成」挑，再按战力补满——和 autoTeam 的手感一致。
+ */
+export function autoSquadSlugs(state, data, realm, powerOf, n = TEAM_SIZE) {
+  const pool = Object.keys(state.roster || {})
+    .filter((s) => data.bySlug[s] && (!realm || data.bySlug[s].realm === realm))
+    .map((s) => ({ s, p: powerOf(s), t: data.bySlug[s].type }))
+    .sort((a, b) => b.p - a.p);
+  if (!pool.length) return [];
+  const out = [];
+  // 同界域加成要 3 人才起效：够人的话优先保住前排守护 + 治疗，别排出一队纯输出
+  const fill = (type) => { const c = pool.find((x) => x.t === type && !out.includes(x.s)); if (c && out.length < n) out.push(c.s); };
+  fill('WARDEN'); fill('CHORUS');
+  for (const x of pool) if (out.length < n && !out.includes(x.s)) out.push(x.s);
+  const ord = { WARDEN: 0, ASSAULT: 1, CHORUS: 2 };
+  return out.sort((a, b) => ord[data.bySlug[a].type] - ord[data.bySlug[b].type]).slice(0, n);
 }

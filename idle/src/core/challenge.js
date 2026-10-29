@@ -30,11 +30,15 @@ export function simulateTower(state, data, { maxFloors = TOWER_MAX_FLOOR, seed =
   const team = teamDefs(state, data, slugs && slugs.length ? slugs : state.team);
   let allies = team.list.map((d) => ({ ...d, hpNow: d.hp }));
   const floors = [];
+  // 观战只回放最后一层（决出胜负的那场），其余层留在结算列表里——塔能爬到几十层，
+  // 把每层的完整事件流都留着会让存档外的内存白白翻几十倍。
+  let replay = null;
   for (let f = 1; f <= maxFloors; f++) {
     const alive = allies.filter((a) => a.hpNow > 0);
     if (!alive.length) break;
     const res = simulate({ allies: alive, enemies: towerEnemies(f, data), seed: (seed ^ Math.imul(f, 2654435761)) >>> 0, strategy: state.strategy, maxRounds: roundLimitFor(towerInfo(f)) });
     floors.push({ floor: f, win: res.win, rounds: res.rounds, timeout: !!res.timeout, alive: res.allies.filter((a) => a.alive).length, stats: res.stats, allies: res.allies });
+    replay = { floor: f, events: res.events, prep: res.prep, roundLimit: res.roundLimit, win: res.win, timeout: !!res.timeout, rounds: res.rounds };
     if (!res.win) break;
     // survivors keep their HP and recover a little; the fallen stay down
     const next = [];
@@ -45,7 +49,7 @@ export function simulateTower(state, data, { maxFloors = TOWER_MAX_FLOOR, seed =
     allies = next;
   }
   const reached = floors.filter((x) => x.win).length;
-  return { floors, reached, team };
+  return { floors, reached, team, replay };
 }
 
 export function towerReward(state, data, reached, rng) {

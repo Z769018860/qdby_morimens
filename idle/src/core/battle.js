@@ -26,7 +26,7 @@ export function makeUnit(def, side, idx) {
     surviveChance: def.surviveChance || 0, survived: false,
     openAli: def.openAli || 0, openKey: def.openKey || 0,
     firstBoost: def.firstBoost || 0,
-    kit: def.kit || null, pattern: def.pattern || null, opening: def.opening || [], boss: !!def.boss, affix: def.affix || null,
+    kit: def.kit || null, pattern: def.pattern || null, opening: def.opening || [], boss: !!def.boss, reward: !!def.reward, affix: def.affix || null,
     ali: def.openAli || 0, key: def.openKey || 0, shield: 0, buffs: [], dots: [], cd: {}, st: {}, sig: '',
     roused: false, patIdx: 0, enrage: 0, alive: true, acted: 0,
   };
@@ -333,5 +333,17 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   return {
     win, rounds: round, timeout, roundLimit: maxRounds, events: ev, kills, stats,
     allies: A.map((u) => ({ uid: u.uid, hp: u.hp, maxHp: u.maxHp, alive: u.alive })),
+    // 观战回放用的展示数据（只有画面需要的字段，不含技能 kit）：挑塔 / 周 Boss / 竞技场
+    // 这些「直接出结果」的模式原本没有 prep，现在也能把过程放出来。
+    prep: { allies: A.map(prepOf), enemies: E.map(prepOf) },
+  };
+}
+
+/** unit -> 回放画面需要的静态数据（满血值、名字、立绘、界域、类型、Boss/奖励标记） */
+function prepOf(u) {
+  return {
+    uid: u.uid, name: u.name, img: u.img, type: u.type, realm: u.realm,
+    hp: u.maxHp, boss: u.boss, reward: u.reward,
+    openAli: u.openAli || 0, openKey: u.openKey || 0,
   };
 }

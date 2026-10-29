@@ -10,14 +10,15 @@ import * as P from './ui/pages.js';
 import * as P2 from './ui/pages2.js';
 import * as P3 from './ui/pages3.js';
 import { doWeekly, claimWeekly } from './core/weekly.js';
-import { doRTower } from './core/rtower.js';
+import { doRTower, TOWER_NAME } from './core/rtower.js';
 import { arenaState, arenaTries, fightArena, applyArena, claimArenaDaily } from './core/arena.js';
 import { localOpponents, localSettle, fightFriend } from './core/arena.js';
 import { encodeCode, decodeCode } from './core/friend.js';
 import { codexPage, monsterModal } from './ui/codex.js';
 import { sound } from './ui/audio.js';
 import { TRACK_ZH } from './ui/audio.js';
-import { saveSquad, loadSquad, clearSquad, setSquadPick, teamSlugsFor, SQUAD_ZH } from './core/squad.js';
+import { saveSquad, loadSquad, clearSquad, setSquadPick, teamSlugsFor, SQUAD_ZH, rtModeOf } from './core/squad.js';
+import { watchOrSkip, replayOf, watchMode } from './ui/replay.js';
 import { emptyGacha } from './core/gacha.js';
 import { fxMode } from './ui/fx.js';
 import { settleMode } from './ui/report.js';
@@ -107,6 +108,7 @@ async function boot() {
     toast(sound.cfg.mute ? '已静音（点右上角喇叭恢复）' : '声音已开启');
     sound.play('click');
   });
+  app.render = render;   // 弹窗里的操作（编队编辑器等）保存后要刷新当前页
   app.bv = new BattleView($('#battle'), app);
   app.onBattleDone = () => { if (app.tab !== 'battle') app.refreshTop(); };
   const rep = saved ? offlineReport(app.state, app.data) : null;
@@ -207,6 +209,7 @@ const rerender = () => { app.save(); render(); };
 function onChange(e) {
   if (e.target.matches('[data-settle]')) { settleMode.set(e.target.value); toast('结算弹窗：' + e.target.selectedOptions[0].textContent); return; }
   if (e.target.matches('[data-fx]')) { fxMode.set(e.target.value); toast('战斗特效：' + e.target.selectedOptions[0].textContent); return; }
+  if (e.target.matches('[data-watch]')) { watchMode.set(e.target.value); toast('挑战过程：' + e.target.selectedOptions[0].textContent); return; }
   if (e.target.matches('[data-arena-name]')) { arenaState(app.state).name = e.target.value.trim().slice(0, 12) || '旅人'; app.save(); return; }
   const au = e.target.closest('[data-aud]');
   if (au) { sound.set(au.dataset.aud, au.type === 'checkbox' ? au.checked : +au.value / 100); if (au.dataset.aud === 'sfx') sound.play('hit'); syncSnd(); return; }
@@ -260,6 +263,12 @@ function onAct(e) {
       }
       break;
     }
+    case 'squad-edit': P.squadEditor(app, { key: el.dataset.k || 'a', mode: el.dataset.mode || null }); break;
+    case 'roster-sort': {
+      const f = (app.ui.rosterFilter ||= { realm: '', type: '', owned: false, sort: 'rarity', dir: -1 });
+      if (f.sort === el.dataset.k) f.dir = -f.dir; else { f.sort = el.dataset.k; f.dir = -1; }
+      render(); break;
+    }
     case 'guide-growth': P.growthGuideModal(app); break;
     case 'go-orders': show('orders'); break;
     case 'pick-order': {
@@ -283,13 +292,27 @@ function onAct(e) {
       else toast('银芯不足');
       break;
     }
-    case 'weekly-go': { const r = doWeekly(s, d, teamSlugsFor(s, 'weekly')); if (r) { app.save(); render(); sound.play('win'); P3.weeklyResultModal(app, r); } break; }
+    case 'weekly-go': {
+      const r = doWeekly(s, d, teamSlugsFor(s, 'weekly'));
+      if (!r) break;
+      app.save(); render(); sound.play(r.win ? 'win' : 'lose');
+      // 先看过程再出结算；设置里选了「跳过」就直接弹结算
+      watchOrSkip(replayOf(r, { title: `周 Boss · ${r.boss.zh}`, sub: `限 ${r.roundLimit} 回合 · 比这一段时间的伤害`, kw: d.kw }),
+        () => P3.weeklyResultModal(app, r));
+      break;
+    }
     case 'weekly-claim': { const r = claimWeekly(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`领取成功：召唤券+${r.tickets} 金币+${r.gold}${r.items.length ? ' 装备+1' : ''}${r.orders?.length ? ' 钥令+1' : ''}`); if (r.orders?.length) P.showOrders(app, r.orders); rerender(); } break; }
     case 'rt-go': case 'rt-auto': {
       const out = [];
-      const slugs = teamSlugsFor(s, 'rtower');
-      for (let i = 0; i < (a === 'rt-auto' ? 10 : 1); i++) { const r = doRTower(s, d, el.dataset.realm, slugs); if (!r) break; out.push(r); if (!r.win) break; }
-      if (out.length) { app.save(); render(); sound.play(out[out.length - 1].win ? 'win' : 'lose'); P3.rtResultModal(app, out); }
+      const realm = el.dataset.realm;
+      const slugs = teamSlugsFor(s, rtModeOf(realm));   // 四座塔各用各的编队
+      for (let i = 0; i < (a === 'rt-auto' ? 10 : 1); i++) { const r = doRTower(s, d, realm, slugs); if (!r) break; out.push(r); if (!r.win) break; }
+      if (out.length) {
+        const last = out[out.length - 1];
+        app.save(); render(); sound.play(last.win ? 'win' : 'lose');
+        watchOrSkip(replayOf(last, { title: `${TOWER_NAME[realm]} · 第 ${last.floor} 层${out.length > 1 ? '（最后一战）' : ''}`, sub: `已通关 ${last.floor - (last.win ? 0 : 1)} 层`, kw: d.kw }),
+          () => P3.rtResultModal(app, out));
+      }
       break;
     }
     case 'arena-daily': { const r = claimArenaDaily(s); if (r) { sound.play('gold'); toast(`每日排名奖励：召唤券+${r.tickets} 金币+${r.gold}`); rerender(); } break; }
@@ -299,8 +322,8 @@ function onAct(e) {
       const fight = fightArena(s, d, entry, teamSlugsFor(s, 'arena'));
       const rw = applyArena(s, d, fight, localSettle(s, entry, fight.win).rank);
       app.save(); sound.play(fight.win ? 'win' : 'lose');
-      refreshArena();
-      P3.arenaResultModal(app, fight, rw, arenaState(s).rank);
+      watchOrSkip(replayOf(fight, { title: `天梯 · 对手 ${entry.name}（原第 ${entry.rank} 名）`, kw: d.kw }),
+        () => { refreshArena(); P3.arenaResultModal(app, fight, rw, arenaState(s).rank); });
       break;
     }
     case 'friend-make': { app.ui.arena = { ...(app.ui.arena || {}), code: encodeCode(s, d, arenaState(s).name) }; render(); break; }
@@ -316,7 +339,7 @@ function onAct(e) {
       fight.entry = { type: 'friend', name: f.name, rank: 0 };
       app.save(); sound.play(fight.win ? 'win' : 'lose');
       render();
-      P3.arenaResultModal(app, fight, {}, 0);
+      watchOrSkip(replayOf(fight, { title: `好友对战 · ${f.name}`, kw: d.kw }), () => P3.arenaResultModal(app, fight, {}, 0));
       break;
     }
     case 'monster': monsterModal(app, el.dataset.id); break;
@@ -364,8 +387,22 @@ function onAct(e) {
     }
     case 'pull': { const out = summon(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play(gachaSound(out)); P.showPulls(app, out); } break; }
     case 'epull': { const out = equipPull(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play('summon'); P.showItems(app, out); } break; }
-    case 'tower-go': { const r = doTower(s, d, { slugs: teamSlugsFor(s, 'tower') }); if (r) { app.save(); render(); sound.play(r.reached > 0 ? 'win' : 'lose'); P2.towerResultModal(app, r); } break; }
-    case 'trial-go': { const r = doTrial(s, d, el.dataset.id, +el.dataset.i, teamSlugsFor(s, 'trial')); if (r) { app.save(); render(); sound.play(r.win ? 'win' : 'lose'); P2.trialResultModal(app, r); } break; }
+    case 'tower-go': {
+      const r = doTower(s, d, { slugs: teamSlugsFor(s, 'tower') });
+      if (!r) break;
+      app.save(); render(); sound.play(r.reached > 0 ? 'win' : 'lose');
+      // 塔能连打几十层，只回放决出胜负的那一层
+      const rp = r.replay ? replayOf(r.replay, { title: `倒悬回廊 · 第 ${r.replay.floor} 层`, sub: `本次到达第 ${r.reached} 层`, note: '只回放最后一战', kw: d.kw }) : null;
+      watchOrSkip(rp, () => P2.towerResultModal(app, r));
+      break;
+    }
+    case 'trial-go': {
+      const r = doTrial(s, d, el.dataset.id, +el.dataset.i, teamSlugsFor(s, 'trial'));
+      if (!r) break;
+      app.save(); render(); sound.play(r.win ? 'win' : 'lose');
+      watchOrSkip(replayOf(r, { title: `融灾试炼 · ${r.trial.name} ${r.th.k}`, kw: d.kw }), () => P2.trialResultModal(app, r));
+      break;
+    }
     case 'ach-claim': { const r = claimAchievement(s, el.dataset.id, app.data); if (r) { sound.play('ach'); toast('成就奖励已领取'); rerender(); } break; }
     case 'cpull': { const out = summonCores(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play(gachaSound(out)); P.showPulls(app, out); } break; }
     case 'cepull': { const out = equipPullCores(s, d, 1); if (out) { app.save(); render(); sound.play('summon'); P.showItems(app, out); } break; }

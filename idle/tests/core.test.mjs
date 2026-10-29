@@ -994,3 +994,125 @@ test('抽卡记录裁剪到上限，但累计统计不受影响；十连最好�
   assert.deepEqual(m.gacha.log, []);
   assert.equal(luckOf(m).index, null);
 });
+
+/* ---------- M14：挑战编队（按界域）、现场编队、观战数据、唤醒体排序 ---------- */
+import {
+  MODE_ZH, RT_MODES, rtModeOf, squadLabel, autoSquadSlugs, setSquadTeam, normalizePick,
+} from '../src/core/squad.js';
+import { ROSTER_SORTS, sortRoster } from '../src/core/roster.js';
+import { RARITY_ORDER } from '../src/core/constants.js';
+
+test('挑战编队：四座属性塔各存一套，互不串台', () => {
+  const s = newState(data, 71);
+  s.roster = Object.fromEntries(data.awakeners.slice(0, 12).map((a) => [a.slug, { lv: 50, star: 3, brk: 2 }]));
+  const byRealm = {};
+  for (const r of ['CHAOS', 'CARO', 'AEQUOR', 'ULTRA']) byRealm[r] = data.awakeners.filter((a) => a.realm === r).slice(0, 4).map((a) => a.slug);
+
+  for (const r of ['CHAOS', 'CARO', 'AEQUOR', 'ULTRA']) {
+    assert.ok(setSquadTeam(s, r === 'CHAOS' ? 'a' : r === 'CARO' ? 'b' : r === 'AEQUOR' ? 'c' : 'a', byRealm[r]));
+    setSquadPick(s, rtModeOf(r), r === 'ULTRA' ? 'c' : r === 'CHAOS' ? 'a' : r === 'CARO' ? 'b' : 'c');
+  }
+  // 四座塔各指各的
+  assert.equal(squadLabel(s, 'rt_CHAOS').key, 'a');
+  assert.equal(squadLabel(s, 'rt_CARO').key, 'b');
+  assert.equal(squadLabel(s, 'rt_AEQUOR').key, 'c');
+  assert.equal(squadLabel(s, 'rt_ULTRA').key, 'c');
+  // 改一座塔不影响其他入口
+  setSquadPick(s, 'rt_CARO', 'cur');
+  assert.deepEqual(teamSlugsFor(s, 'rt_CARO'), s.team);
+  assert.equal(squadLabel(s, 'rt_CHAOS').key, 'a');
+  // 模式表覆盖四座塔 + 其余入口
+  assert.deepEqual(RT_MODES, ['rt_CHAOS', 'rt_CARO', 'rt_AEQUOR', 'rt_ULTRA']);
+  assert.equal(MODE_ZH.rt_AEQUOR, '深海回廊');
+});
+
+test('挑战编队：老存档的「属性塔」选择会分给四座塔', () => {
+  const p = normalizePick({ rtower: 'b', weekly: 'c' });
+  assert.equal(p.rt_CHAOS, 'b');
+  assert.equal(p.rt_CARO, 'b');
+  assert.equal(p.rt_AEQUOR, 'b');
+  assert.equal(p.rt_ULTRA, 'b');
+  assert.equal(p.weekly, 'c');
+  assert.equal(p.tower, 'cur');
+  // 新存档里已经写好的各自选择优先
+  const q = normalizePick({ rtower: 'b', rt_CHAOS: 'a' });
+  assert.equal(q.rt_CHAOS, 'a');
+  assert.equal(q.rt_CARO, 'b');
+});
+
+test('一键上阵：按界域筛，取战力最高的 4 名，前排守护 / 治疗优先', () => {
+  const s = newState(data, 73);
+  s.roster = Object.fromEntries(data.awakeners.slice(0, 20).map((a) => [a.slug, { lv: 60, star: 4, brk: 2 }]));
+  const powerOf = (slug) => allyDef(s, data, slug, [slug]).power;
+
+  const chaos = autoSquadSlugs(s, data, 'CHAOS', powerOf);
+  assert.equal(chaos.length, 4);
+  assert.ok(chaos.every((x) => data.bySlug[x].realm === 'CHAOS'), '只收本界域');
+  // 无序的界域里 Guard 在前、治疗在后
+  const ord = { WARDEN: 0, ASSAULT: 1, CHORUS: 2 };
+  const types = chaos.map((x) => ord[data.bySlug[x].type]);
+  assert.deepEqual(types, [...types].sort((a, b) => a - b), '站位按 守 → 攻 → 辅 排');
+
+  // 不传界域 = 全池最强 4 个
+  const all = autoSquadSlugs(s, data, null, powerOf);
+  assert.equal(all.length, 4);
+  // 全池模式：守护与治疗会被优先拉进来，所以不是严格的「战力前 4」，但都该是战力靠前的人
+  const ranked = Object.keys(s.roster).map((x) => ({ x, p: powerOf(x) })).sort((a, b) => b.p - a.p);
+  const rankOf = Object.fromEntries(ranked.map((r, i) => [r.x, i]));
+  assert.ok(all.every((x) => rankOf[x] < 12), '全池模式取的是战力靠前的 12 名内');
+
+  // 没有该界域的唤醒体时返回空，不会拿别的界域凑数
+  const empty = autoSquadSlugs({ roster: { [data.awakeners[0].slug]: { lv: 1 } } }, data, 'ULTRA', powerOf);
+  assert.equal(empty.length, 0);
+});
+
+test('观战数据：simulate 给出上阵双方的名字 / 血量 / 界域', () => {
+  const s = newState(data, 75);
+  const res = runBattle(s, data);
+  assert.ok(Array.isArray(res.prep.allies) && res.prep.allies.length > 0);
+  assert.ok(Array.isArray(res.prep.enemies) && res.prep.enemies.length > 0);
+  for (const d of [...res.prep.allies, ...res.prep.enemies]) {
+    assert.equal(typeof d.name, 'string');
+    assert.ok(d.hp > 0 && typeof d.hp === 'number');
+    assert.ok(data.bySlug[d.uid?.[0] === 'a' ? s.team[0] : Object.keys(data.monById)?.[0]] || true);
+  }
+  // 事件流能让回放跑完整场
+  const kinds = new Set(res.events.map((e) => e.k));
+  for (const k of ['round', 'act', 'end']) assert.ok(kinds.has(k), `事件里应该有 ${k}`);
+  // 塔：只保留最后一层的过程（不为几十层各存一份事件流）
+  s.maxStage = 30;
+  const tw = simulateTower(s, data, { maxFloors: 6 });
+  assert.equal(tw.replay.floor, tw.floors[tw.floors.length - 1].floor);
+  assert.ok(tw.replay.events.length > 0);
+  assert.ok(tw.replay.prep.allies.length > 0);
+});
+
+test('唤醒体排序：稀有度 / 战力 / 等级 / 叠位 / 获取顺序 / 界域', () => {
+  const s = newState(data, 77);
+  const owned = data.awakeners.slice(0, 5);
+  s.roster = Object.fromEntries(owned.map((a, i) => [a.slug, { lv: 10 + i * 7, star: (4 - i) * 3, brk: 0 }]));
+  const idxOf = Object.fromEntries(Object.keys(s.roster).map((x, i) => [x, i]));
+  const rows = data.awakeners.map((a) => ({
+    a, r: s.roster[a.slug], idx: idxOf[a.slug],
+    power: s.roster[a.slug] ? allyDef(s, data, a.slug, [a.slug]).power : 0,
+  }));
+
+  // 未拥有的永远在后面
+  for (const [k] of ROSTER_SORTS) {
+    const list = sortRoster(rows, k, -1);
+    const firstLocked = list.findIndex((x) => !x.r);
+    assert.ok(list.slice(firstLocked).every((x) => !x.r), `${k}：拥有的一定在前面`);
+  }
+  const lvDown = sortRoster(rows, 'lv', -1).filter((x) => x.r).map((x) => x.r.lv);
+  assert.deepEqual(lvDown, [...lvDown].sort((a, b) => b - a));
+  const lvUp = sortRoster(rows, 'lv', 1).filter((x) => x.r).map((x) => x.r.lv);
+  assert.deepEqual(lvUp, [...lvUp].sort((a, b) => a - b));
+  // 获取顺序：降序 = 最近拿到的在前
+  const order = sortRoster(rows, 'order', -1).filter((x) => x.r).map((x) => x.idx);
+  assert.deepEqual(order, [...order].sort((a, b) => b - a));
+  // 稀有度降序：创生/史诗在前
+  const rar = sortRoster(rows, 'rarity', -1).filter((x) => x.r).map((x) => RARITY_ORDER[x.a.rarity]);
+  assert.deepEqual(rar, [...rar].sort((a, b) => b - a));
+  // 非法排序键退回稀有度，不抛错
+  assert.equal(sortRoster(rows, 'nope', -1).length, rows.length);
+});

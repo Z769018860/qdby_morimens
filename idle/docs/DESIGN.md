@@ -1,4 +1,4 @@
-# 设计文档（M0–M13）
+# 设计文档（M0–M14）
 
 ## 1. 目标
 网页端可玩的挂机自动战斗原型，验证「自动战斗好不好看、养成循环顺不顺」。核心逻辑与 UI 分离，便于后续移植微信小程序（M5）。
@@ -205,7 +205,49 @@ export const corePerWin   = (stage) => CORE_PER_WIN * coreBoost(stage);
 ### 16.4 验证
 `npm test` 60 项全绿（新增 5 项：编队存 / 上阵 / 清空与入口隔离、迁移过滤、挑战按阵容出战（周 Boss 单人 < 四人、属性塔只留本界域）、抽卡流水与指数可复算、明细裁剪不影响累计）。`npm run regress` 23 项全过（新增：编队存两套并在周 Boss 指定、队伍页标注「挑战在用」、抽卡记录 10 抽与完整记录弹窗、6 首 BGM 可选、顶栏喇叭静音 / 恢复、曲目锁定高亮）。BGM 排程另用假 AudioContext 跑了一遍六首曲子（每首 8 秒内 40–530 个 voice，交叉淡入不抛错）。
 
-## 17. 已知不足 / 下一步
+## 17. M14：按模式的挑战编队、现场编队与观战回放、唤醒体排序
+
+### 17.1 属性塔按界域拆成四个入口
+M13 的 `squadPick` 只有一个 `rtower`，但四座塔收的界域不同：混沌塔只能上混沌队、深海塔只能上深海队，用一个选择必然打架。现在 `SQUAD_MODES` 扩到 8 个，属性塔是 `rt_CHAOS / rt_CARO / rt_AEQUOR / rt_ULTRA`，`rtModeOf(realm)` 拼键、`realmOfMode(mode)` 反解。老存档迁移把 `squadPick.rtower` 的值一次性分发给四座塔（`normalizePick` 里的 `fallback`），新键已经写了就各自为准，不会覆盖玩家后来的选择。
+
+### 17.2 编队的三层入口
+- **队伍页「挑战编队」**（`squadAssignPanel`）：8 行一次列全，每行显示当前选中的编队名、人数、战力、4 个头像和四个 chip。点 chip 就是 `setSquadPick`，和挑战页共用同一份 `state.squadPick`，不存在两套配置。
+- **挑战页顶部的 squadBar**：多了一个「现场编队」按钮，带着 `mode` 进入编辑器。
+- **编队编辑器**（`squadEditor`）：弹窗内维护一份 `st = { key, mode, realm, team }` 的副本，点候选加入 / 点槽位移出 / 「一键上阵」/「套用当前队伍」，最后选「存到 一队 / 二队 / 三队」。带 `mode` 进来时，保存会顺手 `setSquadPick(mode, 刚存的那个键)`——这就是「当场排一套并直接用它打」。
+  - 弹窗只重绘 `.modal` 的内部 HTML（`paint()`），事件监听挂在 modal 根上绑一次，所以连续点十几个头像不会累积监听。
+  - `mode` 是属性塔时 `realm` 被锁定，界域 chip 里除本界域外全部 `disabled`，并且 `autoSquadSlugs` 也拿这个 `realm` 过滤。
+
+### 17.3 一键上阵的口径
+```js
+autoSquadSlugs(state, data, realm, powerOf, 4)
+  → 候选 = 拥有 ∩ (界域匹配)
+  → 依次补 WARDEN / CHORUS 各一名（别排出一队纯输出）
+  → 按战力补满 4 人
+  → 按 守 → 攻 → 辅 排序（= 站位：前两个前排）
+```
+`powerOf` 是回调而不是直接 import `allyDef`：`squad.js` 不能反过来依赖 `game.js`（`game.js` 的 `migrate` 要 import `squad.js`，会成环），也方便测试传自己的算法。
+
+### 17.4 观战回放
+挑战模式原本点一下就 `openModal` 出结算，看不到任何过程。现在 `simulate` 额外返回 `prep`（双方 `uid / name / img / type / realm / hp / boss / reward / openAli / openKey`），`roundLimit` 与 `events` 本来就有，于是挑战结果天然可以回放。
+
+- `ui/replay.js` 的 `Replay` 类：复用战斗页的 `.field / .unit / .bar / .float` 样式与音效，自己维护 `units` 表，按事件类型给 PACE（round 340ms、act 230ms、dmg 70ms…）逐条 `setTimeout` 推进；只读不写状态——**结算在打开播放器之前就已经跑完了**，所以中途跳过 / 关掉都不会影响结果。
+- 播放器控制：`1× / 2× / 4×`、`跳过过程`（直接 `closeModal` + 回调出结算）、播完自动出「查看结算」按钮。
+- `watchOrSkip(spec, done)` 读 `watchMode`（localStorage，默认 `watch`）：`skip` 或没有事件流时直接 `done()`，行为与 M13 完全一致。
+- 塔只保留最后一层的 `replay`（`simulateTower` 里的 `replay` 变量每层覆盖）：爬到几十层时，逐层存事件流会让内存翻几十倍，而玩家真正想看的就是「怎么输的 / 怎么过的」。属性塔连打 10 层时回放最后一场。
+- 设置页「挑战过程」只有两个选项，不做第三种「每次询问」——询问框在连打场景里只会变成无脑连点。
+
+### 17.5 唤醒体排序
+`core/roster.js` 的 `sortRoster(rows, key, dir)` 是纯函数：`rows = { a, r, idx, power }`，`key ∈ rarity / power / lv / star / order / realm`，`dir = ±1`。规则：
+- **未获得的永远排在拥有之后**，不随 `dir` 翻转；
+- 同分时按 `idx`（获取顺序）收尾，列表不会每次重绘都换位置；
+- 非法键退回稀有度，UI 传错也不炸。
+
+`idx` 取自 `Object.keys(state.roster)` 的下标——JSON 保留插入顺序，召唤新角色是往末尾加，所以它就是获取顺序，不需要额外存字段。
+
+### 17.6 验证
+`npm test` 65 项全绿（新增 5 项：四座塔各存一套且互不串台、老存档 `rtower` 分发、一键上阵按界域过滤与站位排序、`simulate` 的 `prep` 与塔只留最后一层、六种排序 + 反向 + 未拥有排后）。`npm run regress` 44 项全过（新增：队伍页 8 个入口、现场编队一键上阵→存三队→混沌塔自动指向、属性塔四条阵容条、挑战回放弹出 / 逐条推进 / 加速 / 跳过进结算、六种排序与反向）。回归里另把新手引导的等待从「boot 后立刻点跳过」改成「等 420ms 引导挂上再点」——原来偶尔会点空，导致后续截图全被引导层盖住。
+
+## 18. 已知不足 / 下一步
 - 唤醒体技能数值是「原型 + 原文数值比例缩放」；中文文本为译文，未经官方校对。
 - 密契/造物效果为本作设计，非官方数值。
 - 召唤、弃牌等怪物特有机制未实现，仅保留文本；周 Boss、公会等长线内容未做；特征名为英文标签直译；融灾区域 3 缺少客户端节点数据。
