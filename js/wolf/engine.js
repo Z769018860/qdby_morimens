@@ -29,6 +29,8 @@ function checkRes(role) {
 const KEEPER_FILL = (s, ctx) => String(s)
   .replace(/\{who\}/g, ctx.who || '你')
   .replace(/\{role\}/g, ctx.role || '清醒者');
+// 系统文案有的是字符串、有的是池子，取句前统一成数组
+const oneOr = (v) => (Array.isArray(v) ? v : (v == null ? [] : [v]));
 
 // ---------------------------------------------------------------- 开局
 export function createGame(opt) {
@@ -510,6 +512,13 @@ export function submit(G, act) {
   if (act.type === 'talk') { playerTalk(G, act); return; }
   if (act.type === 'vote') {
     if (G.phase !== 'wait-vote') return;
+    // 守密人投票也有一句话，别让玩家像个哑巴——顺便把 vote 池子用起来
+    if (act.target != null && G.player.alive) {
+      const t = byId(G, act.target);
+      if (t) {
+        push(G, { t: 'say', pid: 0, text: keeperPick(G, KEEPER.say.vote, { who: t.name }, true), stance: 'vote' });
+      }
+    }
     resolveVote(G, act.target == null ? null : act.target);
     return;
   }
@@ -563,26 +572,31 @@ export function submit(G, act) {
   }
 }
 
+// 守密人自己说的话也记账：一局里同一句不会说第二遍。
+// （原来纯 random，四句 accuse 说到第三次就必然重复。）
+// 池子被点空了就借 S.spare 的通用句（不带人名、不带立场），而不是原样复读。
+export function keeperPick(G, arr, ctx, borrow) {
+  const me = G.player;
+  const mine = me.keepSaid || (me.keepSaid = new Set());
+  let use = arr.filter((x) => !mine.has(x));
+  if (!use.length && borrow) use = oneOr(KEEPER.say.spare).filter((x) => !mine.has(x));
+  if (!use.length) use = arr;
+  const s = use[Math.floor(G.rnd() * use.length)];
+  mine.add(s);
+  return KEEPER_FILL(s, ctx || {});
+}
+
 function playerTalk(G, act) {
   const me = G.player;
   if (!me.alive) return;
   const rnd = G.rnd;
   const S = KEEPER.say;
-  // 守密人自己说的话也记账：一局里同一句不会说第二遍，池子用完才会绕回来。
-  // （原来纯 random，四句 accuse 说到第三次就必然重复。）
-  const mineSaid = me.keepSaid || (me.keepSaid = new Set());
-  const pickLine = (arr, ctx) => {
-    const fresh = arr.filter((x) => !mineSaid.has(x));
-    const use = fresh.length ? fresh : arr;
-    const s = use[Math.floor(rnd() * use.length)];
-    mineSaid.add(s);
-    return KEEPER_FILL(s, ctx);
-  };
+  const pickLine = (arr, ctx, borrow) => keeperPick(G, arr, ctx, borrow);
 
   // 被低语过：今天张不开嘴。说什么都会被吞掉，所以直接把这一轮咽下去。
   if (me.silencedDay === G.day && act.kind !== 'idle') {
     me.talk = (me.talk || 0) + 1;
-    push(G, { t: 'say', pid: 0, text: SYS.silenceSelf, stance: 'silent' });
+    push(G, { t: 'say', pid: 0, text: pickLine(oneOr(SYS.silenceSelf), {}), stance: 'silent' });
     G.phase = 'discuss';
     fill(G);
     return;
@@ -603,14 +617,14 @@ function playerTalk(G, act) {
     const t = byId(G, act.target);
     if (t) {
       G.acc.push({ by: 0, to: t.id, day: G.day, round: G.round });
-      push(G, { t: 'say', pid: 0, text: pickLine(S.accuse, { who: t.name }), stance: 'accuse' });
+      push(G, { t: 'say', pid: 0, text: pickLine(S.accuse, { who: t.name }, true), stance: 'accuse' });
       me.talk = (me.talk || 0) + 1;
     }
   } else if (act.kind === 'defend' && act.target != null) {
     const t = byId(G, act.target);
     if (t) {
       G.def.push({ by: 0, to: t.id, day: G.day });
-      push(G, { t: 'say', pid: 0, text: pickLine(S.defend, { who: t.name }), stance: 'defend' });
+      push(G, { t: 'say', pid: 0, text: pickLine(S.defend, { who: t.name }, true), stance: 'defend' });
       me.talk = (me.talk || 0) + 1;
     }
   } else if (act.kind === 'report' && act.target != null) {
@@ -640,7 +654,7 @@ function playerTalk(G, act) {
     // 号召：一天只能喊一次，喊完桌上会有人应声、有人对跳、有人推脱
     if (G.callDay[G.day]) {
       me.talk = (me.talk || 0) + 1;
-      push(G, { t: 'say', pid: 0, text: pickLine(S.idle, {}), stance: 'idle' });
+      push(G, { t: 'say', pid: 0, text: pickLine(S.idle, {}, true), stance: 'idle' });
     } else {
       G.callDay[G.day] = true;
       G.calls.push({ by: 0, day: G.day, round: G.round });
@@ -666,7 +680,7 @@ function playerTalk(G, act) {
     }
   } else {
     me.talk = (me.talk || 0) + 1;
-    push(G, { t: 'say', pid: 0, text: pickLine(S.idle, {}), stance: 'idle' });
+    push(G, { t: 'say', pid: 0, text: pickLine(S.idle, {}, true), stance: 'idle' });
   }
   G.phase = 'discuss';
   fill(G);

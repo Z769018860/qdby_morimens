@@ -11,9 +11,9 @@
 //   node scripts/wolf-sim.mjs            # 每档 400 局 + 台词体检
 //   node scripts/wolf-sim.mjs 2000       # 每档 2000 局
 //   node scripts/wolf-sim.mjs 200 audit  # 只跑台词体检
-import { createGame, nextEvent, submit, nightOptions, playerFindings, canCall } from '../js/wolf/engine.js';
+import { createGame, nextEvent, submit, nightOptions, playerFindings, canCall, keeperPick } from '../js/wolf/engine.js';
 import { alive, mulberry32 } from '../js/wolf/util.js';
-import { WOLF_SIDE, ROLES, CHARS, DIFFS } from '../js/wolf/data.js';
+import { WOLF_SIDE, ROLES, CHARS, DIFFS, KEEPER } from '../js/wolf/data.js';
 import { LINES, pickLine } from '../js/wolf/lines.js';
 
 const N = Number(process.argv[2] || 400);
@@ -22,6 +22,16 @@ const MODE = process.argv[3] || 'all';
 // 每种场合至少要写几句。数字是按「一局里会被用到几次」定的：
 // 一个人一晚说八到十句，其中大半是指认和沉默，所以 accuse / idle 要最深。
 const MIN_POOL = { accuse: 6, idle: 4, vote: 3, refuse: 2, comment: 2, defend: 2, defendSelf: 2 };
+
+// 守密人（玩家）自己那份池子。守密人一天能动三到四次，十天就是一局三十来句，
+// 高频的几类必须够深，不然「我觉得 X 不对劲」一天就能说两遍。
+const MIN_KEEPER = {
+  claim: 8, accuse: 10, defend: 8, idle: 8, vote: 8, call: 8,
+  callEnd: 4, callNone: 4, death: 3, spare: 6,
+  reportWolf: 5, reportClean: 5, reportVoid: 5,
+};
+// 这几类是带人名的，句子必须有占位符，否则会对着 A 说 B 的名字
+const KEEPER_WHO = ['claim', 'accuse', 'defend', 'vote', 'reportWolf', 'reportClean', 'reportVoid'];
 
 // 最长公共子串长度：用来抓「同一句话换了个说法」
 function lcsub(a, b) {
@@ -38,6 +48,84 @@ function lcsub(a, b) {
     prev = cur;
   }
   return best;
+}
+
+// ---------------------------------------------------------------- 守密人体检
+// 守密人的话是玩家点的，不是 AI 挑的，容易漏掉：它不走 pickLine，去重和池深都得单独盯。
+function auditKeeper() {
+  const S = KEEPER.say;
+  const problems = [];
+
+  for (const [k, need] of Object.entries(MIN_KEEPER)) {
+    const arr = S[k];
+    if (!Array.isArray(arr)) { problems.push(`守密人缺 ${k}`); continue; }
+    if (arr.length < need) problems.push(`守密人 ${k} 只有 ${arr.length} 句（至少要 ${need}）`);
+  }
+  for (const k of KEEPER_WHO) {
+    for (const s of S[k] || []) {
+      if (!/\{who\}|\{role\}/.test(s)) problems.push(`守密人 ${k} 少了 {who}：「${s}」`);
+    }
+  }
+  // 查 / 验 要能按身份自动换：三组查验词里都得留带 {verb} 的句子，
+  // 同时也要有不带动词的，否则每句都念「我验完」很怪。
+  for (const k of ['reportWolf', 'reportClean', 'reportVoid']) {
+    const arr = S[k] || [];
+    const v = arr.filter((s) => s.indexOf('{verb}') >= 0).length;
+    if (v < 2) problems.push(`守密人 ${k} 带 {verb} 的只有 ${v} 句，查/验 换不开`);
+    if (arr.length - v < 1) problems.push(`守密人 ${k} 每句都要念动词，读起来很机械`);
+  }
+  // 兜底池必须是「放哪儿都说得通」的：带了人名或立场，借过来就答非所问
+  for (const s of S.spare || []) {
+    if (/\{who\}|\{role\}|\{verb\}/.test(s)) problems.push(`守密人 spare 里有占位符，借到别的场合会串味：「${s}」`);
+  }
+  // 同一组里近似重复（和唤醒体那边同一把尺子）
+  for (const [k, arr] of Object.entries(S)) {
+    if (!Array.isArray(arr) || arr.length < 2) continue;
+    for (let i = 0; i < arr.length; i++) {
+      for (let j = i + 1; j < arr.length; j++) {
+        const a = String(arr[i]).replace(/\{(who|role|verb)\}/g, '');
+        const b = String(arr[j]).replace(/\{(who|role|verb)\}/g, '');
+        const short = Math.min(a.length, b.length);
+        if (short < 8) continue;
+        if (lcsub(a, b) / short >= 0.6) {
+          problems.push(`守密人 ${k} 有两句几乎一样 ——「${a.slice(0, 14)}…」/「${b.slice(0, 14)}…」`);
+        }
+      }
+    }
+  }
+
+  // 实跑 1：把 accuse 池点到空，后面必须去借 spare，而不是复读自己
+  {
+    const G = { rnd: mulberry32(20261029), player: { keepSaid: new Set() } };
+    const out = [];
+    const cap = (S.accuse || []).length + (S.spare || []).length;
+    for (let i = 0; i < Math.min(cap, 20); i++) out.push(keeperPick(G, S.accuse, { who: '某人' }, true));
+    const uniq = new Set(out);
+    if (uniq.size !== out.length) {
+      problems.push(`守密人池子点空后复读了：连取 ${out.length} 次，只有 ${uniq.size} 句不同`);
+    }
+    const spareUsed = out.filter((t) => (S.spare || []).indexOf(t) >= 0).length;
+    if (!spareUsed) problems.push('守密人 accuse 池用尽后没有借到 spare（回退链断了）');
+  }
+
+  // 实跑 2：一天里连着点十几次指认，同一局内不能出现同一句
+  let repeats = 0;
+  const GAMES = 24;
+  for (let gi = 0; gi < GAMES; gi++) {
+    const r = playOne('mutant', 90001 + gi * 7717, 'random');
+    if (r.keepN !== r.keepUniq) repeats += r.keepN - r.keepUniq;
+  }
+  if (repeats) problems.push(`${GAMES} 局里守密人自己重复了 ${repeats} 句（同一局内不该重复）`);
+
+  if (problems.length) {
+    console.log(`\n守密人体检未通过（${problems.length} 项）：`);
+    for (const p of problems.slice(0, 20)) console.log('  · ' + p);
+    process.exitCode = 1;
+  } else {
+    const totalK = Object.values(S).reduce((n, v) => n + (Array.isArray(v) ? v.length : 0), 0);
+    console.log(`守密人体检通过：${totalK} 句，高频场合 8~14 句、查验每类 5 句且查/验 自动换；池子点空后会借 spare，${GAMES} 局实测零重复。`);
+  }
+  return problems.length;
 }
 
 // ---------------------------------------------------------------- 台词体检
@@ -145,6 +233,7 @@ function audit() {
   } else {
     console.log('体检通过：每位唤醒体 12 种身份 + 12 类场合 + 查验 + 遗言均已覆盖；高频场合池子够深，也没有换汤不换药的近似重复。');
   }
+  auditKeeper();
 }
 
 // ---------------------------------------------------------------- 一局
@@ -153,6 +242,7 @@ function playOne(diffKey, seed, style) {
   const rnd = mulberry32(seed ^ 0x9e3779b9);
   let steps = 0;
   const saidTexts = [];
+  const keeperTexts = [];
 
   for (;;) {
     if (++steps > 6000) throw new Error('事件太多，可能在死循环：' + diffKey + ' seed=' + seed);
@@ -162,6 +252,7 @@ function playOne(diffKey, seed, style) {
       break;
     }
     if (e.t === 'say' && e.pid !== 0) saidTexts.push(e.text);
+    if (e.t === 'say' && e.pid === 0) keeperTexts.push(e.text);
     if (e.t !== 'turn') continue;
 
     const others = alive(G).filter((p) => p.id !== 0);
@@ -230,9 +321,11 @@ function playOne(diffKey, seed, style) {
 
   // 同一局里的重复发言
   const uniq = new Set(saidTexts);
+  const keepUniq = new Set(keeperTexts);
   return {
     winner: G.winner, day: G.day, role: G.player.role,
     sayN: saidTexts.length, sayUniq: uniq.size,
+    keepN: keeperTexts.length, keepUniq: keepUniq.size,
   };
 }
 
@@ -246,7 +339,7 @@ console.log('');
 const rows = [];
 let dupRate = 0;
 for (const diff of DIFFS) {
-  const stat = { games: 0, win: 0, days: 0, byWinner: {}, roles: {}, say: 0, uniq: 0 };
+  const stat = { games: 0, win: 0, days: 0, byWinner: {}, roles: {}, say: 0, uniq: 0, keep: 0, keepUniq: 0 };
   for (let i = 0; i < N; i++) {
     const seed = (i * 2654435761 + diff.k.length * 97) >>> 0;
     const r = playOne(diff.k, seed, STYLES[i % STYLES.length]);
@@ -254,6 +347,8 @@ for (const diff of DIFFS) {
     stat.days += r.day;
     stat.say += r.sayN;
     stat.uniq += r.sayUniq;
+    stat.keep += r.keepN;
+    stat.keepUniq += r.keepUniq;
     stat.byWinner[r.winner] = (stat.byWinner[r.winner] || 0) + 1;
     const faction = WOLF_SIDE.has(r.role) ? 'wolf' : (r.role === 'forgotten' ? 'forgotten' : 'crew');
     if (faction === r.winner) stat.win++;
@@ -270,6 +365,7 @@ for (const diff of DIFFS) {
     忘却胜: pct(stat.byWinner.forgotten || 0),
     每局发言: (stat.say / stat.games).toFixed(1),
     重复率: (100 * (1 - stat.uniq / Math.max(1, stat.say))).toFixed(1) + '%',
+    守密人重复: (100 * (1 - stat.keepUniq / Math.max(1, stat.keep))).toFixed(1) + '%',
   });
 }
 console.table(rows);

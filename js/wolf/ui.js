@@ -350,6 +350,7 @@ const STANCE = {
   reportClean: ['报干净', 'good'],
   refuse: ['推脱', 'dim'],
   comment: ['附和', 'dim'],
+  vote: ['投票', 'dim'],
   silent: ['失声', 'void'],
   taunt: ['挑衅', 'dim'],
   last: ['遗言', 'dim'],
