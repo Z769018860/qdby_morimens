@@ -26,21 +26,21 @@ const ROLES = {
   },
   watch: {
     zh: '守夜人', en: 'Nightwatch', f: 'crew', short: '每晚守一人', unique: true,
-    d: '每晚守住一个人，黑液今晚碰不到他。不能连续两晚守同一个人。',
+    d: '每晚守住一个人，黑液今晚碰不到对方。不能连续两晚守同一个人。',
     lore: '提灯走过一圈，走廊里就没有黑液敢抬头。这是弥萨格的规矩，不是谁定的。',
     tag: '今晚我提着灯走一圈。谁的门我没敲，明早你们就知道了。',
   },
   seer: {
     zh: '灵视者', en: 'Seer', f: 'crew', short: '每晚观测一人', unique: true,
-    d: '每晚观测一个人，能看见他体内有没有黑液：得到「融蚀」「干净」，或者一片空白。',
+    d: '每晚观测一个人，能看见对方体内有没有黑液：得到「融蚀」「干净」，或者一片空白。',
     lore: '超维界域留下的残响。看得见的东西太多，闭上眼睛也关不掉。',
     tag: '我看得见。不是用眼睛看。',
   },
   coroner: {
     zh: '解剖助手', en: 'Coroner', f: 'crew', short: '查验出局者', unique: true,
-    d: '每晚查验一具还没定性的尸体，确认他是不是融蚀体。死人不会说谎。',
+    d: '每晚查验一具还没定性的尸体，确认是不是融蚀体。死人不会说谎。',
     lore: '解剖室在地下二层，那里的灯从来没熄过。死人比活人老实。',
-    tag: '给我一具尸体，我能告诉你他死前是谁。',
+    tag: '给我一具尸体，我能告诉你这具尸体死前是谁。',
   },
   lamp: {
     zh: '灯守', en: 'Lantern', f: 'crew', short: '一生一次，拉回一人', unique: true,
@@ -76,7 +76,7 @@ const ROLES = {
   },
   whisper: {
     zh: '低语者', en: 'Whisperer', f: 'wolf', short: '每晚让一人失声', unique: true,
-    d: '融蚀体的一员，但不动手杀人。每晚可以让一个人听见黑液的低语：他第二天说不出话，也公布不了任何东西。同一个人只能被低语一次。',
+    d: '融蚀体的一员，但不动手杀人。每晚可以让一个人听见黑液的低语：对方第二天说不出话，也公布不了任何东西。同一个人只能被低语一次。',
     lore: '它不咬人。它只是在你耳边说话，说到你忘了自己本来要说什么。',
     tag: '你刚才想说什么来着？',
   },
@@ -85,7 +85,7 @@ const ROLES = {
   mole: {
     zh: '共谋者', en: 'Accomplice', f: 'mole', short: '被看成清醒，随融蚀一起赢',
     d: '灵视者看你也像清醒的。你和融蚀体一起赢，而且你知道他们是谁。',
-    lore: '有些人的记忆被换过，换得很干净，连他自己都没发现。',
+    lore: '有些人的记忆被换过，换得很干净，连本人可能都没发现。',
     tag: '我什么都没做。我只是什么都没做而已。',
   },
 
@@ -250,7 +250,7 @@ const KEEPER = {
     claim: [
       '我是{role}。', '我说了，我是{role}。信不信随你们。', '{role}。别的不多说。', '我摊牌：{role}。',
       '{role}。牌我放在桌上了，剩下的你们自己判断。', '不必再猜。{role}——这就是我要说的全部。',
-      '我报{role}。要是有人跟我抢这张牌，我等他说完。', '{role}。我把这张牌摊开，是因为今天不能再空手过去了。',
+      '我报{role}。要是有人跟我抢这张牌，我等对方说完。', '{role}。我把这张牌摊开，是因为今天不能再空手过去了。',
     ],
     accuse: [
       '我觉得{who}不对劲。', '我听着{who}的话，总觉得哪里不对。', '{who}，你能解释一下刚才那句吗。', '我提一个名字：{who}。',
@@ -258,16 +258,16 @@ const KEEPER = {
       '{who}。你从坐下到现在，没有一次主动给过信息。', '我把话说明白：今天我最想听{who}解释。',
       '{who}的每一句都在躲。躲什么，我想知道。', '我不喜欢含糊。{who}，你给我一个明确的答案。',
       '{who}，你刚才那句话，换个顺序说一遍我听听。',
-      '我盯{who}很久了。不是直觉，是他说的话对不上。',
+      '我盯{who}很久了。不是直觉，是说出来的话对不上。',
       '{who}一直在跟着别人走。跟着走的人，通常是不想被看见的人。',
-      '先别急着替{who}开脱。我要听他自己说。',
+      '先别急着替{who}开脱。我要听本人说。',
     ],
     defend: [
       '我认为{who}不是。', '先别急着投{who}。', '{who}的话还没说完。', '我替{who}说一句。',
       '投{who}之前，先想清楚明天还剩几个人。', '{who}至少给过一句有用的东西，别的人连这个都没有。',
       '我压一手{who}。错了算我的。', '{who}今天的表现不像在藏东西。',
       '要推{who}，先拿得出比「感觉」更硬的东西。',
-      '{who}今天说的每句我都对得上，我暂时保他。',
+      '{who}今天说的每句我都对得上，我先保下。',
     ],
     idle: [
       '……我先听着。', '再等等。今晚的答案会自己浮上来。', '（你把每个人的表情记在心里）', '我先不表态。',
@@ -281,7 +281,7 @@ const KEEPER = {
       '{who}。', '我投{who}。', '就{who}吧。', '票给{who}。',
       '{who}。我希望这是我的最后一次判断失误。', '我这一票给{who}。理由我刚才说过了。',
       '投{who}。要是错了，明天我认。', '{who}。别看我，看你自己今天说了什么。',
-      '这一票落{who}。我不想再听解释。', '{who}。今天所有对不上的地方，都指着他。',
+      '这一票落{who}。我不想再听解释。', '{who}。今天所有对不上的地方，都指着同一个人。',
     ],
     // 号召：让有身份的人自己报出来。说得越硬，越有人应，也越有人记恨。
     call: [
@@ -296,7 +296,7 @@ const KEEPER = {
     ],
     callEnd: [
       '……记下了。', '好。现在我知道该看谁了。', '记着你们今天说的话。', '说出来的话，我一句都没忘。',
-      '行。这几张牌我收着，谁反悔，我第一个找他。', '都听见了。今晚谁死，我按这份名单算。',
+      '行。这几张牌我收着，谁反悔，我第一个找上来。', '都听见了。今晚谁死，我按这份名单算。',
       '够了。剩下的我自己想。',
     ],
     callNone: [
@@ -310,9 +310,9 @@ const KEEPER = {
     // 公布查验：{verb} 会按身份换成「查」（灵视者）或「验」（解剖助手）。
     // 原来是写死的一句话，一局报三次就是同一句念三遍。
     reportWolf: [
-      '{who}。我看过了，他不是人。', '我{verb}完{who}了。结果是黑的。',
-      '先把{who}按住——我{verb}出来他是融蚀体。', '{who}里面是黑的。这一点我很确定。',
-      '{who}。别急着替他说话，我{verb}的不是他的嘴。',
+      '{who}。我看过了，不是人。', '我{verb}完{who}了。结果是黑的。',
+      '先把{who}按住——我{verb}出来是融蚀体。', '{who}里面是黑的。这一点我很确定。',
+      '{who}。别急着替人说话，我{verb}的不是那张嘴。',
     ],
     reportClean: [
       '{who}是干净的。我{verb}过。', '{who}没问题。这次我确定。',
@@ -321,7 +321,7 @@ const KEEPER = {
     ],
     reportVoid: [
       '{who}里面是空的。我什么都看不见。', '我{verb}不出{who}的命。那不是空白，是没有人。',
-      '{who}是空白。他不属于任何一边。', '我看了{who}——什么都没有。连尸体都不算。',
+      '{who}是空白。不属于任何一边。', '我看了{who}——什么都没有。连尸体都不算。',
       '我{verb}进去，{who}里面什么都没有——不是空，是没有。',
     ],
     // 兜底：某一类被玩家点空了（一天点五次指认也会发生），就从这里借一句。
@@ -355,12 +355,12 @@ const SYS = {
   voteNone: '票数平了。没有人被送出去。走廊里安静得能听见呼吸。',
   nightFall: '熄灯。走廊里只剩下脚步声。',
   lampSave: '灯亮了。黑液从{who}的七窍里退回去，像被谁按下了暂停。',
-  lurkerMolt: '{who}没有死。他的皮从后背裂开，露出一层不属于人的黑。',
+  lurkerMolt: '{who}没有死。皮从后背裂开，露出一层不属于人的黑。',
   chainPull: '{who}被送出门的时候，链子的另一端还系着{to}。两个人一起消失在走廊尽头。',
   lastWords: '——遗言。',
   winCrew: '天亮的时候，走廊里的黑液已经干了。剩下的人还站着。',
   winWolf: '剩下的人互相看着，谁也没有说话。黑液从地板缝里漫上来，很安静。',
-  winForgotten: '最后一个人站在门口。他既不属于这边，也不属于那边。谁也没有记住他的名字。',
+  winForgotten: '最后一个人站在门口。既不属于这边，也不属于那边。谁也没有记住那个名字。',
   silenceOn: '{who}张了张嘴，没发出声音。喉咙里全是黑液的味道。',
   // 被低语过、今天开不了口。一局里会被吞好几次，所以这里也是池子，不是一句话。
   silenceSelf: [
@@ -6395,9 +6395,9 @@ function evidence(G, ai, tid) {
 
   // 0) 直接自爆：当众说自己是融蚀方
   if (tc === 'eroded' || tc === 'lurker' || tc === 'whisper') {
-    out.push({ k: 'selfOut', w: 200, why: '他自己说他是融蚀体' });
+    out.push({ k: 'selfOut', w: 200, why: '自己说自己是融蚀体' });
   } else if (tc === 'mole' || tc === 'forgotten') {
-    out.push({ k: 'thirdOut', w: 55, why: '他自己承认站在融蚀那边' });
+    out.push({ k: 'thirdOut', w: 55, why: '自己承认站在融蚀那边' });
   }
 
   // 1) 牌数对不上：最好用的一条
@@ -6405,14 +6405,14 @@ function evidence(G, ai, tid) {
     const pool = left[tc] || 0;
     const others = claimCount(G, tc, tid);
     if (pool <= 0) {
-      out.push({ k: 'census', w: 85, why: `桌上已经没有「${ROLES[tc].zh}」这张牌了，他还在自称` });
+      out.push({ k: 'census', w: 85, why: `桌上已经没有「${ROLES[tc].zh}」这张牌了，还在自称` });
     } else if (others >= pool) {
       out.push({
         k: 'claimConflict', w: 34 + 11 * (others - pool + 1),
-        why: `他和另外 ${others} 个人都自称「${ROLES[tc].zh}」，可桌上只剩 ${pool} 张`,
+        why: `和另外 ${others} 个人都自称「${ROLES[tc].zh}」，可桌上只剩 ${pool} 张`,
       });
     } else if (others > 0) {
-      out.push({ k: 'claimConflict', w: 20, why: `他也自称「${ROLES[tc].zh}」，和別人撞了` });
+      out.push({ k: 'claimConflict', w: 20, why: `也自称「${ROLES[tc].zh}」，和别人撞了` });
     }
   }
 
@@ -6424,7 +6424,7 @@ function evidence(G, ai, tid) {
     if (first.role !== last.role) {
       out.push({
         k: 'flip', w: 30 + 8 * Math.min(3, G.day - first.day),
-        why: `他第 ${first.day} 天自称「${ROLES[first.role].zh}」，第 ${last.day} 天改称「${ROLES[last.role].zh}」`,
+        why: `第 ${first.day} 天自称「${ROLES[first.role].zh}」，第 ${last.day} 天改称「${ROLES[last.role].zh}」`,
       });
     }
   }
@@ -6435,11 +6435,11 @@ function evidence(G, ai, tid) {
     const cred = credOf(G, ai, r.by);
     if (cred <= 0.1) continue;
     if (r.res === 'eroded') {
-      out.push({ k: 'reportWolf', w: 46 * cred + 4, why: `${byId(G, r.by) ? byId(G, r.by).name : '有人'}公布过「他是融蚀体」` });
+      out.push({ k: 'reportWolf', w: 46 * cred + 4, why: `${byId(G, r.by) ? byId(G, r.by).name : '有人'}公布过「验出是融蚀体」` });
     } else if (r.res === 'void') {
-      out.push({ k: 'reportVoid', w: 26 * cred, why: `有人验出他「不是人」` });
+      out.push({ k: 'reportVoid', w: 26 * cred, why: `有人验出「不是人」` });
     } else {
-      out.push({ k: 'reportClean', w: -22 * cred, why: `有人验出他是干净的` });
+      out.push({ k: 'reportClean', w: -22 * cred, why: `有人验出是干净的` });
     }
   }
   // 报假账：翻牌之后能反查
@@ -6449,10 +6449,10 @@ function evidence(G, ai, tid) {
     if (!actual) continue;
     const realWolf = WOLF_SIDE.has(actual) && actual !== 'mole';
     if (r.res === 'eroded' && !realWolf) {
-      out.push({ k: 'falseReport', w: 55, why: `他说${byId(G, r.to).name}是融蚀体，可那个人翻牌是「${ROLES[actual].zh}」` });
+      out.push({ k: 'falseReport', w: 55, why: `指认${byId(G, r.to).name}是融蚀体，可那个人翻牌是「${ROLES[actual].zh}」` });
     }
     if (r.res === 'clean' && realWolf) {
-      out.push({ k: 'shieldWolf', w: 55, why: `他替${byId(G, r.to).name}担保过，可那个人翻牌是「${ROLES[actual].zh}」` });
+      out.push({ k: 'shieldWolf', w: 55, why: `替${byId(G, r.to).name}担保过，可那个人翻牌是「${ROLES[actual].zh}」` });
     }
   }
 
@@ -6462,9 +6462,9 @@ function evidence(G, ai, tid) {
     const tp = byId(G, d.to);
     if (!tp || !tp.revealed) continue;
     if (WOLF_SIDE.has(tp.role) && tp.role !== 'mole') {
-      out.push({ k: 'defendWolf', w: 24, why: `他替${tp.name}说过话，后来${tp.name}翻牌是融蚀体` });
+      out.push({ k: 'defendWolf', w: 24, why: `替${tp.name}说过话，后来${tp.name}翻牌是融蚀体` });
     } else if (!WOLF_SIDE.has(tp.role)) {
-      out.push({ k: 'defendGood', w: -8, why: `他替${tp.name}说过话，那个人是干净的` });
+      out.push({ k: 'defendGood', w: -8, why: `替${tp.name}说过话，那个人是干净的` });
     }
   }
   for (const a of G.acc || []) {
@@ -6472,9 +6472,9 @@ function evidence(G, ai, tid) {
     const tp = byId(G, a.to);
     if (!tp || !tp.revealed) continue;
     if (WOLF_SIDE.has(tp.role) && tp.role !== 'mole') {
-      out.push({ k: 'accuseWolf', w: -14, why: `他指认过${tp.name}，那个人翻牌是融蚀体` });
+      out.push({ k: 'accuseWolf', w: -14, why: `指认过${tp.name}，那个人翻牌是融蚀体` });
     } else if (!WOLF_SIDE.has(tp.role)) {
-      out.push({ k: 'accuseGood', w: 16, why: `他指认过${tp.name}，那个人翻牌是「${ROLES[tp.role].zh}」` });
+      out.push({ k: 'accuseGood', w: 16, why: `指认过${tp.name}，那个人翻牌是「${ROLES[tp.role].zh}」` });
     }
   }
   for (const v of G.voteHist || []) {
@@ -6482,38 +6482,38 @@ function evidence(G, ai, tid) {
     const tp = byId(G, v.to);
     if (!tp || !tp.revealed) continue;
     if (WOLF_SIDE.has(tp.role) && tp.role !== 'mole') {
-      out.push({ k: 'voteWolf', w: -10, why: `他把票投给过${tp.name}，那个人是融蚀体` });
+      out.push({ k: 'voteWolf', w: -10, why: `把票投给过${tp.name}，那个人是融蚀体` });
     } else if (!WOLF_SIDE.has(tp.role)) {
-      out.push({ k: 'voteGood', w: 11, why: `他把票投给过${tp.name}，那个人翻牌是「${ROLES[tp.role].zh}」` });
+      out.push({ k: 'voteGood', w: 11, why: `把票投给过${tp.name}，那个人翻牌是「${ROLES[tp.role].zh}」` });
     }
   }
 
   // 5) 行为面：只在前几天还看不出什么时起作用
   const bites = (G.acc || []).filter((a) => a.by === tid && a.day === G.day).length;
-  if (bites >= 3) out.push({ k: 'scatter', w: 9, why: '他今天到处咬人，咬了三个人' });
-  if (G.day >= 2 && (t.talk || 0) === 0) out.push({ k: 'quiet', w: 7, why: '他一整天一句话都没说' });
+  if (bites >= 3) out.push({ k: 'scatter', w: 9, why: '今天到处咬人，咬了三个人' });
+  if (G.day >= 2 && (t.talk || 0) === 0) out.push({ k: 'quiet', w: 7, why: '一整天一句话都没说' });
   if (G.day >= 2 && tc && POWER_ROLES.has(tc) && tc !== 'lamp') {
     const gave = (G.reports || []).some((r) => r.by === tid);
-    if (!gave) out.push({ k: 'claimNoInfo', w: 12, why: `他自称「${ROLES[tc].zh}」，却一条查验都没报过` });
+    if (!gave) out.push({ k: 'claimNoInfo', w: 12, why: `自称「${ROLES[tc].zh}」，却一条查验都没报过` });
   }
   // 一直逼别人亮身份、自己却不说：这不算证据，但聪明人会记着
   const fish = (G.calls || []).filter((c) => c.by === tid).length;
   if (fish >= 2 && !G.claims[tid]) {
-    out.push({ k: 'fishing', w: 7, why: `他已经 ${fish} 次要别人亮身份，自己一直不说` });
+    out.push({ k: 'fishing', w: 7, why: `已经 ${fish} 次要别人亮身份，自己一直不说` });
   }
 
   // 6) 私心：没有硬证据时才露出来的那一点
   const hard = out.reduce((s, e) => s + Math.max(0, e.w), 0);
   const rel = relOf(ai.name, t.name);
-  if (rel > 0) out.push({ k: 'like', w: -(12 + (hard < 20 ? 10 : 0)), why: `我看他不像那种东西` });
-  if (rel < 0) out.push({ k: 'war', w: 13 + (hard < 20 ? 12 : 0), why: `我一向觉得他不对劲` });
+  if (rel > 0) out.push({ k: 'like', w: -(12 + (hard < 20 ? 10 : 0)), why: `看着不像那种东西` });
+  if (rel < 0) out.push({ k: 'war', w: 13 + (hard < 20 ? 12 : 0), why: `总觉得哪里不对劲` });
   if (!wolfEyes && ai.char && ai.char.realm && ai.char.realm === t.char.realm) {
     out.push({ k: 'realm', w: -5, why: '同一个界域的人，总归多一点信任' });
   }
 
   // 7) 融蚀方的私心：把自称能力者的清醒方推上去（这是他们的战术，不是证据）
   if (wolfEyes && tc && POWER_ROLES.has(tc)) {
-    out.push({ k: 'wolfPush', w: 14, why: `他自称「${ROLES[tc].zh}」，威胁最大` });
+    out.push({ k: 'wolfPush', w: 14, why: `自称「${ROLES[tc].zh}」，威胁最大` });
   }
 
   // 记性：越久的证据越淡（mem 低的 AI 会忘事）
@@ -6648,7 +6648,7 @@ function aiStatement(G, ai) {
     push({
       kind: 'defend', target: t.id, stance: 'defend',
       text: say(G, ai, 'defend', { who: t.name }),
-      why: relOf(ai.name, t.name) > 0 ? '我跟他有交情，我说不出他坏' : null,
+      why: relOf(ai.name, t.name) > 0 ? '有交情，说不出坏话' : null,
     });
     return true;
   };
@@ -6746,19 +6746,19 @@ function aiStatement(G, ai) {
       if (rnd() < 0.5) { doDefend(allyInTrouble.p); return acts; }
       const other = topSuspects(G, { id: -1, role: 'crew', char: {} }, 4)
         .map((x) => x.p).find((p) => !isAlly(ai, p) && p.id !== allyInTrouble.p.id);
-      if (other) { doAccuse(other, '他一直在带节奏，先看他'); return acts; }
+      if (other) { doAccuse(other, '一直在带节奏，先盯住'); return acts; }
     }
     // 平时：咬威胁最大的好人
     const target = weighted(foes, (p) => threatOf(G, ai, p) + hash01(G.seed, ai.id, p.id, G.day) * 14, rnd);
     if (target) {
       const DODGE = [
-        '他说话一直在躲，我不敢信',
-        '他每句都在给自己留退路',
-        '他讲了很久，一个具体的人名都没提',
-        '他一开口就在解释自己，不是在找融蚀体',
+        '说话一直在躲，不敢信',
+        '每句都在给自己留退路',
+        '讲了很久，一个具体的人名都没提',
+        '一开口就在解释自己，不是在找融蚀体',
       ];
       const why = G.claims[target.id] && POWER_ROLES.has(G.claims[target.id])
-        ? `他自称「${ROLES[G.claims[target.id]].zh}」，看着最像在装`
+        ? `自称「${ROLES[G.claims[target.id]].zh}」，看着最像在装`
         : DODGE[Math.floor(rnd() * DODGE.length)];
       doAccuse(target, why);
       return acts;
@@ -6779,10 +6779,10 @@ function aiStatement(G, ai) {
       || topSuspects(G, ai, 1)[0].p;
     if (back) {
       const BACK_WHY = [
-        '他带头发难，却一条证据都拿不出来',
-        '他先指着我，可他自己什么都没说过',
-        '他急着把我推出去，急得不像在找融蚀体',
-        '他要把我送出门，理由只有一句「我怀疑」',
+        '带头发难，却一条证据都拿不出来',
+        '先指着我，可自己什么都没说过',
+        '急着把我推出去，急得不像在找融蚀体',
+        '要把我送出门，理由只有一句「我怀疑」',
       ];
       const why = (G.acc || []).some((a) => a.by === back.id && a.to === ai.id)
         ? BACK_WHY[Math.floor(rnd() * BACK_WHY.length)] : null;
@@ -6808,7 +6808,7 @@ function aiStatement(G, ai) {
     if (relOf(ai.name, hot.p.name) > 0 && rnd() < 0.5 + 0.3 * wit) { doDefend(hot.p); return acts; }
     if (rnd() < 0.4 + 0.5 * wit) {
       const why = reasonOf(G, ai, hot.p.id);
-      doAccuse(hot.p, why ? why.why : `大家都看着${hot.p.name}，我也觉得他不对`);
+      doAccuse(hot.p, why ? why.why : `大家都看着${hot.p.name}，我也觉得不对`);
       return acts;
     }
   }
@@ -7840,7 +7840,7 @@ function nightOptions(G) {
   }
   if (sub === 'guard') {
     return {
-      sub, title: '今夜守谁？', hint: me.lastGuard != null ? '不能连着两晚守同一个人。' : '守对了，他今晚就不会死。',
+      sub, title: '今夜守谁？', hint: me.lastGuard != null ? '不能连着两晚守同一个人。' : '守对了，今夜就不会死人。',
       list: alive(G).filter((p) => p.id !== me.lastGuard).map((p) => p.id),
       optional: false,
     };
@@ -7848,7 +7848,7 @@ function nightOptions(G) {
   if (sub === 'check') {
     const done = new Set((me.checks || []).map((c) => c.to));
     return {
-      sub, title: '观测谁？', hint: '你能看见他体内有没有黑液。',
+      sub, title: '观测谁？', hint: '你能看见目标体内有没有黑液。',
       list: alive(G).filter((p) => p.id !== 0 && !done.has(p.id)).map((p) => p.id),
       optional: false,
     };
@@ -8644,7 +8644,7 @@ function showPlayerInfo(pid) {
       box.append(row);
       // 从这里直接进便签，省得「想到什么却要退出去找入口」
       const mine = gameNotes()[pid];
-      const nb = el('button', 'btn sm', mine && (mine.t || mine.v) ? '改这张便签' : '给他记一张便签');
+      const nb = el('button', 'btn sm', mine && (mine.t || mine.v) ? '改这张便签' : '给这位记一张便签');
       nb.type = 'button';
       nb.style.marginTop = '12px';
       nb.onclick = () => showRecords('note', pid);
@@ -8853,7 +8853,7 @@ function composerTalk(box) {
       title: '当众喊一句？',
       sub: '喊完就收不回。有人会站出来，有人会对着站出来的人喊回去，也有人一句话都不说。',
       body: (b) => {
-        b.append(el('p', 'sub', '亮牌的人会被你看见，也会被融蚀体看见——今晚死的多半就是他。'
+        b.append(el('p', 'sub', '亮牌的人会被你看见，也会被融蚀体看见——今晚死的多半就是这个人。'
           + '融蚀体同样会借这一嗓子塞一张假身份进来，而台上的假牌越多，越难分清谁是真人。'));
         b.append(el('p', 'sub', '一天只能喊一次。'));
         const row = el('div', 'acts');
@@ -9007,7 +9007,7 @@ function composerRevive(box) {
   const victim = byId(G, G.pendingRevive);
   const hint = el('div', 'chint');
   hint.append(el('b', '', '灯还亮着。'));
-  hint.append(el('span', '', (victim ? victim.name : '他') + '还有一口气。你只有一次机会。'));
+  hint.append(el('span', '', (victim ? victim.name : '那个人') + '还有一口气。你只有一次机会。'));
   box.append(hint);
   const acts = el('div', 'acts');
   const yes = el('button', 'btn primary', '点灯，把人拉回来');
@@ -9428,7 +9428,7 @@ function recNotes(body) {
     // 0 次就别写了，一排「被指认 0 · 指认 0」只是噪音
     if (acc) facts.push('被指认 ' + acc + ' 次');
     if (by) facts.push('指认过 ' + by + ' 次');
-    if (!p.isPlayer && !acc && !by) facts.push('还没人提过他');
+    if (!p.isPlayer && !acc && !by) facts.push('还没人提过');
     main.append(el('span', '', facts.join(' · ')));
     row.append(main);
 
