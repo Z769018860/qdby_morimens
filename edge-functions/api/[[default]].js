@@ -1,4 +1,4 @@
-// 战报侦探 后端 —— 腾讯 EdgeOne Pages 版（Edge Functions + KV）
+// 战报侦探 后端 —— 腾讯 EdgeOne Pages 版（Edge Functions + Blob 存储，KV 可选但默认不用）
 //
 // 为什么有这个版本：站点已经部署在 EdgeOne Pages 上（自定义域名 + 免费 SSL），
 // 而 Waifly / Cloudflare 那套要么只有 http（https 页面调用会被 mixed content 拦掉），
@@ -16,6 +16,10 @@
 //   puzzles 列表/排序      →   meta_idx                  = JSON [{id, at}]，新的在前
 //   claims(author,puzzle) →   cl_{uidhash}_{题目hash}    = 数字（已折银芯的赞数）
 //   sessions(thash)       →   sess_{tokenhash}           = JSON {uid, name, at}
+//   home_ratings(game,voter) → hragg_{game}                = JSON {n, sum}（综合分只存这两个数）
+//                              hrv_{game}_{身份hash}        = JSON {stars, text, at}（一人一游戏一条）
+//   home_bugs(id)          →   bug_{编号去横线}            = JSON {game, text, contact, ver, ua, at}
+//   home_bugs 索引         →   bug_idx                     = JSON [编号…]，最新在前，只留 500 条
 //
 // KV 的两个脾气，改数据模型时必须顺着它：
 //   1. 最终一致（跨节点最长 60 秒才看到别人的写）。所以「赞数」用计数器而不是
@@ -58,7 +62,7 @@ const DEFAULT_ORIGINS = [
 
 // ------------------------------------------------------------------ 基础工具
 const dayKey = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
-const dayKeyFlat = () => dayKey().replace(/-/g, ''); // KV 的 key 只允许字母数字下划线
+const dayKeyFlat = () => dayKey().replace(/-/g, ''); // key 统一只用字母数字下划线：Blob 与 KV 都这么写最稳
 
 const str = (v, max) => String(v == null ? '' : v).slice(0, max);
 
@@ -675,7 +679,7 @@ async function postHomeBug(request, env, kv, cors) {
   const id = 'B-' + Date.now().toString(36).slice(-6).toUpperCase() + '-' +
     Math.random().toString(36).slice(2, 5).toUpperCase();
 
-  // KV 的 key 只收字母数字下划线，编号里的短横线要抹掉再当 key
+  // key 命名统一只用字母数字下划线（真 KV 会拒掉短横线，Blob 也别指望它能转义），编号里的 - 抹掉再当 key
   await kv.put('bug_' + id.replace(/-/g, ''), JSON.stringify({
     id, game, text,
     contact: str(b.contact, 80),

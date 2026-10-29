@@ -64,7 +64,8 @@ SERVE_STATIC=1 PORT=8795 node server/node.js
 - **评分**：每张卡片可打 1–5 星 + 一句短评，卡片上显示综合分（所有人平均分）与人数。
   一人一游戏一条记录，重复提交就是改分。登录用 uid、没登录用本机随机 id，
   都存在 `zjtt:device`，所以清缓存前分数不会重复累计。
-  后端两个实现同步维护：`edge-functions/api/[[default]].js`（EdgeOne KV，表前缀 `hragg_` / `hrv_`）
+  后端两个实现同步维护：`edge-functions/api/[[default]].js`（EdgeOne **Blob**，
+  键前缀 `hragg_` / `hrv_` / `bug_`；跟赞数、档案、题库共用同一份 Blob，**不需要另开 KV 命名空间**）
   与 `server/worker.js` + `server/schema.sql`（D1，表 `home_ratings` / `home_bugs`）。
 - **BUG 反馈**：弹层里选游戏 + 写现象 + 留联系方式，提交成功会给一个 `B-XXXXXX-XXX` 编号。
   后端没连上时自动降级成「复制正文」与「去 GitHub 开 issue」，不会让反馈掉在地上。

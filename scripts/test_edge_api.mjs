@@ -37,6 +37,28 @@ function fakeKV() {
   };
 }
 
+// 假 Blob：按 @edgeone/pages-blob 的真实语义造 —— set / get(key,{type,consistency}) / delete / list。
+// 线上默认存储就是 Blob（不需要开 KV 命名空间），所以业务断言尽量跑在它上面。
+function fakeBlob() {
+  const m = new Map();
+  const reads = { strong: 0, eventual: 0 };
+  return {
+    _m: m, _reads: reads,
+    async set(key, value) { m.set(String(key), typeof value === 'string' ? value : String(value)); },
+    async get(key, opts = {}) {
+      if (opts.consistency === 'strong') reads.strong++;
+      else reads.eventual++;
+      const v = m.get(String(key));
+      if (v === undefined) return null;
+      return opts.type === 'json' ? JSON.parse(v) : v;
+    },
+    async delete(key) { m.delete(String(key)); },
+    async list({ prefix = '' } = {}) {
+      return { blobs: [...m.keys()].filter((k) => k.startsWith(prefix)).map((k) => ({ key: k, etag: '' })) };
+    },
+  };
+}
+
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
 // ---------------------------------------------------------------- 断言工具
@@ -377,26 +399,7 @@ console.log('\n[10] 请求体限制');
 
 console.log('\n[11] Blob 适配层：换个存储引擎，规则必须一条不少');
 {
-  // 按 @edgeone/pages-blob 的真实语义造一个：set/get(key,{type,consistency})/delete/list
-  const blob = (() => {
-    const m = new Map();
-    const reads = { strong: 0, eventual: 0 };
-    return {
-      _m: m, _reads: reads,
-      async set(key, value) { m.set(String(key), typeof value === 'string' ? value : String(value)); },
-      async get(key, opts = {}) {
-        if (opts.consistency === 'strong') reads.strong++;
-        else reads.eventual++;
-        const v = m.get(String(key));
-        if (v === undefined) return null;
-        return opts.type === 'json' ? JSON.parse(v) : v;
-      },
-      async delete(key) { m.delete(String(key)); },
-      async list({ prefix = '' } = {}) {
-        return { blobs: [...m.keys()].filter((k) => k.startsWith(prefix)).map((k) => ({ key: k, etag: '' })) };
-      },
-    };
-  })();
+  const blob = fakeBlob();
 
   const kv = MOD.blobKV(blob);
   const call = makeCaller({ zjtt_kv: kv });
@@ -444,10 +447,13 @@ console.log('\n[11] Blob 适配层：换个存储引擎，规则必须一条不�
 }
 
 
-console.log('\n[12] 首页评分 / BUG 反馈');
+console.log('\n[12] 首页评分 / BUG 反馈（跑在 Blob 上，不开 KV 命名空间）');
 {
-  const kv = fakeKV();
-  const call = makeCaller({ zjtt_kv: kv });
+  // 线上就是这套：storeOf() 默认取 Blob，评分与反馈跟赞数、档案、题库挤在同一份 Blob 里。
+  // makeCaller 内建的 ZJTT_STORE=kv 只是为了让测试绕开真凭据，这里塞进去的仍是 blobKV 适配层。
+  const blob = fakeBlob();
+  const store = MOD.blobKV(blob);
+  const call = makeCaller({ zjtt_kv: store });
 
   // 一个人第一次打分：人数 1，均分就是他给的
   const r1 = await call('/home/rate', { method: 'POST', headers: { 'X-Device': 'dev-home-a' }, body: { game: 'merge', stars: 4, text: '好玩' } });
@@ -482,8 +488,19 @@ console.log('\n[12] 首页评分 / BUG 反馈');
   const short = await call('/home/bug', { method: 'POST', body: { game: 'idle', text: '太短' } });
   eq('太短 → 400', short.status, 400);
 
-  const idx = JSON.parse(await kv.get('bug_idx'));
+  const idx = JSON.parse(await store.get('bug_idx'));
   check('bug_idx 里记了这条', Array.isArray(idx) && idx[0] === bug.json.id, idx);
+
+  // 数据确实落在 Blob 里，而且键名全是字母数字下划线（换回真 KV 也不会被拒）
+  const keys = [...blob._m.keys()];
+  check('综合分写进了 blob：hragg_merge', blob._m.has('hragg_merge'), keys);
+  check('bug 正文写进了 blob', keys.some((k) => k.startsWith('bug_B')), keys);
+  check('所有键名都是 [A-Za-z0-9_]', keys.every((k) => /^[A-Za-z0-9_]+$/.test(k)), keys);
+  check('存的是 JSON 文本而不是对象', typeof blob._m.get('hragg_merge') === 'string', typeof blob._m.get('hragg_merge'));
+
+  // health 报的就是 blob（不会再出现「要先建 KV 命名空间」这回事）
+  const h = await call('/health');
+  eq('health → store:blob', h.json.store, 'blob');
 }
 
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
