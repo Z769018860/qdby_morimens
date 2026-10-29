@@ -216,7 +216,7 @@ export const CHARS = [
   { av: '148578', zh: '负誓·奥吉尔', en: 'Ogier: Oathbound', tone: 'warm', realm: '混沌', cls: '防御型', call: '您', hint: '负誓骑士' },
   { av: '151844', zh: '薇薇安', en: 'Vivian', tone: 'jest', realm: '混沌', cls: '辅助型', call: '守密人', hint: '魔女' },
 
-  // 外面的八个人。弥萨格的梦漏了信号出去，他们顺着信号坐进来，
+  // 外面的十位记录者。弥萨格的梦漏了信号出去，他们顺着信号坐进来，
   // 看这场投票像看一场直播——所以他们会说「省流」「切片」「抽取建议」。
   // up: true 只是让组局时保证每局至少坐到两个（见 engine.js 的 pickRoster）。
   { av: '9001', zh: '弥萨格校猫', en: 'Morimens Nightcat', tone: 'child', realm: '混沌', cls: '辅助型', call: '主播', hint: 'B站 · 弥萨格校猫Light', up: true },
