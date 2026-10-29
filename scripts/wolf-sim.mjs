@@ -193,8 +193,9 @@ function audit() {
       if (!Array.isArray(arr) || arr.length < 2) continue;
       for (let i = 0; i < arr.length; i++) {
         for (let j = i + 1; j < arr.length; j++) {
-          const a = String(arr[i]).replace(/\{who\}/g, '');
-          const b = String(arr[j]).replace(/\{who\}/g, '');
+          // {who} / {role} 是变量，剥掉再比——否则「我是{role}」和「{role}」会被当成两句
+          const a = String(arr[i]).replace(/\{(who|role)\}/g, '');
+          const b = String(arr[j]).replace(/\{(who|role)\}/g, '');
           const short = Math.min(a.length, b.length);
           if (short < 8) continue;
           const shared = lcsub(a, b);

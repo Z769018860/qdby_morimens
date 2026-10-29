@@ -39,7 +39,17 @@ export function createGame(opt) {
   const rnd = mulberry32(seed);
 
   // 先抽人，再发牌：守密人固定坐 0 号位
-  const roster = shuffle(CHARS, rnd).slice(0, diff.players - 1);
+  // 八个「外面的记录者」丢进 70 人的池子里，纯随机的话一局常常一个都不出现。
+  // 所以先按比例把他们塞满座位，再拿 62 个唤醒体补齐，最后整体打乱——
+  // 顺序不打乱的话主播会永远坐在 1、2 号位。
+  const seats = diff.players - 1;
+  const upPool = CHARS.filter((c) => c.up);
+  const restPool = CHARS.filter((c) => !c.up);
+  const upN = Math.min(upPool.length, Math.max(2, Math.round(seats * 0.22)));
+  const roster = shuffle(
+    shuffle(upPool, rnd).slice(0, upN).concat(shuffle(restPool, rnd).slice(0, seats - upN)),
+    rnd,
+  );
   const players = [{
     id: 0, isPlayer: true, name: '守密人',
     char: { zh: '守密人', tone: 'cold', call: '守密人', say: null, realm: '' },

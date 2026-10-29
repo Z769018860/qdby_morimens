@@ -3,7 +3,7 @@
 // 引擎一次吐一个事件，这里一个事件画一条，所以整套流程读起来就是一场对话。
 // 玩家的选择只往引擎里递一个对象（见 engine.js 的 submit），规则不在这里。
 
-import { ROLES, DIFFS, KEEPER, WOLF_SIDE } from './data.js';
+import { ROLES, DIFFS, KEEPER, WOLF_SIDE, CHARS } from './data.js';
 import { createGame, nextEvent, submit, nightOptions, playerFindings, canCall } from './engine.js';
 import { autoAct, autoNote } from './auto.js';
 import { alive, byId } from './util.js';
@@ -494,6 +494,8 @@ function refreshRoster() {
     if (!p.isPlayer) paintPc(b, p.id);
     b.append(nm);
     if (p.isPlayer) b.append(el('span', 'you', '你'));
+    // 从外面接进来的八个记录者：名字后面挂个 UP，一眼看得出这桌谁不是唤醒体
+    else if (p.char && p.char.up) b.append(el('span', 'up', 'UP'));
     const cl = G.claims[p.id];
     if (cl) b.append(el('span', 'cl', '自称 ' + ROLES[cl].zh));
     else if (mine.has(p.id) && p.id !== 0) b.append(el('span', 'cl', '同伙'));
@@ -1028,6 +1030,18 @@ function showRules() {
         }
         box.append(grid);
       }
+      box.append(el('h4', '', '桌上还坐着八个人'));
+      const upP = el('p', 'sub', '弥萨格的梦漏了信号出去。有八个人顺着信号坐进来——他们在另一个世界做着同一件事：把这款游戏讲给别人听。所以他们会说「省流」「抽取建议」「这个不建议抽」，会管你叫主播。别觉得奇怪，他们只是改不掉。');
+      box.append(upP);
+      const upGrid = el('div', 'upgrid');
+      for (const c of CHARS.filter((x) => x.up)) {
+        const it = el('div', 'upitem');
+        it.append(el('b', '', c.zh));
+        it.append(el('span', '', c.hint.replace('B站 · ', 'B站 @')));
+        upGrid.append(it);
+      }
+      box.append(upGrid);
+
       box.append(el('h4', '', '几条细则'));
       const ul = el('ul');
       [
