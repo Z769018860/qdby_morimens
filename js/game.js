@@ -192,7 +192,13 @@ function persist() {
 
 // ------------------------------------------------------------------ evaluation
 function active() {
-  return { wheels: level >= 2, cov: level >= 3, key: level >= 3, pot: level >= 4, relics: level >= 4 };
+  // 主线题（kind=mainline）没有命轮/密契快照，永远不要求填这两项
+  const ml = puzzle && puzzle.kind === 'mainline';
+  return {
+    wheels: level >= 2 && !ml,
+    cov: level >= 3 && !ml,
+    key: level >= 3, pot: level >= 4, relics: level >= 4,
+  };
 }
 
 function evaluate() {
@@ -859,6 +865,7 @@ function reportPanel() {
   // contain a mismatched boss ID. Correct it at presentation time as well,
   // so existing cached question chunks and shared links display the right boss.
   const bossIds = ({"71-1":["80576","80577"],"71-2":["94940"],"71-3":["67103"],"71-4":["14063"],"71-5":["81279"],"72-1":["14008","14013"],"72-2":["14064"],"72-3":["60096"],"72-4":["120308","120310","120306"],"72-5":["14086"]})[String(p.season) + '-' + String(p.zone)] || (p.boss || []);
+  const ml = p.kind === 'mainline';
   const bosses = bossIds.map(id => D.monster.find(m => String(m.id) === String(id))).filter(Boolean);
   // Values below are recorded battle-summary extrema, not a partition of total damage.
   // In particular maxPosion is a peak poison metric, NEVER total poison damage.
@@ -883,17 +890,29 @@ function reportPanel() {
   return h('section', { class: 'card report' },
     h('div', { class: 'rhead' },
       h('div', {}, h('h2', {}, `${t('reportTitle')} · ${t('season', { s: p.season })}`),
-        h('div', { class: 'chips' }, chip(t('zone', { z: p.zone })), chip(t('threat', { t: p.threat })),
+        ml ? h('div', { class: 'chips' },
+          chip(`${p.campaign || ''} ${p.zone}-${p.stageNo}「${p.stageName || ''}」`),
+          chip(t('mlLevel', { n: p.recLevel })),
+          chip(t('diffStar', { d: '★'.repeat(p.diff) }), 'gold'))
+        : h('div', { class: 'chips' }, chip(t('zone', { z: p.zone })), chip(t('threat', { t: p.threat })),
           p.madness ? chip(t('madness', { m: p.madness })) : null, chip(t('diffStar', { d: '★'.repeat(p.diff) }), 'gold'),
           p.diffScore != null ? chip(t('diffScore', { s: p.diffScore }), 'gold') : null,
           p.extra ? chip(t('extra'), 'dim') : null)),
-      bosses.length ? h('div', { class: 'boss' }, h('div', { class: 'bimgs' }, bosses.map(b => imgEl(b.img, nameOf(b)))), h('small', {}, `${t('bossLabel')}：${bosses.map(b => nameOf(b)).join('、')}`)) : null),
+      bosses.length && !ml ? h('div', { class: 'boss' }, h('div', { class: 'bimgs' }, bosses.map(b => imgEl(b.img, nameOf(b)))), h('small', {}, `${t('bossLabel')}：${bosses.map(b => nameOf(b)).join('、')}`)) : null),
     h('div', { class: 'stats' },
-      stat(t('rounds'), p.rounds, t('bossRounds', { n: p.bossRounds })), stat(t('cards'), p.cards, t('energy', { n: p.energy })),
-      stat(t('maxBout'), wan(p.maxBout)), stat(t('deathResist'), p.deathResist),
-      stat(t('leftHp'), `${p.left}/${p.hp}`), stat(t('keyDmg'), wan(p.playerDmg)),
-      stat(t('score'), p.score), stat(t('relicCount'), p.relics.length,
-        level >= 4 ? t('relicInnate', { n: p.relics.filter(isInnateRelic).length }) : '')),
+      ml ? [
+        // 主线战报没有分数 / 首领回合 / 血量快照，只报回放里真实存在的数字
+        stat(t('rounds'), p.rounds), stat(t('cards'), p.cards, t('energy', { n: p.energy })),
+        stat(t('keysUsed'), p.keyUses != null ? `${p.keyUses}` : '—'), stat(t('deathResist'), p.deathResist),
+        stat(t('relicCount'), p.relics.length,
+          level >= 4 ? t('relicInnate', { n: p.relics.filter(isInnateRelic).length }) : ''),
+      ] : [
+        stat(t('rounds'), p.rounds, t('bossRounds', { n: p.bossRounds })), stat(t('cards'), p.cards, t('energy', { n: p.energy })),
+        stat(t('maxBout'), wan(p.maxBout)), stat(t('deathResist'), p.deathResist),
+        stat(t('leftHp'), `${p.left}/${p.hp}`), stat(t('keyDmg'), wan(p.playerDmg)),
+        stat(t('score'), p.score), stat(t('relicCount'), p.relics.length,
+          level >= 4 ? t('relicInnate', { n: p.relics.filter(isInnateRelic).length }) : ''),
+      ]),
     dmgCompBox,
     p.diffWhy ? h('div', { class: 'diffwhy' },
       h('b', {}, `${t('diffWhy')}：`),

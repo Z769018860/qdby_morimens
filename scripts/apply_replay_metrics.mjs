@@ -20,7 +20,7 @@ const opt = (name, dflt) => {
 const METRICS = path.resolve(opt('metrics', path.join(ROOT, 'data/replay-metrics.json')));
 const EROSION = path.resolve(opt('erosion', path.join(ROOT, 'data/replay-erosion.json')));
 const DRY = argv.includes('--dry');
-const FILES = ['data/puzzles.json', 'data/puzzles-extra.json', 'data/puzzles-more.json', 'data/puzzles-70.json'];
+const FILES = ['data/puzzles.json', 'data/puzzles-extra.json', 'data/puzzles-more.json', 'data/puzzles-70.json', 'data/puzzles-mainline.json'];
 
 const read = (p, key) => {
   if (!fs.existsSync(p)) return null;
