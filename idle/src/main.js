@@ -296,6 +296,16 @@ function syncSnd() {
   b.classList.toggle('off', !!sound.cfg.mute);
   b.title = sound.cfg.mute ? '已静音，点击开启' : '声音开，点击静音';
 }
+function keywordGuide() {
+  const kw = app.data?.kw || {};
+  const entries = Object.entries(kw).filter(([, k]) => k && k.n && k.d)
+    .sort((a, b) => String(a[1].n).localeCompare(String(b[1].n), 'zh'));
+  const html = '<h2>词条说明</h2><p class="hint">点击词条查看完整说明；包括战斗状态、技能机制与界域。</p>' +
+    '<div class="idle-glossary">' + entries.map(([id, k]) =>
+      '<button type="button" class="idle-glossary-item" data-kw="' + esc(id) + '">' + esc(k.n) + '</button>'
+    ).join('') + '</div>';
+  openModal(html, 'glossary-modal');
+}
 function buildChrome() {  $('#tabs').innerHTML = GROUPS.map((g) => `<button data-group="${g.k}" title="${g.zh}"><i class="ti">${g.icon}</i><span>${g.zh}</span></button>`).join('');
   $('#tabs').addEventListener('click', (e) => {
     const b = e.target.closest('[data-group]');
@@ -305,6 +315,11 @@ function buildChrome() {  $('#tabs').innerHTML = GROUPS.map((g) => `<button data
     show((app.ui.lastTab || {})[g.k] || g.tabs[0][0]);
   });
   $('#subnav').addEventListener('click', (e) => { const b = e.target.closest('[data-sub]'); if (b) show(b.dataset.sub); });
+  const help = document.createElement('button');
+  help.type = 'button'; help.className = 'idle-terms-btn'; help.textContent = '词条说明';
+  help.setAttribute('aria-label', '查看战斗词条说明');
+  help.addEventListener('click', keywordGuide);
+  document.querySelector('.top .res')?.prepend(help);
   document.body.addEventListener('click', onAct);
   document.body.addEventListener('change', onChange);
 }
