@@ -38,14 +38,15 @@ export const enemyScale = (stage) => Math.pow(1.085, stage - 1);
 
 // Real monster design: class sets the budget, the record's hp/atk/df multipliers fine-tune it, and the enemy plays its
 // real opening (`op`) once, then loops its real cycle (`cy`). Without a skill table the generic pattern is used.
-const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+const clamp = (x, lo, hi) => { const v = Number(x); return Math.max(lo, Math.min(hi, Number.isFinite(v) ? v : 1)); };
 
 // One enemy definition from a monster record (shared by stages, the tower and the trials).
 export function makeEnemy(m, rank, stage, rng, { affixes = true, msk = null } = {}) {
-  const S = enemyScale(stage);
+  const S = enemyScale(Math.max(1, Number.isFinite(Number(stage)) ? Number(stage) : 1));
   const hpM = { Normal: 1, Elite: 2.4, Boss: 5.5 }[rank] * clamp(m.hp ?? 1, 0.5, 1.8);
   const atkM = { Normal: 1, Elite: 1.15, Boss: 1.3 }[rank] * clamp(m.atk ?? 1, 0.75, 1.25);
-  const dfM = clamp(1 + (m.df ?? 0) * 0.35, 0.6, 1.8);
+  const df = Number(m.df);
+  const dfM = clamp(1 + (Number.isFinite(df) ? df : 0) * 0.35, 0.6, 1.8);
   let pat = msk && m.cy?.length ? patternOf(m, msk, rank) : { opening: [], cycle: P[rank] };
   const def = {
     name: m.zh, img: m.img, type: 'ASSAULT', realm: null, boss: rank === 'Boss', rank,

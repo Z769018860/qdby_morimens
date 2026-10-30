@@ -31,11 +31,11 @@ export function wheelBonus(def, lv, awakener) {
   if (b.surviveChance) b.surviveChance = Math.min(0.9, b.surviveChance);
   return b;
 }
-export function wheelText(def, lv) {
+export function wheelText(def, lv, rf = 0) {
   const m = MAINSTAT[def.main];
   if (!m) return '';
   const rm = RARITY_MULT[def.rarity] ?? 1;
-  const v = m.base * rm * lvMult(lv);
+  const v = m.base * rm * lvMult(lv) * refineMult({ rf });
   return m.fmt ? m.fmt(v) : `${m.zh} +${v.toFixed(1)}%`;
 }
 
@@ -60,18 +60,33 @@ export const RELIC_THEMES = [
 ];
 const RELIC_BASE = { N: 3, SR: 6, SSR: 10 };
 export const relicTheme = (id) => RELIC_THEMES[hash(id) % RELIC_THEMES.length];
-export function relicBonus(def, lv) {
+// 造物单件加成：基础值（Lv 决定），精炼再乘上去
+export function relicBase(def, lv) {
   const th = relicTheme(def.id);
+  return { th, v: (RELIC_BASE[def.rarity] ?? 6) * th.per * lvMult(lv), open: th.key.startsWith('open') };
+}
+export function relicBonus(def, lv) {
+  const { th, v } = relicBase(def, lv);
   const b = ZERO();
-  b[th.key] = (RELIC_BASE[def.rarity] ?? 6) * th.per * lvMult(lv);
+  b[th.key] = v;
   return b;
 }
-export const relicText = (def, lv) => {
-  const th = relicTheme(def.id);
-  const v = (RELIC_BASE[def.rarity] ?? 6) * th.per * lvMult(lv);
-  const open = th.key.startsWith('open');
-  return `全队${th.zh}：${v.toFixed(1)}${open ? ' 点起始能量' : '%'}`;
+/** 精炼给的增量：每阶 +8% 基础值（rf 阶就是 +8% × rf） */
+export const relicRefineGain = (def, lv, rf = 0) => relicBase(def, lv).v * 0.08 * (rf || 0);
+export const relicText = (def, lv, rf = 0) => {
+  const { th, v, open } = relicBase(def, lv);
+  const total = v * refineMult({ rf });
+  return `全队${th.zh}：${total.toFixed(1)}${open ? ' 点起始能量' : '%'}`;
 };
+/** 精炼前 / 后对照，弹窗里用：{ base, now, next, rf, max } */
+export function relicRefineView(def, lv, rf = 0) {
+  const { th, v, open } = relicBase(def, lv);
+  const at = (n) => v * refineMult({ rf: n });
+  return {
+    zh: th.zh, open, base: v, now: at(rf), next: rf < REFINE_MAX ? at(rf + 1) : at(rf),
+    rf, max: REFINE_MAX,
+  };
+}
 
 /* ---------- 造物栏位 & 造物羁绊 ----------
    栏位从 3 格起，按最高通关逐格解锁；同一主题（战意 / 生机 / …）的造物在栏位里
@@ -137,11 +152,11 @@ export const gearCost = (kind, lv) => Math.round((kind === 'relic' ? 260 : 200) 
 export const canEnhance = (it) => it.lv < GEAR_MAX_LV;
 export const dismantleValue = (rarity, lv) => Math.round(({ N: 40, R: 70, SR: 120, SSR: 260 }[rarity] || 80) * (1 + lv * 0.6));
 
-export function addBonus(into, b) { for (const k of Object.keys(into)) into[k] += b[k] || 0; return into; }
+export function addBonus(into, b) { for (const k of Object.keys(into)) { const value = Number(b?.[k]); into[k] = (Number.isFinite(into[k]) ? into[k] : 0) + (Number.isFinite(value) ? value : 0); } return into; }
 
 // 精炼 (refine, paid in 银芯): +8% of an item's whole bonus per tier, up to 5 tiers
 export const REFINE_MAX = 5;
 export const REFINE_COST = [40, 80, 140, 220, 320];
 export const refineMult = (it) => 1 + 0.08 * (it?.rf || 0);
 export const refineCost = (it) => ((it?.rf || 0) >= REFINE_MAX ? 0 : REFINE_COST[it?.rf || 0]);
-export function scaleBonus(b, m) { if (m === 1) return b; for (const k of Object.keys(b)) b[k] *= m; return b; }
+export function scaleBonus(b, m) { m = Number.isFinite(Number(m)) ? Number(m) : 1; if (m === 1) return b; for (const k of Object.keys(b)) b[k] = (Number.isFinite(b[k]) ? b[k] : 0) * m; return b; }

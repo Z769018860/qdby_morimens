@@ -7,6 +7,9 @@ import { account } from './account.js';
 import * as likes from './likes.js';
 import { checkinBar } from './checkin.js';
 
+const sOnly = () => store.get('detectiveSOnly', false);
+const matchesThreat = p => !sOnly() || /^S{1,3}$/.test(p.threat || '');
+
 const KW_TYPE_EN = { realm: 'Realm', mechanic: 'State / Mechanic', tag: 'Tag', help: 'Help' };
 
 const MAX_TRIES = 6;
@@ -71,17 +74,17 @@ const LV_RANGE = { 1: [1, 2], 2: [1, 3], 3: [2, 4], 4: [3, 4] };
 // 题池里放的是索引条目 { id, diff, core, c }，不是题目本身——
 // 题目要在真正抽中之后才去取它所在的那一片。
 function basePool() {
-  const all = bank.items();
+  const all = bank.items().filter(matchesThreat);
   const ok = all.filter(p => !failedBank.has(p.id));
   const src = ok.length > 8 ? ok : all;
   const [lo, hi] = LV_RANGE[level] || [1, 4];
   const band = src.filter(p => p.diff >= lo && p.diff <= hi);
-  return (band.length >= 12 ? band : src).concat(customPuzzles());
+  return (band.length >= 12 ? band : src).concat(customPuzzles().filter(matchesThreat));
 }
 // 每天一题只在核心题库里挑（核心 = 原来的 puzzles.json，顺序和以前一致，
 // 所以同一天抽到的题跟改造前是同一道）
 function corePool() {
-  const core = bank.coreItems();
+  const core = bank.coreItems().filter(matchesThreat);
   const ok = core.filter(p => !failedBank.has(p.id));
   return ok.length ? ok : core;
 }
@@ -167,7 +170,7 @@ async function start(p0, m) {
   sel = newSel(); fb = {}; history = []; hintsUsed = 0; finished = false; won = false; swapFrom = null;
   loadClues();
   if (m === 'daily') {
-    const saved = store.get(`daily:${todayKey()}:${level}`, null);
+    const saved = store.get(`daily:${todayKey()}:${level}${sOnly() ? ":S" : ""}`, null);
     if (saved) {
       sel = saved.sel; history = saved.history; hintsUsed = saved.hintsUsed;
       finished = saved.finished; won = saved.won; fb = saved.fb || {};
@@ -184,7 +187,7 @@ async function start(p0, m) {
 
 function persist() {
   if (mode !== 'daily') return;
-  store.set(`daily:${todayKey()}:${level}`, { sel, history, hintsUsed, finished, won, fb });
+  store.set(`daily:${todayKey()}:${level}${sOnly() ? ":S" : ""}`, { sel, history, hintsUsed, finished, won, fb });
 }
 
 // ------------------------------------------------------------------ evaluation
@@ -573,6 +576,24 @@ function clueList() {
   // 战报面板（reportPanel 的 invest 行）本来就把每个卡位的灵塑、指令卡总等级
   // 原样印在桌上，再花银芯买一条一模一样的信息属于重复收费。
 
+  // Recorded outside snapshot, ordered by damage slots A–D. Missing values stay missing.
+  const outsideStats = [
+    ['blackcoin_upgrade_per', '黑印掉落', 'Sigil yield', '%'],
+    ['occupation_master', '界域精通', 'Realm mastery', ''],
+    ['atk', '伤害强效', 'Damage amplification', '%'],
+    ['crit', '暴击率', 'Critical rate', '%'],
+    ['crit_damage', '暴击伤害', 'Critical damage', '%'],
+    ['keeper_energy_eff_2', '银钥充能', 'Keyflare regeneration', ''],
+  ];
+  for (const [key, zh, en, unit] of outsideStats) {
+    if (!ans.some(a => Number.isFinite(a.outside?.[key]))) continue;
+    team.push({ id: `outside:${key}`, cost: 6,
+      label: (lang.cur === 'en' ? 'Outside snapshot · ' + en : '局外属性快照 · ' + zh),
+      value: () => ans.map((a, k) => `${LETTERS[k]}: ${Number.isFinite(a.outside?.[key])
+        ? Number(a.outside[key].toFixed(2)) + unit : '—'}`).join(' / '),
+    });
+  }
+
   // 命轮强化只报整队统计，不带位置：最高强化到几、有几件 ≥+12
   const wl = (x.wl || []).filter(v => v != null);
   if (wl.length) {
@@ -834,17 +855,31 @@ function reportPanel() {
         h('div', { class: 'invest' }, invest.join(' · '))),
     );
   });
-  const bosses = (p.boss || []).map(id => D.monster.find(m => m.id === id)).filter(Boolean);
-  // 伤害构成面板
-  const dc = p.dmgComp;
-  const dmgCompBox = dc ? h('div', { class: 'dmgcomp' },
-    h('div', { class: 'dchead' }, t('dmgCompTitle')),
-    h('div', { class: 'dcgrid' },
-      h('div', { class: 'dc', 'data-k': 'keeper' }, h('small', {}, t('keeper')), h('b', {}, wan(dc.keeper))),
-      h('div', { class: 'dc', 'data-k': 'tentacle' }, h('small', {}, t('tentacle')), h('b', {}, wan(dc.tentacle))),
-      h('div', { class: 'dc', 'data-k': 'counter' }, h('small', {}, t('counter')), h('b', {}, wan(dc.counter))),
-      h('div', { class: 'dc', 'data-k': 'strength' }, h('small', {}, t('strength')), h('b', {}, wan(dc.strength))),
-      h('div', { class: 'dc', 'data-k': 'poison' }, h('small', {}, t('poison')), h('b', {}, wan(dc.poison))))) : null;
+  // The season-72 zone-5 encounter is 宁菲亚 (14086); legacy bank chunks
+  // contain a mismatched boss ID. Correct it at presentation time as well,
+  // so existing cached question chunks and shared links display the right boss.
+  const bossIds = ({"71-1":["80576","80577"],"71-2":["94940"],"71-3":["67103"],"71-4":["14063"],"71-5":["81279"],"72-1":["14008","14013"],"72-2":["14064"],"72-3":["60096"],"72-4":["120308","120310","120306"],"72-5":["14086"]})[String(p.season) + '-' + String(p.zone)] || (p.boss || []);
+  const bosses = bossIds.map(id => D.monster.find(m => String(m.id) === String(id))).filter(Boolean);
+  // Values below are recorded battle-summary extrema, not a partition of total damage.
+  // In particular maxPosion is a peak poison metric, NEVER total poison damage.
+  const dc = p.dmgComp || {};
+  const measured = [
+    ['守密人伤害（累计）', dc.keeper, 'keeper', wan],
+    ['触腕单次最高伤害', dc.tentacle, 'tentacle', wan],
+    ['反击峰值', dc.counter, 'counter', wan],
+    ['力量峰值', dc.strength, 'strength', v => String(v ?? 0)],
+    ['中毒峰值', dc.poison, 'poison', v => String(v ?? 0)],
+    // 钥令开启次数来自回放本体（statistics.UsedKeeperSkillCount），榜单摘要里没有这一项。
+    // 0 也是有效值（这一局没放钥令），所以不过滤 0，只有真的没取到才不显示。
+    ['钥令开启次数', p.keyUses, 'keys', v => `${v} 次`],
+    // 侵蚀伤害来自回放里逐状态统计的累计值（state[*].AwakerDoDamage，名字含「侵蚀」的那些状态），
+    // 和上面的「中毒峰值」不是一个东西：中毒是峰值层数，侵蚀是整场累计伤害。
+    ['侵蚀伤害（累计）', p.ero, 'ero', wan],
+  ].filter(([label, value, key]) => value != null && (key === 'keeper' || key === 'keys' ? Number(value) >= 0 : Number(value) > 0));
+  const dmgCompBox = measured.length ? h('div', { class: 'dmgcomp' },
+    h('div', { class: 'dchead' }, '战报实测指标（非累计伤害构成）'),
+    h('div', { class: 'dcgrid' }, measured.map(([label, value, key, format]) =>
+      h('div', { class: 'dc', 'data-k': key }, h('small', {}, label), h('b', {}, format(value)))))) : null;
   return h('section', { class: 'card report' },
     h('div', { class: 'rhead' },
       h('div', {}, h('h2', {}, `${t('reportTitle')} · ${t('season', { s: p.season })}`),
@@ -1159,6 +1194,11 @@ function controls() {
       h('button', { class: `lv${+k === level ? ' on' : ''}`, onclick: () => { level = +k; store.set('level', level); start(mode === 'daily' ? dailyPuzzle() : puzzle, mode); } },
         h('b', {}, v.name()), h('small', {}, v.desc())))),
     h('div', { class: 'modes' },
+      h('label', { class: 'note' }, h('input', { type: 'checkbox', checked: sOnly(),
+        onchange: e => {
+          store.set('detectiveSOnly', e.target.checked);
+          start(mode === 'daily' ? dailyPuzzle() : pickAny(), mode);
+        } }), lang.cur === 'en' ? ' S and above only' : ' 只看难度 S 及以上'),
       h('button', { class: `btn${mode === 'daily' ? '' : ' ghost'}`, onclick: () => start(dailyPuzzle(), 'daily') }, `${t('daily')} ${todayKey()}`),
       h('button', { class: `btn${mode === 'random' ? '' : ' ghost'}`, onclick: () => start(pickAny(), 'random') }, t('random')),
       h('span', { class: 'credits big' }, `${t('credits')} `, scNum(wallet.get(), 16)),

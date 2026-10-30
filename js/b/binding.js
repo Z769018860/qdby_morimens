@@ -2480,6 +2480,7 @@ const Audio2 = {
     g.gain.linearRampToValueAtTime(vol, at + Math.min(0.02, dur * 0.3));
     g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
     o.connect(g).connect(this.master);
+    o.onended = () => { o.disconnect(); g.disconnect(); };
     o.start(at);
     o.stop(at + dur + 0.03);
   },
@@ -2497,28 +2498,40 @@ const Audio2 = {
     g.gain.linearRampToValueAtTime(vol == null ? 0.05 : vol, t0 + 0.008);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g).connect(this.master);
+    o.onended = () => { o.disconnect(); g.disconnect(); };
     o.start(t0);
     o.stop(t0 + dur + 0.02);
   },
 
+  // Shared white-noise buffer avoids allocating a fresh AudioBuffer and
+  // filling thousands of floats for every enemy hit during a boss fight.
   noise(dur, vol, hp) {
     if (this.muted) return;
     const ac = this.ensure();
     if (!ac) return;
-    const n = Math.floor(ac.sampleRate * dur);
-    const buf = ac.createBuffer(1, n, ac.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const now = performance.now();
+    if (now - (this.lastNoiseAt || 0) < 35) return;
+    this.lastNoiseAt = now;
+    if (!this.noiseBuffer || this.noiseBuffer.sampleRate !== ac.sampleRate) {
+      const n = Math.ceil(ac.sampleRate * 0.5);
+      const buf = ac.createBuffer(1, n, ac.sampleRate);
+      const samples = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) samples[i] = Math.random() * 2 - 1;
+      this.noiseBuffer = buf;
+    }
     const src = ac.createBufferSource(), g = ac.createGain(), f = ac.createBiquadFilter();
     f.type = 'highpass'; f.frequency.value = hp || 400;
-    g.gain.value = vol == null ? 0.06 : vol;
-    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
-    src.buffer = buf;
+    const t = ac.currentTime, length = Math.max(0.01, Math.min(dur, 0.49));
+    g.gain.setValueAtTime(vol == null ? 0.06 : vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + length);
+    src.buffer = this.noiseBuffer;
     src.connect(f).connect(g).connect(this.master);
-    src.start();
+    src.onended = () => { src.disconnect(); f.disconnect(); g.disconnect(); };
+    src.start(t);
+    src.stop(t + length + 0.01);
   },
 
-  shoot() { this.blip(620, 0.07, 'square', 0.022, 0.5); },
+  shoot() { const t = performance.now(); if (t - (this.lastShootAt || 0) < 65) return; this.lastShootAt = t; this.blip(620, 0.07, 'square', 0.022, 0.5); },
   hit() { this.noise(0.07, 0.04, 1100); },
   crit() { this.blip(1320, 0.06, 'square', 0.03, 1.7); this.noise(0.1, 0.05, 1800); },
   kill() { this.blip(180, 0.16, 'sawtooth', 0.035, 0.35); },
@@ -4429,9 +4442,33 @@ const cv = $('cv');
 const ctx = cv.getContext('2d');
 const stage = $('stage');
 
+// A whole floor may contain dozens of rooms. Keep only the two most recently
+// rendered floor canvases; room game state stays intact and backgrounds can re-bake.
+const bakedRooms = [];
+function releaseBaked(room) {
+  if (!room?.baked) return;
+  const old = room.baked;
+  room.baked = null;
+  // Clearing dimensions releases the backing pixel allocation rather than only
+  // dropping the JS reference (important for GPU canvas resource retention).
+  old.width = 0; old.height = 0;
+}
+function cacheRoomBackdrop(rm, theme, W, H) {
+  const oldIdx = bakedRooms.indexOf(rm);
+  if (oldIdx >= 0) bakedRooms.splice(oldIdx, 1);
+  releaseBaked(rm);
+  rm.baked = bakeRoom(rm, theme, W, H);
+  bakedRooms.push(rm);
+  while (bakedRooms.length > 2) releaseBaked(bakedRooms.shift());
+}
+function clearBakedRooms() {
+  for (const rm of bakedRooms) releaseBaked(rm);
+  bakedRooms.length = 0;
+}
+
 function fit() {
   const r = stage.getBoundingClientRect();
-  const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+  const dpr = Math.min(matchMedia('(pointer:coarse)').matches ? 1.5 : 2, window.devicePixelRatio || 1);
   G.dpr = dpr;
   cv.width = Math.round(r.width * dpr);
   cv.height = Math.round(r.height * dpr);
@@ -4441,7 +4478,7 @@ function fit() {
   G.scale = Math.min(r.width / W, r.height / H) * 0.98;
   G.ox = (r.width - W * G.scale) / 2;
   G.oy = (r.height - H * G.scale) / 2;
-  if (room()) room().baked = bakeRoom(room(), FLOORS[G.run.floor].theme, W, H);
+  if (room()) cacheRoomBackdrop(room(), FLOORS[G.run.floor].theme, W, H);
 }
 
 const toWorld = (clientX, clientY) => {
@@ -4673,6 +4710,7 @@ function makeEnemy(type, x, y, scale) {
 
 // ------------------------------------------------------------------ 开始一局
 function startRun() {
+  clearBakedRooms();
   G.cols = stage.clientWidth / stage.clientHeight < 0.95 ? 9 : 15;
   G.rows = G.cols === 9 ? 13 : 9;
   G.W = G.cols * T;
@@ -4853,6 +4891,9 @@ function fire() {
 // ------------------------------------------------------------------ 更新
 function update(dt) {
   const r = G.run, p = r.p, rm = r.room;
+  // Bound visual-only particles even when a high-damage build produces more
+  // hit bursts than the renderer can drain. Never discard rewards or enemies.
+  if (G.fx.length > 280) G.fx.splice(0, G.fx.length - 280);
   r.t += dt;
   G.t += dt;
   p.invuln = Math.max(0, p.invuln - dt);
@@ -4949,6 +4990,24 @@ function update(dt) {
   // ---- 掉落物
   for (const pk of rm.pickups) {
     if (pk.taken) continue;
+    // Pickups have no collision physics: clamp out of walls, then push off tables.
+    // This also repairs already spawned drops after enemy knockback near the wall.
+    if (!Number.isFinite(pk.x) || !Number.isFinite(pk.y)) { pk.x = G.W / 2; pk.y = G.H / 2; }
+    pk.x = clamp(pk.x, WALL + 22, G.W - WALL - 22);
+    pk.y = clamp(pk.y, WALL + 22, G.H - WALL - 22);
+    for (const ob of rm.obstacles) {
+      const pad = 20;
+      if (pk.x > ob.x - pad && pk.x < ob.x + ob.w + pad && pk.y > ob.y - pad && pk.y < ob.y + ob.h + pad) {
+        const edges = [
+          { d: pk.x - (ob.x - pad), x: ob.x - pad, y: pk.y },
+          { d: ob.x + ob.w + pad - pk.x, x: ob.x + ob.w + pad, y: pk.y },
+          { d: pk.y - (ob.y - pad), x: pk.x, y: ob.y - pad },
+          { d: ob.y + ob.h + pad - pk.y, x: pk.x, y: ob.y + ob.h + pad },
+        ].sort((a, b) => a.d - b.d);
+        pk.x = clamp(edges[0].x, WALL + 22, G.W - WALL - 22);
+        pk.y = clamp(edges[0].y, WALL + 22, G.H - WALL - 22);
+      }
+    }
     const d = dist(pk.x, pk.y, p.x, p.y);
     if (pk.kind === 'coin' && d < 44) {
       // 磁吸
@@ -5516,7 +5575,7 @@ function goRoom(next, fromDir) {
     next.grace = DOOR_GRACE;
     p.invuln = Math.max(p.invuln, DOOR_GRACE);
   }
-  next.baked = bakeRoom(next, FLOORS[r.floor].theme, W, H);
+  cacheRoomBackdrop(next, FLOORS[r.floor].theme, W, H);
   G.fx.length = 0;
   renderMinimap();
   Audio2.door();
@@ -5554,6 +5613,7 @@ function goNext() {
 }
 
 function nextFloor() {
+  clearBakedRooms();
   const r = G.run;
   r.floor += 1;
   if (r.floor >= floorCount()) { finishRun(true); return; }
@@ -5577,6 +5637,7 @@ function nextFloor() {
 
 // ------------------------------------------------------------------ 结算 / 解锁
 function finishRun(win) {
+  clearBakedRooms();
   const r = G.run;
   const st = G.meta.stats;
   const dm = diffOf();
@@ -5736,6 +5797,7 @@ function endStory() {
 }
 
 // 一步推进打字机：每帧按字数补，遇到标点略停（读起来有呼吸）
+let storyDrawElapsed = 0;
 function tickStory(dt) {
   const st = G.story;
   if (!st) return;
@@ -5750,16 +5812,20 @@ function tickStory(dt) {
       if (now % 3 === 1) Audio2.type();
     }
   }
-  drawStoryBg();
+  // Story backgrounds use layered gradients and portraits; drawing them at 60+ FPS
+  // after a boss defeat can saturate mobile GPUs despite no gameplay occurring.
+  storyDrawElapsed += dt;
+  if (storyDrawElapsed >= 1 / 20) { storyDrawElapsed = 0; drawStoryBg(); }
 }
 
 function drawStoryBg() {
   const cv = $('storyCv');
   if (!cv || !G.story) return;
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const dpr = Math.min(matchMedia('(pointer:coarse)').matches ? 1 : 1.5, window.devicePixelRatio || 1);
   const w = cv.clientWidth || stage.clientWidth;
   const h = cv.clientHeight || stage.clientHeight;
-  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const pw = Math.max(1, Math.round(w * dpr)), ph = Math.max(1, Math.round(h * dpr));
+  if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
   const c = cv.getContext('2d');
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   const sc = G.story.scene;
@@ -6140,13 +6206,13 @@ function render() {
   // 敌方弹幕
   for (const b of rm.eshot) {
     ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r * 2.4);
+    ctx.globalCompositeOperation = 'source-over';
+    const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, Math.min(25, b.r * 2.4));
     g.addColorStop(0, 'rgba(255,140,140,.95)');
     g.addColorStop(0.5, 'rgba(235,70,70,.55)');
     g.addColorStop(1, 'rgba(235,70,70,0)');
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2.4, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.x, b.y, Math.min(25, b.r * 2.4), 0, 7); ctx.fill();
     ctx.restore();
   }
 
@@ -6154,12 +6220,13 @@ function render() {
   for (const s of rm.shots) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 2.2);
-    g.addColorStop(0, 'rgba(235,248,255,1)');
-    g.addColorStop(0.45, s.crit ? 'rgba(255,230,150,.85)' : 'rgba(150,205,255,.8)');
+    const glowR = Math.max(2, Math.min(28, (Number(s.r) || 2) * 1.6));
+    const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, glowR);
+    g.addColorStop(0, 'rgba(205,230,255,.62)');
+    g.addColorStop(0.45, s.crit ? 'rgba(255,214,125,.42)' : 'rgba(115,175,245,.35)');
     g.addColorStop(1, 'rgba(120,180,255,0)');
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 2.2, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(s.x, s.y, glowR, 0, 7); ctx.fill();
     ctx.restore();
   }
 
@@ -6206,13 +6273,14 @@ function render() {
       ctx.restore();
     } else if (f.kind === 'boom') {
       ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const k = 1 - f.life / 0.4;
-      const g = ctx.createRadialGradient(f.x, f.y, 2, f.x, f.y, f.s * (0.4 + k));
+      ctx.globalCompositeOperation = 'source-over';
+      const k = clamp(1 - f.life / 0.4, 0, 1);
+      const boomR = Math.max(3, Math.min(110, (Number(f.s) || 12) * (0.4 + k)));
+      const g = ctx.createRadialGradient(f.x, f.y, 2, f.x, f.y, boomR);
       g.addColorStop(0, `rgba(255,220,150,${0.7 * (1 - k)})`);
       g.addColorStop(1, 'rgba(255,120,60,0)');
       ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.s * (0.4 + k), 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(f.x, f.y, boomR, 0, 7); ctx.fill();
       ctx.restore();
     } else {
       ctx.save();
@@ -6340,6 +6408,7 @@ const eyeObj = () => EYES.find((e) => e.k === G.meta.eye) || EYES[0];
 const cosObj = () => COSTUMES.find((c) => c.k === G.meta.costume) || COSTUMES[0];
 
 // ------------------------------------------------------------------ 帧循环
+let lastWorldRender = 0;
 function loop(now) {
   const dt = G.lastTime ? Math.min(0.05, (now - G.lastTime) / 1000) : 0;
   G.lastTime = now;
@@ -6353,7 +6422,13 @@ function loop(now) {
       if (G.banner.t > G.banner.life) G.banner = null;
     }
     G.t += dt;
-    if (G.mode === 'play' || G.mode === 'pause') render();
+    if (G.mode === 'play' || G.mode === 'pause') {
+      const minFrame = matchMedia('(pointer:coarse)').matches ? 1000 / 30 : 1000 / 50;
+      if (!lastWorldRender || now - lastWorldRender >= minFrame) {
+        render();
+        lastWorldRender = now;
+      }
+    } else lastWorldRender = 0;
     if (G.mode === 'title') { drawTitleCat(now / 1000); drawBgCanvas(); }
     if (G.mode === 'codex') drawBgCanvas();
     if (G.mode === 'story') drawSpeakerTick();
@@ -6387,7 +6462,7 @@ let spkFrame = 0;
 // 头像里的通讯器波形 / 首领刻痕在动，每 3 帧重画一次就够顺
 function drawSpeakerTick() {
   if (!G.story) return;
-  if (spkFrame++ % 3) return;
+  if (spkFrame++ % 6) return;
   const line = G.story.scene.lines[G.story.i];
   if (line && (line.k === 'voice' || line.k === 'boss')) drawSpeaker(line);
 }

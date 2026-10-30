@@ -24,7 +24,7 @@ import { fxMode } from './fx.js';
 import { settleMode } from './report.js';
 import { watchMode } from './replay.js';
 import { SHOP, boughtToday } from '../core/shop.js';
-import { refineCost } from '../core/gear.js';
+import { refineCost, refineMult, relicRefineGain, relicRefineView, relicTheme, REFINE_MAX } from '../core/gear.js';
 import {
   lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, growthPerLevel,
   awakenAmp, awakenSkill, nextAwakenMilestone, rewindPlan, REWIND_COST,
@@ -46,10 +46,10 @@ export function itemDef(app, it) {
 }
 export function itemText(app, it) {
   const def = itemDef(app, it);
-  if (it.kind === 'wheel') return wheelText(def, it.lv);
-  if (it.kind === 'relic') return relicText(def, it.lv);
+  if (it.kind === 'wheel') return wheelText(def, it.lv, it.rf);
+  if (it.kind === 'relic') return relicText(def, it.lv, it.rf);
   const th = covTheme(def.id);
-  const f = (o) => Object.entries(o).map(([k, v]) => `${k}+${Math.round(v * (1 + 0.08 * it.lv))}`).join(' ');
+  const f = (o) => Object.entries(o).map(([k, v]) => `${k}+${Math.round(v * (1 + 0.08 * it.lv) * (1 + 0.08 * (it.rf || 0)) * 10) / 10}`).join(' ');
   return `${th.zh}套：2件 ${f(th.two)}；4件 ${f(th.four)}`.replace(/atkPct/g, '攻击%').replace(/hpPct/g, '生命%').replace(/defPct/g, '防御%').replace(/critRate/g, '暴击').replace(/critDmg/g, '爆伤').replace(/amp/g, '增伤').replace(/aliGain/g, '共鸣回复').replace(/keyGain/g, '钥焰回复').replace(/healBonus/g, '治疗').replace(/shieldBonus/g, '护盾').replace(/steal/g, '吸血').replace(/openAli/g, '起始共鸣').replace(/openKey/g, '起始钥焰').replace(/firstBoost/g, '首击增伤');
 }
 const rarCls = (r) => `r-${r}`;
@@ -102,6 +102,40 @@ function equipSlot(app, slug, kind) {
   return `<button class="eqslot on ${rarCls(def.rarity)}" data-act="gear-slot" data-slug="${slug}" data-kind="${kind}" title="${esc(itemText(app, it))}">
     <img src="${img(def.img)}" alt=""><b>${esc(def.zh)}</b><small>Lv${it.lv}${it.rf ? ` · 精炼+${it.rf}` : ''}</small></button>`;
 }
+
+/** 造物详情：队伍页点「详情」进来，能直接强化 / 精炼，精炼前后数值对照着看 */
+export function relicModal(app, uid) {
+  const s = app.state, it = s.gear.items[uid];
+  if (!it || it.kind !== 'relic') return;
+  const def = itemDef(app, it);
+  const v = relicRefineView(def, it.lv, it.rf || 0);
+  const unit = v.open ? '点' : '%';
+  const f = (x) => x.toFixed(1);
+  const upCost = it.lv < GEAR_MAX_LV ? gearCost('relic', it.lv) : 0;
+  const rc = refineCost(it);
+  const canUp = upCost && s.gold >= upCost, canRf = rc && s.cores >= rc;
+  const nextLine = v.rf >= REFINE_MAX
+    ? '<p class="hint">已经精炼满 ' + REFINE_MAX + ' 阶（+40%）。</p>'
+    : `<p class="hint">下一阶：${f(v.next)}${unit}（再多 +${f(v.next - v.now)}${unit}，花 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}）</p>`;
+  const html = `<h3>${esc(def.zh)} <small class="dim">${def.rarity || ''} Lv${it.lv}${v.rf ? ` · 精炼+${v.rf}` : ''}</small></h3>
+    <div class="rfbox">
+      <div class="rfrow"><span>精炼所在加成</span><b>+${f(v.now - v.base)}${unit}</b></div>
+      <div class="rfrow"><span>基础（Lv${it.lv}）</span><b>${f(v.base)}${unit}</b></div>
+      <div class="rfrow"><span>当前实际（全队${esc(v.zh)}）</span><b>${f(v.now)}${unit}</b></div>
+      <div class="rfrow"><span>精炼 ${v.rf}/${REFINE_MAX} 阶</span><b>每阶 +8% 基础值</b></div>
+    </div>
+    ${nextLine}
+    <p class="hint">精炼乘的是<b>整件造物的全部加成</b>（强化越高，精炼吃到的绝对值越多），所以先强化再精炼最划算。它只作用于装上它的造物栏，不占唤醒体栏位。</p>
+    <div class="row">
+      <button class="btn sm" data-act="relic-up" data-uid="${uid}" ${canUp ? '' : 'disabled'}>${upCost ? `强化 ${fmt(upCost)} 金币` : `已满级 Lv${GEAR_MAX_LV}`}</button>
+      <button class="btn sm gold" data-act="relic-refine" data-uid="${uid}" ${canRf ? '' : 'disabled'}>${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button>
+      <button class="btn sm" data-act="relic-swap" data-i="${relicIndexOf(s, uid)}">换一件</button>
+    </div>
+    <p class="hint dim">金币 ${fmt(s.gold)} · 银芯 ${fmt(s.cores)}</p>`;
+  openModal(html);
+}
+
+const relicIndexOf = (s, uid) => s.gear.relics.indexOf(uid);
 
 /** 队伍 4 人各一行：头像一个 + 命轮槽 + 密契槽 */
 export function equipPanel(app) {
@@ -324,7 +358,12 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
       const uid = st.lo.relics[i], it = uid && s.gear.items[uid];
       if (!it) return `<div class="relic-slot empty" data-sq="relic" data-i="${i}">＋ 造物 ${i + 1}</div>`;
       const def = itemDef(app, it);
-      return `<div class="relic-slot ${rarCls(def.rarity)}" data-sq="relic" data-i="${i}"><img src="${img(def.img)}" alt=""><small><b>${esc(def.zh)}</b><br>${esc(itemText(app, it))}</small></div>`;
+      const rf = it.rf || 0, gain = relicRefineGain(def, it.lv, rf);
+      const unit = relicTheme(def.id).key.startsWith('open') ? '点' : '%';
+      return `<div class="relic-slot ${rarCls(def.rarity)}" data-sq="relic" data-i="${i}" title="${esc(itemText(app, it))}">
+        <img src="${img(def.img)}" alt=""><small><b>${esc(def.zh)}</b><br>${esc(itemText(app, it))}<br>Lv${it.lv}${rf ? ` · 精炼+${rf}` : ''}</small>
+        ${rf ? `<em class="rf">精炼+${rf} 已含 +${gain.toFixed(1)}${unit}</em>` : ''}
+        <button class="btn sm rfbtn" data-act="relic-detail" data-uid="${it.uid}">详情</button></div>`;
     }).join('');
     const och = Array.from({ length: ORDER_SLOTS }, (_, i) => {
       if (i >= on) return `<span class="ochip locked">🔒 最高通关 ${orderLockedHint(i, s.maxStage)} 关</span>`;
@@ -381,6 +420,18 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
     mo.observe(document.body, { childList: true });
   };
   m.addEventListener('click', (e) => {
+    // 造物「详情」：这里是弹窗套弹窗，文档级处理器会把编队窗口顶掉，所以自己接管
+    const det = e.target.closest('[data-act="relic-detail"]');
+    if (det) {
+      e.stopPropagation();
+      let back = false;
+      relicModal(app, det.dataset.uid);
+      const mo = new MutationObserver(() => {
+        if (!document.querySelector('.modal-bg')) { mo.disconnect(); if (!back) { back = true; squadEditor(app, { resume: true }); } }
+      });
+      mo.observe(document.body, { childList: true });
+      return;
+    }
     const el = e.target.closest('[data-sq]');
     if (!el || el.disabled) return;
     const a = el.dataset.sq;
@@ -545,7 +596,16 @@ function mainPanel(app) {
     const uid = s.gear.relics[i], it = uid && s.gear.items[uid];
     if (!it) return `<div class="relic-slot empty" data-act="pick-relic" data-i="${i}">＋ 造物 ${i + 1}</div>`;
     const def = itemDef(app, it);
-    return `<div class="relic-slot ${rarCls(def.rarity)}" data-act="pick-relic" data-i="${i}"><img src="${img(def.img)}" alt=""><small><b>${esc(def.zh)}</b><br>${esc(itemText(app, it))}</small></div>`;
+    const rf = it.rf || 0;
+    // 精炼到底给多少：直接写成「精炼+n 已含 +x」，不用玩家自己算 8%
+    const gain = relicRefineGain(def, it.lv, rf);
+    const unit = relicTheme(def.id).key.startsWith('open') ? '点' : '%';
+    const rfTag = rf ? `<em class="rf">精炼+${rf} 已含 +${gain.toFixed(1)}${unit}</em>` : '';
+    return `<div class="relic-slot ${rarCls(def.rarity)}" data-act="pick-relic" data-i="${i}" title="${esc(itemText(app, it))}">
+      <img src="${img(def.img)}" alt="">
+      <small><b>${esc(def.zh)}</b><br>${esc(itemText(app, it))}<br>Lv${it.lv}${rf ? ` · 精炼+${rf}` : ''}</small>
+      ${rfTag}
+      <button class="btn sm rfbtn" data-act="relic-detail" data-uid="${it.uid}">详情</button></div>`;
   }).join('');
 
   const pre = Object.entries(PRESETS).map(([k, p]) => `<button class="btn sm ${s.strategy.preset === k ? 'on' : ''}" data-act="preset" data-k="${k}">${p.zh}</button>`).join('');

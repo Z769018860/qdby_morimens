@@ -84,9 +84,21 @@ def main():
             except (KeyError, json.JSONDecodeError):
                 pass
     print(f'已有题目 {len(have_ids)} 道')
-    zone_boss = {}
+    # The overview boss is a property of season + zone, not of an individual report.
+    # Explicit encounter IDs avoid accidentally selecting another wave's boss.
+    fixed_boss = {
+        (70, 1): ['14015'], (70, 2): ['14011'],
+        (70, 3): ['140713'], (70, 4): ['147675'],
+        (70, 5): ['125901'],
+        (71, 1): ['80576', '80577'], (71, 2): ['94940'],
+        (71, 3): ['67103'], (71, 4): ['14063'], (71, 5): ['81279'],
+        (72, 1): ['14008', '14013'], (72, 2): ['14064'],
+        (72, 3): ['60096'], (72, 4): ['120308', '120310', '120306'],
+        (72, 5): ['14086'],
+    }
+    zone_boss = dict(fixed_boss)
     for p in core:
-        zone_boss[(p['season'], p['zone'])] = p['boss']
+        zone_boss.setdefault((p['season'], p['zone']), p['boss'])
 
     rng = random.Random(args.seed)
     picks = []
@@ -176,6 +188,8 @@ def main():
                         'playerDmg': b.get('playerDamage') or 0, 'key': key, 'relics': rel, 'team': members,
                         'uuid': sig.get('battleUuid'), 'extra': bool(b.get('extraPass')),
                         'dmgComp': {
+                            # Direct extrema from official battle-summary; these are NOT
+                            # cumulative category damage and must never be summed.
                             'keeper': b.get('playerDamage') or 0,
                             'tentacle': b.get('maxTentacleDamage') or 0,
                             'counter': b.get('maxCounterAtt') or 0,

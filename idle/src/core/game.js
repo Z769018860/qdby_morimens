@@ -127,6 +127,23 @@ export function migrate(s, data) {
   const rel = Array.isArray(m.gear.relics) ? m.gear.relics.slice(0, RELIC_SLOTS) : [];
   while (rel.length < RELIC_SLOTS) rel.push(null);
   m.gear.relics = rel.map((uid) => (uid && m.gear.items[uid] ? uid : null));
+  // Repair legacy saves in which an automatic team change left one physical
+  // gear UID on both an active member and an inactive member.
+  const equipped = m.gear.equip && typeof m.gear.equip === 'object' && !Array.isArray(m.gear.equip)
+    ? m.gear.equip : {};
+  const seenGear = new Set();
+  const priority = [...m.team, ...Object.keys(equipped).filter(slug => !m.team.includes(slug))];
+  for (const slug of priority) {
+    const eq = equipped[slug];
+    if (!eq || typeof eq !== 'object') continue;
+    for (const kind of ['wheel', 'cov']) {
+      const uid = eq[kind], item = m.gear.items[uid];
+      const expectedKind = kind === 'wheel' ? 'wheel' : 'covenant';
+      if (!uid || !item || item.kind !== expectedKind || seenGear.has(uid)) delete eq[kind];
+      else seenGear.add(uid);
+    }
+  }
+  m.gear.equip = equipped;
   m.drip = { tickets: 0, cores: 0, ...(s.drip || {}) };
   m.drip.tickets = Math.max(0, Number(m.drip.tickets) || 0); m.drip.cores = Math.max(0, Number(m.drip.cores) || 0);
   // 钥令：老存档没有就按开局配置补上；M10 换成原作 63 件后，旧的自造 id 会被清掉
@@ -192,7 +209,7 @@ export function allyDef(state, data, slug, teamSlugs = state.team) {
   addBonus(bonus, rel.bond.bonus);
   addBonus(bonus, ordersBonus(state, data));
   // 叠位：每 10 层 +3% 增伤（属性与等级上限在 baseStats / levelCap 里）
-  bonus.amp += Math.floor(r.star / 10) * 3;
+  bonus.amp += Math.floor((Number.isFinite(Number(r.star)) ? Number(r.star) : 0) / 10) * 3;
   const def = {
     slug, name: a.zh, img: a.portrait, type: a.type, realm: a.realm, lv: r.lv, star: r.star,
     hp: Math.round(st.hp * (1 + bonus.hpPct / 100)),
@@ -573,6 +590,14 @@ export const bonusScore = (b) => Object.entries(b || {}).reduce((s, [k, v]) => s
 export function autoLoadout(state, data) {
   autoTeam(state, data);                     // 先按战力 + 同界域加成排出 4 人
   state.gear.equip ||= {};
+  // An item UID represents one physical piece of equipment. Before the auto
+  // allocator reassigns it, release old holders (including benched heroes).
+  // Otherwise swapping an old hero back creates two visually equipped copies.
+  for (const eq of Object.values(state.gear.equip)) {
+    if (!eq) continue;
+    delete eq.wheel;
+    delete eq.cov;
+  }
   const r = fillLoadout(state, data, state.team, { equip: state.gear.equip });
   state.gear.relics = r.relics;
   state.orders.slots = r.orders;

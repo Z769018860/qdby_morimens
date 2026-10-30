@@ -216,6 +216,7 @@ function startGame() {
   STATE.mode = loadMode();
   STATE.outs = [];
   STATE.recTab = 'note';
+  STATE.rosterOn = false;
   document.body.classList.remove('night');
   rosterBtn.classList.remove('hide');
   recBtn.classList.remove('hide');
@@ -236,7 +237,11 @@ function startGame() {
 
   const roster = el('aside', 'roster');
   roster.id = 'roster';
-  wrap.append(board, roster);
+  // 手机上名单是盖住半屏的抽屉，得有个地方点回去——遮罩 + 抽屉里的 ×
+  const mask = el('div', 'roster-mask');
+  mask.id = 'rosterMask';
+  mask.onclick = () => toggleRoster(false);
+  wrap.append(board, roster, mask);
   scr.append(wrap);
   stage.append(scr);
 
@@ -477,7 +482,14 @@ function refreshRoster() {
   const box = document.getElementById('roster');
   if (!G || !box) return;
   clear(box);
-  box.append(el('h3', '', '在场名单'));
+  const hd = el('div', 'rhead');
+  hd.append(el('h3', '', '在场名单'));
+  const shut = el('button', 'rclose', '×');
+  shut.type = 'button';
+  shut.setAttribute('aria-label', '收起名单');
+  shut.onclick = () => toggleRoster(false);
+  hd.append(shut);
+  box.append(hd);
   const me = G.player;
   const mine = new Set();
   // 融蚀方（含低语者、共谋者）互相认得——这也是他们最难装的地方
@@ -1506,14 +1518,18 @@ function recDigest(body) {
 // ---------------------------------------------------------------- 入口
 helpBtn.onclick = () => showRules();
 recBtn.onclick = () => showRecords();
-rosterBtn.onclick = () => {
+function toggleRoster(force) {
   const r = document.getElementById('roster');
   if (!r) return;
-  STATE.rosterOn = !STATE.rosterOn;
-  r.classList.toggle('on', STATE.rosterOn);
-};
+  const on = typeof force === 'boolean' ? force : !STATE.rosterOn;
+  STATE.rosterOn = on;
+  r.classList.toggle('on', on);
+  const mask = document.getElementById('rosterMask');
+  if (mask) mask.classList.toggle('on', on);
+}
+rosterBtn.onclick = () => toggleRoster();
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { STATE.rosterOn = false; const r = document.getElementById('roster'); if (r) r.classList.remove('on'); closeSheet(); return; }
+  if (e.key === 'Escape') { toggleRoster(false); closeSheet(); return; }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (!STATE.G || STATE.G.over) return;
   // 快捷键：M 手动 / F 快进 / A 自动（和 1/2/3 一样）
@@ -1523,7 +1539,7 @@ document.addEventListener('keydown', (e) => {
 });
 window.addEventListener('resize', () => {
   const r = document.getElementById('roster');
-  if (r && window.innerWidth > 760) r.classList.remove('on');
+  if (r && window.innerWidth > 760) toggleRoster(false);
 });
 
 export function boot() {

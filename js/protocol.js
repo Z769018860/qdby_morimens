@@ -5,7 +5,7 @@
 
 import { G, update, beginWave, place, sell, reset, summary, UNITS_BY_ID, buy, buyItem, equip, levelUp, rollShop, deployed, freeCell, TUNE } from './pf/engine.js';
 import { init, draw, setBand, toLogic, hover, layout, screenPos } from './pf/render.js';
-import { build, startRun, sync, updateHUD, showEnd, bandRect, select, tapUnit, ui } from './pf/ui.js';
+import { build, startRun, sync, updateHUD, showEnd, bandRect, select, tapUnit, ui, inspectCell, hideInspection, relayoutInspection } from './pf/ui.js';
 import { cellAt, colOf, DEPLOY_COLS, MAX_LEVEL, LEVEL_COST, INV_SIZE } from './pf/defs.js';
 import { sfx } from './pf/audio.js';
 import { startGameCloud } from './gamecloud.js';
@@ -27,9 +27,10 @@ function cellUnder(clientX, clientY) {
 
 cv.addEventListener('pointermove', (e) => {
   hover.cell = cellUnder(e.clientX, e.clientY);
+  if (G.phase !== 'idle' && e.pointerType !== 'touch') inspectCell(hover.cell, e.clientX, e.clientY);
 });
 
-cv.addEventListener('pointerleave', () => { hover.cell = -1; });
+cv.addEventListener('pointerleave', () => { hover.cell = -1; hideInspection(true); });
 
 cv.addEventListener('pointerdown', (e) => {
   const cell = cellUnder(e.clientX, e.clientY);
@@ -53,6 +54,7 @@ cv.addEventListener('pointerdown', (e) => {
   }
   // 战斗中也能点开看属性，只是不能挪
   if (u) { select(u.uid); return; }
+  if (cell >= 0) inspectCell(cell, e.clientX, e.clientY, true);
   if (ui.sel != null) { ui.sel = null; G.sel = null; sync(); }
 });
 
@@ -122,11 +124,18 @@ async function boot() {
   layout();
   const b = bandRect();
   setBand(b.x, b.y, b.w, b.h);
-  window.addEventListener('resize', () => {
-    layout();
+  const resizeGame = () => {
     const r = bandRect();
+    layout();
     setBand(r.x, r.y, r.w, r.h);
-  });
+    relayoutInspection();
+    // Rebuild responsive portraits and the collapsed/expanded information card.
+    ui.layoutKey = `${window.innerWidth}:${window.innerHeight}:${window.visualViewport?.height || 0}`;
+    sync();
+  };
+  window.addEventListener('resize', resizeGame);
+  window.addEventListener('orientationchange', () => requestAnimationFrame(resizeGame));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeGame);
   // 页面里的载入守护 4 秒后会把按钮改成「正在载入立绘…」，这里得把它交还回来
   document.dispatchEvent(new CustomEvent('pf:ready'));
   requestAnimationFrame((t) => { last = t; loop(t); });

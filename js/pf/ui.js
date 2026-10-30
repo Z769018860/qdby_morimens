@@ -1,3 +1,4 @@
+import { boardBand, viewportSize, shortLandscape } from './layout.js';
 // 《忘却协议》界面层：顶栏、商店（唤醒体 / 命轮·造物两个页签）、装备栏、备战席、
 // 羁绊条、单位卡、遮罩层。
 //
@@ -16,9 +17,10 @@ import {
   WAVES, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON,
   FAC_ICON, GMK_ICON, TRAIT_KINDS,
   STAR_NAME, LEVEL_COST, REROLL_COST, MAX_LEVEL, BENCH_SIZE, creditsAt, nextTier,
-  ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS, ENEMY,
+  ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS, ENEMY, interestOf, TRAITS, HEX_W,
 } from './defs.js';
 import { sfx } from './audio.js';
+import { TERMS, TERM_CATS, FX_TERM, GMK_TERM, termOf, termsOfCat, termDetailHtml, termBriefHtml } from './terms.js';
 
 
 const $ = (id) => document.getElementById(id);
@@ -87,26 +89,23 @@ function itemTone(it) {
 // 画布可用区：顶栏下沿到商店上沿之间那条带子。
 // 宽屏（>=1000px）左边有一块信息面板，画布从它右边开始，棋盘才会落在剩余区域的正中。
 export function bandRect() {
+  const {width,height} = viewportSize();
+  document.documentElement.style.setProperty('--pf-vh', height + 'px');
   const hud = $('hud').getBoundingClientRect();
   const bottom = $('bottom').getBoundingClientRect();
-  const W = window.innerWidth, H = window.innerHeight;
-  const pad = W >= 1000 ? 232 : 0;
-  const y = hud.bottom + 6;
-  // 横屏时底栏竖起来贴右边（见 protocol.html 的 landscape 块）：棋盘让出这一列，高度不再被底栏吃掉
-  const column = bottom.top < y + 24;
-  const right = column ? bottom.left - 6 : W;
-  // 底栏退到左侧面板右边时，面板自己的可用高度只需躲开左下角的「方向」小钮
-  const sideBottom = bottom.left > 50 && !column ? 52 : Math.round(H - bottom.top);
-  document.documentElement.style.setProperty('--botH', sideBottom + 'px');
-  const h = column ? H - y - 6 : bottom.top - y - 6;
-  return { x: pad, y, w: Math.max(200, right - pad), h: Math.max(200, h) };
+  document.documentElement.style.setProperty('--botH', Math.round(height - bottom.top) + 'px');
+  return boardBand(width,height,hud,bottom,shortLandscape());
 }
 
 
 // ---------------------------------------------------------------- 装配
 export function build() {
+  buildDetails();
+  $('btnBonusShop').onclick = () => { ui.bonusShop = !ui.bonusShop; ui.tab = 'unit'; setTab('unit'); };
+  $('btnFieldGuide').onclick = () => showDetails('地块说明', terrainGuide(), true);
   const click = () => sfx.play('click');
   $('btnRoll').onclick = () => {
+    if (ui.bonusShop && ui.tab === 'unit') { G.msg = '额外商店不能刷新；请先返回原商店'; return; }
     if (ui.tab === 'unit') { if (rollShop(false)) G.msg = '刷新了商店'; }
     else if (rollItemShop(false)) G.msg = '刷新了命轮商店';
     sync();
@@ -149,6 +148,9 @@ export function build() {
     b.onclick = () => { setDiff(b.dataset.d); sfx.play('tab'); };
   });
   document.querySelectorAll('.tab').forEach((b) => {
+    // 只有带 data-tab 的才是页签。「图鉴详情」「地块说明」也挂着 .tab 的样式，
+    // 但它们开的是说明弹层 —— 顺手盖掉 onclick 的话，这两个按钮点了没反应。
+    if (!b.dataset.tab) return;
     b.onclick = () => { setTab(b.dataset.tab); sfx.play('tab'); };
   });
   $('btnEqClear').onclick = () => { click(); ui.item = null; G.selItem = null; sync(); };
@@ -183,6 +185,7 @@ export function setDiff(d) {
 }
 
 export function startRun(seed) {
+  closeDetails();
   reset(seed != null ? seed : ((Date.now() ^ (Math.random() * 1e9)) >>> 0));
   // 难度只动敌人和结算倍率，唤醒体本身不削，手感才一致
   G.mod = ui.diff === 'hard' ? { hp: 1.5, atk: 2.1, credit: 1.6 } : { hp: 1, atk: 1, credit: 1 };
@@ -207,7 +210,8 @@ export function sync() {
     G.inv.map((s) => s.kind + s.id).join('|'),
     G.units.map((u) => [u.uid, u.star, u.cell, u.bench,
       u.wheel ? u.wheel.id : '', u.creation ? u.creation.id : ''].join(':')).join('|'),
-    G.level, ui.sel, ui.item, ui.tab, G.phase, G.wave,
+    G.level, ui.sel, ui.item, ui.tab, G.phase, G.wave, ui.bonusShop, ui.layoutKey,
+    G.bonusShops.map(shop => shop.map(s => s?.id || '-').join(',')).join('|'),
   ].join('#');
   if (sig === lastSig) return;
   lastSig = sig;
@@ -227,13 +231,23 @@ function sameStar(id, star) {
 }
 
 function renderShop() {
+  ui.last.goldFor = undefined;
   const box = $('shop');
+  while (G.bonusShops.length && G.bonusShops[0].every(s => !s)) G.bonusShops.shift();
+  if (!G.bonusShops.length) ui.bonusShop = false;
+  const bonus = $('btnBonusShop');
+  bonus.hidden = !G.bonusShops.length;
+  bonus.textContent = ui.bonusShop ? '返回原商店' : `额外商店 (${G.bonusShops.length})`;
+  bonus.classList.toggle('on', !!ui.bonusShop);
+  $('shopContext').textContent = ui.bonusShop && ui.tab === 'unit'
+    ? '合成奖励货架 · 原商店已保留 · 可随时返回' : '原商店 · 悬停查看详情，右键固定说明';
+  const shelf = ui.bonusShop ? G.bonusShops[0] : G.shop;
   if (ui.tab === 'unit') {
     // 店里同名卡各有几张：两张同名 + 手上有一张 = 一次买两张就升星，
     // 这种「店里自己凑够了」的情况也该亮，不然玩家得自己数。
     const inShop = {};
-    for (const s of G.shop) if (s) inShop[s.id] = (inShop[s.id] || 0) + 1;
-    box.innerHTML = G.shop.map((s, i) => {
+    for (const s of shelf) if (s) inShop[s.id] = (inShop[s.id] || 0) + 1;
+    box.innerHTML = shelf.map((s, i) => {
       if (!s) return `<div class="scard empty"><span>已买走</span></div>`;
       const d = UNITS_BY_ID[s.id];
       const can = G.gold >= d.cost;
@@ -249,17 +263,17 @@ function renderShop() {
         : pair ? `<span class="mb alt">同名×${mine}</span>` : '';
       const tip = `${d.n} · ${d.ult.name} · ${d.cost} 金`
         + (own ? `（已有 ${own} 个一星${instant ? '，再买一个升 2 星' : ''}）` : '');
-      return `<button class="scard c${d.cost}${can ? '' : ' poor'}${cls}" data-i="${i}" title="${tip}">
+      return `<button class="scard c${d.cost}${can ? '' : ' poor'}${cls}" data-i="${i}" data-detail="unit:${d.id}" title="${tip}">
         ${badge}
         ${own ? `<span class="prog">${[0, 1, 2].map((k) => `<i class="${k < own ? 'on' : ''}"></i>`).join('')}</span>` : ''}
-        ${portrait(d.id, 42)}
+        ${portrait(d.id, shortLandscape() ? 28 : window.innerWidth >= 1000 ? 56 : 42)}
         <b>${d.n}</b>
         <span class="chips">${realmTag(d.realm)}${roleTag(d.role, true)}</span>
         <span class="price"><i>◈</i>${d.cost}</span>
       </button>`;
     }).join('');
     box.querySelectorAll('.scard[data-i]').forEach((el) => {
-      el.onclick = () => { buy(Number(el.dataset.i)); sync(); };
+      el.onclick = () => { buy(Number(el.dataset.i), !!ui.bonusShop); sync(); };
     });
     return;
   }
@@ -271,7 +285,7 @@ function renderShop() {
     if (!d) return `<div class="scard empty"><span>—</span></div>`;
     const can = G.gold >= d.cost;
     const col = s.kind === 'wheel' ? realmCol(d.realm) : '#b06bd9';
-    return `<button class="scard item c${d.cost}${can ? '' : ' poor'}" data-ii="${i}" title="${d.n}：${d.text}（${d.cost} 金）">
+    return `<button class="scard item c${d.cost}${can ? '' : ' poor'}" data-ii="${i}" data-detail="${s.kind}:${s.id}" title="${d.n}：${d.text}（${d.cost} 金）">
       <i class="sig" style="--c:${col}">${itemSigil(s.kind)}</i>
       <b>${d.n}</b>
       <span class="eff">${d.text}</span>
@@ -293,7 +307,7 @@ function renderInv() {
     if (!it) { html += `<div class="islot"></div>`; continue; }
     const d = itemDef(it);
     const on = ui.item === i ? ' on' : '';
-    html += `<button class="islot has${on}" data-ei="${i}" title="${d ? d.n + '：' + d.text : ''}"
+    html += `<button class="islot has${on}" data-ei="${i}" data-detail="${it.kind}:${it.id}" title="${d ? d.n + '：' + d.text : ''}"
       style="--c:${itemTone(it)}">${d ? itemSigil(it.kind) : '?'}</button>`;
   }
   box.innerHTML = html;
@@ -384,7 +398,7 @@ function traitChip(t) {
   const d = t.def;
   const on = t.active >= 0;
   const nextNeed = t.next != null ? t.next : null;
-  return `<div class="tr${on ? ' on' : ''}" style="--c:${d.color}">
+  return `<div tabindex="0" role="button" data-detail="trait:${d.key}" class="tr${on ? ' on' : ''}" style="--c:${d.color}">
     <i class="tri">${traitIcon(d)}</i><b>${d.n}</b><span>${t.n}</span>${nextNeed ? `<em>/${nextNeed}</em>` : ''}
     <div class="trtip">
       ${d.stepsText.map((s, i) => `<u class="${i <= t.active ? 'on' : ''}">${d.steps[i]} 人 · ${s}</u>`).join('')}
@@ -427,10 +441,56 @@ function eqRow(u) {
       return `<button class="eq empty" data-slot="${slot}"><em>${label}</em><span>空</span></button>`;
     }
     const col = slot === 'wheel' ? realmCol(it.realm) : '#b06bd9';
-    return `<button class="eq has" data-slot="${slot}" title="点击卸下" style="--c:${col}">
+    return `<button class="eq has" data-slot="${slot}" title="点击卸下；悬停查看装备效果" data-detail="${slot}:${it.id}" style="--c:${col}">
       <em>${label}</em><span>${it.n}</span></button>`;
   };
   return `<div class="eqs">${one('wheel', '命轮')}${one('creation', '造物')}</div>`;
+}
+
+// 词条按钮：卡片里的属性名、机制名都走这里，点一下在卡片内展开说明。
+// 用 <button> 而不是 <span>，手机上才有「能点」的手感和键盘可达性。
+function termBtn(key, label, extra) {
+  const t = TERMS[key];
+  if (!t) return '';
+  return `<button type="button" class="term${extra ? ' ' + extra : ''}" data-term="${key}" title="${t.one}">${label || t.n}</button>`;
+}
+
+// 这个单位身上真正生效的机制：流派羁绊、击杀叠加、以及造物带的 fx。
+// 只列已生效的 —— 列一堆灰的等于没说。
+function unitMechs(u) {
+  const out = [];
+  if (u.splash > 0) out.push('splash');
+  if (u.poison > 0) out.push('poison');
+  if (u.thorns > 0) out.push('thorns');
+  if (u.pierce > 0) out.push('pierce');
+  if (u.killAtkStep > 0 && u.killAtkMax > 0) out.push('killStack');
+  const fx = u.creation && u.creation.fx;
+  if (fx && FX_TERM[fx] && !out.includes(FX_TERM[fx])) out.push(FX_TERM[fx]);
+  return out;
+}
+
+// 卡片内的词条展开区：点属性名在卡片里就地展开，再点同一个收起。
+// 手机上卡片本身很窄，所以这里只放「一句话 + 怎么算」，全文交给详情面板。
+function toggleTerm(key) {
+  const pane = $('termPane');
+  if (!pane) return;
+  if (!pane.hidden && pane.dataset.k === key) { pane.hidden = true; pane.dataset.k = ''; return; }
+  const t = TERMS[key];
+  if (!t) return;
+  pane.dataset.k = key;
+  pane.hidden = false;
+  pane.innerHTML = `<div class="tp-h"><b>${t.n}</b><button type="button" class="tp-x" aria-label="收起">×</button></div>
+    ${termBriefHtml(key)}
+    <button type="button" class="tp-more">完整说明 →</button>`;
+  pane.querySelector('.tp-x').onclick = (ev) => {
+    ev.stopPropagation();
+    pane.hidden = true; pane.dataset.k = '';
+  };
+  pane.querySelector('.tp-more').onclick = (ev) => {
+    ev.stopPropagation();
+    showDetails(`${t.n} · 词条`, termDetailHtml(key), true);
+  };
+  sfx.play('select');
 }
 
 function renderCard() {
@@ -439,11 +499,12 @@ function renderCard() {
   if (!u) { card.hidden = true; return; }
   card.hidden = false;
   // 竖屏手机：信息卡默认缩成一行，免得盖住棋盘没法挪棋子；点「详情」再展开
-  const narrow = window.matchMedia && window.matchMedia('(max-width:520px), (orientation:landscape) and (max-height:520px)').matches;
+  const narrow = shortLandscape() || (window.matchMedia && window.matchMedia('(max-width:520px)').matches);
   const compact = narrow && !ui.cardOpen;
   card.classList.toggle('compact', compact);
   card.classList.toggle('narrow', narrow);
   const d = u.def;
+  const mechs = unitMechs(u);
   const eqText = [u.wheel, u.creation].filter(Boolean)
     .map((x) => `<p class="eqline"><b>${x.n}</b>${x.text || ''}</p>`).join('');
   const armed = ui.item != null ? G.inv[ui.item] : null;
@@ -451,7 +512,7 @@ function renderCard() {
     <button class="x" id="cardX">×</button>
     <button class="more" id="cardMore">${compact ? '详情' : '收起'}</button>
     <div class="ch">
-      ${portrait(d.id, 50)}
+      ${portrait(d.id, shortLandscape() ? 40 : window.innerWidth >= 1000 ? 64 : 50)}
       <div>
         <h4>${d.n}<em>${STAR_NAME[u.star]}</em></h4>
         <p class="tags">${realmTag(d.realm)}${roleTag(d.role)}<span class="costb">${d.cost} 费</span></p>
@@ -459,14 +520,21 @@ function renderCard() {
       </div>
     </div>
     <div class="nums">
-      <span>生命 <b>${u.hpMax}</b></span><span>攻击 <b>${Math.round(u.atk)}</b></span>
-      <span>攻速 <b>${u.aspd.toFixed(2)}</b></span><span>护甲 <b>${Math.round(u.armor)}</b></span>
-      <span>射程 <b>${(u.range / 94).toFixed(1)} 格</b></span>
-      ${u.crit > 0 ? `<span>暴击 <b>${Math.round(u.crit * 100)}%</b></span>` : ''}
+      <span>${termBtn('hp')} <b>${u.hpMax}</b></span><span>${termBtn('atk')} <b>${Math.round(u.atk)}</b></span>
+      <span>${termBtn('aspd')} <b>${u.aspd.toFixed(2)}</b></span><span>${termBtn('armor')} <b>${Math.round(u.armor)}</b></span>
+      <span>${termBtn('range')} <b>${(u.range / 94).toFixed(1)} 格</b></span>
+      ${u.crit > 0 ? `<span>${termBtn('crit')} <b>${Math.round(u.crit * 100)}%</b></span>` : ''}
+      ${u.killAtkStep > 0 && u.killAtkMax > 0
+        ? `<span class="stk">${termBtn('killStack', '击杀叠加', 'hot')} <b id="stkNow">${u.killStacks}</b> / ${u.killAtkMax} 层<em>每层 +${Math.round(u.killAtkStep * 100)}% 攻击</em></span>`
+        : ''}
     </div>
+    ${mechs.length ? `<div class="mechrow"><i>机制</i>${mechs.map((k) => termBtn(k, null, 'mech')).join('')}</div>` : ''}
+    <div class="termpane" id="termPane" hidden></div>
     ${eqRow(u)}
     ${eqText}
-    <p class="ult"><b>${d.ult.name}</b>${d.ult.text}</p>
+    <p class="ult"><b>${d.ult.name} · 本局效果</b>${ultDescription(d)}</p>
+    <details><summary>角色技能资料</summary><p>${d.ult.text}</p></details>
+    <button class="detail-action" data-detail="unit:${d.id}">完整角色资料</button>
     ${armed
       ? `<button class="sell" id="btnEquipNow">装上「${itemDef(armed).n}」</button>`
       : G.phase === 'prep'
@@ -478,6 +546,9 @@ function renderCard() {
   if (sellBtn) sellBtn.onclick = () => { sell(u.uid); ui.sel = null; G.sel = null; sync(); };
   const eqBtn = $('btnEquipNow');
   if (eqBtn) eqBtn.onclick = () => { if (equip(u.uid, ui.item)) { ui.item = null; G.selItem = null; } sync(); };
+  card.querySelectorAll('.term[data-term]').forEach((el) => {
+    el.onclick = (ev) => { ev.stopPropagation(); toggleTerm(el.dataset.term); };
+  });
   card.querySelectorAll('.eq[data-slot]').forEach((el) => {
     el.onclick = () => {
       const slot = el.dataset.slot;
@@ -521,8 +592,8 @@ function tickPurse() {
   if (b) b.textContent = G.gold;
   const purse = $('purse');
   if (purse) purse.classList.toggle('low', G.gold < 2);
-  // 利息：每存 10 金 +1，最多 5 —— 写在数字下面的小字里，存钱时看得见收益在涨
-  const interest = Math.min(5, Math.floor(G.gold / 10));
+  // 利息：每存 5 金 +1，最多 5 —— 写在数字下面的小字里，存钱时看得见收益在涨
+  const interest = interestOf(G.gold);
   // 利息升一档响一下：存钱这件事在备战期没有别的反馈，全靠这声和数字
   if (L.intLv != null && interest > L.intLv) sfx.play('interest');
   L.intLv = interest;
@@ -620,13 +691,13 @@ export function updateHUD() {
   tickSideNext();
   const lvTxt = G.level >= MAX_LEVEL ? '人口已满' : `升级 ${LEVEL_COST}`;
   if (L.lvTxt !== lvTxt) { L.lvTxt = lvTxt; $('btnLevel').textContent = lvTxt; }
-  const rollTxt = ui.tab === 'unit' ? `刷新 ${REROLL_COST}` : `刷新 ${ITEM_REROLL}`;
+  const rollTxt = ui.bonusShop && ui.tab === 'unit' ? '额外商店（免刷新）' : ui.tab === 'unit' ? `刷新 ${REROLL_COST}` : `刷新 ${ITEM_REROLL}`;
   if (L.rollTxt !== rollTxt) { L.rollTxt = rollTxt; $('btnRoll').textContent = rollTxt; }
   const prep = G.phase === 'prep';
+  $('btnRoll').disabled = !prep || (ui.bonusShop && ui.tab === 'unit');
   if (L.prep !== prep) {
     L.prep = prep;
     $('btnFight').disabled = !prep;
-    $('btnRoll').disabled = !prep;
     $('btnLevel').disabled = !prep || G.level >= MAX_LEVEL;
     $('btnFight').textContent = G.phase === 'fight' ? '战斗中' : G.phase === 'prep' ? '开战' : '结束';
   }
@@ -683,6 +754,15 @@ export function updateHUD() {
     }
   }
   tickBanner();
+  // 选中单位的击杀叠层：每杀一个 +1，战斗中随时在变，卡片上跟着刷
+  if (ui.sel != null) {
+    const su = G.units.find((x) => x.uid === ui.sel);
+    if (su && su.killAtkStep > 0 && L.stkNow !== su.killStacks) {
+      L.stkNow = su.killStacks;
+      const el = $('stkNow');
+      if (el) el.textContent = su.killStacks;
+    }
+  }
 
   // 商店买不起时压暗（只在金币变化时扫一遍）
   if (L.goldFor === undefined || L.goldFor !== G.gold) {
@@ -690,7 +770,7 @@ export function updateHUD() {
     $('shop').querySelectorAll('.scard[data-i],.scard[data-ii]').forEach((el) => {
       // 卖掉的格子可能已经空了，而重新渲染要等下一次 sync —— 这里必须判空，
       // 否则每帧在这里抛错，整帧（含结算判定）都被打断，画面看着像卡死。
-      const unitSlot = el.dataset.i != null ? G.shop[Number(el.dataset.i)] : null;
+      const unitSlot = el.dataset.i != null ? (ui.bonusShop ? G.bonusShops[0] : G.shop)?.[Number(el.dataset.i)] : null;
       const itemSlot = el.dataset.ii != null ? G.itemShop[Number(el.dataset.ii)] : null;
       let cost = 0;
       if (unitSlot) cost = UNITS_BY_ID[unitSlot.id].cost;
@@ -758,3 +838,219 @@ export function showEnd() {
 // 帮助里地形图例用（由页面内联脚本调用也行，这里导出给需要的地方）
 export const TERRAIN_LIST = Object.entries(TERRAIN).map(([k, v]) => ({ k, ...v }));
 export const ITEM_POOL = { WHEELS, CREATIONS };
+
+// Shared inspection surface lives outside every scrolling sidebar.
+const escapeText = text => String(text ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+let detailPanel, detailPinned = false, detailFromElement = false, detailKey = '', detailTimer;
+const DETAIL_EXIT_GRACE = 1100;
+function scheduleDetailHide() {
+  if (detailPinned) return;
+  clearTimeout(detailTimer);
+  detailTimer = setTimeout(() => hideInspection(), DETAIL_EXIT_GRACE);
+}
+function ultDescription(d) {
+  const descriptions = {
+    nuke: '攻击最近的敌人，造成 320% 攻击力伤害。',
+    splash: '以最近敌人为中心，对 1.7 格范围内敌人造成 210% 攻击力伤害。',
+    heal: '治疗生命比例最低的一名友军：其最大生命的 30% + 自身攻击力的 160%。',
+    guard: '为自己及 2.4 格内一名友军提供各自最大生命 30% 的护盾（保留更高护盾）。',
+    haste: '全体上场友军攻速 +35%，持续 6 秒。',
+    stun: '对自身 1.9 格范围内敌人造成 110% 攻击力伤害，并眩晕 1.8 秒。',
+  };
+  let text = descriptions[d.ult.kind] || '';
+  if (d.id === 'celeste') text = '治疗全体上场友军：各自最大生命的 16% + 自身攻击力的 160%。';
+  if (d.id === 'raya') text += ' 被治疗者攻击力 +20%，持续 6 秒。';
+  if (d.id === 'soleil') text += ' 目标每损失 1% 生命，倍率增加 0.8 个百分点。';
+  return text + (['nuke','splash','stun'].includes(d.ult.kind) ? ' 伤害另受当前爆发加成影响。' : '');
+}
+function terrainText(key) {
+  const t = TERRAIN[key];
+  if (!t) return '普通地块：没有额外属性加成。备战期可以在我方区域部署或调整站位。';
+  return `${t.desc}。${t.block ? '' : t.eslow < 1 ? `影怪经过时移速降低 ${Math.round((1 - t.eslow) * 100)}%。` : '不改变影怪移速。'}`;
+}
+function terrainGuide() {
+  return '<p>悬停地块查看效果；点击空地可固定说明。选中单位时点击地块仍然执行布阵。</p>' +
+    Object.entries(TERRAIN).map(([key, t]) => `<h3 style="color:${t.col}">${t.glyph} ${t.n}</h3><p>${terrainText(key)}</p>`).join('') +
+    '<h3>普通地块</h3><p>' + terrainText(null) + '</p>';
+}
+export function hideInspection(terrainOnly = false) {
+  if (terrainOnly && detailFromElement) return;
+  if (!detailPinned && detailPanel) { detailPanel.hidden = true; detailKey = ''; detailFromElement = false; }
+}
+export function inspectCell(cell, x, y, pin = false) {
+  if (cell < 0) { hideInspection(); return; }
+  if (detailPinned && !pin) return;
+  const key = 'cell:' + cell + ':' + (G.terrain[cell] || 'normal');
+  if (key === detailKey && !pin) return;
+  const t = TERRAIN[G.terrain[cell]];
+  showDetails(t ? `${t.glyph} ${t.n}` : '普通地块', `<p>${terrainText(G.terrain[cell])}</p>`, pin, {x,y});
+  detailKey = key;
+}
+function showDetails(title, html, pin = false, point) {
+  if (!detailPanel || (detailPinned && !pin)) return;
+  clearTimeout(detailTimer);
+  detailPinned = pin;
+  detailPanel.hidden = false;
+  detailPanel.classList.toggle('is-pinned', !!pin);
+  detailPanel.classList.toggle('is-preview', !pin);
+  detailPanel.innerHTML = `<button class="detail-close" aria-label="关闭说明">×</button><h2>${escapeText(title)}</h2><div class="detail-body">${html}</div><p class="detail-hint">${pin ? '已固定 · 点击 × 或按 Esc 关闭' : '点击详情或右键固定后可滚动阅读；悬停预览不阻挡购买'}</p>`;
+  detailPanel.scrollTop = 0;
+  detailPanel.querySelector('.detail-close').onclick = closeDetails;
+  // Keep preview inert: it must never swallow clicks on the right-most shop card.
+  // Pinned panels become interactive and are positioned away from their trigger.
+  const viewport = viewportSize();
+  const vw = viewport.width, vh = viewport.height;
+  const gap = 12;
+  const width = Math.max(170, Math.min(420, vw - gap * 2));
+  const mobile = matchMedia('(pointer:coarse)').matches || vw < 760;
+  const landscape = shortLandscape();
+  const trigger = point && point.rect;
+  let left, top;
+  if (mobile) {
+    // On touch screens only pinned details are interactive; keep the close
+    // button inside the viewport including landscape safe areas.
+    left = Math.max(gap, (vw - width) / 2);
+    top = landscape ? gap : Math.max(gap, Math.round(vh * 0.10));
+  } else if (trigger) {
+    // Prefer the side of the trigger with enough space; never overlap the
+    // trigger itself. The shop remains clickable even on small desktops.
+    const rightSpace = vw - trigger.right - gap * 2;
+    const leftSpace = trigger.left - gap * 2;
+    left = rightSpace >= width ? trigger.right + gap
+      : leftSpace >= width ? trigger.left - width - gap
+      : (leftSpace >= rightSpace ? gap : vw - width - gap);
+    top = Math.max(gap, Math.min(trigger.top, vh - Math.min(380, vh - gap * 2)));
+  } else {
+    left = gap;
+    top = Math.max(gap, Math.round(vh * 0.08));
+  }
+  detailPanel.style.width = width + 'px';
+  detailPanel.style.left = Math.max(gap, Math.min(left, vw - width - gap)) + 'px';
+  detailPanel.style.top = top + 'px';
+  // Keep hover previews wholly above the shop so they never steal purchases.
+  const shelf = document.querySelector('.shopzone');
+  const shelfTop = shelf ? shelf.getBoundingClientRect().top : vh;
+  if (!pin && shelfTop > 155) {
+    top = gap;
+    detailPanel.style.top = top + 'px';
+    detailPanel.style.maxHeight = Math.max(110, shelfTop - top - gap) + 'px';
+  } else detailPanel.style.maxHeight = Math.max(90, vh - top - gap) + 'px';
+}
+function closeDetails() {
+  detailPinned = false; detailFromElement = false; detailKey = '';
+  if (detailPanel) { detailPanel.hidden = true; detailPanel.classList.remove('is-pinned', 'is-preview'); }
+}
+function itemDescription(kind, id) {
+  const d = itemDef({kind,id});
+  if (!d) return null;
+  return { title: d.n, html: `<p>${itemKindName(kind)} · ${d.cost} 金${d.realm ? ' · ' + REALM_NAME[d.realm] : ''}</p><h3>装备效果</h3><p>${escapeText(d.text)}</p><p>每名唤醒体各可装备一件命轮和一件造物。装备栏中点选后，再点角色装备；角色面板中点击已装备物品可卸下。</p>` };
+}
+// 词条内联链接：详情面板里的「生命」「护甲」「羁绊」都能继续点下去，
+// 一路从「这个角色是谁」点到「护甲到底怎么算」。
+const tlink = (key, label) => `<button type="button" class="tlink" data-detail="term:${key}">${label || TERMS[key].n}</button>`;
+
+function unitDescription(d) {
+  const traits = TRAITS.filter(t => t.kind === 'realm' ? t.key === d.realm : t.kind === 'role' ? t.key === d.role : t.kind === 'fac' ? t.key === d.fac : (d.tags || []).includes(t.key));
+  // 这个角色身上「可能触发」的机制：流派标签 + 谁都会用到的那几条
+  const mech = ['hp', 'atk', 'aspd', 'armor', 'crit', 'rage'];
+  for (const t of d.tags || []) if (GMK_TERM[t] && !mech.includes(GMK_TERM[t])) mech.push(GMK_TERM[t]);
+  const statLine = `${tlink('hp')} ${d.hp} · ${tlink('atk')} ${d.atk} · ${tlink('aspd')} ${d.aspd}/秒 · ${tlink('armor')} ${d.armor} · ${tlink('range')} ${d.range} 格`;
+  const traitHtml = traits.map(t => `<h4><button type="button" class="tlink" data-detail="trait:${t.key}">${t.n}</button></h4>`
+    + t.stepsText.map((text, i) => `<p>${t.steps[i]} 人：${escapeText(text)}</p>`).join('')).join('');
+  return {
+    title: d.n,
+    html: `${portrait(d.id, 72)}<p>${REALM_NAME[d.realm]} · ${ROLE_NAME[d.role]} · ${d.cost} 金</p>`
+      + `<h3>一星基础属性</h3><p>${statLine}</p>`
+      + `<h3>${escapeText(d.ult.name)} · 本局效果</h3><p>${ultDescription(d)}</p>`
+      + `<details><summary>原作技能资料</summary><p>${escapeText(d.ult.text)}</p></details>`
+      + `<h3>羁绊与增益</h3>${traitHtml}`
+      + `<h3>相关词条</h3><div class="detail-list">${mech.map(k => `<button data-detail="term:${k}" title="${escapeText(TERMS[k].one)}">${escapeText(TERMS[k].n)}</button>`).join('')}</div>`
+      + '<p>场上最终属性会受到星级、装备、地形与羁绊影响，可在右侧角色面板查看。</p>',
+  };
+}
+function inspectElement(el, pin) {
+  if (detailPinned && !pin) return;
+  clearTimeout(detailTimer);
+  detailFromElement = true;
+  const rect = el.getBoundingClientRect();
+  const anchor = { x: rect.right, y: rect.top, rect };
+  const [kind,id] = el.dataset.detail.split(':');
+  if (kind === 'unit') {
+    const d = UNITS_BY_ID[id]; if (!d) return;
+    const desc = unitDescription(d); showDetails(desc.title, desc.html, pin, anchor);
+  } else if (kind === 'term') {
+    const t = termOf(id); if (!t) return;
+    showDetails(t.n + ' · 词条', termDetailHtml(id), pin, anchor);
+  } else if (kind === 'trait') {
+    const t = traitList().find(t => t.def.key === id); if (!t) return;
+    const d = t.def;
+    // 「生效给谁」按代码里的实际加成走：界域与辅助型是全队，另外两档只给同职阶
+    const scope = d.kind === 'realm' ? '全队所有单位'
+      : d.key === 'sup' ? '全队所有单位（加的是攻速）'
+      : d.kind === 'role' ? `只对「${d.n}」的单位`
+      : d.kind === 'fac' ? `只对同组织（${d.n}）的单位`
+      : `只对同流派（${d.n}）的单位`;
+    const lack = t.next != null ? `<p class="term-lack">再上 ${t.next - t.n} 个「${d.n}」就到 ${t.next} 人档。</p>` : '';
+    showDetails(d.n + ' · 羁绊', `<p class="term-one">当前 ${t.n} 人${t.active >= 0 ? ` · 已激活 ${d.steps[t.active]} 人档` : ' · 未激活'}</p>`
+      + `<p>生效范围：${scope}。</p>` + lack
+      + d.stepsText.map((text, i) => `<p class="${i <= t.active ? 'active-effect' : ''}">${i <= t.active ? '✓ ' : ''}${d.steps[i]} 人 · ${escapeText(text)}</p>`).join(''), pin, anchor);
+  } else if (kind === 'terrain') {
+    const t = TERRAIN[id]; if (t) showDetails(t.n, '<p>' + terrainText(id) + '</p>', pin, anchor);
+  } else {
+    const desc = itemDescription(kind,id); if (desc) showDetails(desc.title, desc.html, pin, anchor);
+  }
+}
+function buildDetails() {
+  detailPanel = document.createElement('section');
+  detailPanel.id = 'protocolDetails'; detailPanel.hidden = true;
+  detailPanel.setAttribute('role','region'); detailPanel.setAttribute('aria-label','详细说明');
+  document.body.append(detailPanel);
+  detailPanel.onpointerenter = () => { clearTimeout(detailTimer); };
+  detailPanel.onpointerleave = () => { scheduleDetailHide(); };
+  document.addEventListener('pointerover', e => {
+    if (e.pointerType === 'touch') return;
+    const el = e.target.closest('[data-detail]'); if (!el || el.contains(e.relatedTarget)) return;
+    if (detailPanel.contains(el) && !detailPinned) { clearTimeout(detailTimer); return; }
+    inspectElement(el, false);
+  });
+  document.addEventListener('pointerout', e => {
+    const el = e.target.closest('[data-detail]');
+    if (el && !el.contains(e.relatedTarget) && !detailPinned) {
+      clearTimeout(detailTimer);
+      scheduleDetailHide();
+    }
+  });
+  document.addEventListener('contextmenu', e => {
+    if (detailPanel.contains(e.target)) { e.preventDefault(); detailPinned = true; detailPanel.classList.remove('is-preview'); detailPanel.classList.add('is-pinned'); return; }
+    const el = e.target.closest('[data-detail]'); if (!el) return;
+    e.preventDefault(); inspectElement(el, true);
+  });
+  document.addEventListener('click', e => {
+    const el = e.target.closest('.tr[data-detail],.detail-action[data-detail],#protocolDetails [data-detail]');
+    if (el) { inspectElement(el, true); return; }
+    // Pinned explanations close only via × or Escape, not unrelated shop clicks.
+  });
+  document.addEventListener('focusin', e => { const el = e.target.closest('[data-detail]'); if (el) inspectElement(el, false); });
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Escape') closeDetails();
+    if ((e.code === 'Enter' || e.code === 'Space') && e.target.matches('.tr[data-detail]')) { e.preventDefault(); inspectElement(e.target, true); }
+  });
+  $('btnCodex').onclick = () => showDetails('角色 · 命轮 · 造物图鉴',
+    '<h3>唤醒体</h3><div class="detail-list">' + Object.values(UNITS_BY_ID).map(d => `<button data-detail="unit:${d.id}">${escapeText(d.n)}</button>`).join('') +
+    '</div><h3>命轮</h3><div class="detail-list">' + WHEELS.map(d => `<button data-detail="wheel:${d.id}">${escapeText(d.n)}</button>`).join('') +
+    '</div><h3>造物</h3><div class="detail-list">' + CREATIONS.map(d => `<button data-detail="creation:${d.id}">${escapeText(d.n)}</button>`).join('') + '</div>' +
+    TERM_CATS.map(([cat, label]) => `<h3>${label}词条</h3><div class="detail-list">` +
+      termsOfCat(cat).map(([k, t]) => `<button data-detail="term:${k}" title="${escapeText(t.one)}">${escapeText(t.n)}</button>`).join('') +
+      '</div>').join(''), true);
+}
+
+// Keep an open, pinned explanation inside the viewport when the phone rotates.
+export function relayoutInspection() {
+  if (!detailPanel || detailPanel.hidden) return;
+  const {height} = viewportSize();
+  const width = Math.max(170, Math.min(420, viewportSize().width - 24));
+  detailPanel.style.width = width + 'px';
+  detailPanel.style.left = '12px';
+  detailPanel.style.top = '12px';
+  detailPanel.style.maxHeight = Math.max(80,height - 24) + 'px';
+}

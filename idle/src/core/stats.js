@@ -22,8 +22,10 @@ export const nextAwakenMilestone = (star = 0) => {
 // the multipliers below turn them into this game's own battle scale.
 export function baseStats(a, lv, star = 0) {
   const m = 1 + (AWAKEN_STAT_PER / 100) * awaken({ star });
-  const g = (k) => a.base[k] + a.scale[k] * (lv - 1);
-  const s = (k) => a.sub[k] + (a.subScale[k] || 0) * (lv - 1) / 10;
+  const safe = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  lv = Math.max(1, safe(lv) || 1);
+  const g = (k) => safe(a.base?.[k]) + safe(a.scale?.[k]) * (lv - 1);
+  const s = (k) => safe(a.sub?.[k]) + safe(a.subScale?.[k]) * (lv - 1) / 10;
   return {
     hp: Math.round(g('CON') * 10 * m),
     atk: Math.round(g('ATK') * 2.2 * m),
@@ -40,10 +42,11 @@ export function baseStats(a, lv, star = 0) {
 // 每级成长（详情页展示用，取自同一套公式）
 export function growthPerLevel(a, star = 0) {
   const m = 1 + (AWAKEN_STAT_PER / 100) * awaken({ star });
+  const safe = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
   return {
-    hp: Math.round(a.scale.CON * 10 * m * 10) / 10,
-    atk: Math.round(a.scale.ATK * 2.2 * m * 10) / 10,
-    def: Math.round(a.scale.DEF * 1.6 * m * 10) / 10,
+    hp: Math.round(safe(a.scale?.CON) * 10 * m * 10) / 10,
+    atk: Math.round(safe(a.scale?.ATK) * 2.2 * m * 10) / 10,
+    def: Math.round(safe(a.scale?.DEF) * 1.6 * m * 10) / 10,
   };
 }
 

@@ -25,7 +25,7 @@ BOSS = {
     (72, 2): ['14064'],                     # 「复仇巨刃」
     (72, 3): ['60096'],                     # 「@2奏者」
     (72, 4): ['120308', '120310', '120306'],  # 秽血鱼王 / 腐溃鱼王 / 恶咒鱼王
-    (72, 5): ['14039'],                     # 「睡莲」
+    (72, 5): ['14086'],                     # 宁菲亚
 }
 
 FILES = ['data/puzzles.json', 'data/puzzles-extra.json', 'data/puzzles-more.json'] + sorted(
@@ -43,6 +43,19 @@ def main():
         for i in ids:
             if i not in names:
                 sys.exit(f'dict.json 里没有怪物 {i}（{k}）')
+    # When the source checkout is available, verify the maintained table against map encounters.
+    if '--source' in sys.argv:
+        source = sys.argv[sys.argv.index('--source') + 1]
+        for season in sorted({s for s, _ in BOSS}):
+            path = os.path.join(source, f'data/morimens/dzone-info/map-{season}.json')
+            data = json.load(open(path, encoding='utf8'))
+            for wave in data['waves']:
+                ids = list(dict.fromkeys(str(m['tid']) for encounter in wave['enc'].values()
+                    if encounter['t'] == 'Boss' for m in encounter['m']))
+                key = (season, wave['wave'])
+                if BOSS.get(key) != ids:
+                    sys.exit(f'Boss 表与地图不一致: {key}: {BOSS.get(key)} != {ids}')
+        print('Boss 表与 qdby_chinese 融灾地图一致')
     changed = bad = total = 0
     for rel in FILES:
         path = os.path.join(ROOT, rel)
