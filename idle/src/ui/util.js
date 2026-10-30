@@ -3,6 +3,8 @@ export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const img = (p) => (p ? `public/${p}` : '');
 export const fmt = (n) => {
+  n = Number(n);
+  if (!Number.isFinite(n)) return '—';
   n = Math.round(n);
   if (Math.abs(n) >= 1e8) return (n / 1e8).toFixed(2) + '亿';
   if (Math.abs(n) >= 1e4) return (n / 1e4).toFixed(1) + '万';
