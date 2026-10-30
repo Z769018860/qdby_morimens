@@ -230,6 +230,15 @@ function storeOf(env) {
     + why);
 }
 
+// 列键：Blob 封装返回字符串数组；真 KV（ZJTT_STORE=kv）的 list 要传对象、返回 { keys: [{ key }] }，这里抹平
+async function listKeys(kv, prefix, limit = 1000) {
+  let r = null;
+  try { r = await kv.list(prefix, limit); } catch { r = null; }
+  if (!Array.isArray(r) && !(r && Array.isArray(r.keys))) { try { r = await kv.list({ prefix, limit }); } catch { r = null; } }
+  const arr = Array.isArray(r) ? r : (r && Array.isArray(r.keys) ? r.keys : []);
+  return [...new Set(arr.map((x) => String(x && x.key != null ? x.key : x)))].filter((k) => k.startsWith(prefix));
+}
+
 // 有上限的并发：Blob 的每次强一致读都是一次源站请求，一口气发 120 个会被限流
 async function mapLimit(list, limit, fn) {
   const out = new Array(list.length);
@@ -558,6 +567,10 @@ async function putSave(request, env, kv, game, cors) {
     gold: Number(b.meta.gold) || 0, lastSeen: Number(b.meta.lastSeen) || 0,
     // 通用游戏存档（js/gamecloud.js）：内容哈希 + 键数，客户端用哈希判断「两边其实一样」
     hash: str(b.meta.hash, 16).replace(/[^A-Za-z0-9]/g, ''), n: Number(b.meta.n) || 0,
+    // 挂机前夜：主线出战阵容（榜单上展示「通关阵容」）。只收 slug + 等级 + 叠位，其它一律丢掉
+    team: (Array.isArray(b.meta.team) ? b.meta.team : []).slice(0, 5).map((t) => ({
+      s: str(t && t.s, 40).replace(/[^A-Za-z0-9_-]/g, ''), lv: Math.min(999, Number(t && t.lv) || 0), st: Math.min(20, Number(t && t.st) || 0),
+    })).filter((t) => t.s),
   } : null;
   const ver = curVer + 1, at = Date.now();
   await kv.put(key, JSON.stringify({ data, ver, at, rev: Number(b.rev) || 0, meta }));
@@ -977,7 +990,7 @@ async function getAdminOverview(request, env, kv, cors) {
   if (!me) throw new HttpError(401, 'need_login');
   if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', publicWhy(await adminWhy(env, kv, me)));
 
-  const keys = await kv.list('usr_', 1000);
+  const keys = await listKeys(kv, 'usr_', 1000);
   const rows = await mapLimit(keys.slice(0, 300), 6, async (k) => {
     let u = null;
     try { u = JSON.parse((await kv.get(k, { weak: true })) || 'null'); } catch { u = null; }
@@ -1006,7 +1019,40 @@ async function getAdminOverview(request, env, kv, cors) {
   }, 200, cors);
 }
 
-// POST /admin/grant { uid, amount, note }
+// 赠礼记录：银芯 amount 和/或挂机前夜唤醒体 awk（slug 列表）。两样可以只发一样。
+const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,39}$/i;
+function cleanAwk(v) {
+  const list = Array.isArray(v) ? v : [];
+  return [...new Set(list.map((x) => str(x, 40).trim()).filter((x) => SLUG_RE.test(x)))].slice(0, 20);
+}
+
+// 追加一条赠礼：全局索引一份（后台看历史），按人存一份（领取时只读一个键，不用扫全表）
+async function putGrant(kv, uid, rec) {
+  const mineKey = 'gm_' + (await uhash(uid));
+  const mine = await kvJson(kv, mineKey) || [];
+  mine.unshift(rec);
+  await kv.put(mineKey, JSON.stringify(mine.slice(0, 100)));
+}
+async function putGrantIndex(kv, rec) {
+  await kv.put('grant_' + rec.id, JSON.stringify(rec));
+  const idx = await kvJson(kv, 'grant_idx') || [];
+  idx.unshift(rec.id);
+  await kv.put('grant_idx', JSON.stringify(idx.slice(0, 500)));
+}
+function grantRecord(b, me, to) {
+  const amount = Math.round(Number(b.amount) || 0);
+  const awk = cleanAwk(b.awk);
+  const note = str(b.note, 120).trim();
+  if (!(amount >= 0 && amount <= 100000)) throw new HttpError(400, 'bad_amount');
+  if (!amount && !awk.length) throw new HttpError(400, 'bad_amount');
+  const id = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const rec = { id, amount, note, at: Date.now(), by: me.name || me.uid };
+  if (awk.length) rec.awk = awk;
+  if (to != null) rec.to = to;
+  return rec;
+}
+
+// POST /admin/grant { uid, amount, awk?, note }
 // 走「赠礼」而不是直接改别人的档案：账号档案有版本号乐观锁，管理员硬写会和
 // 用户那次同步撞车。赠礼是追加式记录，用户下次同步时幂等领取（js/account.js 的 claimGrants）。
 async function postAdminGrant(request, env, kv, cors) {
@@ -1016,26 +1062,98 @@ async function postAdminGrant(request, env, kv, cors) {
 
   const b = await readJson(request, 4 * 1024);
   const uid = str(b.uid, 64).trim();
-  const amount = Math.round(Number(b.amount) || 0);
-  const note = str(b.note, 120).trim();
   if (!uid) throw new HttpError(400, 'bad_uid');
-  if (!(amount > 0 && amount <= 100000)) throw new HttpError(400, 'bad_amount');
+  const rec = grantRecord(b, me, null);
+  await putGrantIndex(kv, rec);
+  await putGrant(kv, uid, rec);
+  return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], uid, note: rec.note }, 200, cors);
+}
 
-  const gid = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  const rec = { id: gid, amount, note, at: Date.now(), by: me.name || me.uid };
+// POST /admin/grant-batch { uids?: string[], all?: boolean, amount, awk?, note }
+// 一次发给多人（或所有登录过本站的账号）。同一条赠礼共用一个 id：每个账号在自己本机各领一次。
+async function postAdminGrantBatch(request, env, kv, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) throw new HttpError(401, 'need_login');
+  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', publicWhy(await adminWhy(env, kv, me)));
 
-  await kv.put('grant_' + gid, JSON.stringify(rec));
-  const idx = await kvJson(kv, 'grant_idx') || [];
-  idx.unshift(gid);
-  await kv.put('grant_idx', JSON.stringify(idx.slice(0, 500)));
+  const b = await readJson(request, 32 * 1024);
+  let uids = [];
+  if (b.all === true) {
+    const keys = await listKeys(kv, 'usr_', 1000);
+    const rows = await mapLimit(keys.filter((k) => k !== 'usr_n').slice(0, 500), 6, async (k) => {
+      try { const u = JSON.parse((await kv.get(k, { weak: true })) || 'null'); return u && u.uid ? String(u.uid) : ''; } catch { return ''; }
+    });
+    uids = rows.filter(Boolean);
+  } else {
+    uids = (Array.isArray(b.uids) ? b.uids : []).map((x) => str(x, 64).trim()).filter(Boolean);
+  }
+  uids = [...new Set(uids)].slice(0, 500);
+  if (!uids.length) throw new HttpError(400, 'bad_uid');
+  const rec = grantRecord(b, me, uids.length);
+  await putGrantIndex(kv, rec);
+  let ok = 0;
+  await mapLimit(uids, 6, async (uid) => { try { await putGrant(kv, uid, rec); ok++; } catch { /* 个别失败不影响其余 */ } });
+  return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], sent: ok, total: uids.length, note: rec.note }, 200, cors);
+}
 
-  // 按人存一份：领取时只要读一个键，不用扫全表
-  const mineKey = 'gm_' + (await uhash(uid));
-  const mine = await kvJson(kv, mineKey) || [];
-  mine.unshift(rec);
-  await kv.put(mineKey, JSON.stringify(mine.slice(0, 100)));
 
-  return reply({ ok: true, id: gid, amount, uid, note }, 200, cors);
+// ------------------------------------------------------------------ 榜单
+// GET /board —— 各游戏榜单（公开）。数据全来自玩家自己的云端档案摘要（gd）与挂机云存档的摘要，
+// 没登录 / 没同步过的人不会上榜。每次重算要读几百个键，所以缓存 3 分钟。
+const BOARD_TTL = 3 * 60 * 1000;
+// [游戏键, gd 键, 取分的下标, 说明, 副标]
+const BOARD_SPEC = [
+  { k: 'dr', gd: 'dr', i: 2, unit: '分', label: '最高分' },
+  { k: 'mg', gd: 'mg', i: 0, unit: '分', label: '最高分' },
+  { k: 'bd', gd: 'bd', i: 1, unit: '分', label: '最高分', sub: (v) => (v[0] ? `最深 ${Number(v[0])} 层` : '') },
+  { k: 'bn', gd: 'bn', i: 0, unit: '层', label: '最深楼层', sub: (v) => (v[1] ? `通关 ${Number(v[1])} 次` : '') },
+  { k: 'sv', gd: 'sv', i: 0, unit: '分', label: '最高分' },
+  { k: 'pf', gd: 'pf', i: 1, unit: '分', label: '最高分', sub: (v) => (v[0] ? `最远第 ${Number(v[0])} 波` : '') },
+  { k: 'wf', gd: 'wf', i: 1, unit: '胜', label: '胜场', sub: (v) => (v[0] ? `共 ${Number(v[0])} 局` : '') },
+  { k: 'dt', gd: 'dt', i: 0, unit: '条', label: '已复原记录', sub: (v) => (v[2] ? `结案 ${Number(v[2])}` : '') },
+];
+async function buildBoard(kv) {
+  const keys = (await listKeys(kv, 'usr_', 1000)).filter((k) => k !== 'usr_n').slice(0, 500);
+  const rows = await mapLimit(keys, 6, async (k) => {
+    let u = null;
+    try { u = JSON.parse((await kv.get(k, { weak: true })) || 'null'); } catch { u = null; }
+    if (!u || !u.uid || !u.name) return null;
+    const uh = await uhash(u.uid);
+    let gd = null, il = null;
+    try { const a = await kvJson(kv, 'acct_' + uh, true); gd = a && a.doc && a.doc.gd && typeof a.doc.gd === 'object' ? a.doc.gd : null; } catch { gd = null; }
+    try { const sv = await kvJson(kv, 'sv_' + uh + '_idle', true); il = sv && sv.meta ? sv.meta : null; } catch { il = null; }
+    return { name: String(u.name).slice(0, 24), gd, il };
+  });
+  const users = rows.filter(Boolean);
+  const out = {};
+  for (const sp of BOARD_SPEC) {
+    const list = [];
+    for (const u of users) {
+      const v = u.gd && Array.isArray(u.gd[sp.gd]) ? u.gd[sp.gd] : null;
+      const score = v ? Math.round(Number(v[sp.i]) || 0) : 0;
+      if (score > 0) list.push({ name: u.name, score, sub: sp.sub ? sp.sub(v) : '' });
+    }
+    list.sort((a, b) => b.score - a.score);
+    out[sp.k] = { label: sp.label, unit: sp.unit, items: list.slice(0, 20) };
+  }
+  // 挂机前夜：主线通关进度 + 通关阵容（云存档摘要里的 team），没上传云存档的退回档案里的最高关卡
+  const il = [];
+  for (const u of users) {
+    const m = u.il, g = u.gd && Array.isArray(u.gd.il) ? u.gd.il : null;
+    const stage = Math.max(Number(m && m.maxStage) || 0, Number(g && g[2]) || 0);
+    if (stage > 0) il.push({ name: u.name, score: stage, team: m && Array.isArray(m.team) ? m.team : [] });
+  }
+  il.sort((a, b) => b.score - a.score);
+  out.il = { label: '主线通关', unit: '关', items: il.slice(0, 20) };
+  return out;
+}
+async function getBoard(request, env, kv, cors) {
+  const cur = await kvJson(kv, 'board_cache', true);
+  if (cur && Date.now() - Number(cur.at) < BOARD_TTL && cur.games) return reply({ ok: true, at: cur.at, games: cur.games }, 200, cors);
+  const games = await buildBoard(kv);
+  const at = Date.now();
+  try { await kv.put('board_cache', JSON.stringify({ at, games })); } catch { /* 缓存写失败也要给结果 */ }
+  return reply({ ok: true, at, games }, 200, cors);
 }
 
 // GET /grants/mine —— 登录用户拉自己还没领的赠礼（前端按已领 id 过滤，天然幂等）
@@ -1047,7 +1165,8 @@ async function getMyGrants(request, env, kv, cors) {
     ok: true,
     items: (Array.isArray(list) ? list : []).map((g) => ({
       id: String(g.id || ''), amount: Number(g.amount) || 0, note: String(g.note || ''), at: Number(g.at) || 0,
-    })).filter((g) => g.id && g.amount > 0),
+      awk: cleanAwk(g.awk),
+    })).filter((g) => g.id && (g.amount > 0 || g.awk.length)),
   }, 200, cors);
 }
 
@@ -1090,10 +1209,11 @@ export async function onRequest(context) {
         // v 是接口版本，不是代码版本：v2 只有点赞/档案/题库，
         // v3 才有 /stats /whoami /admin/*（管理页靠它判断要不要提示「重新部署」），
         // v4 修好 whoami 的验票地址（GET /api/token），管理页与云端档案才真正能用，
+        // v8 多了 /board（各游戏榜单）与 /admin/grant-batch（批量发银芯 / 唤醒体）；
         // v7 多了 /save/:game（整份游戏存档上云，挂机前夜用），
         // v6 多了 /home/reviews（评分详情：分布 + 短评），
         // v5 档案里多了 gd（九个游戏的进度摘要），管理页能看全部游戏 + 挂机时长/角色数
-        ok: Boolean(store), service: 'zjtt', v: 7, runtime: 'edgeone',
+        ok: Boolean(store), service: 'zjtt', v: 8, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
@@ -1122,6 +1242,8 @@ export async function onRequest(context) {
     if (path === '/grants/mine' && method === 'GET') return await getMyGrants(request, env, kv, cors);
     if (path === '/admin/overview' && method === 'GET') return await getAdminOverview(request, env, kv, cors);
     if (path === '/admin/grant' && method === 'POST') return await postAdminGrant(request, env, kv, cors);
+    if (path === '/admin/grant-batch' && method === 'POST') return await postAdminGrantBatch(request, env, kv, cors);
+    if (path === '/board' && method === 'GET') return await getBoard(request, env, kv, cors);
 
     const sv = path.match(/^\/save\/([^/]+)$/);
     if (sv) {

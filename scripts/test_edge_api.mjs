@@ -608,6 +608,40 @@ console.log('\n[15] 游戏存档上云 /save/idle：登录才能用、乐观锁�
   eq('过大 → 413', (await call('/save/idle', { method: 'PUT', headers: B, body: { data: JSON.stringify({ roster: {}, pad: 'x'.repeat(490 * 1024) }), ver: 0 } })).status, 413);
 }
 
+console.log('\n[20] 后台批量赠礼 + 榜单');
+{
+  const kv = fakeKV();
+  const call = makeCaller({ zjtt_kv: kv, WALINE_URL: 'https://example.invalid', ZJTT_ADMIN_UIDS: '9001' });
+  seedSession(kv, 'adm', '9001', '姜酒'); seedSession(kv, 'u1', '9101', '甲'); seedSession(kv, 'u2', '9102', '乙');
+  const AD = { Authorization: 'Bearer adm' }, U1 = { Authorization: 'Bearer u1' }, U2 = { Authorization: 'Bearer u2' };
+  // 让两个用户「登录过」：任意带 token 的请求都会 touchUser
+  await call('/grants/mine', { headers: U1 }); await call('/grants/mine', { headers: U2 }); await call('/whoami', { headers: AD });
+  eq('非管理员不能批量发', (await call('/admin/grant-batch', { method: 'POST', headers: U1, body: { all: true, amount: 5 } })).status, 403);
+  eq('什么都不发 → 400', (await call('/admin/grant-batch', { method: 'POST', headers: AD, body: { all: true, amount: 0 } })).status, 400);
+  const b1 = await call('/admin/grant-batch', { method: 'POST', headers: AD, body: { all: true, amount: 50, awk: ['ogier', 'bad slug!', 'ogier'], note: '全服补偿' } });
+  check('全员发放成功（含管理员自己 3 人）', b1.json.ok && b1.json.sent === 3 && b1.json.awk.length === 1, b1.json);
+  const g1 = await call('/grants/mine', { headers: U1 });
+  check('用户拿到银芯 + 唤醒体', g1.json.items.length === 1 && g1.json.items[0].amount === 50 && g1.json.items[0].awk[0] === 'ogier', g1.json);
+  const b2 = await call('/admin/grant-batch', { method: 'POST', headers: AD, body: { uids: ['9102'], awk: ['lotan'] } });
+  eq('只发唤醒体、不发银芯 → 成功 1 人', b2.json.sent, 1);
+  eq('乙有 2 条赠礼', (await call('/grants/mine', { headers: U2 })).json.items.length, 2);
+  eq('甲仍是 1 条', (await call('/grants/mine', { headers: U1 })).json.items.length, 1);
+  // 单人接口也支持只发唤醒体
+  eq('单人发唤醒体', (await call('/admin/grant', { method: 'POST', headers: AD, body: { uid: '9101', awk: ['doll'] } })).json.ok, true);
+
+  // 榜单：档案摘要 + 挂机云存档摘要
+  await call('/account', { method: 'PUT', headers: U1, body: { doc: { cr: 1, gd: { mg: [1234], bd: [30, 800], il: [100, 6, 40, 41, 0] } }, ver: 0 } });
+  await call('/account', { method: 'PUT', headers: U2, body: { doc: { cr: 1, gd: { mg: [900] } }, ver: 0 } });
+  await call('/save/idle', { method: 'PUT', headers: U1, body: { data: JSON.stringify({ roster: {} }), ver: 0, meta: { maxStage: 55, roster: 6, team: [{ s: 'ogier', lv: 60, st: 2 }, { s: 'x y', lv: 1 }] } } });
+  const bd = await call('/board');
+  check('榜单可公开读', bd.json.ok && bd.json.games, bd.json);
+  eq('合成榜按分数降序', bd.json.games.mg.items.map((x) => [x.name, x.score]), [['甲', 1234], ['乙', 900]]);
+  eq('鸟弟榜带最深层数', bd.json.games.bd.items[0].sub, '最深 30 层');
+  eq('挂机榜用云存档的关数', bd.json.games.il.items[0].score, 55);
+  eq('挂机榜带阵容（slug 里的非法字符被清掉）', bd.json.games.il.items[0].team, [{ s: 'ogier', lv: 60, st: 2 }, { s: 'xy', lv: 1, st: 0 }]);
+  check('没分的游戏榜单为空', bd.json.games.sv.items.length === 0);
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
   console.log('\n失败项：');
   for (const f of fails) console.log('  - ' + f);

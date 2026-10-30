@@ -74,6 +74,13 @@ SERVE_STATIC=1 PORT=8795 node server/node.js
 - **链接**：官网 / Steam / Discord / 忘忘看报，居中一排；页脚是数据来源与权利说明，
   和忘忘看报同源同口径（CC BY-NC-SA 4.0 + 素材版权归原权利人）。
 
+## 排行榜与后台批量发放
+
+- **首页排行榜**（`#boards`）：`GET /api/board`（公开，服务端缓存 3 分钟）。数据来自玩家各自云端档案里的进度摘要（`gd`）和挂机前夜云存档的摘要，没登录 / 没同步过的人不会上榜。
+  挂机前夜榜显示**主线通关关数 + 通关阵容**（云存档 meta 里的 `team`：slug / 等级 / 叠位），其余游戏显示用户名 + 最高分（狼人杀按胜场、弥萨格大逃杀按已复原记录数）。
+- **后台批量发放**（`admin.html` →「批量发放」）：`POST /api/admin/grant-batch { all | uids[], amount, awk[], note }`，银芯和挂机前夜唤醒体可以只发一样，发给所有人 / 勾选的人 / 当前搜索结果。
+  银芯走原来的赠礼（`js/account.js` 同步时领取）；唤醒体由挂机前夜进游戏时领（`claimGifts`：没有就新增、已有叠位 +1，领过的 id 记在存档 `giftIds`，换设备不会重领）。接口版本 v8。
+
 ## 离线版（PWA）与桌面版（Electron）
 
 两条路，内容完全一样，共用同一份清单 `data/offline.json`（构建时由 `scripts/build_offline_manifest.mjs` 扫出来）。

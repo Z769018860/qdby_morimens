@@ -1781,3 +1781,32 @@ test('云端存档：什么时候推、拉、问玩家', () => {
   // 换了账号：当新设备处理
   assert.equal(cloudPlan({ state: played, cloudMeta: cm, sync: { acct: '乙', ver: 4, rev: 50 }, acct }), 'conflict');
 });
+
+/* ---------- 站长赠礼：唤醒体 ---------- */
+import { claimGifts } from '../src/core/game.js';
+import { metaOf } from '../src/core/cloud.js';
+
+test('站长赠礼：新的入包、已有的叠位、同一条只领一次、未知 slug 跳过', () => {
+  const s = newState(data);
+  const own = Object.keys(s.roster)[0];
+  const other = data.awakeners.map((a) => a.slug).find((x) => !s.roster[x]);
+  const star0 = s.roster[own].star;
+  const items = [{ id: 'g1', awk: [other, own, 'no-such-slug'] }, { id: 'g2', awk: [] }];
+  const got = claimGifts(s, data, items);
+  assert.deepEqual(got.map((g) => [g.slug, g.isNew]), [[other, true], [own, false]]);
+  assert.equal(s.roster[other].lv, 1);
+  assert.equal(s.roster[own].star, star0 + 1);
+  // 再领一次：什么都不发（幂等），id 已记下
+  assert.equal(claimGifts(s, data, items).length, 0);
+  assert.equal(s.roster[own].star, star0 + 1);
+  assert.ok(s.giftIds.includes('c:g1'));
+  // 迁移后 giftIds 还在（云存档拉下来也不会重领）
+  assert.ok(migrate(JSON.parse(JSON.stringify(s)), data).giftIds.includes('c:g1'));
+});
+
+test('云存档摘要带主线阵容', () => {
+  const s = newState(data);
+  const m = metaOf(s);
+  assert.equal(m.team.length, s.team.length);
+  assert.deepEqual(Object.keys(m.team[0]).sort(), ['lv', 's', 'st']);
+});

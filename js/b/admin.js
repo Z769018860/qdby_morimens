@@ -1905,6 +1905,8 @@ function openGames(u) {
 // ------------------------------------------------------------------ 主体
 let USERS = [];
 let Q = '';
+const SEL = new Set();          // 勾选的 uid（批量发放用）
+let AWK = null;                  // 挂机前夜唤醒体清单（slug / 中文名），第一次打开批量面板时再读
 
 function kpis(s, users) {
   const synced = users.filter((u) => u.acct).length;
@@ -1924,7 +1926,10 @@ function row(u) {
   const a = u.acct || null;
   const gd = (a && a.gd && typeof a.gd === 'object' && !Array.isArray(a.gd)) ? a.gd : null;
   const il = gd && Array.isArray(gd.il) ? gd.il : null;
+  const cb = h('input', { type: 'checkbox', checked: SEL.has(String(u.uid)), 'aria-label': '选择 ' + (u.name || u.uid) });
+  cb.addEventListener('change', () => { if (cb.checked) SEL.add(String(u.uid)); else SEL.delete(String(u.uid)); batchHint(); });
   return h('tr', {},
+    h('td', {}, cb),
     h('td', {}, h('div', { class: 'namecell' },
       h('b', {}, u.name || '（未命名）'),
       a ? h('span', { class: 'badge ok' }, '已同步') : h('span', { class: 'badge no' }, '未同步'))),
@@ -1943,20 +1948,113 @@ function row(u) {
       h('button', { class: 'btn sm gold', onclick: () => openGrant(u, load) }, '发放'))));
 }
 
+const matched = () => (Q
+  ? USERS.filter((u) => (u.name || '').toLowerCase().includes(Q) || String(u.uid).includes(Q))
+  : USERS);
+
 function table() {
-  const list = Q
-    ? USERS.filter((u) => (u.name || '').toLowerCase().includes(Q) || String(u.uid).includes(Q))
-    : USERS;
+  const list = matched();
   if (!list.length) return h('p', { class: 'empty' }, Q ? '没有匹配的用户。' : '还没有任何账号登录过本站。');
   return h('div', { class: 'tblwrap' },
     h('table', {},
       h('thead', {}, h('tr', {},
-        h('th', {}, '账号'), h('th', {}, '最近活跃'), h('th', {}, '首次登录'),
+        h('th', {}, ''), h('th', {}, '账号'), h('th', {}, '最近活跃'), h('th', {}, '首次登录'),
         h('th', {}, '银芯'), h('th', {}, '推理'), h('th', {}, 'CG'),
         h('th', {}, '合成'), h('th', {}, '鸟弟'),
         h('th', {}, '挂机时长'), h('th', {}, '角色'),
         h('th', {}, '同步时间'), h('th', {}, '操作'))),
       h('tbody', {}, list.slice(0, 300).map(row))));
+}
+
+
+// ------------------------------------------------------------------ 批量发放
+// 银芯是账号级的（所有游戏共用钱包），唤醒体是挂机前夜的：对方下次打开站点 / 进挂机前夜时到账。
+let batchHintEl = null;
+function batchHint() {
+  if (batchHintEl) batchHintEl.textContent = `已勾选 ${SEL.size} 人 · 当前搜索结果 ${matched().length} 人 · 全部 ${USERS.length} 人`;
+}
+
+async function loadAwk() {
+  if (AWK) return AWK;
+  try {
+    const r = await fetch('idle/public/data/game-data.json', { cache: 'no-cache' });
+    const d = await r.json();
+    AWK = (d.awakeners || []).filter((a) => a && a.slug).map((a) => ({ slug: a.slug, zh: a.zh || a.slug, rarity: a.rarity || '' }));
+  } catch { AWK = []; }
+  return AWK;
+}
+
+function batchCard(onDone) {
+  const picked = new Set();
+  let target = 'all';
+  const amountEl = h('input', { type: 'number', min: '0', max: '100000', value: '100', placeholder: '银芯数量（0 = 不发）' });
+  const noteEl = h('input', { type: 'text', maxlength: '120', placeholder: '备注（会显示给用户，例如「全服补偿」）' });
+  const awkBox = h('div', { class: 'awkbox' }, h('span', { class: 'sub' }, '读取唤醒体清单…'));
+  const awkSearch = h('input', { type: 'text', placeholder: '搜唤醒体名字', style: 'width:160px' });
+  const pickedEl = h('p', { class: 'sub' }, '没有选唤醒体（只发银芯）');
+  const okBtn = h('button', { class: 'btn gold', onclick: send }, '确认批量发放');
+  batchHintEl = h('p', { class: 'sub' });
+  batchHint();
+
+  const tgt = h('div', { class: 'tgt' }, [
+    ['all', '所有人'], ['sel', '表格里勾选的人'], ['filter', '当前搜索结果'],
+  ].map(([k, label]) => {
+    const r = h('input', { type: 'radio', name: 'tgt', value: k, checked: k === 'all' });
+    r.addEventListener('change', () => { target = k; });
+    return h('label', {}, r, ' ' + label);
+  }));
+
+  function paintPicked() {
+    pickedEl.textContent = picked.size
+      ? `唤醒体 ${picked.size} 名：` + [...picked].map((s) => (AWK.find((a) => a.slug === s) || {}).zh || s).join('、') + '（已有的会叠位 +1）'
+      : '没有选唤醒体（只发银芯）';
+  }
+  function paintAwk() {
+    const q = awkSearch.value.trim().toLowerCase();
+    awkBox.replaceChildren(...AWK.filter((a) => !q || a.zh.toLowerCase().includes(q) || a.slug.includes(q)).map((a) => {
+      const b = h('button', { type: 'button', class: 'chip' + (picked.has(a.slug) ? ' on' : ''), title: a.slug }, a.zh);
+      b.addEventListener('click', () => { if (picked.has(a.slug)) picked.delete(a.slug); else picked.add(a.slug); b.classList.toggle('on'); paintPicked(); });
+      return b;
+    }));
+    if (!AWK.length) awkBox.replaceChildren(h('span', { class: 'sub' }, '读不到唤醒体清单（idle/public/data/game-data.json），只能发银芯。'));
+  }
+  loadAwk().then(() => { paintAwk(); });
+  awkSearch.addEventListener('input', paintAwk);
+
+  async function send() {
+    const amount = Math.round(Number(amountEl.value) || 0);
+    const awk = [...picked];
+    if (!(amount > 0) && !awk.length) { toast('银芯和唤醒体至少发一样'); return; }
+    let body = { amount, awk, note: noteEl.value.trim() };
+    let who = '';
+    if (target === 'all') { body.all = true; who = `全部 ${USERS.length} 个账号`; }
+    else {
+      const list = target === 'sel' ? USERS.filter((u) => SEL.has(String(u.uid))) : matched();
+      if (!list.length) { toast(target === 'sel' ? '还没有勾选任何人' : '当前搜索没有结果'); return; }
+      body.uids = list.map((u) => String(u.uid));
+      who = `${list.length} 个账号`;
+    }
+    const what = [amount > 0 ? `${amount} 银芯` : '', awk.length ? `${awk.length} 名唤醒体` : ''].filter(Boolean).join(' + ');
+    if (!confirm(`给 ${who} 各发放：${what}。\n\n发出去收不回，确定？`)) return;
+    okBtn.disabled = true; okBtn.textContent = '发放中…';
+    try {
+      const r = await req('/admin/grant-batch', { method: 'POST', body, timeout: 60000 });
+      toast(`已发放给 ${r.sent}/${r.total} 个账号（对方下次打开站点 / 进挂机前夜时到账）`);
+      if (onDone) onDone();
+    } catch (e) {
+      toast('批量发放失败：' + (e.message || e.code || '未知错误'));
+    } finally { okBtn.disabled = false; okBtn.textContent = '确认批量发放'; }
+  }
+
+  return h('section', { class: 'card' },
+    h('h2', {}, '批量发放'),
+    h('p', { class: 'sub' }, '银芯进账号钱包（所有游戏通用），唤醒体进挂机前夜的角色库——没有就新增，已有就叠位 +1。可以只发其中一样。'),
+    tgt, batchHintEl,
+    h('div', { class: 'quick' }, [50, 100, 300, 1000, 3000].map((v) => h('button', { type: 'button', onclick: () => { amountEl.value = String(v); } }, String(v)))),
+    h('div', { class: 'row' }, amountEl, noteEl),
+    h('div', { class: 'row' }, awkSearch, h('button', { type: 'button', class: 'btn sm ghost', onclick: () => { picked.clear(); paintAwk(); paintPicked(); } }, '清空唤醒体')),
+    awkBox, pickedEl,
+    h('div', { class: 'acts' }, okBtn));
 }
 
 function render(data, h0) {
@@ -1967,6 +2065,7 @@ function render(data, h0) {
   searchEl.addEventListener('input', () => {
     Q = searchEl.value.trim().toLowerCase();
     body.replaceChildren(table());
+    batchHint();
   });
   const body = h('div', {}, table());
   const refresh = h('button', { class: 'btn ghost sm', onclick: (e) => { e.target.disabled = true; load(); } }, '刷新');
@@ -1980,6 +2079,7 @@ function render(data, h0) {
       h('h2', {}, '站点概况'),
       h('p', { class: 'sub' }, '浏览数从 2026-10 起统计；注册用户指用过本站的账号。'),
       kpis(stats, data.users || [])),
+    batchCard(),
     h('section', { class: 'card' },
       h('h2', {}, `用户列表 · ${(data.users || []).length}`),
       h('p', { class: 'sub' }, '「未同步」= 登录过但没传过云端档案，说明他只在游客模式下点过登录。发放的银芯在对方下次打开站点、同步档案时到账。'),

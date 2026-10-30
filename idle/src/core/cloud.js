@@ -44,6 +44,9 @@ export const isFresh = (s) => !s || ((s.maxStage || 0) <= 2 && (Number(s.play) |
 export const metaOf = (s) => ({
   maxStage: s.maxStage || 0, roster: Object.keys(s.roster || {}).length, play: Math.round(Number(s.play) || 0),
   gold: Math.round(Number(s.gold) || 0), lastSeen: s.lastSeen || 0,
+  // 主线出战阵容：首页榜单展示「通关阵容」用（只带 slug / 等级 / 叠位）
+  team: (Array.isArray(s.team) ? s.team : []).slice(0, 5).filter((x) => s.roster && s.roster[x])
+    .map((x) => ({ s: x, lv: s.roster[x].lv || 1, st: s.roster[x].star || 0 })),
 });
 
 /**
@@ -96,6 +99,11 @@ async function call(method, path, body, { f = fetch, keepalive = false } = {}) {
   return { status: r.status, ok: r.ok && j.ok !== false, json: j };
 }
 
+/** 管理员发给本账号的赠礼（含唤醒体）；拿不到就当没有 */
+export async function fetchGrants(opt) {
+  const r = await call('GET', '/grants/mine', null, opt);
+  return r.ok && Array.isArray(r.json.items) ? r.json.items : [];
+}
 export async function fetchMeta(opt) {
   const r = await call('GET', `/save/${GAME}?meta=1`, null, opt);
   if (r.status === 401) throw new Error('need_login');

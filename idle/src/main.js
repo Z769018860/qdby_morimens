@@ -1,6 +1,6 @@
 import './ui/orient.js';   // 横屏 / 竖屏开关（顶栏那颗方向按钮）
 import {
-  indexData, newState, migrate, offlineReport, claimOffline, levelUp, levelUpMax, setTeam, autoTeam, autoLoadout, setPreset,
+  indexData, newState, migrate, offlineReport, claimOffline, claimGifts, levelUp, levelUpMax, setTeam, autoTeam, autoLoadout, setPreset,
   equipItem, unequipItem, enhanceItem, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem,
   dismantleCores, breakThrough, awakenUp, upgradeOrder, rewindLevel,
 } from './core/game.js';
@@ -153,6 +153,7 @@ async function boot() {
   checkSigninGifts();
   document.addEventListener('visibilitychange', onVisibility);
   setTimeout(() => cloudRun('auto'), 2500);
+  setTimeout(giftRun, 4000);
   // 另一个标签页存档了：当前窗口在后台就先不管（回到前台时 onVisibility 会同步），在前台就立刻同步
   window.addEventListener('storage', (e) => { if (e.key === store.KEY && !document.hidden && !app.offlinePending) adoptNewerDisk(); });
   window.addEventListener('pagehide', () => { app.save(); store.flush(); cloudPush(true); });
@@ -169,6 +170,22 @@ async function boot() {
     if (++tickN >= 3) { tickN = 0; app.save(); }
   }, 5000);
   window.__game = app; // handy for debugging / tests
+}
+
+/* ---------- 站长赠礼（唤醒体） ----------
+   管理后台批量发的唤醒体挂在账号上（/grants/mine 的 awk），进游戏时领：没有的新增、已有的叠位 +1。
+   放在云同步之后一点（4 秒）：新设备要先让云端存档落地，否则会领进一个马上被覆盖的空档。 */
+async function giftRun() {
+  if (!Cloud.account() || !app.state || app.offlinePending) return;
+  if (app.cloud && (app.cloud.busy || app.cloud.hold || app.cloud.status === 'conflict')) { setTimeout(giftRun, 6000); return; }
+  try {
+    const items = await Cloud.fetchGrants();
+    const got = claimGifts(app.state, app.data, items.filter((g) => Array.isArray(g.awk) && g.awk.length));
+    if (!got.length) return;
+    app.save(); render(); app.refreshTop();
+    const names = got.map((g) => (g.isNew ? `${g.zh}（新）` : `${g.zh} 叠位+1`)).join('、');
+    toast(`收到站长赠礼：${names}`, 5000);
+  } catch { /* 没网 / 没登录：下次进游戏再领 */ }
 }
 
 /* ---------- 云端存档 ----------

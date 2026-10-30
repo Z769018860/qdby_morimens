@@ -742,6 +742,27 @@ export function pullOnce(state, data, rng) {
   state.stats.pulls++;
   return { slug: a.slug, rarity, isNew: !own, dup, gold, star: state.roster[a.slug].star };
 }
+/** 管理员在后台发的唤醒体（站点 /grants/mine 的 awk 列表）：没有就是新获得，已有就叠位 +1。
+ *  每条赠礼只领一次（id 记在 state.giftIds 里，云存档会一起带走，换设备也不会重领）。返回这次实际发出去的。 */
+export function claimGifts(state, data, items) {
+  const done = new Set(Array.isArray(state.giftIds) ? state.giftIds : []);
+  const got = [];
+  for (const g of Array.isArray(items) ? items : []) {
+    const id = 'c:' + String(g && g.id || '');
+    if (id === 'c:' || done.has(id)) continue;
+    for (const slug of Array.isArray(g.awk) ? g.awk : []) {
+      const a = data.bySlug[slug];
+      if (!a) continue;
+      const own = state.roster[slug];
+      if (!own) { state.roster[slug] = { lv: 1, star: 0, brk: 0 }; got.push({ slug, zh: a.zh, isNew: true }); }
+      else if (own.star < MAX_AWAKEN) { own.star++; got.push({ slug, zh: a.zh, isNew: false }); }
+      else { state.cores += 30; got.push({ slug, zh: a.zh, isNew: false, full: true }); }
+    }
+    done.add(id);
+  }
+  if (got.length || done.size !== (Array.isArray(state.giftIds) ? state.giftIds.length : 0)) state.giftIds = [...done].slice(-200);
+  return got;
+}
 export function summon(state, data, n) {
   if (state.tickets < n) return null;
   state.tickets -= n;
