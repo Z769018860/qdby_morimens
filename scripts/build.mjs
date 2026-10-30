@@ -351,6 +351,10 @@ const pf = genProtocol();
 // 这里只负责在构建时调它，保证 js/binding-art.js 不会和 data/binding-art.json 走散。
 execFileSync(process.execPath, [path.join(ROOT, 'scripts/build_binding_art.mjs')], { stdio: 'pipe' });
 
+// 「忘却 2048」那十一级造物图同理：棋盘上同时躺着十几块，逐个请求就是十几个来回。
+// 图源写在 data/g2048-levels.json，这里只负责在构建时重新内联一次。
+execFileSync(process.execPath, [path.join(ROOT, 'scripts/build_g2048_art.mjs')], { stdio: 'pipe' });
+
 // 「弥萨格狼人杀」的 62 张头像同理：一局里要用到十几张，逐个请求在边缘就是十几个来回。
 // 清单写在 js/wolf/data.js 里（每名唤醒体的 av 字段），由这个脚本读成 data URI。
 execFileSync(process.execPath, [path.join(ROOT, 'scripts/build_wolf_art.mjs')], { stdio: 'pipe' });

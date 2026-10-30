@@ -1,0 +1,17 @@
+{
+  "note": "2048 的十一级「显影链」：两块同样的造物合流，往上显影一级，顶点是「祂的神谕」。v 是合成数值（方块上的数字），n 是造物名（合成播报 / 图鉴提示），img 是方块图，c 是这一级的色阶（越往上越烫）。第 12 级 4096 是彩蛋，复用最后一级的图。",
+  "levels": [
+    { "v": 2, "n": "染血鹅卵石", "img": "assets/creation/Icon_Creation_140.webp", "c": "#4d5474" },
+    { "v": 4, "n": "崭新的钱包", "img": "assets/creation/Icon_Creation_043.webp", "c": "#3a6a9e" },
+    { "v": 8, "n": "锡兰红茶", "img": "assets/creation/Icon_Creation_053.webp", "c": "#35708f" },
+    { "v": 16, "n": "偏方骰子", "img": "assets/creation/Icon_Creation_160.webp", "c": "#2f8880" },
+    { "v": 32, "n": "大嘴纽扣", "img": "assets/creation/Icon_Creation_161.webp", "c": "#41894f" },
+    { "v": 64, "n": "海眷歌谣", "img": "assets/creation/Icon_Creation_005.webp", "c": "#77892f" },
+    { "v": 128, "n": "幸运风衣", "img": "assets/creation/Icon_Creation_159.webp", "c": "#a9801f" },
+    { "v": 256, "n": "异形之心", "img": "assets/creation/Icon_Creation_099.webp", "c": "#bb6526" },
+    { "v": 512, "n": "深渊通信", "img": "assets/creation/Icon_Creation_089.webp", "c": "#b43f3c" },
+    { "v": 1024, "n": "万象灵知秘仪", "img": "assets/creation/Icon_Creation_125.webp", "c": "#8f3d8e" },
+    { "v": 2048, "n": "祂的神谕", "img": "assets/creation/Icon_Creation_068.webp", "c": "#5a47c9" }
+  ],
+  "rot": { "img": "assets/status/corrosion.webp" }
+}

@@ -601,7 +601,7 @@ async function putAccount(request, env, kv, cors) {
 // 账号档案（/account）只放轻量的积分 / 解锁 / 最高分；挂机前夜这类「整份进度」是大对象，
 // 单独一个键 sv_{uid哈希}_{游戏}，带版本号做乐观锁：版本对不上返回 409 + 云端的摘要，
 // 由客户端决定用哪份（不会悄悄互相覆盖）。
-const SAVE_GAMES = new Set(['idle', 'deathreport', 'binding', 'survivors', 'protocol', 'wolf', 'merge', 'bird']);
+const SAVE_GAMES = new Set(['idle', 'deathreport', 'binding', 'survivors', 'protocol', 'wolf', 'merge', 'bird', 'g2048']);
 const SAVE_MAX = 480 * 1024;
 
 function saveGameOf(g) {
@@ -1353,6 +1353,9 @@ const BOARD_SPEC = [
     alt: (v) => ({ score: Number(v[0]) || 0, unit: '条', sub: '已复原记录（暂无报告数据）' }),
     sub: (v) => (Number(v[3]) > 0 ? `提交 ${Number(v[3])} 份 · 正确率 ${Math.round((Number(v[4]) || 0) / Number(v[3]) * 100)}%` : ''),
     tb: (v) => (Number(v[3]) > 0 ? (Number(v[4]) || 0) / Number(v[3]) : 0) },
+  // 忘却 2048：按显影分排，副标写最高合到的块
+  { k: 'g2', gd: 'g2', i: 0, unit: '分', label: '最高分',
+    sub: (v) => (Number(v[1]) > 1 ? `最高块 ${Number(v[1])}` : '') },
 ];
 // 账号档案里除了 gd（九个游戏的摘要）还有几个老字段：合成最高分 mb、鸟弟 bb/bs、侦探 st。
 // 老客户端只有这些、没有 gd，或者 gd 比它们旧——两边逐项取大，免得有人明明有上万分却上不了榜。
@@ -1478,7 +1481,7 @@ export async function onRequest(context) {
         // v7 多了 /save/:game（整份游戏存档上云，挂机前夜用），
         // v6 多了 /home/reviews（评分详情：分布 + 短评），
         // v5 档案里多了 gd（九个游戏的进度摘要），管理页能看全部游戏 + 挂机时长/角色数
-        ok: Boolean(store), service: 'zjtt', v: 8, runtime: 'edgeone',
+        ok: Boolean(store), service: 'zjtt', v: 9, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),

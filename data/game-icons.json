@@ -43,5 +43,10 @@
     "src": "assets/ui/gameicons/wolf.webp",
     "from": "assets/avatars-q/char-c05.webp",
     "who": "莱克"
+  },
+  "g2048": {
+    "src": "assets/ui/gameicons/g2048.webp",
+    "from": "assets/creation/Icon_Creation_068.webp",
+    "who": "祂的神谕"
   }
 }

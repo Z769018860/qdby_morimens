@@ -1453,6 +1453,23 @@ function wolf() {
   };
 }
 
+function g2048() {
+  // js/g2048.js 的 KEY：best 全难度 / best:<难度> / seen 历史合到过的最大块
+  const best = numKey('g2048:best');
+  const seen = numKey('g2048:seen');
+  const byDiff = [['classic', '4×4'], ['wide', '5×5'], ['brutal', '3×3']]
+    .map(([k, n]) => ({ n, v: numKey('g2048:best:' + k) }));
+  const played = byDiff.filter((d) => d.v > 0);
+  return {
+    items: [
+      { k: '最高分', v: best ? String(best) : '—' },
+      { k: '最高块', v: seen ? String(seen) : '—' },
+      { k: '下过棋盘', v: played.length + '/3' },
+    ],
+    extra: played.map((d) => `${d.n} ${d.v}`).join(' · '),
+  };
+}
+
 function deathreport() {
   // 本篇 + 往届两届，各自一个存档键（deathreport/js/ui.js 的 EDS）
   const EDS = [
@@ -1496,6 +1513,7 @@ const GAMES = [
   { k: 'protocol', n: '忘却协议', href: 'protocol.html', icon: '⬡', read: protocol, tip: '守住十二波' },
   { k: 'wolf', n: '弥萨格狼人杀', href: 'wolf.html', icon: '🐺', read: wolf, tip: '身份推理' },
   { k: 'deathreport', n: '弥萨格大逃杀', href: 'deathreport/', icon: '📄', read: deathreport, tip: '档案式复盘' },
+  { k: 'g2048', n: '忘却 2048', href: '2048.html', icon: '🔢', read: g2048, tip: '两块同样的合流' },
 ];
 
 // 一次性读全部：页面只调这一个
@@ -1563,6 +1581,10 @@ const GD_SPEC = [
     ['确认报告', v[4] ? n(v[4]) + ' 份' : '—'],
     ['正确率', n(v[3]) ? Math.round((n(v[4]) / n(v[3])) * 100) + '%' : '—'],
   ] },
+  { k: 'g2', n: '忘却 2048', f: (v) => [
+    ['最高分', v[0] ? String(n(v[0])) : '—'],
+    ['最高块', v[1] ? String(n(v[1])) : '—'],
+  ] },
 ];
 
 
@@ -1576,6 +1598,7 @@ const GD_SPEC = [
 //   il 挂机 [时长秒, 拥有角色, 最高关, 当前关, 金币]
 //   sv 幸存者 [最高分, 局数, 通关角色] pf 协议 [最远波, 最高分, 守住]
 //   wf 狼人 [局数, 胜场]             dt 报告 [已复原, 卷宗, 结案, 提交报告数, 确认报告数]
+//   g2 2048 [最高分, 最高块]
 // 单调递增的量（最好成绩、累计局数、时长），服务端合并时逐项取大即可。
 function digest() {
   const out = { at: Date.now() };
@@ -1609,6 +1632,7 @@ function digest() {
     sub += okN + Object.values(d.missed || {}).reduce((a, x) => a + n(x), 0);
   }
   out.dt = [rec, docs, done, sub, okRep];
+  out.g2 = [numKey('g2048:best'), numKey('g2048:seen')];
   return out;
 }
 return { fmtDur, DIFF_MERGE, DIFF_BIRD, GAMES, readAll, credits, GD_SPEC, digest };
@@ -2508,6 +2532,11 @@ const GAMES = {
   wolf: { zh: '弥萨格狼人杀', prefix: ['zjtt:wolf'], skip: /:(mode|mute|snd)/ },
   merge: { zh: '合成大杜勒', prefix: ['zjtt:merge'], skip: /:(played|snd|mute)/ },
   bird: { zh: '是鸟弟就下100层', prefix: ['zjtt:bird'], skip: /:(snd|mute|diff|ctl)/ },
+  // 2048：局面（save）和最高分都值得跟着账号走，难度 / 侵蚀 / 音效是这台设备的偏好
+  g2048: {
+    zh: '忘却 2048', prefix: ['zjtt:g2048'], skip: /:(snd|diff|rot|played)/,
+    trivial: (keys) => !keys['zjtt:g2048:save'] && !keys['zjtt:g2048:best'],
+  },
 };
 
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
