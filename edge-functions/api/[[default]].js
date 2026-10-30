@@ -985,31 +985,42 @@ function acctBrief(doc) {
 }
 
 // GET /admin/overview
+// 读一次失败就再试一次，还不行给默认值：后台概览一口气读几百个键，Blob 偶尔限流，
+// 不能因为某一个键读挂就整页 500
+async function softly(fn, dflt) {
+  try { return await fn(); } catch { /* 再试一次 */ }
+  try { return await fn(); } catch { return dflt; }
+}
+
 async function getAdminOverview(request, env, kv, cors) {
   const me = await whoami(request, env, kv);
   if (!me) throw new HttpError(401, 'need_login');
   if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', publicWhy(await adminWhy(env, kv, me)));
 
-  const keys = await listKeys(kv, 'usr_', 1000);
+  const keys = (await softly(() => listKeys(kv, 'usr_', 1000), [])).filter((k) => k !== 'usr_n');
   const rows = await mapLimit(keys.slice(0, 300), 6, async (k) => {
-    let u = null;
-    try { u = JSON.parse((await kv.get(k, { weak: true })) || 'null'); } catch { u = null; }
-    if (!u || !u.uid) return null;
-    let acct = null;
-    try { acct = acctBrief((await kvJson(kv, 'acct_' + (await uhash(u.uid)), true) || {}).doc); } catch { acct = null; }
-    return { uid: String(u.uid), name: u.name || '', at: Number(u.at) || 0, seen: Number(u.seen) || 0, acct };
+    try {
+      let u = null;
+      try { u = JSON.parse((await softly(() => kv.get(k, { weak: true }), null)) || 'null'); } catch { u = null; }
+      if (!u || !u.uid) return null;
+      const doc = await softly(async () => (await kvJson(kv, 'acct_' + (await uhash(u.uid)), true) || {}).doc, null);
+      let acct = null;
+      try { acct = acctBrief(doc); } catch { acct = null; }
+      return { uid: String(u.uid), name: String(u.name || ''), at: Number(u.at) || 0, seen: Number(u.seen) || 0, acct };
+    } catch { return null; }
   });
 
   const users = rows.filter(Boolean).sort((a, b) => (b.seen || b.at) - (a.seen || a.at));
-  const pv = await kvJson(kv, 'pv', true);
+  const pv = await softly(() => kvJson(kv, 'pv', true), null);
   const day = dayKey();
-  const bugs = await kvJson(kv, 'bug_idx', true);
+  const bugs = await softly(() => kvJson(kv, 'bug_idx', true), null);
+  const usrN = await softly(() => kvNum(kv, 'usr_n', true), 0);
 
   return reply({
     ok: true,
     me: { uid: me.uid, name: me.name },
     stats: {
-      users: Number(await kvNum(kv, 'usr_n', true)) || users.length,
+      users: Number(usrN) || users.length,
       today: pv && pv.d === day ? (Number(pv.n) || 0) : 0,
       total: Number(pv && pv.t) || 0,
       bugs: Array.isArray(bugs) ? bugs.length : 0,
@@ -1113,15 +1124,15 @@ const BOARD_SPEC = [
   { k: 'dt', gd: 'dt', i: 0, unit: '条', label: '已复原记录', sub: (v) => (v[2] ? `结案 ${Number(v[2])}` : '') },
 ];
 async function buildBoard(kv) {
-  const keys = (await listKeys(kv, 'usr_', 1000)).filter((k) => k !== 'usr_n').slice(0, 500);
+  const keys = (await softly(() => listKeys(kv, 'usr_', 1000), [])).filter((k) => k !== 'usr_n').slice(0, 500);
   const rows = await mapLimit(keys, 6, async (k) => {
     let u = null;
-    try { u = JSON.parse((await kv.get(k, { weak: true })) || 'null'); } catch { u = null; }
+    try { u = JSON.parse((await softly(() => kv.get(k, { weak: true }), null)) || 'null'); } catch { u = null; }
     if (!u || !u.uid || !u.name) return null;
     const uh = await uhash(u.uid);
     let gd = null, il = null;
-    try { const a = await kvJson(kv, 'acct_' + uh, true); gd = a && a.doc && a.doc.gd && typeof a.doc.gd === 'object' ? a.doc.gd : null; } catch { gd = null; }
-    try { const sv = await kvJson(kv, 'sv_' + uh + '_idle', true); il = sv && sv.meta ? sv.meta : null; } catch { il = null; }
+    try { const a = await softly(() => kvJson(kv, 'acct_' + uh, true), null); gd = a && a.doc && a.doc.gd && typeof a.doc.gd === 'object' ? a.doc.gd : null; } catch { gd = null; }
+    try { const sv = await softly(() => kvJson(kv, 'sv_' + uh + '_idle', true), null); il = sv && sv.meta ? sv.meta : null; } catch { il = null; }
     return { name: String(u.name).slice(0, 24), gd, il };
   });
   const users = rows.filter(Boolean);

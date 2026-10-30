@@ -2141,7 +2141,7 @@ async function load(mode) {
     if (e.status === 0) { noBackend(BACKEND); return; }
     gate('载入失败',
       h('p', {}, `接口没返回数据：${e.message || '未知错误'}。`),
-      diag([['后端地址', sitestats.base()], ['状态码', e.status || ''], ['错误码', e.code || '']]),
+      diag([['后端地址', sitestats.base()], ['状态码', e.status || ''], ['错误码', e.code || ''], ['详情', typeof e.detail === 'string' ? e.detail : (e.detail ? JSON.stringify(e.detail).slice(0, 200) : '')]]),
       h('div', { class: 'acts', style: 'margin-top:14px' }, retryBtn()));
   }
 }
