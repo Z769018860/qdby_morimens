@@ -222,7 +222,20 @@ function makeFloor(idx) {
   return { cells, start, boss, floorIdx: idx, F };
 }
 
-function buildRoom(rm) {
+// 从某扇门进来时玩家站的位置（goRoom 和出怪都要用，免得两边各写一套对不上）
+const ENTRY_GAP = 26;
+function entryPoint(fromDir) {
+  const W = G.W, H = G.H;
+  if (fromDir === 'n') return { x: W / 2, y: H - WALL - ENTRY_GAP };
+  if (fromDir === 's') return { x: W / 2, y: WALL + ENTRY_GAP };
+  if (fromDir === 'w') return { x: W - WALL - ENTRY_GAP, y: H / 2 };
+  return { x: WALL + ENTRY_GAP, y: H / 2 };
+}
+// 进门后的安全区：敌人不会刷在这个半径内（开门杀的根源——以前只躲房间正中心，门口随便刷）
+const DOOR_SAFE = 250;
+const DOOR_GRACE = 1.1;     // 进门后敌人愣住的秒数（不动、不开火、不碰伤害），期间玩家也无敌
+
+function buildRoom(rm, fromDir = null) {
   const W = G.W, H = G.H;
   rm.ents = [];
   rm.shots = [];
@@ -233,6 +246,7 @@ function buildRoom(rm) {
   rm.obstacles = [];
   const F = FLOORS[G.run.floor];
   const spawnPt = { x: W / 2, y: H / 2 };
+  const door = fromDir ? entryPoint(fromDir) : null;
 
   if (rm.type === 'fight' || rm.type === 'boss' || rm.type === 'challenge') {
     // 课桌：避开门口和中心
@@ -257,9 +271,12 @@ function buildRoom(rm) {
     let cnt = 2 + G.run.floor + Math.floor(Math.random() * 2) + Math.floor(G.run.roomsCleared / 3);
     if (chal) cnt += 2;
     cnt = Math.min(cap, cnt);
+    let guard = 0;
     for (let i = 0; i < cnt; i++) {
       const pts = { x: rnd(WALL + 50, W - WALL - 50), y: rnd(WALL + 50, H - WALL - 50) };
-      if (dist(pts.x, pts.y, spawnPt.x, spawnPt.y) < 110) { i--; continue; }
+      // 先躲中心；再躲进门的那扇门（试得久了放宽，免得窄屏小房间死循环）
+      const safe = door ? Math.max(120, DOOR_SAFE - Math.floor(guard / 40) * 30) : 0;
+      if (dist(pts.x, pts.y, spawnPt.x, spawnPt.y) < 110 || (door && dist(pts.x, pts.y, door.x, door.y) < safe)) { if (++guard < 400) { i--; continue; } }
       const key = chal ? pickOne(elitePool(F)) : pickOne(F.pool);
       rm.ents.push(makeEnemy(key, pts.x, pts.y, chal ? 1.12 : 1));
     }
@@ -664,6 +681,8 @@ function update(dt) {
 function updateEnemies(dt) {
   const r = G.run, p = r.p, rm = r.room;
   const slow = r.active && r.active.slowT > 0 ? 0.4 : 1;
+  const frozen = rm.grace > 0;
+  if (frozen) rm.grace = Math.max(0, rm.grace - dt);
   for (const e of rm.ents) {
     e.hurt = Math.max(0, e.hurt - dt * 4);
     // 瘟疫：每秒结一次账，零头留在 acc 里，不然 3 点/秒会被帧率吃掉
@@ -683,6 +702,8 @@ function updateEnemies(dt) {
     const dp = dist(e.x, e.y, p.x, p.y);
     const ang = Math.atan2(p.y - e.y, p.x - e.x);
     e.aimA = ang;
+    // 进门缓冲：愣住，第一次出手也要再等一会儿（出手冷却不再从 0.6 秒起跳）
+    if (frozen) { e.cd = Math.max(e.cd, 0.7 + (e.seed % 1) * 0.6); continue; }
     e.cd -= dt * slow;
     let vx = 0, vy = 0;
 
@@ -952,6 +973,7 @@ function updateBoss(dt) {
     }
     if (b.psn.t <= 0) delete b.psn;
   }
+  if (rm.grace > 0) { b.atkCd = Math.max(b.atkCd, 1.0); return; }   // 进门缓冲：首领先亮相，不立刻出招
   b.t += dt;
   b.phase = b.hp / b.maxHp < 0.45 ? 2 : 1;
   const ang = Math.atan2(p.y - b.y, p.x - b.x);
@@ -1137,7 +1159,8 @@ function checkDoorLeave() {
 function goRoom(next, fromDir) {
   const r = G.run;
   r.room = next;
-  if (!next.built) buildRoom(next);
+  const firstBuild = !next.built;
+  if (firstBuild) buildRoom(next, fromDir);
   if (!next.visited) {
     next.visited = true;
     r.visitedRooms += 1;
@@ -1153,6 +1176,21 @@ function goRoom(next, fromDir) {
   else if (fromDir === 's') { p.x = W / 2; p.y = WALL + 26; }
   else if (fromDir === 'w') { p.x = W - WALL - 26; p.y = H / 2; }
   else { p.x = WALL + 26; p.y = H / 2; }
+  // 开门杀防护：清掉飘在空中的弹幕，把贴在门口的敌人推开，进门后给一小段缓冲
+  next.eshot = [];
+  if (!next.cleared) {
+    const door = entryPoint(fromDir);
+    for (const e of next.ents || []) {
+      const d = dist(e.x, e.y, door.x, door.y);
+      if (d < DOOR_SAFE * 0.7) {
+        const a = Math.atan2(e.y - door.y, e.x - door.x);
+        e.x = clamp(door.x + Math.cos(a) * DOOR_SAFE * 0.7, WALL + e.r, W - WALL - e.r);
+        e.y = clamp(door.y + Math.sin(a) * DOOR_SAFE * 0.7, WALL + e.r, H - WALL - e.r);
+      }
+    }
+    next.grace = DOOR_GRACE;
+    p.invuln = Math.max(p.invuln, DOOR_GRACE);
+  }
   next.baked = bakeRoom(next, FLOORS[r.floor].theme, W, H);
   G.fx.length = 0;
   renderMinimap();

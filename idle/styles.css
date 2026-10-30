@@ -725,3 +725,20 @@ body{background:#0a0d13}
 .ach.ready{border-color:#c9a13a99;box-shadow:0 0 0 1px #c9a13a44}
 
 @media (max-width:540px){.top .brand{font-size:12.5px;letter-spacing:.5px;white-space:nowrap}.top .res{gap:10px;font-size:12px}}
+
+/* 编队的独立配装 */
+.sqlo-note{font-size:11px;color:#8fb8ff;min-height:15px}
+.sqlo{margin:6px 0 4px;padding:8px;border:1px solid rgba(143,184,255,.18);border-radius:10px;background:rgba(14,19,30,.5)}
+.sqlo h4{margin:2px 0 6px}
+.sqlo h5{margin:8px 0 4px;font-size:12px;color:#aab6c9}
+.sqlo .eqrow{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;margin-bottom:6px}
+.sqlo .eqwho{flex:1 1 120px;min-width:0}
+.sqlo button.ochip{cursor:pointer;font:inherit;color:inherit}
+@media (max-width:520px){
+  .sqlo .eqrow{flex-wrap:nowrap;gap:4px}
+  .sqlo .eqwho{flex:0 0 62px}
+  .sqlo .eqwho small{display:none}
+  .sqlo .eqrow .eqslot{flex:1 1 0;min-width:0}
+  .sqlo .relic-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .sqeditor .modal{max-height:92vh;overflow-y:auto}
+}

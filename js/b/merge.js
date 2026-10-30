@@ -109,7 +109,8 @@ const { LEVELS, SC_ART } = m_merge_art;
 // 合成大杜勒 —— 合成大西瓜的玩法，素材换成《忘却前夜》的头像。
 //
 // 规则：把小煤球从瓶口丢下去，两个同级头像碰到一起就合成下一级，
-// 一路合到最大级的杜勒赛因；两个杜勒赛因再撞一次会一起消失，换一笔大分。
+// 一路合到最大级的杜勒赛因；两个杜勒赛因再撞一次会合成一颗更大的杜勒赛因（「巨」），
+// 同样大小的两颗还能继续合下去，直到涨到瓶子装不下的上限，最后一次才会一起消失换大分。
 // 球堆高过警戒线一段时间就结束。
 //
 // 四档难度（简单 / 普通 / 困难 / 癫狂）只动三件事：投放池里大球的比例、
@@ -133,7 +134,10 @@ const RATIO = 1.58;                 // 游戏区 高 / 宽
 // 长度一致，G.top / aimY 这些跟着 MAX_SPAWN 算的布局就不会随难度跳。
 const MAX_SPAWN = 8;
 const OPENER = 5;                   // 开局前几颗只出小球，别一上来就塞大球
-const CLEAR_BONUS = 120;            // 两个杜勒赛因一起消失的奖励
+const CLEAR_BONUS = 120;            // 杜勒赛因每合大一档的奖励基数（第 n 档 = n × 它）；涨到上限再合就一起消失，拿 2 倍
+const TIER_MAX = 4;                 // 杜勒赛因最多再涨几档：每档半径 ×TIER_GROW，4 档后约 0.63 倍瓶宽
+const TIER_GROW = 1.16;
+const TIER_ZH = ['', '巨', '超巨', '极巨', '终极'];
 const SETTLE = 1.4;                 // 刚投下 / 刚合成的球多久之后才参与越线判定
 const WARN_AT = 0.5;                // 球堆顶离警戒线还剩多少屏高就开始「接近」预警
 
@@ -188,7 +192,7 @@ const G = {
   aimX: 0, spawnLv: 0, nextLv: 0, cooldown: 0, drops: 0,
   score: 0, best: 0, bestAll: 0, over: false, cleared: false,
   diff: 'normal', rands: 0, gain: 0,
-  danger: 0, warn: 0, approach: 0, merged: 0, finest: 0, seen: new Set([0]),
+  danger: 0, warn: 0, approach: 0, merged: 0, finest: 0, bigTier: 0, seen: new Set([0]),
   fx: [], texts: [],
   bg: null, tiles: new Map(),
   sound: true, paused: false, started: false,
@@ -231,7 +235,7 @@ function imgOf(lv) {
 
 // ------------------------------------------------------------------ 工具
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-const rad = (lv) => (G.W * LEVELS[lv].d) / 2;
+const rad = (lv, tier = 0) => (G.W * LEVELS[lv].d * Math.pow(TIER_GROW, tier || 0)) / 2;
 const aimY = () => Math.max(G.top * 0.62, rad(MAX_SPAWN) * 1.06);
 
 // ------------------------------------------------------------------ 随机
@@ -462,7 +466,7 @@ function layout() {
     const k = W / oldW;
     for (const b of G.balls) {
       b.x *= k; b.y *= k; b.vx *= k; b.vy *= k;
-      b.r = rad(b.lv);
+      b.r = rad(b.lv, b.tier);
       b.x = clamp(b.x, b.r, G.W - b.r);
       b.y = Math.min(b.y, G.H - b.r);
     }
@@ -538,13 +542,13 @@ function buildBg() {
 }
 
 // ------------------------------------------------------------------ 头像贴图（预渲染）
-function tileFor(lv) {
+function tileFor(lv, tier = 0) {
   // 换皮之后同一级要对应对应那张脸：key 里带上当前皮肤序号，旧贴图自然被弃用
-  const key = lv + '|' + Math.round(G.W) + '|' + SKIN[lv];
+  const key = lv + '|' + Math.round(G.W) + '|' + SKIN[lv] + '|' + (tier || 0);
   let t = G.tiles.get(key);
   if (t) return t;
 
-  const r = rad(lv);
+  const r = rad(lv, tier);
   // 光晕只留很窄一圈：以前 pad 是半径的 11%，两颗球刚刚相切时两圈光晕叠在一起，
   // 看着就像球体插进了对方身体里，「碰撞体积不对」的观感一半是它给的。
   const pad = Math.max(1.5, r * 0.05);
@@ -588,8 +592,8 @@ function tileFor(lv) {
 }
 
 // ------------------------------------------------------------------ 物理
-function mkBall(lv, x, y, vx, vy) {
-  return { lv, x, y, vx, vy, r: rad(lv), born: G.t, mg: null };
+function mkBall(lv, x, y, vx, vy, tier = 0) {
+  return { lv, tier, x, y, vx, vy, r: rad(lv, tier), born: G.t, mg: null };
 }
 
 // ------------------------------------------------------------------ 预警
@@ -734,7 +738,7 @@ function resolve(iterations, pushK) {
         }
         if (d2 >= rr * rr) continue;
 
-        if (a.lv === b.lv) { a.mg = b; b.mg = a; continue; }
+        if (a.lv === b.lv && (a.tier | 0) === (b.tier | 0)) { a.mg = b; b.mg = a; continue; }
 
         const d = Math.sqrt(d2);
         const nx = dx / d;
@@ -869,13 +873,33 @@ function merge(a, b) {
   G.merged++;
 
   if (lv >= MAX) {
-    // 两个杜勒赛因：一起消失，换一笔大分
-    G.score += CLEAR_BONUS;
-    burst(x, y, LEVELS[MAX].tint, 22, 1.7);
-    fly(x, y, '+' + CLEAR_BONUS, LEVELS[MAX].tint);
+    const tier = a.tier | 0;
+    if (tier < TIER_MAX) {
+      // 两个同样大的杜勒赛因：合成更大的一颗，继续往下合
+      const nt = tier + 1, rNew = rad(MAX, nt);
+      const drop = Math.max(0, rNew - Math.max(a.r, b.r)) * 0.55;
+      const nb = mkBall(MAX, clamp(x, rNew, G.W - rNew), clamp(y + drop, rNew, G.H - rNew), (a.vx + b.vx) / 2, (a.vy + b.vy) / 2, nt);
+      nb.scale = 1.12;
+      G.balls.push(nb);
+      const pts = CLEAR_BONUS * nt;
+      G.score += pts;
+      if (nt > G.bigTier) G.bigTier = nt;
+      burst(x, y, LEVELS[MAX].tint, 16 + nt * 3, 1.5);
+      fly(x, y, '+' + pts, LEVELS[MAX].tint);
+      beep(240, 0.4, 'sawtooth', 0.08);
+      beep(520 + nt * 90, 0.45, 'sine', 0.05);
+      thump(0.1, 500);
+      toast(nt === 1 ? '两个杜勒赛因合成了「巨」杜勒赛因！' : `杜勒赛因进化成「${TIER_ZH[nt]}」了！`);
+      return;
+    }
+    // 涨到上限：瓶子装不下更大的了，这一次一起消失，换一笔大分
+    const pts = CLEAR_BONUS * 2;
+    G.score += pts;
+    burst(x, y, LEVELS[MAX].tint, 28, 1.9);
+    fly(x, y, '+' + pts, LEVELS[MAX].tint);
     beep(180, 0.4, 'sawtooth', 0.09);
     beep(720, 0.5, 'sine', 0.05);
-    if (!G.cleared) { G.cleared = true; toast('把两个杜勒赛因合掉了'); }
+    if (!G.cleared) { G.cleared = true; toast('「终极」杜勒赛因合到头了，一起消散'); }
     return;
   }
 
@@ -1014,7 +1038,7 @@ function gameOver() {
 function summary() {
   // 用「合出来的最高一级」，不是「见过」——见过里混着投放时白送的大球
   if (!G.merged) return '一颗都没合出来，下次把一样的两颗丢在一起';
-  return `合成了 ${G.merged} 次，最高合到${LEVELS[G.finest].n}`;
+  return `合成了 ${G.merged} 次，最高合到${G.bigTier ? TIER_ZH[G.bigTier] : ''}${LEVELS[G.finest].n}`;
 }
 
 // ------------------------------------------------------------------ 绘制
@@ -1147,7 +1171,7 @@ function draw() {
 }
 
 function drawBall(b) {
-  const t = tileFor(b.lv);
+  const t = tileFor(b.lv, b.tier);
   const s = t.size * (b.scale || 1);
   ctx.drawImage(t.c, b.x - s / 2, b.y - s / 2, s, s);
 }
@@ -1443,7 +1467,7 @@ function reset() {
   G.texts = [];
   G.score = 0;
   G.merged = 0;
-  G.finest = 0;
+  G.finest = 0; G.bigTier = 0;
   G.cleared = false;
   G.over = false;
   G.danger = 0;

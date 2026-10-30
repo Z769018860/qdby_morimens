@@ -6,7 +6,7 @@ import { arenaState, arenaTries, ARENA_DAILY, LADDER, dailyRankReward, canClaimA
 import { RIFT_FLOORS, RIFT_TEAMS, RIFT_DAILY, RIFT_RUN_MAX, RIFT_PASS, RIFT_MILESTONES, riftCycle, riftState, riftParty, riftEnemies, riftStage } from '../core/rift.js';
 import { encodeCode } from '../core/friend.js';
 import { teamDefs } from '../core/game.js';
-import { teamSlugsFor, rtModeOf } from '../core/squad.js';
+import { teamSlugsFor, rtModeOf, squadKeyFor, withLoadout } from '../core/squad.js';
 import { squadBar } from './pages.js';
 import { esc, img, fmt, openModal, rewardText } from './util.js';
 import { meterHtml, trialSection } from './pages2.js';
@@ -23,7 +23,7 @@ export function weeklyPage(app) {
   const { state: s, data } = app;
   const w = weeklyState(s), boss = weeklyBoss(data), e = weeklyEnemy(data);
   // 战力和人数都按「周 Boss 指定的那套阵容」算，别拿当前队伍糊弄人
-  const t = teamDefs(s, data, teamSlugsFor(s, 'weekly'));
+  const t = withLoadout(s, squadKeyFor(s, 'weekly'), () => teamDefs(s, data, teamSlugsFor(s, 'weekly')));
   const rows = MILESTONES.map((m, i) => {
     const done = w.damage >= m.dmg, got = w.claimed.includes(i);
     return `<div class="ach ${done ? 'done' : ''}"><div class="ab"><b>累计伤害 ${fmt(m.dmg)}</b><div class="bar"><i style="width:${Math.min(100, (w.damage / m.dmg) * 100)}%"></i></div>
@@ -54,7 +54,7 @@ export function rtowerPage(app) {
   const cards = REALM_TOWERS.map((realm) => {
     // 四座塔各记一份出战阵容：混沌塔用混沌队，深海塔用深海队
     const mode = rtModeOf(realm), pick = teamSlugsFor(s, mode);
-    const best = rtBest(s, realm), team = rtTeam(s, data, realm, pick), next = best + 1;
+    const best = rtBest(s, realm), team = withLoadout(s, squadKeyFor(s, mode), () => rtTeam(s, data, realm, pick)), next = best + 1;
     const foes = rtEnemies(realm, next, data);
     const R = REALMS[realm];
     return `<div class="banner-card rt" style="--rc:${R.color}"><h3 style="color:${R.color}">${TOWER_NAME[realm]} <small>${R.zh}界域</small></h3>

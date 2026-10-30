@@ -11,7 +11,7 @@ import {
 import { ordersBonus, orderUpCost, orderBonus, orderSlotCount } from './orders.js';
 import { buildEnemies, stageInfo } from './enemies.js';
 import { simulate, roundLimitFor } from './battle.js';
-import { emptySquads, emptyPick, normalizeSquads, normalizePick } from './squad.js';
+import { emptySquads, emptyPick, normalizeSquads, normalizePick, squadUsesItem, squadsRemoveItem } from './squad.js';
 import { emptyGacha, normalizeGacha, recordPull, recordBatch } from './gacha.js';
 import { CREATORS, creatorKit } from './creators.js';
 import { emptyEvent, noteBattle } from './event.js';
@@ -138,7 +138,7 @@ export function migrate(s, data) {
   if (!Object.keys(m.orders.owned).length) { m.orders = { ...base.orders }; }
   if (!m.orders.slots.some(Boolean)) m.orders.slots = [Object.keys(m.orders.owned)[0] || null, ...m.orders.slots.slice(1)];
   // 编队 / 挑战阵容 / 抽卡记录（M13）：老存档补空位；不存在的唤醒体、非法的编队位直接剔掉
-  m.squads = normalizeSquads(s.squads, m.roster);
+  m.squads = normalizeSquads(s.squads, m.roster, m.gear, m.orders);
   m.squadPick = normalizePick(s.squadPick);
   m.gacha = normalizeGacha(s.gacha);
   // 融灾禁区：老存档没有就从第 0 层开始；层数夹在 0..100（换期由 riftState 惰性重置）
@@ -561,29 +561,40 @@ export const bonusScore = (b) => Object.entries(b || {}).reduce((s, [k, v]) => s
 
 export function autoLoadout(state, data) {
   autoTeam(state, data);                     // 先按战力 + 同界域加成排出 4 人
+  state.gear.equip ||= {};
+  const r = fillLoadout(state, data, state.team, { equip: state.gear.equip });
+  state.gear.relics = r.relics;
+  state.orders.slots = r.orders;
+  return { team: [...state.team], relics: r.nRelics, orders: r.nOrders };
+}
+
+/**
+ * 给一组人配装：每人 1 件命轮 + 1 件密契、已解锁格里的造物（优先凑羁绊）、钥令位。
+ * 写进 target.equip（就地改），返回 { relics, orders }；主线队伍和编队的「独立配装」共用这一套。
+ */
+export function fillLoadout(state, data, team, target) {
   const items = Object.values(state.gear.items);
   const defOf = (it) => (it.kind === 'wheel' ? data.wheelById[it.defId] : it.kind === 'covenant' ? data.covById[it.defId] : data.relicById[it.defId]);
   const rar = (it) => (RARITY_ORDER[defOf(it)?.rarity || 'SR'] ?? 2);
-  state.gear.equip ||= {};
   const used = new Set();
-
+  const equip = target.equip;
   // 命轮：稀有度优先，其次同界域（命轮对同领域唤醒体有 ×1.25），再看等级
   const wheels = items.filter((i) => i.kind === 'wheel');
-  for (const slug of state.team) {
-    const a = data.bySlug[slug], eq = (state.gear.equip[slug] ||= {});
+  for (const slug of team) {
+    const a = data.bySlug[slug], eq = (equip[slug] ||= {});
     const best = wheels.filter((i) => !used.has(i.uid)).sort((x, y) => (rar(y) - rar(x))
       || (Number(defOf(y)?.realm === a.realm) - Number(defOf(x)?.realm === a.realm)) || (y.lv - x.lv))[0];
-    if (best) { eq.wheel = best.uid; used.add(best.uid); }
+    if (best) { eq.wheel = best.uid; used.add(best.uid); } else delete eq.wheel;
   }
   // 密契：先把已有 1 / 3 件的款式凑成 2 / 4 件套装，再按稀有度补
   const covs = items.filter((i) => i.kind === 'covenant'), ccount = {};
-  for (const slug of state.team) {
-    const eq = (state.gear.equip[slug] ||= {});
+  for (const slug of team) {
+    const eq = (equip[slug] ||= {});
     const best = covs.filter((i) => !used.has(i.uid)).map((i) => {
       const c = ccount[i.defId] || 0;
       return { i, s: (c === 1 || c === 3 ? 100 : 0) + rar(i) * 10 + i.lv };
     }).sort((a, b) => b.s - a.s)[0];
-    if (best) { eq.cov = best.i.uid; used.add(best.i.uid); ccount[best.i.defId] = (ccount[best.i.defId] || 0) + 1; }
+    if (best) { eq.cov = best.i.uid; used.add(best.i.uid); ccount[best.i.defId] = (ccount[best.i.defId] || 0) + 1; } else delete eq.cov;
   }
   // 造物：填满已解锁的格子，优先补齐 1 / 3 / 5 件的主题（凑 2 / 4 / 6 档羁绊）
   const slots = relicSlotCount(state.maxStage || 0);
@@ -596,14 +607,16 @@ export function autoLoadout(state, data) {
     if (!best) break;
     picked.push(best.i.uid); tc[best.th] = (tc[best.th] || 0) + 1;
   }
-  state.gear.relics = Array.from({ length: RELIC_SLOTS }, (_, i) => picked[i] || null);
   // 钥令：按加成总分排序，取前 N 个不重复的（槽位数按最高通关解锁）
   const on = orderSlotCount(state.maxStage || 0);
   const ranked = Object.keys(state.orders.owned)
     .map((id) => ({ id, s: bonusScore(orderBonus(data.orderById[id], state.orders.owned[id])) }))
     .sort((a, b) => b.s - a.s);
-  state.orders.slots = Array.from({ length: ORDER_SLOTS }, (_, i) => (i < on ? ranked[i]?.id || null : null));
-  return { team: [...state.team], relics: picked.length, orders: Math.min(on, ranked.length) };
+  return {
+    relics: Array.from({ length: RELIC_SLOTS }, (_, i) => picked[i] || null),
+    orders: Array.from({ length: ORDER_SLOTS }, (_, i) => (i < on ? ranked[i]?.id || null : null)),
+    nRelics: picked.length, nOrders: Math.min(on, ranked.length),
+  };
 }
 export function autoTeam(state, data) {
   const ranked = Object.keys(state.roster).map((s) => ({ s, p: allyDef(state, data, s, [s]).power, t: data.bySlug[s].type }))
@@ -643,10 +656,11 @@ export function equipItem(state, data, slug, uid) {
   e[key] = uid; return true;
 }
 export function unequipItem(state, uid) {
+  squadsRemoveItem(state, uid);
   for (const e of Object.values(state.gear.equip)) for (const k of ['wheel', 'cov']) if (e[k] === uid) delete e[k];
   state.gear.relics = state.gear.relics.map((x) => (x === uid ? null : x));
 }
-export const isEquipped = (state, uid) => state.gear.relics.includes(uid) || Object.values(state.gear.equip).some((e) => e.wheel === uid || e.cov === uid);
+export const isEquipped = (state, uid) => squadUsesItem(state, uid) || state.gear.relics.includes(uid) || Object.values(state.gear.equip).some((e) => e.wheel === uid || e.cov === uid);
 export function enhanceItem(state, uid) {
   const it = state.gear.items[uid]; if (!it || it.lv >= GEAR_MAX_LV) return false;
   const c = gearCost(it.kind, it.lv); if (state.gold < c) return false;

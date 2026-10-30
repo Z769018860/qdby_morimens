@@ -7,7 +7,7 @@ import { hash, mulberry32 } from './rng.js';
 import { simulate, roundLimitFor } from './battle.js';
 import { buildEnemies } from './enemies.js';
 import { teamDefs, stageGold, battleSeed, addItem, rollItem, addOrder, rollOrder, recordCodex } from './game.js';
-import { SQUAD_KEYS, RIFT_SQUAD_KEYS, SQUAD_ZH, squadMembers } from './squad.js';
+import { SQUAD_KEYS, RIFT_SQUAD_KEYS, SQUAD_ZH, squadMembers, withLoadout } from './squad.js';
 
 export const RIFT_FLOORS = 100;          // 本期层数上限
 export const RIFT_TEAMS = 5;             // 每层出战的队伍数
@@ -86,11 +86,13 @@ export function riftParty(state, data) {
     const shared = squadMembers(state, SQUAD_KEYS[slot]);
     const from = own.length ? 'rift' : shared.length ? 'shared' : 'cur';
     const slugs = (own.length ? own : shared.length ? shared : [...(state.team || [])]).slice(0, 4);
+    // 用哪套配装：自己的编队位 → 借来的通用编队位 → 主线队伍（null）。有独立配装就按它算
+    const loKey = own.length ? key : shared.length ? SQUAD_KEYS[slot] : null;
     return {
-      key, zh: SQUAD_ZH[key], slot, slugs,
+      key, zh: SQUAD_ZH[key], slot, slugs, loKey,
       filled: own.length > 0,
       from, sharedKey: SQUAD_KEYS[slot], sharedZh: SQUAD_ZH[SQUAD_KEYS[slot]],
-      team: teamDefs(state, data, slugs),
+      team: withLoadout(state, loKey, () => teamDefs(state, data, slugs)),
     };
   });
 }

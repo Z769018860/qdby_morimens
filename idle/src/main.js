@@ -18,7 +18,7 @@ import { encodeCode, decodeCode } from './core/friend.js';
 import { codexPage, monsterModal } from './ui/codex.js';
 import { sound } from './ui/audio.js';
 import { TRACK_ZH } from './ui/audio.js';
-import { saveSquad, loadSquad, clearSquad, setSquadPick, teamSlugsFor, SQUAD_ZH, rtModeOf } from './core/squad.js';
+import { saveSquad, loadSquad, clearSquad, setSquadPick, teamSlugsFor, SQUAD_ZH, rtModeOf, squadKeyFor, withLoadout } from './core/squad.js';
 import { watchOrSkip, replayOf, watchMode } from './ui/replay.js';
 import { emptyGacha } from './core/gacha.js';
 import { fxMode } from './ui/fx.js';
@@ -333,7 +333,7 @@ function onAct(e) {
       break;
     }
     case 'weekly-go': {
-      const r = doWeekly(s, d, teamSlugsFor(s, 'weekly'));
+      const r = withLoadout(s, squadKeyFor(s, 'weekly'), () => doWeekly(s, d, teamSlugsFor(s, 'weekly')));
       if (!r) break;
       app.save(); render(); sound.play(r.win ? 'win' : 'lose');
       // 先看过程再出结算；设置里选了「跳过」就直接弹结算
@@ -346,7 +346,8 @@ function onAct(e) {
       const out = [];
       const realm = el.dataset.realm;
       const slugs = teamSlugsFor(s, rtModeOf(realm));   // 四座塔各用各的编队
-      for (let i = 0; i < (a === 'rt-auto' ? 10 : 1); i++) { const r = doRTower(s, d, realm, slugs); if (!r) break; out.push(r); if (!r.win) break; }
+      const rtKey = squadKeyFor(s, rtModeOf(realm));
+      for (let i = 0; i < (a === 'rt-auto' ? 10 : 1); i++) { const r = withLoadout(s, rtKey, () => doRTower(s, d, realm, slugs)); if (!r) break; out.push(r); if (!r.win) break; }
       if (out.length) {
         const last = out[out.length - 1];
         app.save(); render(); sound.play(last.win ? 'win' : 'lose');
@@ -359,7 +360,7 @@ function onAct(e) {
     case 'arena-go': {
       const entry = app.ui.arena?.list?.find((x) => x.rank === +el.dataset.rank);
       if (!entry || arenaTries(s) <= 0) break;
-      const fight = fightArena(s, d, entry, teamSlugsFor(s, 'arena'));
+      const fight = withLoadout(s, squadKeyFor(s, 'arena'), () => fightArena(s, d, entry, teamSlugsFor(s, 'arena')));
       const rw = applyArena(s, d, fight, localSettle(s, entry, fight.win).rank);
       app.save(); sound.play(fight.win ? 'win' : 'lose');
       watchOrSkip(replayOf(fight, { title: `天梯 · 对手 ${entry.name}（原第 ${entry.rank} 名）`, kw: d.kw }),
@@ -375,7 +376,7 @@ function onAct(e) {
     case 'friend-go': {
       const f = decodeCode($('#friend-code')?.value, d);
       if (f.error) { toast(f.error); break; }
-      const fight = fightFriend(s, d, f, teamSlugsFor(s, 'arena'));
+      const fight = withLoadout(s, squadKeyFor(s, 'arena'), () => fightFriend(s, d, f, teamSlugsFor(s, 'arena')));
       fight.entry = { type: 'friend', name: f.name, rank: 0 };
       app.save(); sound.play(fight.win ? 'win' : 'lose');
       render();
@@ -442,7 +443,7 @@ function onAct(e) {
       break;
     }
     case 'tower-go': {
-      const r = doTower(s, d, { slugs: teamSlugsFor(s, 'tower') });
+      const r = withLoadout(s, squadKeyFor(s, 'tower'), () => doTower(s, d, { slugs: teamSlugsFor(s, 'tower') }));
       if (!r) break;
       app.save(); render(); sound.play(r.reached > 0 ? 'win' : 'lose');
       // 塔能连打几十层，只回放决出胜负的那一层
@@ -451,7 +452,7 @@ function onAct(e) {
       break;
     }
     case 'trial-go': {
-      const r = doTrial(s, d, el.dataset.id, +el.dataset.i, teamSlugsFor(s, 'trial'));
+      const r = withLoadout(s, squadKeyFor(s, 'trial'), () => doTrial(s, d, el.dataset.id, +el.dataset.i, teamSlugsFor(s, 'trial')));
       if (!r) break;
       app.save(); render(); sound.play(r.win ? 'win' : 'lose');
       watchOrSkip(replayOf(r, { title: `融灾试炼 · ${r.trial.name} ${r.th.k}`, kw: d.kw }), () => P2.trialResultModal(app, r));

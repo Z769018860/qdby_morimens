@@ -1,7 +1,7 @@
 import {
   allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, equipItem, unequipItem, isEquipped,
   enhanceItem, dismantle, dismantleCores, summon, equipPull, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST,
-  PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, BATTLES_PER_HOUR,
+  PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, BATTLES_PER_HOUR, fillLoadout,
 } from '../core/game.js';
 import {
   REALMS, TYPES, SLOTS, SLOT_ZH, MAX_LV, MAX_AWAKEN, MAX_LV_HARD, TEAM_SIZE, RARITY_ORDER, GEAR_MAX_LV,
@@ -11,7 +11,7 @@ import {
 import { sound, TRACK_LIST } from './audio.js';
 import {
   SQUAD_KEYS, RIFT_SQUAD_KEYS, ALL_SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, RIFT_MODE,
-  isRiftSquad, squadMembers, squadUsage, pickedSquad,
+  isRiftSquad, squadMembers, squadUsage, pickedSquad, loadoutOf, normalizeLoadout, withLoadout, squadKeyFor, squadsOf,
   squadLabel, teamSlugsFor, setSquadTeam, setSquadPick, autoSquadSlugs,
   RT_MODES, rtModeOf, realmOfMode,
 } from '../core/squad.js';
@@ -128,20 +128,30 @@ export function covenantSetText(app) {
 export function squadCard(app, key) {
   const { state: s, data } = app;
   const slugs = squadMembers(s, key);
-  const t = slugs.length ? teamDefs(s, data, slugs) : null;
+  const t = slugs.length ? withLoadout(s, key, () => teamDefs(s, data, slugs)) : null;
   const used = squadUsage(s, key);
+  const lo = loadoutOf(s, key);
   const av = slugs.length
     ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
     : '<span class="sqempty">还没有保存队伍</span>';
   return `<div class="squad ${slugs.length ? 'on' : ''}" data-squad="${key}">
     <header><b>${SQUAD_ZH[key]}</b><small>${slugs.length ? `${slugs.length} 人 · 战力 ${fmt(t.power)}` : '空位'}</small></header>
     <div class="sqav">${av}</div>
+    <div class="sqlo-note">${lo ? `独立配装 · ${loSummary(lo)}` : slugs.length ? '沿用主线配装' : ''}</div>
     <div class="squse">${used.length ? `挑战在用：${used.join('、')}` : '未被挑战引用'}</div>
     <div class="row">
+      <button class="btn sm" data-act="squad-edit" data-k="${key}" data-mode="">编队 / 配装</button>
       <button class="btn sm" data-act="squad-save" data-k="${key}">存为当前队伍</button>
       <button class="btn sm" data-act="squad-load" data-k="${key}" ${slugs.length ? '' : 'disabled'}>上阵</button>
       <button class="btn sm danger" data-act="squad-clear" data-k="${key}" ${slugs.length ? '' : 'disabled'}>清空</button>
     </div></div>`;
+}
+
+/** 独立配装的一行摘要：命轮密契件数、造物件数、钥令个数 */
+function loSummary(lo) {
+  const eq = Object.values(lo.equip || {}).reduce((n, e) => n + (e?.wheel ? 1 : 0) + (e?.cov ? 1 : 0), 0);
+  const rl = (lo.relics || []).filter(Boolean).length, od = (lo.orders || []).filter(Boolean).length;
+  return `命轮密契 ${eq} · 造物 ${rl} · 钥令 ${od}`;
 }
 
 /** 挑战页顶部的「出战阵容」选择条：当前队伍 / 一队 / 二队 / 三队 + 现场编队 */
@@ -179,7 +189,8 @@ function modeBlock(app, mode, title = '') {
   const { state: s, data } = app;
   const lab = squadLabel(s, mode);
   const slugs = teamSlugsFor(s, mode).filter((x) => s.roster[x]);
-  const t = slugs.length ? teamDefs(s, data, slugs) : null;
+  const t = slugs.length ? withLoadout(s, squadKeyFor(s, mode), () => teamDefs(s, data, slugs)) : null;
+  const loUsed = loadoutOf(s, squadKeyFor(s, mode));
   const av = slugs.length
     ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
     : '<span class="sqempty">空缺</span>';
@@ -192,6 +203,7 @@ function modeBlock(app, mode, title = '') {
     <header><b>${title || MODE_ZH[mode]}</b><small>${lab.fallback ? `${lab.zh}（空）→ 当前队伍` : `${lab.zh} · ${slugs.length} 人${t ? ` · 战力 ${fmt(t.power)}` : ''}`}</small>
       <button class="btn sm" data-act="squad-edit" data-mode="${mode}" data-k="${lab.key === 'cur' ? 'a' : lab.key}">编队</button></header>
     <div class="sqav">${av}</div>
+    <div class="sqlo-note">${loUsed ? `独立配装 · ${loSummary(loUsed)}` : '沿用主线配装（点「编队」可给这套单独配命轮 / 造物 / 钥令）'}</div>
     <div class="achips">${chips}</div></div>`;
 }
 
@@ -218,13 +230,14 @@ function riftPanel(app) {
   });
   const filled = sets.filter((x) => x.own.length).length;
   const lines = sets.map(({ k, i, own, shared, slugs }) => {
-    const t = slugs.length ? teamDefs(s, data, slugs) : null;
+    const loKey = own.length ? k : shared.length ? SQUAD_KEYS[i] : null;
+    const t = slugs.length ? withLoadout(s, loKey, () => teamDefs(s, data, slugs)) : null;
     const av = slugs.length
       ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
       : '<span class="sqempty">空着，先用当前队伍顶上</span>';
     const src = own.length ? '' : shared.length ? ` · 借${SQUAD_ZH[SQUAD_KEYS[i]]}` : '';
     return `<div class="riftline ${slugs.length ? 'on' : ''}"><b>第 ${i + 1} 队</b>
-      <div class="sqav">${av}</div><small>${t ? `战力 ${fmt(t.power)}` : '未编'}${src}</small>
+      <div class="sqav">${av}</div><small>${t ? `战力 ${fmt(t.power)}` : '未编'}${src}${loadoutOf(s, loKey) ? ' · 独立配装' : ''}</small>
       <button class="btn sm" data-act="squad-edit" data-k="${k}" data-mode="${RIFT_MODE}">编队</button></div>`;
   }).join('');
   return `<div class="assign ${filled === RIFT_SQUAD_KEYS.length ? 'on' : ''}">
@@ -240,7 +253,7 @@ function riftPanel(app) {
 function squadsPanel(app) {
   return `<h3>通用编队 <small>无限塔 / 属性塔 / 周 Boss / 竞技场各自选用</small></h3>
     <div class="squads">${SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
-    <p class="hint">编队只记 4 名唤醒体——命轮、密契绑在人身上会跟着走，造物与钥令本来就是全队共用，不必重复存。<b>推图挂机始终用「当前队伍」</b>，想换阵容就点「上阵」或回「主线队伍」改那 4 个槽位。</p>
+    <p class="hint">每套编队除了 4 名唤醒体，还可以开「<b>独立配装</b>」：给这套单独配每人 1 件命轮 + 1 件密契、6 格造物、3 个钥令位（和主线队伍一样完整）；不开就沿用主线配装。同一件装备可以同时出现在不同编队里，只是同一套里不能重复。<b>推图挂机始终用「当前队伍」</b>，想换阵容就点「上阵」或回「主线队伍」改那 4 个槽位。</p>
     <h3>融灾禁区专用 <small>禁区一队~禁区五队 · 对应第 1~5 组敌人</small></h3>
     <div class="squads">${RIFT_SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
     <p class="hint">这五套<b>只给融灾禁区用</b>，调它们不会动到上面那五套通用编队。哪队还没编，挑战时会先借通用同序号那一套，都没有才用当前队伍顶上。</p>`;
@@ -250,22 +263,78 @@ function squadsPanel(app) {
  * 编队编辑器：四个槽位 + 界域筛选 + 一键上阵，存到一/二/三队。
  * mode 有值时，保存后把这个挑战入口直接指向刚存的编队。
  */
-export function squadEditor(app, { key = 'a', mode = null } = {}) {
+export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}) {
   const { state: s, data } = app;
+  let st = resume ? app.ui.sqDraft : null;
+  if (!st) {
+    const isRiftM = mode === RIFT_MODE;
+    const keys0 = isRiftM ? RIFT_SQUAD_KEYS : SQUAD_KEYS;
+    if (!ALL_SQUAD_KEYS.includes(key)) key = keys0[0];
+    const lockR = mode && String(mode).startsWith('rt_') ? String(mode).slice(3) : null;
+    st = { key, mode: mode || null, realm: lockR || '', team: [...squadMembers(s, key)], lo: JSON.parse(JSON.stringify(loadoutOf(s, key) || null)) };
+    // 禁区这队还空着：先把通用同序号那套填进来当草稿——运行时的回退顺序也是它
+    if (!st.team.length && isRiftM) st.team = squadMembers(s, SQUAD_KEYS[RIFT_SQUAD_KEYS.indexOf(key)]);
+    if (!st.team.length && mode) st.team = teamSlugsFor(s, mode).filter((x) => s.roster[x]);
+  }
+  app.ui.sqDraft = st;
+  mode = st.mode;
   const isRift = mode === RIFT_MODE;
   // 融灾禁区编辑的是它自己那五套（禁区一队~五队），存完只落这一处，不碰通用编队
   const keys = isRift ? RIFT_SQUAD_KEYS : SQUAD_KEYS;
-  if (!ALL_SQUAD_KEYS.includes(key)) key = keys[0];
   const lockRealm = mode && String(mode).startsWith('rt_') ? String(mode).slice(3) : null;
   const modeZh = mode ? (MODE_ZH[mode] || (mode === RIFT_MODE ? '融灾禁区' : mode)) : '';
   const powerOf = (slug) => allyDef(s, data, slug, [slug]).power;
-  const st = { key, mode, realm: lockRealm || '', team: [...squadMembers(s, key)] };
-  // 禁区这队还空着：先把通用同序号那套填进来当草稿——运行时的回退顺序也是它
-  if (!st.team.length && isRift) st.team = squadMembers(s, SQUAD_KEYS[RIFT_SQUAD_KEYS.indexOf(key)]);
-  if (!st.team.length && mode) st.team = teamSlugsFor(s, mode).filter((x) => s.roster[x]);
 
   const rows = () => Object.keys(s.roster).map((x, i) => ({ x, a: data.bySlug[x], r: s.roster[x], idx: i, power: powerOf(x) }));
   const cands = () => rows().filter((o) => o.a && (!st.realm || o.a.realm === st.realm)).sort((x, y) => y.power - x.power);
+
+  /* ---- 独立配装草稿：用一份「假 state」算战力，不动真实存档 ---- */
+  const fakeWith = (lo) => ({ ...s, gear: { ...s.gear, equip: lo.equip, relics: lo.relics }, orders: { ...s.orders, slots: lo.orders } });
+  const loPower = () => (st.lo && st.team.length ? teamDefs(fakeWith(st.lo), data, st.team).power : null);
+  const copyMain = () => ({
+    equip: Object.fromEntries(st.team.map((slug) => { const e = s.gear.equip[slug] || {}; return [slug, { ...(e.wheel ? { wheel: e.wheel } : {}), ...(e.cov ? { cov: e.cov } : {}) }]; })),
+    relics: Array.from({ length: RELIC_SLOTS }, (_, i) => s.gear.relics[i] || null),
+    orders: Array.from({ length: ORDER_SLOTS }, (_, i) => s.orders.slots[i] || null),
+  });
+  const eqBtn = (slug, kind) => {
+    const e = (st.lo.equip[slug] ||= {});
+    const uid = e[kind === 'wheel' ? 'wheel' : 'cov'], it = uid && s.gear.items[uid];
+    const label = kind === 'wheel' ? '命轮' : '密契';
+    if (!it) return `<button class="eqslot empty" data-sq="eq" data-slug="${slug}" data-kind="${kind}"><span class="plus">＋</span><small>${label}</small></button>`;
+    const def = itemDef(app, it);
+    return `<button class="eqslot on ${rarCls(def.rarity)}" data-sq="eq" data-slug="${slug}" data-kind="${kind}" title="${esc(itemText(app, it))}"><img src="${img(def.img)}" alt=""><b>${esc(def.zh)}</b><small>Lv${it.lv}${it.rf ? ` · 精炼+${it.rf}` : ''}</small></button>`;
+  };
+  const loSection = () => {
+    if (!st.lo) {
+      return `<h4>配装 <small class="dim">现在沿用主线队伍的命轮 / 密契 / 造物 / 钥令</small></h4>
+        <div class="row"><button class="btn" data-sq="lo-on">开启独立配装</button></div>
+        <p class="hint">开启后这套编队出战时用自己的命轮、密契、造物与钥令，不再吃主线队伍的穿戴；起手是主线配装的拷贝，可以随便改。</p>`;
+    }
+    const n = relicSlotCount(s.maxStage), on = orderSlotCount(s.maxStage);
+    const mem = st.team.map((slug) => {
+      const a = data.bySlug[slug], r = s.roster[slug];
+      if (!a || !r) return '';
+      return `<div class="eqrow"><div class="eqwho"><img src="${img(a.portrait)}" alt=""><b>${esc(a.zh)}</b><small>${TYPES[a.type].short} Lv${r.lv}</small></div>${eqBtn(slug, 'wheel')}${eqBtn(slug, 'covenant')}</div>`;
+    }).join('') || '<p class="hint">先在上面选人，再给他们配命轮和密契。</p>';
+    const rel = Array.from({ length: RELIC_SLOTS }, (_, i) => {
+      if (i >= n) return `<div class="relic-slot locked">🔒 第 ${i + 1} 格<br><small>最高通关 ${RELIC_UNLOCK[i - RELIC_BASE_SLOTS]} 关解锁</small></div>`;
+      const uid = st.lo.relics[i], it = uid && s.gear.items[uid];
+      if (!it) return `<div class="relic-slot empty" data-sq="relic" data-i="${i}">＋ 造物 ${i + 1}</div>`;
+      const def = itemDef(app, it);
+      return `<div class="relic-slot ${rarCls(def.rarity)}" data-sq="relic" data-i="${i}"><img src="${img(def.img)}" alt=""><small><b>${esc(def.zh)}</b><br>${esc(itemText(app, it))}</small></div>`;
+    }).join('');
+    const och = Array.from({ length: ORDER_SLOTS }, (_, i) => {
+      if (i >= on) return `<span class="ochip locked">🔒 最高通关 ${orderLockedHint(i, s.maxStage)} 关</span>`;
+      const id = st.lo.orders[i], def = id && data.orderById[id];
+      return def ? `<button class="ochip on" data-sq="order" data-i="${i}" title="${esc(orderText(def, s.orders.owned[id]))}">${oglyph(def)} ${esc(def.zh)}<em>Lv${s.orders.owned[id]}</em></button>` : `<button class="ochip" data-sq="order" data-i="${i}">空位 ${i + 1}</button>`;
+    }).join('');
+    const p = loPower();
+    return `<h4>独立配装 <small class="dim">${p != null ? `这套战力 ${fmt(p)}` : ''}</small></h4>
+      <div class="row"><button class="btn gold" data-sq="lo-auto">一键配装</button><button class="btn sm" data-sq="lo-main">复制主线配装</button><button class="btn sm danger" data-sq="lo-off">关闭（沿用主线）</button></div>
+      <h5>命轮 · 密契 <small class="dim">每人各 1 件</small></h5><div class="eqpanel">${mem}</div>
+      <h5>造物 <small class="dim">${n}/${RELIC_SLOTS} 格</small></h5><div class="relic-row">${rel}</div>
+      <h5>钥令 <small class="dim">已开 ${on}/${ORDER_SLOTS}</small></h5><div class="orderbar">${och}</div>`;
+  };
 
   const body = () => {
     const slots = Array.from({ length: TEAM_SIZE }, (_, i) => {
@@ -290,6 +359,7 @@ export function squadEditor(app, { key = 'a', mode = null } = {}) {
       <div class="sqslots">${slots}</div>
       <div class="row"><button class="btn gold" data-sq="auto">一键上阵</button><button class="btn sm" data-sq="clear" ${st.team.length ? '' : 'disabled'}>清空</button>
         <button class="btn sm" data-sq="from-team">套用当前队伍</button></div>
+      <div class="sqlo">${loSection()}</div>
       <h4>可选唤醒体 <small class="dim">${cands().length} 名</small></h4>
       <div class="grid mini sqpick">${list}</div>
       <div class="row sqsave"><span class="dim">存到</span>
@@ -298,7 +368,15 @@ export function squadEditor(app, { key = 'a', mode = null } = {}) {
   };
 
   const m = openModal(body(), 'wide sqeditor');
-  const paint = () => { m.querySelector('.modal').innerHTML = `<button class="modal-x" data-act="close">✕</button>${body()}`; };
+  const paint = () => { const sc = m.querySelector('.modal'); const y = sc.scrollTop; sc.innerHTML = `<button class="modal-x" data-act="close">✕</button>${body()}`; sc.scrollTop = y; };
+  // 选装备 / 钥令会弹出另一层窗口，把编队窗口顶掉；选完（或点 ✕ 取消）都回到编队窗口，草稿还在 app.ui.sqDraft
+  const pickThenBack = (open) => {
+    let picked = false;
+    const back = () => squadEditor(app, { resume: true });
+    open((fn) => { picked = true; fn(); back(); });
+    const mo = new MutationObserver(() => { if (!document.querySelector('.modal-bg')) { mo.disconnect(); if (!picked) back(); } });
+    mo.observe(document.body, { childList: true });
+  };
   m.addEventListener('click', (e) => {
     const el = e.target.closest('[data-sq]');
     if (!el || el.disabled) return;
@@ -326,13 +404,48 @@ export function squadEditor(app, { key = 'a', mode = null } = {}) {
       st.team = [...s.team].filter((x) => s.roster[x] && (!st.realm || data.bySlug[x]?.realm === st.realm)).slice(0, TEAM_SIZE);
       sound.play('click'); paint(); return;
     }
+    // ---- 独立配装 ----
+    if (a === 'lo-on') { st.lo = copyMain(); sound.play('stamp'); paint(); return; }
+    if (a === 'lo-off') { st.lo = null; sound.play('deny'); paint(); return; }
+    if (a === 'lo-main') { st.lo = copyMain(); sound.play('click'); paint(); return; }
+    if (a === 'lo-auto') {
+      if (!st.team.length) { toast('先选人'); return; }
+      const eqs = {};
+      const r = fillLoadout(s, data, st.team, { equip: eqs });
+      st.lo = { equip: eqs, relics: r.relics, orders: r.orders };
+      sound.play('stamp'); paint(); return;
+    }
+    if (a === 'eq') {
+      const { slug, kind } = el.dataset, f = kind === 'wheel' ? 'wheel' : 'cov';
+      pickThenBack((done) => pickItem(app, kind, `${data.bySlug[slug].zh} · ${kind === 'wheel' ? '命轮' : '密契'}`, (uid) => done(() => {
+        for (const o of Object.values(st.lo.equip)) if (uid && o[f] === uid) delete o[f];   // 同一套里一件装备只给一个人
+        const e = (st.lo.equip[slug] ||= {});
+        if (uid) e[f] = uid; else delete e[f];
+      })));
+      return;
+    }
+    if (a === 'relic') {
+      const i = +el.dataset.i;
+      pickThenBack((done) => pickItem(app, 'relic', '选择造物', (uid) => done(() => {
+        st.lo.relics = st.lo.relics.map((x) => (x === uid ? null : x));
+        st.lo.relics[i] = uid || null;
+      })));
+      return;
+    }
+    if (a === 'order') {
+      const i = +el.dataset.i;
+      pickThenBack((done) => pickOrder(app, i, (id) => done(() => { st.lo.orders[i] = id || null; }), st.lo.orders));
+      return;
+    }
     if (a === 'save') {
       if (!st.team.length) { toast('先选人'); return; }
       const k = el.dataset.k;
       const saved = setSquadTeam(s, k, st.team);
+      if (st.lo) squadsOf(s)[k].lo = normalizeLoadout(st.lo, saved, s.gear, s.orders);
       if (st.mode && !isRift) setSquadPick(s, st.mode, k);
+      app.ui.sqDraft = null;
       app.save(); sound.play('stamp');
-      toast(`已存入「${SQUAD_ZH[k]}」：${saved.length} 人${st.mode ? ` · ${isRift ? '融灾禁区第 ' + (RIFT_SQUAD_KEYS.indexOf(k) + 1) + ' 队' : modeZh + ' 用它出战'}` : ''}`);
+      toast(`已存入「${SQUAD_ZH[k]}」：${saved.length} 人${st.lo ? ' · 独立配装' : ''}${st.mode ? ` · ${isRift ? '融灾禁区第 ' + (RIFT_SQUAD_KEYS.indexOf(k) + 1) + ' 队' : modeZh + ' 用它出战'}` : ''}`);
       closeModal();
       app.render?.();
     }
@@ -432,12 +545,13 @@ export function pickItem(app, kind, title, onPick, { allowNone = true } = {}) {
   m.addEventListener('click', (e) => { const t = e.target.closest('[data-pick]'); if (t) { closeModal(); onPick(t.dataset.pick); } });
 }
 
-export function pickOrder(app, i, onPick) {
+export function pickOrder(app, i, onPick, slots = null) {
   const { state: s, data } = app;
+  slots = slots || s.orders.slots;
   const owned = Object.keys(s.orders.owned).map((id) => data.orderById[id]).filter(Boolean);
   const html = `<h3>第 ${i + 1} 个钥令位</h3><button class="btn sm" data-pick="">清空</button>
     <div class="list">${owned.map((def) => {
-      const lv = s.orders.owned[def.id], used = s.orders.slots.some((x, j) => x === def.id && j !== i);
+      const lv = s.orders.owned[def.id], used = slots.some((x, j) => x === def.id && j !== i);
       return `<div class="item ${rarCls(def.rarity)}">${oglyph(def)}<div class="i-body"><b>${esc(def.zh)}</b> <em>Lv${lv}</em><small>${esc(orderText(def, lv))}</small>${used ? '<small class="who">已装在别的位置</small>' : ''}</div><button class="btn sm" data-pick="${def.id}" ${used ? 'disabled' : ''}>选择</button></div>`;
     }).join('') || '<p class="hint">还没有钥令。Boss 首通、无限塔每 10 层、周 Boss 里程碑、银芯商店都会给。</p>'}</div>`;
   const m = openModal(html, 'wide');

@@ -1610,3 +1610,51 @@ test('审计：融灾试炼重复通关的金币每天封顶，首通奖励不�
   const s2 = migrate(JSON.parse(JSON.stringify(s)), data);
   assert.equal(s2.trials.gold.n, TRIAL_GOLD_DAILY, '存档往返后计数还在');
 });
+
+/* ---------- 编队独立配装 ---------- */
+import { ensureLoadout, withLoadout, squadKeyFor, loadoutOf } from '../src/core/squad.js';
+import { fillLoadout, isEquipped, unequipItem } from '../src/core/game.js';
+
+test('编队独立配装：出战时换成编队自己的命轮 / 造物 / 钥令，跑完还原；分解与卸下会避开', () => {
+  const s = newState(data, 41);
+  s.maxStage = 60;
+  s.gold = 1e7;
+  equipPull(s, data, 30);
+  autoLoadout(s, data);                                    // 主线配装
+  const mainPower = teamDefs(s, data).power;
+  const slugs = Object.keys(s.roster).slice(0, 4);
+  setSquadTeam(s, 'b', slugs);
+  assert.equal(loadoutOf(s, 'b'), null);
+  const key0 = squadKeyFor(s, 'tower'); assert.equal(key0, null);
+  setSquadPick(s, 'tower', 'b');
+  assert.equal(squadKeyFor(s, 'tower'), 'b');
+  const lo = ensureLoadout(s, 'b', false);                 // 空配装
+  const bare = withLoadout(s, 'b', () => teamDefs(s, data, slugs).power);
+  const eqBefore = s.gear.equip, relBefore = s.gear.relics, slotBefore = s.orders.slots;
+  assert.ok(bare < teamDefs(s, data, slugs).power, '空配装比主线配装弱');
+  // 给它自己配一套
+  const r = fillLoadout(s, data, slugs, { equip: lo.equip });
+  lo.relics = r.relics; lo.orders = r.orders;
+  const full = withLoadout(s, 'b', () => teamDefs(s, data, slugs).power);
+  assert.ok(full > bare);
+  assert.equal(s.gear.equip, eqBefore); assert.equal(s.gear.relics, relBefore); assert.equal(s.orders.slots, slotBefore, '还原');
+  // 抛错也要还原
+  assert.throws(() => withLoadout(s, 'b', () => { throw new Error('x'); }));
+  assert.equal(s.gear.equip, eqBefore);
+  // 编队占着的装备不能分解；卸下时一并清掉
+  const uid = lo.relics.find(Boolean);
+  s.gear.relics = s.gear.relics.map((x) => (x === uid ? null : x));
+  assert.ok(isEquipped(s, uid), '被编队占用也算装备中');
+  assert.equal(dismantle(s, data, uid), 0);
+  unequipItem(s, uid);
+  assert.ok(!lo.relics.includes(uid));
+  // 存档往返保持 lo，脏数据被清洗
+  const m = migrate(JSON.parse(JSON.stringify(s)), data);
+  assert.ok(m.squads.b.lo && m.squads.b.lo.relics.length === 6 && m.squads.b.lo.orders.length === 3);
+  const dirty = JSON.parse(JSON.stringify(s)); dirty.squads.b.lo.relics[0] = 'g99999'; dirty.squads.b.lo.orders[0] = 'nope';
+  const m2 = migrate(dirty, data);
+  assert.equal(m2.squads.b.lo.relics[0], null); assert.equal(m2.squads.b.lo.orders[0], null);
+  // 主线战斗不受影响
+  assert.equal(teamDefs(s, data).power > 0, true);
+  assert.ok(mainPower > 0);
+});

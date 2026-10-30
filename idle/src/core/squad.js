@@ -1,7 +1,9 @@
 // 编队：预先存好的几套阵容，队伍页统一编排，挑战按各自指定的那套出战。
-// 只存「4 个唤醒体 slug」——命轮 / 密契绑在人身上会跟着走，造物与钥令是全队被动、本来就是共用的，
-// 所以一套阵容不需要再额外存装备，换了人也就换了装备。
-import { TEAM_SIZE } from './constants.js';
+// 一套编队 = 4 个唤醒体 + 可选的「独立配装」lo：{ equip: {slug:{wheel,cov}}, relics: [6 格 uid], orders: [3 个钥令 id] }。
+// 没有 lo 的编队沿用主线队伍的配装（命轮 / 密契绑在人身上，造物与钥令全队共用）；
+// 有 lo 的编队出战时用自己的这一套——和主线队伍一样完整：每人命轮 + 密契、6 格造物、3 个钥令位。
+// 同一件装备可以同时出现在不同编队里（各队的战斗彼此独立），只在同一套里不能重复。
+import { TEAM_SIZE, RELIC_SLOTS, ORDER_SLOTS } from './constants.js';
 
 export const SQUAD_KEYS = ['a', 'b', 'c', 'd', 'e'];
 // 融灾禁区专用编队：它一层要五队齐上，跟通用那五套分开存。
@@ -44,7 +46,7 @@ export const emptySquads = () => Object.fromEntries(ALL_SQUAD_KEYS.map((k) => [k
 export const emptyPick = () => Object.fromEntries(SQUAD_MODES.map(([k]) => [k, 'cur']));
 
 // 存档迁移：换版本后 roster 会变，编队里已经不存在的 slug 直接丢掉
-export function normalizeSquads(raw, roster = {}) {
+export function normalizeSquads(raw, roster = {}, gear = null, orders = null) {
   const out = emptySquads();
   if (!raw || typeof raw !== 'object') return out;
   for (const k of ALL_SQUAD_KEYS) {
@@ -53,8 +55,98 @@ export function normalizeSquads(raw, roster = {}) {
     out[k].team = team
       .filter((s) => typeof s === 'string' && roster[s] && !seen.has(s) && seen.add(s))
       .slice(0, TEAM_SIZE);
+    if (raw[k]?.savedAt) out[k].savedAt = Number(raw[k].savedAt) || 0;
+    const lo = normalizeLoadout(raw[k]?.lo, out[k].team, gear, orders);
+    if (lo) out[k].lo = lo;
   }
   return out;
+}
+
+/** 独立配装的清洗：只留队内成员的命轮 / 密契、仍然存在的装备、已拥有的钥令，同一套里不重复 */
+export function normalizeLoadout(raw, team = [], gear = null, orders = null) {
+  if (!raw || typeof raw !== 'object') return null;
+  const items = gear?.items || {};
+  const has = (uid, kind) => !gear || (typeof uid === 'string' && items[uid] && (kind ? items[uid].kind === kind || (kind === 'covenant' && items[uid].kind === 'cov') : true));
+  const equip = {}, usedW = new Set(), usedC = new Set();
+  for (const slug of team) {
+    const e = raw.equip?.[slug] || {};
+    const o = {};
+    if (e.wheel && has(e.wheel, 'wheel') && !usedW.has(e.wheel)) { o.wheel = e.wheel; usedW.add(e.wheel); }
+    if (e.cov && has(e.cov, 'covenant') && !usedC.has(e.cov)) { o.cov = e.cov; usedC.add(e.cov); }
+    equip[slug] = o;
+  }
+  const seenR = new Set();
+  const relics = Array.from({ length: RELIC_SLOTS }, (_, i) => {
+    const uid = Array.isArray(raw.relics) ? raw.relics[i] : null;
+    if (uid && has(uid, 'relic') && !seenR.has(uid)) { seenR.add(uid); return uid; }
+    return null;
+  });
+  const seenO = new Set();
+  const ord = Array.from({ length: ORDER_SLOTS }, (_, i) => {
+    const id = Array.isArray(raw.orders) ? raw.orders[i] : null;
+    const ok = id && typeof id === 'string' && !seenO.has(id) && (!orders?.owned || orders.owned[id] != null);
+    if (ok) { seenO.add(id); return id; }
+    return null;
+  });
+  return { equip, relics, orders: ord };
+}
+
+export const loadoutOf = (state, key) => (key && key !== 'cur' ? squadsOf(state)[key]?.lo || null : null);
+export const hasLoadout = (state, key) => !!loadoutOf(state, key);
+
+/** 给这套编队建一份独立配装：默认复制主线队伍当前的穿戴（队内成员已有的命轮 / 密契、造物栏、钥令位） */
+export function ensureLoadout(state, key, fromMain = true) {
+  const sq = squadsOf(state)[key];
+  if (!sq) return null;
+  if (sq.lo) return sq.lo;
+  const lo = { equip: {}, relics: Array(RELIC_SLOTS).fill(null), orders: Array(ORDER_SLOTS).fill(null) };
+  if (fromMain) {
+    for (const slug of sq.team) { const e = state.gear?.equip?.[slug]; lo.equip[slug] = { ...(e?.wheel ? { wheel: e.wheel } : {}), ...(e?.cov ? { cov: e.cov } : {}) }; }
+    lo.relics = Array.from({ length: RELIC_SLOTS }, (_, i) => state.gear?.relics?.[i] || null);
+    lo.orders = Array.from({ length: ORDER_SLOTS }, (_, i) => state.orders?.slots?.[i] || null);
+  }
+  sq.lo = lo;
+  return lo;
+}
+export function dropLoadout(state, key) { const sq = squadsOf(state)[key]; if (sq) delete sq.lo; }
+
+/** 哪些装备正被某套编队的独立配装占着（分解 / 卸下时要避开） */
+export function squadUsesItem(state, uid) {
+  for (const k of ALL_SQUAD_KEYS) {
+    const lo = squadsOf(state)[k]?.lo;
+    if (!lo) continue;
+    if (lo.relics?.includes(uid)) return true;
+    for (const e of Object.values(lo.equip || {})) if (e?.wheel === uid || e?.cov === uid) return true;
+  }
+  return false;
+}
+export function squadsRemoveItem(state, uid) {
+  for (const k of ALL_SQUAD_KEYS) {
+    const lo = squadsOf(state)[k]?.lo;
+    if (!lo) continue;
+    lo.relics = (lo.relics || []).map((x) => (x === uid ? null : x));
+    for (const e of Object.values(lo.equip || {})) { if (e?.wheel === uid) delete e.wheel; if (e?.cov === uid) delete e.cov; }
+  }
+}
+
+/**
+ * 在「这套编队的配装」下跑 fn：临时把 state 里的命轮 / 密契 / 造物 / 钥令换成编队自己的，跑完还原。
+ * 没有独立配装（或 key 为空 / 'cur'）就原样跑。fn 必须是同步的——战斗模拟本来就是同步的。
+ */
+export function withLoadout(state, key, fn) {
+  const lo = loadoutOf(state, key);
+  if (!lo) return fn();
+  const gear = state.gear, orders = state.orders;
+  const saved = { equip: gear.equip, relics: gear.relics, slots: orders.slots };
+  gear.equip = lo.equip; gear.relics = lo.relics; orders.slots = lo.orders;
+  try { return fn(); } finally { gear.equip = saved.equip; gear.relics = saved.relics; orders.slots = saved.slots; }
+}
+
+/** 某个挑战入口实际用的编队位（空编队 / 当前队伍 → null，表示用主线配装） */
+export function squadKeyFor(state, mode) {
+  const key = pickedSquad(state, mode);
+  if (key === 'cur') return null;
+  return squadMembers(state, key).length ? key : null;
 }
 export function normalizePick(raw) {
   const out = emptyPick();
