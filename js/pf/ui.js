@@ -269,7 +269,7 @@ function renderShop() {
     return `<button class="scard item c${d.cost}${can ? '' : ' poor'}" data-ii="${i}" title="${d.n}：${d.text}（${d.cost} 金）">
       <i class="sig" style="--c:${col}">${itemSigil(s.kind)}</i>
       <b>${d.n}</b>
-      <span class="chips"><i style="color:${col}">${itemKindName(s.kind)}</i></span>
+      <span class="eff">${d.text}</span>
       <span class="price"><i>◈</i>${d.cost}</span>
     </button>`;
   }).join('');
@@ -297,7 +297,8 @@ function renderInv() {
       const i = Number(el.dataset.ei);
       ui.item = ui.item === i ? null : i;
       G.selItem = ui.item;
-      G.msg = ui.item == null ? '取消装备' : '选一个唤醒体装上（点立绘或备战席）';
+      const d = ui.item == null ? null : itemDef(G.inv[i]);
+      G.msg = ui.item == null ? '取消装备' : `「${d ? d.n : ''}」${d ? d.text : ''}。选一个唤醒体装上（点立绘或备战席）`;
       sync();
     };
   });
@@ -432,17 +433,24 @@ function renderCard() {
   const u = ui.sel != null ? G.units.find((x) => x.uid === ui.sel) : null;
   if (!u) { card.hidden = true; return; }
   card.hidden = false;
+  // 竖屏手机：信息卡默认缩成一行，免得盖住棋盘没法挪棋子；点「详情」再展开
+  const narrow = window.matchMedia && window.matchMedia('(max-width:520px)').matches;
+  const compact = narrow && !ui.cardOpen;
+  card.classList.toggle('compact', compact);
+  card.classList.toggle('narrow', narrow);
   const d = u.def;
   const eqText = [u.wheel, u.creation].filter(Boolean)
     .map((x) => `<p class="eqline"><b>${x.n}</b>${x.text || ''}</p>`).join('');
   const armed = ui.item != null ? G.inv[ui.item] : null;
   card.innerHTML = `
     <button class="x" id="cardX">×</button>
+    <button class="more" id="cardMore">${compact ? '详情' : '收起'}</button>
     <div class="ch">
       ${portrait(d.id, 50)}
       <div>
         <h4>${d.n}<em>${STAR_NAME[u.star]}</em></h4>
         <p class="tags">${realmTag(d.realm)}${roleTag(d.role)}<span class="costb">${d.cost} 费</span></p>
+        <p class="mini">生命 <b>${u.hpMax}</b> · 攻击 <b>${Math.round(u.atk)}</b>${u.wheel || u.creation ? ` · ${[u.wheel, u.creation].filter(Boolean).map((x) => x.n).join(' / ')}` : ''}</p>
       </div>
     </div>
     <div class="nums">
@@ -460,6 +468,7 @@ function renderCard() {
         ? `<button class="sell" id="btnSell2">卖出 +${d.cost * [0, 1, 3, 9][u.star]} 金</button>`
         : `<p class="hint" style="margin:2px 0 0;text-align:left">战斗中不能卖出 / 挪位 / 换装备</p>`}`;
   $('cardX').onclick = () => select(u.uid);
+  $('cardMore').onclick = () => { ui.cardOpen = !ui.cardOpen; renderCard(); };
   const sellBtn = $('btnSell2');
   if (sellBtn) sellBtn.onclick = () => { sell(u.uid); ui.sel = null; G.sel = null; sync(); };
   const eqBtn = $('btnEquipNow');

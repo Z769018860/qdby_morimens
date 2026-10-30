@@ -3,7 +3,7 @@
 // 引擎一次吐一个事件，这里一个事件画一条，所以整套流程读起来就是一场对话。
 // 玩家的选择只往引擎里递一个对象（见 engine.js 的 submit），规则不在这里。
 
-import { ROLES, DIFFS, KEEPER, WOLF_SIDE, CHARS } from './data.js';
+import { ROLES, DIFFS, KEEPER, WOLF_SIDE, CHARS, isCat } from './data.js';
 import { createGame, nextEvent, submit, nightOptions, playerFindings, canCall } from './engine.js';
 import { autoAct, autoNote } from './auto.js';
 import { alive, byId } from './util.js';
@@ -429,9 +429,9 @@ function addOut(e) {
     if (r.f === 'crew') rl.style.color = 'var(--blue)';
     if (r.f === 'third') rl.style.color = 'var(--violet)';
     txt.append(rl);
-    if (e.cause === 'night') txt.append(el('span', '', '（夜里被融蚀）'));
+    if (e.cause === 'night') txt.append(el('span', '', isCat(p) ? '（夜里被请离开了）' : '（夜里被融蚀）'));
   } else {
-    txt.append(el('span', '', ' · 身份不明，只剩被褥上一圈黑渍'));
+    txt.append(el('span', '', isCat(p) ? ' · 被请离开了，座位上只留下一张便条' : ' · 身份不明，只剩被褥上一圈黑渍'));
   }
   card.append(txt);
   feedEl().append(card);
@@ -1197,7 +1197,7 @@ function finish(e) {
     item.append(avatarOf(p.id, 30));
     const m = el('div', 'm');
     m.append(el('b', '', p.name + (p.isPlayer ? '（你）' : '')));
-    m.append(el('span', '', r.zh + ' · ' + (p.alive ? '活到最后' : (p.deathCause === 'night' ? '夜里没回来' : '被投出'))));
+    m.append(el('span', '', r.zh + ' · ' + (p.alive ? '活到最后' : (p.deathCause === 'night' ? (isCat(p) ? '被请离开了' : '夜里没回来') : '被投出'))));
     item.append(m);
     rev.append(item);
   }
@@ -1442,7 +1442,7 @@ function digestText() {
     for (const o of STATE.outs) {
       if (o.day !== d) continue;
       const role = o.role && ROLES[o.role] ? '（' + ROLES[o.role].zh + '）' : '（身份不明）';
-      part.push((o.cause === 'night' ? '夜里没回来：' : '被送出门：') + nmOf(G, o.pid) + role);
+      part.push((o.cause === 'night' ? (isCat(byId(G, o.pid)) ? '被请离开了：' : '夜里没回来：') : '被送出门：') + nmOf(G, o.pid) + role);
     }
     const acc = G.acc.filter((a) => a.day === d);
     if (acc.length) {

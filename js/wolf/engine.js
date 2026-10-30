@@ -12,7 +12,7 @@
 //   {t:'out', pid, role, cause}       出局（role 为 null 表示身份不明）
 //   {t:'over', winner, playerWin}     结束
 
-import { ROLES, CHARS, DIFFS, SYS, DAY_LEAD, KEEPER, WOLF_SIDE, KILLERS, WHISPER_MAX } from './data.js';
+import { ROLES, CHARS, DIFFS, SYS, DAY_LEAD, isCat, KEEPER, WOLF_SIDE, KILLERS, WHISPER_MAX } from './data.js';
 import { mulberry32, shuffle, alive, byId } from './util.js';
 import {
   aiStatement, aiVote, isAlly, say, packVote, wolfTarget, guardTarget,
@@ -437,7 +437,7 @@ function finishNight(G, choice) {
     if (lampWorthy(G, lamp, died) > 28) {
       lamp.lampUsed = true;
       died.alive = true;
-      push(G, { t: 'sys', text: SYS.lampSave.replace('{who}', died.name) });
+      push(G, { t: 'sys', text: (isCat(died) ? SYS.lampSaveCat : SYS.lampSave).replace('{who}', died.name) });
       G.claims[lamp.id] = 'lamp';
       G.claimHist.push({ id: lamp.id, role: 'lamp', day: G.day + 1, round: 0 });
       push(G, {
@@ -454,7 +454,7 @@ function finishNight(G, choice) {
 function dawn(G, died) {
   push(G, { t: 'phase', phase: 'dawn', day: G.day });
   if (died) {
-    push(G, { t: 'sys', text: SYS.dawnDead.replace('{who}', died.name) });
+    push(G, { t: 'sys', text: (isCat(died) ? SYS.dawnDeadCat : SYS.dawnDead).replace('{who}', died.name) });
     died.alive = false;
     died.deathDay = G.day;
     died.deathCause = 'night';
@@ -563,7 +563,7 @@ export function submit(G, act) {
       const p = byId(G, victimId);
       if (p) {
         p.alive = true;
-        push(G, { t: 'sys', text: SYS.lampSave.replace('{who}', p.name) });
+        push(G, { t: 'sys', text: (isCat(p) ? SYS.lampSaveCat : SYS.lampSave).replace('{who}', p.name) });
       }
       G.claims[me.id] = 'lamp';
       G.claimHist.push({ id: me.id, role: 'lamp', day: G.day + 1, round: 0 });
@@ -572,7 +572,7 @@ export function submit(G, act) {
       const victim = byId(G, victimId);
       if (victim) {
         victim.alive = false;
-        push(G, { t: 'sys', text: SYS.dawnDead.replace('{who}', victim.name) });
+        push(G, { t: 'sys', text: (isCat(victim) ? SYS.dawnDeadCat : SYS.dawnDead).replace('{who}', victim.name) });
         push(G, { t: 'out', pid: victim.id, role: null, cause: 'night' });
       } else {
         push(G, { t: 'sys', text: SYS.dawnNone });

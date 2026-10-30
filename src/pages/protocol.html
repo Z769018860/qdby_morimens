@@ -275,6 +275,10 @@ button{font:inherit; color:inherit}
 
 /* 命轮 / 造物卡片：没有立绘，用色环 + 一个汉字当徽记 */
 .scard.item{padding-top:6px}
+/* 命轮 / 造物的效果直接写在卡上（以前只有悬停提示，手机上看不到） */
+.scard .eff{font-size:9.5px; line-height:1.3; color:var(--dim); text-align:center; padding:0 3px;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; word-break:break-all}
+.scard.item .sig{width:26px; height:26px; font-size:12px}
 .scard .sig{width:34px; height:34px; border-radius:50%; display:grid; place-items:center;
   font-size:14px; font-weight:700; font-style:normal; color:var(--c);
   border:1.5px solid color-mix(in oklab, var(--c) 70%, transparent);
@@ -357,6 +361,8 @@ button{font:inherit; color:inherit}
 .ucard{position:absolute; left:10px; top:104px; width:224px; z-index:12; padding:9px 10px 10px;
   border-radius:13px; border:1px solid var(--line); background:rgba(13,18,30,.97);
   box-shadow:0 22px 44px -24px #000, 0 0 0 1px rgba(255,255,255,.03) inset; font-size:11.5px}
+.ucard .more{display:none}
+.ucard .mini{display:none}
 .ucard .x{position:absolute; right:6px; top:4px; width:20px; height:20px; border-radius:50%;
   border:1px solid var(--line); background:transparent; color:var(--dim); font-size:12px; cursor:pointer}
 .ucard .ch{display:flex; gap:8px; align-items:flex-start}
@@ -476,9 +482,21 @@ button{font:inherit; color:inherit}
   /* 竖屏棋盘只有二百多高，信息卡得压扁，不然整块盖住战场 */
   .ucard{left:8px; right:8px; width:auto; top:104px; padding:8px}
   .ucard .nums{grid-template-columns:1fr 1fr 1fr; font-size:10.5px; margin:5px 0 4px}
-  .ucard .ult{display:none}
-  .ucard .eqline{display:none}
+  .ucard .more{display:block; position:absolute; right:32px; top:4px; height:20px; padding:0 8px; border-radius:10px;
+    border:1px solid var(--line); background:var(--panel2); color:var(--text); font-size:10.5px; cursor:pointer}
+  /* 展开态：效果文字也给出来（以前一律藏起来，手机上根本不知道命轮 / 造物干什么） */
+  .ucard .ult{display:block; font-size:10.5px; margin:3px 0 5px}
+  .ucard .eqline{display:block}
   .ucard .eqs{margin:2px 0 4px}
+  .ucard{max-height:46vh; overflow-y:auto}
+  /* 收起态：一行摘要 + 卖出按钮，高度约 56px，棋盘基本不被遮挡 */
+  .ucard.compact{padding:6px 8px; top:104px}
+  .ucard.compact .tags,.ucard.compact .nums,.ucard.compact .eqs,.ucard.compact .eqline,.ucard.compact .ult,.ucard.compact .hint{display:none}
+  .ucard.compact .mini{display:block; font-size:10.5px; color:var(--dim); margin:2px 0 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px}
+  .ucard.compact .mini b{color:var(--text)}
+  .ucard.compact h4{font-size:12.5px}
+  .ucard.compact .sell{position:absolute; right:8px; bottom:6px; width:auto; padding:0 10px; height:24px; font-size:11px}
+  .ucard.compact{min-height:50px}
 }
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
 </style>

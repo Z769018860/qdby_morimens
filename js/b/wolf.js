@@ -341,6 +341,8 @@ const KEEPER = {
 };
 
 // ------------------------------------------------------------------ 系统文案
+const CAT_NAME = '弥萨格校猫';
+const isCat = (p) => !!p && p.name === CAT_NAME;
 const SYS = {
   intro: [
     '闭馆广播响过第三遍，主教学楼四层的灯一齐灭了。',
@@ -351,6 +353,9 @@ const SYS = {
   dawnNone: '天亮了。走廊里的水渍是干净的，没有黑液。一夜无事。',
   dawnNoneProtected: '天亮了。有人在你门口停了一整夜，最后什么也没做。',
   dawnDead: '{who}没有回来。房间里只剩下被褥上的一圈黑渍。',
+  // 弥萨格校猫（制作人）不写「被融蚀」：他是被请离开了，座位上留一张便条
+  dawnDeadCat: '{who}被请离开了。座位上只留下一张便条：「抱歉，先走一步。」',
+  lampSaveCat: '灯亮了。{who}被重新请回了座位，便条被撕成两半。',
   voteOut: '{who}被送出了门。门在身后关上的声音很轻。',
   voteNone: '票数平了。没有人被送出去。走廊里安静得能听见呼吸。',
   nightFall: '熄灯。走廊里只剩下脚步声。',
@@ -381,7 +386,7 @@ const DAY_LEAD = [
   '剩下的人不多了。每个人的呼吸都很响。',
   '最后一次点名。',
 ];
-return { ROLES, WOLF_SIDE, KILLERS, POWER_ROLES, WHISPER_MAX, DIFFS, CHARS, CHAR_BY_NAME, REALMS, KEEPER, SYS, DAY_LEAD };
+return { ROLES, WOLF_SIDE, KILLERS, POWER_ROLES, WHISPER_MAX, DIFFS, CHARS, CHAR_BY_NAME, REALMS, KEEPER, CAT_NAME, isCat, SYS, DAY_LEAD };
 })();
 
 // ---- js/wolf/util.js
@@ -7112,7 +7117,7 @@ return { isWolfRole, isKillerRole, isAlly, publicLeft, credOf, evidence, suspici
 
 // ---- js/wolf/engine.js
 const m_engine = await (async () => {
-const { ROLES, CHARS, DIFFS, SYS, DAY_LEAD, KEEPER, WOLF_SIDE, KILLERS, WHISPER_MAX } = m_data;
+const { ROLES, CHARS, DIFFS, SYS, DAY_LEAD, isCat, KEEPER, WOLF_SIDE, KILLERS, WHISPER_MAX } = m_data;
 const { mulberry32, shuffle, alive, byId } = m_util;
 const { aiStatement, aiVote, isAlly, say, packVote, wolfTarget, guardTarget, checkTarget, autopsyTarget, whisperTarget, lampWorthy, chainPick, callResponders } = m_ai;
 // 弥萨格狼人杀：全局状态机
@@ -7551,7 +7556,7 @@ function finishNight(G, choice) {
     if (lampWorthy(G, lamp, died) > 28) {
       lamp.lampUsed = true;
       died.alive = true;
-      push(G, { t: 'sys', text: SYS.lampSave.replace('{who}', died.name) });
+      push(G, { t: 'sys', text: (isCat(died) ? SYS.lampSaveCat : SYS.lampSave).replace('{who}', died.name) });
       G.claims[lamp.id] = 'lamp';
       G.claimHist.push({ id: lamp.id, role: 'lamp', day: G.day + 1, round: 0 });
       push(G, {
@@ -7568,7 +7573,7 @@ function finishNight(G, choice) {
 function dawn(G, died) {
   push(G, { t: 'phase', phase: 'dawn', day: G.day });
   if (died) {
-    push(G, { t: 'sys', text: SYS.dawnDead.replace('{who}', died.name) });
+    push(G, { t: 'sys', text: (isCat(died) ? SYS.dawnDeadCat : SYS.dawnDead).replace('{who}', died.name) });
     died.alive = false;
     died.deathDay = G.day;
     died.deathCause = 'night';
@@ -7677,7 +7682,7 @@ function submit(G, act) {
       const p = byId(G, victimId);
       if (p) {
         p.alive = true;
-        push(G, { t: 'sys', text: SYS.lampSave.replace('{who}', p.name) });
+        push(G, { t: 'sys', text: (isCat(p) ? SYS.lampSaveCat : SYS.lampSave).replace('{who}', p.name) });
       }
       G.claims[me.id] = 'lamp';
       G.claimHist.push({ id: me.id, role: 'lamp', day: G.day + 1, round: 0 });
@@ -7686,7 +7691,7 @@ function submit(G, act) {
       const victim = byId(G, victimId);
       if (victim) {
         victim.alive = false;
-        push(G, { t: 'sys', text: SYS.dawnDead.replace('{who}', victim.name) });
+        push(G, { t: 'sys', text: (isCat(victim) ? SYS.dawnDeadCat : SYS.dawnDead).replace('{who}', victim.name) });
         push(G, { t: 'out', pid: victim.id, role: null, cause: 'night' });
       } else {
         push(G, { t: 'sys', text: SYS.dawnNone });
@@ -8104,7 +8109,7 @@ return { AVATARS };
 
 // ---- js/wolf/ui.js
 const m_ui = await (async () => {
-const { ROLES, DIFFS, KEEPER, WOLF_SIDE, CHARS } = m_data;
+const { ROLES, DIFFS, KEEPER, WOLF_SIDE, CHARS, isCat } = m_data;
 const { createGame, nextEvent, submit, nightOptions, playerFindings, canCall } = m_engine;
 const { autoAct, autoNote } = m_auto;
 const { alive, byId } = m_util;
@@ -8540,9 +8545,9 @@ function addOut(e) {
     if (r.f === 'crew') rl.style.color = 'var(--blue)';
     if (r.f === 'third') rl.style.color = 'var(--violet)';
     txt.append(rl);
-    if (e.cause === 'night') txt.append(el('span', '', '（夜里被融蚀）'));
+    if (e.cause === 'night') txt.append(el('span', '', isCat(p) ? '（夜里被请离开了）' : '（夜里被融蚀）'));
   } else {
-    txt.append(el('span', '', ' · 身份不明，只剩被褥上一圈黑渍'));
+    txt.append(el('span', '', isCat(p) ? ' · 被请离开了，座位上只留下一张便条' : ' · 身份不明，只剩被褥上一圈黑渍'));
   }
   card.append(txt);
   feedEl().append(card);
@@ -9308,7 +9313,7 @@ function finish(e) {
     item.append(avatarOf(p.id, 30));
     const m = el('div', 'm');
     m.append(el('b', '', p.name + (p.isPlayer ? '（你）' : '')));
-    m.append(el('span', '', r.zh + ' · ' + (p.alive ? '活到最后' : (p.deathCause === 'night' ? '夜里没回来' : '被投出'))));
+    m.append(el('span', '', r.zh + ' · ' + (p.alive ? '活到最后' : (p.deathCause === 'night' ? (isCat(p) ? '被请离开了' : '夜里没回来') : '被投出'))));
     item.append(m);
     rev.append(item);
   }
@@ -9553,7 +9558,7 @@ function digestText() {
     for (const o of STATE.outs) {
       if (o.day !== d) continue;
       const role = o.role && ROLES[o.role] ? '（' + ROLES[o.role].zh + '）' : '（身份不明）';
-      part.push((o.cause === 'night' ? '夜里没回来：' : '被送出门：') + nmOf(G, o.pid) + role);
+      part.push((o.cause === 'night' ? (isCat(byId(G, o.pid)) ? '被请离开了：' : '夜里没回来：') : '被送出门：') + nmOf(G, o.pid) + role);
     }
     const acc = G.acc.filter((a) => a.day === d);
     if (acc.length) {

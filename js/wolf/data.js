@@ -334,6 +334,8 @@ export const KEEPER = {
 };
 
 // ------------------------------------------------------------------ 系统文案
+export const CAT_NAME = '弥萨格校猫';
+export const isCat = (p) => !!p && p.name === CAT_NAME;
 export const SYS = {
   intro: [
     '闭馆广播响过第三遍，主教学楼四层的灯一齐灭了。',
@@ -344,6 +346,9 @@ export const SYS = {
   dawnNone: '天亮了。走廊里的水渍是干净的，没有黑液。一夜无事。',
   dawnNoneProtected: '天亮了。有人在你门口停了一整夜，最后什么也没做。',
   dawnDead: '{who}没有回来。房间里只剩下被褥上的一圈黑渍。',
+  // 弥萨格校猫（制作人）不写「被融蚀」：他是被请离开了，座位上留一张便条
+  dawnDeadCat: '{who}被请离开了。座位上只留下一张便条：「抱歉，先走一步。」',
+  lampSaveCat: '灯亮了。{who}被重新请回了座位，便条被撕成两半。',
   voteOut: '{who}被送出了门。门在身后关上的声音很轻。',
   voteNone: '票数平了。没有人被送出去。走廊里安静得能听见呼吸。',
   nightFall: '熄灯。走廊里只剩下脚步声。',
