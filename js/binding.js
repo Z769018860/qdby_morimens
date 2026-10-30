@@ -373,6 +373,7 @@ function makeEnemy(type, x, y, scale) {
 
 // ------------------------------------------------------------------ 开始一局
 function startRun() {
+  clearBakedRooms();
   G.cols = stage.clientWidth / stage.clientHeight < 0.95 ? 9 : 15;
   G.rows = G.cols === 9 ? 13 : 9;
   G.W = G.cols * T;
@@ -1296,6 +1297,7 @@ function nextFloor() {
 
 // ------------------------------------------------------------------ 结算 / 解锁
 function finishRun(win) {
+  clearBakedRooms();
   const r = G.run;
   const st = G.meta.stats;
   const dm = diffOf();
