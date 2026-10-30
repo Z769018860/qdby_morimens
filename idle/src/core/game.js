@@ -767,9 +767,9 @@ export function pullOnce(state, data, rng) {
   let dup = false, gold = 0;
   if (!own) state.roster[a.slug] = { lv: 1, star: 0, brk: 0 };
   else if (own.star < MAX_AWAKEN) { own.star++; dup = true; }
-  else { gold = 800; state.gold += gold; state.cores += 30; if (overdrive(own.od) < OVERDRIVE_MAX) own.od = overdrive(own.od) + 1; else own.law = law(own.law) + 1; dup = true; }   // 满叠后重复：折算金币银芯，外加超限 +1（超限满了就加最终法则 +1）
+  else { gold = 800; state.gold += gold; state.cores += 30; dup = true; }   // 满叠后重复：只折算金币银芯，不送超限 / 最终法则
   state.stats.pulls++;
-  return { slug: a.slug, rarity, isNew: !own, dup, gold, star: state.roster[a.slug].star, od: state.roster[a.slug].od || 0, law: state.roster[a.slug].law || 0 };
+  return { slug: a.slug, rarity, isNew: !own, dup, gold, star: state.roster[a.slug].star };
 }
 /** 管理员在后台发的唤醒体（站点 /grants/mine 的 awk 列表）：没有就是新获得，已有就叠位 +1。
  *  每条赠礼只领一次（id 记在 state.giftIds 里，云存档会一起带走，换设备也不会重领）。返回这次实际发出去的。 */

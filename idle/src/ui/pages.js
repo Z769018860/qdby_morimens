@@ -708,7 +708,7 @@ function odBox(s, r, slug) {
     </div>
     ${full ? '' : `<div class="row"><button class="btn gold sm" data-act="od" data-slug="${slug}" ${can ? '' : 'disabled'}>超限 +1</button>
       <button class="btn sm" data-act="od" data-slug="${slug}" data-n="10" ${can ? '' : 'disabled'} title="连续超限，直到金币或银芯不够，最多 10 级">超限 ×10</button></div>`}
-    <p class="hint">另一条来路：叠满之后再<b>抽到这位</b>，会折算 <b>800 金币 + 30 银芯</b>，并<b>白送 1 级</b>（超限没满送超限，满了送最终法则）。</p>
+    <p class="hint">叠满之后再<b>抽到这位</b>，只折算 <b>800 金币 + 30 银芯</b>，不送超限 / 最终法则——这两条要自己花金币和银芯练。</p>
     ${full ? lawBox(s, r, slug) : ''}</div>`;
 }
 
@@ -920,7 +920,7 @@ function luckCard(app) {
   const recent = (g.log || []).slice(0, 14);
   const chips = recent.map((r) => {
     const a = app.data.bySlug[r.slug];
-    const tag = r.isNew ? 'NEW' : r.dup ? (r.star >= MAX_AWAKEN ? (r.law ? `法则 ${r.law}` : `超限 ${r.od}`) : `叠位 ${r.star}`) : '';
+    const tag = r.isNew ? 'NEW' : r.dup ? (r.star >= MAX_AWAKEN ? '已满叠' : `叠位 ${r.star}`) : '';
     return `<span class="gchip r-${r.rarity}" title="${esc(a?.zh || r.slug)} · ${RAR_ZH[r.rarity]} · ${clock(r.t)}${tag ? ' · ' + tag : ''}">
       <img src="${img(a?.portrait)}" alt="" loading="lazy"><em>${esc(a?.zh || r.slug)}</em><small>${RAR_ZH[r.rarity]}${tag ? ' · ' + tag : ''}</small></span>`;
   }).join('') || '<p class="hint">还没有记录。抽一次就会出现在这里，记录只存在本机。</p>';
@@ -999,7 +999,7 @@ export function gachaLogModal(app) {
       <span class="gs">#${r.seq}</span>
       <img src="${img(a?.portrait)}" alt="">
       <span class="gn"><b>${esc(a?.zh || r.slug)}</b><small>${RAR_ZH[r.rarity]} · ${r.banner === 'core' ? '银芯召唤' : '召唤券'}</small></span>
-      <span class="gt">${r.isNew ? '<em class="new">NEW</em>' : r.dup ? (r.star >= MAX_AWAKEN ? (r.law ? `法则 ${r.law}` : `超限 ${r.od}`) : `叠位 ${r.star}`) : ''}</span>
+      <span class="gt">${r.isNew ? '<em class="new">NEW</em>' : r.dup ? (r.star >= MAX_AWAKEN ? '已满叠' : `叠位 ${r.star}`) : ''}</span>
       <span class="gd">${clock(r.t)}</span></div>`;
   }).join('') || '<p class="hint">这个筛选下没有记录。</p>';
   const cmp = [['Genesis', '创生'], ['SSR', '史诗'], ['SR', '精良']].map(([k, zh]) => {

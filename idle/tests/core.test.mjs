@@ -1909,9 +1909,6 @@ test('最终法则：超限满 99 才解锁、无上限、指数涨价、属性 
   assert.equal(lawStatPct(10), 12); assert.equal(lawAmp(10), 5); assert.equal(lawCrit(10), 8);
   const a = data.bySlug[slug];
   assert.ok(baseStats3(a, 159, 99, 99, 10).atk > baseStats3(a, 159, 99, 99, 0).atk * 1.11);
-  // 重复抽到：超限满了之后顺延到最终法则
-  const before = s.roster[slug].law;
-  s.roster[slug].law = before; // 直接模拟单抽结算的分支
   const m = migrate(JSON.parse(JSON.stringify(s)), data);
   assert.equal(m.roster[slug].law, 100);
   m.roster[slug].od = 50;
@@ -1919,4 +1916,16 @@ test('最终法则：超限满 99 才解锁、无上限、指数涨价、属性 
   // 钱不够不扣钱
   s.gold = 0; const cores = s.cores;
   assert.equal(lawUp(s, slug), null); assert.equal(s.cores, cores);
+});
+
+test('满叠 99 后再抽到同一位：只折算金币银芯，不送超限 / 最终法则', () => {
+  const s = newState(data);
+  s.tickets = 1e6;
+  for (const a of data.awakeners) s.roster[a.slug] = { lv: 159, star: 99, brk: 7, od: 0, law: 0 };
+  const g0 = s.gold, c0 = s.cores;
+  const out = summon(s, data, 30);
+  assert.ok(out.length >= 30 && out.every((o) => o.dup));
+  assert.ok(Object.values(s.roster).every((r) => r.od === 0 && r.law === 0), '重复抽取不再送超限 / 法则');
+  assert.equal(s.gold - g0, out.length * 800);
+  assert.equal(s.cores - c0, out.length * 30);
 });
