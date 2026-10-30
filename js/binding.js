@@ -554,6 +554,9 @@ function fire() {
 // ------------------------------------------------------------------ 更新
 function update(dt) {
   const r = G.run, p = r.p, rm = r.room;
+  // Bound visual-only particles even when a high-damage build produces more
+  // hit bursts than the renderer can drain. Never discard rewards or enemies.
+  if (G.fx.length > 280) G.fx.splice(0, G.fx.length - 280);
   r.t += dt;
   G.t += dt;
   p.invuln = Math.max(0, p.invuln - dt);
@@ -2068,6 +2071,7 @@ const eyeObj = () => EYES.find((e) => e.k === G.meta.eye) || EYES[0];
 const cosObj = () => COSTUMES.find((c) => c.k === G.meta.costume) || COSTUMES[0];
 
 // ------------------------------------------------------------------ 帧循环
+let lastWorldRender = 0;
 function loop(now) {
   const dt = G.lastTime ? Math.min(0.05, (now - G.lastTime) / 1000) : 0;
   G.lastTime = now;
@@ -2081,7 +2085,13 @@ function loop(now) {
       if (G.banner.t > G.banner.life) G.banner = null;
     }
     G.t += dt;
-    if (G.mode === 'play' || G.mode === 'pause') render();
+    if (G.mode === 'play' || G.mode === 'pause') {
+      const minFrame = matchMedia('(pointer:coarse)').matches ? 1000 / 30 : 1000 / 50;
+      if (!lastWorldRender || now - lastWorldRender >= minFrame) {
+        render();
+        lastWorldRender = now;
+      }
+    } else lastWorldRender = 0;
     if (G.mode === 'title') { drawTitleCat(now / 1000); drawBgCanvas(); }
     if (G.mode === 'codex') drawBgCanvas();
     if (G.mode === 'story') drawSpeakerTick();
