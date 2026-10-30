@@ -873,7 +873,7 @@ export function hideInspection(terrainOnly = false) {
 }
 export function inspectCell(cell, x, y, pin = false) {
   if (cell < 0) { hideInspection(); return; }
-  if ((detailPinned || detailFromElement) && !pin) return;
+  if (detailPinned && !pin) return;
   const key = 'cell:' + cell + ':' + (G.terrain[cell] || 'normal');
   if (key === detailKey && !pin) return;
   const t = TERRAIN[G.terrain[cell]];
@@ -957,6 +957,7 @@ function unitDescription(d) {
 }
 function inspectElement(el, pin) {
   if (detailPinned && !pin) return;
+  clearTimeout(detailTimer);
   detailFromElement = true;
   const rect = el.getBoundingClientRect();
   const anchor = { x: rect.right, y: rect.top, rect };
@@ -992,14 +993,18 @@ function buildDetails() {
   detailPanel.setAttribute('role','region'); detailPanel.setAttribute('aria-label','详细说明');
   document.body.append(detailPanel);
   detailPanel.onpointerenter = () => { if (detailPinned) clearTimeout(detailTimer); };
-  detailPanel.onpointerleave = () => { detailTimer = setTimeout(hideInspection, 200); };
+  detailPanel.onpointerleave = () => { if (!detailPinned) detailTimer = setTimeout(hideInspection, 450); };
   document.addEventListener('pointerover', e => {
     if (e.pointerType === 'touch') return;
     const el = e.target.closest('[data-detail]'); if (!el || el.contains(e.relatedTarget)) return;
     inspectElement(el, false);
   });
   document.addEventListener('pointerout', e => {
-    if (e.target.closest('[data-detail]')) detailTimer = setTimeout(hideInspection, 250);
+    const el = e.target.closest('[data-detail]');
+    if (el && !el.contains(e.relatedTarget) && !detailPinned) {
+      clearTimeout(detailTimer);
+      detailTimer = setTimeout(() => { if (!detailPinned) hideInspection(); }, 450);
+    }
   });
   document.addEventListener('contextmenu', e => {
     if (detailPanel.contains(e.target)) { e.preventDefault(); detailPinned = true; detailPanel.classList.remove('is-preview'); detailPanel.classList.add('is-pinned'); return; }
@@ -1009,7 +1014,7 @@ function buildDetails() {
   document.addEventListener('click', e => {
     const el = e.target.closest('.tr[data-detail],.detail-action[data-detail],#protocolDetails [data-detail]');
     if (el) { inspectElement(el, true); return; }
-    if (detailPinned && !e.target.closest('#protocolDetails')) closeDetails();
+    // Pinned explanations close only via × or Escape, not unrelated shop clicks.
   });
   document.addEventListener('focusin', e => { const el = e.target.closest('[data-detail]'); if (el) inspectElement(el, false); });
   document.addEventListener('keydown', e => {
