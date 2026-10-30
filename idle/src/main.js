@@ -33,7 +33,7 @@ import { claimDaily, redeemGuest, claimMile } from './core/event.js';
 import { syncSigninGifts } from './core/creators.js';
 import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
 import { startGuide } from './ui/guide.js';
-import { $, $$, fmt, esc, store, toast, closeModal, openModal, showKwPop } from './ui/util.js';
+import { $, $$, fmt, esc, store, askPersist, toast, closeModal, openModal, showKwPop } from './ui/util.js';
 
 /* 底部导航按「功能域」分 5 组。13 个平铺页签在手机上要横滚，一眼看不到全貌，
    而且签到、设置这类低频页和战斗平起平坐也不合理。组内多页用顶部胶囊二级导航。 */
@@ -86,7 +86,15 @@ const app = {
   ui: { lastTab: {} }, tab: 'battle',
   // 离线收益弹窗还没点「领取」时不能推进 lastSeen，否则刷新 / 关页 / 切后台都会把这段离线时间吞掉
   offlinePending: false,
-  save() { if (!this.offlinePending) this.state.lastSeen = Date.now(); store.write(this.state); },
+  noSave: false,                     // 重置 / 导入过程中不能再写盘（beforeunload 会把旧状态写回去）
+  save() {
+    if (this.noSave || !this.state) return;
+    if (!this.offlinePending) this.state.lastSeen = Date.now();
+    this.state.rev = (this.state.rev || 0) + 1;
+    const ok = store.write(this.state);
+    // 浏览器存不下（配额满 / 无痕）：进度只在 IndexedDB 镜像里，提示一次，让玩家去导出
+    if (!ok && !this.warnedSave) { this.warnedSave = true; toast('⚠ 浏览器拒绝保存进度（存储空间满或无痕模式），建议到「设置」导出存档备份', 6000); }
+  },
   itemName(it) { return P.itemDef(this, it).zh + (it.lv ? ` Lv${it.lv}` : ''); },
   refreshTop() {
     $('#gold').textContent = fmt(this.state.gold);
@@ -104,8 +112,11 @@ async function boot() {
   pack.orders = orders.items || [];
   if (special) pack.special = special;
   app.data = indexData(pack);
-  const saved = store.read();
+  const best = await store.readBest();
+  const saved = best.state;
   app.state = saved ? migrate(saved, app.data) : newState(app.data);
+  askPersist();
+  if (best.from === 'idb' || best.from === 'idb-newer') setTimeout(() => toast('已从备份恢复上次的进度', 3500), 1200);
   app.root = $('#view');
   buildChrome();
   syncSnd();
@@ -139,6 +150,9 @@ async function boot() {
   // 累计签到送的那几位：达标就自动进包（老存档首次进游戏也会补发）
   checkSigninGifts();
   document.addEventListener('visibilitychange', onVisibility);
+  // 另一个标签页存档了：当前窗口在后台就先不管（回到前台时 onVisibility 会同步），在前台就立刻同步
+  window.addEventListener('storage', (e) => { if (e.key === store.KEY && !document.hidden && !app.offlinePending) adoptNewerDisk(); });
+  window.addEventListener('pagehide', () => { app.save(); store.flush(); });
   window.addEventListener('beforeunload', () => app.save());
   // 每 5 秒记一次「游玩时长」（只算页面可见的那段时间，切到后台就停），
   // 顺便每 15 秒存一次盘——原来只有一个 15s 的 save 定时器。
@@ -154,10 +168,24 @@ async function boot() {
   window.__game = app; // handy for debugging / tests
 }
 
+function adoptNewerDisk() {
+  const disk = store.read();
+  if (!disk || (disk.rev || 0) <= (app.state.rev || 0)) return false;
+  app.state = migrate(disk, app.data);
+  app.bv.app = app;
+  app.bv.restart?.();
+  app.render?.();
+  app.refreshTop();
+  toast('检测到另一个窗口存了更新的进度，已同步', 3000);
+  return true;
+}
+
 function onVisibility() {
   if (document.hidden) { app.bv.stop(); app.save(); return; }
   // 上一份离线收益还挂在弹窗里没领，就别再算第二份（lastSeen 没动，会把同一段时间算两遍）
   if (app.offlinePending) return;
+  // 这段时间别的窗口 / 标签页如果存过更新的进度，就用它——否则这个旧窗口的内存状态会把新进度覆盖掉（看起来像「进度回档」）
+  adoptNewerDisk();
   const rep = offlineReport(app.state, app.data);
   if (rep && (rep.gold || rep.tickets)) {
     app.offlinePending = true;
@@ -510,10 +538,10 @@ function onAct(e) {
       break;
     }
     case 'do-import': {
-      try { const j = JSON.parse($('#imp').value); if (!j.roster) throw new Error('bad'); app.state = migrate(j, d); app.save(); closeModal(); app.bv.app = app; app.bv.restart(); render(); toast('导入成功'); } catch { toast('存档格式不正确'); }
+      try { const j = JSON.parse($('#imp').value); if (!j.roster) throw new Error('bad'); app.state = migrate(j, d); app.state.rev = Math.max(app.state.rev || 0, store.read()?.rev || 0) + 1; app.save(); closeModal(); app.bv.app = app; app.bv.restart(); render(); toast('导入成功'); } catch { toast('存档格式不正确'); }
       break;
     }
-    case 'reset': if (confirm('确定重置所有进度吗？此操作不可撤销。')) { store.clear(); location.reload(); } break;
+    case 'reset': if (confirm('确定重置所有进度吗？此操作不可撤销。')) { app.noSave = true; store.clear().then(() => location.reload()); } break;
   }
 }
 
