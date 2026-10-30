@@ -2092,12 +2092,38 @@ function render(data, h0) {
     batchCard(),
     h('section', { class: 'card' },
       h('h2', {}, `用户列表 · ${(data.users || []).length}`),
-      (stats.failed || (stats.users && USERS.length < stats.users - 3))
-        ? h('p', { class: 'sub', style: 'color:#b45309' }, `注册 ${stats.users} 人，这里读到 ${USERS.length} 人${stats.failed ? `（${stats.failed} 个读取失败，多半是存储限流，稍等几秒点「刷新」）` : '（服务端只列出了这些用户键，不是读取失败）'}。`)
-        : '',
+      h('p', { class: 'sub', id: 'ixmsg', style: 'color:#b45309' }, ''),
       h('p', { class: 'sub' }, '「未同步」= 登录过但没传过云端档案，说明他只在游客模式下点过登录。发放的银芯在对方下次打开站点、同步档案时到账。'),
       h('div', { class: 'toolbar' }, searchEl, refresh),
       body));
+}
+
+// ------------------------------------------------------------------ 补全用户索引
+// 后台和榜单读的是一份「用户索引」（谁的数据变了就更新谁那一行）。索引上线之前注册的老用户
+// 还没有那一行：这里自动补——先拿键名清单，再每次 8 个让服务端读完写进索引，期间显示进度。
+let reindexing = false;
+let reindexTried = false;          // 一次页面生命周期只自动补一次：有读不出来的用户时别无限重试
+async function reindexIfNeeded(data) {
+  const st = data.stats || {};
+  const msg = () => document.getElementById('ixmsg');
+  if (reindexing || reindexTried || !(st.users > (st.indexed || 0))) return;
+  reindexing = true; reindexTried = true;
+  try {
+    if (msg()) msg().textContent = `注册 ${st.users} 人，索引里只有 ${st.indexed || 0} 人，正在补全…`;
+    const { keys } = await req('/admin/reindex-keys', { timeout: 40000 });
+    let done = 0;
+    for (let i = 0; i < keys.length; i += 8) {
+      const r = await req('/admin/reindex', { method: 'POST', body: { keys: keys.slice(i, i + 8) }, timeout: 60000 });
+      done += Number(r.done) || 0;
+      if (msg()) msg().textContent = `正在补全用户索引 ${Math.min(i + 8, keys.length)}/${keys.length}…`;
+    }
+    if (msg()) msg().textContent = `索引已补全（${done} 人）。`;
+    reindexing = false;
+    await load();
+  } catch (e) {
+    reindexing = false;
+    if (msg()) msg().textContent = '补全索引中断：' + (e.message || e.code || '未知错误') + '。刷新页面会从头再来。';
+  }
 }
 
 // ------------------------------------------------------------------ 载入
@@ -2136,6 +2162,7 @@ async function load(mode) {
     USERS = data.users || [];
     render(data, BACKEND);
     void mode;
+    reindexIfNeeded(data);
   } catch (e) {
     if (e.status === 401) { needsLogin(); return; }
     if (e.status === 403) { denied(e.detail); return; }

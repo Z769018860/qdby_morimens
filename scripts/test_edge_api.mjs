@@ -668,6 +668,25 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   check('没分的游戏榜单为空', bd.json.games.sv.items.length === 0);
 }
 
+console.log('\n[21] 用户索引：老用户补全 + 后台/榜单只读索引');
+{
+  const kv = fakeKV();
+  const call = makeCaller({ zjtt_kv: kv, WALINE_URL: 'https://example.invalid', ZJTT_ADMIN_UIDS: '9001' });
+  seedSession(kv, 'adm', '9001', '姜酒');
+  const AD = { Authorization: 'Bearer adm' };
+  // 索引上线之前注册的老用户：只有 usr_ / acct_ / sv_ 键，没有索引
+  const uh = (uid) => sha('u:' + uid).slice(0, 32);
+  void uh;
+  await call('/whoami', { headers: AD });
+  const keysBefore = (await call('/admin/reindex-keys', { headers: AD })).json.keys;
+  check('键名清单包含管理员自己', keysBefore.length >= 1, keysBefore);
+  eq('非管理员读不到清单', (await call('/admin/reindex-keys')).status, 401);
+  const ov0 = await call('/admin/overview', { headers: AD });
+  check('概览带索引人数', ov0.json.ok && ov0.json.stats.indexed >= 1, ov0.json.stats);
+  const r = await call('/admin/reindex', { method: 'POST', headers: AD, body: { keys: [...keysBefore, 'bad key!', '../x'] } });
+  check('补全只认合法的 usr_ 键', r.json.ok && r.json.asked === keysBefore.length && r.json.done === keysBefore.length, r.json);
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
   console.log('\n失败项：');
   for (const f of fails) console.log('  - ' + f);

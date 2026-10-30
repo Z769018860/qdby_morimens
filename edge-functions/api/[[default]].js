@@ -281,6 +281,35 @@ async function kvNum(kv, key, weak = false) {
 // 「本站用过这个账号」的名册。个人中心左上角要显示注册用户量、管理员页要列出全部用户，
 // 都靠这份 usr_ 前缀的键。写得很省：只有第一次见到这个 uid 才落一条，昵称改了才补写一次。
 // 注意别把它当 Waline 的注册表 —— 它记的是「登录过本站的账号」，没来过的 Waline 用户不在里面。
+// ------------------------------------------------------------------ 用户索引（一份文档装下所有人）
+// 后台概览和榜单原来每次请求都要「列出全部用户 + 每人读 2~3 个键」，Blob 一次读取要 1~3 秒，
+// 59 个人就是几十秒，超过边缘函数的时限（报 545 / 读取超时）。现在改成「写时更新」：
+// 谁的数据变了（登录、同步档案、上传挂机存档），就顺手把他那一行更新进 ix_users 这一份文档，
+// 后台和榜单只读这一份，读取次数恒定为 1，不随用户数增长。
+const IX_KEY = 'ix_users';
+async function ixRead(kv, weak = true) {
+  const d = await softly(() => kvJson(kv, IX_KEY, weak), null);
+  return d && d.u && typeof d.u === 'object' ? d : { u: {} };
+}
+async function ixUpsert(kv, uh, patch) {
+  await softly(async () => {
+    const d = await ixRead(kv, false);
+    d.u[uh] = { ...(d.u[uh] || {}), ...patch };
+    d.at = Date.now();
+    const body = JSON.stringify(d);
+    if (body.length > 900 * 1024) return true;      // 用户多到装不下时宁可不更新，也不写坏
+    await kv.put(IX_KEY, body);
+    return true;
+  }, false);
+}
+// 只放榜单 / 后台要显示的字段，别把整份档案塞进来
+const ixAcct = (doc) => {
+  const b = acctBrief(doc);
+  if (!b) return null;
+  const st = doc && doc.st && typeof doc.st === 'object' ? doc.st : {};
+  return { ...b, bs: Number(doc.bs) || 0, best: Number(st.best) || 0 };
+};
+
 // 同一个边缘实例里的内存缓存：每个登录请求原来都要读一次 sess_（强一致）+ 一次 usr_，
 // 一个页面打开就是十几个请求，全打在存储上，正是存储限流的来源。内存里记一份，一分钟内不再回读。
 const MEM_TTL = 60 * 1000;
@@ -288,7 +317,7 @@ const MEM_TTL = 60 * 1000;
 const memByKv = new WeakMap();
 function memOf(kv, which) {
   let m = memByKv.get(kv);
-  if (!m) { m = { sess: new Map(), touched: new Map() }; memByKv.set(kv, m); }
+  if (!m) { m = { sess: new Map(), touched: new Map(), ix: new Map() }; memByKv.set(kv, m); }
   return m[which];
 }
 function memGet(map, key) {
@@ -315,11 +344,19 @@ async function touchUser(kv, me) {
     let old = null;
     try { old = JSON.parse(raw); } catch { old = null; }
     if (!old || old.name !== name) {
-      await kv.put(key, JSON.stringify({ uid: String(me.uid), name, at: Number(old && old.at) || Date.now(), seen: Date.now() }));
+      const at0 = Number(old && old.at) || Date.now();
+      await kv.put(key, JSON.stringify({ uid: String(me.uid), name, at: at0, seen: Date.now() }));
+      await ixUpsert(kv, key.slice(4), { u: String(me.uid), n: name, at: at0, seen: Date.now() });
+    } else {
+      // 老用户第一次碰到索引（索引上线之前就注册的）：补一行名字，其余等他下次同步档案
+      const ix = memOf(kv, 'ix');
+      if (!ix.has(key)) { ix.set(key, 1); const d = await ixRead(kv); if (!d.u[key.slice(4)]) await ixUpsert(kv, key.slice(4), { u: String(me.uid), n: name, at: Number(old.at) || 0, seen: Date.now() }); }
     }
     return;
   }
-  await kv.put(key, JSON.stringify({ uid: String(me.uid), name, at: Date.now(), seen: Date.now() }));
+  const atNew = Date.now();
+  await kv.put(key, JSON.stringify({ uid: String(me.uid), name, at: atNew, seen: atNew }));
+  await ixUpsert(kv, key.slice(4), { u: String(me.uid), n: name, at: atNew, seen: atNew });
   // 计数单独存：列表要扫全表，计数只要一次读
   const n = await kvNum(kv, 'usr_n');
   await kv.put('usr_n', String(n + 1));
@@ -556,6 +593,7 @@ async function putAccount(request, env, kv, cors) {
   const nextVer = curVer + 1;
   const at = Date.now();
   await kv.put(key, JSON.stringify({ doc: b.doc, ver: nextVer, at }));
+  await ixUpsert(kv, key.slice(5), { u: String(me.uid), n: str(me.name, 40), a: ixAcct(b.doc), seen: at });
   return reply({ ok: true, ver: nextVer, at }, 200, cors);
 }
 
@@ -626,6 +664,7 @@ async function putSave(request, env, kv, game, cors) {
   if (game === 'idle' && meta && !meta.team.length) meta.team = teamOfIdle(parsed);
   const ver = curVer + 1, at = Date.now();
   await kv.put(key, JSON.stringify({ data, ver, at, rev: Number(b.rev) || 0, meta }));
+  if (game === 'idle' && meta) await ixUpsert(kv, key.slice(3).split('_')[0], { u: String(me.uid), n: str(me.name, 40), il: meta });
   return reply({ ok: true, ver, at }, 200, cors);
 }
 
@@ -1095,23 +1134,16 @@ async function getAdminOverview(request, env, kv, cors, url) {
   if (!me) throw new HttpError(401, 'need_login');
   if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', publicWhy(await adminWhy(env, kv, me)));
 
-  const dir = await loadDirectory(kv, !!(url && url.searchParams.get('fresh') === '1'));
-  const failed = dir.failed;
-  const keys = { length: dir.listed };
-  const rows = await mapLimit(dir.users.slice(0, 800), 4, async (u) => {
-    try {
-      const doc = await softly(async () => (await kvJson(kv, 'acct_' + (await uhash(u.uid)), true) || {}).doc, null);
-      let acct = null;
-      try { acct = acctBrief(doc); } catch { acct = null; }
-      return { uid: u.uid, name: u.name, at: u.at, seen: u.seen, acct };
-    } catch { return null; }
-  });
-
-  const users = rows.filter(Boolean).sort((a, b) => (b.seen || b.at) - (a.seen || a.at));
+  // 只读一份用户索引（见 ixUpsert），不再逐人读键
+  const ix = await ixRead(kv, false);
+  const users = Object.values(ix.u).filter((e) => e && e.u).map((e) => ({
+    uid: String(e.u), name: String(e.n || ''), at: Number(e.at) || 0, seen: Number(e.seen) || 0, acct: e.a || null,
+  })).sort((a, b) => (b.seen || b.at) - (a.seen || a.at));
   const pv = await softly(() => kvJson(kv, 'pv', true), null);
   const day = dayKey();
   const bugs = await softly(() => kvJson(kv, 'bug_idx', true), null);
   const usrN = await softly(() => kvNum(kv, 'usr_n', true), 0);
+  void url;
 
   return reply({
     ok: true,
@@ -1122,10 +1154,52 @@ async function getAdminOverview(request, env, kv, cors, url) {
       total: Number(pv && pv.t) || 0,
       bugs: Array.isArray(bugs) ? bugs.length : 0,
       synced: users.filter((u) => u.acct).length,
-      listed: keys.length, failed,
+      indexed: users.length, listed: users.length, failed: 0,
     },
     users,
   }, 200, cors);
+}
+
+// 补全索引（索引上线之前就注册的老用户还没有那一行）：前端先 GET 键名清单，再每次 POST 几个键，
+// 每次请求只读十来个键、写一次索引，不会超时。
+async function getReindexKeys(request, env, kv, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) throw new HttpError(401, 'need_login');
+  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', publicWhy(await adminWhy(env, kv, me)));
+  const keys = (await listKeys(kv, 'usr_', 1000)).filter((k) => /^usr_[A-Za-z0-9]+$/.test(k) && k !== 'usr_n' && k !== 'usr_dir');
+  return reply({ ok: true, keys }, 200, cors);
+}
+async function postReindex(request, env, kv, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) throw new HttpError(401, 'need_login');
+  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', publicWhy(await adminWhy(env, kv, me)));
+  const b = await readJson(request, 8 * 1024);
+  const keys = (Array.isArray(b.keys) ? b.keys : []).map((k) => str(k, 80)).filter((k) => /^usr_[A-Za-z0-9]+$/.test(k)).slice(0, 10);
+  const patches = await mapLimit(keys, 4, async (k) => {
+    const raw = await softly(() => kv.get(k, { weak: true }), null);
+    let u = null;
+    try { u = JSON.parse(raw || 'null'); } catch { u = null; }
+    if (!u || !u.uid) return null;
+    const uh = k.slice(4);
+    const a = await softly(() => kvJson(kv, 'acct_' + uh, true), null);
+    const sv = await softly(() => kvJson(kv, 'sv_' + uh + '_idle', true), null);
+    let il = sv && sv.meta ? { ...sv.meta } : null;
+    if (sv && il && !(Array.isArray(il.team) && il.team.length) && typeof sv.data === 'string') {
+      try { il.team = teamOfIdle(JSON.parse(sv.data)); } catch { /* 正文坏了就没有阵容 */ }
+    }
+    return [uh, { u: String(u.uid), n: String(u.name || ''), at: Number(u.at) || 0, seen: Number(u.seen) || 0, ...(a && a.doc ? { a: ixAcct(a.doc) } : {}), ...(il ? { il } : {}) }];
+  });
+  const ok = patches.filter(Boolean);
+  if (ok.length) {
+    await softly(async () => {
+      const d = await ixRead(kv, false);
+      for (const [uh, pt] of ok) d.u[uh] = { ...(d.u[uh] || {}), ...pt };
+      d.at = Date.now();
+      await kv.put(IX_KEY, JSON.stringify(d));
+      return true;
+    }, false);
+  }
+  return reply({ ok: true, done: ok.length, asked: keys.length }, 200, cors);
 }
 
 // 赠礼记录：银芯 amount 和/或挂机前夜唤醒体 awk（slug 列表）。两样可以只发一样。
@@ -1220,7 +1294,7 @@ async function postAdminGrantBatch(request, env, kv, cors) {
 // ------------------------------------------------------------------ 榜单
 // GET /board —— 各游戏榜单（公开）。数据全来自玩家自己的云端档案摘要（gd）与挂机云存档的摘要，
 // 没登录 / 没同步过的人不会上榜。每次重算要读几百个键，所以缓存 3 分钟。
-const BOARD_TTL = 10 * 60 * 1000;
+const BOARD_TTL = 60 * 1000;
 // [游戏键, gd 键, 取分的下标, 说明, 副标]
 const BOARD_SPEC = [
   // 战报侦探：按答对的题数排，副标写正确率；答对数相同时正确率高的在前
@@ -1255,21 +1329,11 @@ function mergeGd(doc) {
   return gd;
 }
 async function buildBoard(kv) {
-  const dir = await loadDirectory(kv, false);
-  const rows = await mapLimit(dir.users.slice(0, 500), 4, async (u) => {
-    if (!u || !u.uid || !u.name) return null;
-    const uh = await uhash(u.uid);
-    let gd = null, il = null;
-    try { const a = await softly(() => kvJson(kv, 'acct_' + uh, true), null); gd = mergeGd(a && a.doc); } catch { gd = null; }
-    try {
-      const sv = await softly(() => kvJson(kv, 'sv_' + uh + '_idle', true), null);
-      il = sv && sv.meta ? { ...sv.meta } : null;
-      // 老客户端上传的摘要没有 team：从存档正文里补
-      if (sv && il && !(Array.isArray(il.team) && il.team.length) && typeof sv.data === 'string') {
-        try { il.team = teamOfIdle(JSON.parse(sv.data)); } catch { /* 正文坏了就没有阵容 */ }
-      }
-    } catch { il = null; }
-    return { name: String(u.name).slice(0, 24), gd, il };
+  const ix = await ixRead(kv, false);
+  const rows = Object.values(ix.u).filter((e) => e && e.u && e.n).map((e) => {
+    const a = e.a || null;
+    const gd = a ? mergeGd({ mb: a.mb, bb: a.bb, bs: a.bs, st: { played: a.played, won: a.won, best: a.best }, gd: a.gd }) : null;
+    return { name: String(e.n).slice(0, 24), gd, il: e.il || null };
   });
   const users = rows.filter(Boolean);
   const out = {};
@@ -1404,6 +1468,8 @@ export async function onRequest(context) {
     if (path === '/admin/grant' && method === 'POST') return await postAdminGrant(request, env, kv, cors);
     if (path === '/admin/grant-batch' && method === 'POST') return await postAdminGrantBatch(request, env, kv, cors);
     if (path === '/board' && method === 'GET') return await getBoard(request, env, kv, cors);
+    if (path === '/admin/reindex-keys' && method === 'GET') return await getReindexKeys(request, env, kv, cors);
+    if (path === '/admin/reindex' && method === 'POST') return await postReindex(request, env, kv, cors);
 
     const sv = path.match(/^\/save\/([^/]+)$/);
     if (sv) {
