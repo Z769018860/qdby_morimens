@@ -677,6 +677,65 @@ async function homeVoter(request, env, kv) {
   return dev ? 'd:' + dev : '';
 }
 
+// 显示名：登录用户用昵称，游客不留名（评分详情里显示「匿名玩家」）
+async function homeName(request, env, kv) {
+  const me = await whoami(request, env, kv);
+  return me && me.name ? str(me.name, 20) : '';
+}
+
+// 评分详情索引：hri_{game} = [{v, s, t, at, n}]，新的在前，最多 200 条。
+// v 是投票人哈希的前 12 位（只用来判断「这条是不是我的」，不可逆），s 星数，t 短评，n 昵称。
+const REVIEW_MAX = 200;
+async function readReviews(kv, game, weak = false) {
+  const raw = await kvJson(kv, 'hri_' + game, weak);
+  return Array.isArray(raw) ? raw : null;
+}
+async function saveReview(kv, game, vh, stars, text, name) {
+  const list = (await readReviews(kv, game)) || [];
+  const v = vh.slice(0, 12);
+  const at = Date.now();
+  const rest = list.filter((x) => x && x.v !== v);
+  rest.unshift({ v, s: stars, t: text, at, n: name });
+  await kv.put('hri_' + game, JSON.stringify(rest.slice(0, REVIEW_MAX)));
+}
+
+// GET /home/reviews?game=x&limit=50 —— 一个游戏的评分详情：综合分、各星人数分布、最近的短评
+async function getHomeReviews(request, env, kv, url, cors) {
+  const game = str(url.searchParams.get('game'), 32).trim();
+  if (!HOME_GAMES.has(game)) throw new HttpError(400, 'bad_game');
+  const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 50));
+  const agg = await kvJson(kv, 'hragg_' + game, true);
+  const n = Number(agg && agg.n) || 0;
+  const sum = Number(agg && agg.sum) || 0;
+
+  let list = await readReviews(kv, game);
+  // 老数据（详情索引上线之前的评分）：存储支持列举时，第一次来看详情就补建一次
+  if (!list && n > 0 && typeof kv.list === 'function') {
+    try {
+      const keys = (await kv.list('hrv_' + game + '_', 300)).slice(0, 300);
+      const rows = await mapLimit(keys, 6, async (k) => {
+        const r = await kvJson(kv, k);
+        return r && r.stars ? { v: String(k).slice(('hrv_' + game + '_').length, ('hrv_' + game + '_').length + 12), s: Number(r.stars) || 0, t: str(r.text, 120), at: Number(r.at) || 0, n: '' } : null;
+      });
+      list = rows.filter(Boolean).sort((a, b) => b.at - a.at).slice(0, REVIEW_MAX);
+      await kv.put('hri_' + game, JSON.stringify(list));
+    } catch { list = null; }
+  }
+  list = list || [];
+
+  const voter = await homeVoter(request, env, kv);
+  const mineV = voter ? (await vhash(voter)).slice(0, 12) : '';
+  const dist = [0, 0, 0, 0, 0];
+  for (const x of list) if (x.s >= 1 && x.s <= 5) dist[x.s - 1] += 1;
+  const items = list.slice(0, limit).map((x) => ({
+    s: x.s, t: x.t || '', at: x.at || 0, n: x.n || '', mine: !!mineV && x.v === mineV,
+  }));
+  return reply({
+    ok: true, game, n, sum, avg: n ? Math.round((sum / n) * 10) / 10 : 0,
+    dist, sample: list.length, items,
+  }, 200, cors);
+}
+
 // GET /home/ratings?games=a,b
 async function getHomeRatings(request, env, kv, url, cors) {
   const games = [...new Set(String(url.searchParams.get('games') || '')
@@ -727,6 +786,7 @@ async function postHomeRate(request, env, kv, cors) {
 
   await kv.put(key, JSON.stringify({ stars, text: str(b.text, 120), at: Date.now() }));
   await kv.put('hragg_' + game, JSON.stringify({ n, sum }));
+  await saveReview(kv, game, vh, stars, str(b.text, 120), await homeName(request, env, kv));
 
   return reply({
     ok: true,
@@ -978,8 +1038,9 @@ export async function onRequest(context) {
         // v 是接口版本，不是代码版本：v2 只有点赞/档案/题库，
         // v3 才有 /stats /whoami /admin/*（管理页靠它判断要不要提示「重新部署」），
         // v4 修好 whoami 的验票地址（GET /api/token），管理页与云端档案才真正能用，
+        // v6 多了 /home/reviews（评分详情：分布 + 短评），
         // v5 档案里多了 gd（九个游戏的进度摘要），管理页能看全部游戏 + 挂机时长/角色数
-        ok: Boolean(store), service: 'zjtt', v: 5, runtime: 'edgeone',
+        ok: Boolean(store), service: 'zjtt', v: 6, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
@@ -998,6 +1059,7 @@ export async function onRequest(context) {
 
     if (path === '/home/ratings' && method === 'GET') return await getHomeRatings(request, env, kv, url, cors);
     if (path === '/home/rate' && method === 'POST') return await postHomeRate(request, env, kv, cors);
+    if (path === '/home/reviews' && method === 'GET') return await getHomeReviews(request, env, kv, url, cors);
     if (path === '/home/bug' && method === 'POST') return await postHomeBug(request, env, kv, cors);
 
     // 站点统计 / 赠礼 / 管理员

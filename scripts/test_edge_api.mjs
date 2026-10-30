@@ -543,6 +543,35 @@ console.log('\n[13] 审计修复：结算只认有记录的本人题 / 删题清
   eq('换 IP 不受影响', other.status, 200);
 }
 
+console.log('\n[14] 评分详情：分布 + 短评 + 我的那条 + 老数据补建');
+{
+  const kv = fakeKV();
+  const call = makeCaller({ zjtt_kv: kv });
+  seedSession(kv, TOKEN, UID, '测试员');
+  const dev = (d) => ({ 'X-Device': d, 'EO-Connecting-IP': '8.8.8.' + d.length });
+  await call('/home/rate', { method: 'POST', headers: dev('dev-a'), body: { game: 'idle', stars: 5, text: '很好玩' } });
+  await call('/home/rate', { method: 'POST', headers: dev('dev-bb'), body: { game: 'idle', stars: 3, text: '' } });
+  await call('/home/rate', { method: 'POST', headers: { Authorization: `Bearer ${TOKEN}`, 'EO-Connecting-IP': '8.8.8.99' }, body: { game: 'idle', stars: 4, text: '挂机很舒服<b>' } });
+  // 同一个人改分：只留一条，分布跟着变
+  await call('/home/rate', { method: 'POST', headers: dev('dev-a'), body: { game: 'idle', stars: 2, text: '改主意了' } });
+  const r = await call('/home/reviews?game=idle', { headers: dev('dev-a') });
+  eq('详情 200', r.status, 200);
+  eq('人数 3', r.json.n, 3);
+  eq('分布 2/3/4 星各 1', JSON.stringify(r.json.dist), '[0,1,1,1,0]');
+  eq('条目 3 条', r.json.items.length, 3);
+  check('我的那条被标出来', r.json.items.filter((x) => x.mine).length === 1 && r.json.items.find((x) => x.mine).t === '改主意了', r.json.items);
+  check('登录用户带昵称', r.json.items.some((x) => x.n === '测试员'), r.json.items);
+  check('最新的在前', r.json.items[0].t === '改主意了', r.json.items);
+  const bad = await call('/home/reviews?game=nope');
+  eq('未知游戏 400', bad.status, 400);
+  // 老数据：只有 hrv_ / hragg_，没有 hri_ 索引 → 第一次看详情时补建（FakeKV 不支持 list 时返回空列表，不报错）
+  const kv2 = fakeKV(); const call2 = makeCaller({ zjtt_kv: kv2 });
+  kv2.put('hragg_wolf', JSON.stringify({ n: 2, sum: 9 }));
+  const old = await call2('/home/reviews?game=wolf');
+  eq('老数据不报错', old.status, 200);
+  eq('老数据综合分仍在', old.json.avg, 4.5);
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
   console.log('\n失败项：');
   for (const f of fails) console.log('  - ' + f);
