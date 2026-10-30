@@ -25,6 +25,13 @@ import path from 'node:path';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 const GAP = Number(process.env.BILI_GAP || 4000);
+// 采集范围（2026-10-30 扩了一轮：简介、评论都要多翻几页）
+const SPAGES = Number(process.env.BILI_SEARCH_PAGES || 3);   // 每个关键词搜几页（20 条/页）
+const VIDEOS = Number(process.env.BILI_VIDEOS || 40);        // 每人保留多少条投稿
+const VIEWN = Number(process.env.BILI_VIEWS || 20);          // 其中多少条去取完整简介
+const CMTV = Number(process.env.BILI_CMT_VIDEOS || 6);       // 取几条视频的评论
+const CMT_PAGES = Number(process.env.BILI_CMT_PAGES || 1);   // 每条视频评论翻几页
+const CMT_SUB = Number(process.env.BILI_CMT_SUB || 5);       // 每楼取几条楼中楼
 
 // 十位主播。key 只是本地用的短名，mid 才是身份。
 const UPS = [
@@ -118,7 +125,7 @@ async function collect(u, rec) {
     return true;
   };
   for (const kw of u.kws) {
-    for (let page = 1; page <= 3; page++) {
+    for (let page = 1; page <= SPAGES; page++) {
       const r = await get('https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=' + encodeURIComponent(kw) + '&page=' + page, 'https://search.bilibili.com/');
       const arr = (r.data && r.data.result) || [];
       let hit = 0;
@@ -134,11 +141,11 @@ async function collect(u, rec) {
       if (!arr.length) break;
     }
   }
-  rec.videos = list.slice(0, 40);
+  rec.videos = list.slice(0, VIDEOS);
   log('videos', rec.videos.length);
 
   let n = 0;
-  for (const v of rec.videos.slice(0, 20)) {
+  for (const v of rec.videos.slice(0, VIEWN)) {
     if (v.descFull) continue;
     const view = await get('https://api.bilibili.com/x/web-interface/view?bvid=' + v.bvid, 'https://www.bilibili.com/video/' + v.bvid);
     if (view.code !== 0) { log('view fail', v.bvid, view.code); continue; }
@@ -155,18 +162,20 @@ async function collect(u, rec) {
   log('desc', n);
 
   rec.comments = rec.comments || [];
-  for (const v of rec.videos.filter((x) => x.aid).slice(0, 6)) {
+  for (const v of rec.videos.filter((x) => x.aid).slice(0, CMTV)) {
     for (const sort of [2, 0]) {
-      const rep = await get(`https://api.bilibili.com/x/v2/reply?type=1&oid=${v.aid}&pn=1&ps=20&sort=${sort}`, 'https://www.bilibili.com/video/' + v.bvid);
+      for (let pn = 1; pn <= CMT_PAGES; pn++) {
+      const rep = await get(`https://api.bilibili.com/x/v2/reply?type=1&oid=${v.aid}&pn=${pn}&ps=20&sort=${sort}`, 'https://www.bilibili.com/video/' + v.bvid);
       if (rep.code !== 0) continue;
       for (const r of rep.data.replies || []) {
         const t = clip(r.content && r.content.message, 240);
         if (!t || rec.comments.some((c) => c.text === t)) continue;
         rec.comments.push({ bvid: v.bvid, user: r.member && r.member.uname, text: t, like: r.like });
-        for (const s2 of (r.replies || []).slice(0, 5)) {
+        for (const s2 of (r.replies || []).slice(0, CMT_SUB)) {
           const t2 = clip(s2.content && s2.content.message, 240);
           if (t2 && !rec.comments.some((c) => c.text === t2)) rec.comments.push({ bvid: v.bvid, user: s2.member && s2.member.uname, text: t2, like: s2.like });
         }
+      }
       }
     }
   }
