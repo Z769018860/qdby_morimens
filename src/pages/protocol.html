@@ -547,6 +547,16 @@ button{font:inherit; color:inherit}
 .ucard details{margin:8px 0}.ucard summary{cursor:pointer;color:var(--accent)}
 .detail-action{padding:7px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel2);color:var(--accent);cursor:pointer;margin:4px 0 10px}
 #protocolDetails{position:fixed;z-index:120; width:min(420px,calc(100vw - 24px)); max-height:calc(100dvh - 90px); overflow:auto; overscroll-behavior:contain; padding:20px; border:1px solid #6980a5; border-radius:14px; background:#111b2b; color:#eaf1fc; box-shadow:0 16px 60px #000b; font:15px/1.7 system-ui,sans-serif; overflow-wrap:anywhere}
+/* Hover previews are informational only: no invisible overlay may intercept
+   shop cards, especially the far-right purchasable slot. */
+#protocolDetails.is-preview{pointer-events:none;user-select:none}
+#protocolDetails.is-pinned{pointer-events:auto;touch-action:pan-y}
+#protocolDetails[hidden]{display:none!important}
+#protocolDetails .detail-close{position:sticky;z-index:2;top:0;float:right}
+@media(max-width:999px){
+ #protocolDetails{width:calc(100vw - 24px);max-width:420px;max-height:calc(100dvh - 24px);font-size:14px;padding:12px}
+ #protocolDetails.is-pinned .detail-close{min-width:40px;min-height:40px}
+}
 #protocolDetails h2{margin:0 28px 12px 0;font-size:20px}#protocolDetails h3{font-size:16px;color:#e3b341;margin:16px 0 6px}#protocolDetails h4{margin:12px 0 4px}#protocolDetails p{margin:6px 0 10px}
 .detail-close{position:sticky;top:0;float:right;width:32px;height:32px;border:1px solid var(--line);border-radius:8px;background:#24334b;color:#fff;cursor:pointer;font-size:20px}
 .detail-hint{font-size:12px;color:#a9bad1;border-top:1px solid #34445d;padding-top:10px}.active-effect{color:#8ee6a0}
