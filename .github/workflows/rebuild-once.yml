@@ -1,4 +1,4 @@
-name: Rebuild all static assets (source fixes)
+name: Rebuild all static assets (hover-scroll repair)
 on:
   push:
     paths:
