@@ -2046,10 +2046,13 @@ function batchCard(onDone) {
     okBtn.disabled = true; okBtn.textContent = '发放中…';
     try {
       const r = await req('/admin/grant-batch', { method: 'POST', body, timeout: 60000 });
-      toast(`已发放给 ${r.sent}/${r.total} 个账号（对方下次打开站点 / 进挂机前夜时到账）`);
+      toast(r.failed
+        ? `已发放给 ${r.sent}/${r.total} 个账号，${r.failed} 个失败（存储限流）：再点一次会重复发给已成功的人，请改用「勾选」只补发漏掉的`
+        : `已发放给 ${r.sent}/${r.total} 个账号（对方下次打开站点 / 进挂机前夜时到账）`, 8000);
+      if (r.failedUids && r.failedUids.length) { SEL.clear(); r.failedUids.forEach((x) => SEL.add(String(x))); }
       if (onDone) onDone();
     } catch (e) {
-      toast('批量发放失败：' + (e.message || e.code || '未知错误'));
+      toast('批量发放失败：' + (e.message || e.code || '未知错误') + (typeof e.detail === 'string' && e.detail ? '（' + e.detail + '）' : ''), 8000);
     } finally { okBtn.disabled = false; okBtn.textContent = '确认批量发放'; }
   }
 
@@ -2089,6 +2092,9 @@ function render(data, h0) {
     batchCard(),
     h('section', { class: 'card' },
       h('h2', {}, `用户列表 · ${(data.users || []).length}`),
+      (stats.failed || (stats.users && USERS.length < stats.users - 3))
+        ? h('p', { class: 'sub', style: 'color:#b45309' }, `注册 ${stats.users} 人，这里读到 ${USERS.length} 人${stats.failed ? `（${stats.failed} 个读取失败，多半是存储限流，稍等几秒点「刷新」）` : '（服务端只列出了这些用户键，不是读取失败）'}。`)
+        : '',
       h('p', { class: 'sub' }, '「未同步」= 登录过但没传过云端档案，说明他只在游客模式下点过登录。发放的银芯在对方下次打开站点、同步档案时到账。'),
       h('div', { class: 'toolbar' }, searchEl, refresh),
       body));

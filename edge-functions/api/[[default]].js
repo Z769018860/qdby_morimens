@@ -169,8 +169,19 @@ function blobKV(store) {
     },
     // 前缀列举：管理员要「全部注册用户」，只能靠 list。limit 直接透给 COS 的 max-keys。
     async list(prefix, limit = 1000) {
-      const r = await store.list({ prefix: prefix || undefined, limit });
-      return ((r && r.blobs) || []).map((b) => String(b.key));
+      // 一页放不下时（COS 的 max-keys / 平台分页）顺着游标继续翻，最多 10 页：
+      // 只取第一页的话，用户一多后台就只显示一部分（59 人只列出 33 人就是这么丢的）
+      const out = [];
+      let cursor;
+      for (let page = 0; page < 10 && out.length < limit; page++) {
+        const r = await store.list({ prefix: prefix || undefined, limit, ...(cursor ? { cursor } : {}) });
+        for (const b of (r && r.blobs) || []) out.push(String(b.key));
+        const next = r && (r.cursor || r.nextCursor || r.next_cursor || r.nextMarker);
+        const done = !r || r.hasMore === false || r.complete === true || r.truncated === false || r.isTruncated === false;
+        if (!next || next === cursor || done) break;
+        cursor = next;
+      }
+      return out.slice(0, limit);
     },
   };
 }
@@ -1002,8 +1013,11 @@ function acctBrief(doc) {
 // 读一次失败就再试一次，还不行给默认值：后台概览一口气读几百个键，Blob 偶尔限流，
 // 不能因为某一个键读挂就整页 500
 async function softly(fn, dflt) {
-  try { return await fn(); } catch { /* 再试一次 */ }
-  try { return await fn(); } catch { return dflt; }
+  for (let i = 0; i < 3; i++) {
+    try { return await fn(); } catch { /* 限流多半是瞬时的：退一小步再试 */ }
+    await new Promise((res) => setTimeout(res, 150 * (i + 1) * (i + 1)));
+  }
+  return dflt;
 }
 
 async function getAdminOverview(request, env, kv, cors) {
@@ -1012,10 +1026,13 @@ async function getAdminOverview(request, env, kv, cors) {
   if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', publicWhy(await adminWhy(env, kv, me)));
 
   const keys = (await softly(() => listKeys(kv, 'usr_', 1000), [])).filter((k) => k !== 'usr_n');
-  const rows = await mapLimit(keys.slice(0, 300), 6, async (k) => {
+  let failed = 0;     // 读不出来的用户键数（存储限流）：前端提示「再点一次刷新」，别让人以为用户少了
+  const rows = await mapLimit(keys.slice(0, 500), 4, async (k) => {
     try {
       let u = null;
-      try { u = JSON.parse((await softly(() => kv.get(k, { weak: true }), null)) || 'null'); } catch { u = null; }
+      const raw = await softly(() => kv.get(k, { weak: true }), undefined);
+      if (raw === undefined) { failed++; return null; }
+      try { u = JSON.parse(raw || 'null'); } catch { u = null; }
       if (!u || !u.uid) return null;
       const doc = await softly(async () => (await kvJson(kv, 'acct_' + (await uhash(u.uid)), true) || {}).doc, null);
       let acct = null;
@@ -1039,6 +1056,7 @@ async function getAdminOverview(request, env, kv, cors) {
       total: Number(pv && pv.t) || 0,
       bugs: Array.isArray(bugs) ? bugs.length : 0,
       synced: users.filter((u) => u.acct).length,
+      listed: keys.length, failed,
     },
     users,
   }, 200, cors);
@@ -1057,12 +1075,16 @@ async function putGrant(kv, uid, rec) {
   const mine = await kvJson(kv, mineKey) || [];
   mine.unshift(rec);
   await kv.put(mineKey, JSON.stringify(mine.slice(0, 100)));
+  return true;
 }
 async function putGrantIndex(kv, rec) {
-  await kv.put('grant_' + rec.id, JSON.stringify(rec));
-  const idx = await kvJson(kv, 'grant_idx') || [];
-  idx.unshift(rec.id);
-  await kv.put('grant_idx', JSON.stringify(idx.slice(0, 500)));
+  // 索引只是给后台翻历史用的，写失败不能拦住真正的发放
+  await softly(async () => {
+    await kv.put('grant_' + rec.id, JSON.stringify(rec));
+    const idx = await kvJson(kv, 'grant_idx') || [];
+    idx.unshift(rec.id);
+    await kv.put('grant_idx', JSON.stringify(idx.slice(0, 500)));
+  }, null);
 }
 function grantRecord(b, me, to) {
   const amount = Math.round(Number(b.amount) || 0);
@@ -1103,10 +1125,13 @@ async function postAdminGrantBatch(request, env, kv, cors) {
 
   const b = await readJson(request, 32 * 1024);
   let uids = [];
+  let skipped = 0;
   if (b.all === true) {
-    const keys = await listKeys(kv, 'usr_', 1000);
-    const rows = await mapLimit(keys.filter((k) => k !== 'usr_n').slice(0, 500), 6, async (k) => {
-      try { const u = JSON.parse((await kv.get(k, { weak: true })) || 'null'); return u && u.uid ? String(u.uid) : ''; } catch { return ''; }
+    const keys = (await softly(() => listKeys(kv, 'usr_', 1000), [])).filter((k) => k !== 'usr_n');
+    const rows = await mapLimit(keys.slice(0, 500), 4, async (k) => {
+      const raw = await softly(() => kv.get(k, { weak: true }), undefined);
+      if (raw === undefined) { skipped++; return ''; }
+      try { const u = JSON.parse(raw || 'null'); return u && u.uid ? String(u.uid) : ''; } catch { return ''; }
     });
     uids = rows.filter(Boolean);
   } else {
@@ -1117,8 +1142,14 @@ async function postAdminGrantBatch(request, env, kv, cors) {
   const rec = grantRecord(b, me, uids.length);
   await putGrantIndex(kv, rec);
   let ok = 0;
-  await mapLimit(uids, 6, async (uid) => { try { await putGrant(kv, uid, rec); ok++; } catch { /* 个别失败不影响其余 */ } });
-  return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], sent: ok, total: uids.length, note: rec.note }, 200, cors);
+  const failedUids = [];
+  await mapLimit(uids, 4, async (uid) => {
+    // 读-改-写同一个人的赠礼列表，失败就重试；还不行记下来，让后台能只补发这几个
+    const done = await softly(() => putGrant(kv, uid, rec), false);
+    if (done) ok++; else failedUids.push(uid);
+  });
+  return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], sent: ok, total: uids.length + skipped,
+    failed: failedUids.length + skipped, failedUids: failedUids.slice(0, 100), note: rec.note }, 200, cors);
 }
 
 
