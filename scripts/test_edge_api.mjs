@@ -687,6 +687,21 @@ console.log('\n[21] 用户索引：老用户补全 + 后台/榜单只读索引')
   check('补全只认合法的 usr_ 键', r.json.ok && r.json.asked === keysBefore.length && r.json.done === keysBefore.length, r.json);
 }
 
+console.log('\n[22] 管理员查看挂机存档');
+{
+  const kv = fakeKV();
+  const call = makeCaller({ zjtt_kv: kv, WALINE_URL: 'https://example.invalid', ZJTT_ADMIN_UIDS: '9001' });
+  seedSession(kv, 'adm', '9001', '姜酒'); seedSession(kv, 'u1', '9101', '甲');
+  const AD = { Authorization: 'Bearer adm' }, U1 = { Authorization: 'Bearer u1' };
+  const save = { created: 1000, lastSeen: 9000 * 1000, play: 1560, maxStage: 200, stage: 200, gold: 5, stats: { battles: 90, wins: 60, pulls: 3 },
+    roster: { a: { lv: 159, star: 99 }, b: { lv: 159, star: 99 }, c: { lv: 159, star: 99 }, d: { lv: 10, star: 0 } } };
+  await call('/save/idle', { method: 'PUT', headers: U1, body: { data: JSON.stringify(save), ver: 0, rev: 5, meta: { maxStage: 200, roster: 4 } } });
+  eq('非管理员不能看', (await call('/admin/idle-save?uid=9101', { headers: U1 })).status, 403);
+  eq('没有存档 → found:false', (await call('/admin/idle-save?uid=9999', { headers: AD })).json.found, false);
+  const r = await call('/admin/idle-save?uid=9101', { headers: AD });
+  check('能读到摘要并给出异常对照', r.json.found && r.json.summary.maxStage === 200 && r.json.top[0].lv === 159 && r.json.flags.length >= 2 && !('data' in r.json), r.json);
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
   console.log('\n失败项：');
   for (const f of fails) console.log('  - ' + f);

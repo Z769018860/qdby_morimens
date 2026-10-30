@@ -199,9 +199,40 @@ function openGames(u) {
       : h('p', { class: 'empty' }, '这个账号还没上报游戏数据——档案是旧版，或者他上次同步时还没带上（让对方再打开一次站点就会补上）。'),
     h('div', { class: 'acts' },
       h('button', { class: 'btn ghost', onclick: closeSheet }, '关闭'),
+      h('button', { class: 'btn ghost', onclick: () => openIdleSave(u) }, '挂机存档详情'),
       h('button', { class: 'btn gold', onclick: () => { closeSheet(); openGrant(u, load); } }, '发放银芯')));
   sheetBox.classList.add('wide');
   sheet.classList.add('on');
+}
+
+// 挂机前夜云存档详情：账号档案里的摘要只在个人中心等页面同步时才更新，可能是旧的；这里读的是挂机自己上传的云存档
+async function openIdleSave(u) {
+  const body = h('div', {}, h('p', { class: 'sub' }, '读取中…'));
+  sheetBox.replaceChildren(h('h3', {}, `挂机存档 · ${u.name || '（未命名）'}`), body,
+    h('div', { class: 'acts' }, h('button', { class: 'btn ghost', onclick: () => openGames(u) }, '返回')));
+  sheetBox.classList.add('wide');
+  const note = (t) => body.replaceChildren(h('p', { class: 'sub' }, t));
+  try {
+    const r = await req('/admin/idle-save?uid=' + encodeURIComponent(u.uid), { timeout: 40000 });
+    if (!r.found) { note('这个账号没有上传过挂机前夜的云存档（只在本机玩，或没登录）。'); return; }
+    if (r.broken) { note('云存档正文损坏，读不出来。'); return; }
+    const sm = r.summary, g = (k, v) => h('span', {}, h('i', {}, k), h('em', {}, String(v)));
+    const fmtT = (s) => (s ? fmtDur(s) : '—');
+    body.replaceChildren(
+      h('p', { class: 'sub' }, `云端版本 ${r.ver} · 上传于 ${when(r.cloudAt)} · 创建于 ${when(sm.created)} · 最后在线 ${when(sm.lastSeen)}`),
+      r.flags.length
+        ? h('div', { class: 'gcard', style: 'border-color:#e8695f' }, h('b', {}, '⚠ 对不上的地方'), ...r.flags.map((f) => h('p', { class: 'sub', style: 'color:#b42318' }, f)))
+        : h('p', { class: 'sub', style: 'color:#1a7f37' }, '没有发现明显对不上的地方（游玩时长 / 战斗场数 / 胜场 / 关数基本吻合）。'),
+      h('div', { class: 'gcard' }, h('b', {}, '进度'), h('div', { class: 'ggrid' },
+        g('游玩时长', fmtT(sm.play)), g('创建到最后在线', fmtT(sm.wallSeconds)), g('最高关卡', '第 ' + sm.maxStage + ' 关'), g('当前关卡', '第 ' + sm.stage + ' 关'),
+        g('战斗场数', sm.battles), g('胜场', sm.wins), g('累计击杀', sm.kills), g('召唤次数', sm.pulls),
+        g('金币', sm.gold), g('召唤券', sm.tickets), g('银芯', sm.cores), g('累计获得金币', sm.goldEarned), g('累计花费银芯', sm.coresSpent),
+        g('拥有角色', sm.roster), g('成就', sm.ach), g('收到的赠礼', sm.giftIds))),
+      h('div', { class: 'gcard' }, h('b', {}, '养成最高的 12 位'), h('div', { class: 'ggrid' },
+        ...r.top.map((t) => g(t.slug, `Lv ${t.lv} · 叠位 ${t.star}${t.brk ? ' · 突破 ' + t.brk : ''}`)))));
+  } catch (e) {
+    note('读取失败：' + (e.message || e.code || '未知错误'));
+  }
 }
 
 // ------------------------------------------------------------------ 主体

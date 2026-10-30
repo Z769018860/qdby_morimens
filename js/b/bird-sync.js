@@ -1395,7 +1395,7 @@ function idle() {
   let s = null;
   try { s = JSON.parse(RAW('morimens-idle-save-v1') || 'null'); } catch { s = null; }
   if (!s) return { items: [{ k: '存档', v: '未开始' }], extra: '' };
-  const team = arr(s.roster).length;
+  const team = s.roster && typeof s.roster === 'object' ? Object.keys(s.roster).length : 0;
   const sec = n(s.play);
   return {
     items: [
@@ -1587,7 +1587,7 @@ function digest() {
   out.bn = [n(bs.bestFloor), n(bs.clears), n(bs.bossKills), n(bs.runs)];
   let s = null;
   try { s = JSON.parse(RAW('morimens-idle-save-v1') || 'null'); } catch { s = null; }
-  if (s) out.il = [Math.floor(n(s.play)), arr(s.roster).length, n(s.maxStage), n(s.stage), n(s.gold)];
+  if (s) out.il = [Math.floor(n(s.play)), (s.roster && typeof s.roster === 'object' ? Object.keys(s.roster).length : 0), n(s.maxStage), n(s.stage), n(s.gold)];
   const sv = RD('survivors:progress') || {};
   out.sv = [numKey('survivors:best'), n(sv.runs), arr(sv.clears).length];
   const pf = RD('pf:best') || {};

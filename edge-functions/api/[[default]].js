@@ -1160,6 +1160,47 @@ async function getAdminOverview(request, env, kv, cors, url) {
   }, 200, cors);
 }
 
+// GET /admin/idle-save?uid=… —— 管理员查看某个账号的挂机前夜云存档摘要（只读，不回存档正文）。
+// 账号档案里的 gd 只在个人中心等页面同步时才更新，可能是旧的；这里读的是挂机前夜自己上传的那份云存档，
+// 并给出几条一眼能看出异常的对照。
+async function getAdminIdleSave(request, env, kv, url, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) throw new HttpError(401, 'need_login');
+  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', publicWhy(await adminWhy(env, kv, me)));
+  const uid = str(url.searchParams.get('uid'), 64).trim();
+  if (!uid) throw new HttpError(400, 'bad_uid');
+  const row = await kvJson(kv, 'sv_' + (await uhash(uid)) + '_idle');
+  if (!row) return reply({ ok: true, found: false }, 200, cors);
+  let d = null;
+  try { d = JSON.parse(row.data); } catch { d = null; }
+  if (!d || typeof d !== 'object') return reply({ ok: true, found: true, broken: true, ver: row.ver, at: row.at }, 200, cors);
+  const num = (x) => Math.round(Number(x) || 0);
+  const stats = d.stats && typeof d.stats === 'object' ? d.stats : {};
+  const roster = d.roster && typeof d.roster === 'object' ? Object.entries(d.roster) : [];
+  const top = roster.map(([slug, r]) => ({ slug, lv: num(r && r.lv), star: num(r && r.star), brk: num(r && r.brk) }))
+    .sort((a, b) => b.lv - a.lv || b.star - a.star).slice(0, 12);
+  const play = num(d.play), battles = num(stats.battles), wins = num(stats.wins), maxStage = num(d.maxStage);
+  const wall = num(d.lastSeen) && num(d.created) ? Math.round((num(d.lastSeen) - num(d.created)) / 1000) : 0;
+  const flags = [];
+  // 每场战斗约 25 秒；游玩时长明显短于「打过的场数 × 25 秒」→ 数据对不上
+  if (battles && play < battles * 25 * 0.5) flags.push(`游玩 ${play} 秒，却记了 ${battles} 场战斗（按每场约 25 秒至少要 ${Math.round(battles * 12.5)} 秒）`);
+  // 推到第 N 关至少要赢过差不多 N 场
+  if (maxStage > 5 && wins < maxStage * 0.5) flags.push(`最高 ${maxStage} 关，累计胜场只有 ${wins}`);
+  if (maxStage > 5 && play < maxStage * 6) flags.push(`最高 ${maxStage} 关，游玩只有 ${play} 秒（约 ${Math.round(play / 60)} 分钟）`);
+  const star99 = top.filter((t) => t.star >= 99).length;
+  if (star99 >= 3 && play < 36000) flags.push(`${star99} 位唤醒体已叠满 99，游玩却不到 10 小时`);
+  return reply({
+    ok: true, found: true, ver: num(row.ver), cloudAt: num(row.at), rev: num(row.rev), meta: row.meta || null,
+    summary: {
+      created: num(d.created), lastSeen: num(d.lastSeen), play, wallSeconds: wall, maxStage, stage: num(d.stage),
+      gold: num(d.gold), tickets: num(d.tickets), cores: num(d.cores), coresBase: d.coresBase == null ? null : num(d.coresBase),
+      battles, wins, pulls: num(stats.pulls), kills: num(stats.kills), goldEarned: num(stats.gold), coresSpent: num(stats.coresSpent),
+      roster: roster.length, giftIds: Array.isArray(d.giftIds) ? d.giftIds.length : 0, ach: d.ach && typeof d.ach === 'object' ? Object.keys(d.ach).length : 0,
+    },
+    top, flags,
+  }, 200, cors);
+}
+
 // 补全索引（索引上线之前就注册的老用户还没有那一行）：前端先 GET 键名清单，再每次 POST 几个键，
 // 每次请求只读十来个键、写一次索引，不会超时。
 async function getReindexKeys(request, env, kv, cors) {
@@ -1468,6 +1509,7 @@ export async function onRequest(context) {
     if (path === '/admin/grant' && method === 'POST') return await postAdminGrant(request, env, kv, cors);
     if (path === '/admin/grant-batch' && method === 'POST') return await postAdminGrantBatch(request, env, kv, cors);
     if (path === '/board' && method === 'GET') return await getBoard(request, env, kv, cors);
+    if (path === '/admin/idle-save' && method === 'GET') return await getAdminIdleSave(request, env, kv, url, cors);
     if (path === '/admin/reindex-keys' && method === 'GET') return await getReindexKeys(request, env, kv, cors);
     if (path === '/admin/reindex' && method === 'POST') return await postReindex(request, env, kv, cors);
 
