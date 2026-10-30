@@ -40,6 +40,7 @@ async function load(prefetched) {
     id: String(it[0]),
     diff: Number(it[1]) || 2,
     core: Number(it[2]) === 1,
+    threat: it[3] || null,
     c: Math.floor(i / state.chunkSize),
   }));
   state.byId = new Map(state.list.map((e) => [e.id, e]));

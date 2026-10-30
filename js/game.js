@@ -7,6 +7,9 @@ import { account } from './account.js';
 import * as likes from './likes.js';
 import { checkinBar } from './checkin.js';
 
+const sOnly = () => store.get('detectiveSOnly', false);
+const matchesThreat = p => !sOnly() || /^S{1,3}$/.test(p.threat || '');
+
 const KW_TYPE_EN = { realm: 'Realm', mechanic: 'State / Mechanic', tag: 'Tag', help: 'Help' };
 
 const MAX_TRIES = 6;
@@ -71,17 +74,17 @@ const LV_RANGE = { 1: [1, 2], 2: [1, 3], 3: [2, 4], 4: [3, 4] };
 // 题池里放的是索引条目 { id, diff, core, c }，不是题目本身——
 // 题目要在真正抽中之后才去取它所在的那一片。
 function basePool() {
-  const all = bank.items();
+  const all = bank.items().filter(matchesThreat);
   const ok = all.filter(p => !failedBank.has(p.id));
   const src = ok.length > 8 ? ok : all;
   const [lo, hi] = LV_RANGE[level] || [1, 4];
   const band = src.filter(p => p.diff >= lo && p.diff <= hi);
-  return (band.length >= 12 ? band : src).concat(customPuzzles());
+  return (band.length >= 12 ? band : src).concat(customPuzzles().filter(matchesThreat));
 }
 // 每天一题只在核心题库里挑（核心 = 原来的 puzzles.json，顺序和以前一致，
 // 所以同一天抽到的题跟改造前是同一道）
 function corePool() {
-  const core = bank.coreItems();
+  const core = bank.coreItems().filter(matchesThreat);
   const ok = core.filter(p => !failedBank.has(p.id));
   return ok.length ? ok : core;
 }
@@ -167,7 +170,7 @@ async function start(p0, m) {
   sel = newSel(); fb = {}; history = []; hintsUsed = 0; finished = false; won = false; swapFrom = null;
   loadClues();
   if (m === 'daily') {
-    const saved = store.get(`daily:${todayKey()}:${level}`, null);
+    const saved = store.get(`daily:${todayKey()}:${level}${sOnly() ? ":S" : ""}`, null);
     if (saved) {
       sel = saved.sel; history = saved.history; hintsUsed = saved.hintsUsed;
       finished = saved.finished; won = saved.won; fb = saved.fb || {};
@@ -184,7 +187,7 @@ async function start(p0, m) {
 
 function persist() {
   if (mode !== 'daily') return;
-  store.set(`daily:${todayKey()}:${level}`, { sel, history, hintsUsed, finished, won, fb });
+  store.set(`daily:${todayKey()}:${level}${sOnly() ? ":S" : ""}`, { sel, history, hintsUsed, finished, won, fb });
 }
 
 // ------------------------------------------------------------------ evaluation
@@ -572,6 +575,24 @@ function clueList() {
   // 「灵塑等级」和「养成（指令卡 / 疯狂预兆）」不再当线索卖：
   // 战报面板（reportPanel 的 invest 行）本来就把每个卡位的灵塑、指令卡总等级
   // 原样印在桌上，再花银芯买一条一模一样的信息属于重复收费。
+
+  // Recorded outside snapshot, ordered by damage slots A–D. Missing values stay missing.
+  const outsideStats = [
+    ['blackcoin_upgrade_per', '黑印掉落', 'Sigil yield', '%'],
+    ['occupation_master', '界域精通', 'Realm mastery', ''],
+    ['atk', '伤害强效', 'Damage amplification', '%'],
+    ['crit', '暴击率', 'Critical rate', '%'],
+    ['crit_damage', '暴击伤害', 'Critical damage', '%'],
+    ['keeper_energy_eff_2', '银钥充能', 'Keyflare regeneration', ''],
+  ];
+  for (const [key, zh, en, unit] of outsideStats) {
+    if (!ans.some(a => Number.isFinite(a.outside?.[key]))) continue;
+    team.push({ id: `outside:${key}`, cost: 6,
+      label: (lang.cur === 'en' ? 'Outside snapshot · ' + en : '局外属性快照 · ' + zh),
+      value: () => ans.map((a, k) => `${LETTERS[k]}: ${Number.isFinite(a.outside?.[key])
+        ? Number(a.outside[key].toFixed(2)) + unit : '—'}`).join(' / '),
+    });
+  }
 
   // 命轮强化只报整队统计，不带位置：最高强化到几、有几件 ≥+12
   const wl = (x.wl || []).filter(v => v != null);
@@ -1159,6 +1180,11 @@ function controls() {
       h('button', { class: `lv${+k === level ? ' on' : ''}`, onclick: () => { level = +k; store.set('level', level); start(mode === 'daily' ? dailyPuzzle() : puzzle, mode); } },
         h('b', {}, v.name()), h('small', {}, v.desc())))),
     h('div', { class: 'modes' },
+      h('label', { class: 'note' }, h('input', { type: 'checkbox', checked: sOnly(),
+        onchange: e => {
+          store.set('detectiveSOnly', e.target.checked);
+          start(mode === 'daily' ? dailyPuzzle() : pickAny(), mode);
+        } }), lang.cur === 'en' ? ' S and above only' : ' 只看难度 S 及以上'),
       h('button', { class: `btn${mode === 'daily' ? '' : ' ghost'}`, onclick: () => start(dailyPuzzle(), 'daily') }, `${t('daily')} ${todayKey()}`),
       h('button', { class: `btn${mode === 'random' ? '' : ' ghost'}`, onclick: () => start(pickAny(), 'random') }, t('random')),
       h('span', { class: 'credits big' }, `${t('credits')} `, scNum(wallet.get(), 16)),

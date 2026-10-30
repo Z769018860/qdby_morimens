@@ -53,6 +53,7 @@ const html = new El('html');
 
 globalThis.document = {
   body, documentElement: html,
+  getElementById: () => null,
   createElement: (t) => new El(t),
   createTextNode: (t) => ({ nodeType: 3, textContent: String(t) }),
   createDocumentFragment: () => new El('fragment'),

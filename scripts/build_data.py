@@ -200,11 +200,13 @@ for s in args.seasons:
         r = json.loads(l)
         bs[r['battleUuid']] = r
     zone_boss = {}
-    nf = M / f'game/battle-nodes-local-{s}.json'
+    # Use the overview map's actual Boss encounters, not the last battle node in a zone.
+    nf = M / f'dzone-info/map-{s}.json'
     if nf.exists():
-        for n in jl(nf)['battleNodes']:
-            if n['battleType'] == 'Boss' and n['monsters']:
-                zone_boss[n['zone']] = [str(x['id']) for x in n['monsters'] if str(x['id']) in mons['monsters']]
+        for wave in jl(nf)['waves']:
+            zone_boss[wave['wave']] = list(dict.fromkeys(
+                str(m['tid']) for enc in wave['enc'].values() if enc['t'] == 'Boss'
+                for m in enc['m']))
     gids = sorted(jl(base / 'meta.json')['stageGroupIds'])
     for rf in sorted((base / 'raw-teams').glob('*.jsonl.gz')):
         for l in gzip.open(rf, 'rt', encoding='utf-8'):

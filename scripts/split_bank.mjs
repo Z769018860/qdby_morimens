@@ -50,7 +50,7 @@ for (const src of SOURCES) {
     const id = String(p.id || '');
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    items.push([id, Number(p.diff) || 2, src.core ? 1 : 0]);
+    items.push([id, Number(p.diff) || 2, src.core ? 1 : 0, p.threat || null]);
     chunks.push(p);
     added++;
     if (src.core) coreCount++;
