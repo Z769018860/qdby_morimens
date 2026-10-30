@@ -20,6 +20,7 @@ CORE = ROOT / 'data' / 'puzzles.json'
 EXTRA = ROOT / 'data' / 'puzzles-extra.json'
 MORE = ROOT / 'data' / 'puzzles-more.json'
 S70 = ROOT / 'data' / 'puzzles-70.json'
+SML = ROOT / 'data' / 'puzzles-mainline.json'
 PEPPER = re.search(r"'([0-9a-f]+)'", (ROOT / 'js/pepper.js').read_text(encoding='utf-8')).group(1)
 BUCKETS = 128
 
@@ -114,9 +115,9 @@ def audit(ps, dict_):
             if str(a.get('tid')) not in by['awakener']:
                 errs.append(f'{tag}: 未知唤醒体 {a.get("tid")}')
             # 真实战报里偶尔只带 1 件命轮，这种题要求「第二格留空」，判分已支持
-            if not (a.get('wheels') and 1 <= len(a['wheels']) <= 2):
+            if p.get('kind') != 'mainline' and not (a.get('wheels') and 1 <= len(a['wheels']) <= 2):
                 errs.append(f'{tag}: 命轮数量异常 {tids}')
-            if not a.get('cov'):
+            if p.get('kind') != 'mainline' and not a.get('cov'):
                 errs.append(f'{tag}: 缺密契')
             if a.get('lv') is None or a.get('pot') is None:
                 errs.append(f'{tag}: 缺等级/灵塑')
@@ -147,7 +148,8 @@ def main():
     extra = jl(EXTRA) if EXTRA.exists() else {'seasons': core['seasons'], 'puzzles': []}
     more = jl(MORE) if MORE.exists() else {'seasons': core['seasons'], 'puzzles': []}
     p70 = jl(S70) if S70.exists() else {'seasons': [70], 'puzzles': []}
-    ps = core['puzzles'] + extra['puzzles'] + more['puzzles'] + p70['puzzles']
+    pml = jl(SML) if SML.exists() else {'seasons': [73], 'puzzles': []}
+    ps = core['puzzles'] + extra['puzzles'] + more['puzzles'] + p70['puzzles'] + pml['puzzles']
     print(f'core {len(core["puzzles"])} + extra {len(extra["puzzles"])} + more {len(more["puzzles"])}'
           f' + 70期 {len(p70["puzzles"])} = {len(ps)} 题')
 
@@ -214,10 +216,12 @@ def main():
     n1 = len(core['puzzles'])
     n2 = n1 + len(extra['puzzles'])
     n3 = n2 + len(more['puzzles'])
+    n70 = len(p70['puzzles'])
     core['puzzles'] = ps[:n1]
     extra['puzzles'] = ps[n1:n2]
     more['puzzles'] = ps[n2:n3]
-    p70['puzzles'] = ps[n3:]
+    p70['puzzles'] = ps[n3:n3 + n70]
+    pml['puzzles'] = ps[n3 + n70:]
     extra['extra'] = True
     more['extra'] = True
     p70['extra'] = True
@@ -229,6 +233,8 @@ def main():
         files.append('data/puzzles-more.json')
     if p70['puzzles']:
         files.append('data/puzzles-70.json')
+    if pml['puzzles']:
+        files.append('data/puzzles-mainline.json')
     core['extraFiles'] = files
     core['extraFile'] = files[0] if files else None   # 兼容旧前端
     CORE.write_text(json.dumps(core, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
@@ -237,6 +243,8 @@ def main():
         MORE.write_text(json.dumps(more, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     if p70['puzzles']:
         S70.write_text(json.dumps(p70, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    if pml['puzzles']:
+        SML.write_text(json.dumps(pml, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     print(f'\n已写回 {", ".join(["data/puzzles.json"] + files)}')
 
 

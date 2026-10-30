@@ -26,6 +26,7 @@ const SOURCES = [
   { file: 'puzzles-extra.json', core: false },
   { file: 'puzzles-more.json', core: false },
   { file: 'puzzles-70.json', core: false },
+  { file: 'puzzles-mainline.json', core: false },
 ];
 
 const read = (f) => {
