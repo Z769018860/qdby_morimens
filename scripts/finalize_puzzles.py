@@ -42,6 +42,41 @@ def unseal(p):
     return json.loads(txt[4:])
 
 
+def seal(pid, obj):
+    raw = ('ZJ1:' + json.dumps(obj, ensure_ascii=False, separators=(',', ':'))).encode()
+    out = bytearray()
+    for i in range(0, len(raw), 32):
+        ks = hashlib.sha256(f'{PEPPER}|{pid}|{i // 32}'.encode()).digest()
+        for j in range(32):
+            if i + j < len(raw):
+                out.append(raw[i + j] ^ ks[j])
+    return base64.b64encode(bytes(out)).decode()
+
+
+# 锈蚀钥匙（造物 13829）是主线开门用的道具，不算配装造物：从答案里摘掉，件数同步改。
+# 前端 js/game.js 的 NON_RELIC_IDS 保持同一份名单。
+DROP_RELICS = {'13829'}
+
+
+def strip_relics(ps):
+    """把 DROP_RELICS 里的道具从答案造物里摘掉（幂等）。返回改动题数。"""
+    n = 0
+    for p in ps:
+        try:
+            s = unseal(p)
+        except Exception:
+            continue
+        rel = [str(r) for r in (s.get('relics') or [])]
+        keep = [r for r in rel if r not in DROP_RELICS]
+        if len(keep) == len(rel):
+            continue
+        s['relics'] = keep
+        p['ans'] = seal(p['id'], s)
+        p['nrel'] = len(keep)
+        n += 1
+    return n
+
+
 def fnv(s):
     h = 2166136261
     for b in s.encode('utf-8'):
@@ -152,6 +187,10 @@ def main():
     ps = core['puzzles'] + extra['puzzles'] + more['puzzles'] + p70['puzzles'] + pml['puzzles']
     print(f'core {len(core["puzzles"])} + extra {len(extra["puzzles"])} + more {len(more["puzzles"])}'
           f' + 70期 {len(p70["puzzles"])} = {len(ps)} 题')
+
+    ndrop = strip_relics(ps)
+    if ndrop:
+        print(f'摘掉锈蚀钥匙的题：{ndrop} 道')
 
     sig, maxk = score(ps)
     # 偏好筛选分桶

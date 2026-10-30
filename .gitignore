@@ -28,3 +28,4 @@ assets/protocol/_raw/
 desktop/node_modules/
 desktop/web/
 desktop/dist/
+.replay-cache/
