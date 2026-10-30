@@ -100,6 +100,16 @@ td.num{font-variant-numeric:tabular-nums; text-align:right}
 .sheet .quick button{font:inherit; font-size:11.5px; padding:3px 10px; border-radius:999px; border:1px solid var(--line); background:#fff; color:var(--dim); cursor:pointer}
 .sheet .quick button:hover{border-color:#c7cbd3; color:var(--text)}
 .sheet .acts{display:flex; gap:8px; justify-content:flex-end; margin-top:6px}
+/* 游戏详情弹层：比发放面板宽一倍，九个游戏按两列排（手机上一列） */
+.sheet .box.wide{width:min(660px,100%)}
+.gwrap{max-height:min(58vh,470px); overflow:auto; display:grid; gap:8px; grid-template-columns:repeat(auto-fit,minmax(236px,1fr)); padding-right:2px}
+.gcard{border:1px solid var(--line); border-radius:11px; padding:9px 11px; background:#fcfcfd}
+.gcard b{display:block; font-size:12.5px; margin-bottom:6px}
+.ggrid{display:grid; gap:3px}
+.ggrid span{display:flex; justify-content:space-between; gap:10px; font-size:12px}
+.ggrid i{color:var(--dim); font-style:normal}
+.ggrid em{font-style:normal; font-weight:600; font-variant-numeric:tabular-nums}
+.rowacts{display:flex; gap:6px; justify-content:flex-end}
 
 .toast{position:fixed; left:50%; bottom:8%; transform:translateX(-50%); z-index:90; padding:9px 16px; border-radius:999px; background:#111827; color:#fff; font-size:13px; box-shadow:var(--shadow)}
 #boot{display:grid; place-items:center; gap:10px; padding:80px 0; color:var(--dim)}

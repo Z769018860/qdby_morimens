@@ -61,6 +61,9 @@ export function newState(data, now = Date.now()) {
   const free = (data?.orders || []).filter((o) => o.rarity === 'R').slice(0, 3).map((o) => o.id);
   return {
     v: SAVE_VERSION, created: now, lastSeen: now, seed: (now ^ 0x9e3779b9) >>> 0,
+    // play = 累计游玩秒数（只在页面可见时按墙钟累加，见 src/main.js）。
+    // 个人中心与站长后台的「挂机时长」都读它；离线结算的时间不算进来。
+    play: 0,
     gold: 600, tickets: 12, cores: 300, stage: 1, maxStage: 0,
     auto: true,
     strategy: { defend: 0.4, target: 'low', preset: 'balanced' },
@@ -86,6 +89,8 @@ export function migrate(s, data) {
   const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity }, tower: { ...base.tower, ...s.tower }, trials: { cleared: { ...(s.trials?.cleared || {}) } }, ach: { ...s.ach }, signin: s.signin ? { ...s.signin } : null, welcome: s.welcome ? { ...s.welcome } : null, shop: s.shop ? { ...s.shop } : null, codex: { ...s.codex }, weekly: s.weekly ? { ...s.weekly } : null, rtower: { ...s.rtower }, arena: s.arena ? { ...s.arena } : null };
   // 加速 / 极速已下线：老存档里的字段直接丢掉，免得 UI 以为还有开关
   delete m.speed; delete m.skipAnim;
+  // 累计游玩秒数：老存档没有就从 0 开始
+  m.play = Math.max(0, Math.floor(Number(m.play) || 0));
   m.team = (m.team || []).filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
   if (!m.team.length) m.team = Object.keys(m.roster).slice(0, TEAM_SIZE);
   // roster：补 brk（突破档数），并按新的叠位上限收紧

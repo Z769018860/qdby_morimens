@@ -1372,11 +1372,330 @@ function fmt(n) {
 return { EDGE_API, base, probe, health, cached, stats, ping, whoami, fmt };
 })();
 
+// ---- js/gamestats.js
+const m_gamestats = await (async () => {
+
+// 各小游戏的本机进度汇总。
+//
+// 个人中心要「一个页面看到所有游戏的数据」，但九个游戏各写各的存档键，
+// 有的用 store（JSON），有的用 localStorage 裸字符串，有的根本不在 zjtt 命名空间
+// （挂机版是 morimens-idle-*，死亡调查报告是 morimens-deathreport-*）。
+// 这里只做一件事：把全部键读成一个结构化的结果，读不到的字段给 0 / 空，
+// 让页面永远有东西可显示，而不是「这一块没接」。
+//
+// 三条约束：
+//   · 只读，不写、不发请求 —— 任何页面都能安全 import；
+//   · 全部 try/catch —— 无痕模式下 localStorage 会抛，不能连累整页；
+//   · 键名必须和各游戏里的字面量一致，改名请一起改（下面每组都标了出处）。
+
+const RD = (k) => { try { const v = localStorage.getItem('zjtt:' + k); return v == null ? null : JSON.parse(v); } catch { return null; } };
+const RAW = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const n = (v) => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
+const arr = (v) => (Array.isArray(v) ? v : []);
+
+// 数字键既可能是 JSON（store.set）也可能是裸字符串（游戏里直接 setItem），
+// JSON.parse 对 "123" 和 123 都成立，所以统一走 RD。
+const numKey = (k) => n(RD(k));
+
+// 秒 → 「12 小时 30 分」。挂机版的时长要能一眼看懂，不要 45213 这种数字
+const fmtDur = (s) => {
+  s = Math.max(0, Math.round(n(s)));
+  if (!s) return '—';
+  if (s < 60) return s + ' 秒';
+  const h = Math.floor(s / 3600);
+  const m = Math.round((s % 3600) / 60);
+  return h ? `${h} 小时 ${m} 分` : `${m} 分钟`;
+};
+
+const DIFF_MERGE = [
+  { k: 'easy', n: '简单' }, { k: 'normal', n: '普通' }, { k: 'hard', n: '困难' }, { k: 'frenzy', n: '癫狂' },
+];
+const DIFF_BIRD = [
+  { k: 'easy', n: '简单' }, { k: 'normal', n: '普通' }, { k: 'hard', n: '困难' }, { k: 'mad', n: '癫狂' },
+];
+
+// ------------------------------------------------------------------ 各游戏
+function detective() {
+  const st = RD('stats') || {};
+  const hist = arr(RD('hist'));
+  const played = n(st.played);
+  const won = n(st.won);
+  const failed = arr(RD('failed')).length;
+  return {
+    played, won,
+    items: [
+      { k: '已玩', v: String(played) },
+      { k: '胜率', v: played ? Math.round((won / played) * 100) + '%' : '—' },
+      { k: '最高分', v: String(n(st.best)) },
+    ],
+    extra: failed ? `失败题库 ${failed} 题` : (hist.length ? `最近一次 ${String(new Date(n(hist[0] && hist[0].at) || Date.now()).toLocaleDateString('zh-CN'))}` : ''),
+  };
+}
+
+function merge() {
+  const all = numKey('merge:best');
+  const byDiff = DIFF_MERGE.map((d) => ({ ...d, v: numKey('merge:best:' + d.k) }));
+  const skins = arr(RD('merge:skins')).filter((x) => n(x) > 0).length;
+  const bestDiff = byDiff.filter((d) => d.v > 0).sort((a, c) => c.v - a.v)[0];
+  return {
+    items: [
+      { k: '最高分', v: all ? String(all) : '—' },
+      { k: '最顺手', v: bestDiff ? bestDiff.n : '—' },
+      { k: '换皮', v: skins ? `${skins}/9` : '原样' },
+    ],
+    extra: byDiff.filter((d) => d.v > 0).map((d) => `${d.n} ${d.v}`).join(' · '),
+  };
+}
+
+function bird() {
+  const lvAll = numKey('bird:bestLv');
+  const scAll = numKey('bird:best');
+  const byDiff = DIFF_BIRD.map((d) => ({ ...d, lv: numKey('bird:bestLv:' + d.k), sc: numKey('bird:best:' + d.k) }));
+  return {
+    items: [
+      { k: '最深层数', v: lvAll ? `${lvAll} 层` : '—' },
+      { k: '最高分', v: scAll ? String(scAll) : '—' },
+      { k: '下过难度', v: String(byDiff.filter((d) => d.lv > 0).length) + '/4' },
+    ],
+    extra: byDiff.filter((d) => d.lv > 0).map((d) => `${d.n} ${d.lv} 层`).join(' · '),
+  };
+}
+
+function binding() {
+  const m = RD('binding') || null;
+  const st = (m && m.stats) || {};
+  return {
+    items: [
+      { k: '最深纪录', v: st.bestFloor ? `第 ${st.bestFloor} 层` : '—' },
+      { k: '通关次数', v: String(n(st.clears)) },
+      { k: '首领击杀', v: String(n(st.bossKills)) },
+    ],
+    extra: st.runs ? `共 ${n(st.runs)} 局 · 死亡 ${n(st.deaths)} 次` : '',
+  };
+}
+
+function idle() {
+  // 挂机版是独立子项目，键不带 zjtt: 前缀（idle/src/ui/util.js 的 KEY）
+  let s = null;
+  try { s = JSON.parse(RAW('morimens-idle-save-v1') || 'null'); } catch { s = null; }
+  if (!s) return { items: [{ k: '存档', v: '未开始' }], extra: '' };
+  const team = arr(s.roster).length;
+  const sec = n(s.play);
+  return {
+    items: [
+      { k: '时长', v: sec ? fmtDur(sec) : '—' },
+      { k: '最高关卡', v: String(n(s.maxStage)) },
+      { k: '拥有角色', v: String(team) },
+    ],
+    extra: `当前第 ${n(s.stage) || 1} 关` + (s.gold != null ? ` · 金币 ${n(s.gold)} · 券 ${n(s.tickets)} · 核心 ${n(s.cores)}` : ''),
+    // 同一句带图标版：券 = 流明之芯、核心 = 银芯（都用原作图标，跟挂机版顶栏一致）
+    extraHtml: s.gold != null
+      ? `金币 ${n(s.gold)} · <img class="ico-inl" src="assets/ui/lumen.webp" alt="召唤券">${n(s.tickets)}`
+        + ` · <img class="ico-inl" src="assets/ui/silvercore.webp" alt="银芯">${n(s.cores)}`
+      : '',
+  };
+}
+
+function survivors() {
+  const p = RD('survivors:progress') || {};
+  const best = numKey('survivors:best');
+  return {
+    items: [
+      { k: '最高分', v: best ? String(best) : '—' },
+      { k: '通关角色', v: String(arr(p.clears).length) },
+      { k: '累计局数', v: String(n(p.runs)) },
+    ],
+    extra: arr(p.diffs).length ? `通关难度：${arr(p.diffs).join(' / ')}` : (n(p.bosses) ? `击败强敌 ${n(p.bosses)} 只` : ''),
+  };
+}
+
+function protocol() {
+  // 2026-10 之后才记的键（js/pf/ui.js 的 showEnd）；老玩家这里会是空，显示「—」就行
+  const b = RD('pf:best') || null;
+  return {
+    items: [
+      { k: '最远波次', v: b && b.wave ? `第 ${n(b.wave)} 波` : '—' },
+      { k: '最高分', v: b && b.score ? String(n(b.score)) : '—' },
+      { k: '守住次数', v: String(n(b && b.wins)) },
+    ],
+    extra: b && b.runs ? `共 ${n(b.runs)} 局` : '',
+  };
+}
+
+function wolf() {
+  const st = RD('wolf:stat') || null;
+  const runs = n(st && st.n);
+  const win = n(st && st.win);
+  return {
+    items: [
+      { k: '局数', v: String(runs) },
+      { k: '胜场', v: String(win) },
+      { k: '胜率', v: runs ? Math.round((win / runs) * 100) + '%' : '—' },
+    ],
+    extra: '',
+  };
+}
+
+function deathreport() {
+  // 本篇 + 往届两届，各自一个存档键（deathreport/js/ui.js 的 EDS）
+  const EDS = [
+    ['本篇', 'morimens-deathreport-save-v1'],
+    ['62届', 'morimens-deathreport-save-ed62-v1'],
+    ['61届', 'morimens-deathreport-save-ed61-v1'],
+  ];
+  let recovered = 0;
+  let docs = 0;
+  let done = 0;
+  const parts = [];
+  for (const [tag, key] of EDS) {
+    let s = null;
+    try { s = JSON.parse(RAW(key) || 'null'); } catch { s = null; }
+    if (!s) continue;
+    const r = arr(s.recovered).length;
+    const d = arr(s.docs).length;
+    recovered += r;
+    docs += d;
+    if (s.ended) done += 1;
+    parts.push(`${tag} ${r} 条`);
+  }
+  return {
+    items: [
+      { k: '已复原', v: String(recovered) },
+      { k: '结案', v: String(done) },
+      { k: '归档卷宗', v: String(docs) },
+    ],
+    extra: parts.join(' · '),
+  };
+}
+
+// 卡片顺序 = 首页的排列顺序，用户不用重新认路
+const GAMES = [
+  { k: 'detective', n: '战报侦探', href: 'detective.html', icon: '🔍', read: detective, tip: '六边形自走棋推演' },
+  { k: 'merge', n: '合成大杜勒', href: 'merge.html', icon: '⚫', read: merge, tip: '两个同级合成下一级' },
+  { k: 'bird', n: '是鸟弟就下100层', href: 'bird.html', icon: '🐤', read: bird, tip: '往下跳，别被扎到' },
+  { k: 'binding', n: '校猫的结合', href: 'binding.html', icon: '🐱', read: binding, tip: '地牢射击' },
+  { k: 'idle', n: '弥萨格挂机版', href: 'idle/', icon: '🏰', read: idle, tip: '五人队爬塔' },
+  { k: 'survivors', n: '唤醒体幸存者', href: 'survivors.html', icon: '✨', read: survivors, tip: '15 分钟一局' },
+  { k: 'protocol', n: '忘却协议', href: 'protocol.html', icon: '⬡', read: protocol, tip: '守住十二波' },
+  { k: 'wolf', n: '弥萨格狼人杀', href: 'wolf.html', icon: '🐺', read: wolf, tip: '身份推理' },
+  { k: 'deathreport', n: '死亡调查报告', href: 'deathreport/', icon: '📄', read: deathreport, tip: '档案式复盘' },
+];
+
+// 一次性读全部：页面只调这一个
+function readAll() {
+  const out = {};
+  for (const g of GAMES) {
+    try { out[g.k] = g.read(); } catch { out[g.k] = { items: [], extra: '' }; }
+  }
+  return out;
+}
+
+// 银芯钱包（所有小游戏共用 zjtt:credits）
+const credits = () => numKey('credits');
+
+// ------------------------------------------------------------------ 后台渲染表
+// 站长后台按这张表把 digest() 的数字翻成人话。顺序必须和下面 digest() 的数组一致
+// （改一个键就要改两处，别只改这边）。
+const GD_SPEC = [
+  { k: 'dr', n: '战报侦探', f: (v) => {
+    const played = n(v[0]);
+    const won = n(v[1]);
+    return [['已玩', played + ' 局'], ['胜场', won + ' 局'],
+      ['胜率', played ? Math.round((won / played) * 100) + '%' : '—'],
+      ['最高分', v[2] ? String(n(v[2])) : '—']];
+  } },
+  { k: 'mg', n: '合成大杜勒', f: (v) => [['最高分', v[0] ? String(n(v[0])) : '—']] },
+  { k: 'bd', n: '是鸟弟就下100层', f: (v) => [
+    ['最深层数', v[0] ? n(v[0]) + ' 层' : '—'],
+    ['最高分', v[1] ? String(n(v[1])) : '—'],
+  ] },
+  { k: 'bn', n: '校猫的结合', f: (v) => [
+    ['最深楼层', v[0] ? '第 ' + n(v[0]) + ' 层' : '—'],
+    ['通关次数', n(v[1]) + ' 次'],
+    ['首领击杀', String(n(v[2]))],
+    ['总对局', n(v[3]) + ' 局'],
+  ] },
+  { k: 'il', n: '弥萨格挂机版', f: (v) => [
+    ['游戏时长', fmtDur(v[0])],
+    ['拥有角色', n(v[1]) + ' 名'],
+    ['最高关卡', v[2] ? '第 ' + n(v[2]) + ' 关' : '—'],
+    ['当前关卡', v[3] ? '第 ' + n(v[3]) + ' 关' : '—'],
+    ['金币', String(n(v[4]))],
+  ] },
+  { k: 'sv', n: '唤醒体幸存者', f: (v) => [
+    ['最高分', v[0] ? String(n(v[0])) : '—'],
+    ['累计局数', n(v[1]) + ' 局'],
+    ['通关角色', n(v[2]) + ' 名'],
+  ] },
+  { k: 'pf', n: '忘却协议', f: (v) => [
+    ['最远波次', v[0] ? '第 ' + n(v[0]) + ' 波' : '—'],
+    ['最高分', v[1] ? String(n(v[1])) : '—'],
+    ['守住次数', n(v[2]) + ' 次'],
+  ] },
+  { k: 'wf', n: '弥萨格狼人杀', f: (v) => {
+    const runs = n(v[0]);
+    const win = n(v[1]);
+    return [['局数', runs + ' 局'], ['胜场', win + ' 局'],
+      ['胜率', runs ? Math.round((win / runs) * 100) + '%' : '—']];
+  } },
+  { k: 'dt', n: '死亡调查报告', f: (v) => [
+    ['已复原', n(v[0]) + ' 条'],
+    ['归档卷宗', String(n(v[1]))],
+    ['结案', n(v[2]) + ' 届'],
+  ] },
+];
+
+
+// ------------------------------------------------------------------ 上报用的摘要
+// 云端档案（js/account.js 的 snapshot）只带「数字」，不带各游戏的整份存档：
+//   · 挂机存档动辄上百 KB，整份上云会顶穿 /account 的请求体；
+//   · 后台只需要「多少人玩、玩到哪」。
+// 键名两个字母，数组顺序固定（下面 admin 的渲染表按同样的顺序读，改一处要改两处）：
+//   dr 侦探 [已玩, 胜场, 最高分]      mg 合成 [最高分]        bd 鸟弟 [最深层, 最高分]
+//   bn 结合 [最深楼层, 通关, 首领, 局数]
+//   il 挂机 [时长秒, 拥有角色, 最高关, 当前关, 金币]
+//   sv 幸存者 [最高分, 局数, 通关角色] pf 协议 [最远波, 最高分, 守住]
+//   wf 狼人 [局数, 胜场]             dt 报告 [已复原, 卷宗, 结案]
+// 单调递增的量（最好成绩、累计局数、时长），服务端合并时逐项取大即可。
+function digest() {
+  const out = { at: Date.now() };
+  const st = RD('stats') || {};
+  out.dr = [n(st.played), n(st.won), n(st.best)];
+  out.mg = [numKey('merge:best')];
+  out.bd = [numKey('bird:bestLv'), numKey('bird:best')];
+  const bm = RD('binding') || null;
+  const bs = (bm && bm.stats) || {};
+  out.bn = [n(bs.bestFloor), n(bs.clears), n(bs.bossKills), n(bs.runs)];
+  let s = null;
+  try { s = JSON.parse(RAW('morimens-idle-save-v1') || 'null'); } catch { s = null; }
+  if (s) out.il = [Math.floor(n(s.play)), arr(s.roster).length, n(s.maxStage), n(s.stage), n(s.gold)];
+  const sv = RD('survivors:progress') || {};
+  out.sv = [numKey('survivors:best'), n(sv.runs), arr(sv.clears).length];
+  const pf = RD('pf:best') || {};
+  out.pf = [n(pf.wave), n(pf.score), n(pf.wins)];
+  const wf = RD('wolf:stat') || {};
+  out.wf = [n(wf.n), n(wf.win)];
+  let rec = 0, docs = 0, done = 0;
+  for (const key of ['morimens-deathreport-save-v1', 'morimens-deathreport-save-ed62-v1', 'morimens-deathreport-save-ed61-v1']) {
+    let d = null;
+    try { d = JSON.parse(RAW(key) || 'null'); } catch { d = null; }
+    if (!d) continue;
+    rec += arr(d.recovered).length;
+    docs += arr(d.docs).length;
+    if (d.ended) done += 1;
+  }
+  out.dt = [rec, docs, done];
+  return out;
+}
+return { fmtDur, DIFF_MERGE, DIFF_BIRD, GAMES, readAll, credits, GD_SPEC, digest };
+})();
+
 // ---- js/admin.js
 const m_admin = await (async () => {
 const { $, h, toast, store } = m_common;
 const { auth, openLogin } = m_auth;
 const sitestats = m_sitestats;
+const { GD_SPEC, fmtDur } = m_gamestats;
 // 管理后台 —— 只有「姜酒」这个账号能进。
 //
 // 权限判定全在服务端（edge-functions 的 /whoami 与 /admin/*）：
@@ -1385,6 +1704,9 @@ const sitestats = m_sitestats;
 // 之后别人把昵称改成「姜酒」也进不来。
 
 
+
+// 九个游戏的字段名与显示顺序只在 js/gamestats.js 里写一遍（GD_SPEC），
+// 后台按它渲染，跟 digest() 上报的数组一一对应。
 
 // 不用 js/api.js：那份在 GitHub Pages 上认为「没有后端」（ready() 为 false → 直接抛 no_api），
 // 而镜像站其实能跨域打到 EdgeOne 的函数（对方回了 CORS）。这里自己拼请求，
@@ -1544,6 +1866,7 @@ function openGrant(u, onDone) {
     h('div', { class: 'row' }, noteEl),
     h('div', { class: 'acts' },
       h('button', { class: 'btn ghost', onclick: closeSheet }, '取消'), okBtn));
+  sheetBox.classList.remove('wide');
   sheet.classList.add('on');
   amountEl.focus();
 }
@@ -1551,12 +1874,41 @@ function closeSheet() { sheet.classList.remove('on'); }
 sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 
+// ------------------------------------------------------------------ 九个游戏的详情
+// 数据来自云端档案的 gd（js/gamestats.js 的 digest）：只有数字摘要，没有整份存档。
+function openGames(u) {
+  const a = u.acct || {};
+  const gd = (a.gd && typeof a.gd === 'object' && !Array.isArray(a.gd)) ? a.gd : null;
+  const cards = [];
+  if (gd) {
+    for (const spec of GD_SPEC) {
+      const v = gd[spec.k];
+      if (!Array.isArray(v) || !v.length) continue;
+      cards.push(h('div', { class: 'gcard' },
+        h('b', {}, spec.n),
+        h('div', { class: 'ggrid' }, spec.f(v).map(([k, val]) =>
+          h('span', {}, h('i', {}, k), h('em', {}, val))))));
+    }
+  }
+  sheetBox.replaceChildren(
+    h('h3', {}, `游戏数据 · ${u.name || '（未命名）'}`),    h('p', { class: 'who' }, `云端档案同步于 ${a.at ? when(a.at) : '—'}。九个游戏的进度都来自对方本机存档，只有数字摘要；换设备不会带走存档本体。`),
+    cards.length
+      ? h('div', { class: 'gwrap' }, cards)
+      : h('p', { class: 'empty' }, '这个账号还没上报游戏数据——档案是旧版，或者他上次同步时还没带上（让对方再打开一次站点就会补上）。'),
+    h('div', { class: 'acts' },
+      h('button', { class: 'btn ghost', onclick: closeSheet }, '关闭'),
+      h('button', { class: 'btn gold', onclick: () => { closeSheet(); openGrant(u, load); } }, '发放银芯')));
+  sheetBox.classList.add('wide');
+  sheet.classList.add('on');
+}
+
 // ------------------------------------------------------------------ 主体
 let USERS = [];
 let Q = '';
 
 function kpis(s, users) {
   const synced = users.filter((u) => u.acct).length;
+  const withGd = users.filter((u) => u.acct && u.acct.gd && typeof u.acct.gd === 'object').length;
   const active7 = users.filter((u) => Date.now() - (u.seen || u.at || 0) < 7 * 86400e3).length;
   const box = (label, value, sub) => h('div', { class: 'kpi' }, h('small', {}, label), h('b', {}, value), h('span', {}, sub || ''));
   return h('div', { class: 'kpis' },
@@ -1564,11 +1916,14 @@ function kpis(s, users) {
     box('今日浏览', fmt(s.today), ''),
     box('总浏览', fmt(s.total), ''),
     box('有云端档案', String(synced), `占 ${pct(synced, users.length)}%`),
+    box('有游戏数据', String(withGd), '九个游戏的进度摘要'),
     box('BUG 反馈', String(s.bugs || 0), '历史累计'));
 }
 
 function row(u) {
   const a = u.acct || null;
+  const gd = (a && a.gd && typeof a.gd === 'object' && !Array.isArray(a.gd)) ? a.gd : null;
+  const il = gd && Array.isArray(gd.il) ? gd.il : null;
   return h('tr', {},
     h('td', {}, h('div', { class: 'namecell' },
       h('b', {}, u.name || '（未命名）'),
@@ -1576,13 +1931,16 @@ function row(u) {
     h('td', {}, ago(u.seen || u.at)),
     h('td', {}, when(u.at)),
     h('td', { class: 'num' }, a ? String(a.cr) : '—'),
-    h('td', { class: 'num' }, a ? String(a.played) : '—'),
-    h('td', { class: 'num' }, a && a.played ? pct(a.won, a.played) + '%' : '—'),
+    h('td', { class: 'num' }, a ? (a.played ? `${a.played} 局 · ${pct(a.won, a.played)}%` : '0 局') : '—'),
     h('td', { class: 'num' }, a ? String(a.cg) : '—'),
     h('td', { class: 'num' }, a ? String(a.mb) : '—'),
     h('td', { class: 'num' }, a ? String(a.bb) : '—'),
+    h('td', {}, il ? fmtDur(il[0]) : '—'),
+    h('td', { class: 'num' }, il ? String(il[1]) : '—'),
     h('td', {}, a ? when(a.at) : '—'),
-    h('td', {}, h('button', { class: 'btn sm gold', onclick: () => openGrant(u, load) }, '发放')));
+    h('td', {}, h('div', { class: 'rowacts' },
+      h('button', { class: 'btn sm ghost', onclick: () => openGames(u) }, '游戏'),
+      h('button', { class: 'btn sm gold', onclick: () => openGrant(u, load) }, '发放'))));
 }
 
 function table() {
@@ -1594,8 +1952,9 @@ function table() {
     h('table', {},
       h('thead', {}, h('tr', {},
         h('th', {}, '账号'), h('th', {}, '最近活跃'), h('th', {}, '首次登录'),
-        h('th', {}, '银芯'), h('th', {}, '推理局数'), h('th', {}, '胜率'),
-        h('th', {}, 'CG'), h('th', {}, '合成最高分'), h('th', {}, '鸟弟最深'),
+        h('th', {}, '银芯'), h('th', {}, '推理'), h('th', {}, 'CG'),
+        h('th', {}, '合成'), h('th', {}, '鸟弟'),
+        h('th', {}, '挂机时长'), h('th', {}, '角色'),
         h('th', {}, '同步时间'), h('th', {}, '操作'))),
       h('tbody', {}, list.slice(0, 300).map(row))));
 }

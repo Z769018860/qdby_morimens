@@ -10,6 +10,7 @@
 import { store, wallet, failedBank, unlocked, STAT0, toast, t } from './common.js';
 import { auth, wApi, nameOfMail } from './auth.js';
 import { api } from './api.js';
+import { digest } from './gamestats.js';
 
 const MAGIC = 'ZJ1D:';
 const K = { doc: 'acctDoc', obj: 'acctObj', at: 'acctAt', pend: 'acctPend', ver: 'acctVer' };
@@ -73,6 +74,10 @@ export function snapshot() {
     // 同样是「游戏页自己也能跑」的键（zjtt:bird:bestLv / zjtt:bird:best），这里只负责带上档案。
     bb: birdBest().lv,
     bs: birdBest().sc,
+    // 九个游戏的「进度摘要」，只给个人中心 / 站长后台看（js/gamestats.js 的 digest）。
+    // 各游戏的真实存档仍然只在本机：结合 / 幸存者 / 协议 / 狼人 / 报告 / 挂机都是大对象，
+    // 整份上云会顶穿请求体；换设备靠「加密存档整包搬」。
+    gd: digest(),
   };
 }
 
@@ -193,6 +198,30 @@ function pickQuota(a, b) {
   return { d: a.d, n: Math.max(Number(a.n) || 0, Number(b.n) || 0) };
 }
 
+// 九个游戏的进度摘要（gd）：都是一路只增不减的量，逐项取大就行。
+// 手机和电脑各玩一半的情况，合起来正好是「这台玩过的最高分 + 那台玩过的最深关」。
+function mergeDigest(a = {}, b = {}) {
+  const A = a && typeof a === 'object' ? a : {};
+  const B = b && typeof b === 'object' ? b : {};
+  const out = { at: Math.max(Number(A.at) || 0, Number(B.at) || 0) };
+  for (const k of new Set([...Object.keys(A), ...Object.keys(B)])) {
+    if (k === 'at') continue;
+    const x = A[k];
+    const y = B[k];
+    if (Array.isArray(x) || Array.isArray(y)) {
+      const ax = Array.isArray(x) ? x : [];
+      const ay = Array.isArray(y) ? y : [];
+      const len = Math.max(ax.length, ay.length);
+      const row = [];
+      for (let i = 0; i < len; i++) row.push(Math.max(Number(ax[i]) || 0, Number(ay[i]) || 0));
+      out[k] = row;
+    } else {
+      out[k] = Math.max(Number(x) || 0, Number(y) || 0);
+    }
+  }
+  return out;
+}
+
 export function mergeDoc(remote = {}, local = {}) {
   const st = mergeStats(remote.st, local.st);
   return {
@@ -214,6 +243,7 @@ export function mergeDoc(remote = {}, local = {}) {
     mb: numMax(remote.mb, local.mb),
     bb: numMax(remote.bb, local.bb),
     bs: numMax(remote.bs, local.bs),
+    gd: mergeDigest(remote.gd, local.gd),
   };
 }
 

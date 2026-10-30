@@ -137,7 +137,17 @@ async function boot() {
   checkSigninGifts();
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('beforeunload', () => app.save());
-  setInterval(() => app.save(), 15000);
+  // 每 5 秒记一次「游玩时长」（只算页面可见的那段时间，切到后台就停），
+  // 顺便每 15 秒存一次盘——原来只有一个 15s 的 save 定时器。
+  // 这个数是给个人中心 / 站长后台看的（state.play，秒）。
+  let lastPlay = Date.now();
+  let tickN = 0;
+  setInterval(() => {
+    const now = Date.now();
+    if (!document.hidden) app.state.play = Math.round((Number(app.state.play) || 0) + (now - lastPlay) / 1000);
+    lastPlay = now;
+    if (++tickN >= 3) { tickN = 0; app.save(); }
+  }, 5000);
   window.__game = app; // handy for debugging / tests
 }
 

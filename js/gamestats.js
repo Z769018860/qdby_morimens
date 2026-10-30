@@ -20,6 +20,16 @@ const arr = (v) => (Array.isArray(v) ? v : []);
 // JSON.parse 对 "123" 和 123 都成立，所以统一走 RD。
 const numKey = (k) => n(RD(k));
 
+// 秒 → 「12 小时 30 分」。挂机版的时长要能一眼看懂，不要 45213 这种数字
+export const fmtDur = (s) => {
+  s = Math.max(0, Math.round(n(s)));
+  if (!s) return '—';
+  if (s < 60) return s + ' 秒';
+  const h = Math.floor(s / 3600);
+  const m = Math.round((s % 3600) / 60);
+  return h ? `${h} 小时 ${m} 分` : `${m} 分钟`;
+};
+
 export const DIFF_MERGE = [
   { k: 'easy', n: '简单' }, { k: 'normal', n: '普通' }, { k: 'hard', n: '困难' }, { k: 'frenzy', n: '癫狂' },
 ];
@@ -93,13 +103,14 @@ function idle() {
   try { s = JSON.parse(RAW('morimens-idle-save-v1') || 'null'); } catch { s = null; }
   if (!s) return { items: [{ k: '存档', v: '未开始' }], extra: '' };
   const team = arr(s.roster).length;
+  const sec = n(s.play);
   return {
     items: [
-      { k: '当前关卡', v: String(n(s.stage) || 1) },
+      { k: '时长', v: sec ? fmtDur(sec) : '—' },
       { k: '最高关卡', v: String(n(s.maxStage)) },
-      { k: '唤醒体', v: String(team) },
+      { k: '拥有角色', v: String(team) },
     ],
-    extra: s.gold != null ? `金币 ${n(s.gold)} · 券 ${n(s.tickets)} · 核心 ${n(s.cores)}` : '',
+    extra: `当前第 ${n(s.stage) || 1} 关` + (s.gold != null ? ` · 金币 ${n(s.gold)} · 券 ${n(s.tickets)} · 核心 ${n(s.cores)}` : ''),
     // 同一句带图标版：券 = 流明之芯、核心 = 银芯（都用原作图标，跟挂机版顶栏一致）
     extraHtml: s.gold != null
       ? `金币 ${n(s.gold)} · <img class="ico-inl" src="assets/ui/lumen.webp" alt="召唤券">${n(s.tickets)}`
@@ -204,3 +215,98 @@ export function readAll() {
 
 // 银芯钱包（所有小游戏共用 zjtt:credits）
 export const credits = () => numKey('credits');
+
+// ------------------------------------------------------------------ 后台渲染表
+// 站长后台按这张表把 digest() 的数字翻成人话。顺序必须和下面 digest() 的数组一致
+// （改一个键就要改两处，别只改这边）。
+export const GD_SPEC = [
+  { k: 'dr', n: '战报侦探', f: (v) => {
+    const played = n(v[0]);
+    const won = n(v[1]);
+    return [['已玩', played + ' 局'], ['胜场', won + ' 局'],
+      ['胜率', played ? Math.round((won / played) * 100) + '%' : '—'],
+      ['最高分', v[2] ? String(n(v[2])) : '—']];
+  } },
+  { k: 'mg', n: '合成大杜勒', f: (v) => [['最高分', v[0] ? String(n(v[0])) : '—']] },
+  { k: 'bd', n: '是鸟弟就下100层', f: (v) => [
+    ['最深层数', v[0] ? n(v[0]) + ' 层' : '—'],
+    ['最高分', v[1] ? String(n(v[1])) : '—'],
+  ] },
+  { k: 'bn', n: '校猫的结合', f: (v) => [
+    ['最深楼层', v[0] ? '第 ' + n(v[0]) + ' 层' : '—'],
+    ['通关次数', n(v[1]) + ' 次'],
+    ['首领击杀', String(n(v[2]))],
+    ['总对局', n(v[3]) + ' 局'],
+  ] },
+  { k: 'il', n: '弥萨格挂机版', f: (v) => [
+    ['游戏时长', fmtDur(v[0])],
+    ['拥有角色', n(v[1]) + ' 名'],
+    ['最高关卡', v[2] ? '第 ' + n(v[2]) + ' 关' : '—'],
+    ['当前关卡', v[3] ? '第 ' + n(v[3]) + ' 关' : '—'],
+    ['金币', String(n(v[4]))],
+  ] },
+  { k: 'sv', n: '唤醒体幸存者', f: (v) => [
+    ['最高分', v[0] ? String(n(v[0])) : '—'],
+    ['累计局数', n(v[1]) + ' 局'],
+    ['通关角色', n(v[2]) + ' 名'],
+  ] },
+  { k: 'pf', n: '忘却协议', f: (v) => [
+    ['最远波次', v[0] ? '第 ' + n(v[0]) + ' 波' : '—'],
+    ['最高分', v[1] ? String(n(v[1])) : '—'],
+    ['守住次数', n(v[2]) + ' 次'],
+  ] },
+  { k: 'wf', n: '弥萨格狼人杀', f: (v) => {
+    const runs = n(v[0]);
+    const win = n(v[1]);
+    return [['局数', runs + ' 局'], ['胜场', win + ' 局'],
+      ['胜率', runs ? Math.round((win / runs) * 100) + '%' : '—']];
+  } },
+  { k: 'dt', n: '死亡调查报告', f: (v) => [
+    ['已复原', n(v[0]) + ' 条'],
+    ['归档卷宗', String(n(v[1]))],
+    ['结案', n(v[2]) + ' 届'],
+  ] },
+];
+
+
+// ------------------------------------------------------------------ 上报用的摘要
+// 云端档案（js/account.js 的 snapshot）只带「数字」，不带各游戏的整份存档：
+//   · 挂机存档动辄上百 KB，整份上云会顶穿 /account 的请求体；
+//   · 后台只需要「多少人玩、玩到哪」。
+// 键名两个字母，数组顺序固定（下面 admin 的渲染表按同样的顺序读，改一处要改两处）：
+//   dr 侦探 [已玩, 胜场, 最高分]      mg 合成 [最高分]        bd 鸟弟 [最深层, 最高分]
+//   bn 结合 [最深楼层, 通关, 首领, 局数]
+//   il 挂机 [时长秒, 拥有角色, 最高关, 当前关, 金币]
+//   sv 幸存者 [最高分, 局数, 通关角色] pf 协议 [最远波, 最高分, 守住]
+//   wf 狼人 [局数, 胜场]             dt 报告 [已复原, 卷宗, 结案]
+// 单调递增的量（最好成绩、累计局数、时长），服务端合并时逐项取大即可。
+export function digest() {
+  const out = { at: Date.now() };
+  const st = RD('stats') || {};
+  out.dr = [n(st.played), n(st.won), n(st.best)];
+  out.mg = [numKey('merge:best')];
+  out.bd = [numKey('bird:bestLv'), numKey('bird:best')];
+  const bm = RD('binding') || null;
+  const bs = (bm && bm.stats) || {};
+  out.bn = [n(bs.bestFloor), n(bs.clears), n(bs.bossKills), n(bs.runs)];
+  let s = null;
+  try { s = JSON.parse(RAW('morimens-idle-save-v1') || 'null'); } catch { s = null; }
+  if (s) out.il = [Math.floor(n(s.play)), arr(s.roster).length, n(s.maxStage), n(s.stage), n(s.gold)];
+  const sv = RD('survivors:progress') || {};
+  out.sv = [numKey('survivors:best'), n(sv.runs), arr(sv.clears).length];
+  const pf = RD('pf:best') || {};
+  out.pf = [n(pf.wave), n(pf.score), n(pf.wins)];
+  const wf = RD('wolf:stat') || {};
+  out.wf = [n(wf.n), n(wf.win)];
+  let rec = 0, docs = 0, done = 0;
+  for (const key of ['morimens-deathreport-save-v1', 'morimens-deathreport-save-ed62-v1', 'morimens-deathreport-save-ed61-v1']) {
+    let d = null;
+    try { d = JSON.parse(RAW(key) || 'null'); } catch { d = null; }
+    if (!d) continue;
+    rec += arr(d.recovered).length;
+    docs += arr(d.docs).length;
+    if (d.ended) done += 1;
+  }
+  out.dt = [rec, docs, done];
+  return out;
+}

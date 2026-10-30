@@ -832,6 +832,9 @@ function acctBrief(doc) {
     bb: Number(d.bb) || 0,
     hi: Array.isArray(d.hi) ? d.hi.length : 0,
     at: Number(d.at) || 0,
+    // 九个游戏的进度摘要（前端 js/gamestats.js 的 digest）：原样透传，后台按固定顺序读。
+    // 老档案没有这个字段 → null，后台显示「还没上报」，不是 0。
+    gd: (d.gd && typeof d.gd === 'object' && !Array.isArray(d.gd)) ? d.gd : null,
   };
 }
 
@@ -951,8 +954,9 @@ export async function onRequest(context) {
       return reply({
         // v 是接口版本，不是代码版本：v2 只有点赞/档案/题库，
         // v3 才有 /stats /whoami /admin/*（管理页靠它判断要不要提示「重新部署」），
-        // v4 修好 whoami 的验票地址（GET /api/token），管理页与云端档案才真正能用
-        ok: Boolean(store), service: 'zjtt', v: 4, runtime: 'edgeone',
+        // v4 修好 whoami 的验票地址（GET /api/token），管理页与云端档案才真正能用，
+        // v5 档案里多了 gd（九个游戏的进度摘要），管理页能看全部游戏 + 挂机时长/角色数
+        ok: Boolean(store), service: 'zjtt', v: 5, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),

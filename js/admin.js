@@ -7,6 +7,9 @@
 import { $, h, toast, store } from './common.js';
 import { auth, openLogin } from './auth.js';
 import * as sitestats from './sitestats.js';
+// 九个游戏的字段名与显示顺序只在 js/gamestats.js 里写一遍（GD_SPEC），
+// 后台按它渲染，跟 digest() 上报的数组一一对应。
+import { GD_SPEC, fmtDur } from './gamestats.js';
 // 不用 js/api.js：那份在 GitHub Pages 上认为「没有后端」（ready() 为 false → 直接抛 no_api），
 // 而镜像站其实能跨域打到 EdgeOne 的函数（对方回了 CORS）。这里自己拼请求，
 // 地址从 sitestats.base() 拿，跟统计口径保持一致。
@@ -165,6 +168,7 @@ function openGrant(u, onDone) {
     h('div', { class: 'row' }, noteEl),
     h('div', { class: 'acts' },
       h('button', { class: 'btn ghost', onclick: closeSheet }, '取消'), okBtn));
+  sheetBox.classList.remove('wide');
   sheet.classList.add('on');
   amountEl.focus();
 }
@@ -172,12 +176,41 @@ function closeSheet() { sheet.classList.remove('on'); }
 sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 
+// ------------------------------------------------------------------ 九个游戏的详情
+// 数据来自云端档案的 gd（js/gamestats.js 的 digest）：只有数字摘要，没有整份存档。
+function openGames(u) {
+  const a = u.acct || {};
+  const gd = (a.gd && typeof a.gd === 'object' && !Array.isArray(a.gd)) ? a.gd : null;
+  const cards = [];
+  if (gd) {
+    for (const spec of GD_SPEC) {
+      const v = gd[spec.k];
+      if (!Array.isArray(v) || !v.length) continue;
+      cards.push(h('div', { class: 'gcard' },
+        h('b', {}, spec.n),
+        h('div', { class: 'ggrid' }, spec.f(v).map(([k, val]) =>
+          h('span', {}, h('i', {}, k), h('em', {}, val))))));
+    }
+  }
+  sheetBox.replaceChildren(
+    h('h3', {}, `游戏数据 · ${u.name || '（未命名）'}`),    h('p', { class: 'who' }, `云端档案同步于 ${a.at ? when(a.at) : '—'}。九个游戏的进度都来自对方本机存档，只有数字摘要；换设备不会带走存档本体。`),
+    cards.length
+      ? h('div', { class: 'gwrap' }, cards)
+      : h('p', { class: 'empty' }, '这个账号还没上报游戏数据——档案是旧版，或者他上次同步时还没带上（让对方再打开一次站点就会补上）。'),
+    h('div', { class: 'acts' },
+      h('button', { class: 'btn ghost', onclick: closeSheet }, '关闭'),
+      h('button', { class: 'btn gold', onclick: () => { closeSheet(); openGrant(u, load); } }, '发放银芯')));
+  sheetBox.classList.add('wide');
+  sheet.classList.add('on');
+}
+
 // ------------------------------------------------------------------ 主体
 let USERS = [];
 let Q = '';
 
 function kpis(s, users) {
   const synced = users.filter((u) => u.acct).length;
+  const withGd = users.filter((u) => u.acct && u.acct.gd && typeof u.acct.gd === 'object').length;
   const active7 = users.filter((u) => Date.now() - (u.seen || u.at || 0) < 7 * 86400e3).length;
   const box = (label, value, sub) => h('div', { class: 'kpi' }, h('small', {}, label), h('b', {}, value), h('span', {}, sub || ''));
   return h('div', { class: 'kpis' },
@@ -185,11 +218,14 @@ function kpis(s, users) {
     box('今日浏览', fmt(s.today), ''),
     box('总浏览', fmt(s.total), ''),
     box('有云端档案', String(synced), `占 ${pct(synced, users.length)}%`),
+    box('有游戏数据', String(withGd), '九个游戏的进度摘要'),
     box('BUG 反馈', String(s.bugs || 0), '历史累计'));
 }
 
 function row(u) {
   const a = u.acct || null;
+  const gd = (a && a.gd && typeof a.gd === 'object' && !Array.isArray(a.gd)) ? a.gd : null;
+  const il = gd && Array.isArray(gd.il) ? gd.il : null;
   return h('tr', {},
     h('td', {}, h('div', { class: 'namecell' },
       h('b', {}, u.name || '（未命名）'),
@@ -197,13 +233,16 @@ function row(u) {
     h('td', {}, ago(u.seen || u.at)),
     h('td', {}, when(u.at)),
     h('td', { class: 'num' }, a ? String(a.cr) : '—'),
-    h('td', { class: 'num' }, a ? String(a.played) : '—'),
-    h('td', { class: 'num' }, a && a.played ? pct(a.won, a.played) + '%' : '—'),
+    h('td', { class: 'num' }, a ? (a.played ? `${a.played} 局 · ${pct(a.won, a.played)}%` : '0 局') : '—'),
     h('td', { class: 'num' }, a ? String(a.cg) : '—'),
     h('td', { class: 'num' }, a ? String(a.mb) : '—'),
     h('td', { class: 'num' }, a ? String(a.bb) : '—'),
+    h('td', {}, il ? fmtDur(il[0]) : '—'),
+    h('td', { class: 'num' }, il ? String(il[1]) : '—'),
     h('td', {}, a ? when(a.at) : '—'),
-    h('td', {}, h('button', { class: 'btn sm gold', onclick: () => openGrant(u, load) }, '发放')));
+    h('td', {}, h('div', { class: 'rowacts' },
+      h('button', { class: 'btn sm ghost', onclick: () => openGames(u) }, '游戏'),
+      h('button', { class: 'btn sm gold', onclick: () => openGrant(u, load) }, '发放'))));
 }
 
 function table() {
@@ -215,8 +254,9 @@ function table() {
     h('table', {},
       h('thead', {}, h('tr', {},
         h('th', {}, '账号'), h('th', {}, '最近活跃'), h('th', {}, '首次登录'),
-        h('th', {}, '银芯'), h('th', {}, '推理局数'), h('th', {}, '胜率'),
-        h('th', {}, 'CG'), h('th', {}, '合成最高分'), h('th', {}, '鸟弟最深'),
+        h('th', {}, '银芯'), h('th', {}, '推理'), h('th', {}, 'CG'),
+        h('th', {}, '合成'), h('th', {}, '鸟弟'),
+        h('th', {}, '挂机时长'), h('th', {}, '角色'),
         h('th', {}, '同步时间'), h('th', {}, '操作'))),
       h('tbody', {}, list.slice(0, 300).map(row))));
 }
