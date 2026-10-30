@@ -869,8 +869,8 @@ function reportPanel() {
     ['反击峰值', dc.counter, 'counter', wan],
     ['力量峰值', dc.strength, 'strength', v => String(v ?? 0)],
     ['中毒峰值', dc.poison, 'poison', v => String(v ?? 0)],
-  ] : [];
-  const dmgCompBox = dc ? h('div', { class: 'dmgcomp' },
+  ].filter(([label, value, key]) => value != null && (key === 'keeper' || Number(value) > 0)) : [];
+  const dmgCompBox = measured.length ? h('div', { class: 'dmgcomp' },
     h('div', { class: 'dchead' }, '战报实测指标（非累计伤害构成）'),
     h('div', { class: 'dcgrid' }, measured.map(([label, value, key, format]) =>
       h('div', { class: 'dc', 'data-k': key }, h('small', {}, label), h('b', {}, format(value)))))) : null;
