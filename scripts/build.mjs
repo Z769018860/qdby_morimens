@@ -510,8 +510,10 @@ if ('serviceWorker' in navigator) {
 
 // PWA：清单与图标挂到每个页面的 <head> 里，这样从任何一页都能「安装到桌面」。
 // （Chrome 只要求当前页有 manifest；用户常常是从某个游戏页直接装的）
-const pwaHead = `<link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/assets/app/icon-192.png">
+// 路径一律写相对（不带开头的 /）：GitHub Pages 那份挂在 /qdby_morimens/ 子路径下，
+// 写成 /manifest.webmanifest 会去 labs 根目录找，每页白搭一个 404。
+const pwaHead = `<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="忘忘小游戏">`;
