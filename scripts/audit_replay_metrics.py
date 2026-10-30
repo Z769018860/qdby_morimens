@@ -26,7 +26,7 @@ BOSS = {
 
 def puzzles():
     seen = set()
-    for rel in ("data/puzzles.json", "data/puzzles-extra.json", "data/puzzles-more.json"):
+    rels = ["data/puzzles.json", "data/puzzles-extra.json", "data/puzzles-more.json"]\n    rels += [str(p.relative_to(ROOT)) for p in sorted((ROOT / "data/bank").glob("c[0-9][0-9][0-9].json"))]\n    for rel in rels:
         path = ROOT / rel
         if not path.exists() or not path.stat().st_size:
             continue
