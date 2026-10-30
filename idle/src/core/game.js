@@ -127,6 +127,23 @@ export function migrate(s, data) {
   const rel = Array.isArray(m.gear.relics) ? m.gear.relics.slice(0, RELIC_SLOTS) : [];
   while (rel.length < RELIC_SLOTS) rel.push(null);
   m.gear.relics = rel.map((uid) => (uid && m.gear.items[uid] ? uid : null));
+  // Repair legacy saves in which an automatic team change left one physical
+  // gear UID on both an active member and an inactive member.
+  const equipped = m.gear.equip && typeof m.gear.equip === 'object' && !Array.isArray(m.gear.equip)
+    ? m.gear.equip : {};
+  const seenGear = new Set();
+  const priority = [...m.team, ...Object.keys(equipped).filter(slug => !m.team.includes(slug))];
+  for (const slug of priority) {
+    const eq = equipped[slug];
+    if (!eq || typeof eq !== 'object') continue;
+    for (const kind of ['wheel', 'cov']) {
+      const uid = eq[kind], item = m.gear.items[uid];
+      const expectedKind = kind === 'wheel' ? 'wheel' : 'covenant';
+      if (!uid || !item || item.kind !== expectedKind || seenGear.has(uid)) delete eq[kind];
+      else seenGear.add(uid);
+    }
+  }
+  m.gear.equip = equipped;
   m.drip = { tickets: 0, cores: 0, ...(s.drip || {}) };
   m.drip.tickets = Math.max(0, Number(m.drip.tickets) || 0); m.drip.cores = Math.max(0, Number(m.drip.cores) || 0);
   // 钥令：老存档没有就按开局配置补上；M10 换成原作 63 件后，旧的自造 id 会被清掉
