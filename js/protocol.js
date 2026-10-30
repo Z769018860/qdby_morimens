@@ -8,6 +8,7 @@ import { init, draw, setBand, toLogic, hover, layout, screenPos } from './pf/ren
 import { build, startRun, sync, updateHUD, showEnd, bandRect, select, tapUnit, ui } from './pf/ui.js';
 import { cellAt, colOf, DEPLOY_COLS, MAX_LEVEL, LEVEL_COST, INV_SIZE } from './pf/defs.js';
 import { sfx } from './pf/audio.js';
+import { startGameCloud } from './gamecloud.js';
 
 const FIXED = 1 / 60;
 const cv = document.getElementById('cv');
@@ -220,3 +221,6 @@ if (/[?&]_test=1/.test(location.search)) {
 }
 
 boot();
+
+// 登录了本站账号就把这个游戏的存档同步到云端（js/gamecloud.js）
+startGameCloud('protocol');

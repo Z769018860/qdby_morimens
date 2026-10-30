@@ -560,3 +560,6 @@ setInterval(() => { if (st && !$('#game').hidden) save(true); }, 12000);
 document.addEventListener('visibilitychange', () => { if (st && document.hidden) save(true); });
 window.addEventListener('pagehide', () => { if (st && !$('#game').hidden) save(true); });
 window.addEventListener('beforeunload', () => { if (st && !$('#game').hidden) save(true); });
+
+// 登录了本站账号就把存档同步到云端（站点根目录的 js/gamecloud.js；这个页面不是打包的，用相对路径动态引入）
+import('../../js/gamecloud.js').then((m) => m.startGameCloud('deathreport')).catch(() => { /* 离线 / 独立部署时没有这个文件，忽略 */ });

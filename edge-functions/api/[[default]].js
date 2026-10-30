@@ -512,6 +512,58 @@ async function putAccount(request, env, kv, cors) {
   return reply({ ok: true, ver: nextVer, at }, 200, cors);
 }
 
+// ------------------------------------------------------------------ 游戏存档（整份上云）
+// 账号档案（/account）只放轻量的积分 / 解锁 / 最高分；挂机前夜这类「整份进度」是大对象，
+// 单独一个键 sv_{uid哈希}_{游戏}，带版本号做乐观锁：版本对不上返回 409 + 云端的摘要，
+// 由客户端决定用哪份（不会悄悄互相覆盖）。
+const SAVE_GAMES = new Set(['idle', 'deathreport', 'binding', 'survivors', 'protocol', 'wolf', 'merge', 'bird']);
+const SAVE_MAX = 480 * 1024;
+
+function saveGameOf(g) {
+  const game = str(g, 24);
+  if (!SAVE_GAMES.has(game)) throw new HttpError(400, 'bad_game');
+  return game;
+}
+
+// GET /save/:game[?meta=1] —— meta=1 只回摘要（版本 / 时间 / 进度），不带存档正文
+async function getSave(request, env, kv, game, url, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) throw new HttpError(401, 'need_login');
+  const row = await kvJson(kv, 'sv_' + (await uhash(me.uid)) + '_' + game);
+  if (!row) return reply({ ok: true, save: null }, 200, cors);
+  const out = { ver: Number(row.ver) || 1, at: Number(row.at) || 0, rev: Number(row.rev) || 0, meta: row.meta || null };
+  if (url.searchParams.get('meta') !== '1') out.data = row.data;
+  return reply({ ok: true, save: out }, 200, cors);
+}
+
+// PUT /save/:game { data, ver, rev, meta }
+async function putSave(request, env, kv, game, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) throw new HttpError(401, 'need_login');
+  const b = await readJson(request, SAVE_MAX + 8 * 1024);
+  const data = typeof b.data === 'string' ? b.data : JSON.stringify(b.data || null);
+  if (!data || data.length > SAVE_MAX) throw new HttpError(413, 'too_large');
+  let parsed = null;
+  try { parsed = JSON.parse(data); } catch { parsed = null; }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new HttpError(400, 'bad_save');
+
+  const key = 'sv_' + (await uhash(me.uid)) + '_' + game;
+  const cur = await kvJson(kv, key);
+  const curVer = Number(cur && cur.ver) || 0;
+  if (cur && Number(b.ver) !== curVer) {
+    return reply({ ok: false, error: 'conflict', ver: curVer, at: Number(cur.at) || 0, rev: Number(cur.rev) || 0, meta: cur.meta || null }, 409, cors);
+  }
+  const meta = b.meta && typeof b.meta === 'object' ? {
+    maxStage: Number(b.meta.maxStage) || 0, roster: Number(b.meta.roster) || 0, play: Number(b.meta.play) || 0,
+    gold: Number(b.meta.gold) || 0, lastSeen: Number(b.meta.lastSeen) || 0,
+    // 通用游戏存档（js/gamecloud.js）：内容哈希 + 键数，客户端用哈希判断「两边其实一样」
+    hash: str(b.meta.hash, 16).replace(/[^A-Za-z0-9]/g, ''), n: Number(b.meta.n) || 0,
+  } : null;
+  const ver = curVer + 1, at = Date.now();
+  await kv.put(key, JSON.stringify({ data, ver, at, rev: Number(b.rev) || 0, meta }));
+  return reply({ ok: true, ver, at }, 200, cors);
+}
+
 // ------------------------------------------------------------------ 工坊题库
 // 索引就一份文档：新题 unshift 到最前，读的时候再按赞数排（题量小，够用）
 async function readIndex(kv) {
@@ -1038,9 +1090,10 @@ export async function onRequest(context) {
         // v 是接口版本，不是代码版本：v2 只有点赞/档案/题库，
         // v3 才有 /stats /whoami /admin/*（管理页靠它判断要不要提示「重新部署」），
         // v4 修好 whoami 的验票地址（GET /api/token），管理页与云端档案才真正能用，
+        // v7 多了 /save/:game（整份游戏存档上云，挂机前夜用），
         // v6 多了 /home/reviews（评分详情：分布 + 短评），
         // v5 档案里多了 gd（九个游戏的进度摘要），管理页能看全部游戏 + 挂机时长/角色数
-        ok: Boolean(store), service: 'zjtt', v: 6, runtime: 'edgeone',
+        ok: Boolean(store), service: 'zjtt', v: 7, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
@@ -1069,6 +1122,13 @@ export async function onRequest(context) {
     if (path === '/grants/mine' && method === 'GET') return await getMyGrants(request, env, kv, cors);
     if (path === '/admin/overview' && method === 'GET') return await getAdminOverview(request, env, kv, cors);
     if (path === '/admin/grant' && method === 'POST') return await postAdminGrant(request, env, kv, cors);
+
+    const sv = path.match(/^\/save\/([^/]+)$/);
+    if (sv) {
+      const game = saveGameOf(decodeURIComponent(sv[1]));
+      if (method === 'GET') return await getSave(request, env, kv, game, url, cors);
+      if (method === 'PUT') return await putSave(request, env, kv, game, cors);
+    }
 
     if (path === '/account' && method === 'GET') return await getAccount(request, env, kv, cors);
     if (path === '/account' && method === 'PUT') return await putAccount(request, env, kv, cors);

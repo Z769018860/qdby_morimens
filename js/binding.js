@@ -12,6 +12,7 @@ import { ART } from './binding-art.js';
 import { Audio2 } from './binding-audio.js';
 import { WORLD, SCENES, DEATHS, LORE } from './binding-story.js';
 import { drawScene } from './binding-scene.js';
+import { startGameCloud } from './gamecloud.js';
 
 const T = TUNE.tile;
 const $ = (id) => document.getElementById(id);
@@ -2475,3 +2476,6 @@ async function boot() {
 }
 
 boot();
+
+// 登录了本站账号就把这个游戏的存档同步到云端（js/gamecloud.js）
+startGameCloud('binding');

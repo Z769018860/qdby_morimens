@@ -18,6 +18,7 @@
 // 账号同步（最高分）走的是空闲时的动态 import（js/merge-sync.js），不在首屏里，
 // 见下面「账号同步」一节。
 import { LEVELS, SC_ART } from './merge-art.js';
+import { startGameCloud } from './gamecloud.js';
 
 const MAX = LEVELS.length - 1;
 const TAU = Math.PI * 2;
@@ -1666,3 +1667,6 @@ setTimeout(() => {
   const t = document.getElementById('bootText');
   if (t && !G.started) t.textContent = '还在载入头像…（首次访问会慢一些）';
 }, 5000);
+
+// 登录了本站账号就把这个游戏的存档同步到云端（js/gamecloud.js）
+startGameCloud('merge');

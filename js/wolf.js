@@ -8,5 +8,9 @@
 //   auto.js   自动档：替守密人说话、投票、过夜
 //   art.js    62 张头像（构建时内联，整页只有这一个脚本请求）
 import { boot } from './wolf/ui.js';
+import { startGameCloud } from './gamecloud.js';
 
 boot();
+
+// 登录了本站账号就把这个游戏的存档同步到云端（js/gamecloud.js）
+startGameCloud('wolf');
