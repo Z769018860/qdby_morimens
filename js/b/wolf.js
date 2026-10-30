@@ -469,7 +469,7 @@ function weighted(arr, weightOf, rnd) {
 }
 
 const alive = (G) => G.players.filter((p) => p.alive);
-const byId = (G, id) => G.players.find((p) => p.id === id) || null;
+const byId = (G, id) => G.players.find((p) => String(p.id) === String(id)) || null;
 const nameOf = (G, id) => {
   const p = byId(G, id);
   return p ? p.name : '某人';
@@ -12696,6 +12696,8 @@ function evidence(G, ai, tid) {
   const bites = (G.acc || []).filter((a) => a.by === tid && a.day === G.day).length;
   if (bites >= 3) out.push({ k: 'scatter', w: 9, why: '今天到处咬人，咬了三个人' });
   if (G.day >= 2 && (t.talk || 0) === 0) out.push({ k: 'quiet', w: 7, why: '一整天一句话都没说' });
+  // 守密人（玩家）光点「沉默」也算没说话：连着安静的日子越多，越像在躲——不说话没法白捡一场胜利
+  if (t.isPlayer && (t.quietDays || 0) >= 1) out.push({ k: 'quietKeeper', w: 16 * Math.min(4, t.quietDays) + 6, why: `${t.quietDays >= 2 ? '连着好几天' : '一整天'}什么立场都没表过，只在旁边听` });
   if (G.day >= 2 && tc && POWER_ROLES.has(tc) && tc !== 'lamp') {
     const gave = (G.reports || []).some((r) => r.by === tid);
     if (!gave) out.push({ k: 'claimNoInfo', w: 12, why: `自称「${ROLES[tc].zh}」，却一条查验都没报过` });
@@ -12836,7 +12838,7 @@ function aiStatement(G, ai) {
   };
 
   const doAccuse = (t, whyText) => {
-    if (!t) return false;
+    if (!t || t.id === ai.id) return false;       // 绝不指认自己
     (G.acc || (G.acc = [])).push({ by: ai.id, to: t.id, day: G.day, round: G.round });
     push({
       kind: 'accuse', target: t.id, stance: 'accuse',
@@ -12847,7 +12849,7 @@ function aiStatement(G, ai) {
   };
 
   const doDefend = (t) => {
-    if (!t) return false;
+    if (!t || t.id === ai.id) return false;       // 替「别人」说话，不能替自己用这条（自辩走 defendSelf）
     (G.def || (G.def = [])).push({ by: ai.id, to: t.id, day: G.day });
     push({
       kind: 'defend', target: t.id, stance: 'defend',
@@ -12949,7 +12951,7 @@ function aiStatement(G, ai) {
     if (allyInTrouble && allyInTrouble.n >= 2 && rnd() < 0.3 + 0.55 * G.diff.ai.coord) {
       if (rnd() < 0.5) { doDefend(allyInTrouble.p); return acts; }
       const other = topSuspects(G, { id: -1, role: 'crew', char: {} }, 4)
-        .map((x) => x.p).find((p) => !isAlly(ai, p) && p.id !== allyInTrouble.p.id);
+        .map((x) => x.p).find((p) => p.id !== ai.id && !isAlly(ai, p) && p.id !== allyInTrouble.p.id);   // 不能把「自己」当成别人去指认
       if (other) { doAccuse(other, '一直在带节奏，先盯住'); return acts; }
     }
     // 平时：咬威胁最大的好人
@@ -12980,7 +12982,7 @@ function aiStatement(G, ai) {
     const accusers = (G.acc || []).filter((a) => a.to === ai.id && a.day === G.day)
       .map((a) => byId(G, a.by)).filter((p) => p && p.alive && !isAlly(ai, p));
     const back = accusers.sort((a, b) => suspicionOf(G, ai, b.id) - suspicionOf(G, ai, a.id))[0]
-      || topSuspects(G, ai, 1)[0].p;
+      || (topSuspects(G, ai, 1)[0] || {}).p;
     if (back) {
       const BACK_WHY = [
         '带头发难，却一条证据都拿不出来',
@@ -13431,6 +13433,12 @@ function fill(G) {
 // ---------------------------------------------------------------- 白天
 function beginDay(G) {
   G.day += 1;
+  // 沉默记账：玩家这一整天只点「沉默」、没有报牌 / 指认 / 辩护 / 号召，就算一个安静日；连着安静，桌上会越来越盯着他
+  if (G.day > 1 && G.player) {
+    const me = G.player;
+    me.quietDays = (me.said || 0) === (me.saidPrev || 0) ? (me.quietDays || 0) + 1 : 0;
+    me.saidPrev = me.said || 0;
+  }
   G.round = 0;
   G.phase = 'discuss';
   G.runoff = false;
@@ -14010,6 +14018,8 @@ function playerTalk(G, act) {
     me.talk = (me.talk || 0) + 1;
     push(G, { t: 'say', pid: 0, text: pickLine(S.idle, {}, true), stance: 'idle' });
   }
+  // 真正表过态才算「说话」：沉默（idle）不算
+  if (act.kind !== 'idle') me.said = (me.said || 0) + 1;
   G.phase = 'discuss';
   fill(G);
 }

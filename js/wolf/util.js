@@ -53,7 +53,7 @@ export function weighted(arr, weightOf, rnd) {
 }
 
 export const alive = (G) => G.players.filter((p) => p.alive);
-export const byId = (G, id) => G.players.find((p) => p.id === id) || null;
+export const byId = (G, id) => G.players.find((p) => String(p.id) === String(id)) || null;
 export const nameOf = (G, id) => {
   const p = byId(G, id);
   return p ? p.name : '某人';

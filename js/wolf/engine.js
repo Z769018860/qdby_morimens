@@ -115,6 +115,12 @@ function fill(G) {
 // ---------------------------------------------------------------- 白天
 function beginDay(G) {
   G.day += 1;
+  // 沉默记账：玩家这一整天只点「沉默」、没有报牌 / 指认 / 辩护 / 号召，就算一个安静日；连着安静，桌上会越来越盯着他
+  if (G.day > 1 && G.player) {
+    const me = G.player;
+    me.quietDays = (me.said || 0) === (me.saidPrev || 0) ? (me.quietDays || 0) + 1 : 0;
+    me.saidPrev = me.said || 0;
+  }
   G.round = 0;
   G.phase = 'discuss';
   G.runoff = false;
@@ -694,6 +700,8 @@ function playerTalk(G, act) {
     me.talk = (me.talk || 0) + 1;
     push(G, { t: 'say', pid: 0, text: pickLine(S.idle, {}, true), stance: 'idle' });
   }
+  // 真正表过态才算「说话」：沉默（idle）不算
+  if (act.kind !== 'idle') me.said = (me.said || 0) + 1;
   G.phase = 'discuss';
   fill(G);
 }
