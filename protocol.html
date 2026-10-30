@@ -499,8 +499,39 @@ button{font:inherit; color:inherit}
   .ucard.compact{min-height:50px}
 }
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
+
+/* Readable, scrollable inspection across desktop and touch screens. */
+[hidden]{display:none !important}
+.terrain-legend{display:flex;flex-wrap:wrap;gap:5px}.terrain-legend button{font-size:13px;margin:4px 0;padding:5px 8px}
+.shop-context{margin:0; font-size:12px; color:var(--gold)}
+.tr{cursor:help}.tr .trtip{display:none !important}
+.tr:focus-visible{outline:2px solid var(--accent)}
+.ucard{max-height:calc(100dvh - 120px - var(--botH,240px)); overflow:auto; overscroll-behavior:contain; scrollbar-width:thin; line-height:1.65}
+.ucard .eqline,.ucard .ult{overflow-wrap:anywhere}
+.ucard details{margin:8px 0}.ucard summary{cursor:pointer;color:var(--accent)}
+.detail-action{padding:7px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel2);color:var(--accent);cursor:pointer;margin:4px 0 10px}
+#protocolDetails{position:fixed;z-index:120; width:min(420px,calc(100vw - 24px)); max-height:calc(100dvh - 90px); overflow:auto; overscroll-behavior:contain; padding:20px; border:1px solid #6980a5; border-radius:14px; background:#111b2b; color:#eaf1fc; box-shadow:0 16px 60px #000b; font:15px/1.7 system-ui,sans-serif; overflow-wrap:anywhere}
+#protocolDetails h2{margin:0 28px 12px 0;font-size:20px}#protocolDetails h3{font-size:16px;color:#e3b341;margin:16px 0 6px}#protocolDetails h4{margin:12px 0 4px}#protocolDetails p{margin:6px 0 10px}
+.detail-close{position:sticky;top:0;float:right;width:32px;height:32px;border:1px solid var(--line);border-radius:8px;background:#24334b;color:#fff;cursor:pointer;font-size:20px}
+.detail-hint{font-size:12px;color:#a9bad1;border-top:1px solid #34445d;padding-top:10px}.active-effect{color:#8ee6a0}
+.detail-list{display:flex;flex-wrap:wrap;gap:8px}.detail-list button{background:#24334b;border:1px solid #506381;border-radius:7px;padding:8px;color:#eaf1fc;cursor:pointer;font-size:14px}
+@media(min-width:1000px){
+ #side{width:232px;top:72px;max-height:calc(100% - 80px - var(--botH,240px))}
+ #side .sd-next li{font-size:14px;line-height:1.65} #side .sp-name{font-size:14px} #side .sp-hd{font-size:14px}
+ #side .tr{height:auto;min-height:30px;font-size:14px;padding:4px 8px}.tgrp h5{font-size:13px}
+ .sp-hd,.sp-name{font-size:14px}.sp-hd b{font-size:22px}.sp.mini em{font-size:13px}
+ .ucard{top:72px;width:320px;font-size:15px;padding:16px}.ucard h4{font-size:19px;flex-wrap:wrap;padding-right:12px}
+ .ucard .ch p,.ucard .eqline,.ucard .ult,.ucard .ult b{font-size:14px;line-height:1.7}
+ .ucard .eq{height:auto;min-height:48px}.ucard .eq span{font-size:14px;white-space:normal}.ucard .eq em{font-size:12px}
+ .ucard .sell{height:38px;font-size:14px}.ucard .nums{gap:6px 10px}.ucard .x{width:28px;height:28px;font-size:18px}
+ .scard{min-height:120px;height:auto;padding:8px 8px 25px;gap:5px}.scard b{font-size:15px;white-space:normal;overflow:visible}.scard .eff{display:block;-webkit-line-clamp:unset;font-size:13px;max-height:none;white-space:normal;overflow:visible;line-height:1.5}
+ .scard .price{font-size:15px;height:22px}.tg{height:20px;padding:2px 5px}.tg u{font-size:12px}.tab{height:32px;font-size:14px}.slim{height:auto;min-height:36px;flex-wrap:wrap}
+ .bslot{height:48px}.acts button{font-size:15px;min-height:38px}.islot{width:30px;height:30px;font-size:13px}.hud-sub{font-size:14px}
+}
+@media(min-width:1280px){#side{width:272px}.ucard{width:340px;right:14px}}
+@media(max-width:999px){.slim{height:auto;min-height:26px;flex-wrap:wrap}.ucard{max-height:calc(100dvh - 110px - var(--botH,220px))}.shop-context{font-size:10px}}
 </style>
-<meta name="build" content="1486786e7f">
+<meta name="build" content="0b2581c8eb">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -549,6 +580,10 @@ button{font:inherit; color:inherit}
       <div class="sp-hd"><span>羁绊</span></div>
       <div class="sd-traits" id="sdTraits"></div>
     </div>
+    <div class="sp"><div class="sp-hd">地块 · 点击查看效果</div><div class="terrain-legend">
+      <button class="detail-action" data-detail="terrain:high">▲ 高台</button><button class="detail-action" data-detail="terrain:altar">✦ 祭坛</button>
+      <button class="detail-action" data-detail="terrain:rift">✧ 裂隙</button><button class="detail-action" data-detail="terrain:rock">▮ 岩壁</button>
+    </div></div>
   </aside>
 
   <div id="banner"><b id="bannerMain"></b><span id="bannerSub"></span></div>
@@ -559,15 +594,18 @@ button{font:inherit; color:inherit}
       <div class="bench" id="bench"></div>
     </div>
     <div class="zone shopzone">
-      <div class="purse" id="purse"><span>◈</span><b id="sGold2">12</b><i id="purseInt">金</i></div>
+      <div class="purse" id="purse" title="每存 5 金币，清波利息 +1；最多 +5"><span>◈</span><b id="sGold2">12</b><i id="purseInt">金</i></div>
       <div class="shopbody">
         <div class="slim eqbar" id="eqbar">
           <button class="tab on" data-tab="unit">唤醒体</button>
           <button class="tab" data-tab="item">命轮·造物</button>
+          <button class="tab" id="btnBonusShop" hidden>额外商店</button>
+          <button class="tab" id="btnFieldGuide">地块说明</button>
+          <button class="tab" id="btnCodex">图鉴详情</button>
           <button class="tab" id="btnEqClear">取消装备</button>
           <div class="inv" id="inv"></div>
         </div>
-        <div class="shop" id="shop"></div>
+        <p id="shopContext" class="shop-context"></p><div class="shop" id="shop"></div>
       </div>
     </div>
     <div class="acts">
@@ -609,11 +647,11 @@ button{font:inherit; color:inherit}
         <li><b>射程</b>：选中一个唤醒体，棋盘上会画出它的攻击范围；人在备战席时，把鼠标移到格子上就能预览「放在这里打得到哪」。</li>
         <li><b>来敌</b>：备战期棋盘右侧的紫格标出下一波的入口，虚线是它们要走的路线，格上画着头像和数量（左侧面板里也列了一遍「哪条通道、什么怪、几只」）。影怪一格一格走，<b>不会</b>直线穿过棋盘。</li>
         <li><b>装备</b>：点「命轮·造物」页签买，买进装备栏 → 点装备栏里的一件 → 点棋盘上的立绘（或备战席头像）装上；点信息卡上的装备格可以卸下。一个唤醒体各带一件命轮、一件造物。</li>
-        <li><b>合成奖励</b>：合成 2 星给 +1 金与一件随机命轮，3 星给 +2 金、一件随机造物并白刷商店。升级人口返 1 金、商店与命轮商店都自动刷新。</li>
+        <li><b>合成奖励</b>：合成 2 星给 +1 金与一件随机命轮，3 星给 +2 金、一件随机造物和一个独立额外商店；原商店保留，可随时返回。升级人口返 1 金，不刷新任何商店。</li>
         <li><b>卖出</b>：选中单位后按 E，或点信息卡上的「卖出」。1 星原价退，2 星 3 倍，3 星 9 倍，身上的装备会退回装备栏。</li>
         <li><b>人口</b>：上场人数上限就是等级，升级固定 5 金，最高 8 级。等级越高，商店里高费唤醒体越常见。</li>
         <li><b>狂气</b>：每条紫色狂气条攻击和挨打都会涨，满了自动放大招；站在祭坛上攒得快，带活性注射器更快。六种大招各有各的样子和声音 —— <b>落雷</b>从天砸一道光柱、<b>冲击波</b>炸开三层环、<b>护罩</b>扣一层六边形玻璃罩、<b>加速</b>甩出横向速度线与箭头、<b>眩晕</b>扩散电波与星芒、<b>治疗</b>升起一串光点。</li>
-        <li><b>经济</b>：每清一波给 4 金，手里每存 10 金额外给 1 金（最多 5 金）。存钱升人口是这套玩法的核心。</li>
+        <li><b>经济</b>：每清一波给 4 金，手里每存 5 金额外给 1 金（最多 5 金）。存钱升人口是这套玩法的核心。</li>
         <li><b>顶栏按钮</b>：<b>1×/2×</b> 切倍速（记在本机，下一局还是这个速度，判定不变、只是每帧多推几步）；<b>♪</b> 开 / 关声音（音效与 BGM 都在浏览器里现场合成，不额外下载音频文件）。</li>
         <li><b>声音</b>：38 种音效 + 7 段 BGM，全在浏览器里合成。<b>BGM 跟着进度换</b>——备战慢 62bpm、前六波 96bpm、第七波起加密到 112bpm（多一层十六分琶音）、首领波降到 84bpm 走三全音、末波换成最高张力的一首、结算按胜负分开。音效里比较值得听的有：利息升一档（金币池下面那行小字跳档时）、狂气满放大招（先一声蓄力铃，再上这个流派自己的音色）、护盾吃掉伤害、核心掉到 5 以下的两声闷响、首领登场那记低音、升 2/3 星的琶音、结算时八项数字逐条落下的刻度声。</li>
         <li><b>快捷键</b>：空格开战 / R 刷新 / F 升级 / E 卖出 / Q 放回备战席 / Esc 取消选中。</li>
@@ -668,7 +706,7 @@ button{font:inherit; color:inherit}
   });
 })();
 </script>
-<script type="module" src="js/b/protocol.js?v=1486786e7f"></script>
+<script type="module" src="js/b/protocol.js?v=0b2581c8eb"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。

@@ -11,7 +11,7 @@ import { UNITS, ART } from './gen.js';
 import {
   COLS, ROWS, CELLS, HEX_W, BOARD_W, SPAWN_X, CORE_X, DEPLOY_COLS,
   cellXY, colOf, rowOf, cellOf, NEIGHBORS, STARS, MAX_STAR, MAX_LEVEL, LEVEL_COST, REROLL_COST,
-  WAVE_GOLD, INTEREST_CAP, BENCH_SIZE, START_GOLD, START_LEVEL, shopOdds,
+  WAVE_GOLD, interestOf, BENCH_SIZE, START_GOLD, START_LEVEL, shopOdds,
   TRAITS, TRAIT_BY_KEY, FAC_EFF, GMK_EFF, ENEMY, WAVES, waveHpMul, waveAtkMul, HEAL_PER_WAVE, creditsAt,
   TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, ITEM_SLOTS, ITEM_REROLL, INV_SIZE,
   MERGE_REWARD, LEVEL_REWARD,
@@ -46,6 +46,7 @@ export const G = {
   board: new Map(),       // cell → unit
   bench: [],              // BENCH_SIZE 长，元素是 unit 或 null
   shop: [],               // 5 个 { id } 或 null
+  bonusShops: [],          // 合成奖励货架，与原商店独立
   itemShop: [],           // ITEM_SLOTS 个 { kind, id } 或 null
   inv: [],                // 装备栏：{ kind:'wheel'|'creation', id }（最多 INV_SIZE）
   terrain: {},            // cell → 'high'|'altar'|'rift'|'rock'
@@ -94,6 +95,7 @@ export function reset(s) {
   G.paths = {};
   G.plan = planWave(1);
   G.shop = [];
+  G.bonusShops = [];
   rollShop(true);
   rollItemShop(true);
   recount();
@@ -296,21 +298,23 @@ export function rollShop(free) {
 }
 
 // 买下商店第 i 格：先上场（没位置就进备战席），再检查三合一。
-export function buy(i) {
-  const slot = G.shop[i];
+export function buy(i, bonus = false) {
+  const shelf = bonus ? G.bonusShops[0] : G.shop;
+  if (!shelf) return false;
+  const slot = shelf[i];
   if (!slot || G.phase === 'fight' || G.phase === 'over' || G.phase === 'win') return false;
   const def = UNITS_BY_ID[slot.id];
   if (G.gold < def.cost) { G.msg = '金币不够'; sfx.play('deny'); return false; }
   if (G.units.length >= BENCH_SIZE + CELLS) { G.msg = '没有空位了'; return false; }
   G.gold -= def.cost;
-  G.shop[i] = null;
+  shelf[i] = null;
   const u = makeUnit(slot.id);
   const cell = freeCell(def.role);
   if (deployed() < G.level && cell >= 0) {
     u.cell = cell; u.bench = -1; G.board.set(cell, u);
   } else {
     const b = G.bench.indexOf(null);
-    if (b < 0) { G.msg = '备战席满了'; G.gold += def.cost; G.shop[i] = slot; return false; }
+    if (b < 0) { G.msg = '备战席满了'; G.gold += def.cost; shelf[i] = slot; return false; }
     u.cell = -1; u.bench = b; G.bench[b] = u;
   }
   G.units.push(u);
@@ -389,7 +393,10 @@ function mergeAll(id, star) {
   if (rw.gold) { G.gold += rw.gold; extra += ` · +${rw.gold} 金`; }
   if (rw.wheel) extra += ' · ' + grantItem('wheel');
   if (rw.creation) extra += ' · ' + grantItem('creation');
-  if (keep.star >= MAX_STAR) { rollShop(true); extra += ' · 商店已刷新'; }
+  if (keep.star >= MAX_STAR) {
+    G.bonusShops.push(Array.from({ length: 5 }, () => ({ id: rollOne() })));
+    extra += ' · 获得一个额外商店（原商店保留）';
+  }
   G.msg = `${keep.def.n} 升到 ${keep.star} 星${extra}`;
   // 界面层靠这个弹横幅：合成奖励只写在底部那行小字里是看不见的
   G.mergeSeq = (G.mergeSeq || 0) + 1;
@@ -600,11 +607,9 @@ export function levelUp() {
   G.gold -= LEVEL_COST;
   G.level++;
   sfx.play('level');
-  // 升级奖励：返 1 金 + 商店与装备商店白刷一次（不是白送人，但等于省 3 金刷新费）
+  // 升级只返金币，不改动任何货架。
   G.gold += LEVEL_REWARD.gold;
-  rollShop(true);
-  rollItemShop(true);
-  G.msg = `人口 ${G.level} · 商店已刷新`;
+  G.msg = `人口 ${G.level} · 返 ${LEVEL_REWARD.gold} 金 · 商店保留`;
   return true;
 }
 
@@ -1221,7 +1226,7 @@ function tickFx(dt) {
 }
 
 function clearWave() {
-  G.gold += WAVE_GOLD + Math.min(INTEREST_CAP, Math.floor(G.gold / 10));
+  G.gold += WAVE_GOLD + interestOf(G.gold);
   for (const u of G.units) {
     u.hp = Math.min(u.hpMax, u.hp + u.hpMax * HEAL_PER_WAVE);
     // 收招：下一波之前所有人回到待机，别顶着打击帧站一整段备战期

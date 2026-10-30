@@ -81,6 +81,8 @@ export const LEVEL_COST = 5;                // 升一级固定 5 金
 export const REROLL_COST = 1;
 export const WAVE_GOLD = 4;                 // 每波清完的基础收入
 export const INTEREST_CAP = 5;
+export const INTEREST_STEP = 5;
+export const interestOf = gold => Math.min(INTEREST_CAP, Math.floor(Math.max(0, gold) / INTEREST_STEP));
 export const BENCH_SIZE = 8;
 export const MAX_STAR = 3;
 

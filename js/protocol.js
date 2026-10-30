@@ -5,7 +5,7 @@
 
 import { G, update, beginWave, place, sell, reset, summary, UNITS_BY_ID, buy, buyItem, equip, levelUp, rollShop, deployed, freeCell, TUNE } from './pf/engine.js';
 import { init, draw, setBand, toLogic, hover, layout, screenPos } from './pf/render.js';
-import { build, startRun, sync, updateHUD, showEnd, bandRect, select, tapUnit, ui } from './pf/ui.js';
+import { build, startRun, sync, updateHUD, showEnd, bandRect, select, tapUnit, ui, inspectCell, hideInspection } from './pf/ui.js';
 import { cellAt, colOf, DEPLOY_COLS, MAX_LEVEL, LEVEL_COST, INV_SIZE } from './pf/defs.js';
 import { sfx } from './pf/audio.js';
 import { startGameCloud } from './gamecloud.js';
@@ -27,9 +27,10 @@ function cellUnder(clientX, clientY) {
 
 cv.addEventListener('pointermove', (e) => {
   hover.cell = cellUnder(e.clientX, e.clientY);
+  if (G.phase !== 'idle') inspectCell(hover.cell, e.clientX, e.clientY);
 });
 
-cv.addEventListener('pointerleave', () => { hover.cell = -1; });
+cv.addEventListener('pointerleave', () => { hover.cell = -1; hideInspection(true); });
 
 cv.addEventListener('pointerdown', (e) => {
   const cell = cellUnder(e.clientX, e.clientY);
@@ -53,6 +54,7 @@ cv.addEventListener('pointerdown', (e) => {
   }
   // 战斗中也能点开看属性，只是不能挪
   if (u) { select(u.uid); return; }
+  if (cell >= 0) inspectCell(cell, e.clientX, e.clientY, true);
   if (ui.sel != null) { ui.sel = null; G.sel = null; sync(); }
 });
 
