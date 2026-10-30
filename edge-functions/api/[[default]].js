@@ -534,6 +534,19 @@ function saveGameOf(g) {
   return game;
 }
 
+// 从挂机前夜存档正文里取主线出战阵容（slug / 等级 / 叠位）。老客户端传的摘要里没有 team，
+// 榜单就靠这个从正文里补，不用等玩家升级客户端。
+function teamOfIdle(doc) {
+  const d = doc && typeof doc === 'object' ? doc : null;
+  if (!d || !d.roster || typeof d.roster !== 'object') return [];
+  const list = Array.isArray(d.team) && d.team.length ? d.team : Object.keys(d.roster).slice(0, 5);
+  return list.slice(0, 5).map((s) => {
+    const slug = str(s, 40).replace(/[^A-Za-z0-9_-]/g, '');
+    const r = d.roster[s];
+    return slug && r && typeof r === 'object' ? { s: slug, lv: Math.min(999, Number(r.lv) || 1), st: Math.min(20, Number(r.star) || 0) } : null;
+  }).filter(Boolean);
+}
+
 // GET /save/:game[?meta=1] —— meta=1 只回摘要（版本 / 时间 / 进度），不带存档正文
 async function getSave(request, env, kv, game, url, cors) {
   const me = await whoami(request, env, kv);
@@ -572,6 +585,7 @@ async function putSave(request, env, kv, game, cors) {
       s: str(t && t.s, 40).replace(/[^A-Za-z0-9_-]/g, ''), lv: Math.min(999, Number(t && t.lv) || 0), st: Math.min(20, Number(t && t.st) || 0),
     })).filter((t) => t.s),
   } : null;
+  if (game === 'idle' && meta && !meta.team.length) meta.team = teamOfIdle(parsed);
   const ver = curVer + 1, at = Date.now();
   await kv.put(key, JSON.stringify({ data, ver, at, rev: Number(b.rev) || 0, meta }));
   return reply({ ok: true, ver, at }, 200, cors);
@@ -1135,7 +1149,14 @@ async function buildBoard(kv) {
     const uh = await uhash(u.uid);
     let gd = null, il = null;
     try { const a = await softly(() => kvJson(kv, 'acct_' + uh, true), null); gd = a && a.doc && a.doc.gd && typeof a.doc.gd === 'object' ? a.doc.gd : null; } catch { gd = null; }
-    try { const sv = await softly(() => kvJson(kv, 'sv_' + uh + '_idle', true), null); il = sv && sv.meta ? sv.meta : null; } catch { il = null; }
+    try {
+      const sv = await softly(() => kvJson(kv, 'sv_' + uh + '_idle', true), null);
+      il = sv && sv.meta ? { ...sv.meta } : null;
+      // 老客户端上传的摘要没有 team：从存档正文里补
+      if (sv && il && !(Array.isArray(il.team) && il.team.length) && typeof sv.data === 'string') {
+        try { il.team = teamOfIdle(JSON.parse(sv.data)); } catch { /* 正文坏了就没有阵容 */ }
+      }
+    } catch { il = null; }
     return { name: String(u.name).slice(0, 24), gd, il };
   });
   const users = rows.filter(Boolean);

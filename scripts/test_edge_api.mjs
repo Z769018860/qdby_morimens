@@ -633,7 +633,10 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   await call('/account', { method: 'PUT', headers: U1, body: { doc: { cr: 1, gd: { dr: [20, 15, 9], mg: [1234], bd: [30, 800], il: [100, 6, 40, 41, 0] } }, ver: 0 } });
   await call('/account', { method: 'PUT', headers: U2, body: { doc: { cr: 1, gd: { dr: [30, 15, 12], mg: [900] } }, ver: 0 } });
   await call('/save/idle', { method: 'PUT', headers: U1, body: { data: JSON.stringify({ roster: {} }), ver: 0, meta: { maxStage: 55, roster: 6, team: [{ s: 'ogier', lv: 60, st: 2 }, { s: 'x y', lv: 1 }] } } });
+  // 老客户端：摘要里没有 team，只有正文——榜单要从正文补出阵容
+  await call('/save/idle', { method: 'PUT', headers: U2, body: { data: JSON.stringify({ roster: { aa: { lv: 7, star: 1 }, bb: { lv: 3 }, cc: { lv: 1 } }, team: ['bb', 'aa', 'zz'] }), ver: 0, meta: { maxStage: 20, roster: 3 } } });
   const bd = await call('/board');
+  eq('老客户端的挂机榜从正文补阵容（顺序按 team，缺角色的跳过）', bd.json.games.il.items.find((x) => x.name === '乙').team, [{ s: 'bb', lv: 3, st: 0 }, { s: 'aa', lv: 7, st: 1 }]);
   check('榜单可公开读', bd.json.ok && bd.json.games, bd.json);
   eq('合成榜按分数降序', bd.json.games.mg.items.map((x) => [x.name, x.score]), [['甲', 1234], ['乙', 900]]);
   eq('鸟弟榜带最深层数', bd.json.games.bd.items[0].sub, '最深 30 层');
