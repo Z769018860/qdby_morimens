@@ -472,7 +472,12 @@ const relicDesc = (id) => {
   return e ? (e.desc || []).map(x => (x && x.t) || '').join(' ') : '';
 };
 const relicRarity = (id) => ((creationOf(id) || {}).rarity || '');
-const relicList = () => puzzle.relics || [];
+// 锈蚀钥匙（13829）是主线开门用的道具，不属于配装造物：不进题面、不进造物栏、也不计入件数。
+// 老存档 / 外部导入的题里可能还留着，所以取列表时就地过滤一遍。
+const NON_RELIC_IDS = new Set(['13829']);
+const isNonRelic = (id) => NON_RELIC_IDS.has(String(id));
+const relOf = (p) => (p.relics || []).filter(id => !isNonRelic(id));
+const relicList = () => relOf(puzzle);
 const innateIds = () => (Array.isArray(puzzle.inn) && puzzle.inn.length
   ? puzzle.inn.map(String)
   : relicList().filter(id => (creationOf(id) || {}).kind === INNATE_KIND));
@@ -904,14 +909,14 @@ function reportPanel() {
         // 主线战报没有分数 / 首领回合 / 血量快照，只报回放里真实存在的数字
         stat(t('rounds'), p.rounds), stat(t('cards'), p.cards, t('energy', { n: p.energy })),
         stat(t('keysUsed'), p.keyUses != null ? `${p.keyUses}` : '—'), stat(t('deathResist'), p.deathResist),
-        stat(t('relicCount'), p.relics.length,
-          level >= 4 ? t('relicInnate', { n: p.relics.filter(isInnateRelic).length }) : ''),
+        stat(t('relicCount'), relOf(p).length,
+          level >= 4 ? t('relicInnate', { n: relOf(p).filter(isInnateRelic).length }) : ''),
       ] : [
         stat(t('rounds'), p.rounds, t('bossRounds', { n: p.bossRounds })), stat(t('cards'), p.cards, t('energy', { n: p.energy })),
         stat(t('maxBout'), wan(p.maxBout)), stat(t('deathResist'), p.deathResist),
         stat(t('leftHp'), `${p.left}/${p.hp}`), stat(t('keyDmg'), wan(p.playerDmg)),
-        stat(t('score'), p.score), stat(t('relicCount'), p.relics.length,
-          level >= 4 ? t('relicInnate', { n: p.relics.filter(isInnateRelic).length }) : ''),
+        stat(t('score'), p.score), stat(t('relicCount'), relOf(p).length,
+          level >= 4 ? t('relicInnate', { n: relOf(p).filter(isInnateRelic).length }) : ''),
       ]),
     dmgCompBox,
     p.diffWhy ? h('div', { class: 'diffwhy' },
@@ -1123,7 +1128,7 @@ function answerPanel() {
     teamBlock(ans),
     h('div', { class: 'ans-row' }, h('b', {}, t('keyLabel')), mk('key', puzzle.key)),
     h('div', { class: 'ans-row wrap' }, h('b', {}, t('relicLabel')),
-      puzzle.relics.map(r => mk('creation', r, isInnateRelic(r) ? ' innate' : ''))),
+      relicList().map(r => mk('creation', r, isInnateRelic(r) ? ' innate' : ''))),
     replayBox(puzzle),
     h('div', { class: 'actions' },
       h('button', { class: 'btn', onclick: share }, t('copy')),
@@ -1291,8 +1296,9 @@ function openPicker(kind, apply, slot) {
     else more.textContent = `${t('loadMore')}（${shown}/${items.length}）`;
   };
   const draw = () => {
-    // 固有造物已经在题面给出去了，选择器里不再列出来
-    items = all.filter(e => (!multi || !isInnateRelic(e.id))
+    // 固有造物已经在题面给出去了，选择器里不再列出来；
+    // 锈蚀钥匙这种开门道具也不是造物，一并挡掉
+    items = all.filter(e => (!multi || (!isInnateRelic(e.id) && !isNonRelic(e.id)))
       && (!q || ((e.zh || '') + (e.en || '')).toLowerCase().includes(q)) && (!f1 || e[f1key] === f1) && (!f2 || e[f2key] === f2) && (!fk || (e.kw || []).includes(fk)));
     shown = 0;
     grid.replaceChildren();
