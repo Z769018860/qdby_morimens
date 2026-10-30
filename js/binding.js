@@ -105,6 +105,30 @@ const cv = $('cv');
 const ctx = cv.getContext('2d');
 const stage = $('stage');
 
+// A whole floor may contain dozens of rooms. Keep only the two most recently
+// rendered floor canvases; room game state stays intact and backgrounds can re-bake.
+const bakedRooms = [];
+function releaseBaked(room) {
+  if (!room?.baked) return;
+  const old = room.baked;
+  room.baked = null;
+  // Clearing dimensions releases the backing pixel allocation rather than only
+  // dropping the JS reference (important for GPU canvas resource retention).
+  old.width = 0; old.height = 0;
+}
+function cacheRoomBackdrop(rm, theme, W, H) {
+  const oldIdx = bakedRooms.indexOf(rm);
+  if (oldIdx >= 0) bakedRooms.splice(oldIdx, 1);
+  releaseBaked(rm);
+  rm.baked = bakeRoom(rm, theme, W, H);
+  bakedRooms.push(rm);
+  while (bakedRooms.length > 2) releaseBaked(bakedRooms.shift());
+}
+function clearBakedRooms() {
+  for (const rm of bakedRooms) releaseBaked(rm);
+  bakedRooms.length = 0;
+}
+
 function fit() {
   const r = stage.getBoundingClientRect();
   const dpr = Math.min(matchMedia('(pointer:coarse)').matches ? 1.5 : 2, window.devicePixelRatio || 1);
@@ -117,7 +141,7 @@ function fit() {
   G.scale = Math.min(r.width / W, r.height / H) * 0.98;
   G.ox = (r.width - W * G.scale) / 2;
   G.oy = (r.height - H * G.scale) / 2;
-  if (room()) room().baked = bakeRoom(room(), FLOORS[G.run.floor].theme, W, H);
+  if (room()) cacheRoomBackdrop(room(), FLOORS[G.run.floor].theme, W, H);
 }
 
 const toWorld = (clientX, clientY) => {
@@ -1210,7 +1234,7 @@ function goRoom(next, fromDir) {
     next.grace = DOOR_GRACE;
     p.invuln = Math.max(p.invuln, DOOR_GRACE);
   }
-  next.baked = bakeRoom(next, FLOORS[r.floor].theme, W, H);
+  cacheRoomBackdrop(next, FLOORS[r.floor].theme, W, H);
   G.fx.length = 0;
   renderMinimap();
   Audio2.door();
@@ -1248,6 +1272,7 @@ function goNext() {
 }
 
 function nextFloor() {
+  clearBakedRooms();
   const r = G.run;
   r.floor += 1;
   if (r.floor >= floorCount()) { finishRun(true); return; }
