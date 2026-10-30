@@ -1002,7 +1002,7 @@ function buildDetails() {
     if (e.target.closest('[data-detail]')) detailTimer = setTimeout(hideInspection, 250);
   });
   document.addEventListener('contextmenu', e => {
-    if (detailPanel.contains(e.target)) { e.preventDefault(); detailPinned = true; return; }
+    if (detailPanel.contains(e.target)) { e.preventDefault(); detailPinned = true; detailPanel.classList.remove('is-preview'); detailPanel.classList.add('is-pinned'); return; }
     const el = e.target.closest('[data-detail]'); if (!el) return;
     e.preventDefault(); inspectElement(el, true);
   });
