@@ -289,7 +289,7 @@ export class BattleView {
         break;
       }
       case 'st': { const u = U(e.who); if (u) this.setStatus(u, e.list); break; }
-      case 'status': { const u = U(e.who); if (u && !quiet) { this.float(u, STATUS[e.s]?.zh || '', u.el.classList.contains('foe') ? 'debuff' : 'buff'); sound.play('status'); this.fx.aura(u.el, u.el.classList.contains('foe') ? COLORS.debuff : COLORS.buff, !u.el.classList.contains('foe')); } break; }
+      case 'status': { const u = U(e.who); if (u && !quiet) { this.float(u, STATUS[e.s]?.zh || ({ cleanse: '净化', stun: '眩晕', delay: '蓄力' })[e.s] || '', u.el.classList.contains('foe') ? 'debuff' : 'buff'); sound.play('status'); this.fx.aura(u.el, u.el.classList.contains('foe') ? COLORS.debuff : COLORS.buff, !u.el.classList.contains('foe')); } break; }
       case 'dmg': case 'dot': case 'counter': {
         const u = U(e.who); if (!u) break;
         this.setBars(u, e);
@@ -311,6 +311,7 @@ export class BattleView {
       case 'shield': { const u = U(e.who); if (!u) break; u.el.querySelector('.sh').style.width = `${Math.min(100, (e.shield / u.max) * 100)}%`; if (!quiet) { this.float(u, '盾 ' + fmt(e.amt), 'sh'); sound.play('shield'); this.fx.shield(u.el); } break; }
       case 'buff': if (!quiet) { sound.play(e.v > 0 ? 'buff' : 'debuff'); const u = U(e.who); if (u) this.fx.aura(u.el, e.v > 0 ? COLORS.buff : COLORS.debuff, e.v > 0); this.float(u, `${STAT_ZH[e.stat] || ''}${e.v > 0 ? '↑' : '↓'}`, e.v > 0 ? 'buff' : 'debuff'); } break;
       case 'gauge': { const u = U(e.who); if (!u || e.ali == null) break; const a = u.el.querySelector('.ali i'), k = u.el.querySelector('.key i'); if (a) a.style.width = e.ali + '%'; if (k) k.style.width = e.key + '%'; break; }
+      case 'revive': { const u = U(e.who); if (!u) break; u.el.classList.remove('dead'); this.setBars(u, { hp: e.hp }); if (!quiet) { sound.play('heal'); this.fx.heal(u.el); this.float(u, '复苏', 'heal'); this.log(`　${nm(e.who)} 复苏了`, 'hl'); } break; }
       case 'die': { const u = U(e.who); if (u) { u.el.classList.add('dead'); this.setStatus(u, []); const ii = u.el.querySelector('.u-int'); if (ii) ii.innerHTML = ''; } if (!quiet) { sound.play('die', { foe: u?.el.classList.contains('foe') }); if (u) this.fx.death(u.el, this.colorOf(u)); this.log(`　${nm(e.who)} 倒下了`, 'dead'); } break; }
       case 'end': break;
     }

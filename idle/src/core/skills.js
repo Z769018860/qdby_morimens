@@ -37,6 +37,26 @@ export function describeEffect(e) {
     case 'gauge': return `${TO_ZH[e.to]}${e.k === 'aliemus' ? '共鸣能量' : '超共鸣能量'}+${e.v}`;
     case 'status': return `${TO_ZH[e.to]}${e.s === 'poison' ? `施加 ${e.n} 层` : e.s === 'counter' ? `获得 ${e.n} 层` : e.s === 'fortress' ? `获得 ${e.n}% 减伤的` : e.s === 'barrier' ? `获得 ${e.n} 层` : '陷入'}${STATUS[e.s].zh}${e.dur < 90 ? `，持续 ${e.dur} 回合` : ''}`;
     case 'lifesteal': return `吸血 ${e.v}%`;
+    case 'execute': return `对${TO_ZH[e.to || 'foe']}造成 ${pct(e.m)}攻击的伤害，目标生命低于 ${Math.round((e.thr ?? 0.3) * 100)}% 时伤害翻倍`;
+    case 'pctHp': return `扣除${TO_ZH[e.to || 'foe']}最大生命的 ${e.pct}%（首领封顶为自身攻击 ×8）`;
+    case 'cleanse': return `净化${TO_ZH[e.to || 'allies']}身上的负面增减益、流血、中毒、虚弱、脆弱与封印`;
+    case 'dispel': return `驱散${TO_ZH[e.to || 'foes']}的增益、护垒、屏障与狂暴`;
+    case 'revive': return `复苏一名倒下的队友，恢复 ${e.pct}% 生命（每场仅一次）`;
+    case 'taunt': return `嘲讽：敌人的单体攻击只会打向${TO_ZH[e.to || 'self']}，持续 ${e.dur} 回合`;
+    case 'reflect': return `${TO_ZH[e.to || 'self']}反射所受伤害的 ${e.pct}%，持续 ${e.dur} 回合`;
+    case 'stun': return `使${TO_ZH[e.to || 'foe']}眩晕，跳过其接下来 ${e.n} 次行动（首领免疫）`;
+    case 'chain': return `连锁 ${e.hits} 跳随机敌人：首跳 ${pct(e.m)}攻击，每跳递增 ${pct(e.grow ?? 0.2)}`;
+    case 'splash': return `对单体敌人造成 ${pct(e.m)}攻击的伤害，其余敌人受其 ${pct(e.share ?? 0.5)} 的溅射`;
+    case 'echo': return `回响：接下来 ${e.n} 次普通行动的效果各重放一遍`;
+    case 'cdReset': return `重置${TO_ZH[e.to || 'allies']}的技能冷却`;
+    case 'shieldDmg': return `把全队当前护盾总和的 ${pct(e.m)} 化作单体伤害（不消耗护盾）`;
+    case 'blood': return `献祭自身 ${e.cost}% 最大生命，对全体敌人造成 ${pct(e.m * (1 + e.cost / 50))}攻击的伤害`;
+    case 'missingHeal': return `治疗${TO_ZH[e.to || 'allies']}已损失生命的 ${e.pct}%`;
+    case 'delay': return `蓄力：${e.rounds} 回合后对全体敌人造成 ${pct(e.m)}攻击的伤害`;
+    case 'lowHpBoost': return `对${TO_ZH[e.to || 'foe']}造成 ${pct(e.m)}攻击的伤害，自身越残血倍率越高（最多 ×3）`;
+    case 'poisonBurst': return `引爆全体敌人身上的中毒（层数×单层伤害×${e.m}）并清除`;
+    case 'dotBurst': return `引爆全体敌人身上剩余的流血伤害（×${e.m}）`;
+    case 'extraTurn': return '攻击最高的队友立刻额外行动一次';
     default: return '';
   }
 }

@@ -33,6 +33,7 @@ export function makeUnit(def, side, idx) {
     mid: def.mid || null, trait: def.trait || null,
     ali: num(def.openAli, 0), key: num(def.openKey, 0), shield: 0, buffs: [], dots: [], cd: {}, st: {}, sig: '',
     roused: false, patIdx: 0, enrage: 0, alive: true, acted: 0,
+    taunt: 0, reflect: null, stunned: 0, echo: 0, delayed: [],     // 专属技能用到的状态（core/extra.js）
   };
 }
 
@@ -92,6 +93,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   function chooseFoe(u, mode) {
     const foes = reachable(u);
     if (!foes.length) return null;
+    if (!u.kit) { const tn = foes.find((f) => f.taunt > 0); if (tn) return tn; }      // 嘲讽：敌人的单体攻击只会打它
     if (u.kit) {
       if (mode === 'foeLow') return foes.reduce((a, b) => (b.hp < a.hp ? b : a));
       if (mode === 'foeRand') return foes[Math.floor(rng() * foes.length)];
@@ -176,6 +178,10 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       const c = tgt.st.counter;
       applyDamage(tgt, src, Math.max(1, Math.round(c.per * c.n)), false, null, 'counter');
     }
+    // 反射：把受到伤害的一部分原样弹回去（只对直接伤害生效，反射出去的不再反射）
+    if (kind === 'dmg' && tgt.reflect && tgt.alive && src.side !== tgt.side && src.alive && dmg > 0) {
+      applyDamage(tgt, src, Math.max(1, Math.round(dmg * tgt.reflect.pct / 100)), false, null, 'counter');
+    }
     return dmg;
   }
 
@@ -251,6 +257,105 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         case 'lifesteal':
           if (ctx.dealt) heal(u, u, ctx.dealt * e.v / 100, true);
           break;
+        // ---- 专属技能（core/extra.js）用到的机制 ----
+        case 'execute':    // 斩杀：目标血量低于 thr 时倍率翻倍
+          for (const t of targets(u, e.to || 'foe')) if (t.alive) damage(u, t, hpPct(t) < num(e.thr, 0.3) ? e.m * 2 : e.m, ctx);
+          break;
+        case 'pctHp':      // 按目标最大生命的百分比直接扣血（首领封顶 = 自身攻击 × 8）
+          for (const t of targets(u, e.to || 'foe')) {
+            if (!t.alive) continue;
+            let amt = t.maxHp * num(e.pct) / 100;
+            if (t.boss || t.reward) amt = Math.min(amt, u.atk * 8);
+            applyDamage(u, t, Math.max(1, Math.round(amt)), false, ctx);
+          }
+          break;
+        case 'cleanse':    // 净化：清掉负面增减益、流血、中毒、虚弱、脆弱、封印
+          for (const t of targets(u, e.to || 'allies')) {
+            t.buffs = t.buffs.filter((b) => !(b.stat === 'vuln' ? b.v > 0 : b.v < 0));
+            t.dots = [];
+            for (const s of ['poison', 'weakness', 'fragile', 'sealed']) delete t.st[s];
+            push({ k: 'status', who: t.uid, s: 'cleanse' });
+          }
+          break;
+        case 'dispel':     // 驱散：清掉敌人的增益与狂暴
+          for (const t of targets(u, e.to || 'foes')) { t.buffs = t.buffs.filter((b) => (b.stat === 'vuln' ? b.v > 0 : b.v < 0)); t.enrage = 0; delete t.st.fortress; delete t.st.barrier; }
+          break;
+        case 'revive': {   // 复苏：让第一个倒下的队友以 pct% 血量回到战场（每场每个技能最多一次）
+          if (u.usedRevive) break;
+          const dead = (u.side === 'a' ? A : E).find((x) => !x.alive);
+          if (dead) {
+            u.usedRevive = true;
+            dead.alive = true; dead.hp = Math.max(1, Math.round(dead.maxHp * num(e.pct, 30) / 100)); dead.buffs = []; dead.dots = []; dead.st = {};
+            push({ k: 'revive', who: dead.uid, hp: dead.hp });
+          }
+          break;
+        }
+        case 'taunt': for (const t of targets(u, e.to || 'self')) t.taunt = Math.max(t.taunt, positive(e.dur, 2)); break;
+        case 'reflect': for (const t of targets(u, e.to || 'self')) t.reflect = { pct: num(e.pct, 30), dur: positive(e.dur, 2) }; break;
+        case 'stun':       // 眩晕：敌人下一次行动被跳过（首领免疫）
+          for (const t of targets(u, e.to || 'foe')) if (t.alive && !t.boss && !t.reward) { t.stunned = Math.max(t.stunned, positive(e.n, 1)); push({ k: 'status', who: t.uid, s: 'stun' }); }
+          break;
+        case 'chain': {    // 连锁：随机命中，每一跳倍率递增
+          for (let h = 0; h < positive(e.hits, 3); h++) {
+            const t = targets(u, 'foeRand')[0];
+            if (!t) break;
+            damage(u, t, e.m * (1 + num(e.grow, 0.2) * h), ctx);
+          }
+          break;
+        }
+        case 'splash': {   // 溅射：主目标全额，其余敌人吃 share 比例
+          const main = targets(u, 'foe')[0];
+          if (!main) break;
+          damage(u, main, e.m, ctx);
+          for (const t of foesOf(u)) if (t !== main && t.alive) damage(u, t, e.m * num(e.share, 0.5), ctx);
+          break;
+        }
+        case 'echo': u.echo += positive(e.n, 1); break;     // 回响：之后 n 次普通行动的效果各重放一遍
+        case 'cdReset': for (const t of targets(u, e.to || 'allies')) t.cd = {}; break;
+        case 'shieldDmg': {   // 护盾转伤害：全队当前护盾总和 × m 打向单体（不消耗护盾）
+          const sum = friendsOf(u).reduce((s, x) => s + num(x.shield), 0);
+          const t = targets(u, 'foe')[0];
+          if (t && sum > 0) applyDamage(u, t, Math.max(1, Math.round(sum * num(e.m, 1))), false, ctx);
+          break;
+        }
+        case 'blood': {       // 献祭：自损 cost% 最大生命，换取更高倍率的全体伤害
+          const loss = Math.min(u.hp - 1, Math.round(u.maxHp * num(e.cost, 15) / 100));
+          if (loss > 0) { u.hp -= loss; push({ k: 'dot', by: u.uid, who: u.uid, amt: loss, absorbed: 0, crit: false, hp: u.hp, shield: u.shield }); }
+          for (const t of targets(u, e.to || 'foes')) damage(u, t, e.m * (1 + num(e.cost, 15) / 50), ctx);
+          break;
+        }
+        case 'missingHeal':   // 按已损失生命的百分比治疗
+          for (const t of targets(u, e.to || 'allies')) heal(u, t, (t.maxHp - t.hp) * num(e.pct, 40) / 100 * (1 + u.healBonus / 100));
+          break;
+        case 'delay':         // 延迟爆发：rounds 回合后对全体敌人造成伤害
+          u.delayed.push({ at: round + positive(e.rounds, 2), m: e.m });
+          push({ k: 'status', who: u.uid, s: 'delay' });
+          break;
+        case 'lowHpBoost': {  // 越残血越痛：倍率随自身已损失生命线性上升（最多 ×3）
+          const mul = e.m * (1 + 2 * (1 - hpPct(u)));
+          for (const t of targets(u, e.to || 'foe')) damage(u, t, mul, ctx);
+          break;
+        }
+        case 'poisonBurst':   // 引爆中毒：吃掉所有敌人身上的中毒层，一次性结算
+          for (const t of foesOf(u)) {
+            const p = t.st.poison;
+            if (p && t.alive) { applyDamage(u, t, Math.max(1, Math.round(p.n * p.per * num(e.m, 1.5))), false, ctx); delete t.st.poison; }
+          }
+          break;
+        case 'dotBurst':      // 引爆流血：把剩余的流血伤害一次性打出
+          for (const t of foesOf(u)) {
+            if (!t.alive || !t.dots.length) continue;
+            const sum = t.dots.reduce((s, d) => s + num(d.dmg) * num(d.dur), 0);
+            t.dots = [];
+            applyDamage(u, t, Math.max(1, Math.round(sum * num(e.m, 1))), false, ctx);
+          }
+          break;
+        case 'extraTurn': {   // 追击号令：攻击最高的队友立刻额外行动一次
+          if (u._xt) break;
+          const ally = friendsOf(u).filter((x) => x !== u && x.kit).sort((x, y) => y.atk - x.atk)[0];
+          if (ally) { u._xt = true; act(ally, true); u._xt = false; }
+          break;
+        }
       }
     }
   }
@@ -278,7 +383,8 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     push({ k: 'intent', who: u.uid, name: sk.name, ic: sk.ic || null, text: sk.plain || '' });
   }
 
-  function act(u) {
+  function act(u, bonus = false) {
+    if (u.stunned > 0) { u.stunned--; push({ k: 'act', who: u.uid, slot: 'Strike', name: '眩晕', round }); return; }
     u.acted++;
     u.shield = 0;
     for (const k of Object.keys(u.cd)) if (u.cd[k] > 0) u.cd[k]--;
@@ -302,10 +408,12 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       if (slot === 'Strike') gainGauge(u, 'key', 4);
       push({ k: 'gauge', who: u.uid, ali: u.ali, key: u.key });
     }
-    run(u, Array.isArray(sk?.effects) ? sk.effects : []);
+    const efx = Array.isArray(sk?.effects) ? sk.effects : [];
+    run(u, efx);
+    if (u.echo > 0 && u.alive) { u.echo--; run(u, efx); }          // 回响：重放一遍
     emitAll();
     // 满超限 / 满最终法则的专属技能：免费追加，不占回合、不进冷却
-    if (u.kit && u.extra && u.alive && !finished()) {
+    if (!bonus && u.kit && u.extra && u.alive && !finished()) {
       for (const slot of ['Od', 'Law']) {
         const ex = u.extra[slot];
         if (!ex || u.acted % ex.every !== 0 || !u.alive || finished()) continue;
@@ -327,6 +435,12 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   while (round < maxRounds && !finished()) {
     round++;
     push({ k: 'round', n: round });
+    for (const u of A) {      // 延迟爆发到点了
+      if (!u.delayed.length) continue;
+      const due = u.delayed.filter((d) => d.at <= round);
+      u.delayed = u.delayed.filter((d) => d.at > round);
+      for (const d of due) for (const t of E) if (t.alive && u.alive) applyDamage(u, t, Math.max(1, Math.round(u.atk * d.m * DMG_SCALE)), false, null, 'dmg');
+    }
     for (const u of [...A, ...E]) {
       if (!u.alive) continue;
       for (const d of u.dots) {
@@ -350,6 +464,8 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     }
     for (const u of [...A, ...E]) {
       u.buffs = u.buffs.map((b) => ({ ...b, dur: b.dur - 1 })).filter((b) => b.dur > 0);
+      if (u.taunt > 0) u.taunt--;
+      if (u.reflect && --u.reflect.dur <= 0) u.reflect = null;
       for (const k of Object.keys(u.st)) if (u.st[k].dur < 90 && --u.st[k].dur <= 0) delete u.st[k];
       if (u.side === 'e' && round >= 12) u.enrage += 0.08;
     }

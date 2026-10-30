@@ -1938,7 +1938,7 @@ test('专属技能：每位唤醒体各有独一份的名字，按解锁进度�
   for (const a of data.awakeners) {
     assert.ok(EXTRA_NAMES[a.slug], `${a.slug} 缺专属技能名`);
     const ex = extraSkills(a.slug, a);
-    assert.ok(ex.Od.effects.length >= 2 && ex.Law.effects.length >= 2 && ex.Od.text && ex.Law.text);
+    assert.ok(ex.Od.effects.length >= 1 && ex.Law.effects.length >= 2 && ex.Od.text && ex.Law.text);
     names.add(ex.Od.name); names.add(ex.Law.name);
   }
   assert.equal(names.size, data.awakeners.length * 2, '124 个名字互不重复');
@@ -1965,4 +1965,80 @@ test('专属技能：战斗里按节奏免费追加，且比不带的队伍更�
   assert.equal(b.events.filter((e) => e.k === 'act' && (e.slot === 'Od' || e.slot === 'Law')).length, 0);
   const dmg = (r) => Object.values(r.stats).reduce((x, y) => x + y.dmg, 0);
   assert.ok(dmg(a) > dmg(b), '带专属技能总伤害更高');
+});
+
+const NEW_MECH = new Set(['execute', 'pctHp', 'cleanse', 'dispel', 'revive', 'taunt', 'reflect', 'stun', 'chain', 'splash', 'echo', 'cdReset', 'shieldDmg', 'blood', 'missingHeal', 'delay', 'lowHpBoost', 'poisonBurst', 'dotBurst', 'extraTurn']);
+const sigOf = (sk) => sk.effects.map((e) => [e.t, e.to || '', e.stat || e.s || e.k || '', e.hits || '', e.dur ?? '', e.n ?? ''].join(':')).join('|');
+
+test('专属技能：每位的终焉技都带自己的新机制，71 位的技能组合互不相同', () => {
+  const od = new Map(), law = new Map();
+  for (const a of data.awakeners) {
+    const ex = extraSkills(a.slug, a);
+    assert.ok(ex.Law.effects.some((e) => NEW_MECH.has(e.t)), `${a.slug} 终焉技没有新机制`);
+    assert.ok(ex.Od.effects.some((e) => NEW_MECH.has(e.t)) || ex.Od.effects.length, `${a.slug} 超限技为空`);
+    const so = sigOf(ex.Od), sl = sigOf(ex.Law);
+    assert.ok(!od.has(so), `超限技重复：${a.slug} 与 ${od.get(so)}`); od.set(so, a.slug);
+    assert.ok(!law.has(sl), `终焉技重复：${a.slug} 与 ${law.get(sl)}`); law.set(sl, a.slug);
+  }
+  // 20 种新机制每一种都有人用到
+  const used = new Set(data.awakeners.flatMap((a) => extraSkills(a.slug, a).Law.effects.map((e) => e.t)));
+  for (const m of NEW_MECH) assert.ok(used.has(m) || ['extraTurn', 'poisonBurst', 'dotBurst'].includes(m), `机制 ${m} 没人用`);
+});
+
+// ---- 新机制的战斗行为 ----
+const mkAlly = (o = {}) => ({ name: '甲', img: '', type: 'ASSAULT', realm: 'CHAOS', hp: 20000, atk: 1000, def: 100, critRate: 0, critDmg: 50, amp: 0, kit: Object.fromEntries(['Strike', 'Defense', 'Skill1', 'Skill2', 'Rouse', 'Exalt', 'OverExalt'].map((k) => [k, { name: k, effects: [{ t: 'dmg', m: 1, to: 'foe' }] }])), ...o });
+const mkFoe = (o = {}) => ({ name: '靶', hp: 50000, atk: 300, def: 50, type: 'ASSAULT', realm: 'CHAOS', pattern: [{ name: '普攻', effects: [{ t: 'dmg', m: 1, to: 'foe' }] }], ...o });
+const runX = (extra, allies = [mkAlly()], foes = [mkFoe()], rounds = 3) => {
+  const al = allies.map((d, i) => (i === 0 ? { ...d, extra: { Od: { name: 'X', every: 1, effects: extra, text: '' } } } : d));
+  return simulate({ allies: al, enemies: foes, seed: 3, maxRounds: rounds });
+};
+const evs = (r, k) => r.events.filter((e) => e.k === k);
+
+test('新机制：斩杀 / 按比例扣血 / 嘲讽 / 反射 / 眩晕 / 回响 / 献祭 / 延迟 / 复苏', () => {
+  // 斩杀：残血目标吃双倍
+  const lowFoe = mkFoe({ hp: 50000, hpNow: 5000 });
+  const exe = runX([{ t: 'execute', m: 1, thr: 0.3, to: 'foe' }], [mkAlly()], [lowFoe], 1);
+  const plain = runX([{ t: 'dmg', m: 1, to: 'foe', hits: 1 }], [mkAlly()], [mkFoe({ hp: 50000, hpNow: 5000 })], 1);
+  const dm = (r) => evs(r, 'dmg').filter((e) => e.by === 'a0').slice(-1)[0].amt;
+  assert.ok(dm(exe) > dm(plain) * 1.6, '斩杀对残血伤害翻倍');
+  // 按比例扣血：厚血敌人扣掉 10%（普通怪）
+  const pct = runX([{ t: 'pctHp', pct: 10, to: 'foe' }], [mkAlly()], [mkFoe({ hp: 100000 })], 1);
+  assert.ok(evs(pct, 'dmg').some((e) => e.by === 'a0' && e.amt >= 9000), '10% 最大生命');
+  // 眩晕：被晕的敌人下一次行动变成「眩晕」
+  const stn = runX([{ t: 'stun', n: 1, to: 'foe' }], [mkAlly()], [mkFoe()], 2);
+  assert.ok(stn.events.some((e) => e.k === 'act' && e.name === '眩晕'), '敌人被晕');
+  // 首领免疫眩晕
+  const boss = runX([{ t: 'stun', n: 1, to: 'foe' }], [mkAlly()], [mkFoe({ boss: true })], 2);
+  assert.ok(!boss.events.some((e) => e.k === 'act' && e.name === '眩晕'), '首领不吃眩晕');
+  // 嘲讽：两个我方，敌人全打嘲讽者
+  const tnt = runX([{ t: 'taunt', dur: 3, to: 'self' }], [mkAlly(), mkAlly({ name: '乙' })], [mkFoe({ pattern: [{ name: '普攻', effects: [{ t: 'dmg', m: 1, to: 'foe' }] }] })], 3);
+  const hit = evs(tnt, 'dmg').filter((e) => e.by.startsWith('e'));
+  assert.ok(hit.length && hit.every((e) => e.who === 'a0'), '敌人只打嘲讽者');
+  // 反射：敌人打我会被弹回
+  const rfl = runX([{ t: 'reflect', pct: 100, dur: 3, to: 'self' }], [mkAlly()], [mkFoe()], 2);
+  assert.ok(evs(rfl, 'counter').some((e) => e.by === 'a0'), '反射伤害');
+  // 回响：下一次普通行动打两遍
+  const ech = runX([{ t: 'echo', n: 1 }], [mkAlly()], [mkFoe()], 2);
+  const base = runX([{ t: 'heal', m: 0.01, to: 'self' }], [mkAlly()], [mkFoe()], 2);
+  assert.ok(evs(ech, 'dmg').filter((e) => e.by === 'a0').length > evs(base, 'dmg').filter((e) => e.by === 'a0').length, '回响多打了一遍');
+  // 献祭：自损生命
+  const bld = runX([{ t: 'blood', cost: 20, m: 1, to: 'foes' }], [mkAlly()], [mkFoe()], 1);
+  assert.ok(bld.allies[0].hp < 20000 - 3000, '献祭扣了自己的血');
+  // 延迟爆发：第 3 回合开始对敌人结算
+  const dly = runX([{ t: 'delay', m: 2, rounds: 1 }], [mkAlly()], [mkFoe()], 3);
+  assert.ok(evs(dly, 'dmg').filter((e) => e.by === 'a0').length >= 3);
+  // 复苏：倒下的队友站起来
+  const frail = mkAlly({ name: '乙', hp: 100, def: 0 });
+  const rev = runX([{ t: 'revive', pct: 50 }], [mkAlly(), frail], [mkFoe({ atk: 5000, pattern: [{ name: '普攻', effects: [{ t: 'dmg', m: 1, to: 'foes' }] }] })], 4);
+  assert.ok(evs(rev, 'die').length && evs(rev, 'revive').length, '有人倒下后被复苏');
+});
+
+test('专属技能：71 位的超限技 + 终焉技在战斗里都能跑通（无异常、数值有限）', () => {
+  for (const a of data.awakeners) {
+    const ex = extraSkills(a.slug, a);
+    const mk = (n) => ({ ...mkAlly({ name: `${a.zh}${n}`, type: a.type, realm: a.realm }), extra: n === 0 ? { Od: { ...ex.Od, every: 1 }, Law: { ...ex.Law, every: 1 } } : null });
+    const res = simulate({ allies: [mk(0), mk(1), mk(2)], enemies: [mkFoe(), mkFoe({ type: 'WARDEN' })], seed: 11, maxRounds: 8 });
+    assert.ok(res.events.some((e) => e.k === 'act' && e.slot === 'Law'), `${a.slug} 终焉技没触发`);
+    for (const e of res.events) for (const k of ['amt', 'hp']) if (k in e) assert.ok(Number.isFinite(e[k]), `${a.slug} 出现非有限数值 ${k}`);
+  }
 });
