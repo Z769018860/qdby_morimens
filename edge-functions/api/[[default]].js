@@ -1144,6 +1144,21 @@ const BOARD_SPEC = [
     sub: (v) => (Number(v[3]) > 0 ? `提交 ${Number(v[3])} 份 · 正确率 ${Math.round((Number(v[4]) || 0) / Number(v[3]) * 100)}%` : ''),
     tb: (v) => (Number(v[3]) > 0 ? (Number(v[4]) || 0) / Number(v[3]) : 0) },
 ];
+// 账号档案里除了 gd（九个游戏的摘要）还有几个老字段：合成最高分 mb、鸟弟 bb/bs、侦探 st。
+// 老客户端只有这些、没有 gd，或者 gd 比它们旧——两边逐项取大，免得有人明明有上万分却上不了榜。
+function mergeGd(doc) {
+  const d = doc && typeof doc === 'object' ? doc : null;
+  if (!d) return null;
+  const gd = d.gd && typeof d.gd === 'object' && !Array.isArray(d.gd) ? { ...d.gd } : {};
+  const num = (x) => Math.max(0, Math.round(Number(x) || 0));
+  const vec = (k) => (Array.isArray(gd[k]) ? gd[k].map(num) : []);
+  const mx = (a, i, v) => { a[i] = Math.max(num(a[i]), num(v)); return a; };
+  const st = d.st && typeof d.st === 'object' ? d.st : {};
+  gd.mg = mx(vec('mg'), 0, d.mb);
+  gd.bd = mx(mx(vec('bd'), 0, d.bb), 1, d.bs);
+  gd.dr = mx(mx(mx(vec('dr'), 0, st.played), 1, st.won), 2, st.best);
+  return gd;
+}
 async function buildBoard(kv) {
   const keys = (await softly(() => listKeys(kv, 'usr_', 1000), [])).filter((k) => k !== 'usr_n').slice(0, 500);
   const rows = await mapLimit(keys, 6, async (k) => {
@@ -1152,7 +1167,7 @@ async function buildBoard(kv) {
     if (!u || !u.uid || !u.name) return null;
     const uh = await uhash(u.uid);
     let gd = null, il = null;
-    try { const a = await softly(() => kvJson(kv, 'acct_' + uh, true), null); gd = a && a.doc && a.doc.gd && typeof a.doc.gd === 'object' ? a.doc.gd : null; } catch { gd = null; }
+    try { const a = await softly(() => kvJson(kv, 'acct_' + uh, true), null); gd = mergeGd(a && a.doc); } catch { gd = null; }
     try {
       const sv = await softly(() => kvJson(kv, 'sv_' + uh + '_idle', true), null);
       il = sv && sv.meta ? { ...sv.meta } : null;

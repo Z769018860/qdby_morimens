@@ -635,11 +635,17 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   await call('/save/idle', { method: 'PUT', headers: U1, body: { data: JSON.stringify({ roster: {} }), ver: 0, meta: { maxStage: 55, roster: 6, team: [{ s: 'ogier', lv: 60, st: 2 }, { s: 'x y', lv: 1 }] } } });
   // 老客户端：摘要里没有 team，只有正文——榜单要从正文补出阵容
   await call('/save/idle', { method: 'PUT', headers: U2, body: { data: JSON.stringify({ roster: { aa: { lv: 7, star: 1 }, bb: { lv: 3 }, cc: { lv: 1 } }, team: ['bb', 'aa', 'zz'] }), ver: 0, meta: { maxStage: 20, roster: 3 } } });
+  // 没有 gd 的老档案：只有 mb / bb / bs 也要上榜；gd 比老字段旧时取大
+  seedSession(kv, 'u3', '9103', '丙'); const U3 = { Authorization: 'Bearer u3' };
+  await call('/grants/mine', { headers: U3 });
+  await call('/account', { method: 'PUT', headers: U3, body: { doc: { cr: 1, mb: 15000, bb: 40, bs: 2200 }, ver: 0 } });
   const bd = await call('/board');
+  eq('老档案（只有 mb）也上合成榜且排第一', bd.json.games.mg.items[0], { name: '丙', score: 15000, sub: '' });
+  eq('老档案的鸟弟分也进榜', bd.json.games.bd.items.find((x) => x.name === '丙').score, 2200);
   eq('老客户端的挂机榜从正文补阵容（顺序按 team，缺角色的跳过）', bd.json.games.il.items.find((x) => x.name === '乙').team, [{ s: 'bb', lv: 3, st: 0 }, { s: 'aa', lv: 7, st: 1 }]);
   check('榜单可公开读', bd.json.ok && bd.json.games, bd.json);
-  eq('合成榜按分数降序', bd.json.games.mg.items.map((x) => [x.name, x.score]), [['甲', 1234], ['乙', 900]]);
-  eq('鸟弟榜带最深层数', bd.json.games.bd.items[0].sub, '最深 30 层');
+  eq('合成榜按分数降序', bd.json.games.mg.items.map((x) => [x.name, x.score]), [['丙', 15000], ['甲', 1234], ['乙', 900]]);
+  eq('鸟弟榜带最深层数', bd.json.games.bd.items.find((x) => x.name === '甲').sub, '最深 30 层');
   eq('挂机榜用云存档的关数', bd.json.games.il.items[0].score, 55);
   eq('挂机榜带阵容（slug 里的非法字符被清掉）', bd.json.games.il.items[0].team, [{ s: 'ogier', lv: 60, st: 2 }, { s: 'xy', lv: 1, st: 0 }]);
   eq('侦探榜按答对题数排，同分正确率高者在前，副标带正确率', bd.json.games.dr.items.map((x) => [x.name, x.score, x.sub]), [['甲', 15, '正确率 75% · 共答 20 题'], ['乙', 15, '正确率 50% · 共答 30 题']]);
