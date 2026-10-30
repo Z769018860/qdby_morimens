@@ -11,6 +11,7 @@ import { DIFFS } from './sv/defs.js';
 import { sfx } from './sv/audio.js';
 import { isUnlocked, unlockNeed, svProgress, saveProgress } from './sv/unlock.js';
 import { WEAPONS, CHARS } from './sv/gen.js';
+import { startGameCloud } from './gamecloud.js';
 
 const FIXED = 1 / 60;
 const cv = document.getElementById('cv');
@@ -354,3 +355,5 @@ if (/[?&]_test=1/.test(location.search)) {
 
 boot();
 
+// 登录了本站账号就把这个游戏的存档同步到云端（js/gamecloud.js）
+startGameCloud('survivors');

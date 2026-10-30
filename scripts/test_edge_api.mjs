@@ -598,6 +598,12 @@ console.log('\n[15] 游戏存档上云 /save/idle：登录才能用、乐观锁�
   const p2 = await call('/save/idle', { method: 'PUT', headers: A, body: { data: JSON.stringify({ ...save, maxStage: 20 }), ver: 1 } });
   eq('带对版本 → ver=2', p2.json.ver, 2);
   eq('别的账号看不到', (await call('/save/idle', { headers: B })).json.save, null);
+  for (const g of ['deathreport', 'binding', 'survivors', 'protocol', 'wolf', 'merge', 'bird']) {
+    const r = await call(`/save/${g}`, { method: 'PUT', headers: A, body: { data: JSON.stringify({ v: 1, keys: { k: 'v' } }), ver: 0, meta: { hash: 'abc123', n: 1 } } });
+    eq(`${g} 存档可上传`, r.json.ok, true);
+  }
+  eq('meta 里带内容哈希', (await call('/save/wolf?meta=1', { headers: A })).json.save.meta.hash, 'abc123');
+  eq('没开放的游戏（侦探）→ 400', (await call('/save/detective', { headers: A })).status, 400);
   eq('非法存档 → 400', (await call('/save/idle', { method: 'PUT', headers: B, body: { data: '[1,2]', ver: 0 } })).status, 400);
   eq('过大 → 413', (await call('/save/idle', { method: 'PUT', headers: B, body: { data: JSON.stringify({ roster: {}, pad: 'x'.repeat(490 * 1024) }), ver: 0 } })).status, 413);
 }

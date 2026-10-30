@@ -1111,3 +1111,8 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
 #boot button { font: inherit; padding: 7px 18px; border-radius: 8px; cursor: pointer;
   border: 1px solid rgba(120,130,150,.45); background: transparent; color: inherit; }
 @keyframes bootspin { to { transform: rotate(360deg); } }
+
+/* 个人中心：游戏云存档列表 */
+.gclist{display:grid;gap:6px;margin:8px 0 12px}
+.gcrow{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:7px 10px;border:1px solid var(--line,rgba(0,0,0,.1));border-radius:9px;font-size:13px}
+.gcrow .dim{color:var(--dim);font-size:12px}

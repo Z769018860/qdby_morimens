@@ -13,6 +13,7 @@ import { account, CAP } from './account.js';
 import { GAMES, readAll, credits } from './gamestats.js';
 import * as sitestats from './sitestats.js';
 import * as savedata from './savedata.js';
+import * as gc from './gamecloud.js';
 
 const app = $('#app');
 const head = $('#pfhRight');
@@ -337,6 +338,30 @@ function saveBox(u) {
 }
 
 
+// ------------------------------------------------------------------ 游戏云存档（整份进度，各游戏自己同步）
+const GC_TEXT = { ok: '已同步', error: '同步失败', conflict: '有冲突，进游戏时选用哪份', nologin: '未登录', syncing: '同步中…', idle: '还没同步过' };
+function cloudSaveCard(u) {
+  if (!u) return null;
+  const rows = Object.entries(gc.GAMES).map(([g, cfg]) => {
+    const rec = gc.record(g), st = gc.statusOf(g);
+    const t = rec && rec.at ? new Date(rec.at).toLocaleString() : '';
+    return h('div', { class: 'gcrow' }, h('b', {}, cfg.zh),
+      h('span', { class: 'dim' }, `${GC_TEXT[st.s] || ''}${t && st.s !== 'syncing' ? ' · 上次对齐 ' + t : ''}`));
+  });
+  rows.unshift(h('div', { class: 'gcrow' }, h('b', {}, '挂机前夜'), h('span', { class: 'dim' }, '在游戏的「更多 → 设置」里同步（自己的云存档）')));
+  const btn = h('button', { class: 'btn', onclick: async (e) => {
+    e.currentTarget.disabled = true;
+    for (const g of Object.keys(gc.GAMES)) await gc.syncGame(g, { interactive: false, reload: false, pullOk: true });
+    toast('已和云端对齐（有冲突的游戏进游戏时会让你选）');
+    render();
+  } }, '立即同步全部游戏存档');
+  return h('section', { class: 'card', id: 'gcloud' },
+    h('h2', {}, '游戏云存档'),
+    h('p', { class: 'sub' }, '各小游戏的真实存档（关卡进度、解锁、战绩）会随账号同步：电脑上玩的，手机登录同一个账号再打开就是同一份。进游戏时自动拉取，玩的时候自动上传；两边都有进度会让你选，不会悄悄覆盖。'),
+    h('div', { class: 'gclist' }, ...rows),
+    h('div', { class: 'actions' }, btn));
+}
+
 // ------------------------------------------------------------------ 管理员入口（只有姜酒能看到）
 function adminCard() {
   return h('section', { class: 'card adminlink' },
@@ -369,6 +394,7 @@ function render() {
     u ? heroCard(u) : guestCard(),
     gamesBox(),
     u ? editCard(u) : null,
+    cloudSaveCard(u),
     saveBox(u),
     u && IS_ADMIN ? adminCard() : null,
   ].filter(Boolean);

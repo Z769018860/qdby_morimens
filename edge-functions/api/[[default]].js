@@ -516,7 +516,7 @@ async function putAccount(request, env, kv, cors) {
 // 账号档案（/account）只放轻量的积分 / 解锁 / 最高分；挂机前夜这类「整份进度」是大对象，
 // 单独一个键 sv_{uid哈希}_{游戏}，带版本号做乐观锁：版本对不上返回 409 + 云端的摘要，
 // 由客户端决定用哪份（不会悄悄互相覆盖）。
-const SAVE_GAMES = new Set(['idle']);
+const SAVE_GAMES = new Set(['idle', 'deathreport', 'binding', 'survivors', 'protocol', 'wolf', 'merge', 'bird']);
 const SAVE_MAX = 480 * 1024;
 
 function saveGameOf(g) {
@@ -556,6 +556,8 @@ async function putSave(request, env, kv, game, cors) {
   const meta = b.meta && typeof b.meta === 'object' ? {
     maxStage: Number(b.meta.maxStage) || 0, roster: Number(b.meta.roster) || 0, play: Number(b.meta.play) || 0,
     gold: Number(b.meta.gold) || 0, lastSeen: Number(b.meta.lastSeen) || 0,
+    // 通用游戏存档（js/gamecloud.js）：内容哈希 + 键数，客户端用哈希判断「两边其实一样」
+    hash: str(b.meta.hash, 16).replace(/[^A-Za-z0-9]/g, ''), n: Number(b.meta.n) || 0,
   } : null;
   const ver = curVer + 1, at = Date.now();
   await kv.put(key, JSON.stringify({ data, ver, at, rev: Number(b.rev) || 0, meta }));

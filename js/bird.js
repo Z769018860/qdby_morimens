@@ -13,6 +13,7 @@
 // MOB_SHEET / MOB_RECT 是井里那几只怪的原作立绘（scripts/build_bird_mobs.py 拼的），
 // 同样内联，不额外发图片请求。
 import { SHEET, ANIMS, MOB_SHEET, MOB_RECT } from './bird-art.js';
+import { startGameCloud } from './gamecloud.js';
 
 // ---------------------------------------------------------------- 尺寸
 const VW = 400;            // 逻辑视口宽（竖井）
@@ -2199,3 +2200,6 @@ if (TEST) {
     setDiff, getDiff: () => D,
   };
 }
+
+// 登录了本站账号就把这个游戏的存档同步到云端（js/gamecloud.js）
+startGameCloud('bird');
