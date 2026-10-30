@@ -553,7 +553,7 @@ button{font:inherit; color:inherit}
 #protocolDetails{position:fixed;z-index:120; width:min(420px,calc(100vw - 24px)); max-height:calc(100dvh - 90px); overflow:auto; overscroll-behavior:contain; padding:20px; border:1px solid #6980a5; border-radius:14px; background:#111b2b; color:#eaf1fc; box-shadow:0 16px 60px #000b; font:15px/1.7 system-ui,sans-serif; overflow-wrap:anywhere}
 /* Hover previews are informational only: no invisible overlay may intercept
    shop cards, especially the far-right purchasable slot. */
-#protocolDetails.is-preview{pointer-events:none;user-select:none}
+#protocolDetails.is-preview{pointer-events:auto;user-select:text;overscroll-behavior:contain}
 #protocolDetails.is-pinned{pointer-events:auto;touch-action:pan-y;z-index:240}
 #protocolDetails[hidden]{display:none!important}
 #protocolDetails .detail-close{position:sticky;z-index:2;top:0;float:right}
