@@ -2106,6 +2106,17 @@ const { unitAt } = m_engine;
 
 
 
+// 「减少闪烁」：关掉地图上的环境动画（环境冷光、通道箭头呼吸、祭坛旋转、路线 / 射程虚线流动、
+// 大招金圈与核心光环的明暗变化）。战斗本身的动作和特效不受影响。选项存 zjtt:pf:calm，默认开。
+const motion = { calm: true };
+try { motion.calm = localStorage.getItem('zjtt:pf:calm') !== '0'; } catch { /* 隐私模式：用默认 */ }
+function setCalm(on) {
+  motion.calm = !!on;
+  try { localStorage.setItem('zjtt:pf:calm', on ? '1' : '0'); } catch { /* 同上 */ }
+  document.documentElement.classList.toggle('calm', motion.calm);
+}
+document.documentElement.classList.toggle('calm', motion.calm);
+
 
 
 
@@ -2267,13 +2278,13 @@ function draw() {
   // 震屏：整体抖一点点，只在有大招/首领倒下时出现
   let sx = 0;
   let sy = 0;
-  if (G.shake > 0.1) {
+  if (G.shake > 0.1 && !motion.calm) {      // 「减少闪烁」下不抖屏
     const k = G.shake;
     sx = (Math.random() - 0.5) * k;
     sy = (Math.random() - 0.5) * k;
   }
   ctx.setTransform(view.s * dpr, 0, 0, view.s * dpr, (view.ox + sx) * dpr, (view.oy + sy) * dpr);
-  drawGlow();
+  if (!motion.calm) drawGlow();
   drawBoard();
   if (LX0 < -100) drawCore();
   drawIntent();
@@ -2302,7 +2313,7 @@ function drawIntent() {
     ctx.strokeStyle = 'rgba(200,140,240,0.34)';
     ctx.lineWidth = 2.6;
     ctx.setLineDash([7, 10]);
-    ctx.lineDashOffset = -t * 20;
+    ctx.lineDashOffset = motion.calm ? 0 : -t * 20;
     ctx.beginPath();
     for (let i = 0; i < path.length; i++) {
       const q = cellXY(path[i]);
@@ -2378,7 +2389,7 @@ function drawRange() {
     ctx.stroke();
   }
   ctx.setLineDash([7, 7]);
-  ctx.lineDashOffset = -(G.t || 0) * 26;
+  ctx.lineDashOffset = motion.calm ? 0 : -(G.t || 0) * 26;
   ctx.strokeStyle = 'rgba(140,200,255,0.85)';
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -2404,7 +2415,7 @@ function terrainMark(type, x, y) {
       ctx.stroke();
     }
   } else if (type === 'altar') {
-    const t = (G.t || 0) * 0.9;
+    const t = motion.calm ? 0.4 : (G.t || 0) * 0.9;
     ctx.beginPath(); ctx.arc(x, y, 8, 0, 6.284); ctx.stroke();
     for (let i = 0; i < 4; i++) {
       const a = t + i * Math.PI / 2;
@@ -2562,7 +2573,7 @@ function drawBoard() {
 
   // 通道箭头：四条通道的入口各画一个向左的箭头，备战期慢慢淡入淡出
   if (G.phase === 'prep') {
-    const k = 0.30 + 0.16 * Math.sin((G.t || 0) * 1.8);
+    const k = motion.calm ? 0.38 : 0.30 + 0.16 * Math.sin((G.t || 0) * 1.8);
     ctx.save();
     ctx.strokeStyle = `rgba(196,132,232,${k})`;
     ctx.lineWidth = 2.4;
@@ -2612,7 +2623,7 @@ function drawCore() {
   const room = -LX0 - 18;
   const k = Math.max(0.44, Math.min(0.64, room / 150));
   const x = LX0 + 12 + 74 * k;
-  const pulse = 0.5;   // 核心光环不呼吸（固定亮度）；地图上其余动画都保留
+  const pulse = motion.calm ? 0.5 : 0.5 + 0.5 * Math.sin((G.t || 0) * 2.2);
   const ratio = G.core / G.coreMax;
   const danger = ratio <= 0.34;
   const col = danger ? '232,105,95' : '110,168,255';
@@ -2761,7 +2772,7 @@ function drawUnits() {
     }
     // 大招就绪：脚下金色脉冲
     if (!dead && u.ult >= 99) {
-      const k = 0.5 + 0.5 * Math.sin(t * 6);
+      const k = motion.calm ? 0.7 : 0.5 + 0.5 * Math.sin(t * 6);
       hexPath(p.x, p.y, HEX_W - 14);
       ctx.strokeStyle = `rgba(255,224,102,${0.35 + k * 0.45})`;
       ctx.lineWidth = 1.8;
@@ -2795,7 +2806,7 @@ function drawUnits() {
     if (dead) {
       ctx.globalAlpha = 0.28;
       ctx.translate(0, 6);
-    } else if (u.hurtT > 0) {
+    } else if (u.hurtT > 0 && !motion.calm) {
       ctx.filter = 'brightness(1.9) saturate(0.6)';
     } else if (u.shield > 0) {
       ctx.filter = 'drop-shadow(0 0 6px rgba(120,180,255,.8))';
@@ -2843,7 +2854,7 @@ function drawEnemies() {
     ctx.ellipse(e.x + knock, by - 4, 26 * e.size, 8 * e.size, 0, 0, 6.284);
     ctx.fill();
     if (e.stunT > 0) ctx.filter = 'grayscale(0.5) brightness(0.8)';
-    else if (e.hurtT > 0) ctx.filter = 'brightness(2.1) saturate(1.4)';
+    else if (e.hurtT > 0 && !motion.calm) ctx.filter = 'brightness(2.1) saturate(1.4)';
     sprite(rec.r, e.x + knock, by, h, true);
     ctx.filter = 'none';
     ctx.restore();
@@ -3009,7 +3020,8 @@ function drawUltStart(f, k) {
 // 落雷：从画面顶上砸下来的光柱，前 1/4 最亮，之后碎成几道细闪电
 function drawBeam(f, k) {
   const top = f.y - 620;
-  const flash = k < 0.22 ? 1 : Math.max(0, 1 - (k - 0.22) / 0.5);
+  // 「减少闪烁」下落雷的白闪压到三成亮度，不再一下子晃眼
+  const flash = (k < 0.22 ? 1 : Math.max(0, 1 - (k - 0.22) / 0.5)) * (motion.calm ? 0.3 : 1);
   ctx.globalAlpha = flash;
   const g = ctx.createLinearGradient(0, top, 0, f.y);
   g.addColorStop(0, hexA(f.col, 0));
@@ -3232,7 +3244,7 @@ function screenPos(cell) {
   const p = cellXY(cell);
   return { x: p.x * view.s + view.ox, y: p.y * view.s + view.oy };
 }
-return { hover, init, setBand, layout, toLogic, draw, screenPos };
+return { motion, setCalm, hover, init, setBand, layout, toLogic, draw, screenPos };
 })();
 
 // ---- js/pf/layout.js
@@ -3583,6 +3595,7 @@ return { TERM_CATS, TERMS, TERM_BY_KEY, FX_TERM, GMK_TERM, termOf, termsOfCat, t
 // ---- js/pf/ui.js
 const m_ui = await (async () => {
 const { boardBand, viewportSize, shortLandscape } = m_layout;
+const { motion, setCalm } = m_render;
 const { G, buy, sell, levelUp, rollShop, rollItemShop, beginWave, reset, traitList, deployed, summary, UNITS_BY_ID, buyItem, equip, unequip, itemDef, placeBench } = m_engine;
 const { ART, SHEET, REALM_ART } = m_gen;
 const { WAVES, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON, FAC_ICON, GMK_ICON, TRAIT_KINDS, STAR_NAME, LEVEL_COST, REROLL_COST, MAX_LEVEL, BENCH_SIZE, creditsAt, nextTier, ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS, ENEMY, interestOf, TRAITS, HEX_W } = m_defs;
@@ -3705,6 +3718,17 @@ function build() {
     };
     paint();
     mute.onclick = () => { sfx.setMuted(sfx.on); paint(); if (sfx.on) sfx.play('click'); };
+  }
+  // 减少闪烁：地图 / 商店上的呼吸、旋转、流动都停下来（默认开）。选项存 localStorage，见 render.js 的 motion
+  const calm = $('btnCalm');
+  if (calm) {
+    const paint = () => {
+      calm.classList.toggle('on', motion.calm);
+      calm.textContent = motion.calm ? '◌' : '✦';
+      calm.title = motion.calm ? '闪烁动画：已关闭（点一下打开）' : '闪烁动画：已打开（点一下关闭）';
+    };
+    paint();
+    calm.onclick = () => { setCalm(!motion.calm); paint(); sfx.play('tab'); G.msg = motion.calm ? '已关闭地图闪烁动画' : '已打开地图闪烁动画'; };
   }
   // 战斗倍速：只改「每帧推几步」，不改固定步长，2× 下的战果和 1× 是同一套规则。
   // 选择存 localStorage，下次进来还是上次的速度。

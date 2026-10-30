@@ -1,4 +1,5 @@
 import { boardBand, viewportSize, shortLandscape } from './layout.js';
+import { motion, setCalm } from './render.js';
 // 《忘却协议》界面层：顶栏、商店（唤醒体 / 命轮·造物两个页签）、装备栏、备战席、
 // 羁绊条、单位卡、遮罩层。
 //
@@ -124,6 +125,17 @@ export function build() {
     };
     paint();
     mute.onclick = () => { sfx.setMuted(sfx.on); paint(); if (sfx.on) sfx.play('click'); };
+  }
+  // 减少闪烁：地图 / 商店上的呼吸、旋转、流动都停下来（默认开）。选项存 localStorage，见 render.js 的 motion
+  const calm = $('btnCalm');
+  if (calm) {
+    const paint = () => {
+      calm.classList.toggle('on', motion.calm);
+      calm.textContent = motion.calm ? '◌' : '✦';
+      calm.title = motion.calm ? '闪烁动画：已关闭（点一下打开）' : '闪烁动画：已打开（点一下关闭）';
+    };
+    paint();
+    calm.onclick = () => { setCalm(!motion.calm); paint(); sfx.play('tab'); G.msg = motion.calm ? '已关闭地图闪烁动画' : '已打开地图闪烁动画'; };
   }
   // 战斗倍速：只改「每帧推几步」，不改固定步长，2× 下的战果和 1× 是同一套规则。
   // 选择存 localStorage，下次进来还是上次的速度。
