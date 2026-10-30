@@ -473,6 +473,9 @@ function renderCard() {
       <span>攻速 <b>${u.aspd.toFixed(2)}</b></span><span>护甲 <b>${Math.round(u.armor)}</b></span>
       <span>射程 <b>${(u.range / 94).toFixed(1)} 格</b></span>
       ${u.crit > 0 ? `<span>暴击 <b>${Math.round(u.crit * 100)}%</b></span>` : ''}
+      ${u.killAtkStep > 0 && u.killAtkMax > 0
+        ? `<span class="stk">击杀叠加 <b id="stkNow">${u.killStacks}</b> / ${u.killAtkMax} 层<em>每层 +${Math.round(u.killAtkStep * 100)}% 攻击</em></span>`
+        : ''}
     </div>
     ${eqRow(u)}
     ${eqText}
@@ -695,6 +698,15 @@ export function updateHUD() {
     }
   }
   tickBanner();
+  // 选中单位的击杀叠层：每杀一个 +1，战斗中随时在变，卡片上跟着刷
+  if (ui.sel != null) {
+    const su = G.units.find((x) => x.uid === ui.sel);
+    if (su && su.killAtkStep > 0 && L.stkNow !== su.killStacks) {
+      L.stkNow = su.killStacks;
+      const el = $('stkNow');
+      if (el) el.textContent = su.killStacks;
+    }
+  }
 
   // 商店买不起时压暗（只在金币变化时扫一遍）
   if (L.goldFor === undefined || L.goldFor !== G.gold) {

@@ -374,6 +374,12 @@ button{font:inherit; color:inherit}
 .ucard .tags .costb{color:var(--gold); font-weight:600; margin-left:2px}
 .ucard .nums{display:grid; grid-template-columns:1fr 1fr; gap:2px 8px; margin:7px 0 5px; color:var(--dim)}
 .ucard .nums b{color:var(--text); font-variant-numeric:tabular-nums}
+/* 叠层（击杀叠加）：占满一行，层数用数字，不靠玩家数图标 */
+.ucard .nums .stk{grid-column:1 / -1; display:flex; align-items:baseline; gap:5px; margin-top:2px;
+  padding:3px 7px; border-radius:7px; color:#ffb3b3; line-height:1.35;
+  background:color-mix(in srgb,#ff6b6b 12%,transparent); border:1px solid color-mix(in srgb,#ff6b6b 32%,transparent)}
+.ucard .nums .stk b{color:#ffd0d0; font-size:13px}
+.ucard .nums .stk em{font-style:normal; margin-left:auto; font-size:10px; color:color-mix(in srgb,#ffb3b3 70%,var(--dim))}
 .ucard .eqs{display:flex; gap:4px; margin:2px 0 5px}
 .ucard .eq{flex:1 1 0; min-width:0; height:30px; padding:2px 5px; border-radius:8px; text-align:left;
   border:1px solid var(--line); background:rgba(255,255,255,.02); color:var(--text);

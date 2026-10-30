@@ -188,6 +188,9 @@ function socialStats(u, bn) {
     for (const k in eff) {
       const arr = eff[k];
       if (!arr || arr[lv] == null) continue;
+      // 吞噬写的键是 killAtk（每层击杀的攻击加成），落到 killAtkStep / killAtkMax 上，
+      // 上限按文案的 5 层；红宝石胸针是 10 层，两者取高的那个当总上限
+      if (k === 'killAtk') { out.killAtkStep += arr[lv]; out.killAtkMax = Math.max(out.killAtkMax, 5); continue; }
       if (k in out) out[k] += arr[lv];
     }
   };

@@ -605,6 +605,36 @@ function hpBar(x, y, w, h, ratio, col, shieldRatio) {
   ctx.restore();
 }
 
+// 叠层小徽章：击杀叠加、创口这类「越打越强 / 越打越脆」的效果，把当前层数直接画出来
+function stackBadge(x, y, label, col, bg) {
+  ctx.save();
+  ctx.font = '700 10px system-ui,"PingFang SC",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const w = Math.max(20, ctx.measureText(label).width + 12);
+  const h = 14;
+  ctx.fillStyle = bg;
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 1;
+  const r = 7;
+  ctx.beginPath();
+  ctx.moveTo(x - w / 2 + r, y - h / 2);
+  ctx.lineTo(x + w / 2 - r, y - h / 2);
+  ctx.quadraticCurveTo(x + w / 2, y - h / 2, x + w / 2, y - h / 2 + r);
+  ctx.lineTo(x + w / 2, y + h / 2 - r);
+  ctx.quadraticCurveTo(x + w / 2, y + h / 2, x + w / 2 - r, y + h / 2);
+  ctx.lineTo(x - w / 2 + r, y + h / 2);
+  ctx.quadraticCurveTo(x - w / 2, y + h / 2, x - w / 2, y + h / 2 - r);
+  ctx.lineTo(x - w / 2, y - h / 2 + r);
+  ctx.quadraticCurveTo(x - w / 2, y - h / 2, x - w / 2 + r, y - h / 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = col;
+  ctx.fillText(label, x, y + 0.5);
+  ctx.restore();
+}
+
 // 脚下两个小方块：左边命轮、右边造物，有就给对应颜色
 function equipPips(x, y, u) {
   const dots = [];
@@ -699,6 +729,10 @@ function drawUnits() {
       ctx.fillRect(bx - 23, bYy + 6, 46 * Math.min(1, u.ult / 100), 2.5);
     }
     equipPips(p.x, by - 2, u);
+    // 击杀叠加（红宝石胸针 / 吞噬流派）：层数直接标在头顶，不然只能看攻击力猜
+    if (!dead && u.killAtkStep > 0 && u.killAtkMax > 0) {
+      stackBadge(p.x + 22, by - h - 26, `叠 ${u.killStacks}/${u.killAtkMax}`, '#ff9d9d', 'rgba(56,12,12,0.86)');
+    }
   }
 }
 
@@ -750,9 +784,18 @@ function drawEnemies() {
     if (e.wound > 0) {
       ctx.save();
       ctx.fillStyle = 'rgba(176,107,217,0.95)';
-      for (let i = 0; i < Math.min(8, e.wound); i++) {
+      const n = Math.min(8, e.wound);
+      for (let i = 0; i < n; i++) {
         ctx.fillRect(e.x + knock - 4 + i * 5, by - h - 14, 3, 2.5);
       }
+      // 创口层数：格子最多画 8 个，数字补上，一眼知道还差几层满
+      ctx.font = '700 9.5px system-ui,"PingFang SC",sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = 'rgba(211,164,242,0.95)';
+      ctx.shadowColor = 'rgba(0,0,0,0.85)';
+      ctx.shadowBlur = 2;
+      ctx.fillText('×' + e.wound, e.x + knock - 4 + n * 5 + 3, by - h - 11);
       ctx.restore();
     }
     if (e.def.cls === 'Boss') {
