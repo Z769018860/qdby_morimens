@@ -1857,3 +1857,34 @@ test('云存档：只比真实进度（rev / lastSeen / play 不算），一样�
   // 本机真的改过、云端也变了 → 才是冲突
   assert.equal(cloudPlan2({ state: { ...played, gold: 77 }, cloudMeta: other, sync: { acct, ver: 3, rev: 5, hash: contentHash(played) }, acct }), 'conflict');
 });
+
+/* ---------- 超限：叠满 99 后的无限成长 ---------- */
+import { overdriveUp } from '../src/core/game.js';
+import { overdriveCost, overdriveAmp, overdriveStatPct, baseStats as baseStats2 } from '../src/core/stats.js';
+
+test('超限：叠满才能练、花费指数涨、属性与增伤随级数涨、重复抽到白送一级、迁移保留', () => {
+  const s = newState(data);
+  const slug = Object.keys(s.roster)[0];
+  s.gold = 1e12; s.cores = 1e6;
+  assert.equal(overdriveUp(s, slug), null, '没叠满不能练');
+  s.roster[slug].star = 99; s.roster[slug].lv = 159;
+  const c0 = overdriveCost(0);
+  const paid = overdriveUp(s, slug);
+  assert.deepEqual(paid, c0);
+  assert.equal(s.roster[slug].od, 1);
+  assert.ok(overdriveCost(10).gold > overdriveCost(0).gold * 2.5 && overdriveCost(10).cores === 300);
+  for (let i = 0; i < 9; i++) overdriveUp(s, slug);
+  assert.equal(s.roster[slug].od, 10);
+  assert.equal(overdriveStatPct(10), 8); assert.equal(overdriveAmp(10), 3);
+  const a = data.bySlug[slug];
+  assert.ok(baseStats2(a, 159, 99, 10).atk > baseStats2(a, 159, 99, 0).atk * 1.07);
+  assert.ok(allyDef(s, data, slug, [slug]).amp >= overdriveAmp(10) + 27);
+  // 钱不够就练不了，也不会扣钱
+  s.gold = 0; const cores = s.cores;
+  assert.equal(overdriveUp(s, slug), null); assert.equal(s.cores, cores);
+  // 存档迁移：叠满的保留 od，没叠满的清零
+  const m = migrate(JSON.parse(JSON.stringify(s)), data);
+  assert.equal(m.roster[slug].od, 10);
+  const other = Object.keys(m.roster)[1]; m.roster[other].star = 3; m.roster[other].od = 50;
+  assert.equal(migrate(JSON.parse(JSON.stringify(m)), data).roster[other].od, 0);
+});

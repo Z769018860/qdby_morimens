@@ -28,7 +28,9 @@ import { refineCost, refineMult, relicRefineGain, relicRefineView, relicTheme, R
 import {
   lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, growthPerLevel,
   awakenAmp, awakenSkill, nextAwakenMilestone, rewindPlan, REWIND_COST,
+  overdrive, overdriveCost, overdriveStatPct, overdriveAmp,
 } from '../core/stats.js';
+import { OVERDRIVE_STAT_PER, OVERDRIVE_AMP_EVERY, OVERDRIVE_AMP_PER } from '../core/constants.js';
 import { describeSkill } from '../core/skills.js';
 import {
   wheelText, relicText, covTheme, gearCost, dismantleValue, relicBond, relicSlotCount, RELIC_BONDS, BOND_TIERS, bonusText,
@@ -690,6 +692,22 @@ const numLine = (sk) => {
   return `<small class="nums">原作数值（Lv.1–5 → 当前）：${Object.keys(n).map(part).join('　')}</small>`;
 };
 
+/* 超限：叠满 99 之后的无限成长。没有上限，花费指数涨 */
+function odBox(s, r, slug) {
+  const od = overdrive(r.od), c = overdriveCost(od);
+  const can = s.gold >= c.gold && s.cores >= c.cores;
+  const ic = '<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">';
+  return `<div class="odbox"><h4>超限 <small class="dim">叠满 ${MAX_AWAKEN} 后解锁 · 无上限</small></h4>
+    <div class="growbox">
+      <div><span>当前超限</span><b>Lv ${od}</b><em>全属性 +${overdriveStatPct(od)}% · 增伤 +${overdriveAmp(od)}%</em></div>
+      <div><span>每 1 级</span><b>生命 / 攻击 / 防御 +${OVERDRIVE_STAT_PER}%</b><em>每 ${OVERDRIVE_AMP_EVERY} 级增伤 +${OVERDRIVE_AMP_PER}%</em></div>
+      <div><span>下一级</span><b>🪙${fmt(c.gold)} ${ic}${c.cores}</b><em>每级金币 ×1.1</em></div>
+    </div>
+    <div class="row"><button class="btn gold sm" data-act="od" data-slug="${slug}" ${can ? '' : 'disabled'}>超限 +1</button>
+      <button class="btn sm" data-act="od" data-slug="${slug}" data-n="10" ${can ? '' : 'disabled'} title="连续超限，直到金币或银芯不够，最多 10 级">超限 ×10</button></div>
+    <p class="hint">另一条来路：叠满之后再<b>抽到这位</b>，会折算 <b>800 金币 + 30 银芯</b>，并<b>白送超限 +1</b>。</p></div>`;
+}
+
 /* 叠位效果表：把「每 1 / 每 10 / 每 40」三条规则摊开，玩家一眼能算清投入产出 */
 function awakenTable(r) {
   const st = r.star, cap = levelCap(st), amp = awakenAmp(st), sk = awakenSkill(st);
@@ -719,7 +737,7 @@ export function detailModal(app, slug) {
   const cost = r && r.lv < cap && !needBrk ? lvUpCost(r.lv) : 0;
   const brkCost = needBrk ? breakCost(r.lv) : null;
   const awkCost = r && r.star < MAX_AWAKEN ? awakenCost(r.star) : 0;
-  const g = growthPerLevel(a, preview.star);
+  const g = growthPerLevel(a, preview.star, preview.od);
   const perBattle = Math.round(stageGold(Math.max(1, s.maxStage)) * (1 + (view?.goldBonus || 0) / 100));
 
   const growBtns = r ? `<div class="row">
@@ -748,7 +766,7 @@ export function detailModal(app, slug) {
       ${r ? `<div class="row"><button class="btn sm" data-act="awaken" data-slug="${slug}" ${awkCost && s.cores >= awkCost ? '' : 'disabled'} title="重复抽取同一唤醒体也能 +1 叠位">叠位 +1（<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${awkCost || '满'}）</button>
         ${awkCost ? `<button class="btn sm" data-act="awaken" data-slug="${slug}" data-n="10" ${s.cores >= awkCost ? '' : 'disabled'} title="连续叠位，直到银芯不够或叠满，最多 10 次">叠位 ×10</button>` : ''}
         <button class="btn sm" data-act="guide-growth">升级材料从哪来？</button></div>
-      ${r.star >= MAX_AWAKEN ? `<p class="hint">已叠满 ${MAX_AWAKEN}：之后再抽到这位会折算成 <b>800 金币 + 30 银芯</b>。继续变强靠等级（上限 ${levelCap(r.star)}）、突破、装备精炼、钥令淬炼和更高的关卡。</p>` : ''}` : ''}
+      ${r.star >= MAX_AWAKEN ? odBox(s, r, slug) : ''}` : ''}
       <h4>叠位效果 <small class="dim">${awk(r?.star || 0)} / ${MAX_AWAKEN}</small></h4>
       ${awakenTable(preview)}
       ${r ? `<div class="eqrow">${slotBox('wheel', 'wheel', '命轮')}${slotBox('cov', 'covenant', '密契')}</div>` : ''}
@@ -882,7 +900,7 @@ function luckCard(app) {
   const recent = (g.log || []).slice(0, 14);
   const chips = recent.map((r) => {
     const a = app.data.bySlug[r.slug];
-    const tag = r.isNew ? 'NEW' : r.dup ? `叠位 ${r.star}` : '';
+    const tag = r.isNew ? 'NEW' : r.dup ? (r.star >= MAX_AWAKEN ? `超限 ${r.od}` : `叠位 ${r.star}`) : '';
     return `<span class="gchip r-${r.rarity}" title="${esc(a?.zh || r.slug)} · ${RAR_ZH[r.rarity]} · ${clock(r.t)}${tag ? ' · ' + tag : ''}">
       <img src="${img(a?.portrait)}" alt="" loading="lazy"><em>${esc(a?.zh || r.slug)}</em><small>${RAR_ZH[r.rarity]}${tag ? ' · ' + tag : ''}</small></span>`;
   }).join('') || '<p class="hint">还没有记录。抽一次就会出现在这里，记录只存在本机。</p>';
@@ -961,7 +979,7 @@ export function gachaLogModal(app) {
       <span class="gs">#${r.seq}</span>
       <img src="${img(a?.portrait)}" alt="">
       <span class="gn"><b>${esc(a?.zh || r.slug)}</b><small>${RAR_ZH[r.rarity]} · ${r.banner === 'core' ? '银芯召唤' : '召唤券'}</small></span>
-      <span class="gt">${r.isNew ? '<em class="new">NEW</em>' : r.dup ? `叠位 ${r.star}` : ''}</span>
+      <span class="gt">${r.isNew ? '<em class="new">NEW</em>' : r.dup ? (r.star >= MAX_AWAKEN ? `超限 ${r.od}` : `叠位 ${r.star}`) : ''}</span>
       <span class="gd">${clock(r.t)}</span></div>`;
   }).join('') || '<p class="hint">这个筛选下没有记录。</p>';
   const cmp = [['Genesis', '创生'], ['SSR', '史诗'], ['SR', '精良']].map(([k, zh]) => {
