@@ -359,7 +359,7 @@ function onAct(e) {
       if (!r0) break;
       if (back >= r0.lv - 1 && !confirm(`把 ${d.bySlug[el.dataset.slug].zh} 回溯到 1 级？叠位不变，当初花的金币会返还。`)) break;
       const r = rewindLevel(s, el.dataset.slug, back);
-      if (r) { sound.play('lvup'); toast(`回溯到 ${r.to} 级：银芯-${r.cost} 金币+${fmt(r.refund)}`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
+      if (r) { sound.play('lvup'); toast(`回溯到 ${r.to} 级：银芯-${r.cost}${r.refundCores ? ` +${r.refundCores}` : ''} 金币+${fmt(r.refund)}`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
       else toast('银芯不足');
       break;
     }

@@ -534,14 +534,14 @@ export function breakThrough(state, slug) {
   r.brk = Math.floor(r.lv / LEVEL_GATE);
   return c;
 }
-// 回溯：花银芯把等级倒回 back 级（最低到 1 级），返还当初花的金币；叠位不变，等级上限也不变（上限归叠位）
+// 回溯：花银芯把等级倒回 back 级（最低到 1 级），返还当初升级与突破花的全部金币和银芯；叠位不变，等级上限也不变（上限归叠位）
 export function rewindLevel(state, slug, back = 10) {
   const r = state.roster[slug];
   if (!r || !(back >= 1) || r.lv <= 1) return null;
   const plan = rewindPlan(r, r.lv - Math.floor(back));
   if (!plan.back || state.cores < plan.cost) return null;
   state.cores -= plan.cost; state.stats.coresSpent = (state.stats.coresSpent || 0) + plan.cost;
-  state.gold += plan.refund;
+  state.gold += plan.refund; state.cores += plan.refundCores;
   r.lv = plan.to;
   r.brk = Math.min(r.brk || 0, Math.floor(plan.to / LEVEL_GATE));
   return plan;

@@ -1697,15 +1697,19 @@ test('回溯：只倒回等级，叠位不动；返还升级与突破的金币�
   const out = rewindLevel(s, slug, 999);
   assert.equal(out.to, 1);
   assert.equal(r.lv, 1); assert.equal(r.star, 7, '叠位不变'); assert.equal(r.brk, 0);
-  assert.equal(s.cores, coresBefore - out.cost);
+  const brkCores = breakCost(20).cores + breakCost(40).cores;
+  assert.equal(out.refundCores, brkCores);
+  assert.equal(s.cores, coresBefore - out.cost + brkCores, '手续费照收，突破用掉的银芯全部返还');
   assert.equal(s.gold, goldAfterUp + out.refund);
   assert.equal(g0 - spent, goldAfterUp);
-  assert.equal(out.refund, spent, '金币全额返还（突破用掉的银芯不退）');
+  assert.equal(out.refund, spent, '升级与突破的金币全额返还');
   // 等级上限仍由叠位决定
   assert.equal(levelCap(r.star), 60 + 7);
   // 部分回溯：45 → 35 要还掉突破 40 的金币并把 brk 降到 1
   Object.assign(r, { lv: 45, brk: 2 });
+  const c10 = s.cores;
   const p10 = rewindLevel(s, slug, 10);
+  assert.equal(s.cores, c10 - p10.cost + breakCost(40).cores);
   assert.equal(r.lv, 35); assert.equal(r.brk, 1);
   assert.equal(p10.refund, [35, 36, 37, 38, 39, 40, 41, 42, 43, 44].reduce((a, l) => a + _lvUpCost(l), 0) + breakCost(40).gold);
   // 银芯不够 / 已经 1 级：不动
