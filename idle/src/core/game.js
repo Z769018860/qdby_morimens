@@ -192,7 +192,7 @@ export function allyDef(state, data, slug, teamSlugs = state.team) {
   addBonus(bonus, rel.bond.bonus);
   addBonus(bonus, ordersBonus(state, data));
   // 叠位：每 10 层 +3% 增伤（属性与等级上限在 baseStats / levelCap 里）
-  bonus.amp += Math.floor(r.star / 10) * 3;
+  bonus.amp += Math.floor((Number.isFinite(Number(r.star)) ? Number(r.star) : 0) / 10) * 3;
   const def = {
     slug, name: a.zh, img: a.portrait, type: a.type, realm: a.realm, lv: r.lv, star: r.star,
     hp: Math.round(st.hp * (1 + bonus.hpPct / 100)),
