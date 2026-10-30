@@ -630,8 +630,8 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   eq('单人发唤醒体', (await call('/admin/grant', { method: 'POST', headers: AD, body: { uid: '9101', awk: ['doll'] } })).json.ok, true);
 
   // 榜单：档案摘要 + 挂机云存档摘要
-  await call('/account', { method: 'PUT', headers: U1, body: { doc: { cr: 1, gd: { mg: [1234], bd: [30, 800], il: [100, 6, 40, 41, 0] } }, ver: 0 } });
-  await call('/account', { method: 'PUT', headers: U2, body: { doc: { cr: 1, gd: { mg: [900] } }, ver: 0 } });
+  await call('/account', { method: 'PUT', headers: U1, body: { doc: { cr: 1, gd: { dr: [20, 15, 9], mg: [1234], bd: [30, 800], il: [100, 6, 40, 41, 0] } }, ver: 0 } });
+  await call('/account', { method: 'PUT', headers: U2, body: { doc: { cr: 1, gd: { dr: [30, 15, 12], mg: [900] } }, ver: 0 } });
   await call('/save/idle', { method: 'PUT', headers: U1, body: { data: JSON.stringify({ roster: {} }), ver: 0, meta: { maxStage: 55, roster: 6, team: [{ s: 'ogier', lv: 60, st: 2 }, { s: 'x y', lv: 1 }] } } });
   const bd = await call('/board');
   check('榜单可公开读', bd.json.ok && bd.json.games, bd.json);
@@ -639,6 +639,8 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   eq('鸟弟榜带最深层数', bd.json.games.bd.items[0].sub, '最深 30 层');
   eq('挂机榜用云存档的关数', bd.json.games.il.items[0].score, 55);
   eq('挂机榜带阵容（slug 里的非法字符被清掉）', bd.json.games.il.items[0].team, [{ s: 'ogier', lv: 60, st: 2 }, { s: 'xy', lv: 1, st: 0 }]);
+  eq('侦探榜按答对题数排，同分正确率高者在前，副标带正确率', bd.json.games.dr.items.map((x) => [x.name, x.score, x.sub]), [['甲', 15, '正确率 75% · 共答 20 题'], ['乙', 15, '正确率 50% · 共答 30 题']]);
+  check('侦探榜单位是题', bd.json.games.dr.unit === '题' && !('tb' in bd.json.games.dr.items[0]));
   check('没分的游戏榜单为空', bd.json.games.sv.items.length === 0);
 }
 

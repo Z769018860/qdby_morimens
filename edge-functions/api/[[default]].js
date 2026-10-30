@@ -1114,7 +1114,10 @@ async function postAdminGrantBatch(request, env, kv, cors) {
 const BOARD_TTL = 3 * 60 * 1000;
 // [游戏键, gd 键, 取分的下标, 说明, 副标]
 const BOARD_SPEC = [
-  { k: 'dr', gd: 'dr', i: 2, unit: '分', label: '最高分' },
+  // 战报侦探：按答对的题数排，副标写正确率；答对数相同时正确率高的在前
+  { k: 'dr', gd: 'dr', i: 1, unit: '题', label: '答对题数',
+    sub: (v) => (Number(v[0]) > 0 ? `正确率 ${Math.round((Number(v[1]) || 0) / Number(v[0]) * 100)}% · 共答 ${Number(v[0])} 题` : ''),
+    tb: (v) => (Number(v[0]) > 0 ? (Number(v[1]) || 0) / Number(v[0]) : 0) },
   { k: 'mg', gd: 'mg', i: 0, unit: '分', label: '最高分' },
   { k: 'bd', gd: 'bd', i: 1, unit: '分', label: '最高分', sub: (v) => (v[0] ? `最深 ${Number(v[0])} 层` : '') },
   { k: 'bn', gd: 'bn', i: 0, unit: '层', label: '最深楼层', sub: (v) => (v[1] ? `通关 ${Number(v[1])} 次` : '') },
@@ -1142,10 +1145,10 @@ async function buildBoard(kv) {
     for (const u of users) {
       const v = u.gd && Array.isArray(u.gd[sp.gd]) ? u.gd[sp.gd] : null;
       const score = v ? Math.round(Number(v[sp.i]) || 0) : 0;
-      if (score > 0) list.push({ name: u.name, score, sub: sp.sub ? sp.sub(v) : '' });
+      if (score > 0) list.push({ name: u.name, score, sub: sp.sub ? sp.sub(v) : '', tb: sp.tb ? sp.tb(v) : 0 });
     }
-    list.sort((a, b) => b.score - a.score);
-    out[sp.k] = { label: sp.label, unit: sp.unit, items: list.slice(0, 20) };
+    list.sort((a, b) => b.score - a.score || b.tb - a.tb);
+    out[sp.k] = { label: sp.label, unit: sp.unit, items: list.slice(0, 20).map(({ tb, ...it }) => it) };
   }
   // 挂机前夜：主线通关进度 + 通关阵容（云存档摘要里的 team），没上传云存档的退回档案里的最高关卡
   const il = [];
