@@ -205,7 +205,7 @@ function drawIntent() {
     if (!lanes.has(p.row)) lanes.set(p.row, []);
     lanes.get(p.row).push(p);
   }
-  const t = G.t || 0;
+  // 备战期地图保持静止（路线虚线、箭头、祭坛、核心都不再动）
   for (const [row, items] of lanes) {
     const path = lanePath(row);
     // 路线
@@ -213,7 +213,7 @@ function drawIntent() {
     ctx.strokeStyle = 'rgba(200,140,240,0.34)';
     ctx.lineWidth = 2.6;
     ctx.setLineDash([7, 10]);
-    ctx.lineDashOffset = -t * 20;
+    ctx.lineDashOffset = 0;     // 路线虚线原来会一路流动，现在不动
     ctx.beginPath();
     for (let i = 0; i < path.length; i++) {
       const q = cellXY(path[i]);
@@ -289,7 +289,7 @@ function drawRange() {
     ctx.stroke();
   }
   ctx.setLineDash([7, 7]);
-  ctx.lineDashOffset = -(G.t || 0) * 26;
+  ctx.lineDashOffset = 0;     // 射程框虚线原来会转着跑，现在不动
   ctx.strokeStyle = 'rgba(140,200,255,0.85)';
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -672,7 +672,7 @@ function drawUnits() {
     }
     // 大招就绪：脚下金色脉冲
     if (!dead && u.ult >= 99) {
-      const k = 0.5 + 0.5 * Math.sin(t * 6);
+      const k = 0.7;      // 大招就绪的金圈原来一闪一闪，现在常亮
       hexPath(p.x, p.y, HEX_W - 14);
       ctx.strokeStyle = `rgba(255,224,102,${0.35 + k * 0.45})`;
       ctx.lineWidth = 1.8;
