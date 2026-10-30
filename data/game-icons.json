@@ -48,5 +48,10 @@
     "src": "assets/ui/gameicons/g2048.webp",
     "from": "assets/creation/Icon_Creation_068.webp",
     "who": "祂的神谕"
+  },
+  "duel": {
+    "src": "assets/ui/gameicons/duel.webp",
+    "from": "assets/avatars-q/char-keeperm.webp",
+    "who": "守密人"
   }
 }
