@@ -1158,7 +1158,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
 </style>
 <!-- 整个模块依赖一次预加载：不然浏览器要「先下 game.js，才知道要下 common.js」，
      在只给 HTTP/1.1 的边缘上这就是两三秒的白屏。 -->
-<meta name="build" content="440e162599">
+<meta name="build" content="8ff1164aaa">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1319,7 +1319,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
   if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
 })();
 </script>
-<script type="module" src="js/b/detective.js?v=440e162599" onerror="window.__bootFailed && window.__bootFailed('主脚本 js/game.js 未能加载')"></script>
+<script type="module" src="js/b/detective.js?v=8ff1164aaa" onerror="window.__bootFailed && window.__bootFailed('主脚本 js/game.js 未能加载')"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
