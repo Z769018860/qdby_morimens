@@ -145,7 +145,7 @@ test('every awakener carries real card names and the keyword pack', () => {
     for (const s of SLOTS) assert.ok(k[s].name && k[s].real?.d, `${a.slug}.${s}`);
   }
   const salvador = data.kit('salvador');
-  assert.equal(salvador.Skill1.name, '受祝福的白骨');
+  assert.equal(salvador.Skill1.name, '受祝骨血');
 });
 
 test('keyword riders add statuses for tagged skills', () => {
