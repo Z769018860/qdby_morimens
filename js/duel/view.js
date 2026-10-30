@@ -166,7 +166,7 @@ function startDuel() {
   S.G = E.createGame(
     { cards: mine.cards, extra: mine.extra },
     { cards: foe.cards, extra: foe.extra },
-    { seed: (Date.now() ^ (Math.random() * 1e9)) >>> 0 },
+    { seed: (Date.now() ^ (Math.random() * 1e9)) >>> 0, aiLp: S.diff === 'easy' ? 6000 : 8000 },
   );
   S.sel = null; S.mode = 'idle'; S.tribute = []; S.result = false; S.busy = false;
   show('duel');

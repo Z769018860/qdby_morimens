@@ -129,6 +129,7 @@ function createGame(userDeck, aiDeck, opts) {
   };
   G.players.push(mkPlayer(G, 0, userDeck));
   G.players.push(mkPlayer(G, 1, aiDeck));
+  if (o.aiLp) { G.players[1].lp = o.aiLp; G.players[1].lpMax = o.aiLp; }
 
   for (const p of G.players) {
     p.bonds = evalBonds(p.deck.slice());
@@ -833,8 +834,8 @@ function attack(G, side, monUid, targetUid) {
   if (direct) {
     if (stop === 'reflect') { log(G, `${pname(p)}的直接攻击被「忘却的代价」弹了回去`, 'trap'); return ok(); }
     if (stop === 'negated') return ok();
+    log(G, `${pname(p)}直接攻击`, 'battle');
     damagePlayer(G, o, av, 'battle');
-    log(G, `${pname(p)}直接攻击，${pname(o)}受到 ${av} 点伤害`, 'battle');
     if (hasFx(a, 'directDiscard') && fxV(a, 'directDiscard')) discardRandom(G, o, fxV(a, 'directDiscard'));
     afterBattleDamage(G, p, o, a, av);
     return ok();
@@ -855,15 +856,15 @@ function attack(G, side, monUid, targetUid) {
     if (av > dv) {
       const diff = av - dv;
       destroyMon(G, o, target, '被战斗破坏');
+      log(G, `「${CARDS[a.id].n}」破坏了「${CARDS[target.id].n}」`, 'battle');
       damagePlayer(G, o, diff, 'battle');
-      log(G, `「${CARDS[a.id].n}」破坏了「${CARDS[target.id].n}」，${pname(o)}受到 ${diff} 点伤害`, 'battle');
       afterKill(G, p, o, a);
       afterBattleDamage(G, p, o, a, diff);
     } else if (av < dv) {
       const diff = dv - av;
       destroyMon(G, p, a, '被战斗破坏');
+      log(G, `「${CARDS[a.id].n}」被「${CARDS[target.id].n}」击破`, 'battle');
       damagePlayer(G, p, diff, 'battle');
-      log(G, `「${CARDS[a.id].n}」被「${CARDS[target.id].n}」击破，${pname(p)}受到 ${diff} 点伤害`, 'battle');
     } else {
       destroyMon(G, o, target, '同归于尽');
       destroyMon(G, p, a, '同归于尽');
@@ -876,15 +877,15 @@ function attack(G, side, monUid, targetUid) {
       destroyMon(G, o, target, '被战斗破坏');
       log(G, `「${CARDS[a.id].n}」破坏了守备的「${CARDS[target.id].n}」`, 'battle');
       if (hasFx(a, 'pierce')) {
+        log(G, '贯穿！', 'battle');
         damagePlayer(G, o, diff, 'battle');
-        log(G, `贯穿！${pname(o)}受到 ${diff} 点伤害`, 'battle');
         afterBattleDamage(G, p, o, a, diff);
       }
       afterKill(G, p, o, a);
     } else if (av < dv) {
       const diff = dv - av;
+      log(G, '攻击被挡下了', 'battle');
       damagePlayer(G, p, diff, 'battle');
-      log(G, `攻击被挡下，${pname(p)}受到 ${diff} 点伤害`, 'battle');
     } else {
       log(G, '攻击力与守备力相同，什么也没发生', 'info');
     }
@@ -1485,7 +1486,7 @@ function startDuel() {
   S.G = E.createGame(
     { cards: mine.cards, extra: mine.extra },
     { cards: foe.cards, extra: foe.extra },
-    { seed: (Date.now() ^ (Math.random() * 1e9)) >>> 0 },
+    { seed: (Date.now() ^ (Math.random() * 1e9)) >>> 0, aiLp: S.diff === 'easy' ? 6000 : 8000 },
   );
   S.sel = null; S.mode = 'idle'; S.tribute = []; S.result = false; S.busy = false;
   show('duel');
