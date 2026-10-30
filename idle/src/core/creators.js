@@ -2,6 +2,8 @@
 //
 // 三件事决定了这个文件长什么样：
 //   1. 他们**不进抽卡池**（avail = 'GIFT'，pullOnce 里按 a.creator 过滤），只走签到与活动赠送；
+//      赠送**可以重复**：同一人再送一次就是叠位 +1。叠位上限 99，光靠银芯共鸣太贵，
+//      所以签到一天发一份、活动人气每 100 点换一张征召券，日常打卡就能慢慢叠满。
 //   2. 技能是手写的（CREATOR_KITS），不吃 skills.js 的「类型模板 + 原作文本反推」，因为他们在原作里不存在；
 //   3. 数值刻意压在史诗（SSR）之下、初始四人之上——彩蛋归彩蛋，不能破坏养成曲线。
 //
@@ -19,6 +21,7 @@
 //   python tools/build_creators.py --portrait samo=D:/图/samo.png --card samo=D:/图/samo-card.png
 // 该脚本的默认行为是用姓名首字画一枚符印头像（无素材时的占位，风格与游戏内卡片一致）。
 import { fx as E } from './skills.js';
+import { MAX_AWAKEN } from './constants.js';
 
 // 与 skills.js 的 GROWTH 保持同一口径：技能等级 0..4 对应 Lv.1–5
 const G = (lv) => 0.98 + 0.03 * (lv || 0);
@@ -261,31 +264,47 @@ export function creatorKit(slug, level = 2) {
 }
 
 /* ---------------- 赠送 ---------------- */
-// 签到：累计签到达标就送（state.stats.signins 是跨月累计，不会因为换月重来）
-export const SIGNIN_GIFTS = [
-  { days: 3, slug: 'samo', note: '累计签到 3 天' },
-  { days: 7, slug: 'mengyi', note: '累计签到 7 天' },
-  { days: 15, slug: 'xiamolin', note: '累计签到 15 天' },
-];
+// 签到：累计每 SIGNIN_PER 天发一份「嘉宾征召」，按 CREATORS 的顺序轮着给——
+// 先把手上的空位补齐，九个人都到手之后继续轮，每轮给每个人多叠一级。
+// 一天一份是有意的：彩蛋角色不进池，只能靠这个和活动券叠位，量太小就永远停在 0 星。
+export const SIGNIN_PER = 1;
+export const GIFT_ROUND = CREATORS.map((a) => a.slug);
+export const signinPicks = (state) => Math.floor(Math.max(0, state.stats?.signins || 0) / SIGNIN_PER);
 
-/** 把一名彩蛋角色发到存档里（已拥有就返回 null）。返回 `{ slug, zh, isNew }` */
+/** 下一份发给谁：还没到手的按固定顺序补齐，全齐了再按顺序轮转叠位 */
+export function nextGiftSlug(state, sent = 0) {
+  const missing = GIFT_ROUND.filter((s) => !state.roster?.[s]);
+  if (missing.length) return missing[0];
+  return GIFT_ROUND[sent % GIFT_ROUND.length];
+}
+
+/** 把一名彩蛋角色发到存档里：没有就是新获得，有了就是叠位 +1（满了返回 full） */
 export function grantCreator(state, slug) {
   const a = CREATOR_BY_SLUG[slug];
   if (!a) return null;
   state.roster ||= {};
-  if (state.roster[slug]) return null;
-  state.roster[slug] = { lv: 1, star: 0, brk: 0 };
-  return { slug, zh: a.zh, isNew: true };
+  const own = state.roster[slug];
+  if (!own) {
+    state.roster[slug] = { lv: 1, star: 0, brk: 0 };
+    return { slug, zh: a.zh, isNew: true, star: 0 };
+  }
+  const star = Math.max(0, Math.floor(own.star || 0));
+  if (star >= MAX_AWAKEN) return { slug, zh: a.zh, isNew: false, full: true, star };
+  own.star = star + 1;
+  return { slug, zh: a.zh, isNew: false, star: own.star };
 }
 
-/** 检查签到赠礼：返回这次新发放的列表（老玩家进游戏也会补发） */
+/** 检查签到赠礼：按累计签到的份数补发（老玩家进游戏也会一次补齐），返回这次发出去的那些 */
 export function syncSigninGifts(state) {
+  state.gift ||= { signin: 0 };
+  const want = signinPicks(state);
   const got = [];
-  const days = state.stats?.signins || 0;
-  for (const g of SIGNIN_GIFTS) {
-    if (days < g.days) continue;
-    const r = grantCreator(state, g.slug);
-    if (r) got.push({ ...r, note: g.note });
+  let guard = 0;
+  while ((state.gift.signin || 0) < want && guard++ < 999) {
+    const sent = state.gift.signin || 0;
+    state.gift.signin = sent + 1;
+    const r = grantCreator(state, nextGiftSlug(state, sent));
+    if (r) got.push(r);
   }
   return got;
 }

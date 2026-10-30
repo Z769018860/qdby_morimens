@@ -1,4 +1,4 @@
-// 无头回归：用 Edge 的 CDP 跑一遍 15 个页面，检查报错 / 4xx，
+// 无头回归：用 Edge 的 CDP 跑一遍 16 个页面，检查报错 / 4xx，
 // 以及 M10 的三处新交互（命轮密契页换装 / 一键配队 / 手动挂机不推进）。
 // 用法：node tools/regress.mjs [http://127.0.0.1:8777/index.html]
 import { spawn, spawnSync } from 'node:child_process';
@@ -132,8 +132,8 @@ await cdp.evalIife(`(() => {
   return !!b;
 })()`);
 
-// 1) 15 个页面都能渲染
-const TABS = ['battle', 'team', 'roster', 'gear', 'orders', 'summon', 'challenge', 'weekly', 'rtower', 'arena', 'signin', 'event', 'codex', 'ach', 'settings'];
+// 1) 16 个页面都能渲染
+const TABS = ['battle', 'team', 'roster', 'gear', 'orders', 'summon', 'challenge', 'rift', 'weekly', 'rtower', 'arena', 'signin', 'event', 'codex', 'ach', 'settings'];
 const rendered = await cdp.evalIife(`(() => {
   const out = [];
   for (const t of ${JSON.stringify(TABS)}) {
@@ -143,7 +143,7 @@ const rendered = await cdp.evalIife(`(() => {
   return out;
 })()`);
 const blank = rendered.filter(([, n]) => !(n > 100)).map(([t, n]) => `${t}(${n})`);
-check(blank.length === 0, `15 个页面都有内容${blank.length ? '，可疑：' + blank.join(', ') : ''}`);
+check(blank.length === 0, `16 个页面都有内容${blank.length ? '，可疑：' + blank.join(', ') : ''}`);
 
 // 2) 先抽一批装备（真实路径：召唤页的祈愿），后面配队才有货可用
 const pulled = await cdp.evalIife(`(() => {
@@ -306,6 +306,9 @@ await cdp.shot('farm');
 const squad = await cdp.evalIife(`(() => {
   const s = __game.state;
   window.__go('team');
+  // 队伍页现在是标签页，编队卡片在「编队库」那一栏里
+  const tabs = document.querySelectorAll('.ttab').length;
+  document.querySelector('.ttab[data-k="squads"]').click();
   const cur = s.team.slice();
   document.querySelector('[data-act="squad-save"][data-k="a"]').click();
   const a = (s.squads.a.team || []).slice();
@@ -324,15 +327,17 @@ const squad = await cdp.evalIife(`(() => {
   const bar = document.querySelectorAll('.squadbar').length;
   document.querySelector('[data-act="squad-pick"][data-mode="weekly"][data-k="a"]').click();
   const on = document.querySelectorAll('.sqchip.on').length;
-  return { cur, a, b, different: a.join() !== b.join(), pick: s.squadPick.weekly, on, bar,
+  return { cur, a, b, tabs, different: a.join() !== b.join(), pick: s.squadPick.weekly, on, bar,
     note: (document.querySelector('.sqchip.on')?.innerText || '').replace(/\\s+/g, ' ') };
 })()`);
+check(squad.tabs === 7, `队伍页标签 ${squad.tabs} 个（主线 / 无限塔 / 融灾禁区 / 周Boss / 属性塔 / 竞技场 / 编队库）`);
 check(squad.a.length === 4 && squad.different, `编队：一队 ${squad.a.length} 人 · 二队与一队不同（${squad.a.join('>')} / ${squad.b.join('>')}）`);
 check(squad.bar >= 1 && squad.pick === 'a' && squad.on >= 1, `周 Boss 出战阵容切到「${squad.note}」（${squad.on} 个选中）`);
 await cdp.shot('squad');
 // 再回队伍页确认编队卡片上写了「挑战在用」
 const usage = await cdp.evalIife(`(() => {
   window.__go('team');
+  document.querySelector('.ttab[data-k="squads"]').click();
   const card = document.querySelector('.squad[data-squad="a"]');
   return { cards: document.querySelectorAll('.squad').length, use: (card?.querySelector('.squse')?.innerText || '') };
 })()`);
@@ -388,15 +393,26 @@ await sleep(300);
 await cdp.shot('settings-audio');
 
 
-// 11) 队伍页的「挑战编队」：8 个模式 + 融灾禁区一行，现场编队能按界域一键上阵并直接给它用
+// 11) 队伍页的标签页：每个挑战入口单独一栏，属性塔里能锁界域现场编队
 const assign = await cdp.evalIife(`(() => {
   const s = __game.state;
   // 先保证手里有混沌界域的人，否则「混沌塔一键上阵」会正确地返回空
   const chaos = __game.data.awakeners.filter((a) => a.realm === 'CHAOS').slice(0, 5).map((a) => a.slug);
   for (const x of chaos) s.roster[x] ||= { lv: 60, star: 3, brk: 3 };
   window.__go('team');
-  const rows = document.querySelectorAll('.assigns .assign').length;
-  const modes = [...document.querySelectorAll('.assigns .assign')].map((a) => (a.querySelector('header b')?.innerText || '').trim());
+  const tabs = [...document.querySelectorAll('.ttab')].map((b) => b.innerText.trim());
+  // 每个挑战入口的标签页里应该只有一块，不再把 9 个入口堆在一页
+  const per = {};
+  for (const t of ['tower', 'rt', 'weekly', 'arena', 'rift', 'squads']) {
+    document.querySelector('.ttab[data-k="' + t + '"]').click();
+    const v = document.querySelector('#view');
+    per[t] = { blocks: v.querySelectorAll('.assign').length, lines: v.querySelectorAll('.riftline').length,
+      squads: v.querySelectorAll('.squad').length, head: (v.querySelector('h2')?.innerText || '').split('\\n')[0] };
+  }
+  // 属性塔：切到混沌，再现场编队
+  document.querySelector('.ttab[data-k="rt"]').click();
+  document.querySelector('[data-act="team-rt"][data-k="CHAOS"]').click();
+  const rtTitle = (document.querySelector('#view h2')?.innerText || '').split('\\n')[0];
   document.querySelector('[data-act="squad-edit"][data-mode="rt_CHAOS"]').click();
   const opened = !!document.querySelector('.sqeditor');
   const realmLocked = [...document.querySelectorAll('.sqrealms .sqchip')].filter((b) => b.disabled).map((b) => b.innerText.trim());
@@ -405,20 +421,24 @@ const assign = await cdp.evalIife(`(() => {
   const picked = slots.map((x) => x.querySelector('b').innerText.trim());
   document.querySelector('[data-sq="save"][data-k="c"]').click();
   const team = (s.squads.c.team || []).slice();
-  return { rows, modes, opened, realmLocked, slots: slots.length, picked, team,
+  return { tabs, per, rtTitle, opened, realmLocked, slots: slots.length, picked, team,
     allChaos: team.every((x) => __game.data.bySlug[x].realm === 'CHAOS'),
     pick: s.squadPick.rt_CHAOS, closed: !document.querySelector('.sqeditor') };
 })()`);
-check(assign.rows === 9, `队伍页挑战编队 ${assign.rows} 个入口：${assign.modes.join(' / ')}`);
-check(assign.modes.includes('融灾禁区'), `融灾禁区在队伍编成里也有一行（五队齐上）`);
-check(assign.opened && assign.slots === 4 && assign.allChaos, `现场编队一键上阵：${assign.picked.join('、')}（${assign.slots} 人，全混沌界域）`);
+check(assign.tabs.length === 7 && assign.tabs[0] === '主线队伍' && assign.tabs[1] === '无限塔' && assign.tabs[2] === '融灾禁区',
+  `队伍页 ${assign.tabs.length} 个标签：${assign.tabs.join(' / ')}`);
+check(['tower', 'rt', 'weekly', 'arena'].every((k) => assign.per[k].blocks === 1) && assign.per.rift.blocks === 2,
+  `每个挑战标签只放自己那一块（融灾禁区是「五队 + 区域首领」两块）：${Object.entries(assign.per).map(([k, v]) => `${k}=${v.blocks}`).join(' ')}`);
+check(assign.per.rift.lines === 5, `融灾禁区标签里是五队逐行（${assign.per.rift.lines} 行）`);
+check(assign.per.squads.squads === 10, `编队库里是通用五套 + 禁区专用五套（${assign.per.squads.squads} 套）`);
+check(assign.opened && assign.slots === 4 && assign.allChaos, `属性塔现场编队一键上阵：${assign.picked.join('、')}（${assign.slots} 人，全混沌界域）`);
 check(assign.pick === 'c' && assign.closed && assign.team.length === 4, `存为三队后「混沌尖塔」自动指向它（${assign.pick}）`);
 check(assign.realmLocked.includes('血肉') && !assign.realmLocked.includes('混沌'), `混沌塔编辑器锁住其他界域（${assign.realmLocked.join('、') || '无'}）`);
-await cdp.evalIife(`(() => { document.querySelector('.assigns')?.scrollIntoView({ block: 'start' }); return 1; })()`);
-await sleep(300);
+await cdp.evalIife(`(() => { document.querySelector('.ttab[data-k="rt"]').click(); return 1; })()`);
+await sleep(200);
 await cdp.shot('team-assign');
-await cdp.evalIife(`(() => { const a = [...document.querySelectorAll('.assigns .assign')].pop(); a?.scrollIntoView({ block: 'center' }); return 1; })()`);
-await sleep(300);
+await cdp.evalIife(`(() => { document.querySelector('.ttab[data-k="rift"]').click(); return 1; })()`);
+await sleep(200);
 await cdp.shot('team-rift');
 
 // 12) 属性塔：四座塔各有自己的出战阵容条；挑战会先放一段战斗回放
@@ -505,17 +525,26 @@ const rift = await cdp.evalIife(`(() => {
   ['a', 'b', 'c', 'd', 'e'].forEach((k, i) => { s.squads[k] = { team: all.slice(i * 4, i * 4 + 4) }; });
   s.rift = { cycle: '', floor: 0, best: 0, day: '', tries: 3, tkFrac: 0, coFrac: 0, runs: 0 };
   window.__go('challenge');
-  const card = !!document.querySelector('.riftcard');
-  const cardFoes = document.querySelectorAll('.riftfoes .rf').length;
+  // 第一个标签是无限塔：只有塔的内容，不该再混着融灾禁区的卡或区域首领
+  const firstTab = (document.querySelector('#subnav [data-sub="challenge"]')?.innerText || '').trim();
+  const towerHead = (document.querySelector('#view h2')?.innerText || '').split('\\n')[0];
+  const towerFloors = document.querySelectorAll('#view .tfline').length;
+  const strayRift = !!document.querySelector('#view .riftcard');
+  const strayTrials = document.querySelectorAll('#view .trials').length;
   window.__go('rift');
   const teams = [...document.querySelectorAll('.rt-teams .rt-team')];
   const bar = !!document.querySelector('.riftbar');
   const filled = teams.filter((t) => t.classList.contains('on')).length;
   const btn = document.querySelector('[data-act="rift-go"]');
   const label = (btn && btn.innerText.trim()) || '';
-  return { card, cardFoes, teams: teams.length, bar, filled, label, tab: document.querySelector('[data-sub="rift"]') ? '有二级导航' : '无' };
+  const trials = document.querySelectorAll('#view .trials .trial').length;
+  return { firstTab, towerHead, towerFloors, strayRift, strayTrials, teams: teams.length, bar, filled, label, trials,
+    tab: document.querySelector('[data-sub="rift"]') ? '有二级导航' : '无' };
 })()`);
-check(rift.card && rift.cardFoes === 5, `挑战页有融灾禁区入口（列出 5 组敌人）`);
+check(rift.firstTab === '无限塔' && /无限塔/.test(rift.towerHead), `挑战组第一个标签是「${rift.firstTab}」，页头「${rift.towerHead}」`);
+check(!rift.strayRift && !rift.strayTrials && rift.towerFloors === 5,
+  `无限塔页只有塔的内容（${rift.towerFloors} 层预告，无融灾禁区卡 / 无区域首领）`);
+check(rift.trials > 0, `区域首领（融灾试炼）挪进了融灾禁区页：${rift.trials} 组`);
 check(rift.teams === 5 && rift.filled === 5 && rift.bar, `融灾禁区页面五队齐列（${rift.filled}/5 已编，进度条正常）`);
 check(/第 1 层/.test(rift.label), `挑战按钮指向当前层：${rift.label}`);
 await cdp.shot('rift-page');
@@ -626,14 +655,24 @@ await cdp.shot('event-page');
 const evUnlock = await cdp.evalIife(`(async () => {
   const s = __game.state; s.event.fame = 1000; __game.save();
   window.__go('event'); await new Promise((r) => setTimeout(r, 300));
-  const b = document.querySelector('[data-act="event-tier"]');
+  const tokens0 = document.querySelectorAll('[data-act="event-summon"]').length;
+  const b = document.querySelector('[data-act="event-summon"]');
   const slug = b?.dataset.slug || '';
   const before = Object.keys(s.roster).length;
+  const used0 = s.event.used || 0;
   b?.click(); await new Promise((r) => setTimeout(r, 350));
   document.querySelectorAll('.modal-bg').forEach((e) => e.remove());
-  return { slug, delta: Object.keys(s.roster).length - before, zh: __game.data.bySlug[slug]?.zh || '' };
+  const star1 = s.roster[slug]?.star ?? -1;
+  // 再换一次同一个人：应该变成叠位 +1，而不是第二个角色
+  const b2 = document.querySelector('[data-act="event-summon"][data-slug="' + slug + '"]');
+  b2?.click(); await new Promise((r) => setTimeout(r, 300));
+  return { slug, delta: Object.keys(s.roster).length - before, tokens0,
+    star1, star2: s.roster[slug]?.star ?? -1, used: (s.event.used || 0) - used0,
+    zh: __game.data.bySlug[slug]?.zh || '' };
 })()`);
-check(evUnlock.delta === 1, `人气够了点「解锁」，联名「${evUnlock.zh}」进队`);
+check(evUnlock.delta === 1, `征召券换到联名「${evUnlock.zh}」，一次只进一位`);
+check(evUnlock.used === 2 && evUnlock.star2 === evUnlock.star1 + 1,
+  `同一人再换一次变成叠位：${evUnlock.star1} → ${evUnlock.star2}（共用券 ${evUnlock.used} 张）`);
 await cdp.shot('event-guests');
 
 const crFight = await cdp.evalIife(`(async () => {

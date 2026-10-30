@@ -1149,23 +1149,30 @@ test('融灾禁区：14 天一期，换期重置层数但保留历史最高', ()
   assert.equal(riftState(s, new Date(t0.getTime() + RIFT_CYCLE_DAYS * 86400000)).tries, 0);
 });
 
-test('融灾禁区：五队按一队~五队上阵，空位用当前队伍顶上', () => {
+test('融灾禁区：专用编队优先，没编的借通用同序号，再没有用当前队伍', () => {
   const s = newState(data, 13);
   const owned = data.awakeners.slice(0, 12).map((a) => a.slug);
   s.roster = Object.fromEntries(owned.map((x) => [x, { lv: 80, star: 6, brk: 4 }]));
-  const A = owned.slice(0, 4), B = owned.slice(4, 8);
-  setSquadTeam(s, 'a', A);
-  setSquadTeam(s, 'b', B);
-  s.team = owned.slice(8, 12);
+  const A = owned.slice(0, 4), B = owned.slice(4, 8), C = owned.slice(8, 12);
+  setSquadTeam(s, 'a', A);      // 通用一队：禁区一队空着时会借它
+  setSquadTeam(s, 'r2', B);     // 禁区二队自己编了
+  s.team = C;
 
   const party = riftParty(s, data);
   assert.equal(party.length, RIFT_TEAMS);
+  // 禁区一队空着 → 借通用一队，并标成 shared
   assert.deepEqual(party[0].slugs, A);
-  assert.equal(party[0].filled, true);
+  assert.equal(party[0].filled, false);
+  assert.equal(party[0].from, 'shared');
+  assert.equal(party[0].sharedKey, 'a');
+  // 禁区二队自己编了 → 只管自己这套
   assert.deepEqual(party[1].slugs, B);
-  // 三四五队空着 → 用当前队伍补位，并标出来
+  assert.equal(party[1].filled, true);
+  assert.equal(party[1].from, 'rift');
+  // 三四五队既没编也没得借 → 用当前队伍补位，并标出来
   for (const i of [2, 3, 4]) {
     assert.equal(party[i].filled, false);
+    assert.equal(party[i].from, 'cur');
     assert.deepEqual(party[i].slugs, s.team);
   }
   for (const p of party) assert.equal(p.team.list.length, 4);
@@ -1252,8 +1259,9 @@ test('融灾禁区：老存档补字段，越界层数被夹回 0~100', () => {
   const crazy = migrate({ ...newState(data, 23), rift: { floor: 999, best: -5, tries: 99 } }, data);
   assert.equal(crazy.rift.floor, RIFT_FLOORS);
   assert.equal(crazy.rift.best, RIFT_FLOORS);
-  // 五套编队都要能存（老存档只有三套）
-  assert.equal(Object.keys(crazy.squads).length, 5);
+  // 通用五套 + 禁区专用五套，十套编队都要能存（老存档只有三套）
+  assert.equal(Object.keys(crazy.squads).length, 10);
+  for (const k of ['r1', 'r2', 'r3', 'r4', 'r5']) assert.ok(Array.isArray(crazy.squads[k].team), `禁区分队 ${k} 要补出来`);
 });
 
 /* ---------------------------------------------------------------- M16: 挂机层默认取「有收益的最高层」 */
@@ -1330,10 +1338,10 @@ test('自动挂机：前线失手会退到有收益的最高层，不会死守�
 
 /* ---------------------------------------------- M17: 联名彩蛋角色 + 联动活动「星辉直播间」 */
 
-import { CREATORS, SIGNIN_GIFTS, CREATOR_KITS, creatorKit, grantCreator, syncSigninGifts, CREATOR_BY_SLUG } from '../src/core/creators.js';
+import { CREATORS, SIGNIN_PER, signinPicks, nextGiftSlug, CREATOR_KITS, creatorKit, grantCreator, syncSigninGifts, CREATOR_BY_SLUG } from '../src/core/creators.js';
 import {
-  noteBattle, dailyView, claimDaily, claimMile, milePending, fameOf, tiersView, claimTier, eventSummary,
-  eventState, DAILY, TIERS, MILE, SIGNIN_FAME, dayKey,
+  noteBattle, dailyView, claimDaily, claimMile, milePending, fameOf, tiersView, redeemGuest, eventSummary,
+  eventState, DAILY, GUESTS, GUEST_GATE, FAME_PER_TOKEN, tokensOf, MILE, SIGNIN_FAME, dayKey,
 } from '../src/core/event.js';
 
 test('彩蛋角色：9 位都进了表、带完整 7 槽技能、不进抽卡池', () => {
@@ -1396,20 +1404,49 @@ test('彩蛋角色：技能数值随技能等级成长，四界域都有', () =>
   assert.deepEqual([...types].sort(), ['ASSAULT', 'CHORUS', 'WARDEN']);
 });
 
-test('彩蛋角色：签到赠礼按累计天数补发，且不会重复发', () => {
+test('彩蛋角色：签到按天数轮转发，先补齐九位再叠位', () => {
   const s = newState(data, 12);
   assert.equal(syncSigninGifts(s).length, 0, '没签到时什么都不送');
+  // 一天一份：签 3 天给 3 份，按 CREATORS 的顺序先来后面三位
   s.stats.signins = 3;
-  const one = syncSigninGifts(s);
-  assert.equal(one.length, 1);
-  assert.equal(one[0].slug, SIGNIN_GIFTS[0].slug);
-  assert.ok(s.roster[one[0].slug], '人要在 roster 里');
+  const three = syncSigninGifts(s);
+  assert.equal(three.length, 3);
+  assert.deepEqual(three.map((g) => g.slug), CREATORS.slice(0, 3).map((a) => a.slug));
+  assert.ok(three.every((g) => g.isNew), '前三位都是新获得');
   assert.equal(syncSigninGifts(s).length, 0, '再调一次不重复发');
-  s.stats.signins = 15;
-  assert.equal(syncSigninGifts(s).length, 2, '补发剩下的两位');
-  assert.equal(Object.keys(s.roster).filter((k) => CREATOR_BY_SLUG[k]).length, 3);
-  // 直接发也幂等
-  assert.equal(grantCreator(s, SIGNIN_GIFTS[0].slug), null);
+  // 累计到 9 天：把剩下的六位补齐
+  s.stats.signins = 9;
+  const rest = syncSigninGifts(s);
+  assert.equal(rest.length, 6);
+  assert.ok(rest.every((g) => g.isNew));
+  assert.equal(Object.keys(s.roster).filter((k) => CREATOR_BY_SLUG[k]).length, 9, '九位全到手');
+  // 第 10 天开始重复：同一批人轮着叠位
+  s.stats.signins = 12;
+  const more = syncSigninGifts(s);
+  assert.equal(more.length, 3);
+  assert.ok(more.every((g) => !g.isNew && g.star === 1), '重复获得就是叠位 +1');
+  // 直接发也幂等：已满的说 full，没满的继续加
+  const before = s.roster[CREATORS[0].slug].star;
+  assert.equal(grantCreator(s, CREATORS[0].slug).star, before + 1);
+});
+
+test('彩蛋角色：签到份数按 stats.signins 算，老存档一次补齐', () => {
+  const s = newState(data, 12);
+  assert.equal(signinPicks(s), 0);
+  s.stats.signins = 37;
+  assert.equal(signinPicks(s), Math.floor(37 / SIGNIN_PER));
+  const got = syncSigninGifts(s);
+  assert.equal(got.length, signinPicks(s), '该发多少份就补多少份');
+  // 九位各拿一份之后，剩下的按顺序叠
+  const stars = CREATORS.map((a) => s.roster[a.slug]?.star || 0);
+  assert.ok(stars.every((n) => n >= 1), `九位都该有叠位：${stars.join(',')}`);
+  assert.equal(stars.reduce((a, b) => a + b, 0), signinPicks(s) - 9, '多出来的份数变成叠位');
+  // 37 份 = 先用 9 份把九位补齐（那 9 份是「新获得」，叠位还是 0），剩下 28 份轮转叠位：
+  // 每人 3 级，多出来的 1 份按 sent % 9 落到第一个人头上
+  const base = Math.floor((signinPicks(s) - CREATORS.length) / CREATORS.length);
+  assert.ok(stars.every((n) => n >= base), `轮转要均衡：${stars.join(',')}`);
+  assert.equal(stars[0], base + 1, '多出来的那份给轮转的下一位');
+  assert.equal(nextGiftSlug(s, signinPicks(s)), CREATORS[signinPicks(s) % CREATORS.length].slug, '轮转按已发份数继续往下走');
 });
 
 test('联动活动：每日任务只数在线战斗，跨日重置', () => {
@@ -1433,7 +1470,7 @@ test('联动活动：每日任务只数在线战斗，跨日重置', () => {
   assert.equal(s.event.day, dayKey(d2));
 });
 
-test('联动活动：人气 = 领取的任务 + 里程碑 + 签到，档位够了解锁角色', () => {
+test('联动活动：人气换征召券，门槛到了才能兑换，重复兑换是叠位', () => {
   const s = newState(data, 14);
   s.stats.signins = 1;
   assert.equal(fameOf(s), SIGNIN_FAME, '签到也给人气');
@@ -1443,21 +1480,32 @@ test('联动活动：人气 = 领取的任务 + 里程碑 + 签到，档位够�
   claimMile(s);
   assert.equal(milePending(s), 0, '里程碑只能领一次');
   assert.equal(fameOf(s), SIGNIN_FAME + 5 * MILE.fame, `1 次签到 + 5 档里程碑 = ${SIGNIN_FAME + 5 * MILE.fame} 人气`);
-  // 人气不够时不能解锁
-  const first = TIERS[0];
-  assert.equal(claimTier(s, first.slug), null);
-  // 攒够之后解锁，且不能重复领
-  s.event.fame = 5000;
-  const got = claimTier(s, first.slug);
-  assert.equal(got.slug, first.slug);
-  assert.ok(s.roster[first.slug]);
-  assert.equal(claimTier(s, first.slug), null);
+  // 人气不够 100 时没有券，兑换不了
+  assert.equal(tokensOf(s), 0);
+  assert.equal(redeemGuest(s, 'samo'), null);
+  // 攒到 1000 人气 = 10 张券
+  s.event.fame = 1000;
+  assert.equal(tokensOf(s), Math.floor((1000 + SIGNIN_FAME) / FAME_PER_TOKEN));
+  const first = redeemGuest(s, 'samo');
+  assert.equal(first.slug, 'samo');
+  assert.ok(first.isNew);
+  assert.equal(s.roster.samo.star, 0);
+  // 再换一次同一个人：叠位 +1
+  const again = redeemGuest(s, 'samo');
+  assert.equal(again.isNew, false);
+  assert.equal(again.star, 1);
+  assert.equal(s.roster.samo.star, 1);
+  // 券会少一张
+  assert.equal(s.event.used, 2);
+  // 门槛没到的人换不了：人气砍到 300，魔龙要 700
+  s.event.fame = 300;
+  assert.equal(redeemGuest(s, 'maodie'), null, '人气没到 700 换不了魔龙');
   // 面板上能看到进度
   const sum = eventSummary(s);
   assert.equal(sum.owned, 1);
-  assert.equal(sum.total, TIERS.length);
-  assert.ok(tiersView(s).filter((t) => t.ready).length === TIERS.length - 1);
-  assert.equal(s.roster[first.slug].lv, 1);
+  assert.equal(sum.total, GUESTS.length);
+  assert.ok(tiersView(s).some((t) => t.ready));
+  assert.equal(GUEST_GATE.maodie, 700);
 });
 
 test('联动活动：老存档迁移后带 event 字段，彩蛋角色能上阵打完一场', () => {

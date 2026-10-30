@@ -29,7 +29,7 @@ import { claimAchievement, claimAllAchievements } from './core/achievements.js';
 import { signToday, backfill, claimCum } from './core/signin.js';
 import { buy as shopBuy, SHOP } from './core/shop.js';
 import { signinPage, eventPage } from './ui/pages4.js';
-import { claimDaily, claimTier, claimMile } from './core/event.js';
+import { claimDaily, redeemGuest, claimMile } from './core/event.js';
 import { syncSigninGifts } from './core/creators.js';
 import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
 import { startGuide } from './ui/guide.js';
@@ -50,7 +50,7 @@ const GROUPS = [
   { k: 'battle', zh: '战斗', icon: ICON.battle, tabs: [['battle', '战斗']] },
   { k: 'team', zh: '养成', icon: ICON.team, tabs: [['team', '队伍'], ['roster', '唤醒体'], ['gear', '命轮密契'], ['orders', '钥令']] },
   { k: 'summon', zh: '召唤', icon: ICON.summon, tabs: [['summon', '召唤']] },
-  { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '挑战'], ['rift', '融灾禁区'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场']] },
+  { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '无限塔'], ['rift', '融灾禁区'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场']] },
   { k: 'more', zh: '更多', icon: ICON.more, tabs: [['signin', '签到'], ['event', '联动'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']] },
 ];
 
@@ -293,6 +293,8 @@ function onAct(e) {
       break;
     }
     case 'squad-edit': P.squadEditor(app, { key: el.dataset.k || 'a', mode: el.dataset.mode || null }); break;
+    case 'team-tab': app.ui.teamTab = el.dataset.k; sound.play('click'); render(); break;
+    case 'team-rt': app.ui.rtTab = el.dataset.k; sound.play('click'); render(); break;
     case 'roster-sort': {
       const f = (app.ui.rosterFilter ||= { realm: '', type: '', owned: false, sort: 'rarity', dir: -1 });
       if (f.sort === el.dataset.k) f.dir = -f.dir; else { f.sort = el.dataset.k; f.dir = -1; }
@@ -468,16 +470,23 @@ function onAct(e) {
       if (r) { sound.play('gold'); toast(`推图里程碑：人气 +${r.fame}（${r.n} 档）`); rerender(); }
       break;
     }
-    case 'event-tier': {
+    case 'event-summon': {
       const slug = el.dataset.slug;
-      const r = claimTier(s, slug);
+      const r = redeemGuest(s, slug);
       if (r) {
         app.save();
-        sound.play('summonSSR');
-        toast(`🎉 联名嘉宾「${d.bySlug[slug].zh}」加入队伍`, 3000);
-        P.detailModal(app, slug);
-        render();
-      } else toast('人气还不够，或者已经解锁过了');
+        sound.play(r.isNew ? 'summonSSR' : 'lvup');
+        toast(r.isNew
+          ? `🎉 联名嘉宾「${d.bySlug[slug].zh}」加入队伍`
+          : r.full ? `「${d.bySlug[slug].zh}」的叠位已经满了` : `「${d.bySlug[slug].zh}」叠位 +1（现在 ${r.star} 层）`, 2800);
+        if (r.isNew) P.detailModal(app, slug);
+        else render();
+      } else toast('征召券不够，或者人气还没到这位的门槛');
+      break;
+    }
+    case 'event-tier': {   // 老按钮，兼容一下
+      const r = redeemGuest(s, el.dataset.slug);
+      if (r) { app.save(); sound.play('summonSSR'); toast(`🎉 联名嘉宾「${d.bySlug[el.dataset.slug].zh}」加入队伍`); render(); }
       break;
     }
     case 'ach-cat': app.ui.achCat = el.dataset.k; render(); break;

@@ -10,9 +10,10 @@ import {
 } from '../core/constants.js';
 import { sound, TRACK_LIST } from './audio.js';
 import {
-  SQUAD_KEYS, RIFT_SQUAD_KEYS, ALL_SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, MODE_GROUPS, RIFT_MODE,
+  SQUAD_KEYS, RIFT_SQUAD_KEYS, ALL_SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, RIFT_MODE,
   isRiftSquad, squadMembers, squadUsage, pickedSquad,
   squadLabel, teamSlugsFor, setSquadTeam, setSquadPick, autoSquadSlugs,
+  RT_MODES, rtModeOf, realmOfMode,
 } from '../core/squad.js';
 import { ROSTER_SORTS, SORT_ZH, sortRoster } from '../core/roster.js';
 import { luckOf, luckBarPct, GACHA_LOG_MAX, RARITY_WORTH, RARITY_RATE } from '../core/gacha.js';
@@ -158,52 +159,91 @@ export function squadBar(app, mode, note = '') {
     <small class="dim">${fb ? `「${SQUAD_ZH[cur]}」是空的，暂时按当前队伍打` : note || '在「队伍 → 挑战编队」里指定，或点「现场编队」当场排'}</small></div>`;
 }
 
-/* -------- 队伍页的「挑战编队」：每个模式一行，直接在这里指定用哪套 -------- */
-export function squadAssignPanel(app) {
+/* -------- 队伍页：标签切换 -------- */
+// 以前 8 个挑战入口 + 融灾禁区 + 5 套编队全堆在同一页，钥令和造物被挤到最底下，看一次要滚很久。
+// 现在按入口拆成标签：主线一个页、每个挑战一个页、编队库一个页，钥令与造物就在队伍正下方。
+export const TEAM_TABS = [
+  ['main', '主线队伍', '推图挂机就这一队'],
+  ['tower', '无限塔', '一层层往上爬的连续战斗'],
+  ['rift', '融灾禁区', '五队齐上，另含区域首领'],
+  ['weekly', '周 Boss', '限 12 回合拼伤害'],
+  ['rt', '属性塔', '只收本界域成员，四座塔各存一套'],
+  ['arena', '竞技场', '天梯与好友对战共用'],
+  ['squads', '编队库', '预先存好的五套阵容'],
+];
+const TEAM_TAB_KEYS = TEAM_TABS.map(([k]) => k);
+export const teamTabOf = (app) => (TEAM_TAB_KEYS.includes(app.ui?.teamTab) ? app.ui.teamTab : 'main');
+
+/** 一个挑战入口：现在用哪套 + 这套的缩略头像 + 可切换的一排 */
+function modeBlock(app, mode, title = '') {
   const { state: s, data } = app;
-  const row = (m) => {
-    const lab = squadLabel(s, m);
-    const slugs = teamSlugsFor(s, m).filter((x) => s.roster[x]);
+  const lab = squadLabel(s, mode);
+  const slugs = teamSlugsFor(s, mode).filter((x) => s.roster[x]);
+  const t = slugs.length ? teamDefs(s, data, slugs) : null;
+  const av = slugs.length
+    ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
+    : '<span class="sqempty">空缺</span>';
+  const chips = ['cur', ...SQUAD_KEYS].map((k) => {
+    const n = k === 'cur' ? s.team.length : squadMembers(s, k).length;
+    const zh = k === 'cur' ? '当前队伍' : SQUAD_ZH[k];
+    return `<button class="sqchip ${lab.key === k ? 'on' : ''}" data-act="squad-pick" data-mode="${mode}" data-k="${k}" title="${n ? `${n} 人` : '这套还空着'}">${zh}${k === 'cur' || n ? '' : '<em class="dim">空</em>'}</button>`;
+  }).join('');
+  return `<div class="assign ${lab.key !== 'cur' && !lab.fallback ? 'on' : ''}">
+    <header><b>${title || MODE_ZH[mode]}</b><small>${lab.fallback ? `${lab.zh}（空）→ 当前队伍` : `${lab.zh} · ${slugs.length} 人${t ? ` · 战力 ${fmt(t.power)}` : ''}`}</small>
+      <button class="btn sm" data-act="squad-edit" data-mode="${mode}" data-k="${lab.key === 'cur' ? 'a' : lab.key}">编队</button></header>
+    <div class="sqav">${av}</div>
+    <div class="achips">${chips}</div></div>`;
+}
+
+/** 属性塔：四座塔共用一套界面，用界域小胶囊切换，一次只看一座 */
+function rtPanel(app) {
+  const { state: s, data } = app;
+  const realm = REALMS[app.ui?.rtTab] ? app.ui.rtTab : 'CHAOS';
+  const chips = RT_MODES.map((m) => {
+    const r = realmOfMode(m);
+    const n = teamSlugsFor(s, m).filter((x) => s.roster[x]).length;
+    return `<button class="sqchip ${r === realm ? 'on' : ''}" data-act="team-rt" data-k="${r}">${REALMS[r].zh}${n ? `<em>${n}人</em>` : '<em class="dim">空</em>'}</button>`;
+  }).join('');
+  return `<div class="ttsub">${chips}</div>
+    ${modeBlock(app, rtModeOf(realm))}
+    <p class="hint">属性塔只收对应界域的成员：编队里不属于该界域的会被剔掉，一个都不剩就自动挑你最强的 4 名本界域唤醒体。四座塔各存一套，互不影响。</p>`;
+}
+
+/** 融灾禁区：一队~五队各打一组敌人，所以禁区有自己那五套都得编 */
+function riftPanel(app) {
+  const { state: s, data } = app;
+  const sets = RIFT_SQUAD_KEYS.map((k, i) => {
+    const own = squadMembers(s, k), shared = squadMembers(s, SQUAD_KEYS[i]);
+    return { k, i, own, shared, slugs: own.length ? own : shared };
+  });
+  const filled = sets.filter((x) => x.own.length).length;
+  const lines = sets.map(({ k, i, own, shared, slugs }) => {
     const t = slugs.length ? teamDefs(s, data, slugs) : null;
     const av = slugs.length
       ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
-      : '<span class="sqempty">空缺</span>';
-    const chips = ['cur', ...SQUAD_KEYS].map((k) => {
-      const n = k === 'cur' ? s.team.length : squadMembers(s, k).length;
-      const zh = k === 'cur' ? '当前队伍' : SQUAD_ZH[k];
-      return `<button class="sqchip ${lab.key === k ? 'on' : ''}" data-act="squad-pick" data-mode="${m}" data-k="${k}" title="${n ? `${n} 人` : '这套还空着'}">${zh}${k === 'cur' ? '' : n ? '' : '<em class="dim">空</em>'}</button>`;
-    }).join('');
-    return `<div class="assign ${lab.key !== 'cur' && !lab.fallback ? 'on' : ''}">
-      <header><b>${MODE_ZH[m]}</b><small>${lab.fallback ? `${lab.zh}（空）→ 当前队伍` : `${lab.zh} · ${slugs.length} 人${t ? ` · 战力 ${fmt(t.power)}` : ''}`}</small>
-        <button class="btn sm" data-act="squad-edit" data-mode="${m}" data-k="${lab.key === 'cur' ? 'a' : lab.key}">编队</button></header>
-      <div class="sqav">${av}</div>
-      <div class="achips">${chips}</div></div>`;
-  };
-  // 融灾禁区用自己那五套（禁区一队~五队）：没编的先借通用同序号那一套，再没有才用当前队伍
-  const riftRow = () => {
-    const sets = RIFT_SQUAD_KEYS.map((k, i) => {
-      const own = squadMembers(s, k), shared = squadMembers(s, SQUAD_KEYS[i]);
-      return { k, i, own, shared, slugs: own.length ? own : shared.length ? shared : [] };
-    });
-    const filled = sets.filter((x) => x.own.length).length;
-    const av = sets.map(({ k, slugs }) => `<span class="sqset ${slugs.length ? '' : 'e'}">${slugs.length
-      ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(SQUAD_ZH[k])} · ${esc(data.bySlug[x].zh)}">`).join('')
-      : '<i>空</i>'}</span>`).join('');
-    const chips = sets.map(({ k, i, own, shared }) => {
-      const tip = own.length ? `${SQUAD_ZH[k]}：${own.length} 人，点击编队`
-        : shared.length ? `${SQUAD_ZH[k]}还空着，暂时借用${SQUAD_ZH[SQUAD_KEYS[i]]}（${shared.length} 人），点击编队`
-          : `${SQUAD_ZH[k]}空着，会用当前队伍顶上`;
-      const tag = own.length ? '' : shared.length ? `<em class="dim">借${SQUAD_ZH[SQUAD_KEYS[i]]}</em>` : '<em class="dim">空</em>';
-      return `<button class="sqchip ${own.length ? '' : 'empty'}" data-act="squad-edit" data-k="${k}" data-mode="${RIFT_MODE}" title="${tip}">${SQUAD_ZH[k]}${tag}</button>`;
-    }).join('');
-    return `<div class="assign ${filled === RIFT_SQUAD_KEYS.length ? 'on' : ''}">
-      <header><b>融灾禁区</b><small>五队齐上 · 专用编队 ${filled}/${RIFT_SQUAD_KEYS.length}</small>
+      : '<span class="sqempty">空着，先用当前队伍顶上</span>';
+    const src = own.length ? '' : shared.length ? ` · 借${SQUAD_ZH[SQUAD_KEYS[i]]}` : '';
+    return `<div class="riftline ${slugs.length ? 'on' : ''}"><b>第 ${i + 1} 队</b>
+      <div class="sqav">${av}</div><small>${t ? `战力 ${fmt(t.power)}` : '未编'}${src}</small>
+      <button class="btn sm" data-act="squad-edit" data-k="${k}" data-mode="${RIFT_MODE}">编队</button></div>`;
+  }).join('');
+  return `<div class="assign ${filled === RIFT_SQUAD_KEYS.length ? 'on' : ''}">
+      <header><b>融灾禁区</b><small>五队齐上 · 专用编队 ${filled}/${RIFT_SQUAD_KEYS.length}${filled < RIFT_SQUAD_KEYS.length ? '（空着的先借通用同序号那套）' : ''}</small>
         <button class="btn sm" data-act="go-rift">去挑战 →</button></header>
-      <div class="sqav sqsets">${av}</div>
-      <div class="achips">${chips}</div></div>`;
-  };
-  return `<div class="assigns">${SQUAD_MODES.map(([m]) => row(m)).join('')}${riftRow()}</div>
-    <p class="hint">属性塔的四个界域各存一份选择：编队里不属于该界域的成员会被剔掉，一个都不剩就自动挑你最强的 4 名本界域唤醒体。<b>融灾禁区</b>一层要同时派五队，用的是它自己那五套<b>禁区一队~五队</b>（不会动到上面这些入口在用的通用编队）；还没编的会先借通用同序号那一套，都没有就用当前队伍顶上。挑战页也能改，两处是同一份数据。</p>`;
+      <div class="riftlines">${lines}</div></div>
+    <p class="hint">一层派五队各打一组敌人，5 场胜 4 场即通过，最高 100 层、每两周换一期。第 1~5 队按下表顺序上场，所以五行都编满最稳。这五套就是<b>禁区一队~禁区五队</b>，只给禁区用，不动通用那五套；没编的那队会先借通用同序号的一套，都没有才用当前队伍顶上。</p>
+    <h4>区域首领出战阵容 <small class="dim">单队挑战，和上面的五队互不影响</small></h4>
+    ${modeBlock(app, 'trial', '融灾禁区 · 区域首领')}`;
+}
+
+/** 编队库：通用五套 + 融灾禁区专用五套，都能往当前队伍套、也能一键上阵 */
+function squadsPanel(app) {
+  return `<h3>通用编队 <small>无限塔 / 属性塔 / 周 Boss / 竞技场各自选用</small></h3>
+    <div class="squads">${SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
+    <p class="hint">编队只记 4 名唤醒体——命轮、密契绑在人身上会跟着走，造物与钥令本来就是全队共用，不必重复存。<b>推图挂机始终用「当前队伍」</b>，想换阵容就点「上阵」或回「主线队伍」改那 4 个槽位。</p>
+    <h3>融灾禁区专用 <small>禁区一队~禁区五队 · 对应第 1~5 组敌人</small></h3>
+    <div class="squads">${RIFT_SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
+    <p class="hint">这五套<b>只给融灾禁区用</b>，调它们不会动到上面那五套通用编队。哪队还没编，挑战时会先借通用同序号那一套，都没有才用当前队伍顶上。</p>`;
 }
 
 /**
@@ -301,6 +341,29 @@ export function squadEditor(app, { key = 'a', mode = null } = {}) {
 
 
 export function teamPage(app) {
+  const tab = teamTabOf(app);
+  const info = TEAM_TABS.find(([k]) => k === tab);
+  const t = teamDefs(app.state, app.data);
+  const tabBar = `<div class="ttabs">${TEAM_TABS.map(([k, zh]) =>
+    `<button class="ttab ${k === tab ? 'on' : ''}" data-act="team-tab" data-k="${k}">${zh}</button>`).join('')}</div>`;
+  const panel = {
+    main: mainPanel,
+    tower: () => modeBlock(app, 'tower'),
+    rt: rtPanel,
+    weekly: () => modeBlock(app, 'weekly'),
+    trial: () => modeBlock(app, 'trial'),
+    arena: () => modeBlock(app, 'arena'),
+    rift: riftPanel,
+    squads: squadsPanel,
+  }[tab];
+  const head = tab === 'main'
+    ? `<h2>队伍编成 <small>战力 ${fmt(t.power)}</small></h2>`
+    : `<h2>${info[1]} <small>${info[2]}</small></h2>`;
+  return `<div class="page">${head}${tabBar}${panel(app)}</div>`;
+}
+
+/** 主线队伍：4 个槽位 + 命轮密契 + 造物 + 钥令 + 策略，一眼能看完，不用翻页 */
+function mainPanel(app) {
   const { state: s, data } = app;
   const t = teamDefs(s, data);
   const slots = Array.from({ length: TEAM_SIZE }, (_, i) => s.team[i] || null);
@@ -334,34 +397,24 @@ export function teamPage(app) {
     const id = s.orders.slots[i], def = id && data.orderById[id];
     return def ? `<span class="ochip on" title="${esc(orderText(def, s.orders.owned[id]))}">${oglyph(def)} ${esc(def.zh)}<em>Lv${s.orders.owned[id]}</em></span>` : `<span class="ochip">空位 ${i + 1}</span>`;
   }).join('');
-  return `<div class="page">
-    <h2>队伍编成 <small>战力 ${fmt(t.power)}</small></h2>
-    <p class="hint">${synText}。站位 1–2 是<b>前排</b>、3–4 是<b>后排</b>：敌人的单体攻击只会打前排，前排全灭才轮到后排（Boss 例外，可以越过前排）；我方守护也只能打敌阵前排，突击与合唱（远程）可以直接点名后排。每场还有<b>回合上限</b>（普通关 ${ROUND_LIMIT.normal} 回合、Boss 关 ${ROUND_LIMIT.boss} 回合），打不完算超时判负，四奶互相吊着磨是过不去的。</p>
+
+  return `<p class="hint">${synText}。站位 1–2 是<b>前排</b>、3–4 是<b>后排</b>：敌人的单体攻击只会打前排，前排全灭才轮到后排（Boss 例外，可以越过前排）；我方守护也只能打敌阵前排，突击与合唱（远程）可以直接点名后排。每场还有<b>回合上限</b>（普通关 ${ROUND_LIMIT.normal} 回合、Boss 关 ${ROUND_LIMIT.boss} 回合），打不完算超时判负，四奶互相吊着磨是过不去的。</p>
     <div class="slots">${cards}</div>
     <div class="row"><button class="btn gold" data-act="autoteam">一键配队</button><button class="btn sm" data-act="guide-growth">养成指南</button></div>
-    <p class="hint">「一键配队」会一起排好：4 人队伍（含同界域加成）、<b>每人 1 件命轮 + 1 件密契</b>、已解锁格里的造物（优先凑羁绊）、3 个钥令位。下面的命轮 / 密契格子可以直接点开换。</p>
-    <h3>通用编队 <small>无限塔 / 属性塔 / 周 Boss / 试炼 / 竞技场各自选用</small></h3>
-    <div class="squads">${SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
-    <p class="hint">编队只记 4 名唤醒体——命轮、密契绑在人身上会跟着走，造物与钥令本来就是全队共用，不必重复存。<b>推图挂机始终用「当前队伍」</b>，想换阵容就点编队里的「上阵」或直接改上面的 4 个槽位。</p>
-    <h3>融灾禁区专用编队 <small>五队齐上 · 区一~区五对应第 1~5 组敌人</small></h3>
-    <div class="squads">${RIFT_SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
-    <p class="hint">融灾禁区一层要同时派五队，这五套<b>只给禁区用</b>，调它们不会动到上面那五套通用编队。还没编的那队会先借通用同序号的一队（区二队借二队……），都没有才用当前队伍顶上。</p>
-    <h3>挑战编队 <small>每个模式单独指定 · 也能现场编</small></h3>
-    ${squadAssignPanel(app)}
+    <p class="hint">「一键配队」会一起排好：4 人队伍（含同界域加成）、<b>每人 1 件命轮 + 1 件密契</b>、已解锁格里的造物（优先凑羁绊）、3 个钥令位。下面三块就是给它填的地方，格子都能直接点开换。</p>
     <h3>命轮 · 密契 <small>每人各 1 件 · 点格子直接换</small></h3>
     <div class="eqpanel">${equipPanel(app)}</div>
-    <p class="hint">命轮与密契<b>绑在单个唤醒体身上</b>；密契全队同款凑到 2 / 4 件触发套装（当前：${covenantSetText(app) || '还没有凑成套'}）。造物与钥令是全队被动，在下面配置。</p>
-    <h3>战斗策略 <small>全自动，仅可设定倾向</small></h3>
-    <div class="row">${pre}</div>
-    <p class="hint">${PRESETS[s.strategy.preset]?.zh || ''}：血量低于 ${Math.round(s.strategy.defend * 100)}% 时优先架势；目标选择：${{ low: '血量最低', first: '前排优先', atk: '攻击最高' }[s.strategy.target]}。</p>
-    <h3>造物栏 <small>全队被动 · ${n}/${RELIC_SLOTS} 格</small></h3>
+    <p class="hint">命轮与密契<b>绑在单个唤醒体身上</b>；密契全队同款凑到 2 / 4 件触发套装（当前：${covenantSetText(app) || '还没有凑成套'}）。</p>
+    <h3>造物 <small>全队被动 · ${n}/${RELIC_SLOTS} 格</small></h3>
     <div class="relic-row">${relics}</div>
     <h4>造物羁绊 <small class="dim">同主题 2 / 4 / 6 件</small></h4>
     ${bondPanel(app)}
     <h3>钥令 <small>全队 3 位 · 已开 ${on}/${ORDER_SLOTS}</small></h3>
     <div class="orderbar">${ochips}</div>
     <div class="row"><button class="btn sm" data-act="go-orders">配置钥令 →</button></div>
-  </div>`;
+    <h3>战斗策略 <small>全自动，仅可设定倾向</small></h3>
+    <div class="row">${pre}</div>
+    <p class="hint">${PRESETS[s.strategy.preset]?.zh || ''}：血量低于 ${Math.round(s.strategy.defend * 100)}% 时优先架势；目标选择：${{ low: '血量最低', first: '前排优先', atk: '攻击最高' }[s.strategy.target]}。</p>`;
 }
 
 export function pickAwakener(app, title, onPick, exclude = []) {

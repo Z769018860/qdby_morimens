@@ -9,7 +9,7 @@ import { teamDefs } from '../core/game.js';
 import { teamSlugsFor, rtModeOf } from '../core/squad.js';
 import { squadBar } from './pages.js';
 import { esc, img, fmt, openModal, rewardText } from './util.js';
-import { meterHtml } from './pages2.js';
+import { meterHtml, trialSection } from './pages2.js';
 import { reportHtml } from './report.js';
 import { analyzeBattle } from '../core/report.js';
 
@@ -141,7 +141,9 @@ export function riftPage(app) {
       <p class="hint">奖励：每层金币与券/银芯（随层数增长），每 5 层额外召唤券与银芯，每 10 层一件装备，<b>每 25 层</b>钥令 + 校猫奖励（券 6 / 银芯 80），打穿第 ${RIFT_FLOORS} 层再额外给 40 券与 600 银芯。</p>
     </div>
     <h3>出战五队 <small>禁区一队~五队分别对应第 1~5 组敌人 · 队伍页可单独编排</small></h3>
-    <div class="rt-teams">${teams}</div></div>`;
+    <div class="rt-teams">${teams}</div>
+    <h3>区域首领 <small>单队挑战 · 就是以前的「融灾试炼」</small></h3>
+    ${trialSection(app)}</div>`;
 }
 
 export function riftResultModal(app, r) {

@@ -1,9 +1,9 @@
 // 签到
 import { signinState, monthKey, daysInMonth, dayReward, CUM, BACKFILL_COST } from '../core/signin.js';
 import {
-  EVENT_ZH, EVENT_SUB, SIGNIN_FAME, MILE, eventSummary, dailyView, tiersView, milePending, fameOf,
+  EVENT_ZH, EVENT_SUB, SIGNIN_FAME, MILE, FAME_PER_TOKEN, eventSummary, dailyView, tiersView, tokenProgress, milePending,
 } from '../core/event.js';
-import { SIGNIN_GIFTS } from '../core/creators.js';
+import { signinPicks, SIGNIN_PER, GIFT_ROUND } from '../core/creators.js';
 import { REALMS, TYPES } from '../core/constants.js';
 import { esc, img, fmt, rewardText } from './util.js';
 
@@ -48,10 +48,12 @@ export function welcomeCard(app) {
 /* --------------------------- 联动活动「星辉直播间」 --------------------------- */
 // 9 位社区主播彩蛋：3 位签到送、6 位靠人气档位解锁。人气来源见 core/event.js。
 function guestCard(app, a, foot) {
-  const owned = !!app.state.roster[a.slug];
+  const own = app.state.roster[a.slug];
+  const owned = !!own;
+  const star = Math.max(0, Math.floor(own?.star || 0));
   const c = a.creator;
   return `<div class="guest ${owned ? 'on' : ''}" style="--rc:${REALMS[a.realm].color}" data-act="detail" data-slug="${a.slug}">
-    <div class="gimg"><img src="${img(a.portrait)}" alt="" loading="lazy">${owned ? '<i class="gdone">已获得</i>' : ''}</div>
+    <div class="gimg"><img src="${img(a.portrait)}" alt="" loading="lazy">${owned ? `<i class="gdone">叠 ${star}</i>` : ''}</div>
     <b>${esc(a.zh)}</b>
     <small>${REALMS[a.realm].zh} · ${TYPES[a.type].zh}</small>
     <small class="ghook">${esc(c.hook)}</small>
@@ -61,19 +63,21 @@ function guestCard(app, a, foot) {
 }
 
 export function eventPage(app) {
-  const { state: s } = app;
+  const { state: s, data } = app;
   const sum = eventSummary(s);
   const tiers = tiersView(s);
   const tasks = dailyView(s);
+  const tp = tokenProgress(s);
   const signins = s.stats?.signins || 0;
+  const picks = signinPicks(s);
+  const sent = Math.max(0, Math.floor(s.gift?.signin || 0));
 
-  const pct = sum.nextFame ? Math.min(100, Math.round((sum.fame / sum.nextFame) * 100)) : 100;
-  const nextA = sum.nextSlug ? app.data.bySlug[sum.nextSlug] : null;
-  const fameNote = sum.nextReady ? '人气够了，下面点「解锁」' : sum.nextFame ? `距第 ${fmt(sum.nextFame)} 点还差 ${fmt(sum.nextFame - sum.fame)}` : '全部档位已解锁';
-  const fameBar = `<div class="famebar"><div class="fameh"><span>直播间人气</span><b>${fmt(sum.fame)}</b>
-      <em>${fameNote}</em></div>
+  // 进度条走「这一张券攒了多少」，每满 100 人气清一次，比一条永远填不满的条好懂
+  const pct = Math.round(((tp.fame % FAME_PER_TOKEN) / FAME_PER_TOKEN) * 100);
+  const fameBar = `<div class="famebar"><div class="fameh"><span>直播间人气</span><b>${fmt(tp.fame)}</b>
+      <em>还差 ${fmt(tp.left)} 人气再得一张征召券</em></div>
     <div class="famebar-line"><i style="width:${pct}%"></i></div>
-    <small>${nextA ? `下一位：${esc(nextA.zh)}` : '嘉宾席已满，感谢陪伴'}　·　已解锁 <b>${sum.owned}</b>/${sum.total}（另 3 位在签到里送）</small></div>`;
+    <small>征召券 <b>${sum.tokens}</b> 张（每 ${FAME_PER_TOKEN} 人气 1 张）　·　已到手 <b>${sum.owned}</b>/${sum.total} 位　·　累计叠位 <b>${sum.star}</b> 级</small></div>`;
 
   const taskRows = tasks.map((t) => `<div class="ach ${t.claimed ? 'done' : t.done ? 'ready' : ''}">
     <div class="ab"><b>${esc(t.zh)}</b><small>进度 ${t.cur}/${t.need}　·　奖励 人气 +${t.fame}</small></div>
@@ -84,32 +88,30 @@ export function eventPage(app) {
       <small>最高通关每 ${MILE.step} 关 +${MILE.fame} 人气（一次性，最高 ${MILE.max} 关）　当前最高通关：第 ${s.maxStage || 0} 关</small></div>
       <button class="btn sm ${mile ? 'gold' : ''}" data-act="event-mile" ${mile ? '' : 'disabled'}>${mile ? `领取 ${mile * MILE.fame} 人气` : '暂无可领'}</button></div>`;
 
-  const tierGuests = tiers.map((t) => {
-    const foot = t.owned || t.claimed
-      ? '<span class="ok">已获得</span>'
-      : t.ready
-        ? `<button class="btn sm gold" data-act="event-tier" data-slug="${t.slug}">解锁</button>`
-        : `<span class="dim">还差 ${fmt(t.left)} 人气</span>`;
-    return `<div class="gwrap">${guestCard(app, t.a, foot)}<small class="gcost">人气 ${fmt(t.fame)}</small></div>`;
-  }).join('');
+  // 嘉宾席：人气够了就能用券换，重复换同一个人 = 叠位 +1
+  const foot = (t) => {
+    if (!t.unlocked) return `<span class="dim">人气 ${fmt(t.fame)} 解锁 · 还差 ${fmt(t.left)}</span>`;
+    if (t.full) return '<span class="ok">叠位已满</span>';
+    return t.ready
+      ? `<button class="btn sm gold" data-act="event-summon" data-slug="${t.slug}">征召 +1</button>`
+      : '<span class="dim">征召券不够</span>';
+  };
+  const tierGuests = tiers.map((t) => `<div class="gwrap">${guestCard(app, t.a, foot(t))}
+    <small class="gcost">${t.owned ? `叠位 ${t.star}` : '未到手'}${t.fame ? `　·　门槛 ${fmt(t.fame)}` : '　·　无门槛'}</small></div>`).join('');
 
-  const signGuests = SIGNIN_GIFTS.map((g) => {
-    const a = app.data.bySlug[g.slug];
-    const owned = !!s.roster[g.slug];
-    const foot = owned ? '<span class="ok">已获得</span>' : `<span class="dim">还差 ${Math.max(0, g.days - signins)} 天</span>`;
-    return `<div class="gwrap">${guestCard(app, a, foot)}<small class="gcost">${esc(g.note)}</small></div>`;
-  }).join('');
+  const order = GIFT_ROUND.map((x) => data.bySlug[x]?.zh || x);
+  const signinNote = `<h3>签到轮转 <small>累计签到每满 ${SIGNIN_PER} 天发 1 份</small></h3>
+    <p class="hint">签到也会发嘉宾：累计签到每满 ${SIGNIN_PER} 天一份，按 <b>${order.slice(0, 3).join(' → ')} → …</b> 的顺序轮着给，先把没到手的补齐，九位都到手之后继续轮、每次给一位叠一级。你已累计签到 <b>${signins}</b> 天，应发 <b>${picks}</b> 份，已到账 <b>${sent}</b> 份（进游戏自动补发，不用点）。</p>`;
 
   return `<div class="page"><h2>${EVENT_ZH} <small>${EVENT_SUB}</small></h2>
-    <p class="hint">《忘却前夜》社区里的 9 位主播，作为彩蛋唤醒体加入了弥萨格。他们<b>不进召唤池</b>，只能靠下面的方式拿到；技能按各自昵称的意象原创，与本作世界观无关，也不代表本人观点。</p>
+    <p class="hint">《忘却前夜》社区里的 9 位主播，作为彩蛋唤醒体加入了弥萨格。他们<b>不进召唤池</b>，只能靠签到与这里的征召券拿到；<b>重复获得同一个就是叠位 +1</b>，所以攒得越久越能叠。技能按各自昵称的意象原创，与本作世界观无关，也不代表本人观点。</p>
     ${fameBar}
     <h3>今日任务 <small>${sum.doneToday}/${sum.tasks} 已领取 · UTC 日期重置</small></h3>
     <div class="list">${taskRows}${mileRow}</div>
     <p class="hint">每日任务只数<b>在线挂机</b>的战斗（离线那几百场不算，否则睡一觉就做完了）；在线打赢一场算 1，首通再单独算。签到每次也会 +${SIGNIN_FAME} 人气。</p>
-    <h3>嘉宾席 <small>人气档位解锁 · ${sum.owned}/${sum.total}</small></h3>
+    <h3>嘉宾席 <small>人气门槛 + 征召券 · ${sum.owned}/${sum.total} 位</small></h3>
     <div class="guests">${tierGuests}</div>
-    <h3>签到赠送 <small>累计签到（跨月累计，不清零）</small></h3>
-    <div class="guests">${signGuests}</div>
-    <p class="hint">累计签到 ${SIGNIN_GIFTS.map((g) => g.days).join(' / ')} 天各送一位，达标时自动进包（老存档进游戏也会补发）。点嘉宾卡可以看完整技能；拿到之后和普通唤醒体一样能升级、突破、叠位、装备命轮与密契。目前人气：<b>${fmt(fameOf(s))}</b>。</p>
+    <p class="hint">点「征召 +1」消耗一张券：没到手就是新角色，已经到手就叠位 +1（上限 99）。点卡片本身可以看完整技能；拿到之后和普通唤醒体一样能升级、突破、装备命轮与密契。</p>
+    ${signinNote}
   </div>`;
 }

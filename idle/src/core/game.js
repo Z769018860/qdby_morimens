@@ -78,8 +78,10 @@ export function newState(data, now = Date.now()) {
     // 融灾禁区（M15）：每两周一期，层数在期内累积，best 永久保留
     rift: { cycle: '', floor: 0, best: 0, day: '', tries: 0, tkFrac: 0, coFrac: 0, runs: 0 },
     squads: emptySquads(), squadPick: emptyPick(), gacha: emptyGacha(),
-    // 联动活动「星辉直播间」：每日任务计数 + 人气 + 已解锁档位（core/event.js）
+    // 联动活动「星辉直播间」：每日任务计数 + 人气 + 已用征召券（core/event.js）
     event: emptyEvent(),
+    // 签到轮转发到第几份了（core/creators.js 的 syncSigninGifts）
+    gift: { signin: 0 },
   };
 }
 
@@ -125,6 +127,8 @@ export function migrate(s, data) {
   m.rift = rf;
   // 联动活动：老存档没有就从零开始；每日计数按当天惰性重置（eventState）
   m.event = { ...base.event, ...(s.event || {}), daily: { ...base.event.daily, ...(s.event?.daily || {}) } };
+  // 签到轮转：老存档按已经签到的天数折算，进游戏一次补齐（syncSigninGifts 会做）
+  m.gift = { signin: Math.max(0, Math.floor(s.gift?.signin || 0)) };
   return m;
 }
 

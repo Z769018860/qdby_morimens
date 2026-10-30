@@ -104,7 +104,25 @@ main{max-width:980px;margin:0 auto;padding:12px}
 .new{color:#ff7a7a;font-style:normal;font-weight:700}
 .pulls .pull{animation:pop .4s backwards}@keyframes pop{from{transform:scale(.3);opacity:0}}
 .filters select{background:var(--panel2);color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:5px}
-.banner-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}.banner-card h3{margin-top:0}
+.banner-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}
+/* 无限塔页：层数进度 + 接下来五层预告（融灾禁区/融灾试炼已各自独立成页，不混在这里） */
+.towerhead{display:flex;align-items:center;gap:14px;margin:8px 0 4px;flex-wrap:wrap}
+.towernum{display:flex;align-items:baseline;gap:5px;flex:none}
+.towernum b{font-size:30px;color:var(--gold);font-variant-numeric:tabular-nums;line-height:1}
+.towernum small{font-size:12px;color:var(--dim)}
+.towerbarwrap{flex:1;min-width:180px}
+.towerbar{height:8px;border-radius:99px;background:#0e131c;border:1px solid #2b3447;overflow:hidden;margin-bottom:4px}
+.towerbar i{display:block;height:100%;background:linear-gradient(90deg,#a57d1c,#e5b84b 70%,#ffe9a8);box-shadow:0 0 10px #e5b84b88}
+.towerbarwrap small{font-size:11.5px;color:var(--dim)}
+.tflines{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px;margin:8px 0}
+.tfline{display:flex;align-items:center;gap:6px;background:#0b1017;border:1px solid var(--line);border-radius:10px;padding:6px 9px;font-size:12px}
+.tfline.next{border-color:#3a4a66;box-shadow:inset 0 0 0 1px #1b2637}
+.tfline b{flex:none;font-size:12px;color:#cfd8e6}
+.tfline em{flex:none;font-size:10.5px;font-style:normal;padding:1px 5px;border-radius:6px;border:1px solid #3d4b64;color:#9fb0c8}
+.tfline em.boss{color:#ffb0a8;border-color:#c46a5e}
+.tfline em.elite{color:#ffd9a0;border-color:#b89150}
+.tfline .tf-foe{flex:1;color:var(--dim);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tfline .tf-drop{flex:none;font-size:11px;color:var(--gold)}.banner-card h3{margin-top:0}
 .list{display:flex;flex-direction:column;gap:6px}
 .item{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 8px}
 .item img{width:48px;height:48px;object-fit:contain;flex:none}
@@ -519,6 +537,21 @@ body{background:#0a0d13}
 .achips{display:flex;flex-wrap:wrap;gap:4px}
 .achips .sqchip{padding:2px 8px;font-size:11px}
 .squadbar .sqedit{margin-left:auto}
+/* 队伍页标签：主线 / 各挑战入口 / 编队库，一页只看一块，免得钥令造物被挤到最底下 */
+.ttabs{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px;padding:6px;background:#0b1017;border:1px solid var(--line);border-radius:12px}
+.ttab{background:#131a26;border:1px solid #2b3447;border-radius:999px;padding:5px 13px;font-size:12.5px;color:var(--dim);transition:border-color .15s,color .15s,background .15s}
+.ttab:hover{border-color:#3a4a66;color:var(--tx)}
+.ttab.on{border-color:var(--gold);color:#0f1014;background:var(--gold);font-weight:600}
+.ttsub{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+/* 融灾禁区的五队：一行一队，比横排五张卡省一半高度 */
+.riftlines{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.riftline{display:flex;align-items:center;gap:8px;background:#0e141c;border:1px solid #1b2432;border-radius:10px;padding:4px 8px}
+.riftline.on{border-color:#2b3a52}
+.riftline>b{flex:none;width:44px;font-size:11.5px;color:#9fb0c8}
+.riftline .sqav{flex:1;min-height:32px;gap:4px}
+.riftline .sqav img{width:32px;height:32px}
+.riftline>small{flex:none;font-size:11px;color:var(--dim)}
+.riftline .btn.sm{padding:2px 8px;font-size:11.5px}
 .squadbar .dim{margin-left:6px}
 
 /* 编队编辑器 */
