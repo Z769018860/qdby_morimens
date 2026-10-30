@@ -405,11 +405,31 @@ function genDuel() {
   };
 }
 
+// ------------------------------------------- 忘却王权的卡面头像
+// data/reign-faces.json 是 scripts/build_reign_faces.py 从 assets/card/*.webp
+// 裁出来的 200×275 卡面（一张 6~9KB）。这里把它内联成一个模块：
+// 一局里会用到二十几张，逐个请求在边缘就是二十几个来回。
+function genReign() {
+  const p = path.join(ROOT, 'data/reign-faces.json');
+  if (!has(p)) throw new Error('缺少卡面，先跑 python scripts/build_reign_faces.py');
+  const faces = readJson(p);
+  const code = [
+    '// 由 scripts/build.mjs 生成，请勿手改。',
+    '// 源：data/reign-faces.json ← scripts/build_reign_faces.py 裁的 assets/card/*.webp',
+    `export const FACES = ${JSON.stringify(faces)};`,
+    '',
+  ].join('\n');
+  const out = path.join(ROOT, 'js/reign/art.js');
+  if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
+  return { n: Object.keys(faces).length, kb: Math.round(code.length / 1024) };
+}
+
 // ------------------------------------------------------------------ 主流程
 const artCount = genMergeArt();
 const birdArt = genBirdArt();
 const sv = genSurvivors();
 const pf = genProtocol();
+const rg = genReign();
 const duel = genDuel();
 // 「校猫的结合」要内联四十多张图（猫 + 造物 + 密契 + 钥令 + 首领），逻辑单独放一个脚本，
 // 这里只负责在构建时调它，保证 js/binding-art.js 不会和 data/binding-art.json 走散。
@@ -640,5 +660,6 @@ for (const p of built) {
 console.log(`共打包 ${totalModules} 次模块引用；data/boot.json ${Math.round(bootJson.length / 1024)}KB + data/dict.json ${Math.round(dictJson.length / 1024)}KB`);
 console.log(`  唤醒体幸存者：${sv.chars} 名角色 / ${sv.weapons} 把武器，js/sv/gen.js ${sv.kb}KB（图集已内联）`);
 console.log(`  忘却协议：${pf.units} 名唤醒体 / ${pf.mobs} 种怪物，js/pf/gen.js ${pf.kb}KB（图集已内联）`);
+console.log(`  忘却王权：${rg.n} 张卡面，js/reign/art.js ${rg.kb}KB（立绘已内联）`);
 for (const e of extras) console.log(`  延迟加载 js/b/${e.out}`.padEnd(30), `${e.modules} 个模块 → ${e.kb}KB（不进首屏）`);
 console.log(`sw.js 预缓存 ${precache.length} 项`);

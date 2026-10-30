@@ -53,5 +53,10 @@
     "src": "assets/ui/gameicons/duel.webp",
     "from": "assets/avatars-q/char-keeperm.webp",
     "who": "守密人"
+  },
+  "reign": {
+    "src": "assets/ui/gameicons/reign.webp",
+    "from": "assets/avatars-q/char-keeperf.webp",
+    "who": "守密人（女）"
   }
 }

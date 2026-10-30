@@ -1556,6 +1556,21 @@ function wolf() {
   };
 }
 
+function reign() {
+  // js/reign.js 的键：best {runs, bestDay, bestEnd, gold} / endings {结局id: 次数}
+  const best = RD('reign:best') || {};
+  const end = RD('reign:endings') || {};
+  const got = Object.keys(end).length;
+  return {
+    items: [
+      { k: '当过几任', v: n(best.runs) ? String(n(best.runs)) : '—' },
+      { k: '最长任期', v: n(best.bestDay) ? '第 ' + n(best.bestDay) + ' 天' : '—' },
+      { k: '结局', v: got + ' / 15' },
+    ],
+    extra: best.gold ? '拿到过「守灯人」' : (got ? '还有 ' + (15 - got) + ' 个结局没见过' : ''),
+  };
+}
+
 function g2048() {
   // js/g2048.js 的 KEY：best 全难度 / best:<难度> / seen 历史合到过的最大块
   const best = numKey('g2048:best');
@@ -1617,6 +1632,7 @@ const GAMES = [
   { k: 'wolf', n: '弥萨格狼人杀', href: 'wolf.html', icon: '🐺', read: wolf, tip: '身份推理' },
   { k: 'deathreport', n: '弥萨格大逃杀', href: 'deathreport/', icon: '📄', read: deathreport, tip: '档案式复盘' },
   { k: 'g2048', n: '忘却 2048', href: '2048.html', icon: '🔢', read: g2048, tip: '两块同样的合流' },
+  { k: 'reign', n: '忘却王权', href: 'reign.html', icon: '👑', read: reign, tip: '准或不准，四项账' },
 ];
 
 // 一次性读全部：页面只调这一个
