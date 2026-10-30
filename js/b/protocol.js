@@ -3261,6 +3261,325 @@ function boardBand(width, height, hud, dock, landscape = isShortLandscape(width,
 return { LANDSCAPE_QUERY, isShortLandscape, viewportSize, shortLandscape, boardBand };
 })();
 
+// ---- js/pf/terms.js
+const m_terms = await (async () => {
+
+// 词条词典。单位卡、羁绊条、图鉴里出现的每个术语都能点开看这一份，
+// 免得「护甲 120」和「减伤 12%」在玩家眼里是同一个东西。
+//
+// 三类：
+//   stat  属性 —— 面板上直接有数字的
+//   mech  机制 —— 打成什么样才会触发，什么时候有用
+//   rule  规则 —— 局外的：星级、人口、利息、漏怪
+//
+// 每条的 how 写死代码里的口径（engine.js 的 restat / unitAttack / damageUnit），
+// 改数值的时候务必回来一起改，否则词典会比游戏更难懂。
+
+const TERM_CATS = [
+  ['stat', '属性'],
+  ['mech', '机制'],
+  ['rule', '规则'],
+];
+
+const TERMS = {
+  // ---------------------------------------------------------------- 属性
+  hp: {
+    n: '生命', cat: 'stat', short: 'HP',
+    one: '能吃下多少伤害，归零就倒下。',
+    how: '生命 = 基础生命 × 星级倍率 × (1 + 生命加成)。星级倍率 1★ / 2★ / 3★ 分别是 ×1 / ×1.9 / ×3.4。',
+    body: '换装备、调羁绊时会按当前百分比保留血量——满血换装不会掉血，半血换装也还是半血。防御型单位吃「防御型」羁绊的生命加成，是唯一能把生命堆到四位数的路子。',
+    from: ['命轮：慈悲的哺育 +22%、吞噬摇篮曲 +12%、愿世界化作芬芳 +10%、冬夜追忆 +8%', '防御型羁绊 +24% / +44% / +68%', '界外者组织 +10% / +19% / +30%'],
+  },
+  atk: {
+    n: '攻击', cat: 'stat', short: 'ATK',
+    one: '每次普攻的基础伤害，中毒、溅射、大招也都按它折算。',
+    how: '攻击 = 基础攻击 × 星级倍率 × (1 + 攻击加成)。每击伤害 = 攻击 × (暴击 ? 1.75 : 1) × 0.92~1.08 的随机浮动 × (1 - 目标减伤)。',
+    body: '攻击是唯一会随战斗自我成长的属性：击杀叠加每层都乘在这里，打得越久越痛。造物「血肉戒指」的真伤按目标当前生命算，不吃攻击。',
+    from: ['命轮：巨人之刃 +20%、坠入虚无的人偶 +12%、神王的颂歌 +12%', '伤害型羁绊 +16% / +30% / +50%', '混血者组织 +10% / +19% / +30%', '裂隙地块 +18%（代价是受到伤害 +12%）'],
+  },
+  aspd: {
+    n: '攻速', cat: 'stat', short: 'ASPD',
+    one: '每秒攻击几次，决定出手频率。',
+    how: '攻击间隔 = 1 / max(0.25, 攻速) 秒。攻速 2.0 就是 0.5 秒一下；再高也不会快过 0.25 秒一下。',
+    body: '攻速同时会压缩攻击动画的播放时长，所以不会出现「动作还没播完又被下一次打断」。对中毒、暴击、流血这类「每次命中都判定」的机制来说，攻速就是它们的倍率。',
+    from: ['命轮：极夜与破晓 +22%、冬夜追忆 +12%', '深海界域 +14% / +24% / +38%', '愚者组织 +8% / +15% / +24%', '辅助型羁绊 +8% / +14% / +22%', '高台地块 +10%', '加速类大招：全体 +35%，持续 6 秒'],
+  },
+  armor: {
+    n: '护甲', cat: 'stat', short: 'ARM',
+    one: '按比例削掉每一次伤害，越堆收益越低但永远为正。',
+    how: '受到伤害 × 70 / (70 + 护甲)。护甲 70 → 减伤 50%；140 → 66.7%；350 → 83.3%。',
+    body: '护甲从 2★ 起每星额外 +35%（1★ ×1、2★ ×1.35、3★ ×1.70），所以升星对肉盾的价值远不止面板那点生命。它只对普通伤害有效——真伤直接扣，不吃护甲。',
+    from: ['命轮：永世编织之网 +25', '万古之外组织 +8 / +15 / +24'],
+  },
+  range: {
+    n: '射程', cat: 'stat', short: 'RNG',
+    one: '能打到多远的敌人，单位是格。',
+    how: '射程 = 基础射程（格）× 94 像素 + 加成。超过 1.9 格会走飞行弹道，近战只显示刀光。',
+    body: '射程只决定「够不够得着」，不改变打谁——自走棋里没有前后排保护，敌人走在通道上，谁在射程内就打谁。站高台的远程可以覆盖两条通道。',
+    from: ['高台地块 +0.6 格', '命轮：神王的颂歌 +0.5 格'],
+  },
+  crit: {
+    n: '暴击率', cat: 'stat', short: 'CRIT',
+    one: '每次普攻有多大概率打出暴击。',
+    how: '暴击那一下的伤害 × 1.75（再叠加暴击伤害加成）。暴击会飘金色数字并多溅几粒火星。',
+    body: '暴击判定在每次命中时独立掷一次，所以攻速越高，暴击率的收益越稳定。带「偏方骰子」时每次暴击额外回 10 狂气，暴击率等于变成了充能速度。',
+    from: ['混沌界域 +14% / +24% / +38%', '星之间组织 +12% / +21% / +32%', '命轮：狂戮至世界尽头 +25%、记忆螺旋 +15%', '造物：偏方骰子 +18%'],
+  },
+  critDmg: {
+    n: '暴击伤害', cat: 'stat', short: 'CDMG',
+    one: '暴击那一刻的倍率，默认 175%。',
+    how: '基础 1.75；命轮「狂戮至世界尽头」再 +0.30 → 2.05 倍。',
+    body: '只作用于暴击的那一下，没暴击就等于没有。搭配高暴击率才有意义，纯堆暴伤不如先堆暴击。',
+    from: ['命轮：狂戮至世界尽头 +30%'],
+  },
+  lifesteal: {
+    n: '吸血', cat: 'stat', short: 'LS',
+    one: '造成伤害后按比例回血，回复不会超过生命上限。',
+    how: '回复 = 实际打出的伤害 × 吸血%。只算普攻本体，不含溅射、真伤、追击的附加部分。',
+    body: '吸血是「站得住」而不是「抗得住」：面对高爆发没用，但对付成群的普通怪时，一个高攻速的吸血单位几乎不会被磨死。',
+    from: ['血肉界域 +6% / +10% / +16%', '命轮：愿世界化作芬芳 +8%'],
+  },
+  dmgCut: {
+    n: '减伤', cat: 'stat', short: 'CUT',
+    one: '直接按比例削掉受到的伤害，和护甲乘算。',
+    how: '受到伤害 × (1 - 减伤) × 70/(70 + 护甲)。先减伤，再过护甲，两道闸是相乘的。',
+    body: '减伤堆到 100% 也挡不住真伤（真伤不吃任何减免）。注意裂隙地块给的是 -12%，也就是受到伤害 +12%，站上去换 18% 攻击，是纯粹的赌。',
+    from: ['超维界域 +6% / +10% / +16%', '命轮：不可承受的自由 +12%', '造物：守护之手（相邻有友军时 -12%）'],
+  },
+  shield: {
+    n: '护盾', cat: 'stat', short: 'SH',
+    one: '盖在血条前面的一层临时血量，先扣完它才扣生命。',
+    how: '受到伤害先扣护盾，剩下的才进生命；护盾本身不过减伤——它是扣完减伤之后的量。',
+    body: '护罩类大招给自己和附近一名友军套上 30% 最大生命的护盾，血条上方会多出一条蓝色细条。护盾不随时间衰减，但也不会叠加超过 30%（取较大值）。',
+    from: ['护罩类大招（guard）：自己 + 附近 1 名友军，30% 最大生命'],
+  },
+
+  // ---------------------------------------------------------------- 机制
+  rage: {
+    n: '狂气', cat: 'mech', short: 'RAGE',
+    one: '大招能量，攒满 100 自动施放，施放后清零。',
+    how: '每次普攻 +13，每次被击 +7，都乘「狂气获取」加成；带「偏方骰子」时暴击再 +10。',
+    body: '狂气不看伤害、只看次数，所以攻速快的单位天然充能快。充能是唯一「打得多就放得多」的资源，也是辅助型单位的主要价值——它们伤害低，但出手频繁。',
+    from: ['单位卡上的黄色细条就是它'],
+  },
+  rageGain: {
+    n: '狂气获取', cat: 'mech', short: 'RAGE+',
+    one: '所有狂气收入的百分比加成，直接乘在 +13 / +7 / +10 上。',
+    how: '实际获得 = 基础狂气 × (1 + 狂气获取)。多个来源相加，不相乘。',
+    body: '它不提高大招伤害，只让你更早放出大招。对「大招本身就是核心」的单位（治疗、眩晕、护罩）来说，这比攻击力更值钱。',
+    from: ['不可知者组织 +25% / +45% / +70%', '胚胎流派 +15% / +28%', '造物：活性注射器 +70%', '祭坛地块 +70%', '命轮：坠入虚无的人偶 +20%'],
+  },
+  ultPower: {
+    n: '大招伤害', cat: 'mech', short: 'ULT',
+    one: '只放大招那一下的倍率，不影响普攻。',
+    how: '大招伤害 = 攻击 × 大招倍率 × (1 + 大招伤害加成)。落雷 3.2 倍、冲击波 2.1 倍是基础值。',
+    body: '治疗、护罩、加速、眩晕类大招不吃这个加成——它们本来就不造成（或只造成很少）伤害。',
+    from: ['胚胎流派 +12% / +22%', '造物：彩蛋时间 +35%'],
+  },
+  killStack: {
+    n: '击杀叠加', cat: 'mech', short: 'STACK',
+    one: '每击杀一个敌人永久涨一层攻击，本局有效，撤下重上也不清空。',
+    how: '攻击加成 = 每层% × 层数，直接乘进攻击。上限取「红宝石胸针 10 层」与「吞噬流派 5 层」里更高的那个；到顶之后击杀不再叠。',
+    body: '两处共用同一份层数：红宝石胸针每层 +4%，吞噬流派 2 人 +2% / 3 人 +4%。都带的话取更大的步长、更高的上限，不会叠加成两份。单位卡上的「击杀叠加 N / 10 层」就是它，棋盘上头顶也有「叠 N/10」的小徽章。',
+    from: ['造物：红宝石胸针（+4%/层，10 层）', '吞噬流派（+2% 或 +4%/层，5 层）'],
+  },
+  wound: {
+    n: '创口', cat: 'mech', short: 'WOUND',
+    one: '让目标之后受到的伤害变高，最多 8 层，整场不过期。',
+    how: '伤害 × (1 + 0.03 × 层数)。8 层 = +24%。',
+    body: '来自造物「锈蚀柳叶刀」，每命中一次 +1 层。层数挂在敌人身上、由所有带刀的单位共享，所以两把刀叠得比一把快一倍。敌人头顶的紫色小格就是层数，右边跟着 ×N。',
+    from: ['造物：锈蚀柳叶刀'],
+  },
+  poison: {
+    n: '中毒', cat: 'mech', short: 'PSN',
+    one: '命中后 3 秒内每秒掉一次血，掉血不触发别的效果。',
+    how: '每秒伤害 = 施毒者攻击 × 中毒%，持续 3 秒；再次命中刷新剩余时间与数值，不叠层。',
+    body: '中毒伤害不暴击、不吸血、不溅射，所以它更适合「打厚皮」而不是「打群怪」。对高护甲目标也有效——持续伤害走的是同一套减伤，但基数按攻击算，不看目标护甲以外的抗性。',
+    from: ['中毒流派 2 人 2.5% / 3 人 4.5%'],
+  },
+  splash: {
+    n: '溅射', cat: 'mech', short: 'SPL',
+    one: '打到目标时，顺手打它左右相邻的敌人。',
+    how: '溅射伤害 = 本次伤害 × 溅射%。范围是目标上下 0.7 格、左右 1 格内的其它敌人，不会再连锁扩散。',
+    body: '溅射可以补刀，补掉的击杀算在攻击者头上——所以带溅射的单位叠「击杀叠加」特别快。它不吃目标的独立减伤计算，直接用主目标的伤害乘比例。',
+    from: ['触手流派 2 人 18% / 3 人 32%'],
+  },
+  thorns: {
+    n: '反弹', cat: 'mech', short: 'THORN',
+    one: '被敌人打时，把一部分伤害还给攻击者。',
+    how: '反弹 = 实际受到的伤害 × 反弹%。造物「怪蛇残蜕」30% 与反击流派 10% / 18% 相加，可以同时存在。',
+    body: '反弹可以打死敌人，算作你的击杀（会触发叠层与击杀回血）。所以「挨打型」单位也能叠攻击，只要它够肉。',
+    from: ['造物：怪蛇残蜕 30%', '反击流派 10% / 18%'],
+  },
+  pierce: {
+    n: '穿透', cat: 'mech', short: 'PRC',
+    one: '无视目标一部分减伤，对高减伤目标收益最大。',
+    how: '目标减伤 × (1 - 穿透%)，再进入伤害公式。敌人自带减伤：普通 5%、精英 12%、Boss 18%。',
+    body: '对普通怪几乎看不出差别（5% → 4%），对 Boss 是实打实的提升（18% → 11.7%）。越到后期、越靠后的波次，穿透越像「打 Boss 的专用词条」。',
+    from: ['穿透流派 2 人 20% / 3 人 35%'],
+  },
+  trueDmg: {
+    n: '真伤', cat: 'mech', short: 'TRUE',
+    one: '跳过减伤与护甲，按目标当前生命直接扣。',
+    how: '附加伤害 = 目标当前生命 × 4%，对 Boss 减半为 2%。',
+    body: '目标越厚越痛，残血时收益下降，所以它是「开局压制」而不是「收尾」。和击杀叠加正好互补：一个打厚皮，一个滚雪球。',
+    from: ['造物：血肉戒指'],
+  },
+  doubleHit: {
+    n: '追击', cat: 'mech', short: 'DBL',
+    one: '普攻后有概率再补一次较弱的攻击。',
+    how: '25% 概率，追击伤害 = 本次伤害 × 60%。追击本身不再触发追击。',
+    body: '追击算作一次独立命中，会带出暴击判定、创口层数与吸血，但不会额外加狂气。',
+    from: ['造物：幸运兔脚'],
+  },
+  regen: {
+    n: '持续回复', cat: 'mech', short: 'REGEN',
+    one: '战斗中每隔一段时间自动回血。',
+    how: '每 8 秒回复最大生命的 8%，回血不会被伤害打断。',
+    body: '和吸血的区别是它不看你打了多少——只要还站着就一直在回。拖得越久越有价值，适合放在打不到人的后排。',
+    from: ['造物：日月轮盘'],
+  },
+  stun: {
+    n: '眩晕', cat: 'mech', short: 'STUN',
+    one: '让敌人一段时间内不能移动、不能出手。',
+    how: '眩晕类大招对半径 1.9 格内的敌人造成 1.1 倍攻击的伤害，并眩晕 1.8 秒（Boss 同样吃满）。',
+    body: '这是唯一能「停住整条通道」的效果。敌人排队走来时，一次眩晕能把后面几只一起按在原地，等于凭空多出两秒输出时间。',
+    from: ['眩晕类大招'],
+  },
+  bulwark: {
+    n: '结阵', cat: 'mech', short: 'BULW',
+    one: '身边有友军时，自己受到的伤害降低。',
+    how: '相邻 1.15 格内有任意友军 → 受到伤害 × 0.88（-12%），和护甲、减伤乘算。',
+    body: '判定是实时的：身边的友军倒下，减伤立刻消失。所以它鼓励「抱团」，也惩罚「孤军」。',
+    from: ['造物：守护之手'],
+  },
+  ultEcho: {
+    n: '回响', cat: 'mech', short: 'ECHO',
+    one: '友军放大招时，自己也涨狂气。',
+    how: '每次 +12 狂气（同样吃狂气获取加成）。',
+    body: '多个人带罗盘时，谁放大家都涨，容易滚成连续大招。适合放在充能慢、但大招关键的单位身上。',
+    from: ['造物：定向罗盘'],
+  },
+  teamHeal: {
+    n: '群体回复', cat: 'mech', short: 'TEAM',
+    one: '自己击杀敌人时，全队回血。',
+    how: '每个友军回复自身最大生命的 3%。',
+    body: '按「每个人的最大生命」算，所以对血厚的队友更划算。带溅射或高攻速的单位最容易触发它——杀得快就回得快。',
+    from: ['造物：瘟疫诊断书'],
+  },
+  critChain: {
+    n: '暴击回气', cat: 'mech', short: 'CHAIN',
+    one: '暴击时额外回狂气，同时自带暴击率。',
+    how: '暴击率 +18%，每次暴击额外 +10 狂气。',
+    body: '把暴击率直接换成充能速度，适合本来就靠暴击输出的单位。',
+    from: ['造物：偏方骰子'],
+  },
+
+  // ---------------------------------------------------------------- 规则
+  star: {
+    n: '星级', cat: 'rule', short: '★',
+    one: '三张同名合成 2★，再三张合成 3★，到顶为止。',
+    how: '属性倍率 1★ ×1、2★ ×1.9、3★ ×3.4；护甲额外 ×1 / ×1.35 / ×1.70。升星会送一件命轮或造物，并回满血。',
+    body: '两张同名不会自动合，必须再买到第三张。场上和备战席都算，别把材料卖早了。3★ 之后同名卡会变成金币补偿。',
+    from: ['商店'],
+  },
+  leak: {
+    n: '漏怪', cat: 'rule', short: 'LEAK',
+    one: '敌人走到最左端就会扣协议核心，核心归零就输。',
+    how: '普通怪扣 1、精英扣 2、Boss 扣 5。',
+    body: '这是本局唯一会输的方式——没有回合数，也没有别的失败条件。所以「拦住」永远优先于「多打一点伤害」：阵型留一个缺口，输出再高也会被磨穿。',
+    from: ['核心初始 20 点'],
+  },
+  interest: {
+    n: '利息', cat: 'rule', short: 'INT',
+    one: '攒着不花的钱，在每波结束时多给你一点。',
+    how: '每存满 5 金 +1，最多 +5。结算只看「这一波结束那一刻」的金币。',
+    body: '利息是滚雪球的起点：前期忍住不刷新，中期就能多买一个人。刷新（1 金）和升级（5 金）都会打断它，所以这两笔钱要算在「这波值不值」里。',
+    from: ['金币池下方的小字会实时显示当前档位'],
+  },
+  terrain: {
+    n: '地块', cat: 'rule', short: 'TER',
+    one: '站上去就有额外加成的格子，每局随机分布。',
+    how: '高台：攻速 +10%、射程 +0.6 格。祭坛：狂气获取 +70%。裂隙：攻击 +18%、但受到伤害 +12%。岩壁：不能站人，敌人也过不去。',
+    body: '加成已经算进单位卡的属性里了，不用自己再心算。高台给远程、祭坛给靠大招的人、裂隙给不怕死的输出，岩壁可以用来强行改敌人路线。',
+    from: ['左侧面板「地块」一栏可点开逐个看'],
+  },
+  pop: {
+    n: '人口', cat: 'rule', short: 'POP',
+    one: '场上能同时站几个人。',
+    how: '初始 2，每升 1 级 +1，最高 8 级。升级固定 5 金，商店不刷新、已买的卡还在。',
+    body: '人口不够时买的人会进备战席，随时能换上。升级顺便提高高费卡的出现概率，所以「早升级」往往比「早刷新」划算。',
+    from: ['底栏「升级 5」'],
+  },
+  trait: {
+    n: '羁绊', cat: 'rule', short: 'TRAIT',
+    one: '同界域 / 职阶 / 组织 / 流派的单位凑够人数，就激活对应档位。',
+    how: '界域 2 / 3 / 4 人；职阶 2 / 4 / 6 或 2 / 3 / 4 人；组织 2 / 3 / 4 人；流派 2 / 3 人。',
+    body: '界域与部分职阶对全队生效，组织和流派只对「同组织」「同流派」的单位生效——所以后两者给得更猛，也是凑人的动力。已激活的档位在左侧面板里会亮起来，没亮的会显示还差几人。',
+    from: ['顶栏与左侧面板的羁绊条'],
+  },
+};
+
+const TERM_BY_KEY = TERMS;
+
+// 造物的 fx → 词条 key。单位卡要按「这件造物实际给了什么机制」列出可点的小标签。
+const FX_TERM = {
+  trueDmg: 'trueDmg',
+  killAtk: 'killStack',
+  thorns: 'thorns',
+  wound: 'wound',
+  doubleHit: 'doubleHit',
+  regen: 'regen',
+  ultEcho: 'ultEcho',
+  teamHeal: 'teamHeal',
+  critChain: 'critChain',
+  bulwark: 'bulwark',
+  ultPower: 'ultPower',
+  ultGain: 'rageGain',
+};
+
+// 流派标签（角色关键词）→ 词条 key。角色资料里据此列出「这个人身上能触发的机制」。
+const GMK_TERM = {
+  tentacle: 'splash',
+  poison: 'poison',
+  devour: 'killStack',
+  counter: 'thorns',
+  embryo: 'rageGain',
+  pierce: 'pierce',
+};
+
+const termOf = (key) => TERMS[key] || null;
+const termsOfCat = (cat) =>
+  Object.keys(TERMS).filter((k) => TERMS[k].cat === cat).map((k) => [k, TERMS[k]]);
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// 详情面板 / 卡片内联展开共用的一份 HTML。
+function termDetailHtml(key) {
+  const t = TERMS[key];
+  if (!t) return '';
+  const cat = (TERM_CATS.find(([k]) => k === t.cat) || [, '词条'])[1];
+  const parts = [
+    `<p class="term-one">${esc(t.one)}</p>`,
+    `<h3>怎么算</h3><p>${esc(t.how)}</p>`,
+    `<h3>什么时候有用</h3><p>${esc(t.body)}</p>`,
+  ];
+  if (t.from && t.from.length) {
+    parts.push(`<h3>谁会提供</h3><ul class="term-from">${t.from.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`);
+  }
+  parts.push(`<p class="term-cat">${esc(cat)}词条</p>`);
+  return parts.join('');
+}
+
+// 卡片里内联展开时用的紧凑版：一句话 + 怎么算（正文太长，手机上会顶掉棋盘）。
+function termBriefHtml(key) {
+  const t = TERMS[key];
+  if (!t) return '';
+  return `<p class="term-one">${esc(t.one)}</p><p class="term-how">${esc(t.how)}</p>`;
+}
+return { TERM_CATS, TERMS, TERM_BY_KEY, FX_TERM, GMK_TERM, termOf, termsOfCat, termDetailHtml, termBriefHtml };
+})();
+
 // ---- js/pf/ui.js
 const m_ui = await (async () => {
 const { boardBand, viewportSize, shortLandscape } = m_layout;
@@ -3268,6 +3587,7 @@ const { G, buy, sell, levelUp, rollShop, rollItemShop, beginWave, reset, traitLi
 const { ART, SHEET, REALM_ART } = m_gen;
 const { WAVES, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON, FAC_ICON, GMK_ICON, TRAIT_KINDS, STAR_NAME, LEVEL_COST, REROLL_COST, MAX_LEVEL, BENCH_SIZE, creditsAt, nextTier, ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS, ENEMY, interestOf, TRAITS, HEX_W } = m_defs;
 const { sfx } = m_audio;
+const { TERMS, TERM_CATS, FX_TERM, GMK_TERM, termOf, termsOfCat, termDetailHtml, termBriefHtml } = m_terms;
 // 《忘却协议》界面层：顶栏、商店（唤醒体 / 命轮·造物两个页签）、装备栏、备战席、
 // 羁绊条、单位卡、遮罩层。
 //
@@ -3276,6 +3596,7 @@ const { sfx } = m_audio;
 //
 // 头像 / 商店立绘不额外请求：全部按帧矩形从图集里用 background-position 切。
 // 命轮与造物没有立绘，用「色环 + 一个汉字」当图标（命 / 造），按界域上色。
+
 
 
 
@@ -3408,6 +3729,9 @@ function build() {
     b.onclick = () => { setDiff(b.dataset.d); sfx.play('tab'); };
   });
   document.querySelectorAll('.tab').forEach((b) => {
+    // 只有带 data-tab 的才是页签。「图鉴详情」「地块说明」也挂着 .tab 的样式，
+    // 但它们开的是说明弹层 —— 顺手盖掉 onclick 的话，这两个按钮点了没反应。
+    if (!b.dataset.tab) return;
     b.onclick = () => { setTab(b.dataset.tab); sfx.play('tab'); };
   });
   $('btnEqClear').onclick = () => { click(); ui.item = null; G.selItem = null; sync(); };
@@ -3704,6 +4028,52 @@ function eqRow(u) {
   return `<div class="eqs">${one('wheel', '命轮')}${one('creation', '造物')}</div>`;
 }
 
+// 词条按钮：卡片里的属性名、机制名都走这里，点一下在卡片内展开说明。
+// 用 <button> 而不是 <span>，手机上才有「能点」的手感和键盘可达性。
+function termBtn(key, label, extra) {
+  const t = TERMS[key];
+  if (!t) return '';
+  return `<button type="button" class="term${extra ? ' ' + extra : ''}" data-term="${key}" title="${t.one}">${label || t.n}</button>`;
+}
+
+// 这个单位身上真正生效的机制：流派羁绊、击杀叠加、以及造物带的 fx。
+// 只列已生效的 —— 列一堆灰的等于没说。
+function unitMechs(u) {
+  const out = [];
+  if (u.splash > 0) out.push('splash');
+  if (u.poison > 0) out.push('poison');
+  if (u.thorns > 0) out.push('thorns');
+  if (u.pierce > 0) out.push('pierce');
+  if (u.killAtkStep > 0 && u.killAtkMax > 0) out.push('killStack');
+  const fx = u.creation && u.creation.fx;
+  if (fx && FX_TERM[fx] && !out.includes(FX_TERM[fx])) out.push(FX_TERM[fx]);
+  return out;
+}
+
+// 卡片内的词条展开区：点属性名在卡片里就地展开，再点同一个收起。
+// 手机上卡片本身很窄，所以这里只放「一句话 + 怎么算」，全文交给详情面板。
+function toggleTerm(key) {
+  const pane = $('termPane');
+  if (!pane) return;
+  if (!pane.hidden && pane.dataset.k === key) { pane.hidden = true; pane.dataset.k = ''; return; }
+  const t = TERMS[key];
+  if (!t) return;
+  pane.dataset.k = key;
+  pane.hidden = false;
+  pane.innerHTML = `<div class="tp-h"><b>${t.n}</b><button type="button" class="tp-x" aria-label="收起">×</button></div>
+    ${termBriefHtml(key)}
+    <button type="button" class="tp-more">完整说明 →</button>`;
+  pane.querySelector('.tp-x').onclick = (ev) => {
+    ev.stopPropagation();
+    pane.hidden = true; pane.dataset.k = '';
+  };
+  pane.querySelector('.tp-more').onclick = (ev) => {
+    ev.stopPropagation();
+    showDetails(`${t.n} · 词条`, termDetailHtml(key), true);
+  };
+  sfx.play('select');
+}
+
 function renderCard() {
   const card = $('unitCard');
   const u = ui.sel != null ? G.units.find((x) => x.uid === ui.sel) : null;
@@ -3715,6 +4085,7 @@ function renderCard() {
   card.classList.toggle('compact', compact);
   card.classList.toggle('narrow', narrow);
   const d = u.def;
+  const mechs = unitMechs(u);
   const eqText = [u.wheel, u.creation].filter(Boolean)
     .map((x) => `<p class="eqline"><b>${x.n}</b>${x.text || ''}</p>`).join('');
   const armed = ui.item != null ? G.inv[ui.item] : null;
@@ -3730,14 +4101,16 @@ function renderCard() {
       </div>
     </div>
     <div class="nums">
-      <span>生命 <b>${u.hpMax}</b></span><span>攻击 <b>${Math.round(u.atk)}</b></span>
-      <span>攻速 <b>${u.aspd.toFixed(2)}</b></span><span>护甲 <b>${Math.round(u.armor)}</b></span>
-      <span>射程 <b>${(u.range / 94).toFixed(1)} 格</b></span>
-      ${u.crit > 0 ? `<span>暴击 <b>${Math.round(u.crit * 100)}%</b></span>` : ''}
+      <span>${termBtn('hp')} <b>${u.hpMax}</b></span><span>${termBtn('atk')} <b>${Math.round(u.atk)}</b></span>
+      <span>${termBtn('aspd')} <b>${u.aspd.toFixed(2)}</b></span><span>${termBtn('armor')} <b>${Math.round(u.armor)}</b></span>
+      <span>${termBtn('range')} <b>${(u.range / 94).toFixed(1)} 格</b></span>
+      ${u.crit > 0 ? `<span>${termBtn('crit')} <b>${Math.round(u.crit * 100)}%</b></span>` : ''}
       ${u.killAtkStep > 0 && u.killAtkMax > 0
-        ? `<span class="stk">击杀叠加 <b id="stkNow">${u.killStacks}</b> / ${u.killAtkMax} 层<em>每层 +${Math.round(u.killAtkStep * 100)}% 攻击</em></span>`
+        ? `<span class="stk">${termBtn('killStack', '击杀叠加', 'hot')} <b id="stkNow">${u.killStacks}</b> / ${u.killAtkMax} 层<em>每层 +${Math.round(u.killAtkStep * 100)}% 攻击</em></span>`
         : ''}
     </div>
+    ${mechs.length ? `<div class="mechrow"><i>机制</i>${mechs.map((k) => termBtn(k, null, 'mech')).join('')}</div>` : ''}
+    <div class="termpane" id="termPane" hidden></div>
     ${eqRow(u)}
     ${eqText}
     <p class="ult"><b>${d.ult.name} · 本局效果</b>${ultDescription(d)}</p>
@@ -3754,6 +4127,9 @@ function renderCard() {
   if (sellBtn) sellBtn.onclick = () => { sell(u.uid); ui.sel = null; G.sel = null; sync(); };
   const eqBtn = $('btnEquipNow');
   if (eqBtn) eqBtn.onclick = () => { if (equip(u.uid, ui.item)) { ui.item = null; G.selItem = null; } sync(); };
+  card.querySelectorAll('.term[data-term]').forEach((el) => {
+    el.onclick = (ev) => { ev.stopPropagation(); toggleTerm(el.dataset.term); };
+  });
   card.querySelectorAll('.eq[data-slot]').forEach((el) => {
     el.onclick = () => {
       const slot = el.dataset.slot;
@@ -4117,9 +4493,28 @@ function itemDescription(kind, id) {
   if (!d) return null;
   return { title: d.n, html: `<p>${itemKindName(kind)} · ${d.cost} 金${d.realm ? ' · ' + REALM_NAME[d.realm] : ''}</p><h3>装备效果</h3><p>${escapeText(d.text)}</p><p>每名唤醒体各可装备一件命轮和一件造物。装备栏中点选后，再点角色装备；角色面板中点击已装备物品可卸下。</p>` };
 }
+// 词条内联链接：详情面板里的「生命」「护甲」「羁绊」都能继续点下去，
+// 一路从「这个角色是谁」点到「护甲到底怎么算」。
+const tlink = (key, label) => `<button type="button" class="tlink" data-detail="term:${key}">${label || TERMS[key].n}</button>`;
+
 function unitDescription(d) {
   const traits = TRAITS.filter(t => t.kind === 'realm' ? t.key === d.realm : t.kind === 'role' ? t.key === d.role : t.kind === 'fac' ? t.key === d.fac : (d.tags || []).includes(t.key));
-  return { title: d.n, html: `${portrait(d.id, 72)}<p>${REALM_NAME[d.realm]} · ${ROLE_NAME[d.role]} · ${d.cost} 金</p><h3>一星基础属性</h3><p>生命 ${d.hp} · 攻击 ${d.atk} · 攻速 ${d.aspd}/秒 · 护甲 ${d.armor} · 射程 ${d.range} 格</p><h3>${escapeText(d.ult.name)} · 本局效果</h3><p>${ultDescription(d)}</p><details><summary>原作技能资料</summary><p>${escapeText(d.ult.text)}</p></details><h3>羁绊与增益</h3>${traits.map(t => `<h4>${t.n}</h4>${t.stepsText.map((text,i) => `<p>${t.steps[i]} 人：${escapeText(text)}</p>`).join('')}`).join('')}<p>场上最终属性会受到星级、装备、地形与羁绊影响，可在右侧角色面板查看。</p>` };
+  // 这个角色身上「可能触发」的机制：流派标签 + 谁都会用到的那几条
+  const mech = ['hp', 'atk', 'aspd', 'armor', 'crit', 'rage'];
+  for (const t of d.tags || []) if (GMK_TERM[t] && !mech.includes(GMK_TERM[t])) mech.push(GMK_TERM[t]);
+  const statLine = `${tlink('hp')} ${d.hp} · ${tlink('atk')} ${d.atk} · ${tlink('aspd')} ${d.aspd}/秒 · ${tlink('armor')} ${d.armor} · ${tlink('range')} ${d.range} 格`;
+  const traitHtml = traits.map(t => `<h4><button type="button" class="tlink" data-detail="trait:${t.key}">${t.n}</button></h4>`
+    + t.stepsText.map((text, i) => `<p>${t.steps[i]} 人：${escapeText(text)}</p>`).join('')).join('');
+  return {
+    title: d.n,
+    html: `${portrait(d.id, 72)}<p>${REALM_NAME[d.realm]} · ${ROLE_NAME[d.role]} · ${d.cost} 金</p>`
+      + `<h3>一星基础属性</h3><p>${statLine}</p>`
+      + `<h3>${escapeText(d.ult.name)} · 本局效果</h3><p>${ultDescription(d)}</p>`
+      + `<details><summary>原作技能资料</summary><p>${escapeText(d.ult.text)}</p></details>`
+      + `<h3>羁绊与增益</h3>${traitHtml}`
+      + `<h3>相关词条</h3><div class="detail-list">${mech.map(k => `<button data-detail="term:${k}" title="${escapeText(TERMS[k].one)}">${escapeText(TERMS[k].n)}</button>`).join('')}</div>`
+      + '<p>场上最终属性会受到星级、装备、地形与羁绊影响，可在右侧角色面板查看。</p>',
+  };
 }
 function inspectElement(el, pin) {
   if (detailPinned && !pin) return;
@@ -4130,10 +4525,22 @@ function inspectElement(el, pin) {
   if (kind === 'unit') {
     const d = UNITS_BY_ID[id]; if (!d) return;
     const desc = unitDescription(d); showDetails(desc.title, desc.html, pin, anchor);
+  } else if (kind === 'term') {
+    const t = termOf(id); if (!t) return;
+    showDetails(t.n + ' · 词条', termDetailHtml(id), pin, anchor);
   } else if (kind === 'trait') {
     const t = traitList().find(t => t.def.key === id); if (!t) return;
     const d = t.def;
-    showDetails(d.n + ' · 羁绊', `<p>当前 ${t.n} 人${t.active >= 0 ? ` · 已激活 ${d.steps[t.active]} 人档` : ' · 未激活'}</p>` + d.stepsText.map((text,i) => `<p class="${i <= t.active ? 'active-effect' : ''}">${i <= t.active ? '✓ ' : ''}${d.steps[i]} 人 · ${escapeText(text)}</p>`).join(''), pin, anchor);
+    // 「生效给谁」按代码里的实际加成走：界域与辅助型是全队，另外两档只给同职阶
+    const scope = d.kind === 'realm' ? '全队所有单位'
+      : d.key === 'sup' ? '全队所有单位（加的是攻速）'
+      : d.kind === 'role' ? `只对「${d.n}」的单位`
+      : d.kind === 'fac' ? `只对同组织（${d.n}）的单位`
+      : `只对同流派（${d.n}）的单位`;
+    const lack = t.next != null ? `<p class="term-lack">再上 ${t.next - t.n} 个「${d.n}」就到 ${t.next} 人档。</p>` : '';
+    showDetails(d.n + ' · 羁绊', `<p class="term-one">当前 ${t.n} 人${t.active >= 0 ? ` · 已激活 ${d.steps[t.active]} 人档` : ' · 未激活'}</p>`
+      + `<p>生效范围：${scope}。</p>` + lack
+      + d.stepsText.map((text, i) => `<p class="${i <= t.active ? 'active-effect' : ''}">${i <= t.active ? '✓ ' : ''}${d.steps[i]} 人 · ${escapeText(text)}</p>`).join(''), pin, anchor);
   } else if (kind === 'terrain') {
     const t = TERRAIN[id]; if (t) showDetails(t.n, '<p>' + terrainText(id) + '</p>', pin, anchor);
   } else {
@@ -4172,7 +4579,10 @@ function buildDetails() {
   $('btnCodex').onclick = () => showDetails('角色 · 命轮 · 造物图鉴',
     '<h3>唤醒体</h3><div class="detail-list">' + Object.values(UNITS_BY_ID).map(d => `<button data-detail="unit:${d.id}">${escapeText(d.n)}</button>`).join('') +
     '</div><h3>命轮</h3><div class="detail-list">' + WHEELS.map(d => `<button data-detail="wheel:${d.id}">${escapeText(d.n)}</button>`).join('') +
-    '</div><h3>造物</h3><div class="detail-list">' + CREATIONS.map(d => `<button data-detail="creation:${d.id}">${escapeText(d.n)}</button>`).join('') + '</div>', true);
+    '</div><h3>造物</h3><div class="detail-list">' + CREATIONS.map(d => `<button data-detail="creation:${d.id}">${escapeText(d.n)}</button>`).join('') + '</div>' +
+    TERM_CATS.map(([cat, label]) => `<h3>${label}词条</h3><div class="detail-list">` +
+      termsOfCat(cat).map(([k, t]) => `<button data-detail="term:${k}" title="${escapeText(t.one)}">${escapeText(t.n)}</button>`).join('') +
+      '</div>').join(''), true);
 }
 
 // Keep an open, pinned explanation inside the viewport when the phone rotates.
