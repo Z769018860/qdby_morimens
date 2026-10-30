@@ -842,6 +842,12 @@ export const ITEM_POOL = { WHEELS, CREATIONS };
 // Shared inspection surface lives outside every scrolling sidebar.
 const escapeText = text => String(text ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 let detailPanel, detailPinned = false, detailFromElement = false, detailKey = '', detailTimer;
+const DETAIL_EXIT_GRACE = 1100;
+function scheduleDetailHide() {
+  if (detailPinned) return;
+  clearTimeout(detailTimer);
+  detailTimer = setTimeout(() => hideInspection(), DETAIL_EXIT_GRACE);
+}
 function ultDescription(d) {
   const descriptions = {
     nuke: '攻击最近的敌人，造成 320% 攻击力伤害。',
@@ -921,7 +927,14 @@ function showDetails(title, html, pin = false, point) {
   detailPanel.style.width = width + 'px';
   detailPanel.style.left = Math.max(gap, Math.min(left, vw - width - gap)) + 'px';
   detailPanel.style.top = top + 'px';
-  detailPanel.style.maxHeight = Math.max(90, vh - top - gap) + 'px';
+  // Keep hover previews wholly above the shop so they never steal purchases.
+  const shelf = document.querySelector('.shopzone');
+  const shelfTop = shelf ? shelf.getBoundingClientRect().top : vh;
+  if (!pin && shelfTop > 155) {
+    top = gap;
+    detailPanel.style.top = top + 'px';
+    detailPanel.style.maxHeight = Math.max(110, shelfTop - top - gap) + 'px';
+  } else detailPanel.style.maxHeight = Math.max(90, vh - top - gap) + 'px';
 }
 function closeDetails() {
   detailPinned = false; detailFromElement = false; detailKey = '';
@@ -992,18 +1005,19 @@ function buildDetails() {
   detailPanel.id = 'protocolDetails'; detailPanel.hidden = true;
   detailPanel.setAttribute('role','region'); detailPanel.setAttribute('aria-label','详细说明');
   document.body.append(detailPanel);
-  detailPanel.onpointerenter = () => { if (detailPinned) clearTimeout(detailTimer); };
-  detailPanel.onpointerleave = () => { if (!detailPinned) detailTimer = setTimeout(hideInspection, 450); };
+  detailPanel.onpointerenter = () => { clearTimeout(detailTimer); };
+  detailPanel.onpointerleave = () => { scheduleDetailHide(); };
   document.addEventListener('pointerover', e => {
     if (e.pointerType === 'touch') return;
     const el = e.target.closest('[data-detail]'); if (!el || el.contains(e.relatedTarget)) return;
+    if (detailPanel.contains(el) && !detailPinned) { clearTimeout(detailTimer); return; }
     inspectElement(el, false);
   });
   document.addEventListener('pointerout', e => {
     const el = e.target.closest('[data-detail]');
     if (el && !el.contains(e.relatedTarget) && !detailPinned) {
       clearTimeout(detailTimer);
-      detailTimer = setTimeout(() => { if (!detailPinned) hideInspection(); }, 450);
+      scheduleDetailHide();
     }
   });
   document.addEventListener('contextmenu', e => {
