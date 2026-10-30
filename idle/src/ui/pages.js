@@ -746,7 +746,9 @@ export function detailModal(app, slug) {
       <p class="hint">每级成长：生命 +${g.hp}　攻击 +${g.atk}　防御 +${g.def}（已含叠位加成）。技能等级 Lv.${lvl + 1}/5。</p>
       ${growBtns}
       ${r ? `<div class="row"><button class="btn sm" data-act="awaken" data-slug="${slug}" ${awkCost && s.cores >= awkCost ? '' : 'disabled'} title="重复抽取同一唤醒体也能 +1 叠位">叠位 +1（<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${awkCost || '满'}）</button>
-        <button class="btn sm" data-act="guide-growth">升级材料从哪来？</button></div>` : ''}
+        ${awkCost ? `<button class="btn sm" data-act="awaken" data-slug="${slug}" data-n="10" ${s.cores >= awkCost ? '' : 'disabled'} title="连续叠位，直到银芯不够或叠满，最多 10 次">叠位 ×10</button>` : ''}
+        <button class="btn sm" data-act="guide-growth">升级材料从哪来？</button></div>
+      ${r.star >= MAX_AWAKEN ? `<p class="hint">已叠满 ${MAX_AWAKEN}：之后再抽到这位会折算成 <b>800 金币 + 30 银芯</b>。继续变强靠等级（上限 ${levelCap(r.star)}）、突破、装备精炼、钥令淬炼和更高的关卡。</p>` : ''}` : ''}
       <h4>叠位效果 <small class="dim">${awk(r?.star || 0)} / ${MAX_AWAKEN}</small></h4>
       ${awakenTable(preview)}
       ${r ? `<div class="eqrow">${slotBox('wheel', 'wheel', '命轮')}${slotBox('cov', 'covenant', '密契')}</div>` : ''}
@@ -761,7 +763,7 @@ export function detailModal(app, slug) {
         <div><span>叠位（上限 ${MAX_AWAKEN}）</span><em>抽到重复唤醒体 +1；也可用银芯共鸣（成本 ${awakenCost(r?.star || 0)} 起，每层 +5）。</em></div>
       </div>
     </div></div>`;
-  openModal(html, 'wide');
+  openModal(html, 'wide', 'detail:' + slug);
 }
 
 /* 养成指南：把「练谁、怎么练、材料在哪」写成一张可查的表 */

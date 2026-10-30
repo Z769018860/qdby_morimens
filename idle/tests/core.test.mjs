@@ -1833,3 +1833,27 @@ test('银芯钱包对账：第一次并入、之后只记增减、别处发放 /
   const m = migrate(JSON.parse(JSON.stringify({ ...newState(data), cores: 777, coresBase: 777 })), data);
   assert.equal(m.coresBase, 777);
 });
+
+/* ---------- 云存档：内容一样就不问 ---------- */
+import { contentHash, plan as cloudPlan2 } from '../src/core/cloud.js';
+
+test('云存档：只比真实进度（rev / lastSeen / play 不算），一样就不弹冲突框', () => {
+  const played = { maxStage: 30, play: 9000, lastSeen: 1, rev: 10, gold: 5, roster: Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`h${i}`, { lv: 1 }])) };
+  const same = { ...played, rev: 99, lastSeen: 12345, play: 9999 };
+  assert.equal(contentHash(played), contentHash(same));
+  assert.notEqual(contentHash(played), contentHash({ ...played, gold: 6 }));
+  assert.equal(contentHash({ a: 1, b: { x: 1, y: 2 } }), contentHash({ b: { y: 2, x: 1 }, a: 1 }));
+  const acct = '甲';
+  const cm = { ver: 4, at: 1, rev: 40, meta: { hash: contentHash(played) } };
+  // 新设备 / 没有同步记录，但内容一模一样 → same（不问）
+  assert.equal(cloudPlan2({ state: same, cloudMeta: cm, sync: null, acct }), 'same');
+  // 同一账号，云端版本更新、但内容就是我上次对齐的那份（上传成功响应丢了）：本机没改 → same；改了 → push
+  const sync = { acct, ver: 3, rev: 5, hash: contentHash(played) };
+  assert.equal(cloudPlan2({ state: same, cloudMeta: { ...cm, ver: 4 }, sync, acct }), 'same');
+  assert.equal(cloudPlan2({ state: { ...played, gold: 50 }, cloudMeta: { ...cm, ver: 4 }, sync, acct }), 'push');
+  // 本机只是 rev 涨了（自动存档），内容没动：不算改过 → 云端有更新时直接拉，不弹框
+  const other = { ver: 6, at: 1, rev: 60, meta: { hash: 'zzz' } };
+  assert.equal(cloudPlan2({ state: { ...played, rev: 500 }, cloudMeta: other, sync: { acct, ver: 3, rev: 5, hash: contentHash(played) }, acct }), 'pull');
+  // 本机真的改过、云端也变了 → 才是冲突
+  assert.equal(cloudPlan2({ state: { ...played, gold: 77 }, cloudMeta: other, sync: { acct, ver: 3, rev: 5, hash: contentHash(played) }, acct }), 'conflict');
+});

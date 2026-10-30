@@ -41,7 +41,26 @@ export const clearSyncRecord = () => { try { globalThis.localStorage?.removeItem
 // 否则新设备一进来就被当成「有进度」，弹冲突框问用哪份，甚至把刚开局的空档推上云端占位
 export const isFresh = (s) => !s || ((s.maxStage || 0) <= 2 && (Number(s.play) || 0) < 180 && Object.keys(s.roster || {}).length <= 4);
 
+// 内容哈希：只看「玩家真正的进度」，不看每次存档都会变的杂项（rev 版本号、lastSeen 最后在线、play 游玩秒数）。
+// 用来判断「本机和云端其实是同一份」「自上次对齐以来本机到底有没有改过」——
+// 以前只比 rev，而 rev 每 15 秒存一次档就 +1，于是一进游戏就被当成「本机改过」，弹出冲突框。
+const VOLATILE = new Set(['rev', 'lastSeen', 'play']);
+function stable(v) {
+  if (Array.isArray(v)) return v.map(stable);
+  if (v && typeof v === 'object') { const o = {}; for (const k of Object.keys(v).sort()) o[k] = stable(v[k]); return o; }
+  return v;
+}
+export function contentHash(s) {
+  const o = {};
+  for (const k of Object.keys(s || {})) if (!VOLATILE.has(k)) o[k] = s[k];
+  const str = JSON.stringify(stable(o));
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(36) + str.length.toString(36);
+}
+
 export const metaOf = (s) => ({
+  hash: contentHash(s),
   maxStage: s.maxStage || 0, roster: Object.keys(s.roster || {}).length, play: Math.round(Number(s.play) || 0),
   gold: Math.round(Number(s.gold) || 0), lastSeen: s.lastSeen || 0,
   // 主线出战阵容：首页榜单展示「通关阵容」用（只带 slug / 等级 / 叠位）
@@ -54,10 +73,17 @@ export const metaOf = (s) => ({
  * cloudMeta：云端摘要 { ver, at, rev, meta } 或 null（云端还没有）；sync：本机上次同步记录或 null
  */
 export function plan({ state, cloudMeta, sync, acct }) {
-  const dirty = !!sync && (state.rev || 0) > (sync.rev || 0);
+  const h = contentHash(state);
+  // 有同步记录里的哈希就比哈希，老记录（没有哈希）才退回比 rev
+  const dirty = !!sync && (sync.hash ? sync.hash !== h : (state.rev || 0) > (sync.rev || 0));
   if (!cloudMeta) return isFresh(state) ? 'none' : 'push';
   const mine = !!sync && sync.acct === acct;
+  const ch = cloudMeta.meta && cloudMeta.meta.hash;
+  // 本机和云端内容一模一样：不管版本号怎么对不上，都不用问、也不用传
+  if (ch && ch === h) return 'same';
   if (mine && sync.ver === cloudMeta.ver) return dirty ? 'push' : 'none';
+  // 云端版本比本机记的新，但云端内容还是我上次对齐时的那份（上次上传成功了、响应丢了）：当作我自己的，接着传
+  if (mine && ch && sync.hash && ch === sync.hash) return dirty ? 'push' : 'same';
   if (mine && sync.ver < cloudMeta.ver) return dirty ? 'conflict' : 'pull';
   if (isFresh(state)) return 'pull';        // 新设备 / 换了账号，本机还是新档
   return 'conflict';
@@ -121,11 +147,11 @@ export async function pushSave(state, ver, opt = {}) {
   const r = await call('PUT', `/save/${GAME}`, { data: JSON.stringify(state), ver, rev: state.rev || 0, meta: metaOf(state) }, opt);
   if (r.status === 409) return { conflict: true, cloud: r.json };
   if (!r.ok) throw new Error(r.json.error || 'HTTP ' + r.status);
-  setSyncRecord({ acct: acct.name, ver: r.json.ver, rev: state.rev || 0, at: Date.now() });
+  setSyncRecord({ acct: acct.name, ver: r.json.ver, rev: state.rev || 0, hash: contentHash(state), at: Date.now() });
   return { ver: r.json.ver };
 }
 /** 记下「本机已经和云端 ver 对齐」（拉取成功后调用） */
 export function markSynced(state, ver) {
   const acct = account();
-  setSyncRecord({ acct: acct ? acct.name : '', ver, rev: state.rev || 0, at: Date.now() });
+  setSyncRecord({ acct: acct ? acct.name : '', ver, rev: state.rev || 0, hash: contentHash(state), at: Date.now() });
 }

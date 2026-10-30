@@ -95,16 +95,23 @@ export function toast(msg, ms = 2200) {
 }
 
 let modalRoot;
-export function openModal(html, cls = '') {
+let modalKey = '', modalScroll = 0;
+// key：同一个弹窗被重新渲染（升级 / 叠位后刷新）时传同一个 key，滚动位置会保留——
+// 否则每点一次「叠位 +1」弹窗都跳回最上面，要重新往下拉才能点下一次。
+export function openModal(html, cls = '', key = '') {
+  if (modalRoot && modalKey) { const m = modalRoot.querySelector('.modal'); if (m) modalScroll = m.scrollTop; }
+  const keep = key && key === modalKey ? modalScroll : 0;
   closeModal();
+  modalKey = key;
   modalRoot = document.createElement('div');
   modalRoot.className = 'modal-bg';
   modalRoot.innerHTML = `<div class="modal ${cls}"><button class="modal-x" data-act="close">✕</button>${html}</div>`;
   modalRoot.addEventListener('click', (e) => { if (e.target === modalRoot || e.target.closest('[data-act="close"]')) closeModal(); });
   document.body.appendChild(modalRoot);
+  if (keep) { const m = modalRoot.querySelector('.modal'); if (m) m.scrollTop = keep; }
   return modalRoot;
 }
-export function closeModal() { if (modalRoot) { modalRoot.remove(); modalRoot = null; } }
+export function closeModal() { if (modalRoot) { modalRoot.remove(); modalRoot = null; } modalKey = ''; modalScroll = 0; }
 export const modalEl = () => modalRoot;
 
 // ---------- keywords (status / mechanic tags with icons) ----------

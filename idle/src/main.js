@@ -275,8 +275,18 @@ export async function cloudRun(reason = 'auto') {
       applyCloudSave(save);
       toast('已从云端同步最新进度', 3200);
       setCloud('ok');
+    } else if (act === 'same') {
+      // 本机和云端内容一样：只把版本号对上，不打扰玩家
+      Cloud.markSynced(app.state, cm.ver); setCloud('ok');
     } else if (act === 'conflict') {
-      cloudConflict(cm); setCloud('conflict');
+      // 弹框之前再核一遍：云端老存档的摘要里没有哈希，取整份下来对一下，一样就别问了
+      let same = false;
+      try {
+        const doc = store.parse((await Cloud.fetchSave()).data);
+        same = !!doc && Cloud.contentHash(migrate(doc, app.data)) === Cloud.contentHash(app.state);
+      } catch { same = false; }
+      if (same) { Cloud.markSynced(app.state, cm.ver); setCloud('ok'); }
+      else { cloudConflict(cm); setCloud('conflict'); }
     } else {
       if (cm) Cloud.markSynced(app.state, cm.ver);
       setCloud('ok');
@@ -530,8 +540,10 @@ function onAct(e) {
       break;
     }
     case 'awaken': {
-      const c = awakenUp(s, el.dataset.slug);
-      if (c) { sound.play('lvup'); toast(`叠位 +1（银芯 -${c}）`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
+      // data-n：连续叠位（最多 10 次），银芯不够或叠满就停
+      let c = 0, k = 0;
+      for (let i = 0, n = Math.max(1, Math.min(10, Number(el.dataset.n) || 1)); i < n; i++) { const x = awakenUp(s, el.dataset.slug); if (!x) break; c += x; k++; }
+      if (c) { sound.play('lvup'); toast(`叠位 +${k}（银芯 -${c}）`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
       else toast('银芯不足');
       break;
     }

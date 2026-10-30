@@ -386,6 +386,11 @@ const OPENER = 5;                   // 开局前几颗只出小球，别一上�
 const CLEAR_BONUS = 120;            // 杜勒赛因每合大一档的奖励基数（第 n 档 = n × 它）；涨到上限再合就一起消失，拿 2 倍
 const TIER_MAX = 4;                 // 杜勒赛因最多再涨几档：每档半径 ×TIER_GROW，4 档后约 0.63 倍瓶宽
 const TIER_GROW = 1.16;
+// 边框颜色：每一种大小（10 级 + 杜勒赛因 4 档变大 = 14 种）一个高饱和、彼此拉开的颜色，
+// 一眼就能分出哪两颗是同级、该合谁。顺序 = 从小到大：灰 → 蓝 → 青 → 绿 → 黄绿 → 黄 → 橙 → 红 → 粉 → 紫 → （杜勒变大）白 / 金 / 冰蓝 / 玫红。
+const BORDER = ['#98a2b8', '#4f8bff', '#2fd0e6', '#3ed17f', '#b4e24a', '#ffd23f', '#ff9a2e', '#ff4f48', '#ff4fa8', '#b46bff',
+  '#ffffff', '#ffc400', '#00f0ff', '#ff2e63'];
+const borderOf = (lv, tier = 0) => BORDER[Math.min(BORDER.length - 1, lv + (lv >= MAX ? (tier | 0) : 0))];
 const TIER_ZH = ['', '巨', '超巨', '极巨', '终极'];
 const SETTLE = 1.4;                 // 刚投下 / 刚合成的球多久之后才参与越线判定
 const WARN_AT = 0.5;                // 球堆顶离警戒线还剩多少屏高就开始「接近」预警
@@ -807,7 +812,7 @@ function tileFor(lv, tier = 0) {
   const g = c.getContext('2d');
   const cx = px / 2;
   const R = r * G.dpr;
-  const tint = LEVELS[lv].tint;
+  const tint = borderOf(lv, tier);
 
   // 外圈光环，让同尺寸的球在暗背景上浮起来
   const glow = g.createRadialGradient(cx, cx, R * 0.94, cx, cx, R + pad * G.dpr);
@@ -827,8 +832,8 @@ function tileFor(lv, tier = 0) {
   g.drawImage(imgOf(lv), cx - R, cx - R, R * 2, R * 2);
   g.restore();
 
-  g.lineWidth = Math.max(1.2, R * 0.05);
-  g.strokeStyle = hexA(tint, 0.9);
+  g.lineWidth = Math.max(2, R * 0.075);       // 比原来粗一点，颜色才看得清
+  g.strokeStyle = hexA(tint, 1);
   g.beginPath(); g.arc(cx, cx, R - g.lineWidth / 2, 0, TAU); g.stroke();
 
   g.strokeStyle = 'rgba(255,255,255,.28)';
@@ -1537,6 +1542,7 @@ function buildChain() {
   LEVELS.forEach((l, i) => {
     const s = document.createElement('span');
     s.className = 'ch';
+    s.style.setProperty('--bd', borderOf(i, 0));      // 图例边框 = 球上的边框颜色
     s.title = (i + 1) + '. ' + labelOf(i);
     const im = document.createElement('img');
     im.src = artOf(i);
