@@ -573,6 +573,14 @@ export const bonusScore = (b) => Object.entries(b || {}).reduce((s, [k, v]) => s
 export function autoLoadout(state, data) {
   autoTeam(state, data);                     // 先按战力 + 同界域加成排出 4 人
   state.gear.equip ||= {};
+  // An item UID represents one physical piece of equipment. Before the auto
+  // allocator reassigns it, release old holders (including benched heroes).
+  // Otherwise swapping an old hero back creates two visually equipped copies.
+  for (const eq of Object.values(state.gear.equip)) {
+    if (!eq) continue;
+    delete eq.wheel;
+    delete eq.cov;
+  }
   const r = fillLoadout(state, data, state.team, { equip: state.gear.equip });
   state.gear.relics = r.relics;
   state.orders.slots = r.orders;
