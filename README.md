@@ -124,11 +124,37 @@ node scripts/build_desktop.mjs --dir # 只出未打包目录，调试用
 数据由 [qdby_chinese](https://github.com/Z769018860/qdby_chinese) 生成：
 
 ```
-python3 scripts/build_data.py /path/to/qdby_chinese [--seasons 71 72] [--per-season 500]
+python3 scripts/build_data.py /path/to/qdby_chinese [--seasons 70 71 72] [--per-season 500]
 ```
 
 生成 `data/dictionary.json`（图鉴与选择器）、`data/puzzles.json`（题库，含答案）和 `assets/`（仅被引用的图片，已缩小为 webp）。
-依赖：Python 3 + Pillow。题目来自第 71、72 期融灾榜单；玩家 UID 已去除，每人每区域只取一场。
+依赖：Python 3 + Pillow。题目来自第 70、71、72 期融灾榜单；玩家 UID 已去除，每人每区域只取一场。
+
+扩充题库（按区批量挖，第 70 期就是这么加进来的）：
+
+```
+python3 scripts/build_puzzles_more.py /path/to/qdby_chinese --seasons 70 --per-zone 200 --out data/puzzles-70.json
+python3 scripts/finalize_puzzles.py    # 全库重算难度分 / 偏好分桶，并做结构审计
+node    scripts/split_bank.mjs         # 重新切分片（核心 1000 题的顺序不变，每日一题不会换）
+```
+
+`build_puzzles_more.py` 读的是扁平结构（`<期>-battle-summary.jsonl.gz` / `season<期>-teams-*.jsonl.gz` /
+`<期>-id-names.json` / `<期>-meta.json`），从 qdby_chinese 的 `dzone/season<期>/` 取数据时要先按这个命名摆好。
+
+战报卡上的**钥令开启次数**和**侵蚀伤害**都不在榜单摘要里（`battle-summary` 只到 `maxPosion`），只能从回放本体量：
+
+```
+node    scripts/fetch_replay_metrics.mjs --cache <缓存目录>   # uuid -> statistics.UsedKeeperSkillCount
+node    scripts/extract_erosion_metrics.mjs --cache <缓存目录>  # uuid -> 逐状态统计里的侵蚀伤害（复用同一份缓存）
+node    scripts/apply_replay_metrics.mjs                      # 只写「回放回合数 == 榜单回合数」的题
+node    scripts/split_bank.mjs
+python3 scripts/replay_metrics_report.py                      # 出报告与逐题 CSV（docs/detective-replay-metrics.*）
+```
+
+回放是 LZ4 帧 + MessagePack（不是 JSON），解码复用 `js/replay.js`；`battleDat.statistics` 是进首领房那一刻的快照，
+首领那几回合不在里面，所以取的是帧日志里回合数最大的那份 `globalStats`。
+侵蚀取的是同一批帧里最后一版 `battleStatPackMgr.battleStatPackData`，把 `state[*].AwakerDoDamage` 中
+状态名含「侵蚀」的加起来——「中毒」和「侵蚀」是两个不同的状态，摘要里的 `maxPosion` 是前者。
 
 ## 数据来源与许可
 

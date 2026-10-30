@@ -25,6 +25,7 @@ const SOURCES = [
   { file: 'puzzles.json', core: true },
   { file: 'puzzles-extra.json', core: false },
   { file: 'puzzles-more.json', core: false },
+  { file: 'puzzles-70.json', core: false },
 ];
 
 const read = (f) => {
@@ -57,13 +58,13 @@ function normalizePuzzle(p) {
 const items = [];
 const chunks = [];
 const seen = new Set();
-let seasons = null;
+const seasonSet = new Set();
 let coreCount = 0;
 
 for (const src of SOURCES) {
   const j = read(src.file);
   if (!j) { console.warn('跳过（不存在）:', src.file); continue; }
-  if (!seasons && j.seasons) seasons = j.seasons;
+  for (const s of j.seasons || []) seasonSet.add(Number(s));
   const list = Array.isArray(j.puzzles) ? j.puzzles : [];
   let added = 0;
   for (const p of list) {
@@ -103,7 +104,7 @@ const index = {
   chunkSize: CHUNK,
   n: items.length,
   core: coreCount,
-  seasons: seasons || {},
+  seasons: [...seasonSet].sort((a, b) => a - b),
   items,
 };
 fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(index), 'utf8');

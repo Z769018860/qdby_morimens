@@ -862,14 +862,20 @@ function reportPanel() {
   const bosses = bossIds.map(id => D.monster.find(m => String(m.id) === String(id))).filter(Boolean);
   // Values below are recorded battle-summary extrema, not a partition of total damage.
   // In particular maxPosion is a peak poison metric, NEVER total poison damage.
-  const dc = p.dmgComp;
-  const measured = dc ? [
+  const dc = p.dmgComp || {};
+  const measured = [
     ['守密人伤害（累计）', dc.keeper, 'keeper', wan],
     ['触腕单次最高伤害', dc.tentacle, 'tentacle', wan],
     ['反击峰值', dc.counter, 'counter', wan],
     ['力量峰值', dc.strength, 'strength', v => String(v ?? 0)],
     ['中毒峰值', dc.poison, 'poison', v => String(v ?? 0)],
-  ].filter(([label, value, key]) => value != null && (key === 'keeper' || Number(value) > 0)) : [];
+    // 钥令开启次数来自回放本体（statistics.UsedKeeperSkillCount），榜单摘要里没有这一项。
+    // 0 也是有效值（这一局没放钥令），所以不过滤 0，只有真的没取到才不显示。
+    ['钥令开启次数', p.keyUses, 'keys', v => `${v} 次`],
+    // 侵蚀伤害来自回放里逐状态统计的累计值（state[*].AwakerDoDamage，名字含「侵蚀」的那些状态），
+    // 和上面的「中毒峰值」不是一个东西：中毒是峰值层数，侵蚀是整场累计伤害。
+    ['侵蚀伤害（累计）', p.ero, 'ero', wan],
+  ].filter(([label, value, key]) => value != null && (key === 'keeper' || key === 'keys' ? Number(value) >= 0 : Number(value) > 0));
   const dmgCompBox = measured.length ? h('div', { class: 'dmgcomp' },
     h('div', { class: 'dchead' }, '战报实测指标（非累计伤害构成）'),
     h('div', { class: 'dcgrid' }, measured.map(([label, value, key, format]) =>

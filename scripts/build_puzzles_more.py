@@ -87,6 +87,9 @@ def main():
     # The overview boss is a property of season + zone, not of an individual report.
     # Explicit encounter IDs avoid accidentally selecting another wave's boss.
     fixed_boss = {
+        (70, 1): ['14015'], (70, 2): ['14011'],
+        (70, 3): ['140713'], (70, 4): ['147675'],
+        (70, 5): ['125901'],
         (71, 1): ['80576', '80577'], (71, 2): ['94940'],
         (71, 3): ['67103'], (71, 4): ['14063'], (71, 5): ['81279'],
         (72, 1): ['14008', '14013'], (72, 2): ['14064'],

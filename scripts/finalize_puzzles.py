@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / 'data' / 'puzzles.json'
 EXTRA = ROOT / 'data' / 'puzzles-extra.json'
 MORE = ROOT / 'data' / 'puzzles-more.json'
+S70 = ROOT / 'data' / 'puzzles-70.json'
 PEPPER = re.search(r"'([0-9a-f]+)'", (ROOT / 'js/pepper.js').read_text(encoding='utf-8')).group(1)
 BUCKETS = 128
 
@@ -145,8 +146,10 @@ def main():
     core = jl(CORE)
     extra = jl(EXTRA) if EXTRA.exists() else {'seasons': core['seasons'], 'puzzles': []}
     more = jl(MORE) if MORE.exists() else {'seasons': core['seasons'], 'puzzles': []}
-    ps = core['puzzles'] + extra['puzzles'] + more['puzzles']
-    print(f'core {len(core["puzzles"])} + extra {len(extra["puzzles"])} + more {len(more["puzzles"])} = {len(ps)} 题')
+    p70 = jl(S70) if S70.exists() else {'seasons': [70], 'puzzles': []}
+    ps = core['puzzles'] + extra['puzzles'] + more['puzzles'] + p70['puzzles']
+    print(f'core {len(core["puzzles"])} + extra {len(extra["puzzles"])} + more {len(more["puzzles"])}'
+          f' + 70期 {len(p70["puzzles"])} = {len(ps)} 题')
 
     sig, maxk = score(ps)
     # 偏好筛选分桶
@@ -210,23 +213,30 @@ def main():
         return
     n1 = len(core['puzzles'])
     n2 = n1 + len(extra['puzzles'])
+    n3 = n2 + len(more['puzzles'])
     core['puzzles'] = ps[:n1]
     extra['puzzles'] = ps[n1:n2]
-    more['puzzles'] = ps[n2:]
+    more['puzzles'] = ps[n2:n3]
+    p70['puzzles'] = ps[n3:]
     extra['extra'] = True
     more['extra'] = True
+    p70['extra'] = True
     # 前端据此按顺序后台拉扩充题库（没有就不请求，避免 404）
     files = []
     if extra['puzzles']:
         files.append('data/puzzles-extra.json')
     if more['puzzles']:
         files.append('data/puzzles-more.json')
+    if p70['puzzles']:
+        files.append('data/puzzles-70.json')
     core['extraFiles'] = files
     core['extraFile'] = files[0] if files else None   # 兼容旧前端
     CORE.write_text(json.dumps(core, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     EXTRA.write_text(json.dumps(extra, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     if more['puzzles']:
         MORE.write_text(json.dumps(more, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    if p70['puzzles']:
+        S70.write_text(json.dumps(p70, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     print(f'\n已写回 {", ".join(["data/puzzles.json"] + files)}')
 
 
