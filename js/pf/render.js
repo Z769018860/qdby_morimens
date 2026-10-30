@@ -47,6 +47,7 @@ const LH = LY1 - LY0;
 
 let view = { s: 1, ox: 0, oy: 0 };
 let band = { x: 0, y: 0, w: 0, h: 0 };
+let resized = false;
 
 export const hover = { cell: -1, x: 0, y: 0 };
 
@@ -61,6 +62,10 @@ export function init(canvas) {
 
 // 可用区域：顶栏与商店之间的那条带子。界面层在布局变化后调一次就行。
 export function setBand(x, y, w, h) {
+  // 界面层每 20 帧（一秒三次）都会来问一次。区域没变就什么都不做：
+  // fit() 里给 canvas.width 赋值会把整张画布清空，而这一步发生在 draw() 之后、浏览器上屏之前，
+  // 于是每秒三次整个地图闪一下空白——就是「初始地图自带的一闪一闪」。
+  if (band.x === x && band.y === y && band.w === w && band.h === h) return;
   band = { x, y, w, h };
   fit();
 }
@@ -69,8 +74,9 @@ function fit() {
   dpr = Math.min(2.5, window.devicePixelRatio || 1);
   const w = cv.clientWidth || window.innerWidth;
   const h = cv.clientHeight || window.innerHeight;
-  cv.width = Math.round(w * dpr);
-  cv.height = Math.round(h * dpr);
+  // 尺寸没变就别碰 width / height（赋值即清空画布）；真变了清空后马上补画一帧，不留空白帧
+  const cw = Math.round(w * dpr), ch = Math.round(h * dpr);
+  if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; resized = true; }
   const bw = band.w || w;
   const bh = band.h || h;
   const bx = band.w ? band.x : 0;
@@ -91,6 +97,8 @@ function fit() {
     ox: bx + (bw - LW * s) / 2 - LX0 * s,
     oy: by + (bh - LH * s) / 2 - LY0 * s,
   };
+  // 画布刚被清空过（尺寸变了）：立刻补画，别让浏览器把空白帧上屏
+  if (resized) { resized = false; try { draw(); } catch { /* 下一帧会再画 */ } }
 }
 
 export function layout() { fit(); }
