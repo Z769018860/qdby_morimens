@@ -742,3 +742,16 @@ body{background:#0a0d13}
   .sqlo .relic-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
   .sqeditor .modal{max-height:92vh;overflow-y:auto}
 }
+
+/* 新手引导：分点说明 + 页面里的提示卡 */
+.guide-pop{max-height:72vh;overflow-y:auto}
+.gp-body{margin:0 0 10px;font-size:12.5px;line-height:1.62;color:#cfd6e4}
+.gp-body p{margin:0 0 6px}
+.gp-body ul,.gp-body ol,.tipcard ul,.tipcard ol{margin:0 0 6px;padding-left:18px}
+.gp-body li,.tipcard li{margin:0 0 4px}
+.gp-body b,.tipcard b{color:var(--gold)}
+.tipcard{margin:0 0 12px;padding:11px 13px 9px;border:1px solid color-mix(in srgb,var(--gold) 45%,var(--line));border-radius:12px;background:linear-gradient(180deg,#1b1a14,#13161d);font-size:12.5px;line-height:1.6;color:#cfd6e4}
+.tipcard h4{margin:0 0 6px;font-size:13.5px;color:var(--gold)}
+.tipcard .tiprow{display:flex;justify-content:flex-end;margin-top:4px}
+.tipopen{background:none;border:1px solid var(--line);border-radius:999px;color:var(--dim);font-size:11.5px;padding:2px 10px;margin-left:8px;cursor:pointer;vertical-align:middle}
+.tipopen:hover{color:var(--gold);border-color:var(--gold)}

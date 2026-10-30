@@ -354,7 +354,8 @@ export class BattleView {
     this.lastCtx = ctx;
     $('#bv-meter', this.root).innerHTML = reportHtml(rep) + '<div class="row"><button class="btn sm" data-bv="detail">打开完整结算</button></div>';
     const mode = settleMode.get();
-    const pop = mode === 'all' || (mode === 'key' && (rw.firstClear || (boss && res.win) || (rw.newMon?.length && res.win)));
+    // 新手引导还没走完时不弹结算（弹出来会盖住引导，引导一关闭它又突然冒出来）
+    const pop = !!s.guide && (mode === 'all' || (mode === 'key' && (rw.firstClear || (boss && res.win) || (rw.newMon?.length && res.win))));
     if (rw.firstClear && s.maxStage > before) this.log(`首次通关第 ${s.maxStage} 关`, 'rnd');
     this.app.save();
     this.refreshHead();

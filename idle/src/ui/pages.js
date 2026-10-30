@@ -460,6 +460,43 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
 }
 
 
+/* ---------- 新手提示卡：第一次进「队伍 / 唤醒体 / 召唤」页自动展开，关掉后标题旁留一个「💡 提示」可以再打开 ---------- */
+const TIPS = {
+  team: {
+    t: '新手提示 · 怎么养成、怎么变强',
+    d: `<ol><li><b>战力从哪来</b>：等级 → 突破 → 叠位，再加装备。先把金币花在主线 4 个人身上。</li>
+      <li><b>升级</b>：到「唤醒体」页点角色进详情，点「升级」（花金币，挂机就能赚）。每到 20 级要<b>突破</b>（金币 + 银芯），突破后才能继续升。</li>
+      <li><b>叠位</b>：重复抽到同一个角色自动 +1，也能在详情页花银芯「叠位」。每叠位全属性 +1.5%、等级上限 +1。</li>
+      <li><b>装备</b>：每人 <b>1 件命轮 + 1 件密契</b>，造物栏 6 格（随通关解锁）全队共用，钥令 3 个。来源：推图掉落与 Boss 首通、召唤页的「装备祈愿」（金币）和银芯商店。</li>
+      <li><b>懒人做法</b>：点下面的「一键配队」，队伍、装备、造物、钥令一次排好；换了装备或角色再点一次。</li>
+      <li><b>站位</b>：1–2 号位是前排，3–4 号位是后排；同界域 3 人 +8%，4 人 +15%。</li></ol>`,
+  },
+  roster: {
+    t: '新手提示 · 唤醒体页怎么用',
+    d: `<ul><li><b>点任意角色</b>进详情：升级（金币）、突破（金币 + 银芯，每 20 级一次）、叠位（银芯）、装命轮 / 密契。<b>花错了也不怕</b>：详情里「回溯到 1 级」花 100 银芯，升级和突破的材料全部返还，叠位不变。</li>
+      <li><b>灰色的是还没拿到的</b>：去「召唤」页用券或银芯抽；带「联名」角标的不进召唤池，到「更多 → 联动」用嘉宾征召券兑换。</li>
+      <li>真正<b>上场的是「队伍」页的 4 个人</b>，这一页只负责养成。想先养谁：看战力、看同界域能不能凑 3 人。</li>
+      <li>上面能按稀有度 / 战力 / 等级 / 叠位排序，再点一次反向；「仅已拥有」可以隐藏没拿到的。</li></ul>`,
+  },
+  summon: {
+    t: '新手提示 · 怎么召唤、怎么兑换',
+    d: `<ul><li><b>召唤券</b>抽唤醒体：单抽 1 张、十连 10 张，十连至少 1 个史诗，<b>50 抽内必出创生</b>。券来自挂机掉落（越深的关越多）、关卡首通、签到、成就和各挑战奖励。</li>
+      <li><b>银芯</b>也能抽：200 / 抽，十连 1900，和召唤券<b>共用保底</b>。银芯来自首通、成就、签到、塔和周 Boss，分解装备也有。</li>
+      <li><b>重复抽到 = 叠位 +1</b>（上限 99），所以抽到老角色不亏；满叠位折成金币和银芯。</li>
+      <li><b>兑换</b>：本页下方的<b>银芯商店</b>可以用银芯换召唤券、金币、装备、钥令匣和挑战次数（每日限购）；<b>装备祈愿</b>用金币抽命轮 / 密契 / 造物；联名嘉宾去「更多 → 联动」用征召券兑换。</li>
+      <li>第一次玩？先去「更多 → 签到」领<b>注册福利</b>（银芯 1000 + 召唤券 10），再回来十连。</li></ul>`,
+  },
+};
+export function tipCard(app, key) {
+  const t = TIPS[key], s = app.state;
+  if (!t) return '';
+  const seen = (s.tips || {})[key], open = !seen || app.ui?.tipOpen === key;
+  if (!open) return '';
+  return `<div class="tipcard" data-tip="${key}"><h4>💡 ${t.t}</h4>${t.d}<div class="tiprow"><button class="btn sm" data-act="tip-close" data-k="${key}">知道了</button></div></div>`;
+}
+const tipBtn = (app, key) => ((app.state.tips || {})[key] && app.ui?.tipOpen !== key
+  ? `<button class="tipopen" data-act="tip-open" data-k="${key}">💡 提示</button>` : '');
+
 export function teamPage(app) {
   const tab = teamTabOf(app);
   const info = TEAM_TABS.find(([k]) => k === tab);
@@ -479,7 +516,7 @@ export function teamPage(app) {
   const head = tab === 'main'
     ? `<h2>队伍编成 <small>战力 ${fmt(t.power)}</small></h2>`
     : `<h2>${info[1]} <small>${info[2]}</small></h2>`;
-  return `<div class="page">${head}${tabBar}${panel(app)}</div>`;
+  return `<div class="page">${head.replace('</h2>', `${tab === 'main' ? tipBtn(app, 'team') : ''}</h2>`)}${tab === 'main' ? tipCard(app, 'team') : ''}${tabBar}${panel(app)}</div>`;
 }
 
 /** 主线队伍：4 个槽位 + 命轮密契 + 造物 + 钥令 + 策略，一眼能看完，不用翻页 */
@@ -576,7 +613,7 @@ export function rosterPage(app) {
   const list = sortRoster(rows, f.sort, f.dir);
   const opt = (obj, cur, k) => `<select data-filter="${k}"><option value="">全部</option>${Object.entries(obj).map(([v, o]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${o.zh}</option>`).join('')}</select>`;
   const sorts = ROSTER_SORTS.map(([k, zh]) => `<button class="btn sm ${f.sort === k ? 'on' : ''}" data-act="roster-sort" data-k="${k}">${zh}${f.sort === k ? (f.dir < 0 ? ' ↓' : ' ↑') : ''}</button>`).join('');
-  return `<div class="page"><h2>唤醒体 <small>${Object.keys(s.roster).length}/${data.awakeners.length}</small></h2>
+  return `<div class="page"><h2>唤醒体 <small>${Object.keys(s.roster).length}/${data.awakeners.length}</small>${tipBtn(app, 'roster')}</h2>${tipCard(app, 'roster')}
     <div class="row filters"><span class="dim">界域</span>${opt(REALMS, f.realm, 'realm')}<span class="dim">类型</span>${opt(TYPES, f.type, 'type')}<label><input type="checkbox" data-filter="owned" ${f.owned ? 'checked' : ''}> 仅已拥有</label></div>
     <div class="row sortbar"><span class="dim">排序</span>${sorts}</div>
     <div class="grid">${list.map(({ a, r, power: p }) => `<div class="tile ${r ? '' : 'locked'} ${rarCls(a.rarity)} ${a.creator ? 'gift' : ''}" style="--rc:${R(a).color}" data-act="detail" data-slug="${a.slug}">
@@ -808,7 +845,7 @@ function luckCard(app) {
 export function summonPage(app) {
   const { state: s } = app;
   const p = s.pity;
-  return `<div class="page"><h2>召唤</h2>
+  return `<div class="page"><h2>召唤${tipBtn(app, 'summon')}</h2>${tipCard(app, 'summon')}
     <div class="banner-card"><h3>唤醒体召唤</h3>
       <p>召唤券：<b>${s.tickets}</b>　　创生保底：<b>${p.genesis}/${PULL_PITY_GENESIS}</b>　　史诗保底：<b>${p.ssr}/10</b></p>
       <div class="row"><button class="btn big" data-act="pull" data-n="1" ${s.tickets >= 1 ? '' : 'disabled'}>单抽 ×1</button><button class="btn big gold" data-act="pull" data-n="10" ${s.tickets >= 10 ? '' : 'disabled'}>十连 ×10</button></div>

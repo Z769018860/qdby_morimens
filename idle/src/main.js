@@ -354,6 +354,8 @@ function onAct(e) {
       else toast('材料不足');
       break;
     }
+    case 'tip-close': { (s.tips ||= {})[el.dataset.k] = 1; app.ui.tipOpen = null; app.save(); render(); break; }
+    case 'tip-open': { app.ui.tipOpen = el.dataset.k; render(); break; }
     case 'rewind': {
       const r0 = s.roster[el.dataset.slug];
       if (!r0 || r0.lv <= 1) break;
