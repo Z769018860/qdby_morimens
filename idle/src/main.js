@@ -355,12 +355,12 @@ function onAct(e) {
       break;
     }
     case 'rewind': {
-      const back = +el.dataset.n || 10, r0 = s.roster[el.dataset.slug];
-      if (!r0) break;
-      if (back >= r0.lv - 1 && !confirm(`把 ${d.bySlug[el.dataset.slug].zh} 回溯到 1 级？叠位不变，当初花的金币会返还。`)) break;
-      const r = rewindLevel(s, el.dataset.slug, back);
-      if (r) { sound.play('lvup'); toast(`回溯到 ${r.to} 级：银芯-${r.cost}${r.refundCores ? ` +${r.refundCores}` : ''} 金币+${fmt(r.refund)}`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
-      else toast('银芯不足');
+      const r0 = s.roster[el.dataset.slug];
+      if (!r0 || r0.lv <= 1) break;
+      if (!confirm(`花 100 银芯把 ${d.bySlug[el.dataset.slug].zh} 回溯到 1 级？升级和突破的金币、银芯全部返还，叠位不变。`)) break;
+      const r = rewindLevel(s, el.dataset.slug);
+      if (r) { sound.play('lvup'); toast(`回溯到 1 级：银芯-${r.cost}${r.refundCores ? ` +${r.refundCores}` : ''} 金币+${fmt(r.refund)}`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
+      else toast('银芯不足（回溯要 100 银芯）');
       break;
     }
     case 'awaken': {

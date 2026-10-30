@@ -61,20 +61,17 @@ export const nextBreakLevel = (lv, brk = 0) => {
   return Math.max(step, Math.ceil((lv + 1) / LEVEL_GATE) * LEVEL_GATE);
 };
 
-// 回溯（花银芯把等级倒回去，只动等级、不动叠位）：
-// 返还倒回那几级当初花掉的**全部**材料（升级金币 + 已完成突破的金币和银芯），另收一笔银芯手续费。
-export const REWIND_BASE = 10;            // 手续费底数
-export const REWIND_PER_LV = 0.8;         // 每倒回 1 级再收这么多
-export function rewindPlan(r, target) {
+// 回溯：花固定 100 银芯，直接把等级倒回 1 级，当初升级和突破花的材料（金币 + 银芯）全部返还。
+// 只动等级，不动叠位（等级上限归叠位，所以也不变）。
+export const REWIND_COST = 100;
+export function rewindPlan(r) {
   const lv = Math.max(1, Math.floor(r?.lv || 1));
-  const to = Math.max(1, Math.min(lv, Math.floor(target)));
-  if (to >= lv) return { to: lv, back: 0, refund: 0, refundCores: 0, cost: 0 };
+  if (lv <= 1) return { to: 1, refund: 0, refundCores: 0, cost: 0, back: 0 };
   let refund = 0, refundCores = 0;
-  for (let l = to; l < lv; l++) refund += lvUpCost(l);
+  for (let l = 1; l < lv; l++) refund += lvUpCost(l);
   const brk = Math.floor(r?.brk || 0);
-  for (let k = 1; k <= brk; k++) { const g = k * LEVEL_GATE; if (g > to && g <= lv) { const c = breakCost(g); refund += c.gold; refundCores += c.cores; } }
-  const back = lv - to;
-  return { to, back, refund, refundCores, cost: REWIND_BASE + Math.ceil(back * REWIND_PER_LV) };
+  for (let k = 1; k <= brk; k++) { const g = k * LEVEL_GATE; if (g <= lv) { const c = breakCost(g); refund += c.gold; refundCores += c.cores; } }
+  return { to: 1, back: lv - 1, refund, refundCores, cost: REWIND_COST };
 }
 
 // 叠位（银芯共鸣）：抽不到重复时也能推进，成本随叠位线性上升

@@ -26,7 +26,7 @@ import { SHOP, boughtToday } from '../core/shop.js';
 import { refineCost } from '../core/gear.js';
 import {
   lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, growthPerLevel,
-  awakenAmp, awakenSkill, nextAwakenMilestone, rewindPlan,
+  awakenAmp, awakenSkill, nextAwakenMilestone, rewindPlan, REWIND_COST,
 } from '../core/stats.js';
 import { describeSkill } from '../core/skills.js';
 import {
@@ -630,11 +630,9 @@ export function detailModal(app, slug) {
       <button class="btn" data-act="lvmax" data-slug="${slug}" ${cost ? '' : 'disabled'}>升至最高</button>
       ${needBrk ? `<button class="btn gold" data-act="brk" data-slug="${slug}" ${s.gold >= brkCost.gold && s.cores >= brkCost.cores ? '' : 'disabled'}>突破 Lv${r.lv}→${r.lv + 1}（🪙${fmt(brkCost.gold)} <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${brkCost.cores}）</button>` : ''}
     </div>
-    ${r.lv > 1 ? `<div class="row rewind"><span class="dim">回溯等级（不动叠位）</span>${[[10, '回溯 10 级'], [30, '回溯 30 级'], [999, '回溯到 1 级']].map(([n, zh]) => {
-      const p = rewindPlan(r, r.lv - n);
-      return `<button class="btn sm" data-act="rewind" data-slug="${slug}" data-n="${n}" ${s.cores >= p.cost ? '' : 'disabled'} title="手续费 银芯 ${p.cost}；返还 金币 ${fmt(p.refund)}${p.refundCores ? ` + 银芯 ${p.refundCores}` : ''}">${zh}<small> 🪙+${fmt(p.refund)}${p.refundCores ? ` <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">+${p.refundCores}` : ''} · 手续费 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${p.cost}</small></button>`;
-    }).join('')}</div>
-    <p class="hint">回溯只倒回<b>等级</b>：当初升级和突破花的<b>金币、银芯全部返还</b>，另收一笔银芯手续费（${10} + 每级 0.8）；<b>叠位、等级上限不变</b>。想把等级让给别的唤醒体时用。</p>` : ''}` : '';
+    ${r.lv > 1 ? `<div class="row rewind"><button class="btn" data-act="rewind" data-slug="${slug}" ${s.cores >= REWIND_COST ? '' : 'disabled'}>回溯到 1 级（<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${REWIND_COST}）</button>
+      <span class="dim">返还 🪙${fmt(rewindPlan(r).refund)}${rewindPlan(r).refundCores ? ` + <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rewindPlan(r).refundCores}` : ''}</span></div>
+    <p class="hint">花 ${REWIND_COST} 银芯，直接把等级倒回 1 级，当初升级和突破花的金币、银芯<b>全部返还</b>；<b>叠位、等级上限不变</b>。想把等级让给别的唤醒体时用。</p>` : ''}` : '';
 
   const html = `<div class="detail" style="--rc:${R(a).color}">
     <div class="d-art"><img src="${img(a.card)}" alt="${esc(a.zh)}立绘" data-act="zoom" data-slug="${slug}" loading="lazy"><span class="zoomhint">${a.creator ? '点开看大图' : '点立绘看大图'}</span></div>
