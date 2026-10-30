@@ -89,6 +89,7 @@ export const Audio2 = {
     g.gain.linearRampToValueAtTime(vol, at + Math.min(0.02, dur * 0.3));
     g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
     o.connect(g).connect(this.master);
+    o.onended = () => { o.disconnect(); g.disconnect(); };
     o.start(at);
     o.stop(at + dur + 0.03);
   },
@@ -106,28 +107,40 @@ export const Audio2 = {
     g.gain.linearRampToValueAtTime(vol == null ? 0.05 : vol, t0 + 0.008);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g).connect(this.master);
+    o.onended = () => { o.disconnect(); g.disconnect(); };
     o.start(t0);
     o.stop(t0 + dur + 0.02);
   },
 
+  // Shared white-noise buffer avoids allocating a fresh AudioBuffer and
+  // filling thousands of floats for every enemy hit during a boss fight.
   noise(dur, vol, hp) {
     if (this.muted) return;
     const ac = this.ensure();
     if (!ac) return;
-    const n = Math.floor(ac.sampleRate * dur);
-    const buf = ac.createBuffer(1, n, ac.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const now = performance.now();
+    if (now - (this.lastNoiseAt || 0) < 35) return;
+    this.lastNoiseAt = now;
+    if (!this.noiseBuffer || this.noiseBuffer.sampleRate !== ac.sampleRate) {
+      const n = Math.ceil(ac.sampleRate * 0.5);
+      const buf = ac.createBuffer(1, n, ac.sampleRate);
+      const samples = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) samples[i] = Math.random() * 2 - 1;
+      this.noiseBuffer = buf;
+    }
     const src = ac.createBufferSource(), g = ac.createGain(), f = ac.createBiquadFilter();
     f.type = 'highpass'; f.frequency.value = hp || 400;
-    g.gain.value = vol == null ? 0.06 : vol;
-    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
-    src.buffer = buf;
+    const t = ac.currentTime, length = Math.max(0.01, Math.min(dur, 0.49));
+    g.gain.setValueAtTime(vol == null ? 0.06 : vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + length);
+    src.buffer = this.noiseBuffer;
     src.connect(f).connect(g).connect(this.master);
-    src.start();
+    src.onended = () => { src.disconnect(); f.disconnect(); g.disconnect(); };
+    src.start(t);
+    src.stop(t + length + 0.01);
   },
 
-  shoot() { this.blip(620, 0.07, 'square', 0.022, 0.5); },
+  shoot() { const t = performance.now(); if (t - (this.lastShootAt || 0) < 65) return; this.lastShootAt = t; this.blip(620, 0.07, 'square', 0.022, 0.5); },
   hit() { this.noise(0.07, 0.04, 1100); },
   crit() { this.blip(1320, 0.06, 'square', 0.03, 1.7); this.noise(0.1, 0.05, 1800); },
   kill() { this.blip(180, 0.16, 'sawtooth', 0.035, 0.35); },
