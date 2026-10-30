@@ -984,6 +984,9 @@ function socialStats(u, bn) {
     for (const k in eff) {
       const arr = eff[k];
       if (!arr || arr[lv] == null) continue;
+      // 吞噬写的键是 killAtk（每层击杀的攻击加成），落到 killAtkStep / killAtkMax 上，
+      // 上限按文案的 5 层；红宝石胸针是 10 层，两者取高的那个当总上限
+      if (k === 'killAtk') { out.killAtkStep += arr[lv]; out.killAtkMax = Math.max(out.killAtkMax, 5); continue; }
       if (k in out) out[k] += arr[lv];
     }
   };
@@ -2691,6 +2694,36 @@ function hpBar(x, y, w, h, ratio, col, shieldRatio) {
   ctx.restore();
 }
 
+// 叠层小徽章：击杀叠加、创口这类「越打越强 / 越打越脆」的效果，把当前层数直接画出来
+function stackBadge(x, y, label, col, bg) {
+  ctx.save();
+  ctx.font = '700 10px system-ui,"PingFang SC",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const w = Math.max(20, ctx.measureText(label).width + 12);
+  const h = 14;
+  ctx.fillStyle = bg;
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 1;
+  const r = 7;
+  ctx.beginPath();
+  ctx.moveTo(x - w / 2 + r, y - h / 2);
+  ctx.lineTo(x + w / 2 - r, y - h / 2);
+  ctx.quadraticCurveTo(x + w / 2, y - h / 2, x + w / 2, y - h / 2 + r);
+  ctx.lineTo(x + w / 2, y + h / 2 - r);
+  ctx.quadraticCurveTo(x + w / 2, y + h / 2, x + w / 2 - r, y + h / 2);
+  ctx.lineTo(x - w / 2 + r, y + h / 2);
+  ctx.quadraticCurveTo(x - w / 2, y + h / 2, x - w / 2, y + h / 2 - r);
+  ctx.lineTo(x - w / 2, y - h / 2 + r);
+  ctx.quadraticCurveTo(x - w / 2, y - h / 2, x - w / 2 + r, y - h / 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = col;
+  ctx.fillText(label, x, y + 0.5);
+  ctx.restore();
+}
+
 // 脚下两个小方块：左边命轮、右边造物，有就给对应颜色
 function equipPips(x, y, u) {
   const dots = [];
@@ -2785,6 +2818,10 @@ function drawUnits() {
       ctx.fillRect(bx - 23, bYy + 6, 46 * Math.min(1, u.ult / 100), 2.5);
     }
     equipPips(p.x, by - 2, u);
+    // 击杀叠加（红宝石胸针 / 吞噬流派）：层数直接标在头顶，不然只能看攻击力猜
+    if (!dead && u.killAtkStep > 0 && u.killAtkMax > 0) {
+      stackBadge(p.x + 22, by - h - 26, `叠 ${u.killStacks}/${u.killAtkMax}`, '#ff9d9d', 'rgba(56,12,12,0.86)');
+    }
   }
 }
 
@@ -2836,9 +2873,18 @@ function drawEnemies() {
     if (e.wound > 0) {
       ctx.save();
       ctx.fillStyle = 'rgba(176,107,217,0.95)';
-      for (let i = 0; i < Math.min(8, e.wound); i++) {
+      const n = Math.min(8, e.wound);
+      for (let i = 0; i < n; i++) {
         ctx.fillRect(e.x + knock - 4 + i * 5, by - h - 14, 3, 2.5);
       }
+      // 创口层数：格子最多画 8 个，数字补上，一眼知道还差几层满
+      ctx.font = '700 9.5px system-ui,"PingFang SC",sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = 'rgba(211,164,242,0.95)';
+      ctx.shadowColor = 'rgba(0,0,0,0.85)';
+      ctx.shadowBlur = 2;
+      ctx.fillText('×' + e.wound, e.x + knock - 4 + n * 5 + 3, by - h - 11);
       ctx.restore();
     }
     if (e.def.cls === 'Boss') {
@@ -3688,6 +3734,9 @@ function renderCard() {
       <span>攻速 <b>${u.aspd.toFixed(2)}</b></span><span>护甲 <b>${Math.round(u.armor)}</b></span>
       <span>射程 <b>${(u.range / 94).toFixed(1)} 格</b></span>
       ${u.crit > 0 ? `<span>暴击 <b>${Math.round(u.crit * 100)}%</b></span>` : ''}
+      ${u.killAtkStep > 0 && u.killAtkMax > 0
+        ? `<span class="stk">击杀叠加 <b id="stkNow">${u.killStacks}</b> / ${u.killAtkMax} 层<em>每层 +${Math.round(u.killAtkStep * 100)}% 攻击</em></span>`
+        : ''}
     </div>
     ${eqRow(u)}
     ${eqText}
@@ -3910,6 +3959,15 @@ function updateHUD() {
     }
   }
   tickBanner();
+  // 选中单位的击杀叠层：每杀一个 +1，战斗中随时在变，卡片上跟着刷
+  if (ui.sel != null) {
+    const su = G.units.find((x) => x.uid === ui.sel);
+    if (su && su.killAtkStep > 0 && L.stkNow !== su.killStacks) {
+      L.stkNow = su.killStacks;
+      const el = $('stkNow');
+      if (el) el.textContent = su.killStacks;
+    }
+  }
 
   // 商店买不起时压暗（只在金币变化时扫一遍）
   if (L.goldFor === undefined || L.goldFor !== G.gold) {
