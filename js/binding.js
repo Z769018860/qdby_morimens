@@ -107,7 +107,7 @@ const stage = $('stage');
 
 function fit() {
   const r = stage.getBoundingClientRect();
-  const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+  const dpr = Math.min(matchMedia('(pointer:coarse)').matches ? 1.5 : 2, window.devicePixelRatio || 1);
   G.dpr = dpr;
   cv.width = Math.round(r.width * dpr);
   cv.height = Math.round(r.height * dpr);
@@ -1412,6 +1412,7 @@ function endStory() {
 }
 
 // 一步推进打字机：每帧按字数补，遇到标点略停（读起来有呼吸）
+let storyDrawElapsed = 0;
 function tickStory(dt) {
   const st = G.story;
   if (!st) return;
@@ -1426,16 +1427,20 @@ function tickStory(dt) {
       if (now % 3 === 1) Audio2.type();
     }
   }
-  drawStoryBg();
+  // Story backgrounds use layered gradients and portraits; drawing them at 60+ FPS
+  // after a boss defeat can saturate mobile GPUs despite no gameplay occurring.
+  storyDrawElapsed += dt;
+  if (storyDrawElapsed >= 1 / 20) { storyDrawElapsed = 0; drawStoryBg(); }
 }
 
 function drawStoryBg() {
   const cv = $('storyCv');
   if (!cv || !G.story) return;
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const dpr = Math.min(matchMedia('(pointer:coarse)').matches ? 1 : 1.5, window.devicePixelRatio || 1);
   const w = cv.clientWidth || stage.clientWidth;
   const h = cv.clientHeight || stage.clientHeight;
-  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const pw = Math.max(1, Math.round(w * dpr)), ph = Math.max(1, Math.round(h * dpr));
+  if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
   const c = cv.getContext('2d');
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   const sc = G.story.scene;
@@ -2063,7 +2068,7 @@ let spkFrame = 0;
 // 头像里的通讯器波形 / 首领刻痕在动，每 3 帧重画一次就够顺
 function drawSpeakerTick() {
   if (!G.story) return;
-  if (spkFrame++ % 3) return;
+  if (spkFrame++ % 6) return;
   const line = G.story.scene.lines[G.story.i];
   if (line && (line.k === 'voice' || line.k === 'boss')) drawSpeaker(line);
 }
