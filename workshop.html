@@ -194,6 +194,9 @@ input[type=search], select { background: var(--panel2); color: var(--text); bord
 .dblock { background: var(--panel2); border-radius: 10px; padding: 8px 12px; margin: 8px 0; }
 .dblock p { margin: 2px 0 0; }
 .prose p, .prose li { max-width: 70ch; }
+/* 手机宽度下长路径（deathreport/index.html）和 code 不换行会把整张卡片撑出屏幕 */
+.prose { min-width: 0; overflow-wrap: anywhere; }
+.prose code { white-space: normal; word-break: break-all; }
 
 @media (max-width: 760px) {
   .slots, .ans-team { grid-template-columns: repeat(2, 1fr); }
@@ -1118,7 +1121,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
   border: 1px solid rgba(120,130,150,.45); background: transparent; color: inherit; }
 @keyframes bootspin { to { transform: rotate(360deg); } }
 </style>
-<meta name="build" content="9517701dc9">
+<meta name="build" content="3d7026e582">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1272,7 +1275,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
   if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
 })();
 </script>
-<script type="module" src="js/b/workshop.js?v=9517701dc9"></script>
+<script type="module" src="js/b/workshop.js?v=3d7026e582"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { webcrypto } from 'node:crypto';
 
-const ROOT = 'D:/软件所/morimens/qdby_morimens';
+import { fileURLToPath } from 'node:url';
+// 仓库根目录：脚本在 scripts/ 下，往上一级（不再写死某台开发机的盘符）
+const ROOT = process.env.MORIMENS_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 class El {
   constructor(tag = 'div') {

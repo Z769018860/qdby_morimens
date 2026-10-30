@@ -169,7 +169,9 @@ app.whenReady().then(() => {
     if (rel === '/' || rel.endsWith('/')) rel += 'index.html';
     const file = path.join(WEB, rel);
     // 目录穿越保护：拼出来的路径必须还在 web/ 里
-    if (!path.resolve(file).startsWith(path.resolve(WEB))) {
+    // 带分隔符比较：只比前缀会放行 web-evil/ 这类同名前缀的兄弟目录
+    const webRoot = path.resolve(WEB) + path.sep;
+    if (!(path.resolve(file) + path.sep).startsWith(webRoot)) {
       return new Response('forbidden', { status: 403 });
     }
     if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) {

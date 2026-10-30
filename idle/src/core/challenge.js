@@ -97,6 +97,7 @@ export function doTower(state, data, opts = {}) {
 }
 
 // ---------- 融灾 trials ----------
+export const TRIAL_GOLD_DAILY = 15;
 export const THREATS = [
   { k: 'C', stage: 26, tickets: 1 }, { k: 'B', stage: 34, tickets: 2 }, { k: 'A', stage: 42, tickets: 3 },
   { k: 'S', stage: 50, tickets: 5 }, { k: 'SS', stage: 60, tickets: 8 }, { k: 'SSS', stage: 72, tickets: 12 },
@@ -131,7 +132,12 @@ export function doTrial(state, data, trialId, thIdx, slugs = null) {
   if (res.win) {
     state.stats.wins++; state.stats.kills += res.kills;
     const key = trialKey(trial, th), rng = mulberry32(seed ^ 0x51ed);
-    rw.gold = Math.round(stageGold(th.stage) * 0.6 * (1 + team.goldBonus / 100));
+    // 试炼没有次数上限、也不用等 25 秒：重复通关的金币一天只发 TRIAL_GOLD_DAILY 场，首通奖励不受影响
+    const tg = (state.trials.gold ||= { day: '', n: 0 });
+    if (tg.day !== day()) { tg.day = day(); tg.n = 0; }
+    const payGold = tg.n < TRIAL_GOLD_DAILY || !state.trials.cleared[key];
+    if (payGold) tg.n += 1;
+    rw.gold = payGold ? Math.round(stageGold(th.stage) * 0.6 * (1 + team.goldBonus / 100)) : 0;
     if (!state.trials.cleared[key]) {
       state.trials.cleared[key] = true; rw.first = true; rw.tickets = th.tickets; rw.cores = th.tickets * 15;
       for (let i = 0; i < 1 + (thIdx >= 3 ? 1 : 0); i++) rw.items.push(addItem(state, ...Object.values(rollItem(rng, th.stage + 20, data))));

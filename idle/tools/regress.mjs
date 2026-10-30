@@ -13,17 +13,23 @@ const PORT = 9330 + Math.floor(Math.random() * 200);
 const OUT = process.env.SHOT_DIR || join(tmpdir(), 'qdby-shots');
 mkdirSync(OUT, { recursive: true });
 
+// 浏览器：CHROME_PATH 优先，其次 Windows 的 Edge / Chrome，再是 Linux / macOS 常见位置
 const EDGE = [
+  process.env.CHROME_PATH,
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
-].find((p) => existsSync(p));
-if (!EDGE) { console.error('找不到 Edge/Chrome'); process.exit(1); }
+  '/opt/pw-browsers/chromium',
+  '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser',
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+].find((p) => p && existsSync(p));
+if (!EDGE) { console.error('找不到 Edge/Chrome（可以用 CHROME_PATH 指定）'); process.exit(1); }
+const WIN = process.platform === 'win32';
 
 // 无头 Edge 会派生子进程，只 kill 父进程会留一堆孤儿；用 taskkill /T 连子树一起收，
 // 并且挂在 exit 上——脚本中途抛错也要收干净，否则下次跑会被旧实例的端口挡住。
 const cleanup = () => {
-  try { spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* 已经退了 */ }
+  if (WIN) { try { spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* 已经退了 */ } }
   try { child.kill(); } catch { /* 已经退了 */ }
 };
 process.on('exit', cleanup);
@@ -31,7 +37,7 @@ process.on('SIGINT', () => { cleanup(); process.exit(130); });
 
 const prof = mkdtempSync(join(tmpdir(), 'edgeprof-'));
 const child = spawn(EDGE, ['--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${prof}`,
-  '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--window-size=430,932', 'about:blank'], { stdio: 'ignore' });
+  '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--window-size=430,932', ...(WIN ? [] : ['--no-sandbox']), 'about:blank'], { stdio: 'ignore' });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function targetWs() {

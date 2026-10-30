@@ -259,8 +259,8 @@ async function postClaim(request, env, cors) {
 
   for (const pid of ids) {
     const own = await env.DB.prepare('SELECT author FROM puzzles WHERE id = ?').bind(pid).first();
-    // 上传过的题要认作者；只在本地的题没有归属记录，允许本人结算
-    if (own && String(own.author || '') && String(own.author) !== me.uid) continue;
+    // 只认服务端有归属记录、且作者就是本人的题（以前没记录的题也能结算，官方题的赞会被各账号分别领走）
+    if (!own || !String(own.author || '') || String(own.author) !== me.uid) continue;
 
     const count = await countOf(env, pid);
     counts[pid] = count;
@@ -419,6 +419,8 @@ async function deletePuzzle(request, env, id, cors) {
   if (String(row.author || '') !== me.uid) throw new HttpError(403, 'not_author');
 
   await env.DB.prepare('DELETE FROM puzzles WHERE id = ?').bind(id).run();
+  // 赞一起清掉，别人用同一个 id 重传不会继承
+  await env.DB.prepare('DELETE FROM likes WHERE puzzle = ?').bind(id).run();
   return reply({ ok: true }, 200, cors);
 }
 

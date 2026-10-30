@@ -503,6 +503,46 @@ console.log('\n[12] 首页评分 / BUG 反馈（跑在 Blob 上，不开 KV 命�
   eq('health → store:blob', h.json.store, 'blob');
 }
 
+console.log('\n[13] 审计修复：结算只认有记录的本人题 / 删题清赞 / whoami 不泄露站长 uid / 按 IP 限额');
+{
+  const kv = fakeKV();
+  const call = makeCaller({ zjtt_kv: kv });
+  seedSession(kv, TOKEN, UID);
+  seedSession(kv, 'tok-b', OTHER, '路人');
+  const auth = { Authorization: `Bearer ${TOKEN}` };
+
+  // 官方题（服务端没有归属记录）上的赞，任何账号都领不走
+  for (const d of ['o1', 'o2', 'o3']) await call('/like', { method: 'POST', headers: { 'X-Dev-Id': d }, body: { puzzle: 'official-1' } });
+  const stolen = await call('/claim', { method: 'POST', headers: auth, body: { puzzles: ['official-1', 'never-uploaded'] } });
+  eq('无归属记录的题 gain=0', stolen.json.gain, 0);
+
+  // 删题把赞数一起清掉，别人用同一个 id 重传不会继承
+  await call('/puzzle', { method: 'POST', headers: auth, body: { id: 'w-del', payload: { id: 'w-del', team: [] } } });
+  await call('/like', { method: 'POST', headers: { 'X-Dev-Id': 'd1' }, body: { puzzle: 'w-del' } });
+  await call('/puzzle/w-del', { method: 'DELETE', headers: auth });
+  await call('/puzzle', { method: 'POST', headers: { Authorization: 'Bearer tok-b' }, body: { id: 'w-del', payload: { id: 'w-del', team: [] } } });
+  const inherit = await call('/claim', { method: 'POST', headers: { Authorization: 'Bearer tok-b' }, body: { puzzles: ['w-del'] } });
+  eq('重传同 id 不继承旧赞', inherit.json.gain, 0);
+
+  // whoami 对非管理员不带站长 uid；管理页 403 的 detail 也不带
+  await call('/whoami', { headers: auth });                       // 第一个叫姜酒的人才会认领；这里是 tester
+  const w = await call('/whoami', { headers: { Authorization: 'Bearer tok-b' } });
+  check('whoami 不含 pinned', !('pinned' in w.json), w.json);
+  const ov = await call('/admin/overview', { headers: { Authorization: 'Bearer tok-b' } });
+  check('admin 403 detail 不含 pinned', ov.status === 403 && !(ov.json.detail && 'pinned' in ov.json.detail), ov.json);
+
+  // 按 IP 限额：评分 / BUG 反馈
+  const ipH = (n) => ({ 'EO-Connecting-IP': '9.9.9.' + n });
+  let lastStatus = 200;
+  for (let i = 0; i < 12; i++) {
+    const r = await call('/home/bug', { method: 'POST', headers: ipH(1), body: { text: '这是一条足够长的反馈 ' + i } });
+    lastStatus = r.status;
+  }
+  eq('同一 IP 反馈超过每日 10 条 → 429', lastStatus, 429);
+  const other = await call('/home/bug', { method: 'POST', headers: ipH(2), body: { text: '换个 IP 还能提交的反馈' } });
+  eq('换 IP 不受影响', other.status, 200);
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
   console.log('\n失败项：');
   for (const f of fails) console.log('  - ' + f);

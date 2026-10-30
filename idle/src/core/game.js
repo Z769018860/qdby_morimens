@@ -19,6 +19,15 @@ import { emptyEvent, noteBattle } from './event.js';
 export const BATTLE_SECONDS = 25;       // assumed wall-clock length of one farm battle (offline maths)
 export const OFFLINE_CAP_HOURS = 8;
 export const PULL_PITY_GENESIS = 50;
+export const DUP_ORDER_CORES = 30;
+export const CAT_DAILY = 3;           // 校猫奖励关：非首杀的额外奖励每天最多发几次（UTC 日）
+const utcDay = (now = Date.now()) => new Date(now).toISOString().slice(0, 10);
+export function catBonusLeft(state, now = Date.now()) {
+  const c = (state.cat ||= { day: '', n: 0 });
+  const d = utcDay(now);
+  if (c.day !== d) { c.day = d; c.n = 0; }
+  return Math.max(0, CAT_DAILY - c.n);
+}
 const STARTERS = ['ogier', 'lotan', 'doll', 'ramona'];
 
 // ---------- data index ----------
@@ -86,14 +95,26 @@ export function newState(data, now = Date.now()) {
 }
 
 export function migrate(s, data) {
-  if (!s || typeof s !== 'object') return newState(data);
-  const base = newState(data, s.created || Date.now());
-  const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity }, tower: { ...base.tower, ...s.tower }, trials: { cleared: { ...(s.trials?.cleared || {}) } }, ach: { ...s.ach }, signin: s.signin ? { ...s.signin } : null, welcome: s.welcome ? { ...s.welcome } : null, shop: s.shop ? { ...s.shop } : null, codex: { ...s.codex }, weekly: s.weekly ? { ...s.weekly } : null, rtower: { ...s.rtower }, arena: s.arena ? { ...s.arena } : null };
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return newState(data);
+  const base = newState(data, Number.isFinite(Number(s.created)) && Number(s.created) > 0 ? Number(s.created) : Date.now());
+  // roster 里的空值 / 非对象 / 数组一律剔掉（导入的存档可能是手改过的）
+  if (!s.roster || typeof s.roster !== 'object' || Array.isArray(s.roster)) s = { ...s, roster: base.roster };
+  else s = { ...s, roster: Object.fromEntries(Object.entries(s.roster).filter(([, r]) => r && typeof r === 'object' && !Array.isArray(r))) };
+  const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity }, tower: { ...base.tower, ...s.tower }, trials: { cleared: { ...(s.trials?.cleared || {}) }, ...(s.trials?.gold ? { gold: { ...s.trials.gold } } : {}) }, ach: { ...s.ach }, signin: s.signin ? { ...s.signin } : null, welcome: s.welcome ? { ...s.welcome } : null, shop: s.shop ? { ...s.shop } : null, codex: { ...s.codex }, weekly: s.weekly ? { ...s.weekly } : null, rtower: { ...s.rtower }, arena: s.arena ? { ...s.arena } : null };
+  // 数值字段：非数字 / 负数 / 无穷一律回到安全值，免得 NaN 写进存档后一路传染（金币、离线结算……）
+  const num = (v, d, lo = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, n) : d; };
+  m.gold = Math.floor(num(m.gold, base.gold)); m.tickets = Math.floor(num(m.tickets, base.tickets)); m.cores = Math.floor(num(m.cores, base.cores));
+  m.maxStage = Math.floor(num(m.maxStage, 0));
+  m.stage = Math.max(1, Math.min(m.maxStage + 1, Math.floor(num(m.stage, 1, 1))));
+  m.lastSeen = Math.min(Date.now(), num(m.lastSeen, Date.now()));
+  m.seed = (Math.floor(num(m.seed, base.seed)) >>> 0);
+  m.auto = m.auto !== false;
+  if (!m.drip || typeof m.drip !== 'object') m.drip = { tickets: 0, cores: 0 };
   // 加速 / 极速已下线：老存档里的字段直接丢掉，免得 UI 以为还有开关
   delete m.speed; delete m.skipAnim;
   // 累计游玩秒数：老存档没有就从 0 开始
   m.play = Math.max(0, Math.floor(Number(m.play) || 0));
-  m.team = (m.team || []).filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
+  m.team = [...new Set(Array.isArray(m.team) ? m.team : [])].filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
   if (!m.team.length) m.team = Object.keys(m.roster).slice(0, TEAM_SIZE);
   // roster：补 brk（突破档数），并按新的叠位上限收紧
   for (const [k, r] of Object.entries(m.roster)) {
@@ -107,6 +128,7 @@ export function migrate(s, data) {
   while (rel.length < RELIC_SLOTS) rel.push(null);
   m.gear.relics = rel.map((uid) => (uid && m.gear.items[uid] ? uid : null));
   m.drip = { tickets: 0, cores: 0, ...(s.drip || {}) };
+  m.drip.tickets = Math.max(0, Number(m.drip.tickets) || 0); m.drip.cores = Math.max(0, Number(m.drip.cores) || 0);
   // 钥令：老存档没有就按开局配置补上；M10 换成原作 63 件后，旧的自造 id 会被清掉
   const o = m.orders || {};
   m.orders = { owned: { ...(o.owned || base.orders.owned) }, slots: Array.isArray(o.slots) ? o.slots.slice(0, 3) : base.orders.slots };
@@ -321,8 +343,8 @@ export function addOrder(state, id) {
   const o = (state.orders ||= { owned: {}, slots: [null, null, null] });
   o.owned ||= {};
   if (o.owned[id] == null) { o.owned[id] = 0; return { id, isNew: true, cores: 0 }; }
-  state.cores += 30; state.stats.coresEarned = (state.stats.coresEarned || 0) + 30;
-  return { id, isNew: false, cores: 30 };
+  // 重复的钥令折成 30 银芯：只在返回值里报数，由调用方并进自己的奖励再一次性入账（以前这里先加一遍、调用方再加一遍，会发双份）
+  return { id, isNew: false, cores: DUP_ORDER_CORES };
 }
 export function upgradeOrder(state, id) {
   const o = state.orders; if (!o?.owned || o.owned[id] == null) return false;
@@ -388,11 +410,14 @@ export function applyResult(state, data, res) {
     }
     // 校猫（奖励首领）：每 40 关的 Boss 关换成它，打赢额外给券 + 银芯 + 装备，首杀再翻一倍
     const cat = res.prep.enemies.find((e) => e.reward);
-    if (cat) {
+    const firstCat = !!cat && (state.codex?.[cat.mid]?.kills || 0) <= 1;
+    if (cat && (firstCat || catBonusLeft(state) > 0)) {
+      // 首杀不占每日名额；之后的每场额外奖励一天只发 CAT_DAILY 次，否则停在奖励关手动刷，一小时能刷几百张召唤券
+      if (!firstCat) state.cat.n += 1;
       rw.cat = true;
       rw.tickets += 5; rw.cores += 60;
       rw.items.push(addItem(state, ...Object.values(rollItem(rng, res.stage + 8, data))));
-      if ((state.codex?.[cat.mid]?.kills || 0) <= 1) {
+      if (firstCat) {
         rw.catFirst = true; rw.tickets += 5; rw.cores += 60;
         rw.items.push(addItem(state, ...Object.values(rollItem(rng, res.stage + 12, data))));
       }

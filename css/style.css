@@ -185,6 +185,9 @@ input[type=search], select { background: var(--panel2); color: var(--text); bord
 .dblock { background: var(--panel2); border-radius: 10px; padding: 8px 12px; margin: 8px 0; }
 .dblock p { margin: 2px 0 0; }
 .prose p, .prose li { max-width: 70ch; }
+/* 手机宽度下长路径（deathreport/index.html）和 code 不换行会把整张卡片撑出屏幕 */
+.prose { min-width: 0; overflow-wrap: anywhere; }
+.prose code { white-space: normal; word-break: break-all; }
 
 @media (max-width: 760px) {
   .slots, .ans-team { grid-template-columns: repeat(2, 1fr); }

@@ -618,7 +618,7 @@ test('钥令：配置、全队加成、淬炼、重复折算', () => {
   // 重复钥令折算银芯
   const c0 = s.cores;
   const dup = addOrder(s, id);
-  assert.equal(dup.isNew, false); assert.ok(s.cores > c0);
+  assert.equal(dup.isNew, false); assert.equal(dup.cores, 30); assert.equal(s.cores, c0, 'addOrder 只报数，银芯由调用方一次入账');
 });
 
 /* ---------- M10：塔上限 / 1000 名天梯 / 校猫奖励首领 ---------- */
@@ -1553,4 +1553,60 @@ test('M18 萨摩不耶的特性「一哥」对校猫特攻 +50%', () => {
   // 真实关卡：推图第 40 关是校猫奖励关，敌人里确实站着 catboss，特攻能打上
   const foes = buildEnemies(40, data.monsters);
   assert.ok(foes.some((f) => f.mid === 'catboss'), '第 40 关的 Boss 位是校猫');
+});
+
+
+/* ---------- 审计修复 ---------- */
+import { catBonusLeft, CAT_DAILY } from '../src/core/game.js';
+import { TRIAL_GOLD_DAILY } from '../src/core/challenge.js';
+import { buy as shopBuy } from '../src/core/shop.js';
+
+test('审计：重复钥令只折一次银芯（商店 / 战斗奖励都一样）', () => {
+  const s = newState(data, 31);
+  s.cores = 1e6; s.maxStage = 100;
+  for (const o of data.orders) s.orders.owned[o.id] = 0;   // 全部拥有 → 抽到的一定是重复
+  const c0 = s.cores;
+  const r = shopBuy(s, data, 'order');
+  assert.ok(r.orders[0].isNew === false);
+  assert.equal(s.cores, c0 - 80 + 30, '商店钥令匣：-80 +30，不是 +60');
+});
+
+test('审计：校猫奖励关的非首杀额外奖励每天只发 CAT_DAILY 次', () => {
+  const s = newState(data, 32);
+  for (const k of Object.keys(s.roster)) Object.assign(s.roster[k], { lv: 159, star: 99, brk: 6 });
+  s.maxStage = 60; s.stage = 40; s.auto = false;
+  let boosted = 0;
+  for (let i = 0; i < 12; i++) {
+    const res = runBattle(s, data, 40);
+    const rw = applyResult(s, data, res);
+    if (res.win && rw.cat) boosted++;
+  }
+  assert.equal(boosted, 1 + CAT_DAILY, '首杀 1 次 + 每日 3 次');
+  assert.equal(catBonusLeft(s), 0);
+  assert.equal(catBonusLeft(s, Date.now() + 86400000 * 2), CAT_DAILY, '换天重置');
+});
+
+test('审计：脏存档不会把 NaN / 负数 / 空角色带进游戏', () => {
+  assert.doesNotThrow(() => migrate({ roster: { ogier: null, lotan: { lv: 1 } }, team: ['ogier', 'lotan', 'lotan'] }, data));
+  const m = migrate({ roster: { ogier: { lv: 1 } }, gold: 'abc', cores: null, tickets: -5, stage: -3, maxStage: 'x', lastSeen: 'x', seed: 'q', drip: { tickets: 'z' } }, data);
+  for (const k of ['gold', 'cores', 'tickets', 'stage', 'maxStage', 'lastSeen', 'seed']) assert.ok(Number.isFinite(m[k]) && m[k] >= 0, k);
+  assert.ok(m.stage >= 1 && m.drip.tickets === 0);
+  assert.deepEqual(m.team, ['ogier']);
+  const rep = offlineReport(Object.assign(migrate({ roster: { ogier: { lv: 1 } }, lastSeen: 'x' }, data), { lastSeen: 0 }), data);
+  assert.ok(!rep || Number.isFinite(rep.gold));
+  const fut = migrate({ roster: { ogier: { lv: 1 } }, lastSeen: Date.now() + 1e9 }, data);
+  assert.ok(fut.lastSeen <= Date.now());
+  assert.ok(!Array.isArray(migrate([1, 2], data).roster));
+});
+
+test('审计：融灾试炼重复通关的金币每天封顶，首通奖励不受影响', () => {
+  const s = newState(data, 33);
+  for (const k of Object.keys(s.roster)) Object.assign(s.roster[k], { lv: 159, star: 99, brk: 6 });
+  const t = data.trials[0];
+  let paid = 0, g0 = s.gold;
+  for (let i = 0; i < TRIAL_GOLD_DAILY + 6; i++) { const r = doTrial(s, data, t.id, 0); if (r?.win && r.rw.gold > 0) paid++; }
+  assert.equal(paid, TRIAL_GOLD_DAILY);
+  assert.equal(s.trials.gold.n, TRIAL_GOLD_DAILY);
+  const s2 = migrate(JSON.parse(JSON.stringify(s)), data);
+  assert.equal(s2.trials.gold.n, TRIAL_GOLD_DAILY, '存档往返后计数还在');
 });

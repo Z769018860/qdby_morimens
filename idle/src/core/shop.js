@@ -31,7 +31,7 @@ export function buy(state, data, id) {
   if (g.order) {
     const rng = mulberry32(hash(`shoporder${state.seed}${sh.bought[id]}${state.stats.battles}`));
     const od = rollOrder(rng, data);
-    if (od) out.orders = [addOrder(state, od.id)];
+    if (od) { const got = addOrder(state, od.id); out.orders = [got]; if (!got.isNew) state.cores += got.cores; }
   }
   if (g.weekly) weeklyState(state).tries += 1;
   if (g.tower) { towerTries(state); state.tower.tries += 1; }

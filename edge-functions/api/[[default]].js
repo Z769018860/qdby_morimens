@@ -461,8 +461,9 @@ async function postClaim(request, env, kv, cors) {
   for (const pid of ids) {
     const ph = await phash(pid);
     const own = await kvJson(kv, 'pz_' + ph);
-    // 上传过的题要认作者；只在本地的题没有归属记录，允许本人结算
-    if (own && String(own.author || '') && String(own.author) !== me.uid) continue;
+    // 只认服务端有归属记录、且作者就是本人的题。以前「没有记录的题」也允许结算，
+    // 结果任何账号都能把官方题 / 随手编的 id 上的赞折成银芯领走。
+    if (!own || !String(own.author || '') || String(own.author) !== me.uid) continue;
 
     const count = await kvNum(kv, 'cnt_' + ph);
     counts[pid] = count;
@@ -637,11 +638,25 @@ async function deletePuzzle(request, env, kv, id, cors) {
   if (String(row.author || '') !== me.uid) throw new HttpError(403, 'not_author');
 
   await kv.delete('pz_' + ph);
+  // 赞数一并清掉：否则别人拿同一个 id 重新上传会白捡这道题的赞（再配合结算就是银芯）
+  await kv.put('cnt_' + ph, '0');
   const idx = (await readIndex(kv)).filter((x) => String(x && x.id) !== id);
   await writeIndex(kv, idx);
   return reply({ ok: true }, 200, cors);
 }
 
+
+// 按 IP 的每日限额（评分 / BUG / 浏览打点用）：X-Device 之类的身份头是客户端自己报的，
+// 光靠它防不住刷。拿不到 IP 就不限（本地测试），拿得到就按天计数。
+const HOME_IP_MAX = { rate: 40, bug: 10, visit: 600 };
+async function ipLimit(kv, request, tag) {
+  const ip = clientIp(request);
+  if (!ip) return;
+  const key = 'hl_' + tag + '_' + (await ihash(ip)) + '_' + dayKeyFlat();
+  const n = await kvNum(kv, key);
+  if (n >= HOME_IP_MAX[tag]) throw new HttpError(429, 'rate');
+  await kv.put(key, String(n + 1));
+}
 
 // ------------------------------------------------------------------ 首页评分 / BUG 反馈
 // 表结构（KV）：
@@ -696,6 +711,7 @@ async function postHomeRate(request, env, kv, cors) {
 
   const voter = await homeVoter(request, env, kv);
   if (!voter) throw new HttpError(401, 'need_device');
+  await ipLimit(kv, request, 'rate');
   const vh = await vhash(voter);
 
   const key = 'hrv_' + game + '_' + vh;
@@ -724,6 +740,7 @@ async function postHomeBug(request, env, kv, cors) {
   const b = await readJson(request, 16 * 1024);
   const text = str(b.text, 1200).trim();
   if (text.length < 8) throw new HttpError(400, 'too_short');
+  await ipLimit(kv, request, 'bug');
 
   const game = HOME_GAMES.has(str(b.game, 32)) ? str(b.game, 32) : 'home';
   // 编号好念一点：B-日期后六位-三位随机
@@ -763,6 +780,7 @@ async function getStats(request, env, kv, cors) {
 
 // POST /visit { p } —— 页面自己打点。不做去重：PV 本来就是「看了几次」。
 async function postVisit(request, env, kv, cors) {
+  await ipLimit(kv, request, 'visit');
   const day = dayKey();
   const pv = await kvJson(kv, 'pv');
   const total = (Number(pv && pv.t) || 0) + 1;
@@ -818,6 +836,9 @@ async function adminWhy(env, kv, me) {
     hint: `当前显示名是「${name}」，第一次认领要求正好是「${ADMIN_NAME}」（不区分首尾空格）。` };
 }
 
+// 403 的原因给前端看，但不带站长的 uid
+const publicWhy = (w) => { if (w && typeof w === 'object') { const { pinned, ...rest } = w; return rest; } return w; };
+
 // 从账号档案里挑出「数据情况」——只取概览用的几个数，别把整份文档甩给列表
 function acctBrief(doc) {
   const d = doc && typeof doc === 'object' ? doc : null;
@@ -842,7 +863,7 @@ function acctBrief(doc) {
 async function getAdminOverview(request, env, kv, cors) {
   const me = await whoami(request, env, kv);
   if (!me) throw new HttpError(401, 'need_login');
-  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', await adminWhy(env, kv, me));
+  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', publicWhy(await adminWhy(env, kv, me)));
 
   const keys = await kv.list('usr_', 1000);
   const rows = await mapLimit(keys.slice(0, 300), 6, async (k) => {
@@ -879,7 +900,7 @@ async function getAdminOverview(request, env, kv, cors) {
 async function postAdminGrant(request, env, kv, cors) {
   const me = await whoami(request, env, kv);
   if (!me) throw new HttpError(401, 'need_login');
-  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', await adminWhy(env, kv, me));
+  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', publicWhy(await adminWhy(env, kv, me)));
 
   const b = await readJson(request, 4 * 1024);
   const uid = str(b.uid, 64).trim();
@@ -924,6 +945,8 @@ async function getWhoami(request, env, kv, cors) {
   if (!me) return reply({ ok: true, logged: false, admin: false }, 200, cors);
   const admin = await isAdmin(env, kv, me);
   const why = admin ? {} : await adminWhy(env, kv, me);
+  // pinned 是站长的 uid，不能发给别的账号；hint 里本来也不含它
+  if (why && 'pinned' in why) delete why.pinned;
   return reply({ ok: true, logged: true, name: me.name, uid: me.uid, admin, ...why }, 200, cors);
 }
 

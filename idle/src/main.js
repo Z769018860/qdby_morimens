@@ -84,7 +84,9 @@ const gachaSound = (out) => (out.some((p) => p.rarity === 'Genesis') ? 'reveal3'
 
 const app = {
   ui: { lastTab: {} }, tab: 'battle',
-  save() { this.state.lastSeen = Date.now(); store.write(this.state); },
+  // 离线收益弹窗还没点「领取」时不能推进 lastSeen，否则刷新 / 关页 / 切后台都会把这段离线时间吞掉
+  offlinePending: false,
+  save() { if (!this.offlinePending) this.state.lastSeen = Date.now(); store.write(this.state); },
   itemName(it) { return P.itemDef(this, it).zh + (it.lv ? ` Lv${it.lv}` : ''); },
   refreshTop() {
     $('#gold').textContent = fmt(this.state.gold);
@@ -131,7 +133,8 @@ async function boot() {
     }, 420);
   };
   if (rep && (rep.gold || rep.tickets)) {
-    P.offlineModal(app, rep, () => { claimOffline(app.state, rep); app.save(); app.refreshTop(); toast('已领取离线收益'); app.bv.start(); maybeGuide(); });
+    app.offlinePending = true;
+    P.offlineModal(app, rep, () => { app.offlinePending = false; claimOffline(app.state, rep); app.save(); app.refreshTop(); toast('已领取离线收益'); app.bv.start(); maybeGuide(); });
   } else { claimOffline(app.state, rep || null); app.bv.start(); maybeGuide(); }
   // 累计签到送的那几位：达标就自动进包（老存档首次进游戏也会补发）
   checkSigninGifts();
@@ -153,8 +156,13 @@ async function boot() {
 
 function onVisibility() {
   if (document.hidden) { app.bv.stop(); app.save(); return; }
+  // 上一份离线收益还挂在弹窗里没领，就别再算第二份（lastSeen 没动，会把同一段时间算两遍）
+  if (app.offlinePending) return;
   const rep = offlineReport(app.state, app.data);
-  if (rep && (rep.gold || rep.tickets)) P.offlineModal(app, rep, () => { claimOffline(app.state, rep); app.save(); app.refreshTop(); app.bv.start(); });
+  if (rep && (rep.gold || rep.tickets)) {
+    app.offlinePending = true;
+    P.offlineModal(app, rep, () => { app.offlinePending = false; claimOffline(app.state, rep); app.save(); app.refreshTop(); app.bv.start(); });
+  }
   else { claimOffline(app.state, rep || null); app.bv.start(); }
 }
 

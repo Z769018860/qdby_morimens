@@ -804,5 +804,10 @@ export function offlineModal(app, rep, onClaim) {
     : '';
   const m = openModal(`<h3>欢迎回来</h3><p>离线 ${Math.round(rep.secs / 60)} 分钟（结算 ${Math.round(rep.capped / 60)} 分钟），在第 ${rep.stage} 关挂机 ${rep.battles} 场，预计胜 ${rep.wins} 场。</p>
     ${note}<p>金币 <b>+${fmt(rep.gold)}</b>　召唤券 <b>+${rep.tickets}</b>　银芯 <b>+${rep.cores || 0}</b>　装备 <b>+${items}</b></p><button class="btn big gold" data-act="claim-offline">领取</button>`);
-  m.addEventListener('click', (e) => { if (e.target.closest('[data-act="claim-offline"]')) { closeModal(); onClaim(); } });
+  // 点 ✕ / 点遮罩关掉弹窗也算领取：否则收益丢了、战斗也不会开始（onClaim 里才 bv.start）
+  let done = false;
+  const claim = () => { if (done) return; done = true; mo.disconnect(); onClaim(); };
+  const mo = new MutationObserver(() => { if (!m.isConnected) claim(); });
+  mo.observe(document.body, { childList: true });
+  m.addEventListener('click', (e) => { if (e.target.closest('[data-act="claim-offline"]')) { closeModal(); claim(); } });
 }
