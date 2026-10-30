@@ -546,6 +546,10 @@ button{font:inherit; color:inherit}
 .ucard .eqline,.ucard .ult{overflow-wrap:anywhere}
 .ucard details{margin:8px 0}.ucard summary{cursor:pointer;color:var(--accent)}
 .detail-action{padding:7px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel2);color:var(--accent);cursor:pointer;margin:4px 0 10px}
+/* Keep the shop shelf above any pinned character description. A fixed detail
+   may remain open, but must never cover purchase targets (including slot five).
+   Scope this to visible details so start/help overlays keep their own stacking. */
+body:has(#protocolDetails:not([hidden])) .shopzone{z-index:121}
 #protocolDetails{position:fixed;z-index:120; width:min(420px,calc(100vw - 24px)); max-height:calc(100dvh - 90px); overflow:auto; overscroll-behavior:contain; padding:20px; border:1px solid #6980a5; border-radius:14px; background:#111b2b; color:#eaf1fc; box-shadow:0 16px 60px #000b; font:15px/1.7 system-ui,sans-serif; overflow-wrap:anywhere}
 /* Hover previews are informational only: no invisible overlay may intercept
    shop cards, especially the far-right purchasable slot. */
