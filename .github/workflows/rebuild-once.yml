@@ -1,4 +1,4 @@
-name: Rebuild all static assets (one-time)
+name: Rebuild all static assets (source fixes)
 on:
   push:
     paths:
