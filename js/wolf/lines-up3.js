@@ -124,7 +124,7 @@ export const U3 = {
         vote: ['…出去一个。'],
         any: ['…哦。'],
       },
-      death: ['…就这样。', '…结束了。'],
+      death: ['…就这样。', '…结束了。', '…525，最后一期了。'],
     },
     report: { wolf: '{who}…黑的。', clean: '{who}…干净的。', void: '{who}…空的。' },
     last: { crew: '…剩下的你们来。', wolf: '…认了。', third: '…我谁也不是。' },
