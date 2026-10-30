@@ -441,7 +441,7 @@ function help() {
 async function loadEdition(n) {
   WS = null; ED = n; G = await (await fetch(EDS[n][0])).json(); buildAuto(); setTheme(n); setAudioTheme(n); setBg('title'); heard.clear();
   try { localStorage.setItem(EDKEY, String(n)); } catch { /* ignore */ }
-  document.title = n === 63 ? '死亡游戏调查报告 · 第六十三次回溯筛选' : `死亡游戏调查报告 · ${G.edition.label}回溯筛选（往届）`;
+  document.title = n === 63 ? '弥萨格大逃杀 · 第六十三次回溯筛选' : `弥萨格大逃杀 · ${G.edition.label}回溯筛选（往届）`;
   $('.sub').textContent = n === 63 ? '第六十三次　回溯筛选　完全复原' : G.edition.subtitle + '（往届档案）';
 }
 function bootTitle() {

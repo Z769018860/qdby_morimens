@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""生成死亡游戏调查报告的音效素材（不依赖任何第三方库）。
+"""生成弥萨格大逃杀的音效素材（不依赖任何第三方库）。
 
   python tools/make_audio.py
 

@@ -13,7 +13,7 @@
 export const SAVE_APP = 'zjtt-save';
 export const MIN_PASS = 6;
 
-// zjtt: 是本站主命名空间；morimens- 是挂机版（idle）和死亡调查报告（deathreport）的存档，
+// zjtt: 是本站主命名空间；morimens- 是挂机版（idle）和弥萨格大逃杀（deathreport）的存档，
 // 它们历史原因没加 zjtt: 前缀，早期导出漏了这两个，换设备就丢进度。
 export const PREFIXES = ['zjtt:', 'morimens-'];
 

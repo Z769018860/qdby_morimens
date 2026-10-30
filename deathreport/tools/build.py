@@ -376,7 +376,7 @@ if '00-ROLL' in docs:
         print(f'  点名表线路 {len(roll_only)} 条（名单 {len(roll_keys)} 人，其余靠记录互推）'
               + ('：' + '、'.join(roll_only) if roll_only else ''))
 puzzles = [dict(id=m['id'], h=h32(m['answer']), src=m['src']) for m in PUZ_META]
-game = dict(edition=(dict(_m.META, grid=dict(cols=cols, rows=rows, size=len(PLACES))) if ED else dict(n=63, label='第六十三次', title='死亡游戏调查报告', theme=63, grid=dict(cols='ABCDE', rows=[1, 2, 3, 4, 5], size=25))), endings=ENDINGS, puzzles=puzzles, arcs=arcs, milestones=MILE, title='死亡游戏调查报告', subtitle=(_m.META.get('subtitle') if ED else '第六十三次 回溯筛选'), roster=roster, places=PLACES, zones=[dict(day=d, hour=h, cell=c) for d, h, c in ZONES], causes=CAUSES,
+game = dict(edition=(dict(_m.META, grid=dict(cols=cols, rows=rows, size=len(PLACES))) if ED else dict(n=63, label='第六十三次', title='弥萨格大逃杀', theme=63, grid=dict(cols='ABCDE', rows=[1, 2, 3, 4, 5], size=25))), endings=ENDINGS, puzzles=puzzles, arcs=arcs, milestones=MILE, title='弥萨格大逃杀', subtitle=(_m.META.get('subtitle') if ED else '第六十三次 回溯筛选'), roster=roster, places=PLACES, zones=[dict(day=d, hour=h, cell=c) for d, h, c in ZONES], causes=CAUSES,
             records=records, docs=docs, msgs=msgs, start=START, solutions=solutions, hints=hints, shadow=dict(num=SHADOW, keys=[e['key'] for e in E if e['c'] == SHADOW], msg=(getattr(_m, 'SHADOW_MSG', 'MSG06') if ED else 'MSG06'), label=(getattr(_m, 'SHADOW_LABEL', '') if ED else '名册外的个体（黑影）')),
             stats=dict(records=len(records), edges=sum(len(r['refs']) for r in records.values())))
 (HERE / 'data').mkdir(exist_ok=True)

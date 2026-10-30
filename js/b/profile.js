@@ -1294,7 +1294,7 @@ const m_gamestats = await (async () => {
 //
 // 个人中心要「一个页面看到所有游戏的数据」，但九个游戏各写各的存档键，
 // 有的用 store（JSON），有的用 localStorage 裸字符串，有的根本不在 zjtt 命名空间
-// （挂机版是 morimens-idle-*，死亡调查报告是 morimens-deathreport-*）。
+// （挂机版是 morimens-idle-*，弥萨格大逃杀是 morimens-deathreport-*）。
 // 这里只做一件事：把全部键读成一个结构化的结果，读不到的字段给 0 / 空，
 // 让页面永远有东西可显示，而不是「这一块没接」。
 //
@@ -1493,7 +1493,7 @@ const GAMES = [
   { k: 'survivors', n: '唤醒体幸存者', href: 'survivors.html', icon: '✨', read: survivors, tip: '15 分钟一局' },
   { k: 'protocol', n: '忘却协议', href: 'protocol.html', icon: '⬡', read: protocol, tip: '守住十二波' },
   { k: 'wolf', n: '弥萨格狼人杀', href: 'wolf.html', icon: '🐺', read: wolf, tip: '身份推理' },
-  { k: 'deathreport', n: '死亡调查报告', href: 'deathreport/', icon: '📄', read: deathreport, tip: '档案式复盘' },
+  { k: 'deathreport', n: '弥萨格大逃杀', href: 'deathreport/', icon: '📄', read: deathreport, tip: '档案式复盘' },
 ];
 
 // 一次性读全部：页面只调这一个
@@ -1553,7 +1553,7 @@ const GD_SPEC = [
     return [['局数', runs + ' 局'], ['胜场', win + ' 局'],
       ['胜率', runs ? Math.round((win / runs) * 100) + '%' : '—']];
   } },
-  { k: 'dt', n: '死亡调查报告', f: (v) => [
+  { k: 'dt', n: '弥萨格大逃杀', f: (v) => [
     ['已复原', n(v[0]) + ' 条'],
     ['归档卷宗', String(n(v[1]))],
     ['结案', n(v[2]) + ' 届'],
@@ -2318,7 +2318,7 @@ const m_savedata = await (async () => {
 const SAVE_APP = 'zjtt-save';
 const MIN_PASS = 6;
 
-// zjtt: 是本站主命名空间；morimens- 是挂机版（idle）和死亡调查报告（deathreport）的存档，
+// zjtt: 是本站主命名空间；morimens- 是挂机版（idle）和弥萨格大逃杀（deathreport）的存档，
 // 它们历史原因没加 zjtt: 前缀，早期导出漏了这两个，换设备就丢进度。
 const PREFIXES = ['zjtt:', 'morimens-'];
 
@@ -2736,7 +2736,7 @@ function saveBox(u) {
   }, '导入离线存档');
 
   const panel = h('div', { class: 'savebox' },
-    h('p', { class: 'savetip' }, '从离线版 / 桌面版的「存档」区导出的 .zjtt 文件，拷到这台设备后从这里导入。加密包里有账号、银芯、各小游戏进度，也包括挂机前夜和死亡调查报告（那两款不在主命名空间，别处导不到）。'),
+    h('p', { class: 'savetip' }, '从离线版 / 桌面版的「存档」区导出的 .zjtt 文件，拷到这台设备后从这里导入。加密包里有账号、银芯、各小游戏进度，也包括挂机前夜和弥萨格大逃杀（那两款不在主命名空间，别处导不到）。'),
     h('div', { class: 'saverow' }, pass, file),
     h('div', { class: 'actions' }, impBtn, expBtn),
     msg,
@@ -2777,7 +2777,7 @@ function saveBox(u) {
       ];
       keys.forEach((k) => store.del(k));
       ['easy', 'normal', 'hard', 'mad'].forEach((d) => { store.del(`bird:best:${d}`); store.del(`bird:bestLv:${d}`); });
-      // 挂机版与死亡调查报告不在 zjtt 命名空间，单独清
+      // 挂机版与弥萨格大逃杀不在 zjtt 命名空间，单独清
       ['morimens-idle-save-v1', 'morimens-deathreport-save-v1', 'morimens-deathreport-save-ed62-v1', 'morimens-deathreport-save-ed61-v1']
         .forEach((k) => { try { localStorage.removeItem(k); } catch { /* 忽略 */ } });
       if (u) await account.push().catch(() => {});

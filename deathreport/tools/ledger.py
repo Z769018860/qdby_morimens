@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ground-truth ledger for 《死亡游戏调查报告 · 第六十三次回溯》.
+"""Ground-truth ledger for 《弥萨格大逃杀 · 第六十三次回溯》.
 Everything else (record keys, broadcasts, solutions, reference graph) is derived from this table; the prose lives in texts.py.
 Run:  python3 tools/ledger.py   -> prints the table and validates all invariants."""
 import json, sys, os

@@ -277,7 +277,7 @@ function saveBox(u) {
   }, '导入离线存档');
 
   const panel = h('div', { class: 'savebox' },
-    h('p', { class: 'savetip' }, '从离线版 / 桌面版的「存档」区导出的 .zjtt 文件，拷到这台设备后从这里导入。加密包里有账号、银芯、各小游戏进度，也包括挂机前夜和死亡调查报告（那两款不在主命名空间，别处导不到）。'),
+    h('p', { class: 'savetip' }, '从离线版 / 桌面版的「存档」区导出的 .zjtt 文件，拷到这台设备后从这里导入。加密包里有账号、银芯、各小游戏进度，也包括挂机前夜和弥萨格大逃杀（那两款不在主命名空间，别处导不到）。'),
     h('div', { class: 'saverow' }, pass, file),
     h('div', { class: 'actions' }, impBtn, expBtn),
     msg,
@@ -318,7 +318,7 @@ function saveBox(u) {
       ];
       keys.forEach((k) => store.del(k));
       ['easy', 'normal', 'hard', 'mad'].forEach((d) => { store.del(`bird:best:${d}`); store.del(`bird:bestLv:${d}`); });
-      // 挂机版与死亡调查报告不在 zjtt 命名空间，单独清
+      // 挂机版与弥萨格大逃杀不在 zjtt 命名空间，单独清
       ['morimens-idle-save-v1', 'morimens-deathreport-save-v1', 'morimens-deathreport-save-ed62-v1', 'morimens-deathreport-save-ed61-v1']
         .forEach((k) => { try { localStorage.removeItem(k); } catch { /* 忽略 */ } });
       if (u) await account.push().catch(() => {});

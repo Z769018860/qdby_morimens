@@ -1,4 +1,4 @@
-// 死亡游戏调查报告 · 音频层
+// 弥萨格大逃杀 · 音频层
 // 短音效是 tools/make_audio.py 合成的 wav（audio/*.wav，共约 230KB，全部懒加载）；
 // 环境音不落盘：每届一套低频 drone + 滤波噪声，用 WebAudio 实时合成，切换届别时换音色。
 const FILES = {
