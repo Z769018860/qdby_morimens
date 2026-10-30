@@ -16,6 +16,7 @@ import {
   RT_MODES, rtModeOf, realmOfMode,
 } from '../core/squad.js';
 import { riftParty } from '../core/rift.js';
+import * as Cloud from '../core/cloud.js';
 import { ROSTER_SORTS, SORT_ZH, sortRoster } from '../core/roster.js';
 import { luckOf, luckBarPct, GACHA_LOG_MAX, RARITY_WORTH, RARITY_RATE } from '../core/gacha.js';
 import { roundLimitFor, ROUND_LIMIT, FRONT_SLOTS } from '../core/battle.js';
@@ -922,10 +923,28 @@ export function showOrders(app, orders) {
 }
 
 /* ----------------------------- SETTINGS ----------------------------- */
+function cloudCard(app) {
+  const acct = Cloud.account(), cfg = Cloud.config(), c = app.cloud || {}, sync = Cloud.syncRecord();
+  const st = {
+    idle: '等待同步', syncing: '同步中…', ok: `已同步${c.at ? `（${new Date(c.at).toLocaleTimeString()}）` : ''}`,
+    nologin: '还没登录', conflict: '本机和云端进度不同，等你选择', hold: '已暂停同步（有进度冲突，点「立即同步」重新处理）',
+    error: `同步失败：${esc(c.err || '网络不通')}，稍后会自动重试`,
+  }[c.status] || '';
+  const dirty = acct && sync && sync.acct === acct.name && (app.state.rev || 0) > (sync.rev || 0);
+  return `<div class="banner-card"><h3>云端存档 <small>${acct ? `账号：${esc(acct.name)}` : '未登录'}</small></h3>
+    ${acct ? `<p>状态：<b>${st}</b>${dirty && c.status === 'ok' ? '（有新改动，稍后自动上传）' : ''}</p>
+      <label class="snd"><input type="checkbox" data-cloud-auto ${cfg.auto ? 'checked' : ''}> 自动同步（登录后每次改动自动上传，进游戏时自动拉取）</label>
+      <div class="row"><button class="btn gold" data-act="cloud-sync" ${c.busy ? 'disabled' : ''}>立即同步</button><button class="btn" data-act="cloud-pull">用云端存档覆盖本机</button></div>`
+    : `<p>登录本站账号后，挂机前夜的<b>整份进度</b>会自动存到云端，换手机 / 电脑登录同一个账号就能接着玩。</p>
+      <div class="row"><a class="btn gold" href="../profile.html">去登录 / 注册</a></div>`}
+    <p class="hint">云端存的是整份游戏进度（角色、装备、关卡、抽卡记录……）。两台设备都玩过时，进游戏会让你选用哪一份，<b>不会悄悄覆盖</b>。个人中心的「云端档案」只同步积分和最高分，和这份不是一回事。浏览器清数据前，也可以在下面「导出存档」留一份。</p></div>`;
+}
+
 export function settingsPage(app) {
   const s = app.state;
   const st = s.stats;
   return `<div class="page"><h2>设置与存档</h2>
+    ${cloudCard(app)}
     <div class="banner-card"><h3>新手引导</h3>
       <p class="hint">重新过一遍底部五个分组的介绍（战斗 / 养成 / 召唤 / 挑战 / 更多），随时可跳过。</p>
       <div class="row"><button class="btn" data-act="guide">重看新手引导</button><button class="btn" data-act="guide-growth">养成指南</button></div></div>

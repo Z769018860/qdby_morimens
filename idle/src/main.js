@@ -33,6 +33,7 @@ import { claimDaily, redeemGuest, claimMile } from './core/event.js';
 import { syncSigninGifts } from './core/creators.js';
 import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
 import { startGuide } from './ui/guide.js';
+import * as Cloud from './core/cloud.js';
 import { $, $$, fmt, esc, store, askPersist, toast, closeModal, openModal, showKwPop } from './ui/util.js';
 
 /* 底部导航按「功能域」分 5 组。13 个平铺页签在手机上要横滚，一眼看不到全貌，
@@ -93,6 +94,7 @@ const app = {
     this.state.rev = (this.state.rev || 0) + 1;
     const ok = store.write(this.state);
     // 浏览器存不下（配额满 / 无痕）：进度只在 IndexedDB 镜像里，提示一次，让玩家去导出
+    cloudSoon();
     if (!ok && !this.warnedSave) { this.warnedSave = true; toast('⚠ 浏览器拒绝保存进度（存储空间满或无痕模式），建议到「设置」导出存档备份', 6000); }
   },
   itemName(it) { return P.itemDef(this, it).zh + (it.lv ? ` Lv${it.lv}` : ''); },
@@ -150,9 +152,10 @@ async function boot() {
   // 累计签到送的那几位：达标就自动进包（老存档首次进游戏也会补发）
   checkSigninGifts();
   document.addEventListener('visibilitychange', onVisibility);
+  setTimeout(() => cloudRun('auto'), 2500);
   // 另一个标签页存档了：当前窗口在后台就先不管（回到前台时 onVisibility 会同步），在前台就立刻同步
   window.addEventListener('storage', (e) => { if (e.key === store.KEY && !document.hidden && !app.offlinePending) adoptNewerDisk(); });
-  window.addEventListener('pagehide', () => { app.save(); store.flush(); });
+  window.addEventListener('pagehide', () => { app.save(); store.flush(); cloudPush(true); });
   window.addEventListener('beforeunload', () => app.save());
   // 每 5 秒记一次「游玩时长」（只算页面可见的那段时间，切到后台就停），
   // 顺便每 15 秒存一次盘——原来只有一个 15s 的 save 定时器。
@@ -168,6 +171,96 @@ async function boot() {
   window.__game = app; // handy for debugging / tests
 }
 
+/* ---------- 云端存档 ----------
+   登录了本站账号就自动同步整份存档（core/cloud.js）。状态放在 app.cloud，设置页读它显示。 */
+app.cloud = { status: 'idle', at: 0, err: '', busy: false, hold: false };
+let cloudTimer = 0;
+const CLOUD_GAP = 25000;     // 本机改动后，最多隔这么久推一次
+function cloudSoon() {
+  if (!Cloud.config().auto || app.cloud.hold || cloudTimer || !Cloud.account()) return;
+  cloudTimer = setTimeout(() => { cloudTimer = 0; cloudPush(false); }, CLOUD_GAP);
+}
+function setCloud(status, err = '') { app.cloud.status = status; app.cloud.err = err; if (status === 'ok') app.cloud.at = Date.now(); if (app.tab === 'settings') render(); }
+
+// 把云端那份存档套到本机：lastSeen 重置为现在（这段时间已经在另一台设备上结算过，不重复发离线收益）
+function applyCloudSave(save) {
+  const doc = store.parse(save.data);
+  if (!doc || !doc.roster) throw new Error('bad_cloud_save');
+  app.state = migrate(doc, app.data);
+  app.state.lastSeen = Date.now();
+  app.state.rev = Math.max(app.state.rev || 0, 0) + 1;
+  app.offlinePending = false;
+  store.write(app.state);
+  Cloud.markSynced(app.state, save.ver);
+  app.bv.app = app; app.bv.restart?.(); render(); app.refreshTop();
+}
+
+async function cloudPush(keepalive) {
+  const acct = Cloud.account();
+  if (!acct || app.cloud.hold || !app.state) return;
+  const sync = Cloud.syncRecord();
+  // 没有同步记录（第一次）或换了账号：走完整流程（先问云端有什么）
+  if (!sync || sync.acct !== acct.name) return cloudRun('first');
+  if ((app.state.rev || 0) <= (sync.rev || 0)) return;           // 没有新改动
+  try {
+    const r = await Cloud.pushSave(app.state, sync.ver, { keepalive });
+    if (r.conflict) return cloudRun('conflict');
+    setCloud('ok');
+  } catch (e) { setCloud('error', e.message); }
+}
+
+export async function cloudRun(reason = 'auto') {
+  const acct = Cloud.account();
+  if (!acct) { setCloud('nologin'); return; }
+  if (app.cloud.busy) return;
+  if (reason === 'auto' && (!Cloud.config().auto || app.cloud.hold)) return;
+  app.cloud.busy = true; setCloud('syncing');
+  try {
+    const cm = await Cloud.fetchMeta();
+    const act = Cloud.plan({ state: app.state, cloudMeta: cm, sync: Cloud.syncRecord(), acct: acct.name });
+    if (act === 'push') {
+      const r = await Cloud.pushSave(app.state, cm ? cm.ver : 0);
+      if (r.conflict) { cloudConflict(r.cloud); setCloud('conflict'); }
+      else setCloud('ok');
+    } else if (act === 'pull') {
+      const save = await Cloud.fetchSave();
+      applyCloudSave(save);
+      toast('已从云端同步最新进度', 3200);
+      setCloud('ok');
+    } else if (act === 'conflict') {
+      cloudConflict(cm); setCloud('conflict');
+    } else {
+      if (cm) Cloud.markSynced(app.state, cm.ver);
+      setCloud('ok');
+    }
+  } catch (e) {
+    setCloud(e.message === 'need_login' ? 'nologin' : 'error', e.message);
+  } finally { app.cloud.busy = false; if (app.tab === 'settings') render(); }
+}
+
+// 两边都有进度：把两份的关键数字摆出来，让玩家选
+function cloudConflict(cm) {
+  const s = app.state, mine = Cloud.metaOf(s), c = cm?.meta || {};
+  const t = (ms) => (ms ? new Date(ms).toLocaleString() : '—');
+  const col = (title, m, at) => `<div class="cfcol"><b>${title}</b><p>最高通关 <b>${m.maxStage ?? '—'}</b> 关</p><p>唤醒体 <b>${m.roster ?? '—'}</b> 个</p><p>游玩 <b>${Math.round((m.play || 0) / 60)}</b> 分钟</p><p class="dim">最后保存 ${t(at)}</p></div>`;
+  const m = openModal(`<h3>本机和云端的进度不一样</h3>
+    <p class="hint">这个账号在云端有一份存档，和这台设备上的不同。选一份留下，<b>另一份会被覆盖</b>。</p>
+    <div class="cfrow">${col('本机', mine, mine.lastSeen)}${col('云端', c, cm?.at)}</div>
+    <div class="row"><button class="btn gold" data-cf="cloud">用云端的</button><button class="btn" data-cf="local">用本机的（覆盖云端）</button></div>
+    <div class="row"><button class="btn sm" data-cf="later">先不处理</button></div>`, 'wide');
+  m.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-cf]'); if (!b) return;
+    const k = b.dataset.cf;
+    if (k === 'later') { app.cloud.hold = true; closeModal(); setCloud('hold'); return; }
+    closeModal();
+    try {
+      if (k === 'cloud') { applyCloudSave(await Cloud.fetchSave()); toast('已换成云端的进度', 3000); }
+      else { const r = await Cloud.pushSave(s, cm.ver); if (r.conflict) throw new Error('conflict'); toast('已用本机的进度覆盖云端', 3000); }
+      app.cloud.hold = false; setCloud('ok');
+    } catch (err) { setCloud('error', err.message); }
+  });
+}
+
 function adoptNewerDisk() {
   const disk = store.read();
   if (!disk || (disk.rev || 0) <= (app.state.rev || 0)) return false;
@@ -181,7 +274,8 @@ function adoptNewerDisk() {
 }
 
 function onVisibility() {
-  if (document.hidden) { app.bv.stop(); app.save(); return; }
+  if (document.hidden) { app.bv.stop(); app.save(); cloudPush(true); return; }
+  setTimeout(() => cloudRun('auto'), 1200);
   // 上一份离线收益还挂在弹窗里没领，就别再算第二份（lastSeen 没动，会把同一段时间算两遍）
   if (app.offlinePending) return;
   // 这段时间别的窗口 / 标签页如果存过更新的进度，就用它——否则这个旧窗口的内存状态会把新进度覆盖掉（看起来像「进度回档」）
@@ -272,6 +366,7 @@ function checkSigninGifts() {
 }
 
 function onChange(e) {
+  if (e.target.matches('[data-cloud-auto]')) { Cloud.setConfig({ auto: e.target.checked }); if (e.target.checked) { app.cloud.hold = false; cloudRun('auto'); } render(); return; }
   if (e.target.matches('[data-settle]')) { settleMode.set(e.target.value); toast('结算弹窗：' + e.target.selectedOptions[0].textContent); return; }
   if (e.target.matches('[data-fx]')) { fxMode.set(e.target.value); toast('战斗特效：' + e.target.selectedOptions[0].textContent); return; }
   if (e.target.matches('[data-watch]')) { watchMode.set(e.target.value); toast('挑战过程：' + e.target.selectedOptions[0].textContent); return; }
@@ -352,6 +447,12 @@ function onAct(e) {
       const r = breakThrough(s, el.dataset.slug);
       if (r) { sound.play('lvup'); toast(`突破成功：金币-${fmt(r.gold)} 银芯-${r.cores}`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
       else toast('材料不足');
+      break;
+    }
+    case 'cloud-sync': cloudRun('manual'); break;
+    case 'cloud-pull': {
+      if (!confirm('用云端的存档覆盖这台设备上的进度？本机现在的进度会丢。')) break;
+      (async () => { try { const save = await Cloud.fetchSave(); if (!save) { toast('云端还没有存档'); return; } applyCloudSave(save); toast('已用云端存档覆盖本机', 3000); setCloud('ok'); } catch (err) { setCloud('error', err.message); } })();
       break;
     }
     case 'tip-close': { (s.tips ||= {})[el.dataset.k] = 1; app.ui.tipOpen = null; app.save(); render(); break; }

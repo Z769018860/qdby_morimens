@@ -1705,3 +1705,28 @@ test('回溯：固定 100 银芯直接回到 1 级，返还全部升级与突破
   s.cores = 100;
   assert.ok(rewindLevel(s, slug)); assert.equal(s.cores >= 0, true);
 });
+
+/* ---------- 云端存档：同步决策 ---------- */
+import { plan as cloudPlan, isFresh } from '../src/core/cloud.js';
+
+test('云端存档：什么时候推、拉、问玩家', () => {
+  const fresh = { maxStage: 0, play: 20, roster: { a: 1, b: 1, c: 1, d: 1 }, rev: 2 };
+  const played = { maxStage: 30, play: 9000, roster: Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`h${i}`, 1])), rev: 50 };
+  assert.ok(isFresh(fresh) && !isFresh(played));
+  const cm = { ver: 4, at: 1, rev: 40, meta: {} };
+  const acct = '甲';
+  // 云端还没有：新档不传，有进度的传
+  assert.equal(cloudPlan({ state: fresh, cloudMeta: null, sync: null, acct }), 'none');
+  assert.equal(cloudPlan({ state: played, cloudMeta: null, sync: null, acct }), 'push');
+  // 新设备（没同步记录）：新档直接拉云端；有进度就问玩家
+  assert.equal(cloudPlan({ state: fresh, cloudMeta: cm, sync: null, acct }), 'pull');
+  assert.equal(cloudPlan({ state: played, cloudMeta: cm, sync: null, acct }), 'conflict');
+  // 同一台设备：云端没变，本机没改 → 不动；本机改了 → 推
+  assert.equal(cloudPlan({ state: played, cloudMeta: cm, sync: { acct, ver: 4, rev: 50 }, acct }), 'none');
+  assert.equal(cloudPlan({ state: played, cloudMeta: cm, sync: { acct, ver: 4, rev: 40 }, acct }), 'push');
+  // 云端被别的设备推进了：本机没改 → 拉；本机也改了 → 冲突
+  assert.equal(cloudPlan({ state: played, cloudMeta: cm, sync: { acct, ver: 3, rev: 50 }, acct }), 'pull');
+  assert.equal(cloudPlan({ state: played, cloudMeta: cm, sync: { acct, ver: 3, rev: 10 }, acct }), 'conflict');
+  // 换了账号：当新设备处理
+  assert.equal(cloudPlan({ state: played, cloudMeta: cm, sync: { acct: '乙', ver: 4, rev: 50 }, acct }), 'conflict');
+});

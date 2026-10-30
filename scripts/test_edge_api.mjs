@@ -572,6 +572,36 @@ console.log('\n[14] 评分详情：分布 + 短评 + 我的那条 + 老数据补
   eq('老数据综合分仍在', old.json.avg, 4.5);
 }
 
+console.log('\n[15] 游戏存档上云 /save/idle：登录才能用、乐观锁、元信息');
+{
+  const kv = fakeKV();
+  const call = makeCaller({ zjtt_kv: kv });
+  seedSession(kv, TOKEN, UID, '玩家甲');
+  seedSession(kv, 'tok-2', OTHER, '玩家乙');
+  const A = { Authorization: `Bearer ${TOKEN}` }, B = { Authorization: 'Bearer tok-2' };
+  const save = { roster: { ogier: { lv: 9 } }, maxStage: 12, play: 600, gold: 5, rev: 3 };
+  eq('没登录读 → 401', (await call('/save/idle')).status, 401);
+  eq('没登录写 → 401', (await call('/save/idle', { method: 'PUT', body: { data: JSON.stringify(save), ver: 0 } })).status, 401);
+  eq('不认识的游戏 → 400', (await call('/save/nope', { headers: A })).status, 400);
+  const empty = await call('/save/idle', { headers: A });
+  eq('还没有存档 → null', empty.json.save, null);
+  const p1 = await call('/save/idle', { method: 'PUT', headers: A, body: { data: JSON.stringify(save), ver: 0, rev: 3, meta: { maxStage: 12, roster: 1, play: 600 } } });
+  eq('第一次上传 ver=1', p1.json.ver, 1);
+  const m = await call('/save/idle?meta=1', { headers: A });
+  check('meta 不带正文', m.json.save && m.json.save.ver === 1 && !('data' in m.json.save) && m.json.save.meta.maxStage === 12, m.json);
+  const g = await call('/save/idle', { headers: A });
+  eq('取回正文一致', JSON.parse(g.json.save.data).maxStage, 12);
+  // 乐观锁：另一台设备拿着旧 ver 写 → 409
+  const stale = await call('/save/idle', { method: 'PUT', headers: A, body: { data: JSON.stringify({ ...save, maxStage: 99 }), ver: 0 } });
+  eq('旧版本写入 → 409', stale.status, 409);
+  eq('409 带云端 ver', stale.json.ver, 1);
+  const p2 = await call('/save/idle', { method: 'PUT', headers: A, body: { data: JSON.stringify({ ...save, maxStage: 20 }), ver: 1 } });
+  eq('带对版本 → ver=2', p2.json.ver, 2);
+  eq('别的账号看不到', (await call('/save/idle', { headers: B })).json.save, null);
+  eq('非法存档 → 400', (await call('/save/idle', { method: 'PUT', headers: B, body: { data: '[1,2]', ver: 0 } })).status, 400);
+  eq('过大 → 413', (await call('/save/idle', { method: 'PUT', headers: B, body: { data: JSON.stringify({ roster: {}, pad: 'x'.repeat(490 * 1024) }), ver: 0 } })).status, 413);
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
   console.log('\n失败项：');
   for (const f of fails) console.log('  - ' + f);
