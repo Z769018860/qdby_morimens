@@ -271,7 +271,7 @@ for s in args.seasons:
             cand[s].append({
                 'season': s, 'zone': zone, 'threat': sm.group(2) if sm else '?',
                 'madness': ids['stages'].get(str(b['stageTid']), {}).get('madness'),
-                'boss': zone_boss.get(zone) or [], 'score': b['score'], 'rank': b['rank'],
+                'boss': (['14086'] if s == 72 and zone == 5 else (zone_boss.get(zone) or [])), 'score': b['score'], 'rank': b['rank'],
                 'rounds': b['stageRoundCount'], 'bossRounds': b['bossBattleRoundCount'],
                 'cards': b['totalUseCard'], 'energy': b['totalEnergyCost'], 'maxBout': b['maxBoutDamage'],
                 'deathResist': b['deathResistCount'], 'hp': b['maxHp'], 'left': b['leftHp'],
