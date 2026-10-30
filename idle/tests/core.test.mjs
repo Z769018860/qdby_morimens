@@ -2042,3 +2042,15 @@ test('专属技能：71 位的超限技 + 终焉技在战斗里都能跑通（�
     for (const e of res.events) for (const k of ['amt', 'hp']) if (k in e) assert.ok(Number.isFinite(e[k]), `${a.slug} 出现非有限数值 ${k}`);
   }
 });
+
+test('后期加压：80 关之前怪物不变，之后每 10 关生命 ×1.10 / 攻击 ×1.06 / 防御 +4%', async () => {
+  const { lateBoost, buildEnemies, enemyScale } = await import('../src/core/enemies.js');
+  assert.deepEqual(lateBoost(80), { hp: 1, atk: 1, def: 1 });
+  assert.deepEqual(lateBoost(50), { hp: 1, atk: 1, def: 1 });
+  const b = lateBoost(130);
+  assert.ok(Math.abs(b.hp - 1.1 ** 5) < 1e-9 && Math.abs(b.atk - 1.06 ** 5) < 1e-9 && Math.abs(b.def - 1.2) < 1e-9);
+  const at = (st) => buildEnemies(st, data.monsters).filter((e) => e.rank === 'Normal')[0];
+  const e130 = at(131);
+  // 没加压的话普通怪生命 = 220 × enemyScale × hp 系数；加压后要明显更高
+  assert.ok(e130.hp > 220 * enemyScale(131) * 1.4 * 1.1, '131 关的普通怪已被加压');
+});

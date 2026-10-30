@@ -36,6 +36,14 @@ export const AFFIX_KEYS = Object.keys(AFFIX);
 
 export const enemyScale = (stage) => Math.pow(1.085, stage - 1);
 
+// 后期加压：80 关之前不变；之后每 10 关生命再 ×1.10、攻击 ×1.06、防御 +4%（复利）。
+// 原因：超限 / 最终法则 / 专属技能把满养成队伍的输出拉得很高，不加压的话 100 关之后就没有挑战了。
+export const LATE_FROM = 80;
+export const lateBoost = (stage) => {
+  const k = Math.max(0, (Number(stage) || 0) - LATE_FROM) / 10;
+  return { hp: Math.pow(1.10, k), atk: Math.pow(1.06, k), def: 1 + 0.04 * k };
+};
+
 // Real monster design: class sets the budget, the record's hp/atk/df multipliers fine-tune it, and the enemy plays its
 // real opening (`op`) once, then loops its real cycle (`cy`). Without a skill table the generic pattern is used.
 const clamp = (x, lo, hi) => { const v = Number(x); return Math.max(lo, Math.min(hi, Number.isFinite(v) ? v : 1)); };
@@ -43,6 +51,7 @@ const clamp = (x, lo, hi) => { const v = Number(x); return Math.max(lo, Math.min
 // One enemy definition from a monster record (shared by stages, the tower and the trials).
 export function makeEnemy(m, rank, stage, rng, { affixes = true, msk = null } = {}) {
   const S = enemyScale(Math.max(1, Number.isFinite(Number(stage)) ? Number(stage) : 1));
+  const late = lateBoost(stage);
   const hpM = { Normal: 1, Elite: 2.4, Boss: 5.5 }[rank] * clamp(m.hp ?? 1, 0.5, 1.8);
   const atkM = { Normal: 1, Elite: 1.15, Boss: 1.3 }[rank] * clamp(m.atk ?? 1, 0.75, 1.25);
   const df = Number(m.df);
@@ -50,7 +59,7 @@ export function makeEnemy(m, rank, stage, rng, { affixes = true, msk = null } = 
   let pat = msk && m.cy?.length ? patternOf(m, msk, rank) : { opening: [], cycle: P[rank] };
   const def = {
     name: m.zh, img: m.img, type: 'ASSAULT', realm: null, boss: rank === 'Boss', rank,
-    hp: Math.round(220 * S * hpM), atk: Math.round(30 * S * atkM), def: Math.round((28 + 5 * stage) * dfM),
+    hp: Math.round(220 * S * hpM * late.hp), atk: Math.round(30 * S * atkM * late.atk), def: Math.round((28 + 5 * stage) * dfM * late.def),
     pattern: pat.cycle, opening: pat.opening, critRate: 0, critDmg: 50, mid: m.id, traits: m.traits || [], size: m.size,
     reward: !!m.reward,
     skills: [...pat.opening, ...pat.cycle].filter((x, i, arr) => arr.findIndex((y) => y.name === x.name && y.plain === x.plain) === i)
