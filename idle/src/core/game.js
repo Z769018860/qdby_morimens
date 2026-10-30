@@ -576,7 +576,8 @@ export function fillLoadout(state, data, team, target) {
   const items = Object.values(state.gear.items);
   const defOf = (it) => (it.kind === 'wheel' ? data.wheelById[it.defId] : it.kind === 'covenant' ? data.covById[it.defId] : data.relicById[it.defId]);
   const rar = (it) => (RARITY_ORDER[defOf(it)?.rarity || 'SR'] ?? 2);
-  const used = new Set();
+  const ex = target.exclude || {};               // 别的队伍已经占着的装备 / 钥令（融灾禁区五队不许重复）
+  const used = new Set(ex.items || []);
   const equip = target.equip;
   // 命轮：稀有度优先，其次同界域（命轮对同领域唤醒体有 ×1.25），再看等级
   const wheels = items.filter((i) => i.kind === 'wheel');
@@ -598,7 +599,7 @@ export function fillLoadout(state, data, team, target) {
   }
   // 造物：填满已解锁的格子，优先补齐 1 / 3 / 5 件的主题（凑 2 / 4 / 6 档羁绊）
   const slots = relicSlotCount(state.maxStage || 0);
-  const relics = items.filter((i) => i.kind === 'relic'), picked = [], tc = {};
+  const relics = items.filter((i) => i.kind === 'relic' && !used.has(i.uid)), picked = [], tc = {};
   for (let k = 0; k < slots; k++) {
     const best = relics.filter((i) => !picked.includes(i.uid)).map((i) => {
       const th = relicTheme(defOf(i)?.id || i.defId).zh, c = tc[th] || 0;
@@ -609,7 +610,7 @@ export function fillLoadout(state, data, team, target) {
   }
   // 钥令：按加成总分排序，取前 N 个不重复的（槽位数按最高通关解锁）
   const on = orderSlotCount(state.maxStage || 0);
-  const ranked = Object.keys(state.orders.owned)
+  const ranked = Object.keys(state.orders.owned).filter((id) => !(ex.orders && ex.orders.has(id)))
     .map((id) => ({ id, s: bonusScore(orderBonus(data.orderById[id], state.orders.owned[id])) }))
     .sort((a, b) => b.s - a.s);
   return {

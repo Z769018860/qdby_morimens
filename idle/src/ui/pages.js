@@ -11,10 +11,11 @@ import {
 import { sound, TRACK_LIST } from './audio.js';
 import {
   SQUAD_KEYS, RIFT_SQUAD_KEYS, ALL_SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, RIFT_MODE,
-  isRiftSquad, squadMembers, squadUsage, pickedSquad, loadoutOf, normalizeLoadout, withLoadout, squadKeyFor, squadsOf,
+  isRiftSquad, squadMembers, squadUsage, pickedSquad, loadoutOf, riftTaken, normalizeLoadout, withLoadout, squadKeyFor, squadsOf,
   squadLabel, teamSlugsFor, setSquadTeam, setSquadPick, autoSquadSlugs,
   RT_MODES, rtModeOf, realmOfMode,
 } from '../core/squad.js';
+import { riftParty } from '../core/rift.js';
 import { ROSTER_SORTS, SORT_ZH, sortRoster } from '../core/roster.js';
 import { luckOf, luckBarPct, GACHA_LOG_MAX, RARITY_WORTH, RARITY_RATE } from '../core/gacha.js';
 import { roundLimitFor, ROUND_LIMIT, FRONT_SLOTS } from '../core/battle.js';
@@ -221,30 +222,26 @@ function rtPanel(app) {
     <p class="hint">属性塔只收对应界域的成员：编队里不属于该界域的会被剔掉，一个都不剩就自动挑你最强的 4 名本界域唤醒体。四座塔各存一套，互不影响。</p>`;
 }
 
-/** 融灾禁区：一队~五队各打一组敌人，所以禁区有自己那五套都得编 */
+/** 融灾禁区：一队~五队各打一组敌人；五队的唤醒体和装备不许重复，界面显示的是「去重后实际出战」的样子 */
 function riftPanel(app) {
   const { state: s, data } = app;
-  const sets = RIFT_SQUAD_KEYS.map((k, i) => {
-    const own = squadMembers(s, k), shared = squadMembers(s, SQUAD_KEYS[i]);
-    return { k, i, own, shared, slugs: own.length ? own : shared };
-  });
-  const filled = sets.filter((x) => x.own.length).length;
-  const lines = sets.map(({ k, i, own, shared, slugs }) => {
-    const loKey = own.length ? k : shared.length ? SQUAD_KEYS[i] : null;
-    const t = slugs.length ? withLoadout(s, loKey, () => teamDefs(s, data, slugs)) : null;
-    const av = slugs.length
-      ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
-      : '<span class="sqempty">空着，先用当前队伍顶上</span>';
-    const src = own.length ? '' : shared.length ? ` · 借${SQUAD_ZH[SQUAD_KEYS[i]]}` : '';
-    return `<div class="riftline ${slugs.length ? 'on' : ''}"><b>第 ${i + 1} 队</b>
-      <div class="sqav">${av}</div><small>${t ? `战力 ${fmt(t.power)}` : '未编'}${src}${loadoutOf(s, loKey) ? ' · 独立配装' : ''}</small>
-      <button class="btn sm" data-act="squad-edit" data-k="${k}" data-mode="${RIFT_MODE}">编队</button></div>`;
+  const party = riftParty(s, data);
+  const filled = party.filter((p) => p.filled).length;
+  const lines = party.map((p, i) => {
+    const av = p.slugs.length
+      ? p.slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
+      : '<span class="sqempty">没有可上阵的唤醒体</span>';
+    const gear = Object.values(p.lo.equip).reduce((n, e) => n + (e?.wheel ? 1 : 0) + (e?.cov ? 1 : 0), 0) + p.lo.relics.filter(Boolean).length;
+    const tag = p.filled ? (p.hasLo ? '自编 · 独立配装' : '自编 · 装备自动配') : '自动补位';
+    return `<div class="riftline ${p.filled ? 'on' : ''}"><b>第 ${i + 1} 队</b>
+      <div class="sqav">${av}</div><small>战力 ${fmt(p.team.power)} · ${tag} · 装备 ${gear} 件 · 钥令 ${p.lo.orders.filter(Boolean).length}${p.conflict ? ' · <em class="new">有重复，已自动调整</em>' : ''}</small>
+      <button class="btn sm" data-act="squad-edit" data-k="${p.key}" data-mode="${RIFT_MODE}">编队</button></div>`;
   }).join('');
   return `<div class="assign ${filled === RIFT_SQUAD_KEYS.length ? 'on' : ''}">
-      <header><b>融灾禁区</b><small>五队齐上 · 专用编队 ${filled}/${RIFT_SQUAD_KEYS.length}${filled < RIFT_SQUAD_KEYS.length ? '（空着的先借通用同序号那套）' : ''}</small>
+      <header><b>融灾禁区</b><small>五队齐上 · 自己编了 ${filled}/${RIFT_SQUAD_KEYS.length}${filled < RIFT_SQUAD_KEYS.length ? '（没编的自动补位）' : ''}</small>
         <button class="btn sm" data-act="go-rift">去挑战 →</button></header>
       <div class="riftlines">${lines}</div></div>
-    <p class="hint">一层派五队各打一组敌人，5 场胜 4 场即通过，最高 100 层、每两周换一期。第 1~5 队按下表顺序上场，所以五行都编满最稳。这五套就是<b>禁区一队~禁区五队</b>，只给禁区用，不动通用那五套；没编的那队会先借通用同序号的一套，都没有才用当前队伍顶上。</p>
+    <p class="hint">一层派五队各打一组敌人，5 场胜 4 场即通过，最高 100 层、每两周换一期。这五套就是<b>禁区一队~禁区五队</b>，只给禁区用，不动通用那五套。<b>五队的唤醒体和装备（命轮 / 密契 / 造物 / 钥令）都不能重复</b>：没编的队自动用没被占用的人和装备补满；你编的队里如果有人或装备已被前面的队占了，会按一队→五队的顺序让给前面的队，缺口自动补。上表就是去重后实际出战的样子。</p>
     <h4>区域首领出战阵容 <small class="dim">单队挑战，和上面的五队互不影响</small></h4>
     ${modeBlock(app, 'trial', '融灾禁区 · 区域首领')}`;
 }
@@ -256,7 +253,7 @@ function squadsPanel(app) {
     <p class="hint">每套编队除了 4 名唤醒体，还可以开「<b>独立配装</b>」：给这套单独配每人 1 件命轮 + 1 件密契、6 格造物、3 个钥令位（和主线队伍一样完整）；不开就沿用主线配装。同一件装备可以同时出现在不同编队里，只是同一套里不能重复。<b>推图挂机始终用「当前队伍」</b>，想换阵容就点「上阵」或回「主线队伍」改那 4 个槽位。</p>
     <h3>融灾禁区专用 <small>禁区一队~禁区五队 · 对应第 1~5 组敌人</small></h3>
     <div class="squads">${RIFT_SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
-    <p class="hint">这五套<b>只给融灾禁区用</b>，调它们不会动到上面那五套通用编队。哪队还没编，挑战时会先借通用同序号那一套，都没有才用当前队伍顶上。</p>`;
+    <p class="hint">这五套<b>只给融灾禁区用</b>，调它们不会动到上面那五套通用编队。<b>五队的唤醒体和装备不能重复</b>；哪队还没编，挑战时会自动用没被占用的人和装备补满。</p>`;
 }
 
 /**
@@ -272,9 +269,9 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
     if (!ALL_SQUAD_KEYS.includes(key)) key = keys0[0];
     const lockR = mode && String(mode).startsWith('rt_') ? String(mode).slice(3) : null;
     st = { key, mode: mode || null, realm: lockR || '', team: [...squadMembers(s, key)], lo: JSON.parse(JSON.stringify(loadoutOf(s, key) || null)) };
-    // 禁区这队还空着：先把通用同序号那套填进来当草稿——运行时的回退顺序也是它
-    if (!st.team.length && isRiftM) st.team = squadMembers(s, SQUAD_KEYS[RIFT_SQUAD_KEYS.indexOf(key)]);
-    if (!st.team.length && mode) st.team = teamSlugsFor(s, mode).filter((x) => s.roster[x]);
+    // 禁区这队还空着：先把它现在自动补位的那 4 个人填进来当草稿（五队互不重复，所以不能拿主线队伍顶）
+    if (!st.team.length && isRiftM) st.team = [...(riftParty(s, data).find((p) => p.key === key)?.slugs || [])];
+    if (!st.team.length && mode && !isRiftM) st.team = teamSlugsFor(s, mode).filter((x) => s.roster[x]);
   }
   app.ui.sqDraft = st;
   mode = st.mode;
@@ -284,6 +281,8 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
   const lockRealm = mode && String(mode).startsWith('rt_') ? String(mode).slice(3) : null;
   const modeZh = mode ? (MODE_ZH[mode] || (mode === RIFT_MODE ? '融灾禁区' : mode)) : '';
   const powerOf = (slug) => allyDef(s, data, slug, [slug]).power;
+  // 融灾禁区：别的四队占着的唤醒体 / 装备 / 钥令不能再选（五队不许重复）
+  const taken = () => (isRift ? riftTaken(s, st.key) : { chars: new Map(), items: new Set(), orders: new Set() });
 
   const rows = () => Object.keys(s.roster).map((x, i) => ({ x, a: data.bySlug[x], r: s.roster[x], idx: i, power: powerOf(x) }));
   const cands = () => rows().filter((o) => o.a && (!st.realm || o.a.realm === st.realm)).sort((x, y) => y.power - x.power);
@@ -291,11 +290,14 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
   /* ---- 独立配装草稿：用一份「假 state」算战力，不动真实存档 ---- */
   const fakeWith = (lo) => ({ ...s, gear: { ...s.gear, equip: lo.equip, relics: lo.relics }, orders: { ...s.orders, slots: lo.orders } });
   const loPower = () => (st.lo && st.team.length ? teamDefs(fakeWith(st.lo), data, st.team).power : null);
-  const copyMain = () => ({
-    equip: Object.fromEntries(st.team.map((slug) => { const e = s.gear.equip[slug] || {}; return [slug, { ...(e.wheel ? { wheel: e.wheel } : {}), ...(e.cov ? { cov: e.cov } : {}) }]; })),
-    relics: Array.from({ length: RELIC_SLOTS }, (_, i) => s.gear.relics[i] || null),
-    orders: Array.from({ length: ORDER_SLOTS }, (_, i) => s.orders.slots[i] || null),
-  });
+  const copyMain = () => {
+    const t = taken(), ok = (u) => (u && !t.items.has(u) ? u : null);
+    return {
+      equip: Object.fromEntries(st.team.map((slug) => { const e = s.gear.equip[slug] || {}; return [slug, { ...(ok(e.wheel) ? { wheel: e.wheel } : {}), ...(ok(e.cov) ? { cov: e.cov } : {}) }]; })),
+      relics: Array.from({ length: RELIC_SLOTS }, (_, i) => ok(s.gear.relics[i])),
+      orders: Array.from({ length: ORDER_SLOTS }, (_, i) => (s.orders.slots[i] && !t.orders.has(s.orders.slots[i]) ? s.orders.slots[i] : null)),
+    };
+  };
   const eqBtn = (slug, kind) => {
     const e = (st.lo.equip[slug] ||= {});
     const uid = e[kind === 'wheel' ? 'wheel' : 'cov'], it = uid && s.gear.items[uid];
@@ -345,9 +347,9 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
         <b>${esc(a.zh)}</b><small>${REALMS[a.realm].zh} · Lv${r.lv} · ${awk(r.star)}</small><small>战力 ${fmt(powerOf(slug))}</small></button>`;
     }).join('');
     const list = cands().map((o) => {
-      const on = st.team.includes(o.x), full = st.team.length >= TEAM_SIZE;
-      return `<button class="tile ${on ? 'on' : ''} ${full && !on ? 'dis' : ''} ${rarCls(o.a.rarity)} ${o.r ? '' : 'locked'}" style="--rc:${R(o.a).color}" data-sq="add" data-slug="${o.x}">
-        <img src="${img(o.a.portrait)}" alt=""><b>${esc(o.a.zh)}</b><small>${REALMS[o.a.realm].zh} · ${TYPES[o.a.type].short} · Lv${o.r.lv} · 叠${o.r.star}</small><small>${fmt(o.power)}</small>
+      const on = st.team.includes(o.x), full = st.team.length >= TEAM_SIZE, by = taken().chars.get(o.x);
+      return `<button class="tile ${on ? 'on' : ''} ${(full && !on) || by ? 'dis' : ''} ${rarCls(o.a.rarity)} ${o.r ? '' : 'locked'}" style="--rc:${R(o.a).color}" data-sq="add" data-slug="${o.x}">
+        <img src="${img(o.a.portrait)}" alt=""><b>${esc(o.a.zh)}</b><small>${REALMS[o.a.realm].zh} · ${TYPES[o.a.type].short} · Lv${o.r.lv} · 叠${o.r.star}</small><small>${by ? `已在${SQUAD_ZH[by]}` : fmt(o.power)}</small>
         ${on ? '<i class="tick">✓</i>' : ''}</button>`;
     }).join('');
     const realmChips = [['', '全部'], ...Object.entries(REALMS).map(([k, v]) => [k, v.zh])]
@@ -389,19 +391,20 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
     }
     if (a === 'add') {
       const slug = el.dataset.slug, i = st.team.indexOf(slug);
+      if (i < 0 && taken().chars.has(slug)) { toast(`${data.bySlug[slug].zh} 已经在${SQUAD_ZH[taken().chars.get(slug)]}了，禁区五队不能重复`); sound.play('deny'); return; }
       if (i >= 0) st.team.splice(i, 1);
       else if (st.team.length < TEAM_SIZE) st.team.push(slug);
       else { toast('已经 4 人了，先移出一个'); sound.play('deny'); return; }
       sound.play('click'); paint(); return;
     }
     if (a === 'auto') {
-      const pick = autoSquadSlugs(s, data, st.realm, powerOf);
+      const pick = autoSquadSlugs(s, data, st.realm, powerOf, TEAM_SIZE, [...taken().chars.keys()]);
       if (!pick.length) { toast(`没有可用的${st.realm ? REALMS[st.realm].zh : ''}唤醒体`); return; }
       st.team = pick; sound.play('stamp'); paint(); return;
     }
     if (a === 'clear') { st.team = []; sound.play('deny'); paint(); return; }
     if (a === 'from-team') {
-      st.team = [...s.team].filter((x) => s.roster[x] && (!st.realm || data.bySlug[x]?.realm === st.realm)).slice(0, TEAM_SIZE);
+      st.team = [...s.team].filter((x) => s.roster[x] && !taken().chars.has(x) && (!st.realm || data.bySlug[x]?.realm === st.realm)).slice(0, TEAM_SIZE);
       sound.play('click'); paint(); return;
     }
     // ---- 独立配装 ----
@@ -411,7 +414,7 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
     if (a === 'lo-auto') {
       if (!st.team.length) { toast('先选人'); return; }
       const eqs = {};
-      const r = fillLoadout(s, data, st.team, { equip: eqs });
+      const r = fillLoadout(s, data, st.team, { equip: eqs, exclude: { items: taken().items, orders: taken().orders } });
       st.lo = { equip: eqs, relics: r.relics, orders: r.orders };
       sound.play('stamp'); paint(); return;
     }
@@ -421,7 +424,7 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
         for (const o of Object.values(st.lo.equip)) if (uid && o[f] === uid) delete o[f];   // 同一套里一件装备只给一个人
         const e = (st.lo.equip[slug] ||= {});
         if (uid) e[f] = uid; else delete e[f];
-      })));
+      }), { exclude: taken().items }));
       return;
     }
     if (a === 'relic') {
@@ -429,17 +432,21 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
       pickThenBack((done) => pickItem(app, 'relic', '选择造物', (uid) => done(() => {
         st.lo.relics = st.lo.relics.map((x) => (x === uid ? null : x));
         st.lo.relics[i] = uid || null;
-      })));
+      }), { exclude: taken().items }));
       return;
     }
     if (a === 'order') {
       const i = +el.dataset.i;
-      pickThenBack((done) => pickOrder(app, i, (id) => done(() => { st.lo.orders[i] = id || null; }), st.lo.orders));
+      pickThenBack((done) => pickOrder(app, i, (id) => done(() => { st.lo.orders[i] = id || null; }), st.lo.orders.concat([...taken().orders])));
       return;
     }
     if (a === 'save') {
       if (!st.team.length) { toast('先选人'); return; }
       const k = el.dataset.k;
+      if (isRift) {
+        const tk = riftTaken(s, k), dup = st.team.filter((x) => tk.chars.has(x));
+        if (dup.length) { toast(`${dup.map((x) => data.bySlug[x].zh).join('、')} 已在别的禁区队里，五队不能重复`); sound.play('deny'); return; }
+      }
       const saved = setSquadTeam(s, k, st.team);
       if (st.lo) squadsOf(s)[k].lo = normalizeLoadout(st.lo, saved, s.gear, s.orders);
       if (st.mode && !isRift) setSquadPick(s, st.mode, k);
@@ -538,8 +545,8 @@ export function pickAwakener(app, title, onPick, exclude = []) {
   m.addEventListener('click', (e) => { const t = e.target.closest('[data-pick]'); if (t) { closeModal(); onPick(t.dataset.pick); } });
 }
 
-export function pickItem(app, kind, title, onPick, { allowNone = true } = {}) {
-  const items = Object.values(app.state.gear.items).filter((i) => i.kind === kind).sort((a, b) => (RARITY_ORDER[itemDef(app, b).rarity || 'SR'] - RARITY_ORDER[itemDef(app, a).rarity || 'SR']) || b.lv - a.lv);
+export function pickItem(app, kind, title, onPick, { allowNone = true, exclude = null } = {}) {
+  const items = Object.values(app.state.gear.items).filter((i) => i.kind === kind && !(exclude && exclude.has(i.uid))).sort((a, b) => (RARITY_ORDER[itemDef(app, b).rarity || 'SR'] - RARITY_ORDER[itemDef(app, a).rarity || 'SR']) || b.lv - a.lv);
   const html = `<h3>${title}</h3>${allowNone ? '<button class="btn sm" data-pick="">卸下</button>' : ''}<div class="list">${items.map((i) => itemCard(app, i, `<button class="btn sm" data-pick="${i.uid}">选择</button>`)).join('') || '<p class="hint">没有可用的装备，去推图或祈愿获取。</p>'}</div>`;
   const m = openModal(html, 'wide');
   m.addEventListener('click', (e) => { const t = e.target.closest('[data-pick]'); if (t) { closeModal(); onPick(t.dataset.pick); } });

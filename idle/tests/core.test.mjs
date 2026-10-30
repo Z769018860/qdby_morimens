@@ -1149,34 +1149,46 @@ test('融灾禁区：14 天一期，换期重置层数但保留历史最高', ()
   assert.equal(riftState(s, new Date(t0.getTime() + RIFT_CYCLE_DAYS * 86400000)).tries, 0);
 });
 
-test('融灾禁区：专用编队优先，没编的借通用同序号，再没有用当前队伍', () => {
+test('融灾禁区：五队的唤醒体和装备互不重复；没编的自动补位，重复的被拿掉', () => {
   const s = newState(data, 13);
-  const owned = data.awakeners.slice(0, 12).map((a) => a.slug);
+  s.maxStage = 100;
+  const owned = data.awakeners.filter((a) => !a.creator).slice(0, 30).map((a) => a.slug);
   s.roster = Object.fromEntries(owned.map((x) => [x, { lv: 80, star: 6, brk: 4 }]));
-  const A = owned.slice(0, 4), B = owned.slice(4, 8), C = owned.slice(8, 12);
-  setSquadTeam(s, 'a', A);      // 通用一队：禁区一队空着时会借它
-  setSquadTeam(s, 'r2', B);     // 禁区二队自己编了
-  s.team = C;
+  s.gold = 1e9; equipPull(s, data, 80);
+  for (const o of data.orders.slice(0, 20)) s.orders.owned[o.id] = 0;
+  const A = owned.slice(0, 4), B = owned.slice(4, 8);
+  setSquadTeam(s, 'a', owned.slice(0, 4));          // 通用编队不再被借来顶禁区
+  setSquadTeam(s, 'r2', B);                           // 禁区二队自己编了
+  setSquadTeam(s, 'r1', [A[0], B[0], owned[8], owned[9]]);   // 禁区一队和二队撞了一个人
+  s.team = A;
 
   const party = riftParty(s, data);
   assert.equal(party.length, RIFT_TEAMS);
-  // 禁区一队空着 → 借通用一队，并标成 shared
-  assert.deepEqual(party[0].slugs, A);
-  assert.equal(party[0].filled, false);
-  assert.equal(party[0].from, 'shared');
-  assert.equal(party[0].sharedKey, 'a');
-  // 禁区二队自己编了 → 只管自己这套
-  assert.deepEqual(party[1].slugs, B);
-  assert.equal(party[1].filled, true);
-  assert.equal(party[1].from, 'rift');
-  // 三四五队既没编也没得借 → 用当前队伍补位，并标出来
-  for (const i of [2, 3, 4]) {
-    assert.equal(party[i].filled, false);
-    assert.equal(party[i].from, 'cur');
-    assert.deepEqual(party[i].slugs, s.team);
+  const all = party.flatMap((p) => p.slugs);
+  assert.equal(new Set(all).size, all.length, '五队没有重复的唤醒体');
+  assert.ok(party.every((p) => p.slugs.length === 4), '没编的补满 4 人，被拿掉的补回');
+  assert.equal(party[0].conflict, false);              // 一队先占位
+  assert.ok(party[1].conflict, '二队有人被一队占了，标出来');
+  assert.ok(!party[1].slugs.includes(B[0]), '被占的人从二队拿掉');
+  assert.equal(party[1].from, 'rift'); assert.equal(party[2].from, 'auto');
+  // 装备：命轮 / 密契 / 造物 / 钥令全局不重复
+  const items = [], orders = [];
+  for (const p of party) {
+    for (const e of Object.values(p.lo.equip)) { if (e.wheel) items.push(e.wheel); if (e.cov) items.push(e.cov); }
+    for (const u of p.lo.relics) if (u) items.push(u);
+    for (const o of p.lo.orders) if (o) orders.push(o);
   }
-  for (const p of party) assert.equal(p.team.list.length, 4);
-  assert.ok(party.every((p) => p.team.power > 0));
+  assert.ok(items.length > 20, '五队各自配了装备');
+  assert.equal(new Set(items).size, items.length, '装备不重复');
+  assert.equal(new Set(orders).size, orders.length, '钥令不重复');
+  assert.ok(party.every((p) => p.team.list.length === 4 && p.team.power > 0));
+  // 独立配装撞车：二队想用一队用着的造物 → 被拿掉
+  const lo1 = ensureLoadout(s, 'r1', false); lo1.relics[0] = items.find((u) => s.gear.items[u]?.kind === 'relic');
+  const lo2 = ensureLoadout(s, 'r2', false); lo2.relics[0] = lo1.relics[0];
+  const p2 = riftParty(s, data);
+  const rel = p2.flatMap((p) => p.lo.relics.filter(Boolean));
+  assert.equal(new Set(rel).size, rel.length, '撞车的造物只留给前面的队');
+  assert.ok(p2[1].conflict);
   // 五队都有独立的敌人组（同层不同种子）
   const ids = Array.from({ length: RIFT_TEAMS }, (_, i) => riftEnemies(9, data, i, 'R1').map((e) => `${e.mid}${e.name}`).join('|'));
   assert.equal(new Set(ids).size, RIFT_TEAMS, '五队打的是五组不同的敌人');

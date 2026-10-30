@@ -6,8 +6,8 @@
 import { hash, mulberry32 } from './rng.js';
 import { simulate, roundLimitFor } from './battle.js';
 import { buildEnemies } from './enemies.js';
-import { teamDefs, stageGold, battleSeed, addItem, rollItem, addOrder, rollOrder, recordCodex } from './game.js';
-import { SQUAD_KEYS, RIFT_SQUAD_KEYS, SQUAD_ZH, squadMembers, withLoadout } from './squad.js';
+import { teamDefs, allyDef, fillLoadout, stageGold, battleSeed, addItem, rollItem, addOrder, rollOrder, recordCodex } from './game.js';
+import { RIFT_SQUAD_KEYS, SQUAD_ZH, squadMembers, loadoutOf, withLo, autoSquadSlugs } from './squad.js';
 
 export const RIFT_FLOORS = 100;          // 本期层数上限
 export const RIFT_TEAMS = 5;             // 每层出战的队伍数
@@ -77,24 +77,64 @@ export function riftState(state, now = new Date()) {
 }
 
 /**
- * 五队：优先用禁区专用编队（禁区一队~五队），没编就退回通用同序号那一套
- * （一队顶禁区一队……），再没有才用当前队伍。界面会标出每队是从哪儿来的。
+ * 五队：禁区一队~五队，**唤醒体和装备都不许重复**（五队同时出战，每队各用各的人、各的命轮 / 密契 / 造物 / 钥令）。
+ *   · 自己编了的队：按编队来；某个唤醒体或装备已经被前面的队占了，这一队里就把它拿掉
+ *     （缺的人补一个最强的没被占用的，缺的装备留空），队伍卡上标「有重复，已自动调整」。
+ *   · 没编的队：从没被占用的唤醒体里自动补最强的 4 个，装备也从没被占用的里面自动配齐。
+ *   以前没编的队会借通用编队或「当前队伍」顶上，五队就可能是同一批人、同一套装备——这里不再那样。
+ * 返回的每一项带 lo（这队实际生效的配装），战斗和界面都按它算。
  */
 export function riftParty(state, data) {
-  return RIFT_SQUAD_KEYS.map((key, slot) => {
-    const own = squadMembers(state, key);
-    const shared = squadMembers(state, SQUAD_KEYS[slot]);
-    const from = own.length ? 'rift' : shared.length ? 'shared' : 'cur';
-    const slugs = (own.length ? own : shared.length ? shared : [...(state.team || [])]).slice(0, 4);
-    // 用哪套配装：自己的编队位 → 借来的通用编队位 → 主线队伍（null）。有独立配装就按它算
-    const loKey = own.length ? key : shared.length ? SQUAD_KEYS[slot] : null;
-    return {
-      key, zh: SQUAD_ZH[key], slot, slugs, loKey,
-      filled: own.length > 0,
-      from, sharedKey: SQUAD_KEYS[slot], sharedZh: SQUAD_ZH[SQUAD_KEYS[slot]],
-      team: withLoadout(state, loKey, () => teamDefs(state, data, slugs)),
-    };
-  });
+  const usedC = new Set(), usedI = new Set(), usedO = new Set();
+  const powerOf = (slug) => allyDef(state, data, slug, [slug]).power;
+  const claim = (lo) => {
+    for (const e of Object.values(lo.equip || {})) { if (e?.wheel) usedI.add(e.wheel); if (e?.cov) usedI.add(e.cov); }
+    for (const u of lo.relics || []) if (u) usedI.add(u);
+    for (const o of lo.orders || []) if (o) usedO.add(o);
+  };
+  const slots = RIFT_SQUAD_KEYS.map((key, slot) => ({ key, slot, own: squadMembers(state, key).slice(0, 4), lo: loadoutOf(state, key) }));
+
+  // 第一遍：自己编了的队先占位（按一队→五队的顺序，后面的队让给前面的）
+  for (const sl of slots) {
+    sl.slugs = sl.own.filter((x) => { if (usedC.has(x)) return false; usedC.add(x); return true; });
+    sl.dupChars = sl.own.length - sl.slugs.length;
+    sl.conflict = sl.dupChars > 0;
+    if (sl.lo) {
+      const lo = { equip: {}, relics: [], orders: [] };
+      const take = (uid) => { if (!uid || usedI.has(uid)) { if (uid) sl.conflict = true; return null; } usedI.add(uid); return uid; };
+      for (const slug of sl.slugs) {
+        const e = sl.lo.equip?.[slug] || {};
+        const o = {}; const w = take(e.wheel), c = take(e.cov);
+        if (w) o.wheel = w; if (c) o.cov = c;
+        lo.equip[slug] = o;
+      }
+      lo.relics = (sl.lo.relics || []).map(take);
+      lo.orders = (sl.lo.orders || []).map((id) => { if (!id || usedO.has(id)) { if (id) sl.conflict = true; return null; } usedO.add(id); return id; });
+      sl.eff = lo;
+    }
+  }
+  // 第二遍：没编的队补人；有重复被拿掉人的队补回缺口
+  for (const sl of slots) {
+    const need = sl.own.length ? sl.dupChars : 4;
+    if (need > 0) {
+      const add = autoSquadSlugs(state, data, '', powerOf, need, [...usedC]);
+      for (const x of add) usedC.add(x);
+      sl.slugs = sl.slugs.concat(add);
+    }
+    if (!sl.eff) {
+      const lo = { equip: {} };
+      const r = fillLoadout(state, data, sl.slugs, { equip: lo.equip, exclude: { items: usedI, orders: usedO } });
+      lo.relics = r.relics; lo.orders = r.orders;
+      claim(lo);
+      sl.eff = lo;
+    }
+  }
+  return slots.map((sl) => ({
+    key: sl.key, zh: SQUAD_ZH[sl.key], slot: sl.slot, slugs: sl.slugs, lo: sl.eff,
+    filled: sl.own.length > 0, from: sl.own.length ? 'rift' : 'auto', conflict: sl.conflict,
+    hasLo: !!sl.lo,
+    team: withLo(state, sl.eff, () => teamDefs(state, data, sl.slugs)),
+  }));
 }
 
 /** 一次挑战最多连爬 RIFT_RUN_MAX 层；每层五场全胜才算过 */

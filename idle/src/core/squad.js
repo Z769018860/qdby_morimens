@@ -134,12 +134,30 @@ export function squadsRemoveItem(state, uid) {
  * 没有独立配装（或 key 为空 / 'cur'）就原样跑。fn 必须是同步的——战斗模拟本来就是同步的。
  */
 export function withLoadout(state, key, fn) {
-  const lo = loadoutOf(state, key);
+  return withLo(state, loadoutOf(state, key), fn);
+}
+/** 同上，但直接给配装对象（融灾禁区按「去重后的有效配装」算，不一定对应某个编队位） */
+export function withLo(state, lo, fn) {
   if (!lo) return fn();
   const gear = state.gear, orders = state.orders;
   const saved = { equip: gear.equip, relics: gear.relics, slots: orders.slots };
   gear.equip = lo.equip; gear.relics = lo.relics; orders.slots = lo.orders;
   try { return fn(); } finally { gear.equip = saved.equip; gear.relics = saved.relics; orders.slots = saved.slots; }
+}
+
+/** 融灾禁区里「别的四队」已经占着的唤醒体 / 装备 / 钥令（编辑某一队时用来禁选，保证五队不重复） */
+export function riftTaken(state, exceptKey) {
+  const chars = new Map(), items = new Set(), orders = new Set();
+  for (const k of RIFT_SQUAD_KEYS) {
+    if (k === exceptKey) continue;
+    for (const slug of squadMembers(state, k)) if (!chars.has(slug)) chars.set(slug, k);
+    const lo = loadoutOf(state, k);
+    if (!lo) continue;
+    for (const e of Object.values(lo.equip || {})) { if (e?.wheel) items.add(e.wheel); if (e?.cov) items.add(e.cov); }
+    for (const u of lo.relics || []) if (u) items.add(u);
+    for (const o of lo.orders || []) if (o) orders.add(o);
+  }
+  return { chars, items, orders };
 }
 
 /** 某个挑战入口实际用的编队位（空编队 / 当前队伍 → null，表示用主线配装） */
@@ -248,9 +266,10 @@ export function squadUsage(state, key) {
  * powerOf 由调用方提供（core 不反向依赖 game.js，避免循环引用）；
  * 先按「能凑同界域加成」挑，再按战力补满——和 autoTeam 的手感一致。
  */
-export function autoSquadSlugs(state, data, realm, powerOf, n = TEAM_SIZE) {
+export function autoSquadSlugs(state, data, realm, powerOf, n = TEAM_SIZE, exclude = []) {
+  const skip = new Set(exclude);
   const pool = Object.keys(state.roster || {})
-    .filter((s) => data.bySlug[s] && (!realm || data.bySlug[s].realm === realm))
+    .filter((s) => data.bySlug[s] && !skip.has(s) && (!realm || data.bySlug[s].realm === realm))
     .map((s) => ({ s, p: powerOf(s), t: data.bySlug[s].type }))
     .sort((a, b) => b.p - a.p);
   if (!pool.length) return [];
