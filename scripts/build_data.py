@@ -207,6 +207,16 @@ for s in args.seasons:
             zone_boss[wave['wave']] = list(dict.fromkeys(
                 str(m['tid']) for enc in wave['enc'].values() if enc['t'] == 'Boss'
                 for m in enc['m']))
+    fixed_boss = {
+        (71, 1): ['80576', '80577'], (71, 2): ['94940'],
+        (71, 3): ['67103'], (71, 4): ['14063'], (71, 5): ['81279'],
+        (72, 1): ['14008', '14013'], (72, 2): ['14064'],
+        (72, 3): ['60096'], (72, 4): ['120308', '120310', '120306'],
+        (72, 5): ['14086'],
+    }
+    for (season, z), ids_for_zone in fixed_boss.items():
+        if season == s:
+            zone_boss[z] = ids_for_zone
     gids = sorted(jl(base / 'meta.json')['stageGroupIds'])
     for rf in sorted((base / 'raw-teams').glob('*.jsonl.gz')):
         for l in gzip.open(rf, 'rt', encoding='utf-8'):
@@ -271,11 +281,19 @@ for s in args.seasons:
             cand[s].append({
                 'season': s, 'zone': zone, 'threat': sm.group(2) if sm else '?',
                 'madness': ids['stages'].get(str(b['stageTid']), {}).get('madness'),
-                'boss': (['14086'] if s == 72 and zone == 5 else (zone_boss.get(zone) or [])), 'score': b['score'], 'rank': b['rank'],
+                'boss': zone_boss.get(zone) or [], 'score': b['score'], 'rank': b['rank'],
                 'rounds': b['stageRoundCount'], 'bossRounds': b['bossBattleRoundCount'],
                 'cards': b['totalUseCard'], 'energy': b['totalEnergyCost'], 'maxBout': b['maxBoutDamage'],
                 'deathResist': b['deathResistCount'], 'hp': b['maxHp'], 'left': b['leftHp'],
                 'playerDmg': b.get('playerDamage') or 0, 'key': key, 'relics': rel, 'team': members,
+                # Real battle-summary extrema, not additive damage categories.
+                'dmgComp': {
+                    'keeper': b.get('playerDamage') or 0,
+                    'tentacle': b.get('maxTentacleDamage') or 0,
+                    'counter': b.get('maxCounterAtt') or 0,
+                    'strength': b.get('maxStrength') or 0,
+                    'poison': b.get('maxPosion') or 0,
+                },
                 'uid': row['uid'], 'extra': bool(b.get('extraPass')),
             })
 
