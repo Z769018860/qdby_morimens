@@ -34,6 +34,26 @@ const read = (f) => {
   return Array.isArray(j) ? { puzzles: j } : j;
 };
 
+// Normalise published records even when upstream source JSON has older boss IDs
+// or zero-filled optional extrema. Never derive poison/counter from party damage.
+const BOSS_BY_ZONE = {
+  '71-1':['80576','80577'], '71-2':['94940'], '71-3':['67103'],
+  '71-4':['14063'], '71-5':['81279'],
+  '72-1':['14008','14013'], '72-2':['14064'], '72-3':['60096'],
+  '72-4':['120308','120310','120306'], '72-5':['14086'],
+};
+function normalizePuzzle(p) {
+  const boss = BOSS_BY_ZONE[`${p.season}-${p.zone}`];
+  if (boss) p.boss = [...boss];
+  if (p.dmgComp) {
+    for (const key of ['poison', 'counter', 'tentacle', 'strength']) {
+      const v = p.dmgComp[key];
+      if (v == null || !Number.isFinite(Number(v)) || Number(v) <= 0) delete p.dmgComp[key];
+    }
+  }
+  return p;
+}
+
 const items = [];
 const chunks = [];
 const seen = new Set();
@@ -51,7 +71,7 @@ for (const src of SOURCES) {
     if (!id || seen.has(id)) continue;
     seen.add(id);
     items.push([id, Number(p.diff) || 2, src.core ? 1 : 0, p.threat || null]);
-    chunks.push(p);
+    chunks.push(normalizePuzzle(p));
     added++;
     if (src.core) coreCount++;
   }
