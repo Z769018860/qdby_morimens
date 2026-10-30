@@ -351,9 +351,8 @@ button{font:inherit; color:inherit}
 @media (min-width:1000px){
   #side{display:flex}
   /* 底栏退到左侧面板右边并限宽：商店卡片不再被拉成整屏宽，左下角留给「方向」小钮 */
-  #bottom{left:232px; right:12px; padding:0 0 max(8px,env(safe-area-inset-bottom)); align-items:center;
+  #bottom{left:252px; right:12px; padding:0 0 max(8px,env(safe-area-inset-bottom)); align-items:stretch;
     background:linear-gradient(180deg, transparent, rgba(8,11,18,.78) 22%)}
-  #bottom>*{width:100%; max-width:940px}
   /* 宽屏：信息有了自己的位置，顶栏只留一个返回和一个问号 */
   .hud-top .pill, .hud-top .core{display:none}
   #hud .traits{display:none}
@@ -491,7 +490,7 @@ button{font:inherit; color:inherit}
 .es b{font-size:18px; color:var(--gold); font-variant-numeric:tabular-nums}
 .es span{font-size:10.5px; color:var(--dim)}
 
-@media (max-width:520px), (orientation:landscape) and (max-height:520px){
+@media (max-width:520px){
   .card{padding:14px}
   .card h1{font-size:21px}
   /* 竖屏棋盘受宽度限制（六列摆不下），上下本来就会空一截：底栏做大一点，
@@ -539,37 +538,10 @@ button{font:inherit; color:inherit}
   .ucard.compact{min-height:50px}
 }
 
-/* ------------------------------------------------ 横屏（手机 / 矮窗口）
-   底栏是整条横着铺的话，390 高的屏幕被它吃掉一半，棋盘只剩一条缝。
-   横屏时把它竖起来贴右边（宽 ≈ 屏宽 40%），棋盘独占左边整块高度。 */
-@media (orientation:landscape) and (max-height:520px){
-  :root{--colW:min(352px,42vw)}
-  #hud{right:auto; width:calc(100% - var(--colW))}
-  #bottom{left:auto; width:var(--colW); top:0; padding:max(6px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) 8px;
-    justify-content:flex-end; gap:5px; background:rgba(9,12,20,.9); border-left:1px solid var(--line)}
-  #bottom>*{max-width:none; width:auto}
-  /* 顶栏压成一行：标签字去掉，核心条夹在中间；提示行（traits）留给左侧面板，这里不要 */
-  .hud-top{flex-wrap:nowrap; gap:5px}
-  .pill span{display:none}
-  .core{order:0; flex:1 1 60px; min-width:60px; max-width:none; height:20px}
-  .help{order:0; margin-left:0}
-  #hud .traits{display:none}
-  .scard{height:88px; padding:4px 2px 16px}
-  .scard b{font-size:11px}
-  .scard .eff{display:none}
-  .scard .sig{width:28px; height:28px}
-  .scard .price{height:16px; font-size:11.5px}
-  .bslot{height:34px}
-  .bslot .star{font-size:10px}
-  .zlab{flex-basis:20px; font-size:8.5px; letter-spacing:.1em}
-  .purse{flex-basis:30px}
-  .purse b{font-size:18px}
-  .slim{height:24px}
-  .tab{height:22px; font-size:11px}
-  .acts button{height:34px; font-size:13px}
-  .ucard{top:62px; left:10px; right:auto; width:218px; max-height:calc(100% - 72px)}
-  .ucard.compact{top:62px}
-  html body .zj-orient{left:auto; right:8px; top:8px; bottom:auto}
+@media (max-width:520px) and (orientation:portrait){
+  /* 竖屏棋盘受宽度限制，上下会剩一截留白：让底栏长高一点（备战席与商店卡更好点、更好读），而不是空着 */
+  .bslot{height:56px}
+  .scard{height:auto; min-height:118px}
 }
 @media (max-width:440px){
   /* 三枚胶囊 + 三个按钮一行放不下，「?」被挤到第二行：去掉胶囊里的小字标签 */
@@ -633,7 +605,17 @@ button{font:inherit; color:inherit}
  .scard .price{font-size:15px;height:22px}.tg{height:20px;padding:2px 5px}.tg u{font-size:12px}.tab{height:32px;font-size:14px}.slim{height:auto;min-height:36px;flex-wrap:wrap}
  .bslot{height:48px}.acts button{font-size:15px;min-height:38px}.islot{width:30px;height:30px;font-size:13px}.hud-sub{font-size:14px}
 }
-@media(min-width:1280px){#side{width:272px}.ucard{width:340px;right:14px}}
+@media(min-width:1280px){#side{width:272px}.ucard{width:340px;right:14px}
+ /* 底栏与棋盘用同一条中线（见 layout.js boardBand：左 292、右留 368 给信息卡） */
+ #bottom{left:292px; right:368px}}
+/* 底栏在左侧面板右边，面板不必再给它让高度，只躲开左下角的「方向」小钮；
+   原先照搬底栏高度，900 高的屏上面板在 570 就被截断，下面一大片空着 */
+@media(min-width:1000px){
+ #side{max-height:calc(100% - 72px - 60px)}
+ .shop-context{font-size:13px;line-height:1.3}
+ .scard{min-height:104px;padding-top:6px}
+ .bslot{height:42px}
+}
 @media(max-width:999px){.slim{height:auto;min-height:26px;flex-wrap:wrap}.ucard{max-height:calc(100dvh - 110px - var(--botH,220px))}.shop-context{font-size:10px}}
 /* Dedicated phone landscape layout. Keep the board clear of the shop rail. */
 @media (orientation:landscape) and (max-height:540px){
