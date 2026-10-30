@@ -423,7 +423,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
   .links{grid-template-columns:1fr 1fr}
 }
 </style>
-<meta name="build" content="7d5c15e462">
+<meta name="build" content="ceff593758">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1438,6 +1438,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
 
   // ------------------------------------------------------------ 排行榜（/api/board）
   // 挂机前夜：主线通关进度 + 通关阵容；其余游戏：用户名 + 最高分（榜单由服务端从云端档案摘要算出，缓存 3 分钟）
+  var CREATOR_ZH = { samo: '萨摩不耶', mengyi: '梦依流苏', alice: '爱丽丝', ratking: '鼠王', dragond: '魔龙_D', zerok: '立誓0氪', xiamolin: '夏茉琳', chaoxing: '朝星', maodie: '路过的耄耋' };
   var BOARDS = [
     ['il', 'idle'], ['dr', 'detective'], ['mg', 'merge'], ['bd', 'bird'], ['bn', 'binding'],
     ['sv', 'survivors'], ['pf', 'protocol'], ['wf', 'wolf'], ['dt', 'deathreport']
@@ -1465,7 +1466,8 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
         var team = '';
         if (boardTab === 'il' && it.team && it.team.length) {
           team = '<div class="team" title="通关阵容">' + it.team.map(function (t) {
-            var a = awk[t.s]; if (!a) return '';
+            // 联名（彩蛋）角色不在 game-data.json 里，立绘固定放在 idle/public/img/awk/<slug>.webp；查不到名字就用 slug 兜底，头像照样显示
+            var a = awk[t.s] || { zh: CREATOR_ZH[t.s] || t.s, img: 'idle/public/img/awk/' + String(t.s).replace(/[^A-Za-z0-9_-]/g, '') + '.webp' };
             return '<span title="' + esc2(a.zh + ' Lv' + t.lv + (t.st ? ' +' + t.st : '')) + '"><img loading="lazy" src="' + esc2(a.img) + '" alt="' + esc2(a.zh) + '"><em>' + (t.lv || '') + '</em></span>';
           }).join('') + '</div>';
         }
