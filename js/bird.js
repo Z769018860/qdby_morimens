@@ -2029,9 +2029,14 @@ SKILLS.forEach((s) => {
   btnOf[s.id] = { el: b, cd: b.querySelector('.cd'), txt: '', cdShown: false, sweepP: -1, ready: null, poor: null };
 });
 
+// 按住：用指针捕获，手指按下后稍微滑出按钮也不会松开（以前 pointerleave 一出界就断，小屏上很难按稳）
 const holdKey = (node, on, off) => {
-  node.addEventListener('pointerdown', (e) => { e.preventDefault(); node.classList.add('on'); on(); });
-  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) {
+  node.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    try { node.setPointerCapture(e.pointerId); } catch { /* 老浏览器 */ }
+    node.classList.add('on'); on();
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     node.addEventListener(ev, () => { node.classList.remove('on'); off(); });
   }
 };
@@ -2039,6 +2044,50 @@ const holdKey = (node, on, off) => {
 holdKey($('#kL'), () => { G.keys.left = true; }, () => { G.keys.left = false; });
 holdKey($('#kR'), () => { G.keys.right = true; }, () => { G.keys.right = false; });
 $('#kJ').addEventListener('pointerdown', (e) => { e.preventDefault(); tryJump(); });
+$('#kJ2').addEventListener('pointerdown', (e) => { e.preventDefault(); tryJump(); });
+
+// ---- 操控方式：按键 / 摇杆（记在本机）。摇杆：左右拖 = 左右移动，往下拖 = 穿过薄平台 ----
+const CTL_KEY = 'zjtt:bird:ctl';
+const stick = $('#stick'), knob = $('#knob');
+const STICK_R = 38;                         // 旋钮能离开圆心多远（像素）
+function setCtl(mode, quiet) {
+  const useStick = mode === 'stick';
+  $('#keys').hidden = useStick;
+  $('#stickbox').hidden = !useStick;
+  $('#ctl').classList.toggle('on', useStick);
+  $('#ctl').title = useStick ? '当前：摇杆（点一下换回按键）' : '当前：按键（点一下换成摇杆）';
+  G.keys.left = G.keys.right = G.keys.down = false;
+  try { localStorage.setItem(CTL_KEY, mode); } catch { /* 无痕模式 */ }
+  if (!quiet) toast(useStick ? '操控：摇杆（左边拖动移动，右边跳跃）' : '操控：按键');
+}
+function stickAt(e) {
+  const r = stick.getBoundingClientRect();
+  let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+  const d = Math.hypot(dx, dy) || 1, k = Math.min(1, STICK_R / d);
+  const nx = dx * k, ny = dy * k;
+  knob.style.transform = `translate(${nx}px, ${ny}px)`;
+  G.keys.left = nx < -STICK_R * 0.28;
+  G.keys.right = nx > STICK_R * 0.28;
+  G.keys.down = ny > STICK_R * 0.6;
+}
+function stickEnd() {
+  stick.classList.remove('drag');
+  knob.style.transform = '';
+  G.keys.left = G.keys.right = G.keys.down = false;
+}
+stick.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  try { stick.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+  stick.classList.add('drag'); stickAt(e);
+});
+stick.addEventListener('pointermove', (e) => { if (stick.classList.contains('drag')) stickAt(e); });
+for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) stick.addEventListener(ev, stickEnd);
+$('#ctl').addEventListener('click', () => setCtl($('#keys').hidden ? 'keys' : 'stick'));
+{
+  let m = 'keys';
+  try { m = localStorage.getItem(CTL_KEY) === 'stick' ? 'stick' : 'keys'; } catch { /* ignore */ }
+  setCtl(m, true);
+}
 
 window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
