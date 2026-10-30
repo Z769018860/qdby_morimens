@@ -4466,27 +4466,47 @@ function showDetails(title, html, pin = false, point) {
   clearTimeout(detailTimer);
   detailPinned = pin;
   detailPanel.hidden = false;
-  detailPanel.innerHTML = `<button class="detail-close" aria-label="关闭说明">×</button><h2>${escapeText(title)}</h2><div class="detail-body">${html}</div><p class="detail-hint">${pin ? '已固定 · 点击 × 或按 Esc 关闭' : '移入说明可滚动阅读；右键固定说明'}</p>`;
+  detailPanel.classList.toggle('is-pinned', !!pin);
+  detailPanel.classList.toggle('is-preview', !pin);
+  detailPanel.innerHTML = `<button class="detail-close" aria-label="关闭说明">×</button><h2>${escapeText(title)}</h2><div class="detail-body">${html}</div><p class="detail-hint">${pin ? '已固定 · 点击 × 或按 Esc 关闭' : '点击详情或右键固定后可滚动阅读；悬停预览不阻挡购买'}</p>`;
   detailPanel.scrollTop = 0;
   detailPanel.querySelector('.detail-close').onclick = closeDetails;
+  // Keep preview inert: it must never swallow clicks on the right-most shop card.
+  // Pinned panels become interactive and are positioned away from their trigger.
   const viewport = viewportSize();
+  const vw = viewport.width, vh = viewport.height;
+  const gap = 12;
+  const width = Math.max(170, Math.min(420, vw - gap * 2));
+  const mobile = matchMedia('(pointer:coarse)').matches || vw < 760;
   const landscape = shortLandscape();
-  const width = Math.min(420, viewport.width - 24);
-  if (landscape) {
-    detailPanel.style.left = '12px';
-    detailPanel.style.top = '12px';
-    detailPanel.style.maxHeight = (viewport.height - 24) + 'px';
-    return;
+  const trigger = point && point.rect;
+  let left, top;
+  if (mobile) {
+    // On touch screens only pinned details are interactive; keep the close
+    // button inside the viewport including landscape safe areas.
+    left = Math.max(gap, (vw - width) / 2);
+    top = landscape ? gap : Math.max(gap, Math.round(vh * 0.10));
+  } else if (trigger) {
+    // Prefer the side of the trigger with enough space; never overlap the
+    // trigger itself. The shop remains clickable even on small desktops.
+    const rightSpace = vw - trigger.right - gap * 2;
+    const leftSpace = trigger.left - gap * 2;
+    left = rightSpace >= width ? trigger.right + gap
+      : leftSpace >= width ? trigger.left - width - gap
+      : (leftSpace >= rightSpace ? gap : vw - width - gap);
+    top = Math.max(gap, Math.min(trigger.top, vh - Math.min(380, vh - gap * 2)));
+  } else {
+    left = gap;
+    top = Math.max(gap, Math.round(vh * 0.08));
   }
-  const left = point ? point.x + 18 : window.innerWidth - width - 18;
-  detailPanel.style.left = Math.max(12, Math.min(left, window.innerWidth - width - 12)) + 'px';
-  const top = point ? Math.max(60, Math.min(point.y, window.innerHeight - 260)) : 72;
+  detailPanel.style.width = width + 'px';
+  detailPanel.style.left = Math.max(gap, Math.min(left, vw - width - gap)) + 'px';
   detailPanel.style.top = top + 'px';
-  detailPanel.style.maxHeight = Math.max(160, window.innerHeight - top - 12) + 'px';
+  detailPanel.style.maxHeight = Math.max(90, vh - top - gap) + 'px';
 }
 function closeDetails() {
   detailPinned = false; detailFromElement = false; detailKey = '';
-  if (detailPanel) detailPanel.hidden = true;
+  if (detailPanel) { detailPanel.hidden = true; detailPanel.classList.remove('is-pinned', 'is-preview'); }
 }
 function itemDescription(kind, id) {
   const d = itemDef({kind,id});
@@ -4520,7 +4540,7 @@ function inspectElement(el, pin) {
   if (detailPinned && !pin) return;
   detailFromElement = true;
   const rect = el.getBoundingClientRect();
-  const anchor = { x: rect.right, y: rect.top };
+  const anchor = { x: rect.right, y: rect.top, rect };
   const [kind,id] = el.dataset.detail.split(':');
   if (kind === 'unit') {
     const d = UNITS_BY_ID[id]; if (!d) return;
@@ -4552,7 +4572,7 @@ function buildDetails() {
   detailPanel.id = 'protocolDetails'; detailPanel.hidden = true;
   detailPanel.setAttribute('role','region'); detailPanel.setAttribute('aria-label','详细说明');
   document.body.append(detailPanel);
-  detailPanel.onpointerenter = () => clearTimeout(detailTimer);
+  detailPanel.onpointerenter = () => { if (detailPinned) clearTimeout(detailTimer); };
   detailPanel.onpointerleave = () => { detailTimer = setTimeout(hideInspection, 200); };
   document.addEventListener('pointerover', e => {
     if (e.pointerType === 'touch') return;
@@ -4560,16 +4580,17 @@ function buildDetails() {
     inspectElement(el, false);
   });
   document.addEventListener('pointerout', e => {
-    if (e.target.closest('[data-detail]')) detailTimer = setTimeout(hideInspection, 800);
+    if (e.target.closest('[data-detail]')) detailTimer = setTimeout(hideInspection, 250);
   });
   document.addEventListener('contextmenu', e => {
-    if (detailPanel.contains(e.target)) { e.preventDefault(); detailPinned = true; return; }
+    if (detailPanel.contains(e.target)) { e.preventDefault(); detailPinned = true; detailPanel.classList.remove('is-preview'); detailPanel.classList.add('is-pinned'); return; }
     const el = e.target.closest('[data-detail]'); if (!el) return;
     e.preventDefault(); inspectElement(el, true);
   });
   document.addEventListener('click', e => {
     const el = e.target.closest('.tr[data-detail],.detail-action[data-detail],#protocolDetails [data-detail]');
-    if (el) inspectElement(el, true);
+    if (el) { inspectElement(el, true); return; }
+    if (detailPinned && !e.target.closest('#protocolDetails')) closeDetails();
   });
   document.addEventListener('focusin', e => { const el = e.target.closest('[data-detail]'); if (el) inspectElement(el, false); });
   document.addEventListener('keydown', e => {
@@ -4589,6 +4610,8 @@ function buildDetails() {
 function relayoutInspection() {
   if (!detailPanel || detailPanel.hidden) return;
   const {height} = viewportSize();
+  const width = Math.max(170, Math.min(420, viewportSize().width - 24));
+  detailPanel.style.width = width + 'px';
   detailPanel.style.left = '12px';
   detailPanel.style.top = '12px';
   detailPanel.style.maxHeight = Math.max(80,height - 24) + 'px';

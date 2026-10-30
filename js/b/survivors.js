@@ -3880,7 +3880,7 @@ function resize() {
   const rect = cv.getBoundingClientRect();
   // DPR 封顶 1.5：这游戏全是软边贴图和发光圆，1.5 倍已经看不出锯齿，
   // 但像素数比 2 倍少 44% —— 满屏 300 个敌人时这就是 60 帧和 30 帧的差别。
-  dpr = Math.min(1.5, window.devicePixelRatio || 1);
+  dpr = Math.min(G.quality === 'minimal' ? 1 : G.quality === 'low' ? 1.15 : 1.5, window.devicePixelRatio || 1);
   G.W = Math.max(1, Math.round(rect.width));
   G.H = Math.max(1, Math.round(rect.height));
   // 可见面积固定，而不是可见宽高固定。
@@ -3938,7 +3938,7 @@ function draw() {
   const T = cy - halfH - 60, B = cy + halfH + 60;
 
   drawGround(L, T, R, B);
-  drawFields(L, R, T, B);
+  if (G.quality !== 'minimal') drawFields(L, R, T, B);
   drawPickups(L, R, T, B);
   drawSummons();
   drawEnemies(L, R, T, B);
@@ -3950,12 +3950,12 @@ function draw() {
 
   // 屏幕层：受伤红闪 / 狂气红晕 / Boss 警报 / 暗角 / 天气
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  drawVoice(W, H);
+  if (G.quality !== 'minimal') drawVoice(W, H);
   if (G.flash > 0) {
     ctx.fillStyle = `rgba(232,80,70,${G.flash * 0.24})`;
     ctx.fillRect(0, 0, W, H);
   }
-  if (G.rageT > 0) drawRageVeil(W, H);
+  if (G.rageT > 0 && G.quality === 'full') drawRageVeil(W, H);
   drawBossWarn(W, H);
   vignette(W, H);
   drawWeather(W, H);
@@ -6248,6 +6248,25 @@ let acc = 0;
 let last = performance.now();
 let upShown = false;
 let ended = false;
+// Quality controls only drawing. Simulation remains at its original fixed timestep.
+const mobile = matchMedia('(pointer:coarse)').matches || innerWidth < 700;
+const qualityKey = 'morimens-sv-effects';
+const qualityLevels = ['full', 'low', 'minimal'];
+let quality = (() => { try { return localStorage.getItem(qualityKey) || (mobile ? 'low' : 'full'); } catch { return mobile ? 'low' : 'full'; } })();
+if (!qualityLevels.includes(quality)) quality = mobile ? 'low' : 'full';
+G.quality = quality;
+let renderAccum = 0;
+function qualityButton() {
+  let b = document.getElementById('svQuality');
+  if (!b) {
+    b = document.createElement('button'); b.id = 'svQuality'; b.type = 'button';
+    b.style.cssText = 'position:fixed;top:54px;right:10px;z-index:90;background:#192234;color:#f5e7c6;border:1px solid #8791a4;border-radius:9px;padding:6px 9px;font:12px system-ui;cursor:pointer';
+    document.body.appendChild(b);
+    b.onclick = () => { quality = qualityLevels[(qualityLevels.indexOf(quality) + 1) % qualityLevels.length]; G.quality = quality; try { localStorage.setItem(qualityKey, quality); } catch {} resize(); qualityButton(); };
+  }
+  b.textContent = '特效：' + ({ full: '完整', low: '低', minimal: '极简' }[quality]);
+}
+qualityButton();
 
 // ---------------------------------------------------------------- 输入
 const keys = new Set();
@@ -6393,8 +6412,9 @@ function frame(dt) {
     if (G.phase !== 'idle') update(dt);
   }
 
-  draw();
-  updateHUD();
+  renderAccum += dt;
+  const renderGap = quality === 'full' ? 0 : quality === 'low' ? 1 / 30 : 1 / 24;
+  if (renderAccum >= renderGap) { draw(); updateHUD(); renderAccum = 0; }
   syncMusic();
 
   if (G.phase === 'levelup' && !upShown) {

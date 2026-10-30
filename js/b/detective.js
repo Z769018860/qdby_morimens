@@ -3418,17 +3418,25 @@ function reportPanel() {
         h('div', { class: 'invest' }, invest.join(' · '))),
     );
   });
-  const bosses = (p.boss || []).map(id => D.monster.find(m => m.id === id)).filter(Boolean);
-  // 伤害构成面板
+  // The season-72 zone-5 encounter is 宁菲亚 (14086); legacy bank chunks
+  // contain a mismatched boss ID. Correct it at presentation time as well,
+  // so existing cached question chunks and shared links display the right boss.
+  const bossIds = ({"71-1":["80576","80577"],"71-2":["94940"],"71-3":["67103"],"71-4":["14063"],"71-5":["81279"],"72-1":["14008","14013"],"72-2":["14064"],"72-3":["60096"],"72-4":["120308","120310","120306"],"72-5":["14086"]})[String(p.season) + '-' + String(p.zone)] || (p.boss || []);
+  const bosses = bossIds.map(id => D.monster.find(m => String(m.id) === String(id))).filter(Boolean);
+  // Values below are recorded battle-summary extrema, not a partition of total damage.
+  // In particular maxPosion is a peak poison metric, NEVER total poison damage.
   const dc = p.dmgComp;
-  const dmgCompBox = dc ? h('div', { class: 'dmgcomp' },
-    h('div', { class: 'dchead' }, t('dmgCompTitle')),
-    h('div', { class: 'dcgrid' },
-      h('div', { class: 'dc', 'data-k': 'keeper' }, h('small', {}, t('keeper')), h('b', {}, wan(dc.keeper))),
-      h('div', { class: 'dc', 'data-k': 'tentacle' }, h('small', {}, t('tentacle')), h('b', {}, wan(dc.tentacle))),
-      h('div', { class: 'dc', 'data-k': 'counter' }, h('small', {}, t('counter')), h('b', {}, wan(dc.counter))),
-      h('div', { class: 'dc', 'data-k': 'strength' }, h('small', {}, t('strength')), h('b', {}, wan(dc.strength))),
-      h('div', { class: 'dc', 'data-k': 'poison' }, h('small', {}, t('poison')), h('b', {}, wan(dc.poison))))) : null;
+  const measured = dc ? [
+    ['守密人伤害（累计）', dc.keeper, 'keeper', wan],
+    ['触腕单次最高伤害', dc.tentacle, 'tentacle', wan],
+    ['反击峰值', dc.counter, 'counter', wan],
+    ['力量峰值', dc.strength, 'strength', v => String(v ?? 0)],
+    ['中毒峰值', dc.poison, 'poison', v => String(v ?? 0)],
+  ].filter(([label, value, key]) => value != null && (key === 'keeper' || Number(value) > 0)) : [];
+  const dmgCompBox = measured.length ? h('div', { class: 'dmgcomp' },
+    h('div', { class: 'dchead' }, '战报实测指标（非累计伤害构成）'),
+    h('div', { class: 'dcgrid' }, measured.map(([label, value, key, format]) =>
+      h('div', { class: 'dc', 'data-k': key }, h('small', {}, label), h('b', {}, format(value)))))) : null;
   return h('section', { class: 'card report' },
     h('div', { class: 'rhead' },
       h('div', {}, h('h2', {}, `${t('reportTitle')} · ${t('season', { s: p.season })}`),
