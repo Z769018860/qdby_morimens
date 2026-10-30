@@ -1135,22 +1135,32 @@ function cleanAwk(v) {
   return [...new Set(list.map((x) => str(x, 40).trim()).filter((x) => SLUG_RE.test(x)))].slice(0, 20);
 }
 
-// 追加一条赠礼：全局索引一份（后台看历史），按人存一份（领取时只读一个键，不用扫全表）
-async function putGrant(kv, uid, rec) {
-  const mineKey = 'gm_' + (await uhash(uid));
-  const mine = await kvJson(kv, mineKey) || [];
-  mine.unshift(rec);
-  await kv.put(mineKey, JSON.stringify(mine.slice(0, 100)));
-  return true;
+// 赠礼存成一份文档 gx_idx（最近 100 条，每条自带收件范围）：
+//   · 发给所有人：rec.all = true，一次写入，不管有多少账号；
+//   · 发给指定的人：rec.to = [uhash...]，同样一次写入。
+// 原来是「每个收件人各写一份 gm_<uhash> 列表」（读 + 改 + 写，N 个人 = 3N 次存储操作），
+// 一个站有几十上百个账号就会撞上存储限流、整批失败（发放显示 0/60 就是这个）。
+// 现在发放永远只有「读一份索引 + 写一份索引」两次存储操作，领取时用户读这一份（内存缓存 20 秒）。
+const GX_KEY = 'gx_idx';
+async function putGrantDoc(kv, rec) {
+  const ok = await softly(async () => {
+    const cur = await kvJson(kv, GX_KEY);
+    const list = Array.isArray(cur) ? cur : [];
+    list.unshift(rec);
+    await kv.put(GX_KEY, JSON.stringify(list.slice(0, 100)));
+    return true;
+  }, false);
+  if (!ok) throw new HttpError(503, 'store_busy', '存储暂时写不进去（多半是限流），稍等几秒再发一次；这次没有发出去。');
+  gxCache.delete(kv);
 }
-async function putGrantIndex(kv, rec) {
-  // 索引只是给后台翻历史用的，写失败不能拦住真正的发放
-  await softly(async () => {
-    await kv.put('grant_' + rec.id, JSON.stringify(rec));
-    const idx = await kvJson(kv, 'grant_idx') || [];
-    idx.unshift(rec.id);
-    await kv.put('grant_idx', JSON.stringify(idx.slice(0, 500)));
-  }, null);
+const gxCache = new WeakMap();
+async function readGrantDoc(kv) {
+  const hit = gxCache.get(kv);
+  if (hit && Date.now() - hit.at < 20 * 1000) return hit.list;
+  const cur = await softly(() => kvJson(kv, GX_KEY, true), null);
+  const list = Array.isArray(cur) ? cur : [];
+  gxCache.set(kv, { at: Date.now(), list });
+  return list;
 }
 function grantRecord(b, me, to) {
   const amount = Math.round(Number(b.amount) || 0);
@@ -1177,8 +1187,8 @@ async function postAdminGrant(request, env, kv, cors) {
   const uid = str(b.uid, 64).trim();
   if (!uid) throw new HttpError(400, 'bad_uid');
   const rec = grantRecord(b, me, null);
-  await putGrantIndex(kv, rec);
-  await putGrant(kv, uid, rec);
+  rec.to = [await uhash(uid)];
+  await putGrantDoc(kv, rec);
   return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], uid, note: rec.note }, 200, cors);
 }
 
@@ -1190,30 +1200,22 @@ async function postAdminGrantBatch(request, env, kv, cors) {
   if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', publicWhy(await adminWhy(env, kv, me)));
 
   const b = await readJson(request, 32 * 1024);
-  let uids = [];
-  let skipped = 0;
+  let rec, total;
   if (b.all === true) {
-    const dir = await loadDirectory(kv, false);
-    skipped = dir.failed;
-    uids = dir.users.map((u) => u.uid);
+    // 所有账号：一条记录，领取时按「是不是 all」匹配；人数只用来给后台显示
+    total = Math.max(await softly(() => kvNum(kv, 'usr_n'), 0), 0);
+    rec = grantRecord(b, me, total);
+    rec.all = true;
   } else {
-    uids = (Array.isArray(b.uids) ? b.uids : []).map((x) => str(x, 64).trim()).filter(Boolean);
+    const uids = [...new Set((Array.isArray(b.uids) ? b.uids : []).map((x) => str(x, 64).trim()).filter(Boolean))].slice(0, 500);
+    if (!uids.length) throw new HttpError(400, 'bad_uid');
+    total = uids.length;
+    rec = grantRecord(b, me, total);
+    rec.to = await Promise.all(uids.map((u) => uhash(u)));
   }
-  uids = [...new Set(uids)].slice(0, 500);
-  if (!uids.length) throw new HttpError(400, 'bad_uid');
-  const rec = grantRecord(b, me, uids.length);
-  await putGrantIndex(kv, rec);
-  let ok = 0;
-  const failedUids = [];
-  await mapLimit(uids, 4, async (uid) => {
-    // 读-改-写同一个人的赠礼列表，失败就重试；还不行记下来，让后台能只补发这几个
-    const done = await softly(() => putGrant(kv, uid, rec), false);
-    if (done) ok++; else failedUids.push(uid);
-  });
-  return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], sent: ok, total: uids.length + skipped,
-    failed: failedUids.length + skipped, failedUids: failedUids.slice(0, 100), note: rec.note }, 200, cors);
+  await putGrantDoc(kv, rec);
+  return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], sent: total, total, failed: 0, failedUids: [], note: rec.note }, 200, cors);
 }
-
 
 // ------------------------------------------------------------------ 榜单
 // GET /board —— 各游戏榜单（公开）。数据全来自玩家自己的云端档案摘要（gd）与挂机云存档的摘要，
@@ -1307,13 +1309,24 @@ async function getBoard(request, env, kv, cors) {
 async function getMyGrants(request, env, kv, cors) {
   const me = await whoami(request, env, kv);
   if (!me) return reply({ ok: true, items: [] }, 200, cors);
-  const list = await kvJson(kv, 'gm_' + (await uhash(me.uid))) || [];
+  const uh = await uhash(me.uid);
+  const legacy = await softly(() => kvJson(kv, 'gm_' + uh, true), null);      // 老版本按人存的赠礼，继续认
+  const doc = await readGrantDoc(kv);
+  // 「发给所有人」只发给发放那一刻已经注册的账号：之后才来的新用户不该白捡一份旧赠礼
+  let regAt = 0;
+  if (doc.some((g) => g && g.all === true)) {
+    const raw = await softly(() => kv.get('usr_' + uh, { weak: true }), null);
+    try { regAt = Number(JSON.parse(raw || 'null').at) || 0; } catch { regAt = 0; }
+  }
+  const mineDoc = doc.filter((g) => g && ((g.all === true && regAt > 0 && regAt <= Number(g.at)) || (Array.isArray(g.to) && g.to.includes(uh))));
+  const all = [...(Array.isArray(legacy) ? legacy : []), ...mineDoc];
+  const seen = new Set();
   return reply({
     ok: true,
-    items: (Array.isArray(list) ? list : []).map((g) => ({
+    items: all.map((g) => ({
       id: String(g.id || ''), amount: Number(g.amount) || 0, note: String(g.note || ''), at: Number(g.at) || 0,
       awk: cleanAwk(g.awk),
-    })).filter((g) => g.id && (g.amount > 0 || g.awk.length)),
+    })).filter((g) => g.id && (g.amount > 0 || g.awk.length) && !seen.has(g.id) && seen.add(g.id)),
   }, 200, cors);
 }
 

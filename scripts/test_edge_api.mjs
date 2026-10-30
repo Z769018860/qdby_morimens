@@ -632,6 +632,10 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   check('全员发放成功（含管理员自己，共 4 人）', b1.json.ok && b1.json.sent === 4 && b1.json.failed === 0 && b1.json.awk.length === 1, b1.json);
   const g1 = await call('/grants/mine', { headers: U1 });
   check('用户拿到银芯 + 唤醒体', g1.json.items.length === 1 && g1.json.items[0].amount === 50 && g1.json.items[0].awk[0] === 'ogier', g1.json);
+  // 全员发放之后才注册的新账号：不该白捡一份旧赠礼
+  await new Promise((res) => setTimeout(res, 5));
+  seedSession(kv, 'u9', '9109', '后来者'); await call('/whoami', { headers: { Authorization: 'Bearer u9' } });
+  eq('发放之后才注册的账号拿不到全员赠礼', (await call('/grants/mine', { headers: { Authorization: 'Bearer u9' } })).json.items.length, 0);
   const b2 = await call('/admin/grant-batch', { method: 'POST', headers: AD, body: { uids: ['9102'], awk: ['lotan'] } });
   eq('只发唤醒体、不发银芯 → 成功 1 人', b2.json.sent, 1);
   eq('乙有 2 条赠礼', (await call('/grants/mine', { headers: U2 })).json.items.length, 2);
