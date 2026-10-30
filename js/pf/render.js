@@ -184,7 +184,7 @@ export function draw() {
     sy = (Math.random() - 0.5) * k;
   }
   ctx.setTransform(view.s * dpr, 0, 0, view.s * dpr, (view.ox + sx) * dpr, (view.oy + sy) * dpr);
-  // 棋盘外那层冷光（drawGlow）和地图上所有「呼吸 / 旋转」的环境闪光都去掉了：地图保持静态，只有战斗本身有动画
+  drawGlow();
   drawBoard();
   if (LX0 < -100) drawCore();
   drawIntent();
@@ -205,7 +205,7 @@ function drawIntent() {
     if (!lanes.has(p.row)) lanes.set(p.row, []);
     lanes.get(p.row).push(p);
   }
-  // 备战期地图保持静止（路线虚线、箭头、祭坛、核心都不再动）
+  const t = G.t || 0;
   for (const [row, items] of lanes) {
     const path = lanePath(row);
     // 路线
@@ -213,7 +213,7 @@ function drawIntent() {
     ctx.strokeStyle = 'rgba(200,140,240,0.34)';
     ctx.lineWidth = 2.6;
     ctx.setLineDash([7, 10]);
-    ctx.lineDashOffset = 0;     // 路线虚线原来会一路流动，现在不动
+    ctx.lineDashOffset = -t * 20;
     ctx.beginPath();
     for (let i = 0; i < path.length; i++) {
       const q = cellXY(path[i]);
@@ -289,7 +289,7 @@ function drawRange() {
     ctx.stroke();
   }
   ctx.setLineDash([7, 7]);
-  ctx.lineDashOffset = 0;     // 射程框虚线原来会转着跑，现在不动
+  ctx.lineDashOffset = -(G.t || 0) * 26;
   ctx.strokeStyle = 'rgba(140,200,255,0.85)';
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -315,7 +315,7 @@ function terrainMark(type, x, y) {
       ctx.stroke();
     }
   } else if (type === 'altar') {
-    const t = 0.4;      // 祭坛四个小点原来会一直转，现在固定
+    const t = (G.t || 0) * 0.9;
     ctx.beginPath(); ctx.arc(x, y, 8, 0, 6.284); ctx.stroke();
     for (let i = 0; i < 4; i++) {
       const a = t + i * Math.PI / 2;
@@ -473,7 +473,7 @@ function drawBoard() {
 
   // 通道箭头：四条通道的入口各画一个向左的箭头，备战期慢慢淡入淡出
   if (G.phase === 'prep') {
-    const k = 0.38;      // 通道箭头原来会明暗呼吸，现在固定
+    const k = 0.30 + 0.16 * Math.sin((G.t || 0) * 1.8);
     ctx.save();
     ctx.strokeStyle = `rgba(196,132,232,${k})`;
     ctx.lineWidth = 2.4;
@@ -523,7 +523,7 @@ function drawCore() {
   const room = -LX0 - 18;
   const k = Math.max(0.44, Math.min(0.64, room / 150));
   const x = LX0 + 12 + 74 * k;
-  const pulse = 0.5;   // 核心的光环原来会呼吸，现在固定
+  const pulse = 0.5;   // 核心光环不呼吸（固定亮度）；地图上其余动画都保留
   const ratio = G.core / G.coreMax;
   const danger = ratio <= 0.34;
   const col = danger ? '232,105,95' : '110,168,255';
@@ -672,7 +672,7 @@ function drawUnits() {
     }
     // 大招就绪：脚下金色脉冲
     if (!dead && u.ult >= 99) {
-      const k = 0.7;      // 大招就绪的金圈原来一闪一闪，现在常亮
+      const k = 0.5 + 0.5 * Math.sin(t * 6);
       hexPath(p.x, p.y, HEX_W - 14);
       ctx.strokeStyle = `rgba(255,224,102,${0.35 + k * 0.45})`;
       ctx.lineWidth = 1.8;
