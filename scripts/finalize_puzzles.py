@@ -66,14 +66,14 @@ def score(ps):
     maxk = max(math.log2(v + 1) for v in sig.values()) or 1
     for p in ps:
         info = math.log2(sig[sig_of(p)] + 1)
-        dc = p.get('dmgComp') or {}
-        vals = [max(v or 0, 0) for v in dc.values()]
+        # Measured combat extrema have incompatible units; use measured party damage shares.
+        vals = [max(0, float(a.get('dmg') or 0)) for a in (p.get('clues') or [])]
         tot = sum(vals)
-        if tot > 0:
-            hs = -sum((v / tot) * math.log(v / tot + 1e-9) for v in vals if v > 0)
-            spread = hs / math.log(5)
+        if tot > 0 and len(vals) > 1:
+            hs = -sum((v / tot) * math.log(v / tot) for v in vals if v > 0)
+            spread = hs / math.log(len(vals))
         else:
-            spread = 1.0
+            spread = 0.0
         r, c = p.get('rounds') or 0, p.get('cards') or 0
         peel = (0.5 if r and r % 5 == 0 else 0) + (0.5 if c and c % 10 == 0 else 0)
         s = 100 * (0.60 * (info / maxk) + 0.25 * spread + 0.15 * peel)
