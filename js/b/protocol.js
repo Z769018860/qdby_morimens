@@ -2263,7 +2263,7 @@ function draw() {
     sy = (Math.random() - 0.5) * k;
   }
   ctx.setTransform(view.s * dpr, 0, 0, view.s * dpr, (view.ox + sx) * dpr, (view.oy + sy) * dpr);
-  drawGlow();
+  // 棋盘外那层冷光（drawGlow）和地图上所有「呼吸 / 旋转」的环境闪光都去掉了：地图保持静态，只有战斗本身有动画
   drawBoard();
   if (LX0 < -100) drawCore();
   drawIntent();
@@ -2394,7 +2394,7 @@ function terrainMark(type, x, y) {
       ctx.stroke();
     }
   } else if (type === 'altar') {
-    const t = (G.t || 0) * 0.9;
+    const t = 0.4;      // 祭坛四个小点原来会一直转，现在固定
     ctx.beginPath(); ctx.arc(x, y, 8, 0, 6.284); ctx.stroke();
     for (let i = 0; i < 4; i++) {
       const a = t + i * Math.PI / 2;
@@ -2552,7 +2552,7 @@ function drawBoard() {
 
   // 通道箭头：四条通道的入口各画一个向左的箭头，备战期慢慢淡入淡出
   if (G.phase === 'prep') {
-    const k = 0.30 + 0.16 * Math.sin((G.t || 0) * 1.8);
+    const k = 0.38;      // 通道箭头原来会明暗呼吸，现在固定
     ctx.save();
     ctx.strokeStyle = `rgba(196,132,232,${k})`;
     ctx.lineWidth = 2.4;
@@ -2602,7 +2602,7 @@ function drawCore() {
   const room = -LX0 - 18;
   const k = Math.max(0.44, Math.min(0.64, room / 150));
   const x = LX0 + 12 + 74 * k;
-  const pulse = 0.5 + 0.5 * Math.sin((G.t || 0) * 2.2);
+  const pulse = 0.5;   // 核心的光环原来会呼吸，现在固定
   const ratio = G.core / G.coreMax;
   const danger = ratio <= 0.34;
   const col = danger ? '232,105,95' : '110,168,255';
@@ -3271,12 +3271,17 @@ function itemTone(it) {
 function bandRect() {
   const hud = $('hud').getBoundingClientRect();
   const bottom = $('bottom').getBoundingClientRect();
-  const pad = window.innerWidth >= 1000 ? 232 : 0;
+  const W = window.innerWidth, H = window.innerHeight;
+  const pad = W >= 1000 ? 232 : 0;
   const y = hud.bottom + 6;
-  const h = bottom.top - y - 6;
-  // 左侧面板的高度上限靠这个变量算（羁绊多了之后它会超出屏幕）
-  document.documentElement.style.setProperty('--botH', Math.round(window.innerHeight - bottom.top) + 'px');
-  return { x: pad, y, w: window.innerWidth - pad, h: Math.max(200, h) };
+  // 横屏时底栏竖起来贴右边（见 protocol.html 的 landscape 块）：棋盘让出这一列，高度不再被底栏吃掉
+  const column = bottom.top < y + 24;
+  const right = column ? bottom.left - 6 : W;
+  // 底栏退到左侧面板右边时，面板自己的可用高度只需躲开左下角的「方向」小钮
+  const sideBottom = bottom.left > 50 && !column ? 52 : Math.round(H - bottom.top);
+  document.documentElement.style.setProperty('--botH', sideBottom + 'px');
+  const h = column ? H - y - 6 : bottom.top - y - 6;
+  return { x: pad, y, w: Math.max(200, right - pad), h: Math.max(200, h) };
 }
 
 
@@ -3616,7 +3621,7 @@ function renderCard() {
   if (!u) { card.hidden = true; return; }
   card.hidden = false;
   // 竖屏手机：信息卡默认缩成一行，免得盖住棋盘没法挪棋子；点「详情」再展开
-  const narrow = window.matchMedia && window.matchMedia('(max-width:520px)').matches;
+  const narrow = window.matchMedia && window.matchMedia('(max-width:520px), (orientation:landscape) and (max-height:520px)').matches;
   const compact = narrow && !ui.cardOpen;
   card.classList.toggle('compact', compact);
   card.classList.toggle('narrow', narrow);
