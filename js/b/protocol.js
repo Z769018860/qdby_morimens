@@ -3189,8 +3189,35 @@ function screenPos(cell) {
 return { hover, init, setBand, layout, toLogic, draw, screenPos };
 })();
 
+// ---- js/pf/layout.js
+const m_layout = await (async () => {
+
+// Short landscape viewports need a side shop, not a tall bottom dock.
+const LANDSCAPE_QUERY = '(orientation: landscape) and (max-height: 540px)';
+function isShortLandscape(width, height) {
+  return width > height && height <= 540;
+}
+function viewportSize() {
+  const vv = window.visualViewport;
+  return { width: window.innerWidth, height: Math.min(window.innerHeight, vv?.height || window.innerHeight) };
+}
+function shortLandscape() {
+  // Match CSS media-query dimensions; browser toolbars only reduce usable height.
+  return isShortLandscape(window.innerWidth,window.innerHeight);
+}
+function boardBand(width, height, hud, dock, landscape = isShortLandscape(width,height)) {
+  const left = landscape ? Math.max(8,hud.left || 0) : width >= 1280 ? 292 : width >= 1000 ? 252 : 0;
+  const y = hud.bottom + (landscape ? 4 : 6);
+  const right = landscape ? dock.left - 8 : width - (width >= 1280 ? 368 : 0);
+  const bottom = landscape ? height - 8 : dock.top - 6;
+  return {x:left,y,w:Math.max(1,right-left),h:Math.max(1,bottom-y)};
+}
+return { LANDSCAPE_QUERY, isShortLandscape, viewportSize, shortLandscape, boardBand };
+})();
+
 // ---- js/pf/ui.js
 const m_ui = await (async () => {
+const { boardBand, viewportSize, shortLandscape } = m_layout;
 const { G, buy, sell, levelUp, rollShop, rollItemShop, beginWave, reset, traitList, deployed, summary, UNITS_BY_ID, buyItem, equip, unequip, itemDef, placeBench } = m_engine;
 const { ART, SHEET, REALM_ART } = m_gen;
 const { WAVES, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON, FAC_ICON, GMK_ICON, TRAIT_KINDS, STAR_NAME, LEVEL_COST, REROLL_COST, MAX_LEVEL, BENCH_SIZE, creditsAt, nextTier, ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS, ENEMY, interestOf, TRAITS, HEX_W } = m_defs;
@@ -3276,16 +3303,12 @@ function itemTone(it) {
 // 画布可用区：顶栏下沿到商店上沿之间那条带子。
 // 宽屏（>=1000px）左边有一块信息面板，画布从它右边开始，棋盘才会落在剩余区域的正中。
 function bandRect() {
+  const {width,height} = viewportSize();
+  document.documentElement.style.setProperty('--pf-vh', height + 'px');
   const hud = $('hud').getBoundingClientRect();
   const bottom = $('bottom').getBoundingClientRect();
-  const wide = window.innerWidth >= 1280;
-  const pad = wide ? 292 : window.innerWidth >= 1000 ? 252 : 0;
-  const right = wide ? 368 : 0;
-  const y = hud.bottom + 6;
-  const h = bottom.top - y - 6;
-  // 左侧面板的高度上限靠这个变量算（羁绊多了之后它会超出屏幕）
-  document.documentElement.style.setProperty('--botH', Math.round(window.innerHeight - bottom.top) + 'px');
-  return { x: pad, y, w: window.innerWidth - pad - right, h: Math.max(200, h) };
+  document.documentElement.style.setProperty('--botH', Math.round(height - bottom.top) + 'px');
+  return boardBand(width,height,hud,bottom,shortLandscape());
 }
 
 
@@ -3398,7 +3421,7 @@ function sync() {
     G.inv.map((s) => s.kind + s.id).join('|'),
     G.units.map((u) => [u.uid, u.star, u.cell, u.bench,
       u.wheel ? u.wheel.id : '', u.creation ? u.creation.id : ''].join(':')).join('|'),
-    G.level, ui.sel, ui.item, ui.tab, G.phase, G.wave, ui.bonusShop,
+    G.level, ui.sel, ui.item, ui.tab, G.phase, G.wave, ui.bonusShop, ui.layoutKey,
     G.bonusShops.map(shop => shop.map(s => s?.id || '-').join(',')).join('|'),
   ].join('#');
   if (sig === lastSig) return;
@@ -3454,7 +3477,7 @@ function renderShop() {
       return `<button class="scard c${d.cost}${can ? '' : ' poor'}${cls}" data-i="${i}" data-detail="unit:${d.id}" title="${tip}">
         ${badge}
         ${own ? `<span class="prog">${[0, 1, 2].map((k) => `<i class="${k < own ? 'on' : ''}"></i>`).join('')}</span>` : ''}
-        ${portrait(d.id, window.innerWidth >= 1000 ? 56 : 42)}
+        ${portrait(d.id, shortLandscape() ? 28 : window.innerWidth >= 1000 ? 56 : 42)}
         <b>${d.n}</b>
         <span class="chips">${realmTag(d.realm)}${roleTag(d.role, true)}</span>
         <span class="price"><i>◈</i>${d.cost}</span>
@@ -3641,7 +3664,7 @@ function renderCard() {
   if (!u) { card.hidden = true; return; }
   card.hidden = false;
   // 竖屏手机：信息卡默认缩成一行，免得盖住棋盘没法挪棋子；点「详情」再展开
-  const narrow = window.matchMedia && window.matchMedia('(max-width:520px)').matches;
+  const narrow = shortLandscape() || (window.matchMedia && window.matchMedia('(max-width:520px)').matches);
   const compact = narrow && !ui.cardOpen;
   card.classList.toggle('compact', compact);
   card.classList.toggle('narrow', narrow);
@@ -3653,7 +3676,7 @@ function renderCard() {
     <button class="x" id="cardX">×</button>
     <button class="more" id="cardMore">${compact ? '详情' : '收起'}</button>
     <div class="ch">
-      ${portrait(d.id, window.innerWidth >= 1000 ? 64 : 50)}
+      ${portrait(d.id, shortLandscape() ? 40 : window.innerWidth >= 1000 ? 64 : 50)}
       <div>
         <h4>${d.n}<em>${STAR_NAME[u.star]}</em></h4>
         <p class="tags">${realmTag(d.realm)}${roleTag(d.role)}<span class="costb">${d.cost} 费</span></p>
@@ -4012,7 +4035,15 @@ function showDetails(title, html, pin = false, point) {
   detailPanel.innerHTML = `<button class="detail-close" aria-label="关闭说明">×</button><h2>${escapeText(title)}</h2><div class="detail-body">${html}</div><p class="detail-hint">${pin ? '已固定 · 点击 × 或按 Esc 关闭' : '移入说明可滚动阅读；右键固定说明'}</p>`;
   detailPanel.scrollTop = 0;
   detailPanel.querySelector('.detail-close').onclick = closeDetails;
-  const width = Math.min(420, window.innerWidth - 24);
+  const viewport = viewportSize();
+  const landscape = shortLandscape();
+  const width = Math.min(420, viewport.width - 24);
+  if (landscape) {
+    detailPanel.style.left = '12px';
+    detailPanel.style.top = '12px';
+    detailPanel.style.maxHeight = (viewport.height - 24) + 'px';
+    return;
+  }
   const left = point ? point.x + 18 : window.innerWidth - width - 18;
   detailPanel.style.left = Math.max(12, Math.min(left, window.innerWidth - width - 12)) + 'px';
   const top = point ? Math.max(60, Math.min(point.y, window.innerHeight - 260)) : 72;
@@ -4059,6 +4090,7 @@ function buildDetails() {
   detailPanel.onpointerenter = () => clearTimeout(detailTimer);
   detailPanel.onpointerleave = () => { detailTimer = setTimeout(hideInspection, 200); };
   document.addEventListener('pointerover', e => {
+    if (e.pointerType === 'touch') return;
     const el = e.target.closest('[data-detail]'); if (!el || el.contains(e.relatedTarget)) return;
     inspectElement(el, false);
   });
@@ -4084,7 +4116,16 @@ function buildDetails() {
     '</div><h3>命轮</h3><div class="detail-list">' + WHEELS.map(d => `<button data-detail="wheel:${d.id}">${escapeText(d.n)}</button>`).join('') +
     '</div><h3>造物</h3><div class="detail-list">' + CREATIONS.map(d => `<button data-detail="creation:${d.id}">${escapeText(d.n)}</button>`).join('') + '</div>', true);
 }
-return { ui, bandRect, build, setTab, setDiff, startRun, sync, tapUnit, select, updateHUD, showEnd, TERRAIN_LIST, ITEM_POOL, hideInspection, inspectCell };
+
+// Keep an open, pinned explanation inside the viewport when the phone rotates.
+function relayoutInspection() {
+  if (!detailPanel || detailPanel.hidden) return;
+  const {height} = viewportSize();
+  detailPanel.style.left = '12px';
+  detailPanel.style.top = '12px';
+  detailPanel.style.maxHeight = Math.max(80,height - 24) + 'px';
+}
+return { ui, bandRect, build, setTab, setDiff, startRun, sync, tapUnit, select, updateHUD, showEnd, TERRAIN_LIST, ITEM_POOL, hideInspection, inspectCell, relayoutInspection };
 })();
 
 // ---- js/gamecloud.js
@@ -4338,7 +4379,7 @@ return { GAMES, account, isTrivial, collect, hashOf, record, plan, statusOf, syn
 const m_protocol = await (async () => {
 const { G, update, beginWave, place, sell, reset, summary, UNITS_BY_ID, buy, buyItem, equip, levelUp, rollShop, deployed, freeCell, TUNE } = m_engine;
 const { init, draw, setBand, toLogic, hover, layout, screenPos } = m_render;
-const { build, startRun, sync, updateHUD, showEnd, bandRect, select, tapUnit, ui, inspectCell, hideInspection } = m_ui;
+const { build, startRun, sync, updateHUD, showEnd, bandRect, select, tapUnit, ui, inspectCell, hideInspection, relayoutInspection } = m_ui;
 const { cellAt, colOf, DEPLOY_COLS, MAX_LEVEL, LEVEL_COST, INV_SIZE } = m_defs;
 const { sfx } = m_audio;
 const { startGameCloud } = m_gamecloud;
@@ -4371,7 +4412,7 @@ function cellUnder(clientX, clientY) {
 
 cv.addEventListener('pointermove', (e) => {
   hover.cell = cellUnder(e.clientX, e.clientY);
-  if (G.phase !== 'idle') inspectCell(hover.cell, e.clientX, e.clientY);
+  if (G.phase !== 'idle' && e.pointerType !== 'touch') inspectCell(hover.cell, e.clientX, e.clientY);
 });
 
 cv.addEventListener('pointerleave', () => { hover.cell = -1; hideInspection(true); });
@@ -4468,11 +4509,18 @@ async function boot() {
   layout();
   const b = bandRect();
   setBand(b.x, b.y, b.w, b.h);
-  window.addEventListener('resize', () => {
-    layout();
+  const resizeGame = () => {
     const r = bandRect();
+    layout();
     setBand(r.x, r.y, r.w, r.h);
-  });
+    relayoutInspection();
+    // Rebuild responsive portraits and the collapsed/expanded information card.
+    ui.layoutKey = `${window.innerWidth}:${window.innerHeight}:${window.visualViewport?.height || 0}`;
+    sync();
+  };
+  window.addEventListener('resize', resizeGame);
+  window.addEventListener('orientationchange', () => requestAnimationFrame(resizeGame));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeGame);
   // 页面里的载入守护 4 秒后会把按钮改成「正在载入立绘…」，这里得把它交还回来
   document.dispatchEvent(new CustomEvent('pf:ready'));
   requestAnimationFrame((t) => { last = t; loop(t); });

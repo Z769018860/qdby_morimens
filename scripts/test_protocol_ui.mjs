@@ -23,7 +23,7 @@ globalThis.document={body,documentElement:new Element(),getElementById:get,creat
 globalThis.window={innerWidth:1920,innerHeight:1080,matchMedia:()=>({matches:false})};
 globalThis.localStorage={getItem:()=> '1',setItem(){}};
 const {G,buy}=await import('../js/pf/engine.js');
-const {build,startRun,sync,ui,inspectCell,hideInspection,updateHUD}=await import('../js/pf/ui.js');
+const {build,startRun,sync,ui,inspectCell,hideInspection,updateHUD,select,relayoutInspection}=await import('../js/pf/ui.js');
 const fire=(key,target)=>events.get(key)?.forEach(fn=>fn({target,relatedTarget:null,preventDefault(){}}));
 build();startRun(42);G.gold=100;
 const id=G.shop[0].id;
@@ -46,3 +46,10 @@ get('btnFieldGuide').onclick();panel.querySelector('.detail-close').onclick();
 const cell=Number(Object.keys(G.terrain)[0]);inspectCell(cell,300,200);assert.equal(panel.hidden,false);hideInspection();assert.equal(panel.hidden,true);
 updateHUD();assert.equal(get('purseInt').textContent,'息 +5');
 console.log('Protocol UI: extra-shop return, original shelf preservation, unclipped Buff hover/pin, terrain guide and equipment details passed');
+
+window.innerWidth=844;window.innerHeight=390;ui.layoutKey='844:390';
+select(G.units[0].uid);assert.match(get('unitCard').innerHTML,/>详情<\/button>/);
+get('cardMore').onclick();assert.match(get('unitCard').innerHTML,/>收起<\/button>/);
+get('btnFieldGuide').onclick();assert.equal(panel.style.top,'12px');assert.equal(panel.style.maxHeight,'366px');
+window.visualViewport={height:320};relayoutInspection();assert.equal(panel.style.maxHeight,'296px');
+console.log('Protocol landscape UI: compact character card, expanded details and visual-viewport resizing passed');

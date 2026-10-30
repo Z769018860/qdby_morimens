@@ -1,3 +1,4 @@
+import { boardBand, viewportSize, shortLandscape } from './layout.js';
 // 《忘却协议》界面层：顶栏、商店（唤醒体 / 命轮·造物两个页签）、装备栏、备战席、
 // 羁绊条、单位卡、遮罩层。
 //
@@ -87,16 +88,12 @@ function itemTone(it) {
 // 画布可用区：顶栏下沿到商店上沿之间那条带子。
 // 宽屏（>=1000px）左边有一块信息面板，画布从它右边开始，棋盘才会落在剩余区域的正中。
 export function bandRect() {
+  const {width,height} = viewportSize();
+  document.documentElement.style.setProperty('--pf-vh', height + 'px');
   const hud = $('hud').getBoundingClientRect();
   const bottom = $('bottom').getBoundingClientRect();
-  const wide = window.innerWidth >= 1280;
-  const pad = wide ? 292 : window.innerWidth >= 1000 ? 252 : 0;
-  const right = wide ? 368 : 0;
-  const y = hud.bottom + 6;
-  const h = bottom.top - y - 6;
-  // 左侧面板的高度上限靠这个变量算（羁绊多了之后它会超出屏幕）
-  document.documentElement.style.setProperty('--botH', Math.round(window.innerHeight - bottom.top) + 'px');
-  return { x: pad, y, w: window.innerWidth - pad - right, h: Math.max(200, h) };
+  document.documentElement.style.setProperty('--botH', Math.round(height - bottom.top) + 'px');
+  return boardBand(width,height,hud,bottom,shortLandscape());
 }
 
 
@@ -209,7 +206,7 @@ export function sync() {
     G.inv.map((s) => s.kind + s.id).join('|'),
     G.units.map((u) => [u.uid, u.star, u.cell, u.bench,
       u.wheel ? u.wheel.id : '', u.creation ? u.creation.id : ''].join(':')).join('|'),
-    G.level, ui.sel, ui.item, ui.tab, G.phase, G.wave, ui.bonusShop,
+    G.level, ui.sel, ui.item, ui.tab, G.phase, G.wave, ui.bonusShop, ui.layoutKey,
     G.bonusShops.map(shop => shop.map(s => s?.id || '-').join(',')).join('|'),
   ].join('#');
   if (sig === lastSig) return;
@@ -265,7 +262,7 @@ function renderShop() {
       return `<button class="scard c${d.cost}${can ? '' : ' poor'}${cls}" data-i="${i}" data-detail="unit:${d.id}" title="${tip}">
         ${badge}
         ${own ? `<span class="prog">${[0, 1, 2].map((k) => `<i class="${k < own ? 'on' : ''}"></i>`).join('')}</span>` : ''}
-        ${portrait(d.id, window.innerWidth >= 1000 ? 56 : 42)}
+        ${portrait(d.id, shortLandscape() ? 28 : window.innerWidth >= 1000 ? 56 : 42)}
         <b>${d.n}</b>
         <span class="chips">${realmTag(d.realm)}${roleTag(d.role, true)}</span>
         <span class="price"><i>◈</i>${d.cost}</span>
@@ -452,7 +449,7 @@ function renderCard() {
   if (!u) { card.hidden = true; return; }
   card.hidden = false;
   // 竖屏手机：信息卡默认缩成一行，免得盖住棋盘没法挪棋子；点「详情」再展开
-  const narrow = window.matchMedia && window.matchMedia('(max-width:520px)').matches;
+  const narrow = shortLandscape() || (window.matchMedia && window.matchMedia('(max-width:520px)').matches);
   const compact = narrow && !ui.cardOpen;
   card.classList.toggle('compact', compact);
   card.classList.toggle('narrow', narrow);
@@ -464,7 +461,7 @@ function renderCard() {
     <button class="x" id="cardX">×</button>
     <button class="more" id="cardMore">${compact ? '详情' : '收起'}</button>
     <div class="ch">
-      ${portrait(d.id, window.innerWidth >= 1000 ? 64 : 50)}
+      ${portrait(d.id, shortLandscape() ? 40 : window.innerWidth >= 1000 ? 64 : 50)}
       <div>
         <h4>${d.n}<em>${STAR_NAME[u.star]}</em></h4>
         <p class="tags">${realmTag(d.realm)}${roleTag(d.role)}<span class="costb">${d.cost} 费</span></p>
@@ -823,7 +820,15 @@ function showDetails(title, html, pin = false, point) {
   detailPanel.innerHTML = `<button class="detail-close" aria-label="关闭说明">×</button><h2>${escapeText(title)}</h2><div class="detail-body">${html}</div><p class="detail-hint">${pin ? '已固定 · 点击 × 或按 Esc 关闭' : '移入说明可滚动阅读；右键固定说明'}</p>`;
   detailPanel.scrollTop = 0;
   detailPanel.querySelector('.detail-close').onclick = closeDetails;
-  const width = Math.min(420, window.innerWidth - 24);
+  const viewport = viewportSize();
+  const landscape = shortLandscape();
+  const width = Math.min(420, viewport.width - 24);
+  if (landscape) {
+    detailPanel.style.left = '12px';
+    detailPanel.style.top = '12px';
+    detailPanel.style.maxHeight = (viewport.height - 24) + 'px';
+    return;
+  }
   const left = point ? point.x + 18 : window.innerWidth - width - 18;
   detailPanel.style.left = Math.max(12, Math.min(left, window.innerWidth - width - 12)) + 'px';
   const top = point ? Math.max(60, Math.min(point.y, window.innerHeight - 260)) : 72;
@@ -870,6 +875,7 @@ function buildDetails() {
   detailPanel.onpointerenter = () => clearTimeout(detailTimer);
   detailPanel.onpointerleave = () => { detailTimer = setTimeout(hideInspection, 200); };
   document.addEventListener('pointerover', e => {
+    if (e.pointerType === 'touch') return;
     const el = e.target.closest('[data-detail]'); if (!el || el.contains(e.relatedTarget)) return;
     inspectElement(el, false);
   });
@@ -894,4 +900,13 @@ function buildDetails() {
     '<h3>唤醒体</h3><div class="detail-list">' + Object.values(UNITS_BY_ID).map(d => `<button data-detail="unit:${d.id}">${escapeText(d.n)}</button>`).join('') +
     '</div><h3>命轮</h3><div class="detail-list">' + WHEELS.map(d => `<button data-detail="wheel:${d.id}">${escapeText(d.n)}</button>`).join('') +
     '</div><h3>造物</h3><div class="detail-list">' + CREATIONS.map(d => `<button data-detail="creation:${d.id}">${escapeText(d.n)}</button>`).join('') + '</div>', true);
+}
+
+// Keep an open, pinned explanation inside the viewport when the phone rotates.
+export function relayoutInspection() {
+  if (!detailPanel || detailPanel.hidden) return;
+  const {height} = viewportSize();
+  detailPanel.style.left = '12px';
+  detailPanel.style.top = '12px';
+  detailPanel.style.maxHeight = Math.max(80,height - 24) + 'px';
 }
