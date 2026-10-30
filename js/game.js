@@ -855,17 +855,21 @@ function reportPanel() {
         h('div', { class: 'invest' }, invest.join(' · '))),
     );
   });
-  const bosses = (p.boss || []).map(id => D.monster.find(m => m.id === id)).filter(Boolean);
+  // The season-72 zone-5 encounter is 宁菲亚 (14086); legacy bank chunks
+  // contain a mismatched boss ID. Correct it at presentation time as well,
+  // so existing cached question chunks and shared links display the right boss.
+  const bossIds = p.season === 72 && p.zone === 5 ? ['14086'] : (p.boss || []);
+  const bosses = bossIds.map(id => D.monster.find(m => String(m.id) === String(id))).filter(Boolean);
   // 伤害构成面板
   const dc = p.dmgComp;
   const dmgCompBox = dc ? h('div', { class: 'dmgcomp' },
-    h('div', { class: 'dchead' }, t('dmgCompTitle')),
+    h('div', { class: 'dchead' }, t('dmgCompTitle') + '（推算值，非战斗日志实测）'),
     h('div', { class: 'dcgrid' },
       h('div', { class: 'dc', 'data-k': 'keeper' }, h('small', {}, t('keeper')), h('b', {}, wan(dc.keeper))),
       h('div', { class: 'dc', 'data-k': 'tentacle' }, h('small', {}, t('tentacle')), h('b', {}, wan(dc.tentacle))),
       h('div', { class: 'dc', 'data-k': 'counter' }, h('small', {}, t('counter')), h('b', {}, wan(dc.counter))),
       h('div', { class: 'dc', 'data-k': 'strength' }, h('small', {}, t('strength')), h('b', {}, wan(dc.strength))),
-      h('div', { class: 'dc', 'data-k': 'poison' }, h('small', {}, t('poison')), h('b', {}, wan(dc.poison))))) : null;
+      h('div', { class: 'dc', 'data-k': 'poison' }, h('small', {}, t('poison') + '（估算）'), h('b', {}, wan(dc.poison))))) : null;
   return h('section', { class: 'card report' },
     h('div', { class: 'rhead' },
       h('div', {}, h('h2', {}, `${t('reportTitle')} · ${t('season', { s: p.season })}`),
