@@ -625,6 +625,24 @@ function update(dt) {
   // ---- 掉落物
   for (const pk of rm.pickups) {
     if (pk.taken) continue;
+    // Pickups have no collision physics: clamp out of walls, then push off tables.
+    // This also repairs already spawned drops after enemy knockback near the wall.
+    if (!Number.isFinite(pk.x) || !Number.isFinite(pk.y)) { pk.x = G.W / 2; pk.y = G.H / 2; }
+    pk.x = clamp(pk.x, WALL + 22, G.W - WALL - 22);
+    pk.y = clamp(pk.y, WALL + 22, G.H - WALL - 22);
+    for (const ob of rm.obstacles) {
+      const pad = 20;
+      if (pk.x > ob.x - pad && pk.x < ob.x + ob.w + pad && pk.y > ob.y - pad && pk.y < ob.y + ob.h + pad) {
+        const edges = [
+          { d: pk.x - (ob.x - pad), x: ob.x - pad, y: pk.y },
+          { d: ob.x + ob.w + pad - pk.x, x: ob.x + ob.w + pad, y: pk.y },
+          { d: pk.y - (ob.y - pad), x: pk.x, y: ob.y - pad },
+          { d: ob.y + ob.h + pad - pk.y, x: pk.x, y: ob.y + ob.h + pad },
+        ].sort((a, b) => a.d - b.d);
+        pk.x = clamp(edges[0].x, WALL + 22, G.W - WALL - 22);
+        pk.y = clamp(edges[0].y, WALL + 22, G.H - WALL - 22);
+      }
+    }
     const d = dist(pk.x, pk.y, p.x, p.y);
     if (pk.kind === 'coin' && d < 44) {
       // 磁吸
@@ -1821,13 +1839,13 @@ function render() {
   // 敌方弹幕
   for (const b of rm.eshot) {
     ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r * 2.4);
+    ctx.globalCompositeOperation = 'source-over';
+    const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, Math.min(25, b.r * 2.4));
     g.addColorStop(0, 'rgba(255,140,140,.95)');
     g.addColorStop(0.5, 'rgba(235,70,70,.55)');
     g.addColorStop(1, 'rgba(235,70,70,0)');
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2.4, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.x, b.y, Math.min(25, b.r * 2.4), 0, 7); ctx.fill();
     ctx.restore();
   }
 
@@ -1835,12 +1853,13 @@ function render() {
   for (const s of rm.shots) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 2.2);
-    g.addColorStop(0, 'rgba(235,248,255,1)');
-    g.addColorStop(0.45, s.crit ? 'rgba(255,230,150,.85)' : 'rgba(150,205,255,.8)');
+    const glowR = Math.max(2, Math.min(28, (Number(s.r) || 2) * 1.6));
+    const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, glowR);
+    g.addColorStop(0, 'rgba(205,230,255,.62)');
+    g.addColorStop(0.45, s.crit ? 'rgba(255,214,125,.42)' : 'rgba(115,175,245,.35)');
     g.addColorStop(1, 'rgba(120,180,255,0)');
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 2.2, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(s.x, s.y, glowR, 0, 7); ctx.fill();
     ctx.restore();
   }
 
@@ -1887,13 +1906,14 @@ function render() {
       ctx.restore();
     } else if (f.kind === 'boom') {
       ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const k = 1 - f.life / 0.4;
-      const g = ctx.createRadialGradient(f.x, f.y, 2, f.x, f.y, f.s * (0.4 + k));
+      ctx.globalCompositeOperation = 'source-over';
+      const k = clamp(1 - f.life / 0.4, 0, 1);
+      const boomR = Math.max(3, Math.min(110, (Number(f.s) || 12) * (0.4 + k)));
+      const g = ctx.createRadialGradient(f.x, f.y, 2, f.x, f.y, boomR);
       g.addColorStop(0, `rgba(255,220,150,${0.7 * (1 - k)})`);
       g.addColorStop(1, 'rgba(255,120,60,0)');
       ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.s * (0.4 + k), 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(f.x, f.y, boomR, 0, 7); ctx.fill();
       ctx.restore();
     } else {
       ctx.save();
