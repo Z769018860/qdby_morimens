@@ -2,7 +2,7 @@ import './ui/orient.js';   // 横屏 / 竖屏开关（顶栏那颗方向按钮�
 import {
   indexData, newState, migrate, offlineReport, claimOffline, levelUp, levelUpMax, setTeam, autoTeam, autoLoadout, setPreset,
   equipItem, unequipItem, enhanceItem, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem,
-  dismantleCores, breakThrough, awakenUp, upgradeOrder,
+  dismantleCores, breakThrough, awakenUp, upgradeOrder, rewindLevel,
 } from './core/game.js';
 import { setOrderSlot } from './core/orders.js';
 import { TEAM_SIZE } from './core/constants.js';
@@ -352,6 +352,15 @@ function onAct(e) {
       const r = breakThrough(s, el.dataset.slug);
       if (r) { sound.play('lvup'); toast(`突破成功：金币-${fmt(r.gold)} 银芯-${r.cores}`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
       else toast('材料不足');
+      break;
+    }
+    case 'rewind': {
+      const back = +el.dataset.n || 10, r0 = s.roster[el.dataset.slug];
+      if (!r0) break;
+      if (back >= r0.lv - 1 && !confirm(`把 ${d.bySlug[el.dataset.slug].zh} 回溯到 1 级？叠位不变，当初花的金币会返还。`)) break;
+      const r = rewindLevel(s, el.dataset.slug, back);
+      if (r) { sound.play('lvup'); toast(`回溯到 ${r.to} 级：银芯-${r.cost} 金币+${fmt(r.refund)}`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
+      else toast('银芯不足');
       break;
     }
     case 'awaken': {

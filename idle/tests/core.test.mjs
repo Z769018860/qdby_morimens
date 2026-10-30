@@ -1670,3 +1670,47 @@ test('编队独立配装：出战时换成编队自己的命轮 / 造物 / 钥�
   assert.equal(teamDefs(s, data).power > 0, true);
   assert.ok(mainPower > 0);
 });
+
+/* ---------- 回溯等级 ---------- */
+import { rewindLevel } from '../src/core/game.js';
+import { rewindPlan, REWIND_BASE, lvUpCost as _lvUpCost } from '../src/core/stats.js';
+
+test('回溯：只倒回等级，叠位不动；返还升级与突破的金币，收银芯手续费', () => {
+  const s = newState(data, 51);
+  const slug = 'ogier';
+  Object.assign(s.roster[slug], { lv: 1, star: 7, brk: 0 });
+  s.gold = 1e12; s.cores = 1e6;
+  const g0 = s.gold;
+  // 一路升到 45：中途两次突破（20、40）
+  let spent = 0;
+  for (let guard = 0; guard < 200 && s.roster[slug].lv < 45; guard++) {
+    const before = s.gold;
+    if (!levelUp(s, slug, 1)) { assert.ok(breakThrough(s, slug), 'needs break'); }
+    spent += before - s.gold;
+  }
+  const r = s.roster[slug];
+  assert.equal(r.lv, 45); assert.equal(r.brk, 2);
+  const goldAfterUp = s.gold, coresBefore = s.cores;
+  const plan = rewindPlan(r, 1);
+  assert.equal(plan.back, 44);
+  assert.equal(plan.cost, REWIND_BASE + Math.ceil(44 * 0.8));
+  const out = rewindLevel(s, slug, 999);
+  assert.equal(out.to, 1);
+  assert.equal(r.lv, 1); assert.equal(r.star, 7, '叠位不变'); assert.equal(r.brk, 0);
+  assert.equal(s.cores, coresBefore - out.cost);
+  assert.equal(s.gold, goldAfterUp + out.refund);
+  assert.equal(g0 - spent, goldAfterUp);
+  assert.equal(out.refund, spent, '金币全额返还（突破用掉的银芯不退）');
+  // 等级上限仍由叠位决定
+  assert.equal(levelCap(r.star), 60 + 7);
+  // 部分回溯：45 → 35 要还掉突破 40 的金币并把 brk 降到 1
+  Object.assign(r, { lv: 45, brk: 2 });
+  const p10 = rewindLevel(s, slug, 10);
+  assert.equal(r.lv, 35); assert.equal(r.brk, 1);
+  assert.equal(p10.refund, [35, 36, 37, 38, 39, 40, 41, 42, 43, 44].reduce((a, l) => a + _lvUpCost(l), 0) + breakCost(40).gold);
+  // 银芯不够 / 已经 1 级：不动
+  s.cores = 0; r.lv = 30;
+  assert.equal(rewindLevel(s, slug, 5), null); assert.equal(r.lv, 30);
+  s.cores = 1e6; r.lv = 1;
+  assert.equal(rewindLevel(s, slug, 5), null);
+});

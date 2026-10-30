@@ -26,7 +26,7 @@ import { SHOP, boughtToday } from '../core/shop.js';
 import { refineCost } from '../core/gear.js';
 import {
   lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, growthPerLevel,
-  awakenAmp, awakenSkill, nextAwakenMilestone,
+  awakenAmp, awakenSkill, nextAwakenMilestone, rewindPlan,
 } from '../core/stats.js';
 import { describeSkill } from '../core/skills.js';
 import {
@@ -629,7 +629,12 @@ export function detailModal(app, slug) {
       <button class="btn" data-act="lvup" data-slug="${slug}" data-n="10" ${cost && s.gold >= cost ? '' : 'disabled'}>×10</button>
       <button class="btn" data-act="lvmax" data-slug="${slug}" ${cost ? '' : 'disabled'}>升至最高</button>
       ${needBrk ? `<button class="btn gold" data-act="brk" data-slug="${slug}" ${s.gold >= brkCost.gold && s.cores >= brkCost.cores ? '' : 'disabled'}>突破 Lv${r.lv}→${r.lv + 1}（🪙${fmt(brkCost.gold)} <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${brkCost.cores}）</button>` : ''}
-    </div>` : '';
+    </div>
+    ${r.lv > 1 ? `<div class="row rewind"><span class="dim">回溯等级（不动叠位）</span>${[[10, '回溯 10 级'], [30, '回溯 30 级'], [999, '回溯到 1 级']].map(([n, zh]) => {
+      const p = rewindPlan(r, r.lv - n);
+      return `<button class="btn sm" data-act="rewind" data-slug="${slug}" data-n="${n}" ${s.cores >= p.cost ? '' : 'disabled'} title="银芯 -${p.cost}，返还金币 ${fmt(p.refund)}">${zh}<small> 🪙+${fmt(p.refund)} · <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${p.cost}</small></button>`;
+    }).join('')}</div>
+    <p class="hint">回溯只倒回<b>等级</b>：返还当初升级与突破花的金币，收一笔银芯手续费（${10} + 每级 0.8）；<b>叠位、等级上限不变</b>，突破用掉的银芯不退。想把等级让给别的唤醒体时用。</p>` : ''}` : '';
 
   const html = `<div class="detail" style="--rc:${R(a).color}">
     <div class="d-art"><img src="${img(a.card)}" alt="${esc(a.zh)}立绘" data-act="zoom" data-slug="${slug}" loading="lazy"><span class="zoomhint">${a.creator ? '点开看大图' : '点立绘看大图'}</span></div>

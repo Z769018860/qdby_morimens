@@ -61,6 +61,22 @@ export const nextBreakLevel = (lv, brk = 0) => {
   return Math.max(step, Math.ceil((lv + 1) / LEVEL_GATE) * LEVEL_GATE);
 };
 
+// 回溯（花银芯把等级倒回去，只动等级、不动叠位）：
+// 返还倒回那几级当初花掉的金币（升级 + 已完成的突破金币；突破用掉的银芯不退），收一笔银芯手续费。
+export const REWIND_BASE = 10;            // 手续费底数
+export const REWIND_PER_LV = 0.8;         // 每倒回 1 级再收这么多
+export function rewindPlan(r, target) {
+  const lv = Math.max(1, Math.floor(r?.lv || 1));
+  const to = Math.max(1, Math.min(lv, Math.floor(target)));
+  if (to >= lv) return { to: lv, back: 0, refund: 0, cost: 0 };
+  let refund = 0;
+  for (let l = to; l < lv; l++) refund += lvUpCost(l);
+  const brk = Math.floor(r?.brk || 0);
+  for (let k = 1; k <= brk; k++) { const g = k * LEVEL_GATE; if (g > to && g <= lv) refund += breakCost(g).gold; }
+  const back = lv - to;
+  return { to, back, refund, cost: REWIND_BASE + Math.ceil(back * REWIND_PER_LV) };
+}
+
 // 叠位（银芯共鸣）：抽不到重复时也能推进，成本随叠位线性上升
 export const awakenCost = (star = 0) => 20 + 5 * awaken({ star });
 

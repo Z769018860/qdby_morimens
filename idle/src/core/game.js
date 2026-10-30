@@ -2,7 +2,7 @@ import { hash, mulberry32 } from './rng.js';
 import {
   MAX_LV_HARD, MAX_AWAKEN, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, ORDER_SLOTS, SAVE_VERSION, GEAR_MAX_LV, RARITY_ORDER,
 } from './constants.js';
-import { baseStats, lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost } from './stats.js';
+import { baseStats, lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, rewindPlan } from './stats.js';
 import { buildKit, makeMedians } from './skills.js';
 import {
   ZERO, addBonus, wheelBonus, relicBonus, relicBond, relicSlotCount, relicTheme, covenantBonus, gearCost, dismantleValue,
@@ -533,6 +533,18 @@ export function breakThrough(state, slug) {
   state.stats.coresSpent = (state.stats.coresSpent || 0) + c.cores;
   r.brk = Math.floor(r.lv / LEVEL_GATE);
   return c;
+}
+// 回溯：花银芯把等级倒回 back 级（最低到 1 级），返还当初花的金币；叠位不变，等级上限也不变（上限归叠位）
+export function rewindLevel(state, slug, back = 10) {
+  const r = state.roster[slug];
+  if (!r || !(back >= 1) || r.lv <= 1) return null;
+  const plan = rewindPlan(r, r.lv - Math.floor(back));
+  if (!plan.back || state.cores < plan.cost) return null;
+  state.cores -= plan.cost; state.stats.coresSpent = (state.stats.coresSpent || 0) + plan.cost;
+  state.gold += plan.refund;
+  r.lv = plan.to;
+  r.brk = Math.min(r.brk || 0, Math.floor(plan.to / LEVEL_GATE));
+  return plan;
 }
 // 叠位：抽到重复唤醒体 +1，也可以在详情页用银芯共鸣（成本随叠位线性上升）
 export function awakenUp(state, slug) {
