@@ -773,3 +773,11 @@ body{background:#0a0d13}
 a.btn{display:inline-block;text-decoration:none}
 .cfcol p b{display:inline;color:var(--text)}
 .cfcol p{white-space:nowrap}
+
+/* 战斗术语说明入口与可点开的词条目录 */
+.idle-terms-btn{border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--acc);padding:5px 8px;font-size:12px;white-space:nowrap}
+.idle-terms-btn:hover,.idle-glossary-item:hover{border-color:var(--acc)}
+.idle-glossary{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;max-height:55vh;overflow:auto;margin-top:14px}
+.idle-glossary-item{padding:9px 5px;border:1px solid var(--line);background:var(--panel2);border-radius:9px;text-align:center;cursor:pointer}
+.glossary-modal{max-width:min(620px,94vw)}
+@media(max-width:380px){.idle-terms-btn{padding:4px 5px;font-size:11px}}
