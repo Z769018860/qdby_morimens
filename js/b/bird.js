@@ -51,23 +51,30 @@ const FLOOR_H = 34;        // 井底尖刺带高度（贴着视口底部，跟�
 // 四档难度只动"环境参数"，不动操作手感（跑速/跳跃/终端速度四档一样）：
 // 滚得多快、平台多宽、陷阱多密、怪物多凶、掉多少血、掉多少东西、给多少分。
 // sc 是计分倍率——难档的分本来就该更值钱，否则没人愿意碰癫狂。
+// 资源与回复（削过一轮：以前血太厚、血包和狂气晶太多，一路滚到底几乎不会死）。
+// 帮助页（bird.html）里写的数字要跟这里一致。
+const BAL = {
+  heal: 14, bigHeal: 30, wardHeal: 18,        // 血羽 / 大血羽 / 圣翼护 回血
+  rageKill: 5, rageDepth: 2, rageOrb: 14, ragePurge: 14, rageStart: 20,   // 击杀 / 每下一层 / 狂气晶 / 净化 / 开局
+  drop: 0.17,                                  // 击杀后掉落物的基础概率
+};
 const DIFFS = [
   { k: 'easy', n: '简单', tag: '入门', c: 'easy',
     d: '滚得慢，平台宽，怪物稀疏。先摸清手感。',
     scroll: 0.70, pw: 1.20, spike: 0.45, mob: 0.50, dmg: 0.70,
-    drop: 1.40, rage: 1.25, sc: 0.80, hp: 120, fuse: 1.25 },
+    drop: 1.40, rage: 1.25, sc: 0.80, hp: 100, fuse: 1.25 },
   { k: 'normal', n: '普通', tag: '标准', c: 'normal',
     d: '原本的节奏，掉一次血三分之一。',
     scroll: 1.00, pw: 1.00, spike: 1.00, mob: 1.00, dmg: 1.00,
-    drop: 1.00, rage: 1.00, sc: 1.00, hp: 100, fuse: 1.00 },
+    drop: 1.00, rage: 1.00, sc: 1.00, hp: 80, fuse: 1.00 },
   { k: 'hard', n: '困难', tag: '熬人', c: 'hard',
     d: '滚得更快，平台变窄，尖刺台和怪物都多起来。',
     scroll: 1.26, pw: 0.87, spike: 1.50, mob: 1.45, dmg: 1.25,
-    drop: 0.85, rage: 0.95, sc: 1.40, hp: 100, fuse: 0.90 },
+    drop: 0.85, rage: 0.95, sc: 1.40, hp: 75, fuse: 0.90 },
   { k: 'mad', n: '癫狂', tag: '找死', c: 'mad',
     d: '塔底在追你。血薄、刺多、平台窄到只放得下一只脚。',
     scroll: 1.52, pw: 0.76, spike: 1.90, mob: 1.90, dmg: 1.50,
-    drop: 0.72, rage: 0.88, sc: 1.85, hp: 90, fuse: 0.82 },
+    drop: 0.72, rage: 0.88, sc: 1.85, hp: 66, fuse: 0.82 },
 ];
 const DIFF = Object.fromEntries(DIFFS.map((x) => [x.k, x]));
 let D = DIFF.normal;       // 当前难度（整局不变，换档会重开世界）
@@ -82,7 +89,7 @@ const TEST = new URLSearchParams(location.search).has('_test');
 const G = {
   state: 'load',           // load | ready | play | pause | end | win
   t: 0, camY: 0, cur: 0, depth: 0,
-  score: 0, kills: 0, rage: 30,
+  score: 0, kills: 0, rage: BAL.rageStart,
   freezeT: 0, shake: 0, flash: 0,
   sound: true, best: 0, bestLv: 0, diff: 'normal', bests: null, cloudLv: 0, cloudSc: 0,
   plats: [], mobs: [], orbs: [], shots: [], parts: [], texts: [], fx: [],
@@ -104,7 +111,7 @@ const P = {
 const SKILLS = [
   { id: 'dash', ic: '掠', n: '掠影斩', cost: 26, cd: 3.2, anim: 'skill1', tip: '向前突进，撞碎沿路的怪物' },
   { id: 'star', ic: '碎', n: '碎星坠', cost: 40, cd: 5.5, anim: 'skill2', tip: '星矛落下，清掉视野里的怪物，把尖刺台拍平' },
-  { id: 'ward', ic: '圣', n: '圣翼护', cost: 34, cd: 8.0, anim: 'defend', tip: '回血 26，六秒内受伤减半' },
+  { id: 'ward', ic: '圣', n: '圣翼护', cost: 34, cd: 8.0, anim: 'defend', tip: '回血 18，六秒内受伤减半' },
   { id: 'burst', ic: '爆', n: '狂气爆发', cost: 68, cd: 12.0, anim: 'burst', tip: '四秒清场：平台不塌、怪物全灭' },
 ];
 
@@ -302,11 +309,11 @@ function rollType(t) {
 // 掉落判定：基础概率乘难度掉落系数，再按权重挑种类。
 // star / purge 只在深处出现，免得前几层就白送清场。
 function rollOrb(y01) {
-  if (Math.random() > 0.245 * D.drop) return null;
+  if (Math.random() > BAL.drop * D.drop) return null;
   const w = {
-    heart: 30,
-    bigheart: 4 + 4 * y01,
-    rage: 26,
+    heart: 22,
+    bigheart: 2 + 3 * y01,
+    rage: 20,
     shield: 9,
     feather: 8,
     star: 6 + 12 * y01,
@@ -335,7 +342,7 @@ function buildWorld() {
   G.plats = []; G.mobs = []; G.orbs = []; G.shots = [];
   G.parts = []; G.texts = []; G.fx = [];
   G.camY = 0; G.depth = 0; G.cur = 0; G.score = 0; G.kills = 0;
-  G.rage = 30; G.freezeT = 0; G.shake = 0; G.flash = 0; G.tramps = 0;
+  G.rage = BAL.rageStart; G.freezeT = 0; G.shake = 0; G.flash = 0; G.tramps = 0;
   for (const k in G.cd) G.cd[k] = 0;
 
   P.hpMax = D.hp;
@@ -455,7 +462,7 @@ function buildWorld() {
   }
 
   // 深层多给点血包，否则 60 层之后纯属挨打
-  for (let n = 40; n <= GOAL; n += 15) {
+  for (let n = 45; n <= GOAL; n += 20) {
     const y = TOP + n * GAP;
     const host = G.plats.filter((p) => Math.abs(p.y - y) < 1 && p.type !== 'spike');
     if (host.length) {
@@ -589,7 +596,7 @@ function killMob(m, byPlayer) {
   const k = MOBK[m.kind] || MOBK.rat;
   const pts = Math.round(k.pts * D.sc);
   G.score += pts;
-  G.rage = Math.min(100, G.rage + Math.round(7 * D.rage));
+  G.rage = Math.min(100, G.rage + Math.round(BAL.rageKill * D.rage));
   floatText(m.x, m.y - 30, '+' + pts, '#e3b341');
   spark(m.x, m.y - m.h / 2, 14, k.c, 230, 0.55);
   Snd.kill();
@@ -628,7 +635,7 @@ function explodePustule(m) {
   spark(m.x, m.y - 14, 14, '#ff6a4a', 210, 0.55);
   G.shake = Math.max(G.shake, 11);
   G.flash = Math.max(G.flash, 0.28);
-  G.rage = Math.min(100, G.rage + Math.round(7 * D.rage));
+  G.rage = Math.min(100, G.rage + Math.round(BAL.rageKill * D.rage));
   Snd.boom();
   meet(m.kind, MOBK.pustule);
   if (hit) {
@@ -644,12 +651,12 @@ function pickOrb(o) {
   o.dead = true;
   const p = P;
   if (o.kind === 'heart' || o.kind === 'bigheart') {
-    const add = o.kind === 'bigheart' ? 45 : 20;
+    const add = o.kind === 'bigheart' ? BAL.bigHeal : BAL.heal;
     p.hp = Math.min(p.hpMax, p.hp + add);
     floatText(o.x, o.y - 8, '+' + add + ' HP', '#7ee08a');
     spark(o.x, o.y, o.kind === 'bigheart' ? 18 : 12, '#7ee08a', 170, 0.55);
   } else if (o.kind === 'rage') {
-    const add = Math.round(18 * D.rage);
+    const add = Math.round(BAL.rageOrb * D.rage);
     G.rage = Math.min(100, G.rage + add);
     floatText(o.x, o.y - 8, '+' + add + ' 狂气', '#b79bff');
     spark(o.x, o.y, 12, '#b79bff', 170, 0.55);
@@ -677,7 +684,7 @@ function pickOrb(o) {
         n++;
       }
     }
-    G.rage = Math.min(100, G.rage + Math.round(20 * D.rage));
+    G.rage = Math.min(100, G.rage + Math.round(BAL.ragePurge * D.rage));
     floatText(o.x, o.y - 8, n ? `净化 ${n}` : '净化', '#8bf0c0');
     spark(o.x, o.y, 20, '#8bf0c0', 240, 0.75);
     G.shake = Math.max(G.shake, 5);
@@ -725,7 +732,7 @@ function useSkill(id) {
     castSkill(s.n, `击破 ${killed} 只 · 拍平 ${flat} 块尖刺台`);
   } else if (id === 'ward') {
     const before = p.hp;
-    p.hp = Math.min(p.hpMax, p.hp + 26);
+    p.hp = Math.min(p.hpMax, p.hp + BAL.wardHeal);
     p.wardT = 6; p.invuln = Math.max(p.invuln, 1.2);
     const heal = Math.round(p.hp - before);
     floatText(p.x, p.y - 46, '+' + heal + ' HP', '#7ee08a');
@@ -974,7 +981,7 @@ function update(dt) {
   if (cur > G.depth) {
     G.depth = cur;
     G.score += Math.round((10 + Math.floor(cur / 10) * 5) * D.sc);
-    G.rage = Math.min(100, G.rage + 3 * D.rage);
+    G.rage = Math.min(100, G.rage + BAL.rageDepth * D.rage);
     if (cur % 10 === 0 && cur > 0) {
       toast(`第 ${cur} 层`);
       G.shake = Math.max(G.shake, 3);

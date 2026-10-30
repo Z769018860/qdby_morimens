@@ -343,7 +343,7 @@ canvas#cv{
 }
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
 </style>
-<meta name="build" content="5dc5081610">
+<meta name="build" content="4a802e3377">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -472,10 +472,10 @@ canvas#cv{
           <ul>
             <li><b>掠影斩</b> 26 狂气 · 3.2 秒 —— 朝面向突进，撞碎沿途的怪物，突进期间无敌</li>
             <li><b>碎星坠</b> 40 狂气 · 5.5 秒 —— 清掉视野里所有怪物，并把尖刺台拍平成普通台</li>
-            <li><b>圣翼护</b> 34 狂气 · 8 秒 —— 回 26 血，6 秒内受伤减半（状态条上会显示「减伤」倒计时）</li>
+            <li><b>圣翼护</b> 34 狂气 · 8 秒 —— 回 18 血，6 秒内受伤减半（状态条上会显示「减伤」倒计时）</li>
             <li><b>狂气爆发</b> 68 狂气 · 12 秒 —— 4.5 秒清场：怪物全灭，平台不塌</li>
           </ul>
-          <p>狂气靠下潜（每层 +3）和击破怪物（每只 +7）攒，上限 100。技能按钮够不够钱看有没有亮边，冷却时按钮上会转一圈暗色扇形并显示剩余秒数。</p>
+          <p>狂气靠下潜（每层 +2）和击破怪物（每只 +5）攒，上限 100。技能按钮够不够钱看有没有亮边，冷却时按钮上会转一圈暗色扇形并显示剩余秒数。</p>
           <h3>五种怪物（全部来自《忘却前夜》原作）</h3>
           <ul>
             <li><b>融蚀鼠王</b>（第 5 层起）—— 沾满融蚀的尾巴把它们粘在一起，在台面上左右爬，从上方踩死</li>
@@ -487,8 +487,8 @@ canvas#cv{
           <p>第一次遇到某种怪时，顶部的提示条会报一次名字和它的脾气。</p>
           <h3>七种掉落物</h3>
           <ul>
-            <li><b>血羽</b> +20 血 &nbsp;·&nbsp; <b>大血羽</b> +45 血（越深越常见）</li>
-            <li><b>狂气晶</b> +18 狂气 &nbsp;·&nbsp; <b>护盾</b> 3.2 秒无敌</li>
+            <li><b>血羽</b> +14 血 &nbsp;·&nbsp; <b>大血羽</b> +30 血（越深越常见）</li>
+            <li><b>狂气晶</b> +14 狂气 &nbsp;·&nbsp; <b>护盾</b> 3.2 秒无敌</li>
             <li><b>羽落</b> 4.2 秒内下坠速度减半，用来安全落到下一层窄台</li>
             <li><b>星屑</b> +150 分（再乘难度倍率） &nbsp;·&nbsp; <b>净化</b> 清掉视野里所有怪物</li>
           </ul>
@@ -528,7 +528,7 @@ canvas#cv{
         <span class="tk" style="left:34%"></span>
         <span class="tk" style="left:40%"></span>
         <span class="tk" style="left:68%"></span>
-        <span class="tx"><em class="g">✦</em>狂气<b id="rgv">30</b><em class="mx">/ 100</em></span>
+        <span class="tx"><em class="g">✦</em>狂气<b id="rgv">20</b><em class="mx">/ 100</em></span>
       </div>
       <div class="skills" id="skills"></div>
     </div>
@@ -557,7 +557,7 @@ canvas#cv{
   }, 16000);
 })();
 </script>
-<script type="module" src="js/b/bird.js?v=5dc5081610"></script>
+<script type="module" src="js/b/bird.js?v=4a802e3377"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
