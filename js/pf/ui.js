@@ -20,6 +20,7 @@ import {
   ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS, ENEMY, interestOf, TRAITS, HEX_W,
 } from './defs.js';
 import { sfx } from './audio.js';
+import { TERMS, TERM_CATS, FX_TERM, GMK_TERM, termOf, termsOfCat, termDetailHtml, termBriefHtml } from './terms.js';
 
 
 const $ = (id) => document.getElementById(id);
@@ -147,6 +148,9 @@ export function build() {
     b.onclick = () => { setDiff(b.dataset.d); sfx.play('tab'); };
   });
   document.querySelectorAll('.tab').forEach((b) => {
+    // 只有带 data-tab 的才是页签。「图鉴详情」「地块说明」也挂着 .tab 的样式，
+    // 但它们开的是说明弹层 —— 顺手盖掉 onclick 的话，这两个按钮点了没反应。
+    if (!b.dataset.tab) return;
     b.onclick = () => { setTab(b.dataset.tab); sfx.play('tab'); };
   });
   $('btnEqClear').onclick = () => { click(); ui.item = null; G.selItem = null; sync(); };
@@ -443,6 +447,52 @@ function eqRow(u) {
   return `<div class="eqs">${one('wheel', '命轮')}${one('creation', '造物')}</div>`;
 }
 
+// 词条按钮：卡片里的属性名、机制名都走这里，点一下在卡片内展开说明。
+// 用 <button> 而不是 <span>，手机上才有「能点」的手感和键盘可达性。
+function termBtn(key, label, extra) {
+  const t = TERMS[key];
+  if (!t) return '';
+  return `<button type="button" class="term${extra ? ' ' + extra : ''}" data-term="${key}" title="${t.one}">${label || t.n}</button>`;
+}
+
+// 这个单位身上真正生效的机制：流派羁绊、击杀叠加、以及造物带的 fx。
+// 只列已生效的 —— 列一堆灰的等于没说。
+function unitMechs(u) {
+  const out = [];
+  if (u.splash > 0) out.push('splash');
+  if (u.poison > 0) out.push('poison');
+  if (u.thorns > 0) out.push('thorns');
+  if (u.pierce > 0) out.push('pierce');
+  if (u.killAtkStep > 0 && u.killAtkMax > 0) out.push('killStack');
+  const fx = u.creation && u.creation.fx;
+  if (fx && FX_TERM[fx] && !out.includes(FX_TERM[fx])) out.push(FX_TERM[fx]);
+  return out;
+}
+
+// 卡片内的词条展开区：点属性名在卡片里就地展开，再点同一个收起。
+// 手机上卡片本身很窄，所以这里只放「一句话 + 怎么算」，全文交给详情面板。
+function toggleTerm(key) {
+  const pane = $('termPane');
+  if (!pane) return;
+  if (!pane.hidden && pane.dataset.k === key) { pane.hidden = true; pane.dataset.k = ''; return; }
+  const t = TERMS[key];
+  if (!t) return;
+  pane.dataset.k = key;
+  pane.hidden = false;
+  pane.innerHTML = `<div class="tp-h"><b>${t.n}</b><button type="button" class="tp-x" aria-label="收起">×</button></div>
+    ${termBriefHtml(key)}
+    <button type="button" class="tp-more">完整说明 →</button>`;
+  pane.querySelector('.tp-x').onclick = (ev) => {
+    ev.stopPropagation();
+    pane.hidden = true; pane.dataset.k = '';
+  };
+  pane.querySelector('.tp-more').onclick = (ev) => {
+    ev.stopPropagation();
+    showDetails(`${t.n} · 词条`, termDetailHtml(key), true);
+  };
+  sfx.play('select');
+}
+
 function renderCard() {
   const card = $('unitCard');
   const u = ui.sel != null ? G.units.find((x) => x.uid === ui.sel) : null;
@@ -454,6 +504,7 @@ function renderCard() {
   card.classList.toggle('compact', compact);
   card.classList.toggle('narrow', narrow);
   const d = u.def;
+  const mechs = unitMechs(u);
   const eqText = [u.wheel, u.creation].filter(Boolean)
     .map((x) => `<p class="eqline"><b>${x.n}</b>${x.text || ''}</p>`).join('');
   const armed = ui.item != null ? G.inv[ui.item] : null;
@@ -469,14 +520,16 @@ function renderCard() {
       </div>
     </div>
     <div class="nums">
-      <span>生命 <b>${u.hpMax}</b></span><span>攻击 <b>${Math.round(u.atk)}</b></span>
-      <span>攻速 <b>${u.aspd.toFixed(2)}</b></span><span>护甲 <b>${Math.round(u.armor)}</b></span>
-      <span>射程 <b>${(u.range / 94).toFixed(1)} 格</b></span>
-      ${u.crit > 0 ? `<span>暴击 <b>${Math.round(u.crit * 100)}%</b></span>` : ''}
+      <span>${termBtn('hp')} <b>${u.hpMax}</b></span><span>${termBtn('atk')} <b>${Math.round(u.atk)}</b></span>
+      <span>${termBtn('aspd')} <b>${u.aspd.toFixed(2)}</b></span><span>${termBtn('armor')} <b>${Math.round(u.armor)}</b></span>
+      <span>${termBtn('range')} <b>${(u.range / 94).toFixed(1)} 格</b></span>
+      ${u.crit > 0 ? `<span>${termBtn('crit')} <b>${Math.round(u.crit * 100)}%</b></span>` : ''}
       ${u.killAtkStep > 0 && u.killAtkMax > 0
-        ? `<span class="stk">击杀叠加 <b id="stkNow">${u.killStacks}</b> / ${u.killAtkMax} 层<em>每层 +${Math.round(u.killAtkStep * 100)}% 攻击</em></span>`
+        ? `<span class="stk">${termBtn('killStack', '击杀叠加', 'hot')} <b id="stkNow">${u.killStacks}</b> / ${u.killAtkMax} 层<em>每层 +${Math.round(u.killAtkStep * 100)}% 攻击</em></span>`
         : ''}
     </div>
+    ${mechs.length ? `<div class="mechrow"><i>机制</i>${mechs.map((k) => termBtn(k, null, 'mech')).join('')}</div>` : ''}
+    <div class="termpane" id="termPane" hidden></div>
     ${eqRow(u)}
     ${eqText}
     <p class="ult"><b>${d.ult.name} · 本局效果</b>${ultDescription(d)}</p>
@@ -493,6 +546,9 @@ function renderCard() {
   if (sellBtn) sellBtn.onclick = () => { sell(u.uid); ui.sel = null; G.sel = null; sync(); };
   const eqBtn = $('btnEquipNow');
   if (eqBtn) eqBtn.onclick = () => { if (equip(u.uid, ui.item)) { ui.item = null; G.selItem = null; } sync(); };
+  card.querySelectorAll('.term[data-term]').forEach((el) => {
+    el.onclick = (ev) => { ev.stopPropagation(); toggleTerm(el.dataset.term); };
+  });
   card.querySelectorAll('.eq[data-slot]').forEach((el) => {
     el.onclick = () => {
       const slot = el.dataset.slot;
@@ -856,9 +912,28 @@ function itemDescription(kind, id) {
   if (!d) return null;
   return { title: d.n, html: `<p>${itemKindName(kind)} · ${d.cost} 金${d.realm ? ' · ' + REALM_NAME[d.realm] : ''}</p><h3>装备效果</h3><p>${escapeText(d.text)}</p><p>每名唤醒体各可装备一件命轮和一件造物。装备栏中点选后，再点角色装备；角色面板中点击已装备物品可卸下。</p>` };
 }
+// 词条内联链接：详情面板里的「生命」「护甲」「羁绊」都能继续点下去，
+// 一路从「这个角色是谁」点到「护甲到底怎么算」。
+const tlink = (key, label) => `<button type="button" class="tlink" data-detail="term:${key}">${label || TERMS[key].n}</button>`;
+
 function unitDescription(d) {
   const traits = TRAITS.filter(t => t.kind === 'realm' ? t.key === d.realm : t.kind === 'role' ? t.key === d.role : t.kind === 'fac' ? t.key === d.fac : (d.tags || []).includes(t.key));
-  return { title: d.n, html: `${portrait(d.id, 72)}<p>${REALM_NAME[d.realm]} · ${ROLE_NAME[d.role]} · ${d.cost} 金</p><h3>一星基础属性</h3><p>生命 ${d.hp} · 攻击 ${d.atk} · 攻速 ${d.aspd}/秒 · 护甲 ${d.armor} · 射程 ${d.range} 格</p><h3>${escapeText(d.ult.name)} · 本局效果</h3><p>${ultDescription(d)}</p><details><summary>原作技能资料</summary><p>${escapeText(d.ult.text)}</p></details><h3>羁绊与增益</h3>${traits.map(t => `<h4>${t.n}</h4>${t.stepsText.map((text,i) => `<p>${t.steps[i]} 人：${escapeText(text)}</p>`).join('')}`).join('')}<p>场上最终属性会受到星级、装备、地形与羁绊影响，可在右侧角色面板查看。</p>` };
+  // 这个角色身上「可能触发」的机制：流派标签 + 谁都会用到的那几条
+  const mech = ['hp', 'atk', 'aspd', 'armor', 'crit', 'rage'];
+  for (const t of d.tags || []) if (GMK_TERM[t] && !mech.includes(GMK_TERM[t])) mech.push(GMK_TERM[t]);
+  const statLine = `${tlink('hp')} ${d.hp} · ${tlink('atk')} ${d.atk} · ${tlink('aspd')} ${d.aspd}/秒 · ${tlink('armor')} ${d.armor} · ${tlink('range')} ${d.range} 格`;
+  const traitHtml = traits.map(t => `<h4><button type="button" class="tlink" data-detail="trait:${t.key}">${t.n}</button></h4>`
+    + t.stepsText.map((text, i) => `<p>${t.steps[i]} 人：${escapeText(text)}</p>`).join('')).join('');
+  return {
+    title: d.n,
+    html: `${portrait(d.id, 72)}<p>${REALM_NAME[d.realm]} · ${ROLE_NAME[d.role]} · ${d.cost} 金</p>`
+      + `<h3>一星基础属性</h3><p>${statLine}</p>`
+      + `<h3>${escapeText(d.ult.name)} · 本局效果</h3><p>${ultDescription(d)}</p>`
+      + `<details><summary>原作技能资料</summary><p>${escapeText(d.ult.text)}</p></details>`
+      + `<h3>羁绊与增益</h3>${traitHtml}`
+      + `<h3>相关词条</h3><div class="detail-list">${mech.map(k => `<button data-detail="term:${k}" title="${escapeText(TERMS[k].one)}">${escapeText(TERMS[k].n)}</button>`).join('')}</div>`
+      + '<p>场上最终属性会受到星级、装备、地形与羁绊影响，可在右侧角色面板查看。</p>',
+  };
 }
 function inspectElement(el, pin) {
   if (detailPinned && !pin) return;
@@ -869,10 +944,22 @@ function inspectElement(el, pin) {
   if (kind === 'unit') {
     const d = UNITS_BY_ID[id]; if (!d) return;
     const desc = unitDescription(d); showDetails(desc.title, desc.html, pin, anchor);
+  } else if (kind === 'term') {
+    const t = termOf(id); if (!t) return;
+    showDetails(t.n + ' · 词条', termDetailHtml(id), pin, anchor);
   } else if (kind === 'trait') {
     const t = traitList().find(t => t.def.key === id); if (!t) return;
     const d = t.def;
-    showDetails(d.n + ' · 羁绊', `<p>当前 ${t.n} 人${t.active >= 0 ? ` · 已激活 ${d.steps[t.active]} 人档` : ' · 未激活'}</p>` + d.stepsText.map((text,i) => `<p class="${i <= t.active ? 'active-effect' : ''}">${i <= t.active ? '✓ ' : ''}${d.steps[i]} 人 · ${escapeText(text)}</p>`).join(''), pin, anchor);
+    // 「生效给谁」按代码里的实际加成走：界域与辅助型是全队，另外两档只给同职阶
+    const scope = d.kind === 'realm' ? '全队所有单位'
+      : d.key === 'sup' ? '全队所有单位（加的是攻速）'
+      : d.kind === 'role' ? `只对「${d.n}」的单位`
+      : d.kind === 'fac' ? `只对同组织（${d.n}）的单位`
+      : `只对同流派（${d.n}）的单位`;
+    const lack = t.next != null ? `<p class="term-lack">再上 ${t.next - t.n} 个「${d.n}」就到 ${t.next} 人档。</p>` : '';
+    showDetails(d.n + ' · 羁绊', `<p class="term-one">当前 ${t.n} 人${t.active >= 0 ? ` · 已激活 ${d.steps[t.active]} 人档` : ' · 未激活'}</p>`
+      + `<p>生效范围：${scope}。</p>` + lack
+      + d.stepsText.map((text, i) => `<p class="${i <= t.active ? 'active-effect' : ''}">${i <= t.active ? '✓ ' : ''}${d.steps[i]} 人 · ${escapeText(text)}</p>`).join(''), pin, anchor);
   } else if (kind === 'terrain') {
     const t = TERRAIN[id]; if (t) showDetails(t.n, '<p>' + terrainText(id) + '</p>', pin, anchor);
   } else {
@@ -911,7 +998,10 @@ function buildDetails() {
   $('btnCodex').onclick = () => showDetails('角色 · 命轮 · 造物图鉴',
     '<h3>唤醒体</h3><div class="detail-list">' + Object.values(UNITS_BY_ID).map(d => `<button data-detail="unit:${d.id}">${escapeText(d.n)}</button>`).join('') +
     '</div><h3>命轮</h3><div class="detail-list">' + WHEELS.map(d => `<button data-detail="wheel:${d.id}">${escapeText(d.n)}</button>`).join('') +
-    '</div><h3>造物</h3><div class="detail-list">' + CREATIONS.map(d => `<button data-detail="creation:${d.id}">${escapeText(d.n)}</button>`).join('') + '</div>', true);
+    '</div><h3>造物</h3><div class="detail-list">' + CREATIONS.map(d => `<button data-detail="creation:${d.id}">${escapeText(d.n)}</button>`).join('') + '</div>' +
+    TERM_CATS.map(([cat, label]) => `<h3>${label}词条</h3><div class="detail-list">` +
+      termsOfCat(cat).map(([k, t]) => `<button data-detail="term:${k}" title="${escapeText(t.one)}">${escapeText(t.n)}</button>`).join('') +
+      '</div>').join(''), true);
 }
 
 // Keep an open, pinned explanation inside the viewport when the phone rotates.
