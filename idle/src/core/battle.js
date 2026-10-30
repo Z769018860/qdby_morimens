@@ -270,9 +270,10 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   }
 
   // enemies play their opening once, then loop the cycle
-  const nextSkill = (u) => (u.patIdx < u.opening.length ? u.opening[u.patIdx] : u.pattern[(u.patIdx - u.opening.length) % u.pattern.length]);
+  const nextSkill = (u) => { const cycle = Array.isArray(u.pattern) && u.pattern.length ? u.pattern : [{ name: '普通攻击', effects: [{ t: 'dmg', m: 1, to: 'foe' }] }];
+    return (u.patIdx < u.opening.length ? u.opening[u.patIdx] : cycle[(u.patIdx - u.opening.length) % cycle.length]) || cycle[0]; };
   function showIntent(u) {
-    if (u.side !== 'e' || !u.alive || !u.pattern) return;
+    if (u.side !== 'e' || !u.alive) return;
     const sk = nextSkill(u);
     push({ k: 'intent', who: u.uid, name: sk.name, ic: sk.ic || null, text: sk.plain || '' });
   }
@@ -301,7 +302,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       if (slot === 'Strike') gainGauge(u, 'key', 4);
       push({ k: 'gauge', who: u.uid, ali: u.ali, key: u.key });
     }
-    run(u, sk.effects);
+    run(u, Array.isArray(sk?.effects) ? sk.effects : []);
     emitAll();
     showIntent(u);
     if (u.side === 'e' && u.affix === 'swift' && u.alive && rng() < 0.2) {
