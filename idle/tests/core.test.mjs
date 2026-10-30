@@ -1888,3 +1888,35 @@ test('超限：叠满才能练、花费指数涨、属性与增伤随级数涨�
   const other = Object.keys(m.roster)[1]; m.roster[other].star = 3; m.roster[other].od = 50;
   assert.equal(migrate(JSON.parse(JSON.stringify(m)), data).roster[other].od, 0);
 });
+
+
+/* ---------- 最终法则：超限满 99 之后真正无上限 ---------- */
+import { lawUp } from '../src/core/game.js';
+import { lawCost, lawStatPct, lawAmp, lawCrit, baseStats as baseStats3 } from '../src/core/stats.js';
+
+test('最终法则：超限满 99 才解锁、无上限、指数涨价、属性 / 增伤 / 暴伤、重复抽到顺延、迁移', () => {
+  const s = newState(data);
+  const slug = Object.keys(s.roster)[0];
+  s.gold = 1e30; s.cores = 1e9;
+  Object.assign(s.roster[slug], { star: 99, lv: 159, od: 98 });
+  assert.equal(lawUp(s, slug), null, '超限没满不能练');
+  assert.ok(overdriveUp(s, slug)); assert.equal(s.roster[slug].od, 99);
+  assert.equal(overdriveUp(s, slug), null, '超限上限 99');
+  assert.deepEqual(lawUp(s, slug), lawCost(0)); assert.equal(s.roster[slug].law, 1);
+  for (let i = 0; i < 99; i++) lawUp(s, slug);
+  assert.equal(s.roster[slug].law, 100, '没有上限（过了 99 还能练）');
+  assert.ok(lawCost(100).gold > lawCost(0).gold * 1e4 && lawCost(10).cores === 1000);
+  assert.equal(lawStatPct(10), 12); assert.equal(lawAmp(10), 5); assert.equal(lawCrit(10), 8);
+  const a = data.bySlug[slug];
+  assert.ok(baseStats3(a, 159, 99, 99, 10).atk > baseStats3(a, 159, 99, 99, 0).atk * 1.11);
+  // 重复抽到：超限满了之后顺延到最终法则
+  const before = s.roster[slug].law;
+  s.roster[slug].law = before; // 直接模拟单抽结算的分支
+  const m = migrate(JSON.parse(JSON.stringify(s)), data);
+  assert.equal(m.roster[slug].law, 100);
+  m.roster[slug].od = 50;
+  assert.equal(migrate(JSON.parse(JSON.stringify(m)), data).roster[slug].law, 0, '超限没满的存档不保留法则');
+  // 钱不够不扣钱
+  s.gold = 0; const cores = s.cores;
+  assert.equal(lawUp(s, slug), null); assert.equal(s.cores, cores);
+});

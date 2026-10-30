@@ -28,9 +28,11 @@ import { refineCost, refineMult, relicRefineGain, relicRefineView, relicTheme, R
 import {
   lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, growthPerLevel,
   awakenAmp, awakenSkill, nextAwakenMilestone, rewindPlan, REWIND_COST,
-  overdrive, overdriveCost, overdriveStatPct, overdriveAmp,
+  overdrive, overdriveCost, overdriveStatPct, overdriveAmp, law, lawCost, lawStatPct, lawAmp, lawCrit,
 } from '../core/stats.js';
-import { OVERDRIVE_STAT_PER, OVERDRIVE_AMP_EVERY, OVERDRIVE_AMP_PER } from '../core/constants.js';
+import {
+  OVERDRIVE_STAT_PER, OVERDRIVE_AMP_EVERY, OVERDRIVE_AMP_PER, OVERDRIVE_MAX, LAW_STAT_PER, LAW_AMP_EVERY, LAW_AMP_PER, LAW_CRIT_EVERY, LAW_CRIT_PER,
+} from '../core/constants.js';
 import { describeSkill } from '../core/skills.js';
 import {
   wheelText, relicText, covTheme, gearCost, dismantleValue, relicBond, relicSlotCount, RELIC_BONDS, BOND_TIERS, bonusText,
@@ -695,17 +697,35 @@ const numLine = (sk) => {
 /* 超限：叠满 99 之后的无限成长。没有上限，花费指数涨 */
 function odBox(s, r, slug) {
   const od = overdrive(r.od), c = overdriveCost(od);
-  const can = s.gold >= c.gold && s.cores >= c.cores;
+  const full = od >= OVERDRIVE_MAX;
+  const can = !full && s.gold >= c.gold && s.cores >= c.cores;
   const ic = '<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">';
-  return `<div class="odbox"><h4>超限 <small class="dim">叠满 ${MAX_AWAKEN} 后解锁 · 无上限</small></h4>
+  return `<div class="odbox"><h4>超限 <small class="dim">叠满 ${MAX_AWAKEN} 后解锁 · ${od} / ${OVERDRIVE_MAX}</small></h4>
     <div class="growbox">
       <div><span>当前超限</span><b>Lv ${od}</b><em>全属性 +${overdriveStatPct(od)}% · 增伤 +${overdriveAmp(od)}%</em></div>
       <div><span>每 1 级</span><b>生命 / 攻击 / 防御 +${OVERDRIVE_STAT_PER}%</b><em>每 ${OVERDRIVE_AMP_EVERY} 级增伤 +${OVERDRIVE_AMP_PER}%</em></div>
-      <div><span>下一级</span><b>🪙${fmt(c.gold)} ${ic}${c.cores}</b><em>每级金币 ×1.1</em></div>
+      ${full ? '<div><span>已练满</span><b>超限 99 / 99</b><em>继续往下是「最终法则」</em></div>' : `<div><span>下一级</span><b>🪙${fmt(c.gold)} ${ic}${c.cores}</b><em>每级金币 ×1.1</em></div>`}
     </div>
-    <div class="row"><button class="btn gold sm" data-act="od" data-slug="${slug}" ${can ? '' : 'disabled'}>超限 +1</button>
-      <button class="btn sm" data-act="od" data-slug="${slug}" data-n="10" ${can ? '' : 'disabled'} title="连续超限，直到金币或银芯不够，最多 10 级">超限 ×10</button></div>
-    <p class="hint">另一条来路：叠满之后再<b>抽到这位</b>，会折算 <b>800 金币 + 30 银芯</b>，并<b>白送超限 +1</b>。</p></div>`;
+    ${full ? '' : `<div class="row"><button class="btn gold sm" data-act="od" data-slug="${slug}" ${can ? '' : 'disabled'}>超限 +1</button>
+      <button class="btn sm" data-act="od" data-slug="${slug}" data-n="10" ${can ? '' : 'disabled'} title="连续超限，直到金币或银芯不够，最多 10 级">超限 ×10</button></div>`}
+    <p class="hint">另一条来路：叠满之后再<b>抽到这位</b>，会折算 <b>800 金币 + 30 银芯</b>，并<b>白送 1 级</b>（超限没满送超限，满了送最终法则）。</p>
+    ${full ? lawBox(s, r, slug) : ''}</div>`;
+}
+
+/* 最终法则：超限满 99 之后真正没有上限的成长 */
+function lawBox(s, r, slug) {
+  const n = law(r.law), c = lawCost(n);
+  const can = s.gold >= c.gold && s.cores >= c.cores;
+  const ic = '<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">';
+  return `<h4>最终法则 <small class="dim">超限满 ${OVERDRIVE_MAX} 后解锁 · 无上限</small></h4>
+    <div class="growbox">
+      <div><span>当前法则</span><b>Lv ${n}</b><em>属性 +${lawStatPct(n)}% · 增伤 +${lawAmp(n)}% · 暴伤 +${lawCrit(n)}%</em></div>
+      <div><span>每 1 级</span><b>生命 / 攻击 / 防御 +${LAW_STAT_PER}%</b><em>独立乘区，叠在超限之上</em></div>
+      <div><span>每 ${LAW_AMP_EVERY} / ${LAW_CRIT_EVERY} 级</span><b>增伤 +${LAW_AMP_PER}% / 暴击伤害 +${LAW_CRIT_PER}%</b><em></em></div>
+      <div><span>下一级</span><b>🪙${fmt(c.gold)} ${ic}${c.cores}</b><em>每级金币 ×1.12</em></div>
+    </div>
+    <div class="row"><button class="btn gold sm" data-act="law" data-slug="${slug}" ${can ? '' : 'disabled'}>最终法则 +1</button>
+      <button class="btn sm" data-act="law" data-slug="${slug}" data-n="10" ${can ? '' : 'disabled'} title="连续升级，直到金币或银芯不够，最多 10 级">×10</button></div>`;
 }
 
 /* 叠位效果表：把「每 1 / 每 10 / 每 40」三条规则摊开，玩家一眼能算清投入产出 */
@@ -737,7 +757,7 @@ export function detailModal(app, slug) {
   const cost = r && r.lv < cap && !needBrk ? lvUpCost(r.lv) : 0;
   const brkCost = needBrk ? breakCost(r.lv) : null;
   const awkCost = r && r.star < MAX_AWAKEN ? awakenCost(r.star) : 0;
-  const g = growthPerLevel(a, preview.star, preview.od);
+  const g = growthPerLevel(a, preview.star, preview.od, preview.law);
   const perBattle = Math.round(stageGold(Math.max(1, s.maxStage)) * (1 + (view?.goldBonus || 0) / 100));
 
   const growBtns = r ? `<div class="row">
@@ -900,7 +920,7 @@ function luckCard(app) {
   const recent = (g.log || []).slice(0, 14);
   const chips = recent.map((r) => {
     const a = app.data.bySlug[r.slug];
-    const tag = r.isNew ? 'NEW' : r.dup ? (r.star >= MAX_AWAKEN ? `超限 ${r.od}` : `叠位 ${r.star}`) : '';
+    const tag = r.isNew ? 'NEW' : r.dup ? (r.star >= MAX_AWAKEN ? (r.law ? `法则 ${r.law}` : `超限 ${r.od}`) : `叠位 ${r.star}`) : '';
     return `<span class="gchip r-${r.rarity}" title="${esc(a?.zh || r.slug)} · ${RAR_ZH[r.rarity]} · ${clock(r.t)}${tag ? ' · ' + tag : ''}">
       <img src="${img(a?.portrait)}" alt="" loading="lazy"><em>${esc(a?.zh || r.slug)}</em><small>${RAR_ZH[r.rarity]}${tag ? ' · ' + tag : ''}</small></span>`;
   }).join('') || '<p class="hint">还没有记录。抽一次就会出现在这里，记录只存在本机。</p>';
@@ -979,7 +999,7 @@ export function gachaLogModal(app) {
       <span class="gs">#${r.seq}</span>
       <img src="${img(a?.portrait)}" alt="">
       <span class="gn"><b>${esc(a?.zh || r.slug)}</b><small>${RAR_ZH[r.rarity]} · ${r.banner === 'core' ? '银芯召唤' : '召唤券'}</small></span>
-      <span class="gt">${r.isNew ? '<em class="new">NEW</em>' : r.dup ? (r.star >= MAX_AWAKEN ? `超限 ${r.od}` : `叠位 ${r.star}`) : ''}</span>
+      <span class="gt">${r.isNew ? '<em class="new">NEW</em>' : r.dup ? (r.star >= MAX_AWAKEN ? (r.law ? `法则 ${r.law}` : `超限 ${r.od}`) : `叠位 ${r.star}`) : ''}</span>
       <span class="gd">${clock(r.t)}</span></div>`;
   }).join('') || '<p class="hint">这个筛选下没有记录。</p>';
   const cmp = [['Genesis', '创生'], ['SSR', '史诗'], ['SR', '精良']].map(([k, zh]) => {

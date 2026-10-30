@@ -2,7 +2,7 @@ import './ui/orient.js';   // 横屏 / 竖屏开关（顶栏那颗方向按钮�
 import {
   indexData, newState, migrate, offlineReport, claimOffline, claimGifts, levelUp, levelUpMax, setTeam, autoTeam, autoLoadout, setPreset,
   equipItem, unequipItem, enhanceItem, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem,
-  dismantleCores, breakThrough, awakenUp, overdriveUp, upgradeOrder, rewindLevel,
+  dismantleCores, breakThrough, awakenUp, overdriveUp, lawUp, upgradeOrder, rewindLevel,
 } from './core/game.js';
 import { setOrderSlot } from './core/orders.js';
 import { TEAM_SIZE } from './core/constants.js';
@@ -537,6 +537,14 @@ function onAct(e) {
       const r = rewindLevel(s, el.dataset.slug);
       if (r) { sound.play('lvup'); toast(`回溯到 1 级：银芯-${r.cost}${r.refundCores ? ` +${r.refundCores}` : ''} 金币+${fmt(r.refund)}`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
       else toast('银芯不足（回溯要 100 银芯）');
+      break;
+    }
+    case 'law': {
+      // 最终法则：超限满 99 之后真正无上限的成长，连续最多 10 级
+      let k = 0, g = 0, c = 0;
+      for (let i = 0, n = Math.max(1, Math.min(10, Number(el.dataset.n) || 1)); i < n; i++) { const x = lawUp(s, el.dataset.slug); if (!x) break; k++; g += x.gold; c += x.cores; }
+      if (k) { sound.play('lvup'); toast(`最终法则 +${k}（金币 -${fmt(g)} 银芯 -${c}）`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
+      else toast('金币或银芯不足');
       break;
     }
     case 'od': {

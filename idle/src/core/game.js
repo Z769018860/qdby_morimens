@@ -1,8 +1,8 @@
 import { hash, mulberry32 } from './rng.js';
 import {
-  MAX_LV_HARD, MAX_AWAKEN, OVERDRIVE_MAX, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, ORDER_SLOTS, SAVE_VERSION, GEAR_MAX_LV, RARITY_ORDER,
+  MAX_LV_HARD, MAX_AWAKEN, OVERDRIVE_MAX, LAW_MAX, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, ORDER_SLOTS, SAVE_VERSION, GEAR_MAX_LV, RARITY_ORDER,
 } from './constants.js';
-import { baseStats, lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, rewindPlan, overdrive, overdriveAmp, overdriveCost } from './stats.js';
+import { baseStats, lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, rewindPlan, overdrive, overdriveAmp, overdriveCost, law, lawAmp, lawCrit, lawCost } from './stats.js';
 import { buildKit, makeMedians } from './skills.js';
 import {
   ZERO, addBonus, wheelBonus, relicBonus, relicBond, relicSlotCount, relicTheme, covenantBonus, gearCost, dismantleValue,
@@ -123,6 +123,7 @@ export function migrate(s, data) {
     r.lv = Math.max(1, Math.min(levelCap(r.star), Math.floor(r.lv || 1)));
     if (r.brk == null) r.brk = Math.min(6, Math.floor(r.lv / LEVEL_GATE));
     r.od = r.star >= MAX_AWAKEN ? overdrive(r.od) : 0;      // 超限只有叠满 99 才有
+    r.law = r.od >= OVERDRIVE_MAX ? law(r.law) : 0;           // 最终法则只有超限满 99 才有
   }
   // 造物栏 3 -> 6 格：老存档补齐空位
   const rel = Array.isArray(m.gear.relics) ? m.gear.relics.slice(0, RELIC_SLOTS) : [];
@@ -194,7 +195,7 @@ export function relicBonuses(state, data) {
 export function allyDef(state, data, slug, teamSlugs = state.team) {
   const a = data.bySlug[slug];
   const r = state.roster[slug];
-  const st = baseStats(a, r.lv, r.star, r.od);
+  const st = baseStats(a, r.lv, r.star, r.od, r.law);
   const bonus = ZERO();
   const eq = state.gear.equip[slug] || {};
   const wi = eq.wheel && state.gear.items[eq.wheel];
@@ -211,7 +212,9 @@ export function allyDef(state, data, slug, teamSlugs = state.team) {
   addBonus(bonus, ordersBonus(state, data));
   // 叠位：每 10 层 +3% 增伤（属性与等级上限在 baseStats / levelCap 里）
   bonus.amp += Math.floor((Number.isFinite(Number(r.star)) ? Number(r.star) : 0) / 10) * 3;
-  bonus.amp += overdriveAmp(r.od);          // 超限：叠满 99 之后的无限成长
+  bonus.amp += overdriveAmp(r.od);          // 超限：叠满 99 之后的成长（上限 99）
+  bonus.amp += lawAmp(r.law);               // 最终法则：超限满 99 之后真正无上限的成长
+  bonus.critDmg += lawCrit(r.law);
   const def = {
     slug, name: a.zh, img: a.portrait, type: a.type, realm: a.realm, lv: r.lv, star: r.star,
     hp: Math.round(st.hp * (1 + bonus.hpPct / 100)),
@@ -565,7 +568,7 @@ export function rewindLevel(state, slug) {
   return plan;
 }
 // 叠位：抽到重复唤醒体 +1，也可以在详情页用银芯共鸣（成本随叠位线性上升）
-/** 超限 +1：叠满 99 才能练，花金币 + 银芯，没有上限。返回花费 {gold,cores}，不能练返回 null */
+/** 超限 +1：叠满 99 才能练，上限 99，花金币 + 银芯。返回花费 {gold,cores}，不能练返回 null */
 export function overdriveUp(state, slug) {
   const r = state.roster[slug];
   if (!r || r.star < MAX_AWAKEN || overdrive(r.od) >= OVERDRIVE_MAX) return null;
@@ -574,6 +577,18 @@ export function overdriveUp(state, slug) {
   state.gold -= c.gold; state.cores -= c.cores;
   state.stats.coresSpent = (state.stats.coresSpent || 0) + c.cores;
   r.od = overdrive(r.od) + 1;
+  return c;
+}
+
+/** 最终法则 +1：超限满 99 才能练，没有上限，花金币 + 银芯 */
+export function lawUp(state, slug) {
+  const r = state.roster[slug];
+  if (!r || r.star < MAX_AWAKEN || overdrive(r.od) < OVERDRIVE_MAX || law(r.law) >= LAW_MAX) return null;
+  const c = lawCost(r.law);
+  if (state.gold < c.gold || state.cores < c.cores) return null;
+  state.gold -= c.gold; state.cores -= c.cores;
+  state.stats.coresSpent = (state.stats.coresSpent || 0) + c.cores;
+  r.law = law(r.law) + 1;
   return c;
 }
 
@@ -752,9 +767,9 @@ export function pullOnce(state, data, rng) {
   let dup = false, gold = 0;
   if (!own) state.roster[a.slug] = { lv: 1, star: 0, brk: 0 };
   else if (own.star < MAX_AWAKEN) { own.star++; dup = true; }
-  else { gold = 800; state.gold += gold; state.cores += 30; own.od = overdrive(own.od) + 1; dup = true; }   // 满叠后重复：折算金币银芯，外加超限 +1
+  else { gold = 800; state.gold += gold; state.cores += 30; if (overdrive(own.od) < OVERDRIVE_MAX) own.od = overdrive(own.od) + 1; else own.law = law(own.law) + 1; dup = true; }   // 满叠后重复：折算金币银芯，外加超限 +1（超限满了就加最终法则 +1）
   state.stats.pulls++;
-  return { slug: a.slug, rarity, isNew: !own, dup, gold, star: state.roster[a.slug].star, od: state.roster[a.slug].od || 0 };
+  return { slug: a.slug, rarity, isNew: !own, dup, gold, star: state.roster[a.slug].star, od: state.roster[a.slug].od || 0, law: state.roster[a.slug].law || 0 };
 }
 /** 管理员在后台发的唤醒体（站点 /grants/mine 的 awk 列表）：没有就是新获得，已有就叠位 +1。
  *  每条赠礼只领一次（id 记在 state.giftIds 里，云存档会一起带走，换设备也不会重领）。返回这次实际发出去的。 */

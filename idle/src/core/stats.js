@@ -2,6 +2,7 @@ import {
   MAX_LV, MAX_AWAKEN, MAX_LV_HARD, AWAKEN_STAT_PER, AWAKEN_AMP_EVERY, AWAKEN_AMP_PER,
   AWAKEN_SKILL_EVERY, AWAKEN_SKILL_MAX, LEVEL_GATE, SKILL_MAX,
   OVERDRIVE_STAT_PER, OVERDRIVE_AMP_EVERY, OVERDRIVE_AMP_PER, OVERDRIVE_MAX,
+  LAW_STAT_PER, LAW_AMP_EVERY, LAW_AMP_PER, LAW_CRIT_EVERY, LAW_CRIT_PER, LAW_MAX,
 } from './constants.js';
 
 // ---------- 超限（叠满 99 后的无限成长） ----------
@@ -9,6 +10,12 @@ export const overdrive = (od = 0) => Math.max(0, Math.min(OVERDRIVE_MAX, Math.fl
 export const overdriveStatPct = (od = 0) => Math.round(overdrive(od) * OVERDRIVE_STAT_PER * 10) / 10;
 export const overdriveAmp = (od = 0) => Math.floor(overdrive(od) / OVERDRIVE_AMP_EVERY) * OVERDRIVE_AMP_PER;
 /** 从 od 级升到 od+1 级的花费：金币指数涨，银芯线性涨 */
+/** 最终法则：超限满 99 之后真正无上限的成长 */
+export const law = (n = 0) => Math.max(0, Math.min(LAW_MAX, Math.floor(Number(n) || 0)));
+export const lawStatPct = (n = 0) => Math.round(law(n) * LAW_STAT_PER * 10) / 10;
+export const lawAmp = (n = 0) => Math.floor(law(n) / LAW_AMP_EVERY) * LAW_AMP_PER;
+export const lawCrit = (n = 0) => Math.floor(law(n) / LAW_CRIT_EVERY) * LAW_CRIT_PER;
+export const lawCost = (n = 0) => ({ gold: Math.round(2e10 * Math.pow(1.12, law(n))), cores: 500 + 50 * law(n) });
 export const overdriveCost = (od = 0) => ({ gold: Math.round(2e6 * Math.pow(1.10, overdrive(od))), cores: 100 + 20 * overdrive(od) });
 
 // ---------- 叠位 ----------
@@ -28,8 +35,8 @@ export const nextAwakenMilestone = (star = 0) => {
 
 // Level-1 numbers and per-level scaling come straight from the SKeyDB export;
 // the multipliers below turn them into this game's own battle scale.
-export function baseStats(a, lv, star = 0, od = 0) {
-  const m = (1 + (AWAKEN_STAT_PER / 100) * awaken({ star })) * (1 + (OVERDRIVE_STAT_PER / 100) * overdrive(od));   // 超限是叠在叠位之上的乘区
+export function baseStats(a, lv, star = 0, od = 0, lw = 0) {
+  const m = (1 + (AWAKEN_STAT_PER / 100) * awaken({ star })) * (1 + (OVERDRIVE_STAT_PER / 100) * overdrive(od)) * (1 + (LAW_STAT_PER / 100) * law(lw));   // 超限是叠在叠位之上的乘区
   const safe = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
   lv = Math.max(1, safe(lv) || 1);
   const g = (k) => safe(a.base?.[k]) + safe(a.scale?.[k]) * (lv - 1);
@@ -48,8 +55,8 @@ export function baseStats(a, lv, star = 0, od = 0) {
 }
 
 // 每级成长（详情页展示用，取自同一套公式）
-export function growthPerLevel(a, star = 0, od = 0) {
-  const m = (1 + (AWAKEN_STAT_PER / 100) * awaken({ star })) * (1 + (OVERDRIVE_STAT_PER / 100) * overdrive(od));   // 超限是叠在叠位之上的乘区
+export function growthPerLevel(a, star = 0, od = 0, lw = 0) {
+  const m = (1 + (AWAKEN_STAT_PER / 100) * awaken({ star })) * (1 + (OVERDRIVE_STAT_PER / 100) * overdrive(od)) * (1 + (LAW_STAT_PER / 100) * law(lw));   // 超限是叠在叠位之上的乘区
   const safe = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
   return {
     hp: Math.round(safe(a.scale?.CON) * 10 * m * 10) / 10,

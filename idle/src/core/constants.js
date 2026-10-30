@@ -28,12 +28,21 @@ export const AWAKEN_AMP_EVERY = 10;       // 每 N 叠位
 export const AWAKEN_AMP_PER = 3;          // +% 增伤
 export const AWAKEN_SKILL_EVERY = 40;     // 每 N 叠位技能等级 +1（最多 +2）
 export const AWAKEN_SKILL_MAX = 2;
-// 超限（叠满 99 之后的无限成长）：每级 生命 / 攻击 / 防御 ×(1+0.8%×级)（叠在叠位之上的独立乘区），每 5 级再 +1.5% 增伤；没有上限，
-// 但花费是指数涨（金币 ×1.10 / 级），所以是「越往后越贵、永远有得练」的长线目标。
+// 超限（叠满 99 之后的成长，上限 99；之后接最终法则）：每级 生命 / 攻击 / 防御 ×(1+0.8%×级)（叠在叠位之上的独立乘区），每 5 级再 +1.5% 增伤；没有上限，
+// 花费是指数涨（金币 ×1.10 / 级）。
 export const OVERDRIVE_STAT_PER = 0.8;     // %/级（生命 / 攻击 / 防御）
 export const OVERDRIVE_AMP_EVERY = 5;
 export const OVERDRIVE_AMP_PER = 1.5;      // +% 增伤
-export const OVERDRIVE_MAX = 9999;         // 只是防止存档被改出天文数字，正常玩不到
+export const OVERDRIVE_MAX = 99;           // 超限上限 99，练满之后接「最终法则」
+// 最终法则（超限满 99 之后的无限成长）：真正没有上限的那一档。
+//   每级 生命 / 攻击 / 防御 ×(1+1.2%×级)（又一层独立乘区），每 5 级增伤 +2.5%，每 10 级暴击伤害 +8%。
+//   花费 200 亿 × 1.12^级 金币 + 500 + 50×级 银芯：指数涨，永远练不完。
+export const LAW_STAT_PER = 1.2;
+export const LAW_AMP_EVERY = 5;
+export const LAW_AMP_PER = 2.5;
+export const LAW_CRIT_EVERY = 10;
+export const LAW_CRIT_PER = 8;
+export const LAW_MAX = 99999;             // 只防存档被改出天文数字
 export const LEVEL_GATE = 20;             // 每 20 级一次「突破」
 export const SKILL_MAX = 4;               // 技能等级 0..4（显示 Lv.1–5）
 
