@@ -30,6 +30,7 @@ import {
   awakenAmp, awakenSkill, nextAwakenMilestone, rewindPlan, REWIND_COST,
   overdrive, overdriveCost, overdriveStatPct, overdriveAmp, law, lawCost, lawStatPct, lawAmp, lawCrit,
 } from '../core/stats.js';
+import { extraSkills, EXTRA_OD_AT, EXTRA_LAW_AT } from '../core/extra.js';
 import {
   OVERDRIVE_STAT_PER, OVERDRIVE_AMP_EVERY, OVERDRIVE_AMP_PER, OVERDRIVE_MAX, LAW_STAT_PER, LAW_AMP_EVERY, LAW_AMP_PER, LAW_CRIT_EVERY, LAW_CRIT_PER,
 } from '../core/constants.js';
@@ -694,7 +695,18 @@ const numLine = (sk) => {
   return `<small class="nums">原作数值（Lv.1–5 → 当前）：${Object.keys(n).map(part).join('　')}</small>`;
 };
 
-/* 超限：叠满 99 之后的无限成长。没有上限，花费指数涨 */
+/* 专属技能：满超限（Lv 99）解锁「超限技」，满最终法则（Lv 99）解锁「终焉技」——每位唤醒体各自一套 */
+function extraBox(a, slug, r) {
+  const ex = extraSkills(slug, a);
+  const row = (k, title, need, ok) => `<div class="skill extra-skill ${ok ? '' : 'locked'}"><b class="sk ${k}">${SLOT_ZH[k]}</b> <em>${esc(ex[k].name)}</em>
+    <small>${ok ? '已解锁' : need} · 每行动 ${ex[k].every} 次后免费追加一次</small><small>本作效果：${esc(ex[k].text)}</small></div>`;
+  const od = r && overdrive(r.od) >= EXTRA_OD_AT, lw = r && law(r.law) >= EXTRA_LAW_AT;
+  return `<h4>专属技能 <small class="dim">满超限 / 满最终法则解锁</small></h4><div class="skills">
+    ${row('Od', '超限技', `超限练到 ${EXTRA_OD_AT} 级解锁（现在 ${r ? overdrive(r.od) : 0}）`, od)}
+    ${row('Law', '终焉技', `最终法则练到 ${EXTRA_LAW_AT} 级解锁（现在 ${r ? law(r.law) : 0}）`, lw)}</div>`;
+}
+
+/* 超限：叠满 99 之后的成长（上限 99），之后接最终法则 */
 function odBox(s, r, slug) {
   const od = overdrive(r.od), c = overdriveCost(od);
   const full = od >= OVERDRIVE_MAX;
@@ -793,6 +805,7 @@ export function detailModal(app, slug) {
       ${a.trait ? `<h4>特性 <small class="dim">常驻，无需触发</small></h4>
         <div class="traitbox"><b>${esc(a.trait.zh)}</b><p>${esc(a.trait.desc)}</p></div>` : ''}
       <h4>技能 <small class="dim">技能等级 Lv.${lvl + 1}/5（每 15 级 +1，每 ${AWAKEN_SKILL_EVERY} 叠位 +1）</small></h4><div class="skills">${SLOTS.map((k) => `<div class="skill"><b class="sk ${k}">${SLOT_ZH[k]}</b> <em>${esc(kit[k].name)}</em>${kit[k].real?.e ? ` <small class="en">${esc(kit[k].real.e)}</small>` : ''}<small>本作效果：${esc(describeSkill(kit[k]))}</small>${numLine(kit[k])}${kit[k].real ? `<details><summary>原作技能文本（译）</summary><p class="real">${markup(kit[k].real.d, data.kw)}</p></details>` : ''}</div>`).join('')}</div>
+      ${extraBox(a, slug, r)}
       ${a.rk_en?.length ? `<details class="en-box"><summary>启灵（原作文本，仅供参考）</summary>${a.rk_en.map((x) => `<div class="skill"><b>${esc(x.ty)}</b> <em>${esc(x.n)}</em><p class="real">${markup(x.d, data.kw)}</p></div>`).join('')}</details>` : ''}
       <div class="matsrc">
         <b>升级材料一览</b>

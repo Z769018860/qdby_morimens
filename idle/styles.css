@@ -81,7 +81,7 @@ main{max-width:980px;margin:0 auto;padding:12px}
 .log{height:150px;overflow:auto;background:#0a0d13;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;margin-top:6px}
 .log .rnd{color:var(--dim);text-align:center}.log .dm{color:#c9ced8}.log .hl{color:#7dffb0}.log .dead{color:var(--bad)}
 .log .ca{color:#8fd0ff}.log .ce{color:#ff9a92}
-.sk{font-style:normal;color:#d7c28a}.sk.Exalt{color:#ffd54a}.sk.OverExalt{color:#ff7ad9}.sk.Rouse{color:#7dffb0}.sk.Defense{color:#7ec8ff}
+.sk{font-style:normal;color:#d7c28a}.sk.Exalt{color:#ffd54a}.sk.OverExalt{color:#ff7ad9}.sk.Rouse{color:#7dffb0}.sk.Defense{color:#7ec8ff}.sk.Od{color:#ff9a4f}.sk.Law{color:#ff5fb0}.extra-skill{border-left:2px solid #ff9a4f55;padding-left:8px}.extra-skill.locked{opacity:.55}
 /* pages */
 .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
 .slot{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--rc);border-radius:10px;padding:8px;cursor:pointer}

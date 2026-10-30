@@ -29,7 +29,7 @@ export function makeUnit(def, side, idx) {
     surviveChance: num(def.surviveChance, 0), survived: false,
     openAli: num(def.openAli, 0), openKey: num(def.openKey, 0),
     firstBoost: num(def.firstBoost, 0),
-    kit: def.kit || null, pattern: def.pattern || null, opening: def.opening || [], boss: !!def.boss, reward: !!def.reward, affix: def.affix || null,
+    kit: def.kit || null, extra: def.extra || null, pattern: def.pattern || null, opening: def.opening || [], boss: !!def.boss, reward: !!def.reward, affix: def.affix || null,
     mid: def.mid || null, trait: def.trait || null,
     ali: num(def.openAli, 0), key: num(def.openKey, 0), shield: 0, buffs: [], dots: [], cd: {}, st: {}, sig: '',
     roused: false, patIdx: 0, enrage: 0, alive: true, acted: 0,
@@ -304,6 +304,16 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     }
     run(u, Array.isArray(sk?.effects) ? sk.effects : []);
     emitAll();
+    // 满超限 / 满最终法则的专属技能：免费追加，不占回合、不进冷却
+    if (u.kit && u.extra && u.alive && !finished()) {
+      for (const slot of ['Od', 'Law']) {
+        const ex = u.extra[slot];
+        if (!ex || u.acted % ex.every !== 0 || !u.alive || finished()) continue;
+        push({ k: 'act', who: u.uid, slot, name: ex.name, round, text: ex.text });
+        run(u, ex.effects);
+        emitAll();
+      }
+    }
     showIntent(u);
     if (u.side === 'e' && u.affix === 'swift' && u.alive && rng() < 0.2) {
       push({ k: 'act', who: u.uid, slot: 'Strike', name: '疾袭', round });

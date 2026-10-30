@@ -1929,3 +1929,40 @@ test('满叠 99 后再抽到同一位：只折算金币银芯，不送超限 / �
   assert.equal(s.gold - g0, out.length * 800);
   assert.equal(s.cores - c0, out.length * 30);
 });
+
+/* ---------- 满超限 / 满最终法则的专属技能 ---------- */
+import { extraSkills, extraKit, EXTRA_NAMES } from '../src/core/extra.js';
+
+test('专属技能：每位唤醒体各有独一份的名字，按解锁进度生效', () => {
+  const names = new Set();
+  for (const a of data.awakeners) {
+    assert.ok(EXTRA_NAMES[a.slug], `${a.slug} 缺专属技能名`);
+    const ex = extraSkills(a.slug, a);
+    assert.ok(ex.Od.effects.length >= 2 && ex.Law.effects.length >= 2 && ex.Od.text && ex.Law.text);
+    names.add(ex.Od.name); names.add(ex.Law.name);
+  }
+  assert.equal(names.size, data.awakeners.length * 2, '124 个名字互不重复');
+  const a = data.awakeners[0];
+  assert.equal(extraKit(a.slug, a, { od: 98, law: 0 }), null);
+  assert.deepEqual(Object.keys(extraKit(a.slug, a, { od: 99, law: 0 })), ['Od']);
+  assert.deepEqual(Object.keys(extraKit(a.slug, a, { od: 99, law: 99 })), ['Od', 'Law']);
+});
+
+test('专属技能：战斗里按节奏免费追加，且比不带的队伍更强', () => {
+  const s = newState(data);
+  const team = s.team.slice(0, 4);
+  for (const k of team) Object.assign(s.roster[k], { lv: 100, star: 99, brk: 5, od: 99, law: 99 });
+  const withExtra = teamDefs(s, data).list ?? teamDefs(s, data);
+  const defs = (Array.isArray(withExtra) ? withExtra : withExtra.list);
+  assert.ok(defs.every((d) => d.extra && d.extra.Od && d.extra.Law));
+  const foe = (n) => ({ name: '靶子', hp: 5e5, atk: 1, def: 0, type: 'WARDEN', realm: 'CHAOS', pattern: [{ name: '普攻', effects: [{ t: 'dmg', m: 0.1, to: 'foe' }] }], idx: n });
+  const run = (ds) => simulate({ allies: ds, enemies: [foe(0), foe(1)], seed: 7, maxRounds: 12 });
+  const a = run(defs);
+  const plain = defs.map((d) => ({ ...d, extra: null }));
+  const b = run(plain);
+  const slots = a.events.filter((e) => e.k === 'act' && (e.slot === 'Od' || e.slot === 'Law'));
+  assert.ok(slots.some((e) => e.slot === 'Od') && slots.some((e) => e.slot === 'Law'), '战斗里出现超限技 / 终焉技');
+  assert.equal(b.events.filter((e) => e.k === 'act' && (e.slot === 'Od' || e.slot === 'Law')).length, 0);
+  const dmg = (r) => Object.values(r.stats).reduce((x, y) => x + y.dmg, 0);
+  assert.ok(dmg(a) > dmg(b), '带专属技能总伤害更高');
+});

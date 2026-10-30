@@ -2,6 +2,7 @@ import { hash, mulberry32 } from './rng.js';
 import {
   MAX_LV_HARD, MAX_AWAKEN, OVERDRIVE_MAX, LAW_MAX, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, ORDER_SLOTS, SAVE_VERSION, GEAR_MAX_LV, RARITY_ORDER,
 } from './constants.js';
+import { extraKit } from './extra.js';
 import { baseStats, lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, rewindPlan, overdrive, overdriveAmp, overdriveCost, law, lawAmp, lawCrit, lawCost } from './stats.js';
 import { buildKit, makeMedians } from './skills.js';
 import {
@@ -226,6 +227,7 @@ export function allyDef(state, data, slug, teamSlugs = state.team) {
     surviveChance: Math.min(0.9, bonus.surviveChance), openAli: bonus.openAli, openKey: bonus.openKey,
     firstBoost: bonus.firstBoost, kit: data.kit(slug, skillLevel(r.lv, r.star)), goldBonus: bonus.gold,
     trait: a.trait || null,
+    extra: extraKit(slug, a, r),            // 满超限 / 满最终法则解锁的专属技能（没解锁是 null）
   };
   def.power = power(def);
   return def;
@@ -298,7 +300,7 @@ export function battleSig(state) {
   return [
     state.maxStage || 0,
     (state.team || []).join(','),
-    Object.entries(state.roster || {}).map(([k, r]) => `${k}.${r.lv}.${r.star}.${r.brk ?? 0}`).join('|'),
+    Object.entries(state.roster || {}).map(([k, r]) => `${k}.${r.lv}.${r.star}.${r.brk ?? 0}.${r.od || 0}.${r.law || 0}`).join('|'),
     (state.gear?.relics || []).join(','),
     Object.entries(state.gear?.equip || {}).map(([k, e]) => `${k}:${e?.wheel || ''}/${e?.cov || ''}`).join(';'),
     Object.entries(state.orders?.owned || {}).map(([k, v]) => `${k}.${v}`).join('|'),

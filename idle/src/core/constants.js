@@ -13,6 +13,7 @@ export const SLOTS = ['Strike', 'Defense', 'Skill1', 'Skill2', 'Rouse', 'Exalt',
 export const SLOT_ZH = {
   Strike: '指令·攻击', Defense: '指令·防御', Skill1: '指令·技能一', Skill2: '指令·技能二',
   Rouse: '唤醒', Exalt: '共鸣', OverExalt: '超共鸣',
+  Od: '超限技', Law: '终焉技',          // 满超限 / 满最终法则解锁的专属技能（core/extra.js），不在 SLOTS 里
 };
 export const RARITY_ORDER = { N: 0, R: 1, SR: 2, SSR: 3, Genesis: 4 };
 export const RARITY_ZH = { N: '普通', R: '稀有', SR: '精良', SSR: '史诗', Genesis: '创生' };

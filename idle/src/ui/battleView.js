@@ -98,7 +98,7 @@ export class BattleView {
   /* ---------- 挂机收益面板：当前关 / 下一关，口径与离线结算一致 ---------- */
   farmSig() {
     const s = this.app.state;
-    return [s.stage, s.maxStage, s.auto ? 1 : 0, s.team.join(','), Object.values(s.roster).map((r) => `${r.lv}.${r.star}.${r.brk}`).join('|'), (s.gear.relics || []).join(','), (s.orders?.slots || []).join(','), Object.keys(s.gear.items).length].join('#');
+    return [s.stage, s.maxStage, s.auto ? 1 : 0, s.team.join(','), Object.values(s.roster).map((r) => `${r.lv}.${r.star}.${r.brk}.${r.od || 0}.${r.law || 0}`).join('|'), (s.gear.relics || []).join(','), (s.orders?.slots || []).join(','), Object.keys(s.gear.items).length].join('#');
   }
   farmData() {
     const s = this.app.state, d = this.app.data;
