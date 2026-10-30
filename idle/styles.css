@@ -130,6 +130,7 @@ main{max-width:980px;margin:0 auto;padding:12px}
 .item small.who{color:#8fd0ff}.item.r-SSR{border-color:#e5b84b88}.item.r-Genesis{border-color:#ff7ad9}
 .ibtns{display:flex;flex-direction:column;gap:4px}
 /* modal */
+.modal-bg:has(.cfrow){z-index:70}  /* 云端冲突框要盖在新手引导（z 60~62）上面，否则新设备上点不到 */
 .modal-bg{position:fixed;inset:0;background:#000a;z-index:50;display:flex;align-items:center;justify-content:center;padding:12px}
 .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;max-width:460px;width:100%;max-height:88vh;overflow:auto;position:relative}
 .modal.wide{max-width:760px}.modal-x{position:absolute;right:8px;top:8px;background:none;border:0;font-size:16px;color:var(--dim)}

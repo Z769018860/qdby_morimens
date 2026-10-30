@@ -1761,6 +1761,9 @@ test('云端存档：什么时候推、拉、问玩家', () => {
   const fresh = { maxStage: 0, play: 20, roster: { a: 1, b: 1, c: 1, d: 1 }, rev: 2 };
   const played = { maxStage: 30, play: 9000, roster: Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`h${i}`, 1])), rev: 50 };
   assert.ok(isFresh(fresh) && !isFresh(played));
+  // 刚开局（起始关已算 1，开一会儿是 2）、玩了不到三分钟、只有起手四人：仍是新档
+  assert.ok(isFresh({ maxStage: 1, play: 0, roster: { a: 1, b: 1, c: 1, d: 1 } }) && isFresh({ maxStage: 2, play: 60, roster: { a: 1, b: 1, c: 1, d: 1 } }));
+  assert.ok(!isFresh({ maxStage: 3, play: 60, roster: { a: 1 } }) && !isFresh({ maxStage: 1, play: 600, roster: { a: 1 } }));
   const cm = { ver: 4, at: 1, rev: 40, meta: {} };
   const acct = '甲';
   // 云端还没有：新档不传，有进度的传

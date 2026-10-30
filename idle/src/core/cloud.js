@@ -37,7 +37,9 @@ export const clearSyncRecord = () => { try { globalThis.localStorage?.removeItem
 
 // ---------- 纯逻辑 ----------
 /** 「新档」：刚开始玩、没什么进度，可以放心被云端覆盖 */
-export const isFresh = (s) => !s || ((s.maxStage || 0) === 0 && (Number(s.play) || 0) < 180 && Object.keys(s.roster || {}).length <= 4);
+// 新档一开局 maxStage 就是 1（起始关已经算「打过」），开几十秒也才 2：这两档都当没进度，
+// 否则新设备一进来就被当成「有进度」，弹冲突框问用哪份，甚至把刚开局的空档推上云端占位
+export const isFresh = (s) => !s || ((s.maxStage || 0) <= 2 && (Number(s.play) || 0) < 180 && Object.keys(s.roster || {}).length <= 4);
 
 export const metaOf = (s) => ({
   maxStage: s.maxStage || 0, roster: Object.keys(s.roster || {}).length, play: Math.round(Number(s.play) || 0),
