@@ -1138,7 +1138,11 @@ const BOARD_SPEC = [
   { k: 'sv', gd: 'sv', i: 0, unit: '分', label: '最高分' },
   { k: 'pf', gd: 'pf', i: 1, unit: '分', label: '最高分', sub: (v) => (v[0] ? `最远第 ${Number(v[0])} 波` : '') },
   { k: 'wf', gd: 'wf', i: 1, unit: '胜', label: '胜场', sub: (v) => (v[0] ? `共 ${Number(v[0])} 局` : '') },
-  { k: 'dt', gd: 'dt', i: 0, unit: '条', label: '已复原记录', sub: (v) => (v[2] ? `结案 ${Number(v[2])}` : '') },
+  // 弥萨格大逃杀：按确认的报告数排，副标写提交数与正确率；老档案（还没有这两项）退回按已复原记录数
+  { k: 'dt', gd: 'dt', i: 4, unit: '份', label: '确认报告',
+    alt: (v) => ({ score: Number(v[0]) || 0, unit: '条', sub: '已复原记录（暂无报告数据）' }),
+    sub: (v) => (Number(v[3]) > 0 ? `提交 ${Number(v[3])} 份 · 正确率 ${Math.round((Number(v[4]) || 0) / Number(v[3]) * 100)}%` : ''),
+    tb: (v) => (Number(v[3]) > 0 ? (Number(v[4]) || 0) / Number(v[3]) : 0) },
 ];
 async function buildBoard(kv) {
   const keys = (await softly(() => listKeys(kv, 'usr_', 1000), [])).filter((k) => k !== 'usr_n').slice(0, 500);
@@ -1165,8 +1169,10 @@ async function buildBoard(kv) {
     const list = [];
     for (const u of users) {
       const v = u.gd && Array.isArray(u.gd[sp.gd]) ? u.gd[sp.gd] : null;
-      const score = v ? Math.round(Number(v[sp.i]) || 0) : 0;
-      if (score > 0) list.push({ name: u.name, score, sub: sp.sub ? sp.sub(v) : '', tb: sp.tb ? sp.tb(v) : 0 });
+      let score = v ? Math.round(Number(v[sp.i]) || 0) : 0;
+      let sub = v && sp.sub ? sp.sub(v) : '', unit = '';
+      if (!score && v && sp.alt && !(Number(v[3]) > 0)) { const a = sp.alt(v); score = a.score; sub = a.sub; unit = a.unit; }
+      if (score > 0) list.push({ name: u.name, score, sub, ...(unit ? { unit } : {}), tb: sp.tb && v ? sp.tb(v) : 0 });
     }
     list.sort((a, b) => b.score - a.score || b.tb - a.tb);
     out[sp.k] = { label: sp.label, unit: sp.unit, items: list.slice(0, 20).map(({ tb, ...it }) => it) };

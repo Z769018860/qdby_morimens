@@ -1556,6 +1556,9 @@ const GD_SPEC = [
     ['已复原', n(v[0]) + ' 条'],
     ['归档卷宗', String(n(v[1]))],
     ['结案', n(v[2]) + ' 届'],
+    ['提交报告', v[3] ? n(v[3]) + ' 份' : '—'],
+    ['确认报告', v[4] ? n(v[4]) + ' 份' : '—'],
+    ['正确率', n(v[3]) ? Math.round((n(v[4]) / n(v[3])) * 100) + '%' : '—'],
   ] },
 ];
 
@@ -1569,7 +1572,7 @@ const GD_SPEC = [
 //   bn 结合 [最深楼层, 通关, 首领, 局数]
 //   il 挂机 [时长秒, 拥有角色, 最高关, 当前关, 金币]
 //   sv 幸存者 [最高分, 局数, 通关角色] pf 协议 [最远波, 最高分, 守住]
-//   wf 狼人 [局数, 胜场]             dt 报告 [已复原, 卷宗, 结案]
+//   wf 狼人 [局数, 胜场]             dt 报告 [已复原, 卷宗, 结案, 提交报告数, 确认报告数]
 // 单调递增的量（最好成绩、累计局数、时长），服务端合并时逐项取大即可。
 function digest() {
   const out = { at: Date.now() };
@@ -1589,7 +1592,7 @@ function digest() {
   out.pf = [n(pf.wave), n(pf.score), n(pf.wins)];
   const wf = RD('wolf:stat') || {};
   out.wf = [n(wf.n), n(wf.win)];
-  let rec = 0, docs = 0, done = 0;
+  let rec = 0, docs = 0, done = 0, sub = 0, okRep = 0;
   for (const key of ['morimens-deathreport-save-v1', 'morimens-deathreport-save-ed62-v1', 'morimens-deathreport-save-ed61-v1']) {
     let d = null;
     try { d = JSON.parse(RAW(key) || 'null'); } catch { d = null; }
@@ -1597,8 +1600,12 @@ function digest() {
     rec += arr(d.recovered).length;
     docs += arr(d.docs).length;
     if (d.ended) done += 1;
+    // 提交过的报告 = 已确认的 + 每份报告交错过的次数（missed）；确认数用 confirmed 里的真值
+    const okN = Object.values(d.confirmed || {}).filter(Boolean).length;
+    okRep += okN;
+    sub += okN + Object.values(d.missed || {}).reduce((a, x) => a + n(x), 0);
   }
-  out.dt = [rec, docs, done];
+  out.dt = [rec, docs, done, sub, okRep];
   return out;
 }
 return { fmtDur, DIFF_MERGE, DIFF_BIRD, GAMES, readAll, credits, GD_SPEC, digest };

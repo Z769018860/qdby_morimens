@@ -423,7 +423,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
   .links{grid-template-columns:1fr 1fr}
 }
 </style>
-<meta name="build" content="48f7c98722">
+<meta name="build" content="418760479c">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1469,7 +1469,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
             return '<span title="' + esc2(a.zh + ' Lv' + t.lv + (t.st ? ' +' + t.st : '')) + '"><img loading="lazy" src="' + esc2(a.img) + '" alt="' + esc2(a.zh) + '"><em>' + (t.lv || '') + '</em></span>';
           }).join('') + '</div>';
         }
-        var sc = boardTab === 'il' ? '主线第 <b>' + it.score + '</b><small>关</small>' : '<b>' + it.score + '</b><small>' + esc2(g.unit || '') + '</small>';
+        var sc = boardTab === 'il' ? '主线第 <b>' + it.score + '</b><small>关</small>' : '<b>' + it.score + '</b><small>' + esc2(it.unit || g.unit || '') + '</small>';
         return '<li><span class="rk">' + (i + 1) + '</span><span class="nm">' + esc2(it.name) + (it.sub ? '<small>' + esc2(it.sub) + '</small>' : '') + '</span>' + team + '<span class="sc">' + sc + '</span></li>';
       }).join('');
     });
