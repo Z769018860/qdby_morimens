@@ -1,0 +1,39 @@
+name: Rebuild all static assets (one-time)
+on:
+  push:
+    paths:
+      - '.github/workflows/rebuild-once.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  rebuild:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Rebuild production assets
+        run: node scripts/build.mjs
+      - name: Verify published modules contain source fixes
+        run: |
+          grep -q 'lastWorldRender' js/b/binding.js
+          grep -q 'G.fx.length > 280' js/b/binding.js
+          grep -q 'protocolDetails' protocol.html
+          grep -q 'js/b/protocol.js?v=' protocol.html
+          git status --short
+      - name: Commit rebuilt outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Already up to date"
+          else
+            git commit -m "build: regenerate published assets from current main sources"
+            git push origin HEAD:main
+          fi
