@@ -20,6 +20,25 @@ let acc = 0;
 let last = performance.now();
 let upShown = false;
 let ended = false;
+// Quality controls only drawing. Simulation remains at its original fixed timestep.
+const mobile = matchMedia('(pointer:coarse)').matches || innerWidth < 700;
+const qualityKey = 'morimens-sv-effects';
+const qualityLevels = ['full', 'low', 'minimal'];
+let quality = (() => { try { return localStorage.getItem(qualityKey) || (mobile ? 'low' : 'full'); } catch { return mobile ? 'low' : 'full'; } })();
+if (!qualityLevels.includes(quality)) quality = mobile ? 'low' : 'full';
+G.quality = quality;
+let renderAccum = 0;
+function qualityButton() {
+  let b = document.getElementById('svQuality');
+  if (!b) {
+    b = document.createElement('button'); b.id = 'svQuality'; b.type = 'button';
+    b.style.cssText = 'position:fixed;top:54px;right:10px;z-index:90;background:#192234;color:#f5e7c6;border:1px solid #8791a4;border-radius:9px;padding:6px 9px;font:12px system-ui;cursor:pointer';
+    document.body.appendChild(b);
+    b.onclick = () => { quality = qualityLevels[(qualityLevels.indexOf(quality) + 1) % qualityLevels.length]; G.quality = quality; try { localStorage.setItem(qualityKey, quality); } catch {} resize(); qualityButton(); };
+  }
+  b.textContent = '特效：' + ({ full: '完整', low: '低', minimal: '极简' }[quality]);
+}
+qualityButton();
 
 // ---------------------------------------------------------------- 输入
 const keys = new Set();
@@ -165,8 +184,9 @@ function frame(dt) {
     if (G.phase !== 'idle') update(dt);
   }
 
-  draw();
-  updateHUD();
+  renderAccum += dt;
+  const renderGap = quality === 'full' ? 0 : quality === 'low' ? 1 / 30 : 1 / 24;
+  if (renderAccum >= renderGap) { draw(); updateHUD(); renderAccum = 0; }
   syncMusic();
 
   if (G.phase === 'levelup' && !upShown) {
