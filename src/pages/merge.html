@@ -128,6 +128,7 @@ canvas#cv{
   box-shadow:0 0 0 1px color-mix(in srgb, #a99cff 24%, transparent);
 }
 .diff .skin svg{width:14px; height:14px; display:block; flex:none}
+.diff [hidden]{display:none !important}
 
 /* 银芯图标：字内排版，跟着字号走，不撑高行框 */
 img.sc{
@@ -270,11 +271,14 @@ body.danger canvas#cv{
       </svg>
       <span>随机</span><i id="randn">5</i>
     </button>
-    <button class="rand skin" id="skin" title="随机换掉 0~8 级的头像（Y），杜勒赛因固定" aria-label="随机换头像">
+    <button class="rand skin" id="skin" title="从全部唤醒体里随机换掉前九级的头像（Y），不重复，杜勒赛因固定" aria-label="随机换头像">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 7.5h6l7 9h3"/><path d="M4 16.5h6l2.4-3.1"/><path d="M17.6 4.6 20 7l-2.4 2.4"/><path d="M20 16.5h-2.4"/>
       </svg>
       <span>换皮</span>
+    </button>
+    <button class="rand skin" id="skinReset" hidden title="还原成原来的头像" aria-label="还原头像">
+      <span>还原</span>
     </button>
   </div>
 

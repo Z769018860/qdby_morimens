@@ -95,13 +95,13 @@ const bestOf = { easy: 0, normal: 0, hard: 0, frenzy: 0 };
 const diffOf = () => DIFF_OF[G.diff] || DIFF_OF.normal;
 
 // ------------------------------------------------------------------ 头像 / 换皮
-// 每一级「当前用的是哪张脸」记在 SKIN 里：0 = 合成链原图，1..n = 换皮候选的第几张。
-// 换皮池本身在 js/merge-skins.js（几十张 data URI，四百来 KB），首屏不加载：
+// 每一级「当前用的是哪张脸」记在 SKIN 里：0 = 合成链原图，1..n = 换皮池（全部唤醒体，杜勒赛因除外）的第几张。
+// 换皮池本身在 js/merge-skins.js（六十来张 data URI），首屏不加载：
 // 只有玩家点了「换皮」、或者上次换过要还原时才动态 import。
 const SKIN = new Array(LEVELS.length).fill(0);
-let SKINS = null;                    // 换皮池，按等级分组
+let SKINS = null;                    // 换皮池：一个扁平数组，每级从里面不重复地抽
 const IMGC = new Map();              // lv|skin → Image，避免来回换皮时反复新建
-const skinOf = (lv) => (SKIN[lv] > 0 && SKINS && SKINS[lv] && SKINS[lv][SKIN[lv] - 1]) || null;
+const skinOf = (lv) => (SKIN[lv] > 0 && SKINS && SKINS[SKIN[lv] - 1]) || null;
 const artOf = (lv) => {
   const s = skinOf(lv);
   return s ? s.art : LEVELS[lv].art;
@@ -1193,7 +1193,7 @@ function buildChain() {
 // ------------------------------------------------------------------ 换皮
 // 0~8 级的脸可以换（最后一级杜勒赛因固定）。换皮池是单独模块：
 // 几十张 data URI 加起来四百来 KB，不能算进首屏 —— 点按钮 / 上次换过要还原时才拉。
-const SKIN_KEY = 'zjtt:merge:skins';
+const SKIN_KEY = 'zjtt:merge:skins2';     // v2：换成全员扁平池，旧存档里的序号对不上，直接弃用
 let skinLoading = null;
 
 function loadSkins() {
@@ -1219,11 +1219,12 @@ function writeSkins() {
 
 // 把 SKIN 应用到画面上：贴图缓存按皮肤分 key，所以这里只要清一次缓存再重画三处
 function applySkin(list, quiet) {
-  for (let i = 0; i < SKIN.length; i++) SKIN[i] = (list && list[i]) | 0;
-  // 越界的候选（换皮池变过、存档是旧的）退回原图，别画成空白
+  for (let i = 0; i < SKIN.length; i++) SKIN[i] = i < MAX ? (list && list[i]) | 0 : 0;   // 最后一级固定
+  // 越界的候选（换皮池变过）或重复的脸退回原图，别画成空白 / 两级同一张
+  const used = new Set();
   for (let i = 0; i < SKIN.length; i++) {
-    const max = SKINS && SKINS[i] ? SKINS[i].length : 0;
-    if (SKIN[i] > max) SKIN[i] = 0;
+    if (SKIN[i] > (SKINS ? SKINS.length : 0) || (SKIN[i] > 0 && used.has(SKIN[i]))) SKIN[i] = 0;
+    if (SKIN[i] > 0) used.add(SKIN[i]);
   }
   G.tiles.clear();
   buildChainImgs();
@@ -1242,32 +1243,35 @@ function buildChainImgs() {
   });
 }
 
-// 「换皮」：能换的每一级都重新摇一张，且尽量不跟当前这张重复 ——
-// 点了按钮还是同一张脸，玩家会以为按钮没反应。
+// 「换皮」：前 MAX 级每一级都重新摇一位唤醒体，整池（杜勒赛因除外）里不重复地抽；
+// 尽量避开当前正在用的那几张，免得点了按钮看到的还是同一批脸。
 function shuffleSkins() {
   loadSkins().then((pool) => {
-    if (!pool) { toast('换皮素材没拉到，检查一下网络'); return; }
+    if (!pool || !pool.length) { toast('换皮素材没拉到，检查一下网络'); return; }
+    const all = pool.map((_, i) => i + 1);
+    const cur = new Set(SKIN.slice(0, MAX).filter((v) => v > 0));
+    // Fisher-Yates 洗牌；没在用的排前面，池子不够大时才回头用当前这批
+    for (let i = all.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [all[i], all[j]] = [all[j], all[i]]; }
+    all.sort((x, y) => (cur.has(x) ? 1 : 0) - (cur.has(y) ? 1 : 0));
     const next = SKIN.slice();
-    let changed = 0;
-    for (let i = 0; i < MAX; i++) {
-      const cand = pool[i] || [];
-      if (!cand.length) continue;                 // 固定级（杜勒赛因）
-      const total = cand.length + 1;              // +1 = 原图
-      if (total < 2) continue;
-      let pick = SKIN[i];
-      for (let guard = 0; guard < 8 && pick === SKIN[i]; guard++) pick = (Math.random() * total) | 0;
-      next[i] = pick;
-      changed++;
-    }
+    for (let i = 0; i < MAX; i++) next[i] = all[i] || 0;
     applySkin(next, true);
     writeSkins();
     paintSkinBtn();
     beep(640, 0.07, 'triangle', 0.05);
     setTimeout(() => beep(880, 0.1, 'sine', 0.035), 60);
     const names = [];
-    for (let i = 0; i < MAX; i++) if (SKIN[i] > 0) names.push(labelOf(i));
-    toast(names.length ? '换成了 ' + names.slice(0, 3).join('、') + (names.length > 3 ? ' 等' : '') : '全部换回原图');
+    for (let i = 0; i < MAX; i++) if (SKIN[i] > 0) names.push(pool[SKIN[i] - 1].n);
+    toast('换成了 ' + names.slice(0, 4).join('、') + (names.length > 4 ? ' 等' : ''));
   });
+}
+
+// 还原：全部换回合成链原图
+function resetSkins() {
+  applySkin(null, true);
+  writeSkins();
+  paintSkinBtn();
+  toast('已还原成原来的头像');
 }
 
 function paintSkinBtn() {
@@ -1275,7 +1279,9 @@ function paintSkinBtn() {
   if (!b) return;
   const n = SKIN.reduce((c, v, i) => c + (i < MAX && v > 0 ? 1 : 0), 0);
   b.classList.toggle('on', n > 0);
-  b.title = n ? `已换 ${n} 级头像，点一下重新随机（Y）` : '随机换掉 0~8 级的头像（Y），杜勒赛因固定';
+  b.title = n ? `已换 ${n} 级头像，点一下重新随机（Y）；从全部唤醒体里抽，不重复` : '从全部唤醒体（杜勒赛因除外）里随机换掉前九级的头像（Y），不重复，杜勒赛因固定';
+  const r = document.getElementById('skinReset');
+  if (r) r.hidden = n === 0;
 }
 
 // 难度条与「随机低阶」按钮。两个都是本局状态的一部分，所以每次 reset 都要重画。
@@ -1435,6 +1441,7 @@ document.getElementById('diff').addEventListener('click', (e) => {
 });
 document.getElementById('rand').addEventListener('click', reroll);
 document.getElementById('skin').addEventListener('click', shuffleSkins);
+document.getElementById('skinReset')?.addEventListener('click', resetSkins);
 document.getElementById('bgm').addEventListener('click', () => { setMusic(!MUSIC.on); });
 document.getElementById('snd').addEventListener('click', (e) => {
   G.sound = !G.sound;
@@ -1592,7 +1599,7 @@ function boot() {
       localStorage.setItem('zjtt:merge:played', '1');
       setTimeout(() => toast('点一下屏幕把头像投下去，两个一样的碰在一起就合成'), 400);
       setTimeout(() => toast('手上卡着太大的球，就按「随机」换一颗小的'), 3200);
-      setTimeout(() => toast('想换换口味就按「换皮」：前九级的脸可以随机（Y）'), 6200);
+      setTimeout(() => toast('想换换口味就按「换皮」：前九级随机换成不同的唤醒体（Y）'), 6200);
     }
   } catch { /* 无痕模式 */ }
   const ph = document.getElementById('boot');

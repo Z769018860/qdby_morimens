@@ -162,48 +162,32 @@ function genMergeArt() {
 }
 
 // ------------------------------------------------- 合成大杜勒的「换皮」头像池
-// 每级（杜勒赛因除外）可以换成别的唤醒体的脸。这些图不进首屏：
-// 单独一个模块，只有玩家点了「换皮」、或者之前换过要还原时才会去拉。
-// 名字从 data/avatars.json 取（id → 中文名），所以这里只写 id，别手写名字。
-const MERGE_SKIN_POOL = {
-  cat:     ['a-15588', 'a-15573', 'a-15590'],
-  aigis:   ['a-15594', 'a-15603', 'a-77922'],
-  celeste: ['a-15572', 'a-15577', 'a-15587'],
-  doll:    ['a-77925', 'a-15602', 'a-15564'],
-  ramona:  ['a-15568', 'a-15575', 'a-77923'],
-  pandia:  ['a-15601', 'a-15583', 'a-15593'],
-  murphy:  ['a-15567', 'a-15571', 'a-77913'],
-  lily:    ['a-15562', 'a-15569', 'a-15582'],
-  nodira:  ['a-15600', 'a-77925', 'a-54117'],
-};
+// 换皮 = 每一级（杜勒赛因除外）随机换成一位唤醒体的脸，且同一次换皮里不重复。
+// 候选池是 data/avatars.json 里**全部**唤醒体（除了杜勒赛因）——不再手挑几个，免得总摇出那几张。
+// 这些图不进首屏：单独一个模块，只有玩家点了「换皮」、或者之前换过要还原时才会去拉。
+const MERGE_SKIN_EXCLUDE = new Set(['a-95786']);   // 杜勒赛因：它是终点，固定不换
 
 function genMergeSkins(cfg) {
   const meta = readJson(path.join(ROOT, 'data/avatars.json'));
-  const nameOf = new Map((meta.items || []).map((x) => [x.id, x.n || x.en || x.id]));
-  const skins = cfg.levels.map((l) => {
-    // 最后一级（杜勒赛因）固定：它是终点，换掉就不叫合成大杜勒了
-    if (l.fixedSkin) return [];
-    const ids = MERGE_SKIN_POOL[l.key] || [];
-    return ids.map((id) => {
-      const src = `assets/avatars/${id}.webp`;
-      const file = path.join(ROOT, src);
-      if (!has(file)) throw new Error('换皮头像不存在：' + src);
-      return {
-        n: nameOf.get(id) || id,
-        art: 'data:image/webp;base64,' + fs.readFileSync(file).toString('base64'),
-      };
-    });
-  });
+  const seen = new Set();
+  const pool = [];
+  for (const x of meta.items || []) {
+    if (x.k !== 'awakener' || MERGE_SKIN_EXCLUDE.has(x.id) || seen.has(x.n)) continue;
+    const file = path.join(ROOT, x.src || `assets/avatars/${x.id}.webp`);
+    if (!has(file)) throw new Error('换皮头像不存在：' + file);
+    seen.add(x.n);
+    pool.push({ n: x.n, art: 'data:image/webp;base64,' + fs.readFileSync(file).toString('base64') });
+  }
   const code = [
-    '// 由 scripts/build.mjs 从 data/merge-levels.json + data/avatars.json 生成，请勿手改。',
-    '// 只给「换皮」用：首页/首屏不加载这个文件（动态 import，见 js/merge.js 的 ensureSkins）。',
-    '// 每级一个候选数组，元素是 { n: 角色名, art: data URI }；最后一级是空数组（固定）。',
-    `export const SKINS = ${JSON.stringify(skins)};`,
+    '// 由 scripts/build.mjs 从 data/avatars.json 生成，请勿手改。',
+    '// 只给「换皮」用：首页/首屏不加载这个文件（动态 import，见 js/merge.js 的 loadSkins）。',
+    '// 一个扁平数组：全部唤醒体（杜勒赛因除外），元素是 { n: 角色名, art: data URI }。',
+    `export const SKINS = ${JSON.stringify(pool)};`,
     '',
   ].join('\n');
   const out = path.join(ROOT, 'js/merge-skins.js');
   if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
-  return skins.reduce((n, a) => n + a.length, 0);
+  return pool.length;
 }
 
 // ------------------------------------------------- 是鸟弟就下100层的技能动图
