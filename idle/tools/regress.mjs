@@ -341,7 +341,7 @@ const usage = await cdp.evalIife(`(() => {
   const card = document.querySelector('.squad[data-squad="a"]');
   return { cards: document.querySelectorAll('.squad').length, use: (card?.querySelector('.squse')?.innerText || '') };
 })()`);
-check(usage.cards === 5 && /周Boss/.test(usage.use), `队伍页 5 套编队，一队标注「${usage.use}」`);
+check(usage.cards === 10 && /周Boss/.test(usage.use), `编队库 10 套（通用 5 + 禁区 5），一队标注「${usage.use}」`);
 await cdp.evalIife(`(() => { document.querySelector('.squads')?.scrollIntoView({ block: 'center' }); return 1; })()`);
 await sleep(300);
 await cdp.shot('team-squad');
@@ -523,6 +523,7 @@ const rift = await cdp.evalIife(`(() => {
   const all = __game.data.awakeners.slice(0, 20).map((a) => a.slug);
   for (const x of all) s.roster[x] = { lv: 95, star: 9, brk: 5 };
   ['a', 'b', 'c', 'd', 'e'].forEach((k, i) => { s.squads[k] = { team: all.slice(i * 4, i * 4 + 4) }; });
+  ['r1', 'r2', 'r3', 'r4', 'r5'].forEach((k, i) => { s.squads[k] = { team: all.slice(i * 4, i * 4 + 4) }; });
   s.rift = { cycle: '', floor: 0, best: 0, day: '', tries: 3, tkFrac: 0, coFrac: 0, runs: 0 };
   window.__go('challenge');
   // 第一个标签是无限塔：只有塔的内容，不该再混着融灾禁区的卡或区域首领
