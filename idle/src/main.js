@@ -542,6 +542,26 @@ function onAct(e) {
       P.pickItem(app, 'relic', '选择造物', (uid) => { s.gear.relics = s.gear.relics.map((x) => (x === uid ? null : x)); s.gear.relics[i] = uid || null; rerender(); });
       break;
     }
+    // 队伍页 / 编队编辑器里的造物「详情」：原地强化、精炼，数字跟着变
+    case 'relic-detail': P.relicModal(app, el.dataset.uid); break;
+    case 'relic-up': {
+      const uid = el.dataset.uid;
+      if (enhanceItem(s, uid)) { app.save(); rerender(); P.relicModal(app, uid); } else toast('金币不够');
+      break;
+    }
+    case 'relic-refine': {
+      const uid = el.dataset.uid;
+      if (refineItem(s, uid)) { sound.play('lvup'); app.save(); rerender(); P.relicModal(app, uid); } else toast('银芯不够');
+      break;
+    }
+    case 'relic-swap': {
+      const i = +el.dataset.i;
+      P.pickItem(app, 'relic', '选择造物', (uid) => {
+        s.gear.relics = s.gear.relics.map((x) => (x === uid ? null : x)); s.gear.relics[i] = uid || null;
+        app.save(); rerender();
+      });
+      break;
+    }
     case 'equip-slot': {
       const { slug, kind } = el.dataset;
       P.pickItem(app, kind, kind === 'wheel' ? '选择命轮' : '选择密契', (uid) => { if (uid) equipItem(s, d, slug, uid); else { const e2 = s.gear.equip[slug] || {}; unequipItem(s, e2[kind === 'wheel' ? 'wheel' : 'cov']); } app.save(); P.detailModal(app, slug); render(); });

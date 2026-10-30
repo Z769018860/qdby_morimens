@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { data } from './helpers.mjs';
 import { newState, runBattle, applyResult, summon, equipPull, equipItem, allyDef, teamDefs, levelUp, migrate, offlineReport, claimOffline, autoTeam, PULL_PITY_GENESIS, dismantle, enhanceItem, addItem, farmRate, ticketPerWin, corePerWin, ticketBoost, coreBoost, winsPerTicket, winsPerCore } from '../src/core/game.js';
-import { simulate } from '../src/core/battle.js';
+import { simulate, frontLine } from '../src/core/battle.js';
 import { towerReward } from '../src/core/challenge.js';
 import { mulberry32 } from '../src/core/rng.js';
 import { buildKit, describeSkill } from '../src/core/skills.js';
@@ -375,7 +375,7 @@ test('friend battle codes round-trip, reject damage, and fight without rewards',
 
 // ---------------------------------------------------------------- M6: 银芯, refine, shop, sign-in, achievements
 import { summonCores, equipPullCores, refineItem, dismantleCores, CORE_PULL_COST, CORE_PULL10_COST } from '../src/core/game.js';
-import { refineMult } from '../src/core/gear.js';
+import { refineMult, relicRefineGain, relicRefineView, relicText, wheelText, REFINE_MAX } from '../src/core/gear.js';
 import { signToday, backfill, claimCum, signinState, dayReward, CUM, BACKFILL_COST } from '../src/core/signin.js';
 import { buy, SHOP, boughtToday } from '../src/core/shop.js';
 import { claimAllAchievements, ACHIEVEMENTS } from '../src/core/achievements.js';
@@ -416,6 +416,22 @@ test('refine raises the item bonus by 8% per tier, costs 银芯, refunds half on
   const a0 = allyDef(t, data, 'salvador').atk + allyDef(t, data, 'salvador').hp;
   refineItem(t, w.uid); refineItem(t, w.uid); refineItem(t, w.uid);
   assert.ok(allyDef(t, data, 'salvador').atk + allyDef(t, data, 'salvador').hp > a0);
+});
+
+test('造物文案把精炼吃进去：显示的就是实际加成，精炼给了多少能单独算', () => {
+  const def = data.relics.find((x) => x.rarity === 'SSR') || data.relics[0];
+  const base = Number(relicText(def, 10, 0).match(/([0-9.]+)/)[1]);
+  const rf2 = Number(relicText(def, 10, 2).match(/([0-9.]+)/)[1]);
+  // 每阶 +8% 基础值，2 阶 = ×1.16
+  assert.ok(Math.abs(rf2 - base * 1.16) < 0.06, `精炼+2 要按 1.16 倍显示：${base} → ${rf2}`);
+  assert.ok(Math.abs(relicRefineGain(def, 10, 2) - base * 0.16) < 0.06, '精炼标记的增量 = 基础 × 16%');
+  const view = relicRefineView(def, 10, 2);
+  assert.equal(view.rf, 2);
+  assert.ok(view.next > view.now, '再精炼一阶要能看到变多');
+  assert.equal(view.max, REFINE_MAX);
+  // 命轮同理：显示值跟着精炼走
+  const w = data.wheels[0];
+  assert.notEqual(wheelText(w, 10, 0), wheelText(w, 10, 3));
 });
 
 test('shop limits, extra attempts and daily reset', () => {
@@ -796,6 +812,38 @@ test('前后排：普通怪的单击只打前排，Boss 才能越过前排', () 
 
   const boss = simulate({ allies, enemies: [{ ...foes, boss: true }], seed: 3, maxRounds: 12 });
   assert.ok(boss.allies[2].hp < boss.allies[2].maxHp || boss.allies[3].hp < boss.allies[3].maxHp, 'Boss 可以越过前排打后排');
+});
+
+test('前后排：按固定槽位判断，前排还留一个活人就不放后排进去', () => {
+  const slot = (idx, on = true) => ({ idx, alive: on });
+  const mob = { side: 'e', boss: false };
+  // 前排 2 号位阵亡，前排 1 号位还活着 → 小怪只能打 0 号位
+  assert.deepEqual(frontLine(mob, [slot(0), slot(1, false), slot(2), slot(3)]).map((x) => x.idx), [0]);
+  // 前排两个位置都空了 → 后排暴露
+  assert.deepEqual(frontLine(mob, [slot(0, false), slot(1, false), slot(2), slot(3)]).map((x) => x.idx), [2, 3]);
+  // Boss 不受前排限制
+  assert.deepEqual(frontLine({ side: 'e', boss: true }, [slot(0), slot(1), slot(2)]).map((x) => x.idx), [0, 1, 2]);
+  // 我方守护（近战）只能打敌阵前排，突击 / 合唱可以点名后排
+  assert.deepEqual(frontLine({ side: 'a', type: 'WARDEN' }, [slot(0), slot(1), slot(2)]).map((x) => x.idx), [0, 1]);
+  assert.deepEqual(frontLine({ side: 'a', type: 'CHORUS' }, [slot(0), slot(1), slot(2)]).map((x) => x.idx), [0, 1, 2]);
+});
+
+test('前后排：前排只倒一个时，后排依然安全（不再按存活下标顶位）', () => {
+  const back = (i) => ({ name: `后排${i}`, hp: 500, atk: 1, def: 0, type: 'CHORUS', realm: null, pattern: [{ name: '看', effects: [{ t: 'heal', m: 0, to: 'self' }] }], opening: [] });
+  const mob = { ...wall('e', 0, 999999, 0, 900), type: 'ASSAULT' };
+  const allies = [wall('a', 0, 90000, 500), wall('a', 1, 1, 0), back(2), back(3)];
+
+  const res = simulate({ allies, enemies: [mob], seed: 3, maxRounds: 18 });
+  assert.equal(res.allies[1].hp, 0, '前排 2 号位该被打死');
+  assert.ok(res.allies[0].hp < res.allies[0].maxHp, '前排 1 号位还在挨打');
+  assert.equal(res.allies[2].hp, res.allies[2].maxHp, '前排还有个活人，后排不该被普通小怪点名');
+  assert.equal(res.allies[3].hp, res.allies[3].maxHp, '同上');
+
+  // 前排两个位置都空出来之后，后排才会挨打
+  const both = simulate({ allies: [wall('a', 0, 1, 0), wall('a', 1, 1, 0), back(2), back(3)], enemies: [mob], seed: 3, maxRounds: 18 });
+  assert.equal(both.allies[0].hp, 0);
+  assert.equal(both.allies[1].hp, 0);
+  assert.ok(both.allies[2].hp < both.allies[2].maxHp || both.allies[3].hp < both.allies[3].maxHp, '前排全灭后后排暴露');
 });
 
 test('塔每层都给券和银芯，越往上越多', () => {

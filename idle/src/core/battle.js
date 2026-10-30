@@ -50,6 +50,24 @@ export function statusList(u) {
 const alive = (arr) => arr.filter((u) => u.alive);
 const hpPct = (u) => u.hp / u.maxHp;
 
+// 能越过前排直取后排的单位：我方合唱 / 突击（远程与突进），敌方 Boss。
+// 其余（我方守护、普通怪）都是近战，前排还有人时只能打前排——这就是「前后排」的实际作用。
+export const canReachBack = (u) => (u.side === 'a' ? u.type !== 'WARDEN' : u.boss);
+
+/**
+ * 单体这一下能选中谁。站位是**固定槽位**（`u.idx`），不随阵亡压缩：
+ * 前排两个位置都空了，后排才会被点名。
+ * （早先按「存活数组的前两个」判断，前排死一个就把后排顶上来，
+ *  普通小怪于是能越过还活着的前排直取后排——那是个 bug。）
+ */
+export function frontLine(unit, foes) {
+  const live = foes.filter((f) => f.alive !== false);
+  if (!live.length) return live;
+  const front = live.filter((f) => (f.idx ?? 0) < FRONT_SLOTS);
+  if (!front.length) return live;            // 前排两个位置全灭 → 后排才暴露
+  return canReachBack(unit) ? live : front;
+}
+
 export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds = MAX_ROUNDS }) {
   const rng = mulberry32(seed);
   const strat = { defend: 0.4, target: 'low', ...strategy };
@@ -65,17 +83,8 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   const foesOf = (u) => alive(u.side === 'a' ? E : A);
   const friendsOf = (u) => alive(u.side === 'a' ? A : E);
 
-  // 能越过前排直取后排的单位：我方合唱 / 突击（远程与突进），敌方 Boss。
-  // 其余（我方守护、普通怪）都是近战，前排还有人时只能打前排——这就是「前后排」的实际作用。
-  const canReachBack = (u) => (u.side === 'a' ? u.type !== 'WARDEN' : u.boss);
-
-  // 单体可选目标：先按站位切出「够得着」的那一排
-  function reachable(u) {
-    const foes = foesOf(u);
-    if (foes.length <= FRONT_SLOTS) return foes;
-    const front = foes.slice(0, FRONT_SLOTS);
-    return canReachBack(u) ? foes : front;
-  }
+  // 单体可选目标：按固定槽位切出「够得着」的那一排
+  const reachable = (u) => frontLine(u, foesOf(u));
 
   function chooseFoe(u, mode) {
     const foes = reachable(u);
