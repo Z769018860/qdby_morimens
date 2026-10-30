@@ -1964,12 +1964,17 @@ function mergeDigest(a = {}, b = {}) {
   return out;
 }
 
-function mergeDoc(remote = {}, local = {}) {
+// base = 上次和云端对齐时的银芯数（crBase）。有 base 时钱包按「流水」合并：
+//   云端当前值 + 本机自上次对齐以来的增减，所以一台设备花掉的银芯、另一台赚到的银芯都不会被「取大」吃掉。
+//   没有 base（第一次同步）才退回取大，免得老档案丢钱。
+function mergeDoc(remote = {}, local = {}, base = null) {
   const st = mergeStats(remote.st, local.st);
   return {
     v: 1,
     at: Math.max(Number(remote.at) || 0, Number(local.at) || 0),
-    cr: numMax(remote.cr, local.cr),
+    cr: Number.isFinite(Number(base)) && base !== null
+      ? Math.max(0, Math.round((Number(remote.cr) || 0) + (Number(local.cr) || 0) - Number(base)))
+      : numMax(remote.cr, local.cr),
     cg: uniq([...(remote.cg || []), ...(local.cg || [])]),
     fb: uniq([...(remote.fb || []), ...(local.fb || [])]),
     st,
@@ -2036,10 +2041,10 @@ async function pushRemote(input) {
   for (let i = 0; i < 2; i++) {
     try {
       const r = await api.put('/account', { doc, ver });
-      return { ver: Number(r.ver) || ver + 1 };
+      return { ver: Number(r.ver) || ver + 1, doc };
     } catch (e) {
       if (!(e && e.status === 409 && e.data && e.data.doc)) throw e;
-      const merged = mergeDoc(e.data.doc, doc);
+      const merged = mergeDoc(e.data.doc, doc, store.get('crBase', null));
       apply(merged);
       doc = merged;
       ver = Number(e.data.ver) || 0;
@@ -2069,8 +2074,10 @@ async function push() {
     if (api.ready()) {
       const r = await pushRemote(doc);
       store.set(K.ver, r.ver);
+      store.set('crBase', Number(r.doc && r.doc.cr) || 0);
     } else {
       await pushLegacy(doc);
+      store.set('crBase', Number(doc.cr) || 0);
     }
     store.set(K.at, Date.now());
     store.set(K.pend, false);
@@ -2163,7 +2170,7 @@ async function sync() {
   if (!auth.logged) return { ok: false, why: 'guest' };
   const remote = await pull().catch(() => null);
   const local = snapshot();
-  const merged = remote ? mergeDoc(remote, local) : local;
+  const merged = remote ? mergeDoc(remote, local, store.get('crBase', null)) : local;
   apply(merged);
   const gifted = await claimGrants().catch(() => 0);
   const r = await push();
@@ -2211,6 +2218,7 @@ document.addEventListener('zjtt:login', () => { sync().catch(() => {}); });
 
 // 退出登录：云端文档保留，本机只清「同步凭据」，避免串号
 function forget() {
+  store.set('crBase', null);          // 换号 / 退出：旧账号的对账基线不能带到下一个账号
   for (const k of [K.doc, K.obj, K.at, K.pend, K.ver]) store.del(k);
   syncAt = 0;
   clearTimeout(timer);

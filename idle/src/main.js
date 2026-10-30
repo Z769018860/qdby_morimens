@@ -34,6 +34,7 @@ import { syncSigninGifts } from './core/creators.js';
 import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
 import { startGuide } from './ui/guide.js';
 import * as Cloud from './core/cloud.js';
+import { readWallet, writeWallet, reconcile, WALLET_KEY } from './core/wallet.js';
 import { $, $$, fmt, esc, store, askPersist, toast, closeModal, openModal, showKwPop } from './ui/util.js';
 
 /* 底部导航按「功能域」分 5 组。13 个平铺页签在手机上要横滚，一眼看不到全貌，
@@ -90,6 +91,7 @@ const app = {
   noSave: false,                     // 重置 / 导入过程中不能再写盘（beforeunload 会把旧状态写回去）
   save() {
     if (this.noSave || !this.state) return;
+    walletSync();
     if (!this.offlinePending) this.state.lastSeen = Date.now();
     this.state.rev = (this.state.rev || 0) + 1;
     const ok = store.write(this.state);
@@ -154,6 +156,8 @@ async function boot() {
   document.addEventListener('visibilitychange', onVisibility);
   setTimeout(() => cloudRun('auto'), 2500);
   setTimeout(giftRun, 4000);
+  walletBoot();
+  window.addEventListener('storage', (e) => { if (e.key === WALLET_KEY && app.state) { walletSync(); app.refreshTop(); } });
   // 另一个标签页存档了：当前窗口在后台就先不管（回到前台时 onVisibility 会同步），在前台就立刻同步
   window.addEventListener('storage', (e) => { if (e.key === store.KEY && !document.hidden && !app.offlinePending) adoptNewerDisk(); });
   window.addEventListener('pagehide', () => { app.save(); store.flush(); cloudPush(true); });
@@ -170,6 +174,32 @@ async function boot() {
     if (++tickN >= 3) { tickN = 0; app.save(); }
   }, 5000);
   window.__game = app; // handy for debugging / tests
+}
+
+/* ---------- 银芯 = 全站钱包 ----------
+   state.cores 是站点钱包（zjtt:credits）的镜像，见 core/wallet.js。每次存档前对账；钱包变了就让账号档案去推送。
+   账号同步（拉别的设备的钱包、领管理员发放的银芯）借用站点的 js/account.js，动态引入：失败就只用本机钱包。 */
+let acctMod = null;
+function accountMod() {
+  if (!acctMod) acctMod = import('../../js/account.js').then((m) => m.account || m).catch(() => null);
+  return acctMod;
+}
+function walletSync() {
+  const st = app.state;
+  if (!st) return;
+  const w = readWallet();
+  const total = reconcile(st, w);
+  if (total !== w) { writeWallet(total); accountMod().then((a) => a && a.schedule && a.schedule()).catch(() => {}); }
+}
+// 进游戏：先用本机钱包对一次账，再等账号同步（别的设备的钱包 / 管理员发放的银芯）落地后再对一次
+async function walletBoot() {
+  walletSync();
+  const a = await accountMod();
+  if (!a || !a.ready) return;
+  try { await a.ready(); } catch { /* 离线 / 没登录 */ }
+  walletSync();
+  app.refreshTop();
+  if (app.tab === 'settings' || app.tab === 'more' || app.tab === 'summon') render();
 }
 
 /* ---------- 站长赠礼（唤醒体） ----------
@@ -208,6 +238,7 @@ function applyCloudSave(save) {
   app.state.rev = Math.max(app.state.rev || 0, 0) + 1;
   app.offlinePending = false;
   store.write(app.state);
+  walletSync();
   Cloud.markSynced(app.state, save.ver);
   app.bv.app = app; app.bv.restart?.(); render(); app.refreshTop();
 }

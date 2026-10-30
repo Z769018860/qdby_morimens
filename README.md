@@ -81,6 +81,11 @@ SERVE_STATIC=1 PORT=8795 node server/node.js
 - **后台批量发放**（`admin.html` →「批量发放」）：`POST /api/admin/grant-batch { all | uids[], amount, awk[], note }`，银芯和挂机前夜唤醒体可以只发一样，发给所有人 / 勾选的人 / 当前搜索结果。
   银芯走原来的赠礼（`js/account.js` 同步时领取）；唤醒体由挂机前夜进游戏时领（`claimGifts`：没有就新增、已有叠位 +1，领过的 id 记在存档 `giftIds`，换设备不会重领）。接口版本 v8。
 
+## 银芯 = 全站钱包
+
+银芯是账号级的局外资源：个人中心 / 战报侦探 / 校猫的结合等用站点钱包（`zjtt:credits`，随账号档案同步），挂机前夜的银芯（`state.cores`）现在是这个钱包的镜像（`idle/src/core/wallet.js`）：
+每次存档前按「流水」对账（挂机里的增减 + 别处的发放 / 花费），第一次把挂机里原有的银芯并进钱包。账号档案里的钱包也改成按流水合并（`crBase` 基线），一台设备花掉的银芯不会再被另一台「取大」吃回来；管理员发放的银芯在个人中心和挂机里是同一个数。
+
 ## 离线版（PWA）与桌面版（Electron）
 
 两条路，内容完全一样，共用同一份清单 `data/offline.json`（构建时由 `scripts/build_offline_manifest.mjs` 扫出来）。

@@ -1810,3 +1810,26 @@ test('云存档摘要带主线阵容', () => {
   assert.equal(m.team.length, s.team.length);
   assert.deepEqual(Object.keys(m.team[0]).sort(), ['lv', 's', 'st']);
 });
+
+/* ---------- 银芯 = 全站钱包 ---------- */
+import { reconcile } from '../src/core/wallet.js';
+
+test('银芯钱包对账：第一次并入、之后只记增减、别处发放 / 花费不丢', () => {
+  const s = { cores: 300 };
+  // 第一次：钱包 1200 + 挂机 300
+  assert.equal(reconcile(s, 1200), 1500);
+  assert.equal(s.cores, 1500); assert.equal(s.coresBase, 1500);
+  // 挂机里花了 200、赚了 50 → cores 1350；同时别处发放了 3000（钱包 4500）
+  s.cores = 1350;
+  assert.equal(reconcile(s, 4500), 4350);
+  assert.equal(s.cores, 4350);
+  // 别的页面花掉 1000（钱包 3350），挂机没动：挂机也跟着变
+  assert.equal(reconcile(s, 3350), 3350);
+  assert.equal(s.cores, 3350);
+  // 不会出现负数
+  s.cores = 0;
+  assert.equal(reconcile(s, 10), 0);
+  // coresBase 随存档迁移保留（云存档换设备不会再并一次）
+  const m = migrate(JSON.parse(JSON.stringify({ ...newState(data), cores: 777, coresBase: 777 })), data);
+  assert.equal(m.coresBase, 777);
+});
