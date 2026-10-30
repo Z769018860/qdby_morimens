@@ -614,12 +614,22 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   const call = makeCaller({ zjtt_kv: kv, WALINE_URL: 'https://example.invalid', ZJTT_ADMIN_UIDS: '9001' });
   seedSession(kv, 'adm', '9001', '姜酒'); seedSession(kv, 'u1', '9101', '甲'); seedSession(kv, 'u2', '9102', '乙');
   const AD = { Authorization: 'Bearer adm' }, U1 = { Authorization: 'Bearer u1' }, U2 = { Authorization: 'Bearer u2' };
+  // 自己站点的打点不限流：同一 IP 连打 700 次（原上限 600）都是 200
+  let visitOk = 0;
+  for (let i = 0; i < 700; i++) { const v = await call('/visit', { method: 'POST', headers: { 'EO-Connecting-IP': '1.2.3.4' }, body: { p: 'x' } }); if (v.status === 200) visitOk++; }
+  eq('打点不限流', visitOk, 700);
   // 让两个用户「登录过」：任意带 token 的请求都会 touchUser
   await call('/grants/mine', { headers: U1 }); await call('/grants/mine', { headers: U2 }); await call('/whoami', { headers: AD });
+  const ov = await call('/admin/overview', { headers: AD });
+  check('后台概览列出已登录的用户并带 listed/failed', ov.json.ok && ov.json.users.length === 3 && ov.json.stats.failed === 0 && ov.json.stats.listed === 3, ov.json.stats);
+  // 名册走快照：新用户注册后（usr_n 变大）快照落后，会自动重建
+  seedSession(kv, 'u4', '9104', '丁'); await call('/grants/mine', { headers: { Authorization: 'Bearer u4' } });
+  eq('新注册的人立刻出现在后台', (await call('/admin/overview', { headers: AD })).json.users.length, 4);
+  eq('?fresh=1 强制重建', (await call('/admin/overview?fresh=1', { headers: AD })).json.users.length, 4);
   eq('非管理员不能批量发', (await call('/admin/grant-batch', { method: 'POST', headers: U1, body: { all: true, amount: 5 } })).status, 403);
   eq('什么都不发 → 400', (await call('/admin/grant-batch', { method: 'POST', headers: AD, body: { all: true, amount: 0 } })).status, 400);
   const b1 = await call('/admin/grant-batch', { method: 'POST', headers: AD, body: { all: true, amount: 50, awk: ['ogier', 'bad slug!', 'ogier'], note: '全服补偿' } });
-  check('全员发放成功（含管理员自己 3 人）', b1.json.ok && b1.json.sent === 3 && b1.json.awk.length === 1, b1.json);
+  check('全员发放成功（含管理员自己，共 4 人）', b1.json.ok && b1.json.sent === 4 && b1.json.failed === 0 && b1.json.awk.length === 1, b1.json);
   const g1 = await call('/grants/mine', { headers: U1 });
   check('用户拿到银芯 + 唤醒体', g1.json.items.length === 1 && g1.json.items[0].amount === 50 && g1.json.items[0].awk[0] === 'ogier', g1.json);
   const b2 = await call('/admin/grant-batch', { method: 'POST', headers: AD, body: { uids: ['9102'], awk: ['lotan'] } });

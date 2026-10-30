@@ -281,8 +281,32 @@ async function kvNum(kv, key, weak = false) {
 // 「本站用过这个账号」的名册。个人中心左上角要显示注册用户量、管理员页要列出全部用户，
 // 都靠这份 usr_ 前缀的键。写得很省：只有第一次见到这个 uid 才落一条，昵称改了才补写一次。
 // 注意别把它当 Waline 的注册表 —— 它记的是「登录过本站的账号」，没来过的 Waline 用户不在里面。
+// 同一个边缘实例里的内存缓存：每个登录请求原来都要读一次 sess_（强一致）+ 一次 usr_，
+// 一个页面打开就是十几个请求，全打在存储上，正是存储限流的来源。内存里记一份，一分钟内不再回读。
+const MEM_TTL = 60 * 1000;
+// 按存储对象分开记（WeakMap）：线上只有一个存储，测试里每个用例一个假存储，互不串。
+const memByKv = new WeakMap();
+function memOf(kv, which) {
+  let m = memByKv.get(kv);
+  if (!m) { m = { sess: new Map(), touched: new Map() }; memByKv.set(kv, m); }
+  return m[which];
+}
+function memGet(map, key) {
+  const v = map.get(key);
+  if (v && Date.now() - v.at < MEM_TTL) return v;
+  if (v) map.delete(key);
+  return null;
+}
+function memPut(map, key, val) {
+  if (map.size > 2000) map.clear();
+  map.set(key, { ...val, at: Date.now() });
+}
+
 async function touchUser(kv, me) {
   if (!me || !me.uid) return;
+  const seen = memGet(memOf(kv, 'touched'), String(me.uid));
+  if (seen && seen.name === str(me.name, 40)) return;
+  memPut(memOf(kv, 'touched'), String(me.uid), { name: str(me.name, 40) });
   const key = 'usr_' + (await uhash(me.uid));
   let raw = null;
   try { raw = await kv.get(key, { weak: true }); } catch { raw = null; }
@@ -309,10 +333,13 @@ async function whoami(request, env, kv) {
   if (!token) return null;
 
   const th = await thash(token);
+  const mem = memGet(memOf(kv, 'sess'), th);
+  if (mem) return { ...mem.me, token };
   const hit = await kvJson(kv, 'sess_' + th);
   if (hit && Date.now() - Number(hit.at) < SESSION_TTL) {
     const me = { uid: String(hit.uid), name: String(hit.name || ''), token };
     await touchUser(kv, me);
+    memPut(memOf(kv, 'sess'), th, { me: { uid: me.uid, name: me.name } });
     return me;
   }
 
@@ -929,15 +956,36 @@ async function getStats(request, env, kv, cors) {
 }
 
 // POST /visit { p } —— 页面自己打点。不做去重：PV 本来就是「看了几次」。
+// 以前每次打点都是「读 IP 计数 + 写 IP 计数 + 强一致读 pv + 写 pv」四次存储操作，还全砸在同一个 pv 键上：
+// 访问一多就是存储限流的头号来源（也会互相覆盖丢计数）。现在：自己站点的打点不限流、不按 IP 记账；
+// 计数先攒在边缘实例的内存里，每 10 秒才合并写一次存储（实例回收时最多丢这 10 秒的零头，PV 不需要精确到个位）。
+let pvPending = 0;
+let pvFlushAt = 0;
+let pvCache = null;
+const PV_FLUSH_MS = 10 * 1000;
 async function postVisit(request, env, kv, cors) {
-  await ipLimit(kv, request, 'visit');
   const day = dayKey();
-  const pv = await kvJson(kv, 'pv');
-  const total = (Number(pv && pv.t) || 0) + 1;
-  const today = (pv && pv.d === day ? (Number(pv.n) || 0) : 0) + 1;
-  await kv.put('pv', JSON.stringify({ t: total, d: day, n: today }));
+  pvPending++;
+  const now = Date.now();
+  if (!pvCache || now - pvFlushAt >= PV_FLUSH_MS) {
+    const add = pvPending;
+    pvPending = 0;
+    pvFlushAt = now;
+    try {
+      const pv = await kvJson(kv, 'pv');
+      const total = (Number(pv && pv.t) || 0) + add;
+      const today = (pv && pv.d === day ? (Number(pv.n) || 0) : 0) + add;
+      pvCache = { t: total, d: day, n: today };
+      await kv.put('pv', JSON.stringify(pvCache));
+    } catch {
+      pvPending += add;      // 这次没写成，下一次一起补
+    }
+  } else if (pvCache.d !== day) {
+    pvCache = { t: pvCache.t, d: day, n: 0 };
+  }
+  const base = pvCache || { t: 0, n: 0 };
   const users = await kvNum(kv, 'usr_n', true);
-  return reply({ ok: true, users, today, total, day }, 200, cors);
+  return reply({ ok: true, users, today: (Number(base.n) || 0) + pvPending, total: (Number(base.t) || 0) + pvPending, day }, 200, cors);
 }
 
 // ------------------------------------------------------------------ 管理员
@@ -1020,24 +1068,42 @@ async function softly(fn, dflt) {
   return dflt;
 }
 
-async function getAdminOverview(request, env, kv, cors) {
+// 用户名册快照：后台概览 / 批量发放都要「所有用户」，原来每次都把几十上百个 usr_ 键各读一遍。
+// 现在合成一份 usr_dir 快照存着，10 分钟内（或人数没变）直接用；点后台的「刷新」才强制重建。
+const DIR_TTL = 10 * 60 * 1000;
+async function loadDirectory(kv, fresh = false) {
+  const cur = await softly(() => kvJson(kv, 'usr_dir'), null);
+  const count = await softly(() => kvNum(kv, 'usr_n'), 0);
+  const stale = !cur || !Array.isArray(cur.users) || Date.now() - Number(cur.at) > DIR_TTL;
+  const short = cur && Array.isArray(cur.users) && count > cur.users.length;   // 有新注册的人：快照落后了
+  if (!fresh && !stale && !short) return { users: cur.users, failed: 0, listed: cur.users.length, cached: true };
+  const keys = (await softly(() => listKeys(kv, 'usr_', 1000), [])).filter((k) => k !== 'usr_n' && k !== 'usr_dir').slice(0, 800);
+  const old = new Map(((cur && cur.users) || []).map((u) => [u.k, u]));
+  let failed = 0;
+  const rows = await mapLimit(keys, 3, async (k) => {
+    const raw = await softly(() => kv.get(k, { weak: true }), undefined);
+    if (raw === undefined) { failed++; return old.get(k) || null; }     // 读不出来就沿用上次快照里的这个人
+    try { const u = JSON.parse(raw || 'null'); return u && u.uid ? { k, uid: String(u.uid), name: String(u.name || ''), at: Number(u.at) || 0, seen: Number(u.seen) || 0 } : null; } catch { return null; }
+  });
+  const users = rows.filter(Boolean);
+  if (users.length) { try { await kv.put('usr_dir', JSON.stringify({ at: Date.now(), users })); } catch { /* 写不进也能用这一次的结果 */ } }
+  return { users, failed, listed: keys.length, cached: false };
+}
+
+async function getAdminOverview(request, env, kv, cors, url) {
   const me = await whoami(request, env, kv);
   if (!me) throw new HttpError(401, 'need_login');
   if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', publicWhy(await adminWhy(env, kv, me)));
 
-  const keys = (await softly(() => listKeys(kv, 'usr_', 1000), [])).filter((k) => k !== 'usr_n');
-  let failed = 0;     // 读不出来的用户键数（存储限流）：前端提示「再点一次刷新」，别让人以为用户少了
-  const rows = await mapLimit(keys.slice(0, 500), 4, async (k) => {
+  const dir = await loadDirectory(kv, !!(url && url.searchParams.get('fresh') === '1'));
+  const failed = dir.failed;
+  const keys = { length: dir.listed };
+  const rows = await mapLimit(dir.users.slice(0, 800), 4, async (u) => {
     try {
-      let u = null;
-      const raw = await softly(() => kv.get(k, { weak: true }), undefined);
-      if (raw === undefined) { failed++; return null; }
-      try { u = JSON.parse(raw || 'null'); } catch { u = null; }
-      if (!u || !u.uid) return null;
       const doc = await softly(async () => (await kvJson(kv, 'acct_' + (await uhash(u.uid)), true) || {}).doc, null);
       let acct = null;
       try { acct = acctBrief(doc); } catch { acct = null; }
-      return { uid: String(u.uid), name: String(u.name || ''), at: Number(u.at) || 0, seen: Number(u.seen) || 0, acct };
+      return { uid: u.uid, name: u.name, at: u.at, seen: u.seen, acct };
     } catch { return null; }
   });
 
@@ -1127,13 +1193,9 @@ async function postAdminGrantBatch(request, env, kv, cors) {
   let uids = [];
   let skipped = 0;
   if (b.all === true) {
-    const keys = (await softly(() => listKeys(kv, 'usr_', 1000), [])).filter((k) => k !== 'usr_n');
-    const rows = await mapLimit(keys.slice(0, 500), 4, async (k) => {
-      const raw = await softly(() => kv.get(k, { weak: true }), undefined);
-      if (raw === undefined) { skipped++; return ''; }
-      try { const u = JSON.parse(raw || 'null'); return u && u.uid ? String(u.uid) : ''; } catch { return ''; }
-    });
-    uids = rows.filter(Boolean);
+    const dir = await loadDirectory(kv, false);
+    skipped = dir.failed;
+    uids = dir.users.map((u) => u.uid);
   } else {
     uids = (Array.isArray(b.uids) ? b.uids : []).map((x) => str(x, 64).trim()).filter(Boolean);
   }
@@ -1156,7 +1218,7 @@ async function postAdminGrantBatch(request, env, kv, cors) {
 // ------------------------------------------------------------------ 榜单
 // GET /board —— 各游戏榜单（公开）。数据全来自玩家自己的云端档案摘要（gd）与挂机云存档的摘要，
 // 没登录 / 没同步过的人不会上榜。每次重算要读几百个键，所以缓存 3 分钟。
-const BOARD_TTL = 3 * 60 * 1000;
+const BOARD_TTL = 10 * 60 * 1000;
 // [游戏键, gd 键, 取分的下标, 说明, 副标]
 const BOARD_SPEC = [
   // 战报侦探：按答对的题数排，副标写正确率；答对数相同时正确率高的在前
@@ -1191,10 +1253,8 @@ function mergeGd(doc) {
   return gd;
 }
 async function buildBoard(kv) {
-  const keys = (await softly(() => listKeys(kv, 'usr_', 1000), [])).filter((k) => k !== 'usr_n').slice(0, 500);
-  const rows = await mapLimit(keys, 6, async (k) => {
-    let u = null;
-    try { u = JSON.parse((await softly(() => kv.get(k, { weak: true }), null)) || 'null'); } catch { u = null; }
+  const dir = await loadDirectory(kv, false);
+  const rows = await mapLimit(dir.users.slice(0, 500), 4, async (u) => {
     if (!u || !u.uid || !u.name) return null;
     const uh = await uhash(u.uid);
     let gd = null, il = null;
@@ -1327,7 +1387,7 @@ export async function onRequest(context) {
     if (path === '/visit' && method === 'POST') return await postVisit(request, env, kv, cors);
     if (path === '/whoami' && method === 'GET') return await getWhoami(request, env, kv, cors);
     if (path === '/grants/mine' && method === 'GET') return await getMyGrants(request, env, kv, cors);
-    if (path === '/admin/overview' && method === 'GET') return await getAdminOverview(request, env, kv, cors);
+    if (path === '/admin/overview' && method === 'GET') return await getAdminOverview(request, env, kv, cors, url);
     if (path === '/admin/grant' && method === 'POST') return await postAdminGrant(request, env, kv, cors);
     if (path === '/admin/grant-batch' && method === 'POST') return await postAdminGrantBatch(request, env, kv, cors);
     if (path === '/board' && method === 'GET') return await getBoard(request, env, kv, cors);
