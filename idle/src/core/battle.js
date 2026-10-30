@@ -11,6 +11,9 @@ export const FRONT_SLOTS = 2;
 // 全局伤害系数：把「磨」压成「决」——两边都打得动，战斗才会在十几回合内见分晓，
 // 通关的回合上限才有意义（以前一场常拖到 25–30 回合）。
 const DMG_SCALE = 1.6;
+// Imported enemy/skill data may contain missing or non-finite values. Never let them poison combat state.
+const num = (x, fallback = 0) => { const v = Number(x); return Number.isFinite(v) ? v : fallback; };
+const positive = (x, fallback = 1) => Math.max(1, num(x, fallback));
 const WEIGHT = { WARDEN: 3, ASSAULT: 1.6, CHORUS: 1 };
 
 // A unit is a plain object so the whole simulation is serialisable and
@@ -19,21 +22,21 @@ export function makeUnit(def, side, idx) {
   return {
     uid: `${side}${idx}`, side, idx,
     name: def.name, img: def.img, type: def.type || 'ASSAULT', realm: def.realm,
-    maxHp: def.hp, hp: Math.max(1, Math.min(def.hp, def.hpNow ?? def.hp)), atk: def.atk, def: def.def,
-    critRate: def.critRate || 0, critDmg: def.critDmg || 50, amp: def.amp || 0,
-    aliGain: def.aliGain || 0, keyGain: def.keyGain || 0,
-    healBonus: def.healBonus || 0, shieldBonus: def.shieldBonus || 0, steal: def.steal || 0,
-    surviveChance: def.surviveChance || 0, survived: false,
-    openAli: def.openAli || 0, openKey: def.openKey || 0,
-    firstBoost: def.firstBoost || 0,
+    maxHp: positive(def.hp), hp: Math.max(1, Math.min(positive(def.hp), num(def.hpNow, positive(def.hp)))), atk: Math.max(0, num(def.atk)), def: Math.max(0, num(def.def)),
+    critRate: num(def.critRate, 0), critDmg: num(def.critDmg, 50), amp: num(def.amp, 0),
+    aliGain: num(def.aliGain, 0), keyGain: num(def.keyGain, 0),
+    healBonus: num(def.healBonus, 0), shieldBonus: num(def.shieldBonus, 0), steal: num(def.steal, 0),
+    surviveChance: num(def.surviveChance, 0), survived: false,
+    openAli: num(def.openAli, 0), openKey: num(def.openKey, 0),
+    firstBoost: num(def.firstBoost, 0),
     kit: def.kit || null, pattern: def.pattern || null, opening: def.opening || [], boss: !!def.boss, reward: !!def.reward, affix: def.affix || null,
     mid: def.mid || null, trait: def.trait || null,
-    ali: def.openAli || 0, key: def.openKey || 0, shield: 0, buffs: [], dots: [], cd: {}, st: {}, sig: '',
+    ali: num(def.openAli, 0), key: num(def.openKey, 0), shield: 0, buffs: [], dots: [], cd: {}, st: {}, sig: '',
     roused: false, patIdx: 0, enrage: 0, alive: true, acted: 0,
   };
 }
 
-const sumBuff = (u, stat) => u.buffs.reduce((s, b) => (b.stat === stat ? s + b.v : s), 0);
+const sumBuff = (u, stat) => u.buffs.reduce((s, b) => (b.stat === stat ? s + num(b.v) : s), 0);
 const WEAK_MULT = 0.75, FRAGILE_MULT = 0.75, POISON_CAP = 40, COUNTER_CAP = 8;
 
 // status icons shown by the UI: [{ id, n }] — derived from buffs, dots and the status table
@@ -48,7 +51,7 @@ export function statusList(u) {
   return out;
 }
 const alive = (arr) => arr.filter((u) => u.alive);
-const hpPct = (u) => u.hp / u.maxHp;
+const hpPct = (u) => num(u.hp) / positive(u.maxHp);
 
 // 能越过前排直取后排的单位：我方合唱 / 突击（远程与突进），敌方 Boss。
 // 其余（我方守护、普通怪）都是近战，前排还有人时只能打前排——这就是「前后排」的实际作用。
@@ -117,13 +120,13 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   function gainGauge(u, k, v) {
     if (!u.alive) return;
     const mult = 1 + (k === 'ali' ? u.aliGain : u.keyGain) / 100;
-    u[k] = Math.min(100, u[k] + v * mult);
+    u[k] = Math.max(0, Math.min(100, num(u[k]) + num(v) * num(mult, 1)));
   }
 
   function damage(src, tgt, mult, ctx) {
     if (!tgt.alive) return 0;
     const crit = rng() < Math.min(1, (src.critRate + sumBuff(src, 'crit')) / 100);
-    let raw = src.atk * (1 + sumBuff(src, 'atk') / 100) * mult;
+    let raw = src.atk * (1 + sumBuff(src, 'atk') / 100) * num(mult, 1);
     if (src.st.weakness) raw *= WEAK_MULT;
     raw *= 1 + (src.amp + sumBuff(src, 'amp')) / 100;
     if (src.firstBoost && src.acted <= 1) raw *= 1 + src.firstBoost / 100;
@@ -134,14 +137,17 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     if (vs && tgt.mid && vs[tgt.mid]) raw *= 1 + vs[tgt.mid];
     raw *= 0.95 + rng() * 0.1;
     raw *= src.side === 'a' ? DMG_SCALE : 1;
-    const d = tgt.def * (1 + sumBuff(tgt, 'def') / 100);
+    const d = Math.max(0, tgt.def * (1 + sumBuff(tgt, 'def') / 100));
     let dmg = raw * (1 - d / (d + DEF_K)) * (1 + sumBuff(tgt, 'vuln') / 100);
     if (tgt.st.fortress) dmg *= 1 - Math.min(50, tgt.st.fortress.n) / 100;
-    dmg = Math.max(1, Math.round(dmg));
+    dmg = Math.max(1, Math.round(num(dmg, 1)));
     return applyDamage(src, tgt, dmg, crit, ctx);
   }
 
   function applyDamage(src, tgt, dmg, crit, ctx, kind = 'dmg', extra) {
+    dmg = Math.max(0, Math.round(num(dmg)));
+    tgt.hp = Math.max(0, Math.min(tgt.maxHp, num(tgt.hp, tgt.maxHp)));
+    tgt.shield = Math.max(0, num(tgt.shield));
     if (kind === 'dmg' && tgt.st.barrier && tgt.st.barrier.n > 0) {
       if (--tgt.st.barrier.n <= 0) delete tgt.st.barrier;
       push({ k: 'dmg', by: src.uid, who: tgt.uid, amt: 0, absorbed: 0, crit: false, hp: tgt.hp, shield: tgt.shield, blocked: true });
@@ -175,6 +181,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
 
   function addStatus(src, t, s, n, dur) {
     if (!t.alive) return;
+    n = Math.max(0, num(n, 1)); dur = positive(dur);
     const cur = t.st[s];
     switch (s) {
       case 'poison': t.st.poison = { n: Math.min(POISON_CAP, (cur?.n || 0) + n), per: Math.max(cur?.per || 0, src.atk * 0.1), dur: 99 }; break;
@@ -194,8 +201,8 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
 
   function heal(src, tgt, amt, silent) {
     if (!tgt.alive) return;
-    amt = Math.round(amt);
-    const real = Math.min(amt, tgt.maxHp - tgt.hp);
+    amt = Math.max(0, Math.round(num(amt)));
+    const real = Math.max(0, Math.min(amt, tgt.maxHp - tgt.hp));
     tgt.hp += real;
     if (stats[src.uid]) stats[src.uid].heal += real;
     if (!silent || real > 0) push({ k: 'heal', by: src.uid, who: tgt.uid, amt: real, hp: tgt.hp });
@@ -220,20 +227,20 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
           break;
         case 'shield':
           for (const t of targets(u, e.to)) {
-            const amt = Math.round((u.def * 1.2 + u.maxHp * 0.08) * e.m * (1 + u.shieldBonus / 100) * (t.st.fragile ? FRAGILE_MULT : 1));
+            const amt = Math.max(0, Math.round(num((u.def * 1.2 + u.maxHp * 0.08) * num(e.m) * (1 + u.shieldBonus / 100) * (t.st.fragile ? FRAGILE_MULT : 1))));
             t.shield += amt;
             push({ k: 'shield', who: t.uid, amt, shield: t.shield });
           }
           break;
         case 'buff': case 'debuff':
           for (const t of targets(u, e.to)) {
-            const v = e.t === 'debuff' ? (e.stat === 'vuln' ? e.v : -e.v) : e.v;
-            t.buffs.push({ stat: e.stat, v, dur: e.dur });
+            const v = e.t === 'debuff' ? (e.stat === 'vuln' ? num(e.v) : -num(e.v)) : num(e.v);
+            t.buffs.push({ stat: e.stat, v: num(v), dur: positive(e.dur) });
             push({ k: 'buff', who: t.uid, stat: e.stat, v, dur: e.dur });
           }
           break;
         case 'dot':
-          for (const t of targets(u, e.to)) { t.dots.push({ dmg: u.atk * e.m, dur: e.dur, by: u.uid }); push({ k: 'dot', who: t.uid }); }
+          for (const t of targets(u, e.to)) { t.dots.push({ dmg: Math.max(0, num(u.atk * num(e.m))), dur: positive(e.dur), by: u.uid }); push({ k: 'dot', who: t.uid }); }
           break;
         case 'gauge':
           for (const t of targets(u, e.to)) { gainGauge(t, e.k === 'aliemus' ? 'ali' : 'key', e.v); push({ k: 'gauge', who: t.uid, ali: t.ali, key: t.key }); }
