@@ -619,7 +619,7 @@ function teamOfIdle(doc) {
   return list.slice(0, 5).map((s) => {
     const slug = str(s, 40).replace(/[^A-Za-z0-9_-]/g, '');
     const r = d.roster[s];
-    return slug && r && typeof r === 'object' ? { s: slug, lv: Math.min(999, Number(r.lv) || 1), st: Math.min(20, Number(r.star) || 0) } : null;
+    return slug && r && typeof r === 'object' ? { s: slug, lv: Math.min(999, Number(r.lv) || 1), st: Math.min(99, Number(r.star) || 0) } : null;
   }).filter(Boolean);
 }
 
@@ -658,7 +658,7 @@ async function putSave(request, env, kv, game, cors) {
     hash: str(b.meta.hash, 16).replace(/[^A-Za-z0-9]/g, ''), n: Number(b.meta.n) || 0,
     // 挂机前夜：主线出战阵容（榜单上展示「通关阵容」）。只收 slug + 等级 + 叠位，其它一律丢掉
     team: (Array.isArray(b.meta.team) ? b.meta.team : []).slice(0, 5).map((t) => ({
-      s: str(t && t.s, 40).replace(/[^A-Za-z0-9_-]/g, ''), lv: Math.min(999, Number(t && t.lv) || 0), st: Math.min(20, Number(t && t.st) || 0),
+      s: str(t && t.s, 40).replace(/[^A-Za-z0-9_-]/g, ''), lv: Math.min(999, Number(t && t.lv) || 0), st: Math.min(99, Number(t && t.st) || 0),
     })).filter((t) => t.s),
   } : null;
   if (game === 'idle' && meta && !meta.team.length) meta.team = teamOfIdle(parsed);
