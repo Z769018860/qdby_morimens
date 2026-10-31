@@ -6,11 +6,33 @@ import { makeEnemy } from './enemies.js';
 import { teamDefs, battleSeed, addItem, rollItem, addOrder, rollOrder, recordCodex } from './game.js';
 
 export const WEEKLY_DAILY = 3, WEEKLY_ROUNDS = 12, WEEKLY_STAGE = 48;
-export const MILESTONES = [
+const BASE_MILESTONES = [
   { dmg: 10000, tickets: 2, cores: 20, gold: 2000 }, { dmg: 30000, tickets: 3, cores: 30, gold: 4000 }, { dmg: 70000, tickets: 4, cores: 40, gold: 8000 },
   { dmg: 120000, tickets: 6, cores: 60, gold: 15000, item: true, order: true }, { dmg: 200000, tickets: 8, cores: 80, gold: 30000 },
   { dmg: 320000, tickets: 12, cores: 120, gold: 60000, item: true }, { dmg: 480000, tickets: 18, cores: 180, gold: 100000 }, { dmg: 700000, tickets: 30, cores: 300, gold: 200000, item: true, order: true },
 ];
+// 70 万以后接着往上：每档伤害 ×1.3，一共再加 48 档（最高约 2000 亿）。
+// 为什么要这么多：叠位 99 的队伍单次就能打 21 万，一天三次一周 450 万；超限满 99 单次 47 万；最终法则练起来单次是几百万——
+// 原来的最高档 70 万，强队第一天就领完了，之后每周的伤害再高也没有任何反馈。
+// 奖励只缓慢上涨，不跟着伤害指数涨（越往后越难，不是越往后越肥）：
+//   召唤券 1 + 每 12 档 +1、银芯 10 + 2×档数（封顶 60）、金币 ×1.12 滚、装备每 4 档一件、钥令每 8 档一个。
+//   48 档全拿一共 约 124 券 / 约 2300 银芯，只有最终法则级别的队伍才拿得到后半段。
+const sig2 = (n) => { const e = Math.floor(Math.log10(n)) - 1; return Math.round(n / 10 ** e) * 10 ** e; };
+export const EXTRA_TIERS = 48;
+const EXTRA_MILESTONES = Array.from({ length: EXTRA_TIERS }, (_, k) => {
+  const i = k + 1;
+  const m = {
+    dmg: sig2(700000 * Math.pow(1.3, i)),
+    tickets: 1 + Math.floor(i / 12),
+    cores: Math.min(60, 10 + 2 * i),
+    gold: Math.round(200000 * Math.pow(1.12, i)),
+  };
+  if (i % 4 === 0) m.item = true;
+  if (i % 8 === 0) m.order = true;
+  return m;
+});
+// 下标稳定：旧存档里 claimed 记的是下标，前 8 档保持原样，新档只往后追加
+export const MILESTONES = [...BASE_MILESTONES, ...EXTRA_MILESTONES];
 
 const dayKey = () => new Date().toISOString().slice(0, 10);
 // ISO week id, e.g. 2026-W44 (UTC)
@@ -50,6 +72,12 @@ export function doWeekly(state, data, slugs = null) {
   recordCodex(state, [boss], false);
   state.weeklyTotal = (state.weeklyTotal || 0) + dmg;
   return { ...res, dmg, newBest, team, boss: data.monById[boss.mid], week: w };
+}
+/** 一键领取：把已达成、还没领的档位全领了，返回每档的结果（空数组 = 没有可领的） */
+export function claimAllWeekly(state, data) {
+  const w = weeklyState(state), out = [];
+  MILESTONES.forEach((m, i) => { if (w.damage >= m.dmg && !w.claimed.includes(i)) { const r = claimWeekly(state, data, i); if (r) out.push(r); } });
+  return out;
 }
 export function claimWeekly(state, data, i) {
   const w = weeklyState(state), m = MILESTONES[i];

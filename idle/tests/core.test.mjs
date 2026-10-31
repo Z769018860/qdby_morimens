@@ -2176,3 +2176,27 @@ test('金币换召唤券：价格随最高关涨、当天递增、有每日上�
   const mid = newState(data, 42); mid.maxStage = 40;
   assert.ok(goldTicketPrice(mid) / (_sg(40) * winsPerTicket(40)) > 10);
 });
+
+import { MILESTONES as WK_MS, EXTRA_TIERS, claimAllWeekly, claimWeekly as claimWk, weeklyState as wkState } from '../src/core/weekly.js';
+
+test('周 Boss 里程碑：前 8 档不变、后面 48 档单调上升且奖励缓涨，一键领取只领达成的', () => {
+  assert.equal(WK_MS.length, 8 + EXTRA_TIERS);
+  assert.equal(WK_MS[7].dmg, 700000);                        // 老存档按下标记领取，前 8 档不能动
+  for (let i = 1; i < WK_MS.length; i++) assert.ok(WK_MS[i].dmg > WK_MS[i - 1].dmg, `第 ${i} 档要比上一档高`);
+  const extra = WK_MS.slice(8);
+  assert.ok(extra.reduce((a, m) => a + m.tickets, 0) <= 140, '新增档位的召唤券总量要有节制');
+  assert.ok(extra.reduce((a, m) => a + m.cores, 0) <= 2500, '新增档位的银芯总量要有节制');
+  assert.ok(extra.every((m) => m.cores <= 60 && m.tickets <= 6));
+  assert.ok(WK_MS.at(-1).dmg >= 1e11, '最高档足够高');
+  // 一键领取
+  const s = newState(data, 51); const w = wkState(s);
+  w.damage = 2_000_000; w.claimed = [0];
+  const t0 = s.tickets, c0 = s.cores;
+  const rs = claimAllWeekly(s, data);
+  const want = WK_MS.map((m, i) => i).filter((i) => i !== 0 && WK_MS[i].dmg <= 2_000_000);
+  assert.equal(rs.length, want.length);
+  assert.ok(s.tickets > t0 && s.cores > c0);
+  assert.deepEqual([...w.claimed].sort((a, b) => a - b), [0, ...want]);
+  assert.equal(claimAllWeekly(s, data).length, 0, '领过的不会重复领');
+  assert.equal(claimWk(s, data, 40), null, '没打到的档不能领');
+});

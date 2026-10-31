@@ -10,7 +10,7 @@ import { BattleView } from './ui/battleView.js';
 import * as P from './ui/pages.js';
 import * as P2 from './ui/pages2.js';
 import * as P3 from './ui/pages3.js';
-import { doWeekly, claimWeekly } from './core/weekly.js';
+import { doWeekly, claimWeekly, claimAllWeekly } from './core/weekly.js';
 import { doRTower, TOWER_NAME } from './core/rtower.js';
 import { arenaState, arenaTries, fightArena, applyArena, claimArenaDaily } from './core/arena.js';
 import { localOpponents, localSettle, fightFriend } from './core/arena.js';
@@ -591,6 +591,18 @@ function onAct(e) {
       // 先看过程再出结算；设置里选了「跳过」就直接弹结算
       watchOrSkip(replayOf(r, { title: `周 Boss · ${r.boss.zh}`, sub: `限 ${r.roundLimit} 回合 · 比这一段时间的伤害`, kw: d.kw }),
         () => P3.weeklyResultModal(app, r));
+      break;
+    }
+    case 'weekly-claim-all': {
+      const rs = claimAllWeekly(s, d);
+      if (rs.length) {
+        sound.play('ach');
+        const sum = (k) => rs.reduce((a, r) => a + (r[k] || 0), 0);
+        toast(`领取 ${rs.length} 档：召唤券+${sum('tickets')} 银芯+${sum('cores')} 金币+${sum('gold')}${rs.some((r) => r.items.length) ? ` 装备+${rs.reduce((a, r) => a + r.items.length, 0)}` : ''}`);
+        const ods = rs.flatMap((r) => r.orders || []);
+        if (ods.length) P.showOrders(app, ods);
+        rerender();
+      }
       break;
     }
     case 'weekly-claim': { const r = claimWeekly(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`领取成功：召唤券+${r.tickets} 金币+${r.gold}${r.items.length ? ' 装备+1' : ''}${r.orders?.length ? ' 钥令+1' : ''}`); if (r.orders?.length) P.showOrders(app, r.orders); rerender(); } break; }

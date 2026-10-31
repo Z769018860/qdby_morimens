@@ -783,3 +783,8 @@ a.btn{display:inline-block;text-decoration:none}
 .idle-glossary-item{padding:9px 5px;border:1px solid var(--line);background:var(--panel2);border-radius:9px;text-align:center;cursor:pointer}
 .glossary-modal{max-width:min(620px,94vw)}
 @media(max-width:380px){.idle-terms-btn{padding:4px 5px;font-size:11px}}
+
+/* 周 Boss 里程碑：档位多，已领取 / 更高的档位折起来 */
+.wkfold{margin:8px 0}
+.wkfold>summary{cursor:pointer;padding:8px 10px;border:1px solid var(--line,#2a3350);border-radius:8px;color:var(--dim,#9aa4bb);font-size:13px}
+.wkfold[open]>summary{margin-bottom:8px}

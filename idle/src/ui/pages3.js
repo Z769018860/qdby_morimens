@@ -24,12 +24,25 @@ export function weeklyPage(app) {
   const w = weeklyState(s), boss = weeklyBoss(data), e = weeklyEnemy(data);
   // 战力和人数都按「周 Boss 指定的那套阵容」算，别拿当前队伍糊弄人
   const t = withLoadout(s, squadKeyFor(s, 'weekly'), () => teamDefs(s, data, teamSlugsFor(s, 'weekly')));
-  const rows = MILESTONES.map((m, i) => {
+  const row = (m, i) => {
     const done = w.damage >= m.dmg, got = w.claimed.includes(i);
     return `<div class="ach ${done ? 'done' : ''}"><div class="ab"><b>累计伤害 ${fmt(m.dmg)}</b><div class="bar"><i style="width:${Math.min(100, (w.damage / m.dmg) * 100)}%"></i></div>
-      <small>奖励：${REWARD(m)}${m.item ? '　装备 ×1' : ''}</small></div>
+      <small>奖励：${REWARD(m)}${m.item ? '　装备 ×1' : ''}${m.order ? '　钥令 ×1' : ''}</small></div>
       <button class="btn sm ${done && !got ? 'gold' : ''}" data-act="weekly-claim" data-i="${i}" ${done && !got ? '' : 'disabled'}>${got ? '已领取' : done ? '领取' : '未达成'}</button></div>`;
-  }).join('');
+  };
+  // 一共 56 档：只摆「能领的 + 接下来 4 档」，已领的和更远的折起来
+  const ready = [], claimed = [], later = [];
+  let nextShown = 0;
+  MILESTONES.forEach((m, i) => {
+    if (w.claimed.includes(i)) claimed.push(i);
+    else if (w.damage >= m.dmg) ready.push(i);
+    else if (nextShown < 4) { ready.push(i); nextShown++; } else later.push(i);
+  });
+  const claimable = MILESTONES.filter((m, i) => w.damage >= m.dmg && !w.claimed.includes(i)).length;
+  const fold = (title, ids) => (ids.length ? `<details class="wkfold"><summary>${title}（${ids.length} 档）</summary><div class="list">${ids.map((i) => row(MILESTONES[i], i)).join('')}</div></details>` : '');
+  const rows = `${claimable ? `<div class="row"><button class="btn gold" data-act="weekly-claim-all">一键领取 ${claimable} 档</button></div>` : ''}
+    <div class="list">${ready.map((i) => row(MILESTONES[i], i)).join('')}</div>
+    ${fold('已领取', claimed)}${fold(`更高的档位（最高累计伤害 ${fmt(MILESTONES[MILESTONES.length - 1].dmg)}）`, later)}`;
   return `<div class="page"><h2>周 Boss <small>${weekId()} · 本周剩余约 ${daysLeft()} 天 · 出战战力 ${fmt(t.power)}</small></h2>
     ${squadBar(app, 'weekly')}
     <div class="banner-card wk"><img src="${img(boss.img)}" alt=""><div><h3>${esc(boss.zh)}</h3>
@@ -39,7 +52,7 @@ export function weeklyPage(app) {
       <p class="hint">每次挑战只打 ${WEEKLY_ROUNDS} 回合，Boss 血量近乎无限，比拼的是这段时间能打出多少伤害；全队倒下则提前结束。每周一（UTC）换新 Boss、清空累计。</p>
       <div class="row"><button class="btn big gold" data-act="weekly-go" ${w.tries > 0 ? '' : 'disabled'}>${w.tries > 0 ? '挑战周 Boss' : '今日次数已用完'}</button>
       <button class="btn" data-act="monster" data-id="${boss.id}">查看出招</button></div></div></div>
-    <h3>累计伤害奖励</h3><div class="list">${rows}</div></div>`;
+    <h3>累计伤害奖励</h3>${rows}</div>`;
 }
 export function weeklyResultModal(app, r) {
   const names = r.team.list.map((d) => d.name);
