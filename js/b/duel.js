@@ -4111,7 +4111,7 @@ function renderDuel() {
 
   const modeTag = S.bt === 'local' ? `<span class="btag">同屏 · 轮到${nameOf(G.active)}</span>`
     : (S.bt === 'net' ? `<span class="btag">房间 ${S.room ? S.room.code : '—'}</span>`
-      : (S.ai ? `<span class="btag ai" title="对手这一局的档位与打错牌概率">Lv${S.ai.lv} · ${S.ai.n} · 失误${Math.round(S.ai.sloppy * 100)}%</span>${S.foeDeck ? `<span class="btag dvt" title="对手这套牌">${S.foeDeck}</span>` : ''}` : ''));
+      : (S.ai ? `<span class="btag ai" title="对手这一局的档位与打错牌概率">Lv${S.ai.lv} · <span class="an">${S.ai.n} · </span>失误${Math.round(S.ai.sloppy * 100)}%</span>${S.foeDeck ? `<span class="btag dvt" title="对手这套牌">${S.foeDeck}</span>` : ''}` : ''));
 
   const waitTxt = S.bt === 'net'
     ? (v.over ? '对决结束。' : '等好友出牌…')

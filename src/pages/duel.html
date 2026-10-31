@@ -151,7 +151,17 @@ body{
 /* ---------------------------------------------------------------- 对战盘 */
 #scr-duel{overflow-y:auto; overflow-x:hidden; gap:6px}
 .duelbar{display:flex; align-items:center; gap:6px; flex:0 0 auto; font-size:11.5px; color:var(--dim)}
-.duelbar{flex-wrap:wrap; row-gap:4px}
+/* 顶栏不换行：换行会白白多吃 20px，而卡面大小是按「可用高度」算的，这 20px 最后会变成底部溢出。
+   放不下就让档位标签自己省略。 */
+.duelbar{flex-wrap:nowrap; row-gap:4px; overflow:hidden}
+.duelbar .btag{min-width:0; overflow:hidden; text-overflow:ellipsis}
+/* 窄屏先让位：档位名和「对手牌组」都可以省，「Lv2 · 失误36%」这半句必须留着——
+   它决定玩家要不要换难度，被省略号吃掉尾巴就等于没显示。 */
+@media (max-width:860px){
+  /* 门槛从 520 提到 860：768 宽的平板竖屏上顶栏照样挤，两个标签各被切掉 12~19px。
+     档位名和对手牌组是「可以省」的信息，Lv 和失误% 才是这一局要看的。 */
+  #scr-duel .btag.ai .an,#scr-duel .btag.dvt{display:none}
+}
 .duelbar .turn,.duelbar .ph{white-space:nowrap}
 .duelbar .turn{color:var(--text); font-weight:600; letter-spacing:.04em}
 .duelbar .ph{color:var(--gold2)}
@@ -174,20 +184,26 @@ body{
 .pinfo .lp{
   flex:1 1 auto; height:16px; border-radius:8px; background:var(--panel3); overflow:hidden; position:relative;
   border:1px solid var(--line);
-}
-.pinfo .lp i{
+}.pinfo .lp i{
   position:absolute; inset:0 auto 0 0; width:100%; border-radius:7px;
   background:linear-gradient(90deg, color-mix(in srgb,var(--green) 80%, #fff), var(--green));
   transition:width .35s ease;
 }
 .pinfo .lp.low i{background:linear-gradient(90deg, var(--red), color-mix(in srgb,var(--red) 70%, #000))}
-.pinfo .lpn{position:absolute; inset:0; display:grid; place-items:center; font-size:10.5px; font-weight:700; color:#08130c; letter-spacing:.04em}
+/* 命轮值数字横跨「已填」和「未填」两段：写死深色字在深色主题下后半截直接看不见，
+   写死白字在浅色主题的浅底上也一样。所以统一白字 + 深色描边，并把底色压深一点兜住对比度。 */
+.pinfo .lp{background:color-mix(in srgb, var(--panel3) 62%, #0d1218)}
+.pinfo .lpn{position:absolute; inset:0; display:grid; place-items:center; font-size:10.5px; font-weight:700;
+  color:#fff; letter-spacing:.04em; text-shadow:0 1px 2px rgba(0,0,0,.8), 0 0 4px rgba(0,0,0,.55)}
 .pinfo .meta{font-size:10.5px; color:var(--dim); white-space:nowrap; display:flex; gap:7px}
 .pinfo .bonds{display:flex; gap:3px}
 .pinfo .bonds span{width:7px; height:7px; border-radius:50%; background:var(--gold); opacity:.85}
 
 /* ---- 状态条与回合横幅：这一回合走到哪、还能通召几次、要不要进战斗阶段 ---- */
 .dhint{
+  /* flex:0 0 auto 不能省：竖屏矮机上整列装不下时，默认的 flex-shrink:1 会把它压成 8px 的一条缝，
+     提示文字直接消失（看着像「哪里都没有提示」），而它本该把溢出推给整屏滚动。 */
+  flex:0 0 auto;
   display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px;
   font-size:12px; color:var(--dim); padding:4px 8px; border-radius:9px;
   background:color-mix(in srgb,var(--panel) 70%, transparent); border:1px solid var(--line);
@@ -198,8 +214,13 @@ body{
 .dhint s{color:var(--dim2); text-decoration:none; opacity:.75}
 .turnb{
   position:fixed; left:50%; top:44%; transform:translate(-50%,-50%); z-index:95;
-  pointer-events:none; font:800 clamp(24px,7vw,34px)/1.1 ui-monospace,SFMono-Regular,Menlo,monospace;
-  letter-spacing:.12em; padding:10px 26px; border-radius:14px;
+  /* 字号跟着「宽和高里更小的那个」走：只按 7vw 算的话，844×390 横屏会给出 34px 的巨字，
+     一句「对你的回合」正好横在两条边的卡牌上，看着像把棋盘盖住了。 */
+  /* width:max-content 不能省：fixed + left:50% 时「可用宽度」只剩右半边，
+     320 宽的机器上「你的回合」会被折成两行（挤成一个方块横在棋盘中间）。 */
+  width:max-content; max-width:calc(100vw - 24px);
+  pointer-events:none; font:800 clamp(18px,min(7vw,5.4vh),34px)/1.1 ui-monospace,SFMono-Regular,Menlo,monospace;
+  letter-spacing:.12em; padding:8px 22px; border-radius:14px;
   color:#f2f6ff; background:rgba(8,11,18,.72); border:1px solid #3a4761;
   box-shadow:0 18px 46px -20px #000, 0 0 40px -12px rgba(110,168,255,.5);
   animation:turnin 1.5s ease-out forwards;
@@ -700,11 +721,13 @@ body{
    所有卡牌尺寸都由 #scr-duel 上的几个变量推出来：
    --mch/--mcw 场上怪兽，--sch/--scw 魔陷区，--hch/--hcw 手牌。
    变量按「可用高度」和「棋盘列宽度」取小，所以手机竖屏、横屏、平板、电脑都不留大块空白，也不会撑出滚动条。
-   --off 是除了卡牌以外的固定占高（顶栏 / 血条 / 日志 / 操作条…），各版式在下面各自给一个数。 */
+   --off 是除了卡牌以外的固定占高（顶栏 / 血条 / 日志 / 操作条…），各版式在下面各自给一个数。
+   --div 是「整盘高 ÷ 卡面高」：一局要竖着排 2 行怪兽 + 2 行魔陷 + 1 行手牌，
+   折算成卡面高度是 2 + 2×0.78 + 0.9 ≈ 4.46 倍（以前写 3.74，低估了，于是每个竖屏设备底部都被挤出去几十像素）。 */
 #scr-duel{
   --bw:calc(100vw - 28px);
   --off:560px;
-  --mmax:190px; --mmin:70px; --div:3.74;
+  --mmax:190px; --mmin:70px; --div:4.46;
   --mcw:min(calc(clamp(var(--mmin), calc((100dvh - var(--off)) / var(--div)), var(--mmax)) * .8), calc((var(--bw) - 34px) / 3));
   --mch:calc(var(--mcw) / .8);
   --sch:clamp(70px, calc(var(--mch) * .78), 132px);
@@ -718,7 +741,17 @@ body{
 #scr-duel .slot{min-height:calc(var(--mch) + 6px)}
 #scr-duel .slot .card{--cw:var(--mcw); --ch:var(--mch)}
 #scr-duel .slot .card .nm{font-size:clamp(9px, calc(var(--mcw) * .125), 15px)}
-#scr-duel .slot .card .pt{font-size:clamp(9px, calc(var(--mcw) * .115), 14px)}
+/* 数值行在窄卡上会被切掉（实测 47×58 的卡：内容要 56px，只有 45px 可用）：
+   字号跟着卡宽走得更紧，间隙和左右内边距也压一压，省出来的 5~6px 正好放下「2900 / 2400」。
+   再窄（横屏手机、小屏）就一行放不下两个数了，改成上下两行——总比显示成「2900 / 2」强。
+   @container 老浏览器不认识会整条忽略，退化成上面那套缩小字号，不会更糟。 */
+#scr-duel .card{container-type:inline-size}
+#scr-duel .slot .card .pt{font-size:clamp(8px, calc(var(--mcw) * .13), 14px); gap:2px; letter-spacing:-.02em; justify-content:center}
+@container (max-width:58px){
+  #scr-duel .card .pt{flex-direction:column; align-items:center; gap:0; line-height:1.15}
+  #scr-duel .card .pt > span{display:none}
+}
+#scr-duel .slot .card .ct{padding:2px 3px 3px}
 #scr-duel .slot .card .ct{min-height:calc(var(--mch) * .28)}
 #scr-duel .slot .card .rb,#scr-duel .slot .card .lv,#scr-duel .slot .card .tagp{font-size:clamp(8px, calc(var(--mcw) * .085), 12px)}
 #scr-duel .slot .card .tagp{top:calc(var(--mch) * .17)}
@@ -739,32 +772,88 @@ body{
 @media (min-width:900px) and (min-height:561px){
   #scr-duel.on{
     --bw:calc(min(100vw, 1040px) - 24px - 340px);
-    --off:240px; --mmax:250px;
+    /* --off 少算了「两条玩家条 + 每个卡格多出来的 6px + 两条边的行距」，原来 240 在 600~768 高的本子上
+       会让玩家条垂到操作条上 20~30px（实测 1024x600 溢出 31px）。重算：
+       头部 56 + 顶栏 18 + 提示 29 + 手牌行 12 + 网格行距 32 + 2×(玩家条 28.6 + 行距 10 + 2 格 ×6) ≈ 248。 */
+    --off:248px; --mmax:250px;
+    /* 矮屏上这两个下限才是溢出的真凶：600 高时 --mch 只有 79，而手牌下限写 88、魔陷下限写 70，
+       两处地板合起来多吃 22px。下限只在 --mch 很小时起作用，大屏不受影响。 */
+    --hch:clamp(78px, calc(var(--mch) * .9), 170px);
+    --sch:clamp(56px, calc(var(--mch) * .78), 132px);
     display:grid; gap:8px 14px; overflow:hidden;
     grid-template-columns:minmax(0,1fr) 326px;
-    grid-template-rows:auto minmax(0,1fr) minmax(0,1fr) auto;
-    grid-template-areas:"bar bar" "op mid" "me mid" "hand mid";
+    /* 提示条和操作条原来没写 grid-area，被自动排到隐式行里：
+       提示条会飘到手牌下方单独成一行（还挤掉棋盘高度），操作条位置随内容变。 */
+    grid-template-rows:auto auto minmax(0,1fr) minmax(0,1fr) auto;
+    grid-template-areas:"bar bar" "hint hint" "op mid" "me mid" "hand dock";
   }
   #scr-duel>.duelbar{grid-area:bar; max-width:none}
+  /* 提示条在网格里跨满两列，但 max-width 还留着单列时的 --fw（=300px）：
+     768/720 高的机器上这句话被折成三行、白吃 29px，两条边的卡面就被挤出格子。
+     跨满整行之后一行就放得下，顺带把这 29px 还给卡面。 */
+  #scr-duel>.dhint{grid-area:hint; max-width:none; flex-wrap:nowrap; white-space:nowrap; overflow:hidden}
   #scr-duel>.side.op-side{grid-area:op; justify-content:flex-end}
   #scr-duel>.side.me-side{grid-area:me; justify-content:flex-start}
   #scr-duel>.mid{grid-area:mid; max-width:none; max-height:none; margin:0}
   #scr-duel>.hand{grid-area:hand; flex-wrap:nowrap}
+  #scr-duel>.dock{grid-area:dock; align-self:center; padding:0}
   #scr-duel .log{font-size:12.5px}
 }
-/* 手机横屏：棋盘缩到只剩两排怪兽，手牌挪到右侧一列里换行排，日志与操作条在它上面 */
-@media (min-width:600px) and (max-height:560px){
+/* 手机横屏：怪兽区和魔陷区并排放成一行，手牌挪到右侧一列里换行排，日志在它上面。
+   门槛写 480×620 而不是 600×560——iPhone SE / 8 横过来是 568×320，以前掉在这条缝里，
+   套用的是竖屏那套纵向堆叠，结果 320 高的屏要放 700 高的内容，只能看到对手半张脸。
+
+   一行放 6 格是有原因的：横屏只有 264~334px 可用高，四条卡行（2 怪兽 + 2 魔陷）加两条玩家条，
+   再叠上顶栏 / 提示 / 操作条，物理上装不下。老版本硬按 4 行算（--div:3.56），结果两条玩家条
+   各溢出 26~30px 直接压到「额外 0/2 / 战斗阶段」那排按钮上。
+   改成一行之后卡面反而更大：844×390 上从 44×55 涨到 62×78。
+   --off = 头部 56 + 顶栏 18 + 提示 23 + 操作条 34 + 行距 20 + 2×(玩家条 25 + 行距 3 + 卡格多出的 6) ≈ 226
+   --div = 2（只有两行卡） */
+@media (min-width:480px) and (max-width:899px) and (max-height:620px){
   #scr-duel.on{
-    --bw:calc(100vw - 24px - 336px);
-    --off:224px; --div:2.84; --mmin:40px;
+    --side:min(300px, 34vw);
+    --bw:calc(100vw - 24px - var(--side));
+    --off:226px; --div:2; --mmin:44px;
+    /* 一行 6 格（3 怪兽 + 3 魔陷），所以宽度除数是 6 不是 3 */
+    --mcw:min(calc(clamp(var(--mmin), calc((100dvh - var(--off)) / var(--div)), 190px) * .8),
+              calc((var(--bw) - 34px) / 6));
+    /* 魔陷区的 70px 下限在横屏放不下：一行魔陷比一行怪兽还高，硬撑就把玩家条挤出格子 */
+    --sch:clamp(44px, calc(var(--mch) * .78), 132px);
     display:grid; gap:5px 10px; overflow:hidden;
-    grid-template-columns:minmax(0,1fr) 326px;
-    grid-template-rows:auto minmax(0,1fr) minmax(0,1fr);
-    grid-template-areas:"bar bar" "op mid" "me hand";
+    grid-template-columns:minmax(0,1fr) var(--side);
+    /* 提示条和操作条各占一整行。以前它们没写 grid-area，被自动塞进同一行隐式网格里，
+       两条都撑到 80px、加起来把棋盘顶出去，而 .on 上是 overflow:hidden，多出来的直接看不见。 */
+    grid-template-rows:auto auto minmax(0,1fr) minmax(0,1fr) auto;
+    grid-template-areas:"bar bar" "hint hint" "op mid" "me hand" "dock dock";
   }
+  #scr-duel>.dhint{
+    grid-area:hint; max-width:none;
+    display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    font-size:11px; padding:1px 8px; line-height:1.45;
+  }
+  #scr-duel>.dock{grid-area:dock; padding:2px 0}
   #scr-duel>.duelbar{grid-area:bar; max-width:none}
-  #scr-duel>.side.op-side{grid-area:op; justify-content:center; gap:3px}
-  #scr-duel>.side.me-side{grid-area:me; justify-content:center; gap:3px}
+  #scr-duel>.side.op-side{grid-area:op}
+  #scr-duel>.side.me-side{grid-area:me}
+  /* 一条边 = 玩家条（跨满整行）+ 怪兽区 | 魔陷区。两边 DOM 顺序本来就是镜像的
+     （对手是 [玩家条, 魔陷, 怪兽]，自己是 [怪兽, 魔陷, 玩家条]），所以不用改结构也不会错位。 */
+  /* max-width 要放开：--fw 是按「3 张卡一排」算的（mcw*3+16，还带 300px 下限），
+     一行 6 格时它把整个盘挤成中间一坨，两边各空出 100 多像素。 */
+  #scr-duel>.side{
+    display:grid; grid-template-columns:1fr 1fr; gap:3px 6px; max-width:none;
+    align-content:center; min-width:0; min-height:0;
+  }
+  #scr-duel>.side>.pinfo{grid-column:1/-1}
+  #scr-duel>.side>.field{min-width:0}
+  /* 两边都排成「怪兽 3 | 魔陷 3」。对手那半边 DOM 里本来是 [魔陷, 怪兽]（竖排时镜像过来的），
+     并排之后镜像就没意义了，同一行同一个含义才好记。pinfo 靠 order 分别留在行的上方/下方。
+     魔陷区用的是里面的 .slot.sp，外层 field 没有 sp 类（类只在格子上），所以靠 :has 认。
+     老浏览器不认 :has 就整条忽略，退化成镜像排布，照样能用。 */
+  #scr-duel>.side.op-side>.field:has(> .slot.sp){order:2}
+  #scr-duel>.side.me-side>.pinfo{order:9}
+  #scr-duel>.side>.field:has(> .slot.sp){
+    border-left:1px solid color-mix(in srgb, var(--line) 85%, transparent); padding-left:7px;
+  }
   #scr-duel>.mid{grid-area:mid; max-width:none; max-height:none; min-height:0; margin:0}
   #scr-duel>.hand{
     grid-area:hand; flex-wrap:wrap; align-content:flex-start; overflow-x:hidden; overflow-y:auto; min-height:0; padding:2px;
@@ -775,17 +864,66 @@ body{
   #scr-duel .log{font-size:11px; line-height:1.5}
   .top{gap:6px}
 }
-/* 竖屏矮机（小屏手机）：压低固定占高，卡牌跟着缩 */
-@media (max-width:899px) and (max-height:700px){
-  #scr-duel{--off:362px}
-  #scr-duel>.mid{max-height:84px; min-height:52px}
+/* 竖屏矮机（小屏手机）：顶栏提示压成一行、日志压到两行，把省下的高度还给卡面。
+   --off = 顶部 56 + 固定块 233 + 一行提示 22 + 日志 40 ≈ 368.8
+   必须写 min-height:561——它是给竖屏用的，而横屏也是 max-width:899 且更矮，
+   不挡住就会把横屏那套 --off:179 覆盖成 369（横屏卡片会被算成 40px 高）。 */
+@media (max-width:899px) and (min-height:561px) and (max-height:700px){
+  /* --hch 的下限从 88 放到 78：矮机上那 88px 的手牌下限比怪兽卡还高，白白挤掉一行棋盘；
+     魔陷区的 70px 下限同理，矮机上两行魔陷就要多吃 44px，压到 56 才装得下 */
+  #scr-duel{--off:379px; --mmin:58px; --hch:clamp(78px, calc(var(--mch) * .9), 170px);
+    --sch:clamp(56px, calc(var(--mch) * .78), 132px)}
+  #scr-duel>.dhint{
+    display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    font-size:11px; padding:3px 8px;
+  }
+  #scr-duel>.mid{max-height:56px; min-height:40px}
 }
 @media (min-width:600px) and (max-width:899px) and (min-height:701px){
   #scr-duel{--mmax:230px}
 }
+/* 竖屏高机：--off = 顶部 56 + 固定块 233 + 两行提示 54 + 日志 72，再留 15px 余量给行距取整。
+   卡面下限放到 62，是为了 700~800 高这一档不至于为了保住 70px 把底下的手牌顶出屏幕。 */
 @media (max-width:899px) and (min-height:701px){
-  #scr-duel{--off:410px}
+  #scr-duel{--off:448px; --mmin:62px;
+    --sch:clamp(56px, calc(var(--mch) * .78), 132px)}
 }
+/* 361~640 高这一档再让 4px：360x640 上只剩 5px 溢出，虽然滚得动但会让吸底操作条跟着抖 */
+@media (max-width:899px) and (min-height:561px) and (max-height:660px){
+  #scr-duel{--off:383px}
+}
+/* 320 宽的老机器（iPhone SE 一代 / 5s）：四条卡行按 58px 下限排要 259px，可用只有 199px，
+   盘内溢出 76px。降到 50 之后只溢 20px，靠内部滚动 + 吸底操作条兜住，总比一屏什么都挤在一起强。 */
+@media (max-width:340px){
+  /* 手牌和魔陷的下限也一起放：320 宽的机器上光靠 --mmin 只把溢出从 76 压到 60，
+     两条下限（手牌 78 + 魔陷 56）才是剩下那 60px 的大头。 */
+  #scr-duel{--mmin:50px;
+    --hch:clamp(62px, calc(var(--mch) * .9), 170px);
+    --sch:clamp(44px, calc(var(--mch) * .78), 132px)}
+}
+/* 竖屏真的挤不下时（很矮的机器）棋盘内部本来就能滚，但操作条必须一直在：
+   否则「结束回合」被推到折叠线以下，看起来就像卡死了。 */
+@media (max-width:899px) and (min-height:561px){
+  #scr-duel>.dock{
+    position:sticky; bottom:0; z-index:12; padding-top:10px;
+    background:linear-gradient(180deg, transparent, color-mix(in srgb, var(--bg) 90%, transparent) 30%, var(--bg) 64%);
+  }
+}
+
+/* 陷阱询问弹窗（原本被写到 </html> 之后，等于从没生效：弹窗没样式，这段 CSS 还会当正文显示在最底下） */
+/* 陷阱询问：对手动作满足应对型陷阱的条件时，结算前问持有者发不发动 */
+.trapask{position:fixed; inset:0; z-index:200; display:grid; place-items:end center; background:rgba(4,6,10,.55); padding:12px}
+.trapask .tbox{width:min(520px,100%); background:var(--panel,#fff); color:var(--text); border:1px solid var(--line); border-radius:16px; padding:14px 14px 12px; box-shadow:0 -10px 40px -18px #000}
+.trapask h3{margin:0 0 4px; font-size:15px}
+.trapask .sub{margin:0 0 8px; font-size:12px; color:var(--dim)}
+.trapask .tl{display:flex; flex-direction:column; gap:6px}
+.trapask .trow{display:grid; grid-template-columns:1fr auto; gap:2px 8px; text-align:left; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:transparent; color:inherit; cursor:pointer}
+.trapask .trow small{grid-column:1; font-size:11.5px; color:var(--dim); line-height:1.45}
+.trapask .trow i{grid-row:1 / span 2; grid-column:2; align-self:center; font-style:normal; font-size:12px; padding:3px 10px; border-radius:999px; border:1px solid var(--line)}
+.trapask .trow.on{border-color:var(--gold); background:color-mix(in srgb,var(--gold) 14%, transparent)}
+.trapask .trow.on i{background:var(--gold); color:#1a1206; border-color:transparent}
+.trapask .trow2{display:flex; gap:8px; margin-top:10px}
+.trapask .trow2 .btn{flex:1}
 </style>
 </head>
 <body>
@@ -814,17 +952,3 @@ body{
 <script type="module" src="js/duel.js"></script>
 </body>
 </html>
-
-/* 陷阱询问：对手动作满足应对型陷阱的条件时，结算前问持有者发不发动 */
-.trapask{position:fixed; inset:0; z-index:200; display:grid; place-items:end center; background:rgba(4,6,10,.55); padding:12px}
-.trapask .tbox{width:min(520px,100%); background:var(--panel,#fff); color:var(--text); border:1px solid var(--line); border-radius:16px; padding:14px 14px 12px; box-shadow:0 -10px 40px -18px #000}
-.trapask h3{margin:0 0 4px; font-size:15px}
-.trapask .sub{margin:0 0 8px; font-size:12px; color:var(--dim)}
-.trapask .tl{display:flex; flex-direction:column; gap:6px}
-.trapask .trow{display:grid; grid-template-columns:1fr auto; gap:2px 8px; text-align:left; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:transparent; color:inherit; cursor:pointer}
-.trapask .trow small{grid-column:1; font-size:11.5px; color:var(--dim); line-height:1.45}
-.trapask .trow i{grid-row:1 / span 2; grid-column:2; align-self:center; font-style:normal; font-size:12px; padding:3px 10px; border-radius:999px; border:1px solid var(--line)}
-.trapask .trow.on{border-color:var(--gold); background:color-mix(in srgb,var(--gold) 14%, transparent)}
-.trapask .trow.on i{background:var(--gold); color:#1a1206; border-color:transparent}
-.trapask .trow2{display:flex; gap:8px; margin-top:10px}
-.trapask .trow2 .btn{flex:1}
