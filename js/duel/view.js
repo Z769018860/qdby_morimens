@@ -823,6 +823,9 @@ function renderActbar() {
     const need = E.tributeNeed(c.id);
     if (canS) opts.push('<button class="btn pri" data-act="summon">召唤</button>');
     if (need === 0) opts.push('<button class="btn" data-act="setmon">里侧守备</button>');
+    if (c.sp) opts.push(E.canSpecial(G, p, h.uid)
+      ? '<button class="btn pri" data-act="special">特殊召唤（不占通常召唤）</button>'
+      : '<button class="btn" disabled>特殊召唤：条件未满足</button>');
   } else if (c.k === 'S') {
     // 速攻（钥令那批）战斗阶段也能开；其余魔法只能在主要阶段。
     // 以前按钮一直亮着、点了才被引擎拒，看起来像「按键没反应」。
@@ -841,7 +844,7 @@ function renderActbar() {
       ? (c.t === 'quick'
         ? '速攻魔法：主要阶段和战斗阶段都能发动；开完立刻结算。'
         : '魔法只能在自己的主要阶段从手牌发动；永续与装备留在场上。')
-      : '陷阱盖放后：应对型（无效 / 反击伤害 / 屏障…）对方做出对应动作时自动发动；其余的（抽牌、回复、弹牌、削攻、永续…）除了盖放的那一回合，自己的回合和对方的回合都能点开主动发动。');
+      : '陷阱盖放后：应对型（无效 / 反击伤害 / 屏障…）对方做出对应动作时会先问你发不发动（人机模式；好友房 / 同屏仍自动发动）；其余的（抽牌、回复、弹牌、削攻、永续…）除了盖放的那一回合，自己的回合和对方的回合都能点开主动发动。');
   bar.innerHTML = `
     <div class="ah"><b>${c.n}</b><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}${costTag(c)}</span>
       <button class="btn sm ghost x" data-act="cancel">关闭</button></div>
@@ -963,11 +966,55 @@ function aiAction(a) {
   if (a.t === 'setMon') return { t: 'setMon', uid: a.uid };
   if (a.t === 'trap') return { t: 'trap', uid: a.uid };
   if (a.t === 'activateTrap') return { t: 'activateTrap', uid: a.uid };
+  if (a.t === 'special') return { t: 'special', uid: a.uid, trib: a.trib };
   if (a.t === 'pos') return { t: 'pos', uid: a.uid };
   if (a.t === 'battle') return { t: 'battle' };
   if (a.t === 'attack') return { t: 'attack', uid: a.uid, target: a.target };
   if (a.t === 'spell') return { t: 'spell', uid: a.uid };
   return { t: 'end' };
+}
+
+// ------------------------------------------------------------------ 陷阱询问
+// 应对型陷阱不再自动发动：对手的动作满足它的条件时，在结算之前问持有者「发不发动」。
+function actionText(a, G) {
+  const op = G.players[1], me = G.players[0];
+  const hn = (uid) => { const h = op.hand.find((x) => x.uid === uid); return h && CARDS[h.id] ? CARDS[h.id].n : '怪兽'; };
+  if (a.t === 'attack') {
+    const m = op.mons.find((x) => x && x.uid === a.uid);
+    const tg = a.target == null ? null : me.mons.find((x) => x && x.uid === a.target);
+    const mn = m && CARDS[m.id] ? CARDS[m.id].n : '怪兽';
+    return tg ? `「${mn}」宣言攻击你的「${CARDS[tg.id] ? CARDS[tg.id].n : '怪兽'}」` : `「${mn}」宣言直接攻击你`;
+  }
+  if (a.t === 'summon') return `召唤「${hn(a.uid)}」`;
+  if (a.t === 'special') return `特殊召唤「${hn(a.uid)}」`;
+  if (a.t === 'spell') return `发动魔法「${hn(a.uid)}」`;
+  if (a.t === 'activateTrap') { const s = op.spells.find((x) => x && x.uid === a.uid); return `发动陷阱「${s && CARDS[s.id] ? CARDS[s.id].n : ''}」`; }
+  return '行动';
+}
+function askTraps(list, a, G) {
+  return new Promise((resolve) => {
+    const chosen = new Set();
+    const el = document.createElement('div');
+    el.className = 'trapask';
+    el.innerHTML = `<div class="tbox"><h3>对手${actionText(a, G)}</h3>
+      <p class="sub">你盖着的陷阱里有可以发动的，要发动吗？</p>
+      <div class="tl">${list.map((x) => { const c = CARDS[x.id]; return `<button class="trow" type="button" data-t="${x.uid}"><b>${c.n}</b><small>${c.text}${costTag(c)}</small><i>发动</i></button>`; }).join('')}</div>
+      <div class="trow2"><button class="btn pri" data-ta="go">确认</button><button class="btn" data-ta="skip">都不发动</button></div></div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', (e) => {
+      const row = e.target.closest('[data-t]');
+      if (row) {
+        const uid = Number(row.dataset.t);
+        if (chosen.has(uid)) { chosen.delete(uid); row.classList.remove('on'); } else { chosen.add(uid); row.classList.add('on'); }
+        return;
+      }
+      const b = e.target.closest('[data-ta]');
+      if (!b) return;
+      const out = b.dataset.ta === 'go' ? [...chosen] : [];
+      el.remove();
+      resolve(out);
+    });
+  });
 }
 
 // ------------------------------------------------------------------ AI 回合
@@ -980,7 +1027,14 @@ async function runAI() {
     steps++;
     const a = nextAction(G, 1, S.bt === 'pve' && S.ai ? S.ai.sloppy : S.diff);
     if (!a) break;
-    const r = E.applyAction(G, 1, aiAction(a));
+    const ra = aiAction(a);
+    // 对手的动作可能触发我盖着的应对型陷阱：先问我发不发动（不再自动发）
+    if (S.bt === 'pve') {
+      const el = E.eligibleTraps(G, 1, ra);
+      if (el.length) { const chosen = await askTraps(el, ra, G); G.trapPolicy = { 0: new Set(chosen) }; }
+    }
+    const r = E.applyAction(G, 1, ra);
+    G.trapPolicy = null;
     if (!r.ok && a.t !== 'end') break;
     renderDuel();
     await sleep(steps > 24 ? 90 : 460);
@@ -1058,8 +1112,9 @@ function onSlotClick(side, idx, isSpell) {
       const need = (S.pendingSummon && S.pendingSummon.need) || 1;
       if (S.tribute.length >= need) {
         const uid = S.pendingSummon.uid;
+        const isSp = !!S.pendingSummon.special;
         S.pendingSummon = null;
-        const r = act({ t: 'summon', uid, tribs: S.tribute });
+        const r = isSp ? act({ t: 'special', uid, trib: S.tribute[0] }) : act({ t: 'summon', uid, tribs: S.tribute });
         if (!r.ok) { toast(r.err); S.tribute = []; S.mode = 'idle'; renderDuel(); return; }
         S.tribute = []; S.mode = 'idle'; S.sel = null;
         renderDuel();
@@ -1872,8 +1927,8 @@ function showHowTo() {
       <li><b>屏障</b>：抵消一次战斗伤害或一次效果伤害；挂在怪兽身上的还能顶掉一次破坏、一次弹回或一次弱化。</li>
       <li><b>反击</b>：被攻击之后还手。多数打攻击方的命轮值，写了「咬住」的那种改打攻击方怪兽的攻击力，削到 0 就破坏它。
         整套「以牙还牙」就是靠这个逼对手不敢随便撞。</li>
-      <li><b>觉醒召唤</b>：把指定的素材送进墓地，从额外卡组特召，<b>不占通常召唤</b>。素材至少有一只在自己场上，另一只可以直接从手牌来；
-        少数觉醒体（写了「素材可从墓地」的）还能从墓地拼回来；<b>刚觉醒的那一回合它不能攻击</b>。</li>
+      <li><b>觉醒召唤</b>：指定的素材<b>必须都在自己场上</b>，把它们送进墓地，从额外卡组特召，<b>不占通常召唤</b>；<b>刚觉醒的那一回合它不能攻击</b>。手牌和墓地里的牌不能当素材。</li>
+      <li><b>特殊召唤</b>：觉醒体的素材角色各自带一种「从手牌特殊召唤」的办法（场上没怪兽 / 对方怪兽比你多 / 场上有同界域怪兽 / 献出命轮值 / 解放 1 只怪兽并献出命轮值），写在卡面「③」里。<b>不占通常召唤</b>，每回合 1 次；特殊召唤的怪兽当回合能攻击，对方的召唤陷阱照样能响应。</li>
       <li><b>自组卡组</b>：首页「我的卡组」里可以新建 / 编辑 / 改名 / 复制 / 删除，随便存几套。
         主卡组 40~50 张（预组都是 40 张，牌越少越容易抽到要的），同名最多 3 张，额外最多 10 张、其中「直接召唤」最多 2 张；
         觉醒体的素材必须在这套牌里，否则它永远召不出来。
@@ -1885,7 +1940,7 @@ function showHowTo() {
         造物各有一枚自己的道具图标，认图标比认名字快。</li>
       <li><b>直接召唤</b>：额外卡组里另一种召唤方式。<b>满足卡面条件</b>（如「自己场上有 2 只怪兽」）或<b>献出命轮值</b>即可召唤，
         不用素材、<b>不占通常召唤</b>；代价是每回合只能 1 次，而且当回合不能攻击。为了不破坏平衡，额外卡组里最多放 2 张。</li>
-      <li><b>陷阱</b>：分两种。<b>应对型</b>（无效攻击 / 召唤 / 魔法、反击伤害、屏障…）是「自动迎击」——满足条件就发动，不用你宣言；<b>主动型</b>（抽牌、回复、弹手牌、削攻、永续…）盖放的那一回合不能用，之后自己的回合和对方的回合都可以点开自己盖着的牌主动发动（好友房 / 同屏只能在自己的回合）。</li>
+      <li><b>陷阱</b>：分两种。<b>应对型</b>（无效攻击 / 召唤 / 魔法、反击伤害、屏障…）满足条件时，会在对方动作结算之前<b>弹出询问，由你决定发不发动</b>（人机模式；好友房 / 同屏暂时还是自动发动）；<b>主动型</b>（抽牌、回复、弹手牌、削攻、永续…）盖放的那一回合不能用，之后自己的回合和对方的回合都可以点开自己盖着的牌主动发动（好友房 / 同屏只能在自己的回合）。</li>
       <li><b>重复卡</b>：收藏里每张留 3 张就够，第 4 张起开包时自动折算成银芯（每张 1 芯），
         卡包页也有「一键回收多余」。一包里同一种卡最多出 3 张——所以开包能开出重复，但不会一包全是同一张。</li>
       <li><b>羁绊</b>：卡组里同时有指定角色就会在开局触发，加攻、加血、多抽牌。配队比单卡重要。</li>
@@ -2152,6 +2207,26 @@ function bind() {
     }
     if (name === 'flip') {
       const r = act({ t: 'pos', uid: S.sel.uid });
+      if (!r.ok) return toast(r.err);
+      S.sel = null; S.mode = 'idle';
+      renderDuel();
+      return;
+    }
+    if (name === 'special') {
+      const G = S.G, p = G.players[SIDE()], h = S.sel && p.hand.find((x) => x.uid === S.sel.uid);
+      if (!h) return;
+      const cfg = CARDS[h.id].sp;
+      if (cfg && cfg.cond === 'tribute') {
+        S.mode = 'tribute'; S.tribute = []; S.pendingSummon = { uid: h.uid, need: 1, special: true };
+        renderDuel();
+        const bar = $('#actbar');
+        bar.innerHTML = `<div class="ah"><b>特殊召唤「${CARDS[h.id].n}」</b><span class="note">解放 1 只怪兽 + 献出 ${cfg.v || 0} 命轮值</span>
+          <button class="btn sm ghost x" data-act="cancel">取消</button></div>
+          <div class="hint">点自己场上要解放的那只怪兽。</div>`;
+        bar.classList.add('on');
+        return;
+      }
+      const r = act({ t: 'special', uid: h.uid });
       if (!r.ok) return toast(r.err);
       S.sel = null; S.mode = 'idle';
       renderDuel();

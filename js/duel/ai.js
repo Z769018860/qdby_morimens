@@ -4,7 +4,7 @@
 // 设计取向：会算数值，但不算未来的牌。它的强度来自「不浪费」——
 // 不做亏本交换、不在能斩杀的时候去盖牌、该打脸的时候不打墙。
 import { CARDS } from './gen.js';
-import { atkOf, defOf, canAttack, canSummon, canAwaken, canDirect, tributeNeed, mustHitFirst, trapManualBlock } from './engine.js';
+import { atkOf, defOf, canAttack, canSummon, canAwaken, canDirect, canSpecial, tributeNeed, mustHitFirst, trapManualBlock } from './engine.js';
 
 function d(id) { return CARDS[id]; }
 function fxv(mon, k) {
@@ -143,6 +143,27 @@ function summonOptions(G, p) {
   return out;
 }
 
+// 手牌的特殊召唤（怪兽卡自带 sp 条件，不占通常召唤）：优先叫觉醒体需要的素材，其次是明显赚的
+function bestSpecial(G, p) {
+  const matNames = {};
+  for (const id of p.extra) for (const nm of (d(id).mat || [])) matNames[nm] = 1;
+  let best = null, bs = 0;
+  for (const h of p.hand) {
+    const def = d(h.id);
+    if (!def || def.k !== 'M' || !def.sp || !canSpecial(G, p, h.uid)) continue;
+    let trib = null, lost = 0;
+    if (def.sp.cond === 'tribute') {
+      const own = p.mons.filter(Boolean).sort((a, b) => ((matNames[d(a.id).n] ? 1 : 0) - (matNames[d(b.id).n] ? 1 : 0)) || (atkOf(G, p, a) - atkOf(G, p, b)));
+      trib = own[0];
+      if (!trib || matNames[d(trib.id).n]) continue;
+      lost = atkOf(G, p, trib);
+    }
+    const score = (matNames[def.n] ? 2500 : 0) + def.atk - lost - (def.sp.v || 0) * 0.3;
+    if (score > bs && matNames[def.n]) { bs = score; best = { uid: h.uid, trib: trib ? trib.uid : undefined }; }
+  }
+  return best;
+}
+
 function bestSummon(G, p) {
   const opts = summonOptions(G, p);
   if (!opts.length) return null;
@@ -270,6 +291,11 @@ export function nextAction(G, side, skill) {
     if (G.rng() >= sloppy * 0.6) {
       const ft = freeTrap(G, side, p, o);
       if (ft) return { t: 'activateTrap', uid: ft.uid };
+    }
+    // 0.5 手牌的特殊召唤：不占通常召唤，先把素材叫上场
+    if (G.rng() >= sloppy * 0.7) {
+      const sp = bestSpecial(G, p);
+      if (sp) return { t: 'special', uid: sp.uid, trib: sp.trib };
     }
     // 1. 觉醒体优先：素材已经站住了就别再拖（弱手会一直忘）
     if (G.rng() >= sloppy * 0.8) {

@@ -86,6 +86,8 @@ function mkPlayer(G, idx, def) {
     grave: [], extra: [], bonds: [], normalUsed: false, normalExtra: 0,
     // 额外卡组的「直接召唤」每回合只能用一次（见 canDirect / directSummon）
     directUsed: false,
+    // 手牌的特殊召唤（怪兽卡的 sp 条件）本回合已经用了几次：不占通常召唤，但每回合最多 2 次
+    spCount: 0,
     // 中毒层数 / 屏障次数：挂在玩家身上的两种状态，回合开始与受伤时结算
     psn: 0, br: 0,
   };
@@ -974,7 +976,7 @@ export function trapManualBlock(G, side, s) {
   if (!d || d.k !== 'T') return '不是陷阱卡';
   if (s.turnSet >= G.turn) return '盖放的这一回合不能发动';
   const list = fx(d);
-  if (list.length && list.every((f) => REACTIVE_TRAP.has(f.k))) return '这张是应对型陷阱：对方做出对应动作时会自动发动';
+  if (list.length && list.every((f) => REACTIVE_TRAP.has(f.k))) return '这张是应对型陷阱：对方做出对应动作时，会先问你发不发动';
   if (!canFire(p, s)) return '命轮值不够付代价';
   return null;
 }
@@ -988,6 +990,7 @@ export function activateTrap(G, side, uid) {
   const d = CARDS[s.id];
   const cont = fx(d).some((f) => CONT_TRAP.has(f.k));
   fire(G, p, s, cont);
+  if (counterTrap(G, 1 - side, 'trap')) { log(G, `「${d.n}」的发动被无效了`, 'trap'); return ok(); }
   for (const f of fx(d)) {
     if (CONT_TRAP.has(f.k)) continue;        // 永续效果：翻开后由回合开始 / 结束时结算
     applyFx(G, p, f.k === 'trapBarrier' ? { k: 'barrier', v: f.v || 1 } : f, {});
@@ -1035,7 +1038,7 @@ function counterTrap(G, side, trigger) {
     if (!s || !s.set || s.turnSet >= G.turn) continue;
     const d = CARDS[s.id];
     if (!d || d.k !== 'T' || d.t !== 'counter') continue;
-    if (!canFire(p, s)) continue;
+    if (!canFire(p, s) || !trapAllowed(G, p, s)) continue;
     const hit = fx(d).some((f) => (
       (trigger === 'spell' && (f.k === 'negateSpell' || f.k === 'negateSpellSnipe'))
       || (trigger === 'trap' && f.k === 'negateTrap')
@@ -1061,7 +1064,7 @@ function summonTraps(G, p, mon) {
     if (!s || !s.set || s.turnSet >= G.turn) continue;
     const d = CARDS[s.id];
     if (!d || d.k !== 'T') continue;
-    if (!canFire(o, s)) continue;
+    if (!canFire(o, s) || !trapAllowed(G, o, s)) continue;
     const f = fx(d);
     const neg = f.find((x) => x.k === 'negateSummon');
     const dst = f.find((x) => x.k === 'destroySummon');
@@ -1108,7 +1111,7 @@ function attackTraps(G, atkSide, atkMon, direct) {
     if (!s || !s.set || s.turnSet >= G.turn) continue;
     const d = CARDS[s.id];
     if (!d || d.k !== 'T') continue;
-    if (!canFire(def, s)) continue;
+    if (!canFire(def, s) || !trapAllowed(G, def, s)) continue;
     const list = fx(d);
     const neg = list.find((x) => x.k === 'negateAttack');
     const dst = list.find((x) => x.k === 'destroyAttacker');
@@ -1282,48 +1285,29 @@ export function canAwaken(G, p, extraId) {
   if (!d || d.k !== 'E') return null;
   if (p.extra.indexOf(extraId) < 0) return null;
   if (G.active !== p.idx || G.phase !== 'main' || G.over) return null;
+  // 素材必须都在自己场上：以前手牌（甚至墓地）里的牌也能当素材，觉醒就变成「谁先抽到两张素材」，
+  // 场上怎么打都无所谓了。现在得先把素材叫上场（通常召唤，或者怪兽卡自带的「特殊召唤」，后者不占通常召唤）。
   const pool = [];
-  for (const m of p.mons) if (m) pool.push({ uid: m.uid, id: m.id, src: 'field' });
-  for (const h of p.hand) {
-    const c = CARDS[h.id];
-    if (c && c.k === 'M') pool.push({ uid: h.uid, id: h.id, src: 'hand' });
-  }
-  // 「归于寂静」那批觉醒体写了 matGrave：素材也能从自己墓地来（负 uid 占位，
-  // 只用来在 awaken 里认出「这一张是从墓地拿的」）。这条把额外卡组从
-  // 「手里攒两张」放宽成「打过的牌还能再拼一次」，所以只给少数几张。
-  const matGrave = !!d.matGrave;
-  if (matGrave) {
-    let k = 0;
-    for (const id of p.grave) {
-      const c = CARDS[id];
-      if (c && c.k === 'M' && !c.token) pool.push({ uid: -(++k), id, src: 'grave' });
-    }
-  }
-  const fit = (picked) => {
-    // 至少要有一只素材已经在场上：全是手牌的话，等于凭空多出一只大怪，
-    // 这样觉醒就变成「抽到两张牌就白赚」，场上怎么打都无所谓了。
-    // 允许墓地素材的那几张例外——它们本来就是「从坟里拼回来」。
-    return matGrave || picked.some((x) => x.src === 'field');
-  };
+  for (const m of p.mons) if (m && !m.set) pool.push({ uid: m.uid, id: m.id, src: 'field' });
 
   if (d.matRealm === 'any') {
     for (let i = 0; i < pool.length; i++) {
       for (let j = i + 1; j < pool.length; j++) {
         if (realmOf(pool[i].id) === realmOf(pool[j].id)) continue;
-        const picked = [pool[i], pool[j]];
-        if (fit(picked)) return picked;
+        return [pool[i], pool[j]];
       }
     }
     return null;
   }
   const need = (d.mat || []).slice();
+  if (!need.length) return null;          // 没有素材的额外卡（直接召唤那批）走 directSummon，不是觉醒
   const picked = [];
   for (const name of need) {
     const m = pool.find((x) => CARDS[x.id].n === name && picked.indexOf(x) < 0);
     if (!m) return null;
     picked.push(m);
   }
-  return fit(picked) ? picked : null;
+  return picked;
 }
 
 export function awaken(G, side, extraId) {
@@ -1332,7 +1316,7 @@ export function awaken(G, side, extraId) {
   if (G.active !== side) return fail('现在不是你的回合');
   if (G.phase !== 'main') return fail('只能在主要阶段觉醒召唤');
   const mats = canAwaken(G, p, extraId);
-  if (!mats) return fail('素材还没凑齐');
+  if (!mats) return fail('素材还没凑齐：觉醒的素材必须都在自己场上');
   const d = CARDS[extraId];
   // 素材本身就是位置：先把它们送墓，再拿空位（满场也能觉醒）
   for (const x of mats) {
@@ -1373,6 +1357,95 @@ export function awaken(G, side, extraId) {
 }
 
 // ------------------------------------------------------------------ 回合
+// ---- 手牌的「特殊召唤」----
+// 觉醒体的素材必须在场上，所以给素材角色各自一种「不占通常召唤」的上场办法，写在怪兽卡的 sp 里：
+//   sp: { cond: 'emptyField' }          自己场上没有怪兽时
+//   sp: { cond: 'oppMore' }             对方场上的怪兽比自己多时
+//   sp: { cond: 'sameRealm' }           自己场上有同界域的怪兽时
+//   sp: { cond: 'lp', v: N }            献出 N 点命轮值
+//   sp: { cond: 'tribute', v: N }       解放自己场上 1 只怪兽 + 献出 N 点命轮值（给 6 级以上的大个子，免掉 1~2 只祭品）
+// 每回合最多 1 次，特殊召唤的怪兽当回合照样能攻击（和觉醒体不同）。对方的召唤陷阱照样能响应。
+export const SP_PER_TURN = 1;
+export function canSpecial(G, p, uid) {
+  if (G.over || G.active !== p.idx || G.phase !== 'main') return null;
+  const h = p.hand.find((x) => x.uid === uid);
+  const d = h && CARDS[h.id];
+  if (!d || d.k !== 'M' || !d.sp) return null;
+  if (p.spCount >= SP_PER_TURN) return null;
+  const c = d.sp, o = G.players[1 - p.idx];
+  const n = p.mons.filter(Boolean).length;
+  if (c.cond === 'tribute') { if (n < 1 || p.lp <= (c.v || 0)) return null; return c; }
+  if (freeSlot(p.mons) < 0) return null;
+  if (c.cond === 'emptyField' && n > 0) return null;
+  if (c.cond === 'oppMore' && !(o.mons.filter(Boolean).length > n)) return null;
+  if (c.cond === 'sameRealm' && !p.mons.some((m) => m && !m.set && realmOf(m.id) === d.r)) return null;
+  if (c.cond === 'lp' && p.lp <= (c.v || 0)) return null;
+  return c;
+}
+export function specialSummon(G, side, uid, tribUid) {
+  const p = G.players[side];
+  if (G.over) return fail('对决已经结束了');
+  if (G.active !== side) return fail('现在不是你的回合');
+  if (G.phase !== 'main') return fail('只能在主要阶段特殊召唤');
+  const c = canSpecial(G, p, uid);
+  if (!c) return fail('现在满足不了这张牌的特殊召唤条件');
+  const hi = p.hand.findIndex((x) => x.uid === uid);
+  const id = p.hand[hi].id, d = CARDS[id];
+  if (c.cond === 'tribute') {
+    const t = p.mons.find((m) => m && m.uid === tribUid);
+    if (!t) return fail('要解放自己场上的 1 只怪兽');
+    p.mons[p.mons.indexOf(t)] = null;
+    toGrave(G, p, t, '特殊召唤的代价');
+  }
+  if (c.cond === 'lp' || c.cond === 'tribute') {
+    const lp = c.v || 0;
+    if (lp > 0) { log(G, `献出 ${lp} 点命轮值作为代价`, 'cost'); damagePlayer(G, p, lp, 'cost'); if (G.over) return ok(); }
+  }
+  p.hand.splice(hi, 1);
+  p.spCount++;
+  const mon = mkMon(G, id, side);
+  const slot = freeSlot(p.mons);
+  p.mons[slot < 0 ? 0 : slot] = mon;
+  log(G, `${pname(p)}特殊召唤「${d.n}」（${REALM[d.r].n} · ${atkOf(G, p, mon)}/${defOf(G, p, mon)}）`, 'summon');
+  const killed = summonTraps(G, p, mon);
+  if (!killed && !mon.set) triggerSummonFx(G, p, mon);
+  return ok();
+}
+
+// ---- 陷阱的询问 ----
+// 应对型陷阱（无效攻击 / 召唤 / 魔法、反击伤害、屏障…）满足条件时，不再替持有者决定：
+// 界面在对方动作结算之前，用 eligibleTraps 问出「现在有哪几张能发动」，让持有者挑，再把结果写进 G.trapPolicy[持有者] = Set(uid)
+// 后面各个触发点只发动 Set 里的那几张。没设 policy（AI 持有、好友房）仍然是满足条件就自动发动。
+function trapAllowed(G, owner, s) {
+  const pol = G.trapPolicy && G.trapPolicy[owner.idx];
+  return !pol || pol.has(s.uid);
+}
+const ATK_REACT = ['negateAttack', 'destroyAttacker', 'reflect', 'battleBoost', 'trapBarrier', 'trapPoison', 'trapCounter', 'trapCounterMon'];
+/** 行动者 side 要做动作 a：对方（陷阱持有者）有哪几张盖着的陷阱现在能响应。返回 [{ uid, id }] */
+export function eligibleTraps(G, side, a) {
+  const me = G.players[side], o = G.players[1 - side], out = [];
+  if (!a || G.over) return out;
+  let direct = false;
+  if (a.t === 'attack') {
+    const m = me.mons.find((x) => x && x.uid === a.uid);
+    if (!m || !canAttack(G, me, m)) return out;
+    direct = a.target == null;
+  }
+  for (const s of o.spells) {
+    if (!s || !s.set || s.turnSet >= G.turn) continue;
+    const d = CARDS[s.id];
+    if (!d || d.k !== 'T' || !canFire(o, s)) continue;
+    const ks = fx(d).map((f) => f.k);
+    let hit = false;
+    if (a.t === 'attack') hit = ks.some((k) => ATK_REACT.includes(k) && (k !== 'reflect' || direct));
+    else if (a.t === 'summon' || a.t === 'special') hit = ks.includes('negateSummon') || ks.includes('destroySummon');
+    else if (a.t === 'spell') hit = ks.includes('negateSpell') || ks.includes('negateSpellSnipe');
+    else if (a.t === 'activateTrap') hit = ks.includes('negateTrap');
+    if (hit) out.push({ uid: s.uid, id: s.id });
+  }
+  return out;
+}
+
 // ---- 额外卡组的「直接召唤」（bp16 起）----
 // 和觉醒召唤的分工：觉醒要凑素材名（两张指定的人），直接召唤只看场面条件
 // 或命轮值。它不占通常召唤，但每回合只能用一次，而且当回合不能攻击——
@@ -1427,6 +1500,7 @@ export function beginTurn(G) {
   p.normalUsed = false;
   p.normalExtra = 0;
   p.directUsed = false;
+  p.spCount = 0;
   for (const m of p.mons) {
     if (!m) continue;
     m.atkCount = 0; m.tmpAtk = 0; m.tmpDef = 0; m.direct = false;
@@ -1556,6 +1630,7 @@ export function applyAction(G, side, a) {
     case 'spell': return activateSpell(G, side, a.uid);
     case 'trap': return setTrap(G, side, a.uid);
     case 'activateTrap': return activateTrap(G, side, a.uid);
+    case 'special': return specialSummon(G, side, a.uid, a.trib);
     case 'pos': return changePos(G, side, a.uid);
     case 'battle': return toBattle(G, side);
     case 'attack': return attack(G, side, a.uid, a.target == null ? null : a.target);
