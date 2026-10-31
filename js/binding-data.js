@@ -345,6 +345,15 @@ export const BOSSES = {
     sub: '深渊底部那一滩会站起来的东西，它记得每一个掉下来的人',
     hp: 520, r: 42, sp: 44, atks: ['rain', 'ring', 'spiral', 'summon'], ringN: 26, ringSp: 128,
   },
+  // 米酒不是这一层的人。他是给这栋楼摆关卡的人——「图纸间」里那张桌子上摊着的
+  // 就是这一层的平面图。mini:1 让 onBossDown 走另一套结算：验收完就收工，
+  // 不开楼梯、不播剧情，只留一件造物。
+  mijiu: {
+    n: '米酒', en: 'Mijiu', art: 'mijiu', cls: 'Boss', mini: 1,
+    desc: '《忘却前夜》脑缸组的战斗设计师。他不决定这一层有什么，他决定你只能从哪儿走过去。',
+    sub: '这一层的走廊是他摆的。现在他要看你从头走一遍',
+    hp: 120, r: 32, sp: 54, atks: ['summon', 'aimed', 'ring', 'summon'], ringN: 12, ringSp: 104,
+  },
 };
 
 // ------------------------------------------------------------------ 楼层
@@ -360,6 +369,17 @@ export const FLOORS = [
   { n: '七层 · 长明礼拜堂', theme: 'chapel', music: 'chapel', rooms: 12, pool: ['chanter', 'chanter', 'hunter', 'claw', 'abscess'], boss: 'b7', tip: '灯一直亮着，可这里没人祷告' },
   { n: '八层 · 融蚀深渊', theme: 'abyss', music: 'abyss', rooms: 12, pool: ['claw', 'hunter', 'chanter', 'abscess'], boss: 'b8', tip: '融蚀的尽头是梦，梦的尽头也是融蚀' },
 ];
+
+// ------------------------------------------------------------------ 图纸间
+// 米酒不在楼层表里：他是这一层的设计者，所以房间按「可选的额外一间」分配
+// （见 binding.js 的 makeFloor / buildRoom）。这里只放房间本身要用的文案。
+export const BLUEPRINT = {
+  room: '图纸间',
+  tip: '桌上摊着这一层的平面图。他不拦你的路，他只验收',
+  done: '图纸通过',
+  doneSub: '米酒把这一页收进了画册，指了指门口',
+  already: '这一页已经签过字了',
+};
 
 // ------------------------------------------------------------------ 文案
 export const TEXT = {

@@ -308,6 +308,10 @@ export const ENEMY = {
   repl: { art: '13960', n: '「替代品」', cls: '精英', hp: 530, atk: 74, spd: 40, leak: 2, big: 1 },
   skirt: { art: '13963', n: '大裙摆', cls: '精英', hp: 735, atk: 67, spd: 25, leak: 2, big: 1 },
   deacon: { art: '13967', n: '「永恒助祭」', cls: '精英', hp: 660, atk: 80, spd: 35, leak: 2, big: 1 },
+  // 米酒：整张表里唯一一个不在官方怪物图鉴里的敌人（自绘 Q 版头像，
+  // assets/protocol/mijiu.webp，构建时单独内联进 gen.js 的 EXTRA）。
+  // 他不是「更肉更快」那种精英：走得不快，但站住了很难打死，攻击力顶到 84。
+  mijiu: { art: 'mijiu', n: '米酒', cls: '精英', hp: 700, atk: 84, spd: 27, leak: 2, big: 1 },
   lamp: { art: '13956', n: '「守灯人」', cls: 'Boss', hp: 1400, atk: 106, spd: 24, leak: 5, big: 1 },
   lawrence: { art: '13958', n: '「劳伦斯先生」', cls: 'Boss', hp: 1600, atk: 118, spd: 22, leak: 5, big: 1 },
   garm: { art: '13961', n: '「嘉尔姆？」', cls: 'Boss', hp: 1750, atk: 131, spd: 30, leak: 5, big: 1 },
@@ -325,10 +329,10 @@ export const WAVES = [
   { n: '第五波 · 创痛疯马', boss: 1, e: [['horse', 1, 0], ['grunt', 6, 0.4], ['dog', 3, 0.4]] },
   { n: '第六波 · 绅士们', e: [['gent', 4, 0.5], ['blob', 4, 0.6], ['dog', 5, 0.35]] },
   { n: '第七波 · 碎石', e: [['digger', 1, 0], ['collab', 4, 0.5], ['dog', 6, 0.3]] },
-  { n: '第八波 · 替代品', e: [['repl', 1, 0], ['gent', 4, 0.5], ['pastor', 3, 0.6], ['blob', 4, 0.55]] },
+  { n: '第八波 · 替代品', e: [['repl', 1, 0], ['mijiu', 1, 0.6], ['gent', 3, 0.5], ['pastor', 2, 0.6], ['blob', 3, 0.55]] },
   { n: '第九波 · 大裙摆', e: [['skirt', 1, 0], ['horse', 2, 0.8], ['blob', 4, 0.6], ['dog', 4, 0.35]] },
   { n: '第十波 · 守灯人', boss: 1, e: [['lamp', 1, 0], ['grunt', 7, 0.35], ['dog', 3, 0.4]] },
-  { n: '第十一波 · 潮声', e: [['deacon', 2, 0.9], ['repl', 1, 0], ['collab', 6, 0.4], ['dog', 5, 0.3]] },
+  { n: '第十一波 · 潮声', e: [['deacon', 2, 0.9], ['repl', 1, 0], ['mijiu', 1, 0.5], ['collab', 4, 0.4], ['dog', 5, 0.3]] },
   // 末波是全套里唯一的硬坎：实测机器人满编 16 人、18 星也会被打穿（8 局里 3 局零血）。
   // 颂歌本身 leak 5，再叠三匹精英就是「一次漏怪直接没命」。现在靠商店对已有角色的加权
   // （见 engine 的 rollOne）让玩家真能凑出二星去扛，所以阵容恢复成 3 马 4 协作。

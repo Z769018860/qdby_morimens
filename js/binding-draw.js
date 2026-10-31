@@ -573,7 +573,7 @@ export function doorRect(dir, W, H) {
 const DOOR_TINT = {
   fight: [255, 198, 128], item: [255, 226, 122], shop: [124, 236, 196],
   boss: [255, 108, 96], start: [186, 208, 255], trap: [255, 158, 118],
-  altar: [226, 146, 255], challenge: [255, 172, 92],
+  altar: [226, 146, 255], challenge: [255, 172, 92], blueprint: [122, 196, 255],
 };
 
 // 门关上时的木板（运行时叠在烘焙图上层，随房间清空与否切换）

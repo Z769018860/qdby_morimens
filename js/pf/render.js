@@ -23,7 +23,7 @@ export function setCalm(on) {
   document.documentElement.classList.toggle('calm', motion.calm);
 }
 document.documentElement.classList.toggle('calm', motion.calm);
-import { ART, SHEET } from './gen.js';
+import { ART, SHEET, EXTRA } from './gen.js';
 import {
   COLS, ROWS, CELLS, HEX_W, HEX_H, R, ROW_PITCH, BOARD_W, BOARD_H,
   CORE_X, SPAWN_X, DEPLOY_COLS, cellXY, cellOf, colOf, rowOf, STAR_NAME,
@@ -111,6 +111,41 @@ export function toLogic(clientX, clientY) {
 
 // ---------------------------------------------------------------- 小工具
 const IMG = () => img;
+
+// 图集里没有的敌人（现在只有米酒）：单独一张小图，按需解码一次。
+// 页面仍然只有「页面 + 一个脚本」两个请求——图是构建时以 data URI 塞进 gen.js 的 EXTRA。
+const extraImgs = new Map();
+function extraImg(key) {
+  if (!extraImgs.has(key)) {
+    const src = EXTRA[key];
+    if (!src) { extraImgs.set(key, null); return null; }
+    const im = new Image();
+    im.decoding = 'async';
+    im.src = src;
+    extraImgs.set(key, im);
+  }
+  return extraImgs.get(key);
+}
+const hasMob = (def) => !!(def && (ART.mobs[def.art] || EXTRA[def.art]));
+
+// 画一个怪物：图集里有帧就按帧取，没有就整张画（Q 版头像是正方形的）
+function drawMob(def, cx, by, h, flip) {
+  const rec = ART.mobs[def.art];
+  if (rec) { sprite(rec.r, cx, by, h, flip); return; }
+  const im = extraImg(def.art);
+  if (!im || !im.complete || !im.naturalWidth) return;
+  const w = h * (im.naturalWidth / im.naturalHeight);
+  const y = by - h;
+  if (flip) {
+    ctx.save();
+    ctx.translate(cx, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(im, -w / 2, y, w, h);
+    ctx.restore();
+  } else {
+    ctx.drawImage(im, cx - w / 2, y, w, h);
+  }
+}
 
 function hexPath(x, y, w) {
   const h = w / Math.sqrt(3);         // 半高 = R = w/√3
@@ -262,8 +297,7 @@ function drawIntent() {
     const dxs = top.length > 1 ? [-13, 13] : [0];
     for (let i = 0; i < top.length; i++) {
       const def = ENEMY[top[i][0]];
-      const rec = ART.mobs[def.art];
-      if (rec) sprite(rec.r, ent.x + dxs[i], ent.y + 22, h, true);
+      if (hasMob(def)) drawMob(def, ent.x + dxs[i], ent.y + 22, h, true);
     }
     ctx.font = '700 12px system-ui,"PingFang SC",sans-serif';
     ctx.textAlign = 'right';
@@ -758,8 +792,7 @@ function drawUnits() {
 function drawEnemies() {
   const list = G.enemies.slice().sort((a, b) => a.y - b.y);
   for (const e of list) {
-    const rec = ART.mobs[e.def.art];
-    if (!rec) continue;
+    if (!hasMob(e.def)) continue;
     const h = 88 * e.size;
     // 走路时上下起伏一点，静止的一排立绘看起来像贴纸
     const bob = Math.sin((G.t || 0) * 8 + e.x * 0.05) * (e.target ? 0.6 : 2.2);
@@ -774,7 +807,7 @@ function drawEnemies() {
     ctx.fill();
     if (e.stunT > 0) ctx.filter = 'grayscale(0.5) brightness(0.8)';
     else if (e.hurtT > 0 && !motion.calm) ctx.filter = 'brightness(2.1) saturate(1.4)';
-    sprite(rec.r, e.x + knock, by, h, true);
+    drawMob(e.def, e.x + knock, by, h, true);
     ctx.filter = 'none';
     ctx.restore();
 
