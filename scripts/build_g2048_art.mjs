@@ -42,3 +42,37 @@ const code = [
 
 fs.writeFileSync(out, code, 'utf8');
 console.log(`方块的图内联 ${levels.length} 张 + 侵蚀 1 张 / 原始 ${(bytes / 1024).toFixed(0)}KB → js/g2048-art.js ${(code.length / 1024).toFixed(0)}KB`);
+
+// ---------------------------------------------------------------- 换皮池
+// 两种皮（随机造物 / 唤醒体）共一百多张图，四百来 KB，绝不能算进首屏：
+// 单独出 js/g2048-skins.js，玩家第一次点「换皮」才 import（见 js/g2048.js 的 loadSkins）。
+// 池子本身由 scripts/build_g2048_skins.py 生成——那边才是素材规则（挑哪几件、缩到多大），
+// 这边只负责把图读成 data URI，免得构建里塞一份图像处理。
+const skinCfgPath = path.join(ROOT, 'data/g2048-skins.json');
+const skinOut = path.join(ROOT, 'js/g2048-skins.js');
+if (!fs.existsSync(skinCfgPath)) {
+  console.log('换皮池没生成（data/g2048-skins.json 不存在），先跑 python scripts/build_g2048_skins.py');
+} else {
+  const sc = JSON.parse(fs.readFileSync(skinCfgPath, 'utf8'));
+  let skinBytes = 0, count = 0;
+  const kinds = {};
+  for (const [k, v] of Object.entries(sc.kinds || {})) {
+    kinds[k] = {
+      n: v.n,
+      pool: (v.pool || []).map((it) => {
+        skinBytes += fs.statSync(path.join(ROOT, it.img)).size;
+        count++;
+        return { n: it.n, art: uri(it.img) };
+      }),
+    };
+  }
+  const skinCode = [
+    '// 由 scripts/build_g2048_art.mjs 从 data/g2048-skins.json 生成，请勿手改。',
+    '// 只给「换皮」用：首屏不加载，玩家点「换皮」才动态 import（见 js/g2048.js 的 loadSkins）。',
+    '// 每种皮一个池子，每级从池里抽一个不重复的（art 是 data URI，抽到哪张都不用再发请求）。',
+    `export const KINDS = ${JSON.stringify(kinds)};`,
+    '',
+  ].join('\n');
+  fs.writeFileSync(skinOut, skinCode, 'utf8');
+  console.log(`换皮池 ${Object.keys(kinds).map((k) => k + ' ' + kinds[k].pool.length).join(' / ')} 共 ${count} 张 / 原始 ${(skinBytes / 1024).toFixed(0)}KB → js/g2048-skins.js ${(skinCode.length / 1024).toFixed(0)}KB（不进首屏）`);
+}

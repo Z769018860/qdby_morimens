@@ -57,6 +57,18 @@ body{
 .ico + .ico{margin-left:0}
 .ico:hover{border-color:var(--accent); color:var(--accent)}
 .ico.off{opacity:.45}
+/* 换过皮：调色盘按钮亮成金色，一眼能看出现在不是原版 */
+.ico.on{color:var(--gold); border-color:color-mix(in srgb, var(--gold) 55%, var(--line));
+  background:color-mix(in srgb, var(--gold) 12%, var(--panel))}
+.ico.on:hover{color:var(--gold); border-color:var(--gold)}
+/* 窄屏（iPhone SE 那种 320）：三个数字 + 三个按钮会顶出去，紧一紧 */
+@media (max-width:365px){
+  .hud{gap:4px}
+  .num{min-width:38px}
+  .num b{font-size:15.5px}
+  .ico{width:29px; height:29px; flex-basis:29px}
+  .back{width:29px; height:29px; flex-basis:29px}
+}
 .ico svg{width:16px; height:16px; display:block}
 
 /* ---------------------------------------------------------------- 难度条 */
@@ -158,6 +170,25 @@ body{
 .tile.rot .face img{width:46%; height:46%; opacity:.62; filter:grayscale(.4) drop-shadow(0 0 4px #000)}
 .tile.rot .face .v{color:#c9bda4; font-size:calc(var(--vfs, 12px) * .82); font-weight:700; letter-spacing:.04em}
 
+/* 唤醒体皮：那张图是不透明的方照片（四周没有留白），按「立绘卡」满铺才不显得像贴了张便签。
+   等级色挪到内圈细边上——颜色仍然代表等级，5×5 也扫得出来。 */
+.board[data-skin="awakener"] .face{background:#0a0f18}
+.board[data-skin="awakener"] .face img{
+  width:100%; height:100%; object-fit:cover; opacity:1; transform:none;
+  filter:saturate(1.06) contrast(1.03);
+}
+.board[data-skin="awakener"] .face .blur{
+  position:absolute; inset:0; pointer-events:none; z-index:1; border-radius:inherit;
+  background:linear-gradient(180deg, rgba(4,7,12,0) 46%, rgba(4,7,12,.55) 84%, rgba(4,7,12,.78));
+  box-shadow:inset 0 0 0 2px color-mix(in oklab, var(--c) 82%, #fff),
+             inset 0 0 12px -4px color-mix(in oklab, var(--c) 55%, transparent);
+}
+.board[data-skin="awakener"] .face .v{z-index:2; right:5px; bottom:3px; color:#f2f4f9;
+  text-shadow:0 1px 4px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.8)}
+/* 4096 往上颜色到顶了，唤醒体皮靠金边继续往上区分 */
+.board[data-skin="awakener"] .tile.beyond .face .blur{box-shadow:inset 0 0 0 2px #ffd479, 0 0 16px -6px #e3b341}
+.board[data-skin="awakener"] .tile.top .face .blur{box-shadow:inset 0 0 0 2px var(--gold), inset 0 0 22px -8px var(--gold)}
+
 /* 动画：定位在外层 .tile（transform），缩放只能给内层 .face，别互相踩 */
 .face.born{animation:born .17s cubic-bezier(.2,.9,.3,1.2) both}
 @keyframes born{from{transform:scale(.45); opacity:.2}to{transform:scale(1); opacity:1}}
@@ -219,12 +250,36 @@ body{
   background:color-mix(in srgb, #05080e 74%, transparent); animation:fade .18s ease both}
 .sheet[hidden]{display:none}
 .sheet .card{
-  width:100%; max-width:400px; max-height:78vh; overflow:auto; border-radius:16px;
+  width:100%; max-width:400px; max-height:86vh; overflow:auto; border-radius:16px;
   background:var(--panel); border:1px solid var(--line); padding:14px 14px 12px;
   box-shadow:0 24px 60px -20px #000;
 }
-.sheet h3{margin:0 0 2px; font-size:15px}
+.chead{display:flex; align-items:center; gap:8px; margin:0 0 9px}
+.sheet h3{margin:0; font-size:15px; flex:1 1 auto}
+.sheet .x{
+  width:27px; height:27px; flex:0 0 27px; border-radius:8px; display:grid; place-items:center;
+  border:1px solid var(--line); background:var(--panel2); color:var(--dim);
+  font:inherit; font-size:12px; line-height:1; cursor:pointer; padding:0;
+}
+.sheet .x:hover{color:var(--accent); border-color:var(--accent)}
 .sheet p.tip{margin:0 0 10px; font-size:11.5px; color:var(--dim)}
+/* 换皮三档：同一块面板里切，点哪档就摇哪档 */
+.skins{display:flex; gap:6px; margin:0 0 9px}
+.skins button{
+  flex:1 1 0; min-width:0; padding:6px 4px; border-radius:9px; cursor:pointer;
+  border:1px solid var(--line); background:var(--panel2); color:var(--dim);
+  font:inherit; font-size:12px; font-weight:600; letter-spacing:.01em; white-space:nowrap;
+}
+.skins button:hover{color:var(--accent)}
+.skins button.on{
+  color:var(--text); border-color:color-mix(in srgb, var(--accent) 55%, var(--line));
+  background:color-mix(in srgb, var(--accent) 16%, var(--panel));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.sheet .acts{display:flex; gap:8px; margin-top:10px}
+.sheet .acts .btn{flex:1 1 0}
+.btn[hidden]{display:none}
+
 .chain{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
 .chain .lv{display:flex; flex-direction:column; align-items:center; gap:2px; opacity:.32; filter:grayscale(1)}
 .chain .lv.got{opacity:1; filter:none}
@@ -234,7 +289,6 @@ body{
 .chain .lv .bx img{width:74%; height:74%; object-fit:contain}
 .chain .lv b{font-size:11px; font-variant-numeric:tabular-nums}
 .chain .lv small{font-size:9.5px; color:var(--dim); text-align:center; line-height:1.25; min-height:24px}
-.sheet .close{width:100%; margin-top:12px}
 
 /* ---------------------------------------------------------------- 浮字 */
 .toasts{position:fixed; left:0; right:0; top:12%; display:flex; flex-direction:column;
@@ -252,7 +306,7 @@ body{
 #boot{position:fixed; inset:0; display:grid; place-items:center; background:var(--bg); z-index:80;
   font-size:13px; color:var(--dim)}
 </style>
-<meta name="build" content="cc14afbaf5">
+<meta name="build" content="771aa373d3">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -268,6 +322,15 @@ body{
     <div class="num"><b id="sc">0</b><span>显影</span></div>
     <button class="num dim pk" id="pkBtn" title="看显影链"><b id="pk">2</b><span>最高块</span></button>
     <div class="num dim"><b id="bs">0</b><span>纪录</span></div>
+    <button class="ico" id="skin" aria-pressed="false" title="换皮：把十一级换成随机造物或唤醒体的脸（Y）">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3.4a8.6 8.6 0 1 0 0 17.2c1.2 0 1.9-.8 1.9-1.8 0-1-.8-1.4-.8-2.2 0-.9.7-1.5 1.6-1.5h1.5c2.3 0 3.9-1.6 3.9-4 0-4-3.6-7.7-8.1-7.7z"/>
+        <circle cx="8.2" cy="9.4" r="1.15" fill="currentColor" stroke="none"/>
+        <circle cx="12" cy="7.8" r="1.15" fill="currentColor" stroke="none"/>
+        <circle cx="15.7" cy="9.8" r="1.15" fill="currentColor" stroke="none"/>
+        <circle cx="7.8" cy="13.4" r="1.15" fill="currentColor" stroke="none"/>
+      </svg>
+    </button>
     <button class="ico" id="snd" aria-pressed="true" title="音效开关（M）">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 9.5h3.2L12 5.5v13L7.2 14.5H4z"/><path d="M16 9.2a4 4 0 0 1 0 5.6"/><path d="M18.6 6.6a7.4 7.4 0 0 1 0 10.8"/>
@@ -320,10 +383,21 @@ body{
 
 <div class="sheet" id="sheet" hidden>
   <div class="card">
-    <h3>显影链</h3>
-    <p class="tip">两块同样的造物合流，往上显影一级。点亮的是你合到过的——灰的是还没见过的。</p>
+    <div class="chead">
+      <h3>显影链</h3>
+      <button class="x" type="button" id="sheetClose" aria-label="收起">✕</button>
+    </div>
+    <div class="skins" id="skinKinds" role="group" aria-label="换皮">
+      <button type="button" data-k="chain" aria-pressed="true">显影链</button>
+      <button type="button" data-k="creation" aria-pressed="false">随机造物</button>
+      <button type="button" data-k="awakener" aria-pressed="false">唤醒体</button>
+    </div>
+    <p class="tip" id="sheetTip">两块同样的造物合流，往上显影一级。点亮的是你合到过的——灰的是还没见过的。也可以整套换皮：随机造物，或者唤醒体的脸。</p>
     <div class="chain" id="chain"></div>
-    <button class="btn close" type="button" id="sheetClose">收起</button>
+    <div class="acts">
+      <button class="btn" type="button" id="skinRoll" hidden>再摇一批</button>
+      <button class="btn" type="button" id="skinReset" hidden>还原显影链</button>
+    </div>
   </div>
 </div>
 
@@ -346,7 +420,7 @@ body{
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/2048.js?v=cc14afbaf5"></script>
+<script type="module" src="js/b/2048.js?v=771aa373d3"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

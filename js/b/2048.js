@@ -57,8 +57,9 @@ const GAMES = {
   merge: { zh: '合成大杜勒', prefix: ['zjtt:merge'], skip: /:(played|snd|mute)/ },
   bird: { zh: '是鸟弟就下100层', prefix: ['zjtt:bird'], skip: /:(snd|mute|diff|ctl)/ },
   // 2048：局面（save）和最高分都值得跟着账号走，难度 / 侵蚀 / 音效是这台设备的偏好
+  // （皮肤不同步：换设备一进来就得多拉四百来 KB 的换皮池，不值）
   g2048: {
-    zh: '忘却 2048', prefix: ['zjtt:g2048'], skip: /:(snd|diff|rot|played)/,
+    zh: '忘却 2048', prefix: ['zjtt:g2048'], skip: /:(snd|diff|rot|played|skin)/,
     trivial: (keys) => !keys['zjtt:g2048:save'] && !keys['zjtt:g2048:best'],
   },
 };
@@ -295,6 +296,7 @@ const KEY = {
   snd: 'zjtt:g2048:snd',
   seen: 'zjtt:g2048:seen',          // 历史合到过的最高块
   gain: 'zjtt:g2048:gain',          // 每难度一次的通关银芯（防反复领）
+  skin: 'zjtt:g2048:skin',          // 换的皮（哪一类 + 每级抽中的是池里第几个）
 };
 const DIFFS = {
   classic: { n: 4, name: '4×4' },
@@ -308,8 +310,9 @@ const ROT_EVERY = 12;               // 侵蚀模式下每几步落一块蚀
 const ROT_SCORE = 40;
 
 const lvOf = (v) => Math.min(TOP, Math.max(0, Math.round(Math.log2(v)) - 1));
-const nOf = (i) => LEVELS[Math.min(TOP, i)].n;
 const colorOf = (i) => LEVELS[Math.min(TOP, i)].c;
+// 方块上画什么、叫什么，都走 nameOf / artOf——换皮只改这两件事（见下面的「换皮」一节）。
+// 颜色始终按等级取，不跟着皮变：5×5 那么密，只能靠颜色一眼扫出哪一级。
 
 // ------------------------------------------------------------------ 状态
 const G = {
@@ -323,6 +326,118 @@ const G = {
 };
 let seq = 1;
 const mk = (v, rot) => ({ id: seq++, v, rot: !!rot });
+
+// ------------------------------------------------------------------ 换皮
+// 十一级长什么样是可以整套换掉的：
+//   chain    默认的显影链（那十一件造物，名字和图鉴对得上）
+//   creation 从造物图鉴的 48 件里，每级抽一件不重复的
+//   awakener 从全部 62 位唤醒体里，每级抽一位不重复的
+// 皮只影响「画什么图 / 叫什么名」，数值、颜色、判负规则都不动。
+// 池子一百多张图（四百来 KB）在 js/g2048-skins.js，首屏不加载：
+// 玩家点换皮、或者上次换过要还原时才 import()。
+const KIND_LABEL = { chain: '显影链', creation: '随机造物', awakener: '唤醒体' };
+const SKIN = { k: 'chain', a: [] };   // a[i] = 这一级用的是池里第几张；k === 'chain' 时无意义
+let KINDS = null;                     // js/g2048-skins.js 的 KINDS，懒加载
+let kindsLoading = null;
+
+function loadKinds() {
+  if (KINDS) return Promise.resolve(KINDS);
+  if (kindsLoading) return kindsLoading;
+  kindsLoading = import('./g2048-skins.js')
+    .then((m) => { KINDS = m.KINDS || null; return KINDS; })
+    .catch(() => null);
+  return kindsLoading;
+}
+
+// 这一级换过皮就用池里那张，否则用显影链原图
+function skinItem(lv) {
+  const i = Math.min(TOP, Math.max(0, lv));
+  if (SKIN.k === 'chain' || !KINDS || !KINDS[SKIN.k]) return null;
+  const pool = KINDS[SKIN.k].pool;
+  const idx = SKIN.a[i];
+  return (idx >= 0 && pool[idx]) || null;
+}
+const artOf = (lv) => { const it = skinItem(lv); return it ? it.art : LEVELS[Math.min(TOP, lv)].img; };
+const nameOf = (lv) => { const it = skinItem(lv); return it ? it.n : LEVELS[Math.min(TOP, lv)].n; };
+
+function readSkin() {
+  let doc = null;
+  try { doc = JSON.parse(lsGet(KEY.skin) || 'null'); } catch { doc = null; }
+  if (!doc || !KIND_LABEL[doc.k] || doc.k === 'chain' || !Array.isArray(doc.a)) return null;
+  SKIN.k = doc.k;
+  SKIN.a = doc.a.map((n) => { const v = parseInt(n, 10); return Number.isFinite(v) && v >= 0 ? v : -1; });
+  return SKIN;
+}
+
+function writeSkin() {
+  try {
+    if (SKIN.k === 'chain') localStorage.removeItem(KEY.skin);
+    else localStorage.setItem(KEY.skin, JSON.stringify({ k: SKIN.k, a: SKIN.a }));
+  } catch { /* 无痕模式 */ }
+}
+
+// 池子换过（比如以后加了新图）就当没换过那几级，别画成空白
+function clampSkin() {
+  const kind = KINDS && KINDS[SKIN.k];
+  if (SKIN.k === 'chain' || !kind) { SKIN.k = 'chain'; SKIN.a = []; return; }
+  const used = new Set();
+  for (let i = 0; i < LEVELS.length; i++) {
+    const v = SKIN.a[i];
+    if (!(v >= 0) || v >= kind.pool.length || used.has(v)) SKIN.a[i] = -1;
+    else used.add(v);
+  }
+  if (SKIN.a.some((v) => v < 0)) fillSkin(kind, used);
+}
+
+// 缺的级（以及池子不够时的重复）从剩下的里补齐
+function fillSkin(kind, used) {
+  const free = kind.pool.map((_, i) => i).filter((i) => !used.has(i));
+  for (let i = free.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [free[i], free[j]] = [free[j], free[i]]; }
+  for (let i = 0; i < LEVELS.length; i++) {
+    if (SKIN.a[i] >= 0) continue;
+    const v = free.pop();
+    SKIN.a[i] = v === undefined ? 0 : v;
+  }
+}
+
+// 换一套：整池洗牌，前十一张发给十一级；尽量避开正在用的那批，免得点了没变化
+function shuffleSkin(k, quiet) {
+  return loadKinds().then((kinds) => {
+    if (!kinds || !kinds[k]) { toast('换皮素材没拉到，检查一下网络'); return null; }
+    const pool = kinds[k].pool;
+    if (!pool.length) return null;
+    const cur = new Set(SKIN.k === k ? SKIN.a : []);
+    const all = pool.map((_, i) => i);
+    for (let i = all.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [all[i], all[j]] = [all[j], all[i]]; }
+    all.sort((x, y) => (cur.has(x) ? 1 : 0) - (cur.has(y) ? 1 : 0));
+    SKIN.k = k;
+    SKIN.a = all.slice(0, LEVELS.length);
+    SKIN.a.length = LEVELS.length;
+    writeSkin();
+    afterSkinChange();
+    if (!quiet) {
+      const names = SKIN.a.map((i) => pool[i] && pool[i].n).filter(Boolean);
+      toast(KIND_LABEL[k] + '：' + names.slice(0, 3).join('、') + (names.length > 3 ? ' 等' : ''), 2200);
+      sfx.tap();
+    }
+    return SKIN;
+  });
+}
+
+function applyChain(quiet) {
+  SKIN.k = 'chain'; SKIN.a = [];
+  writeSkin();
+  afterSkinChange();
+  if (!quiet) { toast('换回显影链：还是那十一件造物'); sfx.tap(); }
+}
+
+// 换完皮：整盘重贴图（id 全换新，顺便把动画状态清干净），面板跟着重画
+function afterSkinChange() {
+  repaintAll();
+  paintChain();
+  paintSkinChips();
+  paintSkinBtn();
+}
 
 // ------------------------------------------------------------------ DOM
 const $ = (s) => document.querySelector(s);
@@ -577,6 +692,8 @@ function faceOf(el) { return el.firstElementChild; }
 function paint(animate = true) {
   const { gap, cell } = metrics();
   boardEl.style.setProperty('--gap', gap + 'px');
+  // 换了皮换一套观感：唤醒体是方照片，方块按「立绘卡」画（见页面 CSS 的 .board[data-skin]）
+  boardEl.dataset.skin = SKIN.k;
   const seen = new Set();
 
   G.cells.forEach((t, i) => {
@@ -588,7 +705,8 @@ function paint(animate = true) {
     if (isNew) {
       el = document.createElement('div');
       el.className = 'tile';
-      el.innerHTML = '<div class="face"><img alt="" decoding="async"><span class="v"></span></div>';
+      // .blur 只在「唤醒体」皮里有用（满铺照片底下压一层暗角放数字，见页面 CSS）
+      el.innerHTML = '<div class="face"><img alt="" decoding="async"><i class="blur"></i><span class="v"></span></div>';
       tilesEl.appendChild(el);
       tileEls.set(t.id, el);
     }
@@ -606,14 +724,14 @@ function paint(animate = true) {
     if (el.dataset.k !== key) {
       el.dataset.k = key;
       const img = face.querySelector('img');
-      img.src = t.rot ? ROT_ART : LEVELS[lv].img;
+      img.src = t.rot ? ROT_ART : artOf(lv);
       face.style.setProperty('--c', t.rot ? 'var(--rot)' : colorOf(lv));
       const label = t.rot ? '蚀' : String(t.v);
       face.querySelector('.v').textContent = label;
       const digits = label.length;
       const fs = Math.max(9, Math.round(cell * (digits <= 1 ? 0.32 : digits === 2 ? 0.29 : digits === 3 ? 0.25 : digits === 4 ? 0.21 : 0.18)));
       face.style.setProperty('--vfs', fs + 'px');
-      el.title = t.rot ? '侵蚀：不能移动，紧挨着合成才会被震碎' : `${LEVELS[lv].n}（${t.v}）`;
+      el.title = t.rot ? '侵蚀：不能移动，紧挨着合成才会被震碎' : `${nameOf(lv)}（${t.v}）`;
       // 合并：这一格的值变了 → 弹一下。新落下的块只做「生」的动画，别再弹一次
       if (!isNew && animate) {
         face.classList.remove('pop');
@@ -725,7 +843,7 @@ function useForget() {
   updateHud();
   saveGame();
   sfx.forget();
-  toast('忘却：忘掉了「' + list.map((x) => nOf(lvOf(x.t.v))).join('」「') + '」');
+  toast('忘却：忘掉了「' + list.map((x) => nameOf(lvOf(x.t.v))).join('」「') + '」');
   if (!canMove()) endGame();
 }
 
@@ -733,7 +851,7 @@ function checkWin() {
   if (G.won || G.peak < 2048) return;
   G.won = true;
   sfx.win();
-  toast('显影完成：祂的神谕。可以继续往上合', 2600);
+  toast('显影完成：' + nameOf(TOP) + '。可以继续往上合', 2600);
   const got = lsGet(KEY.gain + ':' + G.diff) === '1';
   if (!got) {
     lsSet(KEY.gain + ':' + G.diff, '1');
@@ -756,7 +874,7 @@ function endGame() {
   const isNew = G.score >= rec && G.score > 0;
   $('#ovk').textContent = G.peak >= 2048 ? '显影到底了' : '这段记忆散了';
   $('#ovs').textContent = G.score;
-  $('#ovd').textContent = `最高块「${nOf(lvOf(G.peak))}」 · ${G.steps} 步 · ${diffName}`;
+  $('#ovd').textContent = `最高块「${nameOf(lvOf(G.peak))}」 · ${G.steps} 步 · ${diffName}`;
   overEl.hidden = false;
   updateHud();
   if (isNew) setTimeout(() => toast('新纪录：' + G.score + ' 分', 2200), 500);
@@ -778,7 +896,7 @@ function act(d) {
   G.peak = peak;
   if (peakUp) {
     noteSeen(peak);
-    if (peak >= 128) toast('显影：' + nOf(lvOf(peak)));
+    if (peak >= 128) toast('显影：' + nameOf(lvOf(peak)));
   }
 
   if (res.merges.length) sfx.merge(lvOf(G.cells[res.merges[0]].v));
@@ -801,14 +919,21 @@ function act(d) {
 function bindKeys() {
   window.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (!$('#sheet').hidden) return;      // 显影链面板开着的时候不接方向键
     const k = e.key.toLowerCase();
+    // 显影链面板开着的时候不接方向键（别在面板后面偷偷动盘面），
+    // 但 Y / Esc 还得管用——面板里最常用的就是「再摇一批」和「收起」。
+    if (!$('#sheet').hidden) {
+      if (k === 'y') { e.preventDefault(); if (SKIN.k !== 'chain') shuffleSkin(SKIN.k, false); }
+      else if (k === 'escape') { e.preventDefault(); openSheet(false); }
+      return;
+    }
     const map = { arrowleft: 'l', a: 'l', arrowright: 'r', d: 'r', arrowup: 'u', w: 'u', arrowdown: 'd', s: 'd' };
     if (map[k]) { e.preventDefault(); doMove(map[k]); return; }
     if (k === 'z') { e.preventDefault(); undo(); }
     else if (k === 'r') { e.preventDefault(); newGame(); }
     else if (k === 'm') { e.preventDefault(); toggleSound(); }
     else if (k === 'f') { e.preventDefault(); useForget(); }
+    else if (k === 'y') { e.preventDefault(); if (SKIN.k === 'chain') openSheet(true); else shuffleSkin(SKIN.k, false); }
   });
 }
 
@@ -885,27 +1010,55 @@ function setRot(on) {
 }
 
 // 显影链面板：见过的点亮，没见过的灰着（剪影比问号更能勾人去合）
+// 换过皮的话，这里显示的就是「现在这套皮」的十一级，名字也跟着换。
 function paintChain() {
   const seen = seenMax();
   const box = $('#chain');
   box.replaceChildren();
-  for (const l of LEVELS) {
+  LEVELS.forEach((l, i) => {
     const got = seen >= l.v;
     const d = document.createElement('div');
     d.className = 'lv' + (got ? ' got' : '');
     d.style.setProperty('--c', l.c);
     d.innerHTML = '<div class="bx"><img alt="" decoding="async"></div><b></b><small></small>';
-    d.querySelector('img').src = l.img;
+    d.querySelector('img').src = artOf(i);
     d.querySelector('b').textContent = l.v;
-    d.querySelector('small').textContent = got ? l.n : '未显影';
+    d.querySelector('small').textContent = got ? nameOf(i) : '未显影';
     box.appendChild(d);
+  });
+}
+
+function paintSkinChips() {
+  for (const b of document.querySelectorAll('#skinKinds button')) {
+    const on = b.dataset.k === SKIN.k;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
+  const random = SKIN.k !== 'chain';
+  const roll = $('#skinRoll'), reset = $('#skinReset'), tip = $('#sheetTip');
+  if (roll) roll.hidden = !random;
+  if (reset) reset.hidden = !random;
+  if (tip) {
+    tip.textContent = random
+      ? `换过皮了：这十一级换成了${KIND_LABEL[SKIN.k]}，名字和图都是图鉴里真有的。换个心情可以「再摇一批」；颜色仍按等级走，不会认错。`
+      : '两块同样的造物合流，往上显影一级。点亮的是你合到过的——灰的是还没见过的。也可以整套换皮：随机造物，或者唤醒体的脸。';
+  }
+}
+
+// 顶栏那个调色盘按钮：换过皮就亮着，点开就是显影链 / 换皮那张面板
+function paintSkinBtn() {
+  const b = $('#skin');
+  if (!b) return;
+  const on = SKIN.k !== 'chain';
+  b.classList.toggle('on', on);
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  b.title = on ? `当前是「${KIND_LABEL[SKIN.k]}」皮，点开换（Y）` : '换皮：把十一级换成随机造物或唤醒体的脸（Y）';
 }
 
 function openSheet(open) {
   const s = $('#sheet');
   s.hidden = !open;
-  if (open) { paintChain(); sfx.tap(); }
+  if (open) { paintChain(); paintSkinChips(); sfx.tap(); }
 }
 
 // ------------------------------------------------------------------ 启动
@@ -913,18 +1066,10 @@ function boot() {
   loadPrefs();
   // 先读存档：存档里的棋盘尺寸可能和偏好里的难度不一致时，以存档为准
   const restored = loadGame();
+  const sk = readSkin();            // 上次换过皮的话，先把「哪套皮」读出来
   if (!restored) G.cells = new Array(slotCount()).fill(null);
   buildCells();
   syncDiffButtons();
-  // 恢复上次没打完的一局；没有就开新的
-  if (restored) {
-    paint(false);
-    updateHud();
-    saveGame();
-  } else {
-    newGame(true);
-  }
-  noteSeen(G.peak);
 
   const snd = $('#snd');
   snd.classList.toggle('off', !G.snd);
@@ -945,22 +1090,58 @@ function boot() {
   $('#sheetClose').addEventListener('click', () => openSheet(false));
   $('#sheet').addEventListener('click', (e) => { if (e.target.id === 'sheet') openSheet(false); });
 
+  // 换皮：三种皮是互斥的（同一块面板里切），点当前那一档就再摇一批
+  $('#skin').addEventListener('click', () => openSheet(true));
+  $('#skinKinds').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-k]');
+    if (!b) return;
+    if (b.dataset.k === 'chain') applyChain(false);
+    else shuffleSkin(b.dataset.k, false);
+  });
+  $('#skinRoll').addEventListener('click', () => { if (SKIN.k !== 'chain') shuffleSkin(SKIN.k, false); });
+  $('#skinReset').addEventListener('click', () => applyChain(false));
+
   bindTouch();
   bindKeys();
   window.addEventListener('resize', () => { paint(false); });
 
-  const b = document.getElementById('boot');
-  if (b) b.remove();
+  hintEl.innerHTML = '方向键 / WASD 移动 · <b>Z</b> 回溯 · <b>R</b> 重开 · <b>Y</b> 换皮';
 
-  // 玩过一次再给提示，别一进来就糊一脸
-  if (!lsGet('zjtt:g2048:played')) {
-    lsSet('zjtt:g2048:played', '1');
-    setTimeout(() => toast('同样的两块撞在一起，就往上显影一级', 2400), 500);
-    setTimeout(() => toast('狂气攒满可以「忘却」，忘掉最小的两块腾地方', 2600), 3400);
-  }
-  hintEl.innerHTML = '方向键 / WASD 移动 · <b>Z</b> 回溯 · <b>R</b> 重开';
+  const first = () => {
+    // 恢复上次没打完的一局；没有就开新的
+    if (restored) {
+      paint(false);
+      updateHud();
+      saveGame();
+    } else {
+      newGame(true);
+    }
+    noteSeen(G.peak);
+    paintSkinBtn();
+    paintSkinChips();
+    const b = document.getElementById('boot');
+    if (b) b.remove();
 
-  startGameCloud('g2048');
+    // 玩过一次再给提示，别一进来就糊一脸
+    if (!lsGet('zjtt:g2048:played')) {
+      lsSet('zjtt:g2048:played', '1');
+      setTimeout(() => toast('同样的两块撞在一起，就往上显影一级', 2400), 500);
+      setTimeout(() => toast('狂气攒满可以「忘却」，忘掉最小的两块腾地方', 2600), 3400);
+      setTimeout(() => toast('点右上角那个调色盘能换皮：随机造物，或者唤醒体的脸', 2800), 6400);
+    }
+    startGameCloud('g2048');
+  };
+
+  if (!sk) { first(); return; }
+  // 换过皮：池子没到之前先别画，不然会先闪一帧原版造物。
+  // 拉不到就安静地退回显影链——「正在显影」不能一直转着。
+  const bootEl = document.getElementById('boot');
+  if (bootEl) bootEl.textContent = '正在换皮…';
+  loadKinds().then((kinds) => {
+    if (!kinds || !kinds[SKIN.k]) { SKIN.k = 'chain'; SKIN.a = []; writeSkin(); }
+    else clampSkin();
+    first();
+  });
 }
 
 function setRotText() {
@@ -1004,6 +1185,10 @@ if (window.__G2048_TEST__ || /[?&]_test=1\b/.test(location.search)) {
     diff: (k) => setDiff(k, true),
     rot: (on) => setRot(on),
     state: () => ({ score: G.score, peak: G.peak, over: G.over, n: G.n, mania: G.mania, cells: G.cells.map((t) => (t ? (t.rot ? -1 : t.v) : 0)) }),
+    // 换皮：skin('creation'|'awakener') 摇一批，skin('chain') 还原；返回 Promise
+    skin: (k) => (k === 'chain' ? (applyChain(true), Promise.resolve({ k: 'chain' })) : shuffleSkin(k, true)),
+    skinState: () => ({ k: SKIN.k, a: SKIN.a.slice(), names: LEVELS.map((_, i) => nameOf(i)) }),
+    kinds: () => (KINDS ? Object.keys(KINDS).map((k) => ({ k, n: KINDS[k].n, pool: KINDS[k].pool.length })) : null),
   };
 }
 return {  };
