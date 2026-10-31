@@ -12,7 +12,7 @@ import { sound, TRACK_LIST } from './audio.js';
 import {
   SQUAD_KEYS, RIFT_SQUAD_KEYS, ALL_SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, RIFT_MODE,
   isRiftSquad, squadMembers, squadUsage, pickedSquad, loadoutOf, riftTaken, normalizeLoadout, withLoadout, squadKeyFor, squadsOf,
-  squadLabel, teamSlugsFor, setSquadTeam, setSquadPick, autoSquadSlugs,
+  squadLabel, teamSlugsFor, setSquadTeam, setSquadPick, autoSquadSlugs, squadsOfSlug, squadKeyZh,
   RT_MODES, rtModeOf, realmOfMode,
 } from '../core/squad.js';
 import { riftParty } from '../core/rift.js';
@@ -172,6 +172,9 @@ export function squadCard(app, key) {
   const t = slugs.length ? withLoadout(s, key, () => teamDefs(s, data, slugs)) : null;
   const used = squadUsage(s, key);
   const lo = loadoutOf(s, key);
+  // 这套是不是就是主线当前队伍：是的话「上阵」没有意义，按钮直接标成「已在主线」
+  const cur = (s.team || []).filter((x) => s.roster[x]);
+  const same = slugs.length > 0 && slugs.length === cur.length && slugs.every((x) => cur.includes(x));
   const av = slugs.length
     ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
     : '<span class="sqempty">还没有保存队伍</span>';
@@ -179,11 +182,11 @@ export function squadCard(app, key) {
     <header><b>${SQUAD_ZH[key]}</b><small>${slugs.length ? `${slugs.length} 人 · 战力 ${fmt(t.power)}` : '空位'}</small></header>
     <div class="sqav">${av}</div>
     <div class="sqlo-note">${lo ? `独立配装 · ${loSummary(lo)}` : slugs.length ? '沿用主线配装' : ''}</div>
-    <div class="squse">${used.length ? `挑战在用：${used.join('、')}` : '未被挑战引用'}</div>
+    <div class="squse">${same ? '<b class="scur">✓ 主线正在用这套</b>' : used.length ? `挑战在用：${used.join('、')}` : '未被挑战引用'}</div>
     <div class="row">
       <button class="btn sm" data-act="squad-edit" data-k="${key}" data-mode="">编队 / 配装</button>
       <button class="btn sm" data-act="squad-save" data-k="${key}">存为当前队伍</button>
-      <button class="btn sm" data-act="squad-load" data-k="${key}" ${slugs.length ? '' : 'disabled'}>上阵</button>
+      <button class="btn sm" data-act="squad-load" data-k="${key}" ${slugs.length && !same ? '' : 'disabled'} title="${same ? '这 4 人已经是主线当前队伍' : '把这套编队和它的独立配装一起搬到主线'}">${same ? '已在主线' : '上阵'}</button>
       <button class="btn sm danger" data-act="squad-clear" data-k="${key}" ${slugs.length ? '' : 'disabled'}>清空</button>
     </div></div>`;
 }
@@ -304,7 +307,9 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
   const { state: s, data } = app;
   let st = resume ? app.ui.sqDraft : null;
   if (!st) {
-    const isRiftM = mode === RIFT_MODE;
+    // 从编队库点「编队 / 配装」进来时 mode 是空的，得靠 key 判断这套是不是禁区专用队，
+    // 否则禁区一队会被当成普通编队编辑，保存按钮只剩通用一队~五队。
+    const isRiftM = mode === RIFT_MODE || isRiftSquad(key);
     const keys0 = isRiftM ? RIFT_SQUAD_KEYS : SQUAD_KEYS;
     if (!ALL_SQUAD_KEYS.includes(key)) key = keys0[0];
     const lockR = mode && String(mode).startsWith('rt_') ? String(mode).slice(3) : null;
@@ -315,7 +320,8 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
   }
   app.ui.sqDraft = st;
   mode = st.mode;
-  const isRift = mode === RIFT_MODE;
+  // 禁区那五套（r1~r5）永远是禁区专用：不管是从「融灾禁区」页进来，还是从编队库直接点它们进来
+  const isRift = mode === RIFT_MODE || isRiftSquad(st.key);
   // 融灾禁区编辑的是它自己那五套（禁区一队~五队），存完只落这一处，不碰通用编队
   const keys = isRift ? RIFT_SQUAD_KEYS : SQUAD_KEYS;
   const lockRealm = mode && String(mode).startsWith('rt_') ? String(mode).slice(3) : null;
@@ -505,7 +511,10 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
         if (dup.length) { toast(`${dup.map((x) => data.bySlug[x].zh).join('、')} 已在别的禁区队里，五队不能重复`); sound.play('deny'); return; }
       }
       const saved = setSquadTeam(s, k, st.team);
+      // st.lo 为空 = 这套编队不单独配装（关掉独立配装之后保存，要把旧的 lo 一起删掉，
+      // 否则卡片还写着「独立配装」，实际配装却已经不打算用了）
       if (st.lo) squadsOf(s)[k].lo = normalizeLoadout(st.lo, saved, s.gear, s.orders);
+      else if (squadsOf(s)[k].lo) delete squadsOf(s)[k].lo;
       if (st.mode && !isRift) setSquadPick(s, st.mode, k);
       app.ui.sqDraft = null;
       app.save(); sound.play('stamp');
@@ -696,9 +705,14 @@ export function rosterPage(app) {
   return `<div class="page"><h2>唤醒体 <small>${Object.keys(s.roster).length}/${data.awakeners.length}</small>${tipBtn(app, 'roster')}</h2>${tipCard(app, 'roster')}
     <div class="row filters"><span class="dim">界域</span>${opt(REALMS, f.realm, 'realm')}<span class="dim">类型</span>${opt(TYPES, f.type, 'type')}<label><input type="checkbox" data-filter="owned" ${f.owned ? 'checked' : ''}> 仅已拥有</label></div>
     <div class="row sortbar"><span class="dim">排序</span>${sorts}</div>
-    <div class="grid">${list.map(({ a, r, power: p }) => `<div class="tile ${r ? '' : 'locked'} ${rarCls(a.rarity)} ${a.creator ? 'gift' : ''}" style="--rc:${R(a).color}" data-act="detail" data-slug="${a.slug}">
-      <img src="${img(a.portrait)}" alt="" loading="lazy"><b>${esc(a.zh)}</b><small>${r ? `Lv${r.lv} · 叠${r.star} · ${TYPES[a.type].short}` : a.creator ? '未获得 · 联名赠送' : `未获得 · ${TYPES[a.type].short}`}</small><small>${r ? `战力 ${fmt(p)}` : REALMS[a.realm].zh}</small>${a.creator ? '<i class="gmark">联名</i>' : ''}</div>`).join('')}</div>
-    <p class="hint">排序：稀有度 / 战力 / 等级 / 叠位数 / 获取顺序 / 界域，再点一次当前排序可以反过来。未获得的永远排在后面，筛选里的「仅已拥有」可以只看已有。<b>带「联名」角标的是社区主播彩蛋</b>，不参与召唤，只从「更多 → 联动」的签到与活动里赠送。</p></div>`;
+    <div class="grid">${list.map(({ a, r, power: p }) => {
+    // 编队角标：在主线队伍里就标「上阵」，只在编队里就标编队名；同时编进几套时后面跟「+N」
+    const sq = r ? squadsOfSlug(s, a.slug) : [];
+    const mark = sq.length ? `<i class="tmark${sq[0] === 'cur' ? ' on' : ''}" title="${esc(`已编入：${sq.map(squadKeyZh).join('、')}`)}">${sq[0] === 'cur' ? '上阵' : esc(squadKeyZh(sq[0]))}${sq.length > 1 ? `+${sq.length - 1}` : ''}</i>` : '';
+    return `<div class="tile ${r ? '' : 'locked'} ${rarCls(a.rarity)} ${a.creator ? 'gift' : ''}" style="--rc:${R(a).color}" data-act="detail" data-slug="${a.slug}">
+      <img src="${img(a.portrait)}" alt="" loading="lazy">${mark}<b>${esc(a.zh)}</b><small>${r ? `Lv${r.lv} · 叠${r.star} · ${TYPES[a.type].short}` : a.creator ? '未获得 · 联名赠送' : `未获得 · ${TYPES[a.type].short}`}</small><small>${r ? `战力 ${fmt(p)}` : REALMS[a.realm].zh}</small>${a.creator ? '<i class="gmark">联名</i>' : ''}</div>`;
+  }).join('')}</div>
+    <p class="hint">排序：稀有度 / 战力 / 等级 / 叠位数 / 获取顺序 / 界域，再点一次当前排序可以反过来。未获得的永远排在后面，筛选里的「仅已拥有」可以只看已有。<b>头像左上角的角标是编队情况</b>：「上阵」= 主线当前队伍，「一队 / 禁区三队…」= 只写在某套编队里（同时编进几套会跟「+N」，鼠标停上去能看到全部）。<b>带「联名」角标的是社区主播彩蛋</b>，不参与召唤，只从「更多 → 联动」的签到与活动里赠送。</p></div>`;
 }
 
 const NUM_ZH = { dmg: '伤害', shield: '护盾', gauge: '狂气' };
@@ -771,6 +785,7 @@ function awakenTable(r) {
 export function detailModal(app, slug) {
   const { state: s, data } = app;
   const a = data.bySlug[slug], r = s.roster[slug];
+  const sq = r ? squadsOfSlug(s, slug) : [];   // 编队情况：'cur' = 主线队伍，其余是编队位
   const view = r ? allyDef(s, data, slug, [slug]) : null;
   const preview = r || { lv: 1, star: 0, brk: 0 };
   const st = view || (() => { const ghost = { ...s, roster: { ...s.roster, [slug]: preview } }; return allyDef(ghost, data, slug, [slug]); })();
@@ -800,6 +815,9 @@ export function detailModal(app, slug) {
     <div class="d-art"><img src="${img(a.card)}" alt="${esc(a.zh)}立绘" data-act="zoom" data-slug="${slug}" loading="lazy"><span class="zoomhint">${a.creator ? '点开看大图' : '点立绘看大图'}</span></div>
     <div class="d-body"><h3>${esc(a.zh)} <small>${esc(a.en)}</small></h3>
       <div class="tags"><span class="tag" style="background:${R(a).color}">${R(a).zh}</span><span class="tag">${TYPES[a.type].zh}</span><span class="tag ${rarCls(a.rarity)}">${a.rarity === 'Genesis' ? '创生' : a.rarity}</span>${a.creator ? `<span class="tag ctag">${esc(a.creator.emoji)} 联名嘉宾</span>` : ''}</div>
+      ${r ? `<div class="sqtags"><span class="dim">编队</span>${sq.length
+        ? sq.map((k) => `<span class="tag sqtag${k === 'cur' ? ' on' : ''}">${squadKeyZh(k)}</span>`).join('')
+        : '<span class="tag sqtag none">未编入任何队伍</span>'}</div>` : ''}
       ${a.creator ? `<div class="cbox"><small class="clabel">B 站签名</small><b>${a.creator.bio ? esc(a.creator.bio) : '（这位主播没有填写签名）'}</b>
         ${a.creator.nick ? `<div class="crow"><span>外号</span><em>${esc(a.creator.nick)}</em></div>` : ''}
         <div class="crow"><span>B 站首页</span><a href="${esc(a.creator.url)}" target="_blank" rel="noopener" title="打开 ${esc(a.creator.zh)} 的 B 站个人空间">${esc(a.creator.url.replace(/^https?:\/\//, ''))}</a></div>

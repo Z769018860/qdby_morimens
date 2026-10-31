@@ -237,11 +237,19 @@ export function setSquadTeam(state, key, team) {
   return slugs;
 }
 
-/** 把编队读回「当前队伍」，方便在队伍页继续调整 / 用于推图 */
-export function loadSquad(state, key) {
+/** 把编队读回「当前队伍」，方便在队伍页继续调整 / 用于推图。
+ *  带独立配装的编队，上阵时连配装一起搬到主线：卡片上的战力是按这套配装算的，
+ *  只换人、装备留在原地的话，上阵后战力对不上，看着就像「点了没反应」。 */
+export function loadSquad(state, key, applyLoadout = true) {
   const slugs = squadMembers(state, key);
   if (!slugs.length) return null;
   state.team = [...slugs];
+  const lo = squadsOf(state)[key]?.lo;
+  if (applyLoadout && lo) {
+    state.gear.equip = Object.fromEntries(Object.entries(lo.equip || {}).map(([slug, e]) => [slug, { ...e }]));
+    state.gear.relics = [...(lo.relics || [])];
+    state.orders.slots = [...(lo.orders || [])];
+  }
   return state.team;
 }
 
@@ -252,6 +260,20 @@ export function clearSquad(state, key) {
   for (const [m] of SQUAD_MODES) if (state.squadPick?.[m] === key) state.squadPick[m] = 'cur';
   return true;
 }
+
+/**
+ * 这位唤醒体现在编在哪些队伍里（队库卡片上的「已编入」角标用）：
+ * 'cur' = 主线当前队伍，其余是编队位 key（一队~五队、禁区一队~五队）。
+ * 顺序固定：先当前队伍，再按 ALL_SQUAD_KEYS 的次序，同一份存档每次渲染结果都一样。
+ */
+export function squadsOfSlug(state, slug) {
+  const out = [];
+  if ((state.team || []).includes(slug)) out.push('cur');
+  for (const k of ALL_SQUAD_KEYS) if (squadsOf(state)[k]?.team?.includes(slug)) out.push(k);
+  return out;
+}
+/** 编队位 key 的中文短名（'cur' 不在 SQUAD_ZH 里，单独给） */
+export const squadKeyZh = (k) => (k === 'cur' ? '当前队伍' : SQUAD_ZH[k] || k);
 
 /** 这个编队位被哪些挑战入口用着（给队伍页显示「使用中」） */
 export function squadUsage(state, key) {

@@ -929,7 +929,7 @@ test('挂机券/银芯：在线零头与离线结算走同一条曲线', () => {
 
 /* ---------- M13：编队 / 抽卡记录与欧非 ---------- */
 
-import { saveSquad, loadSquad, clearSquad, setSquadPick, teamSlugsFor, squadMembers, normalizeSquads } from '../src/core/squad.js';
+import { saveSquad, loadSquad, clearSquad, setSquadPick, teamSlugsFor, squadMembers, normalizeSquads, squadsOfSlug, squadKeyZh } from '../src/core/squad.js';
 import { luckOf, GACHA_LOG_MAX, EXPECTED_WORTH } from '../src/core/gacha.js';
 
 test('编队：存三套阵容，挑战入口各自指定', () => {
@@ -963,6 +963,51 @@ test('编队：存三套阵容，挑战入口各自指定', () => {
   // 非法入口 / 非法编队位一律拒绝
   assert.equal(setSquadPick(s, 'nope', 'a'), false);
   assert.equal(setSquadPick(s, 'tower', 'z'), false);
+});
+
+test('队库角标：squadsOfSlug 先当前队伍、再按编队位次序，没编入就是空', () => {
+  const s = newState(data, 41);
+  s.roster = Object.fromEntries(data.awakeners.slice(0, 10).map((a) => [a.slug, { lv: 10, star: 0, brk: 0 }]));
+  const A = data.awakeners.slice(0, 4).map((a) => a.slug);
+  const B = data.awakeners.slice(4, 8).map((a) => a.slug);
+  s.team = [...A];
+  assert.deepEqual(saveSquad(s, 'a'), A);      // 一队 = A
+  s.team = [...B];
+  assert.deepEqual(saveSquad(s, 'b'), B);      // 二队 = B
+  s.team = [A[0]];
+
+  assert.deepEqual(squadsOfSlug(s, A[0]), ['cur', 'a'], '当前队伍 + 一队，当前队伍排最前');
+  assert.deepEqual(squadsOfSlug(s, A[3]), ['a'], '只在一队里');
+  setSquadTeam(s, 'c', [A[3]]);
+  assert.deepEqual(squadsOfSlug(s, A[3]), ['a', 'c'], '两套编队都编了，按编队位次序');
+  assert.deepEqual(squadsOfSlug(s, B[0]), ['b'], '只在二队里');
+  assert.deepEqual(squadsOfSlug(s, data.awakeners[9].slug), [], '没编入任何队伍');
+  setSquadTeam(s, 'r3', [A[0]]);
+  assert.deepEqual(squadsOfSlug(s, A[0]), ['cur', 'a', 'r3'], '禁区分队也算编入');
+  assert.equal(squadKeyZh('cur'), '当前队伍');
+  assert.equal(squadKeyZh('r3'), '禁区三队');
+});
+
+test('编队「上阵」：带独立配装时人和配装一起搬到主线', () => {
+  const s = newState(data, 43);
+  s.roster = Object.fromEntries(data.awakeners.slice(0, 4).map((a) => [a.slug, { lv: 20, star: 1, brk: 1 }]));
+  const A = data.awakeners.slice(0, 4).map((a) => a.slug);
+  s.team = [...A];
+  saveSquad(s, 'a');
+  const wid = Object.keys(data.wheelById)[0];
+  s.gear.items = { ...(s.gear.items || {}), w1: { uid: 'w1', kind: 'wheel', defId: wid, lv: 1, rf: 0 } };
+  s.gear.relics = Array(6).fill(null);
+  s.orders.slots = Array(3).fill(null);
+  s.squads.a.lo = { equip: { [A[0]]: { wheel: 'w1' } }, relics: Array(6).fill(null), orders: Array(3).fill(null) };
+
+  s.team = [A[3]];                                 // 主线先换成别人
+  assert.deepEqual(loadSquad(s, 'a'), A);
+  assert.equal(s.gear.equip[A[0]]?.wheel, 'w1', '独立配装的命轮跟着上阵');
+  // 只换人、不搬配装：applyLoadout = false
+  s.team = [A[0]];
+  s.gear.equip = {};
+  assert.deepEqual(loadSquad(s, 'a', false), A);
+  assert.deepEqual(s.gear.equip, {}, '关掉搬配装就不动主线装备');
 });
 
 test('编队存档迁移：剔除不存在的唤醒体与非法入口', () => {

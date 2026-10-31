@@ -794,3 +794,18 @@ a.btn{display:inline-block;text-decoration:none}
 .idle-glossary-item{padding:9px 5px;border:1px solid var(--line);background:var(--panel2);border-radius:9px;text-align:center;cursor:pointer}
 .glossary-modal{max-width:min(620px,94vw)}
 @media(max-width:380px){.idle-terms-btn{padding:4px 5px;font-size:11px}}
+
+/* ---- 队库的「已编入编队」角标 / 详情里的编队标签 ---- */
+.tile .tmark{position:absolute;top:6px;left:6px;font-size:9px;font-style:normal;line-height:1.5;padding:1px 5px;border-radius:6px;background:#0d1320e6;border:1px solid #3d4d66;color:#c8d4e6;pointer-events:none}
+.tile .tmark.on{background:#3a2c08ee;border-color:#c9a13a;color:var(--gold)}
+.sqtags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0 2px;font-size:12px}
+.sqtags .tag.sqtag{background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:999px;padding:1px 9px;font-size:11.5px}
+.sqtags .tag.sqtag.on{background:color-mix(in srgb,var(--gold) 14%,transparent);border-color:color-mix(in srgb,var(--gold) 55%,transparent);color:var(--gold)}
+.sqtags .tag.sqtag.none{font-style:italic;opacity:.75}
+
+/* ---- 导航红点：成就 / 任务有可领取的奖励 ---- */
+.rdot{position:absolute;top:6px;left:50%;margin-left:9px;min-width:15px;height:15px;padding:0 4px;border-radius:999px;background:#e2453c;color:#fff;font-size:9.5px;font-weight:700;font-style:normal;line-height:15px;text-align:center;box-shadow:0 0 7px #e2453ca0;pointer-events:none}
+.rdot[hidden]{display:none!important}
+#subnav button{position:relative}
+#subnav button .rdot{position:static;display:inline-block;margin:0 0 0 5px;vertical-align:1px;box-shadow:none}
+.squad .squse .scur{color:var(--gold);font-weight:600}
