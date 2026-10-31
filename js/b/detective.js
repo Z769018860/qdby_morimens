@@ -35,7 +35,7 @@ const I18N = {
     mlLevel: '推荐等级 {n}', keysUsed: '钥令开启',
     maxBout: '单回合最高伤害', deathResist: '死扛触发', leftHp: '剩余生命', keyDmg: '守密人伤害',
     score: '榜单分数', relicCount: '造物数量', relicAll: '需要全部还原',
-    relicInnate: '含固有 {n} 件（名字要用线索买）', innateTag: '固有造物', clueInnate: '固有造物', relicFillTag: '需补齐',
+    relicInnate: '固有 {n} 件已给出', innateTag: '固有造物', clueDim: '维度影像', clueDimNone: '没有更多维度影像了，已返还银芯', clueDimBtn: '再解锁一个', relicFillTag: '需补齐',
     dmg: '伤害', blk: '格挡', heal: '治疗',
     cardUp: '卡牌升级 {n} 次', talentSum: '天赋合计 Lv.{n}',
     // 伤害构成
@@ -242,7 +242,7 @@ const I18N = {
     mlLevel: 'Recommended Lv.{n}', keysUsed: 'Posse used',
     maxBout: 'Max bout dmg', deathResist: 'Death resist', leftHp: 'HP left', keyDmg: 'Keeper dmg',
     score: 'Score', relicCount: 'Relics', relicAll: 'restore all',
-    relicInnate: '{n} innate (names cost a clue)', innateTag: 'Innate relic', clueInnate: 'Innate relics', relicFillTag: 'to fill in',
+    relicInnate: '{n} innate given', innateTag: 'Innate relic', clueDim: 'Dimensional Images', clueDimNone: 'No more Dimensional Images — credits refunded', clueDimBtn: 'Unlock another', relicFillTag: 'to fill in',
     dmg: 'DMG', blk: 'Block', heal: 'Heal',
     cardUp: '{n} card-ups', talentSum: 'Talent Lv.{n}',
     dmgCompTitle: 'Damage composition (keeper & special)',
@@ -3058,9 +3058,12 @@ const NON_RELIC_IDS = new Set(['13829']);
 const isNonRelic = (id) => NON_RELIC_IDS.has(String(id));
 const relOf = (p) => (p.relics || []).filter(id => !isNonRelic(id));
 const relicList = () => relOf(puzzle);
+// 固有造物 = 开局第一件 + 那一期的戒指，只认前两件；维度影像不算固有（它们归「维度影像」线索，一次解锁一个）。
+// 老题库没有 inn 字段时，退回「造物列表的前两件」。
 const innateIds = () => (Array.isArray(puzzle.inn) && puzzle.inn.length
-  ? puzzle.inn.map(String)
-  : relicList().filter(id => (creationOf(id) || {}).kind === INNATE_KIND));
+  ? puzzle.inn.map(String).slice(0, 2)
+  : relicList().slice(0, 2).map(String));
+const isDimImage = (id) => (creationOf(id) || {}).kind === INNATE_KIND;
 const isInnateRelic = (id) => innateIds().includes(String(id));
 const innateRelics = () => relicList().filter(id => isInnateRelic(id));
 const fillRelics = () => relicList().filter(id => !isInnateRelic(id));
@@ -3158,10 +3161,8 @@ function clueList() {
     team.push({ id: 'key', cost: 6, label: t('hintKey'), value: () => realmOf(idx.key.get(puzzle.key)) });
   }
 
-  // 固有造物（开局第一件 + 那一期的戒指）：大师档不再白送，作为一条较贵的队伍级线索卖
-  if (A.relics && innateRelics().length) {
-    team.push({ id: 'innate', cost: 20, label: t('clueInnate'), value: () => innateRelics().map(id => { const e = creationOf(id); return e ? nameOf(e) : String(id); }).join(' / ') });
-  }
+  // 维度影像（每位唤醒体的专属造物，不算固有）：每买一次解锁一个；没有更多了就把这次的银芯退回来
+  if (A.relics) team.push({ id: 'dim', cost: 12, step: true, label: t('clueDim'), value: () => '' });
 
   // 等级在下方的卡位提示里已经能买到，这里只给「内在灵格」
   if (full('brk')) {
@@ -3318,7 +3319,35 @@ function buyClue(c) {
   render();
 }
 
+// 维度影像线索：要补的维度影像按题目 id 打散顺序，每次付费只解锁下一个；解锁完（或者本题根本没有）再点就退款
+const dimOrder = () => seededShuffle(fillRelics().filter(isDimImage).map(String), `${puzzle.id}:dim`);
+const dimShown = () => dimOrder().filter(id => isOpen(`dim:${id}`));
+function buyDim() {
+  if (finished) return;
+  const next = dimOrder().find(id => !isOpen(`dim:${id}`));
+  if (!payHint(12)) return;
+  if (next) { openClue(`dim:${next}`); render(); return; }
+  // 没有（更多）维度影像：退还刚付的银芯，并把这次不算作用过线索
+  wallet.add(priceOf(12));
+  hintsUsed = Math.max(0, hintsUsed - 1);
+  openClue('dim:done');
+  toast(t('clueDimNone'));
+  render();
+}
+function dimCard() {
+  const shown = dimShown();
+  const exhausted = isOpen('dim:done') || shown.length >= dimOrder().length;
+  return h('div', { class: `clue ${shown.length ? 'on' : 'lock'}` },
+    h('small', {}, t('clueDim')),
+    shown.length ? h('b', {}, shown.map(id => { const e = creationOf(id); return e ? nameOf(e) : id; }).join(' / ')) : null,
+    isOpen('dim:done') && !shown.length ? h('b', {}, '—') : null,
+    // 解锁完（或已确认本题没有）就不再给按钮
+    exhausted ? null
+      : h('button', { type: 'button', class: 'link', onclick: buyDim }, shown.length ? t('clueDimBtn') + ' ' : '', scIcon(12), ` ${priceOf(12)}`));
+}
+
 function clueCard(c) {
+  if (c.id === 'dim') return dimCard();
   const key = `c:${c.id}`;
   if (isOpen(key)) {
     return h('div', { class: 'clue on' }, h('small', {}, c.label), h('b', {}, c.value()),
@@ -3625,8 +3654,7 @@ function teamExtras() {
       isOpen('c:key') ? chip(realmOf(idx.key.get(puzzle.key)), 'gold') : null));
   }
   if (A.relics) {
-    // 高难度不再把固有造物直接摆在题面上：要在提示线索栏里花（较贵的）银芯买「固有造物」线索才显示；交卷后复盘时照常显示
-    const inn = (finished || isOpen('c:innate')) ? innateRelics() : [];
+    const inn = innateRelics();
     const need = fillRelics();
     const relicChip = (id, title) => {
       const e = creationOf(id);

@@ -35,7 +35,7 @@ const I18N = {
     mlLevel: '推荐等级 {n}', keysUsed: '钥令开启',
     maxBout: '单回合最高伤害', deathResist: '死扛触发', leftHp: '剩余生命', keyDmg: '守密人伤害',
     score: '榜单分数', relicCount: '造物数量', relicAll: '需要全部还原',
-    relicInnate: '含固有 {n} 件（名字要用线索买）', innateTag: '固有造物', clueInnate: '固有造物', relicFillTag: '需补齐',
+    relicInnate: '固有 {n} 件已给出', innateTag: '固有造物', clueDim: '维度影像', clueDimNone: '没有更多维度影像了，已返还银芯', clueDimBtn: '再解锁一个', relicFillTag: '需补齐',
     dmg: '伤害', blk: '格挡', heal: '治疗',
     cardUp: '卡牌升级 {n} 次', talentSum: '天赋合计 Lv.{n}',
     // 伤害构成
@@ -242,7 +242,7 @@ const I18N = {
     mlLevel: 'Recommended Lv.{n}', keysUsed: 'Posse used',
     maxBout: 'Max bout dmg', deathResist: 'Death resist', leftHp: 'HP left', keyDmg: 'Keeper dmg',
     score: 'Score', relicCount: 'Relics', relicAll: 'restore all',
-    relicInnate: '{n} innate (names cost a clue)', innateTag: 'Innate relic', clueInnate: 'Innate relics', relicFillTag: 'to fill in',
+    relicInnate: '{n} innate given', innateTag: 'Innate relic', clueDim: 'Dimensional Images', clueDimNone: 'No more Dimensional Images — credits refunded', clueDimBtn: 'Unlock another', relicFillTag: 'to fill in',
     dmg: 'DMG', blk: 'Block', heal: 'Heal',
     cardUp: '{n} card-ups', talentSum: 'Talent Lv.{n}',
     dmgCompTitle: 'Damage composition (keeper & special)',
