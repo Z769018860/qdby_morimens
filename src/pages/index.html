@@ -248,6 +248,11 @@ a.proj:hover .arrow{transform:translateX(3px)}
   border:1px solid var(--line); border-radius:999px; padding:3px 11px;
 }
 
+.pets{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:12px 0 6px}
+.pets img{width:100%; height:112px; object-fit:cover; border-radius:10px; border:1px solid var(--line); background:var(--panel2)}
+.pets img:nth-child(4){grid-column:span 2}
+.petcap{margin:4px 0 2px; font-size:12px; color:var(--dim); line-height:1.7; text-align:center}
+.petsay{margin:6px 0 4px; font-size:13px; text-align:center; line-height:1.7}
 .notice{
   display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 10px; margin:0 0 18px;
   padding:11px 14px; border-radius:12px; font-size:12.5px; line-height:1.6;
@@ -754,7 +759,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
 <dialog class="sheet" id="noticeDlg">
   <div class="sheet-in">
     <h3>先说几句 · 刚上线公告</h3>
-    <p class="sub">更新于 2026-10-30 · 全部游戏都是同人作品，和官方无关</p>
+    <p class="sub">更新于 2026-10-31 · 全部游戏都是同人作品，和官方无关</p>
     <ul>
       <li><b>全是刚上线的版本。</b>一定会有 bug、数值不合理、偶尔卡住或者存档出问题，能接受再玩。</li>
       <li><b>彩蛋角色和主播本人无关。</b>幸存者、挂机版里那几位 B 站 UP 主彩蛋（包括隐藏首领弥萨格校猫），只是拿昵称、头像和签名做致敬；他们的性格、技能、台词、剧情全部是 <b>AI 生成的同人设定</b>，不代表本人观点，也不影射任何真实情况。</li>
@@ -765,6 +770,15 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
       <li><b>本来就是图一乐。</b>这就是个想作为万圣节彩蛋搓出来的东西，低脂小垃圾；祝大家无论在本家游戏内外都能玩得开心。</li>
       <li><b>想断网玩可以装「离线版」</b>：整包下到本机，只在设置里检查更新时联网；支持导出加密存档，换设备能继续。</li>
     </ul>
+    <div class="pets" aria-label="作者家的猫">
+      <img src="assets/pets/pet1.jpg" alt="一只棕白相间的猫，歪着头" loading="lazy" decoding="async">
+      <img src="assets/pets/pet2.jpg" alt="一只模糊的棕白猫，配字：我什么都不知道，我只是只傻猫" loading="lazy" decoding="async">
+      <img src="assets/pets/pet3.jpg" alt="一只银色虎斑猫仰头看镜头" loading="lazy" decoding="async">
+      <img src="assets/pets/pet4.jpg" alt="两只银色虎斑猫并排趴在靠垫上" loading="lazy" decoding="async">
+      <img src="assets/pets/pet5.jpg" alt="两只布偶猫睡在毛巾上" loading="lazy" decoding="async">
+    </div>
+    <p class="petcap">豆浆（已被无良医院害去喵星）· 九九（八岁）· 雪糕、耶耶（十个月）· 牛奶 / 可可（五岁）</p>
+    <p class="petsay"><b>很多 bug，非常感谢各位帮忙测试。看在我的猫很可爱的份上，原谅我没有数值策划（</b></p>
     <div class="acts">
       <button class="btn ghost" type="button" data-close>关闭</button>
       <button class="btn primary" type="button" data-close>我知道了</button>
@@ -1305,7 +1319,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
 (function () {
   'use strict';
 
-  var NOTICE_ID = '2026-10-30';
+  var NOTICE_ID = '2026-10-31';
   var GITHUB_ISSUE = 'https://github.com/Z769018860/qdby_morimens/issues/new';
   var RATE_KEY = 'zjtt:homeRate';
   var BUG_KEY = 'zjtt:bugOutbox';
