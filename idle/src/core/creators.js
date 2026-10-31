@@ -77,7 +77,7 @@ export const CREATORS = [
   },
   {
     id: 'creator-03', slug: 'alice', zh: '爱丽丝', en: 'Alice', realm: 'ULTRA', type: 'ASSAULT', rarity: 'SR', avail: 'GIFT',
-    base: { CON: 30, ATK: 36, DEF: 26 }, scale: { CON: 1.5, ATK: 1.7, DEF: 1.25 }, sub: { ...SUB }, subScale: { ...SUB_SCALE },
+    base: { CON: 31, ATK: 38, DEF: 27 }, scale: { CON: 1.55, ATK: 1.8, DEF: 1.3 }, sub: { ...SUB }, subScale: { ...SUB_SCALE },
     portrait: portraitOf('alice'), card: cardOf('alice'),
     creator: {
       uid: '545164270', url: 'https://space.bilibili.com/545164270', color: '#7fb8e8', tag: CREATOR_TAG, emoji: '🫖',
@@ -127,7 +127,7 @@ export const CREATORS = [
   },
   {
     id: 'creator-08', slug: 'chaoxing', zh: '朝星', en: 'Chaoxing', realm: 'ULTRA', type: 'ASSAULT', rarity: 'SR', avail: 'GIFT',
-    base: { CON: 31, ATK: 36, DEF: 27 }, scale: { CON: 1.52, ATK: 1.7, DEF: 1.28 }, sub: { ...SUB }, subScale: { ...SUB_SCALE },
+    base: { CON: 32, ATK: 38, DEF: 28 }, scale: { CON: 1.56, ATK: 1.8, DEF: 1.32 }, sub: { ...SUB }, subScale: { ...SUB_SCALE },
     portrait: portraitOf('chaoxing'), card: cardOf('chaoxing'),
     creator: {
       uid: '14997071', url: 'https://space.bilibili.com/14997071', color: '#8fa8ff', tag: CREATOR_TAG, emoji: '⭐',
@@ -147,7 +147,7 @@ export const CREATORS = [
   },
   {
     id: 'creator-10', slug: 'baiyun', zh: '白云出岫', en: 'Baiyun Chuxiu', realm: 'ULTRA', type: 'CHORUS', rarity: 'SR', avail: 'GIFT',
-    base: { CON: 35, ATK: 31, DEF: 31 }, scale: { CON: 1.62, ATK: 1.5, DEF: 1.5 }, sub: { ...SUB }, subScale: { ...SUB_SCALE },
+    base: { CON: 35, ATK: 33, DEF: 31 }, scale: { CON: 1.62, ATK: 1.62, DEF: 1.5 }, sub: { ...SUB }, subScale: { ...SUB_SCALE },
     portrait: portraitOf('baiyun'), card: cardOf('baiyun'),
     // 专属特性：他最好的一批投稿全是拿「王邸管家」弗兰刷出来的（1t 癫狂二、一亿出伤）。
     trait: {
@@ -200,18 +200,18 @@ export const CREATOR_KITS = {
   alice: kit({
     Strike: ['怀表轻敲', (lv) => [D(1.05, lv), E.gauge('keyflare', 4)]],
     Defense: ['缩小药水', (lv) => [S(1.3, lv), E.status('barrier', 1, 3, 'self')]],
-    Skill1: ['坠入兔子洞', (lv) => [D(0.7, lv, { hits: 3, to: 'foeRand' })]],
-    Skill2: ['砍头！', (lv) => [D(1.9, lv), E.debuff('vuln', 18, 2)]],
-    Rouse: ['三点钟的茶会', () => [E.buff('crit', 18, 3, 'allies'), E.gauge('keyflare', 20)]],
-    Exalt: ['镜中奇遇', (lv) => [D(2.6, lv), E.status('sealed', 1, 2)]],
-    OverExalt: ['红心女王的判决', (lv) => [D(1.7, lv, { to: 'foes' }), E.buff('amp', 25, 3), D(1.2, lv)]],
+    Skill1: ['坠入兔子洞', (lv) => [D(0.8, lv, { hits: 4, to: 'foeRand' })]],
+    Skill2: ['砍头！', (lv) => [D(2.3, lv), E.debuff('vuln', 18, 2)]],
+    Rouse: ['三点钟的茶会', () => [E.buff('crit', 18, 3, 'allies'), E.buff('atk', 12, 3, 'allies'), E.gauge('keyflare', 20)]],
+    Exalt: ['镜中奇遇', (lv) => [D(2.0, lv, { to: 'foes' }), D(1.8, lv), E.status('sealed', 1, 2)]],
+    OverExalt: ['红心女王的判决', (lv) => [D(2.0, lv, { to: 'foes' }), E.buff('amp', 25, 3), D(1.5, lv)]],
   }),
 
   // 鼠王：鼠群 + 瘟疫 —— 多段随机伤害，靠中毒滚雪球
   ratking: kit({
     Strike: ['鼠啮', (lv) => [D(0.9, lv), E.dot(0.2, 3)]],
     Defense: ['钻回洞里', (lv) => [S(1.2, lv), E.status('barrier', 1, 2, 'self')]],
-    Skill1: ['鼠群奔涌', (lv) => [D(0.5, lv, { hits: 4, to: 'foeRand' }), E.status('poison', 2, 4)]],
+    Skill1: ['鼠群奔涌', (lv) => [D(0.58, lv, { hits: 4, to: 'foeRand' }), E.status('poison', 2, 4)]],
     Skill2: ['瘟疫之牙', (lv) => [D(1.4, lv), E.status('poison', 4, 4), E.debuff('vuln', 15, 2)]],
     Rouse: ['笛声', () => [E.buff('atk', 20, 3, 'allies'), E.gauge('keyflare', 20)]],
     Exalt: ['千鼠噬骨', (lv) => [D(1.1, lv, { to: 'foes' }), E.status('poison', 3, 4, 'foes')]],
@@ -242,7 +242,7 @@ export const CREATOR_KITS = {
 
   // 夏茉琳：一盏茉莉 —— 纯治疗 + 减伤，最稳的奶
   xiamolin: kit({
-    Strike: ['茉莉露', (lv) => [D(0.8, lv), H(0.2, lv, 'ally')]],
+    Strike: ['茉莉露', (lv) => [D(1.0, lv), H(0.25, lv, 'ally')]],
     Defense: ['花荫', (lv) => [S(1.5, lv), H(0.4, lv, 'self')]],
     Skill1: ['一盏茉莉', (lv) => [H(1.4, lv, 'ally'), E.buff('def', 15, 3, 'ally')]],
     Skill2: ['夏夜凉风', (lv) => [S(0.9, lv, 'allies'), E.debuff('atk', 15, 2, 'foes')]],
@@ -255,11 +255,11 @@ export const CREATOR_KITS = {
   chaoxing: kit({
     Strike: ['微光', (lv) => [D(1.0, lv), E.gauge('aliemus', 6)]],
     Defense: ['星幕', (lv) => [S(1.3, lv), E.buff('crit', 10, 3)]],
-    Skill1: ['星光坠落', (lv) => [D(1.9, lv), E.buff('crit', 12, 2)]],
-    Skill2: ['星轨', (lv) => [D(0.65, lv, { hits: 3, to: 'foeRand' })]],
+    Skill1: ['星光坠落', (lv) => [D(2.3, lv), E.buff('crit', 12, 2)]],
+    Skill2: ['星轨', (lv) => [D(0.8, lv, { hits: 3, to: 'foeRand' })]],
     Rouse: ['破晓', () => [E.buff('crit', 20, 3, 'allies'), E.gauge('keyflare', 20)]],
-    Exalt: ['晨星', (lv) => [D(2.7, lv), E.debuff('vuln', 18, 2)]],
-    OverExalt: ['星海黎明', (lv) => [D(1.5, lv, { to: 'foes', hits: 2 }), E.buff('amp', 25, 3, 'allies')]],
+    Exalt: ['晨星', (lv) => [D(2.0, lv, { to: 'foes' }), D(1.6, lv), E.debuff('vuln', 18, 2)]],
+    OverExalt: ['星海黎明', (lv) => [D(1.8, lv, { to: 'foes', hits: 2 }), E.buff('amp', 25, 3, 'allies')]],
   }),
 
   // 路过的耄耋：挡在路口 —— 最硬的盾，屏障 + 嘲讽式降攻
@@ -278,10 +278,10 @@ export const CREATOR_KITS = {
   baiyun: kit({
     Strike: ['云针', (lv) => [D(0.85, lv), E.gauge('keyflare', 6)]],
     Defense: ['复核', (lv) => [S(1.3, lv), E.buff('crit', 12, 3)]],
-    Skill1: ['时间线', (lv) => [E.buff('amp', 18, 3, 'allies'), E.gauge('aliemus', 12, 'allies')]],
-    Skill2: ['凹', (lv) => [D(0.6, lv, { hits: 3, to: 'foeRand' }), E.buff('crit', 10, 2)]],
+    Skill1: ['时间线', (lv) => [E.buff('amp', 22, 3, 'allies'), E.buff('atk', 12, 3, 'allies'), E.gauge('aliemus', 12, 'allies')]],
+    Skill2: ['凹', (lv) => [D(0.8, lv, { hits: 4, to: 'foeRand' }), E.buff('crit', 10, 2)]],
     Rouse: ['省流', () => [E.buff('atk', 16, 4, 'allies'), E.gauge('keyflare', 20)]],
-    Exalt: ['1t 速杀', (lv) => [D(2.4, lv), E.debuff('vuln', 20, 2), E.buff('crit', 20, 3, 'allies')]],
+    Exalt: ['1t 速杀', (lv) => [D(3.0, lv), E.debuff('vuln', 20, 2), E.buff('crit', 20, 3, 'allies')]],
     OverExalt: ['上百条世界线', (lv) => [D(1.4, lv, { to: 'foes' }), E.buff('amp', 26, 3, 'allies'), E.gauge('keyflare', 15, 'allies')]],
   }),
 };

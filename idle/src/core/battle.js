@@ -217,7 +217,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         // 反击转移：队里有人开着「转移」，所有队友（含自己）拿到的反击层都归他——他嘲讽吸火，反击才打得到人
         const guard = (t.side === 'a' ? A : E).find((x) => x.alive && x.csGuard > 0 && x !== t);
         if (guard) { t = guard; cur = t.st.counter; }
-        t.st.counter = { n: Math.min(guard ? COUNTER_CAP + 4 : COUNTER_CAP, (cur?.n || 0) + n), per: Math.max(cur?.per || 0, src.atk * 0.22), dur: Math.max(cur?.dur || 0, dur) };
+        t.st.counter = { n: Math.min(guard ? COUNTER_CAP + 4 : COUNTER_CAP, (cur?.n || 0) + n), per: Math.max(cur?.per || 0, src.atk * 0.27), dur: Math.max(cur?.dur || 0, dur) };
         break;
       }
       case 'barrier': t.st.barrier = { n: Math.min(3, (cur?.n || 0) + n), dur }; break;
@@ -395,7 +395,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
           break;
         case 'counterBurst': {   // 反击爆发：把全队身上的反击层数一次性打出去（没层数也有保底两下）
           const stacks = friendsOf(u).reduce((s, x) => s + num(x.st.counter?.n), 0);
-          const hit = u.atk * num(e.m, 0.15) * Math.max(2, stacks);
+          const hit = u.atk * num(e.m, 0.15) * Math.max(3, stacks);
           for (const t of foesOf(u)) if (t.alive) applyDamage(u, t, Math.max(1, Math.round(hit)), false, ctx);
           for (const x of friendsOf(u)) if (x.st.counter) delete x.st.counter;
           break;
@@ -637,7 +637,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
           if (!t || !t.alive) continue;
           switch (e.s) {
             case 'poison': acc.o += Math.min(num(e.n, 1) * atkOf(u) * 0.1 * dur * 0.7, num(t.hp)); break;
-            case 'counter': acc.s += Math.min(num(e.n, 1), 6) * atkOf(t) * 0.22 * 0.7; break;
+            case 'counter': acc.s += Math.min(num(e.n, 1), 6) * atkOf(t) * 0.27 * 0.7; break;
             case 'barrier': acc.s += (hitFoes(u) / Math.max(1, foesOf(u).length)) * num(e.n, 1) * (t === u ? 1 : 0.8); break;
             case 'fortress': acc.s += hitFoes(u) * Math.min(50, num(e.n, 1)) / 100 * dur * 0.6; break;
             case 'weakness': acc.s += atkOf(t) * 0.25 * dur * 0.5; break;
