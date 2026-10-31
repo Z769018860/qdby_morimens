@@ -1,6 +1,6 @@
 import {
   allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, ULT_MODES, normalizeUltOrder, equipItem, unequipItem, isEquipped,
-  enhanceItem, dismantle, dismantlePreview, autoDmOf, dismantleCores, summon, equipPull, gearDexKey, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST,
+  enhanceItem, enhanceAllEquipped, enhanceScopes, dismantle, dismantlePreview, autoDmOf, dismantleCores, summon, equipPull, gearDexKey, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST,
   PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, BATTLES_PER_HOUR, fillLoadout,
 } from '../core/game.js';
 import {
@@ -941,7 +941,8 @@ export function gearPage(app) {
   return `<div class="page"><h2>命轮 · 密契 <small>每人各 1 件</small></h2>
     <p class="hint">命轮与密契是<b>绑在单个唤醒体身上</b>的两件装备：点下面的槽位直接更换，点「已装备」的槽位可以卸下。密契全队同款凑到 2 / 4 件会触发套装效果（当前：${sets || '还没有凑成套'}）。造物与钥令是全队被动，分别在队伍页与钥令页配置。</p>
     <div class="eqpanel">${teamRows}</div>
-    <div class="row"><button class="btn gold" data-act="gear-upall" title="把金币尽量花在正在穿 / 正在编队里用的装备上，每次升当前最便宜的一级">一键强化在用装备（用掉金币）</button><button class="btn danger" data-act="dm-open" title="按类型 / 稀有度 / 强化等级批量分解没在用的装备">一键分解…</button><small class="dim">每件最高 Lv${GEAR_MAX_LV}；10 级以后每级 +5%，金币花得很多</small></div>
+    <div class="row"><button class="btn gold" data-act="gear-upall" title="只强化主线编队（队伍页上阵的 4 人 + 造物栏）正在用的装备，每次升当前最便宜的一级">一键强化主线编队</button><button class="btn" data-act="gear-up-pick" title="选择要强化哪几套编队的装备">选择队伍…</button><button class="btn danger" data-act="dm-open" title="按类型 / 稀有度 / 强化等级批量分解没在用的装备">一键分解…</button><small class="dim">每件最高 Lv${GEAR_MAX_LV}；10 级以后每级 +5%，金币花得很多</small></div>
+    <p class="hint">「一键强化」只会强化<b>主线编队</b>（队伍页上阵的 4 人身上的命轮 / 密契，加上造物栏）：把金币花在这些装备上，每次挑当前最便宜的一级升，直到金币不够或者全部满级。想强化别的编队（一队～五队、禁区队、属性塔队），点「选择队伍…」勾选；已编入别的编队、但不在主线编队里的装备，默认不会动。</p>
     <p class="hint">想一次性配好？回队伍页点「一键配队」，会连着命轮、密契、造物、钥令一起排；队伍页也有同一块槽位面板，不用来回切页。</p>
     <h3>${tab === 'relic' ? '造物库存' : '库存'} <small>${items.length} 件</small></h3>
     <div class="row">${tabs}</div><div class="list" id="gearlist">${rows}</div>${more}</div>`;
@@ -1052,6 +1053,24 @@ export function summonPage(app) {
         <button class="btn big" data-act="gear-dex">装备图鉴 ${dexTotal(app).got}/${dexTotal(app).all}</button></div>
       <p class="hint">50 连、500 连不逐件弹出，直接给汇总（各稀有度几件、新收录了哪些、最好的几件）；抽到的装备照常进库存，用不上的去「命轮 · 密契」页分解换金币和银芯。</p></div>
   </div>`;
+}
+
+/* ---- 一键强化：选队伍 ---- */
+export function enhanceModal(app) {
+  const s = app.state;
+  const sel = (app.ui.eh ||= ['cur']);
+  const scopes = enhanceScopes(s);
+  const names = (k) => {
+    const slugs = k === 'cur' ? s.team : squadsOf(s)[k]?.team || [];
+    return slugs.map((x) => app.data.bySlug[x]?.zh).filter(Boolean).join('、') || '（空）';
+  };
+  const r = enhanceAllEquipped(s, { scopes: sel.filter((k) => scopes.some((x) => x.key === k)), dry: true });
+  const row = (x) => `<label class="snd ehrow"><input type="checkbox" data-eh="${x.key}" ${sel.includes(x.key) ? 'checked' : ''}> <b>${x.key === 'cur' ? '主线编队' : esc(squadKeyZh(x.key))}</b> <small class="dim">${esc(names(x.key))} · ${x.n} 件装备${x.key === 'cur' ? '' : x.own ? ' · 独立配装' : ' · 沿用主线穿戴'}</small></label>`;
+  openModal(`<h3>一键强化 · 选择队伍</h3>
+    <p class="hint">勾选要强化的队伍：金币会花在这些队伍正在用的装备上，每次升当前最便宜的一级。「沿用主线穿戴」的编队没有自己的装备，强化的是主线上这几个人身上的那几件；同一件装备被多个队伍用到只会升一次。</p>
+    <div class="ehlist">${scopes.map(row).join('')}</div>
+    <div class="banner-card"><p>预计：<b>${r.items}</b> 件装备升 <b>${r.n}</b> 级，花 <b>${fmt(r.spent)}</b> 金币（现有 ${fmt(s.gold)}）${r.total ? '' : '<small class="dim">（所选队伍没有装备）</small>'}</p>
+      <div class="row"><button class="btn gold" data-act="gear-up-run" ${r.n ? '' : 'disabled'}>开始强化</button><button class="btn" data-act="close">取消</button></div></div>`, 'wide');
 }
 
 /* ---- 一键分解 ---- */

@@ -12,7 +12,7 @@ import {
 import { ordersBonus, orderUpCost, orderBonus, orderSlotCount } from './orders.js';
 import { buildEnemies, stageInfo, domainRules, lateDotBoost } from './enemies.js';
 import { simulate, roundLimitFor } from './battle.js';
-import { emptySquads, emptyPick, normalizeSquads, normalizePick, squadUsesItem, squadsRemoveItem, SQUAD_KEYS, RT_MODES, towerSquadKey, realmOfMode } from './squad.js';
+import { emptySquads, emptyPick, normalizeSquads, normalizePick, squadUsesItem, squadsRemoveItem, SQUAD_KEYS, ALL_SQUAD_KEYS, squadsOf, RT_MODES, towerSquadKey, realmOfMode } from './squad.js';
 import { emptyGacha, normalizeGacha, recordPull, recordBatch } from './gacha.js';
 import { CREATORS, creatorKit } from './creators.js';
 import { emptyEvent, noteBattle } from './event.js';
@@ -820,27 +820,54 @@ export function enhanceItem(state, uid) {
   state.gold -= c; it.lv++; return true;
 }
 /**
- * 一键强化：把金币尽量花在「正在穿 / 正在编队里用」的装备上，每次挑当前最便宜的一级升，直到金币不够或者全满。
- * 返回 { n: 升了几级, spent: 花了多少金币, items: 涉及几件 }。
+ * 一键强化的「队伍」范围：'cur' = 主线编队（队伍页上阵的 4 人：各自的命轮 / 密契 + 造物栏）；
+ * 其余是编队位 key：有独立配装的用它自己那一套，没有的沿用主线穿戴（编队里那几个人身上的 + 造物栏）。
+ * 返回装备 uid 的集合。
  */
-export function enhanceAllEquipped(state, maxSteps = 600) {
+export function gearScopeUids(state, key = 'cur') {
   const used = new Set();
-  for (const e of Object.values(state.gear.equip || {})) { if (e?.wheel) used.add(e.wheel); if (e?.cov) used.add(e.cov); }
-  for (const u of state.gear.relics || []) if (u) used.add(u);
-  for (const sq of Object.values(state.squads || {})) {
-    const lo = sq?.lo; if (!lo) continue;
-    for (const e of Object.values(lo.equip || {})) { if (e?.wheel) used.add(e.wheel); if (e?.cov) used.add(e.cov); }
-    for (const u of lo.relics || []) if (u) used.add(u);
-  }
+  const g = state.gear || {};
+  const fromMain = (slugs) => {
+    for (const s of slugs || []) { const e = g.equip?.[s]; if (e?.wheel) used.add(e.wheel); if (e?.cov) used.add(e.cov); }
+    for (const u of (g.relics || []).slice(0, relicSlotCount(state.maxStage || 0))) if (u) used.add(u);
+  };
+  if (key === 'cur') { fromMain(state.team); return used; }
+  const sq = squadsOf(state)[key];
+  if (!sq) return used;
+  if (sq.lo) {
+    for (const e of Object.values(sq.lo.equip || {})) { if (e?.wheel) used.add(e.wheel); if (e?.cov) used.add(e.cov); }
+    for (const u of sq.lo.relics || []) if (u) used.add(u);
+  } else fromMain(sq.team);
+  return used;
+}
+/** 能选的队伍：主线编队 + 编了人的编队位（各自带装备件数，供选择弹窗显示） */
+export function enhanceScopes(state) {
+  const out = [{ key: 'cur', n: gearScopeUids(state, 'cur').size }];
+  for (const k of ALL_SQUAD_KEYS) { const sq = squadsOf(state)[k]; if (sq?.team?.length) out.push({ key: k, n: gearScopeUids(state, k).size, own: !!sq.lo }); }
+  return out;
+}
+/**
+ * 一键强化：把金币尽量花在选中队伍正在用的装备上，每次挑当前最便宜的一级升，直到金币不够或者全满。
+ * 默认只强化主线编队（scopes = ['cur']）；要强化别的编队，传入编队位 key。dry = true 只预估、不扣钱。
+ * 返回 { n: 升了几级, spent: 花了多少金币, items: 涉及几件, total: 范围内一共几件 }。
+ */
+export function enhanceAllEquipped(state, opts = {}) {
+  const o = typeof opts === 'number' ? { maxSteps: opts } : (opts || {});
+  const scopes = Array.isArray(o.scopes) && o.scopes.length ? o.scopes : ['cur'];
+  const maxSteps = o.maxSteps || 600;
+  const used = new Set();
+  for (const k of scopes) for (const u of gearScopeUids(state, k)) used.add(u);
   const list = [...used].map((u) => state.gear.items[u]).filter(Boolean);
-  let n = 0, spent = 0; const touched = new Set();
+  let gold = state.gold, n = 0, spent = 0; const touched = new Set();
+  const lv = new Map(list.map((it) => [it.uid, it.lv]));
   for (let i = 0; i < maxSteps; i++) {
     let best = null, bc = Infinity;
-    for (const it of list) { if (it.lv >= GEAR_MAX_LV) continue; const c = gearCost(it.kind, it.lv); if (c < bc) { bc = c; best = it; } }
-    if (!best || state.gold < bc) break;
-    state.gold -= bc; best.lv++; n++; spent += bc; touched.add(best.uid);
+    for (const it of list) { const l = lv.get(it.uid); if (l >= GEAR_MAX_LV) continue; const c = gearCost(it.kind, l); if (c < bc) { bc = c; best = it; } }
+    if (!best || gold < bc) break;
+    gold -= bc; lv.set(best.uid, lv.get(best.uid) + 1); n++; spent += bc; touched.add(best.uid);
   }
-  return { n, spent, items: touched.size };
+  if (!o.dry) { state.gold = gold; for (const it of list) it.lv = lv.get(it.uid); }
+  return { n, spent, items: touched.size, total: list.length };
 }
 /** 一键分解的筛选：kinds 类型、rarities 稀有度（covenant 没有稀有度按 SR 算）、maxLv 强化等级上限（null=不限）、keepRefined 保留精炼过的 */
 export function dismantleCandidates(state, data, f = {}) {

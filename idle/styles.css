@@ -849,3 +849,5 @@ a.btn{display:inline-block;text-decoration:none}
 button, a, [role="button"], input, select, label{touch-action:manipulation}
 
 .farmx.rule{color:#e6c9ff;border-left:3px solid #a67cff;padding-left:8px;line-height:1.55}.farmx.rule small{color:var(--dim)}
+
+.ehlist{display:flex;flex-direction:column;gap:6px;margin:8px 0}.ehrow{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;padding:6px 8px;border:1px solid #2b3447;border-radius:8px}

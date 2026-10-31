@@ -2531,3 +2531,26 @@ test('域规的效果：屏障挡直接伤害、反震、治疗压制、重甲�
   const se = run(['seal']);
   assert.ok(se.events.some((e) => e.k === 'status' && e.s === 'sealed'), '封印触发');
 });
+
+import { gearScopeUids as _gsu, enhanceScopes as _esc } from '../src/core/game.js';
+test('一键强化：默认只强化主线编队，选了编队才动别的队伍', () => {
+  const s = mkTeamState(); s.gold = 1e9;
+  const def = data.wheels.find((w) => w.rarity === 'SSR');
+  const main = s.team[0];
+  const other = Object.keys(s.roster).find((x) => !s.team.includes(x)) || 'ogier';
+  s.roster[other] ??= { lv: 1, star: 0 };
+  const wMain = addItem(s, 'wheel', def.id); equipItem(s, data, main, wMain.uid);
+  const wOther = addItem(s, 'wheel', def.id); equipItem(s, data, other, wOther.uid);   // 穿在不在主线的人身上
+  s.squads.b.team = [other];                                                           // 二队：沿用主线穿戴
+  const r = enhanceAllEquipped(s);
+  assert.ok(wMain.lv > 0, '主线编队的装备升了');
+  assert.equal(wOther.lv, 0, '不在主线编队的人身上的装备默认不动');
+  assert.ok(!_gsu(s, 'cur').has(wOther.uid) && _gsu(s, 'b').has(wOther.uid));
+  // dry 只估不扣
+  const g0 = s.gold, lv0 = wOther.lv;
+  const d = enhanceAllEquipped(s, { scopes: ['b'], dry: true });
+  assert.ok(d.n > 0 && s.gold === g0 && wOther.lv === lv0, '预估不扣钱不升级');
+  const r2 = enhanceAllEquipped(s, { scopes: ['b'] });
+  assert.ok(r2.n > 0 && wOther.lv > 0, '选了二队才升');
+  assert.ok(_esc(s).some((x) => x.key === 'cur') && _esc(s).some((x) => x.key === 'b'), '可选范围包含主线编队和编了人的编队');
+});

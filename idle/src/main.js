@@ -512,6 +512,13 @@ function onChange(e) {
   if (e.target.matches('[data-fx]')) { fxMode.set(e.target.value); toast('战斗特效：' + e.target.selectedOptions[0].textContent); return; }
   if (e.target.matches('[data-watch]')) { watchMode.set(e.target.value); toast('挑战过程：' + e.target.selectedOptions[0].textContent); return; }
   if (e.target.matches('[data-arena-name]')) { arenaState(app.state).name = e.target.value.trim().slice(0, 12) || '旅人'; app.save(); return; }
+  const eh = e.target.closest('[data-eh]');
+  if (eh) {
+    const cur = new Set(app.ui.eh || ['cur']);
+    if (eh.checked) cur.add(eh.dataset.eh); else cur.delete(eh.dataset.eh);
+    app.ui.eh = [...cur];
+    closeModal(); P.enhanceModal(app); return;
+  }
   const dm = e.target.closest('[data-dm]');
   if (dm) { P.dmFilter(app)[dm.dataset.dm] = dm.checked; app.saveSoon(); closeModal(); P.dismantleModal(app); return; }
   const au = e.target.closest('[data-aud]');
@@ -762,9 +769,17 @@ function onAct(e) {
       break;
     }
     case 'gear-up': enhanceItem(s, el.dataset.uid); rerender(); break;
-    case 'gear-upall': {
+    case 'gear-upall': {   // 只强化主线编队；要别的编队走「选择队伍…」
       const r = enhanceAllEquipped(s);
-      if (r.n) { sound.play('gold'); toast(`一键强化：${r.items} 件装备共升了 ${r.n} 级，花了 ${fmt(r.spent)} 金币`); } else toast('金币不够升下一级，或者在用的装备都满级了');
+      if (r.n) { sound.play('gold'); toast(`一键强化主线编队：${r.items} 件装备共升了 ${r.n} 级，花了 ${fmt(r.spent)} 金币`); } else toast(r.total ? '金币不够升下一级，或者主线编队的装备都满级了' : '主线编队还没有穿装备');
+      rerender(); break;
+    }
+    case 'gear-up-pick': P.enhanceModal(app); break;
+    case 'gear-up-run': {
+      const sel = (app.ui.eh || ['cur']);
+      const r = enhanceAllEquipped(s, { scopes: sel });
+      closeModal();
+      if (r.n) { sound.play('gold'); toast(`一键强化：${r.items} 件装备共升了 ${r.n} 级，花了 ${fmt(r.spent)} 金币`); } else toast('金币不够升下一级，或者所选队伍的装备都满级了');
       rerender(); break;
     }
     case 'gear-dis': {
