@@ -197,7 +197,14 @@ export function decodeReplay(input) {
     u8 = new TextEncoder().encode(t);
   }
   if (u8 instanceof ArrayBuffer) u8 = new Uint8Array(u8);
-  if (!isReplayBytes(u8)) return JSON.parse(decoder.decode(u8));
+  if (!isReplayBytes(u8)) {
+    // 旧版回放：外面包一层 JSON { compStr: "<LZ4 帧，每个字符一个字节>" }，要先拆壳再走正常解码
+    const head = decoder.decode(u8.subarray(0, 12));
+    if (head.startsWith('{"compStr"')) { const env = JSON.parse(latin1(u8)); return decodeReplay(stringToBytes8(env.compStr)); }
+    const j = JSON.parse(decoder.decode(u8));
+    if (j && typeof j.compStr === 'string') return decodeReplay(stringToBytes8(j.compStr));
+    return j;
+  }
 
   let root;
   if (u8[0] === 0x04 && u8[1] === 0x22 && u8[2] === 0x4d && u8[3] === 0x18) {
