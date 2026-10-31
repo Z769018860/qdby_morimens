@@ -119,7 +119,11 @@ function cardHTML(id, opt) {
   const face = o.set ? '' : `style="${facePos(c.art || c.n)}"`;
   let tail = '';
   if (c.k === 'M' || c.k === 'E') {
-    tail = `<div class="pt"><b>${c.atk}</b><span>/</span><b>${c.def}</b></div>`;
+    // 场上的怪兽要显示「现在的」攻守（回合开始成长、光环、羁绊、装备都算进去），涨了标绿、被压了标红；
+    // 以前一直画卡表上的原始数值，图鲁每回合 +200 在界面上看不出来
+    const a = o.atk != null ? o.atk : c.atk, df = o.defv != null ? o.defv : c.def;
+    const cl = (v, base) => (v > base ? ' class="up"' : (v < base ? ' class="down"' : ''));
+    tail = `<div class="pt"><b${cl(a, c.atk)}>${a}</b><span>/</span><b${cl(df, c.def)}>${df}</b></div>`;
   } else {
     const t = { normal: '通常', quick: '速攻', equip: '装备', cont: '永续', counter: '反击' }[c.t] || '';
     tail = `<div class="pt">${c.k === 'S' ? '魔法' : '陷阱'} · ${t}</div>`;
@@ -268,7 +272,7 @@ function slotHTML(m, i, side, hot) {
   const c = CARDS[m.id];
   const tag = c.k === 'E' ? '觉醒' : (m.pos === 'def' ? '守备' : '攻击');
   return `<div class="slot" data-slot="${side}-${i}">`
-    + cardHTML(c, { uid: m.uid, def: m.pos === 'def', tag, used: side === 'me' && m.canAtk === false })
+    + cardHTML(c, { uid: m.uid, def: m.pos === 'def', tag, used: side === 'me' && m.canAtk === false, atk: m.atk, defv: m.def })
     + '</div>';
 }
 
