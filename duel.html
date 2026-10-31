@@ -230,10 +230,16 @@ body{
 }
 .card:hover{transform:translateY(-3px); box-shadow:0 10px 18px -10px #000}
 .card .face{
-  flex:1 1 auto; min-height:0; background-image:var(--sheet,none);
-  background-size:var(--sheet-size,800% 700%);
-  background-repeat:no-repeat; background-color:#0f1420;
+  flex:1 1 auto; min-height:0; position:relative; overflow:hidden; container-type:size;
+  background-color:#0f1420;
   border-bottom:1px solid color-mix(in srgb, var(--rc) 40%, transparent);
+}
+/* 图集每格是正方形：按「框的长边」等比放大（--s），格子在框里居中，偏上取景（头像的脸在上半部），不再拉伸变形 */
+.card .face>i{
+  --s:max(100cqw,100cqh);
+  position:absolute; inset:0; background-image:var(--sheet,none); background-repeat:no-repeat;
+  background-size:calc(var(--cols,8) * var(--s)) calc(var(--rows,8) * var(--s));
+  background-position:calc(var(--c) * var(--s) * -1 - (var(--s) - 100cqw) / 2) calc(var(--r) * var(--s) * -1 - (var(--s) - 100cqh) * .3);
 }
 /* 名字行 + 数值行 加起来比原来写死的 28px 高（body 行高 1.55 会把数值行撑到 14px），名字就被 overflow 切掉了：
    高度改成跟着内容走（最少 30px），行高写死，卡面图在 flex 里让出空间 */
@@ -572,7 +578,7 @@ body{
   #scr-duel{--off:410px}
 }
 </style>
-<meta name="build" content="f96eed2224">
+<meta name="build" content="345c5e2ff2">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -601,7 +607,7 @@ body{
 <div class="actbar" id="actbar"></div>
 <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
 
-<script type="module" src="js/b/duel.js?v=f96eed2224"></script>
+<script type="module" src="js/b/duel.js?v=345c5e2ff2"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

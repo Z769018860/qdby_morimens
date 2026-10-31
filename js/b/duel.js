@@ -2497,14 +2497,13 @@ function logText(t, side) {
 }
 
 // ------------------------------------------------------------------ 卡面
+// 卡面头像：图集里每格是正方形。以前用 background-size:800% 700% 把整张图集按「卡面框」的宽高拉伸，
+// 框不是正方形（场上宽扁、手牌近方、守备表示更矮）头像就被压扁 / 拉长，各张牌比例还不一样。
+// 现在只给格子坐标（--c / --r），CSS 用容器单位按「框的长边」等比放大并居中裁切，头像永远不变形。
 function facePos(name) {
   const i = ART.index[name];
   if (i == null) return '';
-  const col = i % ART.cols;
-  const row = Math.floor(i / ART.cols);
-  const px = ART.cols > 1 ? (col * 100) / (ART.cols - 1) : 0;
-  const py = ART.rows > 1 ? (row * 100) / (ART.rows - 1) : 0;
-  return `background-position:${px}% ${py}%`;
+  return `--c:${i % ART.cols};--r:${Math.floor(i / ART.cols)}`;
 }
 
 function cardHTML(id, opt) {
@@ -2522,7 +2521,8 @@ function cardHTML(id, opt) {
   const rb = c.rar || 'N';
   const realm = c.r || 'any';
   const name = o.set ? '盖放' : c.n;
-  const face = o.set ? '' : `style="${facePos(c.art || c.n)}"`;
+  const fp = o.set ? '' : facePos(c.art || c.n);
+  const face = fp ? `<i style="${fp}"></i>` : '';
   let tail = '';
   if (c.k === 'M' || c.k === 'E') {
     // 场上的怪兽要显示「现在的」攻守（回合开始成长、光环、羁绊、装备都算进去），涨了标绿、被压了标红；
@@ -2538,7 +2538,7 @@ function cardHTML(id, opt) {
   return `<div class="${cls.join(' ')}" data-r="${realm}" data-k="${c.k || 'M'}" data-rar="${rb}" data-id="${c.id}"`
     + `${o.uid != null ? ` data-uid="${o.uid}"` : ''}>`
     + `<span class="rm"></span>`
-    + `<div class="face" ${face}></div>`
+    + `<div class="face">${face}</div>`
     + `<span class="rb">${rb}</span>${lv}`
     + `<div class="ct"><b class="nm">${name}</b>${tail}</div>`
     + `${o.tag ? `<span class="tagp">${o.tag}</span>` : ''}`
@@ -3735,7 +3735,8 @@ function boot(opt) {
   afterPve = (opt && opt.afterPve) || null;
   document.documentElement.style.setProperty('--sheet', `url("${FACES}")`);
   document.documentElement.style.setProperty('--backimg', `url("${BACK}")`);
-  document.documentElement.style.setProperty('--sheet-size', `${ART.cols * 100}% ${ART.rows * 100}%`);
+  document.documentElement.style.setProperty('--cols', String(ART.cols));
+  document.documentElement.style.setProperty('--rows', String(ART.rows));
   S.deckId = S.save.deck && DECKS.some((d) => d.id === S.save.deck) ? S.save.deck : DECKS[0].id;
   S.diff = S.save.diff || 'normal';
   // 老存档里有一份只在这一页用的银芯：并进全站钱包（约 6:1，最多 40 枚），不再单独记
