@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>唤醒王：决斗链接 · 忘忘同人小游戏</title>
-<meta name="description" content="《忘却前夜》同人卡牌对战：把唤醒体写进命轮，用祭品、觉醒召唤、魔法与陷阱和对手赌一段记忆。22 套预组卡组、17 个卡包、369 张卡，主卡组 40~50 张（额外 10 张）；中毒、流血、屏障、反击、嘲讽、衍生物、命轮代价、造物、直接召唤九套机制；可自组多套卡组，人机、同屏双人、房间码好友对战，附世界观设定。">
+<meta name="description" content="《忘却前夜》同人卡牌对战：把唤醒体写进命轮，用祭品、觉醒召唤、魔法与陷阱和对手赌一段记忆。22 套预组卡组、19 个卡包、412 张卡，主卡组 43 张（额外 3~5 张）；中毒、流血、屏障、反击、嘲讽、衍生物、命轮代价、造物、直接召唤九套机制，外加压制（封攻击 / 封召唤 / 封魔法）与抗性·反制；可自组多套卡组，人机、同屏双人、房间码好友对战，附世界观设定。">
 <meta name="theme-color" content="#0a0c12">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0c12%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2219%22%20fill%3D%22none%22%20stroke%3D%22%23e3b341%22%20stroke-width%3D%223%22%2F%3E%3Cpath%20d%3D%22M32%2018l9%2014-9%2014-9-14z%22%20fill%3D%22%23e8656f%22%20opacity%3D%22.9%22%2F%3E%3C%2Fsvg%3E" type="image/svg+xml">
 <style>
@@ -103,6 +103,11 @@ body{
 .deck .dh b{font-size:14.5px; letter-spacing:.03em}
 .deck .rm{margin-left:auto; font-size:10px; letter-spacing:.12em; color:var(--rc); border:1px solid color-mix(in srgb,var(--rc) 42%, var(--line)); border-radius:6px; padding:1px 5px}
 .deck .ds{font-size:11.5px; color:var(--dim); line-height:1.7; min-height:2.6em}
+.deck .dmk{
+  align-self:flex-start; font-size:10.5px; color:var(--gold2);
+  background:color-mix(in srgb, var(--gold) 14%, transparent);
+  border:1px solid color-mix(in srgb, var(--gold) 40%, var(--line)); border-radius:4px; padding:1px 6px;
+}
 .deck .db{display:flex; flex-wrap:wrap; gap:4px}
 .bond{
   font-size:10.5px; color:var(--gold2); background:color-mix(in srgb,var(--gold) 12%, transparent);
@@ -276,9 +281,16 @@ body{
 .sf.bd{background:#6d2f36; color:#ffd6da}
 .sf.ct{background:#5a3a6d; color:#ecd6ff}
 .sf.tt{background:#6d5a2f; color:#ffeec2}
+/* 抗性 / 反制：抗＝不吃魔陷（金），免＝弹开一次攻击（青），斩＝破坏攻击者（红），镜＝弹伤害（紫）。
+   四种颜色分开，是因为它们对应的应对办法完全不同：对付「抗」只能打，对付「斩」干脆别打。 */
+.sf.im{background:#7a6224; color:#ffeab0}
+.sf.na{background:#24565f; color:#c2f0f6}
+.sf.da{background:#7a2a2f; color:#ffd0d3}
+.sf.rf{background:#4a3a72; color:#e2d8ff}
 .pinfo .meta .stt{padding:0 3px; border-radius:3px; font-variant-numeric:tabular-nums}
 .pinfo .meta .stt.ps{background:#6d2f36; color:#ffd6da}
 .pinfo .meta .stt.brt{background:#2f4a6d; color:#cfe2ff}
+.pinfo .meta .stt.lk{background:#6b3a1c; color:#ffd9a8}
 
 /* 自组卡组：左卡池右卡组，两边都是可滚的列表。用列表而不是大卡面，
    是因为一套牌要在 300 多张里挑 30 张，扫名字比扫图快得多。 */
@@ -774,7 +786,7 @@ body{
   #scr-duel{--off:410px}
 }
 </style>
-<meta name="build" content="32c0da1727">
+<meta name="build" content="6d3f09b8c7">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -811,7 +823,7 @@ html{-webkit-tap-highlight-color:transparent}
 <div class="actbar" id="actbar"></div>
 <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
 
-<script type="module" src="js/b/duel.js?v=32c0da1727"></script>
+<script type="module" src="js/b/duel.js?v=6d3f09b8c7"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

@@ -35,6 +35,22 @@ function scoreSpell(G, p, o, card) {
     if (f.k === 'snipeAll') s += o.spells.filter((x) => x && x.set).length >= 2 && p.lp > 3000 ? 9 : -8;
     if (f.k === 'trapSeal') s += o.spells.some((x) => x && x.set && !(x.seal > 0)) ? 6 : -4;
     if (f.k === 'trapLock') s += o.spells.filter((x) => x && x.set).length >= 2 && p.mons.filter(Boolean).length ? 8 : -6;
+    // ---- 压制（bp18）：封攻击 / 封召唤 / 封魔法 ----
+    // 封攻击最值钱：对方铺完场却打不出来，等于白送一个回合。血少的时候更值。
+    // 这三条都只在「对方真的想做那件事」的时候才开，否则留着。
+    if (f.k === 'atkLock') {
+      s += o.mons.filter(Boolean).length ? 7 : 1;
+      if (p.lp < p.lpMax * 0.45) s += 3;
+    }
+    if (f.k === 'summonLock') s += (o.mons.filter(Boolean).length >= 2 ? 6 : 4) + (o.hand.length >= 3 ? 1 : 0);
+    if (f.k === 'spellLock') s += o.spells.filter((x) => x && !x.set).length ? 6 : 3;
+    // 看手牌：本身不赚牌，但能看到对方下一步要干什么，还能顺手抽一张
+    if (f.k === 'revealHand') s += o.hand.length ? 5 : 1;
+    // 解封：自己被按住的时候是救命的，没被按住就是一张废牌
+    if (f.k === 'unlockAll') {
+      const n = (p.lock ? p.lock.atk + p.lock.sum + p.lock.sp : 0) + (p.trapLock ? 1 : 0);
+      s += n > 0 ? 8 : -8;
+    }
     if (f.k === 'pumpHighest') s += p.mons.filter(Boolean).length ? 5 : -5;
     if (f.k === 'quickAtkAll') s += p.mons.filter(Boolean).length >= 2 ? 5 : 1;
     if (f.k === 'quickDef') s += p.mons.filter(Boolean).length ? 3 : 0;
@@ -219,9 +235,14 @@ function bestAttack(G, side) {
       // 反击：撞上去自己要吃伤害；屏障：这一下打不死它
       const ctr = fxv(t, 'counter');
       const brk = t.br > 0 ? 1 : 0;
+      // 额外卡组那批「反制型」：撞上去的代价不是掉血，是攻击者直接没了 / 这一脚白踢，
+      // 所以权重按「这次攻击基本没收益」来算，而不是按攻击力算。
+      const hard = (fxv(t, 'destroyAttacker') ? 1400 : 0)
+        + (fxv(t, 'negateAttackSelf') && !t.used.negAtk ? 700 : 0)
+        + (fxv(t, 'reflectAtk') ? 600 : 0);
       if (av > tv) {
         const dmg = t.pos === 'atk' ? av - tv : (pierce ? av - tv : 0);
-        const sc = tv + dmg * 2 + (t.pos === 'atk' ? 200 : 0) - ctr * 1.5 - brk * 200;
+        const sc = tv + dmg * 2 + (t.pos === 'atk' ? 200 : 0) - ctr * 1.5 - brk * 200 - hard;
         if (sc > bestScore) { bestScore = sc; best = { uid: a.uid, target: t.uid }; }
       } else if (av === tv && t.pos === 'atk') {
         if (300 - ctr - brk * 200 > bestScore) { bestScore = 300 - ctr - brk * 200; best = { uid: a.uid, target: t.uid }; }
@@ -276,6 +297,8 @@ function freeTrap(G, side, p, o) {
     if (ok('draw') || ok('tradeDraw') || ok('healDraw')) return s;
     if (ok('heal') && p.lp <= p.lpMax - 1500) return s;
     if (ok('discardOpp') && o.hand.length >= 2) return s;
+    // 先知的难题（看手牌 + 弃牌）：对方手里还有牌就值
+    if (ok('revealHand') && o.hand.length) return s;
     if ((ok('bounce') || ok('weakenEnemyAll') || ok('weakenHighest')) && o.mons.some(Boolean)) return s;
     if (ok('snipeDraw') && o.spells.some((x) => x && x.set)) return s;
     if (ok('graveBurn') && p.grave.length >= 3) return s;
@@ -357,20 +380,26 @@ export function nextAction(G, side, skill) {
       const sp = bestSpecial(G, p);
       if (sp) return { t: 'special', uid: sp.uid, trib: sp.trib };
     }
-    // 1. 觉醒体优先：素材已经站住了就别再拖（弱手会一直忘）
+    // 1. 觉醒体优先：素材已经站住了就别再拖（弱手会一直忘）。
+    //    额外卡组现在有四十多张，挑「能出的里面攻击力最高的那张」——不然场上有 3200 的机会，
+    //    却因为它在额外卡组里排后面，一直在叫 2400 的那只。
     if (G.rng() >= sloppy * 0.8) {
-      for (const id of p.extra) {
-        if (canAwaken(G, p, id)) return { t: 'awaken', id };
-      }
+      const can = p.extra.filter((id) => canAwaken(G, p, id))
+        .sort((a, b) => (d(b).atk || 0) - (d(a).atk || 0));
+      if (can.length) return { t: 'awaken', id: can[0] };
     }
     // 1.5 额外卡组的直接召唤：条件满足就叫，不占通常召唤
     if (G.rng() >= sloppy * 0.8) {
-      for (const id of p.extra) {
-        if (canDirect(G, p, id)) return { t: 'direct', id };
-      }
+      const can = p.extra.filter((id) => canDirect(G, p, id))
+        .sort((a, b) => (d(b).atk || 0) - (d(a).atk || 0));
+      if (can.length) return { t: 'direct', id: can[0] };
     }
+    // 魔法被「无声欢宴」封住的那个回合，下面两步都别试——试了只会每拍撞一次规则。
+    const canSp = !(p.lock && p.lock.sp > 0);
+    // 召唤被「被囚禁的疯狂」按住的回合同样别试，否则每拍撞一次规则
+    const canSum = !(p.lock && p.lock.sum > 0);
     // 2. 该斩杀了就直接烧（弱手偶尔也会漏掉这一手）
-    if (G.rng() >= sloppy * 0.5) {
+    if (canSp && G.rng() >= sloppy * 0.5) {
       for (const h of p.hand) {
         const def = d(h.id);
         if (!def || def.k !== 'S') continue;
@@ -382,12 +411,12 @@ export function nextAction(G, side, skill) {
       }
     }
     // 3. 魔法
-    if (G.rng() >= sloppy) {
+    if (canSp && G.rng() >= sloppy) {
       const sp = bestSpell(G, p, o);
       if (sp) return { t: 'spell', uid: sp.uid };
     }
     // 4. 召唤：这里有两种错法——该上不上（空过），或者随手上一只小的
-    if (G.rng() >= sloppy * 0.55) {
+    if (canSum && G.rng() >= sloppy * 0.55) {
       if (G.rng() < sloppy) {
         const bad = lazySummon(G, p);
         if (bad) return { t: 'summon', uid: bad.uid, tribs: [] };
@@ -398,7 +427,7 @@ export function nextAction(G, side, skill) {
     }
     // 5. 盖一只守备怪（手里有高守备、场上又空的时候）。
     //    弱手会把它正面摊在攻击表示上——那不是「另一种打法」，是白送一个突破口。
-    if (p.mons.filter(Boolean).length < 2) {
+    if (canSum && p.mons.filter(Boolean).length < 2) {
       const cand = p.hand.filter((h) => {
         const def = d(h.id);
         return def && def.k === 'M' && tributeNeed(h.id) === 0;
@@ -436,7 +465,7 @@ export function nextAction(G, side, skill) {
 
   if (G.phase === 'battle') {
     // 速攻魔法（钥令那批）在战斗阶段也能开：先开再打。弱手会忘，这就是「打错牌」的一种。
-    if (G.rng() >= sloppy) {
+    if (!(p.lock && p.lock.sp > 0) && G.rng() >= sloppy) {
       const q = p.hand.find((h) => {
         const def = d(h.id);
         return def && def.k === 'S' && def.t === 'quick' && scoreSpell(G, p, o, h) >= 4;
