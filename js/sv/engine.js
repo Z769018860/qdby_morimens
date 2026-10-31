@@ -14,10 +14,10 @@ import {
   RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, eliteGap, eliteCount,
   PLAYER, expNeed, scoreOf,
   MAX_WEAPON, POOL_PER_PROTO, RAGE, TERRAINS, terrainAt,
-  MECHS, GROWTHS, ITEMS, ITEM_MAX, VOICE,
+  MECHS, GROWTHS, ITEMS, ITEM_MAX, VOICE, ERODE,
 } from './defs.js';
 import { isUnlocked, recordRun } from './unlock.js';
-import { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS, BOSS_CAT } from './gen.js';
+import { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS, BOSS_CAT, BOSS_MIJIU } from './gen.js';
 import { sfx } from './audio.js';
 import { VOICES } from './voices.js';
 
@@ -87,6 +87,9 @@ export const G = {
   // 最终隐藏首领：弥萨格校猫。三只首领都清掉、且撑到最后 30 秒才登场，
   // 一局只来一次 —— spawned/killed 都要进存档摘要，用来给结算加一行。
   catSpawned: false, catKilled: false, catIdx: -1,
+  // 第二位隐藏首领：米酒（脑缸组的战斗设计师）。校猫放学之后他才来验收，
+  // 条件挂在 catKilled 上而不是时间上 —— 没打到校猫这一步，他不必出场。
+  mjSpawned: false, mjKilled: false, mjIdx: -1, mjT: 0,
   // 角色台词气泡。voice 是当前这句（t 倒数到 0 收），voiceAt 是上一次说话的
   // 时间戳（全局冷却），voiceDelay 用来把开场的「唤醒」台词延后一点，
   // 免得和选人面板/首屏 UI 同时出现。
@@ -205,11 +208,16 @@ export function reset(charId, diffKey) {
   G.items = [];
   G.echo = [];
   G.echoT = 0; G.echoMark = 0;
-  G.mech = { id: null, stacks: 0, low: false, procs: 0, t: 0, flag: false, cd: 0 };
+  // cr / crId / crKind / crN 是「融蚀」的运行时状态（萨摩不耶的第二机制）：
+  // cr 是剩余秒数，crId 指向这一轮被按下去的那一格技能或造物。
+  G.mech = { id: null, stacks: 0, low: false, procs: 0, t: 0, flag: false, cd: 0,
+    cr: 0, crId: null, crKind: '', crN: '', crCd: 0, crTimes: 0 };
   G.catSpawned = false; G.catKilled = false;
   // MOBS 里带 cat 标记的那一条就是校猫。用 index 而不是 id 查，是因为
   // spawnEnemy 本身按数组下标取 def；查一次存起来，省得每帧 find。
   G.catIdx = MOBS.findIndex((m) => m && m.cat);
+  G.mjSpawned = false; G.mjKilled = false; G.mjT = 0;
+  G.mjIdx = MOBS.findIndex((m) => m && m.mj);
   G.voice = null; G.voiceAt = -99; G.voiceDelay = VOICE.wakeDelay;
   G.stats = { dmg: 0, taken: 0, rageDmg: 0 };
   for (const k of ['enemies', 'bullets', 'fields', 'orbs', 'summons', 'pickups', 'fx', 'texts']) G[k].length = 0;
@@ -349,6 +357,8 @@ export function recompute() {
     // 节拍：每拍 +1.5% 攻击，30 拍封顶 = +45%。层数只在击杀时变，
     // 所以和「王权」一样走 recompute，不做每帧改 mods。
     base.atk += (G.mech.stacks || 0) * 0.015;
+    // 融蚀：拿命换的火力。触发与结束各重算一次就够，不每帧改 mods。
+    if (G.mech.cr > 0) base.atk += ERODE.atk;
   } else if (mech === 'dragonscale') {
     base.dmgTaken *= 0.85;
     base.maxShieldBonus += 50;      // 基础 30 → 80，约 +40% 上限
@@ -392,7 +402,11 @@ export function recompute() {
   }
   Object.assign(m, base);
 
+  // 融蚀压下去的是造物时，这一格的每一层加成都不参与本次重算 ——
+  // 跳过比重算完再减回去干净，也不会在 ui 的加成明细里留下半条。
+  const muteId = G.mech && G.mech.cr > 0 ? String(G.mech.crId) : null;
   for (const p of G.passives) {
+    if (muteId && String(p.id) === muteId) continue;
     for (let i = 0; i < p.stack; i++) applyCreation(p, m);
   }
   for (const w of G.wheels) applyWheel(w.key, m);
@@ -400,7 +414,10 @@ export function recompute() {
   // 后期成长：每一项都是永久叠加，所以和造物一样逐层重放
   for (const g of G.growth) applyGrowth(g, m);
 
-  G.player.maxHp = Math.round(PLAYER.hp + m.maxHpBonus);
+  // 融蚀期间「命更薄」：上限按比例削，当前血在下一行统一夹一次。
+  // 削上限而不是记一笔伤害 —— 融蚀退去时不该凭这笔「伤害」把血还回来。
+  const erodeOn = !!(G.mech && G.mech.cr > 0);
+  G.player.maxHp = Math.round((PLAYER.hp + m.maxHpBonus) * (erodeOn ? ERODE.hp : 1));
   G.player.maxShield = Math.round(30 + m.maxShieldBonus);
   if (G.player.hp > G.player.maxHp) G.player.hp = G.player.maxHp;
   refreshEvo();
@@ -1116,6 +1133,7 @@ export function update(dt) {
   // ---- 角色机制的定时部分 + 最终隐藏首领
   updateMech(dt);
   updateCatBoss();
+  updateMijiuBoss(dt);
 
   // ---- 场上有没有首领：BGM 要据此切到 boss 层。
   // 每 0.4 秒扫一次数组就够了，没必要每帧遍历六十只怪。
@@ -1161,9 +1179,13 @@ function updateWeapons(dt) {
   // 免得 recompute 之后被覆盖掉。
   const rageAtk = G.rageT > 0 ? 1 + RAGE.atk : 1;
   const rageCd = G.rageT > 0 ? RAGE.cd : 1;
+  // 融蚀：被按下去的那一格整段冻住。timer 一起停，否则一解冻它会把
+  // 冷却直接付清、立刻打出一发，看起来像「失效期间在偷偷蓄力」。
+  const muteId = G.mech && G.mech.cr > 0 ? G.mech.crId : null;
   for (const w of G.weapons) {
     const proto = PROTOS[w.def.proto];
     if (!proto) continue;
+    if (muteId && w.def.id === muteId) { w.cdLeft = Math.max(0, w.timer); continue; }
     w.timer -= dt;
     // 给 HUD 的冷却环用：cdLeft/cdMax 是「这一发还要多久」和「整格多长」
     w.cdLeft = Math.max(0, w.timer);
@@ -1537,6 +1559,9 @@ function updateOrbs(dt) {
   const P = G.player;
   for (const o of G.orbs) {
     if (!G.weapons.includes(o.w)) { o.dead = true; continue; }
+    // 融蚀：环绕光刃是常驻实体，只冻开火逻辑它还会接着割人。
+    // 直接撤掉，恢复后的第一次开火会靠 syncOrbit 把它挂回来。
+    if (G.mech && G.mech.cr > 0 && o.w.def.id === G.mech.crId) { o.dead = true; continue; }
     o.a += dt * 2.1;
     const cfg = o.w.orb;
     if (!cfg) continue;
@@ -1694,6 +1719,9 @@ function addSummon(dmg, color, lv, src) {
 
 function updateSummons(dt) {
   for (const s of G.summons) {
+    // 融蚀：被按下去的那一格召出来的东西也一起哑掉。只冻开火的话，
+    // 场上已有的召唤物照样咬人，「技能失效」就成了空话。
+    if (G.mech && G.mech.cr > 0 && s.src && s.src.def.id === G.mech.crId) continue;
     // 图腾：站桩不动，按固定节奏朝最近的敌人放电
     if (s.static) {
       if (s.cd > 0) s.cd -= dt;
@@ -2080,6 +2108,14 @@ function killEnemy(e, sx, sy) {
     G.flash = 0.8;
     G.shake = 20;
   }
+  // 第二位隐藏首领：关卡设计师被清掉，这一关才算真的验完
+  if (e.mj) {
+    G.mjKilled = true;
+    const ls = (BOSS_MIJIU && BOSS_MIJIU.lines && BOSS_MIJIU.lines.die) || [];
+    addText(e.x, e.y - 60, ls[0] || '米酒 · 这一关过了', 6);
+    G.flash = 0.7;
+    G.shake = 16;
+  }
   burst(e.x, e.y, e.tier === 2 ? 22 : e.tier === 1 ? 12 : 5, e.tier ? '#ffd479' : '#9aa4bb', e.tier ? 190 : 120);
   give('enemies', e);
 
@@ -2373,6 +2409,47 @@ function updateSpawns(dt) {
   }
 }
 
+// ---------------------------------------------------------------- 融蚀
+// 把一项技能或造物按下去 ERODE.dur 秒，换攻击力。
+//
+// 三条边界：
+//   1. 一手空牌（只有本命一把技能、又没捡造物）不触发 —— 那几秒等于站着挨打，
+//      融蚀是「拿命换火力」，不是「拿命换命」；
+//   2. 只挑一格，挑中的技能连它的环绕体、召唤物一起哑掉，不能只停开火；
+//   3. 生命上限的下滑写在 recompute 里，这里只负责计时与播报。
+function startErode() {
+  const P = G.player;
+  const cand = [];
+  for (const w of G.weapons) cand.push({ kind: 'w', id: w.def.id, n: w.def.n });
+  for (const p of G.passives) cand.push({ kind: 'p', id: String(p.id), n: p.n });
+  if (!cand.length || (G.weapons.length <= 1 && G.passives.length === 0)) return;
+  const tgt = cand[(rnd() * cand.length) | 0];
+  G.mech.cr = ERODE.dur;
+  G.mech.crId = tgt.id;
+  G.mech.crKind = tgt.kind;
+  G.mech.crN = tgt.n;
+  G.mech.crTimes = (G.mech.crTimes || 0) + 1;
+  recompute();
+  addText(P.x, P.y - 70, `融蚀 · ${tgt.n} 失效`, 3);
+  addText(P.x, P.y - 50,
+    `生命 -${Math.round((1 - ERODE.hp) * 100)}% · 攻击 +${Math.round(ERODE.atk * 100)}%`, 3);
+  G.fx.push({
+    x: P.x, y: P.y, vx: 0, vy: 0, kind: 'ring', color: '#b45cff', r: 0,
+    life: 0.55, max: 0.55, ring: 168,
+  });
+  G.shake = Math.min(12, G.shake + 3);
+  sfx.play('hurt');
+}
+
+function endErode() {
+  G.mech.cr = 0;
+  G.mech.crId = null;
+  G.mech.crKind = '';
+  G.mech.crN = '';
+  recompute();
+  addText(G.player.x, G.player.y - 56, '融蚀退去 · 上限回升', 2);
+}
+
 // ---------------------------------------------------------------- 机制运行时
 // 机制里的被动加成走 recompute；这里只处理需要按时间推进的那几件：
 // 节拍满槽、龙鳞周期吐息、花信风、兔子洞、立誓的 90 秒切档。
@@ -2388,6 +2465,24 @@ function updateMech(dt) {
     G.mech.flag = true;
     recompute();
     addText(P.x, P.y - 54, '立誓期满 · 攻击回落', 6);
+  }
+
+  // 融蚀：后期才开闸，一次烧 ERODE.dur 秒；烧的过程中不再掷骰，
+  // 所以它不会叠成两层，玩家也不用猜现在到底是几层。
+  if (id === 'samobeat') {
+    if (G.mech.cr > 0) {
+      G.mech.cr = Math.max(0, G.mech.cr - dt);
+      if (G.mech.cr <= 0) endErode();
+    } else if (G.t >= ERODE.from) {
+      G.mech.crCd = Math.max(0, (G.mech.crCd || 0) - dt);
+      if (G.mech.crCd <= 0) {
+        G.mech.crCd = ERODE.every;
+        // 越往后越容易：3 分钟 ERODE.base，之后按局内时间线性升，封顶 base+ramp
+        const p = ERODE.base
+          + Math.min(ERODE.ramp, Math.max(0, G.t - ERODE.from) / ERODE.rampSec * ERODE.ramp);
+        if (rnd() < p) startErode();
+      }
+    }
   }
 
   // 不耶节拍：满 30 拍放一次全拍冲击，然后从 0 重新数
@@ -2509,6 +2604,50 @@ function updateCatBoss() {
   G.fx.push({ x: e.x, y: e.y, vx: 0, vy: 0, kind: 'ring', life: 0.9, max: 0.9, color: '#ffd76a', r: 0, ring: 300 });
 }
 
+// 米酒：脑缸组的战斗设计师。校猫被清掉之后他才登场 —— 他不是来拦路的，
+// 是来验收这一关的。他不追人（速度压到六成，站在场边翻那张画满网格的纸），
+// 但每 addEvery 秒往场上补两只小怪。血量只有校猫的一半，威胁全在补充上。
+function updateMijiuBoss(dt) {
+  const B = BOSS_MIJIU;
+  if (!B || G.phase !== 'run') return;
+  if (G.mjIdx < 0) return;
+  if (!G.mjSpawned) {
+    if (B.afterCat && !G.catKilled) return;
+    const e = spawnEnemy(2, null, null, G.mjIdx);
+    if (!e) return;
+    G.mjSpawned = true;
+    G.mjT = 0;
+    e.mj = true;
+    e.r = B.r || 46;
+    e.maxHp = Math.round(e.maxHp * (B.hpMul || 2));
+    e.hp = e.maxHp;
+    e.spd *= 0.58;
+    e.n = B.n;
+    G.warnName = B.n;
+    G.warn = 3.2;
+    G.shake = 16; G.flash = 0.6;
+    sfx.play('boss');
+    G.bossAlive = true;
+    const ls = (B.lines && B.lines.spawn) || [];
+    if (ls.length) addText(G.player.x, G.player.y - 76, ls[(rnd() * ls.length) | 0], 6);
+    G.fx.push({ x: e.x, y: e.y, vx: 0, vy: 0, kind: 'ring', life: 0.9, max: 0.9, color: '#9fc4e8', r: 0, ring: 280 });
+    return;
+  }
+  if (G.mjKilled) return;
+  // 死了就停：场上没有他，规则就不再改。用「场上还有没有 mj」判断，
+  // 而不是另开一个计时器归零 —— 如果他先被清掉，这里从一开始就不会补怪。
+  if (!G.enemies.some((x) => x.mj)) return;
+  G.mjT = (G.mjT || 0) + dt;
+  if (G.mjT < (B.addEvery || 7)) return;
+  G.mjT = 0;
+  let n = 0;
+  for (let i = 0; i < 2; i++) if (spawnEnemy(0)) n++;
+  if (n) {
+    const ls = (B.lines && B.lines.add) || [];
+    if (ls.length) addText(G.player.x, G.player.y - 76, ls[(rnd() * ls.length) | 0], 5);
+  }
+}
+
 // ---------------------------------------------------------------- 对外摘要
 export function summary() {
   const st = { kills: G.kills, t: G.t, lv: G.lv, bossKills: G.bossKills };
@@ -2519,7 +2658,9 @@ export function summary() {
     // 校猫是一局一次的收尾彩蛋：打赢了额外记 1500 分（约等于六只首领的分数），
     // 打不过也没有惩罚 —— 它本来就不该出现在这里。
     catName: (BOSS_CAT && BOSS_CAT.n) || '弥萨格校猫',
-    score: Math.round(base * G.diff.mul) + (G.catKilled ? 1500 : 0),
+    mj: G.mjKilled, mjSpawned: G.mjSpawned,
+    mjName: (BOSS_MIJIU && BOSS_MIJIU.n) || '米酒',
+    score: Math.round(base * G.diff.mul) + (G.catKilled ? 1500 : 0) + (G.mjKilled ? 2500 : 0),
     diff: G.diff.k,
     char: G.char ? G.char.n : '',
     charId: G.char ? G.char.id : '',

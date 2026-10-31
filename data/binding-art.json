@@ -69,7 +69,8 @@
     "b5": "assets/monster/Portrait_Small_Monster_C0101_CT_BOSSSIZE.webp",
     "b6": "assets/monster/Portrait_Small_Monster_DCC10_01_BOSSSIZE.webp",
     "b7": "assets/monster/Portrait_Small_Monster_DCB02_01_BOSSSIZE.webp",
-    "b8": "assets/monster/Portrait_Small_Monster_A0002_BOSSSIZE.webp"
+    "b8": "assets/monster/Portrait_Small_Monster_A0002_BOSSSIZE.webp",
+    "mijiu": "assets/monster/Portrait_Small_Monster_mijiu.webp"
   },
   "monsters": {
     "_note": "全部取自游戏自带的怪物图鉴（data/boot.json 的 dict.monster，img 字段那张 Portrait_Small_Monster_*）。key 是游戏里 ENEMIES 的 art，名字与出处写在 js/binding-data.js 的注释里。",

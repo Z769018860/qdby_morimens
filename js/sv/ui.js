@@ -456,6 +456,8 @@ function buildInfo() {
     else if (mm.id === 'seal') now = `当前 ${G.mech.stacks}/5 道`;
     else if (mm.id === 'paradox') now = '已生效';
     else if (mm.id === 'nightwatch') now = G.mech.low ? '燃灯中' : '待触发';
+    else if (mm.id === 'samobeat') now = G.mech.cr > 0
+      ? `融蚀中 · ${Math.ceil(G.mech.cr)}s` : `节拍 ${G.mech.stacks}/30`;
     return `<div class="if-row mech">
       <i class="if-glyph" style="color:${mm.color}">◈</i>
       <div><b>${esc(mm.n)} <em>${esc(now)}</em></b><span>${esc(mm.text)}</span></div></div>`;
@@ -550,13 +552,17 @@ export function updateHUD() {
     $('hBossName').textContent = boss.n;
     $('hBossFill').style.width = (Math.max(0, boss.hp / boss.maxHp) * 100).toFixed(1) + '%';
   }
-  const wkey = G.weapons.map((w) => w.def.id + w.lv + (w.evo ? 'E' : '')).join(',');
+  // 融蚀压掉的那一格要换一套外观（灰掉 + 一个「蚀」字）。把它并进 key，
+  // 触发/结束时各重建一次 DOM 就够，不用每帧比对。
+  const muteId = G.mech && G.mech.cr > 0 ? G.mech.crId : null;
+  const wkey = G.weapons.map((w) => w.def.id + w.lv + (w.evo ? 'E' : '')
+    + (muteId && w.def.id === muteId ? 'M' : '')).join(',');
   if (hudCache.wkey !== wkey) {
     hudCache.wkey = wkey;
     // 超武的槽要一眼能认出来：金边 + 右上角「超」字角标。
     // 不标的话，玩家只会觉得「这把好像打得比别的疼」，根本不知道有机制。
     $('hWeapons').innerHTML = G.weapons.map((w) => `
-      <div class="slot${w.evo ? ' evo' : ''}" data-info="1" title="${esc(w.def.n)} · ${esc(w.def.charName)}${w.evo ? ' · 超武「' + esc(w.evo.n) + '」' : ''}">
+      <div class="slot${w.evo ? ' evo' : ''}${muteId && w.def.id === muteId ? ' mute' : ''}" data-info="1" title="${esc(w.def.n)} · ${esc(w.def.charName)}${w.evo ? ' · 超武「' + esc(w.evo.n) + '」' : ''}${muteId && w.def.id === muteId ? ' · 融蚀中，暂时失效' : ''}">
         ${charFaceHTML(w.def.char, 30)}
         <b class="cdm"></b>
         ${w.evo ? '<em class="evb">超</em>' : ''}
@@ -580,20 +586,22 @@ export function updateHUD() {
       }
     }
   }
-  const pkey = G.passives.map((p) => p.id + p.stack).join(',') + '|' + G.wheels.map((w) => w.idx).join(',') + '|' + G.covs.map((c) => c.idx).join(',');
+  const pkey = G.passives.map((p) => p.id + p.stack
+    + (muteId && String(p.id) === String(muteId) ? 'M' : '')).join(',') + '|' + G.wheels.map((w) => w.idx).join(',') + '|' + G.covs.map((c) => c.idx).join(',');
   if (hudCache.pkey !== pkey) {
     hudCache.pkey = pkey;
     // 造物/命轮/契物全部换成真实图标 + 层数角标。
     // 之前造物是几根绿条、命轮只有个「命」字 —— 玩家根本不知道自己捡了什么、
     // 叠了几层、到底加的是什么。点一下会弹出构筑详情（含每条效果的原文）。
-    const slot = (frameIdx, cls, title, badge) => `
-      <div class="slot ${cls}" data-info="1" title="${esc(title)}">
+    const slot = (frameIdx, cls, title, badge, mute) => `
+      <div class="slot ${cls}${mute ? ' mute' : ''}" data-info="1" title="${esc(title)}${mute ? ' · 融蚀中，暂时失效' : ''}">
         <i style="${atlasStyle(frameIdx, 26)}"></i>
         ${badge ? `<em class="stk">${badge}</em>` : ''}
       </div>`;
     const ps = G.passives.map((p) => {
       const fx = CREATION_FX[p.fx];
-      return slot(META.frames['k:' + p.id], 'p', `${p.n} ×${p.stack} · ${fx ? fx.txt : '通用强化'}`, p.stack > 1 ? p.stack : '');
+      return slot(META.frames['k:' + p.id], 'p', `${p.n} ×${p.stack} · ${fx ? fx.txt : '通用强化'}`, p.stack > 1 ? p.stack : '',
+        muteId && String(p.id) === String(muteId));
     }).join('');
     const ws = G.wheels.map((w) => {
       const fx = WHEEL_FX.find((x) => x.key === w.key);
@@ -629,7 +637,10 @@ export function updateHUD() {
     else if (mm.id === 'paradox') mkey = '悖论';
     else if (mm.id === 'nightwatch') mkey = G.mech.low ? '守夜 · 燃灯' : '守夜';
     // 彩蛋角色的机制角标：有进度就给进度，没进度就给状态
-    else if (mm.id === 'samobeat') mkey = `节拍 ${G.mech.stacks}/30`;
+    // 萨摩不耶有两条线：节拍是常驻进度，融蚀是后期才冒出来的临时状态。
+    // 融蚀期间把角标让给它 —— 那几秒里玩家最想知道的是还剩多久。
+    else if (mm.id === 'samobeat') mkey = G.mech.cr > 0
+      ? `融蚀 ${Math.ceil(G.mech.cr)}s` : `节拍 ${G.mech.stacks}/30`;
     else if (mm.id === 'ratcrown') mkey = `鼠群 ${(G.mech.stacks || 0)}/20`;
     else if (mm.id === 'dreamgate') mkey = G.mech.flag ? '入梦 · 已用' : '入梦 · 待命';
     else if (mm.id === 'rabbitfall') mkey = G.mech.cd > 0 ? `兔子洞 ${Math.ceil(G.mech.cd)}s` : '兔子洞 · 就绪';
@@ -647,7 +658,8 @@ export function updateHUD() {
       el.textContent = mkey;
       el.style.color = mm ? mm.color : '';
       el.style.borderColor = mm ? mm.color + '55' : '';
-      el.classList.toggle('hot', mm && mm.id === 'nightwatch' && G.mech.low);
+      el.classList.toggle('hot', !!mm && ((mm.id === 'nightwatch' && G.mech.low)
+        || (mm.id === 'samobeat' && G.mech.cr > 0)));
     }
   }
 }
@@ -892,7 +904,12 @@ export function showEnd(sm) {
   const catText = sm.cat
     ? ` · ${sm.catName || '弥萨格校猫'}已放学`
     : (sm.catSpawned ? ` · ${sm.catName || '弥萨格校猫'}还蹲在那儿` : '');
-  $('endTitle').textContent = (sm.win ? '撑到潮水退去' : sm.gaveUp ? '主动收兵' : '倒在了半路') + catText;
+  // 第二位隐藏首领：米酒是这一关的验收人。校猫走了他才来 ——
+  // 打赢写「验收通过」，没打赢就写他还在改关卡（玩家得知道场上多了一个人）。
+  const mjText = sm.mj
+    ? ` · ${sm.mjName || '米酒'}验收通过`
+    : (sm.mjSpawned ? ` · ${sm.mjName || '米酒'}还在改关卡` : '');
+  $('endTitle').textContent = (sm.win ? '撑到潮水退去' : sm.gaveUp ? '主动收兵' : '倒在了半路') + catText + mjText;
   const best0 = Number(localStorage.getItem('zjtt:survivors:best') || 0);
   // 不足 1 分钟别写成「第 0 分 04 秒」——刚开局就放弃/阵亡时特别刺眼
   const clock = sm.t >= 60

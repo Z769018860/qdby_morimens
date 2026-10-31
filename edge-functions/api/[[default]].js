@@ -1337,6 +1337,9 @@ async function postAdminGrantBatch(request, env, kv, cors) {
 // 没登录 / 没同步过的人不会上榜。每次重算要读几百个键，所以缓存 3 分钟。
 const BOARD_TTL = 60 * 1000;
 // [游戏键, gd 键, 取分的下标, 说明, 副标]
+// 唤醒王：决斗链接的九个段位名（榜单副标用）。改段位名时和 js/duel/tiers.js 的 TIERS 一起改。
+const DUEL_TIERS = ['见习守密人', '铜钥级', '银钥级', '金印级', '白夜级', '命轮师', '界域传说', '唤醒大师', '唤醒王'];
+
 const BOARD_SPEC = [
   // 战报侦探：按答对的题数排，副标写正确率；答对数相同时正确率高的在前
   { k: 'dr', gd: 'dr', i: 1, unit: '题', label: '答对题数',
@@ -1356,6 +1359,15 @@ const BOARD_SPEC = [
   // 忘却 2048：按显影分排，副标写最高合到的块
   { k: 'g2', gd: 'g2', i: 0, unit: '分', label: '最高分',
     sub: (v) => (Number(v[1]) > 1 ? `最高块 ${Number(v[1])}` : '') },
+  // 唤醒王：决斗链接：按段位分排（只增不减，见 js/duel/rank.js），副标写段位名 + 人机战绩。
+  // 段位名要和 js/duel/rank.js 的 TIERS 保持一致——后端读不到前端模块，只能抄一份在这。
+  { k: 'dl', gd: 'dl', i: 0, unit: '分', label: '段位分',
+    sub: (v) => {
+      const t = Number(v[3]) || 0;
+      const name = DUEL_TIERS[t] || '';
+      const w = Number(v[1]) || 0, l = Number(v[2]) || 0;
+      return [name, w + l > 0 ? `${w} 胜 ${l} 负` : ''].filter(Boolean).join(' · ');
+    } },
 ];
 // 账号档案里除了 gd（九个游戏的摘要）还有几个老字段：合成最高分 mb、鸟弟 bb/bs、侦探 st。
 // 老客户端只有这些、没有 gd，或者 gd 比它们旧——两边逐项取大，免得有人明明有上万分却上不了榜。
@@ -1481,7 +1493,8 @@ export async function onRequest(context) {
         // v7 多了 /save/:game（整份游戏存档上云，挂机前夜用），
         // v6 多了 /home/reviews（评分详情：分布 + 短评），
         // v5 档案里多了 gd（九个游戏的进度摘要），管理页能看全部游戏 + 挂机时长/角色数
-        ok: Boolean(store), service: 'zjtt', v: 9, runtime: 'edgeone',
+        // v10 榜单多了唤醒王：决斗链接（段位分），见 BOARD_SPEC 的 dl
+        ok: Boolean(store), service: 'zjtt', v: 10, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),

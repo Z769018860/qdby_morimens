@@ -162,8 +162,9 @@ function genMergeArt() {
 }
 
 // ------------------------------------------------- 合成大杜勒的「换皮」头像池
-// 换皮 = 每一级（杜勒赛因除外）随机换成一位唤醒体的脸，且同一次换皮里不重复。
-// 候选池是 data/avatars.json 里**全部**唤醒体（除了杜勒赛因）——不再手挑几个，免得总摇出那几张。
+// 换皮 = 每一级（杜勒赛因除外）随机换成一张脸，且同一次换皮里不重复。
+// 候选池是 data/avatars.json 里**全部**唤醒体（除了杜勒赛因）+ data/survivors-extra.json
+// 里的十位 B 站主播——不再手挑几个，免得总摇出那几张。
 // 这些图不进首屏：单独一个模块，只有玩家点了「换皮」、或者之前换过要还原时才会去拉。
 const MERGE_SKIN_EXCLUDE = new Set(['a-95786']);   // 杜勒赛因：它是终点，固定不换
 
@@ -178,10 +179,21 @@ function genMergeSkins(cfg) {
     seen.add(x.n);
     pool.push({ n: x.n, art: 'data:image/webp;base64,' + fs.readFileSync(file).toString('base64') });
   }
+  // 十位 B 站主播也进池子：脸本来就在 assets/survivors/faces/ 里（幸存者营地已经在用），
+  // 名字从 survivors-extra.json 取，别在这儿再抄一份中文名。
+  // 追加在末尾——旧存档里的换皮序号指的还是同一张脸。
+  const extra = readJson(path.join(ROOT, 'data/survivors-extra.json'));
+  for (const c of extra.chars || []) {
+    if (!c.face || !c.n || seen.has(c.n)) continue;
+    const face = path.join(ROOT, c.face);
+    if (!has(face)) continue;
+    seen.add(c.n);
+    pool.push({ n: c.n, art: 'data:image/webp;base64,' + fs.readFileSync(face).toString('base64') });
+  }
   const code = [
     '// 由 scripts/build.mjs 从 data/avatars.json 生成，请勿手改。',
     '// 只给「换皮」用：首页/首屏不加载这个文件（动态 import，见 js/merge.js 的 loadSkins）。',
-    '// 一个扁平数组：全部唤醒体（杜勒赛因除外），元素是 { n: 角色名, art: data URI }。',
+    '// 一个扁平数组：全部唤醒体（杜勒赛因除外）+ 十位主播，元素是 { n: 角色名, art: data URI }。',
     `export const SKINS = ${JSON.stringify(pool)};`,
     '',
   ].join('\n');
@@ -286,6 +298,12 @@ function genSurvivors() {
   if (extra.boss) {
     mobs.push({ id: extra.boss.id, n: extra.boss.n, cls: 'Boss', hidden: true, cat: true });
   }
+  // 第二位隐藏首领「米酒」同理：hidden 让他不进首领轮换，只能由 updateMijiuBoss
+  // 在校猫被清掉之后指名召唤。条件是挂在「校猫已放学」上而不是时间上 ——
+  // 关卡设计师是来验收的，你没打到那儿他就不必出场。
+  if (extra.boss2) {
+    mobs.push({ id: extra.boss2.id, n: extra.boss2.n, cls: 'Boss', hidden: true, mj: true });
+  }
   const code = [
     '// 由 scripts/build.mjs 生成，请勿手改。',
     '// 源：assets/survivors/atlas.webp + data/survivors-atlas.json + data/survivors-data.json',
@@ -299,6 +317,7 @@ function genSurvivors() {
     `export const WHEELS = ${JSON.stringify(data.wheels)};`,
     `export const COVENANTS = ${JSON.stringify(data.covenants)};`,
     `export const BOSS_CAT = ${JSON.stringify(extra.boss || null)};`,
+    `export const BOSS_MIJIU = ${JSON.stringify(extra.boss2 || null)};`,
     '',
   ].join('\n');
   const out = path.join(ROOT, 'js/sv/gen.js');
@@ -324,11 +343,18 @@ function genProtocol() {
     const p = path.join(ROOT, `assets/protocol/realm-${k}.webp`);
     if (has(p)) realm[k] = 'data:image/webp;base64,' + fs.readFileSync(p).toString('base64');
   }
+  // 图集之外的敌人图（米酒）：128×128 的 Q 版头像，不进大图集，单独内联一份
+  const extra = {};
+  const mjPath = path.join(ROOT, 'assets/protocol/mijiu.webp');
+  if (has(mjPath)) extra.mijiu = 'data:image/webp;base64,' + fs.readFileSync(mjPath).toString('base64');
   const code = [
     '// 由 scripts/build.mjs 生成，请勿手改。',
-    '// 源：assets/protocol/proto-sheet.webp + realm-*.webp + data/protocol-art.json + data/protocol-units.json',
+    '// 源：assets/protocol/proto-sheet.webp + realm-*.webp + mijiu.webp + data/protocol-art.json + data/protocol-units.json',
     `export const SHEET = ${JSON.stringify(uri)};`,
     `export const REALM_ART = ${JSON.stringify(realm)};`,
+    // 图集里没有的敌人（米酒）。单开一个导出而不是再拼一次图集：
+    // 只有一张 128×128 的 Q 版头像，单独内联仍然只有「页面 + 一个脚本」两个请求。
+    `export const EXTRA = ${JSON.stringify(extra)};`,
     `export const ART = ${JSON.stringify({ w: art.w, h: art.h, anims: art.anims, mobs: art.mobs })};`,
     `export const UNITS = ${JSON.stringify(cfg.units)};`,
     '',
@@ -336,7 +362,7 @@ function genProtocol() {
   const out = path.join(ROOT, 'js/pf/gen.js');
   if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
   return {
-    units: cfg.units.length, mobs: Object.keys(art.mobs).length,
+    units: cfg.units.length, mobs: Object.keys(art.mobs).length + Object.keys(extra).length,
     realm: Object.keys(realm).length, kb: Math.round(code.length / 1024),
   };
 }
@@ -485,7 +511,7 @@ for (const f of pageFiles) {
 // 打包成同名文件（js/merge-sync.js → js/b/merge-sync.js），这样
 // 页面里的 import('./merge-sync.js') 在「源码目录」和「打包目录」都能解析到。
 // g2048-skins.js 是「忘却 2048」的换皮池（一百多张图，四百来 KB）：只在点「换皮」时 import()。
-const EXTRA_ENTRIES = ['js/merge-sync.js', 'js/bird-sync.js', 'js/merge-skins.js', 'js/g2048-skins.js'];
+const EXTRA_ENTRIES = ['js/merge-sync.js', 'js/bird-sync.js', 'js/duel-sync.js', 'js/merge-skins.js', 'js/g2048-skins.js'];
 
 const extras = [];
 for (const rel of EXTRA_ENTRIES) {

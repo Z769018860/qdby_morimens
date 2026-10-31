@@ -637,7 +637,7 @@ const crInfo = await cdp.evalIife(`(() => {
   const cr = __game.data.awakeners.filter((a) => a.creator);
   return { total: __game.data.awakeners.length, n: cr.length, names: cr.map((a) => a.zh), avail: [...new Set(cr.map((a) => a.avail))] };
 })()`);
-check(crInfo.n === 9 && crInfo.total === 71, `9 位联名嘉宾已并进唤醒体表（共 ${crInfo.total} 名）：${crInfo.names.join('、')}`);
+check(crInfo.n === 10 && crInfo.total === 72, `10 位联名嘉宾已并进唤醒体表（共 ${crInfo.total} 名）：${crInfo.names.join('、')}`);
 check(crInfo.avail.length === 1 && crInfo.avail[0] === 'GIFT', '彩蛋角色 avail = GIFT，不进召唤池');
 
 const crPull = await cdp.evalIife(`(async () => {

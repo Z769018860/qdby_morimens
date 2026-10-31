@@ -509,7 +509,7 @@ function refreshRoster() {
     b.append(nm);
     if (p.isPlayer) b.append(el('span', 'you', '你'));
     // 从外面接进来的八个记录者：名字后面挂个 UP，一眼看得出这桌谁不是唤醒体
-    // 校猫是官方的人（制作人莱特），角标写「官」；其余九位是主播，写 UP
+    // 校猫是官方的人（制作人莱特），角标写「官」；其余十位是主播，写 UP
     else if (p.char && p.char.up) b.append(el('span', 'up', p.char.badge || 'UP'));
     const cl = G.claims[p.id];
     if (cl) b.append(el('span', 'cl', '自称 ' + ROLES[cl].zh));

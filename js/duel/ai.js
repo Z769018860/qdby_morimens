@@ -152,24 +152,58 @@ function bestAttack(G, side) {
   return bestScore > 0 ? best : null;
 }
 
+// sloppy＝「打错牌」的概率（0~0.8）。历史上只有 easy/normal/hard 三个字符串，
+// 现在段位要把对手一级一级往上顶，所以也接受直接给数字（见 duel/rank.js 的 aiFor）。
+function sloppyOf(skill) {
+  if (typeof skill === 'number' && isFinite(skill)) return Math.max(0, Math.min(0.8, skill));
+  return skill === 'easy' ? 0.4 : skill === 'hard' ? 0 : 0.16;
+}
+
+// 乱召唤：手里能直接上的怪里随便挑一只（不挑最能打的）。只在不需要祭品的里面挑，
+// 免得它把场上的墙献祭掉换一只更弱的——那就不是「打得差」，是「不会玩」了。
+function lazySummon(G, p) {
+  const free = summonOptions(G, p).filter((x) => !x.need);
+  if (!free.length) return null;
+  return free[Math.floor(G.rng() * free.length)];
+}
+
+// 乱撞：挑一个「打不过还要撞」的目标。真正的弱手不是不打，是见谁撞谁。
+// 返回 null 表示场上没有可撞的目标（那就直接打脸）。
+function worstAttack(G, side) {
+  const p = G.players[side];
+  const o = G.players[1 - side];
+  const mine = p.mons.filter((m) => m && canAttack(G, p, m));
+  if (!mine.length) return null;
+  // 拿攻击力最低的那只，去撞对面攻击力最高的那只
+  const a = mine.sort((x, y) => atkOf(G, p, x) - atkOf(G, p, y))[0];
+  const foes = o.mons.filter(Boolean);
+  if (!foes.length) return { uid: a.uid, target: null };
+  const t = foes.sort((x, y) => atkOf(G, o, y) - atkOf(G, o, x))[0];
+  return { uid: a.uid, target: t.uid };
+}
+
 // 返回「下一步」：{ t: 'awaken'|'spell'|'summon'|'setMon'|'trap'|'pos'|'battle'|'attack'|'end', ... }
 export function nextAction(G, side, skill) {
   const p = G.players[side];
   const o = G.players[1 - side];
   if (G.over) return null;
-  const sloppy = skill === 'easy' ? 0.35 : skill === 'hard' ? 0 : 0.12;
+  const sloppy = sloppyOf(skill);
 
   if (G.phase === 'main') {
-    // 1. 觉醒体优先：素材已经站住了就别再拖
-    for (const id of p.extra) {
-      if (canAwaken(G, p, id)) return { t: 'awaken', id };
+    // 1. 觉醒体优先：素材已经站住了就别再拖（弱手会一直忘）
+    if (G.rng() >= sloppy * 0.8) {
+      for (const id of p.extra) {
+        if (canAwaken(G, p, id)) return { t: 'awaken', id };
+      }
     }
-    // 2. 该斩杀了就直接烧
-    for (const h of p.hand) {
-      const def = d(h.id);
-      if (!def || def.k !== 'S') continue;
-      for (const f of def.fx || []) {
-        if (f.k === 'burn' && (f.v || 0) >= o.lp) return { t: 'spell', uid: h.uid };
+    // 2. 该斩杀了就直接烧（弱手偶尔也会漏掉这一手）
+    if (G.rng() >= sloppy * 0.5) {
+      for (const h of p.hand) {
+        const def = d(h.id);
+        if (!def || def.k !== 'S') continue;
+        for (const f of def.fx || []) {
+          if (f.k === 'burn' && (f.v || 0) >= o.lp) return { t: 'spell', uid: h.uid };
+        }
       }
     }
     // 3. 魔法
@@ -177,26 +211,38 @@ export function nextAction(G, side, skill) {
       const sp = bestSpell(G, p, o);
       if (sp) return { t: 'spell', uid: sp.uid };
     }
-    // 4. 召唤
-    const sum = bestSummon(G, p);
-    if (sum) return { t: 'summon', uid: sum.uid, tribs: sum.tribs };
-    // 5. 盖一只守备怪（手里有高守备、场上又空的时候）
+    // 4. 召唤：这里有两种错法——该上不上（空过），或者随手上一只小的
+    if (G.rng() >= sloppy * 0.55) {
+      if (G.rng() < sloppy) {
+        const bad = lazySummon(G, p);
+        if (bad) return { t: 'summon', uid: bad.uid, tribs: [] };
+      } else {
+        const sum = bestSummon(G, p);
+        if (sum) return { t: 'summon', uid: sum.uid, tribs: sum.tribs };
+      }
+    }
+    // 5. 盖一只守备怪（手里有高守备、场上又空的时候）。
+    //    弱手会把它正面摊在攻击表示上——那不是「另一种打法」，是白送一个突破口。
     if (p.mons.filter(Boolean).length < 2) {
       const cand = p.hand.filter((h) => {
         const def = d(h.id);
         return def && def.k === 'M' && tributeNeed(h.id) === 0;
       }).sort((a, b) => d(b.id).def - d(a.id).def)[0];
-      if (cand && d(cand.id).def >= 1800 && !p.normalUsed) return { t: 'setMon', uid: cand.uid };
+      if (cand && d(cand.id).def >= 1800 && !p.normalUsed) {
+        if (G.rng() < sloppy * 0.6) return { t: 'summon', uid: cand.uid, tribs: [] };
+        return { t: 'setMon', uid: cand.uid };
+      }
     }
     // 6. 盖陷阱（最多两张，别把手牌全变成盖牌）
     const traps = p.hand.filter((h) => d(h.id) && d(h.id).k === 'T');
     const setCount = p.spells.filter((s) => s && s.set).length;
     if (traps.length && setCount < 2 && p.spells.indexOf(null) >= 0) {
-      return { t: 'trap', uid: traps[0].uid };
+      if (G.rng() >= sloppy * 0.4) return { t: 'trap', uid: traps[0].uid };
     }
     // 6.5 守备的高攻怪翻回攻击：打得过对方全场就别一直缩着（守备卡组全靠这一步才有输出）
+    //     弱手想不起来翻，整套牌就只会挨打
     const wall = p.mons.find((m) => m && m.pos === 'def' && !m.set && atkOf(G, p, m) >= 1700);
-    if (wall) {
+    if (wall && G.rng() >= sloppy) {
       const mine = atkOf(G, p, wall);
       const theirs = o.mons.filter(Boolean);
       const worst = theirs.length
@@ -204,9 +250,10 @@ export function nextAction(G, side, skill) {
         : 0;
       if (mine > worst) return { t: 'pos', uid: wall.uid };
     }
-    // 7. 低攻怪兽转守备
+    // 7. 低攻怪兽转守备（弱手会把一只小怪一直摊在场上挨打）
     const weakAtk = p.mons.find((m) => m && m.pos === 'atk' && !m.set && atkOf(G, p, m) < 1600);
-    if (weakAtk && o.mons.filter(Boolean).some((m) => m.pos === 'atk' && atkOf(G, o, m) > atkOf(G, p, weakAtk))) {
+    if (weakAtk && G.rng() >= sloppy
+      && o.mons.filter(Boolean).some((m) => m.pos === 'atk' && atkOf(G, o, m) > atkOf(G, p, weakAtk))) {
       return { t: 'pos', uid: weakAtk.uid };
     }
     return { t: 'battle' };
@@ -214,7 +261,18 @@ export function nextAction(G, side, skill) {
 
   if (G.phase === 'battle') {
     const atk = bestAttack(G, side);
-    if (atk && G.rng() >= sloppy * 0.5) return { t: 'attack', uid: atk.uid, target: atk.target };
+    if (atk) {
+      if (G.rng() >= sloppy * 0.5) return { t: 'attack', uid: atk.uid, target: atk.target };
+      // 走神：明明有好目标，却拿最弱的那只去撞最硬的那只
+      const bad = worstAttack(G, side);
+      if (bad && G.rng() < 0.5) return { t: 'attack', uid: bad.uid, target: bad.target };
+      return { t: 'end' };
+    }
+    // 没有好目标——弱手也会硬撞
+    if (G.rng() < sloppy * 0.6) {
+      const bad = worstAttack(G, side);
+      if (bad) return { t: 'attack', uid: bad.uid, target: bad.target };
+    }
     return { t: 'end' };
   }
   return { t: 'end' };

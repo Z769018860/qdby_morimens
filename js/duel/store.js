@@ -1,6 +1,9 @@
-// 对战页的存档：收藏、战绩、开包次数。
+// 对战页的存档：收藏、战绩、段位分、开包次数。
 // 只写 localStorage，不碰云端档案（云端字段是给「九个游戏」的分数用的，
 // 这里的东西换设备靠加密存档整包搬，和挂机版同一套思路）。
+import { gainFor } from './rank.js';
+import { tierOf, progress as rankProgress } from './tiers.js';
+
 const KEY = 'zjtt:duel:v1';
 
 // 卡包的钱有三个来源：每天一次白给的、打人机赢来的券、银芯。
@@ -20,6 +23,9 @@ const DEFAULT = {
   freeUsed: 0,       // 那天已经用掉几次免费
   pveDay: '',        // 券的日上限按天重置
   pveToday: 0,       // 今天已经发出几张券
+  rp: 0,             // 段位分（人机对战，只增不减，见 duel/rank.js）
+  streak: 0,         // 当前连胜：连赢才有加成，输一局清零
+  bestStreak: 0,     // 历史最长连胜
 };
 
 function today() {
@@ -87,3 +93,20 @@ export function grantPveTicket(s) {
 }
 
 export const RULES = { FREE_PER_DAY, TICKET_PER_DAY, PACK_PRICE };
+
+// 结算段位分：只增不减（见 duel/rank.js 开头的说明）。返回这一局的变化，交给弹窗显示。
+export function addRank(s, win, diff) {
+  const before = Math.max(0, Math.round(Number(s.rp) || 0));
+  const tierBefore = tierOf(before);
+  s.streak = win ? Math.max(0, Number(s.streak) || 0) + 1 : 0;
+  if (win) s.bestStreak = Math.max(Number(s.bestStreak) || 0, s.streak);
+  const gain = gainFor({ win, diff, tier: tierBefore, streak: s.streak });
+  s.rp = before + gain;
+  const after = s.rp;
+  const tierAfter = tierOf(after);
+  return {
+    gain, before, after, streak: s.streak, bestStreak: s.bestStreak,
+    tierBefore, tierAfter, up: tierAfter > tierBefore,
+    progress: rankProgress(after),
+  };
+}

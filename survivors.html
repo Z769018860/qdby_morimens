@@ -101,6 +101,12 @@ button{font:inherit}
 .slot .stk{position:absolute; right:1px; top:1px; min-width:13px; height:13px; padding:0 3px;
   border-radius:7px; background:#7ad6a0; color:#08130d; font-size:9px; font-style:normal;
   font-weight:700; line-height:13px; text-align:center; box-shadow:0 0 4px rgba(0,0,0,.5)}
+/* 融蚀：被按下去的那一格。灰掉 + 一个「蚀」字 ——
+   不标的话玩家只会以为它在冷却，越等越奇怪（它根本不走冷却）。 */
+.slot.mute{filter:grayscale(1) brightness(.55)}
+.slot.mute::after{content:'蚀'; position:absolute; inset:0; display:grid; place-items:center;
+  font-size:15px; font-weight:800; font-style:normal; color:#c78bff;
+  text-shadow:0 0 6px rgba(0,0,0,.9)}
 /* 超武槽：金边 + 右上角「超」标。没有这个标记，玩家只会觉得「这把打得比较疼」，
    完全不知道背后有一套凑条件的机制。 */
 .slot.evo{border-color:var(--gold); box-shadow:0 0 0 1px color-mix(in oklab,var(--gold) 60%,transparent),
@@ -491,7 +497,7 @@ button{font:inherit}
 }
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
 </style>
-<meta name="build" content="df3942ceac">
+<meta name="build" content="9d928ed6f7">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -512,7 +518,7 @@ button{font:inherit}
       <a class="home" href="index.html">← 首页</a>
       <header>
         <h1>唤醒体<span>幸存者</span></h1>
-        <p class="sub">素材全部取自《忘却前夜》· 62 名唤醒体的 124 个技能都是可抽的武器 · 4 位神秘人要靠自己打出来 · 名单最后站着 9 位 B 站主播，各自和一位唤醒体绑着专属羁绊</p>
+        <p class="sub">素材全部取自《忘却前夜》· 62 名唤醒体的 124 个技能都是可抽的武器 · 4 位神秘人要靠自己打出来 · 名单最后站着 10 位 B 站主播，各自和一位唤醒体绑着专属羁绊</p>
       </header>
 
       <div class="diff" id="diffBox"></div>
@@ -611,7 +617,7 @@ button{font:inherit}
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/survivors.js?v=df3942ceac"></script>
+<script type="module" src="js/b/survivors.js?v=9d928ed6f7"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。

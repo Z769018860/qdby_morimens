@@ -150,7 +150,7 @@ export class BattleView {
     const first = firstClearReward(f.nxt);
     const extra = `<div class="farmx">${deltas.length ? `下一关 ${deltas.join(' · ')}` : '下一关：当前队伍还打不过（胜率 0）'}${f.nxt > s.maxStage ? `　首通：券+${first.tickets} 银芯+${first.cores}${first.order ? ' 钥令+1' : ''}${first.gear ? ' 装备+1' : ''}` : ''}</div>`;
     // 校猫奖励关：每 40 关一次，提示一下，别让人以为只是普通 Boss
-    const catNote = (st) => (stageInfo(st)?.reward ? `<div class="farmx cat">🐈 第 ${st} 关是「校猫」奖励关：打赢额外掉召唤券 5 + 银芯 60 + 装备，首杀翻倍；非首杀的额外奖励每天限 3 次</div>` : '');
+    const catNote = (st) => (stageInfo(st)?.reward ? `<div class="farmx cat">🐈 第 ${st} 关是「校猫」奖励关：打赢额外掉召唤券 5 + 银芯 60 + 装备，首杀翻倍；非首杀的额外奖励每天限 3 次（校猫身后还站着关卡设计师米酒：他不抢奖励，只往场上补怪、把难度上调一档）</div>` : '');
     /* 当前这一关胜率 0 = 挂机没有收益。攻坚时挂机跟着攻打层走，很容易撞上这种情况，
        所以直接把「有收益的最高层」找出来，给一颗一键退回的按钮。 */
     const best = f.cur.rate <= 0 ? farmableStage(s, this.app.data) : null;
@@ -222,7 +222,7 @@ export class BattleView {
       const id = `${side}${u}`;
       return `<div class="unit ${side === 'e' ? 'foe' : ''} ${d.boss ? 'boss' : ''} ${d.reward ? 'reward' : ''}" id="u-${id}" ${d.mid ? `data-mid="${d.mid}"` : ''} style="--rc:${REALMS[d.realm]?.color || '#6b7280'}">
         <div class="u-pic"><img src="${img(d.img)}" alt=""><span class="u-tag">${esc(d.type && side === 'a' ? TYPES[d.type].short : '')}</span><div class="u-say"></div></div>
-        <div class="u-name" ${side === 'e' && d.skills?.length ? `title="${esc(d.skills.map((x) => `${x.name}：${stripMarks(x.plain)}`).join('\n'))}"` : ''}>${esc(d.name)}${d.reward ? '<span class="rw-tag">奖励</span>' : ''}</div>
+        <div class="u-name" ${side === 'e' && d.skills?.length ? `title="${esc(d.skills.map((x) => `${x.name}：${stripMarks(x.plain)}`).join('\n'))}"` : ''}>${esc(d.name)}${d.reward ? '<span class="rw-tag">奖励</span>' : ''}${d.mate ? '<span class="rw-tag mate">陪场</span>' : ''}</div>
         <div class="u-row ${u < FRONT_SLOTS ? 'front' : 'back'}">${u < FRONT_SLOTS ? '前排' : '后排'}</div>
         ${side === 'e' ? '<div class="u-int" title="下一步行动"></div>' : ''}
         <div class="u-st"></div>

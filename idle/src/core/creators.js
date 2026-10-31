@@ -7,7 +7,7 @@
 //   2. 技能是手写的（CREATOR_KITS），不吃 skills.js 的「类型模板 + 原作文本反推」，因为他们在原作里不存在；
 //   3. 数值刻意压在史诗（SSR）之下、初始四人之上——彩蛋归彩蛋，不能破坏养成曲线。
 //
-// 9 位主播**都是男性**，所以文案里的第三人称统一用「他」——别按昵称 / 头像想当然。
+// 10 位主播**都是男性**，所以文案里的第三人称统一用「他」——别按昵称 / 头像想当然。
 //
 // creator.bio 一律**照录 B 站个人签名原文**（快照见 tools/faces/source.json 的 sign 字段），
 // 不要自己编写人物设定或事迹——签名是空的就留空，界面上会显示「没有填写签名」。
@@ -145,6 +145,22 @@ export const CREATORS = [
       hook: '让让，路过 · 耄耋之年', nick: '安卓佬',
     },
   },
+  {
+    id: 'creator-10', slug: 'baiyun', zh: '白云出岫', en: 'Baiyun Chuxiu', realm: 'ULTRA', type: 'CHORUS', rarity: 'SR', avail: 'GIFT',
+    base: { CON: 35, ATK: 31, DEF: 31 }, scale: { CON: 1.62, ATK: 1.5, DEF: 1.5 }, sub: { ...SUB }, subScale: { ...SUB_SCALE },
+    portrait: portraitOf('baiyun'), card: cardOf('baiyun'),
+    // 专属特性：他最好的一批投稿全是拿「王邸管家」弗兰刷出来的（1t 癫狂二、一亿出伤）。
+    trait: {
+      zh: '这条世界线我走过',
+      desc: '对上首领「王邸管家」弗兰时，造成的伤害 +30%。',
+      vs: { 94940: 0.3 },
+    },
+    creator: {
+      uid: '621616293', url: 'https://space.bilibili.com/621616293', color: '#b9c7d8', tag: CREATOR_TAG, emoji: '☁️',
+      bio: '5771病友。。。。 主播的忘却前夜群：1073816018',
+      hook: '上百条世界线 · 一亿出伤',
+    },
+  },
 ];
 
 export const CREATOR_BY_SLUG = Object.fromEntries(CREATORS.map((a) => [a.slug, a]));
@@ -255,6 +271,18 @@ export const CREATOR_KITS = {
     Rouse: ['老骨头', () => [E.buff('def', 25, 3, 'allies'), E.gauge('keyflare', 20)]],
     Exalt: ['散散步', (lv) => [S(1.8, lv, 'allies'), D(1.0, lv, { to: 'foes' }), E.status('counter', 2, 3, 'allies')]],
     OverExalt: ['耄耋之年', (lv) => [S(2.4, lv, 'allies'), H(1.0, lv, 'allies'), E.debuff('atk', 22, 2, 'foes')]],
+  }),
+
+  // 白云出岫：一条世界线算到底 —— 靠暴击与易伤把回合数压到 1，
+  // 「凹」是把自己这一刀重打三遍（多段随机），「1t 速杀」是整套的收尾手段。
+  baiyun: kit({
+    Strike: ['云针', (lv) => [D(0.85, lv), E.gauge('keyflare', 6)]],
+    Defense: ['复核', (lv) => [S(1.3, lv), E.buff('crit', 12, 3)]],
+    Skill1: ['时间线', (lv) => [E.buff('amp', 18, 3, 'allies'), E.gauge('aliemus', 12, 'allies')]],
+    Skill2: ['凹', (lv) => [D(0.6, lv, { hits: 3, to: 'foeRand' }), E.buff('crit', 10, 2)]],
+    Rouse: ['省流', () => [E.buff('atk', 16, 4, 'allies'), E.gauge('keyflare', 20)]],
+    Exalt: ['1t 速杀', (lv) => [D(2.4, lv), E.debuff('vuln', 20, 2), E.buff('crit', 20, 3, 'allies')]],
+    OverExalt: ['上百条世界线', (lv) => [D(1.4, lv, { to: 'foes' }), E.buff('amp', 26, 3, 'allies'), E.gauge('keyflare', 15, 'allies')]],
   }),
 };
 

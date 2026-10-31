@@ -1,5 +1,5 @@
 {
-  "_note": "《唤醒体幸存者》彩蛋角色。官方 66 人来自 data/survivors-data.json（脚本生成），这里手写：B 站《忘却前夜》内容创作者 9 人 + 最终隐藏首领「弥萨格校猫」。由 scripts/build.mjs 的 genSurvivors() 追加进 CHARS / WEAPONS / MOBS，不参与官方数据重建。face 指向 assets/survivors/faces/*.webp（主播本人的 B 站头像，构建时转 data URI 内联）；glyph 只是头像还没解码出来时的兜底字。 bio 与 bioSrc 一律照抄主播 B 站空间的公开签名原文（接口 x/web-interface/card 的 data.card.sign），签名为空就留空，不要自己编人设。bonds = 与官方唤醒体的专属羁绊：with 写官方角色全名（构建时解析成 id，写错会直接报错），need 是「那把技能要练到几级」（0 基，2 = 面板 Lv.3），fx.add 是直接加减、fx.mul 是乘算。羁绊对象的那把技能由 buildPool 保底放进候选池，否则羁绊等于不存在。",
+  "_note": "《唤醒体幸存者》彩蛋角色。官方 66 人来自 data/survivors-data.json（脚本生成），这里手写：B 站《忘却前夜》内容创作者 10 人 + 最终隐藏首领「弥萨格校猫」。由 scripts/build.mjs 的 genSurvivors() 追加进 CHARS / WEAPONS / MOBS，不参与官方数据重建。face 指向 assets/survivors/faces/*.webp（主播本人的 B 站头像，构建时转 data URI 内联）；glyph 只是头像还没解码出来时的兜底字。 bio 与 bioSrc 一律照抄主播 B 站空间的公开签名原文（接口 x/web-interface/card 的 data.card.sign），签名为空就留空，不要自己编人设。bonds = 与官方唤醒体的专属羁绊：with 写官方角色全名（构建时解析成 id，写错会直接报错），need 是「那把技能要练到几级」（0 基，2 = 面板 Lv.3），fx.add 是直接加减、fx.mul 是乘算。羁绊对象的那把技能由 buildPool 保底放进候选池，否则羁绊等于不存在。",
   "chars": [
     {
       "id": "egg-samo",
@@ -503,6 +503,74 @@
         }
       ],
       "face": "assets/survivors/faces/maodie.webp"
+    },
+    {
+      "id": "egg-baiyun",
+      "pid": "guest-baiyun",
+      "n": "白云出岫",
+      "en": "Baiyun Chuxiu",
+      "realm": "超维",
+      "realmCode": "ULTRA",
+      "role": "辅助型",
+      "roleCode": "CHORUS",
+      "rarity": "彩蛋",
+      "img": null,
+      "egg": true,
+      "glyph": "云",
+      "color": "#b9c7d8",
+      "talent": "复现",
+      "talentText": "死抗可以凹，牌序可以凹——同一条世界线，他能再走一遍",
+      "kind": "B 站主播",
+      "bio": "5771病友。。。。 主播的忘却前夜群：1073816018",
+      "bioSrc": "B 站空间 · space.bilibili.com/621616293",
+      "bonds": [
+        {
+          "with": "塔薇",
+          "alias": "塔薇",
+          "n": "这条世界线我走过",
+          "need": 2,
+          "text": "冷却 -10%，暴击伤害 +18%。他说这一期被塔薇限制了——限制他的东西，他照样能算清。",
+          "fx": {
+            "mul": {
+              "cd": 0.9
+            },
+            "add": {
+              "critMul": 0.18
+            }
+          }
+        },
+        {
+          "with": "詹金",
+          "alias": "詹金",
+          "n": "1t 速杀",
+          "need": 2,
+          "text": "伤害 +16%，暴击伤害 +24%。他最爱的就是开局 1t 把对面直接带走，而詹金是他手里最快的那把刀。",
+          "fx": {
+            "add": {
+              "atk": 0.16,
+              "critMul": 0.24
+            }
+          }
+        }
+      ],
+      "weapons": [
+        {
+          "n": "一亿出伤",
+          "e": "Hundred Million",
+          "proto": "meteor",
+          "text": "一发落下去，伤害数字长得像溢出；命中处留一小片灼痕"
+        },
+        {
+          "n": "凹",
+          "e": "Reroll",
+          "proto": "paradox",
+          "text": "把这一秒重来一遍：短时间内所有攻击连打两次，代价是冷却变长",
+          "dmgMul": 1.35,
+          "cdMul": 1.25,
+          "color": "#b9c7d8"
+        }
+      ],
+      "face": "assets/survivors/faces/baiyun.webp"
     }
   ],
   "boss": {
@@ -516,5 +584,22 @@
     "r": 54,
     "text": "它蹲在弥萨格的台阶上，谁都知道它不该出现在这里。它不讲道理，只是因为今天有人忘了给它开罐头。血量约是普通首领的三倍，撑到时间结束前都在。",
     "tip": "本局只出现一次。把前两只首领都清掉之后，最后 1 分钟它才会蹲到场上。"
+  },
+  "boss2": {
+    "id": "mijiu-designer",
+    "n": "米酒",
+    "en": "Mijiu the Level Designer",
+    "color": "#9fc4e8",
+    "afterCat": true,
+    "hpMul": 1.9,
+    "r": 46,
+    "addEvery": 7,
+    "text": "《忘却前夜》脑缸组的战斗设计师，这一关就是他摆的。他不追人，只站在场边翻那张画满网格的纸，每过一会儿就在你脚边补两只怪：「这儿少了点压力。」血量不到校猫的一半，但他一直在改规则。",
+    "tip": "校猫放学之后他才来验收，一局只来一次。他会不断往场上补小怪，先把小怪清掉再谈。",
+    "lines": {
+      "spawn": ["这一关是我做的。你打到这儿了，那我把难度上调一档。", "别急，先看机制。", "校猫走了？那我得自己来看看。"],
+      "add": ["这里加两只。", "这块地太空了，补点东西。", "难度上调。"],
+      "die": ["行，你过了。这段我记下来了。"]
+    }
   }
 }

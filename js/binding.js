@@ -5,7 +5,7 @@
 //   run     = 一局的全部状态（血量、造物、楼层、房间表）
 //   room    = 网格里的一格，第一次进去才生成内容（build）
 // 每帧的顺序固定：输入 → 移动/碰撞 → 射击 → 敌人 → 掉落 → 清房判定 → 画。
-import { TUNE, DIFFS, FURS, EYES, COSTUMES, ITEMS, TRINKETS, ACTIVES, ENEMIES, BOSSES, FLOORS, TEXT } from './binding-data.js';
+import { TUNE, DIFFS, FURS, EYES, COSTUMES, BUILDS, ITEMS, TRINKETS, ACTIVES, ENEMIES, BOSSES, FLOORS, TEXT, BLUEPRINT } from './binding-data.js';
 import { loadArt, drawCat, drawPortrait, artImage } from './binding-cat.js';
 import { bakeRoom, drawDoorState, drawEnemy, drawBoss, drawPickup, drawHeart, WALL } from './binding-draw.js';
 import { ART } from './binding-art.js';
@@ -227,21 +227,37 @@ function makeFloor(idx) {
     }
   }
   const rest = list.filter((c) => c !== start).sort((a, b) => (seen.get(key(b.x, b.y)) || 0) - (seen.get(key(a.x, a.y)) || 0));
-  const boss = rest.shift();
-  if (boss) boss.type = 'boss';
   // 死胡同优先拿来当特殊房，走到底才有东西，比在半路上撞见更像「一间屋子」
   const deadEnds = rest.filter((c) => Object.values(c.doors).filter(Boolean).length === 1);
-  const item = deadEnds.shift() || rest.shift();
+  // 一间房只能派一种用途。以前 deadEnds.shift() 拿走的格子还留在 rest 里，
+  // 后面的 rest.shift() 会再拿到同一格、把它的类型改掉——宝箱房偶尔凭空消失就是这么来的
+  // （图纸间多占一格之后这个坑暴露得更明显）。
+  const used = new Set();
+  const take = (dead) => {
+    let c = dead ? deadEnds.find((x) => !used.has(x)) : null;
+    if (!c) c = rest.find((x) => !used.has(x));
+    if (c) used.add(c);
+    return c || null;
+  };
+  const boss = take(false);
+  if (boss) boss.type = 'boss';
+  const item = take(true);
   if (item) item.type = 'item';
   // 祭坛房：拿半颗心换一件造物。二层之后才出现——第一层就让新手割血太狠了
   if (idx >= 1) {
-    const altar = deadEnds.shift() || rest.shift();
+    const altar = take(true);
     if (altar) altar.type = 'altar';
   }
+  // 图纸间：米酒在里头验收这一层。门是通的，可以不进——进去打赢给一件造物，
+  // 打输就是这一夜到此为止。二层起才有（第一层先让新手认识路）。
+  if (idx >= 1) {
+    const bp = take(true);
+    if (bp) bp.type = 'blueprint';
+  }
   // 挑战房：一群精英挤在一起，清完给两件
-  const chal = deadEnds.shift() || rest.shift();
+  const chal = take(true);
   if (chal) chal.type = 'challenge';
-  const shop = deadEnds.shift() || rest.shift();
+  const shop = take(true);
   if (shop) shop.type = 'shop';
   for (const c of list) c.seed = Math.floor(Math.random() * 1e9);
   return { cells, start, boss, floorIdx: idx, F };
@@ -273,9 +289,9 @@ function buildRoom(rm, fromDir = null) {
   const spawnPt = { x: W / 2, y: H / 2 };
   const door = fromDir ? entryPoint(fromDir) : null;
 
-  if (rm.type === 'fight' || rm.type === 'boss' || rm.type === 'challenge') {
-    // 课桌：避开门口和中心
-    const n = rm.type === 'boss' ? 0 : 2 + Math.floor(Math.random() * 3);
+  if (rm.type === 'fight' || rm.type === 'boss' || rm.type === 'challenge' || rm.type === 'blueprint') {
+    // 课桌：避开门口和中心。图纸间只摆一张——那张就是他摊平面图的桌子
+    const n = rm.type === 'boss' ? 0 : rm.type === 'blueprint' ? 1 : 2 + Math.floor(Math.random() * 3);
     for (let i = 0; i < n; i++) {
       const w = rnd(58, 96), h = rnd(34, 46);
       for (let tryN = 0; tryN < 24; tryN++) {
@@ -337,8 +353,28 @@ function buildRoom(rm, fromDir = null) {
       phase: 1, atkCd: 1.6, atkIdx: 0, windup: 0, dash: 0, dvx: 0, dvy: 0, hurt: 0,
       t: 0, a: 0, seed: Math.random() * 9,
     };
+  } else if (rm.type === 'blueprint') {
+    // 图纸间：米酒按层数涨血（每层 +35%），但永远比这一层的正主弱一档，
+    // 所以是「敢打就有一件造物，不想打就绕过去」的那种房间
+    const B = BOSSES.mijiu;
+    const bh = Math.round(B.hp * (1 + G.run.floor * 0.35) * diffOf().hp);
+    rm.boss = {
+      k: 'mijiu', n: B.n, sub: B.sub, art: B.art, x: W / 2, y: H / 2 - 20,
+      hp: bh, maxHp: bh, r: B.r, sp: B.sp, atks: B.atks, ringN: B.ringN, ringSp: B.ringSp,
+      phase: 1, atkCd: 2.0, atkIdx: 0, windup: 0, dash: 0, dvx: 0, dvy: 0, hurt: 0,
+      t: 0, a: 0, seed: Math.random() * 9, mini: 1,
+    };
+    // 他手边还有两只没验收完的造物，会先动手
+    for (let i = 0; i < 2; i++) {
+      const a = Math.random() * TAU;
+      rm.ents.push(makeEnemy(
+        pickOne(F.pool),
+        clamp(W / 2 + Math.cos(a) * 104, WALL + 30, W - WALL - 30),
+        clamp(H / 2 + Math.sin(a) * 104, WALL + 30, H - WALL - 30), 1,
+      ));
+    }
   }
-  rm.cleared = !(rm.type === 'fight' || rm.type === 'boss' || rm.type === 'challenge');
+  rm.cleared = !(rm.type === 'fight' || rm.type === 'boss' || rm.type === 'challenge' || rm.type === 'blueprint');
   rm.built = true;
 }
 
@@ -987,9 +1023,28 @@ function onRoomClear() {
 function onBossDown() {
   const r = G.run, rm = r.room;
   if (rm.bossDone) return;
+  const dead = rm.boss;          // 图纸间要拿它判断是不是米酒，先留一份
   rm.bossDone = true;
   rm.boss = null;
   rm.cleared = true;
+
+  // 图纸间：米酒验收完就收工。不开楼梯、不播剧情、也不算「击败首领」——
+  // 他不是这一层的主人，只是来看你怎么走的。桌上留一件造物。
+  if (dead && dead.mini) {
+    r.score += 80 + r.floor * 40;
+    burst(G.W / 2, G.H / 2, 26, '#9fd8ff');
+    Audio2.item();
+    const left = ITEMS.filter((i) => !r.items.includes(i.k));
+    const it = pickOne(left.length ? left : ITEMS);
+    rm.pickups.push({ kind: 'item', x: G.W / 2, y: G.H / 2 - 10, item: it.k, icon: it.ic, seed: 5 });
+    for (let i = 0; i < 4; i++) dropCoin(G.W / 2 + rnd(-38, 38), G.H / 2 + rnd(-26, 26), 1);
+    banner(BLUEPRINT.done, BLUEPRINT.doneSub);
+    renderMinimap();
+    refreshHud();
+    saveMeta();
+    return;
+  }
+
   r.score += 150 + r.floor * 100;
   r.bossKills = (r.bossKills || 0) + 1;
   G.meta.stats.bossKills = (G.meta.stats.bossKills || 0) + 1;
@@ -1266,6 +1321,9 @@ function goRoom(next, fromDir) {
     banner('宝箱房', '基座上的东西碰一下就拿走');
   } else if (next.type === 'altar') {
     banner('祭坛房', '东西白拿，代价是半颗心');
+  } else if (next.type === 'blueprint') {
+    banner(BLUEPRINT.room, BLUEPRINT.tip);
+    Audio2.boom();
   } else if (next.type === 'challenge') {
     banner('挑战房', '这一层最不好惹的都在这儿，清完给两件');
     Audio2.boom();
@@ -1823,6 +1881,7 @@ function drawMapTo(canvas, S) {
     else if (cell.type === 'item') col = '#8a6a2a';
     else if (cell.type === 'shop') col = '#2f6b4f';
     else if (cell.type === 'altar') col = '#6b3a7a';
+    else if (cell.type === 'blueprint') col = '#2c5a78';
     else if (cell.type === 'challenge') col = '#7d5426';
     else if (cell.cleared) col = '#44536e';
     c.fillStyle = col;
@@ -2544,6 +2603,7 @@ async function boot() {
       useActive, nextFloor, goNext, goRoom, takeItem, recalcStats, refreshHud, renderMinimap,
       playScene, advanceStory, endStory, openCodex, renderCodex, unlockCodexByProgress, Audio2, toTitle,
       makeFloor, buildRoom, aimAngle, wantShoot, tryPickup, onRoomClear, hurtPlayer, makeEnemy,
+      drawCat, BUILDS, EYES,
     };
   }
 }

@@ -1289,9 +1289,67 @@ const api = {
 return { API_BASE, ApiError, api };
 })();
 
+// ---- js/duel/tiers.js
+const m_tiers = await (async () => {
+
+// 段位表与段内进度。
+//
+// 单独一个模块的原因：个人中心 / 排行榜要显示「这个分数是哪一段」，
+// 于是 js/gamestats.js 也得引它，而 gamestats 被 account.js 带进了每一页。
+// 对位表（rank.js 的 COUNTER）只在对战页用得上，不该跟着一起发到全站。
+// 所以这里只放纯数据 + 三个纯函数。
+
+// 九段。min 是进入该段所需的积分下限，t 是这一段的称号，c 是徽章配色。
+//
+// 命名走游戏王那套「段位阶梯」：第 2~5 段用信物的成色往上走（铜钥 → 银钥 → 金印 → 白夜），
+// 后四段换成职阶（命轮师 → 界域传说 → 唤醒大师 → 唤醒王），顶端是王者。
+// 铜钥 / 银钥 / 黑印（金印）/ 白夜 / 界域都是原作里就有的东西，别随便换成别的词。
+const TIERS = [
+  { n: '见习守密人', t: '第一次翻开那份档案', min: 0, c: '#8b94a6' },
+  { n: '铜钥级', t: '匙环上挂着自己的第一枚钥匙', min: 300, c: '#b57a4f' },
+  { n: '银钥级', t: '银钥充能够转得动一次命轮', min: 700, c: '#8294ab' },
+  { n: '金印级', t: '掌心被刻印烫出一个记号', min: 1200, c: '#d8a93f' },
+  { n: '白夜级', t: '见过白夜，人还清醒', min: 1800, c: '#7fa9d8' },
+  { n: '命轮师', t: '命轮肯听你把话说完', min: 2600, c: '#8a7ce0' },
+  { n: '界域传说', t: '四个界域都记得你的名字', min: 3600, c: '#b06fd0' },
+  { n: '唤醒大师', t: '不用叫，她们自己就醒了', min: 4800, c: '#e0894a' },
+  { n: '唤醒王', t: '这一轮命轮由你来转', min: 6000, c: '#e0554a' },
+];
+
+const TOP_RP = TIERS[TIERS.length - 1].min;
+
+const DIFF_TXT = { easy: '轻松', normal: '普通', hard: '认真' };
+
+function tierOf(rp) {
+  const v = Math.max(0, Math.round(Number(rp) || 0));
+  let i = 0;
+  for (let k = 0; k < TIERS.length; k++) if (v >= TIERS[k].min) i = k;
+  return i;
+}
+
+// 这一段的进度：进了多少分、离下一段还差多少、百分比、以及段内的三颗小星。
+// 到了最高段就没有「下一段」，进度条按满算。
+function progress(rp) {
+  const v = Math.max(0, Math.round(Number(rp) || 0));
+  const idx = tierOf(v);
+  const tier = TIERS[idx];
+  const next = idx + 1 < TIERS.length ? TIERS[idx + 1] : null;
+  const span = next ? next.min - tier.min : 1;
+  const into = v - tier.min;
+  const pct = next ? Math.max(0, Math.min(100, (into / span) * 100)) : 100;
+  // 段内三颗星：刚进这一段就有一颗，走到三等分处点第二颗、再点第三颗
+  const stars = next ? Math.min(3, Math.floor((into / span) * 3) + 1) : 3;
+  return {
+    rp: v, idx, tier, next, into, span, pct, stars,
+    left: next ? Math.max(0, next.min - v) : 0,       // 还差多少分进下一段
+  };
+}
+return { TIERS, TOP_RP, DIFF_TXT, tierOf, progress };
+})();
+
 // ---- js/gamestats.js
 const m_gamestats = await (async () => {
-
+const { progress: rankProgress } = m_tiers;
 // 各小游戏的本机进度汇总。
 //
 // 个人中心要「一个页面看到所有游戏的数据」，但九个游戏各写各的存档键，
@@ -1304,6 +1362,8 @@ const m_gamestats = await (async () => {
 //   · 只读，不写、不发请求 —— 任何页面都能安全 import；
 //   · 全部 try/catch —— 无痕模式下 localStorage 会抛，不能连累整页；
 //   · 键名必须和各游戏里的字面量一致，改名请一起改（下面每组都标了出处）。
+// 只要段位名与段内进度，走 tiers.js——rank.js 里有对位表，别拖进全站
+
 
 const RD = (k) => { try { const v = localStorage.getItem('zjtt:' + k); return v == null ? null : JSON.parse(v); } catch { return null; } };
 const RAW = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -1517,9 +1577,27 @@ function deathreport() {
   };
 }
 
+// 唤醒王：决斗链接 —— 段位分只在人机对战里涨，段位名与称号见 js/duel/tiers.js
+function duel() {
+  const s = RD('duel:v1') || {};
+  const rp = n(s.rp);
+  const p = rankProgress(rp);
+  const wins = n(s.wins);
+  const losses = n(s.losses);
+  const parts = [`${Object.keys(s.coll || {}).length} 种卡面`, `已开 ${n(s.opened)} 包`];
+  if (n(s.bestStreak)) parts.push(`最长连胜 ${n(s.bestStreak)} 场`);
+  return {
+    items: [
+      { k: '段位', v: p.tier.n },
+      { k: '段位分', v: String(rp) },
+      { k: '人机战绩', v: `${wins} 胜 ${losses} 负` },
+    ],
+    extra: parts.join(' · '),
+  };
+}
+
 // 卡片顺序 = 首页的排列顺序，用户不用重新认路
-const GAMES = [
-  { k: 'detective', n: '战报侦探', href: 'detective.html', icon: '🔍', read: detective, tip: '六边形自走棋推演' },
+const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', icon: '🔍', read: detective, tip: '六边形自走棋推演' },
   { k: 'merge', n: '合成大杜勒', href: 'merge.html', icon: '⚫', read: merge, tip: '两个同级合成下一级' },
   { k: 'bird', n: '是鸟弟就下100层', href: 'bird.html', icon: '🐤', read: bird, tip: '往下跳，别被扎到' },
   { k: 'binding', n: '校猫的结合', href: 'binding.html', icon: '🐱', read: binding, tip: '地牢射击' },
@@ -1529,6 +1607,7 @@ const GAMES = [
   { k: 'wolf', n: '弥萨格狼人杀', href: 'wolf.html', icon: '🐺', read: wolf, tip: '身份推理' },
   { k: 'deathreport', n: '弥萨格大逃杀', href: 'deathreport/', icon: '📄', read: deathreport, tip: '档案式复盘' },
   { k: 'g2048', n: '忘却 2048', href: '2048.html', icon: '🔢', read: g2048, tip: '两块同样的合流' },
+  { k: 'duel', n: '唤醒王：决斗链接', href: 'duel.html', icon: '⚔', read: duel, tip: '卡牌对决，段位爬升' },
   { k: 'reign', n: '弥萨格王权', href: 'reign.html', icon: '👑', read: reign, tip: '准或不准，四项账' },
 ];
 
@@ -1601,6 +1680,11 @@ const GD_SPEC = [
     ['最高分', v[0] ? String(n(v[0])) : '—'],
     ['最高块', v[1] ? String(n(v[1])) : '—'],
   ] },
+  { k: 'dl', n: '唤醒王：决斗链接', f: (v) => [
+    ['段位', n(v[0]) ? rankProgress(n(v[0])).tier.n : '—'],
+    ['段位分', String(n(v[0]))],
+    ['人机战绩', `${n(v[1])} 胜 ${n(v[2])} 负`],
+  ] },
 ];
 
 
@@ -1614,7 +1698,7 @@ const GD_SPEC = [
 //   il 挂机 [时长秒, 拥有角色, 最高关, 当前关, 金币]
 //   sv 幸存者 [最高分, 局数, 通关角色] pf 协议 [最远波, 最高分, 守住]
 //   wf 狼人 [局数, 胜场]             dt 报告 [已复原, 卷宗, 结案, 提交报告数, 确认报告数]
-//   g2 2048 [最高分, 最高块]
+//   g2 2048 [最高分, 最高块]         dl 决斗 [段位分, 胜, 负, 段位下标]
 // 单调递增的量（最好成绩、累计局数、时长），服务端合并时逐项取大即可。
 function digest() {
   const out = { at: Date.now() };
@@ -1649,6 +1733,10 @@ function digest() {
   }
   out.dt = [rec, docs, done, sub, okRep];
   out.g2 = [numKey('g2048:best'), numKey('g2048:seen')];
+  // 唤醒王：决斗链接 [段位分, 胜, 负, 段位下标]。段位分只增不减，云端逐项取大正合适；
+  // 首页排行榜按第 0 位排，副标用后面几个。
+  const dl = RD('duel:v1') || {};
+  out.dl = [n(dl.rp), n(dl.wins), n(dl.losses), rankProgress(n(dl.rp)).idx];
   return out;
 }
 return { fmtDur, DIFF_MERGE, DIFF_BIRD, GAMES, readAll, credits, GD_SPEC, digest };

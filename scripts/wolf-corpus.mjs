@@ -52,6 +52,7 @@ const UPS = [
   { key: 'summer', mid: 515298109, name: '夏茉琳summerring', kws: ['夏茉琳 忘却前夜'] },
   { key: 'zhaoxing', mid: 14997071, name: '朝星-', kws: ['朝星', '朝星-', '朝星 忘却前夜'] },
   { key: 'maodie', mid: 1475217387, name: '路过的耄耋', kws: ['路过的耄耋', '耄耋 忘却前夜'] },
+  { key: 'baiyun', mid: 621616293, name: '-白云出岫-', kws: ['白云出岫', '白云出岫 忘却前夜'] },
 ];
 
 const arg = (k, d) => {

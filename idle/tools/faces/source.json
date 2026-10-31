@@ -1,5 +1,5 @@
 {
-  "note": "九位联名主播的 B 站头像与签名来源（同人二创用途）。sign 是个人签名原文快照，游戏里 creator.bio 必须照录它，不要自行编写人设；换图：覆盖同名 <slug>.jpg 后重跑 python tools/build_creators.py --face-dir=tools/faces",
+  "note": "十位联名主播的 B 站头像与签名来源（同人二创用途）。sign 是个人签名原文快照，游戏里 creator.bio 必须照录它，不要自行编写人设；换图：覆盖同名 <slug>.jpg 后重跑 python tools/build_creators.py --face-dir=tools/faces",
   "api": "https://api.bilibili.com/x/web-interface/card?mid=<mid>",
   "fetched": "2026-10-30",
   "faces": {
@@ -65,6 +65,13 @@
       "sign": "1033650434，安卓科研群",
       "face": "https://i0.hdslb.com/bfs/face/21e956dc77eb6f06ad16d6197d548527059bdde8.jpg",
       "fans": 497
+    },
+    "baiyun": {
+      "mid": "621616293",
+      "name": "-白云出岫-",
+      "sign": "5771病友。。。。 主播的忘却前夜群：1073816018",
+      "face": "https://i0.hdslb.com/bfs/face/221b3201863457dd9aaea225950d0b986525b90a.jpg",
+      "fans": 449
     }
   },
   "signFetched": "2026-10-30"
