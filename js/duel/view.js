@@ -603,9 +603,9 @@ function spellSlotHTML(s, i, side, hot) {
   else if (c && side === 'me') {
     // 自己盖着的牌：看得见是什么。现在能主动发动的（非应对型、不是盖放的那一回合）标「可发动」并发光，点开就能用
     const can = S.G && c.k === 'T' && !E.trapManualBlock(S.G, SIDE(), s);
-    card = cardHTML(c, { mini: true, tag: can ? '可发动' : '盖放', cls: can ? 'setmine can' : 'setmine' });
+    card = cardHTML(c, { mini: true, tag: s.seal > 0 ? '封印中' : (can ? '可发动' : '盖放'), cls: can ? 'setmine can' : 'setmine' });
   }
-  else card = cardHTML({ id: 'back', n: '盖放', k: 'T', r: 'any', rar: 'N', lv: 0, atk: 0, def: 0 }, { mini: true, set: true });
+  else card = cardHTML({ id: 'back', n: '盖放', k: 'T', r: 'any', rar: 'N', lv: 0, atk: 0, def: 0 }, { mini: true, set: true, tag: s.seal > 0 ? '封印' : '' });
   return `<div class="slot sp" data-slot="${side}-sp-${i}">${card}</div>`;
 }
 
@@ -1993,6 +1993,7 @@ function showHowTo() {
       <li><b>场地</b>：怪兽 3 格、魔法·陷阱 3 格，卡组 40~50 张，起手 5 张。先手第一回合不抽牌。</li>
       <li><b>召唤</b>：每回合 1 次。等级 1–4 直接出，5–6 需要 1 只祭品，7 以上需要 2 只。祭品送墓。
         带「额外通常召唤」的牌（如「灯下夜谈」）可以让你这回合多召一次。</li>
+      <li><b>反制陷阱</b>：窥陷之眼（看穿并破坏）、缄默咒 / 泰旖丝·封印（<b>暂时封印</b>：到对方回合结束为止不能发动，不破坏）、清陷令 / 沙耶·拆陷（<b>永久破坏</b>）、断线（这回合对方不能发陷阱）；怪兽方面，艾尔瓦·无陷攻击时无视陷阱，奥吉尔·反咒 / 波吕克斯能无效对方 1 张陷阱（每场一次）。<b>反制反制</b>：护符·破坏之盾（挡拆陷阱）、护符·封锁之匙（挡封印 / 断线）、护符·顶回之环（顶回对方的「无效陷阱」）、温柯尔·守陷（在场就不让对方拆 / 封你的陷阱）。</li>
       <li><b>特殊召唤</b>：<b>不占通常召唤权</b>。衍生物（「维度残影」这类）凭空多一个身位，可以当祭品、当墙、当嘲讽的靶子；
         特殊召唤则直接从手牌或墓地拉一只小怪出来。</li>
       <li><b>盖放</b>：怪兽可以里侧守备（等级 5 以上不行）；陷阱从手牌盖到魔陷区，盖放当回合不能发动。</li>

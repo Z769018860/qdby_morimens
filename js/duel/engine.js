@@ -22,7 +22,7 @@ export const REALM = {
 // 只要在场就一直生效，不在召唤时执行。
 const SUMMON_FX = new Set([
   'draw', 'burn', 'heal', 'discardOpp', 'recall', 'search', 'bounce',
-  'snipe', 'weaken', 'pumpSelf', 'costLp', 'destroyStrongest', 'bothDraw',
+  'snipe', 'trapSeal', 'reveal', 'weaken', 'pumpSelf', 'costLp', 'destroyStrongest', 'bothDraw',
   // 沙耶：墓地怪兽数量 × 回复，只有她在怪兽上用了这条（以前 graveHeal 只做过魔法卡）
   'graveHeal',
   // 中毒 / 流血 / 屏障：登场时给对方挂状态（bp07 起大量使用）。
@@ -484,13 +484,30 @@ function applyFx(G, p, f, ctx) {
       }
       break;
     }
+    case 'trapSeal': {
+      // 暂时封印：挑对方一张还没被封的盖放陷阱，到对方这个回合结束为止不能发动（不破坏）
+      const s = o.spells.find((x) => x && x.set && !(x.seal > 0) && CARDS[x.id] && CARDS[x.id].k === 'T');
+      if (!s) { log(G, `${pname(o)}没有可以封印的盖放陷阱`, 'spell'); break; }
+      if (trapGuard(G, o, { kind: 'lock', text: '封印陷阱的效果' })) break;
+      s.seal = 2;
+      log(G, `${pname(p)}暂时封印了${pname(o)}盖放的一张陷阱`, 'spell');
+      break;
+    }
+    case 'snipeAll': {
+      const list = o.spells.filter((x) => x && x.set);
+      if (!list.length) break;
+      if (trapGuard(G, o, { kind: 'snipe', text: '清陷令的破坏' })) break;
+      for (const s of list) { o.spells[o.spells.indexOf(s)] = null; o.grave.push(s.id); }
+      log(G, `${pname(p)}破坏了${pname(o)}盖放的全部 ${list.length} 张魔陷`, 'spell');
+      break;
+    }
     case 'reveal': {
       const names = o.spells.filter((x) => x && x.set).map((x) => `「${CARDS[x.id].n}」`);
       log(G, names.length ? `${pname(p)}看穿了${pname(o)}盖着的牌：${names.join('、')}` : `${pname(o)}没有盖放的牌`, 'spell');
       break;
     }
     case 'trapLock': {
-      if (trapGuard(G, o, { text: '「断线」' })) break;
+      if (trapGuard(G, o, { kind: 'lock', text: '「断线」' })) break;
       o.trapLock = true;
       log(G, `${pname(o)}这个回合不能发动陷阱了`, 'spell');
       break;
@@ -498,7 +515,7 @@ function applyFx(G, p, f, ctx) {
     case 'snipe':
     case 'snipeDraw': {
       const s = o.spells.find((x) => x && x.set);
-      if (s && trapGuard(G, o, { text: '破坏盖放陷阱的效果' })) { if (f.k === 'snipeDraw') drawCards(G, p, 1); break; }
+      if (s && trapGuard(G, o, { kind: 'snipe', text: '破坏盖放陷阱的效果' })) { if (f.k === 'snipeDraw') drawCards(G, p, 1); break; }
       if (s) {
         o.spells[o.spells.indexOf(s)] = null;
         o.grave.push(s.id);
@@ -772,7 +789,7 @@ function applyFx(G, p, f, ctx) {
     case 'turnHeal': case 'atkUpTurn': case 'onKillAtk': case 'onKillDraw':
     case 'onDestroyDraw': case 'onDestroyBurn': case 'revive': case 'lastStand':
     case 'pierce': case 'guard': case 'aura': case 'auraDef': case 'drain':
-    case 'directDiscard': case 'snipeAttack': case 'negateTrapOnce': case 'spellShield':
+    case 'directDiscard': case 'snipeAttack': case 'negateTrapOnce': case 'spellShield': case 'trapImmune': case 'trapWard':
     case 'twin': case 'destroyAttacker': case 'negateAttack': case 'negateSpell':
     case 'negateSummon': case 'destroySummon': case 'negateSpellSnipe': case 'negateTrap':
       break;
@@ -979,6 +996,7 @@ export function canUse(G, side, uid) {
 // 「应对型」陷阱（无效攻击 / 召唤 / 魔法、反击伤害等）没有可以主动发动的效果，仍然只在对应的时点自动迎击；
 // 其余（抽牌 / 回复 / 弹手牌 / 削攻 / 墓地烧伤 / 永续等）以前根本没有任何时点会触发它们——现在都能手动发动。
 const REACTIVE_TRAP = new Set([
+  'shieldSnipe', 'shieldLock', 'shieldNegate',
   'negateAttack', 'destroyAttacker', 'reflect', 'battleBoost', 'trapPoison', 'trapCounter', 'trapCounterMon',
   'destroySummon', 'negateSummon', 'negateSpell', 'negateSpellSnipe', 'negateTrap', 'shieldTraps',
 ]);
@@ -992,6 +1010,8 @@ export function trapManualBlock(G, side, s) {
   if (s.turnSet >= G.turn) return '盖放的这一回合不能发动';
   const list = fx(d);
   if (list.length && list.every((f) => REACTIVE_TRAP.has(f.k))) return '这张是应对型陷阱：对方做出对应动作时，会先问你发不发动';
+  if (p.trapLock) return '这个回合被「断线」封住了陷阱';
+  if (s.seal > 0) return '这张陷阱被暂时封印了（到对方回合结束）';
   if (!canFire(p, s)) return '命轮值不够付代价';
   return null;
 }
@@ -1007,7 +1027,7 @@ export function activateTrap(G, side, uid) {
   fire(G, p, s, cont);
   if (counterTrap(G, 1 - side, 'trap')) {
     // 反制的反制：我盖着的护符把对方的「无效陷阱」顶回去，这张陷阱照常结算
-    if (!trapGuard(G, p, { text: `对「${d.n}」的无效`, chain: true })) { log(G, `「${d.n}」的发动被无效了`, 'trap'); return ok(); }
+    if (!trapGuard(G, p, { kind: 'chain', text: `对「${d.n}」的无效` })) { log(G, `「${d.n}」的发动被无效了`, 'trap'); return ok(); }
   }
   for (const f of fx(d)) {
     if (CONT_TRAP.has(f.k)) continue;        // 永续效果：翻开后由回合开始 / 结束时结算
@@ -1044,14 +1064,24 @@ function fire(G, owner, s, keep) {
 }
 
 // 盖放的陷阱能不能开：有命轮代价的必须付得起（付完不能正好死）
-// 反制反制：护符（shieldTraps）——对方的效果要破坏 / 封锁我盖着的陷阱时，把那个效果无效掉。
-// 连锁里的这一层（对方用「无效陷阱」顶掉我刚发动的陷阱）没有询问窗口，满足条件就自动发动。
+// 反制反制：三种护符各管一种拆法，另外还有「温柯尔」这类在场就生效的守卫怪兽。
+//   shieldSnipe  对方的效果要破坏我盖放的魔陷（窥陷之眼 / 清陷令 / 拆陷怪兽 / 攻击宣言拆牌）
+//   shieldLock   对方要封锁 / 封印我的陷阱（断线 / 缄默咒 / 泰旖丝）
+//   shieldNegate 对方用「无效陷阱」顶掉我刚发动的陷阱（只在这条连锁里用，没有询问窗口，满足就自动发动）
+// kind: 'snipe' | 'lock' | 'chain'
+const GUARD_FX = { snipe: 'shieldSnipe', lock: 'shieldLock', chain: 'shieldNegate' };
 function trapGuard(G, owner, why) {
+  // 在场的守卫怪兽（不消耗）：温柯尔——对方不能破坏 / 封印 / 封锁我盖放的陷阱
+  if (why.kind !== 'chain' && owner.mons.some((m) => m && !m.set && hasFx(m, 'trapWard'))) {
+    const w = owner.mons.find((m) => m && !m.set && hasFx(m, 'trapWard'));
+    log(G, `「${CARDS[w.id].n}」守住了${why.text}`, 'trap');
+    return true;
+  }
   for (const s of owner.spells.slice()) {
     if (!s || !s.set || s.turnSet >= G.turn) continue;
     const d = CARDS[s.id];
-    if (!d || d.k !== 'T' || !fx(d).some((f) => f.k === 'shieldTraps') || !canFire(owner, s)) continue;
-    if (!why.chain && !trapAllowed(G, owner, s)) continue;
+    if (!d || d.k !== 'T' || !fx(d).some((f) => f.k === GUARD_FX[why.kind] || f.k === 'shieldTraps') || !canFire(owner, s)) continue;
+    if (why.kind !== 'chain' && !trapAllowed(G, owner, s)) continue;
     fire(G, owner, s, false);
     log(G, `「${d.n}」把${why.text}无效了`, 'trap');
     return true;
@@ -1059,8 +1089,21 @@ function trapGuard(G, owner, why) {
   return false;
 }
 
+// 「波吕克斯」「奥吉尔」：在场上表侧表示时，把对方对我这一步发动的 1 张陷阱无效（每场每方限 1 次）
+function negateTrapOnce(G, actorSide, trapOwner, s) {
+  const actor = G.players[actorSide];
+  if (!actor || (G.negUsed && G.negUsed[actorSide])) return false;
+  const m = actor.mons.find((x) => x && !x.set && hasFx(x, 'negateTrapOnce'));
+  if (!m) return false;
+  (G.negUsed ||= {})[actorSide] = true;
+  fire(G, trapOwner, s, false);
+  log(G, `「${CARDS[m.id].n}」把「${CARDS[s.id].n}」的发动无效了`, 'trap');
+  return true;
+}
+
 function canFire(owner, s) {
   if (owner.trapLock) return false;          // 被「断线」封了：这个回合发不了陷阱
+  if (s && s.seal > 0) return false;         // 被「缄默咒」「泰旖丝」暂时封印的那一张
   const d = CARDS[s.id];
   const cost = (d && d.cost && d.cost.lp) || 0;
   return cost <= 0 || owner.lp > cost;
@@ -1084,7 +1127,7 @@ function counterTrap(G, side, trigger) {
       if (f.k === 'negateSpellSnipe') {
         const o = G.players[1 - side];
         const t = o.spells.find((x) => x && x.set);
-        if (t && !trapGuard(G, o, { text: '连带破坏盖放牌的效果' })) { o.spells[o.spells.indexOf(t)] = null; o.grave.push(t.id); log(G, `「${CARDS[t.id].n}」被连带破坏`, 'trap'); }
+        if (t && !trapGuard(G, o, { kind: 'snipe', text: '连带破坏盖放牌的效果' })) { o.spells[o.spells.indexOf(t)] = null; o.grave.push(t.id); log(G, `「${CARDS[t.id].n}」被连带破坏`, 'trap'); }
       }
     }
     return true;
@@ -1099,6 +1142,7 @@ function summonTraps(G, p, mon) {
     const d = CARDS[s.id];
     if (!d || d.k !== 'T') continue;
     if (!canFire(o, s) || !trapAllowed(G, o, s)) continue;
+    if (negateTrapOnce(G, p.idx, o, s)) continue;
     const f = fx(d);
     const neg = f.find((x) => x.k === 'negateSummon');
     const dst = f.find((x) => x.k === 'destroySummon');
@@ -1141,11 +1185,14 @@ function attackTraps(G, atkSide, atkMon, direct) {
     }
   }
 
+  // 「艾尔瓦」：攻击时对方的陷阱不能发动
+  if (hasFx(atkMon, 'trapImmune')) return null;
   for (const s of def.spells.slice()) {
     if (!s || !s.set || s.turnSet >= G.turn) continue;
     const d = CARDS[s.id];
     if (!d || d.k !== 'T') continue;
     if (!canFire(def, s) || !trapAllowed(G, def, s)) continue;
+    if (negateTrapOnce(G, atkSide, def, s)) continue;
     const list = fx(d);
     const neg = list.find((x) => x.k === 'negateAttack');
     const dst = list.find((x) => x.k === 'destroyAttacker');
@@ -1204,7 +1251,7 @@ export function attack(G, side, monUid, targetUid) {
   // 攻击宣言效果（达芙黛尔之类）
   if (hasFx(a, 'snipeAttack')) {
     const s = o.spells.find((x) => x && x.set);
-    if (s && !trapGuard(G, o, { text: `「${CARDS[a.id].n}」破坏盖放牌的效果` })) { o.spells[o.spells.indexOf(s)] = null; o.grave.push(s.id); log(G, `「${CARDS[a.id].n}」破坏了盖放的「${CARDS[s.id].n}」`, 'monster'); }
+    if (s && !trapGuard(G, o, { kind: 'snipe', text: `「${CARDS[a.id].n}」破坏盖放牌的效果` })) { o.spells[o.spells.indexOf(s)] = null; o.grave.push(s.id); log(G, `「${CARDS[a.id].n}」破坏了盖放的「${CARDS[s.id].n}」`, 'monster'); }
   }
 
   const stop = attackTraps(G, side, a, direct);
@@ -1473,14 +1520,16 @@ export function eligibleTraps(G, side, a) {
     else if (a.t === 'summon' || a.t === 'special') hit = ks.includes('negateSummon') || ks.includes('destroySummon');
     else if (a.t === 'spell') hit = ks.includes('negateSpell') || ks.includes('negateSpellSnipe');
     else if (a.t === 'activateTrap') hit = ks.includes('negateTrap');
-    // 护符：对方这一步的牌带「破坏盖放陷阱 / 封锁陷阱」的效果时可以响应
-    if (!hit && ks.includes('shieldTraps')) {
+    // 护符：对方这一步的牌带「破坏盖放陷阱 / 封锁陷阱」的效果时可以响应（shieldNegate 只在连锁里自动用，不弹询问）
+    const wantSnipe = ks.includes('shieldSnipe') || ks.includes('shieldTraps'), wantLock = ks.includes('shieldLock') || ks.includes('shieldTraps');
+    if (!hit && (wantSnipe || wantLock)) {
       const cardOf = (uid) => { const h = me.hand.find((x) => x.uid === uid); return h && CARDS[h.id]; };
       let c = null;
       if (a.t === 'spell' || a.t === 'summon' || a.t === 'special') c = cardOf(a.uid);
       else if (a.t === 'attack') { const m = me.mons.find((x) => x && x.uid === a.uid); c = m && CARDS[m.id]; }
       else if (a.t === 'activateTrap') { const sp = me.spells.find((x) => x && x.uid === a.uid); c = sp && CARDS[sp.id]; }
-      hit = !!c && fx(c).some((f) => ['snipe', 'snipeDraw', 'snipeAttack', 'trapLock', 'negateSpellSnipe'].includes(f.k));
+      const SN = ['snipe', 'snipeDraw', 'snipeAttack', 'snipeAll', 'negateSpellSnipe'], LK = ['trapLock', 'trapSeal'];
+      hit = !!c && fx(c).some((f) => (wantSnipe && SN.includes(f.k)) || (wantLock && LK.includes(f.k)));
     }
     if (hit) out.push({ uid: s.uid, id: s.id });
   }
@@ -1541,7 +1590,7 @@ export function beginTurn(G) {
   p.normalUsed = false;
   p.normalExtra = 0;
   p.directUsed = false;
-  for (const q of G.players) q.trapLock = false;      // 「断线」只管一个回合
+  for (const q of G.players) { q.trapLock = false; for (const s of q.spells) if (s && s.seal > 0) s.seal--; }      // 「断线」只管一个回合；封印数着回合掉
   p.spCount = 0;
   for (const m of p.mons) {
     if (!m) continue;

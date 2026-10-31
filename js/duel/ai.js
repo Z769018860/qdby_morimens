@@ -32,6 +32,8 @@ function scoreSpell(G, p, o, card) {
     if (f.k === 'bounce' || f.k === 'bounce' ) s += o.mons.filter(Boolean).length ? 6 : -5;
     if (f.k === 'snipeDraw' || f.k === 'snipe') s += o.spells.some((x) => x && x.set) ? 7 : 1;
     if (f.k === 'reveal') s += o.spells.some((x) => x && x.set) ? 2 : -4;
+    if (f.k === 'snipeAll') s += o.spells.filter((x) => x && x.set).length >= 2 && p.lp > 3000 ? 9 : -8;
+    if (f.k === 'trapSeal') s += o.spells.some((x) => x && x.set && !(x.seal > 0)) ? 6 : -4;
     if (f.k === 'trapLock') s += o.spells.filter((x) => x && x.set).length >= 2 && p.mons.filter(Boolean).length ? 8 : -6;
     if (f.k === 'pumpHighest') s += p.mons.filter(Boolean).length ? 5 : -5;
     if (f.k === 'quickAtkAll') s += p.mons.filter(Boolean).length >= 2 ? 5 : 1;
@@ -323,7 +325,7 @@ export function aiTrapChoice(G, owner, a, list, skill) {
     threat = c ? (c.fx || []).reduce((s, f) => s + (f.k === 'burn' ? (f.v || 0) : f.k === 'draw' ? 500 * (f.v || 1) : 700), 0) : 800;
   } else threat = 1000;
   // 护符只在对方要拆 / 封陷阱时才有用，一旦能发就是最值的那一步
-  if (list.some((x) => (d(x.id).fx || []).some((f) => f.k === 'shieldTraps'))) threat = Math.max(threat, 2000);
+  if (list.some((x) => (d(x.id).fx || []).some((f) => ['shieldTraps', 'shieldSnipe', 'shieldLock'].includes(f.k)))) threat = Math.max(threat, 2000);
   const sorted = list.slice().sort((x, y) => trapRank(x.id, a) - trapRank(y.id, a));
   if (sloppy >= 0.35) return G.rng() < 0.85 ? sorted.map((x) => x.uid) : [];            // 见到就发（连小动作也发，还可能一次翻好几张）
   const need = sloppy >= 0.15 ? 800 : (me.lp < me.lpMax * 0.5 ? 600 : 1300);

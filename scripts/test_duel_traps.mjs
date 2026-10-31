@@ -96,7 +96,7 @@ for (const id of free) {
   let G = setup(); let a = G.players[0], b = G.players[1]; a.hand = []; E.handAdd(G, a, 's90');
   b.spells[0] = mk('t03', 0);
   check('窥陷之眼：破坏对方盖放的陷阱', E.applyAction(G, 0, { t: 'spell', uid: a.hand[0].uid }).ok && !b.spells[0] && b.grave.includes('t03'));
-  // 对方盖了护符：窥陷之眼的破坏被无效
+  // 对方盖了「破坏之盾」：窥陷之眼的破坏被无效
   G = setup(); a = G.players[0]; b = G.players[1]; a.hand = []; E.handAdd(G, a, 's90');
   b.spells[0] = mk('t03', 0); b.spells[1] = mk('t40', 0);
   E.applyAction(G, 0, { t: 'spell', uid: a.hand[0].uid });
@@ -113,10 +113,10 @@ for (const id of free) {
   check('断线只管这一个回合', (E.endTurn(G), !b.trapLock));
   // 反制反制：对方的无效陷阱把我的主动陷阱顶掉，我的护符再顶回去
   G = setup(); a = G.players[0]; b = G.players[1];
-  a.spells[0] = mk('t04', 0); a.spells[1] = mk('t40', 0); b.spells[0] = mk('t19', 0);
+  a.spells[0] = mk('t04', 0); a.spells[1] = mk('t42', 0); b.spells[0] = mk('t19', 0);
   const h0 = a.hand.length;
   E.applyAction(G, 0, { t: 'activateTrap', uid: a.spells[0].uid });
-  check('反制反制：护符顶回了对方的「无效陷阱」，逆流之忆照常抽牌', a.grave.includes('t40') && b.grave.includes('t19') && a.hand.length > h0, `hand ${h0}→${a.hand.length}`);
+  check('反制反制：顶回之环顶回了对方的「无效陷阱」，逆流之忆照常抽牌', a.grave.includes('t42') && b.grave.includes('t19') && a.hand.length > h0, `hand ${h0}→${a.hand.length}`);
   G = setup(); a = G.players[0]; b = G.players[1];
   a.spells[0] = mk('t04', 0); b.spells[0] = mk('t19', 0);
   const h1 = a.hand.length;
@@ -125,7 +125,55 @@ for (const id of free) {
   // 询问窗口：对方发动魔法「窥陷之眼」时，护符持有者能收到询问
   G = setup(); a = G.players[0]; b = G.players[1]; a.hand = []; E.handAdd(G, a, 's90');
   b.spells[0] = mk('t40', 0);
-  check('窥陷之眼会触发护符的询问', E.eligibleTraps(G, 0, { t: 'spell', uid: a.hand[0].uid }).length === 1);
+  check('窥陷之眼会触发「破坏之盾」的询问', E.eligibleTraps(G, 0, { t: 'spell', uid: a.hand[0].uid }).length === 1);
+}
+// ---- 三种护符各管一种 / 暂时与永久破坏 / 怪兽的反制与抗性 ----
+{
+  const setup = () => { const G = fresh(); G.turn = 5; G.active = 0; G.phase = 'main'; return G; };
+  const cast = (G, id) => { const a = G.players[0]; a.hand = []; E.handAdd(G, a, id); return E.applyAction(G, 0, { t: 'spell', uid: a.hand[0].uid }); };
+  const monOf = (id, uid) => ({ uid, id, pos: 'atk', set: false, atkCount: 0, atk: CARDS[id].atk, def: CARDS[id].def });
+  // 缄默咒：暂时封印，不破坏，过了就恢复
+  let G = setup(); let a = G.players[0], b = G.players[1];
+  b.spells[0] = mk('t03', 0);
+  cast(G, 's92');
+  check('缄默咒：陷阱还在，但被封印', b.spells[0] && b.spells[0].seal > 0);
+  check('被封印的陷阱不会响应攻击', E.eligibleTraps(G, 0, { t: 'attack', uid: 1, target: null }).length === 0);
+  E.endTurn(G); E.endTurn(G);
+  check('过了两个回合封印解除（没有被破坏）', b.spells[0] && !(b.spells[0].seal > 0));
+  // 清陷令：永久破坏全部，付命轮值
+  G = setup(); a = G.players[0]; b = G.players[1]; b.spells[0] = mk('t03', 0); b.spells[1] = mk('t04', 0);
+  const lp0 = a.lp; cast(G, 's93');
+  check('清陷令：对方盖放的全部进墓地、付了命轮值', b.spells.every((s) => !s) && b.grave.includes('t03') && b.grave.includes('t04') && a.lp === lp0 - 1500);
+  // 破坏之盾 / 封锁之匙：各管各的
+  G = setup(); a = G.players[0]; b = G.players[1]; b.spells[0] = mk('t03', 0); b.spells[1] = mk('t41', 0); cast(G, 's90');
+  check('封锁之匙挡不住「拆」：窥陷之眼照样破坏', !b.spells.find((s) => s && s.id === 't03'));
+  G = setup(); a = G.players[0]; b = G.players[1]; b.spells[0] = mk('t03', 0); b.spells[1] = mk('t40', 0); cast(G, 's92');
+  check('破坏之盾挡不住「封印」：缄默咒照样生效', b.spells[0] && b.spells[0].seal > 0 && !b.grave.includes('t40'));
+  G = setup(); a = G.players[0]; b = G.players[1]; b.spells[0] = mk('t03', 0); b.spells[1] = mk('t41', 0); cast(G, 's92');
+  check('封锁之匙：缄默咒被无效', !(b.spells[0].seal > 0) && b.grave.includes('t41'));
+  G = setup(); a = G.players[0]; b = G.players[1]; b.spells[0] = mk('t03', 0); b.spells[1] = mk('t40', 0);
+  check('窥陷之眼询问「破坏之盾」，缄默咒不会', E.eligibleTraps(G, 0, (a.hand = [], E.handAdd(G, a, 's90'), { t: 'spell', uid: a.hand[0].uid })).length === 1
+    && E.eligibleTraps(G, 0, (a.hand = [], E.handAdd(G, a, 's92'), { t: 'spell', uid: a.hand[0].uid })).every((x) => x.id !== 't40'));
+  // 怪兽：泰旖丝封印、沙耶拆除、温柯尔守陷、艾尔瓦无视陷阱、奥吉尔·反咒无效一张
+  const summonMon = (G, id) => { const a = G.players[0]; a.hand = []; E.handAdd(G, a, id); a.normalUsed = false; return E.applyAction(G, 0, { t: 'summon', uid: a.hand[0].uid, tribs: [] }); };
+  G = setup(); b = G.players[1]; b.spells[0] = mk('t04', 0); summonMon(G, 'm218');
+  check('泰旖丝·封印：召唤时暂时封印一张', b.spells[0] && b.spells[0].seal > 0);
+  G = setup(); b = G.players[1]; b.spells[0] = mk('t04', 0); G.players[0].hand = []; E.handAdd(G, G.players[0], 'm219'); G.players[0].mons = [monOf('m01', 900), monOf('m02', 901), null];
+  const r5 = E.applyAction(G, 0, { t: 'summon', uid: G.players[0].hand[0].uid, tribs: [900] });
+  check('沙耶·拆陷：召唤时永久破坏一张', r5.ok && !b.spells[0] && b.grave.includes('t04'), r5.err);
+  G = setup(); b = G.players[1]; b.spells[0] = mk('t04', 0); b.mons[0] = monOf('m220', 902); cast(G, 's92');
+  check('温柯尔·守陷在场：缄默咒不能封印', b.spells[0] && !(b.spells[0].seal > 0));
+  G = setup(); b = G.players[1]; b.spells[0] = mk('t04', 0); b.mons[0] = monOf('m220', 902); cast(G, 's90');
+  check('温柯尔·守陷在场：窥陷之眼不能破坏', !!b.spells[0] && b.spells[0].id === 't04');
+  G = setup(); a = G.players[0]; b = G.players[1]; a.mons[0] = monOf('m221', 903); G.phase = 'battle'; b.spells[0] = mk('t03', 0);
+  const lpb = b.lp; E.applyAction(G, 0, { t: 'attack', uid: 903, target: null });
+  check('艾尔瓦·无陷：攻击时对方陷阱不能发动', b.lp < lpb && !b.grave.includes('t03'));
+  G = setup(); a = G.players[0]; b = G.players[1]; a.mons[0] = monOf('m223', 904); a.mons[1] = monOf('m01', 905); G.phase = 'battle'; b.spells[0] = mk('t03', 0);
+  const lpb2 = b.lp; E.applyAction(G, 0, { t: 'attack', uid: 905, target: null });
+  check('奥吉尔·反咒：对方的陷阱被无效、攻击命中，并记下「本场已用」', b.lp < lpb2 && b.grave.includes('t03') && G.negUsed && G.negUsed[0] === true);
+  b.spells[0] = mk('t03', 0); G.players[0].mons[1].atkCount = 0;
+  const lpb3 = b.lp; E.applyAction(G, 0, { t: 'attack', uid: 905, target: null });
+  check('第二次（本场限一次）：陷阱照常发动，攻击被无效', b.lp === lpb3);
 }
 console.log(bad ? `\n${bad} 项失败` : '\n全部通过 ✓');
 process.exit(bad ? 1 : 0);
