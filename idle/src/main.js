@@ -35,7 +35,7 @@ import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welc
 import { startGuide } from './ui/guide.js';
 import * as Cloud from './core/cloud.js';
 import { readWallet, writeWallet, reconcile, WALLET_KEY } from './core/wallet.js';
-import { $, $$, fmt, esc, store, askPersist, toast, closeModal, openModal, showKwPop } from './ui/util.js';
+import { $, $$, fmt, esc, store, askPersist, toast, closeModal, openModal, modalEl, showKwPop } from './ui/util.js';
 
 /* 底部导航按「功能域」分 5 组。13 个平铺页签在手机上要横滚，一眼看不到全貌，
    而且签到、设置这类低频页和战斗平起平坐也不合理。组内多页用顶部胶囊二级导航。 */
@@ -133,7 +133,22 @@ async function boot() {
   app.render = render;   // 弹窗里的操作（编队编辑器等）保存后要刷新当前页
   app.bv = new BattleView($('#battle'), app);
   app.onBattleDone = () => { if (app.tab !== 'battle') app.refreshTop(); };
-  const rep = saved ? offlineReport(app.state, app.data) : null;
+  // 先对云存档，再结算离线收益：
+  // 原来是先按本机存档算离线、过 2.5 秒才同步，而「拉取云端」会把 lastSeen 重置成现在——
+  // 云端更新的存档一落地，这一段离线时间就被吞了，离线收益白白消失。
+  // 现在启动时先把云端对一遍（最多等 8 秒），拉下来的存档保留它自己的 lastSeen，之后再按最终的存档结算。
+  let hadSave = !!saved;
+  if (Cloud.account() && Cloud.config().auto) {
+    app.booting = true;
+    const before = app.state;
+    try { await Promise.race([cloudRun('boot'), new Promise((r) => setTimeout(r, 8000))]); } catch { /* 离线 / 没登录：按本机结算 */ }
+    // 有冲突框：等玩家选完（选哪份都要在结算之前定下来），最多等 5 分钟
+    for (let i = 0; i < 1200 && modalEl(); i++) await new Promise((r) => setTimeout(r, 250));
+    app.booting = false;
+    if (app.bootSeen) { app.state.lastSeen = app.bootSeen; app.bootSeen = 0; }
+    if (app.state !== before) hadSave = true;      // 新设备：本机原来是空的，存档是从云端拉的
+  }
+  const rep = hadSave ? offlineReport(app.state, app.data) : null;
   show('battle');
   if (welcomeStatus(app.state, portalUser()).canClaim) setTimeout(() => toast('🎁 注册福利可领取：去「更多 → 签到」领取银芯', 4000), 1500);
   // 引导必须排在离线结算之后：结算弹窗是 z-index 50，引导层是 60，先弹引导会把结算盖住
@@ -234,13 +249,17 @@ function applyCloudSave(save) {
   const doc = store.parse(save.data);
   if (!doc || !doc.roster) throw new Error('bad_cloud_save');
   app.state = migrate(doc, app.data);
-  app.state.lastSeen = Date.now();
+  // 启动时拉到的存档保留它自己的 lastSeen（从那之后到现在就是离线时间，随后按它结算）；
+  // 游戏运行中途拉到的才重置成现在（这段时间已经在另一台设备上过了）
+  app.state.lastSeen = app.booting ? (Number(doc.lastSeen) || Date.now()) : Date.now();
+  if (app.booting) app.bootSeen = app.state.lastSeen;      // 启动阶段中间若有谁调了 save()，lastSeen 会被冲成现在：记下来，结算前还原
   app.state.rev = Math.max(app.state.rev || 0, 0) + 1;
-  app.offlinePending = false;
+  if (!app.booting) app.offlinePending = false;
   store.write(app.state);
   walletSync();
   Cloud.markSynced(app.state, save.ver);
-  app.bv.app = app; app.bv.restart?.(); render(); app.refreshTop();
+  if (app.bv) { app.bv.app = app; app.bv.restart?.(); }
+  if (app.root && !app.booting) { render(); app.refreshTop(); }
 }
 
 async function cloudPush(keepalive) {
@@ -271,6 +290,8 @@ export async function cloudRun(reason = 'auto') {
       if (r.conflict) { cloudConflict(r.cloud); setCloud('conflict'); }
       else setCloud('ok');
     } else if (act === 'pull') {
+      // 离线收益弹窗还开着（还没领）时不能把存档换掉——否则这份离线收益就吞了；过几秒再来
+      if (app.offlinePending) { setCloud('idle'); setTimeout(() => cloudRun('auto'), 4000); return; }
       const save = await Cloud.fetchSave();
       applyCloudSave(save);
       toast('已从云端同步最新进度', 3200);
