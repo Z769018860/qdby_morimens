@@ -15,7 +15,8 @@ const res = { win0: 0, win1: 0, draw: 0, timeout: 0, turns: 0, games: 0 };
 const byDeck = {};
 for (let ia = 0; ia < DECKS.length; ia++) for (let ib = 0; ib < DECKS.length; ib++) for (let s = 0; s < N; s++) {
   const a = DECKS[ia], b = DECKS[ib];
-  const seed = (777001 + ia * 7919 + ib * 104729 + s * 77) >>> 0;
+  const SB = Number(process.env.SB || 777001);
+  const seed = (SB + ia * 7919 + ib * 104729 + s * 77) >>> 0;
   let G;
   try { G = E.createGame({ cards: a.cards, extra: a.extra, lp: a.lp, hand: a.hand }, { cards: b.cards, extra: b.extra, lp: b.lp, hand: b.hand }, { seed }); } catch (e) { note('createGame 抛错 ' + e.message); continue; }
   const t0 = total(G); let steps = 0, lastTurn = 0, actsThisTurn = 0;

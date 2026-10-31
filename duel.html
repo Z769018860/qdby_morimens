@@ -282,8 +282,9 @@ body{
 .sf.ct{background:#5a3a6d; color:#ecd6ff}
 .sf.tt{background:#6d5a2f; color:#ffeec2}
 /* 抗性 / 反制：抗＝不吃魔陷（金），免＝弹开一次攻击（青），斩＝破坏攻击者（红），镜＝弹伤害（紫）。
-   四种颜色分开，是因为它们对应的应对办法完全不同：对付「抗」只能打，对付「斩」干脆别打。 */
-.sf.im{background:#7a6224; color:#ffeab0}
+   四种颜色分开，是因为它们对应的应对办法完全不同：对付「抗」只能打，对付「斩」干脆别打。
+   「抗」跟「嘲」原来都是土黄，两只徽标叠在一起看成一整块 —— 抗改成金框深底，才认得出是两回事。 */
+.sf.im{background:#2f2a15; color:#ffe6a6; box-shadow:inset 0 0 0 1px #a8812e}
 .sf.na{background:#24565f; color:#c2f0f6}
 .sf.da{background:#7a2a2f; color:#ffd0d3}
 .sf.rf{background:#4a3a72; color:#e2d8ff}
@@ -786,7 +787,7 @@ body{
   #scr-duel{--off:410px}
 }
 </style>
-<meta name="build" content="6d3f09b8c7">
+<meta name="build" content="baec6bd36a">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -823,7 +824,7 @@ html{-webkit-tap-highlight-color:transparent}
 <div class="actbar" id="actbar"></div>
 <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
 
-<script type="module" src="js/b/duel.js?v=6d3f09b8c7"></script>
+<script type="module" src="js/b/duel.js?v=baec6bd36a"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

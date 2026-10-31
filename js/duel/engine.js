@@ -1640,8 +1640,10 @@ export function canDirect(G, p, extraId) {
   if (G.over || G.active !== p.idx || G.phase !== 'main') return null;
   if (p.lock && p.lock.sum > 0) return null;       // 直接召唤也算「召唤」
   if (p.extra.indexOf(extraId) < 0 || p.directUsed) return null;
-  if (freeSlot(p.mons) < 0) return null;
   const c = d.direct;
+  // 「自己场上有 3 只怪兽」这个条件本身就把怪兽区填满了，再要求「有空位」等于永远召不出来
+  // （怪兽区只有 3 格）。这类卡允许自己腾位置：召唤时解放自己最弱的那只，见 directSummon。
+  if (freeSlot(p.mons) < 0 && c.cond !== 'mons3') return null;
   const lp = c.lp || 0;
   if (lp > 0 && p.lp <= lp) return null;
   if (c.cond === 'mons2' && p.mons.filter(Boolean).length < 2) return null;
@@ -1671,6 +1673,15 @@ export function directSummon(G, side, extraId) {
   p.directUsed = true;
   const mon = mkMon(G, extraId, side);
   mon.atkCount = 9;
+  // 「场上 3 只」那类：场是满的，把最弱的一只解放掉腾出位置（否则没有格子放它）
+  if (freeSlot(p.mons) < 0) {
+    const weak = p.mons.filter(Boolean).sort((x, y) => atkOf(G, p, x) - atkOf(G, p, y))[0];
+    if (weak) {
+      log(G, `「${CARDS[weak.id].n}」被解放，给「${d.n}」让出位置`, 'cost');
+      p.mons[p.mons.indexOf(weak)] = null;
+      toGrave(G, p, weak, '作为直接召唤的解放');
+    }
+  }
   p.mons[freeSlot(p.mons)] = mon;
   log(G, `${pname(p)}直接召唤「${d.n}」！`, 'awaken');
   triggerSummonFx(G, p, mon);

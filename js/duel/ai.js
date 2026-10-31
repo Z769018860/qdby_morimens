@@ -381,11 +381,13 @@ export function nextAction(G, side, skill) {
       if (sp) return { t: 'special', uid: sp.uid, trib: sp.trib };
     }
     // 1. 觉醒体优先：素材已经站住了就别再拖（弱手会一直忘）。
-    //    额外卡组现在有四十多张，挑「能出的里面攻击力最高的那张」——不然场上有 3200 的机会，
+    //    额外卡组现在有四十多张，挑「能出的里面综合收益最高的那张」——不然场上有 3200 的机会，
     //    却因为它在额外卡组里排后面，一直在叫 2400 的那只。
+    //    具名素材 +400：通用素材（任意两界域）什么时候都能出，具名的得两只特定怪兽同时站在场上，
+    //    拖着不用素材一死就再也没机会了——之前只按攻击力排，e36 / e37 / e38 这八张一次都没被叫出来过。
     if (G.rng() >= sloppy * 0.8) {
-      const can = p.extra.filter((id) => canAwaken(G, p, id))
-        .sort((a, b) => (d(b).atk || 0) - (d(a).atk || 0));
+      const val = (id) => (d(id).atk || 0) + (d(id).mat ? 400 : 0);
+      const can = p.extra.filter((id) => canAwaken(G, p, id)).sort((a, b) => val(b) - val(a));
       if (can.length) return { t: 'awaken', id: can[0] };
     }
     // 1.5 额外卡组的直接召唤：条件满足就叫，不占通常召唤
