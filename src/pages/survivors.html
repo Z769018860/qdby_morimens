@@ -101,6 +101,12 @@ button{font:inherit}
 .slot .stk{position:absolute; right:1px; top:1px; min-width:13px; height:13px; padding:0 3px;
   border-radius:7px; background:#7ad6a0; color:#08130d; font-size:9px; font-style:normal;
   font-weight:700; line-height:13px; text-align:center; box-shadow:0 0 4px rgba(0,0,0,.5)}
+/* 融蚀：被按下去的那一格。灰掉 + 一个「蚀」字 ——
+   不标的话玩家只会以为它在冷却，越等越奇怪（它根本不走冷却）。 */
+.slot.mute{filter:grayscale(1) brightness(.55)}
+.slot.mute::after{content:'蚀'; position:absolute; inset:0; display:grid; place-items:center;
+  font-size:15px; font-weight:800; font-style:normal; color:#c78bff;
+  text-shadow:0 0 6px rgba(0,0,0,.9)}
 /* 超武槽：金边 + 右上角「超」标。没有这个标记，玩家只会觉得「这把打得比较疼」，
    完全不知道背后有一套凑条件的机制。 */
 .slot.evo{border-color:var(--gold); box-shadow:0 0 0 1px color-mix(in oklab,var(--gold) 60%,transparent),

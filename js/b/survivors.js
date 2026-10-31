@@ -735,7 +735,7 @@ const MECHS = {
   // 彩蛋是给熟人玩梗的，不该变成强度榜上的第一梯队。
   'egg-samo': {
     id: 'samobeat', n: '不耶节拍', color: '#ff7a9c',
-    text: '每击杀 1 名敌人积 1 拍（上限 30 拍），每拍攻击 +1.5%；满拍时放出一次节拍冲击清出一圈，然后重新计数',
+    text: '每击杀 1 名敌人积 1 拍（上限 30 拍），每拍攻击 +1.5%；满拍时放出一次节拍冲击清出一圈，然后重新计数。3 分钟后每 22 秒判定一次融蚀（35%~60%，越往后越高）：随机让一件技能或造物失效 10 秒，期间最大生命 -28%、攻击 +45%',
     short: '节拍',
   },
   'egg-susu': {
@@ -780,6 +780,26 @@ const MECHS = {
   },
 };
 
+// ---------------------------------------------------------------- 融蚀
+// 萨摩不耶的第二机制（主机制仍是「不耶节拍」，MECHS 里的 id 不变）。
+//
+// 为什么要有这一条：节拍是「越打越顺」的曲线，后期顺到没有起伏 —— 融蚀就是
+// 那根刺。它不额外给一个按钮，而是在后期随机把玩家手里的一格按下去，
+// 同时用「最大生命下滑」换「攻击力上抬」，让后期的每一次开火都带一点赌。
+//
+// 数值集中在这里：engine.js 的 startErode / endErode 直接读，ui.js 只读 dur。
+// 削生命上限而不是记一笔伤害 —— 融蚀退去时不该凭这笔「伤害」把血还回来。
+const ERODE = {
+  from: 180,     // 3 分钟后才开始掷骰
+  every: 22,     // 每 22 秒掷一次
+  base: 0.35,    // 起始概率 35%
+  ramp: 0.25,    // 随局内时间线性加，最多再加 25 个点
+  rampSec: 300,  // 涨满这 25 个点要 300 秒
+  dur: 10,       // 一次融蚀持续 10 秒
+  hp: 0.72,      // 期间最大生命 ×0.72（约 -28%）
+  atk: 0.45,     // 期间攻击 +45%
+};
+
 // ---------------------------------------------------------------- 后期成长
 // 6 格技能全满级之后，武器/造物这两条线会同时见底，三选一就只剩「跳过」。
 // 这里补两组「不会见底」的选项：极限淬炼（永久小幅成长）与一次性道具。
@@ -801,7 +821,7 @@ const ITEMS = [
   { id: 'i_dice', n: '命运骰子', icon: '⚄', color: '#6ea8ff', txt: '立刻重掷本次三选一' },
 ];
 const ITEM_MAX = 3;
-return { PROTOS, PROTO_ORDER, LV, MAX_WEAPON, POOL_PER_PROTO, RAGE, VOICE, TERRAINS, TERRAIN_AT, terrainAt, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX, EVOS, RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, eliteGap, eliteCount, PLAYER, expNeed, scoreOf, CREDIT_TIERS, creditsAt, nextTier, UNLOCKS, MECHS, GROWTHS, ITEMS, ITEM_MAX };
+return { PROTOS, PROTO_ORDER, LV, MAX_WEAPON, POOL_PER_PROTO, RAGE, VOICE, TERRAINS, TERRAIN_AT, terrainAt, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX, EVOS, RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, eliteGap, eliteCount, PLAYER, expNeed, scoreOf, CREDIT_TIERS, creditsAt, nextTier, UNLOCKS, MECHS, ERODE, GROWTHS, ITEMS, ITEM_MAX };
 })();
 
 // ---- js/sv/unlock.js
@@ -1203,7 +1223,7 @@ return { VOICES };
 
 // ---- js/sv/engine.js
 const m_engine = await (async () => {
-const { PROTOS, LV, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX, EVOS, RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, eliteGap, eliteCount, PLAYER, expNeed, scoreOf, MAX_WEAPON, POOL_PER_PROTO, RAGE, TERRAINS, terrainAt, MECHS, GROWTHS, ITEMS, ITEM_MAX, VOICE } = m_defs;
+const { PROTOS, LV, CREATION_FX, CREATION_STACK, WHEEL_FX, COVENANT_FX, EVOS, RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, eliteGap, eliteCount, PLAYER, expNeed, scoreOf, MAX_WEAPON, POOL_PER_PROTO, RAGE, TERRAINS, terrainAt, MECHS, GROWTHS, ITEMS, ITEM_MAX, VOICE, ERODE } = m_defs;
 const { isUnlocked, recordRun } = m_unlock;
 const { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS, BOSS_CAT } = m_gen;
 const { sfx } = m_audio;
@@ -1409,7 +1429,10 @@ function reset(charId, diffKey) {
   G.items = [];
   G.echo = [];
   G.echoT = 0; G.echoMark = 0;
-  G.mech = { id: null, stacks: 0, low: false, procs: 0, t: 0, flag: false, cd: 0 };
+  // cr / crId / crKind / crN 是「融蚀」的运行时状态（萨摩不耶的第二机制）：
+  // cr 是剩余秒数，crId 指向这一轮被按下去的那一格技能或造物。
+  G.mech = { id: null, stacks: 0, low: false, procs: 0, t: 0, flag: false, cd: 0,
+    cr: 0, crId: null, crKind: '', crN: '', crCd: 0, crTimes: 0 };
   G.catSpawned = false; G.catKilled = false;
   // MOBS 里带 cat 标记的那一条就是校猫。用 index 而不是 id 查，是因为
   // spawnEnemy 本身按数组下标取 def；查一次存起来，省得每帧 find。
@@ -1553,6 +1576,8 @@ function recompute() {
     // 节拍：每拍 +1.5% 攻击，30 拍封顶 = +45%。层数只在击杀时变，
     // 所以和「王权」一样走 recompute，不做每帧改 mods。
     base.atk += (G.mech.stacks || 0) * 0.015;
+    // 融蚀：拿命换的火力。触发与结束各重算一次就够，不每帧改 mods。
+    if (G.mech.cr > 0) base.atk += ERODE.atk;
   } else if (mech === 'dragonscale') {
     base.dmgTaken *= 0.85;
     base.maxShieldBonus += 50;      // 基础 30 → 80，约 +40% 上限
@@ -1596,7 +1621,11 @@ function recompute() {
   }
   Object.assign(m, base);
 
+  // 融蚀压下去的是造物时，这一格的每一层加成都不参与本次重算 ——
+  // 跳过比重算完再减回去干净，也不会在 ui 的加成明细里留下半条。
+  const muteId = G.mech && G.mech.cr > 0 ? String(G.mech.crId) : null;
   for (const p of G.passives) {
+    if (muteId && String(p.id) === muteId) continue;
     for (let i = 0; i < p.stack; i++) applyCreation(p, m);
   }
   for (const w of G.wheels) applyWheel(w.key, m);
@@ -1604,7 +1633,10 @@ function recompute() {
   // 后期成长：每一项都是永久叠加，所以和造物一样逐层重放
   for (const g of G.growth) applyGrowth(g, m);
 
-  G.player.maxHp = Math.round(PLAYER.hp + m.maxHpBonus);
+  // 融蚀期间「命更薄」：上限按比例削，当前血在下一行统一夹一次。
+  // 削上限而不是记一笔伤害 —— 融蚀退去时不该凭这笔「伤害」把血还回来。
+  const erodeOn = !!(G.mech && G.mech.cr > 0);
+  G.player.maxHp = Math.round((PLAYER.hp + m.maxHpBonus) * (erodeOn ? ERODE.hp : 1));
   G.player.maxShield = Math.round(30 + m.maxShieldBonus);
   if (G.player.hp > G.player.maxHp) G.player.hp = G.player.maxHp;
   refreshEvo();
@@ -2365,9 +2397,13 @@ function updateWeapons(dt) {
   // 免得 recompute 之后被覆盖掉。
   const rageAtk = G.rageT > 0 ? 1 + RAGE.atk : 1;
   const rageCd = G.rageT > 0 ? RAGE.cd : 1;
+  // 融蚀：被按下去的那一格整段冻住。timer 一起停，否则一解冻它会把
+  // 冷却直接付清、立刻打出一发，看起来像「失效期间在偷偷蓄力」。
+  const muteId = G.mech && G.mech.cr > 0 ? G.mech.crId : null;
   for (const w of G.weapons) {
     const proto = PROTOS[w.def.proto];
     if (!proto) continue;
+    if (muteId && w.def.id === muteId) { w.cdLeft = Math.max(0, w.timer); continue; }
     w.timer -= dt;
     // 给 HUD 的冷却环用：cdLeft/cdMax 是「这一发还要多久」和「整格多长」
     w.cdLeft = Math.max(0, w.timer);
@@ -2741,6 +2777,9 @@ function updateOrbs(dt) {
   const P = G.player;
   for (const o of G.orbs) {
     if (!G.weapons.includes(o.w)) { o.dead = true; continue; }
+    // 融蚀：环绕光刃是常驻实体，只冻开火逻辑它还会接着割人。
+    // 直接撤掉，恢复后的第一次开火会靠 syncOrbit 把它挂回来。
+    if (G.mech && G.mech.cr > 0 && o.w.def.id === G.mech.crId) { o.dead = true; continue; }
     o.a += dt * 2.1;
     const cfg = o.w.orb;
     if (!cfg) continue;
@@ -2898,6 +2937,9 @@ function addSummon(dmg, color, lv, src) {
 
 function updateSummons(dt) {
   for (const s of G.summons) {
+    // 融蚀：被按下去的那一格召出来的东西也一起哑掉。只冻开火的话，
+    // 场上已有的召唤物照样咬人，「技能失效」就成了空话。
+    if (G.mech && G.mech.cr > 0 && s.src && s.src.def.id === G.mech.crId) continue;
     // 图腾：站桩不动，按固定节奏朝最近的敌人放电
     if (s.static) {
       if (s.cd > 0) s.cd -= dt;
@@ -3577,6 +3619,47 @@ function updateSpawns(dt) {
   }
 }
 
+// ---------------------------------------------------------------- 融蚀
+// 把一项技能或造物按下去 ERODE.dur 秒，换攻击力。
+//
+// 三条边界：
+//   1. 一手空牌（只有本命一把技能、又没捡造物）不触发 —— 那几秒等于站着挨打，
+//      融蚀是「拿命换火力」，不是「拿命换命」；
+//   2. 只挑一格，挑中的技能连它的环绕体、召唤物一起哑掉，不能只停开火；
+//   3. 生命上限的下滑写在 recompute 里，这里只负责计时与播报。
+function startErode() {
+  const P = G.player;
+  const cand = [];
+  for (const w of G.weapons) cand.push({ kind: 'w', id: w.def.id, n: w.def.n });
+  for (const p of G.passives) cand.push({ kind: 'p', id: String(p.id), n: p.n });
+  if (!cand.length || (G.weapons.length <= 1 && G.passives.length === 0)) return;
+  const tgt = cand[(rnd() * cand.length) | 0];
+  G.mech.cr = ERODE.dur;
+  G.mech.crId = tgt.id;
+  G.mech.crKind = tgt.kind;
+  G.mech.crN = tgt.n;
+  G.mech.crTimes = (G.mech.crTimes || 0) + 1;
+  recompute();
+  addText(P.x, P.y - 70, `融蚀 · ${tgt.n} 失效`, 3);
+  addText(P.x, P.y - 50,
+    `生命 -${Math.round((1 - ERODE.hp) * 100)}% · 攻击 +${Math.round(ERODE.atk * 100)}%`, 3);
+  G.fx.push({
+    x: P.x, y: P.y, vx: 0, vy: 0, kind: 'ring', color: '#b45cff', r: 0,
+    life: 0.55, max: 0.55, ring: 168,
+  });
+  G.shake = Math.min(12, G.shake + 3);
+  sfx.play('hurt');
+}
+
+function endErode() {
+  G.mech.cr = 0;
+  G.mech.crId = null;
+  G.mech.crKind = '';
+  G.mech.crN = '';
+  recompute();
+  addText(G.player.x, G.player.y - 56, '融蚀退去 · 上限回升', 2);
+}
+
 // ---------------------------------------------------------------- 机制运行时
 // 机制里的被动加成走 recompute；这里只处理需要按时间推进的那几件：
 // 节拍满槽、龙鳞周期吐息、花信风、兔子洞、立誓的 90 秒切档。
@@ -3592,6 +3675,24 @@ function updateMech(dt) {
     G.mech.flag = true;
     recompute();
     addText(P.x, P.y - 54, '立誓期满 · 攻击回落', 6);
+  }
+
+  // 融蚀：后期才开闸，一次烧 ERODE.dur 秒；烧的过程中不再掷骰，
+  // 所以它不会叠成两层，玩家也不用猜现在到底是几层。
+  if (id === 'samobeat') {
+    if (G.mech.cr > 0) {
+      G.mech.cr = Math.max(0, G.mech.cr - dt);
+      if (G.mech.cr <= 0) endErode();
+    } else if (G.t >= ERODE.from) {
+      G.mech.crCd = Math.max(0, (G.mech.crCd || 0) - dt);
+      if (G.mech.crCd <= 0) {
+        G.mech.crCd = ERODE.every;
+        // 越往后越容易：3 分钟 ERODE.base，之后按局内时间线性升，封顶 base+ramp
+        const p = ERODE.base
+          + Math.min(ERODE.ramp, Math.max(0, G.t - ERODE.from) / ERODE.rampSec * ERODE.ramp);
+        if (rnd() < p) startErode();
+      }
+    }
   }
 
   // 不耶节拍：满 30 拍放一次全拍冲击，然后从 0 重新数
@@ -5435,6 +5536,8 @@ function buildInfo() {
     else if (mm.id === 'seal') now = `当前 ${G.mech.stacks}/5 道`;
     else if (mm.id === 'paradox') now = '已生效';
     else if (mm.id === 'nightwatch') now = G.mech.low ? '燃灯中' : '待触发';
+    else if (mm.id === 'samobeat') now = G.mech.cr > 0
+      ? `融蚀中 · ${Math.ceil(G.mech.cr)}s` : `节拍 ${G.mech.stacks}/30`;
     return `<div class="if-row mech">
       <i class="if-glyph" style="color:${mm.color}">◈</i>
       <div><b>${esc(mm.n)} <em>${esc(now)}</em></b><span>${esc(mm.text)}</span></div></div>`;
@@ -5529,13 +5632,17 @@ function updateHUD() {
     $('hBossName').textContent = boss.n;
     $('hBossFill').style.width = (Math.max(0, boss.hp / boss.maxHp) * 100).toFixed(1) + '%';
   }
-  const wkey = G.weapons.map((w) => w.def.id + w.lv + (w.evo ? 'E' : '')).join(',');
+  // 融蚀压掉的那一格要换一套外观（灰掉 + 一个「蚀」字）。把它并进 key，
+  // 触发/结束时各重建一次 DOM 就够，不用每帧比对。
+  const muteId = G.mech && G.mech.cr > 0 ? G.mech.crId : null;
+  const wkey = G.weapons.map((w) => w.def.id + w.lv + (w.evo ? 'E' : '')
+    + (muteId && w.def.id === muteId ? 'M' : '')).join(',');
   if (hudCache.wkey !== wkey) {
     hudCache.wkey = wkey;
     // 超武的槽要一眼能认出来：金边 + 右上角「超」字角标。
     // 不标的话，玩家只会觉得「这把好像打得比别的疼」，根本不知道有机制。
     $('hWeapons').innerHTML = G.weapons.map((w) => `
-      <div class="slot${w.evo ? ' evo' : ''}" data-info="1" title="${esc(w.def.n)} · ${esc(w.def.charName)}${w.evo ? ' · 超武「' + esc(w.evo.n) + '」' : ''}">
+      <div class="slot${w.evo ? ' evo' : ''}${muteId && w.def.id === muteId ? ' mute' : ''}" data-info="1" title="${esc(w.def.n)} · ${esc(w.def.charName)}${w.evo ? ' · 超武「' + esc(w.evo.n) + '」' : ''}${muteId && w.def.id === muteId ? ' · 融蚀中，暂时失效' : ''}">
         ${charFaceHTML(w.def.char, 30)}
         <b class="cdm"></b>
         ${w.evo ? '<em class="evb">超</em>' : ''}
@@ -5559,20 +5666,22 @@ function updateHUD() {
       }
     }
   }
-  const pkey = G.passives.map((p) => p.id + p.stack).join(',') + '|' + G.wheels.map((w) => w.idx).join(',') + '|' + G.covs.map((c) => c.idx).join(',');
+  const pkey = G.passives.map((p) => p.id + p.stack
+    + (muteId && String(p.id) === String(muteId) ? 'M' : '')).join(',') + '|' + G.wheels.map((w) => w.idx).join(',') + '|' + G.covs.map((c) => c.idx).join(',');
   if (hudCache.pkey !== pkey) {
     hudCache.pkey = pkey;
     // 造物/命轮/契物全部换成真实图标 + 层数角标。
     // 之前造物是几根绿条、命轮只有个「命」字 —— 玩家根本不知道自己捡了什么、
     // 叠了几层、到底加的是什么。点一下会弹出构筑详情（含每条效果的原文）。
-    const slot = (frameIdx, cls, title, badge) => `
-      <div class="slot ${cls}" data-info="1" title="${esc(title)}">
+    const slot = (frameIdx, cls, title, badge, mute) => `
+      <div class="slot ${cls}${mute ? ' mute' : ''}" data-info="1" title="${esc(title)}${mute ? ' · 融蚀中，暂时失效' : ''}">
         <i style="${atlasStyle(frameIdx, 26)}"></i>
         ${badge ? `<em class="stk">${badge}</em>` : ''}
       </div>`;
     const ps = G.passives.map((p) => {
       const fx = CREATION_FX[p.fx];
-      return slot(META.frames['k:' + p.id], 'p', `${p.n} ×${p.stack} · ${fx ? fx.txt : '通用强化'}`, p.stack > 1 ? p.stack : '');
+      return slot(META.frames['k:' + p.id], 'p', `${p.n} ×${p.stack} · ${fx ? fx.txt : '通用强化'}`, p.stack > 1 ? p.stack : '',
+        muteId && String(p.id) === String(muteId));
     }).join('');
     const ws = G.wheels.map((w) => {
       const fx = WHEEL_FX.find((x) => x.key === w.key);
@@ -5608,7 +5717,10 @@ function updateHUD() {
     else if (mm.id === 'paradox') mkey = '悖论';
     else if (mm.id === 'nightwatch') mkey = G.mech.low ? '守夜 · 燃灯' : '守夜';
     // 彩蛋角色的机制角标：有进度就给进度，没进度就给状态
-    else if (mm.id === 'samobeat') mkey = `节拍 ${G.mech.stacks}/30`;
+    // 萨摩不耶有两条线：节拍是常驻进度，融蚀是后期才冒出来的临时状态。
+    // 融蚀期间把角标让给它 —— 那几秒里玩家最想知道的是还剩多久。
+    else if (mm.id === 'samobeat') mkey = G.mech.cr > 0
+      ? `融蚀 ${Math.ceil(G.mech.cr)}s` : `节拍 ${G.mech.stacks}/30`;
     else if (mm.id === 'ratcrown') mkey = `鼠群 ${(G.mech.stacks || 0)}/20`;
     else if (mm.id === 'dreamgate') mkey = G.mech.flag ? '入梦 · 已用' : '入梦 · 待命';
     else if (mm.id === 'rabbitfall') mkey = G.mech.cd > 0 ? `兔子洞 ${Math.ceil(G.mech.cd)}s` : '兔子洞 · 就绪';
@@ -5626,7 +5738,8 @@ function updateHUD() {
       el.textContent = mkey;
       el.style.color = mm ? mm.color : '';
       el.style.borderColor = mm ? mm.color + '55' : '';
-      el.classList.toggle('hot', mm && mm.id === 'nightwatch' && G.mech.low);
+      el.classList.toggle('hot', !!mm && ((mm.id === 'nightwatch' && G.mech.low)
+        || (mm.id === 'samobeat' && G.mech.cr > 0)));
     }
   }
 }

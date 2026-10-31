@@ -14,7 +14,7 @@ import {
   RUN_TIME, DIFFS, spawnGap, hpScale, dmgScale, BOSS_AT, ELITE_EVERY, eliteGap, eliteCount,
   PLAYER, expNeed, scoreOf,
   MAX_WEAPON, POOL_PER_PROTO, RAGE, TERRAINS, terrainAt,
-  MECHS, GROWTHS, ITEMS, ITEM_MAX, VOICE,
+  MECHS, GROWTHS, ITEMS, ITEM_MAX, VOICE, ERODE,
 } from './defs.js';
 import { isUnlocked, recordRun } from './unlock.js';
 import { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS, BOSS_CAT } from './gen.js';
@@ -205,7 +205,10 @@ export function reset(charId, diffKey) {
   G.items = [];
   G.echo = [];
   G.echoT = 0; G.echoMark = 0;
-  G.mech = { id: null, stacks: 0, low: false, procs: 0, t: 0, flag: false, cd: 0 };
+  // cr / crId / crKind / crN 是「融蚀」的运行时状态（萨摩不耶的第二机制）：
+  // cr 是剩余秒数，crId 指向这一轮被按下去的那一格技能或造物。
+  G.mech = { id: null, stacks: 0, low: false, procs: 0, t: 0, flag: false, cd: 0,
+    cr: 0, crId: null, crKind: '', crN: '', crCd: 0, crTimes: 0 };
   G.catSpawned = false; G.catKilled = false;
   // MOBS 里带 cat 标记的那一条就是校猫。用 index 而不是 id 查，是因为
   // spawnEnemy 本身按数组下标取 def；查一次存起来，省得每帧 find。
@@ -349,6 +352,8 @@ export function recompute() {
     // 节拍：每拍 +1.5% 攻击，30 拍封顶 = +45%。层数只在击杀时变，
     // 所以和「王权」一样走 recompute，不做每帧改 mods。
     base.atk += (G.mech.stacks || 0) * 0.015;
+    // 融蚀：拿命换的火力。触发与结束各重算一次就够，不每帧改 mods。
+    if (G.mech.cr > 0) base.atk += ERODE.atk;
   } else if (mech === 'dragonscale') {
     base.dmgTaken *= 0.85;
     base.maxShieldBonus += 50;      // 基础 30 → 80，约 +40% 上限
@@ -392,7 +397,11 @@ export function recompute() {
   }
   Object.assign(m, base);
 
+  // 融蚀压下去的是造物时，这一格的每一层加成都不参与本次重算 ——
+  // 跳过比重算完再减回去干净，也不会在 ui 的加成明细里留下半条。
+  const muteId = G.mech && G.mech.cr > 0 ? String(G.mech.crId) : null;
   for (const p of G.passives) {
+    if (muteId && String(p.id) === muteId) continue;
     for (let i = 0; i < p.stack; i++) applyCreation(p, m);
   }
   for (const w of G.wheels) applyWheel(w.key, m);
@@ -400,7 +409,10 @@ export function recompute() {
   // 后期成长：每一项都是永久叠加，所以和造物一样逐层重放
   for (const g of G.growth) applyGrowth(g, m);
 
-  G.player.maxHp = Math.round(PLAYER.hp + m.maxHpBonus);
+  // 融蚀期间「命更薄」：上限按比例削，当前血在下一行统一夹一次。
+  // 削上限而不是记一笔伤害 —— 融蚀退去时不该凭这笔「伤害」把血还回来。
+  const erodeOn = !!(G.mech && G.mech.cr > 0);
+  G.player.maxHp = Math.round((PLAYER.hp + m.maxHpBonus) * (erodeOn ? ERODE.hp : 1));
   G.player.maxShield = Math.round(30 + m.maxShieldBonus);
   if (G.player.hp > G.player.maxHp) G.player.hp = G.player.maxHp;
   refreshEvo();
@@ -1161,9 +1173,13 @@ function updateWeapons(dt) {
   // 免得 recompute 之后被覆盖掉。
   const rageAtk = G.rageT > 0 ? 1 + RAGE.atk : 1;
   const rageCd = G.rageT > 0 ? RAGE.cd : 1;
+  // 融蚀：被按下去的那一格整段冻住。timer 一起停，否则一解冻它会把
+  // 冷却直接付清、立刻打出一发，看起来像「失效期间在偷偷蓄力」。
+  const muteId = G.mech && G.mech.cr > 0 ? G.mech.crId : null;
   for (const w of G.weapons) {
     const proto = PROTOS[w.def.proto];
     if (!proto) continue;
+    if (muteId && w.def.id === muteId) { w.cdLeft = Math.max(0, w.timer); continue; }
     w.timer -= dt;
     // 给 HUD 的冷却环用：cdLeft/cdMax 是「这一发还要多久」和「整格多长」
     w.cdLeft = Math.max(0, w.timer);
@@ -1537,6 +1553,9 @@ function updateOrbs(dt) {
   const P = G.player;
   for (const o of G.orbs) {
     if (!G.weapons.includes(o.w)) { o.dead = true; continue; }
+    // 融蚀：环绕光刃是常驻实体，只冻开火逻辑它还会接着割人。
+    // 直接撤掉，恢复后的第一次开火会靠 syncOrbit 把它挂回来。
+    if (G.mech && G.mech.cr > 0 && o.w.def.id === G.mech.crId) { o.dead = true; continue; }
     o.a += dt * 2.1;
     const cfg = o.w.orb;
     if (!cfg) continue;
@@ -1694,6 +1713,9 @@ function addSummon(dmg, color, lv, src) {
 
 function updateSummons(dt) {
   for (const s of G.summons) {
+    // 融蚀：被按下去的那一格召出来的东西也一起哑掉。只冻开火的话，
+    // 场上已有的召唤物照样咬人，「技能失效」就成了空话。
+    if (G.mech && G.mech.cr > 0 && s.src && s.src.def.id === G.mech.crId) continue;
     // 图腾：站桩不动，按固定节奏朝最近的敌人放电
     if (s.static) {
       if (s.cd > 0) s.cd -= dt;
@@ -2373,6 +2395,47 @@ function updateSpawns(dt) {
   }
 }
 
+// ---------------------------------------------------------------- 融蚀
+// 把一项技能或造物按下去 ERODE.dur 秒，换攻击力。
+//
+// 三条边界：
+//   1. 一手空牌（只有本命一把技能、又没捡造物）不触发 —— 那几秒等于站着挨打，
+//      融蚀是「拿命换火力」，不是「拿命换命」；
+//   2. 只挑一格，挑中的技能连它的环绕体、召唤物一起哑掉，不能只停开火；
+//   3. 生命上限的下滑写在 recompute 里，这里只负责计时与播报。
+function startErode() {
+  const P = G.player;
+  const cand = [];
+  for (const w of G.weapons) cand.push({ kind: 'w', id: w.def.id, n: w.def.n });
+  for (const p of G.passives) cand.push({ kind: 'p', id: String(p.id), n: p.n });
+  if (!cand.length || (G.weapons.length <= 1 && G.passives.length === 0)) return;
+  const tgt = cand[(rnd() * cand.length) | 0];
+  G.mech.cr = ERODE.dur;
+  G.mech.crId = tgt.id;
+  G.mech.crKind = tgt.kind;
+  G.mech.crN = tgt.n;
+  G.mech.crTimes = (G.mech.crTimes || 0) + 1;
+  recompute();
+  addText(P.x, P.y - 70, `融蚀 · ${tgt.n} 失效`, 3);
+  addText(P.x, P.y - 50,
+    `生命 -${Math.round((1 - ERODE.hp) * 100)}% · 攻击 +${Math.round(ERODE.atk * 100)}%`, 3);
+  G.fx.push({
+    x: P.x, y: P.y, vx: 0, vy: 0, kind: 'ring', color: '#b45cff', r: 0,
+    life: 0.55, max: 0.55, ring: 168,
+  });
+  G.shake = Math.min(12, G.shake + 3);
+  sfx.play('hurt');
+}
+
+function endErode() {
+  G.mech.cr = 0;
+  G.mech.crId = null;
+  G.mech.crKind = '';
+  G.mech.crN = '';
+  recompute();
+  addText(G.player.x, G.player.y - 56, '融蚀退去 · 上限回升', 2);
+}
+
 // ---------------------------------------------------------------- 机制运行时
 // 机制里的被动加成走 recompute；这里只处理需要按时间推进的那几件：
 // 节拍满槽、龙鳞周期吐息、花信风、兔子洞、立誓的 90 秒切档。
@@ -2388,6 +2451,24 @@ function updateMech(dt) {
     G.mech.flag = true;
     recompute();
     addText(P.x, P.y - 54, '立誓期满 · 攻击回落', 6);
+  }
+
+  // 融蚀：后期才开闸，一次烧 ERODE.dur 秒；烧的过程中不再掷骰，
+  // 所以它不会叠成两层，玩家也不用猜现在到底是几层。
+  if (id === 'samobeat') {
+    if (G.mech.cr > 0) {
+      G.mech.cr = Math.max(0, G.mech.cr - dt);
+      if (G.mech.cr <= 0) endErode();
+    } else if (G.t >= ERODE.from) {
+      G.mech.crCd = Math.max(0, (G.mech.crCd || 0) - dt);
+      if (G.mech.crCd <= 0) {
+        G.mech.crCd = ERODE.every;
+        // 越往后越容易：3 分钟 ERODE.base，之后按局内时间线性升，封顶 base+ramp
+        const p = ERODE.base
+          + Math.min(ERODE.ramp, Math.max(0, G.t - ERODE.from) / ERODE.rampSec * ERODE.ramp);
+        if (rnd() < p) startErode();
+      }
+    }
   }
 
   // 不耶节拍：满 30 拍放一次全拍冲击，然后从 0 重新数
