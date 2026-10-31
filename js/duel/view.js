@@ -1277,6 +1277,7 @@ function startBuild(id) {
     cards: (d.cards || []).map((x) => [x[0], x[1]]),
     extra: (d.extra || []).slice(),
     k: 'all', rf: 'all', q: '',
+    preset: 'all',      // 按预组筛：'all' = 全卡池，否则只显示那套预组用到的牌
   };
   show('build');
 }
@@ -1320,15 +1321,25 @@ function bSub(id, isExtra) {
   renderBuild();
 }
 
+// 预组筛选用的索引：选中某套预组后，候选池只留这套牌真的会用的卡
+function presetSet(presetId) {
+  if (!presetId || presetId === 'all') return null;
+  const d = DECKS.find((x) => x.id === presetId);
+  if (!d) return null;
+  return new Set(d.cards.map(([id]) => id).concat(d.extra));
+}
+
 function bPool() {
   const b = S.build;
   const q = (b.q || '').trim();
+  const preset = presetSet(b.preset);
   const out = [];
   for (const id of Object.keys(CARDS)) {
     const c = CARDS[id];
     if (!c || c.token) continue;                 // 衍生物不能自己放
     if (b.k !== 'all' && c.k !== b.k) continue;
     if (b.rf !== 'all' && c.r !== b.rf) continue;
+    if (preset && !preset.has(id)) continue;
     if (q && c.n.indexOf(q) < 0 && (c.text || '').indexOf(q) < 0) continue;
     out.push(id);
   }
@@ -1359,18 +1370,47 @@ function renderBuild() {
   const oldQ = $('#bq');
   const hadFocus = oldQ && document.activeElement === oldQ;
   if (oldQ) b.q = oldQ.value;
+  // 每点一下都整块重绘：候选池与右侧清单的滚动位置得留着，不然选一张牌就跳回顶部
+  const oldPool = document.querySelector('.bpool');
+  const oldList = document.querySelector('.bpanel:nth-child(2) .blist');
+  const poolTop = oldPool ? oldPool.scrollTop : 0;
+  const listTop = oldList ? oldList.scrollTop : 0;
 
   const total = bTotal();
-  const kinds = [['all', '全部'], ['M', '怪兽'], ['S', '魔法'], ['T', '陷阱'], ['E', '觉醒体']];
+  const kinds = [['all', '全部'], ['M', '怪兽'], ['S', '魔法'], ['T', '陷阱'], ['E', '额外卡组']];
   const realms = [['all', '全部'], ['chaos', '混沌'], ['caro', '血肉'], ['aqua', '深海'], ['ultra', '超维'], ['any', '无界']];
   const seg = (arr, cur, attr) => `<div class="seg">${arr.map(([v, t]) => `<button ${attr}="${v}" class="${cur === v ? 'on' : ''}">${t}</button>`).join('')}</div>`;
 
-  const pool = bPool().map((id) => {
+  // 候选池按卡表的样子摊开：分区 + 卡面，点卡面加一张，点卡面下的「−」减一张。
+  // 以前是一行一行的列表，看不见卡面、也看不出「这张我已经放了几张」。
+  const pool = bPool();
+  const cell = (id) => {
     const c = CARDS[id];
-    const over = c.k === 'E' ? b.extra.indexOf(id) >= 0 : bCount(id) >= MAX_COPY;
-    return bRow(id, c.k === 'E' ? (b.extra.indexOf(id) >= 0 ? 1 : 0) : bCount(id), `data-add="${id}"`)
-      .replace('class="bit"', 'class="bit' + (over ? ' off' : '') + '"');
+    const isExtra = c.k === 'E';
+    const n = isExtra ? (b.extra.indexOf(id) >= 0 ? 1 : 0) : bCount(id);
+    const cls = ['bcell'];
+    if (n) cls.push('on');
+    if (n >= (isExtra ? 1 : MAX_COPY)) cls.push('max');
+    const minus = n > 0
+      ? `<button class="bmi" ${isExtra ? `data-subx="${id}"` : `data-sub="${id}"`} title="减一张">−</button>`
+      : '<span class="bmn"></span>';
+    return `<div class="${cls.join(' ')}">
+      <div class="bf" data-add="${id}">${cardHTML(c, {})}</div>
+      <div class="bbar">${minus}<b>${n ? '×' + n : '＋'}</b></div>
+    </div>`;
+  };
+  const poolHtml = CODEX_GROUPS.map(([k, label]) => {
+    const arr = pool.filter((id) => CARDS[id].k === k);
+    if (!arr.length) return '';
+    return `<div class="chead"><b>${label}</b><span>${arr.length} 种</span></div>
+      <div class="bgrid">${arr.map(cell).join('')}</div>`;
   }).join('');
+
+  // 按预组筛：新手从「这套预组用了哪些牌」开始改，比面对 369 张无从下手好
+  const presetOpts = [['all', '全部卡池']].concat(DECKS.map((d) => [d.id, `预组 · ${d.n}`]));
+  const presetSel = `<select class="bpreset" id="bpreset" title="只看某套预组用到的牌">`
+    + presetOpts.map(([v, t]) => `<option value="${v}"${(b.preset || 'all') === v ? ' selected' : ''}>${t}</option>`).join('')
+    + '</select>';
 
   const secM = b.cards.filter(([id]) => CARDS[id] && CARDS[id].k === 'M');
   const secS = b.cards.filter(([id]) => CARDS[id] && CARDS[id].k === 'S');
@@ -1404,7 +1444,8 @@ function renderBuild() {
         </div>
         ${seg(kinds, b.k, 'data-bk')}
         ${seg(realms, b.rf, 'data-br')}
-        <div class="blist" style="margin-top:6px">${pool || '<p class="note">没有符合条件的牌</p>'}</div>
+        <div class="bsel">${presetSel}<span class="note">${b.preset && b.preset !== 'all' ? '只看这套预组用到的牌' : '点卡面加一张，点「−」减一张'}</span></div>
+        <div class="bpool">${poolHtml || '<p class="note">没有符合条件的牌</p>'}</div>
       </div>
       <div class="bpanel">
         ${deckGroup(secM, '怪兽', 'm')}
@@ -1423,6 +1464,10 @@ function renderBuild() {
     if (q.value !== (b.q || '')) q.value = b.q || '';
     if (hadFocus) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
   }
+  const np = document.querySelector('.bpool');
+  if (np && poolTop) np.scrollTop = poolTop;
+  const nl = document.querySelector('.bpanel:nth-child(2) .blist');
+  if (nl && listTop) nl.scrollTop = listTop;
 }
 
 function saveBuild() {
@@ -1526,16 +1571,27 @@ function drawFromPack(pack) {
   const pool = pack.cards.map((id) => CARDS[id]).filter(Boolean);
   const byRar = {};
   for (const c of pool) (byRar[c.rar || 'N'] = byRar[c.rar || 'N'] || []).push(c.id);
+  const ALL_RAR = Object.keys(byRar);
   const out = [];
+  const sameIn = (id) => out.filter((x) => x === id).length;
+  // 一包里同一种卡可以重复，但最多 3 张（再多就是「这一包全是同一个人」了）。
+  // 满 3 张的牌直接不进候选——不能回退成「允许第 4 张」，那样上限就白写了。
   const pick = (list) => {
     const cands = [];
     for (const r of list) for (const id of byRar[r] || []) cands.push(id);
     if (!cands.length) return null;
-    const left = cands.filter((id) => out.indexOf(id) < 0);
-    const arr = left.length ? left : cands;
-    return arr[Math.floor(Math.random() * arr.length)];
+    const room = cands.filter((id) => sameIn(id) < PACK_COPY_MAX);
+    if (!room.length) return null;
+    return room[Math.floor(Math.random() * room.length)];
   };
-  out.push(pick(['GR', 'UR', 'SR']));
+  // 兜底：某些卡包根本没有 N/R（bp08 融灾首领 全是 SR 以上），
+  // 以前 roll 到 N 就 pick 不到、push 进一个空位，开出来只有 3~4 张卡。
+  const anyRoom = () => {
+    const room = [];
+    for (const r of ALL_RAR) for (const id of byRar[r]) if (sameIn(id) < PACK_COPY_MAX) room.push(id);
+    return room.length ? room[Math.floor(Math.random() * room.length)] : null;
+  };
+  out.push(pick(['GR', 'UR', 'SR']) || anyRoom());
   const roll = () => {
     const r = Math.random();
     return r < 0.45 ? 'N' : r < 0.80 ? 'R' : r < 0.96 ? 'SR' : r < 0.99 ? 'UR' : 'GR';
@@ -1543,9 +1599,9 @@ function drawFromPack(pack) {
   for (let i = 0; i < 4; i++) {
     let id = null;
     for (let t = 0; t < 8 && !id; t++) id = pick([roll()]);
-    out.push(id || pick(['N', 'R']));
+    out.push(id || anyRoom() || pick(['N', 'R']));
   }
-  return out;
+  return out.filter(Boolean);
 }
 
 function packBtnLabel() {
@@ -1584,10 +1640,10 @@ function renderPacks() {
     <p class="note" style="margin:0 0 10px">每包 5 张，第一张保底 SR 以上。开包的顺序是：先用每天白给的那一次，再用打人机赢来的券，
       最后才扣银芯（${PACK_PRICE}，全站共用的那份）。开出来的卡进收藏，不影响预组卡组——对决用的是整套预组，收藏是「我还记得这些人」。</p>
     <div class="packs">${packs}</div>
-    <p class="note" style="margin-top:12px">已收录 ${Object.keys(S.save.coll).length} / ${Object.keys(CARDS).length} 种。
+    <p class="note" style="margin-top:12px">已收录 ${Object.keys(S.save.coll).length} / ${Object.keys(CARDS).filter((id) => !CARDS[id].token).length} 种。
       今天还能拿 ${ticketDayLeft(S.save)} 张开包券（打赢人机 +1）。</p>
-    <p class="note" style="margin-top:6px">每张卡留 3 张就够，第 4 张起开包时会自动折算成银芯
-      （N 6 / R 18 / SR 45 / UR 110 / GR 220）。
+    <p class="note" style="margin-top:6px">每张卡留 3 张就够，第 4 张起开包时会自动折算成银芯（每张 1 芯）。
+      一包里同一种卡最多出 3 张。
       <button class="btn sm ghost" data-recycle="1" style="margin-left:6px">一键回收多余</button></p>
   `;
 }
@@ -1595,9 +1651,11 @@ function renderPacks() {
 // ------------------------------------------------------------------ 重复卡回收
 // 收藏不是卡组：每张留 3 张就够看了，第 4 张起自动折算成银芯。
 // 不这么做的话，收集到后期开包永远是「全是重复」，什么也拿不到。
-const KEEP_COPY = 3;
-const RECYCLE_PRICE = { N: 6, R: 18, SR: 45, UR: 110, GR: 220 };
-function recycleValue(rar) { return RECYCLE_PRICE[rar] || 6; }
+const KEEP_COPY = 3;        // 每张留 3 张，第 4 张起才折算
+const PACK_COPY_MAX = 3;    // 一包里同一种卡的上限
+// 重复卡一律 1 银芯：这只是「别让你白开一包」的止损，不是收益。
+// 按稀有度给价（旧版 SR 45 / GR 220）会让刷包变成最赚的银芯来源，反而没人去打牌。
+function recycleValue() { return 1; }
 
 // 开完包先把多出来的折算掉；返回折算了几张、给了多少银芯
 function autoRecycle(ids) {
@@ -1606,7 +1664,7 @@ function autoRecycle(ids) {
     const cnt = S.save.coll[id] || 0;
     if (cnt <= KEEP_COPY) continue;
     S.save.coll[id] = cnt - 1;
-    silver += recycleValue((CARDS[id] || {}).rar);
+    silver += recycleValue();
     n++;
   }
   if (silver > 0) walletAdd(silver);
@@ -1622,7 +1680,7 @@ function recycleAll() {
     const extra = cnt - KEEP_COPY;
     S.save.coll[id] = KEEP_COPY;
     n += extra;
-    silver += extra * recycleValue((CARDS[id] || {}).rar);
+    silver += extra * recycleValue();
   }
   if (!n) return toast('没有多于 ' + KEEP_COPY + ' 张的重复卡');
   walletAdd(silver);
@@ -1771,8 +1829,8 @@ function showHowTo() {
       <li><b>直接召唤</b>：额外卡组里另一种召唤方式。<b>满足卡面条件</b>（如「自己场上有 2 只怪兽」）或<b>献出命轮值</b>即可召唤，
         不用素材、<b>不占通常召唤</b>；代价是每回合只能 1 次，而且当回合不能攻击。为了不破坏平衡，额外卡组里最多放 2 张。</li>
       <li><b>陷阱</b>：本作的陷阱是「自动迎击」——满足条件就发动，不用你宣言。所以盖牌的顺序要考虑对手会先干什么。</li>
-      <li><b>重复卡</b>：收藏里每张留 3 张就够，第 4 张起开包时自动折算成银芯（N 6 / R 18 / SR 45 / UR 110 / GR 220），
-        卡包页也有「一键回收多余」。收集到后期不会一无所获。</li>
+      <li><b>重复卡</b>：收藏里每张留 3 张就够，第 4 张起开包时自动折算成银芯（每张 1 芯），
+        卡包页也有「一键回收多余」。一包里同一种卡最多出 3 张——所以开包能开出重复，但不会一包全是同一张。</li>
       <li><b>羁绊</b>：卡组里同时有指定角色就会在开局触发，加攻、加血、多抽牌。配队比单卡重要。</li>
       <li><b>好友对战</b>：创建房间拿到 5 位码，好友在同一页「加入房间」填码即可。房间靠公共中继转发动作，
         两边各自按同一串动作重放，所以看到的一定是同一局。中继不通时可以「同屏双人」。</li>
@@ -1856,6 +1914,13 @@ function bind() {
   document.addEventListener('input', (e) => {
     if (e.target.id !== 'bq' || !S.build) return;
     S.build.q = e.target.value;
+    renderBuild();
+  });
+
+  // 编辑器里「按预组筛」的下拉：change 不是 input，得单独听
+  document.addEventListener('change', (e) => {
+    if (e.target.id !== 'bpreset' || !S.build) return;
+    S.build.preset = e.target.value;
     renderBuild();
   });
 
@@ -2047,13 +2112,6 @@ function bind() {
   });
 
   // 手牌 / 场地
-  // 卡组编辑器的搜索框：边打边筛，不按回车
-  document.addEventListener('input', (e) => {
-    if (e.target.id !== 'bq' || !S.build) return;
-    S.build.q = e.target.value;
-    renderBuild();
-  });
-
   document.addEventListener('click', (e) => {
     const card = e.target.closest('.hand .card');
     if (card && S.G && !S.busy && S.G.active === SIDE() && !S.G.over) {
@@ -2147,11 +2205,58 @@ export function boot(opt) {
       sfx: () => { Object.keys(SFX).forEach((k) => SFX[k]()); return Object.keys(SFX).join(','); },
       build: (id) => startBuild(id || 'new'),
       go: (id) => show(id),
+      // 卡表筛选也能从 URL 指定：?_test=1&go=codex&ck=E（无头截图时定位到额外卡组）
+      ck: (k) => { S.codex.k = k || 'all'; renderCodex(); return S.codex.k; },
+      // 编辑器：加/减一张、切预组筛选（无头验证用）
+      badd: (id) => { bAdd(id); return bTotal(); },
+      bsub: (id, x) => { bSub(id, !!x); return bTotal(); },
+      bpreset: (id) => { S.build.preset = id; renderBuild(); return bPool().length; },
+      // 连开 n 包，统计「一包内重复」和「同种最多几张」——开包是核心循环，得能一次验准
+      ptest: (n) => {
+        const out = { packs: 0, dupPacks: 0, maxSame: 0, over3: 0, empty: 0 };
+        for (let i = 0; i < (n || 200); i++) {
+          const pk = PACKS[Math.floor(Math.random() * PACKS.length)];
+          const ids = drawFromPack(pk).filter(Boolean);
+          if (ids.length < 5) out.empty++;
+          const cnt = {};
+          for (const id of ids) cnt[id] = (cnt[id] || 0) + 1;
+          const mx = Math.max(0, ...Object.values(cnt));
+          if (ids.length !== new Set(ids).size) out.dupPacks++;
+          out.maxSame = Math.max(out.maxSame, mx);
+          if (mx > PACK_COPY_MAX) out.over3++;
+          out.packs++;
+        }
+        return out;
+      },
       pack: (id) => buyPack(id || 'bp16'),
     };
     // ?_test=1&go=build：无头截图时直接切到某个屏（build / packs / codex / home）
     const mGo = /[?&]go=([a-z]+)/.exec(location.search);
     if (mGo) setTimeout(() => (mGo[1] === 'build' ? window.__duel.build('new') : window.__duel.go(mGo[1])), 60);
+    // ?_test=1&diag=1：把关键容器宽度打出来（无头截图有没有横向溢出，看这个比看图准）
+    if (/[?&]diag=1/.test(location.search)) {
+      setTimeout(() => {
+        const g = document.querySelector('.grid-cards');
+        const q = (sel) => { const e = document.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().width) : 0; };
+        console.log('DIAG ' + JSON.stringify({
+          vw: innerWidth, body: document.body.scrollWidth, doc: document.documentElement.scrollWidth,
+          app: q('.app'), scr: q('#scr-codex'), grid: q('.grid-cards'),
+          cols: g ? getComputedStyle(g).gridTemplateColumns : '',
+          build: S.build ? {
+            total: bTotal(), extra: S.build.extra.length, pool: bPool().length,
+            preset: S.build.preset, picked: document.querySelectorAll('.bcell.on').length,
+          } : null,
+        }));
+      }, 400);
+    }
+    const mAdd = /[?&]add=([\w,]+)/.exec(location.search);
+    if (mAdd) setTimeout(() => mAdd[1].split(',').filter(Boolean).forEach((id) => window.__duel.badd(id)), 200);
+    const mPre = /[?&]preset=(\w+)/.exec(location.search);
+    if (mPre) setTimeout(() => window.__duel.bpreset(mPre[1]), 260);
+    const mPt = /[?&]ptest=(\d+)/.exec(location.search);
+    if (mPt) setTimeout(() => console.log('PTEST ' + JSON.stringify(window.__duel.ptest(Number(mPt[1])))), 300);
+    const mCk = /[?&]ck=(\w+)/.exec(location.search);
+    if (mCk) setTimeout(() => window.__duel.ck(mCk[1]), 120);
     // ?_test=1&buy=bp16：直接开一包，验证开包弹窗（它崩过一次，是模板里多打了个反引号）
     const mBuy = /[?&]buy=(\w+)/.exec(location.search);
     if (mBuy) setTimeout(() => window.__duel.pack(mBuy[1]), 80);

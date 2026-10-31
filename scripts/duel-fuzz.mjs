@@ -71,7 +71,8 @@ function handUid(p) {
   return typeof c === 'object' ? (c.uid != null ? c.uid : c.id) : c;
 }
 
-let games = 0;
+let games = 0, acts = 0, accepted = 0;
+const rejects = new Map();
 for (let gi = 0; gi < GAMES; gi++) {
   const A = randomDeck(), B = randomDeck();
   let G;
@@ -87,6 +88,9 @@ for (let gi = 0; gi < GAMES; gi++) {
     let r;
     try { r = E.applyAction(G, side, a); }
     catch (e) { note(`applyAction 抛错 ${a.t}: ${e.message}`); break; }
+    acts++;
+    if (r && r.ok) accepted++;
+    else if (r && r.err) { const k = `${a.t}: ${String(r.err).slice(0, 24)}`; rejects.set(k, (rejects.get(k) || 0) + 1); }
     if (r && r.ok === undefined) note('返回值没有 ok 字段 ' + a.t);
     if (r && r.ok === false && !(r.err || r.msg)) note('拒绝时没给原因 ' + a.t);
     // 状态不变量
@@ -111,6 +115,7 @@ for (let gi = 0; gi < GAMES; gi++) {
   }
 }
 
-console.log(`抗压测试 ${games} 局（随机牌表 + 随机动作）`);
+console.log(`抗压测试 ${games} 局（随机牌表 + 随机动作）：${acts} 个动作，接受 ${accepted}（${Math.round((accepted / Math.max(1, acts)) * 100)}%），`
+  + `其余被规则拒绝`);
 console.log('问题:', [...problems.entries()].sort((x, y) => y[1] - x[1]).slice(0, 15));
 if (problems.size) process.exitCode = 1; else console.log('没有异常');
