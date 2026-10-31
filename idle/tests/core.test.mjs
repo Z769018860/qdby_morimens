@@ -1095,32 +1095,70 @@ test('抽卡记录裁剪到上限，但累计统计不受影响；十连最好�
 /* ---------- M14：挑战编队（按界域）、现场编队、观战数据、唤醒体排序 ---------- */
 import {
   MODE_ZH, RT_MODES, rtModeOf, squadLabel, autoSquadSlugs, setSquadTeam, normalizePick,
+  towerSquadKey, TOWER_SQUAD_KEYS, squadsOf,
 } from '../src/core/squad.js';
 import { ROSTER_SORTS, sortRoster } from '../src/core/roster.js';
 import { RARITY_ORDER } from '../src/core/constants.js';
 
-test('挑战编队：四座属性塔各存一套，互不串台', () => {
+test('挑战编队：四座属性塔各有一整套专用编队，互不串台', () => {
   const s = newState(data, 71);
   s.roster = Object.fromEntries(data.awakeners.slice(0, 12).map((a) => [a.slug, { lv: 50, star: 3, brk: 2 }]));
   const byRealm = {};
   for (const r of ['CHAOS', 'CARO', 'AEQUOR', 'ULTRA']) byRealm[r] = data.awakeners.filter((a) => a.realm === r).slice(0, 4).map((a) => a.slug);
 
+  // 每座塔只往自己那一套里存，然后指向自己
   for (const r of ['CHAOS', 'CARO', 'AEQUOR', 'ULTRA']) {
-    assert.ok(setSquadTeam(s, r === 'CHAOS' ? 'a' : r === 'CARO' ? 'b' : r === 'AEQUOR' ? 'c' : 'a', byRealm[r]));
-    setSquadPick(s, rtModeOf(r), r === 'ULTRA' ? 'c' : r === 'CHAOS' ? 'a' : r === 'CARO' ? 'b' : 'c');
+    const tk = towerSquadKey(rtModeOf(r));
+    assert.ok(TOWER_SQUAD_KEYS.includes(tk), `${r} 应该有专用编队位`);
+    assert.ok(setSquadTeam(s, tk, byRealm[r]));
+    assert.ok(setSquadPick(s, rtModeOf(r), tk));
   }
-  // 四座塔各指各的
-  assert.equal(squadLabel(s, 'rt_CHAOS').key, 'a');
-  assert.equal(squadLabel(s, 'rt_CARO').key, 'b');
-  assert.equal(squadLabel(s, 'rt_AEQUOR').key, 'c');
-  assert.equal(squadLabel(s, 'rt_ULTRA').key, 'c');
-  // 改一座塔不影响其他入口
-  setSquadPick(s, 'rt_CARO', 'cur');
+  assert.equal(squadLabel(s, 'rt_CHAOS').key, 't_CHAOS');
+  assert.equal(squadLabel(s, 'rt_CARO').key, 't_CARO');
+  assert.equal(squadLabel(s, 'rt_AEQUOR').key, 't_AEQUOR');
+  assert.equal(squadLabel(s, 'rt_ULTRA').key, 't_ULTRA');
+
+  // 通用编队一个都没被写进去
+  for (const k of ['a', 'b', 'c', 'd', 'e']) assert.deepEqual(squadsOf(s)[k].team, [], `通用编队 ${k} 不该被属性塔占用`);
+
+  // 改一座塔（清空）不影响别的塔：它自己退回当前队伍，另外三座原样
+  const before = Object.fromEntries(RT_MODES.map((m) => [m, [...teamSlugsFor(s, m)]]));
+  setSquadTeam(s, 't_CHAOS', []);
+  assert.deepEqual(teamSlugsFor(s, 'rt_CHAOS'), s.team, '混沌塔空了就退回当前队伍');
+  for (const m of ['rt_CARO', 'rt_AEQUOR', 'rt_ULTRA']) assert.deepEqual(teamSlugsFor(s, m), before[m], `${m} 被混沌塔带跑了`);
+
+  // 不许借用别的塔那一套
+  assert.equal(setSquadPick(s, 'rt_CHAOS', 't_CARO'), false, '属性塔不能借另一座塔的编队');
+  // 退回当前队伍可以
+  assert.ok(setSquadPick(s, 'rt_CARO', 'cur'));
   assert.deepEqual(teamSlugsFor(s, 'rt_CARO'), s.team);
-  assert.equal(squadLabel(s, 'rt_CHAOS').key, 'a');
+  assert.equal(squadLabel(s, 'rt_CHAOS').key, 't_CHAOS');
   // 模式表覆盖四座塔 + 其余入口
   assert.deepEqual(RT_MODES, ['rt_CHAOS', 'rt_CARO', 'rt_AEQUOR', 'rt_ULTRA']);
+  assert.deepEqual(TOWER_SQUAD_KEYS, ['t_CHAOS', 't_CARO', 't_AEQUOR', 't_ULTRA']);
   assert.equal(MODE_ZH.rt_AEQUOR, '深海回廊');
+});
+
+test('挑战编队：老存档里属性塔借通用编队的，迁移时搬进各自的专用位', () => {
+  const s = newState(data, 73);
+  s.roster = Object.fromEntries(data.awakeners.slice(0, 12).map((a) => [a.slug, { lv: 50, star: 3, brk: 2 }]));
+  const owned = (r) => data.awakeners.filter((a) => a.realm === r && s.roster[a.slug]).slice(0, 4).map((a) => a.slug);
+  const chaos = owned('CHAOS');
+  s.squads.a = { team: chaos };
+  s.squadPick = { ...s.squadPick, rt_CHAOS: 'a', rt_CARO: 'a', rt_AEQUOR: 'cur', rt_ULTRA: 'cur' };
+  const m = migrate(s, data);
+  // 指向 a 的两座塔：混沌塔拿到那 4 人（本来就是这个界域），血肉塔一个都不合界域，
+  // 于是留空并退回「当前队伍」——和旧版战斗时的实际表现一致，也不会塞进 4 个混沌界域的人
+  assert.deepEqual(m.squads.t_CHAOS.team, chaos);
+  assert.deepEqual(m.squads.t_CARO.team, [], '血肉塔不该收下混沌界域的人');
+  assert.deepEqual(m.squads.a.team, chaos, '通用一队原样保留');
+  assert.equal(m.squadPick.rt_CHAOS, 't_CHAOS');
+  assert.equal(m.squadPick.rt_CARO, 'cur');
+  assert.equal(m.squadPick.rt_AEQUOR, 'cur');
+  // 搬完之后再改塔队，不会回头改到通用一队
+  const caro = owned('CARO');
+  setSquadTeam(m, 't_CHAOS', caro);
+  assert.deepEqual(m.squads.a.team, chaos);
 });
 
 test('挑战编队：老存档的「属性塔」选择会分给四座塔', () => {
@@ -1366,9 +1404,10 @@ test('融灾禁区：老存档补字段，越界层数被夹回 0~100', () => {
   const crazy = migrate({ ...newState(data, 23), rift: { floor: 999, best: -5, tries: 99 } }, data);
   assert.equal(crazy.rift.floor, RIFT_FLOORS);
   assert.equal(crazy.rift.best, RIFT_FLOORS);
-  // 通用五套 + 禁区专用五套，十套编队都要能存（老存档只有三套）
-  assert.equal(Object.keys(crazy.squads).length, 10);
+  // 通用五套 + 属性塔专用四套 + 禁区专用五套，十四套编队都要能存（老存档只有三套）
+  assert.equal(Object.keys(crazy.squads).length, 14);
   for (const k of ['r1', 'r2', 'r3', 'r4', 'r5']) assert.ok(Array.isArray(crazy.squads[k].team), `禁区分队 ${k} 要补出来`);
+  for (const k of ['t_CHAOS', 't_CARO', 't_AEQUOR', 't_ULTRA']) assert.ok(Array.isArray(crazy.squads[k].team), `属性塔分队 ${k} 要补出来`);
 });
 
 /* ---------------------------------------------------------------- M16: 挂机层默认取「有收益的最高层」 */

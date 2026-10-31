@@ -12,7 +12,7 @@ import {
 import { ordersBonus, orderUpCost, orderBonus, orderSlotCount } from './orders.js';
 import { buildEnemies, stageInfo } from './enemies.js';
 import { simulate, roundLimitFor } from './battle.js';
-import { emptySquads, emptyPick, normalizeSquads, normalizePick, squadUsesItem, squadsRemoveItem } from './squad.js';
+import { emptySquads, emptyPick, normalizeSquads, normalizePick, squadUsesItem, squadsRemoveItem, SQUAD_KEYS, RT_MODES, towerSquadKey, realmOfMode } from './squad.js';
 import { emptyGacha, normalizeGacha, recordPull, recordBatch } from './gacha.js';
 import { CREATORS, creatorKit } from './creators.js';
 import { emptyEvent, noteBattle } from './event.js';
@@ -162,6 +162,21 @@ export function migrate(s, data) {
   // 编队 / 挑战阵容 / 抽卡记录（M13）：老存档补空位；不存在的唤醒体、非法的编队位直接剔掉
   m.squads = normalizeSquads(s.squads, m.roster, m.gear, m.orders);
   m.squadPick = normalizePick(s.squadPick);
+  // 属性塔从「借通用编队」改成「每座塔一套专用编队」（t_CHAOS..t_ULTRA）：
+  // 老存档里 rt_X 指向一队~五队的，把那一套里属于 X 界域的成员搬进 t_X，再把选择落到 t_X。
+  // 不搬的话玩家调整过的塔队会丢；不切断的话四座塔还是共用同一份数据。
+  // 只搬本界域的人：四座塔老存档常常都指着同一套（比如全是一队），整份拷过去只会让每座塔都塞满别界域的人。
+  for (const mode of RT_MODES) {
+    const tk = towerSquadKey(mode), old = s.squadPick?.[mode];
+    if (!tk || !SQUAD_KEYS.includes(old)) continue;
+    const src = m.squads[old];
+    const realm = realmOfMode(mode);
+    const keep = (src?.team || []).filter((x) => data.bySlug[x]?.realm === realm);
+    if (keep.length && !(m.squads[tk]?.team || []).length) {
+      m.squads[tk] = { ...JSON.parse(JSON.stringify(src)), team: keep };
+    }
+    m.squadPick[mode] = (m.squads[tk]?.team || []).length ? tk : 'cur';
+  }
   m.gacha = normalizeGacha(s.gacha);
   // 融灾禁区：老存档没有就从第 0 层开始；层数夹在 0..100（换期由 riftState 惰性重置）
   const rf = { ...base.rift, ...(s.rift || {}) };

@@ -809,3 +809,7 @@ a.btn{display:inline-block;text-decoration:none}
 #subnav button{position:relative}
 #subnav button .rdot{position:static;display:inline-block;margin:0 0 0 5px;vertical-align:1px;box-shadow:none}
 .squad .squse .scur{color:var(--gold);font-weight:600}
+
+/* ---- 编队库：装备「已编入」提示（装备列表 / 编队卡片共用装备数） ---- */
+.item .i-body .who.sqin{color:var(--gold);opacity:.92}
+.sqlo-note .sqshare{display:inline-block;margin-left:8px;font-style:normal;font-size:11px;color:var(--gold);background:color-mix(in srgb,var(--gold) 13%,transparent);border:1px solid color-mix(in srgb,var(--gold) 45%,transparent);border-radius:999px;padding:0 8px}
