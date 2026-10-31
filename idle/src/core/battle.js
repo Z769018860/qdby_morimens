@@ -33,7 +33,7 @@ export function makeUnit(def, side, idx) {
     mid: def.mid || null, trait: def.trait || null,
     ali: num(def.openAli, 0), key: num(def.openKey, 0), shield: 0, buffs: [], dots: [], cd: {}, st: {}, sig: '',
     roused: false, patIdx: 0, enrage: 0, alive: true, acted: 0,
-    taunt: 0, reflect: null, stunned: 0, echo: 0, delayed: [],     // 专属技能用到的状态（core/extra.js）
+    taunt: 0, csGuard: 0, reflect: null, stunned: 0, echo: 0, delayed: [],     // 专属技能用到的状态（core/extra.js）
   };
 }
 
@@ -210,10 +210,16 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   function addStatus(src, t, s, n, dur) {
     if (!t.alive) return;
     n = Math.max(0, num(n, 1)); dur = positive(dur);
-    const cur = t.st[s];
+    let cur = t.st[s];
     switch (s) {
       case 'poison': t.st.poison = { n: Math.min(POISON_CAP, (cur?.n || 0) + n), per: Math.max(cur?.per || 0, src.atk * 0.1), dur: 99 }; break;
-      case 'counter': t.st.counter = { n: Math.min(COUNTER_CAP, (cur?.n || 0) + n), per: Math.max(cur?.per || 0, src.atk * 0.22), dur }; break;
+      case 'counter': {
+        // 反击转移：队里有人开着「转移」，所有队友（含自己）拿到的反击层都归他——他嘲讽吸火，反击才打得到人
+        const guard = (t.side === 'a' ? A : E).find((x) => x.alive && x.csGuard > 0 && x !== t);
+        if (guard) { t = guard; cur = t.st.counter; }
+        t.st.counter = { n: Math.min(guard ? COUNTER_CAP + 4 : COUNTER_CAP, (cur?.n || 0) + n), per: Math.max(cur?.per || 0, src.atk * 0.27), dur: Math.max(cur?.dur || 0, dur) };
+        break;
+      }
       case 'barrier': t.st.barrier = { n: Math.min(3, (cur?.n || 0) + n), dur }; break;
       case 'fortress': t.st.fortress = { n: Math.min(50, Math.max(cur?.n || 0, n)), dur }; break;
       default: t.st[s] = { n: 1, dur: Math.max(cur?.dur || 0, dur) };
@@ -316,6 +322,18 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
           break;
         }
         case 'taunt': for (const t of targets(u, e.to || 'self')) t.taunt = Math.max(t.taunt, positive(e.dur, 2)); break;
+        case 'counterShift': {   // 反击转移：把队友身上的反击层全收到自己身上，并嘲讽；持续期间队友新得到的反击层也归他
+          const dur = positive(e.dur, 3);
+          u.taunt = Math.max(u.taunt, dur); u.csGuard = Math.max(u.csGuard, dur);
+          for (const x of friendsOf(u)) {
+            if (x === u || !x.alive || !x.st.counter) continue;
+            const c = x.st.counter, mine = u.st.counter;
+            u.st.counter = { n: Math.min(COUNTER_CAP + 4, (mine?.n || 0) + c.n), per: Math.max(mine?.per || 0, c.per), dur: Math.max(mine?.dur || 0, c.dur, dur) };
+            delete x.st.counter;
+          }
+          push({ k: 'status', who: u.uid, s: 'counter' });
+          break;
+        }
         case 'reflect': for (const t of targets(u, e.to || 'self')) t.reflect = { pct: num(e.pct, 30), dur: positive(e.dur, 2) }; break;
         case 'stun':       // 眩晕：敌人下一次行动被跳过（首领免疫）
           for (const t of targets(u, e.to || 'foe')) if (t.alive && !t.boss && !t.reward) { t.stunned = Math.max(t.stunned, positive(e.n, 1)); push({ k: 'status', who: t.uid, s: 'stun' }); }
@@ -377,7 +395,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
           break;
         case 'counterBurst': {   // 反击爆发：把全队身上的反击层数一次性打出去（没层数也有保底两下）
           const stacks = friendsOf(u).reduce((s, x) => s + num(x.st.counter?.n), 0);
-          const hit = u.atk * num(e.m, 0.15) * Math.max(2, stacks);
+          const hit = u.atk * num(e.m, 0.15) * Math.max(3, stacks);
           for (const t of foesOf(u)) if (t.alive) applyDamage(u, t, Math.max(1, Math.round(hit)), false, ctx);
           for (const x of friendsOf(u)) if (x.st.counter) delete x.st.counter;
           break;
@@ -619,7 +637,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
           if (!t || !t.alive) continue;
           switch (e.s) {
             case 'poison': acc.o += Math.min(num(e.n, 1) * atkOf(u) * 0.1 * dur * 0.7, num(t.hp)); break;
-            case 'counter': acc.s += Math.min(num(e.n, 1), 6) * atkOf(t) * 0.22 * 0.7; break;
+            case 'counter': acc.s += Math.min(num(e.n, 1), 6) * atkOf(t) * 0.27 * 0.7; break;
             case 'barrier': acc.s += (hitFoes(u) / Math.max(1, foesOf(u).length)) * num(e.n, 1) * (t === u ? 1 : 0.8); break;
             case 'fortress': acc.s += hitFoes(u) * Math.min(50, num(e.n, 1)) / 100 * dur * 0.6; break;
             case 'weakness': acc.s += atkOf(t) * 0.25 * dur * 0.5; break;
@@ -661,6 +679,12 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       case 'revive': {
         const dead = (u.side === 'a' ? A : E).filter((x) => !x.alive);
         if (dead.length && !u.usedRevive) acc.s += num(dead[0].maxHp) * 0.85;
+        break;
+      }
+      case 'counterShift': {
+        const dur = positive(e.dur, 3);
+        const mates = F.filter((x) => x !== u).reduce((s, x) => s + num(x.st.counter?.n), 0);
+        acc.s += hitFoes(u) * dur * 0.2 * (u.type === 'WARDEN' ? 1.25 : 0.8) + (mates + 2) * atkOf(u) * 0.22 * 0.7;
         break;
       }
       case 'taunt': {
@@ -913,6 +937,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     for (const u of [...A, ...E]) {
       u.buffs = u.buffs.map((b) => ({ ...b, dur: b.dur - 1 })).filter((b) => b.dur > 0);
       if (u.taunt > 0) u.taunt--;
+      if (u.csGuard > 0) u.csGuard--;
       if (u.reflect && --u.reflect.dur <= 0) u.reflect = null;
       for (const k of Object.keys(u.st)) if (u.st[k].dur < 90 && --u.st[k].dur <= 0) delete u.st[k];
       if (u.side === 'e' && round >= 12) u.enrage += 0.08;

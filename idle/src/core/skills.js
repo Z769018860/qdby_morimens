@@ -57,7 +57,8 @@ export function describeEffect(e) {
     case 'poisonBurst': return `引爆全体敌人身上的中毒（层数×单层伤害×${e.m}）并清除`;
     case 'dotBurst': return `引爆全体敌人身上剩余的流血伤害（×${e.m}）`;
     case 'extraTurn': return '攻击最高的队友立刻额外行动一次';
-    case 'counterBurst': return `把全队身上的反击层数一次打出：对全体敌人造成 每层 ${pct(e.m)}攻击 的伤害（保底 2 层）`;
+    case 'counterShift': return `反击转移：把队友身上的反击层全部收到自己身上并嘲讽 ${e.dur || 3} 回合；期间队友（含自己人）新得到的反击层也都归他，敌人的单体攻击只会打他——反击才打得到人`;
+    case 'counterBurst': return `把全队身上的反击层数一次打出：对全体敌人造成 每层 ${pct(e.m)}攻击 的伤害（保底 3 层）`;
     case 'barrierHeal': return `把全队的屏障层数烧成治疗，每层恢复 ${e.pct}% 最大生命（没屏障时按 1 层算）`;
     case 'gaugeBurn': return `烧掉攒下的全部共鸣 / 超共鸣能量，${e.to === 'foes' ? '对全体敌人' : '对单体敌人'}造成 每点 ${(e.m * 100).toFixed(1)}%攻击 的伤害（保底 60 点）`;
     case 'poisonHeal': return `敌人身上的每层中毒转化为治疗：每层恢复 ${e.pct}% 攻击的生命`;

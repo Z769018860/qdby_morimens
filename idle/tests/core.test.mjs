@@ -2620,3 +2620,27 @@ test('周 Boss 老存档：顶层的累计伤害与已领档位落到第 1 层',
   assert.equal(w.tiers[2].damage, 0);
   assert.equal(w.tier, 1);
 });
+
+test('反击转移：队友的反击层归到嘲讽者身上，反击真的打得出去', () => {
+  // 关卡 50 起敌人才打得动队伍，奥吉尔才会去开盾 / 不灭之誓；
+  // 30 层太软，AI 宁可开输出技能，嘲讽与转移都不会触发，测不到这条链路。
+  const s = newState(data, 90);
+  for (const x of ['ogier', 'caecus', 'faint', 'nautila']) s.roster[x] ??= { lv: 60, star: 3 };
+  for (const k of Object.keys(s.roster)) { s.roster[k].lv = 60; s.roster[k].od = 99; s.roster[k].law = 99; }
+  s.team = ['ogier', 'caecus', 'faint', 'nautila'];
+  let shifts = 0, toOgier = 0, counters = 0, byOgier = 0;
+  for (let seed = 1; seed < 40; seed++) {
+    s.seed = seed;
+    const r = runBattle(s, data, 50);
+    // 奥吉尔的两个专精：奥吉尔之盾（嘲讽）与不灭之誓（内含反击转移）
+    shifts += r.events.filter((e) => e.k === 'act' && e.who === 'a0' && /奥吉尔之盾|不灭之誓/.test(e.name)).length;
+    // 队友拿到的反击层被改挂到开着转移的人身上后，status 事件的 who 就是嘲讽者
+    toOgier += r.events.filter((e) => e.k === 'status' && e.s === 'counter' && e.who === 'a0').length;
+    counters += r.events.filter((e) => e.k === 'counter').length;
+    byOgier += r.events.filter((e) => e.k === 'counter' && e.by === 'a0').length;
+  }
+  assert.ok(shifts > 0, '嘲讽 / 反击转移有人开');
+  assert.ok(toOgier > 0, '队友的反击层被收到了嘲讽者身上');
+  assert.ok(counters > 0, '反击会触发');
+  assert.ok(byOgier > 0, '嘲讽者自己打出了反击');
+});

@@ -280,6 +280,7 @@ body{
 /* 场上怪兽的「攻击 / 守备」标签挪到卡面上沿，别压住下面的攻防数值 */
 .slot .card .tagp{bottom:auto; top:20px; right:3px}
 .card.mini{--cw:64px; --ch:88px}
+.atkbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%}.atkbar .note{flex:1 1 100%}.atkbar .btn[disabled]{opacity:.45;cursor:not-allowed}
 .card.mini .nm{font-size:9px}
 .card.big{--cw:132px; --ch:186px}
 .card.big .nm{font-size:12.5px}
@@ -571,7 +572,7 @@ body{
   #scr-duel{--off:410px}
 }
 </style>
-<meta name="build" content="0944597d89">
+<meta name="build" content="205c945271">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -600,7 +601,7 @@ body{
 <div class="actbar" id="actbar"></div>
 <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
 
-<script type="module" src="js/b/duel.js?v=0944597d89"></script>
+<script type="module" src="js/b/duel.js?v=205c945271"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
