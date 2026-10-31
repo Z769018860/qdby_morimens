@@ -23,7 +23,7 @@ import { roundLimitFor, ROUND_LIMIT, FRONT_SLOTS } from '../core/battle.js';
 import { fxMode } from './fx.js';
 import { settleMode } from './report.js';
 import { watchMode } from './replay.js';
-import { SHOP, boughtToday } from '../core/shop.js';
+import { SHOP, boughtToday, goldTicketPrice, GOLD_TICKET_ID, GOLD_TICKET_LIMIT } from '../core/shop.js';
 import { refineCost, refineMult, relicRefineGain, relicRefineView, relicTheme, REFINE_MAX } from '../core/gear.js';
 import {
   lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, growthPerLevel,
@@ -976,6 +976,9 @@ export function summonPage(app) {
     ${luckCard(app)}
     <div class="banner-card"><h3>银芯商店 <small>每日 0 点（UTC）刷新限购</small></h3>
       <div class="shop">${SHOP.map((x) => { const n = boughtToday(s, x.id); return `<div class="shopi"><b>${x.zh}</b><small>今日 ${n}/${x.limit}</small><button class="btn sm" data-act="shop-buy" data-id="${x.id}" ${n < x.limit && s.cores >= x.cost ? '' : 'disabled'}><img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯"> ${x.cost}</button></div>`; }).join('')}</div></div>
+    ${(() => { const n = boughtToday(s, GOLD_TICKET_ID), pr = goldTicketPrice(s); return `<div class="banner-card"><h3>金币换召唤券 <small>今日 ${n}/${GOLD_TICKET_LIMIT}</small></h3>
+      <p class="hint">金币太多花不完时的出口：每张 <b>${fmt(pr)}</b> 金币（约等于最高关 300 场的收入，当天每买一张再贵 20%）。比挂机直接拿券贵得多，所以前中期不划算，金币先留给升级。</p>
+      <div class="row"><button class="btn big" data-act="gold-ticket" ${n < GOLD_TICKET_LIMIT && s.gold >= pr ? '' : 'disabled'}>换 1 张 · ${fmt(pr)} 金币</button></div></div>`; })()}
     <div class="banner-card"><h3>装备祈愿</h3>
       <p>金币：<b>${fmt(s.gold)}</b>　每次 ${EQUIP_PULL_COST} 金币，随机获得命轮 / 密契 / 造物。</p>
       <div class="row"><button class="btn big" data-act="epull" data-n="1" ${s.gold >= EQUIP_PULL_COST ? '' : 'disabled'}>祈愿 ×1</button><button class="btn big" data-act="epull" data-n="5" ${s.gold >= EQUIP_PULL_COST * 5 ? '' : 'disabled'}>祈愿 ×5</button></div></div>

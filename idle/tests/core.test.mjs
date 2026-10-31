@@ -2154,3 +2154,25 @@ test('银芯叠位总价与「先抽后补 / 先补后抽」无关', () => {
   assert.equal(a.buy, 59);
   assert.equal(a.spent, 59 * 20 + 5 * (58 * 59 / 2));
 });
+
+import { buyTicketWithGold, goldTicketPrice, GOLD_TICKET_LIMIT } from '../src/core/shop.js';
+import { stageGold as _sg } from '../src/core/game.js';
+
+test('金币换召唤券：价格随最高关涨、当天递增、有每日上限，没有反向兑换', () => {
+  const s = newState(data, 41); s.maxStage = 100; s.gold = 1e15; s.tickets = 0;
+  const p0 = goldTicketPrice(s);
+  assert.equal(p0, Math.round(_sg(100) * 300));
+  const r1 = buyTicketWithGold(s);
+  assert.equal(r1.price, p0); assert.equal(s.tickets, 1);
+  assert.equal(goldTicketPrice(s), Math.round(_sg(100) * 300 * 1.2), '当天第 2 张贵 20%');
+  for (let i = 1; i < GOLD_TICKET_LIMIT; i++) assert.ok(buyTicketWithGold(s));
+  assert.equal(s.tickets, GOLD_TICKET_LIMIT);
+  assert.equal(buyTicketWithGold(s), null, '每日上限');
+  s.shop.day = '2000-01-01';                       // 隔天恢复，价格也回到起点
+  assert.equal(goldTicketPrice(s), p0);
+  // 钱不够就不卖
+  s.gold = p0 - 1; assert.equal(buyTicketWithGold(s), null);
+  // 前中期：一张券的金币价至少是挂机拿券（按胜场算）的 10 倍
+  const mid = newState(data, 42); mid.maxStage = 40;
+  assert.ok(goldTicketPrice(mid) / (_sg(40) * winsPerTicket(40)) > 10);
+});

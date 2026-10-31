@@ -1,5 +1,5 @@
 // 银芯商店 and extra attempts. Everything here is a sink for 银芯; limits reset daily (UTC).
-import { addItem, rollItem, addOrder, rollOrder } from './game.js';
+import { addItem, rollItem, addOrder, rollOrder, stageGold } from './game.js';
 import { hash, mulberry32 } from './rng.js';
 import { weeklyState } from './weekly.js';
 import { towerTries } from './challenge.js';
@@ -38,4 +38,26 @@ export function buy(state, data, id) {
   if (g.arena) { arenaTries(state); arenaState(state).tries += 1; }
   state.stats.coresSpent = (state.stats.coresSpent || 0) + it.cost;
   return out;
+}
+
+// ---------- 金币换召唤券（金币的后期出口）----------
+// 关卡越深金币越多（每关 +8.5%），而等级上限归叠位、超限归银芯，到第 80 关以后金币基本没处花。
+// 这里给它一个出口：金币换召唤券，每天限 10 张，价格 = 「当前最高关一场战斗的金币」×300，
+// 当天每买一张再贵 20%。价格随最高关一起涨，所以金币再多也只是「每天多几张券」，拉不动抽卡节奏；
+// 反过来在前中期它比挂机拿券（约 20 场一张）贵 10 倍以上，没人会拿它换，金币仍然留给升级。
+// 券没有反向兑换成金币的路，不会出现来回套利。
+export const GOLD_TICKET_ID = 'gticket';
+export const GOLD_TICKET_LIMIT = 10;
+export const GOLD_TICKET_BATTLES = 300;
+export const GOLD_TICKET_STEP = 0.2;
+export const goldTicketPrice = (state) => Math.round(
+  stageGold(Math.max(1, state.maxStage || 1)) * GOLD_TICKET_BATTLES * (1 + GOLD_TICKET_STEP * boughtToday(state, GOLD_TICKET_ID)),
+);
+export function buyTicketWithGold(state) {
+  const sh = shopState(state), n = sh.bought[GOLD_TICKET_ID] || 0;
+  if (n >= GOLD_TICKET_LIMIT) return null;
+  const price = goldTicketPrice(state);
+  if (state.gold < price) return null;
+  state.gold -= price; sh.bought[GOLD_TICKET_ID] = n + 1; state.tickets += 1;
+  return { price, left: GOLD_TICKET_LIMIT - n - 1 };
 }
