@@ -127,6 +127,7 @@ class Replay {
         const lim = this.spec.roundLimit || 0;
         el.textContent = lim ? `第 ${e.n} / ${lim} 回合` : `第 ${e.n} 回合`;
         el.classList.toggle('urgent', !!lim && e.n >= lim - 2);
+        for (const [id, x] of Object.entries(this.units || {})) if (id[0] === 'a') { const b = x.el?.querySelector('.bar .sh'); if (b) b.style.width = '0'; }
         this.log(`—— 第 ${e.n} 回合 ——`, 'rnd');
         break;
       }
@@ -164,7 +165,7 @@ class Replay {
       }
       case 'shield': {
         const u = U(e.who); if (!u) break;
-        const s = u.el.querySelector('.sh'); if (s) s.style.width = `${Math.min(100, (e.shield / u.max) * 100)}%`;
+        const s = u.el.querySelector('.bar .sh'); if (s) s.style.width = `${Math.min(100, (e.shield / u.max) * 100)}%`;
         sound.play('shield'); say(u, `盾 ${Math.round(e.amt)}`, 'sh');
         break;
       }

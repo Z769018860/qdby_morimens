@@ -289,6 +289,8 @@ export class BattleView {
         const el = $('#bv-round', this.root);
         el.textContent = lim ? `第 ${e.n} / ${lim} 回合` : `第 ${e.n} 回合`;
         el.classList.toggle('urgent', !!lim && e.n >= lim - 2);
+        // 引擎在每回合开头清掉我方的盾（不发事件），条也要跟着归零，免得残留旧的蓝线
+        for (const [id, x] of Object.entries(this.units)) if (id[0] === 'a') { const b = x.el.querySelector('.bar .sh'); if (b) b.style.width = '0'; }
         if (!quiet) this.log(`—— 第 ${e.n} 回合 ——`, 'rnd');
         break;
       }
@@ -335,7 +337,7 @@ export class BattleView {
         break;
       }
       case 'heal': { const u = U(e.who); if (!u) break; this.setBars(u, { hp: e.hp }); if (!quiet && e.amt) { sound.play('heal'); this.fx.heal(u.el); this.float(u, '+' + fmt(e.amt), 'heal'); this.log(`　${nm(e.who)} +${fmt(e.amt)}`, 'hl'); } break; }
-      case 'shield': { const u = U(e.who); if (!u) break; u.el.querySelector('.sh').style.width = `${Math.min(100, (e.shield / u.max) * 100)}%`; if (!quiet) { this.float(u, '盾 ' + fmt(e.amt), 'sh'); sound.play('shield'); this.fx.shield(u.el); } break; }
+      case 'shield': { const u = U(e.who); if (!u) break; u.el.querySelector('.bar .sh').style.width = `${Math.min(100, (e.shield / u.max) * 100)}%`; if (!quiet) { this.float(u, '盾 ' + fmt(e.amt), 'sh'); sound.play('shield'); this.fx.shield(u.el); } break; }
       case 'buff': if (!quiet) { sound.play(e.v > 0 ? 'buff' : 'debuff'); const u = U(e.who); if (u) this.fx.aura(u.el, e.v > 0 ? COLORS.buff : COLORS.debuff, e.v > 0); this.float(u, `${STAT_ZH[e.stat] || ''}${e.v > 0 ? '↑' : '↓'}`, e.v > 0 ? 'buff' : 'debuff'); } break;
       case 'gauge': { const u = U(e.who); if (!u || e.ali == null) break; const a = u.el.querySelector('.ali i'), k = u.el.querySelector('.key i'); if (a) a.style.width = e.ali + '%'; if (k) k.style.width = e.key + '%'; break; }
       case 'revive': { const u = U(e.who); if (!u) break; u.el.classList.remove('dead'); this.setBars(u, { hp: e.hp }); if (!quiet) { sound.play('heal'); this.fx.heal(u.el); this.float(u, '复苏', 'heal'); this.log(`　${nm(e.who)} 复苏了`, 'hl'); } break; }
