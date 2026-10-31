@@ -762,7 +762,16 @@ function onAct(e) {
       break;
     }
     case 'pull': { const out = summon(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play(gachaSound(out)); P.showPulls(app, out); } break; }
-    case 'epull': { const out = equipPull(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play('summon'); P.showItems(app, out); } break; }
+    case 'epull': {
+      const n = +el.dataset.n, before = { ...(s.gear.dex || {}) }, gold0 = s.gold;
+      const out = equipPull(s, d, n);
+      if (out) { app.save(); render(); sound.play('summon'); if (n >= 50) P.showItemsSummary(app, out, before, gold0 - s.gold); else P.showItems(app, out); }
+      break;
+    }
+    case 'gear-dex': closeModal(); P.gearDexModal(app); break;
+    case 'dex-tab': app.ui.dexTab = el.dataset.k; closeModal(); P.gearDexModal(app); break;
+    case 'dex-rar': app.ui.dexRar = el.dataset.k; closeModal(); P.gearDexModal(app); break;
+    case 'dex-only': app.ui.dexOnly = el.dataset.k; closeModal(); P.gearDexModal(app); break;
     case 'rift-go': {
       const r = doRift(s, d);
       if (!r) break;

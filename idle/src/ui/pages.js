@@ -1,6 +1,6 @@
 import {
   allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, ULT_MODES, normalizeUltOrder, equipItem, unequipItem, isEquipped,
-  enhanceItem, dismantle, dismantleCores, summon, equipPull, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST,
+  enhanceItem, dismantle, dismantleCores, summon, equipPull, gearDexKey, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST,
   PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, BATTLES_PER_HOUR, fillLoadout,
 } from '../core/game.js';
 import {
@@ -1045,9 +1045,61 @@ export function summonPage(app) {
       <p class="hint">金币太多花不完时的出口：每张 <b>${fmt(pr)}</b> 金币（约等于最高关 300 场的收入，当天每买一张再贵 20%）。比挂机直接拿券贵得多，所以前中期不划算，金币先留给升级。</p>
       <div class="row"><button class="btn big" data-act="gold-ticket" ${n < GOLD_TICKET_LIMIT && s.gold >= pr ? '' : 'disabled'}>换 1 张 · ${fmt(pr)} 金币</button></div></div>`; })()}
     <div class="banner-card"><h3>装备祈愿</h3>
-      <p>金币：<b>${fmt(s.gold)}</b>　每次 ${EQUIP_PULL_COST} 金币，随机获得命轮 / 密契 / 造物。</p>
-      <div class="row"><button class="btn big" data-act="epull" data-n="1" ${s.gold >= EQUIP_PULL_COST ? '' : 'disabled'}>祈愿 ×1</button><button class="btn big" data-act="epull" data-n="5" ${s.gold >= EQUIP_PULL_COST * 5 ? '' : 'disabled'}>祈愿 ×5</button></div></div>
+      <p>金币：<b>${fmt(s.gold)}</b>　每次 ${EQUIP_PULL_COST} 金币，随机获得命轮 / 密契 / 造物；全部 ${dexTotal(app).all} 件都在池子里，${dexTotal(app).got} 件已收录。</p>
+      <div class="row">${[1, 5, 10, 50, 500].map((n) => `<button class="btn big ${n >= 50 ? 'gold' : ''}" data-act="epull" data-n="${n}" ${s.gold >= EQUIP_PULL_COST * n ? '' : 'disabled'}>祈愿 ×${n}<small>${fmt(EQUIP_PULL_COST * n)} 金币</small></button>`).join('')}
+        <button class="btn big" data-act="gear-dex">装备图鉴 ${dexTotal(app).got}/${dexTotal(app).all}</button></div>
+      <p class="hint">50 连、500 连不逐件弹出，直接给汇总（各稀有度几件、新收录了哪些、最好的几件）；抽到的装备照常进库存，用不上的去「命轮 · 密契」页分解换金币和银芯。</p></div>
   </div>`;
+}
+
+/* ---- 装备图鉴 ---- */
+const dexLists = (app) => ({ wheel: app.data.wheels, covenant: app.data.covenants, relic: app.data.relics });
+function dexTotal(app) {
+  const L = dexLists(app), dex = app.state.gear.dex || {};
+  let all = 0, got = 0;
+  for (const [k, list] of Object.entries(L)) for (const d of list) { all++; if (dex[gearDexKey(k, d.id)]) got++; }
+  return { all, got };
+}
+/** 把一批刚抽到的装备汇总成一屏（50 连 / 500 连用）：before 是抽之前的图鉴快照（用来判断「新收录」） */
+export function showItemsSummary(app, items, before, spent) {
+  const L = { wheel: '命轮', covenant: '密契', relic: '造物' };
+  const by = {}, kinds = {}, fresh = new Map();
+  for (const it of items) {
+    const def = itemDef(app, it), r = def.rarity || '—';
+    by[r] = (by[r] || 0) + 1; kinds[it.kind] = (kinds[it.kind] || 0) + 1;
+    const k = gearDexKey(it.kind, it.defId);
+    if (!before[k] && !fresh.has(k)) fresh.set(k, it);
+  }
+  const order = { SSR: 0, SR: 1, R: 2, N: 3 };
+  const best = [...items].sort((a, b) => (order[itemDef(app, a).rarity] ?? 9) - (order[itemDef(app, b).rarity] ?? 9)).slice(0, 12);
+  const chip = (it) => { const d = itemDef(app, it); return `<div class="dxchip ${rarCls(d.rarity || 'SR')}" title="${esc(d.zh)}"><img src="${img(d.img)}" alt="" loading="lazy"><span>${esc(d.zh)}</span></div>`; };
+  const t = dexTotal(app);
+  openModal(`<h3>祈愿 ×${items.length} <small>花了 ${fmt(spent)} 金币</small></h3>
+    <p>${['SSR', 'SR', 'R', 'N'].filter((r) => by[r]).map((r) => `<b class="${rarCls(r)}">${r}</b> ×${by[r]}`).join('　')}　<small class="dim">命轮 ${kinds.wheel || 0} · 密契 ${kinds.covenant || 0} · 造物 ${kinds.relic || 0}</small></p>
+    <h4>新收录 ${fresh.size} 件 <small class="dim">图鉴 ${t.got}/${t.all}</small></h4>
+    <div class="dxrow">${[...fresh.values()].slice(0, 60).map(chip).join('') || '<small class="dim">这一批都是已经收录过的。</small>'}${fresh.size > 60 ? `<small class="dim">…还有 ${fresh.size - 60} 件，去图鉴里看</small>` : ''}</div>
+    <h4>最好的 ${best.length} 件</h4><div class="dxrow">${best.map(chip).join('')}</div>
+    <div class="row"><button class="btn" data-act="gear-dex">打开装备图鉴</button><button class="btn gold" data-act="close">收下</button></div>`, 'wide');
+}
+export function gearDexModal(app) {
+  const s = app.state, dex = s.gear.dex || {}, L = dexLists(app);
+  const tab = app.ui.dexTab || 'wheel', rar = app.ui.dexRar || '', only = app.ui.dexOnly || '';
+  const names = { wheel: '命轮', covenant: '密契', relic: '造物' };
+  const cnt = (k) => L[k].filter((d) => dex[gearDexKey(k, d.id)]).length;
+  const order = { SSR: 0, SR: 1, R: 2, N: 3 };
+  let list = [...L[tab]];
+  if (rar) list = list.filter((d) => (d.rarity || '') === rar);
+  if (only === 'got') list = list.filter((d) => dex[gearDexKey(tab, d.id)]);
+  if (only === 'miss') list = list.filter((d) => !dex[gearDexKey(tab, d.id)]);
+  list.sort((a, b) => (order[a.rarity] ?? 9) - (order[b.rarity] ?? 9));
+  const t = dexTotal(app);
+  const tile = (d) => { const n = dex[gearDexKey(tab, d.id)] || 0; return `<div class="dxtile ${rarCls(d.rarity || 'SR')} ${n ? '' : 'miss'}" title="${esc(d.zh)}${d.rarity ? ' · ' + d.rarity : ''}${n ? ' · 累计获得 ' + n : ' · 未获得'}"><img src="${img(d.img)}" alt="" loading="lazy"><b>${esc(d.zh)}</b><small>${d.rarity || ''}${n ? ` ×${n}` : ''}</small></div>`; };
+  const chips = (arr, cur, act) => arr.map(([k, z]) => `<button class="btn sm ${cur === k ? 'on' : ''}" data-act="${act}" data-k="${k}">${z}</button>`).join('');
+  openModal(`<h3>装备图鉴 <small>${t.got}/${t.all} 已收录</small></h3>
+    <div class="row">${chips(Object.keys(names).map((k) => [k, `${names[k]} ${cnt(k)}/${L[k].length}`]), tab, 'dex-tab')}</div>
+    <div class="row">${chips([['', '全部稀有度'], ['SSR', 'SSR'], ['SR', 'SR'], ['R', 'R'], ['N', 'N']], rar, 'dex-rar')}${chips([['', '全部'], ['got', '已收录'], ['miss', '未收录']], only, 'dex-only')}</div>
+    <p class="hint">${names[tab]}共 ${L[tab].length} 件，这里每一件都能从「装备祈愿」抽到（金币祈愿 / 银芯精选 / 推图掉落 / 塔和禁区的奖励）。灰色的是还没获得过的；「×N」是累计获得次数，分解掉也不会减。显示 ${list.length} 件。</p>
+    <div class="dxgrid">${list.map(tile).join('') || '<small class="dim">没有符合条件的装备。</small>'}</div>`, 'wide dexmodal');
 }
 
 /* 抽卡结果：稀有度越高越亮，逐张弹出；十连额外给一行汇总 */

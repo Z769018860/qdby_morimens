@@ -102,6 +102,9 @@ export function migrate(s, data) {
   if (!s.roster || typeof s.roster !== 'object' || Array.isArray(s.roster)) s = { ...s, roster: base.roster };
   else s = { ...s, roster: Object.fromEntries(Object.entries(s.roster).filter(([, r]) => r && typeof r === 'object' && !Array.isArray(r))) };
   const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity }, tower: { ...base.tower, ...s.tower }, trials: { cleared: { ...(s.trials?.cleared || {}) }, ...(s.trials?.gold ? { gold: { ...s.trials.gold } } : {}) }, ach: { ...s.ach }, signin: s.signin ? { ...s.signin } : null, welcome: s.welcome ? { ...s.welcome } : null, shop: s.shop ? { ...s.shop } : null, codex: { ...s.codex }, weekly: s.weekly ? { ...s.weekly } : null, rtower: { ...s.rtower }, arena: s.arena ? { ...s.arena } : null };
+  // 装备图鉴：老存档没有，用现在手上的装备垫个底（以前分解掉的补不回来）
+  m.gear.dex = { ...(m.gear.dex || {}) };
+  for (const it of Object.values(m.gear.items || {})) { const k = gearDexKey(it.kind, it.defId); if (!m.gear.dex[k]) m.gear.dex[k] = 1; }
   // 数值字段：非数字 / 负数 / 无穷一律回到安全值，免得 NaN 写进存档后一路传染（金币、离线结算……）
   const num = (v, d, lo = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, n) : d; };
   m.gold = Math.floor(num(m.gold, base.gold)); m.tickets = Math.floor(num(m.tickets, base.tickets)); m.cores = Math.floor(num(m.cores, base.cores));
@@ -365,8 +368,13 @@ export function rollItem(rng, stage, data) {
   const def = cand[Math.floor(rng() * cand.length)];
   return { kind, defId: def.id };
 }
+/** 装备图鉴的键：命轮 wheel / 密契 covenant / 造物 relic；老数据里的 cov 一律算 covenant */
+export const gearDexKey = (kind, defId) => `${kind === 'cov' ? 'covenant' : kind}:${defId}`;
 export function addItem(state, kind, defId) {
   const uid = `g${state.gear.next++}`;
+  const dex = (state.gear.dex ||= {});
+  const dk = gearDexKey(kind, defId);
+  dex[dk] = (dex[dk] || 0) + 1;       // 图鉴：累计获得过几件（分解、卖掉也不会掉）
   state.gear.items[uid] = { uid, kind, defId, lv: 0 };
   return state.gear.items[uid];
 }

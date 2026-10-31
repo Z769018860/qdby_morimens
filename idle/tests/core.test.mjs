@@ -2376,3 +2376,24 @@ test('装备强化上限 40 级：10 级以前和原来完全一样，10 级之�
   const s2 = mkTeamState(); s2.gold = 100;
   assert.equal(enhanceAllEquipped(s2).n, 0, '钱不够就不升');
 });
+
+import { gearDexKey as _gdk, equipPull as _ep, rollItem as _ri } from '../src/core/game.js';
+
+test('装备祈愿：图鉴累计、50 / 500 连按次数扣金币，池子覆盖全部命轮 / 密契 / 造物', () => {
+  const s = newState(data, 61); s.gold = 1e9; s.gear.dex = {};
+  const out = _ep(s, data, 500);
+  assert.equal(out.length, 500); assert.equal(s.gold, 1e9 - 500 * 400);
+  const total = Object.values(s.gear.dex).reduce((a, b) => a + b, 0);
+  assert.equal(total, 500, '图鉴累计 = 抽到的件数');
+  for (const it of out) assert.ok(s.gear.dex[_gdk(it.kind, it.defId)] >= 1);
+  assert.equal(_ep(newState(data, 62), data, 50), null, '钱不够不能抽');
+  // 覆盖：足够多次之后，每一件都出现过
+  const rng = mulberry32(7), seen = new Set();
+  for (let i = 0; i < 300000; i++) { const r = _ri(rng, 60, data); seen.add(_gdk(r.kind, r.defId)); }
+  const all = data.wheels.length + data.covenants.length + data.relics.length;
+  assert.equal(seen.size, all, `全部 ${all} 件都抽得到`);
+  // 老存档迁移：手上有的装备垫进图鉴
+  const old = newState(data, 63); const w = addItem(old, 'wheel', data.wheels[3].id); delete old.gear.dex;
+  const m = migrate(JSON.parse(JSON.stringify(old)), data);
+  assert.ok(m.gear.dex[_gdk('wheel', data.wheels[3].id)] >= 1);
+});

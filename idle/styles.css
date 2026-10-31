@@ -818,3 +818,18 @@ a.btn{display:inline-block;text-decoration:none}
 /* ---- 编队库：装备「已编入」提示（装备列表 / 编队卡片共用装备数） ---- */
 .item .i-body .who.sqin{color:var(--gold);opacity:.92}
 .sqlo-note .sqshare{display:inline-block;margin-left:8px;font-style:normal;font-size:11px;color:var(--gold);background:color-mix(in srgb,var(--gold) 13%,transparent);border:1px solid color-mix(in srgb,var(--gold) 45%,transparent);border-radius:999px;padding:0 8px}
+
+/* ---- 装备图鉴 / 50 连 500 连汇总 ---- */
+.dxgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:8px; margin-top:8px}
+.dxtile{border:1px solid var(--line,#2a3350); border-radius:10px; padding:6px 4px; text-align:center; background:var(--panel,#121a2b); min-width:0}
+.dxtile img{width:52px; height:52px; object-fit:contain; display:block; margin:0 auto 3px}
+.dxtile b{display:block; font-size:11.5px; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.dxtile small{color:var(--dim,#8e9ab5); font-size:10.5px}
+.dxtile.miss{opacity:.38}
+.dxtile.miss img{filter:grayscale(1) brightness(.55)}
+.dxtile.r-SSR{border-color:#e3b341}.dxtile.r-SR{border-color:#a07cff}.dxtile.r-R{border-color:#5b9bd5}
+.dxrow{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px}
+.dxchip{display:flex; align-items:center; gap:5px; border:1px solid var(--line,#2a3350); border-radius:8px; padding:3px 7px 3px 3px; font-size:11.5px; max-width:100%}
+.dxchip img{width:26px; height:26px; object-fit:contain}
+.dxchip.r-SSR{border-color:#e3b341}.dxchip.r-SR{border-color:#a07cff}.dxchip.r-R{border-color:#5b9bd5}
+.btn.big small{display:block; font-size:10px; opacity:.7; font-weight:400}
