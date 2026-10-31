@@ -8,6 +8,7 @@ import { createGame, nextEvent, submit, nightOptions, playerFindings, canCall } 
 import { autoAct, autoNote } from './auto.js';
 import { alive, byId } from './util.js';
 import { AVATARS } from './art.js';
+import { walletAdd, walletGet, scTag } from '../silver.js';
 
 const $ = (s) => document.querySelector(s);
 const stage = $('#stage');
@@ -154,7 +155,7 @@ function showTitle() {
     const dn = el('div', 'dn');
     dn.append(el('i', 'dot'));
     dn.append(el('span', '', d.n));
-    b.append(dn, el('span', 'ds', d.sub), el('span', 'dd', d.note));
+    b.append(dn, el('span', 'ds', d.sub), el('span', 'dd', d.note), el('span', 'ds', `赢一局 ${WOLF_PAY[d.k]}+ 银芯`));
     b.onclick = () => {
       STATE.diff = d.k;
       diffs.querySelectorAll('.diff').forEach((x) => x.classList.toggle('on', x === b));
@@ -214,6 +215,7 @@ function startGame() {
   STATE.turn = null;
   STATE.autoToken += 1;
   STATE.mode = loadMode();
+  STATE.autoUsed = STATE.mode === 'auto';   // 这一局开过自动档就按半价算
   STATE.outs = [];
   STATE.recTab = 'note';
   STATE.rosterOn = false;
@@ -685,6 +687,7 @@ function setMode(m) {
   if (!MODES[m]) return;
   const changed = STATE.mode !== m;
   STATE.mode = m;
+  if (m === 'auto') STATE.autoUsed = true;
   STATE.autoToken += 1;   // 作废还在等的那一手
   saveMode(m);
   paintPace();
@@ -1162,6 +1165,25 @@ function pickRole(cb) {
   });
 }
 
+// ---------------------------------------------------------------- 银芯
+// 和其他小游戏共用一个钱包（zjtt:credits）。按难度给一个「赢一局」的基数，
+// 难度越高桌上越脏、AI 越会撒谎，基数跟着涨：
+//   赢：基数；活到最后 +15%。
+//   输：基数的 25%（至少 1），但要熬过第 2 天才给——开局被投出去不算。
+//   开过自动档（替你说话 / 投票）的一局半价：它不是你在打。
+const WOLF_PAY = { easy: 6, normal: 12, hard: 20, mad: 30, abyss: 42 };
+const WOLF_LOSS_MIN_DAY = 2;
+function wolfReward(win, alive, day, diff, autoUsed) {
+  const base = WOLF_PAY[diff] || WOLF_PAY.normal;
+  let g;
+  if (win) g = base * (alive ? 1.15 : 1);
+  else if (day >= WOLF_LOSS_MIN_DAY) g = Math.max(1, base * 0.25);
+  else return { gain: 0, why: `第 ${WOLF_LOSS_MIN_DAY} 天之前就结束了，没有银芯` };
+  if (autoUsed) g *= 0.5;
+  g = Math.max(1, Math.round(g));
+  return { gain: g, why: `${win ? '获胜' : '惜败'}${win && alive ? ' · 活到最后' : ''}${autoUsed ? ' · 自动档半价' : ''}` };
+}
+
 // ---------------------------------------------------------------- 结算
 function finish(e) {
   const G = STATE.G;
@@ -1184,6 +1206,9 @@ function finish(e) {
     localStorage.setItem(STAT_KEY, JSON.stringify(st));
   } catch (err) { /* 隐私模式下写不进去，不影响这一局 */ }
 
+  const pay = wolfReward(win, me.alive, G.day, STATE.diff, STATE.autoUsed);
+  if (pay.gain > 0) walletAdd(pay.gain);
+
   clear(stage);
   const scr = el('section', 'scr on');
   scr.id = 'scr-over';
@@ -1200,6 +1225,12 @@ function finish(e) {
     + (me.alive ? '　——　活到了最后' : (me.deathDay ? `　——　第 ${me.deathDay} 天出局` : ''));
   banner.append(st);
   scr.append(banner);
+
+  const cred = el('div', 'ecred' + (pay.gain > 0 ? ' on' : ''));
+  cred.innerHTML = pay.gain > 0
+    ? `${scTag('+' + pay.gain)}<span>${DIFFS.find((x) => x.k === STATE.diff).n} · ${pay.why} · 钱包 ${walletGet()}</span>`
+    : `<span>${pay.why}</span>`;
+  scr.append(cred);
 
   const rev = el('div', 'reveal');
   for (const p of G.players) {
