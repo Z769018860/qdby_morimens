@@ -76,7 +76,7 @@ export function newState(data, now = Date.now()) {
     play: 0,
     gold: 600, tickets: 12, cores: 300, stage: 1, maxStage: 0,
     auto: true,
-    strategy: { defend: 0.4, target: 'low', preset: 'balanced', ult: 'first' },
+    strategy: { defend: 0.4, target: 'low', preset: 'balanced', ult: 'first', ultOrder: [] },
     roster, team: [...STARTERS], codex: {},
     gear: { items: {}, next: 1, equip: {}, relics: Array(RELIC_SLOTS).fill(null) },
     drip: { tickets: 0, cores: 0 },
@@ -116,6 +116,8 @@ export function migrate(s, data) {
   // 累计游玩秒数：老存档没有就从 0 开始
   m.play = Math.max(0, Math.floor(Number(m.play) || 0));
   m.team = [...new Set(Array.isArray(m.team) ? m.team : [])].filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
+  if (m.strategy.ult === 'manual') m.strategy.ult = 'first';   // 手动开大已下线：老存档回到默认策略
+  normalizeUltOrder(m);
   if (!m.team.length) m.team = Object.keys(m.roster).slice(0, TEAM_SIZE);
   // roster：补 brk（突破档数），并按新的叠位上限收紧
   for (const [k, r] of Object.entries(m.roster)) {
@@ -607,6 +609,7 @@ export function awakenUp(state, slug) {
 export function setTeam(state, slots) {
   const seen = new Set();
   state.team = slots.filter((s) => s && state.roster[s] && !seen.has(s) && seen.add(s)).slice(0, TEAM_SIZE);
+  normalizeUltOrder(state);
   normalizeEquip(state);      // 换了人，「谁在队里」变了：命轮 / 密契若在两个人身上，留在队里的那个
 }
 
@@ -733,13 +736,34 @@ export const PRESETS = {
   focus: { zh: '集火强敌', defend: 0.4, target: 'atk' },
 };
 export function setPreset(state, key) { const p = PRESETS[key]; state.strategy = { preset: key, defend: p.defend, target: p.target, ult: state.strategy?.ult || 'first' }; }
-/** 大招策略：first 优先开大 / sync 攒大招一起开大 / manual 手动开大（实时战斗里点头像开） */
+/** 大招策略：first 优先开大 / sync 攒大招一起开 / order 按自定义顺序开 */
 export const ULT_MODES = {
   first: { zh: '优先开大', desc: '大招一攒满就放，排在防御、技能之前（登场技是开场自动生效的，不占动作）。' },
   sync: { zh: '攒大招一起开', desc: '等全队的大招都攒满再一起放，打出爆发窗口；等太久（3 次行动）或自己血量见底就不等了。' },
-  manual: { zh: '手动开大', desc: '大招攒满后头像会亮起「开大」按钮，点一下，那位下一次行动就放；不点就不放。只对你正在看的实时战斗生效，离线 / 无人值守的结算仍按「优先开大」。' },
+  order: { zh: '按顺序开大', desc: '在下面排好先后：排在前面的还攒着大招没放，后面的就先等（最多等 2 次行动），保证增益 / 充能类大招先落地，再让输出开。' },
 };
-export function setUltMode(state, key) { if (ULT_MODES[key]) state.strategy = { ...state.strategy, ult: key }; }
+/** 把 ultOrder 规整成「当前队伍里的 4 个人，一个不多一个不少」 */
+export function normalizeUltOrder(state) {
+  const team = Array.isArray(state.team) ? state.team.filter(Boolean) : [];
+  const cur = Array.isArray(state.strategy?.ultOrder) ? state.strategy.ultOrder : [];
+  const out = cur.filter((s) => team.includes(s));
+  for (const s of team) if (!out.includes(s)) out.push(s);
+  state.strategy = { ...state.strategy, ultOrder: out };
+  return out;
+}
+export function setUltMode(state, key) {
+  if (!ULT_MODES[key]) return;
+  state.strategy = { ...state.strategy, ult: key };
+  normalizeUltOrder(state);
+}
+/** 调整某一位在大招顺序里的位置：dir = -1 提前 / 1 后移 */
+export function moveUltOrder(state, slug, dir) {
+  const list = normalizeUltOrder(state);
+  const i = list.indexOf(slug), j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+  state.strategy = { ...state.strategy, ultOrder: list };
+}
 
 // ---------- gear ops ----------
 export function equipItem(state, data, slug, uid) {

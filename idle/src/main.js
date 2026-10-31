@@ -1,6 +1,6 @@
 import './ui/orient.js';   // 横屏 / 竖屏开关（顶栏那颗方向按钮）
 import {
-  indexData, newState, migrate, offlineReport, claimOffline, claimGifts, levelUp, levelUpMax, setTeam, autoTeam, autoLoadout, setPreset, setUltMode,
+  indexData, newState, migrate, offlineReport, claimOffline, claimGifts, levelUp, levelUpMax, setTeam, autoTeam, autoLoadout, setPreset, setUltMode, moveUltOrder,
   equipItem, unequipItem, enhanceItem, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem,
   dismantleCores, breakThrough, awakenUp, overdriveUp, lawUp, upgradeOrder, rewindLevel,
 } from './core/game.js';
@@ -649,7 +649,8 @@ function onAct(e) {
     }
     case 'autoteam': { const r = autoLoadout(s, d); app.save(); rerender(); toast(`一键配队完成：${r.team.length} 人 · 命轮/密契已换 · 造物 ${r.relics} 件 · 钥令 ${r.orders} 个`); break; }
     case 'preset': setPreset(s, el.dataset.k); rerender(); break;
-    case 'ult-mode': setUltMode(s, el.dataset.k); app.save(); rerender(); if (s.strategy.ult === 'manual') toast('手动开大：战斗里大招攒满的头像会亮起「开大」，点一下就放', 4500); break;
+    case 'ult-mode': setUltMode(s, el.dataset.k); app.save(); rerender(); if (s.strategy.ult === 'order') toast('按顺序开大：用下面的 ↑ ↓ 排先后，排在前面的还攒着大招没放时，后面的会先等一等', 4500); break;
+    case 'ult-order': moveUltOrder(s, el.dataset.slug, +el.dataset.dir); app.save(); rerender(); break;
     case 'pick-relic': {
       const i = +el.dataset.i;
       P.pickItem(app, 'relic', '选择造物', (uid) => { s.gear.relics = s.gear.relics.map((x) => (x === uid ? null : x)); s.gear.relics[i] = uid || null; rerender(); });

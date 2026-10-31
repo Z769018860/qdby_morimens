@@ -1971,8 +1971,8 @@ test('专属技能：战斗里按节奏免费追加，且比不带的队伍更�
   assert.ok(dmg(a) > dmg(b), '带专属技能总伤害更高');
 });
 
-const NEW_MECH = new Set(['execute', 'pctHp', 'cleanse', 'dispel', 'revive', 'taunt', 'reflect', 'stun', 'chain', 'splash', 'echo', 'cdReset', 'shieldDmg', 'blood', 'missingHeal', 'delay', 'lowHpBoost', 'poisonBurst', 'dotBurst', 'extraTurn']);
-const sigOf = (sk) => sk.effects.map((e) => [e.t, e.to || '', e.stat || e.s || e.k || '', e.hits || '', e.dur ?? '', e.n ?? ''].join(':')).join('|');
+const NEW_MECH = new Set(['execute', 'pctHp', 'cleanse', 'dispel', 'revive', 'taunt', 'reflect', 'stun', 'chain', 'splash', 'echo', 'cdReset', 'shieldDmg', 'blood', 'missingHeal', 'delay', 'lowHpBoost', 'poisonBurst', 'dotBurst', 'extraTurn', 'counterBurst', 'barrierHeal', 'gaugeBurn', 'poisonHeal', 'poisonShield', 'dotSpread']);
+const sigOf = (sk) => sk.effects.map((e) => [e.t, e.to || '', e.stat || e.s || e.k || '', e.m ?? '', e.v ?? '', e.pct ?? '', e.n ?? '', e.hits ?? '', e.dur ?? '', e.cost ?? '', e.share ?? '', e.grow ?? ''].join(':')).join('|');
 
 test('专属技能：每位的终焉技都带自己的新机制，71 位的技能组合互不相同', () => {
   const od = new Map(), law = new Map();
@@ -2059,12 +2059,12 @@ test('后期加压：80 关之前怪物不变，之后每 10 关生命 ×1.10 / 
   assert.ok(e130.hp > 220 * enemyScale(131) * 1.4 * 1.1, '131 关的普通怪已被加压');
 });
 
-/* ---------- 大招策略：优先开大 / 攒大招一起开 / 手动开大 ---------- */
-test('大招策略：first 立刻放；sync 等全队攒满一起放；manual 只放被点的那位；无人值守的 manual 按 first', () => {
-  const ally = (n, ali) => mkAlly({ name: n, openAli: ali, openKey: 0, hp: 90000, def: 500 });
+/* ---------- 大招策略：优先开大 / 攒大招一起开 / 按自定义顺序开 ---------- */
+test('大招策略：first 立刻放；sync 等全队攒满一起放；order 按排好的顺序开（前一位没放就先等）', () => {
+  const ally = (n, ali, slug) => mkAlly({ name: n, slug, openAli: ali, openKey: 0, hp: 90000, def: 500 });
   const tank = () => mkFoe({ hp: 9e7, atk: 1, def: 0 });
   const exalts = (r) => r.events.filter((e) => e.k === 'act' && e.slot === 'Exalt').map((e) => ({ who: e.who, round: e.round }));
-  const team = () => [ally('甲', 100), ally('乙', 100), ally('丙', 100), ally('丁', 0)];
+  const team = () => [ally('甲', 100, 'jia'), ally('乙', 100, 'yi'), ally('丙', 100, 'bing'), ally('丁', 0, 'ding')];
   const run = (ult, extra = {}) => simulate({ allies: team(), enemies: [tank()], seed: 5, maxRounds: 10, strategy: { ult, ...extra } });
 
   // first：开场就攒满的三位，第一回合（唤醒之后）就放
@@ -2076,12 +2076,31 @@ test('大招策略：first 立刻放；sync 等全队攒满一起放；manual �
   const byRound = {};
   for (const e of sy) byRound[e.round] = (byRound[e.round] || 0) + 1;
   assert.ok(Object.values(byRound).some((n) => n >= 3), '攒大招：同一回合至少有三位一起放');
-  // manual（实时）：没有指令一次大都不放；点了甲才放甲
-  assert.equal(exalts(run('manual', { live: true })).length, 0, '手动开大没点就不放');
-  const m = exalts(run('manual', { live: true, cmds: [{ uid: 'a0', from: 1 }] }));
-  assert.ok(m.length >= 1 && m.every((e) => e.who === 'a0'), '只有被点的那位放');
-  // manual（无人值守，没有 live）：和 first 完全一样
-  assert.deepEqual(exalts(run('manual')), f);
+  // order：排「乙 → 甲 → 丙」，甲 / 丙即使攒满了也要等乙先开
+  const od = exalts(run('order', { ultOrder: ['yi', 'jia', 'bing', 'ding'] }));
+  assert.ok(od.length >= 3, '按顺序：三个人都会开');
+  assert.equal(od[0].who, 'a1', '排第一的乙先开');
+  const idx = (w) => od.findIndex((e) => e.who === w);
+  assert.ok(idx('a0') > idx('a1') && idx('a2') > idx('a0'), '甲等乙、丙等甲，先后不被打乱');
+  // 顺序反过来，甲就该先开
+  const od2 = exalts(run('order', { ultOrder: ['jia', 'yi', 'bing'] }));
+  assert.equal(od2[0].who, 'a0', '换顺序后先开的人也跟着换');
+});
+
+test('大招顺序：老存档里的「手动开大」回到默认，顺序表跟着队伍增删', async () => {
+  const G = await import('../src/core/game.js');
+  const s = G.newState(data);
+  s.strategy.ult = 'manual';
+  const m = G.migrate(s, data);
+  assert.equal(m.strategy.ult, 'first', '手动开大已下线');
+  assert.ok(Array.isArray(m.strategy.ultOrder) && m.strategy.ultOrder.length === m.team.length, '顺序表补齐成队伍人数');
+  G.moveUltOrder(m, m.strategy.ultOrder[1], -1);
+  assert.equal(m.strategy.ultOrder[0], m.team[1], '上移一位生效');
+  G.moveUltOrder(m, m.strategy.ultOrder[0], -1);      // 已经在最前，动不了
+  assert.equal(m.strategy.ultOrder[0], m.team[1], '排头再往上移无效');
+  const keep = [m.team[0], m.team[2]];
+  G.setTeam(m, keep);
+  assert.deepEqual(m.strategy.ultOrder, keep, '换队之后顺序表只剩场上的人');
 });
 
 /* ---------- 同一件命轮 / 密契只能挂在一个人身上 ---------- */

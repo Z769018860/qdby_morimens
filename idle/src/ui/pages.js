@@ -1,5 +1,5 @@
 import {
-  allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, ULT_MODES, equipItem, unequipItem, isEquipped,
+  allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, ULT_MODES, normalizeUltOrder, equipItem, unequipItem, isEquipped,
   enhanceItem, dismantle, dismantleCores, summon, equipPull, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST,
   PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, BATTLES_PER_HOUR, fillLoadout,
 } from '../core/game.js';
@@ -615,6 +615,15 @@ function mainPanel(app) {
 
   const ultNow = s.strategy.ult || 'first';
   const ultBtns = Object.entries(ULT_MODES).map(([k, m]) => `<button class="btn sm ${ultNow === k ? 'on' : ''}" data-act="ult-mode" data-k="${k}" title="${esc(m.desc)}">${m.zh}</button>`).join('');
+  // 自定义大招顺序：只有选了「按顺序开大」才展开。↑ 提前、↓ 后移，队外的人不会出现在这里。
+  const orderList = normalizeUltOrder(s);
+  const orderRows = ultNow !== 'order' ? '' : `<div class="ultorder">${orderList.map((slug, i) => {
+    const a0 = data.bySlug[slug];
+    if (!a0) return '';
+    return `<div class="uo-row"><b>${i + 1}</b><img src="${img(a0.portrait)}" alt=""><span>${esc(a0.zh)}<small>${TYPES[a0.type].short}</small></span>
+      <button class="btn xs" data-act="ult-order" data-slug="${slug}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="提前一位">↑</button>
+      <button class="btn xs" data-act="ult-order" data-slug="${slug}" data-dir="1" ${i === orderList.length - 1 ? 'disabled' : ''} title="后移一位">↓</button></div>`;
+  }).join('')}</div>`;
   const pre = Object.entries(PRESETS).map(([k, p]) => `<button class="btn sm ${s.strategy.preset === k ? 'on' : ''}" data-act="preset" data-k="${k}">${p.zh}</button>`).join('');
   const on = orderSlotCount(s.maxStage);
   const ochips = Array.from({ length: ORDER_SLOTS }, (_, i) => {
@@ -641,7 +650,7 @@ function mainPanel(app) {
     <div class="row">${pre}</div>
     <p class="hint">${PRESETS[s.strategy.preset]?.zh || ''}：血量低于 ${Math.round(s.strategy.defend * 100)}% 时优先架势；目标选择：${{ low: '血量最低', first: '前排优先', atk: '攻击最高' }[s.strategy.target]}。</p>
     <h4>大招 <small class="dim">什么时候开大</small></h4>
-    <div class="row">${ultBtns}</div>
+    <div class="row">${ultBtns}</div>${orderRows}
     <p class="hint"><b>${ULT_MODES[ultNow].zh}</b>：${ULT_MODES[ultNow].desc}</p>`;
 }
 

@@ -20,7 +20,7 @@ const WEIGHT = { WARDEN: 3, ASSAULT: 1.6, CHORUS: 1 };
 // deterministic given (allies, enemies, seed, strategy).
 export function makeUnit(def, side, idx) {
   return {
-    uid: `${side}${idx}`, side, idx,
+    uid: `${side}${idx}`, side, idx, slug: def.slug || null,
     name: def.name, img: def.img, type: def.type || 'ASSAULT', realm: def.realm,
     maxHp: positive(def.hp), hp: Math.max(1, Math.min(positive(def.hp), num(def.hpNow, positive(def.hp)))), atk: Math.max(0, num(def.atk)), def: Math.max(0, num(def.def)),
     critRate: num(def.critRate, 0), critDmg: num(def.critDmg, 50), amp: num(def.amp, 0),
@@ -75,10 +75,10 @@ export function frontLine(unit, foes) {
 export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds = MAX_ROUNDS }) {
   const rng = mulberry32(seed);
   const strat = { defend: 0.4, target: 'low', ult: 'first', ...strategy };
-  // 大招策略：first = 优先开大（默认，能开就开）；sync = 攒大招一起开大；manual = 手动开大（只有实时战斗里才生效，
-  // 靠 strat.cmds 里玩家点的指令；离线 / 扫描 / 竞技场这类无人值守的结算一律按 first 算，不然永远不开大会卡进度）
-  const ultMode = strat.ult === 'manual' && !strat.live ? 'first' : (strat.ult || 'first');
-  const cmds = Array.isArray(strat.cmds) ? strat.cmds.map((c) => ({ ...c, done: false })) : [];
+  // 大招策略：first = 优先开大（默认，能开就开）；sync = 攒大招一起开大；
+  // order = 按玩家排好的顺序开大（前一位还没开、而且它攒满了，就等它先开）。
+  const ultMode = strat.ult || 'first';
+  const ultOrder = Array.isArray(strat.ultOrder) ? strat.ultOrder : [];
   let burstRound = 0;     // sync：全员到位后的那一回合，之后到位的人这回合也一起放
   const A = allies.map((d, i) => makeUnit(d, 'a', i));
   const E = enemies.map((d, i) => makeUnit(d, 'e', i));
@@ -375,6 +375,55 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
             applyDamage(u, t, Math.max(1, Math.round(sum * num(e.m, 1))), false, ctx);
           }
           break;
+        case 'counterBurst': {   // 反击爆发：把全队身上的反击层数一次性打出去（没层数也有保底两下）
+          const stacks = friendsOf(u).reduce((s, x) => s + num(x.st.counter?.n), 0);
+          const hit = u.atk * num(e.m, 0.15) * Math.max(2, stacks);
+          for (const t of foesOf(u)) if (t.alive) applyDamage(u, t, Math.max(1, Math.round(hit)), false, ctx);
+          for (const x of friendsOf(u)) if (x.st.counter) delete x.st.counter;
+          break;
+        }
+        case 'barrierHeal': {   // 屏障化疗：把屏障层数烧成治疗（每层 pct% 最大生命，至少按 1 层算）
+          for (const x of friendsOf(u)) {
+            if (!x.alive) continue;
+            const b = Math.max(1, num(x.st.barrier?.n));
+            if (x.st.barrier) delete x.st.barrier;
+            heal(u, x, x.maxHp * num(e.pct, 6) / 100 * b);
+          }
+          break;
+        }
+        case 'gaugeBurn': {   // 超载：把攒着的共鸣 / 超共鸣能量全烧成伤害（保底按 60 点算）
+          const pool = Math.max(60, num(u.ali) + num(u.key));
+          u.ali = 0; u.key = 0; u.holdUlt = 0;
+          for (const t of targets(u, e.to || 'foe')) if (t.alive) applyDamage(u, t, Math.max(1, Math.round(u.atk * pool * num(e.m, 0.02) / 100)), false, ctx);
+          push({ k: 'gauge', who: u.uid, ali: 0, key: 0 });
+          break;
+        }
+        case 'poisonHeal': {   // 以毒养身：敌人身上的毒层转成治疗
+          let stacks = 0;
+          for (const t of foesOf(u)) stacks += num(t.st.poison?.n);
+          const amt = u.atk * num(e.pct, 4) / 100 * Math.max(1, stacks);
+          for (const x of friendsOf(u)) if (x.alive) heal(u, x, amt);
+          break;
+        }
+        case 'poisonShield': {   // 毒甲：敌人身上的毒层转成全队护盾
+          let stacks = 0;
+          for (const t of foesOf(u)) stacks += num(t.st.poison?.n);
+          const amt = Math.max(1, Math.round(u.atk * num(e.pct, 3) / 100 * Math.max(1, stacks)));
+          for (const x of friendsOf(u)) if (x.alive) { x.shield += amt; push({ k: 'shield', who: x.uid, amt, shield: x.shield }); }
+          break;
+        }
+        case 'dotSpread': {   // 血流成河：把最重的那份流血传染给全体敌人
+          let best = 0;
+          for (const t of foesOf(u)) for (const d of t.dots) best = Math.max(best, num(d.dmg));
+          const dur = positive(e.dur, 3);
+          const dmg = Math.max(1, Math.round(Math.max(best * num(e.m, 1), u.atk * num(e.m, 1))));
+          for (const t of foesOf(u)) {
+            if (!t.alive) continue;
+            t.dots.push({ dmg, dur, by: u.uid });
+            push({ k: 'dot', who: t.uid });
+          }
+          break;
+        }
         case 'extraTurn': {   // 追击号令：攻击最高的队友立刻额外行动一次
           if (u._xt) break;
           const ally = friendsOf(u).filter((x) => x !== u && x.kit).sort((x, y) => y.atk - x.atk)[0];
@@ -734,10 +783,14 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         u.holdUlt = (u.holdUlt || 0) + 1;
         if (uv >= nv.v * 0.72 || u.holdUlt > 2 || hpPct(u) < 0.45) { u.holdUlt = 0; return ultCard(u); }
       }
-      if (ultMode === 'manual') {
-        // 手动：只有玩家点过的那一位、而且指令生效的回合到了，才放
-        const c = cmds.find((x) => !x.done && x.uid === u.uid && round >= (x.from || 1));
-        if (c) { c.done = true; return ultCard(u); }
+      if (ultMode === 'order') {
+        // 按玩家排好的顺序开：排在自己前面、而且已经攒满的人还没开（说明它这轮还没轮到），就先等它；
+        // 等 2 次行动还没等到（那位被控 / 已经死了 / 排在别人后面卡住），就自己先开，免得干等。
+        const rank = (x) => { const i = ultOrder.indexOf(x.slug); return i < 0 ? 999 : i; };
+        const me = rank(u);
+        const ahead = friendsOf(u).filter((x) => x.kit && rank(x) < me && ultReady(x) && x.lastUltRound !== round);
+        u.ultWait = (u.ultWait || 0) + 1;
+        if (!ahead.length || u.ultWait > 2) { u.ultWait = 0; return ultCard(u); }
       } else if (ultMode === 'sync') {
         // 攒大招一起开：每个活着的队友都攒满了（或者已经进入「齐射回合」）才放；
         // 为了不被拖死：自己等了 3 次行动还没等齐，或者自己血量已经见底，就不等了
@@ -778,8 +831,8 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     push({ k: 'act', who: u.uid, slot, name: sk.name, round, ...(sk.text ? { text: sk.text } : {}), ...(sk.ic ? { ic: sk.ic } : {}) });
     if (u.kit) {
       if (slot === 'Rouse') { u.roused = true; gainGauge(u, 'key', 0); }
-      if (slot === 'Exalt') { u.ali = 0; gainGauge(u, 'key', 34); }
-      else if (slot === 'OverExalt') { u.key = 0; }
+      if (slot === 'Exalt') { u.ali = 0; gainGauge(u, 'key', 34); u.lastUltRound = round; }
+      else if (slot === 'OverExalt') { u.key = 0; u.lastUltRound = round; }
       else if (slot === 'Strike') gainGauge(u, 'ali', 14);
       else if (slot === 'Skill1' || slot === 'Skill2') { gainGauge(u, 'ali', 20); gainGauge(u, 'key', 4); u.cd[slot] = slot === 'Skill1' ? 2 : 3; }
       else if (slot === 'Defense') u.cd.Defense = 3;
