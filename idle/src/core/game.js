@@ -76,7 +76,7 @@ export function newState(data, now = Date.now()) {
     play: 0,
     gold: 600, tickets: 12, cores: 300, stage: 1, maxStage: 0,
     auto: true,
-    strategy: { defend: 0.4, target: 'low', preset: 'balanced' },
+    strategy: { defend: 0.4, target: 'low', preset: 'balanced', ult: 'first' },
     roster, team: [...STARTERS], codex: {},
     gear: { items: {}, next: 1, equip: {}, relics: Array(RELIC_SLOTS).fill(null) },
     drip: { tickets: 0, cores: 0 },
@@ -306,7 +306,7 @@ export function battleSig(state) {
     Object.entries(state.orders?.owned || {}).map(([k, v]) => `${k}.${v}`).join('|'),
     (state.orders?.slots || []).join(','),
     Object.keys(state.gear?.items || {}).length,
-    `${state.strategy?.defend ?? ''}/${state.strategy?.target ?? ''}`,
+    `${state.strategy?.defend ?? ''}/${state.strategy?.target ?? ''}/${state.strategy?.ult ?? 'first'}`,
   ].join('#');
 }
 
@@ -385,10 +385,10 @@ export function prepareBattle(state, data, stage = state.stage) {
   return { team: t, enemies, seed: battleSeed(state), allies: t.list };
 }
 
-export function runBattle(state, data, stage = state.stage) {
+export function runBattle(state, data, stage = state.stage, extra = null) {
   const p = prepareBattle(state, data, stage);
   // 每场都有回合上限：普通关 18、Boss 关 22，打满没清场就是超时判负（见 battle.js）
-  const res = simulate({ allies: p.allies, enemies: p.enemies, seed: p.seed, strategy: state.strategy, maxRounds: roundLimitFor(stageInfo(stage)) });
+  const res = simulate({ allies: p.allies, enemies: p.enemies, seed: p.seed, strategy: extra ? { ...state.strategy, ...extra } : state.strategy, maxRounds: roundLimitFor(stageInfo(stage)) });
   return { ...res, prep: p, stage };
 }
 
@@ -705,7 +705,14 @@ export const PRESETS = {
   defensive: { zh: '稳守', defend: 0.65, target: 'first' },
   focus: { zh: '集火强敌', defend: 0.4, target: 'atk' },
 };
-export function setPreset(state, key) { const p = PRESETS[key]; state.strategy = { preset: key, defend: p.defend, target: p.target }; }
+export function setPreset(state, key) { const p = PRESETS[key]; state.strategy = { preset: key, defend: p.defend, target: p.target, ult: state.strategy?.ult || 'first' }; }
+/** 大招策略：first 优先开大 / sync 攒大招一起开大 / manual 手动开大（实时战斗里点头像开） */
+export const ULT_MODES = {
+  first: { zh: '优先开大', desc: '大招一攒满就放，排在防御、技能之前（唤醒之后）。' },
+  sync: { zh: '攒大招一起开', desc: '等全队的大招都攒满再一起放，打出爆发窗口；等太久（3 次行动）或自己血量见底就不等了。' },
+  manual: { zh: '手动开大', desc: '大招攒满后头像会亮起「开大」按钮，点一下，那位下一次行动就放；不点就不放。只对你正在看的实时战斗生效，离线 / 无人值守的结算仍按「优先开大」。' },
+};
+export function setUltMode(state, key) { if (ULT_MODES[key]) state.strategy = { ...state.strategy, ult: key }; }
 
 // ---------- gear ops ----------
 export function equipItem(state, data, slug, uid) {

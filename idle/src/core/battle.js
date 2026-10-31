@@ -74,7 +74,12 @@ export function frontLine(unit, foes) {
 
 export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds = MAX_ROUNDS }) {
   const rng = mulberry32(seed);
-  const strat = { defend: 0.4, target: 'low', ...strategy };
+  const strat = { defend: 0.4, target: 'low', ult: 'first', ...strategy };
+  // 大招策略：first = 优先开大（默认，能开就开）；sync = 攒大招一起开大；manual = 手动开大（只有实时战斗里才生效，
+  // 靠 strat.cmds 里玩家点的指令；离线 / 扫描 / 竞技场这类无人值守的结算一律按 first 算，不然永远不开大会卡进度）
+  const ultMode = strat.ult === 'manual' && !strat.live ? 'first' : (strat.ult || 'first');
+  const cmds = Array.isArray(strat.cmds) ? strat.cmds.map((c) => ({ ...c, done: false })) : [];
+  let burstRound = 0;     // sync：全员到位后的那一回合，之后到位的人这回合也一起放
   const A = allies.map((d, i) => makeUnit(d, 'a', i));
   const E = enemies.map((d, i) => makeUnit(d, 'e', i));
   const ev = [];
@@ -360,12 +365,26 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     }
   }
 
+  const ultReady = (x) => x.alive && !x.st.sealed && (x.key >= 100 || x.ali >= 100);
+  function ultCard(u) { return u.key >= 100 ? 'OverExalt' : 'Exalt'; }
   function chooseAllyCard(u) {
     const kit = u.kit;
     if (!u.roused) return 'Rouse';
-    if (!u.st.sealed) {
-      if (u.key >= 100) return 'OverExalt';
-      if (u.ali >= 100) return 'Exalt';
+    if (ultReady(u)) {
+      if (ultMode === 'first') return ultCard(u);
+      if (ultMode === 'manual') {
+        // 手动：只有玩家点过的那一位、而且指令生效的回合到了，才放
+        const c = cmds.find((x) => !x.done && x.uid === u.uid && round >= (x.from || 1));
+        if (c) { c.done = true; return ultCard(u); }
+      } else if (ultMode === 'sync') {
+        // 攒大招一起开：每个活着的队友都攒满了（或者已经进入「齐射回合」）才放；
+        // 为了不被拖死：自己等了 3 次行动还没等齐，或者自己血量已经见底，就不等了
+        const mates = friendsOf(u).filter((x) => x.kit);
+        const all = mates.every(ultReady);
+        if (all) burstRound = round;
+        u.ultWait = (u.ultWait || 0) + 1;
+        if (all || burstRound === round || u.ultWait > 3 || hpPct(u) < 0.3) { u.ultWait = 0; return ultCard(u); }
+      }
     }
     if (hpPct(u) < strat.defend && !(u.cd.Defense > 0)) return 'Defense';
     if (u.type === 'CHORUS' && !(u.cd.Skill1 > 0) && friendsOf(u).some((f) => hpPct(f) < 0.65)) return 'Skill1';

@@ -1,5 +1,5 @@
 import {
-  allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, equipItem, unequipItem, isEquipped,
+  allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, ULT_MODES, equipItem, unequipItem, isEquipped,
   enhanceItem, dismantle, dismantleCores, summon, equipPull, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST,
   PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, BATTLES_PER_HOUR, fillLoadout,
 } from '../core/game.js';
@@ -613,6 +613,8 @@ function mainPanel(app) {
       <button class="btn sm rfbtn" data-act="relic-detail" data-uid="${it.uid}">详情</button></div>`;
   }).join('');
 
+  const ultNow = s.strategy.ult || 'first';
+  const ultBtns = Object.entries(ULT_MODES).map(([k, m]) => `<button class="btn sm ${ultNow === k ? 'on' : ''}" data-act="ult-mode" data-k="${k}" title="${esc(m.desc)}">${m.zh}</button>`).join('');
   const pre = Object.entries(PRESETS).map(([k, p]) => `<button class="btn sm ${s.strategy.preset === k ? 'on' : ''}" data-act="preset" data-k="${k}">${p.zh}</button>`).join('');
   const on = orderSlotCount(s.maxStage);
   const ochips = Array.from({ length: ORDER_SLOTS }, (_, i) => {
@@ -637,7 +639,10 @@ function mainPanel(app) {
     <div class="row"><button class="btn sm" data-act="go-orders">配置钥令 →</button></div>
     <h3>战斗策略 <small>全自动，仅可设定倾向</small></h3>
     <div class="row">${pre}</div>
-    <p class="hint">${PRESETS[s.strategy.preset]?.zh || ''}：血量低于 ${Math.round(s.strategy.defend * 100)}% 时优先架势；目标选择：${{ low: '血量最低', first: '前排优先', atk: '攻击最高' }[s.strategy.target]}。</p>`;
+    <p class="hint">${PRESETS[s.strategy.preset]?.zh || ''}：血量低于 ${Math.round(s.strategy.defend * 100)}% 时优先架势；目标选择：${{ low: '血量最低', first: '前排优先', atk: '攻击最高' }[s.strategy.target]}。</p>
+    <h4>大招 <small class="dim">什么时候开大</small></h4>
+    <div class="row">${ultBtns}</div>
+    <p class="hint"><b>${ULT_MODES[ultNow].zh}</b>：${ULT_MODES[ultNow].desc}</p>`;
 }
 
 export function pickAwakener(app, title, onPick, exclude = []) {

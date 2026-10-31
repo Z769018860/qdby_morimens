@@ -1,5 +1,5 @@
 import { runBattle, applyResult, farmRate, firstClearReward, winRateOf, farmableStage } from '../core/game.js';
-import { roundLimitFor, FRONT_SLOTS } from '../core/battle.js';
+import { roundLimitFor, FRONT_SLOTS, simulate } from '../core/battle.js';
 import { stageInfo } from '../core/enemies.js';
 import { REALMS, TYPES, STATUS } from '../core/constants.js';
 import { esc, img, fmt, $, toast, kwIcon, stripMarks } from './util.js';
@@ -39,6 +39,7 @@ export class BattleView {
       <details class="meterbox"><summary>战斗数据（上一战）</summary><div id="bv-meter"></div></details>
       <div class="log" id="bv-log"></div>`;
     root.addEventListener('click', (e) => {
+      const ub = e.target.closest('.ult-btn'); if (ub) { e.stopPropagation(); this.callUlt(ub.dataset.ult); return; }
       const b = e.target.closest('[data-bv]'); if (b) { this.ctl(b.dataset.bv); return; }
       const f = e.target.closest('.unit.foe[data-mid]'); if (f) monsterModal(this.app, f.dataset.mid);
     });
@@ -172,7 +173,9 @@ export class BattleView {
     const tok = ++this.token;
     const s = this.app.state;
     s.lastSeen = Date.now();
-    const res = runBattle(s, this.app.data);
+    // 实时战斗：手动开大要靠重新模拟（同一个种子、同样的阵容，只多几条开大指令），所以打开 live 并记下指令
+    this.cmds = []; this.queued = new Set(); this.gauge = {}; this.actedRound = {}; this.curRound = 0;
+    const res = runBattle(s, this.app.data, s.stage, { live: true, cmds: [] });
     this.res = res;
     this.roundLimit = res.roundLimit || roundLimitFor(stageInfo(s.stage));
     this.units = {};
@@ -188,12 +191,12 @@ export class BattleView {
     if (bossFight) { sound.play('boss'); this.fx.bossIntro(); }
     $('#bv-banner', this.root).textContent = '';
     $('#bv-banner', this.root).className = 'banner';
-    const evs = res.events;
-    let i = 0;
+    this.evs = res.events;
+    this.ei = 0;
     const step = () => {
       if (tok !== this.token) return;
-      const e = evs[i++];
-      if (!e) { this.finish(res, tok); return; }
+      const e = this.evs[this.ei++];
+      if (!e) { this.finish(this.res, tok); return; }
       this.apply(e, false);
       const d = PACE[e.k] ?? GAP;
       this.timer = setTimeout(step, d);
@@ -211,12 +214,41 @@ export class BattleView {
         ${side === 'e' ? '<div class="u-int" title="下一步行动"></div>' : ''}
         <div class="u-st"></div>
         <div class="bar hp"><i style="width:100%"></i><b>${fmt(d.hp)}</b><u class="sh" style="width:0"></u></div>
+        ${side === 'a' ? `<button class="ult-btn" data-ult="a${u}" hidden title="大招攒满了：点一下，这位下一次行动就开大">开大</button>` : ''}
         ${side === 'a' ? `<div class="bar ali"><i style="width:${Math.min(100, d.openAli || 0)}%"></i></div><div class="bar key"><i style="width:${Math.min(100, d.openKey || 0)}%"></i></div>` : ''}
       </div>`;
     };
     $('#bv-e', this.root).innerHTML = res.prep.enemies.map((d, i) => mk(d, i, 'e')).join('');
     $('#bv-a', this.root).innerHTML = res.prep.allies.map((d, i) => mk(d, i, 'a')).join('');
     for (const [side, arr] of [['e', res.prep.enemies], ['a', res.prep.allies]]) arr.forEach((d, i) => { this.units[`${side}${i}`] = { max: d.hp, el: $(`#u-${side}${i}`, this.root), name: d.name, realm: d.realm }; });
+  }
+
+  // ---- 手动开大 ----
+  // 只在策略选了「手动开大」时才亮：攒满大招（共鸣 / 超共鸣任一条到 100）、还活着、还没点过的头像上出现「开大」按钮
+  manualOn() { return (this.app.state.strategy.ult || 'first') === 'manual'; }
+  refreshUltBtns() {
+    const on = this.manualOn();
+    for (const b of this.root.querySelectorAll('.ult-btn')) {
+      const id = b.dataset.ult, g = (this.gauge || {})[id], u = this.units[id];
+      const dead = !u || u.el.classList.contains('dead');
+      b.hidden = !(on && g && (g.ali >= 100 || g.key >= 100) && !dead && !(this.queued && this.queued.has(id)));
+    }
+  }
+  callUlt(uid) {
+    if (this.phase !== 'playing' || !this.manualOn() || this.queued.has(uid)) return;
+    // 这位这一回合已经行动过了，指令从下一回合开始生效；还没行动，本回合轮到他就放
+    const from = this.actedRound[uid] === this.curRound ? this.curRound + 1 : Math.max(1, this.curRound);
+    const cmds = [...this.cmds, { uid, from }];
+    const p = this.res.prep, s = this.app.state;
+    const sim = simulate({ allies: p.allies, enemies: p.enemies, seed: p.seed, strategy: { ...s.strategy, live: true, cmds }, maxRounds: this.roundLimit });
+    // 同一个种子、同样的阵容：已经播过的那一段必须一模一样，否则说明指令没赶上，就不采用
+    const played = this.evs.slice(0, this.ei);
+    if (JSON.stringify(sim.events.slice(0, this.ei)) !== JSON.stringify(played)) { toast('这一下没赶上，等下一回合再点'); return; }
+    this.cmds = cmds; this.queued.add(uid);
+    this.evs = sim.events;
+    this.res = { ...sim, prep: p, stage: this.res.stage };
+    this.refreshUltBtns();
+    toast('已下令：下次行动开大', 1500);
   }
 
   float(u, text, cls) {
@@ -258,6 +290,7 @@ export class BattleView {
     const nm = (id) => `<b class="${id[0] === 'a' ? 'ca' : 'ce'}">${esc(U(id)?.name)}</b>`;
     switch (e.k) {
       case 'round': {
+        this.curRound = e.n;
         const lim = this.roundLimit || 0;
         const el = $('#bv-round', this.root);
         el.textContent = lim ? `第 ${e.n} / ${lim} 回合` : `第 ${e.n} 回合`;
@@ -267,6 +300,8 @@ export class BattleView {
       }
       case 'act': {
         const u = U(e.who);
+        if (e.who && e.who[0] === 'a') this.actedRound[e.who] = e.round || this.curRound;
+        if (e.slot === 'Exalt' || e.slot === 'OverExalt') this.queued.delete(e.who);
         if (!quiet && u) {
           for (const x of Object.values(this.units)) x.el.classList.remove('acting');
           u.el.classList.add('acting');
@@ -310,9 +345,9 @@ export class BattleView {
       case 'heal': { const u = U(e.who); if (!u) break; this.setBars(u, { hp: e.hp }); if (!quiet && e.amt) { sound.play('heal'); this.fx.heal(u.el); this.float(u, '+' + fmt(e.amt), 'heal'); this.log(`　${nm(e.who)} +${fmt(e.amt)}`, 'hl'); } break; }
       case 'shield': { const u = U(e.who); if (!u) break; u.el.querySelector('.sh').style.width = `${Math.min(100, (e.shield / u.max) * 100)}%`; if (!quiet) { this.float(u, '盾 ' + fmt(e.amt), 'sh'); sound.play('shield'); this.fx.shield(u.el); } break; }
       case 'buff': if (!quiet) { sound.play(e.v > 0 ? 'buff' : 'debuff'); const u = U(e.who); if (u) this.fx.aura(u.el, e.v > 0 ? COLORS.buff : COLORS.debuff, e.v > 0); this.float(u, `${STAT_ZH[e.stat] || ''}${e.v > 0 ? '↑' : '↓'}`, e.v > 0 ? 'buff' : 'debuff'); } break;
-      case 'gauge': { const u = U(e.who); if (!u || e.ali == null) break; const a = u.el.querySelector('.ali i'), k = u.el.querySelector('.key i'); if (a) a.style.width = e.ali + '%'; if (k) k.style.width = e.key + '%'; break; }
+      case 'gauge': { const u = U(e.who); if (!u || e.ali == null) break; if (this.gauge) { this.gauge[e.who] = { ali: e.ali, key: e.key }; this.refreshUltBtns(); } const a = u.el.querySelector('.ali i'), k = u.el.querySelector('.key i'); if (a) a.style.width = e.ali + '%'; if (k) k.style.width = e.key + '%'; break; }
       case 'revive': { const u = U(e.who); if (!u) break; u.el.classList.remove('dead'); this.setBars(u, { hp: e.hp }); if (!quiet) { sound.play('heal'); this.fx.heal(u.el); this.float(u, '复苏', 'heal'); this.log(`　${nm(e.who)} 复苏了`, 'hl'); } break; }
-      case 'die': { const u = U(e.who); if (u) { u.el.classList.add('dead'); this.setStatus(u, []); const ii = u.el.querySelector('.u-int'); if (ii) ii.innerHTML = ''; } if (!quiet) { sound.play('die', { foe: u?.el.classList.contains('foe') }); if (u) this.fx.death(u.el, this.colorOf(u)); this.log(`　${nm(e.who)} 倒下了`, 'dead'); } break; }
+      case 'die': { const u = U(e.who); if (this.gauge && this.gauge[e.who]) { this.gauge[e.who] = { ali: 0, key: 0 }; this.refreshUltBtns(); } if (u) { u.el.classList.add('dead'); this.setStatus(u, []); const ii = u.el.querySelector('.u-int'); if (ii) ii.innerHTML = ''; } if (!quiet) { sound.play('die', { foe: u?.el.classList.contains('foe') }); if (u) this.fx.death(u.el, this.colorOf(u)); this.log(`　${nm(e.who)} 倒下了`, 'dead'); } break; }
       case 'end': break;
     }
   }

@@ -2054,3 +2054,28 @@ test('后期加压：80 关之前怪物不变，之后每 10 关生命 ×1.10 / 
   // 没加压的话普通怪生命 = 220 × enemyScale × hp 系数；加压后要明显更高
   assert.ok(e130.hp > 220 * enemyScale(131) * 1.4 * 1.1, '131 关的普通怪已被加压');
 });
+
+/* ---------- 大招策略：优先开大 / 攒大招一起开 / 手动开大 ---------- */
+test('大招策略：first 立刻放；sync 等全队攒满一起放；manual 只放被点的那位；无人值守的 manual 按 first', () => {
+  const ally = (n, ali) => mkAlly({ name: n, openAli: ali, openKey: 0, hp: 90000, def: 500 });
+  const tank = () => mkFoe({ hp: 9e7, atk: 1, def: 0 });
+  const exalts = (r) => r.events.filter((e) => e.k === 'act' && e.slot === 'Exalt').map((e) => ({ who: e.who, round: e.round }));
+  const team = () => [ally('甲', 100), ally('乙', 100), ally('丙', 100), ally('丁', 0)];
+  const run = (ult, extra = {}) => simulate({ allies: team(), enemies: [tank()], seed: 5, maxRounds: 10, strategy: { ult, ...extra } });
+
+  // first：开场就攒满的三位，第一回合（唤醒之后）就放
+  const f = exalts(run('first'));
+  assert.ok(f.length >= 3 && f[0].round <= 2, '优先开大：很早就放');
+  // sync：丁没攒满，前面的人先等；第一次开大一定晚于 first，而且同一回合有多人一起放
+  const sy = exalts(run('sync'));
+  assert.ok(sy.length >= 1 && sy[0].round > f[0].round, '攒大招：第一次开大比优先开大晚');
+  const byRound = {};
+  for (const e of sy) byRound[e.round] = (byRound[e.round] || 0) + 1;
+  assert.ok(Object.values(byRound).some((n) => n >= 3), '攒大招：同一回合至少有三位一起放');
+  // manual（实时）：没有指令一次大都不放；点了甲才放甲
+  assert.equal(exalts(run('manual', { live: true })).length, 0, '手动开大没点就不放');
+  const m = exalts(run('manual', { live: true, cmds: [{ uid: 'a0', from: 1 }] }));
+  assert.ok(m.length >= 1 && m.every((e) => e.who === 'a0'), '只有被点的那位放');
+  // manual（无人值守，没有 live）：和 first 完全一样
+  assert.deepEqual(exalts(run('manual')), f);
+});
