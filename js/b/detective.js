@@ -35,7 +35,7 @@ const I18N = {
     mlLevel: '推荐等级 {n}', keysUsed: '钥令开启',
     maxBout: '单回合最高伤害', deathResist: '死扛触发', leftHp: '剩余生命', keyDmg: '守密人伤害',
     score: '榜单分数', relicCount: '造物数量', relicAll: '需要全部还原',
-    relicInnate: '固有 {n} 件已给出', innateTag: '固有造物', relicFillTag: '需补齐',
+    relicInnate: '含固有 {n} 件（名字要用线索买）', innateTag: '固有造物', clueInnate: '固有造物', relicFillTag: '需补齐',
     dmg: '伤害', blk: '格挡', heal: '治疗',
     cardUp: '卡牌升级 {n} 次', talentSum: '天赋合计 Lv.{n}',
     // 伤害构成
@@ -242,7 +242,7 @@ const I18N = {
     mlLevel: 'Recommended Lv.{n}', keysUsed: 'Posse used',
     maxBout: 'Max bout dmg', deathResist: 'Death resist', leftHp: 'HP left', keyDmg: 'Keeper dmg',
     score: 'Score', relicCount: 'Relics', relicAll: 'restore all',
-    relicInnate: '{n} innate given', innateTag: 'Innate relic', relicFillTag: 'to fill in',
+    relicInnate: '{n} innate (names cost a clue)', innateTag: 'Innate relic', clueInnate: 'Innate relics', relicFillTag: 'to fill in',
     dmg: 'DMG', blk: 'Block', heal: 'Heal',
     cardUp: '{n} card-ups', talentSum: 'Talent Lv.{n}',
     dmgCompTitle: 'Damage composition (keeper & special)',
@@ -3158,6 +3158,11 @@ function clueList() {
     team.push({ id: 'key', cost: 6, label: t('hintKey'), value: () => realmOf(idx.key.get(puzzle.key)) });
   }
 
+  // 固有造物（开局第一件 + 那一期的戒指）：大师档不再白送，作为一条较贵的队伍级线索卖
+  if (A.relics && innateRelics().length) {
+    team.push({ id: 'innate', cost: 20, label: t('clueInnate'), value: () => innateRelics().map(id => { const e = creationOf(id); return e ? nameOf(e) : String(id); }).join(' / ') });
+  }
+
   // 等级在下方的卡位提示里已经能买到，这里只给「内在灵格」
   if (full('brk')) {
     team.push({ id: 'brk', cost: 6, label: t('clueBrk'), value: () => j(ans.map(a => a.brk)) });
@@ -3620,7 +3625,8 @@ function teamExtras() {
       isOpen('c:key') ? chip(realmOf(idx.key.get(puzzle.key)), 'gold') : null));
   }
   if (A.relics) {
-    const inn = innateRelics();
+    // 高难度不再把固有造物直接摆在题面上：要在提示线索栏里花（较贵的）银芯买「固有造物」线索才显示；交卷后复盘时照常显示
+    const inn = (finished || isOpen('c:innate')) ? innateRelics() : [];
     const need = fillRelics();
     const relicChip = (id, title) => {
       const e = creationOf(id);

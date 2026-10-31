@@ -578,6 +578,11 @@ function clueList() {
     team.push({ id: 'key', cost: 6, label: t('hintKey'), value: () => realmOf(idx.key.get(puzzle.key)) });
   }
 
+  // 固有造物（开局第一件 + 那一期的戒指）：大师档不再白送，作为一条较贵的队伍级线索卖
+  if (A.relics && innateRelics().length) {
+    team.push({ id: 'innate', cost: 20, label: t('clueInnate'), value: () => innateRelics().map(id => { const e = creationOf(id); return e ? nameOf(e) : String(id); }).join(' / ') });
+  }
+
   // 等级在下方的卡位提示里已经能买到，这里只给「内在灵格」
   if (full('brk')) {
     team.push({ id: 'brk', cost: 6, label: t('clueBrk'), value: () => j(ans.map(a => a.brk)) });
@@ -1040,7 +1045,8 @@ function teamExtras() {
       isOpen('c:key') ? chip(realmOf(idx.key.get(puzzle.key)), 'gold') : null));
   }
   if (A.relics) {
-    const inn = innateRelics();
+    // 高难度不再把固有造物直接摆在题面上：要在提示线索栏里花（较贵的）银芯买「固有造物」线索才显示；交卷后复盘时照常显示
+    const inn = (finished || isOpen('c:innate')) ? innateRelics() : [];
     const need = fillRelics();
     const relicChip = (id, title) => {
       const e = creationOf(id);
