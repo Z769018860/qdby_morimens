@@ -5185,7 +5185,18 @@ function hurtEnemy(e, dmg, crit, vx, vy) {
   e.y += (vy / d) * 4;
   G.fx.push({ x: e.x, y: e.y - 4, vx: rnd(-30, 30), vy: rnd(-40, -10), life: 0.35, kind: crit ? 'crit' : 'hit', s: crit ? 9 : 5 });
   Audio2.hit();
-  if (e.hp <= 0) killEnemy(e);
+  if (e.hp <= 0 && !e.dead) {
+    e.dead = true;        // 只结算一次
+    const rm = G.run && G.run.room;
+    if (rm && e === rm.boss) {
+      // 首领不走 killEnemy：它的收尾由 update() 里的 onBossDown 负责（掉落 / 楼梯 / 剧情）。
+      // 以前也走 killEnemy，而 killEnemy 带「击杀爆炸」时会再去 hurtEnemy(rm.boss)——
+      // 首领这时血量已经 ≤ 0，于是 hurtEnemy → killEnemy → hurtEnemy……无限递归，栈溢出，
+      // 每一帧都在同一处报错，onBossDown 永远跑不到：打完首领、剧情还没进就卡死。
+      G.run.kills += 1;
+      G.run.score += 12 + G.run.floor * 6;
+    } else killEnemy(e);
+  }
 }
 
 function killEnemy(e) {
@@ -5199,8 +5210,8 @@ function killEnemy(e) {
   if (r.p.stats.explodeKill) {
     G.fx.push({ x: e.x, y: e.y, life: 0.4, kind: 'boom', s: 44 });
     Audio2.boom();
-    for (const o of rm.ents.slice()) if (dist(o.x, o.y, e.x, e.y) < 46) hurtEnemy(o, 6, false, 0, 0);
-    if (rm.boss && dist(rm.boss.x, rm.boss.y, e.x, e.y) < 60) hurtEnemy(rm.boss, 6, false, 0, 0);
+    for (const o of rm.ents.slice()) if (!o.dead && o.hp > 0 && dist(o.x, o.y, e.x, e.y) < 46) hurtEnemy(o, 6, false, 0, 0);
+    if (rm.boss && !rm.boss.dead && rm.boss.hp > 0 && dist(rm.boss.x, rm.boss.y, e.x, e.y) < 60) hurtEnemy(rm.boss, 6, false, 0, 0);
   }
   // 分裂
   if (e.split) {
