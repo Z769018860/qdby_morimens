@@ -1,7 +1,7 @@
 import './ui/orient.js';   // 横屏 / 竖屏开关（顶栏那颗方向按钮）
 import {
   indexData, newState, migrate, offlineReport, claimOffline, claimGifts, levelUp, levelUpMax, setTeam, autoTeam, autoLoadout, setPreset, setUltMode, moveUltOrder,
-  equipItem, unequipItem, enhanceItem, enhanceAllEquipped, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem,
+  equipItem, unequipItem, enhanceItem, enhanceAllEquipped, dismantleMatching, autoDismantle, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem,
   dismantleCores, breakThrough, awakenUp, overdriveUp, lawUp, upgradeOrder, rewindLevel,
 } from './core/game.js';
 import { setOrderSlot } from './core/orders.js';
@@ -100,6 +100,10 @@ const app = {
     if (!ok && !this.warnedSave) { this.warnedSave = true; toast('⚠ 浏览器拒绝保存进度（存储空间满或无痕模式），建议到「设置」导出存档备份', 6000); }
   },
   itemName(it) { return P.itemDef(this, it).zh + (it.lv ? ` Lv${it.lv}` : ''); },
+  saveSoon() {
+    clearTimeout(this._ss);
+    this._ss = setTimeout(() => this.save(), 700);
+  },
   refreshTop() {
     $('#gold').textContent = fmt(this.state.gold);
     $('#tickets').textContent = this.state.tickets;
@@ -188,6 +192,16 @@ async function boot() {
     lastPlay = now;
     if (++tickN >= 3) { tickN = 0; app.save(); }
   }, 5000);
+  let dmAcc = { n: 0, gold: 0, cores: 0 }, dmLast = 0;
+  setInterval(() => {
+    if (!app.state || app.booting || document.hidden || !app.state.autoDm?.on) return;
+    const r = autoDismantle(app.state, app.data);
+    if (!r.n) return;
+    dmAcc.n += r.n; dmAcc.gold += r.gold; dmAcc.cores += r.cores;
+    app.refreshTop(); app.saveSoon();
+    if (app.tab === 'gear' && !document.querySelector('.modal-bg, .modal')) render();
+    if (Date.now() - dmLast > 8000) { dmLast = Date.now(); toast(`自动分解 ${dmAcc.n} 件：金币 +${fmt(dmAcc.gold)}${dmAcc.cores ? `，银芯 +${dmAcc.cores}` : ''}`, 2400); dmAcc = { n: 0, gold: 0, cores: 0 }; }
+  }, 4000);
   window.__game = app; // handy for debugging / tests
 }
 
@@ -498,6 +512,8 @@ function onChange(e) {
   if (e.target.matches('[data-fx]')) { fxMode.set(e.target.value); toast('战斗特效：' + e.target.selectedOptions[0].textContent); return; }
   if (e.target.matches('[data-watch]')) { watchMode.set(e.target.value); toast('挑战过程：' + e.target.selectedOptions[0].textContent); return; }
   if (e.target.matches('[data-arena-name]')) { arenaState(app.state).name = e.target.value.trim().slice(0, 12) || '旅人'; app.save(); return; }
+  const dm = e.target.closest('[data-dm]');
+  if (dm) { P.dmFilter(app)[dm.dataset.dm] = dm.checked; app.saveSoon(); closeModal(); P.dismantleModal(app); return; }
   const au = e.target.closest('[data-aud]');
   if (au) { sound.set(au.dataset.aud, au.type === 'checkbox' ? au.checked : +au.value / 100); if (au.dataset.aud === 'sfx') sound.play('hit'); syncSnd(); return; }
   const c = e.target.closest('[data-cf]');
@@ -733,7 +749,8 @@ function onAct(e) {
       P.pickItem(app, kind, kind === 'wheel' ? '选择命轮' : '选择密契', (uid) => { if (uid) equipItem(s, d, slug, uid); else { const e2 = s.gear.equip[slug] || {}; unequipItem(s, e2[kind === 'wheel' ? 'wheel' : 'cov']); } app.save(); P.detailModal(app, slug); render(); });
       break;
     }
-    case 'gear-tab': app.ui.gearTab = el.dataset.k; render(); break;
+    case 'gear-tab': app.ui.gearTab = el.dataset.k; app.ui.gearLimit = 60; render(); break;
+    case 'gear-more': app.ui.gearLimit = (app.ui.gearLimit || 60) + 60; render(); break;
     // 命轮 / 密契页里的 4 人槽位：点一下就能换（不用先回角色详情）
     case 'gear-slot': {
       const { slug, kind } = el.dataset;
@@ -752,8 +769,13 @@ function onAct(e) {
     }
     case 'gear-dis': {
       const c0 = s.cores, v = dismantle(s, d, el.dataset.uid);
-      if (v) { const c = s.cores - c0; toast(`分解获得 ${v} 金币${c ? ` + ${c} 银芯` : ''}`); }
-      rerender(); break;
+      if (v) {
+        const c = s.cores - c0; toast(`分解获得 ${v} 金币${c ? ` + ${c} 银芯` : ''}`);
+        el.closest('.item')?.remove?.();
+        app.refreshTop(); app.saveSoon();
+        if (!document.querySelector('#gearlist > *')) render();
+      }
+      break;
     }
     case 'gear-equip': {
       const it = s.gear.items[el.dataset.uid];
@@ -766,6 +788,19 @@ function onAct(e) {
       const n = +el.dataset.n, before = { ...(s.gear.dex || {}) }, gold0 = s.gold;
       const out = equipPull(s, d, n);
       if (out) { app.save(); render(); sound.play('summon'); if (n >= 50) P.showItemsSummary(app, out, before, gold0 - s.gold); else P.showItems(app, out); }
+      break;
+    }
+    case 'dm-open': P.dismantleModal(app); break;
+    case 'dm-kind': case 'dm-rar': {
+      const f = P.dmFilter(app), key = a === 'dm-kind' ? 'kinds' : 'rarities', k = el.dataset.k;
+      f[key] = f[key].includes(k) ? f[key].filter((x) => x !== k) : [...f[key], k];
+      closeModal(); P.dismantleModal(app); break;
+    }
+    case 'dm-lv': { const v = el.dataset.k; P.dmFilter(app).maxLv = v === '' ? null : +v; closeModal(); P.dismantleModal(app); break; }
+    case 'dm-run': {
+      const f = P.dmFilter(app), r = dismantleMatching(s, d, f);
+      closeModal(); app.save(); render();
+      if (r.n) { sound.play('gold'); toast(`分解了 ${r.n} 件：金币 +${fmt(r.gold)}${r.cores ? `，银芯 +${r.cores}` : ''}`, 3200); } else toast('没有符合条件的装备');
       break;
     }
     case 'gear-dex': closeModal(); P.gearDexModal(app); break;

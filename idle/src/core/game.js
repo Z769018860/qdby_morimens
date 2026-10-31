@@ -841,6 +841,70 @@ export function enhanceAllEquipped(state, maxSteps = 600) {
   }
   return { n, spent, items: touched.size };
 }
+/** 一键分解的筛选：kinds 类型、rarities 稀有度（covenant 没有稀有度按 SR 算）、maxLv 强化等级上限（null=不限）、keepRefined 保留精炼过的 */
+export function dismantleCandidates(state, data, f = {}) {
+  const kinds = new Set(f.kinds || ['wheel', 'covenant', 'relic']), rars = new Set(f.rarities || ['N', 'R']);
+  const maxLv = Number.isFinite(f.maxLv) ? f.maxLv : Infinity, keepRf = f.keepRefined !== false;
+  const out = [];
+  for (const it of Object.values(state.gear.items)) {
+    const kind = it.kind === 'cov' ? 'covenant' : it.kind;
+    if (!kinds.has(kind) || isEquipped(state, it.uid)) continue;
+    const def = (kind === 'wheel' ? data.wheelById : kind === 'covenant' ? data.covById : data.relicById)[it.defId];
+    if (!rars.has(def?.rarity || 'SR') || it.lv > maxLv || (keepRf && (it.rf || 0) > 0)) continue;
+    out.push({ it, def });
+  }
+  return out;
+}
+/** 预览：不改存档，算出会分解几件、拿多少金币和银芯（基础银芯每天 40 枚的上限也算进去） */
+export function dismantlePreview(state, data, f = {}) {
+  const list = dismantleCandidates(state, data, f);
+  const fake = { dismantle: { ...dismantleDay(state) } };
+  let gold = 0, cores = 0;
+  for (const { it, def } of list) {
+    gold += dismantleValue(def?.rarity || 'SR', it.lv);
+    const base = dismantleBase(def?.rarity, fake);
+    cores += dismantleCores(def?.rarity, it, fake);
+    fake.dismantle.got += base;
+  }
+  return { n: list.length, gold, cores, baseLeft: dismantleBaseLeft(state) };
+}
+/** 一键分解：真的分解满足筛选的所有装备（在用 / 编队占着的永远不动） */
+export function dismantleMatching(state, data, f = {}) {
+  const list = dismantleCandidates(state, data, f);
+  let gold = 0; const c0 = state.cores;
+  for (const { it } of list) gold += dismantle(state, data, it.uid);
+  return { n: list.length, gold, cores: state.cores - c0 };
+}
+/** 一键分解 / 自动分解共用的筛选设置，存在存档里（state.autoDm）；on = 是否开着自动分解 */
+export const defaultAutoDm = () => ({ on: false, kinds: ['wheel', 'covenant', 'relic'], rarities: ['N', 'R'], maxLv: null, keepRefined: true, keepFirst: true, incPull: false });
+export function autoDmOf(state) {
+  const d = defaultAutoDm(), c = state.autoDm && typeof state.autoDm === 'object' ? state.autoDm : {};
+  return (state.autoDm = {
+    on: !!c.on, kinds: Array.isArray(c.kinds) ? c.kinds : d.kinds, rarities: Array.isArray(c.rarities) ? c.rarities : d.rarities,
+    maxLv: Number.isFinite(c.maxLv) ? c.maxLv : null, keepRefined: c.keepRefined !== false, keepFirst: c.keepFirst !== false, incPull: !!c.incPull,
+  });
+}
+/**
+ * 自动分解：按设置把符合条件的、没在用的装备分解掉。
+ *   keepFirst：每种装备库里至少留 1 件，免得刚收录的第一件还没看过就被分解；
+ *   incPull：「装备祈愿 / 商店」抽来的默认不碰（it.pu 标记），打开才一起分解。
+ */
+export function autoDismantle(state, data) {
+  const cfg = autoDmOf(state);
+  if (!cfg.on) return { n: 0, gold: 0, cores: 0 };
+  const own = {};
+  for (const i of Object.values(state.gear.items)) { const k = gearDexKey(i.kind, i.defId); own[k] = (own[k] || 0) + 1; }
+  const list = [];
+  for (const c of dismantleCandidates(state, data, cfg)) {
+    const it = c.it, k = gearDexKey(it.kind, it.defId);
+    if (it.pu && !cfg.incPull) continue;
+    if (cfg.keepFirst && own[k] <= 1) continue;   // 每种至少留 1 件在库
+    own[k]--; list.push(c);
+  }
+  let gold = 0; const c0 = state.cores;
+  for (const { it } of list) gold += dismantle(state, data, it.uid);
+  return { n: list.length, gold, cores: state.cores - c0 };
+}
 export function dismantle(state, data, uid) {
   const it = state.gear.items[uid]; if (!it || isEquipped(state, uid)) return 0;
   const def = (it.kind === 'wheel' ? data.wheelById : it.kind === 'cov' || it.kind === 'covenant' ? data.covById : data.relicById)[it.defId];
@@ -859,7 +923,7 @@ export function dismantleDay(state) {
   return state.dismantle;
 }
 export const dismantleBaseLeft = (state) => Math.max(0, DISMANTLE_BASE_DAILY - (state ? dismantleDay(state).got : 0));
-const dismantleBase = (rarity, state) => {
+export const dismantleBase = (rarity, state) => {
   const raw = { SSR: 6, SR: 2 }[rarity] || 0;
   return state ? Math.min(raw, dismantleBaseLeft(state)) : raw;
 };
@@ -967,7 +1031,7 @@ export function equipPull(state, data, n) {
   state.gold -= cost;
   const rng = mulberry32(battleSeed(state));
   const out = [];
-  for (let i = 0; i < n; i++) { const it = rollItem(rng, Math.max(10, state.maxStage), data); out.push(addItem(state, it.kind, it.defId)); }
+  for (let i = 0; i < n; i++) { const it = rollItem(rng, Math.max(10, state.maxStage), data); const g = addItem(state, it.kind, it.defId); g.pu = 1; out.push(g); }
   return out;
 }
 

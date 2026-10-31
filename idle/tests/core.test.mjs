@@ -2397,3 +2397,23 @@ test('装备祈愿：图鉴累计、50 / 500 连按次数扣金币，池子覆�
   const m = migrate(JSON.parse(JSON.stringify(old)), data);
   assert.ok(m.gear.dex[_gdk('wheel', data.wheels[3].id)] >= 1);
 });
+
+import { dismantleCandidates as _dc, dismantlePreview as _dp, dismantleMatching as _dmm, autoDismantle as _ad, autoDmOf as _ao } from '../src/core/game.js';
+test('一键分解 / 自动分解', () => {
+  const s = newState(data, 70);
+  const lo = data.wheels.find((w) => w.rarity === 'N' || w.rarity === 'R'), hi = data.wheels.find((w) => w.rarity === 'SSR');
+  const a = addItem(s, 'wheel', lo.id), b = addItem(s, 'wheel', lo.id), c = addItem(s, 'wheel', lo.id), h = addItem(s, 'wheel', hi.id);
+  b.lv = 8; c.rf = 1;
+  const f = { kinds: ['wheel'], rarities: [lo.rarity], maxLv: 3, keepRefined: true };
+  const uids = _dc(s, data, f).map((x) => x.it.uid);
+  assert.ok(uids.includes(a.uid)); assert.ok(!uids.includes(b.uid), '超过等级不动'); assert.ok(!uids.includes(c.uid), '精炼保留'); assert.ok(!uids.includes(h.uid));
+  const pv = _dp(s, data, f), g0 = s.gold;
+  const r = _dmm(s, data, f);
+  assert.equal(r.n, pv.n); assert.equal(s.gold - g0, r.gold); assert.ok(!s.gear.items[a.uid]);
+  // 自动分解：默认关；开了之后每种先留 1 件
+  const t = newState(data, 71); const x1 = addItem(t, 'wheel', lo.id), x2 = addItem(t, 'wheel', lo.id);
+  assert.equal(_ad(t, data).n, 0);
+  const cfg = _ao(t); cfg.on = true; cfg.kinds = ['wheel']; cfg.rarities = [lo.rarity];
+  const out = _ad(t, data);
+  assert.ok(out.n >= 1 && out.n <= 2); assert.ok(Object.values(t.gear.items).some((i) => i.defId === lo.id), '先留 1 件');
+});

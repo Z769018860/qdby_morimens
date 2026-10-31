@@ -1,6 +1,6 @@
 import {
   allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, ULT_MODES, normalizeUltOrder, equipItem, unequipItem, isEquipped,
-  enhanceItem, dismantle, dismantleCores, summon, equipPull, gearDexKey, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST,
+  enhanceItem, dismantle, dismantlePreview, autoDmOf, dismantleCores, summon, equipPull, gearDexKey, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST,
   PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, BATTLES_PER_HOUR, fillLoadout,
 } from '../core/game.js';
 import {
@@ -925,13 +925,15 @@ export function gearPage(app) {
   const items = Object.values(s.gear.items).filter((i) => i.kind === tab)
     .sort((a, b) => (RARITY_ORDER[itemDef(app, b).rarity || 'SR'] - RARITY_ORDER[itemDef(app, a).rarity || 'SR']) || b.lv - a.lv);
   const tabs = [['wheel', '命轮'], ['covenant', '密契'], ['relic', '造物']].map(([k, z]) => `<button class="btn sm ${tab === k ? 'on' : ''}" data-act="gear-tab" data-k="${k}">${z} ${Object.values(s.gear.items).filter((i) => i.kind === k).length}</button>`).join('');
-  const rows = items.map((it) => {
+  const lim = app.ui.gearLimit ||= 60;
+  const rows = items.slice(0, lim).map((it) => {
     const def = itemDef(app, it);
     const cost = it.lv < GEAR_MAX_LV ? gearCost(it.kind, it.lv) : 0, rc = refineCost(it);
     const eqd = isEquipped(s, it.uid);
     const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button><button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity, it, s) ? ` +<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${dismantleCores(def.rarity, it, s)}` : ''}</button></div>`;
     return itemCard(app, it, btns);
   }).join('') || '<p class="hint">暂无。推图有概率掉落，也可在「召唤」页用金币祈愿。</p>';
+  const more = items.length > lim ? `<button class="btn" data-act="gear-more">显示更多（还有 ${items.length - lim} 件）</button>` : '';
 
   // 队伍里每个人的命轮 / 密契槽位：点一下直接换，不用先点进角色详情
   const teamRows = equipPanel(app);
@@ -939,10 +941,10 @@ export function gearPage(app) {
   return `<div class="page"><h2>命轮 · 密契 <small>每人各 1 件</small></h2>
     <p class="hint">命轮与密契是<b>绑在单个唤醒体身上</b>的两件装备：点下面的槽位直接更换，点「已装备」的槽位可以卸下。密契全队同款凑到 2 / 4 件会触发套装效果（当前：${sets || '还没有凑成套'}）。造物与钥令是全队被动，分别在队伍页与钥令页配置。</p>
     <div class="eqpanel">${teamRows}</div>
-    <div class="row"><button class="btn gold" data-act="gear-upall" title="把金币尽量花在正在穿 / 正在编队里用的装备上，每次升当前最便宜的一级">一键强化在用装备（用掉金币）</button><small class="dim">每件最高 Lv${GEAR_MAX_LV}；10 级以后每级 +5%，金币花得很多</small></div>
+    <div class="row"><button class="btn gold" data-act="gear-upall" title="把金币尽量花在正在穿 / 正在编队里用的装备上，每次升当前最便宜的一级">一键强化在用装备（用掉金币）</button><button class="btn danger" data-act="dm-open" title="按类型 / 稀有度 / 强化等级批量分解没在用的装备">一键分解…</button><small class="dim">每件最高 Lv${GEAR_MAX_LV}；10 级以后每级 +5%，金币花得很多</small></div>
     <p class="hint">想一次性配好？回队伍页点「一键配队」，会连着命轮、密契、造物、钥令一起排；队伍页也有同一块槽位面板，不用来回切页。</p>
     <h3>${tab === 'relic' ? '造物库存' : '库存'} <small>${items.length} 件</small></h3>
-    <div class="row">${tabs}</div><div class="list">${rows}</div></div>`;
+    <div class="row">${tabs}</div><div class="list" id="gearlist">${rows}</div>${more}</div>`;
 }
 
 /* ----------------------------- ORDERS (钥令) ----------------------------- */
@@ -1050,6 +1052,27 @@ export function summonPage(app) {
         <button class="btn big" data-act="gear-dex">装备图鉴 ${dexTotal(app).got}/${dexTotal(app).all}</button></div>
       <p class="hint">50 连、500 连不逐件弹出，直接给汇总（各稀有度几件、新收录了哪些、最好的几件）；抽到的装备照常进库存，用不上的去「命轮 · 密契」页分解换金币和银芯。</p></div>
   </div>`;
+}
+
+/* ---- 一键分解 ---- */
+const DM_LEVELS = [[null, '不限'], [0, '未强化'], [3, '≤ 3 级'], [5, '≤ 5 级'], [10, '≤ 10 级'], [20, '≤ 20 级']];
+export const dmFilter = (app) => autoDmOf(app.state);
+export function dismantleModal(app) {
+  const f = dmFilter(app), p = dismantlePreview(app.state, app.data, f);
+  const on = (arr, k) => arr.includes(k);
+  const chip = (act, k, label, cur) => `<button class="btn sm ${cur ? 'on' : ''}" data-act="${act}" data-k="${k}">${label}</button>`;
+  openModal(`<h3>一键分解</h3>
+    <p class="hint">按条件批量分解库存里<b>没在用</b>的装备（穿在身上的、造物栏里的、编队独立配装占着的，一律不动）。分解返还金币，SSR / SR 另有银芯（<b>基础银芯每天最多 40 枚</b>，精炼过的返还一半银芯不受限）。</p>
+    <h4>类型</h4><div class="row">${[['wheel', '命轮'], ['covenant', '密契'], ['relic', '造物']].map(([k, z]) => chip('dm-kind', k, z, on(f.kinds, k))).join('')}</div>
+    <h4>稀有度</h4><div class="row">${['N', 'R', 'SR', 'SSR'].map((k) => chip('dm-rar', k, k, on(f.rarities, k))).join('')}</div>
+    <h4>强化等级</h4><div class="row">${DM_LEVELS.map(([k, z]) => chip('dm-lv', k == null ? '' : k, z, (f.maxLv ?? null) === k)).join('')}</div>
+    <div class="row"><label class="snd"><input type="checkbox" data-dm="keepRefined" ${f.keepRefined ? 'checked' : ''}> 保留精炼过的（精炼花过银芯，默认不分解）</label></div>
+    <h4>自动分解 <small class="dim">用上面同一组条件，每隔几秒自动处理新入库的装备</small></h4>
+    <div class="row"><label class="snd"><input type="checkbox" data-dm="on" ${f.on ? 'checked' : ''}> 开启自动分解</label></div>
+    <div class="row"><label class="snd"><input type="checkbox" data-dm="keepFirst" ${f.keepFirst ? 'checked' : ''}> 每种至少留 1 件在库（刚收录的第一件不分解）</label></div>
+    <div class="row"><label class="snd"><input type="checkbox" data-dm="incPull" ${f.incPull ? 'checked' : ''}> 连装备祈愿抽到的也自动分解（默认只处理推图掉落）</label></div>
+    <div class="banner-card"><p>符合条件：<b>${p.n}</b> 件　预计返还 <b>${fmt(p.gold)}</b> 金币 + <b>${fmt(p.cores)}</b> 银芯<small class="dim">${p.baseLeft <= 0 ? '（今天的基础银芯额度已用完）' : `（今天基础银芯还剩 ${p.baseLeft} 枚额度）`}</small></p>
+      <div class="row"><button class="btn gold" data-act="dm-run" ${p.n ? '' : 'disabled'}>分解这 ${p.n} 件</button><button class="btn" data-act="close">取消</button></div></div>`, 'wide');
 }
 
 /* ---- 装备图鉴 ---- */
