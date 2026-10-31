@@ -35,7 +35,7 @@ function parseModule(file) {
   let code = read(file);
   const imports = [];
   // import … from './x.js';  允许跨行
-  code = code.replace(/^import\s+([\s\S]*?)\s+from\s+['"]\.\/([^'"]+)['"];?[ \t]*$/gm, (_m, spec, from) => {
+  code = code.replace(/^import\s+([\s\S]*?)\s+from\s+['"](\.{1,2}\/[^'"]+)['"];?[ \t]*$/gm, (_m, spec, from) => {
     imports.push({ spec: spec.trim(), from });
     return '';
   });

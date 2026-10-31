@@ -2314,10 +2314,319 @@ const FACES = {"24":"data:image/webp;base64,UklGRkgfAABXRUJQVlA4IDwfAADQdQCdASqw
 return { FACES };
 })();
 
+// ---- js/silver.js
+const m_silver = await (async () => {
+
+// 银芯钱包（所有小游戏共用的 zjtt:credits）的最小读写件。
+//
+// 不 import js/common.js：那一条链（common + i18n + auth + account）有 60 多 KB，
+// 为了写一个数字把首屏翻几倍不值当。写入格式必须和 common.js 的 store.set() 一致
+// （JSON.stringify 的数字），读的时候两种写法（"120" / 120）都认。
+const KEY = 'zjtt:credits';
+
+function walletGet() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return 0;
+    const v = Number(JSON.parse(raw));
+    return Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0;
+  } catch { return 0; }
+}
+
+// 入账。n 必须是正数；返回入账后的余额。zjtt:dirty 让 account.js（登录后）把这笔钱排队推上云，
+// 没人听的时候事件白丢，但本机数字是对的。
+function walletAdd(n) {
+  const add = Math.round(Number(n) || 0);
+  if (add <= 0) return walletGet();
+  try {
+    const v = walletGet() + add;
+    localStorage.setItem(KEY, JSON.stringify(v));
+    document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: 'credits' }));
+    return v;
+  } catch { return walletGet(); }
+}
+
+// 扣钱：不够返回 false，不会扣成负数
+function walletSpend(n) {
+  const cost = Math.round(Number(n) || 0);
+  if (cost <= 0) return true;
+  if (walletGet() < cost) return false;
+  try {
+    localStorage.setItem(KEY, JSON.stringify(walletGet() - cost));
+    document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: 'credits' }));
+    return true;
+  } catch { return false; }
+}
+
+// 原作的银芯图标（assets/ui/silvercore.webp），小图直接引用，不额外内联
+const SC_SRC = 'assets/ui/silvercore.webp';
+const scTag = (txt) => `<img src="${SC_SRC}" alt="银芯" width="16" height="16" decoding="async" style="vertical-align:-3px;margin-right:3px">${txt == null ? '' : `<b>${txt}</b>`}`;
+return { walletGet, walletAdd, walletSpend, SC_SRC, scTag };
+})();
+
+// ---- js/gamecloud.js
+const m_gamecloud = await (async () => {
+
+// 小游戏云存档（除挂机前夜以外的各游戏共用的一份通用实现）。
+//
+// 个人中心的「云端档案」只同步积分 / 解锁 / 最高分和各游戏的进度摘要。这里把每个游戏自己的真实存档
+// （localStorage 里属于它的那几个键）整包存到后端的 /save/<游戏>，登录同一个账号换设备就能接着玩。
+// 挂机前夜的存档是一个大对象、有自己的合并逻辑，走 idle/src/core/cloud.js，不在这里。
+//
+// 规则（和挂机前夜一致，乐观锁 + 不悄悄覆盖）：
+//   · 本机记着「上次和云端对齐时的云端 ver 和本机内容的哈希」。
+//   · 云端没变、本机改了 → 推；云端变了、本机没改 → 拉；两边都改了 / 新设备两边都有内容 → 弹窗选。
+//   · 拉下来之后游戏已经把旧数据读进内存了，所以写完 localStorage 就刷新一次页面（带防循环保护）。
+// 没登录就什么都不做。
+const EDGE_API = 'https://morimens.qingdengbuyi.top/api';
+
+// 每个游戏同步哪些键：prefix 是前缀（含完全相等），skip 是不同步的（音量 / 倍速 / 模式这类设备偏好）
+const GAMES = {
+  deathreport: {
+    zh: '弥萨格大逃杀', prefix: ['morimens-deathreport-save', 'morimens-deathreport-meta'], skip: /pref|ws-|workshop|-ed$/,
+    // 没有任何一份进度存档（只有启动时写的 meta 默认值）就当空
+    trivial: (keys) => !Object.keys(keys).some((k) => k.includes('-save')),
+  },
+  // trivial(keys)：只有游戏自己启动时写进去的默认值、还没有任何进度——这种本机内容当「空」处理，
+  // 新设备上不会因为它跟云端冲突，也不会把一份默认存档推上去
+  binding: {
+    zh: '校猫的结合', prefix: ['zjtt:binding'], skip: /:(mute|snd)/,
+    trivial: (keys) => {
+      try {
+        const m = JSON.parse(keys['zjtt:binding'] || 'null');
+        if (!m) return true;
+        const st = m.stats || {};
+        // 只看真正的进度（跑过局 / 解锁过东西）；看过开场剧情、读过设定这类不算
+        return !(st.runs || st.kills || st.deaths || st.bestFloor || st.bestScore || st.rooms) && (m.unlock || []).length <= 3;
+      } catch { return false; }
+    },
+  },
+  survivors: { zh: '唤醒体幸存者', prefix: ['zjtt:survivors'], skip: /:(mute|snd)/ },
+  protocol: { zh: '忘却协议', prefix: ['zjtt:pf'], skip: /:(mute|speed|snd)/ },
+  wolf: { zh: '弥萨格狼人杀', prefix: ['zjtt:wolf'], skip: /:(mode|mute|snd)/ },
+  merge: { zh: '合成大杜勒', prefix: ['zjtt:merge'], skip: /:(played|snd|mute)/ },
+  bird: { zh: '是鸟弟就下100层', prefix: ['zjtt:bird'], skip: /:(snd|mute|diff|ctl)/ },
+  // 唤醒王：决斗链接：收藏、战绩、开包记录（卡组选择和难度是偏好，跟着走也无妨）
+  duel: { zh: '唤醒王：决斗链接', prefix: ['zjtt:duel'], skip: /^$/ },
+  // 弥萨格王权：进行中的任期、结局图鉴、人物册（音效是这台设备的偏好）
+  reign: { zh: '弥萨格王权', prefix: ['zjtt:reign'], skip: /:sound/ },
+  // 2048：局面（save）和最高分都值得跟着账号走，难度 / 侵蚀 / 音效是这台设备的偏好
+  // （皮肤不同步：换设备一进来就得多拉四百来 KB 的换皮池，不值）
+  g2048: {
+    zh: '忘却 2048', prefix: ['zjtt:g2048'], skip: /:(snd|diff|rot|played|skin)/,
+    trivial: (keys) => !keys['zjtt:g2048:save'] && !keys['zjtt:g2048:best'],
+  },
+};
+
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); return true; } catch { return false; } };
+const readJson = (k, d) => { const v = lsGet(k); if (v == null) return d; try { return JSON.parse(v); } catch { return d; } };
+
+function account() {
+  const token = readJson('zjtt:authToken', '') || lsGet('zjtt:authToken') || '';
+  const u = readJson('zjtt:authUser', null);
+  if (!token || !u) return null;
+  const raw = u.name || u.display_name || u.nick || u.username || u.email || '';
+  const name = String(raw).replace(/@zjtt\.local$/i, '').trim();
+  return name ? { name, token: String(token) } : null;
+}
+
+// ---------- 本机内容 ----------
+function isTrivial(game, keys) {
+  const n = Object.keys(keys).length;
+  if (!n) return true;
+  const f = GAMES[game].trivial;
+  return !!f && f(keys);
+}
+function collect(game) {
+  const cfg = GAMES[game], out = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !cfg.prefix.some((p) => k === p || k.startsWith(p + ':') || k.startsWith(p + '-') || k.startsWith(p))) continue;
+    if (cfg.skip && cfg.skip.test(k)) continue;
+    out[k] = localStorage.getItem(k);
+  }
+  return out;
+}
+const fnv = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
+const hashOf = (keys) => fnv(Object.keys(keys).sort().map((k) => k + '=' + keys[k]).join('\n'));
+
+const recKey = (g) => 'zjtt:gc:' + g;     // 本机同步记录 { acct, ver, hash, at }
+const record = (g) => readJson(recKey(g), null);
+const setRecord = (g, r) => lsSet(recKey(g), JSON.stringify(r));
+
+/** 决策（纯函数，可测）：local = { empty, hash }，cloud = 云端摘要或 null，rec = 本机记录，acct = 账号名 */
+function plan({ local, cloud, rec, acct }) {
+  const dirty = !!rec && local.hash !== rec.hash;
+  if (!cloud) return local.empty ? 'none' : 'push';
+  const mine = !!rec && rec.acct === acct;
+  if (mine && rec.ver === cloud.ver) return dirty ? 'push' : 'none';
+  if (cloud.meta && cloud.meta.hash && cloud.meta.hash === local.hash) return 'sync';       // 内容一样，只记一笔
+  if (mine && rec.ver < cloud.ver) return dirty ? 'conflict' : 'pull';
+  if (local.empty) return 'pull';
+  return 'conflict';
+}
+
+// ---------- 网络 ----------
+let liveBase = '';
+function candidates() {
+  const out = [];
+  const custom = String(readJson('zjtt:apiBase', '') || '').trim().replace(/\/+$/, '');
+  if (custom) out.push(custom);
+  if (/^https?:$/.test(location.protocol) && !/\.github\.io$/i.test(location.hostname)) out.push(location.origin + '/api');
+  if (!out.includes(EDGE_API)) out.push(EDGE_API);
+  return out;
+}
+async function probe() {
+  if (liveBase) return liveBase;
+  for (const base of candidates()) {
+    try {
+      const r = await fetch(base + '/health', { headers: { Accept: 'application/json' } });
+      const j = await r.json().catch(() => null);
+      if (j && j.service === 'zjtt') { liveBase = base; return base; }
+    } catch { /* 下一个 */ }
+  }
+  return '';
+}
+async function call(method, path, body, keepalive = false) {
+  const a = account(); if (!a) throw new Error('not_logged_in');
+  const base = await probe(); if (!base) throw new Error('offline');
+  const r = await fetch(base + path, {
+    method, keepalive, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + a.token, Accept: 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  return { status: r.status, ok: r.ok && j.ok !== false, json: j };
+}
+async function fetchCloud(game, withData) {
+  const r = await call('GET', `/save/${game}${withData ? '' : '?meta=1'}`);
+  if (!r.ok) throw new Error(r.json.error || 'HTTP ' + r.status);
+  return r.json.save || null;
+}
+async function pushCloud(game, ver, keys, keepalive) {
+  const a = account();
+  const r = await call('PUT', `/save/${game}`, { data: JSON.stringify({ v: 1, keys }), ver, rev: Date.now(), meta: { hash: hashOf(keys), n: Object.keys(keys).length } }, keepalive);
+  if (r.status === 409) return { conflict: true };
+  if (!r.ok) throw new Error(r.json.error || 'HTTP ' + r.status);
+  setRecord(game, { acct: a.name, ver: r.json.ver, hash: hashOf(keys), at: Date.now() });
+  return { ver: r.json.ver };
+}
+function applyCloud(game, save) {
+  const doc = JSON.parse(save.data);
+  const keys = (doc && doc.keys) || {};
+  for (const [k, v] of Object.entries(keys)) lsSet(k, String(v));
+  setRecord(game, { acct: account().name, ver: save.ver, hash: hashOf(collect(game)), at: Date.now() });
+  return Object.keys(keys).length;
+}
+
+// ---------- 一次同步 ----------
+const status = {};            // game -> { s: 'ok'|'error'|'conflict'|'nologin'|'syncing', at, err }
+const statusOf = (g) => status[g] || { s: 'idle', at: 0 };
+const busy = new Set();
+const RELOAD_KEY = 'zjtt:gc:reload';
+
+// pullOk：只有刚进游戏那一次允许把云端覆盖到本机（游戏还没把数据读进内存）；游戏玩到一半只推不拉，免得把正在玩的进度刷没
+async function syncGame(game, { interactive = true, reload = true, keepalive = false, pullOk = true } = {}) {
+  const a = account();
+  if (!a) { status[game] = { s: 'nologin', at: 0 }; return 'nologin'; }
+  if (busy.has(game)) return 'busy';
+  busy.add(game); status[game] = { s: 'syncing', at: 0 };
+  try {
+    const keys = collect(game), local = { empty: isTrivial(game, keys), hash: hashOf(keys) };
+    const cloud = await fetchCloud(game, false);
+    const act = plan({ local, cloud, rec: record(game), acct: a.name });
+    let res = act;
+    if (act === 'push') {
+      const r = await pushCloud(game, cloud ? cloud.ver : 0, keys, keepalive);
+      if (r.conflict) { res = 'conflict'; }
+    } else if (act === 'pull' && !pullOk) {
+      res = 'skipped';
+    } else if (act === 'pull') {
+      const n = applyCloud(game, await fetchCloud(game, true));
+      res = 'pulled';
+      if (reload) reloadOnce(game, n);
+    } else if (act === 'sync') {
+      setRecord(game, { acct: a.name, ver: cloud.ver, hash: local.hash, at: Date.now() });
+    } else if (act === 'none' && cloud) {
+      setRecord(game, { acct: a.name, ver: cloud.ver, hash: local.hash, at: Date.now() });
+    }
+    if (res === 'conflict') {
+      status[game] = { s: 'conflict', at: 0 };
+      if (interactive) conflictDialog(game, cloud, local, reload);
+    } else status[game] = { s: 'ok', at: Date.now() };
+    return res;
+  } catch (e) {
+    status[game] = { s: e.message === 'not_logged_in' ? 'nologin' : 'error', at: 0, err: e.message };
+    return 'error';
+  } finally { busy.delete(game); }
+}
+
+function reloadOnce(game, n) {
+  // 防循环：10 秒内刚因同步刷新过就不再刷
+  const last = Number(sessionStorage.getItem(RELOAD_KEY) || 0);
+  if (Date.now() - last < 10000) return;
+  try { sessionStorage.setItem(RELOAD_KEY, String(Date.now())); } catch { /* ignore */ }
+  location.reload();
+}
+
+// ---------- 冲突弹窗（自带样式，不依赖各游戏的 CSS） ----------
+function conflictDialog(game, cloud, local, reload) {
+  if (document.getElementById('gcDlg')) return;
+  const cfg = GAMES[game];
+  const wrap = document.createElement('div');
+  wrap.id = 'gcDlg';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(5,8,14,.72);padding:16px;font:14px/1.6 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+  const t = (ms) => (ms ? new Date(ms).toLocaleString() : '—');
+  wrap.innerHTML = `<div style="max-width:360px;width:100%;background:#151b27;color:#e6ebf5;border:1px solid #3a4560;border-radius:14px;padding:16px 16px 12px;box-shadow:0 20px 60px #000b">
+    <b style="font-size:16px">「${cfg.zh}」本机和云端的存档不一样</b>
+    <p style="margin:8px 0;color:#a9b4c8;font-size:13px">这个账号在云端有一份存档，和这台设备上的不同。选一份留下，<b style="color:#f0d28a">另一份会被覆盖</b>。</p>
+    <p style="margin:4px 0;font-size:13px">本机：${Object.keys(collect(game)).length} 项存档数据</p>
+    <p style="margin:4px 0 12px;font-size:13px">云端：${cloud && cloud.meta ? cloud.meta.n || '?' : '?'} 项 · 最后保存 ${t(cloud && cloud.at)}</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button data-k="cloud" style="flex:1;padding:9px;border-radius:9px;border:1px solid #c9a13a;background:#7a5d17;color:#fff8e6;font-weight:600">用云端的</button>
+      <button data-k="local" style="flex:1;padding:9px;border-radius:9px;border:1px solid #3a4560;background:#1d2635;color:#e6ebf5">用本机的</button>
+    </div>
+    <div style="text-align:center;margin-top:8px"><button data-k="later" style="background:none;border:0;color:#8794ab;font-size:12.5px;padding:6px">先不处理</button></div></div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener('click', async (e) => {
+    const k = e.target.closest('[data-k]')?.dataset.k; if (!k) return;
+    wrap.remove();
+    if (k === 'later') return;
+    try {
+      if (k === 'cloud') { const n = applyCloud(game, await fetchCloud(game, true)); status[game] = { s: 'ok', at: Date.now() }; if (reload) reloadOnce(game, n); }
+      else { const keys = collect(game); const r = await pushCloud(game, cloud ? cloud.ver : 0, keys); status[game] = r.conflict ? { s: 'error', at: 0, err: 'conflict' } : { s: 'ok', at: Date.now() }; }
+    } catch (err) { status[game] = { s: 'error', at: 0, err: err.message }; }
+  });
+}
+
+// ---------- 游戏页入口：登录了就在进入 / 切后台 / 改动后同步 ----------
+function startGameCloud(game) {
+  if (!GAMES[game]) return;
+  setTimeout(() => syncGame(game, { interactive: true, reload: true, pullOk: true }), 1500);
+  let timer = 0;
+  const lastHash = { v: hashOf(collect(game)) };
+  // 每 45 秒看一眼本机内容有没有变，变了就推（不弹窗、不刷新：冲突留到下次进游戏处理）
+  timer = setInterval(() => {
+    if (document.hidden || !account()) return;
+    const h = hashOf(collect(game));
+    if (h === lastHash.v) return;
+    lastHash.v = h;
+    syncGame(game, { interactive: false, reload: false, pullOk: false });
+  }, 45000);
+  const flush = () => { if (account()) syncGame(game, { interactive: false, reload: false, keepalive: true, pullOk: false }); };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
+  window.addEventListener('pagehide', flush);
+  return () => clearInterval(timer);
+}
+return { GAMES, account, isTrivial, collect, hashOf, record, plan, statusOf, syncGame, startGameCloud };
+})();
+
 // ---- js/reign.js
 const m_reign = await (async () => {
 const { CHARS, SYS, CARDS, TIDES, ENDINGS, DIFFS, REALMS } = m_data;
 const { FACES } = m_art;
+const { walletAdd, walletGet, scTag } = m_silver;
+const { startGameCloud } = m_gamecloud;
 // 弥萨格王权：引擎 + 界面
 //
 // 一句话规则：一张卡上站着一个唤醒体，提一个要求。你只能准或不准，
@@ -2325,6 +2634,8 @@ const { FACES } = m_art;
 //
 // 这一页刻意不用 css/style.css —— 和狼人杀一样自带一套壳，省一次阻塞请求。
 // 所有状态都在 S 里，存档就是 JSON.stringify(S)，刷新不丢。
+
+
 
 
 
@@ -2800,7 +3111,7 @@ function choose(side) {
 }
 
 function showReply(card, side, opt, eff) {
-  const c = charOf(card.who);
+  const c = tideById.get(card.id) ? { n: card.title } : charOf(card.who);
   $('#choices').classList.add('hide');
   const deck = $('#deck');
   const el = document.createElement('div');
@@ -2889,11 +3200,37 @@ function surviveId() {
   return 'survive_plain';
 }
 
+// ------------------------------------------------------------------ 银芯
+// 任期结束按「撑了多久 × 难度 × 结局」发银芯，和其他小游戏共用一个钱包（zjtt:credits）。
+//   撑满任期：满额（见习 12 / 守密人 26 / 洪积纪年 40）再按结局加成，金色结局 +60%；
+//   中途终局：按撑过的天数比例给一半（死得晚不白死），不到 5 天不给，防止开局秒死刷。
+//   第一次走到的结局图鉴再 +4 —— 每个结局只有一次，刷不动。
+const REIGN_BASE = { short: 12, normal: 26, long: 40 };
+const SURVIVE_BONUS = {
+  survive_gold: 0.6, survive_balance: 0.3, survive_rich: 0.15, survive_loved: 0.15,
+  survive_mad: 0.15, survive_hollow: 0.1, survive_mem: 0.1, survive_san: 0.1,
+  survive_core: 0.1, survive_bond: 0.1, survive_plain: 0,
+};
+const FIRST_END_BONUS = 4;
+const MIN_DAYS_PAID = 5;
+function reignReward(id, firstTime) {
+  const base = REIGN_BASE[S.d] || REIGN_BASE.normal;
+  const day = Math.min(S.day, S.days);
+  if (day < MIN_DAYS_PAID) return { gain: 0, base: 0, first: 0, why: `不到 ${MIN_DAYS_PAID} 天就结束了，没有银芯` };
+  const survived = id.indexOf('survive') === 0;
+  const main = survived ? base * (1 + (SURVIVE_BONUS[id] != null ? SURVIVE_BONUS[id] : 0.1)) : base * (day / S.days) * 0.5;
+  const first = firstTime ? FIRST_END_BONUS : 0;
+  return { gain: Math.round(main) + first, base: Math.round(main), first, why: survived ? '撑满任期' : `撑了 ${day} / ${S.days} 天` };
+}
+
 function finish(kind) {
   busy = true;
   const id = kind === 'survive' ? surviveId() : kind;
   S.over = id;
+  const firstTime = !load(KEY_END, {})[id];
   collectEnd(id);
+  const pay = reignReward(id, firstTime);
+  if (pay.gain > 0) walletAdd(pay.gain);
   try { localStorage.removeItem(KEY_SAVE); } catch (e) {}
   Snd.on && Snd.end();
   const e = ENDINGS[id] || ENDINGS.survive_plain;
@@ -2911,10 +3248,13 @@ function finish(kind) {
         <p class="ecme">${e.e}</p>
       </div>
       <div class="estats">
-        ${METERS.map((m) => `<div><span>${m.n}</span><b>${S[m.k]}</b></div>`).join('')}
+        ${METERS.map((m) => `<div><span>${m.n}</span><b>${Math.round(S[m.k])}</b></div>`).join('')}
         <div><span>黑潮</span><b>${Math.round(S.tide)}</b></div>
         <div><span>处理公文</span><b>${S.log.length}</b></div>
       </div>
+      <div class="ecred ${pay.gain > 0 ? 'on' : ''}">${pay.gain > 0
+        ? `${scTag('+' + pay.gain)}<span>${diffOf(S.d).n} · ${pay.why}${pay.first ? ` · 新结局 +${pay.first}` : ''} · 钱包 ${walletGet()}</span>`
+        : `<span>${pay.why}</span>`}</div>
       <div class="erow">
         <button class="btn primary" id="againBtn" type="button">再来一任</button>
         <button class="btn" id="bookBtn" type="button">结局图鉴</button>
@@ -3049,7 +3389,7 @@ function renderTitle() {
         ${DIFFS.map((d) => `
           <button class="diff" type="button" data-d="${d.k}">
             <b>${d.n}</b>
-            <span class="dd">${d.days} 天 · ${d.tag}</span>
+            <span class="dd">${d.days} 天 · ${d.tag} · 满任期 ${REIGN_BASE[d.k]}+ 银芯</span>
             <span class="dx">${d.d}</span>
           </button>`).join('')}
       </div>
@@ -3123,6 +3463,8 @@ function showRules() {
         <p>任期走完不算赢，只是没输。四项都不低于 62、黑潮不高于 38，才会拿到金色的那个结局；四项都咬在五十上下是「完美均衡」，账目不上不下、黑潮也没退是「空转的一任」。</p>
         <h4>三十个结局</h4>
         <p>四项各有一头（8 个）、黑潮满顶、两样一起坏掉的样子（钱多到没人、记不清也看不穿）、撑满任期的十来种走法，还有<b>七个不太正经的</b>——它们藏在几张特定的卡里，选项上不写，点了才知道。走到了就记进图鉴。</p>
+        <h4>银芯</h4>
+        <p>任期结束会发银芯（和其他小游戏共用一个钱包）：撑满任期拿满额——<b>见习 12 / 守密人 26 / 洪积纪年 40</b>，结局越漂亮加成越多，金色结局 +60%；中途终局按撑过的天数给一半；第一次走到的新结局再 +4；不到 5 天就结束不给。</p>
         <h4>人物册</h4>
         <p>顶栏那个「册」按钮能翻到<b>全部 72 个人</b>：62 名唤醒体、9 位主播、一只校猫，标了界域和性别，遇过的才亮。</p>
       </div>
@@ -3161,6 +3503,9 @@ function boot() {
 }
 
 boot();
+
+// 登录了本站账号就把任期存档 / 结局图鉴同步到云端（js/gamecloud.js）
+startGameCloud('reign');
 return {  };
 })();
 

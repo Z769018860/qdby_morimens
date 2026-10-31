@@ -8,6 +8,8 @@
 
 import { CHARS, SYS, CARDS, TIDES, ENDINGS, DIFFS, REALMS } from './reign/data.js';
 import { FACES } from './reign/art.js';
+import { walletAdd, walletGet, scTag } from './silver.js';
+import { startGameCloud } from './gamecloud.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -480,7 +482,7 @@ function choose(side) {
 }
 
 function showReply(card, side, opt, eff) {
-  const c = charOf(card.who);
+  const c = tideById.get(card.id) ? { n: card.title } : charOf(card.who);
   $('#choices').classList.add('hide');
   const deck = $('#deck');
   const el = document.createElement('div');
@@ -569,11 +571,37 @@ function surviveId() {
   return 'survive_plain';
 }
 
+// ------------------------------------------------------------------ 银芯
+// 任期结束按「撑了多久 × 难度 × 结局」发银芯，和其他小游戏共用一个钱包（zjtt:credits）。
+//   撑满任期：满额（见习 12 / 守密人 26 / 洪积纪年 40）再按结局加成，金色结局 +60%；
+//   中途终局：按撑过的天数比例给一半（死得晚不白死），不到 5 天不给，防止开局秒死刷。
+//   第一次走到的结局图鉴再 +4 —— 每个结局只有一次，刷不动。
+const REIGN_BASE = { short: 12, normal: 26, long: 40 };
+const SURVIVE_BONUS = {
+  survive_gold: 0.6, survive_balance: 0.3, survive_rich: 0.15, survive_loved: 0.15,
+  survive_mad: 0.15, survive_hollow: 0.1, survive_mem: 0.1, survive_san: 0.1,
+  survive_core: 0.1, survive_bond: 0.1, survive_plain: 0,
+};
+const FIRST_END_BONUS = 4;
+const MIN_DAYS_PAID = 5;
+function reignReward(id, firstTime) {
+  const base = REIGN_BASE[S.d] || REIGN_BASE.normal;
+  const day = Math.min(S.day, S.days);
+  if (day < MIN_DAYS_PAID) return { gain: 0, base: 0, first: 0, why: `不到 ${MIN_DAYS_PAID} 天就结束了，没有银芯` };
+  const survived = id.indexOf('survive') === 0;
+  const main = survived ? base * (1 + (SURVIVE_BONUS[id] != null ? SURVIVE_BONUS[id] : 0.1)) : base * (day / S.days) * 0.5;
+  const first = firstTime ? FIRST_END_BONUS : 0;
+  return { gain: Math.round(main) + first, base: Math.round(main), first, why: survived ? '撑满任期' : `撑了 ${day} / ${S.days} 天` };
+}
+
 function finish(kind) {
   busy = true;
   const id = kind === 'survive' ? surviveId() : kind;
   S.over = id;
+  const firstTime = !load(KEY_END, {})[id];
   collectEnd(id);
+  const pay = reignReward(id, firstTime);
+  if (pay.gain > 0) walletAdd(pay.gain);
   try { localStorage.removeItem(KEY_SAVE); } catch (e) {}
   Snd.on && Snd.end();
   const e = ENDINGS[id] || ENDINGS.survive_plain;
@@ -591,10 +619,13 @@ function finish(kind) {
         <p class="ecme">${e.e}</p>
       </div>
       <div class="estats">
-        ${METERS.map((m) => `<div><span>${m.n}</span><b>${S[m.k]}</b></div>`).join('')}
+        ${METERS.map((m) => `<div><span>${m.n}</span><b>${Math.round(S[m.k])}</b></div>`).join('')}
         <div><span>黑潮</span><b>${Math.round(S.tide)}</b></div>
         <div><span>处理公文</span><b>${S.log.length}</b></div>
       </div>
+      <div class="ecred ${pay.gain > 0 ? 'on' : ''}">${pay.gain > 0
+        ? `${scTag('+' + pay.gain)}<span>${diffOf(S.d).n} · ${pay.why}${pay.first ? ` · 新结局 +${pay.first}` : ''} · 钱包 ${walletGet()}</span>`
+        : `<span>${pay.why}</span>`}</div>
       <div class="erow">
         <button class="btn primary" id="againBtn" type="button">再来一任</button>
         <button class="btn" id="bookBtn" type="button">结局图鉴</button>
@@ -729,7 +760,7 @@ function renderTitle() {
         ${DIFFS.map((d) => `
           <button class="diff" type="button" data-d="${d.k}">
             <b>${d.n}</b>
-            <span class="dd">${d.days} 天 · ${d.tag}</span>
+            <span class="dd">${d.days} 天 · ${d.tag} · 满任期 ${REIGN_BASE[d.k]}+ 银芯</span>
             <span class="dx">${d.d}</span>
           </button>`).join('')}
       </div>
@@ -803,6 +834,8 @@ function showRules() {
         <p>任期走完不算赢，只是没输。四项都不低于 62、黑潮不高于 38，才会拿到金色的那个结局；四项都咬在五十上下是「完美均衡」，账目不上不下、黑潮也没退是「空转的一任」。</p>
         <h4>三十个结局</h4>
         <p>四项各有一头（8 个）、黑潮满顶、两样一起坏掉的样子（钱多到没人、记不清也看不穿）、撑满任期的十来种走法，还有<b>七个不太正经的</b>——它们藏在几张特定的卡里，选项上不写，点了才知道。走到了就记进图鉴。</p>
+        <h4>银芯</h4>
+        <p>任期结束会发银芯（和其他小游戏共用一个钱包）：撑满任期拿满额——<b>见习 12 / 守密人 26 / 洪积纪年 40</b>，结局越漂亮加成越多，金色结局 +60%；中途终局按撑过的天数给一半；第一次走到的新结局再 +4；不到 5 天就结束不给。</p>
         <h4>人物册</h4>
         <p>顶栏那个「册」按钮能翻到<b>全部 72 个人</b>：62 名唤醒体、9 位主播、一只校猫，标了界域和性别，遇过的才亮。</p>
       </div>
@@ -841,3 +874,6 @@ function boot() {
 }
 
 boot();
+
+// 登录了本站账号就把任期存档 / 结局图鉴同步到云端（js/gamecloud.js）
+startGameCloud('reign');

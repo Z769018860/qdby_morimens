@@ -601,7 +601,7 @@ async function putAccount(request, env, kv, cors) {
 // 账号档案（/account）只放轻量的积分 / 解锁 / 最高分；挂机前夜这类「整份进度」是大对象，
 // 单独一个键 sv_{uid哈希}_{游戏}，带版本号做乐观锁：版本对不上返回 409 + 云端的摘要，
 // 由客户端决定用哪份（不会悄悄互相覆盖）。
-const SAVE_GAMES = new Set(['idle', 'deathreport', 'binding', 'survivors', 'protocol', 'wolf', 'merge', 'bird', 'g2048']);
+const SAVE_GAMES = new Set(['idle', 'deathreport', 'binding', 'survivors', 'protocol', 'wolf', 'merge', 'bird', 'g2048', 'duel', 'reign']);
 const SAVE_MAX = 480 * 1024;
 
 function saveGameOf(g) {

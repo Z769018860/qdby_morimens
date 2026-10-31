@@ -10,8 +10,9 @@ import * as E from './engine.js';
 import { nextAction } from './ai.js';
 import * as net from './net.js';
 import {
-  loadSave, saveSave, freeLeft, ticketDayLeft, payPack, grantPveTicket, RULES,
+  loadSave, saveSave, freeLeft, ticketDayLeft, payPack, grantPveTicket, RULES, PVE_SILVER, PVE_LOSS_MIN_ROUNDS,
 } from './store.js';
+import { walletGet, walletAdd, walletSpend, scTag } from '../silver.js';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.prototype.slice.call((root || document).querySelectorAll(sel));
@@ -66,7 +67,7 @@ function show(id) {
 
 function silverBar() {
   const n = $('#silver');
-  if (n) n.textContent = S.save.silver;
+  if (n) n.textContent = walletGet();
   const t = $('#tickets');
   if (t) t.textContent = S.save.tickets || 0;
 }
@@ -206,7 +207,7 @@ function renderHome() {
       <button class="tile" data-act="go-codex"><span class="ti">▤</span><span><span class="tn">卡表</span><br><span class="td">${Object.keys(CARDS).length} 张 · 效果全文</span></span></button>
       <button class="tile" data-act="go-lore"><span class="ti">◈</span><span><span class="tn">世界观</span><br><span class="td">弥萨格、守密人与四界域</span></span></button>
     </div>
-    <p class="note" style="margin-top:12px">战绩：${S.save.wins} 胜 ${S.save.losses} 负 · 已开 ${S.save.opened} 包。银芯赢一场 +120、输一场 +40；
+    <p class="note" style="margin-top:12px">战绩：${S.save.wins} 胜 ${S.save.losses} 负 · 已开 ${S.save.opened} 包。银芯是全站共用的钱包：打人机赢一场 +8 / +14 / +22（轻松 / 普通 / 认真），打满 4 回合输了也有一点辛苦费；
       每天免费开一包，打赢人机再送开包券（每天最多 ${RULES.TICKET_PER_DAY} 张）。</p>
   `;
 }
@@ -440,8 +441,9 @@ function showResult(v) {
   let reward = '';
 
   if (S.bt === 'pve') {
-    const gain = win ? 120 : 40;
-    S.save.silver += gain;
+    const tier = PVE_SILVER[S.diff] || PVE_SILVER.normal;
+    const gain = win ? tier[0] : (rounds >= PVE_LOSS_MIN_ROUNDS ? tier[1] : 0);
+    if (gain > 0) walletAdd(gain);
     if (win) S.save.wins++; else S.save.losses++;
     let ticket = '';
     if (win) {
@@ -450,7 +452,7 @@ function showResult(v) {
     }
     saveSave(S.save);
     silverBar();
-    reward = `<div class="row" style="margin-top:10px"><span class="bond">银芯 +${gain}</span>${ticket}
+    reward = `<div class="row" style="margin-top:10px"><span class="bond">${gain > 0 ? scTag('+' + gain) : '这局太短，没有银芯'}</span><span class="note">${{ easy: '轻松', normal: '普通', hard: '认真' }[S.diff] || '普通'}难度 · 钱包 ${walletGet()}</span>${ticket}
       <span class="note">累计 ${S.save.wins} 胜 ${S.save.losses} 负</span></div>`;
   } else if (S.bt === 'local') {
     reward = `<div class="row" style="margin-top:10px"><span class="bond">${nameOf(v.winner)} 赢下这场</span>
@@ -843,7 +845,7 @@ function packBtnLabel() {
 function renderPacks() {
   const free = freeLeft(S.save);
   const tk = S.save.tickets || 0;
-  const canBySilver = S.save.silver >= PACK_PRICE;
+  const canBySilver = walletGet() >= PACK_PRICE;
   const packs = PACKS.map((pk) => {
     const have = pk.cards.filter((id) => S.save.coll[id]).length;
     const total = pk.cards.length;
@@ -866,9 +868,9 @@ function renderPacks() {
   }).join('');
 
   $('#scr-packs').innerHTML = `
-    <div class="sec-h"><h2>卡包</h2><span class="r">银芯 ${S.save.silver} · 券 ${tk} · 今日免费 ${free}</span></div>
+    <div class="sec-h"><h2>卡包</h2><span class="r">银芯 ${walletGet()} · 券 ${tk} · 今日免费 ${free}</span></div>
     <p class="note" style="margin:0 0 10px">每包 5 张，第一张保底 SR 以上。开包的顺序是：先用每天白给的那一次，再用打人机赢来的券，
-      最后才扣银芯（${PACK_PRICE}）。开出来的卡进收藏，不影响预组卡组——对决用的是整套预组，收藏是「我还记得这些人」。</p>
+      最后才扣银芯（${PACK_PRICE}，全站共用的那份）。开出来的卡进收藏，不影响预组卡组——对决用的是整套预组，收藏是「我还记得这些人」。</p>
     <div class="packs">${packs}</div>
     <p class="note" style="margin-top:12px">已收录 ${Object.keys(S.save.coll).length} / ${Object.keys(CARDS).length} 种。
       今天还能拿 ${ticketDayLeft(S.save)} 张开包券（打赢人机 +1）。</p>
@@ -878,11 +880,11 @@ function renderPacks() {
 function buyPack(packId) {
   const pk = PACKS.find((p) => p.id === packId);
   if (!pk) return;
-  if (freeLeft(S.save) <= 0 && (S.save.tickets || 0) <= 0 && S.save.silver < PACK_PRICE) {
-    return toast(`银芯不够，还差 ${PACK_PRICE - S.save.silver}；今天也没有免费次数和券了`);
+  if (freeLeft(S.save) <= 0 && (S.save.tickets || 0) <= 0 && walletGet() < PACK_PRICE) {
+    return toast(`银芯不够，还差 ${PACK_PRICE - walletGet()}；今天也没有免费次数和券了`);
   }
   const pay = payPack(S.save);
-  if (pay.kind === 'silver') S.save.silver -= pay.price;
+  if (pay.kind === 'silver' && !walletSpend(pay.price)) return toast('银芯不够');
   S.save.opened++;
   const ids = drawFromPack(pk);
   const isNew = {};
@@ -1229,6 +1231,8 @@ export function boot() {
   document.documentElement.style.setProperty('--sheet-size', `${ART.cols * 100}% ${ART.rows * 100}%`);
   S.deckId = S.save.deck && DECKS.some((d) => d.id === S.save.deck) ? S.save.deck : DECKS[0].id;
   S.diff = S.save.diff || 'normal';
+  // 老存档里有一份只在这一页用的银芯：并进全站钱包（约 6:1，最多 40 枚），不再单独记
+  if (S.save.silver > 0) { walletAdd(Math.min(40, Math.floor(S.save.silver / 6))); S.save.silver = 0; saveSave(S.save); }
   silverBar();
   bind();
   show('home');
