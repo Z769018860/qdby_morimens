@@ -797,8 +797,17 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     }
     return best;
   }
+  /** 队里有人见底（任何活着的队友血量低于 40%），或者队均血量不到一半：这时候等人 / 捏大招都是在送命 */
+  function teamInDanger(u) {
+    const live = friendsOf(u).filter((x) => x.alive);
+    if (!live.length) return false;
+    return live.some((x) => hpPct(x) < 0.4) || live.reduce((s, x) => s + hpPct(x), 0) / live.length < 0.5;
+  }
   function chooseAllyCard(u) {
     if (ultReady(u)) {
+      // 残血优先开大：以前「一起开 / 按顺序」只看自己血量，辅助自己满血、队友残血时还在干等，
+      // 她这时候选的是回血技能，看上去像「回血优先于大招」。队伍见底就别等了，也别捏着。
+      if (teamInDanger(u)) { u.holdUlt = 0; u.ultWait = 0; return ultCard(u); }
       if (ultMode === 'first') {
         // 血满了还放「治疗型大招」是白扔一次行动：大招和其它牌一起算分，
         // 明显不如手上的牌就先捏着（最多捏两次，能量顶到 100 之后攒得也浪费）。

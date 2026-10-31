@@ -2450,3 +2450,33 @@ test('反击转移：队友的反击层归到嘲讽者身上，反击真的打�
   assert.ok(counters > 0, '反击会触发');
   assert.ok(byOgier > 0, '嘲讽者自己打出了反击');
 });
+
+test('队伍见底时，「一起开」「按顺序开」不再干等，辅助立刻开大', () => {
+  const s = newState(data, 95);
+  const team = ['ramona', 'alva', 'lily', 'faros'];
+  for (const x of team) s.roster[x] = { lv: 80, star: 6, od: 0, law: 0 };
+  s.team = team;
+  const heldLow = (mode) => {
+    s.strategy = { ...s.strategy, ult: mode, ultOrder: [...team].reverse() };   // 拉蒙娜排在最后：最容易干等
+    let lowReady = 0, lowUlt = 0;
+    for (const st of [30, 50, 65, 80]) for (let seed = 1; seed <= 25; seed++) {
+      s.seed = seed;
+      const r = runBattle(s, data, st);
+      const maxes = r.prep.allies.map((a) => a.hp), hp = [...maxes];
+      let ali = 0, key = 0;
+      for (const e of r.events) {
+        if (e.k === 'gauge' && e.who === 'a0') { ali = e.ali; key = e.key; }
+        if (e.hp != null && e.who && e.who[0] === 'a' && ['dmg', 'heal', 'dot', 'counter', 'revive'].includes(e.k)) hp[+e.who.slice(1)] = e.hp;
+        if (e.k === 'act' && e.who === 'a0' && e.round > 0 && e.slot !== 'Rouse' && (ali >= 100 || key >= 100)) {
+          const frac = hp.map((h, i) => h / maxes[i]);
+          if (frac.some((f) => f > 0 && f < 0.4)) { lowReady++; if (e.slot === 'Exalt' || e.slot === 'OverExalt') lowUlt++; }
+        }
+      }
+    }
+    return { lowReady, lowUlt };
+  };
+  for (const m of ['sync', 'order', 'first']) {
+    const r = heldLow(m);
+    assert.ok(r.lowReady === 0 || r.lowUlt / r.lowReady >= 0.9, `${m}：队友残血时能量满的拉蒙娜 ${r.lowUlt}/${r.lowReady} 开了大`);
+  }
+});
