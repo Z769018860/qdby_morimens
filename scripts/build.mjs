@@ -342,7 +342,7 @@ function genProtocol() {
 }
 
 
-// ------------------------------------------- 命轮对决的卡面图集与卡表
+// ------------------------------------------- 唤醒王：决斗链接的卡面图集与卡表
 // 卡牌页要一次显示十几张卡面，逐张请求在边缘就是十几个 1~2 秒的来回；
 // 所以头像已经被 scripts/build_duel_art.py 拼成一张 webp，这里只负责读成
 // data URI，连同卡表 / 卡包 / 羁绊 / 世界观一起内联进 js/duel/gen.js。
@@ -361,6 +361,19 @@ function genDuel() {
   for (const c of cards.spells) map[c.id] = Object.assign({ k: 'S' }, c);
   for (const c of cards.traps) map[c.id] = Object.assign({ k: 'T' }, c);
   for (const c of cards.extras) map[c.id] = Object.assign({ k: 'E' }, c);
+  // 觉醒体本身没有立绘，用第一只素材的脸（校猫用自己的）
+  for (const c of cards.extras) {
+    const k = map[c.id];
+    if (!k.art) k.art = c.id === 'e12' ? c.n : (c.mat || [c.n])[0];
+  }
+  // 魔法 / 陷阱不挂人脸：统一用图集里画出来的两枚符号（早期没设 art，全部落到第一格那张「24」的头像上）
+  for (const c of cards.spells) map[c.id].art = '@spell';
+  for (const c of cards.traps) map[c.id].art = '@trap';
+  // 卡面找不到就静默显示成第一格头像，所以这里直接拦住
+  for (const id of Object.keys(map)) {
+    const key = map[id].art || map[id].n;
+    if (art.index[key] == null) throw new Error(`卡 ${id}（${map[id].n}）的卡面「${key}」不在图集里，先跑 build_duel_art.py`);
+  }
   // 卡包里引用了不存在的卡会静默变成「抽到空气」，构建时就报错
   for (const pk of packs.packs) {
     for (const id of pk.cards) if (!map[id]) throw new Error(`卡包 ${pk.id} 引用了不存在的卡 ${id}`);

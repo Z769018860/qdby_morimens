@@ -1,4 +1,4 @@
-// 《忘却前夜 · 命轮对决》规则引擎。
+// 《忘却前夜 · 唤醒王：决斗链接》规则引擎。
 //
 // 这一层不碰 DOM：所有操作都是 (状态, 参数) → 改状态 + 往 G.log 追加日志，
 // 返回 { ok, err }。网页（view.js）和 AI（ai.js）都只是调用它，
@@ -884,17 +884,32 @@ function afterBattleDamage(G, p, o, a, dmg) {
 }
 
 // ------------------------------------------------------------------ 觉醒召唤
+// 素材可以从「场上」或「手牌」来。
+// 只认场上的话：三格场地 + 30 张卡组，两只指定怪兽同时站住的概率低到可怜，
+// 自测 200 局里只成功觉醒过 1 次——那等于额外卡组从来没有参与过对局。
 export function canAwaken(G, p, extraId) {
   const d = CARDS[extraId];
   if (!d || d.k !== 'E') return null;
   if (p.extra.indexOf(extraId) < 0) return null;
   if (G.active !== p.idx || G.phase !== 'main' || G.over) return null;
-  const own = p.mons.filter(Boolean);
+  const pool = [];
+  for (const m of p.mons) if (m) pool.push({ uid: m.uid, id: m.id, hand: false });
+  for (const h of p.hand) {
+    const c = CARDS[h.id];
+    if (c && c.k === 'M') pool.push({ uid: h.uid, id: h.id, hand: true });
+  }
+  const fit = (picked) => {
+    // 至少要有一只素材已经在场上：全是手牌的话，等于凭空多出一只大怪，
+    // 这样觉醒就变成「抽到两张牌就白赚」，场上怎么打都无所谓了。
+    return picked.some((x) => !x.hand);
+  };
+
   if (d.matRealm === 'any') {
-    // 需要两只界域不同的怪兽
-    for (let i = 0; i < own.length; i++) {
-      for (let j = i + 1; j < own.length; j++) {
-        if (realmOf(own[i].id) !== realmOf(own[j].id)) return [own[i].uid, own[j].uid];
+    for (let i = 0; i < pool.length; i++) {
+      for (let j = i + 1; j < pool.length; j++) {
+        if (realmOf(pool[i].id) === realmOf(pool[j].id)) continue;
+        const picked = [pool[i], pool[j]];
+        if (fit(picked)) return picked.map((x) => x.uid);
       }
     }
     return null;
@@ -902,30 +917,43 @@ export function canAwaken(G, p, extraId) {
   const need = (d.mat || []).slice();
   const picked = [];
   for (const name of need) {
-    const m = own.find((x) => CARDS[x.id].n === name && picked.indexOf(x) < 0);
+    const m = pool.find((x) => CARDS[x.id].n === name && picked.indexOf(x) < 0);
     if (!m) return null;
     picked.push(m);
   }
-  return picked.map((x) => x.uid);
+  return fit(picked) ? picked.map((x) => x.uid) : null;
 }
 
 export function awaken(G, side, extraId) {
   const p = G.players[side];
   if (G.over) return fail('对决已经结束了');
+  if (G.active !== side) return fail('现在不是你的回合');
+  if (G.phase !== 'main') return fail('只能在主要阶段觉醒召唤');
   const mats = canAwaken(G, p, extraId);
   if (!mats) return fail('素材还没凑齐');
   const d = CARDS[extraId];
   // 素材本身就是位置：先把它们送墓，再拿空位（满场也能觉醒）
   for (const u of mats) {
     const m = p.mons.find((x) => x && x.uid === u);
-    if (!m) continue;
-    removeMon(G, p, m);
-    toGrave(G, p, m, '觉醒素材');
+    if (m) {
+      removeMon(G, p, m);
+      toGrave(G, p, m, '觉醒素材');
+      continue;
+    }
+    const hi = p.hand.findIndex((x) => x.uid === u);
+    if (hi >= 0) {
+      const card = p.hand.splice(hi, 1)[0];
+      p.grave.push(card.id);
+      log(G, `「${CARDS[card.id].n}」从手牌作为觉醒素材送去墓地`, 'grave');
+    }
   }
   const slot = freeSlot(p.mons);
   if (slot < 0) return fail('怪兽区已经满了，先腾一个位置');
   p.extra.splice(p.extra.indexOf(extraId), 1);
   const mon = mkMon(G, extraId, side);
+  // 刚醒过来的人这一回合还不能动手：否则 3300 的觉醒体落下来就能直接打脸，
+  // 三格场地一清空，一回合 6000+ 的直伤把对局变成了「谁先抽到素材」。
+  mon.atkCount = 9;
   p.mons[slot] = mon;
   log(G, `${pname(p)}觉醒召唤「${d.n}」！`, 'awaken');
   if (d.matRealm === 'any') {
@@ -1019,6 +1047,28 @@ export function changePos(G, side, uid) {
 }
 
 // 给 UI 用：这一页能看的信息（对手盖放的怪兽不暴露身份）
+// ------------------------------------------------------------------ 动作
+// 一套「可序列化的动作」。人机、同屏双人、好友房都从这一个入口进：
+// 好友房把动作丢到房间里让对方重放，所以这里每个分支都必须只依赖 G 和参数
+// （随机全部走 G.rng，seed 相同 + 动作序列相同 → 两边状态必然一致）。
+export function applyAction(G, side, a) {
+  if (!G || !a || !a.t) return fail('空动作');
+  if (G.over) return fail('对决已经结束了');
+  if (a.t === 'end' && G.active !== side) return fail('现在不是你的回合');
+  switch (a.t) {
+    case 'summon': return summon(G, side, a.uid, a.tribs || []);
+    case 'setMon': return setMonster(G, side, a.uid);
+    case 'spell': return activateSpell(G, side, a.uid);
+    case 'trap': return setTrap(G, side, a.uid);
+    case 'pos': return changePos(G, side, a.uid);
+    case 'battle': return toBattle(G, side);
+    case 'attack': return attack(G, side, a.uid, a.target == null ? null : a.target);
+    case 'awaken': return awaken(G, side, a.id);
+    case 'end': return endTurn(G);
+    default: return fail('未知动作：' + a.t);
+  }
+}
+
 export function publicView(G, side) {
   const p = G.players[side];
   const o = G.players[1 - side];

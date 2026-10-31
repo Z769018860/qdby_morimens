@@ -1,9 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""把《命轮对决》卡表里用到的角色头像拼成一张图集，并生成卡背与首页图标。
+"""把《唤醒王：决斗链接》卡表里用到的角色头像拼成一张图集，并生成卡背与首页图标。
 
 为什么要拼图集：线上边缘每个请求固定 1~2 秒，一局里要显示十几张卡面，
 逐张请求就是十几个来回。拼成一张 webp 后，整页仍然只有「页面 + 一个脚本」两个请求。
+
+图集最后几格不是人物，是画出来的符号：
+  @spell   魔法卡统一图标（法阵），代替原来所有魔法都顶着一张「24」的脸
+  @trap    陷阱卡统一图标（尖刺 + 警示），同上
+  @shadow  神王·图鲁的黑影（不露脸）
+  @shadow2 王权·终焉图鲁的黑影（带金环，和上面区分）
 
 用法：python scripts/build_duel_art.py
 输入：data/duel-cards.json + data/avatars.json（头像源 assets/avatars/a-*.webp，96×96）
@@ -13,19 +19,138 @@
       data/duel-art.json（图集元数据：格宽、列数、名字 → 序号）
 """
 import json
+import math
 import os
 import sys
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CELL = 88
 COLS = 8
+SS = 4  # 符号格先按 4 倍画再缩，避免细线糊成一片
 
 
 def read_json(rel):
     with open(os.path.join(ROOT, rel), encoding='utf-8') as f:
         return json.load(f)
+
+
+def grad(n, top, bottom):
+    """竖直渐变底：符号格不用透明底，贴到卡片上不会露出卡面底色。"""
+    im = Image.new('RGB', (n, n), top)
+    d = ImageDraw.Draw(im)
+    for i in range(n):
+        t = i / max(1, n - 1)
+        d.line([(0, i), (n, i)],
+               fill=tuple(int(top[k] + (bottom[k] - top[k]) * t) for k in range(3)))
+    return im
+
+
+def draw_spell(size=CELL):
+    """魔法：法阵（双环 + 八芒星 + 环上六点），靛紫配色。"""
+    n = size * SS
+    im = grad(n, (34, 28, 68), (13, 13, 28))
+    d = ImageDraw.Draw(im, 'RGBA')
+    cx = cy = n // 2
+    r1, r2 = n * 0.41, n * 0.30
+    d.ellipse([cx - r1, cy - r1, cx + r1, cy + r1], outline=(126, 140, 230, 210), width=SS * 2)
+    d.ellipse([cx - r2, cy - r2, cx + r2, cy + r2], outline=(150, 165, 255, 120), width=SS)
+    star = []
+    for i in range(8):
+        a = math.radians(-90 + i * 45)
+        rr = r2 if i % 2 == 0 else r2 * 0.42
+        star.append((cx + math.cos(a) * rr, cy + math.sin(a) * rr))
+    d.line(star + [star[0]], fill=(203, 191, 255, 235), width=SS * 2)
+    for i in range(6):
+        a = math.radians(30 + i * 60)
+        px, py = cx + math.cos(a) * (r1 + r2) / 2, cy + math.sin(a) * (r1 + r2) / 2
+        d.ellipse([px - SS * 1.6, py - SS * 1.6, px + SS * 1.6, py + SS * 1.6],
+                  fill=(203, 191, 255, 200))
+    cr = n * 0.055
+    d.polygon([(cx, cy - cr), (cx + cr, cy), (cx, cy + cr), (cx - cr, cy)], fill=(240, 236, 255, 255))
+    return im.resize((size, size), Image.LANCZOS)
+
+
+def draw_trap(size=CELL):
+    """陷阱：三道尖刺 + 中心警示菱形，暗红配色。"""
+    n = size * SS
+    im = grad(n, (58, 16, 26), (16, 10, 16))
+    d = ImageDraw.Draw(im, 'RGBA')
+    cx = n // 2
+    for i in (-1, 0, 1):
+        x = cx + i * n * 0.235
+        top = n * (0.40 + abs(i) * 0.07)
+        d.polygon([(x - n * 0.085, n * 0.90), (x, top), (x + n * 0.085, n * 0.90)],
+                  fill=(176, 62, 78, 225))
+        d.line([(x, top + n * 0.02), (x, n * 0.88)], fill=(236, 128, 138, 200), width=SS)
+    d.rectangle([0, n * 0.90, n, n], fill=(24, 12, 16, 255))
+    d.line([(0, n * 0.90), (n, n * 0.90)], fill=(232, 101, 111, 180), width=SS * 2)
+    cy = n * 0.30
+    r = n * 0.135
+    d.polygon([(cx, cy - r), (cx + r, cy), (cx, cy + r), (cx - r, cy)],
+              fill=(18, 10, 14, 230), outline=(255, 198, 150, 245))
+    d.line([(cx, cy - r * 0.55), (cx, cy + r * 0.10)], fill=(255, 214, 170, 250), width=SS * 2)
+    d.ellipse([cx - SS * 1.6, cy + r * 0.36 - SS * 1.6, cx + SS * 1.6, cy + r * 0.36 + SS * 1.6],
+              fill=(255, 214, 170, 250))
+    return im.resize((size, size), Image.LANCZOS)
+
+
+def draw_shadow(size=CELL, awaken=False):
+    """神王系的黑影：兜帽人影，背光、看不清脸。awaken=True 时加一圈金环。
+
+    第一版画的是「头 + 王冠尖」，缩到 88px 之后两只尖像猫耳，所以改成兜帽：
+    轮廓越简单越不会认错。
+    """
+    n = size * SS
+    im = grad(n, (22, 20, 36), (9, 10, 18)).convert('RGBA')
+    cx = n // 2
+    # 身后的一团背光，剪影才立得住
+    glow = Image.new('RGBA', (n, n), (0, 0, 0, 0))
+    ImageDraw.Draw(glow).ellipse([cx - n * 0.40, n * 0.06, cx + n * 0.40, n * 0.98],
+                                 fill=(96, 116, 196, 78))
+    im = Image.alpha_composite(im, glow.filter(ImageFilter.GaussianBlur(n * 0.07)))
+    d = ImageDraw.Draw(im, 'RGBA')
+    if awaken:
+        for rr, a, w in ((n * 0.44, 70, SS * 3), (n * 0.37, 110, SS)):
+            d.ellipse([cx - rr, n * 0.50 - rr, cx + rr, n * 0.50 + rr],
+                      outline=(227, 179, 65, a), width=w)
+    ink = (8, 9, 15, 255)
+    # 袍子：从肩一直铺到画底
+    d.polygon([(cx - n * 0.42, n), (cx - n * 0.35, n * 0.74), (cx - n * 0.21, n * 0.63),
+               (cx + n * 0.21, n * 0.63), (cx + n * 0.35, n * 0.74), (cx + n * 0.42, n)], fill=ink)
+    # 兜帽：圆顶收口，顶上没有尖
+    d.polygon([(cx - n * 0.21, n * 0.65), (cx - n * 0.20, n * 0.37), (cx - n * 0.12, n * 0.21),
+               (cx, n * 0.135), (cx + n * 0.12, n * 0.21), (cx + n * 0.20, n * 0.37),
+               (cx + n * 0.21, n * 0.65)], fill=ink)
+    d.ellipse([cx - n * 0.20, n * 0.30, cx + n * 0.20, n * 0.62], fill=ink)
+    # 帽内的暗面：脸所在的位置比袍子更黑
+    d.ellipse([cx - n * 0.125, n * 0.40, cx + n * 0.125, n * 0.60], fill=(2, 2, 4, 255))
+    # 冠：一道细金环，加三枚很小的尖（缩到 88px 也还认得出是「王」）
+    for sx in (-1, 0, 1):
+        h = n * (0.075 if sx == 0 else 0.055)
+        d.polygon([(cx + sx * n * 0.085 - n * 0.022, n * 0.205),
+                   (cx + sx * n * 0.085, n * 0.205 - h),
+                   (cx + sx * n * 0.085 + n * 0.022, n * 0.205)], fill=(227, 179, 65, 215))
+    d.arc([cx - n * 0.155, n * 0.30, cx + n * 0.155, n * 0.48], 200, 340,
+          fill=(227, 179, 65, 205), width=SS * 2)
+    # 轮廓光：只有左侧一道，右边留暗
+    d.line([(cx - n * 0.21, n * 0.64), (cx - n * 0.20, n * 0.37), (cx - n * 0.12, n * 0.21),
+            (cx, n * 0.14)], fill=(227, 179, 65, 150), width=SS * 2)
+    # 两点眼睛，只是反光，看不清
+    for sx in (-1, 1):
+        ex = cx + sx * n * 0.048
+        d.ellipse([ex - SS * 2, n * 0.485 - SS * 1.2, ex + SS * 2, n * 0.485 + SS * 1.2],
+                  fill=(240, 208, 140, 200))
+    return im.convert('RGB').resize((size, size), Image.LANCZOS)
+
+
+SPECIAL = {
+    '@spell': lambda: draw_spell(),
+    '@trap': lambda: draw_trap(),
+    '@shadow': lambda: draw_shadow(awaken=False),
+    '@shadow2': lambda: draw_shadow(awaken=True),
+}
 
 
 def main():
@@ -45,10 +170,14 @@ def main():
             ref = c['n']
         if ref and ref not in names:
             names.append(ref)
+    # 画出来的符号格排在最后：魔法 / 陷阱各一枚统一图标，神王两只是黑影
+    for k in SPECIAL:
+        if k not in names:
+            names.append(k)
     # 卡包里会出现、但没做成怪兽的彩蛋卡（校猫）也留一格
     cat_q = 'assets/avatars-q/story-莱特.webp'
 
-    # 三张牌在官方立绘里没有成品头像：N 与威廉只有 Q 版，神王·图鲁沿用「图鲁」的脸
+    # 两张牌在官方立绘里没有成品头像：N 与威廉只有 Q 版
     fallback_q = {
         'N': 'assets/avatars-q/char-n.webp',
         '威廉': 'assets/avatars-q/char-william.webp',
@@ -57,6 +186,9 @@ def main():
     files = []
     missing = []
     for n in names:
+        if n in SPECIAL:
+            files.append(None)
+            continue
         if n == '弥萨格校猫':
             p = os.path.join(ROOT, cat_q)
         elif n in fallback_q:
@@ -80,6 +212,10 @@ def main():
     index = {}
     for i, p in enumerate(files):
         x, y = (i % COLS) * CELL, (i // COLS) * CELL
+        if names[i] in SPECIAL:
+            sheet.paste(SPECIAL[names[i]](), (x, y))
+            index[names[i]] = i
+            continue
         if not p:
             continue
         im = Image.open(p).convert('RGB').resize((CELL, CELL), Image.LANCZOS)

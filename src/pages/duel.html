@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>命轮对决 · 忘忘同人小游戏</title>
-<meta name="description" content="《忘却前夜》同人卡牌对战：把唤醒体写进命轮，用祭品、觉醒召唤、魔法与陷阱和对手赌一段记忆。六套预组卡组、十二种羁绊、五个卡包、一百一十四张卡，附世界观设定。">
+<title>唤醒王：决斗链接 · 忘忘同人小游戏</title>
+<meta name="description" content="《忘却前夜》同人卡牌对战：把唤醒体写进命轮，用祭品、觉醒召唤、魔法与陷阱和对手赌一段记忆。九套预组卡组、十二种羁绊、五个卡包、一百一十四张卡；人机、同屏双人、房间码好友对战，附世界观设定。">
 <meta name="theme-color" content="#0a0c12">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0c12%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2219%22%20fill%3D%22none%22%20stroke%3D%22%23e3b341%22%20stroke-width%3D%223%22%2F%3E%3Cpath%20d%3D%22M32%2018l9%2014-9%2014-9-14z%22%20fill%3D%22%23e8656f%22%20opacity%3D%22.9%22%2F%3E%3C%2Fsvg%3E" type="image/svg+xml">
 <style>
@@ -77,6 +77,7 @@ body{
   background:linear-gradient(104deg,var(--text) 6%,var(--gold) 48%,var(--red) 92%);
   -webkit-background-clip:text; background-clip:text; color:transparent;
 }
+.hero h1.longname{font-size:clamp(23px,6vw,40px); letter-spacing:.06em; white-space:nowrap}
 .hero .lead{margin:12px auto 0; max-width:33em; font-size:13px; line-height:1.9; color:var(--dim)}
 .hero .lead b{color:var(--text); font-weight:600}
 .hr{width:52px; height:2px; margin:16px auto 0; border-radius:2px; background:linear-gradient(90deg,var(--gold),var(--red)); opacity:.8}
@@ -371,6 +372,37 @@ body{
 .term b{font-size:12.5px; color:var(--gold2)}
 .term p{margin:2px 0 0; font-size:11.5px; color:var(--dim); line-height:1.7}
 
+.coin + .coin{margin-left:6px}
+
+/* ---------------------------------------------------------------- 好友房 */
+.duelbar .btag{
+  font-size:10px; letter-spacing:.08em; color:var(--gold2); border:1px solid color-mix(in srgb,var(--gold) 40%, var(--line));
+  border-radius:6px; padding:0 5px; white-space:nowrap;
+}
+.room{
+  border:1px solid var(--line); border-radius:14px; background:var(--panel);
+  padding:18px 14px; display:flex; flex-direction:column; gap:10px; align-items:stretch;
+}
+.room .rcode{
+  font-size:clamp(30px,9vw,46px); font-weight:800; letter-spacing:.34em; text-align:center;
+  padding-left:.34em; color:var(--gold2); text-shadow:0 0 26px color-mix(in srgb,var(--gold) 42%, transparent);
+}
+.room .rstate{display:flex; align-items:center; justify-content:center; gap:7px; font-size:12px; color:var(--dim)}
+.room .rstate .dot{width:8px; height:8px; border-radius:50%; background:var(--gold); animation:pulse 1.6s infinite}
+.room .rstate .dot.ok{background:var(--green); animation:none}
+.room .rstate .dot.bad{background:var(--red); animation:none}
+@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+.rin{
+  width:100%; height:52px; margin:4px 0 2px; padding:0 14px; text-align:center;
+  font:600 22px/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.3em; text-transform:uppercase;
+  color:var(--text); background:var(--panel2); border:1px solid var(--line2); border-radius:10px;
+}
+.rin:focus{outline:none; border-color:var(--gold)}
+/* 魔法 / 陷阱：图集里是画出来的符号，顶条按类别换个颜色，一眼能和怪兽分开 */
+.card[data-k="S"] .rm{background:linear-gradient(90deg,#8b9cf7,#c9bcff)}
+.card[data-k="T"] .rm{background:linear-gradient(90deg,#e8656f,#ffb0aa)}
+.card[data-k="S"] .face,.card[data-k="T"] .face{background-color:#0d0f18}
+
 /* ---------------------------------------------------------------- 杂项 */
 .loading{display:grid; place-items:center; height:60%; color:var(--dim); font-size:13px; letter-spacing:.1em}
 .empty{color:var(--dim); font-size:12.5px; padding:16px 4px}
@@ -394,13 +426,15 @@ body{
 <div class="app">
   <header class="top">
     <a class="back" href="index.html" aria-label="返回">←</a>
-    <div class="ttl"><b>命轮对决</b><span>忘却前夜 · 同人卡牌</span></div>
+    <div class="ttl"><b>唤醒王：决斗链接</b><span>忘却前夜 · 同人卡牌</span></div>
     <div class="coin" title="银芯：赢一场对决 +120，开一包 -60">银芯 <b id="silver">0</b></div>
+    <div class="coin" title="开包券：打赢人机得 1 张，每天最多 3 张；开包时先用券">券 <b id="tickets">0</b></div>
   </header>
 
   <div id="stage">
     <section class="scr on pad" id="scr-home"><div class="loading">正在把命轮摆上桌…</div></section>
     <section class="scr" id="scr-duel"></section>
+    <section class="scr pad" id="scr-room"></section>
     <section class="scr pad" id="scr-packs"></section>
     <section class="scr pad" id="scr-codex"></section>
     <section class="scr pad" id="scr-lore"></section>
