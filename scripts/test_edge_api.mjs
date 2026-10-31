@@ -654,7 +654,7 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   await call('/grants/mine', { headers: U3 });
   await call('/account', { method: 'PUT', headers: U3, body: { doc: { cr: 1, mb: 15000, bb: 40, bs: 2200 }, ver: 0 } });
   // 唤醒王：决斗链接：段位分（只增不减）+ 段位下标，副标要能翻成段位名
-  await call('/account', { method: 'PUT', headers: U3, body: { doc: { cr: 1, mb: 15000, bb: 40, bs: 2200, gd: { dl: [2600, 12, 4, 5] } }, ver: 1 } });
+  await call('/account', { method: 'PUT', headers: U3, body: { doc: { cr: 1, mb: 15000, bb: 40, bs: 2200, gd: { dl: [1200, 12, 4, 3] } }, ver: 1 } });
   const bd = await call('/board');
   eq('老档案（只有 mb）也上合成榜且排第一', bd.json.games.mg.items[0], { name: '丙', score: 15000, sub: '' });
   eq('老档案的鸟弟分也进榜', bd.json.games.bd.items.find((x) => x.name === '丙').score, 2200);
@@ -667,7 +667,7 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   eq('侦探榜按答对题数排，同分正确率高者在前，副标带正确率', bd.json.games.dr.items.map((x) => [x.name, x.score, x.sub]), [['甲', 15, '正确率 75% · 共答 20 题'], ['乙', 15, '正确率 50% · 共答 30 题']]);
   eq('弥萨格大逃杀榜：确认报告数 + 提交数与正确率', bd.json.games.dt.items.map((x) => [x.name, x.score, x.sub]), [['甲', 6, '提交 8 份 · 正确率 75%']]);
   check('侦探榜单位是题', bd.json.games.dr.unit === '题' && !('tb' in bd.json.games.dr.items[0]));
-  eq('决斗榜按段位分排，副标写段位名与战绩', bd.json.games.dl.items.map((x) => [x.name, x.score, x.sub]), [['丙', 2600, '命轮师 · 12 胜 4 负']]);
+  eq('决斗榜按段位分排，副标写段位名与战绩', bd.json.games.dl.items.map((x) => [x.name, x.score, x.sub]), [['丙', 1200, '金印级 · 12 胜 4 负']]);
   check('决斗榜单位是分', bd.json.games.dl.unit === '分' && bd.json.games.dl.label === '段位分');
   check('没分的游戏榜单为空', bd.json.games.sv.items.length === 0);
 }
