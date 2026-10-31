@@ -367,6 +367,111 @@ const logHas = (G, re) => G.log.some((l) => re.test(l.text));
   eq('解放的那只进了墓地', p.grave.length, 1);
 }
 
+// ---------------------------------------------------------------- 13. 特殊召唤：解放召唤 / 替身挡刀 / 衍生物
+{
+  // 解放召唤：不指定祭品时挑攻击力最低的那只，而不是随便喂一只
+  const G = mk();
+  const p = G.players[0];
+  p.mons[0] = mon('m01', 0);          // 1800
+  p.mons[1] = mon('m04', 0);          // 1200 —— 最弱，应该被吃掉
+  p.deck = ['m12', 'm01', 'm01'];     // m12 熔毁·朵尔 L7
+  const sp = give(G, 0, 's99');
+  const r = E.applyAction(G, 0, { t: 'spell', uid: sp.uid });
+  ok('献祭之刃能发动', r.ok, r.err);
+  ok('自动解放的是最弱的那只', p.grave.includes('m04'), p.grave.join(','));
+  ok('m01 还站在场上', p.mons.some((m) => m && m.id === 'm01'));
+  ok('卡组里的 7 星被叫出来了', p.mons.some((m) => m && m.id === 'm12'));
+  eq('解放召唤的怪当回合不能攻击', p.mons.find((m) => m && m.id === 'm12').atkCount, 9);
+}
+{
+  // 指定祭品：玩家在界面上点的那一只优先
+  const G = mk();
+  const p = G.players[0];
+  p.mons[0] = mon('m01', 0);          // 1800
+  p.mons[1] = mon('m02', 0);          // 2100
+  p.deck = ['m12'];
+  const trib = p.mons[0].uid;
+  const sp = give(G, 0, 's99');
+  E.applyAction(G, 0, { t: 'spell', uid: sp.uid, trib });
+  ok('指定的祭品进了墓地', p.grave.includes('m01'), p.grave.join(','));
+  ok('没被指定的那只还在', p.mons.some((m) => m && m.id === 'm02'));
+}
+{
+  // 卡组里没有达标的高星怪：不能白吃一只祭品
+  const G = mk();
+  const p = G.players[0];
+  p.mons[0] = mon('m01', 0);
+  p.deck = ['m01', 'm01'];
+  const sp = give(G, 0, 's101');
+  const sp2 = give(G, 0, 's99');
+  E.applyAction(G, 0, { t: 'spell', uid: sp2.uid });
+  ok('卡组没有 7 星时，献祭之刃不会白吃祭品', !!p.mons[0] && !p.grave.includes('m01'));
+}
+{
+  // 替身人偶：对方直接攻击时，叫一只「等级低一级」的挡在面前
+  // 攻击者用 800 攻、守备方叫 1800 守备的 2 星怪——挡得住，能看清它真的留在场上
+  const G = mk();
+  const me = G.players[0], op = G.players[1];
+  me.mons = [null, null, null];
+  me.deck = ['m99', 'm04'];                      // m99 是 2 星（900/1800），m04 是 3 星（不该被选）
+  me.spells[0] = { uid: 7001, id: 't46', set: true, turnSet: G.turn - 1, equipOn: 0 };
+  op.mons[0] = mon('m05', 1);                    // 莉莉 L3 800 攻
+  G.active = 1; G.phase = 'battle';
+  const el = E.eligibleTraps(G, 1, { t: 'attack', uid: op.mons[0].uid, target: null });
+  ok('替身陷阱会进询问窗口', el.some((x) => x.id === 't46'), JSON.stringify(el));
+  const hp = me.lp;
+  const r = E.attack(G, 1, op.mons[0].uid, null);
+  ok('攻击被挡下来，没有打脸', r.ok, r.err);
+  const gm = me.mons.find(Boolean);
+  ok('场上多了一只挡刀的怪兽', !!gm, JSON.stringify(me.mons));
+  eq('叫出来的是等级比它低 1 的（2 星）', gm && CARDS[gm.id].lv, 2);
+  ok('3 星的那只没被叫出来', !!gm && gm.id === 'm99');
+  eq('那只怪是守备表示', gm && gm.pos, 'def');
+  eq('陷阱用掉了', me.spells.filter(Boolean).length, 0);
+  eq('直接攻击的伤害被挡掉了（掉血的是攻击方）', me.lp, hp);
+}
+{
+  // 残影帷幕：直接摆两只衍生物挡刀
+  const G = mk();
+  const me = G.players[0], op = G.players[1];
+  me.mons = [null, null, null];
+  me.spells[0] = { uid: 7002, id: 't47', set: true, turnSet: G.turn - 1, equipOn: 0 };
+  op.mons[0] = mon('m10', 1);
+  G.active = 1; G.phase = 'battle';
+  const hp = me.lp;
+  E.attack(G, 1, op.mons[0].uid, null);
+  const tks = me.mons.filter(Boolean);
+  eq('衍生物是守备表示', tks.every((m) => m.pos === 'def'), true);
+  ok('场上留下了残影（至少一只没被踩掉）', tks.length >= 1 && tks.every((m) => m.id === 'tk1'));
+  eq('直接攻击被挡下，命轮值没掉', me.lp, hp);
+}
+{
+  // 卡组里没有能叫的怪：陷阱留着，这一下照常打脸
+  const G = mk();
+  const me = G.players[0], op = G.players[1];
+  me.mons = [null, null, null];
+  me.deck = [];
+  me.spells[0] = { uid: 7003, id: 't46', set: true, turnSet: G.turn - 1, equipOn: 0 };
+  op.mons[0] = mon('m10', 1);
+  G.active = 1; G.phase = 'battle';
+  const hp = me.lp;
+  E.attack(G, 1, op.mons[0].uid, null);
+  eq('叫不出怪兽时陷阱不会被浪费', me.spells.filter(Boolean).length, 1);
+  ok('这一下还是打在了脸上', me.lp < hp, `${me.lp} / ${hp}`);
+}
+{
+  // 血肉园圃：两只守备衍生物 + 回血（衍生物的 pos 要照卡面写）
+  const G = mk();
+  const p = G.players[0];
+  p.lp = 5000;
+  const sp = give(G, 0, 's101');
+  E.applyAction(G, 0, { t: 'spell', uid: sp.uid });
+  const tks = p.mons.filter(Boolean);
+  eq('叫出 2 只灰烬傀儡', tks.length, 2);
+  eq('衍生物是守备表示', tks.every((m) => m.pos === 'def' && m.id === 'tk2'), true);
+  eq('回复了 600 点命轮值', p.lp, 5600);
+}
+
 console.log(`通过 ${pass} 项`);
 if (fails.length) {
   console.log('失败：');

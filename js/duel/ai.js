@@ -88,6 +88,16 @@ function scoreSpell(G, p, o, card) {
     if (f.k === 'specialSummon') {
       s += f.f === 'grave' ? (p.grave.length ? 5 : -4) : (p.hand.length > 1 ? 5 : -3);
     }
+    // 解放召唤：一只换一只更大的，基本稳赚；但只剩一只觉醒素材时留着凑素材更值
+    if (f.k === 'tributeSummon') {
+      const own = p.mons.filter(Boolean);
+      const mats = {};
+      for (const id of p.extra) for (const nm of (d(id).mat || [])) mats[nm] = 1;
+      const spare = own.filter((m) => !mats[d(m.id).n]);
+      if (!own.length) s -= 99;
+      else if (!spare.length) s += 2;
+      else s += 7;
+    }
     if (f.k === 'extraNormal') s += p.hand.some((h) => d(h.id) && d(h.id).k === 'M') ? 7 : 1;
     if (f.k === 'extraDraw') s += 7;
     if (f.k === 'summonTaxDiscard') s += 4;
@@ -121,8 +131,18 @@ function scoreSpell(G, p, o, card) {
   return s;
 }
 
-function bestSpell(G, p, o) {
-  let best = null;
+// 解放召唤的祭品：先挑「不是觉醒素材」里最弱的那只；全场都是素材才随便挑一只
+function tribFor(G, p) {
+  const mats = {};
+  for (const id of p.extra) for (const nm of (d(id).mat || [])) mats[nm] = 1;
+  const own = p.mons.filter(Boolean);
+  const spare = own.filter((m) => !mats[d(m.id).n]);
+  const pool = spare.length ? spare : own;
+  if (!pool.length) return undefined;
+  return pool.slice().sort((a, b) => atkOf(G, p, a) - atkOf(G, p, b))[0].uid;
+}
+
+function bestSpell(G, p, o) {  let best = null;
   let bestScore = 0;
   for (const h of p.hand) {
     const def = d(h.id);
@@ -314,7 +334,7 @@ function freeTrap(G, side, p, o) {
 //   · 中等（0.15~0.35）：只在威胁够大的时候发，最多发一张；
 //   · 低（<0.15）：像高手一样「留着」——只对真正疼的动作发（大额伤害 / 高攻怪兽 / 觉醒体 / 致命一击），
 //     并且按对症程度挑最合适的那一张，不浪费第二张。
-const ATK_PRIO = ['destroyAttacker', 'negateAttack', 'reflect', 'trapCounterMon', 'trapBarrier', 'trapCounter', 'trapPoison', 'battleBoost'];
+const ATK_PRIO = ['destroyAttacker', 'negateAttack', 'summonOnAttack', 'tokenOnAttack', 'reflect', 'trapCounterMon', 'trapBarrier', 'trapCounter', 'trapPoison', 'battleBoost'];
 function trapRank(id, a) {
   const ks = (d(id).fx || []).map((f) => f.k);
   if (a.t === 'attack') { const i = ATK_PRIO.findIndex((k) => ks.includes(k)); return i < 0 ? 99 : i; }
@@ -415,7 +435,12 @@ export function nextAction(G, side, skill) {
     // 3. 魔法
     if (canSp && G.rng() >= sloppy) {
       const sp = bestSpell(G, p, o);
-      if (sp) return { t: 'spell', uid: sp.uid };
+      if (sp) {
+        // 解放召唤的魔法要自己指定祭品，不然引擎会按「攻击力最低」默认挑，
+        // 可能把攒着的觉醒素材喂掉。
+        const needTrib = (d(sp.id).fx || []).some((f) => f.k === 'tributeSummon');
+        return { t: 'spell', uid: sp.uid, trib: needTrib ? tribFor(G, p) : undefined };
+      }
     }
     // 4. 召唤：这里有两种错法——该上不上（空过），或者随手上一只小的
     if (canSum && G.rng() >= sloppy * 0.55) {
