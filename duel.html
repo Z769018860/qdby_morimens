@@ -429,6 +429,15 @@ body{
 /* 场上怪兽的「攻击 / 守备」标签挪到卡面上沿，别压住下面的攻防数值 */
 .slot .card .tagp{bottom:auto; top:20px; right:3px}
 .card.mini{--cw:64px; --ch:88px}
+.dock{flex:0 0 auto; display:flex; flex-wrap:wrap; gap:6px; justify-content:center; padding:6px 0 max(8px, env(safe-area-inset-bottom)); width:100%; max-width:var(--fw,540px); margin:0 auto}
+.dock .btn{flex:1 1 auto; min-width:4.6em}
+.card.setmine{outline:1.5px dashed var(--gold2); outline-offset:-2px}
+.card.setmine .face{filter:saturate(.7) brightness(.82)}
+.card.setmine.can{outline:2px solid var(--gold); animation:trapglow 1.6s ease-in-out infinite}
+@keyframes trapglow{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 10px 2px color-mix(in srgb,var(--gold) 70%, transparent)}}
+.card.setmine .tagp{background:var(--gold2); color:#1a1206}
+#actbar .eff{margin:6px 2px 2px; font-size:12.5px; line-height:1.55; color:var(--text)}
+#actbar .stat{font-size:11.5px; color:var(--dim); margin-left:6px}
 .atkbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%}.atkbar .note{flex:1 1 100%}.atkbar .btn[disabled]{opacity:.45;cursor:not-allowed}
 .card.mini .nm{font-size:9px}
 .card.big{--cw:132px; --ch:186px}
@@ -681,11 +690,11 @@ body{
    --off 是除了卡牌以外的固定占高（顶栏 / 血条 / 日志 / 操作条…），各版式在下面各自给一个数。 */
 #scr-duel{
   --bw:calc(100vw - 28px);
-  --off:520px;
+  --off:560px;
   --mmax:190px; --mmin:70px; --div:3.74;
   --mcw:min(calc(clamp(var(--mmin), calc((100dvh - var(--off)) / var(--div)), var(--mmax)) * .8), calc((var(--bw) - 34px) / 3));
   --mch:calc(var(--mcw) / .8);
-  --sch:clamp(34px, calc(var(--mch) * .42), 84px);
+  --sch:clamp(70px, calc(var(--mch) * .78), 132px);
   --scw:calc(var(--sch) * .74);
   --hch:clamp(88px, calc(var(--mch) * .9), 170px);
   --hcw:calc(var(--hch) * .75);
@@ -703,8 +712,9 @@ body{
 #scr-duel .slot.sp{min-height:calc(var(--sch) + 6px)}
 #scr-duel .slot.sp .card{--cw:var(--scw); --ch:var(--sch)}
 #scr-duel .slot.sp .card .ct{min-height:0; height:calc(var(--sch) * .3)}
-#scr-duel .slot.sp .card .nm{font-size:clamp(7.5px, calc(var(--scw) * .17), 11px)}
-#scr-duel .slot.sp .card .pt{font-size:clamp(7px, calc(var(--scw) * .15), 10px)}
+#scr-duel .slot.sp .card .nm{font-size:clamp(9px, calc(var(--scw) * .17), 12px)}
+#scr-duel .slot.sp .card .pt{display:none}
+#scr-duel .slot.sp .card .ct{height:auto; min-height:calc(var(--sch) * .22)}
 #scr-duel .hand{justify-content:safe center; min-height:calc(var(--hch) + 12px)}
 #scr-duel .hand .card{--cw:var(--hcw); --ch:var(--hch)}
 #scr-duel .hand .card .nm{font-size:clamp(9px, calc(var(--hcw) * .14), 14px)}
@@ -764,7 +774,7 @@ body{
   #scr-duel{--off:410px}
 }
 </style>
-<meta name="build" content="e079b7f3e2">
+<meta name="build" content="659dd9f4ff">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -801,7 +811,7 @@ html{-webkit-tap-highlight-color:transparent}
 <div class="actbar" id="actbar"></div>
 <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
 
-<script type="module" src="js/b/duel.js?v=e079b7f3e2"></script>
+<script type="module" src="js/b/duel.js?v=659dd9f4ff"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

@@ -4,7 +4,7 @@
 // 设计取向：会算数值，但不算未来的牌。它的强度来自「不浪费」——
 // 不做亏本交换、不在能斩杀的时候去盖牌、该打脸的时候不打墙。
 import { CARDS } from './gen.js';
-import { atkOf, defOf, canAttack, canSummon, canAwaken, canDirect, tributeNeed, mustHitFirst } from './engine.js';
+import { atkOf, defOf, canAttack, canSummon, canAwaken, canDirect, tributeNeed, mustHitFirst, trapManualBlock } from './engine.js';
 
 function d(id) { return CARDS[id]; }
 function fxv(mon, k) {
@@ -241,6 +241,24 @@ function worstAttack(G, side) {
 }
 
 // 返回「下一步」：{ t: 'awaken'|'spell'|'summon'|'setMon'|'trap'|'pos'|'battle'|'attack'|'end', ... }
+// 盖放的「非应对型」陷阱：主要阶段里挑个合适的时候主动发动（抽牌 / 回复 / 弹牌 / 削攻 / 永续翻开）
+function freeTrap(G, side, p, o) {
+  for (const s of p.spells) {
+    if (!s || !s.set || trapManualBlock(G, side, s)) continue;
+    const dd = d(s.id);
+    const ks = (dd.fx || []).map((f) => f.k);
+    const ok = (k) => ks.includes(k);
+    if (ok('draw') || ok('tradeDraw') || ok('healDraw')) return s;
+    if (ok('heal') && p.lp <= p.lpMax - 1500) return s;
+    if (ok('discardOpp') && o.hand.length >= 2) return s;
+    if ((ok('bounce') || ok('weakenEnemyAll') || ok('weakenHighest')) && o.mons.some(Boolean)) return s;
+    if (ok('snipeDraw') && o.spells.some((x) => x && x.set)) return s;
+    if (ok('graveBurn') && p.grave.length >= 3) return s;
+    if (ks.some((k) => k.startsWith('cont')) || ok('trapBarrier')) return s;
+  }
+  return null;
+}
+
 export function nextAction(G, side, skill) {
   const p = G.players[side];
   const o = G.players[1 - side];
@@ -248,6 +266,11 @@ export function nextAction(G, side, skill) {
   const sloppy = sloppyOf(skill);
 
   if (G.phase === 'main') {
+    // 0. 盖着的非应对型陷阱（盖放那回合之外）：到时候就翻
+    if (G.rng() >= sloppy * 0.6) {
+      const ft = freeTrap(G, side, p, o);
+      if (ft) return { t: 'activateTrap', uid: ft.uid };
+    }
     // 1. 觉醒体优先：素材已经站住了就别再拖（弱手会一直忘）
     if (G.rng() >= sloppy * 0.8) {
       for (const id of p.extra) {

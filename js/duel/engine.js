@@ -957,6 +957,46 @@ export function canUse(G, side, uid) {
   return null;
 }
 
+// ---- 主动发动陷阱 ----
+// 陷阱除了盖放的那一回合，其他时点都能由持有者主动发动：自己的回合（主要 / 战斗阶段）、对方的回合都行。
+// 「应对型」陷阱（无效攻击 / 召唤 / 魔法、反击伤害等）没有可以主动发动的效果，仍然只在对应的时点自动迎击；
+// 其余（抽牌 / 回复 / 弹手牌 / 削攻 / 墓地烧伤 / 永续等）以前根本没有任何时点会触发它们——现在都能手动发动。
+const REACTIVE_TRAP = new Set([
+  'negateAttack', 'destroyAttacker', 'reflect', 'battleBoost', 'trapPoison', 'trapCounter', 'trapCounterMon',
+  'destroySummon', 'negateSummon', 'negateSpell', 'negateSpellSnipe', 'negateTrap',
+]);
+const CONT_TRAP = new Set(['contBoth', 'contBurn', 'contPunish', 'contBarrier', 'contHeal', 'contPoison', 'contBleed']);
+/** 这张盖放的陷阱现在能不能由持有者主动发动；返回 null 表示可以，否则是原因 */
+export function trapManualBlock(G, side, s) {
+  const p = G.players[side];
+  if (!s || !s.set) return '这张陷阱已经发动过了';
+  const d = CARDS[s.id];
+  if (!d || d.k !== 'T') return '不是陷阱卡';
+  if (s.turnSet >= G.turn) return '盖放的这一回合不能发动';
+  const list = fx(d);
+  if (list.length && list.every((f) => REACTIVE_TRAP.has(f.k))) return '这张是应对型陷阱：对方做出对应动作时会自动发动';
+  if (!canFire(p, s)) return '命轮值不够付代价';
+  return null;
+}
+export function activateTrap(G, side, uid) {
+  const p = G.players[side];
+  if (G.over) return fail('对决已经结束了');
+  const s = p.spells.find((x) => x && x.uid === uid);
+  if (!s) return fail('找不到这张陷阱');
+  const why = trapManualBlock(G, side, s);
+  if (why) return fail(why);
+  const d = CARDS[s.id];
+  const cont = fx(d).some((f) => CONT_TRAP.has(f.k));
+  fire(G, p, s, cont);
+  for (const f of fx(d)) {
+    if (CONT_TRAP.has(f.k)) continue;        // 永续效果：翻开后由回合开始 / 结束时结算
+    applyFx(G, p, f.k === 'trapBarrier' ? { k: 'barrier', v: f.v || 1 } : f, {});
+    if (G.over) break;
+  }
+  checkOver(G);
+  return ok();
+}
+
 // ---- 陷阱的自动迎击：本作的陷阱不设「是否发动」的询问，
 // 满足条件就开（规则页里写明了）。这样玩家不用在每个时点被弹窗打断，
 // AI 也不用模拟对手的犹豫。
@@ -1515,6 +1555,7 @@ export function applyAction(G, side, a) {
     case 'setMon': return setMonster(G, side, a.uid);
     case 'spell': return activateSpell(G, side, a.uid);
     case 'trap': return setTrap(G, side, a.uid);
+    case 'activateTrap': return activateTrap(G, side, a.uid);
     case 'pos': return changePos(G, side, a.uid);
     case 'battle': return toBattle(G, side);
     case 'attack': return attack(G, side, a.uid, a.target == null ? null : a.target);

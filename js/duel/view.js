@@ -168,6 +168,7 @@ function cardHTML(id, opt) {
   if (o.set) cls.push('set');
   if (o.on) cls.push('on');
   if (o.dim) cls.push('dim');
+  if (o.cls) cls.push(o.cls);
   if (o.def) cls.push('def');
   if (o.used) cls.push('used');
   const rb = c.rar || 'N';
@@ -587,9 +588,14 @@ function slotHTML(m, i, side, hot) {
 function spellSlotHTML(s, i, side, hot) {
   if (!s) return `<div class="slot sp empty ${hot ? 'hot' : ''}" data-slot="${side}-sp-${i}"></div>`;
   const c = s.id ? CARDS[s.id] : null;
-  const card = c && !s.set
-    ? cardHTML(c, { mini: true, tag: '发动' })
-    : cardHTML({ id: 'back', n: '盖放', k: 'T', r: 'any', rar: 'N', lv: 0, atk: 0, def: 0 }, { mini: true, set: true });
+  let card;
+  if (c && !s.set) card = cardHTML(c, { mini: true, tag: '发动' });
+  else if (c && side === 'me') {
+    // 自己盖着的牌：看得见是什么。现在能主动发动的（非应对型、不是盖放的那一回合）标「可发动」并发光，点开就能用
+    const can = S.G && c.k === 'T' && !E.trapManualBlock(S.G, SIDE(), s);
+    card = cardHTML(c, { mini: true, tag: can ? '可发动' : '盖放', cls: can ? 'setmine can' : 'setmine' });
+  }
+  else card = cardHTML({ id: 'back', n: '盖放', k: 'T', r: 'any', rar: 'N', lv: 0, atk: 0, def: 0 }, { mini: true, set: true });
   return `<div class="slot sp" data-slot="${side}-sp-${i}">${card}</div>`;
 }
 
@@ -651,7 +657,7 @@ function renderDuel() {
 
   const modeTag = S.bt === 'local' ? `<span class="btag">同屏 · 轮到${nameOf(G.active)}</span>`
     : (S.bt === 'net' ? `<span class="btag">房间 ${S.room ? S.room.code : '—'}</span>`
-      : (S.ai ? `<span class="btag ai">Lv${S.ai.lv} · ${S.ai.n}</span>` : ''));
+      : (S.ai ? `<span class="btag ai" title="对手这一局的档位与打错牌概率">Lv${S.ai.lv} · ${S.ai.n} · 失误${Math.round(S.ai.sloppy * 100)}%</span>${S.foeDeck ? `<span class="btag dvt" title="对手这套牌">${S.foeDeck}</span>` : ''}` : ''));
 
   const waitTxt = S.bt === 'net'
     ? (v.over ? '对决结束。' : '等好友出牌…')
@@ -682,13 +688,6 @@ function renderDuel() {
       <span class="turn">第 ${Math.ceil(v.turn / 2)} 回合</span>
       <span class="ph">${phaseText(G, side)}</span>
       ${modeTag}
-      <span class="sp">
-        ${canAct && v.phase === 'main' && extraLeft ? `<button class="btn sm" data-act="extra">额外 ${awakenable}/${extraLeft}</button>` : ''}
-        ${canAct && v.phase === 'main' ? '<button class="btn sm" data-act="battle">战斗阶段</button>' : ''}
-        ${canAct ? '<button class="btn sm pri" data-act="end">结束回合</button>' : ''}
-        <button class="btn sm ghost" data-act="sfx">${S.mute ? '音效关' : '音效开'}</button>
-        ${S.bt === 'pve' ? '' : '<button class="btn sm ghost" data-act="leave">离开</button>'}
-      </span>
     </div>
 
     ${hint}
@@ -696,8 +695,6 @@ function renderDuel() {
     <div class="side op-side">
       <div class="pinfo">
         <span class="who">${nameOf(1 - side)}</span>
-        ${S.bt === 'pve' && S.ai ? `<i class="aih" title="对手这一局的档位与打错牌概率">Lv${S.ai.lv}<em>失误${Math.round(S.ai.sloppy * 100)}%</em></i>` : ''}
-        ${S.bt === 'pve' && S.foeDeck ? `<i class="dv" title="对手这套牌">${S.foeDeck}</i>` : ''}
         ${lpBar(v.op, 'lpOp')}
         <span class="meta"><span>手 ${v.op.hand}</span><span>组 ${v.op.deck}</span>${stTags(v.op)}</span>
         ${bondsDots(v.op.bonds)}
@@ -726,6 +723,13 @@ function renderDuel() {
     </div>
 
     <div class="hand ${hand ? '' : 'empty-h'}">${hand || '手牌空了'}</div>
+    <div class="dock">
+      ${canAct && v.phase === 'main' && extraLeft ? `<button class="btn sm" data-act="extra">额外 ${awakenable}/${extraLeft}</button>` : ''}
+      ${canAct && v.phase === 'main' ? '<button class="btn sm" data-act="battle">战斗阶段</button>' : ''}
+      ${canAct ? '<button class="btn sm pri" data-act="end">结束回合</button>' : ''}
+      <button class="btn sm ghost" data-act="sfx">${S.mute ? '音效关' : '音效开'}</button>
+      ${S.bt === 'pve' ? '' : '<button class="btn sm ghost" data-act="leave">离开</button>'}
+    </div>
   `;
 
   const log = $('#log');
@@ -752,6 +756,32 @@ function attackBar(G, side, v, guard) {
     + '<button class="btn ghost" data-act="cancel">取消</button></div>';
 }
 
+// 点魔法·陷阱区的牌：直接看效果；自己盖着的陷阱，满足条件就能主动发动（盖放的那一回合除外，自己的回合 / 对方的回合都行）
+function renderSpellBar(bar, G, side) {
+  const own = S.sel.own;
+  const pl = G.players[own ? side : 1 - side];
+  const s = pl.spells.find((x) => x && x.uid === S.sel.uid);
+  if (!s || (!own && s.set)) { bar.classList.remove('on'); return; }
+  const c = CARDS[s.id];
+  if (!c) { bar.classList.remove('on'); return; }
+  let btn = '', hint = '';
+  if (own && s.set && c.k === 'T') {
+    const why = E.trapManualBlock(G, side, s);
+    const turnOk = S.bt === 'pve' || G.active === side;     // 好友房 / 同屏：只在自己的回合；人机：对方回合也能点
+    if (!why && turnOk) btn = '<button class="btn pri" data-act="fire-trap">发动</button>';
+    else btn = '<button class="btn" disabled>现在不能发动</button>';
+    hint = !why && !turnOk ? '这个模式只能在自己的回合主动发动陷阱。' : (why || '盖放的陷阱：除了盖放的那一回合，自己的回合和对方的回合都可以主动发动。');
+  } else if (s.set) hint = '盖着的牌。';
+  else hint = c.k === 'S' ? '已经发动、留在场上的魔法。' : '已经翻开、留在场上的永续陷阱。';
+  bar.innerHTML = `
+    <div class="ah"><b>${c.n}</b><span class="note">${KIND_TXT[c.k]}${s.set ? ' · 盖放中' : ''} · ${REALM_TXT[c.r] || c.r}${costTag(c)}</span>
+      <button class="btn sm ghost x" data-act="cancel">关闭</button></div>
+    <p class="eff">${c.text || ''}</p>
+    <div class="ab">${btn}</div>
+    <div class="hint">${hint}</div>`;
+  bar.classList.add('on');
+}
+
 function renderActbar() {
   const bar = $('#actbar');
   const G = S.G;
@@ -763,6 +793,7 @@ function renderActbar() {
   }
   const side = SIDE();
   const p = G.players[side];
+  if (S.sel.type === 'sp') return renderSpellBar(bar, G, side);
   const isHand = S.sel.type === 'hand';
   const h = isHand ? p.hand.find((x) => x.uid === S.sel.uid) : null;
   const c = isHand ? CARDS[h && h.id] : null;
@@ -773,13 +804,13 @@ function renderActbar() {
     const d = CARDS[m.id];
     const canFight = G.phase === 'battle' && E.canAttack(G, p, m) && G.active === side;
     bar.innerHTML = `
-      <div class="ah"><b>${d.n}</b><span class="note">${d.atk} / ${d.def}</span>
+      <div class="ah"><b>${d.n}</b><span class="note">${d.atk} / ${d.def}${costTag(d)}</span>
         <button class="btn sm ghost x" data-act="cancel">关闭</button></div>
+      <p class="eff">${d.text || ''}</p>
       <div class="ab">
         ${canFight ? '<button class="btn pri" data-act="pick-target">攻击</button>' : ''}
         ${G.phase === 'main' && G.active === side && E.canAttack(G, p, m) ? '<button class="btn pri" data-act="battle">进入战斗阶段</button>' : ''}
         ${G.phase === 'main' && G.active === side ? '<button class="btn" data-act="flip">切换表示</button>' : ''}
-        <button class="btn ghost" data-act="read">效果</button>
       </div>
       <div class="hint">${m.set ? '盖放的怪兽：翻开后按守备表示。' : (m.pos === 'def' ? '守备表示，不会受到战斗伤害（对方打过来时反过来算）。' : (canFight ? '点它再选目标；对方有守备的「嘲讽」怪兽时必须先打它。' : '本回合它已经攻击过了，或者现在不是战斗阶段。'))}</div>`;
     bar.classList.add('on');
@@ -792,7 +823,6 @@ function renderActbar() {
     const need = E.tributeNeed(c.id);
     if (canS) opts.push('<button class="btn pri" data-act="summon">召唤</button>');
     if (need === 0) opts.push('<button class="btn" data-act="setmon">里侧守备</button>');
-    opts.push('<button class="btn ghost" data-act="read">效果</button>');
   } else if (c.k === 'S') {
     // 速攻（钥令那批）战斗阶段也能开；其余魔法只能在主要阶段。
     // 以前按钮一直亮着、点了才被引擎拒，看起来像「按键没反应」。
@@ -800,10 +830,8 @@ function renderActbar() {
     opts.push(canNow
       ? '<button class="btn pri" data-act="spell">发动</button>'
       : '<button class="btn" disabled>不是发动时机</button>');
-    opts.push('<button class="btn ghost" data-act="read">效果</button>');
   } else if (c.k === 'T') {
     opts.push('<button class="btn pri" data-act="trap">盖放</button>');
-    opts.push('<button class="btn ghost" data-act="read">效果</button>');
   }
   const hint = c.k === 'M'
     ? (E.canSummon(G, p, c.id)
@@ -813,10 +841,11 @@ function renderActbar() {
       ? (c.t === 'quick'
         ? '速攻魔法：主要阶段和战斗阶段都能发动；开完立刻结算。'
         : '魔法只能在自己的主要阶段从手牌发动；永续与装备留在场上。')
-      : '陷阱盖放后，对方满足条件时自动发动。');
+      : '陷阱盖放后：应对型（无效 / 反击伤害 / 屏障…）对方做出对应动作时自动发动；其余的（抽牌、回复、弹牌、削攻、永续…）除了盖放的那一回合，自己的回合和对方的回合都能点开主动发动。');
   bar.innerHTML = `
     <div class="ah"><b>${c.n}</b><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}${costTag(c)}</span>
       <button class="btn sm ghost x" data-act="cancel">关闭</button></div>
+    <p class="eff">${c.text || ''}</p>
     <div class="ab">${opts.join('')}</div>
     <div class="hint">${hint}</div>`;
   bar.classList.add('on');
@@ -933,6 +962,7 @@ function aiAction(a) {
   if (a.t === 'summon') return { t: 'summon', uid: a.uid, tribs: a.tribs };
   if (a.t === 'setMon') return { t: 'setMon', uid: a.uid };
   if (a.t === 'trap') return { t: 'trap', uid: a.uid };
+  if (a.t === 'activateTrap') return { t: 'activateTrap', uid: a.uid };
   if (a.t === 'pos') return { t: 'pos', uid: a.uid };
   if (a.t === 'battle') return { t: 'battle' };
   if (a.t === 'attack') return { t: 'attack', uid: a.uid, target: a.target };
@@ -1855,7 +1885,7 @@ function showHowTo() {
         造物各有一枚自己的道具图标，认图标比认名字快。</li>
       <li><b>直接召唤</b>：额外卡组里另一种召唤方式。<b>满足卡面条件</b>（如「自己场上有 2 只怪兽」）或<b>献出命轮值</b>即可召唤，
         不用素材、<b>不占通常召唤</b>；代价是每回合只能 1 次，而且当回合不能攻击。为了不破坏平衡，额外卡组里最多放 2 张。</li>
-      <li><b>陷阱</b>：本作的陷阱是「自动迎击」——满足条件就发动，不用你宣言。所以盖牌的顺序要考虑对手会先干什么。</li>
+      <li><b>陷阱</b>：分两种。<b>应对型</b>（无效攻击 / 召唤 / 魔法、反击伤害、屏障…）是「自动迎击」——满足条件就发动，不用你宣言；<b>主动型</b>（抽牌、回复、弹手牌、削攻、永续…）盖放的那一回合不能用，之后自己的回合和对方的回合都可以点开自己盖着的牌主动发动（好友房 / 同屏只能在自己的回合）。</li>
       <li><b>重复卡</b>：收藏里每张留 3 张就够，第 4 张起开包时自动折算成银芯（每张 1 芯），
         卡包页也有「一键回收多余」。一包里同一种卡最多出 3 张——所以开包能开出重复，但不会一包全是同一张。</li>
       <li><b>羁绊</b>：卡组里同时有指定角色就会在开局触发，加攻、加血、多抽牌。配队比单卡重要。</li>
@@ -2130,6 +2160,16 @@ function bind() {
     if (name === 'summon' || name === 'setmon' || name === 'spell' || name === 'trap') {
       return onHandAct(name);
     }
+    if (name === 'fire-trap') {
+      if (!S.sel || S.sel.type !== 'sp') return;
+      const G = S.G;
+      if (S.bt !== 'pve' && G.active !== SIDE()) return toast('这个模式只能在自己的回合主动发动陷阱');
+      const r = act({ t: 'activateTrap', uid: S.sel.uid });
+      if (!r.ok) return toast(r.err);
+      S.sel = null; S.mode = 'idle';
+      renderDuel();
+      return;
+    }
     if (name === 'read') {
       const side = SIDE();
       const c = S.sel && S.sel.type === 'hand'
@@ -2150,6 +2190,15 @@ function bind() {
       return;
     }
     const slot = e.target.closest('.slot');
+    // 魔法·陷阱区：任何时候都能点开看效果；自己盖着的陷阱可以主动发动（人机模式下对方的回合也行，所以不受 busy 限制）
+    if (slot && S.G && !S.G.over && slot.dataset.slot.split('-')[1] === 'sp' && S.mode !== 'tribute' && S.mode !== 'attack') {
+      const parts = slot.dataset.slot.split('-');
+      const own = parts[0] === 'me';
+      const cardEl = slot.querySelector('.card');
+      const G = S.G, me = SIDE();
+      const sp = G.players[own ? me : 1 - me].spells[Number(parts[2])];
+      if (sp && cardEl) { S.sel = { type: 'sp', uid: sp.uid, own }; S.mode = 'act'; renderActbar(); return; }
+    }
     if (slot && S.G && !S.busy) {
       const parts = slot.dataset.slot.split('-');
       const side = parts[0];
@@ -2206,6 +2255,7 @@ export function boot(opt) {
   if (/[?&]_test=1/.test(location.search)) {
     window.__duel = {
       S, E, CARDS, DECKS, SFX,
+      render: () => renderDuel(),
       start: (deckId, seed) => {
         const mine = deckById(deckId || S.deckId);
         const foe = DECKS.filter((d) => d.id !== mine.id)[0];
