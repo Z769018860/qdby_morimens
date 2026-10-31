@@ -697,56 +697,66 @@ function drawCat(e) {
 // 图纸上那个红点就是「下一只怪放这儿」，和他每 7 秒补两只的行为对得上。
 function drawMijiu(e) {
   const x = e.x, y = e.y + Math.sin(e.wob) * 2;
-  const r = e.r, h = r * 2.0;
+  const r = e.r;
+  // 肩线在这里：头的下沿要压到肩上，否则会画成一个飘着的头
+  const sy = y - r * 0.40;
   ctx.save();
-  // 外套：下摆略宽，浅灰蓝 —— 暗场里够亮，但比校猫的金色克制
-  const body = ctx.createLinearGradient(x, y - h * 0.5, x, y + h * 0.55);
+  // 外套：下摆略宽，白衬衫到灰蓝，暗场里够亮但比校猫的金色克制
+  const body = ctx.createLinearGradient(x, sy, x, y + r * 0.95);
   body.addColorStop(0, '#eef3fa');
   body.addColorStop(1, '#8399b4');
   ctx.fillStyle = body;
   ctx.beginPath();
-  ctx.moveTo(x - r * 0.46, y - h * 0.05);
-  ctx.lineTo(x + r * 0.46, y - h * 0.05);
+  ctx.moveTo(x - r * 0.42, sy);
+  ctx.lineTo(x + r * 0.42, sy);
   ctx.lineTo(x + r * 0.62, y + r * 0.95);
   ctx.lineTo(x - r * 0.62, y + r * 0.95);
   ctx.closePath(); ctx.fill();
-  // 领口：一条深色横带，否则整个人像一根柱子
-  ctx.fillStyle = 'rgba(30,38,52,0.85)';
-  ctx.fillRect(x - r * 0.5, y - h * 0.08, r, r * 0.14);
+  // 围巾：一条深色横带，和头像里那条对上，也把「头 / 身」的分界压清楚
+  ctx.fillStyle = 'rgba(30,38,52,0.88)';
+  ctx.fillRect(x - r * 0.44, sy - r * 0.04, r * 0.88, r * 0.15);
   // 头
-  const headY = y - h * 0.42;
-  ctx.fillStyle = '#f0e4d8';
+  const headY = sy - r * 0.40;
+  ctx.fillStyle = '#f6e6d4';
   ctx.beginPath(); ctx.arc(x, headY, r * 0.42, 0, Math.PI * 2); ctx.fill();
   // 头发：上半个圆 + 偏分的一撮。颜色照他 B 站头像（橘棕），别画成黑发 ——
   // 头像就是玩家对他的第一印象，颜色对上了才认得出是同一个人。
   ctx.fillStyle = '#c7843f';
-  ctx.beginPath(); ctx.arc(x, headY, r * 0.43, Math.PI * 1.04, Math.PI * 1.96); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(x - r * 0.08, headY - r * 0.33, r * 0.34, r * 0.15, -0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, headY, r * 0.43, Math.PI * 1.02, Math.PI * 1.98); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x - r * 0.08, headY - r * 0.31, r * 0.36, r * 0.16, -0.18, 0, Math.PI * 2); ctx.fill();
   // 眼镜：两片圆框加鼻梁，这是他唯一的识别符，别省
   ctx.strokeStyle = 'rgba(232,242,255,0.92)'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(x - r * 0.16, headY + r * 0.02, r * 0.13, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath(); ctx.arc(x + r * 0.16, headY + r * 0.02, r * 0.13, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(x - r * 0.03, headY + r * 0.02); ctx.lineTo(x + r * 0.03, headY + r * 0.02); ctx.stroke();
+  // 手臂：从肩膀斜到卡片，否则那张纸会像浮在半空
+  ctx.strokeStyle = '#dfe7f2';
+  ctx.lineWidth = r * 0.15;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x + r * 0.34, y - r * 0.14);
+  ctx.lineTo(x + r * 0.54, y + r * 0.16);
+  ctx.stroke();
   // 手里的图纸：白卡片 + 两行网格 + 一个红点
-  const cx0 = x + r * 0.64, cy0 = y + r * 0.12;
+  const cx0 = x + r * 0.6, cy0 = y + r * 0.2;
   ctx.fillStyle = 'rgba(248,250,255,0.94)';
-  ctx.fillRect(cx0 - r * 0.26, cy0 - r * 0.3, r * 0.52, r * 0.6);
+  ctx.fillRect(cx0 - r * 0.24, cy0 - r * 0.28, r * 0.48, r * 0.56);
   ctx.strokeStyle = 'rgba(120,150,185,0.9)'; ctx.lineWidth = 1;
   for (let i = 1; i < 3; i++) {
     ctx.beginPath();
-    ctx.moveTo(cx0 - r * 0.26, cy0 - r * 0.3 + i * r * 0.2);
-    ctx.lineTo(cx0 + r * 0.26, cy0 - r * 0.3 + i * r * 0.2);
+    ctx.moveTo(cx0 - r * 0.24, cy0 - r * 0.28 + i * r * 0.19);
+    ctx.lineTo(cx0 + r * 0.24, cy0 - r * 0.28 + i * r * 0.19);
     ctx.stroke();
   }
-  ctx.beginPath(); ctx.moveTo(cx0, cy0 - r * 0.3); ctx.lineTo(cx0, cy0 + r * 0.3); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx0, cy0 - r * 0.28); ctx.lineTo(cx0, cy0 + r * 0.28); ctx.stroke();
   ctx.fillStyle = '#e2604f';
-  ctx.beginPath(); ctx.arc(cx0 + r * 0.11, cy0, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx0 + r * 0.1, cy0, r * 0.055, 0, Math.PI * 2); ctx.fill();
   // 胸口一枚小小的「播放」三角：他还在试玩这一关
-  ctx.fillStyle = 'rgba(159,196,232,0.75)';
+  ctx.fillStyle = 'rgba(90,120,155,0.65)';
   ctx.beginPath();
-  ctx.moveTo(x - r * 0.09, y + r * 0.18);
-  ctx.lineTo(x + r * 0.12, y + r * 0.29);
-  ctx.lineTo(x - r * 0.09, y + r * 0.4);
+  ctx.moveTo(x - r * 0.05, y + r * 0.26);
+  ctx.lineTo(x + r * 0.09, y + r * 0.33);
+  ctx.lineTo(x - r * 0.05, y + r * 0.4);
   ctx.closePath(); ctx.fill();
   ctx.restore();
 }
