@@ -243,6 +243,16 @@ body{
 .over .big{margin:0; font-size:40px; font-weight:800; line-height:1; font-variant-numeric:tabular-nums}
 .over .big span{font-size:13px; color:var(--dim); font-weight:600; margin-left:4px; letter-spacing:.1em}
 .over .sub{margin:0; font-size:12.5px; color:var(--dim)}
+/* 结算里的银芯：拿到了用金色报数，没拿到就说明差多少（空手而归得知道差几步） */
+.over .cred{
+  margin:8px 0 0; display:flex; flex-wrap:wrap; align-items:center; justify-content:center;
+  gap:2px 5px; max-width:270px; font-size:13px; color:var(--dim); line-height:1.35;
+}
+.over .cred.on{color:var(--gold)}
+.over .cred img{width:16px; height:16px; display:block; flex:0 0 16px}
+.over .cred b{font-size:17px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-.01em}
+.over .cred small{flex:1 0 100%; font-size:11px; color:var(--dim); font-weight:500; letter-spacing:.01em}
+.over .cred .none{font-size:12px}
 .over .acts{display:flex; gap:8px; margin-top:10px}
 .btn{
   padding:9px 16px; border-radius:10px; border:1px solid var(--line); background:var(--panel);
@@ -322,6 +332,23 @@ body{
 .chain .lv b{font-size:11px; font-variant-numeric:tabular-nums}
 .chain .lv small{font-size:9.5px; color:var(--dim); text-align:center; line-height:1.25; min-height:24px}
 
+/* 银芯阶梯：面板最下面那一块，够到的那几档点亮、下一档标金 */
+.crules{margin:12px 0 0; padding:10px 0 0; border-top:1px solid var(--line)}
+.crules h4{margin:0 0 7px; font-size:12.5px; font-weight:700; letter-spacing:.02em}
+.crules h4 span{color:var(--dim); font-weight:500; font-size:11.5px}
+.crules .rows{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:3px 10px}
+/* 一行 = 分数 / 银芯图标 / 枚数。分数那一列给固定宽度并右对齐，两列的图标和枚数才对得齐 */
+.crules i{display:flex; align-items:center; gap:4px; font-style:normal; font-size:11.5px;
+  color:var(--dim); font-variant-numeric:tabular-nums; opacity:.55}
+.crules i span{flex:0 0 54px; text-align:right; letter-spacing:.01em}
+.crules i b{flex:0 0 22px; font-weight:700; font-size:11.5px; color:var(--text)}
+.crules i img{width:12px; height:12px; display:block; flex:0 0 12px; opacity:.75}
+.crules i.on{opacity:1; color:var(--text)}
+.crules i.on b{color:var(--gold)}
+.crules i.next{opacity:1; color:var(--gold)}
+.crules i.next b{color:var(--gold)}
+.crules .crtip{margin:8px 0 0; font-size:11px; color:var(--dim); line-height:1.4}
+
 /* ---------------------------------------------------------------- 浮字 */
 .toasts{position:fixed; left:0; right:0; top:12%; display:flex; flex-direction:column;
   align-items:center; gap:6px; pointer-events:none; z-index:60}
@@ -338,7 +365,7 @@ body{
 #boot{position:fixed; inset:0; display:grid; place-items:center; background:var(--bg); z-index:80;
   font-size:13px; color:var(--dim)}
 </style>
-<meta name="build" content="2975c5d0ff">
+<meta name="build" content="6421236c7e">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -393,6 +420,7 @@ body{
         <p class="k" id="ovk">这段记忆散了</p>
         <p class="big"><b id="ovs">0</b><span>显影</span></p>
         <p class="sub" id="ovd"></p>
+        <p class="cred" id="ovc"></p>
         <div class="acts">
           <button class="btn primary" type="button" id="again">再来一局</button>
           <a class="btn" href="index.html">回首页</a>
@@ -427,6 +455,7 @@ body{
     </div>
     <p class="tip" id="sheetTip">两块同样的造物合流，往上显影一级。点亮的是你合到过的——灰的是还没见过的。也可以整套换皮：随机造物，或者唤醒体的脸。</p>
     <div class="chain" id="chain"></div>
+    <div class="crules" id="crules"></div>
     <div class="acts">
       <button class="btn" type="button" id="skinRoll" hidden>再摇一批</button>
       <button class="btn" type="button" id="skinReset" hidden>还原显影链</button>
@@ -453,7 +482,7 @@ body{
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/2048.js?v=2975c5d0ff"></script>
+<script type="module" src="js/b/2048.js?v=6421236c7e"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

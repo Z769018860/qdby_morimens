@@ -11,7 +11,10 @@ const LEVELS = [{"v":2,"n":"染血鹅卵石","c":"#4d5474","img":"data:image/web
 
 // 侵蚀块（侵蚀模式里落下来的那一块）：assets/status/corrosion.webp
 const ROT_ART = "data:image/webp;base64,UklGRqQBAABXRUJQVlA4TJcBAAAvJsAIEAoIbSRJkuCaP4Xt6q66B0BtqpfFlAAAYNlItm3btm3btm3btm3btm3b9/aHgdtGitzZPWZ4xP7TkDBskckFJxXUc1iBJDQLiUB8Ezwm/jB0MEuSYJ3ifCg9FBdUpiAZBeIQ+cHi8BnpfDE9VlDLAcDZSGLlN+61wiT6fwDOzR2QqJiP6fHbMr5CNpBE45h2IPGbBXhwpLUBh9UbQVGy+MF8gAqUeHSfFP5gKYgaA5K4wnQDYzpdvlA+mKbGzmMAXbEfXdkkjE42cOe5GBGddsTvzOyK6WSMzJyFBuUxSygabHvOhTKRrn1pto9Wf8sA1Oa0kPNSopAqJNCc2uYWwr6R86VcmL10/Gu/CPPAMP7A7pisfFco1GNTnDvsC83IdtF4vXj3LYnvRLuSl9hgUM6AV2GWGES43PwFEm5docWyW9A5nIHa3aWeJEYRzL4JeHYP1s+n94U9ojUHyopFkkTHBDhvh5vrLPCknuwAaGeHpAsElwWuHYROEvOPF4j7YQvc7K8pmAHofUQNEG3w919mAQA=";
-return { LEVELS, ROT_ART };
+
+// 银芯图标（结算与银芯阶梯）：assets/ui/silvercore.webp
+const SC_ART = "data:image/webp;base64,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";
+return { LEVELS, ROT_ART, SC_ART };
 })();
 
 // ---- js/gamecloud.js
@@ -269,7 +272,7 @@ return { GAMES, account, isTrivial, collect, hashOf, record, plan, statusOf, syn
 
 // ---- js/g2048.js
 const m_g2048 = await (async () => {
-const { LEVELS, ROT_ART } = m_g2048_art;
+const { LEVELS, ROT_ART, SC_ART } = m_g2048_art;
 const { startGameCloud } = m_gamecloud;
 // 「忘却 2048」——2048 的玩法，方格换成《忘却前夜》的造物。
 //
@@ -295,7 +298,6 @@ const KEY = {
   rot: 'zjtt:g2048:rot',
   snd: 'zjtt:g2048:snd',
   seen: 'zjtt:g2048:seen',          // 历史合到过的最高块
-  gain: 'zjtt:g2048:gain',          // 每难度一次的通关银芯（防反复领）
   skin: 'zjtt:g2048:skin',          // 换的皮（哪一类 + 每级抽中的是池里第几个）
 };
 const DIFFS = {
@@ -303,6 +305,40 @@ const DIFFS = {
   wide: { n: 5, name: '5×5' },
   brutal: { n: 3, name: '3×3' },
 };
+
+// ------------------------------------------------------------------ 银芯
+// 每局结束按「棋盘 × 本局显影分」发银芯，三档棋盘各一张阶梯表。
+// 为什么不共用一张表再乘难度系数：5×5 的分数和 4×4 根本不是一个量级——同一套启发式
+// AI 各跑 60 局，4×4 中位数 6 千分、5×5 中位数 220 万分、3×3 只有 5 百。差三个数量级，
+// 乘个系数糊不平，索性三张表按各自的分数分布铺。
+// 三张表都差不多「每翻一倍上一档」：2048 的分数本来就是靠合大块翻上去的，
+// 等比门槛等于「多合出一次大块就多一档」，比定额门槛讲得通。
+// 表里第一个数是本局显影分，第二个是银芯数；取达到的最高一档，不叠加。
+const CREDIT = {
+  // 4×4：模拟分位 p05/p25/p50/p75/p90 ≈ 2.0k / 4.0k / 6.1k / 9.4k / 25k，合到 2048 约 2.5 万分
+  classic: [
+    [500, 1], [1200, 2], [2500, 4], [5000, 7], [9000, 10], [16000, 14],
+    [25000, 19], [40000, 25], [70000, 32], [120000, 40], [200000, 48],
+  ],
+  // 5×5：同一个 AI 中位数两百多万分，门槛整体上抬一个量级，免得随便一局就发满
+  wide: [
+    [3000, 1], [8000, 2], [18000, 4], [40000, 7], [90000, 10], [200000, 14],
+    [450000, 19], [1000000, 25], [2500000, 32], [6000000, 40], [15000000, 48],
+  ],
+  // 3×3：一局一两分钟就结束，合到 512 已经算好局（AI 中位数 512 分），门槛压得很低
+  brutal: [
+    [60, 1], [140, 2], [260, 4], [450, 6], [700, 9], [1000, 12],
+    [1500, 16], [2200, 21], [3200, 27], [5000, 36],
+  ],
+};
+const tiersOf = (k) => CREDIT[k] || CREDIT.classic;
+const creditOf = (score, k) => {
+  let out = 0;
+  for (const [s, c] of tiersOf(k)) if (score >= s) out = c;
+  return out;
+};
+const nextTierOf = (score, k) => tiersOf(k).find(([s]) => score < s) || null;
+
 const TOP = LEVELS.length - 1;      // 最后一级的下标（2048）
 const UNDO_MAX = 5;
 const MANIA_FULL = 100;
@@ -495,6 +531,8 @@ const sfx = {
   forget() { tone(520, 0.18, { type: 'sine', vol: 0.045, to: 180 }); tone(390, 0.22, { type: 'sine', vol: 0.03, to: 130, at: 0.06 }); },
   rot() { tone(90, 0.28, { type: 'sawtooth', vol: 0.05, to: 62 }); },
   win() { [0, 3, 7, 12].forEach((s, i) => tone(392 * Math.pow(2, s / 12), 0.26, { type: 'sine', vol: 0.045, at: i * 0.09 })); },
+  // 结算入账：两声短的高音，和「输了的」下行三音拉开
+  coin() { [0, 7].forEach((s, i) => tone(880 * Math.pow(2, s / 12), 0.15, { type: 'sine', vol: 0.034, at: i * 0.085 })); },
   over() { [0, -2, -5, -9].forEach((s, i) => tone(330 * Math.pow(2, s / 12), 0.3, { type: 'triangle', vol: 0.05, at: i * 0.12 })); },
   tap() { tone(520, 0.04, { type: 'sine', vol: 0.02 }); },
 };
@@ -503,6 +541,28 @@ const sfx = {
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* 无痕模式 */ } };
 const num = (s, d = 0) => { const v = parseInt(s || '', 10); return Number.isFinite(v) ? v : d; };
+const fmtNum = (n) => Math.round(n).toLocaleString('zh-CN');
+
+// 银芯钱包：和合成大杜勒、战报侦探、忘却协议共用一个 zjtt:credits。
+// 那边有的写 JSON 数字（"120"）、有的写裸数字（120），读的时候两种都认。
+function walletGet() {
+  const raw = lsGet('zjtt:credits');
+  if (!raw) return 0;
+  try {
+    const v = Number(JSON.parse(raw));
+    if (Number.isFinite(v)) return Math.max(0, Math.round(v));
+  } catch { /* 不是 JSON 就看下面这条 */ }
+  return Math.max(0, num(raw));
+}
+
+function walletAdd(n) {
+  const add = Math.max(0, Math.round(n));
+  if (!add) return walletGet();
+  const v = walletGet() + add;
+  lsSet('zjtt:credits', String(v));
+  document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: 'credits' }));
+  return v;
+}
 
 function loadPrefs() {
   const d = lsGet(KEY.diff);
@@ -902,19 +962,10 @@ function checkWin() {
   sfx.win();
   haptic([9, 40, 9, 40, 16]);
   toast('显影完成：' + nameOf(TOP) + '。可以继续往上合', 2600);
-  const got = lsGet(KEY.gain + ':' + G.diff) === '1';
-  if (!got) {
-    lsSet(KEY.gain + ':' + G.diff, '1');
-    try {
-      const cur = Number(JSON.parse(lsGet('zjtt:credits') || '0')) || 0;
-      lsSet('zjtt:credits', JSON.stringify(Math.max(0, cur + 30)));
-      document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: 'credits' }));
-      setTimeout(() => toast('第一次合到 2048，发 30 银芯', 2400), 900);
-    } catch { /* 记账失败不影响游戏 */ }
-  }
 }
 
 function endGame() {
+  if (G.over) return;                 // 结算只走一次：银芯是按局发的，别让重复调用重复记账
   G.over = true;
   saveBest();
   saveGame();
@@ -923,12 +974,35 @@ function endGame() {
   const diffName = DIFFS[G.diff].name;
   const rec = num(lsGet(KEY.best + ':' + G.diff));
   const isNew = G.score >= rec && G.score > 0;
+
+  // 银芯：按本局得分取这一档棋盘的阶梯，先入账再弹结算，刷掉页面也不会丢
+  const got = creditOf(G.score, G.diff);
+  if (got > 0) { walletAdd(got); setTimeout(() => sfx.coin(), 260); }
+
   $('#ovk').textContent = G.peak >= 2048 ? '显影到底了' : '这段记忆散了';
   $('#ovs').textContent = G.score;
   $('#ovd').textContent = `最高块「${nameOf(lvOf(G.peak))}」 · ${G.steps} 步 · ${diffName}`;
+  paintCredit(got);
   overEl.hidden = false;
   updateHud();
   if (isNew) setTimeout(() => toast('新纪录：' + G.score + ' 分', 2200), 500);
+}
+
+// 结算里那一行银芯：拿到了就报数并写清「下一档还差多少」，没拿到就说差多少才有第一枚。
+// 档位是「取最高一档」，所以不写乘法，只报这一档本身。
+function paintCredit(got) {
+  const el = $('#ovc');
+  if (!el) return;
+  const wallet = walletGet();
+  const nx = nextTierOf(G.score, G.diff);
+  const nextTxt = nx
+    ? `再得 ${fmtNum(nx[0] - G.score)} 分到 ${fmtNum(nx[0])}（+${nx[1]} 枚）`
+    : '已经是最高一档';
+  const head = got > 0
+    ? `<img src="${SC_ART}" alt="" width="16" height="16" decoding="async"><b>+${got}</b> 银芯`
+    : `<span class="none">还没够到第一档（${fmtNum(tiersOf(G.diff)[0][0])} 分）</span>`;
+  el.className = 'cred' + (got > 0 ? ' on' : '');
+  el.innerHTML = head + `<small>${nextTxt} · 钱包 ${fmtNum(wallet)}</small>`;
 }
 
 // 一步移动的完整流程。slide 是就地改格子的，快照得在调它之前拍；
@@ -1204,7 +1278,36 @@ function paintSkinBtn() {
 function openSheet(open) {
   const s = $('#sheet');
   s.hidden = !open;
-  if (open) { paintChain(); paintSkinChips(); sfx.tap(); }
+  if (open) { paintChain(); paintSkinChips(); paintCreditRules(); sfx.tap(); }
+}
+
+// 面板底下那张银芯表：当前这一档棋盘的阶梯，够到的点亮，下一档标金。
+// 有了它，玩家才知道「再合一个大块能换几枚」，而不用先输一局看结算。
+function paintCreditRules() {
+  const box = $('#crules');
+  if (!box) return;
+  const tiers = tiersOf(G.diff);
+  const got = creditOf(G.score, G.diff);
+  const nx = nextTierOf(G.score, G.diff);
+  box.replaceChildren();
+  const h = document.createElement('h4');
+  h.innerHTML = `银芯 <span>· ${DIFFS[G.diff].name} · 每局按本局显影取最高一档</span>`;
+  box.appendChild(h);
+  const rows = document.createElement('div');
+  rows.className = 'rows';
+  for (const [s, c] of tiers) {
+    const i = document.createElement('i');
+    i.className = s <= G.score ? 'on' : (nx && nx[0] === s ? 'next' : '');
+    i.innerHTML = `<span>${fmtNum(s)}</span><img src="${SC_ART}" alt="" width="12" height="12" decoding="async"><b>${c}</b>`;
+    rows.appendChild(i);
+  }
+  box.appendChild(rows);
+  const tip = document.createElement('p');
+  tip.className = 'crtip';
+  tip.textContent = got > 0
+    ? `本局现在 ${fmtNum(G.score)} 分，就这么散了能换 ${got} 枚。`
+    : `本局 ${fmtNum(G.score)} 分，再得 ${fmtNum(tiers[0][0] - G.score)} 分才有银芯。`;
+  box.appendChild(tip);
 }
 
 // ------------------------------------------------------------------ 启动
@@ -1331,6 +1434,11 @@ if (window.__G2048_TEST__ || /[?&]_test=1\b/.test(location.search)) {
     undo: () => undo(),
     diff: (k) => setDiff(k, true),
     rot: (on) => setRot(on),
+    // 银芯：本局得分值多少枚 / 这一档棋盘的阶梯 / 结算（发钱那一步）
+    credit: (s) => creditOf(s === undefined ? G.score : s, G.diff),
+    tiers: () => tiersOf(G.diff).map(([s, c]) => [s, c]),
+    wallet: () => walletGet(),
+    end: () => { if (!G.over) endGame(); return creditOf(G.score, G.diff); },
     state: () => ({ score: G.score, peak: G.peak, over: G.over, n: G.n, mania: G.mania, steps: G.steps, cells: G.cells.map((t) => (t ? (t.rot ? -1 : t.v) : 0)) }),
     // 换皮：skin('creation'|'awakener') 摇一批，skin('chain') 还原；返回 Promise
     skin: (k) => (k === 'chain' ? (applyChain(true), Promise.resolve({ k: 'chain' })) : shuffleSkin(k, true)),
