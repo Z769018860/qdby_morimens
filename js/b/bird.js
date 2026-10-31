@@ -400,7 +400,7 @@ function fit() {
   const cssW = Math.max(200, VW * s), cssH = cssW * VH / VW;
   cv.style.width = cssW + 'px';
   cv.style.height = cssH + 'px';
-  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  const dpr = Math.min(window.devicePixelRatio || 1, matchMedia('(pointer:coarse)').matches ? 1.5 : 2.5);
   scale = (cssW / VW) * dpr;
   cv.width = Math.round(VW * scale);
   cv.height = Math.round(VH * scale);

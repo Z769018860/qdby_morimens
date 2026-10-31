@@ -609,6 +609,15 @@ const DATA_PAGES = new Set(['detective', 'codex', 'workshop']);
 const orientPartial = read(path.join(SRC, 'partials/orient.html')).trimEnd();
 // 哪些页面挂方向开关：六个小游戏（挂机版与死亡报告是独立子项目，各自内联一份）
 const ORIENT_PAGES = new Set(['detective', 'merge', 'bird', 'binding', 'survivors', 'protocol', 'wolf']);
+// 手机端整体减负：全屏毛玻璃（backdrop-filter）每一帧都要对身后整个画面做一次模糊，canvas 游戏上面盖一层弹窗就会掉到个位数帧；
+// 弹窗底色本来就带 .7 以上的不透明度，去掉模糊肉眼几乎看不出区别。点击也不需要等 300ms 判断双击缩放。
+const liteCss = `<style id="zj-lite">
+@media (pointer:coarse), (max-width:720px){
+  *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
+}
+button, a, [role="button"], input, select, label{touch-action:manipulation}
+html{-webkit-tap-highlight-color:transparent}
+</style>`;
 const swReg = `<script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
@@ -657,6 +666,7 @@ for (const p of built) {
   }
   // 构建戳 + SW 注册
   s = s.replace('</head>', `<meta name="build" content="${stamp}">\n</head>`);
+  s = s.replace('</head>', `${liteCss}\n</head>`);
   // 横屏/竖屏开关：「所有小游戏共用一份」，只给游戏页注入，工具页（图鉴/工坊）不需要
   const orient = ORIENT_PAGES.has(p.name) ? orientPartial + '\n' : '';
   // 已经有 manifest 的页面（离线版自己写了）不要重复插

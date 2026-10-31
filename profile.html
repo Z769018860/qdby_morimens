@@ -173,7 +173,14 @@ input[type=text]:focus,input[type=password]:focus{border-color:#9aa3af; box-shad
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
 </style>
-<meta name="build" content="345c5e2ff2">
+<meta name="build" content="4968b3762e">
+<style id="zj-lite">
+@media (pointer:coarse), (max-width:720px){
+  *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
+}
+button, a, [role="button"], input, select, label{touch-action:manipulation}
+html{-webkit-tap-highlight-color:transparent}
+</style>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -333,7 +340,7 @@ input[type=text]:focus,input[type=password]:focus{border-color:#9aa3af; box-shad
   if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
 })();
 </script>
-<script type="module" src="js/b/profile.js?v=345c5e2ff2"></script>
+<script type="module" src="js/b/profile.js?v=4968b3762e"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

@@ -430,7 +430,14 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
   .links{grid-template-columns:1fr 1fr}
 }
 </style>
-<meta name="build" content="345c5e2ff2">
+<meta name="build" content="4968b3762e">
+<style id="zj-lite">
+@media (pointer:coarse), (max-width:720px){
+  *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
+}
+button, a, [role="button"], input, select, label{touch-action:manipulation}
+html{-webkit-tap-highlight-color:transparent}
+</style>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">

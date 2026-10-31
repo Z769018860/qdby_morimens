@@ -839,3 +839,11 @@ a.btn{display:inline-block;text-decoration:none}
 .dxchip img{width:26px; height:26px; object-fit:contain}
 .dxchip.r-SSR{border-color:#e3b341}.dxchip.r-SR{border-color:#a07cff}.dxchip.r-R{border-color:#5b9bd5}
 .btn.big small{display:block; font-size:10px; opacity:.7; font-weight:400}
+
+/* 手机端减负：全屏毛玻璃 / 全屏模糊背景每帧都要重算，战斗动画下很吃 GPU */
+@media (pointer:coarse), (max-width:720px){
+  *, *::before, *::after{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
+  #bg{filter:none}
+  .bv-scene{filter:none}
+}
+button, a, [role="button"], input, select, label{touch-action:manipulation}

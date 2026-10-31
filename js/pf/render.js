@@ -71,7 +71,7 @@ export function setBand(x, y, w, h) {
 }
 
 function fit() {
-  dpr = Math.min(2.5, window.devicePixelRatio || 1);
+  dpr = Math.min(matchMedia('(pointer:coarse)').matches ? 1.5 : 2.5, window.devicePixelRatio || 1);
   const w = cv.clientWidth || window.innerWidth;
   const h = cv.clientHeight || window.innerHeight;
   // 尺寸没变就别碰 width / height（赋值即清空画布）；真变了清空后马上补画一帧，不留空白帧

@@ -2165,7 +2165,7 @@ function setBand(x, y, w, h) {
 }
 
 function fit() {
-  dpr = Math.min(2.5, window.devicePixelRatio || 1);
+  dpr = Math.min(matchMedia('(pointer:coarse)').matches ? 1.5 : 2.5, window.devicePixelRatio || 1);
   const w = cv.clientWidth || window.innerWidth;
   const h = cv.clientHeight || window.innerHeight;
   // 尺寸没变就别碰 width / height（赋值即清空画布）；真变了清空后马上补画一帧，不留空白帧
@@ -5047,7 +5047,10 @@ window.addEventListener('keydown', (e) => {
 });
 
 // ---------------------------------------------------------------- 主循环
+const COARSE = matchMedia('(pointer:coarse)').matches;
 function loop(now) {
+  // 触屏机：画面封顶约 40 帧。逻辑按 dt 推进（dt 会累计到下一帧），少画几帧不影响判定，却能明显降温 / 省电
+  if (COARSE && now - last < 24) { requestAnimationFrame(loop); return; }
   const raw = (now - last) / 1000;
   last = now;
   const dt = Math.min(0.25, raw);

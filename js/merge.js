@@ -348,7 +348,7 @@ function layout() {
 
   G.W = W;
   G.H = H;
-  G.dpr = Math.min(window.devicePixelRatio || 1, 2);
+  G.dpr = Math.min(window.devicePixelRatio || 1, matchMedia('(pointer:coarse)').matches ? 1.5 : 2);
   cv.style.width = W + 'px';
   cv.style.height = H + 'px';
   cv.width = Math.round(W * G.dpr);

@@ -21,7 +21,7 @@ export class FX {
   get mode() { return fxMode.get(); }
   get on() { return this.mode !== 'off'; }
   resize() {
-    const r = this.field.getBoundingClientRect(), d = Math.min(2, devicePixelRatio || 1);
+    const r = this.field.getBoundingClientRect(), d = Math.min(matchMedia('(pointer:coarse)').matches ? 1.5 : 2, devicePixelRatio || 1);
     this.cv.width = Math.max(1, r.width * d); this.cv.height = Math.max(1, r.height * d);
     this.cv.style.width = r.width + 'px'; this.cv.style.height = r.height + 'px';
     this.d = d;

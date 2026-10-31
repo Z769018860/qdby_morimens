@@ -72,7 +72,10 @@ window.addEventListener('keydown', (e) => {
 });
 
 // ---------------------------------------------------------------- 主循环
+const COARSE = matchMedia('(pointer:coarse)').matches;
 function loop(now) {
+  // 触屏机：画面封顶约 40 帧。逻辑按 dt 推进（dt 会累计到下一帧），少画几帧不影响判定，却能明显降温 / 省电
+  if (COARSE && now - last < 24) { requestAnimationFrame(loop); return; }
   const raw = (now - last) / 1000;
   last = now;
   const dt = Math.min(0.25, raw);

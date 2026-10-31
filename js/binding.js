@@ -1588,7 +1588,7 @@ function drawSpeaker(line) {
   const on = line.k === 'cat' || line.k === 'boss' || line.k === 'voice';
   cv.style.display = on ? 'block' : 'none';
   if (!on) return;
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const dpr = Math.min(matchMedia('(pointer:coarse)').matches ? 1.5 : 2, window.devicePixelRatio || 1);
   const w = 92, h = 92;
   cv.width = w * dpr; cv.height = h * dpr;
   cv.style.width = w + 'px'; cv.style.height = h + 'px';
@@ -1827,7 +1827,7 @@ function showItemCard(name, kind, text, src) {
 // ------------------------------------------------------------------ 小地图
 function drawMapTo(canvas, S) {
   const r = G.run;
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const dpr = Math.min(matchMedia('(pointer:coarse)').matches ? 1.5 : 2, window.devicePixelRatio || 1);
   const c = canvas.getContext('2d');
   canvas.width = 9 * S * dpr;
   canvas.height = 9 * S * dpr;
@@ -2181,7 +2181,7 @@ function loop(now) {
 function drawBgCanvas() {
   const cv = G.bg.cv;
   if (!cv) return;
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const dpr = Math.min(matchMedia('(pointer:coarse)').matches ? 1.5 : 2, window.devicePixelRatio || 1);
   const w = cv.clientWidth || window.innerWidth;
   const h = cv.clientHeight || window.innerHeight;
   if (!w || !h) return;
@@ -2205,7 +2205,7 @@ function drawTitleCat(t) {
   const c = G.ui.titleCanvas;
   if (!c) return;
   const x = c.getContext('2d');
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const dpr = Math.min(matchMedia('(pointer:coarse)').matches ? 1.5 : 2, window.devicePixelRatio || 1);
   const w = c.clientWidth || 220, h = c.clientHeight || 220;
   if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
   x.setTransform(dpr, 0, 0, dpr, 0, 0);
