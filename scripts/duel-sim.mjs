@@ -63,16 +63,26 @@ for (const pk of PACKS) for (const id of pk.cards) if (!CARDS[id]) bad.push(`卡
 // 衍生物不进卡包：它只能被效果叫出来，也没有收藏价值
 for (const id of ids) if (!CARDS[id].token && !inPack.has(id)) bad.push(`${id} ${CARDS[id].n} 不在任何卡包里，开不出来`);
 for (const pk of PACKS) if (!pk.cards.some((id) => ['SR', 'UR', 'GR'].includes(CARDS[id].rar))) bad.push(`卡包 ${pk.id} 没有 SR 以上，保底抽不出`);
+// 主卡组 40~50、额外卡组 ≤10、额外里「直接召唤」≤2 —— 与 build.mjs / 编辑器同一套口径
+const DECK_MIN = 40, DECK_MAX = 50, EXTRA_MAX = 10, DIRECT_MAX = 2;
 for (const d of DECKS) {
   const n = d.cards.reduce((s, [, k]) => s + k, 0);
-  if (n !== 30) bad.push(`卡组 ${d.n} 主卡组 ${n} 张`);
-  for (const [id] of d.cards) if (!CARDS[id] || CARDS[id].k === 'E') bad.push(`卡组 ${d.n} 主卡组里的 ${id} 不合法`);
+  if (n < DECK_MIN || n > DECK_MAX) bad.push(`卡组 ${d.n} 主卡组 ${n} 张（要求 ${DECK_MIN}~${DECK_MAX}）`);
+  if (d.extra.length > EXTRA_MAX) bad.push(`卡组 ${d.n} 额外卡组 ${d.extra.length} 张（上限 ${EXTRA_MAX}）`);
+  const directs = d.extra.filter((id) => CARDS[id] && CARDS[id].direct).length;
+  if (directs > DIRECT_MAX) bad.push(`卡组 ${d.n} 有 ${directs} 张直接召唤（上限 ${DIRECT_MAX}）`);
+  const copies = new Map();
+  for (const [id, k] of d.cards) {
+    if (!CARDS[id] || CARDS[id].k === 'E') bad.push(`卡组 ${d.n} 主卡组里的 ${id} 不合法`);
+    copies.set(id, (copies.get(id) || 0) + k);
+  }
+  for (const [id, k] of copies) if (k > 3) bad.push(`卡组 ${d.n} 同名卡 ${CARDS[id] ? CARDS[id].n : id} 放了 ${k} 张（上限 3）`);
   for (const id of d.extra) if (!CARDS[id] || CARDS[id].k !== 'E') bad.push(`卡组 ${d.n} 额外卡组 ${id} 不是觉醒体`);
   // 素材不在这套牌里，这张觉醒体永远召不出来
   const have = new Set(d.cards.map(([cid]) => CARDS[cid] && CARDS[cid].n));
   for (const id of d.extra) {
     const e = CARDS[id];
-    if (!e || e.matRealm) continue;
+    if (!e || e.matRealm || e.direct) continue;   // 直接召唤只看场面条件 / 命轮值，不要素材
     for (const nm of e.mat || []) if (!have.has(nm)) bad.push(`卡组 ${d.n} 的觉醒体「${e.n}」缺素材「${nm}」`);
   }
 }

@@ -1663,29 +1663,48 @@ function buyPack(packId) {
 }
 
 // ------------------------------------------------------------------ 卡表
+// 卡表分区：以前 369 张全挤在一个网格里，「额外卡组」被排在最后一屏外面，
+// 看起来就像卡表里没有额外卡组。现在按 怪兽 / 魔法 / 陷阱 / 额外卡组 分块，每块带小标题和计数。
+const CODEX_GROUPS = [['M', '怪兽'], ['S', '魔法'], ['T', '陷阱'], ['E', '额外卡组']];
+
 function renderCodex() {
-  const kinds = [['all', '全部'], ['M', '怪兽'], ['S', '魔法'], ['T', '陷阱'], ['E', '觉醒体']];
+  const kinds = [['all', '全部'], ['M', '怪兽'], ['S', '魔法'], ['T', '陷阱'], ['E', '额外卡组']];
   const realms = [['all', '全界域'], ['chaos', '混沌'], ['caro', '血肉'], ['aqua', '深海'], ['ultra', '超维'], ['any', '无界']];
-  const list = Object.keys(CARDS).map((id) => CARDS[id]).filter((c) => {
-    if (c.token) return false;                    // 衍生物不进卡表：它不是能收进收藏的牌
+  // 衍生物（tk1/tk2）不进卡表：它不是能收进收藏的牌，只由效果叫出来
+  const all = Object.keys(CARDS).map((id) => CARDS[id]).filter((c) => !c.token);
+  const list = all.filter((c) => {
     if (S.codex.k !== 'all' && c.k !== S.codex.k) return false;
     if (S.codex.r !== 'all' && (c.r || 'any') !== S.codex.r) return false;
     return true;
   });
   const order = { M: 0, S: 1, T: 2, E: 3 };
-  list.sort((a, b) => (order[a.k] - order[b.k]) || (a.r || '').localeCompare(b.r || '') || (b.atk || 0) - (a.atk || 0));
+  list.sort((a, b) => (order[a.k] - order[b.k]) || (a.r || '').localeCompare(b.r || '')
+    || (Number(!!b.direct) - Number(!!a.direct)) || (b.atk || 0) - (a.atk || 0));
+
+  const cell = (c) => `<div>${cardHTML(c, {})}<div style="text-align:center;font-size:9px;color:var(--dim2);margin-top:2px">`
+    + `${c.rar}${(S.save.coll || {})[c.id] ? ` · ×${S.save.coll[c.id]}` : ' · 未收录'}</div></div>`;
+  const grid = (arr) => `<div class="grid-cards">${arr.map(cell).join('')}</div>`;
+
+  const blocks = CODEX_GROUPS.map(([k, label]) => {
+    const arr = list.filter((c) => c.k === k);
+    if (!arr.length) return '';
+    if (k !== 'E') return `<div class="chead"><b>${label}</b><span>${arr.length} 张</span></div>${grid(arr)}`;
+    // 额外卡组里两种召唤方式分开列：凑素材的、满足条件白给的，混在一起看不懂
+    const aw = arr.filter((c) => !c.direct), dr = arr.filter((c) => c.direct);
+    return `<div class="chead"><b>${label}</b><span>${arr.length} 张 · 觉醒 ${aw.length} / 直接召唤 ${dr.length}</span></div>`
+      + (aw.length ? `<div class="csub">觉醒召唤<span>凑齐素材，从额外卡组特召</span></div>${grid(aw)}` : '')
+      + (dr.length ? `<div class="csub">直接召唤<span>满足卡面条件，或献出命轮值</span></div>${grid(dr)}` : '');
+  }).join('');
 
   $('#scr-codex').innerHTML = `
-    <div class="sec-h"><h2>卡表</h2><span class="r">${list.length} / ${Object.keys(CARDS).length} 张</span></div>
+    <div class="sec-h"><h2>卡表</h2><span class="r">${list.length} / ${all.length} 张</span></div>
     <div class="filters">
       ${kinds.map(([k, n]) => `<button class="chip ${S.codex.k === k ? 'on' : ''}" data-ck="${k}">${n}</button>`).join('')}
     </div>
     <div class="filters">
       ${realms.map(([r, n]) => `<button class="chip ${S.codex.r === r ? 'on' : ''}" data-cr="${r}" data-r="${r}">${n}</button>`).join('')}
     </div>
-    <div class="grid-cards">
-      ${list.map((c) => `<div>${cardHTML(c, {})}<div style="text-align:center;font-size:9px;color:var(--dim2);margin-top:2px">${c.rar}${(S.save.coll || {})[c.id] ? ` · ×${S.save.coll[c.id]}` : ' · 未收录'}</div></div>`).join('')}
-    </div>
+    ${blocks || '<p class="note">这个筛选下没有卡。</p>'}
     <p class="note" style="margin-top:12px">点一张看完整效果。</p>
   `;
 }

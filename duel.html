@@ -495,6 +495,13 @@ body{
 .chip[data-r="aqua"].on{border-color:var(--aqua); color:var(--aqua)}
 .chip[data-r="ultra"].on{border-color:var(--ultra); color:var(--ultra)}
 .grid-cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(66px,1fr)); gap:7px}
+/* 卡表分区标题：不分区的话额外卡组排在 300 多张之后，等于找不到 */
+.chead{display:flex; align-items:baseline; gap:8px; margin:16px 2px 7px; padding-top:10px; border-top:1px solid var(--line)}
+.chead:first-of-type{border-top:0; padding-top:0}
+.chead b{font-size:12px; letter-spacing:.1em; color:var(--text)}
+.chead span{font-size:11px; color:var(--dim2); font-variant-numeric:tabular-nums}
+.csub{display:flex; align-items:baseline; gap:6px; margin:8px 2px 6px; font-size:11px; color:var(--dim)}
+.csub span{font-size:10px; color:var(--dim2)}
 .grid-cards .card{width:100%; height:auto; aspect-ratio:76/104}
 .grid-cards .card .face{flex:1 1 auto}
 
@@ -683,7 +690,7 @@ body{
   #scr-duel{--off:410px}
 }
 </style>
-<meta name="build" content="d794a7f4da">
+<meta name="build" content="9518b8299a">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -713,7 +720,7 @@ body{
 <div class="actbar" id="actbar"></div>
 <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
 
-<script type="module" src="js/b/duel.js?v=d794a7f4da"></script>
+<script type="module" src="js/b/duel.js?v=9518b8299a"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
