@@ -62,6 +62,8 @@ export const ORDER_LV_MULT = 0.15;        // 每级 +15% 效果
 // 装备（命轮 / 密契 / 造物）强化上限。原来只有 10 级，满了就再没有金币的去处；
 // 现在 10 级以前不变，10~40 级是后半程：加成涨得慢一些（见 gear.js 的 lvMult），金币花得多得多（见 gearCost）。
 export const GEAR_MAX_LV = 40;
+// 融灾禁区：每期层数上限（core/rift.js 用它，game.js 的存档迁移也用它，放这里避免循环引用）
+export const RIFT_FLOORS = 150;
 export const SAVE_VERSION = 3;
 
 // Battle statuses. `kw` is the keyword slug used for the icon/tooltip (public/data/game-data.json -> kw).

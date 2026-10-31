@@ -1,7 +1,7 @@
 // Weekly boss, realm towers, arena
 import { REALMS } from '../core/constants.js';
-import { weeklyState, weeklyBoss, MILESTONES, WEEKLY_DAILY, WEEKLY_ROUNDS, weekId, weeklyEnemy } from '../core/weekly.js';
-import { REALM_TOWERS, TOWER_NAME, rtBest, rtTeam, rtEnemies, rtStage, rtInfo } from '../core/rtower.js';
+import { weeklyState, weeklyBoss, MILESTONES, WEEKLY_DAILY, WEEKLY_ROUNDS, weekId, weeklyEnemy, WEEKLY_TIER, WEEKLY_TIERS, tierOf, weeklyOpen, wkTrack } from '../core/weekly.js';
+import { REALM_TOWERS, TOWER_NAME, rtBest, rtTeam, rtEnemies, rtStage, rtInfo, RT_FLOORS, RT_MARK_EVERY } from '../core/rtower.js';
 import { arenaState, arenaTries, ARENA_DAILY, LADDER, dailyRankReward, canClaimArenaDaily, hydrate } from '../core/arena.js';
 import { RIFT_FLOORS, RIFT_TEAMS, RIFT_DAILY, RIFT_RUN_MAX, RIFT_PASS, RIFT_MILESTONES, riftCycle, riftState, riftParty, riftEnemies, riftStage } from '../core/rift.js';
 import { encodeCode } from '../core/friend.js';
@@ -18,47 +18,59 @@ import { intentIcon } from './codex.js';
 const REWARD = rewardText;
 const daysLeft = () => { const d = new Date(); const n = d.getUTCDay() || 7; return 8 - n; };
 
-/* ---------- weekly boss ---------- */
+/* ---------- weekly boss：三层 ---------- */
 export function weeklyPage(app) {
   const { state: s, data } = app;
-  const w = weeklyState(s), boss = weeklyBoss(data), e = weeklyEnemy(data);
+  const w = weeklyState(s);
+  const cur = tierOf(w.tier);
+  const tr = wkTrack(w, cur.n);
+  const boss = weeklyBoss(data), e = weeklyEnemy(data, undefined, cur.n);
   // 战力和人数都按「周 Boss 指定的那套阵容」算，别拿当前队伍糊弄人
   const t = withLoadout(s, squadKeyFor(s, 'weekly'), () => teamDefs(s, data, teamSlugsFor(s, 'weekly')));
   const row = (m, i) => {
-    const done = w.damage >= m.dmg, got = w.claimed.includes(i);
-    return `<div class="ach ${done ? 'done' : ''}"><div class="ab"><b>累计伤害 ${fmt(m.dmg)}</b><div class="bar"><i style="width:${Math.min(100, (w.damage / m.dmg) * 100)}%"></i></div>
-      <small>奖励：${REWARD(m)}${m.item ? '　装备 ×1' : ''}${m.order ? '　钥令 ×1' : ''}</small></div>
+    const done = tr.damage >= m.dmg, got = tr.claimed.includes(i);
+    const tk = Math.round(m.tickets * cur.rewardMul), co = Math.round(m.cores * cur.rewardMul), gd = Math.round(m.gold * cur.rewardMul);
+    return `<div class="ach ${done ? 'done' : ''}"><div class="ab"><b>累计伤害 ${fmt(m.dmg)}</b><div class="bar"><i style="width:${Math.min(100, (tr.damage / m.dmg) * 100)}%"></i></div>
+      <small>奖励：召唤券 ${fmt(tk)} · 银芯 ${fmt(co)} · 金币 ${fmt(gd)}${m.item ? '　装备 ×1' : ''}${m.order ? '　钥令 ×1' : ''}</small></div>
       <button class="btn sm ${done && !got ? 'gold' : ''}" data-act="weekly-claim" data-i="${i}" ${done && !got ? '' : 'disabled'}>${got ? '已领取' : done ? '领取' : '未达成'}</button></div>`;
   };
   // 一共 56 档：只摆「能领的 + 接下来 4 档」，已领的和更远的折起来
   const ready = [], claimed = [], later = [];
   let nextShown = 0;
   MILESTONES.forEach((m, i) => {
-    if (w.claimed.includes(i)) claimed.push(i);
-    else if (w.damage >= m.dmg) ready.push(i);
+    if (tr.claimed.includes(i)) claimed.push(i);
+    else if (tr.damage >= m.dmg) ready.push(i);
     else if (nextShown < 4) { ready.push(i); nextShown++; } else later.push(i);
   });
-  const claimable = MILESTONES.filter((m, i) => w.damage >= m.dmg && !w.claimed.includes(i)).length;
+  const claimable = MILESTONES.filter((m, i) => tr.damage >= m.dmg && !tr.claimed.includes(i)).length;
   const fold = (title, ids) => (ids.length ? `<details class="wkfold"><summary>${title}（${ids.length} 档）</summary><div class="list">${ids.map((i) => row(MILESTONES[i], i)).join('')}</div></details>` : '');
   const rows = `${claimable ? `<div class="row"><button class="btn gold" data-act="weekly-claim-all">一键领取 ${claimable} 档</button></div>` : ''}
     <div class="list">${ready.map((i) => row(MILESTONES[i], i)).join('')}</div>
     ${fold('已领取', claimed)}${fold(`更高的档位（最高累计伤害 ${fmt(MILESTONES[MILESTONES.length - 1].dmg)}）`, later)}`;
+  // 三层：上一层本期累计伤害够 unlock 才开，换周重新算
+  const chips = WEEKLY_TIER.map((x) => {
+    const open = weeklyOpen(s, x.n), d = wkTrack(w, x.n).damage;
+    return `<button class="sqchip ${cur.n === x.n ? 'on' : ''}" data-act="weekly-tier" data-n="${x.n}" ${open ? '' : 'disabled'} title="${esc(open ? x.tip : `先在第 ${x.n - 1} 层累计 ${fmt(x.unlock)} 伤害`)}">${x.zh}${open ? `<em>${fmt(d)}</em>` : '<em class="dim">🔒</em>'}</button>`;
+  }).join('');
   return `<div class="page"><h2>周 Boss <small>${weekId()} · 本周剩余约 ${daysLeft()} 天 · 出战战力 ${fmt(t.power)}</small></h2>
     ${squadBar(app, 'weekly')}
-    <div class="banner-card wk"><img src="${img(boss.img)}" alt=""><div><h3>${esc(boss.zh)}</h3>
+    <div class="ttsub">${chips}<small class="dim">共 ${WEEKLY_TIERS} 层，越往上 Boss 越硬、同一档奖励越多（×${WEEKLY_TIER.map((x) => x.rewardMul).join(' / ×')}）</small></div>
+    <div class="banner-card wk"><img src="${img(boss.img)}" alt=""><div><h3>${esc(e.name)} <small>${cur.zh}</small></h3>
       <p class="hint">${esc(boss.desc)}</p>
-      <p>本周累计伤害 <b>${fmt(w.damage)}</b>　单次最高 <b>${fmt(w.best)}</b>　今日剩余 <b>${w.tries}/${WEEKLY_DAILY}</b></p>
+      <p>本层累计伤害 <b>${fmt(tr.damage)}</b>　单次最高 <b>${fmt(tr.best)}</b>　今日剩余 <b>${w.tries}/${WEEKLY_DAILY}</b>　强度≈第 ${WEEKLY_STAGE_ADD(cur)} 关</p>
       <div class="seq">${e.skills.map((x) => `<span>${intentIcon(x.ic, 18)}${esc(x.name)}</span>`).join('')}</div>
-      <p class="hint">每次挑战只打 ${WEEKLY_ROUNDS} 回合，Boss 血量近乎无限，比拼的是这段时间能打出多少伤害；全队倒下则提前结束。每周一（UTC）换新 Boss、清空累计。</p>
-      <div class="row"><button class="btn big gold" data-act="weekly-go" ${w.tries > 0 ? '' : 'disabled'}>${w.tries > 0 ? '挑战周 Boss' : '今日次数已用完'}</button>
+      <p class="hint">每次挑战只打 ${WEEKLY_ROUNDS} 回合，Boss 血量近乎无限，比拼的是这段时间能打出多少伤害；全队倒下则提前结束。每周一（UTC）换新 Boss、清空三层进度与已领档位。</p>
+      <div class="row"><button class="btn big gold" data-act="weekly-go" ${w.tries > 0 ? '' : 'disabled'}>${w.tries > 0 ? `挑战${cur.zh}` : '今日次数已用完'}</button>
       <button class="btn" data-act="monster" data-id="${boss.id}">查看出招</button></div></div></div>
-    <h3>累计伤害奖励</h3>${rows}</div>`;
+    <h3>累计伤害奖励 <small>${cur.zh} · 每层各自结算</small></h3>${rows}</div>`;
 }
+const WEEKLY_STAGE_ADD = (t) => 48 + t.stageAdd;
 export function weeklyResultModal(app, r) {
   const names = r.team.list.map((d) => d.name);
-  openModal(`<h3>周 Boss · ${esc(r.boss.zh)}</h3>
-    <p>本次伤害 <b>${fmt(r.dmg)}</b>${r.newBest ? ' <em class="new">本周最高</em>' : ''}　本周累计 <b>${fmt(r.week.damage)}</b></p>
-    ${reportHtml(analyzeBattle(r, r.team.list, [{ name: r.boss.zh, img: r.boss.img, hp: 1e12, boss: true }]))}<p class="hint">累计伤害达到里程碑后回到页面领取奖励。</p>`, 'wide');
+  const t = r.tier || tierOf(1);
+  openModal(`<h3>周 Boss · ${esc(r.boss.zh)}（${t.zh}）</h3>
+    <p>本次伤害 <b>${fmt(r.dmg)}</b>${r.newBest ? ' <em class="new">本层最高</em>' : ''}　本层累计 <b>${fmt(r.track.damage)}</b></p>
+    ${reportHtml(analyzeBattle(r, r.team.list, [{ name: r.boss.zh, img: r.boss.img, hp: 1e12, boss: true }]))}<p class="hint">累计伤害达到里程碑后回到页面领取奖励；下一层要先把这一层打够伤害才会开。</p>`, 'wide');
 }
 
 /* ---------- realm towers ---------- */
@@ -68,17 +80,19 @@ export function rtowerPage(app) {
     // 四座塔各记一份出战阵容：混沌塔用混沌队，深海塔用深海队
     const mode = rtModeOf(realm), pick = teamSlugsFor(s, mode);
     const best = rtBest(s, realm), team = withLoadout(s, squadKeyFor(s, mode), () => rtTeam(s, data, realm, pick)), next = best + 1;
-    const foes = rtEnemies(realm, next, data);
+    const rtCleared = best >= RT_FLOORS;
+    const markAt = Math.min(RT_FLOORS, (Math.floor(best / RT_MARK_EVERY) + 1) * RT_MARK_EVERY);
+    const foes = rtCleared ? [] : rtEnemies(realm, next, data);
     const R = REALMS[realm];
     return `<div class="banner-card rt" style="--rc:${R.color}"><h3 style="color:${R.color}">${TOWER_NAME[realm]} <small>${R.zh}界域</small></h3>
       ${squadBar(app, mode, `${R.zh}塔只取编队里${R.zh}界域的成员`)}
-      <p>已通关 <b>${best}</b> 层　下一层（第 ${next} 层${rtInfo(next).reward ? ' · 🐈 校猫奖励层' : next % 10 === 0 ? ' · BOSS' : next % 5 === 0 ? ' · 精英' : ''}，强度≈第 ${rtStage(next)} 关）：${foes.map((x) => esc(x.name)).join('、')}</p>
+      <p>已通关 <b>${best}</b> / ${RT_FLOORS} 层　${rtCleared ? '<em class="new">已登顶</em>' : `下一层（第 ${next} 层${rtInfo(next).reward ? ' · 🐈 校猫奖励层' : next % 10 === 0 ? ' · BOSS' : next % 5 === 0 ? ' · 精英' : ''}，强度≈第 ${rtStage(next)} 关）：${foes.map((x) => esc(x.name)).join('、')}`}　距里程碑（第 ${markAt} 层）还差 ${Math.max(0, markAt - best)} 层</p>
       <p class="hint">出战：${team ? team.slugs.map((x) => esc(data.bySlug[x].zh)).join('、') + `（${team.slugs.length}人${team.synergy ? ` · 同界域加成 +${Math.round(team.synergy * 100)}%` : ''}）` : `你还没有任何${R.zh}唤醒体，去召唤吧`}</p>
-      <div class="row"><button class="btn gold" data-act="rt-go" data-realm="${realm}" ${team ? '' : 'disabled'}>挑战第 ${next} 层</button>
-      <button class="btn" data-act="rt-auto" data-realm="${realm}" ${team ? '' : 'disabled'}>连续挑战（最多 10 层）</button></div></div>`;
+      <div class="row"><button class="btn gold" data-act="rt-go" data-realm="${realm}" ${team && !rtCleared ? '' : 'disabled'}>${rtCleared ? '已登顶' : `挑战第 ${next} 层`}</button>
+      <button class="btn" data-act="rt-auto" data-realm="${realm}" ${team && !rtCleared ? '' : 'disabled'}>连续挑战（最多 10 层）</button></div></div>`;
   }).join('');
   return `<div class="page"><h2>属性塔</h2>
-    <p class="hint">四座塔分别只允许对应界域的唤醒体进入，自动选取你拥有的战力最高的 4 名（凑满 3 名同界域有 +8%、4 名 +15% 加成）。每层只打一场，失败可无限重试，只有首次通关的层数给奖励：金币、每 3 层 1 张召唤券、每 10 层 3 张召唤券与装备。敌人优先从带有对应界域特征的怪物中抽取（混沌无对应特征，抽全部）。</p>
+    <p class="hint">四座塔分别只允许对应界域的唤醒体进入，自动选取你拥有的战力最高的 4 名（凑满 3 名同界域有 +8%、4 名 +15% 加成）。每层只打一场，失败可无限重试，只有首次通关的层数给奖励：金币、每 3 层 1 张召唤券、每 10 层 3 张召唤券与装备，每 ${RT_MARK_EVERY} 层另有一份里程碑（券 / 银芯 / 装备，一次性）。四座塔都能爬到 ${RT_FLOORS} 层为止。敌人优先从带有对应界域特征的怪物中抽取（混沌无对应特征，抽全部）。</p>
     ${cards}</div>`;
 }
 export function rtResultModal(app, list) {

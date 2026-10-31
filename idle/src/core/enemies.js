@@ -36,12 +36,14 @@ export const AFFIX_KEYS = Object.keys(AFFIX);
 
 export const enemyScale = (stage) => Math.pow(1.085, stage - 1);
 
-// 后期加压：80 关之前不变；之后每 10 关生命再 ×1.10、攻击 ×1.06、防御 +4%（复利）。
-// 原因：超限 / 最终法则 / 专属技能把满养成队伍的输出拉得很高，不加压的话 100 关之后就没有挑战了。
-export const LATE_FROM = 80;
+// 后期加压：70 关之前不变；之后每 10 关生命再 ×1.115、攻击 ×1.065、防御 +4.5%（复利）。
+// 为什么比上一版更陡：唤醒体羁绊（core/bonds.js）与跨域共鸣把满编队的生命 / 攻击抬了 15~25%，
+// 不加压的话 100 关之后直接融穿；起点从 80 提到 70，是因为中后期（70~100 关）本来就该开始吃配装。
+// 130 关约：生命 ×1.93 / 攻击 ×1.46 / 防御 ×1.27（旧版分别是 ×1.61 / ×1.34 / ×1.20）。
+export const LATE_FROM = 70;
 export const lateBoost = (stage) => {
   const k = Math.max(0, (Number(stage) || 0) - LATE_FROM) / 10;
-  return { hp: Math.pow(1.10, k), atk: Math.pow(1.06, k), def: 1 + 0.04 * k };
+  return { hp: Math.pow(1.115, k), atk: Math.pow(1.065, k), def: 1 + 0.045 * k };
 };
 
 // Real monster design: class sets the budget, the record's hp/atk/df multipliers fine-tune it, and the enemy plays its

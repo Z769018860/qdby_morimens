@@ -10,7 +10,7 @@ import { BattleView } from './ui/battleView.js';
 import * as P from './ui/pages.js';
 import * as P2 from './ui/pages2.js';
 import * as P3 from './ui/pages3.js';
-import { doWeekly, claimWeekly, claimAllWeekly } from './core/weekly.js';
+import { doWeekly, claimWeekly, claimAllWeekly, weeklyState, weeklyOpen } from './core/weekly.js';
 import { doRTower, TOWER_NAME } from './core/rtower.js';
 import { arenaState, arenaTries, fightArena, applyArena, claimArenaDaily } from './core/arena.js';
 import { localOpponents, localSettle, fightFriend } from './core/arena.js';
@@ -640,17 +640,24 @@ function onAct(e) {
       else toast('银芯不足');
       break;
     }
+    case 'weekly-tier': {
+      // 只是切到哪一层看/打：层没开就不让切（按钮那边也 disabled 了，这里再挡一次）
+      const n = +el.dataset.n || 1;
+      if (!weeklyOpen(s, n)) { toast(`先在第 ${n - 1} 层打够伤害才开这一层`); break; }
+      weeklyState(s).tier = n; app.save(); render(); break;
+    }
     case 'weekly-go': {
-      const r = withLoadout(s, squadKeyFor(s, 'weekly'), () => doWeekly(s, d, teamSlugsFor(s, 'weekly')));
+      const tier = weeklyState(s).tier || 1;
+      const r = withLoadout(s, squadKeyFor(s, 'weekly'), () => doWeekly(s, d, teamSlugsFor(s, 'weekly'), tier));
       if (!r) break;
       app.save(); render(); sound.play(r.win ? 'win' : 'lose');
       // 先看过程再出结算；设置里选了「跳过」就直接弹结算
-      watchOrSkip(replayOf(r, { title: `周 Boss · ${r.boss.zh}`, sub: `限 ${r.roundLimit} 回合 · 比这一段时间的伤害`, kw: d.kw }),
+      watchOrSkip(replayOf(r, { title: `周 Boss · ${r.boss.zh}（${r.tier.zh}）`, sub: `限 ${r.roundLimit} 回合 · 比这一段时间的伤害`, kw: d.kw }),
         () => P3.weeklyResultModal(app, r));
       break;
     }
     case 'weekly-claim-all': {
-      const rs = claimAllWeekly(s, d);
+      const rs = claimAllWeekly(s, d, weeklyState(s).tier || 1);
       if (rs.length) {
         sound.play('ach');
         const sum = (k) => rs.reduce((a, r) => a + (r[k] || 0), 0);
@@ -661,13 +668,13 @@ function onAct(e) {
       }
       break;
     }
-    case 'weekly-claim': { const r = claimWeekly(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`领取成功：召唤券+${r.tickets} 金币+${r.gold}${r.items.length ? ' 装备+1' : ''}${r.orders?.length ? ' 钥令+1' : ''}`); if (r.orders?.length) P.showOrders(app, r.orders); rerender(); } break; }
+    case 'weekly-claim': { const r = claimWeekly(s, d, +el.dataset.i, weeklyState(s).tier || 1); if (r) { sound.play('ach'); toast(`领取成功：召唤券+${r.tickets} 金币+${r.gold}${r.items.length ? ' 装备+1' : ''}${r.orders?.length ? ' 钥令+1' : ''}`); if (r.orders?.length) P.showOrders(app, r.orders); rerender(); } break; }
     case 'rt-go': case 'rt-auto': {
       const out = [];
       const realm = el.dataset.realm;
       const slugs = teamSlugsFor(s, rtModeOf(realm));   // 四座塔各用各的编队
       const rtKey = squadKeyFor(s, rtModeOf(realm));
-      for (let i = 0; i < (a === 'rt-auto' ? 10 : 1); i++) { const r = withLoadout(s, rtKey, () => doRTower(s, d, realm, slugs)); if (!r) break; out.push(r); if (!r.win) break; }
+      for (let i = 0; i < (a === 'rt-auto' ? 10 : 1); i++) { const r = withLoadout(s, rtKey, () => doRTower(s, d, realm, slugs)); if (!r || r.done) { if (r?.done) toast(`${TOWER_NAME[realm]}已经登顶`); break; } out.push(r); if (!r.win) break; }
       if (out.length) {
         const last = out[out.length - 1];
         app.save(); render(); sound.play(last.win ? 'win' : 'lose');

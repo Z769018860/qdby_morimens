@@ -8,11 +8,16 @@ import { teamDefs, stageGold, battleSeed, addItem, rollItem, addOrder, rollOrder
 // ---------- tower ----------
 export const TOWER_DAILY = 3;
 export const TOWER_HEAL = 0.3;                       // share of max HP restored between floors
-// 塔的层数上限（M10 从 150 提到 300）。它只是模拟的保险丝：全灭就停，够高就行。
-export const TOWER_MAX_FLOOR = 300;
-// 奖励用的「等效关卡」上限：towerStage 在 200 层后不再计入金币曲线，
-// 否则 stageGold(1.085^f) 到 300 层会算成上万亿，显示和存档都难看。
-const REWARD_STAGE_CAP = 200;
+// 塔的层数上限（M10 从 150 提到 300，现在提到 500）。它只是模拟的保险丝：全灭就停，够高就行。
+// 羁绊上线后满编队比之前强 15~25%，300 层已经不是「够高」了。
+export const TOWER_MAX_FLOOR = 500;
+// 奖励用的「等效关卡」上限：towerStage 在 240 关后不再计入金币曲线，
+// 否则 stageGold(1.085^f) 到 500 层会算成天文数字，显示和存档都难看。
+const REWARD_STAGE_CAP = 240;
+// 每 50 层的里程碑：一层一层给的小奖励之外，再发一份大的（不重复发，靠 state.tower.marks 记）
+export const TOWER_MARK_EVERY = 50;
+export const towerMark = (floor) => floor % TOWER_MARK_EVERY === 0 ? { floor, tickets: 20 + Math.floor(floor / 50) * 6, cores: 200 + Math.floor(floor / 50) * 60, item: 1, order: 1 } : null;
+export const TOWER_MARKS = Array.from({ length: TOWER_MAX_FLOOR / TOWER_MARK_EVERY }, (_, i) => towerMark((i + 1) * TOWER_MARK_EVERY));
 export const towerStage = (floor) => Math.round(10 + floor * 0.95);
 export const towerRewardStage = (floor) => Math.min(REWARD_STAGE_CAP, towerStage(floor));
 export const towerInfo = (floor) => ({ stage: towerStage(floor), boss: floor % 10 === 0, elite: floor % 5 === 0 && floor % 10 !== 0, node: floor % 10 === 9 ? 9 : 3, reward: floor % 20 === 0 });
@@ -74,6 +79,19 @@ export function towerReward(state, data, reached, rng) {
     if (towerInfo(f).reward) {
       rw.cat += 1; rw.tickets += 4; rw.cores += 50;
       rw.items.push(addItem(state, ...Object.values(rollItem(rng, towerRewardStage(f) + 8, data))));
+    }
+    // 每 50 层的里程碑：一次性的大奖励（塔能爬到 500 层，后面这些才是继续爬的理由）
+    const mk = towerMark(f);
+    if (mk) {
+      const marks = (state.tower.marks ||= []);
+      if (!marks.includes(f)) {
+        marks.push(f);
+        rw.tickets += mk.tickets; rw.cores += mk.cores;
+        rw.items.push(addItem(state, ...Object.values(rollItem(rng, towerRewardStage(f) + 12, data))));
+        const od = rollOrder(rng, data);
+        if (od) { const got = addOrder(state, od.id); if (got.isNew) rw.orders.push(got); else rw.cores += got.cores; }
+        rw.marks = (rw.marks || 0) + 1;
+      }
     }
   }
   state.tower.tkFrac = tk; state.tower.coFrac = co;

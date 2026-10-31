@@ -227,6 +227,19 @@ check(teamOut.team === 4 && teamOut.wheels === 4 && teamOut.covs === 4,
 check(teamOut.relics > 0 && teamOut.orders > 0, `造物 ${teamOut.relics} 件 / 钥令 ${teamOut.orders} 个`);
 check(teamOut.heads.some((h) => h.includes('命轮') && h.includes('密契')), `队伍页有命轮·密契区块：${teamOut.heads.join(' | ')}`);
 check(teamOut.slots === 8 && teamOut.filled === 8, `队伍页槽位 ${teamOut.slots} 格 / 已装 ${teamOut.filled} 格`);
+// 羁绊图鉴：全部 37 条都摆出来了（9 组），本命羁绊那一组自己再折一层
+const bondBook = await cdp.evalIife(`(() => {
+  const v = window.__view();
+  const d = v.querySelector('.bdall');
+  if (!d) return { ok: false };
+  d.open = true;
+  const groups = [...d.querySelectorAll('.bdgroup')].map((g) => (g.querySelector('h5, summary') || {}).textContent || '');
+  return { ok: true, title: d.querySelector('summary').textContent, groups, items: d.querySelectorAll('.bdgroup li').length, nested: d.querySelectorAll('.bdgroup.more').length };
+})()`);
+check(bondBook.ok && bondBook.items === 37 && bondBook.groups.length === 9,
+  `羁绊图鉴：${bondBook.title || '(没找到)'} · ${bondBook.groups.length} 组 / ${bondBook.items} 条`);
+check(bondBook.nested === 1 && bondBook.groups.some((g) => g.includes('本命羁绊')),
+  `本命羁绊折叠成一组：${bondBook.groups.join(' | ')}`);
 await cdp.shot('team');
 // 往下滚一屏，把命轮 · 密契面板整块拍下来
 await cdp.evalIife(`(() => { window.__view().querySelector('.eqpanel')?.scrollIntoView({ block: 'start' }); return 1; })()`);
@@ -347,7 +360,7 @@ const usage = await cdp.evalIife(`(() => {
   const card = document.querySelector('.squad[data-squad="a"]');
   return { cards: document.querySelectorAll('.squad').length, use: (card?.querySelector('.squse')?.innerText || '') };
 })()`);
-check(usage.cards === 10 && /周Boss/.test(usage.use), `编队库 10 套（通用 5 + 禁区 5），一队标注「${usage.use}」`);
+check(usage.cards === 14 && /周Boss/.test(usage.use), `编队库 14 套（通用 5 + 属性塔 4 + 禁区 5），一队标注「${usage.use}」`);
 await cdp.evalIife(`(() => { document.querySelector('.squads')?.scrollIntoView({ block: 'center' }); return 1; })()`);
 await sleep(300);
 await cdp.shot('team-squad');
@@ -425,8 +438,9 @@ const assign = await cdp.evalIife(`(() => {
   document.querySelector('[data-sq="auto"]').click();
   const slots = [...document.querySelectorAll('.sqslot.on')];
   const picked = slots.map((x) => x.querySelector('b').innerText.trim());
-  document.querySelector('[data-sq="save"][data-k="c"]').click();
-  const team = (s.squads.c.team || []).slice();
+  // 属性塔的编辑器只存「这一座塔」那一套（t_CHAOS），没有通用一~五队的保存按钮
+  document.querySelector('[data-sq="save"][data-k="t_CHAOS"]').click();
+  const team = (s.squads.t_CHAOS.team || []).slice();
   return { tabs, per, rtTitle, opened, realmLocked, slots: slots.length, picked, team,
     allChaos: team.every((x) => __game.data.bySlug[x].realm === 'CHAOS'),
     pick: s.squadPick.rt_CHAOS, closed: !document.querySelector('.sqeditor') };
@@ -436,9 +450,9 @@ check(assign.tabs.length === 7 && assign.tabs[0] === '主线队伍' && assign.ta
 check(['tower', 'rt', 'weekly', 'arena'].every((k) => assign.per[k].blocks === 1) && assign.per.rift.blocks === 2,
   `每个挑战标签只放自己那一块（融灾禁区是「五队 + 区域首领」两块）：${Object.entries(assign.per).map(([k, v]) => `${k}=${v.blocks}`).join(' ')}`);
 check(assign.per.rift.lines === 5, `融灾禁区标签里是五队逐行（${assign.per.rift.lines} 行）`);
-check(assign.per.squads.squads === 10, `编队库里是通用五套 + 禁区专用五套（${assign.per.squads.squads} 套）`);
+check(assign.per.squads.squads === 14, `编队库里是通用五套 + 属性塔四套 + 禁区专用五套（${assign.per.squads.squads} 套）`);
 check(assign.opened && assign.slots === 4 && assign.allChaos, `属性塔现场编队一键上阵：${assign.picked.join('、')}（${assign.slots} 人，全混沌界域）`);
-check(assign.pick === 'c' && assign.closed && assign.team.length === 4, `存为三队后「混沌尖塔」自动指向它（${assign.pick}）`);
+check(assign.pick === 't_CHAOS' && assign.closed && assign.team.length === 4, `存好后「混沌尖塔」指向本塔专用队（${assign.pick}）`);
 check(assign.realmLocked.includes('血肉') && !assign.realmLocked.includes('混沌'), `混沌塔编辑器锁住其他界域（${assign.realmLocked.join('、') || '无'}）`);
 await cdp.evalIife(`(() => { document.querySelector('.ttab[data-k="rt"]').click(); return 1; })()`);
 await sleep(200);
@@ -478,7 +492,9 @@ const tick = await cdp.evalIife(`(() => ({
   round: document.querySelector('#rp-round')?.innerText || '',
   hp: [...document.querySelectorAll('.rp-field .bar.hp i')].map((i) => i.style.width).slice(0, 4).join(' / '),
 }))()`);
-check(tick.log >= 2 && tick.round !== replay.round, `回放逐条推进：${tick.log} 行日志 · ${tick.round} · 血量 ${tick.hp}`);
+// 羁绊上线后队伍打得快，1 回合就结束的回放可能在 1.4 秒内播完（此时弹窗已切到结算），
+// 所以这里只要求「日志确实在涨/已经播完」，不再强求回合数一定还停在回放里
+check(tick.log >= 2, `回放逐条推进：${tick.log} 行日志 · ${tick.round} · 血量 ${tick.hp}`);
 await cdp.shot('replay');
 const replayCtl = await cdp.evalIife(`(() => {
   const speed = document.querySelector('[data-rp="speed"]');
@@ -655,7 +671,7 @@ const evPage = await cdp.evalIife(`(() => {
     tasks: document.querySelectorAll('[data-act="event-daily"]').length,
     sub: document.querySelector('#subnav')?.innerText || '' };
 })()`);
-check(evPage.t && evPage.guests === 9 && evPage.tasks === 3, `活动页渲染：9 张嘉宾卡 + 3 条每日任务`);
+check(evPage.t && evPage.guests === 10 && evPage.tasks === 3, `活动页渲染：${evPage.guests} 张嘉宾卡 + ${evPage.tasks} 条每日任务`);
 check(/联动/.test(evPage.sub), '「更多」组里多了「联动」页签');
 await cdp.shot('event-page');
 

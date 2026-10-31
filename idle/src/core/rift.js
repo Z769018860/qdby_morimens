@@ -1,5 +1,5 @@
 // 融灾禁区：五队齐上的长线爬塔。一层要派 5 支队伍各打一组敌人，全胜才继续往上；
-// 每两周（14 天）换一期：敌人重排、奖励重发、层数从头爬，最高 100 层。
+// 每两周（14 天）换一期：敌人重排、奖励重发、层数从头爬，最高 150 层。
 //
 // 和无限塔的区别：无限塔是「一支队伍、生命继承、一次爬到全灭」；
 // 融灾禁区每层都是满状态，看的是你手上到底能凑出几套能打的队伍。
@@ -8,14 +8,16 @@ import { simulate, roundLimitFor } from './battle.js';
 import { buildEnemies } from './enemies.js';
 import { teamDefs, allyDef, fillLoadout, stageGold, battleSeed, addItem, rollItem, addOrder, rollOrder, recordCodex } from './game.js';
 import { RIFT_SQUAD_KEYS, SQUAD_ZH, squadMembers, loadoutOf, withLo, autoSquadSlugs } from './squad.js';
+import { RIFT_FLOORS } from './constants.js';
 
-export const RIFT_FLOORS = 100;          // 本期层数上限
+// 本期层数上限（100 → 150：羁绊上线后五队都能凑出加成，100 层一期内就爬穿了）
+export { RIFT_FLOORS };
 export const RIFT_TEAMS = 5;             // 每层出战的队伍数
 export const RIFT_DAILY = 3;             // 每日挑战次数
 export const RIFT_CYCLE_DAYS = 14;       // 每两周换一期
 export const RIFT_RUN_MAX = 10;          // 一次挑战最多连爬多少层（避免一次点出几十层 ×5 场）
 const EPOCH = Date.UTC(2026, 0, 5);      // 第 1 期的起点（周一）
-const REWARD_STAGE_CAP = 120;            // 金币曲线封顶，100 层的 stageGold 会大到没法显示
+const REWARD_STAGE_CAP = 140;            // 金币曲线封顶，150 层的 stageGold 会大到没法显示
 
 const dayKey = (d) => d.toISOString().slice(0, 10);
 const utcMid = (d) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
@@ -229,4 +231,4 @@ export function doRift(state, data, { now = new Date(), maxFloors = RIFT_RUN_MAX
 }
 
 /** 本期的里程碑（界面上的刻度）：每 10 层一个，25/50/75/100 有额外奖励 */
-export const RIFT_MILESTONES = [10, 25, 50, 75, 100];
+export const RIFT_MILESTONES = [10, 25, 50, 75, 100, 125, 150];
