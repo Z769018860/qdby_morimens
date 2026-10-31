@@ -7,7 +7,7 @@
 //   net   好友房（房间码，双方各自重放同一串动作）
 import { CARDS, PACKS, BONDS, DECKS, LORE, FACES, BACK, ART } from './gen.js';
 import * as E from './engine.js';
-import { nextAction } from './ai.js';
+import { nextAction, aiPolicyFor } from './ai.js';
 import * as net from './net.js';
 import {
   loadSave, saveSave, freeLeft, ticketDayLeft, payPack, grantPveTicket, addRank, RULES, PVE_SILVER, PVE_LOSS_MIN_ROUNDS,
@@ -224,6 +224,7 @@ function renderHome() {
       (E.REALM[d.r] || E.REALM.any).c}">
       <div class="dh"><b>${d.n}</b><span class="rm">${(E.REALM[d.r] || E.REALM.any).n}</span></div>
       <div class="ds">${d.desc}</div>
+      ${balTag(d)}
       <div class="db">${bonds.map((b) => `<span class="bond">${b.n}</span>`).join('') || '<span class="bond" style="opacity:.5">无羁绊</span>'}</div>
       <div class="dm">主卡组 ${total} 张 · 额外 ${d.extra.length} 张 · 羁绊 ${bonds.length} 条</div>
     </button><button class="btn sm ghost dview" data-deckview="${d.id}">查看卡组内容</button></div>`;
@@ -372,7 +373,7 @@ function newGame(bt, side, mine, foe, seed) {
   S.turnKey = null; S.acted = false;
   S.sel = null; S.mode = 'idle'; S.tribute = []; S.pendingSummon = null;
   // 两边命轮值都是 8000（羁绊加成各算各的）：段位只影响对手「会不会打、拿什么牌」，不改血量
-  S.G = E.createGame({ cards: mine.cards, extra: mine.extra }, { cards: foe.cards, extra: foe.extra }, { seed });
+  S.G = E.createGame({ cards: mine.cards, extra: mine.extra, lp: mine.lp, hand: mine.hand }, { cards: foe.cards, extra: foe.extra, lp: foe.lp, hand: foe.hand }, { seed });
   show('duel');
   renderDuel();
 }
@@ -540,6 +541,14 @@ function fxFrame(v) {
     else if (e.kind === 'grave') { SFX.destroy(); pulse(row, 'shatter'); }
     else if (e.kind === 'trap') SFX.trap();
   }
+}
+
+// 预组的平衡修正（模拟器按胜率调出来的）：强的预组起手少几张、命轮值少一点，弱的反过来
+function balTag(d) {
+  const b = [];
+  if (d.hand) b.push(`起手 ${d.hand > 0 ? '+' : ''}${d.hand} 张`);
+  if (d.lp) b.push(`命轮值 ${d.lp > 0 ? '+' : ''}${d.lp}`);
+  return b.length ? `<div class="ds bal" title="按模拟胜率调的平衡修正">平衡修正：${b.join(' · ')}</div>` : '';
 }
 
 function lpBar(p, id) {
@@ -982,7 +991,10 @@ function act(a) {
       }
     }
   }
+  // 人机：对手（AI）盖着的陷阱按它的水平决定发不发、发哪张
+  if (S.bt === 'pve' && !G.over) G.trapPolicy = aiPolicyFor(G, side, a, S.ai ? S.ai.sloppy : S.diff);
   const r = E.applyAction(G, side, a);
+  G.trapPolicy = null;
   if (r.ok) S.acted = true;      // 出过一次手就不再是「准备阶段」
   if (r.ok && S.bt === 'net' && S.net) {
     S.seq += 1;
@@ -1320,7 +1332,7 @@ function askJoin() {
 // 只发个 id 过去，对面按 id 找不到就只能退回第一套预组。
 function deckPayload(id) {
   const d = deckById(id);
-  return { id: d.id, n: d.n, r: d.r, cards: d.cards, extra: d.extra || [] };
+  return { id: d.id, n: d.n, r: d.r, cards: d.cards, extra: d.extra || [], lp: d.lp || 0, hand: d.hand || 0 };
 }
 
 function deckFromPeer(v) {

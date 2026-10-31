@@ -6,7 +6,7 @@
 //   2) 混合 vs 混合 —— 混搭本身有没有哪一路组合强到失衡。
 // 用法：node scripts/duel-mix-sim.mjs [每对局数，默认 6]
 import * as E from '../js/duel/engine.js';
-import { nextAction } from '../js/duel/ai.js';
+import { nextAction, aiPolicyFor } from '../js/duel/ai.js';
 import { DECKS, CARDS } from '../js/duel/gen.js';
 
 const N = Number(process.argv[2] || 6);
@@ -73,7 +73,9 @@ function runOne(A, B, seed) {
       if (!act) { note('AI 没给动作'); break; }
       if (G.turn !== lastTurn) { lastTurn = G.turn; actsThisTurn = 0; }
       if (++actsThisTurn > 120) { note('一个回合内动作 >120（卡死）'); break; }
+      G.trapPolicy = aiPolicyFor(G, side, act, 'normal');
       const r = E.applyAction(G, side, act);
+      G.trapPolicy = null;
       if (r && r.ok === false && act.t !== 'attack' && act.t !== 'pos') note(`动作被拒绝 ${act.t}: ${String(r.msg || r.err || '').slice(0, 40)}`);
       for (const p of G.players) {
         if (p.hand.length > E.HAND_MAX + 1) note('手牌超过上限 ' + p.hand.length);

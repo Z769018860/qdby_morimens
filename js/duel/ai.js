@@ -4,7 +4,7 @@
 // 设计取向：会算数值，但不算未来的牌。它的强度来自「不浪费」——
 // 不做亏本交换、不在能斩杀的时候去盖牌、该打脸的时候不打墙。
 import { CARDS } from './gen.js';
-import { atkOf, defOf, canAttack, canSummon, canAwaken, canDirect, canSpecial, tributeNeed, mustHitFirst, trapManualBlock } from './engine.js';
+import { atkOf, defOf, canAttack, canSummon, canAwaken, canDirect, canSpecial, tributeNeed, mustHitFirst, trapManualBlock, eligibleTraps } from './engine.js';
 
 function d(id) { return CARDS[id]; }
 function fxv(mon, k) {
@@ -31,6 +31,8 @@ function scoreSpell(G, p, o, card) {
     }
     if (f.k === 'bounce' || f.k === 'bounce' ) s += o.mons.filter(Boolean).length ? 6 : -5;
     if (f.k === 'snipeDraw' || f.k === 'snipe') s += o.spells.some((x) => x && x.set) ? 7 : 1;
+    if (f.k === 'reveal') s += o.spells.some((x) => x && x.set) ? 2 : -4;
+    if (f.k === 'trapLock') s += o.spells.filter((x) => x && x.set).length >= 2 && p.mons.filter(Boolean).length ? 8 : -6;
     if (f.k === 'pumpHighest') s += p.mons.filter(Boolean).length ? 5 : -5;
     if (f.k === 'quickAtkAll') s += p.mons.filter(Boolean).length >= 2 ? 5 : 1;
     if (f.k === 'quickDef') s += p.mons.filter(Boolean).length ? 3 : 0;
@@ -278,6 +280,62 @@ function freeTrap(G, side, p, o) {
     if (ks.some((k) => k.startsWith('cont')) || ok('trapBarrier')) return s;
   }
   return null;
+}
+
+// ---- AI 的应对型陷阱：什么时候发、发哪张 ----
+// 以前 AI 的陷阱是「满足条件就自动发」，不分轻重，也不分水平：第一档和最高档的发动时机一模一样。
+// 现在按失误率分三种脾气——
+//   · 失误率高（≥0.35）：见到能发的就发，经常把无效攻击浪费在一只 1000 攻的小怪身上，也偶尔忘了发；
+//   · 中等（0.15~0.35）：只在威胁够大的时候发，最多发一张；
+//   · 低（<0.15）：像高手一样「留着」——只对真正疼的动作发（大额伤害 / 高攻怪兽 / 觉醒体 / 致命一击），
+//     并且按对症程度挑最合适的那一张，不浪费第二张。
+const ATK_PRIO = ['destroyAttacker', 'negateAttack', 'reflect', 'trapCounterMon', 'trapBarrier', 'trapCounter', 'trapPoison', 'battleBoost'];
+function trapRank(id, a) {
+  const ks = (d(id).fx || []).map((f) => f.k);
+  if (a.t === 'attack') { const i = ATK_PRIO.findIndex((k) => ks.includes(k)); return i < 0 ? 99 : i; }
+  return 0;
+}
+export function aiTrapChoice(G, owner, a, list, skill) {
+  if (!list || !list.length) return [];
+  const sloppy = sloppyOf(skill);
+  const me = G.players[owner], foe = G.players[1 - owner];
+  if (G.rng() < sloppy * 0.35) return [];                                   // 忘了发
+  // 这一步动作有多疼
+  let threat = 0;
+  if (a.t === 'attack') {
+    const m = foe.mons.find((x) => x && x.uid === a.uid);
+    const av = m ? atkOf(G, foe, m) : 0;
+    const tg = a.target == null ? null : me.mons.find((x) => x && x.uid === a.target);
+    if (!tg) threat = av;                                                    // 直接攻击：伤害就是攻击力
+    else {
+      const tv = tg.pos === 'atk' ? atkOf(G, me, tg) : defOf(G, me, tg);
+      threat = tg.pos === 'atk' && av > tv ? (av - tv) + tv * 0.8 : (tg.pos !== 'atk' && av > tv ? tv * 0.6 : 0);
+    }
+    if (m && d(m.id).k === 'E') threat += 500;
+    if (me.lp <= av * 1.5) threat += 1500;                                   // 快被打穿了
+  } else if (a.t === 'summon' || a.t === 'special') {
+    const h = foe.hand.find((x) => x.uid === a.uid);
+    const c = h && d(h.id);
+    threat = c ? c.atk + (c.lv >= 6 ? 600 : 0) : 800;
+  } else if (a.t === 'spell') {
+    const h = foe.hand.find((x) => x.uid === a.uid);
+    const c = h && d(h.id);
+    threat = c ? (c.fx || []).reduce((s, f) => s + (f.k === 'burn' ? (f.v || 0) : f.k === 'draw' ? 500 * (f.v || 1) : 700), 0) : 800;
+  } else threat = 1000;
+  // 护符只在对方要拆 / 封陷阱时才有用，一旦能发就是最值的那一步
+  if (list.some((x) => (d(x.id).fx || []).some((f) => f.k === 'shieldTraps'))) threat = Math.max(threat, 2000);
+  const sorted = list.slice().sort((x, y) => trapRank(x.id, a) - trapRank(y.id, a));
+  if (sloppy >= 0.35) return G.rng() < 0.85 ? sorted.map((x) => x.uid) : [];            // 见到就发（连小动作也发，还可能一次翻好几张）
+  const need = sloppy >= 0.15 ? 800 : (me.lp < me.lpMax * 0.5 ? 600 : 1300);
+  if (threat < need) return [];
+  return [sorted[0].uid];
+}
+
+/** 行动者 actorSide 要做动作 a：对方（AI 持有的陷阱）这一步要不要响应，返回写进 G.trapPolicy 的对象（没有可响应的陷阱就是 null） */
+export function aiPolicyFor(G, actorSide, a, skill, eligible) {
+  const el = eligible || eligibleTraps(G, actorSide, a);
+  if (!el.length) return null;
+  return { [1 - actorSide]: new Set(aiTrapChoice(G, 1 - actorSide, a, el, skill)) };
 }
 
 export function nextAction(G, side, skill) {

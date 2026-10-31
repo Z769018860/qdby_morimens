@@ -10,7 +10,7 @@
 //   node scripts/duel-ladder.mjs 40          # 更稳（±1.5 个百分点），慢一倍
 //   node scripts/duel-ladder.mjs 24 0.16     # 玩家一侧也带 16% 打错牌（模拟普通玩家）
 import * as E from '../js/duel/engine.js';
-import { nextAction } from '../js/duel/ai.js';
+import { nextAction, aiPolicyFor } from '../js/duel/ai.js';
 import { DECKS } from '../js/duel/gen.js';
 import { AI_LV, aiFor, foePick } from '../js/duel/rank.js';
 import { TIERS } from '../js/duel/tiers.js';
@@ -32,7 +32,7 @@ const deckById = (id) => DECKS.find((d) => d.id === id) || DECKS[0];
 function play(myDeck, foeDeck, seed, foeSkill) {
   let G;
   try {
-    G = E.createGame({ cards: myDeck.cards, extra: myDeck.extra }, { cards: foeDeck.cards, extra: foeDeck.extra }, { seed });
+    G = E.createGame({ cards: myDeck.cards, extra: myDeck.extra, lp: myDeck.lp, hand: myDeck.hand }, { cards: foeDeck.cards, extra: foeDeck.extra, lp: foeDeck.lp, hand: foeDeck.hand }, { seed });
   } catch (e) { return { r: 'err', e: e.message }; }
   let steps = 0;
   try {
@@ -41,7 +41,9 @@ function play(myDeck, foeDeck, seed, foeSkill) {
       const side = G.active;
       const act = nextAction(G, side, side === 0 ? PLAYER_SKILL : foeSkill);
       if (!act) return { r: 'stuck' };
+      G.trapPolicy = aiPolicyFor(G, side, act, side === 0 ? PLAYER_SKILL : foeSkill);
       E.applyAction(G, side, act);
+      G.trapPolicy = null;
     }
   } catch (e) { return { r: 'err', e: e.message }; }
   if (!G.over) return { r: 'timeout' };

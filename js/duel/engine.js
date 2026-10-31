@@ -96,6 +96,9 @@ function mkPlayer(G, idx, def) {
   }
   shuffle(G, p.deck);
   p.extra = (def.extra || []).slice();
+  // 预组的平衡偏移（命轮值 ±N）：强的预组略少、弱的略多，模拟器按胜率调出来的
+  if (def.lp) { p.lp += def.lp; p.lpMax += def.lp; }
+  p.startHand = def.hand || 0;      // 起手张数偏移（同上：模拟器调出来的平衡项）
   return p;
 }
 
@@ -142,7 +145,7 @@ export function createGame(userDeck, aiDeck, opts) {
   }
 
   // 起手 5 张
-  for (const p of G.players) drawCards(G, p, 5, true);
+  for (const p of G.players) drawCards(G, p, 5 + (p.startHand || 0), true);
 
   // 羁绊的开局效果：加血 / 抽牌 / 检索陷阱
   for (const p of G.players) {
@@ -481,9 +484,21 @@ function applyFx(G, p, f, ctx) {
       }
       break;
     }
+    case 'reveal': {
+      const names = o.spells.filter((x) => x && x.set).map((x) => `「${CARDS[x.id].n}」`);
+      log(G, names.length ? `${pname(p)}看穿了${pname(o)}盖着的牌：${names.join('、')}` : `${pname(o)}没有盖放的牌`, 'spell');
+      break;
+    }
+    case 'trapLock': {
+      if (trapGuard(G, o, { text: '「断线」' })) break;
+      o.trapLock = true;
+      log(G, `${pname(o)}这个回合不能发动陷阱了`, 'spell');
+      break;
+    }
     case 'snipe':
     case 'snipeDraw': {
       const s = o.spells.find((x) => x && x.set);
+      if (s && trapGuard(G, o, { text: '破坏盖放陷阱的效果' })) { if (f.k === 'snipeDraw') drawCards(G, p, 1); break; }
       if (s) {
         o.spells[o.spells.indexOf(s)] = null;
         o.grave.push(s.id);
@@ -965,7 +980,7 @@ export function canUse(G, side, uid) {
 // 其余（抽牌 / 回复 / 弹手牌 / 削攻 / 墓地烧伤 / 永续等）以前根本没有任何时点会触发它们——现在都能手动发动。
 const REACTIVE_TRAP = new Set([
   'negateAttack', 'destroyAttacker', 'reflect', 'battleBoost', 'trapPoison', 'trapCounter', 'trapCounterMon',
-  'destroySummon', 'negateSummon', 'negateSpell', 'negateSpellSnipe', 'negateTrap',
+  'destroySummon', 'negateSummon', 'negateSpell', 'negateSpellSnipe', 'negateTrap', 'shieldTraps',
 ]);
 const CONT_TRAP = new Set(['contBoth', 'contBurn', 'contPunish', 'contBarrier', 'contHeal', 'contPoison', 'contBleed']);
 /** 这张盖放的陷阱现在能不能由持有者主动发动；返回 null 表示可以，否则是原因 */
@@ -990,7 +1005,10 @@ export function activateTrap(G, side, uid) {
   const d = CARDS[s.id];
   const cont = fx(d).some((f) => CONT_TRAP.has(f.k));
   fire(G, p, s, cont);
-  if (counterTrap(G, 1 - side, 'trap')) { log(G, `「${d.n}」的发动被无效了`, 'trap'); return ok(); }
+  if (counterTrap(G, 1 - side, 'trap')) {
+    // 反制的反制：我盖着的护符把对方的「无效陷阱」顶回去，这张陷阱照常结算
+    if (!trapGuard(G, p, { text: `对「${d.n}」的无效`, chain: true })) { log(G, `「${d.n}」的发动被无效了`, 'trap'); return ok(); }
+  }
   for (const f of fx(d)) {
     if (CONT_TRAP.has(f.k)) continue;        // 永续效果：翻开后由回合开始 / 结束时结算
     applyFx(G, p, f.k === 'trapBarrier' ? { k: 'barrier', v: f.v || 1 } : f, {});
@@ -1026,7 +1044,23 @@ function fire(G, owner, s, keep) {
 }
 
 // 盖放的陷阱能不能开：有命轮代价的必须付得起（付完不能正好死）
+// 反制反制：护符（shieldTraps）——对方的效果要破坏 / 封锁我盖着的陷阱时，把那个效果无效掉。
+// 连锁里的这一层（对方用「无效陷阱」顶掉我刚发动的陷阱）没有询问窗口，满足条件就自动发动。
+function trapGuard(G, owner, why) {
+  for (const s of owner.spells.slice()) {
+    if (!s || !s.set || s.turnSet >= G.turn) continue;
+    const d = CARDS[s.id];
+    if (!d || d.k !== 'T' || !fx(d).some((f) => f.k === 'shieldTraps') || !canFire(owner, s)) continue;
+    if (!why.chain && !trapAllowed(G, owner, s)) continue;
+    fire(G, owner, s, false);
+    log(G, `「${d.n}」把${why.text}无效了`, 'trap');
+    return true;
+  }
+  return false;
+}
+
 function canFire(owner, s) {
+  if (owner.trapLock) return false;          // 被「断线」封了：这个回合发不了陷阱
   const d = CARDS[s.id];
   const cost = (d && d.cost && d.cost.lp) || 0;
   return cost <= 0 || owner.lp > cost;
@@ -1050,7 +1084,7 @@ function counterTrap(G, side, trigger) {
       if (f.k === 'negateSpellSnipe') {
         const o = G.players[1 - side];
         const t = o.spells.find((x) => x && x.set);
-        if (t) { o.spells[o.spells.indexOf(t)] = null; o.grave.push(t.id); log(G, `「${CARDS[t.id].n}」被连带破坏`, 'trap'); }
+        if (t && !trapGuard(G, o, { text: '连带破坏盖放牌的效果' })) { o.spells[o.spells.indexOf(t)] = null; o.grave.push(t.id); log(G, `「${CARDS[t.id].n}」被连带破坏`, 'trap'); }
       }
     }
     return true;
@@ -1170,7 +1204,7 @@ export function attack(G, side, monUid, targetUid) {
   // 攻击宣言效果（达芙黛尔之类）
   if (hasFx(a, 'snipeAttack')) {
     const s = o.spells.find((x) => x && x.set);
-    if (s) { o.spells[o.spells.indexOf(s)] = null; o.grave.push(s.id); log(G, `「${CARDS[a.id].n}」破坏了盖放的「${CARDS[s.id].n}」`, 'monster'); }
+    if (s && !trapGuard(G, o, { text: `「${CARDS[a.id].n}」破坏盖放牌的效果` })) { o.spells[o.spells.indexOf(s)] = null; o.grave.push(s.id); log(G, `「${CARDS[a.id].n}」破坏了盖放的「${CARDS[s.id].n}」`, 'monster'); }
   }
 
   const stop = attackTraps(G, side, a, direct);
@@ -1364,7 +1398,7 @@ export function awaken(G, side, extraId) {
 //   sp: { cond: 'sameRealm' }           自己场上有同界域的怪兽时
 //   sp: { cond: 'lp', v: N }            献出 N 点命轮值
 //   sp: { cond: 'tribute', v: N }       解放自己场上 1 只怪兽 + 献出 N 点命轮值（给 6 级以上的大个子，免掉 1~2 只祭品）
-// 每回合最多 1 次，特殊召唤的怪兽当回合照样能攻击（和觉醒体不同）。对方的召唤陷阱照样能响应。
+// 每回合最多 1 次，特殊召唤的怪兽当回合不能攻击（和觉醒体一样）。对方的召唤陷阱照样能响应。
 export function canSpecial(G, p, uid) {
   if (G.over || G.active !== p.idx || G.phase !== 'main') return null;
   const h = p.hand.find((x) => x.uid === uid);
@@ -1403,6 +1437,7 @@ export function specialSummon(G, side, uid, tribUid) {
   const mon = mkMon(G, id, side);
   const slot = freeSlot(p.mons);
   p.mons[slot < 0 ? 0 : slot] = mon;
+  mon.atkCount = 9;     // 特殊召唤是白送的一个身位：当回合不能攻击（和觉醒体一样），否则就是每回合白赚一脚
   log(G, `${pname(p)}特殊召唤「${d.n}」（${REALM[d.r].n} · ${atkOf(G, p, mon)}/${defOf(G, p, mon)}）`, 'summon');
   const killed = summonTraps(G, p, mon);
   if (!killed && !mon.set) triggerSummonFx(G, p, mon);
@@ -1438,6 +1473,15 @@ export function eligibleTraps(G, side, a) {
     else if (a.t === 'summon' || a.t === 'special') hit = ks.includes('negateSummon') || ks.includes('destroySummon');
     else if (a.t === 'spell') hit = ks.includes('negateSpell') || ks.includes('negateSpellSnipe');
     else if (a.t === 'activateTrap') hit = ks.includes('negateTrap');
+    // 护符：对方这一步的牌带「破坏盖放陷阱 / 封锁陷阱」的效果时可以响应
+    if (!hit && ks.includes('shieldTraps')) {
+      const cardOf = (uid) => { const h = me.hand.find((x) => x.uid === uid); return h && CARDS[h.id]; };
+      let c = null;
+      if (a.t === 'spell' || a.t === 'summon' || a.t === 'special') c = cardOf(a.uid);
+      else if (a.t === 'attack') { const m = me.mons.find((x) => x && x.uid === a.uid); c = m && CARDS[m.id]; }
+      else if (a.t === 'activateTrap') { const sp = me.spells.find((x) => x && x.uid === a.uid); c = sp && CARDS[sp.id]; }
+      hit = !!c && fx(c).some((f) => ['snipe', 'snipeDraw', 'snipeAttack', 'trapLock', 'negateSpellSnipe'].includes(f.k));
+    }
     if (hit) out.push({ uid: s.uid, id: s.id });
   }
   return out;
@@ -1497,6 +1541,7 @@ export function beginTurn(G) {
   p.normalUsed = false;
   p.normalExtra = 0;
   p.directUsed = false;
+  for (const q of G.players) q.trapLock = false;      // 「断线」只管一个回合
   p.spCount = 0;
   for (const m of p.mons) {
     if (!m) continue;

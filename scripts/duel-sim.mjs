@@ -6,7 +6,7 @@
 // 14%~89% 之间乱跳。这里改成每局独立种子（对手 × 方向 × 局号），N=12 大约还有
 // ±3 个百分点的误差，要判 45%~55% 这种窄区间请用 N≥40。
 import * as E from '../js/duel/engine.js';
-import { nextAction } from '../js/duel/ai.js';
+import { nextAction, aiPolicyFor } from '../js/duel/ai.js';
 import { DECKS, CARDS, PACKS, BONDS, ART } from '../js/duel/gen.js';
 const N = Number(process.argv[2] || 12);
 const total = (G) => G.players.reduce((n, p) => n + p.deck.length + p.hand.length + p.grave.length + p.mons.filter(Boolean).length + p.spells.filter(Boolean).length + p.extra.length, 0);
@@ -17,7 +17,7 @@ for (let ia = 0; ia < DECKS.length; ia++) for (let ib = 0; ib < DECKS.length; ib
   const a = DECKS[ia], b = DECKS[ib];
   const seed = (777001 + ia * 7919 + ib * 104729 + s * 77) >>> 0;
   let G;
-  try { G = E.createGame({ cards: a.cards, extra: a.extra }, { cards: b.cards, extra: b.extra }, { seed }); } catch (e) { note('createGame 抛错 ' + e.message); continue; }
+  try { G = E.createGame({ cards: a.cards, extra: a.extra, lp: a.lp, hand: a.hand }, { cards: b.cards, extra: b.extra, lp: b.lp, hand: b.hand }, { seed }); } catch (e) { note('createGame 抛错 ' + e.message); continue; }
   const t0 = total(G); let steps = 0, lastTurn = 0, actsThisTurn = 0;
   try {
     while (!G.over && G.turn <= 60) {
@@ -27,7 +27,9 @@ for (let ia = 0; ia < DECKS.length; ia++) for (let ib = 0; ib < DECKS.length; ib
       if (!act) { note('AI 没给动作'); break; }
       if (G.turn !== lastTurn) { lastTurn = G.turn; actsThisTurn = 0; }
       if (++actsThisTurn > 120) { note('一个回合内动作 >120（卡死）'); break; }
+      G.trapPolicy = aiPolicyFor(G, side, act, 'normal');
       const r = E.applyAction(G, side, act);
+      G.trapPolicy = null;
       if (r && r.ok === false && act.t !== 'attack' && act.t !== 'pos') note(`AI 动作被拒绝 ${act.t}: ${String(r.msg || r.err || '').slice(0, 40)}`);
       for (const p of G.players) {
         if (p.hand.length > E.HAND_MAX + 1) note('手牌超过上限 ' + p.hand.length);
