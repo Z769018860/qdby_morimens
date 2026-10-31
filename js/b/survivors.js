@@ -735,7 +735,7 @@ const MECHS = {
   // 彩蛋是给熟人玩梗的，不该变成强度榜上的第一梯队。
   'egg-samo': {
     id: 'samobeat', n: '不耶节拍', color: '#ff7a9c',
-    text: '每击杀 1 名敌人积 1 拍（上限 30 拍），每拍攻击 +1.5%；满拍时放出一次节拍冲击清出一圈，然后重新计数。3 分钟后每 22 秒判定一次融蚀（35%~60%，越往后越高）：随机让一件技能或造物失效 10 秒，期间最大生命 -28%、攻击 +45%',
+    text: '每击杀 1 名敌人积 1 拍（上限 30 拍），每拍攻击 +1.5%；满拍时放出一次节拍冲击清出一圈，然后重新计数。5 分钟后每 22 秒判定一次融蚀（35%~60%，越往后越高）：随机让一件技能或造物失效 10 秒，期间最大生命 -28%、攻击 +45%',
     short: '节拍',
   },
   'egg-susu': {
@@ -790,7 +790,7 @@ const MECHS = {
 // 数值集中在这里：engine.js 的 startErode / endErode 直接读，ui.js 只读 dur。
 // 削生命上限而不是记一笔伤害 —— 融蚀退去时不该凭这笔「伤害」把血还回来。
 const ERODE = {
-  from: 180,     // 3 分钟后才开始掷骰
+  from: 300,     // 5 分钟后才开始掷骰
   every: 22,     // 每 22 秒掷一次
   base: 0.35,    // 起始概率 35%
   ramp: 0.25,    // 随局内时间线性加，最多再加 25 个点
@@ -3687,7 +3687,7 @@ function updateMech(dt) {
       G.mech.crCd = Math.max(0, (G.mech.crCd || 0) - dt);
       if (G.mech.crCd <= 0) {
         G.mech.crCd = ERODE.every;
-        // 越往后越容易：3 分钟 ERODE.base，之后按局内时间线性升，封顶 base+ramp
+        // 越往后越容易：5 分钟 ERODE.base，之后按局内时间线性升，封顶 base+ramp
         const p = ERODE.base
           + Math.min(ERODE.ramp, Math.max(0, G.t - ERODE.from) / ERODE.rampSec * ERODE.ramp);
         if (rnd() < p) startErode();

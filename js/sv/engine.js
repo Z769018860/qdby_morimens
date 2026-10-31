@@ -2463,7 +2463,7 @@ function updateMech(dt) {
       G.mech.crCd = Math.max(0, (G.mech.crCd || 0) - dt);
       if (G.mech.crCd <= 0) {
         G.mech.crCd = ERODE.every;
-        // 越往后越容易：3 分钟 ERODE.base，之后按局内时间线性升，封顶 base+ramp
+        // 越往后越容易：5 分钟 ERODE.base，之后按局内时间线性升，封顶 base+ramp
         const p = ERODE.base
           + Math.min(ERODE.ramp, Math.max(0, G.t - ERODE.from) / ERODE.rampSec * ERODE.ramp);
         if (rnd() < p) startErode();
