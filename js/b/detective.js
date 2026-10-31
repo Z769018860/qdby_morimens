@@ -3078,7 +3078,7 @@ const isOpen = (key) => opened.has(key);
 const OPEN_GIFT = {
   2: { wheel: 3 },
   3: { wheel: 4, cov: 2 },
-  4: { wheel: 4, cov: 2, relic: 3 },
+  4: { wheel: 4, cov: 2, relic: 3, pot: 1 },
 };
 let giftKeys = new Set();
 
@@ -3092,6 +3092,7 @@ function grantGift() {
   take(L.slots.filter(c => c.group === 'wheel'), g.wheel);
   take(L.slots.filter(c => c.group === 'cov'), g.cov);
   take(L.relics, g.relic);
+  take(L.team.filter(c => c.id === 'pot'), g.pot);
   let fresh = 0;
   for (const id of ids) {
     const key = `c:${id}`;
@@ -3301,7 +3302,15 @@ function clueList() {
     });
   }
 
-  // 启灵是大师档要猜的：不再有任何线索（付费汇总、开局赠送）给它；战报面板的「养成」行在这一档也不印它（见 reportPanel）。
+  // 启灵汇总：四个卡位各自落在哪一档（8 档，见 js/pot.js），只在要填启灵的档上架；
+  // 大师档开局免费送这一条（OPEN_GIFT）。战报面板的「养成」行在这一档不再印启灵，所以这是唯一的来源。
+  if (A.pot && full('pot')) {
+    team.push({
+      id: 'pot', cost: 8, label: t('cluePotTeam'),
+      value: () => ans.map((a, k) => `${LETTERS[k]} ${potTxt(a.pot)}`).join(' · '),
+    });
+  }
+
 
   // 命轮：一次解锁一条，只说这局用了哪几件，不说在哪一位，也不成对给出
   if (A.wheels && full('wheels')) {
