@@ -164,16 +164,22 @@ export const BONDS = [
   },
 
   /* ---------- 本命羁绊：主播 × 他在《唤醒体幸存者》里带的那位官方唤醒体 ----------
-     这 13 条不是编的，来源是 data/survivors-extra.json 里每位主播的 bonds 表
+     其中 13 条不是编的，来源是 data/survivors-extra.json 里每位主播的 bonds 表
      （cid 是官方唤醒体 id，按 dictionary.json 的 pid 对到本作的 slug）。原表里那句
      「攻击 +12%，伤害的 3% 转为治疗」是幸存者的数值口径，这里换算成本作的加成池字段：
      攻击/生命/防御/暴击/增伤/吸血/共鸣/钥焰，冷却与拾取范围这类没有对应字段的改给增伤。
      两位主播共用一个搭档（萨摩 & 立誓0氪 → 血链·希洛，鼠王 & 白云出岫 → 詹金）时，
-     各自算一条、名字和数值不同——所以「本命」认的是人，不是那位唤醒体。 */
+     各自算一条、名字和数值不同——所以「本命」认的是人，不是那位唤醒体。
+     另有一条「雪原利爪」是玩家点名补的（萨摩不耶 × 茉夏），幸存者表里没有这对组合。 */
   {
     id: 'patron-samo', zh: '血色节拍', cat: 'patron', members: ['samo', 'helot-catena'], need: 2,
     tiers: { 2: { atkPct: 12, steal: 3 } },
     desc: '萨摩不耶 + 血链·希洛：拍子踩在心跳上，攻击抬一档，伤害的 3% 转成治疗。',
+  },
+  {
+    id: 'patron-samo-mouchette', zh: '雪原利爪', cat: 'patron', members: ['samo', 'mouchette'], need: 2,
+    tiers: { 2: { critRate: 6, critDmg: 20 } },
+    desc: '萨摩不耶 + 茉夏：一个守雪原、一个用尖爪撕开缺口——抓准了就是暴击，暴击率与暴击伤害一起抬。',
   },
   {
     id: 'patron-mengyi-kathi', zh: '烤地瓜的余温', cat: 'patron', members: ['mengyi', 'kathigu-ra'], need: 2,

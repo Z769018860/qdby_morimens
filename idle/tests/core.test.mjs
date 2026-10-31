@@ -2510,9 +2510,9 @@ test('羁绊：主播 × 主播、主播 × 同界域唤醒体都能凑，两位
   assert.equal(teamBonds(['samo', 'mengyi'], data).active.some((x) => x.cat === 'crew'), false);
 });
 
-test('本命羁绊：13 条主播 × 羁绊唤醒体都在，且只在两人同队时激活', () => {
+test('本命羁绊：14 条主播 × 羁绊唤醒体都在，且只在两人同队时激活', () => {
   const patron = BONDS.filter((b) => b.cat === 'patron');
-  assert.equal(patron.length, 13);
+  assert.equal(patron.length, 14);
   const creators = new Set();
   for (const b of patron) {
     assert.equal(b.members.length, 2, `${b.id} 应该是一对`);
@@ -2541,6 +2541,14 @@ test('本命羁绊：13 条主播 × 羁绊唤醒体都在，且只在两人同�
   // 详情页的「羁绊」标签：主播与那位唤醒体互相都认得对方这条本命
   assert.ok(bondsOf('samo', data).some((b) => b.id === 'patron-samo'));
   assert.ok(bondsOf('helot-catena', data).some((b) => b.id === 'patron-samo'));
+  // 萨摩不耶 × 茉夏（玩家点名补的那条）：单独上阵提示差 1，同队就激活
+  assert.equal(solo.near.find((x) => x.id === 'patron-samo-mouchette').gap, 1);
+  const sm = teamBonds(['samo', 'mouchette'], data).active.find((x) => x.id === 'patron-samo-mouchette');
+  assert.ok(sm && sm.tier === 2, '萨摩 + 茉夏应该激活雪原利爪');
+  assert.equal(sm.bonus.critRate, 6);
+  assert.equal(sm.bonus.critDmg, 20);
+  assert.ok(bondsOf('samo', data).some((b) => b.id === 'patron-samo-mouchette'));
+  assert.ok(bondsOf('mouchette', data).some((b) => b.id === 'patron-samo-mouchette'));
 });
 
 test('档案派系：神国·利莫里亚按档案 traits 分 2 / 3 / 4 档', () => {

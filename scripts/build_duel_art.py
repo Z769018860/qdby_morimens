@@ -166,6 +166,13 @@ def main():
                 src_by_name[a['zh']] = q
     except Exception as ex:
         print('读不到 game-data，沿用 avatars：', ex)
+    # 联名嘉宾（十位 B 站主播）：头像不在 avatars.json 里，取幸存者那份 120px 方图
+    try:
+        for c in read_json('data/survivors-extra.json')['chars']:
+            if c.get('n') and c.get('face') and c['n'] not in src_by_name:
+                src_by_name[c['n']] = c['face']
+    except Exception as ex:
+        print('读不到主播名单：', ex)
 
     # 需要头像的名字：全部怪兽 + 觉醒体（觉醒体借用第一只素材的脸）
     names = []

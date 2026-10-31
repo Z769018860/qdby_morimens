@@ -227,7 +227,7 @@ check(teamOut.team === 4 && teamOut.wheels === 4 && teamOut.covs === 4,
 check(teamOut.relics > 0 && teamOut.orders > 0, `造物 ${teamOut.relics} 件 / 钥令 ${teamOut.orders} 个`);
 check(teamOut.heads.some((h) => h.includes('命轮') && h.includes('密契')), `队伍页有命轮·密契区块：${teamOut.heads.join(' | ')}`);
 check(teamOut.slots === 8 && teamOut.filled === 8, `队伍页槽位 ${teamOut.slots} 格 / 已装 ${teamOut.filled} 格`);
-// 羁绊图鉴：全部 37 条都摆出来了（9 组），本命羁绊那一组自己再折一层
+// 羁绊图鉴：全部 38 条都摆出来了（9 组），本命羁绊那一组自己再折一层
 const bondBook = await cdp.evalIife(`(() => {
   const v = window.__view();
   const d = v.querySelector('.bdall');
@@ -236,7 +236,7 @@ const bondBook = await cdp.evalIife(`(() => {
   const groups = [...d.querySelectorAll('.bdgroup')].map((g) => (g.querySelector('h5, summary') || {}).textContent || '');
   return { ok: true, title: d.querySelector('summary').textContent, groups, items: d.querySelectorAll('.bdgroup li').length, nested: d.querySelectorAll('.bdgroup.more').length };
 })()`);
-check(bondBook.ok && bondBook.items === 37 && bondBook.groups.length === 9,
+check(bondBook.ok && bondBook.items === 38 && bondBook.groups.length === 9,
   `羁绊图鉴：${bondBook.title || '(没找到)'} · ${bondBook.groups.length} 组 / ${bondBook.items} 条`);
 check(bondBook.nested === 1 && bondBook.groups.some((g) => g.includes('本命羁绊')),
   `本命羁绊折叠成一组：${bondBook.groups.join(' | ')}`);

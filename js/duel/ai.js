@@ -178,6 +178,10 @@ function worstAttack(G, side) {
   const a = mine.sort((x, y) => atkOf(G, p, x) - atkOf(G, p, y))[0];
   const foes = o.mons.filter(Boolean);
   if (!foes.length) return { uid: a.uid, target: null };
+  // 守备守护的怪挡在前面时只能打它——这里原先直接从「攻击力最高的」里挑，
+  // 绕过了 guard，规则会拒绝这次攻击（新卡把「奥吉尔」「温柯尔」做进来之后每局必现）。
+  const wall = o.mons.find((m) => m && !m.set && m.pos === 'def' && (d(m.id).fx || []).some((f) => f.k === 'guard'));
+  if (wall) return { uid: a.uid, target: wall.uid };
   const t = foes.sort((x, y) => atkOf(G, o, y) - atkOf(G, o, x))[0];
   return { uid: a.uid, target: t.uid };
 }

@@ -21,6 +21,8 @@ export const REALM = {
 const SUMMON_FX = new Set([
   'draw', 'burn', 'heal', 'discardOpp', 'recall', 'search', 'bounce',
   'snipe', 'weaken', 'pumpSelf', 'costLp', 'destroyStrongest', 'bothDraw',
+  // 沙耶：墓地怪兽数量 × 回复，只有她在怪兽上用了这条（以前 graveHeal 只做过魔法卡）
+  'graveHeal',
 ]);
 
 const ok = () => ({ ok: true });
