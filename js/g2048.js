@@ -11,7 +11,7 @@
 //
 // 存的三份东西：本局局面（换页 / 刷新能接着玩）、各难度最高分、历史合到过的最高级
 // （显影链面板拿它点灯）。账号登录后走 js/gamecloud.js 的通用云存档。
-import { LEVELS, ROT_ART } from './g2048-art.js';
+import { LEVELS, ROT_ART, SC_ART } from './g2048-art.js';
 import { startGameCloud } from './gamecloud.js';
 
 // ------------------------------------------------------------------ 常量
@@ -22,7 +22,6 @@ const KEY = {
   rot: 'zjtt:g2048:rot',
   snd: 'zjtt:g2048:snd',
   seen: 'zjtt:g2048:seen',          // 历史合到过的最高块
-  gain: 'zjtt:g2048:gain',          // 每难度一次的通关银芯（防反复领）
   skin: 'zjtt:g2048:skin',          // 换的皮（哪一类 + 每级抽中的是池里第几个）
 };
 const DIFFS = {
@@ -30,6 +29,40 @@ const DIFFS = {
   wide: { n: 5, name: '5×5' },
   brutal: { n: 3, name: '3×3' },
 };
+
+// ------------------------------------------------------------------ 银芯
+// 每局结束按「棋盘 × 本局显影分」发银芯，三档棋盘各一张阶梯表。
+// 为什么不共用一张表再乘难度系数：5×5 的分数和 4×4 根本不是一个量级——同一套启发式
+// AI 各跑 60 局，4×4 中位数 6 千分、5×5 中位数 220 万分、3×3 只有 5 百。差三个数量级，
+// 乘个系数糊不平，索性三张表按各自的分数分布铺。
+// 三张表都差不多「每翻一倍上一档」：2048 的分数本来就是靠合大块翻上去的，
+// 等比门槛等于「多合出一次大块就多一档」，比定额门槛讲得通。
+// 表里第一个数是本局显影分，第二个是银芯数；取达到的最高一档，不叠加。
+const CREDIT = {
+  // 4×4：模拟分位 p05/p25/p50/p75/p90 ≈ 2.0k / 4.0k / 6.1k / 9.4k / 25k，合到 2048 约 2.5 万分
+  classic: [
+    [500, 1], [1200, 2], [2500, 4], [5000, 7], [9000, 10], [16000, 14],
+    [25000, 19], [40000, 25], [70000, 32], [120000, 40], [200000, 48],
+  ],
+  // 5×5：同一个 AI 中位数两百多万分，门槛整体上抬一个量级，免得随便一局就发满
+  wide: [
+    [3000, 1], [8000, 2], [18000, 4], [40000, 7], [90000, 10], [200000, 14],
+    [450000, 19], [1000000, 25], [2500000, 32], [6000000, 40], [15000000, 48],
+  ],
+  // 3×3：一局一两分钟就结束，合到 512 已经算好局（AI 中位数 512 分），门槛压得很低
+  brutal: [
+    [60, 1], [140, 2], [260, 4], [450, 6], [700, 9], [1000, 12],
+    [1500, 16], [2200, 21], [3200, 27], [5000, 36],
+  ],
+};
+const tiersOf = (k) => CREDIT[k] || CREDIT.classic;
+const creditOf = (score, k) => {
+  let out = 0;
+  for (const [s, c] of tiersOf(k)) if (score >= s) out = c;
+  return out;
+};
+const nextTierOf = (score, k) => tiersOf(k).find(([s]) => score < s) || null;
+
 const TOP = LEVELS.length - 1;      // 最后一级的下标（2048）
 const UNDO_MAX = 5;
 const MANIA_FULL = 100;
@@ -222,6 +255,8 @@ const sfx = {
   forget() { tone(520, 0.18, { type: 'sine', vol: 0.045, to: 180 }); tone(390, 0.22, { type: 'sine', vol: 0.03, to: 130, at: 0.06 }); },
   rot() { tone(90, 0.28, { type: 'sawtooth', vol: 0.05, to: 62 }); },
   win() { [0, 3, 7, 12].forEach((s, i) => tone(392 * Math.pow(2, s / 12), 0.26, { type: 'sine', vol: 0.045, at: i * 0.09 })); },
+  // 结算入账：两声短的高音，和「输了的」下行三音拉开
+  coin() { [0, 7].forEach((s, i) => tone(880 * Math.pow(2, s / 12), 0.15, { type: 'sine', vol: 0.034, at: i * 0.085 })); },
   over() { [0, -2, -5, -9].forEach((s, i) => tone(330 * Math.pow(2, s / 12), 0.3, { type: 'triangle', vol: 0.05, at: i * 0.12 })); },
   tap() { tone(520, 0.04, { type: 'sine', vol: 0.02 }); },
 };
@@ -230,6 +265,28 @@ const sfx = {
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* 无痕模式 */ } };
 const num = (s, d = 0) => { const v = parseInt(s || '', 10); return Number.isFinite(v) ? v : d; };
+const fmtNum = (n) => Math.round(n).toLocaleString('zh-CN');
+
+// 银芯钱包：和合成大杜勒、战报侦探、忘却协议共用一个 zjtt:credits。
+// 那边有的写 JSON 数字（"120"）、有的写裸数字（120），读的时候两种都认。
+function walletGet() {
+  const raw = lsGet('zjtt:credits');
+  if (!raw) return 0;
+  try {
+    const v = Number(JSON.parse(raw));
+    if (Number.isFinite(v)) return Math.max(0, Math.round(v));
+  } catch { /* 不是 JSON 就看下面这条 */ }
+  return Math.max(0, num(raw));
+}
+
+function walletAdd(n) {
+  const add = Math.max(0, Math.round(n));
+  if (!add) return walletGet();
+  const v = walletGet() + add;
+  lsSet('zjtt:credits', String(v));
+  document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: 'credits' }));
+  return v;
+}
 
 function loadPrefs() {
   const d = lsGet(KEY.diff);
@@ -629,19 +686,10 @@ function checkWin() {
   sfx.win();
   haptic([9, 40, 9, 40, 16]);
   toast('显影完成：' + nameOf(TOP) + '。可以继续往上合', 2600);
-  const got = lsGet(KEY.gain + ':' + G.diff) === '1';
-  if (!got) {
-    lsSet(KEY.gain + ':' + G.diff, '1');
-    try {
-      const cur = Number(JSON.parse(lsGet('zjtt:credits') || '0')) || 0;
-      lsSet('zjtt:credits', JSON.stringify(Math.max(0, cur + 30)));
-      document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: 'credits' }));
-      setTimeout(() => toast('第一次合到 2048，发 30 银芯', 2400), 900);
-    } catch { /* 记账失败不影响游戏 */ }
-  }
 }
 
 function endGame() {
+  if (G.over) return;                 // 结算只走一次：银芯是按局发的，别让重复调用重复记账
   G.over = true;
   saveBest();
   saveGame();
@@ -650,12 +698,35 @@ function endGame() {
   const diffName = DIFFS[G.diff].name;
   const rec = num(lsGet(KEY.best + ':' + G.diff));
   const isNew = G.score >= rec && G.score > 0;
+
+  // 银芯：按本局得分取这一档棋盘的阶梯，先入账再弹结算，刷掉页面也不会丢
+  const got = creditOf(G.score, G.diff);
+  if (got > 0) { walletAdd(got); setTimeout(() => sfx.coin(), 260); }
+
   $('#ovk').textContent = G.peak >= 2048 ? '显影到底了' : '这段记忆散了';
   $('#ovs').textContent = G.score;
   $('#ovd').textContent = `最高块「${nameOf(lvOf(G.peak))}」 · ${G.steps} 步 · ${diffName}`;
+  paintCredit(got);
   overEl.hidden = false;
   updateHud();
   if (isNew) setTimeout(() => toast('新纪录：' + G.score + ' 分', 2200), 500);
+}
+
+// 结算里那一行银芯：拿到了就报数并写清「下一档还差多少」，没拿到就说差多少才有第一枚。
+// 档位是「取最高一档」，所以不写乘法，只报这一档本身。
+function paintCredit(got) {
+  const el = $('#ovc');
+  if (!el) return;
+  const wallet = walletGet();
+  const nx = nextTierOf(G.score, G.diff);
+  const nextTxt = nx
+    ? `再得 ${fmtNum(nx[0] - G.score)} 分到 ${fmtNum(nx[0])}（+${nx[1]} 枚）`
+    : '已经是最高一档';
+  const head = got > 0
+    ? `<img src="${SC_ART}" alt="" width="16" height="16" decoding="async"><b>+${got}</b> 银芯`
+    : `<span class="none">还没够到第一档（${fmtNum(tiersOf(G.diff)[0][0])} 分）</span>`;
+  el.className = 'cred' + (got > 0 ? ' on' : '');
+  el.innerHTML = head + `<small>${nextTxt} · 钱包 ${fmtNum(wallet)}</small>`;
 }
 
 // 一步移动的完整流程。slide 是就地改格子的，快照得在调它之前拍；
@@ -931,7 +1002,36 @@ function paintSkinBtn() {
 function openSheet(open) {
   const s = $('#sheet');
   s.hidden = !open;
-  if (open) { paintChain(); paintSkinChips(); sfx.tap(); }
+  if (open) { paintChain(); paintSkinChips(); paintCreditRules(); sfx.tap(); }
+}
+
+// 面板底下那张银芯表：当前这一档棋盘的阶梯，够到的点亮，下一档标金。
+// 有了它，玩家才知道「再合一个大块能换几枚」，而不用先输一局看结算。
+function paintCreditRules() {
+  const box = $('#crules');
+  if (!box) return;
+  const tiers = tiersOf(G.diff);
+  const got = creditOf(G.score, G.diff);
+  const nx = nextTierOf(G.score, G.diff);
+  box.replaceChildren();
+  const h = document.createElement('h4');
+  h.innerHTML = `银芯 <span>· ${DIFFS[G.diff].name} · 每局按本局显影取最高一档</span>`;
+  box.appendChild(h);
+  const rows = document.createElement('div');
+  rows.className = 'rows';
+  for (const [s, c] of tiers) {
+    const i = document.createElement('i');
+    i.className = s <= G.score ? 'on' : (nx && nx[0] === s ? 'next' : '');
+    i.innerHTML = `<span>${fmtNum(s)}</span><img src="${SC_ART}" alt="" width="12" height="12" decoding="async"><b>${c}</b>`;
+    rows.appendChild(i);
+  }
+  box.appendChild(rows);
+  const tip = document.createElement('p');
+  tip.className = 'crtip';
+  tip.textContent = got > 0
+    ? `本局现在 ${fmtNum(G.score)} 分，就这么散了能换 ${got} 枚。`
+    : `本局 ${fmtNum(G.score)} 分，再得 ${fmtNum(tiers[0][0] - G.score)} 分才有银芯。`;
+  box.appendChild(tip);
 }
 
 // ------------------------------------------------------------------ 启动
@@ -1058,6 +1158,11 @@ if (window.__G2048_TEST__ || /[?&]_test=1\b/.test(location.search)) {
     undo: () => undo(),
     diff: (k) => setDiff(k, true),
     rot: (on) => setRot(on),
+    // 银芯：本局得分值多少枚 / 这一档棋盘的阶梯 / 结算（发钱那一步）
+    credit: (s) => creditOf(s === undefined ? G.score : s, G.diff),
+    tiers: () => tiersOf(G.diff).map(([s, c]) => [s, c]),
+    wallet: () => walletGet(),
+    end: () => { if (!G.over) endGame(); return creditOf(G.score, G.diff); },
     state: () => ({ score: G.score, peak: G.peak, over: G.over, n: G.n, mania: G.mania, steps: G.steps, cells: G.cells.map((t) => (t ? (t.rot ? -1 : t.v) : 0)) }),
     // 换皮：skin('creation'|'awakener') 摇一批，skin('chain') 还原；返回 Promise
     skin: (k) => (k === 'chain' ? (applyChain(true), Promise.resolve({ k: 'chain' })) : shuffleSkin(k, true)),

@@ -29,6 +29,9 @@ const levels = cfg.levels.map((l) => {
   return { v: l.v, n: l.n, c: l.c, img: uri(l.img) };
 });
 const rot = uri(cfg.rot.img);
+// 银芯图标：结算和面板里的「+N 银芯」都用原作这张（assets/ui/silvercore.webp），
+// 跟着脚本一起内联，页面不会为了一枚硬币再发一个请求。
+const sc = uri('assets/ui/silvercore.webp');
 
 const code = [
   '// 由 scripts/build_g2048_art.mjs 生成，请勿手改。',
@@ -37,6 +40,9 @@ const code = [
   '',
   '// 侵蚀块（侵蚀模式里落下来的那一块）：assets/status/corrosion.webp',
   `export const ROT_ART = ${JSON.stringify(rot)};`,
+  '',
+  '// 银芯图标（结算与银芯阶梯）：assets/ui/silvercore.webp',
+  `export const SC_ART = ${JSON.stringify(sc)};`,
   '',
 ].join('\n');
 
