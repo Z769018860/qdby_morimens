@@ -121,6 +121,7 @@ export function migrate(s, data) {
   for (const [k, r] of Object.entries(m.roster)) {
     if (!data.bySlug[k]) { delete m.roster[k]; continue; }
     r.star = Math.max(0, Math.min(MAX_AWAKEN, Math.floor(r.star || 0)));
+    r.buy = Math.max(0, Math.min(r.star, Math.floor(r.buy || 0)));   // 银芯叠过几层（叠位定价用，见 stats.awakenCost）
     r.lv = Math.max(1, Math.min(levelCap(r.star), Math.floor(r.lv || 1)));
     if (r.brk == null) r.brk = Math.min(6, Math.floor(r.lv / LEVEL_GATE));
     r.od = r.star >= MAX_AWAKEN ? overdrive(r.od) : 0;      // 超限只有叠满 99 才有
@@ -597,10 +598,10 @@ export function lawUp(state, slug) {
 export function awakenUp(state, slug) {
   const r = state.roster[slug];
   if (!r || r.star >= MAX_AWAKEN) return 0;
-  const c = awakenCost(r.star);
+  const c = awakenCost(r.buy);
   if (state.cores < c) return 0;
   state.cores -= c; state.stats.coresSpent = (state.stats.coresSpent || 0) + c;
-  r.star += 1;
+  r.star += 1; r.buy = (r.buy || 0) + 1;
   return c;
 }
 
@@ -774,10 +775,25 @@ export function dismantle(state, data, uid) {
   const it = state.gear.items[uid]; if (!it || isEquipped(state, uid)) return 0;
   const def = (it.kind === 'wheel' ? data.wheelById : it.kind === 'cov' || it.kind === 'covenant' ? data.covById : data.relicById)[it.defId];
   const v = dismantleValue(def?.rarity || 'SR', it.lv);
-  state.gold += v; state.cores += dismantleCores(def?.rarity, it); delete state.gear.items[uid]; return v;
+  state.gold += v; state.cores += dismantleCores(def?.rarity, it, state);
+  const base = dismantleBase(def?.rarity, state);
+  if (base) dismantleDay(state).got += base;
+  delete state.gear.items[uid]; return v;
 }
-// 分解 returns a little 银芯: by rarity, plus half of what was spent on refining
-export const dismantleCores = (rarity, it) => ({ SSR: 6, SR: 2 }[rarity] || 0) + Math.floor(REFINE_COST.slice(0, it.rf || 0).reduce((a, x) => a + x, 0) / 2);
+// 分解的「基础银芯」（SSR 6 / SR 2）每天有上限：金币祈愿 400 一件、分解约返 112 金币 + 1 银芯，
+// 后期金币指数膨胀、银芯是固定值，不设上限就能把金币无限换成银芯（再去银芯召唤 / 精炼 / 商店）。
+// 精炼时花掉的银芯返还一半不受限——那是自己花出去的钱，不是凭空多出来的。
+export const DISMANTLE_BASE_DAILY = 40;
+export function dismantleDay(state) {
+  if (!state.dismantle || state.dismantle.day !== utcDay()) state.dismantle = { day: utcDay(), got: 0 };
+  return state.dismantle;
+}
+export const dismantleBaseLeft = (state) => Math.max(0, DISMANTLE_BASE_DAILY - (state ? dismantleDay(state).got : 0));
+const dismantleBase = (rarity, state) => {
+  const raw = { SSR: 6, SR: 2 }[rarity] || 0;
+  return state ? Math.min(raw, dismantleBaseLeft(state)) : raw;
+};
+export const dismantleCores = (rarity, it, state) => dismantleBase(rarity, state) + Math.floor(REFINE_COST.slice(0, it.rf || 0).reduce((a, x) => a + x, 0) / 2);
 // 精炼: spend 银芯, +8% of the item's whole bonus per tier (max 5)
 export function refineItem(state, uid) {
   const it = state.gear.items[uid]; if (!it) return false;

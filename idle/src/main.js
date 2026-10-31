@@ -692,7 +692,11 @@ function onAct(e) {
       break;
     }
     case 'gear-up': enhanceItem(s, el.dataset.uid); rerender(); break;
-    case 'gear-dis': { const v = dismantle(s, d, el.dataset.uid); if (v) toast(`分解获得 ${v} 金币`); rerender(); break; }
+    case 'gear-dis': {
+      const c0 = s.cores, v = dismantle(s, d, el.dataset.uid);
+      if (v) { const c = s.cores - c0; toast(`分解获得 ${v} 金币${c ? ` + ${c} 银芯` : ''}`); }
+      rerender(); break;
+    }
     case 'gear-equip': {
       const it = s.gear.items[el.dataset.uid];
       if (it.kind === 'relic') { if (isEquipped(s, it.uid)) unequipItem(s, it.uid); else equipItem(s, d, null, it.uid); rerender(); break; }

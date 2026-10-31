@@ -2117,3 +2117,40 @@ test('配装分配（编队独立配装 / 融灾五队）：分出去的命轮�
   const holders = Object.entries(target.equip).filter(([, e]) => e.wheel === uid).map(([k]) => k);
   assert.ok(holders.length <= 1 && !holders.includes('benched'), '板凳上的旧持有者被摘掉');
 });
+
+import { dismantleBaseLeft, DISMANTLE_BASE_DAILY } from '../src/core/game.js';
+
+test('分解的基础银芯每天封顶，刷金币祈愿换不出无限银芯', () => {
+  const s = newState(data, 31);
+  const ssr = data.wheels.find((x) => x.rarity === 'SSR');
+  let got = 0;
+  for (let i = 0; i < 30; i++) {
+    const it = addItem(s, 'wheel', ssr.id);
+    const c0 = s.cores; dismantle(s, data, it.uid); got += s.cores - c0;
+  }
+  assert.equal(got, DISMANTLE_BASE_DAILY, '30 件 SSR（每件 6）也只给 40 枚');
+  assert.equal(dismantleBaseLeft(s), 0);
+  // 封顶后分解仍给金币；精炼返还的那一半不受限
+  const it = addItem(s, 'wheel', ssr.id); s.cores = 500; refineItem(s, it.uid);
+  const c0 = s.cores, g0 = s.gold; dismantle(s, data, it.uid);
+  assert.equal(s.cores - c0, 20, '只拿回精炼的一半（40/2）');
+  assert.ok(s.gold > g0);
+  // 隔天恢复
+  s.dismantle.day = '2000-01-01';
+  assert.equal(dismantleBaseLeft(s), DISMANTLE_BASE_DAILY);
+});
+
+test('银芯叠位总价与「先抽后补 / 先补后抽」无关', () => {
+  const run = (pullsFirst) => {
+    const s = newState(data, 32); s.cores = 1e9; const slug = 'ogier'; const r = s.roster[slug];
+    let spent = 0; const P = 40, T = 99;
+    if (pullsFirst) r.star += P;            // 重复抽到：免费 +1
+    while (r.star < T) { spent += awakenUp(s, slug); if (!spent) break; if (!pullsFirst && r.buy === T - P) { r.star += P; } }
+    return { spent, star: r.star, buy: r.buy };
+  };
+  const a = run(true), b = run(false);
+  assert.equal(a.star, 99); assert.equal(b.star, 99);
+  assert.equal(a.spent, b.spent);
+  assert.equal(a.buy, 59);
+  assert.equal(a.spent, 59 * 20 + 5 * (58 * 59 / 2));
+});
