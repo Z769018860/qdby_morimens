@@ -749,6 +749,9 @@ function onNetMsg(p) {
   const r = S.room;
   if (!r) return;
   if (p.k === 'hi') {
+    // 已经开打了就不理会：对方的握手每 5 秒重发一次，中继又会把 12 小时内的旧消息补发给重连的人，
+    // 不挡的话，房主每收到一次旧的「hi」就会换个种子重开一局
+    if (r.state === 'playing') return;
     if (r.role === 'a' && p.role === 'b') {
       r.peerDeck = p.deck || 'd1';
       r.state = 'playing';
@@ -761,6 +764,7 @@ function onNetMsg(p) {
     return;
   }
   if (p.k === 'open' && r.role === 'b') {
+    if (r.state === 'playing') return;       // 补发的旧开局消息，别把正在打的这局重开
     r.state = 'playing';
     S.net.send({ k: 'ack' });
     startNetGame(1, p.seed, p.a, p.b);
@@ -770,6 +774,8 @@ function onNetMsg(p) {
     const G = S.G;
     if (!G || S.bt !== 'net') return;
     if (p.n !== S.seq + 1) { toast('房间消息不连续，重开一局吧'); return; }
+    // 只认「对方的回合里、对方发的动作」：中继是公共话题，别人也能往里发消息；引擎里除了「结束回合」不检查轮到谁
+    if (G.over || G.active !== 1 - S.side || !p.a || typeof p.a !== 'object') return;
     const res = E.applyAction(G, 1 - S.side, p.a);
     S.seq = p.n;
     if (!res.ok) toast('同步失败：' + res.err);

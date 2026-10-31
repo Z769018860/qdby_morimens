@@ -51,6 +51,16 @@ function shuffle(G, arr) {
   return arr;
 }
 
+// 把一张牌放进手牌；手牌满了就挤进墓地（和抽牌爆手牌同一条规则），而不是凭空消失。
+// 以前检索 / 弹回 / 复活这几处写的是「手牌没满才 push」，满了牌就直接丢了：
+// 对手的「潮汐逆转」把你的怪兽弹回满手牌，那只怪兽连墓地都没进，整副牌少一张。
+export function handAdd(G, p, id, why) {
+  if (p.hand.length < HAND_MAX) { p.hand.push({ uid: G.uid++, id }); return true; }
+  p.grave.push(id);
+  log(G, `${pname(p)}手牌已满，「${CARDS[id].n}」被挤进墓地${why ? `（${why}）` : ''}`, 'info');
+  return false;
+}
+
 export function log(G, text, kind) {
   G.log.push({ text, kind: kind || 'info', turn: G.turn });
   if (G.log.length > 120) G.log.shift();
@@ -370,8 +380,9 @@ function applyFx(G, p, f, ctx) {
       for (let i = p.grave.length - 1; i >= 0; i--) {
         const d = CARDS[p.grave[i]];
         if (d && d.k === kk) {
+          if (p.hand.length >= HAND_MAX) { log(G, `${pname(p)}手牌已满，没能从墓地取回「${d.n}」`, 'info'); break; }
           const id = p.grave.splice(i, 1)[0];
-          if (p.hand.length < HAND_MAX) p.hand.push({ uid: G.uid++, id });
+          p.hand.push({ uid: G.uid++, id });
           log(G, `${pname(p)}从墓地取回「${d.n}」`, 'spell');
           break;
         }
@@ -392,8 +403,8 @@ function applyFx(G, p, f, ctx) {
       });
       if (i >= 0) {
         const id = p.deck.splice(i, 1)[0];
-        if (p.hand.length < HAND_MAX) p.hand.push({ uid: G.uid++, id });
         log(G, `${pname(p)}检索了「${CARDS[id].n}」`, 'spell');
+        handAdd(G, p, id, '检索');
       } else {
         log(G, `${pname(p)}想检索，但卡组里没有符合条件的牌`, 'info');
       }
@@ -403,8 +414,8 @@ function applyFx(G, p, f, ctx) {
       const t = strongest(o);
       if (t) {
         removeMon(G, o, t);
-        if (o.hand.length < HAND_MAX) o.hand.push({ uid: G.uid++, id: t.id });
         log(G, `「${CARDS[t.id].n}」被弹回${pname(o)}的手牌`, 'spell');
+        handAdd(G, o, t.id, '弹回');
       }
       break;
     }
@@ -574,8 +585,8 @@ export function destroyMon(G, p, mon, reason) {
   if (hasFx(mon, 'revive') && !mon.used.revive) {
     mon.used.revive = true;
     removeMon(G, p, mon);
-    if (p.hand.length < HAND_MAX) p.hand.push({ uid: G.uid++, id: mon.id });
     log(G, `「${d.n}」回到${pname(p)}的手牌`, 'buff');
+    handAdd(G, p, mon.id, '复活');
     return;
   }
   removeMon(G, p, mon);
