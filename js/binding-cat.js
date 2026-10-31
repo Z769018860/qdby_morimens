@@ -385,25 +385,25 @@ function drawEars(c, ear, fur, t, front) {
       c.fillStyle = fur.d;
       c.beginPath();
       c.moveTo(48 + s * 16 * w, 29);
-      c.quadraticCurveTo(48 + s * 17 * w, 18 * h, 48 + s * 25 * w, 19 * h);
-      c.quadraticCurveTo(48 + s * 29 * w, 23, 48 + s * 28 * w, 29);
+      c.quadraticCurveTo(48 + s * 17 * w, 14 * h, 48 + s * 25.5 * w, 15 * h);
+      c.quadraticCurveTo(48 + s * 29.5 * w, 21, 48 + s * 28 * w, 29);
       c.closePath();
       c.fill();
-      c.fillStyle = 'rgba(150,92,106,.18)';
+      c.fillStyle = 'rgba(150,92,106,.26)';
       c.beginPath();
       c.moveTo(48 + s * 18.5 * w, 28.5);
-      c.quadraticCurveTo(48 + s * 19 * w, 21 * h, 48 + s * 24 * w, 21.5 * h);
-      c.quadraticCurveTo(48 + s * 26 * w, 24, 48 + s * 25.5 * w, 28.5);
+      c.quadraticCurveTo(48 + s * 19 * w, 20 * h, 48 + s * 24.5 * w, 20.5 * h);
+      c.quadraticCurveTo(48 + s * 26.5 * w, 24, 48 + s * 25.5 * w, 28.5);
       c.closePath();
       c.fill();
       // 折痕：耳朵塌下来的那道线。折耳的关键就在这一道，没它只是一块小凸起
       c.save();
-      c.globalAlpha *= 0.55;
+      c.globalAlpha *= 0.8;
       c.strokeStyle = fur.rim;
-      c.lineWidth = 1.1;
+      c.lineWidth = 1.3;
       c.beginPath();
       c.moveTo(48 + s * 17.5 * w, 27);
-      c.quadraticCurveTo(48 + s * 18.5 * w, 19 * h, 48 + s * 25 * w, 19.5 * h);
+      c.quadraticCurveTo(48 + s * 18.5 * w, 17 * h, 48 + s * 25.5 * w, 17.5 * h);
       c.stroke();
       c.restore();
     }
