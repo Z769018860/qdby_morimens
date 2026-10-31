@@ -175,5 +175,15 @@ for (const id of free) {
   const lpb3 = b.lp; E.applyAction(G, 0, { t: 'attack', uid: 905, target: null });
   check('第二次（本场限一次）：陷阱照常发动，攻击被无效', b.lp === lpb3);
 }
+// ---- 预组里都带了反制 / 抗性设计 ----
+{
+  const COUNTER_FX = ['trapSeal', 'snipe', 'snipeAttack', 'snipeAll', 'reveal', 'trapLock', 'trapWard', 'trapImmune', 'negateTrapOnce', 'shieldSnipe', 'shieldLock', 'shieldNegate'];
+  for (const d of DECKS) {
+    const n = d.cards.reduce((s, [id, k]) => s + ((CARDS[id].fx || []).some((f) => COUNTER_FX.includes(f.k)) ? k : 0), 0);
+    check(`${d.id} ${d.n} 带反制 / 抗性牌 ≥ 4 张`, n >= 4, n);
+  }
+  const mons = Object.values(CARDS).filter((c) => c.k === 'M' && (c.fx || []).some((f) => ['trapWard', 'trapImmune', 'negateTrapOnce', 'trapSeal'].includes(f.k)));
+  check('原有怪兽里有一批带了抗性 / 反制', mons.length >= 15, mons.length);
+}
 console.log(bad ? `\n${bad} 项失败` : '\n全部通过 ✓');
 process.exit(bad ? 1 : 0);

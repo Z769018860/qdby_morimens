@@ -46,7 +46,17 @@ for (let r = 0; r < ROUNDS; r++) {
 const wr = measure();
 console.log('最终', DECKS.map((d) => `${d.id}:${Math.round(wr[d.id] * 100)}(${lp[d.id] >= 0 ? '+' : ''}${lp[d.id]}/${hand[d.id] >= 0 ? '+' : ''}${hand[d.id]}张)`).join(' '));
 if (WRITE) {
-  for (const d of packs.decks) { if (lp[d.id]) d.lp = lp[d.id]; else delete d.lp; if (hand[d.id]) d.hand = hand[d.id]; else delete d.hand; }
-  fs.writeFileSync(P, JSON.stringify(packs, null, 1));
+  // 只改每套预组的 lp / hand 两行，不重写整个 JSON（保持原来的排版）
+  let txt = fs.readFileSync(P, 'utf8');
+  for (const d of packs.decks) {
+    txt = txt.replace(new RegExp(`("id": "${d.id}", "n": "[^"]*", "en": "[^"]*", "r": "[a-z]+",)(\\n\\s*(?:"lp": -?\\d+)?(?:, )?(?:"hand": -?\\d+)?,)?`), (m, head) => {
+      const bits = [];
+      if (lp[d.id]) bits.push(`"lp": ${lp[d.id]}`);
+      if (hand[d.id]) bits.push(`"hand": ${hand[d.id]}`);
+      return head + (bits.length ? `\n   ${bits.join(', ')},` : '');
+    });
+  }
+  JSON.parse(txt);
+  fs.writeFileSync(P, txt);
   console.log('已写入 data/duel-packs.json');
 }
