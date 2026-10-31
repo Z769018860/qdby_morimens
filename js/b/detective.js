@@ -3078,7 +3078,7 @@ const isOpen = (key) => opened.has(key);
 const OPEN_GIFT = {
   2: { wheel: 3 },
   3: { wheel: 4, cov: 2 },
-  4: { wheel: 4, cov: 2, relic: 3, pot: 1 },
+  4: { wheel: 4, cov: 2, relic: 3 },
 };
 let giftKeys = new Set();
 
@@ -3092,7 +3092,6 @@ function grantGift() {
   take(L.slots.filter(c => c.group === 'wheel'), g.wheel);
   take(L.slots.filter(c => c.group === 'cov'), g.cov);
   take(L.relics, g.relic);
-  take(L.team.filter(c => c.id === 'pot'), g.pot);
   let fresh = 0;
   for (const id of ids) {
     const key = `c:${id}`;
@@ -3302,14 +3301,7 @@ function clueList() {
     });
   }
 
-  // 启灵：四个卡位的数值本来就印在战报面板的「养成」行里，
-  // 这里给一条汇总，省得玩家在面板和卡位之间来回对；只在要填潜能的档上架。
-  if (A.pot && full('pot')) {
-    team.push({
-      id: 'pot', cost: 8, label: t('cluePotTeam'),
-      value: () => ans.map((a, k) => `${LETTERS[k]} ${potTxt(a.pot)}`).join(' · '),
-    });
-  }
+  // 启灵是大师档要猜的：不再有任何线索（付费汇总、开局赠送）给它；战报面板的「养成」行在这一档也不印它（见 reportPanel）。
 
   // 命轮：一次解锁一条，只说这局用了哪几件，不说在哪一位，也不成对给出
   if (A.wheels && full('wheels')) {
@@ -3539,6 +3531,7 @@ function chip(text, tone = '') { return h('span', { class: 'chip ' + tone }, tex
 const bline = (c, pct, text) => h('div', { class: 'bline' }, h('div', { class: 'track' }, h('div', { class: `bar ${c}`, style: `width:${pct}%` })), h('i', {}, text));
 
 function reportPanel() {
+  const A = active();
   const p = puzzle;
   const total = ans.reduce((s, a) => s + a.dmg, 0) || 1;
   const maxBlk = Math.max(...ans.map(a => a.blk), 1);
@@ -3549,7 +3542,8 @@ function reportPanel() {
     const invest = [];
     if (a.cardLv != null) invest.push(`${t('cardLv')} Lv.${a.cardLv}`);
     if (a.madness != null) invest.push(`${t('madnessLv')} Lv.${a.madness}`);
-    if (a.pot != null) invest.push(`${t('potLv')} ${potTxt(a.pot)}`);
+    // 要猜启灵的档（大师）不能把答案印在桌上；更低的档不用猜，印出来当背景信息
+    if (a.pot != null && !A.pot) invest.push(`${t('potLv')} ${potTxt(a.pot)}`);
     if (!invest.length && a.up != null) invest.push(t('cardUp', { n: a.up }), t('talentSum', { n: a.tal }));
     return h('div', { class: 'brow' },
       h('span', { class: 'bl' }, LETTERS[k]),
