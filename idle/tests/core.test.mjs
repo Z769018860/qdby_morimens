@@ -2430,3 +2430,23 @@ test('装备「已编入」提示：沿用主线配装的编队也算', () => {
   s.squads.c.team = [s.team[1]]; s.squads.c.lo = { equip: {}, relics: Array(6).fill(null), orders: [null, null, null] };
   assert.ok(!_seu(s, r.uid).includes('c'), '有独立配装的编队只看自己那套');
 });
+
+test('反击转移：队友的反击层归到嘲讽者身上，反击真的打得出去', () => {
+  const s = newState(data, 90);
+  for (const x of ['ogier', 'caecus', 'faint', 'nautila']) s.roster[x] ??= { lv: 60, star: 3 };
+  for (const k of Object.keys(s.roster)) { s.roster[k].lv = 60; s.roster[k].od = 99; s.roster[k].law = 99; }
+  s.team = ['ogier', 'caecus', 'faint', 'nautila'];
+  let shifts = 0, counters = 0, byOgier = 0;
+  for (let seed = 1; seed < 40; seed++) {
+    s.seed = seed;
+    const r = runBattle(s, data, 30);
+    for (const e of r.events) {
+      if (e.k === 'act' && e.who === 'a0' && /反击转移|嘲讽|Exalt/.test(e.name + e.slot)) shifts++;
+      if (e.k === 'dmg' && e.by && e.by[0] === 'a' && e.blocked == null) { /* 直接伤害 */ }
+    }
+    counters += r.events.filter((e) => e.k === 'counter').length;
+    byOgier += r.events.filter((e) => e.k === 'counter' && e.by === 'a0').length;
+  }
+  assert.ok(counters > 0, '反击会触发');
+  assert.ok(byOgier > 0, '嘲讽者自己打出了反击');
+});

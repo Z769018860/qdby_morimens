@@ -437,7 +437,7 @@ function renderDuel() {
     <div class="mid"><ul class="log" id="log">${logHTML}</ul>
       <div class="acts">
         ${S.mode === 'attack'
-          ? '<button class="btn" data-act="direct">直接攻击</button><button class="btn ghost" data-act="cancel">取消</button>'
+          ? attackBar(G, side, v, guard)
           : '<span class="note">' + (myTurn ? '点手牌出牌，点场上的怪兽看它能做什么。' : waitTxt) + '</span>'}
       </div>
     </div>
@@ -460,6 +460,22 @@ function renderDuel() {
   if (log) log.scrollTop = log.scrollHeight;
   renderActbar();
   if (v.over && !S.result) showResult(v);
+}
+
+// 攻击模式的操作条：「直接攻击」只在真的能直接打的时候可点（对方场上没有怪兽，或者这只怪兽本回合带「可直接攻击」），
+// 否则灰着并写明原因——以前按钮一直亮着、点了才弹一句提示，看起来像「按键没反应」。
+function attackBar(G, side, v, guard) {
+  const me = G.players[side];
+  const m = S.sel ? me.mons.find((x) => x && x.uid === S.sel.uid) : null;
+  const opMons = v.op.mons.filter(Boolean).length;
+  const can = !!m && (opMons === 0 || m.direct);
+  let tip;
+  if (can) tip = opMons ? '这只怪兽本回合可以无视对方怪兽直接攻击。' : '对方场上没有怪兽，可以直接攻击。';
+  else if (guard) tip = '对方有守备的「守护」怪兽挡着：必须先点它来打。';
+  else tip = '对方场上有怪兽：点高亮的对方怪兽选择攻击目标，打光了才能直接攻击。';
+  return `<div class="atkbar"><span class="note">${tip}</span>`
+    + `<button class="btn ${can ? 'pri' : ''}" data-act="direct" ${can ? '' : 'disabled title="现在不能直接攻击"'}>直接攻击</button>`
+    + '<button class="btn ghost" data-act="cancel">取消</button></div>';
 }
 
 function renderActbar() {
@@ -487,6 +503,7 @@ function renderActbar() {
         <button class="btn sm ghost x" data-act="cancel">关闭</button></div>
       <div class="ab">
         ${canFight ? '<button class="btn pri" data-act="pick-target">攻击</button>' : ''}
+        ${G.phase === 'main' && G.active === side && E.canAttack(G, p, m) ? '<button class="btn pri" data-act="battle">进入战斗阶段</button>' : ''}
         ${G.phase === 'main' && G.active === side ? '<button class="btn" data-act="flip">切换表示</button>' : ''}
         <button class="btn ghost" data-act="read">效果</button>
       </div>
@@ -1270,6 +1287,15 @@ function bind() {
       return;
     }
     if (name === 'pick-target') {
+      // 对方场上空空如也：不用再多点一步，直接打脸
+      const gm = S.G.players[SIDE()], sm = S.sel && gm.mons.find((x) => x && x.uid === S.sel.uid);
+      if (sm && S.G.players[1 - SIDE()].mons.filter(Boolean).length === 0) {
+        const r = act({ t: 'attack', uid: sm.uid, target: null });
+        if (!r.ok) return toast(r.err);
+        S.sel = null; S.mode = 'idle';
+        renderDuel();
+        return;
+      }
       S.mode = 'attack';
       renderDuel();
       return;

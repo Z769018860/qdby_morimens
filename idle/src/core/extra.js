@@ -134,6 +134,7 @@ const XT = () => ({ t: 'extraTurn' });
 // 共用的机制词汇见 core/battle.js 的 run()：斩杀 / 比例扣血 / 净化 / 驱散 / 复苏 / 嘲讽 / 反射 / 眩晕 /
 // 连锁 / 溅射 / 回响 / 重置冷却 / 护盾转伤害 / 献祭 / 按损失生命治疗 / 延迟 / 残血增伤 / 引爆中毒 /
 // 引爆流血 / 追击号令 / 反击爆发 / 屏障化疗 / 能量超载 / 以毒养身 / 毒甲 / 流血扩散。
+const CSF = (dur) => ({ t: 'counterShift', dur });
 const CBR = (m) => ({ t: 'counterBurst', m });
 const BRH = (pct) => ({ t: 'barrierHeal', pct });
 const GBR = (m, to = 'foe') => ({ t: 'gaugeBurn', m, to });
@@ -176,7 +177,7 @@ const SKILLS = {
   winkle: { theme: '反击 · 屏障与反击双收', od: [S(0.9, 'allies'), St('barrier', 1, 2, 'self')], law: [BRH(8), CBR(0.3), S(0.9, 'allies'), SHD(0.7)] },
 
   // ============ 守护：护盾、屏障、嘲讽，全部是燃料 ============
-  ogier: { theme: '守护 · 嘲讽反击', od: [S(1.1), TNT(2)], law: [S(1.8), TNT(3), SHD(1.1), RFL(45, 3), St('counter', 3, 3, 'self')] },
+  ogier: { theme: '守护 · 反击转移嘲讽', od: [S(1.1), CSF(2)], law: [S(1.8), CSF(3), SHD(1.1), RFL(45, 3), St('counter', 3, 3, 'self')] },
   'ogier-oathbound': { theme: '守护 · 屏障反射', od: [S(1.0, 'allies'), B('def', 25, 2, 'allies'), St('barrier', 1, 2, 'self')], law: [S(1.7), TNT(3), St('barrier', 3, 4, 'self'), SHD(1.0), RFL(50, 4)] },
   alva: { theme: '守护 · 护垒嘲讽', od: [S(1.0), TNT(2), D(0.7, 'foes')], law: [S(1.6), TNT(3), St('fortress', 45, 3, 'allies'), D(1.5, 'foes')] },
   corposant: { theme: '守护 · 反射反噬', odEvery: 2, od: [RFL(35, 2), S(0.9)], law: [RFL(65, 3, 'allies'), D(1.8, 'foes'), St('fortress', 30, 3, 'allies')] },

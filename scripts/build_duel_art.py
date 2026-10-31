@@ -13,7 +13,7 @@
 
 用法：python scripts/build_duel_art.py
 输入：data/duel-cards.json + data/avatars.json（头像源 assets/avatars/a-*.webp，96×96）
-输出：assets/duel/faces.webp（图集，88×88 一格）
+输出：assets/duel/faces.webp（图集，160×160 一格）
       assets/duel/back.webp（卡背，132×188）
       assets/ui/gameicons/duel.webp（首页九宫格图标，80×80）
       data/duel-art.json（图集元数据：格宽、列数、名字 → 序号）
@@ -26,7 +26,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CELL = 88
+CELL = 160   # 源图只有 96~120px：先用 Lanczos 放大并轻锐化，浏览器再放大到卡面时不会糊成一团
 COLS = 8
 SS = 4  # 符号格先按 4 倍画再缩，避免细线糊成一片
 
@@ -157,6 +157,15 @@ def main():
     cards = read_json('data/duel-cards.json')
     meta = read_json('data/avatars.json')
     src_by_name = {x['n']: x['src'] for x in meta['items']}
+    # 唤醒体优先用 assets/awakener 的 120px 头像（比 96px 的 avatars 清楚一档）
+    try:
+        gd = json.load(open(os.path.join(ROOT, 'idle/public/data/game-data.json'), encoding='utf-8'))['awakeners']
+        for a in gd:
+            q = 'assets/awakener/%s.webp' % a['slug']
+            if os.path.exists(os.path.join(ROOT, q)):
+                src_by_name[a['zh']] = q
+    except Exception as ex:
+        print('读不到 game-data，沿用 avatars：', ex)
 
     # 需要头像的名字：全部怪兽 + 觉醒体（觉醒体借用第一只素材的脸）
     names = []
@@ -219,13 +228,14 @@ def main():
         if not p:
             continue
         im = Image.open(p).convert('RGB').resize((CELL, CELL), Image.LANCZOS)
+        im = im.filter(ImageFilter.UnsharpMask(radius=1.2, percent=60, threshold=2))
         sheet.paste(im, (x, y))
         index[names[i]] = i
 
     out_dir = os.path.join(ROOT, 'assets/duel')
     os.makedirs(out_dir, exist_ok=True)
     sheet_path = os.path.join(out_dir, 'faces.webp')
-    sheet.save(sheet_path, 'WEBP', quality=78, method=6)
+    sheet.save(sheet_path, 'WEBP', quality=84, method=6)
 
     # ---------------------------------------------------------------- 卡背
     # 深蓝底 + 金色命轮：外环、内环、四道界域色的弧光。132×188 是 2:3 不到一点，
