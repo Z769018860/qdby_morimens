@@ -146,6 +146,8 @@ body{
 /* ---------------------------------------------------------------- 对战盘 */
 #scr-duel{overflow-y:auto; overflow-x:hidden; gap:6px}
 .duelbar{display:flex; align-items:center; gap:6px; flex:0 0 auto; font-size:11.5px; color:var(--dim)}
+.duelbar{flex-wrap:wrap; row-gap:4px}
+.duelbar .turn,.duelbar .ph{white-space:nowrap}
 .duelbar .turn{color:var(--text); font-weight:600; letter-spacing:.04em}
 .duelbar .ph{color:var(--gold2)}
 .duelbar .sp{margin-left:auto; display:flex; gap:6px}
@@ -186,7 +188,7 @@ body{
 .slot.sp .card .pt{font-size:7.5px}
 .slot.sp.empty::after{content:"魔陷"}
 
-.mid{flex:1 1 auto; min-height:72px; max-height:132px; display:flex; gap:8px; align-items:stretch; width:100%; max-width:540px; margin:0 auto}
+.mid{flex:1 1 auto; min-height:72px; max-height:150px; display:flex; flex-direction:column; gap:6px; align-items:stretch; width:100%; margin:0 auto}
 .log{
   flex:1 1 auto; min-height:0; overflow-y:auto; padding:6px 9px; border-radius:10px;
   background:color-mix(in srgb,var(--panel) 70%, transparent); border:1px solid var(--line);
@@ -239,6 +241,8 @@ body{
 }
 .card .pt{line-height:1.2; font-size:9.5px; color:var(--dim); display:flex; gap:4px; font-variant-numeric:tabular-nums}
 .card .pt b{color:var(--text); font-weight:700}
+.card .pt b.up{color:var(--green)}
+.card .pt b.down{color:var(--red)}
 .card .rb{
   position:absolute; top:3px; left:3px; font-size:8px; font-weight:800; letter-spacing:.04em;
   padding:0 3px; border-radius:3px; background:rgba(6,9,14,.72); color:var(--gold2);
@@ -269,22 +273,6 @@ body{
 .card .tagp{
   position:absolute; bottom:2px; right:3px; font-size:8.5px; padding:0 3px; border-radius:3px;
   background:rgba(6,9,14,.7); color:#cdd6e6;
-}
-/* 矮屏（手机横着 / 小屏）：场地四排 + 日志 + 手牌要一屏放下，卡和格子跟着缩，别把手牌挤出屏幕 */
-@media (max-height:760px){
-  .slot{min-height:88px}
-  .slot .card{--cw:68px; --ch:86px}
-  .slot .card .nm{font-size:9px}
-  .mid{max-height:96px}
-}
-@media (max-height:650px){
-  .slot{min-height:72px}
-  .slot .card{--cw:56px; --ch:70px}
-  .slot .card .ct{min-height:24px}
-  .slot .card .nm{font-size:8.5px}
-  .slot .card .pt{font-size:8.5px}
-  .mid{max-height:70px; min-height:52px}
-  .slot.sp{min-height:36px}
 }
 /* 场上怪兽的「攻击 / 守备」标签挪到卡面上沿，别压住下面的攻防数值 */
 .slot .card .tagp{bottom:auto; top:20px; right:3px}
@@ -351,6 +339,25 @@ body{
 .pack.open .plist{max-height:240px; overflow:auto}
 
 /* 拆包：每张牌放大，名字允许写两行，一眼就能看清抽到了什么 */
+
+.dwrap{display:flex; flex-direction:column; gap:4px}
+.dwrap .deck{flex:1}
+.dwrap .dview{align-self:stretch}
+.readface{display:flex; justify-content:center; margin:6px 0 8px}
+.readface .card{--cw:132px; --ch:190px}
+.gh{margin:14px 0 6px; font-size:12px; letter-spacing:.12em; color:var(--gold2); border-bottom:1px solid var(--line); padding-bottom:3px}
+.lcs{display:grid; gap:6px}
+.lc{border:1px solid var(--line); border-left:3px solid var(--rc,var(--line)); border-radius:8px; padding:6px 9px; background:var(--panel); cursor:pointer}
+.lc:hover{background:var(--panel2)}
+.lc .lh{display:flex; align-items:center; gap:6px; font-size:13.5px}
+.lc .lh i{font-style:normal; color:var(--gold2); font-size:12px}
+.lc .lr{margin-left:auto; font-size:10px; color:var(--dim2); border:1px solid var(--line); border-radius:5px; padding:0 5px}
+.lc .lo{font-size:10px; color:var(--dim2)}
+.lc .ls{font-size:10.5px; color:var(--dim2); margin:1px 0 3px}
+.lc .lt{font-size:12px; color:var(--dim); line-height:1.65}
+.lm{font-size:10.5px; color:var(--dim2); margin:-3px 0 2px 10px}
+.pull .pc{cursor:pointer; position:relative}
+.pull .tagp{background:var(--gold2,#c9a24a); color:#111; font-weight:700; font-size:10px; padding:1px 5px; border-radius:4px}
 .pull{display:grid; grid-template-columns:repeat(auto-fit,minmax(104px,1fr)); gap:10px; margin:8px 0}
 .pull .card{--cw:100%; --ch:178px; width:100%}
 .pull .card .ct{min-height:46px; padding:3px 5px 4px}
@@ -434,16 +441,101 @@ body{
 .note{font-size:11px; color:var(--dim2); line-height:1.7}
 .tips{margin:6px 0 0; padding-left:16px; font-size:11.5px; color:var(--dim); line-height:1.8}
 .tips li{margin:2px 0}
-@media (min-width:700px){
-  .hand{justify-content:center}
-  .acts{max-width:540px; margin:0 auto; width:100%}
-  .duelbar{max-width:540px; margin:0 auto; width:100%}
-}
 @media (max-width:520px){
   .hero{padding-top:16px}
   .hand{min-height:116px}
   .hand .card{--cw:78px; --ch:106px}
   .pinfo .meta{font-size:10px}
+}
+
+/* ---------------------------------------------------------------- 对战盘自适应
+   所有卡牌尺寸都由 #scr-duel 上的几个变量推出来：
+   --mch/--mcw 场上怪兽，--sch/--scw 魔陷区，--hch/--hcw 手牌。
+   变量按「可用高度」和「棋盘列宽度」取小，所以手机竖屏、横屏、平板、电脑都不留大块空白，也不会撑出滚动条。
+   --off 是除了卡牌以外的固定占高（顶栏 / 血条 / 日志 / 操作条…），各版式在下面各自给一个数。 */
+#scr-duel{
+  --bw:calc(100vw - 28px);
+  --off:520px;
+  --mmax:190px; --mmin:70px; --div:3.74;
+  --mcw:min(calc(clamp(var(--mmin), calc((100dvh - var(--off)) / var(--div)), var(--mmax)) * .8), calc((var(--bw) - 34px) / 3));
+  --mch:calc(var(--mcw) / .8);
+  --sch:clamp(34px, calc(var(--mch) * .42), 84px);
+  --scw:calc(var(--sch) * .74);
+  --hch:clamp(88px, calc(var(--mch) * .9), 170px);
+  --hcw:calc(var(--hch) * .75);
+  --fw:max(300px, calc(var(--mcw) * 3 + 16px));
+}
+#scr-duel .side,#scr-duel .duelbar,#scr-duel .mid{width:100%; max-width:var(--fw); margin-left:auto; margin-right:auto}
+#scr-duel .field{max-width:none}
+#scr-duel .slot{min-height:calc(var(--mch) + 6px)}
+#scr-duel .slot .card{--cw:var(--mcw); --ch:var(--mch)}
+#scr-duel .slot .card .nm{font-size:clamp(9px, calc(var(--mcw) * .125), 15px)}
+#scr-duel .slot .card .pt{font-size:clamp(9px, calc(var(--mcw) * .115), 14px)}
+#scr-duel .slot .card .ct{min-height:calc(var(--mch) * .28)}
+#scr-duel .slot .card .rb,#scr-duel .slot .card .lv,#scr-duel .slot .card .tagp{font-size:clamp(8px, calc(var(--mcw) * .085), 12px)}
+#scr-duel .slot .card .tagp{top:calc(var(--mch) * .17)}
+#scr-duel .slot.sp{min-height:calc(var(--sch) + 6px)}
+#scr-duel .slot.sp .card{--cw:var(--scw); --ch:var(--sch)}
+#scr-duel .slot.sp .card .ct{min-height:0; height:calc(var(--sch) * .3)}
+#scr-duel .slot.sp .card .nm{font-size:clamp(7.5px, calc(var(--scw) * .17), 11px)}
+#scr-duel .slot.sp .card .pt{font-size:clamp(7px, calc(var(--scw) * .15), 10px)}
+#scr-duel .hand{justify-content:safe center; min-height:calc(var(--hch) + 12px)}
+#scr-duel .hand .card{--cw:var(--hcw); --ch:var(--hch)}
+#scr-duel .hand .card .nm{font-size:clamp(9px, calc(var(--hcw) * .14), 14px)}
+#scr-duel .hand .card .pt{font-size:clamp(8.5px, calc(var(--hcw) * .12), 13px)}
+#scr-duel .hand.empty-h{min-height:calc(var(--hch) * .5)}
+#scr-duel .log{font-size:clamp(11px, 1.2vw, 13px)}
+
+/* 电脑 / 平板横放：左边是棋盘，右边一整列日志与操作条，手牌贴在棋盘下面 */
+@media (min-width:900px) and (min-height:561px){
+  #scr-duel.on{
+    --bw:calc(min(100vw, 1040px) - 24px - 340px);
+    --off:240px; --mmax:250px;
+    display:grid; gap:8px 14px; overflow:hidden;
+    grid-template-columns:minmax(0,1fr) 326px;
+    grid-template-rows:auto minmax(0,1fr) minmax(0,1fr) auto;
+    grid-template-areas:"bar bar" "op mid" "me mid" "hand mid";
+  }
+  #scr-duel>.duelbar{grid-area:bar; max-width:none}
+  #scr-duel>.side.op-side{grid-area:op; justify-content:flex-end}
+  #scr-duel>.side.me-side{grid-area:me; justify-content:flex-start}
+  #scr-duel>.mid{grid-area:mid; max-width:none; max-height:none; margin:0}
+  #scr-duel>.hand{grid-area:hand; flex-wrap:nowrap}
+  #scr-duel .log{font-size:12.5px}
+}
+/* 手机横屏：棋盘缩到只剩两排怪兽，手牌挪到右侧一列里换行排，日志与操作条在它上面 */
+@media (min-width:600px) and (max-height:560px){
+  #scr-duel.on{
+    --bw:calc(100vw - 24px - 336px);
+    --off:224px; --div:2.84; --mmin:40px;
+    display:grid; gap:5px 10px; overflow:hidden;
+    grid-template-columns:minmax(0,1fr) 326px;
+    grid-template-rows:auto minmax(0,1fr) minmax(0,1fr);
+    grid-template-areas:"bar bar" "op mid" "me hand";
+  }
+  #scr-duel>.duelbar{grid-area:bar; max-width:none}
+  #scr-duel>.side.op-side{grid-area:op; justify-content:center; gap:3px}
+  #scr-duel>.side.me-side{grid-area:me; justify-content:center; gap:3px}
+  #scr-duel>.mid{grid-area:mid; max-width:none; max-height:none; min-height:0; margin:0}
+  #scr-duel>.hand{
+    grid-area:hand; flex-wrap:wrap; align-content:flex-start; overflow-x:hidden; overflow-y:auto; min-height:0; padding:2px;
+    --hch:min(78px, 20dvh);
+  }
+  #scr-duel .hand .card{--cw:calc(var(--hch) * .75); --ch:var(--hch)}
+  #scr-duel .pinfo{padding:2px 8px}
+  #scr-duel .log{font-size:11px; line-height:1.5}
+  .top{gap:6px}
+}
+/* 竖屏矮机（小屏手机）：压低固定占高，卡牌跟着缩 */
+@media (max-width:899px) and (max-height:700px){
+  #scr-duel{--off:362px}
+  #scr-duel>.mid{max-height:84px; min-height:52px}
+}
+@media (min-width:600px) and (max-width:899px) and (min-height:701px){
+  #scr-duel{--mmax:230px}
+}
+@media (max-width:899px) and (min-height:701px){
+  #scr-duel{--off:410px}
 }
 </style>
 </head>
@@ -452,7 +544,7 @@ body{
   <header class="top">
     <a class="back" href="index.html" aria-label="返回">←</a>
     <div class="ttl"><b>唤醒王：决斗链接</b><span>忘却前夜 · 同人卡牌</span></div>
-    <div class="coin" title="银芯：赢一场对决 +120，开一包 -60">银芯 <b id="silver">0</b></div>
+    <div class="coin" title="银芯（全站共用）：打人机赢一场按难度 +8 / +14 / +22，开一包 -20">银芯 <b id="silver">0</b></div>
     <div class="coin" title="开包券：打赢人机得 1 张，每天最多 3 张；开包时先用券">券 <b id="tickets">0</b></div>
   </header>
 

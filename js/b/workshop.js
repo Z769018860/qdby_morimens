@@ -1669,9 +1669,9 @@ function reign() {
     items: [
       { k: '当过几任', v: n(best.runs) ? String(n(best.runs)) : '—' },
       { k: '最长任期', v: n(best.bestDay) ? '第 ' + n(best.bestDay) + ' 天' : '—' },
-      { k: '结局', v: got + ' / 15' },
+      { k: '结局', v: got + ' / 30' },
     ],
-    extra: best.gold ? '拿到过「守灯人」' : (got ? '还有 ' + (15 - got) + ' 个结局没见过' : ''),
+    extra: best.gold ? '拿到过「守灯人」' : (got ? '还有 ' + (30 - got) + ' 个结局没见过' : ''),
   };
 }
 

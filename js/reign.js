@@ -8,6 +8,8 @@
 
 import { CHARS, SYS, CARDS, TIDES, ENDINGS, DIFFS, REALMS } from './reign/data.js';
 import { FACES } from './reign/art.js';
+import { walletAdd, walletGet, scTag } from './silver.js';
+import { startGameCloud } from './gamecloud.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -180,13 +182,21 @@ function previewFx(fx) {
   return out.sort((a, b) => order[a.k] - order[b.k]);
 }
 
+// 两项一起坏掉的样子：账上有钱没人、以及记不清也看不穿。
+// 都不是「见底」，所以必须放在 0 / 100 那四个判定后面，别把旧结局抢走。
+function comboEnd() {
+  if (S.core >= 95 && S.bond <= 15) return 'hollow_shell';
+  if (S.mem <= 12 && S.san <= 12) return 'twilight';
+  return null;
+}
+
 function checkEnd() {
   if (S.tide >= 100) return 'tide';
   for (const m of METERS) {
     if (S[m.k] <= 0) return m.k + '0';
     if (S[m.k] >= 100) return m.k + '100';
   }
-  return null;
+  return comboEnd();
 }
 
 // ------------------------------------------------------------------ 界面：数值条
@@ -472,7 +482,7 @@ function choose(side) {
 }
 
 function showReply(card, side, opt, eff) {
-  const c = charOf(card.who);
+  const c = tideById.get(card.id) ? { n: card.title } : charOf(card.who);
   $('#choices').classList.add('hide');
   const deck = $('#deck');
   const el = document.createElement('div');
@@ -490,6 +500,8 @@ function showReply(card, side, opt, eff) {
   const go = () => {
     if (el.dataset.done) return;
     el.dataset.done = '1';
+    // 选项自己指定结局（恶搞那几条走这条路）：比数值终局优先，点了就是点了
+    if (opt.end && ENDINGS[opt.end]) { finish(opt.end); return; }
     if (end) { finish(end); return; }
     advance();
   };
@@ -509,6 +521,8 @@ function advance() {
   if (S.tide >= 100) { finish('tide'); return; }
   if (S.mem <= 0) { finish('mem0'); return; }
   if (S.core <= 0) { finish('core0'); return; }
+  const cb = comboEnd();
+  if (cb) { finish(cb); return; }
   if (S.day >= S.days) { finish('survive'); return; }
 
   // 潮汐到点：插一张强制卡，不占普通卡池
@@ -541,20 +555,53 @@ function collectEnd(id) {
   save(KEY_BEST, best);
 }
 
+// 撑满任期之后再看它是哪一种圆满：越「刻意做到」的条件排得越前。
 function surviveId() {
   const { mem, san, core, bond, tide } = S;
+  const allIn = (a, b) => [mem, san, core, bond].every((v) => v >= a && v <= b);
   if (Math.min(mem, san, core, bond) >= 62 && tide < 38) return 'survive_gold';
+  if (allIn(46, 54)) return 'survive_balance';
+  if (core >= 88 && bond <= 40) return 'survive_rich';
+  if (bond >= 88 && core <= 40) return 'survive_loved';
+  if (san <= 25) return 'survive_mad';
+  if (allIn(42, 58) && tide >= 65) return 'survive_hollow';
   const arr = [['mem', 'survive_mem'], ['san', 'survive_san'], ['core', 'survive_core'], ['bond', 'survive_bond']];
   const top = arr.slice().sort((a, b) => S[b[0]] - S[a[0]])[0];
   if (S[top[0]] >= 76) return top[1];
   return 'survive_plain';
 }
 
+// ------------------------------------------------------------------ 银芯
+// 任期结束按「撑了多久 × 难度 × 结局」发银芯，和其他小游戏共用一个钱包（zjtt:credits）。
+//   撑满任期：满额（见习 12 / 守密人 26 / 洪积纪年 40）再按结局加成，金色结局 +60%；
+//   中途终局：按撑过的天数比例给一半（死得晚不白死），不到 5 天不给，防止开局秒死刷。
+//   第一次走到的结局图鉴再 +4 —— 每个结局只有一次，刷不动。
+const REIGN_BASE = { short: 12, normal: 26, long: 40 };
+const SURVIVE_BONUS = {
+  survive_gold: 0.6, survive_balance: 0.3, survive_rich: 0.15, survive_loved: 0.15,
+  survive_mad: 0.15, survive_hollow: 0.1, survive_mem: 0.1, survive_san: 0.1,
+  survive_core: 0.1, survive_bond: 0.1, survive_plain: 0,
+};
+const FIRST_END_BONUS = 4;
+const MIN_DAYS_PAID = 5;
+function reignReward(id, firstTime) {
+  const base = REIGN_BASE[S.d] || REIGN_BASE.normal;
+  const day = Math.min(S.day, S.days);
+  if (day < MIN_DAYS_PAID) return { gain: 0, base: 0, first: 0, why: `不到 ${MIN_DAYS_PAID} 天就结束了，没有银芯` };
+  const survived = id.indexOf('survive') === 0;
+  const main = survived ? base * (1 + (SURVIVE_BONUS[id] != null ? SURVIVE_BONUS[id] : 0.1)) : base * (day / S.days) * 0.5;
+  const first = firstTime ? FIRST_END_BONUS : 0;
+  return { gain: Math.round(main) + first, base: Math.round(main), first, why: survived ? '撑满任期' : `撑了 ${day} / ${S.days} 天` };
+}
+
 function finish(kind) {
   busy = true;
   const id = kind === 'survive' ? surviveId() : kind;
   S.over = id;
+  const firstTime = !load(KEY_END, {})[id];
   collectEnd(id);
+  const pay = reignReward(id, firstTime);
+  if (pay.gain > 0) walletAdd(pay.gain);
   try { localStorage.removeItem(KEY_SAVE); } catch (e) {}
   Snd.on && Snd.end();
   const e = ENDINGS[id] || ENDINGS.survive_plain;
@@ -572,10 +619,13 @@ function finish(kind) {
         <p class="ecme">${e.e}</p>
       </div>
       <div class="estats">
-        ${METERS.map((m) => `<div><span>${m.n}</span><b>${S[m.k]}</b></div>`).join('')}
+        ${METERS.map((m) => `<div><span>${m.n}</span><b>${Math.round(S[m.k])}</b></div>`).join('')}
         <div><span>黑潮</span><b>${Math.round(S.tide)}</b></div>
         <div><span>处理公文</span><b>${S.log.length}</b></div>
       </div>
+      <div class="ecred ${pay.gain > 0 ? 'on' : ''}">${pay.gain > 0
+        ? `${scTag('+' + pay.gain)}<span>${diffOf(S.d).n} · ${pay.why}${pay.first ? ` · 新结局 +${pay.first}` : ''} · 钱包 ${walletGet()}</span>`
+        : `<span>${pay.why}</span>`}</div>
       <div class="erow">
         <button class="btn primary" id="againBtn" type="button">再来一任</button>
         <button class="btn" id="bookBtn" type="button">结局图鉴</button>
@@ -635,7 +685,7 @@ function showBook() {
           </div>`;
         }).join('')}
       </div>
-      <p class="mfoot">结局一共 ${all.length} 个：四项资源各有一头，黑潮满顶一个，撑满任期五个。撑满时四项都不低于 62 且黑潮不高于 38，才是「守灯人」。</p>
+      <p class="mfoot">结局一共 ${all.length} 个：四项资源各有一头（8 个），黑潮满顶 1 个，两样一起坏掉的 2 个，撑满任期的 11 种走法，7 个不太正经的，还有 1 个是拿别的东西换来的——把灯塔全点亮，任期当场就结束了。</p>
     </div>`;
   openModal(html);
 }
@@ -710,7 +760,7 @@ function renderTitle() {
         ${DIFFS.map((d) => `
           <button class="diff" type="button" data-d="${d.k}">
             <b>${d.n}</b>
-            <span class="dd">${d.days} 天 · ${d.tag}</span>
+            <span class="dd">${d.days} 天 · ${d.tag} · 满任期 ${REIGN_BASE[d.k]}+ 银芯</span>
             <span class="dx">${d.d}</span>
           </button>`).join('')}
       </div>
@@ -781,7 +831,11 @@ function showRules() {
         <h4>潮汐与倒计时</h4>
         <p>顶部那条紫色的是黑潮，每天都在涨，某些决定推得更快，涨满直接终局。每五分之一任期有一次<b>潮汐</b>，那是躲不掉的卡；四项属性上面那行「第 N 次潮汐 · X 天后」就是它的倒计时，剩两天会变红。</p>
         <h4>撑到最后</h4>
-        <p>任期走完不算赢，只是没输。四项都不低于 62、黑潮不高于 38，才会拿到金色的那个结局。</p>
+        <p>任期走完不算赢，只是没输。四项都不低于 62、黑潮不高于 38，才会拿到金色的那个结局；四项都咬在五十上下是「完美均衡」，账目不上不下、黑潮也没退是「空转的一任」。</p>
+        <h4>三十个结局</h4>
+        <p>四项各有一头（8 个）、黑潮满顶、两样一起坏掉的样子（钱多到没人、记不清也看不穿）、撑满任期的十来种走法，还有<b>七个不太正经的</b>——它们藏在几张特定的卡里，选项上不写，点了才知道。走到了就记进图鉴。</p>
+        <h4>银芯</h4>
+        <p>任期结束会发银芯（和其他小游戏共用一个钱包）：撑满任期拿满额——<b>见习 12 / 守密人 26 / 洪积纪年 40</b>，结局越漂亮加成越多，金色结局 +60%；中途终局按撑过的天数给一半；第一次走到的新结局再 +4；不到 5 天就结束不给。</p>
         <h4>人物册</h4>
         <p>顶栏那个「册」按钮能翻到<b>全部 72 个人</b>：62 名唤醒体、9 位主播、一只校猫，标了界域和性别，遇过的才亮。</p>
       </div>
@@ -820,3 +874,6 @@ function boot() {
 }
 
 boot();
+
+// 登录了本站账号就把任期存档 / 结局图鉴同步到云端（js/gamecloud.js）
+startGameCloud('reign');

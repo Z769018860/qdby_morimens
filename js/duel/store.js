@@ -1,4 +1,4 @@
-// 对战页的存档：银芯、收藏、战绩、开包次数。
+// 对战页的存档：收藏、战绩、开包次数。
 // 只写 localStorage，不碰云端档案（云端字段是给「九个游戏」的分数用的，
 // 这里的东西换设备靠加密存档整包搬，和挂机版同一套思路）。
 const KEY = 'zjtt:duel:v1';
@@ -6,9 +6,15 @@ const KEY = 'zjtt:duel:v1';
 // 卡包的钱有三个来源：每天一次白给的、打人机赢来的券、银芯。
 const FREE_PER_DAY = 1;
 const TICKET_PER_DAY = 3;
+// 卡包钱包：直接用全站共用的银芯（zjtt:credits），开一包 20 枚
+const PACK_PRICE = 20;
+
+// 打人机的银芯：[赢, 输]，按难度走。输只在打满 4 回合后给一点辛苦费，开局投降不给。
+export const PVE_SILVER = { easy: [8, 2], normal: [14, 3], hard: [22, 4] };
+export const PVE_LOSS_MIN_ROUNDS = 4;
 
 const DEFAULT = {
-  silver: 180, coll: {}, opened: 0, wins: 0, losses: 0, deck: 'd1', diff: 'normal',
+  silver: 0, coll: {}, opened: 0, wins: 0, losses: 0, deck: 'd1', diff: 'normal',
   tickets: 0,        // 开包券：打赢人机才有
   freeDay: '',       // 最近一次领免费包的日子（YYYY-MM-DD，本地时区）
   freeUsed: 0,       // 那天已经用掉几次免费
@@ -67,7 +73,7 @@ export function payPack(s) {
     s.tickets -= 1;
     return { ok: true, kind: 'ticket', price: 0 };
   }
-  return { ok: true, kind: 'silver', price: 60 };
+  return { ok: true, kind: 'silver', price: PACK_PRICE };
 }
 
 // 打赢人机发一张券，每天最多 TICKET_PER_DAY 张
@@ -80,4 +86,4 @@ export function grantPveTicket(s) {
   return { granted: true, left: TICKET_PER_DAY - s.pveToday };
 }
 
-export const RULES = { FREE_PER_DAY, TICKET_PER_DAY, PACK_PRICE: 60 };
+export const RULES = { FREE_PER_DAY, TICKET_PER_DAY, PACK_PRICE };

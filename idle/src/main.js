@@ -27,7 +27,7 @@ import { doTower, doTrial } from './core/challenge.js';
 import { doRift } from './core/rift.js';
 import { claimAchievement, claimAllAchievements, claimableCount } from './core/achievements.js';
 import { signToday, backfill, claimCum } from './core/signin.js';
-import { buy as shopBuy, SHOP } from './core/shop.js';
+import { buy as shopBuy, SHOP, buyTicketWithGold } from './core/shop.js';
 import { signinPage, eventPage } from './ui/pages4.js';
 import { claimDaily, redeemGuest, claimMile, dailyView, milePending } from './core/event.js';
 import { syncSigninGifts } from './core/creators.js';
@@ -515,7 +515,7 @@ function onAct(e) {
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
   const s = app.state, d = app.data, a = el.dataset.act;
-  if (el.tagName === 'BUTTON' && !['pull', 'epull', 'ach-claim', 'tower-go', 'trial-go', 'lvup', 'lvmax', 'sign-today', 'welcome-claim', 'welcome-7', 'cpull', 'cepull', 'shop-buy', 'ach-all', 'snd-test', 'awaken', 'brk', 'order-up'].includes(a)) sound.play('click');
+  if (el.tagName === 'BUTTON' && !['pull', 'epull', 'ach-claim', 'tower-go', 'trial-go', 'lvup', 'lvmax', 'sign-today', 'welcome-claim', 'welcome-7', 'cpull', 'cepull', 'shop-buy', 'gold-ticket', 'ach-all', 'snd-test', 'awaken', 'brk', 'order-up'].includes(a)) sound.play('click');
   switch (a) {
     case 'snd-test': sound.play(el.dataset.k); break;
     case 'bgm-track': sound.pickTrack(el.dataset.k); toast(`背景音乐：${TRACK_ZH[el.dataset.k] || el.dataset.k}`); render(); break;
@@ -733,7 +733,11 @@ function onAct(e) {
       break;
     }
     case 'gear-up': enhanceItem(s, el.dataset.uid); rerender(); break;
-    case 'gear-dis': { const v = dismantle(s, d, el.dataset.uid); if (v) toast(`分解获得 ${v} 金币`); rerender(); break; }
+    case 'gear-dis': {
+      const c0 = s.cores, v = dismantle(s, d, el.dataset.uid);
+      if (v) { const c = s.cores - c0; toast(`分解获得 ${v} 金币${c ? ` + ${c} 银芯` : ''}`); }
+      rerender(); break;
+    }
     case 'gear-equip': {
       const it = s.gear.items[el.dataset.uid];
       if (it.kind === 'relic') { if (isEquipped(s, it.uid)) unequipItem(s, it.uid); else equipItem(s, d, null, it.uid); rerender(); break; }
@@ -775,6 +779,7 @@ function onAct(e) {
     case 'ach-claim': { const r = claimAchievement(s, el.dataset.id, app.data); if (r) { sound.play('ach'); toast('成就奖励已领取'); rerender(); } break; }
     case 'cpull': { const out = summonCores(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play(gachaSound(out)); P.showPulls(app, out); } break; }
     case 'cepull': { const out = equipPullCores(s, d, 1); if (out) { app.save(); render(); sound.play('summon'); P.showItems(app, out); } break; }
+    case 'gold-ticket': { const r = buyTicketWithGold(s); if (r) { sound.play('gold'); toast(`换到 1 张召唤券（今日还可换 ${r.left} 张）`); rerender(); } break; }
     case 'shop-buy': { const r = shopBuy(s, d, el.dataset.id); if (r) { sound.play('gold'); toast(`已购买：${SHOP.find((x) => x.id === el.dataset.id).zh}`); if (r.items.length) P.showItems(app, r.items); if (r.orders?.length) P.showOrders(app, r.orders); rerender(); } break; }
     case 'gear-refine': if (refineItem(s, el.dataset.uid)) { sound.play('lvup'); rerender(); } break;
     case 'welcome-claim': { const r = claimWelcome(s, d, portalUser()); if (r) { sound.play('summonSSR'); toast(`注册福利已到账：银芯+${r.cores} 召唤券+${r.tickets} 金币+${r.gold}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }

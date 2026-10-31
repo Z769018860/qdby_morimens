@@ -981,6 +981,8 @@ export function beginTurn(G) {
   p.normalUsed = false;
   for (const m of p.mons) if (m) { m.atkCount = 0; m.tmpAtk = 0; m.tmpDef = 0; m.direct = false; }
 
+  // 回合横幅要排在回合开始效果前面，不然「+200」会记到上一回合名下
+  log(G, `—— 第 ${Math.ceil(G.turn / 2)} 回合 · ${pname(p)} ——`, 'turn');
   // 回合开始效果
   for (const m of p.mons) {
     if (!m) continue;
@@ -1001,7 +1003,6 @@ export function beginTurn(G) {
     for (const f of fx(CARDS[s.id])) if (f.k === 'extraDraw') n += f.v || 0;
   }
   if (!(G.turn === 1 && G.active === 0)) drawCards(G, p, n);
-  log(G, `—— 第 ${Math.ceil(G.turn / 2)} 回合 · ${pname(p)} ——`, 'turn');
   checkOver(G);
 }
 

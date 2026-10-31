@@ -10,8 +10,9 @@ import * as E from './engine.js';
 import { nextAction } from './ai.js';
 import * as net from './net.js';
 import {
-  loadSave, saveSave, freeLeft, ticketDayLeft, payPack, grantPveTicket, RULES,
+  loadSave, saveSave, freeLeft, ticketDayLeft, payPack, grantPveTicket, RULES, PVE_SILVER, PVE_LOSS_MIN_ROUNDS,
 } from './store.js';
+import { walletGet, walletAdd, walletSpend, scTag } from '../silver.js';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.prototype.slice.call((root || document).querySelectorAll(sel));
@@ -66,7 +67,7 @@ function show(id) {
 
 function silverBar() {
   const n = $('#silver');
-  if (n) n.textContent = S.save.silver;
+  if (n) n.textContent = walletGet();
   const t = $('#tickets');
   if (t) t.textContent = S.save.tickets || 0;
 }
@@ -118,7 +119,11 @@ function cardHTML(id, opt) {
   const face = o.set ? '' : `style="${facePos(c.art || c.n)}"`;
   let tail = '';
   if (c.k === 'M' || c.k === 'E') {
-    tail = `<div class="pt"><b>${c.atk}</b><span>/</span><b>${c.def}</b></div>`;
+    // 场上的怪兽要显示「现在的」攻守（回合开始成长、光环、羁绊、装备都算进去），涨了标绿、被压了标红；
+    // 以前一直画卡表上的原始数值，图鲁每回合 +200 在界面上看不出来
+    const a = o.atk != null ? o.atk : c.atk, df = o.defv != null ? o.defv : c.def;
+    const cl = (v, base) => (v > base ? ' class="up"' : (v < base ? ' class="down"' : ''));
+    tail = `<div class="pt"><b${cl(a, c.atk)}>${a}</b><span>/</span><b${cl(df, c.def)}>${df}</b></div>`;
   } else {
     const t = { normal: '通常', quick: '速攻', equip: '装备', cont: '永续', counter: '反击' }[c.t] || '';
     tail = `<div class="pt">${c.k === 'S' ? '魔法' : '陷阱'} · ${t}</div>`;
@@ -149,13 +154,13 @@ function renderHome() {
   const decks = DECKS.map((d) => {
     const bonds = E.evalBonds(deckList(d));
     const total = d.cards.reduce((s, p) => s + p[1], 0);
-    return `<button class="deck ${d.id === S.deckId ? 'on' : ''}" data-deck="${d.id}" style="--rc:${
+    return `<div class="dwrap"><button class="deck ${d.id === S.deckId ? 'on' : ''}" data-deck="${d.id}" style="--rc:${
       (E.REALM[d.r] || E.REALM.any).c}">
       <div class="dh"><b>${d.n}</b><span class="rm">${(E.REALM[d.r] || E.REALM.any).n}</span></div>
       <div class="ds">${d.desc}</div>
       <div class="db">${bonds.map((b) => `<span class="bond">${b.n}</span>`).join('') || '<span class="bond" style="opacity:.5">无羁绊</span>'}</div>
       <div class="dm">主卡组 ${total} 张 · 额外 ${d.extra.length} 张 · 羁绊 ${bonds.length} 条</div>
-    </button>`;
+    </button><button class="btn sm ghost dview" data-deckview="${d.id}">查看卡组内容</button></div>`;
   }).join('');
 
   const sel = deckById(S.deckId);
@@ -174,6 +179,9 @@ function renderHome() {
 
     <div class="sec-h"><h2>选一套卡组</h2><span class="r">共 ${DECKS.length} 套 · 每套 30 张 + 觉醒体</span></div>
     <div class="decks">${decks}</div>
+
+    <div class="row" style="margin-top:8px"><button class="btn sm" data-deckview="${sel.id}">查看「${sel.n}」的 ${sel.cards.reduce((a, p) => a + p[1], 0)} 张卡与觉醒体</button></div>
+    ${sel.tips ? `<p class="note" style="margin:8px 0 0"><b style="color:var(--gold2)">打法提示</b>：${sel.tips}</p>` : ''}
 
     <div class="sec-h"><h2>这套牌的羁绊</h2><span class="r">${bonds.length} 条已触发</span></div>
     <div class="row" style="gap:6px">${bonds.map((b) => `<span class="bond" title="${b.text}">${b.n}</span>`).join('') || '<span class="note">这套牌凑不出羁绊——它只是三十张牌。</span>'}</div>
@@ -203,7 +211,7 @@ function renderHome() {
       <button class="tile" data-act="go-codex"><span class="ti">▤</span><span><span class="tn">卡表</span><br><span class="td">${Object.keys(CARDS).length} 张 · 效果全文</span></span></button>
       <button class="tile" data-act="go-lore"><span class="ti">◈</span><span><span class="tn">世界观</span><br><span class="td">弥萨格、守密人与四界域</span></span></button>
     </div>
-    <p class="note" style="margin-top:12px">战绩：${S.save.wins} 胜 ${S.save.losses} 负 · 已开 ${S.save.opened} 包。银芯赢一场 +120、输一场 +40；
+    <p class="note" style="margin-top:12px">战绩：${S.save.wins} 胜 ${S.save.losses} 负 · 已开 ${S.save.opened} 包。银芯是全站共用的钱包：打人机赢一场 +8 / +14 / +22（轻松 / 普通 / 认真），打满 4 回合输了也有一点辛苦费；
       每天免费开一包，打赢人机再送开包券（每天最多 ${RULES.TICKET_PER_DAY} 张）。</p>
   `;
 }
@@ -264,7 +272,7 @@ function slotHTML(m, i, side, hot) {
   const c = CARDS[m.id];
   const tag = c.k === 'E' ? '觉醒' : (m.pos === 'def' ? '守备' : '攻击');
   return `<div class="slot" data-slot="${side}-${i}">`
-    + cardHTML(c, { uid: m.uid, def: m.pos === 'def', tag, used: side === 'me' && m.canAtk === false })
+    + cardHTML(c, { uid: m.uid, def: m.pos === 'def', tag, used: side === 'me' && m.canAtk === false, atk: m.atk, defv: m.def })
     + '</div>';
 }
 
@@ -330,7 +338,7 @@ function renderDuel() {
       </span>
     </div>
 
-    <div class="side">
+    <div class="side op-side">
       <div class="pinfo">
         <span class="who">${nameOf(1 - side)}</span>
         ${lpBar(v.op)}
@@ -341,9 +349,15 @@ function renderDuel() {
       <div class="field">${opSlots}</div>
     </div>
 
-    <div class="mid"><ul class="log" id="log">${logHTML}</ul></div>
+    <div class="mid"><ul class="log" id="log">${logHTML}</ul>
+      <div class="acts">
+        ${S.mode === 'attack'
+          ? '<button class="btn" data-act="direct">直接攻击</button><button class="btn ghost" data-act="cancel">取消</button>'
+          : '<span class="note">' + (myTurn ? '点手牌出牌，点场上的怪兽看它能做什么。' : waitTxt) + '</span>'}
+      </div>
+    </div>
 
-    <div class="side">
+    <div class="side me-side">
       <div class="field">${mySlots}</div>
       <div class="field">${mySp}</div>
       <div class="pinfo">
@@ -352,12 +366,6 @@ function renderDuel() {
         <span class="meta"><span>手 ${v.me.hand.length}</span><span>组 ${v.me.deck}</span></span>
         ${bondsDots(v.me.bonds)}
       </div>
-    </div>
-
-    <div class="acts">
-      ${S.mode === 'attack'
-        ? '<button class="btn" data-act="direct">直接攻击</button><button class="btn ghost" data-act="cancel">取消</button>'
-        : '<span class="note">' + (myTurn ? '点手牌出牌，点场上的怪兽看它能做什么。' : waitTxt) + '</span>'}
     </div>
 
     <div class="hand ${hand ? '' : 'empty-h'}">${hand || '手牌空了'}</div>
@@ -437,8 +445,9 @@ function showResult(v) {
   let reward = '';
 
   if (S.bt === 'pve') {
-    const gain = win ? 120 : 40;
-    S.save.silver += gain;
+    const tier = PVE_SILVER[S.diff] || PVE_SILVER.normal;
+    const gain = win ? tier[0] : (rounds >= PVE_LOSS_MIN_ROUNDS ? tier[1] : 0);
+    if (gain > 0) walletAdd(gain);
     if (win) S.save.wins++; else S.save.losses++;
     let ticket = '';
     if (win) {
@@ -447,7 +456,7 @@ function showResult(v) {
     }
     saveSave(S.save);
     silverBar();
-    reward = `<div class="row" style="margin-top:10px"><span class="bond">银芯 +${gain}</span>${ticket}
+    reward = `<div class="row" style="margin-top:10px"><span class="bond">${gain > 0 ? scTag('+' + gain) : '这局太短，没有银芯'}</span><span class="note">${{ easy: '轻松', normal: '普通', hard: '认真' }[S.diff] || '普通'}难度 · 钱包 ${walletGet()}</span>${ticket}
       <span class="note">累计 ${S.save.wins} 胜 ${S.save.losses} 负</span></div>`;
   } else if (S.bt === 'local') {
     reward = `<div class="row" style="margin-top:10px"><span class="bond">${nameOf(v.winner)} 赢下这场</span>
@@ -472,11 +481,23 @@ function showResult(v) {
   `);
 }
 
-function openModal(html) {
-  $('#modal').innerHTML = html;
+// 弹窗可以叠一层：卡池 / 拆包 / 卡组列表里点一张牌看详情，详情里点「返回」回到刚才那一屏
+function openModal(html, push) {
+  const m = $('#modal');
+  if (push && $('#mask').classList.contains('on') && m.innerHTML) { (S.mstack || (S.mstack = [])).push(m.innerHTML); m.dataset.depth = S.mstack.length; }
+  else { S.mstack = []; m.dataset.depth = 0; }
+  m.innerHTML = html;
+  m.scrollTop = 0;
   $('#mask').classList.add('on');
 }
+function backModal() {
+  const prev = S.mstack && S.mstack.pop();
+  if (prev == null) return closeModal();
+  $('#modal').innerHTML = prev;
+  $('#modal').dataset.depth = S.mstack.length;
+}
 function closeModal() {
+  S.mstack = [];
   $('#mask').classList.remove('on');
   $('#modal').innerHTML = '';
 }
@@ -828,7 +849,7 @@ function packBtnLabel() {
 function renderPacks() {
   const free = freeLeft(S.save);
   const tk = S.save.tickets || 0;
-  const canBySilver = S.save.silver >= PACK_PRICE;
+  const canBySilver = walletGet() >= PACK_PRICE;
   const packs = PACKS.map((pk) => {
     const have = pk.cards.filter((id) => S.save.coll[id]).length;
     const total = pk.cards.length;
@@ -846,18 +867,14 @@ function renderPacks() {
         <button class="btn sm pri" data-buy="${pk.id}" ${dis}>${packBtnLabel()}</button>
       </div>
       <div class="note" style="font-size:10px;margin-top:-2px">${rarTxt}</div>
-      <button class="btn sm ghost" data-toggle="${pk.id}" style="align-self:flex-start">看这包里有什么</button>
-      <div class="plist">${pk.cards.map((id) => {
-        const c = CARDS[id];
-        return `<span style="color:var(--dim)">${c.n}<span style="color:var(--dim2)">（${c.rar}）</span></span>`;
-      }).join('、')}</div>
+      <button class="btn sm" data-pool="${pk.id}" style="align-self:flex-start">查看卡池 · 每张效果</button>
     </div>`;
   }).join('');
 
   $('#scr-packs').innerHTML = `
-    <div class="sec-h"><h2>卡包</h2><span class="r">银芯 ${S.save.silver} · 券 ${tk} · 今日免费 ${free}</span></div>
+    <div class="sec-h"><h2>卡包</h2><span class="r">银芯 ${walletGet()} · 券 ${tk} · 今日免费 ${free}</span></div>
     <p class="note" style="margin:0 0 10px">每包 5 张，第一张保底 SR 以上。开包的顺序是：先用每天白给的那一次，再用打人机赢来的券，
-      最后才扣银芯（${PACK_PRICE}）。开出来的卡进收藏，不影响预组卡组——对决用的是整套预组，收藏是「我还记得这些人」。</p>
+      最后才扣银芯（${PACK_PRICE}，全站共用的那份）。开出来的卡进收藏，不影响预组卡组——对决用的是整套预组，收藏是「我还记得这些人」。</p>
     <div class="packs">${packs}</div>
     <p class="note" style="margin-top:12px">已收录 ${Object.keys(S.save.coll).length} / ${Object.keys(CARDS).length} 种。
       今天还能拿 ${ticketDayLeft(S.save)} 张开包券（打赢人机 +1）。</p>
@@ -867,13 +884,16 @@ function renderPacks() {
 function buyPack(packId) {
   const pk = PACKS.find((p) => p.id === packId);
   if (!pk) return;
-  if (freeLeft(S.save) <= 0 && (S.save.tickets || 0) <= 0 && S.save.silver < PACK_PRICE) {
-    return toast(`银芯不够，还差 ${PACK_PRICE - S.save.silver}；今天也没有免费次数和券了`);
+  if (freeLeft(S.save) <= 0 && (S.save.tickets || 0) <= 0 && walletGet() < PACK_PRICE) {
+    return toast(`银芯不够，还差 ${PACK_PRICE - walletGet()}；今天也没有免费次数和券了`);
   }
   const pay = payPack(S.save);
-  if (pay.kind === 'silver') S.save.silver -= pay.price;
+  if (pay.kind === 'silver' && !walletSpend(pay.price)) return toast('银芯不够');
   S.save.opened++;
   const ids = drawFromPack(pk);
+  const isNew = {};
+  for (const id of ids) if (id && !S.save.coll[id]) isNew[id] = true;
+  const newN = Object.keys(isNew).length;
   for (const id of ids) if (id) S.save.coll[id] = (S.save.coll[id] || 0) + 1;
   saveSave(S.save);
   silverBar();
@@ -884,7 +904,8 @@ function buyPack(packId) {
   openModal(`<div class="mtitle"><h3>${pk.n}</h3><span class="note">${pk.sub}</span>
     <button class="btn sm ghost x" data-modal="close">关闭</button></div>
     <p class="sub">第 ${S.save.opened} 包 · ${payTxt}</p>
-    <div class="pull">${cards.map((c) => `<div>${cardHTML(c, {})}<div class="rar" style="color:var(--rc)">${c.rar}</div></div>`).join('')}</div>
+    <p class="note" style="margin:0 0 4px">${newN ? `本次新收录 ${newN} 种。` : '这五张都已收录过。'}点任意一张看详细效果。</p>
+    <div class="pull">${cards.map((c) => `<div class="pc" data-read="${c.id}">${cardHTML(c, { tag: isNew[c.id] ? 'NEW' : '' })}<div class="rar" style="color:var(--rc)">${c.rar}${isNew[c.id] ? '' : ` · ×${S.save.coll[c.id]}`}</div></div>`).join('')}</div>
     <div class="mb"><button class="btn ghost" data-modal="close">收下</button>
       <button class="btn pri" data-buy2="${pk.id}">再开一包</button></div>`);
 }
@@ -910,7 +931,7 @@ function renderCodex() {
       ${realms.map(([r, n]) => `<button class="chip ${S.codex.r === r ? 'on' : ''}" data-cr="${r}" data-r="${r}">${n}</button>`).join('')}
     </div>
     <div class="grid-cards">
-      ${list.map((c) => `<div>${cardHTML(c, {})}<div style="text-align:center;font-size:9px;color:var(--dim2);margin-top:2px">${c.rar}</div></div>`).join('')}
+      ${list.map((c) => `<div>${cardHTML(c, {})}<div style="text-align:center;font-size:9px;color:var(--dim2);margin-top:2px">${c.rar}${(S.save.coll || {})[c.id] ? ` · ×${S.save.coll[c.id]}` : ' · 未收录'}</div></div>`).join('')}
     </div>
     <p class="note" style="margin-top:12px">点一张看完整效果。</p>
   `;
@@ -964,22 +985,87 @@ function showHowTo() {
     <div class="mb"><button class="btn pri" data-modal="close">知道了</button></div>`);
 }
 
-function readCard(id) {
+const RAR_COL = { N: 'N 普通', R: 'R 稀有', SR: 'SR 超稀', UR: 'UR 极稀', GR: 'GR 传说' };
+const ROLL_TXT = 'N 45% · R 35% · SR 16% · UR 3% · GR 1%；第一张保底 SR 以上';
+
+function lineCard(id, n, own) {
+  const c = CARDS[id];
+  if (!c) return '';
+  const st = c.k === 'M' || c.k === 'E' ? `${c.atk}/${c.def}` : ({ normal: '通常', quick: '速攻', equip: '装备', cont: '永续', counter: '反击' }[c.t] || '');
+  const have = (S.save.coll || {})[id];
+  return `<div class="lc" data-read="${id}" data-rar="${c.rar}" style="--rc:${(E.REALM[c.r] || E.REALM.any).c}">
+    <div class="lh"><b>${c.n}</b>${n > 1 ? `<i>×${n}</i>` : ''}<span class="lr">${c.rar}</span>${own && have === undefined ? '<span class="lo">未收录</span>' : ''}</div>
+    <div class="ls">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}${c.lv ? ` · Lv${c.lv}` : ''} · ${st}</div>
+    <div class="lt">${c.text}</div></div>`;
+}
+
+function showPackPool(packId) {
+  const pk = PACKS.find((p) => p.id === packId);
+  if (!pk) return;
+  const have = pk.cards.filter((id) => S.save.coll[id]).length;
+  const groups = RAR_ORDER.slice().reverse().filter((r) => pk.cards.some((id) => CARDS[id] && CARDS[id].rar === r)).map((r) => {
+    const ids = pk.cards.filter((id) => CARDS[id] && CARDS[id].rar === r);
+    return `<h4 class="gh">${RAR_COL[r] || r} · ${ids.length} 种</h4><div class="lcs">${ids.map((id) => lineCard(id, 1, true)).join('')}</div>`;
+  }).join('');
+  openModal(`<div class="mtitle"><h3>${pk.n} · 卡池</h3><button class="btn sm ghost x" data-modal="close">关闭</button></div>
+    <p class="sub">${pk.cards.length} 种，已收录 ${have} 种。${ROLL_TXT}。点任意一张看大图。</p>${groups}
+    <div class="mb"><button class="btn ghost" data-modal="close">关闭</button>
+      <button class="btn pri" data-buy2="${pk.id}">开一包</button></div>`);
+}
+
+function showDeck(deckId) {
+  const d = deckById(deckId);
+  const bonds = E.evalBonds(deckList(d));
+  const total = d.cards.reduce((s, p) => s + p[1], 0);
+  const kinds = [['M', '怪兽'], ['S', '魔法'], ['T', '陷阱']];
+  const grp = kinds.map(([k, n]) => {
+    const rows = d.cards.filter((p) => CARDS[p[0]] && CARDS[p[0]].k === k);
+    if (!rows.length) return '';
+    const cnt = rows.reduce((s, p) => s + p[1], 0);
+    return `<h4 class="gh">${n} · ${cnt} 张</h4><div class="lcs">${rows.map((p) => lineCard(p[0], p[1])).join('')}</div>`;
+  }).join('');
+  const ex = d.extra.length ? `<h4 class="gh">觉醒体（额外卡组）· ${d.extra.length} 张</h4><div class="lcs">${d.extra.map((id) => lineCard(id, 1)
+    + (CARDS[id] && CARDS[id].mat ? `<div class="lm">素材：${CARDS[id].mat.join(' ＋ ')}</div>` : '')).join('')}</div>` : '';
+  openModal(`<div class="mtitle"><h3>${d.n}</h3><button class="btn sm ghost x" data-modal="close">关闭</button></div>
+    <p class="sub">${(E.REALM[d.r] || E.REALM.any).n} · 主卡组 ${total} 张 · 点任意一张看详细效果</p>
+    <p class="note" style="margin:0 0 8px">${d.desc}</p>
+    ${bonds.length ? `<h4 class="gh">羁绊</h4><ul class="tips">${bonds.map((b) => `<li><b style="color:var(--gold2)">${b.n}</b>：${b.text}</li>`).join('')}</ul>` : ''}
+    ${(d.combo || []).length ? `<h4 class="gh">连动</h4><ul class="tips">${d.combo.map((t) => `<li>${t}</li>`).join('')}</ul>` : ''}
+    ${d.tips ? `<h4 class="gh">打法提示</h4><p class="note">${d.tips}</p>` : ''}
+    ${grp}${ex}
+    <div class="mb"><button class="btn ghost" data-modal="close">关闭</button>
+      <button class="btn pri" data-deck-use="${d.id}">用这套卡组</button></div>`);
+}
+
+function readCard(id, push) {
   const c = CARDS[id];
   if (!c) return;
   const extra = c.k === 'E' ? `<p class="note">素材：${c.mat ? c.mat.join(' ＋ ') : '自己场上 2 只界域不同的怪兽'}</p>` : '';
-  openModal(`<div class="mtitle"><h3>${c.n}</h3><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r} · ${c.rar}</span>
-    <button class="btn sm ghost x" data-modal="close">关闭</button></div>
+  const have = (S.save.coll || {})[id] || 0;
+  const canBack = push && S.mstack && S.mstack.length >= 0 && $('#mask').classList.contains('on') && $('#modal').innerHTML;
+  openModal(`<div class="mtitle"><h3>${c.n}</h3><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r} · ${c.rar} · ${have ? `已收录 ×${have}` : '未收录'}</span>
+    ${canBack ? '<button class="btn sm ghost x" data-modal="back">← 返回</button>' : ''}
+    <button class="btn sm ghost ${canBack ? '' : 'x'}" data-modal="close">关闭</button></div>
+    <div class="readface">${cardHTML(c, {})}</div>
     <p class="sub">${c.k === 'M' || c.k === 'E' ? `${c.atk} / ${c.def} · 等级 ${c.lv}` : ({ normal: '通常', quick: '速攻', equip: '装备', cont: '永续', counter: '反击' }[c.t] || '')}</p>
     ${extra}
-    <p class="note" style="font-size:13px;line-height:1.9">${c.text}</p>`);
+    <p class="note" style="font-size:13px;line-height:1.9">${c.text}</p>`, push);
 }
 
 // ------------------------------------------------------------------ 事件
 function bind() {
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#mask').classList.contains('on')) closeModal(); });
   document.addEventListener('click', (e) => {
+    const rd = e.target.closest('[data-read]');
+    if (rd) { readCard(rd.dataset.read, true); return; }
     const gc = e.target.closest('.grid-cards .card');
     if (gc && gc.dataset.id) { readCard(gc.dataset.id); return; }
+    const dv = e.target.closest('[data-deckview]');
+    if (dv) { e.stopPropagation(); showDeck(dv.dataset.deckview); return; }
+    const du = e.target.closest('[data-deck-use]');
+    if (du) { S.deckId = du.dataset.deckUse; S.save.deck = S.deckId; saveSave(S.save); closeModal(); renderHome(); toast('已选用这套卡组'); return; }
+    const pl = e.target.closest('[data-pool]');
+    if (pl) { showPackPool(pl.dataset.pool); return; }
     const t = e.target.closest('[data-act],[data-deck],[data-buy],[data-buy2],[data-toggle],[data-modal],[data-awaken],[data-ck],[data-cr],[data-d]');
     if (!t) {
       // 点空白处收起操作条
@@ -1004,6 +1090,7 @@ function bind() {
     if (t.dataset.modal) {
       const a = t.dataset.modal;
       if (a === 'close') closeModal();
+      if (a === 'back') backModal();
       if (a === 'home') { closeModal(); dropRoom(true); show('home'); }
       if (a === 'again') { closeModal(); startDuel(); }
       return;
@@ -1148,6 +1235,8 @@ export function boot() {
   document.documentElement.style.setProperty('--sheet-size', `${ART.cols * 100}% ${ART.rows * 100}%`);
   S.deckId = S.save.deck && DECKS.some((d) => d.id === S.save.deck) ? S.save.deck : DECKS[0].id;
   S.diff = S.save.diff || 'normal';
+  // 老存档里有一份只在这一页用的银芯：并进全站钱包（约 6:1，最多 40 枚），不再单独记
+  if (S.save.silver > 0) { walletAdd(Math.min(40, Math.floor(S.save.silver / 6))); S.save.silver = 0; saveSave(S.save); }
   silverBar();
   bind();
   show('home');

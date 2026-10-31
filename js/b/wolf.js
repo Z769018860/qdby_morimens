@@ -15314,6 +15314,56 @@ const AVATARS = {"9001":"data:image/webp;base64,UklGRvIOAABXRUJQVlA4IOYOAABwOwCd
 return { AVATARS };
 })();
 
+// ---- js/silver.js
+const m_silver = await (async () => {
+
+// 银芯钱包（所有小游戏共用的 zjtt:credits）的最小读写件。
+//
+// 不 import js/common.js：那一条链（common + i18n + auth + account）有 60 多 KB，
+// 为了写一个数字把首屏翻几倍不值当。写入格式必须和 common.js 的 store.set() 一致
+// （JSON.stringify 的数字），读的时候两种写法（"120" / 120）都认。
+const KEY = 'zjtt:credits';
+
+function walletGet() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return 0;
+    const v = Number(JSON.parse(raw));
+    return Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0;
+  } catch { return 0; }
+}
+
+// 入账。n 必须是正数；返回入账后的余额。zjtt:dirty 让 account.js（登录后）把这笔钱排队推上云，
+// 没人听的时候事件白丢，但本机数字是对的。
+function walletAdd(n) {
+  const add = Math.round(Number(n) || 0);
+  if (add <= 0) return walletGet();
+  try {
+    const v = walletGet() + add;
+    localStorage.setItem(KEY, JSON.stringify(v));
+    document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: 'credits' }));
+    return v;
+  } catch { return walletGet(); }
+}
+
+// 扣钱：不够返回 false，不会扣成负数
+function walletSpend(n) {
+  const cost = Math.round(Number(n) || 0);
+  if (cost <= 0) return true;
+  if (walletGet() < cost) return false;
+  try {
+    localStorage.setItem(KEY, JSON.stringify(walletGet() - cost));
+    document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: 'credits' }));
+    return true;
+  } catch { return false; }
+}
+
+// 原作的银芯图标（assets/ui/silvercore.webp），小图直接引用，不额外内联
+const SC_SRC = 'assets/ui/silvercore.webp';
+const scTag = (txt) => `<img src="${SC_SRC}" alt="银芯" width="16" height="16" decoding="async" style="vertical-align:-3px;margin-right:3px">${txt == null ? '' : `<b>${txt}</b>`}`;
+return { walletGet, walletAdd, walletSpend, SC_SRC, scTag };
+})();
+
 // ---- js/wolf/ui.js
 const m_ui = await (async () => {
 const { ROLES, DIFFS, KEEPER, WOLF_SIDE, CHARS, isCat } = m_data;
@@ -15321,10 +15371,12 @@ const { createGame, nextEvent, submit, nightOptions, playerFindings, canCall } =
 const { autoAct, autoNote } = m_auto;
 const { alive, byId } = m_util;
 const { AVATARS } = m_art;
+const { walletAdd, walletGet, scTag } = m_silver;
 // 弥萨格狼人杀：界面
 //
 // 引擎一次吐一个事件，这里一个事件画一条，所以整套流程读起来就是一场对话。
 // 玩家的选择只往引擎里递一个对象（见 engine.js 的 submit），规则不在这里。
+
 
 
 
@@ -15477,7 +15529,7 @@ function showTitle() {
     const dn = el('div', 'dn');
     dn.append(el('i', 'dot'));
     dn.append(el('span', '', d.n));
-    b.append(dn, el('span', 'ds', d.sub), el('span', 'dd', d.note));
+    b.append(dn, el('span', 'ds', d.sub), el('span', 'dd', d.note), el('span', 'ds', `赢一局 ${WOLF_PAY[d.k]}+ 银芯`));
     b.onclick = () => {
       STATE.diff = d.k;
       diffs.querySelectorAll('.diff').forEach((x) => x.classList.toggle('on', x === b));
@@ -15537,6 +15589,7 @@ function startGame() {
   STATE.turn = null;
   STATE.autoToken += 1;
   STATE.mode = loadMode();
+  STATE.autoUsed = STATE.mode === 'auto';   // 这一局开过自动档就按半价算
   STATE.outs = [];
   STATE.recTab = 'note';
   STATE.rosterOn = false;
@@ -16008,6 +16061,7 @@ function setMode(m) {
   if (!MODES[m]) return;
   const changed = STATE.mode !== m;
   STATE.mode = m;
+  if (m === 'auto') STATE.autoUsed = true;
   STATE.autoToken += 1;   // 作废还在等的那一手
   saveMode(m);
   paintPace();
@@ -16485,6 +16539,25 @@ function pickRole(cb) {
   });
 }
 
+// ---------------------------------------------------------------- 银芯
+// 和其他小游戏共用一个钱包（zjtt:credits）。按难度给一个「赢一局」的基数，
+// 难度越高桌上越脏、AI 越会撒谎，基数跟着涨：
+//   赢：基数；活到最后 +15%。
+//   输：基数的 25%（至少 1），但要熬过第 2 天才给——开局被投出去不算。
+//   开过自动档（替你说话 / 投票）的一局半价：它不是你在打。
+const WOLF_PAY = { easy: 6, normal: 12, hard: 20, mad: 30, abyss: 42 };
+const WOLF_LOSS_MIN_DAY = 2;
+function wolfReward(win, alive, day, diff, autoUsed) {
+  const base = WOLF_PAY[diff] || WOLF_PAY.normal;
+  let g;
+  if (win) g = base * (alive ? 1.15 : 1);
+  else if (day >= WOLF_LOSS_MIN_DAY) g = Math.max(1, base * 0.25);
+  else return { gain: 0, why: `第 ${WOLF_LOSS_MIN_DAY} 天之前就结束了，没有银芯` };
+  if (autoUsed) g *= 0.5;
+  g = Math.max(1, Math.round(g));
+  return { gain: g, why: `${win ? '获胜' : '惜败'}${win && alive ? ' · 活到最后' : ''}${autoUsed ? ' · 自动档半价' : ''}` };
+}
+
 // ---------------------------------------------------------------- 结算
 function finish(e) {
   const G = STATE.G;
@@ -16507,6 +16580,9 @@ function finish(e) {
     localStorage.setItem(STAT_KEY, JSON.stringify(st));
   } catch (err) { /* 隐私模式下写不进去，不影响这一局 */ }
 
+  const pay = wolfReward(win, me.alive, G.day, STATE.diff, STATE.autoUsed);
+  if (pay.gain > 0) walletAdd(pay.gain);
+
   clear(stage);
   const scr = el('section', 'scr on');
   scr.id = 'scr-over';
@@ -16523,6 +16599,12 @@ function finish(e) {
     + (me.alive ? '　——　活到了最后' : (me.deathDay ? `　——　第 ${me.deathDay} 天出局` : ''));
   banner.append(st);
   scr.append(banner);
+
+  const cred = el('div', 'ecred' + (pay.gain > 0 ? ' on' : ''));
+  cred.innerHTML = pay.gain > 0
+    ? `${scTag('+' + pay.gain)}<span>${DIFFS.find((x) => x.k === STATE.diff).n} · ${pay.why} · 钱包 ${walletGet()}</span>`
+    : `<span>${pay.why}</span>`;
+  scr.append(cred);
 
   const rev = el('div', 'reveal');
   for (const p of G.players) {
@@ -16913,6 +16995,10 @@ const GAMES = {
   wolf: { zh: '弥萨格狼人杀', prefix: ['zjtt:wolf'], skip: /:(mode|mute|snd)/ },
   merge: { zh: '合成大杜勒', prefix: ['zjtt:merge'], skip: /:(played|snd|mute)/ },
   bird: { zh: '是鸟弟就下100层', prefix: ['zjtt:bird'], skip: /:(snd|mute|diff|ctl)/ },
+  // 唤醒王：决斗链接：收藏、战绩、开包记录（卡组选择和难度是偏好，跟着走也无妨）
+  duel: { zh: '唤醒王：决斗链接', prefix: ['zjtt:duel'], skip: /^$/ },
+  // 弥萨格王权：进行中的任期、结局图鉴、人物册（音效是这台设备的偏好）
+  reign: { zh: '弥萨格王权', prefix: ['zjtt:reign'], skip: /:sound/ },
   // 2048：局面（save）和最高分都值得跟着账号走，难度 / 侵蚀 / 音效是这台设备的偏好
   // （皮肤不同步：换设备一进来就得多拉四百来 KB 的换皮池，不值）
   g2048: {

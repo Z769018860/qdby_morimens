@@ -59,6 +59,10 @@ const GAMES = {
   wolf: { zh: '弥萨格狼人杀', prefix: ['zjtt:wolf'], skip: /:(mode|mute|snd)/ },
   merge: { zh: '合成大杜勒', prefix: ['zjtt:merge'], skip: /:(played|snd|mute)/ },
   bird: { zh: '是鸟弟就下100层', prefix: ['zjtt:bird'], skip: /:(snd|mute|diff|ctl)/ },
+  // 唤醒王：决斗链接：收藏、战绩、开包记录（卡组选择和难度是偏好，跟着走也无妨）
+  duel: { zh: '唤醒王：决斗链接', prefix: ['zjtt:duel'], skip: /^$/ },
+  // 弥萨格王权：进行中的任期、结局图鉴、人物册（音效是这台设备的偏好）
+  reign: { zh: '弥萨格王权', prefix: ['zjtt:reign'], skip: /:sound/ },
   // 2048：局面（save）和最高分都值得跟着账号走，难度 / 侵蚀 / 音效是这台设备的偏好
   // （皮肤不同步：换设备一进来就得多拉四百来 KB 的换皮池，不值）
   g2048: {
@@ -337,6 +341,10 @@ const creditOf = (score, k) => {
   for (const [s, c] of tiersOf(k)) if (score >= s) out = c;
   return out;
 };
+// 侵蚀模式（每 12 步落一块墙）更难，银芯 ×1.25（向上取整）；整局的开关不会中途变，
+// 因为切换侵蚀会直接重开一局（见 setRot）。
+const ROT_MUL = 1.25;
+const payOf = (score, k, rot) => { const b = creditOf(score, k); return rot && b > 0 ? Math.ceil(b * ROT_MUL) : b; };
 const nextTierOf = (score, k) => tiersOf(k).find(([s]) => score < s) || null;
 
 const TOP = LEVELS.length - 1;      // 最后一级的下标（2048）
@@ -889,7 +897,19 @@ function floatScore(idx, val) {
 function clearFloats() { if (floatBox) floatBox.replaceChildren(); }
 
 // ------------------------------------------------------------------ 一局的生命周期
+// 一局打到一半就重开 / 换棋盘 / 开关侵蚀：按当前得分把银芯结了再重来。
+// 2048 打得好的人根本不会「输」，如果只在判负时发钱，重开就等于白打。
+// 换棋盘时调用方要在改 G.diff 之前先结（阶梯表按旧棋盘算），结完 G.over 已置位，这里不会重复发。
+function settleOpen() {
+  if (G.over || G.score <= 0 || !G.cells.length) return 0;
+  G.over = true;                      // 同一局只结一次
+  const got = payOf(G.score, G.diff, G.rot);
+  if (got > 0) { walletAdd(got); toast(`上一局结算：+${got} 银芯（${fmtNum(G.score)} 分）`, 2200); }
+  return got;
+}
+
 function newGame(silent) {
+  settleOpen();
   seq = 1;
   G.cells = new Array(slotCount()).fill(null);
   G.score = 0; G.steps = 0; G.mania = 0; G.peak = 2;
@@ -976,7 +996,7 @@ function endGame() {
   const isNew = G.score >= rec && G.score > 0;
 
   // 银芯：按本局得分取这一档棋盘的阶梯，先入账再弹结算，刷掉页面也不会丢
-  const got = creditOf(G.score, G.diff);
+  const got = payOf(G.score, G.diff, G.rot);
   if (got > 0) { walletAdd(got); setTimeout(() => sfx.coin(), 260); }
 
   $('#ovk').textContent = G.peak >= 2048 ? '显影到底了' : '这段记忆散了';
@@ -999,7 +1019,7 @@ function paintCredit(got) {
     ? `再得 ${fmtNum(nx[0] - G.score)} 分到 ${fmtNum(nx[0])}（+${nx[1]} 枚）`
     : '已经是最高一档';
   const head = got > 0
-    ? `<img src="${SC_ART}" alt="" width="16" height="16" decoding="async"><b>+${got}</b> 银芯`
+    ? `<img src="${SC_ART}" alt="" width="16" height="16" decoding="async"><b>+${got}</b> 银芯${G.rot ? '（侵蚀 ×1.25）' : ''}`
     : `<span class="none">还没够到第一档（${fmtNum(tiersOf(G.diff)[0][0])} 分）</span>`;
   el.className = 'cred' + (got > 0 ? ' on' : '');
   el.innerHTML = head + `<small>${nextTxt} · 钱包 ${fmtNum(wallet)}</small>`;
@@ -1210,6 +1230,7 @@ function syncDiffButtons() {
 
 function setDiff(k, silent) {
   if (!DIFFS[k] || k === G.diff) return;
+  settleOpen();
   G.diff = k; G.n = DIFFS[k].n;
   lsSet(KEY.diff, k);
   G.best = num(lsGet(KEY.best + ':' + k));
@@ -1220,13 +1241,15 @@ function setDiff(k, silent) {
 }
 
 function setRot(on) {
+  const live = !G.over;
+  if (!!on !== G.rot) settleOpen();     // 按旧模式（开/关）把上一局的银芯结了
   G.rot = !!on;
   lsSet(KEY.rot, G.rot ? '1' : '0');
   const b = $('#rot');
   b.classList.toggle('on', G.rot);
   b.setAttribute('aria-pressed', G.rot ? 'true' : 'false');
   b.textContent = G.rot ? '侵蚀 开' : '侵蚀 关';
-  if (!G.over) { newGame(true); toast(G.rot ? '侵蚀已开：每 12 步落一块蚀' : '侵蚀已关，重新开局'); }
+  if (live) { newGame(true); toast(G.rot ? '侵蚀已开：每 12 步落一块蚀' : '侵蚀已关，重新开局'); }
 }
 
 // 显影链面板：见过的点亮，没见过的灰着（剪影比问号更能勾人去合）
@@ -1287,11 +1310,11 @@ function paintCreditRules() {
   const box = $('#crules');
   if (!box) return;
   const tiers = tiersOf(G.diff);
-  const got = creditOf(G.score, G.diff);
+  const got = payOf(G.score, G.diff, G.rot);
   const nx = nextTierOf(G.score, G.diff);
   box.replaceChildren();
   const h = document.createElement('h4');
-  h.innerHTML = `银芯 <span>· ${DIFFS[G.diff].name} · 每局按本局显影取最高一档</span>`;
+  h.innerHTML = `银芯 <span>· ${DIFFS[G.diff].name} · 每局按本局显影取最高一档${G.rot ? ' · 侵蚀 ×1.25' : ''}</span>`;
   box.appendChild(h);
   const rows = document.createElement('div');
   rows.className = 'rows';
@@ -1435,10 +1458,10 @@ if (window.__G2048_TEST__ || /[?&]_test=1\b/.test(location.search)) {
     diff: (k) => setDiff(k, true),
     rot: (on) => setRot(on),
     // 银芯：本局得分值多少枚 / 这一档棋盘的阶梯 / 结算（发钱那一步）
-    credit: (s) => creditOf(s === undefined ? G.score : s, G.diff),
+    credit: (s) => payOf(s === undefined ? G.score : s, G.diff, G.rot),
     tiers: () => tiersOf(G.diff).map(([s, c]) => [s, c]),
     wallet: () => walletGet(),
-    end: () => { if (!G.over) endGame(); return creditOf(G.score, G.diff); },
+    end: () => { if (!G.over) endGame(); return payOf(G.score, G.diff, G.rot); },
     state: () => ({ score: G.score, peak: G.peak, over: G.over, n: G.n, mania: G.mania, steps: G.steps, cells: G.cells.map((t) => (t ? (t.rot ? -1 : t.v) : 0)) }),
     // 换皮：skin('creation'|'awakener') 摇一批，skin('chain') 还原；返回 Promise
     skin: (k) => (k === 'chain' ? (applyChain(true), Promise.resolve({ k: 'chain' })) : shuffleSkin(k, true)),

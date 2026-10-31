@@ -92,8 +92,11 @@ export function rewindPlan(r) {
   return { to: 1, back: lv - 1, refund, refundCores, cost: REWIND_COST };
 }
 
-// 叠位（银芯共鸣）：抽不到重复时也能推进，成本随叠位线性上升
-export const awakenCost = (star = 0) => 20 + 5 * awaken({ star });
+// 叠位（银芯共鸣）：抽不到重复时也能推进，成本随「已经用银芯叠过几次」线性上升。
+// 参数是银芯叠位的次数（roster[slug].buy），不是当前叠位数：
+// 以前按当前叠位数计价，先抽到重复（免费 +1）再用银芯补，银芯就花在高叠位上，
+// 同样叠到 99，先抽后补比先补后抽贵 2 倍多。现在总价只取决于「银芯买了几层」，和抽卡先后无关。
+export const awakenCost = (bought = 0) => 20 + 5 * Math.max(0, Math.floor(Number(bought) || 0));
 
 // 技能等级 0..4（显示 Lv.1–5）：每 15 级 +1 级（46 级到 Lv.4），叠位每 40 层再 +1（最多 +2）。
 // 用固定 15 级一档而不是按等级上限比例，否则提升等级上限反而会把技能等级算低。

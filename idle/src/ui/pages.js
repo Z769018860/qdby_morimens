@@ -24,7 +24,7 @@ import { roundLimitFor, ROUND_LIMIT, FRONT_SLOTS } from '../core/battle.js';
 import { fxMode } from './fx.js';
 import { settleMode } from './report.js';
 import { watchMode } from './replay.js';
-import { SHOP, boughtToday } from '../core/shop.js';
+import { SHOP, boughtToday, goldTicketPrice, GOLD_TICKET_ID, GOLD_TICKET_LIMIT } from '../core/shop.js';
 import { refineCost, refineMult, relicRefineGain, relicRefineView, relicTheme, REFINE_MAX } from '../core/gear.js';
 import {
   lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, growthPerLevel,
@@ -833,7 +833,7 @@ export function detailModal(app, slug) {
   const needBrk = r && r.lv < cap && breakNeeded(r.lv, r.brk);
   const cost = r && r.lv < cap && !needBrk ? lvUpCost(r.lv) : 0;
   const brkCost = needBrk ? breakCost(r.lv) : null;
-  const awkCost = r && r.star < MAX_AWAKEN ? awakenCost(r.star) : 0;
+  const awkCost = r && r.star < MAX_AWAKEN ? awakenCost(r.buy) : 0;
   const g = growthPerLevel(a, preview.star, preview.od, preview.law);
   const perBattle = Math.round(stageGold(Math.max(1, s.maxStage)) * (1 + (view?.goldBonus || 0) / 100));
 
@@ -878,8 +878,8 @@ export function detailModal(app, slug) {
       <div class="matsrc">
         <b>升级材料一览</b>
         <div><span>经验 = 金币</span><em>当前第 ${s.maxStage || 1} 关挂机约 ${fmt(perBattle)} 金币/场，每小时约 ${fmt(Math.round(perBattle * BATTLES_PER_HOUR))}；另有首通、周 Boss、无限塔、分解装备。</em></div>
-        <div><span>突破（每 ${LEVEL_GATE} 级）</span><em>金币 + 银芯。银芯来自 Boss 首通、成就、签到、周 Boss、属性塔、竞技场、分解装备。</em></div>
-        <div><span>叠位（上限 ${MAX_AWAKEN}）</span><em>抽到重复唤醒体 +1；也可用银芯共鸣（成本 ${awakenCost(r?.star || 0)} 起，每层 +5）。</em></div>
+        <div><span>突破（每 ${LEVEL_GATE} 级）</span><em>金币 + 银芯。银芯来自 Boss 首通、成就、签到、周 Boss、属性塔、竞技场、分解装备（每天最多 40 枚基础银芯）。</em></div>
+        <div><span>叠位（上限 ${MAX_AWAKEN}）</span><em>抽到重复唤醒体 +1；也可用银芯共鸣（成本 ${awakenCost(r?.buy || 0)}，银芯每叠一层 +5，和抽卡先后无关）。</em></div>
       </div>
     </div></div>`;
   openModal(html, 'wide', 'detail:' + slug);
@@ -928,7 +928,7 @@ export function gearPage(app) {
     const def = itemDef(app, it);
     const cost = it.lv < GEAR_MAX_LV ? gearCost(it.kind, it.lv) : 0, rc = refineCost(it);
     const eqd = isEquipped(s, it.uid);
-    const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button><button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity, it) ? ` +<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${dismantleCores(def.rarity, it)}` : ''}</button></div>`;
+    const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button><button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity, it, s) ? ` +<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${dismantleCores(def.rarity, it, s)}` : ''}</button></div>`;
     return itemCard(app, it, btns);
   }).join('') || '<p class="hint">暂无。推图有概率掉落，也可在「召唤」页用金币祈愿。</p>';
 
@@ -1033,12 +1033,15 @@ export function summonPage(app) {
       <div class="row"><button class="btn big" data-act="pull" data-n="1" ${s.tickets >= 1 ? '' : 'disabled'}>单抽 ×1</button><button class="btn big gold" data-act="pull" data-n="10" ${s.tickets >= 10 ? '' : 'disabled'}>十连 ×10</button></div>
       <p class="hint">概率：精良 60% · 史诗 37% · 创生 3%（第 38 抽起逐步提升，${PULL_PITY_GENESIS} 抽必出）。十连至少 1 个史诗以上。重复获得 = 叠位 +1（上限 ${MAX_AWAKEN}），满叠位折算金币与银芯。</p></div>
     <div class="banner-card"><h3>银芯召唤 <small><img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯"> ${fmt(s.cores)}</small></h3>
-      <p class="hint">银芯来自首通、成就、签到、周 Boss、属性塔、竞技场和分解装备。与召唤券共用保底。</p>
+      <p class="hint">银芯来自首通、成就、签到、周 Boss、属性塔、竞技场和分解装备（分解的基础银芯每天最多 40 枚）。与召唤券共用保底。</p>
       <div class="row"><button class="btn big" data-act="cpull" data-n="1" ${s.cores >= CORE_PULL_COST ? '' : 'disabled'}>单抽 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${CORE_PULL_COST}</button><button class="btn big gold" data-act="cpull" data-n="10" ${s.cores >= CORE_PULL10_COST ? '' : 'disabled'}>十连 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${CORE_PULL10_COST}</button>
       <button class="btn big" data-act="cepull" ${s.cores >= EQUIP_CORE_COST ? '' : 'disabled'}>精选祈愿（SR 以上装备）<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${EQUIP_CORE_COST}</button></div></div>
     ${luckCard(app)}
     <div class="banner-card"><h3>银芯商店 <small>每日 0 点（UTC）刷新限购</small></h3>
       <div class="shop">${SHOP.map((x) => { const n = boughtToday(s, x.id); return `<div class="shopi"><b>${x.zh}</b><small>今日 ${n}/${x.limit}</small><button class="btn sm" data-act="shop-buy" data-id="${x.id}" ${n < x.limit && s.cores >= x.cost ? '' : 'disabled'}><img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯"> ${x.cost}</button></div>`; }).join('')}</div></div>
+    ${(() => { const n = boughtToday(s, GOLD_TICKET_ID), pr = goldTicketPrice(s); return `<div class="banner-card"><h3>金币换召唤券 <small>今日 ${n}/${GOLD_TICKET_LIMIT}</small></h3>
+      <p class="hint">金币太多花不完时的出口：每张 <b>${fmt(pr)}</b> 金币（约等于最高关 300 场的收入，当天每买一张再贵 20%）。比挂机直接拿券贵得多，所以前中期不划算，金币先留给升级。</p>
+      <div class="row"><button class="btn big" data-act="gold-ticket" ${n < GOLD_TICKET_LIMIT && s.gold >= pr ? '' : 'disabled'}>换 1 张 · ${fmt(pr)} 金币</button></div></div>`; })()}
     <div class="banner-card"><h3>装备祈愿</h3>
       <p>金币：<b>${fmt(s.gold)}</b>　每次 ${EQUIP_PULL_COST} 金币，随机获得命轮 / 密契 / 造物。</p>
       <div class="row"><button class="btn big" data-act="epull" data-n="1" ${s.gold >= EQUIP_PULL_COST ? '' : 'disabled'}>祈愿 ×1</button><button class="btn big" data-act="epull" data-n="5" ${s.gold >= EQUIP_PULL_COST * 5 ? '' : 'disabled'}>祈愿 ×5</button></div></div>
