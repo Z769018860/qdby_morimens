@@ -23,7 +23,7 @@ const I18N = {
     retry: '重试',
     // 难度档
     lv1: '入门', lv2: '进阶', lv3: '老手', lv4: '大师',
-    lv1d: '只猜 4 名唤醒体', lv2d: '+ 命轮', lv3d: '+ 密契、钥令', lv4d: '+ 潜能进阶、造物',
+    lv1d: '只猜 4 名唤醒体', lv2d: '+ 命轮', lv3d: '+ 密契、钥令', lv4d: '+ 启灵、造物',
     daily: '每日一题', random: '随机一题',
     played: '已玩', won: '胜', streak: '连胜', best: '最佳',
     // 战报
@@ -43,7 +43,7 @@ const I18N = {
     keeper: '守密人伤害', tentacle: '触腕伤害', counter: '反击伤害', strength: '力量峰值', poison: '侵蚀/中毒',
     // 养成线索（替代晦涩的 up/tal）
     investTitle: '养成线索',
-    cardLv: '指令卡总等级', madnessLv: '疯狂预兆', potLv: '潜能', potE: '{n}启',
+    cardLv: '指令卡总等级', madnessLv: '疯狂预兆', potLv: '启灵',
     // 排序说明
     sortNote: '已按队内伤害从高到低排序：A 是伤害最高者。队伍成员以匿名 A–D 呈现，顺序即答案顺序。',
     // 还原面板
@@ -59,8 +59,8 @@ const I18N = {
     hintRealm: '提示阵营', hintRole: '提示定位', hintLv: '提示等级', hintKey: '钥令阵营',
     acctTag: '账号', guestTag2: '', lvTag: '等级', brkTag: '内在灵格',
     clueTitle: '线索台', clueNote: '花银芯解锁，本局内一直有效',
-    clueBrk: '内在灵格', cluePot: '潜能',
-    cluePotTeam: '潜能汇总', cluePotSum: '额外潜能合计 {n}',
+    clueBrk: '内在灵格', cluePot: '启灵',
+    cluePotTeam: '启灵汇总', cluePotSum: '额外启灵合计 {n}',
     // 开局线索：除入门外的三档白送几条最贵的
     giftTag: '赠送', giftToast: '本档开局赠送 {n} 条线索', clueGiftOn: '已赠送 {n} 条',
     loadMore: '加载更多',
@@ -90,7 +90,7 @@ const I18N = {
     // 结果
     winTitle: '还原成功', loseTitle: '推理失败', grade: '评级 {g}',
     scoreText: '得分 {s}（提示 {h} 次，提交 {n} 次）',
-    slotHead: '{l} 位', lv: 'Lv.{n}', potFull: '潜能 {n}', brk: '内在灵格 {n}',
+    slotHead: '{l} 位', lv: 'Lv.{n}', potFull: '启灵 {n}', brk: '内在灵格 {n}',
     keyLabel: '钥令', relicLabel: '造物',
     copy: '复制战绩', again: '再来一题',
     copied: '已复制',
@@ -248,7 +248,7 @@ const I18N = {
     dmgCompTitle: 'Damage composition (keeper & special)',
     keeper: 'Keeper dmg', tentacle: 'Tentacle dmg', counter: 'Counter dmg', strength: 'Peak STR', poison: 'Corrosion/Poison',
     investTitle: 'Build clues',
-    cardLv: 'Command card lv', madnessLv: 'Madness omen', potLv: 'Potency', potE: 'E{n}',
+    cardLv: 'Command card lv', madnessLv: 'Madness omen', potLv: 'Potency',
     sortNote: 'Sorted by damage desc: A is the top dealer. Members are anonymized as A–D; order matches the answer.',
     boardTitle: 'Restore team', boardLevel: '{l}',
     submit: 'Submit', submitLeft: ' ({n} left)', reset: 'Reset',
@@ -2710,6 +2710,26 @@ function replayTeam(rep) {
 return { lz4Frame, unpack, unpackLz4Msgpack, isReplayBytes, replayUrl, decodeReplay, replaySummary, replayTeam };
 })();
 
+// ---- js/pot.js
+const m_pot = await (async () => {
+
+// 启灵（回放里的 potencyLevel，0..15）的选项与名字。
+// 0~3 = 0启~3启；4~6 = +1~+3；7 = 超限（+4 的位置，游戏里不叫 +4）；8~14 = +5~+11；15 = +12（最终法则）。
+// 战报侦探的卡位输入、结算复盘、工坊的出题表单共用这一份，别各写各的。
+const POT_MAX = 15;
+const POT_VALUES = Array.from({ length: POT_MAX + 1 }, (_, i) => i);
+
+function potLabel(n, en = false) {
+  n = Number(n);
+  if (!Number.isFinite(n)) return '—';
+  if (n <= 3) return en ? `E${n}` : `${n}启`;
+  if (n === 7) return en ? 'Overdrive' : '超限';
+  if (n >= POT_MAX) return en ? '+12 (Final Law)' : '+12（最终法则）';
+  return `+${n - 3}`;
+}
+return { POT_MAX, POT_VALUES, potLabel };
+})();
+
 // ---- js/pepper.js
 const m_pepper = await (async () => {
 
@@ -3005,9 +3025,11 @@ const { $, h, store, nav, t, lang, loadDict, imgEl, nameOf, shareCode, REPLAY, m
 const { cloud, cloudConfig } = m_cloud;
 const { account } = m_account;
 const { decodeReplay, replayTeam } = m_replay;
+const { potLabel, POT_VALUES } = m_pot;
 const { PEPPER } = m_pepper;
 const likes = m_likes;
 // 创意工坊：导入战报 → 生成自己的推理题 → 分享码 / 云题库
+
 
 
 
@@ -3164,9 +3186,10 @@ function slotEditor(k) {
       pickBtn('wheel', (a.wheels || [])[1], v => { a.wheels = [(a.wheels || [])[0] || null, v].filter(Boolean); }, '命轮 2')),
     pickBtn('covenant', a.cov, v => { a.cov = v; }, '密契'),
     h('div', { class: 'pot' },
-      h('small', {}, '等级/灵塑'),
+      h('small', {}, '等级 / 启灵'),
       h('input', { type: 'number', min: 1, max: 90, value: a.lv, class: 'tiny', oninput: ev => { a.lv = num(ev.target.value, 60); } }),
-      h('input', { type: 'number', min: 0, max: 15, value: a.pot, class: 'tiny', oninput: ev => { a.pot = num(ev.target.value, 0); } })));
+      h('select', { class: 'potsel', 'aria-label': '启灵', onchange: ev => { a.pot = num(ev.target.value, 0); } },
+        POT_VALUES.map(v => h('option', { value: String(v), selected: (a.pot ?? 0) === v }, potLabel(v))))));
 }
 
 // 队伍界域现状：冲突时直接点出来，别让人选完才发现不自洽

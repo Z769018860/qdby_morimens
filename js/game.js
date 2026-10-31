@@ -1,3 +1,4 @@
+import { potLabel, POT_VALUES } from './pot.js';
 import { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang,
   wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf, scIcon, scNum, emptyState, sha256 } from './common.js';
 import { PEPPER } from './pepper.js';
@@ -343,10 +344,9 @@ function recordStats() {
 }
 
 // ------------------------------------------------------------------ 线索
-// 潜能（replay 里的 potencyLevel，0..15）和游戏里看到的一致：0~3 是「N 启」（启灵），4 起是「+1、+2…」（额外潜能）。
-// 以前这里叫「灵塑」并直接显示 0..15 的裸数字，和游戏里的写法对不上；「灵塑」是另一个东西（天赋里的 soulforge 等级，
-// 要从回放的通用天赋状态参数反推），题库里没有这个字段。
-const potTxt = (n) => (n == null || !Number.isFinite(Number(n)) ? '—' : Number(n) <= 3 ? t('potE', { n: Number(n) }) : `+${Number(n) - 3}`);
+// 启灵（replay 里的 potencyLevel，0..15）：0~3 启、+1~+3、超限、+5~+11、+12（最终法则），见 js/pot.js。
+// 以前这里叫「灵塑」并直接显示 0..15 的裸数字；「灵塑」是另一个东西（天赋里的 soulforge 等级，题库里没有这个字段）。
+const potTxt = (n) => potLabel(n, lang.cur === 'en');
 // 线索分两类：卡位上的（阵营、定位、等级）和队伍级的（钥令、内在灵格、灵塑、养成、助战、极值），
 // 以及按位解锁的命轮 / 密契。
 // 队伍级线索全部按当前这道题的真实数据算，没有数据的条目直接不出现；解锁状态按题存在本机。
@@ -645,7 +645,7 @@ function clueList() {
     });
   }
 
-  // 潜能（灵塑）：四个卡位的数值本来就印在战报面板的「养成」行里，
+  // 启灵：四个卡位的数值本来就印在战报面板的「养成」行里，
   // 这里给一条汇总（含合计），省得玩家在面板和卡位之间来回对；只在要填潜能的档上架。
   if (A.pot && full('pot')) {
     team.push({
@@ -1056,9 +1056,11 @@ function slotCard(k) {
     const f = fb[`pot${k}`] && fb[`pot${k}`].v === g.pot ? fb[`pot${k}`] : null;
     card.append(h('div', { class: `pot${f ? ' fb-' + f.c : ''}` },
       h('small', {}, t('potLv')),
-      h('button', { type: 'button', onclick: () => { if (!locked) { g.pot = Math.max(0, (g.pot ?? 1) - 1); persist(); render(); } } }, '−'),
-      h('b', {}, g.pot == null ? '—' : potTxt(g.pot) + (f && f.dir ? ' ' + f.dir : '')),
-      h('button', { type: 'button', onclick: () => { if (!locked) { g.pot = Math.min(15, (g.pot ?? -1) + 1); persist(); render(); } } }, '+')));
+      h('select', { class: 'potsel', disabled: !!locked, 'aria-label': t('potLv'),
+        onchange: (ev) => { g.pot = ev.target.value === '' ? null : Number(ev.target.value); persist(); render(); } },
+        h('option', { value: '', selected: g.pot == null }, '—'),
+        POT_VALUES.map((v) => h('option', { value: String(v), selected: g.pot === v }, potTxt(v)))),
+      f && f.dir ? h('b', {}, f.dir) : null));
   }
   if (!locked) {
     card.append(h('div', { class: 'hints' },

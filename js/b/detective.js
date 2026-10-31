@@ -2,6 +2,26 @@
 // 由 scripts/build.mjs 生成，请改 js/ 下的源文件后重新构建。
 // 每个原模块被包进一个 async IIFE：作用域隔离 + 支持 await，顺序即依赖顺序。
 
+// ---- js/pot.js
+const m_pot = await (async () => {
+
+// 启灵（回放里的 potencyLevel，0..15）的选项与名字。
+// 0~3 = 0启~3启；4~6 = +1~+3；7 = 超限（+4 的位置，游戏里不叫 +4）；8~14 = +5~+11；15 = +12（最终法则）。
+// 战报侦探的卡位输入、结算复盘、工坊的出题表单共用这一份，别各写各的。
+const POT_MAX = 15;
+const POT_VALUES = Array.from({ length: POT_MAX + 1 }, (_, i) => i);
+
+function potLabel(n, en = false) {
+  n = Number(n);
+  if (!Number.isFinite(n)) return '—';
+  if (n <= 3) return en ? `E${n}` : `${n}启`;
+  if (n === 7) return en ? 'Overdrive' : '超限';
+  if (n >= POT_MAX) return en ? '+12 (Final Law)' : '+12（最终法则）';
+  return `+${n - 3}`;
+}
+return { POT_MAX, POT_VALUES, potLabel };
+})();
+
 // ---- js/i18n.js
 const m_i18n = await (async () => {
 
@@ -23,7 +43,7 @@ const I18N = {
     retry: '重试',
     // 难度档
     lv1: '入门', lv2: '进阶', lv3: '老手', lv4: '大师',
-    lv1d: '只猜 4 名唤醒体', lv2d: '+ 命轮', lv3d: '+ 密契、钥令', lv4d: '+ 潜能进阶、造物',
+    lv1d: '只猜 4 名唤醒体', lv2d: '+ 命轮', lv3d: '+ 密契、钥令', lv4d: '+ 启灵、造物',
     daily: '每日一题', random: '随机一题',
     played: '已玩', won: '胜', streak: '连胜', best: '最佳',
     // 战报
@@ -43,7 +63,7 @@ const I18N = {
     keeper: '守密人伤害', tentacle: '触腕伤害', counter: '反击伤害', strength: '力量峰值', poison: '侵蚀/中毒',
     // 养成线索（替代晦涩的 up/tal）
     investTitle: '养成线索',
-    cardLv: '指令卡总等级', madnessLv: '疯狂预兆', potLv: '潜能', potE: '{n}启',
+    cardLv: '指令卡总等级', madnessLv: '疯狂预兆', potLv: '启灵',
     // 排序说明
     sortNote: '已按队内伤害从高到低排序：A 是伤害最高者。队伍成员以匿名 A–D 呈现，顺序即答案顺序。',
     // 还原面板
@@ -59,8 +79,8 @@ const I18N = {
     hintRealm: '提示阵营', hintRole: '提示定位', hintLv: '提示等级', hintKey: '钥令阵营',
     acctTag: '账号', guestTag2: '', lvTag: '等级', brkTag: '内在灵格',
     clueTitle: '线索台', clueNote: '花银芯解锁，本局内一直有效',
-    clueBrk: '内在灵格', cluePot: '潜能',
-    cluePotTeam: '潜能汇总', cluePotSum: '额外潜能合计 {n}',
+    clueBrk: '内在灵格', cluePot: '启灵',
+    cluePotTeam: '启灵汇总', cluePotSum: '额外启灵合计 {n}',
     // 开局线索：除入门外的三档白送几条最贵的
     giftTag: '赠送', giftToast: '本档开局赠送 {n} 条线索', clueGiftOn: '已赠送 {n} 条',
     loadMore: '加载更多',
@@ -90,7 +110,7 @@ const I18N = {
     // 结果
     winTitle: '还原成功', loseTitle: '推理失败', grade: '评级 {g}',
     scoreText: '得分 {s}（提示 {h} 次，提交 {n} 次）',
-    slotHead: '{l} 位', lv: 'Lv.{n}', potFull: '潜能 {n}', brk: '内在灵格 {n}',
+    slotHead: '{l} 位', lv: 'Lv.{n}', potFull: '启灵 {n}', brk: '内在灵格 {n}',
     keyLabel: '钥令', relicLabel: '造物',
     copy: '复制战绩', again: '再来一题',
     copied: '已复制',
@@ -248,7 +268,7 @@ const I18N = {
     dmgCompTitle: 'Damage composition (keeper & special)',
     keeper: 'Keeper dmg', tentacle: 'Tentacle dmg', counter: 'Counter dmg', strength: 'Peak STR', poison: 'Corrosion/Poison',
     investTitle: 'Build clues',
-    cardLv: 'Command card lv', madnessLv: 'Madness omen', potLv: 'Potency', potE: 'E{n}',
+    cardLv: 'Command card lv', madnessLv: 'Madness omen', potLv: 'Potency',
     sortNote: 'Sorted by damage desc: A is the top dealer. Members are anonymized as A–D; order matches the answer.',
     boardTitle: 'Restore team', boardLevel: '{l}',
     submit: 'Submit', submitLeft: ' ({n} left)', reset: 'Reset',
@@ -2620,6 +2640,7 @@ return { REWARD, dayKey, state, done, claim, checkinBar };
 
 // ---- js/game.js
 const m_game = await (async () => {
+const { potLabel, POT_VALUES } = m_pot;
 const { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang, wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf, scIcon, scNum, emptyState, sha256 } = m_common;
 const { PEPPER } = m_pepper;
 const { bank } = m_bank;
@@ -2963,10 +2984,9 @@ function recordStats() {
 }
 
 // ------------------------------------------------------------------ 线索
-// 潜能（replay 里的 potencyLevel，0..15）和游戏里看到的一致：0~3 是「N 启」（启灵），4 起是「+1、+2…」（额外潜能）。
-// 以前这里叫「灵塑」并直接显示 0..15 的裸数字，和游戏里的写法对不上；「灵塑」是另一个东西（天赋里的 soulforge 等级，
-// 要从回放的通用天赋状态参数反推），题库里没有这个字段。
-const potTxt = (n) => (n == null || !Number.isFinite(Number(n)) ? '—' : Number(n) <= 3 ? t('potE', { n: Number(n) }) : `+${Number(n) - 3}`);
+// 启灵（replay 里的 potencyLevel，0..15）：0~3 启、+1~+3、超限、+5~+11、+12（最终法则），见 js/pot.js。
+// 以前这里叫「灵塑」并直接显示 0..15 的裸数字；「灵塑」是另一个东西（天赋里的 soulforge 等级，题库里没有这个字段）。
+const potTxt = (n) => potLabel(n, lang.cur === 'en');
 // 线索分两类：卡位上的（阵营、定位、等级）和队伍级的（钥令、内在灵格、灵塑、养成、助战、极值），
 // 以及按位解锁的命轮 / 密契。
 // 队伍级线索全部按当前这道题的真实数据算，没有数据的条目直接不出现；解锁状态按题存在本机。
@@ -3265,7 +3285,7 @@ function clueList() {
     });
   }
 
-  // 潜能（灵塑）：四个卡位的数值本来就印在战报面板的「养成」行里，
+  // 启灵：四个卡位的数值本来就印在战报面板的「养成」行里，
   // 这里给一条汇总（含合计），省得玩家在面板和卡位之间来回对；只在要填潜能的档上架。
   if (A.pot && full('pot')) {
     team.push({
@@ -3676,9 +3696,11 @@ function slotCard(k) {
     const f = fb[`pot${k}`] && fb[`pot${k}`].v === g.pot ? fb[`pot${k}`] : null;
     card.append(h('div', { class: `pot${f ? ' fb-' + f.c : ''}` },
       h('small', {}, t('potLv')),
-      h('button', { type: 'button', onclick: () => { if (!locked) { g.pot = Math.max(0, (g.pot ?? 1) - 1); persist(); render(); } } }, '−'),
-      h('b', {}, g.pot == null ? '—' : potTxt(g.pot) + (f && f.dir ? ' ' + f.dir : '')),
-      h('button', { type: 'button', onclick: () => { if (!locked) { g.pot = Math.min(15, (g.pot ?? -1) + 1); persist(); render(); } } }, '+')));
+      h('select', { class: 'potsel', disabled: !!locked, 'aria-label': t('potLv'),
+        onchange: (ev) => { g.pot = ev.target.value === '' ? null : Number(ev.target.value); persist(); render(); } },
+        h('option', { value: '', selected: g.pot == null }, '—'),
+        POT_VALUES.map((v) => h('option', { value: String(v), selected: g.pot === v }, potTxt(v)))),
+      f && f.dir ? h('b', {}, f.dir) : null));
   }
   if (!locked) {
     card.append(h('div', { class: 'hints' },
