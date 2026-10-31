@@ -140,6 +140,37 @@ export function squadsUsingItem(state, uid) {
   return out;
 }
 
+/**
+ * 这件装备实际会在哪几套编队里出战（含「当前队伍」）：
+ *  · 有独立配装的编队：看它自己的那套；
+ *  · 没有独立配装的编队沿用主线队伍的穿戴——命轮 / 密契跟着人走（编队里有穿它的那个人才算），
+ *    造物栏全队共用（编了人的编队都算）；
+ *  · 'cur' 是主线队伍本身。
+ * 列表里的「已编入」提示用它，免得只看独立配装而漏掉大多数人根本没建独立配装的情况。
+ */
+export function squadsEffectivelyUsing(state, uid) {
+  const out = [];
+  if (!uid) return out;
+  const g = state.gear || {};
+  const holders = Object.entries(g.equip || {}).filter(([, e]) => e && (e.wheel === uid || e.cov === uid)).map(([s]) => s);
+  const inRelics = (g.relics || []).slice(0, RELIC_SLOTS).includes(uid);
+  const team = state.team || [];
+  if (inRelics ? team.length : holders.some((s) => team.includes(s))) out.push('cur');
+  for (const k of ALL_SQUAD_KEYS) {
+    const sq = squadsOf(state)[k];
+    if (!sq || !sq.team?.length) continue;
+    const lo = sq.lo;
+    let hit;
+    if (lo) {
+      hit = (lo.relics || []).includes(uid) || Object.values(lo.equip || {}).some((e) => e?.wheel === uid || e?.cov === uid);
+    } else {
+      hit = inRelics || holders.some((s) => sq.team.includes(s));
+    }
+    if (hit) out.push(k);
+  }
+  return out;
+}
+
 /** 某套编队的独立配装里，有几件装备同时被别的编队用着（编队库卡片上提示共用） */
 export function sharedItemsOf(state, key) {
   const lo = squadsOf(state)[key]?.lo;

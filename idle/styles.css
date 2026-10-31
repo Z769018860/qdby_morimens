@@ -822,7 +822,7 @@ a.btn{display:inline-block;text-decoration:none}
 .squad .squse .scur{color:var(--gold);font-weight:600}
 
 /* ---- 编队库：装备「已编入」提示（装备列表 / 编队卡片共用装备数） ---- */
-.item .i-body .who.sqin{color:var(--gold);opacity:.92}
+.item .i-body .who.sqin{color:var(--gold);opacity:.92;display:flex;flex-wrap:wrap;gap:3px;align-items:center}.item .i-body .who.sqin::before{content:'已编入';color:var(--dim);margin-right:2px}.sqchip{border:1px solid #5a4a1c;background:#2a2412;border-radius:9px;padding:0 6px;font-size:11px;line-height:16px}.sqchip.on{border-color:#2f6b49;background:#12301f;color:#7dffb0}.item .i-body .who.sqnone{color:var(--dim);opacity:.7}
 .sqlo-note .sqshare{display:inline-block;margin-left:8px;font-style:normal;font-size:11px;color:var(--gold);background:color-mix(in srgb,var(--gold) 13%,transparent);border:1px solid color-mix(in srgb,var(--gold) 45%,transparent);border-radius:999px;padding:0 8px}
 
 /* ---- 装备图鉴 / 50 连 500 连汇总 ---- */

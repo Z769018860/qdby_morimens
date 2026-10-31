@@ -2417,3 +2417,16 @@ test('一键分解 / 自动分解', () => {
   const out = _ad(t, data);
   assert.ok(out.n >= 1 && out.n <= 2); assert.ok(Object.values(t.gear.items).some((i) => i.defId === lo.id), '先留 1 件');
 });
+
+import { squadsEffectivelyUsing as _seu } from '../src/core/squad.js';
+test('装备「已编入」提示：沿用主线配装的编队也算', () => {
+  const s = newState(data, 80);
+  const r = addItem(s, 'relic', data.relics[0].id);
+  assert.deepEqual(_seu(s, r.uid), [], '没穿没编入');
+  s.gear.relics[0] = r.uid;
+  s.squads.b.team = [s.team[0]];
+  const k = _seu(s, r.uid);
+  assert.ok(k.includes('cur') && k.includes('b'), '造物栏全队共用：当前队伍和二队都算');
+  s.squads.c.team = [s.team[1]]; s.squads.c.lo = { equip: {}, relics: Array(6).fill(null), orders: [null, null, null] };
+  assert.ok(!_seu(s, r.uid).includes('c'), '有独立配装的编队只看自己那套');
+});

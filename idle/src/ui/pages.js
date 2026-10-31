@@ -13,7 +13,7 @@ import {
   SQUAD_KEYS, RIFT_SQUAD_KEYS, TOWER_SQUAD_KEYS, ALL_SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, RIFT_MODE,
   isRiftSquad, isTowerSquad, towerSquadKey, squadMembers, squadUsage, pickedSquad, loadoutOf, riftTaken, normalizeLoadout, withLoadout, squadKeyFor, squadsOf,
   squadLabel, teamSlugsFor, setSquadTeam, setSquadPick, autoSquadSlugs, squadsOfSlug, squadKeyZh, squadIsOnMain,
-  squadsUsingItem, sharedItemsOf,
+  squadsUsingItem, squadsEffectivelyUsing, sharedItemsOf,
   RT_MODES, rtModeOf, realmOfMode,
 } from '../core/squad.js';
 import { riftParty } from '../core/rift.js';
@@ -65,10 +65,10 @@ function itemCard(app, it, extra = '') {
   const who = holder(app, it.uid);
   // 「已编入」提示：这件装备被哪些编队的独立配装占着。
   // 拿它配装时最怕以为它是没人用的散件，结果别的编队战力被抽空——所以列表里就写清楚。
-  const inSquads = squadsUsingItem(app.state, it.uid);
+  const inSquads = squadsEffectivelyUsing(app.state, it.uid);
   const sqTip = inSquads.length ? inSquads.map(squadKeyZh).join('、') : '';
   return `<div class="item ${rarCls(def.rarity || 'SR')} ${isEquipped(app.state, it.uid) ? 'eq' : ''}" data-uid="${it.uid}">
-    <img src="${img(def.img)}" alt="" loading="lazy"><div class="i-body"><b>${esc(def.zh)}</b> <em>${def.rarity || ''} Lv${it.lv}${it.rf ? ` · 精炼+${it.rf}` : ''}</em><small>${esc(itemText(app, it))}</small>${who ? `<small class="who">装备于 ${esc(who)}</small>` : ''}${inSquads.length ? `<small class="who sqin" title="已被这些编队编入独立配装">已编入 ${esc(sqTip)}</small>` : ''}</div>${extra}</div>`;
+    <img src="${img(def.img)}" alt="" loading="lazy"><div class="i-body"><b>${esc(def.zh)}</b> <em>${def.rarity || ''} Lv${it.lv}${it.rf ? ` · 精炼+${it.rf}` : ''}</em><small>${esc(itemText(app, it))}</small>${who ? `<small class="who">装备于 ${esc(who)}</small>` : ''}${inSquads.length ? `<small class="who sqin" title="这件装备会在这些编队里出战">${inSquads.map((k) => `<span class="sqchip${k === 'cur' ? ' on' : ''}">${esc(squadKeyZh(k))}</span>`).join('')}</small>` : '<small class="who sqnone">未编入任何编队</small>'}</div>${extra}</div>`;
 }
 function holder(app, uid) {
   const s = app.state;
