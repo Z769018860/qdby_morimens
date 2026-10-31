@@ -12,7 +12,7 @@ import { sound, TRACK_LIST } from './audio.js';
 import {
   SQUAD_KEYS, RIFT_SQUAD_KEYS, TOWER_SQUAD_KEYS, ALL_SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, RIFT_MODE,
   isRiftSquad, isTowerSquad, towerSquadKey, squadMembers, squadUsage, pickedSquad, loadoutOf, riftTaken, normalizeLoadout, withLoadout, squadKeyFor, squadsOf,
-  squadLabel, teamSlugsFor, setSquadTeam, setSquadPick, autoSquadSlugs, squadsOfSlug, squadKeyZh,
+  squadLabel, teamSlugsFor, setSquadTeam, setSquadPick, autoSquadSlugs, squadsOfSlug, squadKeyZh, squadIsOnMain,
   squadsUsingItem, sharedItemsOf,
   RT_MODES, rtModeOf, realmOfMode,
 } from '../core/squad.js';
@@ -181,7 +181,8 @@ export function squadCard(app, key) {
   const shared = lo ? sharedItemsOf(s, key) : 0;
   // 这套是不是就是主线当前队伍：是的话「上阵」没有意义，按钮直接标成「已在主线」
   const cur = (s.team || []).filter((x) => s.roster[x]);
-  const same = slugs.length > 0 && slugs.length === cur.length && slugs.every((x) => cur.includes(x));
+  const same = squadIsOnMain(s, key);
+  const sameCrew = slugs.length > 0 && slugs.length === cur.length && slugs.every((x, i) => x === cur[i]);   // 人和站位都对，只差配装
   const av = slugs.length
     ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
     : '<span class="sqempty">还没有保存队伍</span>';
@@ -193,7 +194,7 @@ export function squadCard(app, key) {
     <div class="row">
       <button class="btn sm" data-act="squad-edit" data-k="${key}" data-mode="">编队 / 配装</button>
       <button class="btn sm" data-act="squad-save" data-k="${key}">存为当前队伍</button>
-      <button class="btn sm" data-act="squad-load" data-k="${key}" ${slugs.length && !same ? '' : 'disabled'} title="${same ? '这 4 人已经是主线当前队伍' : '把这套编队和它的独立配装一起搬到主线'}">${same ? '已在主线' : '上阵'}</button>
+      <button class="btn sm" data-act="squad-load" data-k="${key}" ${slugs.length && !same ? '' : 'disabled'} title="${same ? '这套编队（含独立配装）已经是主线当前队伍' : lo ? '把这套编队和它的独立配装一起搬到主线' : '把这 4 人搬到主线（沿用主线配装）'}">${same ? '已在主线' : sameCrew && lo ? '换上配装' : '上阵'}</button>
       <button class="btn sm danger" data-act="squad-clear" data-k="${key}" ${slugs.length ? '' : 'disabled'}>清空</button>
     </div></div>`;
 }

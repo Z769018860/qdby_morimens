@@ -312,6 +312,25 @@ export function loadSquad(state, key, applyLoadout = true) {
   return state.team;
 }
 
+/**
+ * 这套编队是不是已经原样在主线上了：4 个人、站位（顺序）一致；带独立配装的，穿戴 / 造物 / 钥令也要一致。
+ * 以前「上阵」按钮只比人数和成员（不看顺序，也不看装备），编队里的人和当前队伍是同一批人时按钮直接变灰成「已在主线」，
+ * 于是编好的独立配装怎么点都搬不过去——表现就是「上阵了，角色对了，装备没换」。
+ */
+export function squadIsOnMain(state, key) {
+  const slugs = squadMembers(state, key);
+  const cur = (state.team || []).filter((x) => state.roster?.[x]);
+  if (!slugs.length || slugs.length !== cur.length || slugs.some((x, i) => x !== cur[i])) return false;
+  const lo = squadsOf(state)[key]?.lo;
+  if (!lo) return true;
+  for (const slug of slugs) {
+    const e = lo.equip?.[slug] || {}, m = state.gear?.equip?.[slug] || {};
+    if ((e.wheel || null) !== (m.wheel || null) || (e.cov || null) !== (m.cov || null)) return false;
+  }
+  const same = (a, b, n) => Array.from({ length: n }, (_, i) => (a?.[i] || null) === (b?.[i] || null)).every(Boolean);
+  return same(lo.relics, state.gear?.relics, RELIC_SLOTS) && same(lo.orders, state.orders?.slots, ORDER_SLOTS);
+}
+
 export function clearSquad(state, key) {
   if (!ALL_SQUAD_KEYS.includes(key)) return false;
   squadsOf(state)[key] = { team: [] };

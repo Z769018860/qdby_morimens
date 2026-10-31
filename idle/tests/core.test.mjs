@@ -2307,3 +2307,22 @@ test('周 Boss 里程碑：前 8 档不变、后面 48 档单调上升且奖励�
   assert.equal(claimAllWeekly(s, data).length, 0, '领过的不会重复领');
   assert.equal(claimWk(s, data, 40), null, '没打到的档不能领');
 });
+
+import { squadIsOnMain, setSquadTeam as _sst, ensureLoadout as _elo, loadSquad as _ls } from '../src/core/squad.js';
+
+test('编队「上阵」：成员相同但站位 / 配装不同时仍然能上阵，上阵后才算在主线', () => {
+  const s = mkTeamState();
+  const own = Object.keys(s.roster).slice(0, 4);
+  s.team = [...own];
+  _sst(s, 'a', [own[1], own[0], own[2], own[3]]);                       // 同一批人，换了站位
+  assert.equal(squadIsOnMain(s, 'a'), false, '站位不同不算「已在主线」');
+  const w = addItem(s, 'wheel', data.wheels[0].id);
+  const lo = _elo(s, 'a', false); lo.equip[own[1]] = { wheel: w.uid };   // 独立配装给 own[1] 一件命轮，主线上没有
+  _ls(s, 'a');
+  assert.deepEqual(s.team, [own[1], own[0], own[2], own[3]]);
+  assert.equal(s.gear.equip[own[1]]?.wheel, w.uid, '独立配装的命轮搬上了主线');
+  assert.equal(squadIsOnMain(s, 'a'), true, '上阵完才算已在主线');
+  // 主线把这件命轮摘了：人没变，但配装不一致 → 不能再显示「已在主线」
+  delete s.gear.equip[own[1]].wheel;
+  assert.equal(squadIsOnMain(s, 'a'), false, '配装不一致不算已在主线');
+});
