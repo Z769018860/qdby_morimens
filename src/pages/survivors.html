@@ -32,7 +32,7 @@ button{font:inherit}
 
 /* ------------------------------------------------------------------ HUD */
 #hud[hidden]{display:none}
-#hud{position:absolute; inset:0; pointer-events:none; padding:max(10px,env(safe-area-inset-top)) 12px 12px;
+#hud{position:absolute; inset:0; pointer-events:none; padding:max(10px,env(safe-area-inset-top)) 12px 54px; /* 底部让出方向开关（左下角固定浮层）的位置，免得压住造物 / 命轮栏 */
   display:flex; flex-direction:column; gap:8px}
 .hud-top{display:flex; align-items:center; gap:10px}
 .hud-time{display:flex; flex-direction:column; line-height:1.1}

@@ -32,7 +32,7 @@ button{font:inherit}
 
 /* ------------------------------------------------------------------ HUD */
 #hud[hidden]{display:none}
-#hud{position:absolute; inset:0; pointer-events:none; padding:max(10px,env(safe-area-inset-top)) 12px 12px;
+#hud{position:absolute; inset:0; pointer-events:none; padding:max(10px,env(safe-area-inset-top)) 12px 54px; /* 底部让出方向开关（左下角固定浮层）的位置，免得压住造物 / 命轮栏 */
   display:flex; flex-direction:column; gap:8px}
 .hud-top{display:flex; align-items:center; gap:10px}
 .hud-time{display:flex; flex-direction:column; line-height:1.1}
@@ -497,7 +497,7 @@ button{font:inherit}
 }
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
 </style>
-<meta name="build" content="79890b9e59">
+<meta name="build" content="f96eed2224">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -617,7 +617,7 @@ button{font:inherit}
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/survivors.js?v=79890b9e59"></script>
+<script type="module" src="js/b/survivors.js?v=f96eed2224"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
