@@ -646,12 +646,12 @@ function clueList() {
     });
   }
 
-  // 启灵汇总：四个卡位各自落在哪一档（8 档，见 js/pot.js），只在要填启灵的档上架；
+  // 启灵汇总：四个卡位启灵数值的总和（0启=0 … 3启=3，+N=N+3，超限=7，+12=15，逐位相加），只给总和、不说谁多谁少；只在要填启灵的档上架；
   // 大师档开局免费送这一条（OPEN_GIFT）。战报面板的「养成」行在这一档不再印启灵，所以这是唯一的来源。
   if (A.pot && full('pot')) {
     team.push({
       id: 'pot', cost: 8, label: t('cluePotTeam'),
-      value: () => ans.map((a, k) => `${LETTERS[k]} ${potTxt(a.pot)}`).join(' · '),
+      value: () => t('cluePotSum', { n: ans.reduce((x, a) => x + (Number(a.pot) || 0), 0) }),
     });
   }
 

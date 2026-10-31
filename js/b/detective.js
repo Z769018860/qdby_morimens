@@ -96,7 +96,7 @@ const I18N = {
     acctTag: '账号', guestTag2: '', lvTag: '等级', brkTag: '内在灵格',
     clueTitle: '线索台', clueNote: '花银芯解锁，本局内一直有效',
     clueBrk: '内在灵格', cluePot: '启灵',
-    cluePotTeam: '启灵汇总', cluePotSum: '额外启灵合计 {n}',
+    cluePotTeam: '启灵汇总', cluePotSum: '四位启灵总和 {n}（0启=0，3启=3，+N=N+3，超限=7，+12=15）',
     // 开局线索：除入门外的三档白送几条最贵的
     giftTag: '赠送', giftToast: '本档开局赠送 {n} 条线索', clueGiftOn: '已赠送 {n} 条',
     loadMore: '加载更多',
@@ -299,7 +299,7 @@ const I18N = {
     acctTag: 'Account', guestTag2: '', lvTag: 'Lv', brkTag: 'Gnostic Potential',
     clueTitle: 'Clue desk', clueNote: 'Spend Silver Core — stays unlocked for this puzzle',
     clueBrk: 'Gnostic Potential', cluePot: 'Potency',
-    cluePotTeam: 'Potency overview', cluePotSum: 'total {n}',
+    cluePotTeam: 'Potency total', cluePotSum: 'Sum over the four slots: {n} (E0=0, E3=3, +N=N+3, Overdrive=7, +12=15)',
     giftTag: 'FREE', giftToast: '{n} clue(s) unlocked free for this tier', clueGiftOn: '{n} free',
     loadMore: 'Load more',
     clueBuild: 'Build (cards / omen)', clueAssist: 'Assist',
@@ -3302,12 +3302,12 @@ function clueList() {
     });
   }
 
-  // 启灵汇总：四个卡位各自落在哪一档（8 档，见 js/pot.js），只在要填启灵的档上架；
+  // 启灵汇总：四个卡位启灵数值的总和（0启=0 … 3启=3，+N=N+3，超限=7，+12=15，逐位相加），只给总和、不说谁多谁少；只在要填启灵的档上架；
   // 大师档开局免费送这一条（OPEN_GIFT）。战报面板的「养成」行在这一档不再印启灵，所以这是唯一的来源。
   if (A.pot && full('pot')) {
     team.push({
       id: 'pot', cost: 8, label: t('cluePotTeam'),
-      value: () => ans.map((a, k) => `${LETTERS[k]} ${potTxt(a.pot)}`).join(' · '),
+      value: () => t('cluePotSum', { n: ans.reduce((x, a) => x + (Number(a.pot) || 0), 0) }),
     });
   }
 
