@@ -23,9 +23,9 @@ export function codexPage(app) {
   const shown = list.slice(0, 60 * f.more);
   const card = (m) => {
     const c = s.codex?.[m.id];
-    return `<button class="mcard ${m.rank} ${m.reward ? 'rwmon' : ''} ${c?.seen ? '' : 'unseen'}" data-act="monster" data-id="${m.id}">
+    return `<button class="mcard ${m.rank} ${m.reward ? 'rwmon' : ''} ${m.mate ? 'matemon' : ''} ${c?.seen ? '' : 'unseen'}" data-act="monster" data-id="${m.id}">
       <img src="${img(m.img)}" alt="" loading="lazy"><b>${esc(m.zh)}${m.reward ? ' 🐈' : ''}</b>
-      <small>${m.reward ? '奖励首领' : RANK_ZH[m.rank]}${c?.kills ? ` · 击败 ${c.kills}` : c?.seen ? ' · 遭遇' : ''}</small></button>`;
+      <small>${m.reward ? '奖励首领' : m.mate ? '奖励陪场' : RANK_ZH[m.rank]}${c?.kills ? ` · 击败 ${c.kills}` : c?.seen ? ' · 遭遇' : ''}</small></button>`;
   };
   return `<div class="page"><h2>怪物图鉴 <small class="dim">已遭遇 ${seen}/${data.monsters.length}　数据：游戏客户端怪物表（血量/攻击/防御系数、开场与循环出招、意图）</small></h2>
     <div class="filters">
@@ -52,11 +52,12 @@ export function monsterModal(app, id) {
       <p class="real">${markup(fillText(rec), data.kw)}</p>
       ${sk.effects.length ? `<small>本作效果：${esc(describeSkill(sk))}</small>` : '<small class="dim">本作中为蓄力 / 无直接效果</small>'}</div></div>`;
   };
-  openModal(`<div class="detail mon ${m.rank}"><div class="d-art"><img src="${img(m.img)}" alt=""></div>
+  openModal(`<div class="detail mon ${m.rank}${m.reward ? ' rwmon' : ''}${m.mate ? ' matemon' : ''}"><div class="d-art"><img src="${img(m.img)}" alt=""></div>
     <div class="d-body"><h3>${esc(m.zh)} ${m.en ? `<small>${esc(m.en)}</small>` : ''}</h3>
-      <div class="tags"><span class="tag">${RANK_ZH[m.rank]}</span>${m.reward ? '<span class="tag rw">奖励首领</span>' : ''}<span class="tag">${SIZE_ZH[m.size] || m.size}</span>${m.traits.map((t) => `<span class="tag t2">${esc(TRAIT_ZH[t] || t)}</span>`).join('')}</div>
+      <div class="tags"><span class="tag">${RANK_ZH[m.rank]}</span>${m.reward ? '<span class="tag rw">奖励首领</span>' : ''}${m.mate ? '<span class="tag rw">奖励陪场</span>' : ''}<span class="tag">${SIZE_ZH[m.size] || m.size}</span>${m.traits.map((t) => `<span class="tag t2">${esc(TRAIT_ZH[t] || t)}</span>`).join('')}</div>
       <p>${esc(m.desc)}</p>
       ${m.reward ? '<p class="hint">出现位置：推图每 40 关的 Boss 关、无限塔每 20 层、属性塔每 20 层。打赢额外掉落召唤券 5 + 银芯 60 + 装备 ×1，首次击败翻倍。</p>' : ''}
+      ${m.mate ? '<p class="hint">出现位置：和校猫同一场奖励战（推图每 40 关、无限塔每 20 层、属性塔每 20 层）的第二格。他不带奖励、不进随机池，每 7 秒往场上补两只小怪；把他清掉这一场才算真的过。</p>' : ''}
       <div class="stats"><span>生命系数 <b>${m.hp}</b></span><span>攻击系数 <b>${m.atk}</b></span><span>防御系数 <b>${m.df}</b></span><span>${c ? `遭遇 <b>${c.seen}</b> · 击败 <b>${c.kills}</b>` : '尚未遭遇'}</span></div>
       <h4>出招顺序</h4>
       ${same ? '' : `<div class="seq"><b>开场</b>${m.op.map((x) => `<span>${intentIcon(data.msk[x].i, 18)}${esc(data.msk[x].n || '')}</span>`).join('→')}</div>`}

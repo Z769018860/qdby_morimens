@@ -222,7 +222,7 @@ export class BattleView {
       const id = `${side}${u}`;
       return `<div class="unit ${side === 'e' ? 'foe' : ''} ${d.boss ? 'boss' : ''} ${d.reward ? 'reward' : ''}" id="u-${id}" ${d.mid ? `data-mid="${d.mid}"` : ''} style="--rc:${REALMS[d.realm]?.color || '#6b7280'}">
         <div class="u-pic"><img src="${img(d.img)}" alt=""><span class="u-tag">${esc(d.type && side === 'a' ? TYPES[d.type].short : '')}</span><div class="u-say"></div></div>
-        <div class="u-name" ${side === 'e' && d.skills?.length ? `title="${esc(d.skills.map((x) => `${x.name}：${stripMarks(x.plain)}`).join('\n'))}"` : ''}>${esc(d.name)}${d.reward ? '<span class="rw-tag">奖励</span>' : ''}</div>
+        <div class="u-name" ${side === 'e' && d.skills?.length ? `title="${esc(d.skills.map((x) => `${x.name}：${stripMarks(x.plain)}`).join('\n'))}"` : ''}>${esc(d.name)}${d.reward ? '<span class="rw-tag">奖励</span>' : ''}${d.mate ? '<span class="rw-tag mate">陪场</span>' : ''}</div>
         <div class="u-row ${u < FRONT_SLOTS ? 'front' : 'back'}">${u < FRONT_SLOTS ? '前排' : '后排'}</div>
         ${side === 'e' ? '<div class="u-int" title="下一步行动"></div>' : ''}
         <div class="u-st"></div>

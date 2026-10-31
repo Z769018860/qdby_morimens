@@ -230,6 +230,9 @@ export const CHARS = [
   { av: '9009', zh: '朝星', en: 'Morningstar', tone: 'cold', realm: '超维', cls: '辅助型', call: '主播', hint: 'B站 · 朝星-', up: true },
   { av: '9010', zh: '路过的耄耋', en: 'Passing Maodie', tone: 'lord', realm: '血肉', cls: '伤害型', call: '主播', hint: '安卓佬 · 路过的耄耋', up: true },
   { av: '9011', zh: '白云出岫', en: 'Baiyun Chuxiu', tone: 'jest', realm: '超维', cls: '辅助型', call: '主播', hint: 'B站 · -白云出岫-', up: true },
+  // 米酒不是主播，是给这个游戏摆关卡的人（脑缸组战斗设计师，和萨摩不耶是朋友）。
+  // 他坐在这桌上不喊「省流」，说的是「先看机制」——所以语气原型用 art。
+  { av: '9012', zh: '米酒', en: 'Mijiu', tone: 'art', realm: '超维', cls: '辅助型', call: '主播', hint: '脑缸组 · 战斗设计师', up: true, badge: '官' },
 ];
 
 export const CHAR_BY_NAME = Object.fromEntries(CHARS.map((c) => [c.zh, c]));

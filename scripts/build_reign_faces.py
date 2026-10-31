@@ -102,6 +102,8 @@ CHARS = [
     ('up-chaoxing', 'assets/survivors/faces/chaoxing.webp', 'head'),
     ('up-maodie', 'assets/survivors/faces/maodie.webp', 'head'),
     ('up-baiyun', 'assets/survivors/faces/baiyun.webp', 'head'),
+    # 米酒没有立绘：他自己就是怪物（挂机奖励关那场里的精英），头像就是那只 Q 版
+    ('mijiu', 'idle/public/img/mon/Portrait_Small_Monster_mijiu.webp', 'head'),
     # 校猫没有立绘，只有 96×96 的 Q 版头
     ('cat', 'assets/avatars-q/story-莱特.webp', 'head'),
 ]
@@ -123,13 +125,45 @@ def card_face(im):
 
 
 def head_face(im):
-    """方图头像：垫一层自身的模糊放大版，中间放原图，别留一圈死黑。"""
-    im = im.convert('RGB')
+    """方图头像 → 竖版卡面（176×242）。
+
+    卡面上的图会被 object-fit:cover 铺满一张比它更高的卡，所以不能把方图直接
+    居中塞进 176×242：cover 一放大，头顶就被裁掉，只剩一片模糊底（米酒第一版
+    就是这样）。这里改成和立绘同构——人脸放上部，下面用自身的模糊放大版接住，
+    cover 裁掉的主要是底部的虚化区，脸始终在上半张卡里。
+    """
+    im = im.convert('RGBA') if im.mode in ('RGBA', 'LA', 'P') else im.convert('RGB').convert('RGBA')
+    bbox = im.getbbox()
+    if bbox:
+        im = im.crop(bbox)
     w, h = SIZE
-    back = im.resize(SIZE, Image.LANCZOS).filter(ImageFilter.GaussianBlur(7))
+
+    # 底：把头像 cover 到整张卡再糊掉，压暗，别抢前景
+    side = max(w / im.width, h / im.height)
+    big = im.resize((max(1, int(im.width * side)), max(1, int(im.height * side))), Image.LANCZOS)
+    big = big.convert('RGB')
+    left = (big.width - w) // 2
+    top = (big.height - h) // 2
+    back = big.crop((left, top, left + w, top + h)).filter(ImageFilter.GaussianBlur(9))
     back = Image.blend(back, Image.new('RGB', SIZE, (14, 12, 18)), 0.55)
-    side = min(w, h)
-    back.paste(im.resize((side, side), Image.LANCZOS), ((w - side) // 2, (h - side) // 2))
+
+    # 前景：头像缩到卡宽的 52%（和立绘里「头占画面上部一半」一个比例），贴在上部。
+    # 卡面是 cover 铺满的，实机上要放大两倍左右，头像做大了只会剩一块头顶。
+    fw = int(w * 0.48)
+    fh = max(1, int(im.height * fw / im.width))
+    if fh > int(h * 0.48):
+        fh = int(h * 0.48)
+        fw = max(1, int(im.width * fh / im.height))
+    fg = im.resize((fw, fh), Image.LANCZOS)
+    # 前景自身的底缘做 alpha 渐隐：照片类方图（主播 B 站头像、校猫那张）四边是硬的，
+    # 直接贴上去就是一块黑方块，和立绘卡不是同一种东西。
+    fade = Image.new('L', (fw, fh), 255)
+    for y in range(fh):
+        t = (y - fh * 0.66) / (fh * 0.34)
+        if t > 0:
+            fade.paste(int(255 * (1 - min(1.0, t))), (0, y, fw, y + 1))
+    fg.putalpha(Image.composite(fg.getchannel('A'), Image.new('L', (fw, fh), 0), fade))
+    back.paste(fg, ((w - fw) // 2, int(h * 0.07)), fg)
     return back
 
 

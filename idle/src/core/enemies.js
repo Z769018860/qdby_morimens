@@ -62,6 +62,8 @@ export function makeEnemy(m, rank, stage, rng, { affixes = true, msk = null } = 
     hp: Math.round(220 * S * hpM * late.hp), atk: Math.round(30 * S * atkM * late.atk), def: Math.round((28 + 5 * stage) * dfM * late.def),
     pattern: pat.cycle, opening: pat.opening, critRate: 0, critDmg: 50, mid: m.id, traits: m.traits || [], size: m.size,
     reward: !!m.reward,
+    // 奖励战里陪场的那只（米酒）：界面靠这个标记在名字后面挂「陪场」，也让结算知道他不是校猫
+    mate: !!m.mate,
     skills: [...pat.opening, ...pat.cycle].filter((x, i, arr) => arr.findIndex((y) => y.name === x.name && y.plain === x.plain) === i)
       .map((x) => ({ name: x.name, plain: x.plain || '', ic: x.ic || null })),
   };
