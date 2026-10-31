@@ -1,6 +1,6 @@
 import './ui/orient.js';   // 横屏 / 竖屏开关（顶栏那颗方向按钮）
 import {
-  indexData, newState, migrate, offlineReport, claimOffline, claimGifts, levelUp, levelUpMax, setTeam, autoTeam, autoLoadout, setPreset, setUltMode,
+  indexData, newState, migrate, offlineReport, claimOffline, claimGifts, levelUp, levelUpMax, setTeam, autoTeam, autoLoadout, setPreset, setUltMode, moveUltOrder,
   equipItem, unequipItem, enhanceItem, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem,
   dismantleCores, breakThrough, awakenUp, overdriveUp, lawUp, upgradeOrder, rewindLevel,
 } from './core/game.js';
@@ -18,18 +18,18 @@ import { encodeCode, decodeCode } from './core/friend.js';
 import { codexPage, monsterModal } from './ui/codex.js';
 import { sound } from './ui/audio.js';
 import { TRACK_ZH } from './ui/audio.js';
-import { saveSquad, loadSquad, clearSquad, setSquadPick, teamSlugsFor, SQUAD_ZH, rtModeOf, squadKeyFor, withLoadout } from './core/squad.js';
+import { saveSquad, loadSquad, clearSquad, setSquadPick, teamSlugsFor, SQUAD_ZH, rtModeOf, squadKeyFor, withLoadout, loadoutOf } from './core/squad.js';
 import { watchOrSkip, replayOf, watchMode } from './ui/replay.js';
 import { emptyGacha } from './core/gacha.js';
 import { fxMode } from './ui/fx.js';
 import { settleMode } from './ui/report.js';
 import { doTower, doTrial } from './core/challenge.js';
 import { doRift } from './core/rift.js';
-import { claimAchievement, claimAllAchievements } from './core/achievements.js';
+import { claimAchievement, claimAllAchievements, claimableCount } from './core/achievements.js';
 import { signToday, backfill, claimCum } from './core/signin.js';
 import { buy as shopBuy, SHOP, buyTicketWithGold } from './core/shop.js';
 import { signinPage, eventPage } from './ui/pages4.js';
-import { claimDaily, redeemGuest, claimMile } from './core/event.js';
+import { claimDaily, redeemGuest, claimMile, dailyView, milePending } from './core/event.js';
 import { syncSigninGifts } from './core/creators.js';
 import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
 import { startGuide } from './ui/guide.js';
@@ -385,7 +385,38 @@ function keywordGuide() {
     ).join('') + '</div>';
   openModal(html, 'glossary-modal');
 }
-function buildChrome() {  $('#tabs').innerHTML = GROUPS.map((g) => `<button data-group="${g.k}" title="${g.zh}"><i class="ti">${g.icon}</i><span>${g.zh}</span></button>`).join('');
+/* 底部导航红点：成就、联动任务（今日任务 + 推图里程碑）里还有多少奖励没点。
+   组按钮上只亮一个小红点（手机上没地方写数字），二级页签上直接写数量。 */
+function badgeCounts() {
+  if (!app.state || !app.data) return { ach: 0, event: 0 };
+  let ach = 0, ev = 0;
+  try { ach = claimableCount(app.state, app.data); } catch { ach = 0; }
+  try {
+    ev = dailyView(app.state).filter((t) => t.done && !t.claimed).length;
+    if (milePending(app.state)) ev++;   // 推图里程碑能领时也算一条
+  } catch { ev = 0; }
+  return { ach, event: ev };
+}
+function refreshBadges() {
+  const n = badgeCounts();
+  app.badges = n;
+  $$('#tabs button[data-group]').forEach((b) => {
+    const g = GROUP_BY_K[b.dataset.group];
+    if (!g) return;
+    const sum = g.tabs.reduce((x, [k]) => x + (n[k] || 0), 0);
+    const dot = b.querySelector('.rdot');
+    if (dot) dot.hidden = !sum;
+    b.title = sum ? `${g.zh} · ${sum} 个奖励可领取` : g.zh;
+  });
+  $$('#subnav button[data-sub]').forEach((b) => {
+    const c = n[b.dataset.sub] || 0, dot = b.querySelector('.rdot');
+    if (!dot) return;
+    dot.hidden = !c;
+    dot.textContent = c ? (c > 99 ? '99+' : String(c)) : '';   // 0 不留 "0"，否则按钮上会多出个哑字符
+    b.title = c ? `${c} 个奖励可领取` : '';
+  });
+}
+function buildChrome() {  $('#tabs').innerHTML = GROUPS.map((g) => `<button data-group="${g.k}" title="${g.zh}"><i class="ti">${g.icon}</i><span>${g.zh}</span><i class="rdot" hidden></i></button>`).join('');
   $('#tabs').addEventListener('click', (e) => {
     const b = e.target.closest('[data-group]');
     if (!b) return;
@@ -414,7 +445,7 @@ export function show(tab) {
   const g = GROUP_BY_K[gk], sub = $('#subnav'), multi = g.tabs.length > 1;
   sub.hidden = !multi;
   sub.innerHTML = multi
-    ? g.tabs.map(([k, z]) => `<button data-sub="${k}" class="${k === tab ? 'on' : ''}">${z}</button>`).join('')
+    ? g.tabs.map(([k, z]) => `<button data-sub="${k}" class="${k === tab ? 'on' : ''}">${z}<i class="rdot" hidden></i></button>`).join('')
     : '';
   $('#battle').hidden = tab !== 'battle';
   const v = $('#view');
@@ -434,6 +465,7 @@ export function show(tab) {
   if (tab === 'battle') sound.setMood(app.bv?.bossNow ? 'boss' : 'field');
   else sound.setMood(MOOD_OF[tab] || 'home');
   app.refreshTop();
+  refreshBadges();
 }
 function refreshArena() {
   app.ui.arena = { ...(app.ui.arena || {}), list: localOpponents(app.state, app.data) };
@@ -443,6 +475,7 @@ function render() {
   const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, orders: P.ordersPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, rift: P3.riftPage, ach: P2.achievementPage, event: eventPage }[app.tab];
   if (f) { const y = window.scrollY; $('#view').innerHTML = f(app); window.scrollTo(0, y); }
   app.refreshTop();
+  refreshBadges();
 }
 const rewardLine = (r) => `召唤券+${r.tickets} 银芯+${r.cores} 金币+${r.gold}`;
 const rerender = () => { app.save(); render(); };
@@ -501,8 +534,15 @@ function onAct(e) {
       break;
     }
     case 'squad-load': {
-      const r = loadSquad(s, el.dataset.k);
-      if (r) { sound.play('open'); app.save(); rerender(); toast(`「${SQUAD_ZH[el.dataset.k]}」已上阵：${r.length} 人`); }
+      const key = el.dataset.k, hadLo = !!loadoutOf(s, key);
+      const r = loadSquad(s, key);
+      if (r) {
+        // 上阵完直接切到「主线队伍」：人换了没换、战力变没变，一眼能看见（留在编队库只会觉得没反应）
+        sound.play('open'); app.save();
+        app.ui.teamTab = 'main';
+        if (app.tab === 'team') render(); else show('team');
+        toast(`「${SQUAD_ZH[key]}」已上阵：${r.length} 人${hadLo ? '，独立配装一起搬过来了' : ''}`, 3200);
+      }
       break;
     }
     case 'squad-clear': {
@@ -661,7 +701,8 @@ function onAct(e) {
     }
     case 'autoteam': { const r = autoLoadout(s, d); app.save(); rerender(); toast(`一键配队完成：${r.team.length} 人 · 命轮/密契已换 · 造物 ${r.relics} 件 · 钥令 ${r.orders} 个`); break; }
     case 'preset': setPreset(s, el.dataset.k); rerender(); break;
-    case 'ult-mode': setUltMode(s, el.dataset.k); app.save(); rerender(); if (s.strategy.ult === 'manual') toast('手动开大：战斗里大招攒满的头像会亮起「开大」，点一下就放', 4500); break;
+    case 'ult-mode': setUltMode(s, el.dataset.k); app.save(); rerender(); if (s.strategy.ult === 'order') toast('按顺序开大：用下面的 ↑ ↓ 排先后，排在前面的还攒着大招没放时，后面的会先等一等', 4500); break;
+    case 'ult-order': moveUltOrder(s, el.dataset.slug, +el.dataset.dir); app.save(); rerender(); break;
     case 'pick-relic': {
       const i = +el.dataset.i;
       P.pickItem(app, 'relic', '选择造物', (uid) => { s.gear.relics = s.gear.relics.map((x) => (x === uid ? null : x)); s.gear.relics[i] = uid || null; rerender(); });

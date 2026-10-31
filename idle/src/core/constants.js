@@ -12,7 +12,8 @@ export const TYPES = {
 export const SLOTS = ['Strike', 'Defense', 'Skill1', 'Skill2', 'Rouse', 'Exalt', 'OverExalt'];
 export const SLOT_ZH = {
   Strike: '指令·攻击', Defense: '指令·防御', Skill1: '指令·技能一', Skill2: '指令·技能二',
-  Rouse: '唤醒', Exalt: '共鸣', OverExalt: '超共鸣',
+  // 唤醒是「登场技」：编队进场时自动生效一次，不占第一回合的动作（slot id 仍叫 Rouse，存档与卡面数据不用改）
+  Rouse: '登场技', Exalt: '共鸣', OverExalt: '超共鸣',
   Od: '超限技', Law: '终焉技',          // 满超限 / 满最终法则解锁的专属技能（core/extra.js），不在 SLOTS 里
 };
 export const RARITY_ORDER = { N: 0, R: 1, SR: 2, SSR: 3, Genesis: 4 };

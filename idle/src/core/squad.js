@@ -10,12 +10,18 @@ export const SQUAD_KEYS = ['a', 'b', 'c', 'd', 'e'];
 // 之前是直接借一队~五队用，结果「为禁区调的五套」和「推图 / 塔 / 周Boss 在用的那套」
 // 是同一份数据，改一边另一边跟着变，两边都不好用。
 export const RIFT_SQUAD_KEYS = ['r1', 'r2', 'r3', 'r4', 'r5'];
-export const ALL_SQUAD_KEYS = [...SQUAD_KEYS, ...RIFT_SQUAD_KEYS];
+// 属性塔专用编队：混沌 / 血肉 / 深海 / 超维 各一套，只收本界域的人。
+// 同样是踩过坑才拆出来的——之前四座塔都借通用一队~五队，默认还都落在「一队」，
+// 于是给混沌塔编一次，血肉 / 深海 / 超维跟着一起变，等于四座塔共用一套。
+export const TOWER_SQUAD_KEYS = ['t_CHAOS', 't_CARO', 't_AEQUOR', 't_ULTRA'];
+export const ALL_SQUAD_KEYS = [...SQUAD_KEYS, ...RIFT_SQUAD_KEYS, ...TOWER_SQUAD_KEYS];
 export const SQUAD_ZH = {
   a: '一队', b: '二队', c: '三队', d: '四队', e: '五队',
   r1: '禁区一队', r2: '禁区二队', r3: '禁区三队', r4: '禁区四队', r5: '禁区五队',
+  t_CHAOS: '混沌尖塔队', t_CARO: '血肉之塔队', t_AEQUOR: '深海回廊队', t_ULTRA: '超维阶梯队',
 };
 export const isRiftSquad = (k) => RIFT_SQUAD_KEYS.includes(k);
+export const isTowerSquad = (k) => TOWER_SQUAD_KEYS.includes(k);
 
 // 挑战入口：每个入口单独记「用哪套队」，默认跟随当前队伍。
 // 属性塔按界域拆开——混沌塔只能上混沌队，四个界域各存一份选择才讲得通。
@@ -41,6 +47,8 @@ export const RIFT_MODE = 'rift';
 export const RT_MODES = ['rt_CHAOS', 'rt_CARO', 'rt_AEQUOR', 'rt_ULTRA'];
 export const rtModeOf = (realm) => `rt_${realm}`;
 export const realmOfMode = (mode) => (String(mode).startsWith('rt_') ? String(mode).slice(3) : null);
+/** 属性塔某座塔的专用编队位（不是属性塔入口就返回 null） */
+export const towerSquadKey = (mode) => { const r = realmOfMode(mode); return r ? `t_${r}` : null; };
 
 export const emptySquads = () => Object.fromEntries(ALL_SQUAD_KEYS.map((k) => [k, { team: [] }]));
 export const emptyPick = () => Object.fromEntries(SQUAD_MODES.map(([k]) => [k, 'cur']));
@@ -112,13 +120,36 @@ export function dropLoadout(state, key) { const sq = squadsOf(state)[key]; if (s
 
 /** 哪些装备正被某套编队的独立配装占着（分解 / 卸下时要避开） */
 export function squadUsesItem(state, uid) {
+  return squadsUsingItem(state, uid).length > 0;
+}
+
+/**
+ * 这件装备被哪几套编队的独立配装编入了（按固定次序：通用一队~五队 → 禁区一队~五队）。
+ * 用来在装备列表 / 编队库里提示「已编入」，避免配装时把它当成没人用的散件。
+ */
+export function squadsUsingItem(state, uid) {
+  const out = [];
+  if (!uid) return out;
   for (const k of ALL_SQUAD_KEYS) {
     const lo = squadsOf(state)[k]?.lo;
     if (!lo) continue;
-    if (lo.relics?.includes(uid)) return true;
-    for (const e of Object.values(lo.equip || {})) if (e?.wheel === uid || e?.cov === uid) return true;
+    let hit = lo.relics?.includes(uid);
+    if (!hit) for (const e of Object.values(lo.equip || {})) if (e?.wheel === uid || e?.cov === uid) { hit = true; break; }
+    if (hit) out.push(k);
   }
-  return false;
+  return out;
+}
+
+/** 某套编队的独立配装里，有几件装备同时被别的编队用着（编队库卡片上提示共用） */
+export function sharedItemsOf(state, key) {
+  const lo = squadsOf(state)[key]?.lo;
+  if (!lo) return 0;
+  const uids = new Set();
+  for (const u of lo.relics || []) if (u) uids.add(u);
+  for (const e of Object.values(lo.equip || {})) { if (e?.wheel) uids.add(e.wheel); if (e?.cov) uids.add(e.cov); }
+  let n = 0;
+  for (const u of uids) if (squadsUsingItem(state, u).some((k) => k !== key)) n++;
+  return n;
 }
 export function squadsRemoveItem(state, uid) {
   for (const k of ALL_SQUAD_KEYS) {
@@ -169,10 +200,17 @@ export function squadKeyFor(state, mode) {
 export function normalizePick(raw) {
   const out = emptyPick();
   if (!raw || typeof raw !== 'object') return out;
-  const ok = (v) => v === 'cur' || SQUAD_KEYS.includes(v);
+  const ok = (v) => v === 'cur' || SQUAD_KEYS.includes(v) || RIFT_SQUAD_KEYS.includes(v) || TOWER_SQUAD_KEYS.includes(v);
   const fallback = ok(raw.rtower) ? raw.rtower : null;   // M13 只有一个「属性塔」入口，升级后分给四座塔
   for (const [k] of SQUAD_MODES) {
-    if (ok(raw[k])) out[k] = raw[k];
+    const tk = towerSquadKey(k);
+    if (tk) {
+      // 属性塔只认「当前队伍」或自己那套专用编队。
+      // 老存档里的 a~e 先原样留着，交给 migrate 把内容搬进 t_*（这里没 squads 可读，搬不了）。
+      if (raw[k] === 'cur' || raw[k] === tk || SQUAD_KEYS.includes(raw[k])) out[k] = raw[k];
+      else if (fallback === 'cur') out[k] = 'cur';
+      else if (fallback && SQUAD_KEYS.includes(fallback)) out[k] = fallback;
+    } else if (ok(raw[k])) out[k] = raw[k];
     else if (fallback && RT_MODES.includes(k)) out[k] = fallback;
   }
   return out;
@@ -195,7 +233,10 @@ export function squadMembers(state, key) {
 
 export function setSquadPick(state, mode, key) {
   if (!MODE_ZH[mode]) return false;
-  if (key !== 'cur' && !SQUAD_KEYS.includes(key)) return false;
+  const tk = towerSquadKey(mode);
+  // 属性塔只能「用自己那套」或退回当前队伍：四座塔之间不许互相借，借一次就又耦合了
+  if (tk) { if (key !== 'cur' && key !== tk) return false; }
+  else if (key !== 'cur' && !SQUAD_KEYS.includes(key) && !RIFT_SQUAD_KEYS.includes(key)) return false;
   (state.squadPick ||= emptyPick())[mode] = key;
   return true;
 }
@@ -237,11 +278,37 @@ export function setSquadTeam(state, key, team) {
   return slugs;
 }
 
-/** 把编队读回「当前队伍」，方便在队伍页继续调整 / 用于推图 */
-export function loadSquad(state, key) {
+/** 把编队读回「当前队伍」，方便在队伍页继续调整 / 用于推图。
+ *  带独立配装的编队，上阵时连配装一起搬到主线：卡片上的战力是按这套配装算的，
+ *  只换人、装备留在原地的话，上阵后战力对不上，看着就像「点了没反应」。 */
+export function loadSquad(state, key, applyLoadout = true) {
   const slugs = squadMembers(state, key);
   if (!slugs.length) return null;
   state.team = [...slugs];
+  const lo = squadsOf(state)[key]?.lo;
+  if (applyLoadout && lo) {
+    // 只改这套编队里的人：之前是全量替换 gear.equip，上阵一次就把不在编队里的角色装备全卸了
+    const mine = new Set(slugs);
+    const next = { ...(state.gear.equip || {}) };
+    const take = new Set();
+    for (const slug of mine) {
+      const e = lo.equip?.[slug] || {};
+      next[slug] = { ...(e.wheel ? { wheel: e.wheel } : {}), ...(e.cov ? { cov: e.cov } : {}) };
+      if (e.wheel) take.add(e.wheel);
+      if (e.cov) take.add(e.cov);
+    }
+    // 一件装备同一时刻只能穿在一个人身上：这套编队要用的，从别人身上摘下来
+    for (const [slug, e] of Object.entries(next)) {
+      if (mine.has(slug) || !e) continue;
+      const out = { ...e };
+      if (out.wheel && take.has(out.wheel)) delete out.wheel;
+      if (out.cov && take.has(out.cov)) delete out.cov;
+      if (out.wheel || out.cov) next[slug] = out; else delete next[slug];
+    }
+    state.gear.equip = next;
+    state.gear.relics = [...(lo.relics || [])];
+    state.orders.slots = [...(lo.orders || [])];
+  }
   return state.team;
 }
 
@@ -252,6 +319,20 @@ export function clearSquad(state, key) {
   for (const [m] of SQUAD_MODES) if (state.squadPick?.[m] === key) state.squadPick[m] = 'cur';
   return true;
 }
+
+/**
+ * 这位唤醒体现在编在哪些队伍里（队库卡片上的「已编入」角标用）：
+ * 'cur' = 主线当前队伍，其余是编队位 key（一队~五队、禁区一队~五队）。
+ * 顺序固定：先当前队伍，再按 ALL_SQUAD_KEYS 的次序，同一份存档每次渲染结果都一样。
+ */
+export function squadsOfSlug(state, slug) {
+  const out = [];
+  if ((state.team || []).includes(slug)) out.push('cur');
+  for (const k of ALL_SQUAD_KEYS) if (squadsOf(state)[k]?.team?.includes(slug)) out.push(k);
+  return out;
+}
+/** 编队位 key 的中文短名（'cur' 不在 SQUAD_ZH 里，单独给） */
+export const squadKeyZh = (k) => (k === 'cur' ? '当前队伍' : SQUAD_ZH[k] || k);
 
 /** 这个编队位被哪些挑战入口用着（给队伍页显示「使用中」） */
 export function squadUsage(state, key) {

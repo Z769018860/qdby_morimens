@@ -169,7 +169,9 @@ test('poison ticks, barrier blocks, counter retaliates, sealed stops exalt', () 
   assert.ok(r2b.events.some((e) => e.k === 'counter' && e.amt > 0), 'counter should hit back');
 
   const sealer = { ...unit({ hp: 100000 }), pattern: [{ name: 'seal', effects: [fx.status('sealed', 1, 5, 'foe')] }] };
-  const exalter = unit({ kit: mkKit([fx.dmg(0.1)]), openAli: 100, openKey: 100 });
+  // 唤醒改成登场技之后，第一回合就会真出手，所以这里把开局能量压在 96：第一次行动普攻 +14 攒满，
+  // 而封印在同一回合就会落到它身上——测的还是「被封印的人开不出大招」这件事。
+  const exalter = unit({ kit: mkKit([fx.dmg(0.1)]), openAli: 96, openKey: 0 });
   const r3 = sim2({ allies: [exalter], enemies: [sealer], seed: 3, maxRounds: 4 });
   assert.ok(!r3.events.some((e) => e.k === 'act' && e.who === 'a0' && (e.slot === 'Exalt' || e.slot === 'OverExalt')), 'sealed units cannot exalt');
 });
@@ -927,7 +929,7 @@ test('挂机券/银芯：在线零头与离线结算走同一条曲线', () => {
 
 /* ---------- M13：编队 / 抽卡记录与欧非 ---------- */
 
-import { saveSquad, loadSquad, clearSquad, setSquadPick, teamSlugsFor, squadMembers, normalizeSquads } from '../src/core/squad.js';
+import { saveSquad, loadSquad, clearSquad, setSquadPick, teamSlugsFor, squadMembers, normalizeSquads, squadsOfSlug, squadKeyZh } from '../src/core/squad.js';
 import { luckOf, GACHA_LOG_MAX, EXPECTED_WORTH } from '../src/core/gacha.js';
 
 test('编队：存三套阵容，挑战入口各自指定', () => {
@@ -961,6 +963,51 @@ test('编队：存三套阵容，挑战入口各自指定', () => {
   // 非法入口 / 非法编队位一律拒绝
   assert.equal(setSquadPick(s, 'nope', 'a'), false);
   assert.equal(setSquadPick(s, 'tower', 'z'), false);
+});
+
+test('队库角标：squadsOfSlug 先当前队伍、再按编队位次序，没编入就是空', () => {
+  const s = newState(data, 41);
+  s.roster = Object.fromEntries(data.awakeners.slice(0, 10).map((a) => [a.slug, { lv: 10, star: 0, brk: 0 }]));
+  const A = data.awakeners.slice(0, 4).map((a) => a.slug);
+  const B = data.awakeners.slice(4, 8).map((a) => a.slug);
+  s.team = [...A];
+  assert.deepEqual(saveSquad(s, 'a'), A);      // 一队 = A
+  s.team = [...B];
+  assert.deepEqual(saveSquad(s, 'b'), B);      // 二队 = B
+  s.team = [A[0]];
+
+  assert.deepEqual(squadsOfSlug(s, A[0]), ['cur', 'a'], '当前队伍 + 一队，当前队伍排最前');
+  assert.deepEqual(squadsOfSlug(s, A[3]), ['a'], '只在一队里');
+  setSquadTeam(s, 'c', [A[3]]);
+  assert.deepEqual(squadsOfSlug(s, A[3]), ['a', 'c'], '两套编队都编了，按编队位次序');
+  assert.deepEqual(squadsOfSlug(s, B[0]), ['b'], '只在二队里');
+  assert.deepEqual(squadsOfSlug(s, data.awakeners[9].slug), [], '没编入任何队伍');
+  setSquadTeam(s, 'r3', [A[0]]);
+  assert.deepEqual(squadsOfSlug(s, A[0]), ['cur', 'a', 'r3'], '禁区分队也算编入');
+  assert.equal(squadKeyZh('cur'), '当前队伍');
+  assert.equal(squadKeyZh('r3'), '禁区三队');
+});
+
+test('编队「上阵」：带独立配装时人和配装一起搬到主线', () => {
+  const s = newState(data, 43);
+  s.roster = Object.fromEntries(data.awakeners.slice(0, 4).map((a) => [a.slug, { lv: 20, star: 1, brk: 1 }]));
+  const A = data.awakeners.slice(0, 4).map((a) => a.slug);
+  s.team = [...A];
+  saveSquad(s, 'a');
+  const wid = Object.keys(data.wheelById)[0];
+  s.gear.items = { ...(s.gear.items || {}), w1: { uid: 'w1', kind: 'wheel', defId: wid, lv: 1, rf: 0 } };
+  s.gear.relics = Array(6).fill(null);
+  s.orders.slots = Array(3).fill(null);
+  s.squads.a.lo = { equip: { [A[0]]: { wheel: 'w1' } }, relics: Array(6).fill(null), orders: Array(3).fill(null) };
+
+  s.team = [A[3]];                                 // 主线先换成别人
+  assert.deepEqual(loadSquad(s, 'a'), A);
+  assert.equal(s.gear.equip[A[0]]?.wheel, 'w1', '独立配装的命轮跟着上阵');
+  // 只换人、不搬配装：applyLoadout = false
+  s.team = [A[0]];
+  s.gear.equip = {};
+  assert.deepEqual(loadSquad(s, 'a', false), A);
+  assert.deepEqual(s.gear.equip, {}, '关掉搬配装就不动主线装备');
 });
 
 test('编队存档迁移：剔除不存在的唤醒体与非法入口', () => {
@@ -1048,32 +1095,70 @@ test('抽卡记录裁剪到上限，但累计统计不受影响；十连最好�
 /* ---------- M14：挑战编队（按界域）、现场编队、观战数据、唤醒体排序 ---------- */
 import {
   MODE_ZH, RT_MODES, rtModeOf, squadLabel, autoSquadSlugs, setSquadTeam, normalizePick,
+  towerSquadKey, TOWER_SQUAD_KEYS, squadsOf,
 } from '../src/core/squad.js';
 import { ROSTER_SORTS, sortRoster } from '../src/core/roster.js';
 import { RARITY_ORDER } from '../src/core/constants.js';
 
-test('挑战编队：四座属性塔各存一套，互不串台', () => {
+test('挑战编队：四座属性塔各有一整套专用编队，互不串台', () => {
   const s = newState(data, 71);
   s.roster = Object.fromEntries(data.awakeners.slice(0, 12).map((a) => [a.slug, { lv: 50, star: 3, brk: 2 }]));
   const byRealm = {};
   for (const r of ['CHAOS', 'CARO', 'AEQUOR', 'ULTRA']) byRealm[r] = data.awakeners.filter((a) => a.realm === r).slice(0, 4).map((a) => a.slug);
 
+  // 每座塔只往自己那一套里存，然后指向自己
   for (const r of ['CHAOS', 'CARO', 'AEQUOR', 'ULTRA']) {
-    assert.ok(setSquadTeam(s, r === 'CHAOS' ? 'a' : r === 'CARO' ? 'b' : r === 'AEQUOR' ? 'c' : 'a', byRealm[r]));
-    setSquadPick(s, rtModeOf(r), r === 'ULTRA' ? 'c' : r === 'CHAOS' ? 'a' : r === 'CARO' ? 'b' : 'c');
+    const tk = towerSquadKey(rtModeOf(r));
+    assert.ok(TOWER_SQUAD_KEYS.includes(tk), `${r} 应该有专用编队位`);
+    assert.ok(setSquadTeam(s, tk, byRealm[r]));
+    assert.ok(setSquadPick(s, rtModeOf(r), tk));
   }
-  // 四座塔各指各的
-  assert.equal(squadLabel(s, 'rt_CHAOS').key, 'a');
-  assert.equal(squadLabel(s, 'rt_CARO').key, 'b');
-  assert.equal(squadLabel(s, 'rt_AEQUOR').key, 'c');
-  assert.equal(squadLabel(s, 'rt_ULTRA').key, 'c');
-  // 改一座塔不影响其他入口
-  setSquadPick(s, 'rt_CARO', 'cur');
+  assert.equal(squadLabel(s, 'rt_CHAOS').key, 't_CHAOS');
+  assert.equal(squadLabel(s, 'rt_CARO').key, 't_CARO');
+  assert.equal(squadLabel(s, 'rt_AEQUOR').key, 't_AEQUOR');
+  assert.equal(squadLabel(s, 'rt_ULTRA').key, 't_ULTRA');
+
+  // 通用编队一个都没被写进去
+  for (const k of ['a', 'b', 'c', 'd', 'e']) assert.deepEqual(squadsOf(s)[k].team, [], `通用编队 ${k} 不该被属性塔占用`);
+
+  // 改一座塔（清空）不影响别的塔：它自己退回当前队伍，另外三座原样
+  const before = Object.fromEntries(RT_MODES.map((m) => [m, [...teamSlugsFor(s, m)]]));
+  setSquadTeam(s, 't_CHAOS', []);
+  assert.deepEqual(teamSlugsFor(s, 'rt_CHAOS'), s.team, '混沌塔空了就退回当前队伍');
+  for (const m of ['rt_CARO', 'rt_AEQUOR', 'rt_ULTRA']) assert.deepEqual(teamSlugsFor(s, m), before[m], `${m} 被混沌塔带跑了`);
+
+  // 不许借用别的塔那一套
+  assert.equal(setSquadPick(s, 'rt_CHAOS', 't_CARO'), false, '属性塔不能借另一座塔的编队');
+  // 退回当前队伍可以
+  assert.ok(setSquadPick(s, 'rt_CARO', 'cur'));
   assert.deepEqual(teamSlugsFor(s, 'rt_CARO'), s.team);
-  assert.equal(squadLabel(s, 'rt_CHAOS').key, 'a');
+  assert.equal(squadLabel(s, 'rt_CHAOS').key, 't_CHAOS');
   // 模式表覆盖四座塔 + 其余入口
   assert.deepEqual(RT_MODES, ['rt_CHAOS', 'rt_CARO', 'rt_AEQUOR', 'rt_ULTRA']);
+  assert.deepEqual(TOWER_SQUAD_KEYS, ['t_CHAOS', 't_CARO', 't_AEQUOR', 't_ULTRA']);
   assert.equal(MODE_ZH.rt_AEQUOR, '深海回廊');
+});
+
+test('挑战编队：老存档里属性塔借通用编队的，迁移时搬进各自的专用位', () => {
+  const s = newState(data, 73);
+  s.roster = Object.fromEntries(data.awakeners.slice(0, 12).map((a) => [a.slug, { lv: 50, star: 3, brk: 2 }]));
+  const owned = (r) => data.awakeners.filter((a) => a.realm === r && s.roster[a.slug]).slice(0, 4).map((a) => a.slug);
+  const chaos = owned('CHAOS');
+  s.squads.a = { team: chaos };
+  s.squadPick = { ...s.squadPick, rt_CHAOS: 'a', rt_CARO: 'a', rt_AEQUOR: 'cur', rt_ULTRA: 'cur' };
+  const m = migrate(s, data);
+  // 指向 a 的两座塔：混沌塔拿到那 4 人（本来就是这个界域），血肉塔一个都不合界域，
+  // 于是留空并退回「当前队伍」——和旧版战斗时的实际表现一致，也不会塞进 4 个混沌界域的人
+  assert.deepEqual(m.squads.t_CHAOS.team, chaos);
+  assert.deepEqual(m.squads.t_CARO.team, [], '血肉塔不该收下混沌界域的人');
+  assert.deepEqual(m.squads.a.team, chaos, '通用一队原样保留');
+  assert.equal(m.squadPick.rt_CHAOS, 't_CHAOS');
+  assert.equal(m.squadPick.rt_CARO, 'cur');
+  assert.equal(m.squadPick.rt_AEQUOR, 'cur');
+  // 搬完之后再改塔队，不会回头改到通用一队
+  const caro = owned('CARO');
+  setSquadTeam(m, 't_CHAOS', caro);
+  assert.deepEqual(m.squads.a.team, chaos);
 });
 
 test('挑战编队：老存档的「属性塔」选择会分给四座塔', () => {
@@ -1319,9 +1404,10 @@ test('融灾禁区：老存档补字段，越界层数被夹回 0~100', () => {
   const crazy = migrate({ ...newState(data, 23), rift: { floor: 999, best: -5, tries: 99 } }, data);
   assert.equal(crazy.rift.floor, RIFT_FLOORS);
   assert.equal(crazy.rift.best, RIFT_FLOORS);
-  // 通用五套 + 禁区专用五套，十套编队都要能存（老存档只有三套）
-  assert.equal(Object.keys(crazy.squads).length, 10);
+  // 通用五套 + 属性塔专用四套 + 禁区专用五套，十四套编队都要能存（老存档只有三套）
+  assert.equal(Object.keys(crazy.squads).length, 14);
   for (const k of ['r1', 'r2', 'r3', 'r4', 'r5']) assert.ok(Array.isArray(crazy.squads[k].team), `禁区分队 ${k} 要补出来`);
+  for (const k of ['t_CHAOS', 't_CARO', 't_AEQUOR', 't_ULTRA']) assert.ok(Array.isArray(crazy.squads[k].team), `属性塔分队 ${k} 要补出来`);
 });
 
 /* ---------------------------------------------------------------- M16: 挂机层默认取「有收益的最高层」 */
@@ -1955,7 +2041,9 @@ test('专属技能：战斗里按节奏免费追加，且比不带的队伍更�
   const withExtra = teamDefs(s, data).list ?? teamDefs(s, data);
   const defs = (Array.isArray(withExtra) ? withExtra : withExtra.list);
   assert.ok(defs.every((d) => d.extra && d.extra.Od && d.extra.Law));
-  const foe = (n) => ({ name: '靶子', hp: 5e5, atk: 1, def: 0, type: 'WARDEN', realm: 'CHAOS', pattern: [{ name: '普攻', effects: [{ t: 'dmg', m: 0.1, to: 'foe' }] }], idx: n });
+  // 靶子的血量要给够：清得太快的话「总伤害」反而变小（后面几回合根本没得打），
+  // 比的就不是输出而是「谁先打完」。留到 12 回合都打不穿，总量才是真正的 DPS 差。
+  const foe = (n) => ({ name: '靶子', hp: 2e6, atk: 1, def: 0, type: 'WARDEN', realm: 'CHAOS', pattern: [{ name: '普攻', effects: [{ t: 'dmg', m: 0.1, to: 'foe' }] }], idx: n });
   const run = (ds) => simulate({ allies: ds, enemies: [foe(0), foe(1)], seed: 7, maxRounds: 12 });
   const a = run(defs);
   const plain = defs.map((d) => ({ ...d, extra: null }));
@@ -1967,8 +2055,8 @@ test('专属技能：战斗里按节奏免费追加，且比不带的队伍更�
   assert.ok(dmg(a) > dmg(b), '带专属技能总伤害更高');
 });
 
-const NEW_MECH = new Set(['execute', 'pctHp', 'cleanse', 'dispel', 'revive', 'taunt', 'reflect', 'stun', 'chain', 'splash', 'echo', 'cdReset', 'shieldDmg', 'blood', 'missingHeal', 'delay', 'lowHpBoost', 'poisonBurst', 'dotBurst', 'extraTurn']);
-const sigOf = (sk) => sk.effects.map((e) => [e.t, e.to || '', e.stat || e.s || e.k || '', e.hits || '', e.dur ?? '', e.n ?? ''].join(':')).join('|');
+const NEW_MECH = new Set(['execute', 'pctHp', 'cleanse', 'dispel', 'revive', 'taunt', 'reflect', 'stun', 'chain', 'splash', 'echo', 'cdReset', 'shieldDmg', 'blood', 'missingHeal', 'delay', 'lowHpBoost', 'poisonBurst', 'dotBurst', 'extraTurn', 'counterBurst', 'barrierHeal', 'gaugeBurn', 'poisonHeal', 'poisonShield', 'dotSpread']);
+const sigOf = (sk) => sk.effects.map((e) => [e.t, e.to || '', e.stat || e.s || e.k || '', e.m ?? '', e.v ?? '', e.pct ?? '', e.n ?? '', e.hits ?? '', e.dur ?? '', e.cost ?? '', e.share ?? '', e.grow ?? ''].join(':')).join('|');
 
 test('专属技能：每位的终焉技都带自己的新机制，71 位的技能组合互不相同', () => {
   const od = new Map(), law = new Map();
@@ -2055,12 +2143,12 @@ test('后期加压：80 关之前怪物不变，之后每 10 关生命 ×1.10 / 
   assert.ok(e130.hp > 220 * enemyScale(131) * 1.4 * 1.1, '131 关的普通怪已被加压');
 });
 
-/* ---------- 大招策略：优先开大 / 攒大招一起开 / 手动开大 ---------- */
-test('大招策略：first 立刻放；sync 等全队攒满一起放；manual 只放被点的那位；无人值守的 manual 按 first', () => {
-  const ally = (n, ali) => mkAlly({ name: n, openAli: ali, openKey: 0, hp: 90000, def: 500 });
+/* ---------- 大招策略：优先开大 / 攒大招一起开 / 按自定义顺序开 ---------- */
+test('大招策略：first 立刻放；sync 等全队攒满一起放；order 按排好的顺序开（前一位没放就先等）', () => {
+  const ally = (n, ali, slug) => mkAlly({ name: n, slug, openAli: ali, openKey: 0, hp: 90000, def: 500 });
   const tank = () => mkFoe({ hp: 9e7, atk: 1, def: 0 });
   const exalts = (r) => r.events.filter((e) => e.k === 'act' && e.slot === 'Exalt').map((e) => ({ who: e.who, round: e.round }));
-  const team = () => [ally('甲', 100), ally('乙', 100), ally('丙', 100), ally('丁', 0)];
+  const team = () => [ally('甲', 100, 'jia'), ally('乙', 100, 'yi'), ally('丙', 100, 'bing'), ally('丁', 0, 'ding')];
   const run = (ult, extra = {}) => simulate({ allies: team(), enemies: [tank()], seed: 5, maxRounds: 10, strategy: { ult, ...extra } });
 
   // first：开场就攒满的三位，第一回合（唤醒之后）就放
@@ -2072,12 +2160,31 @@ test('大招策略：first 立刻放；sync 等全队攒满一起放；manual �
   const byRound = {};
   for (const e of sy) byRound[e.round] = (byRound[e.round] || 0) + 1;
   assert.ok(Object.values(byRound).some((n) => n >= 3), '攒大招：同一回合至少有三位一起放');
-  // manual（实时）：没有指令一次大都不放；点了甲才放甲
-  assert.equal(exalts(run('manual', { live: true })).length, 0, '手动开大没点就不放');
-  const m = exalts(run('manual', { live: true, cmds: [{ uid: 'a0', from: 1 }] }));
-  assert.ok(m.length >= 1 && m.every((e) => e.who === 'a0'), '只有被点的那位放');
-  // manual（无人值守，没有 live）：和 first 完全一样
-  assert.deepEqual(exalts(run('manual')), f);
+  // order：排「乙 → 甲 → 丙」，甲 / 丙即使攒满了也要等乙先开
+  const od = exalts(run('order', { ultOrder: ['yi', 'jia', 'bing', 'ding'] }));
+  assert.ok(od.length >= 3, '按顺序：三个人都会开');
+  assert.equal(od[0].who, 'a1', '排第一的乙先开');
+  const idx = (w) => od.findIndex((e) => e.who === w);
+  assert.ok(idx('a0') > idx('a1') && idx('a2') > idx('a0'), '甲等乙、丙等甲，先后不被打乱');
+  // 顺序反过来，甲就该先开
+  const od2 = exalts(run('order', { ultOrder: ['jia', 'yi', 'bing'] }));
+  assert.equal(od2[0].who, 'a0', '换顺序后先开的人也跟着换');
+});
+
+test('大招顺序：老存档里的「手动开大」回到默认，顺序表跟着队伍增删', async () => {
+  const G = await import('../src/core/game.js');
+  const s = G.newState(data);
+  s.strategy.ult = 'manual';
+  const m = G.migrate(s, data);
+  assert.equal(m.strategy.ult, 'first', '手动开大已下线');
+  assert.ok(Array.isArray(m.strategy.ultOrder) && m.strategy.ultOrder.length === m.team.length, '顺序表补齐成队伍人数');
+  G.moveUltOrder(m, m.strategy.ultOrder[1], -1);
+  assert.equal(m.strategy.ultOrder[0], m.team[1], '上移一位生效');
+  G.moveUltOrder(m, m.strategy.ultOrder[0], -1);      // 已经在最前，动不了
+  assert.equal(m.strategy.ultOrder[0], m.team[1], '排头再往上移无效');
+  const keep = [m.team[0], m.team[2]];
+  G.setTeam(m, keep);
+  assert.deepEqual(m.strategy.ultOrder, keep, '换队之后顺序表只剩场上的人');
 });
 
 /* ---------- 同一件命轮 / 密契只能挂在一个人身上 ---------- */

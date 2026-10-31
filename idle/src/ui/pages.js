@@ -1,5 +1,5 @@
 import {
-  allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, ULT_MODES, equipItem, unequipItem, isEquipped,
+  allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, ULT_MODES, normalizeUltOrder, equipItem, unequipItem, isEquipped,
   enhanceItem, dismantle, dismantleCores, summon, equipPull, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST,
   PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, BATTLES_PER_HOUR, fillLoadout,
 } from '../core/game.js';
@@ -10,9 +10,10 @@ import {
 } from '../core/constants.js';
 import { sound, TRACK_LIST } from './audio.js';
 import {
-  SQUAD_KEYS, RIFT_SQUAD_KEYS, ALL_SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, RIFT_MODE,
-  isRiftSquad, squadMembers, squadUsage, pickedSquad, loadoutOf, riftTaken, normalizeLoadout, withLoadout, squadKeyFor, squadsOf,
-  squadLabel, teamSlugsFor, setSquadTeam, setSquadPick, autoSquadSlugs,
+  SQUAD_KEYS, RIFT_SQUAD_KEYS, TOWER_SQUAD_KEYS, ALL_SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, RIFT_MODE,
+  isRiftSquad, isTowerSquad, towerSquadKey, squadMembers, squadUsage, pickedSquad, loadoutOf, riftTaken, normalizeLoadout, withLoadout, squadKeyFor, squadsOf,
+  squadLabel, teamSlugsFor, setSquadTeam, setSquadPick, autoSquadSlugs, squadsOfSlug, squadKeyZh,
+  squadsUsingItem, sharedItemsOf,
   RT_MODES, rtModeOf, realmOfMode,
 } from '../core/squad.js';
 import { riftParty } from '../core/rift.js';
@@ -62,8 +63,12 @@ const rarCls = (r) => `r-${r}`;
 function itemCard(app, it, extra = '') {
   const def = itemDef(app, it);
   const who = holder(app, it.uid);
+  // 「已编入」提示：这件装备被哪些编队的独立配装占着。
+  // 拿它配装时最怕以为它是没人用的散件，结果别的编队战力被抽空——所以列表里就写清楚。
+  const inSquads = squadsUsingItem(app.state, it.uid);
+  const sqTip = inSquads.length ? inSquads.map(squadKeyZh).join('、') : '';
   return `<div class="item ${rarCls(def.rarity || 'SR')} ${isEquipped(app.state, it.uid) ? 'eq' : ''}" data-uid="${it.uid}">
-    <img src="${img(def.img)}" alt="" loading="lazy"><div class="i-body"><b>${esc(def.zh)}</b> <em>${def.rarity || ''} Lv${it.lv}${it.rf ? ` · 精炼+${it.rf}` : ''}</em><small>${esc(itemText(app, it))}</small>${who ? `<small class="who">装备于 ${esc(who)}</small>` : ''}</div>${extra}</div>`;
+    <img src="${img(def.img)}" alt="" loading="lazy"><div class="i-body"><b>${esc(def.zh)}</b> <em>${def.rarity || ''} Lv${it.lv}${it.rf ? ` · 精炼+${it.rf}` : ''}</em><small>${esc(itemText(app, it))}</small>${who ? `<small class="who">装备于 ${esc(who)}</small>` : ''}${inSquads.length ? `<small class="who sqin" title="已被这些编队编入独立配装">已编入 ${esc(sqTip)}</small>` : ''}</div>${extra}</div>`;
 }
 function holder(app, uid) {
   const s = app.state;
@@ -172,18 +177,23 @@ export function squadCard(app, key) {
   const t = slugs.length ? withLoadout(s, key, () => teamDefs(s, data, slugs)) : null;
   const used = squadUsage(s, key);
   const lo = loadoutOf(s, key);
+  // 这套独立配装里有几件装备同时被别的编队编着：共用不冲突（战斗各算各的），但要让人看得见
+  const shared = lo ? sharedItemsOf(s, key) : 0;
+  // 这套是不是就是主线当前队伍：是的话「上阵」没有意义，按钮直接标成「已在主线」
+  const cur = (s.team || []).filter((x) => s.roster[x]);
+  const same = slugs.length > 0 && slugs.length === cur.length && slugs.every((x) => cur.includes(x));
   const av = slugs.length
     ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
     : '<span class="sqempty">还没有保存队伍</span>';
   return `<div class="squad ${slugs.length ? 'on' : ''}" data-squad="${key}">
     <header><b>${SQUAD_ZH[key]}</b><small>${slugs.length ? `${slugs.length} 人 · 战力 ${fmt(t.power)}` : '空位'}</small></header>
     <div class="sqav">${av}</div>
-    <div class="sqlo-note">${lo ? `独立配装 · ${loSummary(lo)}` : slugs.length ? '沿用主线配装' : ''}</div>
-    <div class="squse">${used.length ? `挑战在用：${used.join('、')}` : '未被挑战引用'}</div>
+    <div class="sqlo-note">${lo ? `独立配装 · ${loSummary(lo)}` : slugs.length ? '沿用主线配装' : ''}${shared ? `<em class="sqshare" title="这些装备同时也被别的编队编入：两套编队各用各的，互不影响">共用装备 ${shared} 件</em>` : ''}</div>
+    <div class="squse">${same ? '<b class="scur">✓ 主线正在用这套</b>' : used.length ? `挑战在用：${used.join('、')}` : '未被挑战引用'}</div>
     <div class="row">
       <button class="btn sm" data-act="squad-edit" data-k="${key}" data-mode="">编队 / 配装</button>
       <button class="btn sm" data-act="squad-save" data-k="${key}">存为当前队伍</button>
-      <button class="btn sm" data-act="squad-load" data-k="${key}" ${slugs.length ? '' : 'disabled'}>上阵</button>
+      <button class="btn sm" data-act="squad-load" data-k="${key}" ${slugs.length && !same ? '' : 'disabled'} title="${same ? '这 4 人已经是主线当前队伍' : '把这套编队和它的独立配装一起搬到主线'}">${same ? '已在主线' : '上阵'}</button>
       <button class="btn sm danger" data-act="squad-clear" data-k="${key}" ${slugs.length ? '' : 'disabled'}>清空</button>
     </div></div>`;
 }
@@ -220,7 +230,7 @@ export const TEAM_TABS = [
   ['weekly', '周 Boss', '限 12 回合拼伤害'],
   ['rt', '属性塔', '只收本界域成员，四座塔各存一套'],
   ['arena', '竞技场', '天梯与好友对战共用'],
-  ['squads', '编队库', '预先存好的五套阵容'],
+  ['squads', '编队库', '通用 / 属性塔 / 禁区，分开存'],
 ];
 const TEAM_TAB_KEYS = TEAM_TABS.map(([k]) => k);
 export const teamTabOf = (app) => (TEAM_TAB_KEYS.includes(app.ui?.teamTab) ? app.ui.teamTab : 'main');
@@ -235,14 +245,19 @@ function modeBlock(app, mode, title = '') {
   const av = slugs.length
     ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
     : '<span class="sqempty">空缺</span>';
-  const chips = ['cur', ...SQUAD_KEYS].map((k) => {
+  // 属性塔只用「自己那套专用编队」或「当前队伍」：不再列出通用一队~五队——
+  // 让四座塔借用通用编队正是它们互相覆盖的根源
+  const tk = towerSquadKey(mode);
+  const chipKeys = tk ? ['cur', tk] : ['cur', ...SQUAD_KEYS];
+  const chips = chipKeys.map((k) => {
     const n = k === 'cur' ? s.team.length : squadMembers(s, k).length;
     const zh = k === 'cur' ? '当前队伍' : SQUAD_ZH[k];
     return `<button class="sqchip ${lab.key === k ? 'on' : ''}" data-act="squad-pick" data-mode="${mode}" data-k="${k}" title="${n ? `${n} 人` : '这套还空着'}">${zh}${k === 'cur' || n ? '' : '<em class="dim">空</em>'}</button>`;
   }).join('');
+  const nameZh = tk && lab.key === tk ? '本塔专用队' : lab.zh;
   return `<div class="assign ${lab.key !== 'cur' && !lab.fallback ? 'on' : ''}">
-    <header><b>${title || MODE_ZH[mode]}</b><small>${lab.fallback ? `${lab.zh}（空）→ 当前队伍` : `${lab.zh} · ${slugs.length} 人${t ? ` · 战力 ${fmt(t.power)}` : ''}`}</small>
-      <button class="btn sm" data-act="squad-edit" data-mode="${mode}" data-k="${lab.key === 'cur' ? 'a' : lab.key}">编队</button></header>
+    <header><b>${title || MODE_ZH[mode]}</b><small>${lab.fallback ? `${lab.zh}（空）→ 当前队伍` : `${nameZh} · ${slugs.length} 人${t ? ` · 战力 ${fmt(t.power)}` : ''}`}</small>
+      <button class="btn sm" data-act="squad-edit" data-mode="${mode}" data-k="${lab.key === 'cur' ? (tk || 'a') : lab.key}">编队</button></header>
     <div class="sqav">${av}</div>
     <div class="sqlo-note">${loUsed ? `独立配装 · ${loSummary(loUsed)}` : '沿用主线配装（点「编队」可给这套单独配命轮 / 造物 / 钥令）'}</div>
     <div class="achips">${chips}</div></div>`;
@@ -259,7 +274,7 @@ function rtPanel(app) {
   }).join('');
   return `<div class="ttsub">${chips}</div>
     ${modeBlock(app, rtModeOf(realm))}
-    <p class="hint">属性塔只收对应界域的成员：编队里不属于该界域的会被剔掉，一个都不剩就自动挑你最强的 4 名本界域唤醒体。四座塔各存一套，互不影响。</p>`;
+    <p class="hint">属性塔只收对应界域的成员：编队里不属于该界域的会被剔掉，一个都不剩就自动挑你最强的 4 名本界域唤醒体。<b>四座塔各有一套专用编队</b>（编队库里的「属性塔专用」），调一座不影响另外三座，也不动通用编队。</p>`;
 }
 
 /** 融灾禁区：一队~五队各打一组敌人；五队的唤醒体和装备不许重复，界面显示的是「去重后实际出战」的样子 */
@@ -288,9 +303,12 @@ function riftPanel(app) {
 
 /** 编队库：通用五套 + 融灾禁区专用五套，都能往当前队伍套、也能一键上阵 */
 function squadsPanel(app) {
-  return `<h3>通用编队 <small>无限塔 / 属性塔 / 周 Boss / 竞技场各自选用</small></h3>
+  return `<h3>通用编队 <small>无限塔 / 周 Boss / 竞技场各自选用</small></h3>
     <div class="squads">${SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
     <p class="hint">每套编队除了 4 名唤醒体，还可以开「<b>独立配装</b>」：给这套单独配每人 1 件命轮 + 1 件密契、6 格造物、3 个钥令位（和主线队伍一样完整）；不开就沿用主线配装。同一件装备可以同时出现在不同编队里，只是同一套里不能重复。<b>推图挂机始终用「当前队伍」</b>，想换阵容就点「上阵」或回「主线队伍」改那 4 个槽位。</p>
+    <h3>属性塔专用 <small>四座塔各一套 · 只收本界域成员</small></h3>
+    <div class="squads">${TOWER_SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
+    <p class="hint">这四套<b>只给对应的那座塔用</b>（混沌尖塔 / 血肉之塔 / 深海回廊 / 超维阶梯），和上面的通用编队、和别的塔都分开存：调混沌塔不会动到其它塔。<b>留空就退回「当前队伍」</b>（会自动剔掉非本界域的成员，一个都不剩时挑最强的 4 名补上）。</p>
     <h3>融灾禁区专用 <small>禁区一队~禁区五队 · 对应第 1~5 组敌人</small></h3>
     <div class="squads">${RIFT_SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
     <p class="hint">这五套<b>只给融灾禁区用</b>，调它们不会动到上面那五套通用编队。<b>五队的唤醒体和装备不能重复</b>；哪队还没编，挑战时会自动用没被占用的人和装备补满。</p>`;
@@ -304,20 +322,32 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
   const { state: s, data } = app;
   let st = resume ? app.ui.sqDraft : null;
   if (!st) {
-    const isRiftM = mode === RIFT_MODE;
-    const keys0 = isRiftM ? RIFT_SQUAD_KEYS : SQUAD_KEYS;
+    // 从编队库点「编队 / 配装」进来时 mode 是空的，得靠 key 判断这套是不是禁区专用队，
+    // 否则禁区一队会被当成普通编队编辑，保存按钮只剩通用一队~五队。
+    const isTowerM = !!towerSquadKey(mode);
+    const isRiftM = mode === RIFT_MODE || isRiftSquad(key);
+    // 属性塔：只能编自己那套（t_CHAOS..），默认就落在这一套上——四座塔互不借用
+    if (isTowerM && !isTowerSquad(key)) key = towerSquadKey(mode);
+    const keys0 = isRiftM ? RIFT_SQUAD_KEYS : isTowerM ? [towerSquadKey(mode)] : SQUAD_KEYS;
     if (!ALL_SQUAD_KEYS.includes(key)) key = keys0[0];
     const lockR = mode && String(mode).startsWith('rt_') ? String(mode).slice(3) : null;
     st = { key, mode: mode || null, realm: lockR || '', team: [...squadMembers(s, key)], lo: JSON.parse(JSON.stringify(loadoutOf(s, key) || null)) };
     // 禁区这队还空着：先把它现在自动补位的那 4 个人填进来当草稿（五队互不重复，所以不能拿主线队伍顶）
     if (!st.team.length && isRiftM) st.team = [...(riftParty(s, data).find((p) => p.key === key)?.slugs || [])];
     if (!st.team.length && mode && !isRiftM) st.team = teamSlugsFor(s, mode).filter((x) => s.roster[x]);
+    // 属性塔只收本界域的人：草稿里不合界的先剔掉（不然给血肉塔开编辑器，
+    // 预填进来的是当前队伍里那 4 个混沌界域的人，保存时又全被剔空）
+    if (lockR) st.team = st.team.filter((x) => data.bySlug[x]?.realm === lockR);
   }
   app.ui.sqDraft = st;
   mode = st.mode;
-  const isRift = mode === RIFT_MODE;
-  // 融灾禁区编辑的是它自己那五套（禁区一队~五队），存完只落这一处，不碰通用编队
-  const keys = isRift ? RIFT_SQUAD_KEYS : SQUAD_KEYS;
+  // 禁区那五套（r1~r5）永远是禁区专用：不管是从「融灾禁区」页进来，还是从编队库直接点它们进来
+  const isRift = mode === RIFT_MODE || isRiftSquad(st.key);
+  // 属性塔那四套（t_CHAOS..）同理：只给对应的那座塔用，不和通用编队、别的塔混
+  const isTower = !!towerSquadKey(st.mode) || isTowerSquad(st.key);
+  // 融灾禁区编辑的是它自己那五套（禁区一队~五队），存完只落这一处，不碰通用编队；
+  // 属性塔更窄：只有一座塔的那一套，保存按钮就一个
+  const keys = isRift ? RIFT_SQUAD_KEYS : isTower ? [towerSquadKey(st.mode) || st.key] : SQUAD_KEYS;
   const lockRealm = mode && String(mode).startsWith('rt_') ? String(mode).slice(3) : null;
   const modeZh = mode ? (MODE_ZH[mode] || (mode === RIFT_MODE ? '融灾禁区' : mode)) : '';
   const powerOf = (slug) => allyDef(s, data, slug, [slug]).power;
@@ -401,7 +431,9 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
       .map(([k, zh]) => `<button class="sqchip ${st.realm === k ? 'on' : ''}" data-sq="realm" data-v="${k}" ${lockRealm && k !== lockRealm ? 'disabled' : ''}>${zh}</button>`).join('');
     return `<h3>编队 · ${SQUAD_ZH[st.key]} <small>${st.team.length}/${TEAM_SIZE} 人</small></h3>
       <p class="hint">点下面的头像加入这队，点上面的槽位移出；顺序就是站位（前两个是前排）。${lockRealm ? `<b>${REALMS[lockRealm].zh}塔只收${REALMS[lockRealm].zh}界域</b>，筛选已锁定。` : '「一键上阵」按当前筛选的界域取战力最高的 4 名（优先前排守护 + 治疗）。'}
-        ${mode ? (isRift ? `保存后 <b>${SQUAD_ZH[st.key]}</b> 就是融灾禁区里的第 ${RIFT_SQUAD_KEYS.indexOf(st.key) + 1} 队（专用编队，不动通用那五套）。` : `保存后 <b>${modeZh}</b> 就用这套出战。`) : ''}</p>
+        ${mode ? (isRift ? `保存后 <b>${SQUAD_ZH[st.key]}</b> 就是融灾禁区里的第 ${RIFT_SQUAD_KEYS.indexOf(st.key) + 1} 队（专用编队，不动通用那五套）。`
+      : isTower ? `这套只给 <b>${modeZh}</b> 用：存完只动 <b>${SQUAD_ZH[st.key]}</b> 这一套，通用编队和别的塔都不受影响。`
+        : `保存后 <b>${modeZh}</b> 就用这套出战。`) : ''}</p>
       <div class="row sqrealms">${realmChips}</div>
       <div class="sqslots">${slots}</div>
       <div class="row"><button class="btn gold" data-sq="auto">一键上阵</button><button class="btn sm" data-sq="clear" ${st.team.length ? '' : 'disabled'}>清空</button>
@@ -499,17 +531,30 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
     }
     if (a === 'save') {
       if (!st.team.length) { toast('先选人'); return; }
+      // 属性塔：保存前再兜一声，把不合本界域的人剔掉（草稿可能来自界域锁定之前的旧状态）
+      if (isTower) {
+        const realm = realmOfMode(st.mode);
+        const bad = st.team.filter((x) => data.bySlug[x]?.realm !== realm);
+        if (bad.length) {
+          st.team = st.team.filter((x) => data.bySlug[x]?.realm === realm);
+          toast(`${bad.map((x) => data.bySlug[x]?.zh || x).join('、')} 不是${REALMS[realm].zh}界域，已剔除`, 2600);
+        }
+        if (!st.team.length) { paint(); return; }
+      }
       const k = el.dataset.k;
       if (isRift) {
         const tk = riftTaken(s, k), dup = st.team.filter((x) => tk.chars.has(x));
         if (dup.length) { toast(`${dup.map((x) => data.bySlug[x].zh).join('、')} 已在别的禁区队里，五队不能重复`); sound.play('deny'); return; }
       }
       const saved = setSquadTeam(s, k, st.team);
+      // st.lo 为空 = 这套编队不单独配装（关掉独立配装之后保存，要把旧的 lo 一起删掉，
+      // 否则卡片还写着「独立配装」，实际配装却已经不打算用了）
       if (st.lo) squadsOf(s)[k].lo = normalizeLoadout(st.lo, saved, s.gear, s.orders);
+      else if (squadsOf(s)[k].lo) delete squadsOf(s)[k].lo;
       if (st.mode && !isRift) setSquadPick(s, st.mode, k);
       app.ui.sqDraft = null;
       app.save(); sound.play('stamp');
-      toast(`已存入「${SQUAD_ZH[k]}」：${saved.length} 人${st.lo ? ' · 独立配装' : ''}${st.mode ? ` · ${isRift ? '融灾禁区第 ' + (RIFT_SQUAD_KEYS.indexOf(k) + 1) + ' 队' : modeZh + ' 用它出战'}` : ''}`);
+      toast(`已存入「${SQUAD_ZH[k]}」：${saved.length} 人${st.lo ? ' · 独立配装' : ''}${st.mode ? ` · ${isRift ? '融灾禁区第 ' + (RIFT_SQUAD_KEYS.indexOf(k) + 1) + ' 队' : isTower ? '只给 ' + modeZh + ' 用' : modeZh + ' 用它出战'}` : ''}`);
       closeModal();
       app.render?.();
     }
@@ -615,6 +660,15 @@ function mainPanel(app) {
 
   const ultNow = s.strategy.ult || 'first';
   const ultBtns = Object.entries(ULT_MODES).map(([k, m]) => `<button class="btn sm ${ultNow === k ? 'on' : ''}" data-act="ult-mode" data-k="${k}" title="${esc(m.desc)}">${m.zh}</button>`).join('');
+  // 自定义大招顺序：只有选了「按顺序开大」才展开。↑ 提前、↓ 后移，队外的人不会出现在这里。
+  const orderList = normalizeUltOrder(s);
+  const orderRows = ultNow !== 'order' ? '' : `<div class="ultorder">${orderList.map((slug, i) => {
+    const a0 = data.bySlug[slug];
+    if (!a0) return '';
+    return `<div class="uo-row"><b>${i + 1}</b><img src="${img(a0.portrait)}" alt=""><span>${esc(a0.zh)}<small>${TYPES[a0.type].short}</small></span>
+      <button class="btn xs" data-act="ult-order" data-slug="${slug}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="提前一位">↑</button>
+      <button class="btn xs" data-act="ult-order" data-slug="${slug}" data-dir="1" ${i === orderList.length - 1 ? 'disabled' : ''} title="后移一位">↓</button></div>`;
+  }).join('')}</div>`;
   const pre = Object.entries(PRESETS).map(([k, p]) => `<button class="btn sm ${s.strategy.preset === k ? 'on' : ''}" data-act="preset" data-k="${k}">${p.zh}</button>`).join('');
   const on = orderSlotCount(s.maxStage);
   const ochips = Array.from({ length: ORDER_SLOTS }, (_, i) => {
@@ -641,7 +695,7 @@ function mainPanel(app) {
     <div class="row">${pre}</div>
     <p class="hint">${PRESETS[s.strategy.preset]?.zh || ''}：血量低于 ${Math.round(s.strategy.defend * 100)}% 时优先架势；目标选择：${{ low: '血量最低', first: '前排优先', atk: '攻击最高' }[s.strategy.target]}。</p>
     <h4>大招 <small class="dim">什么时候开大</small></h4>
-    <div class="row">${ultBtns}</div>
+    <div class="row">${ultBtns}</div>${orderRows}
     <p class="hint"><b>${ULT_MODES[ultNow].zh}</b>：${ULT_MODES[ultNow].desc}</p>`;
 }
 
@@ -687,9 +741,14 @@ export function rosterPage(app) {
   return `<div class="page"><h2>唤醒体 <small>${Object.keys(s.roster).length}/${data.awakeners.length}</small>${tipBtn(app, 'roster')}</h2>${tipCard(app, 'roster')}
     <div class="row filters"><span class="dim">界域</span>${opt(REALMS, f.realm, 'realm')}<span class="dim">类型</span>${opt(TYPES, f.type, 'type')}<label><input type="checkbox" data-filter="owned" ${f.owned ? 'checked' : ''}> 仅已拥有</label></div>
     <div class="row sortbar"><span class="dim">排序</span>${sorts}</div>
-    <div class="grid">${list.map(({ a, r, power: p }) => `<div class="tile ${r ? '' : 'locked'} ${rarCls(a.rarity)} ${a.creator ? 'gift' : ''}" style="--rc:${R(a).color}" data-act="detail" data-slug="${a.slug}">
-      <img src="${img(a.portrait)}" alt="" loading="lazy"><b>${esc(a.zh)}</b><small>${r ? `Lv${r.lv} · 叠${r.star} · ${TYPES[a.type].short}` : a.creator ? '未获得 · 联名赠送' : `未获得 · ${TYPES[a.type].short}`}</small><small>${r ? `战力 ${fmt(p)}` : REALMS[a.realm].zh}</small>${a.creator ? '<i class="gmark">联名</i>' : ''}</div>`).join('')}</div>
-    <p class="hint">排序：稀有度 / 战力 / 等级 / 叠位数 / 获取顺序 / 界域，再点一次当前排序可以反过来。未获得的永远排在后面，筛选里的「仅已拥有」可以只看已有。<b>带「联名」角标的是社区主播彩蛋</b>，不参与召唤，只从「更多 → 联动」的签到与活动里赠送。</p></div>`;
+    <div class="grid">${list.map(({ a, r, power: p }) => {
+    // 编队角标：在主线队伍里就标「上阵」，只在编队里就标编队名；同时编进几套时后面跟「+N」
+    const sq = r ? squadsOfSlug(s, a.slug) : [];
+    const mark = sq.length ? `<i class="tmark${sq[0] === 'cur' ? ' on' : ''}" title="${esc(`已编入：${sq.map(squadKeyZh).join('、')}`)}">${sq[0] === 'cur' ? '上阵' : esc(squadKeyZh(sq[0]))}${sq.length > 1 ? `+${sq.length - 1}` : ''}</i>` : '';
+    return `<div class="tile ${r ? '' : 'locked'} ${rarCls(a.rarity)} ${a.creator ? 'gift' : ''}" style="--rc:${R(a).color}" data-act="detail" data-slug="${a.slug}">
+      <img src="${img(a.portrait)}" alt="" loading="lazy">${mark}<b>${esc(a.zh)}</b><small>${r ? `Lv${r.lv} · 叠${r.star} · ${TYPES[a.type].short}` : a.creator ? '未获得 · 联名赠送' : `未获得 · ${TYPES[a.type].short}`}</small><small>${r ? `战力 ${fmt(p)}` : REALMS[a.realm].zh}</small>${a.creator ? '<i class="gmark">联名</i>' : ''}</div>`;
+  }).join('')}</div>
+    <p class="hint">排序：稀有度 / 战力 / 等级 / 叠位数 / 获取顺序 / 界域，再点一次当前排序可以反过来。未获得的永远排在后面，筛选里的「仅已拥有」可以只看已有。<b>头像左上角的角标是编队情况</b>：「上阵」= 主线当前队伍，「一队 / 禁区三队…」= 只写在某套编队里（同时编进几套会跟「+N」，鼠标停上去能看到全部）。<b>带「联名」角标的是社区主播彩蛋</b>，不参与召唤，只从「更多 → 联动」的签到与活动里赠送。</p></div>`;
 }
 
 const NUM_ZH = { dmg: '伤害', shield: '护盾', gauge: '狂气' };
@@ -762,6 +821,7 @@ function awakenTable(r) {
 export function detailModal(app, slug) {
   const { state: s, data } = app;
   const a = data.bySlug[slug], r = s.roster[slug];
+  const sq = r ? squadsOfSlug(s, slug) : [];   // 编队情况：'cur' = 主线队伍，其余是编队位
   const view = r ? allyDef(s, data, slug, [slug]) : null;
   const preview = r || { lv: 1, star: 0, brk: 0 };
   const st = view || (() => { const ghost = { ...s, roster: { ...s.roster, [slug]: preview } }; return allyDef(ghost, data, slug, [slug]); })();
@@ -791,6 +851,9 @@ export function detailModal(app, slug) {
     <div class="d-art"><img src="${img(a.card)}" alt="${esc(a.zh)}立绘" data-act="zoom" data-slug="${slug}" loading="lazy"><span class="zoomhint">${a.creator ? '点开看大图' : '点立绘看大图'}</span></div>
     <div class="d-body"><h3>${esc(a.zh)} <small>${esc(a.en)}</small></h3>
       <div class="tags"><span class="tag" style="background:${R(a).color}">${R(a).zh}</span><span class="tag">${TYPES[a.type].zh}</span><span class="tag ${rarCls(a.rarity)}">${a.rarity === 'Genesis' ? '创生' : a.rarity}</span>${a.creator ? `<span class="tag ctag">${esc(a.creator.emoji)} 联名嘉宾</span>` : ''}</div>
+      ${r ? `<div class="sqtags"><span class="dim">编队</span>${sq.length
+        ? sq.map((k) => `<span class="tag sqtag${k === 'cur' ? ' on' : ''}">${squadKeyZh(k)}</span>`).join('')
+        : '<span class="tag sqtag none">未编入任何队伍</span>'}</div>` : ''}
       ${a.creator ? `<div class="cbox"><small class="clabel">B 站签名</small><b>${a.creator.bio ? esc(a.creator.bio) : '（这位主播没有填写签名）'}</b>
         ${a.creator.nick ? `<div class="crow"><span>外号</span><em>${esc(a.creator.nick)}</em></div>` : ''}
         <div class="crow"><span>B 站首页</span><a href="${esc(a.creator.url)}" target="_blank" rel="noopener" title="打开 ${esc(a.creator.zh)} 的 B 站个人空间">${esc(a.creator.url.replace(/^https?:\/\//, ''))}</a></div>
@@ -809,7 +872,7 @@ export function detailModal(app, slug) {
       ${r ? `<div class="eqrow">${slotBox('wheel', 'wheel', '命轮')}${slotBox('cov', 'covenant', '密契')}</div>` : ''}
       ${a.trait ? `<h4>特性 <small class="dim">常驻，无需触发</small></h4>
         <div class="traitbox"><b>${esc(a.trait.zh)}</b><p>${esc(a.trait.desc)}</p></div>` : ''}
-      <h4>技能 <small class="dim">技能等级 Lv.${lvl + 1}/5（每 15 级 +1，每 ${AWAKEN_SKILL_EVERY} 叠位 +1）</small></h4><div class="skills">${SLOTS.map((k) => `<div class="skill"><b class="sk ${k}">${SLOT_ZH[k]}</b> <em>${esc(kit[k].name)}</em>${kit[k].real?.e ? ` <small class="en">${esc(kit[k].real.e)}</small>` : ''}<small>本作效果：${esc(describeSkill(kit[k]))}</small>${numLine(kit[k])}${kit[k].real ? `<details><summary>原作技能文本（译）</summary><p class="real">${markup(kit[k].real.d, data.kw)}</p></details>` : ''}</div>`).join('')}</div>
+      <h4>技能 <small class="dim">技能等级 Lv.${lvl + 1}/5（每 15 级 +1，每 ${AWAKEN_SKILL_EVERY} 叠位 +1）</small></h4><div class="skills">${SLOTS.map((k) => `<div class="skill"><b class="sk ${k}">${SLOT_ZH[k]}</b> <em>${esc(kit[k].name)}</em>${k === 'Rouse' ? '<small class="dim">登场即生效，不占回合</small>' : ''}${kit[k].real?.e ? ` <small class="en">${esc(kit[k].real.e)}</small>` : ''}<small>本作效果：${esc(describeSkill(kit[k]))}</small>${numLine(kit[k])}${kit[k].real ? `<details><summary>原作技能文本（译）</summary><p class="real">${markup(kit[k].real.d, data.kw)}</p></details>` : ''}</div>`).join('')}</div>
       ${extraBox(a, slug, r)}
       ${a.rk_en?.length ? `<details class="en-box"><summary>启灵（原作文本，仅供参考）</summary>${a.rk_en.map((x) => `<div class="skill"><b>${esc(x.ty)}</b> <em>${esc(x.n)}</em><p class="real">${markup(x.d, data.kw)}</p></div>`).join('')}</details>` : ''}
       <div class="matsrc">

@@ -20,7 +20,7 @@ const WEIGHT = { WARDEN: 3, ASSAULT: 1.6, CHORUS: 1 };
 // deterministic given (allies, enemies, seed, strategy).
 export function makeUnit(def, side, idx) {
   return {
-    uid: `${side}${idx}`, side, idx,
+    uid: `${side}${idx}`, side, idx, slug: def.slug || null,
     name: def.name, img: def.img, type: def.type || 'ASSAULT', realm: def.realm,
     maxHp: positive(def.hp), hp: Math.max(1, Math.min(positive(def.hp), num(def.hpNow, positive(def.hp)))), atk: Math.max(0, num(def.atk)), def: Math.max(0, num(def.def)),
     critRate: num(def.critRate, 0), critDmg: num(def.critDmg, 50), amp: num(def.amp, 0),
@@ -75,10 +75,10 @@ export function frontLine(unit, foes) {
 export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds = MAX_ROUNDS }) {
   const rng = mulberry32(seed);
   const strat = { defend: 0.4, target: 'low', ult: 'first', ...strategy };
-  // 大招策略：first = 优先开大（默认，能开就开）；sync = 攒大招一起开大；manual = 手动开大（只有实时战斗里才生效，
-  // 靠 strat.cmds 里玩家点的指令；离线 / 扫描 / 竞技场这类无人值守的结算一律按 first 算，不然永远不开大会卡进度）
-  const ultMode = strat.ult === 'manual' && !strat.live ? 'first' : (strat.ult || 'first');
-  const cmds = Array.isArray(strat.cmds) ? strat.cmds.map((c) => ({ ...c, done: false })) : [];
+  // 大招策略：first = 优先开大（默认，能开就开）；sync = 攒大招一起开大；
+  // order = 按玩家排好的顺序开大（前一位还没开、而且它攒满了，就等它先开）。
+  const ultMode = strat.ult || 'first';
+  const ultOrder = Array.isArray(strat.ultOrder) ? strat.ultOrder : [];
   let burstRound = 0;     // sync：全员到位后的那一回合，之后到位的人这回合也一起放
   const A = allies.map((d, i) => makeUnit(d, 'a', i));
   const E = enemies.map((d, i) => makeUnit(d, 'e', i));
@@ -122,6 +122,23 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       case 'foeLow': case 'foeRand': case 'foe': { const t = chooseFoe(u, to); return t ? [t] : []; }
       default: return [];
     }
+  }
+
+  /** 斩杀牌的目标：阈值以下的里头挑血最多的；一个都没有，才按玩家的目标规则来 */
+  function execTargets(u, e) {
+    const to = e.to || 'foe';
+    if (to !== 'foe') return targets(u, to);
+    const live = reachable(u).filter((t) => t.alive);
+    const thr = num(e.thr, 0.3);
+    const weak = live.filter((t) => hpPct(t) < thr);
+    return weak.length ? [weak.reduce((a, b) => (b.hp > a.hp ? b : a))] : targets(u, 'foe');
+  }
+  /** 按比例扣血的牌：单体时挑血条最厚的那个（首领虽然会被封顶，但仍是最大收益） */
+  function fatTargets(u, e) {
+    const to = e.to || 'foe';
+    if (to !== 'foe') return targets(u, to);
+    const live = reachable(u).filter((t) => t.alive);
+    return live.length ? [live.reduce((a, b) => (b.maxHp > a.maxHp ? b : a))] : targets(u, 'foe');
   }
 
   function gainGauge(u, k, v) {
@@ -264,10 +281,13 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
           break;
         // ---- 专属技能（core/extra.js）用到的机制 ----
         case 'execute':    // 斩杀：目标血量低于 thr 时倍率翻倍
-          for (const t of targets(u, e.to || 'foe')) if (t.alive) damage(u, t, hpPct(t) < num(e.thr, 0.3) ? e.m * 2 : e.m, ctx);
+          // 打谁有讲究：优先挑「已经在阈值以下、而且血最多」的那一个，翻倍的部分才不浪费；
+          // 一个都不在阈值以下时，才回到玩家选的目标规则。
+          for (const t of execTargets(u, e)) if (t.alive) damage(u, t, hpPct(t) < num(e.thr, 0.3) ? e.m * 2 : e.m, ctx);
           break;
         case 'pctHp':      // 按目标最大生命的百分比直接扣血（首领封顶 = 自身攻击 × 8）
-          for (const t of targets(u, e.to || 'foe')) {
+          // 比例伤害打「血条最厚」的最划算，所以单体时改挑最大生命，而不是血量最低的残兵
+          for (const t of fatTargets(u, e)) {
             if (!t.alive) continue;
             let amt = t.maxHp * num(e.pct) / 100;
             if (t.boss || t.reward) amt = Math.min(amt, u.atk * 8);
@@ -355,6 +375,55 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
             applyDamage(u, t, Math.max(1, Math.round(sum * num(e.m, 1))), false, ctx);
           }
           break;
+        case 'counterBurst': {   // 反击爆发：把全队身上的反击层数一次性打出去（没层数也有保底两下）
+          const stacks = friendsOf(u).reduce((s, x) => s + num(x.st.counter?.n), 0);
+          const hit = u.atk * num(e.m, 0.15) * Math.max(2, stacks);
+          for (const t of foesOf(u)) if (t.alive) applyDamage(u, t, Math.max(1, Math.round(hit)), false, ctx);
+          for (const x of friendsOf(u)) if (x.st.counter) delete x.st.counter;
+          break;
+        }
+        case 'barrierHeal': {   // 屏障化疗：把屏障层数烧成治疗（每层 pct% 最大生命，至少按 1 层算）
+          for (const x of friendsOf(u)) {
+            if (!x.alive) continue;
+            const b = Math.max(1, num(x.st.barrier?.n));
+            if (x.st.barrier) delete x.st.barrier;
+            heal(u, x, x.maxHp * num(e.pct, 6) / 100 * b);
+          }
+          break;
+        }
+        case 'gaugeBurn': {   // 超载：把攒着的共鸣 / 超共鸣能量全烧成伤害（保底按 60 点算）
+          const pool = Math.max(60, num(u.ali) + num(u.key));
+          u.ali = 0; u.key = 0; u.holdUlt = 0;
+          for (const t of targets(u, e.to || 'foe')) if (t.alive) applyDamage(u, t, Math.max(1, Math.round(u.atk * pool * num(e.m, 0.02) / 100)), false, ctx);
+          push({ k: 'gauge', who: u.uid, ali: 0, key: 0 });
+          break;
+        }
+        case 'poisonHeal': {   // 以毒养身：敌人身上的毒层转成治疗
+          let stacks = 0;
+          for (const t of foesOf(u)) stacks += num(t.st.poison?.n);
+          const amt = u.atk * num(e.pct, 4) / 100 * Math.max(1, stacks);
+          for (const x of friendsOf(u)) if (x.alive) heal(u, x, amt);
+          break;
+        }
+        case 'poisonShield': {   // 毒甲：敌人身上的毒层转成全队护盾
+          let stacks = 0;
+          for (const t of foesOf(u)) stacks += num(t.st.poison?.n);
+          const amt = Math.max(1, Math.round(u.atk * num(e.pct, 3) / 100 * Math.max(1, stacks)));
+          for (const x of friendsOf(u)) if (x.alive) { x.shield += amt; push({ k: 'shield', who: x.uid, amt, shield: x.shield }); }
+          break;
+        }
+        case 'dotSpread': {   // 血流成河：把最重的那份流血传染给全体敌人
+          let best = 0;
+          for (const t of foesOf(u)) for (const d of t.dots) best = Math.max(best, num(d.dmg));
+          const dur = positive(e.dur, 3);
+          const dmg = Math.max(1, Math.round(Math.max(best * num(e.m, 1), u.atk * num(e.m, 1))));
+          for (const t of foesOf(u)) {
+            if (!t.alive) continue;
+            t.dots.push({ dmg, dur, by: u.uid });
+            push({ k: 'dot', who: t.uid });
+          }
+          break;
+        }
         case 'extraTurn': {   // 追击号令：攻击最高的队友立刻额外行动一次
           if (u._xt) break;
           const ally = friendsOf(u).filter((x) => x !== u && x.kit).sort((x, y) => y.atk - x.atk)[0];
@@ -365,17 +434,363 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     }
   }
 
+  // ------------------------------------------------------------------
+  // 出牌评分：自动战斗的大脑
+  // ------------------------------------------------------------------  // 71 位唤醒体的 kit 是「类型骨架 + 界域附魔 + 真实卡面关键字」拼出来的：同样是突破手，
+  // 有人单体 1.8 倍、有人 4 段随机弹射、有人自带斩杀与溅射；守护里有人只会给盾、有人带嘲讽、
+  // 有人带着反射。旧规则按类型写死「有 2 放 2、没有 2 放 1，血少才架势」，对这些差别一律
+  // 装作看不见——满血的辅助照样套盾、满血的奶妈照样抬血、斩杀技砸在满血的怪身上。
+  //
+  // 现在给**每一张能用的牌**估一个收益：伤害 / 治疗 / 护盾 / 增减益 / 控制 / 能量统一折算成
+  // 「等效血量」，再乘角色定位的权重，挑分最高的那张。空放（满血治疗、满盾再套盾、没有增益
+  // 可驱散）自然得 0 分，会被伤害牌顶掉。全程不掷骰子：同样的种子、同样的战场，指令序列
+  // 唯一确定（观战回放和「手动开大」的现场校验都靠这个确定性）。
+  const atkOf = (u) => u.atk * (1 + sumBuff(u, 'atk') / 100);
+  const critF = (u) => 1 + Math.min(1, Math.max(0, (u.critRate + sumBuff(u, 'crit')) / 100)) * Math.max(0, u.critDmg) / 100;
+  /** 这一下大概能打多少（取暴击期望，不含 ±5% 随机浮动）。defMul 用来算破防牌的增量。 */
+  function estHit(u, t, m, defMul = 1) {
+    let v = atkOf(u) * num(m, 1) * (1 + (u.amp + sumBuff(u, 'amp')) / 100) * critF(u);
+    if (u.st.weakness) v *= WEAK_MULT;
+    if (u.firstBoost && u.acted <= 1) v *= 1 + u.firstBoost / 100;
+    if (u.enrage) v *= 1 + u.enrage;
+    const d = t.def * (1 + sumBuff(t, 'def') / 100) * defMul;
+    v *= 1 - d / (d + DEF_K);
+    v *= 1 + sumBuff(t, 'vuln') / 100;
+    if (t.st.fortress) v *= 1 - Math.min(50, t.st.fortress.n) / 100;
+    return Math.max(1, v) * (u.side === 'a' ? DMG_SCALE : 1);
+  }
+  const hitFoes = (u) => foesOf(u).reduce((s, f) => s + atkOf(f), 0);   // 对面一回合大概打出来的伤害
+  // 我方一人一回合大概能打出来的伤害：所有「增益 / 破防 / 能量」都按这个折算成血量，量纲才和伤害牌一致
+  const dpsOf = (t) => atkOf(t) * DMG_SCALE * critF(t) * 0.75;
+  const allyDps = (u) => friendsOf(u).reduce((s, t) => s + dpsOf(t), 0);
+  // 血线的「急迫度」：满血时治疗 / 护盾几乎不值钱（挂机是回合数限死 DPS 的战斗，抬满血不加输出），
+  // 真掉到半血以下才开始值钱，快死的时候最值钱
+  const urgency = (t) => { const p = hpPct(t); return p > 0.75 ? 0.3 : p > 0.5 ? 0.55 : 0.55 + 2.4 * (0.5 - p); };
+  /** 敌人「下一步要干什么」：出牌要看着对面的意图，不能等挨完了才想起套盾 */
+  const peekSkill = (f) => {
+    const cycle = Array.isArray(f.pattern) && f.pattern.length ? f.pattern : [{ name: '普通攻击', effects: [{ t: 'dmg', m: 1, to: 'foe' }] }];
+    return (f.patIdx < f.opening.length ? f.opening[f.patIdx] : cycle[(f.patIdx - f.opening.length) % cycle.length]) || cycle[0];
+  };
+  /** 下回合每个队友大概会吃到多少伤害（按敌人明示的下一步动作算；群攻算到每个人头上，单体算到前排） */
+  let incRound = -1, incMap = null;
+  function incomingMap(u) {
+    if (incRound === round && incMap) return incMap;
+    const out = new Map();
+    for (const f of foesOf(u)) {
+      const efx = Array.isArray(peekSkill(f)?.effects) ? peekSkill(f).effects : [];
+      for (const e of efx) {
+        if (e.t !== 'dmg') continue;
+        const amt = atkOf(f) * num(e.m, 1) * Math.max(1, num(e.hits, 1));
+        const list = e.to === 'foes' ? friendsOf(u) : frontLine(f, friendsOf(u));
+        if (!list.length) continue;
+        const each = e.to === 'foes' ? amt : amt / list.length;
+        for (const t of list) out.set(t, (out.get(t) || 0) + each);
+      }
+    }
+    incRound = round; incMap = out;
+    return out;
+  }
+  /** 和 chooseFoe 同一套规则，但不掷骰子（评分只估期望，不能扰动随机数流） */
+  const aimAt = (u, to) => {
+    const F = reachable(u);
+    if (!F.length) return null;
+    if (to === 'first') return F[0];
+    if (to === 'atk') return F.reduce((a, b) => (b.atk > a.atk ? b : a));
+    if (to === 'foeLow') return F.reduce((a, b) => (b.hp < a.hp ? b : a));
+    if (strat.target === 'first') return F[0];
+    if (strat.target === 'atk') return F.reduce((a, b) => (b.atk > a.atk ? b : a));
+    return F.reduce((a, b) => (b.hp < a.hp ? b : a));
+  };
+  const foeTargets = (u, to) => (to === 'foes' ? foesOf(u) : to === 'foeRand' ? reachable(u) : [aimAt(u, to)].filter(Boolean));
+  const allyTargets = (u, to) => {
+    const F = friendsOf(u);
+    if (to === 'self') return [u];
+    if (to === 'allies') return F;
+    if (to === 'ally') return F.length ? [F.reduce((a, b) => (hpPct(b) < hpPct(a) ? b : a))] : [];
+    return foeTargets(u, to);
+  };
+  /** 计入伤害，顺带给「打死一个」记一笔溢价：少一个人打我们 */
+  function addDmg(u, acc, list, m, opt = {}) {
+    const hits = Math.max(1, num(opt.hits, 1));
+    const spread = hits > 1 ? hits * (1 + num(opt.grow, 0) * (hits - 1) / 2) : 1;
+    for (const t of list) {
+      if (!t || !t.alive) continue;
+      const est = estHit(u, t, m) * spread;
+      const pool = Math.max(1, num(t.hp) + num(t.shield));
+      acc.o += Math.min(est, pool);
+      if (est >= pool) acc.o += Math.min(num(t.maxHp) * 0.25, num(t.atk) * 1.2);
+    }
+  }
+  /** 一个单位身上负面状态的「值多少钱」：净化 / 复苏这类牌靠它估价 */
+  function debuffWorth(t) {
+    let v = 0;
+    const hit = atkOf(t) * 0.8;
+    for (const b of t.buffs) {
+      const bad = b.stat === 'vuln' ? b.v > 0 : b.v < 0;
+      if (bad) v += hit * (Math.abs(b.v) / 100) * positive(b.dur, 1);
+    }
+    for (const d of t.dots) v += num(d.dmg) * Math.max(0, num(d.dur));
+    const ps = t.st.poison;
+    if (ps) v += num(ps.n) * num(ps.per) * 0.7;
+    if (t.st.weakness) v += hit * 0.25 * 2;
+    if (t.st.fragile) v += hit * 0.2 * 2;
+    if (t.st.sealed) v += atkOf(t) * 0.3;
+    return v;
+  }
+
+  /** 一张牌的效果列表折算成 { o: 输出, s: 保命 } 两个分值（单位都是等效血量） */
+  function scoreEffect(u, e, acc) {
+    const F = friendsOf(u);
+    switch (e.t) {
+      case 'dmg': {
+        const list = e.to === 'foes' ? foesOf(u) : foeTargets(u, e.to || 'foe');
+        addDmg(u, acc, list, num(e.m, 1), { hits: e.hits });
+        break;
+      }
+      case 'heal': {
+        const amt = atkOf(u) * num(e.m, 1) * (1 + u.healBonus / 100);
+        const inc = incomingMap(u);
+        for (const t of allyTargets(u, e.to || 'ally')) {
+          const miss = Math.max(0, t.maxHp - t.hp);
+          const lethal = (inc.get(t) || 0) >= t.hp ? 2.2 : 1;    // 这一口是救命的，不是补血的
+          acc.s += Math.min(amt, miss) * urgency(t) * lethal;
+        }
+        break;
+      }
+      case 'shield': {
+        const amt = (u.def * 1.2 + u.maxHp * 0.08) * num(e.m, 1) * (1 + u.shieldBonus / 100);
+        const avg = hitFoes(u);
+        const inc = incomingMap(u);
+        for (const t of allyTargets(u, e.to || 'self')) {
+          // 盾能吃掉的量：空出来的血条 + 下一轮真要挨的那一下（看了对面的意图再决定值不值）
+          const room = Math.max(0, t.maxHp - t.hp - num(t.shield)) + Math.max(avg * 0.3, (inc.get(t) || 0) * 0.9);
+          acc.s += Math.min(amt, room) * urgency(t);
+        }
+        break;
+      }
+      case 'buff': {
+        const ts = allyTargets(u, e.to || 'self');
+        const dur = positive(e.dur, 1);
+        for (const t of ts) {
+          const cur = sumBuff(t, e.stat);
+          if (e.stat === 'atk' || e.stat === 'amp') {
+            const fade = Math.max(0.2, 1 - cur / 80);      // 已经叠上去了就递减
+            acc.o += dpsOf(t) * (num(e.v) / 100) * dur * (e.stat === 'amp' ? 0.95 : 0.85) * fade;
+          } else if (e.stat === 'crit') acc.o += dpsOf(t) * (num(e.v) / 100) * (Math.max(0, t.critDmg) / 100) * dur * 0.8;
+          else if (e.stat === 'def') acc.s += hitFoes(u) * (num(e.v) / 100) * dur * 0.3;
+          else acc.o += dpsOf(t) * 0.05 * dur;
+        }
+        break;
+      }
+      case 'debuff': {
+        const ts = e.to === 'allies' ? F : foeTargets(u, e.to || 'foe');
+        const dur = positive(e.dur, 1);
+        for (const t of ts) {
+          if (e.stat === 'vuln') {
+            // 受伤加深：落在敌人身上就是我方凭空多打出来的伤害，落在我方身上就是多挨的打
+            acc[e.to === 'allies' ? 's' : 'o'] += (t.side === 'e' ? allyDps(u) * 0.6 : hitFoes(u) * 0.6) * (num(e.v) / 100) * dur;
+          } else if (e.stat === 'atk') acc.s += atkOf(t) * (num(e.v) / 100) * dur * 0.55;
+          else if (e.stat === 'def' && t.side === 'e') {
+            // 破防：按「减防之后这一下能多打多少」折算，不是按百分比瞎给分
+            acc.o += (estHit(u, t, 1, Math.max(0.1, 1 - num(e.v) / 100)) - estHit(u, t, 1)) * dur * 0.8;
+          }
+        }
+        break;
+      }
+      case 'dot': {
+        const per = atkOf(u) * num(e.m, 0);
+        for (const t of foeTargets(u, e.to || 'foe')) acc.o += Math.min(per * positive(e.dur, 1), num(t.hp) * 0.9);
+        break;
+      }
+      case 'gauge': {
+        const key = e.k === 'aliemus' ? 'ali' : 'key';
+        const unit = dpsOf(u) * 0.025;          // 100 点 ≈ 一发大招（约 2.5 回合的输出）
+        for (const t of allyTargets(u, e.to || 'self')) {
+          const cur = Math.max(0, Math.min(100, num(t[key])));
+          const add = Math.min(100 - cur, num(e.v));
+          if (add > 0) acc.o += add * unit * (cur + num(e.v) >= 100 ? 2.2 : 1);
+        }
+        break;
+      }
+      case 'status': {
+        const list = e.to === 'allies' ? F : e.to === 'self' ? [u] : e.to === 'ally' ? allyTargets(u, 'ally') : foeTargets(u, e.to || 'foe');
+        const dur = positive(e.dur, 1);
+        for (const t of list) {
+          if (!t || !t.alive) continue;
+          switch (e.s) {
+            case 'poison': acc.o += Math.min(num(e.n, 1) * atkOf(u) * 0.1 * dur * 0.7, num(t.hp)); break;
+            case 'counter': acc.s += Math.min(num(e.n, 1), 6) * atkOf(t) * 0.22 * 0.7; break;
+            case 'barrier': acc.s += (hitFoes(u) / Math.max(1, foesOf(u).length)) * num(e.n, 1) * (t === u ? 1 : 0.8); break;
+            case 'fortress': acc.s += hitFoes(u) * Math.min(50, num(e.n, 1)) / 100 * dur * 0.6; break;
+            case 'weakness': acc.s += atkOf(t) * 0.25 * dur * 0.5; break;
+            case 'fragile': acc.s += atkOf(t) * 0.2 * dur * 0.5; break;
+            case 'stun': if (!t.boss && !t.reward) acc.s += atkOf(t) * num(e.n, 1) * 0.8; break;
+            default: break;    // sealed：敌人没有大招，封了也白封
+          }
+        }
+        break;
+      }
+      case 'lifesteal': acc.s += atkOf(u) * (num(e.v) / 100) * 1.5; break;
+      case 'execute': {
+        const thr = num(e.thr, 0.3);
+        const list = e.to === 'foes' ? foesOf(u) : foeTargets(u, e.to || 'foe');
+        for (const t of list) addDmg(u, acc, [t], hpPct(t) < thr ? num(e.m, 1) * 2 : num(e.m, 1));
+        break;
+      }
+      case 'pctHp': {
+        const list = e.to === 'foes' ? foesOf(u) : foeTargets(u, e.to || 'foe');
+        for (const t of list) {
+          let amt = num(t.maxHp) * num(e.pct) / 100;
+          if (t.boss || t.reward) amt = Math.min(amt, atkOf(u) * 8);
+          acc.o += Math.min(amt, num(t.hp));
+        }
+        break;
+      }
+      case 'cleanse': for (const t of allyTargets(u, e.to || 'allies')) acc.s += debuffWorth(t) * 0.9; break;
+      case 'dispel': {
+        let v = 0;
+        for (const t of (e.to === 'allies' ? F : foesOf(u))) {
+          const pos = t.buffs.filter((b) => (b.stat === 'vuln' ? b.v < 0 : b.v > 0));
+          v += pos.length * atkOf(t) * 0.35;
+          if (t.st.fortress) v += hitFoes(u) * Math.min(50, t.st.fortress.n) / 100 * 1.5;
+          if (t.st.barrier) v += hitFoes(u) / Math.max(1, foesOf(u).length) * t.st.barrier.n;
+        }
+        acc.o += v * 0.8;
+        break;
+      }
+      case 'revive': {
+        const dead = (u.side === 'a' ? A : E).filter((x) => !x.alive);
+        if (dead.length && !u.usedRevive) acc.s += num(dead[0].maxHp) * 0.85;
+        break;
+      }
+      case 'taunt': {
+        const dur = positive(e.dur, 2);
+        // 血厚的人吸火才有意义：自己越健康、队友越惨，越值
+        const squish = F.filter((x) => x !== u).reduce((s, x) => s + Math.max(0, 0.75 - hpPct(x)), 0);
+        acc.s += hitFoes(u) * dur * (0.18 + squish * 0.9) * (u.type === 'WARDEN' ? 1.25 : 0.8);
+        break;
+      }
+      case 'reflect': {
+        const dur = positive(e.dur, 2);
+        acc.s += hitFoes(u) * (num(e.pct, 30) / 100) * dur * 0.45 * (hpPct(u) > 0.3 ? 1 : 0.5);
+        break;
+      }
+      case 'stun': {
+        const list = e.to === 'foes' ? foesOf(u) : foeTargets(u, e.to || 'foe');
+        for (const t of list) if (!t.boss && !t.reward) acc.s += atkOf(t) * positive(e.n, 1) * 0.85;
+        break;
+      }
+      case 'chain': {
+        const hits = positive(e.hits, 3);
+        const avg = num(e.m, 1) * (1 + num(e.grow, 0.2) * (hits - 1) / 2);
+        const list = reachable(u);
+        if (list.length) acc.o += list.reduce((s, t) => s + Math.min(estHit(u, t, avg), num(t.hp) + num(t.shield)) * hits / list.length, 0);
+        break;
+      }
+      case 'splash': {
+        const main = aimAt(u, 'foe');
+        if (main) addDmg(u, acc, [main], num(e.m, 1));
+        for (const t of foesOf(u)) if (t !== main) addDmg(u, acc, [t], num(e.m, 1) * num(e.share, 0.5));
+        break;
+      }
+      case 'echo': acc.o += atkOf(u) * 1.5 * positive(e.n, 1); break;
+      case 'cdReset': {
+        const saved = friendsOf(u).reduce((s, x) => s + Math.max(0, num(x.cd.Skill1), num(x.cd.Skill2)), 0);
+        acc.o += saved * atkOf(u) * 0.25;
+        break;
+      }
+      case 'shieldDmg': {
+        const sum = friendsOf(u).reduce((s, x) => s + num(x.shield), 0);
+        const t = aimAt(u, 'foe');
+        if (t && sum > 0) acc.o += Math.min(sum * num(e.m, 1), num(t.hp));
+        break;
+      }
+      case 'blood': {
+        const cost = Math.min(u.hp - 1, u.maxHp * num(e.cost, 15) / 100);
+        acc.s -= cost * 1.1 * (hpPct(u) < 0.45 ? 2 : 1);        // 残血献祭是自杀
+        for (const t of (e.to === 'foes' ? foesOf(u) : foeTargets(u, e.to || 'foe'))) addDmg(u, acc, [t], num(e.m, 1) * (1 + num(e.cost, 15) / 50));
+        break;
+      }
+      case 'missingHeal': {
+        for (const t of allyTargets(u, e.to || 'allies')) acc.s += Math.max(0, t.maxHp - t.hp) * num(e.pct, 40) / 100 * Math.min(1, 0.5 + urgency(t));
+        break;
+      }
+      case 'delay': {
+        // 打的是几回合后的全场：折算成六折（对手可能先死、自己也未必还在）
+        const hits = foesOf(u).reduce((s, t) => s + Math.min(estHit(u, t, num(e.m, 1)), num(t.hp) + num(t.shield)), 0);
+        acc.o += hits * 0.6;
+        break;
+      }
+      case 'lowHpBoost': {
+        const mul = num(e.m, 1) * (1 + 2 * (1 - hpPct(u)));     // 血越少越值 —— 这位的牌就是这么设计的
+        for (const t of (e.to === 'foes' ? foesOf(u) : foeTargets(u, e.to || 'foe'))) addDmg(u, acc, [t], mul);
+        break;
+      }
+      case 'poisonBurst': {
+        for (const t of foesOf(u)) { const p = t.st.poison; if (p) acc.o += Math.min(num(p.n) * num(p.per) * num(e.m, 1.5), num(t.hp)); }
+        break;
+      }
+      case 'dotBurst': {
+        for (const t of foesOf(u)) if (t.dots.length) acc.o += Math.min(t.dots.reduce((s, d) => s + num(d.dmg) * num(d.dur), 0) * num(e.m, 1), num(t.hp));
+        break;
+      }
+      case 'extraTurn': {
+        const ally = friendsOf(u).filter((x) => x !== u && x.kit).sort((x, y) => y.atk - x.atk)[0];
+        if (ally && !u._xt) acc.o += atkOf(ally) * 1.4;
+        break;
+      }
+      default: break;
+    }
+  }
+
+  // 定位权重：同样的收益，突破手更看重伤害、守护更看重减伤、辅助更看重治疗与增益。
+  // 角色之间的真正差别来自 kit（真实卡面决定手里有什么牌），定位只决定「同样一分我更看重哪头」。
+  const ROLE_W = { ASSAULT: { o: 1.15, s: 0.82 }, WARDEN: { o: 0.95, s: 1.2 }, CHORUS: { o: 0.85, s: 1.22 } };
+  const TIE = { Skill1: 3, Skill2: 2, Defense: 1, Strike: 0 };   // 同分时优先技能：技能额外给更多能量
+
+  function cardValue(u, slot) {
+    const sk = u.kit[slot];
+    if (!sk) return -1;
+    const acc = { o: 0, s: 0 };
+    for (const e of (Array.isArray(sk.effects) ? sk.effects : [])) scoreEffect(u, e, acc);
+    const w = ROLE_W[u.type] || ROLE_W.ASSAULT;
+    let v = acc.o * w.o + acc.s * w.s;
+    // 架势只换盾不换输出：健康时别磨，血线到了阈值才变成好牌（保留预设里的 defend 手感）
+    if (slot === 'Defense') v *= hpPct(u) < strat.defend ? 1.45 : 0.7;
+    if (u.echo > 0) v *= 1.1;      // 回响期：这一下会被重放一遍
+    return v;
+  }
+
   const ultReady = (x) => x.alive && !x.st.sealed && (x.key >= 100 || x.ali >= 100);
   function ultCard(u) { return u.key >= 100 ? 'OverExalt' : 'Exalt'; }
+  /** 当前能用的普通牌里，分值最高的那对 { slot, v }（不含唤醒 / 大招） */
+  function bestNormal(u) {
+    let best = { slot: 'Strike', v: -Infinity };
+    for (const slot of ['Skill1', 'Skill2', 'Defense', 'Strike']) {
+      if (slot !== 'Strike' && u.cd[slot] > 0) continue;
+      const v = cardValue(u, slot) + TIE[slot];
+      if (v > best.v) best = { slot, v };
+    }
+    return best;
+  }
   function chooseAllyCard(u) {
-    const kit = u.kit;
-    if (!u.roused) return 'Rouse';
     if (ultReady(u)) {
-      if (ultMode === 'first') return ultCard(u);
-      if (ultMode === 'manual') {
-        // 手动：只有玩家点过的那一位、而且指令生效的回合到了，才放
-        const c = cmds.find((x) => !x.done && x.uid === u.uid && round >= (x.from || 1));
-        if (c) { c.done = true; return ultCard(u); }
+      if (ultMode === 'first') {
+        // 血满了还放「治疗型大招」是白扔一次行动：大招和其它牌一起算分，
+        // 明显不如手上的牌就先捏着（最多捏两次，能量顶到 100 之后攒得也浪费）。
+        const nv = bestNormal(u);
+        const uv = cardValue(u, ultCard(u));
+        u.holdUlt = (u.holdUlt || 0) + 1;
+        if (uv >= nv.v * 0.72 || u.holdUlt > 2 || hpPct(u) < 0.45) { u.holdUlt = 0; return ultCard(u); }
+      }
+      if (ultMode === 'order') {
+        // 按玩家排好的顺序开：排在自己前面、而且已经攒满的人还没开（说明它这轮还没轮到），就先等它；
+        // 等 2 次行动还没等到（那位被控 / 已经死了 / 排在别人后面卡住），就自己先开，免得干等。
+        const rank = (x) => { const i = ultOrder.indexOf(x.slug); return i < 0 ? 999 : i; };
+        const me = rank(u);
+        const ahead = friendsOf(u).filter((x) => x.kit && rank(x) < me && ultReady(x) && x.lastUltRound !== round);
+        u.ultWait = (u.ultWait || 0) + 1;
+        if (!ahead.length || u.ultWait > 2) { u.ultWait = 0; return ultCard(u); }
       } else if (ultMode === 'sync') {
         // 攒大招一起开：每个活着的队友都攒满了（或者已经进入「齐射回合」）才放；
         // 为了不被拖死：自己等了 3 次行动还没等齐，或者自己血量已经见底，就不等了
@@ -386,11 +801,8 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         if (all || burstRound === round || u.ultWait > 3 || hpPct(u) < 0.3) { u.ultWait = 0; return ultCard(u); }
       }
     }
-    if (hpPct(u) < strat.defend && !(u.cd.Defense > 0)) return 'Defense';
-    if (u.type === 'CHORUS' && !(u.cd.Skill1 > 0) && friendsOf(u).some((f) => hpPct(f) < 0.65)) return 'Skill1';
-    if (!(u.cd.Skill2 > 0)) return 'Skill2';
-    if (!(u.cd.Skill1 > 0)) return 'Skill1';
-    return 'Strike';
+    // 剩下的牌（唤醒 / 大招之外）逐张算分，取最高的那张；普攻永远可用，是兜底
+    return bestNormal(u).slot;
   }
 
   // enemies play their opening once, then loop the cycle
@@ -419,8 +831,8 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     push({ k: 'act', who: u.uid, slot, name: sk.name, round, ...(sk.text ? { text: sk.text } : {}), ...(sk.ic ? { ic: sk.ic } : {}) });
     if (u.kit) {
       if (slot === 'Rouse') { u.roused = true; gainGauge(u, 'key', 0); }
-      if (slot === 'Exalt') { u.ali = 0; gainGauge(u, 'key', 34); }
-      else if (slot === 'OverExalt') { u.key = 0; }
+      if (slot === 'Exalt') { u.ali = 0; gainGauge(u, 'key', 34); u.lastUltRound = round; }
+      else if (slot === 'OverExalt') { u.key = 0; u.lastUltRound = round; }
       else if (slot === 'Strike') gainGauge(u, 'ali', 14);
       else if (slot === 'Skill1' || slot === 'Skill2') { gainGauge(u, 'ali', 20); gainGauge(u, 'key', 4); u.cd[slot] = slot === 'Skill1' ? 2 : 3; }
       else if (slot === 'Defense') u.cd.Defense = 3;
@@ -451,6 +863,19 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   const finished = () => !A.some((x) => x.alive) || !E.some((x) => x.alive);
 
   for (const u of E) showIntent(u);
+  // ---- 登场：唤醒 ----
+  // 「唤醒」是登场技，不是第一回合要花掉的那个动作：开场四人同时唤醒，加成开场就挂在
+  // 身上，第一回合就能真正出手。（以前四个人一轮都在喊唤醒，等于白送对面一轮，而挂机
+  // 通关是有回合上限的，那一轮直接吃掉 1/18 的预算。）
+  // 记一条 round 0 的行动事件，观战回放照旧能把「唤醒」播出来。
+  for (const u of A) {
+    if (!u.kit || !u.kit.Rouse || u.roused) continue;
+    const sk = u.kit.Rouse;
+    u.roused = true;
+    push({ k: 'act', who: u.uid, slot: 'Rouse', name: sk.name, round: 0, ...(sk.text ? { text: sk.text } : {}) });
+    run(u, Array.isArray(sk.effects) ? sk.effects : []);
+  }
+  emitAll();
   while (round < maxRounds && !finished()) {
     round++;
     push({ k: 'round', n: round });

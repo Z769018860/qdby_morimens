@@ -1,12 +1,12 @@
 // 满超限 / 满最终法则 的专属技能：每位唤醒体各两个，名字独一份。
 //
-//   超限技（超限 Lv 99 解锁）：每行动 3 次，在普通行动之后免费追加一次；
-//   终焉技（最终法则 Lv 99 解锁）：每行动 4 次，在普通行动之后免费追加一次，效果比超限技更重。
+//   超限技（超限 Lv 99 解锁）：每行动 N 次，在普通行动之后免费追加一次；
+//   终焉技（最终法则 Lv 99 解锁）：每行动 M 次，在普通行动之后免费追加一次，效果比超限技更重。
+//   N / M 逐位不同（2 快节奏轻、5 慢重击重），这是每位专属技能的一个额外维度。
 //
-// 每位唤醒体的两个技能都是手写的一份效果列表（见下面的 SKILLS），每位的终焉技围绕一个自己的「主机制」展开：
-// 斩杀 / 按比例扣血 / 净化 / 驱散 / 复苏 / 嘲讽 / 反射 / 眩晕 / 连锁 / 溅射 / 回响 / 重置冷却 /
-// 护盾转伤害 / 献祭 / 按损失生命治疗 / 延迟爆发 / 残血增伤——这些是专属技能新加的战斗机制（core/battle.js 的 run）。
-// 同一个主机制由 3~5 位使用，但每位搭配的副机制和数值都不同，test 里校验没有两位的技能组合完全一样。
+// 设计口径（详见下面 SKILLS 的注释）：超限技是「节奏位」，把这位 kit 里最顺手的事做成循环；
+// 终焉技是「收束位」，把自家 kit 造出来的状态（毒 / 流血 / 反击层 / 屏障 / 能量 / 护盾 / 血线）
+// 兑换成一记爆发。71 位逐条手写，mechanic 词汇见 core/battle.js 的 run()。
 import { fx as E, describeSkill } from './skills.js';
 
 export const EXTRA_OD_AT = 99;      // 超限满级
@@ -122,104 +122,206 @@ const PSB = (m) => ({ t: 'poisonBurst', m });
 const DTB = (m) => ({ t: 'dotBurst', m });
 const XT = () => ({ t: 'extraTurn' });
 
-// slug -> [超限技效果, 终焉技效果]
+// slug -> { theme, od, law, odEvery?, lawEvery? }
+//
+// 设计规矩（71 位逐条手写，没有两个人共用一套）：
+//   超限技 = 这位自己的「节奏位」：把他 kit 里最顺手的那件事，做成每几个行动免费来一次的循环。
+//   终焉技 = 这位自己的「收束位」：把自家 kit 造出来的战场状态（毒 / 流血 / 反击层 / 屏障 / 能量 /
+//            护盾 / 血线）兑换成一记爆发——所以同一个机制家族里的人，收束的「燃料」也各不相同。
+//   every  = 每行动几次追加一次。快节奏(2)单次轻，慢重击(5)单次重，是第三个性别维度。
+//
+// 共用的机制词汇见 core/battle.js 的 run()：斩杀 / 比例扣血 / 净化 / 驱散 / 复苏 / 嘲讽 / 反射 / 眩晕 /
+// 连锁 / 溅射 / 回响 / 重置冷却 / 护盾转伤害 / 献祭 / 按损失生命治疗 / 延迟 / 残血增伤 / 引爆中毒 /
+// 引爆流血 / 追击号令 / 反击爆发 / 屏障化疗 / 能量超载 / 以毒养身 / 毒甲 / 流血扩散。
+const CBR = (m) => ({ t: 'counterBurst', m });
+const BRH = (pct) => ({ t: 'barrierHeal', pct });
+const GBR = (m, to = 'foe') => ({ t: 'gaugeBurn', m, to });
+const PHL = (pct) => ({ t: 'poisonHeal', pct });
+const PSH = (pct) => ({ t: 'poisonShield', pct });
+const DSPR = (m, dur) => ({ t: 'dotSpread', m, dur });
+
 const SKILLS = {
-  // —— 延迟爆发：先蓄力，几回合后全场开花 ——
-  '24': [[D(1.2, 'foes'), DLY(1.0, 2)], [DLY(3.0, 2), B('amp', 40, 3), D(1.5, 'foes')]],
-  chaoxing: [[DLY(1.3, 2), G('keyflare', 15)], [DLY(3.5, 3), CHN(1.0, 3, 0.3)]],
-  alice: [[DLY(1.2, 2), B('crit', 20, 2)], [DLY(3.2, 2), STN('foes', 1), G('keyflare', 30)]],
-  pickman: [[DLY(1.0, 2), H(0.5, 'allies')], [DLY(2.5, 2), Dot(0.8, 4, 'foes'), H(1.0, 'allies')]],
-  // —— 斩杀：对残血的敌人伤害翻倍 ——
-  aurita: [[EXE(1.6, 0.3), S(0.5)], [EXE(2.4, 0.4, 'foes'), DTB(1.0)]],
-  jenkin: [[EXE(1.5, 0.3, 'foeLow'), G('keyflare', 15)], [EXE(2.8, 0.35, 'foes'), G('keyflare', 40), B('crit', 30, 3)]],
-  tulu: [[St('poison', 6, 3, 'foes'), EXE(1.5, 0.3)], [St('poison', 12, 3, 'foes'), PSB(1.5), EXE(2.5, 0.4, 'foes')]],
-  sorel: [[EXE(1.4, 0.3), Dot(0.4, 3)], [EXE(2.6, 0.4), DTB(1.5), LS(40)]],
-  // —— 按最大生命比例扣血：专治厚血 ——
-  goliath: [[PCT(7), S(0.5)], [PCT(10, 'foes'), D(1.5, 'foes'), Db('def', 30, 3, 'foes')]],
-  doresain: [[PCT(6), LS(40)], [PCT(12, 'foes'), DTB(1.0), LS(50)]],
-  uvhash: [[PCT(7), Dot(0.4, 3)], [PCT(10, 'foes'), BLD(25, 2.0)]],
-  'kathigu-ra': [[PCT(5, 'foes'), B('crit', 20, 2)], [PCT(9, 'foes'), BLD(20, 2.5), B('atk', 40, 3)]],
-  // —— 净化：清负面，再补一口 ——
-  clementine: [[CLN(), H(0.6, 'allies')], [CLN(), H(1.4, 'allies'), St('barrier', 2, 3, 'allies')]],
-  thais: [[CLN('ally'), MH(30, 'ally')], [CLN(), H(1.0, 'allies'), Dot(0.6, 3, 'foes')]],
-  xu: [[CLN('ally'), H(0.7)], [CLN(), MH(50), H(1.0, 'allies')]],
-  leigh: [[CLN(), MH(30, 'allies')], [CLN(), MH(60), B('def', 30, 3, 'allies')]],
-  // —— 驱散：拆掉敌人的增益与护盾 ——
-  casiah: [[DSP(), G('aliemus', 20, 'allies')], [DSP(), CLN(), G('aliemus', 40, 'allies'), B('crit', 30, 3, 'allies')]],
-  tinct: [[DSP(), Db('def', 20, 2, 'foes')], [DSP(), Db('def', 40, 3, 'foes'), B('amp', 30, 3, 'allies')]],
-  vivian: [[DSP(), H(0.5, 'allies')], [DSP(), CLN(), H(1.2, 'allies'), B('crit', 35, 3, 'allies')]],
-  ryker: [[DSP(), B('atk', 25, 2, 'allies')], [DSP(), B('atk', 50, 3, 'allies'), B('crit', 25, 3, 'allies')]],
-  // —— 复苏：让倒下的队友站起来（每场一次）——
-  celeste: [[H(0.8, 'allies'), S(0.5, 'allies')], [REV(40), H(1.2, 'allies'), S(0.8, 'allies')]],
-  miryam: [[MH(40, 'allies'), S(0.5, 'allies')], [REV(35), MH(70), S(1.0, 'allies')]],
-  saya: [[H(0.6, 'allies'), Dot(0.4, 3, 'foes')], [REV(45), H(1.0, 'allies'), Dot(0.8, 4, 'foes')]],
-  lily: [[S(0.8, 'allies'), H(0.4)], [REV(50), S(1.4, 'allies'), St('fortress', 30, 3, 'allies')]],
-  // —— 嘲讽：把敌人的火力全吸到自己身上 ——
-  ogier: [[TNT(2), St('counter', 2, 2)], [TNT(3), S(1.5), St('counter', 5, 3), RFL(40, 3)]],
-  'ogier-oathbound': [[TNT(2), S(0.9), B('def', 30, 2)], [TNT(4), St('barrier', 3, 4), RFL(50, 4), S(1.6)]],
-  alva: [[TNT(2), S(1.0)], [TNT(3), St('fortress', 45, 3), S(1.4), D(1.2, 'foes')]],
-  caecus: [[TNT(2), St('barrier', 1, 2)], [TNT(3), St('barrier', 3, 3), Db('atk', 30, 3, 'foes')]],
-  castor: [[TNT(2), B('def', 40, 2)], [TNT(3), ECH(1), S(1.2), D(1.5, 'foes')]],
-  // —— 反射：把挨的打原样弹回去 ——
-  agrippa: [[RFL(30, 2), S(0.8)], [RFL(60, 3, 'allies'), St('counter', 4, 3, 'allies'), S(1.0, 'allies')]],
-  aigis: [[S(0.7, 'allies'), RFL(25, 2, 'allies')], [RFL(50, 3, 'allies'), H(1.2, 'allies'), B('def', 30, 3, 'allies')]],
-  corposant: [[RFL(35, 2), D(0.9, 'foes')], [RFL(70, 3), D(1.8, 'foes'), St('fortress', 30, 3, 'allies')]],
-  erica: [[RFL(30, 2, 'allies'), B('def', 30, 2, 'allies')], [RFL(55, 3, 'allies'), CLN(), S(1.2, 'allies')]],
-  salvador: [[RFL(30, 2), H(0.4, 'self')], [RFL(65, 3, 'allies'), MH(50), S(1.2, 'allies')]],
-  // —— 眩晕：让敌人白白丢掉行动（首领免疫）——
-  horla: [[STN('foe', 1), G('keyflare', 15)], [STN('foes', 1), D(1.5, 'foes'), G('keyflare', 40)]],
-  arachne: [[STN('foe', 1), Db('atk', 20, 2, 'foes')], [STN('foes', 2), Db('atk', 40, 3, 'foes'), G('aliemus', 30, 'allies')]],
-  hameln: [[STN('foe', 1), B('crit', 20, 2, 'allies')], [STN('foes', 1), Db('vuln', 30, 3, 'foes'), G('aliemus', 30, 'allies')]],
-  mouchette: [[STN('foe', 1), D(1.2)], [STN('foes', 1), D(2.2, 'foes'), B('crit', 40, 3)]],
-  // —— 连锁：随机弹射，越弹越疼 ——
-  pandia: [[CHN(1.0, 3, 0.3), Dot(0.3, 2)], [CHN(1.3, 4, 0.6), DTB(1.2), B('amp', 30, 3)]],
-  nymphaea: [[CHN(0.9, 3, 0.4), B('crit', 15, 2)], [CHN(1.1, 5, 0.5), XT()]],
-  daffodil: [[CHN(0.8, 3, 0.3)], [CHN(1.2, 5, 0.4), G('keyflare', 30)]],
-  liz: [[CHN(0.7, 4, 0.25)], [CHN(1.0, 6, 0.35), B('crit', 30, 3), G('keyflare', 30)]],
-  pollux: [[CHN(0.8, 4, 0.25), G('keyflare', 10)], [St('poison', 10, 3, 'foes'), CHN(1.2, 5, 0.3), PSB(1.5)]],
-  // —— 溅射：主目标吃满，旁边的也跑不掉 ——
-  lotan: [[SPL(1.5, 0.6)], [SPL(2.8, 0.8), B('amp', 30, 3), D(1.0, 'foes')]],
-  'lotan-cetarchon': [[SPL(1.8, 0.5), B('amp', 20, 2)], [SPL(3.2, 0.9), BLD(20, 1.5), B('amp', 40, 3)]],
-  vortice: [[SPL(1.5, 0.5), S(0.4)], [SPL(2.8, 0.75), Db('def', 30, 3, 'foes'), S(0.8)]],
-  helot: [[SPL(1.4, 0.5), LS(30)], [SPL(2.6, 0.7), Db('def', 25, 3, 'foes'), B('atk', 30, 3)]],
-  'helot-catena': [[SPL(1.6, 0.5), Dot(0.4, 3)], [SPL(3.0, 0.8), Dot(0.8, 3, 'foes'), LS(40)]],
-  // —— 回响：之后的普通行动打两遍 ——
-  karen: [[ECH(1), B('atk', 20, 2, 'allies')], [ECH(2), H(1.2, 'allies'), B('amp', 30, 3, 'allies')]],
-  tawil: [[ECH(1), G('aliemus', 15, 'allies')], [ECH(2), G('aliemus', 40, 'allies'), S(0.8, 'allies')]],
-  doll: [[ECH(1), H(0.5, 'allies')], [ECH(2), B('atk', 40, 3, 'allies'), H(1.0, 'allies')]],
-  'doll-inferno': [[ECH(1), Dot(0.5, 3, 'foes')], [ECH(2), Dot(1.0, 4, 'foes'), DTB(1.2)]],
-  // —— 重置冷却：让全队的技能立刻可用 ——
-  ramona: [[CDR('allies')], [CDR('allies'), ECH(1), H(1.0, 'allies')]],
-  'ramona-timeworn': [[CDR('allies'), G('aliemus', 10, 'allies')], [CDR('allies'), XT(), B('amp', 30, 3, 'allies')]],
-  faros: [[CDR('self'), H(0.6, 'allies')], [CDR('allies'), G('aliemus', 30, 'allies'), B('atk', 30, 3, 'allies')]],
-  faint: [[CDR('self'), S(0.8)], [CDR('allies'), S(1.2, 'allies'), H(0.8, 'allies')]],
-  // —— 护盾转伤害：全队的盾，都是我的子弹 ——
-  murphy: [[S(1.0, 'allies'), SHD(0.5)], [S(1.6, 'allies'), SHD(1.0), St('barrier', 2, 3, 'allies')]],
-  'murphy-fauxborn': [[S(0.9, 'allies'), SHD(0.4), H(0.4, 'ally')], [S(1.4, 'allies'), SHD(1.2), H(1.0, 'allies')]],
-  sanga: [[S(0.8), SHD(0.6)], [S(1.8), SHD(1.6), Db('atk', 30, 3, 'foes')]],
-  pontos: [[S(0.9), SHD(0.5), Db('def', 15, 2, 'foes')], [S(1.5, 'allies'), SHD(1.3), TNT(2)]],
-  caraboo: [[S(0.8), SHD(0.5), LS(30)], [S(1.6, 'allies'), SHD(1.4), LS(60)]],
-  // —— 献祭：拿血换伤害 ——
-  ratking: [[BLD(10, 1.2), LS(30)], [BLD(30, 2.2), Dot(0.7, 3, 'foes'), LS(50)]],
-  dragond: [[BLD(12, 1.3), B('crit', 20, 2)], [BLD(35, 2.4), B('amp', 40, 3), B('crit', 30, 3)]],
-  zerok: [[BLD(8, 0.9), H(0.6, 'allies')], [BLD(20, 1.8), H(1.5, 'allies'), CLN()]],
-  samo: [[BLD(10, 1.0), S(0.6)], [BLD(25, 2.0), S(1.5), St('counter', 4, 3)]],
-  // —— 按损失生命治疗：越惨，治得越多 ——
-  xiamolin: [[MH(40, 'allies'), B('def', 20, 2, 'allies')], [MH(90, 'allies'), S(1.0, 'allies'), G('aliemus', 30, 'allies')]],
-  maodie: [[MH(40, 'ally'), S(0.7)], [MH(100, 'allies'), RFL(35, 3, 'allies'), TNT(2)]],
-  winkle: [[MH(35, 'ally'), B('def', 30, 2)], [MH(70, 'allies'), RFL(40, 3, 'allies'), B('def', 40, 3, 'allies')]],
-  wanda: [[MH(40, 'allies'), S(0.6)], [MH(80, 'allies'), S(1.2, 'allies'), CLN()]],
-  // —— 残血增伤：血越少，下手越狠 ——
-  nautila: [[LHB(1.2, 'foes'), S(0.7)], [LHB(2.2, 'foes'), St('fortress', 35, 3), S(1.2)]],
-  mengyi: [[H(0.5), LHB(1.0)], [LHB(2.0, 'foes'), MH(60, 'allies'), S(0.8, 'allies')]],
+  // ============ 毒：谁下的毒，就由谁来收这笔账 ============
+  agrippa: { theme: '毒 · 毒层转护盾', od: [S(0.7, 'allies'), St('poison', 5, 3, 'foe')], law: [PSH(3.5), S(1.2, 'allies'), St('poison', 7, 4, 'foes')] },
+  castor: { theme: '毒 · 嘲讽盾、毒爆', od: [S(0.9), TNT(2), St('poison', 5, 3, 'foe')], law: [PSB(1.8), S(1.2, 'allies'), St('barrier', 2, 3, 'allies')] },
+  faros: { theme: '毒 · 毒层转治疗', od: [St('poison', 4, 3, 'foes'), H(0.55, 'allies')], law: [PHL(4), S(1.0, 'allies'), Db('def', 25, 3, 'foes')] },
+  karen: { theme: '毒 · 暴击毒疗', odEvery: 2, od: [St('poison', 5, 3, 'foes'), B('crit', 20, 2, 'allies')], law: [PHL(4.5), H(0.9, 'allies'), B('crit', 30, 3, 'allies')] },
+  lily: { theme: '毒 · 毒甲毒爆', od: [S(1.0), St('poison', 5, 3, 'foe')], law: [PSB(1.6), S(1.4, 'allies'), St('poison', 8, 3, 'foes')] },
+  liz: { theme: '毒 · 毒换狂气', odEvery: 2, od: [St('poison', 4, 3, 'foe'), G('keyflare', 12)], law: [PSB(1.8), G('keyflare', 35), B('crit', 30, 3)] },
+  miryam: { theme: '毒 · 毒疗与复苏', od: [St('poison', 4, 3, 'foes'), Db('def', 20, 2, 'foes')], law: [PHL(5), REV(35), S(0.9, 'allies')] },
+  nymphaea: { theme: '毒 · 毒爆连锁', od: [St('poison', 5, 3, 'foes'), B('crit', 18, 2)], law: [PSB(2.0), CHN(1.0, 4, 0.35), Db('vuln', 25, 3, 'foes')] },
+  pollux: { theme: '毒 · 毒爆弹射', odEvery: 2, od: [St('poison', 5, 3, 'foes'), CHN(0.8, 3, 0.25)], law: [PSB(1.7), CHN(1.1, 4, 0.35), G('keyflare', 30)] },
+  ratking: { theme: '毒 · 毒爆扩散', odEvery: 2, od: [St('poison', 6, 3, 'foes')], law: [PSB(1.6), DSPR(1.0, 3), Dot(0.45, 3, 'foes')] },
+  saya: { theme: '毒 · 毒中复苏', od: [H(0.6, 'allies'), St('poison', 4, 3, 'foes')], law: [REV(45), H(1.1, 'allies'), St('poison', 8, 3, 'foes')] },
+  thais: { theme: '毒 · 反击层收毒', od: [H(0.55, 'allies'), St('poison', 5, 3, 'foes'), St('counter', 1, 2, 'allies')], law: [CBR(0.13), PHL(3.5), H(0.85, 'allies')] },
+  tulu: { theme: '毒 · 毒爆虚弱', od: [St('poison', 5, 3, 'foes'), St('weakness', 1, 2, 'foes')], law: [PSB(1.8), St('weakness', 1, 3, 'foes'), D(1.6, 'foes')] },
+  xu: { theme: '毒 · 毒疗压攻', od: [St('poison', 5, 3, 'foes'), Db('atk', 25, 2, 'foes')], law: [PHL(4.5), CLN(), Db('atk', 35, 3, 'foes')] },
+  vivian: { theme: '毒 · 毒疗驱散', od: [H(0.55, 'allies'), St('poison', 4, 3, 'foes'), B('crit', 15, 2, 'allies')], law: [DSP(), PHL(4), B('crit', 35, 3, 'allies')] },
+  caraboo: { theme: '毒 · 毒爆吸血', od: [S(0.9), LS(30)], law: [S(1.3, 'allies'), PSB(1.5), SHD(0.8), LS(40)] },
+  'doll-inferno': { theme: '毒 · 反击层收毒', od: [H(0.6, 'allies'), St('counter', 1, 2, 'allies')], law: [CBR(0.22), St('poison', 8, 3, 'foes'), H(1.0, 'allies')] },
+
+  // ============ 流血：把伤口撕开、再让所有人一起流血 ============
+  helot: { theme: '流血 · 溅射放血', od: [SPL(1.2, 0.5), Dot(0.4, 3, 'foe'), LS(30)], law: [DTB(1.5), Db('def', 30, 3, 'foes'), B('atk', 30, 3)] },
+  'helot-catena': { theme: '流血 · 群体感染', od: [Dot(0.5, 3, 'foes'), SPL(1.0, 0.4), LS(30)], law: [DSPR(0.9, 3), DTB(1.1), LS(40)] },
+  dragond: { theme: '流血 · 灼烧引爆', od: [Dot(0.5, 3, 'foes'), Db('def', 20, 2, 'foes')], law: [DTB(1.5), SPL(2.2, 0.6), Dot(0.5, 3, 'foes')] },
+  sorel: { theme: '流血 · 斩杀引爆', odEvery: 2, od: [Dot(0.5, 3, 'foe'), LS(35)], law: [EXE(2.4, 0.4), DTB(1.5), LS(50)] },
+
+  // ============ 反击：攒下来的每一层，都打回去 ============
+  caecus: { theme: '反击 · 反击层收束', od: [S(1.0), St('counter', 2, 2, 'self')], law: [CBR(0.26), BRH(7), St('weakness', 1, 3, 'foes')] },
+  faint: { theme: '反击 · 反击层收束', od: [S(0.9, 'allies'), St('counter', 1, 2, 'self')], law: [CBR(0.26), S(1.4, 'allies'), Db('atk', 30, 3, 'foes')] },
+  nautila: { theme: '反击 · 残血反击爆发', od: [S(1.0), St('counter', 2, 2, 'self'), B('crit', 15, 2)], law: [CBR(0.15), LHB(1.6, 'foes'), S(1.0)] },
+  pandia: { theme: '反击 · 弹射反击爆发', od: [CHN(0.85, 3, 0.3), St('counter', 2, 3, 'self')], law: [CBR(0.16), B('amp', 35, 3), D(1.4, 'foes')] },
+  wanda: { theme: '反击 · 反击层转治疗', od: [S(0.85, 'allies'), St('counter', 1, 2, 'self'), Db('atk', 20, 2, 'foes')], law: [CBR(0.15), CLN(), H(1.1, 'allies')] },
+  winkle: { theme: '反击 · 屏障与反击双收', od: [S(0.9, 'allies'), St('barrier', 1, 2, 'self')], law: [BRH(8), CBR(0.3), S(0.9, 'allies'), SHD(0.7)] },
+
+  // ============ 守护：护盾、屏障、嘲讽，全部是燃料 ============
+  ogier: { theme: '守护 · 嘲讽反击', od: [S(1.1), TNT(2)], law: [S(1.8), TNT(3), SHD(1.1), RFL(45, 3), St('counter', 3, 3, 'self')] },
+  'ogier-oathbound': { theme: '守护 · 屏障反射', od: [S(1.0, 'allies'), B('def', 25, 2, 'allies'), St('barrier', 1, 2, 'self')], law: [S(1.7), TNT(3), St('barrier', 3, 4, 'self'), SHD(1.0), RFL(50, 4)] },
+  alva: { theme: '守护 · 护垒嘲讽', od: [S(1.0), TNT(2), D(0.7, 'foes')], law: [S(1.6), TNT(3), St('fortress', 45, 3, 'allies'), D(1.5, 'foes')] },
+  corposant: { theme: '守护 · 反射反噬', odEvery: 2, od: [RFL(35, 2), S(0.9)], law: [RFL(65, 3, 'allies'), D(1.8, 'foes'), St('fortress', 30, 3, 'allies')] },
+  erica: { theme: '守护 · 屏障化疗', od: [S(1.0, 'allies'), D(0.6, 'foes'), St('barrier', 1, 2, 'self')], law: [BRH(8), S(1.5, 'allies'), D(1.5, 'foes')] },
+  murphy: { theme: '守护 · 盾转伤害', od: [S(1.0, 'allies'), SHD(0.4)], law: [S(1.6, 'allies'), SHD(0.85), St('barrier', 2, 3, 'allies')] },
+  'murphy-fauxborn': { theme: '守护 · 屏障化疗盾击', od: [S(0.7, 'allies'), H(0.5, 'allies')], law: [BRH(7), SHD(1.5), S(1.3, 'allies')] },
+  sanga: { theme: '守护 · 盾转伤害', od: [S(0.9), SHD(0.5)], law: [S(1.8), SHD(1.15), St('barrier', 2, 3, 'allies'), Db('def', 25, 3, 'foes')] },
+  pontos: { theme: '守护 · 盾转伤害嘲讽', od: [S(0.9), Db('def', 20, 2, 'foes')], law: [S(1.4, 'allies'), SHD(1.05), TNT(2)] },
+  samo: { theme: '守护 · 屏障化疗反击', od: [S(0.8, 'allies'), Db('atk', 25, 2, 'foes')], law: [BRH(7), S(1.4, 'allies'), St('counter', 3, 3, 'allies')] },
+  maodie: { theme: '守护 · 屏障化疗', od: [S(0.8, 'allies'), St('barrier', 1, 2, 'self'), Db('atk', 15, 2, 'foes')], law: [BRH(8), H(0.8, 'allies'), Db('atk', 35, 3, 'foes')] },
+  salvador: { theme: '守护 · 反射苦疗', od: [RFL(30, 2), H(0.5)], law: [RFL(60, 3, 'allies'), D(1.3, 'foes'), S(1.2, 'allies'), MH(45)] },
+  aigis: { theme: '守护 · 反射与屏障', odEvery: 2, od: [S(0.8, 'allies'), Db('vuln', 25, 2, 'foes')], law: [RFL(45, 3, 'allies'), H(1.1, 'allies'), St('barrier', 1, 3, 'allies')] },
+  mengyi: { theme: '守护 · 损失生命治疗', od: [H(0.55, 'allies'), S(0.5, 'allies')], law: [MH(60), D(1.4, 'foes'), St('weakness', 1, 3, 'foes'), St('barrier', 1, 3, 'allies')] },
+
+  // ============ 辅助：治疗、能量、时序 ============
+  casiah: { theme: '辅助 · 能量超载', od: [H(0.8, 'allies'), G('aliemus', 18, 'allies')], law: [GBR(0.05, 'foes'), H(1.2, 'allies'), B('amp', 30, 3, 'allies')] },
+  celeste: { theme: '辅助 · 复苏', od: [H(0.7, 'allies'), S(0.6, 'allies')], law: [REV(40), H(1.3, 'allies'), D(1.2, 'foes'), St('barrier', 2, 3, 'allies')] },
+  clementine: { theme: '辅助 · 净化压攻', od: [H(0.7, 'allies'), B('atk', 20, 2, 'allies')], law: [CLN(), H(1.3, 'allies'), Db('atk', 30, 3, 'foes'), B('atk', 35, 3, 'allies')] },
+  doll: { theme: '辅助 · 回响', odEvery: 2, od: [H(0.65, 'allies'), St('weakness', 1, 2, 'foe')], law: [ECH(2), H(1.0, 'allies'), B('atk', 35, 3, 'allies')] },
+  hameln: { theme: '辅助 · 眩晕', od: [H(0.5, 'allies'), Db('atk', 15, 2, 'foes'), G('aliemus', 15, 'allies')], law: [STN('foes', 1), Db('vuln', 30, 3, 'foes'), G('aliemus', 30, 'allies')] },
+  horla: { theme: '辅助 · 眩晕能量超载', od: [H(0.75, 'allies'), Db('atk', 20, 2, 'foes')], law: [STN('foe', 1), GBR(0.05), Db('vuln', 30, 3, 'foes'), H(0.8, 'allies')] },
+  pickman: { theme: '辅助 · 延迟流血', od: [H(0.65, 'allies'), Dot(0.35, 3, 'foes'), LS(25)], law: [DLY(2.6, 2), Dot(0.7, 4, 'foes'), H(1.1, 'allies')] },
+  ryker: { theme: '辅助 · 驱散鼓舞', odEvery: 2, od: [D(0.8, 'foe'), H(0.5, 'allies'), B('atk', 18, 2, 'allies')], law: [DSP(), B('atk', 42, 3, 'allies'), B('crit', 24, 3, 'allies')] },
+  tawil: { theme: '辅助 · 回响充能', odEvery: 2, od: [H(0.55, 'allies'), B('crit', 20, 2, 'allies')], law: [ECH(2), G('aliemus', 35, 'allies'), S(0.8, 'allies')] },
+  tinct: { theme: '辅助 · 能量超载驱散', lawEvery: 3, od: [H(0.55, 'allies'), Db('vuln', 25, 2, 'foes')], law: [DSP(), GBR(0.02, 'foes'), Db('vuln', 40, 3, 'foes'), B('amp', 30, 3, 'allies')] },
+  arachne: { theme: '辅助 · 眩晕与能量', lawEvery: 5, od: [H(0.6, 'allies'), St('barrier', 1, 2, 'allies')], law: [STN('foes', 1), D(1.4, 'foes'), G('aliemus', 40, 'allies'), H(0.9, 'allies')] },
+  zerok: { theme: '辅助 · 能量超载', od: [H(0.55, 'allies'), B('atk', 22, 2, 'allies'), G('aliemus', 8, 'allies')], law: [GBR(0.02, 'foes'), H(1.4, 'allies'), CLN()] },
+  xiamolin: { theme: '辅助 · 损失生命治疗', od: [H(0.6, 'allies'), B('def', 25, 2, 'allies')], law: [MH(70), D(1.3, 'foes'), S(1.1, 'allies'), B('def', 35, 3, 'allies')] },
+  leigh: { theme: '辅助 · 苦痛回疗', od: [H(0.65, 'allies'), LS(35)], law: [MH(55), D(1.3, 'foes'), CLN(), Db('vuln', 30, 3, 'foes')] },
+  ramona: { theme: '辅助 · 重置冷却', odEvery: 4, lawEvery: 5, od: [CDR('allies'), H(0.5, 'allies')], law: [CDR('allies'), ECH(1), H(1.0, 'allies'), Db('atk', 30, 3, 'foes')] },
+  'ramona-timeworn': { theme: '辅助 · 时序追击', odEvery: 4, lawEvery: 5, od: [CDR('allies'), G('aliemus', 12, 'allies')], law: [CDR('allies'), XT(), D(1.3, 'foes'), B('amp', 30, 3, 'allies')] },
+
+  // ============ 突破：把伤害做成自己的形状 ============
+  '24': { theme: '突破 · 多段与延迟', odEvery: 2, lawEvery: 5, od: [CHN(0.55, 3, 0.35), B('crit', 15, 2)], law: [DLY(2.6, 2), CHN(0.85, 6, 0.22), B('amp', 30, 3)] },
+  aurita: { theme: '突破 · 斩杀破防', od: [EXE(1.6, 0.3), Db('def', 20, 2, 'foe')], law: [EXE(2.2, 0.4, 'foes'), D(1.2, 'foes'), S(0.6)] },
+  daffodil: { theme: '突破 · 弹射', od: [CHN(0.8, 3, 0.3)], law: [CHN(1.0, 5, 0.3), B('amp', 30, 3), G('keyflare', 30)] },
+  goliath: { theme: '突破 · 比例扣血', odEvery: 4, lawEvery: 5, od: [PCT(7), S(0.5)], law: [PCT(8, 'foes'), D(1.5, 'foes'), Db('def', 35, 3, 'foes')] },
+  jenkin: { theme: '突破 · 斩杀充能', od: [EXE(1.5, 0.3), G('keyflare', 12)], law: [EXE(2.2, 0.4, 'foes'), CHN(0.9, 4, 0.3), G('keyflare', 30)] },
+  'kathigu-ra': { theme: '突破 · 比例扣血献祭', odEvery: 4, lawEvery: 5, od: [PCT(5, 'foes'), B('crit', 20, 2)], law: [PCT(9, 'foes'), BLD(20, 2.2), B('atk', 40, 3)] },
+  lotan: { theme: '突破 · 溅射', odEvery: 2, od: [SPL(1.5, 0.55)], law: [SPL(2.8, 0.8), B('amp', 30, 3), St('weakness', 1, 3, 'foes')] },
+  'lotan-cetarchon': { theme: '突破 · 溅射献祭', lawEvery: 5, od: [SPL(1.6, 0.5), B('amp', 20, 2)], law: [SPL(3.2, 0.85), BLD(18, 1.6), B('amp', 40, 3)] },
+  mouchette: { theme: '突破 · 眩晕重击', odEvery: 4, lawEvery: 5, od: [STN('foe', 1), D(1.3)], law: [STN('foes', 1), D(2.2, 'foes'), B('crit', 40, 3)] },
+  uvhash: { theme: '突破 · 比例扣血献祭', od: [PCT(5.5), Dot(0.35, 3, 'foes'), LS(25)], law: [PCT(8, 'foes'), BLD(22, 1.5), LS(40)] },
+  vortice: { theme: '突破 · 溅射破防', od: [SPL(1.4, 0.5), Db('def', 15, 2, 'foes')], law: [SPL(2.7, 0.75), Db('def', 35, 3, 'foes'), S(0.8)] },
+  chaoxing: { theme: '突破 · 延迟弹射', od: [DLY(1.2, 2), B('crit', 18, 2)], law: [DLY(3.4, 3), CHN(1.0, 4, 0.35), B('crit', 25, 3)] },
+  alice: { theme: '突破 · 延迟眩晕', od: [DLY(1.1, 2), Db('vuln', 25, 2, 'foes')], law: [DLY(3.2, 2), STN('foes', 1), G('keyflare', 30)] },
+  doresain: { theme: '突破 · 比例扣血引爆', od: [PCT(5), LS(45)], law: [PCT(8.5, 'foes'), DTB(1.0), BLD(19, 1.2), LS(40)] },
 };
 
-const FALLBACK = (a, L) => [D(L ? 2.0 : 1.2, 'foes')];
+const FALLBACK = { od: [D(1.2, 'foes')], law: [D(2.0, 'foes')] };
+
+// 平衡系数：只缩放「力度」（伤害倍率 / 比例 / 增益数值），不动结构、层数、回合数，
+// 所以每位的形状（谁靠毒、谁靠反击）保持原样，只是把数值拉到同一条线上。
+// tools/extra-bench.mjs 量的是「带上它比不带它多赢多少」，这一列就是拿它校准出来的。
+const TUNE = {
+  "24": 1.361,
+  "agrippa": 2.200,
+  "aigis": 2.200,
+  "alice": 0.954,
+  "alva": 1.825,
+  "arachne": 2.200,
+  "aurita": 2.200,
+  "caecus": 2.200,
+  "caraboo": 1.711,
+  "casiah": 2.200,
+  "castor": 2.200,
+  "celeste": 2.200,
+  "chaoxing": 2.131,
+  "clementine": 1.360,
+  "corposant": 2.200,
+  "daffodil": 1.222,
+  "doll": 2.200,
+  "doll-inferno": 2.200,
+  "doresain": 0.822,
+  "dragond": 1.322,
+  "erica": 1.430,
+  "faint": 2.200,
+  "faros": 2.200,
+  "goliath": 1.182,
+  "hameln": 0.973,
+  "helot": 1.290,
+  "helot-catena": 1.157,
+  "horla": 2.200,
+  "jenkin": 2.080,
+  "karen": 1.345,
+  "kathigu-ra": 2.200,
+  "leigh": 2.200,
+  "lily": 2.200,
+  "liz": 2.200,
+  "lotan": 1.097,
+  "lotan-cetarchon": 2.200,
+  "maodie": 2.200,
+  "mengyi": 2.200,
+  "miryam": 1.310,
+  "mouchette": 2.200,
+  "murphy": 1.059,
+  "murphy-fauxborn": 2.200,
+  "nautila": 1.845,
+  "nymphaea": 2.200,
+  "ogier": 2.200,
+  "ogier-oathbound": 2.200,
+  "pandia": 1.398,
+  "pickman": 1.349,
+  "pollux": 1.218,
+  "pontos": 1.010,
+  "ramona": 2.200,
+  "ramona-timeworn": 2.200,
+  "ratking": 1.686,
+  "ryker": 1.036,
+  "salvador": 2.200,
+  "samo": 2.200,
+  "sanga": 0.789,
+  "saya": 2.200,
+  "sorel": 2.200,
+  "tawil": 2.200,
+  "thais": 2.200,
+  "tinct": 1.796,
+  "tulu": 2.200,
+  "uvhash": 0.701,
+  "vivian": 2.200,
+  "vortice": 1.129,
+  "wanda": 2.200,
+  "winkle": 1.241,
+  "xiamolin": 2.200,
+  "xu": 2.200,
+  "zerok": 2.200,
+};
+
+const scale = (e, w) => {
+  if (w === 1) return { ...e };
+  const o = { ...e };
+  // 上限：只放大力度，但不能放大到「一发清场 / 一个 buff 顶穿」的程度，否则手感会崩
+  if (typeof o.m === 'number') o.m = Math.min(o.t === 'execute' ? 3.6 : 4.0, Math.round(o.m * w * 1000) / 1000);
+  if (typeof o.pct === 'number') o.pct = Math.min(o.t === 'pctHp' ? 14 : 12, Math.round(o.pct * w * 10) / 10);
+  if (typeof o.v === 'number') o.v = Math.min(o.t === 'lifesteal' ? 55 : 60, Math.round(o.v * w));
+  return o;
+};
 
 function build(slug, a, L) {
   const names = EXTRA_NAMES[slug] || [`${a.zh}·超限`, `${a.zh}·终焉`];
-  const effects = (SKILLS[slug] || [FALLBACK(a, false), FALLBACK(a, true)])[L ? 1 : 0].map((e) => ({ ...e }));
-  const sk = { name: names[L ? 1 : 0], effects, extra: true, every: L ? EXTRA_EVERY.Law : EXTRA_EVERY.Od };
+  const def = SKILLS[slug] || FALLBACK;
+  const list = (L ? def.law : def.od) || (L ? FALLBACK.law : FALLBACK.od);
+  const w = TUNE[slug] ?? 1;
+  const effects = list.map((e) => scale(e, w));
+  const every = (L ? def.lawEvery : def.odEvery) || (L ? EXTRA_EVERY.Law : EXTRA_EVERY.Od);
+  const sk = { name: names[L ? 1 : 0], effects, extra: true, every, theme: def.theme || '' };
   sk.text = describeSkill(sk);
   return sk;
 }

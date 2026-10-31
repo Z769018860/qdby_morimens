@@ -9,6 +9,9 @@
     "test": "node --test tests/core.test.mjs",
     "sim": "node tools/sim_bot.mjs 4000",
     "regress": "node tools/regress.mjs",
-    "serve": "python3 -m http.server 8765"
+    "serve": "python3 -m http.server 8765",
+    "bench": "node tools/ai-bench.mjs",
+    "extra-bench": "node tools/extra-bench.mjs",
+    "extra-tune": "node tools/extra-tune.mjs"
   }
 }
