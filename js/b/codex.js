@@ -43,7 +43,7 @@ const I18N = {
     keeper: '守密人伤害', tentacle: '触腕伤害', counter: '反击伤害', strength: '力量峰值', poison: '侵蚀/中毒',
     // 养成线索（替代晦涩的 up/tal）
     investTitle: '养成线索',
-    cardLv: '指令卡总等级', madnessLv: '疯狂预兆', potLv: '灵塑',
+    cardLv: '指令卡总等级', madnessLv: '疯狂预兆', potLv: '潜能', potE: '{n}启',
     // 排序说明
     sortNote: '已按队内伤害从高到低排序：A 是伤害最高者。队伍成员以匿名 A–D 呈现，顺序即答案顺序。',
     // 还原面板
@@ -59,8 +59,8 @@ const I18N = {
     hintRealm: '提示阵营', hintRole: '提示定位', hintLv: '提示等级', hintKey: '钥令阵营',
     acctTag: '账号', guestTag2: '', lvTag: '等级', brkTag: '内在灵格',
     clueTitle: '线索台', clueNote: '花银芯解锁，本局内一直有效',
-    clueBrk: '内在灵格', cluePot: '灵塑等级',
-    cluePotTeam: '潜能（灵塑）汇总', cluePotSum: '合计 {n}',
+    clueBrk: '内在灵格', cluePot: '潜能',
+    cluePotTeam: '潜能汇总', cluePotSum: '额外潜能合计 {n}',
     // 开局线索：除入门外的三档白送几条最贵的
     giftTag: '赠送', giftToast: '本档开局赠送 {n} 条线索', clueGiftOn: '已赠送 {n} 条',
     loadMore: '加载更多',
@@ -248,7 +248,7 @@ const I18N = {
     dmgCompTitle: 'Damage composition (keeper & special)',
     keeper: 'Keeper dmg', tentacle: 'Tentacle dmg', counter: 'Counter dmg', strength: 'Peak STR', poison: 'Corrosion/Poison',
     investTitle: 'Build clues',
-    cardLv: 'Command card lv', madnessLv: 'Madness omen', potLv: 'Potency',
+    cardLv: 'Command card lv', madnessLv: 'Madness omen', potLv: 'Potency', potE: 'E{n}',
     sortNote: 'Sorted by damage desc: A is the top dealer. Members are anonymized as A–D; order matches the answer.',
     boardTitle: 'Restore team', boardLevel: '{l}',
     submit: 'Submit', submitLeft: ' ({n} left)', reset: 'Reset',

@@ -343,6 +343,10 @@ function recordStats() {
 }
 
 // ------------------------------------------------------------------ 线索
+// 潜能（replay 里的 potencyLevel，0..15）和游戏里看到的一致：0~3 是「N 启」（启灵），4 起是「+1、+2…」（额外潜能）。
+// 以前这里叫「灵塑」并直接显示 0..15 的裸数字，和游戏里的写法对不上；「灵塑」是另一个东西（天赋里的 soulforge 等级，
+// 要从回放的通用天赋状态参数反推），题库里没有这个字段。
+const potTxt = (n) => (n == null || !Number.isFinite(Number(n)) ? '—' : Number(n) <= 3 ? t('potE', { n: Number(n) }) : `+${Number(n) - 3}`);
 // 线索分两类：卡位上的（阵营、定位、等级）和队伍级的（钥令、内在灵格、灵塑、养成、助战、极值），
 // 以及按位解锁的命轮 / 密契。
 // 队伍级线索全部按当前这道题的真实数据算，没有数据的条目直接不出现；解锁状态按题存在本机。
@@ -646,8 +650,8 @@ function clueList() {
   if (A.pot && full('pot')) {
     team.push({
       id: 'pot', cost: 8, label: t('cluePotTeam'),
-      value: () => `${ans.map((a, k) => `${LETTERS[k]} ${a.pot}`).join(' · ')}`
-        + ` · ${t('cluePotSum', { n: ans.reduce((s, a) => s + (a.pot || 0), 0) })}`,
+      value: () => `${ans.map((a, k) => `${LETTERS[k]} ${potTxt(a.pot)}`).join(' · ')}`
+        + ` · ${t('cluePotSum', { n: '+' + ans.reduce((s, a) => s + Math.max(0, (a.pot || 0) - 3), 0) })}`,
     });
   }
 
@@ -889,7 +893,7 @@ function reportPanel() {
     const invest = [];
     if (a.cardLv != null) invest.push(`${t('cardLv')} Lv.${a.cardLv}`);
     if (a.madness != null) invest.push(`${t('madnessLv')} Lv.${a.madness}`);
-    if (a.pot != null) invest.push(`${t('potLv')} Lv.${a.pot}`);
+    if (a.pot != null) invest.push(`${t('potLv')} ${potTxt(a.pot)}`);
     if (!invest.length && a.up != null) invest.push(t('cardUp', { n: a.up }), t('talentSum', { n: a.tal }));
     return h('div', { class: 'brow' },
       h('span', { class: 'bl' }, LETTERS[k]),
@@ -1053,7 +1057,7 @@ function slotCard(k) {
     card.append(h('div', { class: `pot${f ? ' fb-' + f.c : ''}` },
       h('small', {}, t('potLv')),
       h('button', { type: 'button', onclick: () => { if (!locked) { g.pot = Math.max(0, (g.pot ?? 1) - 1); persist(); render(); } } }, '−'),
-      h('b', {}, g.pot == null ? '—' : g.pot + (f && f.dir ? ' ' + f.dir : '')),
+      h('b', {}, g.pot == null ? '—' : potTxt(g.pot) + (f && f.dir ? ' ' + f.dir : '')),
       h('button', { type: 'button', onclick: () => { if (!locked) { g.pot = Math.min(15, (g.pot ?? -1) + 1); persist(); render(); } } }, '+')));
   }
   if (!locked) {
@@ -1141,7 +1145,7 @@ function teamBlock(team) {
     return [realmOf(e), roleOf(e), e.rarity].filter(Boolean).join(' · ');
   };
   return h('div', { class: 'ans-team' }, team.map((a, k) => h('div', { class: 'ans-slot' },
-    h('b', {}, `${t('slotHead', { l: LETTERS[k] })} · ${t('lv', { n: a.lv })} · ${t('potFull', { n: a.pot })} · ${t('brk', { n: a.brk })}`),
+    h('b', {}, `${t('slotHead', { l: LETTERS[k] })} · ${t('lv', { n: a.lv })} · ${t('potFull', { n: potTxt(a.pot) })} · ${t('brk', { n: a.brk })}`),
     h('div', { class: 'ans-attr' }, awkAttr(a)),
     h('div', { class: 'ans-row' }, mk('awakener', a.tid), (a.wheels || []).map(w => mk('wheel', w)), mk('covenant', a.cov)))));
 }
