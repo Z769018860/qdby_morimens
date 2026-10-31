@@ -169,7 +169,9 @@ test('poison ticks, barrier blocks, counter retaliates, sealed stops exalt', () 
   assert.ok(r2b.events.some((e) => e.k === 'counter' && e.amt > 0), 'counter should hit back');
 
   const sealer = { ...unit({ hp: 100000 }), pattern: [{ name: 'seal', effects: [fx.status('sealed', 1, 5, 'foe')] }] };
-  const exalter = unit({ kit: mkKit([fx.dmg(0.1)]), openAli: 100, openKey: 100 });
+  // 唤醒改成登场技之后，第一回合就会真出手，所以这里把开局能量压在 96：第一次行动普攻 +14 攒满，
+  // 而封印在同一回合就会落到它身上——测的还是「被封印的人开不出大招」这件事。
+  const exalter = unit({ kit: mkKit([fx.dmg(0.1)]), openAli: 96, openKey: 0 });
   const r3 = sim2({ allies: [exalter], enemies: [sealer], seed: 3, maxRounds: 4 });
   assert.ok(!r3.events.some((e) => e.k === 'act' && e.who === 'a0' && (e.slot === 'Exalt' || e.slot === 'OverExalt')), 'sealed units cannot exalt');
 });
@@ -1955,7 +1957,9 @@ test('专属技能：战斗里按节奏免费追加，且比不带的队伍更�
   const withExtra = teamDefs(s, data).list ?? teamDefs(s, data);
   const defs = (Array.isArray(withExtra) ? withExtra : withExtra.list);
   assert.ok(defs.every((d) => d.extra && d.extra.Od && d.extra.Law));
-  const foe = (n) => ({ name: '靶子', hp: 5e5, atk: 1, def: 0, type: 'WARDEN', realm: 'CHAOS', pattern: [{ name: '普攻', effects: [{ t: 'dmg', m: 0.1, to: 'foe' }] }], idx: n });
+  // 靶子的血量要给够：清得太快的话「总伤害」反而变小（后面几回合根本没得打），
+  // 比的就不是输出而是「谁先打完」。留到 12 回合都打不穿，总量才是真正的 DPS 差。
+  const foe = (n) => ({ name: '靶子', hp: 2e6, atk: 1, def: 0, type: 'WARDEN', realm: 'CHAOS', pattern: [{ name: '普攻', effects: [{ t: 'dmg', m: 0.1, to: 'foe' }] }], idx: n });
   const run = (ds) => simulate({ allies: ds, enemies: [foe(0), foe(1)], seed: 7, maxRounds: 12 });
   const a = run(defs);
   const plain = defs.map((d) => ({ ...d, extra: null }));

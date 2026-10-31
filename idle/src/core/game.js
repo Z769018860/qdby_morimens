@@ -735,7 +735,7 @@ export const PRESETS = {
 export function setPreset(state, key) { const p = PRESETS[key]; state.strategy = { preset: key, defend: p.defend, target: p.target, ult: state.strategy?.ult || 'first' }; }
 /** 大招策略：first 优先开大 / sync 攒大招一起开大 / manual 手动开大（实时战斗里点头像开） */
 export const ULT_MODES = {
-  first: { zh: '优先开大', desc: '大招一攒满就放，排在防御、技能之前（唤醒之后）。' },
+  first: { zh: '优先开大', desc: '大招一攒满就放，排在防御、技能之前（登场技是开场自动生效的，不占动作）。' },
   sync: { zh: '攒大招一起开', desc: '等全队的大招都攒满再一起放，打出爆发窗口；等太久（3 次行动）或自己血量见底就不等了。' },
   manual: { zh: '手动开大', desc: '大招攒满后头像会亮起「开大」按钮，点一下，那位下一次行动就放；不点就不放。只对你正在看的实时战斗生效，离线 / 无人值守的结算仍按「优先开大」。' },
 };
