@@ -1765,6 +1765,11 @@ const GD_SPEC = [
     ['最高分', v[0] ? String(n(v[0])) : '—'],
     ['最高块', v[1] ? String(n(v[1])) : '—'],
   ] },
+  { k: 'rg', n: '弥萨格王权', f: (v) => [
+    ['结局', n(v[0]) + ' / 30'],
+    ['最长任期', n(v[1]) ? '第 ' + n(v[1]) + ' 天' : '—'],
+    ['当过几任', n(v[2]) ? n(v[2]) + ' 任' : '—'],
+  ] },
   { k: 'dl', n: '唤醒王：决斗链接', f: (v) => [
     ['段位', n(v[0]) ? rankProgress(n(v[0])).tier.n : '—'],
     ['段位分', String(n(v[0]))],
@@ -1784,6 +1789,7 @@ const GD_SPEC = [
 //   sv 幸存者 [最高分, 局数, 通关角色] pf 协议 [最远波, 最高分, 守住]
 //   wf 狼人 [局数, 胜场]             dt 报告 [已复原, 卷宗, 结案, 提交报告数, 确认报告数]
 //   g2 2048 [最高分, 最高块]         dl 决斗 [段位分, 胜, 负, 段位下标]
+//   rg 王权 [结局数, 最长任期天数, 当过几任, 金色结局次数]（首页榜按结局数排，同数比最长任期）
 // 单调递增的量（最好成绩、累计局数、时长），服务端合并时逐项取大即可。
 function digest() {
   const out = { at: Date.now() };
@@ -1822,6 +1828,10 @@ function digest() {
   // 首页排行榜按第 0 位排，副标用后面几个。
   const dl = RD('duel:v1') || {};
   out.dl = [n(dl.rp), n(dl.wins), n(dl.losses), rankProgress(n(dl.rp)).idx];
+  // 弥萨格王权 [结局数, 最长任期天数, 当过几任, 金色次数]：全部只增不减
+  const rgB = RD('reign:best') || {};
+  const rgE = RD('reign:endings') || {};
+  out.rg = [Object.keys(rgE).length, n(rgB.bestDay), n(rgB.runs), n(rgB.gold)];
   return out;
 }
 return { fmtDur, DIFF_MERGE, DIFF_BIRD, GAMES, readAll, credits, GD_SPEC, digest };

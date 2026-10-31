@@ -655,6 +655,10 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   await call('/account', { method: 'PUT', headers: U3, body: { doc: { cr: 1, mb: 15000, bb: 40, bs: 2200 }, ver: 0 } });
   // 唤醒王：决斗链接：段位分（只增不减）+ 段位下标，副标要能翻成段位名
   await call('/account', { method: 'PUT', headers: U3, body: { doc: { cr: 1, mb: 15000, bb: 40, bs: 2200, gd: { dl: [1200, 12, 4, 3] } }, ver: 1 } });
+  // 弥萨格王权：按结局数排，同数比最长任期；没有门槛（1 个结局也上榜）
+  await call('/account', { method: 'PUT', headers: U1, body: { doc: { cr: 1, gd: { dt: [10, 3, 0, 8, 6], dr: [20, 15, 9], mg: [1234], bd: [30, 800], rg: [12, 40, 7, 1] } }, ver: 1 } });
+  await call('/account', { method: 'PUT', headers: U2, body: { doc: { cr: 1, gd: { dr: [30, 15, 12], mg: [900], rg: [12, 55, 9, 0] } }, ver: 1 } });
+  await call('/account', { method: 'PUT', headers: U3, body: { doc: { cr: 1, mb: 15000, bb: 40, bs: 2200, gd: { dl: [1200, 12, 4, 3], rg: [1, 5, 1, 0] } }, ver: 2 } });
   const bd = await call('/board');
   eq('老档案（只有 mb）也上合成榜且排第一', bd.json.games.mg.items[0], { name: '丙', score: 15000, sub: '' });
   eq('老档案的鸟弟分也进榜', bd.json.games.bd.items.find((x) => x.name === '丙').score, 2200);
@@ -669,6 +673,8 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   check('侦探榜单位是题', bd.json.games.dr.unit === '题' && !('tb' in bd.json.games.dr.items[0]));
   eq('决斗榜按段位分排，副标写段位名与战绩', bd.json.games.dl.items.map((x) => [x.name, x.score, x.sub]), [['丙', 1200, '金印级 · 12 胜 4 负']]);
   check('决斗榜单位是分', bd.json.games.dl.unit === '分' && bd.json.games.dl.label === '段位分');
+  eq('王权榜按结局数排，同数最长任期长者在前，没有门槛', bd.json.games.rg.items.map((x) => [x.name, x.score, x.sub]), [['乙', 12, '最长任期第 55 天 · 当过 9 任'], ['甲', 12, '最长任期第 40 天 · 当过 7 任'], ['丙', 1, '最长任期第 5 天 · 当过 1 任']]);
+  check('王权榜单位与标签', bd.json.games.rg.unit === '个结局' && bd.json.games.rg.label === '结局数' && !('tb' in bd.json.games.rg.items[0]));
   check('没分的游戏榜单为空', bd.json.games.sv.items.length === 0);
 }
 

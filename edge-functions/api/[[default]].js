@@ -1361,6 +1361,10 @@ const BOARD_SPEC = [
     sub: (v) => (Number(v[1]) > 1 ? `最高块 ${Number(v[1])}` : '') },
   // 唤醒王：决斗链接：按段位分排（只增不减，见 js/duel/rank.js），副标写段位名 + 人机战绩。
   // 段位名要和 js/duel/rank.js 的 TIERS 保持一致——后端读不到前端模块，只能抄一份在这。
+  // 弥萨格王权：按结局数排（0~30，每个结局只能拿一次，刷不动），同数比最长任期天数；没有门槛
+  { k: 'rg', gd: 'rg', i: 0, unit: '个结局', label: '结局数',
+    sub: (v) => [Number(v[1]) > 0 ? `最长任期第 ${Number(v[1])} 天` : '', Number(v[2]) > 0 ? `当过 ${Number(v[2])} 任` : ''].filter(Boolean).join(' · '),
+    tb: (v) => Number(v[1]) || 0 },
   { k: 'dl', gd: 'dl', i: 0, unit: '分', label: '段位分',
     sub: (v) => {
       const t = Number(v[3]) || 0;
