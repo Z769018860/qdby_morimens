@@ -10,8 +10,11 @@ import * as E from './engine.js';
 import { nextAction } from './ai.js';
 import * as net from './net.js';
 import {
-  loadSave, saveSave, freeLeft, ticketDayLeft, payPack, grantPveTicket, RULES, PVE_SILVER, PVE_LOSS_MIN_ROUNDS,
+  loadSave, saveSave, freeLeft, ticketDayLeft, payPack, grantPveTicket, addRank, RULES, PVE_SILVER, PVE_LOSS_MIN_ROUNDS,
 } from './store.js';
+import { progress as rankProgress, DIFF_TXT, TIERS } from './tiers.js';
+import { aiFor, foePick } from './rank.js';
+import { NAMES } from './names.js';
 import { walletGet, walletAdd, walletSpend, scTag } from '../silver.js';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
@@ -38,6 +41,9 @@ const S = {
   bt: 'pve',        // pve | local | net
   side: 0,          // 我在哪一边（local 跟着回合走）
   seq: 0,           // 好友房动作序号
+  ai: null,         // 本局人机档位 { lv, n, sloppy, pool }（随段位变强，见 duel/rank.js）
+  foeName: '',      // 人机对手的名字（取自融灾榜单，见 names.js）
+  foeDeck: '',      // 对手这套牌的名字（同一个名字永远同一套，见 nameDeck）
   room: null,       // { code, role, state, peerDeck }
   net: null,
   timers: [],
@@ -78,10 +84,52 @@ function SIDE() {
   return S.bt === 'local' ? S.G.active : S.side;
 }
 
+// 名字直接写进 innerHTML，榜单里有人带尖括号（比如「<#R34>Aurora」），得转义
+function escTxt(v) {
+  return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// 名字 → 牌组：同一个名字永远带同一套牌（换段位只是「打得更认真」，不会换牌）。
+// 用名字的稳定哈希落位，所以不同名字的牌组天然分散在九套预组上。
+function nameDeck(name) {
+  let h = 2166136261;
+  const t = String(name);
+  for (let i = 0; i < t.length; i++) {
+    h ^= t.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return DECKS[h % DECKS.length].id;
+}
+
+// 按牌组把名字分好桶，开局先按难度定「这局该用哪套牌」，再从这套牌的名字里抽一个人
+const NAMES_BY_DECK = (() => {
+  const map = {};
+  for (const d of DECKS) map[d.id] = [];
+  for (const n of NAMES) {
+    const id = nameDeck(n);
+    if (map[id]) map[id].push(n);
+  }
+  return map;
+})();
+
+// 这个牌组的「主人」们；空桶就退回全名单（新加牌组时不至于没人）
+function namesOfDeck(deckId) {
+  const list = NAMES_BY_DECK[deckId];
+  return list && list.length ? list : NAMES;
+}
+
+function pickName(deckId) {
+  const list = namesOfDeck(deckId);
+  if (!list.length) return '对手';
+  return list[Math.floor(Math.random() * list.length)];
+}
+
 function nameOf(idx) {
   if (S.bt === 'local') return idx === 0 ? '甲' : '乙';
   if (S.bt === 'net') return idx === S.side ? '你' : '好友';
-  return idx === 0 ? '你' : '对手';
+  if (idx === 0) return '你';
+  return escTxt(S.foeName || '对手');
 }
 
 // 引擎日志是按「0 号视角」写的（你 / 对手），换到 1 号视角要翻过来
@@ -167,6 +215,9 @@ function renderHome() {
   const bonds = E.evalBonds(deckList(sel));
   const free = freeLeft(S.save);
   const tk = S.save.tickets || 0;
+  const rk = rankProgress(S.save.rp);
+  const ai = aiFor(S.diff, rk.idx);
+  const stars = [0, 1, 2].map((i) => `<i class="${i < rk.stars ? 'on' : ''}">★</i>`).join('');
 
   $('#scr-home').innerHTML = `
     <div class="hero">
@@ -175,6 +226,25 @@ function renderHome() {
       <p class="lead">你是守密人，桌上摊着两套记忆。每一张卡都是一个<strong>你还记得的人</strong>：
         召唤她是承认她存在，把她当祭品是承认有更重要的东西。命轮值归零不是死，是<strong>不再确定自己是谁</strong>。</p>
       <div class="hr"></div>
+    </div>
+
+    <div class="sec-h"><h2>你的段位</h2><span class="r">${TIERS.length} 段 · 只靠人机对战计分</span></div>
+    <div class="rankcard" style="--rc:${rk.tier.c}">
+      <div class="rktop">
+        <span class="rkb">${rk.idx + 1}</span>
+        <span class="rkname">${rk.tier.n}<em>「${rk.tier.t}」</em></span>
+        <span class="rksc">${rk.rp}<small>分</small></span>
+      </div>
+      <div class="rkbar"><i style="width:${rk.pct.toFixed(1)}%"></i></div>
+      <div class="rkfoot">
+        <span>${rk.next ? `距「${rk.next.n}」还差 <b>${rk.left}</b> 分` : '已经是最高段位——命轮由你来转'}</span>
+        <span class="rkstars">${stars}</span>
+      </div>
+      <p class="note" style="margin:8px 0 0">下一局对手的档位：<b>Lv${ai.lv}／${ai.max}「${ai.n}」</b>。
+        段位越高，对方越少打错牌——该召唤时会召唤、该盖的怪会盖、不会拿小的去撞大的；
+        它还会挑一套偏向<b>克你这套</b>的预组。但两边命轮值永远是 8000，它不会靠多血赢你。
+        对手是融灾榜单上的玩家名，一个人固定一套牌，同一个人换段位也不会换牌。
+        ${S.save.bestStreak ? `你最长连胜过 ${S.save.bestStreak} 场。` : ''}</p>
     </div>
 
     <div class="sec-h"><h2>选一套卡组</h2><span class="r">共 ${DECKS.length} 套 · 每套 30 张 + 觉醒体</span></div>
@@ -225,17 +295,27 @@ function newGame(bt, side, mine, foe, seed) {
   S.busy = false;
   S.result = false;
   S.sel = null; S.mode = 'idle'; S.tribute = []; S.pendingSummon = null;
+  // 两边命轮值都是 8000（羁绊加成各算各的）：段位只影响对手「会不会打、拿什么牌」，不改血量
   S.G = E.createGame({ cards: mine.cards, extra: mine.extra }, { cards: foe.cards, extra: foe.extra }, { seed });
   show('duel');
   renderDuel();
 }
 
+// 对手牌组：按 rank.js 的对位表抽，而不是按「整体谁强」。
+// 九套预组的整体胜率只差 44~52，但克制关系很硬（d5 打 d2 七成、d3 打 d5 只有三成），
+// 所以只有「打你这套顺不顺手」才是真的难度旋钮。
 function startDuel() {
   const mine = deckById(S.deckId);
-  const others = DECKS.filter((d) => d.id !== mine.id);
-  const foe = others[Math.floor(Math.random() * others.length)];
+  // 段位越高，人机档位越高：难度定起点，段位往上抬
+  const rk = rankProgress(S.save.rp);
+  S.ai = aiFor(S.diff, rk.idx);
+  // 先定这局对手用哪套牌（段位越高越偏向克你的那套），再挑一个「这套牌的主人」
+  const foeId = foePick(S.ai.pool, S.deckId, DECKS.map((d) => d.id));
+  const foe = deckById(foeId) || mine;
+  S.foeName = pickName(foe.id);
+  S.foeDeck = foe.n;
   newGame('pve', 0, mine, foe, (Date.now() ^ (Math.random() * 1e9)) >>> 0);
-  if (S.diff === 'easy') { S.G.players[1].lp = 6000; S.G.players[1].lpMax = 6000; }
+  toast(`${S.foeName}（Lv${S.ai.lv}「${S.ai.n}」）带着「${foe.n}」坐下了`);
 }
 
 function startLocal() {
@@ -319,7 +399,8 @@ function renderDuel() {
   }).join('');
 
   const modeTag = S.bt === 'local' ? `<span class="btag">同屏 · 轮到${nameOf(G.active)}</span>`
-    : (S.bt === 'net' ? `<span class="btag">房间 ${S.room ? S.room.code : '—'}</span>` : '');
+    : (S.bt === 'net' ? `<span class="btag">房间 ${S.room ? S.room.code : '—'}</span>`
+      : (S.ai ? `<span class="btag ai">Lv${S.ai.lv} · ${S.ai.n}</span>` : ''));
 
   const waitTxt = S.bt === 'net'
     ? (v.over ? '对决结束。' : '等好友出牌…')
@@ -341,6 +422,7 @@ function renderDuel() {
     <div class="side op-side">
       <div class="pinfo">
         <span class="who">${nameOf(1 - side)}</span>
+        ${S.bt === 'pve' && S.foeDeck ? `<i class="dv" title="对手这套牌">${S.foeDeck}</i>` : ''}
         ${lpBar(v.op)}
         <span class="meta"><span>手 ${v.op.hand}</span><span>组 ${v.op.deck}</span></span>
         ${bondsDots(v.op.bonds)}
@@ -437,6 +519,26 @@ function renderActbar() {
   bar.classList.add('on');
 }
 
+// 结算里的段位条：本局 +多少分、现在第几段、离下一段还差多少，升段单独提一行
+function rankBlock(rk) {
+  const p = rk.progress;
+  const stars = [0, 1, 2].map((i) => `<i class="${i < p.stars ? 'on' : ''}">★</i>`).join('');
+  return `<div class="rankcard sm" style="--rc:${p.tier.c}">
+    <div class="rktop">
+      <span class="rkb">${p.idx + 1}</span>
+      <span class="rkname">${p.tier.n}<em>「${p.tier.t}」</em></span>
+      <span class="rksc">${p.rp}<small>分</small></span>
+    </div>
+    <div class="rkbar"><i style="width:${p.pct.toFixed(1)}%"></i></div>
+    <div class="rkfoot">
+      <span>段位 <b>+${rk.gain}</b>${rk.streak > 1 ? ` · 连胜 ${rk.streak}` : ''}</span>
+      <span>${p.next ? `距「${p.next.n}」还差 <b>${p.left}</b> 分` : '已经是最高段位'}</span>
+      <span class="rkstars">${stars}</span>
+    </div>
+    ${rk.up ? `<div class="rkup">升段 — ${p.tier.n}「${p.tier.t}」</div>` : ''}
+  </div>`;
+}
+
 function showResult(v) {
   S.result = true;
   const side = SIDE();
@@ -454,10 +556,14 @@ function showResult(v) {
       const g = grantPveTicket(S.save);
       ticket = g.granted ? '<span class="bond">开包券 +1</span>' : '<span class="note">今天的券已经领满</span>';
     }
+    // 段位分要和银芯一起落盘，再推一次云端档案（排行榜读的就是这份摘要）
+    const rk = addRank(S.save, win, S.diff);
     saveSave(S.save);
     silverBar();
-    reward = `<div class="row" style="margin-top:10px"><span class="bond">${gain > 0 ? scTag('+' + gain) : '这局太短，没有银芯'}</span><span class="note">${{ easy: '轻松', normal: '普通', hard: '认真' }[S.diff] || '普通'}难度 · 钱包 ${walletGet()}</span>${ticket}
-      <span class="note">累计 ${S.save.wins} 胜 ${S.save.losses} 负</span></div>`;
+    pushCloud();
+    reward = `<div class="row" style="margin-top:10px"><span class="bond">${gain > 0 ? scTag('+' + gain) : '这局太短，没有银芯'}</span><span class="note">${DIFF_TXT[S.diff] || '普通'}难度 · 钱包 ${walletGet()}</span>${ticket}
+      <span class="note">累计 ${S.save.wins} 胜 ${S.save.losses} 负</span></div>
+      ${rankBlock(rk)}`;
   } else if (S.bt === 'local') {
     reward = `<div class="row" style="margin-top:10px"><span class="bond">${nameOf(v.winner)} 赢下这场</span>
       <span class="note">同屏双人不计战绩</span></div>`;
@@ -467,7 +573,9 @@ function showResult(v) {
   }
 
   openModal(`
-    <div class="mtitle"><h3>${win ? (S.bt === 'local' ? nameOf(v.winner) + '赢下了这场对决' : '你赢下了这场对决') : '命轮断了'}</h3></div>
+    <div class="mtitle"><h3>${win
+      ? (S.bt === 'local' ? nameOf(v.winner) + '赢下了这场对决' : '你赢下了这场对决')
+      : (S.bt === 'pve' && S.foeName ? escTxt(S.foeName) + ' 赢下了这场对决' : '命轮断了')}</h3></div>
     <p class="sub">${rounds} 回合 · ${win ? '对手交出一张牌' : '你从此不再确定一张牌'}</p>
     <p class="note">${win
       ? '输的人要交出一张牌：不是丢掉，是「从此不再确定」。那张牌上的人会变淡。'
@@ -535,7 +643,7 @@ async function runAI() {
   let steps = 0;
   while (!G.over && G.active === 1 && steps < 80) {
     steps++;
-    const a = nextAction(G, 1, S.diff);
+    const a = nextAction(G, 1, S.bt === 'pve' && S.ai ? S.ai.sloppy : S.diff);
     if (!a) break;
     const r = E.applyAction(G, 1, aiAction(a));
     if (!r.ok && a.t !== 'end') break;
@@ -1229,7 +1337,15 @@ function bind() {
 }
 
 // ------------------------------------------------------------------ 启动
-export function boot() {
+// opt.afterPve：结算之后的回调，由入口 js/duel.js 注入（把段位分推一份到云端档案）。
+// 这一页自己不认识账号模块：对战逻辑不需要知道「登录没登录、往哪推」。
+let afterPve = null;
+function pushCloud() {
+  try { if (afterPve) afterPve(); } catch (e) { /* 推送失败不影响结算 */ }
+}
+
+export function boot(opt) {
+  afterPve = (opt && opt.afterPve) || null;
   document.documentElement.style.setProperty('--sheet', `url("${FACES}")`);
   document.documentElement.style.setProperty('--backimg', `url("${BACK}")`);
   document.documentElement.style.setProperty('--sheet-size', `${ART.cols * 100}% ${ART.rows * 100}%`);

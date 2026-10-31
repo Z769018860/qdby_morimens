@@ -10,6 +10,8 @@
 //   · 只读，不写、不发请求 —— 任何页面都能安全 import；
 //   · 全部 try/catch —— 无痕模式下 localStorage 会抛，不能连累整页；
 //   · 键名必须和各游戏里的字面量一致，改名请一起改（下面每组都标了出处）。
+// 只要段位名与段内进度，走 tiers.js——rank.js 里有对位表，别拖进全站
+import { progress as rankProgress } from './duel/tiers.js';
 
 const RD = (k) => { try { const v = localStorage.getItem('zjtt:' + k); return v == null ? null : JSON.parse(v); } catch { return null; } };
 const RAW = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -223,9 +225,27 @@ function deathreport() {
   };
 }
 
+// 唤醒王：决斗链接 —— 段位分只在人机对战里涨，段位名与称号见 js/duel/tiers.js
+function duel() {
+  const s = RD('duel:v1') || {};
+  const rp = n(s.rp);
+  const p = rankProgress(rp);
+  const wins = n(s.wins);
+  const losses = n(s.losses);
+  const parts = [`${Object.keys(s.coll || {}).length} 种卡面`, `已开 ${n(s.opened)} 包`];
+  if (n(s.bestStreak)) parts.push(`最长连胜 ${n(s.bestStreak)} 场`);
+  return {
+    items: [
+      { k: '段位', v: p.tier.n },
+      { k: '段位分', v: String(rp) },
+      { k: '人机战绩', v: `${wins} 胜 ${losses} 负` },
+    ],
+    extra: parts.join(' · '),
+  };
+}
+
 // 卡片顺序 = 首页的排列顺序，用户不用重新认路
-export const GAMES = [
-  { k: 'detective', n: '战报侦探', href: 'detective.html', icon: '🔍', read: detective, tip: '六边形自走棋推演' },
+export const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', icon: '🔍', read: detective, tip: '六边形自走棋推演' },
   { k: 'merge', n: '合成大杜勒', href: 'merge.html', icon: '⚫', read: merge, tip: '两个同级合成下一级' },
   { k: 'bird', n: '是鸟弟就下100层', href: 'bird.html', icon: '🐤', read: bird, tip: '往下跳，别被扎到' },
   { k: 'binding', n: '校猫的结合', href: 'binding.html', icon: '🐱', read: binding, tip: '地牢射击' },
@@ -235,6 +255,7 @@ export const GAMES = [
   { k: 'wolf', n: '弥萨格狼人杀', href: 'wolf.html', icon: '🐺', read: wolf, tip: '身份推理' },
   { k: 'deathreport', n: '弥萨格大逃杀', href: 'deathreport/', icon: '📄', read: deathreport, tip: '档案式复盘' },
   { k: 'g2048', n: '忘却 2048', href: '2048.html', icon: '🔢', read: g2048, tip: '两块同样的合流' },
+  { k: 'duel', n: '唤醒王：决斗链接', href: 'duel.html', icon: '⚔', read: duel, tip: '卡牌对决，段位爬升' },
   { k: 'reign', n: '弥萨格王权', href: 'reign.html', icon: '👑', read: reign, tip: '准或不准，四项账' },
 ];
 
@@ -307,6 +328,11 @@ export const GD_SPEC = [
     ['最高分', v[0] ? String(n(v[0])) : '—'],
     ['最高块', v[1] ? String(n(v[1])) : '—'],
   ] },
+  { k: 'dl', n: '唤醒王：决斗链接', f: (v) => [
+    ['段位', n(v[0]) ? rankProgress(n(v[0])).tier.n : '—'],
+    ['段位分', String(n(v[0]))],
+    ['人机战绩', `${n(v[1])} 胜 ${n(v[2])} 负`],
+  ] },
 ];
 
 
@@ -320,7 +346,7 @@ export const GD_SPEC = [
 //   il 挂机 [时长秒, 拥有角色, 最高关, 当前关, 金币]
 //   sv 幸存者 [最高分, 局数, 通关角色] pf 协议 [最远波, 最高分, 守住]
 //   wf 狼人 [局数, 胜场]             dt 报告 [已复原, 卷宗, 结案, 提交报告数, 确认报告数]
-//   g2 2048 [最高分, 最高块]
+//   g2 2048 [最高分, 最高块]         dl 决斗 [段位分, 胜, 负, 段位下标]
 // 单调递增的量（最好成绩、累计局数、时长），服务端合并时逐项取大即可。
 export function digest() {
   const out = { at: Date.now() };
@@ -355,5 +381,9 @@ export function digest() {
   }
   out.dt = [rec, docs, done, sub, okRep];
   out.g2 = [numKey('g2048:best'), numKey('g2048:seen')];
+  // 唤醒王：决斗链接 [段位分, 胜, 负, 段位下标]。段位分只增不减，云端逐项取大正合适；
+  // 首页排行榜按第 0 位排，副标用后面几个。
+  const dl = RD('duel:v1') || {};
+  out.dl = [n(dl.rp), n(dl.wins), n(dl.losses), rankProgress(n(dl.rp)).idx];
   return out;
 }

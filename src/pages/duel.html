@@ -154,7 +154,10 @@ body{
 
 .side{flex:0 0 auto; display:flex; flex-direction:column; gap:5px}
 .pinfo{display:flex; align-items:center; gap:8px; padding:4px 9px; border-radius:10px; background:var(--panel); border:1px solid var(--line)}
-.pinfo .who{font-size:12px; font-weight:700; letter-spacing:.04em; min-width:3.4em}
+.pinfo .who{font-size:12px; font-weight:700; letter-spacing:.04em; min-width:3.4em;
+  max-width:8.6em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.pinfo .dv{font-size:10px; color:var(--dim2); max-width:7.4em; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap}
 .pinfo .lp{
   flex:1 1 auto; height:16px; border-radius:8px; background:var(--panel3); overflow:hidden; position:relative;
   border:1px solid var(--line);
@@ -405,6 +408,36 @@ body{
 .term p{margin:2px 0 0; font-size:11.5px; color:var(--dim); line-height:1.7}
 
 .coin + .coin{margin-left:6px}
+
+/* ---------------------------------------------------------------- 段位卡 */
+.rankcard{
+  border:1px solid var(--line); border-radius:14px; background:var(--panel);
+  padding:12px 14px; display:flex; flex-direction:column; gap:8px;
+}
+.rankcard .rktop{display:flex; align-items:center; gap:9px}
+.rankcard .rkb{
+  width:26px; height:26px; flex:0 0 auto; border-radius:8px; display:grid; place-items:center;
+  font-size:12px; font-weight:800; color:#0e1118;
+  background:var(--rc); box-shadow:0 0 18px -6px var(--rc);
+}
+.rankcard .rkname{font-size:15px; font-weight:800; letter-spacing:.02em; color:var(--text); line-height:1.25}
+.rankcard .rkname em{display:block; font-style:normal; font-size:10.5px; font-weight:400; color:var(--dim); letter-spacing:0}
+.rankcard .rksc{margin-left:auto; font-size:19px; font-weight:800; color:var(--rc); white-space:nowrap}
+.rankcard .rksc small{font-size:10px; font-weight:400; color:var(--dim); margin-left:2px}
+.rankcard .rkbar{height:7px; border-radius:99px; background:var(--panel3); overflow:hidden; border:1px solid var(--line)}
+.rankcard .rkbar i{display:block; height:100%; border-radius:99px;
+  background:linear-gradient(90deg, color-mix(in srgb,var(--rc) 55%, transparent), var(--rc)); transition:width .5s}
+.rankcard .rkfoot{display:flex; align-items:center; gap:10px; font-size:11px; color:var(--dim); flex-wrap:wrap}
+.rankcard .rkfoot b{color:var(--gold2)}
+.rankcard .rkstars{margin-left:auto; display:flex; gap:2px; font-size:11px}
+.rankcard .rkstars i{font-style:normal; color:var(--dim2)}
+.rankcard .rkstars i.on{color:var(--gold)}
+.rankcard.sm{margin-top:10px; gap:6px; padding:10px 12px; background:color-mix(in srgb, var(--rc) 8%, var(--panel))}
+.rankcard .rkup{
+  font-size:11.5px; font-weight:700; color:#0e1118; text-align:center; border-radius:8px; padding:4px 8px;
+  background:linear-gradient(90deg, var(--gold), var(--gold2));
+}
+.duelbar .btag.ai{color:var(--blue); border-color:color-mix(in srgb,var(--blue) 40%, var(--line))}
 
 /* ---------------------------------------------------------------- 好友房 */
 .duelbar .btag{

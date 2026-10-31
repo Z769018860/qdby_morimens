@@ -485,7 +485,7 @@ for (const f of pageFiles) {
 // 打包成同名文件（js/merge-sync.js → js/b/merge-sync.js），这样
 // 页面里的 import('./merge-sync.js') 在「源码目录」和「打包目录」都能解析到。
 // g2048-skins.js 是「忘却 2048」的换皮池（一百多张图，四百来 KB）：只在点「换皮」时 import()。
-const EXTRA_ENTRIES = ['js/merge-sync.js', 'js/bird-sync.js', 'js/merge-skins.js', 'js/g2048-skins.js'];
+const EXTRA_ENTRIES = ['js/merge-sync.js', 'js/bird-sync.js', 'js/duel-sync.js', 'js/merge-skins.js', 'js/g2048-skins.js'];
 
 const extras = [];
 for (const rel of EXTRA_ENTRIES) {

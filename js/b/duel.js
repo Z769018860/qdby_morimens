@@ -1291,24 +1291,58 @@ function bestAttack(G, side) {
   return bestScore > 0 ? best : null;
 }
 
+// sloppy＝「打错牌」的概率（0~0.8）。历史上只有 easy/normal/hard 三个字符串，
+// 现在段位要把对手一级一级往上顶，所以也接受直接给数字（见 duel/rank.js 的 aiFor）。
+function sloppyOf(skill) {
+  if (typeof skill === 'number' && isFinite(skill)) return Math.max(0, Math.min(0.8, skill));
+  return skill === 'easy' ? 0.4 : skill === 'hard' ? 0 : 0.16;
+}
+
+// 乱召唤：手里能直接上的怪里随便挑一只（不挑最能打的）。只在不需要祭品的里面挑，
+// 免得它把场上的墙献祭掉换一只更弱的——那就不是「打得差」，是「不会玩」了。
+function lazySummon(G, p) {
+  const free = summonOptions(G, p).filter((x) => !x.need);
+  if (!free.length) return null;
+  return free[Math.floor(G.rng() * free.length)];
+}
+
+// 乱撞：挑一个「打不过还要撞」的目标。真正的弱手不是不打，是见谁撞谁。
+// 返回 null 表示场上没有可撞的目标（那就直接打脸）。
+function worstAttack(G, side) {
+  const p = G.players[side];
+  const o = G.players[1 - side];
+  const mine = p.mons.filter((m) => m && canAttack(G, p, m));
+  if (!mine.length) return null;
+  // 拿攻击力最低的那只，去撞对面攻击力最高的那只
+  const a = mine.sort((x, y) => atkOf(G, p, x) - atkOf(G, p, y))[0];
+  const foes = o.mons.filter(Boolean);
+  if (!foes.length) return { uid: a.uid, target: null };
+  const t = foes.sort((x, y) => atkOf(G, o, y) - atkOf(G, o, x))[0];
+  return { uid: a.uid, target: t.uid };
+}
+
 // 返回「下一步」：{ t: 'awaken'|'spell'|'summon'|'setMon'|'trap'|'pos'|'battle'|'attack'|'end', ... }
 function nextAction(G, side, skill) {
   const p = G.players[side];
   const o = G.players[1 - side];
   if (G.over) return null;
-  const sloppy = skill === 'easy' ? 0.35 : skill === 'hard' ? 0 : 0.12;
+  const sloppy = sloppyOf(skill);
 
   if (G.phase === 'main') {
-    // 1. 觉醒体优先：素材已经站住了就别再拖
-    for (const id of p.extra) {
-      if (canAwaken(G, p, id)) return { t: 'awaken', id };
+    // 1. 觉醒体优先：素材已经站住了就别再拖（弱手会一直忘）
+    if (G.rng() >= sloppy * 0.8) {
+      for (const id of p.extra) {
+        if (canAwaken(G, p, id)) return { t: 'awaken', id };
+      }
     }
-    // 2. 该斩杀了就直接烧
-    for (const h of p.hand) {
-      const def = d(h.id);
-      if (!def || def.k !== 'S') continue;
-      for (const f of def.fx || []) {
-        if (f.k === 'burn' && (f.v || 0) >= o.lp) return { t: 'spell', uid: h.uid };
+    // 2. 该斩杀了就直接烧（弱手偶尔也会漏掉这一手）
+    if (G.rng() >= sloppy * 0.5) {
+      for (const h of p.hand) {
+        const def = d(h.id);
+        if (!def || def.k !== 'S') continue;
+        for (const f of def.fx || []) {
+          if (f.k === 'burn' && (f.v || 0) >= o.lp) return { t: 'spell', uid: h.uid };
+        }
       }
     }
     // 3. 魔法
@@ -1316,26 +1350,38 @@ function nextAction(G, side, skill) {
       const sp = bestSpell(G, p, o);
       if (sp) return { t: 'spell', uid: sp.uid };
     }
-    // 4. 召唤
-    const sum = bestSummon(G, p);
-    if (sum) return { t: 'summon', uid: sum.uid, tribs: sum.tribs };
-    // 5. 盖一只守备怪（手里有高守备、场上又空的时候）
+    // 4. 召唤：这里有两种错法——该上不上（空过），或者随手上一只小的
+    if (G.rng() >= sloppy * 0.55) {
+      if (G.rng() < sloppy) {
+        const bad = lazySummon(G, p);
+        if (bad) return { t: 'summon', uid: bad.uid, tribs: [] };
+      } else {
+        const sum = bestSummon(G, p);
+        if (sum) return { t: 'summon', uid: sum.uid, tribs: sum.tribs };
+      }
+    }
+    // 5. 盖一只守备怪（手里有高守备、场上又空的时候）。
+    //    弱手会把它正面摊在攻击表示上——那不是「另一种打法」，是白送一个突破口。
     if (p.mons.filter(Boolean).length < 2) {
       const cand = p.hand.filter((h) => {
         const def = d(h.id);
         return def && def.k === 'M' && tributeNeed(h.id) === 0;
       }).sort((a, b) => d(b.id).def - d(a.id).def)[0];
-      if (cand && d(cand.id).def >= 1800 && !p.normalUsed) return { t: 'setMon', uid: cand.uid };
+      if (cand && d(cand.id).def >= 1800 && !p.normalUsed) {
+        if (G.rng() < sloppy * 0.6) return { t: 'summon', uid: cand.uid, tribs: [] };
+        return { t: 'setMon', uid: cand.uid };
+      }
     }
     // 6. 盖陷阱（最多两张，别把手牌全变成盖牌）
     const traps = p.hand.filter((h) => d(h.id) && d(h.id).k === 'T');
     const setCount = p.spells.filter((s) => s && s.set).length;
     if (traps.length && setCount < 2 && p.spells.indexOf(null) >= 0) {
-      return { t: 'trap', uid: traps[0].uid };
+      if (G.rng() >= sloppy * 0.4) return { t: 'trap', uid: traps[0].uid };
     }
     // 6.5 守备的高攻怪翻回攻击：打得过对方全场就别一直缩着（守备卡组全靠这一步才有输出）
+    //     弱手想不起来翻，整套牌就只会挨打
     const wall = p.mons.find((m) => m && m.pos === 'def' && !m.set && atkOf(G, p, m) >= 1700);
-    if (wall) {
+    if (wall && G.rng() >= sloppy) {
       const mine = atkOf(G, p, wall);
       const theirs = o.mons.filter(Boolean);
       const worst = theirs.length
@@ -1343,9 +1389,10 @@ function nextAction(G, side, skill) {
         : 0;
       if (mine > worst) return { t: 'pos', uid: wall.uid };
     }
-    // 7. 低攻怪兽转守备
+    // 7. 低攻怪兽转守备（弱手会把一只小怪一直摊在场上挨打）
     const weakAtk = p.mons.find((m) => m && m.pos === 'atk' && !m.set && atkOf(G, p, m) < 1600);
-    if (weakAtk && o.mons.filter(Boolean).some((m) => m.pos === 'atk' && atkOf(G, o, m) > atkOf(G, p, weakAtk))) {
+    if (weakAtk && G.rng() >= sloppy
+      && o.mons.filter(Boolean).some((m) => m.pos === 'atk' && atkOf(G, o, m) > atkOf(G, p, weakAtk))) {
       return { t: 'pos', uid: weakAtk.uid };
     }
     return { t: 'battle' };
@@ -1353,7 +1400,18 @@ function nextAction(G, side, skill) {
 
   if (G.phase === 'battle') {
     const atk = bestAttack(G, side);
-    if (atk && G.rng() >= sloppy * 0.5) return { t: 'attack', uid: atk.uid, target: atk.target };
+    if (atk) {
+      if (G.rng() >= sloppy * 0.5) return { t: 'attack', uid: atk.uid, target: atk.target };
+      // 走神：明明有好目标，却拿最弱的那只去撞最硬的那只
+      const bad = worstAttack(G, side);
+      if (bad && G.rng() < 0.5) return { t: 'attack', uid: bad.uid, target: bad.target };
+      return { t: 'end' };
+    }
+    // 没有好目标——弱手也会硬撞
+    if (G.rng() < sloppy * 0.6) {
+      const bad = worstAttack(G, side);
+      if (bad) return { t: 'attack', uid: bad.uid, target: bad.target };
+    }
     return { t: 'end' };
   }
   return { t: 'end' };
@@ -1446,12 +1504,188 @@ function connect(code, onMsg, onState) {
 return { makeCode, normCode, roomUrl, connect };
 })();
 
+// ---- js/duel/tiers.js
+const m_tiers = await (async () => {
+
+// 段位表与段内进度。
+//
+// 单独一个模块的原因：个人中心 / 排行榜要显示「这个分数是哪一段」，
+// 于是 js/gamestats.js 也得引它，而 gamestats 被 account.js 带进了每一页。
+// 对位表（rank.js 的 COUNTER）只在对战页用得上，不该跟着一起发到全站。
+// 所以这里只放纯数据 + 三个纯函数。
+
+// 九段。min 是进入该段所需的积分下限，t 是这一段的称号，c 是徽章配色。
+const TIERS = [
+  { n: '见习守密人', t: '第一次翻开那份档案', min: 0, c: '#8b94a6' },
+  { n: '档案室助手', t: '记得借出去的档案要还', min: 300, c: '#7ea2c8' },
+  { n: '命轮学徒', t: '牌还没洗匀就想赢', min: 700, c: '#5fb3a1' },
+  { n: '界域行者', t: '混沌、血肉、深海、超维都走过', min: 1200, c: '#57a6d8' },
+  { n: '弥萨格巡夜人', t: '夜里替校猫把灯关掉', min: 1800, c: '#6f8ce0' },
+  { n: '命轮师', t: '命轮肯听你把话说完', min: 2600, c: '#9b7ae0' },
+  { n: '熵火司祭', t: '烧掉那些不该留着的记忆', min: 3600, c: '#e0894a' },
+  { n: '忘念 · 唤醒者', t: '你先叫出了她们的名字', min: 4800, c: '#e0a94a' },
+  { n: '唤醒王', t: '这一轮命轮由你来转', min: 6000, c: '#e0554a' },
+];
+
+const TOP_RP = TIERS[TIERS.length - 1].min;
+
+const DIFF_TXT = { easy: '轻松', normal: '普通', hard: '认真' };
+
+function tierOf(rp) {
+  const v = Math.max(0, Math.round(Number(rp) || 0));
+  let i = 0;
+  for (let k = 0; k < TIERS.length; k++) if (v >= TIERS[k].min) i = k;
+  return i;
+}
+
+// 这一段的进度：进了多少分、离下一段还差多少、百分比、以及段内的三颗小星。
+// 到了最高段就没有「下一段」，进度条按满算。
+function progress(rp) {
+  const v = Math.max(0, Math.round(Number(rp) || 0));
+  const idx = tierOf(v);
+  const tier = TIERS[idx];
+  const next = idx + 1 < TIERS.length ? TIERS[idx + 1] : null;
+  const span = next ? next.min - tier.min : 1;
+  const into = v - tier.min;
+  const pct = next ? Math.max(0, Math.min(100, (into / span) * 100)) : 100;
+  // 段内三颗星：刚进这一段就有一颗，走到三等分处点第二颗、再点第三颗
+  const stars = next ? Math.min(3, Math.floor((into / span) * 3) + 1) : 3;
+  return {
+    rp: v, idx, tier, next, into, span, pct, stars,
+    left: next ? Math.max(0, next.min - v) : 0,       // 还差多少分进下一段
+  };
+}
+return { TIERS, TOP_RP, DIFF_TXT, tierOf, progress };
+})();
+
+// ---- js/duel/rank.js
+const m_rank = await (async () => {
+const { TIERS } = m_tiers;
+// 段位与积分（只算人机对战）+ 人机难度。
+//
+// 为什么积分只增不减：云端档案同步是「逐项取大」（js/account.js 的 mergeDigest），
+// 手机和电脑各打几局、合并时取高的那个；一旦允许扣分，两台设备就会互相把分数拉回去，
+// 而且打输了掉段会让人不敢再开一局。水平差距靠两件事体现：
+//   1. 连胜加成——赢得越连贯爬得越快，断一次就得重新攒；
+//   2. 段位越高，人机本身越强（见下面的 AI_LV），高分不是靠磨局数磨出来的。
+//
+// 段位表本身在 tiers.js（个人中心也要用，别把对位表带进每一页）。
+
+
+// 每局得分：基础分按难度、段位越高给得越多（对手更强，赢下来更值钱），连胜有额外加成。
+// 输了给一点「读档分」，让新手不至于卡在第一段；给得不多，磨局数爬不快。
+const WIN_BASE = { easy: 80, normal: 110, hard: 140 };
+const LOSE_BASE = 15;
+
+function gainFor(opt) {
+  const o = opt || {};
+  const diff = WIN_BASE[o.diff] != null ? o.diff : 'normal';
+  const tier = Math.max(0, Math.min(TIERS.length - 1, Number(o.tier) || 0));
+  const streak = Math.max(0, Number(o.streak) || 0);
+  if (!o.win) return LOSE_BASE;
+  return WIN_BASE[diff] + tier * 10 + Math.min(streak, 5) * 8;
+}
+
+// 人机档位：难度决定起点，段位往上抬档。九段 + 认真 = 顶格。
+//
+// 命轮值（血量）两边永远是 8000，抬高段位**不靠加血**。难度只来自两件事：
+//   · sloppy —— 对手「打错牌」的概率：该召唤不召唤、随手上一只小的、把该盖的怪
+//               摊在攻击表示上、有好目标却拿最弱的去撞最硬的（见 ai.js 的 nextAction）；
+//   · pool   —— 挑对手牌组的偏袒程度：0 均匀抽，0.55 时明显偏向「克你这套」的预组。
+// 八个档位。为什么是八档：难度分轻/普/认三档，起点分别在 1 / 3 / 5，
+// 九段里每档最多抬 3~5 级，所以最高档要留到 8 才铺得开。
+//
+// sloppy 是主旋钮：对手越会打，玩家胜率从七成多一路掉到四成（d1 vs d2 实测
+// 0→0.8 对应 65%→20%）。pool 只当配菜——段位高了顺便挑一套克你的预组，
+// 但幅度压在 0.55 以内，免得难度变成「看谁牌组相克」。
+const AI_LV = [
+  { n: '心不在焉', sloppy: 0.72, pool: 0.00 },
+  { n: '照本宣科', sloppy: 0.62, pool: 0.06 },
+  { n: '有来有回', sloppy: 0.52, pool: 0.14 },
+  { n: '初窥门径', sloppy: 0.42, pool: 0.22 },
+  { n: '老练', sloppy: 0.30, pool: 0.30 },
+  { n: '锋利', sloppy: 0.18, pool: 0.38 },
+  { n: '步步紧逼', sloppy: 0.08, pool: 0.46 },
+  { n: '命轮本身', sloppy: 0, pool: 0.55 },
+];
+
+// 对位胜率表：COUNTER[对手牌组][你的牌组] = 对手赢的概率。
+//
+// 这张表不是拍脑袋写的，是跑出来的：九套预组两两对打，每对 140 局、先手各占一半
+// （只让同一方先手会偏 5~10 个百分点），两个方向互相校正后取平均压噪声。
+// 为什么要它：九套牌的强弱差得不远（整体胜率 44~52），但克制关系很硬——
+// d5 打 d2 有 70%、d3 打 d5 只有 33%，所以「按整体强弱挑对手」反而会挑错
+// （以前固定给高段位发 d1/d2/d9/d8，结果 d3 这套玩家在高段位反而更好打）。
+// 换成按这张表挑，同一套玩家牌组才会真的越往上越难。
+const COUNTER = {
+  d1: { d1: 50, d2: 52, d3: 54, d4: 55, d5: 47, d6: 47, d7: 55, d8: 48, d9: 56 },
+  d2: { d1: 48, d2: 50, d3: 47, d4: 48, d5: 30, d6: 36, d7: 49, d8: 47, d9: 48 },
+  d3: { d1: 46, d2: 53, d3: 50, d4: 40, d5: 67, d6: 68, d7: 48, d8: 40, d9: 47 },
+  d4: { d1: 45, d2: 52, d3: 60, d4: 50, d5: 58, d6: 53, d7: 48, d8: 45, d9: 57 },
+  d5: { d1: 53, d2: 70, d3: 33, d4: 42, d5: 50, d6: 65, d7: 47, d8: 61, d9: 48 },
+  d6: { d1: 53, d2: 64, d3: 32, d4: 47, d5: 35, d6: 50, d7: 49, d8: 55, d9: 52 },
+  d7: { d1: 45, d2: 51, d3: 53, d4: 53, d5: 53, d6: 51, d7: 50, d8: 55, d9: 50 },
+  d8: { d1: 53, d2: 45, d3: 55, d4: 55, d5: 39, d6: 45, d7: 45, d8: 50, d9: 55 },
+  d9: { d1: 44, d2: 53, d3: 53, d4: 43, d5: 53, d6: 48, d7: 50, d8: 45, d9: 50 },
+};
+
+// 这套对手打你这套的胜率（百分数）。表里没有的一律当五五开，别让新牌组炸掉选牌。
+function foeWinRate(foeId, myId) {
+  const row = COUNTER[foeId];
+  const v = row ? row[myId] : null;
+  return typeof v === 'number' ? v : 50;
+}
+
+// 挑一套对手牌组：pool=0 时九套里均匀抽（好打），pool=1 时几乎只挑最克你的那套。
+//
+// 最早试过「按强弱分三档各取三套」，问题是窗口只有几种取值，相邻档位会整批换对手，
+// 实测中段出现「升了一段反而更好打」的凸起。改成加权抽样：每套的权重按它对你这套的
+// 克制强度指数放大，pool 就是放大倍数。难度随段位连续上升，对手也不会总是那几套。
+// ids 传全部预组 id，返回一个 id。
+function foePick(pool, myId, ids) {
+  const list = (ids || []).filter((id) => id !== myId);
+  if (!list.length) return null;
+  if (list.length === 1) return list[0];
+  const p = Math.max(0, Math.min(1, Number(pool) || 0));
+  const t = p * 1.5;                                   // 0 = 均匀，1.5 = 几乎只挑最克的
+  const ws = list.map((id) => Math.exp(t * (foeWinRate(id, myId) - 50) / 10));
+  const total = ws.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < list.length; i++) {
+    r -= ws[i];
+    if (r <= 0) return list[i];
+  }
+  return list[list.length - 1];
+}
+
+// 起点按难度：轻松 1 / 普通 3 / 认真 5；九段之内往上抬几档，三条线不一样：
+//   · 轻松只爬到第 4 档（「轻松」就该一直轻松，不该在顶段突然变凶）；
+//   · 普通 / 认真爬满五档，第 9 段都能碰到最顶的「命轮本身」。
+// 这样每条难度线自己的九段都是完整的一条难度曲线，而不是爬到一半就封顶。
+const CLIMB = { easy: 3, normal: 5, hard: 5 };
+
+function aiFor(diff, tierIdx) {
+  const key = CLIMB[diff] ? diff : 'normal';
+  const base = key === 'easy' ? 1 : key === 'hard' ? 5 : 3;
+  const t = Math.max(0, Math.min(TIERS.length - 1, Number(tierIdx) || 0));
+  const add = Math.round((t / (TIERS.length - 1)) * CLIMB[key]);
+  const lv = Math.max(1, Math.min(AI_LV.length, base + add));
+  const row = AI_LV[lv - 1];
+  return { lv, n: row.n, sloppy: row.sloppy, pool: row.pool, max: AI_LV.length };
+}
+return { gainFor, AI_LV, COUNTER, foeWinRate, foePick, aiFor };
+})();
+
 // ---- js/duel/store.js
 const m_store = await (async () => {
-
-// 对战页的存档：收藏、战绩、开包次数。
+const { gainFor } = m_rank;
+const { tierOf, progress: rankProgress } = m_tiers;
+// 对战页的存档：收藏、战绩、段位分、开包次数。
 // 只写 localStorage，不碰云端档案（云端字段是给「九个游戏」的分数用的，
 // 这里的东西换设备靠加密存档整包搬，和挂机版同一套思路）。
+
+
+
 const KEY = 'zjtt:duel:v1';
 
 // 卡包的钱有三个来源：每天一次白给的、打人机赢来的券、银芯。
@@ -1471,6 +1705,9 @@ const DEFAULT = {
   freeUsed: 0,       // 那天已经用掉几次免费
   pveDay: '',        // 券的日上限按天重置
   pveToday: 0,       // 今天已经发出几张券
+  rp: 0,             // 段位分（人机对战，只增不减，见 duel/rank.js）
+  streak: 0,         // 当前连胜：连赢才有加成，输一局清零
+  bestStreak: 0,     // 历史最长连胜
 };
 
 function today() {
@@ -1538,7 +1775,522 @@ function grantPveTicket(s) {
 }
 
 const RULES = { FREE_PER_DAY, TICKET_PER_DAY, PACK_PRICE };
-return { PVE_SILVER, PVE_LOSS_MIN_ROUNDS, loadSave, saveSave, resetSave, freeLeft, ticketDayLeft, payPack, grantPveTicket, RULES };
+
+// 结算段位分：只增不减（见 duel/rank.js 开头的说明）。返回这一局的变化，交给弹窗显示。
+function addRank(s, win, diff) {
+  const before = Math.max(0, Math.round(Number(s.rp) || 0));
+  const tierBefore = tierOf(before);
+  s.streak = win ? Math.max(0, Number(s.streak) || 0) + 1 : 0;
+  if (win) s.bestStreak = Math.max(Number(s.bestStreak) || 0, s.streak);
+  const gain = gainFor({ win, diff, tier: tierBefore, streak: s.streak });
+  s.rp = before + gain;
+  const after = s.rp;
+  const tierAfter = tierOf(after);
+  return {
+    gain, before, after, streak: s.streak, bestStreak: s.bestStreak,
+    tierBefore, tierAfter, up: tierAfter > tierBefore,
+    progress: rankProgress(after),
+  };
+}
+return { PVE_SILVER, PVE_LOSS_MIN_ROUNDS, loadSave, saveSave, resetSave, freeLeft, ticketDayLeft, payPack, grantPveTicket, RULES, addRank };
+})();
+
+// ---- js/duel/names.js
+const m_names = await (async () => {
+
+// 人机对手的名字：取自「融灾榜单」第 69 期的前 500 条（去重后 487 个）。
+// 名单本身是公开榜单上的玩家名，这里只当名字用，不带任何战绩关联。
+// 想让对手换一批名字：把新一期的榜单导出成 csv，重跑 scripts/build_duel_names.py。
+const NAMES = [
+  "杨枝甘钰",
+  "茉莉奶柏",
+  "柠檬红鼠",
+  "潶糖乌龙",
+  "Uxia",
+  "筝筝纸鸢",
+  "龢利不是河狸喵",
+  "萨摩不耶",
+  "leah1",
+  "Angbak",
+  "Mumei",
+  "萨摩开播了",
+  "梅贝尔",
+  "Flares",
+  "YANA",
+  "火",
+  "洛水",
+  "Iceza",
+  "瑪爾",
+  "ぽん（接代打）",
+  "梦里云泽",
+  "루니안",
+  "Anicillia",
+  "Rukia(Draco)",
+  "bb8612",
+  "猪一只喵",
+  "Stravaig",
+  "传说之下",
+  "明枝欢",
+  "璃亓",
+  "myls",
+  "‎",
+  "归还人海",
+  "临",
+  "雾汐Mistide",
+  "苍姝姀",
+  "阿柒",
+  "心境",
+  "天林",
+  "上上签",
+  "<#DCCS>安抚物",
+  "Enjel",
+  "T-rex",
+  "Helleios",
+  "0312",
+  "Cinna",
+  "枣儿",
+  "Yorshka",
+  "蜘蛛大人的紡輪",
+  "静寂长夏",
+  "Rozu",
+  "银锁",
+  "NoeL",
+  "A奶龙批发朝朝",
+  "볼빵빵판다곰",
+  "앤농",
+  "明渊",
+  "LuffyOMG",
+  "Sylvester",
+  "飞鸟不在之夜",
+  "白酒兰华",
+  "Hymn",
+  "倥偬",
+  "я'аргул",
+  "早春雪",
+  "子夜微雪",
+  "Bepis",
+  "Coliner",
+  "雅",
+  "Koishi",
+  "Jocolat",
+  "我要玩深海啊啊",
+  "久岛鸥",
+  "舅舅",
+  "是澜阿口牙！",
+  "融寒",
+  "梨子、藜藿",
+  "龍肆",
+  "Southpaw",
+  "Kizuno",
+  "星乃晝",
+  "옆집왕",
+  "露露汤",
+  "Kinbote",
+  "哦没事",
+  "枯萎化身塔姆辛",
+  "缪缪",
+  "SchwarzGallert",
+  "普里亚普斯",
+  "Yoroha_NULL",
+  "outsider",
+  "薇娅",
+  "GothGf",
+  "Fen",
+  "레오노라",
+  "灵雨既零",
+  "夜雨月明",
+  "忒伊亚",
+  "Doktah",
+  "晴天雲",
+  "艾瑞卡？",
+  "摩卡小空",
+  "John",
+  "伊卡洛斯",
+  "헌원빈",
+  "护林",
+  "不知尘世",
+  "<#R34>Aurora",
+  "西維斯特",
+  "すごい!つよい!",
+  "moonie",
+  "容嬷嬷",
+  "夜陨星河",
+  "牢立誓",
+  "晴海千花",
+  "bian",
+  "梦怯寒",
+  "岛屿的奇幻漂流",
+  "秋弥",
+  "灰花",
+  "봉이",
+  "柒瑾年",
+  "淸淸梓燃",
+  "Maykia",
+  "冬小麦长眠不醒",
+  "门",
+  "izayoi",
+  "星见",
+  "花岚",
+  "轻珏AQA",
+  "游世妄想",
+  "无声铃鹿第一快",
+  "莉奥诺拉",
+  "由乃",
+  "Reol",
+  "馬鮫魚",
+  "原盖就是区",
+  "念生",
+  "WhaleLeap",
+  "邮宝得鉴",
+  "sty",
+  "Reimu",
+  "哈根校猫该达斯",
+  "Jad",
+  "Zyocuh",
+  "奶丝兔米球",
+  "卿城",
+  "黄金熊",
+  "妃妮克丝",
+  "表里如一",
+  "胡桃",
+  "井昔年",
+  "理智溶解中",
+  "明昭晞",
+  "甜菜",
+  "盲枭",
+  "coffin",
+  "Potatis土豆",
+  "汐萍",
+  "Mogoo",
+  "惑星",
+  "<#f8aq>千雪",
+  "超辣犬犬",
+  "Jarozin",
+  "Buntou",
+  "薄荷味的可可",
+  "Tapiru",
+  "叠嶂扶影",
+  "Loe",
+  "電気猫布",
+  "盼",
+  "tgtg",
+  "儿波莉尔",
+  "PolkaRain",
+  "逹芙黛爾",
+  "皮九",
+  "two刀乐",
+  "AbsK",
+  "莱西",
+  "37",
+  "Alessia",
+  "MythagDog",
+  "Gazima",
+  "夢遊",
+  "机长sama",
+  "狄法",
+  "海蔷薇",
+  "瓦伦 尼古拉斯",
+  "早川秋泽日",
+  "是你啊静静",
+  "Yun",
+  "天命斬白",
+  "小涛",
+  "박현",
+  "浪里鱼人",
+  "独涯小姐姐",
+  "Exo",
+  "苍响",
+  "东",
+  "小煤球二世",
+  "KHeath",
+  "蓝毛启动！",
+  "Ryker",
+  "Rainbow",
+  "Noir",
+  "姜酒",
+  "Ester",
+  "匂坂郁纪",
+  "yoyi",
+  "九天缘",
+  "爱睡觉的觉皇",
+  "浮生若梦",
+  "氷室菫",
+  "一条躺尸的咸鱼",
+  "Kurisu",
+  "小小娃娃",
+  "苍崎橙子",
+  "Boooluu",
+  "灰泽螨Hazel",
+  "Kaisa",
+  "谁会赢啊",
+  "黑天鹅",
+  "莱克的主人",
+  "HoumuraHana",
+  "Shieru",
+  "维C斯特",
+  "@1Angy@2",
+  "Yurann",
+  "清野凛",
+  "那一片银杏",
+  "Tokuli.Li",
+  "流砂",
+  "400的MAN",
+  "泠泠",
+  "忘夜行PVP互刷",
+  "Ten",
+  "Player",
+  "涅托",
+  "踉蹌的二弟",
+  "狮子原爽",
+  "Sunless",
+  "百洛晓",
+  "尘埃",
+  "kikyo.",
+  "尖尖",
+  "Aytheus",
+  "玛卡巴卡",
+  "C维斯特",
+  "jimmy525521",
+  "yxlepamplemous",
+  "NOGOOD",
+  "undifined",
+  "世界",
+  "燐舞曲",
+  "Mellow",
+  "成堇",
+  "簌簌",
+  "利奥诺拉",
+  "琅琅",
+  "“缪斯”",
+  "Humphrey",
+  "「N」",
+  "酷酷kuku",
+  "樱木冢",
+  "晚上吃鱼",
+  "雪乃qwq",
+  "Bobice",
+  "77",
+  "AegisX",
+  "OnE",
+  "盼风归",
+  "冬雪",
+  "Camil",
+  "维斯塔森",
+  "莉奥诺拉123321",
+  "修伊",
+  "塞西莉亚",
+  "ShanJoey",
+  "早起咕咕头",
+  "<#3afx>玄鸟",
+  "<#f8ax>小四",
+  "福哩",
+  "西蒙II刘易斯",
+  "Pachi",
+  "Frowny",
+  "酸素aqius",
+  "我獨自非洲",
+  "叶藏",
+  "安哥拉兔",
+  "Asator",
+  "墨烨",
+  "Violet",
+  "落尘书生",
+  "Silent",
+  "南慌慌",
+  "散华",
+  "リオノーラ",
+  "Amirganj",
+  "Despair",
+  "CIKI",
+  "悲欢离荷包蛋",
+  "雪莲：问了吗",
+  "aiko",
+  "Danchou",
+  "露菲尔",
+  "Kaly",
+  "nutanonymous",
+  "挽梦",
+  "Meruru",
+  "Urien",
+  "風月鳴",
+  "000",
+  "Kyan",
+  "向日葵",
+  "Bocchi",
+  "风语",
+  "Maomaolei",
+  "Lens",
+  "青衫客（互刷）",
+  "浜名八事",
+  "末日指挥官",
+  "龢利长眠于此",
+  "콘치즈",
+  "桃花茶叶蛋",
+  "沈柏霜",
+  "Yrumi",
+  "防己",
+  "x.",
+  "Calamity",
+  "乐仔",
+  "蚂蚁",
+  "焦糖布丁",
+  "Uxie",
+  "Augustus",
+  "晨曦",
+  "lutya",
+  "冰狼",
+  "慕旸",
+  "坠岚",
+  "冰鸩汐鸹丫",
+  "无用之人",
+  "陈老师好",
+  "PraiseTheMoon",
+  "Varino",
+  "烏克蘭爆炸山羊",
+  "Reisen乌冬",
+  "BAPHO",
+  "feko",
+  "리오노라",
+  "PAKA",
+  "棺人痴",
+  "Prophecy",
+  "Irissimo",
+  "高松灯",
+  "Snakebones",
+  "天邪",
+  "莉奧諾拉",
+  "芝士丁真",
+  "Syro",
+  "灵恒",
+  "鏽雨",
+  "CPU",
+  "尔浮",
+  "Nazoric",
+  "유로파",
+  "哈魯",
+  "君云梵",
+  "天天记叙文",
+  "阿貓不想上班",
+  "Twagave",
+  "慕靈",
+  "CruelValkyrie",
+  "rikka",
+  "希邇",
+  "벨리아스",
+  "Axilled",
+  "调律者",
+  "深海重度依赖",
+  "Oliwia",
+  "1123",
+  "Name",
+  "Yaxa",
+  "ブリボン",
+  "Ixyll",
+  "别夏花",
+  "主",
+  "Metaphoriast",
+  "amber",
+  "三缄",
+  "景清",
+  "yog",
+  "Apath'",
+  "Askar",
+  "查莉兹",
+  "^_^",
+  "RykerBF",
+  "咕了个咕",
+  "德普",
+  "hello",
+  "HakUwU",
+  "Tomori",
+  "弔澈",
+  "克洛瓦",
+  "Liny",
+  "Aeriff",
+  "Nelson",
+  "微光",
+  "Maxene",
+  "루루",
+  "Cuincle",
+  "Lacie",
+  "江枢衍",
+  "安娜贝尔",
+  "Enodia",
+  "纲",
+  "c_sun",
+  "Fumizuk1",
+  "从心",
+  "Klau克劳",
+  "ZulSoma",
+  "幻渊",
+  "OLogO",
+  "伊特絲",
+  "珀玛",
+  "Ahri",
+  "金色大萝卜",
+  "fiesta",
+  "利维娅",
+  "Zheshon",
+  "小菊兒",
+  "Leonora",
+  "квейтр",
+  "藤田琴音",
+  "Myrkvi",
+  "大欢",
+  "リオノラ",
+  "一盏青灯",
+  "啊米诺斯",
+  "贺杰托斯",
+  "망령",
+  "Puro",
+  "薇薇安",
+  "suzu鈴",
+  "NOUI",
+  "目",
+  "Lucas",
+  "Boxeater",
+  "Crowlov",
+  "眭苜",
+  "Taliesin",
+  "Ninety",
+  "Sanga ToT",
+  "Dai",
+  "暗魔師",
+  "芙蕾·秋",
+  "比你更帅的人",
+  "Zera",
+  "Ælegy",
+  "泠塵",
+  "亞當喵",
+  "支离",
+  "bchedans",
+  "黎枫时",
+  "Eko",
+  "Asmodeus",
+  "HILLER",
+  "Leon",
+  "白雲映水",
+  "= DOOM =",
+  "Makise",
+  "저별님",
+  "清风",
+  "羽鸟智世",
+  "Sophia",
+  "入川之潼",
+  "Censini",
+  "Valentine",
+  "高鸿冥",
+  "沃恁蝶",
+  "mon0moon",
+  "91King",
+  "Sabrina",
+  "云影长歌",
+  "TweighT",
+  "受里受气小野寺",
+  "冬银official",
+  "Saphory",
+];
+return { NAMES };
 })();
 
 // ---- js/silver.js
@@ -1597,7 +2349,10 @@ const { CARDS, PACKS, BONDS, DECKS, LORE, FACES, BACK, ART } = m_gen;
 const E = m_engine;
 const { nextAction } = m_ai;
 const net = m_net;
-const { loadSave, saveSave, freeLeft, ticketDayLeft, payPack, grantPveTicket, RULES, PVE_SILVER, PVE_LOSS_MIN_ROUNDS } = m_store;
+const { loadSave, saveSave, freeLeft, ticketDayLeft, payPack, grantPveTicket, addRank, RULES, PVE_SILVER, PVE_LOSS_MIN_ROUNDS } = m_store;
+const { progress: rankProgress, DIFF_TXT, TIERS } = m_tiers;
+const { aiFor, foePick } = m_rank;
+const { NAMES } = m_names;
 const { walletGet, walletAdd, walletSpend, scTag } = m_silver;
 // 页面层：首页 / 对战 / 房间 / 卡包 / 卡表 / 世界观（游戏名：唤醒王：决斗链接）。
 // 所有规则判断都走 engine.js，这里只负责「把状态画出来」和「把点击翻译成操作」。
@@ -1606,6 +2361,9 @@ const { walletGet, walletAdd, walletSpend, scTag } = m_silver;
 //   pve   人机（B 边由 ai.js 走）
 //   local 同屏双人（一台设备轮流，棋盘跟着当前回合翻面）
 //   net   好友房（房间码，双方各自重放同一串动作）
+
+
+
 
 
 
@@ -1637,6 +2395,9 @@ const S = {
   bt: 'pve',        // pve | local | net
   side: 0,          // 我在哪一边（local 跟着回合走）
   seq: 0,           // 好友房动作序号
+  ai: null,         // 本局人机档位 { lv, n, sloppy, pool }（随段位变强，见 duel/rank.js）
+  foeName: '',      // 人机对手的名字（取自融灾榜单，见 names.js）
+  foeDeck: '',      // 对手这套牌的名字（同一个名字永远同一套，见 nameDeck）
   room: null,       // { code, role, state, peerDeck }
   net: null,
   timers: [],
@@ -1677,10 +2438,52 @@ function SIDE() {
   return S.bt === 'local' ? S.G.active : S.side;
 }
 
+// 名字直接写进 innerHTML，榜单里有人带尖括号（比如「<#R34>Aurora」），得转义
+function escTxt(v) {
+  return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// 名字 → 牌组：同一个名字永远带同一套牌（换段位只是「打得更认真」，不会换牌）。
+// 用名字的稳定哈希落位，所以不同名字的牌组天然分散在九套预组上。
+function nameDeck(name) {
+  let h = 2166136261;
+  const t = String(name);
+  for (let i = 0; i < t.length; i++) {
+    h ^= t.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return DECKS[h % DECKS.length].id;
+}
+
+// 按牌组把名字分好桶，开局先按难度定「这局该用哪套牌」，再从这套牌的名字里抽一个人
+const NAMES_BY_DECK = (() => {
+  const map = {};
+  for (const d of DECKS) map[d.id] = [];
+  for (const n of NAMES) {
+    const id = nameDeck(n);
+    if (map[id]) map[id].push(n);
+  }
+  return map;
+})();
+
+// 这个牌组的「主人」们；空桶就退回全名单（新加牌组时不至于没人）
+function namesOfDeck(deckId) {
+  const list = NAMES_BY_DECK[deckId];
+  return list && list.length ? list : NAMES;
+}
+
+function pickName(deckId) {
+  const list = namesOfDeck(deckId);
+  if (!list.length) return '对手';
+  return list[Math.floor(Math.random() * list.length)];
+}
+
 function nameOf(idx) {
   if (S.bt === 'local') return idx === 0 ? '甲' : '乙';
   if (S.bt === 'net') return idx === S.side ? '你' : '好友';
-  return idx === 0 ? '你' : '对手';
+  if (idx === 0) return '你';
+  return escTxt(S.foeName || '对手');
 }
 
 // 引擎日志是按「0 号视角」写的（你 / 对手），换到 1 号视角要翻过来
@@ -1766,6 +2569,9 @@ function renderHome() {
   const bonds = E.evalBonds(deckList(sel));
   const free = freeLeft(S.save);
   const tk = S.save.tickets || 0;
+  const rk = rankProgress(S.save.rp);
+  const ai = aiFor(S.diff, rk.idx);
+  const stars = [0, 1, 2].map((i) => `<i class="${i < rk.stars ? 'on' : ''}">★</i>`).join('');
 
   $('#scr-home').innerHTML = `
     <div class="hero">
@@ -1774,6 +2580,25 @@ function renderHome() {
       <p class="lead">你是守密人，桌上摊着两套记忆。每一张卡都是一个<strong>你还记得的人</strong>：
         召唤她是承认她存在，把她当祭品是承认有更重要的东西。命轮值归零不是死，是<strong>不再确定自己是谁</strong>。</p>
       <div class="hr"></div>
+    </div>
+
+    <div class="sec-h"><h2>你的段位</h2><span class="r">${TIERS.length} 段 · 只靠人机对战计分</span></div>
+    <div class="rankcard" style="--rc:${rk.tier.c}">
+      <div class="rktop">
+        <span class="rkb">${rk.idx + 1}</span>
+        <span class="rkname">${rk.tier.n}<em>「${rk.tier.t}」</em></span>
+        <span class="rksc">${rk.rp}<small>分</small></span>
+      </div>
+      <div class="rkbar"><i style="width:${rk.pct.toFixed(1)}%"></i></div>
+      <div class="rkfoot">
+        <span>${rk.next ? `距「${rk.next.n}」还差 <b>${rk.left}</b> 分` : '已经是最高段位——命轮由你来转'}</span>
+        <span class="rkstars">${stars}</span>
+      </div>
+      <p class="note" style="margin:8px 0 0">下一局对手的档位：<b>Lv${ai.lv}／${ai.max}「${ai.n}」</b>。
+        段位越高，对方越少打错牌——该召唤时会召唤、该盖的怪会盖、不会拿小的去撞大的；
+        它还会挑一套偏向<b>克你这套</b>的预组。但两边命轮值永远是 8000，它不会靠多血赢你。
+        对手是融灾榜单上的玩家名，一个人固定一套牌，同一个人换段位也不会换牌。
+        ${S.save.bestStreak ? `你最长连胜过 ${S.save.bestStreak} 场。` : ''}</p>
     </div>
 
     <div class="sec-h"><h2>选一套卡组</h2><span class="r">共 ${DECKS.length} 套 · 每套 30 张 + 觉醒体</span></div>
@@ -1824,17 +2649,27 @@ function newGame(bt, side, mine, foe, seed) {
   S.busy = false;
   S.result = false;
   S.sel = null; S.mode = 'idle'; S.tribute = []; S.pendingSummon = null;
+  // 两边命轮值都是 8000（羁绊加成各算各的）：段位只影响对手「会不会打、拿什么牌」，不改血量
   S.G = E.createGame({ cards: mine.cards, extra: mine.extra }, { cards: foe.cards, extra: foe.extra }, { seed });
   show('duel');
   renderDuel();
 }
 
+// 对手牌组：按 rank.js 的对位表抽，而不是按「整体谁强」。
+// 九套预组的整体胜率只差 44~52，但克制关系很硬（d5 打 d2 七成、d3 打 d5 只有三成），
+// 所以只有「打你这套顺不顺手」才是真的难度旋钮。
 function startDuel() {
   const mine = deckById(S.deckId);
-  const others = DECKS.filter((d) => d.id !== mine.id);
-  const foe = others[Math.floor(Math.random() * others.length)];
+  // 段位越高，人机档位越高：难度定起点，段位往上抬
+  const rk = rankProgress(S.save.rp);
+  S.ai = aiFor(S.diff, rk.idx);
+  // 先定这局对手用哪套牌（段位越高越偏向克你的那套），再挑一个「这套牌的主人」
+  const foeId = foePick(S.ai.pool, S.deckId, DECKS.map((d) => d.id));
+  const foe = deckById(foeId) || mine;
+  S.foeName = pickName(foe.id);
+  S.foeDeck = foe.n;
   newGame('pve', 0, mine, foe, (Date.now() ^ (Math.random() * 1e9)) >>> 0);
-  if (S.diff === 'easy') { S.G.players[1].lp = 6000; S.G.players[1].lpMax = 6000; }
+  toast(`${S.foeName}（Lv${S.ai.lv}「${S.ai.n}」）带着「${foe.n}」坐下了`);
 }
 
 function startLocal() {
@@ -1918,7 +2753,8 @@ function renderDuel() {
   }).join('');
 
   const modeTag = S.bt === 'local' ? `<span class="btag">同屏 · 轮到${nameOf(G.active)}</span>`
-    : (S.bt === 'net' ? `<span class="btag">房间 ${S.room ? S.room.code : '—'}</span>` : '');
+    : (S.bt === 'net' ? `<span class="btag">房间 ${S.room ? S.room.code : '—'}</span>`
+      : (S.ai ? `<span class="btag ai">Lv${S.ai.lv} · ${S.ai.n}</span>` : ''));
 
   const waitTxt = S.bt === 'net'
     ? (v.over ? '对决结束。' : '等好友出牌…')
@@ -1940,6 +2776,7 @@ function renderDuel() {
     <div class="side op-side">
       <div class="pinfo">
         <span class="who">${nameOf(1 - side)}</span>
+        ${S.bt === 'pve' && S.foeDeck ? `<i class="dv" title="对手这套牌">${S.foeDeck}</i>` : ''}
         ${lpBar(v.op)}
         <span class="meta"><span>手 ${v.op.hand}</span><span>组 ${v.op.deck}</span></span>
         ${bondsDots(v.op.bonds)}
@@ -2036,6 +2873,26 @@ function renderActbar() {
   bar.classList.add('on');
 }
 
+// 结算里的段位条：本局 +多少分、现在第几段、离下一段还差多少，升段单独提一行
+function rankBlock(rk) {
+  const p = rk.progress;
+  const stars = [0, 1, 2].map((i) => `<i class="${i < p.stars ? 'on' : ''}">★</i>`).join('');
+  return `<div class="rankcard sm" style="--rc:${p.tier.c}">
+    <div class="rktop">
+      <span class="rkb">${p.idx + 1}</span>
+      <span class="rkname">${p.tier.n}<em>「${p.tier.t}」</em></span>
+      <span class="rksc">${p.rp}<small>分</small></span>
+    </div>
+    <div class="rkbar"><i style="width:${p.pct.toFixed(1)}%"></i></div>
+    <div class="rkfoot">
+      <span>段位 <b>+${rk.gain}</b>${rk.streak > 1 ? ` · 连胜 ${rk.streak}` : ''}</span>
+      <span>${p.next ? `距「${p.next.n}」还差 <b>${p.left}</b> 分` : '已经是最高段位'}</span>
+      <span class="rkstars">${stars}</span>
+    </div>
+    ${rk.up ? `<div class="rkup">升段 — ${p.tier.n}「${p.tier.t}」</div>` : ''}
+  </div>`;
+}
+
 function showResult(v) {
   S.result = true;
   const side = SIDE();
@@ -2053,10 +2910,14 @@ function showResult(v) {
       const g = grantPveTicket(S.save);
       ticket = g.granted ? '<span class="bond">开包券 +1</span>' : '<span class="note">今天的券已经领满</span>';
     }
+    // 段位分要和银芯一起落盘，再推一次云端档案（排行榜读的就是这份摘要）
+    const rk = addRank(S.save, win, S.diff);
     saveSave(S.save);
     silverBar();
-    reward = `<div class="row" style="margin-top:10px"><span class="bond">${gain > 0 ? scTag('+' + gain) : '这局太短，没有银芯'}</span><span class="note">${{ easy: '轻松', normal: '普通', hard: '认真' }[S.diff] || '普通'}难度 · 钱包 ${walletGet()}</span>${ticket}
-      <span class="note">累计 ${S.save.wins} 胜 ${S.save.losses} 负</span></div>`;
+    pushCloud();
+    reward = `<div class="row" style="margin-top:10px"><span class="bond">${gain > 0 ? scTag('+' + gain) : '这局太短，没有银芯'}</span><span class="note">${DIFF_TXT[S.diff] || '普通'}难度 · 钱包 ${walletGet()}</span>${ticket}
+      <span class="note">累计 ${S.save.wins} 胜 ${S.save.losses} 负</span></div>
+      ${rankBlock(rk)}`;
   } else if (S.bt === 'local') {
     reward = `<div class="row" style="margin-top:10px"><span class="bond">${nameOf(v.winner)} 赢下这场</span>
       <span class="note">同屏双人不计战绩</span></div>`;
@@ -2066,7 +2927,9 @@ function showResult(v) {
   }
 
   openModal(`
-    <div class="mtitle"><h3>${win ? (S.bt === 'local' ? nameOf(v.winner) + '赢下了这场对决' : '你赢下了这场对决') : '命轮断了'}</h3></div>
+    <div class="mtitle"><h3>${win
+      ? (S.bt === 'local' ? nameOf(v.winner) + '赢下了这场对决' : '你赢下了这场对决')
+      : (S.bt === 'pve' && S.foeName ? escTxt(S.foeName) + ' 赢下了这场对决' : '命轮断了')}</h3></div>
     <p class="sub">${rounds} 回合 · ${win ? '对手交出一张牌' : '你从此不再确定一张牌'}</p>
     <p class="note">${win
       ? '输的人要交出一张牌：不是丢掉，是「从此不再确定」。那张牌上的人会变淡。'
@@ -2134,7 +2997,7 @@ async function runAI() {
   let steps = 0;
   while (!G.over && G.active === 1 && steps < 80) {
     steps++;
-    const a = nextAction(G, 1, S.diff);
+    const a = nextAction(G, 1, S.bt === 'pve' && S.ai ? S.ai.sloppy : S.diff);
     if (!a) break;
     const r = E.applyAction(G, 1, aiAction(a));
     if (!r.ok && a.t !== 'end') break;
@@ -2828,7 +3691,15 @@ function bind() {
 }
 
 // ------------------------------------------------------------------ 启动
-function boot() {
+// opt.afterPve：结算之后的回调，由入口 js/duel.js 注入（把段位分推一份到云端档案）。
+// 这一页自己不认识账号模块：对战逻辑不需要知道「登录没登录、往哪推」。
+let afterPve = null;
+function pushCloud() {
+  try { if (afterPve) afterPve(); } catch (e) { /* 推送失败不影响结算 */ }
+}
+
+function boot(opt) {
+  afterPve = (opt && opt.afterPve) || null;
   document.documentElement.style.setProperty('--sheet', `url("${FACES}")`);
   document.documentElement.style.setProperty('--backimg', `url("${BACK}")`);
   document.documentElement.style.setProperty('--sheet-size', `${ART.cols * 100}% ${ART.rows * 100}%`);
@@ -3105,14 +3976,23 @@ const m_duel = await (async () => {
 const { boot } = m_view;
 const { startGameCloud } = m_gamecloud;
 // 「唤醒王：决斗链接」的入口：只做一件事——把页面接上。
-// 规则在 duel/engine.js，对手在 duel/ai.js，画面在 duel/view.js，
+// 规则在 duel/engine.js，对手在 duel/ai.js，段位在 duel/rank.js，画面在 duel/view.js，
 // 卡表与图集由 scripts/build.mjs 从 data/duel-*.json 生成到 duel/gen.js。
 
 
 
-boot();
+// 段位分要出现在首页排行榜上，靠的是账号档案里的摘要（js/gamestats.js 的 digest）。
+// 这条链几十 KB，浏览器空闲了再动态 import，不挡首屏（构建后是 js/b/duel-sync.js）。
+let sync = null;
+function syncMod() {
+  if (!sync) sync = import('./duel-sync.js').catch(() => null);
+  return sync;
+}
 
-// 登录了本站账号就把收藏 / 战绩同步到云端（js/gamecloud.js）
+boot({ afterPve: () => { syncMod().then((m) => { if (m) m.flush(); }); } });
+setTimeout(() => { syncMod().then((m) => { if (m) m.pull(); }); }, 1500);
+
+// 登录了本站账号就把收藏 / 战绩整份存档同步到云端（js/gamecloud.js）
 startGameCloud('duel');
 return {  };
 })();

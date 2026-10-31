@@ -671,8 +671,8 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
         <h2>唤醒王：决斗链接<span class="ver">v1.1.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
-      <p class="desc">游戏王式的卡牌对战，牌面是《忘却前夜》的唤醒体。每回合一次通常召唤，等级 5 以上要献祭；场上三格怪兽、三格魔陷；额外卡组放觉醒体——把指定的两个人送进墓地（素材可以在场上，也可以直接从手牌抽出来），命轮就替她们给出一个答案，通常不是她们想要的。九套预组各有自己的羁绊，五个卡包按档案室的口径命名，可以和人机、同屏双人，也能开房间码跟好友打，还有一整套弥萨格的世界观设定。</p>
-      <ul class="tags"><li>9 套预组</li><li>12 条羁绊</li><li>114 张卡</li><li>好友房</li></ul>
+      <p class="desc">游戏王式的卡牌对战，牌面是《忘却前夜》的唤醒体。每回合一次通常召唤，等级 5 以上要献祭；场上三格怪兽、三格魔陷；额外卡组放觉醒体——把指定的两个人送进墓地（素材可以在场上，也可以直接从手牌抽出来），命轮就替她们给出一个答案，通常不是她们想要的。九套预组各有自己的羁绊，五个卡包按档案室的口径命名，可以和人机、同屏双人，也能开房间码跟好友打；人机对手是融灾榜单上的玩家名，一个人固定一套牌，按胜场涨段位分，九个段位各有称号，段位越高对方越少打错牌。还有一整套弥萨格的世界观设定。</p>
+      <ul class="tags"><li>9 套预组</li><li>9 个段位</li><li>114 张卡</li><li>好友房</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -1497,7 +1497,8 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
   var CREATOR_ZH = { samo: '萨摩不耶', mengyi: '梦依流苏', alice: '爱丽丝', ratking: '鼠王', dragond: '魔龙_D', zerok: '立誓0氪', xiamolin: '夏茉琳', chaoxing: '朝星', maodie: '路过的耄耋' };
   var BOARDS = [
     ['il', 'idle'], ['dr', 'detective'], ['mg', 'merge'], ['bd', 'bird'], ['bn', 'binding'],
-    ['sv', 'survivors'], ['pf', 'protocol'], ['wf', 'wolf'], ['dt', 'deathreport'], ['g2', 'g2048']
+    ['sv', 'survivors'], ['pf', 'protocol'], ['wf', 'wolf'], ['dt', 'deathreport'], ['g2', 'g2048'],
+    ['dl', 'duel']
   ];
   var boardData = null, boardAwk = null, boardTab = 'il';
   function loadAwkMap() {
