@@ -24,6 +24,12 @@ const PACK_PRICE = RULES.PACK_PRICE;
 
 const REALM_TXT = { chaos: '混沌', caro: '血肉', aqua: '深海', ultra: '超维', any: '无界' };
 const KIND_TXT = { M: '怪兽', S: '魔法', T: '陷阱', E: '觉醒体' };
+// 命轮代价只写在魔法·陷阱上（cost.lp）。卡面已经标了，卡表/编辑器/详情也带一句，
+// 不然玩家只在「点开卡牌」的那一屏看到，列表里像是白板。
+const costTag = (c) => {
+  const lp = (c && c.cost && c.cost.lp) || 0;
+  return lp ? ` · 代价 ${lp}` : '';
+};
 const RAR_ORDER = ['N', 'R', 'SR', 'UR', 'GR'];
 
 const S = {
@@ -278,11 +284,11 @@ function renderHome() {
         ${S.save.bestStreak ? `你最长连胜过 ${S.save.bestStreak} 场。` : ''}</p>
     </div>
 
-    <div class="sec-h"><h2>选一套卡组</h2><span class="r">预组 ${DECKS.length} 套 · 每套 30 张 + 觉醒体</span></div>
+    <div class="sec-h"><h2>选一套卡组</h2><span class="r">预组 ${DECKS.length} 套 · 每套 40 张 + 觉醒体</span></div>
     <div class="decks">${decks}</div>
 
-    <div class="sec-h"><h2>我的卡组</h2><span class="r">${mine.length} 套 · 30 张 / 同名最多 3 张 · 人机与好友房都能用</span></div>
-    ${mine.length ? `<div class="decks">${mineHtml}</div>` : '<p class="note" style="margin:2px 0 8px">还没有自己组的牌。下面点「新建卡组」会打开编辑器：左边是全部卡池，右边是你这套 30 张。</p>'}
+    <div class="sec-h"><h2>我的卡组</h2><span class="r">${mine.length} 套 · 40~50 张 / 同名最多 3 张 · 人机与好友房都能用</span></div>
+    ${mine.length ? `<div class="decks">${mineHtml}</div>` : '<p class="note" style="margin:2px 0 8px">还没有自己组的牌。下面点「新建卡组」会打开编辑器：左边是全部卡池，右边是你这套牌（40~50 张）。</p>'}
     <div class="row" style="margin-top:6px">
       <button class="btn pri" data-bnew="1">＋ 新建卡组</button>
       ${mine.length ? '<button class="btn ghost" data-bedit="' + mine[0].id + '">编辑最近一套</button>' : ''}
@@ -335,6 +341,7 @@ function newGame(bt, side, mine, foe, seed) {
   // 音效/飘字的比对基线必须跟着新一局归零：seq 是每局从头数的，
   // 留着上一局的大序号，新一局的日志全都「不新」，第二局就彻底没声音了。
   S.fxLp = null; S.fxSeq = 0; S.fxGrave = null;
+  S.turnKey = null; S.acted = false;
   S.sel = null; S.mode = 'idle'; S.tribute = []; S.pendingSummon = null;
   // 两边命轮值都是 8000（羁绊加成各算各的）：段位只影响对手「会不会打、拿什么牌」，不改血量
   S.G = E.createGame({ cards: mine.cards, extra: mine.extra }, { cards: foe.cards, extra: foe.extra }, { seed });
@@ -560,6 +567,16 @@ function spellSlotHTML(s, i, side, hot) {
   return `<div class="slot sp" data-slot="${side}-sp-${i}">${card}</div>`;
 }
 
+// 每回合开始时中间弹一下「你的回合 / 对方的回合」：不点掉，1.5 秒自己淡掉，
+// 免得挡着看牌（手机屏上正中一块最容易挡住对面那排）。
+function banner(text, mine) {
+  const d = document.createElement('div');
+  d.className = 'turnb' + (mine ? ' me' : ' op');
+  d.textContent = text;
+  document.body.appendChild(d);
+  setTimeout(() => { if (d.parentNode) d.remove(); }, 1500);
+}
+
 function renderDuel() {
   const G = S.G;
   if (!G) { show('home'); return; }
@@ -567,6 +584,14 @@ function renderDuel() {
   const v = E.publicView(G, side);
   const myTurn = v.active === side && !v.over;
   const canAct = myTurn && !S.busy;
+
+  // 换人（或者新一局）才弹横幅，顺便把「这一步算不算已经进主要阶段」清掉
+  const turnKey = G.turn + ':' + v.active + ':' + (v.over ? 1 : 0);
+  if (S.turnKey !== turnKey) {
+    S.turnKey = turnKey;
+    S.acted = false;
+    if (!v.over) banner(myTurn ? '你的回合' : (S.bt === 'pve' ? '对方的回合' : nameOf(v.active) + '的回合'), myTurn);
+  }
 
   const logHTML = v.log.map((l) => `<li data-k="${l.kind}">${logText(l.text, side)}</li>`).join('');
 
@@ -606,6 +631,26 @@ function renderDuel() {
     ? (v.over ? '对决结束。' : '等好友出牌…')
     : (S.bt === 'local' ? '轮到' + nameOf(G.active) + '了。' : '对手正在想牌。');
 
+  // 状态条：现在什么阶段、还能通常召唤几次、要不要去战斗阶段。
+  // 阶段是界面推出来的——规则里没有独立的「准备阶段」，这一回合还没出过手就叫准备阶段，
+  // 出过一次手就是主要阶段，点过「战斗阶段」才是战斗阶段。
+  const callLeft = (v.me.normalUsed ? 0 : 1) + (v.me.normalExtra || 0);
+  const stage = v.phase === 'battle' ? '战斗阶段' : (S.acted || S.busy ? '主要阶段' : '准备阶段');
+  const atkReady = v.phase === 'main' && v.me.mons.some((m) => m && m.canAtk);
+  const hintBits = [];
+  if (myTurn) {
+    hintBits.push(`<b>${stage}</b>`);
+    hintBits.push(callLeft > 0 ? `通常召唤剩 ${callLeft} 次` : '<s>通常召唤已用完</s>');
+    if (v.phase === 'battle') hintBits.push('点自己的怪兽，再点要打的目标');
+    else if (atkReady) hintBits.push('需要攻击请进入战斗阶段');
+    else if (v.me.mons.some(Boolean)) hintBits.push('场上的怪这回合已经打过，或本来就不能攻击');
+    else hintBits.push('先铺一只怪兽再进战斗阶段');
+  } else {
+    hintBits.push(`<b>${S.bt === 'pve' ? '对方的回合' : nameOf(v.active) + '的回合'}</b>`);
+    hintBits.push(v.over ? '对决结束' : (v.phase === 'battle' ? '对方在打人' : '等对方出牌'));
+  }
+  const hint = `<div class="dhint">${hintBits.join('<i>·</i>')}</div>`;
+
   $('#scr-duel').innerHTML = `
     <div class="duelbar">
       <span class="turn">第 ${Math.ceil(v.turn / 2)} 回合</span>
@@ -619,6 +664,8 @@ function renderDuel() {
         ${S.bt === 'pve' ? '' : '<button class="btn sm ghost" data-act="leave">离开</button>'}
       </span>
     </div>
+
+    ${hint}
 
     <div class="side op-side">
       <div class="pinfo">
@@ -741,7 +788,7 @@ function renderActbar() {
         : '魔法只能在自己的主要阶段从手牌发动；永续与装备留在场上。')
       : '陷阱盖放后，对方满足条件时自动发动。');
   bar.innerHTML = `
-    <div class="ah"><b>${c.n}</b><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}</span>
+    <div class="ah"><b>${c.n}</b><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}${costTag(c)}</span>
       <button class="btn sm ghost x" data-act="cancel">关闭</button></div>
     <div class="ab">${opts.join('')}</div>
     <div class="hint">${hint}</div>`;
@@ -845,6 +892,7 @@ function act(a) {
   const G = S.G;
   if (!G) return { ok: false, err: '没有对局' };
   const r = E.applyAction(G, SIDE(), a);
+  if (r.ok) S.acted = true;      // 出过一次手就不再是「准备阶段」
   if (r.ok && S.bt === 'net' && S.net) {
     S.seq += 1;
     S.net.send({ k: 'act', n: S.seq, a });
@@ -984,7 +1032,7 @@ function onSlotClick(side, idx, isSpell) {
   const m = G.players[1 - me].mons[idx];
   if (m && !m.set) {
     const c = CARDS[m.id];
-    openModal(`<div class="mtitle"><h3>${c.n}</h3><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r]}</span>
+    openModal(`<div class="mtitle"><h3>${c.n}</h3><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r]}${costTag(c)}</span>
       <button class="btn sm ghost x" data-modal="close">关闭</button></div>
       <p class="sub">${c.k === 'M' || c.k === 'E' ? `${c.atk} / ${c.def} · 等级 ${c.lv}` : ''}</p>
       <p class="note">${c.text}</p>`);
@@ -1202,11 +1250,12 @@ function onNetMsg(p) {
 // ------------------------------------------------------------------ 自组卡组
 // 预组是「拿来就打的」，自组是「自己排的」。两者在选卡组列表里平级，
 // deckById() 同时认这两份，所以人机 / 同屏 / 好友房都不用额外改分支。
-// 主卡组 40 张：预组全部按 40 构筑，自组允许 30~40（快攻小牌组不用凑满）。
-const DECK_SIZE = 40;
-const DECK_MIN = 30;
+// 主卡组 40~50 张：预组一律按 40 构筑（越少越稳，牌堆薄了才抽得到要的），
+// 自组放到 50 是留给「想塞满的」——多了容错高，但关键牌也被稀释。
+const DECK_SIZE = 50;
+const DECK_MIN = 40;
 const MAX_COPY = 3;     // 同名卡上限
-const EXTRA_MAX = 6;    // 额外卡组上限
+const EXTRA_MAX = 10;   // 额外卡组上限
 // 「直接召唤」不占通常召唤，白给一个身位太强，所以额外卡组里最多放 2 张。
 const DIRECT_MAX = 2;
 
@@ -1294,7 +1343,7 @@ function bRow(id, n, onClick) {
   const c = CARDS[id];
   if (!c) return '';
   const sub = c.k === 'E' ? '觉醒体'
-    : KIND_TXT[c.k] + ' · ' + (REALM_TXT[c.r] || c.r)
+    : KIND_TXT[c.k] + ' · ' + (REALM_TXT[c.r] || c.r) + costTag(c)
       + (c.lv ? ' · Lv' + c.lv : '') + (c.atk !== undefined ? ' · ' + c.atk + '/' + c.def : '');
   return `<button class="bit" ${onClick}><b>${c.n}</b><span>${sub}</span>`
     + `<i>${n > 0 ? '×' + n : '＋'}</i></button>`;
@@ -1364,8 +1413,8 @@ function renderBuild() {
         ${deckGroup(secT, '陷阱', 't')}
         <h4>额外卡组 · ${b.extra.length} 张</h4>
         <div class="blist" style="max-height:22vh">${extraHtml}</div>
-        <p class="note" style="margin:6px 0 0">同名卡最多 ${MAX_COPY} 张；主卡组 ${DECK_MIN}~${DECK_SIZE} 张（凑满 ${DECK_SIZE} 最稳）；`
-        `「直接召唤」的额外怪兽最多 ${DIRECT_MAX} 张；觉醒体的素材必须在这套牌里，否则它永远召不出来。</p>
+        <p class="note" style="margin:6px 0 0">同名卡最多 ${MAX_COPY} 张；主卡组 ${DECK_MIN}~${DECK_SIZE} 张（${DECK_MIN} 张最稳，越往上越容易抽不到要的牌）；
+          「直接召唤」的额外怪兽最多 ${DIRECT_MAX} 张；觉醒体的素材必须在这套牌里，否则它永远召不出来。</p>
       </div>
     </div>`;
 
@@ -1457,7 +1506,7 @@ function copyDeck(id) {
 function askDelete(id) {
   const d = deckById(id);
   openModal(`<div class="mtitle"><h3>删掉「${d.n}」？</h3><button class="btn sm ghost x" data-modal="close">关闭</button></div>
-    <p class="sub">这套牌的 30 张会一起没掉（卡本身还在收藏里，只是这个卡组不见了）。删了就找不回来。</p>
+    <p class="sub">这套牌会一起没掉（卡本身还在收藏里，只是这个卡组不见了）。删了就找不回来。</p>
     <div class="mb"><button class="btn ghost" data-modal="close">算了</button>
       <button class="btn pri" data-bdel-do="${id}">删掉</button></div>`);
 }
@@ -1607,8 +1656,7 @@ function buyPack(packId) {
   openModal(`<div class="mtitle"><h3>${pk.n}</h3><span class="note">${pk.sub}</span>
     <button class="btn sm ghost x" data-modal="close">关闭</button></div>
     <p class="sub">第 ${S.save.opened} 包 · ${payTxt}</p>
-    <p class="note" style="margin:0 0 4px">${newN ? `本次新收录 ${newN} 种。` : '这五张都已收录过。'}`
-      `${rec.n ? `重复的 ${rec.n} 张已折算成 <b style="color:var(--gold)">${rec.silver} 银芯</b>。` : ''}点任意一张看详细效果。</p>
+    <p class="note" style="margin:0 0 4px">${newN ? `本次新收录 ${newN} 种。` : '这五张都已收录过。'}${rec.n ? `重复的 ${rec.n} 张已折算成 <b style="color:var(--gold)">${rec.silver} 银芯</b>。` : ''}点任意一张看详细效果。</p>
     <div class="pull">${cards.map((c) => `<div class="pc" data-read="${c.id}">${cardHTML(c, { tag: isNew[c.id] ? 'NEW' : '' })}<div class="rar" style="color:var(--rc)">${c.rar}${isNew[c.id] ? '' : ` · ×${S.save.coll[c.id]}`}</div></div>`).join('')}</div>
     <div class="mb"><button class="btn ghost" data-modal="close">收下</button>
       <button class="btn pri" data-buy2="${pk.id}">再开一包</button></div>`);
@@ -1676,7 +1724,7 @@ function showHowTo() {
   openModal(`<div class="mtitle"><h3>怎么打</h3><button class="btn sm ghost x" data-modal="close">关闭</button></div>
     <p class="sub">目标是先把对方的命轮值打到 0。双方各 8000 点起手。</p>
     <ul class="tips">
-      <li><b>场地</b>：怪兽 3 格、魔法·陷阱 3 格，卡组 40 张（自己组可以 30~40），起手 5 张。先手第一回合不抽牌。</li>
+      <li><b>场地</b>：怪兽 3 格、魔法·陷阱 3 格，卡组 40~50 张，起手 5 张。先手第一回合不抽牌。</li>
       <li><b>召唤</b>：每回合 1 次。等级 1–4 直接出，5–6 需要 1 只祭品，7 以上需要 2 只。祭品送墓。
         带「额外通常召唤」的牌（如「灯下夜谈」）可以让你这回合多召一次。</li>
       <li><b>特殊召唤</b>：<b>不占通常召唤权</b>。衍生物（「维度残影」这类）凭空多一个身位，可以当祭品、当墙、当嘲讽的靶子；
@@ -1693,13 +1741,14 @@ function showHowTo() {
       <li><b>觉醒召唤</b>：把指定的素材送进墓地，从额外卡组特召，<b>不占通常召唤</b>。素材至少有一只在自己场上，另一只可以直接从手牌来；
         少数觉醒体（写了「素材可从墓地」的）还能从墓地拼回来；<b>刚觉醒的那一回合它不能攻击</b>。</li>
       <li><b>自组卡组</b>：首页「我的卡组」里可以新建 / 编辑 / 改名 / 复制 / 删除，随便存几套。
-        主卡组 30~40 张（预组都是 40），同名最多 3 张，额外最多 6 张、其中「直接召唤」最多 2 张；
+        主卡组 40~50 张（预组都是 40 张，牌越少越容易抽到要的），同名最多 3 张，额外最多 10 张、其中「直接召唤」最多 2 张；
         觉醒体的素材必须在这套牌里，否则它永远召不出来。
         人机、同屏双人、好友房都能用自己组的牌——好友房里传的是卡组内容，不是编号。</li>
       <li><b>命轮代价</b>：有些魔法·陷阱写着「代价 1500」——<b>发动时先付命轮值</b>，付不起就发不动（付完不能正好死）。
         代价牌通常比同级的常规牌强一档：「以命换命」2000 换对方 2000、「铁处女」2500 直接拆掉对方最大的怪。</li>
-      <li><b>造物</b>：「造物·××」是道具卡，分装备 / 永续 / 场地三类。场地魔法也占一格，但同一时间只能有一张，
-        新的会把旧的顶掉；造物的图标是各自的道具图，认图标比认名字快。</li>
+      <li><b>造物</b>：「造物·××」只做魔法·陷阱（装备 / 永续 / 场地 / 通常 / 速攻），
+        <b>不当怪兽、也不进觉醒体</b>——它们是道具，不是人。场地魔法占一格，同一时间只能有一张，新的把旧的顶掉；
+        造物各有一枚自己的道具图标，认图标比认名字快。</li>
       <li><b>直接召唤</b>：额外卡组里另一种召唤方式。<b>满足卡面条件</b>（如「自己场上有 2 只怪兽」）或<b>献出命轮值</b>即可召唤，
         不用素材、<b>不占通常召唤</b>；代价是每回合只能 1 次，而且当回合不能攻击。为了不破坏平衡，额外卡组里最多放 2 张。</li>
       <li><b>陷阱</b>：本作的陷阱是「自动迎击」——满足条件就发动，不用你宣言。所以盖牌的顺序要考虑对手会先干什么。</li>
@@ -1724,7 +1773,7 @@ function lineCard(id, n, own) {
   const have = (S.save.coll || {})[id];
   return `<div class="lc" data-read="${id}" data-rar="${c.rar}" style="--rc:${(E.REALM[c.r] || E.REALM.any).c}">
     <div class="lh"><b>${c.n}</b>${n > 1 ? `<i>×${n}</i>` : ''}<span class="lr">${c.rar}</span>${own && have === undefined ? '<span class="lo">未收录</span>' : ''}</div>
-    <div class="ls">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}${c.lv ? ` · Lv${c.lv}` : ''} · ${st}</div>
+    <div class="ls">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}${c.lv ? ` · Lv${c.lv}` : ''}${costTag(c)} · ${st}</div>
     <div class="lt">${c.text}</div></div>`;
 }
 
@@ -1772,7 +1821,7 @@ function readCard(id, push) {
   const extra = c.k === 'E' ? `<p class="note">素材：${c.mat ? c.mat.join(' ＋ ') : '自己场上 2 只界域不同的怪兽'}</p>` : '';
   const have = (S.save.coll || {})[id] || 0;
   const canBack = push && S.mstack && S.mstack.length >= 0 && $('#mask').classList.contains('on') && $('#modal').innerHTML;
-  openModal(`<div class="mtitle"><h3>${c.n}</h3><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r} · ${c.rar} · ${have ? `已收录 ×${have}` : '未收录'}</span>
+  openModal(`<div class="mtitle"><h3>${c.n}</h3><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}${costTag(c)} · ${c.rar} · ${have ? `已收录 ×${have}` : '未收录'}</span>
     ${canBack ? '<button class="btn sm ghost x" data-modal="back">← 返回</button>' : ''}
     <button class="btn sm ghost ${canBack ? '' : 'x'}" data-modal="close">关闭</button></div>
     <div class="readface">${cardHTML(c, {})}</div>
@@ -2077,7 +2126,16 @@ export function boot(opt) {
       // 九个音效各敲一遍：无头环境没有手势，AudioContext 会保持 suspended，
       // 这里只确认不抛异常
       sfx: () => { Object.keys(SFX).forEach((k) => SFX[k]()); return Object.keys(SFX).join(','); },
+      build: (id) => startBuild(id || 'new'),
+      go: (id) => show(id),
+      pack: (id) => buyPack(id || 'bp16'),
     };
+    // ?_test=1&go=build：无头截图时直接切到某个屏（build / packs / codex / home）
+    const mGo = /[?&]go=([a-z]+)/.exec(location.search);
+    if (mGo) setTimeout(() => (mGo[1] === 'build' ? window.__duel.build('new') : window.__duel.go(mGo[1])), 60);
+    // ?_test=1&buy=bp16：直接开一包，验证开包弹窗（它崩过一次，是模板里多打了个反引号）
+    const mBuy = /[?&]buy=(\w+)/.exec(location.search);
+    if (mBuy) setTimeout(() => window.__duel.pack(mBuy[1]), 80);
     // ?_test=1&auto=N：无头截图时自动推 N 步，结果写回页面，dump-dom 就能读到
     const mAuto = /[?&]auto=(\d+)/.exec(location.search);
     if (mAuto) {

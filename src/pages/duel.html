@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>唤醒王：决斗链接 · 忘忘同人小游戏</title>
-<meta name="description" content="《忘却前夜》同人卡牌对战：把唤醒体写进命轮，用祭品、觉醒召唤、魔法与陷阱和对手赌一段记忆。22 套预组卡组、17 个卡包、369 张卡，主卡组 40 张；中毒、流血、屏障、反击、嘲讽、衍生物、命轮代价、造物、直接召唤九套机制；可自组多套卡组，人机、同屏双人、房间码好友对战，附世界观设定。">
+<meta name="description" content="《忘却前夜》同人卡牌对战：把唤醒体写进命轮，用祭品、觉醒召唤、魔法与陷阱和对手赌一段记忆。22 套预组卡组、17 个卡包、369 张卡，主卡组 40~50 张（额外 10 张）；中毒、流血、屏障、反击、嘲讽、衍生物、命轮代价、造物、直接召唤九套机制；可自组多套卡组，人机、同屏双人、房间码好友对战，附世界观设定。">
 <meta name="theme-color" content="#0a0c12">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0c12%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2219%22%20fill%3D%22none%22%20stroke%3D%22%23e3b341%22%20stroke-width%3D%223%22%2F%3E%3Cpath%20d%3D%22M32%2018l9%2014-9%2014-9-14z%22%20fill%3D%22%23e8656f%22%20opacity%3D%22.9%22%2F%3E%3C%2Fsvg%3E" type="image/svg+xml">
 <style>
@@ -14,7 +14,7 @@
   --line:#28313f; --line2:#354053;
   --text:#e8ecf5; --dim:#8b95a8; --dim2:#5f6a7e;
   --gold:#e3b341; --gold2:#f0cd78; --red:#e8656f; --blue:#6ea8ff; --green:#4fc98a; --violet:#a07cff;
-  --chaos:#e8656f; --caro:#d98b6a; --aqua:#5b9bd5; --ultra:#e3b341; --any:#7c869c;
+  --chaos:#e3b341; --caro:#e05c5c; --aqua:#5b9bd5; --ultra:#a07cff; --any:#7c869c;
   --shadow:0 18px 40px -24px #000;
 }
 @media (prefers-color-scheme: light){
@@ -23,7 +23,7 @@
     --line:#d7dce8; --line2:#c3cadb;
     --text:#1b2130; --dim:#667088; --dim2:#8c96ab;
     --gold:#9a6f00; --gold2:#7a5600; --red:#c8413a; --blue:#2c6fdb; --green:#1f8a55; --violet:#6b45c8;
-    --chaos:#c8413a; --caro:#a8623c; --aqua:#2c6fdb; --ultra:#8a6400; --any:#6b7488;
+    --chaos:#8a6400; --caro:#b23a2e; --aqua:#2c6fdb; --ultra:#6b45c8; --any:#6b7488;
     --shadow:0 18px 40px -30px rgba(20,30,60,.35);
   }
 }
@@ -173,6 +173,33 @@ body{
 .pinfo .bonds{display:flex; gap:3px}
 .pinfo .bonds span{width:7px; height:7px; border-radius:50%; background:var(--gold); opacity:.85}
 
+/* ---- 状态条与回合横幅：这一回合走到哪、还能通召几次、要不要进战斗阶段 ---- */
+.dhint{
+  display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px;
+  font-size:12px; color:var(--dim); padding:4px 8px; border-radius:9px;
+  background:color-mix(in srgb,var(--panel) 70%, transparent); border:1px solid var(--line);
+  width:100%; max-width:var(--fw); margin:0 auto;
+}
+.dhint b{color:var(--text); font-size:12.5px}
+.dhint i{color:var(--dim2); font-style:normal}
+.dhint s{color:var(--dim2); text-decoration:none; opacity:.75}
+.turnb{
+  position:fixed; left:50%; top:44%; transform:translate(-50%,-50%); z-index:95;
+  pointer-events:none; font:800 clamp(24px,7vw,34px)/1.1 ui-monospace,SFMono-Regular,Menlo,monospace;
+  letter-spacing:.12em; padding:10px 26px; border-radius:14px;
+  color:#f2f6ff; background:rgba(8,11,18,.72); border:1px solid #3a4761;
+  box-shadow:0 18px 46px -20px #000, 0 0 40px -12px rgba(110,168,255,.5);
+  animation:turnin 1.5s ease-out forwards;
+}
+.turnb.me{color:#cfe4ff; border-color:#3f6fae; box-shadow:0 18px 46px -20px #000, 0 0 42px -10px rgba(110,168,255,.65)}
+.turnb.op{color:#ffd9d9; border-color:#7a4048; box-shadow:0 18px 46px -20px #000, 0 0 42px -10px rgba(232,101,111,.6)}
+@keyframes turnin{
+  0%{opacity:0; transform:translate(-50%,-50%) scale(.86)}
+  14%{opacity:1; transform:translate(-50%,-50%) scale(1.04)}
+  74%{opacity:1; transform:translate(-50%,-50%) scale(1)}
+  100%{opacity:0; transform:translate(-50%,-58%) scale(1)}
+}
+
 /* ---- 打击感：伤害飘字、血条抖动、召唤/攻击/破坏的场上反馈 ---- */
 .float{
   position:fixed; z-index:90; pointer-events:none; transform:translate(-50%,-50%);
@@ -254,6 +281,8 @@ body{
   border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:13px;
 }
 .bhead .bmeta{font-size:11.5px; color:var(--dim); font-variant-numeric:tabular-nums}
+/* 窄屏：卡组名独占一行，不然「主卡组 0/50 + 保存 + 返回」挤不下，返回会被裁掉 */
+@media (max-width:560px){.bhead .bname{flex:1 1 100%}}
 .bbody{display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:start}
 @media (max-width:760px){.bbody{grid-template-columns:1fr}}
 .bpanel{background:color-mix(in srgb,var(--panel) 70%, transparent); border:1px solid var(--line); border-radius:10px; padding:7px}

@@ -8,11 +8,13 @@ import { CARDS, BONDS } from './gen.js';
 export const LP_MAX = 8000;
 export const ZONES = 3;
 export const HAND_MAX = 7;
+// 界域色是「按名字对色」的：血肉红、深海蓝、混沌黄、超维紫，无界中性灰。
+// 记反过一次（混沌原来给的是红、超维是金），卡面边框和筛选按钮都会跟着错。
 export const REALM = {
-  chaos: { n: '混沌', en: 'CHAOS', c: '#e8656f' },
-  caro: { n: '血肉', en: 'CARO', c: '#d98b6a' },
+  chaos: { n: '混沌', en: 'CHAOS', c: '#e3b341' },
+  caro: { n: '血肉', en: 'CARO', c: '#e05c5c' },
   aqua: { n: '深海', en: 'AQUOR', c: '#5b9bd5' },
-  ultra: { n: '超维', en: 'ULTRA', c: '#e3b341' },
+  ultra: { n: '超维', en: 'ULTRA', c: '#a07cff' },
   any: { n: '无界', en: 'NONE', c: '#8a93a8' },
 };
 

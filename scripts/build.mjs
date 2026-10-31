@@ -411,8 +411,8 @@ function genDuel() {
       if (!map[pair[0]]) throw new Error(`预组 ${dk.id} 引用了不存在的卡 ${pair[0]}`);
       n += pair[1];
     }
-    // 主卡组 30~40：40 是常规构筑，30 只留给玩家自组的快攻小牌组
-    if (n < 30 || n > 40) throw new Error(`预组 ${dk.id} 有 ${n} 张牌（要求 30~40）`);
+    // 主卡组 40~50：预组一律 40（下限），上限 50 留给玩家自组
+    if (n < 40 || n > 50) throw new Error(`预组 ${dk.id} 有 ${n} 张牌（要求 40~50）`);
     const have = new Set(dk.cards.map(([cid]) => map[cid] && map[cid].n));
     for (const id of dk.extra) {
       if (!map[id] || map[id].k !== 'E') throw new Error(`预组 ${dk.id} 的额外卡组里有 ${id}，它不是觉醒体`);
