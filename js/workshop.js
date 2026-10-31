@@ -4,7 +4,7 @@ import { $, h, store, nav, t, lang, loadDict, imgEl, nameOf, shareCode, REPLAY, 
 import { cloud, cloudConfig } from './cloud.js';
 import { account } from './account.js';
 import { decodeReplay, replayTeam } from './replay.js';
-import { potLabel, POT_VALUES } from './pot.js';
+import { potLabel, POT_VALUES, potGroup } from './pot.js';
 import { PEPPER } from './pepper.js';
 import * as likes from './likes.js';
 
@@ -160,7 +160,7 @@ function slotEditor(k) {
       h('small', {}, '等级 / 启灵'),
       h('input', { type: 'number', min: 1, max: 90, value: a.lv, class: 'tiny', oninput: ev => { a.lv = num(ev.target.value, 60); } }),
       h('select', { class: 'potsel', 'aria-label': '启灵', onchange: ev => { a.pot = num(ev.target.value, 0); } },
-        POT_VALUES.map(v => h('option', { value: String(v), selected: (a.pot ?? 0) === v }, potLabel(v))))));
+        POT_VALUES.map(v => h('option', { value: String(v), selected: potGroup(a.pot ?? 0) === v }, potLabel(v))))));
 }
 
 // 队伍界域现状：冲突时直接点出来，别让人选完才发现不自洽

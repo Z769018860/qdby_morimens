@@ -1,4 +1,4 @@
-import { potLabel, POT_VALUES } from './pot.js';
+import { potLabel, POT_VALUES, potGroup, potRank } from './pot.js';
 import { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang,
   wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf, scIcon, scNum, emptyState, sha256 } from './common.js';
 import { PEPPER } from './pepper.js';
@@ -237,8 +237,9 @@ function evaluate() {
     if (A.pot) {
       if (g.pot == null) s.pot = { st: 'n', dir: '' };
       else {
-        const d = a.pot - g.pot;
-        s.pot = { st: d === 0 ? 'g' : Math.abs(d) <= 2 ? 'y' : 'n', dir: d > 0 ? '↑' : d < 0 ? '↓' : '' };
+        // 按「档」比：+1~+3、+5~+11 各算一档；相邻一档算接近（黄）
+        const d = potRank(a.pot) - potRank(g.pot);
+        s.pot = { st: d === 0 ? 'g' : Math.abs(d) <= 1 ? 'y' : 'n', dir: d > 0 ? '↑' : d < 0 ? '↓' : '' };
       }
       count(s.pot.st);
     }
@@ -646,12 +647,11 @@ function clueList() {
   }
 
   // 启灵：四个卡位的数值本来就印在战报面板的「养成」行里，
-  // 这里给一条汇总（含合计），省得玩家在面板和卡位之间来回对；只在要填潜能的档上架。
+  // 这里给一条汇总，省得玩家在面板和卡位之间来回对；只在要填潜能的档上架。
   if (A.pot && full('pot')) {
     team.push({
       id: 'pot', cost: 8, label: t('cluePotTeam'),
-      value: () => `${ans.map((a, k) => `${LETTERS[k]} ${potTxt(a.pot)}`).join(' · ')}`
-        + ` · ${t('cluePotSum', { n: '+' + ans.reduce((s, a) => s + Math.max(0, (a.pot || 0) - 3), 0) })}`,
+      value: () => ans.map((a, k) => `${LETTERS[k]} ${potTxt(a.pot)}`).join(' · '),
     });
   }
 
@@ -1059,7 +1059,7 @@ function slotCard(k) {
       h('select', { class: 'potsel', disabled: !!locked, 'aria-label': t('potLv'),
         onchange: (ev) => { g.pot = ev.target.value === '' ? null : Number(ev.target.value); persist(); render(); } },
         h('option', { value: '', selected: g.pot == null }, '—'),
-        POT_VALUES.map((v) => h('option', { value: String(v), selected: g.pot === v }, potTxt(v)))),
+        POT_VALUES.map((v) => h('option', { value: String(v), selected: potGroup(g.pot) === v }, potTxt(v)))),
       f && f.dir ? h('b', {}, f.dir) : null));
   }
   if (!locked) {

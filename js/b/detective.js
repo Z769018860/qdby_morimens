@@ -8,18 +8,34 @@ const m_pot = await (async () => {
 // 启灵（回放里的 potencyLevel，0..15）的选项与名字。
 // 0~3 = 0启~3启；4~6 = +1~+3；7 = 超限（+4 的位置，游戏里不叫 +4）；8~14 = +5~+11；15 = +12（最终法则）。
 // 战报侦探的卡位输入、结算复盘、工坊的出题表单共用这一份，别各写各的。
+// 下拉里只有 8 档：+1~+3 合成一档、+5~+11 合成一档（游戏里这两段玩家分不清，也没必要分），
+// 每档用它的最小值当代表（存进答案 / 猜测里的就是代表值），判对错按「档」比，不按原始数字比。
 const POT_MAX = 15;
-const POT_VALUES = Array.from({ length: POT_MAX + 1 }, (_, i) => i);
+const POT_VALUES = [0, 1, 2, 3, 4, 7, 8, 15];
+
+/** 一个 0..15 的原始值落在哪一档（返回那一档的代表值）；不是数字返回 null */
+function potGroup(n) {
+  if (n == null || n === '' || !Number.isFinite(Number(n))) return null;
+  n = Math.max(0, Math.min(POT_MAX, Math.round(Number(n))));
+  if (n <= 3) return n;
+  if (n <= 6) return 4;
+  if (n === 7) return 7;
+  if (n <= 14) return 8;
+  return 15;
+}
+/** 档的序号 0..7，用来比大小（箭头方向 / 相邻算「接近」） */
+const potRank = (n) => { const g = potGroup(n); return g == null ? null : POT_VALUES.indexOf(g); };
 
 function potLabel(n, en = false) {
-  n = Number(n);
-  if (!Number.isFinite(n)) return '—';
-  if (n <= 3) return en ? `E${n}` : `${n}启`;
-  if (n === 7) return en ? 'Overdrive' : '超限';
-  if (n >= POT_MAX) return en ? '+12 (Final Law)' : '+12（最终法则）';
-  return `+${n - 3}`;
+  const g = potGroup(n);
+  if (g == null) return '—';
+  if (g <= 3) return en ? `E${g}` : `${g}启`;
+  if (g === 4) return '+1~+3';
+  if (g === 7) return en ? 'Overdrive' : '超限';
+  if (g === 8) return '+5~+11';
+  return en ? '+12 (Final Law)' : '+12（最终法则）';
 }
-return { POT_MAX, POT_VALUES, potLabel };
+return { POT_MAX, POT_VALUES, potGroup, potRank, potLabel };
 })();
 
 // ---- js/i18n.js
@@ -2640,7 +2656,7 @@ return { REWARD, dayKey, state, done, claim, checkinBar };
 
 // ---- js/game.js
 const m_game = await (async () => {
-const { potLabel, POT_VALUES } = m_pot;
+const { potLabel, POT_VALUES, potGroup, potRank } = m_pot;
 const { $, h, store, loadDict, imgEl, wan, nav, KINDS, kindName, KW, KW_TYPE, renderText, t, nameOf, lang, wallet, failedBank, unlocked, REPLAY, shareCode, markDirty, statsOf, scIcon, scNum, emptyState, sha256 } = m_common;
 const { PEPPER } = m_pepper;
 const { bank } = m_bank;
@@ -2877,8 +2893,9 @@ function evaluate() {
     if (A.pot) {
       if (g.pot == null) s.pot = { st: 'n', dir: '' };
       else {
-        const d = a.pot - g.pot;
-        s.pot = { st: d === 0 ? 'g' : Math.abs(d) <= 2 ? 'y' : 'n', dir: d > 0 ? '↑' : d < 0 ? '↓' : '' };
+        // 按「档」比：+1~+3、+5~+11 各算一档；相邻一档算接近（黄）
+        const d = potRank(a.pot) - potRank(g.pot);
+        s.pot = { st: d === 0 ? 'g' : Math.abs(d) <= 1 ? 'y' : 'n', dir: d > 0 ? '↑' : d < 0 ? '↓' : '' };
       }
       count(s.pot.st);
     }
@@ -3286,12 +3303,11 @@ function clueList() {
   }
 
   // 启灵：四个卡位的数值本来就印在战报面板的「养成」行里，
-  // 这里给一条汇总（含合计），省得玩家在面板和卡位之间来回对；只在要填潜能的档上架。
+  // 这里给一条汇总，省得玩家在面板和卡位之间来回对；只在要填潜能的档上架。
   if (A.pot && full('pot')) {
     team.push({
       id: 'pot', cost: 8, label: t('cluePotTeam'),
-      value: () => `${ans.map((a, k) => `${LETTERS[k]} ${potTxt(a.pot)}`).join(' · ')}`
-        + ` · ${t('cluePotSum', { n: '+' + ans.reduce((s, a) => s + Math.max(0, (a.pot || 0) - 3), 0) })}`,
+      value: () => ans.map((a, k) => `${LETTERS[k]} ${potTxt(a.pot)}`).join(' · '),
     });
   }
 
@@ -3699,7 +3715,7 @@ function slotCard(k) {
       h('select', { class: 'potsel', disabled: !!locked, 'aria-label': t('potLv'),
         onchange: (ev) => { g.pot = ev.target.value === '' ? null : Number(ev.target.value); persist(); render(); } },
         h('option', { value: '', selected: g.pot == null }, '—'),
-        POT_VALUES.map((v) => h('option', { value: String(v), selected: g.pot === v }, potTxt(v)))),
+        POT_VALUES.map((v) => h('option', { value: String(v), selected: potGroup(g.pot) === v }, potTxt(v)))),
       f && f.dir ? h('b', {}, f.dir) : null));
   }
   if (!locked) {
