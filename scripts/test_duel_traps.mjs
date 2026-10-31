@@ -66,7 +66,7 @@ for (const id of free) {
   const r = E.applyAction(G, 0, { t: 'special', uid });
   check('特殊召唤成功且不占通常召唤', r.ok && p.mons.some((m) => m && m.id === empty.id) && p.normalUsed === false, r.err);
   p.hand = []; E.handAdd(G, p, empty.id);
-  check('场上有怪时「场上没怪」条件不满足；且每回合限 1 次', !E.canSpecial(G, p, p.hand[0].uid));
+  check('场上有怪时「场上没怪」条件不满足', !E.canSpecial(G, p, p.hand[0].uid));
   const lpc = mons.find((c) => c.sp.cond === 'lp');
   const G2 = fresh(); const q = G2.players[0]; G2.turn = 1; G2.active = 0; G2.phase = 'main'; q.hand = [];
   E.handAdd(G2, q, lpc.id); const lp0 = q.lp;

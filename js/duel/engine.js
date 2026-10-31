@@ -1365,13 +1365,11 @@ export function awaken(G, side, extraId) {
 //   sp: { cond: 'lp', v: N }            献出 N 点命轮值
 //   sp: { cond: 'tribute', v: N }       解放自己场上 1 只怪兽 + 献出 N 点命轮值（给 6 级以上的大个子，免掉 1~2 只祭品）
 // 每回合最多 1 次，特殊召唤的怪兽当回合照样能攻击（和觉醒体不同）。对方的召唤陷阱照样能响应。
-export const SP_PER_TURN = 1;
 export function canSpecial(G, p, uid) {
   if (G.over || G.active !== p.idx || G.phase !== 'main') return null;
   const h = p.hand.find((x) => x.uid === uid);
   const d = h && CARDS[h.id];
   if (!d || d.k !== 'M' || !d.sp) return null;
-  if (p.spCount >= SP_PER_TURN) return null;
   const c = d.sp, o = G.players[1 - p.idx];
   const n = p.mons.filter(Boolean).length;
   if (c.cond === 'tribute') { if (n < 1 || p.lp <= (c.v || 0)) return null; return c; }
@@ -1402,7 +1400,6 @@ export function specialSummon(G, side, uid, tribUid) {
     if (lp > 0) { log(G, `献出 ${lp} 点命轮值作为代价`, 'cost'); damagePlayer(G, p, lp, 'cost'); if (G.over) return ok(); }
   }
   p.hand.splice(hi, 1);
-  p.spCount++;
   const mon = mkMon(G, id, side);
   const slot = freeSlot(p.mons);
   p.mons[slot < 0 ? 0 : slot] = mon;

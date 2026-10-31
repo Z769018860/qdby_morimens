@@ -363,6 +363,7 @@ function newGame(bt, side, mine, foe, seed) {
   S.bt = bt;
   S.side = side;
   S.seq = 0;
+  S.waitTrap = null;
   S.busy = false;
   S.result = false;
   // 音效/飘字的比对基线必须跟着新一局归零：seq 是每局从头数的，
@@ -844,7 +845,7 @@ function renderActbar() {
       ? (c.t === 'quick'
         ? '速攻魔法：主要阶段和战斗阶段都能发动；开完立刻结算。'
         : '魔法只能在自己的主要阶段从手牌发动；永续与装备留在场上。')
-      : '陷阱盖放后：应对型（无效 / 反击伤害 / 屏障…）对方做出对应动作时会先问你发不发动（人机模式；好友房 / 同屏仍自动发动）；其余的（抽牌、回复、弹牌、削攻、永续…）除了盖放的那一回合，自己的回合和对方的回合都能点开主动发动。');
+      : '陷阱盖放后：应对型（无效 / 反击伤害 / 屏障…）对方做出对应动作时会先问你发不发动；其余的（抽牌、回复、弹牌、削攻、永续…）除了盖放的那一回合，自己的回合和对方的回合都能点开主动发动。');
   bar.innerHTML = `
     <div class="ah"><b>${c.n}</b><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}${costTag(c)}</span>
       <button class="btn sm ghost x" data-act="cancel">关闭</button></div>
@@ -950,7 +951,38 @@ function closeModal() {
 function act(a) {
   const G = S.G;
   if (!G) return { ok: false, err: '没有对局' };
-  const r = E.applyAction(G, SIDE(), a);
+  const side = SIDE();
+  // 好友房 / 同屏：每个动作都是对方陷阱的一个可能时点。对方盖着能响应的陷阱，就先问对方发不发动再结算；
+  // 没有能响应的，照常往下走（对方什么都不用点）。
+  if ((S.bt === 'net' || S.bt === 'local') && !G.over) {
+    const el = E.eligibleTraps(G, side, a);
+    if (el.length) {
+      if (S.bt === 'local') {
+        S.busy = true;
+        (async () => {
+          const chosen = await askTraps(el, a, G, side);
+          G.trapPolicy = { [1 - side]: new Set(chosen) };
+          const r = E.applyAction(G, side, a);
+          G.trapPolicy = null;
+          S.busy = false;
+          if (r.ok) S.acted = true; else toast(r.err);
+          S.sel = null; S.mode = 'idle';
+          renderDuel();
+        })();
+        return { ok: true, pending: true };
+      }
+      if (S.net) {
+        S.seq += 1;
+        S.net.send({ k: 'act', n: S.seq, a, ask: 1 });
+        S.waitTrap = { n: S.seq, a, side };
+        S.busy = true;
+        toast('等对方决定是否发动陷阱…');
+        renderDuel();
+        return { ok: true, pending: true };
+      }
+    }
+  }
+  const r = E.applyAction(G, side, a);
   if (r.ok) S.acted = true;      // 出过一次手就不再是「准备阶段」
   if (r.ok && S.bt === 'net' && S.net) {
     S.seq += 1;
@@ -976,8 +1008,8 @@ function aiAction(a) {
 
 // ------------------------------------------------------------------ 陷阱询问
 // 应对型陷阱不再自动发动：对手的动作满足它的条件时，在结算之前问持有者「发不发动」。
-function actionText(a, G) {
-  const op = G.players[1], me = G.players[0];
+function actionText(a, G, actor = 1) {
+  const op = G.players[actor], me = G.players[1 - actor];
   const hn = (uid) => { const h = op.hand.find((x) => x.uid === uid); return h && CARDS[h.id] ? CARDS[h.id].n : '怪兽'; };
   if (a.t === 'attack') {
     const m = op.mons.find((x) => x && x.uid === a.uid);
@@ -991,13 +1023,13 @@ function actionText(a, G) {
   if (a.t === 'activateTrap') { const s = op.spells.find((x) => x && x.uid === a.uid); return `发动陷阱「${s && CARDS[s.id] ? CARDS[s.id].n : ''}」`; }
   return '行动';
 }
-function askTraps(list, a, G) {
+function askTraps(list, a, G, actor = 1) {
   return new Promise((resolve) => {
     const chosen = new Set();
     const el = document.createElement('div');
     el.className = 'trapask';
-    el.innerHTML = `<div class="tbox"><h3>对手${actionText(a, G)}</h3>
-      <p class="sub">你盖着的陷阱里有可以发动的，要发动吗？</p>
+    el.innerHTML = `<div class="tbox"><h3>${S.bt === 'local' ? nameOf(actor) : '对手'}${actionText(a, G, actor)}</h3>
+      <p class="sub">${S.bt === 'local' ? nameOf(1 - actor) + '盖着的' : '你盖着的'}陷阱里有可以发动的，要发动吗？</p>
       <div class="tl">${list.map((x) => { const c = CARDS[x.id]; return `<button class="trow" type="button" data-t="${x.uid}"><b>${c.n}</b><small>${c.text}${costTag(c)}</small><i>发动</i></button>`; }).join('')}</div>
       <div class="trow2"><button class="btn pri" data-ta="go">确认</button><button class="btn" data-ta="skip">都不发动</button></div></div>`;
     document.body.appendChild(el);
@@ -1031,7 +1063,7 @@ async function runAI() {
     // 对手的动作可能触发我盖着的应对型陷阱：先问我发不发动（不再自动发）
     if (S.bt === 'pve') {
       const el = E.eligibleTraps(G, 1, ra);
-      if (el.length) { const chosen = await askTraps(el, ra, G); G.trapPolicy = { 0: new Set(chosen) }; }
+      if (el.length) { const chosen = await askTraps(el, ra, G, 1); G.trapPolicy = { 0: new Set(chosen) }; }
     }
     const r = E.applyAction(G, 1, ra);
     G.trapPolicy = null;
@@ -1306,7 +1338,9 @@ function startNetGame(side, seed, deckA, deckB) {
   if (S.room) S.room.state = 'playing';
   const a = deckFromPeer(deckA);
   const b = deckFromPeer(deckB);
-  newGame('net', side, side === 0 ? a : b, side === 0 ? b : a, seed);
+  // 两边的 G 必须一模一样：players[0] 永远是房主（a），players[1] 永远是客人（b），自己是哪一边由 S.side 决定。
+  // 以前客人这边把两套牌对调了，两端的局面从第一张起手牌就不一样，动作重放全对不上。
+  newGame('net', side, a, b, seed);
   toast(side === 0 ? '好友已加入，你先手' : '已进入房间，房主先手');
 }
 
@@ -1343,9 +1377,40 @@ function onNetMsg(p) {
     if (p.n !== S.seq + 1) { toast('房间消息不连续，重开一局吧'); return; }
     // 只认「对方的回合里、对方发的动作」：中继是公共话题，别人也能往里发消息；引擎里除了「结束回合」不检查轮到谁
     if (G.over || G.active !== 1 - S.side || !p.a || typeof p.a !== 'object') return;
-    const res = E.applyAction(G, 1 - S.side, p.a);
-    S.seq = p.n;
-    if (!res.ok) toast('同步失败：' + res.err);
+    const applyIt = (policy) => {
+      G.trapPolicy = policy ? { [S.side]: new Set(policy) } : null;
+      const res = E.applyAction(G, 1 - S.side, p.a);
+      G.trapPolicy = null;
+      S.seq = p.n;
+      if (!res.ok) toast('同步失败：' + res.err);
+      S.sel = null; S.mode = 'idle';
+      renderDuel();
+    };
+    if (p.ask) {
+      // 对方的这个动作可能触发我盖着的陷阱：先让我决定，再把结果回给对方，两边用同一份选择结算
+      const el = E.eligibleTraps(G, 1 - S.side, p.a);
+      S.busy = true;
+      (async () => {
+        const chosen = el.length ? await askTraps(el, p.a, G, 1 - S.side) : [];
+        S.net.send({ k: 'trapReply', n: p.n, chosen });
+        S.busy = false;
+        applyIt(chosen);
+      })();
+      return;
+    }
+    applyIt(null);
+    return;
+  }
+  if (p.k === 'trapReply') {
+    const w = S.waitTrap;
+    if (!w || p.n !== w.n || !S.G || S.bt !== 'net') return;
+    S.waitTrap = null;
+    const G = S.G;
+    G.trapPolicy = { [1 - w.side]: new Set(Array.isArray(p.chosen) ? p.chosen : []) };
+    const res = E.applyAction(G, w.side, w.a);
+    G.trapPolicy = null;
+    S.busy = false;
+    if (res.ok) S.acted = true; else toast(res.err);
     S.sel = null; S.mode = 'idle';
     renderDuel();
     return;
@@ -1928,7 +1993,7 @@ function showHowTo() {
       <li><b>反击</b>：被攻击之后还手。多数打攻击方的命轮值，写了「咬住」的那种改打攻击方怪兽的攻击力，削到 0 就破坏它。
         整套「以牙还牙」就是靠这个逼对手不敢随便撞。</li>
       <li><b>觉醒召唤</b>：指定的素材<b>必须都在自己场上</b>，把它们送进墓地，从额外卡组特召，<b>不占通常召唤</b>；<b>刚觉醒的那一回合它不能攻击</b>。手牌和墓地里的牌不能当素材。</li>
-      <li><b>特殊召唤</b>：觉醒体的素材角色各自带一种「从手牌特殊召唤」的办法（场上没怪兽 / 对方怪兽比你多 / 场上有同界域怪兽 / 献出命轮值 / 解放 1 只怪兽并献出命轮值），写在卡面「③」里。<b>不占通常召唤</b>，每回合 1 次；特殊召唤的怪兽当回合能攻击，对方的召唤陷阱照样能响应。</li>
+      <li><b>特殊召唤</b>：觉醒体的素材角色各自带一种「从手牌特殊召唤」的办法（场上没怪兽 / 对方怪兽比你多 / 场上有同界域怪兽 / 献出命轮值 / 解放 1 只怪兽并献出命轮值），写在卡面「③」里。<b>不占通常召唤</b>，没有次数限制（条件和代价本身就是限制）；特殊召唤的怪兽当回合能攻击，对方的召唤陷阱照样能响应。</li>
       <li><b>自组卡组</b>：首页「我的卡组」里可以新建 / 编辑 / 改名 / 复制 / 删除，随便存几套。
         主卡组 40~50 张（预组都是 40 张，牌越少越容易抽到要的），同名最多 3 张，额外最多 10 张、其中「直接召唤」最多 2 张；
         觉醒体的素材必须在这套牌里，否则它永远召不出来。
@@ -1940,7 +2005,7 @@ function showHowTo() {
         造物各有一枚自己的道具图标，认图标比认名字快。</li>
       <li><b>直接召唤</b>：额外卡组里另一种召唤方式。<b>满足卡面条件</b>（如「自己场上有 2 只怪兽」）或<b>献出命轮值</b>即可召唤，
         不用素材、<b>不占通常召唤</b>；代价是每回合只能 1 次，而且当回合不能攻击。为了不破坏平衡，额外卡组里最多放 2 张。</li>
-      <li><b>陷阱</b>：分两种。<b>应对型</b>（无效攻击 / 召唤 / 魔法、反击伤害、屏障…）满足条件时，会在对方动作结算之前<b>弹出询问，由你决定发不发动</b>（人机模式；好友房 / 同屏暂时还是自动发动）；<b>主动型</b>（抽牌、回复、弹手牌、削攻、永续…）盖放的那一回合不能用，之后自己的回合和对方的回合都可以点开自己盖着的牌主动发动（好友房 / 同屏只能在自己的回合）。</li>
+      <li><b>陷阱</b>：分两种。<b>应对型</b>（无效攻击 / 召唤 / 魔法、反击伤害、屏障…）满足条件时，会在对方动作结算之前<b>弹出询问，由你决定发不发动</b>（好友房里每个动作都是对方陷阱的一个时点：对方没有能响应的陷阱就直接继续，有才会停下来等对方选）；<b>主动型</b>（抽牌、回复、弹手牌、削攻、永续…）盖放的那一回合不能用，之后自己的回合和对方的回合都可以点开自己盖着的牌主动发动（好友房 / 同屏只能在自己的回合）。</li>
       <li><b>重复卡</b>：收藏里每张留 3 张就够，第 4 张起开包时自动折算成银芯（每张 1 芯），
         卡包页也有「一键回收多余」。一包里同一种卡最多出 3 张——所以开包能开出重复，但不会一包全是同一张。</li>
       <li><b>羁绊</b>：卡组里同时有指定角色就会在开局触发，加攻、加血、多抽牌。配队比单卡重要。</li>
@@ -2331,6 +2396,13 @@ export function boot(opt) {
     window.__duel = {
       S, E, CARDS, DECKS, SFX,
       render: () => renderDuel(),
+      // 无头联调好友房：send 由测试脚本接到另一页的 onNet
+      netStart: (side, seed, deckA, deckB, send) => {
+        S.room = { state: 'playing', role: side === 0 ? 'a' : 'b', code: 'TEST' };
+        S.net = { send, close() {} };
+        startNetGame(side, seed, deckPayload(deckA), deckPayload(deckB));
+      },
+      onNet: (m) => onNetMsg(m),
       start: (deckId, seed) => {
         const mine = deckById(deckId || S.deckId);
         const foe = DECKS.filter((d) => d.id !== mine.id)[0];
