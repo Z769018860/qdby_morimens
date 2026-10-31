@@ -2079,3 +2079,41 @@ test('大招策略：first 立刻放；sync 等全队攒满一起放；manual �
   // manual（无人值守，没有 live）：和 first 完全一样
   assert.deepEqual(exalts(run('manual')), f);
 });
+
+/* ---------- 同一件命轮 / 密契只能挂在一个人身上 ---------- */
+import { normalizeEquip, equipItem as equipItem2, autoLoadout as autoLoadout2, setTeam as setTeam2, addItem as addItem2, fillLoadout as fillLoadout2 } from '../src/core/game.js';
+
+test('命轮唯一持有：给宁带上 → 一键配队 → 手动换宁上场，不会出现同一件装两个人', () => {
+  const s = newState(data);
+  for (const k of ['nymphaea', 'samo']) s.roster[k] = s.roster[k] || { lv: 1, star: 0, brk: 0 };
+  const w = data.wheels.find((x) => x.zh.includes('饕餮'));
+  const uid = addItem2(s, 'wheel', w.id).uid || 'g1';
+  const holders = () => Object.entries(s.gear.equip).filter(([, e]) => e.wheel === uid).map(([k]) => k);
+  s.team = ['nymphaea', ...s.team.filter((x) => x !== 'nymphaea')].slice(0, 4);
+  equipItem2(s, data, 'nymphaea', uid);
+  autoLoadout2(s, data);
+  assert.equal(holders().length, 1);
+  const t = [...s.team]; t[0] = 'nymphaea'; setTeam2(s, t);
+  assert.equal(holders().length, 1, '手动换宁上场后仍然只有一个持有者');
+  // 即便存档里已经有陈旧的两个持有者：换人时留在队里的那个，板凳上的被摘掉
+  const holder = holders()[0];
+  s.gear.equip.samo = { ...(s.gear.equip.samo || {}), wheel: uid };
+  s.team = [s.team.includes('samo') ? 'ogier' : s.team[0], ...s.team.slice(1)];
+  setTeam2(s, [holder, ...s.team.filter((x) => x !== holder && x !== 'samo')].slice(0, 4));
+  assert.equal(holders().length, 1);
+  // normalizeEquip 本身：队伍内优先
+  const eq = { a: { wheel: 'x' }, b: { wheel: 'x', cov: 'y' }, c: { cov: 'y' } };
+  assert.equal(normalizeEquip(s, eq, ['b', 'c']), 2);
+  assert.deepEqual(eq, { a: {}, b: { wheel: 'x', cov: 'y' }, c: {} });
+});
+
+test('配装分配（编队独立配装 / 融灾五队）：分出去的命轮不会还挂在队伍外的旧持有者身上', () => {
+  const s = newState(data);
+  const w = data.wheels.find((x) => x.zh.includes('饕餮'));
+  const uid = addItem2(s, 'wheel', w.id).uid || 'g1';
+  const team = s.team.slice(0, 2);
+  const target = { equip: { benched: { wheel: uid }, ...Object.fromEntries(team.map((k) => [k, {}])) } };
+  fillLoadout2(s, data, team, target);
+  const holders = Object.entries(target.equip).filter(([, e]) => e.wheel === uid).map(([k]) => k);
+  assert.ok(holders.length <= 1 && !holders.includes('benched'), '板凳上的旧持有者被摘掉');
+});

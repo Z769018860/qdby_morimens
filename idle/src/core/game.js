@@ -607,6 +607,26 @@ export function awakenUp(state, slug) {
 export function setTeam(state, slots) {
   const seen = new Set();
   state.team = slots.filter((s) => s && state.roster[s] && !seen.has(s) && seen.add(s)).slice(0, TEAM_SIZE);
+  normalizeEquip(state);      // 换了人，「谁在队里」变了：命轮 / 密契若在两个人身上，留在队里的那个
+}
+
+/** 命轮 / 密契是一件实物：同一个 uid 最多挂在一个人身上。
+ *  优先留给队伍里的人（按队伍顺序），其次是板凳上的，多出来的持有者直接摘掉。
+ *  一键配队、换人、手动装备之后都过一遍，所以不管哪条路径留下了陈旧持有者，都不会出现「同一件装两个人」。 */
+export function normalizeEquip(state, equip = state.gear && state.gear.equip, team = state.team) {
+  if (!equip || typeof equip !== 'object') return 0;
+  const order = [...(team || []), ...Object.keys(equip).filter((s) => !(team || []).includes(s))];
+  const seen = new Set();
+  let fixed = 0;
+  for (const slug of order) {
+    const e = equip[slug];
+    if (!e || typeof e !== 'object') continue;
+    for (const k of ['wheel', 'cov']) {
+      if (!e[k]) continue;
+      if (seen.has(e[k])) { delete e[k]; fixed++; } else seen.add(e[k]);
+    }
+  }
+  return fixed;
 }
 
 /* ---------- 一键配队：队伍 + 命轮 + 密契 + 造物 + 钥令 ---------- */
@@ -630,6 +650,7 @@ export function autoLoadout(state, data) {
     delete eq.cov;
   }
   const r = fillLoadout(state, data, state.team, { equip: state.gear.equip });
+  normalizeEquip(state);
   state.gear.relics = r.relics;
   state.orders.slots = r.orders;
   return { team: [...state.team], relics: r.nRelics, orders: r.nOrders };
@@ -663,6 +684,12 @@ export function fillLoadout(state, data, team, target) {
       return { i, s: (c === 1 || c === 3 ? 100 : 0) + rar(i) * 10 + i.lv };
     }).sort((a, b) => b.s - a.s)[0];
     if (best) { eq.cov = best.i.uid; used.add(best.i.uid); ccount[best.i.defId] = (ccount[best.i.defId] || 0) + 1; } else delete eq.cov;
+  }
+  // 刚分出去的命轮 / 密契，不能还挂在队伍外的旧持有者身上（编队的独立配装、融灾五队也走这里）
+  for (const [slug, e] of Object.entries(equip)) {
+    if (!e || team.includes(slug)) continue;
+    if (e.wheel && used.has(e.wheel)) delete e.wheel;
+    if (e.cov && used.has(e.cov)) delete e.cov;
   }
   // 造物：填满已解锁的格子，优先补齐 1 / 3 / 5 件的主题（凑 2 / 4 / 6 档羁绊）
   const slots = relicSlotCount(state.maxStage || 0);
@@ -728,7 +755,9 @@ export function equipItem(state, data, slug, uid) {
   // unequip from previous holder
   for (const [s, e] of Object.entries(state.gear.equip)) if (e[key] === uid) delete e[key];
   const e = (state.gear.equip[slug] ||= {});
-  e[key] = uid; return true;
+  e[key] = uid;
+  normalizeEquip(state);
+  return true;
 }
 export function unequipItem(state, uid) {
   squadsRemoveItem(state, uid);
