@@ -1,4 +1,4 @@
-// 忘却王权：引擎 + 界面
+// 弥萨格王权：引擎 + 界面
 //
 // 一句话规则：一张卡上站着一个唤醒体，提一个要求。你只能准或不准，
 // 两条路都动账。四项里任何一项见了底、或者涨到顶，你的任期当场结束。
@@ -18,6 +18,7 @@ const KEY_SAVE = 'zjtt:reign:save';
 const KEY_BEST = 'zjtt:reign:best';
 const KEY_END = 'zjtt:reign:endings';
 const KEY_SND = 'zjtt:reign:sound';
+const KEY_MET = 'zjtt:reign:met';   // 见过谁（跨任期累计，给人物册用）
 
 const METERS = [
   { k: 'mem', n: '记忆', c: '#a67cff', tip: '世界靠被记得立住。见底=你被忘掉；满溢=一切都凝固在昨天。' },
@@ -156,6 +157,29 @@ function applyFx(fx) {
   return out;
 }
 
+// 结算前先算一遍「这一下会动多少」：按钮上的数字提示和真正的结算必须用同一套算法，
+// 否则玩家看到 +7、实际掉 +4（软上限打的折），会以为这游戏在骗人。
+function previewFx(fx) {
+  if (!fx || !S) return [];
+  const d = diffOf(S.d);
+  const out = [];
+  for (const k in fx) {
+    let v = fx[k];
+    if (!v) continue;
+    const sc = k === 'tide' ? d.tide * 0.55 : d.scale;
+    let dv = Math.round(v * sc);
+    if (dv === 0) dv = v > 0 ? 1 : -1;
+    if (k !== 'tide') dv = Math.round(dv * soft(S[k], dv));
+    if (!dv) continue;
+    const to = clamp(S[k] + dv, 0, 100);
+    const real = Math.round(to - S[k]);
+    if (real) out.push({ k, v: real });
+  }
+  // 顺序固定成 记忆/理智/银芯/羁绊/黑潮，读起来和顶上一排一致
+  const order = { mem: 0, san: 1, core: 2, bond: 3, tide: 4 };
+  return out.sort((a, b) => order[a.k] - order[b.k]);
+}
+
 function checkEnd() {
   if (S.tide >= 100) return 'tide';
   for (const m of METERS) {
@@ -205,6 +229,33 @@ function paintMeters(anim) {
   const tb = $('#tideWrap');
   if (tb) tb.classList.toggle('high', S.tide >= 70);
   $('#dayChip').textContent = `第 ${Math.min(S.day + 1, S.days)} / ${S.days} 天`;
+  paintDDL();
+}
+
+// 上方那条「下一次潮汐还有几天」：潮汐是这一局唯一写死的截止日，
+// 藏在规则里没人算得清，摆出来玩家才知道该省还是该花。
+function paintDDL() {
+  const el = $('#ddl');
+  if (!el) return;
+  if (!S || S.over) { el.className = 'ddl'; el.innerHTML = ''; return; }
+  const next = S.marks[S.tides];
+  el.classList.add('on');
+  if (next == null) {
+    el.classList.remove('near');
+    el.innerHTML = `<span class="dk">潮汐</span>
+      <span class="dtrack"><i style="width:100%"></i></span>
+      <b class="dv">五次都扛过了</b>`;
+    return;
+  }
+  const prev = S.tides === 0 ? 0 : S.marks[S.tides - 1];
+  const span = Math.max(1, next - prev);
+  const pass = clamp(Math.round(((S.day - prev) / span) * 100), 0, 100);
+  const left = Math.max(0, next - S.day);
+  el.classList.toggle('near', left <= 2);
+  const when = left <= 0 ? '今夜就来' : left === 1 ? '明天就来' : left + ' 天后';
+  el.innerHTML = `<span class="dk">第 ${S.tides + 1} 次潮汐</span>
+    <span class="dtrack"><i style="width:${pass}%"></i></span>
+    <b class="dv">${when}</b>`;
 }
 
 function chips(list, dir) {
@@ -228,6 +279,21 @@ function chips(list, dir) {
 }
 
 // ------------------------------------------------------------------ 卡片渲染
+// 两个按钮上要写清楚「这一下会动哪几笔账」。数字走 previewFx()，
+// 和真正结算同一条算式，所以软上限打的折在这里就看得见。
+const NAME_OF = { mem: '记忆', san: '理智', core: '银芯', bond: '羁绊', tide: '黑潮' };
+
+function fillChoice(btn, opt) {
+  const list = previewFx(opt.fx);
+  btn.querySelector('.cl').textContent = opt.l;
+  btn.querySelector('.cfx').innerHTML = list.length
+    ? list.map((e) => `<i class="${e.k === 'tide' ? 'tide' : e.v > 0 ? 'up' : 'down'}">${NAME_OF[e.k]}${e.v > 0 ? '+' : ''}${e.v}</i>`).join('')
+    : '<i class="none">账面上不变</i>';
+  btn.title = list.length
+    ? opt.l + '：' + list.map((e) => NAME_OF[e.k] + (e.v > 0 ? '+' : '') + e.v).join(' ')
+    : opt.l;
+}
+
 function charOf(who) {
   const c = CHARS[who];
   if (c) return { n: c.n, tag: c.tag, realm: c.realm, call: c.call || '守密人', face: FACES[who] || null };
@@ -284,6 +350,16 @@ function sigil(who) {
     snow: '<path d="M12 3v18M4.5 7.5l15 9M19.5 7.5l-15 9"/>',
     audit: '<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v5h4M9.5 13h6M9.5 17h4"/>',
     rumor: '<path d="M4 12a8 8 0 0 1 16 0"/><path d="M8 12a4 4 0 0 1 8 0"/><circle cx="12" cy="15" r="1.6"/>',
+    library: '<path d="M5 4h5v16H5zM14 4h5v16h-5z"/><path d="M10 8h4M10 12h4"/>',
+    gate: '<path d="M4 20V9l8-5 8 5v11"/><path d="M9 20v-9h6v9M9 15h6"/>',
+    radio: '<rect x="4" y="8" width="16" height="11" rx="2"/><path d="M8 8V5l6 3"/><circle cx="9.5" cy="13.5" r="1.6"/>',
+    boiler: '<circle cx="12" cy="12" r="7.5"/><path d="M12 12l4-3.4"/><path d="M5 20l2.5-2.5M19 20l-2.5-2.5"/>',
+    laundry: '<path d="M5 6h14v14H5z"/><path d="M5 10h14"/><path d="M12 10v6"/><path d="M9 13h6"/>',
+    registry: '<path d="M4 5h16v5H4zM4 14h16v5H4z"/><path d="M7 7.5h3M7 16.5h3M14 7.5h3M14 16.5h3"/>',
+    choir: '<circle cx="9" cy="8" r="2.4"/><circle cx="16" cy="9.5" r="2"/><path d="M4 20c0-3 2.4-5 5-5s5 2 5 5M13 20c0-2.4 1.4-4 3-4s3 1.6 3 4"/>',
+    roof: '<path d="M3 12l9-7 9 7"/><path d="M6 12v8h12v-8"/><path d="M9 20v-5h6v5"/>',
+    postbox: '<path d="M3 9h18v8H3z"/><path d="M3 9l9 6 9-6"/><path d="M12 3v6"/>',
+    exam: '<path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h3"/><path d="M15 15l1.6 1.6L20 13"/>',
     tide: '<path d="M3 14c2.4 0 2.4-2 4.8-2s2.4 2 4.8 2 2.4-2 4.8-2 2.4 2 2.4 2"/><path d="M3 18.5c2.4 0 2.4-2 4.8-2s2.4 2 4.8 2 2.4-2 4.8-2 2.4 2 2.4 2"/><path d="M12 4v6M9.6 6.4 12 4l2.4 2.4"/>',
   }[who] || '<circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/>';
   return `<svg viewBox="0 0 24 24" width="72" height="72" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">${map}</svg>`;
@@ -300,8 +376,8 @@ function showCard(card, isTide) {
   deck.appendChild(el);
 
   const yes = card.yes, no = card.no;
-  $('#btnYes').querySelector('span').textContent = yes.l;
-  $('#btnNo').querySelector('span').textContent = no.l;
+  fillChoice($('#btnYes'), yes);
+  fillChoice($('#btnNo'), no);
   $('#btnYes').disabled = false;
   $('#btnNo').disabled = false;
   $('#choices').classList.remove('lock');
@@ -369,6 +445,9 @@ function choose(side) {
   S.last.push(card.who);
   if (S.last.length > 8) S.last.shift();
   if (card.id !== 'intro' && S.seen.indexOf(card.id) < 0) S.seen.push(card.id);
+  // 人物册用的「见过谁」跨任期累计，不进 S，免得开新局就清零
+  const met = load(KEY_MET, {});
+  if (!met[card.who]) { met[card.who] = 1; save(KEY_MET, met); }
 
   const eff = applyFx(opt.fx, side);
   if (opt.set) for (const f of opt.set) if (S.flags.indexOf(f) < 0) S.flags.push(f);
@@ -561,6 +640,45 @@ function showBook() {
   openModal(html);
 }
 
+// ------------------------------------------------------------------ 人物册
+// 72 个人（62 名唤醒体 + 9 位主播 + 校猫）。性别取自站内数据词典的 sex 字段，
+// 不是凭印象写的——阿格里帕、血链·希洛、詹金都是「她」，别照译名猜。
+const SEX_MARK = { f: '♀', m: '♂', n: '·' };
+
+function showChars() {
+  const met = load(KEY_MET, {});
+  const order = ['flesh', 'chaos', 'deep', 'ultra', 'none'];
+  const keys = Object.keys(CHARS);
+  const seen = keys.filter((k) => met[k]).length;
+  const block = order.map((rk) => {
+    const list = keys.filter((k) => CHARS[k].realm === rk);
+    if (!list.length) return '';
+    const r = REALMS[rk] || REALMS.none;
+    return `<h4 class="cg" style="--rc:${r.c}">${r.n} <small>${list.length}</small></h4>
+      <div class="clist">
+        ${list.map((k) => {
+          const c = CHARS[k];
+          const on = !!met[k];
+          return `<div class="crow ${on ? '' : 'unmet'}">
+            <b>${c.n}</b>
+            <span class="cs ${c.sex}">${SEX_MARK[c.sex] || ''}</span>
+            <span class="ct">${c.tag || ''}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+  }).join('');
+  openModal(`
+    <div class="modalbox">
+      <div class="mhead">
+        <h3>人物册 <small>遇过 ${seen} / ${keys.length}</small></h3>
+        <button class="x" type="button" data-close>×</button>
+      </div>
+      <p class="mnote">灰掉的是这一任期里还没走到你桌前的。性别按站内资料标注；♀ ${keys.filter((k) => CHARS[k].sex === 'f').length} 位、♂ ${keys.filter((k) => CHARS[k].sex === 'm').length} 位。</p>
+      ${block}
+      <p class="mfoot">62 名唤醒体出自《忘却前夜》图鉴，9 位主播与校猫是同人彩蛋。身份标签是这一版自己写的，不是官方称号。</p>
+    </div>`);
+}
+
 function openModal(html) {
   const m = $('#modal');
   m.innerHTML = html;
@@ -575,14 +693,16 @@ function renderTitle() {
   const best = load(KEY_BEST, { runs: 0 });
   const got = load(KEY_END, {});
   const n = Object.keys(got).length;
+  const metAll = load(KEY_MET, {});
+  const metN = Object.keys(CHARS).filter((k) => metAll[k]).length;
   $('#scr-title').innerHTML = `
     <div class="titleshell">
       <div class="hero">
         <p class="kicker">MORIMENS · FAN GAME</p>
-        <h1>忘却王权</h1>
+        <h1>弥萨格王权</h1>
         <p class="sub">弥萨格 · 守密人的任期</p>
-        <p class="lead">每一天，都有一个唤醒体走到你的桌前，提一个要求。<br>
-        你只能<b>准</b>，或者<b>不准</b>——两条路都在动账。<br>
+        <p class="lead">每一天，都有一个人走到你的桌前，提一个要求——七十二个人轮着来。<br>
+        你只能<b>准</b>，或者<b>不准</b>；两个按钮下面写着这一下会动哪几笔账。<br>
         <span class="four">记忆 · 理智 · 银芯 · 羁绊</span><br>
         任何一项见了底，或者涨到顶，这一任就结束了。</p>
       </div>
@@ -597,6 +717,7 @@ function renderTitle() {
       <div class="startrow">
         ${sv ? `<button class="btn primary" id="contBtn" type="button">继续第 ${Math.min(sv.day + 1, sv.days)} 天</button>` : ''}
         <button class="btn" id="bookBtn2" type="button">结局图鉴 ${n} / ${Object.keys(ENDINGS).length}</button>
+        <button class="btn" id="charsBtn2" type="button">人物册 ${metN} / ${Object.keys(CHARS).length}</button>
         <button class="btn ghost" id="ruleBtn" type="button">怎么玩</button>
       </div>
       ${best.runs ? `<p class="bestline">已经当过 ${best.runs} 任守密人 · 最长撑到第 ${best.bestDay} 天</p>` : ''}
@@ -626,6 +747,7 @@ function renderTitle() {
     });
   }
   $('#bookBtn2').addEventListener('click', showBook);
+  $('#charsBtn2').addEventListener('click', showChars);
   $('#ruleBtn').addEventListener('click', showRules);
 }
 
@@ -648,6 +770,7 @@ function showRules() {
       <div class="mhead"><h3>怎么玩</h3><button class="x" type="button" data-close>×</button></div>
       <div class="rules">
         <p>每一张卡都是一个唤醒体走到你桌前。左右滑动卡片，或者点下面两个按钮：<b>左边是不准，右边是准许</b>。</p>
+        <p>两个按钮下面写着这一下会动哪几笔账（<b>记忆+7 · 银芯−4</b>）。这些数字已经算进了折扣：<b>某一项越靠近 0 或 100，再推它就越推不动，最多打六折</b>。所以「再批一次」未必还是那么多。</p>
         <h4>四项账</h4>
         <ul>
           <li><b>记忆</b>：世界靠「被记得」立住。见底你会被忘掉；满溢一切都凝固。</li>
@@ -655,10 +778,12 @@ function showRules() {
           <li><b>银芯</b>：学校的血。见底屏障熄灯；满溢审查会来把你买走。</li>
           <li><b>羁绊</b>：他们信不信你。见底没人再应你；满溢他们替你挡下一切。</li>
         </ul>
-        <h4>黑潮</h4>
-        <p>顶部那条紫色的是黑潮，它每天都在涨，你做的某些决定会推得更快。涨满就直接终局。每五分之一任期会有一次<b>潮汐</b>，那是一张躲不掉的卡。</p>
+        <h4>潮汐与倒计时</h4>
+        <p>顶部那条紫色的是黑潮，每天都在涨，某些决定推得更快，涨满直接终局。每五分之一任期有一次<b>潮汐</b>，那是躲不掉的卡；四项属性上面那行「第 N 次潮汐 · X 天后」就是它的倒计时，剩两天会变红。</p>
         <h4>撑到最后</h4>
         <p>任期走完不算赢，只是没输。四项都不低于 62、黑潮不高于 38，才会拿到金色的那个结局。</p>
+        <h4>人物册</h4>
+        <p>顶栏那个「册」按钮能翻到<b>全部 72 个人</b>：62 名唤醒体、9 位主播、一只校猫，标了界域和性别，遇过的才亮。</p>
       </div>
     </div>`);
 }
@@ -669,6 +794,7 @@ function boot() {
   renderTitle();
   screen('title');
   $('#helpBtn').addEventListener('click', showRules);
+  $('#charsBtn').addEventListener('click', showChars);
   $('#soundBtn').addEventListener('click', () => {
     soundOn = Snd.toggle();
     $('#soundBtn').classList.toggle('off', !soundOn);
