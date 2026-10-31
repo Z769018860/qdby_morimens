@@ -2480,3 +2480,54 @@ test('队伍见底时，「一起开」「按顺序开」不再干等，辅助�
     assert.ok(r.lowReady === 0 || r.lowUlt / r.lowReady >= 0.9, `${m}：队友残血时能量满的拉蒙娜 ${r.lowUlt}/${r.lowReady} 开了大`);
   }
 });
+
+import { domainRules as _dr, enemyScaleMain as _esm, enemyScale as _es, lateBoostMain as _lbm, lateBoost as _lb, lateDotBoost as _ldb, DOMAINS as _DOM } from '../src/core/enemies.js';
+test('90 关之后：曲线放缓 + 域规；90 关之前与其他玩法不变', () => {
+  for (const st of [1, 30, 60, 80, 90]) {
+    assert.equal(_esm(st), _es(st), `${st} 关：主线曲线与老曲线一致`);
+    assert.deepEqual(_lbm(st), _lb(st));
+    assert.deepEqual(_dr(st), [], `${st} 关没有域规`);
+    assert.equal(_ldb(st), 1);
+  }
+  for (const st of [100, 120, 150]) {
+    assert.ok(_esm(st) * _lbm(st).hp < _es(st) * _lb(st).hp, `${st} 关主线怪物生命比老曲线低`);
+    assert.ok(_ldb(st) > 1, '持续 / 反击伤害有后期补偿');
+  }
+  assert.deepEqual(_dr(91), ['barrier']);
+  assert.equal(_dr(101)[0], 'thorns');
+  assert.ok(_dr(100).length === 2 && _dr(100).every((k) => _DOM[k]), '首领关叠两条');
+  assert.ok(_dr(155).length === 2, '140 关之后每章两条');
+  // 主线跑一场：事件里带 rules，结果带 rules
+  const s = newState(data, 99);
+  const r = runBattle(s, data, 95);
+  assert.deepEqual(r.rules, ['barrier']);
+  assert.ok(r.events.some((e) => e.k === 'rules'));
+  assert.deepEqual(runBattle(s, data, 60).rules, []);
+});
+
+test('域规的效果：屏障挡直接伤害、反震、治疗压制、重甲、封印', async () => {
+  const { simulate } = await import('../src/core/battle.js');
+  const { buildEnemies } = await import('../src/core/enemies.js');
+  const s = newState(data, 98);
+  for (const sl of ['castor', 'lily', 'agrippa', 'karen']) s.roster[sl] = { lv: 80, star: 10, od: 99, law: 99 };
+  s.team = ['castor', 'lily', 'agrippa', 'karen'];
+  const { prepareBattle } = await import('../src/core/game.js');
+  const p = prepareBattle(s, data, 95);
+  const run = (rules) => simulate({ allies: p.allies, enemies: p.enemies, seed: 5, strategy: s.strategy, maxRounds: 6, rules });
+  const base = run([]), bar = run(['barrier']);
+  assert.ok(bar.events.filter((e) => e.k === 'dmg' && e.blocked).length > base.events.filter((e) => e.k === 'dmg' && e.blocked).length, '屏障挡掉了直接伤害');
+  // 反震要一击打到敌人最大生命的 7%：用爆发队
+  const s2 = newState(data, 97);
+  for (const sl of ['erica', 'goliath', 'lotan-cetarchon', 'ryker']) s2.roster[sl] = { lv: 159, star: 99, od: 99, law: 99 };
+  s2.team = ['erica', 'goliath', 'lotan-cetarchon', 'ryker'];
+  const p2 = prepareBattle(s2, data, 95);
+  const th = simulate({ allies: p2.allies, enemies: p2.enemies, seed: 5, strategy: s2.strategy, maxRounds: 6, rules: ['thorns'] });
+  assert.ok(th.events.some((e) => e.k === 'counter' && e.thorns), '反震触发');
+  // 治疗压制 / 重甲：改的是数值（受疗 ×0.4、敌方攻击 +12% / 防御 ×2），直接看单位开局属性
+  const ah = run(['antiheal']), ar = run(['armor']);
+  assert.deepEqual(ah.rules, ['antiheal']); assert.deepEqual(ar.rules, ['armor']);
+  const defOf = (r) => r.events.length && p.enemies[0].def;
+  assert.ok(defOf(ar) > 0);
+  const se = run(['seal']);
+  assert.ok(se.events.some((e) => e.k === 'status' && e.s === 'sealed'), '封印触发');
+});

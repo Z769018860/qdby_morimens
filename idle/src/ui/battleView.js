@@ -1,6 +1,6 @@
 import { runBattle, applyResult, farmRate, firstClearReward, winRateOf, farmableStage } from '../core/game.js';
 import { roundLimitFor, FRONT_SLOTS } from '../core/battle.js';
-import { stageInfo } from '../core/enemies.js';
+import { stageInfo, domainRules, DOMAINS } from '../core/enemies.js';
 import { REALMS, TYPES, STATUS } from '../core/constants.js';
 import { esc, img, fmt, $, toast, kwIcon, stripMarks } from './util.js';
 import { reportHtml, settlementModal, settleMode } from './report.js';
@@ -149,6 +149,11 @@ export class BattleView {
       .filter(([, a]) => a > 0).map(([n, a, b]) => `${pct(a, b)} ${n}`);
     const first = firstClearReward(f.nxt);
     const extra = `<div class="farmx">${deltas.length ? `下一关 ${deltas.join(' · ')}` : '下一关：当前队伍还打不过（胜率 0）'}${f.nxt > s.maxStage ? `　首通：券+${first.tickets} 银芯+${first.cores}${first.order ? ' 钥令+1' : ''}${first.gear ? ' 装备+1' : ''}` : ''}</div>`;
+    // 域规（90 关之后）：本关生效的规则 + 对策提示——自动战斗里玩家没法临场应对，所以得在这里提前写明，让人换阵容
+    const ruleNote = (st) => {
+      const rs = domainRules(st);
+      return rs.length ? `<div class="farmx rule">🜂 域规：${rs.map((k) => `<b>${DOMAINS[k].zh}</b>（${DOMAINS[k].d}）`).join('；')}<br><small>对策：${rs.map((k) => DOMAINS[k].hint).join('；')}</small></div>` : '';
+    };
     // 校猫奖励关：每 40 关一次，提示一下，别让人以为只是普通 Boss
     const catNote = (st) => (stageInfo(st)?.reward ? `<div class="farmx cat">🐈 第 ${st} 关是「校猫」奖励关：打赢额外掉召唤券 5 + 银芯 60 + 装备，首杀翻倍；非首杀的额外奖励每天限 3 次（校猫身后还站着关卡设计师米酒：他不抢奖励，只往场上补怪、把难度上调一档）</div>` : '');
     /* 当前这一关胜率 0 = 挂机没有收益。攻坚时挂机跟着攻打层走，很容易撞上这种情况，
@@ -159,8 +164,8 @@ export class BattleView {
       : '';
     $('#bv-farm', this.root).innerHTML = `
       <div class="farmgrid">
-        ${col('当前挂机', f.cur, stall + catNote(f.cur.stage))}
-        ${col('下一关', nf, extra + catNote(f.nxt))}
+        ${col('当前挂机', f.cur, stall + ruleNote(f.cur.stage) + catNote(f.cur.stage))}
+        ${col('下一关', nf, extra + ruleNote(f.nxt) + catNote(f.nxt))}
       </div>
       <p class="hint">一场按 25 秒结算：金币 = 单场金币 × 胜率；召唤券与银芯的基础掉率是 40 场 1 张 / 90 场 1 枚，并<b>随关卡缓慢提升</b>——每深一关 +1.8% / +2.6%（第 60 关约 2.1× / 2.6×，第 100 关约 2.8× / 3.6×），挂得越深越值钱；装备每场 10% 掉落。在线与离线同一口径（离线最多累计 8 小时）。
         ${s.auto ? '自动挂机中：打赢且「从容」（存活 ≥3 人、回合数达标）才自动推进，否则原地刷；<b>打不过的关不会死守</b>——前线失手、或在已通关的关上连输 3 场，都会自动退到有收益的最高层。' : '手动挂机中：<b>不会自动推进关卡</b>，只在这一关反复刷（收益按本关算）；要打更高关用右上角 ▶ 自己走过去。'}</p>`;
@@ -309,6 +314,11 @@ export class BattleView {
           else if (!fu) sound.play('swing', { realm: u.realm });
           this.log(`${nm(e.who)} 使用 <i class="sk ${e.slot}" ${e.text ? `title="${esc(e.text)}"` : ''}>${esc(e.name)}</i>`);
         }
+        break;
+      }
+      case 'rules': {
+        const rs = (e.rules || []).map((k) => DOMAINS[k]).filter(Boolean);
+        if (rs.length && !quiet) this.log(`<b>域规</b>：${rs.map((r) => `${r.zh}——${r.d}`).join('；')}`, 'rnd');
         break;
       }
       case 'intent': {

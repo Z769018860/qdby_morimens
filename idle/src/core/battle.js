@@ -29,7 +29,7 @@ export function makeUnit(def, side, idx) {
     surviveChance: num(def.surviveChance, 0), survived: false,
     openAli: num(def.openAli, 0), openKey: num(def.openKey, 0),
     firstBoost: num(def.firstBoost, 0),
-    kit: def.kit || null, extra: def.extra || null, pattern: def.pattern || null, opening: def.opening || [], boss: !!def.boss, reward: !!def.reward, affix: def.affix || null,
+    rank: def.rank || null, kit: def.kit || null, extra: def.extra || null, pattern: def.pattern || null, opening: def.opening || [], boss: !!def.boss, reward: !!def.reward, affix: def.affix || null,
     mid: def.mid || null, trait: def.trait || null,
     ali: num(def.openAli, 0), key: num(def.openKey, 0), shield: 0, buffs: [], dots: [], cd: {}, st: {}, sig: '',
     roused: false, patIdx: 0, enrage: 0, alive: true, acted: 0,
@@ -72,7 +72,7 @@ export function frontLine(unit, foes) {
   return canReachBack(unit) ? live : front;
 }
 
-export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds = MAX_ROUNDS }) {
+export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds = MAX_ROUNDS, rules = [], dotBoost = 1 }) {
   const rng = mulberry32(seed);
   const strat = { defend: 0.4, target: 'low', ult: 'first', ...strategy };
   // 大招策略：first = 优先开大（默认，能开就开）；sync = 攒大招一起开大；
@@ -86,6 +86,14 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   const stats = {};
   for (const u of [...A, ...E]) stats[u.uid] = { dmg: 0, heal: 0, taken: 0 };
   const push = (e) => ev.push(e);
+  // ---- 域规（主线 90 关之后）：见 enemies.js 的 DOMAINS ----
+  const RL = new Set(Array.isArray(rules) ? rules : []);
+  const barrierCap = (u) => (u.boss ? 14 : u.rank === 'Elite' ? 8 : 5);
+  for (const u of E) {
+    if (RL.has('armor')) u.def = Math.round(u.def * 2);
+    if (RL.has('antiheal')) u.atk = Math.round(u.atk * 1.12);
+    if (RL.has('barrier')) u.st.barrier = { n: barrierCap(u), dur: 99 };
+  }
   let round = 0;
   let kills = 0;
 
@@ -170,6 +178,9 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
 
   function applyDamage(src, tgt, dmg, crit, ctx, kind = 'dmg', extra) {
     dmg = Math.max(0, Math.round(num(dmg)));
+    // 主线 90 关之后：怪物生命复利涨得比「毒 / 流血 / 反击」的层数上限快，这类不吃防御的伤害会被甩开；
+    // 按怪物成长补一个倍率（只加给我方对敌方的持续 / 反击伤害），让「不靠大招爆发」的阵容也跟得上
+    if (dotBoost > 1 && (kind === 'dot' || kind === 'counter') && src.side === 'a' && tgt.side === 'e') dmg = Math.round(dmg * dotBoost);
     tgt.hp = Math.max(0, Math.min(tgt.maxHp, num(tgt.hp, tgt.maxHp)));
     tgt.shield = Math.max(0, num(tgt.shield));
     if (kind === 'dmg' && tgt.st.barrier && tgt.st.barrier.n > 0) {
@@ -191,6 +202,10 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     if (src.side !== tgt.side) {
       gainGauge(tgt, 'ali', 9);
       if (src.steal && dmg > 0) heal(src, src, dmg * src.steal / 100, true);
+    }
+    // 反震：玩家一次打得太重（> 敌人最大生命 6%），要被反震 40% —— 持续伤害 / 反击 / 小段多次不触发
+    if (RL.has('thorns') && kind === 'dmg' && src.side === 'a' && tgt.side === 'e' && src.alive && dmg > tgt.maxHp * 0.07) {
+      applyDamage(tgt, src, Math.max(1, Math.round(dmg * 0.35)), false, null, 'counter', { thorns: true });
     }
     if (tgt.hp <= 0) {
       tgt.alive = false;
@@ -235,7 +250,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
 
   function heal(src, tgt, amt, silent) {
     if (!tgt.alive) return;
-    amt = Math.max(0, Math.round(num(amt)));
+    amt = Math.max(0, Math.round(num(amt) * (RL.has('antiheal') && tgt.side === 'a' ? 0.4 : 1)));   // 治疗压制：我方受疗减半
     const real = Math.max(0, Math.min(amt, tgt.maxHp - tgt.hp));
     tgt.hp += real;
     if (stats[src.uid]) stats[src.uid].heal += real;
@@ -911,11 +926,21 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     push({ k: 'act', who: u.uid, slot: 'Rouse', name: sk.name, round: 0, ...(sk.text ? { text: sk.text } : {}) });
     run(u, Array.isArray(sk.effects) ? sk.effects : []);
   }
+  if (RL.size) push({ k: 'rules', rules: [...RL] });
   emitAll();
   while (round < maxRounds && !finished()) {
     round++;
     push({ k: 'round', n: round });
     for (const u of A) u.shield = 0;      // 我方的盾撑到下一回合开头：本回合队友给的盾要能挡住这回合敌人的出手
+    if (round % 2 === 0) {
+      if (RL.has('barrier')) for (const u of E) if (u.alive) u.st.barrier = { n: Math.min(barrierCap(u), (u.st.barrier?.n || 0) + 2), dur: 99 };
+      if (RL.has('seal')) {
+        // 封印：每 2 回合点名攒得最满的两名队友（共鸣或钥焰高者），这一回合放不了大招；净化能解
+        const src = E.find((x) => x.alive);
+        const list = A.filter((x) => x.alive && x.kit && !x.st.sealed && Math.max(x.ali, x.key) >= 40).sort((a, b) => Math.max(b.ali, b.key) - Math.max(a.ali, a.key)).slice(0, 2);
+        if (src) for (const tgt of list) addStatus(src, tgt, 'sealed', 1, 1);
+      }
+    }
     for (const u of A) {      // 延迟爆发到点了
       if (!u.delayed.length) continue;
       const due = u.delayed.filter((d) => d.at <= round);
@@ -960,7 +985,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   const timeout = !win && round >= maxRounds;
   push({ k: 'end', win, rounds: round, timeout });
   return {
-    win, rounds: round, timeout, roundLimit: maxRounds, events: ev, kills, stats,
+    win, rounds: round, timeout, roundLimit: maxRounds, rules: [...RL], events: ev, kills, stats,
     allies: A.map((u) => ({ uid: u.uid, hp: u.hp, maxHp: u.maxHp, alive: u.alive })),
     // 观战回放用的展示数据（只有画面需要的字段，不含技能 kit）：挑塔 / 周 Boss / 竞技场
     // 这些「直接出结果」的模式原本没有 prep，现在也能把过程放出来。

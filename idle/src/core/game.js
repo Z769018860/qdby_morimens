@@ -10,7 +10,7 @@ import {
   refineMult, refineCost, scaleBonus, REFINE_COST,
 } from './gear.js';
 import { ordersBonus, orderUpCost, orderBonus, orderSlotCount } from './orders.js';
-import { buildEnemies, stageInfo } from './enemies.js';
+import { buildEnemies, stageInfo, domainRules, lateDotBoost } from './enemies.js';
 import { simulate, roundLimitFor } from './battle.js';
 import { emptySquads, emptyPick, normalizeSquads, normalizePick, squadUsesItem, squadsRemoveItem, SQUAD_KEYS, RT_MODES, towerSquadKey, realmOfMode } from './squad.js';
 import { emptyGacha, normalizeGacha, recordPull, recordBatch } from './gacha.js';
@@ -407,14 +407,15 @@ export function battleSeed(state) { return (state.seed = (Math.imul(state.seed, 
 
 export function prepareBattle(state, data, stage = state.stage) {
   const t = teamDefs(state, data);
-  const enemies = buildEnemies(stage, data.monsters, { msk: data.msk });
-  return { team: t, enemies, seed: battleSeed(state), allies: t.list };
+  // main：主线专用曲线（90 关之后复利放缓）+ 域规；无限塔 / 属性塔 / 试炼 / 禁区沿用老曲线，不带域规
+  const enemies = buildEnemies(stage, data.monsters, { msk: data.msk, main: true });
+  return { team: t, enemies, seed: battleSeed(state), allies: t.list, rules: domainRules(stage), dotBoost: lateDotBoost(stage) };
 }
 
 export function runBattle(state, data, stage = state.stage, extra = null) {
   const p = prepareBattle(state, data, stage);
   // 每场都有回合上限：普通关 18、Boss 关 22，打满没清场就是超时判负（见 battle.js）
-  const res = simulate({ allies: p.allies, enemies: p.enemies, seed: p.seed, strategy: extra ? { ...state.strategy, ...extra } : state.strategy, maxRounds: roundLimitFor(stageInfo(stage)) });
+  const res = simulate({ allies: p.allies, enemies: p.enemies, seed: p.seed, strategy: extra ? { ...state.strategy, ...extra } : state.strategy, maxRounds: roundLimitFor(stageInfo(stage)), rules: p.rules, dotBoost: p.dotBoost });
   return { ...res, prep: p, stage };
 }
 
