@@ -232,8 +232,19 @@ body.danger canvas#cv{
 }
 .toast.out{opacity:0; transform:translate(-50%,-8px)}
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
+/* 携带技能：左边选人，右边是能量条兼释放键 */
+.skrow{display:flex; gap:6px; flex:0 0 auto; align-items:stretch}
+.skpick,.skuse{font:inherit; font-size:12px; color:var(--text); border:1px solid var(--line); background:var(--panel); border-radius:10px; height:32px; cursor:pointer}
+.skpick{flex:0 0 auto; max-width:40vw; display:flex; align-items:center; gap:5px; padding:0 10px 0 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.skpick img{width:22px; height:22px; border-radius:6px; object-fit:cover; flex:none}
+.skuse{flex:1 1 auto; position:relative; overflow:hidden; text-align:center; padding:0 10px}
+.skuse i{position:absolute; inset:0 auto 0 0; width:0; background:color-mix(in srgb, var(--gold) 28%, transparent); transition:width .25s ease}
+.skuse span{position:relative}
+.skuse:disabled{cursor:default; color:var(--dim)}
+.skuse.ready{border-color:var(--gold); color:var(--gold); font-weight:700; animation:skpulse 1.2s ease-in-out infinite}
+@keyframes skpulse{50%{box-shadow:0 0 0 3px color-mix(in srgb, var(--gold) 26%, transparent)}}
 </style>
-<meta name="build" content="52708e7c9f">
+<meta name="build" content="28cf37f2a1">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -289,6 +300,11 @@ body.danger canvas#cv{
     </button>
   </div>
 
+  <div class="skrow" id="skrow">
+    <button class="skpick" id="gsPick" type="button" title="选择携带的唤醒体 / 主播技能（K）">选技能</button>
+    <button class="skuse" id="gsUse" type="button" disabled title="先选一个唤醒体 / 主播"><i id="gsFill"></i><span id="gsName">未携带技能</span></button>
+  </div>
+
   <main class="stage" id="stage">
     <canvas id="cv" aria-label="合成大杜勒游戏区"></canvas>
     <div id="boot" role="status" aria-live="polite">
@@ -334,7 +350,7 @@ body.danger canvas#cv{
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/merge.js?v=52708e7c9f"></script>
+<script type="module" src="js/b/merge.js?v=28cf37f2a1"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。

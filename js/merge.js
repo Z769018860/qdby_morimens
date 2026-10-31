@@ -19,6 +19,7 @@
 // 见下面「账号同步」一节。
 import { LEVELS, SC_ART } from './merge-art.js';
 import { startGameCloud } from './gamecloud.js';
+import { charOf, openSkillPicker, REALM_ZH, ROLE_ZH } from './gskills.js';
 
 const MAX = LEVELS.length - 1;
 const TAU = Math.PI * 2;
@@ -90,6 +91,7 @@ const G = {
   aimX: 0, spawnLv: 0, nextLv: 0, cooldown: 0, drops: 0,
   score: 0, best: 0, bestAll: 0, over: false, cleared: false,
   diff: 'normal', rands: 0, gain: 0,
+  skill: '', energy: 0, small: 0, mul: { n: 0, m: 1 }, immune: 0, lineBase: null, lineUntil: 0,   // 携带技能（见下面「携带技能」一节）
   danger: 0, warn: 0, approach: 0, merged: 0, finest: 0, bigTier: 0, seen: new Set([0]),
   fx: [], texts: [],
   bg: null, tiles: new Map(),
@@ -597,7 +599,8 @@ function step(dt) {
   const GAP = G.H * 0.10;
   G.approach = topMost === Infinity ? 0 : clamp(1 - (topMost - G.lineY) / GAP, 0, 1);
 
-  G.danger = dan ? G.danger + dt : Math.max(0, G.danger - dt * 2.4);
+  if (G.lineBase != null && G.t >= G.lineUntil) { G.lineY = G.lineBase; G.lineBase = null; }
+  G.danger = dan && G.t >= G.immune ? G.danger + dt : Math.max(0, G.danger - dt * 2.4);
   // 越线后能撑多久也是难度：简单档给 2.6 秒，够你连投两颗把塔顶消掉；
   // 癫狂只有 0.95 秒，看到红线的时候基本已经来不及了
   const hold = diffOf().hold;
@@ -812,10 +815,14 @@ function merge(a, b) {
   const nb = mkBall(nlv, clamp(x, rNew, G.W - rNew), ny2, (a.vx + b.vx) / 2, (a.vy + b.vy) / 2);
   nb.scale = 1.12;
   G.balls.push(nb);
-  G.score += LEVELS[nlv].pts;
+  const mulOn = G.mul.n > 0;
+  const gotPts = Math.round(LEVELS[nlv].pts * (mulOn ? G.mul.m : 1));
+  if (mulOn) G.mul.n--;
+  G.score += gotPts;
+  addEnergy(2 + nlv * 1.2);
   G.seen.add(nlv);
   burst(x, y, LEVELS[nlv].tint, 10 + nlv, 1);
-  fly(x, y, '+' + LEVELS[nlv].pts, LEVELS[nlv].tint);
+  fly(x, y, '+' + gotPts, LEVELS[nlv].tint);
   beep(300 * Math.pow(1.085, nlv), 0.12, 'sine', 0.055);
   // 大球合出来时补一记闷响和一点高频闪光，手感上区分「小合成」和「大合成」
   if (nlv >= 5) {
@@ -876,6 +883,7 @@ function drop() {
   // 手上这颗投出去了，预览的「下一颗」顶上来，再摇一颗新的排到后面
   G.spawnLv = G.nextLv;
   G.nextLv = pickSpawn();
+  if (G.small > 0) { G.small--; G.nextLv = Math.min(G.nextLv, 2); }
   G.drops++;
   G.cooldown = 0.36;
   beep(190, 0.05, 'triangle', 0.04);
@@ -1382,6 +1390,7 @@ function reset() {
   G.drops = 0;
   G.gain = 0;
   G.rands = diffOf().rand;
+  G.energy = 0; G.small = 0; G.mul = { n: 0, m: 1 }; G.immune = 0; G.lineBase = null; G.lineUntil = 0;
   pendingDiff = null;
   G.lineY = G.top + G.H * diffOf().line;
   G.seen = new Set([0]);
@@ -1402,6 +1411,108 @@ function reset() {
   paintNext();
   paintChain();
   paintRand();
+  paintSkill();
+}
+
+// ------------------------------------------------------------------ 携带技能
+// 71 个角色（62 名唤醒体 + 9 位主播）每人一个技能，名字用 TA 原作的「狂气爆发」。
+// 效果按 界域 × 定位 分成 12 种（SKM），稀有度 SSR 比 SR 多一档（m = 1 / 0）。
+// 能量：每次合成涨 2 + 1.2 × 新球等级，满 100 点按钮放出，放完清零；没带技能就不涨。
+const ENERGY_FULL = 100;
+const SKEY = 'zjtt:merge:skill';
+function addEnergy(n) {
+  if (!G.skill || G.over) return;
+  const before = G.energy;
+  G.energy = Math.min(ENERGY_FULL, G.energy + n);
+  if (before < ENERGY_FULL && G.energy >= ENERGY_FULL) { beep(880, 0.1, 'sine', 0.05); setTimeout(() => beep(1180, 0.14, 'sine', 0.035), 80); }
+  paintSkill();
+}
+const alive = () => G.balls.filter((b) => !b.dead);
+function popBalls(list) {
+  for (const b of list) { b.dead = true; burst(b.x, b.y, LEVELS[b.lv].tint, 8 + b.lv, 0.9); }
+  G.balls = G.balls.filter((b) => !b.dead);
+}
+const lowest = (n) => alive().filter((b) => b.lv < MAX && !b.tier).sort((a, b) => a.lv - b.lv || a.y - b.y).slice(0, n);
+const topmost = (n) => alive().filter((b) => b.lv < MAX && !b.tier).sort((a, b) => (a.y - a.r) - (b.y - b.r)).slice(0, n);
+const SKM = {
+  ca: { name: '灼烧', text: (m) => `清掉场上最低级的 ${3 + m} 颗球`, run: (m) => { const l = lowest(3 + m); if (!l.length) return false; popBalls(l); return true; } },
+  cw: { name: '封存', text: (m) => `清掉堆得最高的 ${2 + m} 颗球，并解除越线警报`, run: (m) => { const l = topmost(2 + m); if (!l.length) return false; popBalls(l); G.danger = 0; return true; } },
+  ch: { name: '回响', text: (m) => `补 ${2 + m} 次「随机」`, run: (m) => { G.rands += 2 + m; paintRand(); return true; } },
+  fa: { name: '吞噬', text: (m) => `场上挨得最近的 ${2 + m} 对同级球立刻合成`, run: (m) => {
+    const bs = alive().filter((b) => b.lv < MAX && !b.mg); const pairs = [];
+    for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) if (bs[i].lv === bs[j].lv && bs[i].tier === bs[j].tier) pairs.push([Math.hypot(bs[i].x - bs[j].x, bs[i].y - bs[j].y) - bs[i].r - bs[j].r, bs[i], bs[j]]);
+    pairs.sort((a, b) => a[0] - b[0]);
+    const used = new Set(); let n = 0;
+    for (const [, a, b] of pairs) { if (n >= 2 + m) break; if (used.has(a) || used.has(b)) continue; used.add(a); used.add(b); a.mg = b; n++; }
+    return n > 0;
+  } },
+  fw: { name: '再生', text: (m) => `${8 + 4 * m} 秒内越线不计时`, run: (m) => { G.immune = G.t + 8 + 4 * m; G.danger = 0; return true; } },
+  fh: { name: '滋养', text: (m) => `接下来 ${4 + m} 颗投下的球都是 3 级以内的小球`, run: (m) => { G.small = 4 + m; G.spawnLv = Math.min(G.spawnLv, 2); G.nextLv = Math.min(G.nextLv, 2); paintNext(); return true; } },
+  aa: { name: '潮涌', text: () => '给全场的球一记随机的冲击，把卡住的球震开', run: () => {
+    for (const b of G.balls) { b.vy -= G.W * (0.3 + Math.random() * 0.5); b.vx += (Math.random() - 0.5) * G.W * 0.9; }
+    return G.balls.length > 0;
+  } },
+  aw: { name: '深潜', text: (m) => `${15 + 5 * m} 秒内警戒线上移一截`, run: (m) => {
+    if (G.lineBase == null) G.lineBase = G.lineY;
+    G.lineY = G.lineBase - G.H * (0.06 + 0.02 * m); G.lineUntil = G.t + 15 + 5 * m; return true;
+  } },
+  ah: { name: '潮汐', text: (m) => `补 ${3 + m} 次「随机」，并让越线 4 秒不计时`, run: (m) => { G.rands += 3 + m; G.immune = G.t + 4; G.danger = 0; paintRand(); return true; } },
+  ua: { name: '跃迁', text: (m) => `手上${m ? '和下一颗' : '这颗'}变成场上最大那颗球的同级球（最多 ${MAX_SPAWN + 1} 级）`, run: (m) => {
+    const bs = alive().filter((b) => b.lv < MAX); if (!bs.length) return false;
+    const lv = Math.min(MAX_SPAWN, Math.max(...bs.map((b) => b.lv)));
+    G.spawnLv = lv; if (m) G.nextLv = lv; G.seen.add(lv); paintNext(); return true;
+  } },
+  uw: { name: '折叠', text: () => '场上最大的一颗球直接升一级', run: () => {
+    const bs = alive().filter((b) => b.lv < MAX - 0 && !b.tier).sort((a, b) => b.lv - a.lv);
+    const b = bs[0]; if (!b) return false;
+    b.lv++; b.r = rad(b.lv); b.born = G.t; b.scale = 1.12; G.seen.add(b.lv); if (b.lv > G.finest) G.finest = b.lv;
+    G.score += LEVELS[b.lv].pts; burst(b.x, b.y, LEVELS[b.lv].tint, 12, 1.2); fly(b.x, b.y, '+' + LEVELS[b.lv].pts, LEVELS[b.lv].tint);
+    return true;
+  } },
+  uh: { name: '共振', text: (m) => `接下来 ${8 + 2 * m} 次合成得分翻倍，并返还一些能量`, run: (m) => { G.mul = { n: 8 + 2 * m, m: 2 }; G.keepEnergy = 20; return true; } },
+};
+const skCharOf = () => charOf(G.skill);
+const skDescribe = (c) => { const f = SKM[c.kind]; return f ? `${f.name}：${f.text(c.mag)}` : ''; };
+function useSkill() {
+  const c = skCharOf();
+  if (!c || !G.started || G.over || G.paused || G.energy < ENERGY_FULL) return;
+  G.keepEnergy = 0;
+  if (!SKM[c.kind].run(c.mag)) { toast('现在放不出这个技能（场上没有合适的目标）'); return; }
+  G.energy = G.keepEnergy || 0; G.keepEnergy = 0;
+  beep(520, 0.1, 'triangle', 0.06); setTimeout(() => beep(780, 0.16, 'sine', 0.045), 70);
+  toast(`${c.n}「${c.sk}」· ${SKM[c.kind].name}：${SKM[c.kind].text(c.mag)}`);
+  paintSkill();
+}
+function paintSkill() {
+  const c = skCharOf();
+  const use = document.getElementById('gsUse'), nm = document.getElementById('gsName'), fill = document.getElementById('gsFill'), pick = document.getElementById('gsPick');
+  if (!use) return;
+  const ready = !!c && G.energy >= ENERGY_FULL && G.started && !G.over;
+  use.disabled = !ready;
+  use.classList.toggle('ready', ready);
+  nm.textContent = c ? `${c.sk}${ready ? ' · 点击释放（F）' : ''}` : '未携带技能';
+  fill.style.width = (c ? Math.min(100, (G.energy / ENERGY_FULL) * 100) : 0) + '%';
+  use.title = c ? `${c.n}「${c.sk}」· ${skDescribe(c)}` : '先在左边选一个唤醒体 / 主播';
+  if (pick) {
+    pick.replaceChildren();
+    if (c && c.av) { const im = new Image(); im.src = c.av; im.alt = ''; im.width = 22; im.height = 22; pick.appendChild(im); }
+    pick.append(document.createTextNode(c ? c.n : '选技能'));
+    pick.title = c ? `当前携带：${c.n} · ${REALM_ZH[c.realm]} · ${ROLE_ZH[c.role]}（K 更换）` : '选择携带的唤醒体 / 主播技能（K）';
+  }
+}
+function setSkill(id) {
+  G.skill = id || '';
+  try { localStorage.setItem(SKEY, G.skill); } catch { /* 无痕模式 */ }
+  G.energy = 0;
+  paintSkill();
+}
+function pickSkill() {
+  openSkillPicker({
+    title: '携带技能', current: G.skill,
+    tip: '带一位唤醒体或主播的技能：合成会攒能量，满了点「释放」（F）。效果按 TA 的界域和定位来，SSR 比 SR 强一档。换人会清空当前能量，不会重开这一局。',
+    describe: skDescribe,
+    onPick: (c) => { setSkill(c ? c.id : ''); if (c) toast(`带上了 ${c.n}：「${c.sk}」`); },
+  });
 }
 
 // ------------------------------------------------------------------ 输入
@@ -1438,6 +1549,8 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'y' || e.key === 'Y') { shuffleSkins(); e.preventDefault(); }
   else if (e.key === 'r' || e.key === 'R') { reset(); }
   else if (e.key === 'm' || e.key === 'M') { setMusic(!MUSIC.on); e.preventDefault(); }
+  else if (e.key === 'f' || e.key === 'F') { useSkill(); e.preventDefault(); }
+  else if (e.key === 'k' || e.key === 'K') { pickSkill(); e.preventDefault(); }
 });
 
 document.getElementById('again').addEventListener('click', reset);
@@ -1447,6 +1560,8 @@ document.getElementById('diff').addEventListener('click', (e) => {
   if (b) setDiff(b.dataset.diff);
 });
 document.getElementById('rand').addEventListener('click', reroll);
+document.getElementById('gsUse')?.addEventListener('click', useSkill);
+document.getElementById('gsPick')?.addEventListener('click', pickSkill);
 document.getElementById('skin').addEventListener('click', shuffleSkins);
 document.getElementById('skinReset')?.addEventListener('click', resetSkins);
 document.getElementById('bgm').addEventListener('click', () => { setMusic(!MUSIC.on); });
@@ -1487,6 +1602,7 @@ function loadPrefs() {
     G.best = bestOf[G.diff];
     G.sound = localStorage.getItem('zjtt:merge:snd') !== '0';
     MUSIC.on = localStorage.getItem('zjtt:merge:bgm') !== '0';
+    G.skill = charOf(localStorage.getItem(SKEY)) ? localStorage.getItem(SKEY) : '';
   } catch { /* 无痕模式 */ }
 }
 
@@ -1618,6 +1734,8 @@ function boot() {
     window.__mergeState = () => G;
     window.__mergeDrop = (x) => { G.aimX = clamp(x, 0, G.W); drop(); };
     window.__mergeReroll = () => reroll();
+    window.__mergeSkill = (id, energy) => { setSkill(id); if (energy != null) { G.energy = energy; paintSkill(); } return id ? skDescribe(charOf(id)) : ''; };
+    window.__mergeUse = () => { useSkill(); return { energy: G.energy, balls: G.balls.length, rands: G.rands, small: G.small, immune: G.immune, mul: G.mul.n, danger: G.danger, spawn: G.spawnLv }; };
     window.__mergeDiff = (k) => setDiff(k, true);
     window.__mergeCredits = (s) => creditsAt(s);
     window.__mergeOver = (s) => { if (s != null) G.score = s; gameOver(); };

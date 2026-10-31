@@ -13,6 +13,7 @@
 // （显影链面板拿它点灯）。账号登录后走 js/gamecloud.js 的通用云存档。
 import { LEVELS, ROT_ART, SC_ART } from './g2048-art.js';
 import { startGameCloud } from './gamecloud.js';
+import { charOf, openSkillPicker, REALM_ZH, ROLE_ZH } from './gskills.js';
 
 // ------------------------------------------------------------------ 常量
 const KEY = {
@@ -22,6 +23,7 @@ const KEY = {
   rot: 'zjtt:g2048:rot',
   snd: 'zjtt:g2048:snd',
   seen: 'zjtt:g2048:seen',          // 历史合到过的最高块
+  skill: 'zjtt:g2048:skill',        // 携带的技能（唤醒体 / 主播 id）
   skin: 'zjtt:g2048:skin',          // 换的皮（哪一类 + 每级抽中的是池里第几个）
 };
 const DIFFS = {
@@ -70,6 +72,8 @@ const nextTierOf = (score, k) => tiersOf(k).find(([s]) => score < s) || null;
 const TOP = LEVELS.length - 1;      // 最后一级的下标（2048）
 const UNDO_MAX = 5;
 const MANIA_FULL = 100;
+// 狂气每次合并只涨 1 + 0.5×等级：原来是 5 + 2×等级，4×4 里每 15 步左右就能放一次技能，
+// 清块 / 回溯随便用，局面永远死不了。现在大约 60 步一次，要留着在最关键的时候用。
 const ROT_EVERY = 12;               // 侵蚀模式下每几步落一块蚀
 const ROT_SCORE = 40;
 
@@ -87,6 +91,8 @@ const G = {
   rot: false, over: false, won: false,
   snd: true, best: 0,
   busy: false,
+  skill: '',             // 携带技能的角色 id；空 = 默认的「忘却」
+  fx: { noSpawn: 0, score: { n: 0, m: 1 }, mania: { n: 0, m: 1 } },   // 技能带来的限时效果（不存档）
 };
 let seq = 1;
 const mk = (v, rot) => ({ id: seq++, v, rot: !!rot });
@@ -299,6 +305,7 @@ function loadPrefs() {
   G.rot = lsGet(KEY.rot) === '1';
   G.snd = lsGet(KEY.snd) !== '0';
   G.best = num(lsGet(KEY.best + ':' + G.diff));
+  G.skill = charOf(lsGet(KEY.skill)) ? lsGet(KEY.skill) : '';
 }
 
 function saveBest() {
@@ -332,7 +339,7 @@ function loadGame() {
   G.diff = doc.d; G.n = DIFFS[G.diff].n;
   G.cells = doc.c.map((t) => (t && t.v ? mk(t.v, t.r) : null));
   G.score = num(doc.s); G.steps = num(doc.st); G.mania = Math.min(MANIA_FULL, num(doc.m));
-  G.undos = Math.min(UNDO_MAX, num(doc.u, UNDO_MAX));
+  G.undos = Math.min(UNDO_MAX + 3, num(doc.u, UNDO_MAX));
   G.peak = num(doc.pk, 2); G.won = !!doc.w;
   G.hist = Array.isArray(doc.h) ? doc.h.slice(-3) : [];
   G.best = num(lsGet(KEY.best + ':' + G.diff));
@@ -409,7 +416,7 @@ function slide(dir) {
             prev.v *= 2;
             prev.merged = true;
             gained += prev.v;
-            mania += 5 + lvOf(prev.v) * 2;
+            mania += 1 + lvOf(prev.v) * 0.5;
             merges.push(seg[w - 1]);
           } else {
             cells[seg[w]] = t;
@@ -634,6 +641,7 @@ function newGame(silent) {
   G.cells = new Array(slotCount()).fill(null);
   G.score = 0; G.steps = 0; G.mania = 0; G.peak = 2;
   G.undos = UNDO_MAX; G.hist = [];
+  G.fx = { noSpawn: 0, score: { n: 0, m: 1 }, mania: { n: 0, m: 1 } };
   G.over = false; G.won = false;
   overEl.hidden = true;
   for (const [, el] of tileEls) el.remove();
@@ -677,22 +685,115 @@ function undo() {
   sfx.tap();
 }
 
+// ------------------------------------------------------------------ 携带技能
+// 71 个角色（62 名唤醒体 + 9 位主播）每人一个技能，名字用 TA 原作的「狂气爆发」。
+// 具体效果按 界域 × 定位 分成 12 种（见 SKILLS），稀有度 SSR 比 SR 多一档（m = 1 / 0）。
+// 狂气满了点按钮（或按 F）放出；没带技能时是默认的「忘却」：清掉最小的两块。
+const smallest = (n) => G.cells.map((t, i) => ({ t, i })).filter((x) => x.t && !x.t.rot)
+  .sort((a, b) => a.t.v - b.t.v || a.i - b.i).slice(0, n);
+function wipeSmall(n) {
+  const list = smallest(n);
+  if (!list.length) return null;
+  for (const x of list) G.cells[x.i] = null;
+  return list;
+}
+function rewind(k) {
+  if (!G.hist.length) return false;
+  let h = null;
+  for (let i = 0; i < k && G.hist.length; i++) h = G.hist.pop();
+  G.cells = h.c.map((t) => (t ? mk(t.v, t.r) : null));
+  G.score = h.s; G.steps = h.st; G.peak = h.pk; G.won = h.w;
+  return true;
+}
+const SKILLS = {
+  ca: { name: '灼烧', text: (m) => `清掉场上最小的 ${2 + m} 块`, run: (m) => !!wipeSmall(2 + m) },
+  cw: { name: '封存', text: () => '清掉最小的 2 块，并补回 1 次回溯', run: () => { if (!wipeSmall(2)) return false; G.undos = Math.min(UNDO_MAX + 3, G.undos + 1); return true; } },
+  ch: { name: '回响', text: () => '清掉最小的 2 块，返还一部分狂气', run: (m) => { if (!wipeSmall(2)) return false; G.mania = 0; G.keep = 30 + 10 * m; return true; } },
+  fa: { name: '吞噬', text: (m) => `场上最小的一档方块两两合并（最多 ${2 + m} 对，照常计分）`, run: (m) => {
+    const by = new Map();
+    for (const [i, t] of G.cells.entries()) if (t && !t.rot) (by.get(t.v) || by.set(t.v, []).get(t.v)).push(i);
+    const v0 = [...by.keys()].sort((a, b) => a - b).find((v) => by.get(v).length >= 2);
+    if (v0 == null) return false;
+    const ids = by.get(v0); let pairs = 0;
+    for (let k = 0; k + 1 < ids.length && pairs < 2 + m; k += 2) { G.cells[ids[k]].v *= 2; G.cells[ids[k + 1]] = null; G.score += G.cells[ids[k]].v; pairs++; }
+    return true;
+  } },
+  fw: { name: '再生', text: (m) => `退回最近 ${1 + m} 步（不扣回溯次数）`, run: (m) => rewind(1 + m) },
+  fh: { name: '滋养', text: (m) => `接下来 ${5 + m} 步，合并得分 ×1.5、狂气 ×2`, run: (m) => { G.fx.score = { n: 5 + m, m: 1.5 }; G.fx.mania = { n: 5 + m, m: 2 }; return true; } },
+  aa: { name: '潮涌', text: (m) => `接下来 ${2 + m} 步不生成新块`, run: (m) => { G.fx.noSpawn = 2 + m; return true; } },
+  aw: { name: '深潜', text: (m) => `清掉所有蚀块，接下来 ${1 + m} 步不生成新块`, run: (m) => {
+    for (const [i, t] of G.cells.entries()) if (t && t.rot) G.cells[i] = null;
+    G.fx.noSpawn = 1 + m; return true;
+  } },
+  ah: { name: '潮汐', text: (m) => `接下来 ${8 + 2 * m} 步，狂气获取 ×2.5`, run: (m) => { G.fx.mania = { n: 8 + 2 * m, m: 2.5 }; return true; } },
+  ua: { name: '跃迁', text: (m) => `随机 ${1 + m} 块（不含最大档）直接升一级`, run: (m) => {
+    const vs = G.cells.filter((t) => t && !t.rot).map((t) => t.v); if (vs.length < 2) return false;
+    const top = Math.max(...vs);
+    const pool = G.cells.map((t, i) => ({ t, i })).filter((x) => x.t && !x.t.rot && x.t.v < top);
+    if (!pool.length) return false;
+    for (let k = 0; k < 1 + m && pool.length; k++) { const x = pool.splice((Math.random() * pool.length) | 0, 1)[0]; x.t.v *= 2; G.score += x.t.v; }
+    return true;
+  } },
+  uw: { name: '折叠', text: (m) => `清空最满的一行（蚀块除外），按它们总和的 ${20 + 5 * m}% 得分`, run: (m) => {
+    const n = G.n; let best = -1, bi = -1;
+    for (let r = 0; r < n; r++) { let c = 0; for (let k = 0; k < n; k++) { const t = G.cells[r * n + k]; if (t && !t.rot) c++; } if (c > best) { best = c; bi = r; } }
+    if (best <= 0) return false;
+    let sum = 0;
+    for (let k = 0; k < n; k++) { const t = G.cells[bi * n + k]; if (t && !t.rot) { sum += t.v; G.cells[bi * n + k] = null; } }
+    G.score += Math.round(sum * (0.2 + 0.05 * m)); return true;
+  } },
+  uh: { name: '共振', text: (m) => `补 ${2 + m} 次回溯，并清掉最小的 1 块`, run: (m) => { wipeSmall(1); G.undos = Math.min(UNDO_MAX + 3, G.undos + 2 + m); return true; } },
+};
+const skillOf = () => { const c = charOf(G.skill); return c ? { c, fx: SKILLS[c.kind] } : null; };
+const describeSkill = (c) => { const f = SKILLS[c.kind]; return f ? `${f.name}：${f.text(c.mag)}` : ''; };
+
+function skillLabel() {
+  const k = skillOf();
+  forgetBtn.textContent = k ? k.c.sk : '忘却';
+  forgetBtn.title = k ? `${k.c.n}「${k.c.sk}」· ${describeSkill(k.c)}（狂气满了按 F）` : '狂气满了可以忘却：清掉场上最小的两块，给新块腾地方';
+  const pick = $('#skillPick');
+  if (pick) {
+    pick.replaceChildren();
+    if (k && k.c.av) { const im = new Image(); im.src = k.c.av; im.alt = ''; im.width = 22; im.height = 22; im.className = 'skimg'; pick.appendChild(im); }
+    pick.append(document.createTextNode(k ? k.c.n : '技能'));
+    pick.title = k ? `当前携带：${k.c.n} · ${REALM_ZH[k.c.realm]} · ${ROLE_ZH[k.c.role]}（K 更换）` : '选择携带的唤醒体 / 主播技能（K）';
+  }
+}
+function setSkill(id) {
+  G.skill = id || '';
+  lsSet(KEY.skill, G.skill);
+  skillLabel();
+}
+function pickSkill() {
+  openSkillPicker({
+    title: '携带技能', current: G.skill,
+    tip: '带一位唤醒体或主播的技能下场：狂气满了放出，效果按 TA 的界域和定位来，SSR 比 SR 强一档。每局只能带一个，换人不会重开。',
+    describe: describeSkill,
+    onPick: (c) => { setSkill(c ? c.id : ''); if (c) toast(`带上了 ${c.n}：「${c.sk}」`); },
+  });
+}
+
 function useForget() {
   if (G.mania < MANIA_FULL || G.over) return;
-  const list = G.cells
-    .map((t, i) => ({ t, i }))
-    .filter((x) => x.t && !x.t.rot)
-    .sort((a, b) => a.t.v - b.t.v)
-    .slice(0, 2);
-  if (!list.length) return;
+  const k = skillOf();
   pushUndo();
-  for (const x of list) G.cells[x.i] = null;
-  G.mania = 0;
-  paint(true);
-  updateHud();
-  saveGame();
-  sfx.forget();
-  toast('忘却：忘掉了「' + list.map((x) => nameOf(lvOf(x.t.v))).join('」「') + '」');
+  G.keep = 0;
+  if (!k) {
+    const list = wipeSmall(2);
+    if (!list) { G.hist.pop(); return; }
+    G.mania = 0;
+    paint(true); updateHud(); saveGame(); sfx.forget();
+    toast('忘却：忘掉了「' + list.map((x) => nameOf(lvOf(x.t.v))).join('」「') + '」');
+    if (!canMove()) endGame();
+    return;
+  }
+  const ok = k.fx.run(k.c.mag);
+  if (!ok) { G.hist.pop(); toast('现在放不出这个技能（场上没有合适的目标）'); return; }
+  G.mania = G.keep || 0; G.keep = 0;
+  G.peak = Math.max(G.peak, ...G.cells.filter(Boolean).map((t) => t.v), 2);
+  noteSeen(G.peak);
+  paint(true); updateHud(); saveGame(); sfx.forget(); haptic([12, 40, 12]);
+  toast(`${k.c.n}「${k.c.sk}」· ${k.fx.name}：${k.fx.text(k.c.mag)}`, 2200);
   if (!canMove()) endGame();
 }
 
@@ -754,8 +855,11 @@ function act(d) {
   if (!res.moved) { shake(); sfx.bad(); haptic(6); return false; }
   pushUndo(snap);
 
-  G.score += res.gained;
-  G.mania = Math.min(MANIA_FULL, G.mania + res.mania);
+  const sm = G.fx.score.n > 0 ? G.fx.score.m : 1, mm = G.fx.mania.n > 0 ? G.fx.mania.m : 1;
+  G.score += Math.round(res.gained * sm);
+  G.mania = Math.min(MANIA_FULL, G.mania + res.mania * mm);
+  if (G.fx.score.n > 0) G.fx.score.n--;
+  if (G.fx.mania.n > 0) G.fx.mania.n--;
   G.steps += 1;
 
   const peak = Math.max(...G.cells.filter(Boolean).map((t) => t.v), 2);
@@ -779,7 +883,9 @@ function act(d) {
 
   // 新的一块：侵蚀模式下每 12 步落一块蚀（场上的蚀最多 n-1 个，别把棋盘焊死）
   const wantRot = G.rot && G.steps % ROT_EVERY === 0 && rotCount() < G.n - 1 && emptySlots().length >= 2;
-  const t = spawnOne(wantRot);
+  const skipSpawn = G.fx.noSpawn > 0 && emptySlots().length > 0;
+  if (skipSpawn) G.fx.noSpawn--;
+  const t = skipSpawn ? null : spawnOne(wantRot);
   if (t) { if (wantRot) sfx.rot(); else sfx.spawn(); }
 
   paint(true);
@@ -834,6 +940,7 @@ function bindKeys() {
     else if (k === 'r') { e.preventDefault(); newGame(); }
     else if (k === 'm') { e.preventDefault(); toggleSound(); }
     else if (k === 'f') { e.preventDefault(); useForget(); }
+    else if (k === 'k') { e.preventDefault(); pickSkill(); }
     else if (k === 'y') { e.preventDefault(); if (SKIN.k === 'chain') openSheet(true); else shuffleSkin(SKIN.k, false); }
   });
 }
@@ -1077,6 +1184,8 @@ function boot() {
   $('#rst').addEventListener('click', () => { newGame(); });
   $('#again').addEventListener('click', () => newGame());
   forgetBtn.addEventListener('click', useForget);
+  $('#skillPick').addEventListener('click', pickSkill);
+  skillLabel();
   undoBtn.addEventListener('click', undo);
   $('#pkBtn').addEventListener('click', () => openSheet(true));
   $('#sheetClose').addEventListener('click', () => openSheet(false));
@@ -1097,7 +1206,7 @@ function boot() {
   bindKeys();
   window.addEventListener('resize', () => { paint(false); });
 
-  hintEl.innerHTML = '方向键 / WASD 移动 · <b>Z</b> 回溯 · <b>R</b> 重开 · <b>Y</b> 换皮';
+  hintEl.innerHTML = '方向键 / WASD 移动 · <b>Z</b> 回溯 · <b>R</b> 重开 · <b>Y</b> 换皮 · <b>K</b> 技能';
 
   const first = () => {
     // 恢复上次没打完的一局；没有就开新的
@@ -1174,6 +1283,8 @@ if (window.__G2048_TEST__ || /[?&]_test=1\b/.test(location.search)) {
     },
     canMove: () => canMove(),
     forget: () => useForget(),
+    skill: (id) => { setSkill(id); return skillOf() ? describeSkill(skillOf().c) : ''; },
+    setMania: (v) => { G.mania = v; updateHud(); },
     undo: () => undo(),
     diff: (k) => setDiff(k, true),
     rot: (on) => setRot(on),
