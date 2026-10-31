@@ -18,7 +18,9 @@ export const MAINSTAT = {
   DEATH_RESISTANCE: { zh: '死扛', key: 'surviveChance', base: 0.12, unit: '', fmt: (v) => `${Math.round(v * 100)}%濒死存活` },
 };
 const RARITY_MULT = { N: 0.5, R: 0.7, SR: 1, SSR: 1.4 };
-const lvMult = (lv) => 1 + 0.1 * lv;
+// 10 级以前每级 +10%（和原来一样，老存档的数不变）；10 级之后每级 +5%：满 40 级是 3.5 倍，
+// 比原来的满级（2 倍）多 75%，但这 30 级要几十倍的金币，是给后期金币找的去处，不是白送战力。
+const lvMult = (lv) => (lv <= 10 ? 1 + 0.1 * lv : 2 + 0.05 * (lv - 10));
 
 export function wheelBonus(def, lv, awakener) {
   const b = ZERO();
@@ -148,7 +150,12 @@ export function covenantBonus(defId, lv, count) {
   return b;
 }
 
-export const gearCost = (kind, lv) => Math.round((kind === 'relic' ? 260 : 200) * Math.pow(1.5, lv));
+// 10 级以前 ×1.5 一档（不变）；之后 ×1.28 一档：10→11 约 1.2 万，39→40 约 1500 万，一件从 10 升到满要 6 千多万，
+// 全队 14 件装备升满约 9 亿，第 80 关起（每小时 187 万金币起）才有得花，第 100 关一小时 900 万。
+export const gearCost = (kind, lv) => {
+  const base = kind === 'relic' ? 260 : 200;
+  return Math.round(lv <= 10 ? base * Math.pow(1.5, lv) : base * Math.pow(1.5, 10) * Math.pow(1.28, lv - 10));
+};
 export const canEnhance = (it) => it.lv < GEAR_MAX_LV;
 export const dismantleValue = (rarity, lv) => Math.round(({ N: 40, R: 70, SR: 120, SSR: 260 }[rarity] || 80) * (1 + lv * 0.6));
 

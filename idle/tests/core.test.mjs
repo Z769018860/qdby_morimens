@@ -2326,3 +2326,53 @@ test('编队「上阵」：成员相同但站位 / 配装不同时仍然能上�
   delete s.gear.equip[own[1]].wheel;
   assert.equal(squadIsOnMain(s, 'a'), false, '配装不一致不算已在主线');
 });
+
+import { simulate as _simBattle } from '../src/core/battle.js';
+import { makeEnemy as _mkEnemy } from '../src/core/enemies.js';
+import { mulberry32 as _mb } from '../src/core/rng.js';
+
+test('队友的盾大招：排在施盾者后面的队友不会一出手就把刚拿到的盾抹掉', () => {
+  const s = newState(data, 3);
+  const caster = data.awakeners.find((a) => a.zh === '温柯尔');
+  const mates = ['ogier', 'lotan', 'doll'];
+  for (const sl of [caster.slug, ...mates]) s.roster[sl] = { lv: 60, star: 0, brk: 3 };
+  const mine = { ...allyDef(s, data, caster.slug, [caster.slug]), openAli: 100 };
+  const team = [mine, ...mates.map((m) => allyDef(s, data, m, [m]))];
+  const boss = data.monsters.find((m) => m.rank === 'Boss' && m.cy.length >= 2);
+  const e = _mkEnemy(boss, 'Boss', 40, _mb(5), { affixes: false, msk: data.msk }); e.hp = 1e12;
+  const res = _simBattle({ allies: team, enemies: [e], seed: 11, strategy: { preset: 'balanced', defend: 0.4, target: 'low', ult: 'first' }, maxRounds: 2 });
+  const ev = res.events;
+  const cast = ev.findIndex((x) => x.k === 'act' && x.slot === 'Exalt');
+  assert.ok(cast >= 0, '温柯尔先手放出了共鸣');
+  // 施盾之后、第一个敌人出手之前，所有盾事件里的目标在敌人出手时盾量还在
+  const firstEnemyAct = ev.findIndex((x, i) => i > cast && x.k === 'act' && x.who === 'e0');
+  const shielded = new Map();
+  for (let i = cast; i < ev.length && (firstEnemyAct < 0 || i < firstEnemyAct); i++) if (ev[i].k === 'shield') shielded.set(ev[i].who, ev[i].shield);
+  assert.ok(shielded.size >= 3, '盾发给了至少三个队友');
+  const hits = ev.filter((x, i) => i >= firstEnemyAct && x.k === 'dmg' && shielded.has(x.who) && x.absorbed > 0);
+  assert.ok(hits.length > 0, '敌人出手时，队友身上的盾真的吃到了伤害');
+});
+
+import { enhanceAllEquipped, enhanceItem as _enh } from '../src/core/game.js';
+import { gearCost as _gc, wheelBonus as _wb } from '../src/core/gear.js';
+import { GEAR_MAX_LV as _GML } from '../src/core/constants.js';
+
+test('装备强化上限 40 级：10 级以前和原来完全一样，10 级之后是金币的大出口；一键强化只花在在用装备上', () => {
+  assert.equal(_GML, 40);
+  assert.equal(_gc('wheel', 0), 200); assert.equal(_gc('wheel', 9), Math.round(200 * Math.pow(1.5, 9)));
+  assert.equal(_gc('wheel', 10), Math.round(200 * Math.pow(1.5, 10)), '10 级的价格不变');
+  assert.ok(_gc('wheel', 39) > 1e7 && _gc('wheel', 39) < 3e7, '39→40 级约 1500 万');
+  for (let l = 1; l < 40; l++) assert.ok(_gc('relic', l) > _gc('relic', l - 1), `第 ${l} 级比上一级贵`);
+  const def = data.wheels.find((w) => w.rarity === 'SSR');
+  const b10 = _wb(def, 10).atkPct, b11 = _wb(def, 11).atkPct, b40 = _wb(def, 40).atkPct;
+  assert.ok(Math.abs(b10 - _wb(def, 0).atkPct * 2) < 1e-9, '10 级仍是 2 倍');
+  assert.ok(b11 > b10 && b40 > b11 && b40 < b10 * 2, '10 级以后每级 +5%，满 40 级不到 10 级的 2 倍');
+  const s = mkTeamState(); s.gold = 1e9;
+  const slug = s.team[0], w = addItem(s, 'wheel', def.id); equipItem(s, data, slug, w.uid);
+  const idle = addItem(s, 'wheel', def.id);     // 没穿的不升
+  const r = enhanceAllEquipped(s);
+  assert.ok(r.n > 0 && w.lv > 0 && idle.lv === 0, '只花在在用的装备上');
+  assert.equal(s.gold, 1e9 - r.spent);
+  const s2 = mkTeamState(); s2.gold = 100;
+  assert.equal(enhanceAllEquipped(s2).n, 0, '钱不够就不升');
+});

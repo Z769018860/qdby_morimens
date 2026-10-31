@@ -1,7 +1,7 @@
 import './ui/orient.js';   // 横屏 / 竖屏开关（顶栏那颗方向按钮）
 import {
   indexData, newState, migrate, offlineReport, claimOffline, claimGifts, levelUp, levelUpMax, setTeam, autoTeam, autoLoadout, setPreset, setUltMode, moveUltOrder,
-  equipItem, unequipItem, enhanceItem, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem,
+  equipItem, unequipItem, enhanceItem, enhanceAllEquipped, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem,
   dismantleCores, breakThrough, awakenUp, overdriveUp, lawUp, upgradeOrder, rewindLevel,
 } from './core/game.js';
 import { setOrderSlot } from './core/orders.js';
@@ -745,6 +745,11 @@ function onAct(e) {
       break;
     }
     case 'gear-up': enhanceItem(s, el.dataset.uid); rerender(); break;
+    case 'gear-upall': {
+      const r = enhanceAllEquipped(s);
+      if (r.n) { sound.play('gold'); toast(`一键强化：${r.items} 件装备共升了 ${r.n} 级，花了 ${fmt(r.spent)} 金币`); } else toast('金币不够升下一级，或者在用的装备都满级了');
+      rerender(); break;
+    }
     case 'gear-dis': {
       const c0 = s.cores, v = dismantle(s, d, el.dataset.uid);
       if (v) { const c = s.cores - c0; toast(`分解获得 ${v} 金币${c ? ` + ${c} 银芯` : ''}`); }

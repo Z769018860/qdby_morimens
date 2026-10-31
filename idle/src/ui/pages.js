@@ -939,6 +939,7 @@ export function gearPage(app) {
   return `<div class="page"><h2>命轮 · 密契 <small>每人各 1 件</small></h2>
     <p class="hint">命轮与密契是<b>绑在单个唤醒体身上</b>的两件装备：点下面的槽位直接更换，点「已装备」的槽位可以卸下。密契全队同款凑到 2 / 4 件会触发套装效果（当前：${sets || '还没有凑成套'}）。造物与钥令是全队被动，分别在队伍页与钥令页配置。</p>
     <div class="eqpanel">${teamRows}</div>
+    <div class="row"><button class="btn gold" data-act="gear-upall" title="把金币尽量花在正在穿 / 正在编队里用的装备上，每次升当前最便宜的一级">一键强化在用装备（用掉金币）</button><small class="dim">每件最高 Lv${GEAR_MAX_LV}；10 级以后每级 +5%，金币花得很多</small></div>
     <p class="hint">想一次性配好？回队伍页点「一键配队」，会连着命轮、密契、造物、钥令一起排；队伍页也有同一块槽位面板，不用来回切页。</p>
     <h3>${tab === 'relic' ? '造物库存' : '库存'} <small>${items.length} 件</small></h3>
     <div class="row">${tabs}</div><div class="list">${rows}</div></div>`;

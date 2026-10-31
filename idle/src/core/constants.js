@@ -59,7 +59,9 @@ export const ORDER_UNLOCK = [1, 12, 35];  // 第 1 / 2 / 3 个钥令位所需最
 export const ORDER_MAX_LV = 5;            // 淬炼上限
 export const ORDER_LV_MULT = 0.15;        // 每级 +15% 效果
 
-export const GEAR_MAX_LV = 10;
+// 装备（命轮 / 密契 / 造物）强化上限。原来只有 10 级，满了就再没有金币的去处；
+// 现在 10 级以前不变，10~40 级是后半程：加成涨得慢一些（见 gear.js 的 lvMult），金币花得多得多（见 gearCost）。
+export const GEAR_MAX_LV = 40;
 export const SAVE_VERSION = 3;
 
 // Battle statuses. `kw` is the keyword slug used for the icon/tooltip (public/data/game-data.json -> kw).

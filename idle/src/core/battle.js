@@ -817,7 +817,10 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   function act(u, bonus = false) {
     if (u.stunned > 0) { u.stunned--; push({ k: 'act', who: u.uid, slot: 'Strike', name: '眩晕', round }); return; }
     u.acted++;
-    u.shield = 0;
+    // 敌人的盾到它自己下次出手前失效；我方的盾不在这里清（见回合开头）：
+    // 以前每个人出手前都清一遍自己的盾，于是排在施盾者后面的队友一开动就把刚拿到的盾抹了，
+    // 团队盾 / 超共鸣的盾大招基本全白给（实测发出去的盾只有 3%~8% 真吃到了伤害）。
+    if (u.side === 'e') u.shield = 0;
     for (const k of Object.keys(u.cd)) if (u.cd[k] > 0) u.cd[k]--;
     let slot, sk;
     if (u.kit) {
@@ -879,6 +882,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   while (round < maxRounds && !finished()) {
     round++;
     push({ k: 'round', n: round });
+    for (const u of A) u.shield = 0;      // 我方的盾撑到下一回合开头：本回合队友给的盾要能挡住这回合敌人的出手
     for (const u of A) {      // 延迟爆发到点了
       if (!u.delayed.length) continue;
       const due = u.delayed.filter((d) => d.at <= round);

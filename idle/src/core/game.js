@@ -810,6 +810,29 @@ export function enhanceItem(state, uid) {
   const c = gearCost(it.kind, it.lv); if (state.gold < c) return false;
   state.gold -= c; it.lv++; return true;
 }
+/**
+ * 一键强化：把金币尽量花在「正在穿 / 正在编队里用」的装备上，每次挑当前最便宜的一级升，直到金币不够或者全满。
+ * 返回 { n: 升了几级, spent: 花了多少金币, items: 涉及几件 }。
+ */
+export function enhanceAllEquipped(state, maxSteps = 600) {
+  const used = new Set();
+  for (const e of Object.values(state.gear.equip || {})) { if (e?.wheel) used.add(e.wheel); if (e?.cov) used.add(e.cov); }
+  for (const u of state.gear.relics || []) if (u) used.add(u);
+  for (const sq of Object.values(state.squads || {})) {
+    const lo = sq?.lo; if (!lo) continue;
+    for (const e of Object.values(lo.equip || {})) { if (e?.wheel) used.add(e.wheel); if (e?.cov) used.add(e.cov); }
+    for (const u of lo.relics || []) if (u) used.add(u);
+  }
+  const list = [...used].map((u) => state.gear.items[u]).filter(Boolean);
+  let n = 0, spent = 0; const touched = new Set();
+  for (let i = 0; i < maxSteps; i++) {
+    let best = null, bc = Infinity;
+    for (const it of list) { if (it.lv >= GEAR_MAX_LV) continue; const c = gearCost(it.kind, it.lv); if (c < bc) { bc = c; best = it; } }
+    if (!best || state.gold < bc) break;
+    state.gold -= bc; best.lv++; n++; spent += bc; touched.add(best.uid);
+  }
+  return { n, spent, items: touched.size };
+}
 export function dismantle(state, data, uid) {
   const it = state.gear.items[uid]; if (!it || isEquipped(state, uid)) return 0;
   const def = (it.kind === 'wheel' ? data.wheelById : it.kind === 'cov' || it.kind === 'covenant' ? data.covById : data.relicById)[it.defId];
