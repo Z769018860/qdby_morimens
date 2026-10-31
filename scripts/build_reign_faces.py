@@ -91,7 +91,7 @@ CHARS = [
     ('caraboo', 'assets/card/caraboo.webp', 'card'),
     ('ogier-oath', 'assets/card/ogier-oathbound.webp', 'card'),
     ('vivian', 'assets/card/vivian.webp', 'card'),
-    # 九位 B 站主播：头像就是他们本人的空间头像（120×120）
+    # 十位 B 站主播：头像就是他们本人的空间头像（120×120）
     ('up-samo', 'assets/survivors/faces/samo.webp', 'head'),
     ('up-myls', 'assets/survivors/faces/mengyi.webp', 'head'),
     ('up-alice', 'assets/survivors/faces/alice.webp', 'head'),
@@ -101,6 +101,7 @@ CHARS = [
     ('up-moreen', 'assets/survivors/faces/xiamolin.webp', 'head'),
     ('up-chaoxing', 'assets/survivors/faces/chaoxing.webp', 'head'),
     ('up-maodie', 'assets/survivors/faces/maodie.webp', 'head'),
+    ('up-baiyun', 'assets/survivors/faces/baiyun.webp', 'head'),
     # 校猫没有立绘，只有 96×96 的 Q 版头
     ('cat', 'assets/avatars-q/story-莱特.webp', 'head'),
 ]

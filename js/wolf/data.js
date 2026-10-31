@@ -229,6 +229,7 @@ export const CHARS = [
   { av: '9008', zh: '夏茉琳', en: 'Summer', tone: 'meek', realm: '深海', cls: '辅助型', call: '主播', hint: 'B站 · 夏茉琳summerring', up: true },
   { av: '9009', zh: '朝星', en: 'Morningstar', tone: 'cold', realm: '超维', cls: '辅助型', call: '主播', hint: 'B站 · 朝星-', up: true },
   { av: '9010', zh: '路过的耄耋', en: 'Passing Maodie', tone: 'lord', realm: '血肉', cls: '伤害型', call: '主播', hint: '安卓佬 · 路过的耄耋', up: true },
+  { av: '9011', zh: '白云出岫', en: 'Baiyun Chuxiu', tone: 'jest', realm: '超维', cls: '辅助型', call: '主播', hint: 'B站 · -白云出岫-', up: true },
 ];
 
 export const CHAR_BY_NAME = Object.fromEntries(CHARS.map((c) => [c.zh, c]));

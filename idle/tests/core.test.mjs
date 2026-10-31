@@ -10,7 +10,7 @@ import { buildKit, describeSkill } from '../src/core/skills.js';
 import { SLOTS } from '../src/core/constants.js';
 
 test('data pack is complete', () => {
-  assert.equal(data.awakeners.length, 71);   // 62 名官方 + 9 名联名彩蛋（core/creators.js）
+  assert.equal(data.awakeners.length, 72);   // 62 名官方 + 10 名联名彩蛋（core/creators.js）
   assert.ok(data.wheels.length >= 140 && data.relics.length >= 300 && data.covenants.length === 21);
   for (const a of data.awakeners) assert.ok(a.portrait && a.zh, a.slug);
 });
@@ -1490,14 +1490,14 @@ import {
   eventState, DAILY, GUESTS, GUEST_GATE, FAME_PER_TOKEN, tokensOf, MILE, SIGNIN_FAME, dayKey,
 } from '../src/core/event.js';
 
-test('彩蛋角色：9 位都进了表、带完整 7 槽技能、不进抽卡池', () => {
+test('彩蛋角色：10 位都进了表、带完整 7 槽技能、不进抽卡池', () => {
   const cr = data.awakeners.filter((a) => a.creator);
-  assert.equal(cr.length, 9);
+  assert.equal(cr.length, CREATORS.length);
   for (const a of cr) {
     assert.ok(a.portrait && a.card, `${a.slug} 缺图`);
     assert.equal(a.avail, 'GIFT', `${a.slug} 不该进抽卡池`);
     assert.ok(a.creator.uid && a.creator.url.includes('space.bilibili.com'), `${a.slug} 缺主播信息`);
-    // 九位主播都是男性，简介别按昵称想当然写成「她」
+    // 十位主播都是男性，简介别按昵称想当然写成「她」
     assert.ok(!/[她姑娘妹]/.test(a.creator.bio), `${a.slug} 的简介写了女性称呼`);
     const k = data.kit(a.slug, 2);
     for (const s of SLOTS) {
@@ -1550,7 +1550,7 @@ test('彩蛋角色：技能数值随技能等级成长，四界域都有', () =>
   assert.deepEqual([...types].sort(), ['ASSAULT', 'CHORUS', 'WARDEN']);
 });
 
-test('彩蛋角色：签到按天数轮转发，先补齐九位再叠位', () => {
+test('彩蛋角色：签到按天数轮转发，先补齐十位再叠位', () => {
   const s = newState(data, 12);
   assert.equal(syncSigninGifts(s).length, 0, '没签到时什么都不送');
   // 一天一份：签 3 天给 3 份，按 CREATORS 的顺序先来后面三位
@@ -1560,14 +1560,14 @@ test('彩蛋角色：签到按天数轮转发，先补齐九位再叠位', () =>
   assert.deepEqual(three.map((g) => g.slug), CREATORS.slice(0, 3).map((a) => a.slug));
   assert.ok(three.every((g) => g.isNew), '前三位都是新获得');
   assert.equal(syncSigninGifts(s).length, 0, '再调一次不重复发');
-  // 累计到 9 天：把剩下的六位补齐
-  s.stats.signins = 9;
+  // 累计到 10 天：把剩下的七位补齐
+  s.stats.signins = CREATORS.length;
   const rest = syncSigninGifts(s);
-  assert.equal(rest.length, 6);
+  assert.equal(rest.length, CREATORS.length - 3);
   assert.ok(rest.every((g) => g.isNew));
-  assert.equal(Object.keys(s.roster).filter((k) => CREATOR_BY_SLUG[k]).length, 9, '九位全到手');
-  // 第 10 天开始重复：同一批人轮着叠位
-  s.stats.signins = 12;
+  assert.equal(Object.keys(s.roster).filter((k) => CREATOR_BY_SLUG[k]).length, CREATORS.length, '十位全到手');
+  // 第 13 天开始重复：同一批人轮着叠位
+  s.stats.signins = CREATORS.length + 3;
   const more = syncSigninGifts(s);
   assert.equal(more.length, 3);
   assert.ok(more.every((g) => !g.isNew && g.star === 1), '重复获得就是叠位 +1');
@@ -1583,12 +1583,12 @@ test('彩蛋角色：签到份数按 stats.signins 算，老存档一次补齐',
   assert.equal(signinPicks(s), Math.floor(37 / SIGNIN_PER));
   const got = syncSigninGifts(s);
   assert.equal(got.length, signinPicks(s), '该发多少份就补多少份');
-  // 九位各拿一份之后，剩下的按顺序叠
+  // 十位各拿一份之后，剩下的按顺序叠
   const stars = CREATORS.map((a) => s.roster[a.slug]?.star || 0);
-  assert.ok(stars.every((n) => n >= 1), `九位都该有叠位：${stars.join(',')}`);
-  assert.equal(stars.reduce((a, b) => a + b, 0), signinPicks(s) - 9, '多出来的份数变成叠位');
-  // 37 份 = 先用 9 份把九位补齐（那 9 份是「新获得」，叠位还是 0），剩下 28 份轮转叠位：
-  // 每人 3 级，多出来的 1 份按 sent % 9 落到第一个人头上
+  assert.ok(stars.every((n) => n >= 1), `十位都该有叠位：${stars.join(',')}`);
+  assert.equal(stars.reduce((a, b) => a + b, 0), signinPicks(s) - CREATORS.length, '多出来的份数变成叠位');
+  // 37 份 = 先用 10 份把十位补齐（那 10 份是「新获得」，叠位还是 0），剩下 27 份轮转叠位：
+  // 每人 2 级，多出来的 7 份按 sent % 10 落到前七个人头上
   const base = Math.floor((signinPicks(s) - CREATORS.length) / CREATORS.length);
   assert.ok(stars.every((n) => n >= base), `轮转要均衡：${stars.join(',')}`);
   assert.equal(stars[0], base + 1, '多出来的那份给轮转的下一位');
@@ -2058,7 +2058,7 @@ test('专属技能：战斗里按节奏免费追加，且比不带的队伍更�
 const NEW_MECH = new Set(['execute', 'pctHp', 'cleanse', 'dispel', 'revive', 'taunt', 'reflect', 'stun', 'chain', 'splash', 'echo', 'cdReset', 'shieldDmg', 'blood', 'missingHeal', 'delay', 'lowHpBoost', 'poisonBurst', 'dotBurst', 'extraTurn', 'counterBurst', 'barrierHeal', 'gaugeBurn', 'poisonHeal', 'poisonShield', 'dotSpread']);
 const sigOf = (sk) => sk.effects.map((e) => [e.t, e.to || '', e.stat || e.s || e.k || '', e.m ?? '', e.v ?? '', e.pct ?? '', e.n ?? '', e.hits ?? '', e.dur ?? '', e.cost ?? '', e.share ?? '', e.grow ?? ''].join(':')).join('|');
 
-test('专属技能：每位的终焉技都带自己的新机制，71 位的技能组合互不相同', () => {
+test('专属技能：每位的终焉技都带自己的新机制，72 位的技能组合互不相同', () => {
   const od = new Map(), law = new Map();
   for (const a of data.awakeners) {
     const ex = extraSkills(a.slug, a);
@@ -2121,7 +2121,7 @@ test('新机制：斩杀 / 按比例扣血 / 嘲讽 / 反射 / 眩晕 / 回响 /
   assert.ok(evs(rev, 'die').length && evs(rev, 'revive').length, '有人倒下后被复苏');
 });
 
-test('专属技能：71 位的超限技 + 终焉技在战斗里都能跑通（无异常、数值有限）', () => {
+test('专属技能：72 位的超限技 + 终焉技在战斗里都能跑通（无异常、数值有限）', () => {
   for (const a of data.awakeners) {
     const ex = extraSkills(a.slug, a);
     const mk = (n) => ({ ...mkAlly({ name: `${a.zh}${n}`, type: a.type, realm: a.realm }), extra: n === 0 ? { Od: { ...ex.Od, every: 1 }, Law: { ...ex.Law, every: 1 } } : null });
