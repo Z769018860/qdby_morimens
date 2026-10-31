@@ -1,0 +1,312 @@
+{
+ "npcs": [
+  {
+   "n": "于丽埃特",
+   "page": "于丽埃特",
+   "en": "Juliette",
+   "sex": "女",
+   "cv": "福尾美佳",
+   "grp": "超越万古",
+   "faction": "[[提灯教会]]",
+   "first": "通关调查行动第7章「欲河」解锁",
+   "src": "assets/duel/story/npc-00.webp"
+  },
+  {
+   "n": "以格伦",
+   "page": "以格伦",
+   "en": "Iglenn",
+   "sex": "男",
+   "cv": "暂无",
+   "grp": "黑暗住民",
+   "faction": "[[非利士]]",
+   "first": "通关意识潜游「巨人的陨落」解锁",
+   "src": "assets/duel/story/npc-01.webp"
+  },
+  {
+   "n": "伊格娜蒂丝",
+   "page": "伊格娜蒂丝",
+   "en": "Ignatiss",
+   "sex": "女",
+   "cv": "",
+   "grp": "未归档",
+   "faction": "逆转回合",
+   "first": "多维连接「逆转回合」",
+   "src": "assets/duel/story/npc-02.webp"
+  },
+  {
+   "n": "伊芙琳",
+   "page": "伊芙琳",
+   "en": "Evelyn",
+   "sex": "女",
+   "cv": "暂无",
+   "grp": "黑暗住民",
+   "faction": "",
+   "first": "通关[[山宴",
+   "src": "assets/duel/story/npc-03.webp"
+  },
+  {
+   "n": "卡纳克",
+   "page": "卡纳克",
+   "en": "Karnahk",
+   "sex": "男",
+   "cv": "暂无",
+   "grp": "未归档",
+   "faction": "不明",
+   "first": "特遣记录「狩猎愉快！」（首次被提到是调查行动忘却篇第7章「欲河」）",
+   "src": "assets/duel/story/npc-04.webp"
+  },
+  {
+   "n": "埃利安",
+   "page": "埃利安",
+   "en": "Aelius",
+   "sex": "男",
+   "cv": "",
+   "grp": "未归档",
+   "faction": "",
+   "first": "意识潜游「直至鲸天陨落」",
+   "src": "assets/duel/story/npc-05.webp"
+  },
+  {
+   "n": "埃尔顿",
+   "page": "埃尔顿",
+   "en": "Elton",
+   "sex": "男",
+   "cv": "暂无",
+   "grp": "黑暗住民",
+   "faction": "[[卡修利亚]]",
+   "first": "通关调查行动第6章「倒错的群星」解锁",
+   "src": "assets/duel/story/npc-06.webp"
+  },
+  {
+   "n": "巴奈特",
+   "page": "巴奈特",
+   "en": "Barnet",
+   "sex": "男",
+   "cv": "暂无",
+   "grp": "未归档",
+   "faction": "向导",
+   "first": "特遣记录「艾尔沃斯的归人」",
+   "src": "assets/duel/story/npc-07.webp"
+  },
+  {
+   "n": "布朗",
+   "page": "布朗",
+   "en": "Brown",
+   "sex": "",
+   "cv": "",
+   "grp": "未归档",
+   "faction": "只是一只鼠鼠",
+   "first": "调查行动忘却篇第1章「东区秘事」",
+   "src": "assets/duel/story/npc-08.webp"
+  },
+  {
+   "n": "弗兰",
+   "page": "弗兰",
+   "en": "Fran",
+   "sex": "男",
+   "cv": "暂无",
+   "grp": "未归档",
+   "faction": "[[葬骸城]]",
+   "first": "调查行动星辰篇第3章「餍飨」",
+   "src": "assets/duel/story/npc-09.webp"
+  },
+  {
+   "n": "弗朗西斯·奥兹伍德",
+   "page": "弗朗西斯·奥兹伍德",
+   "en": "Francis Oswald",
+   "sex": "女",
+   "cv": "暂无",
+   "grp": "黑暗住民",
+   "faction": "[[雕塑家协会]]",
+   "first": "通关调查行动第4章「于无声处」解锁",
+   "src": "assets/duel/story/npc-10.webp"
+  },
+  {
+   "n": "德克斯特",
+   "page": "德克斯特",
+   "en": "Dexter",
+   "sex": "男",
+   "cv": "高仲佑星（旧艺名高仲祐之）",
+   "grp": "莫测之物",
+   "faction": "[[弥萨格大学]]",
+   "first": "通关序章「入学日」解锁",
+   "src": "assets/duel/story/npc-11.webp"
+  },
+  {
+   "n": "梅伊",
+   "page": "梅伊",
+   "en": "May",
+   "sex": "女",
+   "cv": "暂无",
+   "grp": "未归档",
+   "faction": "[[亚格罗共和国]]",
+   "first": "意识潜游「扭曲核心」",
+   "src": "assets/duel/story/npc-12.webp"
+  },
+  {
+   "n": "汉娜·皮斯利",
+   "page": "汉娜",
+   "en": "Hannah Pidsley",
+   "sex": "女",
+   "cv": "暂无",
+   "grp": "黑暗住民",
+   "faction": "[[亚格罗共和国]]",
+   "first": "通关调查行动第1章「东区秘事」解锁",
+   "src": "assets/duel/story/npc-13.webp"
+  },
+  {
+   "n": "涅芙蕾亚",
+   "page": "涅芙蕾亚",
+   "en": "Nefraea",
+   "sex": "女",
+   "cv": "大西沙织",
+   "grp": "未归档",
+   "faction": "",
+   "first": "调查行动「织命剧场」",
+   "src": "assets/duel/story/npc-14.webp"
+  },
+  {
+   "n": "索菲亚·查兹坦",
+   "page": "索菲亚",
+   "en": "Sophia Chastain",
+   "sex": "女",
+   "cv": "暂无",
+   "grp": "黑暗住民",
+   "faction": "忘却篇：[[生命教廷]]，后暗中加入[[提灯教会]]",
+   "first": "通关特遣记录「灵魂的牧人」解锁",
+   "src": "assets/duel/story/npc-15.webp"
+  },
+  {
+   "n": "纳拉卡",
+   "page": "纳拉卡",
+   "en": "Naraka",
+   "sex": "男",
+   "cv": "暂无",
+   "grp": "黑暗住民",
+   "faction": "",
+   "first": "通关[[山宴",
+   "src": "assets/duel/story/npc-16.webp"
+  },
+  {
+   "n": "乔治·罗杰斯",
+   "page": "罗杰斯",
+   "en": "George Rogers",
+   "sex": "男",
+   "cv": "暂无",
+   "grp": "愚痴者",
+   "faction": "[[雕塑家协会]]",
+   "first": "通关调查行动第2章「以蜡像之名」解锁",
+   "src": "assets/duel/story/npc-17.webp"
+  },
+  {
+   "n": "艾尔莎",
+   "page": "艾尔莎",
+   "en": "Elsa",
+   "sex": "女",
+   "cv": "暂无",
+   "grp": "未归档",
+   "faction": "[[弥萨格大学]]",
+   "first": "特遣记录「狩猎愉快！」",
+   "src": "assets/duel/story/npc-18.webp"
+  },
+  {
+   "n": "茜尔维娅",
+   "page": "茜尔维娅",
+   "en": "Sylvia",
+   "sex": "女",
+   "cv": "暂无",
+   "grp": "门",
+   "faction": "[[弥萨格大学]]",
+   "first": "通关序章「入学日」解锁",
+   "src": "assets/duel/story/npc-19.webp"
+  },
+  {
+   "n": "莉奥诺拉",
+   "page": "莉奥诺拉",
+   "en": "Leonora",
+   "sex": "女",
+   "cv": "谷鹿未来",
+   "grp": "主角",
+   "faction": "[[弥萨格大学]]",
+   "first": "序章「入学日」",
+   "src": "assets/duel/story/npc-20.webp"
+  },
+  {
+   "n": "西维斯特",
+   "page": "西维斯特",
+   "en": "Sylvester",
+   "sex": "男",
+   "cv": "森坪郁弥",
+   "grp": "主角",
+   "faction": "[[弥萨格大学]]",
+   "first": "序章「入学日」",
+   "src": "assets/duel/story/npc-21.webp"
+  },
+  {
+   "n": "诃勒特",
+   "page": "诃勒特",
+   "en": "Crozt",
+   "sex": "女",
+   "cv": "三浦小季",
+   "grp": "门",
+   "faction": "[[弥萨格大学]]",
+   "first": "通关序章「入学日」解锁",
+   "src": "assets/duel/story/npc-22.webp"
+  },
+  {
+   "n": "赫伯特·罗森塔尔",
+   "page": "赫伯特",
+   "en": "Herbert Rosenthal",
+   "sex": "男",
+   "cv": "暂无",
+   "grp": "门",
+   "faction": "[[雕塑家协会]]",
+   "first": "通关调查行动第1章「东区秘事」解锁",
+   "src": "assets/duel/story/npc-23.webp"
+  },
+  {
+   "n": "阿利斯泰尔·欧文斯",
+   "page": "阿利斯泰尔",
+   "en": "Alistair Owens",
+   "sex": "男",
+   "cv": "暂无",
+   "grp": "门",
+   "faction": "[[弥萨格大学]]",
+   "first": "通关调查行动第2章「以蜡像之名」解锁",
+   "src": "assets/duel/story/npc-24.webp"
+  },
+  {
+   "n": "阿尔比诺",
+   "page": "阿尔比诺",
+   "en": "Albino",
+   "sex": "男",
+   "cv": "暂无",
+   "grp": "混种",
+   "faction": "[[提灯教会]]，后被外派到[[雕塑家协会]]",
+   "first": "通关调查行动第2章「以蜡像之名」解锁",
+   "src": "assets/duel/story/npc-25.webp"
+  },
+  {
+   "n": "黛博拉",
+   "page": "黛博拉",
+   "en": "Deborah",
+   "sex": "女",
+   "cv": "暂无",
+   "grp": "黑暗住民",
+   "faction": "万年前的黛博拉出身于[[利莫里亚]]",
+   "first": "通关异梦视界「亵渎」解锁",
+   "src": "assets/duel/story/npc-26.webp"
+  },
+  {
+   "n": "小煤球",
+   "page": "小煤球",
+   "en": "Coalball",
+   "sex": "不明",
+   "cv": "",
+   "grp": "未归档",
+   "faction": "弥萨格大学",
+   "first": "调查行动忘却篇",
+   "src": "assets/avatars-q/story-小煤球.webp"
+  }
+ ]
+}

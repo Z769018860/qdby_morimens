@@ -13,7 +13,7 @@ import {
   loadSave, saveSave, freeLeft, ticketDayLeft, payPack, grantPveTicket, addRank, RULES, PVE_SILVER, PVE_LOSS_MIN_ROUNDS,
 } from './store.js';
 import { progress as rankProgress, DIFF_TXT, TIERS } from './tiers.js';
-import { aiFor, foePick } from './rank.js';
+import { aiFor, foePick, foeBand, foeWinRate, poolLabel, AI_LV } from './rank.js';
 import { NAMES } from './names.js';
 import { walletGet, walletAdd, walletSpend, scTag } from '../silver.js';
 
@@ -24,6 +24,12 @@ const PACK_PRICE = RULES.PACK_PRICE;
 
 const REALM_TXT = { chaos: '混沌', caro: '血肉', aqua: '深海', ultra: '超维', any: '无界' };
 const KIND_TXT = { M: '怪兽', S: '魔法', T: '陷阱', E: '觉醒体' };
+// 命轮代价只写在魔法·陷阱上（cost.lp）。卡面已经标了，卡表/编辑器/详情也带一句，
+// 不然玩家只在「点开卡牌」的那一屏看到，列表里像是白板。
+const costTag = (c) => {
+  const lp = (c && c.cost && c.cost.lp) || 0;
+  return lp ? ` · 代价 ${lp}` : '';
+};
 const RAR_ORDER = ['N', 'R', 'SR', 'UR', 'GR'];
 
 const S = {
@@ -47,6 +53,9 @@ const S = {
   room: null,       // { code, role, state, peerDeck }
   net: null,
   timers: [],
+  mute: false,      // 音效开关（存档里 sfx=0 表示关）
+  fxLp: null,       // 上一帧双方命轮值，用来飘伤害数字
+  fxSeq: 0,         // 已经播过音效的日志序号
 };
 
 // ------------------------------------------------------------------ 工具
@@ -69,6 +78,7 @@ function show(id) {
   if (id === 'packs') renderPacks();
   if (id === 'codex') renderCodex();
   if (id === 'lore') renderLore();
+  if (id === 'build') renderBuild();
 }
 
 function silverBar() {
@@ -173,8 +183,9 @@ function cardHTML(id, opt) {
     const cl = (v, base) => (v > base ? ' class="up"' : (v < base ? ' class="down"' : ''));
     tail = `<div class="pt"><b${cl(a, c.atk)}>${a}</b><span>/</span><b${cl(df, c.def)}>${df}</b></div>`;
   } else {
-    const t = { normal: '通常', quick: '速攻', equip: '装备', cont: '永续', counter: '反击' }[c.t] || '';
-    tail = `<div class="pt">${c.k === 'S' ? '魔法' : '陷阱'} · ${t}</div>`;
+    const t = { normal: '通常', quick: '速攻', equip: '装备', cont: '永续', counter: '反击', field: '场地' }[c.t] || '';
+    const cost = c.cost && c.cost.lp ? ` · 代价 ${c.cost.lp}` : '';
+    tail = `<div class="pt">${c.k === 'S' ? '魔法' : '陷阱'} · ${t}${cost}</div>`;
   }
   const lv = c.k === 'M' || c.k === 'E' ? `<span class="lv">${c.lv >= 8 ? '★8' : 'Lv' + c.lv}</span>` : '';
   return `<div class="${cls.join(' ')}" data-r="${realm}" data-k="${c.k || 'M'}" data-rar="${rb}" data-id="${c.id}"`
@@ -188,8 +199,13 @@ function cardHTML(id, opt) {
 }
 
 // ------------------------------------------------------------------ 首页
+// 预组和自己组的牌在列表里平级：对战、人机、好友房都从这里取，
+// 所以「自组卡组能打」不需要在别处再开一条分支。
+function myDecks() { return (S.save && S.save.mine) || []; }
+function allDecks() { return DECKS.concat(myDecks()); }
+function isMyDeck(id) { return myDecks().some((d) => d.id === id); }
 function deckById(id) {
-  return DECKS.find((d) => d.id === id) || DECKS[0];
+  return DECKS.find((d) => d.id === id) || myDecks().find((d) => d.id === id) || DECKS[0];
 }
 
 function deckList(def) {
@@ -197,6 +213,7 @@ function deckList(def) {
   for (const p of def.cards) for (let i = 0; i < p[1]; i++) out.push(p[0]);
   return out;
 }
+
 
 function renderHome() {
   const decks = DECKS.map((d) => {
@@ -211,6 +228,27 @@ function renderHome() {
     </button><button class="btn sm ghost dview" data-deckview="${d.id}">查看卡组内容</button></div>`;
   }).join('');
 
+  // 自己组的牌：一套一行按钮（用 / 看 / 编 / 改名 / 复制 / 删），
+  // 预组不提供这些——它们是「拿来就打的」，改了就没对照组了。
+  const mine = myDecks();
+  const mineHtml = mine.map((d) => {
+    const total = d.cards.reduce((a, p) => a + p[1], 0);
+    const bs = E.evalBonds(deckList(d));
+    return `<div class="dwrap"><button class="deck ${d.id === S.deckId ? 'on' : ''}" data-deck="${d.id}" style="--rc:${
+      (E.REALM[d.r] || E.REALM.any).c}">
+      <div class="dh"><b>${d.n}</b><span class="rm">自组</span></div>
+      <div class="ds">${d.desc || '自己组的一套牌。'}</div>
+      <div class="db">${bs.map((b) => `<span class="bond">${b.n}</span>`).join('') || '<span class="bond" style="opacity:.5">无羁绊</span>'}</div>
+      <div class="dm">主卡组 ${total} 张 · 额外 ${d.extra.length} 张 · 羁绊 ${bs.length} 条</div>
+    </button><div class="brow">
+      <button class="btn sm ghost" data-bview="${d.id}">查看</button>
+      <button class="btn sm ghost" data-bedit="${d.id}">编辑</button>
+      <button class="btn sm ghost" data-bren="${d.id}">改名</button>
+      <button class="btn sm ghost" data-bcopy="${d.id}">复制</button>
+      <button class="btn sm ghost" data-bdel="${d.id}">删除</button>
+    </div></div>`;
+  }).join('');
+
   const sel = deckById(S.deckId);
   const bonds = E.evalBonds(deckList(sel));
   const free = freeLeft(S.save);
@@ -218,6 +256,13 @@ function renderHome() {
   const rk = rankProgress(S.save.rp);
   const ai = aiFor(S.diff, rk.idx);
   const stars = [0, 1, 2].map((i) => `<i class="${i < rk.stars ? 'on' : ''}">★</i>`).join('');
+  // 这一档对手可能用的牌组：按「它打你这套的胜率」由低到高截一段（rank.js 的 foeBand）。
+  // 主页把它摊开，是「人机用什么牌」这件事唯一说清楚的地方——不然玩家只能从开局 toast 里猜。
+  const band = foeBand(ai.pool, sel.id, DECKS.map((d) => d.id));
+  const bandChips = band.slice(0, 6).map((id) => {
+    const d = deckById(id);
+    return `<i class="foed" title="它打你这套约 ${foeWinRate(id, sel.id)}% 胜率">${d.n}</i>`;
+  }).join('') + (band.length > 6 ? `<i class="foed more">＋${band.length - 6}</i>` : '');
 
   $('#scr-home').innerHTML = `
     <div class="hero">
@@ -240,15 +285,38 @@ function renderHome() {
         <span>${rk.next ? `距「${rk.next.n}」还差 <b>${rk.left}</b> 分` : '已经是最高段位——命轮由你来转'}</span>
         <span class="rkstars">${stars}</span>
       </div>
-      <p class="note" style="margin:8px 0 0">下一局对手的档位：<b>Lv${ai.lv}／${ai.max}「${ai.n}」</b>。
-        段位越高，对方越少打错牌——该召唤时会召唤、该盖的怪会盖、不会拿小的去撞大的；
-        它还会挑一套偏向<b>克你这套</b>的预组。但两边命轮值永远是 8000，它不会靠多血赢你。
-        对手是融灾榜单上的玩家名，一个人固定一套牌，同一个人换段位也不会换牌。
+      <div class="ailv">
+        <div class="arow"><span class="ak">下一局对手</span><b class="av">Lv${ai.lv}／${ai.max}「${ai.n}」</b>
+          <span class="ax">打错牌 ${Math.round(ai.sloppy * 100)}% · ${poolLabel(ai.pool)}</span></div>
+        <div class="arow"><span class="ak">它会用的牌组</span><span class="achips">${bandChips}</span></div>
+      </div>
+      <p class="note" style="margin:2px 0 0">两边的命轮值永远是 8000，段位<b>不加血也不多抽牌</b>——对手变强只靠两件事：
+        少打错牌（该召唤就召唤、该盖就盖、不拿小的撞大的），以及挑一套<b>打你这套顺手</b>的预组。
+        上面那几套就是它这一档的候选，一档一个窗口，越往上越靠「克制你」的那一端；真能死克你的牌组会被踢出候选，
+        所以最凶的一档也是 46% 左右的可战局，不是必输。对手是融灾榜单上的玩家名，一个人固定一套牌。
         ${S.save.bestStreak ? `你最长连胜过 ${S.save.bestStreak} 场。` : ''}</p>
     </div>
+    <details class="lvt">
+      <summary>人机梯度：十档，每档实测胜率</summary>
+      <table>
+        <thead><tr><th>档</th><th>称号</th><th>打错牌</th><th>挑牌</th><th>参考胜率</th></tr></thead>
+        <tbody>${AI_LV.map((r, i) => `<tr class="${Math.round(ai.lv) === i + 1 ? 'on' : ''}">
+          <td>Lv${i + 1}</td><td>${r.n}</td><td>${Math.round(r.sloppy * 100)}%</td>
+          <td>${poolLabel(r.pool)}</td><td>${r.win}%</td></tr>`).join('')}</tbody>
+      </table>
+      <p class="note" style="margin:8px 0 0">「参考胜率」= 玩家一侧不犯错时，用 22 套预组各打 40 局的实测胜率（<code>scripts/duel-ladder.mjs</code>）。
+        轻松走 Lv1~5.5、普通 Lv2~8、认真 Lv4~10，九段之间是连续插值，所以每升一段都真的强一点。</p>
+    </details>
 
-    <div class="sec-h"><h2>选一套卡组</h2><span class="r">共 ${DECKS.length} 套 · 每套 30 张 + 觉醒体</span></div>
+    <div class="sec-h"><h2>选一套卡组</h2><span class="r">预组 ${DECKS.length} 套 · 每套 40 张 + 觉醒体</span></div>
     <div class="decks">${decks}</div>
+
+    <div class="sec-h"><h2>我的卡组</h2><span class="r">${mine.length} 套 · 40~50 张 / 同名最多 3 张 · 人机与好友房都能用</span></div>
+    ${mine.length ? `<div class="decks">${mineHtml}</div>` : '<p class="note" style="margin:2px 0 8px">还没有自己组的牌。下面点「新建卡组」会打开编辑器：左边是全部卡池，右边是你这套牌（40~50 张）。</p>'}
+    <div class="row" style="margin-top:6px">
+      <button class="btn pri" data-bnew="1">＋ 新建卡组</button>
+      ${mine.length ? '<button class="btn ghost" data-bedit="' + mine[0].id + '">编辑最近一套</button>' : ''}
+    </div>
 
     <div class="row" style="margin-top:8px"><button class="btn sm" data-deckview="${sel.id}">查看「${sel.n}」的 ${sel.cards.reduce((a, p) => a + p[1], 0)} 张卡与觉醒体</button></div>
     ${sel.tips ? `<p class="note" style="margin:8px 0 0"><b style="color:var(--gold2)">打法提示</b>：${sel.tips}</p>` : ''}
@@ -267,6 +335,8 @@ function renderHome() {
       <button class="btn pri" data-act="start">与人机对决</button>
       <button class="btn ghost" data-act="howto">规则</button>
     </div>
+    <p class="note" style="margin:8px 0 0">三条线各占一段刻度：<b>轻松</b> Lv1→5.5、<b>普通</b> Lv2→8、<b>认真</b> Lv4→10，
+      九段之间连续插值——所以「在第几段」和「选哪一档」都会真的改变对手，不会爬到一半就封顶。</p>
 
     <div class="sec-h"><h2>好友对战</h2><span class="r">房间码 / 一台设备轮流</span></div>
     <div class="row">
@@ -294,6 +364,10 @@ function newGame(bt, side, mine, foe, seed) {
   S.seq = 0;
   S.busy = false;
   S.result = false;
+  // 音效/飘字的比对基线必须跟着新一局归零：seq 是每局从头数的，
+  // 留着上一局的大序号，新一局的日志全都「不新」，第二局就彻底没声音了。
+  S.fxLp = null; S.fxSeq = 0; S.fxGrave = null;
+  S.turnKey = null; S.acted = false;
   S.sel = null; S.mode = 'idle'; S.tribute = []; S.pendingSummon = null;
   // 两边命轮值都是 8000（羁绊加成各算各的）：段位只影响对手「会不会打、拿什么牌」，不改血量
   S.G = E.createGame({ cards: mine.cards, extra: mine.extra }, { cards: foe.cards, extra: foe.extra }, { seed });
@@ -318,7 +392,7 @@ function startDuel() {
   if (foe.id === 'd6' && Math.random() < 0.3) S.foeName = '米酒';
   S.foeDeck = foe.n;
   newGame('pve', 0, mine, foe, (Date.now() ^ (Math.random() * 1e9)) >>> 0);
-  toast(`${S.foeName}（Lv${S.ai.lv}「${S.ai.n}」）带着「${foe.n}」坐下了`);
+  toast(`${S.foeName}（Lv${S.ai.lv}「${S.ai.n}」· 打错牌 ${Math.round(S.ai.sloppy * 100)}%）带着「${foe.n}」坐下了`);
 }
 
 function startLocal() {
@@ -334,10 +408,150 @@ function phaseText(G, side) {
   return G.active === side ? '你的主要阶段' : (S.bt === 'pve' ? '对手的主要阶段' : '等好友出牌');
 }
 
-function lpBar(p) {
+// ------------------------------------------------------------------ 音效与打击感
+// 全部用 WebAudio 现场合成：边缘每个请求 1~2 秒，为了几声「咚」再拉几个 mp3 不值得。
+// 浏览器要求先有一次用户手势，对决本来就是点进来的，所以这里惰性建上下文。
+let AC = null;
+function ac() {
+  if (AC === null) {
+    const C = window.AudioContext || window.webkitAudioContext;
+    AC = C ? new C() : false;
+  }
+  if (!AC) return null;
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+
+function tone(o) {
+  if (S.mute) return;
+  const a = ac();
+  if (!a) return;
+  const t0 = a.currentTime + (o.delay || 0);
+  const osc = a.createOscillator();
+  const g = a.createGain();
+  osc.type = o.type || 'sine';
+  osc.frequency.setValueAtTime(o.f, t0);
+  if (o.to) osc.frequency.exponentialRampToValueAtTime(Math.max(30, o.to), t0 + o.d);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(o.g || 0.14, t0 + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + o.d);
+  osc.connect(g).connect(a.destination);
+  osc.start(t0);
+  osc.stop(t0 + o.d + 0.02);
+}
+
+function noise(o) {
+  if (S.mute) return;
+  const a = ac();
+  if (!a) return;
+  const t0 = a.currentTime + (o.delay || 0);
+  const len = Math.max(0.05, o.d || 0.2);
+  const buf = a.createBuffer(1, Math.ceil(a.sampleRate * len), a.sampleRate);
+  const ch = buf.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length);
+  const src = a.createBufferSource();
+  src.buffer = buf;
+  const flt = a.createBiquadFilter();
+  flt.type = o.type || 'lowpass';
+  flt.frequency.setValueAtTime(o.f || 1200, t0);
+  if (o.to) flt.frequency.exponentialRampToValueAtTime(Math.max(80, o.to), t0 + len);
+  const g = a.createGain();
+  g.gain.setValueAtTime(o.g || 0.12, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
+  src.connect(flt).connect(g).connect(a.destination);
+  src.start(t0);
+}
+
+const SFX = {
+  summon() { tone({ f: 420, to: 760, d: 0.16, type: 'triangle', g: 0.12 }); tone({ f: 630, d: 0.2, type: 'sine', g: 0.07, delay: 0.07 }); },
+  awaken() { [523, 659, 784, 1046].forEach((f, i) => tone({ f, d: 0.32, type: 'sine', g: 0.1, delay: i * 0.055 })); noise({ d: 0.35, f: 2400, to: 300, g: 0.07 }); },
+  attack() { noise({ d: 0.12, f: 2600, to: 700, g: 0.1, type: 'highpass' }); tone({ f: 220, to: 90, d: 0.16, type: 'square', g: 0.06 }); },
+  hit() { tone({ f: 150, to: 60, d: 0.18, type: 'square', g: 0.1 }); noise({ d: 0.16, f: 900, to: 200, g: 0.09 }); },
+  destroy() { noise({ d: 0.4, f: 1800, to: 120, g: 0.12 }); tone({ f: 320, to: 70, d: 0.35, type: 'sawtooth', g: 0.06 }); },
+  heal() { tone({ f: 660, d: 0.18, type: 'sine', g: 0.08 }); tone({ f: 990, d: 0.22, type: 'sine', g: 0.06, delay: 0.06 }); },
+  trap() { tone({ f: 900, to: 300, d: 0.14, type: 'square', g: 0.05 }); },
+  win() { [523, 659, 784, 1046, 1318].forEach((f, i) => tone({ f, d: 0.4, type: 'triangle', g: 0.1, delay: i * 0.1 })); },
+  lose() { [440, 349, 262].forEach((f, i) => tone({ f, d: 0.45, type: 'sine', g: 0.1, delay: i * 0.13 })); },
+};
+
+function pulse(el, cls) {
+  if (!el) return;
+  el.classList.remove(cls);
+  void el.offsetWidth;          // 强制回流，连续两次同名动画才会重播
+  el.classList.add(cls);
+  setTimeout(() => el.classList.remove(cls), 600);
+}
+
+function floatNum(n, mine, kind) {
+  const bar = document.getElementById(mine ? 'lpMe' : 'lpOp');
+  const host = bar || document.body;
+  const r = host.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'float' + (kind === 'heal' ? ' heal' : '');
+  el.textContent = (n > 0 ? '+' : '') + n;
+  el.style.left = (r.left + r.width * 0.5) + 'px';
+  el.style.top = (r.top + r.height * 0.5) + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), S.floatLife || 950);
+}
+
+// 每帧渲染后跑一次：血变了飘字，日志里新出现的条目出音效和冲击
+function fxFrame(v) {
+  const side = SIDE();
+  const lps = [v.op.lp, v.me.lp];
+  if (!S.fxLp) S.fxLp = lps;
+  for (let i = 0; i < 2; i++) {
+    const d = lps[i] - S.fxLp[i];
+    if (d === 0) continue;
+    const mine = i === 1;
+    floatNum(d, mine, d > 0 ? 'heal' : 'dmg');
+    if (d < 0) {
+      pulse(document.getElementById(mine ? 'lpMe' : 'lpOp'), 'shake');
+      SFX.hit();
+    } else SFX.heal();
+  }
+  S.fxLp = lps;
+
+  const fresh = (v.log || []).filter((e) => e.seq && e.seq > (S.fxSeq || 0));
+  if (fresh.length) S.fxSeq = fresh[fresh.length - 1].seq;
+  // 战斗与破坏的句式只写怪兽名、没有主语（「A」破坏了「B」），
+  // 所以这两类只能看「这一帧谁的墓地在涨」——那是最靠得住的线索。
+  const gravez = [v.op.grave, v.me.grave];
+  if (!S.fxGrave) S.fxGrave = gravez;
+  const dGrave = [gravez[0] - S.fxGrave[0], gravez[1] - S.fxGrave[1]];
+  S.fxGrave = gravez;
+  // 返回 1 = 自己那排（monsMe），0 = 对面那排（monsOp）
+  const rowOf = (e) => {
+    const t = e.text || '';
+    // 日志是「0 号视角」写的：0 号永远是「你」。坐到 1 号位上（同屏二号、好友房作客）就得反过来
+    if (t.indexOf('你') === 0) return side === 0 ? 1 : 0;
+    if (t.indexOf('对手') === 0) return side === 1 ? 1 : 0;
+    if (dGrave[1] > 0 && dGrave[0] <= 0) return 1;
+    if (dGrave[0] > 0 && dGrave[1] <= 0) return 0;
+    return v.active === side ? 1 : 0;   // 攻击方一般是当前回合的人
+  };
+  for (const e of fresh) {
+    const row = document.getElementById(rowOf(e) ? 'monsMe' : 'monsOp');
+    if (e.kind === 'summon') { SFX.summon(); pulse(row, 'cast'); }
+    else if (e.kind === 'awaken') { SFX.awaken(); pulse(row, 'cast'); }
+    else if (e.kind === 'battle') { SFX.attack(); pulse(row, 'lunge'); }
+    else if (e.kind === 'grave') { SFX.destroy(); pulse(row, 'shatter'); }
+    else if (e.kind === 'trap') SFX.trap();
+  }
+}
+
+function lpBar(p, id) {
   const pct = Math.max(0, Math.min(100, (p.lp / p.lpMax) * 100));
-  return `<div class="lp ${pct < 30 ? 'low' : ''}"><i style="width:${pct}%"></i>`
+  return `<div class="lp ${pct < 30 ? 'low' : ''}"${id ? ` id="${id}"` : ''}><i style="width:${pct}%"></i>`
     + `<span class="lpn">${Math.max(0, p.lp)} / ${p.lpMax}</span></div>`;
+}
+
+// 玩家身上的两种状态（中毒层数 / 屏障次数）：挂在命轮条后面一行小字
+function stTags(pl) {
+  let s = '';
+  if (pl.psn > 0) s += `<span class="stt ps" title="中毒 ${pl.psn} 层：自己回合开始失去 ${pl.psn * 100} 点命轮值">毒 ${pl.psn}</span>`;
+  if (pl.br > 0) s += `<span class="stt brt" title="屏障 ${pl.br} 层：抵挡 ${pl.br} 次伤害">盾 ${pl.br}</span>`;
+  return s;
 }
 
 function bondsDots(bonds) {
@@ -354,9 +568,20 @@ function slotHTML(m, i, side, hot) {
   }
   const c = CARDS[m.id];
   const tag = c.k === 'E' ? '觉醒' : (m.pos === 'def' ? '守备' : '攻击');
+  // 新机制的场上面板：屏障 / 流血 / 反击 / 嘲讽都要看得见，
+  // 不然玩家算不准「这一下打不打」，只能靠翻日志。
+  const badges = [];
+  if (m.br > 0) badges.push(`<i class="sf br" title="屏障 ${m.br} 层：抵挡 ${m.br} 次破坏或伤害">盾${m.br}</i>`);
+  if (m.bld > 0) badges.push(`<i class="sf bd" title="流血 ${m.bld} 层：每回合攻击力 -${m.bld * 100}">血${m.bld}</i>`);
+  if (m.psn > 0) badges.push(`<i class="sf ps" title="中毒 ${m.psn} 层：每回合攻守各 -${m.psn * 100}，攻守归零就化掉">毒${m.psn}</i>`);
+  if (m.ctr > 0) badges.push(`<i class="sf ct" title="反击：被攻击后${m.ctrOnMon ? '削攻击者攻击力 ' : '对对方造成 '}${m.ctr} 点${m.ctrOnMon ? '' : '伤害'}">反${m.ctr}</i>`);
+  if (m.taunt) badges.push('<i class="sf tt" title="嘲讽：对方必须优先攻击此卡">嘲</i>');
+  else if (m.tauntCap > 0) badges.push(`<i class="sf tt" title="嘲讽（限高）：攻击力 ${m.tauntCap} 以下的怪兽必须先打它，更大的可以跨过去">嘲≤${m.tauntCap}</i>`);
+  if (m.tauntOnce) badges.push('<i class="sf to" title="只拦一次：这回合拦过之后就能被绕开">一</i>');
+  const sfx = badges.length ? `<div class="sfs">${badges.join('')}</div>` : '';
   return `<div class="slot" data-slot="${side}-${i}">`
     + cardHTML(c, { uid: m.uid, def: m.pos === 'def', tag, used: side === 'me' && m.canAtk === false, atk: m.atk, defv: m.def })
-    + '</div>';
+    + sfx + '</div>';
 }
 
 function spellSlotHTML(s, i, side, hot) {
@@ -368,6 +593,16 @@ function spellSlotHTML(s, i, side, hot) {
   return `<div class="slot sp" data-slot="${side}-sp-${i}">${card}</div>`;
 }
 
+// 每回合开始时中间弹一下「你的回合 / 对方的回合」：不点掉，1.5 秒自己淡掉，
+// 免得挡着看牌（手机屏上正中一块最容易挡住对面那排）。
+function banner(text, mine) {
+  const d = document.createElement('div');
+  d.className = 'turnb' + (mine ? ' me' : ' op');
+  d.textContent = text;
+  document.body.appendChild(d);
+  setTimeout(() => { if (d.parentNode) d.remove(); }, 1500);
+}
+
 function renderDuel() {
   const G = S.G;
   if (!G) { show('home'); return; }
@@ -376,12 +611,23 @@ function renderDuel() {
   const myTurn = v.active === side && !v.over;
   const canAct = myTurn && !S.busy;
 
+  // 换人（或者新一局）才弹横幅，顺便把「这一步算不算已经进主要阶段」清掉
+  const turnKey = G.turn + ':' + v.active + ':' + (v.over ? 1 : 0);
+  if (S.turnKey !== turnKey) {
+    S.turnKey = turnKey;
+    S.acted = false;
+    if (!v.over) banner(myTurn ? '你的回合' : (S.bt === 'pve' ? '对方的回合' : nameOf(v.active) + '的回合'), myTurn);
+  }
+
   const logHTML = v.log.map((l) => `<li data-k="${l.kind}">${logText(l.text, side)}</li>`).join('');
 
   const hotAttack = S.mode === 'attack';
-  const guard = v.op.mons.find((m) => m && m.guard);
+  // 必须优先攻击的那只：走引擎那一份判断，免得界面和规则各认一套。
+  // 传当前选中的攻击者攻击力——嘲讽的「灵活版」（tauntMax）只拦得住比它小的怪。
+  const selMon = S.sel ? G.players[side].mons.find((m) => m && m.uid === S.sel.uid) : null;
+  const guard = E.mustHitFirst(G.players[1 - side], selMon ? E.atkOf(G, G.players[side], selMon) : null);
   const opSlots = v.op.mons.map((m, i) => {
-    const hot = hotAttack && (m ? (!guard || m.guard) : false);
+    const hot = hotAttack && (m ? (!guard || m === guard) : false);
     return slotHTML(m, i, 'op', hot);
   }).join('');
   const mySlots = v.me.mons.map((m, i) => slotHTML(m, i, 'me', S.mode === 'tribute' && !!m)).join('');
@@ -389,7 +635,9 @@ function renderDuel() {
   const mySp = v.me.spells.map((s, i) => spellSlotHTML(s, i, 'me', false)).join('');
 
   const extraLeft = v.me.extra.length;
-  const awakenable = v.me.extra.filter((id) => E.canAwaken(G, G.players[side], id)).length;
+  const awakenable = v.me.extra.filter((id) => (
+    CARDS[id] && CARDS[id].direct ? E.canDirect(G, G.players[side], id) : E.canAwaken(G, G.players[side], id)
+  )).length;
 
   const hand = v.me.hand.map((h) => {
     const c = CARDS[h.id];
@@ -409,29 +657,53 @@ function renderDuel() {
     ? (v.over ? '对决结束。' : '等好友出牌…')
     : (S.bt === 'local' ? '轮到' + nameOf(G.active) + '了。' : '对手正在想牌。');
 
+  // 状态条：现在什么阶段、还能通常召唤几次、要不要去战斗阶段。
+  // 阶段是界面推出来的——规则里没有独立的「准备阶段」，这一回合还没出过手就叫准备阶段，
+  // 出过一次手就是主要阶段，点过「战斗阶段」才是战斗阶段。
+  const callLeft = (v.me.normalUsed ? 0 : 1) + (v.me.normalExtra || 0);
+  const stage = v.phase === 'battle' ? '战斗阶段' : (S.acted || S.busy ? '主要阶段' : '准备阶段');
+  const atkReady = v.phase === 'main' && v.me.mons.some((m) => m && m.canAtk);
+  const hintBits = [];
+  if (myTurn) {
+    hintBits.push(`<b>${stage}</b>`);
+    hintBits.push(callLeft > 0 ? `通常召唤剩 ${callLeft} 次` : '<s>通常召唤已用完</s>');
+    if (v.phase === 'battle') hintBits.push('点自己的怪兽，再点要打的目标');
+    else if (atkReady) hintBits.push('需要攻击请进入战斗阶段');
+    else if (v.me.mons.some(Boolean)) hintBits.push('场上的怪这回合已经打过，或本来就不能攻击');
+    else hintBits.push('先铺一只怪兽再进战斗阶段');
+  } else {
+    hintBits.push(`<b>${S.bt === 'pve' ? '对方的回合' : nameOf(v.active) + '的回合'}</b>`);
+    hintBits.push(v.over ? '对决结束' : (v.phase === 'battle' ? '对方在打人' : '等对方出牌'));
+  }
+  const hint = `<div class="dhint">${hintBits.join('<i>·</i>')}</div>`;
+
   $('#scr-duel').innerHTML = `
     <div class="duelbar">
       <span class="turn">第 ${Math.ceil(v.turn / 2)} 回合</span>
       <span class="ph">${phaseText(G, side)}</span>
       ${modeTag}
       <span class="sp">
-        ${canAct && v.phase === 'main' && extraLeft ? `<button class="btn sm" data-act="extra">觉醒 ${awakenable}/${extraLeft}</button>` : ''}
+        ${canAct && v.phase === 'main' && extraLeft ? `<button class="btn sm" data-act="extra">额外 ${awakenable}/${extraLeft}</button>` : ''}
         ${canAct && v.phase === 'main' ? '<button class="btn sm" data-act="battle">战斗阶段</button>' : ''}
         ${canAct ? '<button class="btn sm pri" data-act="end">结束回合</button>' : ''}
+        <button class="btn sm ghost" data-act="sfx">${S.mute ? '音效关' : '音效开'}</button>
         ${S.bt === 'pve' ? '' : '<button class="btn sm ghost" data-act="leave">离开</button>'}
       </span>
     </div>
 
+    ${hint}
+
     <div class="side op-side">
       <div class="pinfo">
         <span class="who">${nameOf(1 - side)}</span>
+        ${S.bt === 'pve' && S.ai ? `<i class="aih" title="对手这一局的档位与打错牌概率">Lv${S.ai.lv}<em>失误${Math.round(S.ai.sloppy * 100)}%</em></i>` : ''}
         ${S.bt === 'pve' && S.foeDeck ? `<i class="dv" title="对手这套牌">${S.foeDeck}</i>` : ''}
-        ${lpBar(v.op)}
-        <span class="meta"><span>手 ${v.op.hand}</span><span>组 ${v.op.deck}</span></span>
+        ${lpBar(v.op, 'lpOp')}
+        <span class="meta"><span>手 ${v.op.hand}</span><span>组 ${v.op.deck}</span>${stTags(v.op)}</span>
         ${bondsDots(v.op.bonds)}
       </div>
       <div class="field">${opSp}</div>
-      <div class="field">${opSlots}</div>
+      <div class="field" id="monsOp">${opSlots}</div>
     </div>
 
     <div class="mid"><ul class="log" id="log">${logHTML}</ul>
@@ -443,12 +715,12 @@ function renderDuel() {
     </div>
 
     <div class="side me-side">
-      <div class="field">${mySlots}</div>
+      <div class="field" id="monsMe">${mySlots}</div>
       <div class="field">${mySp}</div>
       <div class="pinfo">
         <span class="who">${nameOf(side)}</span>
-        ${lpBar(v.me)}
-        <span class="meta"><span>手 ${v.me.hand.length}</span><span>组 ${v.me.deck}</span></span>
+        ${lpBar(v.me, 'lpMe')}
+        <span class="meta"><span>手 ${v.me.hand.length}</span><span>组 ${v.me.deck}</span>${stTags(v.me)}</span>
         ${bondsDots(v.me.bonds)}
       </div>
     </div>
@@ -459,6 +731,7 @@ function renderDuel() {
   const log = $('#log');
   if (log) log.scrollTop = log.scrollHeight;
   renderActbar();
+  fxFrame(v);
   if (v.over && !S.result) showResult(v);
 }
 
@@ -471,7 +744,8 @@ function attackBar(G, side, v, guard) {
   const can = !!m && (opMons === 0 || m.direct);
   let tip;
   if (can) tip = opMons ? '这只怪兽本回合可以无视对方怪兽直接攻击。' : '对方场上没有怪兽，可以直接攻击。';
-  else if (guard) tip = '对方有守备的「守护」怪兽挡着：必须先点它来打。';
+  else if (guard && E.isTaunt(guard)) tip = '对方的「' + (CARDS[guard.id] ? CARDS[guard.id].n : '嘲讽怪兽') + '」在嘲讽：不管攻守，必须先打它。';
+  else if (guard) tip = '对方的「' + (CARDS[guard.id] ? CARDS[guard.id].n : '守护怪兽') + '」在守备守护：必须先点它来打。';
   else tip = '对方场上有怪兽：点高亮的对方怪兽选择攻击目标，打光了才能直接攻击。';
   return `<div class="atkbar"><span class="note">${tip}</span>`
     + `<button class="btn ${can ? 'pri' : ''}" data-act="direct" ${can ? '' : 'disabled title="现在不能直接攻击"'}>直接攻击</button>`
@@ -520,7 +794,12 @@ function renderActbar() {
     if (need === 0) opts.push('<button class="btn" data-act="setmon">里侧守备</button>');
     opts.push('<button class="btn ghost" data-act="read">效果</button>');
   } else if (c.k === 'S') {
-    opts.push('<button class="btn pri" data-act="spell">发动</button>');
+    // 速攻（钥令那批）战斗阶段也能开；其余魔法只能在主要阶段。
+    // 以前按钮一直亮着、点了才被引擎拒，看起来像「按键没反应」。
+    const canNow = G.phase === 'main' || (c.t === 'quick' && G.phase === 'battle');
+    opts.push(canNow
+      ? '<button class="btn pri" data-act="spell">发动</button>'
+      : '<button class="btn" disabled>不是发动时机</button>');
     opts.push('<button class="btn ghost" data-act="read">效果</button>');
   } else if (c.k === 'T') {
     opts.push('<button class="btn pri" data-act="trap">盖放</button>');
@@ -530,9 +809,13 @@ function renderActbar() {
     ? (E.canSummon(G, p, c.id)
       ? `等级 ${c.lv}：${E.tributeNeed(c.id) ? '需要 ' + E.tributeNeed(c.id) + ' 只祭品' : '可以直接召唤'}`
       : (p.normalUsed ? '本回合已经通常召唤过了' : '现在不能召唤它'))
-    : (c.k === 'S' ? '魔法只能在自己的主要阶段从手牌发动；永续与装备留在场上。' : '陷阱盖放后，对方满足条件时自动发动。');
+    : (c.k === 'S'
+      ? (c.t === 'quick'
+        ? '速攻魔法：主要阶段和战斗阶段都能发动；开完立刻结算。'
+        : '魔法只能在自己的主要阶段从手牌发动；永续与装备留在场上。')
+      : '陷阱盖放后，对方满足条件时自动发动。');
   bar.innerHTML = `
-    <div class="ah"><b>${c.n}</b><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}</span>
+    <div class="ah"><b>${c.n}</b><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}${costTag(c)}</span>
       <button class="btn sm ghost x" data-act="cancel">关闭</button></div>
     <div class="ab">${opts.join('')}</div>
     <div class="hint">${hint}</div>`;
@@ -636,6 +919,7 @@ function act(a) {
   const G = S.G;
   if (!G) return { ok: false, err: '没有对局' };
   const r = E.applyAction(G, SIDE(), a);
+  if (r.ok) S.acted = true;      // 出过一次手就不再是「准备阶段」
   if (r.ok && S.bt === 'net' && S.net) {
     S.seq += 1;
     S.net.send({ k: 'act', n: S.seq, a });
@@ -645,6 +929,7 @@ function act(a) {
 
 function aiAction(a) {
   if (a.t === 'awaken') return { t: 'awaken', id: a.id };
+  if (a.t === 'direct') return { t: 'direct', id: a.id };
   if (a.t === 'summon') return { t: 'summon', uid: a.uid, tribs: a.tribs };
   if (a.t === 'setMon') return { t: 'setMon', uid: a.uid };
   if (a.t === 'trap') return { t: 'trap', uid: a.uid };
@@ -774,11 +1059,27 @@ function onSlotClick(side, idx, isSpell) {
   const m = G.players[1 - me].mons[idx];
   if (m && !m.set) {
     const c = CARDS[m.id];
-    openModal(`<div class="mtitle"><h3>${c.n}</h3><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r]}</span>
+    openModal(`<div class="mtitle"><h3>${c.n}</h3><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r]}${costTag(c)}</span>
       <button class="btn sm ghost x" data-modal="close">关闭</button></div>
       <p class="sub">${c.k === 'M' || c.k === 'E' ? `${c.atk} / ${c.def} · 等级 ${c.lv}` : ''}</p>
       <p class="note">${c.text}</p>`);
   }
+}
+
+// 直接召唤的条件文字（引擎里是 cond 码，这里翻译成玩家看得懂的一句）
+const DIRECT_TXT = {
+  mons2: '自己场上有 2 只以上怪兽',
+  mons3: '自己场上有 3 只怪兽',
+  graveMon3: '自己墓地有 3 只以上怪兽',
+  graveMagic3: '自己墓地有 3 张以上魔法卡',
+  spell1: '自己场上有已发动的魔法·陷阱',
+  lpHalf: '自己命轮值在半数以下',
+};
+function directText(d) {
+  const c = d.direct || {};
+  const why = c.cond ? (DIRECT_TXT[c.cond] || c.cond) : '';
+  const cost = c.lp ? `献出 ${c.lp} 点命轮值` : '';
+  return [why, cost].filter(Boolean).join(' ＋ ') || '无条件';
 }
 
 function onExtra() {
@@ -786,8 +1087,19 @@ function onExtra() {
   const me = SIDE();
   const p = G.players[me];
   const list = p.extra.map((id) => {
-    const ok = E.canAwaken(G, p, id);
     const c = CARDS[id];
+    if (c.direct) {
+      const ok = E.canDirect(G, p, id);
+      return `<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">
+        ${cardHTML(c, { mini: true, dim: !ok })}
+        <div style="min-width:0">
+          <b style="font-size:12.5px">${c.n}</b>
+          <p class="note" style="margin:2px 0">${c.atk} / ${c.def} · 直接召唤：${directText(c)}</p>
+        </div>
+        <button class="btn sm ${ok ? 'pri' : ''}" style="margin-left:auto" data-direct="${id}" ${ok ? '' : 'disabled'}>直接召唤</button>
+      </div>`;
+    }
+    const ok = E.canAwaken(G, p, id);
     const mats = c.mat ? c.mat.join(' ＋ ') : '任意 2 只界域不同的怪兽';
     return `<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">
       ${cardHTML(c, { mini: true, dim: !ok })}
@@ -800,7 +1112,8 @@ function onExtra() {
   }).join('');
   openModal(`<div class="mtitle"><h3>额外卡组</h3><span class="note">不占通常召唤</span>
     <button class="btn sm ghost x" data-modal="close">关闭</button></div>
-    <p class="sub">觉醒召唤：素材至少一只在自己场上，另一只可以从手牌来；两只都送进墓地，不占通常召唤。</p>
+    <p class="sub">觉醒召唤：凑齐素材（至少一只在自己场上），两只都送进墓地。
+    直接召唤：满足卡面条件或献出命轮值即可，每回合 1 次，当回合不能攻击。两种都不占通常召唤。</p>
     ${list || '<p class="empty">额外卡组是空的。</p>'}`);
 }
 
@@ -845,7 +1158,7 @@ function renderRoom() {
         <button class="btn ghost" data-act="leave">离开房间</button>
       </div>
       <div class="rstate"><i class="dot ${r.state === 'err' ? 'bad' : (r.state === 'wait' ? '' : 'ok')}"></i>${stTxt}</div>
-      <p class="note" style="text-align:center">你的卡组：${deckById(S.deckId).n}${r.peerDeck ? ' · 好友选了：' + deckById(r.peerDeck).n : ''}</p>
+      <p class="note" style="text-align:center">你的卡组：${deckById(S.deckId).n}${r.peerDeck ? ' · 好友选了：' + (deckById(r.peerDeck.id) || r.peerDeck).n : ''}</p>
     </div>
     <p class="note" style="margin-top:14px">房间靠公共中继转发动作：双方各自开着这一页，你出的每一手都会发到房间里，对面按同一串动作重放，
       所以两边看到的必然是同一局。中继不通时先玩「同屏双人」。</p>
@@ -857,10 +1170,10 @@ function createRoom() {
   const code = net.makeCode();
   S.room = { code, role: 'a', state: 'wait', peerDeck: '' };
   S.net = net.connect(code, onNetMsg, onNetState);
-  S.net.send({ k: 'hi', role: 'a', deck: S.deckId });
+  S.net.send({ k: 'hi', role: 'a', deck: deckPayload(S.deckId) });
   S.timers.push(setInterval(() => {
     if (!S.net || !S.room || S.room.state === 'playing') return;
-    S.net.send({ k: 'hi', role: 'a', deck: S.deckId });
+    S.net.send({ k: 'hi', role: 'a', deck: deckPayload(S.deckId) });
   }, 5000));
   show('room');
 }
@@ -869,10 +1182,10 @@ function joinRoom(code) {
   dropRoom(true);
   S.room = { code, role: 'b', state: 'wait', peerDeck: '' };
   S.net = net.connect(code, onNetMsg, onNetState);
-  S.net.send({ k: 'hi', role: 'b', deck: S.deckId });
+  S.net.send({ k: 'hi', role: 'b', deck: deckPayload(S.deckId) });
   S.timers.push(setInterval(() => {
     if (!S.net || !S.room || S.room.state === 'playing') return;
-    S.net.send({ k: 'hi', role: 'b', deck: S.deckId });
+    S.net.send({ k: 'hi', role: 'b', deck: deckPayload(S.deckId) });
   }, 5000));
   show('room');
 }
@@ -886,10 +1199,28 @@ function askJoin() {
   setTimeout(() => { const i = $('#rin'); if (i) i.focus(); }, 60);
 }
 
+// 好友房里传的是「卡组内容」而不是 id：自己组的牌对面没有，
+// 只发个 id 过去，对面按 id 找不到就只能退回第一套预组。
+function deckPayload(id) {
+  const d = deckById(id);
+  return { id: d.id, n: d.n, r: d.r, cards: d.cards, extra: d.extra || [] };
+}
+
+function deckFromPeer(v) {
+  if (!v) return DECKS[0];
+  if (typeof v === 'string') return deckById(v);        // 旧版本只发 id
+  const local = DECKS.find((d) => d.id === v.id) || myDecks().find((d) => d.id === v.id);
+  if (local) return local;
+  const cards = (v.cards || []).filter((x) => Array.isArray(x) && CARDS[x[0]] && x[1] > 0);
+  const extra = (v.extra || []).filter((id) => CARDS[id]);
+  if (!cards.length) return DECKS[0];
+  return { id: v.id || 'peer', n: v.n || '好友的卡组', r: v.r || 'any', cards, extra, desc: '', combo: [], tips: '' };
+}
+
 function startNetGame(side, seed, deckA, deckB) {
   if (S.room) S.room.state = 'playing';
-  const a = deckById(deckA);
-  const b = deckById(deckB);
+  const a = deckFromPeer(deckA);
+  const b = deckFromPeer(deckB);
   newGame('net', side, side === 0 ? a : b, side === 0 ? b : a, seed);
   toast(side === 0 ? '好友已加入，你先手' : '已进入房间，房主先手');
 }
@@ -902,11 +1233,13 @@ function onNetMsg(p) {
     // 不挡的话，房主每收到一次旧的「hi」就会换个种子重开一局
     if (r.state === 'playing') return;
     if (r.role === 'a' && p.role === 'b') {
-      r.peerDeck = p.deck || 'd1';
+      r.peerDeck = deckFromPeer(p.deck);
       r.state = 'playing';
       const seed = (Date.now() ^ (Math.random() * 1e9)) >>> 0;
-      const a = S.deckId;
-      const b = r.peerDeck;
+      const a = deckPayload(S.deckId);
+      // 对面那套是自组的，本地没有这个 id，就直接用他发来的内容
+      const b = (DECKS.some((d) => d.id === r.peerDeck.id) || myDecks().some((d) => d.id === r.peerDeck.id))
+        ? deckPayload(r.peerDeck.id) : r.peerDeck;
       S.net.send({ k: 'open', seed, a, b });
       startNetGame(0, seed, a, b);
     }
@@ -941,21 +1274,351 @@ function onNetMsg(p) {
   }
 }
 
+// ------------------------------------------------------------------ 自组卡组
+// 预组是「拿来就打的」，自组是「自己排的」。两者在选卡组列表里平级，
+// deckById() 同时认这两份，所以人机 / 同屏 / 好友房都不用额外改分支。
+// 主卡组 40~50 张：预组一律按 40 构筑（越少越稳，牌堆薄了才抽得到要的），
+// 自组放到 50 是留给「想塞满的」——多了容错高，但关键牌也被稀释。
+const DECK_SIZE = 50;
+const DECK_MIN = 40;
+const MAX_COPY = 3;     // 同名卡上限
+const EXTRA_MAX = 10;   // 额外卡组上限
+// 「直接召唤」不占通常召唤，白给一个身位太强，所以额外卡组里最多放 2 张。
+const DIRECT_MAX = 2;
+
+let deckSeq = 0;
+function blankDeck() {
+  deckSeq++;
+  return {
+    id: 'c' + Date.now().toString(36) + deckSeq.toString(36),
+    n: '我的卡组 ' + (myDecks().length + 1), r: 'any',
+    cards: [], extra: [], desc: '自己组的一套牌。', combo: [], tips: '', mine: true,
+  };
+}
+
+function startBuild(id) {
+  const d = id === 'new' ? blankDeck() : deckById(id);
+  S.build = {
+    src: id === 'new' ? null : d.id,
+    id: d.id, n: d.n, r: d.r || 'any',
+    cards: (d.cards || []).map((x) => [x[0], x[1]]),
+    extra: (d.extra || []).slice(),
+    k: 'all', rf: 'all', q: '',
+    preset: 'all',      // 按预组筛：'all' = 全卡池，否则只显示那套预组用到的牌
+  };
+  show('build');
+}
+
+function bCount(id) {
+  const p = S.build.cards.find((x) => x[0] === id);
+  return p ? p[1] : 0;
+}
+function bTotal() { return S.build.cards.reduce((a, p) => a + p[1], 0); }
+
+function bAdd(id) {
+  const b = S.build;
+  const c = CARDS[id];
+  if (!c) return;
+  if (c.k === 'E') {
+    if (b.extra.indexOf(id) >= 0) return toast('这张已经在额外卡组里了');
+    if (b.extra.length >= EXTRA_MAX) return toast('额外卡组最多 ' + EXTRA_MAX + ' 张');
+    if (c.direct && b.extra.filter((x) => CARDS[x] && CARDS[x].direct).length >= DIRECT_MAX) {
+      return toast('「直接召唤」的额外怪兽最多 ' + DIRECT_MAX + ' 张（它不占通常召唤）');
+    }
+    b.extra.push(id);
+    return renderBuild();
+  }
+  if (bTotal() >= DECK_SIZE) return toast('主卡组已经有 ' + DECK_SIZE + ' 张了，先减一张');
+  if (bCount(id) >= MAX_COPY) return toast('「' + c.n + '」最多放 ' + MAX_COPY + ' 张');
+  const p = b.cards.find((x) => x[0] === id);
+  if (p) p[1]++; else b.cards.push([id, 1]);
+  renderBuild();
+}
+
+function bSub(id, isExtra) {
+  const b = S.build;
+  if (isExtra) {
+    const i = b.extra.indexOf(id);
+    if (i >= 0) b.extra.splice(i, 1);
+  } else {
+    const i = b.cards.findIndex((x) => x[0] === id);
+    if (i < 0) return;
+    if (--b.cards[i][1] <= 0) b.cards.splice(i, 1);
+  }
+  renderBuild();
+}
+
+// 预组筛选用的索引：选中某套预组后，候选池只留这套牌真的会用的卡
+function presetSet(presetId) {
+  if (!presetId || presetId === 'all') return null;
+  const d = DECKS.find((x) => x.id === presetId);
+  if (!d) return null;
+  return new Set(d.cards.map(([id]) => id).concat(d.extra));
+}
+
+function bPool() {
+  const b = S.build;
+  const q = (b.q || '').trim();
+  const preset = presetSet(b.preset);
+  const out = [];
+  for (const id of Object.keys(CARDS)) {
+    const c = CARDS[id];
+    if (!c || c.token) continue;                 // 衍生物不能自己放
+    if (b.k !== 'all' && c.k !== b.k) continue;
+    if (b.rf !== 'all' && c.r !== b.rf) continue;
+    if (preset && !preset.has(id)) continue;
+    if (q && c.n.indexOf(q) < 0 && (c.text || '').indexOf(q) < 0) continue;
+    out.push(id);
+  }
+  const ord = { M: 0, S: 1, T: 2, E: 3 };
+  return out.sort((x, y) => {
+    const a = CARDS[x]; const b2 = CARDS[y];
+    return (ord[a.k] - ord[b2.k]) || ((a.lv || 0) - (b2.lv || 0)) || a.n.localeCompare(b2.n, 'zh');
+  });
+}
+
+function bRow(id, n, onClick) {
+  const c = CARDS[id];
+  if (!c) return '';
+  const sub = c.k === 'E' ? '觉醒体'
+    : KIND_TXT[c.k] + ' · ' + (REALM_TXT[c.r] || c.r) + costTag(c)
+      + (c.lv ? ' · Lv' + c.lv : '') + (c.atk !== undefined ? ' · ' + c.atk + '/' + c.def : '');
+  return `<button class="bit" ${onClick}><b>${c.n}</b><span>${sub}</span>`
+    + `<i>${n > 0 ? '×' + n : '＋'}</i></button>`;
+}
+
+function renderBuild() {
+  const el = $('#scr-build');
+  const b = S.build;
+  if (!el || !b) { show('home'); return; }
+  // 重绘前先把输入框里的字存回去，不然「加一张牌」就会把刚打的卡组名冲掉
+  const oldName = $('#bname');
+  if (oldName) b.n = oldName.value;
+  const oldQ = $('#bq');
+  const hadFocus = oldQ && document.activeElement === oldQ;
+  if (oldQ) b.q = oldQ.value;
+  // 每点一下都整块重绘：候选池与右侧清单的滚动位置得留着，不然选一张牌就跳回顶部
+  const oldPool = document.querySelector('.bpool');
+  const oldList = document.querySelector('.bpanel:nth-child(2) .blist');
+  const poolTop = oldPool ? oldPool.scrollTop : 0;
+  const listTop = oldList ? oldList.scrollTop : 0;
+
+  const total = bTotal();
+  const kinds = [['all', '全部'], ['M', '怪兽'], ['S', '魔法'], ['T', '陷阱'], ['E', '额外卡组']];
+  const realms = [['all', '全部'], ['chaos', '混沌'], ['caro', '血肉'], ['aqua', '深海'], ['ultra', '超维'], ['any', '无界']];
+  const seg = (arr, cur, attr) => `<div class="seg">${arr.map(([v, t]) => `<button ${attr}="${v}" class="${cur === v ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+
+  // 候选池按卡表的样子摊开：分区 + 卡面，点卡面加一张，点卡面下的「−」减一张。
+  // 以前是一行一行的列表，看不见卡面、也看不出「这张我已经放了几张」。
+  const pool = bPool();
+  const cell = (id) => {
+    const c = CARDS[id];
+    const isExtra = c.k === 'E';
+    const n = isExtra ? (b.extra.indexOf(id) >= 0 ? 1 : 0) : bCount(id);
+    const cls = ['bcell'];
+    if (n) cls.push('on');
+    if (n >= (isExtra ? 1 : MAX_COPY)) cls.push('max');
+    const minus = n > 0
+      ? `<button class="bmi" ${isExtra ? `data-subx="${id}"` : `data-sub="${id}"`} title="减一张">−</button>`
+      : '<span class="bmn"></span>';
+    return `<div class="${cls.join(' ')}">
+      <div class="bf" data-add="${id}">${cardHTML(c, {})}</div>
+      <div class="bbar">${minus}<b>${n ? '×' + n : '＋'}</b></div>
+    </div>`;
+  };
+  const poolHtml = CODEX_GROUPS.map(([k, label]) => {
+    const arr = pool.filter((id) => CARDS[id].k === k);
+    if (!arr.length) return '';
+    return `<div class="chead"><b>${label}</b><span>${arr.length} 种</span></div>
+      <div class="bgrid">${arr.map(cell).join('')}</div>`;
+  }).join('');
+
+  // 按预组筛：新手从「这套预组用了哪些牌」开始改，比面对 369 张无从下手好
+  const presetOpts = [['all', '全部卡池']].concat(DECKS.map((d) => [d.id, `预组 · ${d.n}`]));
+  const presetSel = `<select class="bpreset" id="bpreset" title="只看某套预组用到的牌">`
+    + presetOpts.map(([v, t]) => `<option value="${v}"${(b.preset || 'all') === v ? ' selected' : ''}>${t}</option>`).join('')
+    + '</select>';
+
+  const secM = b.cards.filter(([id]) => CARDS[id] && CARDS[id].k === 'M');
+  const secS = b.cards.filter(([id]) => CARDS[id] && CARDS[id].k === 'S');
+  const secT = b.cards.filter(([id]) => CARDS[id] && CARDS[id].k === 'T');
+  const cntOf = (arr) => arr.reduce((a, p) => a + p[1], 0);
+  const deckGroup = (arr, title, k) => `<h4>${title} · ${cntOf(arr)} 张</h4>`
+    + (arr.length ? arr.map(([id, n]) => bRow(id, n, `data-sub="${id}" data-k="${k}"`)).join('')
+      : '<p class="note" style="margin:0 0 4px">还没有</p>');
+
+  // 额外卡组的素材检查：素材不在主卡组里，这张觉醒体一辈子召不出来
+  const names = new Set(b.cards.map(([id]) => CARDS[id] && CARDS[id].n));
+  const extraHtml = b.extra.length ? b.extra.map((id) => {
+    const c = CARDS[id];
+    if (!c) return '';
+    const miss = c.matRealm ? [] : (c.mat || []).filter((n) => !names.has(n));
+    return `<button class="bit" data-subx="${id}"><b>${c.n}</b><span>${miss.length ? '缺素材：' + miss.join('、') : (c.matRealm ? '任意两界域' : '素材齐了')}</span>`
+      + `<em>${miss.length ? '缺' : ''}</em><i>${c.atk}/${c.def}</i></button>`;
+  }).join('') : '<p class="note" style="margin:0 0 4px">还没有（额外卡组可以空着）</p>';
+
+  el.innerHTML = `
+    <div class="bhead">
+      <input class="bname" id="bname" maxlength="20" value="${b.n.replace(/"/g, '&quot;')}" placeholder="给这套牌起个名字">
+      <span class="bmeta">主卡组 ${total}/${DECK_SIZE} · 额外 ${b.extra.length}/${EXTRA_MAX}</span>
+      <button class="btn sm pri" data-bsave="1">保存</button>
+      <button class="btn sm ghost" data-bback="1">返回</button>
+    </div>
+    <div class="bbody">
+      <div class="bpanel">
+        <div class="bq">
+          <input id="bq" placeholder="搜卡名或效果文字" value="${(b.q || '').replace(/"/g, '&quot;')}">
+        </div>
+        ${seg(kinds, b.k, 'data-bk')}
+        ${seg(realms, b.rf, 'data-br')}
+        <div class="bsel">${presetSel}<span class="note">${b.preset && b.preset !== 'all' ? '只看这套预组用到的牌' : '点卡面加一张，点「−」减一张'}</span></div>
+        <div class="bpool">${poolHtml || '<p class="note">没有符合条件的牌</p>'}</div>
+      </div>
+      <div class="bpanel">
+        ${deckGroup(secM, '怪兽', 'm')}
+        ${secM.length ? '' : ''}
+        ${deckGroup(secS, '魔法', 's')}
+        ${deckGroup(secT, '陷阱', 't')}
+        <h4>额外卡组 · ${b.extra.length} 张</h4>
+        <div class="blist" style="max-height:22vh">${extraHtml}</div>
+        <p class="note" style="margin:6px 0 0">同名卡最多 ${MAX_COPY} 张；主卡组 ${DECK_MIN}~${DECK_SIZE} 张（${DECK_MIN} 张最稳，越往上越容易抽不到要的牌）；
+          「直接召唤」的额外怪兽最多 ${DIRECT_MAX} 张；觉醒体的素材必须在这套牌里，否则它永远召不出来。</p>
+      </div>
+    </div>`;
+
+  const q = $('#bq');
+  if (q) {
+    if (q.value !== (b.q || '')) q.value = b.q || '';
+    if (hadFocus) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+  }
+  const np = document.querySelector('.bpool');
+  if (np && poolTop) np.scrollTop = poolTop;
+  const nl = document.querySelector('.bpanel:nth-child(2) .blist');
+  if (nl && listTop) nl.scrollTop = listTop;
+}
+
+function saveBuild() {
+  const b = S.build;
+  const el = $('#bname');
+  if (el) b.n = el.value;
+  const total = bTotal();
+  if (total < DECK_MIN || total > DECK_SIZE) {
+    return toast('主卡组要 ' + DECK_MIN + '~' + DECK_SIZE + ' 张（现在 ' + total + ' 张）');
+  }
+  const names = new Set(b.cards.map(([id]) => CARDS[id] && CARDS[id].n));
+  for (const id of b.extra) {
+    const e2 = CARDS[id];
+    if (!e2 || e2.matRealm) continue;
+    const miss = (e2.mat || []).filter((n) => !names.has(n));
+    if (miss.length) return toast('「' + e2.n + '」的素材不在这套牌里：' + miss.join('、'));
+  }
+  // 领域取主卡组里张数最多的那个，只影响列表上的颜色和图标
+  const cnt = {};
+  for (const [id, n] of b.cards) {
+    const c = CARDS[id];
+    if (c && c.r !== 'any') cnt[c.r] = (cnt[c.r] || 0) + n;
+  }
+  const r = Object.keys(cnt).sort((x, y) => cnt[y] - cnt[x])[0] || 'any';
+  const list = myDecks();
+  const rec = {
+    id: b.id, n: (b.n || '').trim() || '我的卡组', r,
+    cards: b.cards.filter((p) => p[1] > 0), extra: b.extra.slice(),
+    desc: '自己组的一套牌（' + total + ' 张）。', combo: [], tips: '', mine: true,
+  };
+  const i = list.findIndex((d) => d.id === rec.id);
+  const isNew = i < 0;
+  if (isNew) list.push(rec); else list[i] = rec;
+  S.save.mine = list;
+  if (!isMyDeck(S.deckId) && !DECKS.some((d) => d.id === S.deckId)) S.deckId = DECKS[0].id;
+  saveSave(S.save);
+  toast(isNew ? '卡组已保存' : '改好了');
+  show('home');
+}
+
+function askRename(id) {
+  const d = deckById(id);
+  openModal(`<div class="mtitle"><h3>改个名字</h3><button class="btn sm ghost x" data-modal="close">关闭</button></div>
+    <p class="sub">现在叫「${d.n}」。</p>
+    <input class="rin" id="bren" maxlength="20" value="${d.n.replace(/"/g, '&quot;')}" autocomplete="off">
+    <div class="mb"><button class="btn ghost" data-modal="close">算了</button>
+      <button class="btn pri" data-bren-do="${id}">改</button></div>`);
+  setTimeout(() => { const i = $('#bren'); if (i) { i.focus(); i.select(); } }, 60);
+}
+
+function doRename(id) {
+  const el = $('#bren');
+  const nm = (el && el.value || '').trim();
+  if (!nm) return toast('名字不能空着');
+  const list = myDecks();
+  const d = list.find((x) => x.id === id);
+  if (!d) return;
+  d.n = nm;
+  S.save.mine = list;
+  saveSave(S.save);
+  closeModal();
+  renderHome();
+  toast('改名成功');
+}
+
+function copyDeck(id) {
+  const d = deckById(id);
+  const list = myDecks();
+  const rec = {
+    id: 'c' + Date.now().toString(36) + (deckSeq++).toString(36),
+    n: d.n + ' 副本', r: d.r, cards: d.cards.map((p) => [p[0], p[1]]), extra: (d.extra || []).slice(),
+    desc: d.desc || '', combo: [], tips: '', mine: true,
+  };
+  list.push(rec);
+  S.save.mine = list;
+  saveSave(S.save);
+  renderHome();
+  toast('已复制成「' + rec.n + '」');
+}
+
+function askDelete(id) {
+  const d = deckById(id);
+  openModal(`<div class="mtitle"><h3>删掉「${d.n}」？</h3><button class="btn sm ghost x" data-modal="close">关闭</button></div>
+    <p class="sub">这套牌会一起没掉（卡本身还在收藏里，只是这个卡组不见了）。删了就找不回来。</p>
+    <div class="mb"><button class="btn ghost" data-modal="close">算了</button>
+      <button class="btn pri" data-bdel-do="${id}">删掉</button></div>`);
+}
+
+function doDelete(id) {
+  const list = myDecks().filter((d) => d.id !== id);
+  S.save.mine = list;
+  if (S.deckId === id) { S.deckId = DECKS[0].id; S.save.deck = S.deckId; }
+  saveSave(S.save);
+  closeModal();
+  renderHome();
+  toast('已删除');
+}
+
 // ------------------------------------------------------------------ 卡包
 function drawFromPack(pack) {
   const pool = pack.cards.map((id) => CARDS[id]).filter(Boolean);
   const byRar = {};
   for (const c of pool) (byRar[c.rar || 'N'] = byRar[c.rar || 'N'] || []).push(c.id);
+  const ALL_RAR = Object.keys(byRar);
   const out = [];
+  const sameIn = (id) => out.filter((x) => x === id).length;
+  // 一包里同一种卡可以重复，但最多 3 张（再多就是「这一包全是同一个人」了）。
+  // 满 3 张的牌直接不进候选——不能回退成「允许第 4 张」，那样上限就白写了。
   const pick = (list) => {
     const cands = [];
     for (const r of list) for (const id of byRar[r] || []) cands.push(id);
     if (!cands.length) return null;
-    const left = cands.filter((id) => out.indexOf(id) < 0);
-    const arr = left.length ? left : cands;
-    return arr[Math.floor(Math.random() * arr.length)];
+    const room = cands.filter((id) => sameIn(id) < PACK_COPY_MAX);
+    if (!room.length) return null;
+    return room[Math.floor(Math.random() * room.length)];
   };
-  out.push(pick(['GR', 'UR', 'SR']));
+  // 兜底：某些卡包根本没有 N/R（bp08 融灾首领 全是 SR 以上），
+  // 以前 roll 到 N 就 pick 不到、push 进一个空位，开出来只有 3~4 张卡。
+  const anyRoom = () => {
+    const room = [];
+    for (const r of ALL_RAR) for (const id of byRar[r]) if (sameIn(id) < PACK_COPY_MAX) room.push(id);
+    return room.length ? room[Math.floor(Math.random() * room.length)] : null;
+  };
+  out.push(pick(['GR', 'UR', 'SR']) || anyRoom());
   const roll = () => {
     const r = Math.random();
     return r < 0.45 ? 'N' : r < 0.80 ? 'R' : r < 0.96 ? 'SR' : r < 0.99 ? 'UR' : 'GR';
@@ -963,9 +1626,9 @@ function drawFromPack(pack) {
   for (let i = 0; i < 4; i++) {
     let id = null;
     for (let t = 0; t < 8 && !id; t++) id = pick([roll()]);
-    out.push(id || pick(['N', 'R']));
+    out.push(id || anyRoom() || pick(['N', 'R']));
   }
-  return out;
+  return out.filter(Boolean);
 }
 
 function packBtnLabel() {
@@ -1004,9 +1667,54 @@ function renderPacks() {
     <p class="note" style="margin:0 0 10px">每包 5 张，第一张保底 SR 以上。开包的顺序是：先用每天白给的那一次，再用打人机赢来的券，
       最后才扣银芯（${PACK_PRICE}，全站共用的那份）。开出来的卡进收藏，不影响预组卡组——对决用的是整套预组，收藏是「我还记得这些人」。</p>
     <div class="packs">${packs}</div>
-    <p class="note" style="margin-top:12px">已收录 ${Object.keys(S.save.coll).length} / ${Object.keys(CARDS).length} 种。
+    <p class="note" style="margin-top:12px">已收录 ${Object.keys(S.save.coll).length} / ${Object.keys(CARDS).filter((id) => !CARDS[id].token).length} 种。
       今天还能拿 ${ticketDayLeft(S.save)} 张开包券（打赢人机 +1）。</p>
+    <p class="note" style="margin-top:6px">每张卡留 3 张就够，第 4 张起开包时会自动折算成银芯（每张 1 芯）。
+      一包里同一种卡最多出 3 张。
+      <button class="btn sm ghost" data-recycle="1" style="margin-left:6px">一键回收多余</button></p>
   `;
+}
+
+// ------------------------------------------------------------------ 重复卡回收
+// 收藏不是卡组：每张留 3 张就够看了，第 4 张起自动折算成银芯。
+// 不这么做的话，收集到后期开包永远是「全是重复」，什么也拿不到。
+const KEEP_COPY = 3;        // 每张留 3 张，第 4 张起才折算
+const PACK_COPY_MAX = 3;    // 一包里同一种卡的上限
+// 重复卡一律 1 银芯：这只是「别让你白开一包」的止损，不是收益。
+// 按稀有度给价（旧版 SR 45 / GR 220）会让刷包变成最赚的银芯来源，反而没人去打牌。
+function recycleValue() { return 1; }
+
+// 开完包先把多出来的折算掉；返回折算了几张、给了多少银芯
+function autoRecycle(ids) {
+  let n = 0, silver = 0;
+  for (const id of ids) {
+    const cnt = S.save.coll[id] || 0;
+    if (cnt <= KEEP_COPY) continue;
+    S.save.coll[id] = cnt - 1;
+    silver += recycleValue();
+    n++;
+  }
+  if (silver > 0) walletAdd(silver);
+  return { n, silver };
+}
+
+// 「一键回收多余」：把收藏里所有超过 3 张的部分都换掉
+function recycleAll() {
+  let n = 0, silver = 0;
+  for (const id of Object.keys(S.save.coll)) {
+    const cnt = S.save.coll[id] || 0;
+    if (cnt <= KEEP_COPY) continue;
+    const extra = cnt - KEEP_COPY;
+    S.save.coll[id] = KEEP_COPY;
+    n += extra;
+    silver += extra * recycleValue();
+  }
+  if (!n) return toast('没有多于 ' + KEEP_COPY + ' 张的重复卡');
+  walletAdd(silver);
+  saveSave(S.save);
+  silverBar();
+  renderPacks();
+  toast(`回收 ${n} 张重复卡，换到 ${silver} 银芯`);
 }
 
 function buyPack(packId) {
@@ -1023,6 +1731,7 @@ function buyPack(packId) {
   for (const id of ids) if (id && !S.save.coll[id]) isNew[id] = true;
   const newN = Object.keys(isNew).length;
   for (const id of ids) if (id) S.save.coll[id] = (S.save.coll[id] || 0) + 1;
+  const rec = autoRecycle(ids);
   saveSave(S.save);
   silverBar();
   renderPacks();
@@ -1032,35 +1741,55 @@ function buyPack(packId) {
   openModal(`<div class="mtitle"><h3>${pk.n}</h3><span class="note">${pk.sub}</span>
     <button class="btn sm ghost x" data-modal="close">关闭</button></div>
     <p class="sub">第 ${S.save.opened} 包 · ${payTxt}</p>
-    <p class="note" style="margin:0 0 4px">${newN ? `本次新收录 ${newN} 种。` : '这五张都已收录过。'}点任意一张看详细效果。</p>
+    <p class="note" style="margin:0 0 4px">${newN ? `本次新收录 ${newN} 种。` : '这五张都已收录过。'}${rec.n ? `重复的 ${rec.n} 张已折算成 <b style="color:var(--gold)">${rec.silver} 银芯</b>。` : ''}点任意一张看详细效果。</p>
     <div class="pull">${cards.map((c) => `<div class="pc" data-read="${c.id}">${cardHTML(c, { tag: isNew[c.id] ? 'NEW' : '' })}<div class="rar" style="color:var(--rc)">${c.rar}${isNew[c.id] ? '' : ` · ×${S.save.coll[c.id]}`}</div></div>`).join('')}</div>
     <div class="mb"><button class="btn ghost" data-modal="close">收下</button>
       <button class="btn pri" data-buy2="${pk.id}">再开一包</button></div>`);
 }
 
 // ------------------------------------------------------------------ 卡表
+// 卡表分区：以前 369 张全挤在一个网格里，「额外卡组」被排在最后一屏外面，
+// 看起来就像卡表里没有额外卡组。现在按 怪兽 / 魔法 / 陷阱 / 额外卡组 分块，每块带小标题和计数。
+const CODEX_GROUPS = [['M', '怪兽'], ['S', '魔法'], ['T', '陷阱'], ['E', '额外卡组']];
+
 function renderCodex() {
-  const kinds = [['all', '全部'], ['M', '怪兽'], ['S', '魔法'], ['T', '陷阱'], ['E', '觉醒体']];
+  const kinds = [['all', '全部'], ['M', '怪兽'], ['S', '魔法'], ['T', '陷阱'], ['E', '额外卡组']];
   const realms = [['all', '全界域'], ['chaos', '混沌'], ['caro', '血肉'], ['aqua', '深海'], ['ultra', '超维'], ['any', '无界']];
-  const list = Object.keys(CARDS).map((id) => CARDS[id]).filter((c) => {
+  // 衍生物（tk1/tk2）不进卡表：它不是能收进收藏的牌，只由效果叫出来
+  const all = Object.keys(CARDS).map((id) => CARDS[id]).filter((c) => !c.token);
+  const list = all.filter((c) => {
     if (S.codex.k !== 'all' && c.k !== S.codex.k) return false;
     if (S.codex.r !== 'all' && (c.r || 'any') !== S.codex.r) return false;
     return true;
   });
   const order = { M: 0, S: 1, T: 2, E: 3 };
-  list.sort((a, b) => (order[a.k] - order[b.k]) || (a.r || '').localeCompare(b.r || '') || (b.atk || 0) - (a.atk || 0));
+  list.sort((a, b) => (order[a.k] - order[b.k]) || (a.r || '').localeCompare(b.r || '')
+    || (Number(!!b.direct) - Number(!!a.direct)) || (b.atk || 0) - (a.atk || 0));
+
+  const cell = (c) => `<div>${cardHTML(c, {})}<div style="text-align:center;font-size:9px;color:var(--dim2);margin-top:2px">`
+    + `${c.rar}${(S.save.coll || {})[c.id] ? ` · ×${S.save.coll[c.id]}` : ' · 未收录'}</div></div>`;
+  const grid = (arr) => `<div class="grid-cards">${arr.map(cell).join('')}</div>`;
+
+  const blocks = CODEX_GROUPS.map(([k, label]) => {
+    const arr = list.filter((c) => c.k === k);
+    if (!arr.length) return '';
+    if (k !== 'E') return `<div class="chead"><b>${label}</b><span>${arr.length} 张</span></div>${grid(arr)}`;
+    // 额外卡组里两种召唤方式分开列：凑素材的、满足条件白给的，混在一起看不懂
+    const aw = arr.filter((c) => !c.direct), dr = arr.filter((c) => c.direct);
+    return `<div class="chead"><b>${label}</b><span>${arr.length} 张 · 觉醒 ${aw.length} / 直接召唤 ${dr.length}</span></div>`
+      + (aw.length ? `<div class="csub">觉醒召唤<span>凑齐素材，从额外卡组特召</span></div>${grid(aw)}` : '')
+      + (dr.length ? `<div class="csub">直接召唤<span>满足卡面条件，或献出命轮值</span></div>${grid(dr)}` : '');
+  }).join('');
 
   $('#scr-codex').innerHTML = `
-    <div class="sec-h"><h2>卡表</h2><span class="r">${list.length} / ${Object.keys(CARDS).length} 张</span></div>
+    <div class="sec-h"><h2>卡表</h2><span class="r">${list.length} / ${all.length} 张</span></div>
     <div class="filters">
       ${kinds.map(([k, n]) => `<button class="chip ${S.codex.k === k ? 'on' : ''}" data-ck="${k}">${n}</button>`).join('')}
     </div>
     <div class="filters">
       ${realms.map(([r, n]) => `<button class="chip ${S.codex.r === r ? 'on' : ''}" data-cr="${r}" data-r="${r}">${n}</button>`).join('')}
     </div>
-    <div class="grid-cards">
-      ${list.map((c) => `<div>${cardHTML(c, {})}<div style="text-align:center;font-size:9px;color:var(--dim2);margin-top:2px">${c.rar}${(S.save.coll || {})[c.id] ? ` · ×${S.save.coll[c.id]}` : ' · 未收录'}</div></div>`).join('')}
-    </div>
+    ${blocks || '<p class="note">这个筛选下没有卡。</p>'}
     <p class="note" style="margin-top:12px">点一张看完整效果。</p>
   `;
 }
@@ -1099,13 +1828,36 @@ function showHowTo() {
   openModal(`<div class="mtitle"><h3>怎么打</h3><button class="btn sm ghost x" data-modal="close">关闭</button></div>
     <p class="sub">目标是先把对方的命轮值打到 0。双方各 8000 点起手。</p>
     <ul class="tips">
-      <li><b>场地</b>：怪兽 3 格、魔法·陷阱 3 格，卡组 30 张，起手 5 张。先手第一回合不抽牌。</li>
-      <li><b>召唤</b>：每回合 1 次。等级 1–4 直接出，5–6 需要 1 只祭品，7 以上需要 2 只。祭品送墓。</li>
+      <li><b>场地</b>：怪兽 3 格、魔法·陷阱 3 格，卡组 40~50 张，起手 5 张。先手第一回合不抽牌。</li>
+      <li><b>召唤</b>：每回合 1 次。等级 1–4 直接出，5–6 需要 1 只祭品，7 以上需要 2 只。祭品送墓。
+        带「额外通常召唤」的牌（如「灯下夜谈」）可以让你这回合多召一次。</li>
+      <li><b>特殊召唤</b>：<b>不占通常召唤权</b>。衍生物（「维度残影」这类）凭空多一个身位，可以当祭品、当墙、当嘲讽的靶子；
+        特殊召唤则直接从手牌或墓地拉一只小怪出来。</li>
       <li><b>盖放</b>：怪兽可以里侧守备（等级 5 以上不行）；陷阱从手牌盖到魔陷区，盖放当回合不能发动。</li>
       <li><b>战斗</b>：攻击表示互殴，输的一方破坏、差值打脸；打守备怪兽时超过守备力就破坏它，没有贯穿就没有伤害；场上没有怪兽才能直接攻击。</li>
-      <li><b>嘲讽</b>：带「守备时对方不能攻击其他怪兽」的怪兽挡在前面时，必须先打它。</li>
-      <li><b>觉醒召唤</b>：把指定的素材送进墓地，从额外卡组特召，<b>不占通常召唤</b>。素材至少有一只在自己场上，另一只可以直接从手牌来；<b>刚觉醒的那一回合它不能攻击</b>。</li>
+      <li><b>拦路</b>：三档。<b>嘲讽</b>不管攻守都得先打它；<b>限高嘲讽</b>（卡上写「攻击力 2000 以下的怪兽必须先打它」）只拦比它小的，
+        大怪可以直接跨过去；<b>只拦一次</b>的嘲讽挨过一下就失效。<b>守备守护</b>是最老的一档：守备表示时挡在前面。</li>
+      <li><b>中毒 / 流血</b>：回合开始时结算，然后层数 -1。<b>中毒</b>挂在人身上就扣命轮值（每层 100），挂在怪兽身上就攻守各降
+        （每层 100，攻守同时归零就化掉——这是拆守备大墙的办法）；<b>流血</b>只削攻击力，削锋不拆墙。</li>
+      <li><b>屏障</b>：抵消一次战斗伤害或一次效果伤害；挂在怪兽身上的还能顶掉一次破坏、一次弹回或一次弱化。</li>
+      <li><b>反击</b>：被攻击之后还手。多数打攻击方的命轮值，写了「咬住」的那种改打攻击方怪兽的攻击力，削到 0 就破坏它。
+        整套「以牙还牙」就是靠这个逼对手不敢随便撞。</li>
+      <li><b>觉醒召唤</b>：把指定的素材送进墓地，从额外卡组特召，<b>不占通常召唤</b>。素材至少有一只在自己场上，另一只可以直接从手牌来；
+        少数觉醒体（写了「素材可从墓地」的）还能从墓地拼回来；<b>刚觉醒的那一回合它不能攻击</b>。</li>
+      <li><b>自组卡组</b>：首页「我的卡组」里可以新建 / 编辑 / 改名 / 复制 / 删除，随便存几套。
+        主卡组 40~50 张（预组都是 40 张，牌越少越容易抽到要的），同名最多 3 张，额外最多 10 张、其中「直接召唤」最多 2 张；
+        觉醒体的素材必须在这套牌里，否则它永远召不出来。
+        人机、同屏双人、好友房都能用自己组的牌——好友房里传的是卡组内容，不是编号。</li>
+      <li><b>命轮代价</b>：有些魔法·陷阱写着「代价 1500」——<b>发动时先付命轮值</b>，付不起就发不动（付完不能正好死）。
+        代价牌通常比同级的常规牌强一档：「以命换命」2000 换对方 2000、「铁处女」2500 直接拆掉对方最大的怪。</li>
+      <li><b>造物</b>：「造物·××」只做魔法·陷阱（装备 / 永续 / 场地 / 通常 / 速攻），
+        <b>不当怪兽、也不进觉醒体</b>——它们是道具，不是人。场地魔法占一格，同一时间只能有一张，新的把旧的顶掉；
+        造物各有一枚自己的道具图标，认图标比认名字快。</li>
+      <li><b>直接召唤</b>：额外卡组里另一种召唤方式。<b>满足卡面条件</b>（如「自己场上有 2 只怪兽」）或<b>献出命轮值</b>即可召唤，
+        不用素材、<b>不占通常召唤</b>；代价是每回合只能 1 次，而且当回合不能攻击。为了不破坏平衡，额外卡组里最多放 2 张。</li>
       <li><b>陷阱</b>：本作的陷阱是「自动迎击」——满足条件就发动，不用你宣言。所以盖牌的顺序要考虑对手会先干什么。</li>
+      <li><b>重复卡</b>：收藏里每张留 3 张就够，第 4 张起开包时自动折算成银芯（每张 1 芯），
+        卡包页也有「一键回收多余」。一包里同一种卡最多出 3 张——所以开包能开出重复，但不会一包全是同一张。</li>
       <li><b>羁绊</b>：卡组里同时有指定角色就会在开局触发，加攻、加血、多抽牌。配队比单卡重要。</li>
       <li><b>好友对战</b>：创建房间拿到 5 位码，好友在同一页「加入房间」填码即可。房间靠公共中继转发动作，
         两边各自按同一串动作重放，所以看到的一定是同一局。中继不通时可以「同屏双人」。</li>
@@ -1119,11 +1871,13 @@ const ROLL_TXT = 'N 45% · R 35% · SR 16% · UR 3% · GR 1%；第一张保底 S
 function lineCard(id, n, own) {
   const c = CARDS[id];
   if (!c) return '';
-  const st = c.k === 'M' || c.k === 'E' ? `${c.atk}/${c.def}` : ({ normal: '通常', quick: '速攻', equip: '装备', cont: '永续', counter: '反击' }[c.t] || '');
+  const st = c.k === 'M' || c.k === 'E' ? `${c.atk}/${c.def}`
+    : (({ normal: '通常', quick: '速攻', equip: '装备', cont: '永续', counter: '反击', field: '场地' }[c.t] || '')
+      + (c.cost && c.cost.lp ? ` · 代价 ${c.cost.lp}` : ''));
   const have = (S.save.coll || {})[id];
   return `<div class="lc" data-read="${id}" data-rar="${c.rar}" style="--rc:${(E.REALM[c.r] || E.REALM.any).c}">
     <div class="lh"><b>${c.n}</b>${n > 1 ? `<i>×${n}</i>` : ''}<span class="lr">${c.rar}</span>${own && have === undefined ? '<span class="lo">未收录</span>' : ''}</div>
-    <div class="ls">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}${c.lv ? ` · Lv${c.lv}` : ''} · ${st}</div>
+    <div class="ls">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}${c.lv ? ` · Lv${c.lv}` : ''}${costTag(c)} · ${st}</div>
     <div class="lt">${c.text}</div></div>`;
 }
 
@@ -1152,7 +1906,7 @@ function showDeck(deckId) {
     const cnt = rows.reduce((s, p) => s + p[1], 0);
     return `<h4 class="gh">${n} · ${cnt} 张</h4><div class="lcs">${rows.map((p) => lineCard(p[0], p[1])).join('')}</div>`;
   }).join('');
-  const ex = d.extra.length ? `<h4 class="gh">觉醒体（额外卡组）· ${d.extra.length} 张</h4><div class="lcs">${d.extra.map((id) => lineCard(id, 1)
+  const ex = d.extra.length ? `<h4 class="gh">额外卡组 · ${d.extra.length} 张（觉醒 / 直接召唤）</h4><div class="lcs">${d.extra.map((id) => lineCard(id, 1)
     + (CARDS[id] && CARDS[id].mat ? `<div class="lm">素材：${CARDS[id].mat.join(' ＋ ')}</div>` : '')).join('')}</div>` : '';
   openModal(`<div class="mtitle"><h3>${d.n}</h3><button class="btn sm ghost x" data-modal="close">关闭</button></div>
     <p class="sub">${(E.REALM[d.r] || E.REALM.any).n} · 主卡组 ${total} 张 · 点任意一张看详细效果</p>
@@ -1171,7 +1925,7 @@ function readCard(id, push) {
   const extra = c.k === 'E' ? `<p class="note">素材：${c.mat ? c.mat.join(' ＋ ') : '自己场上 2 只界域不同的怪兽'}</p>` : '';
   const have = (S.save.coll || {})[id] || 0;
   const canBack = push && S.mstack && S.mstack.length >= 0 && $('#mask').classList.contains('on') && $('#modal').innerHTML;
-  openModal(`<div class="mtitle"><h3>${c.n}</h3><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r} · ${c.rar} · ${have ? `已收录 ×${have}` : '未收录'}</span>
+  openModal(`<div class="mtitle"><h3>${c.n}</h3><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}${costTag(c)} · ${c.rar} · ${have ? `已收录 ×${have}` : '未收录'}</span>
     ${canBack ? '<button class="btn sm ghost x" data-modal="back">← 返回</button>' : ''}
     <button class="btn sm ghost ${canBack ? '' : 'x'}" data-modal="close">关闭</button></div>
     <div class="readface">${cardHTML(c, {})}</div>
@@ -1183,6 +1937,20 @@ function readCard(id, push) {
 // ------------------------------------------------------------------ 事件
 function bind() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#mask').classList.contains('on')) closeModal(); });
+  // 卡组编辑器的搜索框：边打边筛，不按回车
+  document.addEventListener('input', (e) => {
+    if (e.target.id !== 'bq' || !S.build) return;
+    S.build.q = e.target.value;
+    renderBuild();
+  });
+
+  // 编辑器里「按预组筛」的下拉：change 不是 input，得单独听
+  document.addEventListener('change', (e) => {
+    if (e.target.id !== 'bpreset' || !S.build) return;
+    S.build.preset = e.target.value;
+    renderBuild();
+  });
+
   document.addEventListener('click', (e) => {
     const rd = e.target.closest('[data-read]');
     if (rd) { readCard(rd.dataset.read, true); return; }
@@ -1194,7 +1962,35 @@ function bind() {
     if (du) { S.deckId = du.dataset.deckUse; S.save.deck = S.deckId; saveSave(S.save); closeModal(); renderHome(); toast('已选用这套卡组'); return; }
     const pl = e.target.closest('[data-pool]');
     if (pl) { showPackPool(pl.dataset.pool); return; }
-    const t = e.target.closest('[data-act],[data-deck],[data-buy],[data-buy2],[data-toggle],[data-modal],[data-awaken],[data-ck],[data-cr],[data-d]');
+
+    // ---- 自组卡组 ----
+    const bnew = e.target.closest('[data-bnew]');
+    if (bnew) { startBuild('new'); return; }
+    const bedit = e.target.closest('[data-bedit]');
+    if (bedit) { startBuild(bedit.dataset.bedit); return; }
+    const bview = e.target.closest('[data-bview]');
+    if (bview) { showDeck(bview.dataset.bview); return; }
+    const brenDo = e.target.closest('[data-bren-do]');
+    if (brenDo) { doRename(brenDo.dataset.brenDo); return; }
+    const bren = e.target.closest('[data-bren]');
+    if (bren) { askRename(bren.dataset.bren); return; }
+    const bcopy = e.target.closest('[data-bcopy]');
+    if (bcopy) { copyDeck(bcopy.dataset.bcopy); return; }
+    const bdelDo = e.target.closest('[data-bdel-do]');
+    if (bdelDo) { doDelete(bdelDo.dataset.bdelDo); return; }
+    const bdel = e.target.closest('[data-bdel]');
+    if (bdel) { askDelete(bdel.dataset.bdel); return; }
+    if (e.target.closest('[data-bsave]')) { saveBuild(); return; }
+    if (e.target.closest('[data-bback]')) { S.build = null; show('home'); return; }
+    if (e.target.closest('[data-bk]')) { S.build.k = e.target.closest('[data-bk]').dataset.bk; renderBuild(); return; }
+    if (e.target.closest('[data-br]')) { S.build.rf = e.target.closest('[data-br]').dataset.br; renderBuild(); return; }
+    const addBtn = e.target.closest('[data-add]');
+    if (addBtn) { bAdd(addBtn.dataset.add); return; }
+    const subX = e.target.closest('[data-subx]');
+    if (subX) { bSub(subX.dataset.subx, true); return; }
+    const subBtn = e.target.closest('[data-sub]');
+    if (subBtn) { bSub(subBtn.dataset.sub, false); return; }
+    const t = e.target.closest('[data-act],[data-deck],[data-buy],[data-buy2],[data-toggle],[data-modal],[data-awaken],[data-direct],[data-recycle],[data-ck],[data-cr],[data-d]');
     if (!t) {
       // 点空白处收起操作条
       if (e.target.closest('#scr-duel') && !e.target.closest('.slot') && !e.target.closest('.card')) {
@@ -1212,7 +2008,9 @@ function bind() {
     }
     if (t.dataset.d) {
       S.diff = t.dataset.d; S.save.diff = S.diff; saveSave(S.save);
-      $$('#diff button').forEach((b) => b.classList.toggle('on', b.dataset.d === S.diff));
+      // 光切 on 不够：段位卡底部那两行（这一档的 Lv、打错牌%、候选牌组）都跟着难度变，
+      // 不重绘的话玩家会拿着上一档的预告去开一局。
+      renderHome();
       return;
     }
     if (t.dataset.modal) {
@@ -1228,6 +2026,13 @@ function bind() {
     if (t.dataset.toggle) {
       const box = t.closest('.pack');
       if (box) box.classList.toggle('open');
+      return;
+    }
+    if (t.dataset.recycle) { recycleAll(); return; }
+    if (t.dataset.direct) {
+      const r = act({ t: 'direct', id: t.dataset.direct });
+      if (r && r.ok === false) toast(r.msg || '现在不能直接召唤');
+      else closeModal();
       return;
     }
     if (t.dataset.awaken) {
@@ -1281,6 +2086,14 @@ function bind() {
       return;
     }
     if (name === 'extra') return onExtra();
+    if (name === 'sfx') {
+      S.mute = !S.mute;
+      S.save.sfx = S.mute ? 0 : 1;
+      saveSave(S.save);
+      if (!S.mute) SFX.summon();
+      renderDuel();
+      return;
+    }
     if (name === 'cancel') {
       S.sel = null; S.mode = 'idle'; S.tribute = []; S.pendingSummon = null;
       renderDuel();
@@ -1379,11 +2192,148 @@ export function boot(opt) {
   document.documentElement.style.setProperty('--backimg', `url("${BACK}")`);
   document.documentElement.style.setProperty('--cols', String(ART.cols));
   document.documentElement.style.setProperty('--rows', String(ART.rows));
-  S.deckId = S.save.deck && DECKS.some((d) => d.id === S.save.deck) ? S.save.deck : DECKS[0].id;
+  S.deckId = S.save.deck && allDecks().some((d) => d.id === S.save.deck) ? S.save.deck : DECKS[0].id;
   S.diff = S.save.diff || 'normal';
+  S.mute = S.save.sfx === 0;
   // 老存档里有一份只在这一页用的银芯：并进全站钱包（约 6:1，最多 40 枚），不再单独记
   if (S.save.silver > 0) { walletAdd(Math.min(40, Math.floor(S.save.silver / 6))); S.save.silver = 0; saveSave(S.save); }
   silverBar();
   bind();
   show('home');
+
+  // ?_test=1：给无头浏览器/调试留的把手（和结合、协议那几页一个路数）。
+  // 无头环境点不了牌，只能靠它把一局推到中途，看渲染、飘字、动画有没有报错。
+  if (/[?&]_test=1/.test(location.search)) {
+    window.__duel = {
+      S, E, CARDS, DECKS, SFX,
+      start: (deckId, seed) => {
+        const mine = deckById(deckId || S.deckId);
+        const foe = DECKS.filter((d) => d.id !== mine.id)[0];
+        S.ai = aiFor(S.diff, 0);
+        // 和 startDuel 一样补上「谁、用哪套」，否则顶栏会少一块，截出来的图不算数
+        S.foeName = pickName(foe.id);
+        S.foeDeck = foe.n;
+        newGame('pve', 0, mine, foe, seed || 12345);
+      },
+      // 两边都按 AI 的思路走 steps 步：同步跑完，dump DOM 时前后一致
+      auto: (steps) => {
+        const G = S.G;
+        if (!G) return null;
+        const sloppy = S.ai ? S.ai.sloppy : 0.3;
+        let n = 0, ends = 0;
+        while (!G.over && n < (steps || 60) && ends < 6) {
+          n++;
+          const a = nextAction(G, G.active, sloppy);
+          if (!a) break;
+          const r = E.applyAction(G, G.active, aiAction(a));
+          renderDuel();
+          if (!r.ok && a.t !== 'end') break;
+          if (a.t === 'end') ends++;
+        }
+        renderDuel();
+        return { steps: n, turn: G.turn, over: G.over, lp: [G.players[0].lp, G.players[1].lp] };
+      },
+      // 九个音效各敲一遍：无头环境没有手势，AudioContext 会保持 suspended，
+      // 这里只确认不抛异常
+      sfx: () => { Object.keys(SFX).forEach((k) => SFX[k]()); return Object.keys(SFX).join(','); },
+      build: (id) => startBuild(id || 'new'),
+      go: (id) => show(id),
+      // 卡表筛选也能从 URL 指定：?_test=1&go=codex&ck=E（无头截图时定位到额外卡组）
+      ck: (k) => { S.codex.k = k || 'all'; renderCodex(); return S.codex.k; },
+      // 编辑器：加/减一张、切预组筛选（无头验证用）
+      badd: (id) => { bAdd(id); return bTotal(); },
+      bsub: (id, x) => { bSub(id, !!x); return bTotal(); },
+      bpreset: (id) => { S.build.preset = id; renderBuild(); return bPool().length; },
+      // 连开 n 包，统计「一包内重复」和「同种最多几张」——开包是核心循环，得能一次验准
+      ptest: (n) => {
+        const out = { packs: 0, dupPacks: 0, maxSame: 0, over3: 0, empty: 0 };
+        for (let i = 0; i < (n || 200); i++) {
+          const pk = PACKS[Math.floor(Math.random() * PACKS.length)];
+          const ids = drawFromPack(pk).filter(Boolean);
+          if (ids.length < 5) out.empty++;
+          const cnt = {};
+          for (const id of ids) cnt[id] = (cnt[id] || 0) + 1;
+          const mx = Math.max(0, ...Object.values(cnt));
+          if (ids.length !== new Set(ids).size) out.dupPacks++;
+          out.maxSame = Math.max(out.maxSame, mx);
+          if (mx > PACK_COPY_MAX) out.over3++;
+          out.packs++;
+        }
+        return out;
+      },
+      pack: (id) => buyPack(id || 'bp16'),
+    };
+    // ?_test=1&go=build：无头截图时直接切到某个屏（build / packs / codex / home）
+    const mGo = /[?&]go=([a-z]+)/.exec(location.search);
+    if (mGo) setTimeout(() => (mGo[1] === 'build' ? window.__duel.build('new') : window.__duel.go(mGo[1])), 60);
+    // ?_test=1&diag=1：把关键容器宽度打出来（无头截图有没有横向溢出，看这个比看图准）
+    if (/[?&]diag=1/.test(location.search)) {
+      setTimeout(() => {
+        const g = document.querySelector('.grid-cards');
+        const q = (sel) => { const e = document.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().width) : 0; };
+        console.log('DIAG ' + JSON.stringify({
+          vw: innerWidth, body: document.body.scrollWidth, doc: document.documentElement.scrollWidth,
+          app: q('.app'), scr: q('#scr-codex'), grid: q('.grid-cards'),
+          cols: g ? getComputedStyle(g).gridTemplateColumns : '',
+          build: S.build ? {
+            total: bTotal(), extra: S.build.extra.length, pool: bPool().length,
+            preset: S.build.preset, picked: document.querySelectorAll('.bcell.on').length,
+          } : null,
+        }));
+      }, 400);
+    }
+    const mAdd = /[?&]add=([\w,]+)/.exec(location.search);
+    if (mAdd) setTimeout(() => mAdd[1].split(',').filter(Boolean).forEach((id) => window.__duel.badd(id)), 200);
+    const mPre = /[?&]preset=(\w+)/.exec(location.search);
+    if (mPre) setTimeout(() => window.__duel.bpreset(mPre[1]), 260);
+    const mPt = /[?&]ptest=(\d+)/.exec(location.search);
+    if (mPt) setTimeout(() => console.log('PTEST ' + JSON.stringify(window.__duel.ptest(Number(mPt[1])))), 300);
+    const mCk = /[?&]ck=(\w+)/.exec(location.search);
+    if (mCk) setTimeout(() => window.__duel.ck(mCk[1]), 120);
+    // ?_test=1&buy=bp16：直接开一包，验证开包弹窗（它崩过一次，是模板里多打了个反引号）
+    const mBuy = /[?&]buy=(\w+)/.exec(location.search);
+    if (mBuy) setTimeout(() => window.__duel.pack(mBuy[1]), 80);
+    // ?_test=1&lv=1：无头截图时把「人机梯度」那张折叠表展开（details 默认收着，截不到）
+    if (/[?&]lv=1/.test(location.search)) {
+      setTimeout(() => { const el = document.querySelector('.lvt'); if (el) el.open = true; }, 300);
+    }
+    // ?_test=1&auto=N：无头截图时自动推 N 步，结果写回页面，dump-dom 就能读到
+    const mAuto = /[?&]auto=(\d+)/.exec(location.search);
+    if (mAuto) {
+      setTimeout(() => {
+        const W = window.__duel;
+        W.start('d22', 20261101);
+        W.sfx();
+        const r1 = W.auto(+mAuto[1]);
+        const box = document.createElement('div');
+        box.id = 'testout';
+        box.style.cssText = 'position:fixed;left:0;bottom:0;z-index:999;font:12px monospace;color:#9fe;background:#000a;padding:4px 6px';
+        box.textContent = 'testout ' + JSON.stringify(r1);
+        document.body.appendChild(box);
+      }, 60);
+    }
+    // ?_test=1&fx=1：每 300ms 重播一遍飘字与抖动，静态截图才抓得到（只在测试里用）
+    if (/[?&]fx=1/.test(location.search)) {
+      const st = document.createElement('style');
+      // 无头截图会冻住动画时钟，飘字永远停在 opacity:0 的第一帧；
+      // 给一个负延迟让它直接停在「最亮」的那一帧，才截得到。
+      st.textContent = '.float{animation-duration:1s !important; animation-delay:-.2s !important}';
+      document.head.appendChild(st);
+      S.floatLife = 6000;
+      setInterval(() => {
+        document.querySelectorAll('.float').forEach((e) => e.remove());
+        floatNum(-700, false, 'dmg');
+        floatNum(500, true, 'heal');
+        // 无头浏览器把动画时钟冻在第 0 帧（飘字永远停在 opacity:0），
+        // 所以测试模式直接关掉动画、把最亮那一帧钉死，才截得到
+        document.querySelectorAll('.float').forEach((e) => {
+          e.style.animation = 'none';
+          e.style.opacity = '1';
+          e.style.transform = 'translate(-50%,-62%) scale(1.18)';
+        });
+        pulse(document.getElementById('monsMe'), 'cast');
+        pulse(document.getElementById('lpOp'), 'shake');
+      }, 300);
+    }
+  }
 }

@@ -18,6 +18,8 @@ export const PVE_LOSS_MIN_ROUNDS = 4;
 
 const DEFAULT = {
   silver: 0, coll: {}, opened: 0, wins: 0, losses: 0, deck: 'd1', diff: 'normal',
+  sfx: 1,           // 音效开关：0 = 关（对决页顶栏可以切）
+  mine: [],          // 自己组的卡组：[{id,n,r,cards,extra}]，见 view.js 的自组编辑器
   tickets: 0,        // 开包券：打赢人机才有
   freeDay: '',       // 最近一次领免费包的日子（YYYY-MM-DD，本地时区）
   freeUsed: 0,       // 那天已经用掉几次免费
@@ -40,7 +42,7 @@ export function loadSave() {
     const raw = localStorage.getItem(KEY);
     if (!raw) return Object.assign({}, DEFAULT);
     const o = JSON.parse(raw);
-    return Object.assign({}, DEFAULT, o, { coll: (o && o.coll) || {} });
+    return Object.assign({}, DEFAULT, o, { coll: (o && o.coll) || {}, mine: (o && o.mine) || [] });
   } catch (e) {
     return Object.assign({}, DEFAULT);
   }

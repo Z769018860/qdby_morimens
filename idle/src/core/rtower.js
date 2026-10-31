@@ -10,6 +10,14 @@ import { power } from './stats.js';
 export const REALM_TOWERS = ['CHAOS', 'CARO', 'AEQUOR', 'ULTRA'];
 export const REALM_TRAIT = { CHAOS: null, CARO: 'Caro', AEQUOR: 'Aequor', ULTRA: 'Ultra' };
 export const TOWER_NAME = { CHAOS: '混沌尖塔', CARO: '血肉之塔', AEQUOR: '深海回廊', ULTRA: '超维阶梯' };
+// 层数上限：原来没有上限（best+1 一路往上），但界面上的进度条和「还差几层到里程碑」需要一个终点。
+// 300 层 ≈ 第 323 关的强度，四座塔各爬一遍是终盘内容。
+export const RT_FLOORS = 300;
+export const RT_MARK_EVERY = 50;                 // 每 50 层一份里程碑奖励（一次性，记在 t.marks 里）
+export const rtMark = (floor) => (floor % RT_MARK_EVERY === 0
+  ? { floor, tickets: 15 + Math.floor(floor / 50) * 5, cores: 150 + Math.floor(floor / 50) * 50, item: 1 }
+  : null);
+export const RT_MARKS = Array.from({ length: RT_FLOORS / RT_MARK_EVERY }, (_, i) => rtMark((i + 1) * RT_MARK_EVERY));
 export const rtStage = (f) => Math.round(8 + f * 1.05);
 export const rtInfo = (f) => ({ stage: rtStage(f), boss: f % 10 === 0, elite: f % 5 === 0 && f % 10 !== 0, node: f % 10 === 9 ? 9 : 3, reward: f % 20 === 0 });
 
@@ -43,6 +51,7 @@ export function doRTower(state, data, realm, slugs = null) {
   if (!team) return null;
   state.rtower ||= {};
   const t = (state.rtower[realm] ||= { best: 0 });
+  if (t.best >= RT_FLOORS) return { done: true, reason: 'cleared', realm, team };
   const floor = t.best + 1;
   const enemies = rtEnemies(realm, floor, data);
   const seed = battleSeed(state);
@@ -66,6 +75,17 @@ export function doRTower(state, data, realm, slugs = null) {
     if (floor % 10 === 0) { rw.tickets += 3; rw.cores += 20; rw.items.push(addItem(state, ...Object.values(rollItem(rng, rtStage(floor), data)))); }
     // 校猫层：额外给券与银芯（每 20 层一次）
     if (rtInfo(floor).reward) { rw.tickets += 3; rw.cores += 40; rw.items.push(addItem(state, ...Object.values(rollItem(rng, rtStage(floor) + 6, data)))); rw.cat = true; }
+    // 每 50 层里程碑：一次性大奖励
+    const mk = rtMark(floor);
+    if (mk) {
+      const marks = (t.marks ||= []);
+      if (!marks.includes(floor)) {
+        marks.push(floor);
+        rw.tickets += mk.tickets; rw.cores += mk.cores;
+        rw.items.push(addItem(state, ...Object.values(rollItem(rng, rtStage(floor) + 10, data))));
+        rw.mark = true;
+      }
+    }
     state.gold += rw.gold; state.tickets += rw.tickets; state.cores += rw.cores; state.stats.gold += rw.gold;
   }
   return { ...res, floor, realm, team, enemies, rw };

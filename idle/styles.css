@@ -325,6 +325,28 @@ body{background:#0a0d13}
 .btiers span{font-size:11px;color:var(--dim);border:1px dashed var(--line);border-radius:999px;padding:0 7px}
 .btiers span.on{color:var(--gold);border-style:solid;border-color:color-mix(in srgb,var(--gold) 55%,transparent)}
 
+/* 唤醒体羁绊（core/bonds.js）：一条一条的胶囊，激活的镶金边 */
+.bdline{display:flex;flex-wrap:wrap;gap:6px;margin:7px 0}
+.bdline.slim{margin:5px 0 2px}
+.bd{display:inline-flex;align-items:baseline;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;background:var(--panel2);border:1px solid var(--line);color:var(--dim)}
+.bd em{font-style:normal;font-size:11px;color:var(--dim)}
+.bd.on{border-color:color-mix(in srgb,var(--gold) 55%,transparent);background:color-mix(in srgb,var(--gold) 9%,var(--panel2));color:var(--text)}
+.bd.on b{color:var(--gold);font-weight:600}
+.bd.mix{border-color:color-mix(in srgb,#8e6bd1 55%,transparent);background:color-mix(in srgb,#8e6bd1 12%,var(--panel2));color:var(--text)}
+.bd.near{border-style:dashed}
+.bd.none{opacity:.7}
+.bdall{margin:8px 0 4px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);padding:6px 11px}
+.bdall summary{cursor:pointer;font-size:12.5px;color:var(--gold);padding:2px 0}
+.bdgroup{margin:6px 0 2px}
+.bdgroup h5{margin:8px 0 2px;font-size:12px;color:var(--text)}
+.bdgroup.more>summary{cursor:pointer;margin:8px 0 2px;font-size:12px;color:var(--text)}
+.bdgroup ul{list-style:none;margin:0;padding:0}
+.bdgroup li{padding:6px 0;border-top:1px dashed var(--line);font-size:12px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+.bdgroup li b{font-size:12.5px}
+.bdgroup li small{color:var(--dim)}
+.bdgroup li div{width:100%;display:flex;flex-wrap:wrap;gap:6px}
+.btier{font-size:11px;color:var(--gold);border:1px solid color-mix(in srgb,var(--gold) 35%,transparent);border-radius:999px;padding:0 7px}
+
 /* 钥令 */
 .orderbar{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}
 .ochip{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:12px;color:var(--dim)}
@@ -813,6 +835,10 @@ a.btn{display:inline-block;text-decoration:none}
 .sqtags .tag.sqtag{background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:999px;padding:1px 9px;font-size:11.5px}
 .sqtags .tag.sqtag.on{background:color-mix(in srgb,var(--gold) 14%,transparent);border-color:color-mix(in srgb,var(--gold) 55%,transparent);color:var(--gold)}
 .sqtags .tag.sqtag.none{font-style:italic;opacity:.75}
+/* 详情弹窗里的羁绊小标：激活的金边，未激活的只在 title 里给做法 */
+.sqtags .tag.bdtag{background:var(--panel);border:1px dashed var(--line);color:var(--dim);border-radius:999px;padding:1px 9px;font-size:11.5px;display:inline-flex;gap:5px;align-items:baseline}
+.sqtags .tag.bdtag small{font-size:10.5px;opacity:.8}
+.sqtags .tag.bdtag.on{border-style:solid;border-color:color-mix(in srgb,var(--gold) 55%,transparent);color:var(--gold);background:color-mix(in srgb,var(--gold) 10%,transparent)}
 
 /* ---- 导航红点：成就 / 任务有可领取的奖励 ---- */
 .rdot{position:absolute;top:6px;left:50%;margin-left:9px;min-width:15px;height:15px;padding:0 4px;border-radius:999px;background:#e2453c;color:#fff;font-size:9.5px;font-weight:700;font-style:normal;line-height:15px;text-align:center;box-shadow:0 0 7px #e2453ca0;pointer-events:none}

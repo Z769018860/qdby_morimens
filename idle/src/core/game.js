@@ -1,6 +1,6 @@
 import { hash, mulberry32 } from './rng.js';
 import {
-  MAX_LV_HARD, MAX_AWAKEN, OVERDRIVE_MAX, LAW_MAX, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, ORDER_SLOTS, SAVE_VERSION, GEAR_MAX_LV, RARITY_ORDER,
+  MAX_LV_HARD, MAX_AWAKEN, OVERDRIVE_MAX, LAW_MAX, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, ORDER_SLOTS, SAVE_VERSION, GEAR_MAX_LV, RARITY_ORDER, RIFT_FLOORS,
 } from './constants.js';
 import { extraKit } from './extra.js';
 import { baseStats, lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, rewindPlan, overdrive, overdriveAmp, overdriveCost, law, lawAmp, lawCrit, lawCost } from './stats.js';
@@ -10,6 +10,7 @@ import {
   refineMult, refineCost, scaleBonus, REFINE_COST,
 } from './gear.js';
 import { ordersBonus, orderUpCost, orderBonus, orderSlotCount } from './orders.js';
+import { teamBonds } from './bonds.js';
 import { buildEnemies, stageInfo, domainRules, lateDotBoost } from './enemies.js';
 import { simulate, roundLimitFor } from './battle.js';
 import { emptySquads, emptyPick, normalizeSquads, normalizePick, squadUsesItem, squadsRemoveItem, SQUAD_KEYS, ALL_SQUAD_KEYS, squadsOf, RT_MODES, towerSquadKey, realmOfMode } from './squad.js';
@@ -182,10 +183,10 @@ export function migrate(s, data) {
     m.squadPick[mode] = (m.squads[tk]?.team || []).length ? tk : 'cur';
   }
   m.gacha = normalizeGacha(s.gacha);
-  // 融灾禁区：老存档没有就从第 0 层开始；层数夹在 0..100（换期由 riftState 惰性重置）
+  // 融灾禁区：老存档没有就从第 0 层开始；层数夹在 0..RIFT_FLOORS（换期由 riftState 惰性重置）
   const rf = { ...base.rift, ...(s.rift || {}) };
-  rf.floor = Math.max(0, Math.min(100, Math.floor(rf.floor || 0)));
-  rf.best = Math.max(rf.floor, Math.min(100, Math.floor(rf.best || 0)));
+  rf.floor = Math.max(0, Math.min(RIFT_FLOORS, Math.floor(rf.floor || 0)));
+  rf.best = Math.max(rf.floor, Math.min(RIFT_FLOORS, Math.floor(rf.best || 0)));
   rf.tries = Math.max(0, Math.floor(rf.tries || 0));
   m.rift = rf;
   // 联动活动：老存档没有就从零开始；每日计数按当天惰性重置（eventState）
@@ -214,7 +215,9 @@ export function relicBonuses(state, data) {
 }
 
 // ---------- stats pipeline ----------
-export function allyDef(state, data, slug, teamSlugs = state.team) {
+// extra：队伍级被动（羁绊 / 混编共鸣）算出来的加成，直接叠进这个人的装备加成里。
+// 不传就只有「单人 + 装备」——战力对比、编队候选这类单人场景都走这条。
+export function allyDef(state, data, slug, teamSlugs = state.team, extra = null) {
   const a = data.bySlug[slug];
   const r = state.roster[slug];
   const st = baseStats(a, r.lv, r.star, r.od, r.law);
@@ -232,6 +235,8 @@ export function allyDef(state, data, slug, teamSlugs = state.team) {
   addBonus(bonus, rel.bonus);
   addBonus(bonus, rel.bond.bonus);
   addBonus(bonus, ordersBonus(state, data));
+  // 唤醒体羁绊（core/bonds.js）：也是全队被动，由 teamDefs 统一算一次传进来
+  if (extra) addBonus(bonus, extra);
   // 叠位：每 10 层 +3% 增伤（属性与等级上限在 baseStats / levelCap 里）
   bonus.amp += Math.floor((Number.isFinite(Number(r.star)) ? Number(r.star) : 0) / 10) * 3;
   bonus.amp += overdriveAmp(r.od);          // 超限：叠满 99 之后的成长（上限 99）
@@ -255,15 +260,22 @@ export function allyDef(state, data, slug, teamSlugs = state.team) {
 }
 
 // realm synergy: 3+ same realm in team => +8% atk/hp ; 4 => +15%
+// 混编共鸣：队伍里凑齐 3 / 4 个不同界域时，补上同域加成缺的那一份（+6% / +10%）。
+// 两者互斥：能凑出 3 同域就吃同域那份，否则看界域够不够散——「四同域」与「四域同行」各是极端，中间不再两头空。
+export const MIXED_SYNERGY = { 3: 0.06, 4: 0.10 };
 export function teamDefs(state, data, slugs = state.team) {
-  const list = slugs.filter(Boolean).map((s) => allyDef(state, data, s, slugs));
+  const live = (slugs || []).filter(Boolean);
+  const bonds = teamBonds(live, data);
+  const list = live.map((s) => allyDef(state, data, s, slugs, bonds.bonus));
   const realms = {};
   for (const d of list) realms[d.realm] = (realms[d.realm] || 0) + 1;
   const syn = Math.max(0, ...Object.values(realms));
   const k = syn >= 4 ? 0.15 : syn >= 3 ? 0.08 : 0;
-  if (k) for (const d of list) { d.hp = Math.round(d.hp * (1 + k)); d.atk = Math.round(d.atk * (1 + k)); }
+  const mixed = k ? 0 : (MIXED_SYNERGY[bonds.realms.length] || 0);
+  const mul = k || mixed;
+  if (mul) for (const d of list) { d.hp = Math.round(d.hp * (1 + mul)); d.atk = Math.round(d.atk * (1 + mul)); }
   const goldBonus = list.reduce((s, d) => s + d.goldBonus, 0);
-  return { list, synergy: k, goldBonus, power: list.reduce((s, d) => s + power(d), 0) };
+  return { list, synergy: k, mixed, bonds, goldBonus, power: list.reduce((s, d) => s + power(d), 0) };
 }
 
 // ---------- rewards ----------

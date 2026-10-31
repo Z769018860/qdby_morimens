@@ -44,19 +44,21 @@ export const enemyScaleMain = (stage) => {
   return Math.pow(1.085, CURVE_FROM - 1) * Math.pow(1.065, s - CURVE_FROM);
 };
 
-// 后期加压：80 关之前不变；80~90 关每 10 关生命 ×1.10、攻击 ×1.06、防御 +4%（复利）；
-// 90 关之后加压减半（生命 ×1.04、攻击 ×1.03、防御 +2% / 10 关）——原来每 10 关 ×2.5 的叠法，
-// 满养成队伍到 100 关之后只剩「数值墙」，换什么阵容都一样；现在曲线更缓，墙让给域规去立。
-export const LATE_FROM = 80;
+// 后期加压：70 关之前不变；之后每 10 关生命再 ×1.115、攻击 ×1.065、防御 +4.5%（复利）。
+// 为什么比上一版更陡：唤醒体羁绊（core/bonds.js）与跨域共鸣把满编队的生命 / 攻击抬了 15~25%，
+// 不加压的话 100 关之后直接融穿；起点从 80 提到 70，是因为中后期（70~100 关）本来就该开始吃配装。
+// 130 关约：生命 ×1.93 / 攻击 ×1.46 / 防御 ×1.27（旧版分别是 ×1.61 / ×1.34 / ×1.20）。
+export const LATE_FROM = 70;
 export const lateBoost = (stage) => {
   const k = Math.max(0, (Number(stage) || 0) - LATE_FROM) / 10;
-  return { hp: Math.pow(1.10, k), atk: Math.pow(1.06, k), def: 1 + 0.04 * k };
+  return { hp: Math.pow(1.115, k), atk: Math.pow(1.065, k), def: 1 + 0.045 * k };
 };
 export const lateBoostMain = (stage) => {
   const st = Number(stage) || 0;
   const k = Math.max(0, Math.min(st, CURVE_FROM) - LATE_FROM) / 10;
   const k2 = Math.max(0, st - CURVE_FROM) / 10;
-  return { hp: Math.pow(1.10, k) * Math.pow(1.04, k2), atk: Math.pow(1.06, k) * Math.pow(1.03, k2), def: 1 + 0.04 * k + 0.02 * k2 };
+  // 90 关以内与 lateBoost 一致（70 关起 ×1.115 / ×1.065 / +4.5%）；90 关之后加压减半：生命 ×1.055、攻击 ×1.03、防御 +2.25% / 10 关
+  return { hp: Math.pow(1.115, k) * Math.pow(1.055, k2), atk: Math.pow(1.065, k) * Math.pow(1.03, k2), def: 1 + 0.045 * k + 0.0225 * k2 };
 };
 
 /* ---------- 域规：90 关之后，每一章（10 关）换一条规则，首领关再叠一条 ----------

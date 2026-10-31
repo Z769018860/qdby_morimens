@@ -46,7 +46,7 @@ export function welcomeCard(app) {
 }
 
 /* --------------------------- 联动活动「星辉直播间」 --------------------------- */
-// 9 位社区主播彩蛋：3 位签到送、6 位靠人气档位解锁。人气来源见 core/event.js。
+// 10 位社区主播彩蛋：3 位无门槛、7 位按人气档位解锁。人气来源见 core/event.js。
 function guestCard(app, a, foot) {
   const own = app.state.roster[a.slug];
   const owned = !!own;
@@ -101,7 +101,7 @@ export function eventPage(app) {
 
   const order = GIFT_ROUND.map((x) => data.bySlug[x]?.zh || x);
   const signinNote = `<h3>签到轮转 <small>累计签到每满 ${SIGNIN_PER} 天发 1 份</small></h3>
-    <p class="hint">签到也会发嘉宾：累计签到每满 ${SIGNIN_PER} 天一份，按 <b>${order.slice(0, 3).join(' → ')} → …</b> 的顺序轮着给，先把没到手的补齐，九位都到手之后继续轮、每次给一位叠一级。你已累计签到 <b>${signins}</b> 天，应发 <b>${picks}</b> 份，已到账 <b>${sent}</b> 份（进游戏自动补发，不用点）。</p>`;
+    <p class="hint">签到也会发嘉宾：累计签到每满 ${SIGNIN_PER} 天一份，按 <b>${order.slice(0, 3).join(' → ')} → …</b> 的顺序轮着给，先把没到手的补齐，十位都到手之后继续轮、每次给一位叠一级。你已累计签到 <b>${signins}</b> 天，应发 <b>${picks}</b> 份，已到账 <b>${sent}</b> 份（进游戏自动补发，不用点）。</p>`;
 
   return `<div class="page"><h2>${EVENT_ZH} <small>${EVENT_SUB}</small></h2>
     <p class="hint">《忘却前夜》社区里的 10 位主播，作为彩蛋唤醒体加入了弥萨格。他们<b>不进召唤池</b>，只能靠签到与这里的征召券拿到；<b>重复获得同一个就是叠位 +1</b>，所以攒得越久越能叠。技能按各自昵称的意象原创，与本作世界观无关，也不代表本人观点。</p>

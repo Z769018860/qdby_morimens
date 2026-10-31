@@ -307,12 +307,13 @@ test('weekly boss: stable per week, damage accumulates, milestones claim once', 
   const s = mkTeamState();
   const r = doWeekly(s, data);
   assert.ok(r.dmg > 0 && r.rounds <= 12);
-  assert.equal(weeklyState(s).damage, r.dmg);
+  assert.equal(r.tier.n, 1, '默认打第 1 层');
+  assert.equal(weeklyState(s).tiers[1].damage, r.dmg);
   const w = weeklyState(s); w.tries = 3; doWeekly(s, data); doWeekly(s, data); doWeekly(s, data); assert.equal(doWeekly(s, data), null);
-  w.damage = MILESTONES[1].dmg;
+  w.tiers[1].damage = MILESTONES[1].dmg;
   assert.ok(claimWeekly(s, data, 1)); assert.equal(claimWeekly(s, data, 1), null); assert.equal(claimWeekly(s, data, 7), null);
   // a new week clears the progress
-  weeklyState(s, '2099-W01'); assert.equal(s.weekly.damage, 0);
+  weeklyState(s, '2099-W01'); assert.equal(s.weekly.tiers[1].damage, 0);
 });
 
 test('realm tower only fields that realm and records the first clears', () => {
@@ -535,7 +536,7 @@ test('battle report agrees with the engine stats and grades the result', () => {
 // ---------------------------------------------------------------- M9: 叠位 99 / 突破 / 挂机收益 / 造物羁绊 / 钥令
 import { breakThrough, awakenUp, winRateOf, firstClearReward, relicItemsOf, addOrder, upgradeOrder } from '../src/core/game.js';
 import { levelCap, awakenCost, breakCost, growthPerLevel } from '../src/core/stats.js';
-import { relicTheme, relicBond, relicSlotCount, RELIC_BONDS } from '../src/core/gear.js';
+import { relicTheme, relicBond, relicSlotCount, RELIC_BONDS, ZERO } from '../src/core/gear.js';
 import { setOrderSlot, ordersBonus, orderSlotCount, orderUpCost } from '../src/core/orders.js';
 
 test('叠位 opens the level cap up to 99 and stops there', () => {
@@ -642,13 +643,13 @@ test('钥令：配置、全队加成、淬炼、重复折算', () => {
 /* ---------- M10：塔上限 / 1000 名天梯 / 校猫奖励首领 ---------- */
 
 test('tower: the climb cap is 300 floors and reward gold is clamped', () => {
-  assert.equal(TOWER_MAX_FLOOR, 300);
+  assert.equal(TOWER_MAX_FLOOR, 500);
   const s = mkTeamState(60);
   const sim = simulateTower(s, data, { maxFloors: TOWER_MAX_FLOOR });
   assert.ok(sim.floors.length <= TOWER_MAX_FLOOR);
-  // 奖励用的等效关卡在 200 层后封顶，避免 1.085^f 把金币算成天文数字
+  // 奖励用的等效关卡在 240 层后封顶，避免 1.085^f 把金币算成天文数字
   assert.equal(towerRewardStage(20), 29);
-  assert.ok(towerRewardStage(400) <= 200);
+  assert.ok(towerRewardStage(400) <= 240);
   assert.equal(towerInfo(20).reward, true, '每 20 层是校猫奖励层');
   assert.equal(towerInfo(19).reward, false);
 });
@@ -852,7 +853,8 @@ test('塔每层都给券和银芯，越往上越多', () => {
   const low = newState(data, 21); low.tower = { best: 0, tries: 3, day: '' };
   const rwLow = towerReward(low, data, 30, mulberry32(1));
   const high = newState(data, 21); high.tower = { best: 270, tries: 3, day: '' };
-  const rwHigh = towerReward(high, data, 300, mulberry32(1));
+  // 只量 271–299：300 层那一份是每 50 层的一次性里程碑，单独测（不然平均值会被它拉高）
+  const rwHigh = towerReward(high, data, 299, mulberry32(1));
 
   // 30 层：里程碑 2 券/5 层 = 12 券，加上每层零头至少再 2 张；银芯同理
   assert.ok(rwLow.tickets >= 14, `第 1–30 层券太少：${rwLow.tickets}`);
@@ -860,11 +862,17 @@ test('塔每层都给券和银芯，越往上越多', () => {
 
   // 同样是 30 层，高层每层给得更多（缓慢增长）
   const per = (rw, n) => ({ t: rw.tickets / n, c: rw.cores / n });
-  const a = per(rwLow, 30), b = per(rwHigh, 30);
+  const a = per(rwLow, 30), b = per(rwHigh, 29);
   assert.ok(b.t > a.t, `每层券应随层数增长：${a.t.toFixed(2)} → ${b.t.toFixed(2)}`);
   assert.ok(b.c > a.c, `每层银芯应随层数增长：${a.c.toFixed(2)} → ${b.c.toFixed(2)}`);
-  // 但不能涨疯：第 271–300 层每层银芯（含里程碑与校猫层）还不到 20 个
+  // 但不能涨疯：第 271–299 层每层银芯（含校猫层）还不到 20 个
   assert.ok(b.c < 20, `每层银芯涨太快：${b.c.toFixed(2)}`);
+  // 每 50 层有一份一次性里程碑（300 层），爬到了才发、只发一次
+  const mark = newState(data, 22); mark.tower = { best: 299, tries: 3, day: '' };
+  const rwMark = towerReward(mark, data, 300, mulberry32(2));
+  assert.ok(rwMark.items.length >= 1 && rwMark.orders.length >= 1 && rwMark.tickets >= 40);
+  assert.ok(mark.tower.marks.includes(300));
+  assert.equal(towerReward(mark, data, 300, mulberry32(3)).marks, undefined, '同一层不会重复发里程碑');
   // 零头会留在 state 里，下次继续攒
   assert.ok(low.tower.tkFrac < 1 && low.tower.coFrac < 1);
 });
@@ -1389,11 +1397,11 @@ test('融灾禁区：敌人每期重排，层数越深越强', () => {
   assert.ok(bossParty.some((e) => e.boss), '第五队要面对 Boss');
   assert.ok(!riftEnemies(10, data, 0, 'R1').some((e) => e.boss), '其余队不打 Boss');
   // 通关上限
-  assert.equal(RIFT_FLOORS, 100);
+  assert.equal(RIFT_FLOORS, 150);
   assert.equal(RIFT_RUN_MAX, 10);
 });
 
-test('融灾禁区：老存档补字段，越界层数被夹回 0~100', () => {
+test('融灾禁区：老存档补字段，越界层数被夹回 0~150', () => {
   const base = newState(data, 21);
   delete base.rift;
   const m = migrate(base, data);
@@ -2131,16 +2139,18 @@ test('专属技能：72 位的超限技 + 终焉技在战斗里都能跑通（�
   }
 });
 
-test('后期加压：80 关之前怪物不变，之后每 10 关生命 ×1.10 / 攻击 ×1.06 / 防御 +4%', async () => {
+test('后期加压：70 关之前怪物不变，之后每 10 关生命 ×1.115 / 攻击 ×1.065 / 防御 +4.5%', async () => {
   const { lateBoost, buildEnemies, enemyScale } = await import('../src/core/enemies.js');
-  assert.deepEqual(lateBoost(80), { hp: 1, atk: 1, def: 1 });
+  assert.deepEqual(lateBoost(70), { hp: 1, atk: 1, def: 1 });
   assert.deepEqual(lateBoost(50), { hp: 1, atk: 1, def: 1 });
   const b = lateBoost(130);
-  assert.ok(Math.abs(b.hp - 1.1 ** 5) < 1e-9 && Math.abs(b.atk - 1.06 ** 5) < 1e-9 && Math.abs(b.def - 1.2) < 1e-9);
+  assert.ok(Math.abs(b.hp - 1.115 ** 6) < 1e-9 && Math.abs(b.atk - 1.065 ** 6) < 1e-9 && Math.abs(b.def - 1.27) < 1e-9);
   const at = (st) => buildEnemies(st, data.monsters).filter((e) => e.rank === 'Normal')[0];
   const e130 = at(131);
   // 没加压的话普通怪生命 = 220 × enemyScale × hp 系数；加压后要明显更高
   assert.ok(e130.hp > 220 * enemyScale(131) * 1.4 * 1.1, '131 关的普通怪已被加压');
+  // 羁绊把这版加压抬上去了：130 关的相对强度必须比旧版（80 关起 1.10^5）更硬
+  assert.ok(b.hp > 1.1 ** 5 && b.atk > 1.06 ** 5 && b.def > 1.2, '新曲线要比旧曲线更陡');
 });
 
 /* ---------- 大招策略：优先开大 / 攒大招一起开 / 按自定义顺序开 ---------- */
@@ -2297,13 +2307,13 @@ test('周 Boss 里程碑：前 8 档不变、后面 48 档单调上升且奖励�
   assert.ok(WK_MS.at(-1).dmg >= 1e11, '最高档足够高');
   // 一键领取
   const s = newState(data, 51); const w = wkState(s);
-  w.damage = 2_000_000; w.claimed = [0];
+  w.tiers[1].damage = 2_000_000; w.tiers[1].claimed = [0];
   const t0 = s.tickets, c0 = s.cores;
   const rs = claimAllWeekly(s, data);
   const want = WK_MS.map((m, i) => i).filter((i) => i !== 0 && WK_MS[i].dmg <= 2_000_000);
   assert.equal(rs.length, want.length);
   assert.ok(s.tickets > t0 && s.cores > c0);
-  assert.deepEqual([...w.claimed].sort((a, b) => a - b), [0, ...want]);
+  assert.deepEqual([...w.tiers[1].claimed].sort((a, b) => a - b), [0, ...want]);
   assert.equal(claimAllWeekly(s, data).length, 0, '领过的不会重复领');
   assert.equal(claimWk(s, data, 40), null, '没打到的档不能领');
 });
@@ -2431,22 +2441,214 @@ test('装备「已编入」提示：沿用主线配装的编队也算', () => {
   assert.ok(!_seu(s, r.uid).includes('c'), '有独立配装的编队只看自己那套');
 });
 
+/* ---------- 唤醒体羁绊（core/bonds.js） ---------- */
+import { teamBonds, bondsOf, BONDS, BOND_CATS } from '../src/core/bonds.js';
+import { WEEKLY_TIER, weeklyOpen, wkTrack, weeklyEnemy } from '../src/core/weekly.js';
+
+test('羁绊表：点名的成员都在数据里，规则型羁绊参数合法', () => {
+  assert.ok(BONDS.length >= 20, '至少 20 条羁绊');
+  for (const b of BONDS) {
+    if (b.members) for (const m of b.members) assert.ok(data.bySlug[m], `${b.id} 的成员 ${m} 不存在`);
+    if (b.rule === 'type') assert.ok(['ASSAULT', 'WARDEN', 'CHORUS'].includes(b.key), b.id);
+    if (b.rule === 'guest') assert.ok(['CHAOS', 'CARO', 'AEQUOR', 'ULTRA'].includes(b.key), b.id);
+    assert.ok(Object.keys(b.tiers).length >= 1, b.id);
+    assert.ok(b.need >= 2 && BOND_CATS[b.cat], `${b.id} 的 need / cat 不合法`);
+  }
+  // 六个「本体 + 异相」都在（数据里 Genesis 那六位）
+  const origins = BONDS.filter((b) => b.cat === 'origin');
+  assert.equal(origins.length, 6);
+});
+
+test('羁绊：同源双相凑齐就激活，加成进 teamDefs（全队被动）', () => {
+  const s = newState(data, 31);
+  const pair = ['lotan', 'lotan-cetarchon'];
+  for (const x of pair) s.roster[x] = { lv: 60, star: 0 };
+  const b = teamBonds(pair, data);
+  const on = b.active.find((x) => x.id === 'apex-lotan');
+  assert.ok(on && on.tier === 2, '萝坦 + 蚀灭·萝坦 该有「血潮双相」');
+  assert.ok(on.bonus.atkPct > 0 && on.bonus.amp > 0);
+  // 只有两个人的时候凑不出同域加成（同域要 3 人），所以战力差只能来自羁绊
+  const team = teamDefs(s, data, pair);
+  assert.equal(team.synergy, 0);
+  const solo = allyDef(s, data, 'lotan', ['lotan']);
+  const inTeam = team.list.find((d) => d.slug === 'lotan');
+  assert.ok(inTeam.atk > solo.atk && inTeam.amp > solo.amp, '羁绊把攻击和增伤一起抬上去');
+  // 队友掉的羁绊不算数：单人在队里什么也没有
+  assert.equal(teamBonds(['lotan'], data).count, 0);
+  assert.equal(teamBonds(['lotan', 'lotan-cetarchon', 'vivian'], data).near.some((x) => x.id === 'apex-ogier'), true);
+});
+
+test('羁绊：同域同心 / 职业阵型 / 初始之约按人数分档', () => {
+  const trio = teamBonds(['agrippa', 'aigis', 'thais'], data);
+  assert.ok(trio.active.some((x) => x.id === 'realm-caro'));
+  // 三个人全是守护 / 合唱之一，阵型羁绊按类型各算
+  const types = trio.members.map((a) => a.type);
+  assert.ok(types.length === 3);
+  const wardens = teamBonds(['agrippa', 'caraboo', 'salvador'], data).active.find((x) => x.id === 'type-warden');
+  assert.ok(wardens && wardens.tier === 3);
+  const four = teamBonds(['agrippa', 'caraboo', 'salvador', 'faint'], data).active.find((x) => x.id === 'type-warden');
+  assert.equal(four.tier, 4, '第四名守护再上一档');
+  // 初始四人：2 / 3 / 4 人三档，新手第一天就能吃到
+  const st2 = teamBonds(['ogier', 'lotan'], data).active.find((x) => x.id === 'starter-four');
+  const st4 = teamBonds(['ogier', 'lotan', 'doll', 'ramona'], data).active.find((x) => x.id === 'starter-four');
+  assert.equal(st2.tier, 2);
+  assert.equal(st4.tier, 4);
+  assert.ok(st4.bonus.amp > 0);
+});
+
+test('羁绊：主播 × 主播、主播 × 同界域唤醒体都能凑，两位主播不虚高', () => {
+  const crew = teamBonds(['samo', 'dragond', '24', 'vivian'], data);
+  assert.ok(crew.active.some((x) => x.id === 'crew-chaos'), '萨摩不耶 + 魔龙_D');
+  const guest = crew.active.find((x) => x.id === 'guest-chaos');
+  assert.ok(guest && guest.tier === 3, '1 位混沌主播 + 2 名混沌唤醒体');
+  assert.equal(teamBonds(['samo', 'dragond', '24'], data).active.some((x) => x.id === 'guest-chaos'), false, '只带 1 名唤醒体凑不出来');
+  const quadro = teamBonds(['samo', '24', 'vivian', 'karen'], data).active.find((x) => x.id === 'guest-chaos');
+  assert.equal(quadro.tier, 4, '1 位主播 + 3 名唤醒体再上一档');
+  // 两位主播 + 两名唤醒体也只按「1 位主播」算
+  assert.equal(teamBonds(['samo', 'dragond', '24', 'vivian'], data).active.find((x) => x.id === 'guest-chaos').tier, 3);
+  // 主播×主播只认同界域那一对
+  assert.equal(teamBonds(['samo', 'mengyi'], data).active.some((x) => x.cat === 'crew'), false);
+});
+
+test('本命羁绊：14 条主播 × 羁绊唤醒体都在，且只在两人同队时激活', () => {
+  const patron = BONDS.filter((b) => b.cat === 'patron');
+  assert.equal(patron.length, 14);
+  const creators = new Set();
+  for (const b of patron) {
+    assert.equal(b.members.length, 2, `${b.id} 应该是一对`);
+    const [a, c] = b.members.map((s) => data.bySlug[s]);
+    const flags = [!!a.creator, !!c.creator].sort();
+    assert.deepEqual(flags, [false, true], `${b.id} 必须是一主播 + 一官方唤醒体`);
+    assert.ok(a.realm && c.realm);
+    creators.add(b.members.find((s) => data.bySlug[s].creator));
+  }
+  // 10 位主播每位至少有一条本命
+  const all = new Set(Object.values(data.bySlug).filter((a) => a.creator).map((a) => a.slug));
+  assert.equal(all.size, 10);
+  for (const s of all) assert.ok(creators.has(s), `主播 ${s} 没有本命羁绊`);
+  // 只上主播一个人：不激活，但提示「差 1」
+  const solo = teamBonds(['samo'], data);
+  assert.equal(solo.active.some((x) => x.cat === 'patron'), false);
+  assert.equal(solo.near.find((x) => x.id === 'patron-samo').gap, 1);
+  // 两人同队：激活，且加成都是加成池认识的字段（打错键会静默丢掉）
+  const pair = teamBonds(['samo', 'helot-catena'], data);
+  const on = pair.active.find((x) => x.id === 'patron-samo');
+  assert.ok(on && on.tier === 2);
+  assert.equal(on.bonus.atkPct, 12);
+  assert.equal(on.bonus.steal, 3);
+  const keys = new Set(Object.keys(ZERO()));
+  for (const b of patron) for (const k of Object.keys(b.tiers[2])) assert.ok(keys.has(k), `${b.id} 用了加成池里没有的字段 ${k}`);
+  // 详情页的「羁绊」标签：主播与那位唤醒体互相都认得对方这条本命
+  assert.ok(bondsOf('samo', data).some((b) => b.id === 'patron-samo'));
+  assert.ok(bondsOf('helot-catena', data).some((b) => b.id === 'patron-samo'));
+  // 萨摩不耶 × 茉夏（玩家点名补的那条）：单独上阵提示差 1，同队就激活
+  assert.equal(solo.near.find((x) => x.id === 'patron-samo-mouchette').gap, 1);
+  const sm = teamBonds(['samo', 'mouchette'], data).active.find((x) => x.id === 'patron-samo-mouchette');
+  assert.ok(sm && sm.tier === 2, '萨摩 + 茉夏应该激活雪原利爪');
+  assert.equal(sm.bonus.critRate, 6);
+  assert.equal(sm.bonus.critDmg, 20);
+  assert.ok(bondsOf('samo', data).some((b) => b.id === 'patron-samo-mouchette'));
+  assert.ok(bondsOf('mouchette', data).some((b) => b.id === 'patron-samo-mouchette'));
+});
+
+test('档案派系：神国·利莫里亚按档案 traits 分 2 / 3 / 4 档', () => {
+  const lemuria = ['faros', 'goliath', 'miryam', 'murphy-fauxborn', 'tulu'];
+  for (const s of lemuria) assert.ok(data.bySlug[s], `${s} 不在数据里`);
+  assert.equal(teamBonds(['faros'], data).active.some((x) => x.id === 'archive-lemuria'), false);
+  const two = teamBonds(['faros', 'goliath'], data).active.find((x) => x.id === 'archive-lemuria');
+  assert.equal(two.tier, 2);
+  const three = teamBonds(['faros', 'goliath', 'tulu'], data).active.find((x) => x.id === 'archive-lemuria');
+  assert.equal(three.tier, 3);
+  const four = teamBonds(['faros', 'goliath', 'tulu', 'murphy-fauxborn'], data).active.find((x) => x.id === 'archive-lemuria');
+  assert.equal(four.tier, 4);
+  assert.ok(four.bonus.aliGain > three.bonus.aliGain, '人越多共鸣越高');
+  // 五人全在队里也只有 4 档（队只有 4 个位置）
+  assert.ok(BONDS.find((x) => x.id === 'archive-lemuria').tiers[4]);
+});
+
+test('羁绊提示：差 1 人的排在前面，别被永远凑不出的那几条占满', () => {
+  const near = teamBonds(['samo', '24'], data).near;
+  assert.ok(near.length > 4);
+  assert.equal(near[0].gap, 1, '第一条必须是差 1 的');
+  for (let i = 1; i < near.length; i++) assert.ok(near[i - 1].gap <= near[i].gap, 'near 必须按 gap 升序');
+  assert.ok(near.slice(0, 4).some((x) => x.id === 'patron-samo' || x.id === 'guest-chaos'));
+});
+
+test('混编共鸣：3 / 4 个不同界域给 +6% / +10%，凑得出同域时不吃这份', () => {
+  const s = newState(data, 34);
+  for (const x of ['ogier', 'agrippa', 'celeste', 'vivian', 'castor', 'lotan', 'doll', 'ramona']) s.roster[x] ||= { lv: 60, star: 0 };
+  const mix3 = teamDefs(s, data, ['ogier', 'agrippa', 'celeste', 'vivian']);   // 混沌×2 + 血肉 + 深海
+  assert.equal(mix3.synergy, 0);
+  assert.equal(mix3.mixed, 0.06);
+  const mix4 = teamDefs(s, data, ['ogier', 'agrippa', 'celeste', 'castor']);
+  assert.equal(mix4.mixed, 0.10);
+  assert.ok(mix4.bonds.active.some((x) => x.id === 'mixed-four' && x.tier === 4));
+  const same = teamDefs(s, data, ['ogier', 'lotan', 'doll', 'ramona']);
+  assert.equal(same.synergy, 0.15);
+  assert.equal(same.mixed, 0, '同域与混编互斥，两头都要就没有取舍了');
+});
+
+test('周 Boss 三层：上一层打够伤害才解锁，每层各记各的伤害，奖励按层倍率', () => {
+  const s = mkTeamState();
+  assert.equal(weeklyOpen(s, 1), true);
+  assert.equal(weeklyOpen(s, 2), false);
+  assert.equal(doWeekly(s, data, null, 2), null, '没解锁的层打不了');
+  const r1 = doWeekly(s, data);
+  assert.equal(r1.tier.n, 1);
+  const w = weeklyState(s);
+  assert.equal(w.tiers[1].damage, r1.dmg);
+  w.tiers[1].damage = WEEKLY_TIER[1].unlock;
+  assert.equal(weeklyOpen(s, 2), true);
+  assert.equal(weeklyOpen(s, 3), false, '第 3 层还锁着');
+  const r2 = doWeekly(s, data, null, 2);
+  assert.ok(r2 && r2.tier.n === 2);
+  assert.equal(w.tiers[2].damage, r2.dmg);
+  assert.equal(w.tiers[1].damage, WEEKLY_TIER[1].unlock, '第 2 层的伤害不会加到第 1 层');
+  // 同一档里程碑：层数越高给得越多
+  const s1 = mkTeamState(); const w1 = weeklyState(s1); w1.tiers[1].damage = 1e6;
+  const s3 = mkTeamState(); const w3 = weeklyState(s3); w3.tiers[3].damage = 1e6;
+  const c1 = claimWeekly(s1, data, 3, 1), c3 = claimWeekly(s3, data, 3, 3);
+  assert.ok(c3.tickets > c1.tickets && c3.cores > c1.cores && c3.gold > c1.gold);
+  assert.equal(c3.tier, 3);
+  // 第 3 层的 Boss 更硬：攻击 / 防御都比第 1 层高
+  const e1 = weeklyEnemy(data, weekId(), 1), e3 = weeklyEnemy(data, weekId(), 3);
+  assert.ok(e3.atk > e1.atk && e3.def > e1.def);
+  assert.ok(e3.name.startsWith('坚壳的'));
+});
+
+test('周 Boss 老存档：顶层的累计伤害与已领档位落到第 1 层', () => {
+  const s = newState(data, 35);
+  const d = new Date().toISOString().slice(0, 10);
+  s.weekly = { week: weekId(), day: d, tries: 2, damage: 50000, best: 20000, runs: 3, claimed: [0, 1] };
+  const w = weeklyState(s);
+  assert.equal(w.tiers[1].damage, 50000);
+  assert.equal(w.tiers[1].best, 20000);
+  assert.deepEqual(w.tiers[1].claimed, [0, 1]);
+  assert.equal(w.damage, undefined, '老字段迁完就删掉，免得两处各算一遍');
+  assert.equal(w.tiers[2].damage, 0);
+  assert.equal(w.tier, 1);
+});
+
 test('反击转移：队友的反击层归到嘲讽者身上，反击真的打得出去', () => {
+  // 关卡 50 起敌人才打得动队伍，奥吉尔才会去开盾 / 不灭之誓；
+  // 30 层太软，AI 宁可开输出技能，嘲讽与转移都不会触发，测不到这条链路。
   const s = newState(data, 90);
   for (const x of ['ogier', 'caecus', 'faint', 'nautila']) s.roster[x] ??= { lv: 60, star: 3 };
   for (const k of Object.keys(s.roster)) { s.roster[k].lv = 60; s.roster[k].od = 99; s.roster[k].law = 99; }
   s.team = ['ogier', 'caecus', 'faint', 'nautila'];
-  let shifts = 0, counters = 0, byOgier = 0;
+  let shifts = 0, toOgier = 0, counters = 0, byOgier = 0;
   for (let seed = 1; seed < 40; seed++) {
     s.seed = seed;
-    const r = runBattle(s, data, 30);
-    for (const e of r.events) {
-      if (e.k === 'act' && e.who === 'a0' && /反击转移|嘲讽|Exalt/.test(e.name + e.slot)) shifts++;
-      if (e.k === 'dmg' && e.by && e.by[0] === 'a' && e.blocked == null) { /* 直接伤害 */ }
-    }
+    const r = runBattle(s, data, 50);
+    // 奥吉尔的两个专精：奥吉尔之盾（嘲讽）与不灭之誓（内含反击转移）
+    shifts += r.events.filter((e) => e.k === 'act' && e.who === 'a0' && /奥吉尔之盾|不灭之誓/.test(e.name)).length;
+    // 队友拿到的反击层被改挂到开着转移的人身上后，status 事件的 who 就是嘲讽者
+    toOgier += r.events.filter((e) => e.k === 'status' && e.s === 'counter' && e.who === 'a0').length;
     counters += r.events.filter((e) => e.k === 'counter').length;
     byOgier += r.events.filter((e) => e.k === 'counter' && e.by === 'a0').length;
   }
+  assert.ok(shifts > 0, '嘲讽 / 反击转移有人开');
+  assert.ok(toOgier > 0, '队友的反击层被收到了嘲讽者身上');
   assert.ok(counters > 0, '反击会触发');
   assert.ok(byOgier > 0, '嘲讽者自己打出了反击');
 });

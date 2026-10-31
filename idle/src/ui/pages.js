@@ -1,7 +1,7 @@
 import {
   allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, ULT_MODES, normalizeUltOrder, equipItem, unequipItem, isEquipped,
   enhanceItem, enhanceAllEquipped, enhanceScopes, dismantle, dismantlePreview, autoDmOf, dismantleCores, summon, equipPull, gearDexKey, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST,
-  PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, BATTLES_PER_HOUR, fillLoadout,
+  PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, BATTLES_PER_HOUR, fillLoadout, MIXED_SYNERGY,
 } from '../core/game.js';
 import {
   REALMS, TYPES, SLOTS, SLOT_ZH, MAX_LV, MAX_AWAKEN, MAX_LV_HARD, TEAM_SIZE, RARITY_ORDER, GEAR_MAX_LV,
@@ -40,6 +40,7 @@ import {
   wheelText, relicText, covTheme, gearCost, dismantleValue, relicBond, relicSlotCount, RELIC_BONDS, BOND_TIERS, bonusText,
 } from '../core/gear.js';
 import { orderSlotCount, orderLockedHint, orderText, orderUpCost, orderLvMult } from '../core/orders.js';
+import { teamBonds, bondHint, bondsOf, BONDS, BOND_CATS } from '../core/bonds.js';
 import { esc, img, fmt, openModal, closeModal, toast, markup } from './util.js';
 
 const R = (a) => REALMS[a.realm];
@@ -100,6 +101,36 @@ function bondPanel(app) {
   }).join('');
   const on = active.length ? `已激活：${Object.entries(active.reduce((a, x) => ({ ...a, [x.zh]: (a[x.zh] || []).concat(x.tier) }), {})).map(([zh, ts]) => `${zh} ${ts.sort((a, b) => a - b).join('+')}件`).join('、')} → ${bonusText(bonus)}` : '还没凑够 2 件同主题造物';
   return `<div class="bonds">${chips}</div><p class="hint">${on}。羁绊是全队被动，与单件造物加成叠加。</p>`;
+}
+
+/* -------- 唤醒体羁绊（core/bonds.js）：队伍页与编队编辑器共用 -------- */
+export function bondStrip(app, slugs, { compact = false } = {}) {
+  const { data } = app;
+  const b = teamBonds(slugs, data);
+  const on = b.active.map((x) => `<span class="bd on" title="${esc(x.desc)}"><b>${esc(x.zh)}</b><em>${esc(bonusText(x.bonus))}</em></span>`).join('');
+  // 差一步就能凑出来的：只列最近的 4 条，避免挤满屏
+  const near = b.near.slice(0, compact ? 2 : 4).map((x) => `<span class="bd near" title="${esc(x.desc)}">${esc(x.zh)} <em>${esc(bondHint(x, data.bySlug))}${x.gap ? ` · 差 ${x.gap}` : ''}</em></span>`).join('');
+  const mix = b.realms.length >= 3 ? `<span class="bd mix">跨 ${b.realms.length} 域 <em>生命 / 攻击 +${Math.round((MIXED_SYNERGY[b.realms.length] || 0) * 100)}%</em></span>` : '';
+  const head = b.count ? `已激活 ${b.count} 条 → ${bonusText(b.bonus)}` : '这套阵容还没凑出羁绊';
+  if (compact) return `<div class="bdline slim">${on || '<span class="bd none">无羁绊</span>'}${mix}</div>`;
+  return `<div class="bdline">${on}${mix}${near}</div><p class="hint">${head}。羁绊是<b>全队被动</b>（不看站位、人倒了也还在），和造物羁绊、同界域加成叠加。混编队凑 3 / 4 个不同界域还有<b>跨域共鸣</b>。</p>`;
+}
+
+/** 全部羁绊一览：队伍页里折起来，方便照着凑 */
+export function bondBook(app) {
+  const { data } = app;
+  const groups = Object.keys(BOND_CATS).map((cat) => {
+    const items = BONDS.filter((x) => x.cat === cat);
+    if (!items.length) return '';
+    const rows = items.map((x) => {
+      const tiers = Object.entries(x.tiers).map(([n, bo]) => `<span class="btier">${n} 人：${esc(bonusText(bo))}</span>`).join('');
+      return `<li><b>${esc(x.zh)}</b><small>${esc(bondHint(x, data.bySlug))}</small><div>${tiers}</div><small class="dim">${esc(x.desc)}</small></li>`;
+    }).join('');
+    // 条数多的那一组（本命羁绊 13 条）再折一层，不然展开图鉴要滚很久
+    if (items.length > 6) return `<details class="bdgroup more"><summary>${BOND_CATS[cat]}（${items.length} 条）</summary><ul>${rows}</ul></details>`;
+    return `<div class="bdgroup"><h5>${BOND_CATS[cat]}（${items.length}）</h5><ul>${rows}</ul></div>`;
+  }).join('');
+  return `<details class="bdall"><summary>全部羁绊一览（${BONDS.length} 条）</summary>${groups}</details>`;
 }
 
 /* -------- 命轮 / 密契槽位：队伍页与装备页共用，点一下弹候选直接换 -------- */
@@ -179,6 +210,8 @@ export function squadCard(app, key) {
   const lo = loadoutOf(s, key);
   // 这套独立配装里有几件装备同时被别的编队编着：共用不冲突（战斗各算各的），但要让人看得见
   const shared = lo ? sharedItemsOf(s, key) : 0;
+  // 这套能凑出几条羁绊：编队卡上直接标出来，省得进编辑器才发现「凑不出来」
+  const bd = slugs.length ? teamBonds(slugs, data).count : 0;
   // 这套是不是就是主线当前队伍：是的话「上阵」没有意义，按钮直接标成「已在主线」
   const cur = (s.team || []).filter((x) => s.roster[x]);
   const same = squadIsOnMain(s, key);
@@ -187,7 +220,7 @@ export function squadCard(app, key) {
     ? slugs.map((x) => `<img src="${img(data.bySlug[x].portrait)}" alt="" title="${esc(data.bySlug[x].zh)}">`).join('')
     : '<span class="sqempty">还没有保存队伍</span>';
   return `<div class="squad ${slugs.length ? 'on' : ''}" data-squad="${key}">
-    <header><b>${SQUAD_ZH[key]}</b><small>${slugs.length ? `${slugs.length} 人 · 战力 ${fmt(t.power)}` : '空位'}</small></header>
+    <header><b>${SQUAD_ZH[key]}</b><small>${slugs.length ? `${slugs.length} 人 · 战力 ${fmt(t.power)}` : '空位'}${bd ? ` · 羁绊 ${bd}` : ''}</small></header>
     <div class="sqav">${av}</div>
     <div class="sqlo-note">${lo ? `独立配装 · ${loSummary(lo)}` : slugs.length ? '沿用主线配装' : ''}${shared ? `<em class="sqshare" title="这些装备同时也被别的编队编入：两套编队各用各的，互不影响">共用装备 ${shared} 件</em>` : ''}</div>
     <div class="squse">${same ? '<b class="scur">✓ 主线正在用这套</b>' : used.length ? `挑战在用：${used.join('、')}` : '未被挑战引用'}</div>
@@ -437,6 +470,7 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
         : `保存后 <b>${modeZh}</b> 就用这套出战。`) : ''}</p>
       <div class="row sqrealms">${realmChips}</div>
       <div class="sqslots">${slots}</div>
+      ${bondStrip(app, st.team, { compact: true })}
       <div class="row"><button class="btn gold" data-sq="auto">一键上阵</button><button class="btn sm" data-sq="clear" ${st.team.length ? '' : 'disabled'}>清空</button>
         <button class="btn sm" data-sq="from-team">套用当前队伍</button></div>
       <div class="sqlo">${loSection()}</div>
@@ -627,7 +661,9 @@ function mainPanel(app) {
   const { state: s, data } = app;
   const t = teamDefs(s, data);
   const slots = Array.from({ length: TEAM_SIZE }, (_, i) => s.team[i] || null);
-  const synText = t.synergy ? `同领域加成 +${Math.round(t.synergy * 100)}% 生命/攻击` : '同领域 3 人 +8%，4 人 +15%';
+  const synText = t.synergy ? `同领域加成 +${Math.round(t.synergy * 100)}% 生命/攻击`
+    : t.mixed ? `跨域共鸣 +${Math.round(t.mixed * 100)}% 生命/攻击`
+      : '同领域 3 人 +8%、4 人 +15%；凑 3 / 4 个不同界域则改为跨域共鸣 +6% / +10%';
   const cards = slots.map((slug, i) => {
     const row = i < FRONT_SLOTS ? '前排' : '后排';
     if (!slug) return `<div class="slot empty" data-act="pick-slot" data-i="${i}">＋ 选择唤醒体<small class="pos ${i < FRONT_SLOTS ? 'front' : 'back'}">${row}</small></div>`;
@@ -682,6 +718,9 @@ function mainPanel(app) {
     <div class="slots">${cards}</div>
     <div class="row"><button class="btn gold" data-act="autoteam">一键配队</button><button class="btn sm" data-act="guide-growth">养成指南</button></div>
     <p class="hint">「一键配队」会一起排好：4 人队伍（含同界域加成）、<b>每人 1 件命轮 + 1 件密契</b>、已解锁格里的造物（优先凑羁绊）、3 个钥令位。下面三块就是给它填的地方，格子都能直接点开换。</p>
+    <h3>唤醒体羁绊 <small>同队凑齐特定组合 · 全队被动</small></h3>
+    ${bondStrip(app, slots.filter(Boolean))}
+    ${bondBook(app)}
     <h3>命轮 · 密契 <small>每人各 1 件 · 点格子直接换</small></h3>
     <div class="eqpanel">${equipPanel(app)}</div>
     <p class="hint">命轮与密契<b>绑在单个唤醒体身上</b>；密契全队同款凑到 2 / 4 件触发套装（当前：${covenantSetText(app) || '还没有凑成套'}）。</p>
@@ -855,6 +894,12 @@ export function detailModal(app, slug) {
       ${r ? `<div class="sqtags"><span class="dim">编队</span>${sq.length
         ? sq.map((k) => `<span class="tag sqtag${k === 'cur' ? ' on' : ''}">${squadKeyZh(k)}</span>`).join('')
         : '<span class="tag sqtag none">未编入任何队伍</span>'}</div>` : ''}
+      ${(() => {
+        const bs = bondsOf(slug, data);
+        if (!bs.length) return '';
+        const inTeam = new Set(teamBonds((s.team || []).filter(Boolean), data).active.map((x) => x.id));
+        return `<div class="sqtags"><span class="dim">羁绊</span>${bs.map((b) => `<span class="tag bdtag${inTeam.has(b.id) ? ' on' : ''}" title="${esc(b.desc)}">${esc(b.zh)}<small>${esc(bondHint(b, data.bySlug))}</small></span>`).join('')}</div>`;
+      })()}
       ${a.creator ? `<div class="cbox"><small class="clabel">B 站签名</small><b>${a.creator.bio ? esc(a.creator.bio) : '（这位主播没有填写签名）'}</b>
         ${a.creator.nick ? `<div class="crow"><span>外号</span><em>${esc(a.creator.nick)}</em></div>` : ''}
         <div class="crow"><span>B 站首页</span><a href="${esc(a.creator.url)}" target="_blank" rel="noopener" title="打开 ${esc(a.creator.zh)} 的 B 站个人空间">${esc(a.creator.url.replace(/^https?:\/\//, ''))}</a></div>

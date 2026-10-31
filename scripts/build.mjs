@@ -392,9 +392,10 @@ function genDuel() {
     const k = map[c.id];
     if (!k.art) k.art = c.id === 'e12' ? c.n : (c.mat || [c.n])[0];
   }
-  // 魔法 / 陷阱不挂人脸：统一用图集里画出来的两枚符号（早期没设 art，全部落到第一格那张「24」的头像上）
-  for (const c of cards.spells) map[c.id].art = '@spell';
-  for (const c of cards.traps) map[c.id].art = '@trap';
+  // 魔法 / 陷阱不挂人脸：默认用图集里画出来的两枚符号（早期没设 art，全部落到第一格那张「24」的头像上）。
+  // 造物那批（bp16）自带道具图标，art 写了 creation:Icon_Creation_0xx，别覆盖掉。
+  for (const c of cards.spells) map[c.id].art = c.art || '@spell';
+  for (const c of cards.traps) map[c.id].art = c.art || '@trap';
   // 卡面找不到就静默显示成第一格头像，所以这里直接拦住
   for (const id of Object.keys(map)) {
     const key = map[id].art || map[id].n;
@@ -410,10 +411,21 @@ function genDuel() {
       if (!map[pair[0]]) throw new Error(`预组 ${dk.id} 引用了不存在的卡 ${pair[0]}`);
       n += pair[1];
     }
-    if (n < 30) throw new Error(`预组 ${dk.id} 只有 ${n} 张牌（至少要 30）`);
+    // 主卡组 40~50：预组一律 40（下限），上限 50 留给玩家自组
+    if (n < 40 || n > 50) throw new Error(`预组 ${dk.id} 有 ${n} 张牌（要求 40~50）`);
+    const have = new Set(dk.cards.map(([cid]) => map[cid] && map[cid].n));
     for (const id of dk.extra) {
       if (!map[id] || map[id].k !== 'E') throw new Error(`预组 ${dk.id} 的额外卡组里有 ${id}，它不是觉醒体`);
+      // 素材不在这套牌里，这张觉醒体一辈子召不出来——额外卡组又不能当祭品，等于白占一格
+      if (map[id].matRealm) continue;
+      if (map[id].direct) continue;   // 直接召唤不看素材，只看场面条件 / 命轮值
+      for (const nm of map[id].mat || []) {
+        if (!have.has(nm)) throw new Error(`预组 ${dk.id} 的觉醒体「${map[id].n}」缺素材「${nm}」`);
+      }
     }
+    // 「直接召唤」不占通常召唤，放开了会变成白送的场面——每套牌最多 2 张
+    const directs = dk.extra.filter((id) => map[id] && map[id].direct).length;
+    if (directs > 2) throw new Error(`预组 ${dk.id} 有 ${directs} 张「直接召唤」的额外怪兽（上限 2）`);
   }
   for (const b of packs.bonds) {
     for (const nm of b.need || []) {
