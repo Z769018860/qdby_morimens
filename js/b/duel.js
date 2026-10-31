@@ -1932,7 +1932,7 @@ function renderDuel() {
       </span>
     </div>
 
-    <div class="side">
+    <div class="side op-side">
       <div class="pinfo">
         <span class="who">${nameOf(1 - side)}</span>
         ${lpBar(v.op)}
@@ -1943,9 +1943,15 @@ function renderDuel() {
       <div class="field">${opSlots}</div>
     </div>
 
-    <div class="mid"><ul class="log" id="log">${logHTML}</ul></div>
+    <div class="mid"><ul class="log" id="log">${logHTML}</ul>
+      <div class="acts">
+        ${S.mode === 'attack'
+          ? '<button class="btn" data-act="direct">直接攻击</button><button class="btn ghost" data-act="cancel">取消</button>'
+          : '<span class="note">' + (myTurn ? '点手牌出牌，点场上的怪兽看它能做什么。' : waitTxt) + '</span>'}
+      </div>
+    </div>
 
-    <div class="side">
+    <div class="side me-side">
       <div class="field">${mySlots}</div>
       <div class="field">${mySp}</div>
       <div class="pinfo">
@@ -1954,12 +1960,6 @@ function renderDuel() {
         <span class="meta"><span>手 ${v.me.hand.length}</span><span>组 ${v.me.deck}</span></span>
         ${bondsDots(v.me.bonds)}
       </div>
-    </div>
-
-    <div class="acts">
-      ${S.mode === 'attack'
-        ? '<button class="btn" data-act="direct">直接攻击</button><button class="btn ghost" data-act="cancel">取消</button>'
-        : '<span class="note">' + (myTurn ? '点手牌出牌，点场上的怪兽看它能做什么。' : waitTxt) + '</span>'}
     </div>
 
     <div class="hand ${hand ? '' : 'empty-h'}">${hand || '手牌空了'}</div>
