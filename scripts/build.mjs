@@ -411,8 +411,14 @@ function genDuel() {
       n += pair[1];
     }
     if (n < 30) throw new Error(`预组 ${dk.id} 只有 ${n} 张牌（至少要 30）`);
+    const have = new Set(dk.cards.map(([cid]) => map[cid] && map[cid].n));
     for (const id of dk.extra) {
       if (!map[id] || map[id].k !== 'E') throw new Error(`预组 ${dk.id} 的额外卡组里有 ${id}，它不是觉醒体`);
+      // 素材不在这套牌里，这张觉醒体一辈子召不出来——额外卡组又不能当祭品，等于白占一格
+      if (map[id].matRealm) continue;
+      for (const nm of map[id].mat || []) {
+        if (!have.has(nm)) throw new Error(`预组 ${dk.id} 的觉醒体「${map[id].n}」缺素材「${nm}」`);
+      }
     }
   }
   for (const b of packs.bonds) {

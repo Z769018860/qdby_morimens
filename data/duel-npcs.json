@@ -1,0 +1,8237 @@
+{
+ "src": "data/dictionary.json 的 monster 档案 + 灰机 wiki Category:角色",
+ "zones": {
+  "C01": {
+   "n": "病栋",
+   "r": "caro"
+  },
+  "C02": {
+   "n": "蜡像馆",
+   "r": "ultra"
+  },
+  "C03": {
+   "n": "脓疱",
+   "r": "caro"
+  },
+  "C04": {
+   "n": "维度裂隙",
+   "r": "chaos"
+  },
+  "C05": {
+   "n": "深海祭坛",
+   "r": "aqua"
+  },
+  "C06": {
+   "n": "梦与二十四",
+   "r": "chaos"
+  },
+  "C07": {
+   "n": "努比亚",
+   "r": "caro"
+  },
+  "C08": {
+   "n": "宁菲亚",
+   "r": "ultra"
+  },
+  "C09": {
+   "n": "潘狄娅",
+   "r": "chaos"
+  },
+  "C10": {
+   "n": "淤泥之花",
+   "r": "caro"
+  },
+  "C11": {
+   "n": "空想",
+   "r": "ultra"
+  },
+  "C12": {
+   "n": "凸月",
+   "r": "aqua"
+  },
+  "C15": {
+   "n": "门之钥",
+   "r": "ultra"
+  },
+  "C16": {
+   "n": "爆燃",
+   "r": "chaos"
+  },
+  "C17": {
+   "n": "雾中",
+   "r": "aqua"
+  },
+  "S01": {
+   "n": "融蚀体",
+   "r": "chaos"
+  },
+  "S02": {
+   "n": "融蚀野地",
+   "r": "caro"
+  },
+  "S03": {
+   "n": "执妄",
+   "r": "ultra"
+  },
+  "S04": {
+   "n": "提灯教会",
+   "r": "aqua"
+  },
+  "S05": {
+   "n": "雪山",
+   "r": "aqua"
+  },
+  "S06": {
+   "n": "搜查队",
+   "r": "chaos"
+  },
+  "S07": {
+   "n": "好人三人组",
+   "r": "caro"
+  },
+  "S08": {
+   "n": "涅弗鲁瑞",
+   "r": "ultra"
+  },
+  "S09": {
+   "n": "灰烬",
+   "r": "chaos"
+  },
+  "A00": {
+   "n": "万象终局",
+   "r": "ultra"
+  },
+  "DCB": {
+   "n": "门后之影",
+   "r": "chaos"
+  },
+  "AW": {
+   "n": "觉醒体",
+   "r": "any"
+  }
+ },
+ "count": 386,
+ "wiki": 0,
+ "npcs": [
+  {
+   "n": "「@2：万象门扉」",
+   "en": "Tawil",
+   "cls": "Boss",
+   "id": "141068",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0003.webp",
+   "desc": "智之质体的代行者。知识权柄的拥有者。弥萨格的指引者。令人恐惧的敌人。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "获得 X 点【力量】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「万物寂灭」",
+   "en": "The Void Claims All",
+   "cls": "Boss",
+   "id": "13976",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0002_BOSSSIZE.webp",
+   "desc": "融蚀浆平等地赐予万物死亡。万物寂灭合一。",
+   "skills": [
+    "造成 X 点伤害 X 次。施加 X 回合【脆弱】。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。施加 X 回合【虚弱】，该【虚弱】减少50%伤害。"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「塔薇」",
+   "en": "Tawil",
+   "cls": "Boss",
+   "id": "14041",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0003.webp",
+   "desc": "自弥萨格黑池中涌现出的银色六翼怪物。有种熟悉的感觉。",
+   "skills": [
+    "造成 X 点伤害 X 次，将 4 张「裂伤」加入手牌。",
+    "造成 X 点伤害 X 次，将 6 张「裂伤」加入手牌。",
+    "获得 X 点【力量】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。施加 X 回合【脆弱】。",
+    "造成 X 点伤害 X 次，将 2 张「裂伤」加入手牌。"
+   ],
+   "kw": [
+    "fragile",
+    "str"
+   ]
+  },
+  {
+   "n": "「夏洛特」",
+   "en": "The Void Claims All",
+   "cls": "Boss",
+   "id": "20792",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0002_BOSSSIZE.webp",
+   "desc": "哀泣的黑色怪物表面浮现出似曾相识的脸……",
+   "skills": [
+    "造成 X 点伤害 X 次。施加 X 回合【脆弱】。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。施加 X 回合【虚弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「生物拟态溶浆-二重」",
+   "en": "The Void Claims All",
+   "cls": "Boss",
+   "id": "21380",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0002_BOSSSIZE.webp",
+   "desc": "学院用来测试唤醒体战斗能力的生物拟态生物，纯天然无融蚀污染。",
+   "skills": [
+    "造成 X 点伤害 X 次。施加 X 回合【虚弱】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。施加 X 回合【脆弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「不会吧…」",
+   "en": "Dissoluted Humanoid",
+   "cls": "普通",
+   "id": "73523",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0001.webp",
+   "desc": "「不会的不会的不会的，我们已经很努力地活下去了…」",
+   "skills": [
+    "将 1 张「狂放」洗入抽牌堆。",
+    "造成 X 点伤害 X 次，自身死亡。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "「前辈」玛丽",
+   "en": "D-Slime",
+   "cls": "普通",
+   "id": "14068",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0002.webp",
+   "desc": "哀泣的黑色怪物表面浮现出似曾相识的脸……",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "获得 X 点【力量】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「悲伤的夏洛特」",
+   "en": "Dissoluted Humanoid",
+   "cls": "普通",
+   "id": "20791",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0001.webp",
+   "desc": "被融蚀浆蚀化的弥萨格学生，形貌凄惨。",
+   "skills": [
+    "造成 X 点伤害 X 次！",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "「无聊的夏洛特」",
+   "en": "Dissoluted Humanoid",
+   "cls": "普通",
+   "id": "20790",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0001.webp",
+   "desc": "被融蚀浆蚀化的弥萨格学生，形貌凄惨。",
+   "skills": [
+    "造成 X 点伤害 X 次！",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "「海伦」",
+   "en": "Dissoluted Humanoid",
+   "cls": "普通",
+   "id": "13951",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0001.webp",
+   "desc": "被融蚀浆蚀化的弥萨格学生，形貌凄惨。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "「终末泥淖」",
+   "en": "D-Slime",
+   "cls": "精英",
+   "id": "14033",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0002.webp",
+   "desc": "融蚀浆平等地赐予万物终点。我们终为一体。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】。",
+    "造成 X 点伤害 X 次。施加 X 回合【虚弱】。",
+    "造成 X 点伤害 X 次。施加 X 回合【脆弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「艾米丽」",
+   "en": "Dissoluted Humanoid",
+   "cls": "普通",
+   "id": "13997",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0001.webp",
+   "desc": "被融蚀浆蚀化的弥萨格学生，形貌凄惨。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "「贪玩的夏洛特」",
+   "en": "Dissoluted Humanoid",
+   "cls": "普通",
+   "id": "20789",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0001.webp",
+   "desc": "被融蚀浆蚀化的弥萨格学生，形貌凄惨。",
+   "skills": [
+    "造成 X 点伤害 X 次！",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "融蚀人型",
+   "en": "Dissoluted Humanoid",
+   "cls": "普通",
+   "id": "13957",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0001.webp",
+   "desc": "被融蚀浆蚀化的人类，形貌凄惨。",
+   "skills": [
+    "造成 X 点伤害 X 次！",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "融蚀浆",
+   "en": "D-Slime",
+   "cls": "普通",
+   "id": "14065",
+   "zone": "A00",
+   "zoneN": "万象终局",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_A0002.webp",
+   "desc": "这肯定只是融蚀浆而已。别去思考其中包含着什么。",
+   "skills": [
+    "造成 X 点伤害 X 次。施加 X 回合【脆弱】。",
+    "造成 X 点伤害 X 次。施加 X 回合【虚弱】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】。"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「@2奏者」",
+   "en": "@2 Performer",
+   "cls": "Boss",
+   "id": "60096",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D12_AF.webp",
+   "desc": "指挥棒的轨迹之下，究竟隐藏着什么样的乐曲？",
+   "skills": [
+    "获得 X 点【力量】。将 1 张「灵感」置入手中。本回合触发「音符律令」时,将 1 张「灵感」置入手中。",
+    "造成 X 点伤害 X 次，获得等同于未被格挡伤害的【临时力量】，回复等同于未被格挡伤害 10 倍的生命。",
+    "造成 X 点伤害 X 次并降低目标 X 点【力量】。",
+    "造成 X 点伤害 X 次并获得 X 层永久加固。",
+    "造成 X 点伤害 X 次，每次未被格挡的伤害都会附加 1 个随机负面效果。之后的「灵魂序曲」伤害次数 +1。"
+   ],
+   "kw": [
+    "str",
+    "temporary-str"
+   ]
+  },
+  {
+   "n": "「丰穰之息」",
+   "en": "Breath of Fertility",
+   "cls": "Boss",
+   "id": "60092",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B01_AF.webp",
+   "desc": "「击溃它们，安抚它们，即使你窥见我的幻影，也在所不惜。」",
+   "skills": [
+    "召唤 1 名拟态唤醒体。若拟态唤醒体已满，意图变为「打击」。",
+    "使狂气最高的唤醒体失去 50 点狂气，执行 2 次。施加 2 回合致盲 和 【虚弱】。",
+    "造成 X 点伤害 X 次。施加等同于伤害 X% 的【中毒】，X% 的【出血】，X% 的【反击】。"
+   ],
+   "kw": [
+    "bleed",
+    "counter",
+    "poison",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「催眠妖虫」",
+   "en": "Hypnotic Shaggai",
+   "cls": "Boss",
+   "id": "73521",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D13_AF.webp",
+   "desc": "总是十分温柔的心理医生，无论何时都保持着得体的微笑。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 点【力量】。打出【觉醒】卡后意图更改为「心理绞杀」。",
+    "施加 2 回合【虚弱】和【脆弱】。移除自身一半层数的【疯狂】和【力量】，回复已损失生命的 10%。",
+    "造成 X 点伤害 X 次。回合开始时，随机对 2 张没有「认知错乱」的指令施加「认知错乱」。",
+    "造成 X 点伤害 X 次，获得 1 层【疯狂】。打出【觉醒】卡后意图更改为「痛苦榨取」。"
+   ],
+   "kw": [
+    "fragile",
+    "madness",
+    "rouse",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「冷光」",
+   "en": "Mareel Glow",
+   "cls": "Boss",
+   "id": "84437",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O10_AF.webp",
+   "desc": "测算、规划、挥舞旗帜。她会不计一切代价，完成自己的使命！",
+   "skills": [
+    "惩戒雷霆：造成 3 次伤害。将1张「症状：【疯狂】」洗入抽牌堆顶。",
+    "照彻渊海的引航：自身【力量】提高 0.05*ATK，获得 8 层【屏障】。下回合开始时每层【屏障】转化为 1 点加固。",
+    "赴死如归的天火：驱散【虚弱】。自身【力量】提高0.1ATK，承受伤害提高 10% ，惩戒雷霆伤害次数额外提高 1 。",
+    "惩戒雷霆【觉醒】版：造成4次伤害+【易伤】2回合。将1张「症状：【疯狂】」洗入抽牌堆顶。",
+    "【混沌】旗语：造成1次伤害+【虚弱】2回合。"
+   ],
+   "kw": [
+    "barrier",
+    "chaos",
+    "madness",
+    "rouse",
+    "str",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「原初信徒」",
+   "en": "Primordial Devoutee",
+   "cls": "Boss",
+   "id": "120904",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O03_AF.webp",
+   "desc": "驻守永恒之国入口之人，指引归乡者的灯塔。",
+   "skills": [
+    "获得 X 点触腕伤害，X 层暗流， 2 条临时触腕。",
+    "造成 X 点伤害 X 次，目标每有 1 层【中毒】提高 1 点伤害。施加 2 层【易伤】。",
+    "造成 X 点伤害 X 次，目标每有 1 层【中毒】提高 1 点伤害。施加 1 层 「微弱烛光」。",
+    "切换到该意图时生成 1 条临时触腕，触腕伤害临时降低 50%。获得 X 点护盾并免疫 1 回合负面状态。",
+    "切换到该意图时生成 1 条临时触腕，触腕伤害临时降低 50%。获得 X 点护盾并免疫 1 回合负面状态。",
+    "获得 X 点触腕伤害，X 层暗流， 2 条临时触腕。"
+   ],
+   "kw": [
+    "poison",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「嘀嗒人」",
+   "en": "Tick-Tock Man",
+   "cls": "Boss",
+   "id": "60099",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D08_AF.webp",
+   "desc": "艾瑞卡已经完全失去了自我的意识……是受黑池的影响吗？",
+   "skills": [
+    "获得 X 点【力量】。",
+    "施加 2 回合【虚弱】和【脆弱】。造成 X 点伤害 X 次并获得 X 点护盾。",
+    "造成 X 点伤害 X 次，获得 X 层【屏障】。每次「形态切换」会使伤害次数和【屏障】数提高 1。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】。"
+   ],
+   "kw": [
+    "barrier",
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「圣子·白夜」",
+   "en": "“Divus: The White Night”",
+   "cls": "Boss",
+   "id": "147935",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D14_AF.webp",
+   "desc": "稚龄的雏鸟啊，尚未学会飞翔，就已被囚笼标记了信号。",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 X 层【力量】。",
+    "造成 X 点伤害 X 次。获得 X 层罪印。",
+    "造成 X 点伤害 X 次。获得 X 层苦痛救赎，施加 X 层 【脆弱】。",
+    "造成 X 点伤害 X 次。积攒 X 层苦痛救赎，施加 X 层 【脆弱】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "fragile",
+    "str"
+   ]
+  },
+  {
+   "n": "「圣子·黑羽」",
+   "en": "Divus: The Onyx Plume",
+   "cls": "Boss",
+   "id": "91739",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D11_AF.webp",
+   "desc": "「我会夺回我们的自由，波吕克斯……」",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 回合致盲 和 【虚弱】，消耗 X 层黑羽。当玩家释放钥令后，意图立刻变为低伤害的「打击」并获得 1 层黑羽。",
+    "造成 X 点伤害 X 次。施加 X 回合致盲 和 【虚弱】，消耗 X 层黑羽。当玩家释放钥令后，意图立刻变为低伤害的「打击」并获得 1 层黑羽。",
+    "造成 X 点伤害 X 次，每层黑羽使造成的最终伤害提高 X %，清除一半黑羽。",
+    "获得 X 点护盾，获得 X 层黑羽。",
+    "获得 X 点护盾，每有 X 层黑羽使获得的防御提高 X%，获得 X 点【力量】。获得 X 层黑羽。"
+   ],
+   "kw": [
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「复仇巨刃」",
+   "en": "Vengeance Blade",
+   "cls": "Boss",
+   "id": "14064",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O06_AF.webp",
+   "desc": "以巨人之力挥动重刃的强大战士。",
+   "skills": [
+    "造成 X 点伤害 X 次和施加等量伤害的【出血】，受到 2 倍【力量】加成。",
+    "造成 X 点伤害 X 次，该伤害受到 2 倍【力量】加成。造成 X 层【易伤】。",
+    "造成 X 点伤害 X 次。该伤害受到 2 倍【力量】加成。自身获得 X 层【力量】，移除敌人一半的【力量】和【戒备】状态。",
+    "造成 X 点伤害 X 次和施加等量伤害的【出血】，受到 3 倍【力量】加成。",
+    "获得 X 层【力量】，将 3 张「巨人之畏」洗入抽牌堆。",
+    "自身获得 X 点【力量】。移除敌人一半的【力量】和【戒备】状态。"
+   ],
+   "kw": [
+    "alert",
+    "bleed",
+    "str",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「奇术师」",
+   "en": "The Sorcerer",
+   "cls": "Boss",
+   "id": "23773",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D09_AF.webp",
+   "desc": "天哪！我的《伦蒂尼恩犯罪实录》放哪了？！这可是我千辛万苦才从警局借来的——在图书管理员的哀嚎中，魔术大师卡茜亚正从知识的海洋中，汲取新的「情绪」。",
+   "skills": [
+    "造成 X 点伤害 X 次。将玩家本回合最后打出的指令卡移回牌库顶并使对方下回合抽牌数 -1 。",
+    "永久【偷取】 X 点【力量】，下回合开始时对方抽牌数-3，并展示牌库顶的三张牌，对方选择 1 张加入手牌。",
+    "造成 X 点伤害 X 次。施加 2 回合【脆弱】。",
+    "造成 X 点伤害 X 次。将 5 张「鬼牌」分别塞入对方的手牌堆，抽牌堆和弃牌堆。",
+    "造成 X 点伤害 X 次。施加 2 回合【虚弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "steal",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「永恒之网」",
+   "en": "Tela Perpetua",
+   "cls": "Boss",
+   "id": "129821",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D10_AF.webp",
+   "desc": "网的主人。网的囚徒。",
+   "skills": [
+    "造成 X 层 空虚和 【虚弱】状态，回复 X% 已损失生命。复制空间最左侧 X 张卡牌置入抽牌堆顶部，复制 X 张随机指令卡置入维度裂隙。",
+    "造成 X 点伤害 X 次。「维度裂隙」中每有 1 张卡牌额外造成 1 次伤害。",
+    "造成 X 点伤害 X 次。施加 X 层【易伤】，「维度裂隙」中每有 1 张卡牌施加 1 层。",
+    "获得 X 【力量】，将随机 X 张指令卡的复制置入「维度裂隙」，将 X 张伤口置入抽牌堆。"
+   ],
+   "kw": [
+    "str",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「沉渊者」",
+   "en": "Abyss Dweller",
+   "cls": "Boss",
+   "id": "23417",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O04_AF.webp",
+   "desc": "与蹈海者同行的神秘少年。嶙峋的棘刺，似鱼的耳鳍，一切都暗示着他并非常人。",
+   "skills": [
+    "获得X点护盾和等同于当前【反击】的【临时反击】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。获得 X 层【反击】。",
+    "获得 X 点护盾和 X 层再生力：回合结束时回复等同于层数的生命，每失去 5 点生命减少 1 层。"
+   ],
+   "kw": [
+    "counter",
+    "temporary-counter"
+   ]
+  },
+  {
+   "n": "「沉睡之主」",
+   "en": "Slumbering Sovereign",
+   "cls": "Boss",
+   "id": "57954",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O01_AF.webp",
+   "desc": "群星正位之刻，他将结束亿万年的沉眠，荣归祂的王座。而这是否是他心中所愿，便无人知晓了。",
+   "skills": [
+    "驱散自身 【虚弱】 和【力量降低】状态。获得 X 点临时触腕伤害。",
+    "造成合计 X 点伤害 1 次。每有 1 条触腕就使得伤害提高 X 点。",
+    "zzzzzzzzzzZZZZZZZZZZZZZZ……",
+    "提高 X 点触腕伤害。"
+   ],
+   "kw": [
+    "strength",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「海之@2」",
+   "en": "Apostle of the Sea",
+   "cls": "Boss",
+   "id": "36658",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O07_AF.webp",
+   "desc": "她放弃了抵抗「灾厄」的⟦corrosion|侵蚀⟧，精神维度的污染，让曾经矜贵强大的唤醒体，染上了彻头彻尾的⟦madness|疯狂⟧。",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 X 点护盾，每层「孕育」使护盾提高 X 点。",
+    "召唤 1 个「灵觉之子」在身后，每层「孕育」都会使其更强！",
+    "造成 X 点伤害 X 次。将 X 张「惊厥」洗入对方抽牌堆。",
+    "造成 X 点伤害 X 次。【封印】狂气最高的唤醒体 1 回合。"
+   ],
+   "kw": [
+    "corrosion",
+    "madness",
+    "sealed"
+   ]
+  },
+  {
+   "n": "「海之使徒」",
+   "en": "Apostle of the Sea",
+   "cls": "Boss",
+   "id": "51698",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O07_AF.webp",
+   "desc": "她放弃了抵抗「灾厄」的⟦corrosion|侵蚀⟧，精神维度的污染，让曾经矜贵强大的唤醒体，染上了彻头彻尾的⟦madness|疯狂⟧。",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 X 点护盾，每层「孕育」使护盾提高 X 点。",
+    "造成 X 点伤害 X 次。将 X 张「惊厥」洗入对方抽牌堆。",
+    "造成 X 点伤害 X 次。【封印】狂气最高的唤醒体 1 回合。",
+    "召唤 1 个「灵觉之子」在身后，每层「孕育」都会使其更强！",
+    "造成 X 点伤害 X 次。将 X 张随机症状洗入对方抽牌堆。",
+    "造成 X 点伤害 X 次。施加 1 回合【虚弱】。获得 X 点护盾，每层「孕育」使护盾提高 X 点。",
+    "造成 X 点伤害 X 次。【封印】狂气最高的唤醒体 1 回合。并使其在牌堆中的随机 X 张指令卡获得 1 层【迟缓】。",
+    "回复X% 已损失生命，召唤 1 个「灵觉之子」在身后，每层「孕育」都会使回复量和被召唤者更强！"
+   ],
+   "kw": [
+    "corrosion",
+    "madness",
+    "sealed",
+    "stagnation",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「海嗣神母」",
+   "en": "Lemurian Deipara",
+   "cls": "Boss",
+   "id": "118032",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O02EX_AF.webp",
+   "desc": "曾经软弱天真的「她」已经死去，现在的她，是尊贵的「神母」，是不可违抗的「天后」。",
+   "skills": [
+    "切换到该意图时获得 1 层破绽。造成 X 点伤害 X 次。对敌方施加 X 层降生仪式，每有 1 层命契提高 1 层。",
+    "获得 X 点触腕伤害，触腕上限提高 1。自身获得 X 层【献祭】。",
+    "对敌方施加 X 层降生仪式，获得 X 层命契，对自身施加 1 层【易伤】。"
+   ],
+   "kw": [
+    "sacrifice",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「深海淑女」",
+   "en": "Lady of the Depths",
+   "cls": "Boss",
+   "id": "118029",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O02_AF.webp",
+   "desc": "「我不是第一个被⟦sacrifice|献祭⟧的母体，也不是最后的一个……但是，我想活下去！」",
+   "skills": [
+    "造成 X 点伤害 X 次（每 2 条触腕使伤害次数提高 1）。造成 X 回合【虚弱】和【易伤】，驱散自身负面状态。",
+    "切换至该意图时，获得等同于当前触腕条数的临时触腕。获得 X 点护盾，造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，获得 X 点触腕伤害。",
+    "获得 X 点护盾、 X 层 【献祭】和 X 点触腕伤害。",
+    "切换至该意图时，获得等同于当前触腕条数的临时触腕。获得 X 点护盾，造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次（每 2 条触腕使伤害次数提高 1）。造成 X 回合【虚弱】和【易伤】，驱散自身负面状态。",
+    "获得 X 点护盾、 X 层 【献祭】和 X 点触腕伤害。"
+   ],
+   "kw": [
+    "sacrifice",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「渴血患者」",
+   "en": "Sanguivore Patient",
+   "cls": "Boss",
+   "id": "13994",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B08_AF.webp",
+   "desc": "隐匿在角落的苍白少女，似乎对鲜血情有独钟……？",
+   "skills": [
+    "每回合开始时获得护盾，等同于上回合受到的伤害的一半。",
+    "造成 X 点伤害 X 次，获得X 点【力量】，恢复等同于未被格挡伤害的生命。",
+    "造成 X 点伤害 X 次，获得X 点【力量】。",
+    "造成 X 点伤害 X 次，恢复等同于未被格挡伤害的生命。",
+    "造成 X 点伤害 X 次。将 2 张「未被满足之痛」置入抽牌堆。",
+    "造成 X 点伤害 X 次，恢复等同于未被格挡伤害的生命。将 1 张「未被满足之痛」置入抽牌堆。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「猎颅魔女」",
+   "en": "Skull Huntress",
+   "cls": "Boss",
+   "id": "23537",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D02_AF.webp",
+   "desc": "来自过去的神秘商人，喜欢通过交易丈量一切。",
+   "skills": [
+    "获得 X 点护盾。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，分别将 1 张「维度闭锁」洗入玩家的抽牌堆和弃牌堆。",
+    "获得 X 点护盾。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，获得 X 点【力量】。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「猩红」",
+   "en": "Crimson",
+   "cls": "Boss",
+   "id": "20804",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B07_AF.webp",
+   "desc": "自遥远的群星而来，现今世上最早的魔像。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "获得X点护盾，施加 X 层【出血】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，每受到 1 次攻击减少 1 次攻击次数，至少 3 次。"
+   ],
+   "kw": [
+    "bleed"
+   ]
+  },
+  {
+   "n": "「白雪仙女」",
+   "en": "Snow White the Fairy",
+   "cls": "Boss",
+   "id": "147675",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B11_AF.webp",
+   "desc": "别被她楚楚可怜的模样骗了——所谓「赐福」，从来都是她精心编织的又一场谎言。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 层【虚弱】，并对牌库中 X 张指令卡施加 X 层【迟缓】。",
+    "切换至该意图时随机向敌方索取 X 种供奉。造成 X 点伤害 X 次。成功供奉时 「白雪仙女」 生命上限提高 X%，获得 1 层饱餐；否则其获得 X 点【力量】。",
+    "切换至该意图时随机向敌方索取 X 种供奉。造成 X 点伤害 X 次。成功供奉时 「白雪仙女」 生命上限提高 X%，获得 1 层饱餐；否则其获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，将 X 张具有 X 层【迟缓】的随机「赐福」洗入牌库。"
+   ],
+   "kw": [
+    "stagnation",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「石之眼」",
+   "en": "Petrifying Eyes",
+   "cls": "Boss",
+   "id": "14011",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B03_AF.webp",
+   "desc": "为了希望守护的人，她也可以变得坚强。请确保有足够的算力来应对其⟦stagnation|凝滞⟧诅咒。",
+   "skills": [
+    "施加 X 层【虚弱】，对抽牌堆和弃牌堆的所有卡牌施加「【迟缓】」和「【保留】」。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，对抽牌堆顶的 X 张卡牌施加「【迟缓】」和「【保留】」。",
+    "造成 X 点伤害 X 次，施加 X 回合【易伤】。",
+    "施加 X 层【虚弱】，抽牌堆和弃牌堆顶的 X 张卡牌施加「【迟缓】」和「【保留】」。"
+   ],
+   "kw": [
+    "retain",
+    "stagnation",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「破链者」",
+   "en": "Helot",
+   "cls": "Boss",
+   "id": "13952",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B05_AF.webp",
+   "desc": "迅捷如风的唤醒体杀手，自称希洛。她和莉莉之间似乎有什么微妙的联系……",
+   "skills": [
+    "获得 X点【力量】，驱散自身【虚弱】与【易伤】。",
+    "造成 X 点伤害 X 次！",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「窜行者」",
+   "en": "Scuttler",
+   "cls": "Boss",
+   "id": "14063",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D07_AF.webp",
+   "desc": "她神出鬼没，对东区的每一个街巷都了若指掌，她就是「窜行者」。",
+   "skills": [
+    "造成 X 层【虚弱】，获得「鼠群之怒」：下回合每受到 1 次攻击会获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，将 X 张「伤口」加入对方抽牌堆。",
+    "造成 X 点伤害 X 次，自身获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，自身获得破绽：当回合内必定被暴击。",
+    "造成 X 点伤害 X 次，施加 X 层【脆弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「窜行者」詹金",
+   "en": "Scuttler",
+   "cls": "Boss",
+   "id": "14001",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D07_AF.webp",
+   "desc": "她神出鬼没，对东区的每一个街巷都了若指掌，她就是「窜行者」。",
+   "skills": [
+    "造成 X 点伤害 X 次，将 X 张「伤口」加入对方抽牌堆。",
+    "造成 X 层【虚弱】，获得「鼠群之怒」：下回合每受到 1 次攻击会获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，自身获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，自身获得破绽：当回合内必定被暴击。"
+   ],
+   "kw": [
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「索魂者」",
+   "en": "Soul Reaper",
+   "cls": "Boss",
+   "id": "148007",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B05EX_AF.webp",
+   "desc": "嗜血之物啊，挣脱锁链之时，她将许下向举世「复仇」的心愿。",
+   "skills": [
+    "切换到该意图时，破除敌方护盾并使其本回合无法获得护盾，立刻获得 X 层狂热。 直到回合结束，自身造成伤害附加 100%【出血】。造成 X 点伤害 X 次。",
+    "切换到该意图时，破除敌方护盾并使其本回合无法获得护盾，立刻获得 X 层狂热。 直到回合结束，自身造成伤害附加 100%【出血】。造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次并附加 X%【出血】，失去 X%当前生命。 切换到该意图时若拥有 X 层「恨意」，意图替换为造成 X 点伤害 X 次的「嗜血链球」，否则获得 1 层「恨意」。",
+    "造成 X 点伤害 X 次，获得 X 【力量】。若自身生命低于 X（50%），伤害和获得 【力量】 翻倍。"
+   ],
+   "kw": [
+    "bleed",
+    "str"
+   ]
+  },
+  {
+   "n": "「绘者」",
+   "en": "The Painter",
+   "cls": "Boss",
+   "id": "99114",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B12_AF.webp",
+   "desc": "我会向你展现这世界的真相……",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 点【力量】。本回合每打出 1 张认知错乱卡牌就使「绘者」降低 X 点【临时力量】。",
+    "造成 X 点伤害 X 次，获得 X 点【力量】。切换到该意图时，玩家每持有 1 张认知错乱卡牌就使「绘者」获得 X 点【力量】。本回合每打出 1 张认知错乱卡牌就使「绘者」降低 X 点【临时力量】。",
+    "施加 X 回合【易伤】，召唤 1 个「融蚀-追随者」与「融蚀-渴求者」。",
+    "造成 X 点伤害，对玩家抽牌堆和弃牌堆中 X 张牌施加认知错乱。消耗所有幻世染料，每消耗 1 层伤害次数和认知错乱 数提高 1。",
+    "施加 X 回合【易伤】和【虚弱】，召唤 1 个「融蚀-诗中人」。",
+    "造成 X 点伤害，对玩家抽牌堆和弃牌堆中 X 张牌施加认知错乱。消耗所有幻世染料，每消耗 1 层伤害次数和认知错乱 数提高 1。"
+   ],
+   "kw": [
+    "str",
+    "temporary-str",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「葬骸之主」",
+   "en": "Lord of Necrovia",
+   "cls": "Boss",
+   "id": "95784",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B10_AF.webp",
+   "desc": "「粗鲁的动作可不符合客人应有的礼仪，守密人阁下。」",
+   "skills": [
+    "造成 X 点伤害，享受 X 倍【力量】加成。",
+    "造成 X 点伤害 X 次，随机「冻结」 X  张抽牌堆中的卡牌。",
+    "造成 X 点伤害，敌方生命越低伤害越高，最大为 X 点伤害。吸收所有其他食尸鬼，每吸收 1 名获得 X 具残骸和 X 层【死亡抵抗】。",
+    "消耗一半 残骸 ( X ) ，每消耗 1 层获得 X 【力量】，并提高 X% 生命上限。召唤「腐尸分殖体」与「食尸鬼侍从」。",
+    "获得 X 点【力量】，消耗一半残骸( X )，每消耗 1 层，获得 X 点【力量】。",
+    "造成 X 点伤害，敌方生命越低伤害越高，最大为 X 点伤害。回合结束时吸收所有其他食尸鬼，每吸收 1 名获得 X 具残骸。",
+    "造成 X 点伤害，享受 X 倍【力量】加成。",
+    "造成 X 点伤害 X 次，随机「冻结」X 张抽牌堆中的卡牌。"
+   ],
+   "kw": [
+    "death-resistance",
+    "str"
+   ]
+  },
+  {
+   "n": "「迷宫蛛」",
+   "en": "Spider of the Labyrinth",
+   "cls": "Boss",
+   "id": "98702",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B06_AF.webp",
+   "desc": "踏入蜘蛛领地的人类终将在无数通道和入口中迷失方向。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加等同于伤害 X% 的【中毒】。",
+    "造成 X 点伤害 X 次，额外造成敌方【中毒】层数 X%的伤害。",
+    "获得 X 点护盾，获得 X 点 【力量】。",
+    "获得 X 点护盾，获得 X 点 【力量】，对抽牌堆顶部的 X 张卡牌施加 X 层【迟缓】。",
+    "造成 X 点伤害 X 次，施加等同于伤害 X% 的【中毒】。",
+    "获得 X 点护盾，获得 X 点 【力量】，获得 X 点【戒备】。"
+   ],
+   "kw": [
+    "alert",
+    "poison",
+    "stagnation",
+    "str"
+   ]
+  },
+  {
+   "n": "「青炎舞者」",
+   "en": "Balefire Ballerina",
+   "cls": "Boss",
+   "id": "126444",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D01_AF.webp",
+   "desc": "对芭蕾的爱，对艺术的崇敬……舞者将以焚尽污浊的绿焰尽数诉说。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X% 伤害（X）点【中毒】。 对 X 张手牌施加【燃烧】。",
+    "获得 X 点护盾和 X 层翠绿火种。 切换到该意图时，本回合每受到 X 次「攻击」获得 X 层翠绿火种。",
+    "切换至该意图时解除负面状态。获得 X 点【力量】，弃掉所有手牌。造成 X 点伤害 X 次。每弃掉 1 张手牌，额外造成 1 次伤害，获得 1 层翠绿火种。",
+    "获得 X 点【力量】，弃掉所有手牌。造成 X 点伤害 X 次。每弃掉 X 张手牌，额外造成 X 次伤害，获得 X 层翠绿火种。"
+   ],
+   "kw": [
+    "burn",
+    "poison",
+    "str"
+   ]
+  },
+  {
+   "n": "希洛",
+   "en": "Helot",
+   "cls": "Boss",
+   "id": "14027",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B05_AF.webp",
+   "desc": "迅捷如风的唤醒体杀手，自称希洛。她和莉莉之间似乎有什么微妙的联系……",
+   "skills": [
+    "获得 X点【力量】，驱散自身【虚弱】与【易伤】。",
+    "造成 X 点伤害 X 次！",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "蹈海者少年",
+   "en": "Abyss Dweller",
+   "cls": "Boss",
+   "id": "14053",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O04_AF.webp",
+   "desc": "与蹈海者同行的神秘少年。嶙峋的棘刺，似鱼的耳鳍，一切都暗示着他并非常人。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "获得 X 点护盾和 X 层再生力：回合结束时回复等同于层数的生命，每失去 5 点生命减少 1 层。",
+    "造成 X 点伤害 X 次。获得 X 层【反击】。"
+   ],
+   "kw": [
+    "counter"
+   ]
+  },
+  {
+   "n": "「@2奏者」",
+   "en": "@2 Performer",
+   "cls": "精英",
+   "id": "129789",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D12_AF.webp",
+   "desc": "指挥棒的轨迹之下，究竟隐藏着什么样的乐曲？",
+   "skills": [
+    "获得 X 点【力量】。将 1 张「灵感」置入手中。本回合触发「音符律令」时,将 1 张「灵感」置入手中。",
+    "造成 X 点伤害 X 次，获得等同于未被格挡伤害的【临时力量】，回复等同于未被格挡伤害 10 倍的生命。",
+    "造成 X 点伤害 X 次并降低目标 X 点【力量】。",
+    "造成 X 点伤害 X 次并获得 X 层永久加固。",
+    "造成 X 点伤害 X 次，每次未被格挡的伤害都会附加 1 个随机负面效果。之后的「灵魂序曲」伤害次数 +1。"
+   ],
+   "kw": [
+    "str",
+    "temporary-str"
+   ]
+  },
+  {
+   "n": "「丰穰之息」",
+   "en": "Breath of Fertility",
+   "cls": "精英",
+   "id": "129791",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B01_AF.webp",
+   "desc": "「击溃它们，安抚它们，即使你窥见我的幻影，也在所不惜。」",
+   "skills": [
+    "召唤 1 名拟态唤醒体。若拟态唤醒体已满，意图变为「打击」。",
+    "使狂气最高的唤醒体失去 50 点狂气，执行 2 次。施加 2 回合致盲 和 【虚弱】。",
+    "造成 X 点伤害 X 次。施加等同于伤害 X% 的【中毒】，X% 的【出血】，X% 的【反击】。"
+   ],
+   "kw": [
+    "bleed",
+    "counter",
+    "poison",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「信徒之影」",
+   "en": "Primordial Devoutee",
+   "cls": "普通",
+   "id": "120905",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O03_AF.webp",
+   "desc": "一切，都是为了筑成通往神国的道路。",
+   "skills": [
+    "造成 X 点伤害 X 次，目标每有 1 层【中毒】提高 1 点伤害。施加 1 层 「微弱烛光」。",
+    "切换到该意图时生成 1 条临时触腕，触腕伤害临时降低 50%。全体友方获得 X 点护盾并免疫 1 回合负面状态。"
+   ],
+   "kw": [
+    "poison"
+   ]
+  },
+  {
+   "n": "「催眠妖虫」",
+   "en": "Hypnotic Shaggai",
+   "cls": "精英",
+   "id": "129798",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D13_AF.webp",
+   "desc": "总是十分温柔的心理医生，无论何时都保持着得体的微笑。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 点【力量】。打出【觉醒】卡后意图更改为「心理绞杀」。",
+    "施加 2 回合【虚弱】和【脆弱】。移除自身一半层数的【疯狂】和【力量】，回复已损失生命的 10%。",
+    "造成 X 点伤害 X 次。回合开始时，随机对 2 张没有「认知错乱」的指令施加「认知错乱」。",
+    "造成 X 点伤害 X 次，获得 1 层【疯狂】。打出【觉醒】卡后意图更改为「痛苦榨取」。"
+   ],
+   "kw": [
+    "fragile",
+    "madness",
+    "rouse",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「原初信徒」",
+   "en": "Primordial Devoutee",
+   "cls": "精英",
+   "id": "119850",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O03_AF.webp",
+   "desc": "一切，都是为了筑成通往神国的道路。",
+   "skills": [
+    "获得 X 点触腕伤害，X 层暗流， 2 条临时触腕。",
+    "造成 X 点伤害 X 次，目标每有 1 层【中毒】提高 1 点伤害。施加 2 层【易伤】。",
+    "造成 X 点伤害 X 次，目标每有 1 层【中毒】提高 1 点伤害。施加 1 层 「微弱烛光」。",
+    "切换到该意图时生成 1 条临时触腕，触腕伤害临时降低 50%。获得 X 点护盾并免疫 1 回合负面状态。",
+    "切换到该意图时生成 1 条临时触腕，触腕伤害临时降低 50%。获得 X 点护盾并免疫 1 回合负面状态。",
+    "获得 X 点触腕伤害，X 层暗流， 2 条临时触腕。"
+   ],
+   "kw": [
+    "poison",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「嘀嗒人」",
+   "en": "Tick-Tock Man",
+   "cls": "精英",
+   "id": "129782",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D08_AF.webp",
+   "desc": "艾瑞卡已经完全失去了自我的意识……是受黑池的影响吗？",
+   "skills": [
+    "获得 X 点【力量】。",
+    "施加 2 回合【虚弱】和【脆弱】。造成 X 点伤害 X 次并获得 X 点护盾。",
+    "造成 X 点伤害 X 次，获得 X 层【屏障】。每次「形态切换」会使伤害次数和【屏障】数提高 1。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】。"
+   ],
+   "kw": [
+    "barrier",
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「复仇巨刃」",
+   "en": "Vengeance Blade",
+   "cls": "精英",
+   "id": "119851",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O06_AF.webp",
+   "desc": "以巨人之力挥动重刃的强大战士，因自身的野心，追随着「主祭」的步伐。",
+   "skills": [
+    "造成 X 点伤害 X 次和施加等量伤害的【出血】，受到 2 倍【力量】加成。",
+    "造成 X 点伤害 X 次，该伤害受到 2 倍【力量】加成。造成 X 层【易伤】。",
+    "造成 X 点伤害 X 次。该伤害受到 2 倍【力量】加成。自身获得 X 层【力量】，移除敌人一半的【力量】和【戒备】状态。",
+    "造成 X 点伤害 X 次和施加等量伤害的【出血】，受到 3 倍【力量】加成。",
+    "获得 X 层【力量】，将 3 张「巨人之畏」洗入抽牌堆。",
+    "自身获得 X 点【力量】。移除敌人一半的【力量】和【戒备】状态。"
+   ],
+   "kw": [
+    "alert",
+    "bleed",
+    "str",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「奇术师」",
+   "en": "The Sorcerer",
+   "cls": "精英",
+   "id": "129799",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D09_AF.webp",
+   "desc": "天哪！我的《伦蒂尼恩犯罪实录》放哪了？！这可是我千辛万苦才从警局借来的——在图书管理员的哀嚎中，魔术大师卡茜亚正从知识的海洋中，汲取新的「情绪」。",
+   "skills": [
+    "造成 X 点伤害 X 次。将玩家本回合最后打出的指令卡移回牌库顶并使对方下回合抽牌数 -1 。",
+    "永久【偷取】 X 点【力量】，下回合开始时对方抽牌数-3，并展示牌库顶的三张牌，对方选择 1 张加入手牌。",
+    "造成 X 点伤害 X 次。施加 2 回合【脆弱】。",
+    "造成 X 点伤害 X 次。将 5 张「鬼牌」分别塞入对方的手牌堆，抽牌堆和弃牌堆。",
+    "造成 X 点伤害 X 次。施加 2 回合【虚弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "steal",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「奇术师」的分身",
+   "en": "The Sorcerer",
+   "cls": "普通",
+   "id": "30363",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D09_AF.webp",
+   "desc": "魔术大师卡茜亚的助手——或者说，魔术道具。",
+   "skills": [
+    "造成 X 点伤害 X 次。将 1 张「鬼牌」塞入对方的抽牌堆顶。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "「巨刃之影」",
+   "en": "Vengeance Blade",
+   "cls": "普通",
+   "id": "119068",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O06_AF.webp",
+   "desc": "以巨人之力挥动重刃的强大战士，因自身的野心，追随着「主祭」的步伐。",
+   "skills": [
+    "造成 X 点伤害 X 次和施加等量伤害的【出血】，受到 2 倍【力量】加成。",
+    "造成 X 点伤害 X 次，该伤害受到 2 倍【力量】加成。造成 X 层【易伤】。",
+    "造成 X 点伤害 X 次。该伤害受到 2 倍【力量】加成。自身获得 X 层【力量】，移除敌人一半的【力量】和【戒备】状态。"
+   ],
+   "kw": [
+    "alert",
+    "bleed",
+    "str",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「拟态-渴血患者」",
+   "en": "Sanguivore Patient",
+   "cls": "普通",
+   "id": "60494",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B08_AF.webp",
+   "desc": "隐匿在角落的苍白少女，似乎对鲜血情有独钟……？",
+   "skills": [
+    "全体友方每回合开始时获得护盾，等同于上回合受到的伤害的一半。",
+    "造成 X 点伤害 X 次。将 2 张「未被满足之痛」置入抽牌堆。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "「拟态-猩红」",
+   "en": "Crimson",
+   "cls": "普通",
+   "id": "60497",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B07_AF.webp",
+   "desc": "自遥远的群星而来，现今世上最早的魔像。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】。",
+    "获得X点护盾，施加 X 层【出血】。"
+   ],
+   "kw": [
+    "bleed",
+    "str"
+   ]
+  },
+  {
+   "n": "「拟态-石之眼」",
+   "en": "Petrifying Eyes",
+   "cls": "普通",
+   "id": "60496",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B03_AF.webp",
+   "desc": "为了希望守护的人，她也可以变得坚强。请确保有足够的算力来应对其⟦stagnation|凝滞⟧诅咒。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 回合【易伤】。",
+    "造成 X 点伤害 X 次，对抽牌堆顶的 X 张卡牌施加「【迟缓】」和「【保留】」。"
+   ],
+   "kw": [
+    "retain",
+    "stagnation",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「拟态-破链者」",
+   "en": "Helot",
+   "cls": "普通",
+   "id": "60495",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B05_AF.webp",
+   "desc": "迅捷如风的唤醒体杀手，自称希洛。她和莉莉之间似乎有什么微妙的联系……",
+   "skills": [
+    "获得 X点【力量】，驱散自身【虚弱】与【易伤】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "全体友方获得 X点【力量】，驱散自身【虚弱】与【易伤】。"
+   ],
+   "kw": [
+    "str",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「沉渊之影」",
+   "en": "Abyss Dweller",
+   "cls": "普通",
+   "id": "119069",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O04_AF.webp",
+   "desc": "现在，就是昭示⟦aequor|深海⟧血脉⟦str|力量⟧的时刻。他会让戈利亚大人看到自己的实力。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。全体友方获得 X 层【反击】。"
+   ],
+   "kw": [
+    "aequor",
+    "counter",
+    "str"
+   ]
+  },
+  {
+   "n": "「沉渊者」",
+   "en": "Abyss Dweller",
+   "cls": "精英",
+   "id": "119849",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O04_AF.webp",
+   "desc": "现在，就是昭示⟦aequor|深海⟧血脉⟦str|力量⟧的时刻。他会让戈利亚大人看到自己的实力。",
+   "skills": [
+    "获得X点护盾和等同于当前【反击】的【临时反击】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。获得 X 层【反击】。",
+    "获得 X 点护盾和 X 层再生力：回合结束时回复等同于层数的生命，每失去 5 点生命减少 1 层。"
+   ],
+   "kw": [
+    "aequor",
+    "counter",
+    "str",
+    "temporary-counter"
+   ]
+  },
+  {
+   "n": "「沉睡之主」",
+   "en": "Slumbering Sovereign",
+   "cls": "精英",
+   "id": "129781",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O01_AF.webp",
+   "desc": "群星正位之刻，他将结束亿万年的沉眠，荣归祂的王座。而这是否是他心中所愿，便无人知晓了。",
+   "skills": [
+    "驱散自身 【虚弱】 和【力量降低】状态。获得 X 点临时触腕伤害。",
+    "造成合计 X 点伤害 1 次。每有 1 条触腕就使得伤害提高 X 点。",
+    "zzzzzzzzzzZZZZZZZZZZZZZZ……",
+    "提高 X 点触腕伤害。"
+   ],
+   "kw": [
+    "strength",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「海嗣神母」",
+   "en": "Lemurian Deipara",
+   "cls": "精英",
+   "id": "129779",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O02EX_AF.webp",
+   "desc": "曾经软弱天真的「她」已经死去，现在的她，是尊贵的「神母」，是不可违抗的「天后」。",
+   "skills": [
+    "切换到该意图时获得 1 层破绽。造成 X 点伤害 X 次。对敌方施加 X 层降生仪式，每有 1 层命契提高 1 层。",
+    "获得 X 点触腕伤害，触腕上限提高 1。自身获得 X 层【献祭】。",
+    "对敌方施加 X 层降生仪式，获得 X 层命契，对自身施加 1 层【易伤】。"
+   ],
+   "kw": [
+    "sacrifice",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「深海淑女」",
+   "en": "Lady of the Depths",
+   "cls": "精英",
+   "id": "129797",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_O02_AF.webp",
+   "desc": "「我不是第一个被⟦sacrifice|献祭⟧的母体，也不是最后的一个……但是，我想活下去！」",
+   "skills": [
+    "造成 X 点伤害 X 次（每 2 条触腕使伤害次数提高 1）。造成 X 回合【虚弱】和【易伤】，驱散自身负面状态。",
+    "切换至该意图时，获得等同于当前触腕条数的临时触腕。获得 X 点护盾，造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，获得 X 点触腕伤害。",
+    "获得 X 点护盾、 X 层 【献祭】和 X 点触腕伤害。",
+    "切换至该意图时，获得等同于当前触腕条数的临时触腕。获得 X 点护盾，造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次（每 2 条触腕使伤害次数提高 1）。造成 X 回合【虚弱】和【易伤】，驱散自身负面状态。",
+    "获得 X 点护盾、 X 层 【献祭】和 X 点触腕伤害。"
+   ],
+   "kw": [
+    "sacrifice",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「猎颅魔女」",
+   "en": "Skull Huntress",
+   "cls": "精英",
+   "id": "129783",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D02_AF.webp",
+   "desc": "来自过去的神秘商人，喜欢通过交易丈量一切。",
+   "skills": [
+    "获得 X 点护盾。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，分别将 1 张「维度闭锁」洗入玩家的抽牌堆和弃牌堆。",
+    "获得 X 点护盾。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，获得 X 点【力量】。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「石之眼」",
+   "en": "Petrifying Eyes",
+   "cls": "精英",
+   "id": "129793",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B03_AF.webp",
+   "desc": "为了希望守护的人，她也可以变得坚强。请确保有足够的算力来应对其⟦stagnation|凝滞⟧诅咒。",
+   "skills": [
+    "施加 X 层【虚弱】，对抽牌堆和弃牌堆的所有卡牌施加「【迟缓】」和「【保留】」。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，对抽牌堆顶的 X 张卡牌施加「【迟缓】」和「【保留】」。",
+    "造成 X 点伤害 X 次，施加 X 回合【易伤】。",
+    "施加 X 层【虚弱】，抽牌堆和弃牌堆顶的 X 张卡牌施加「【迟缓】」和「【保留】」。"
+   ],
+   "kw": [
+    "retain",
+    "stagnation",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「破链者」",
+   "en": "Helot",
+   "cls": "精英",
+   "id": "129792",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B05_AF.webp",
+   "desc": "迅捷如风的唤醒体杀手，自称希洛。她和莉莉之间似乎有什么微妙的联系……",
+   "skills": [
+    "获得 X点【力量】，驱散自身【虚弱】与【易伤】。",
+    "造成 X 点伤害 X 次！",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「窜行者」",
+   "en": "Scuttler",
+   "cls": "精英",
+   "id": "129787",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_D07_AF.webp",
+   "desc": "她神出鬼没，对东区的每一个街巷都了若指掌，她就是「窜行者」。",
+   "skills": [
+    "造成 X 层【虚弱】，获得「鼠群之怒」：下回合每受到 1 次攻击会获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，将 X 张「伤口」加入对方抽牌堆。",
+    "造成 X 点伤害 X 次，自身获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，自身获得破绽：当回合内必定被暴击。",
+    "造成 X 点伤害 X 次，施加 X 层【脆弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「绘者」",
+   "en": "The Painter",
+   "cls": "精英",
+   "id": "129795",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B12_AF.webp",
+   "desc": "我会向你展现这世界的真相……",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 点【力量】。本回合每打出 1 张认知错乱卡牌就使「绘者」降低 X 点【临时力量】。",
+    "造成 X 点伤害 X 次，获得 X 点【力量】。切换到该意图时，玩家每持有 1 张认知错乱卡牌就使「绘者」获得 X 点【力量】。本回合每打出 1 张认知错乱卡牌就使「绘者」降低 X 点【临时力量】。",
+    "施加 X 回合【易伤】，召唤 1 个「融蚀-追随者」与「融蚀-渴求者」。",
+    "造成 X 点伤害，对玩家抽牌堆和弃牌堆中 X 张牌施加认知错乱。消耗所有幻世染料，每消耗 1 层伤害次数和认知错乱 数提高 1。",
+    "施加 X 回合【易伤】和【虚弱】，召唤 1 个「融蚀-诗中人」。",
+    "造成 X 点伤害，对玩家抽牌堆和弃牌堆中 X 张牌施加认知错乱。消耗所有幻世染料，每消耗 1 层伤害次数和认知错乱 数提高 1。"
+   ],
+   "kw": [
+    "str",
+    "temporary-str",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「葬骸之主」",
+   "en": "Lord of Necrovia",
+   "cls": "精英",
+   "id": "129785",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B10_AF.webp",
+   "desc": "「粗鲁的动作可不符合客人应有的礼仪，守密人阁下。」",
+   "skills": [
+    "造成 X 点伤害，享受 X 倍【力量】加成。",
+    "造成 X 点伤害 X 次，随机「冻结」 X  张抽牌堆中的卡牌。",
+    "造成 X 点伤害，敌方生命越低伤害越高，最大为 X 点伤害。吸收所有其他食尸鬼，每吸收 1 名获得 X 具残骸和 X 层【死亡抵抗】。",
+    "消耗一半 残骸 ( X ) ，每消耗 1 层获得 X 【力量】，并提高 X% 生命上限。召唤「腐尸分殖体」与「食尸鬼侍从」。",
+    "获得 X 点【力量】，消耗一半残骸( X )，每消耗 1 层，获得 X 点【力量】。",
+    "造成 X 点伤害，敌方生命越低伤害越高，最大为 X 点伤害。回合结束时吸收所有其他食尸鬼，每吸收 1 名获得 X 具残骸。",
+    "造成 X 点伤害，享受 X 倍【力量】加成。",
+    "造成 X 点伤害 X 次，随机「冻结」X 张抽牌堆中的卡牌。"
+   ],
+   "kw": [
+    "death-resistance",
+    "str"
+   ]
+  },
+  {
+   "n": "艾继丝",
+   "en": "Petrifying Eyes",
+   "cls": "精英",
+   "id": "14031",
+   "zone": "AW",
+   "zoneN": "觉醒体",
+   "r": "any",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_B03_AF.webp",
+   "desc": "为了希望守护的人，她也可以变得坚强。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 回合【易伤】。",
+    "造成 X 点伤害 X 次。",
+    "施加 X 层【虚弱】，对抽牌堆和弃牌堆的所有卡牌施加「【迟缓】」和「【保留】」。",
+    "造成 X 点伤害 X 次，对抽牌堆顶的 X 张卡牌施加「【迟缓】」和「【保留】」。"
+   ],
+   "kw": [
+    "retain",
+    "stagnation",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「手术利刃」",
+   "en": "Surgical Blade",
+   "cls": "Boss",
+   "id": "14000",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0103_AT_BOSSSIZE.webp",
+   "desc": "躺下来，放轻松，医生将为你切除所有烦恼。攻击力很高的个体。",
+   "skills": [
+    "造成 X 点伤害 X 次。后撤。",
+    "造成 X 点伤害 X 次。后撤。",
+    "全体获得 X 【力量】。前进。",
+    "获得 X 点护盾，造成未被格挡的伤害时回复 3 倍伤害的生命，持续 X 回合，前进。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「知者」",
+   "en": "The Sage",
+   "cls": "Boss",
+   "id": "67097",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C01_AF.webp",
+   "desc": "无需任何词汇描述她。她是拉蒙娜。斩断与她的链接吧。",
+   "skills": [
+    "造成 X 点伤害 X 次，弃掉玩家【保留】的卡牌。",
+    "从「蹒跚」、「窒息」、「珊瑚赘生」、「亵渎假象」、「狂放」中选择一张加入手中，其余四张置入弃牌堆。",
+    "造成 X 伤害 X 次，后续释放的「女王之剑」伤害次数提高 1。",
+    "永久【偷取】 X 点【力量】 并移除 50% 【反击】，对 5 张不具有「推演」的卡牌附加「推演」。"
+   ],
+   "kw": [
+    "counter",
+    "retain",
+    "steal",
+    "str"
+   ]
+  },
+  {
+   "n": "「铁镐」卢森",
+   "en": "\"Iron Pickaxe\" Lucen",
+   "cls": "Boss",
+   "id": "14061",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0102_BT_BOSSSIZE.webp",
+   "desc": "他也曾有过家人，现在却只剩下癫狂。会使用重击，攻击能使其退缩。",
+   "skills": [
+    "获得X点【力量】，施加 X 回合【脆弱】。",
+    "造成 X 点伤害 X 次，施加 X 回合【虚弱】。",
+    "造成 X 点伤害 X 次！！！"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「镇痛剂」",
+   "en": "Painkiller",
+   "cls": "Boss",
+   "id": "13981",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0103_BT_BOSSSIZE.webp",
+   "desc": "深呼吸，数到十，疼痛很快会消失。会保护其他友方的个体。",
+   "skills": [
+    "施加 X 层【中毒】。后撤。",
+    "造成 X 点伤害 X 次，全体获得X 点护盾。后撤。",
+    "造成 X 点伤害 X 次，获得X 点护盾。前进。"
+   ],
+   "kw": [
+    "poison"
+   ]
+  },
+  {
+   "n": "「院长」莎拉",
+   "en": "\"Matron\" Sarah",
+   "cls": "Boss",
+   "id": "14067",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0102_CT.webp",
+   "desc": "对不起……都是我的错……",
+   "skills": [
+    "召唤两个「对不起」，赋予他们 1 层【屏障】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，自身获得 X 层【疯狂】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "barrier",
+    "madness"
+   ]
+  },
+  {
+   "n": "「鲜花守卫」@2",
+   "en": "\"Iron Pickaxe\" Lucen",
+   "cls": "Boss",
+   "id": "35525",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0102_BT_BOSSSIZE.webp",
+   "desc": "曾为瑞尼镇花店店主的@1，现在已经分不清百合和马蒂莲。",
+   "skills": [
+    "造成 X 点伤害 X 次！！！",
+    "造成 X 点伤害 X 次，施加 X 回合【虚弱】。",
+    "获得X点【力量】，施加 X 回合【脆弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "扳手杰克逊",
+   "en": "Wrench Jackson",
+   "cls": "Boss",
+   "id": "14116",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0101_CT_BOSSSIZE.webp",
+   "desc": "他的橄榄球护具看起来很不合身，但生满铁锈的扳手却不乏威力，能造成大量伤口。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "造成 X 点伤害 X 次，将 X 张「伤口」洗入抽牌堆。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "精神分裂患者",
+   "en": "The Forsaken",
+   "cls": "Boss",
+   "id": "80795",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0102_DT.webp",
+   "desc": "「医生、医生！你明明说过我已经痊愈，为什么我的幻视和幻听仍旧存在？」",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 回合【虚弱】。",
+    "造成 X 点伤害 X 次，施加 X 回合创伤。创伤：打出「打击」后，在抽牌堆顶部添加 2  张「伤口」。",
+    "获得X点【力量】，施加 X 回合【脆弱】。",
+    "获得 X 点【力量】和 X 层「【旧日余烬】」。"
+   ],
+   "kw": [
+    "ancient-embers",
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「歇斯底里患者」",
+   "en": "The Forsaken",
+   "cls": "精英",
+   "id": "22335",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0102_DT.webp",
+   "desc": "曾饱读苏格拉底，曾信仰弗洛伊德。可惜的是，现在脑子里只剩尖叫的歇斯底里。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 回合【虚弱】。",
+    "造成 X 点伤害 X 次，施加 X 回合创伤。创伤：打出「打击」后，在抽牌堆顶部添加 2  张「伤口」。",
+    "获得X点【力量】，施加 X 回合【脆弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「知者」",
+   "en": "The Sage",
+   "cls": "精英",
+   "id": "129778",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C01_AF.webp",
+   "desc": "无需任何词汇描述她。她是拉蒙娜。斩断与她的链接吧。",
+   "skills": [
+    "造成 X 点伤害 X 次，弃掉玩家【保留】的卡牌。",
+    "从「蹒跚」、「窒息」、「珊瑚赘生」、「亵渎假象」、「狂放」中选择一张加入手中，其余四张置入弃牌堆。",
+    "造成 X 伤害 X 次，后续释放的「女王之剑」伤害次数提高 1。",
+    "永久【偷取】 X 点【力量】 并移除 50% 【反击】，对 5 张不具有「推演」的卡牌附加「推演」。"
+   ],
+   "kw": [
+    "counter",
+    "retain",
+    "steal",
+    "str"
+   ]
+  },
+  {
+   "n": "「维特」",
+   "en": "King of Kids",
+   "cls": "普通",
+   "id": "36869",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0101_CT.webp",
+   "desc": "曾是一个多愁善感的小孩，但这并不妨碍他成为奥瑞塔的朋友。爬树下海，他们无所不能。",
+   "skills": [
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "造成 X 点伤害 X 次，将 X 张「伤口」洗入抽牌堆。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "大力气",
+   "en": "Hardhitter",
+   "cls": "普通",
+   "id": "14035",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0101_BT.webp",
+   "desc": "强壮有力的东区街童。攻击能够削弱敌方，并会展开护盾保护自己。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 回合的【虚弱】。",
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "孩子王",
+   "en": "King of Kids",
+   "cls": "普通",
+   "id": "14036",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0101_CT.webp",
+   "desc": "身经百战的孩子王。手里的酒瓶会造成伤口。",
+   "skills": [
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "造成 X 点伤害 X 次，将 X 张「伤口」洗入抽牌堆。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "快步跑",
+   "en": "Fastrunner",
+   "cls": "普通",
+   "id": "14034",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0101_AT.webp",
+   "desc": "身手敏捷的东区街童。开场就会展开迅捷的攻击。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "将 X 张「伤口」洗入对方抽牌堆。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "手术医生",
+   "en": "Surgeon",
+   "cls": "普通",
+   "id": "13978",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0103_AT.webp",
+   "desc": "医生的刀刃本应切除伤病，他们却用其带来疼痛。攻击力很高的个体。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "获得 X 点护盾，造成未被格挡的伤害时回复 3 倍伤害的生命，持续 X 回合。",
+    "造成 X 点伤害 X 次。",
+    "全体获得 X 【力量】。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "疯狂碎石工",
+   "en": "Stonebreaker",
+   "cls": "精英",
+   "id": "13955",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0102_BT.webp",
+   "desc": "他也曾有过家人，现在却只剩下癫狂。会使用重击，攻击能使其退缩。",
+   "skills": [
+    "获得X点【力量】，施加 X 回合【脆弱】。",
+    "造成 X 点伤害 X 次，施加 X 回合【虚弱】。",
+    "造成 X 点伤害 X 次！！！"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "碎石工",
+   "en": "Stonebreaker",
+   "cls": "普通",
+   "id": "13992",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0102_BT.webp",
+   "desc": "碎石工被融蚀⟦corrosion|侵蚀⟧了理智，手里的铁镐成了伤人的利器。会积蓄⟦str|力量⟧，在第三回合使用超重击。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "造成 X 点伤害 X 次！！"
+   ],
+   "kw": [
+    "corrosion",
+    "str"
+   ]
+  },
+  {
+   "n": "离弃之人",
+   "en": "The Forsaken",
+   "cls": "普通",
+   "id": "22337",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0102_DT.webp",
+   "desc": "被挚爱抛弃的歇斯底里患者，已经分不清现实与记忆的区别。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "造成 X 点伤害 X 次，施加 X 回合创伤。创伤：打出「打击」后，在抽牌堆顶部添加 2  张「伤口」。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "蜡像医生",
+   "en": "Wax Sculpture Doctor",
+   "cls": "普通",
+   "id": "14096",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0103_CT.webp",
+   "desc": "如同手术刀一般精准、冷酷。攻击力很高的个体。",
+   "skills": [
+    "全体获得 X 【力量】。",
+    "造成 X 点伤害 X 次。",
+    "获得 X 点护盾，将 1 张「黏糊糊的蜡油」洗入抽牌堆。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "蜡像护工",
+   "en": "Wax Sculpture Caretaker",
+   "cls": "普通",
+   "id": "14085",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0103_DT.webp",
+   "desc": "曾有56人在她的悉心照料下死亡。会保护其他友方个体。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "施加 X 层【中毒】。",
+    "为全体友方施加 X 层【屏障】。"
+   ],
+   "kw": [
+    "barrier",
+    "poison"
+   ]
+  },
+  {
+   "n": "裁缝",
+   "en": "Tailor",
+   "cls": "普通",
+   "id": "13991",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0102_AT.webp",
+   "desc": "裁缝被融蚀⟦corrosion|侵蚀⟧了理智，剪刀剪开的不再是布料，而是⟦caro|血肉⟧。攻击频率较高。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，施加 X 回合的【脆弱】。",
+    "造成 X 点伤害 X 次，获得 X 层的【疯狂】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "caro",
+    "corrosion",
+    "fragile",
+    "madness"
+   ]
+  },
+  {
+   "n": "诊疗医生",
+   "en": "Doctor",
+   "cls": "普通",
+   "id": "13979",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0103_BT.webp",
+   "desc": "他们的⟦diagnosis|诊断⟧即是你的死亡。会保护其他友方的个体。",
+   "skills": [
+    "全体获得 X 点护盾。",
+    "施加 X 层【中毒】。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。"
+   ],
+   "kw": [
+    "diagnosis",
+    "poison"
+   ]
+  },
+  {
+   "n": "谵妄之人",
+   "en": "The Forsaken",
+   "cls": "普通",
+   "id": "22336",
+   "zone": "C01",
+   "zoneN": "病栋",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0102_DT.webp",
+   "desc": "主动离开的歇斯底里患者，已经分不清现实与记忆的区别。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "造成 X 点伤害 X 次，施加 X 回合创伤。创伤：打出「打击」后，在抽牌堆顶部添加 2  张「伤口」。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「@2庇护者」",
+   "en": "Ultimate Beauty",
+   "cls": "Boss",
+   "id": "80818",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0203.webp",
+   "desc": "眼目所在之处，巢群意志无所不知，",
+   "skills": [
+    "造成 X 点伤害 X 次。赋予仍在手中【保留】的卡牌 X 层「【迟缓】」。",
+    "造成 X 点伤害 X 次。【脆弱】 X 回合。",
+    "造成 X 点伤害 X 次。重创 X 回合。",
+    "造成 X 点伤害 X 次。赋予仍在手中【保留】的卡牌 X 层「【迟缓】」，将 1 张「巢群捕食」置入手中。",
+    "造成 X 点伤害 X 次。将 X 张「巢群捕食」置入手中。若本回合击碎了「【旧日余烬】」，变为无伤害的「神经毒素」。",
+    "造成 X 点伤害 X 次。将 X 张「巢群捕食」置入手中。若本回合击碎了「【旧日余烬】」，变为低伤害的「心智寄生」。"
+   ],
+   "kw": [
+    "ancient-embers",
+    "fragile",
+    "retain",
+    "stagnation"
+   ]
+  },
+  {
+   "n": "「@2赐福者」",
+   "en": "Merge into One",
+   "cls": "Boss",
+   "id": "79943",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0204.webp",
+   "desc": "爪牙所到之处，巢群意志无所不在。",
+   "skills": [
+    "切换到该意图后，本回合承受的主动伤害提高 100％。释放后造成 X 层【虚弱】和【易伤】。",
+    "造成 X 点伤害 X 次，施加  X％ 造成伤害的【中毒】，每有 1 点护盾该伤害降低 1。若该伤害触发了「【死亡抵抗】」，将剩余的「【死亡抵抗】」减半。",
+    "召唤 X 名「初变者」在前方，获得 1 层临时【疯狂】。",
+    "召唤 X 名「蜕化者」在前方。"
+   ],
+   "kw": [
+    "death-resistance",
+    "madness",
+    "poison",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「以眼还眼」",
+   "en": "An Eye for an Eye",
+   "cls": "Boss",
+   "id": "13986",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0204_BOSSSIZE.webp",
+   "desc": "群聚在地下的蜡像弃儿。时刻准备着，为罗杰斯大人的艺术献出一切！",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，施加 X 回合【脆弱】。",
+    "造成 X 点伤害 X 次，施加 X 回合【虚弱】。",
+    "召唤守护娃娃，自身获得 X 点【力量】。"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「劳伦斯先生」",
+   "en": "Mr. Lawrence",
+   "cls": "Boss",
+   "id": "13958",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0202_BOSSSIZE.webp",
+   "desc": "他早已被繁重的任务压弯了背脊。工作、工作、工作——这就是他现在的生活！",
+   "skills": [
+    "获得 X 点【力量】和 X 层【屏障】，前进。",
+    "造成 X 点伤害 X 次并附加等量【出血】。后撤。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "barrier",
+    "bleed",
+    "str"
+   ]
+  },
+  {
+   "n": "「查泰德夫人」",
+   "en": "Lady Chatterley",
+   "cls": "Boss",
+   "id": "14047",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0203_BOSSSIZE.webp",
+   "desc": "红酒、甜品、美好的恋爱都已离她远去。站在你面前的，是一位充满怨念的失意者。",
+   "skills": [
+    "将 2 张「黏糊糊的蜡油」洗入对方抽牌堆。全体获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，后撤。",
+    "造成 X 点伤害 X 次，获得X 点护盾。前进。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「熔毁·朵尔」",
+   "en": "Corrupted Brain",
+   "cls": "Boss",
+   "id": "73524",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C02EX_AF.webp",
+   "desc": "她开启深渊，她带来末日。",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 3 层「终末」并打开「深渊之门」，每回合结束时都会补充敌人，最多 2 名。",
+    "造成 X 点伤害 X 次，获得 X 点【力量】。场上每有 1 名其它敌人存活，获得 1 层「终末」。如果【击破】了所有其他敌人，意图变为「自毁改造」。",
+    "造成 X 点伤害 X 次，获得 X 点【力量】。场上每有 1 名其它敌人存活，获得 1 层「终末」。如果【击破】了所有其他敌人，意图变为「宿命坍缩」。"
+   ],
+   "kw": [
+    "destroy",
+    "str"
+   ]
+  },
+  {
+   "n": "「缸中之脑」",
+   "en": "Brain in a Vat",
+   "cls": "Boss",
+   "id": "67103",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C02_AF.webp",
+   "desc": "她的声音从通讯器中响起时，是你任务中最安心的时刻。卓越的智慧，你已依赖得够多。",
+   "skills": [
+    "造成 X 点伤害 X 次。自身生命上限+X％，玩家生命上限-X％。",
+    "接下来 X 回合内，每回合结束时，召唤一名「缸中之脑分体」。",
+    "造成  X 点伤害 X 次。",
+    "【虚弱】 2 回合，施加 X 层【中毒】。"
+   ],
+   "kw": [
+    "poison",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「腐坏之脑」",
+   "en": "Corrupted Brain",
+   "cls": "Boss",
+   "id": "67100",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C02EX_AF.webp",
+   "desc": "她跨入门扉，终于看清宇宙盲目⟦chaos|混沌⟧的真相。痴愚之人啊，躬身迎接毁灭，才是唯一存在的未来。",
+   "skills": [
+    "移除所有「终末」，将玩家的生命上限变更为 1。",
+    "造成 X 点伤害 X 次并施加等量【出血】。",
+    "施加 X 层【中毒】。回合结束后，其它敌人获得 X 点【力量】。",
+    "造成 X 点伤害 X 次。打开「深渊之门」，每回合结束时都会补充敌人，最多 2 名。",
+    "施加 2 回合【虚弱】，获得 X 层加固。",
+    "造成 X 点伤害 X 次，获得 X 点【力量】和 1 层「终末」。如果【击破】了所有其他敌人，意图变为「宿命坍缩」。",
+    "造成 X 点伤害 X 次，获得 X 点【力量】和 1 层「终末」。如果【击破】了所有其他敌人，意图变为「自毁改造」。"
+   ],
+   "kw": [
+    "bleed",
+    "chaos",
+    "destroy",
+    "poison",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "大裙摆",
+   "en": "Wax Sculpture Lady",
+   "cls": "Boss",
+   "id": "53763",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0203.webp",
+   "desc": "身着过气礼装的傲慢淑女，千万别给她看最新款的穿搭杂志。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 点护盾，前进。",
+    "造成 X 点伤害 X 次。后撤。",
+    "将 1 张「黏糊糊的蜡油」洗入对方抽牌堆。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "高礼帽",
+   "en": "Wax Sculpture Gentleman",
+   "cls": "Boss",
+   "id": "53764",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0202.webp",
+   "desc": "总是弯着腰的沉默绅士，只在需要时为女伴献上溢美之词。",
+   "skills": [
+    "造成 X 点伤害 X 次，后撤。",
+    "获得 X 点【力量】和 X 层【屏障】，前进。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "barrier",
+    "str"
+   ]
+  },
+  {
+   "n": "「替代品」",
+   "en": "Replacement",
+   "cls": "精英",
+   "id": "13960",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0204.webp",
+   "desc": "小乔治的无数个前身之一。再悉心的保存也经不住长期磨损。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "召唤守护娃娃。",
+    "造成 X 点伤害 X 次，施加 X 回合【脆弱】。",
+    "造成 X 点伤害 X 次，施加 X 回合【虚弱】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "fragile",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「缸中之脑」",
+   "en": "Brain in a Vat",
+   "cls": "精英",
+   "id": "67344",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C02_AF.webp",
+   "desc": "她的声音从通讯器中响起时，是你任务中最安心的时刻。卓越的智慧，你已依赖得够多。斩断与她的链接吧。",
+   "skills": [
+    "接下来 X 回合内，每回合结束时，召唤一名「缸中之脑分体」。",
+    "造成  X 点伤害 X 次。",
+    "【虚弱】 2 回合，施加 X 层【中毒】。",
+    "造成 X 点伤害 X 次。自身生命上限+X％，玩家生命上限-X％。"
+   ],
+   "kw": [
+    "poison",
+    "weakness"
+   ]
+  },
+  {
+   "n": "初变者",
+   "en": "First Variant",
+   "cls": "普通",
+   "id": "79935",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0201.webp",
+   "desc": "「@2仪式 」初期的人类，正跨越自身的层次，迈入生命进化的门槛。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。【易伤】 X 回合。",
+    "造成 X 点伤害 X 次。获得 1 层【疯狂】。"
+   ],
+   "kw": [
+    "madness",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "复制体",
+   "en": "Brain in a Vat",
+   "cls": "普通",
+   "id": "67259",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C02_AF.webp",
+   "desc": "卓越大脑制作出的复制体。看起来柔弱的外表下，是避无可避的陷阱。",
+   "skills": [
+    "造成 X 点伤害 X 次。「缸中之脑」回复自身剩余生命 2 倍的生命。自爆。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "大裙摆",
+   "en": "Wax Sculpture Lady",
+   "cls": "精英",
+   "id": "13963",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0203.webp",
+   "desc": "身着过气礼装的傲慢淑女，千万别给她看最新款的穿搭杂志。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 点护盾，前进。",
+    "造成 X 点伤害 X 次。后撤。",
+    "将 1 张「黏糊糊的蜡油」洗入对方抽牌堆。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "感受进化",
+   "en": "Merge into One",
+   "cls": "精英",
+   "id": "79933",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0204.webp",
+   "desc": "世界在⟦burn|燃烧⟧，唯有聆听宇宙嗡鸣之人才可获得救赎。",
+   "skills": [
+    "切换到该意图后，本回合承受的主动伤害提高 100％。释放后造成 X 层【虚弱】和【易伤】。",
+    "造成 X 点伤害 X 次，施加  X％ 造成伤害的【中毒】，每有 1 点护盾该伤害降低 1。若该伤害触发了「【死亡抵抗】」，将剩余的「【死亡抵抗】」减半。",
+    "召唤 X 名「蜕化者」在前方。"
+   ],
+   "kw": [
+    "burn",
+    "death-resistance",
+    "poison",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "拥抱进化",
+   "en": "Ultimate Beauty",
+   "cls": "精英",
+   "id": "80819",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0203.webp",
+   "desc": "世界在⟦burn|燃烧⟧，唯有觉悟抛弃一切之人才可获得救赎。",
+   "skills": [
+    "造成 X 点伤害 X 次。赋予仍在手中【保留】的卡牌 X 层「【迟缓】」。",
+    "造成 X 点伤害 X 次。【脆弱】 X 回合。",
+    "造成 X 点伤害 X 次。重创 X 回合。",
+    "将 X 张「巢群捕食」置入手中。赋予抽牌堆随机 X 张卡牌 X 层「【迟缓】」。"
+   ],
+   "kw": [
+    "burn",
+    "fragile",
+    "retain",
+    "stagnation"
+   ]
+  },
+  {
+   "n": "第▼▼号奴隶",
+   "en": "Wax Sculpture Wildcat",
+   "cls": "普通",
+   "id": "13977",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0201.webp",
+   "desc": "潘狄娅钟爱的奴隶猫之一。她的奴隶不分种族与信仰，只有一个标准：足够可爱。",
+   "skills": [
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "至善至美",
+   "en": "Ultimate Beauty",
+   "cls": "普通",
+   "id": "80816",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0203.webp",
+   "desc": "扭曲的新生中，它超越自身，获得了最完美的生命形态。",
+   "skills": [
+    "将 X 张「巢群捕食」置入手中。赋予抽牌堆随机 X 张卡牌 X 层「【迟缓】」。",
+    "造成 X 点伤害 X 次。赋予仍在手中【保留】的卡牌 X 层「【迟缓】」。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "retain",
+    "stagnation"
+   ]
+  },
+  {
+   "n": "蜕化者",
+   "en": "Metamorph",
+   "cls": "普通",
+   "id": "79941",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0202.webp",
+   "desc": "「@2仪式 」后期的人类。⟦caro|血肉⟧消融的痛苦里，它必将超脱人类的极限。",
+   "skills": [
+    "将 1 张「巢群捕食」置入手中，所有唤醒体暴击率下降 X％。",
+    "造成 X 点伤害 X 次。若本回合受到过暴击，意图变为「认知汲取」。",
+    "造成 X 点伤害 X 次。【虚弱】 X 回合。"
+   ],
+   "kw": [
+    "caro",
+    "weakness"
+   ]
+  },
+  {
+   "n": "蜡像@2猫",
+   "en": "Wax Sculpture Wildcat",
+   "cls": "普通",
+   "id": "81053",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0201.webp",
+   "desc": "它比犬科生物还要凶猛。",
+   "skills": [
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "蜡像家猫",
+   "en": "Wax Sculpture Wildcat",
+   "cls": "普通",
+   "id": "14113",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0201.webp",
+   "desc": "如果可以的话，它更愿意被称作「小甜饼」。",
+   "skills": [
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "蜡像淑女",
+   "en": "Wax Sculpture Lady",
+   "cls": "普通",
+   "id": "13985",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0203.webp",
+   "desc": "恪守礼仪的老派淑女，即使成为蜡像也不会错过每日下午茶。",
+   "skills": [
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "将 1 张「黏糊糊的蜡油」洗入对方抽牌堆。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "蜡像绅士",
+   "en": "Wax Sculpture Gentleman",
+   "cls": "普通",
+   "id": "13969",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0202.webp",
+   "desc": "垂头丧气的新派绅士，厌恶一切柔软的东西，包括他自己。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "获得 X 点【力量】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "蜡像野猫",
+   "en": "Wax Sculpture Wildcat",
+   "cls": "普通",
+   "id": "14115",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0201.webp",
+   "desc": "它曾像风一样自由。",
+   "skills": [
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "融为一体",
+   "en": "Merge into One",
+   "cls": "普通",
+   "id": "79934",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0204.webp",
+   "desc": "融合的仪式中，已分不清那一块属于「你」，那一块属于「我」。",
+   "skills": [
+    "切换到该意图后，本回合承受的伤害提高 100％。释放后造成 X 层【虚弱】和【易伤】。",
+    "造成 X 点伤害 X 次，施加  X％ 造成伤害的【中毒】，每有 1 点护盾该伤害降低 1。若该伤害触发了「【死亡抵抗】」，将剩余的「【死亡抵抗】」减半。",
+    "召唤 X 名「蜕化者」在前方。"
+   ],
+   "kw": [
+    "death-resistance",
+    "poison",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "高礼帽",
+   "en": "Wax Sculpture Gentleman",
+   "cls": "精英",
+   "id": "14056",
+   "zone": "C02",
+   "zoneN": "蜡像馆",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0202.webp",
+   "desc": "总是弯着腰的沉默绅士，只在需要时为女伴献上溢美之词。",
+   "skills": [
+    "造成 X 点伤害 X 次，后撤。",
+    "获得 X 点【力量】和 X 层【屏障】，前进。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "barrier",
+    "str"
+   ]
+  },
+  {
+   "n": "「斯特里戈伊之心？」",
+   "en": "The Heart of Strigoi?",
+   "cls": "Boss",
+   "id": "13971",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0302_BOSSSIZE.webp",
+   "desc": "祂被认为拥有两颗共同搏动的心脏，但无人知晓刺穿其中一颗的结果。",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 X 护盾，回合结束时剩余护盾转换为2倍生命值。",
+    "造成 X 点伤害 X 次，施加 3 回合【脆弱】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，为对方添加 X 层【中毒】。"
+   ],
+   "kw": [
+    "fragile",
+    "poison"
+   ]
+  },
+  {
+   "n": "「无尽饥渊」",
+   "en": "Tomb Overseer",
+   "cls": "Boss",
+   "id": "96324",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0303.webp",
+   "desc": "王邸祭坛的祭司，为亡故的尸骸安葬。依悲鸣的记忆所愿，将他们献予葬骸城的王。",
+   "skills": [
+    "造成 X 点伤害，施加 2 回合【易伤】。",
+    "获得 X 层【死亡抵抗】，X 点【力量】，X 点 狂暴。",
+    "获得 X 点【力量】。",
+    "造成 X 点伤害 X 次 , 并附加 X% 伤害的【中毒】。",
+    "造成 X 点伤害，获得 X 点【临时反击】，X%临时暴击抵抗。"
+   ],
+   "kw": [
+    "death-resistance",
+    "poison",
+    "str",
+    "temporary-counter",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「王邸管家」弗兰",
+   "en": "\"Palace Housekeeper\" Fran",
+   "cls": "Boss",
+   "id": "94940",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0303_AT.webp",
+   "desc": "长相厮守的誓言，早在竭诚尽忠之前。",
+   "skills": [
+    "造成 X 点伤害 X 次 , 并附加 X% 伤害的【中毒】。",
+    "获得 X%暴击抵抗和 X 点【力量】。",
+    "造成 X 点伤害 X 次，施加 X 回合重创，敌方生命越低伤害越高，最大为 X 点伤害。",
+    "造成 X 点伤害 X 次，「冻结」X  张抽牌堆顶部的卡牌。",
+    "获得 X 点【力量】，X%暴击抵抗和 X 层「愤怒」。"
+   ],
+   "kw": [
+    "poison",
+    "str"
+   ]
+  },
+  {
+   "n": "「瞑海祭司」",
+   "en": "Seafarer's Remains",
+   "cls": "Boss",
+   "id": "94943",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0304.webp",
+   "desc": "聆听吾主。归依……吾主！",
+   "skills": [
+    "造成 X 点伤害，施加伤害量 X%【中毒】，移除目标 X% 【力量】。",
+    "造成 X 点伤害 X 次，每次受到暴击伤害降低 1 次攻击次数，最多降低至 3 次。",
+    "获得 X 层【死亡抵抗】，免疫 X 回合负面状态，召唤 2 个「【深海】分殖体」。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "aequor",
+    "death-resistance",
+    "poison",
+    "str"
+   ]
+  },
+  {
+   "n": "「福音执事」",
+   "en": "Seafarer's Remains",
+   "cls": "Boss",
+   "id": "120935",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0304.webp",
+   "desc": "将自身一切都献于神明的祭祀，其意志不可动摇，其信仰坚不可摧。",
+   "skills": [
+    "造成 X 点伤害，施加伤害量 X%【中毒】，移除目标 X% 【力量】。",
+    "造成 X 点伤害 X 次，每次受到暴击伤害降低 1 次攻击次数，最多降低至 3 次。",
+    "获得 X 层【死亡抵抗】，免疫 X 回合负面状态，召唤 2 个「【深海】分殖体」。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "aequor",
+    "death-resistance",
+    "poison",
+    "str"
+   ]
+  },
+  {
+   "n": "「美德骑士」",
+   "en": "Virtue Knight",
+   "cls": "Boss",
+   "id": "67102",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C03_AF.webp",
+   "desc": "年幼的骑士曾向你宣誓效忠，他从未背弃他的誓言。",
+   "skills": [
+    "获得 X 点护盾和 X 点【力量】 ，获得状态「不定壁垒」：消耗算力后获得 X 点护盾和 3 层临时加固。",
+    "获得 X 点【临时力量】和 X 点护盾。",
+    "造成 X 点伤害 X 次，施加 2 回合【脆弱】。若护盾被【击破】，变为「重创奔袭」：不再施加【脆弱】，改为施加重创。",
+    "造成 X 点穿刺伤害 X 次并施加等量【出血】，施加 1 回合【易伤】。若护盾被【击破】，变为「暴怒之枪」：不再造成穿刺伤害和【出血】，但伤害次数提高 1。"
+   ],
+   "kw": [
+    "bleed",
+    "destroy",
+    "fragile",
+    "str",
+    "temporary-str",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "库姆",
+   "en": "Koum",
+   "cls": "Boss",
+   "id": "14069",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0303.webp",
+   "desc": "体型巨大的类犬怪物……为何会留下人类的啃咬痕迹呢？",
+   "skills": [
+    "获得 X 点护盾，获得 X 层【反击】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "counter"
+   ]
+  },
+  {
+   "n": "食尸鬼卫队长",
+   "en": "Ghoul Guard Captain",
+   "cls": "Boss",
+   "id": "94716",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0302.webp",
+   "desc": "没有任何可为人称道的天赋，只有甘愿为王城献身的勇气。",
+   "skills": [
+    "所有友方回复食尸鬼自身已损失生命值的10%，获得 X 点【力量】。",
+    "造成 X 点伤害，施加 X 点【中毒】，并召唤 2 个「腐尸分殖体」。",
+    "造成 X 点伤害 X 次 , 并附加 X% 伤害的【中毒】。",
+    "造成 X 点伤害，施加 X 回合重创。"
+   ],
+   "kw": [
+    "poison",
+    "str"
+   ]
+  },
+  {
+   "n": "「美德骑士」",
+   "en": "Virtue Knight",
+   "cls": "精英",
+   "id": "67342",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C03_AF.webp",
+   "desc": "年幼的骑士曾向你宣誓效忠，他从未背弃他的誓言。斩断与他的链接吧。",
+   "skills": [
+    "获得 X 点护盾和 X 点【力量】 ，获得状态「不定壁垒」：消耗算力后获得 X 点护盾和 3 层临时加固。",
+    "获得 X 点【临时力量】和 X 点护盾。",
+    "造成 X 点伤害 X 次，施加 2 回合【脆弱】。若护盾被【击破】，变为「重创奔袭」：不再施加【脆弱】，改为施加重创。",
+    "造成 X 点穿刺伤害 X 次并施加等量【出血】，施加 1 回合【易伤】。若护盾被【击破】，变为「暴怒之枪」：不再造成穿刺伤害和【出血】，但伤害次数提高 1。"
+   ],
+   "kw": [
+    "bleed",
+    "destroy",
+    "fragile",
+    "str",
+    "temporary-str",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "双生脓疱",
+   "en": "Twin Abscesses",
+   "cls": "普通",
+   "id": "13965",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0302.webp",
+   "desc": "双生的命运纠缠于一体，相互牵扯，相互裹挟，无处可逃。",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 X 护盾，回合结束时剩余护盾转换为2倍生命值。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，为对方添加 X 层【中毒】。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。"
+   ],
+   "kw": [
+    "poison"
+   ]
+  },
+  {
+   "n": "反叛宿命之子",
+   "en": "Twin Abscesses",
+   "cls": "精英",
+   "id": "14012",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0302.webp",
+   "desc": "祂曾抗拒被奴役的命运。",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 X 护盾，回合结束时剩余护盾转换为2倍生命值。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，为对方添加 X 层【中毒】。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。"
+   ],
+   "kw": [
+    "poison"
+   ]
+  },
+  {
+   "n": "墓穴督工",
+   "en": "Tomb Overseer",
+   "cls": "普通",
+   "id": "94944",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0303.webp",
+   "desc": "天赋出众的食尸鬼，承担着王邸的期许——有什么工作比制作精良的食物储存地更加重要？",
+   "skills": [
+    "获得 X 点【力量】。",
+    "造成 X 点伤害，获得 X 点【临时反击】。",
+    "造成 X 点伤害，施加 1 回合【易伤】。",
+    "造成 X 点伤害 X 次 , 并附加 X% 伤害的【中毒】。"
+   ],
+   "kw": [
+    "poison",
+    "str",
+    "temporary-counter",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "库姆",
+   "en": "Koum",
+   "cls": "精英",
+   "id": "14054",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0303.webp",
+   "desc": "体型巨大的类犬怪物……为何会留下人类的啃咬痕迹呢？",
+   "skills": [
+    "获得 X 点护盾，获得 X 层【反击】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "counter"
+   ]
+  },
+  {
+   "n": "死者No.12",
+   "en": "Pustules",
+   "cls": "普通",
+   "id": "14112",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0301.webp",
+   "desc": "吧唧，吧唧。它能一口吃掉你的记忆。",
+   "skills": [
+    "每有 1 层「狩猎印记」就获得 X 点护盾。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "殉道者",
+   "en": "Seafarer's Remains",
+   "cls": "精英",
+   "id": "94942",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0304.webp",
+   "desc": "他们执行神明的意志，没有人在意生存与毁灭，没有人在意错误与正确。",
+   "skills": [
+    "获得 X 层【死亡抵抗】，召唤 2 个「【深海】分殖体」。",
+    "造成 X 点伤害 X 次，每次受到暴击伤害降低 1 次攻击次数，最多降低至 3 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害，施加伤害量 X%【中毒】，移除目标 X% 【力量】。"
+   ],
+   "kw": [
+    "aequor",
+    "death-resistance",
+    "poison",
+    "str"
+   ]
+  },
+  {
+   "n": "深海分殖体",
+   "en": "Seafarer Excrescence",
+   "cls": "普通",
+   "id": "94700",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_BUnit_Monster_S2C0301_CT.webp",
+   "desc": "蹈海者用葬骸城秘术制造出的产物，拥有蹈海者需要的一切……除了信仰。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害,自身死亡。",
+    "造成 X 点伤害，若未被完全格挡将 1 张「窒息」洗入抽牌堆。",
+    "施加 1 回合的 【虚弱】和【脆弱】 。"
+   ],
+   "kw": [
+    "fragile",
+    "weakness"
+   ]
+  },
+  {
+   "n": "渴雪之芽",
+   "en": "Snowthirst Bud",
+   "cls": "普通",
+   "id": "22307",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0301_AT.webp",
+   "desc": "看起来有些眼熟的眼球状白色脓疱怪物，居然真的不怕冷啊！",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 层【中毒】。",
+    "造成 X 点伤害 X 次，施加 1 回合【虚弱】。",
+    "造成 X 点伤害 X 次，获得 X 点 霜盾。"
+   ],
+   "kw": [
+    "poison",
+    "weakness"
+   ]
+  },
+  {
+   "n": "脓疱",
+   "en": "Pustules",
+   "cls": "普通",
+   "id": "14049",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0301.webp",
+   "desc": "眼球状的黑色脓疱怪物。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 层【中毒】。",
+    "造成 X 点伤害 X 次，施加 1 回合【虚弱】。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。"
+   ],
+   "kw": [
+    "poison",
+    "weakness"
+   ]
+  },
+  {
+   "n": "腐尸分殖体",
+   "en": "Corpse Excrescence",
+   "cls": "普通",
+   "id": "94654",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_BUnit_Monster_S2C0301_BT.webp",
+   "desc": "葬骸城秘术制造出的产物。一位一往无前的战士，一道差强人意的甜点。",
+   "skills": [
+    "造成 X 点伤害，施加 1 回合【虚弱】。",
+    "施加 X 点【中毒】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害,自身死亡。"
+   ],
+   "kw": [
+    "poison",
+    "weakness"
+   ]
+  },
+  {
+   "n": "自爆脓疱",
+   "en": "Pustules",
+   "cls": "普通",
+   "id": "14009",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0301.webp",
+   "desc": "眼球状的黑色脓泡怪物，总感觉要爆裂开来。",
+   "skills": [
+    "自爆！造成 X 点伤害 X 次，施加 X 层【中毒】。"
+   ],
+   "kw": [
+    "poison"
+   ]
+  },
+  {
+   "n": "覆雪之芽",
+   "en": "Snowthirst Bud",
+   "cls": "普通",
+   "id": "22308",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0301_AT.webp",
+   "desc": "看起来有些眼熟的眼球状白色脓疱怪物，是不是被冻住了？",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 层【中毒】。",
+    "造成 X 点伤害 X 次，施加 1 回合【虚弱】。",
+    "造成 X 点伤害 X 次，获得 X 点 霜盾。"
+   ],
+   "kw": [
+    "poison",
+    "weakness"
+   ]
+  },
+  {
+   "n": "蹈海者之骸",
+   "en": "Seafarer's Remains",
+   "cls": "普通",
+   "id": "94941",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0304.webp",
+   "desc": "他们仍活着，他们已死去。他们苦难的大脑中仅剩唯一的记忆——唯有吾主的目光，能将痛苦驱离。",
+   "skills": [
+    "获得 X 层【死亡抵抗】，召唤 2 个「【深海】分殖体」。",
+    "造成 X 点伤害，施加伤害量 X%【中毒】。",
+    "造成 X 点伤害 X 次，每次受到暴击伤害降低 1 次攻击次数，最低 3 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "aequor",
+    "death-resistance",
+    "poison"
+   ]
+  },
+  {
+   "n": "食尸鬼侍从",
+   "en": "Ghoul Guard Captain",
+   "cls": "普通",
+   "id": "94715",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0302.webp",
+   "desc": "葬骸城随处可见的居民，拙劣的食客，粗粝的食材。",
+   "skills": [
+    "造成 X 点伤害 X 次, 并附加 X% 伤害的【中毒】。",
+    "所有友方回复食尸鬼自身已损失生命值的10%，获得 X 点【力量】。",
+    "造成 X 点伤害，施加 X 回合重创。"
+   ],
+   "kw": [
+    "poison",
+    "str"
+   ]
+  },
+  {
+   "n": "食尸鬼护卫",
+   "en": "Ghoul Guard Captain",
+   "cls": "精英",
+   "id": "94717",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0302.webp",
+   "desc": "他为看护王邸、也为看护王邸中的餐点而战。",
+   "skills": [
+    "所有友方回复食尸鬼自身已损失生命值的10%，获得 X 点【力量】。",
+    "造成 X 点伤害，施加 X 点【中毒】，并在前方召唤 1 个「腐尸分殖体」。",
+    "造成 X 点伤害，施加 X 回合重创。",
+    "造成 X 点伤害 X 次 , 并附加 X% 伤害的【中毒】。"
+   ],
+   "kw": [
+    "poison",
+    "str"
+   ]
+  },
+  {
+   "n": "骸骨哨卫",
+   "en": "Tomb Overseer",
+   "cls": "精英",
+   "id": "94945",
+   "zone": "C03",
+   "zoneN": "脓疱",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0303.webp",
+   "desc": "他守护族人腐朽的尸骨。他守护同伴不舍的魂灵。",
+   "skills": [
+    "造成 X 点伤害，施加 2 回合【易伤】。",
+    "获得 X 点【力量】，X 点 狂暴。",
+    "造成 X 点伤害，获得 X 点【临时反击】。",
+    "造成 X 点伤害 X 次 , 并附加 X% 伤害的【中毒】。"
+   ],
+   "kw": [
+    "poison",
+    "str",
+    "temporary-counter",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「刻耳柏洛斯」",
+   "en": "Cerberus",
+   "cls": "Boss",
+   "id": "14108",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0405.webp",
+   "desc": "贪婪的猎犬之颅，威压之瞳盯上了你……",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 2 回合【虚弱】。",
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。将 3 张「亵渎假象」加入手中。"
+   ],
+   "kw": [
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「嘉尔姆？」",
+   "en": "Garmr?",
+   "cls": "Boss",
+   "id": "13961",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0402_BOSSSIZE.webp",
+   "desc": "游离的维度碎片拼合而成的异兽，与祂的战利品和谐相处。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "向随机唤醒体施加 1 层临时【封印】，重复 2 次。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。"
+   ],
+   "kw": [
+    "sealed"
+   ]
+  },
+  {
+   "n": "「护灯尊者」",
+   "en": "Lantern Devotee",
+   "cls": "Boss",
+   "id": "118022",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0404.webp",
+   "desc": "「愿提灯长明……」",
+   "skills": [
+    "造成 X 点伤害 X 次，若造成了未被格挡的伤害则获得 X 层「互助契约：【深海】分殖体」。",
+    "造成 X 点伤害 X 次，立刻获得 X 层「互助契约：【深海】分殖体」。",
+    "造成 X 点伤害 X 次 ，施加 X  层重创，玩家每拥有 1 点护盾使本次伤害降低 1 点。",
+    "获得 X 层「血誓」和 X 层【反击】。",
+    "造成 X 点伤害 X 次。每有 2 层「血誓」，获得 1 条临时触腕。"
+   ],
+   "kw": [
+    "aequor",
+    "counter"
+   ]
+  },
+  {
+   "n": "「祝圣司铎」",
+   "en": "The Preaching One",
+   "cls": "Boss",
+   "id": "118024",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0403.webp",
+   "desc": "由「主祭」创造的畸形存在，实力强大，深受「主祭」信赖。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 层【临时反击】，玩家每剩余 1 张手牌，提高 X 层【临时反击】。",
+    "造成 X 点伤害 X 次。直到回合结束前，玩家每拥有 1 张手牌，攻击次数就减少 1，最低为 3。",
+    "造成 X 点伤害 X 次，弃掉玩家所有【保留】的手牌，每次造成未被格挡的伤害时，将 X 张「窒息」洗入抽牌堆顶部。",
+    "切换到该意图时获得 X 点触腕伤害。若目标生命低于 50%，施加 X 层腐朽，否则施加 X 层 【虚弱】。",
+    "造成 X 点伤害 X 次，每造成 1 次伤害，生成 1 条临时触腕。直到回合结束前，玩家每拥有 1 张手牌，攻击次数就减少 1，最低为 3。",
+    "造成 X 点伤害 X 次，获得 X 层【临时反击】，玩家每剩余 1 张手牌，提高 X 层【临时反击】。"
+   ],
+   "kw": [
+    "retain",
+    "temporary-counter",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「谕令神官」",
+   "en": "Personal Butler",
+   "cls": "Boss",
+   "id": "118026",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0402.webp",
+   "desc": "为了更接近「神母」意志而改变自身形态的仆从，职责是确保「神母」的谕令得以传达与执行。",
+   "skills": [
+    "获得 X 点护盾、 X 点触腕伤害和 X 层暗流。",
+    "造成 X 点伤害 X 次 ，额外造成玩家当前生命 50% 的伤害（X ）。施加等量【出血】和 X 层腐朽。",
+    "造成 X 点伤害 X 次，施加 X 层腐朽。",
+    "造成 X 点伤害 X 次，施加 X 层【中毒】，敌方生命越低伤害越高，最大为  X  点伤害。",
+    "造成 X 点穿刺伤害 X 次 ，额外造成玩家当前生命 50% 的穿刺伤害（X ）。施加等量【出血】和 X 层腐朽。"
+   ],
+   "kw": [
+    "bleed",
+    "poison"
+   ]
+  },
+  {
+   "n": "「鲸跃」",
+   "en": "Whale Leap",
+   "cls": "Boss",
+   "id": "14017",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C04_AF.webp",
+   "desc": "旅途无聊的萝坦，陷入癫狂的战斗欲望中。当心其⟦rouse|觉醒⟧后的不竭战意，能够每回合移除多层⟦weakness|虚弱⟧和⟦vulnerable|易伤⟧状态。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】。"
+   ],
+   "kw": [
+    "rouse",
+    "str",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "恶咒鱼王",
+   "en": "Foulblood Tyrant",
+   "cls": "Boss",
+   "id": "120305",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0401.webp",
+   "desc": "幼鱼已经成王，总有一日，不幸与灾厄将遍布世界。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加等量【出血】和伤害 10%的【中毒】。",
+    "施加 X 层【献祭】和 1 层 空虚。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed",
+    "poison",
+    "sacrifice"
+   ]
+  },
+  {
+   "n": "撕裂维度之足",
+   "en": "Dimensional Rendclaw",
+   "cls": "Boss",
+   "id": "14015",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0403_BOSSSIZE.webp",
+   "desc": "自其他维度撕裂缝隙而来的追逐之足，捕捉每个冒失的灵魂。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "【封印】四个唤醒体的狂气爆发 1 回合。",
+    "造成 X 点伤害 X 次，每当造成未被格挡的伤害，就会造成 1 层【脆弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "sealed"
+   ]
+  },
+  {
+   "n": "秽血鱼王",
+   "en": "Foulblood Tyrant",
+   "cls": "Boss",
+   "id": "120308",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0401.webp",
+   "desc": "幼鱼已经成王，这污秽的血脉日渐茁壮。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加等量【出血】和伤害 10%的【中毒】。",
+    "施加 X 层【献祭】和 1 层 空虚。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed",
+    "poison",
+    "sacrifice"
+   ]
+  },
+  {
+   "n": "腐溃鱼王",
+   "en": "Foulblood Tyrant",
+   "cls": "Boss",
+   "id": "120307",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0401.webp",
+   "desc": "幼鱼已经成王，这溃烂的身躯因信仰而不朽。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加等量【出血】和伤害 10%的【中毒】。",
+    "施加 X 层【献祭】和 1 层 空虚。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed",
+    "poison",
+    "sacrifice"
+   ]
+  },
+  {
+   "n": "萝坦",
+   "en": "Whale Leap",
+   "cls": "Boss",
+   "id": "13996",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C04_AF.webp",
+   "desc": "旅途无聊的萝坦，陷入癫狂的战斗欲望中。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「鲸跃」",
+   "en": "Whale Leap",
+   "cls": "精英",
+   "id": "67343",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C04_AF.webp",
+   "desc": "你的剑术老师，你的第一位一往无前的战士。斩断与她的链接吧。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "失控萝坦",
+   "en": "Whale Leap",
+   "cls": "精英",
+   "id": "13953",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C04_AF.webp",
+   "desc": "被融蚀激发的萝坦，陷入癫狂的战斗欲望中。",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 X 点【力量】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "奔袭之足",
+   "en": "Hunting Dog's Claw",
+   "cls": "精英",
+   "id": "13988",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0403.webp",
+   "desc": "自其他维度撕裂缝隙而来的追逐之足，捕捉每个冒失的灵魂。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "【封印】四个唤醒体的狂气爆发 1 回合。",
+    "造成 X 点伤害 X 次，每当造成未被格挡的伤害，就会造成 1 层【脆弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "sealed"
+   ]
+  },
+  {
+   "n": "布道者",
+   "en": "The Preaching One",
+   "cls": "普通",
+   "id": "118021",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0403.webp",
+   "desc": "由「主祭」创造的畸形存在，实力弱小，随处可见。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 层【临时反击】，玩家每剩余 1 张手牌，提高 X 层【临时反击】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，弃掉玩家所有【保留】的手牌，每次造成未被格挡的伤害时，将 X 张「窒息」洗入抽牌堆顶部。",
+    "切换到该意图时获得 X 点触腕伤害。若目标生命低于 50%，施加 X 层腐朽，否则施加 X 层 【虚弱】。"
+   ],
+   "kw": [
+    "retain",
+    "temporary-counter",
+    "weakness"
+   ]
+  },
+  {
+   "n": "恶咒幼鱼",
+   "en": "Foulblood Tyrant",
+   "cls": "普通",
+   "id": "117855",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0401.webp",
+   "desc": "受祭仪影响发生畸变，散播厄运不幸的幼鱼。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加等量【出血】和伤害 10%的【中毒】。",
+    "施加 X 层【献祭】和 1 层 空虚。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed",
+    "poison",
+    "sacrifice"
+   ]
+  },
+  {
+   "n": "恶咒鱼潮",
+   "en": "Foulblood Tyrant",
+   "cls": "普通",
+   "id": "117860",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0401.webp",
+   "desc": "恶咒的幼鱼聚集，形成散播灾厄的鱼潮。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加等量【出血】和伤害 10%的【中毒】。",
+    "施加 X 层【献祭】和 1 层 空虚。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed",
+    "poison",
+    "sacrifice"
+   ]
+  },
+  {
+   "n": "提灯信徒",
+   "en": "Lantern Devotee",
+   "cls": "普通",
+   "id": "118019",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0404.webp",
+   "desc": "提灯教会的普通教众，因信仰而远离家乡，来到此处。",
+   "skills": [
+    "造成 X 点伤害 X 次 ，施加 1 层重创，玩家每拥有 1 点护盾使本次伤害降低 1 点。",
+    "造成 X 点伤害 X 次，若造成了未被格挡的伤害则获得 X 层「互助契约：【深海】分殖体」。",
+    "获得 X 层「血誓」和 X 层【反击】。",
+    "造成 X 点伤害 X 次。每有 2 层「血誓」，获得 1 条临时触腕。"
+   ],
+   "kw": [
+    "aequor",
+    "counter"
+   ]
+  },
+  {
+   "n": "提灯虔诚者",
+   "en": "Lantern Devotee",
+   "cls": "精英",
+   "id": "118030",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0404.webp",
+   "desc": "信奉「燃己的灯芯必定得到救赎」的虔诚者，因信仰而无所畏惧。",
+   "skills": [
+    "造成 X 点伤害 X 次，若造成了未被格挡的伤害则获得 X 层「互助契约：【深海】分殖体」。",
+    "造成 X 点伤害 X 次，重创 X 回合，玩家每拥有 1 点护盾使本次伤害降低 1 点。",
+    "造成 X 点伤害 X 次，为抽牌堆和弃牌堆 X 张随机卡牌附加蹈海者咒怨。",
+    "造成 X 点伤害 X 次。每有 2 层「血誓」，获得 1 条临时触腕。",
+    "获得 X 层「血誓」和 X 层【反击】。"
+   ],
+   "kw": [
+    "aequor",
+    "counter"
+   ]
+  },
+  {
+   "n": "普通仆役",
+   "en": "Personal Butler",
+   "cls": "普通",
+   "id": "118027",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0402.webp",
+   "desc": "为了更接近「神母」意志而改变自身形态的仆从，以自身的使命为荣。",
+   "skills": [
+    "获得 X 点护盾、 X 点触腕伤害和 X 层暗流。",
+    "造成 X 点伤害 X 次，施加 X 层腐朽。",
+    "造成 X 点伤害 X 次 ，额外造成玩家当前生命 25% 的伤害（X ）。施加等量【出血】和 X 层腐朽。",
+    "造成 X 点伤害 X 次，施加 X 层【中毒】，敌方生命越低伤害越高，最大为  X  点伤害。"
+   ],
+   "kw": [
+    "bleed",
+    "poison"
+   ]
+  },
+  {
+   "n": "猎犬之足",
+   "en": "Hunting Dog's Claw",
+   "cls": "普通",
+   "id": "14014",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0403.webp",
+   "desc": "自其他维度撕裂缝隙而来的追逐之足，捕捉每个冒失的灵魂。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "【封印】四个唤醒体的狂气爆发 1 回合。",
+    "造成 X 点伤害 X 次，每当造成未被格挡的伤害，就会造成 1 层【脆弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "sealed"
+   ]
+  },
+  {
+   "n": "神选者",
+   "en": "The Preaching One",
+   "cls": "精英",
+   "id": "118023",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0403.webp",
+   "desc": "由「主祭」创造的畸形存在，因其绝对的忠诚而受到「主祭」驱使。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 层【临时反击】，玩家每剩余 1 张手牌，提高 X 层【临时反击】。",
+    "造成 X 点伤害 X 次。直到回合结束前，玩家每拥有 1 张手牌，攻击次数就减少 1，最低为 3。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，弃掉玩家所有【保留】的手牌，每次造成未被格挡的伤害时，将 X 张「窒息」洗入抽牌堆顶部。",
+    "切换到该意图时获得 X 点触腕伤害。若目标生命低于 50%，施加 X 层腐朽，否则施加 X 层 【虚弱】。",
+    "造成 X 点伤害 X 次，获得 X 层【临时反击】，玩家每剩余 1 张手牌，提高 X 层【临时反击】。"
+   ],
+   "kw": [
+    "retain",
+    "temporary-counter",
+    "weakness"
+   ]
+  },
+  {
+   "n": "秽血幼鱼",
+   "en": "Foulblood Tyrant",
+   "cls": "普通",
+   "id": "117856",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0401.webp",
+   "desc": "受祭仪影响发生畸变，传承污秽血脉的幼鱼。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加等量【出血】和伤害 10%的【中毒】。",
+    "施加 X 层【献祭】和 1 层 空虚。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed",
+    "poison",
+    "sacrifice"
+   ]
+  },
+  {
+   "n": "秽血鱼潮",
+   "en": "Foulblood Tyrant",
+   "cls": "普通",
+   "id": "117859",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0401.webp",
+   "desc": "秽血的幼鱼聚集，形成污秽亵渎的鱼潮。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加等量【出血】和伤害 10%的【中毒】。",
+    "施加 X 层【献祭】和 1 层 空虚。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed",
+    "poison",
+    "sacrifice"
+   ]
+  },
+  {
+   "n": "维度异兽",
+   "en": "Dimensional Hunter",
+   "cls": "普通",
+   "id": "14099",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0402.webp",
+   "desc": "游离的维度碎片拼合而成的异兽，与祂的战利品和谐相处。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "向随机唤醒体施加 1 层临时【封印】，重复 2 次。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。"
+   ],
+   "kw": [
+    "sealed"
+   ]
+  },
+  {
+   "n": "维度猎手",
+   "en": "Dimensional Hunter",
+   "cls": "精英",
+   "id": "14084",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0402.webp",
+   "desc": "游离的维度碎片拼合而成的异兽，与祂的战利品和谐相处。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。",
+    "向随机唤醒体施加 1 层临时【封印】，重复 2 次。"
+   ],
+   "kw": [
+    "sealed"
+   ]
+  },
+  {
+   "n": "维度碎片",
+   "en": "Dimension Fragment",
+   "cls": "普通",
+   "id": "14055",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0401.webp",
+   "desc": "⟦fragile|脆弱⟧、游弋的维度碎片，当维度的罅隙被撕裂，它们便会四处飘荡。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "向狂气最高唤醒体施加 1 层临时【封印】，造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "fragile",
+    "sealed"
+   ]
+  },
+  {
+   "n": "腐溃幼鱼",
+   "en": "Foulblood Tyrant",
+   "cls": "普通",
+   "id": "117857",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0401.webp",
+   "desc": "受祭仪影响发生畸变，通体腐烂溃败的幼鱼。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加等量【出血】和伤害 10%的【中毒】。",
+    "施加 X 层【献祭】和 1 层 空虚。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed",
+    "poison",
+    "sacrifice"
+   ]
+  },
+  {
+   "n": "腐溃鱼潮",
+   "en": "Foulblood Tyrant",
+   "cls": "普通",
+   "id": "117858",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0401.webp",
+   "desc": "腐溃的幼鱼聚集，形成恶臭糜烂的鱼潮。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加等量【出血】和伤害 10%的【中毒】。",
+    "施加 X 层【献祭】和 1 层 空虚。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed",
+    "poison",
+    "sacrifice"
+   ]
+  },
+  {
+   "n": "贴身管家",
+   "en": "Personal Butler",
+   "cls": "精英",
+   "id": "118025",
+   "zone": "C04",
+   "zoneN": "维度裂隙",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0402.webp",
+   "desc": "为了更接近「神母」意志而改变自身形态的仆从，愿意为「神母」献出一切。",
+   "skills": [
+    "获得 X 点护盾、 X 点触腕伤害和 X 层暗流。",
+    "造成 X 点伤害 X 次 ，额外造成玩家当前生命 50% 的伤害（X ）。施加等量【出血】和 X 层腐朽。",
+    "造成 X 点伤害 X 次，施加 X 层腐朽。",
+    "造成 X 点伤害 X 次，施加 X 层【中毒】，敌方生命越低伤害越高，最大为  X  点伤害。"
+   ],
+   "kw": [
+    "bleed",
+    "poison"
+   ]
+  },
+  {
+   "n": "「命运残兆」",
+   "en": "Lost One",
+   "cls": "Boss",
+   "id": "131443",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0503.webp",
+   "desc": "渊狱的梦境里，被遗弃的命运们看到了自己的丝线。它们哀嚎着，沿着那条⟦fragile|脆弱⟧的丝线，蠕动向它们的来处。亲爱的命运母亲啊……您可有听见我们的呼唤？",
+   "skills": [
+    "切换至该意图时，直到下回合开始时，每打出 X 张指令卡就获得 X 的【临时力量】。 造成 X 点伤害 X 次，对手生命越低伤害越高，最高为 X 点伤害。",
+    "切换至该意图时，将 X 张随机症状洗入手中。造成【虚弱】、【易伤】、 【脆弱】、重创 X 回合和 X 的【出血】，本回合每打出 X 张症状，【出血】效果增加 X。",
+    "切换至该意图时，立刻获得 X 层狂热。造成 X 点伤害 X 次，每造成 X 次未被格挡的伤害，获得 X 层狂热。",
+    "切换至该意图时，立刻施加 X 层 空虚并使所有唤醒体失去 X 点狂气。造成 X 点伤害 X 次，弃掉所有手牌。"
+   ],
+   "kw": [
+    "bleed",
+    "fragile",
+    "temporary-str",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「波纳佩颂歌」",
+   "en": "Pohnpei Hymn",
+   "cls": "Boss",
+   "id": "13964",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_C0503_BOSSSIZE.webp",
+   "desc": "深受主祭信任的高级祭者，祂们匍匐主祭足边，对她俯首称臣。",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 X 层【屏障】。玩家回合结束前每拥有一张手牌还会额外获得 X 层【屏障】。",
+    "造成 X 点伤害 X 次。基础攻击 10 次，直到回合结束前，玩家每拥有 1 张手牌，攻击次数就减少 1，最低为 3。",
+    "造成 X 点伤害 X 次，弃掉对方所有的手牌。",
+    "造成 X 层【中毒】，对抽牌堆和弃牌堆中随机 X 张卡牌施加「【迟缓】」"
+   ],
+   "kw": [
+    "barrier",
+    "poison",
+    "stagnation"
+   ]
+  },
+  {
+   "n": "「织幕者」",
+   "en": "Measurer",
+   "cls": "Boss",
+   "id": "131447",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0502_AT.webp",
+   "desc": "命运女神的亲侍。她亲手为舞台织造幕布，帮助命运的女神，为一个世界编写开场与落幕。每一座她经手的舞台都运行得精确而冷酷，如同她主人的意志本身。",
+   "skills": [
+    "造成 X 点伤害 X 次，每造成 1 次未被格挡的伤害就使目标失去 X 【力量】。",
+    "施加 X 层【虚弱】，【封印】 X 张手中或抽牌堆顶的指令卡 X 回合。移动至前排，并在后方召唤 X 名小型冷蛛白群。",
+    "和前列友方交换位置，造成 X 点伤害 X 次。若本回合【击破】了「【旧日余烬】」，获得 X 层临时加固并转化为造成 X 点伤害 X 次，获得 X 层临时狂热的「凿击」。"
+   ],
+   "kw": [
+    "ancient-embers",
+    "destroy",
+    "sealed",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「缚命人」",
+   "en": "Abyssal Squire",
+   "cls": "Boss",
+   "id": "131442",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0502_BT.webp",
+   "desc": "一位曾经的织幕者，阿拉克涅身边最亲近的侍女。她或许曾理解命运女神的决定，而在渊狱中的无数年里，残留在这具躯壳中的，只剩⟦madness|疯狂⟧与仇恨。",
+   "skills": [
+    "造成 X 点伤害 X 次，每造成 1 次未被格挡的伤害就使目标弃置 X 张指令卡。",
+    "施加 X 层 【脆弱】，并为 X 张手中或抽牌堆顶的指令卡附加 X 层暗中破坏。移动至前排，并在后方召唤 X 名小型冷蛛黑群。",
+    "和前列友方交换位置，造成 X 点伤害 X 次。若本回合【击破】了「【旧日余烬】」，获得 X 层临时加固并转化为造成 X 点伤害 X 次，获得 X 层临时狂热的「凿击」。"
+   ],
+   "kw": [
+    "ancient-embers",
+    "destroy",
+    "fragile",
+    "madness"
+   ]
+  },
+  {
+   "n": "蹈海者亲卫",
+   "en": "Seafarer's Elite Guard",
+   "cls": "Boss",
+   "id": "14076",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_C0502_BOSSSIZE.webp",
+   "desc": "血的纽带赋予了祂们傲然亲族的权力，祂发誓永远为神明的降临而生。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，并施加 X 层寄生。",
+    "获得 X 点【力量】和 X 层再生力：回合结束时回复等同于层数的生命，每失去 5 点生命减少 1 层。",
+    "造成 X 点伤害 X 次，施加 X 回合【易伤】。",
+    "造成 X 点伤害 X 次，赋予  X 张卡牌「深潜印记」：打出后敌人获得【临时力量】。"
+   ],
+   "kw": [
+    "str",
+    "temporary-str",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "蹈海者近卫",
+   "en": "Seafarer Guard",
+   "cls": "Boss",
+   "id": "22339",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_C0502_BT_BOSSSIZE.webp",
+   "desc": "血的纽带赋予了祂们傲然亲族的权力，祂发誓永远为主人的命令而动。",
+   "skills": [
+    "造成 X 点伤害 X 次。赋予玩家  X 张随机卡牌「【怒涛】印记」：使用有该标记的卡牌后会让本回合怪物的攻击段数+1，【怒涛】印记打出后会移除。",
+    "造成 X 点伤害 X 次，本回合每受到一次攻击，获得 X 点【临时力量】。",
+    "造成 X 点伤害 X 次，并施加 X 层寄生。",
+    "获得 X 点【力量】和 X 层再生力：回合结束时回复等同于层数的生命，每失去 5 点生命减少 1 层。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "raging-waves",
+    "str",
+    "temporary-str"
+   ]
+  },
+  {
+   "n": "「新生」",
+   "en": "Sea Creature",
+   "cls": "普通",
+   "id": "14100",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_C0501.webp",
+   "desc": "变形者啜饮生命，为自己带来永恒的新生。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "破除桎梏孵化而出，正在寻找它的下一个目标…",
+    "施加 X 层【中毒】。若仍然有其他敌人存在，【牺牲】自身进行寄生，并附加「被寄生」状态。",
+    "造成 X 点伤害 X 次。获得 X 点护盾。"
+   ],
+   "kw": [
+    "poison",
+    "sacrifice"
+   ]
+  },
+  {
+   "n": "「永恒助祭」",
+   "en": "Chanter",
+   "cls": "精英",
+   "id": "13967",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_C0503.webp",
+   "desc": "永恒之国的低级祭司，在得到主祭首肯前，祂们不被允许踏入神殿。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 点护盾。玩家回合结束前每拥有一张手牌还会额外获得 X 点护盾。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 层【中毒】，对抽牌堆和弃牌堆中随机 X 张卡牌施加「【迟缓】」",
+    "造成 X 点伤害 X 次，弃掉对方所有的手牌。"
+   ],
+   "kw": [
+    "poison",
+    "stagnation"
+   ]
+  },
+  {
+   "n": "「永恒狂热者」",
+   "en": "Seafarer",
+   "cls": "精英",
+   "id": "14073",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_C0502.webp",
+   "desc": "杀戮、诵经、⟦sacrifice|献祭⟧……为了永恒之国，祂们将献出一切。",
+   "skills": [
+    "造成 X 点伤害 X 次，赋予  X 张卡牌「深潜印记」：打出后敌人获得【临时力量】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，并施加 X 层寄生。",
+    "获得 X 点【力量】和 X 层再生力：回合结束时回复等同于层数的生命，每失去 5 点生命减少 1 层。",
+    "造成 X 点伤害 X 次，施加 X 回合【易伤】。"
+   ],
+   "kw": [
+    "sacrifice",
+    "str",
+    "temporary-str",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「神使？」",
+   "en": "Sea Creature",
+   "cls": "普通",
+   "id": "118647",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_C0501.webp",
+   "desc": "可悲的失败品。它孱弱的躯壳不足以承载「神使」的⟦str|力量⟧。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "破除桎梏孵化而出，正在寻找它的下一个目标…",
+    "施加 X 层【中毒】。若仍然有其他敌人存在，【牺牲】自身进行寄生，并附加「被寄生」状态。",
+    "造成 X 点伤害 X 次。获得 X 点护盾。"
+   ],
+   "kw": [
+    "poison",
+    "sacrifice",
+    "str"
+   ]
+  },
+  {
+   "n": "「祭品」",
+   "en": "Sea Creature",
+   "cls": "普通",
+   "id": "118020",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_C0501.webp",
+   "desc": "无论它之前是何身份，现在都只是等待「神使」附身的祭仪道具。",
+   "skills": [
+    "因寄生被打断，陷入了短暂的混乱…",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。获得 X 点护盾。",
+    "施加 X 层【中毒】。若仍然有其他敌人存在，【牺牲】自身进行寄生，并附加「被寄生」状态。"
+   ],
+   "kw": [
+    "poison",
+    "sacrifice"
+   ]
+  },
+  {
+   "n": "「远洋回忆」",
+   "en": "Sailor's Lament",
+   "cls": "精英",
+   "id": "14090",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_C0504_BT.webp",
+   "desc": "为了生活奔赴大海，可成为一段记忆的现在，他早已遗失了那个故乡。",
+   "skills": [
+    "将 X 张「窒息」置入对方手牌。",
+    "获得 X 点护盾和获得状态「恶意放血」: 每造成一次未被格挡的伤害，附加 X 层【出血】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。"
+   ],
+   "kw": [
+    "bleed"
+   ]
+  },
+  {
+   "n": "冷蛛",
+   "en": "Leng Spider Cluster",
+   "cls": "普通",
+   "id": "128017",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0501_BT.webp",
+   "desc": "由人类转化而成，阿拉克涅侍女的蜘蛛形态。它们挂载着命运的丝缕，为阿拉克涅编织那张无垠的巨网。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X% 伤害的【中毒】。",
+    "施加 X 层【虚弱】，为 X 张卡牌附加 X 层【迟缓】。",
+    "造成 X 点伤害 X 次，将 X 张随机唤醒体附带消耗的「打击」洗入对方抽牌堆。"
+   ],
+   "kw": [
+    "poison",
+    "stagnation",
+    "weakness"
+   ]
+  },
+  {
+   "n": "冷蛛侍女",
+   "en": "Measurer",
+   "cls": "普通",
+   "id": "128045",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0502_AT.webp",
+   "desc": "被赐予人形外壳的冷蛛，穿戴整洁地穿行于命运剧院的舞台之间。命运的操控者从不强迫木偶成为她的侍女，但她们总是心甘情愿地选择这条属于自己的道路。",
+   "skills": [
+    "造成 X 点伤害 X 次，每造成 1 次未被格挡的伤害就使目标失去 X 【力量】。",
+    "施加 X 层【虚弱】，【封印】 X 张手中或抽牌堆顶的指令卡 X 回合。",
+    "和前列友方交换位置，造成 X 点伤害 X 次。若本回合【击破】了「【旧日余烬】」，获得 X 层临时加固并转化为造成 X 点伤害 X 次，获得 X 层临时狂热的「凿击」。"
+   ],
+   "kw": [
+    "ancient-embers",
+    "destroy",
+    "sealed",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "冷蛛群",
+   "en": "Leng Spider Cluster",
+   "cls": "普通",
+   "id": "131420",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0501_BT.webp",
+   "desc": "冷蛛的集群，命运之网的分子。那诸多蛛体凝集而成的，便是命运本身。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X% 伤害的【中毒】。",
+    "施加 X 层【虚弱】，为 X 张卡牌附加 X 层【迟缓】。",
+    "造成 X 点伤害 X 次，将 X 张随机唤醒体附带消耗的「打击」洗入对方抽牌堆。"
+   ],
+   "kw": [
+    "poison",
+    "stagnation",
+    "weakness"
+   ]
+  },
+  {
+   "n": "冷蛛群",
+   "en": "Abyssal Spider Cluster",
+   "cls": "普通",
+   "id": "131422",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0501_AT.webp",
+   "desc": "冷蛛的集群，命运之网的分子。那诸多蛛体凝集而成的，便是命运本身。",
+   "skills": [
+    "施加 X 层  【脆弱】，为 X 张卡牌附加 X 层暗中破坏。",
+    "造成 X 点伤害 X 次，施加 X% 伤害的【中毒】。",
+    "造成 X 点伤害 X 次，将 X 张随机症状洗入对方抽牌堆。"
+   ],
+   "kw": [
+    "fragile",
+    "poison"
+   ]
+  },
+  {
+   "n": "剪裁师",
+   "en": "Abyssal Squire",
+   "cls": "精英",
+   "id": "128223",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0502_BT.webp",
+   "desc": "渊狱中的并没有可供剪断之物。她与她⟦madness|疯狂⟧的主人一同等待，等待能够亲手剪断命运的那一天。",
+   "skills": [
+    "造成 X 点伤害 X 次，每造成 1 次未被格挡的伤害就使目标弃置 X 张指令卡。",
+    "施加 X 层 【脆弱】，并为 X 张手中或抽牌堆顶的指令卡附加 X 层暗中破坏。移动至前排，并在后方召唤 X 名渊狱蜘群。",
+    "和前列友方交换位置，造成 X 点伤害 X 次。若本回合【击破】了「【旧日余烬】」，获得 X 层临时加固并转化为造成 X 点伤害 X 次，获得 X 层临时狂热的「凿击」。"
+   ],
+   "kw": [
+    "ancient-embers",
+    "destroy",
+    "fragile",
+    "madness"
+   ]
+  },
+  {
+   "n": "吟诵者",
+   "en": "Chanter",
+   "cls": "普通",
+   "id": "14081",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_C0503.webp",
+   "desc": "永恒之国的虔信者，神王最忠实的仆人。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 点护盾。玩家回合结束前每拥有一张手牌还会额外获得 X 点护盾。",
+    "造成 X 层【中毒】，对抽牌堆和弃牌堆中随机 X 张卡牌施加「【迟缓】」",
+    "造成 X 点伤害 X 次，弃掉对方所有的手牌。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "poison",
+    "stagnation"
+   ]
+  },
+  {
+   "n": "噬线集群",
+   "en": "Lost One",
+   "cls": "精英",
+   "id": "129602",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0503.webp",
+   "desc": "大量破碎的命运汇聚在一起，互相撕咬、⟦devour|吞噬⟧，拧成一团无法辨认原貌的风暴。每一根丝线都在试图成为唯一的正确命运，每一根都注定失败。",
+   "skills": [
+    "切换至该意图时，立刻施加 X 层 空虚并使所有唤醒体失去 X 点狂气。造成 X 点伤害 X 次，弃掉所有手牌。",
+    "切换至该意图时，直到下回合开始时，每打出 X 张指令卡就获得 X 的【临时力量】。 造成 X 点伤害 X 次，对手生命越低伤害越高，最高为 X 点伤害。",
+    "切换至该意图时，将 X 张随机症状洗入手中。造成【虚弱】、【易伤】、 【脆弱】、重创 X 回合和 X 的【出血】，本回合每打出 X 张症状，【出血】效果增加 X。",
+    "切换至该意图时，立刻获得 X 层狂热。造成 X 点伤害 X 次，每造成 X 次未被格挡的伤害，获得 X 层狂热。"
+   ],
+   "kw": [
+    "bleed",
+    "devour",
+    "fragile",
+    "temporary-str",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "水手的哀恸",
+   "en": "Sailor's Lament",
+   "cls": "普通",
+   "id": "14058",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_C0504_AT.webp",
+   "desc": "曾随着货轮一同沉入⟦aequor|深海⟧的水手，这份哀伤的记忆永远刻印在了船上，永不消散。",
+   "skills": [
+    "将 X 张「窒息」置入对方手牌。",
+    "造成 X 点伤害 X 次。",
+    "所有友方获得 X 点护盾与 X 点【力量】。"
+   ],
+   "kw": [
+    "aequor",
+    "str"
+   ]
+  },
+  {
+   "n": "水手的恸哭",
+   "en": "Sailor's Lament",
+   "cls": "普通",
+   "id": "14057",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_C0504_BT.webp",
+   "desc": "曾随着货轮一同沉入⟦aequor|深海⟧的水手，这滴痛苦的眼泪与船融为一体，永不分离。",
+   "skills": [
+    "获得 X 点护盾和状态「放血」: 每造成一次未被格挡的伤害，附加 X 层【出血】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "aequor",
+    "bleed"
+   ]
+  },
+  {
+   "n": "海中之物",
+   "en": "Sea Creature",
+   "cls": "普通",
+   "id": "14091",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_C0501.webp",
+   "desc": "变形者们选择了这副躯壳，久远而恒常。当心它们的寄生攻击。",
+   "skills": [
+    "因寄生被打断，陷入了短暂的混乱…",
+    "造成 X 点伤害 X 次。",
+    "施加 X 层【中毒】。若仍然有其他敌人存在，【牺牲】自身进行寄生，并附加「被寄生」状态。",
+    "造成 X 点伤害 X 次。获得 X 点护盾。"
+   ],
+   "kw": [
+    "poison",
+    "sacrifice"
+   ]
+  },
+  {
+   "n": "渊狱之蛛",
+   "en": "Abyssal Spider Cluster",
+   "cls": "普通",
+   "id": "127695",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0501_AT.webp",
+   "desc": "被丢入渊狱的错误命运的残片，在涅芙蕾亚的意志下凝结成了蜘蛛的形态。",
+   "skills": [
+    "施加 X 层  【脆弱】，为 X 张卡牌附加 X 层暗中破坏。",
+    "造成 X 点伤害 X 次，将 X 张随机症状洗入对方抽牌堆。",
+    "造成 X 点伤害 X 次，施加 X% 伤害的【中毒】。"
+   ],
+   "kw": [
+    "fragile",
+    "poison"
+   ]
+  },
+  {
+   "n": "渊狱侍从",
+   "en": "Abyssal Squire",
+   "cls": "普通",
+   "id": "128224",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0502_BT.webp",
+   "desc": "坠入渊狱的侍女，依然保持着侍女的姿势，在苦痛的⟦void|虚空⟧中重复擦拭、整理、微笑，侍奉一座早已不复存在的舞台。",
+   "skills": [
+    "造成 X 点伤害 X 次，每造成 1 次未被格挡的伤害就使目标弃置 X 张指令卡。",
+    "施加 X 层 【脆弱】，并为 X 张手中或抽牌堆顶的指令卡附加 X 层暗中破坏。",
+    "和前列友方交换位置，造成 X 点伤害 X 次。若本回合【击破】了「【旧日余烬】」，获得 X 层临时加固并转化为造成 X 点伤害 X 次，获得 X 层临时狂热的「凿击」。"
+   ],
+   "kw": [
+    "ancient-embers",
+    "destroy",
+    "fragile",
+    "void"
+   ]
+  },
+  {
+   "n": "渊狱蜘群",
+   "en": "Leng Spider Cluster",
+   "cls": "普通",
+   "id": "131421",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0501_BT.webp",
+   "desc": "它们模仿着冷蛛的姿态行走，却没有丝线可供攀附。无主的仆从，侍奉着一个已被删除的未来。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X% 伤害的【中毒】。",
+    "施加 X 层【虚弱】，为 X 张卡牌附加 X 层【迟缓】。",
+    "造成 X 点伤害 X 次，将 X 张随机唤醒体附带消耗的「打击」洗入对方抽牌堆。"
+   ],
+   "kw": [
+    "poison",
+    "stagnation",
+    "weakness"
+   ]
+  },
+  {
+   "n": "渊狱蜘群",
+   "en": "Abyssal Spider Cluster",
+   "cls": "普通",
+   "id": "131426",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0501_AT.webp",
+   "desc": "它们模仿着冷蛛的姿态行走，却没有丝线可供攀附。无主的仆从，侍奉着一个已被删除的未来。",
+   "skills": [
+    "施加 X 层  【脆弱】，为 X 张卡牌附加 X 层暗中破坏。",
+    "造成 X 点伤害 X 次，施加 X% 伤害的【中毒】。",
+    "造成 X 点伤害 X 次，将 X 张随机症状洗入对方抽牌堆。"
+   ],
+   "kw": [
+    "fragile",
+    "poison"
+   ]
+  },
+  {
+   "n": "碎相母体",
+   "en": "Abyssal Spider Cluster",
+   "cls": "精英",
+   "id": "131441",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0501_AT.webp",
+   "desc": "冷蛛群的核心，以自身为锚点吸收着周围散落的维度余烬，产出新的冷蛛个体。阿拉克涅偶尔会将一段完整的命运丝线赐予它——这是一只冷蛛所能触及的最高恩赏。",
+   "skills": [
+    "施加 X 层  【脆弱】，为 X 张卡牌附加 X 层暗中破坏。",
+    "造成 X 点伤害 X 次，施加 X% 伤害的【中毒】。",
+    "造成 X 点伤害 X 次，将 X 张随机症状洗入对方抽牌堆。"
+   ],
+   "kw": [
+    "fragile",
+    "poison"
+   ]
+  },
+  {
+   "n": "缠丝母体",
+   "en": "Leng Spider Cluster",
+   "cls": "精英",
+   "id": "131440",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0501_BT.webp",
+   "desc": "冷蛛群的核心，以自身为锚点吸收着周围散落的维度余烬，产出新的冷蛛个体。阿拉克涅偶尔会将一段完整的命运丝线赐予它——这是一只冷蛛所能触及的最高恩赏。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X% 伤害的【中毒】。",
+    "施加 X 层【虚弱】，为 X 张卡牌附加 X 层【迟缓】。",
+    "造成 X 点伤害 X 次，将 X 张随机唤醒体附带消耗的「打击」洗入对方抽牌堆。"
+   ],
+   "kw": [
+    "poison",
+    "stagnation",
+    "weakness"
+   ]
+  },
+  {
+   "n": "蹈海者",
+   "en": "Seafarer",
+   "cls": "普通",
+   "id": "13999",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_C0502.webp",
+   "desc": "忠仆，孝子，虔信者。你可以用任何代表忠诚的词汇形容他们。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，施加 X 回合【易伤】。",
+    "造成 X 点伤害 X 次。赋予  X 张卡牌「深潜印记」：打出后敌人获得【临时力量】。",
+    "造成 X 点伤害 X 次，施加 X 回合的【虚弱】。",
+    "获得 X 点【力量】和 X 层再生力：回合结束时回复等同于层数的生命，每失去 5 点生命减少 1 层。"
+   ],
+   "kw": [
+    "str",
+    "temporary-str",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "迷途之人",
+   "en": "Lost One",
+   "cls": "普通",
+   "id": "128551",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0503.webp",
+   "desc": "每一张脸，都曾是某个世界、某个人的一生。",
+   "skills": [
+    "切换至该意图时，立刻获得 X 层狂热。造成 X 点伤害 X 次，每造成 X 次未被格挡的伤害，获得 X 层狂热。",
+    "切换至该意图时，立刻施加 X 层 空虚并使所有唤醒体失去 X 点狂气。造成 X 点伤害 X 次，弃掉所有手牌。",
+    "切换至该意图时，直到下回合开始时，每打出 X 张指令卡就获得 X 的【临时力量】。 造成 X 点伤害 X 次，对手生命越低伤害越高，最高为 X 点伤害。",
+    "切换至该意图时，将 X 张随机症状洗入手中。造成【虚弱】、【易伤】、 【脆弱】、重创 X 回合和 X 的【出血】，本回合每打出 X 张症状，【出血】效果增加 X。"
+   ],
+   "kw": [
+    "bleed",
+    "fragile",
+    "temporary-str",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "量体师",
+   "en": "Measurer",
+   "cls": "精英",
+   "id": "128047",
+   "zone": "C05",
+   "zoneN": "深海祭坛",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0502_AT.webp",
+   "desc": "侍女中被授权「度量」命运的个体。她丈量每一段命运的分量，向命运的操控者报告那些线缕的错乱。至于之后将发生的，她从不关心。",
+   "skills": [
+    "造成 X 点伤害 X 次，每造成 1 次未被格挡的伤害就使目标失去 X 【力量】。",
+    "施加 X 层【虚弱】，【封印】 X 张手中或抽牌堆顶的指令卡 X 回合。移动至前排，并在后方召唤 X 名冷蛛群。",
+    "和前列友方交换位置，造成 X 点伤害 X 次。若本回合【击破】了「【旧日余烬】」，获得 X 层临时加固并转化为造成 X 点伤害 X 次，获得 X 层临时狂热的「凿击」。"
+   ],
+   "kw": [
+    "ancient-embers",
+    "destroy",
+    "sealed",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「24」",
+   "en": "Shadow\"24\"",
+   "cls": "Boss",
+   "id": "14044",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C06_AF.webp",
+   "desc": "自蜡像中爬出的神秘女士。她的大脑十分拥挤，疑似歇斯底里症晚期患者。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，使扭曲死体狂宴伤害增加 X 。",
+    "造成 X 点伤害 X 次，将一张「救救我」置入手牌。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "「伊恩斯莫的守卫」",
+   "en": "Guard of Iensmo",
+   "cls": "Boss",
+   "id": "36118",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0603_AT_BOSSSIZE.webp",
+   "desc": "它与赘生物融合得是如此恰到好处，美丽到几乎让人以为它本该如此。",
+   "skills": [
+    "获得 1 层【疯狂】，对 3 张卡牌施加 1 层【迟缓】。",
+    "造成 X 点伤害 X 次。召唤 1 个「灵觉之子」。",
+    "造成 X 点伤害 X 次，施加 1 回合【虚弱】和【脆弱】，每有 1 个其他友方自身就获得 1 层【屏障】。",
+    "造成 X 点伤害 X 次。弃掉玩家所有手牌。",
+    "造成 X 点伤害 X 次。召唤「灵觉之子」、「睡梦之子」、「水之子」。"
+   ],
+   "kw": [
+    "barrier",
+    "fragile",
+    "madness",
+    "stagnation",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「分裂患者」",
+   "en": "Shadow\"24\"",
+   "cls": "Boss",
+   "id": "14042",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C06_AF.webp",
+   "desc": "自蜡像中爬出的神秘女士。她的大脑十分拥挤，疑似歇斯底里症晚期患者。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，使扭曲死体狂宴伤害增加 X 。",
+    "造成 X 点伤害 X 次，将一张「救救我」置入手牌。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "「永恒寄主」",
+   "en": "Eternal Host",
+   "cls": "Boss",
+   "id": "36065",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0602_BOSSSIZE.webp",
+   "desc": "它不受控制地向未知奉献出自己的肉身，没有人在意它的意志。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 层【屏障】。",
+    "造成 X 点伤害 X 次，赋予玩家 4 张算力最低的卡牌「深潜印记」。",
+    "造成 X 点伤害 X 次，获得 X 层【屏障】。",
+    "获得 X 点【力量】和 X 层再生力：回合结束时回复等同于层数的生命，每失去 5 点生命减少 1 层。召唤一个「睡梦之子」在身前和一个「水之子」在身后。",
+    "造成 X 点伤害 X 次，施加等量伤害的【出血】。"
+   ],
+   "kw": [
+    "barrier",
+    "bleed",
+    "str"
+   ]
+  },
+  {
+   "n": "影子「24」",
+   "en": "Shadow\"24\"",
+   "cls": "Boss",
+   "id": "47981",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C06_AF.webp",
+   "desc": "诞生自阴影的「24」。痛恨一切弱小的事物，包括老鼠。",
+   "skills": [
+    "造成 X 点伤害 X 次，将一张「救救我」置入手牌。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。额外造成 50% 未被完全格挡部分伤害的 【出血】。",
+    "造成 X 点伤害 X 次，使扭曲死体狂宴伤害增加 X 。",
+    "造成 X 点伤害 X 次。获得 X 层【反击】。",
+    "造成 X 点伤害 X 次。额外造成 X 层【中毒】。",
+    "造成 X 点伤害 X 次，使扭曲死体狂宴伤害增加 X 。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed",
+    "counter",
+    "poison"
+   ]
+  },
+  {
+   "n": "无瑕的怜心",
+   "en": "The All-Pitying One",
+   "cls": "Boss",
+   "id": "149106",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0602_AT.webp",
+   "desc": "不必害怕，信徒。一切现世的苦难，都是通往神国的台阶。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 层【虚弱】并弃置手中所有卡牌。",
+    "造成 X 点伤害 X 次，每有 X 层血誓使造成的伤害提高 X 点。",
+    "造成 X 点伤害 X次并附加等量【出血】。",
+    "弃置手中所有牌，并为弃牌堆所有指令卡施加 X 层【迟缓】。",
+    "获得 X 层【力量】。对抽牌堆或弃牌堆中 X 张指令卡施加 X 层【迟缓】，敌方各处卡牌每有 X 层【迟缓】，自身获得 X 层血誓。"
+   ],
+   "kw": [
+    "bleed",
+    "stagnation",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "永冬之主",
+   "en": "The Snowdrifters",
+   "cls": "Boss",
+   "id": "149115",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0603_BT.webp",
+   "desc": "向所有的生命与希望告别——永恒的冬天，已降临你身前。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 层重创，若未被格挡则移除 X% 【死亡抵抗】。",
+    "造成 X 点伤害 X 次，回复 X% 已损失生命。",
+    "获得 X 层【力量】，拥有护盾时施加 X 层刺骨，否则失去 X% 当前生命并获得 X% 霜盾。",
+    "造成 X 点伤害 X 次，施加 X% 伤害的刺骨，若自身拥有护盾施加的刺骨翻倍。"
+   ],
+   "kw": [
+    "death-resistance",
+    "str"
+   ]
+  },
+  {
+   "n": "终夜之主",
+   "en": "The Flamebounds",
+   "cls": "Boss",
+   "id": "149108",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0603_AT.webp",
+   "desc": "一切的灯火都照不出黎明——无尽的终夜，已降临你身前。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X% 伤害的【出血】，若自身拥有护盾施加的【出血】翻倍。",
+    "造成 X 点伤害 X 次，回复 X% 已损失生命。",
+    "获得 X 层【力量】，拥有护盾时施加 X 层【中毒】，否则失去 X% 当前生命并获得 X% 咒盾。",
+    "造成 X 点伤害 X 次，施加 X 层 空虚，若未被格挡则移除 X% 【死亡抵抗】。"
+   ],
+   "kw": [
+    "bleed",
+    "death-resistance",
+    "poison",
+    "str"
+   ]
+  },
+  {
+   "n": "「24」",
+   "en": "Shadow\"24\"",
+   "cls": "精英",
+   "id": "129788",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C06_AF.webp",
+   "desc": "自蜡像中爬出的神秘女士。她的大脑十分拥挤，疑似歇斯底里症晚期患者。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，使扭曲死体狂宴伤害增加 X 。",
+    "造成 X 点伤害 X 次，将一张「救救我」置入手牌。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "「佩因」",
+   "en": "Wallachia",
+   "cls": "普通",
+   "id": "35581",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0602_AT.webp",
+   "desc": "在潜入大洋，越过⟦aequor|深海⟧前，它记得佩因街是通向广场的一条窄路。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 层【屏障】。",
+    "造成 X 点伤害 X 次，将 1 张「寄生珊瑚」加入抽牌堆顶。",
+    "获得 X 点【力量】和 X 层再生力：回合结束时回复等同于层数的生命，每失去 5 点生命减少 1 层。",
+    "造成 X 点伤害 X 次，获得 X 层【屏障】。"
+   ],
+   "kw": [
+    "aequor",
+    "barrier",
+    "str"
+   ]
+  },
+  {
+   "n": "「养育者」",
+   "en": "Controlled",
+   "cls": "普通",
+   "id": "35580",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0603.webp",
+   "desc": "它的模样大变，只令人隐约感到熟悉。数次对视后，你才意识到这是无法抵抗「灾厄」影响的蹈海者助祭。",
+   "skills": [
+    "召唤 1 个「海中之物」在身前。",
+    "造成 X 点伤害 X 次。将 X 张「伤口」洗入对方抽牌堆。",
+    "造成 X 点伤害 X 次。【封印】狂气最高唤醒体。",
+    "造成 X 点伤害 X 次。获得 X 点护盾，玩家每拥有 1 张剩余手牌额外获得 X 点护盾。"
+   ],
+   "kw": [
+    "sealed"
+   ]
+  },
+  {
+   "n": "「受控者」",
+   "en": "Controlled",
+   "cls": "精英",
+   "id": "36369",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0603.webp",
+   "desc": "出于生命的本能，它心甘情愿供养着寄生物。",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 X 点护盾，玩家每拥有 1 张剩余手牌额外获得 X 点护盾。",
+    "造成 X 点伤害 X 次。【封印】狂气最高唤醒体。",
+    "召唤 1 个「海中之物」在身后。",
+    "造成 X 点伤害 X 次。将 X 张「伤口」洗入对方抽牌堆。"
+   ],
+   "kw": [
+    "sealed"
+   ]
+  },
+  {
+   "n": "「塞勒菲斯的倒影」",
+   "en": "The Echo of Ensereire",
+   "cls": "普通",
+   "id": "35579",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0603_AT.webp",
+   "desc": "珊瑚、寄生物……不同的赘生物是否来自同一灾厄的源头？我们无从知晓。",
+   "skills": [
+    "造成 X 点伤害 X 次。弃掉玩家所有手牌。",
+    "造成 X 点伤害 X 次，将 1 张「寄生珊瑚」加入抽牌堆顶。",
+    "获得 1 层【疯狂】，对 2 张卡牌施加 1 层【迟缓】。",
+    "造成 X 点伤害 X 次，施加 1 回合【虚弱】和【脆弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "madness",
+    "stagnation",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「奥格诺茨」",
+   "en": "Ognotz",
+   "cls": "普通",
+   "id": "36007",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0601.webp",
+   "desc": "受「未知」影响后，发生异变的某种海洋生物。软化的外壳与皮肉紧密粘连，强行剥离，只会让它永远失去抵达彼岸的能力。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加等量伤害的【出血】。",
+    "造成 X 点伤害 X 次。",
+    "移除负面状态，获得  X 点护盾并获得 1 层【疯狂】。"
+   ],
+   "kw": [
+    "bleed",
+    "madness"
+   ]
+  },
+  {
+   "n": "「寄主」",
+   "en": "Parasite",
+   "cls": "精英",
+   "id": "36114",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0602.webp",
+   "desc": "它不受控制地向未知奉献出自己的肉身，没有人在意它的意志。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 层【屏障】。",
+    "造成 X 点伤害 X 次，获得 X 层【屏障】。",
+    "造成 X 点伤害 X 次，赋予玩家 4 张算力最低的卡牌「深潜印记」。",
+    "造成 X 点伤害 X 次，施加等量伤害的【出血】。",
+    "获得 X 点【力量】和 X 层再生力：回合结束时回复等同于层数的生命，每失去 5 点生命减少 1 层。召唤一个「睡梦之子」在身前。"
+   ],
+   "kw": [
+    "barrier",
+    "bleed",
+    "str"
+   ]
+  },
+  {
+   "n": "「寄生种」",
+   "en": "Parasite",
+   "cls": "普通",
+   "id": "35584",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0602.webp",
+   "desc": "因「灾厄」影响而异变的蹈海者，赘生物自内向外生长，将它蚕食成一具空壳。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 层【屏障】。",
+    "造成 X 点伤害 X 次，获得 X 层【屏障】。",
+    "造成 X 点伤害 X 次，施加等量伤害的【出血】。",
+    "造成 X 点伤害 X 次，赋予玩家 2 张算力最低的卡牌「深潜印记」。",
+    "获得 X 点【力量】和 X 层再生力：回合结束时回复等同于层数的生命，每失去 5 点生命减少 1 层。"
+   ],
+   "kw": [
+    "barrier",
+    "bleed",
+    "str"
+   ]
+  },
+  {
+   "n": "「恩瑟雷的回音」",
+   "en": "The Echo of Ensereire",
+   "cls": "精英",
+   "id": "36120",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0603_AT.webp",
+   "desc": "珊瑚、寄生物……不同的赘生物是否来自同一灾厄的源头？我们无从知晓。",
+   "skills": [
+    "获得 1 层【疯狂】，对 2 张卡牌施加 1 层【迟缓】。",
+    "造成 X 点伤害 X 次，施加 1 回合【虚弱】和【脆弱】。",
+    "造成 X 点伤害 X 次。弃掉玩家所有手牌。",
+    "造成 X 点伤害 X 次。召唤 1 个「水之子」。"
+   ],
+   "kw": [
+    "fragile",
+    "madness",
+    "stagnation",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「瓦拉几亚」",
+   "en": "Wallachia",
+   "cls": "精英",
+   "id": "36117",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0602_AT.webp",
+   "desc": "在潜入大洋，越过⟦aequor|深海⟧前，它曾以为自己不会流淌着这样的血脉。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 层【屏障】。",
+    "造成 X 点伤害 X 次，获得 X 层【屏障】。",
+    "获得 X 点【力量】和 X 层再生力：回合结束时回复等同于层数的生命，每失去 5 点生命减少 1 层。召唤一个「水之子」在身后。",
+    "造成 X 点伤害 X 次，将 1 张「寄生珊瑚」加入抽牌堆顶和弃牌堆顶。",
+    "造成 X 点伤害 X 次，施加等量伤害的【出血】。"
+   ],
+   "kw": [
+    "aequor",
+    "barrier",
+    "bleed",
+    "str"
+   ]
+  },
+  {
+   "n": "「阿戈纳斯」",
+   "en": "Ognotz",
+   "cls": "普通",
+   "id": "36008",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0601.webp",
+   "desc": "受「未知」影响后，发生异变的某种海洋生物。软化的外壳与皮肉紧密粘连，让它不再能像风帆般舒展。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加等量伤害的【出血】。",
+    "造成 X 点伤害 X 次。",
+    "移除负面状态，获得  X 点护盾并获得 1 层【疯狂】。"
+   ],
+   "kw": [
+    "bleed",
+    "madness"
+   ]
+  },
+  {
+   "n": "亡雪者集群",
+   "en": "The Snowdrifters",
+   "cls": "精英",
+   "id": "149099",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0603_BT.webp",
+   "desc": "刺穿同伴的心脏，撕咬同伴的喉咙，啃食同伴的⟦caro|血肉⟧。 然后，去⟦devour|吞噬⟧你们看到的一切。",
+   "skills": [
+    "造成 X 点伤害 X 次，回复 X% 已损失生命。",
+    "造成 X 点伤害 X 次，施加 X 层重创，若未被格挡则移除 X% 【死亡抵抗】。",
+    "获得 X 层【力量】，拥有护盾时施加 X 层刺骨，否则失去 X% 当前生命并获得 X% 霜盾。",
+    "造成 X 点伤害 X 次，施加 X% 伤害的刺骨，若自身拥有护盾施加的刺骨翻倍。"
+   ],
+   "kw": [
+    "caro",
+    "death-resistance",
+    "devour",
+    "str"
+   ]
+  },
+  {
+   "n": "哈提",
+   "en": "The Hati Pack",
+   "cls": "普通",
+   "id": "149068",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0601_BT.webp",
+   "desc": "追逐月亮的猛犬，祂将被冰雪封冻。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 层【脆弱】。",
+    "切换至该意图时，冻结狂气最低唤醒体 X 张指令卡，死亡后解除该唤醒体的冻结。造成 X 点伤害 X 次和等量【出血】，对抽牌堆或弃牌堆 X 张卡牌施加 X 层【迟缓】。",
+    "获得 X 层【力量】，碎裂撕咬目标唤醒体所有冻结的指令卡，将其消耗。"
+   ],
+   "kw": [
+    "bleed",
+    "fragile",
+    "stagnation",
+    "str"
+   ]
+  },
+  {
+   "n": "哈提猎群",
+   "en": "The Hati Pack",
+   "cls": "普通",
+   "id": "149100",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0601_BT.webp",
+   "desc": "蛮荒的身体中流淌着神明的血。在月亮被⟦devour|吞噬⟧之时，众神迎来祂们的黄昏。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 层【脆弱】。",
+    "切换至该意图时，冻结狂气最低唤醒体 X 张指令卡，死亡后解除该唤醒体的冻结。造成 X 点伤害 X 次和等量【出血】，对抽牌堆或弃牌堆 X 张卡牌施加 X 层【迟缓】。",
+    "获得 X 层【力量】，碎裂撕咬目标唤醒体所有冻结的指令卡，将其消耗。"
+   ],
+   "kw": [
+    "bleed",
+    "devour",
+    "fragile",
+    "stagnation",
+    "str"
+   ]
+  },
+  {
+   "n": "噬灯者集群",
+   "en": "The Flamebounds",
+   "cls": "精英",
+   "id": "149105",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0603_AT.webp",
+   "desc": "献上心脏作灯芯，献上喉咙作灯座，献上⟦caro|血肉⟧作灯油。 啊，虔诚的旅人，温迪戈们将以此灯为你祈祷。",
+   "skills": [
+    "造成 X 点伤害 X 次，回复 X% 已损失生命。",
+    "造成 X 点伤害 X 次，施加 X 层 空虚，若未被格挡则移除 X% 【死亡抵抗】。",
+    "造成 X 点伤害 X 次，施加 X% 伤害的【出血】，若自身拥有护盾施加的【出血】翻倍。",
+    "获得 X 层【力量】，拥有护盾时施加 X 层【中毒】，否则失去 X% 当前生命并获得 X% 咒盾。"
+   ],
+   "kw": [
+    "bleed",
+    "caro",
+    "death-resistance",
+    "poison",
+    "str"
+   ]
+  },
+  {
+   "n": "怜爱世人者",
+   "en": "The All-Pitying One",
+   "cls": "精英",
+   "id": "149103",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0602_AT.webp",
+   "desc": "神以她之手怜爱世人。神以她之手埋葬世人。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 层【虚弱】并弃置手中所有卡牌。",
+    "造成 X 点伤害 X 次，每有 X 层血誓使造成的伤害提高 X 点。",
+    "造成 X 点伤害 X次并附加等量【出血】。",
+    "获得 X 层【力量】。对抽牌堆或弃牌堆中 X 张指令卡施加 X 层【迟缓】，敌方各处卡牌每有 X 层【迟缓】，自身获得 X 层血誓。"
+   ],
+   "kw": [
+    "bleed",
+    "stagnation",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "恶咒胎群",
+   "en": "Cursed Brood",
+   "cls": "普通",
+   "id": "119852",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0604_CT.webp",
+   "desc": "偶尔，弥利亚姆也会思考这究竟是轮回的赘生物，还是神明承认她虔诚的证明？",
+   "skills": [
+    "造成 X 点伤害 X 次。回复其他友方等同于自身生命的值，自身死亡。",
+    "将 3 张「裂伤」加入手中。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "斯库尔",
+   "en": "The Skoll Pack",
+   "cls": "普通",
+   "id": "149069",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0601_AT.webp",
+   "desc": "追逐太阳的猛犬，祂将被烈日灼伤。",
+   "skills": [
+    "切换至该意图时，吞食狂气最高唤醒体至多 X 点狂气，死亡后返还。造成 X 点伤害 X 次和等量【出血】，对狂气最高的唤醒体施加 X 层狂气【封印】。",
+    "造成 X 点伤害 X 次，施加 X 层【虚弱】。",
+    "获得 X 点【力量】，消化吞食的狂气。"
+   ],
+   "kw": [
+    "bleed",
+    "sealed",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "斯库尔猎群",
+   "en": "The Skoll Pack",
+   "cls": "普通",
+   "id": "149098",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0601_AT.webp",
+   "desc": "蛮荒的身体中流淌着巨人的血。在太阳被⟦devour|吞噬⟧之时，众神迎来祂们的黄昏。",
+   "skills": [
+    "切换至该意图时，吞食狂气最高唤醒体至多 X 点狂气，死亡后返还。造成 X 点伤害 X 次和等量【出血】，对狂气最高的唤醒体施加 X 层狂气【封印】。",
+    "造成 X 点伤害 X 次，施加 X 层【虚弱】。",
+    "获得 X 点【力量】，消化吞食的狂气。"
+   ],
+   "kw": [
+    "bleed",
+    "devour",
+    "sealed",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "水之子",
+   "en": "Rotten Brood",
+   "cls": "普通",
+   "id": "36115",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0604_BT.webp",
+   "desc": "与常识相悖，它讨厌水。",
+   "skills": [
+    "施加 1 回合【脆弱】 和 X 点【中毒】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "fragile",
+    "poison"
+   ]
+  },
+  {
+   "n": "灵觉之子",
+   "en": "Cursed Brood",
+   "cls": "普通",
+   "id": "35585",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0604_CT.webp",
+   "desc": "它脑子里那些⟦madness|疯狂⟧的想法，注定胎死腹中。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "获得 X 点【力量】。"
+   ],
+   "kw": [
+    "madness",
+    "str"
+   ]
+  },
+  {
+   "n": "燃灯温迪戈",
+   "en": "The Flamebounds",
+   "cls": "普通",
+   "id": "149097",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0603_AT.webp",
+   "desc": "无论如何坚持追索，也无法点燃⟦ancient-embers|旧日余烬⟧。 它进奉的仅是谎言。",
+   "skills": [
+    "造成 X 点伤害 X 次，回复 X% 已损失生命。",
+    "造成 X 点伤害 X 次，施加 X% 伤害的【出血】，若自身拥有护盾施加的【出血】翻倍。",
+    "获得 X 层【力量】，拥有护盾时施加 X 层【中毒】，否则失去 X% 当前生命并获得 X% 咒盾。",
+    "造成 X 点伤害 X 次，施加 X 层 空虚，若未被格挡则移除 X% 【死亡抵抗】。"
+   ],
+   "kw": [
+    "ancient-embers",
+    "bleed",
+    "death-resistance",
+    "poison",
+    "str"
+   ]
+  },
+  {
+   "n": "睡梦之子",
+   "en": "Filthy Brood",
+   "cls": "普通",
+   "id": "36112",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0604.webp",
+   "desc": "如果可以，它也不愿醒来。",
+   "skills": [
+    "造成 X 点伤害 X 次，自身死亡。",
+    "施加 1 回合【虚弱】，【封印】狂气最高唤醒体 1 回合。"
+   ],
+   "kw": [
+    "sealed",
+    "weakness"
+   ]
+  },
+  {
+   "n": "秽血胎群",
+   "en": "Filthy Brood",
+   "cls": "普通",
+   "id": "119854",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0604.webp",
+   "desc": "偶尔，弥利亚姆也会思考这究竟是轮回的赘生物，还是神明承认她虔诚的证明？",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "施加 1 回合【虚弱】，【封印】狂气最高唤醒体 1 回合。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "sealed",
+    "weakness"
+   ]
+  },
+  {
+   "n": "腐溃胎群",
+   "en": "Rotten Brood",
+   "cls": "普通",
+   "id": "119853",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_C0604_BT.webp",
+   "desc": "偶尔，弥利亚姆也会思考这究竟是轮回的赘生物，还是神明承认她虔诚的证明？",
+   "skills": [
+    "施加 1 回合【脆弱】 和 X 点【中毒】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "fragile",
+    "poison"
+   ]
+  },
+  {
+   "n": "赤心圣徒",
+   "en": "The All-Pitying One",
+   "cls": "普通",
+   "id": "149102",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0602_AT.webp",
+   "desc": "她的赤心献予无心者。 挚爱世人者，永失对现世苦难的知觉。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 层【虚弱】并弃置手中所有卡牌。",
+    "造成 X 点伤害 X 次，每有 X 层血誓使造成的伤害提高 X 点。",
+    "造成 X 点伤害 X次并附加等量【出血】。",
+    "获得 X 层【力量】。对抽牌堆或弃牌堆中 X 张指令卡施加 X 层【迟缓】，敌方各处卡牌每有 X 层【迟缓】，自身获得 X 层血誓。"
+   ],
+   "kw": [
+    "bleed",
+    "stagnation",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "雪域温迪戈",
+   "en": "The Snowdrifters",
+   "cls": "普通",
+   "id": "149096",
+   "zone": "C06",
+   "zoneN": "梦与二十四",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S2C0603_BT.webp",
+   "desc": "无论如何坚持呼唤，也无法寻回旧日温情。 它带来的仅是恐惧。",
+   "skills": [
+    "获得 X 层【力量】，拥有护盾时施加 X 层刺骨，否则失去 X% 当前生命并获得 X% 霜盾。",
+    "造成 X 点伤害 X 次，施加 X% 伤害的刺骨，若自身拥有护盾施加的刺骨翻倍。",
+    "造成 X 点伤害 X 次，施加 X 层重创，若未被格挡则移除 X% 【死亡抵抗】。",
+    "造成 X 点伤害 X 次，回复 X% 已损失生命。"
+   ],
+   "kw": [
+    "death-resistance",
+    "str"
+   ]
+  },
+  {
+   "n": "亚兰卫队长",
+   "en": "Aram Guard Captain",
+   "cls": "Boss",
+   "id": "48881",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0704_BOSSSIZE.webp",
+   "desc": "每代篝火晚会后，最杰出的种子都会成长为新的卫队长。",
+   "skills": [
+    "造成 X 点伤害 X 次。将 1 张「蹒跚」洗入抽牌堆顶。",
+    "与最前排的友方交换位置，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。与后排的友方交换位置。",
+    "造成 X 点伤害 X 次。【易伤】自身 1 回合。"
+   ],
+   "kw": [
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "亚兰圣鹭",
+   "en": "Aram Heron",
+   "cls": "Boss",
+   "id": "48892",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0706_BOSSSIZE.webp",
+   "desc": "造就自身者，自圣树之火中诞生，引领诸位前往死之领域。",
+   "skills": [
+    "造成 X 点伤害 X 次，附加【脆弱】 1 回合。",
+    "使玩家获得 5 层 空虚状态。将 3 张「石头」洗入抽牌堆。",
+    "获得 X 点护盾，造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "每回合获得 X 点【力量】。移除所有唤醒体的所有狂气。",
+    "获得 X 点护盾，造成 X 点伤害 X 次。施加致盲 1 回合。",
+    "获得 X 点护盾，造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "fragile",
+    "str"
+   ]
+  },
+  {
+   "n": "圣河努比亚",
+   "en": "Nubia, the Holy River",
+   "cls": "Boss",
+   "id": "49479",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0702_BOSSSIZE.webp",
+   "desc": "小心勒姆瓦希的每一束枯藤，它跃动的心脏将鼓动你化作圣河的水脉。",
+   "skills": [
+    "获得 X 点【力量】。获得 75 层隐匿状态。召唤 2 只「孳乳·努比亚幼崽」在前排。",
+    "造成 X 点伤害 X 次。将  1 张秽乱之子加入手中，使卡组中 5 张卡牌产生畸变。",
+    "造成 X 点伤害 X 次，未被完全格挡的部分会造成等量【出血】。",
+    "造成 X 点伤害 X 次。将  1 张秽乱之子加入手中，使卡组中 2 张卡牌产生畸变。",
+    "造成 X 点伤害 X 次。施加 X 回合【脆弱】和重创。若其它怪物均已死亡，意图立刻切换为「冲击」。",
+    "造成 X 点伤害 X 次。施加 X 回合的【虚弱】。目标每有 3 点【力量】，降低 1 点【力量】，降低的【力量】无法超出其【力量】。"
+   ],
+   "kw": [
+    "bleed",
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "长明·努比亚巨木",
+   "en": "Eternal Light: Nubian Giant Tree",
+   "cls": "Boss",
+   "id": "49480",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0703_BOSSSIZE.webp",
+   "desc": "祂不再隐藏自己的内核。「愿提灯长明。」",
+   "skills": [
+    "造成 X 点伤害 X 次，使卡组中 3 张卡牌产生畸变。",
+    "造成 X 点伤害 X 次，将 1 张「蹒跚」 洗入抽牌堆顶。",
+    "造成 X 点伤害 X 次，每点「祈祷」提高 1 次。每造成 1 次未被格挡的伤害，还会将 1 张「伤口」洗入抽牌堆，最大为 5 张。",
+    "获得 X 层祈祷状态，将 1 张「蹒跚」洗入抽牌堆顶。祈祷：可用来强化技能，受到伤害减少一层，回合结束失去全部。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "「塞尔凯特」",
+   "en": "Nubia",
+   "cls": "精英",
+   "id": "49481",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0702.webp",
+   "desc": "小心勒姆瓦希的每一束枯藤，小心它睁开的血色的方形眼瞳。",
+   "skills": [
+    "造成 X 点伤害 X 次，未被完全格挡的部分会造成等量【出血】。",
+    "获得 X 点【力量】。获得 50 层隐匿状态。召唤 2 只「孳乳·努比亚幼崽」在前排。",
+    "造成 X 点伤害 X 次。使卡组中 2 张卡牌产生畸变。",
+    "造成 X 点伤害 X 次。施加 X 回合的【虚弱】。目标每有 3 点【力量】，降低 1 点【力量】，降低的【力量】无法超出其【力量】。",
+    "造成 X 点伤害 X 次。施加 X 回合【脆弱】和重创。若其它怪物均已死亡，意图立刻切换为「冲击」。"
+   ],
+   "kw": [
+    "bleed",
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「海窟特」",
+   "en": "Nubian Giant Tree",
+   "cls": "精英",
+   "id": "49482",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0703.webp",
+   "desc": "有一天种子会发芽，新芽会长成巨树——如果它不曾被污染的话。",
+   "skills": [
+    "造成 X 点伤害 X 次，使卡组中 3 张卡牌产生畸变。",
+    "造成 X 点伤害 X 次，每点「祈祷」提高 1 次。每造成 1 次未被格挡的伤害，还会将 1 张「伤口」洗入抽牌堆，最大为 5 张。",
+    "造成 X 点伤害 X 次，将 1 张「蹒跚」洗入抽牌堆顶。",
+    "获得 X 层祈祷状态，将 1 张「蹒跚」洗入抽牌堆顶。祈祷：可用来强化技能，受到伤害减少一层，回合结束失去全部。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "亚兰战士",
+   "en": "Elite Aram Guard",
+   "cls": "普通",
+   "id": "49237",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0704.webp",
+   "desc": "亚兰人拥有异常的繁衍能力，但亚兰的战士依然是某人的儿子，某人的父亲。",
+   "skills": [
+    "与最前排的友方交换位置，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。【易伤】自身 1 回合。",
+    "造成 X 点伤害 X 次。施加 2 回合重创。",
+    "造成 X 点伤害 X 次。与后排的友方交换位置，获得 X 点【力量】。"
+   ],
+   "kw": [
+    "str",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "亚兰战士幻影",
+   "en": "Elite Aram Guard",
+   "cls": "普通",
+   "id": "49598",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0704.webp",
+   "desc": "母树的意识之海中，漂浮着葬于往昔的幻影。",
+   "skills": [
+    "与最前排的友方交换位置，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。【易伤】自身 1 回合。",
+    "造成 X 点伤害 X 次。施加 2 回合重创。",
+    "造成 X 点伤害 X 次。与后排的友方交换位置，获得 X 点【力量】。"
+   ],
+   "kw": [
+    "str",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "亚兰行灯",
+   "en": "Aram Lantern",
+   "cls": "普通",
+   "id": "49238",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0705.webp",
+   "desc": "提灯教会象征物的具象化。请勿追究其灵知的来源。",
+   "skills": [
+    "造成 X 点伤害 X 次。使卡组中 1 张卡牌产生畸变。",
+    "造成 X 点伤害 X 次。施加 1 回合致盲。",
+    "造成 X 点伤害 X 次。",
+    "获得 X 点护盾及 X 点【力量】。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "努比亚",
+   "en": "Nubia",
+   "cls": "普通",
+   "id": "49283",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0702.webp",
+   "desc": "小心勒姆瓦希的每一束枯藤，小心它睁开的血色的方形眼瞳。",
+   "skills": [
+    "造成 X 点伤害 X 次。施加 1 回合重创。",
+    "造成 X 点伤害 X 次。施加 X 回合的【虚弱】。目标每有 4 点【力量】，降低 1 点【力量】，降低的【力量】无法超出其【力量】。",
+    "造成 X 点伤害 X 次，未被完全格挡的部分会造成等量【出血】。",
+    "造成 X 点伤害 X 次。使卡组中 1 张卡牌产生畸变。"
+   ],
+   "kw": [
+    "bleed",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "努比亚巨木",
+   "en": "Nubian Giant Tree",
+   "cls": "普通",
+   "id": "49483",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0703.webp",
+   "desc": "有一天种子会发芽，新芽会长成巨树——如果它不曾被污染的话。",
+   "skills": [
+    "造成 X 点伤害 X 次，将 1 张「蹒跚」洗入抽牌堆顶。",
+    "获得 X 层祈祷状态，将 1 张「蹒跚」洗入抽牌堆顶。祈祷：可用来强化技能，受到伤害减少一层，回合结束失去全部。",
+    "造成 X 点伤害 X 次，使卡组中 2 张卡牌产生畸变。",
+    "造成 X 点伤害 X 次，每点「祈祷」提高 1 次。每造成 1 次未被格挡的伤害，还会将 1 张「伤口」洗入抽牌堆，最大为 5 张。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "努比亚幼崽",
+   "en": "Nubia Cub",
+   "cls": "普通",
+   "id": "49156",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0701.webp",
+   "desc": "它长着羊的蹄子，位于体表中央的瞳孔被刺穿后会立刻消失。",
+   "skills": [
+    "造成 X 点伤害 X 次。施加 X 回合【脆弱】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，未被完全格挡的部分会造成等量【出血】。",
+    "将 1 张秽乱之子加入手中，造成 X 点【中毒】。"
+   ],
+   "kw": [
+    "bleed",
+    "fragile",
+    "poison"
+   ]
+  },
+  {
+   "n": "孳乳·努比亚幼崽",
+   "en": "Sinful Offspring: Nubia Cub",
+   "cls": "普通",
+   "id": "44456",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0701_BOSSSIZE.webp",
+   "desc": "长着羊蹄的小型怪物，体表遍布着神秘的纹路。受到致命伤后会立刻消失。",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，未被完全格挡的部分会造成等量【出血】。"
+   ],
+   "kw": [
+    "bleed",
+    "str"
+   ]
+  },
+  {
+   "n": "精英亚兰护卫",
+   "en": "Elite Aram Guard",
+   "cls": "普通",
+   "id": "49534",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0704.webp",
+   "desc": "他守卫亚兰的未来，但从未过问那未来究竟是什么模样。",
+   "skills": [
+    "所有友方获得 X 点【力量】。",
+    "使亚兰卫队长获得 X 护盾。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "胎动·努比亚幼崽",
+   "en": "Fetal Movement: Nubia Cub",
+   "cls": "普通",
+   "id": "48866",
+   "zone": "C07",
+   "zoneN": "努比亚",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_C0701_AT.webp",
+   "desc": "长着羊蹄的小型怪物，体表纠缠着异常的⟦caro|血肉⟧。受到致命伤后会立刻消失。",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，未被完全格挡的部分会造成等量【出血】。"
+   ],
+   "kw": [
+    "bleed",
+    "caro",
+    "str"
+   ]
+  },
+  {
+   "n": "「灯罩」阿依莎",
+   "en": "\"Lampshade\" Aisha",
+   "cls": "Boss",
+   "id": "60103",
+   "zone": "C08",
+   "zoneN": "宁菲亚",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0805_BOSSSIZE.webp",
+   "desc": "曾经的英雄，如今守护在于丽埃特身边。她们一同等待，等待那个长明的未来。",
+   "skills": [
+    "造成 X 点伤害 X 次。造成 2 回合【脆弱】。将 1 张「血污灯芯」置入手中。",
+    "造成 X 点伤害 X 次。随机施加【脆弱】或重创 2 回合。将 1 张「血污灯芯」置入手中。",
+    "获得 10 层血誓，施加 2 回合重创。将 1 张「血污灯芯」置入手中。",
+    "造成 X 点伤害 X 次。每层血誓使伤害提高 X 点。",
+    "造成 X 点伤害 X 次。施加 X 层【出血】。",
+    "造成 X 点伤害 X 次。每 2 层血誓使伤害次数提高 1。"
+   ],
+   "kw": [
+    "bleed",
+    "fragile"
+   ]
+  },
+  {
+   "n": "「睡莲」",
+   "en": "Water Lily",
+   "cls": "Boss",
+   "id": "14039",
+   "zone": "C08",
+   "zoneN": "宁菲亚",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C08_AF.webp",
+   "desc": "她曾经是孤独的漂流落花，如今是拉伊精神疗养院的居民和⟦barrier|屏障⟧。",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 X 点护盾。",
+    "造成 X 点伤害 X 次。施加 2 回合【虚弱】。",
+    "将五张症状卡塞入抽牌堆。",
+    "造成 X 点伤害 X 次。施加 X 点【中毒】。",
+    "造成 X 点伤害 X 次，施加 X 点【中毒】。",
+    "造成 X 点伤害 X 次。施加 2 回合【虚弱】。"
+   ],
+   "kw": [
+    "barrier",
+    "poison",
+    "weakness"
+   ]
+  },
+  {
+   "n": "宁菲亚",
+   "en": "Water Lily",
+   "cls": "Boss",
+   "id": "14086",
+   "zone": "C08",
+   "zoneN": "宁菲亚",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C08_AF.webp",
+   "desc": "她曾经是孤独的漂流落花，如今是拉伊精神疗养院的居民和⟦barrier|屏障⟧。",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 X 点护盾。",
+    "造成 X 点伤害 X 次。施加 2 回合【虚弱】。",
+    "将五张症状卡塞入抽牌堆。",
+    "造成 X 点伤害 X 次。施加 X 点【中毒】。",
+    "造成 X 点伤害 X 次，施加 X 点【中毒】。",
+    "造成 X 点伤害 X 次。施加 2 回合【虚弱】。"
+   ],
+   "kw": [
+    "barrier",
+    "poison",
+    "weakness"
+   ]
+  },
+  {
+   "n": "残酷的「父亲」",
+   "en": "Mr. Integrity",
+   "cls": "Boss",
+   "id": "80576",
+   "zone": "C08",
+   "zoneN": "宁菲亚",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0802.webp",
+   "desc": "实验品没有父母，但仍渴望有人承担「父亲」的身份。哪怕他并不称职。",
+   "skills": [
+    "获得 X 点【力量】，获得 5 层祈祷，和最后的友方交换位置。",
+    "造成 X 点伤害 X 次。自身获得 2 层【屏障】，和最前方友方交换位置。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。【虚弱】和【脆弱】 2 回合。"
+   ],
+   "kw": [
+    "barrier",
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "沉默的「母亲」",
+   "en": "Silent \"Mother\"",
+   "cls": "Boss",
+   "id": "80577",
+   "zone": "C08",
+   "zoneN": "宁菲亚",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0803.webp",
+   "desc": "实验品没有父母，但仍渴望有人承担「母亲」的身份。哪怕她并不称职。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "将 1 张蹒跚和黏糊糊的蜡油洗入抽牌堆。和最后方友方交换位置。",
+    "获得 X 点护盾和 X 点【力量】，和最前方友方交换位置。将 1 张蹒跚和黏糊糊的蜡油洗入抽牌堆。",
+    "造成 X 点伤害 X 次。获得 X 点护盾。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "阴影的忠犬",
+   "en": "Shadow's Loyal Hound",
+   "cls": "Boss",
+   "id": "60097",
+   "zone": "C08",
+   "zoneN": "宁菲亚",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0804_BOSSSIZE.webp",
+   "desc": "他不介意为于丽埃特的光明而伏于阴影。能成为于丽埃特的犬，是他一生中最崇高的荣耀。",
+   "skills": [
+    "造成 X 点伤害 X 次，玩家每打出 1 张牌都会切换该意图的追加效果。追加效果会在重击、回复、弱化之间按序切换。",
+    "造成 X 点伤害 X 次，将 1 张「狂放」加入手牌堆。",
+    "造成 X 点伤害 X 次，未被完全格挡的部分会造成等量【出血】。",
+    "获得 X 点护盾，X 点【力量】，X 点【反击】，解除自身负面状态。"
+   ],
+   "kw": [
+    "bleed",
+    "counter",
+    "str"
+   ]
+  },
+  {
+   "n": "「淑女」",
+   "en": "Silent \"Mother\"",
+   "cls": "普通",
+   "id": "59742",
+   "zone": "C08",
+   "zoneN": "宁菲亚",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0803.webp",
+   "desc": "雕塑家协会通过这组雕像获得了于丽埃特的认可。提灯教会从不浪费任何一个遗产。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。获得 X 点护盾。",
+    "获得 X 点护盾和 X 点【力量】，和最前方友方交换位置。",
+    "将 1 张蹒跚和黏糊糊的蜡油洗入抽牌堆。和最后方友方交换位置。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「绅士」",
+   "en": "Mr. Integrity",
+   "cls": "普通",
+   "id": "59741",
+   "zone": "C08",
+   "zoneN": "宁菲亚",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0802.webp",
+   "desc": "雕塑家协会通过这组雕像获得了于丽埃特的认可。提灯教会从不浪费任何一个遗产。",
+   "skills": [
+    "获得 X 点【力量】，获得 5 层祈祷，和最后的友方交换位置。",
+    "造成 X 点伤害 X 次。自身获得 2 层【屏障】，和最前方友方交换位置。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "barrier",
+    "str"
+   ]
+  },
+  {
+   "n": "异维学子",
+   "en": "Interdimensional Student",
+   "cls": "普通",
+   "id": "59747",
+   "zone": "C08",
+   "zoneN": "宁菲亚",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0801.webp",
+   "desc": "从这些来自异维的怪物身上，你看到了属于弥萨格的标志。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 层【屏障】。",
+    "造成 X 点伤害 X 次，狂气最高的唤醒体失去 50% 狂气。"
+   ],
+   "kw": [
+    "barrier"
+   ]
+  },
+  {
+   "n": "提灯·卫道士",
+   "en": "Lantern: Defender",
+   "cls": "普通",
+   "id": "60094",
+   "zone": "C08",
+   "zoneN": "宁菲亚",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0805.webp",
+   "desc": "被提灯选中的前审查会成员，她匍匐于提灯的控制，渴望光芒照亮自己的衣衫。",
+   "skills": [
+    "造成 X 点伤害 X 次。施加 X 层【出血】。",
+    "获得 10 层血誓，施加 2 回合重创。",
+    "造成 X 点伤害 X 次。每层血誓使伤害提高 X 点。",
+    "造成 X 点伤害 X 次。造成 2 回合【脆弱】。"
+   ],
+   "kw": [
+    "bleed",
+    "fragile"
+   ]
+  },
+  {
+   "n": "提灯·指挥官",
+   "en": "Lantern: Defender",
+   "cls": "精英",
+   "id": "60101",
+   "zone": "C08",
+   "zoneN": "宁菲亚",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0805.webp",
+   "desc": "审查会的优秀指挥，提灯的护卫队长。她守望灯火，直到光芒传播到每一个角落。",
+   "skills": [
+    "造成 X 点伤害 X 次。施加 X 层【出血】。",
+    "获得 10 层血誓，施加 2 回合重创。",
+    "造成 X 点伤害 X 次。每层血誓使伤害提高 X 点。",
+    "造成 X 点伤害 X 次。造成 2 回合【脆弱】。"
+   ],
+   "kw": [
+    "bleed",
+    "fragile"
+   ]
+  },
+  {
+   "n": "正直先生",
+   "en": "Mr. Integrity",
+   "cls": "精英",
+   "id": "60009",
+   "zone": "C08",
+   "zoneN": "宁菲亚",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0802.webp",
+   "desc": "灯芯快要压断他的腰……为什么没有人搀他的肩？",
+   "skills": [
+    "获得 X 点【力量】，获得 5 层祈祷，和最后的友方交换位置。",
+    "造成 X 点伤害 X 次。自身获得 2 层【屏障】，和最前方友方交换位置。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。【虚弱】和【脆弱】 2 回合。"
+   ],
+   "kw": [
+    "barrier",
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "谦和女士",
+   "en": "Silent \"Mother\"",
+   "cls": "精英",
+   "id": "60006",
+   "zone": "C08",
+   "zoneN": "宁菲亚",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_C0803.webp",
+   "desc": "灯光快要晒化她的脸……为什么没有人替她打伞？",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "将 1 张蹒跚和黏糊糊的蜡油洗入抽牌堆。和最后方友方交换位置。",
+    "获得 X 点护盾和 X 点【力量】，和最前方友方交换位置。将 1 张蹒跚和黏糊糊的蜡油洗入抽牌堆。",
+    "造成 X 点伤害 X 次。获得 X 点护盾。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「潘狄娅」",
+   "en": "Sweet Demon",
+   "cls": "Boss",
+   "id": "14002",
+   "zone": "C09",
+   "zoneN": "潘狄娅",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C09_AF.webp",
+   "desc": "擅长调教的活泼少女。已经拥有102个奴隶，正在寻觅命中注定的下一位。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "自身获得 X 层【反击】",
+    "造成 X 点伤害 X 次，召唤三只潘狄娅的奴隶。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "counter"
+   ]
+  },
+  {
+   "n": "「甜蜜恶鬼」",
+   "en": "Sweet Demon",
+   "cls": "Boss",
+   "id": "14037",
+   "zone": "C09",
+   "zoneN": "潘狄娅",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C09_AF.webp",
+   "desc": "擅长调教的活泼少女。已经拥有102个奴隶，正在寻觅命中注定的下一位。",
+   "skills": [
+    "造成 X 点伤害 X 次，每受到 1 次攻击伤害次数提高 1。",
+    "将 3 张「哭喊」置入手中，【易伤】对方 1 回合，获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，获得 X 层【临时反击】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str",
+    "temporary-counter",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「蜡像潘狄娅」",
+   "en": "Sweet Demon",
+   "cls": "Boss",
+   "id": "14072",
+   "zone": "C09",
+   "zoneN": "潘狄娅",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C09_AF.webp",
+   "desc": "擅长调教的活泼少女。已经拥有102个奴隶，正在寻觅命中注定的下一位。",
+   "skills": [
+    "造成 X 点伤害 X 次，每受到 1 次攻击伤害次数提高 1。",
+    "将 3 张「哭喊」置入手中，【易伤】对方 1 回合，获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，获得 X 层【临时反击】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str",
+    "temporary-counter",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「甜蜜恶鬼」",
+   "en": "Sweet Demon",
+   "cls": "精英",
+   "id": "129784",
+   "zone": "C09",
+   "zoneN": "潘狄娅",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C09_AF.webp",
+   "desc": "擅长调教的活泼少女。已经拥有102个奴隶，正在寻觅命中注定的下一位。",
+   "skills": [
+    "造成 X 点伤害 X 次，每受到 1 次攻击伤害次数提高 1。",
+    "将 3 张「哭喊」置入手中，【易伤】对方 1 回合，获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，获得 X 层【临时反击】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str",
+    "temporary-counter",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「淤泥之花」",
+   "en": "Blossom of Sludge",
+   "cls": "Boss",
+   "id": "14071",
+   "zone": "C10",
+   "zoneN": "淤泥之花",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C10_AF.webp",
+   "desc": "因怪异的低语声而陷入⟦madness|疯狂⟧的少女莉莉。",
+   "skills": [
+    "造成 X 点伤害 X 次，生命越低伤害越高。",
+    "粘液重新汇集成了莉莉，获得状态：不灭之花，并切换攻击形态。召唤一个脓疱。",
+    "召唤「脓疱」。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "madness"
+   ]
+  },
+  {
+   "n": "莉莉",
+   "en": "Blossom of Sludge",
+   "cls": "Boss",
+   "id": "13959",
+   "zone": "C10",
+   "zoneN": "淤泥之花",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C10_AF.webp",
+   "desc": "因怪异的低语声而陷入⟦madness|疯狂⟧的少女莉莉。",
+   "skills": [
+    "造成 X 点伤害 X 次，生命越低伤害越高。",
+    "粘液重新汇集成了莉莉，获得状态：不灭之花，并切换攻击形态。召唤一个脓疱。",
+    "召唤「脓疱」。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "madness"
+   ]
+  },
+  {
+   "n": "「淤泥之花」",
+   "en": "Blossom of Sludge",
+   "cls": "精英",
+   "id": "129796",
+   "zone": "C10",
+   "zoneN": "淤泥之花",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C10_AF.webp",
+   "desc": "因怪异的低语声而陷入⟦madness|疯狂⟧的少女莉莉。",
+   "skills": [
+    "造成 X 点伤害 X 次，生命越低伤害越高。",
+    "粘液重新汇集成了莉莉，获得状态：不灭之花，并切换攻击形态。召唤一个脓疱。",
+    "召唤「脓疱」。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "madness"
+   ]
+  },
+  {
+   "n": "「空想利刃」",
+   "en": "Blade of Utopia",
+   "cls": "Boss",
+   "id": "49592",
+   "zone": "C11",
+   "zoneN": "空想",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C11_AF.webp",
+   "desc": "亚兰族族长，她将以自身为旗、为刃、为盾，指引亚兰的子民，开辟未来的道路，守候她的归来。",
+   "skills": [
+    "施加 3 回合【虚弱】和【脆弱】。获得 X 点护盾和 X 点【戒备】。将 3 张「石头」洗入弃牌堆。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，若失去过生命，意图立刻变为低伤害的「利刃」。",
+    "获得 X 点护盾和 X 点【戒备】。"
+   ],
+   "kw": [
+    "alert",
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「空想利刃」",
+   "en": "Blade of Utopia",
+   "cls": "精英",
+   "id": "129794",
+   "zone": "C11",
+   "zoneN": "空想",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C11_AF.webp",
+   "desc": "亚兰族族长，她将以自身为旗、为刃、为盾，指引亚兰的子民，开辟未来的道路，守候她的归来。",
+   "skills": [
+    "施加 3 回合【虚弱】和【脆弱】。获得 X 点护盾和 X 点【戒备】。将 3 张「石头」洗入弃牌堆。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，若失去过生命，意图立刻变为低伤害的「利刃」。",
+    "获得 X 点护盾和 X 点【戒备】。"
+   ],
+   "kw": [
+    "alert",
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「凸月侍女」",
+   "en": "Maiden of the Gibbous Moon",
+   "cls": "Boss",
+   "id": "24743",
+   "zone": "C12",
+   "zoneN": "凸月",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C12_AF.webp",
+   "desc": "索蕾尔最亲近的女仆，沉迷各种美白秘方。",
+   "skills": [
+    "施加 X 层【中毒】，回复珈伦 X% 已损失生命并获得等量护盾。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。降低对方 X 点最大生命。",
+    "造成 X 点伤害 X 次。施加 1 回合的【虚弱】，将 1 张「黑暗料理」加入手中。",
+    "造成 X 点伤害 X 次。将 2 张「黑暗料理」置入对方手牌。获得「吃饱喝足」2 回合 ：己方队伍每次消耗算力，就使珈伦获得 X 点【临时力量】。"
+   ],
+   "kw": [
+    "poison",
+    "temporary-str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「门之钥」",
+   "en": "Key to the Gate",
+   "cls": "Boss",
+   "id": "125901",
+   "zone": "C15",
+   "zoneN": "门之钥",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C15_AF.webp",
+   "desc": "穷极之门的守护者，时空之外的存在，绝对智识的象征。",
+   "skills": [
+    "获得 X 点护盾，X 点【力量】。 从抽牌堆和弃牌堆中发现 X 张指令卡，选择 X 张指令卡将其消耗。",
+    "造成 X 点伤害 X 次，施加 X 层 【脆弱】。 打出 X 张指令卡后，将意图变化为造成 X 点伤害 X 次，施加 X 层 【脆弱】和【虚弱】的「四翼渐生」。",
+    "获得 X 点【力量】。 【封印】下个打出指令卡牌的唤醒体 X 回合。"
+   ],
+   "kw": [
+    "fragile",
+    "sealed",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「门之钥」",
+   "en": "Key to the Gate",
+   "cls": "精英",
+   "id": "131822",
+   "zone": "C15",
+   "zoneN": "门之钥",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C15_AF.webp",
+   "desc": "穷极之门的守护者，时空之外的存在，绝对智识的象征。",
+   "skills": [
+    "获得 X 点护盾，X 点【力量】。 从抽牌堆和弃牌堆中发现 X 张指令卡，选择 X 张指令卡将其消耗。",
+    "造成 X 点伤害 X 次，施加 X 层 【脆弱】。 打出 X 张指令卡后，将意图变化为造成 X 点伤害 X 次，施加 X 层 【脆弱】和【虚弱】的「四翼渐生」。",
+    "获得 X 点【力量】。 【封印】下个打出指令卡牌的唤醒体 X 回合。"
+   ],
+   "kw": [
+    "fragile",
+    "sealed",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「爆燃之主」",
+   "en": "The Living Flame",
+   "cls": "Boss",
+   "id": "98118",
+   "zone": "C16",
+   "zoneN": "爆燃",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C16_AF.webp",
+   "desc": "「统御无数炎精的爆燃之主，会伴随琥珀色的火焰从极天坠下。当祂降临之时，所有的一切都会迎来平等的死亡。」",
+   "skills": [
+    "造成 X 点伤害 X 次。获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，随机【燃烧】 X 张抽牌堆或弃牌堆的卡牌，造成 X 层【易伤】。",
+    "造成 X 点伤害 X 次，【燃烧】对方所有剩余手牌，每有 1 张获得 1 层爆炎。",
+    "造成 X 点伤害 X 次，随机【燃烧】 X 张抽牌堆或弃牌堆的卡牌，造成 X 层【易伤】。"
+   ],
+   "kw": [
+    "burn",
+    "str",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「雾中骇兽」",
+   "en": "Mistbound Sojourner",
+   "cls": "Boss",
+   "id": "122412",
+   "zone": "C17",
+   "zoneN": "雾中",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Minihead_EnemyAwaker_C17_AF.webp",
+   "desc": "被「繁星黎明会」召唤来的异世界少女，可爱的外表之下埋藏着凡人难以理解的⟦madness|疯狂⟧。",
+   "skills": [
+    "造成 X 点伤害 X 次 ，敌人每拥有 X 点护盾，使造成的伤害提高 1 点。获得 X 点【力量】。",
+    "造成 X 点伤害 X 次 ，施加 X 层 【脆弱】。",
+    "造成 X 点伤害 X 次 ，施加 X 层 【脆弱】。",
+    "造成 X 点伤害 X 次，每有 1 次伤害被格挡则获得 X 点【力量】。"
+   ],
+   "kw": [
+    "fragile",
+    "madness",
+    "str"
+   ]
+  },
+  {
+   "n": "「N」",
+   "en": "N",
+   "cls": "Boss",
+   "id": "24592",
+   "zone": "DCB",
+   "zoneN": "门后之影",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_DCB04_01_BOSSSIZE.webp",
+   "desc": "伏行世间的⟦chaos|混沌⟧之雾，祂因人类的痛苦与绝望而愉悦。",
+   "skills": [
+    "造成 X 点伤害 X 次。自身施加 1 层「黑暗」和 4 层「【混沌】」状态，每有一层「黑暗」状态生成一个分身，最多生成 3 个。",
+    "造成 X 点伤害 X 次。将 1 张「无上蒙宠」置入对方手牌。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。对全体友方施加 X 层【反击】。"
+   ],
+   "kw": [
+    "chaos",
+    "counter"
+   ]
+  },
+  {
+   "n": "「千面@2」",
+   "en": "N",
+   "cls": "Boss",
+   "id": "25162",
+   "zone": "DCB",
+   "zoneN": "门后之影",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_DCB04_01_BOSSSIZE.webp",
+   "desc": "萦绕歌剧院内的幻影。祂的落败亦是故事的一部分。",
+   "skills": [
+    "造成 X 点伤害 X 次。施加 X 回合【脆弱】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。施加 X 回合【虚弱】。",
+    "造成 X 点伤害 X 次。对全体友方施加 X 层【反击】。"
+   ],
+   "kw": [
+    "counter",
+    "fragile",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「审判」的使徒",
+   "en": "The Apostle of Judgment",
+   "cls": "Boss",
+   "id": "44480",
+   "zone": "DCB",
+   "zoneN": "门后之影",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_DCB02_01_BOSSSIZE.webp",
+   "desc": "她抛却人形，抛却人性，只为带来虚幻的幸福。但极端的善举是否还能被称为善举？",
+   "skills": [
+    "造成 X 点伤害 X 次，玩家每打出 1 张牌都会切换该意图的追加效果。追加效果会在重击、回复、弱化之间按序切换。",
+    "造成 X 点伤害 X 次，将 1 张「狂放」加入手牌堆。",
+    "获得 X 点护盾和 X 点【力量】。玩家每打出 1 张牌都会切换该意图的追加效果。追加效果会在【反击】、净化、植入之间按序切换。",
+    "造成 X 点伤害 X 次，未被完全格挡的部分会造成等量【出血】。"
+   ],
+   "kw": [
+    "bleed",
+    "counter",
+    "str"
+   ]
+  },
+  {
+   "n": "亚弗姆扎",
+   "en": "Afumza",
+   "cls": "Boss",
+   "id": "57143",
+   "zone": "DCB",
+   "zoneN": "门后之影",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_DCB05_01.webp",
+   "desc": "艾尔沃斯的神祇，提灯的改造之物，为雪山的重生燃起永恒不灭的冰焰。",
+   "skills": [
+    "召唤两名「冷冽之灵」，所有友方获得 X 点 霜盾。",
+    "造成 X 点伤害 X 次。冻结抽牌堆顶部 1 张指令卡。",
+    "造成 【脆弱】 1 回合。造成 X 点伤害 X 次，手牌中每有 1 张冻结的卡牌额外造成 1 次伤害，将那些被冻结的卡牌消耗。",
+    "造成 X 点伤害 X 次。手牌中每有 1 张冻结的卡牌伤害提高 X 点。【虚弱】 1 回合。",
+    "造成 X 点伤害 X 次。手牌中每有 1 张冻结的卡牌则伤害提高 X 点。【虚弱】 3 回合。",
+    "造成 【脆弱】 3 回合。造成 X 点伤害 X 次，手牌中每有 1 张冻结的卡牌额外造成 1 次伤害，将那些被冻结的卡牌消耗。",
+    "造成 X 点伤害 X 次。冻结牌库顶的 2 张指令卡。"
+   ],
+   "kw": [
+    "fragile",
+    "weakness"
+   ]
+  },
+  {
+   "n": "榖ｦ圣7ﾋ肉ｸk塊Q",
+   "en": "BiｦzA7ﾋrRe FlEｸﾅSh",
+   "cls": "Boss",
+   "id": "140713",
+   "zone": "DCB",
+   "zoneN": "门后之影",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_DCB15_01.webp",
+   "desc": "难ﾃ以ｨ分A辨ﾑ爨轮9廓ｴ的ﾅ肉ｷ块z,ﾉ散ｲ发驫出8令ﾃP人ｬ厌ﾗ憎ｸ的ﾎ靇恶ﾑ臭w味ｦ。 不J知ﾒ为ｩ何ﾇ,ｯ对7你ﾘ表L现ﾝ出Q亲ｱ近ﾏ。",
+   "skills": [
+    "造成 X 点伤害 2 次，获得 1 层饥饿。每造成 1 次未被格挡的伤害额外获得 1 层饥饿。",
+    "切换至该意图时，将自身的【虚弱】和【易伤】转移给敌人。若成功转移，回复 10% 已损失生命（X），获得 1 层饥饿，否则造成 X 点伤害并获得 2 层饥饿。"
+   ],
+   "kw": [
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「N？」",
+   "en": "N",
+   "cls": "精英",
+   "id": "60100",
+   "zone": "DCB",
+   "zoneN": "门后之影",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_DCB04_01_BOSSSIZE.webp",
+   "desc": "一个玩笑。",
+   "skills": [
+    "造成 X 点伤害 X 次。施加 X 回合【脆弱】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。施加 X 回合【虚弱】。",
+    "造成 X 点伤害 X 次。对全体友方施加 X 层【反击】。"
+   ],
+   "kw": [
+    "counter",
+    "fragile",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「索菲亚」",
+   "en": "Sophia",
+   "cls": "精英",
+   "id": "44479",
+   "zone": "DCB",
+   "zoneN": "门后之影",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_DCB02_02.webp",
+   "desc": "悲苦的命运将她扭曲。一切都是仇恨，一切都是不公。",
+   "skills": [
+    "造成 X 点伤害 X 次，未被完全格挡的部分会造成等量【出血】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，施加 1 回合「撕裂」与「创伤」。"
+   ],
+   "kw": [
+    "bleed"
+   ]
+  },
+  {
+   "n": "「海洋之星」",
+   "en": "Ocean Star",
+   "cls": "Boss",
+   "id": "22201",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0103_CT_BOSSSIZE.webp",
+   "desc": "受⟦aequor|深海⟧之力影响的「维度之孔」，思虑再三，诃勒特还是决定给祂取一个华丽的名字。",
+   "skills": [
+    "获得 X 点霜盾，并对玩家施加 X 回合的【虚弱】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。下回合获得 X 张「窒息」。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "aequor",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「维度之孔」",
+   "en": "Dimensional Hole",
+   "cls": "Boss",
+   "id": "14032",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0103_BOSSSIZE.webp",
+   "desc": "大量融蚀浆聚合成的异变体，生命较低时会分裂。",
+   "skills": [
+    "施加 X 回合的【虚弱】和【脆弱】。",
+    "造成 X 点伤害 X 次。使对方直到回合结束，失去 X 点【力量】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "无垢之孔",
+   "en": "The Pure Cavity",
+   "cls": "Boss",
+   "id": "14016",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0103_BT.webp",
+   "desc": "大量融蚀浆与蜡像的结合体，心地善良，不可直视。生命力很低的时候会分裂。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "将 2 张「黏糊糊的蜡油」洗入抽牌堆。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "「几何体」",
+   "en": "Stereo",
+   "cls": "普通",
+   "id": "34679",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0102_DT.webp",
+   "desc": "受维度之力影响的干涉型融蚀体，滴落的融蚀浆或许能扭曲光线。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得X 点【力量】。",
+    "获得 X 点护盾。将 X 张洗入抽牌堆。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「对不起」",
+   "en": "Collaborative Dissolute",
+   "cls": "普通",
+   "id": "14062",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0101.webp",
+   "desc": "她的理智被愧疚淹没。",
+   "skills": [
+    "将 X 张 「蹒跚」 加入对方抽牌堆。",
+    "回复莎拉 X 点生命。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "「洋流」",
+   "en": "Tide",
+   "cls": "普通",
+   "id": "34678",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0102_CT.webp",
+   "desc": "受⟦aequor|深海⟧之力影响的干涉型融蚀体，有着不逊于热带珊瑚的美丽。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得X 点【力量】。",
+    "获得 X 点护盾。将 X 张「窒息」洗入抽牌堆。"
+   ],
+   "kw": [
+    "aequor",
+    "str"
+   ]
+  },
+  {
+   "n": "「潮汐」",
+   "en": "Tide",
+   "cls": "普通",
+   "id": "34681",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0102_CT.webp",
+   "desc": "受⟦aequor|深海⟧之力影响的干涉型融蚀体，有着不逊于热带珊瑚的美丽。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得X 点【力量】。",
+    "获得 X 点护盾。将 X 张「窒息」洗入抽牌堆。"
+   ],
+   "kw": [
+    "aequor",
+    "str"
+   ]
+  },
+  {
+   "n": "「立体」",
+   "en": "Stereo",
+   "cls": "普通",
+   "id": "34680",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0102_DT.webp",
+   "desc": "受维度之力影响的干涉型融蚀体，滴落的融蚀浆或许能扭曲光线。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得X 点【力量】。",
+    "获得 X 点护盾。将 X 张洗入抽牌堆。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "先锋艺术",
+   "en": "The Pure Cavity",
+   "cls": "精英",
+   "id": "14003",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0103_BT.webp",
+   "desc": "将蜡像与融蚀结合的艺术。曾在西岱博览会展出，因引起巨大恐慌而被撤回。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "将 2 张「黏糊糊的蜡油」洗入抽牌堆。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "协作型融蚀体",
+   "en": "Collaborative Dissolute",
+   "cls": "普通",
+   "id": "13974",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0101.webp",
+   "desc": "融蚀浆中诞生的小型怪物，威胁性较低。",
+   "skills": [
+    "造成 X 点伤害 X 次，降低  X 点【临时力量】。",
+    "造成 X 点伤害 X 次。",
+    "全体获得 X 点护盾，自身获得X 点【力量】."
+   ],
+   "kw": [
+    "str",
+    "temporary-str"
+   ]
+  },
+  {
+   "n": "复合型融蚀体",
+   "en": "Ultra-Dissolute",
+   "cls": "普通",
+   "id": "13998",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0103.webp",
+   "desc": "大量融蚀浆聚合成的异变体，生命较低时会分裂。",
+   "skills": [
+    "造成 X 点伤害 X 次。使对方直到回合结束，失去 X 点【力量】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "施加 X 回合的【虚弱】和【脆弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "实验习作Ⅰ",
+   "en": "Experimental Work II",
+   "cls": "普通",
+   "id": "14079",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0102_BT.webp",
+   "desc": "前沿的蜡像习作。充满了蜡像师对融蚀的无尽想象与探索。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得X 点【力量】。",
+    "获得 X 点护盾。",
+    "将 X 张「黏糊糊的蜡油」洗入抽牌堆。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "实验习作Ⅱ",
+   "en": "Experimental Work II",
+   "cls": "普通",
+   "id": "14038",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0102_BT.webp",
+   "desc": "前沿的蜡像习作。充满了蜡像师对融蚀的无尽想象与探索。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得X 点【力量】。",
+    "获得 X 点护盾。",
+    "将 X 张「黏糊糊的蜡油」洗入抽牌堆。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "干涉型融蚀体",
+   "en": "Interference-Type Dissolute",
+   "cls": "普通",
+   "id": "14094",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0102.webp",
+   "desc": "融蚀浆中诞生的中型怪物，攻击时会对敌人的心智进行干扰。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得X 点【力量】。",
+    "获得 X 点护盾。将 X 张「惊厥」洗入抽牌堆。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "深海型复合异变体",
+   "en": "Aequor Super Mutant",
+   "cls": "普通",
+   "id": "22159",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0103_CT.webp",
+   "desc": "受⟦aequor|深海⟧之力影响的复合型融蚀异变体。诃勒特专门提醒过不要给祂们取过于花哨的名字。",
+   "skills": [
+    "获得 X 点霜盾，并对玩家施加 X 回合的【虚弱】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。下回合开始时将 X 张「窒息」置入手中。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "aequor",
+    "weakness"
+   ]
+  },
+  {
+   "n": "深海型超变异变体",
+   "en": "Aequor Super Mutant",
+   "cls": "精英",
+   "id": "22163",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0103_CT.webp",
+   "desc": "受⟦aequor|深海⟧之力影响的超变型融蚀异变体。诃勒特专门提醒过不要给祂们取过于花哨的名字。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。下回合开始时将 X 张「窒息」置入手中。",
+    "造成 X 点伤害 X 次。",
+    "获得 X 点霜盾，并对玩家施加 X 回合的【虚弱】。"
+   ],
+   "kw": [
+    "aequor",
+    "weakness"
+   ]
+  },
+  {
+   "n": "简单习作Ⅰ",
+   "en": "Basic Exercise II",
+   "cls": "普通",
+   "id": "14040",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0101_BT.webp",
+   "desc": "简单的蜡像习作。它们被扭曲成不可思议的形状，却毫无怨言。",
+   "skills": [
+    "为前排友方施加 X 层【屏障】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，降低  X 点【临时力量】，回合结束移除。"
+   ],
+   "kw": [
+    "barrier",
+    "temporary-str"
+   ]
+  },
+  {
+   "n": "简单习作Ⅱ",
+   "en": "Basic Exercise II",
+   "cls": "普通",
+   "id": "14080",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0101_BT.webp",
+   "desc": "简单的蜡像习作。它们被扭曲成不可思议的形状，却毫无怨言。",
+   "skills": [
+    "为前排友方施加 X 层【屏障】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，降低  X 点【临时力量】，回合结束移除。"
+   ],
+   "kw": [
+    "barrier",
+    "temporary-str"
+   ]
+  },
+  {
+   "n": "超变融蚀体",
+   "en": "Ultra-Dissolute",
+   "cls": "精英",
+   "id": "14074",
+   "zone": "S01",
+   "zoneN": "融蚀体",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0103.webp",
+   "desc": "大量融蚀浆聚合成的异变体，生命较低时会分裂。",
+   "skills": [
+    "造成 X 点伤害 X 次。使对方直到回合结束，失去 X 点【力量】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "施加 X 回合的【虚弱】和【脆弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「垂死嘶鸣」",
+   "en": "Dying Whistle",
+   "cls": "Boss",
+   "id": "13972",
+   "zone": "S02",
+   "zoneN": "融蚀野地",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S0203_BOSSSIZE.webp",
+   "desc": "满身是融蚀创口的疯马。体型较大，生命力顽强，但融蚀创口也使其更容易受伤。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。",
+    "对双方各造成 X 层【易伤】。获得「利刃Ⅲ」：若造成未被格挡的伤害，在抽牌堆顶添加 3 张「伤口」。持续 1 回合。"
+   ],
+   "kw": [
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「泼尼」",
+   "en": "Dying Whistle",
+   "cls": "Boss",
+   "id": "36868",
+   "zone": "S02",
+   "zoneN": "融蚀野地",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S0203_BOSSSIZE.webp",
+   "desc": "婆婆曾经答应奥瑞塔，等奥瑞塔长大，长大到能够着马背了，就带她一起去伦蒂尼恩旅行。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。",
+    "对双方各造成 X 层【易伤】。获得「利刃Ⅲ」：若造成未被格挡的伤害，在抽牌堆顶添加 3 张「伤口」。持续 1 回合。"
+   ],
+   "kw": [
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "吞噬之吠",
+   "en": "Devouring Howl",
+   "cls": "Boss",
+   "id": "13966",
+   "zone": "S02",
+   "zoneN": "融蚀野地",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S0202_BOSSSIZE.webp",
+   "desc": "因融蚀加深而变得狂躁的流浪犬，它的攻击迅猛而连续，让人难以招架。",
+   "skills": [
+    "造成 X 点伤害 X 次，提高后续「连续撕咬」的攻击次数。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "获得 X 层【疯狂】。将 X 张「蹒跚」洗入抽牌堆。"
+   ],
+   "kw": [
+    "madness"
+   ]
+  },
+  {
+   "n": "融蚀鼠王",
+   "en": "Dissoluted Rat King",
+   "cls": "Boss",
+   "id": "74804",
+   "zone": "S02",
+   "zoneN": "融蚀野地",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S0201.webp",
+   "desc": "沾满融蚀的尾巴将它们粘合在一起，痛苦却无法分离。",
+   "skills": [],
+   "kw": []
+  },
+  {
+   "n": "「白雪」",
+   "en": "Frenzied Wild Dog",
+   "cls": "精英",
+   "id": "36870",
+   "zone": "S02",
+   "zoneN": "融蚀野地",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S0202.webp",
+   "desc": "曾是奥瑞塔最好的朋友（之一），具体表现在它会在奥瑞塔靠近时撕心裂肺地哀嚎。",
+   "skills": [
+    "造成 X 点伤害 X 次，提高后续「连续撕咬」的攻击次数。",
+    "造成 X 点伤害 X 次。",
+    "获得 X 层【疯狂】。将 X 张「蹒跚」洗入抽牌堆。"
+   ],
+   "kw": [
+    "madness"
+   ]
+  },
+  {
+   "n": "创痛疯马",
+   "en": "Mad Horse of Agony",
+   "cls": "精英",
+   "id": "13954",
+   "zone": "S02",
+   "zoneN": "融蚀野地",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S0203.webp",
+   "desc": "满身是融蚀创口的疯马。体型较大，生命力顽强，但融蚀创口也使其更容易受伤。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "对双方各造成 X 层【易伤】。获得「利刃Ⅱ」：若造成未被格挡的伤害，在抽牌堆顶添加 2 张「伤口」。持续 1 回合。"
+   ],
+   "kw": [
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "狂躁野犬",
+   "en": "Frenzied Wild Dog",
+   "cls": "精英",
+   "id": "14110",
+   "zone": "S02",
+   "zoneN": "融蚀野地",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S0202.webp",
+   "desc": "因为融蚀而变得狂躁的流浪犬，它的攻击迅猛而连续。",
+   "skills": [
+    "造成 X 点伤害 X 次，提高后续「连续撕咬」的攻击次数。",
+    "造成 X 点伤害 X 次。",
+    "获得 X 层【疯狂】。将 X 张「蹒跚」洗入抽牌堆。"
+   ],
+   "kw": [
+    "madness"
+   ]
+  },
+  {
+   "n": "纯白鼠王",
+   "en": "Pure White Rat King",
+   "cls": "普通",
+   "id": "22219",
+   "zone": "S02",
+   "zoneN": "融蚀野地",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S0201_BT.webp",
+   "desc": "融蚀与寒冷，伦蒂尼恩深冬的两大死神。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，对抽牌堆顶部的 X 张卡牌造成 X 层【迟缓】。"
+   ],
+   "kw": [
+    "stagnation",
+    "str"
+   ]
+  },
+  {
+   "n": "融蚀疯马",
+   "en": "Mad Horse of Agony",
+   "cls": "普通",
+   "id": "14051",
+   "zone": "S02",
+   "zoneN": "融蚀野地",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S0203.webp",
+   "desc": "满身是融蚀创口的疯马。体型较大，生命力顽强，但融蚀创口也使其更容易受伤。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "对双方各造成 X 层【易伤】。获得「利刃Ⅱ」：若造成未被格挡的伤害，在抽牌堆顶添加 2 张「伤口」。持续 1 回合。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "融蚀野犬",
+   "en": "Frenzied Wild Dog",
+   "cls": "普通",
+   "id": "13962",
+   "zone": "S02",
+   "zoneN": "融蚀野地",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S0202.webp",
+   "desc": "身上满是融蚀痕的流浪犬，它的攻击迅猛而连续。",
+   "skills": [
+    "造成 X 点伤害 X 次，提高后续「连续撕咬」的攻击次数。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "融蚀鼠王",
+   "en": "Dissoluted Rat King",
+   "cls": "普通",
+   "id": "13993",
+   "zone": "S02",
+   "zoneN": "融蚀野地",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S0201.webp",
+   "desc": "沾满融蚀的尾巴将它们粘合在一起，痛苦却无法分离。",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 回合的【脆弱】。",
+    "造成 X 点伤害 X 次。",
+    "获得 X 点【力量】，获得 X 点护盾。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "fragile",
+    "str"
+   ]
+  },
+  {
+   "n": "「以图存续」",
+   "en": "To Ensure Continuity",
+   "cls": "Boss",
+   "id": "46083",
+   "zone": "S03",
+   "zoneN": "执妄",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S0303_AT_BOSSSIZE.webp",
+   "desc": "这里充斥着对存续的渴望，他探求如逐火的灯蛾。",
+   "skills": [
+    "造成 X 点伤害 X 次，在后排召唤「多维者」。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "全体获得X 点【力量】，X 点护盾，洗入 1 张 「维度闭锁」到抽牌堆。",
+    "造成 X 点伤害 X 次，立刻获得 2 层怨恨锁链状态。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「求诸己身」",
+   "en": "Find the Answer Within",
+   "cls": "Boss",
+   "id": "13987",
+   "zone": "S03",
+   "zoneN": "执妄",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S0302_BT_BOSSSIZE.webp",
+   "desc": "雕塑家协会的改造产物，受过洗脑而充满信念，越战越勇。",
+   "skills": [
+    "每回合获得 X 点【力量】。",
+    "造成 X 点伤害 X 次。",
+    "施加 X 层空虚。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「聆听启示」",
+   "en": "Listen to the Revelation",
+   "cls": "Boss",
+   "id": "13973",
+   "zone": "S03",
+   "zoneN": "执妄",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S0303_BOSSSIZE.webp",
+   "desc": "怀揣执念渴望启示的改造人。会呼唤信徒并对其强化。",
+   "skills": [
+    "全体获得X 点【力量】，X 点护盾和 X 点【戒备】。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次，在后排召唤「求告者」。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "alert",
+    "str"
+   ]
+  },
+  {
+   "n": "俯仰者",
+   "en": "The Worshipper",
+   "cls": "普通",
+   "id": "14025",
+   "zone": "S03",
+   "zoneN": "执妄",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S0302_BT.webp",
+   "desc": "雕塑家协会的改造产物，受过洗脑而充满信念，越战越勇。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "每回合获得X点【力量】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "固守之执妄",
+   "en": "The Obsessed",
+   "cls": "精英",
+   "id": "13990",
+   "zone": "S03",
+   "zoneN": "执妄",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S0303.webp",
+   "desc": "怀揣执念固守于此的改造人。会呼唤自己的信徒并对其强化。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次，在后排召唤「求告者」。",
+    "造成 X 点伤害 X 次。",
+    "全体获得X 点【力量】 与 X 护盾 。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "多维者",
+   "en": "Multidimensional Entity",
+   "cls": "普通",
+   "id": "22235",
+   "zone": "S03",
+   "zoneN": "执妄",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S0301_BT.webp",
+   "desc": "误入维度间隙，形体受空间撕扯的求告之人。对雕塑家协会的忠心未曾有变。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "进化为「维度干涉型融蚀体」。当前生命越高进化的怪物就越强。",
+    "造成 X 点伤害 X 次，将一张「维度闭锁」加入玩家手牌。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "宣言者",
+   "en": "Transcendent Gaze",
+   "cls": "普通",
+   "id": "14026",
+   "zone": "S03",
+   "zoneN": "执妄",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S0302_AT.webp",
+   "desc": "雕塑家协会的改造产物，受过洗脑而充满信念，越战越勇。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "每回合获得X点【力量】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "执妄者",
+   "en": "The Obsessed",
+   "cls": "普通",
+   "id": "14098",
+   "zone": "S03",
+   "zoneN": "执妄",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S0303.webp",
+   "desc": "怀揣执念渴望启示的改造人。会呼唤信徒并对其强化。",
+   "skills": [
+    "全体获得X 点【力量】，X 点护盾和 X 点【戒备】。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次，在后排召唤「求告者」。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "alert",
+    "str"
+   ]
+  },
+  {
+   "n": "求告者",
+   "en": "The Supplicant",
+   "cls": "普通",
+   "id": "14070",
+   "zone": "S03",
+   "zoneN": "执妄",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S0301.webp",
+   "desc": "雕塑家协会的改造产物，融蚀症状在逐渐加深……",
+   "skills": [
+    "造成 X 点伤害 X 次，施加 X 回合的【虚弱】。",
+    "进化为「干涉型融蚀体」。当前生命越高进化的怪物就越强。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "weakness"
+   ]
+  },
+  {
+   "n": "窥视者",
+   "en": "Watcher",
+   "cls": "普通",
+   "id": "46084",
+   "zone": "S03",
+   "zoneN": "执妄",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S0303_AT.webp",
+   "desc": "笨拙的窃取者，在废弃的厂房中徘徊。",
+   "skills": [
+    "造成 X 点伤害 X 次，在后排召唤「多维者」。",
+    "造成 X 点伤害 X 次，在后排召唤「多维者」。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "造成 X 点伤害 X 次，获得 X 点护盾。",
+    "全体获得X 点【力量】，X 点护盾，洗入 1 张 「维度闭锁」到抽牌堆。",
+    "造成 X 点伤害 X 次，立刻获得 2 层怨恨锁链状态。",
+    "造成 X 点伤害 X 次，立刻获得 2 层怨恨锁链状态。",
+    "全体获得X 点【力量】，X 点护盾，洗入 1 张 「维度闭锁」到抽牌堆。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "苏醒者",
+   "en": "The Worshipper",
+   "cls": "普通",
+   "id": "51385",
+   "zone": "S03",
+   "zoneN": "执妄",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S0302_BT.webp",
+   "desc": "雕塑家协会的改造产物，受过洗脑而充满信念，越战越勇。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "每回合获得X点【力量】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "超脱之俯仰",
+   "en": "Transcendent Gaze",
+   "cls": "精英",
+   "id": "14023",
+   "zone": "S03",
+   "zoneN": "执妄",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S0302_AT.webp",
+   "desc": "雕塑家协会的改造产物，受过洗脑而充满信念，越战越勇。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "施加 X 层空虚。",
+    "每回合获得 X 点【力量】。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「守灯人」",
+   "en": "Guardian of the Lantern",
+   "cls": "Boss",
+   "id": "13956",
+   "zone": "S04",
+   "zoneN": "提灯教会",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S0402_BOSSSIZE.webp",
+   "desc": "提灯教会的一般教众，盲目地崇拜着教义宣传的毁灭。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，将 1 张「惊厥」洗入抽牌堆。",
+    "造成 X 点伤害 X 次，并施加等量【出血】。",
+    "获得 X 层祈祷状态。祈祷：可用来强化技能，受到伤害失去一层，回合结束失去全部。"
+   ],
+   "kw": [
+    "bleed"
+   ]
+  },
+  {
+   "n": "「灯芯侍者」",
+   "en": "Wick Attendant",
+   "cls": "Boss",
+   "id": "14010",
+   "zone": "S04",
+   "zoneN": "提灯教会",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S0403_BOSSSIZE.webp",
+   "desc": "提灯教会内负责传递提灯旨意的教牧，指挥各堂教众在融蚀区域活动。",
+   "skills": [
+    "造成 X 点伤害 X 次，并施加等量伤害【出血】。",
+    "在自身前后各召唤一个「提灯」。",
+    "获得 X 层祈祷状态。祈祷：可用来强化技能，受到伤害失去一层，回合结束失去全部。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed"
+   ]
+  },
+  {
+   "n": "提灯",
+   "en": "Lantern",
+   "cls": "普通",
+   "id": "14007",
+   "zone": "S04",
+   "zoneN": "提灯教会",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S0401.webp",
+   "desc": "提灯教会象征物的具象化。请勿追究其灵知的来源。",
+   "skills": [
+    "获得 X 护盾，获得 X 【力量】。",
+    "造成 X 点伤害 X 次。将 1 张「惊厥」洗入对方抽牌堆。",
+    "造成 X 点伤害 X 次，施加 X 层【出血】。"
+   ],
+   "kw": [
+    "bleed",
+    "str"
+   ]
+  },
+  {
+   "n": "提灯教众",
+   "en": "Lightbearer Followers",
+   "cls": "普通",
+   "id": "13970",
+   "zone": "S04",
+   "zoneN": "提灯教会",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S0402.webp",
+   "desc": "提灯教会的一般教众，盲目地崇拜着教义宣传的毁灭。",
+   "skills": [
+    "获得 X 层祈祷状态。祈祷：可用来强化技能，受到伤害失去一层，回合结束失去全部。",
+    "造成 X 点伤害 X 次，并施加等量【出血】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，将 1 张「惊厥」洗入抽牌堆。"
+   ],
+   "kw": [
+    "bleed"
+   ]
+  },
+  {
+   "n": "提灯教牧",
+   "en": "Senior Pastor",
+   "cls": "普通",
+   "id": "13950",
+   "zone": "S04",
+   "zoneN": "提灯教会",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S0403.webp",
+   "desc": "提灯教会内负责传递提灯旨意的教牧，指挥各堂教众在融蚀区域活动。",
+   "skills": [
+    "造成 X 点伤害 X 次，并施加等量伤害【出血】。",
+    "在自身前后各召唤一个「提灯」。",
+    "获得 X 层祈祷状态。祈祷：可用来强化技能，受到伤害失去一层，回合结束失去全部。",
+    "在自身后召唤一个「提灯」。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed"
+   ]
+  },
+  {
+   "n": "核心教牧",
+   "en": "Senior Pastor",
+   "cls": "精英",
+   "id": "14043",
+   "zone": "S04",
+   "zoneN": "提灯教会",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S0403.webp",
+   "desc": "提灯教会内负责传递提灯旨意的教牧，指挥各堂教众在融蚀区域活动。",
+   "skills": [
+    "造成 X 点伤害 X 次，并施加等量伤害【出血】。",
+    "在自身前后各召唤一个「提灯」。",
+    "获得 X 层祈祷状态。祈祷：可用来强化技能，受到伤害失去一层，回合结束失去全部。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed"
+   ]
+  },
+  {
+   "n": "虔心教众",
+   "en": "Lightbearer Followers",
+   "cls": "精英",
+   "id": "14022",
+   "zone": "S04",
+   "zoneN": "提灯教会",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S0402.webp",
+   "desc": "提灯教会的一般教众，盲目地崇拜着教义宣传的毁灭。",
+   "skills": [
+    "获得 X 层祈祷状态。祈祷：可用来强化技能，受到伤害失去一层，回合结束失去全部。",
+    "造成 X 点伤害 X 次，并施加等量【出血】。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，将 1 张「惊厥」洗入抽牌堆。"
+   ],
+   "kw": [
+    "bleed"
+   ]
+  },
+  {
+   "n": "献予女神之物",
+   "en": "Snow Offering",
+   "cls": "Boss",
+   "id": "149048",
+   "zone": "S05",
+   "zoneN": "雪山",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S0503.webp",
+   "desc": "他因目睹真相而执迷，他因叙述真相而葬身。",
+   "skills": [
+    "提高 15% 最大生命，并获得 X 层加固 和 X 点【力量】。",
+    "造成 X 点伤害 X 次，施加 X 层【迟缓】。",
+    "造成 X 点伤害 X 次，回合结束前每有 1 张手牌额外造成 1 次伤害，最大 10 次。",
+    "获得 X 层【死亡抵抗】。「冻结」所有【迟缓】的指令卡并移除其【迟缓】效果，移除所有唤醒体 X 点狂气。"
+   ],
+   "kw": [
+    "death-resistance",
+    "stagnation",
+    "str"
+   ]
+  },
+  {
+   "n": "异化企鹅",
+   "en": "Mutated Penguin",
+   "cls": "普通",
+   "id": "65532",
+   "zone": "S05",
+   "zoneN": "雪山",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S0501.webp",
+   "desc": "当融蚀与冰焰降临这片土地，宁静对艾尔沃斯的生物来说便成为奢望。",
+   "skills": [
+    "随机冻结抽牌堆中的 1 张指令卡，获得 1 层【疯狂】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "madness"
+   ]
+  },
+  {
+   "n": "探险者领队",
+   "en": "Stranded Exploration Team",
+   "cls": "精英",
+   "id": "65533",
+   "zone": "S05",
+   "zoneN": "雪山",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S0502.webp",
+   "desc": "他不愿舍弃那些被群山淹没的队员们。他勇敢折返。他如愿以偿。",
+   "skills": [
+    "获得 X 点霜盾，将 1 张警觉置入手中。",
+    "造成 X 点伤害 X 次，消耗所有手中被冻结的卡牌。",
+    "造成 X 点伤害 X 次，施加 X 层【迟缓】。",
+    "造成 X 点伤害 X 次，每造成一次未被完全格挡的伤害，随机冻结牌库中 1 张未被冻结的指令卡。"
+   ],
+   "kw": [
+    "stagnation"
+   ]
+  },
+  {
+   "n": "遇难探险队",
+   "en": "Stranded Exploration Team",
+   "cls": "普通",
+   "id": "65530",
+   "zone": "S05",
+   "zoneN": "雪山",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S0502.webp",
+   "desc": "雪山⟦devour|吞噬⟧了那些勇敢无知的人类，他们在死后亦不得安宁。",
+   "skills": [
+    "获得 X 点霜盾，将 1 张警觉置入手中。",
+    "造成 X 点伤害 X 次，消耗所有手中被冻结的卡牌。",
+    "造成 X 点伤害 X 次，施加 X 层【迟缓】。",
+    "造成 X 点伤害 X 次，每造成一次未被完全格挡的伤害，随机冻结牌库中 1 张未被冻结的指令卡。"
+   ],
+   "kw": [
+    "devour",
+    "stagnation"
+   ]
+  },
+  {
+   "n": "雪之祭品",
+   "en": "Snow Offering",
+   "cls": "精英",
+   "id": "65528",
+   "zone": "S05",
+   "zoneN": "雪山",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S0503.webp",
+   "desc": "雪山舔舐了他的⟦caro|血肉⟧。雪山⟦devour|吞噬⟧了他的枯骨。雪山奴役着他的魂灵，为自己寻觅下一个祭品。",
+   "skills": [
+    "提高 15% 最大生命，并获得 X 层加固 和 X 点【力量】。",
+    "造成 X 点伤害 X 次，施加 X 层【迟缓】。",
+    "造成 X 点伤害 X 次，回合结束前每有 1 张手牌额外造成 1 次伤害，最大 10 次。"
+   ],
+   "kw": [
+    "caro",
+    "devour",
+    "stagnation",
+    "str"
+   ]
+  },
+  {
+   "n": "雪山之蛹",
+   "en": "Snow Offering",
+   "cls": "普通",
+   "id": "65527",
+   "zone": "S05",
+   "zoneN": "雪山",
+   "r": "aqua",
+   "img": "assets/monster/Portrait_Small_Monster_S0503.webp",
+   "desc": "充满勇气与⟦str|力量⟧的考察队员。艾尔沃斯最钟爱的祭品。",
+   "skills": [
+    "提高 15% 最大生命，并获得 X 层加固 和 X 点【力量】。",
+    "造成 X 点伤害 X 次，施加 X 层【迟缓】。",
+    "造成 X 点伤害 X 次，回合结束前每有 1 张手牌额外造成 1 次伤害，最大 10 次。"
+   ],
+   "kw": [
+    "stagnation",
+    "str"
+   ]
+  },
+  {
+   "n": "剑术教官",
+   "en": "Swordsmanship Instructor",
+   "cls": "Boss",
+   "id": "89528",
+   "zone": "S06",
+   "zoneN": "搜查队",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0603_BOSSSIZE.webp",
+   "desc": "从所有协定国中选拔出的剑术精英，请小心应对。",
+   "skills": [
+    "造成 X 点伤害 X 次和等量 【出血】。",
+    "造成 X 点【出血】并获得 X 点护盾。该【出血】受【力量】提高加成。",
+    "获得 X 点【力量】和 X 点【临时反击】。施加 X 层【脆弱】。",
+    "造成 X 点伤害 X 次，施加 X 层【脆弱】。",
+    "造成 X 点穿刺伤害，目标生命越高伤害越高。施加 X 层【脆弱】。"
+   ],
+   "kw": [
+    "bleed",
+    "fragile",
+    "str",
+    "temporary-counter"
+   ]
+  },
+  {
+   "n": "少校",
+   "en": "Major",
+   "cls": "Boss",
+   "id": "60008",
+   "zone": "S06",
+   "zoneN": "搜查队",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0604_BOSSSIZE.webp",
+   "desc": "审查会高级指挥人员，帝国勋章获得者，曾在数次对抗融蚀的行动中立下功勋。",
+   "skills": [
+    "造成 X 点伤害 X 次，召唤 X 只「搜查猫」在前方，自身生命越低召唤的宠物越强大。",
+    "召唤 X 只「小蜜蜂」在后方，自身生命越低召唤的宠物越强大。使所有友方获得 X 层【屏障】，【屏障】数量随着回合数提高。",
+    "造成 X 点伤害 X 次，重创  X 回合。",
+    "造成 X 点伤害 X 次，获得 X 点【力量】。"
+   ],
+   "kw": [
+    "barrier",
+    "str"
+   ]
+  },
+  {
+   "n": "「小蜜蜂」",
+   "en": "Little Wasp",
+   "cls": "普通",
+   "id": "59750",
+   "zone": "S06",
+   "zoneN": "搜查队",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0601.webp",
+   "desc": "训练员这样称呼它。虽然性情相对温顺，但也请小心它的刺。",
+   "skills": [
+    "将牌堆中 3 张卡牌算力消耗变为 3。",
+    "造成 1 回合的 【虚弱】、【脆弱】 和 重创。",
+    "自身死亡，造成 X 点伤害 X 次，使 4 张卡牌产生畸变。"
+   ],
+   "kw": [
+    "fragile",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「小马蜂」",
+   "en": "Little Wasp",
+   "cls": "普通",
+   "id": "59746",
+   "zone": "S06",
+   "zoneN": "搜查队",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0601.webp",
+   "desc": "最让训练员头疼的成员。生性易怒，小心它的刺。",
+   "skills": [
+    "造成 1 回合的 【虚弱】、【脆弱】 和 重创。",
+    "自身死亡，造成 X 点伤害 X 次，使 4 张卡牌产生畸变。"
+   ],
+   "kw": [
+    "fragile",
+    "weakness"
+   ]
+  },
+  {
+   "n": "上尉",
+   "en": "Sergeant Major",
+   "cls": "精英",
+   "id": "60090",
+   "zone": "S06",
+   "zoneN": "搜查队",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0604.webp",
+   "desc": "审查会中级指挥人员，拥有良好的个人能力与指挥素养。",
+   "skills": [
+    "造成 X 点伤害 X 次，召唤 X 只「搜查猫」在前方，自身生命越低召唤的宠物越强大。",
+    "召唤 X 只「小蜜蜂」在后方，自身生命越低召唤的宠物越强大。",
+    "造成 X 点伤害 X 次，重创  X 回合。",
+    "造成 X 点伤害 X 次，获得 X 点【力量】。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "作战员",
+   "en": "Operative",
+   "cls": "普通",
+   "id": "59743",
+   "zone": "S06",
+   "zoneN": "搜查队",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0603_AT.webp",
+   "desc": "越底层的成员，越为这场难得一见的重大行动感到亢奋。",
+   "skills": [
+    "造成 X 点【出血】并获得 X 点护盾。该【出血】受【力量】提高加成。",
+    "造成 X 点伤害 X 次和等量 【出血】。",
+    "造成 X 点伤害 X 次，施加 X 层【脆弱】。",
+    "获得 X 点【力量】和 X 点【临时反击】。"
+   ],
+   "kw": [
+    "bleed",
+    "fragile",
+    "str",
+    "temporary-counter"
+   ]
+  },
+  {
+   "n": "军士长",
+   "en": "Sergeant Major",
+   "cls": "普通",
+   "id": "60007",
+   "zone": "S06",
+   "zoneN": "搜查队",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0604.webp",
+   "desc": "审查会初级指挥人员，通常为作战小队队长。",
+   "skills": [
+    "造成 X 点伤害 X 次，召唤 X 只「搜查猫」在前方，自身生命越低召唤的宠物越强大。",
+    "造成 X 点伤害 X 次，重创  X 回合。",
+    "召唤 X 只「小蜜蜂」在后方，自身生命越低召唤的宠物越强大。",
+    "造成 X 点伤害 X 次，获得 X 点【力量】。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "大搜查猫",
+   "en": "Cat Warrior",
+   "cls": "普通",
+   "id": "81020",
+   "zone": "S06",
+   "zoneN": "搜查队",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0602.webp",
+   "desc": "某些工作不止犬科能做。",
+   "skills": [
+    "获得 1 层【疯狂】。对手失去 X 点【临时力量】。",
+    "造成 X 点伤害 X 次，未被完全格挡的部分会造成等量【出血】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed",
+    "madness",
+    "temporary-str"
+   ]
+  },
+  {
+   "n": "探员",
+   "en": "Senior Agent",
+   "cls": "普通",
+   "id": "59748",
+   "zone": "S06",
+   "zoneN": "搜查队",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0603_BT.webp",
+   "desc": "越底层的成员，越为这场难得一见的重大行动感到亢奋。",
+   "skills": [
+    "造成 X 点伤害 X 次，获得等同于未被格挡伤害的【临时力量】。",
+    "造成 X 点伤害 X 次，施加 X 层重创。",
+    "造成 X 点伤害 X 次，回复等同于未被格挡伤害 10 倍的生命。",
+    "获得 X 点【力量】，施加 X 层重创。"
+   ],
+   "kw": [
+    "str",
+    "temporary-str"
+   ]
+  },
+  {
+   "n": "搜查猫",
+   "en": "Cat Warrior",
+   "cls": "普通",
+   "id": "59744",
+   "zone": "S06",
+   "zoneN": "搜查队",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0602.webp",
+   "desc": "某些工作不止犬科能做。",
+   "skills": [
+    "获得 1 层【疯狂】。对手失去 X 点【临时力量】。",
+    "造成 X 点伤害 X 次，未被完全格挡的部分会造成等量【出血】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed",
+    "madness",
+    "temporary-str"
+   ]
+  },
+  {
+   "n": "陆战猫",
+   "en": "Cat Warrior",
+   "cls": "普通",
+   "id": "59745",
+   "zone": "S06",
+   "zoneN": "搜查队",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0602.webp",
+   "desc": "审查会的试验性产物，迄今已伤害了七任训练员。",
+   "skills": [
+    "获得 1 层【疯狂】。对手失去 X 点【临时力量】。",
+    "造成 X 点伤害 X 次，未被完全格挡的部分会造成等量【出血】。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "bleed",
+    "madness",
+    "temporary-str"
+   ]
+  },
+  {
+   "n": "高级作战员",
+   "en": "Operative",
+   "cls": "精英",
+   "id": "60095",
+   "zone": "S06",
+   "zoneN": "搜查队",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0603_AT.webp",
+   "desc": "更少的退路，更少的回报。更多的风险，更多的烦恼。",
+   "skills": [
+    "获得 X 点【力量】和 X 点【临时反击】。",
+    "造成 X 点伤害 X 次，施加 X 层【脆弱】。",
+    "造成 X 点【出血】并获得 X 点护盾。该【出血】受【力量】提高加成。",
+    "造成 X 点伤害 X 次和等量 【出血】。"
+   ],
+   "kw": [
+    "bleed",
+    "fragile",
+    "str",
+    "temporary-counter"
+   ]
+  },
+  {
+   "n": "高级探员",
+   "en": "Senior Agent",
+   "cls": "精英",
+   "id": "60091",
+   "zone": "S06",
+   "zoneN": "搜查队",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0603_BT.webp",
+   "desc": "更少的退路，更少的回报。更多的风险，更多的烦恼。",
+   "skills": [
+    "获得 X 点【力量】，施加 X 层重创。",
+    "造成 X 点伤害 X 次，获得等同于未被格挡伤害的【临时力量】。",
+    "造成 X 点伤害 X 次，施加 X 层重创。",
+    "造成 X 点伤害 X 次，回复等同于未被格挡伤害 10 倍的生命。"
+   ],
+   "kw": [
+    "str",
+    "temporary-str"
+   ]
+  },
+  {
+   "n": "「乐善好施」肯尼",
+   "en": "\"Charitable\" Kenny",
+   "cls": "普通",
+   "id": "44630",
+   "zone": "S07",
+   "zoneN": "好人三人组",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S0701_AT.webp",
+   "desc": "他曾经是个好人，愿意一天工作20个小时，只为「抚养」邻居家的孤儿。",
+   "skills": [
+    "获得 X 点护盾和 X 点【力量】。",
+    "造成 X 点伤害 X 次，施加 1 回合「创伤」。创伤：打出「打击」后，在抽牌堆顶部添加 1  张「伤口」。",
+    "造成 X 点伤害 X 次。将 1 张 「蹒跚」洗入抽牌堆。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「助人为乐」杰克逊",
+   "en": "\"Helpful\" Jackson",
+   "cls": "普通",
+   "id": "44631",
+   "zone": "S07",
+   "zoneN": "好人三人组",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S0701_CT.webp",
+   "desc": "他曾经是个好人，愿意在雨夜守护每一个路人，只为能让所有人「平安归家」。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "前排获得 3 层【屏障】，获得 X 点【力量】。",
+    "造成 X 点伤害 X 次，造成「撕裂」1 回合。撕裂：打出「防御」时，在抽牌堆顶部添加  1 张「伤口」。"
+   ],
+   "kw": [
+    "barrier",
+    "str"
+   ]
+  },
+  {
+   "n": "「心地善良」弗里曼",
+   "en": "\"Kind-hearted\" Freeman",
+   "cls": "普通",
+   "id": "44632",
+   "zone": "S07",
+   "zoneN": "好人三人组",
+   "r": "caro",
+   "img": "assets/monster/Portrait_Small_Monster_S0701_BT.webp",
+   "desc": "他曾经是个好人，愿意一天打扫20条街道，只为能让更多人「窥视」到伦蒂尼恩的平静。",
+   "skills": [
+    "施加 1 回合致盲。",
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次，获得 X 点【力量】。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "「涅弗鲁瑞」",
+   "en": "Neferure",
+   "cls": "精英",
+   "id": "43794",
+   "zone": "S08",
+   "zoneN": "涅弗鲁瑞",
+   "r": "ultra",
+   "img": "assets/monster/Portrait_Small_Monster_S0801.webp",
+   "desc": "睡吧，涅弗鲁瑞。睡吧，我的乖孩子。睡吧，在太过短暂的童年，在迎风而长的梦中。",
+   "skills": [
+    "造成 X 点伤害 X 次，将 1 张随机畸变卡牌加入手中。",
+    "获得 X 点护盾和 X 点【力量】。玩家每打出 1 张牌都会切换该意图的追加效果。追加效果会在【反击】、净化、植入之间按序切换。",
+    "造成 X 点伤害 X 次，玩家每打出 1 张牌都会切换该意图的追加效果。追加效果会在重击、回复、弱化之间按序切换。",
+    "造成 X 点伤害 X 次，未被完全格挡的部分会造成等量【出血】。"
+   ],
+   "kw": [
+    "bleed",
+    "counter",
+    "str"
+   ]
+  },
+  {
+   "n": "「@2无法@1传递」",
+   "en": "The Missing One",
+   "cls": "Boss",
+   "id": "72149",
+   "zone": "S09",
+   "zoneN": "灰烬",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0902.webp",
+   "desc": "讯号飘散在灰雾笼罩的空中。",
+   "skills": [
+    "将 1 张「拨号炸弹」洗入牌库，造成 3 回合【脆弱】。",
+    "将 1 张「拨号炸弹」洗入牌库，造成 3 回合【虚弱】。",
+    "造成 1 次高额伤害。",
+    "造成 X 点伤害 X 次。清空【保留】的手牌，将 3 张「灵感」和 3 种不同算力的「拨号炸弹」置入手中。"
+   ],
+   "kw": [
+    "fragile",
+    "retain",
+    "weakness"
+   ]
+  },
+  {
+   "n": "「@2银芯@1一体」",
+   "en": "Merge You and Me",
+   "cls": "Boss",
+   "id": "72143",
+   "zone": "S09",
+   "zoneN": "灰烬",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0903.webp",
+   "desc": "扭曲的肢体绞缠在一处。",
+   "skills": [
+    "造成 X 点伤害 X 次。所有敌人在本场战斗中回合结束时获得 X 点护盾（无论它们在哪）。",
+    "造成 X 点伤害 X 次。后排召唤 1 名「灰烬融蚀体」。",
+    "所有敌人在本场战斗中获得 X 点【力量】（无论它们在哪）。召唤 1 名「灰烬融蚀体」。",
+    "造成 X 点伤害 X 次。施加 3 回合【易伤】。",
+    "所有敌人在本场战斗中永久获得 X 点【力量】（无论它们在哪）。召唤 1 名「紧急联络」和 1 名「灰烬融蚀体」。"
+   ],
+   "kw": [
+    "str",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "失联之人",
+   "en": "The Missing One",
+   "cls": "精英",
+   "id": "72141",
+   "zone": "S09",
+   "zoneN": "灰烬",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0902.webp",
+   "desc": "末日已至，残余的灵性相互呼告：请与我产生联络。",
+   "skills": [
+    "将 1 张「拨号炸弹」洗入牌库，造成 3 回合【脆弱】。",
+    "将 1 张「拨号炸弹」洗入牌库，造成 3 回合【虚弱】。",
+    "造成 1 次高额伤害。"
+   ],
+   "kw": [
+    "fragile",
+    "weakness"
+   ]
+  },
+  {
+   "n": "拥抱你我",
+   "en": "Merge You and Me",
+   "cls": "普通",
+   "id": "72151",
+   "zone": "S09",
+   "zoneN": "灰烬",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0903.webp",
+   "desc": "「亲爱的，我还能和你再次拥抱吗？」",
+   "skills": [
+    "所有敌人在本场战斗中获得 X 点【力量】（无论它们在哪）。召唤 1 名「灰烬融蚀体」。",
+    "造成 X 点伤害 X 次。所有敌人在本场战斗中回合结束时获得 X 点护盾（无论它们在哪）。",
+    "造成 X 点伤害 X 次。施加 2 回合【易伤】。",
+    "造成 X 点伤害 X 次。后排召唤 1 名「灰烬融蚀体」。"
+   ],
+   "kw": [
+    "str",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "灰烬融蚀体",
+   "en": "Ashen Dissolute",
+   "cls": "普通",
+   "id": "72142",
+   "zone": "S09",
+   "zoneN": "灰烬",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0901.webp",
+   "desc": "诞生于灰烬之中，已经被融蚀磨灭大部分灵性。",
+   "skills": [
+    "获得「暗杀者」状态和 2 层【屏障】。",
+    "造成 X 点伤害 X 次。造成 1 回合致盲。",
+    "造成 X 点伤害 X 次。获得「暗杀者」状态。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "barrier"
+   ]
+  },
+  {
+   "n": "紧急联络",
+   "en": "The Missing One",
+   "cls": "普通",
+   "id": "72150",
+   "zone": "S09",
+   "zoneN": "灰烬",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0902.webp",
+   "desc": "「姐姐啊，我好想好想再听一次你的声音。」",
+   "skills": [
+    "造成 1 次高额伤害。",
+    "将 1 张「拨号炸弹」洗入抽牌堆，造成 2 回合【脆弱】。",
+    "将 1 张「拨号炸弹」洗入抽牌堆，造成 2 回合【虚弱】。"
+   ],
+   "kw": [
+    "fragile",
+    "weakness"
+   ]
+  },
+  {
+   "n": "融合你我",
+   "en": "Merge You and Me",
+   "cls": "精英",
+   "id": "72145",
+   "zone": "S09",
+   "zoneN": "灰烬",
+   "r": "chaos",
+   "img": "assets/monster/Portrait_Small_Monster_S0903.webp",
+   "desc": "末日已至，残余的灵性相互呼告：请与我的灵性融为一体。",
+   "skills": [
+    "造成 X 点伤害 X 次。所有敌人在本场战斗中回合结束时获得 X 点护盾（无论它们在哪）。",
+    "造成 X 点伤害 X 次。施加 2 回合【易伤】。",
+    "造成 X 点伤害 X 次。后排召唤 1 名「灰烬融蚀体」。",
+    "所有敌人在本场战斗中获得 X 点【力量】（无论它们在哪）。召唤 1 名「灰烬融蚀体」。",
+    "造成 X 点伤害 X 次。施加 3 回合【易伤】。"
+   ],
+   "kw": [
+    "str",
+    "vulnerable"
+   ]
+  },
+  {
+   "n": "「大魔术师霍迪妮」",
+   "en": "The Great Magician Houdini",
+   "cls": "Boss",
+   "id": "23774",
+   "zone": "",
+   "zoneN": "",
+   "r": "any",
+   "img": "assets/monster/Portrait_Small_Monster_DCC10_01_BOSSSIZE.webp",
+   "desc": "大魔术师霍迪妮闪亮登场！根据海报上的自我介绍，曾有41人在她的演出现场失踪。",
+   "skills": [
+    "造成 X 点伤害 X 次。将 1 张算力消耗为 3 的「跳动的炸弹」立刻置入玩家手牌。霍迪妮每有 1 层「洋洋得意」，「跳动的炸弹」的算力消耗减少 1 点。",
+    "造成 X 点伤害 X 次。同时将 5 张「亵渎假象」卡牌置入手牌，霍迪妮每有 1 层「洋洋得意」，会将其中 1 张「亵渎假象」替换为「灵感」。",
+    "在自身前方召唤 1 个「霍迪妮」的玩偶。每有 1 层「洋洋得意」会降低其 20% 的最大生命值，最低降至 1 点。",
+    "将 1 张带有「消耗」和「【保留】」的「幸运观众」置入对方手牌。",
+    "造成 X 点伤害 X 次。"
+   ],
+   "kw": [
+    "retain"
+   ]
+  },
+  {
+   "n": "「致奥尔拉」",
+   "en": "To Horla",
+   "cls": "Boss",
+   "id": "52080",
+   "zone": "",
+   "zoneN": "",
+   "r": "any",
+   "img": "assets/monster/Portrait_Small_Monster_DCD06_01_BOSSSIZE.webp",
+   "desc": "在自己所写的唯一一首诗中，她描述花园、阳光、欢笑。她用花瓣埋葬挚友的身躯。在诗中，她良善如同玫瑰。",
+   "skills": [
+    "造成 X 点伤害 X 次。随机对 1 名唤醒体的所有卡牌附加认知错乱。",
+    "召唤 4 名荆棘侍从。对所有卡牌附加认知错乱。施加 X 层衰竭、X 层【中毒】、X 层【出血】。并致盲、【虚弱】、【脆弱】、【易伤】、重创 99 回合。",
+    "造成 X 点伤害 X 次，移除玩家 50% 的【力量】 和【反击】。",
+    "获得 X 点护盾， X 点【反击】和 X 点【力量】。",
+    "造成 X 点伤害 X 次。召唤荆棘侍从。使之后贪欲之歌伤害次数提高 1。",
+    "造成 X 点伤害 X 次。召唤荆棘侍从。使之后贪欲之歌伤害次数提高 1。"
+   ],
+   "kw": [
+    "bleed",
+    "counter",
+    "fragile",
+    "poison",
+    "str",
+    "vulnerable",
+    "weakness"
+   ]
+  },
+  {
+   "n": "倒错的画作",
+   "en": "The Poet",
+   "cls": "Boss",
+   "id": "96000",
+   "zone": "",
+   "zoneN": "",
+   "r": "any",
+   "img": "assets/monster/Portrait_Small_Monster_DCD06_03.webp",
+   "desc": "艺术，是⟦madness|疯狂⟧的书面用语。",
+   "skills": [
+    "造成 X 点伤害 X 次。造成 X 回合【脆弱】，使抽牌堆随机 2 张牌附加认知失调。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】，使抽牌堆随机 1 张牌附加认知失调。",
+    "造成 X 点伤害 X 次。使抽牌堆随机 3 张牌附加认知失调。",
+    "造成 X 点伤害 X 次。造成 X 回合致盲，使抽牌堆随机 1 张牌附加认知失调。"
+   ],
+   "kw": [
+    "fragile",
+    "madness",
+    "str"
+   ]
+  },
+  {
+   "n": "暴走猎颅者",
+   "en": "Rampaging Skull Hunter",
+   "cls": "Boss",
+   "id": "13980",
+   "zone": "",
+   "zoneN": "",
+   "r": "any",
+   "img": "assets/monster/Portrait_Small_Monster_DCD02_02_BOSSSIZE.webp",
+   "desc": "滑滑的、黏黏的。头颅们温暖的家。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "对一名唤醒体的卡牌添加「被狩猎」状态，自身施加2层「狩猎印记」。",
+    "造成 X 点伤害 X 次。每有 1 层「狩猎印记」降低 X 点【临时力量】。",
+    "造成 X 点伤害 X 次，全体获得 X 点护盾，将 2 张「症状：妄想」洗入抽牌堆。"
+   ],
+   "kw": [
+    "temporary-str"
+   ]
+  },
+  {
+   "n": "伯爵夫人",
+   "en": "The Poet",
+   "cls": "精英",
+   "id": "56170",
+   "zone": "",
+   "zoneN": "",
+   "r": "any",
+   "img": "assets/monster/Portrait_Small_Monster_DCD06_03.webp",
+   "desc": "「亲爱的伯爵夫人，我曾经的渴望。而如今，你已成为了我忠实的侍卫。替我向她，献上一首诗吧。」",
+   "skills": [
+    "造成 X 点伤害 X 次。造成 X 回合致盲，使抽牌堆随机 1 张牌附加认知失调。",
+    "造成 X 点伤害 X 次。使抽牌堆随机 3 张牌附加认知失调。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】，使抽牌堆随机 1 张牌附加认知失调。",
+    "造成 X 点伤害 X 次。造成 X 回合【脆弱】，使抽牌堆随机 2 张牌附加认知失调。"
+   ],
+   "kw": [
+    "fragile",
+    "str"
+   ]
+  },
+  {
+   "n": "婪之花",
+   "en": "Flower of Desire",
+   "cls": "普通",
+   "id": "54103",
+   "zone": "",
+   "zoneN": "",
+   "r": "any",
+   "img": "assets/monster/Portrait_Small_Monster_DCD06_01.webp",
+   "desc": "贪婪是人生唯一的意象。不是吗？",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。随机对 1 名唤醒体的所有卡牌附加认知失调。",
+    "造成 X 点伤害 X 次。",
+    "获得 X 点护盾，以及 X 点【临时反击】和 X 点【力量】。"
+   ],
+   "kw": [
+    "str",
+    "temporary-counter"
+   ]
+  },
+  {
+   "n": "欲之花",
+   "en": "Flower of Desire",
+   "cls": "普通",
+   "id": "54102",
+   "zone": "",
+   "zoneN": "",
+   "r": "any",
+   "img": "assets/monster/Portrait_Small_Monster_DCD06_01.webp",
+   "desc": "往昔的花园中，欲望是仅有的养分。",
+   "skills": [
+    "造成 X 点伤害 X 次。",
+    "造成 X 点伤害 X 次。随机对 1 名唤醒体的所有卡牌附加认知失调。",
+    "造成 X 点伤害 X 次。",
+    "获得 X 点护盾，以及 X 点【临时反击】和 X 点【力量】。"
+   ],
+   "kw": [
+    "str",
+    "temporary-counter"
+   ]
+  },
+  {
+   "n": "渴求者",
+   "en": "Thirster",
+   "cls": "普通",
+   "id": "56173",
+   "zone": "",
+   "zoneN": "",
+   "r": "any",
+   "img": "assets/monster/Portrait_Small_Monster_DCD06_02.webp",
+   "desc": "在诗中的西岱，他们渴求柯蕾特的恩典。",
+   "skills": [
+    "造成 X 点伤害 X 次，并获得 X点护盾，使抽牌堆随机 1 张牌附加认知失调。",
+    "造成 X 点伤害 X 次，使抽牌堆随机 1 张牌附加认知失调。",
+    "造成 X 点伤害 X 次，使抽牌堆随机 1 张牌附加认知失调。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "荆棘侍从",
+   "en": "Flower of Desire",
+   "cls": "普通",
+   "id": "54465",
+   "zone": "",
+   "zoneN": "",
+   "r": "any",
+   "img": "assets/monster/Portrait_Small_Monster_DCD06_01.webp",
+   "desc": "「在我们渺小的王国里，我会为你，撑起所有荆棘」",
+   "skills": [
+    "使「致奥尔拉」回复 已损失生命的 3%。",
+    "使「致奥尔拉」提高 X 点【力量】。"
+   ],
+   "kw": [
+    "str"
+   ]
+  },
+  {
+   "n": "融蚀-渴求者",
+   "en": "Thirster",
+   "cls": "普通",
+   "id": "140582",
+   "zone": "",
+   "zoneN": "",
+   "r": "any",
+   "img": "assets/monster/Portrait_Small_Monster_DCD06_02.webp",
+   "desc": "在诗中的西岱，他们渴求柯蕾特的恩典。",
+   "skills": [
+    "造成 X 点伤害 X 次，使抽牌堆随机 1 张牌附加认知错乱。",
+    "造成 X 点伤害 X 次，使抽牌堆随机 1 张牌附加认知错乱。",
+    "造成 X 点伤害 X 次，使抽牌堆随机 1 张牌附加认知错乱。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "融蚀-诗中人",
+   "en": "The Poet",
+   "cls": "普通",
+   "id": "140572",
+   "zone": "",
+   "zoneN": "",
+   "r": "any",
+   "img": "assets/monster/Portrait_Small_Monster_DCD06_03.webp",
+   "desc": "坚定的拥护者，这是她能写出的全部意象。",
+   "skills": [
+    "造成 X 点伤害 X 次。造成 X 回合【脆弱】，使抽牌堆随机 2 张牌附加认知错乱。",
+    "造成 X 点伤害 X 次。使抽牌堆随机 3 张牌附加认知错乱。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】，使抽牌堆随机 1 张牌附加认知错乱。",
+    "造成 X 点伤害 X 次。造成 X 回合【虚弱】，使抽牌堆随机 1 张牌附加认知错乱。"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "融蚀-追随者",
+   "en": "Thirster",
+   "cls": "普通",
+   "id": "140581",
+   "zone": "",
+   "zoneN": "",
+   "r": "any",
+   "img": "assets/monster/Portrait_Small_Monster_DCD06_02.webp",
+   "desc": "在诗中的西岱，他们追随柯蕾特的身影。",
+   "skills": [
+    "造成 X 点伤害 X 次，使抽牌堆随机 1 张牌附加认知错乱。",
+    "造成 X 点伤害 X 次，使抽牌堆随机 1 张牌附加认知错乱。",
+    "造成 X 点伤害 X 次，使抽牌堆随机 1 张牌附加认知错乱。"
+   ],
+   "kw": []
+  },
+  {
+   "n": "诗中人",
+   "en": "The Poet",
+   "cls": "普通",
+   "id": "56169",
+   "zone": "",
+   "zoneN": "",
+   "r": "any",
+   "img": "assets/monster/Portrait_Small_Monster_DCD06_03.webp",
+   "desc": "坚定的拥护者，这是她能写出的全部意象。",
+   "skills": [
+    "造成 X 点伤害 X 次。造成 X 回合【虚弱】，使抽牌堆随机 1 张牌附加认知失调。",
+    "造成 X 点伤害 X 次。使抽牌堆随机 3 张牌附加认知失调。",
+    "造成 X 点伤害 X 次。获得 X 点【力量】，使抽牌堆随机 1 张牌附加认知失调。",
+    "造成 X 点伤害 X 次。造成 X 回合【脆弱】，使抽牌堆随机 2 张牌附加认知失调。"
+   ],
+   "kw": [
+    "fragile",
+    "str",
+    "weakness"
+   ]
+  },
+  {
+   "n": "追随者",
+   "en": "Thirster",
+   "cls": "普通",
+   "id": "56172",
+   "zone": "",
+   "zoneN": "",
+   "r": "any",
+   "img": "assets/monster/Portrait_Small_Monster_DCD06_02.webp",
+   "desc": "在诗中的西岱，他们追随柯蕾特的身影。",
+   "skills": [
+    "造成 X 点伤害 X 次，并获得 X点护盾，使抽牌堆随机 1 张牌附加认知失调。",
+    "造成 X 点伤害 X 次，使抽牌堆随机 1 张牌附加认知失调。",
+    "造成 X 点伤害 X 次，使抽牌堆随机 1 张牌附加认知失调。"
+   ],
+   "kw": []
+  }
+ ]
+}

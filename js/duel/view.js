@@ -340,6 +340,14 @@ function lpBar(p) {
     + `<span class="lpn">${Math.max(0, p.lp)} / ${p.lpMax}</span></div>`;
 }
 
+// 玩家身上的两种状态（中毒层数 / 屏障次数）：挂在命轮条后面一行小字
+function stTags(pl) {
+  let s = '';
+  if (pl.psn > 0) s += `<span class="stt ps" title="中毒 ${pl.psn} 层：自己回合开始失去 ${pl.psn * 100} 点命轮值">毒 ${pl.psn}</span>`;
+  if (pl.br > 0) s += `<span class="stt brt" title="屏障 ${pl.br} 层：抵挡 ${pl.br} 次伤害">盾 ${pl.br}</span>`;
+  return s;
+}
+
 function bondsDots(bonds) {
   if (!bonds || !bonds.length) return '';
   return `<div class="bonds">${bonds.map((b) => `<span title="羁绊：${b.n}"></span>`).join('')}</div>`;
@@ -354,9 +362,17 @@ function slotHTML(m, i, side, hot) {
   }
   const c = CARDS[m.id];
   const tag = c.k === 'E' ? '觉醒' : (m.pos === 'def' ? '守备' : '攻击');
+  // 新机制的场上面板：屏障 / 流血 / 反击 / 嘲讽都要看得见，
+  // 不然玩家算不准「这一下打不打」，只能靠翻日志。
+  const badges = [];
+  if (m.br > 0) badges.push(`<i class="sf br" title="屏障 ${m.br} 层：抵挡 ${m.br} 次破坏或伤害">盾${m.br}</i>`);
+  if (m.bld > 0) badges.push(`<i class="sf bd" title="流血 ${m.bld} 层：每回合攻击力 -${m.bld * 100}">血${m.bld}</i>`);
+  if (m.ctr > 0) badges.push(`<i class="sf ct" title="反击：被攻击后对对方造成 ${m.ctr} 点伤害">反${m.ctr}</i>`);
+  if (m.taunt) badges.push('<i class="sf tt" title="嘲讽：对方必须优先攻击此卡">嘲</i>');
+  const sfx = badges.length ? `<div class="sfs">${badges.join('')}</div>` : '';
   return `<div class="slot" data-slot="${side}-${i}">`
     + cardHTML(c, { uid: m.uid, def: m.pos === 'def', tag, used: side === 'me' && m.canAtk === false, atk: m.atk, defv: m.def })
-    + '</div>';
+    + sfx + '</div>';
 }
 
 function spellSlotHTML(s, i, side, hot) {
@@ -379,9 +395,10 @@ function renderDuel() {
   const logHTML = v.log.map((l) => `<li data-k="${l.kind}">${logText(l.text, side)}</li>`).join('');
 
   const hotAttack = S.mode === 'attack';
-  const guard = v.op.mons.find((m) => m && m.guard);
+  // 必须优先攻击的那只：嘲讽（不论攻守）优先，其次守备表示的守护
+  const guard = v.op.mons.find((m) => m && m.taunt) || v.op.mons.find((m) => m && m.guard);
   const opSlots = v.op.mons.map((m, i) => {
-    const hot = hotAttack && (m ? (!guard || m.guard) : false);
+    const hot = hotAttack && (m ? (!guard || m === guard) : false);
     return slotHTML(m, i, 'op', hot);
   }).join('');
   const mySlots = v.me.mons.map((m, i) => slotHTML(m, i, 'me', S.mode === 'tribute' && !!m)).join('');
@@ -427,7 +444,7 @@ function renderDuel() {
         <span class="who">${nameOf(1 - side)}</span>
         ${S.bt === 'pve' && S.foeDeck ? `<i class="dv" title="对手这套牌">${S.foeDeck}</i>` : ''}
         ${lpBar(v.op)}
-        <span class="meta"><span>手 ${v.op.hand}</span><span>组 ${v.op.deck}</span></span>
+        <span class="meta"><span>手 ${v.op.hand}</span><span>组 ${v.op.deck}</span>${stTags(v.op)}</span>
         ${bondsDots(v.op.bonds)}
       </div>
       <div class="field">${opSp}</div>
@@ -448,7 +465,7 @@ function renderDuel() {
       <div class="pinfo">
         <span class="who">${nameOf(side)}</span>
         ${lpBar(v.me)}
-        <span class="meta"><span>手 ${v.me.hand.length}</span><span>组 ${v.me.deck}</span></span>
+        <span class="meta"><span>手 ${v.me.hand.length}</span><span>组 ${v.me.deck}</span>${stTags(v.me)}</span>
         ${bondsDots(v.me.bonds)}
       </div>
     </div>
@@ -471,6 +488,7 @@ function attackBar(G, side, v, guard) {
   const can = !!m && (opMons === 0 || m.direct);
   let tip;
   if (can) tip = opMons ? '这只怪兽本回合可以无视对方怪兽直接攻击。' : '对方场上没有怪兽，可以直接攻击。';
+  else if (guard && guard.taunt) tip = '对方的「' + (CARDS[guard.id] ? CARDS[guard.id].n : '嘲讽怪兽') + '」在嘲讽：不管攻守，必须先打它。';
   else if (guard) tip = '对方有守备的「守护」怪兽挡着：必须先点它来打。';
   else tip = '对方场上有怪兽：点高亮的对方怪兽选择攻击目标，打光了才能直接攻击。';
   return `<div class="atkbar"><span class="note">${tip}</span>`
@@ -520,7 +538,12 @@ function renderActbar() {
     if (need === 0) opts.push('<button class="btn" data-act="setmon">里侧守备</button>');
     opts.push('<button class="btn ghost" data-act="read">效果</button>');
   } else if (c.k === 'S') {
-    opts.push('<button class="btn pri" data-act="spell">发动</button>');
+    // 速攻（钥令那批）战斗阶段也能开；其余魔法只能在主要阶段。
+    // 以前按钮一直亮着、点了才被引擎拒，看起来像「按键没反应」。
+    const canNow = G.phase === 'main' || (c.t === 'quick' && G.phase === 'battle');
+    opts.push(canNow
+      ? '<button class="btn pri" data-act="spell">发动</button>'
+      : '<button class="btn" disabled>不是发动时机</button>');
     opts.push('<button class="btn ghost" data-act="read">效果</button>');
   } else if (c.k === 'T') {
     opts.push('<button class="btn pri" data-act="trap">盖放</button>');
@@ -530,7 +553,11 @@ function renderActbar() {
     ? (E.canSummon(G, p, c.id)
       ? `等级 ${c.lv}：${E.tributeNeed(c.id) ? '需要 ' + E.tributeNeed(c.id) + ' 只祭品' : '可以直接召唤'}`
       : (p.normalUsed ? '本回合已经通常召唤过了' : '现在不能召唤它'))
-    : (c.k === 'S' ? '魔法只能在自己的主要阶段从手牌发动；永续与装备留在场上。' : '陷阱盖放后，对方满足条件时自动发动。');
+    : (c.k === 'S'
+      ? (c.t === 'quick'
+        ? '速攻魔法：主要阶段和战斗阶段都能发动；开完立刻结算。'
+        : '魔法只能在自己的主要阶段从手牌发动；永续与装备留在场上。')
+      : '陷阱盖放后，对方满足条件时自动发动。');
   bar.innerHTML = `
     <div class="ah"><b>${c.n}</b><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}</span>
       <button class="btn sm ghost x" data-act="cancel">关闭</button></div>

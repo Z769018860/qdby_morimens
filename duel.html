@@ -191,6 +191,21 @@ body{
 .slot.sp .card .pt{font-size:7.5px}
 .slot.sp.empty::after{content:"魔陷"}
 
+/* 场上的状态标记：屏障 / 流血 / 反击 / 嘲讽。放在卡片右上角外面，
+   压在卡图上会挡住名字和数值，而这几样偏偏是算伤害时要看的。 */
+.sfs{position:absolute; top:2px; right:2px; display:flex; flex-direction:column; gap:2px; align-items:flex-end; pointer-events:none}
+.sfs .sf{
+  font-style:normal; font-size:9.5px; line-height:1; padding:2px 3px; border-radius:4px;
+  font-variant-numeric:tabular-nums; letter-spacing:0;
+}
+.sf.br{background:#2f4a6d; color:#cfe2ff}
+.sf.bd{background:#6d2f36; color:#ffd6da}
+.sf.ct{background:#5a3a6d; color:#ecd6ff}
+.sf.tt{background:#6d5a2f; color:#ffeec2}
+.pinfo .meta .stt{padding:0 3px; border-radius:3px; font-variant-numeric:tabular-nums}
+.pinfo .meta .stt.ps{background:#6d2f36; color:#ffd6da}
+.pinfo .meta .stt.brt{background:#2f4a6d; color:#cfe2ff}
+
 .mid{flex:1 1 auto; min-height:72px; max-height:150px; display:flex; flex-direction:column; gap:6px; align-items:stretch; width:100%; margin:0 auto}
 .log{
   flex:1 1 auto; min-height:0; overflow-y:auto; padding:6px 9px; border-radius:10px;
@@ -572,7 +587,7 @@ body{
   #scr-duel{--off:410px}
 }
 </style>
-<meta name="build" content="aa9cf127a5">
+<meta name="build" content="dbb0336709">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -601,7 +616,7 @@ body{
 <div class="actbar" id="actbar"></div>
 <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
 
-<script type="module" src="js/b/duel.js?v=aa9cf127a5"></script>
+<script type="module" src="js/b/duel.js?v=dbb0336709"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

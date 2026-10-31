@@ -26,7 +26,8 @@ import sys
 from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CELL = 160   # 源图只有 96~120px：先用 Lanczos 放大并轻锐化，浏览器再放大到卡面时不会糊成一团
+CELL = 128   # 唤醒体源图 96~120px、NPC 源图 160px：128 是两边都不吃亏的折中；
+             # 160 时 133 格图集接近 1MB，边缘一次请求 1~2 秒，不值得。
 COLS = 8
 SS = 4  # 符号格先按 4 倍画再缩，避免细线糊成一片
 
@@ -173,6 +174,14 @@ def main():
                 src_by_name[c['n']] = c['face']
     except Exception as ex:
         print('读不到主播名单：', ex)
+    # 融灾禁区的 NPC：头像早就在 assets/monster/ 里（160px），
+    # 清单由 scripts/build_duel_npcs.py 从 dictionary.json 整理成 data/duel-npcs.json
+    try:
+        for r in read_json('data/duel-npcs.json')['npcs']:
+            if r.get('n') and r.get('img') and r['n'] not in src_by_name:
+                src_by_name[r['n']] = r['img']
+    except Exception as ex:
+        print('读不到 NPC 档案（先跑 scripts/build_duel_npcs.py）：', ex)
 
     # 需要头像的名字：全部怪兽 + 觉醒体（觉醒体借用第一只素材的脸）
     names = []

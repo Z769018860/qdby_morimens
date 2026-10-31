@@ -4,9 +4,13 @@
 // 设计取向：会算数值，但不算未来的牌。它的强度来自「不浪费」——
 // 不做亏本交换、不在能斩杀的时候去盖牌、该打脸的时候不打墙。
 import { CARDS } from './gen.js';
-import { atkOf, defOf, canAttack, canSummon, canAwaken, tributeNeed } from './engine.js';
+import { atkOf, defOf, canAttack, canSummon, canAwaken, tributeNeed, mustHitFirst } from './engine.js';
 
 function d(id) { return CARDS[id]; }
+function fxv(mon, k) {
+  const f = (d(mon.id).fx || []).find((x) => x.k === k);
+  return f ? (f.v || 0) : 0;
+}
 
 // 这张魔法现在值不值得开？返回分数，0 表示不该开。
 function scoreSpell(G, p, o, card) {
@@ -42,8 +46,19 @@ function scoreSpell(G, p, o, card) {
     }
     if (f.k === 'weakenEnemyAll' || f.k === 'weakenHighest') s += o.mons.filter(Boolean).length ? 4 : -5;
     if (f.k === 'equipAtk' || f.k === 'equipDef') s += p.mons.filter(Boolean).length ? 4 : -5;
+    if (f.k === 'equipGrant') s += p.mons.filter(Boolean).length ? 4 : -5;
     if (f.k === 'contHeal' || f.k === 'contBoth') s += p.lp < 4500 ? 5 : 2;
     if (f.k === 'contBurn') s += 4;
+    // ---- 新机制：毒/流血要「对面还站得住」才值，屏障要「自己快挨打了」才值 ----
+    if (f.k === 'poison') s += (f.v || 1) * 2 + (o.lp < 2500 ? 3 : 0);
+    if (f.k === 'contPoison') s += o.lp < 3500 ? 6 : 4;
+    if (f.k === 'bleed') s += o.mons.filter(Boolean).length ? 4 + (f.v || 1) : -4;
+    if (f.k === 'contBleed') s += o.mons.filter(Boolean).length ? 5 : 0;
+    if (f.k === 'barrier') s += (p.lp < 4000 ? 6 : 3) * (f.v || 1);
+    if (f.k === 'contBarrier') s += p.lp < 4500 ? 6 : 2;
+    if (f.k === 'barrierMon') s += p.mons.filter(Boolean).length ? 4 : 1;
+    if (f.k === 'counter') s += 2;
+    if (f.k === 'taunt') s += 2;
     if (f.k === 'extraDraw') s += 7;
     if (f.k === 'summonTaxDiscard') s += 4;
     if (f.k === 'searchMonster' || f.k === 'search') s += 5;
@@ -117,7 +132,9 @@ function bestAttack(G, side) {
   const o = G.players[1 - side];
   let best = null;
   let bestScore = 0;
-  const guard = o.mons.find((m) => m && !m.set && m.pos === 'def' && (d(m.id).fx || []).some((f) => f.k === 'guard'));
+  // 嘲讽 / 守备守护：两者都得先处理，顺序由引擎的 mustHitFirst 统一（以前这里只认 guard，
+  // 新卡带上嘲讽之后 AI 会一直点别的目标，规则把它拒掉）。
+  const guard = mustHitFirst(o);
 
   for (const a of p.mons) {
     if (!a || !canAttack(G, p, a)) continue;
@@ -140,12 +157,15 @@ function bestAttack(G, side) {
         continue;
       }
       const tv = t.pos === 'atk' ? atkOf(G, o, t) : defOf(G, o, t);
+      // 反击：撞上去自己要吃伤害；屏障：这一下打不死它
+      const ctr = fxv(t, 'counter');
+      const brk = t.br > 0 ? 1 : 0;
       if (av > tv) {
         const dmg = t.pos === 'atk' ? av - tv : (pierce ? av - tv : 0);
-        const sc = tv + dmg * 2 + (t.pos === 'atk' ? 200 : 0);
+        const sc = tv + dmg * 2 + (t.pos === 'atk' ? 200 : 0) - ctr * 1.5 - brk * 200;
         if (sc > bestScore) { bestScore = sc; best = { uid: a.uid, target: t.uid }; }
       } else if (av === tv && t.pos === 'atk') {
-        if (300 > bestScore) { bestScore = 300; best = { uid: a.uid, target: t.uid }; }
+        if (300 - ctr - brk * 200 > bestScore) { bestScore = 300 - ctr - brk * 200; best = { uid: a.uid, target: t.uid }; }
       }
     }
   }
@@ -178,9 +198,9 @@ function worstAttack(G, side) {
   const a = mine.sort((x, y) => atkOf(G, p, x) - atkOf(G, p, y))[0];
   const foes = o.mons.filter(Boolean);
   if (!foes.length) return { uid: a.uid, target: null };
-  // 守备守护的怪挡在前面时只能打它——这里原先直接从「攻击力最高的」里挑，
-  // 绕过了 guard，规则会拒绝这次攻击（新卡把「奥吉尔」「温柯尔」做进来之后每局必现）。
-  const wall = o.mons.find((m) => m && !m.set && m.pos === 'def' && (d(m.id).fx || []).some((f) => f.k === 'guard'));
+  // 守备守护 / 嘲讽的怪挡在前面时只能打它——这里原先直接从「攻击力最高的」里挑，
+  // 绕过了拦截，规则会拒绝这次攻击（新卡把「奥吉尔」「温柯尔」做进来之后每局必现）。
+  const wall = mustHitFirst(o);
   if (wall) return { uid: a.uid, target: wall.uid };
   const t = foes.sort((x, y) => atkOf(G, o, y) - atkOf(G, o, x))[0];
   return { uid: a.uid, target: t.uid };
@@ -264,6 +284,14 @@ export function nextAction(G, side, skill) {
   }
 
   if (G.phase === 'battle') {
+    // 速攻魔法（钥令那批）在战斗阶段也能开：先开再打。弱手会忘，这就是「打错牌」的一种。
+    if (G.rng() >= sloppy) {
+      const q = p.hand.find((h) => {
+        const def = d(h.id);
+        return def && def.k === 'S' && def.t === 'quick' && scoreSpell(G, p, o, h) >= 4;
+      });
+      if (q) return { t: 'spell', uid: q.uid };
+    }
     const atk = bestAttack(G, side);
     if (atk) {
       if (G.rng() >= sloppy * 0.5) return { t: 'attack', uid: atk.uid, target: atk.target };
