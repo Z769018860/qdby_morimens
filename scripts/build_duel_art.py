@@ -182,6 +182,14 @@ def main():
                 src_by_name[r['n']] = r['img']
     except Exception as ex:
         print('读不到 NPC 档案（先跑 scripts/build_duel_npcs.py）：', ex)
+    # 剧情角色（灰机 wiki「剧情角色-XXX头像」）：128px webp 在 assets/duel/story/，
+    # 清单由 H:/work/tmp/fetch_npc_faces.py 抓成 data/duel-story-npcs.json
+    try:
+        for r in read_json('data/duel-story-npcs.json')['npcs']:
+            if r.get('n') and r.get('src') and r['n'] not in src_by_name:
+                src_by_name[r['n']] = r['src']
+    except Exception as ex:
+        print('读不到剧情角色名单：', ex)
 
     # 需要头像的名字：全部怪兽 + 觉醒体（觉醒体借用第一只素材的脸）
     names = []
