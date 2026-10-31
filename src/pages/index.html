@@ -249,9 +249,11 @@ a.proj:hover .arrow{transform:translateX(3px)}
 }
 
 .pets{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:12px 0 6px}
-.pets img{width:100%; height:112px; object-fit:cover; border-radius:10px; border:1px solid var(--line); background:var(--panel2)}
-.pets img:nth-child(4){grid-column:span 2}
-.petcap{margin:4px 0 2px; font-size:12px; color:var(--dim); line-height:1.7; text-align:center}
+.pets figure{margin:0}
+.pets img{display:block; width:100%; height:112px; object-fit:cover; border-radius:10px; border:1px solid var(--line); background:var(--panel2)}
+.pets figure:nth-child(4){grid-column:span 2}
+.pets figure:nth-child(4) img{height:128px}
+.pets figcaption{margin-top:4px; font-size:11.5px; color:var(--dim); line-height:1.5; text-align:center}
 .petsay{margin:6px 0 4px; font-size:13px; text-align:center; line-height:1.7}
 .notice{
   display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 10px; margin:0 0 18px;
@@ -771,13 +773,12 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
       <li><b>想断网玩可以装「离线版」</b>：整包下到本机，只在设置里检查更新时联网；支持导出加密存档，换设备能继续。</li>
     </ul>
     <div class="pets" aria-label="作者家的猫">
-      <img src="assets/pets/pet1.jpg" alt="一只棕白相间的猫，歪着头" loading="lazy" decoding="async">
-      <img src="assets/pets/pet2.jpg" alt="一只模糊的棕白猫，配字：我什么都不知道，我只是只傻猫" loading="lazy" decoding="async">
-      <img src="assets/pets/pet3.jpg" alt="一只银色虎斑猫仰头看镜头" loading="lazy" decoding="async">
-      <img src="assets/pets/pet4.jpg" alt="两只银色虎斑猫并排趴在靠垫上" loading="lazy" decoding="async">
-      <img src="assets/pets/pet5.jpg" alt="两只布偶猫睡在毛巾上" loading="lazy" decoding="async">
+      <figure><img src="assets/pets/pet1.jpg" alt="一只棕白相间的猫，歪着头" loading="lazy" decoding="async"><figcaption>豆浆（已被无良医院害去喵星）</figcaption></figure>
+      <figure><img src="assets/pets/pet2.jpg" alt="一只模糊的棕白猫，配字：我什么都不知道，我只是只傻猫" loading="lazy" decoding="async"><figcaption>九九（八岁）</figcaption></figure>
+      <figure><img src="assets/pets/pet3.jpg" alt="一只银色虎斑猫仰头看镜头" loading="lazy" decoding="async"><figcaption>雪糕（十个月）</figcaption></figure>
+      <figure><img src="assets/pets/pet4.jpg" alt="两只银色虎斑猫并排趴在靠垫上" loading="lazy" decoding="async"><figcaption>耶耶（十个月）</figcaption></figure>
+      <figure><img src="assets/pets/pet5.jpg" alt="两只布偶猫睡在毛巾上" loading="lazy" decoding="async"><figcaption>牛奶 / 可可（五岁）</figcaption></figure>
     </div>
-    <p class="petcap">豆浆（已被无良医院害去喵星）· 九九（八岁）· 雪糕、耶耶（十个月）· 牛奶 / 可可（五岁）</p>
     <p class="petsay"><b>很多 bug，非常感谢各位帮忙测试。看在我的猫很可爱的份上，原谅我没有数值策划（</b></p>
     <div class="acts">
       <button class="btn ghost" type="button" data-close>关闭</button>
