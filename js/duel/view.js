@@ -313,6 +313,9 @@ function startDuel() {
   const foeId = foePick(S.ai.pool, S.deckId, DECKS.map((d) => d.id));
   const foe = deckById(foeId) || mine;
   S.foeName = pickName(foe.id);
+  // 彩蛋：抽到「校猫的私藏」时，坐下来的可能是做这套牌的人。
+  // 米酒是脑缸组的战斗设计师，校猫的牌是他设计的 —— 他不打牌，他来看你怎么打。
+  if (foe.id === 'd6' && Math.random() < 0.3) S.foeName = '米酒';
   S.foeDeck = foe.n;
   newGame('pve', 0, mine, foe, (Date.now() ^ (Math.random() * 1e9)) >>> 0);
   toast(`${S.foeName}（Lv${S.ai.lv}「${S.ai.n}」）带着「${foe.n}」坐下了`);

@@ -286,6 +286,12 @@ function genSurvivors() {
   if (extra.boss) {
     mobs.push({ id: extra.boss.id, n: extra.boss.n, cls: 'Boss', hidden: true, cat: true });
   }
+  // 第二位隐藏首领「米酒」同理：hidden 让他不进首领轮换，只能由 updateMijiuBoss
+  // 在校猫被清掉之后指名召唤。条件是挂在「校猫已放学」上而不是时间上 ——
+  // 关卡设计师是来验收的，你没打到那儿他就不必出场。
+  if (extra.boss2) {
+    mobs.push({ id: extra.boss2.id, n: extra.boss2.n, cls: 'Boss', hidden: true, mj: true });
+  }
   const code = [
     '// 由 scripts/build.mjs 生成，请勿手改。',
     '// 源：assets/survivors/atlas.webp + data/survivors-atlas.json + data/survivors-data.json',
@@ -299,6 +305,7 @@ function genSurvivors() {
     `export const WHEELS = ${JSON.stringify(data.wheels)};`,
     `export const COVENANTS = ${JSON.stringify(data.covenants)};`,
     `export const BOSS_CAT = ${JSON.stringify(extra.boss || null)};`,
+    `export const BOSS_MIJIU = ${JSON.stringify(extra.boss2 || null)};`,
     '',
   ].join('\n');
   const out = path.join(ROOT, 'js/sv/gen.js');

@@ -80,12 +80,18 @@ export function buildEnemies(stage, monsters, opts = {}) {
   const rng = mulberry32(hash(opts.seed || `stage${stage}`));
   // 奖励首领（校猫）不进随机池：只在奖励关/奖励层出现，且固定站在 Boss 位
   const reward = info.reward ? monsters.find((m) => m.reward) : null;
-  const plain = monsters.filter((m) => !m.reward);
+  // 陪场的那只（米酒，脑缸组的战斗设计师）同理不进随机池，只在奖励关站第二个位置。
+  // 他不带 reward 标记 —— 奖励结算照旧只认校猫，他只是把这一关的难度调一档。
+  const mate = info.reward ? monsters.find((m) => m.mate) : null;
+  const plain = monsters.filter((m) => !m.reward && !m.mate);
   const pool = { Normal: plain.filter((m) => m.rank === 'Normal'), Elite: plain.filter((m) => m.rank === 'Elite'), Boss: plain.filter((m) => m.rank === 'Boss') };
   const comp = info.boss ? ['Boss', 'Normal', 'Normal'] : info.elite ? ['Elite', 'Normal'] : Array(2 + (info.node >= 3 ? 1 : 0)).fill('Normal');
   if (info.node === 9) comp.push('Normal');
   return comp.map((rank, i) => {
-    const m = reward && i === 0 ? reward : pool[rank][Math.floor(rng() * pool[rank].length)];
-    return makeEnemy(m, rank, stage, rng, { msk: opts.msk });
+    const isMate = !!(mate && i === 1);
+    const m = reward && i === 0 ? reward : isMate ? mate : pool[rank][Math.floor(rng() * pool[rank].length)];
+    // 陪场的按精英档给数值（不然第二个回合就没了），但不吃随机词缀 ——
+    // 否则他会变成「狂暴米酒」「坚壳米酒」，和「他就是这一关的设计师」对不上。
+    return makeEnemy(m, isMate ? 'Elite' : rank, stage, rng, { msk: opts.msk, affixes: !isMate });
   });
 }

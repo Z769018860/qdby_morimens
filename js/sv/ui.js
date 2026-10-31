@@ -904,7 +904,12 @@ export function showEnd(sm) {
   const catText = sm.cat
     ? ` · ${sm.catName || '弥萨格校猫'}已放学`
     : (sm.catSpawned ? ` · ${sm.catName || '弥萨格校猫'}还蹲在那儿` : '');
-  $('endTitle').textContent = (sm.win ? '撑到潮水退去' : sm.gaveUp ? '主动收兵' : '倒在了半路') + catText;
+  // 第二位隐藏首领：米酒是这一关的验收人。校猫走了他才来 ——
+  // 打赢写「验收通过」，没打赢就写他还在改关卡（玩家得知道场上多了一个人）。
+  const mjText = sm.mj
+    ? ` · ${sm.mjName || '米酒'}验收通过`
+    : (sm.mjSpawned ? ` · ${sm.mjName || '米酒'}还在改关卡` : '');
+  $('endTitle').textContent = (sm.win ? '撑到潮水退去' : sm.gaveUp ? '主动收兵' : '倒在了半路') + catText + mjText;
   const best0 = Number(localStorage.getItem('zjtt:survivors:best') || 0);
   // 不足 1 分钟别写成「第 0 分 04 秒」——刚开局就放弃/阵亡时特别刺眼
   const clock = sm.t >= 60

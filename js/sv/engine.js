@@ -17,7 +17,7 @@ import {
   MECHS, GROWTHS, ITEMS, ITEM_MAX, VOICE, ERODE,
 } from './defs.js';
 import { isUnlocked, recordRun } from './unlock.js';
-import { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS, BOSS_CAT } from './gen.js';
+import { META, CHARS, WEAPONS, MOBS, CREATIONS, WHEELS, COVENANTS, BOSS_CAT, BOSS_MIJIU } from './gen.js';
 import { sfx } from './audio.js';
 import { VOICES } from './voices.js';
 
@@ -87,6 +87,9 @@ export const G = {
   // 最终隐藏首领：弥萨格校猫。三只首领都清掉、且撑到最后 30 秒才登场，
   // 一局只来一次 —— spawned/killed 都要进存档摘要，用来给结算加一行。
   catSpawned: false, catKilled: false, catIdx: -1,
+  // 第二位隐藏首领：米酒（脑缸组的战斗设计师）。校猫放学之后他才来验收，
+  // 条件挂在 catKilled 上而不是时间上 —— 没打到校猫这一步，他不必出场。
+  mjSpawned: false, mjKilled: false, mjIdx: -1, mjT: 0,
   // 角色台词气泡。voice 是当前这句（t 倒数到 0 收），voiceAt 是上一次说话的
   // 时间戳（全局冷却），voiceDelay 用来把开场的「唤醒」台词延后一点，
   // 免得和选人面板/首屏 UI 同时出现。
@@ -213,6 +216,8 @@ export function reset(charId, diffKey) {
   // MOBS 里带 cat 标记的那一条就是校猫。用 index 而不是 id 查，是因为
   // spawnEnemy 本身按数组下标取 def；查一次存起来，省得每帧 find。
   G.catIdx = MOBS.findIndex((m) => m && m.cat);
+  G.mjSpawned = false; G.mjKilled = false; G.mjT = 0;
+  G.mjIdx = MOBS.findIndex((m) => m && m.mj);
   G.voice = null; G.voiceAt = -99; G.voiceDelay = VOICE.wakeDelay;
   G.stats = { dmg: 0, taken: 0, rageDmg: 0 };
   for (const k of ['enemies', 'bullets', 'fields', 'orbs', 'summons', 'pickups', 'fx', 'texts']) G[k].length = 0;
@@ -1128,6 +1133,7 @@ export function update(dt) {
   // ---- 角色机制的定时部分 + 最终隐藏首领
   updateMech(dt);
   updateCatBoss();
+  updateMijiuBoss(dt);
 
   // ---- 场上有没有首领：BGM 要据此切到 boss 层。
   // 每 0.4 秒扫一次数组就够了，没必要每帧遍历六十只怪。
@@ -2102,6 +2108,14 @@ function killEnemy(e, sx, sy) {
     G.flash = 0.8;
     G.shake = 20;
   }
+  // 第二位隐藏首领：关卡设计师被清掉，这一关才算真的验完
+  if (e.mj) {
+    G.mjKilled = true;
+    const ls = (BOSS_MIJIU && BOSS_MIJIU.lines && BOSS_MIJIU.lines.die) || [];
+    addText(e.x, e.y - 60, ls[0] || '米酒 · 这一关过了', 6);
+    G.flash = 0.7;
+    G.shake = 16;
+  }
   burst(e.x, e.y, e.tier === 2 ? 22 : e.tier === 1 ? 12 : 5, e.tier ? '#ffd479' : '#9aa4bb', e.tier ? 190 : 120);
   give('enemies', e);
 
@@ -2463,7 +2477,7 @@ function updateMech(dt) {
       G.mech.crCd = Math.max(0, (G.mech.crCd || 0) - dt);
       if (G.mech.crCd <= 0) {
         G.mech.crCd = ERODE.every;
-        // 越往后越容易：5 分钟 ERODE.base，之后按局内时间线性升，封顶 base+ramp
+        // 越往后越容易：3 分钟 ERODE.base，之后按局内时间线性升，封顶 base+ramp
         const p = ERODE.base
           + Math.min(ERODE.ramp, Math.max(0, G.t - ERODE.from) / ERODE.rampSec * ERODE.ramp);
         if (rnd() < p) startErode();
@@ -2590,6 +2604,50 @@ function updateCatBoss() {
   G.fx.push({ x: e.x, y: e.y, vx: 0, vy: 0, kind: 'ring', life: 0.9, max: 0.9, color: '#ffd76a', r: 0, ring: 300 });
 }
 
+// 米酒：脑缸组的战斗设计师。校猫被清掉之后他才登场 —— 他不是来拦路的，
+// 是来验收这一关的。他不追人（速度压到六成，站在场边翻那张画满网格的纸），
+// 但每 addEvery 秒往场上补两只小怪。血量只有校猫的一半，威胁全在补充上。
+function updateMijiuBoss(dt) {
+  const B = BOSS_MIJIU;
+  if (!B || G.phase !== 'run') return;
+  if (G.mjIdx < 0) return;
+  if (!G.mjSpawned) {
+    if (B.afterCat && !G.catKilled) return;
+    const e = spawnEnemy(2, null, null, G.mjIdx);
+    if (!e) return;
+    G.mjSpawned = true;
+    G.mjT = 0;
+    e.mj = true;
+    e.r = B.r || 46;
+    e.maxHp = Math.round(e.maxHp * (B.hpMul || 2));
+    e.hp = e.maxHp;
+    e.spd *= 0.58;
+    e.n = B.n;
+    G.warnName = B.n;
+    G.warn = 3.2;
+    G.shake = 16; G.flash = 0.6;
+    sfx.play('boss');
+    G.bossAlive = true;
+    const ls = (B.lines && B.lines.spawn) || [];
+    if (ls.length) addText(G.player.x, G.player.y - 76, ls[(rnd() * ls.length) | 0], 6);
+    G.fx.push({ x: e.x, y: e.y, vx: 0, vy: 0, kind: 'ring', life: 0.9, max: 0.9, color: '#9fc4e8', r: 0, ring: 280 });
+    return;
+  }
+  if (G.mjKilled) return;
+  // 死了就停：场上没有他，规则就不再改。用「场上还有没有 mj」判断，
+  // 而不是另开一个计时器归零 —— 如果他先被清掉，这里从一开始就不会补怪。
+  if (!G.enemies.some((x) => x.mj)) return;
+  G.mjT = (G.mjT || 0) + dt;
+  if (G.mjT < (B.addEvery || 7)) return;
+  G.mjT = 0;
+  let n = 0;
+  for (let i = 0; i < 2; i++) if (spawnEnemy(0)) n++;
+  if (n) {
+    const ls = (B.lines && B.lines.add) || [];
+    if (ls.length) addText(G.player.x, G.player.y - 76, ls[(rnd() * ls.length) | 0], 5);
+  }
+}
+
 // ---------------------------------------------------------------- 对外摘要
 export function summary() {
   const st = { kills: G.kills, t: G.t, lv: G.lv, bossKills: G.bossKills };
@@ -2600,7 +2658,9 @@ export function summary() {
     // 校猫是一局一次的收尾彩蛋：打赢了额外记 1500 分（约等于六只首领的分数），
     // 打不过也没有惩罚 —— 它本来就不该出现在这里。
     catName: (BOSS_CAT && BOSS_CAT.n) || '弥萨格校猫',
-    score: Math.round(base * G.diff.mul) + (G.catKilled ? 1500 : 0),
+    mj: G.mjKilled, mjSpawned: G.mjSpawned,
+    mjName: (BOSS_MIJIU && BOSS_MIJIU.n) || '米酒',
+    score: Math.round(base * G.diff.mul) + (G.catKilled ? 1500 : 0) + (G.mjKilled ? 2500 : 0),
     diff: G.diff.k,
     char: G.char ? G.char.n : '',
     charId: G.char ? G.char.id : '',
