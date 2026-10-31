@@ -8,6 +8,7 @@
 图集最后几格不是人物，是画出来的符号：
   @spell   魔法卡统一图标（法阵），代替原来所有魔法都顶着一张「24」的脸
   @trap    陷阱卡统一图标（尖刺 + 警示），同上
+  @token   衍生物的统一卡面（虚线圈 + 空心六边形）
   @shadow  神王·图鲁的黑影（不露脸）
   @shadow2 王权·终焉图鲁的黑影（带金环，和上面区分）
 
@@ -146,9 +147,37 @@ def draw_shadow(size=CELL, awaken=False):
     return im.convert('RGB').resize((size, size), Image.LANCZOS)
 
 
+def draw_token(size=CELL):
+    """衍生物：一圈虚线圈 + 中间一个空心六边形，意思是「这里站着一个不是人的东西」。
+
+    不画具体形象，是因为衍生物本来就不该抢戏——它只是身位、祭品和靶子。
+    """
+    n = size * SS
+    im = grad(n, (26, 34, 40), (12, 15, 20))
+    d = ImageDraw.Draw(im, 'RGBA')
+    cx = cy = n // 2
+    r = n * 0.42
+    # 外圈虚线：24 段弧，一段亮一段暗，缩到 128px 还看得出是「虚线」
+    for i in range(24):
+        a0 = i * 15
+        col = (150, 176, 190, 210) if i % 2 == 0 else (86, 102, 116, 150)
+        d.arc([cx - r, cy - r, cx + r, cy + r], a0, a0 + 9, fill=col, width=SS * 2)
+    # 内部空心六边形
+    hexp = []
+    for i in range(6):
+        a = math.radians(-90 + i * 60)
+        hexp.append((cx + math.cos(a) * r * 0.58, cy + math.sin(a) * r * 0.58))
+    d.line(hexp + [hexp[0]], fill=(176, 198, 210, 170), width=SS * 2)
+    # 中心小菱形
+    cr = n * 0.05
+    d.polygon([(cx, cy - cr), (cx + cr, cy), (cx, cy + cr), (cx - cr, cy)], fill=(198, 220, 232, 220))
+    return im.resize((size, size), Image.LANCZOS)
+
+
 SPECIAL = {
     '@spell': lambda: draw_spell(),
     '@trap': lambda: draw_trap(),
+    '@token': lambda: draw_token(),
     '@shadow': lambda: draw_shadow(awaken=False),
     '@shadow2': lambda: draw_shadow(awaken=True),
 }
@@ -203,6 +232,13 @@ def main():
             ref = c['n']
         if ref and ref not in names:
             names.append(ref)
+    # 造物那批（bp16）的魔法 / 陷阱各有自己的道具图标，键写成 creation:Icon_Creation_001。
+    # 没写 art 的魔陷还是共用 @spell / @trap 两枚符号格。
+    for group in ('spells', 'traps'):
+        for c in cards[group]:
+            key = c.get('art')
+            if key and key not in names:
+                names.append(key)
     # 画出来的符号格排在最后：魔法 / 陷阱各一枚统一图标，神王两只是黑影
     for k in SPECIAL:
         if k not in names:
@@ -222,7 +258,9 @@ def main():
         if n in SPECIAL:
             files.append(None)
             continue
-        if n == '弥萨格校猫':
+        if n.startswith('creation:'):
+            p = os.path.join(ROOT, 'assets/creation', n.split(':', 1)[1] + '.webp')
+        elif n == '弥萨格校猫':
             p = os.path.join(ROOT, cat_q)
         elif n in fallback_q:
             p = os.path.join(ROOT, fallback_q[n])
@@ -259,7 +297,9 @@ def main():
     out_dir = os.path.join(ROOT, 'assets/duel')
     os.makedirs(out_dir, exist_ok=True)
     sheet_path = os.path.join(out_dir, 'faces.webp')
-    sheet.save(sheet_path, 'WEBP', quality=84, method=6)
+    # 质量 78：218 格时 84 会到 958KB，整张图集是内联进 js/duel/gen.js 的，
+    # 直接算进首屏体积。78 肉眼几乎看不出差别，掉到 800KB 以下。
+    sheet.save(sheet_path, 'WEBP', quality=78, method=6)
 
     # ---------------------------------------------------------------- 卡背
     # 深蓝底 + 金色命轮：外环、内环、四道界域色的弧光。132×188 是 2:3 不到一点，

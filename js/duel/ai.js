@@ -4,7 +4,7 @@
 // 设计取向：会算数值，但不算未来的牌。它的强度来自「不浪费」——
 // 不做亏本交换、不在能斩杀的时候去盖牌、该打脸的时候不打墙。
 import { CARDS } from './gen.js';
-import { atkOf, defOf, canAttack, canSummon, canAwaken, tributeNeed, mustHitFirst } from './engine.js';
+import { atkOf, defOf, canAttack, canSummon, canAwaken, canDirect, tributeNeed, mustHitFirst } from './engine.js';
 
 function d(id) { return CARDS[id]; }
 function fxv(mon, k) {
@@ -58,11 +58,43 @@ function scoreSpell(G, p, o, card) {
     if (f.k === 'contBarrier') s += p.lp < 4500 ? 6 : 2;
     if (f.k === 'barrierMon') s += p.mons.filter(Boolean).length ? 4 : 1;
     if (f.k === 'counter') s += 2;
+    if (f.k === 'counterBoost') s += p.mons.filter(Boolean).length ? 5 : -3;
+    if (f.k === 'counterDraw') s += 3;
     if (f.k === 'taunt') s += 2;
+    if (f.k === 'tauntMax' || f.k === 'tauntOnce') s += 3;
+    // ---- 召唤机制 ----
+    if (f.k === 'poisonMon') s += o.mons.filter(Boolean).length ? 5 + (f.v || 1) : -4;
+    if (f.k === 'token') s += p.mons.filter((x) => !x).length ? 6 : -3;
+    if (f.k === 'specialSummon') {
+      s += f.f === 'grave' ? (p.grave.length ? 5 : -4) : (p.hand.length > 1 ? 5 : -3);
+    }
+    if (f.k === 'extraNormal') s += p.hand.some((h) => d(h.id) && d(h.id).k === 'M') ? 7 : 1;
     if (f.k === 'extraDraw') s += 7;
     if (f.k === 'summonTaxDiscard') s += 4;
     if (f.k === 'searchMonster' || f.k === 'search') s += 5;
     if (f.k === 'bothDraw') s += 1;
+    // ---- 造物那批（bp16）----
+    if (f.k === 'millOpp') s += o.deck.length > 8 ? 5 : 2;
+    if (f.k === 'millSelf') s += p.grave.length < 6 ? 3 : 0;
+    if (f.k === 'recycle') s += p.grave.length >= 5 ? 4 : 0;
+    if (f.k === 'stealMon') {
+      const t = o.mons.filter(Boolean).sort((a, b) => b.atk - a.atk)[0];
+      s += t && p.mons.indexOf(null) >= 0 ? 6 + Math.min(6, (t.atk || 0) / 400) : -6;
+    }
+    if (f.k === 'lpPump') s += p.lp < p.lpMax - 1500 ? 5 : 0;
+    if (f.k === 'fieldAtk' || f.k === 'fieldDef') s += 3;
+    if (f.k === 'trapPoison') s += 3;
+    if (f.k === 'trapCounter') s += 4;
+    if (f.k === 'trapCounterMon') s += 4;
+    if (f.k === 'trapBarrier') s += 3;
+    if (f.k === 'negateAttack') s += 2;
+  }
+  // 命轮代价：付不起就直接判死（-99 保证排到最后），快没命了就别乱开
+  const cost = (def.cost && def.cost.lp) || 0;
+  if (cost > 0) {
+    if (p.lp <= cost) return -99;
+    s -= cost / 260;
+    if (p.lp - cost < 1500) s -= 6;
   }
   // 开局手牌多的时候先铺场，别一上来就把资源全换成抽牌
   if (p.mons.filter(Boolean).length === 0 && def.k === 'S' && def.t !== 'cont' && s <= 6) s -= 2;
@@ -76,7 +108,9 @@ function bestSpell(G, p, o) {
     const def = d(h.id);
     if (!def || def.k !== 'S') continue;
     const isCont = def.t === 'cont' || def.t === 'equip';
-    if (isCont && p.spells.indexOf(null) < 0) continue;
+    // 场地魔法也占一格，但它能顶掉自己旧的场地，所以满了也还能开
+    if (isCont && p.spells.indexOf(null) < 0 && def.t !== 'field') continue;
+    if (def.cost && def.cost.lp && p.lp <= def.cost.lp) continue;
     const s = scoreSpell(G, p, o, h);
     if (s > bestScore) { bestScore = s; best = h; }
   }
@@ -132,13 +166,13 @@ function bestAttack(G, side) {
   const o = G.players[1 - side];
   let best = null;
   let bestScore = 0;
-  // 嘲讽 / 守备守护：两者都得先处理，顺序由引擎的 mustHitFirst 统一（以前这里只认 guard，
-  // 新卡带上嘲讽之后 AI 会一直点别的目标，规则把它拒掉）。
-  const guard = mustHitFirst(o);
+  // 嘲讽 / 守备守护：两者都得先处理，顺序由引擎的 mustHitFirst 统一。
+  // 嘲讽的「灵活版」（tauntMax）是按攻击方多大决定拦不拦，所以在循环里逐只算。
 
   for (const a of p.mons) {
     if (!a || !canAttack(G, p, a)) continue;
     const av = atkOf(G, p, a);
+    const guard = mustHitFirst(o, av);
     const pierce = (d(a.id).fx || []).some((f) => f.k === 'pierce');
     const targets = guard ? [guard] : o.mons.filter(Boolean);
 
@@ -200,7 +234,7 @@ function worstAttack(G, side) {
   if (!foes.length) return { uid: a.uid, target: null };
   // 守备守护 / 嘲讽的怪挡在前面时只能打它——这里原先直接从「攻击力最高的」里挑，
   // 绕过了拦截，规则会拒绝这次攻击（新卡把「奥吉尔」「温柯尔」做进来之后每局必现）。
-  const wall = mustHitFirst(o);
+  const wall = mustHitFirst(o, atkOf(G, p, a));
   if (wall) return { uid: a.uid, target: wall.uid };
   const t = foes.sort((x, y) => atkOf(G, o, y) - atkOf(G, o, x))[0];
   return { uid: a.uid, target: t.uid };
@@ -220,11 +254,19 @@ export function nextAction(G, side, skill) {
         if (canAwaken(G, p, id)) return { t: 'awaken', id };
       }
     }
+    // 1.5 额外卡组的直接召唤：条件满足就叫，不占通常召唤
+    if (G.rng() >= sloppy * 0.8) {
+      for (const id of p.extra) {
+        if (canDirect(G, p, id)) return { t: 'direct', id };
+      }
+    }
     // 2. 该斩杀了就直接烧（弱手偶尔也会漏掉这一手）
     if (G.rng() >= sloppy * 0.5) {
       for (const h of p.hand) {
         const def = d(h.id);
         if (!def || def.k !== 'S') continue;
+        // 有命轮代价的牌这里也要过一遍，否则会去开一张付不起的斩杀牌
+        if (def.cost && def.cost.lp && p.lp <= def.cost.lp) continue;
         for (const f of def.fx || []) {
           if (f.k === 'burn' && (f.v || 0) >= o.lp) return { t: 'spell', uid: h.uid };
         }

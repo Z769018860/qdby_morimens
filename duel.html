@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>唤醒王：决斗链接 · 忘忘同人小游戏</title>
-<meta name="description" content="《忘却前夜》同人卡牌对战：把唤醒体写进命轮，用祭品、觉醒召唤、魔法与陷阱和对手赌一段记忆。九套预组卡组、十二种羁绊、五个卡包、一百一十四张卡；人机、同屏双人、房间码好友对战，附世界观设定。">
+<meta name="description" content="《忘却前夜》同人卡牌对战：把唤醒体写进命轮，用祭品、觉醒召唤、魔法与陷阱和对手赌一段记忆。22 套预组卡组、17 个卡包、369 张卡，主卡组 40 张；中毒、流血、屏障、反击、嘲讽、衍生物、命轮代价、造物、直接召唤九套机制；可自组多套卡组，人机、同屏双人、房间码好友对战，附世界观设定。">
 <meta name="theme-color" content="#0a0c12">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0c12%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2219%22%20fill%3D%22none%22%20stroke%3D%22%23e3b341%22%20stroke-width%3D%223%22%2F%3E%3Cpath%20d%3D%22M32%2018l9%2014-9%2014-9-14z%22%20fill%3D%22%23e8656f%22%20opacity%3D%22.9%22%2F%3E%3C%2Fsvg%3E" type="image/svg+xml">
 <style>
@@ -173,6 +173,45 @@ body{
 .pinfo .bonds{display:flex; gap:3px}
 .pinfo .bonds span{width:7px; height:7px; border-radius:50%; background:var(--gold); opacity:.85}
 
+/* ---- 打击感：伤害飘字、血条抖动、召唤/攻击/破坏的场上反馈 ---- */
+.float{
+  position:fixed; z-index:90; pointer-events:none; transform:translate(-50%,-50%);
+  font:800 22px/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.02em;
+  color:#ff6f6f; text-shadow:0 2px 10px #000, 0 0 18px color-mix(in srgb,#ff3b3b 60%,transparent);
+  animation:fup .95s cubic-bezier(.2,.8,.3,1) forwards;
+}
+.float.heal{color:#5fe0a4; text-shadow:0 2px 10px #000, 0 0 18px color-mix(in srgb,#2ee08a 55%,transparent)}
+@keyframes fup{
+  0%{opacity:0; transform:translate(-50%,-50%) scale(.7)}
+  18%{opacity:1; transform:translate(-50%,-62%) scale(1.18)}
+  100%{opacity:0; transform:translate(-50%,-150%) scale(.95)}
+}
+.pinfo .lp.shake{animation:lpshake .34s ease-in-out}
+@keyframes lpshake{
+  0%,100%{transform:translateX(0)}
+  25%{transform:translateX(-5px) scale(1.02)}
+  70%{transform:translateX(5px)}
+}
+.field.cast{animation:castpulse .5s ease-out}
+@keyframes castpulse{
+  0%{transform:translateY(0); filter:none}
+  35%{transform:translateY(-7px) scale(1.02); filter:drop-shadow(0 0 12px var(--gold))}
+  100%{transform:none; filter:none}
+}
+.field.lunge{animation:lunges .3s ease-out}
+@keyframes lunges{
+  0%{transform:none}
+  40%{transform:translateY(6px) scale(1.03); filter:drop-shadow(0 0 10px #ff8a3c)}
+  100%{transform:none}
+}
+.field.shatter{animation:shatters .45s ease-out}
+@keyframes shatters{
+  0%{filter:none}
+  30%{filter:drop-shadow(0 0 14px #ff4b4b) saturate(1.6); opacity:.75}
+  60%{opacity:.95}
+  100%{filter:none; opacity:1}
+}
+
 .field{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:0; width:100%; max-width:540px; margin:0 auto}
 .field.sp{grid-template-columns:repeat(3,1fr)}
 .slot{
@@ -205,6 +244,34 @@ body{
 .pinfo .meta .stt{padding:0 3px; border-radius:3px; font-variant-numeric:tabular-nums}
 .pinfo .meta .stt.ps{background:#6d2f36; color:#ffd6da}
 .pinfo .meta .stt.brt{background:#2f4a6d; color:#cfe2ff}
+
+/* 自组卡组：左卡池右卡组，两边都是可滚的列表。用列表而不是大卡面，
+   是因为一套牌要在 300 多张里挑 30 张，扫名字比扫图快得多。 */
+#scr-build{gap:8px}
+.bhead{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.bhead .bname{
+  flex:1 1 170px; min-width:110px; background:var(--panel); color:var(--fg);
+  border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:13px;
+}
+.bhead .bmeta{font-size:11.5px; color:var(--dim); font-variant-numeric:tabular-nums}
+.bbody{display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:start}
+@media (max-width:760px){.bbody{grid-template-columns:1fr}}
+.bpanel{background:color-mix(in srgb,var(--panel) 70%, transparent); border:1px solid var(--line); border-radius:10px; padding:7px}
+.bpanel h4{margin:6px 0 4px; font-size:11px; color:var(--dim); font-weight:600; letter-spacing:.04em}
+.bq{display:flex; gap:6px; margin-bottom:6px; flex-wrap:wrap}
+.bq input{flex:1 1 110px; min-width:0; background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:7px; padding:5px 8px; font-size:12px}
+.blist{max-height:44vh; overflow-y:auto; display:flex; flex-direction:column; gap:3px}
+.bit{
+  display:flex; gap:7px; align-items:center; width:100%; text-align:left;
+  background:transparent; border:1px solid transparent; border-radius:7px; padding:4px 7px;
+  color:var(--fg); font-size:11.5px; cursor:pointer;
+}
+.bit:hover{background:color-mix(in srgb,var(--panel) 92%, transparent); border-color:var(--line)}
+.bit b{flex:0 0 auto; font-weight:600; max-width:54%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.bit span{flex:1 1 auto; color:var(--dim); font-size:10.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.bit i{flex:0 0 auto; font-style:normal; font-variant-numeric:tabular-nums; color:var(--gold2); font-size:11px}
+.bit.off{opacity:.42}
+.bit em{flex:0 0 auto; font-style:normal; font-size:9.5px; color:#ffd6da}
 
 .mid{flex:1 1 auto; min-height:72px; max-height:150px; display:flex; flex-direction:column; gap:6px; align-items:stretch; width:100%; margin:0 auto}
 .log{
@@ -587,7 +654,7 @@ body{
   #scr-duel{--off:410px}
 }
 </style>
-<meta name="build" content="54c9105464">
+<meta name="build" content="dcee9e3edd">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -609,6 +676,7 @@ body{
     <section class="scr pad" id="scr-room"></section>
     <section class="scr pad" id="scr-packs"></section>
     <section class="scr pad" id="scr-codex"></section>
+    <section class="scr pad" id="scr-build"></section>
     <section class="scr pad" id="scr-lore"></section>
   </div>
 </div>
@@ -616,7 +684,7 @@ body{
 <div class="actbar" id="actbar"></div>
 <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
 
-<script type="module" src="js/b/duel.js?v=54c9105464"></script>
+<script type="module" src="js/b/duel.js?v=dcee9e3edd"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

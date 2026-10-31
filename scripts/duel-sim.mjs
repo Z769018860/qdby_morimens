@@ -40,7 +40,9 @@ for (let ia = 0; ia < DECKS.length; ia++) for (let ib = 0; ib < DECKS.length; ib
   if (!G.over) { res.timeout++; } else if (G.winner === 0) res.win0++; else if (G.winner === 1) res.win1++; else res.draw++;
   byDeck[a.id] = byDeck[a.id] || { w: 0, n: 0 }; byDeck[b.id] = byDeck[b.id] || { w: 0, n: 0 };
   byDeck[a.id].n++; byDeck[b.id].n++; if (G.over && G.winner === 0) byDeck[a.id].w++; if (G.over && G.winner === 1) byDeck[b.id].w++;
-  const t1 = total(G); if (t1 !== t0) note(`卡牌总数变了 ${t0} → ${t1}`);
+  // 衍生物是「凭空多出来的身位」，会把总数顶上去，所以算守恒要把它们扣掉
+  const tok = G.players.reduce((n, p) => n + p.mons.filter((m) => m && CARDS[m.id] && CARDS[m.id].token).length, 0);
+  const t1 = total(G) - tok; if (t1 !== t0) note(`卡牌总数变了 ${t0} → ${t1}`);
 }
 console.log(res, '平均回合', (res.turns / res.games).toFixed(1));
 console.log('卡组胜率', Object.entries(byDeck).map(([k, v]) => `${k}:${Math.round(v.w / v.n * 100)}%`).join(' '));
@@ -58,7 +60,8 @@ for (const id of ids) { const c = CARDS[id];
 const nm = new Map(); for (const id of ids) { if (nm.has(CARDS[id].n)) bad.push(`重名：${CARDS[id].n}`); nm.set(CARDS[id].n, id); }
 const inPack = new Set(PACKS.flatMap((p) => p.cards));
 for (const pk of PACKS) for (const id of pk.cards) if (!CARDS[id]) bad.push(`卡包 ${pk.id} 含不存在的卡 ${id}`);
-for (const id of ids) if (!inPack.has(id)) bad.push(`${id} ${CARDS[id].n} 不在任何卡包里，开不出来`);
+// 衍生物不进卡包：它只能被效果叫出来，也没有收藏价值
+for (const id of ids) if (!CARDS[id].token && !inPack.has(id)) bad.push(`${id} ${CARDS[id].n} 不在任何卡包里，开不出来`);
 for (const pk of PACKS) if (!pk.cards.some((id) => ['SR', 'UR', 'GR'].includes(CARDS[id].rar))) bad.push(`卡包 ${pk.id} 没有 SR 以上，保底抽不出`);
 for (const d of DECKS) {
   const n = d.cards.reduce((s, [, k]) => s + k, 0);

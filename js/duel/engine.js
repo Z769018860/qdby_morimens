@@ -25,7 +25,9 @@ const SUMMON_FX = new Set([
   'graveHeal',
   // 中毒 / 流血 / 屏障：登场时给对方挂状态（bp07 起大量使用）。
   // barrierMon 不在这里——mkMon 建怪时已经把层数算进 mon.br，再走一次会变双倍。
-  'poison', 'bleed', 'barrier',
+  'poison', 'bleed', 'barrier', 'poisonMon',
+  // 召唤机制：登场即叫一只衍生物（衍生物自己没 fx，不会套娃）
+  'token',
 ]);
 
 const ok = () => ({ ok: true });
@@ -67,7 +69,10 @@ export function handAdd(G, p, id, why) {
 }
 
 export function log(G, text, kind) {
-  G.log.push({ text, kind: kind || 'info', turn: G.turn });
+  // seq 是给界面用的：日志只留最近 120 条，按下标比对会错位，
+  // 用自增序号才能准确知道「这一帧新出现了哪几条」。
+  G.logSeq = (G.logSeq || 0) + 1;
+  G.log.push({ text, kind: kind || 'info', turn: G.turn, seq: G.logSeq });
   if (G.log.length > 120) G.log.shift();
 }
 
@@ -76,7 +81,9 @@ function mkPlayer(G, idx, def) {
   const p = {
     idx, lp: LP_MAX, lpMax: LP_MAX,
     deck: [], hand: [], mons: [null, null, null], spells: [null, null, null],
-    grave: [], extra: [], bonds: [], normalUsed: false,
+    grave: [], extra: [], bonds: [], normalUsed: false, normalExtra: 0,
+    // 额外卡组的「直接召唤」每回合只能用一次（见 canDirect / directSummon）
+    directUsed: false,
     // 中毒层数 / 屏障次数：挂在玩家身上的两种状态，回合开始与受伤时结算
     psn: 0, br: 0,
   };
@@ -282,12 +289,27 @@ export function canAttack(G, p, m) {
   return !!m && m.pos === 'atk' && !m.set && m.atkCount < maxAttacks(m) && !G.over;
 }
 
-// 必须优先攻击的那只：嘲讽（不挑表示形式）优先，其次才是守备表示 + 守护。
-// 以前只有 guard，攻击表示的墙拦不住人；嘲讽就是补这个口子。
-export function mustHitFirst(p) {
-  return p.mons.find((m) => m && !m.set && hasFx(m, 'taunt'))
-    || p.mons.find((m) => m && !m.set && m.pos === 'def' && hasFx(m, 'guard'))
-    || null;
+// 必须优先攻击的那只。三档，从严到宽：
+//   taunt      无条件拦截（不管攻守、不管对面多大的怪都挡得住）
+//   tauntMax   只拦攻击力 ≤ v 的怪兽——大怪可以直接跨过去打别人，这就是「灵活版」
+//   guard      老规则：表侧守备表示的守护
+// tauntOnce 是附加标记：这只怪每回合只拦一次，拦过之后这一回合就能被绕开。
+// atk 传攻击方的攻击力；不传 = 不知道对面多大，按「挡得住」算（界面渲染时用）。
+export function mustHitFirst(p, atk) {
+  const av = atk == null ? Infinity : atk;
+  for (const m of p.mons) {
+    if (!m || m.set) continue;
+    const cap = fxV(m, 'tauntMax');
+    if (!hasFx(m, 'taunt') && !(cap > 0 && av <= cap)) continue;
+    if (hasFx(m, 'tauntOnce') && m.used.taunt) continue;
+    return m;
+  }
+  return p.mons.find((m) => m && !m.set && m.pos === 'def' && hasFx(m, 'guard')) || null;
+}
+
+// 这只怪是「嘲讽」还是「守备守护」——界面要给不同提示，AI 也不用猜
+export function isTaunt(m) {
+  return !!m && (hasFx(m, 'taunt') || fxV(m, 'tauntMax') > 0);
 }
 
 // ------------------------------------------------------------------ 召唤
@@ -303,7 +325,8 @@ function freeSlot(arr) { return arr.indexOf(null); }
 
 export function canSummon(G, p, id) {
   if (G.over || G.active !== p.idx || G.phase !== 'main') return false;
-  if (p.normalUsed) return false;
+  // 额外的通常召唤（「灯下夜谈」那类）：先用掉本回合的那一次，再吃额外的次数
+  if (p.normalUsed && p.normalExtra <= 0) return false;
   const d = CARDS[id];
   if (!d || d.k !== 'M') return false;
   const need = tributeNeed(id);
@@ -318,7 +341,7 @@ export function summon(G, side, uid, tribUids) {
   if (G.over) return fail('对决已经结束了');
   if (G.active !== side) return fail('现在不是你的回合');
   if (G.phase !== 'main') return fail('只能在主要阶段召唤');
-  if (p.normalUsed) return fail('本回合已经通常召唤过了');
+  if (p.normalUsed && p.normalExtra <= 0) return fail('本回合已经通常召唤过了');
   const hi = p.hand.findIndex((h) => h.uid === uid);
   if (hi < 0) return fail('这张牌不在手牌里');
   const id = p.hand[hi].id;
@@ -335,7 +358,8 @@ export function summon(G, side, uid, tribUids) {
     toGrave(G, p, t, '祭品');
   }
   p.hand.splice(hi, 1);
-  p.normalUsed = true;
+  // 先消耗本回合那一次，再消耗「额外通常召唤」——这样额外次数不会被白白浪费掉
+  if (p.normalUsed) p.normalExtra--; else p.normalUsed = true;
   const mon = mkMon(G, id, side);
   const slot = freeSlot(p.mons);
   p.mons[slot < 0 ? 0 : slot] = mon;
@@ -362,7 +386,7 @@ export function setMonster(G, side, uid) {
   const slot = freeSlot(p.mons);
   if (slot < 0) return fail('怪兽区已经满了');
   p.hand.splice(hi, 1);
-  p.normalUsed = true;
+  if (p.normalUsed) p.normalExtra--; else p.normalUsed = true;
   const mon = mkMon(G, id, side);
   mon.pos = 'def';
   mon.set = true;
@@ -378,8 +402,9 @@ function mkMon(G, id, side) {
     uid: G.uid++, id, atk: d.atk, def: d.def, pos: 'atk', set: false,
     atkCount: 0, tmpAtk: 0, tmpDef: 0, equipAtk: 0, equipDef: 0,
     owner: side, used: {},
-    // 屏障层数（抵掉一次破坏）/ 流血层数（每回合掉攻击力）/ 装备额外赋予的效果
-    br: 0, bld: 0, extraFx: null,
+    // 屏障层数（抵掉一次破坏）/ 流血层数（每回合掉攻击力）/ 中毒层数（每回合掉攻守）
+    // / 装备额外赋予的效果
+    br: 0, bld: 0, psn: 0, extraFx: null,
   };
   for (const f of fx(d)) if (f.k === 'barrierMon') m.br += f.v || 1;
   return m;
@@ -441,8 +466,12 @@ function applyFx(G, p, f, ctx) {
     }
     case 'bounce': {
       const t = strongest(o);
-      if (t) {
+      if (t && !barrierBlock(G, t, '这次弹回')) {
         removeMon(G, o, t);
+        if (CARDS[t.id].token) {
+          log(G, `衍生物「${CARDS[t.id].n}」被抹掉了`, 'spell');
+          break;
+        }
         log(G, `「${CARDS[t.id].n}」被弹回${pname(o)}的手牌`, 'spell');
         handAdd(G, o, t.id, '弹回');
       }
@@ -461,7 +490,7 @@ function applyFx(G, p, f, ctx) {
     }
     case 'weaken': {
       const t = strongest(o);
-      if (t) {
+      if (t && !barrierBlock(G, t, '这次弱化')) {
         t.atk = Math.max(0, t.atk - (f.v || 0));
         log(G, `「${CARDS[t.id].n}」攻击力下降 ${f.v}`, 'spell');
       }
@@ -561,9 +590,22 @@ function applyFx(G, p, f, ctx) {
       log(G, `${pname(o)}中毒 ${add} 层（共 ${o.psn} 层，每回合开始掉 ${o.psn * 100}）`, 'effect');
       break;
     }
+    case 'poisonMon': {
+      // 挂在怪兽身上的毒：回合开始攻守一起掉，攻守都归 0 就化掉。
+      // 和流血的分工——流血只削攻击力（削锋），毒连守备力一起啃（磨穿守备大墙）。
+      const list = f.on === 'all' ? o.mons.filter(Boolean)
+        : [f.on === 'weak' ? weakest(o) : strongest(o)].filter(Boolean);
+      for (const t of list) {
+        const add = f.v || 1;
+        t.psn = Math.min(9, t.psn + add);
+        log(G, `「${CARDS[t.id].n}」中毒 ${add} 层（共 ${t.psn} 层，每回合攻守 -${t.psn * 100}）`, 'effect');
+      }
+      break;
+    }
     case 'bleed': {
-      const t = f.on === 'weak' ? weakest(o) : strongest(o);
-      if (t) {
+      const list = f.on === 'all' ? o.mons.filter(Boolean)
+        : [f.on === 'weak' ? weakest(o) : strongest(o)].filter(Boolean);
+      for (const t of list) {
         const add = f.v || 1;
         t.bld = Math.min(9, t.bld + add);
         log(G, `「${CARDS[t.id].n}」开始流血 ${add} 层（共 ${t.bld} 层）`, 'effect');
@@ -584,7 +626,126 @@ function applyFx(G, p, f, ctx) {
       }
       break;
     }
+    // ---- 召唤机制：衍生物 / 特殊召唤 / 额外通常召唤 ----
+    case 'token': {
+      // 衍生物：不占通常召唤、不触发召唤时的陷阱，纯粹多一个身位（当祭品 / 当墙 / 当嘲讽的靶子）
+      const tid = f.id;
+      if (!tid || !CARDS[tid]) { log(G, `[衍生物 ${tid} 不存在]`, 'warn'); break; }
+      let n = f.v || 1;
+      while (n-- > 0) {
+        const slot = freeSlot(p.mons);
+        if (slot < 0) { log(G, `${pname(p)}的怪兽区满了，「${CARDS[tid].n}」没能出现`, 'info'); break; }
+        p.mons[slot] = mkMon(G, tid, p.idx);
+        log(G, `${pname(p)}特殊召唤了「${CARDS[tid].n}」`, 'summon');
+      }
+      break;
+    }
+    case 'specialSummon': {
+      // 特殊召唤：不占通常召唤权。素材默认从手牌挑，f.f==='grave' 时从自己墓地挑。
+      // f.max 是星级上限（不给就当 4 星以下）。
+      const maxLv = f.max || 4;
+      const pick = (x) => {
+        const c = CARDS[x];
+        return c && c.k === 'M' && !c.token && (c.lv || 0) <= maxLv;
+      };
+      if (freeSlot(p.mons) < 0) { log(G, `${pname(p)}的怪兽区满了，特殊召唤失败`, 'info'); break; }
+      if (f.f === 'grave') {
+        let idx = -1;
+        for (let i = p.grave.length - 1; i >= 0; i--) if (pick(p.grave[i])) { idx = i; break; }
+        if (idx < 0) { log(G, `${pname(p)}的墓地里没有能唤回的怪兽`, 'info'); break; }
+        const id = p.grave.splice(idx, 1)[0];
+        const mm = mkMon(G, id, p.idx);
+        p.mons[freeSlot(p.mons)] = mm;
+        log(G, `${pname(p)}从墓地特殊召唤「${CARDS[id].n}」`, 'summon');
+        triggerSummonFx(G, p, mm);
+      } else {
+        const cand = p.hand.filter((h) => pick(h.id))
+          .sort((a, b) => (CARDS[b.id].atk || 0) - (CARDS[a.id].atk || 0))[0];
+        if (!cand) { log(G, `${pname(p)}手牌里没有能特殊召唤的怪兽`, 'info'); break; }
+        p.hand.splice(p.hand.indexOf(cand), 1);
+        const mm = mkMon(G, cand.id, p.idx);
+        p.mons[freeSlot(p.mons)] = mm;
+        log(G, `${pname(p)}特殊召唤「${CARDS[cand.id].n}」`, 'summon');
+        triggerSummonFx(G, p, mm);
+      }
+      break;
+    }
+    case 'grantFx': {
+      // 把一条静态效果贴到场上最强的怪兽身上（「这回合它也学会反击」）。
+      // 和装备卡用的是同一套 extraFx，所以贯穿 / 嘲讽 / 反击 / 屏障全都能给。
+      const t = mon || strongest(p);
+      if (!t) { log(G, `${pname(p)}场上没有怪兽可以接受「${f.g}」`, 'info'); break; }
+      t.extraFx = (t.extraFx || []).concat([{ k: f.g, v: f.v || 0 }]);
+      if (f.g === 'barrierMon') t.br += f.v || 1;
+      log(G, `「${CARDS[t.id].n}」获得了新的力量`, 'buff');
+      break;
+    }
+    case 'extraNormal': {
+      p.normalExtra += f.v || 1;
+      log(G, `${pname(p)}本回合可以再通常召唤 ${p.normalExtra} 次`, 'buff');
+      break;
+    }
+    // ---- 造物那批（bp16）用的四个新效果 ----
+    case 'millOpp': {
+      // 削卡组：对方卡组顶 N 张送墓。抽牌抽得再快也怕这个。
+      const n = Math.min(f.v || 3, o.deck.length);
+      for (let i = 0; i < n; i++) {
+        const id = o.deck.pop();
+        if (id == null) break;
+        o.grave.push(id);
+      }
+      log(G, `${pname(o)}的卡组顶 ${n} 张被削进墓地`, 'effect');
+      break;
+    }
+    case 'millSelf': {
+      const n = Math.min(f.v || 3, p.deck.length);
+      for (let i = 0; i < n; i++) {
+        const id = p.deck.pop();
+        if (id == null) break;
+        p.grave.push(id);
+      }
+      log(G, `${pname(p)}把卡组顶 ${n} 张送进墓地`, 'cost');
+      break;
+    }
+    case 'recycle': {
+      // 墓地洗回卡组：造物「回溯沙漏」那种。回收的是最前面几张（墓地按时间顺序存）。
+      const n = Math.min(f.v || 3, p.grave.length);
+      if (!n) { log(G, '墓地是空的，没什么可回收', 'info'); break; }
+      const back = p.grave.splice(0, n);
+      for (const id of back) p.deck.push(id);
+      shuffle(G, p.deck);
+      log(G, `${pname(p)}把墓地 ${n} 张洗回卡组`, 'buff');
+      break;
+    }
+    case 'stealMon': {
+      // 夺取控制权：造物「牵丝」——把对方最能打的那只拉过来，自己得有空位。
+      if (freeSlot(p.mons) < 0) { log(G, `${pname(p)}的怪兽区满了，抢不过来`, 'info'); break; }
+      const t = strongest(o);
+      if (!t) { log(G, `${pname(o)}场上没有怪兽`, 'info'); break; }
+      if (CARDS[t.id].token) { log(G, `衍生物「${CARDS[t.id].n}」不能被夺取`, 'info'); break; }
+      removeMon(G, o, t);
+      t.pos = 'atk';
+      t.atkCount = 9;      // 抢来的这只当回合不能动手
+      t.used = {};
+      p.mons[freeSlot(p.mons)] = t;
+      log(G, `${pname(p)}夺取了「${CARDS[t.id].n}」的控制权`, 'effect');
+      break;
+    }
+    case 'lpPump': {
+      // 血怒：命轮值掉得越多，攻击力越高（每 1000 点换 v 点攻击）
+      const lost = Math.max(0, p.lpMax - p.lp);
+      const add = Math.floor(lost / 1000) * (f.v || 200);
+      const t = mon || strongest(p);
+      if (t && add > 0) {
+        t.atk += add;
+        log(G, `「${CARDS[t.id].n}」因失血而狂怒，攻击力 +${add}`, 'buff');
+      } else if (t) {
+        log(G, `命轮值还满着，「${CARDS[t.id].n}」怒不起来`, 'info');
+      }
+      break;
+    }
     case 'counter': case 'taunt': case 'equipGrant':
+    case 'counterBoost': case 'counterDraw': case 'tauntMax': case 'tauntOnce':
       break; // 静态 / 装备时处理，不进这里
     case 'reflect': break; // 由战斗流程处理
     case 'contHeal': case 'contBurn': case 'contBoth': case 'contPunish':
@@ -627,6 +788,11 @@ export function toGrave(G, p, mon, reason) {
     const s = p.spells[i];
     if (s && s.equipOn === mon.uid) { p.spells[i] = null; p.grave.push(s.id); }
   }
+  // 衍生物离场即消失，不进墓地（否则「从墓地取回」能捡到一张 0/0 的废牌）
+  if (d.token) {
+    log(G, `「${d.n}」${reason || '离场'}，作为衍生物直接消失`, 'grave');
+    return;
+  }
   p.grave.push(mon.id);
   log(G, `「${d.n}」${reason || '被破坏'}，送去墓地`, 'grave');
 }
@@ -636,15 +802,23 @@ export function removeMon(G, p, mon) {
   if (i >= 0) p.mons[i] = null;
 }
 
+// 怪兽屏障：抵消「一次破坏 / 一次效果」。战斗破坏和效果破坏都走 destroyMon，
+// 弹回 / 弱化这类不改写墓地的不走，所以在各自的分支里单独问一下。
+function barrierBlock(G, mon, what) {
+  if (!mon || !(mon.br > 0)) return false;
+  mon.br--;
+  log(G, `「${CARDS[mon.id].n}」的屏障挡住了${what || '这次破坏'}（剩余 ${mon.br} 层）`, 'buff');
+  return true;
+}
+
 export function destroyMon(G, p, mon, reason) {
-  if (!mon) return;
+  // 同一只怪一回合内可能被叫去死两次：被战斗破坏之后，目标的反击还会再
+  // 削它一次「削到 0 就破坏」，同归于尽分支也会连着叫两次。不拦的话它会
+  // 进两次墓地，卡牌总数就凭空多一张。
+  if (!mon || mon.dead) return;
   const d = CARDS[mon.id];
   // 屏障：先吃掉一次破坏（比 lastStand 能叠层，也能被装备卡临时给）
-  if (mon.br > 0) {
-    mon.br--;
-    log(G, `「${d.n}」的屏障碎了，挡住了这次破坏（剩余 ${mon.br} 层）`, 'buff');
-    return;
-  }
+  if (barrierBlock(G, mon, '这次破坏')) return;
   if (hasFx(mon, 'lastStand') && !mon.used.stand) {
     mon.used.stand = true;
     log(G, `「${d.n}」扛住了这一击，没有被战斗破坏`, 'buff');
@@ -652,11 +826,13 @@ export function destroyMon(G, p, mon, reason) {
   }
   if (hasFx(mon, 'revive') && !mon.used.revive) {
     mon.used.revive = true;
+    mon.dead = true;
     removeMon(G, p, mon);
     log(G, `「${d.n}」回到${pname(p)}的手牌`, 'buff');
     handAdd(G, p, mon.id, '复活');
     return;
   }
+  mon.dead = true;
   removeMon(G, p, mon);
   toGrave(G, p, mon, reason);
   for (const f of monFx(mon)) {
@@ -679,8 +855,15 @@ export function activateSpell(G, side, uid) {
   if (G.phase !== 'main' && !(d.t === 'quick' && G.phase === 'battle')) {
     return fail(d.t === 'quick' ? '现在不能发动魔法' : '只能在主要阶段发动魔法');
   }
-  const isCont = d.t === 'cont' || d.t === 'equip';
-  if (isCont && freeSlot(p.spells) < 0) return fail('魔法·陷阱区已经满了');
+  const isCont = d.t === 'cont' || d.t === 'equip' || d.t === 'field';
+  // 场地魔法能顶掉自己旧的场地，所以格子满了也还能开——只要满的那格就是场地
+  const canReplaceField = d.t === 'field'
+    && p.spells.some((x) => x && CARDS[x.id] && CARDS[x.id].t === 'field');
+  if (isCont && freeSlot(p.spells) < 0 && !canReplaceField) return fail('魔法·陷阱区已经满了');
+  // 命轮代价：卡面写了 cost.lp 就得先付，付不起这张牌根本发不动。
+  // 不让「付完正好死」——那样等于自己给自己判负，AI 会拿去乱开。
+  const cost = (d.cost && d.cost.lp) || 0;
+  if (cost > 0 && p.lp <= cost) return fail(`命轮值不足（需要 ${cost}）`);
 
   // 对方的反击陷阱
   if (counterTrap(G, 1 - side, 'spell')) {
@@ -691,6 +874,23 @@ export function activateSpell(G, side, uid) {
 
   p.hand.splice(hi, 1);
   log(G, `${pname(p)}发动魔法「${d.n}」`, 'spell');
+  if (cost > 0) {
+    log(G, `献出 ${cost} 点命轮值作为代价`, 'cost');
+    damagePlayer(G, p, cost, 'cost');
+    if (G.over) return ok();
+  }
+
+  if (d.t === 'field') {
+    // 场地魔法：和永续一样占一格，但同一时间只能有一张——新的把旧的压掉
+    for (let i = 0; i < p.spells.length; i++) {
+      const s = p.spells[i];
+      if (s && CARDS[s.id] && CARDS[s.id].t === 'field') {
+        p.spells[i] = null;
+        p.grave.push(s.id);
+        log(G, `旧的场地「${CARDS[s.id].n}」被顶掉了`, 'info');
+      }
+    }
+  }
 
   if (isCont) {
     const slot = freeSlot(p.spells);
@@ -764,6 +964,13 @@ function trapActive(p) {
 function fire(G, owner, s, keep) {
   const d = CARDS[s.id];
   log(G, `${pname(owner)}发动陷阱「${d.n}」`, 'trap');
+  // 有命轮代价的陷阱（造物那批「献血陷阱」）：发动时立刻付。
+  // 付不起的那张不会被选中——见 canFire，四个分派点都过一遍。
+  const cost = (d.cost && d.cost.lp) || 0;
+  if (cost > 0) {
+    log(G, `献出 ${cost} 点命轮值作为代价`, 'cost');
+    damagePlayer(G, owner, cost, 'cost');
+  }
   if (!keep) {
     owner.spells[owner.spells.indexOf(s)] = null;
     owner.grave.push(s.id);
@@ -773,12 +980,20 @@ function fire(G, owner, s, keep) {
   return d;
 }
 
+// 盖放的陷阱能不能开：有命轮代价的必须付得起（付完不能正好死）
+function canFire(owner, s) {
+  const d = CARDS[s.id];
+  const cost = (d && d.cost && d.cost.lp) || 0;
+  return cost <= 0 || owner.lp > cost;
+}
+
 function counterTrap(G, side, trigger) {
   const p = G.players[side];
   for (const s of p.spells.slice()) {
     if (!s || !s.set || s.turnSet >= G.turn) continue;
     const d = CARDS[s.id];
     if (!d || d.k !== 'T' || d.t !== 'counter') continue;
+    if (!canFire(p, s)) continue;
     const hit = fx(d).some((f) => (
       (trigger === 'spell' && (f.k === 'negateSpell' || f.k === 'negateSpellSnipe'))
       || (trigger === 'trap' && f.k === 'negateTrap')
@@ -804,6 +1019,7 @@ function summonTraps(G, p, mon) {
     if (!s || !s.set || s.turnSet >= G.turn) continue;
     const d = CARDS[s.id];
     if (!d || d.k !== 'T') continue;
+    if (!canFire(o, s)) continue;
     const f = fx(d);
     const neg = f.find((x) => x.k === 'negateSummon');
     const dst = f.find((x) => x.k === 'destroySummon');
@@ -850,6 +1066,7 @@ function attackTraps(G, atkSide, atkMon, direct) {
     if (!s || !s.set || s.turnSet >= G.turn) continue;
     const d = CARDS[s.id];
     if (!d || d.k !== 'T') continue;
+    if (!canFire(def, s)) continue;
     const list = fx(d);
     const neg = list.find((x) => x.k === 'negateAttack');
     const dst = list.find((x) => x.k === 'destroyAttacker');
@@ -859,6 +1076,7 @@ function attackTraps(G, atkSide, atkMon, direct) {
     const bar = list.find((x) => x.k === 'trapBarrier');
     const psn = list.find((x) => x.k === 'trapPoison');
     const tct = list.find((x) => x.k === 'trapCounter');
+    const tcm = list.find((x) => x.k === 'trapCounterMon');
     if (neg) { fire(G, def, s, false); log(G, '那次攻击被无效了', 'trap'); return 'negated'; }
     if (dst) {
       fire(G, def, s, false);
@@ -871,6 +1089,13 @@ function attackTraps(G, atkSide, atkMon, direct) {
     if (bar) { fire(G, def, s, false); applyFx(G, def, { k: 'barrier', v: bar.v || 1 }, {}); }
     if (psn) { fire(G, def, s, false); applyFx(G, def, { k: 'poison', v: psn.v || 1 }, {}); }
     if (tct) { fire(G, def, s, false); damagePlayer(G, G.players[atkSide], tct.v || 800, 'trap'); }
+    // 「断牙」：不反伤，直接把攻击者咬掉一截攻击力，咬到 0 就破坏它
+    if (tcm) {
+      fire(G, def, s, false);
+      atkMon.atk = Math.max(0, atkMon.atk - (tcm.v || 800));
+      log(G, `「${CARDS[atkMon.id].n}」被反击咬掉 ${tcm.v || 800} 点攻击力`, 'trap');
+      if (atkOf(G, G.players[atkSide], atkMon) <= 0) return 'destroyed';
+    }
   }
   return null;
 }
@@ -886,14 +1111,15 @@ export function attack(G, side, monUid, targetUid) {
   if (!a) return fail('找不到这只怪兽');
   if (!canAttack(G, p, a)) return fail('这只怪兽这个回合不能再攻击了');
 
-  const guard = mustHitFirst(o);
+  // 攻击力要先算出来：嘲讽的「灵活版」（tauntMax）是按攻击方多大来决定拦不拦的
+  const av = atkOf(G, p, a);
+  const guard = mustHitFirst(o, av);
   const target = targetUid ? o.mons.find((m) => m && m.uid === targetUid) : null;
   if (guard && (!target || target !== guard)) return fail('「' + CARDS[guard.id].n + '」挡在前面，必须先打它');
   if (!target && o.mons.filter(Boolean).length && !a.direct) return fail('对方场上有怪兽，不能直接攻击');
   if (target && guard && target !== guard) return fail('必须先处理挡在前面的怪兽');
 
   a.atkCount++;
-  const av = atkOf(G, p, a);
   const direct = !target;
 
   // 攻击宣言效果（达芙黛尔之类）
@@ -917,6 +1143,9 @@ export function attack(G, side, monUid, targetUid) {
 
   if (stop === 'negated') return ok();
   if (stop === 'reflect') { log(G, '那次攻击被「忘却的代价」弹了回去', 'trap'); return ok(); }
+
+  // 只拦一次的嘲讽：这一下真打上了才算用掉，本回合剩下的小怪就能绕开它
+  if (guard === target && hasFx(target, 'tauntOnce')) target.used.taunt = true;
 
   const wasSet = target.set;
   if (wasSet) {
@@ -964,13 +1193,27 @@ export function attack(G, side, monUid, targetUid) {
       log(G, '攻击力与守备力相同，什么也没发生', 'info');
     }
   }
-  // 反击：被攻击的怪兽还手，直接打攻击方的命轮值。
+  // 反击：被攻击的怪兽还手。默认打攻击方的命轮值（counter），
+  // 写了 on:'mon' 的打攻击方怪兽本身（削攻击力，削到 0 就破坏）——
+  // 后者是「以牙还牙」那套牌的核心，用来逼对手的大怪自己烂掉。
   // 这里不检查「它是不是已经被破坏了」——反击流的意义就是「打它要付代价」，
   // 加上这个判断之后整套牌就变成「挨打前先死」，等于没有反击。
-  const cv = fxV(target, 'counter');
+  const cf = monFx(target).find((x) => x.k === 'counter');
+  const cv = cf ? (cf.v || 0) : 0;
   if (cv > 0) {
-    log(G, `「${CARDS[target.id].n}」反击！`, 'battle');
-    damagePlayer(G, p, cv, 'effect');
+    if (cf.on === 'mon') {
+      log(G, `「${CARDS[target.id].n}」反击，咬住了「${CARDS[a.id].n}」！`, 'battle');
+      a.atk = Math.max(0, a.atk - cv);
+      if (atkOf(G, p, a) <= 0) destroyMon(G, p, a, '被反击耗尽');
+      else log(G, `「${CARDS[a.id].n}」攻击力 -${cv}`, 'damage');
+    } else {
+      log(G, `「${CARDS[target.id].n}」反击！`, 'battle');
+      damagePlayer(G, p, cv, 'effect');
+    }
+    const boost = fxV(target, 'counterBoost');
+    if (boost) { target.atk += boost; log(G, `「${CARDS[target.id].n}」越打越硬，攻击力 +${boost}`, 'buff'); }
+    const cdr = fxV(target, 'counterDraw');
+    if (cdr) drawCards(G, o, cdr);
   }
   return ok();
 }
@@ -998,15 +1241,27 @@ export function canAwaken(G, p, extraId) {
   if (p.extra.indexOf(extraId) < 0) return null;
   if (G.active !== p.idx || G.phase !== 'main' || G.over) return null;
   const pool = [];
-  for (const m of p.mons) if (m) pool.push({ uid: m.uid, id: m.id, hand: false });
+  for (const m of p.mons) if (m) pool.push({ uid: m.uid, id: m.id, src: 'field' });
   for (const h of p.hand) {
     const c = CARDS[h.id];
-    if (c && c.k === 'M') pool.push({ uid: h.uid, id: h.id, hand: true });
+    if (c && c.k === 'M') pool.push({ uid: h.uid, id: h.id, src: 'hand' });
+  }
+  // 「归于寂静」那批觉醒体写了 matGrave：素材也能从自己墓地来（负 uid 占位，
+  // 只用来在 awaken 里认出「这一张是从墓地拿的」）。这条把额外卡组从
+  // 「手里攒两张」放宽成「打过的牌还能再拼一次」，所以只给少数几张。
+  const matGrave = !!d.matGrave;
+  if (matGrave) {
+    let k = 0;
+    for (const id of p.grave) {
+      const c = CARDS[id];
+      if (c && c.k === 'M' && !c.token) pool.push({ uid: -(++k), id, src: 'grave' });
+    }
   }
   const fit = (picked) => {
     // 至少要有一只素材已经在场上：全是手牌的话，等于凭空多出一只大怪，
     // 这样觉醒就变成「抽到两张牌就白赚」，场上怎么打都无所谓了。
-    return picked.some((x) => !x.hand);
+    // 允许墓地素材的那几张例外——它们本来就是「从坟里拼回来」。
+    return matGrave || picked.some((x) => x.src === 'field');
   };
 
   if (d.matRealm === 'any') {
@@ -1014,7 +1269,7 @@ export function canAwaken(G, p, extraId) {
       for (let j = i + 1; j < pool.length; j++) {
         if (realmOf(pool[i].id) === realmOf(pool[j].id)) continue;
         const picked = [pool[i], pool[j]];
-        if (fit(picked)) return picked.map((x) => x.uid);
+        if (fit(picked)) return picked;
       }
     }
     return null;
@@ -1026,7 +1281,7 @@ export function canAwaken(G, p, extraId) {
     if (!m) return null;
     picked.push(m);
   }
-  return fit(picked) ? picked.map((x) => x.uid) : null;
+  return fit(picked) ? picked : null;
 }
 
 export function awaken(G, side, extraId) {
@@ -1038,14 +1293,21 @@ export function awaken(G, side, extraId) {
   if (!mats) return fail('素材还没凑齐');
   const d = CARDS[extraId];
   // 素材本身就是位置：先把它们送墓，再拿空位（满场也能觉醒）
-  for (const u of mats) {
-    const m = p.mons.find((x) => x && x.uid === u);
-    if (m) {
-      removeMon(G, p, m);
-      toGrave(G, p, m, '觉醒素材');
+  for (const x of mats) {
+    if (x.src === 'grave') {
+      // 墓地素材用完还是留在墓地：本作没有「除外区」，真拿走就等于少一张牌。
+      log(G, `「${CARDS[x.id].n}」从墓地作为觉醒素材被用掉`, 'grave');
       continue;
     }
-    const hi = p.hand.findIndex((x) => x.uid === u);
+    if (x.src === 'field') {
+      const m = p.mons.find((mm) => mm && mm.uid === x.uid);
+      if (m) {
+        removeMon(G, p, m);
+        toGrave(G, p, m, '觉醒素材');
+      }
+      continue;
+    }
+    const hi = p.hand.findIndex((h) => h.uid === x.uid);
     if (hi >= 0) {
       const card = p.hand.splice(hi, 1)[0];
       p.grave.push(card.id);
@@ -1069,11 +1331,65 @@ export function awaken(G, side, extraId) {
 }
 
 // ------------------------------------------------------------------ 回合
+// ---- 额外卡组的「直接召唤」（bp16 起）----
+// 和觉醒召唤的分工：觉醒要凑素材名（两张指定的人），直接召唤只看场面条件
+// 或命轮值。它不占通常召唤，但每回合只能用一次，而且当回合不能攻击——
+// 不然「场上两只怪 → 白叫一只 2600」就是每回合白赚一脚。
+// 卡面写法：direct: { cond: 'mons2', v?: N }  免费条件召唤
+//           direct: { lp: 2000 }              直接收命轮值
+export function canDirect(G, p, extraId) {
+  const d = CARDS[extraId];
+  if (!d || d.k !== 'E' || !d.direct) return null;
+  if (G.over || G.active !== p.idx || G.phase !== 'main') return null;
+  if (p.extra.indexOf(extraId) < 0 || p.directUsed) return null;
+  if (freeSlot(p.mons) < 0) return null;
+  const c = d.direct;
+  const lp = c.lp || 0;
+  if (lp > 0 && p.lp <= lp) return null;
+  if (c.cond === 'mons2' && p.mons.filter(Boolean).length < 2) return null;
+  if (c.cond === 'mons3' && p.mons.filter(Boolean).length < 3) return null;
+  if (c.cond === 'graveMagic3' && p.grave.filter((id) => CARDS[id] && CARDS[id].k === 'S').length < (c.v || 3)) return null;
+  if (c.cond === 'graveMon3' && p.grave.filter((id) => CARDS[id] && CARDS[id].k === 'M').length < (c.v || 3)) return null;
+  if (c.cond === 'spell1' && !p.spells.some((s) => s && !s.set)) return null;
+  if (c.cond === 'lpHalf' && p.lp > p.lpMax / 2) return null;
+  return c;
+}
+
+export function directSummon(G, side, extraId) {
+  const p = G.players[side];
+  if (G.over) return fail('对决已经结束了');
+  if (G.active !== side) return fail('现在不是你的回合');
+  if (G.phase !== 'main') return fail('只能在主要阶段召唤');
+  const c = canDirect(G, p, extraId);
+  if (!c) return fail('条件还没满足');
+  const d = CARDS[extraId];
+  const lp = c.lp || 0;
+  if (lp > 0) {
+    log(G, `献出 ${lp} 点命轮值作为代价`, 'cost');
+    damagePlayer(G, p, lp, 'cost');
+    if (G.over) return ok();
+  }
+  p.extra.splice(p.extra.indexOf(extraId), 1);
+  p.directUsed = true;
+  const mon = mkMon(G, extraId, side);
+  mon.atkCount = 9;
+  p.mons[freeSlot(p.mons)] = mon;
+  log(G, `${pname(p)}直接召唤「${d.n}」！`, 'awaken');
+  triggerSummonFx(G, p, mon);
+  return ok();
+}
+
 export function beginTurn(G) {
   const p = G.players[G.active];
   G.phase = 'main';
   p.normalUsed = false;
-  for (const m of p.mons) if (m) { m.atkCount = 0; m.tmpAtk = 0; m.tmpDef = 0; m.direct = false; }
+  p.normalExtra = 0;
+  p.directUsed = false;
+  for (const m of p.mons) {
+    if (!m) continue;
+    m.atkCount = 0; m.tmpAtk = 0; m.tmpDef = 0; m.direct = false;
+    m.used.taunt = false;   // tauntOnce：每回合重新给一次拦截机会
+  }
 
   // 回合横幅要排在回合开始效果前面，不然「+200」会记到上一回合名下
   log(G, `—— 第 ${Math.ceil(G.turn / 2)} 回合 · ${pname(p)} ——`, 'turn');
@@ -1089,6 +1405,15 @@ export function beginTurn(G) {
   // 回合开始效果
   for (const m of p.mons) {
     if (!m) continue;
+    // 中毒（怪兽）：攻守一起掉，掉到 0/0 就化掉。守备大墙最怕这个。
+    if (m.psn > 0) {
+      const cut = m.psn * 100;
+      m.atk = Math.max(0, m.atk - cut);
+      m.def = Math.max(0, m.def - cut);
+      m.psn--;
+      log(G, `「${CARDS[m.id].n}」中毒，攻守 -${cut}（余 ${m.psn} 层）`, 'damage');
+      if (m.atk <= 0 && m.def <= 0) { destroyMon(G, p, m, '被中毒耗尽'); continue; }
+    }
     if (m.bld > 0) {
       // 流血：怪兽没有血量，所以把持续伤害记在攻击力上（每回合 -100×层数，层数同时递减）
       const cut = m.bld * 100;
@@ -1107,6 +1432,7 @@ export function beginTurn(G) {
       if (f.k === 'contPoison') applyFx(G, p, { k: 'poison', v: f.v || 1 }, {});
       if (f.k === 'contBleed') applyFx(G, p, { k: 'bleed', v: f.v || 1 }, {});
       if (f.k === 'contBarrier') applyFx(G, p, { k: 'barrier', v: f.v || 1 }, {});
+      if (f.k === 'extraNormal') applyFx(G, p, { k: 'extraNormal', v: f.v || 1 }, {});
     }
   }
   if (G.over) return;
@@ -1191,6 +1517,7 @@ export function applyAction(G, side, a) {
     case 'battle': return toBattle(G, side);
     case 'attack': return attack(G, side, a.uid, a.target == null ? null : a.target);
     case 'awaken': return awaken(G, side, a.id);
+    case 'direct': return directSummon(G, side, a.id);
     case 'end': return endTurn(G);
     default: return fail('未知动作：' + a.t);
   }
@@ -1208,11 +1535,15 @@ export function publicView(G, side) {
       def: hidden ? null : defOf(G, pl, m),
       canAtk: !hide && canAttack(G, pl, m),
       guard: hidden ? false : hasFx(m, 'guard'),
-      // 新机制的场上面板：屏障层数 / 流血层数 / 反击值 / 嘲讽
+      // 新机制的场上面板：屏障层数 / 流血层数 / 中毒层数 / 反击值 / 嘲讽三档
       br: hidden ? 0 : m.br,
       bld: hidden ? 0 : m.bld,
+      psn: hidden ? 0 : m.psn,
       ctr: hidden ? 0 : fxV(m, 'counter'),
+      ctrOnMon: hidden ? false : ((monFx(m).find((x) => x.k === 'counter') || {}).on === 'mon'),
       taunt: hidden ? false : hasFx(m, 'taunt'),
+      tauntCap: hidden ? 0 : fxV(m, 'tauntMax'),
+      tauntOnce: hidden ? false : hasFx(m, 'tauntOnce'),
     };
   });
   return {
@@ -1220,13 +1551,14 @@ export function publicView(G, side) {
     me: {
       lp: p.lp, lpMax: p.lpMax, deck: p.deck.length, hand: p.hand, mons: mons(p, false),
       spells: p.spells, grave: p.grave.length, extra: p.extra, bonds: p.bonds, normalUsed: p.normalUsed,
+      normalExtra: p.normalExtra, directUsed: p.directUsed,
       psn: p.psn, br: p.br,
     },
     op: {
       lp: o.lp, lpMax: o.lpMax, deck: o.deck.length, hand: o.hand.length,
       mons: mons(o, true),
       spells: o.spells.map((s) => (s ? { uid: s.uid, id: s.set ? null : s.id, set: s.set } : null)),
-      grave: o.grave.length, extra: o.extra.length, bonds: o.bonds,
+      grave: o.grave.length, extra: o.extra.length, bonds: o.bonds, directUsed: o.directUsed,
       psn: o.psn, br: o.br,
     },
     log: G.log.slice(-40),
