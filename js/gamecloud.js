@@ -37,6 +37,12 @@ export const GAMES = {
   wolf: { zh: '弥萨格狼人杀', prefix: ['zjtt:wolf'], skip: /:(mode|mute|snd)/ },
   merge: { zh: '合成大杜勒', prefix: ['zjtt:merge'], skip: /:(played|snd|mute)/ },
   bird: { zh: '是鸟弟就下100层', prefix: ['zjtt:bird'], skip: /:(snd|mute|diff|ctl)/ },
+  // 2048：局面（save）和最高分都值得跟着账号走，难度 / 侵蚀 / 音效是这台设备的偏好
+  // （皮肤不同步：换设备一进来就得多拉四百来 KB 的换皮池，不值）
+  g2048: {
+    zh: '忘却 2048', prefix: ['zjtt:g2048'], skip: /:(snd|diff|rot|played|skin)/,
+    trivial: (keys) => !keys['zjtt:g2048:save'] && !keys['zjtt:g2048:best'],
+  },
 };
 
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };

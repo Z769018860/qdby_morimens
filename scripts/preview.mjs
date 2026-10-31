@@ -118,6 +118,17 @@ for (const name of pages) {
       features: [{ name: 'prefers-color-scheme', value: process.env.PREVIEW_SCHEME }],
     }, sessionId);
   }
+  // PREVIEW_VIEWPORT=390x844：按手机逻辑视口截图。headless 的 --window-size 会被「最小窗口宽度」
+  // 卡住（传 320 量出来还是 492），窄屏布局只能靠 CDP 覆盖尺寸才测得准。
+  // 默认按二倍屏出图，PREVIEW_DPR=1 可以改回来。
+  if (process.env.PREVIEW_VIEWPORT) {
+    const [w, h] = process.env.PREVIEW_VIEWPORT.split('x').map(Number);
+    if (w > 0 && h > 0) {
+      await send('Emulation.setDeviceMetricsOverride', {
+        width: w, height: h, mobile: true, deviceScaleFactor: Number(process.env.PREVIEW_DPR || 2),
+      }, sessionId);
+    }
+  }
   await send('Runtime.enable', {}, sessionId);
   await send('Log.enable', {}, sessionId);
   await send('Page.enable', {}, sessionId);

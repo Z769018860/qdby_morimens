@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>忘却 2048 · 忘忘同人小游戏</title>
+<meta name="description" content="2048 的玩法，方块换成《忘却前夜》的造物：两块同样的合流就往上显影一级，从路边的染血鹅卵石一路合到「祂的神谕」。三档棋盘、可选的侵蚀模式，攒满狂气还能忘掉几个最小的块。">
+<meta name="theme-color" content="#0b0e15">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
+<style>
+/* 和合成本子一样，这一页不引 css/style.css：整站那份 65KB 是给内容页的，
+   游戏壳只要自己这一份样式 + 一个脚本（方块的图已经在脚本里内联成 data URI）。 */
+:root{
+  --bg:#080b12; --panel:#111725; --panel2:#1a2130; --line:#27314a; --text:#e7eaf2;
+  --dim:#8892a8; --accent:#6ea8ff; --gold:#e3b341; --bad:#e8695f; --rot:#8d7f6a;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#eef1f7; --panel:#fff; --panel2:#f3f5fa; --line:#d8dde9; --text:#1b2130;
+    --dim:#667088; --accent:#2c6fdb; --gold:#9a6f00; --bad:#c8413a; --rot:#7d7366; }
+}
+*{box-sizing:border-box}
+html,body{margin:0; height:100%}
+body{
+  background:var(--bg); color:var(--text); overflow:hidden;
+  font:15px/1.5 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-tap-highlight-color:transparent; user-select:none;
+  background-image:
+    radial-gradient(680px 420px at 50% -10%, color-mix(in oklab, var(--accent) 14%, transparent), transparent 72%),
+    radial-gradient(560px 400px at 85% 110%, color-mix(in oklab, var(--gold) 10%, transparent), transparent 70%);
+  background-repeat:no-repeat;
+}
+.app{
+  height:100dvh; max-width:520px; margin:0 auto;
+  padding:max(8px, env(safe-area-inset-top)) 12px max(10px, env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; gap:8px;
+}
+
+/* ---------------------------------------------------------------- 顶栏 */
+.hud{display:flex; align-items:center; gap:6px; flex:0 0 auto}
+.back{
+  width:32px; height:32px; flex:0 0 32px; border-radius:9px; display:grid; place-items:center;
+  border:1px solid var(--line); background:var(--panel); color:var(--text);
+  text-decoration:none; font-size:15px; line-height:1;
+}
+.back:hover{border-color:var(--accent); color:var(--accent)}
+.num{display:flex; flex-direction:column; line-height:1.1; min-width:46px}
+.num b{font-size:17px; font-variant-numeric:tabular-nums; letter-spacing:.01em}
+.num span{font-size:10px; color:var(--dim); letter-spacing:.06em}
+.num.dim b{font-size:13.5px; color:var(--dim); font-weight:600; margin-top:2px}
+.num.pk{cursor:pointer; border:0; background:none; padding:0; text-align:left; font:inherit; color:inherit}
+.num.pk:hover b{color:var(--gold)}
+.ico{
+  width:32px; height:32px; flex:0 0 32px; margin-left:auto; border-radius:9px;
+  display:grid; place-items:center; border:1px solid var(--line); background:var(--panel);
+  color:var(--dim); cursor:pointer; font:inherit; padding:0;
+}
+.ico + .ico{margin-left:0}
+.ico:hover{border-color:var(--accent); color:var(--accent)}
+.ico.off{opacity:.45}
+/* 换过皮：调色盘按钮亮成金色，一眼能看出现在不是原版 */
+.ico.on{color:var(--gold); border-color:color-mix(in srgb, var(--gold) 55%, var(--line));
+  background:color-mix(in srgb, var(--gold) 12%, var(--panel))}
+.ico.on:hover{color:var(--gold); border-color:var(--gold)}
+/* 窄屏（iPhone SE 那种 320）：三个数字 + 三个按钮会顶出去，紧一紧 */
+@media (max-width:365px){
+  .hud{gap:4px}
+  .num{min-width:38px}
+  .num b{font-size:15.5px}
+  .ico{width:29px; height:29px; flex-basis:29px}
+  .back{width:29px; height:29px; flex-basis:29px}
+}
+.ico svg{width:16px; height:16px; display:block}
+
+/* ---------------------------------------------------------------- 难度条 */
+.bar{display:flex; gap:6px; align-items:center; flex:0 0 auto}
+.diffs{display:flex; gap:4px; padding:3px; border-radius:11px; border:1px solid var(--line); background:var(--panel)}
+.diffs button{
+  border:0; background:none; color:var(--dim); font:inherit; font-size:12px; font-weight:600;
+  padding:4px 9px; border-radius:8px; cursor:pointer; letter-spacing:.02em;
+}
+.diffs button.on{background:var(--panel2); color:var(--text); box-shadow:inset 0 0 0 1px var(--line)}
+.diffs button:hover{color:var(--accent)}
+.rot{
+  margin-left:auto; height:30px; padding:0 11px; border-radius:10px; cursor:pointer;
+  border:1px solid var(--line); background:var(--panel); color:var(--dim);
+  font:inherit; font-size:12px; font-weight:600; letter-spacing:.04em;
+}
+.rot.on{color:var(--rot); border-color:color-mix(in srgb, var(--rot) 60%, var(--line));
+  background:color-mix(in srgb, var(--rot) 14%, var(--panel))}
+.rot:hover{border-color:var(--accent)}
+
+/* ---------------------------------------------------------------- 棋盘 */
+.stage{flex:1 1 auto; min-height:0; display:flex; flex-direction:column; justify-content:center; gap:10px}
+.board{
+  position:relative; margin:0 auto; aspect-ratio:1;
+  /* 棋盘尽量吃满：宽度不超过屏宽，也别把底下的狂气条挤出去 */
+  width:min(100%, 500px, calc(100dvh - 190px));
+  border-radius:18px; border:1px solid var(--line);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--panel2) 70%, transparent), var(--panel));
+  box-shadow:inset 0 1px 0 color-mix(in srgb, #fff 6%, transparent), 0 20px 50px -30px #000;
+  touch-action:none; overflow:hidden;
+}
+.cells{position:absolute; inset:0; display:grid; padding:var(--gap); gap:var(--gap);
+  grid-template-columns:repeat(var(--n), minmax(0, 1fr));
+  grid-template-rows:repeat(var(--n), minmax(0, 1fr));}
+.cell{border-radius:11px; background:color-mix(in oklab, var(--line) 26%, transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, #000 16%, transparent)}
+.tiles{position:absolute; inset:0; pointer-events:none}
+
+.tile{position:absolute; top:0; left:0; will-change:transform;
+  transition:transform .1s cubic-bezier(.32,.72,.36,1)}
+.face{
+  position:relative; width:100%; height:100%; border-radius:11px; overflow:hidden;
+  display:grid; place-items:center;
+  background:
+    radial-gradient(130% 130% at 28% 18%,
+      color-mix(in oklab, var(--c) 70%, #0a1018) 0%,
+      color-mix(in oklab, var(--c) 26%, #070b12) 68%,
+      color-mix(in oklab, var(--c) 14%, #05080e) 100%);
+  box-shadow:inset 0 0 0 1px color-mix(in oklab, var(--c) 55%, #000),
+             inset 0 1px 0 color-mix(in srgb, #fff 10%, transparent);
+}
+@media (prefers-color-scheme: light){
+  .face{background:
+    radial-gradient(130% 130% at 28% 18%,
+      color-mix(in oklab, var(--c) 78%, #fff) 0%,
+      color-mix(in oklab, var(--c) 58%, #fff) 70%,
+      color-mix(in oklab, var(--c) 46%, #fff) 100%);
+    box-shadow:inset 0 0 0 1px color-mix(in oklab, var(--c) 55%, transparent),
+               0 1px 2px color-mix(in srgb, #1b2130 18%, transparent);}
+}
+.face img{width:64%; height:64%; object-fit:contain; opacity:.94;
+  transform:translateY(-6%);   /* 图往上挪一点，给右下角的数字让出位置 */
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,.45)); pointer-events:none}
+.face .v{
+  position:absolute; right:5px; bottom:2px; font-weight:800; font-size:var(--vfs, 12px);
+  font-variant-numeric:tabular-nums; letter-spacing:-.02em; color:#fff;
+  text-shadow:0 1px 3px rgba(0,0,0,.75), 0 0 1px rgba(0,0,0,.9);
+}
+/* 浅色主题下块是淡彩底，白字会糊掉——换成深字（原版 2048 就是浅底深字） */
+@media (prefers-color-scheme: light){
+  .face .v{color:#18202e; text-shadow:0 1px 0 rgba(255,255,255,.5)}
+  .tile.beyond .face .v{color:#5a3f0a}
+}
+/* 最高一级：金边 + 缓慢呼吸，让「祂的神谕」在盘面上显眼 */
+.tile.top .face{box-shadow:inset 0 0 0 1.5px var(--gold), 0 0 18px -4px var(--gold)}
+.tile.top .face::after{
+  content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:radial-gradient(70% 70% at 50% 50%, color-mix(in srgb, var(--gold) 26%, transparent), transparent 70%);
+  animation:pulse 2.6s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:.45}50%{opacity:.9}}
+/* 4096 往上没有新造物了，只能在样式上「再烧一层」：金箔底 + 金字，和 2048 区分开 */
+.tile.beyond .face{box-shadow:inset 0 0 0 1.5px #ffd479, 0 0 22px -2px #e3b341}
+.tile.beyond .face::before{
+  content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:linear-gradient(150deg, rgba(255,214,120,.30), rgba(255,140,60,.10) 55%, transparent 78%);
+}
+.tile.beyond .face img{filter:sepia(.3) saturate(1.25) drop-shadow(0 2px 4px rgba(0,0,0,.45))}
+.tile.beyond .face .v{color:#ffe6a8}
+
+/* 侵蚀块：不给图（原作那张状态图标只有 39px，放大必糊），改用斜纹 + 裂纹画出来 */
+.tile.rot .face{
+  background:
+    repeating-linear-gradient(135deg, rgba(255,255,255,.055) 0 6px, transparent 6px 12px),
+    radial-gradient(120% 120% at 50% 0%, #4a4238, #1c1915 72%);
+  box-shadow:inset 0 0 0 1px #6f6350;
+}
+.tile.rot .face img{width:46%; height:46%; opacity:.62; filter:grayscale(.4) drop-shadow(0 0 4px #000)}
+.tile.rot .face .v{color:#c9bda4; font-size:calc(var(--vfs, 12px) * .82); font-weight:700; letter-spacing:.04em}
+
+/* 唤醒体皮：那张图是不透明的方照片（四周没有留白），按「立绘卡」满铺才不显得像贴了张便签。
+   等级色挪到内圈细边上——颜色仍然代表等级，5×5 也扫得出来。 */
+.board[data-skin="awakener"] .face{background:#0a0f18}
+.board[data-skin="awakener"] .face img{
+  width:100%; height:100%; object-fit:cover; opacity:1; transform:none;
+  filter:saturate(1.06) contrast(1.03);
+}
+.board[data-skin="awakener"] .face .blur{
+  position:absolute; inset:0; pointer-events:none; z-index:1; border-radius:inherit;
+  background:linear-gradient(180deg, rgba(4,7,12,0) 46%, rgba(4,7,12,.55) 84%, rgba(4,7,12,.78));
+  box-shadow:inset 0 0 0 2px color-mix(in oklab, var(--c) 82%, #fff),
+             inset 0 0 12px -4px color-mix(in oklab, var(--c) 55%, transparent);
+}
+.board[data-skin="awakener"] .face .v{z-index:2; right:5px; bottom:3px; color:#f2f4f9;
+  text-shadow:0 1px 4px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.8)}
+/* 4096 往上颜色到顶了，唤醒体皮靠金边继续往上区分 */
+.board[data-skin="awakener"] .tile.beyond .face .blur{box-shadow:inset 0 0 0 2px #ffd479, 0 0 16px -6px #e3b341}
+.board[data-skin="awakener"] .tile.top .face .blur{box-shadow:inset 0 0 0 2px var(--gold), inset 0 0 22px -8px var(--gold)}
+
+/* 动画：定位在外层 .tile（transform），缩放只能给内层 .face，别互相踩 */
+.face.born{animation:born .17s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes born{from{transform:scale(.45); opacity:.2}to{transform:scale(1); opacity:1}}
+.face.pop{animation:pop .18s ease-out}
+@keyframes pop{0%{transform:scale(1)}42%{transform:scale(1.13)}100%{transform:scale(1)}}
+.board.shake{animation:shake .18s ease-in-out}
+@keyframes shake{0%,100%{transform:translate(0,0)}25%{transform:translate(-3px,0)}75%{transform:translate(3px,0)}}
+
+/* ---------------------------------------------------------------- 结算遮罩 */
+.over{
+  position:absolute; inset:0; z-index:5; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:6px; text-align:center; padding:20px;
+  background:color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  animation:fade .22s ease both;
+}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.over[hidden]{display:none}
+.over .k{font-size:12px; letter-spacing:.24em; color:var(--dim); margin:0}
+.over .big{margin:0; font-size:40px; font-weight:800; line-height:1; font-variant-numeric:tabular-nums}
+.over .big span{font-size:13px; color:var(--dim); font-weight:600; margin-left:4px; letter-spacing:.1em}
+.over .sub{margin:0; font-size:12.5px; color:var(--dim)}
+.over .acts{display:flex; gap:8px; margin-top:10px}
+.btn{
+  padding:9px 16px; border-radius:10px; border:1px solid var(--line); background:var(--panel);
+  color:var(--text); font:inherit; font-size:13px; cursor:pointer; text-decoration:none;
+  display:inline-grid; place-items:center;
+}
+.btn:hover{border-color:var(--accent); color:var(--accent)}
+.btn.primary{background:color-mix(in srgb, var(--accent) 22%, var(--panel));
+  border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); color:#fff; font-weight:700}
+.btn.primary:hover{background:color-mix(in srgb, var(--accent) 34%, var(--panel)); color:#fff}
+
+/* ---------------------------------------------------------------- 底部：狂气 / 工具 */
+.foot{flex:0 0 auto; display:flex; flex-direction:column; gap:7px}
+.tools{display:flex; align-items:center; gap:8px}
+.mania{flex:1 1 auto; display:flex; align-items:center; gap:8px; min-width:0}
+.gauge{position:relative; flex:1 1 auto; height:8px; border-radius:6px; overflow:hidden;
+  background:color-mix(in oklab, var(--line) 55%, transparent)}
+.gauge i{
+  position:absolute; inset:0 auto 0 0; width:0%; border-radius:6px;
+  background:linear-gradient(90deg, color-mix(in srgb, var(--accent) 70%, #fff), var(--gold));
+  transition:width .25s ease;
+}
+.gauge.done i{background:linear-gradient(90deg, var(--gold), #ff9d5c)}
+.gauge span{position:absolute; inset:0; display:none}
+.tools .lab{font-size:10px; color:var(--dim); letter-spacing:.08em; flex:0 0 auto}
+.tools .btn{flex:0 0 auto; padding:6px 11px; font-size:12px; font-weight:600}
+.btn.on{color:var(--gold); border-color:color-mix(in srgb, var(--gold) 55%, var(--line));
+  background:color-mix(in srgb, var(--gold) 16%, var(--panel))}
+.btn:disabled{opacity:.4; cursor:default}
+.btn:disabled:hover{border-color:var(--line); color:var(--text)}
+.hint{margin:0; font-size:11px; color:var(--dim); text-align:center; letter-spacing:.02em;
+  height:15px; overflow:hidden}
+.hint b{color:var(--text); font-weight:600}
+
+/* ---------------------------------------------------------------- 显影链面板 */
+.sheet{position:fixed; inset:0; z-index:40; display:grid; place-items:center; padding:16px;
+  background:color-mix(in srgb, #05080e 74%, transparent); animation:fade .18s ease both}
+.sheet[hidden]{display:none}
+.sheet .card{
+  width:100%; max-width:400px; max-height:86vh; overflow:auto; border-radius:16px;
+  background:var(--panel); border:1px solid var(--line); padding:14px 14px 12px;
+  box-shadow:0 24px 60px -20px #000;
+}
+.chead{display:flex; align-items:center; gap:8px; margin:0 0 9px}
+.sheet h3{margin:0; font-size:15px; flex:1 1 auto}
+.sheet .x{
+  width:27px; height:27px; flex:0 0 27px; border-radius:8px; display:grid; place-items:center;
+  border:1px solid var(--line); background:var(--panel2); color:var(--dim);
+  font:inherit; font-size:12px; line-height:1; cursor:pointer; padding:0;
+}
+.sheet .x:hover{color:var(--accent); border-color:var(--accent)}
+.sheet p.tip{margin:0 0 10px; font-size:11.5px; color:var(--dim)}
+/* 换皮三档：同一块面板里切，点哪档就摇哪档 */
+.skins{display:flex; gap:6px; margin:0 0 9px}
+.skins button{
+  flex:1 1 0; min-width:0; padding:6px 4px; border-radius:9px; cursor:pointer;
+  border:1px solid var(--line); background:var(--panel2); color:var(--dim);
+  font:inherit; font-size:12px; font-weight:600; letter-spacing:.01em; white-space:nowrap;
+}
+.skins button:hover{color:var(--accent)}
+.skins button.on{
+  color:var(--text); border-color:color-mix(in srgb, var(--accent) 55%, var(--line));
+  background:color-mix(in srgb, var(--accent) 16%, var(--panel));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.sheet .acts{display:flex; gap:8px; margin-top:10px}
+.sheet .acts .btn{flex:1 1 0}
+.btn[hidden]{display:none}
+
+.chain{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
+.chain .lv{display:flex; flex-direction:column; align-items:center; gap:2px; opacity:.32; filter:grayscale(1)}
+.chain .lv.got{opacity:1; filter:none}
+.chain .lv .bx{width:100%; aspect-ratio:1; border-radius:9px; display:grid; place-items:center;
+  background:radial-gradient(130% 130% at 28% 18%,
+    color-mix(in oklab, var(--c) 70%, #0a1018), color-mix(in oklab, var(--c) 18%, #070b12));}
+.chain .lv .bx img{width:74%; height:74%; object-fit:contain}
+.chain .lv b{font-size:11px; font-variant-numeric:tabular-nums}
+.chain .lv small{font-size:9.5px; color:var(--dim); text-align:center; line-height:1.25; min-height:24px}
+
+/* ---------------------------------------------------------------- 浮字 */
+.toasts{position:fixed; left:0; right:0; top:12%; display:flex; flex-direction:column;
+  align-items:center; gap:6px; pointer-events:none; z-index:60}
+.toast{
+  padding:7px 13px; border-radius:999px; font-size:12.5px; font-weight:600;
+  background:color-mix(in srgb, var(--panel) 88%, transparent); border:1px solid var(--line);
+  color:var(--text); box-shadow:0 10px 30px -14px #000;
+  animation:tin .2s ease both;
+}
+.toast.out{animation:tout .3s ease both}
+@keyframes tin{from{opacity:0; transform:translateY(-6px) scale(.96)}to{opacity:1; transform:none}}
+@keyframes tout{to{opacity:0; transform:translateY(-10px)}}
+
+#boot{position:fixed; inset:0; display:grid; place-items:center; background:var(--bg); z-index:80;
+  font-size:13px; color:var(--dim)}
+</style>
+<meta name="build" content="a4485248f8">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/app/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="忘忘小游戏">
+</head>
+<body>
+<div id="boot">正在显影…</div>
+
+<div class="app">
+  <header class="hud">
+    <a class="back" href="index.html" title="回首页" aria-label="回首页">←</a>
+    <div class="num"><b id="sc">0</b><span>显影</span></div>
+    <button class="num dim pk" id="pkBtn" title="看显影链"><b id="pk">2</b><span>最高块</span></button>
+    <div class="num dim"><b id="bs">0</b><span>纪录</span></div>
+    <button class="ico" id="skin" aria-pressed="false" title="换皮：把十一级换成随机造物或唤醒体的脸（Y）">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3.4a8.6 8.6 0 1 0 0 17.2c1.2 0 1.9-.8 1.9-1.8 0-1-.8-1.4-.8-2.2 0-.9.7-1.5 1.6-1.5h1.5c2.3 0 3.9-1.6 3.9-4 0-4-3.6-7.7-8.1-7.7z"/>
+        <circle cx="8.2" cy="9.4" r="1.15" fill="currentColor" stroke="none"/>
+        <circle cx="12" cy="7.8" r="1.15" fill="currentColor" stroke="none"/>
+        <circle cx="15.7" cy="9.8" r="1.15" fill="currentColor" stroke="none"/>
+        <circle cx="7.8" cy="13.4" r="1.15" fill="currentColor" stroke="none"/>
+      </svg>
+    </button>
+    <button class="ico" id="snd" aria-pressed="true" title="音效开关（M）">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9.5h3.2L12 5.5v13L7.2 14.5H4z"/><path d="M16 9.2a4 4 0 0 1 0 5.6"/><path d="M18.6 6.6a7.4 7.4 0 0 1 0 10.8"/>
+      </svg>
+    </button>
+    <button class="ico" id="rst" title="重新入梦（R）">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 11a8 8 0 1 1-2.6-5.6"/><path d="M20 4.5V10h-5.4"/>
+      </svg>
+    </button>
+  </header>
+
+  <div class="bar">
+    <div class="diffs" id="diffs" role="tablist" aria-label="棋盘大小">
+      <button type="button" data-d="classic" role="tab" aria-selected="true">4×4</button>
+      <button type="button" data-d="wide" role="tab" aria-selected="false">5×5</button>
+      <button type="button" data-d="brutal" role="tab" aria-selected="false">3×3</button>
+    </div>
+    <button type="button" class="rot" id="rot" aria-pressed="false" title="每落 12 步多一块蚀：它不能移动，只有旁边合成时才会被震碎">侵蚀 关</button>
+  </div>
+
+  <main class="stage">
+    <div class="board" id="board" style="--n:4; --gap:7px">
+      <div class="cells" id="cells"></div>
+      <div class="tiles" id="tiles"></div>
+      <div class="over" id="over" hidden>
+        <p class="k" id="ovk">这段记忆散了</p>
+        <p class="big"><b id="ovs">0</b><span>显影</span></p>
+        <p class="sub" id="ovd"></p>
+        <div class="acts">
+          <button class="btn primary" type="button" id="again">再来一局</button>
+          <a class="btn" href="index.html">回首页</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="foot">
+    <div class="tools">
+      <div class="mania">
+        <span class="lab">狂气</span>
+        <div class="gauge" id="gauge"><i id="mfill"></i></div>
+      </div>
+      <button class="btn" type="button" id="forget" disabled title="狂气满了可以忘却：清掉场上最小的两块，给新块腾地方">忘却</button>
+      <button class="btn" type="button" id="undo" title="退回上一步（每局 5 次）">回溯 <b id="undon">5</b></button>
+    </div>
+    <p class="hint" id="hint">方向键 / WASD 移动，手机直接滑动</p>
+  </div>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="card">
+    <div class="chead">
+      <h3>显影链</h3>
+      <button class="x" type="button" id="sheetClose" aria-label="收起">✕</button>
+    </div>
+    <div class="skins" id="skinKinds" role="group" aria-label="换皮">
+      <button type="button" data-k="chain" aria-pressed="true">显影链</button>
+      <button type="button" data-k="creation" aria-pressed="false">随机造物</button>
+      <button type="button" data-k="awakener" aria-pressed="false">唤醒体</button>
+    </div>
+    <p class="tip" id="sheetTip">两块同样的造物合流，往上显影一级。点亮的是你合到过的——灰的是还没见过的。也可以整套换皮：随机造物，或者唤醒体的脸。</p>
+    <div class="chain" id="chain"></div>
+    <div class="acts">
+      <button class="btn" type="button" id="skinRoll" hidden>再摇一批</button>
+      <button class="btn" type="button" id="skinReset" hidden>还原显影链</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* 载入守护（内联，不占请求）：脚本或图卡住时至少给个说法和一个按钮 */
+(function () {
+  var t0 = Date.now();
+  setTimeout(function () {
+    var b = document.getElementById('boot');
+    if (b) b.textContent = '还在显影造物…（首次访问会慢一些）';
+  }, 5000);
+  setTimeout(function () {
+    var b = document.getElementById('boot');
+    if (!b || Date.now() - t0 < 18000) return;
+    b.innerHTML = '<div style="text-align:center"><p>载入超时</p><button id="bootRe" style="padding:7px 16px;border-radius:9px;border:1px solid #27314a;background:#1a2130;color:#e7eaf2;font:inherit;cursor:pointer">重新载入</button></div>';
+    var btn = document.getElementById('bootRe');
+    if (btn) btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
+  }, 18000);
+})();
+</script>
+<script type="module" src="js/b/2048.js?v=a4485248f8"></script>
+<script>
+/* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
+   Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
+   而边缘一个来回就要 1~2 秒；SW 缓存能把这部分彻底省掉。 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>

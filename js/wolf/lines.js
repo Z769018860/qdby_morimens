@@ -35,6 +35,7 @@ import { U4 } from './lines-up4.js';
 import { U5 } from './lines-up5.js';
 import { U6 } from './lines-up6.js';
 import { U7 } from './lines-up7.js';
+import { U8 } from './lines-up8.js';
 import { N1 } from './lines-n1.js';
 import { N2 } from './lines-n2.js';
 import { N3 } from './lines-n3.js';
@@ -43,6 +44,7 @@ import { N5 } from './lines-n5.js';
 import { N6 } from './lines-n6.js';
 import { N7 } from './lines-n7.js';
 import { N8 } from './lines-n8.js';
+import { N9 } from './lines-n9.js';
 
 // 语气原型表在 tones.js，这里的兜底取句逻辑直接用，不再转出去一份
 
@@ -62,7 +64,7 @@ function merge(dst, src) {
 }
 
 export const LINES = {};
-for (const chunk of [A, B, C, D, E, X, R, F, G, H, I, J, K, U1, U2, U3, U4, U5, U6, U7, N1, N2, N3, N4, N5, N6, N7, N8]) {
+for (const chunk of [A, B, C, D, E, X, R, F, G, H, I, J, K, U1, U2, U3, U4, U5, U6, U7, U8, N1, N2, N3, N4, N5, N6, N7, N8, N9]) {
   for (const name of Object.keys(chunk)) LINES[name] = merge(LINES[name] || {}, chunk[name]);
 }
 

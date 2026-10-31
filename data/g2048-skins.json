@@ -1,0 +1,456 @@
+{
+ "note": "「忘却 2048」的换皮池。每级从池里抽一个不重复的（见 js/g2048.js 的 rollSkin）。图是 96×96、q80 重压过的，方块最大显示 110px，够用。这份由 scripts/build_g2048_skins.py 生成，手改会被下次重跑覆盖。",
+ "size": 96,
+ "kinds": {
+  "creation": {
+   "n": "随机造物",
+   "pool": [
+    {
+     "n": "深海戒指",
+     "img": "assets/ui/g2048-skins/c144-at.webp"
+    },
+    {
+     "n": "老旧拼图",
+     "img": "assets/ui/g2048-skins/c076.webp"
+    },
+    {
+     "n": "血肉戒指",
+     "img": "assets/ui/g2048-skins/c144.webp"
+    },
+    {
+     "n": "混沌戒指",
+     "img": "assets/ui/g2048-skins/c144-ct.webp"
+    },
+    {
+     "n": "沉重画框",
+     "img": "assets/ui/g2048-skins/c118.webp"
+    },
+    {
+     "n": "求知读书轮",
+     "img": "assets/ui/g2048-skins/c082.webp"
+    },
+    {
+     "n": "纯真玛丽",
+     "img": "assets/ui/g2048-skins/c124.webp"
+    },
+    {
+     "n": "孟菲斯仪式镜",
+     "img": "assets/ui/g2048-skins/c027.webp"
+    },
+    {
+     "n": "群氓之歌",
+     "img": "assets/ui/g2048-skins/c090.webp"
+    },
+    {
+     "n": "普拉斯诺镜",
+     "img": "assets/ui/g2048-skins/c034.webp"
+    },
+    {
+     "n": "求救信号",
+     "img": "assets/ui/g2048-skins/c147.webp"
+    },
+    {
+     "n": "替身玩偶",
+     "img": "assets/ui/g2048-skins/c026.webp"
+    },
+    {
+     "n": "偶然谬误",
+     "img": "assets/ui/g2048-skins/c075.webp"
+    },
+    {
+     "n": "小小襁褓",
+     "img": "assets/ui/g2048-skins/c033.webp"
+    },
+    {
+     "n": "超维戒指",
+     "img": "assets/ui/g2048-skins/c144-bt.webp"
+    },
+    {
+     "n": "跃迁装置",
+     "img": "assets/ui/g2048-skins/c021.webp"
+    },
+    {
+     "n": "☆失落之美☆",
+     "img": "assets/ui/g2048-skins/c142.webp"
+    },
+    {
+     "n": "☆六分仪☆",
+     "img": "assets/ui/g2048-skins/c148.webp"
+    },
+    {
+     "n": "小黄螺",
+     "img": "assets/ui/g2048-skins/c001.webp"
+    },
+    {
+     "n": "螺湮的欢愉",
+     "img": "assets/ui/g2048-skins/c006.webp"
+    },
+    {
+     "n": "残缺面孔",
+     "img": "assets/ui/g2048-skins/c011.webp"
+    },
+    {
+     "n": "时间之虫",
+     "img": "assets/ui/g2048-skins/c015.webp"
+    },
+    {
+     "n": "阿方索之器",
+     "img": "assets/ui/g2048-skins/c019.webp"
+    },
+    {
+     "n": "红宝石胸针",
+     "img": "assets/ui/g2048-skins/c024.webp"
+    },
+    {
+     "n": "刺荨麻背心",
+     "img": "assets/ui/g2048-skins/c030.webp"
+    },
+    {
+     "n": "缄默手套",
+     "img": "assets/ui/g2048-skins/c036.webp"
+    },
+    {
+     "n": "群星之酒",
+     "img": "assets/ui/g2048-skins/c040.webp"
+    },
+    {
+     "n": "伶牙俐齿",
+     "img": "assets/ui/g2048-skins/c045.webp"
+    },
+    {
+     "n": "翠玉拓印",
+     "img": "assets/ui/g2048-skins/c049.webp"
+    },
+    {
+     "n": "秘典星象仪",
+     "img": "assets/ui/g2048-skins/c054.webp"
+    },
+    {
+     "n": "桂叶袖扣",
+     "img": "assets/ui/g2048-skins/c058.webp"
+    },
+    {
+     "n": "阿尔卡纳遗物",
+     "img": "assets/ui/g2048-skins/c062.webp"
+    },
+    {
+     "n": "恶童",
+     "img": "assets/ui/g2048-skins/c066.webp"
+    },
+    {
+     "n": "新式轮轴",
+     "img": "assets/ui/g2048-skins/c071.webp"
+    },
+    {
+     "n": "古怪钩爪",
+     "img": "assets/ui/g2048-skins/c077.webp"
+    },
+    {
+     "n": "失衡的天平",
+     "img": "assets/ui/g2048-skins/c081.webp"
+    },
+    {
+     "n": "人鱼泪珠",
+     "img": "assets/ui/g2048-skins/c086.webp"
+    },
+    {
+     "n": "寂静序曲",
+     "img": "assets/ui/g2048-skins/c092.webp"
+    },
+    {
+     "n": "小八音盒",
+     "img": "assets/ui/g2048-skins/c096.webp"
+    },
+    {
+     "n": "母亲造像",
+     "img": "assets/ui/g2048-skins/c101.webp"
+    },
+    {
+     "n": "快乐唱片",
+     "img": "assets/ui/g2048-skins/c105.webp"
+    },
+    {
+     "n": "彩蛋时间",
+     "img": "assets/ui/g2048-skins/c109.webp"
+    },
+    {
+     "n": "文明之光",
+     "img": "assets/ui/g2048-skins/c113.webp"
+    },
+    {
+     "n": "救济之肢",
+     "img": "assets/ui/g2048-skins/c119.webp"
+    },
+    {
+     "n": "☆逃生平面图☆",
+     "img": "assets/ui/g2048-skins/c123.webp"
+    },
+    {
+     "n": "节日祝福",
+     "img": "assets/ui/g2048-skins/c130.webp"
+    },
+    {
+     "n": "视力矫正器",
+     "img": "assets/ui/g2048-skins/c136.webp"
+    },
+    {
+     "n": "银白差分机",
+     "img": "assets/ui/g2048-skins/c146.webp"
+    }
+   ]
+  },
+  "awakener": {
+   "n": "唤醒体",
+   "pool": [
+    {
+     "n": "24",
+     "img": "assets/ui/g2048-skins/a-mason.webp"
+    },
+    {
+     "n": "阿格里帕",
+     "img": "assets/ui/g2048-skins/a-agrippa.webp"
+    },
+    {
+     "n": "艾继丝",
+     "img": "assets/ui/g2048-skins/a-aigis.webp"
+    },
+    {
+     "n": "艾尔瓦",
+     "img": "assets/ui/g2048-skins/a-alva.webp"
+    },
+    {
+     "n": "奥瑞塔",
+     "img": "assets/ui/g2048-skins/a-aurita.webp"
+    },
+    {
+     "n": "凯刻斯",
+     "img": "assets/ui/g2048-skins/a-caecus.webp"
+    },
+    {
+     "n": "卡茜亚",
+     "img": "assets/ui/g2048-skins/a-casiah.webp"
+    },
+    {
+     "n": "卡斯托尔",
+     "img": "assets/ui/g2048-skins/a-castor.webp"
+    },
+    {
+     "n": "希莱斯特",
+     "img": "assets/ui/g2048-skins/a-celeste.webp"
+    },
+    {
+     "n": "克莱门汀",
+     "img": "assets/ui/g2048-skins/a-clementine.webp"
+    },
+    {
+     "n": "克珀珊特",
+     "img": "assets/ui/g2048-skins/a-corposant.webp"
+    },
+    {
+     "n": "达芙黛尔",
+     "img": "assets/ui/g2048-skins/a-daffodil.webp"
+    },
+    {
+     "n": "朵尔",
+     "img": "assets/ui/g2048-skins/a-doll.webp"
+    },
+    {
+     "n": "杜勒赛因",
+     "img": "assets/ui/g2048-skins/a-doresain.webp"
+    },
+    {
+     "n": "艾瑞卡",
+     "img": "assets/ui/g2048-skins/a-erica.webp"
+    },
+    {
+     "n": "菲茵特",
+     "img": "assets/ui/g2048-skins/a-faint.webp"
+    },
+    {
+     "n": "法洛思",
+     "img": "assets/ui/g2048-skins/a-faros.webp"
+    },
+    {
+     "n": "熔毁·朵尔",
+     "img": "assets/ui/g2048-skins/a-doll-inferno.webp"
+    },
+    {
+     "n": "血链·希洛",
+     "img": "assets/ui/g2048-skins/a-helot-catena.webp"
+    },
+    {
+     "n": "环行·拉蒙娜",
+     "img": "assets/ui/g2048-skins/a-ramona-timeworn.webp"
+    },
+    {
+     "n": "戈利亚",
+     "img": "assets/ui/g2048-skins/a-goliath.webp"
+    },
+    {
+     "n": "哈姆林",
+     "img": "assets/ui/g2048-skins/a-hameln.webp"
+    },
+    {
+     "n": "希洛",
+     "img": "assets/ui/g2048-skins/a-helot.webp"
+    },
+    {
+     "n": "奥尔拉",
+     "img": "assets/ui/g2048-skins/a-horla.webp"
+    },
+    {
+     "n": "詹金",
+     "img": "assets/ui/g2048-skins/a-jenkin.webp"
+    },
+    {
+     "n": "珈伦",
+     "img": "assets/ui/g2048-skins/a-karen.webp"
+    },
+    {
+     "n": "凯蒂古拉",
+     "img": "assets/ui/g2048-skins/a-kathigu-ra.webp"
+    },
+    {
+     "n": "雷娅",
+     "img": "assets/ui/g2048-skins/a-leigh.webp"
+    },
+    {
+     "n": "莉莉",
+     "img": "assets/ui/g2048-skins/a-lily.webp"
+    },
+    {
+     "n": "莉兹",
+     "img": "assets/ui/g2048-skins/a-liz.webp"
+    },
+    {
+     "n": "萝坦",
+     "img": "assets/ui/g2048-skins/a-lotan.webp"
+    },
+    {
+     "n": "弥利亚姆",
+     "img": "assets/ui/g2048-skins/a-miryam.webp"
+    },
+    {
+     "n": "茉夏",
+     "img": "assets/ui/g2048-skins/a-mouchette.webp"
+    },
+    {
+     "n": "墨菲",
+     "img": "assets/ui/g2048-skins/a-murphy.webp"
+    },
+    {
+     "n": "诞妄·墨菲",
+     "img": "assets/ui/g2048-skins/a-murphy-fauxborn.webp"
+    },
+    {
+     "n": "诺缔拉",
+     "img": "assets/ui/g2048-skins/a-nautila.webp"
+    },
+    {
+     "n": "宁菲亚",
+     "img": "assets/ui/g2048-skins/a-nymphaea.webp"
+    },
+    {
+     "n": "奥吉尔",
+     "img": "assets/ui/g2048-skins/a-ogier.webp"
+    },
+    {
+     "n": "潘狄娅",
+     "img": "assets/ui/g2048-skins/a-pandia.webp"
+    },
+    {
+     "n": "皮克曼",
+     "img": "assets/ui/g2048-skins/a-pickman.webp"
+    },
+    {
+     "n": "波吕克斯",
+     "img": "assets/ui/g2048-skins/a-pollux.webp"
+    },
+    {
+     "n": "拉蒙娜",
+     "img": "assets/ui/g2048-skins/a-ramona.webp"
+    },
+    {
+     "n": "莱克",
+     "img": "assets/ui/g2048-skins/a-ryker.webp"
+    },
+    {
+     "n": "萨尔瓦多",
+     "img": "assets/ui/g2048-skins/a-salvador.webp"
+    },
+    {
+     "n": "珊",
+     "img": "assets/ui/g2048-skins/a-sanga.webp"
+    },
+    {
+     "n": "索蕾尔",
+     "img": "assets/ui/g2048-skins/a-sorel.webp"
+    },
+    {
+     "n": "塔薇",
+     "img": "assets/ui/g2048-skins/a-tawil.webp"
+    },
+    {
+     "n": "泰旖丝",
+     "img": "assets/ui/g2048-skins/a-thais.webp"
+    },
+    {
+     "n": "汀克特",
+     "img": "assets/ui/g2048-skins/a-tinct.webp"
+    },
+    {
+     "n": "图鲁",
+     "img": "assets/ui/g2048-skins/a-tulu.webp"
+    },
+    {
+     "n": "尤乌哈希",
+     "img": "assets/ui/g2048-skins/a-uvhash.webp"
+    },
+    {
+     "n": "旺达",
+     "img": "assets/ui/g2048-skins/a-wanda.webp"
+    },
+    {
+     "n": "温柯尔",
+     "img": "assets/ui/g2048-skins/a-winkle.webp"
+    },
+    {
+     "n": "徐",
+     "img": "assets/ui/g2048-skins/a-xu.webp"
+    },
+    {
+     "n": "莫丝",
+     "img": "assets/ui/g2048-skins/a-vortice.webp"
+    },
+    {
+     "n": "阿拉克涅",
+     "img": "assets/ui/g2048-skins/a-arachne.webp"
+    },
+    {
+     "n": "沙耶",
+     "img": "assets/ui/g2048-skins/a-saya.webp"
+    },
+    {
+     "n": "庞托斯",
+     "img": "assets/ui/g2048-skins/a-pontos.webp"
+    },
+    {
+     "n": "蚀灭·萝坦",
+     "img": "assets/ui/g2048-skins/a-lotan-cetarchon.webp"
+    },
+    {
+     "n": "卡拉布",
+     "img": "assets/ui/g2048-skins/a-caraboo.webp"
+    },
+    {
+     "n": "负誓·奥吉尔",
+     "img": "assets/ui/g2048-skins/a-ogier-oathbound.webp"
+    },
+    {
+     "n": "薇薇安",
+     "img": "assets/ui/g2048-skins/a-vivian.webp"
+    }
+   ]
+  }
+ }
+}

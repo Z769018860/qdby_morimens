@@ -14,9 +14,14 @@
 //   ✅ x/web-interface/search/type?search_type=video  投稿搜索，不签名，20 条/页，带 author/bvid/description
 //   ✅ x/web-interface/view?bvid=                     完整简介 desc、UP 主自写的 dynamic、分区、tag
 //   ✅ x/v2/reply?type=1&oid=                        评论，热度 sort=2 / 时间 sort=0，含楼中楼
+//   ✅ x/space/wbi/arc/search（wbi 签名）            全量投稿列表，ps=30/页，标题+简介摘要一次拿全
+//   ✅ x/polymer/web-space/seasons_series_list（wbi）合集/系列名与集数（「代售小超市」这类栏目就在这儿）
+//   ✅ live.bilibili.com/room/v1/Room/getRoomInfoOld?mid=   直播间号 + 当前标题，不签名
+//   ✅ live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=（wbi）直播间标题/tags/分区/公告
 //   ✅ x/polymer/web-dynamic/v1/feed/space?host_mid=  空间动态（图文/转发）
-//   ❌ x/space/wbi/arc/search                         要 wbi 签名，且现在已经 -412 风控，别浪费时间
+//   ⚠️ x/space/wbi/arc/search 有风控期：一天内打太多次会 -412，睡 9s×n 重试，仍失败就先停手隔天再跑
 //   ❌ x/web-interface/newlist?mid=                   会忽略 mid，返回全站最新投稿（拿到过别人的车评视频）
+//   ❌ app.bilibili.com/x/v2/space/archive/cursor     现在固定 -400，别试
 //
 // 限速：默认每次请求间隔 4 秒（BILI_GAP 可改）。低于 2 秒连续打，基本十分钟内必被 -412。
 import crypto from 'node:crypto';
@@ -32,6 +37,8 @@ const VIEWN = Number(process.env.BILI_VIEWS || 20);          // 其中多少条�
 const CMTV = Number(process.env.BILI_CMT_VIDEOS || 6);       // 取几条视频的评论
 const CMT_PAGES = Number(process.env.BILI_CMT_PAGES || 1);   // 每条视频评论翻几页
 const CMT_SUB = Number(process.env.BILI_CMT_SUB || 5);       // 每楼取几条楼中楼
+const ARCPAGES = Number(process.env.BILI_ARC_PAGES || 4);     // wbi 投稿列表翻几页（30 条/页）
+const SERN = Number(process.env.BILI_SER_PAGES || 2);         // 每个合集的视频翻几页（30 条/页）
 
 // 十位主播。key 只是本地用的短名，mid 才是身份。
 const UPS = [
@@ -68,6 +75,29 @@ function absorb(sc) {
 }
 let booted = false;
 let last = 0;
+
+// ---- wbi 签名（arc/search、合集、直播间详情都要它） --------------------------
+const TAB = [
+  46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49,
+  33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40, 61,
+  26, 17, 0, 1, 60, 51, 30, 4, 22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36,
+  20, 34, 44, 52,
+];
+const md5 = (x) => crypto.createHash('md5').update(x).digest('hex');
+let MK = null;
+async function signed(url, params = {}) {
+  if (!MK) {
+    const d = await get('https://api.bilibili.com/x/web-interface/nav', 'https://www.bilibili.com/');
+    const img = (d.data && d.data.wbi_img) || {};
+    const base = (u) => String(u || '').split('/').pop().split('.')[0];
+    MK = TAB.map((i) => (base(img.img_url) + base(img.sub_url))[i]).join('').slice(0, 32);
+  }
+  const ref = params.__ref || 'https://space.bilibili.com/';
+  const p = { ...params, wts: Math.floor(Date.now() / 1000) - 5 };
+  delete p.__ref;
+  const q = Object.keys(p).sort().map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(String(p[k]).replace(/[!'()*]/g, ''))).join('&');
+  return get(url + '?' + q + '&w_rid=' + md5(q + MK), ref);
+}
 async function get(url, referer = 'https://www.bilibili.com/') {
   if (!booted) {
     const r = await fetch('https://www.bilibili.com/', { headers: { 'User-Agent': UA, 'Accept': 'text/html' } });
@@ -84,15 +114,23 @@ async function get(url, referer = 'https://www.bilibili.com/') {
   if (wait > 0) await sleep(wait);
   last = Date.now();
   for (let attempt = 0; attempt < 4; attempt++) {
-    const r = await fetch(url, {
-      headers: {
-        'User-Agent': UA,
-        Referer: referer,
-        Accept: 'application/json, text/plain, */*',
-        'Accept-Language': 'zh-CN,zh;q=0.9',
-        Cookie: ck(),
-      },
-    });
+    let r;
+    try {
+      r = await fetch(url, {
+        headers: {
+          'User-Agent': UA,
+          Referer: referer,
+          Accept: 'application/json, text/plain, */*',
+          'Accept-Language': 'zh-CN,zh;q=0.9',
+          Cookie: ck(),
+        },
+      });
+    } catch (e) {
+      // 代理抖动会抛 ECONNRESET / fetch failed，整轮采集不能因为一次握手失败就全崩
+      console.log(new Date().toISOString().slice(11, 19), 'net-retry', attempt, e.cause && e.cause.code ? e.cause.code : e.message);
+      await sleep(4000 * (attempt + 1));
+      continue;
+    }
     absorb(r.headers.getSetCookie ? r.headers.getSetCookie() : []);
     const txt = await r.text();
     let d;
@@ -118,6 +156,44 @@ async function collect(u, rec) {
   }
   log('card', card.code, '|', clip(rec.sign, 34));
 
+  // ---- 直播间：标题 / 标签 / 分区 / 公告（直播间标题里的口癖比视频标题更鲜活） ----
+  const room = await get('https://api.live.bilibili.com/room/v1/Room/getRoomInfoOld?mid=' + u.mid, 'https://live.bilibili.com/');
+  if (room.code === 0 && room.data) {
+    rec.live = { roomid: room.data.roomid, title: room.data.title || '', liveStatus: room.data.liveStatus };
+    if (room.data.roomid) {
+      const ri = await signed('https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom',
+        { room_id: room.data.roomid, __ref: 'https://live.bilibili.com/' + room.data.roomid });
+      if (ri.code === 0 && ri.data) {
+        const info = ri.data.room_info || {};
+        rec.live.title = info.title || rec.live.title;
+        rec.live.tags = info.tags || '';
+        rec.live.area = [info.parent_area_name, info.area_name].filter(Boolean).join(' / ');
+        rec.live.announce = clip(ri.data.announcement && ri.data.announcement.content, 600);
+      }
+    }
+  }
+  log('live', room.code, '|', clip(rec.live && rec.live.title, 40), '|', (rec.live && rec.live.tags) || '');
+
+  // ---- 全量投稿（wbi arc/search）：search/type 只按相关度给几十条，这里是按时间从新到旧翻页 ----
+  rec.arc = rec.arc || [];
+  for (let pn = 1; pn <= ARCPAGES; pn++) {
+    const r = await signed('https://api.bilibili.com/x/space/wbi/arc/search',
+      { mid: u.mid, ps: 30, pn, order: 'pubdate', __ref: 'https://space.bilibili.com/' + u.mid + '/video' });
+    const vlist = (r.data && r.data.list && r.data.list.vlist) || [];
+    let add = 0;
+    for (const x of vlist) {
+      if (rec.arc.some((v) => v.bvid === x.bvid)) continue;
+      rec.arc.push({
+        bvid: x.bvid, aid: x.aid, title: clip(x.title, 160), desc: clip(x.description, 600),
+        pub: x.created ? new Date(x.created * 1000).toISOString().slice(0, 10) : '',
+        play: x.play, len: x.length,
+      });
+      add++;
+    }
+    log('arc', pn, r.code, 'vlist', vlist.length, 'new', add, 'total', rec.arc.length);
+    if (vlist.length < 30) break;
+  }
+
   const list = rec.videos || [];
   const pushV = (bvid, title, desc) => {
     if (!bvid || list.some((v) => v.bvid === bvid)) return false;
@@ -141,8 +217,9 @@ async function collect(u, rec) {
       if (!arr.length) break;
     }
   }
+  for (const a of rec.arc || []) pushV(a.bvid, a.title, a.desc);
   rec.videos = list.slice(0, VIDEOS);
-  log('videos', rec.videos.length);
+  log('videos', rec.videos.length, '(arc', (rec.arc || []).length, ')');
 
   let n = 0;
   for (const v of rec.videos.slice(0, VIEWN)) {
@@ -190,6 +267,42 @@ async function collect(u, rec) {
     if (t && !rec.dynamics.some((d) => d.text === t)) rec.dynamics.push({ text: t, pub: it.modules && it.modules.module_author && it.modules.module_author.pub_time });
   }
   log('dynamics', rec.dynamics.length);
+
+  // ---- 合集 / 系列：栏目名本身就是口癖（例：爱丽丝的「代售小超市」） ----
+  const ser = await signed('https://api.bilibili.com/x/polymer/web-space/seasons_series_list',
+    { mid: u.mid, page_num: 1, page_size: 20, __ref: 'https://space.bilibili.com/' + u.mid });
+  rec.series = rec.series || [];
+  const il = (ser.data && ser.data.items_lists) || {};
+  for (const it of [...(il.seasons_list || []), ...(il.series_list || [])]) {
+    const meta = it.meta || {};
+    const name = clip(meta.name, 60);
+    if (!name || rec.series.some((x) => x.name === name)) continue;
+    rec.series.push({
+      name, title: clip(meta.title, 60), total: meta.total,
+      id: meta.season_id || meta.series_id,
+      kind: (il.seasons_list || []).includes(it) ? 'season' : 'series',
+      sample: (it.archives || []).slice(0, 6).map((a) => clip(a.title, 80)),
+    });
+  }
+  log('series', ser.code, rec.series.length, rec.series.map((x) => x.name).join(' / ').slice(0, 90));
+
+  // 每个合集的全部视频：栏目里的标题密度最高（「神秘抽卡记录」17 条全是金句）
+  for (const sr of rec.series) {
+    if (!sr.id || sr.kind !== 'season') continue;
+    sr.titles = sr.titles || [];
+    for (let pn = 1; pn <= SERN; pn++) {
+      const r = await signed('https://api.bilibili.com/x/polymer/web-space/seasons_archives_list',
+        { mid: u.mid, season_id: sr.id, sort_reverse: false, page_num: pn, page_size: 30, __ref: 'https://space.bilibili.com/' + u.mid });
+      const arcs = (r.data && r.data.archives) || [];
+      for (const a of arcs) {
+        const t = clip(a.title, 160);
+        if (t && !sr.titles.includes(t)) sr.titles.push(t);
+        if (!list.some((v) => v.bvid === a.bvid)) list.push({ bvid: a.bvid, title: t, desc: '', _aid: a.aid });
+      }
+      if (arcs.length < 30) break;
+    }
+    log('  series-arc', clip(sr.name, 20), sr.titles.length);
+  }
 }
 
 const db = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, 'utf8')) : {};

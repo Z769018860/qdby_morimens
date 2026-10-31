@@ -342,14 +342,102 @@ function genProtocol() {
 }
 
 
+// ------------------------------------------- 命轮对决的卡面图集与卡表
+// 卡牌页要一次显示十几张卡面，逐张请求在边缘就是十几个 1~2 秒的来回；
+// 所以头像已经被 scripts/build_duel_art.py 拼成一张 webp，这里只负责读成
+// data URI，连同卡表 / 卡包 / 羁绊 / 世界观一起内联进 js/duel/gen.js。
+// 改数值改 data/duel-*.json，别手改 gen.js。
+function genDuel() {
+  const cards = readJson(path.join(ROOT, 'data/duel-cards.json'));
+  const packs = readJson(path.join(ROOT, 'data/duel-packs.json'));
+  const lore = readJson(path.join(ROOT, 'data/duel-lore.json'));
+  const art = readJson(path.join(ROOT, 'data/duel-art.json'));
+  const sheetPath = path.join(ROOT, 'assets/duel/faces.webp');
+  const backPath = path.join(ROOT, 'assets/duel/back.webp');
+  if (!has(sheetPath)) throw new Error('缺少卡面图集，先跑 python scripts/build_duel_art.py');
+  if (!has(backPath)) throw new Error('缺少卡背，先跑 python scripts/build_duel_art.py');
+  const map = {};
+  for (const c of cards.monsters) map[c.id] = Object.assign({ k: 'M' }, c);
+  for (const c of cards.spells) map[c.id] = Object.assign({ k: 'S' }, c);
+  for (const c of cards.traps) map[c.id] = Object.assign({ k: 'T' }, c);
+  for (const c of cards.extras) map[c.id] = Object.assign({ k: 'E' }, c);
+  // 卡包里引用了不存在的卡会静默变成「抽到空气」，构建时就报错
+  for (const pk of packs.packs) {
+    for (const id of pk.cards) if (!map[id]) throw new Error(`卡包 ${pk.id} 引用了不存在的卡 ${id}`);
+  }
+  for (const dk of packs.decks) {
+    let n = 0;
+    for (const pair of dk.cards) {
+      if (!map[pair[0]]) throw new Error(`预组 ${dk.id} 引用了不存在的卡 ${pair[0]}`);
+      n += pair[1];
+    }
+    if (n < 30) throw new Error(`预组 ${dk.id} 只有 ${n} 张牌（至少要 30）`);
+    for (const id of dk.extra) {
+      if (!map[id] || map[id].k !== 'E') throw new Error(`预组 ${dk.id} 的额外卡组里有 ${id}，它不是觉醒体`);
+    }
+  }
+  for (const b of packs.bonds) {
+    for (const nm of b.need || []) {
+      if (!Object.keys(map).some((id) => map[id].n === nm)) throw new Error(`羁绊「${b.n}」引用了不存在的角色 ${nm}`);
+    }
+  }
+  const uri = 'data:image/webp;base64,' + fs.readFileSync(sheetPath).toString('base64');
+  const back = 'data:image/webp;base64,' + fs.readFileSync(backPath).toString('base64');
+  const code = [
+    '// 由 scripts/build.mjs 生成，请勿手改。',
+    '// 源：data/duel-cards.json + duel-packs.json + duel-lore.json + duel-art.json + assets/duel/*.webp',
+    `export const CARDS = ${JSON.stringify(map)};`,
+    `export const PACKS = ${JSON.stringify(packs.packs)};`,
+    `export const BONDS = ${JSON.stringify(packs.bonds)};`,
+    `export const DECKS = ${JSON.stringify(packs.decks)};`,
+    `export const LORE = ${JSON.stringify(lore)};`,
+    `export const FACES = ${JSON.stringify(uri)};`,
+    `export const BACK = ${JSON.stringify(back)};`,
+    `export const ART = ${JSON.stringify({ cell: art.cell, cols: art.cols, rows: art.rows, w: art.w, h: art.h, index: art.index })};`,
+    '',
+  ].join('\n');
+  const out = path.join(ROOT, 'js/duel/gen.js');
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
+  return {
+    cards: Object.keys(map).length,
+    kb: Math.round(code.length / 1024),
+  };
+}
+
+// ------------------------------------------- 忘却王权的卡面头像
+// data/reign-faces.json 是 scripts/build_reign_faces.py 从 assets/card/*.webp
+// 裁出来的 200×275 卡面（一张 6~9KB）。这里把它内联成一个模块：
+// 一局里会用到二十几张，逐个请求在边缘就是二十几个来回。
+function genReign() {
+  const p = path.join(ROOT, 'data/reign-faces.json');
+  if (!has(p)) throw new Error('缺少卡面，先跑 python scripts/build_reign_faces.py');
+  const faces = readJson(p);
+  const code = [
+    '// 由 scripts/build.mjs 生成，请勿手改。',
+    '// 源：data/reign-faces.json ← scripts/build_reign_faces.py 裁的 assets/card/*.webp',
+    `export const FACES = ${JSON.stringify(faces)};`,
+    '',
+  ].join('\n');
+  const out = path.join(ROOT, 'js/reign/art.js');
+  if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
+  return { n: Object.keys(faces).length, kb: Math.round(code.length / 1024) };
+}
+
 // ------------------------------------------------------------------ 主流程
 const artCount = genMergeArt();
 const birdArt = genBirdArt();
 const sv = genSurvivors();
 const pf = genProtocol();
+const rg = genReign();
+const duel = genDuel();
 // 「校猫的结合」要内联四十多张图（猫 + 造物 + 密契 + 钥令 + 首领），逻辑单独放一个脚本，
 // 这里只负责在构建时调它，保证 js/binding-art.js 不会和 data/binding-art.json 走散。
 execFileSync(process.execPath, [path.join(ROOT, 'scripts/build_binding_art.mjs')], { stdio: 'pipe' });
+
+// 「忘却 2048」那十一级造物图同理：棋盘上同时躺着十几块，逐个请求就是十几个来回。
+// 图源写在 data/g2048-levels.json，这里只负责在构建时重新内联一次。
+execFileSync(process.execPath, [path.join(ROOT, 'scripts/build_g2048_art.mjs')], { stdio: 'pipe' });
 
 // 「弥萨格狼人杀」的 62 张头像同理：一局里要用到十几张，逐个请求在边缘就是十几个来回。
 // 清单写在 js/wolf/data.js 里（每名唤醒体的 av 字段），由这个脚本读成 data URI。
@@ -383,7 +471,8 @@ for (const f of pageFiles) {
 // 「合成大杜勒」的账号同步件：页面空闲时才 import()，不能算进首屏请求。
 // 打包成同名文件（js/merge-sync.js → js/b/merge-sync.js），这样
 // 页面里的 import('./merge-sync.js') 在「源码目录」和「打包目录」都能解析到。
-const EXTRA_ENTRIES = ['js/merge-sync.js', 'js/bird-sync.js', 'js/merge-skins.js'];
+// g2048-skins.js 是「忘却 2048」的换皮池（一百多张图，四百来 KB）：只在点「换皮」时 import()。
+const EXTRA_ENTRIES = ['js/merge-sync.js', 'js/bird-sync.js', 'js/merge-skins.js', 'js/g2048-skins.js'];
 
 const extras = [];
 for (const rel of EXTRA_ENTRIES) {
@@ -572,5 +661,6 @@ for (const p of built) {
 console.log(`共打包 ${totalModules} 次模块引用；data/boot.json ${Math.round(bootJson.length / 1024)}KB + data/dict.json ${Math.round(dictJson.length / 1024)}KB`);
 console.log(`  唤醒体幸存者：${sv.chars} 名角色 / ${sv.weapons} 把武器，js/sv/gen.js ${sv.kb}KB（图集已内联）`);
 console.log(`  忘却协议：${pf.units} 名唤醒体 / ${pf.mobs} 种怪物，js/pf/gen.js ${pf.kb}KB（图集已内联）`);
+console.log(`  忘却王权：${rg.n} 张卡面，js/reign/art.js ${rg.kb}KB（立绘已内联）`);
 for (const e of extras) console.log(`  延迟加载 js/b/${e.out}`.padEnd(30), `${e.modules} 个模块 → ${e.kb}KB（不进首屏）`);
 console.log(`sw.js 预缓存 ${precache.length} 项`);
