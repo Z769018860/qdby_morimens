@@ -1736,7 +1736,7 @@ const GAMES = [
   { k: 'wolf', n: '弥萨格狼人杀', href: 'wolf.html', icon: '🐺', read: wolf, tip: '身份推理' },
   { k: 'deathreport', n: '弥萨格大逃杀', href: 'deathreport/', icon: '📄', read: deathreport, tip: '档案式复盘' },
   { k: 'g2048', n: '忘却 2048', href: '2048.html', icon: '🔢', read: g2048, tip: '两块同样的合流' },
-  { k: 'reign', n: '忘却王权', href: 'reign.html', icon: '👑', read: reign, tip: '准或不准，四项账' },
+  { k: 'reign', n: '弥萨格王权', href: 'reign.html', icon: '👑', read: reign, tip: '准或不准，四项账' },
 ];
 
 // 一次性读全部：页面只调这一个

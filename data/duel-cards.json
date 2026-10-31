@@ -1,5 +1,5 @@
 {
- "_note": "《忘却前夜·命轮对决》卡表。k: M 怪兽 / S 魔法 / T 陷阱 / E 觉醒体。r: chaos / caro / aqua / ultra / any。fx 由 js/duel/engine.js 解释，文本必须与 fx 一致。",
+ "_note": "《忘却前夜·唤醒王：决斗链接》卡表。k: M 怪兽 / S 魔法 / T 陷阱 / E 觉醒体。r: chaos / caro / aqua / ultra / any。fx 由 js/duel/engine.js 解释，文本必须与 fx 一致。",
  "monsters": [
   {
    "id": "m01",
@@ -250,8 +250,8 @@
    "r": "caro",
    "rar": "SR",
    "lv": 4,
-   "atk": 1500,
-   "def": 1900,
+   "atk": 1600,
+   "def": 2000,
    "role": "防御型",
    "fx": [
     {
@@ -337,8 +337,8 @@
    "r": "caro",
    "rar": "SR",
    "lv": 4,
-   "atk": 1600,
-   "def": 1800,
+   "atk": 1700,
+   "def": 1900,
    "role": "防御型",
    "fx": [
     {
@@ -375,8 +375,8 @@
    "r": "caro",
    "rar": "SR",
    "lv": 4,
-   "atk": 1700,
-   "def": 1300,
+   "atk": 1800,
+   "def": 1400,
    "role": "伤害型",
    "fx": [
     {
@@ -396,8 +396,8 @@
    "r": "caro",
    "rar": "R",
    "lv": 3,
-   "atk": 1000,
-   "def": 1600,
+   "atk": 1100,
+   "def": 1700,
    "role": "辅助型",
    "fx": [
     {
@@ -431,8 +431,8 @@
    "r": "caro",
    "rar": "SR",
    "lv": 4,
-   "atk": 1200,
-   "def": 2000,
+   "atk": 1300,
+   "def": 2100,
    "role": "防御型",
    "fx": [
     {
@@ -951,7 +951,7 @@
    "atk": 3000,
    "def": 2500,
    "role": "伤害型",
-   "art": "图鲁",
+   "art": "@shadow",
    "fx": [
     {
      "k": "destroyStrongest",
@@ -1772,7 +1772,7 @@
     "神王·图鲁",
     "威廉"
    ],
-   "art": "图鲁",
+   "art": "@shadow2",
    "fx": [
     {
      "k": "pierce"

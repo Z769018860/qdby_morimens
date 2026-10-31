@@ -69,6 +69,9 @@ function bestSpell(G, p, o) {
 }
 
 function summonOptions(G, p) {
+  // 觉醒体的素材别拿去当祭品：凑齐了就能换一只大的
+  const matNames = {};
+  for (const id of p.extra) for (const nm of (d(id).mat || [])) matNames[nm] = 1;
   const out = [];
   for (const h of p.hand) {
     const def = d(h.id);
@@ -77,7 +80,12 @@ function summonOptions(G, p) {
     const need = tributeNeed(h.id);
     let tribs = [];
     if (need > 0) {
-      const own = p.mons.filter(Boolean).sort((a, b) => atkOf(G, p, a) - atkOf(G, p, b));
+      const own = p.mons.filter(Boolean).sort((a, b) => {
+        const am = matNames[d(a.id).n] ? 1 : 0;
+        const bm = matNames[d(b.id).n] ? 1 : 0;
+        if (am !== bm) return am - bm;
+        return atkOf(G, p, a) - atkOf(G, p, b);
+      });
       if (own.length < need) continue;
       tribs = own.slice(0, need).map((m) => m.uid);
     }
@@ -185,6 +193,16 @@ export function nextAction(G, side, skill) {
     const setCount = p.spells.filter((s) => s && s.set).length;
     if (traps.length && setCount < 2 && p.spells.indexOf(null) >= 0) {
       return { t: 'trap', uid: traps[0].uid };
+    }
+    // 6.5 守备的高攻怪翻回攻击：打得过对方全场就别一直缩着（守备卡组全靠这一步才有输出）
+    const wall = p.mons.find((m) => m && m.pos === 'def' && !m.set && atkOf(G, p, m) >= 1700);
+    if (wall) {
+      const mine = atkOf(G, p, wall);
+      const theirs = o.mons.filter(Boolean);
+      const worst = theirs.length
+        ? Math.max.apply(null, theirs.map((t) => (t.pos === 'atk' && !t.set ? atkOf(G, o, t) : 0)))
+        : 0;
+      if (mine > worst) return { t: 'pos', uid: wall.uid };
     }
     // 7. 低攻怪兽转守备
     const weakAtk = p.mons.find((m) => m && m.pos === 'atk' && !m.set && atkOf(G, p, m) < 1600);

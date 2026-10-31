@@ -342,7 +342,7 @@ function genProtocol() {
 }
 
 
-// ------------------------------------------- 命轮对决的卡面图集与卡表
+// ------------------------------------------- 唤醒王：决斗链接的卡面图集与卡表
 // 卡牌页要一次显示十几张卡面，逐张请求在边缘就是十几个 1~2 秒的来回；
 // 所以头像已经被 scripts/build_duel_art.py 拼成一张 webp，这里只负责读成
 // data URI，连同卡表 / 卡包 / 羁绊 / 世界观一起内联进 js/duel/gen.js。
@@ -361,6 +361,19 @@ function genDuel() {
   for (const c of cards.spells) map[c.id] = Object.assign({ k: 'S' }, c);
   for (const c of cards.traps) map[c.id] = Object.assign({ k: 'T' }, c);
   for (const c of cards.extras) map[c.id] = Object.assign({ k: 'E' }, c);
+  // 觉醒体本身没有立绘，用第一只素材的脸（校猫用自己的）
+  for (const c of cards.extras) {
+    const k = map[c.id];
+    if (!k.art) k.art = c.id === 'e12' ? c.n : (c.mat || [c.n])[0];
+  }
+  // 魔法 / 陷阱不挂人脸：统一用图集里画出来的两枚符号（早期没设 art，全部落到第一格那张「24」的头像上）
+  for (const c of cards.spells) map[c.id].art = '@spell';
+  for (const c of cards.traps) map[c.id].art = '@trap';
+  // 卡面找不到就静默显示成第一格头像，所以这里直接拦住
+  for (const id of Object.keys(map)) {
+    const key = map[id].art || map[id].n;
+    if (art.index[key] == null) throw new Error(`卡 ${id}（${map[id].n}）的卡面「${key}」不在图集里，先跑 build_duel_art.py`);
+  }
   // 卡包里引用了不存在的卡会静默变成「抽到空气」，构建时就报错
   for (const pk of packs.packs) {
     for (const id of pk.cards) if (!map[id]) throw new Error(`卡包 ${pk.id} 引用了不存在的卡 ${id}`);
@@ -405,7 +418,7 @@ function genDuel() {
   };
 }
 
-// ------------------------------------------- 忘却王权的卡面头像
+// ------------------------------------------- 弥萨格王权的卡面头像
 // data/reign-faces.json 是 scripts/build_reign_faces.py 从 assets/card/*.webp
 // 裁出来的 200×275 卡面（一张 6~9KB）。这里把它内联成一个模块：
 // 一局里会用到二十几张，逐个请求在边缘就是二十几个来回。
@@ -661,6 +674,6 @@ for (const p of built) {
 console.log(`共打包 ${totalModules} 次模块引用；data/boot.json ${Math.round(bootJson.length / 1024)}KB + data/dict.json ${Math.round(dictJson.length / 1024)}KB`);
 console.log(`  唤醒体幸存者：${sv.chars} 名角色 / ${sv.weapons} 把武器，js/sv/gen.js ${sv.kb}KB（图集已内联）`);
 console.log(`  忘却协议：${pf.units} 名唤醒体 / ${pf.mobs} 种怪物，js/pf/gen.js ${pf.kb}KB（图集已内联）`);
-console.log(`  忘却王权：${rg.n} 张卡面，js/reign/art.js ${rg.kb}KB（立绘已内联）`);
+console.log(`  弥萨格王权：${rg.n} 张卡面，js/reign/art.js ${rg.kb}KB（立绘已内联）`);
 for (const e of extras) console.log(`  延迟加载 js/b/${e.out}`.padEnd(30), `${e.modules} 个模块 → ${e.kb}KB（不进首屏）`);
 console.log(`sw.js 预缓存 ${precache.length} 项`);

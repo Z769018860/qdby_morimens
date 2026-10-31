@@ -171,6 +171,7 @@ const $ = (s) => document.querySelector(s);
 const boardEl = $('#board');
 const cellsEl = $('#cells');
 const tilesEl = $('#tiles');
+const floatBox = $('#floats');
 const overEl = $('#over');
 const scEl = $('#sc');
 const bsEl = $('#bs');
@@ -212,7 +213,10 @@ function tone(f, dur, { type = 'triangle', vol = 0.05, to = null, at = 0 } = {})
   o.start(t0); o.stop(t0 + dur + 0.02);
 }
 const sfx = {
-  merge(lv) { tone(196 * Math.pow(2, lv * 0.115), 0.14, { vol: 0.05 - lv * 0.002, to: 196 * Math.pow(2, lv * 0.115) * 1.5 }); },
+  merge(lv, at = 0) {
+    const f = 196 * Math.pow(2, lv * 0.115);
+    tone(f, 0.14, { vol: Math.max(0.016, 0.05 - lv * 0.002), to: f * 1.5, at });
+  },
   spawn() { tone(760, 0.05, { type: 'sine', vol: 0.016 }); },
   bad() { tone(120, 0.14, { type: 'square', vol: 0.03, to: 80 }); },
   forget() { tone(520, 0.18, { type: 'sine', vol: 0.045, to: 180 }); tone(390, 0.22, { type: 'sine', vol: 0.03, to: 130, at: 0.06 }); },
@@ -461,9 +465,10 @@ function paint(animate = true) {
       el.title = t.rot ? '侵蚀：不能移动，紧挨着合成才会被震碎' : `${nameOf(lv)}（${t.v}）`;
       // 合并：这一格的值变了 → 弹一下。新落下的块只做「生」的动画，别再弹一次
       if (!isNew && animate) {
-        face.classList.remove('pop');
+        // 合到高位弹得明显一点：128 往上一局也见不到几次
+        face.classList.remove('pop', 'pop2');
         void face.offsetWidth;
-        face.classList.add('pop');
+        face.classList.add(lv >= 6 ? 'pop2' : 'pop');
       }
     }
     if (isNew && animate) {
@@ -481,6 +486,7 @@ function paint(animate = true) {
 function repaintAll() {
   for (const [, el] of tileEls) el.remove();
   tileEls.clear();
+  clearFloats();
   paint(false);
 }
 
@@ -514,6 +520,41 @@ function shake() {
   boardEl.classList.add('shake');
 }
 
+// 震动跟着音效开关走：关掉声音就是「静音玩」，不该还震手。
+// iOS Safari 没有 navigator.vibrate，没有就算了，不值得为它加分支动画。
+function haptic(pat) {
+  if (!G.snd) return;
+  const v = navigator.vibrate;
+  if (typeof v !== 'function') return;
+  // 还没有任何用户手势时调它，Chrome 会在控制台刷一条警告，而且本来也不会振
+  const ua = navigator.userActivation;
+  if (ua && ua.hasBeenActive === false) return;
+  try { v.call(navigator, pat); } catch { /* 被策略拦了，无所谓 */ }
+}
+
+// 系统开了「减少动态效果」就别造这些节点了（CSS 里也藏了，这里干脆不生成）
+const REDUCE = (() => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } })();
+
+// 合并时从那一格飞出一个「+4」。浮字和滑块不在同一层，位置动画互不干扰。
+function floatScore(idx, val) {
+  if (!floatBox || REDUCE) return;
+  const { gap, cell } = metrics();
+  const cy = gap + ((idx / G.n) | 0) * (cell + gap) + cell / 2;
+  const d = document.createElement('div');
+  d.className = 'float';
+  d.textContent = '+' + val;
+  d.style.left = (gap + (idx % G.n) * (cell + gap) + cell / 2) + 'px';
+  d.style.top = cy + 'px';
+  // 上升量按格子算（百分比是相对字高的，字才 13px，飘 13px 等于没动）；
+  // 棋盘不裁剪，所以第一行也能一路飘出去，落在棋盘上方那片空处
+  d.style.setProperty('--rise', Math.round(cell * 0.9) + 'px');
+  floatBox.appendChild(d);
+  while (floatBox.children.length > 4) floatBox.firstElementChild.remove();
+  setTimeout(() => d.remove(), 720);
+}
+
+function clearFloats() { if (floatBox) floatBox.replaceChildren(); }
+
 // ------------------------------------------------------------------ 一局的生命周期
 function newGame(silent) {
   seq = 1;
@@ -524,6 +565,7 @@ function newGame(silent) {
   overEl.hidden = true;
   for (const [, el] of tileEls) el.remove();
   tileEls.clear();
+  clearFloats();
   spawnOne(); spawnOne();
   G.peak = Math.max(...G.cells.filter(Boolean).map((t) => t.v), 2);
   paint(false);
@@ -532,11 +574,17 @@ function newGame(silent) {
   if (!silent) sfx.tap();
 }
 
-function pushUndo() {
-  G.hist.push({
+function snapshot() {
+  return {
     c: G.cells.map((t) => (t ? { v: t.v, r: t.rot ? 1 : 0 } : 0)),
     s: G.score, m: G.mania, st: G.steps, pk: G.peak, w: G.won,
-  });
+  };
+}
+
+// 只记「真的走成了」的一步。滑不动那一下也压栈的话，五次空划就能把
+// 真正的历史挤出去，回溯看着就像坏了——这是个真 bug，顺手修掉。
+function pushUndo(snap) {
+  G.hist.push(snap || snapshot());
   if (G.hist.length > UNDO_MAX) G.hist.shift();
 }
 
@@ -549,6 +597,7 @@ function undo() {
   G.undos -= 1;
   overEl.hidden = true;
   G.over = false;
+  clearFloats();
   repaintAll();
   updateHud();
   saveGame();
@@ -578,6 +627,7 @@ function checkWin() {
   if (G.won || G.peak < 2048) return;
   G.won = true;
   sfx.win();
+  haptic([9, 40, 9, 40, 16]);
   toast('显影完成：' + nameOf(TOP) + '。可以继续往上合', 2600);
   const got = lsGet(KEY.gain + ':' + G.diff) === '1';
   if (!got) {
@@ -596,6 +646,7 @@ function endGame() {
   saveBest();
   saveGame();
   sfx.over();
+  haptic([16, 56, 24]);
   const diffName = DIFFS[G.diff].name;
   const rec = num(lsGet(KEY.best + ':' + G.diff));
   const isNew = G.score >= rec && G.score > 0;
@@ -607,12 +658,14 @@ function endGame() {
   if (isNew) setTimeout(() => toast('新纪录：' + G.score + ' 分', 2200), 500);
 }
 
-// 一步移动的完整流程。调用方（doMove）负责先压撤销栈——slide 是就地改格子的，
-// 压晚了就回不去了。
+// 一步移动的完整流程。slide 是就地改格子的，快照得在调它之前拍；
+// 但「滑不动」的那一下不该留下撤销记录，所以先拍、走成了才入栈。
 function act(d) {
-  if (G.busy || G.over) return;
+  if (G.over) return false;
+  const snap = snapshot();
   const res = slide(d);
-  if (!res.moved) { shake(); sfx.bad(); return; }
+  if (!res.moved) { shake(); sfx.bad(); haptic(6); return false; }
+  pushUndo(snap);
 
   G.score += res.gained;
   G.mania = Math.min(MANIA_FULL, G.mania + res.mania);
@@ -626,8 +679,16 @@ function act(d) {
     if (peak >= 128) toast('显影：' + nameOf(lvOf(peak)));
   }
 
-  if (res.merges.length) sfx.merge(lvOf(G.cells[res.merges[0]].v));
-  if (res.broken.length) { sfx.rot(); toast('震碎了一块蚀', 1200); }
+  if (res.merges.length) {
+    // 浮字：一次合好几块就飞好几个（最多三个，再多就成放烟花了）
+    for (const i of res.merges.slice(0, 3)) { const t = G.cells[i]; if (t) floatScore(i, t.v); }
+    // 声音：按合得最高的那一级响一声；一次合了两块以上再补一声低的，听得出是「一片」在合
+    const lvs = res.merges.map((i) => (G.cells[i] ? lvOf(G.cells[i].v) : 0)).sort((a, b) => b - a);
+    sfx.merge(lvs[0]);
+    if (lvs.length > 1) sfx.merge(lvs[lvs.length - 1], 0.055);
+    haptic(lvs[0] >= 6 ? 16 : 9);
+  }
+  if (res.broken.length) { sfx.rot(); haptic(24); toast('震碎了一块蚀', 1200); }
 
   // 新的一块：侵蚀模式下每 12 步落一块蚀（场上的蚀最多 n-1 个，别把棋盘焊死）
   const wantRot = G.rot && G.steps % ROT_EVERY === 0 && rotCount() < G.n - 1 && emptySlots().length >= 2;
@@ -640,13 +701,38 @@ function act(d) {
   saveGame();
   checkWin();
   if (!canMove()) endGame();
+  return true;
 }
 
 // ------------------------------------------------------------------ 交互
+// 方向判定只有 dirOf 一个口径，键盘 / 触摸 / 拖拽 / 滚轮都走它：
+//   · 主轴必须明显大于副轴（ratio）：斜着划就再等一点，别猜——猜错一步比慢半拍难受得多；
+//   · 越过 commit 立刻走一步，然后「重新落锚」：手指不抬起、继续往前划还能接着走，
+//     但同一次滑动最多 3 步（再多就成甩手划盘面了）；
+//   · 手抬起来时补一刀：位移短但方向明确也算数，点划党不用非得划半屏。
+const SWIPE = {
+  start: 13,        // 起判：抬起时用的最小位移
+  commit: 23,       // 出手：滑动中越过这个就立刻走一步（4×4 一格约 90px，四分之一格）
+  more: 34,         // 同一次滑动里再走下一步要更远一点
+  ratio: 1.28,      // 主轴 / 副轴 至少这么多倍才认，斜划不乱动
+  maxPerSwipe: 3,
+  glideLock: 200,   // 撞墙后的冷却：别一直贴着墙抖
+};
+
+function dirOf(dx, dy, min, ratio) {
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  if (ax < min && ay < min) return null;
+  if (ax >= ay * ratio) return dx > 0 ? 'r' : 'l';
+  if (ay >= ax * ratio) return dy > 0 ? 'd' : 'u';
+  return null;                     // 太斜：再等等，不猜
+}
+
 function bindKeys() {
   window.addEventListener('keydown', (e) => {
+    const k = (e.key || '').toLowerCase();
+    // Ctrl / Cmd + Z 也认：撤回是肌肉记忆，不该逼人改成单键
+    if ((e.metaKey || e.ctrlKey) && k === 'z') { e.preventDefault(); undo(); return; }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const k = e.key.toLowerCase();
     // 显影链面板开着的时候不接方向键（别在面板后面偷偷动盘面），
     // 但 Y / Esc 还得管用——面板里最常用的就是「再摇一批」和「收起」。
     if (!$('#sheet').hidden) {
@@ -655,7 +741,8 @@ function bindKeys() {
       return;
     }
     const map = { arrowleft: 'l', a: 'l', arrowright: 'r', d: 'r', arrowup: 'u', w: 'u', arrowdown: 'd', s: 'd' };
-    if (map[k]) { e.preventDefault(); doMove(map[k]); return; }
+    if (map[k]) { e.preventDefault(); doMove(map[k]); return; }   // 方向键按住连发是好事，放行
+    if (e.repeat) return;                                          // 下面这些按一下就够了
     if (k === 'z') { e.preventDefault(); undo(); }
     else if (k === 'r') { e.preventDefault(); newGame(); }
     else if (k === 'm') { e.preventDefault(); toggleSound(); }
@@ -665,37 +752,96 @@ function bindKeys() {
 }
 
 function bindTouch() {
-  let sx = 0, sy = 0, active = false;
+  // 一次滑动的状态：锚点、还剩几步、这一步走成没、撞墙冷却
+  let sx = 0, sy = 0, active = false, left = 0, fired = false, lock = 0;
+
   boardEl.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1) return;
-    sx = e.touches[0].clientX; sy = e.touches[0].clientY; active = true;
+    if (e.touches.length !== 1) { active = false; return; }   // 双指（捏合、缩放）不算滑动
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+    active = true; left = SWIPE.maxPerSwipe; fired = false; lock = 0;
   }, { passive: true });
+
   boardEl.addEventListener('touchmove', (e) => {
     if (!active) return;
-    e.preventDefault();
-    const dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
-    if (Math.abs(dx) < 26 && Math.abs(dy) < 26) return;
-    active = false;
-    const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'd' : 'u');
-    doMove(dir);
+    if (e.touches.length !== 1) { active = false; return; }
+    if (e.cancelable) e.preventDefault();   // .board 上已有 touch-action:none，这是双保险
+    if (performance.now() < lock) return;
+    const t = e.touches[0];
+    // 第一刀 23px 就走，之后每刀 34px：短划一步，长划最多三步
+    const dir = dirOf(t.clientX - sx, t.clientY - sy, fired ? SWIPE.more : SWIPE.commit, SWIPE.ratio);
+    if (!dir) return;
+    if (doMove(dir)) {
+      fired = true;
+      sx = t.clientX; sy = t.clientY;                 // 重新落锚，接着划还能再走
+      if (--left <= 0) active = false;
+    } else {
+      // 这个方向走不动：锚点不动（改方向还能立刻生效），只锁一小会儿
+      lock = performance.now() + SWIPE.glideLock;
+    }
   }, { passive: false });
-  boardEl.addEventListener('touchend', () => { active = false; }, { passive: true });
-  // 鼠标拖拽（桌面也能玩，不用非得按键盘）
-  let mx = 0, my = 0, down = false;
-  boardEl.addEventListener('mousedown', (e) => { if (e.button !== 0) return; mx = e.clientX; my = e.clientY; down = true; });
+
+  boardEl.addEventListener('touchend', (e) => {
+    if (!active) return;
+    active = false;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    // 抬起补一刀：短促的点划也算一步；这一次已经走过的话，剩下的距离得够长才补
+    const dir = dirOf(t.clientX - sx, t.clientY - sy, fired ? SWIPE.more : SWIPE.start, 1);
+    if (dir) doMove(dir);
+  }, { passive: true });
+
+  boardEl.addEventListener('touchcancel', () => { active = false; }, { passive: true });
+
+  // 鼠标拖拽：桌面上不按键盘也能玩，判定和触摸完全一致
+  let mx = 0, my = 0, down = false, mleft = 0, mfired = false, mlock = 0;
+  boardEl.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();                                   // 别顺手把整页文字选中
+    mx = e.clientX; my = e.clientY;
+    down = true; mleft = SWIPE.maxPerSwipe; mfired = false; mlock = 0;
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!down || performance.now() < mlock) return;
+    const dir = dirOf(e.clientX - mx, e.clientY - my, mfired ? SWIPE.more : SWIPE.commit, SWIPE.ratio);
+    if (!dir) return;
+    if (doMove(dir)) {
+      mfired = true;
+      mx = e.clientX; my = e.clientY;
+      if (--mleft <= 0) down = false;
+    } else {
+      mlock = performance.now() + SWIPE.glideLock;
+    }
+  });
   window.addEventListener('mouseup', (e) => {
     if (!down) return;
     down = false;
-    const dx = e.clientX - mx, dy = e.clientY - my;
-    if (Math.abs(dx) < 30 && Math.abs(dy) < 30) return;
-    doMove(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'd' : 'u'));
+    const dir = dirOf(e.clientX - mx, e.clientY - my, mfired ? SWIPE.more : SWIPE.start, 1);
+    if (dir) doMove(dir);
   });
+
+  // 滚轮 / 触控板：累计到一定量走一步。触控板的惯性尾巴会连着来一串，
+  // 所以走动之后就锁一小会儿，不然一划能刷出去好几步。
+  let wx = 0, wy = 0, wlock = 0;
+  boardEl.addEventListener('wheel', (e) => {
+    if (e.cancelable) e.preventDefault();
+    const now = performance.now();
+    if (now < wlock) return;
+    wx += e.deltaX; wy += e.deltaY;
+    const dir = dirOf(wx, wy, 30, SWIPE.ratio);
+    if (!dir) {
+      // 一直是斜的（或只是轻微滚动），别让累计量越攒越大
+      if (Math.abs(wx) + Math.abs(wy) > 320) { wx = 0; wy = 0; }
+      return;
+    }
+    wlock = now + 170;
+    wx = 0; wy = 0;
+    doMove(dir);
+  }, { passive: false });
 }
 
 function doMove(dir) {
-  if (document.getElementById('sheet').hidden === false) return;
-  pushUndo();
-  act(dir);
+  if (!$('#sheet').hidden) return false;
+  return act(dir);
 }
 
 function toggleSound() {
@@ -896,13 +1042,14 @@ if (window.__G2048_TEST__ || /[?&]_test=1\b/.test(location.search)) {
   window.__g2048 = {
     G,
     move: (d) => doMove(d),
-    act: (d) => { pushUndo(); act(d); },
+    act: (d) => act(d),
     set: (arr) => { // 直接摆盘（值数组，-1 表示蚀块），用来测合并 / 判负
       seq = 1;
       G.cells = arr.map((v) => (v === -1 ? mk(0, true) : v ? mk(v) : null));
       G.over = false; G.hist = []; G.score = 0; G.steps = 0; G.mania = 0;
       G.peak = Math.max(...G.cells.filter(Boolean).map((t) => t.v), 2);
       overEl.hidden = true;
+      clearFloats();
       paint(false);
       updateHud();
     },
@@ -911,10 +1058,14 @@ if (window.__G2048_TEST__ || /[?&]_test=1\b/.test(location.search)) {
     undo: () => undo(),
     diff: (k) => setDiff(k, true),
     rot: (on) => setRot(on),
-    state: () => ({ score: G.score, peak: G.peak, over: G.over, n: G.n, mania: G.mania, cells: G.cells.map((t) => (t ? (t.rot ? -1 : t.v) : 0)) }),
+    state: () => ({ score: G.score, peak: G.peak, over: G.over, n: G.n, mania: G.mania, steps: G.steps, cells: G.cells.map((t) => (t ? (t.rot ? -1 : t.v) : 0)) }),
     // 换皮：skin('creation'|'awakener') 摇一批，skin('chain') 还原；返回 Promise
     skin: (k) => (k === 'chain' ? (applyChain(true), Promise.resolve({ k: 'chain' })) : shuffleSkin(k, true)),
     skinState: () => ({ k: SKIN.k, a: SKIN.a.slice(), names: LEVELS.map((_, i) => nameOf(i)) }),
     kinds: () => (KINDS ? Object.keys(KINDS).map((k) => ({ k, n: KINDS[k].n, pool: KINDS[k].pool.length })) : null),
+    swipe: SWIPE,
+    dirOf: (dx, dy, min, ratio) => dirOf(dx, dy, min, ratio),
+    floats: () => [...floatBox.querySelectorAll('.float')].map((d) => d.textContent),
+    hist: () => G.hist.length,
   };
 }

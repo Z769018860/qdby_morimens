@@ -99,7 +99,7 @@ body{
   background:
     linear-gradient(180deg, color-mix(in oklab, var(--panel2) 70%, transparent), var(--panel));
   box-shadow:inset 0 1px 0 color-mix(in srgb, #fff 6%, transparent), 0 20px 50px -30px #000;
-  touch-action:none; overflow:hidden;
+  touch-action:none;
 }
 .cells{position:absolute; inset:0; display:grid; padding:var(--gap); gap:var(--gap);
   grid-template-columns:repeat(var(--n), minmax(0, 1fr));
@@ -107,9 +107,30 @@ body{
 .cell{border-radius:11px; background:color-mix(in oklab, var(--line) 26%, transparent);
   box-shadow:inset 0 0 0 1px color-mix(in srgb, #000 16%, transparent)}
 .tiles{position:absolute; inset:0; pointer-events:none}
+/* 浮字：合并时从那一格飞出来的 +N。单独一层，和滑块的位移动画互不干扰 */
+.floats{position:absolute; inset:0; pointer-events:none; z-index:4}
+.float{
+  position:absolute; transform:translate(-50%,-50%);
+  font-size:13.5px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-.01em;
+  color:var(--gold);
+  -webkit-text-stroke:2.6px rgba(6,9,14,.72); paint-order:stroke fill;
+  text-shadow:0 2px 8px rgba(0,0,0,.55);
+  animation:floatup .68s cubic-bezier(.22,.78,.3,1) both;
+}
+@media (prefers-color-scheme: light){
+  .float{color:#7d5600; -webkit-text-stroke:2.6px rgba(255,255,255,.85);
+    text-shadow:0 1px 5px rgba(255,255,255,.7)}
+}
+@keyframes floatup{
+  0%{opacity:0; transform:translate(-50%,-50%) scale(.72)}
+  14%{opacity:1; transform:translate(-50%, calc(-50% - var(--rise, 30px) * .22)) scale(1.06)}
+  70%{opacity:1; transform:translate(-50%, calc(-50% - var(--rise, 30px) * .78)) scale(1)}
+  100%{opacity:0; transform:translate(-50%, calc(-50% - var(--rise, 30px))) scale(.96)}
+}
 
 .tile{position:absolute; top:0; left:0; will-change:transform;
-  transition:transform .1s cubic-bezier(.32,.72,.36,1)}
+  /* 起手快、收尾软：一格约 90ms 走完，连划的时候不会「追着动画跑」 */
+  transition:transform .1s cubic-bezier(.24,.78,.3,1)}
 .face{
   position:relative; width:100%; height:100%; border-radius:11px; overflow:hidden;
   display:grid; place-items:center;
@@ -194,12 +215,23 @@ body{
 @keyframes born{from{transform:scale(.45); opacity:.2}to{transform:scale(1); opacity:1}}
 .face.pop{animation:pop .18s ease-out}
 @keyframes pop{0%{transform:scale(1)}42%{transform:scale(1.13)}100%{transform:scale(1)}}
+/* 合到 128 往上弹得更狠一点：这些块一局也见不到几次，值得多看一眼 */
+.face.pop2{animation:pop2 .26s cubic-bezier(.2,.9,.3,1.12)}
+@keyframes pop2{0%{transform:scale(1)}32%{transform:scale(1.2)}66%{transform:scale(.975)}100%{transform:scale(1)}}
 .board.shake{animation:shake .18s ease-in-out}
 @keyframes shake{0%,100%{transform:translate(0,0)}25%{transform:translate(-3px,0)}75%{transform:translate(3px,0)}}
+/* 系统里开了「减少动态效果」就别抖别弹：位移动画关掉，浮字直接不出现 */
+@media (prefers-reduced-motion: reduce){
+  .tile{transition:none}
+  .face.born,.face.pop,.face.pop2,.board.shake{animation:none}
+  .float{display:none}
+  .over,.sheet{animation:none}
+}
 
 /* ---------------------------------------------------------------- 结算遮罩 */
 .over{
-  position:absolute; inset:0; z-index:5; display:flex; flex-direction:column;
+  position:absolute; inset:0; z-index:5; border-radius:18px; overflow:hidden;
+  display:flex; flex-direction:column;
   align-items:center; justify-content:center; gap:6px; text-align:center; padding:20px;
   background:color-mix(in srgb, var(--bg) 82%, transparent);
   backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
@@ -350,6 +382,7 @@ body{
     <div class="board" id="board" style="--n:4; --gap:7px">
       <div class="cells" id="cells"></div>
       <div class="tiles" id="tiles"></div>
+      <div class="floats" id="floats" aria-hidden="true"></div>
       <div class="over" id="over" hidden>
         <p class="k" id="ovk">这段记忆散了</p>
         <p class="big"><b id="ovs">0</b><span>显影</span></p>
@@ -371,7 +404,7 @@ body{
       <button class="btn" type="button" id="forget" disabled title="狂气满了可以忘却：清掉场上最小的两块，给新块腾地方">忘却</button>
       <button class="btn" type="button" id="undo" title="退回上一步（每局 5 次）">回溯 <b id="undon">5</b></button>
     </div>
-    <p class="hint" id="hint">方向键 / WASD 移动，手机直接滑动</p>
+    <p class="hint" id="hint">方向键 / WASD · 手机滑动（按住不松可以连着划）</p>
   </div>
 </div>
 
