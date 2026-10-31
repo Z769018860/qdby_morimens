@@ -152,7 +152,7 @@ export class BattleView {
     // 域规（90 关之后）：本关生效的规则 + 对策提示——自动战斗里玩家没法临场应对，所以得在这里提前写明，让人换阵容
     const ruleNote = (st) => {
       const rs = domainRules(st);
-      return rs.length ? `<div class="farmx rule">🜂 域规：${rs.map((k) => `<b>${DOMAINS[k].zh}</b>（${DOMAINS[k].d}）`).join('；')}<br><small>对策：${rs.map((k) => DOMAINS[k].hint).join('；')}</small></div>` : '';
+      return rs.length ? `<div class="farmx rule">🜂 域规：${rs.map((k) => `<b>${DOMAINS[k].zh}</b>：${DOMAINS[k].d}`).join('；')}<br><small>对策：${rs.map((k) => DOMAINS[k].hint).join('；')}</small></div>` : '';
     };
     // 校猫奖励关：每 40 关一次，提示一下，别让人以为只是普通 Boss
     const catNote = (st) => (stageInfo(st)?.reward ? `<div class="farmx cat">🐈 第 ${st} 关是「校猫」奖励关：打赢额外掉召唤券 5 + 银芯 60 + 装备，首杀翻倍；非首杀的额外奖励每天限 3 次（校猫身后还站着关卡设计师米酒：他不抢奖励，只往场上补怪、把难度上调一档）</div>` : '');
