@@ -453,6 +453,11 @@ def finish_kw(kind, e, texts):
     ks = set()
     for t in texts:
         ks.update(I.slugs_in(t))
+    if kind == 'awakener':
+        # 界域关键词（混沌 / 血肉 / 深海 / 超维）在唤醒体身上表示「属于这个界域」，不是「技能文本里提到过」。
+        # 卡拉布（血肉）的技能提到「混沌」，以前就被挂上 chaos，选卡器里按「混沌」筛会把她也筛出来。
+        own = REALM_SLUG.get(e.get('realm'))
+        ks -= {v for v in REALM_SLUG.values() if v != own}
     if REALM_SLUG.get(e.get('realm')):
         ks.add(REALM_SLUG[e['realm']])
     e['kw'] = sorted(ks)

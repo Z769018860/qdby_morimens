@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """把战报侦探所有题目的「区域首领」对齐到 qdby_chinese 的融灾地图总览。
 
-权威来源：qdby_chinese 仓库 data/morimens/dzone-info/map-<期>.json 里每个禁区（wave）的 Boss 战
+权威来源：官方战斗回放里 monsterDataList 实际出场的首领（scripts 里 decodeReplay 可读），
+其次是 qdby_chinese 仓库 data/morimens/dzone-info/map-<期>.json 里每个禁区（wave）的 Boss 战
 （encounters 里 t == 'Boss' 的 m[].tid）。禁区序号 = wave 序号 = 题目里的 zone。
-数据变过就改下面的 BOSS 表再跑一遍：
+注意：map-72.json（本地客户端表）的 72 期首领与开服首日的回放不一致（表里是 149106 / 49592 / 14064），
+以回放为准；--source 检查 72 期会因此报不一致，属已知。数据变过就改下面的 BOSS 表再跑一遍：
 
     python3 scripts/fix_boss_map.py          # 改写 data/puzzles*.json 和 data/bank/c*.json
     python3 scripts/fix_boss_map.py --check  # 只检查，有不一致就退出码 1（CI / 回归用）
@@ -25,7 +27,7 @@ BOSS = {
     (72, 2): ['14064'],                     # 「复仇巨刃」
     (72, 3): ['60096'],                     # 「@2奏者」
     (72, 4): ['120308', '120310', '120306'],  # 秽血鱼王 / 腐溃鱼王 / 恶咒鱼王
-    (72, 5): ['14086'],                     # 宁菲亚
+    (72, 5): ['14039'],                     # 「睡莲」（官方回放里实际出场的是 14039；14086「宁菲亚」是同一立绘的另一个怪物条目，回放里没有它）
 }
 
 FILES = ['data/puzzles.json', 'data/puzzles-extra.json', 'data/puzzles-more.json'] + sorted(
