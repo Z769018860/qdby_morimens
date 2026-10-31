@@ -11,10 +11,15 @@
 // 预缓存不放在 install 里：那会让「装上」这个动作被 400KB 的下载拖住，
 // 期间页面还不受控。这里改成 activate 之后在后台慢慢填——当前页先受控，
 // 等它填完，之后切页就都是本地读取了。
-const VERSION = 'b71eb3f009';
+const VERSION = '001eea0614';
 const CACHE = 'zjtt-' + VERSION;
 // 用户主动「下载离线包」写进这里：独立命名、activate 时不清理，重装浏览器才没
 const OFFLINE = 'zjtt-offline-v1';
+// 图片单独一份、版本号固定：发版不清它（图片文件名基本不变，每次发版重下几百张是纯浪费），
+// 跟本地存档一样「打开过一次就留在本机」。内容换了同名图时靠下面的「超过 7 天后台刷新」自愈。
+const IMG = 'zjtt-img-v1';
+const IMG_RE = /\.(?:webp|png|jpe?g|gif|svg|ico|avif|woff2?|ttf)$/i;
+const IMG_FRESH_MS = 7 * 864e5;
 const PRECACHE = [
   "index.html",
   "offline.html",
@@ -31,7 +36,21 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k !== CACHE && k !== OFFLINE).map((k) => caches.delete(k)));
+    // 老版本的缓存删掉之前，先把里面的图片搬进持久图片缓存，免得升级后全部重下
+    try {
+      const img = await caches.open(IMG);
+      for (const k of keys.filter((k) => k.startsWith('zjtt-') && k !== CACHE && k !== OFFLINE && k !== IMG && !k.startsWith('zjtt-img'))) {
+        const old = await caches.open(k);
+        for (const rq of await old.keys()) {
+          if (!IMG_RE.test(new URL(rq.url).pathname)) continue;
+          const key = new URL(rq.url); const id = key.origin + key.pathname;
+          if (await img.match(id)) continue;
+          const r = await old.match(rq);
+          if (r && r.ok) await img.put(id, stamp(r));
+        }
+      }
+    } catch (e) { /* 搬不过去就算了，用到时再下 */ }
+    await Promise.all(keys.filter((k) => k !== CACHE && k !== OFFLINE && k !== IMG).map((k) => caches.delete(k)));
     await self.clients.claim();
     // 后台把各页面的 HTML 与打包脚本填进缓存，失败不影响已经能用的部分
     const cache = await caches.open(CACHE);
@@ -71,6 +90,35 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(route(req, event, url));
 });
 
+// 给响应打上入缓存时间（自定义头），之后才知道这张图放了多久
+function stamp(res) {
+  const h = new Headers(res.headers);
+  h.set('x-cached-at', String(Date.now()));
+  return res.blob().then((b) => new Response(b, { status: 200, statusText: 'OK', headers: h }));
+}
+
+// 图片：缓存优先，永不过期地留在本机；超过 7 天的在后台悄悄刷新一次（不拖慢当前这次显示）
+async function imageFirst(req, event, url) {
+  const key = url.origin + url.pathname;
+  let cache;
+  try { cache = await caches.open(IMG); } catch (e) { return fetch(req); }
+  const hit = await cache.match(key);
+  const refresh = () => fetch(url.href, { cache: 'reload' }).then(async (res) => {
+    if (res && res.status === 200) await cache.put(key, await stamp(res));
+  }).catch(() => {});
+  if (hit) {
+    const at = Number(hit.headers.get('x-cached-at')) || 0;
+    if (Date.now() - at > IMG_FRESH_MS) event.waitUntil(refresh());
+    return hit;
+  }
+  const res = await fetch(req);
+  if (res && res.status === 200 && !req.headers.has('range')) {
+    const copy = res.clone();
+    event.waitUntil(stamp(copy).then((s) => cache.put(key, s)).catch(() => {}));
+  }
+  return res;
+}
+
 async function route(req, event, url) {
   // offline.html 自己永远走网络（它要拿最新的清单和逻辑），其余一律先看离线包
   if (!/\/offline\.html$/i.test(url.pathname)) {
@@ -84,6 +132,7 @@ async function route(req, event, url) {
     if (isSub(url.pathname)) return networkFirst(req, event);
     return navigate(req, event);
   }
+  if (IMG_RE.test(url.pathname)) return imageFirst(req, event, url);
   if (STATIC_RE.test(url.pathname)) {
     // 子项目的脚本 / 数据文件名不带指纹，缓存优先会让老访客一直卡在旧版本
     // （旧数据里的钥令在本地已经删掉，图标就只剩一个问号）。所以它跟页面一样走网络优先。

@@ -616,6 +616,8 @@ const swReg = `<script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('sw.js').catch(function () {});
+    /* 申请「持久存储」：图片缓存跟本地存档一样不被浏览器随手清掉 */
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
   });
 }
 </script>`;

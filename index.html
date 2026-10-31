@@ -430,7 +430,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
   .links{grid-template-columns:1fr 1fr}
 }
 </style>
-<meta name="build" content="b71eb3f009">
+<meta name="build" content="001eea0614">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1823,6 +1823,8 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('sw.js').catch(function () {});
+    /* 申请「持久存储」：图片缓存跟本地存档一样不被浏览器随手清掉 */
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
   });
 }
 </script>

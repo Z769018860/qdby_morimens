@@ -16,5 +16,14 @@
   <form id="line" autocomplete="off"><label id="prompt" for="in"></label><input id="in" type="text" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="send" autofocus></form>
 </div>
 <script type="module" src="js/ui.js"></script>
+<script>
+/* 图片缓存：与主站共用根目录的 Service Worker（图片缓存优先，打开过一次就留在本机） */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('../sw.js').catch(function () {});
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  });
+}
+</script>
 </body>
 </html>
