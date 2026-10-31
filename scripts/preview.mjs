@@ -113,11 +113,15 @@ for (const name of pages) {
   listeners.push(onEvt);
 
   // PREVIEW_SCHEME=dark|light 可强制配色方案（headless Edge 默认 light，暗色主题会被隐藏）
+  const media = [];
   if (process.env.PREVIEW_SCHEME) {
-    await send('Emulation.setEmulatedMedia', {
-      features: [{ name: 'prefers-color-scheme', value: process.env.PREVIEW_SCHEME }],
-    }, sessionId);
+    media.push({ name: 'prefers-color-scheme', value: process.env.PREVIEW_SCHEME });
   }
+  // PREVIEW_REDUCE=1：模拟系统里的「减少动态效果」，用来验动画开关是否真的生效
+  if (process.env.PREVIEW_REDUCE) {
+    media.push({ name: 'prefers-reduced-motion', value: process.env.PREVIEW_REDUCE === '1' ? 'reduce' : 'no-preference' });
+  }
+  if (media.length) await send('Emulation.setEmulatedMedia', { features: media }, sessionId);
   // PREVIEW_VIEWPORT=390x844：按手机逻辑视口截图。headless 的 --window-size 会被「最小窗口宽度」
   // 卡住（传 320 量出来还是 492），窄屏布局只能靠 CDP 覆盖尺寸才测得准。
   // 默认按二倍屏出图，PREVIEW_DPR=1 可以改回来。
