@@ -149,13 +149,13 @@ function renderHome() {
   const decks = DECKS.map((d) => {
     const bonds = E.evalBonds(deckList(d));
     const total = d.cards.reduce((s, p) => s + p[1], 0);
-    return `<button class="deck ${d.id === S.deckId ? 'on' : ''}" data-deck="${d.id}" style="--rc:${
+    return `<div class="dwrap"><button class="deck ${d.id === S.deckId ? 'on' : ''}" data-deck="${d.id}" style="--rc:${
       (E.REALM[d.r] || E.REALM.any).c}">
       <div class="dh"><b>${d.n}</b><span class="rm">${(E.REALM[d.r] || E.REALM.any).n}</span></div>
       <div class="ds">${d.desc}</div>
       <div class="db">${bonds.map((b) => `<span class="bond">${b.n}</span>`).join('') || '<span class="bond" style="opacity:.5">无羁绊</span>'}</div>
       <div class="dm">主卡组 ${total} 张 · 额外 ${d.extra.length} 张 · 羁绊 ${bonds.length} 条</div>
-    </button>`;
+    </button><button class="btn sm ghost dview" data-deckview="${d.id}">查看卡组内容</button></div>`;
   }).join('');
 
   const sel = deckById(S.deckId);
@@ -174,6 +174,9 @@ function renderHome() {
 
     <div class="sec-h"><h2>选一套卡组</h2><span class="r">共 ${DECKS.length} 套 · 每套 30 张 + 觉醒体</span></div>
     <div class="decks">${decks}</div>
+
+    <div class="row" style="margin-top:8px"><button class="btn sm" data-deckview="${sel.id}">查看「${sel.n}」的 ${sel.cards.reduce((a, p) => a + p[1], 0)} 张卡与觉醒体</button></div>
+    ${sel.tips ? `<p class="note" style="margin:8px 0 0"><b style="color:var(--gold2)">打法提示</b>：${sel.tips}</p>` : ''}
 
     <div class="sec-h"><h2>这套牌的羁绊</h2><span class="r">${bonds.length} 条已触发</span></div>
     <div class="row" style="gap:6px">${bonds.map((b) => `<span class="bond" title="${b.text}">${b.n}</span>`).join('') || '<span class="note">这套牌凑不出羁绊——它只是三十张牌。</span>'}</div>
@@ -472,11 +475,23 @@ function showResult(v) {
   `);
 }
 
-function openModal(html) {
-  $('#modal').innerHTML = html;
+// 弹窗可以叠一层：卡池 / 拆包 / 卡组列表里点一张牌看详情，详情里点「返回」回到刚才那一屏
+function openModal(html, push) {
+  const m = $('#modal');
+  if (push && $('#mask').classList.contains('on') && m.innerHTML) { (S.mstack || (S.mstack = [])).push(m.innerHTML); m.dataset.depth = S.mstack.length; }
+  else { S.mstack = []; m.dataset.depth = 0; }
+  m.innerHTML = html;
+  m.scrollTop = 0;
   $('#mask').classList.add('on');
 }
+function backModal() {
+  const prev = S.mstack && S.mstack.pop();
+  if (prev == null) return closeModal();
+  $('#modal').innerHTML = prev;
+  $('#modal').dataset.depth = S.mstack.length;
+}
 function closeModal() {
+  S.mstack = [];
   $('#mask').classList.remove('on');
   $('#modal').innerHTML = '';
 }
@@ -846,11 +861,7 @@ function renderPacks() {
         <button class="btn sm pri" data-buy="${pk.id}" ${dis}>${packBtnLabel()}</button>
       </div>
       <div class="note" style="font-size:10px;margin-top:-2px">${rarTxt}</div>
-      <button class="btn sm ghost" data-toggle="${pk.id}" style="align-self:flex-start">看这包里有什么</button>
-      <div class="plist">${pk.cards.map((id) => {
-        const c = CARDS[id];
-        return `<span style="color:var(--dim)">${c.n}<span style="color:var(--dim2)">（${c.rar}）</span></span>`;
-      }).join('、')}</div>
+      <button class="btn sm" data-pool="${pk.id}" style="align-self:flex-start">查看卡池 · 每张效果</button>
     </div>`;
   }).join('');
 
@@ -874,6 +885,9 @@ function buyPack(packId) {
   if (pay.kind === 'silver') S.save.silver -= pay.price;
   S.save.opened++;
   const ids = drawFromPack(pk);
+  const isNew = {};
+  for (const id of ids) if (id && !S.save.coll[id]) isNew[id] = true;
+  const newN = Object.keys(isNew).length;
   for (const id of ids) if (id) S.save.coll[id] = (S.save.coll[id] || 0) + 1;
   saveSave(S.save);
   silverBar();
@@ -884,7 +898,8 @@ function buyPack(packId) {
   openModal(`<div class="mtitle"><h3>${pk.n}</h3><span class="note">${pk.sub}</span>
     <button class="btn sm ghost x" data-modal="close">关闭</button></div>
     <p class="sub">第 ${S.save.opened} 包 · ${payTxt}</p>
-    <div class="pull">${cards.map((c) => `<div>${cardHTML(c, {})}<div class="rar" style="color:var(--rc)">${c.rar}</div></div>`).join('')}</div>
+    <p class="note" style="margin:0 0 4px">${newN ? `本次新收录 ${newN} 种。` : '这五张都已收录过。'}点任意一张看详细效果。</p>
+    <div class="pull">${cards.map((c) => `<div class="pc" data-read="${c.id}">${cardHTML(c, { tag: isNew[c.id] ? 'NEW' : '' })}<div class="rar" style="color:var(--rc)">${c.rar}${isNew[c.id] ? '' : ` · ×${S.save.coll[c.id]}`}</div></div>`).join('')}</div>
     <div class="mb"><button class="btn ghost" data-modal="close">收下</button>
       <button class="btn pri" data-buy2="${pk.id}">再开一包</button></div>`);
 }
@@ -910,7 +925,7 @@ function renderCodex() {
       ${realms.map(([r, n]) => `<button class="chip ${S.codex.r === r ? 'on' : ''}" data-cr="${r}" data-r="${r}">${n}</button>`).join('')}
     </div>
     <div class="grid-cards">
-      ${list.map((c) => `<div>${cardHTML(c, {})}<div style="text-align:center;font-size:9px;color:var(--dim2);margin-top:2px">${c.rar}</div></div>`).join('')}
+      ${list.map((c) => `<div>${cardHTML(c, {})}<div style="text-align:center;font-size:9px;color:var(--dim2);margin-top:2px">${c.rar}${(S.save.coll || {})[c.id] ? ` · ×${S.save.coll[c.id]}` : ' · 未收录'}</div></div>`).join('')}
     </div>
     <p class="note" style="margin-top:12px">点一张看完整效果。</p>
   `;
@@ -964,22 +979,87 @@ function showHowTo() {
     <div class="mb"><button class="btn pri" data-modal="close">知道了</button></div>`);
 }
 
-function readCard(id) {
+const RAR_COL = { N: 'N 普通', R: 'R 稀有', SR: 'SR 超稀', UR: 'UR 极稀', GR: 'GR 传说' };
+const ROLL_TXT = 'N 45% · R 35% · SR 16% · UR 3% · GR 1%；第一张保底 SR 以上';
+
+function lineCard(id, n, own) {
+  const c = CARDS[id];
+  if (!c) return '';
+  const st = c.k === 'M' || c.k === 'E' ? `${c.atk}/${c.def}` : ({ normal: '通常', quick: '速攻', equip: '装备', cont: '永续', counter: '反击' }[c.t] || '');
+  const have = (S.save.coll || {})[id];
+  return `<div class="lc" data-read="${id}" data-rar="${c.rar}" style="--rc:${(E.REALM[c.r] || E.REALM.any).c}">
+    <div class="lh"><b>${c.n}</b>${n > 1 ? `<i>×${n}</i>` : ''}<span class="lr">${c.rar}</span>${own && have === undefined ? '<span class="lo">未收录</span>' : ''}</div>
+    <div class="ls">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}${c.lv ? ` · Lv${c.lv}` : ''} · ${st}</div>
+    <div class="lt">${c.text}</div></div>`;
+}
+
+function showPackPool(packId) {
+  const pk = PACKS.find((p) => p.id === packId);
+  if (!pk) return;
+  const have = pk.cards.filter((id) => S.save.coll[id]).length;
+  const groups = RAR_ORDER.slice().reverse().filter((r) => pk.cards.some((id) => CARDS[id] && CARDS[id].rar === r)).map((r) => {
+    const ids = pk.cards.filter((id) => CARDS[id] && CARDS[id].rar === r);
+    return `<h4 class="gh">${RAR_COL[r] || r} · ${ids.length} 种</h4><div class="lcs">${ids.map((id) => lineCard(id, 1, true)).join('')}</div>`;
+  }).join('');
+  openModal(`<div class="mtitle"><h3>${pk.n} · 卡池</h3><button class="btn sm ghost x" data-modal="close">关闭</button></div>
+    <p class="sub">${pk.cards.length} 种，已收录 ${have} 种。${ROLL_TXT}。点任意一张看大图。</p>${groups}
+    <div class="mb"><button class="btn ghost" data-modal="close">关闭</button>
+      <button class="btn pri" data-buy2="${pk.id}">开一包</button></div>`);
+}
+
+function showDeck(deckId) {
+  const d = deckById(deckId);
+  const bonds = E.evalBonds(deckList(d));
+  const total = d.cards.reduce((s, p) => s + p[1], 0);
+  const kinds = [['M', '怪兽'], ['S', '魔法'], ['T', '陷阱']];
+  const grp = kinds.map(([k, n]) => {
+    const rows = d.cards.filter((p) => CARDS[p[0]] && CARDS[p[0]].k === k);
+    if (!rows.length) return '';
+    const cnt = rows.reduce((s, p) => s + p[1], 0);
+    return `<h4 class="gh">${n} · ${cnt} 张</h4><div class="lcs">${rows.map((p) => lineCard(p[0], p[1])).join('')}</div>`;
+  }).join('');
+  const ex = d.extra.length ? `<h4 class="gh">觉醒体（额外卡组）· ${d.extra.length} 张</h4><div class="lcs">${d.extra.map((id) => lineCard(id, 1)
+    + (CARDS[id] && CARDS[id].mat ? `<div class="lm">素材：${CARDS[id].mat.join(' ＋ ')}</div>` : '')).join('')}</div>` : '';
+  openModal(`<div class="mtitle"><h3>${d.n}</h3><button class="btn sm ghost x" data-modal="close">关闭</button></div>
+    <p class="sub">${(E.REALM[d.r] || E.REALM.any).n} · 主卡组 ${total} 张 · 点任意一张看详细效果</p>
+    <p class="note" style="margin:0 0 8px">${d.desc}</p>
+    ${bonds.length ? `<h4 class="gh">羁绊</h4><ul class="tips">${bonds.map((b) => `<li><b style="color:var(--gold2)">${b.n}</b>：${b.text}</li>`).join('')}</ul>` : ''}
+    ${(d.combo || []).length ? `<h4 class="gh">连动</h4><ul class="tips">${d.combo.map((t) => `<li>${t}</li>`).join('')}</ul>` : ''}
+    ${d.tips ? `<h4 class="gh">打法提示</h4><p class="note">${d.tips}</p>` : ''}
+    ${grp}${ex}
+    <div class="mb"><button class="btn ghost" data-modal="close">关闭</button>
+      <button class="btn pri" data-deck-use="${d.id}">用这套卡组</button></div>`);
+}
+
+function readCard(id, push) {
   const c = CARDS[id];
   if (!c) return;
   const extra = c.k === 'E' ? `<p class="note">素材：${c.mat ? c.mat.join(' ＋ ') : '自己场上 2 只界域不同的怪兽'}</p>` : '';
-  openModal(`<div class="mtitle"><h3>${c.n}</h3><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r} · ${c.rar}</span>
-    <button class="btn sm ghost x" data-modal="close">关闭</button></div>
+  const have = (S.save.coll || {})[id] || 0;
+  const canBack = push && S.mstack && S.mstack.length >= 0 && $('#mask').classList.contains('on') && $('#modal').innerHTML;
+  openModal(`<div class="mtitle"><h3>${c.n}</h3><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r} · ${c.rar} · ${have ? `已收录 ×${have}` : '未收录'}</span>
+    ${canBack ? '<button class="btn sm ghost x" data-modal="back">← 返回</button>' : ''}
+    <button class="btn sm ghost ${canBack ? '' : 'x'}" data-modal="close">关闭</button></div>
+    <div class="readface">${cardHTML(c, {})}</div>
     <p class="sub">${c.k === 'M' || c.k === 'E' ? `${c.atk} / ${c.def} · 等级 ${c.lv}` : ({ normal: '通常', quick: '速攻', equip: '装备', cont: '永续', counter: '反击' }[c.t] || '')}</p>
     ${extra}
-    <p class="note" style="font-size:13px;line-height:1.9">${c.text}</p>`);
+    <p class="note" style="font-size:13px;line-height:1.9">${c.text}</p>`, push);
 }
 
 // ------------------------------------------------------------------ 事件
 function bind() {
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#mask').classList.contains('on')) closeModal(); });
   document.addEventListener('click', (e) => {
+    const rd = e.target.closest('[data-read]');
+    if (rd) { readCard(rd.dataset.read, true); return; }
     const gc = e.target.closest('.grid-cards .card');
     if (gc && gc.dataset.id) { readCard(gc.dataset.id); return; }
+    const dv = e.target.closest('[data-deckview]');
+    if (dv) { e.stopPropagation(); showDeck(dv.dataset.deckview); return; }
+    const du = e.target.closest('[data-deck-use]');
+    if (du) { S.deckId = du.dataset.deckUse; S.save.deck = S.deckId; saveSave(S.save); closeModal(); renderHome(); toast('已选用这套卡组'); return; }
+    const pl = e.target.closest('[data-pool]');
+    if (pl) { showPackPool(pl.dataset.pool); return; }
     const t = e.target.closest('[data-act],[data-deck],[data-buy],[data-buy2],[data-toggle],[data-modal],[data-awaken],[data-ck],[data-cr],[data-d]');
     if (!t) {
       // 点空白处收起操作条
@@ -1004,6 +1084,7 @@ function bind() {
     if (t.dataset.modal) {
       const a = t.dataset.modal;
       if (a === 'close') closeModal();
+      if (a === 'back') backModal();
       if (a === 'home') { closeModal(); dropRoom(true); show('home'); }
       if (a === 'again') { closeModal(); startDuel(); }
       return;

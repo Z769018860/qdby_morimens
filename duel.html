@@ -351,6 +351,25 @@ body{
 .pack.open .plist{max-height:240px; overflow:auto}
 
 /* 拆包：每张牌放大，名字允许写两行，一眼就能看清抽到了什么 */
+
+.dwrap{display:flex; flex-direction:column; gap:4px}
+.dwrap .deck{flex:1}
+.dwrap .dview{align-self:stretch}
+.readface{display:flex; justify-content:center; margin:6px 0 8px}
+.readface .card{--cw:132px; --ch:190px}
+.gh{margin:14px 0 6px; font-size:12px; letter-spacing:.12em; color:var(--gold2); border-bottom:1px solid var(--line); padding-bottom:3px}
+.lcs{display:grid; gap:6px}
+.lc{border:1px solid var(--line); border-left:3px solid var(--rc,var(--line)); border-radius:8px; padding:6px 9px; background:var(--panel); cursor:pointer}
+.lc:hover{background:var(--panel2)}
+.lc .lh{display:flex; align-items:center; gap:6px; font-size:13.5px}
+.lc .lh i{font-style:normal; color:var(--gold2); font-size:12px}
+.lc .lr{margin-left:auto; font-size:10px; color:var(--dim2); border:1px solid var(--line); border-radius:5px; padding:0 5px}
+.lc .lo{font-size:10px; color:var(--dim2)}
+.lc .ls{font-size:10.5px; color:var(--dim2); margin:1px 0 3px}
+.lc .lt{font-size:12px; color:var(--dim); line-height:1.65}
+.lm{font-size:10.5px; color:var(--dim2); margin:-3px 0 2px 10px}
+.pull .pc{cursor:pointer; position:relative}
+.pull .tagp{background:var(--gold2,#c9a24a); color:#111; font-weight:700; font-size:10px; padding:1px 5px; border-radius:4px}
 .pull{display:grid; grid-template-columns:repeat(auto-fit,minmax(104px,1fr)); gap:10px; margin:8px 0}
 .pull .card{--cw:100%; --ch:178px; width:100%}
 .pull .card .ct{min-height:46px; padding:3px 5px 4px}
@@ -446,7 +465,7 @@ body{
   .pinfo .meta{font-size:10px}
 }
 </style>
-<meta name="build" content="6421236c7e">
+<meta name="build" content="b52cd0adcf">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -475,7 +494,7 @@ body{
 <div class="actbar" id="actbar"></div>
 <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
 
-<script type="module" src="js/b/duel.js?v=6421236c7e"></script>
+<script type="module" src="js/b/duel.js?v=b52cd0adcf"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
