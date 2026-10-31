@@ -23,27 +23,33 @@ export function gainFor(opt) {
   return WIN_BASE[diff] + tier * 10 + Math.min(streak, 5) * 8;
 }
 
-// 人机档位：难度决定起点，段位往上抬档。九段 + 认真 = 顶格。
+// 人机档位：十档，两个旋钮沿一条对角线往上走。
 //
-// 命轮值（血量）两边永远是 8000，抬高段位**不靠加血**。难度只来自两件事：
+// 命轮值（血量）两边永远是 8000，抬高段位**不靠加血**，也不给对手多抽牌。难度只来自两件事：
 //   · sloppy —— 对手「打错牌」的概率：该召唤不召唤、随手上一只小的、把该盖的怪
 //               摊在攻击表示上、有好目标却拿最弱的去撞最硬的（见 ai.js 的 nextAction）；
-//   · pool   —— 挑对手牌组的偏袒程度：0 均匀抽，0.55 时明显偏向「克你这套」的预组。
-// 八个档位。为什么是八档：难度分轻/普/认三档，起点分别在 1 / 3 / 5，
-// 九段里每档最多抬 3~5 级，所以最高档要留到 8 才铺得开。
+//   · pool   —— 挑对手牌组的偏袒程度：0 抽「打你这套偏吃力」的，1 抽「打你这套最顺手」的。
 //
-// sloppy 是主旋钮：对手越会打，玩家胜率从七成多一路掉到四成（d1 vs d2 实测
-// 0→0.8 对应 65%→20%）。pool 只当配菜——段位高了顺便挑一套克你的预组，
-// 但幅度压在 0.55 以内，免得难度变成「看谁牌组相克」。
+// **这张表是量出来的，不是拍的**：`scripts/duel-ladder.mjs` 让 22 套预组各自跟着这条
+// 路走一遍（每档每套 40~80 局，玩家一侧用不犯错的 AI 代打），量到下面的玩家胜率。
+// 旧表 8 档的问题正是「没量过」——sloppy 从 0.18 压到 0 边际几乎为零，实测 Lv6/7/8 全是
+// 50%，最难的「命轮本身」反而比前一档好打（+1.5pp）。现在十档实测 91/88/82/79/73/66/63/55/52/46（两组种子基数各 40×22 局的均值）。
+//
+// `pool` 不是「均匀→只挑最克」，而是**有界分位段**（见下面的 foeBand）：
+// 段宽固定 44 个百分位，中心随 pool 从「偏弱」走到「偏强」，且**死克你的牌组直接不进池**
+// （FOE_CAP）。上一版用指数加权，高段位几乎必抽到 89% 胜率的那套，玩家拿着 d22 只有 5% 胜率——
+// 那不是难，是没得打。
 export const AI_LV = [
-  { n: '心不在焉', sloppy: 0.72, pool: 0.00 },
-  { n: '照本宣科', sloppy: 0.62, pool: 0.06 },
-  { n: '有来有回', sloppy: 0.52, pool: 0.14 },
-  { n: '初窥门径', sloppy: 0.42, pool: 0.22 },
-  { n: '老练', sloppy: 0.30, pool: 0.30 },
-  { n: '锋利', sloppy: 0.18, pool: 0.38 },
-  { n: '步步紧逼', sloppy: 0.08, pool: 0.46 },
-  { n: '命轮本身', sloppy: 0, pool: 0.55 },
+  { n: '心不在焉', sloppy: 0.78, pool: 0.00, win: 91 },
+  { n: '照本宣科', sloppy: 0.71, pool: 0.06, win: 88 },
+  { n: '有来有回', sloppy: 0.62, pool: 0.16, win: 82 },
+  { n: '初窥门径', sloppy: 0.53, pool: 0.26, win: 79 },
+  { n: '老练', sloppy: 0.44, pool: 0.36, win: 73 },
+  { n: '锋利', sloppy: 0.35, pool: 0.46, win: 66 },
+  { n: '步步紧逼', sloppy: 0.26, pool: 0.58, win: 63 },
+  { n: '寸步不让', sloppy: 0.18, pool: 0.70, win: 55 },
+  { n: '命轮低语', sloppy: 0.09, pool: 0.84, win: 52 },
+  { n: '命轮本身', sloppy: 0.00, pool: 1.00, win: 46 },
 ];
 
 // 对位胜率表：COUNTER[对手牌组][你的牌组] = 对手赢的概率。
@@ -88,41 +94,94 @@ export function foeWinRate(foeId, myId) {
   return typeof v === 'number' ? v : 50;
 }
 
-// 挑一套对手牌组：pool=0 时九套里均匀抽（好打），pool=1 时几乎只挑最克你的那套。
+// 对手牌组怎么挑：**分位段**，不是加权抽。
 //
-// 最早试过「按强弱分三档各取三套」，问题是窗口只有几种取值，相邻档位会整批换对手，
-// 实测中段出现「升了一段反而更好打」的凸起。改成加权抽样：每套的权重按它对你这套的
-// 克制强度指数放大，pool 就是放大倍数。难度随段位连续上升，对手也不会总是那几套。
-// ids 传全部预组 id，返回一个 id。
-export function foePick(pool, myId, ids) {
-  const list = (ids || []).filter((id) => id !== myId);
-  if (!list.length) return null;
-  if (list.length === 1) return list[0];
+// 把除自己那套以外的预组按「它打你这套的胜率」从低到高排好，取一个固定宽度的窗口，
+// 窗口中心随 pool 从偏弱（32 分位）挪到偏强（90 分位），窗口内均匀抽。
+// 这么做的三个理由：
+//   1. 期望难度可算：窗口中心就是这一档「大约让对手多强」，不用猜权重；
+//   2. 同档方差小：加权抽会冷不丁甩给你 89% 胜率的那套（旧版 d22 玩家在顶档只有 5% 胜率）；
+//   3. 玩家看得懂：主页能把「这一档可能坐下来的牌组」原样列出来（foeBand 返回的就是那几套）。
+//
+// FOE_CAP：死克你的牌组不进池。它挡掉的正是「换一套牌就得跪」的对局，代价是顶档的
+// 天花板降到 47% 左右——宁可难，不要没法打。
+export const FOE_CAP = 72;
+const FOE_BAND = 44;      // 窗口宽度（百分位）
+const FOE_LO = 0.20;      // pool=0 时窗口中心（百分位）
+const FOE_HI = 0.92;      // pool=1 时窗口中心
+
+// 这一档对手可能用的牌组（按胜率升序）。ids 传全部预组 id。
+export function foeBand(pool, myId, ids) {
+  const list = (ids || []).filter((id) => id !== myId)
+    .map((id) => ({ id, wr: foeWinRate(id, myId) }))
+    .filter((x) => x.wr <= FOE_CAP)
+    .sort((a, b) => a.wr - b.wr);
+  if (!list.length) return [];
   const p = Math.max(0, Math.min(1, Number(pool) || 0));
-  const t = p * 1.5;                                   // 0 = 均匀，1.5 = 几乎只挑最克的
-  const ws = list.map((id) => Math.exp(t * (foeWinRate(id, myId) - 50) / 10));
-  const total = ws.reduce((a, b) => a + b, 0);
-  let r = Math.random() * total;
-  for (let i = 0; i < list.length; i++) {
-    r -= ws[i];
-    if (r <= 0) return list[i];
-  }
-  return list[list.length - 1];
+  const mid = FOE_LO + p * (FOE_HI - FOE_LO);
+  const lo = Math.max(0, mid - FOE_BAND / 200);
+  const hi = Math.min(1, mid + FOE_BAND / 200);
+  let seg = list.slice(Math.floor(lo * list.length), Math.max(1, Math.ceil(hi * list.length)));
+  if (!seg.length) seg = [list[list.length - 1]];
+  return seg.map((x) => x.id);
 }
 
-// 起点按难度：轻松 1 / 普通 3 / 认真 5；九段之内往上抬几档，三条线不一样：
-//   · 轻松只爬到第 4 档（「轻松」就该一直轻松，不该在顶段突然变凶）；
-//   · 普通 / 认真爬满五档，第 9 段都能碰到最顶的「命轮本身」。
-// 这样每条难度线自己的九段都是完整的一条难度曲线，而不是爬到一半就封顶。
-const CLIMB = { easy: 3, normal: 5, hard: 5 };
+// pool → 人话（窗口中心落在第几分位）。放在这里而不是 view：改窗口参数时文案要一起变。
+export function poolLabel(pool) {
+  const p = Math.max(0, Math.min(1, Number(pool) || 0));
+  const mid = (FOE_LO + p * (FOE_HI - FOE_LO)) * 100;
+  if (mid < 25) return '只挑打不过你的';
+  if (mid < 35) return '挑偏弱的';
+  if (mid < 45) return '挑略弱的';
+  if (mid < 55) return '挑势均力敌的';
+  if (mid < 65) return '挑偏克你的';
+  if (mid < 75) return '挑很克你的';
+  if (mid < 85) return '挑最克你的';
+  return '专挑死克你的';
+}
+
+// rnd 默认 Math.random，模拟脚本可以塞一个可复现的流。
+export function foePick(pool, myId, ids, rnd) {
+  const seg = foeBand(pool, myId, ids);
+  if (!seg.length) {
+    const other = (ids || []).filter((id) => id !== myId);
+    return other.length ? other[0] : null;
+  }
+  return seg[Math.floor((rnd || Math.random)() * seg.length)];
+}
+
+// 档位是**连续刻度**：1 ~ 10 之间可以取小数，参数在相邻两档之间线性插值。
+//
+// 为什么不是整数档：九段只有 9 格，整数十档无论如何都会出现「升了一段还是同一档」
+// （旧版「认真」从第 5 段起就一直是 Lv8，后五段完全一样）。改成连续刻度后，
+// 每升一段都真的强一点，档名只是给这条刻度挂的十个锚点。
+export function lvAt(x) {
+  const t = Math.max(1, Math.min(AI_LV.length, Number(x) || 1));
+  const i = Math.min(AI_LV.length - 1, Math.floor(t - 1));
+  const j = Math.min(AI_LV.length - 1, i + 1);
+  const f = t - 1 - i;
+  const a = AI_LV[i];
+  const b = AI_LV[j];
+  return {
+    lv: Math.round(t), x: t, n: f < 0.5 ? a.n : b.n,
+    sloppy: a.sloppy + (b.sloppy - a.sloppy) * f,
+    pool: a.pool + (b.pool - a.pool) * f,
+    max: AI_LV.length,
+  };
+}
+
+// 三条难度线各占一段刻度，都从「能赢」走到「要拼」：
+//   · 轻松 1 → 5.5：第 9 段也就 67% 左右，选轻松的人不该被逼着认真；
+//   · 普通 2 → 8  ；
+//   · 认真 4 → 10 ：第 1 段就 76%，顶段 47%。
+// 区间重叠是故意的——玩家可以在普通的顶段遇到「认真」开局那种强度，但名字和曲线还是分开的。
+const RANGE = { easy: [1, 5.5], normal: [2, 8], hard: [4, 10] };
 
 export function aiFor(diff, tierIdx) {
-  const key = CLIMB[diff] ? diff : 'normal';
-  const base = key === 'easy' ? 1 : key === 'hard' ? 5 : 3;
+  const key = RANGE[diff] ? diff : 'normal';
+  const [lo, hi] = RANGE[key];
   const t = Math.max(0, Math.min(TIERS.length - 1, Number(tierIdx) || 0));
-  const add = Math.round((t / (TIERS.length - 1)) * CLIMB[key]);
-  const lv = Math.max(1, Math.min(AI_LV.length, base + add));
-  const row = AI_LV[lv - 1];
-  return { lv, n: row.n, sloppy: row.sloppy, pool: row.pool, max: AI_LV.length };
+  const x = lo + (hi - lo) * (t / (TIERS.length - 1));
+  return lvAt(x);
 }
 

@@ -158,6 +158,14 @@ body{
   max-width:8.6em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .pinfo .dv{font-size:10px; color:var(--dim2); max-width:7.4em; overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap}
+/* 对手档位：哪一档、这一局它有多大比例的决策会打错。窄屏时它排在牌组名前面，
+   牌组名本来就有省略号，挤的是那一条，不会把血条压没。 */
+.pinfo .aih{
+  flex:0 0 auto; font-style:normal; font-size:10px; font-weight:700; white-space:nowrap;
+  color:var(--gold2); border:1px solid color-mix(in srgb, var(--gold) 34%, var(--line));
+  border-radius:6px; padding:0 4px; line-height:14px;
+}
+.pinfo .aih em{font-style:normal; font-weight:400; color:var(--dim); margin-left:3px}
 .pinfo .lp{
   flex:1 1 auto; height:16px; border-radius:8px; background:var(--panel3); overflow:hidden; position:relative;
   border:1px solid var(--line);
@@ -580,6 +588,42 @@ body{
   font-size:11.5px; font-weight:700; color:#0e1118; text-align:center; border-radius:8px; padding:4px 8px;
   background:linear-gradient(90deg, var(--gold), var(--gold2));
 }
+
+/* -------------------------------------------------- 人机档位（段位卡底部） */
+/* 这一块回答两个问题：这一档对手有多会打、它会拿哪些牌组。以前只在开局 toast 里露一句。 */
+.rankcard .ailv{display:flex; flex-direction:column; gap:6px; border-top:1px solid var(--line); padding-top:9px}
+.rankcard .ailv .arow{display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--dim); flex-wrap:wrap}
+.rankcard .ailv .ak{flex:0 0 auto; font-size:10.5px; letter-spacing:.08em; color:var(--dim2)}
+.rankcard .ailv .av{font-size:12.5px; font-weight:800; color:var(--text)}
+.rankcard .ailv .ax{margin-left:auto; font-size:11px; color:var(--dim); white-space:nowrap}
+.achips{display:flex; gap:4px; flex-wrap:wrap; flex:1 1 auto}
+.achips .foed{
+  font-style:normal; font-size:10.5px; padding:1px 6px; border-radius:6px; white-space:nowrap;
+  color:var(--dim); border:1px solid var(--line); background:var(--panel3);
+}
+.achips .foed.more{color:var(--gold2); border-color:color-mix(in srgb, var(--gold) 34%, var(--line))}
+
+/* 十档梯度表：折起来，想看的人点开 */
+.lvt{
+  margin-top:10px; padding:0 12px; border:1px solid var(--line); border-radius:12px; background:var(--panel);
+}
+.lvt summary{cursor:pointer; list-style:none; padding:10px 0; font-size:12px; font-weight:700; color:var(--gold2)}
+.lvt summary::-webkit-details-marker{display:none}
+.lvt summary::before{content:'▸'; display:inline-block; margin-right:6px; color:var(--dim2); transition:transform .18s}
+.lvt[open] summary::before{transform:rotate(90deg)}
+.lvt table{width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:4px}
+.lvt th{
+  padding:4px 2px; text-align:left; font-size:10.5px; font-weight:600; color:var(--dim2);
+  border-bottom:1px solid var(--line);
+}
+.lvt td{
+  padding:4px 2px; color:var(--dim);
+  border-bottom:1px solid color-mix(in srgb, var(--line) 55%, transparent);
+}
+.lvt tr.on td{color:var(--text); font-weight:700; background:color-mix(in srgb, var(--gold) 10%, transparent)}
+.lvt tr.on td:first-child{color:var(--gold2)}
+.lvt td:last-child{color:var(--gold2); text-align:right}
+.lvt code{font-size:10px; color:var(--dim2)}
 .duelbar .btag.ai{color:var(--blue); border-color:color-mix(in srgb,var(--blue) 40%, var(--line))}
 
 /* ---------------------------------------------------------------- 好友房 */
@@ -714,7 +758,7 @@ body{
   #scr-duel{--off:410px}
 }
 </style>
-<meta name="build" content="6fe6583ee0">
+<meta name="build" content="874b9b8596">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -744,7 +788,7 @@ body{
 <div class="actbar" id="actbar"></div>
 <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
 
-<script type="module" src="js/b/duel.js?v=6fe6583ee0"></script>
+<script type="module" src="js/b/duel.js?v=874b9b8596"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

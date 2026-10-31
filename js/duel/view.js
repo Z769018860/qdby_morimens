@@ -13,7 +13,7 @@ import {
   loadSave, saveSave, freeLeft, ticketDayLeft, payPack, grantPveTicket, addRank, RULES, PVE_SILVER, PVE_LOSS_MIN_ROUNDS,
 } from './store.js';
 import { progress as rankProgress, DIFF_TXT, TIERS } from './tiers.js';
-import { aiFor, foePick } from './rank.js';
+import { aiFor, foePick, foeBand, foeWinRate, poolLabel, AI_LV } from './rank.js';
 import { NAMES } from './names.js';
 import { walletGet, walletAdd, walletSpend, scTag } from '../silver.js';
 
@@ -214,6 +214,7 @@ function deckList(def) {
   return out;
 }
 
+
 function renderHome() {
   const decks = DECKS.map((d) => {
     const bonds = E.evalBonds(deckList(d));
@@ -255,6 +256,13 @@ function renderHome() {
   const rk = rankProgress(S.save.rp);
   const ai = aiFor(S.diff, rk.idx);
   const stars = [0, 1, 2].map((i) => `<i class="${i < rk.stars ? 'on' : ''}">★</i>`).join('');
+  // 这一档对手可能用的牌组：按「它打你这套的胜率」由低到高截一段（rank.js 的 foeBand）。
+  // 主页把它摊开，是「人机用什么牌」这件事唯一说清楚的地方——不然玩家只能从开局 toast 里猜。
+  const band = foeBand(ai.pool, sel.id, DECKS.map((d) => d.id));
+  const bandChips = band.slice(0, 6).map((id) => {
+    const d = deckById(id);
+    return `<i class="foed" title="它打你这套约 ${foeWinRate(id, sel.id)}% 胜率">${d.n}</i>`;
+  }).join('') + (band.length > 6 ? `<i class="foed more">＋${band.length - 6}</i>` : '');
 
   $('#scr-home').innerHTML = `
     <div class="hero">
@@ -277,12 +285,28 @@ function renderHome() {
         <span>${rk.next ? `距「${rk.next.n}」还差 <b>${rk.left}</b> 分` : '已经是最高段位——命轮由你来转'}</span>
         <span class="rkstars">${stars}</span>
       </div>
-      <p class="note" style="margin:8px 0 0">下一局对手的档位：<b>Lv${ai.lv}／${ai.max}「${ai.n}」</b>。
-        段位越高，对方越少打错牌——该召唤时会召唤、该盖的怪会盖、不会拿小的去撞大的；
-        它还会挑一套偏向<b>克你这套</b>的预组。但两边命轮值永远是 8000，它不会靠多血赢你。
-        对手是融灾榜单上的玩家名，一个人固定一套牌，同一个人换段位也不会换牌。
+      <div class="ailv">
+        <div class="arow"><span class="ak">下一局对手</span><b class="av">Lv${ai.lv}／${ai.max}「${ai.n}」</b>
+          <span class="ax">打错牌 ${Math.round(ai.sloppy * 100)}% · ${poolLabel(ai.pool)}</span></div>
+        <div class="arow"><span class="ak">它会用的牌组</span><span class="achips">${bandChips}</span></div>
+      </div>
+      <p class="note" style="margin:2px 0 0">两边的命轮值永远是 8000，段位<b>不加血也不多抽牌</b>——对手变强只靠两件事：
+        少打错牌（该召唤就召唤、该盖就盖、不拿小的撞大的），以及挑一套<b>打你这套顺手</b>的预组。
+        上面那几套就是它这一档的候选，一档一个窗口，越往上越靠「克制你」的那一端；真能死克你的牌组会被踢出候选，
+        所以最凶的一档也是 46% 左右的可战局，不是必输。对手是融灾榜单上的玩家名，一个人固定一套牌。
         ${S.save.bestStreak ? `你最长连胜过 ${S.save.bestStreak} 场。` : ''}</p>
     </div>
+    <details class="lvt">
+      <summary>人机梯度：十档，每档实测胜率</summary>
+      <table>
+        <thead><tr><th>档</th><th>称号</th><th>打错牌</th><th>挑牌</th><th>参考胜率</th></tr></thead>
+        <tbody>${AI_LV.map((r, i) => `<tr class="${Math.round(ai.lv) === i + 1 ? 'on' : ''}">
+          <td>Lv${i + 1}</td><td>${r.n}</td><td>${Math.round(r.sloppy * 100)}%</td>
+          <td>${poolLabel(r.pool)}</td><td>${r.win}%</td></tr>`).join('')}</tbody>
+      </table>
+      <p class="note" style="margin:8px 0 0">「参考胜率」= 玩家一侧不犯错时，用 22 套预组各打 40 局的实测胜率（<code>scripts/duel-ladder.mjs</code>）。
+        轻松走 Lv1~5.5、普通 Lv2~8、认真 Lv4~10，九段之间是连续插值，所以每升一段都真的强一点。</p>
+    </details>
 
     <div class="sec-h"><h2>选一套卡组</h2><span class="r">预组 ${DECKS.length} 套 · 每套 40 张 + 觉醒体</span></div>
     <div class="decks">${decks}</div>
@@ -311,6 +335,8 @@ function renderHome() {
       <button class="btn pri" data-act="start">与人机对决</button>
       <button class="btn ghost" data-act="howto">规则</button>
     </div>
+    <p class="note" style="margin:8px 0 0">三条线各占一段刻度：<b>轻松</b> Lv1→5.5、<b>普通</b> Lv2→8、<b>认真</b> Lv4→10，
+      九段之间连续插值——所以「在第几段」和「选哪一档」都会真的改变对手，不会爬到一半就封顶。</p>
 
     <div class="sec-h"><h2>好友对战</h2><span class="r">房间码 / 一台设备轮流</span></div>
     <div class="row">
@@ -366,7 +392,7 @@ function startDuel() {
   if (foe.id === 'd6' && Math.random() < 0.3) S.foeName = '米酒';
   S.foeDeck = foe.n;
   newGame('pve', 0, mine, foe, (Date.now() ^ (Math.random() * 1e9)) >>> 0);
-  toast(`${S.foeName}（Lv${S.ai.lv}「${S.ai.n}」）带着「${foe.n}」坐下了`);
+  toast(`${S.foeName}（Lv${S.ai.lv}「${S.ai.n}」· 打错牌 ${Math.round(S.ai.sloppy * 100)}%）带着「${foe.n}」坐下了`);
 }
 
 function startLocal() {
@@ -670,6 +696,7 @@ function renderDuel() {
     <div class="side op-side">
       <div class="pinfo">
         <span class="who">${nameOf(1 - side)}</span>
+        ${S.bt === 'pve' && S.ai ? `<i class="aih" title="对手这一局的档位与打错牌概率">Lv${S.ai.lv}<em>失误${Math.round(S.ai.sloppy * 100)}%</em></i>` : ''}
         ${S.bt === 'pve' && S.foeDeck ? `<i class="dv" title="对手这套牌">${S.foeDeck}</i>` : ''}
         ${lpBar(v.op, 'lpOp')}
         <span class="meta"><span>手 ${v.op.hand}</span><span>组 ${v.op.deck}</span>${stTags(v.op)}</span>
@@ -1981,7 +2008,9 @@ function bind() {
     }
     if (t.dataset.d) {
       S.diff = t.dataset.d; S.save.diff = S.diff; saveSave(S.save);
-      $$('#diff button').forEach((b) => b.classList.toggle('on', b.dataset.d === S.diff));
+      // 光切 on 不够：段位卡底部那两行（这一档的 Lv、打错牌%、候选牌组）都跟着难度变，
+      // 不重绘的话玩家会拿着上一档的预告去开一局。
+      renderHome();
       return;
     }
     if (t.dataset.modal) {
@@ -2180,6 +2209,9 @@ export function boot(opt) {
         const mine = deckById(deckId || S.deckId);
         const foe = DECKS.filter((d) => d.id !== mine.id)[0];
         S.ai = aiFor(S.diff, 0);
+        // 和 startDuel 一样补上「谁、用哪套」，否则顶栏会少一块，截出来的图不算数
+        S.foeName = pickName(foe.id);
+        S.foeDeck = foe.n;
         newGame('pve', 0, mine, foe, seed || 12345);
       },
       // 两边都按 AI 的思路走 steps 步：同步跑完，dump DOM 时前后一致
@@ -2260,6 +2292,10 @@ export function boot(opt) {
     // ?_test=1&buy=bp16：直接开一包，验证开包弹窗（它崩过一次，是模板里多打了个反引号）
     const mBuy = /[?&]buy=(\w+)/.exec(location.search);
     if (mBuy) setTimeout(() => window.__duel.pack(mBuy[1]), 80);
+    // ?_test=1&lv=1：无头截图时把「人机梯度」那张折叠表展开（details 默认收着，截不到）
+    if (/[?&]lv=1/.test(location.search)) {
+      setTimeout(() => { const el = document.querySelector('.lvt'); if (el) el.open = true; }, 300);
+    }
     // ?_test=1&auto=N：无头截图时自动推 N 步，结果写回页面，dump-dom 就能读到
     const mAuto = /[?&]auto=(\d+)/.exec(location.search);
     if (mAuto) {
