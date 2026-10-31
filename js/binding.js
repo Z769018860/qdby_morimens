@@ -5,7 +5,7 @@
 //   run     = 一局的全部状态（血量、造物、楼层、房间表）
 //   room    = 网格里的一格，第一次进去才生成内容（build）
 // 每帧的顺序固定：输入 → 移动/碰撞 → 射击 → 敌人 → 掉落 → 清房判定 → 画。
-import { TUNE, DIFFS, FURS, EYES, COSTUMES, ITEMS, TRINKETS, ACTIVES, ENEMIES, BOSSES, FLOORS, TEXT } from './binding-data.js';
+import { TUNE, DIFFS, FURS, EYES, COSTUMES, BUILDS, ITEMS, TRINKETS, ACTIVES, ENEMIES, BOSSES, FLOORS, TEXT } from './binding-data.js';
 import { loadArt, drawCat, drawPortrait, artImage } from './binding-cat.js';
 import { bakeRoom, drawDoorState, drawEnemy, drawBoss, drawPickup, drawHeart, WALL } from './binding-draw.js';
 import { ART } from './binding-art.js';
@@ -2544,6 +2544,7 @@ async function boot() {
       useActive, nextFloor, goNext, goRoom, takeItem, recalcStats, refreshHud, renderMinimap,
       playScene, advanceStory, endStory, openCodex, renderCodex, unlockCodexByProgress, Audio2, toTitle,
       makeFloor, buildRoom, aimAngle, wantShoot, tryPickup, onRoomClear, hurtPlayer, makeEnemy,
+      drawCat, BUILDS, EYES,
     };
   }
 }

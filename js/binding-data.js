@@ -75,9 +75,90 @@ export const EYES = [
 // ------------------------------------------------------------------ 造型
 // 主角是弥萨格校猫，就叫「弥萨格校猫」。这两个造型只是换一张原图（第二张是戴军帽的
 // 那一版，轮廓都不一样），名字描述的是「长什么样」，不是它叫什么。
+// ------------------------------------------------------------------ 基础模型
+// 校猫不是一整张图：头是官方头像逐像素改造来的（换的是毛色），身体 / 耳朵 / 尾巴 / 毛边
+// 都是程序画的。这里把「程序那部分」的骨架参数抽出来，一套参数就是一个基础模型。
+//
+// 换模型换的是比例，不是颜色——幼猫头大身小、老校猫瘦长拱背、胖校猫横着长、
+// 长毛猫一圈毛边、折耳尾巴只剩一个球。坐标仍在素材空间里（0..96 是头像那张方块，
+// 地面在 y=104），和饰品共用同一把尺子，所以换模型不会让帽子和项圈跑位。
+//
+// 字段：
+//   body        躯干椭圆：cy / 横向半径 rx / 纵向半径 ry。底边落在 107 上下，
+//               爪子的下缘要比它再低 2~3 才露得出来，否则整只就是「头下面一口碗」
+//   paw         前爪：y / 半径 / 两只相距 gap
+//   ear         style: point | round | notch（缺角）| fold（折耳）| tuft（耳尖一撮毛）
+//   tail        mode: curl（向上卷）| up（短而竖）| droop（细长下垂）| plume（蓬松）| stub（球）
+//   fluff       身体轮廓的毛边强度，0 是光毛，1 是长毛
+//   eye         眼睛缩放（瞳孔、眼白、眨眼时盖的那块都跟着）
+//   breathe     呼吸幅度倍率
+export const BUILDS = {
+  school: {
+    n: '校猫',
+    body: { cy: 84, rx: 26, ry: 24, topW: 0.74 },
+    paw: { y: 106, rx: 7.6, ry: 5, gap: 11 },
+    ear: { style: 'point', h: 1, w: 1 },
+    tail: { mode: 'curl', w: 6.2, len: 1 },
+    fluff: 0.12, eye: 1, breathe: 1,
+    whisker: { len: 1, droop: 0 },
+  },
+  kitten: {
+    n: '幼猫',
+    // 头不缩，把身子缩小：视觉上头就显得大，这也是小猫真正的比例
+    body: { cy: 87, rx: 20, ry: 21, topW: 0.72 },
+    paw: { y: 104, rx: 6, ry: 4, gap: 8.5 },
+    ear: { style: 'round', h: 0.84, w: 1.16 },
+    tail: { mode: 'up', w: 5, len: 0.55 },
+    fluff: 0.34, eye: 1.3, breathe: 1.6,
+    whisker: { len: 0.62, droop: 0 },
+  },
+  elder: {
+    n: '老校猫',
+    body: { cy: 82, rx: 22, ry: 25, topW: 0.7 },
+    paw: { y: 105, rx: 6.6, ry: 4.6, gap: 12.5 },
+    ear: { style: 'notch', h: 1.06, w: 0.94 },
+    tail: { mode: 'droop', w: 4.6, len: 1.1 },
+    fluff: 0.52, eye: 0.8, breathe: 0.7,
+    whisker: { len: 1.4, droop: 1 },
+  },
+  chonk: {
+    n: '胖校猫',
+    body: { cy: 85, rx: 32, ry: 22, topW: 0.8 },
+    paw: { y: 106, rx: 9, ry: 4.4, gap: 14 },
+    ear: { style: 'point', h: 0.88, w: 0.96 },
+    tail: { mode: 'stub', w: 7.6, len: 0.9 },
+    fluff: 0.22, eye: 0.94, breathe: 1.45,
+    whisker: { len: 1.05, droop: 0.2 },
+  },
+  fluff: {
+    n: '长毛',
+    body: { cy: 83, rx: 28, ry: 24, topW: 0.76 },
+    paw: { y: 105.5, rx: 8, ry: 4.8, gap: 11 },
+    ear: { style: 'tuft', h: 1.1, w: 1.06 },
+    tail: { mode: 'plume', w: 10, len: 1.05 },
+    fluff: 1, eye: 1.05, breathe: 1.15,
+    whisker: { len: 1.25, droop: 0.35 },
+  },
+  bobtail: {
+    n: '折耳',
+    body: { cy: 83, rx: 24, ry: 23, topW: 0.74 },
+    paw: { y: 104.5, rx: 7.4, ry: 4.4, gap: 11 },
+    ear: { style: 'fold', h: 1, w: 1 },
+    tail: { mode: 'stub', w: 6.4, len: 0.8 },
+    fluff: 0.26, eye: 1.12, breathe: 1.1,
+    whisker: { len: 0.9, droop: 0.15 },
+  },
+};
+
+// 造型＝基础模型 + 用哪张原图。新增一条就多一只可以换的猫。
 export const COSTUMES = [
-  { k: 'plain', n: '校猫', hint: '校门口那只，谁都能摸。', unlock: null },
-  { k: 'officer', n: '戴军帽', hint: '换一张原图，帽檐压得很低，表情一点没变。', unlock: { type: 'clear', v: 1 } },
+  { k: 'plain', n: '校猫', build: 'school', hint: '校门口那只，谁都能摸。', unlock: null },
+  { k: 'officer', n: '戴军帽', build: 'school', src: 'cat2', hint: '换一张原图，帽檐压得很低，表情一点没变。', unlock: { type: 'clear', v: 1 } },
+  { k: 'kitten', n: '幼猫', build: 'kitten', hint: '头还是这么大，身子还没长起来。尾巴竖着，站不太稳。', unlock: { type: 'floor', v: 3 } },
+  { k: 'elder', n: '老校猫', build: 'elder', hint: '在这一层待太久了。肩塌下去，一只耳朵缺了一角。', unlock: { type: 'deaths', v: 4 } },
+  { k: 'chonk', n: '胖校猫', build: 'chonk', hint: '谁路过都要喂它。走一步整只都在晃。', unlock: { type: 'items', v: 14 } },
+  { k: 'fluff', n: '长毛', build: 'fluff', hint: '不是另一种猫，是同一个冬天没剪过毛。', unlock: { type: 'kills', v: 60 } },
+  { k: 'fold', n: '折耳', build: 'bobtail', hint: '耳朵折下来了，尾巴也只剩一个球。', unlock: { type: 'coins', v: 60 } },
 ];
 
 // ------------------------------------------------------------------ 造物

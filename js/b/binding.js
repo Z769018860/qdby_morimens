@@ -82,9 +82,90 @@ const EYES = [
 // ------------------------------------------------------------------ 造型
 // 主角是弥萨格校猫，就叫「弥萨格校猫」。这两个造型只是换一张原图（第二张是戴军帽的
 // 那一版，轮廓都不一样），名字描述的是「长什么样」，不是它叫什么。
+// ------------------------------------------------------------------ 基础模型
+// 校猫不是一整张图：头是官方头像逐像素改造来的（换的是毛色），身体 / 耳朵 / 尾巴 / 毛边
+// 都是程序画的。这里把「程序那部分」的骨架参数抽出来，一套参数就是一个基础模型。
+//
+// 换模型换的是比例，不是颜色——幼猫头大身小、老校猫瘦长拱背、胖校猫横着长、
+// 长毛猫一圈毛边、折耳尾巴只剩一个球。坐标仍在素材空间里（0..96 是头像那张方块，
+// 地面在 y=104），和饰品共用同一把尺子，所以换模型不会让帽子和项圈跑位。
+//
+// 字段：
+//   body        躯干椭圆：cy / 横向半径 rx / 纵向半径 ry。底边落在 107 上下，
+//               爪子的下缘要比它再低 2~3 才露得出来，否则整只就是「头下面一口碗」
+//   paw         前爪：y / 半径 / 两只相距 gap
+//   ear         style: point | round | notch（缺角）| fold（折耳）| tuft（耳尖一撮毛）
+//   tail        mode: curl（向上卷）| up（短而竖）| droop（细长下垂）| plume（蓬松）| stub（球）
+//   fluff       身体轮廓的毛边强度，0 是光毛，1 是长毛
+//   eye         眼睛缩放（瞳孔、眼白、眨眼时盖的那块都跟着）
+//   breathe     呼吸幅度倍率
+const BUILDS = {
+  school: {
+    n: '校猫',
+    body: { cy: 84, rx: 26, ry: 24, topW: 0.74 },
+    paw: { y: 106, rx: 7.6, ry: 5, gap: 11 },
+    ear: { style: 'point', h: 1, w: 1 },
+    tail: { mode: 'curl', w: 6.2, len: 1 },
+    fluff: 0.12, eye: 1, breathe: 1,
+    whisker: { len: 1, droop: 0 },
+  },
+  kitten: {
+    n: '幼猫',
+    // 头不缩，把身子缩小：视觉上头就显得大，这也是小猫真正的比例
+    body: { cy: 87, rx: 20, ry: 21, topW: 0.72 },
+    paw: { y: 104, rx: 6, ry: 4, gap: 8.5 },
+    ear: { style: 'round', h: 0.84, w: 1.16 },
+    tail: { mode: 'up', w: 5, len: 0.55 },
+    fluff: 0.34, eye: 1.3, breathe: 1.6,
+    whisker: { len: 0.62, droop: 0 },
+  },
+  elder: {
+    n: '老校猫',
+    body: { cy: 82, rx: 22, ry: 25, topW: 0.7 },
+    paw: { y: 105, rx: 6.6, ry: 4.6, gap: 12.5 },
+    ear: { style: 'notch', h: 1.06, w: 0.94 },
+    tail: { mode: 'droop', w: 4.6, len: 1.1 },
+    fluff: 0.52, eye: 0.8, breathe: 0.7,
+    whisker: { len: 1.4, droop: 1 },
+  },
+  chonk: {
+    n: '胖校猫',
+    body: { cy: 85, rx: 32, ry: 22, topW: 0.8 },
+    paw: { y: 106, rx: 9, ry: 4.4, gap: 14 },
+    ear: { style: 'point', h: 0.88, w: 0.96 },
+    tail: { mode: 'stub', w: 7.6, len: 0.9 },
+    fluff: 0.22, eye: 0.94, breathe: 1.45,
+    whisker: { len: 1.05, droop: 0.2 },
+  },
+  fluff: {
+    n: '长毛',
+    body: { cy: 83, rx: 28, ry: 24, topW: 0.76 },
+    paw: { y: 105.5, rx: 8, ry: 4.8, gap: 11 },
+    ear: { style: 'tuft', h: 1.1, w: 1.06 },
+    tail: { mode: 'plume', w: 10, len: 1.05 },
+    fluff: 1, eye: 1.05, breathe: 1.15,
+    whisker: { len: 1.25, droop: 0.35 },
+  },
+  bobtail: {
+    n: '折耳',
+    body: { cy: 83, rx: 24, ry: 23, topW: 0.74 },
+    paw: { y: 104.5, rx: 7.4, ry: 4.4, gap: 11 },
+    ear: { style: 'fold', h: 1, w: 1 },
+    tail: { mode: 'stub', w: 6.4, len: 0.8 },
+    fluff: 0.26, eye: 1.12, breathe: 1.1,
+    whisker: { len: 0.9, droop: 0.15 },
+  },
+};
+
+// 造型＝基础模型 + 用哪张原图。新增一条就多一只可以换的猫。
 const COSTUMES = [
-  { k: 'plain', n: '校猫', hint: '校门口那只，谁都能摸。', unlock: null },
-  { k: 'officer', n: '戴军帽', hint: '换一张原图，帽檐压得很低，表情一点没变。', unlock: { type: 'clear', v: 1 } },
+  { k: 'plain', n: '校猫', build: 'school', hint: '校门口那只，谁都能摸。', unlock: null },
+  { k: 'officer', n: '戴军帽', build: 'school', src: 'cat2', hint: '换一张原图，帽檐压得很低，表情一点没变。', unlock: { type: 'clear', v: 1 } },
+  { k: 'kitten', n: '幼猫', build: 'kitten', hint: '头还是这么大，身子还没长起来。尾巴竖着，站不太稳。', unlock: { type: 'floor', v: 3 } },
+  { k: 'elder', n: '老校猫', build: 'elder', hint: '在这一层待太久了。肩塌下去，一只耳朵缺了一角。', unlock: { type: 'deaths', v: 4 } },
+  { k: 'chonk', n: '胖校猫', build: 'chonk', hint: '谁路过都要喂它。走一步整只都在晃。', unlock: { type: 'items', v: 14 } },
+  { k: 'fluff', n: '长毛', build: 'fluff', hint: '不是另一种猫，是同一个冬天没剪过毛。', unlock: { type: 'kills', v: 60 } },
+  { k: 'fold', n: '折耳', build: 'bobtail', hint: '耳朵折下来了，尾巴也只剩一个球。', unlock: { type: 'coins', v: 60 } },
 ];
 
 // ------------------------------------------------------------------ 造物
@@ -297,7 +378,7 @@ const TEXT = {
   winTitle: '校猫爬出来了',
   winSub: '天亮了。走廊还是那条走廊，猫不太一样了。',
 };
-return { TUNE, DIFFS, FURS, EYES, COSTUMES, ITEMS, TRINKETS, ACTIVES, ENEMIES, BOSSES, FLOORS, TEXT };
+return { TUNE, DIFFS, FURS, EYES, BUILDS, COSTUMES, ITEMS, TRINKETS, ACTIVES, ENEMIES, BOSSES, FLOORS, TEXT };
 })();
 
 // ---- js/binding-art.js
@@ -312,6 +393,7 @@ return { ART };
 // ---- js/binding-cat.js
 const m_binding_cat = await (async () => {
 const { ART } = m_binding_art;
+const { BUILDS } = m_binding_data;
 // 校猫的绘制：把 96×96 的官方头像「改造成不同样式的黑猫」，再往上挂饰品。
 //
 // 关键手法：原图是浅灰白的猫，直接调色会变成一块黑饼。这里按像素取亮度，
@@ -322,6 +404,7 @@ const { ART } = m_binding_art;
 //
 // 坐标约定：所有饰品都在「素材空间」里画 —— 0..96 是原图那张方块，地面在 y=104。
 // 于是眼睛在 (30,31)/(61,31)，鼻尖 (47,44)，脖子 (48,78)，这些数来自对着原图量的网格。
+
 
 
 const IMG = new Map();
@@ -356,6 +439,16 @@ function loadArt() {
 }
 
 const hex = (s) => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)];
+// 把颜色整体提亮（k>0）或压暗（k<0），身体侧光要用它调出层次。
+// 纯色椭圆在暗背景上就是一块贴片——加了明暗才是身体。
+function shade(s, k) {
+  const [r, g, b] = hex(s);
+  const f = (v) => {
+    const x = k >= 0 ? v + (255 - v) * k : v * (1 + k);
+    return x < 0 ? 0 : x > 255 ? 255 : Math.round(x);
+  };
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+}
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 
@@ -374,12 +467,12 @@ function vnoise(x, y, s) {
 }
 
 // ------------------------------------------------------------------ 毛色合成
-function makeSkin(costume, fur, eye) {
+function makeSkin(costume, fur, eye, build) {
   const key = `${costume.k}|${fur.k}|${eye.k}`;
   const hit = SKIN.get(key);
   if (hit) return hit;
 
-  const src = artImage(costume.k === 'officer' ? 'cat2' : 'cat');
+  const src = artImage(costume.src || 'cat');
   const size = 192;                       // 2× 96，高清屏放大不糊
   const cv = document.createElement('canvas');
   cv.width = cv.height = size;
@@ -497,10 +590,22 @@ function makeSkin(costume, fur, eye) {
   }
   cx.putImageData(id, 0, 0);
 
-  // 眼睛：原图那对黑眼窝换成发光的猫瞳，这是「一眼看出是猫」的关键
-  const eu = size / 96;
+  // 眼睛：原图那对黑眼窝换成发光的猫瞳，这是「一眼看出是猫」的关键。
+  // 位置用 u（和原图对齐），大小用 eu（受基础模型的 eye 缩放），两者必须分开算——
+  // 混用一个系数的话，放大小猫的眼睛会顺带把瞳孔推离脸中线。
+  const u = size / 96;
+  const eu = u * (build && build.eye ? build.eye : 1);
   for (const ex of [30, 61]) {
-    const px = ex * eu, py = 31.5 * eu;
+    const px = ex * u, py = 31.5 * u;
+
+    // 眼窝：瞳孔外一圈压暗，眼珠才像是嵌在脸上而不是贴上去的
+    const sock = cx.createRadialGradient(px, py, 1 * eu, px, py, 10 * eu);
+    sock.addColorStop(0, 'rgba(0,0,0,.55)');
+    sock.addColorStop(0.72, 'rgba(0,0,0,.30)');
+    sock.addColorStop(1, 'rgba(0,0,0,0)');
+    cx.fillStyle = sock;
+    cx.beginPath(); cx.ellipse(px, py, 10.5 * eu, 10 * eu, 0, 0, 7); cx.fill();
+
     const g = cx.createRadialGradient(px, py, 0, px, py, 13 * eu);
     g.addColorStop(0, eye.g);
     g.addColorStop(0.45, eye.c);
@@ -534,25 +639,246 @@ function makeSkin(costume, fur, eye) {
 }
 
 // ------------------------------------------------------------------ 猫本体
-// o: { x, y, size, fur, eye, costume, t, moving, accs, hurt, ghost, bob, flip, dim }
+// 下面几个是给「基础模型」用的画法：毛边、锥形尾巴、五种耳朵。
+// 全部是确定性的——同一个 seed 每帧画出来一模一样，不会抖成噪点。
+
+// 沿椭圆走一圈、半径按两条正弦叠出来的毛刺起伏。amt=0 时就是一个普通椭圆
+function puffy(c, cx, cy, rx, ry, amt, seed, t, topW) {
+  const N = 56;
+  const puff = 0.05 + amt * 0.16;   // 一点底噪：黑猫的轮廓不该是数学椭圆
+  const sway = Math.sin(t * 1.6 + seed) * 0.35;
+  const tw = topW == null ? 1 : topW;
+  c.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const sin = Math.sin(a);
+    const n = Math.sin(a * 9 + seed) * 0.55 + Math.sin(a * 17 + seed * 2.3 + sway) * 0.45;
+    const k = 1 + puff * (1 + n);
+    // 上半截往里收：肩膀比屁股窄，整体是个梨形，才像蹲坐的猫而不是一颗蛋。
+    // 收窄的那一段整个藏在头后面，所以收到多尖都看不见
+    const w = sin < 0 ? 1 - (1 - tw) * smooth(0.15, 0.95, -sin) : 1;
+    const yk = sin > 0 ? 1 - 0.05 * sin : 1;        // 屁股略微压平，别太圆
+    const x = cx + Math.cos(a) * rx * k * w;
+    const y = cy + sin * ry * k * yk;
+    if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+  }
+  c.closePath();
+}
+
+function quadPts(p0, p1, p2, n) {
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const u = i / n, v = 1 - u;
+    out.push([v * v * p0[0] + 2 * v * u * p1[0] + u * u * p2[0],
+              v * v * p0[1] + 2 * v * u * p1[1] + u * u * p2[1]]);
+  }
+  return out;
+}
+
+// 一条从 w0 收到 w1 的带子：尾巴要根部粗、尖端细，等宽的 stroke 画不出这个
+function ribbon(c, pts, w0, w1, jitter, seed) {
+  const L = [], R = [], n = pts.length - 1;
+  for (let i = 0; i <= n; i++) {
+    const p = pts[i];
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n, i + 1)];
+    let dx = b[0] - a[0], dy = b[1] - a[1];
+    const d = Math.hypot(dx, dy) || 1;
+    dx /= d; dy /= d;
+    let w = (w0 + (w1 - w0) * (i / n)) / 2;
+    if (jitter) w *= 1 + (Math.sin(i * 2.7 + (seed || 0)) * 0.5 + Math.sin(i * 4.3 + (seed || 0) * 1.7) * 0.5) * jitter;
+    L.push([p[0] - dy * w, p[1] + dx * w]);
+    R.push([p[0] + dy * w, p[1] - dx * w]);
+  }
+  c.beginPath();
+  c.moveTo(L[0][0], L[0][1]);
+  for (let i = 1; i <= n; i++) c.lineTo(L[i][0], L[i][1]);
+  for (let i = n; i >= 0; i--) c.lineTo(R[i][0], R[i][1]);
+  c.closePath();
+}
+
+function drawTail(c, tail, fur, t, moving) {
+  const w = tail.w || 6, L = tail.len || 1;
+  const sway = Math.sin(t * 2.2) * 7 + (moving ? Math.sin(t * 9) * 3 : 0);
+  // 尾巴和身体用同一套明暗逻辑：右边亮、根部暗，不然暗背景上只剩一条轮廓线
+  const g = c.createLinearGradient(58, 0, 94, 0);
+  g.addColorStop(0, shade(fur.m, -0.4));
+  g.addColorStop(0.55, fur.m);
+  g.addColorStop(1, shade(fur.m, 0.2));
+  c.save();
+  c.lineJoin = 'round';
+
+  // 短尾：只剩一个球，跟着呼吸晃
+  if (tail.mode === 'stub') {
+    const k = Math.sin(t * 2.4) * 0.7;
+    c.fillStyle = g;
+    c.beginPath(); c.ellipse(71, 96 + k, w * 0.86, w * 0.8, -0.3, 0, 7); c.fill();
+    c.save();
+    c.globalAlpha *= 0.5;
+    c.strokeStyle = fur.rim;
+    c.lineWidth = 1.5;
+    c.stroke();
+    c.restore();
+    c.restore();
+    return;
+  }
+
+  let pts;
+  if (tail.mode === 'up') {
+    // 幼猫：竖着，短，力气不够所以是弯的
+    pts = quadPts([61, 100], [71, 86], [60 - sway * 0.35, 71 - sway * 0.18], 10);
+  } else if (tail.mode === 'droop') {
+    // 老猫：细长，垂到地上拖着
+    pts = quadPts([64, 97], [82, 103], [73 + sway * 0.3, 119], 12);
+  } else {
+    pts = quadPts([64, 98], [90, 96], [88 + sway * 0.5, 72 + sway * 0.3], 12);
+  }
+  const w0 = w, w1 = tail.mode === 'up' ? w * 0.46 : w * 0.32;
+
+  if (tail.mode === 'plume') {
+    // 长毛：先铺一层更宽的暗毛，再压中间的亮面，边上就是毛茸茸的
+    c.fillStyle = shade(fur.m, -0.32);
+    ribbon(c, pts, w0 * 1.42, w1 * 2.1, 0.3, 3.3); c.fill();
+  }
+  c.fillStyle = g;
+  ribbon(c, pts, w0, w1, tail.mode === 'plume' ? 0.16 : 0, 1.1); c.fill();
+  c.save();
+  c.globalAlpha *= 0.5;
+  c.strokeStyle = fur.rim;
+  c.lineWidth = 1.5;
+  ribbon(c, pts, w0 * 0.99, w1 * 0.99, 0, 0); c.stroke();
+  c.restore();
+  c.restore();
+}
+
+// 尖耳 / 圆耳 / 缺角 / 折耳 / 耳尖一撮毛。折耳得画在头前面，其余画在头后面
+// （头那张原图是圆毛球，尖耳画在头后只露出头顶上方那截，才不会盖住脸）
+function drawEars(c, ear, fur, t, front) {
+  const st = ear.style || 'point';
+  if ((st === 'fold') !== !!front) return;
+  const h = ear.h || 1, w = ear.w || 1;
+  const inner = 'rgba(150,92,106,.36)';
+
+  if (st === 'round') {
+    for (const s of [-1, 1]) {
+      c.fillStyle = fur.d;
+      c.beginPath(); c.ellipse(48 + s * 19 * w, 15, 9.6 * w, 13 * h, s * 0.26, 0, 7); c.fill();
+      c.save();
+      c.globalAlpha *= 0.42;
+      c.strokeStyle = fur.rim; c.lineWidth = 1;
+      c.beginPath(); c.ellipse(48 + s * 19 * w, 15, 9.6 * w, 13 * h, s * 0.26, 0, 7); c.stroke();
+      c.restore();
+      c.fillStyle = inner;
+      c.beginPath(); c.ellipse(48 + s * 19 * w, 16.5, 5.4 * w, 8 * h, s * 0.26, 0, 7); c.fill();
+    }
+    return;
+  }
+
+  if (st === 'fold') {
+    // 折耳：塌下来贴在头顶，只剩一小块圆钝的轮廓 + 一道折痕。
+    // 必须画在头前面——画在头后会被圆脸整个盖掉，看起来像没有耳朵
+    // 位置必须靠外：太靠内会盖在眼睛上方，看起来像两只角（或兔耳）
+    for (const s of [-1, 1]) {
+      c.fillStyle = fur.d;
+      c.beginPath();
+      c.moveTo(48 + s * 16 * w, 29);
+      c.quadraticCurveTo(48 + s * 17 * w, 18 * h, 48 + s * 25 * w, 19 * h);
+      c.quadraticCurveTo(48 + s * 29 * w, 23, 48 + s * 28 * w, 29);
+      c.closePath();
+      c.fill();
+      c.fillStyle = 'rgba(150,92,106,.18)';
+      c.beginPath();
+      c.moveTo(48 + s * 18.5 * w, 28.5);
+      c.quadraticCurveTo(48 + s * 19 * w, 21 * h, 48 + s * 24 * w, 21.5 * h);
+      c.quadraticCurveTo(48 + s * 26 * w, 24, 48 + s * 25.5 * w, 28.5);
+      c.closePath();
+      c.fill();
+      // 折痕：耳朵塌下来的那道线。折耳的关键就在这一道，没它只是一块小凸起
+      c.save();
+      c.globalAlpha *= 0.55;
+      c.strokeStyle = fur.rim;
+      c.lineWidth = 1.1;
+      c.beginPath();
+      c.moveTo(48 + s * 17.5 * w, 27);
+      c.quadraticCurveTo(48 + s * 18.5 * w, 19 * h, 48 + s * 25 * w, 19.5 * h);
+      c.stroke();
+      c.restore();
+    }
+    return;
+  }
+
+  // point / notch / tuft 共用一付尖耳；notch 的左耳尖被啃掉一块
+  for (const s of [-1, 1]) {
+    const notched = st === 'notch' && s < 0;
+    c.fillStyle = fur.d;
+    c.beginPath();
+    c.moveTo(48 + s * 13 * w, 24);
+    c.quadraticCurveTo(48 + s * 20 * w, -4 * h, 48 + s * 28 * w, 6 * h);
+    if (notched) {
+      // 从耳尖往里凹一截再下来，看着像被咬掉一口，而不是撕开
+      c.quadraticCurveTo(48 + s * 22 * w, 9 * h, 48 + s * 25 * w, 15);
+      c.quadraticCurveTo(48 + s * 30 * w, 20, 48 + s * 26 * w, 26);
+    } else {
+      c.quadraticCurveTo(48 + s * 33 * w, 18, 48 + s * 26 * w, 26);
+    }
+    c.closePath();
+    c.fill();
+    c.save();
+    c.globalAlpha *= 0.4;
+    c.strokeStyle = fur.rim;
+    c.lineWidth = 1;
+    c.stroke();
+    c.restore();
+    // 内耳：黑猫的耳内侧是暗暖色，不点这一块两只耳朵就是两片黑三角
+    c.fillStyle = inner;
+    c.beginPath();
+    c.moveTo(48 + s * 15.5 * w, 15);
+    c.quadraticCurveTo(48 + s * 20.5 * w, 1 * h, 48 + s * 26 * w, 8 * h);
+    c.quadraticCurveTo(48 + s * 29 * w, 16, 48 + s * 24 * w, 21);
+    c.closePath();
+    c.fill();
+    if (st === 'tuft' && s > 0) {
+      // 耳尖一撮毛，长毛猫才有的东西
+      c.strokeStyle = fur.l;
+      c.lineWidth = 1.1;
+      c.lineCap = 'round';
+      for (let i = 0; i < 3; i++) {
+        const ax = 48 + s * (26.5 + i * 1.1) * w, ay = 5 * h - i * 1.4;
+        c.beginPath();
+        c.moveTo(ax, ay);
+        c.quadraticCurveTo(ax + s * 4.5, ay - 8, ax + s * 2 + Math.sin(t * 3 + i) * 1.7, ay - 13);
+        c.stroke();
+      }
+    }
+  }
+}
+
 function drawCat(ctx, o) {
-  const fur = o.fur, skin = makeSkin(o.costume, fur, o.eye);
+  const fur = o.fur;
+  const costume = o.costume || {};
+  const build = BUILDS[costume.build] || BUILDS.school;
+  const skin = makeSkin(costume, fur, o.eye, build);
   const size = o.size;
   const S = size / 96;
   const t = o.t || 0;
   const moving = !!o.moving;
   const bob = o.bob == null ? (moving ? Math.sin(t * 13) * 1.6 : Math.sin(t * 2.4) * 0.9) : o.bob;
   const accs = o.accs || [];
+  const B = build.body, PW = build.paw;
+  const fluff = build.fluff || 0;
+  // 呼吸：躯干横向几乎不动、竖向轻轻起伏。整只上下飘是 bob 的事，别两处都做
+  const br = 1 + Math.sin(t * 2.4) * 0.02 * (build.breathe || 1);
 
-  // 地面投影：径向渐变化开边缘——纯黑实心椭圆压在木地板上像个洞
+  // 地面投影：径向渐变化开边缘——纯黑实心椭圆压在木地板上像个洞。
+  // 宽度跟着体型走：胖猫和幼猫的影子不该一样大
   const shY = o.y - size * 0.02;
-  const sh = ctx.createRadialGradient(o.x, shY, 0, o.x, shY, size * 0.34);
+  const shW = size * (0.24 + (B.rx / 96) * 0.5);
+  const sh = ctx.createRadialGradient(o.x, shY, 0, o.x, shY, shW);
   sh.addColorStop(0, 'rgba(0,0,0,.44)');
   sh.addColorStop(0.5, 'rgba(0,0,0,.26)');
   sh.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = sh;
   ctx.beginPath();
-  ctx.ellipse(o.x, shY, size * 0.34, size * 0.13, 0, 0, 7);
+  ctx.ellipse(o.x, shY, shW, shW * 0.38, 0, 0, 7);
   ctx.fill();
 
   ctx.save();
@@ -566,71 +892,100 @@ function drawCat(ctx, o) {
   // ---- 背后层
   for (const a of accs) if (BEHIND[a]) BEHIND[a](ctx, t);
   // 尾巴（扇尾会盖掉它）
-  if (!accs.includes('fanTail')) {
-    const sway = Math.sin(t * 2.2) * 7 + (moving ? Math.sin(t * 9) * 3 : 0);
-    ctx.strokeStyle = fur.m;
-    ctx.lineWidth = 6.2;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(64, 98);
-    ctx.quadraticCurveTo(90, 96, 88 + sway * 0.5, 72 + sway * 0.3);
-    ctx.stroke();
-    ctx.strokeStyle = fur.rim;
-    ctx.globalAlpha *= 0.35;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.globalAlpha = o.ghost ? 0.82 : 1;
-  }
-  // 身体（头像原图下半截是胸口和前爪，这里补一个躯干让整只猫站得住）
-  // 用 mid 色而不是最暗色：整只都画成 d 的话，头和身子会糊成同一块黑。
-  const bodyG = ctx.createLinearGradient(0, 66, 0, 108);
-  bodyG.addColorStop(0, 'rgba(0,0,0,0)');
-  bodyG.addColorStop(0.32, fur.m);
-  bodyG.addColorStop(1, fur.m);
+  if (!accs.includes('fanTail')) drawTail(ctx, build.tail, fur, t, moving);
+
+  // 身体（头像原图下半截是胸口，这里补一个躯干让整只猫站得住）
+  // 填充用横向渐变：左边压暗、右边带一点侧光。纯色椭圆在暗背景上就是一块贴片，
+  // 怎么调大小都不像身体——得有明暗才有体积。
+  // 径向而不是纯色：肚子中间一点微光，边缘压进暗里，形状才融得进背景。
+  // 纯色椭圆要么比头亮（头身之间浮出一条锯齿分界线），要么比背景还暗（整只消失）。
+  const bodyG = ctx.createRadialGradient(48, B.cy - B.ry * 0.25, 2, 48, B.cy, B.rx * 1.18);
+  bodyG.addColorStop(0, shade(fur.m, 0.1));
+  bodyG.addColorStop(0.55, fur.m);
+  bodyG.addColorStop(1, shade(fur.m, -0.55));
+  puffy(ctx, 48, B.cy, B.rx, B.ry * br, fluff, 1.7, t, B.topW);
   ctx.fillStyle = bodyG;
-  ctx.beginPath(); ctx.ellipse(48, 96, 24, 16, 0, 0, 7); ctx.fill();
-  ctx.fillStyle = fur.m;
-  ctx.beginPath(); ctx.ellipse(37, 103, 8, 5, 0, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(59, 103, 8, 5, 0, 0, 7); ctx.fill();
-  // 躯干上缘一道冷光：黑猫压在深色地板上，不描一下整只就糊成一块
+  ctx.fill();
+
+  // 头压在身上的那道阴影：不加这层，躯干顶边会是一条干净得假的弧
+  const castG = ctx.createLinearGradient(0, B.cy - B.ry, 0, B.cy + B.ry * 0.5);
+  castG.addColorStop(0, 'rgba(0,0,0,.5)');
+  castG.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = castG;
+  ctx.fill();          // 用的还是上面那条路径，直接再填一遍
+
+  // 下缘的轮廓光：只走底下那半圈，两端淡出。
+  // 一整圈闭合的描边会变成「围兜」——黑猫在暗处立起来靠的是光从地上反上来这一道
+  const rr = hex(fur.rim);
+  const rimG = ctx.createLinearGradient(48 - B.rx, 0, 48 + B.rx, 0);
+  rimG.addColorStop(0, `rgba(${rr[0]},${rr[1]},${rr[2]},0)`);
+  rimG.addColorStop(0.26, `rgba(${rr[0]},${rr[1]},${rr[2]},1)`);
+  rimG.addColorStop(0.74, `rgba(${rr[0]},${rr[1]},${rr[2]},1)`);
+  rimG.addColorStop(1, `rgba(${rr[0]},${rr[1]},${rr[2]},0)`);
   ctx.save();
-  ctx.globalAlpha *= 0.5;
-  ctx.strokeStyle = fur.rim;
-  ctx.lineWidth = 1.7;
+  ctx.globalAlpha *= 0.6;
+  ctx.strokeStyle = rimG;
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.ellipse(48, 96, 23.4, 15.4, 0, Math.PI * 1.08, Math.PI * 1.92);
+  ctx.ellipse(48, B.cy, B.rx * 1.01, B.ry * br * 1.01, 0, Math.PI * 0.1, Math.PI * 0.9);
   ctx.stroke();
   ctx.restore();
 
-  // 耳朵：原图是圆毛球，没有立起来的耳尖，这里补一对才像猫
+  // 前爪：走起来左右交替颠，蹲着就只是轻轻压一下地面。
+  // 下缘要比躯干低两三格，否则整只埋在躯干里、根本看不见
   for (const s of [-1, 1]) {
-    ctx.fillStyle = fur.d;
+    const px = 48 + s * PW.gap;
+    const py = PW.y + (moving ? Math.sin(t * 13 + (s > 0 ? 0 : Math.PI)) * 1.1 : Math.sin(t * 2.4) * 0.35);
+    ctx.fillStyle = bodyG;
+    ctx.beginPath(); ctx.ellipse(px, py, PW.rx, PW.ry, 0, 0, 7); ctx.fill();
+    ctx.save();
+    ctx.globalAlpha *= 0.4;
+    ctx.strokeStyle = fur.rim;
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.moveTo(48 + s * 13, 24);
-    ctx.quadraticCurveTo(48 + s * 20, -4, 48 + s * 28, 6);
-    ctx.quadraticCurveTo(48 + s * 33, 18, 48 + s * 26, 26);
-    ctx.closePath();
-    ctx.fill();
+    ctx.ellipse(px, py, PW.rx, PW.ry, 0, Math.PI * 0.08, Math.PI * 0.92);
+    ctx.stroke();
+    ctx.restore();
+    // 趾缝：两道细线，不然前爪就是一块黑饼
     ctx.save();
     ctx.globalAlpha *= 0.5;
-    ctx.strokeStyle = fur.rim;
-    ctx.lineWidth = 1.1;
+    ctx.strokeStyle = '#05060a';
+    ctx.lineWidth = 0.95;
+    ctx.beginPath();
+    ctx.moveTo(px - PW.rx * 0.3, py - PW.ry * 0.55); ctx.lineTo(px - PW.rx * 0.3, py + PW.ry * 0.15);
+    ctx.moveTo(px + PW.rx * 0.24, py - PW.ry * 0.62); ctx.lineTo(px + PW.rx * 0.24, py + PW.ry * 0.1);
     ctx.stroke();
     ctx.restore();
   }
 
+
+  // 耳朵：原图是圆毛球，没有耳朵，这里补一对才像猫。折耳得画在头前面才有「折下来」的感觉
+  drawEars(ctx, build.ear, fur, t, false);
+
   // 原图（黑猫化之后）
   ctx.drawImage(skin, 0, 0, 96, 96);
-  // 底边那道硬切用一撮毛盖掉
-  ctx.fillStyle = fur.m;
-  ctx.beginPath(); ctx.ellipse(48, 99, 25, 7.5, 0, 0, 7); ctx.fill();
+  drawEars(ctx, build.ear, fur, t, true);
 
-  // 胡须
+  // 躯干顶到了下巴底下，原图那道方形硬切已经被它盖住，这里不用再补毛盖
+
+  // 胡须：长度和下垂都跟模型走——老猫的胡子垂到地上，幼猫只有短短两撇
+  const wl = build.whisker ? build.whisker.len : 1;
+  const wd = build.whisker ? build.whisker.droop : 0;
+  const wsw = Math.sin(t * 2.2) * 1.2;
   ctx.strokeStyle = 'rgba(220,226,240,.22)';
   ctx.lineWidth = 0.9;
   ctx.beginPath();
-  ctx.moveTo(40, 50); ctx.lineTo(20, 46); ctx.moveTo(40, 53); ctx.lineTo(21, 54);
-  ctx.moveTo(55, 50); ctx.lineTo(75, 46); ctx.moveTo(55, 53); ctx.lineTo(74, 54);
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < 2; i++) {
+      const y0 = 50 + i * 3;
+      const x0 = 48 + s * 8;
+      ctx.moveTo(x0, y0);
+      ctx.quadraticCurveTo(
+        48 + s * (8 + 12 * wl), y0 + (i ? 1 : -3) + wd * 5 + wsw * 0.4,
+        48 + s * (8 + 20 * wl), y0 + (i ? 4 : -2) + wd * 11 + wsw
+      );
+    }
+  }
   ctx.stroke();
 
   // ---- 正面层
@@ -646,14 +1001,24 @@ function drawCat(ctx, o) {
   }
   ctx.restore();
 
-  // 眨眼睛：直接在眼睛位置盖两块毛色，几帧的事，比逐帧图便宜
+  // 眨眼睛：直接在眼睛位置盖两块毛色，几帧的事，比逐帧图便宜。
+  // 盖的那块得跟着基础模型的眼睛比例走，不然大眼猫眨眼只闭一半
   if (o.blink) {
+    const es = build.eye || 1;
     ctx.save();
     ctx.translate(o.x, o.y - bob * S);
     ctx.scale(S * (o.flip || 1), S);
     ctx.translate(-48, -104);
     ctx.fillStyle = fur.m;
-    for (const ex of [30, 61]) { ctx.beginPath(); ctx.ellipse(ex, 31.5, 7, 7.6, 0, 0, 7); ctx.fill(); }
+    for (const ex of [30, 61]) { ctx.beginPath(); ctx.ellipse(ex, 31.5, 7.2 * es, 7.8 * es, 0, 0, 7); ctx.fill(); }
+    // 一条闭上的眼缝：只盖色块会像没有眼睛，补一道弧才像「闭着」
+    ctx.strokeStyle = 'rgba(0,0,0,.45)';
+    ctx.lineWidth = 1.1;
+    for (const ex of [30, 61]) {
+      ctx.beginPath();
+      ctx.arc(ex, 31.5 - 1.5 * es, 4.6 * es, Math.PI * 0.12, Math.PI * 0.88);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 }
@@ -4337,7 +4702,7 @@ return { GAMES, account, isTrivial, collect, hashOf, record, plan, statusOf, syn
 
 // ---- js/binding.js
 const m_binding = await (async () => {
-const { TUNE, DIFFS, FURS, EYES, COSTUMES, ITEMS, TRINKETS, ACTIVES, ENEMIES, BOSSES, FLOORS, TEXT } = m_binding_data;
+const { TUNE, DIFFS, FURS, EYES, COSTUMES, BUILDS, ITEMS, TRINKETS, ACTIVES, ENEMIES, BOSSES, FLOORS, TEXT } = m_binding_data;
 const { loadArt, drawCat, drawPortrait, artImage } = m_binding_cat;
 const { bakeRoom, drawDoorState, drawEnemy, drawBoss, drawPickup, drawHeart, WALL } = m_binding_draw;
 const { ART } = m_binding_art;
@@ -6891,6 +7256,7 @@ async function boot() {
       useActive, nextFloor, goNext, goRoom, takeItem, recalcStats, refreshHud, renderMinimap,
       playScene, advanceStory, endStory, openCodex, renderCodex, unlockCodexByProgress, Audio2, toTitle,
       makeFloor, buildRoom, aimAngle, wantShoot, tryPickup, onRoomClear, hurtPlayer, makeEnemy,
+      drawCat, BUILDS, EYES,
     };
   }
 }
