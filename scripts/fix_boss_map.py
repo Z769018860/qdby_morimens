@@ -30,6 +30,11 @@ BOSS = {
     (72, 5): ['14039'],                     # 「睡莲」（官方回放里实际出场的是 14039；14086「宁菲亚」是同一立绘的另一个怪物条目，回放里没有它）
 }
 
+# 以官方回放为准、与 qdby_chinese 地图表不一致的禁区：--source 检查时跳过并打印出来，不当作错误。
+# 72 期整期都是（地图表是本地客户端表，开服首日回放里实际出场的首领与它不同）；
+# 71 期禁区 3 的地图表里没有 Boss 类遭遇，首领「缸中之脑」只能靠回放 / 题库。
+REPLAY_WINS = {(72, z) for z in range(1, 6)} | {(71, 3)}
+
 FILES = ['data/puzzles.json', 'data/puzzles-extra.json', 'data/puzzles-more.json'] + sorted(
     os.path.relpath(p, ROOT) for p in glob.glob(os.path.join(ROOT, 'data/bank/c*.json')))
 
@@ -56,6 +61,9 @@ def main():
                     if encounter['t'] == 'Boss' for m in encounter['m']))
                 key = (season, wave['wave'])
                 if BOSS.get(key) != ids:
+                    if key in REPLAY_WINS:
+                        print(f'  以回放为准（地图表不同，已知）: {key}: 表 {BOSS.get(key)} / 地图 {ids}')
+                        continue
                     sys.exit(f'Boss 表与地图不一致: {key}: {BOSS.get(key)} != {ids}')
         print('Boss 表与 qdby_chinese 融灾地图一致')
     changed = bad = total = 0
