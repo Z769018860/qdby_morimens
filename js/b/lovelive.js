@@ -5,7 +5,7 @@
 // ---- js/ll/songs-ip.js
 const m_songs_ip = await (async () => {
 
-// 第二批曲目：剑网3 / 明日方舟 / 边狱巴士。
+// 第二、三批曲目：剑网3 / 明日方舟 / 边狱巴士 / 鸣潮。
 //
 // 和第一批一样的规矩（这条要一直成立）：**这里没有一个字节的原曲音源**。
 // 旋律是按原曲的气质手写的短版（走向、节奏型贴近，不逐音还原），和弦与鼓组自配，
@@ -96,6 +96,86 @@ const IP_SONGS = [
     ],
   },
 
+  {
+    id: 'wanchong',
+    n: '万重山',
+    sub: '剑网3 · 剧情歌',
+    bpm: 128, root: 57, mode: 'min', wave: 'triangle',
+    desc: '一层一层往上翻的山。主歌全是两拍长音，副歌才把十六分放出来。',
+    secs: [
+      { tag: '开场', e: 1, rep: 1, ch: ['i', 'VI', 'III', 'VII'], m: `
+        1 r r r 3 r r r | 5 r 3 r 2 r 1 r` },
+      { tag: '主歌', e: 1, rep: 1, ch: ['i', 'VI', 'III', 'VII', 'i', 'VI', 'VII', 'VII'], m: `
+        1:2 5:2 | 6:2 3:2 | 3:2 2:2 | 7:2 5:2
+        1:2 5:2 | 6:2 1^:2 | 7:2 6:2 | 5:2 r:2` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        3 3 4 3 2 2 3 2 | 5 5 6 5 3 3 2 3 | 6 6 7 6 5 5 4 5 | 5 4 3 2 3 r 5 r
+        3 3 4 3 2 2 3 2 | 1^ 1^ 7 6 5 5 3 5 | 6 6 7 1^ 7 6 5 4 | 3 2 1 2 1 r r r` },
+      { tag: '间奏', e: 2, rep: 1, ch: ['i', 'VI', 'III', 'VII'], m: `
+        1 3 5 1^ 5 3 1 3 | 6 5 4 3 2 3 4 5 | 3 5 6 1^ 6 5 3 5 | 7 6 5 4 3 2 1 r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'i'], m: `
+        6:2 5:2 | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'dangzhan',
+    n: '当战',
+    sub: '剑网3 · 大师赛战歌',
+    bpm: 174, root: 55, mode: 'min', wave: 'sawtooth',
+    desc: '一开口就是开打的曲子。全程十六分，手慢一点就断。',
+    secs: [
+      { tag: '开场', e: 2, rep: 1, ch: ['i', 'i', 'VII', 'VII'], m: `
+        1 1 5 5 1 1 5 5 | 7 7 5 5 7 7 5 5` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'VII', 'VI', 'VII', 'i', 'VII', 'VI', 'V'], m: `
+        1 1 3 3 5 5 3 3 | 7 7 6 6 5 5 7 7 | 6 6 5 5 4 4 3 3 | 5 5 4 4 3 3 2 2
+        1 1 3 3 5 5 1^ 1^ | 7 7 6 6 5 5 7 7 | 6 6 7 7 1^ 1^ 2^ 2^ | 5 5 4 4 3 r 2 r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        5 5 6 5 5 5 6 5 | 7 7 1^ 7 7 7 1^ 7 | 6 6 7 6 6 6 7 6 | 5 5 6 5 3 r 2 r
+        5 5 6 5 5 5 6 5 | 1^ 1^ 2^ 1^ 7 7 6 7 | 6 6 7 7 1^ 1^ 2^ 2^ | 3^ 2^ 1^ 7 1^ r r r` },
+      { tag: '间奏', e: 3, rep: 1, ch: ['i', 'VI', 'III', 'VII'], m: `
+        1 3 5 6 5 3 1 5 | 6 5 3 2 3 5 6 1^ | 3 5 6 7 6 5 3 2 | 3 2 1 2 3 5 6 7` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6 6 5 5 4 4 3 3 | 2 2 3 2 1 r r r | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'hezengju',
+    n: '何曾惧',
+    sub: '剑网3 · 大师赛战歌',
+    bpm: 168, root: 52, mode: 'min', wave: 'sawtooth',
+    desc: '比《当战》沉一档，句尾爱往下走。副歌连续八个小节不给你喘。',
+    secs: [
+      { tag: '开场', e: 2, rep: 1, ch: ['i', 'VI', 'i', 'VII'], m: `
+        1 r 5 r 6 r 5 r | 1 r 5 r 7 r 5 r` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'VI', 'III', 'VII', 'i', 'VI', 'VII', 'V'], m: `
+        1 1 2 3 5 3 2 1 | 6 6 5 6 3 3 2 3 | 3 3 4 5 6 5 4 3 | 7 7 6 5 3 3 2 2
+        1 1 2 3 5 3 5 6 | 6 6 7 6 1^ 7 6 5 | 1^ 1^ 7 7 6 6 5 5 | 5 4 3 2 3 r 2 r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        5 5 6 5 3 2 3 5 | 7 7 6 7 5 3 5 7 | 6 6 5 6 4 3 4 6 | 5 5 4 3 2 r 3 r
+        5 5 6 5 3 2 3 5 | 1^ 1^ 7 6 5 3 5 6 | 6 6 7 7 1^ 1^ 7 6 | 5 4 3 2 1 r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6 r 7 r 1^ r 7 r | 6 r 5 r 3 r 2 r | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'kuang',
+    n: '狂',
+    sub: '剑网3 · 战歌',
+    bpm: 160, root: 50, mode: 'min', wave: 'square',
+    desc: '低音区一直砸同一块地方。方波最冲，副歌全在高八度上喊。',
+    secs: [
+      { tag: '开场', e: 2, rep: 1, ch: ['i', 'VII', 'i', 'VII'], m: `
+        1 1 1 1 1 r 5 r | 7 7 7 7 7 r 5 r` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'VII'], m: `
+        1 1 1 2 3 3 1 1 | 7 7 7 6 5 5 7 7 | 6 6 6 5 4 4 6 6 | 5 5 4 5 6 r 7 r
+        1 1 1 2 3 3 5 5 | 7 7 6 6 5 5 3 3 | 6 6 7 7 1^ 1^ 2^ 2^ | 5 5 4 4 3 2 1 r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        1^ 1^ 1^ 7 6 6 6 5 | 7 7 7 6 5 5 5 4 | 6 6 6 5 4 4 4 3 | 5 5 4 3 2 3 5 7
+        1^ 1^ 1^ 7 6 6 6 5 | 3^ 3^ 2^ 1^ 7 7 5 7 | 6 6 7 7 1^ 1^ 2^ 2^ | 3^ 2^ 1^ 7 1^ r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6 6 5 5 4 4 3 3 | 5 5 4 4 3 3 2 2 | 1:3 r r` },
+    ],
+  },
   /* ================================================================ 明日方舟 */
   {
     id: 'opblade',
@@ -174,6 +254,86 @@ const IP_SONGS = [
     ],
   },
 
+  {
+    id: 'pyrite',
+    n: 'Operation Pyrite',
+    sub: '明日方舟 · 危机合约',
+    bpm: 176, root: 49, mode: 'min', wave: 'sawtooth',
+    desc: '黄铁行动的鼓点，一根弦从头压到尾。副歌是一整面十六分的墙。',
+    secs: [
+      { tag: '开场', e: 2, rep: 1, ch: ['i', 'i', 'VII', 'VII'], m: `
+        1 1 5 1^ 1 1 5 1^ | 7 7 5 3 7 7 5 3` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'i', 'VI', 'VII', 'i', 'i', 'VI', 'V'], m: `
+        1 1 1 3 1 1 1 5 | 1 1 1 3 5 3 1 r | 6 6 6 5 6 6 6 4 | 7 7 7 6 5 5 4 4
+        1 1 1 3 1 1 1 5 | 1 1 3 5 1^ 7 5 3 | 6 6 7 7 1^ 1^ 7 6 | 5 5 4 4 3 2 1 r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        1 1 5 1 1 1 5 1 | 7 7 5 7 7 7 5 7 | 6 6 4 6 6 6 4 6 | 5 5 3 5 5 5 3 5
+        1 1 5 1 1 1 5 1 | 1^ 1^ 7 5 3 5 7 1^ | 6 6 7 7 1^ 1^ 2^ 2^ | 5 5 4 4 1 r r r` },
+      { tag: '间奏', e: 3, rep: 1, ch: ['i', 'VI', 'III', 'VII'], m: `
+        1 5 1^ 5 3 1 5 1 | 6 4 6 1^ 6 4 3 1 | 3 1 3 5 6 5 3 1 | 7 5 7 1^ 7 5 3 2` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6 6 5 5 4 4 3 3 | 2 2 3 3 4 4 5 5 | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'solight',
+    n: 'Speed of Light',
+    sub: '明日方舟 · 音律联觉',
+    bpm: 146, root: 60, mode: 'maj', wave: 'square',
+    desc: '现场版那首跑得最快的大调。跳跃音型多，手感最像打鼓。',
+    secs: [
+      { tag: '开场', e: 2, rep: 1, ch: ['I', 'V', 'vi', 'IV'], m: `
+        1 1 3 1 5 3 1 3 | 6 6 5 6 3 5 3 1` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['I', 'V', 'vi', 'IV', 'I', 'V', 'IV', 'V'], m: `
+        1 3 5 3 1 3 5 3 | 5 7 2^ 7 5 7 2^ 7 | 6 1^ 6 5 4 6 1^ 6 | 5 4 3 2 3 4 5 r
+        1 3 5 3 1 3 5 6 | 5 7 2^ 7 5 7 2^ 3^ | 4 4 5 5 6 6 7 7 | 5 4 3 2 1 r r r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['I', 'V', 'vi', 'IV', 'I', 'V', 'IV', 'V'], m: `
+        5 5 6 5 3 3 5 3 | 5 5 6 5 7 r 5 r | 6 6 7 6 4 4 6 4 | 5 5 6 5 3 r 2 r
+        5 5 6 5 3 3 5 3 | 1^ 1^ 7 6 5 3 5 6 | 4 4 5 4 6 6 7 6 | 5 4 3 2 1 r r r` },
+      { tag: '间奏', e: 3, rep: 1, ch: ['IV', 'V', 'I', 'V'], m: `
+        4 6 1^ 6 4 6 1^ 6 | 5 7 2^ 7 5 7 2^ 7 | 1 3 5 3 1^ 5 3 1 | 5 5 6 5 7 6 5 4` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['IV', 'V', 'I'], m: `
+        4 4 5 4 6 6 5 6 | 5 r 4 r 3 r 2 r | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'wolfking',
+    n: '狼之主',
+    sub: '明日方舟 · 叙拉古人',
+    bpm: 180, root: 50, mode: 'min', wave: 'sawtooth',
+    desc: '追着你跑的速度。一百八十拍全是八分，读谱不难、撑住最难。',
+    secs: [
+      { tag: '开场', e: 2, rep: 1, ch: ['i', 'i', 'VII', 'VII'], m: `
+        1 1 1 5 1 1 1 5 | 7 7 7 5 7 7 7 5` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'VII'], m: `
+        1 1 1 1 3 3 1 1 | 7 7 7 7 5 5 7 7 | 6 6 6 6 4 4 6 6 | 5 5 5 5 7 7 5 5
+        1 1 1 1 3 3 5 5 | 7 7 7 7 6 6 5 5 | 6 6 7 7 1^ 1^ 2^ 2^ | 3^ 2^ 1^ 7 5 r 3 r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        5 5 6 5 5 6 5 3 | 7 7 1^ 7 7 1^ 7 5 | 6 6 7 6 6 7 6 4 | 5 5 6 5 3 2 3 r
+        5 5 6 5 5 6 5 3 | 1^ 1^ 2^ 1^ 7 6 5 7 | 6 6 7 7 1^ 1^ 2^ 2^ | 3^ 2^ 1^ 7 1^ r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6 r 7 r 1^ r 7 r | 6 r 5 r 4 r 3 r | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'boiling',
+    n: 'Boiling Blood',
+    sub: '明日方舟 · 战斗曲',
+    bpm: 170, root: 53, mode: 'min', wave: 'square',
+    desc: '血在烧的那种推进感。主歌一直在同一个音上绕，副歌才散开。',
+    secs: [
+      { tag: '开场', e: 2, rep: 1, ch: ['i', 'VI', 'VII', 'i'], m: `
+        1 1 1 5 6 6 6 5 | 1 1 1 5 7 7 7 5` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'VI', 'III', 'VII', 'i', 'VI', 'VII', 'V'], m: `
+        1 1 3 3 5 3 1 1 | 6 6 5 5 6 5 3 6 | 3 3 5 5 6 5 3 3 | 7 7 6 6 5 3 2 7
+        1 1 3 3 5 3 5 6 | 6 6 7 6 1^ 7 6 5 | 1^ 1^ 7 6 5 5 6 7 | 5 5 4 4 3 r 2 r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        5 6 5 3 2 3 5 6 | 7 1^ 7 6 5 6 7 1^ | 6 7 6 5 4 5 6 7 | 5 6 5 4 3 r 5 r
+        5 6 5 3 2 3 5 6 | 1^ 2^ 1^ 7 6 5 6 7 | 6 6 7 7 1^ 1^ 2^ 2^ | 3^ 2^ 1^ 7 1^ r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6 6 5 5 4 4 3 3 | 2 2 3 2 1 r r r | 1:3 r r` },
+    ],
+  },
   /* ================================================================ 边狱巴士 */
   {
     id: 'flywings',
@@ -251,6 +411,87 @@ const IP_SONGS = [
         6 r 7 r 1^ r 7 r | 6 r 5 r 3 r 2 r | 1:3 r r` },
     ],
   },
+
+  /* ================================================================ 鸣潮 */
+  {
+    id: 'wakingworld',
+    n: 'Waking of a World',
+    sub: '鸣潮 · 公测主题曲',
+    bpm: 112, root: 57, mode: 'maj', wave: 'triangle',
+    desc: '慢、宽、一路铺开。这段最好用来练长按：主歌全是两拍以上的长音。',
+    secs: [
+      { tag: '开场', e: 1, rep: 1, ch: ['I', 'V', 'vi', 'IV'], m: `
+        1 r 3 r 5 r 3 r | 6 r 5 r 4 r 3 r` },
+      { tag: '主歌', e: 1, rep: 1, ch: ['I', 'V', 'vi', 'IV', 'I', 'V', 'IV', 'V'], m: `
+        1:2 3:2 | 5:2 3:2 | 6:2 5:2 | 4:2 3:2
+        1:2 5:2 | 6:2 1^:2 | 7:2 6:2 | 5:2 r:2` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['I', 'V', 'vi', 'IV', 'I', 'V', 'IV', 'V'], m: `
+        5 5 6 5 3 3 2 3 | 5 5 6 5 3 r 2 r | 6 6 7 6 5 5 4 5 | 5 5 4 3 2 3 5 r
+        5 5 6 5 3 3 2 3 | 1^ 1^ 7 6 5 3 5 6 | 6 6 7 1^ 7 6 5 4 | 3 2 3 1 1 r r r` },
+      { tag: '间奏', e: 2, rep: 1, ch: ['IV', 'V', 'I', 'V'], m: `
+        4 6 1^ 6 4 6 1^ 6 | 5 7 2^ 7 5 7 2^ 7 | 1 3 5 3 1^ 5 3 1 | 5 6 5 4 3 2 3 r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['IV', 'V', 'I'], m: `
+        4:2 5:2 | 6 r 5 r 3 r 2 r | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'dawnbreaker',
+    n: 'Dawnbreaker',
+    sub: '鸣潮 · 剧情曲',
+    bpm: 132, root: 55, mode: 'min', wave: 'sawtooth',
+    desc: '破晓那一段的摇滚。前段压着唱，副歌整条线往上抬一个八度。',
+    secs: [
+      { tag: '开场', e: 1, rep: 1, ch: ['i', 'VI', 'III', 'VII'], m: `
+        1 r r 3 r r 5 r | 6 r r 5 r r 3 r` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'VI', 'III', 'VII', 'i', 'VI', 'VII', 'V'], m: `
+        1 1 2 3 1 1 2 3 | 6 6 5 6 3 3 2 3 | 3 3 4 5 3 3 4 5 | 7 7 6 5 3 2 1 2
+        1 1 2 3 1 1 2 3 | 6 6 7 6 1^ 7 6 5 | 1^ 1^ 7 7 6 6 5 5 | 5 5 4 4 3 r 2 r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        1^ 1^ 7 6 5 5 6 5 | 7 7 6 5 4 5 6 7 | 6 6 5 4 3 4 5 6 | 5 5 4 3 2 r 3 r
+        1^ 1^ 7 6 5 5 6 5 | 3^ 3^ 2^ 1^ 7 6 5 7 | 6 6 7 7 1^ 1^ 2^ 2^ | 3^ 2^ 1^ 7 1^ r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6 r 7 r 1^ r 7 r | 6 r 5 r 3 r 2 r | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'ashesreign',
+    n: '余烬重燃',
+    sub: '鸣潮 · 主题曲',
+    bpm: 150, root: 58, mode: 'min', wave: 'square',
+    desc: '灰里还有火。主歌一路小跳，副歌换成头两个音反复砸。',
+    secs: [
+      { tag: '开场', e: 2, rep: 1, ch: ['i', 'i', 'VI', 'VII'], m: `
+        1 1 1 5 1 1 1 5 | 6 6 6 5 7 7 7 5` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'VI', 'III', 'VII', 'i', 'VI', 'VII', 'VII'], m: `
+        1 1 3 1 5 3 1 1 | 6 6 5 6 4 3 6 6 | 3 3 5 3 6 5 3 3 | 7 7 6 7 5 3 7 7
+        1 1 3 1 5 3 5 6 | 6 6 7 6 1^ 7 6 5 | 1^ 1^ 7 7 6 6 5 5 | 6 6 7 7 1^ r r r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        5 5 6 5 3 3 2 3 | 7 7 1^ 7 6 5 3 5 | 6 6 7 6 5 4 3 4 | 5 5 4 3 2 r 3 r
+        5 5 6 5 3 3 2 3 | 1^ 1^ 2^ 1^ 7 6 5 3 | 6 6 7 7 1^ 1^ 2^ 2^ | 3^ 2^ 1^ 7 1^ r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6 6 5 5 4 4 3 3 | 5 5 4 4 3 3 2 2 | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'windwhere',
+    n: '风之所在',
+    sub: '鸣潮 · 主题曲',
+    bpm: 140, root: 60, mode: 'maj', wave: 'triangle',
+    desc: '开阔、带一点惆怅的大调。副歌每句都是「上行再落回来」。',
+    secs: [
+      { tag: '开场', e: 1, rep: 1, ch: ['I', 'V', 'vi', 'IV'], m: `
+        5 r 3 r 1 r 3 r | 6 r 5 r 4 r 3 r` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['I', 'V', 'vi', 'IV', 'I', 'V', 'IV', 'V'], m: `
+        1 3 5 3 1 3 5 3 | 6 5 6 5 6 1^ 6 5 | 4 6 1^ 6 4 6 1^ 6 | 5 4 3 2 3 4 5 r
+        1 3 5 3 1 3 5 3 | 6 5 6 5 6 1^ 6 5 | 7 7 6 6 5 5 4 4 | 3 3 4 4 5 r r r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['I', 'V', 'vi', 'IV', 'I', 'V', 'IV', 'V'], m: `
+        5 6 5 3 2 3 5 r | 4 5 4 2 1 2 4 r | 6 7 6 4 3 4 6 r | 5 6 5 3 2 3 5 7
+        5 6 5 3 2 3 5 6 | 1^ 2^ 1^ 7 6 5 3 5 | 4 4 5 5 6 6 7 7 | 3 4 5 4 1 r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['IV', 'V', 'I'], m: `
+        4 4 5 4 6 6 5 6 | 5 r 3 r 2 r 1 r | 1:3 r r` },
+    ],
+  },
+
 ];
 return { IP_SONGS };
 })();
@@ -3380,10 +3621,43 @@ function trackInfo(songId) {
   return SAVE.tracks[songId] || null;
 }
 function allSongs() { return SONGS.concat(SHOP ? SHOP.songs() : []); }
+// 曲目按来源分组（sub 里 `·` 前面那截：μ's / 剑网3 / 明日方舟 / 边狱巴士 / 鸣潮 / 自制）
+function songGroup(s) {
+  if (s.custom) return '自制';
+  return String(s.sub || '').split('·')[0].trim() || '其它';
+}
+let songTab = 'all';
 function renderSongs() {
   const box = $('#song-list');
+  const all = allSongs();
+  const groups = [];
+  for (const s of all) {
+    const g = songGroup(s);
+    if (groups.indexOf(g) < 0) groups.push(g);
+  }
+  if (songTab !== 'all' && groups.indexOf(songTab) < 0) songTab = 'all';
+  const tabs = $('#src-tabs');
+  if (tabs) {
+    tabs.textContent = '';
+    for (const g of ['全部'].concat(groups)) {
+      const key = g === '全部' ? 'all' : g;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tab' + (key === songTab ? ' on' : '');
+      b.dataset.g = key;
+      b.textContent = g === '全部' ? ('全部 ' + all.length) : g;
+      tabs.appendChild(b);
+    }
+    tabs.onclick = (e) => {
+      const b = e.target.closest('button.tab');
+      if (!b || b.dataset.g === songTab) return;
+      songTab = b.dataset.g;
+      renderSongs();
+    };
+  }
   box.textContent = '';
-  for (const s of allSongs()) {
+  for (const s of all) {
+    if (songTab !== 'all' && songGroup(s) !== songTab) continue;
     if (s.custom) {
       const card = document.createElement('article');
       card.className = 'song mine';

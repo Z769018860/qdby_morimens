@@ -2,7 +2,7 @@
 """lovelive！mori⭐mens！的原曲打包器：music/ 里的音频 → assets/ll-music/*.bin（加密）。
 
 用法：
-    python scripts/ll-music.py --list      # 看看十七首各要什么文件名
+    python scripts/ll-music.py --list      # 看看每首要什么文件名
     python scripts/ll-music.py             # 把 music/ 里能对上的都打包
     python scripts/ll-music.py --clean     # 删掉已经打包的 bin 和清单
 
@@ -49,14 +49,26 @@ SONGS = [
     ('shanhe', '山河晴昼', ['山河晴昼', 'shanhe', 'shan he qing zhou']),
     ('bujian', '不见长安', ['不见长安', 'bujian', 'bu jian chang an']),
     ('jianghu', '江湖意', ['江湖意', 'jianghu']),
+    ('wanchong', '万重山', ['万重山', 'wanchong', 'wan chong shan']),
+    ('dangzhan', '当战', ['当战', 'dangzhan', 'dang zhan']),
+    ('hezengju', '何曾惧', ['何曾惧', 'hezengju', 'he zeng ju']),
+    ('kuang', '狂', ['剑网3狂', '狂', 'kuang']),
     ('opblade', 'Operation Blade', ['operation blade', 'opblade', 'operation']),
     ('reconn', 'Reconnection', ['reconnection', 'reconn']),
     ('radiant', 'Radiant', ['radiant']),
     ('renegade', 'Renegade', ['renegade']),
+    ('pyrite', 'Operation Pyrite', ['operation pyrite', 'pyrite', '黄铁']),
+    ('solight', 'Speed of Light', ['speed of light', 'solight', '光速']),
+    ('wolfking', '狼之主', ['狼之主', 'wolfking', 'wolf king']),
+    ('boiling', 'Boiling Blood', ['boiling blood', 'boiling', '炽血蒸腾']),
     ('flywings', 'Fly, My Wings', ['fly my wings', 'flywings', 'my wings']),
     ('lament', 'In Hell We Live, Lament', ['in hell we live', 'lament', 'hell we live']),
     ('bell', 'Bell of Twilight', ['bell of twilight', 'bell', 'twilight']),
     ('ashes', 'Ashes', ['ashes', 'ash']),
+    ('wakingworld', 'Waking of a World', ['waking of a world', 'wakingworld', 'waking']),
+    ('dawnbreaker', 'Dawnbreaker', ['dawnbreaker', 'dawn breaker', '破晓']),
+    ('ashesreign', '余烬重燃', ['余烬重燃', 'ashesreign', 'turning around']),
+    ('windwhere', '风之所在', ['风之所在', 'windwhere', 'wind where']),
 ]
 
 
@@ -135,10 +147,10 @@ def match(path, taken):
 
 
 def do_list():
-    print('%-9s %-28s %s' % ('id', '曲名', '认得出的文件名（任意一种）'))
+    print('%-12s %-24s %s' % ('id', '曲名', '认得出的文件名（任意一种）'))
     for sid, name, keys in SONGS:
         ex = sid + '.mp3  /  ' + keys[-1]
-        print('%-9s %-28s %s' % (sid, name, ex))
+        print('%-12s %-24s %s' % (sid, name, ex))
     print('\n把音频放进 %s ，跑一次 python scripts/ll-music.py' % os.path.relpath(SRC_DIR, ROOT))
 
 

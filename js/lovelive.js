@@ -1118,10 +1118,43 @@ function trackInfo(songId) {
   return SAVE.tracks[songId] || null;
 }
 function allSongs() { return SONGS.concat(SHOP ? SHOP.songs() : []); }
+// 曲目按来源分组（sub 里 `·` 前面那截：μ's / 剑网3 / 明日方舟 / 边狱巴士 / 鸣潮 / 自制）
+function songGroup(s) {
+  if (s.custom) return '自制';
+  return String(s.sub || '').split('·')[0].trim() || '其它';
+}
+let songTab = 'all';
 function renderSongs() {
   const box = $('#song-list');
+  const all = allSongs();
+  const groups = [];
+  for (const s of all) {
+    const g = songGroup(s);
+    if (groups.indexOf(g) < 0) groups.push(g);
+  }
+  if (songTab !== 'all' && groups.indexOf(songTab) < 0) songTab = 'all';
+  const tabs = $('#src-tabs');
+  if (tabs) {
+    tabs.textContent = '';
+    for (const g of ['全部'].concat(groups)) {
+      const key = g === '全部' ? 'all' : g;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tab' + (key === songTab ? ' on' : '');
+      b.dataset.g = key;
+      b.textContent = g === '全部' ? ('全部 ' + all.length) : g;
+      tabs.appendChild(b);
+    }
+    tabs.onclick = (e) => {
+      const b = e.target.closest('button.tab');
+      if (!b || b.dataset.g === songTab) return;
+      songTab = b.dataset.g;
+      renderSongs();
+    };
+  }
   box.textContent = '';
-  for (const s of allSongs()) {
+  for (const s of all) {
+    if (songTab !== 'all' && songGroup(s) !== songTab) continue;
     if (s.custom) {
       const card = document.createElement('article');
       card.className = 'song mine';

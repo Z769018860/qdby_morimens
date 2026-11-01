@@ -42,6 +42,9 @@ body{
   text-decoration:none; font-size:15px; cursor:pointer; padding:0; font:inherit;
 }
 .back:hover{border-color:var(--pink); color:var(--pink)}
+/* 头部那个是「回小游戏主页」，屏内那个是「回上一屏」——用文字胶囊把两者分开，
+   否则左边会叠着两个一模一样的箭头 */
+.back.home{width:auto; flex:0 0 auto; padding:0 10px; font-size:12px; letter-spacing:.5px}
 .hud .who{min-width:0; flex:1; text-align:center}
 .hud .who b{display:block; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .hud .who span{font-size:10.5px; color:var(--dim); letter-spacing:.08em}
@@ -84,6 +87,13 @@ main > section[hidden]{display:none}
 .scr-h{display:flex; align-items:center; gap:6px; flex:0 0 auto}
 .scr-h h2{font-size:17px; margin:0; flex:1; text-align:center; min-width:0;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.src-tabs{flex:0 0 auto; display:flex; gap:6px; overflow-x:auto; padding:0 1px 9px; scrollbar-width:none}
+.src-tabs::-webkit-scrollbar{display:none}
+.src-tabs button{
+  flex:0 0 auto; font:inherit; font-size:12.5px; line-height:1; padding:6px 11px; border-radius:999px; cursor:pointer;
+  background:transparent; color:var(--dim); border:1px solid var(--line); transition:.15s;
+}
+.src-tabs button.on{background:var(--pink2); color:#181022; border-color:transparent; font-weight:600}
 .song-list{flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:6px}
 .song{border:1px solid var(--line); background:var(--panel); border-radius:14px; padding:12px 14px}
 .song .sh{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap}
@@ -343,8 +353,8 @@ dialog.help code{font-family:ui-monospace,Menlo,monospace; font-size:11.5px; bor
 dialog.help .acts{display:flex; justify-content:flex-end; margin-top:10px}
 
 /* 首屏守护的占位要能盖住整页 */
-/* 打歌时把全站那个横竖屏开关收起来：它固定在左下角，正好压住最左边两格 */
-body.live .zj-orient{opacity:0; pointer-events:none; transition:opacity .18s ease}
+/* 全站那个横竖屏开关在本页整个收起来：它固定在左下角，会压住曲目卡和第九格 */
+body .zj-orient{display:none !important}
 
 #boot{position:fixed; inset:0; z-index:99; display:grid; place-items:center; background:var(--bg); color:var(--dim); text-align:center; font-size:14px}
 #boot.err{color:var(--bad)}
@@ -354,8 +364,8 @@ body.live .zj-orient{opacity:0; pointer-events:none; transition:opacity .18s eas
 <!-- @boot -->
 <div class="app" id="app">
   <header class="hud">
-    <a class="back" id="to-home" href="./" title="返回小游戏主页" aria-label="返回小游戏主页">←</a>
     <span class="who"><b>lovelive！mori⭐mens！</b><span>忘忘学园偶像祭</span></span>
+    <a class="back home" id="to-home" href="./" title="返回小游戏主页" aria-label="返回小游戏主页">主页</a>
     <button class="ico" id="mute" title="静音开关" aria-label="静音开关">♪</button>
     <button class="ico" id="btn-set" title="设置" aria-label="设置">⚙</button>
     <button class="ico" id="btn-help" title="玩法说明" aria-label="玩法说明">?</button>
@@ -387,6 +397,7 @@ body.live .zj-orient{opacity:0; pointer-events:none; transition:opacity .18s eas
         <button class="ico" id="songs-shop" type="button" title="工坊" aria-label="工坊">✎</button>
         <button class="ico" id="songs-set" type="button" title="设置 / 音源" aria-label="设置">⚙</button>
       </div>
+      <div class="src-tabs" id="src-tabs"></div>
       <div class="song-list" id="song-list"></div>
     </section>
 
