@@ -5,6 +5,7 @@ import { CG, REALM } from './keeper/art.js';
 import { FORMS, PROLOGUE, BRIEF, STAIRS, STAIR_OPTS, DOOR, CATEVENT, INTERLUDE, FINAL } from './keeper/data.js';
 import { ENDINGS, GROUPS, TOTAL } from './keeper/endings.js';
 import { walletAdd } from './silver.js';
+import * as SND from './keeper/audio.js';
 
 const $ = (s) => document.querySelector(s);
 const LS_KEY = 'zjtt:keeper:v1';
@@ -37,34 +38,36 @@ function newRun() {
 }
 
 // ------------------------------------------------------------------ 音频
-let AC = null, drone = null, muted = false, toggleCount = 0, mutedThisNight = false;
-function audio() {
-  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } }
-  return AC;
+// 播放本身在 keeper/audio.js，这里只决定「什么时候响什么」。
+// 浏览器不给手势就不让出声：第一次点击/按键才真正建 AudioContext（wake）。
+let muted = false, toggleCount = 0, mutedThisNight = false;
+const bgm = SND.bgm, sfx = SND.sfx;
+function heartbeat(on) { SND.heartbeat(on && !REDUCED); }
+
+let booted = false;
+function wake() {
+  if (booted) return;
+  booted = true;
+  SND.boot();
+  const h = $('#sndHint');
+  if (h) h.remove();
+  if (S) renderMeters();
 }
-function droneOn() {
-  const ac = audio(); if (!ac || drone) return;
-  const g = ac.createGain(); g.gain.value = 0.03; g.connect(ac.destination);
-  for (const f of [52, 52.7, 104.3]) {
-    const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(g); o.start();
-  }
-  drone = { g };
-}
-function droneOff() { if (drone) { try { drone.g.disconnect(); } catch { /* noop */ } drone = null; } }
-function thump() {
-  const ac = audio(); if (!ac || muted) return;
-  const o = ac.createOscillator(), g = ac.createGain();
-  o.type = 'sine'; o.frequency.setValueAtTime(58, ac.currentTime);
-  o.frequency.exponentialRampToValueAtTime(38, ac.currentTime + .12);
-  g.gain.setValueAtTime(.13, ac.currentTime);
-  g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + .18);
-  o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + .2);
-}
-let heartTimer = null;
-function heartbeat(on) {
-  clearInterval(heartTimer); heartTimer = null;
-  if (on && !REDUCED) heartTimer = setInterval(() => { thump(); setTimeout(thump, 260); }, 1500);
-}
+document.addEventListener('pointerdown', wake);
+document.addEventListener('keydown', wake);
+
+// 每一夜的形态有自己的登场声——她变了，声音先告诉你
+const FORM_SFX = {
+  binder: 'chain', trimmer: 'knife', lamp: 'candle', tower: 'stone',
+  salt: 'drip', myriad: 'page', hollow: 'wind', lastday: 'bell',
+  cat: 'cat', unnamed: 'breath', mirror: 'glass', first: 'ring',
+};
+// 选项按「你做了什么」配声，而不是逐句配
+const TAG_SFX = {
+  kill: ['slash', 1], read: ['page', .8], silence: ['creak', .7],
+  gentle: ['breath', .55], dominate: ['clank', .9], grieve: ['drip', .8],
+  faith: ['tick', .7], name: ['whisper', .7],
+};
 
 // ------------------------------------------------------------------ 背景 / 特效
 let bgCur = 'A';
@@ -117,6 +120,7 @@ function playBeat(beat, done) {
   } else pe.hidden = true;
   if (beat.bg) setBG(beat.bg);
   if (beat.fx) fx(beat.fx);
+  if (beat.sfx) sfx(beat.sfx, beat.sfxGain || 1);
   $('#choices').classList.add('hide');
   typeInto($('#ptext'), (Array.isArray(beat.t) ? beat.t : [beat.t])[0], null);
 }
@@ -176,6 +180,12 @@ function choose(o, idx) {
   const box = $('#choices');
   box.innerHTML = '';          // 必须清空：下一幕的 showChoices 靠「没有子节点」判断要不要渲染
   box.classList.add('hide');
+  // 声音跟着动作走：敲门、动手、翻页、沉默，各有各的响法
+  if (/敲/.test(o.t)) sfx('knock', .95);
+  else if (o.kill) sfx('slash', 1);
+  else if (o.tag && TAG_SFX[o.tag]) sfx(TAG_SFX[o.tag][0], TAG_SFX[o.tag][1]);
+  else if (o.realm) sfx('ring', .3);
+  else SND.tap(.09);
   if (o.mark) for (const k in o.mark) S.marks[k] += o.mark[k] || 0;
   if (o.w) S.w = Math.max(0, Math.min(100, S.w + o.w));
   if (o.tag) {
@@ -220,6 +230,16 @@ function playSeq(beats, after) {
 }
 
 // ------------------------------------------------------------------ 流程
+// 场景想要的曲子 + 一个「记忆太重就盖掉它」的开关，统一在 applyBgm 里结算
+let sceneBgm = 'theme', endingShown = false, hbOn = false;
+function applyBgm() {
+  if (endingShown) return;
+  const hot = !!(S && S.w >= 80);
+  bgm(hot ? 'dread' : sceneBgm);
+  if (hot !== hbOn) { hbOn = hot; heartbeat(hot && !muted); }
+}
+function setScene(name) { sceneBgm = name; applyBgm(); }
+
 function updateChip() { $('#nightChip').textContent = S ? `第 ${S.loop} 夜` : '未入夜'; }
 function renderMeters() {
   if (!S) return;
@@ -231,13 +251,15 @@ function renderMeters() {
   $('#wfill').style.width = S.w + '%';
   $('#wbar').classList.toggle('hot', S.w >= 70);
   document.body.classList.toggle('danger', S.w >= 80);
-  heartbeat(S.w >= 80 && !muted);
+  applyBgm();
 }
 
 function showTitle() {
   S = null; MID = null; saveP();
+  endingShown = false;
   updateChip(); renderMeters();
-  document.body.classList.remove('danger'); heartbeat(false);
+  document.body.classList.remove('danger'); heartbeat(false); hbOn = false;
+  setScene('theme');
   $('#scr-end').classList.remove('on');
   $('#playwrap').style.display = 'none';
   const t = $('#scr-title'); t.classList.add('on');
@@ -251,7 +273,7 @@ function showTitle() {
       <p class="lead">规程说：钥冢最底下关着一位守密人，她记的东西太多，再记下去，<b>整座弥萨格就会被写穿</b>。<br>
       拿上裁页刀，下去，杀死她。<em style="color:var(--dim)">——规程是这么说的。规程没说的是：你杀过她一次，就再也不能忘记她。</em></p>
     </div>
-    <div class="warn">微恐 · 猎奇 · 有轻微闪烁与低频音 · 建议戴耳机 · 没有 Jump Scare，但有比它更糟的东西</div>
+    <div class="warn">微恐 · 猎奇 · 有轻微闪烁、低频轰鸣、呼吸与低语声 · 建议戴耳机 · 没有 Jump Scare，但有比它更糟的东西</div>
     <div class="trow">
       <button class="btn primary" id="btnStart">进入钥冢</button>
       ${canResume ? '<button class="btn" id="btnResume">从断点继续（她收好了）</button>' : ''}
@@ -269,14 +291,29 @@ function showTitle() {
   if (P.forms.size >= 12 && !P.meta.e96 && P.endings.size) {
     setTimeout(() => { if ($('#scr-title').classList.contains('on')) unlock('E096'); }, 9000);
   }
+  soundHint();
+}
+// 浏览器不给手势就不出声，标一个可点的提示，点完即进
+function soundHint() {
+  const old = $('#sndHint');
+  if (SND.ready()) { if (old) old.remove(); return; }
+  if (old) return;
+  const b = document.createElement('button');
+  b.id = 'sndHint'; b.type = 'button'; b.className = 'sndhint';
+  b.innerHTML = '♪ 轻触开启声音<span>建议戴耳机</span>';
+  b.addEventListener('click', (e) => { e.stopPropagation(); wake(); });
+  document.body.appendChild(b);
 }
 
 function startRun(run) {
   S = run;
+  endingShown = false;
   $('#scr-title').classList.remove('on');
   $('#scr-end').classList.remove('on');
   $('#playwrap').style.display = 'flex';
   P.nights++;
+  setScene('night');
+  sfx('page', .9);
   const now = new Date();
   if (now.getHours() === 3) unlock('E101');
   const mo = now.getMonth() + 1, d = now.getDate();
@@ -289,8 +326,10 @@ function resumeRun() {
   S = JSON.parse(JSON.stringify(P.mid.run));
   MID = P.mid;
   sessionFresh = false;
+  endingShown = false;
   $('#scr-title').classList.remove('on');
   $('#playwrap').style.display = 'flex';
+  setScene('night');
   updateChip(); renderMeters();
   const at = P.mid.at;
   if (at === 'door') doorScene();
@@ -315,6 +354,8 @@ function rotateOpts(opts, n) {
 }
 function descend() {
   updateChip(); renderMeters();
+  setScene('night');
+  sfx('step', .8);
   MID = { run: JSON.parse(JSON.stringify(S)), at: 'descend' }; saveP();
   const b = S.loop === 1 ? ['「再确认一遍。」规程说，「取刀，下行，处刑。第 0 条授权你的一切。」']
     : (BRIEF[Math.min(9, S.loop)] || [
@@ -334,6 +375,7 @@ function stairChoice() {
 }
 function doorScene() {
   MID = { run: JSON.parse(JSON.stringify(S)), at: 'door' }; saveP();
+  sfx('creak', .9);
   const lines = DOOR.lines[Math.min(5, S.loop)] || DOOR.lines[5];
   playSeq([{ bg: 'door', who: 'sys', t: lines }], () => {
     const opts = DOOR.opts.filter((o) => (!o.needBlade || S.flags.blade) && (!o.needNoBlade || !S.flags.blade));
@@ -356,6 +398,8 @@ function meeting() {
   }
   MID = { run: JSON.parse(JSON.stringify(S)), at: 'meet' }; saveP();
   const F = FORMS[form];
+  setScene('night');
+  sfx(FORM_SFX[form] || 'whisper', 1.05);   // 她的登场声
   playSeq([
     { bg: F.cg[0], who: 'sys', t: [`—— 第 ${S.loop} 夜 · 形态：${F.name} ——`] },
   ], () => runForm(F));
@@ -401,6 +445,8 @@ function transform() {
   S.loop++;
   S.spared = 0;
   updateChip();
+  setScene('night');
+  sfx('bell', .8);          // 一夜结束的钟
   MID = { run: JSON.parse(JSON.stringify(S)), at: 'descend' }; saveP();
   if (S.loop >= 9) unlock('E104');
   if (S.loop >= 5 && sessionFresh) unlock('E105');
@@ -416,6 +462,8 @@ function transform() {
 // ---- 终夜
 function finalNight() {
   updateChip();
+  setScene('final');
+  sfx('ring', .9);
   // 初代只在终夜现身：算第十二种被见证的形态
   if (!S.witnessed.includes('first')) S.witnessed.push('first');
   if (!P.forms.has('first')) { P.forms.add('first'); if (P.forms.size >= 12) unlock('E097'); saveP(); }
@@ -454,7 +502,12 @@ function showEnding(id) {
     if (id === 'E067') S.flags.mirrorBroken = 1;
     if (id === 'E090') S.flags.readDraft = 1;
   }
-  heartbeat(false); document.body.classList.remove('danger');
+  heartbeat(false); hbOn = false; endingShown = true;
+  document.body.classList.remove('danger');
+  // 结局页先留白：音乐淡掉，只留一记收尾声
+  bgm(null);
+  const tail = e.grp === 'meta' ? 'static' : e.grp === 'zero' ? 'drip' : 'bell';
+  setTimeout(() => sfx(tail, e.grp === 'final' ? 1 : .72), 300);
   const grp = GROUPS.find((g) => g.k === e.grp) || { t: '' };
   const no = idx + 1;
   const tint = e.grp === 'final' ? '#d05555' : e.grp === 'meta' ? '#8fbf9f' : e.grp === 'zero' ? '#938b97'
@@ -482,6 +535,8 @@ function showEnding(id) {
     $('#btnNext').onclick = () => {
       sc.classList.remove('on');
       $('#playwrap').style.display = 'flex';
+      endingShown = false;
+      sfx('paper', .7);
       transform();
     };
     $('#btnHome').onclick = home;
@@ -498,6 +553,7 @@ function ekColor(grp) {
 }
 function openBook() {
   const box = $('#mbox');
+  sfx('page', .85);
   const secs = GROUPS.map((g) => {
     const list = ENDINGS.map((e, i) => ({ e, i })).filter((x) => x.e.grp === g.k);
     const got = list.filter((x) => P.endings.has(x.e.id)).length;
@@ -577,6 +633,7 @@ function unlock(id) {
   P.endings.add(id);
   try { walletAdd(2); } catch { /* noop */ }
   saveP();
+  sfx('static', .5);           // 档案室翻到你的那一页
   const e = ENDINGS.find((x) => x.id === id);
   toast(`场外档案 · ${e ? e.t : id} 已归档（银芯 +2）`);
 }
@@ -594,11 +651,11 @@ function toast(msg) {
 
 // ------------------------------------------------------------------ 顶栏
 $('#soundBtn').onclick = () => {
-  muted = !muted;
+  muted = SND.toggleMute();
   $('#soundBtn').classList.toggle('off', muted);
   toggleCount++;
-  if (muted) { mutedThisNight = true; droneOff(); heartbeat(false); }
-  else { droneOn(); if (S && S.w >= 80) heartbeat(true); }
+  if (muted) mutedThisNight = true;
+  else if (S && S.w >= 80) { hbOn = true; heartbeat(true); }
   if (toggleCount >= 6) { unlock('E095'); toggleCount = 0; }
 };
 $('#helpBtn').onclick = openHelp;

@@ -128,6 +128,16 @@ body.danger #redwash{opacity:1; animation:beat 1.6s ease-in-out infinite}
 .btn.primary:hover{opacity:.93;color:#fff}
 .btn:disabled{opacity:.4;pointer-events:none}
 .statline{margin:20px auto 0;font-size:11px;color:var(--dim2);letter-spacing:.1em}
+/* 开声提示：浏览器不给手势就不出声，标一个能点的 */
+.sndhint{position:fixed;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);
+  z-index:40;display:flex;align-items:center;gap:9px;padding:8px 18px;border-radius:999px;
+  background:rgba(18,16,22,.92);border:1px solid rgba(201,169,97,.42);color:var(--gold);
+  font:inherit;font-size:12px;letter-spacing:.14em;cursor:pointer;white-space:nowrap;
+  max-width:calc(100vw - 28px);
+  box-shadow:0 12px 34px -14px rgba(0,0,0,.95);animation:shint 2.8s ease-in-out infinite}
+.sndhint span{font-size:10px;color:var(--dim2);letter-spacing:.06em;white-space:nowrap}
+.sndhint:hover{border-color:var(--gold);color:#f0dfa8}
+@keyframes shint{0%,100%{opacity:.7}50%{opacity:1}}
 .disc{margin:26px auto 0;max-width:36em;font-size:10px;line-height:1.9;color:var(--dim2)}
 /* 对话面板 */
 #panel{
@@ -233,6 +243,8 @@ body.danger #redwash{opacity:1; animation:beat 1.6s ease-in-out infinite}
   .ggrid{grid-template-columns:1fr}
   .ttl b{font-size:13px}
   .wbar{min-width:90px}
+  .sndhint{font-size:11.5px;letter-spacing:.1em;padding:7px 14px;gap:6px}
+  .sndhint span{display:none}
 }
 @media (max-height:620px){
   .ptext{min-height:2.2em;font-size:13.5px;line-height:1.8}
