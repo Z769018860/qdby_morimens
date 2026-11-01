@@ -21,6 +21,7 @@ import { SONGS, arrange } from './ll/songs.js';
 import { Audio } from './ll/audio.js';
 import { detectOnsets, chartFromOnsets, chartFromArr, hashStr } from './ll/analyze.js';
 import { UNITS } from './ll/gen.js';
+import { initShop } from './ll/shop.js';
 import { startGameCloud } from './gamecloud.js';
 
 /* ================================================================ 小工具 */
@@ -39,6 +40,17 @@ const AUTO = TEST && /[?&]_auto=1/.test(location.search);
 const FINE = window.matchMedia ? window.matchMedia('(pointer:fine)').matches : false;
 // 画面特效的时间轴（秒）：和 rAF 的时间戳同源，暂停时也照常走
 const wall = () => performance.now() / 1000;
+// 页脚那行红字提示：写一句、抖一下、两秒半后自己消失
+function flash(sel, msg) {
+  const el = $(sel);
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('pop');
+  void el.offsetWidth;
+  el.classList.add('pop');
+  clearTimeout(el._ft);
+  el._ft = setTimeout(() => { el.textContent = ''; }, 2600);
+}
 
 /* ================================================================ 存档 */
 const KEY = 'zjtt:lovelive';
@@ -60,6 +72,10 @@ function loadSave() {
   s.musVol = s.musVol == null ? 0.7 : clamp(Number(s.musVol), 0, 1);
   s.fxVol = s.fxVol == null ? 0.6 : clamp(Number(s.fxVol), 0, 1);
   s.keys = s.keys == null ? 1 : (s.keys ? 1 : 0);
+  // 工坊：本机谱面的索引（正文在 IndexedDB，这里只留列表要用的字段）
+  s.mine = Array.isArray(s.mine) ? s.mine.filter((m) => m && m.id).slice(0, 60) : [];
+  // 云端谱面里「我已经把音频对上了」的那些：{ <cloudId>: { name, dur } }
+  s.cloudAudio = (s.cloudAudio && typeof s.cloudAudio === 'object') ? s.cloudAudio : {};
   return s;
 }
 const SAVE = loadSave();
@@ -71,19 +87,23 @@ const bestKey = (songId, diff) => songId + ':' + diff;
 /* ================================================================ IndexedDB：本机音源 */
 // 只存本机（不上传、不跨设备）：原曲是自己导入的，不存在库里分发给别人。
 const DB_NAME = 'll-tracks';
+// 两个表：t = 音频（导入的原曲），c = 谱面（工坊里做出来的）
 function idbOpen() {
   return new Promise((res, rej) => {
     let r;
-    try { r = indexedDB.open(DB_NAME, 1); } catch (e) { rej(e); return; }
-    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('t')) r.result.createObjectStore('t'); };
+    try { r = indexedDB.open(DB_NAME, 2); } catch (e) { rej(e); return; }
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      for (const name of ['t', 'c']) if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
+    };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error || new Error('打不开本机音源库'));
   });
 }
-function idbDo(mode, fn) {
+function idbDo(store, mode, fn) {
   return idbOpen().then((db) => new Promise((res, rej) => {
-    const tx = db.transaction('t', mode);
-    const st = tx.objectStore('t');
+    const tx = db.transaction(store, mode);
+    const st = tx.objectStore(store);
     let out;
     try { out = fn(st); } catch (e) { rej(e); return; }
     tx.oncomplete = () => res(out && out.result !== undefined ? out.result : out);
@@ -91,9 +111,12 @@ function idbDo(mode, fn) {
     tx.onabort = () => rej(tx.error);
   }));
 }
-const idbGet = (k) => idbDo('readonly', (st) => st.get(k));
-const idbSet = (k, v) => idbDo('readwrite', (st) => st.put(v, k));
-const idbDel = (k) => idbDo('readwrite', (st) => st.delete(k));
+const idbGet = (k) => idbDo('t', 'readonly', (st) => st.get(k));
+const idbSet = (k, v) => idbDo('t', 'readwrite', (st) => st.put(v, k));
+const idbDel = (k) => idbDo('t', 'readwrite', (st) => st.delete(k));
+const idbCGet = (k) => idbDo('c', 'readonly', (st) => st.get(k));
+const idbCSet = (k, v) => idbDo('c', 'readwrite', (st) => st.put(v, k));
+const idbCDel = (k) => idbDo('c', 'readwrite', (st) => st.delete(k));
 
 /* ================================================================ 难度 */
 // win: Perfect / Great / Good / Bad 的半宽（秒，实际还要乘判定宽松）
@@ -112,7 +135,8 @@ const KEY_LABEL = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'];
 /* ================================================================ DOM 骨架 */
 const scr = {
   title: $('#scr-title'), songs: $('#scr-songs'), team: $('#scr-team'),
-  set: $('#scr-set'), live: $('#scr-live'), result: $('#scr-result'),
+  set: $('#scr-set'), shop: $('#scr-shop'), edit: $('#scr-edit'),
+  live: $('#scr-live'), result: $('#scr-result'),
 };
 function show(name) {
   for (const k of Object.keys(scr)) scr[k].hidden = k !== name;
@@ -147,6 +171,36 @@ const FACE_OK = (u) => u.img && u.img.complete && u.img.naturalWidth > 0;
 /* 曲目时间：音频时钟 - 偏移。判定、播放、绘制都用这一个 */
 const chartTime = () => Math.max(0, Audio.time() - SAVE.offset / 1000);
 
+/* ================================================================ 技能立绘 */
+// 技能发动时，舞台背景换成这位唤醒体的立绘（大图虚化 + 一张清晰的小卡）。
+// 图只有 120px 的头像，所以大图走「放大 + 模糊 + 色相洗」当氛围，
+// 清晰的资格留给中间那张立绘卡——看起来才不糊。
+const ART = { on: false, timer: 0 };
+function showArt(u, txt) {
+  const bg = $('#art-bg');
+  const card = $('#art-card');
+  if (!bg) return;
+  bg.style.backgroundImage = 'url("' + u.art + '")';
+  bg.style.setProperty('--h', u.hue);
+  bg.classList.add('on');
+  if (card) {
+    card.style.setProperty('--h', u.hue);
+    $('#art-face').src = u.art;
+    $('#art-name').textContent = u.n;
+    $('#art-skill').textContent = txt || ('「' + u.skill.n + '」');
+    card.classList.remove('on');
+    void card.offsetWidth;          // 重启动画：连着触发两次也要重新滑进来
+    card.classList.add('on');
+  }
+  ART.on = true;
+  clearTimeout(ART.timer);
+  ART.timer = setTimeout(() => {
+    bg.classList.remove('on');
+    if (card) card.classList.remove('on');
+    ART.on = false;
+  }, 2400);
+}
+
 /* ================================================================ 技能 */
 function initSkills() {
   G.sk = team().map((id) => {
@@ -177,6 +231,7 @@ function fireSkill(st, now) {
   if (sk.dur > 0) G.buffs.push({ fx: sk.fx, val: sk.val, until: now + sk.dur, u: st.u });
   else applyInstant(sk, now);
   G.banner = { txt: st.u.n + '「' + sk.n + '」', until: now + 2.2, hue: st.u.hue };
+  showArt(st.u, '「' + sk.n + '」');
   Audio.fx('skill');
   paintSkillChips(true);
 }
@@ -248,9 +303,15 @@ function scoreNote(n, j) {
 function boxOf(lane) { return LAY.boxes[lane] || LAY.boxes[0]; }
 function pushFx(lane, j, txt) {
   const b = boxOf(lane);
-  G.fx.push({ x: b.x, y: b.y - b.h * 0.35, j, t: wall(), txt: txt == null ? JN[j] : txt });
-  if (G.fx.length > 26) G.fx.shift();
-  G.flashes[lane] = { t: wall(), j };
+  const t = wall();
+  // 同一轨道 0.14 秒内只留最后一条：以前 GUARD / SAVED / 判定名会叠成一片看不清
+  for (let i = G.fx.length - 1; i >= 0; i--) {
+    const f = G.fx[i];
+    if (f.x === b.x && t - f.t < 0.14) G.fx.splice(i, 1);
+  }
+  G.fx.push({ x: b.x, y: b.y - b.h * 0.35, j, t, txt: txt == null ? JN[j] : txt });
+  if (G.fx.length > 12) G.fx.shift();
+  G.flashes[lane] = { t, j };
 }
 function judgeNote(n, j) {
   n.judged = true;
@@ -261,7 +322,7 @@ function judgeNote(n, j) {
   if (j === 'p') onPerfect();
   if (j === 'b') G.stamina = clamp(G.stamina - diffOf(G.diffK).stam * 0.55, 0, 100);
   addCombo(1);
-  Audio.fx(j, G.combo);
+  Audio.fx(j, G.combo, n.lane);
   pushFx(n.lane, j);
 }
 function missNote(n) {
@@ -275,7 +336,7 @@ function missNote(n) {
     G.accW += JW.go;
     scoreNote(n, 'go');
     addCombo(1);
-    Audio.fx('go', G.combo);
+    Audio.fx('go', G.combo, n.lane);
     pushFx(n.lane, 'go', 'SAVED');
     G.banner = { txt: 'Miss 被救回来了！', until: now + 1.2, hue: 140 };
     return;
@@ -415,18 +476,127 @@ function laneAt(x, y) {
 const cv = $('#cv');
 const ctx = cv.getContext('2d');
 let W = 0, H = 0, DPR = 1;
+
+// 静态层缓存：渐变底、发球点光晕、九条引导线、九个框（含头像和键位）。
+// 以前每帧都要重建 11 个渐变、给九个头像做 clip + drawImage、再画九次圆角框——
+// 中低端机上掉帧就掉在这里。现在只在尺寸变化时算一次，主循环只做两次 drawImage。
+const bgLayer = document.createElement('canvas');
+const boxLayer = document.createElement('canvas');
+const bgCtx = bgLayer.getContext('2d');
+const boxCtx = boxLayer.getContext('2d');
+const SPRITE = new Map();
+
+function rr2(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+// 圆形头像精灵：一次画好（含描边），之后每帧只是一次 drawImage。
+// 音符和框都吃这张缓存——同一张脸在同一尺寸下只做一次 clip。
+function sprite(u, px) {
+  const size = Math.max(10, Math.round(px));
+  const key = u.id + ':' + size;
+  const hit = SPRITE.get(key);
+  if (hit) return hit;
+  if (SPRITE.size > 160) SPRITE.clear();
+  const s2 = Math.round(size * 2 * DPR);
+  const c = document.createElement('canvas');
+  c.width = s2; c.height = s2;
+  const g = c.getContext('2d');
+  g.save();
+  g.beginPath();
+  g.arc(s2 / 2, s2 / 2, s2 / 2 - 1, 0, Math.PI * 2);
+  g.clip();
+  if (FACE_OK(u)) g.drawImage(u.img, 0, 0, s2, s2);
+  else { g.fillStyle = 'hsl(' + u.hue + ',30%,24%)'; g.fillRect(0, 0, s2, s2); }
+  g.restore();
+  g.lineWidth = Math.max(2, s2 * 0.045);
+  g.strokeStyle = 'hsl(' + u.hue + ',88%,74%)';
+  g.beginPath();
+  g.arc(s2 / 2, s2 / 2, s2 / 2 - 2, 0, Math.PI * 2);
+  g.stroke();
+  SPRITE.set(key, c);
+  return c;
+}
+
+function buildStatic() {
+  for (const c of [bgLayer, boxLayer]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+  bgCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  boxCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  bgCtx.clearRect(0, 0, W, H);
+  boxCtx.clearRect(0, 0, W, H);
+
+  const sp = LAY.spawn;
+  const bg = bgCtx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0b0e17');
+  bg.addColorStop(0.5, '#101527');
+  bg.addColorStop(1, '#0a0d15');
+  bgCtx.fillStyle = bg;
+  bgCtx.fillRect(0, 0, W, H);
+
+  const halo = bgCtx.createRadialGradient(sp.x, sp.y, 2, sp.x, sp.y, Math.max(W * 0.5, 180));
+  halo.addColorStop(0, 'rgba(240,120,180,0.20)');
+  halo.addColorStop(0.45, 'rgba(140,120,255,0.07)');
+  halo.addColorStop(1, 'rgba(0,0,0,0)');
+  bgCtx.fillStyle = halo;
+  bgCtx.fillRect(0, 0, W, H);
+
+  for (let i = 0; i < 9; i++) {
+    const b = LAY.boxes[i];
+    const u = laneUnit(i);
+    const g = bgCtx.createLinearGradient(sp.x, sp.y, b.x, b.y);
+    g.addColorStop(0, 'hsla(' + u.hue + ',70%,70%,0.10)');
+    g.addColorStop(1, 'hsla(' + u.hue + ',70%,70%,0.03)');
+    bgCtx.strokeStyle = g;
+    bgCtx.lineWidth = 1;
+    bgCtx.beginPath();
+    bgCtx.moveTo(sp.x, sp.y);
+    bgCtx.lineTo(b.x, b.y);
+    bgCtx.stroke();
+  }
+
+  // 九个框：底、边、头像、键位
+  boxCtx.textAlign = 'center';
+  boxCtx.textBaseline = 'middle';
+  for (let i = 0; i < 9; i++) {
+    const b = LAY.boxes[i];
+    const u = laneUnit(i);
+    const r = b.w / 2;
+    rr2(boxCtx, b.x - r, b.y - r, b.w, b.h, 10);
+    boxCtx.fillStyle = 'rgba(18,22,38,0.92)';
+    boxCtx.fill();
+    boxCtx.lineWidth = 2;
+    boxCtx.strokeStyle = 'hsla(' + u.hue + ',80%,72%,0.42)';
+    boxCtx.stroke();
+    const ir = r - 3.5;
+    boxCtx.drawImage(sprite(u, ir), b.x - ir, b.y - ir, ir * 2, ir * 2);
+    if (SAVE.keys) {
+      boxCtx.font = '600 ' + Math.round(Math.min(13, b.w * 0.32)) + 'px ui-monospace,SFMono-Regular,Menlo,monospace';
+      boxCtx.fillStyle = 'rgba(190,200,225,0.55)';
+      boxCtx.fillText(KEY_LABEL[i], b.x, b.y + r + 11);
+    }
+  }
+}
+
 function fit() {
   const box = $('#stage');
   if (!box) return;
   const b = box.getBoundingClientRect();
   W = Math.max(260, b.width);
   H = Math.max(320, b.height);
-  DPR = Math.min(2.5, window.devicePixelRatio || 1);
+  // 2.5 的像素比在手机上等于白烧一半填充率；2 已经看不出差别
+  DPR = Math.min(2, window.devicePixelRatio || 1);
   cv.width = Math.round(W * DPR);
   cv.height = Math.round(H * DPR);
   cv.style.width = W + 'px';
   cv.style.height = H + 'px';
   layout();
+  buildStatic();
 }
 window.addEventListener('resize', () => fit());
 if (window.ResizeObserver) new ResizeObserver(() => fit()).observe($('#stage'));
@@ -444,6 +614,7 @@ cv.addEventListener('pointerdown', (e) => {
 window.addEventListener('pointerup', (e) => releasePtr('p' + e.pointerId));
 window.addEventListener('pointercancel', (e) => releasePtr('p' + e.pointerId));
 window.addEventListener('keydown', (e) => {
+  if (G.scr !== 'live' && G.scr !== 'edit') return;
   const k = e.key.toLowerCase();
   const lane = KEYS.indexOf(k);
   if (lane >= 0) {
@@ -460,55 +631,21 @@ window.addEventListener('keyup', (e) => {
 });
 
 /* ================================================================ 渲染 */
-function roundRect(x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-function draw(ts) {
+function draw(clock) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, W, H);
-  const clock = wall();
   const now = G.running ? chartTime() : 0;
   const le = leadEff();
   const beat = (G.chart && G.chart.arr) ? (now / G.chart.arr.spb) % 1 : (now * 2) % 1;
 
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#0b0e17');
-  bg.addColorStop(0.5, '#101527');
-  bg.addColorStop(1, '#0a0d15');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
+  // 技能立绘在放的时候，把底图压低让它透出来（框和音符仍然是实心的）
+  ctx.globalAlpha = ART.on ? 0.3 : 1;
+  ctx.drawImage(bgLayer, 0, 0, W, H);
+  ctx.globalAlpha = 1;
+  ctx.drawImage(boxLayer, 0, 0, W, H);
 
-  // 发球点的光柱：整块场地的视觉起点
+  // 发球点（每帧就这一圈，便宜）
   const sp = LAY.spawn;
-  const halo = ctx.createRadialGradient(sp.x, sp.y, 2, sp.x, sp.y, Math.max(W * 0.5, 180));
-  halo.addColorStop(0, 'rgba(240,120,180,0.20)');
-  halo.addColorStop(0.45, 'rgba(140,120,255,0.07)');
-  halo.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = halo;
-  ctx.fillRect(0, 0, W, H);
-
-  // 轨道引导线
-  for (let i = 0; i < 9; i++) {
-    const b = LAY.boxes[i];
-    const u = laneUnit(i);
-    const g = ctx.createLinearGradient(sp.x, sp.y, b.x, b.y);
-    g.addColorStop(0, 'hsla(' + u.hue + ',70%,70%,0.10)');
-    g.addColorStop(1, 'hsla(' + u.hue + ',70%,70%,0.03)');
-    ctx.strokeStyle = g;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(sp.x, sp.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
-  }
-
-  // 发球点
   const pulse = 1 + Math.max(0, 0.5 - beat) * 0.12;
   ctx.beginPath();
   ctx.arc(sp.x, sp.y, Math.max(12, LAY.bw * 0.36) * pulse, 0, Math.PI * 2);
@@ -522,128 +659,105 @@ function draw(ts) {
   ctx.fillStyle = 'rgba(255,190,220,0.9)';
   ctx.fill();
 
-  // 九个击打框
+  // 按住的框：亮一圈 + 上一帧的命中闪光
   for (let i = 0; i < 9; i++) {
     const b = LAY.boxes[i];
     const u = laneUnit(i);
-    const fl = G.flashes[i];
-    const hitA = fl ? clamp(1 - (clock - fl.t) / 0.26, 0, 1) : 0;
-    const press = G.holdingLane === i ? 1 : 0;
     const r = b.w / 2;
-    // 框体
-    roundRect(b.x - r, b.y - r, b.w, b.h, 10);
-    ctx.fillStyle = 'rgba(18,22,38,0.92)';
-    ctx.fill();
-    ctx.lineWidth = 2 + press * 1.5;
-    ctx.strokeStyle = 'hsla(' + u.hue + ',80%,72%,' + (0.42 + press * 0.45) + ')';
-    ctx.stroke();
-    // 头像
-    ctx.save();
-    ctx.beginPath();
-    const ir = r - 3.5;
-    ctx.arc(b.x, b.y, ir, 0, Math.PI * 2);
-    ctx.clip();
-    if (FACE_OK(u)) ctx.drawImage(u.img, b.x - ir, b.y - ir, ir * 2, ir * 2);
-    ctx.restore();
-    // 命中闪光
-    if (hitA > 0) {
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, ir + 3 + hitA * 9, 0, Math.PI * 2);
-      ctx.globalAlpha = hitA * 0.85;
-      ctx.strokeStyle = JC[fl.j];
-      ctx.lineWidth = 3;
+    if (G.holdingLane === i) {
+      rr2(ctx, b.x - r, b.y - r, b.w, b.h, 10);
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = 'hsla(' + u.hue + ',90%,76%,0.95)';
       ctx.stroke();
-      ctx.globalAlpha = 1;
     }
-    // 键位提示
-    if (SAVE.keys) {
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = '600 ' + Math.round(Math.min(13, b.w * 0.32)) + 'px ui-monospace,SFMono-Regular,Menlo,monospace';
-      ctx.fillStyle = 'rgba(190,200,225,0.55)';
-      ctx.fillText(KEY_LABEL[i], b.x, b.y + r + 11);
-      ctx.textBaseline = 'alphabetic';
-    }
+    const fl = G.flashes[i];
+    if (!fl) continue;
+    const hitA = clamp(1 - (clock - fl.t) / 0.24, 0, 1);
+    if (hitA <= 0) { delete G.flashes[i]; continue; }
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, r + 3 + hitA * 8, 0, Math.PI * 2);
+    ctx.strokeStyle = JC[fl.j] || '#fff';
+    ctx.globalAlpha = hitA * 0.85;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
-  // 画到哪儿：已经在框里结算完的音符不用再画，但按住中的长条要留着
+  // 画到哪儿：已经在框里结算完的音符不用再画
   while (G.di < G.notes.length && G.notes[G.di].judged && !G.notes[G.di].holding) G.di++;
 
-  // 长条：先画轨道粗线，再画音符头
+  // 长条：细一点的轨道 + 一根亮芯，之前那样一条 0.44bw 的粗带太压画面
   for (let i = G.di; i < G.notes.length; i++) {
     const n = G.notes[i];
     if ((n.t - now) / le > 1.05) break;
-    if (n.judged && !(n.kind === 'hold' && n.holding)) continue;
     if (n.kind !== 'hold') continue;
+    if (n.judged && !n.holding) continue;
     const b = LAY.boxes[n.lane];
     const hp = n.holding ? { x: b.x, y: b.y } : notePos(n, now, le);
     const tp = notePos({ lane: n.lane, t: n.tail }, now, le);
     const u = laneUnit(n.lane);
+    const col = n.broken ? '150,150,165' : (u.hue + ',85%,72%');
+    ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(hp.x, hp.y);
     ctx.lineTo(tp.x, tp.y);
-    ctx.strokeStyle = n.broken ? 'rgba(150,150,165,0.22)' : 'hsla(' + u.hue + ',85%,72%,0.5)';
-    ctx.lineWidth = LAY.bw * 0.44;
-    ctx.lineCap = 'round';
+    ctx.strokeStyle = n.broken ? 'rgba(150,150,165,0.16)' : 'hsla(' + col + ',0.26)';
+    ctx.lineWidth = LAY.bw * 0.3;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(hp.x, hp.y);
+    ctx.lineTo(tp.x, tp.y);
+    ctx.strokeStyle = n.broken ? 'rgba(160,160,175,0.3)' : 'hsla(' + col + ',0.85)';
+    ctx.lineWidth = 3;
     ctx.stroke();
     if (!n.holding && !n.broken) {
       ctx.beginPath();
-      ctx.arc(tp.x, tp.y, LAY.bw * 0.24, 0, Math.PI * 2);
-      ctx.strokeStyle = 'hsla(' + u.hue + ',85%,78%,0.55)';
+      ctx.arc(tp.x, tp.y, LAY.bw * 0.2, 0, Math.PI * 2);
+      ctx.strokeStyle = 'hsla(' + col + ',0.7)';
       ctx.lineWidth = 2;
       ctx.stroke();
     }
   }
 
-  // 音符头
+  // 音符头（圆形头像精灵，不裁不描边，直接贴）
   for (let i = G.di; i < G.notes.length; i++) {
     const n = G.notes[i];
     if ((n.t - now) / le > 1.05) break;
     if (n.judged && !(n.kind === 'hold' && n.holding)) continue;
     const u = laneUnit(n.lane);
     const p = n.holding ? { x: LAY.boxes[n.lane].x, y: LAY.boxes[n.lane].y - LAY.bh * 0.42 } : notePos(n, now, le);
-    const rr = LAY.bw * 0.36 + (n.s || 0.5) * LAY.bw * 0.06;
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, rr, 0, Math.PI * 2);
-    ctx.fillStyle = '#141a2c';
-    ctx.fill();
-    ctx.lineWidth = 2.4;
-    ctx.strokeStyle = 'hsl(' + u.hue + ',88%,74%)';
-    ctx.stroke();
-    ctx.clip();
-    if (FACE_OK(u)) ctx.drawImage(u.img, p.x - rr, p.y - rr, rr * 2, rr * 2);
-    ctx.restore();
+    const rr3 = LAY.bw * 0.36 + (n.s || 0.5) * LAY.bw * 0.06;
+    ctx.drawImage(sprite(u, rr3), p.x - rr3, p.y - rr3, rr3 * 2, rr3 * 2);
     if (n.kind === 'hold' && !n.holding) {
       ctx.beginPath();
-      ctx.arc(p.x, p.y, rr + 3, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, rr3 + 3, 0, Math.PI * 2);
       ctx.strokeStyle = 'hsla(' + u.hue + ',92%,82%,0.75)';
       ctx.lineWidth = 1.6;
       ctx.stroke();
     }
   }
 
-  // 判定字与扩散圈
+  // 判定字：每个轨道同一时间只留一条（以前 GUARD / SAVED 叠成一片就是没去重）
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const fs = Math.round(Math.min(15, LAY.bw * 0.44));
+  ctx.font = '800 ' + fs + 'px system-ui,sans-serif';
+  const txMax = Math.max(50, W - 50);
   for (const f of G.fx) {
+    if (!f.txt) continue;
     const age = clock - f.t;
-    if (age > 0.55) continue;
-    const a = 1 - age / 0.55;
+    if (age > 0.5) continue;
+    const a = 1 - age / 0.5;
+    const tx = clamp(f.x, 50, txMax);       // 最边上的轨道不许把字画出画布
     ctx.globalAlpha = a;
-    if (f.txt) {
-      ctx.textAlign = 'center';
-      ctx.font = '800 ' + Math.round(Math.min(16, LAY.bw * 0.46)) + 'px system-ui,sans-serif';
-      ctx.fillStyle = JC[f.j];
-      ctx.fillText(f.txt, f.x, f.y - 8 - age * 42);
-    }
-    ctx.beginPath();
-    ctx.arc(f.x, f.y + LAY.bh * 0.3, LAY.bw * (0.4 + age * 1.6), 0, Math.PI * 2);
-    ctx.strokeStyle = JC[f.j];
-    ctx.lineWidth = 2.5 * a;
-    ctx.globalAlpha = a * 0.55;
-    ctx.stroke();
+    ctx.fillStyle = 'rgba(8,6,14,0.65)';
+    ctx.fillText(f.txt, tx + 1, f.y - 10 - age * 40 + 1);
+    ctx.fillStyle = JC[f.j] || '#fff';
+    ctx.fillText(f.txt, tx, f.y - 10 - age * 40);
     ctx.globalAlpha = 1;
   }
-  while (G.fx.length && clock - G.fx[0].t > 0.55) G.fx.shift();
+  ctx.textBaseline = 'alphabetic';
+  while (G.fx.length && clock - G.fx[0].t > 0.5) G.fx.shift();
 
   // 连击
   if (G.combo >= 2) {
@@ -661,29 +775,51 @@ function draw(ts) {
 }
 
 /* ================================================================ 主循环 */
+// HUD 只在数值真变了才写 DOM：每帧改 textContent / style.width 会逼着重排，
+// 分数和进度条是「看起来在动」就够的东西，10Hz 跟 60Hz 没区别。
+const HUDC = { score: '', combo: '', stam: -1, prog: -1 };
+let faceTick = 0, lastFrame = 0;
 function loop(ts) {
   requestAnimationFrame(loop);
+  if (document.hidden) return;
+  // 两帧间隔太近（高刷屏 + 后台标签页回来）就跳过：画了也看不见，白烧 CPU
+  if (ts - lastFrame < 8) return;
+  lastFrame = ts;
   if (!G.running) { if (G.scr === 'live') draw(ts / 1000); return; }
   const t = ts / 1000;
   draw(t);
+  // 头像还没解码完时，静态层里的框是空心的：解码好了补画一次
+  if (t - faceTick > 0.5) {
+    faceTick = t;
+    let waiting = false;
+    for (let i = 0; i < 9 && !waiting; i++) if (!FACE_OK(laneUnit(i))) waiting = true;
+    if (waiting) buildStatic();
+  }
   if (G.paused) return;
   const now = chartTime();
   G.lastNow = now;
   // HUD
-  $('#live-score').textContent = fmt(G.score);
-  $('#live-combo').textContent = G.combo > 0 ? G.combo + ' 连击' : '—';
-  const stEl = $('#live-stam');
-  stEl.style.width = G.stamina + '%';
-  stEl.parentElement.classList.toggle('low', G.stamina <= 30);
-  const pr = clamp(now / (G.chart ? G.chart.dur : 1), 0, 1);
-  $('#live-prog').style.width = (pr * 100) + '%';
+  const sc = fmt(G.score);
+  if (sc !== HUDC.score) { HUDC.score = sc; $('#live-score').textContent = sc; }
+  const cb = G.combo > 0 ? G.combo + ' 连击' : '—';
+  if (cb !== HUDC.combo) { HUDC.combo = cb; $('#live-combo').textContent = cb; }
+  const st = Math.round(G.stamina);
+  if (st !== HUDC.stam) {
+    HUDC.stam = st;
+    const stEl = $('#live-stam');
+    stEl.style.width = st + '%';
+    stEl.parentElement.classList.toggle('low', st <= 30);
+  }
+  const pr = Math.round(clamp(now / (G.chart ? G.chart.dur : 1), 0, 1) * 200) / 2;
+  if (pr !== HUDC.prog) { HUDC.prog = pr; $('#live-prog').style.width = pr + '%'; }
   if (now > (G.tickAt || 0)) {
-    G.tickAt = now + 0.25;
+    G.tickAt = now + 0.2;
     tickSkills(now);
     paintSkillChips(false);
     const bEl = $('#live-banner');
     if (G.banner && now > G.banner.until) G.banner = null;
-    bEl.textContent = G.banner ? G.banner.txt : '';
+    const bt = G.banner ? G.banner.txt : '';
+    if (bEl.textContent !== bt) bEl.textContent = bt;
     bEl.style.opacity = G.banner ? 1 : 0;
     if (G.banner) bEl.style.borderColor = 'hsla(' + G.banner.hue + ',80%,70%,0.6)';
   }
@@ -796,12 +932,32 @@ async function startLive() {
   G.prep = true;
   const goBtn = $('#team-go');
   if (goBtn) { goBtn.disabled = true; goBtn.textContent = '载入音源…'; }
-  let track = null;
-  try { track = await prepareTrack(song.id); } catch (e) { track = null; }
-  let chart;
-  try { chart = await buildChart(song, G.diffK, track); }
-  catch (e) { chart = await buildChart(song, G.diffK, null); }
+  let track = null, chart = null;
+  if (song.custom) {
+    // 工坊里做的谱面：notes 存在 IndexedDB，音频按 audioKey 取（本机，不上传）
+    const key = song.mineId || song.cloudId;
+    const rec = await idbCGet(key).catch(() => null);
+    if (rec && rec.notes) {
+      try { track = await prepareTrack(rec.audioKey || ('au:' + key)); } catch (e) { track = null; }
+      chart = {
+        notes: rec.notes.map((a) => ({
+          t: a[0], lane: a[1], kind: a[2] ? 'hold' : 'tap', tail: a[3] || 0,
+          s: a[4] == null ? 0.6 : a[4], judged: false, hit: false, holding: false,
+        })),
+        dur: track ? track.dur : (rec.dur || 60), src: 'custom', arr: null,
+      };
+    }
+  } else {
+    try { track = await prepareTrack(song.id); } catch (e) { track = null; }
+    try { chart = await buildChart(song, G.diffK, track); }
+    catch (e) { chart = await buildChart(song, G.diffK, null); }
+  }
   G.prep = false;
+  if (!chart) {
+    if (goBtn) { goBtn.disabled = false; goBtn.textContent = '上场！'; }
+    flash('#team-tip', '这份谱面的数据没在本机（可能换过设备），回工坊重新导入一次');
+    return;
+  }
   if (goBtn) { goBtn.disabled = false; goBtn.textContent = '上场！'; }
 
   G.chart = chart;
@@ -816,12 +972,14 @@ async function startLive() {
   G.di = 0; G.holdingLane = -1;
   Audio.setMute(!!SAVE.mute);
   Audio.setVol(SAVE.musVol, SAVE.fxVol);
+  Audio.setScale(song.root || 60);
   if (track && track.buffer) Audio.playBuffer(track.buffer, 0);
+  else if (song.custom) Audio.playClock();
   else Audio.playChip(chart.arr, song.wave);
   G.running = true;
   show('live');
   $('#live-song').textContent = song.n;
-  $('#live-diff').textContent = D.n + (track ? ' · 原曲' : ' · 芯片改编');
+  $('#live-diff').textContent = song.custom ? ('自制谱面' + (track ? '' : ' · 无音频')) : (D.n + (track ? ' · 原曲' : ' · 芯片改编'));
   $('#live-score').textContent = '0';
   $('#live-combo').textContent = '—';
   $('#live-banner').textContent = '';
@@ -874,10 +1032,22 @@ function finish(failed) {
 function trackInfo(songId) {
   return SAVE.tracks[songId] || null;
 }
+function allSongs() { return SONGS.concat(SHOP ? SHOP.songs() : []); }
 function renderSongs() {
   const box = $('#song-list');
   box.textContent = '';
-  for (const s of SONGS) {
+  for (const s of allSongs()) {
+    if (s.custom) {
+      const card = document.createElement('article');
+      card.className = 'song mine';
+      card.innerHTML = '<div class="sh"><h3>' + esc(s.n) + '</h3><span class="by">' + esc(s.sub) + '</span>'
+        + '<span class="bpm">' + (s.count || 0) + ' 音符</span></div>'
+        + '<div class="src on">♪ 自制谱面 · ' + mmss(s.dur) + '（本机音频）</div>'
+        + '<div class="dfs"><button type="button" class="df" data-s="' + s.id + '" data-d="normal">'
+        + '<b>PLAY</b><span>' + mmss(s.dur) + '</span></button></div>';
+      box.appendChild(card);
+      continue;
+    }
     const t = trackInfo(s.id);
     const card = document.createElement('article');
     card.className = 'song';
@@ -898,7 +1068,7 @@ function renderSongs() {
     const b = e.target.closest('button.df');
     if (!b) return;
     G.diffK = b.dataset.d;
-    G.song = SONGS.find((x) => x.id === b.dataset.s);
+    G.song = allSongs().find((x) => x.id === b.dataset.s);
     openTeam();
   };
 }
@@ -1029,6 +1199,8 @@ function renderBest() {
 $('#btn-play').onclick = () => { renderSongs(); show('songs'); };
 $('#btn-team').onclick = () => { G.song = G.song || SONGS[0]; openTeam(); };
 $('#btn-set').onclick = () => { paintSet(); show('set'); };
+$('#btn-shop').onclick = () => SHOP.openShop();
+$('#songs-shop').onclick = () => SHOP.openShop();
 $('#btn-help').onclick = () => {
   const d = $('#helpDlg');
   if (d.showModal) d.showModal(); else d.setAttribute('open', '');
@@ -1142,9 +1314,22 @@ if (TEST) {
     setTeam: (ids) => { SAVE.team = ids.slice(0, TEAM_MAX); persist(); },
     pickTrackFile: (id) => { pendingSong = id; },
     audio: Audio,
+    shop: SHOP,
+    showArt, allSongs, fireSkill, initSkills,
     setSetting: (k, v) => { SAVE[k] = v; persist(); },
   };
 }
+
+/* ================================================================ 工坊 */
+// 工坊要碰的东西不少（存储、对局、选曲列表），这里一次注入，避免两个模块互相 import 打架
+var SHOP = initShop({
+  G, SAVE, persist, Audio, show, renderSongs, startLive, $, $$,
+  KEYS, fmt, mmss, diffOf, chartFromOnsets, detectOnsets,
+  idbGet, idbSet, idbDel, idbCGet, idbCSet, idbCDel,
+});
+
+// 测试钩子是在这个 var 之前定义的，那时 SHOP 还不是对象，这里补挂一次
+if (TEST && window.__ll) window.__ll.shop = SHOP;
 
 /* ================================================================ 启动 */
 renderBest();

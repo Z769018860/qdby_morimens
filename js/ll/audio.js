@@ -101,6 +101,22 @@ export const Audio = {
     return true;
   },
 
+  // 只有时钟、没有音乐：自制谱面在本机找不到音频时的兜底（判定音照样响）
+  playClock() {
+    const ac = this.ensure();
+    this.stop();
+    this.mode = 'clock';
+    if (ac) {
+      this.usePerf = false;
+      this.t0 = ac.currentTime + 0.05;
+    } else {
+      this.usePerf = true;
+      this.pt0 = performance.now() / 1000;
+    }
+    this.playing = true;
+    return true;
+  },
+
   // ---------------------------------------------------------------- 芯片
   playChip(arr, wave) {
     const ac = this.ensure();
@@ -251,9 +267,34 @@ export const Audio = {
   },
 
   /* ---------------------------------------------------------------- 判定音效 */
-  // 五档各有各的「手感」：Perfect 是亮铃、Great 是软一点的铃、Good 是木鱼、
-  // Bad 是闷响、Miss 是往下掉的嗡嗡。全部从 fxGain 出，不碰音乐那一路。
-  tone(t, freq, dur, vol, type, glide) {
+  // 学 SIF 的手感：每一下都是极短、极亮、带一点噪声「啪」的电子音。
+  // 音高不是固定的——连击每 10 下一个台阶（五声音阶，两个八度内循环），
+  // 左右声道按第几格偏一点声像。连打起来会自己长出一条旋律，
+  // 「贴不贴节奏」靠的就是「短、准、有音高」这三件事。
+  //
+  // 五档仍然是五种性格：PERFECT 双泛音亮铃、GREAT 单泛音软铃、
+  // GOOD 闷木鱼、BAD 低频闷响、MISS 往下掉的嗡嗡。
+  scaleRoot: 60,
+  setScale(root) { this.scaleRoot = Number(root) || 60; },
+
+  // 声像宿主：九格从左到右 -0.6 ~ +0.6；浏览器不支持就直连
+  bus(pan) {
+    const ac = this.ac;
+    if (!pan || !ac.createStereoPanner) return this.fxGain;
+    const p = ac.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan));
+    p.connect(this.fxGain);
+    return p;
+  },
+
+  // 连击 → 音高：每 10 连击升一级，五声音阶走完升八度，最高两圈
+  hitFreq(combo) {
+    const PENT = [0, 2, 4, 7, 9];
+    const c = Math.max(0, combo || 0);
+    return mtof(this.scaleRoot + 12 + PENT[Math.floor(c / 10) % 5] + (Math.floor(c / 50) % 2) * 12);
+  },
+
+  tone(t, freq, dur, vol, type, glide, dest) {
     const ac = this.ac;
     const o = ac.createOscillator();
     const g = ac.createGain();
@@ -261,13 +302,13 @@ export const Audio = {
     o.frequency.setValueAtTime(freq, t);
     if (glide) o.frequency.exponentialRampToValueAtTime(Math.max(30, glide), t + dur);
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.004);
+    g.gain.linearRampToValueAtTime(vol, t + 0.003);
     g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
-    o.connect(g); g.connect(this.fxGain);
+    o.connect(g); g.connect(dest || this.fxGain);
     o.start(t); o.stop(t + dur + 0.02);
   },
 
-  click(t, dur, vol, hp) {
+  click(t, dur, vol, hp, dest) {
     const ac = this.ac;
     const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * (dur + 0.01)), ac.sampleRate);
     const ch = buf.getChannelData(0);
@@ -282,58 +323,63 @@ export const Audio = {
     f.Q.value = 0.9;
     const g = ac.createGain();
     g.gain.value = vol;
-    n.connect(f); f.connect(g); g.connect(this.fxGain);
+    n.connect(f); f.connect(g); g.connect(dest || this.fxGain);
     n.start(t); n.stop(t + dur + 0.01);
   },
 
-  fx(kind, n) {
+  fx(kind, combo, lane) {
     const ac = this.ac;
     if (!ac || this.usePerf || ac.state !== 'running') return;
-    const t = ac.currentTime + 0.001;
-    const detune = 1 + ((n || 0) % 3 - 1) * 0.012;      // 连着点时不要像蜂鸣器
+    const t = ac.currentTime;
+    const pan = lane == null ? 0 : ((lane - 4) / 4) * 0.55;
+    const out = this.bus(pan);
+    const f = this.hitFreq(combo);
     switch (kind) {
       case 'p':
-        // 铃：基音 + 五度泛音，亮而不刺
-        this.tone(t, 1568 * detune, 0.09, 0.16, 'sine');
-        this.tone(t, 2093 * detune, 0.07, 0.09, 'sine');
-        this.click(t, 0.02, 0.05, 3200);
+        // 亮铃：基音 + 两个高泛音，衰减 60ms 内收干，像在框上敲了一下玻璃
+        this.tone(t, f * 1.5, 0.085, 0.085, 'sine', null, out);
+        this.tone(t, f * 2, 0.05, 0.05, 'sine', null, out);
+        this.tone(t, f * 3, 0.03, 0.028, 'sine', null, out);
+        this.click(t, 0.014, 0.05, 4200, out);
         break;
       case 'g':
-        this.tone(t, 1318 * detune, 0.075, 0.13, 'sine');
-        this.tone(t, 1760 * detune, 0.05, 0.05, 'sine');
-        this.click(t, 0.015, 0.035, 2800);
+        this.tone(t, f, 0.07, 0.075, 'sine', null, out);
+        this.tone(t, f * 2, 0.035, 0.03, 'sine', null, out);
+        this.click(t, 0.012, 0.035, 3400, out);
         break;
       case 'go':
-        this.tone(t, 880, 0.06, 0.10, 'triangle');
-        this.click(t, 0.02, 0.04, 1600);
+        // 木鱼：短促的三角波 + 一点点噪声，闷但干净
+        this.tone(t, f * 0.75, 0.055, 0.07, 'triangle', null, out);
+        this.click(t, 0.02, 0.045, 1500, out);
         break;
       case 'b':
-        this.tone(t, 196, 0.09, 0.13, 'sawtooth', 130);
-        this.click(t, 0.03, 0.05, 700);
+        this.tone(t, 196, 0.085, 0.11, 'sawtooth', 132, out);
+        this.click(t, 0.03, 0.045, 700, out);
         break;
       case 'm':
-        this.tone(t, 210, 0.24, 0.12, 'square', 82);
-        this.tone(t + 0.02, 105, 0.2, 0.07, 'sine', 60);
+        this.tone(t, 212, 0.22, 0.1, 'square', 84, out);
+        this.tone(t + 0.02, 106, 0.19, 0.06, 'sine', 62, out);
         break;
       case 'hold':
-        this.tone(t, 1174, 0.1, 0.10, 'triangle');
-        this.tone(t + 0.05, 1568, 0.1, 0.07, 'sine');
+        // 尾音：两个音的小上扬，比判定音更「收」
+        this.tone(t, f * 1.25, 0.09, 0.06, 'triangle', null, out);
+        this.tone(t + 0.045, f * 1.5, 0.1, 0.05, 'sine', null, out);
         break;
       case 'holdstart':
-        this.click(t, 0.03, 0.06, 1800);
-        this.tone(t, 660, 0.06, 0.05, 'sine');
+        this.click(t, 0.024, 0.055, 1900, out);
+        this.tone(t, f * 0.5, 0.07, 0.045, 'sine', f * 0.75, out);
         break;
       case 'break':
-        this.tone(t, 300, 0.12, 0.09, 'sawtooth', 160);
+        this.tone(t, 300, 0.12, 0.08, 'sawtooth', 158, out);
         break;
       case 'skill':
-        this.tone(t, 1046, 0.07, 0.08, 'triangle');
-        this.tone(t + 0.06, 1318, 0.07, 0.08, 'triangle');
-        this.tone(t + 0.12, 1568, 0.12, 0.09, 'triangle');
+        this.tone(t, 1046, 0.07, 0.06, 'triangle', null, out);
+        this.tone(t + 0.06, 1318, 0.07, 0.06, 'triangle', null, out);
+        this.tone(t + 0.12, 1568, 0.11, 0.07, 'triangle', null, out);
         break;
       case 'combo':
-        this.tone(t, 1046, 0.06, 0.07, 'sine');
-        this.tone(t + 0.05, 1568, 0.09, 0.07, 'sine');
+        this.tone(t, f * 2, 0.06, 0.05, 'sine', null, out);
+        this.tone(t + 0.05, f * 3, 0.08, 0.045, 'sine', null, out);
         break;
       default:
         break;

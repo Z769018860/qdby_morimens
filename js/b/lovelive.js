@@ -2,10 +2,265 @@
 // 由 scripts/build.mjs 生成，请改 js/ 下的源文件后重新构建。
 // 每个原模块被包进一个 async IIFE：作用域隔离 + 支持 await，顺序即依赖顺序。
 
+// ---- js/ll/songs-ip.js
+const m_songs_ip = await (async () => {
+
+// 第二批曲目：剑网3 / 明日方舟 / 边狱巴士。
+//
+// 和第一批一样的规矩（这条要一直成立）：**这里没有一个字节的原曲音源**。
+// 旋律是按原曲的气质手写的短版（走向、节奏型贴近，不逐音还原），和弦与鼓组自配，
+// 全部在页面里用振荡器现场合成。曲名借原曲，谱面由旋律生成。
+//
+// 记号见 songs.js 顶部注释：小节 4 拍，裸 token 半拍，`1:2` 是两拍，`r` 是休止，
+// `^`/`v` 升降八度。每段 ch 是和弦级数，e 是能量（决定鼓组铺多满）。
+// 写错了 arrange() 会直接抛错，构建期就能发现。
+
+const IP_SONGS = [
+  /* ================================================================ 剑网3 */
+  {
+    id: 'wanshen',
+    n: '万神纪',
+    sub: '剑网3 · 同人曲',
+    bpm: 170, root: 55, mode: 'min', wave: 'sawtooth',
+    desc: '剑气与鼓点一起压下来。十六分音符的锯齿波，副歌全是双押。',
+    secs: [
+      { tag: '开场', e: 2, rep: 1, ch: ['i', 'VI', 'III', 'VII'], m: `
+        1 r 5 r 1^ r 5 r | 6 r 3 r 6 r 3 r` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'VI', 'III', 'VII', 'i', 'VI', 'VI', 'VII'], m: `
+        1 1 3 3 5 5 3 3 | 6 6 5 5 6 6 1^ 1^ | 5 5 4 4 3 3 2 2 | 3 3 2 2 1 r r r
+        1 1 3 3 5 5 3 3 | 6 6 5 5 6 6 7 7 | 1^ 1^ 7 7 6 6 5 5 | 6 6 7 7 1^ r r r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'VII', 'i', 'VII', 'VI', 'V'], m: `
+        5 5 6 5 3 3 2 3 | 5 5 6 5 3 r 2 r | 6 6 7 6 5 5 4 5 | 6 6 7 1^ 6 r 5 r
+        5 5 6 5 3 3 2 3 | 1^ 1^ 7 6 5 r 3 r | 4 4 5 4 6 6 5 6 | 5 3 2 3 1 r r r` },
+      { tag: '间奏', e: 3, rep: 1, ch: ['i', 'VI', 'III', 'VII'], m: `
+        1 3 5 6 5 3 1 3 | 6 5 6 7 1^ 7 6 5 | 3 5 6 7 6 5 3 2 | 3 4 5 4 3 2 1 r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'i'], m: `
+        6 r 7 r 1^ r 7 r | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'shanhe',
+    n: '山河晴昼',
+    sub: '剑网3 · 同人曲',
+    bpm: 152, root: 60, mode: 'maj', wave: 'square',
+    desc: '开阔、亮、一路往上走。中段有整段的长音，适合按住不放。',
+    secs: [
+      { tag: '开场', e: 1, rep: 1, ch: ['I', 'V', 'vi', 'IV'], m: `
+        1 3 5 5 5 3 2 3 | 4 6 1^ 1^ 6 4 3 2` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['I', 'V', 'vi', 'IV', 'I', 'V', 'IV', 'V'], m: `
+        1 1 3 3 5 5 3 3 | 4 4 3 3 2 2 1 1 | 6 6 5 5 4 4 3 3 | 5 5 4 4 3 3 2 r
+        1 1 3 3 5 5 6 6 | 5 5 4 4 3 3 2 2 | 3 3 4 4 5 5 6 6 | 7 7 1^ 1^ 2^ r r r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['I', 'V', 'vi', 'IV', 'I', 'V', 'IV', 'V'], m: `
+        5 5 6 5 3 3 2 3 | 4 4 5 4 2 2 1 2 | 3 3 4 3 1 1 7 1 | 2 2 3 2 5 r 5 r
+        5 5 6 5 3 3 5 6 | 1^ 1^ 7 6 5 5 3 5 | 6 6 5 5 4 4 3 3 | 2 3 4 5 1 r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['IV', 'V', 'I'], m: `
+        5 5 6 5 7 7 1^ 7 | 6 r 5 r 3 r 2 r | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'bujian',
+    n: '不见长安',
+    sub: '剑网3 · 同人曲',
+    bpm: 138, root: 57, mode: 'min', wave: 'triangle',
+    desc: '慢起、长句、后来收不住。前两段稀，副歌才把鼓铺满。',
+    secs: [
+      { tag: '开场', e: 1, rep: 1, ch: ['i', 'VI', 'III', 'VII'], m: `
+        1 r r r 3 r r r | 6 r r r 5 r r r` },
+      { tag: '主歌', e: 1, rep: 1, ch: ['i', 'VI', 'III', 'VII', 'i', 'VI', 'VII', 'VII'], m: `
+        1:2 3:2 | 5:2 3:2 | 4:2 3:2 | 2:2 1:2
+        6:2 5:2 | 4:2 3:2 | 6:2 7:2 | 1:2 r:2` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        5 5 6 5 3 3 2 3 | 5 5 6 5 3 r 2 r | 6 6 7 6 5 5 4 5 | 5 5 4 5 1 r r r
+        5 5 6 5 3 3 2 3 | 1^ 1^ 7 6 5 r 3 r | 6 6 7 1^ 7 6 5 4 | 3 2 3 1 r r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6 r 5 r 4 r 3 r | 2 r 3 r 2 r 1 r | 1:2 r:2` },
+    ],
+  },
+  {
+    id: 'jianghu',
+    n: '江湖意',
+    sub: '剑网3 · 主题曲',
+    bpm: 164, root: 52, mode: 'min', wave: 'sawtooth',
+    desc: '开场就是主 riff，一路顶到底。密集单点，适合练手速。',
+    secs: [
+      { tag: '开场', e: 2, rep: 1, ch: ['i', 'i', 'VII', 'VII'], m: `
+        1 1 5 5 1^ 1^ 5 5 | 1 1 5 5 1^ 1^ 5 5` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'VII', 'VI', 'VII', 'i', 'VII', 'VI', 'V'], m: `
+        1 1 1 5 3 3 1 1 | 7 7 7 5 3 3 7 7 | 6 6 6 3 2 2 6 6 | 5 5 4 5 7 r r r
+        1 1 1 5 3 3 1 1 | 7 7 7 5 3 3 7 7 | 6 6 7 7 1^ 1^ 2^ 2^ | 5 5 4 4 1 r r r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        5 6 5 3 5 6 5 3 | 1^ 7 6 5 6 5 3 r | 6 7 6 5 6 7 6 5 | 5 4 3 2 3 r 5 r
+        5 6 5 3 5 6 5 3 | 1^ 1^ 7 6 5 r 3 r | 4 5 6 5 4 3 2 3 | 1 5 4 3 1 r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6 6 5 5 4 4 3 3 | 2 2 3 2 1 r r r | 1:3 r r` },
+    ],
+  },
+
+  /* ================================================================ 明日方舟 */
+  {
+    id: 'opblade',
+    n: 'Operation Blade',
+    sub: '明日方舟 · 战斗曲',
+    bpm: 176, root: 50, mode: 'min', wave: 'sawtooth',
+    desc: '切城的压迫感。小调锯齿波打底，副歌是连续的十六分重击。',
+    secs: [
+      { tag: '开场', e: 2, rep: 1, ch: ['i', 'i', 'VI', 'VII'], m: `
+        1 1 1 1 5 5 5 5 | 6 6 6 6 7 7 7 7` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'VI', 'III', 'VII', 'i', 'VI', 'III', 'VII'], m: `
+        1 1 3 3 5 5 3 3 | 6 6 5 5 6 6 1^ 1^ | 3 3 5 5 3 3 2 2 | 7 7 6 6 5 5 4 4
+        1 1 3 3 5 5 3 3 | 6 6 5 5 6 6 7 7 | 1^ 1^ 2^ 2^ 1^ 1^ 7 7 | 5 5 6 6 7 r r r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        1 1 1 5 1 1 1 5 | 7 7 7 6 7 7 7 6 | 6 6 6 4 6 6 6 4 | 5 5 5 7 5 5 5 7
+        1 1 1 5 3 3 3 1 | 7 7 6 6 5 5 4 4 | 6 6 7 7 1^ 1^ 7 7 | 5:1 4:1 1:2` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6 6 5 5 4 4 3 3 | 5 5 4 4 3 3 2 2 | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'reconn',
+    n: 'Reconnection',
+    sub: '明日方舟 · 主题曲',
+    bpm: 168, root: 57, mode: 'maj', wave: 'triangle',
+    desc: '开场的琶音一出来就知道要起飞。副歌长句连成一片，最吃手感。',
+    secs: [
+      { tag: '开场', e: 2, rep: 1, ch: ['I', 'V', 'vi', 'IV'], m: `
+        1 3 5 3 1^ 5 3 1 | 5 7 2^ 7 5 2 7 5` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['I', 'V', 'vi', 'IV', 'I', 'V', 'IV', 'V'], m: `
+        1 1 5 5 6 6 5 5 | 4 4 3 3 2 2 1 1 | 6 6 5 5 4 4 3 3 | 2 2 3 3 4 4 5 r
+        1 1 5 5 6 6 5 5 | 4 4 5 5 6 6 7 7 | 1^ 1^ 2^ 2^ 3^ 3^ 2^ 2^ | 5 5 6 6 7 r r r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['I', 'V', 'vi', 'IV', 'I', 'V', 'IV', 'V'], m: `
+        3 3 4 3 1 1 2 1 | 5 5 6 5 3 3 4 3 | 6 6 7 6 4 4 5 4 | 5 5 6 5 2 r 5 r
+        3 3 4 3 1 1 2 1 | 1^ 1^ 7 6 5 5 4 5 | 6 6 5 5 4 4 3 3 | 2 2 3 3 1 r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['IV', 'V', 'I'], m: `
+        4 4 5 4 6 6 5 6 | 5 r 4 r 3 r 2 r | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'radiant',
+    n: 'Radiant',
+    sub: '明日方舟 · 主题曲',
+    bpm: 150, root: 62, mode: 'maj', wave: 'square',
+    desc: '明亮、上扬、一路推到顶。跳跃音型多，读谱轻松但节奏不能松。',
+    secs: [
+      { tag: '开场', e: 1, rep: 1, ch: ['I', 'V', 'vi', 'IV'], m: `
+        5 r 3 r 1 r 3 r | 6 r 5 r 4 r 3 r` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['I', 'V', 'vi', 'IV', 'I', 'V', 'IV', 'V'], m: `
+        1 3 5 3 1 3 5 3 | 6 5 6 5 6 1^ 6 5 | 4 6 1^ 6 4 6 1^ 6 | 5 4 3 2 3 4 5 r
+        1 3 5 3 1 3 5 3 | 6 5 6 5 6 1^ 6 5 | 7 7 6 6 5 5 4 4 | 3 3 4 4 5 r r r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['I', 'V', 'vi', 'IV', 'I', 'V', 'IV', 'V'], m: `
+        5 5 5 3 5 5 6 5 | 4 4 4 2 4 4 5 4 | 6 6 6 4 6 6 7 6 | 5 5 6 5 3 r 2 r
+        5 5 5 3 5 5 6 5 | 1^ 1^ 1^ 6 1^ 1^ 2^ 1^ | 7 7 6 6 5 5 4 4 | 3 4 5 4 1 r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['IV', 'V', 'I'], m: `
+        4 4 5 4 6 6 5 6 | 5 r 3 r 2 r 1 r | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'renegade',
+    n: 'Renegade',
+    sub: '明日方舟 · 角色曲',
+    bpm: 166, root: 55, mode: 'min', wave: 'sawtooth',
+    desc: '阴沉、压抑、突然炸开。低音区徘徊很久，副歌才抬上去。',
+    secs: [
+      { tag: '开场', e: 1, rep: 1, ch: ['i', 'i', 'VI', 'VII'], m: `
+        1 r 1 r 3 r 1 r | 6 r 6 r 5 r 3 r` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'VI', 'III', 'VII', 'i', 'VI', 'VII', 'VII'], m: `
+        1 1 3 1 1 1 3 1 | 6 6 5 6 6 6 5 6 | 3 3 5 3 3 3 5 3 | 7 7 6 7 7 7 6 7
+        1 1 3 1 1 1 3 1 | 6 6 5 6 6 6 7 7 | 1^ 1^ 7 7 6 6 5 5 | 6 6 7 7 1^ r r r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        1^ 1^ 7 6 5 5 6 5 | 7 7 6 5 4 4 5 4 | 6 6 5 4 3 3 4 3 | 5 5 4 3 2 r 3 r
+        1^ 1^ 7 6 5 5 6 5 | 3^ 3^ 2^ 1^ 7 r 5 r | 6 6 7 6 5 5 4 5 | 5 4 3 2 1 r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6 r 7 r 1^ r 7 r | 6 r 5 r 3 r 2 r | 1:3 r r` },
+    ],
+  },
+
+  /* ================================================================ 边狱巴士 */
+  {
+    id: 'flywings',
+    n: 'Fly, My Wings',
+    sub: '边狱巴士 · 主题曲',
+    bpm: 144, root: 60, mode: 'min', wave: 'triangle',
+    desc: '像被风托起来一样。前段轻，副歌一路往上翻，长音很多。',
+    secs: [
+      { tag: '开场', e: 1, rep: 1, ch: ['i', 'VI', 'III', 'VII'], m: `
+        1:2 3:2 | 6:2 5:2` },
+      { tag: '主歌', e: 1, rep: 1, ch: ['i', 'VI', 'III', 'VII', 'i', 'VI', 'VII', 'VII'], m: `
+        1 3 5 3 6 5 3 r | 6 1^ 6 5 4 3 2 r | 3 5 6 5 3 2 1 r | 5 6 7 6 5 r 3 r
+        1 3 5 3 6 5 3 r | 6 1^ 6 5 4 3 2 r | 6 7 1^ 7 6 5 3 5 | 3 2 3 1 r r r r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        5 6 7 1^ 7 6 5 6 | 7 1^ 2^ 1^ 7 6 5 6 | 6 7 1^ 2^ 1^ 7 6 5 | 5 6 7 6 5 r 3 r
+        5 6 7 1^ 7 6 5 6 | 1^ 2^ 3^ 2^ 1^ 7 6 5 | 6 6 7 7 1^ 1^ 2^ 2^ | 3^ 2^ 1^ 7 1^ r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6:2 5:2 | 4:2 3:2 | 2:2 1:2 | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'lament',
+    n: 'In Hell We Live, Lament',
+    sub: '边狱巴士 · 主题曲',
+    bpm: 132, root: 53, mode: 'min', wave: 'sawtooth',
+    desc: '重、慢、压得低。拍子大，长条和双押撑起整首的重量。',
+    secs: [
+      { tag: '开场', e: 2, rep: 1, ch: ['i', 'i', 'VI', 'V'], m: `
+        1:2 3:2 | 6:2 5:2` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'VI', 'III', 'VII', 'i', 'VI', 'VII', 'V'], m: `
+        1 1 3 1 5 3 1 r | 6 6 5 6 4 3 2 r | 3 3 5 3 7 5 3 r | 7 7 6 5 3 2 1 r
+        1 1 3 1 5 3 1 r | 6 6 7 6 1^ 7 6 r | 1^ 1^ 7 6 5 5 4 5 | 5 4 3 2 1 r r r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        1 1 1 3 5 5 5 3 | 7 7 7 6 5 5 5 3 | 6 6 6 5 4 4 4 3 | 5 5 5 4 3 r 2 r
+        1 1 1 3 5 5 5 6 | 1^ 1^ 1^ 7 6 6 5 3 | 6 6 7 7 1^ 1^ 7 7 | 5 5 4 4 1 r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6:2 5:2 | 4:2 3:2 | 2:2 1:2 | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'bell',
+    n: 'Bell of Twilight',
+    sub: '边狱巴士 · 战斗曲',
+    bpm: 156, root: 58, mode: 'min', wave: 'square',
+    desc: '钟声一样规整的重拍。节奏方正，适合拿来对着拍子练准头。',
+    secs: [
+      { tag: '开场', e: 1, rep: 1, ch: ['i', 'VII', 'VI', 'V'], m: `
+        1 r 1 r 5 r 1 r | 7 r 7 r 5 r 7 r` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        1 1 5 5 3 3 1 1 | 7 7 5 5 7 7 5 5 | 6 6 3 3 6 6 3 3 | 5 5 4 4 5 r 7 r
+        1 1 5 5 3 3 1 1 | 7 7 5 5 7 7 1^ 1^ | 6 6 7 7 1^ 1^ 2^ 2^ | 5 5 4 4 1 r r r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        5 5 6 5 3 3 5 3 | 7 7 6 5 3 3 5 3 | 6 6 5 4 3 3 4 3 | 5 5 4 3 2 r 3 r
+        5 5 6 5 3 3 5 3 | 1^ 1^ 7 6 5 5 3 5 | 6 6 7 7 1^ 1^ 7 6 | 5 4 3 2 1 r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6 r 5 r 4 r 3 r | 2 r 3 r 1 r r r | 1:3 r r` },
+    ],
+  },
+  {
+    id: 'ashes',
+    n: 'Ashes',
+    sub: '边狱巴士 · 主题曲',
+    bpm: 140, root: 55, mode: 'min', wave: 'triangle',
+    desc: '灰烬落下来的感觉。慢半步的切分，副歌换成急促的连续单点。',
+    secs: [
+      { tag: '开场', e: 1, rep: 1, ch: ['i', 'VI', 'III', 'VII'], m: `
+        1 r r 3 r r 5 r | 6 r r 5 r r 3 r` },
+      { tag: '主歌', e: 2, rep: 1, ch: ['i', 'VI', 'III', 'VII', 'i', 'VI', 'VII', 'VII'], m: `
+        3 3 2 3 5 r 3 r | 2 2 1 2 3 r 1 r | 6 6 5 6 1^ r 6 r | 5 5 4 5 6 r 5 r
+        3 3 2 3 5 r 5 r | 6 6 5 6 7 r 6 r | 1^ 1^ 7 7 6 6 5 5 | 3 3 2 3 1 r r r` },
+      { tag: '副歌', e: 3, rep: 2, ch: ['i', 'VII', 'VI', 'V', 'i', 'VII', 'VI', 'V'], m: `
+        5 6 5 3 5 6 5 3 | 7 1^ 7 6 5 6 5 3 | 6 7 6 5 4 5 4 3 | 5 4 3 2 3 r 5 r
+        5 6 5 3 5 6 5 3 | 1^ 2^ 1^ 7 6 5 6 5 | 4 5 6 5 4 3 2 3 | 1 5 4 3 1 r r r` },
+      { tag: '尾声', e: 1, rep: 1, ch: ['VI', 'V', 'i'], m: `
+        6 r 7 r 1^ r 7 r | 6 r 5 r 3 r 2 r | 1:3 r r` },
+    ],
+  },
+];
+return { IP_SONGS };
+})();
+
 // ---- js/ll/songs.js
 const m_songs = await (async () => {
-
-// 曲目库：Love Live! 经典曲 × 《忘却前夜》的短版芯片风改编。
+const { IP_SONGS } = m_songs_ip;
+// 曲目库：Love Live! 经典曲 + 剑网3 / 明日方舟 / 边狱巴士 的高燃曲 × 《忘却前夜》的短版芯片风改编。
+//
+// 第二批（剑网3 / 明日方舟 / 边狱巴士）单独放在 songs-ip.js，记号完全一样。
 //
 // 版权说明（这条要一直成立）：这里没有任何原曲音源——旋律是按原曲的气质
 // 手工重编的短版（走向 + 节奏贴近，音高不逐音还原），和弦与鼓组也是自配的，
@@ -20,6 +275,8 @@ const m_songs = await (async () => {
 // 例：`5 5 6 5 3 3 2 3` 是一条 4 拍小节（八个八分音符）。
 // e 是段落能量 0~3：0 前奏/尾声（稀）、1 主歌轻、2 主歌满、3 副歌满。
 // arrange() 会校验每小节拍数 == 4，写错了构建期直接抛错。
+
+
 
 const SONGS = [
   {
@@ -139,6 +396,7 @@ const SONGS = [
         4 4 4 4 5 5 5 5 | 3 4 5 5 6 6 7 7 | 1^:3 r r` },
     ],
   },
+  ...IP_SONGS,
 ];
 
 // ------------------------------------------------------------------ 级数 → 半音
@@ -351,6 +609,22 @@ const Audio = {
     return true;
   },
 
+  // 只有时钟、没有音乐：自制谱面在本机找不到音频时的兜底（判定音照样响）
+  playClock() {
+    const ac = this.ensure();
+    this.stop();
+    this.mode = 'clock';
+    if (ac) {
+      this.usePerf = false;
+      this.t0 = ac.currentTime + 0.05;
+    } else {
+      this.usePerf = true;
+      this.pt0 = performance.now() / 1000;
+    }
+    this.playing = true;
+    return true;
+  },
+
   // ---------------------------------------------------------------- 芯片
   playChip(arr, wave) {
     const ac = this.ensure();
@@ -501,9 +775,34 @@ const Audio = {
   },
 
   /* ---------------------------------------------------------------- 判定音效 */
-  // 五档各有各的「手感」：Perfect 是亮铃、Great 是软一点的铃、Good 是木鱼、
-  // Bad 是闷响、Miss 是往下掉的嗡嗡。全部从 fxGain 出，不碰音乐那一路。
-  tone(t, freq, dur, vol, type, glide) {
+  // 学 SIF 的手感：每一下都是极短、极亮、带一点噪声「啪」的电子音。
+  // 音高不是固定的——连击每 10 下一个台阶（五声音阶，两个八度内循环），
+  // 左右声道按第几格偏一点声像。连打起来会自己长出一条旋律，
+  // 「贴不贴节奏」靠的就是「短、准、有音高」这三件事。
+  //
+  // 五档仍然是五种性格：PERFECT 双泛音亮铃、GREAT 单泛音软铃、
+  // GOOD 闷木鱼、BAD 低频闷响、MISS 往下掉的嗡嗡。
+  scaleRoot: 60,
+  setScale(root) { this.scaleRoot = Number(root) || 60; },
+
+  // 声像宿主：九格从左到右 -0.6 ~ +0.6；浏览器不支持就直连
+  bus(pan) {
+    const ac = this.ac;
+    if (!pan || !ac.createStereoPanner) return this.fxGain;
+    const p = ac.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan));
+    p.connect(this.fxGain);
+    return p;
+  },
+
+  // 连击 → 音高：每 10 连击升一级，五声音阶走完升八度，最高两圈
+  hitFreq(combo) {
+    const PENT = [0, 2, 4, 7, 9];
+    const c = Math.max(0, combo || 0);
+    return mtof(this.scaleRoot + 12 + PENT[Math.floor(c / 10) % 5] + (Math.floor(c / 50) % 2) * 12);
+  },
+
+  tone(t, freq, dur, vol, type, glide, dest) {
     const ac = this.ac;
     const o = ac.createOscillator();
     const g = ac.createGain();
@@ -511,13 +810,13 @@ const Audio = {
     o.frequency.setValueAtTime(freq, t);
     if (glide) o.frequency.exponentialRampToValueAtTime(Math.max(30, glide), t + dur);
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.004);
+    g.gain.linearRampToValueAtTime(vol, t + 0.003);
     g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
-    o.connect(g); g.connect(this.fxGain);
+    o.connect(g); g.connect(dest || this.fxGain);
     o.start(t); o.stop(t + dur + 0.02);
   },
 
-  click(t, dur, vol, hp) {
+  click(t, dur, vol, hp, dest) {
     const ac = this.ac;
     const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * (dur + 0.01)), ac.sampleRate);
     const ch = buf.getChannelData(0);
@@ -532,58 +831,63 @@ const Audio = {
     f.Q.value = 0.9;
     const g = ac.createGain();
     g.gain.value = vol;
-    n.connect(f); f.connect(g); g.connect(this.fxGain);
+    n.connect(f); f.connect(g); g.connect(dest || this.fxGain);
     n.start(t); n.stop(t + dur + 0.01);
   },
 
-  fx(kind, n) {
+  fx(kind, combo, lane) {
     const ac = this.ac;
     if (!ac || this.usePerf || ac.state !== 'running') return;
-    const t = ac.currentTime + 0.001;
-    const detune = 1 + ((n || 0) % 3 - 1) * 0.012;      // 连着点时不要像蜂鸣器
+    const t = ac.currentTime;
+    const pan = lane == null ? 0 : ((lane - 4) / 4) * 0.55;
+    const out = this.bus(pan);
+    const f = this.hitFreq(combo);
     switch (kind) {
       case 'p':
-        // 铃：基音 + 五度泛音，亮而不刺
-        this.tone(t, 1568 * detune, 0.09, 0.16, 'sine');
-        this.tone(t, 2093 * detune, 0.07, 0.09, 'sine');
-        this.click(t, 0.02, 0.05, 3200);
+        // 亮铃：基音 + 两个高泛音，衰减 60ms 内收干，像在框上敲了一下玻璃
+        this.tone(t, f * 1.5, 0.085, 0.085, 'sine', null, out);
+        this.tone(t, f * 2, 0.05, 0.05, 'sine', null, out);
+        this.tone(t, f * 3, 0.03, 0.028, 'sine', null, out);
+        this.click(t, 0.014, 0.05, 4200, out);
         break;
       case 'g':
-        this.tone(t, 1318 * detune, 0.075, 0.13, 'sine');
-        this.tone(t, 1760 * detune, 0.05, 0.05, 'sine');
-        this.click(t, 0.015, 0.035, 2800);
+        this.tone(t, f, 0.07, 0.075, 'sine', null, out);
+        this.tone(t, f * 2, 0.035, 0.03, 'sine', null, out);
+        this.click(t, 0.012, 0.035, 3400, out);
         break;
       case 'go':
-        this.tone(t, 880, 0.06, 0.10, 'triangle');
-        this.click(t, 0.02, 0.04, 1600);
+        // 木鱼：短促的三角波 + 一点点噪声，闷但干净
+        this.tone(t, f * 0.75, 0.055, 0.07, 'triangle', null, out);
+        this.click(t, 0.02, 0.045, 1500, out);
         break;
       case 'b':
-        this.tone(t, 196, 0.09, 0.13, 'sawtooth', 130);
-        this.click(t, 0.03, 0.05, 700);
+        this.tone(t, 196, 0.085, 0.11, 'sawtooth', 132, out);
+        this.click(t, 0.03, 0.045, 700, out);
         break;
       case 'm':
-        this.tone(t, 210, 0.24, 0.12, 'square', 82);
-        this.tone(t + 0.02, 105, 0.2, 0.07, 'sine', 60);
+        this.tone(t, 212, 0.22, 0.1, 'square', 84, out);
+        this.tone(t + 0.02, 106, 0.19, 0.06, 'sine', 62, out);
         break;
       case 'hold':
-        this.tone(t, 1174, 0.1, 0.10, 'triangle');
-        this.tone(t + 0.05, 1568, 0.1, 0.07, 'sine');
+        // 尾音：两个音的小上扬，比判定音更「收」
+        this.tone(t, f * 1.25, 0.09, 0.06, 'triangle', null, out);
+        this.tone(t + 0.045, f * 1.5, 0.1, 0.05, 'sine', null, out);
         break;
       case 'holdstart':
-        this.click(t, 0.03, 0.06, 1800);
-        this.tone(t, 660, 0.06, 0.05, 'sine');
+        this.click(t, 0.024, 0.055, 1900, out);
+        this.tone(t, f * 0.5, 0.07, 0.045, 'sine', f * 0.75, out);
         break;
       case 'break':
-        this.tone(t, 300, 0.12, 0.09, 'sawtooth', 160);
+        this.tone(t, 300, 0.12, 0.08, 'sawtooth', 158, out);
         break;
       case 'skill':
-        this.tone(t, 1046, 0.07, 0.08, 'triangle');
-        this.tone(t + 0.06, 1318, 0.07, 0.08, 'triangle');
-        this.tone(t + 0.12, 1568, 0.12, 0.09, 'triangle');
+        this.tone(t, 1046, 0.07, 0.06, 'triangle', null, out);
+        this.tone(t + 0.06, 1318, 0.07, 0.06, 'triangle', null, out);
+        this.tone(t + 0.12, 1568, 0.11, 0.07, 'triangle', null, out);
         break;
       case 'combo':
-        this.tone(t, 1046, 0.06, 0.07, 'sine');
-        this.tone(t + 0.05, 1568, 0.09, 0.07, 'sine');
+        this.tone(t, f * 2, 0.06, 0.05, 'sine', null, out);
+        this.tone(t + 0.05, f * 3, 0.08, 0.045, 'sine', null, out);
         break;
       default:
         break;
@@ -873,6 +1177,726 @@ const UNITS = [{"id":"a-15601","n":"24","hue":262,"skill":{"n":"狂气爆发","t
 return { UNITS };
 })();
 
+// ---- js/ll/shop.js
+const m_shop = await (async () => {
+
+// 工坊：导入一首自己的音频 → 按鼓点自动出谱 → 在时间轴上改 → 存本机 / 发布到云端曲库。
+//
+// 这里只管「谱面的制作与发行」，不碰对局逻辑：对局那一侧只要拿到
+// 「一段 notes + 一个 AudioBuffer」就能开局，接口由 lovelive.js 注入（api）。
+//
+// 三条硬规矩（和整站一致）：
+//   ① 音频不上传。导入的文件只进本机 IndexedDB，云库里发的是谱面（时间 + 轨道），
+//      别人拿到谱面要自己配音频；这也是公开仓库能收谱面的前提。
+//   ② 谱面是纯数据，最大 3000 个音符（约 40KB），服务端限 900KB，够用。
+//   ③ 发布要登录（走站点同一套 authToken），没登录就明确告诉用户去首页登录。
+
+const LANES = 9;
+const NOTE_R = 0.3;             // 音符半径 = 行高 × 这个比例
+
+function initShop(api) {
+  const { G, SAVE, persist, Audio, show, startLive, renderSongs, $, $$ } = api;
+  const chartFromOnsets = api.chartFromOnsets;
+  const detectOnsets = api.detectOnsets;
+  const diffOf = api.diffOf;
+  const fmt = api.fmt;
+  const mmss = api.mmss;
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+  /* ---------------------------------------------------------------- 小工具 */
+  const idbCGet = api.idbCGet, idbCSet = api.idbCSet, idbCDel = api.idbCDel;
+  const idbGet = api.idbGet, idbSet = api.idbSet, idbDel = api.idbDel;
+  const decode = (raw) => Audio.decode(raw);
+  const now = () => Date.now();
+  const uid = () => 'm' + now().toString(36).slice(-6) + Math.random().toString(36).slice(2, 5);
+
+  function status(el, msg, err) {
+    const n = $(el);
+    if (!n) return;
+    n.textContent = msg || '';
+    n.classList.toggle('err', !!err);
+  }
+
+  /* ---------------------------------------------------------------- 云端 */
+  // 站点和函数同源时直接 /api；GitHub Pages 镜像站才需要绝对地址
+  const apiBase = () => (/\.github\.io$/i.test(location.hostname)
+    ? 'https://zjtt-api.workers.dev'
+    : location.origin + '/api');
+  function token() {
+    try {
+      const raw = localStorage.getItem('zjtt:authToken');
+      if (!raw) return '';
+      const v = JSON.parse(raw);
+      return typeof v === 'string' ? v : '';
+    } catch (e) { return ''; }
+  }
+  async function call(path, opt) {
+    const o = opt || {};
+    const t = token();
+    const r = await fetch(apiBase() + path, {
+      method: o.method || 'GET',
+      headers: Object.assign({ Accept: 'application/json' }, t ? { Authorization: 'Bearer ' + t } : {},
+        o.body ? { 'Content-Type': 'application/json' } : {}),
+      body: o.body ? JSON.stringify(o.body) : undefined,
+    });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j || j.ok === false) {
+      const code = (j && j.error) || ('http_' + r.status);
+      const e = new Error(code);
+      e.code = code;
+      e.status = r.status;
+      throw e;
+    }
+    return j;
+  }
+
+  /* ---------------------------------------------------------------- 我的谱面 */
+  const MINE = () => SAVE.mine;
+  function saveMine(list) { SAVE.mine = list.slice(0, 60); persist(); }
+
+  // 把任意记录压成一份「对局能吃的谱面」
+  function packNotes(list) {
+    return list
+      .slice()
+      .sort((a, b) => a.t - b.t || a.lane - b.lane)
+      .map((n) => [+n.t.toFixed(3), n.lane | 0, n.kind === 'hold' ? 1 : 0, +(n.tail || 0).toFixed(3), +((n.s || 0.6)).toFixed(2)]);
+  }
+  function unpackNotes(arr) {
+    return (arr || []).map((a) => ({
+      t: +a[0], lane: clamp(a[1] | 0, 0, 8), kind: a[2] ? 'hold' : 'tap',
+      tail: a[2] ? +a[3] : 0, s: a[4] == null ? 0.6 : +a[4], judged: false, hit: false, holding: false,
+    }));
+  }
+
+  async function saveChart(rec) {
+    // rec: {id, title, artist, dur, audioKey, notes: [..packed..], cloud}
+    await idbCSet(rec.id, { notes: rec.notes, dur: rec.dur, audioKey: rec.audioKey, at: now() });
+    const list = MINE().slice();
+    const i = list.findIndex((m) => m.id === rec.id);
+    const meta = {
+      id: rec.id, title: rec.title, artist: rec.artist || '', dur: rec.dur,
+      count: rec.notes.length, at: now(), cloud: rec.cloud || (i >= 0 ? list[i].cloud : '') || '',
+    };
+    if (i >= 0) list[i] = Object.assign(list[i], meta); else list.unshift(meta);
+    saveMine(list);
+    return meta;
+  }
+
+  /* ---------------------------------------------------------------- 列表渲染 */
+  function songOf(m) {
+    return {
+      id: 'c-' + m.id, n: m.title, sub: '我的谱面' + (m.artist ? ' · ' + m.artist : ''),
+      bpm: 0, custom: true, mineId: m.id, dur: m.dur, count: m.count,
+    };
+  }
+  function songs() { return MINE().map(songOf); }
+
+  function renderMine() {
+    const box = $('#shop-mine');
+    if (!box) return;
+    const list = MINE();
+    if (!list.length) { box.innerHTML = '<p class="dim">还没有。上面选一个音频文件，先让它自动出一版谱子。</p>'; return; }
+    box.innerHTML = list.map((m) => (
+      '<div class="mrow" data-id="' + m.id + '">'
+      + '<div class="mi"><b>' + esc(m.title) + '</b><span>' + (m.count || 0) + ' 音符 · ' + mmss(m.dur)
+      + (m.cloud ? ' · ☁ 已发布' : '') + '</span></div>'
+      + '<div class="ma">'
+      + '<button data-act="play" type="button">试玩</button>'
+      + '<button data-act="edit" type="button">编辑</button>'
+      + '<button data-act="pub" type="button">发布</button>'
+      + '<button data-act="del" type="button">删</button>'
+      + '</div></div>'
+    )).join('');
+  }
+
+  function renderCloud() {
+    const box = $('#shop-cloud');
+    if (!box) return;
+    if (!CLOUD.items.length) {
+      box.innerHTML = '<p class="dim">云端还没有谱面。你发布的第一份就会出现在这里。</p>';
+      return;
+    }
+    box.innerHTML = CLOUD.items.map((c) => (
+      '<div class="mrow" data-cid="' + esc(c.id) + '">'
+      + '<div class="mi"><b>' + esc(c.title || '未命名') + '</b><span>'
+      + (c.authorName ? esc(c.authorName) + ' · ' : '') + (c.count || 0) + ' 音符 · ' + mmss(c.dur)
+      + (SAVE.cloudAudio[c.id] ? ' · ♪ 已配音频' : '') + '</span></div>'
+      + '<div class="ma"><button data-act="cplay" type="button">试玩</button></div>'
+      + '</div>'
+    )).join('');
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  const CLOUD = { items: [], loaded: false };
+
+  async function loadCloud(force) {
+    if (CLOUD.loaded && !force) return;
+    status('#shop-cloud-status', '正在拉云端曲库…');
+    try {
+      const j = await call('/llsongs?limit=40');
+      CLOUD.items = (j.items || []).slice();
+      CLOUD.loaded = true;
+      status('#shop-cloud-status', CLOUD.items.length ? ('共 ' + (j.total || CLOUD.items.length) + ' 份谱面') : '云端还没有谱面。');
+    } catch (e) {
+      status('#shop-cloud-status', '云端连不上（' + (e.code || 'offline') + '）。静态站能玩，但曲库要等接口部署好。', true);
+    }
+    renderCloud();
+  }
+
+  /* ---------------------------------------------------------------- 导入 → 自动出谱 */
+  let shopDiff = 'normal';
+  let pending = null;      // 正在等文件：{ mode:'new' } | { mode:'audio', cloudId }
+
+  async function importNew(file) {
+    status('#shop-status', '正在读取「' + file.name + '」…');
+    try {
+      const raw = await file.arrayBuffer();
+      const ac = Audio.ensure();
+      if (!ac) throw new Error('这个浏览器没有 WebAudio，放不了音频');
+      status('#shop-status', '正在解码…（大文件要等几秒）');
+      await new Promise((r) => setTimeout(r, 20));
+      const buf = await decode(raw.slice(0));
+      status('#shop-status', '正在抓鼓点…（' + mmss(buf.duration) + '）');
+      await new Promise((r) => setTimeout(r, 20));
+      const onsets = detectOnsets(buf);
+      const D = diffOf(shopDiff);
+      const seed = (Date.now() & 0x7fffffff) >>> 0;
+      const c = chartFromOnsets(onsets, buf.duration, D, seed);
+      const id = uid();
+      const audioKey = 'au:' + id;
+      await idbSet(audioKey, { name: file.name, data: raw.slice(0), onsets: onsets.map((p) => [+p.t.toFixed(3), +p.s.toFixed(2)]), dur: buf.duration });
+      const title = file.name.replace(/\.[^.]+$/, '').slice(0, 40) || '未命名曲目';
+      const meta = await saveChart({
+        id, title, artist: '', dur: buf.duration, audioKey,
+        notes: packNotes(c.notes),
+      });
+      status('#shop-status', '好了：' + meta.count + ' 个音符。进编辑器看看？');
+      renderMine();
+      openEditor(Object.assign({ audio: buf, audioKey }, meta, { notes: packNotes(c.notes) }));
+    } catch (e) {
+      status('#shop-status', '没成功：' + (e && e.message ? e.message : '这个文件解不开（换个 mp3 / m4a / wav 试试）'), true);
+    }
+  }
+
+  // 云端谱面配本地音频：时长差超过 6 秒就提醒（谱面按原曲时间写死，差太多会错位）
+  async function bindCloudAudio(cloudId, file) {
+    status('#shop-status', '正在给云端谱面配音频…');
+    try {
+      const raw = await file.arrayBuffer();
+      const buf = await decode(raw.slice(0));
+      const one = await call('/llsongs/' + encodeURIComponent(cloudId));
+      const want = Number(one.dur) || 0;
+      const diff = Math.abs(buf.duration - want);
+      const audioKey = 'cl:' + cloudId;
+      await idbSet(audioKey, { name: file.name, data: raw.slice(0), dur: buf.duration });
+      SAVE.cloudAudio[cloudId] = { name: file.name, dur: buf.duration };
+      persist();
+      status('#shop-status', diff > 6
+        ? ('配上了，但这段音频 ' + mmss(buf.duration) + ' 和谱面的 ' + mmss(want) + ' 差了 ' + Math.round(diff) + ' 秒，可能会错位。')
+        : ('配好了：' + mmss(buf.duration) + '，和谱面对得上。'), diff > 6);
+      renderCloud();
+      playCloud(cloudId, buf, audioKey);
+    } catch (e) {
+      status('#shop-status', '配音频失败：' + (e && e.message ? e.message : e.code || '未知'), true);
+    }
+  }
+
+  /* ---------------------------------------------------------------- 对局入口 */
+  async function playMine(id) {
+    const m = MINE().find((x) => x.id === id);
+    if (!m) return;
+    G.song = songOf(m);
+    G.diffK = 'normal';
+    startLive();
+  }
+  async function playCloud(cloudId, buf, audioKey) {
+    let title = '';
+    let dur = 0;
+    try {
+      const one = await call('/llsongs/' + encodeURIComponent(cloudId));
+      title = one.title || '云端谱面';
+      dur = Number(one.dur) || 0;
+    } catch (e) {
+      status('#shop-cloud-status', '云端谱面拉不下来（' + (e.code || 'offline') + '）', true);
+      return;
+    }
+    G.song = {
+      id: 'k-' + cloudId, n: title, sub: '云端曲库', bpm: 0, custom: true,
+      cloudId, dur, count: 0,
+    };
+    G.diffK = 'normal';
+    if (buf) { /* 已经解码好，startLive 会从 IndexedDB 再取一次（缓存命中，不会重复解码） */ }
+    startLive();
+  }
+
+  /* ---------------------------------------------------------------- 编辑器 */
+  const ED = {
+    open: false, rec: null, notes: [], audio: null, sel: -1,
+    t0: 0, pps: 110, snap: 0.05, undo: [], playing: false, playT: 0,
+    w: 0, h: 0, rowH: 0, dpr: 1, drag: null, down: null,
+  };
+  const edCv = () => $('#ed-cv');
+
+  function edFit() {
+    const cv = edCv();
+    if (!cv) return;
+    const b = cv.parentElement.getBoundingClientRect();
+    ED.w = Math.max(200, b.width);
+    ED.h = Math.max(120, b.height);
+    ED.dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(ED.w * ED.dpr);
+    cv.height = Math.round(ED.h * ED.dpr);
+    cv.style.width = ED.w + 'px';
+    cv.style.height = ED.h + 'px';
+    ED.rowH = ED.h / LANES;
+  }
+
+  const xOf = (t) => (t - ED.t0) * ED.pps;
+  const tOf = (x) => ED.t0 + x / ED.pps;
+  const snapT = (t) => (ED.snap > 0 ? Math.round(t / ED.snap) * ED.snap : t);
+
+  function edPushUndo() {
+    ED.undo.push(ED.notes.map((n) => ({ t: n.t, lane: n.lane, kind: n.kind, tail: n.tail, s: n.s })));
+    if (ED.undo.length > 30) ED.undo.shift();
+  }
+
+  function edDraw() {
+    const cv = edCv();
+    if (!cv) return;
+    const c = cv.getContext('2d');
+    c.setTransform(ED.dpr, 0, 0, ED.dpr, 0, 0);
+    c.clearRect(0, 0, ED.w, ED.h);
+    c.fillStyle = '#0d1018';
+    c.fillRect(0, 0, ED.w, ED.h);
+    // 轨道
+    for (let i = 0; i < LANES; i++) {
+      c.fillStyle = i % 2 ? 'rgba(255,255,255,0.022)' : 'transparent';
+      c.fillRect(0, i * ED.rowH, ED.w, ED.rowH);
+      c.strokeStyle = 'rgba(255,255,255,0.06)';
+      c.lineWidth = 1;
+      c.beginPath();
+      c.moveTo(0, i * ED.rowH);
+      c.lineTo(ED.w, i * ED.rowH);
+      c.stroke();
+      c.fillStyle = 'rgba(190,200,225,0.4)';
+      c.font = '600 ' + Math.round(Math.min(11, ED.rowH * 0.3)) + 'px ui-monospace,monospace';
+      c.textAlign = 'left';
+      c.textBaseline = 'middle';
+      c.fillText(api.KEYS[i], 4, i * ED.rowH + ED.rowH / 2);
+    }
+    // 时间网格：0.25 秒细线，1 秒粗线 + 刻度
+    const step = ED.pps > 200 ? 0.1 : ED.pps > 90 ? 0.25 : 0.5;
+    const tEnd = tOf(ED.w);
+    c.textAlign = 'center';
+    c.textBaseline = 'top';
+    for (let t = Math.floor(ED.t0 / step) * step; t <= tEnd; t += step) {
+      const x = xOf(t);
+      const one = Math.abs(t - Math.round(t)) < 1e-6;
+      c.strokeStyle = one ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.05)';
+      c.beginPath();
+      c.moveTo(x, 0);
+      c.lineTo(x, ED.h);
+      c.stroke();
+      if (one) {
+        c.fillStyle = 'rgba(190,200,225,0.35)';
+        c.font = '10px ui-monospace,monospace';
+        c.fillText(Math.round(t) + 's', x, ED.h - 12);
+      }
+    }
+    // 音符
+    for (let i = 0; i < ED.notes.length; i++) {
+      const n = ED.notes[i];
+      const x = xOf(n.t);
+      if (x < -40 || x > ED.w + 40) continue;
+      const y = n.lane * ED.rowH + ED.rowH / 2;
+      const r = ED.rowH * NOTE_R;
+      const hue = (n.lane * 40 + 190) % 360;
+      if (n.kind === 'hold') {
+        const w = Math.max(6, (n.tail - n.t) * ED.pps);
+        c.fillStyle = 'hsla(' + hue + ',70%,60%,0.28)';
+        c.fillRect(x, y - r * 0.5, w, r);
+        c.strokeStyle = 'hsla(' + hue + ',80%,70%,0.8)';
+        c.lineWidth = 1.5;
+        c.strokeRect(x, y - r * 0.5, w, r);
+      }
+      c.beginPath();
+      c.arc(x, y, r, 0, Math.PI * 2);
+      c.fillStyle = 'hsl(' + hue + ',65%,52%)';
+      c.fill();
+      if (i === ED.sel) {
+        c.strokeStyle = '#ffd76a';
+        c.lineWidth = 2.5;
+        c.stroke();
+      }
+    }
+    // 播放头
+    if (ED.playing) {
+      const t = ED.playT + Audio.time();
+      const x = xOf(t);
+      c.strokeStyle = '#ff9ecb';
+      c.lineWidth = 2;
+      c.beginPath();
+      c.moveTo(x, 0);
+      c.lineTo(x, ED.h);
+      c.stroke();
+    }
+  }
+
+  function openEditor(rec) {
+    ED.rec = rec;
+    ED.notes = unpackNotes(rec.notes);
+    ED.sel = -1;
+    ED.undo = [];
+    ED.t0 = 0;
+    ED.playing = false;
+    ED.playT = 0;
+    $('#ed-name').value = rec.title || '未命名曲目';
+    $('#ed-artist').value = rec.artist || '';
+    $('#ed-status').textContent = ED.notes.length + ' 个音符 · ' + mmss(rec.dur) + '　点空白处加一个，拖音符改时间/轨道，右键删。';
+    ED.open = true;
+    show('edit');
+    edFit();
+    edDraw();
+  }
+
+  async function ensureAudio(rec) {
+    if (ED.audio && ED.audioKey === rec.audioKey) return ED.audio;
+    const row = await idbGet(rec.audioKey).catch(() => null);
+    if (!row || !row.data) return null;
+    ED.audio = await decode(row.data.slice(0));
+    ED.audioKey = rec.audioKey;
+    return ED.audio;
+  }
+
+  function edHit(x, y) {
+    const lane = clamp(Math.floor(y / ED.rowH), 0, LANES - 1);
+    const t = tOf(x);
+    let best = -1, bd = 1e9;
+    for (let i = 0; i < ED.notes.length; i++) {
+      const n = ED.notes[i];
+      if (n.lane !== lane) continue;
+      const d = Math.abs(n.t - t);
+      const near = n.kind === 'hold' ? (t >= n.t && t <= n.tail) : false;
+      const dd = near ? 0 : d;
+      if (dd < bd && (near || d * ED.pps < ED.rowH * 0.5)) { bd = dd; best = i; }
+    }
+    return best;
+  }
+
+  function edPointerDown(e) {
+    const cv = edCv();
+    const b = cv.getBoundingClientRect();
+    const x = e.clientX - b.left, y = e.clientY - b.top;
+    const idx = edHit(x, y);
+    ED.down = { x, y, t0: ED.t0, idx };
+    if (idx >= 0) {
+      ED.sel = idx;
+      edPushUndo();
+      ED.drag = { idx, t: ED.notes[idx].t, tail: ED.notes[idx].tail, lane: ED.notes[idx].lane, x0: x, y0: y };
+    } else {
+      ED.drag = { pan: true };
+    }
+    edDraw();
+  }
+  function edPointerMove(e) {
+    if (!ED.drag) return;
+    const cv = edCv();
+    const b = cv.getBoundingClientRect();
+    const x = e.clientX - b.left, y = e.clientY - b.top;
+    if (ED.drag.pan) {
+      ED.t0 = Math.max(0, ED.drag.t0 - (x - ED.down.x) / ED.pps);
+      edDraw();
+      return;
+    }
+    const d = ED.drag;
+    if (Math.abs(x - ED.down.x) < 3 && Math.abs(y - ED.down.y) < 3) return;
+    const n = ED.notes[d.idx];
+    if (!n) return;
+    const dt = (x - ED.down.x) / ED.pps;
+    n.t = Math.max(0, snapT(d.t + dt));
+    n.lane = clamp(Math.floor(y / ED.rowH), 0, LANES - 1);
+    if (n.kind === 'hold') n.tail = n.t + Math.max(0.25, d.tail - d.t);
+    edDraw();
+  }
+  function edPointerUp(e) {
+    if (!ED.drag || !ED.down) { ED.drag = null; ED.down = null; return; }
+    const cv = edCv();
+    const b = cv.getBoundingClientRect();
+    const dx = Math.abs(e.clientX - b.left - ED.down.x);
+    const dy = Math.abs(e.clientY - b.top - ED.down.y);
+    if (ED.drag.pan) {
+      if (dx < 6 && dy < 6) {
+        // 轻点空白：在这一点加个音符
+        edPushUndo();
+        const t = Math.max(0, snapT(tOf(ED.down.x)));
+        const lane = clamp(Math.floor(ED.down.y / ED.rowH), 0, LANES - 1);
+        ED.notes.push({ t, lane, kind: 'tap', tail: 0, s: 0.6 });
+        ED.notes.sort((a, b2) => a.t - b2.t || a.lane - b2.lane);
+        ED.sel = ED.notes.findIndex((n) => n.t === t && n.lane === lane);
+      }
+    }
+    ED.drag = null;
+    ED.down = null;
+    edDraw();
+    edCount();
+  }
+
+  function edCount() {
+    const el = $('#ed-status');
+    if (el) el.textContent = ED.notes.length + ' 个音符 · 拖音符改位置，右键删，滚轮缩放。';
+  }
+
+  async function edSave() {
+    if (!ED.rec) return null;
+    const title = ($('#ed-name').value || '').trim().slice(0, 40) || '未命名曲目';
+    const artist = ($('#ed-artist').value || '').trim().slice(0, 24);
+    const meta = await saveChart({
+      id: ED.rec.id, title, artist, dur: ED.rec.dur, audioKey: ED.rec.audioKey,
+      notes: packNotes(ED.notes), cloud: ED.rec.cloud,
+    });
+    ED.rec = Object.assign({}, ED.rec, meta);
+    $('#ed-status').textContent = '已保存：' + meta.count + ' 个音符。';
+    renderMine();
+    if (G.scr === 'songs' || G.scr === 'title') renderSongs();
+    return meta;
+  }
+
+  async function edPublish() {
+    if (!ED.rec) return;
+    if (!token()) {
+      status('#ed-status', '发布要登录：回首页右上角点登录，再回来发布。', true);
+      return;
+    }
+    status('#ed-status', '正在发布…');
+    try {
+      const meta = await edSave();
+      const j = await call('/llsongs', {
+        method: 'POST',
+        body: {
+          id: ED.rec.cloud || undefined,
+          title: meta.title, artist: meta.artist, dur: ED.rec.dur,
+          count: meta.count, notes: packNotes(ED.notes),
+        },
+      });
+      ED.rec.cloud = j.id || ED.rec.cloud;
+      const list = MINE().slice();
+      const i = list.findIndex((m) => m.id === ED.rec.id);
+      if (i >= 0) { list[i].cloud = ED.rec.cloud; saveMine(list); }
+      status('#ed-status', '发布成功，云端曲库已经有了（id ' + ED.rec.cloud + '）。');
+      CLOUD.loaded = false;
+      loadCloud(true);
+      renderMine();
+    } catch (e) {
+      const code = e.code || '';
+      status('#ed-status', code === 'need_login' ? '登录过期了，回首页重新登录。'
+        : code === 'too_large' ? '谱面太大了（超过 900KB），先删掉一些音符。'
+        : '发布失败：' + (code || e.message || '未知'), true);
+    }
+  }
+
+  function edDel() {
+    if (ED.sel < 0) return;
+    edPushUndo();
+    ED.notes.splice(ED.sel, 1);
+    ED.sel = -1;
+    ED.dirty = true;
+    edDraw();
+  }
+  function edToggleHold() {
+    const n = ED.notes[ED.sel];
+    if (!n) return;
+    edPushUndo();
+    if (n.kind === 'hold') { n.kind = 'tap'; n.tail = 0; }
+    else {
+      n.kind = 'hold';
+      const next = ED.notes.filter((x) => x !== n && x.t > n.t).sort((a, b) => a.t - b.t)[0];
+      const maxTail = next ? next.t - 0.06 : n.t + 1.2;
+      n.tail = Math.min(maxTail, n.t + 0.8);
+      if (n.tail - n.t < 0.2) { n.kind = 'tap'; n.tail = 0; }
+    }
+    ED.dirty = true;
+    edDraw();
+  }
+  function edUndo() {
+    const prev = ED.undo.pop();
+    if (!prev) return;
+    ED.notes = prev;
+    ED.sel = -1;
+    edDraw();
+  }
+
+  async function edPlayToggle() {
+    if (ED.playing) {
+      Audio.stop();
+      ED.playing = false;
+      $('#ed-play').textContent = '▶ 试听';
+      edDraw();
+      return;
+    }
+    const buf = await ensureAudio(ED.rec);
+    if (!buf) { status('#ed-status', '这段音频没在本机存上，重新导入一次。', true); return; }
+    ED.playT = ED.t0;
+    Audio.setVol(SAVE.musVol, SAVE.fxVol);
+    Audio.playBuffer(buf, ED.playT);
+    ED.playing = true;
+    $('#ed-play').textContent = '■ 停';
+    const tick = () => {
+      if (!ED.playing) return;
+      const t = ED.playT + Audio.time();
+      if (xOf(t) > ED.w * 0.85) ED.t0 = t - ED.w * 0.2 / ED.pps;
+      edDraw();
+      if (t > ED.rec.dur - 0.05) { edPlayToggle(); return; }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  /* ---------------------------------------------------------------- 接线 */
+  function openShop() {
+    renderMine();
+    renderCloud();
+    show('shop');
+    loadCloud(false);
+  }
+
+  function bind() {
+    const f = $('#shop-file');
+    if (f) f.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      if (pending && pending.mode === 'audio') bindCloudAudio(pending.cloudId, file);
+      else importNew(file);
+    });
+
+    $$('#shop-diff button').forEach((b) => {
+      b.classList.toggle('on', b.dataset.v === shopDiff);
+      b.onclick = () => {
+        shopDiff = b.dataset.v;
+        $$('#shop-diff button').forEach((x) => x.classList.toggle('on', x === b));
+      };
+    });
+    const imp = $('#shop-import');
+    if (imp) imp.onclick = () => {
+      pending = { mode: 'new' };
+      const f2 = $('#shop-file');
+      f2.accept = 'audio/*';
+      f2.click();
+    };
+    const rf = $('#shop-refresh');
+    if (rf) rf.onclick = () => loadCloud(true);
+    const back = $('#shop-back');
+    if (back) back.onclick = () => { show('title'); renderSongs(); };
+
+    const mineBox = $('#shop-mine');
+    if (mineBox) mineBox.onclick = async (e) => {
+      const btn = e.target.closest('button[data-act]');
+      const row = e.target.closest('[data-id]');
+      if (!btn || !row) return;
+      const id = row.dataset.id;
+      const act = btn.dataset.act;
+      if (act === 'play') return playMine(id);
+      if (act === 'edit') {
+        const m = MINE().find((x) => x.id === id);
+        const rec = await idbCGet(id).catch(() => null);
+        if (!m || !rec) { status('#shop-status', '谱面数据丢了，删掉重做一份吧。', true); return; }
+        openEditor(Object.assign({}, rec, m, { id }));
+        ensureAudio({ audioKey: rec.audioKey }).catch(() => {});
+        return;
+      }
+      if (act === 'pub') {
+        const rec = await idbCGet(id).catch(() => null);
+        const m = MINE().find((x) => x.id === id);
+        if (!rec || !m) return;
+        openEditor(Object.assign({}, rec, m, { id }));
+        return;
+      }
+      if (act === 'del') {
+        if (!confirm('删掉这份谱面？音频也会一起清掉。')) return;
+        const m = MINE().find((x) => x.id === id);
+        await idbCDel(id).catch(() => {});
+        if (m && m.cloud) { /* 云端的留着，本机删掉 */ }
+        saveMine(MINE().filter((x) => x.id !== id));
+        renderMine();
+        renderSongs();
+        status('#shop-status', '删掉了。');
+      }
+    };
+
+    const cloudBox = $('#shop-cloud');
+    if (cloudBox) cloudBox.onclick = (e) => {
+      const btn = e.target.closest('button[data-act]');
+      const row = e.target.closest('[data-cid]');
+      if (!btn || !row) return;
+      const cid = row.dataset.cid;
+      if (SAVE.cloudAudio[cid]) return playCloud(cid);
+      pending = { mode: 'audio', cloudId: cid };
+      status('#shop-status', '这份谱面对应 ' + mmss((CLOUD.items.find((x) => x.id === cid) || {}).dur || 0)
+        + ' 的音频：选你手里同一个版本的文件，就能跟着打。');
+      const f3 = $('#shop-file');
+      f3.accept = 'audio/*';
+      f3.click();
+    };
+
+    // 编辑器
+    const cv = edCv();
+    if (cv) {
+      cv.addEventListener('pointerdown', edPointerDown);
+      cv.addEventListener('pointermove', edPointerMove);
+      cv.addEventListener('pointerup', edPointerUp);
+      cv.addEventListener('pointercancel', () => { ED.drag = null; ED.down = null; });
+      cv.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const b = cv.getBoundingClientRect();
+        const i = edHit(e.clientX - b.left, e.clientY - b.top);
+        if (i >= 0) { ED.sel = i; edDel(); }
+      });
+      cv.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const b = cv.getBoundingClientRect();
+        const x = e.clientX - b.left;
+        const t = tOf(x);
+        ED.pps = clamp(ED.pps * (e.deltaY < 0 ? 1.15 : 0.87), 30, 400);
+        ED.t0 = Math.max(0, t - x / ED.pps);
+        edDraw();
+      }, { passive: false });
+      window.addEventListener('resize', () => { if (ED.open) { edFit(); edDraw(); } });
+    }
+    const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+    on('#ed-back', () => { if (ED.playing) edPlayToggle(); ED.open = false; openShop(); });
+    on('#ed-save', () => edSave());
+    on('#ed-del', () => edDel());
+    on('#ed-hold', () => edToggleHold());
+    on('#ed-undo', () => edUndo());
+    on('#ed-play', () => edPlayToggle());
+    on('#ed-zoomin', () => { ED.pps = clamp(ED.pps * 1.25, 30, 400); edDraw(); });
+    on('#ed-zoomout', () => { ED.pps = clamp(ED.pps / 1.25, 30, 400); edDraw(); });
+    on('#ed-snap', () => {
+      ED.snap = ED.snap ? 0 : 0.05;
+      $('#ed-snap').classList.toggle('on', !!ED.snap);
+      $('#ed-status').textContent = ED.snap ? '吸附 0.05 秒' : '自由摆（不吸附）';
+    });
+    on('#ed-test', async () => {
+      await edSave();
+      G.song = songOf(ED.rec);
+      G.diffK = 'normal';
+      ED.playing = false;
+      Audio.stop();
+      startLive();
+    });
+    on('#ed-publish', () => edPublish());
+  }
+
+  bind();
+
+  return { songs, openShop, openEditor, renderMine, loadCloud, token, ed: ED, cloud: CLOUD };
+}
+return { initShop };
+})();
+
 // ---- js/gamecloud.js
 const m_gamecloud = await (async () => {
 
@@ -1138,6 +2162,7 @@ const { SONGS, arrange } = m_songs;
 const { Audio } = m_audio;
 const { detectOnsets, chartFromOnsets, chartFromArr, hashStr } = m_analyze;
 const { UNITS } = m_gen;
+const { initShop } = m_shop;
 const { startGameCloud } = m_gamecloud;
 // lovelive！mori⭐mens！ —— 点按式音游（学园偶像祭的玩法壳 + 《忘却前夜》的唤醒体）。
 //
@@ -1164,6 +2189,7 @@ const { startGameCloud } = m_gamecloud;
 
 
 
+
 /* ================================================================ 小工具 */
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.prototype.slice.call((r || document).querySelectorAll(s));
@@ -1180,6 +2206,17 @@ const AUTO = TEST && /[?&]_auto=1/.test(location.search);
 const FINE = window.matchMedia ? window.matchMedia('(pointer:fine)').matches : false;
 // 画面特效的时间轴（秒）：和 rAF 的时间戳同源，暂停时也照常走
 const wall = () => performance.now() / 1000;
+// 页脚那行红字提示：写一句、抖一下、两秒半后自己消失
+function flash(sel, msg) {
+  const el = $(sel);
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('pop');
+  void el.offsetWidth;
+  el.classList.add('pop');
+  clearTimeout(el._ft);
+  el._ft = setTimeout(() => { el.textContent = ''; }, 2600);
+}
 
 /* ================================================================ 存档 */
 const KEY = 'zjtt:lovelive';
@@ -1201,6 +2238,10 @@ function loadSave() {
   s.musVol = s.musVol == null ? 0.7 : clamp(Number(s.musVol), 0, 1);
   s.fxVol = s.fxVol == null ? 0.6 : clamp(Number(s.fxVol), 0, 1);
   s.keys = s.keys == null ? 1 : (s.keys ? 1 : 0);
+  // 工坊：本机谱面的索引（正文在 IndexedDB，这里只留列表要用的字段）
+  s.mine = Array.isArray(s.mine) ? s.mine.filter((m) => m && m.id).slice(0, 60) : [];
+  // 云端谱面里「我已经把音频对上了」的那些：{ <cloudId>: { name, dur } }
+  s.cloudAudio = (s.cloudAudio && typeof s.cloudAudio === 'object') ? s.cloudAudio : {};
   return s;
 }
 const SAVE = loadSave();
@@ -1212,19 +2253,23 @@ const bestKey = (songId, diff) => songId + ':' + diff;
 /* ================================================================ IndexedDB：本机音源 */
 // 只存本机（不上传、不跨设备）：原曲是自己导入的，不存在库里分发给别人。
 const DB_NAME = 'll-tracks';
+// 两个表：t = 音频（导入的原曲），c = 谱面（工坊里做出来的）
 function idbOpen() {
   return new Promise((res, rej) => {
     let r;
-    try { r = indexedDB.open(DB_NAME, 1); } catch (e) { rej(e); return; }
-    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('t')) r.result.createObjectStore('t'); };
+    try { r = indexedDB.open(DB_NAME, 2); } catch (e) { rej(e); return; }
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      for (const name of ['t', 'c']) if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
+    };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error || new Error('打不开本机音源库'));
   });
 }
-function idbDo(mode, fn) {
+function idbDo(store, mode, fn) {
   return idbOpen().then((db) => new Promise((res, rej) => {
-    const tx = db.transaction('t', mode);
-    const st = tx.objectStore('t');
+    const tx = db.transaction(store, mode);
+    const st = tx.objectStore(store);
     let out;
     try { out = fn(st); } catch (e) { rej(e); return; }
     tx.oncomplete = () => res(out && out.result !== undefined ? out.result : out);
@@ -1232,9 +2277,12 @@ function idbDo(mode, fn) {
     tx.onabort = () => rej(tx.error);
   }));
 }
-const idbGet = (k) => idbDo('readonly', (st) => st.get(k));
-const idbSet = (k, v) => idbDo('readwrite', (st) => st.put(v, k));
-const idbDel = (k) => idbDo('readwrite', (st) => st.delete(k));
+const idbGet = (k) => idbDo('t', 'readonly', (st) => st.get(k));
+const idbSet = (k, v) => idbDo('t', 'readwrite', (st) => st.put(v, k));
+const idbDel = (k) => idbDo('t', 'readwrite', (st) => st.delete(k));
+const idbCGet = (k) => idbDo('c', 'readonly', (st) => st.get(k));
+const idbCSet = (k, v) => idbDo('c', 'readwrite', (st) => st.put(v, k));
+const idbCDel = (k) => idbDo('c', 'readwrite', (st) => st.delete(k));
 
 /* ================================================================ 难度 */
 // win: Perfect / Great / Good / Bad 的半宽（秒，实际还要乘判定宽松）
@@ -1253,7 +2301,8 @@ const KEY_LABEL = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'];
 /* ================================================================ DOM 骨架 */
 const scr = {
   title: $('#scr-title'), songs: $('#scr-songs'), team: $('#scr-team'),
-  set: $('#scr-set'), live: $('#scr-live'), result: $('#scr-result'),
+  set: $('#scr-set'), shop: $('#scr-shop'), edit: $('#scr-edit'),
+  live: $('#scr-live'), result: $('#scr-result'),
 };
 function show(name) {
   for (const k of Object.keys(scr)) scr[k].hidden = k !== name;
@@ -1288,6 +2337,36 @@ const FACE_OK = (u) => u.img && u.img.complete && u.img.naturalWidth > 0;
 /* 曲目时间：音频时钟 - 偏移。判定、播放、绘制都用这一个 */
 const chartTime = () => Math.max(0, Audio.time() - SAVE.offset / 1000);
 
+/* ================================================================ 技能立绘 */
+// 技能发动时，舞台背景换成这位唤醒体的立绘（大图虚化 + 一张清晰的小卡）。
+// 图只有 120px 的头像，所以大图走「放大 + 模糊 + 色相洗」当氛围，
+// 清晰的资格留给中间那张立绘卡——看起来才不糊。
+const ART = { on: false, timer: 0 };
+function showArt(u, txt) {
+  const bg = $('#art-bg');
+  const card = $('#art-card');
+  if (!bg) return;
+  bg.style.backgroundImage = 'url("' + u.art + '")';
+  bg.style.setProperty('--h', u.hue);
+  bg.classList.add('on');
+  if (card) {
+    card.style.setProperty('--h', u.hue);
+    $('#art-face').src = u.art;
+    $('#art-name').textContent = u.n;
+    $('#art-skill').textContent = txt || ('「' + u.skill.n + '」');
+    card.classList.remove('on');
+    void card.offsetWidth;          // 重启动画：连着触发两次也要重新滑进来
+    card.classList.add('on');
+  }
+  ART.on = true;
+  clearTimeout(ART.timer);
+  ART.timer = setTimeout(() => {
+    bg.classList.remove('on');
+    if (card) card.classList.remove('on');
+    ART.on = false;
+  }, 2400);
+}
+
 /* ================================================================ 技能 */
 function initSkills() {
   G.sk = team().map((id) => {
@@ -1318,6 +2397,7 @@ function fireSkill(st, now) {
   if (sk.dur > 0) G.buffs.push({ fx: sk.fx, val: sk.val, until: now + sk.dur, u: st.u });
   else applyInstant(sk, now);
   G.banner = { txt: st.u.n + '「' + sk.n + '」', until: now + 2.2, hue: st.u.hue };
+  showArt(st.u, '「' + sk.n + '」');
   Audio.fx('skill');
   paintSkillChips(true);
 }
@@ -1389,9 +2469,15 @@ function scoreNote(n, j) {
 function boxOf(lane) { return LAY.boxes[lane] || LAY.boxes[0]; }
 function pushFx(lane, j, txt) {
   const b = boxOf(lane);
-  G.fx.push({ x: b.x, y: b.y - b.h * 0.35, j, t: wall(), txt: txt == null ? JN[j] : txt });
-  if (G.fx.length > 26) G.fx.shift();
-  G.flashes[lane] = { t: wall(), j };
+  const t = wall();
+  // 同一轨道 0.14 秒内只留最后一条：以前 GUARD / SAVED / 判定名会叠成一片看不清
+  for (let i = G.fx.length - 1; i >= 0; i--) {
+    const f = G.fx[i];
+    if (f.x === b.x && t - f.t < 0.14) G.fx.splice(i, 1);
+  }
+  G.fx.push({ x: b.x, y: b.y - b.h * 0.35, j, t, txt: txt == null ? JN[j] : txt });
+  if (G.fx.length > 12) G.fx.shift();
+  G.flashes[lane] = { t, j };
 }
 function judgeNote(n, j) {
   n.judged = true;
@@ -1402,7 +2488,7 @@ function judgeNote(n, j) {
   if (j === 'p') onPerfect();
   if (j === 'b') G.stamina = clamp(G.stamina - diffOf(G.diffK).stam * 0.55, 0, 100);
   addCombo(1);
-  Audio.fx(j, G.combo);
+  Audio.fx(j, G.combo, n.lane);
   pushFx(n.lane, j);
 }
 function missNote(n) {
@@ -1416,7 +2502,7 @@ function missNote(n) {
     G.accW += JW.go;
     scoreNote(n, 'go');
     addCombo(1);
-    Audio.fx('go', G.combo);
+    Audio.fx('go', G.combo, n.lane);
     pushFx(n.lane, 'go', 'SAVED');
     G.banner = { txt: 'Miss 被救回来了！', until: now + 1.2, hue: 140 };
     return;
@@ -1556,18 +2642,127 @@ function laneAt(x, y) {
 const cv = $('#cv');
 const ctx = cv.getContext('2d');
 let W = 0, H = 0, DPR = 1;
+
+// 静态层缓存：渐变底、发球点光晕、九条引导线、九个框（含头像和键位）。
+// 以前每帧都要重建 11 个渐变、给九个头像做 clip + drawImage、再画九次圆角框——
+// 中低端机上掉帧就掉在这里。现在只在尺寸变化时算一次，主循环只做两次 drawImage。
+const bgLayer = document.createElement('canvas');
+const boxLayer = document.createElement('canvas');
+const bgCtx = bgLayer.getContext('2d');
+const boxCtx = boxLayer.getContext('2d');
+const SPRITE = new Map();
+
+function rr2(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+// 圆形头像精灵：一次画好（含描边），之后每帧只是一次 drawImage。
+// 音符和框都吃这张缓存——同一张脸在同一尺寸下只做一次 clip。
+function sprite(u, px) {
+  const size = Math.max(10, Math.round(px));
+  const key = u.id + ':' + size;
+  const hit = SPRITE.get(key);
+  if (hit) return hit;
+  if (SPRITE.size > 160) SPRITE.clear();
+  const s2 = Math.round(size * 2 * DPR);
+  const c = document.createElement('canvas');
+  c.width = s2; c.height = s2;
+  const g = c.getContext('2d');
+  g.save();
+  g.beginPath();
+  g.arc(s2 / 2, s2 / 2, s2 / 2 - 1, 0, Math.PI * 2);
+  g.clip();
+  if (FACE_OK(u)) g.drawImage(u.img, 0, 0, s2, s2);
+  else { g.fillStyle = 'hsl(' + u.hue + ',30%,24%)'; g.fillRect(0, 0, s2, s2); }
+  g.restore();
+  g.lineWidth = Math.max(2, s2 * 0.045);
+  g.strokeStyle = 'hsl(' + u.hue + ',88%,74%)';
+  g.beginPath();
+  g.arc(s2 / 2, s2 / 2, s2 / 2 - 2, 0, Math.PI * 2);
+  g.stroke();
+  SPRITE.set(key, c);
+  return c;
+}
+
+function buildStatic() {
+  for (const c of [bgLayer, boxLayer]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+  bgCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  boxCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  bgCtx.clearRect(0, 0, W, H);
+  boxCtx.clearRect(0, 0, W, H);
+
+  const sp = LAY.spawn;
+  const bg = bgCtx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0b0e17');
+  bg.addColorStop(0.5, '#101527');
+  bg.addColorStop(1, '#0a0d15');
+  bgCtx.fillStyle = bg;
+  bgCtx.fillRect(0, 0, W, H);
+
+  const halo = bgCtx.createRadialGradient(sp.x, sp.y, 2, sp.x, sp.y, Math.max(W * 0.5, 180));
+  halo.addColorStop(0, 'rgba(240,120,180,0.20)');
+  halo.addColorStop(0.45, 'rgba(140,120,255,0.07)');
+  halo.addColorStop(1, 'rgba(0,0,0,0)');
+  bgCtx.fillStyle = halo;
+  bgCtx.fillRect(0, 0, W, H);
+
+  for (let i = 0; i < 9; i++) {
+    const b = LAY.boxes[i];
+    const u = laneUnit(i);
+    const g = bgCtx.createLinearGradient(sp.x, sp.y, b.x, b.y);
+    g.addColorStop(0, 'hsla(' + u.hue + ',70%,70%,0.10)');
+    g.addColorStop(1, 'hsla(' + u.hue + ',70%,70%,0.03)');
+    bgCtx.strokeStyle = g;
+    bgCtx.lineWidth = 1;
+    bgCtx.beginPath();
+    bgCtx.moveTo(sp.x, sp.y);
+    bgCtx.lineTo(b.x, b.y);
+    bgCtx.stroke();
+  }
+
+  // 九个框：底、边、头像、键位
+  boxCtx.textAlign = 'center';
+  boxCtx.textBaseline = 'middle';
+  for (let i = 0; i < 9; i++) {
+    const b = LAY.boxes[i];
+    const u = laneUnit(i);
+    const r = b.w / 2;
+    rr2(boxCtx, b.x - r, b.y - r, b.w, b.h, 10);
+    boxCtx.fillStyle = 'rgba(18,22,38,0.92)';
+    boxCtx.fill();
+    boxCtx.lineWidth = 2;
+    boxCtx.strokeStyle = 'hsla(' + u.hue + ',80%,72%,0.42)';
+    boxCtx.stroke();
+    const ir = r - 3.5;
+    boxCtx.drawImage(sprite(u, ir), b.x - ir, b.y - ir, ir * 2, ir * 2);
+    if (SAVE.keys) {
+      boxCtx.font = '600 ' + Math.round(Math.min(13, b.w * 0.32)) + 'px ui-monospace,SFMono-Regular,Menlo,monospace';
+      boxCtx.fillStyle = 'rgba(190,200,225,0.55)';
+      boxCtx.fillText(KEY_LABEL[i], b.x, b.y + r + 11);
+    }
+  }
+}
+
 function fit() {
   const box = $('#stage');
   if (!box) return;
   const b = box.getBoundingClientRect();
   W = Math.max(260, b.width);
   H = Math.max(320, b.height);
-  DPR = Math.min(2.5, window.devicePixelRatio || 1);
+  // 2.5 的像素比在手机上等于白烧一半填充率；2 已经看不出差别
+  DPR = Math.min(2, window.devicePixelRatio || 1);
   cv.width = Math.round(W * DPR);
   cv.height = Math.round(H * DPR);
   cv.style.width = W + 'px';
   cv.style.height = H + 'px';
   layout();
+  buildStatic();
 }
 window.addEventListener('resize', () => fit());
 if (window.ResizeObserver) new ResizeObserver(() => fit()).observe($('#stage'));
@@ -1585,6 +2780,7 @@ cv.addEventListener('pointerdown', (e) => {
 window.addEventListener('pointerup', (e) => releasePtr('p' + e.pointerId));
 window.addEventListener('pointercancel', (e) => releasePtr('p' + e.pointerId));
 window.addEventListener('keydown', (e) => {
+  if (G.scr !== 'live' && G.scr !== 'edit') return;
   const k = e.key.toLowerCase();
   const lane = KEYS.indexOf(k);
   if (lane >= 0) {
@@ -1601,55 +2797,21 @@ window.addEventListener('keyup', (e) => {
 });
 
 /* ================================================================ 渲染 */
-function roundRect(x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-function draw(ts) {
+function draw(clock) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, W, H);
-  const clock = wall();
   const now = G.running ? chartTime() : 0;
   const le = leadEff();
   const beat = (G.chart && G.chart.arr) ? (now / G.chart.arr.spb) % 1 : (now * 2) % 1;
 
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#0b0e17');
-  bg.addColorStop(0.5, '#101527');
-  bg.addColorStop(1, '#0a0d15');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
+  // 技能立绘在放的时候，把底图压低让它透出来（框和音符仍然是实心的）
+  ctx.globalAlpha = ART.on ? 0.3 : 1;
+  ctx.drawImage(bgLayer, 0, 0, W, H);
+  ctx.globalAlpha = 1;
+  ctx.drawImage(boxLayer, 0, 0, W, H);
 
-  // 发球点的光柱：整块场地的视觉起点
+  // 发球点（每帧就这一圈，便宜）
   const sp = LAY.spawn;
-  const halo = ctx.createRadialGradient(sp.x, sp.y, 2, sp.x, sp.y, Math.max(W * 0.5, 180));
-  halo.addColorStop(0, 'rgba(240,120,180,0.20)');
-  halo.addColorStop(0.45, 'rgba(140,120,255,0.07)');
-  halo.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = halo;
-  ctx.fillRect(0, 0, W, H);
-
-  // 轨道引导线
-  for (let i = 0; i < 9; i++) {
-    const b = LAY.boxes[i];
-    const u = laneUnit(i);
-    const g = ctx.createLinearGradient(sp.x, sp.y, b.x, b.y);
-    g.addColorStop(0, 'hsla(' + u.hue + ',70%,70%,0.10)');
-    g.addColorStop(1, 'hsla(' + u.hue + ',70%,70%,0.03)');
-    ctx.strokeStyle = g;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(sp.x, sp.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
-  }
-
-  // 发球点
   const pulse = 1 + Math.max(0, 0.5 - beat) * 0.12;
   ctx.beginPath();
   ctx.arc(sp.x, sp.y, Math.max(12, LAY.bw * 0.36) * pulse, 0, Math.PI * 2);
@@ -1663,128 +2825,105 @@ function draw(ts) {
   ctx.fillStyle = 'rgba(255,190,220,0.9)';
   ctx.fill();
 
-  // 九个击打框
+  // 按住的框：亮一圈 + 上一帧的命中闪光
   for (let i = 0; i < 9; i++) {
     const b = LAY.boxes[i];
     const u = laneUnit(i);
-    const fl = G.flashes[i];
-    const hitA = fl ? clamp(1 - (clock - fl.t) / 0.26, 0, 1) : 0;
-    const press = G.holdingLane === i ? 1 : 0;
     const r = b.w / 2;
-    // 框体
-    roundRect(b.x - r, b.y - r, b.w, b.h, 10);
-    ctx.fillStyle = 'rgba(18,22,38,0.92)';
-    ctx.fill();
-    ctx.lineWidth = 2 + press * 1.5;
-    ctx.strokeStyle = 'hsla(' + u.hue + ',80%,72%,' + (0.42 + press * 0.45) + ')';
-    ctx.stroke();
-    // 头像
-    ctx.save();
-    ctx.beginPath();
-    const ir = r - 3.5;
-    ctx.arc(b.x, b.y, ir, 0, Math.PI * 2);
-    ctx.clip();
-    if (FACE_OK(u)) ctx.drawImage(u.img, b.x - ir, b.y - ir, ir * 2, ir * 2);
-    ctx.restore();
-    // 命中闪光
-    if (hitA > 0) {
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, ir + 3 + hitA * 9, 0, Math.PI * 2);
-      ctx.globalAlpha = hitA * 0.85;
-      ctx.strokeStyle = JC[fl.j];
-      ctx.lineWidth = 3;
+    if (G.holdingLane === i) {
+      rr2(ctx, b.x - r, b.y - r, b.w, b.h, 10);
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = 'hsla(' + u.hue + ',90%,76%,0.95)';
       ctx.stroke();
-      ctx.globalAlpha = 1;
     }
-    // 键位提示
-    if (SAVE.keys) {
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = '600 ' + Math.round(Math.min(13, b.w * 0.32)) + 'px ui-monospace,SFMono-Regular,Menlo,monospace';
-      ctx.fillStyle = 'rgba(190,200,225,0.55)';
-      ctx.fillText(KEY_LABEL[i], b.x, b.y + r + 11);
-      ctx.textBaseline = 'alphabetic';
-    }
+    const fl = G.flashes[i];
+    if (!fl) continue;
+    const hitA = clamp(1 - (clock - fl.t) / 0.24, 0, 1);
+    if (hitA <= 0) { delete G.flashes[i]; continue; }
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, r + 3 + hitA * 8, 0, Math.PI * 2);
+    ctx.strokeStyle = JC[fl.j] || '#fff';
+    ctx.globalAlpha = hitA * 0.85;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
-  // 画到哪儿：已经在框里结算完的音符不用再画，但按住中的长条要留着
+  // 画到哪儿：已经在框里结算完的音符不用再画
   while (G.di < G.notes.length && G.notes[G.di].judged && !G.notes[G.di].holding) G.di++;
 
-  // 长条：先画轨道粗线，再画音符头
+  // 长条：细一点的轨道 + 一根亮芯，之前那样一条 0.44bw 的粗带太压画面
   for (let i = G.di; i < G.notes.length; i++) {
     const n = G.notes[i];
     if ((n.t - now) / le > 1.05) break;
-    if (n.judged && !(n.kind === 'hold' && n.holding)) continue;
     if (n.kind !== 'hold') continue;
+    if (n.judged && !n.holding) continue;
     const b = LAY.boxes[n.lane];
     const hp = n.holding ? { x: b.x, y: b.y } : notePos(n, now, le);
     const tp = notePos({ lane: n.lane, t: n.tail }, now, le);
     const u = laneUnit(n.lane);
+    const col = n.broken ? '150,150,165' : (u.hue + ',85%,72%');
+    ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(hp.x, hp.y);
     ctx.lineTo(tp.x, tp.y);
-    ctx.strokeStyle = n.broken ? 'rgba(150,150,165,0.22)' : 'hsla(' + u.hue + ',85%,72%,0.5)';
-    ctx.lineWidth = LAY.bw * 0.44;
-    ctx.lineCap = 'round';
+    ctx.strokeStyle = n.broken ? 'rgba(150,150,165,0.16)' : 'hsla(' + col + ',0.26)';
+    ctx.lineWidth = LAY.bw * 0.3;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(hp.x, hp.y);
+    ctx.lineTo(tp.x, tp.y);
+    ctx.strokeStyle = n.broken ? 'rgba(160,160,175,0.3)' : 'hsla(' + col + ',0.85)';
+    ctx.lineWidth = 3;
     ctx.stroke();
     if (!n.holding && !n.broken) {
       ctx.beginPath();
-      ctx.arc(tp.x, tp.y, LAY.bw * 0.24, 0, Math.PI * 2);
-      ctx.strokeStyle = 'hsla(' + u.hue + ',85%,78%,0.55)';
+      ctx.arc(tp.x, tp.y, LAY.bw * 0.2, 0, Math.PI * 2);
+      ctx.strokeStyle = 'hsla(' + col + ',0.7)';
       ctx.lineWidth = 2;
       ctx.stroke();
     }
   }
 
-  // 音符头
+  // 音符头（圆形头像精灵，不裁不描边，直接贴）
   for (let i = G.di; i < G.notes.length; i++) {
     const n = G.notes[i];
     if ((n.t - now) / le > 1.05) break;
     if (n.judged && !(n.kind === 'hold' && n.holding)) continue;
     const u = laneUnit(n.lane);
     const p = n.holding ? { x: LAY.boxes[n.lane].x, y: LAY.boxes[n.lane].y - LAY.bh * 0.42 } : notePos(n, now, le);
-    const rr = LAY.bw * 0.36 + (n.s || 0.5) * LAY.bw * 0.06;
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, rr, 0, Math.PI * 2);
-    ctx.fillStyle = '#141a2c';
-    ctx.fill();
-    ctx.lineWidth = 2.4;
-    ctx.strokeStyle = 'hsl(' + u.hue + ',88%,74%)';
-    ctx.stroke();
-    ctx.clip();
-    if (FACE_OK(u)) ctx.drawImage(u.img, p.x - rr, p.y - rr, rr * 2, rr * 2);
-    ctx.restore();
+    const rr3 = LAY.bw * 0.36 + (n.s || 0.5) * LAY.bw * 0.06;
+    ctx.drawImage(sprite(u, rr3), p.x - rr3, p.y - rr3, rr3 * 2, rr3 * 2);
     if (n.kind === 'hold' && !n.holding) {
       ctx.beginPath();
-      ctx.arc(p.x, p.y, rr + 3, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, rr3 + 3, 0, Math.PI * 2);
       ctx.strokeStyle = 'hsla(' + u.hue + ',92%,82%,0.75)';
       ctx.lineWidth = 1.6;
       ctx.stroke();
     }
   }
 
-  // 判定字与扩散圈
+  // 判定字：每个轨道同一时间只留一条（以前 GUARD / SAVED 叠成一片就是没去重）
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const fs = Math.round(Math.min(15, LAY.bw * 0.44));
+  ctx.font = '800 ' + fs + 'px system-ui,sans-serif';
+  const txMax = Math.max(50, W - 50);
   for (const f of G.fx) {
+    if (!f.txt) continue;
     const age = clock - f.t;
-    if (age > 0.55) continue;
-    const a = 1 - age / 0.55;
+    if (age > 0.5) continue;
+    const a = 1 - age / 0.5;
+    const tx = clamp(f.x, 50, txMax);       // 最边上的轨道不许把字画出画布
     ctx.globalAlpha = a;
-    if (f.txt) {
-      ctx.textAlign = 'center';
-      ctx.font = '800 ' + Math.round(Math.min(16, LAY.bw * 0.46)) + 'px system-ui,sans-serif';
-      ctx.fillStyle = JC[f.j];
-      ctx.fillText(f.txt, f.x, f.y - 8 - age * 42);
-    }
-    ctx.beginPath();
-    ctx.arc(f.x, f.y + LAY.bh * 0.3, LAY.bw * (0.4 + age * 1.6), 0, Math.PI * 2);
-    ctx.strokeStyle = JC[f.j];
-    ctx.lineWidth = 2.5 * a;
-    ctx.globalAlpha = a * 0.55;
-    ctx.stroke();
+    ctx.fillStyle = 'rgba(8,6,14,0.65)';
+    ctx.fillText(f.txt, tx + 1, f.y - 10 - age * 40 + 1);
+    ctx.fillStyle = JC[f.j] || '#fff';
+    ctx.fillText(f.txt, tx, f.y - 10 - age * 40);
     ctx.globalAlpha = 1;
   }
-  while (G.fx.length && clock - G.fx[0].t > 0.55) G.fx.shift();
+  ctx.textBaseline = 'alphabetic';
+  while (G.fx.length && clock - G.fx[0].t > 0.5) G.fx.shift();
 
   // 连击
   if (G.combo >= 2) {
@@ -1802,29 +2941,51 @@ function draw(ts) {
 }
 
 /* ================================================================ 主循环 */
+// HUD 只在数值真变了才写 DOM：每帧改 textContent / style.width 会逼着重排，
+// 分数和进度条是「看起来在动」就够的东西，10Hz 跟 60Hz 没区别。
+const HUDC = { score: '', combo: '', stam: -1, prog: -1 };
+let faceTick = 0, lastFrame = 0;
 function loop(ts) {
   requestAnimationFrame(loop);
+  if (document.hidden) return;
+  // 两帧间隔太近（高刷屏 + 后台标签页回来）就跳过：画了也看不见，白烧 CPU
+  if (ts - lastFrame < 8) return;
+  lastFrame = ts;
   if (!G.running) { if (G.scr === 'live') draw(ts / 1000); return; }
   const t = ts / 1000;
   draw(t);
+  // 头像还没解码完时，静态层里的框是空心的：解码好了补画一次
+  if (t - faceTick > 0.5) {
+    faceTick = t;
+    let waiting = false;
+    for (let i = 0; i < 9 && !waiting; i++) if (!FACE_OK(laneUnit(i))) waiting = true;
+    if (waiting) buildStatic();
+  }
   if (G.paused) return;
   const now = chartTime();
   G.lastNow = now;
   // HUD
-  $('#live-score').textContent = fmt(G.score);
-  $('#live-combo').textContent = G.combo > 0 ? G.combo + ' 连击' : '—';
-  const stEl = $('#live-stam');
-  stEl.style.width = G.stamina + '%';
-  stEl.parentElement.classList.toggle('low', G.stamina <= 30);
-  const pr = clamp(now / (G.chart ? G.chart.dur : 1), 0, 1);
-  $('#live-prog').style.width = (pr * 100) + '%';
+  const sc = fmt(G.score);
+  if (sc !== HUDC.score) { HUDC.score = sc; $('#live-score').textContent = sc; }
+  const cb = G.combo > 0 ? G.combo + ' 连击' : '—';
+  if (cb !== HUDC.combo) { HUDC.combo = cb; $('#live-combo').textContent = cb; }
+  const st = Math.round(G.stamina);
+  if (st !== HUDC.stam) {
+    HUDC.stam = st;
+    const stEl = $('#live-stam');
+    stEl.style.width = st + '%';
+    stEl.parentElement.classList.toggle('low', st <= 30);
+  }
+  const pr = Math.round(clamp(now / (G.chart ? G.chart.dur : 1), 0, 1) * 200) / 2;
+  if (pr !== HUDC.prog) { HUDC.prog = pr; $('#live-prog').style.width = pr + '%'; }
   if (now > (G.tickAt || 0)) {
-    G.tickAt = now + 0.25;
+    G.tickAt = now + 0.2;
     tickSkills(now);
     paintSkillChips(false);
     const bEl = $('#live-banner');
     if (G.banner && now > G.banner.until) G.banner = null;
-    bEl.textContent = G.banner ? G.banner.txt : '';
+    const bt = G.banner ? G.banner.txt : '';
+    if (bEl.textContent !== bt) bEl.textContent = bt;
     bEl.style.opacity = G.banner ? 1 : 0;
     if (G.banner) bEl.style.borderColor = 'hsla(' + G.banner.hue + ',80%,70%,0.6)';
   }
@@ -1937,12 +3098,32 @@ async function startLive() {
   G.prep = true;
   const goBtn = $('#team-go');
   if (goBtn) { goBtn.disabled = true; goBtn.textContent = '载入音源…'; }
-  let track = null;
-  try { track = await prepareTrack(song.id); } catch (e) { track = null; }
-  let chart;
-  try { chart = await buildChart(song, G.diffK, track); }
-  catch (e) { chart = await buildChart(song, G.diffK, null); }
+  let track = null, chart = null;
+  if (song.custom) {
+    // 工坊里做的谱面：notes 存在 IndexedDB，音频按 audioKey 取（本机，不上传）
+    const key = song.mineId || song.cloudId;
+    const rec = await idbCGet(key).catch(() => null);
+    if (rec && rec.notes) {
+      try { track = await prepareTrack(rec.audioKey || ('au:' + key)); } catch (e) { track = null; }
+      chart = {
+        notes: rec.notes.map((a) => ({
+          t: a[0], lane: a[1], kind: a[2] ? 'hold' : 'tap', tail: a[3] || 0,
+          s: a[4] == null ? 0.6 : a[4], judged: false, hit: false, holding: false,
+        })),
+        dur: track ? track.dur : (rec.dur || 60), src: 'custom', arr: null,
+      };
+    }
+  } else {
+    try { track = await prepareTrack(song.id); } catch (e) { track = null; }
+    try { chart = await buildChart(song, G.diffK, track); }
+    catch (e) { chart = await buildChart(song, G.diffK, null); }
+  }
   G.prep = false;
+  if (!chart) {
+    if (goBtn) { goBtn.disabled = false; goBtn.textContent = '上场！'; }
+    flash('#team-tip', '这份谱面的数据没在本机（可能换过设备），回工坊重新导入一次');
+    return;
+  }
   if (goBtn) { goBtn.disabled = false; goBtn.textContent = '上场！'; }
 
   G.chart = chart;
@@ -1957,12 +3138,14 @@ async function startLive() {
   G.di = 0; G.holdingLane = -1;
   Audio.setMute(!!SAVE.mute);
   Audio.setVol(SAVE.musVol, SAVE.fxVol);
+  Audio.setScale(song.root || 60);
   if (track && track.buffer) Audio.playBuffer(track.buffer, 0);
+  else if (song.custom) Audio.playClock();
   else Audio.playChip(chart.arr, song.wave);
   G.running = true;
   show('live');
   $('#live-song').textContent = song.n;
-  $('#live-diff').textContent = D.n + (track ? ' · 原曲' : ' · 芯片改编');
+  $('#live-diff').textContent = song.custom ? ('自制谱面' + (track ? '' : ' · 无音频')) : (D.n + (track ? ' · 原曲' : ' · 芯片改编'));
   $('#live-score').textContent = '0';
   $('#live-combo').textContent = '—';
   $('#live-banner').textContent = '';
@@ -2015,10 +3198,22 @@ function finish(failed) {
 function trackInfo(songId) {
   return SAVE.tracks[songId] || null;
 }
+function allSongs() { return SONGS.concat(SHOP ? SHOP.songs() : []); }
 function renderSongs() {
   const box = $('#song-list');
   box.textContent = '';
-  for (const s of SONGS) {
+  for (const s of allSongs()) {
+    if (s.custom) {
+      const card = document.createElement('article');
+      card.className = 'song mine';
+      card.innerHTML = '<div class="sh"><h3>' + esc(s.n) + '</h3><span class="by">' + esc(s.sub) + '</span>'
+        + '<span class="bpm">' + (s.count || 0) + ' 音符</span></div>'
+        + '<div class="src on">♪ 自制谱面 · ' + mmss(s.dur) + '（本机音频）</div>'
+        + '<div class="dfs"><button type="button" class="df" data-s="' + s.id + '" data-d="normal">'
+        + '<b>PLAY</b><span>' + mmss(s.dur) + '</span></button></div>';
+      box.appendChild(card);
+      continue;
+    }
     const t = trackInfo(s.id);
     const card = document.createElement('article');
     card.className = 'song';
@@ -2039,7 +3234,7 @@ function renderSongs() {
     const b = e.target.closest('button.df');
     if (!b) return;
     G.diffK = b.dataset.d;
-    G.song = SONGS.find((x) => x.id === b.dataset.s);
+    G.song = allSongs().find((x) => x.id === b.dataset.s);
     openTeam();
   };
 }
@@ -2170,6 +3365,8 @@ function renderBest() {
 $('#btn-play').onclick = () => { renderSongs(); show('songs'); };
 $('#btn-team').onclick = () => { G.song = G.song || SONGS[0]; openTeam(); };
 $('#btn-set').onclick = () => { paintSet(); show('set'); };
+$('#btn-shop').onclick = () => SHOP.openShop();
+$('#songs-shop').onclick = () => SHOP.openShop();
 $('#btn-help').onclick = () => {
   const d = $('#helpDlg');
   if (d.showModal) d.showModal(); else d.setAttribute('open', '');
@@ -2283,9 +3480,22 @@ if (TEST) {
     setTeam: (ids) => { SAVE.team = ids.slice(0, TEAM_MAX); persist(); },
     pickTrackFile: (id) => { pendingSong = id; },
     audio: Audio,
+    shop: SHOP,
+    showArt, allSongs, fireSkill, initSkills,
     setSetting: (k, v) => { SAVE[k] = v; persist(); },
   };
 }
+
+/* ================================================================ 工坊 */
+// 工坊要碰的东西不少（存储、对局、选曲列表），这里一次注入，避免两个模块互相 import 打架
+var SHOP = initShop({
+  G, SAVE, persist, Audio, show, renderSongs, startLive, $, $$,
+  KEYS, fmt, mmss, diffOf, chartFromOnsets, detectOnsets,
+  idbGet, idbSet, idbDel, idbCGet, idbCSet, idbCDel,
+});
+
+// 测试钩子是在这个 var 之前定义的，那时 SHOP 还不是对象，这里补挂一次
+if (TEST && window.__ll) window.__ll.shop = SHOP;
 
 /* ================================================================ 启动 */
 renderBest();
