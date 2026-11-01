@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { data } from './helpers.mjs';
-import { newState, runBattle, applyResult, summon, equipPull, equipItem, allyDef, teamDefs, levelUp, migrate, offlineReport, claimOffline, autoTeam, PULL_PITY_GENESIS, dismantle, enhanceItem, addItem, farmRate, ticketPerWin, corePerWin, ticketBoost, coreBoost, winsPerTicket, winsPerCore } from '../src/core/game.js';
+import { newState, runBattle, applyResult, summon, equipPull, equipItem, allyDef, teamDefs, levelUp, migrate, offlineReport, claimOffline, autoTeam, PULL_PITY_GENESIS, dismantle, enhanceItem, addItem, farmRate, ticketPerWin, corePerWin, ticketBoost, coreBoost, winsPerTicket, winsPerCore, teamView } from '../src/core/game.js';
 import { simulate, frontLine } from '../src/core/battle.js';
 import { towerReward } from '../src/core/challenge.js';
 import { mulberry32 } from '../src/core/rng.js';
 import { buildKit, describeSkill } from '../src/core/skills.js';
 import { SLOTS } from '../src/core/constants.js';
+import { covTheme, covenantTiers, covenantBonus } from '../src/core/gear.js';
 
 test('data pack is complete', () => {
   assert.equal(data.awakeners.length, 73);   // 62 名官方 + 11 名联名彩蛋（core/creators.js）
@@ -85,6 +86,69 @@ test('gear raises stats; covenant set bonus needs 2 pieces', () => {
   const two = teamDefs(s, data).list.find((d) => d.slug === 'lotan');
   assert.ok(JSON.stringify(two) !== JSON.stringify(one));
   assert.equal(dismantle(s, data, w.uid), 0); // equipped items cannot be dismantled
+});
+
+test('密契套装：同款 2 / 4 件、档位累加、等级与精炼缩放', () => {
+  const s = newState(data, 11);
+  for (const k of s.team) s.roster[k] = { lv: 60, star: 0, brk: 0 };
+  // 坚韧：2 件 生命 +12%；4 件**再** +15% 生命 +25% 护盾（累计 27% / 25%）
+  const cov = data.covenants.find((c) => covTheme(c.id).zh === '坚韧');
+  const give = (n, lv = 0, rf = 0) => {
+    s.gear.items = {}; s.gear.equip = {};
+    for (let i = 0; i < n; i++) {
+      const uid = 'c' + i;
+      s.gear.items[uid] = { uid, kind: 'covenant', defId: cov.id, lv, rf };
+      s.gear.equip[s.team[i]] = { cov: uid };
+    }
+    return teamDefs(s, data).list.find((d) => d.slug === s.team[0]);
+  };
+  // 加成层：件数档位、累加、等级缩放
+  const one = covenantBonus(cov.id, 0, 1), two = covenantBonus(cov.id, 0, 2), four = covenantBonus(cov.id, 0, 4);
+  assert.equal(one.hpPct, 0);                       // 1 件不触发
+  assert.equal(two.hpPct, 12);                      // 2 件 +12%
+  assert.equal(four.hpPct, 27);                     // 4 件是 12 + 15，累加
+  assert.equal(four.shieldBonus, 25);
+  assert.equal(Math.round(covenantBonus(cov.id, 10, 2).hpPct * 10) / 10, 21.6);   // 等级每级 +8%
+  // 衔接进战斗：3 件与 2 件相同（没有 3 件档），4 件再高一档
+  const r1 = give(1), r2 = give(2), r3 = give(3), r4 = give(4);
+  assert.equal(r1.hp, give(0).hp);
+  assert.ok(r2.hp > r1.hp && r4.hp > r2.hp);
+  assert.equal(r3.hp, r2.hp);
+  assert.equal(Math.round(r4.shieldBonus), 25);
+  // 文案用的档位数值必须和实际加成一致（4 件印累计值，不是单档那 15%）
+  const t = covenantTiers(cov.id, 0, 0);
+  assert.equal(t.two.hpPct, 12);
+  assert.equal(t.four.hpPct, 27);
+  assert.equal(t.four.shieldBonus, 25);
+  assert.equal(Math.round(covenantTiers(cov.id, 10, 0).four.hpPct * 10) / 10, 48.6);
+});
+
+test('密契套装按「全队同款」判定；详情页口径等于实战口径', () => {
+  const s = newState(data, 12);
+  for (const k of s.team) s.roster[k] = { lv: 60, star: 0, brk: 0 };
+  const same = data.covenants.filter((c) => covTheme(c.id).zh === '坚韧').slice(0, 2);
+  assert.ok(same.length === 2 && same[0].id !== same[1].id, '要先有两件同主题、不同款的密契');
+  const wear = (ids) => {
+    s.gear.items = {}; s.gear.equip = {};
+    ids.forEach((id, i) => {
+      const uid = 'u' + i;
+      s.gear.items[uid] = { uid, kind: 'covenant', defId: id, lv: 0, rf: 0 };
+      s.gear.equip[s.team[i]] = { cov: uid };
+    });
+    return teamDefs(s, data).list.find((d) => d.slug === s.team[0]).hp;
+  };
+  const plain = wear([]);
+  // 同主题的两件不同密契：凑不成套装
+  assert.equal(wear([same[0].id, same[1].id]), plain);
+  // 换成同款两件：立刻吃上 2 件档
+  const hp2 = wear([same[0].id, same[0].id]);
+  assert.ok(hp2 > plain);
+  // 详情页 / 唤醒体列表 / 编队候选走的 teamView：队里的人按整队算，队外人按单人算
+  const tv = teamView(s, data);
+  assert.equal(tv(s.team[0]).hp, hp2);
+  const outsider = data.awakeners.find((a) => !s.team.includes(a.slug)).slug;
+  s.roster[outsider] = { lv: 1, star: 0, brk: 0 };
+  assert.equal(tv(outsider).hp, allyDef(s, data, outsider, [outsider]).hp);
 });
 
 test('leveling costs gold and raises power', () => {

@@ -259,6 +259,17 @@ export function allyDef(state, data, slug, teamSlugs = state.team, extra = null)
   return def;
 }
 
+/* 单人的「实战口径」：这个人如果在当前队伍里，就按整队算（密契套装、同界域加成、唤醒体羁绊全都有），
+   否则按单人算。详情页、唤醒体列表、编队候选都走它——以前这些地方传的是 [slug]，密契套装永远凑不够
+   2 件，于是详情页的生命比实战里少一截（4 件坚韧套差 368 血 / 37 战力）。
+   整队只算一次再查表：列表页会连着问几十次，不能每个人重算一遍 teamDefs。 */
+export function teamView(state, data) {
+  const team = (state.team || []).filter(Boolean);
+  const map = {};
+  if (team.length) for (const d of teamDefs(state, data, team).list) map[d.slug] = d;
+  return (slug) => map[slug] || (state.roster[slug] ? allyDef(state, data, slug, [slug]) : null);
+}
+
 // realm synergy: 3+ same realm in team => +8% atk/hp ; 4 => +15%
 // 混编共鸣：队伍里凑齐 3 / 4 个不同界域时，补上同域加成缺的那一份（+6% / +10%）。
 // 两者互斥：能凑出 3 同域就吃同域那份，否则看界域够不够散——「四同域」与「四域同行」各是极端，中间不再两头空。

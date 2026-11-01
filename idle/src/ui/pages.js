@@ -1,7 +1,7 @@
 import {
   allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, ULT_MODES, normalizeUltOrder, equipItem, unequipItem, isEquipped,
   enhanceItem, enhanceAllEquipped, enhanceScopes, dismantle, dismantlePreview, autoDmOf, dismantleCores, summon, equipPull, gearDexKey, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST,
-  PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, BATTLES_PER_HOUR, fillLoadout, MIXED_SYNERGY,
+  PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, BATTLES_PER_HOUR, fillLoadout, MIXED_SYNERGY, teamView,
 } from '../core/game.js';
 import {
   REALMS, TYPES, SLOTS, SLOT_ZH, MAX_LV, MAX_AWAKEN, MAX_LV_HARD, TEAM_SIZE, RARITY_ORDER, GEAR_MAX_LV,
@@ -37,7 +37,7 @@ import {
 } from '../core/constants.js';
 import { describeSkill } from '../core/skills.js';
 import {
-  wheelText, relicText, covTheme, gearCost, dismantleValue, relicBond, relicSlotCount, RELIC_BONDS, BOND_TIERS, bonusText, MAINSTAT, RELIC_THEMES,
+  wheelText, relicText, covTheme, covenantTiers, gearCost, dismantleValue, relicBond, relicSlotCount, RELIC_BONDS, BOND_TIERS, bonusText, MAINSTAT, RELIC_THEMES,
 } from '../core/gear.js';
 import { orderSlotCount, orderLockedHint, orderText, orderUpCost, orderLvMult } from '../core/orders.js';
 import { teamBonds, bondHint, bondsOf, BONDS, BOND_CATS } from '../core/bonds.js';
@@ -55,9 +55,10 @@ export function itemText(app, it) {
   const def = itemDef(app, it);
   if (it.kind === 'wheel') return wheelText(def, it.lv, it.rf);
   if (it.kind === 'relic') return relicText(def, it.lv, it.rf);
-  const th = covTheme(def.id);
-  const f = (o) => Object.entries(o).map(([k, v]) => `${k}+${Math.round(v * (1 + 0.08 * it.lv) * (1 + 0.08 * (it.rf || 0)) * 10) / 10}`).join(' ');
-  return `${th.zh}套：2件 ${f(th.two)}；4件 ${f(th.four)}`.replace(/atkPct/g, '攻击%').replace(/hpPct/g, '生命%').replace(/defPct/g, '防御%').replace(/critRate/g, '暴击').replace(/critDmg/g, '爆伤').replace(/amp/g, '增伤').replace(/aliGain/g, '共鸣回复').replace(/keyGain/g, '钥焰回复').replace(/healBonus/g, '治疗').replace(/shieldBonus/g, '护盾').replace(/steal/g, '吸血').replace(/openAli/g, '起始共鸣').replace(/openKey/g, '起始钥焰').replace(/firstBoost/g, '首击增伤');
+  // 密契：判定是「全队同款」，不是同主题；4 件那档印的是累计值（2 件 + 4 件），别让人以为只有 15%
+  const { th, two, four } = covenantTiers(def.id, it.lv, it.rf);
+  const f = (o) => Object.entries(o).map(([k, v]) => `${k}+${Math.round(v * 10) / 10}`).join(' ');
+  return `${th.zh}系（同款）：2 件 ${f(two)}；4 件 ${f(four)}`.replace(/atkPct/g, '攻击%').replace(/hpPct/g, '生命%').replace(/defPct/g, '防御%').replace(/critRate/g, '暴击').replace(/critDmg/g, '爆伤').replace(/amp/g, '增伤').replace(/aliGain/g, '共鸣回复').replace(/keyGain/g, '钥焰回复').replace(/healBonus/g, '治疗').replace(/shieldBonus/g, '护盾').replace(/steal/g, '吸血').replace(/openAli/g, '起始共鸣').replace(/openKey/g, '起始钥焰').replace(/firstBoost/g, '首击增伤');
 }
 const rarCls = (r) => `r-${r}`;
 
@@ -466,7 +467,7 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
   const keys = isRift ? RIFT_SQUAD_KEYS : isTower ? [towerSquadKey(st.mode) || st.key] : SQUAD_KEYS;
   const lockRealm = mode && String(mode).startsWith('rt_') ? String(mode).slice(3) : null;
   const modeZh = mode ? (MODE_ZH[mode] || (mode === RIFT_MODE ? '融灾禁区' : mode)) : '';
-  const powerOf = (slug) => allyDef(s, data, slug, [slug]).power;
+  const powerOf = (slug) => teamView(s, data)(slug)?.power || 0;
   // 融灾禁区：别的四队占着的唤醒体 / 装备 / 钥令不能再选（五队不许重复）
   const taken = () => (isRift ? riftTaken(s, st.key) : { chars: new Map(), items: new Set(), orders: new Set() });
 
@@ -865,7 +866,8 @@ function mainPanel(app) {
 
 export function pickAwakener(app, title, onPick, exclude = []) {
   const { state: s, data } = app;
-  const list = Object.keys(s.roster).filter((x) => !exclude.includes(x)).map((x) => ({ x, p: allyDef(s, data, x, [x]).power })).sort((a, b) => b.p - a.p);
+  const tv = teamView(s, data);
+  const list = Object.keys(s.roster).filter((x) => !exclude.includes(x)).map((x) => ({ x, p: tv(x)?.power || 0 })).sort((a, b) => b.p - a.p);
   const html = `<h3>${title}</h3><div class="grid mini">${list.map(({ x, p }) => { const a = data.bySlug[x]; const r = s.roster[x]; return `<div class="tile" style="--rc:${R(a).color}" data-pick="${x}"><img src="${img(a.portrait)}" alt=""><b>${esc(a.zh)}</b><small>${TYPES[a.type].short} Lv${r.lv} ${awk(r.star)}</small><small>${fmt(p)}</small></div>`; }).join('')}</div>`;
   const m = openModal(html, 'wide');
   m.addEventListener('click', (e) => { const t = e.target.closest('[data-pick]'); if (t) { closeModal(); onPick(t.dataset.pick); } });
@@ -912,9 +914,10 @@ export function rosterPage(app) {
   const { state: s, data } = app;
   const f = (app.ui.rosterFilter ||= { realm: '', type: '', owned: false, sort: 'rarity', dir: -1 });
   const idxOf = Object.fromEntries(Object.keys(s.roster).map((x, i) => [x, i]));
+  const tv = teamView(s, data);
   const rows = data.awakeners
     .filter((a) => (!f.realm || a.realm === f.realm) && (!f.type || a.type === f.type) && (!f.owned || s.roster[a.slug]))
-    .map((a) => ({ a, r: s.roster[a.slug], idx: idxOf[a.slug], power: s.roster[a.slug] ? allyDef(s, data, a.slug, [a.slug]).power : 0 }));
+    .map((a) => ({ a, r: s.roster[a.slug], idx: idxOf[a.slug], power: s.roster[a.slug] ? (tv(a.slug)?.power || 0) : 0 }));
   const list = sortRoster(rows, f.sort, f.dir);
   const opt = (obj, cur, k) => `<select data-filter="${k}"><option value="">全部</option>${Object.entries(obj).map(([v, o]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${o.zh}</option>`).join('')}</select>`;
   const sorts = ROSTER_SORTS.map(([k, zh]) => `<button class="btn sm ${f.sort === k ? 'on' : ''}" data-act="roster-sort" data-k="${k}">${zh}${f.sort === k ? (f.dir < 0 ? ' ↓' : ' ↑') : ''}</button>`).join('');
@@ -1002,9 +1005,12 @@ export function detailModal(app, slug) {
   const { state: s, data } = app;
   const a = data.bySlug[slug], r = s.roster[slug];
   const sq = r ? squadsOfSlug(s, slug) : [];   // 编队情况：'cur' = 主线队伍，其余是编队位
-  const view = r ? allyDef(s, data, slug, [slug]) : null;
+  // 在主线队伍里就按整队口径算（密契套装 / 同域加成 / 羁绊），否则按单人算。
+  // 不这么写的话，凑了 4 件密契的人在详情页会比实战里少一截属性。
+  const inMain = (s.team || []).includes(slug);
+  const view = r ? teamView(s, data)(slug) : null;
   const preview = r || { lv: 1, star: 0, brk: 0 };
-  const st = view || (() => { const ghost = { ...s, roster: { ...s.roster, [slug]: preview } }; return allyDef(ghost, data, slug, [slug]); })();
+  const st = view || (() => { const ghost = { ...s, roster: { ...s.roster, [slug]: preview } }; return teamView(ghost, data)(slug) || allyDef(ghost, data, slug, [slug]); })();
   const lvl = skillLevel(preview.lv, preview.star), kit = data.kit(slug, lvl);
   const eq = s.gear.equip[slug] || {};
   const slotBox = (key, kind, label) => { const it = eq[key] && s.gear.items[eq[key]]; const def = it && itemDef(app, it); return `<div class="eqslot" data-act="equip-slot" data-slug="${slug}" data-kind="${kind}">${def ? `<img src="${img(def.img)}" alt=""><span><b>${esc(def.zh)}</b> Lv${it.lv}<br><small>${esc(itemText(app, it))}</small></span>` : `<span class="empty">＋ ${label}</span>`}</div>`; };
@@ -1047,6 +1053,7 @@ export function detailModal(app, slug) {
         <small class="dim">技能按昵称里的意象原创，非本人设定，也不代表本人观点。</small></div>` : ''}
       ${r ? `<div class="lv">Lv <b>${r.lv}</b>/${cap}　<span class="awaken">${awk(r.star)}/${MAX_AWAKEN}</span>${r.brk ? `　已突破 ${r.brk} 次` : ''}</div>` : `<div class="lv dim">尚未获得 · ${a.creator ? '签到 / 活动赠送' : '通过召唤获取'}</div>`}
       <div class="stats"><span>生命 <b>${fmt(st.hp)}</b></span><span>攻击 <b>${fmt(st.atk)}</b></span><span>防御 <b>${fmt(st.def)}</b></span><span>暴击 <b>${st.critRate.toFixed(1)}%</b></span><span>爆伤 <b>${st.critDmg.toFixed(0)}%</b></span><span>增伤 <b>${st.amp.toFixed(0)}%</b></span><span>战力 <b>${fmt(power(st))}</b></span>${st.openAli ? `<span>起始共鸣 <b>${Math.round(st.openAli)}</b></span>` : ''}${st.openKey ? `<span>起始钥焰 <b>${Math.round(st.openKey)}</b></span>` : ''}</div>
+      <p class="hint">${inMain ? '上面的数值按<b>当前队伍</b>算：已含密契套装、同界域加成与唤醒体羁绊，和实战、队伍页里的战力一致。' : '这个人不在当前队伍里，数值按<b>单人</b>算；密契套装、同域加成与羁绊要等上阵后才会体现在实战里。'}</p>
       <p class="hint">每级成长：生命 +${g.hp}　攻击 +${g.atk}　防御 +${g.def}（已含叠位加成）。技能等级 Lv.${lvl + 1}/5。</p>
       ${growBtns}
       ${r ? `<div class="row"><button class="btn sm" data-act="awaken" data-slug="${slug}" ${awkCost && s.cores >= awkCost ? '' : 'disabled'} title="重复抽取同一唤醒体也能 +1 叠位">叠位 +1（<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${awkCost || '满'}）</button>

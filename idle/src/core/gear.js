@@ -141,6 +141,20 @@ export function bonusText(b = {}) {
   }).join(' · ');
 }
 
+/** 密契套装的档位数值（已含等级与精炼的缩放）。
+ *  four 是**累计值**（2 件那档 + 4 件那档），和 covenantBonus 里两档相加的结果一致——
+ *  以前文案直接印 th.four，玩家看到「4 件 +15%」实得 27%，对不上。 */
+export function covenantTiers(defId, lv = 0, rf = 0) {
+  const th = covTheme(defId);
+  const m = (1 + 0.08 * lv) * (1 + 0.08 * rf);
+  const scale = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v * m]));
+  const four = { ...th.two };
+  for (const [k, v] of Object.entries(th.four)) four[k] = (four[k] || 0) + v;
+  return { th, two: scale(th.two), four: scale(four) };
+}
+
+// 件数按「全队同款」算（同一个 defId），**不是**同主题：同一套里的两件不同密契凑不成套装。
+// 主题只用来分类（文案里的「坚韧系」、词条筛选），不参与判定。
 export function covenantBonus(defId, lv, count) {
   const th = covTheme(defId);
   const b = ZERO();

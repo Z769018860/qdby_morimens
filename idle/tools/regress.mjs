@@ -566,6 +566,52 @@ check(gearFx.bar.length >= 3 && gearFx.bar[0].startsWith('全部'), `装备页�
 check(gearFx.on && gearFx.one > 0 && gearFx.one < gearFx.total, `点「${gearFx.word}」只剩 ${gearFx.one}/${gearFx.total} 件（标题：${gearFx.head}）`);
 await cdp.shot('gear-affix');
 
+// 11d) 密契套装：详情页按队伍口径算（含套装），4 件那档文案印累计值 + 写明「同款」
+const covFx = await cdp.evalIife(`(() => {
+  const s = __game.state, d = __game.data;
+  const slug = s.team[0];
+  // 先把队里四人的密契都卸了，拿一个干净的「没套装」基线
+  for (const x of s.team) { if (s.gear.equip[x]) delete s.gear.equip[x].cov; }
+  const openDetail = (who) => {
+    window.__go('roster');
+    const tile = document.querySelector('.grid .tile[data-act="detail"][data-slug="' + who + '"]');
+    if (!tile) return null;
+    tile.click();
+    const spans = [...document.querySelectorAll('.modal .detail .stats span')].map((x) => x.innerText.replace(/\\s+/g, ''));
+    const hints = [...document.querySelectorAll('.modal .detail .hint')].map((x) => x.innerText).join(' ');
+    const x = document.querySelector('.modal .modal-x'); if (x) x.click();
+    return { hp: (spans[0] || '').replace(/[^0-9]/g, ''), hint: hints };
+  };
+  const before = openDetail(slug);
+  // 先把队里四人原来的密契记下来，测完原样还回去——后面的用例还要用这份存档
+  const kept = {};
+  for (const x of s.team) kept[x] = (s.gear.equip[x] || {}).cov || null;
+  // 全队 4 人各穿一件同名密契（同款才算套装）
+  s.gear.items = s.gear.items || {};
+  const defId = d.covenants[0].id;
+  s.team.forEach((x, i) => {
+    const uid = 'cz' + i;
+    s.gear.items[uid] = { uid, kind: 'covenant', defId, lv: 0, rf: 0 };
+    s.gear.equip[x] = { ...(s.gear.equip[x] || {}), cov: uid };
+  });
+  const after = openDetail(slug);
+  window.__go('gear');
+  document.querySelector('[data-act="gear-tab"][data-k="covenant"]').click();
+  const listText = (document.querySelector('#gearlist') || {}).innerText || '';
+  // 还原：摘掉测试用的四件，接回原来的密契
+  s.team.forEach((x, i) => {
+    delete s.gear.items['cz' + i];
+    const e = s.gear.equip[x] || (s.gear.equip[x] = {});
+    if (kept[x]) e.cov = kept[x]; else delete e.cov;
+  });
+  return { before, after, listText: listText.replace(/\\s+/g, ' ').slice(0, 200) };
+})()`);
+check(!!covFx.before && !!covFx.after && +covFx.after.hp > +covFx.before.hp,
+  `详情页的生命把密契套装算进去了：${covFx.before?.hp} → ${covFx.after?.hp}`);
+check(/当前队伍/.test(covFx.after?.hint || ''), '详情页标明了数值按「当前队伍」口径算');
+check(/同款/.test(covFx.listText) && /4 件/.test(covFx.listText), `密契文案写明「同款」并印累计值：${(covFx.listText.match(/[^ ]*同款[^ ]*/) || [''])[0]}`);
+await cdp.shot('covenant-set');
+
 // 12) 属性塔：四座塔各有自己的出战阵容条；挑战会先放一段战斗回放
 const rt = await cdp.evalIife(`(() => {
   window.__go('rtower');
