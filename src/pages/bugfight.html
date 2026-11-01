@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>电子斗蛐蛐 · 忘忘同人小游戏</title>
+<meta name="description" content="《忘却前夜》同人的电子斗蛐蛐：系统从原作怪物名录里挑两队关进同一个笼子，血量、攻击、每一回合要放的技能全都按客户端的原值摆出来，你只押哪边能活着出来。押对的人按注额分掉整池——本金拿回来，输家的钱一起分；押错的那一注留在池里。九个人机对手各有各的下注脾气：杜勒赛因只认血厚的、阿格里帕把血攻意图全算一遍、立誓0氪永远最低注。底注每三局翻倍，荷包不够底注就下不了桌。">
+<meta name="theme-color" content="#0d0b0a">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230d0b0a%22%2F%3Cpath%20d%3D%22M14%2044h36M18%2044V30m28%2014V30%22%20stroke%3D%22%23d9a441%22%20stroke-width%3D%222.6%22%20stroke-linecap%3D%22round%22%2F%3Ccircle%20cx%3D%2224%22%20cy%3D%2238%22%20r%3D%225%22%20fill%3D%22%23c9452f%22%2F%3E%3Ccircle%20cx%3D%2240%22%20cy%3D%2238%22%20r%3D%225%22%20fill%3D%22%234c9aa8%22%2F%3E%3Cpath%20d%3D%22M24%2033v-6m16%206v-6%22%20stroke%3D%22%23d9a441%22%20stroke-width%3D%222%22%2F%3E%3C%2Fsvg%3E" type="image/svg+xml">
+<style>
+/* 这一页不引 css/style.css：笼子边上是黄铜和旧木头，配色比站内更深一档。 */
+:root{
+  --bg:#0d0b0a; --bg2:#12100d; --panel:#181310; --panel2:#1f1915; --panel3:#282119;
+  --line:#33291f; --line2:#48392a;
+  --text:#efe7dc; --dim:#a2937f; --dim2:#6f6353;
+  --gold:#d9a441; --gold2:#f2d08a;
+  --left:#d4553f; --left2:#ff8b74; --right:#3f9aa8; --right2:#7ad3de;
+  --win:#63c98a; --lose:#c9564c;
+  --shadow:0 22px 48px -30px #000;
+}
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#f4efe6; --bg2:#ece6da; --panel:#fffdf8; --panel2:#f7f2e8; --panel3:#efe7d8;
+    --line:#ded3c1; --line2:#c9bba3;
+    --text:#241d15; --dim:#6f6252; --dim2:#9a8d7b;
+    --gold:#8a6200; --gold2:#6d4d00;
+    --left:#b23a2e; --left2:#8f2a20; --right:#1f6f7c; --right2:#14525c;
+    --win:#1d8055; --lose:#a42b22;
+    --shadow:0 20px 40px -30px rgba(40,30,20,.4);
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--text); overflow:hidden;
+  font:15px/1.55 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-tap-highlight-color:transparent;
+  background-image:
+    radial-gradient(720px 480px at 50% -10%, rgba(217,164,65,.14), transparent 62%),
+    radial-gradient(520px 420px at 4% 104%, rgba(196,69,47,.1), transparent 68%),
+    radial-gradient(520px 420px at 98% 104%, rgba(63,154,168,.1), transparent 68%);
+  background-repeat:no-repeat;
+}
+.app{
+  position:relative; height:100dvh; max-width:820px; margin:0 auto;
+  padding:max(8px, env(safe-area-inset-top)) 12px max(8px, env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; gap:8px;
+}
+/* ---------------------------------------------------------------- 顶栏 */
+.top{display:flex; align-items:center; gap:8px; flex:0 0 auto}
+.back{
+  width:32px; height:32px; flex:0 0 32px; border-radius:9px; display:grid; place-items:center;
+  border:1px solid var(--line); background:var(--panel); color:var(--text);
+  text-decoration:none; font-size:15px; line-height:1;
+}
+.back:hover{border-color:var(--gold); color:var(--gold)}
+.ttl{display:flex; flex-direction:column; line-height:1.15; min-width:0}
+.ttl b{font-size:15px; letter-spacing:.06em; white-space:nowrap}
+.ttl span{font-size:11px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.ic{
+  margin-left:auto; height:30px; min-width:34px; padding:0 9px; flex:0 0 auto; border-radius:9px;
+  border:1px solid var(--line); background:var(--panel); color:var(--dim);
+  font:12px/1 inherit; cursor:pointer;
+}
+.ic + .ic{margin-left:0}
+.ic:hover{color:var(--gold); border-color:var(--gold)}
+
+.scr{flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:9px; overflow:auto; overscroll-behavior:contain}
+.scr[hidden]{display:none}
+
+/* ---------------------------------------------------------------- 首页 */
+.hero{display:flex; flex-direction:column; align-items:center; gap:5px; padding:10px 0 2px; text-align:center}
+.hero h1{
+  margin:0; font-size:25px; letter-spacing:.18em; font-weight:800;
+  background:linear-gradient(180deg,var(--gold2),var(--gold)); -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.hero p{margin:0; font-size:12.5px; line-height:1.75; color:var(--dim); max-width:32em}
+.hero p b{color:var(--gold2); font-weight:600}
+
+.wallet{
+  display:flex; align-items:center; gap:10px; padding:10px 13px; border-radius:13px;
+  border:1px solid var(--line); background:linear-gradient(150deg,var(--panel2),var(--panel));
+}
+.wallet .k{font-size:11px; color:var(--dim); letter-spacing:.08em}
+.wallet .v{font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; color:var(--gold2); line-height:1.1}
+.wallet .sub{margin-left:auto; text-align:right; font-size:11px; color:var(--dim); line-height:1.6}
+.wallet .sub b{color:var(--text); font-variant-numeric:tabular-nums}
+
+.seats{display:grid; grid-template-columns:repeat(2,1fr); gap:6px}
+@media (min-width:560px){.seats{grid-template-columns:repeat(3,1fr)}}
+.seat{
+  display:flex; align-items:center; gap:7px; padding:6px 8px; border-radius:11px; min-width:0;
+  border:1px solid var(--line); background:var(--panel);
+}
+.seat.you{border-color:rgba(217,164,65,.45); background:linear-gradient(150deg,rgba(217,164,65,.12),var(--panel))}
+.seat.out{opacity:.42}
+.seat img,.seat .ph{
+  width:30px; height:30px; flex:0 0 30px; border-radius:9px; object-fit:cover; background:var(--panel3);
+}
+.seat .sm{min-width:0; flex:1}
+.seat .sn{font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.seat .sb{font-size:10.5px; color:var(--dim); font-variant-numeric:tabular-nums; white-space:nowrap}
+.seat .sb.low{color:var(--lose)}
+.seat .sx{font-size:9px; color:var(--dim2); white-space:nowrap}
+
+.btn{
+  flex:1; height:44px; border-radius:12px; cursor:pointer; font:600 14px/1 inherit;
+  border:1px solid var(--line); background:var(--panel2); color:var(--text);
+}
+.btn.pri{
+  border-color:transparent; background:linear-gradient(180deg,var(--gold2),var(--gold)); color:#1d1509;
+  box-shadow:0 10px 24px -12px rgba(217,164,65,.8);
+}
+.btn.ghost{flex:0 0 96px; color:var(--dim)}
+.btn:disabled{opacity:.45; cursor:not-allowed; box-shadow:none}
+.btn.l{background:linear-gradient(180deg,var(--left2),var(--left)); color:#1a0b07; border-color:transparent}
+.btn.r{background:linear-gradient(180deg,var(--right2),var(--right)); color:#04181b; border-color:transparent}
+.foot{display:flex; gap:8px; margin-top:auto; padding-top:2px}
+
+/* ---------------------------------------------------------------- 笼子 */
+.hd{
+  display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--dim);
+  flex:0 0 auto;
+}
+.hd b{color:var(--gold2); font-variant-numeric:tabular-nums}
+.hd .potbox{margin-left:auto; display:flex; align-items:center; gap:5px; color:var(--dim)}
+.hd .potbox b{font-size:13px; color:var(--gold2)}
+
+.cage{display:flex; gap:7px; align-items:stretch; flex:0 0 auto}
+.team{
+  flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:5px;
+  padding:8px; border-radius:13px; cursor:pointer;
+  border:1px solid var(--line); background:linear-gradient(165deg,var(--panel2),var(--panel));
+  transition:.15s;
+}
+.team[aria-pressed="true"]{transform:translateY(-1px)}
+.team.L[aria-pressed="true"]{border-color:var(--left); box-shadow:0 0 0 1px var(--left) inset, 0 12px 30px -24px var(--left)}
+.team.R[aria-pressed="true"]{border-color:var(--right); box-shadow:0 0 0 1px var(--right) inset, 0 12px 30px -24px var(--right)}
+.team .th{display:flex; align-items:baseline; gap:6px}
+.team .th b{font-size:13.5px; letter-spacing:.06em}
+.team.L .th b{color:var(--left2)} .team.R .th b{color:var(--right2)}
+.team .th span{font-size:10px; color:var(--dim2); margin-left:auto; white-space:nowrap}
+.unit{
+  display:flex; align-items:center; gap:6px; padding:4px 5px; border-radius:9px;
+  background:var(--bg2); border:1px solid var(--line); min-width:0;
+}
+.unit .mface{
+  width:34px; height:34px; flex:0 0 34px; border-radius:8px; background-color:var(--panel3);
+  background-image:url(assets/bugfight/faces.webp); background-repeat:no-repeat;
+  border:1px solid var(--line);
+}
+.unit .um{min-width:0; flex:1}
+.unit .un{font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.unit .uv{
+  font-size:10px; color:var(--dim); font-variant-numeric:tabular-nums;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.unit .ui i{font-style:normal; opacity:.65; margin-left:3px}
+.unit{cursor:pointer}
+.unit .ui{
+  flex:0 0 auto; max-width:54px; overflow:hidden; text-overflow:ellipsis;
+  font-size:9px; padding:0 4px; border-radius:99px; line-height:1.5; white-space:nowrap;
+  border:1px solid var(--line2); color:var(--dim);
+}
+@media (max-width:480px){
+  /* 手机宽度：卡里同时要塞名字、血攻、意图标签，收紧间距别让血攻被吃掉 */
+  .unit{gap:4px; padding:4px}
+  .unit .ui{font-size:8.5px; padding:0 3px; max-width:46px}
+  .unit .uv{font-size:9.5px}
+}
+@media (max-width:379px){
+  /* 320 这一档卡里塞不下意图标签：收起来，靠名字后面的 › 提示可以点开 */
+  .unit .mface{width:26px; height:26px; flex:0 0 26px}
+  .unit .uv{font-size:9.5px}
+  .unit .ui{display:none}
+  .unit .un::after{content:'\203a'; opacity:.45; margin-left:3px}
+}
+.unit .ui.atk{color:var(--left2); border-color:rgba(212,85,63,.5)}
+.unit .ui.buf{color:var(--gold); border-color:rgba(217,164,65,.5)}
+.unit .ui.def{color:var(--right2); border-color:rgba(63,154,168,.5)}
+.unit .rk{font-size:9px; color:var(--gold); letter-spacing:.04em}
+.team .tfoot{display:flex; gap:8px; font-size:10.5px; color:var(--dim); font-variant-numeric:tabular-nums; margin-top:auto}
+.team .tfoot b{color:var(--text)}
+.vs{
+  flex:0 0 30px; display:grid; place-items:center; font-size:11px; color:var(--dim2);
+  letter-spacing:.1em; writing-mode:vertical-rl;
+}
+
+/* ---------------------------------------------------------------- 下注 */
+.betbox{
+  flex:0 0 auto; display:flex; flex-direction:column; gap:7px; padding:9px 10px;
+  border-radius:13px; border:1px solid var(--line); background:var(--panel);
+}
+.bankrow{
+  display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+  font-size:11.5px; color:var(--dim);
+}
+.bankrow b{color:var(--gold2); font-size:15px; font-variant-numeric:tabular-nums; margin-left:3px}
+.bankrow #betAfter{font-size:11px; color:var(--dim2); font-variant-numeric:tabular-nums; white-space:nowrap}
+.betrow{display:flex; align-items:center; gap:7px}
+.betrow .lb{font-size:11.5px; color:var(--dim); white-space:nowrap}
+.chipbtn{
+  height:30px; min-width:44px; padding:0 10px; border-radius:9px; cursor:pointer;
+  border:1px solid var(--line2); background:var(--panel2); color:var(--text);
+  font:12px/1 inherit; font-variant-numeric:tabular-nums;
+}
+.chipbtn:hover{border-color:var(--gold); color:var(--gold)}
+.chipbtn.on{border-color:var(--gold); color:var(--gold); background:rgba(217,164,65,.12)}
+.amt{
+  margin-left:auto; display:flex; align-items:center; gap:6px;
+}
+.amt b{font-size:19px; font-variant-numeric:tabular-nums; color:var(--gold2); min-width:52px; text-align:right}
+.amt button{
+  width:28px; height:28px; border-radius:8px; cursor:pointer; font:15px/1 inherit;
+  border:1px solid var(--line2); background:var(--panel2); color:var(--text);
+}
+.amt button:hover{border-color:var(--gold); color:var(--gold)}
+.acts2{display:flex; gap:7px}
+.mini{
+  height:30px; padding:0 11px; border-radius:9px; cursor:pointer; font:11.5px/1 inherit;
+  border:1px solid var(--line); background:var(--panel); color:var(--dim);
+  display:inline-flex; align-items:center; gap:4px; text-decoration:none;
+}
+.mini:hover{color:var(--gold); border-color:var(--gold)}
+
+/* 看台 */
+.board{
+  flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:5px;
+  padding:8px 9px; border-radius:13px; border:1px solid var(--line); background:var(--panel);
+}
+.board .bh{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim)}
+.board .bh b{color:var(--text)}
+.board .list{display:flex; flex-direction:column; gap:3px; overflow:auto; min-height:0}
+.row{
+  display:flex; align-items:center; gap:6px; padding:2px 0; font-size:11.5px;
+  border-bottom:1px dashed rgba(120,100,80,.18);
+}
+.row:last-child{border:0}
+.row img,.row .ph{width:22px; height:22px; flex:0 0 22px; border-radius:7px; object-fit:cover; background:var(--panel3)}
+.row .rn{flex:1 1 auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.row .rs{font-size:10px; color:var(--dim2); margin-left:4px}
+.row .rb{font-variant-numeric:tabular-nums; white-space:nowrap; font-size:11.5px}
+.row .rb.l{color:var(--left2)} .row .rb.r{color:var(--right2)} .row .rb.p{color:var(--dim2)}
+.row .bk{font-size:10.5px; color:var(--dim2); font-variant-numeric:tabular-nums; white-space:nowrap; flex:0 0 auto}
+.row.you .bk{color:var(--gold)}
+.row.you .rn{color:var(--gold2); font-weight:600}
+
+/* ---------------------------------------------------------------- 打斗 */
+.fight{flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:7px}
+.fstage{
+  position:relative; flex:0 0 auto; min-height:180px; max-height:52%; display:flex; gap:7px;
+  padding:8px; border-radius:14px; border:1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(217,164,65,.05), transparent 30%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.012) 0 1px, transparent 1px 7px),
+    var(--panel);
+}
+.fside{flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:5px; overflow:auto; justify-content:space-evenly}
+.fu{
+  position:relative; display:flex; align-items:center; gap:6px; padding:5px; border-radius:10px;
+  border:1px solid var(--line); background:var(--bg2); transition:.2s;
+}
+.fu.act{border-color:var(--gold); box-shadow:0 0 0 1px rgba(217,164,65,.4) inset, 0 8px 22px -18px var(--gold)}
+.fu.dead{opacity:.34; filter:grayscale(.8)}
+.fu .mface{
+  width:32px; height:32px; flex:0 0 32px; border-radius:8px; background-color:var(--panel3);
+  background-image:url(assets/bugfight/faces.webp); background-repeat:no-repeat;
+}
+.fu .fm{min-width:0; flex:1}
+.fu .fn{font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.bar{height:5px; border-radius:3px; background:var(--panel3); overflow:hidden; margin-top:3px; box-shadow:0 0 0 1px var(--line) inset}
+.bar i{display:block; height:100%; border-radius:3px; transition:width .25s}
+.fu.L .bar i{background:linear-gradient(90deg,var(--left),var(--left2))}
+.fu.R .bar i{background:linear-gradient(90deg,var(--right),var(--right2))}
+.fu .fhp{
+  font-size:9.5px; color:var(--dim); font-variant-numeric:tabular-nums; margin-top:2px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.fu{cursor:pointer}
+.fu .fi{
+  flex:0 0 auto; align-self:flex-start; max-width:58px; overflow:hidden; text-overflow:ellipsis;
+  font-size:9.5px; padding:1px 5px; border-radius:99px; border:1px solid var(--line2);
+  color:var(--dim); white-space:nowrap;
+}
+@media (max-width:379px){ .fu .fi{max-width:22px; padding:1px 3px; text-align:center} }
+.fu .fi:empty{display:none}
+.fu .fi.atk{color:var(--left2); border-color:rgba(212,85,63,.5)}
+/* 矮屏（640/568 这一档）四只怪会顶出擂台：把卡压薄一点、擂台多分一点高度 */
+@media (max-height:600px){
+  /* 568 这一档：宁可收起队伍合计，也要让看台看得见几个人 */
+  .scr{gap:6px}
+  .cage .tfoot{display:none}
+  .board{min-height:68px}
+  .betbox{padding:7px 9px; gap:5px}
+  .acts2 .btn{height:38px}
+}
+@media (max-height:680px){
+  .fstage{max-height:66%}
+  .fside{gap:3px}
+  .fu{padding:4px}
+}
+.fu .fi.buf{color:var(--gold); border-color:rgba(217,164,65,.5)}
+.fu .fi.def{color:var(--right2); border-color:rgba(63,154,168,.5)}
+.marks{display:flex; gap:3px; flex-wrap:nowrap; overflow:hidden; margin-top:2px}
+.marks i{
+  font-style:normal; font-size:8.5px; padding:0 3px; border-radius:99px; line-height:1.5;
+  border:1px solid var(--line2); color:var(--dim);
+}
+.marks i.str{color:var(--gold)} .marks i.wk{color:var(--dim2)}
+.marks i.vu{color:var(--left2)} .marks i.bl{color:var(--lose)} .marks i.po{color:var(--win)}
+.marks i.br{color:var(--right2)}
+.log{
+  flex:1 1 auto; min-height:112px; overflow:auto; padding:7px 9px; border-radius:12px;
+  border:1px solid var(--line); background:var(--bg2);
+  font-size:11.5px; line-height:1.6; color:var(--dim);
+}
+.log div{animation:fadein .18s}
+.log div.hit{color:var(--text)} .log div.big{color:var(--gold2)}
+.log div.dn{color:var(--lose)}
+@keyframes fadein{from{opacity:0; transform:translateY(3px)}to{opacity:1; transform:none}}
+
+/* ---------------------------------------------------------------- 弹层 */
+.ov{
+  position:fixed; inset:0; z-index:40; display:flex; align-items:center; justify-content:center;
+  padding:18px; background:rgba(8,6,4,.84);
+}
+.ov[hidden]{display:none}
+.ov .card{
+  width:100%; max-width:370px; max-height:86dvh; overflow:auto; padding:18px 16px; border-radius:17px;
+  border:1px solid var(--line2); background:linear-gradient(170deg,var(--panel2),var(--panel));
+  box-shadow:0 40px 80px -40px #000; animation:pop .24s ease-out;
+}
+@keyframes pop{from{opacity:0; transform:scale(.95) translateY(8px)}to{opacity:1; transform:none}}
+.ov .k{margin:0; font-size:11px; letter-spacing:.2em; color:var(--dim); text-align:center}
+.ov .big{margin:5px 0 0; font-size:25px; letter-spacing:.1em; font-weight:800; text-align:center}
+.ov .big.win{color:var(--gold)} .ov .big.lose{color:var(--dim)}
+.ov .sc{margin:6px 0 0; font-size:12.5px; color:var(--dim); text-align:center; font-variant-numeric:tabular-nums}
+.ov .sc b{color:var(--text)}
+.pay{margin:10px 0 0; display:flex; flex-direction:column; gap:2px}
+.pay .pr{display:flex; align-items:center; gap:6px; font-size:11.5px; padding:3px 0; border-bottom:1px dashed rgba(120,100,80,.18)}
+.pay .pr:last-child{border:0}
+.pay .pr .pn{flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.pay .pr .pv{font-variant-numeric:tabular-nums}
+.pay .pr .pv.up{color:var(--win)} .pay .pr .pv.dn{color:var(--lose)} .pay .pr .pv.ps{color:var(--dim2)}
+.ov .acts2{display:flex; gap:8px; margin-top:13px}
+
+.sheet{position:fixed; inset:0; z-index:45; display:flex; align-items:flex-end; justify-content:center; background:rgba(8,6,4,.72)}
+.sheet[hidden]{display:none}
+.sheet .box{
+  width:100%; max-width:600px; max-height:88dvh; overflow:auto; padding:15px 15px 22px;
+  border-radius:18px 18px 0 0; border:1px solid var(--line2); border-bottom:0;
+  background:var(--panel); animation:up .22s ease-out;
+}
+@keyframes up{from{transform:translateY(14px); opacity:.6}to{transform:none; opacity:1}}
+.sheet h3{margin:0 0 8px; font-size:14px; letter-spacing:.1em}
+.sheet h4{margin:13px 0 5px; font-size:12px; color:var(--gold); letter-spacing:.08em}
+.sheet p,.sheet li{font-size:12.5px; line-height:1.75; color:var(--dim)}
+.sheet ul{margin:0; padding-left:18px}
+.sheet .close{position:sticky; bottom:0; margin-top:12px}
+.sheet .mdesc{
+  margin:7px 0 0; padding-left:8px; border-left:2px solid var(--line2);
+  font-size:12px; line-height:1.7; color:var(--dim);
+}
+.sheet .sub2{margin:0 0 6px; font-size:11px; color:var(--dim2)}
+.nowbox{
+  display:flex; gap:8px; align-items:flex-start; padding:8px 10px; border-radius:11px;
+  border:1px solid var(--line2); background:var(--panel2);
+}
+.nowbox .ni{
+  flex:0 0 auto; font-size:10.5px; padding:2px 7px; border-radius:99px;
+  border:1px solid var(--line2); color:var(--dim); white-space:nowrap;
+}
+.nowbox .nb{min-width:0; font-size:12px; line-height:1.6}
+.nowbox .nb b{display:block; font-size:12.5px; color:var(--text)}
+.nowbox .nb span{color:var(--dim)}
+.nowbox.atk{border-color:rgba(212,85,63,.55)} .nowbox.atk .ni{color:var(--left2); border-color:rgba(212,85,63,.55)}
+.nowbox.buf{border-color:rgba(217,164,65,.55)} .nowbox.buf .ni{color:var(--gold); border-color:rgba(217,164,65,.55)}
+.nowbox.def{border-color:rgba(63,154,168,.55)} .nowbox.def .ni{color:var(--right2); border-color:rgba(63,154,168,.55)}
+.itbl{display:flex; flex-direction:column; gap:4px}
+.itbl .tr{
+  display:flex; gap:7px; align-items:flex-start; padding:5px 7px; border-radius:9px;
+  background:var(--panel2); border:1px solid transparent;
+}
+.itbl .tr.cur{border-color:var(--gold); background:rgba(217,164,65,.1)}
+.itbl .tn{
+  flex:0 0 20px; text-align:right; font-size:10.5px; color:var(--dim2);
+  font-variant-numeric:tabular-nums; line-height:1.9;
+}
+.itbl .tr.cur .tn{color:var(--gold2)}
+.itbl .ti{
+  flex:0 0 auto; font-size:10px; padding:1px 6px; border-radius:99px; line-height:1.7;
+  border:1px solid var(--line2); color:var(--dim); white-space:nowrap;
+}
+.itbl .ti.atk{color:var(--left2); border-color:rgba(212,85,63,.5)}
+.itbl .ti.buf{color:var(--gold); border-color:rgba(217,164,65,.5)}
+.itbl .ti.def{color:var(--right2); border-color:rgba(63,154,168,.5)}
+.itbl .tx{min-width:0; font-size:11.5px; line-height:1.6; color:var(--dim)}
+.itbl .tx b{display:block; color:var(--text)}
+.itbl .tx b i{
+  font-style:normal; font-size:9.5px; color:var(--gold); margin-left:4px;
+  border:1px solid rgba(217,164,65,.5); border-radius:99px; padding:0 4px;
+}
+.itbl .tg{font-size:10.5px; color:var(--dim2); padding:1px 0 1px 27px}
+.skillrow{display:flex; gap:7px; padding:5px 0; border-bottom:1px dashed var(--line)}
+.skillrow:last-child{border:0}
+.skillrow .si{flex:0 0 auto; font-size:9px; padding:0 5px; border-radius:99px; line-height:1.6;
+  border:1px solid var(--line2); color:var(--dim); height:fit-content; margin-top:2px}
+.skillrow .st{font-size:11.5px; color:var(--dim); line-height:1.6; min-width:0}
+.skillrow .st b{color:var(--text); font-weight:600}
+.tagbar{display:flex; gap:5px; flex-wrap:wrap; margin:6px 0 2px}
+.tagbar i{font-style:normal; font-size:10px; padding:1px 6px; border-radius:99px;
+  border:1px solid var(--line2); color:var(--dim)}
+
+.toast{
+  position:fixed; left:50%; bottom:16%; transform:translate(-50%,8px); z-index:60;
+  padding:8px 14px; border-radius:11px; font-size:12.5px; color:var(--text);
+  background:rgba(36,29,23,.96); border:1px solid var(--line2); box-shadow:0 20px 40px -24px #000;
+  opacity:0; pointer-events:none; transition:.2s;
+}
+.toast.on{opacity:1; transform:translate(-50%,0)}
+
+#boot{
+  position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:10px; text-align:center; background:var(--bg); color:var(--dim); font-size:13px; z-index:70;
+}
+#boot .ring{width:26px; height:26px; border-radius:50%; border:2px solid rgba(150,130,100,.22); border-top-color:var(--gold); animation:spin .9s linear infinite}
+#boot p{margin:0}
+#boot .err{color:var(--left2)}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <a class="back" href="index.html" aria-label="回首页">&larr;</a>
+    <div class="ttl"><b>电子斗蛐蛐</b><span id="sub">两只笼子一关门，押哪边活着出来</span></div>
+    <button class="ic" id="btnRules" type="button">规则</button>
+    <button class="ic" id="btnMute" type="button" aria-label="声音开关">♪</button>
+  </header>
+
+  <!-- ------------------------------------------------------------ 首页 -->
+  <main class="scr on" id="scr-home">
+    <div class="hero">
+      <h1>电子斗蛐蛐</h1>
+      <p>系统从《忘却前夜》的怪物名录里挑两队，关进同一个笼子。<br>
+         血、攻、每一回合要放什么，全是客户端的原值——<b>意图摆在那儿，谁都能算</b>。<br>
+         你只押哪边活着出来。押对了，本金拿回来，输家的钱一起分。</p>
+    </div>
+    <div class="wallet">
+      <div>
+        <div class="k">你的荷包</div>
+        <div class="v" id="homeBank">1000</div>
+      </div>
+      <div class="sub" id="homeInfo">第 1 局 · 底注 50<br>桌上有 10 个人</div>
+    </div>
+    <div class="seats" id="seatList"></div>
+    <div class="foot">
+      <button class="btn ghost" type="button" id="btnRules2">怎么玩</button>
+      <button class="btn pri" type="button" id="btnStart">入座开桌</button>
+    </div>
+  </main>
+
+  <!-- ------------------------------------------------------------ 下注 -->
+  <main class="scr" id="scr-bet" hidden>
+    <div class="hd">
+      <span>第 <b id="hRound">1</b> 局</span>
+      <span>· 底注 <b id="hMin">50</b></span>
+      <span class="potbox">桌上 <b id="hPot">0</b><span id="hCarry"></span></span>
+    </div>
+    <div class="cage">
+      <section class="team L" id="teamL" role="button" tabindex="0" aria-pressed="false"></section>
+      <div class="vs">对</div>
+      <section class="team R" id="teamR" role="button" tabindex="0" aria-pressed="false"></section>
+    </div>
+    <div class="betbox">
+      <div class="bankrow">
+        <span>荷包 <b id="betBank">1000</b></span>
+        <span id="betAfter">押 50 · 余 950</span>
+      </div>
+      <div class="betrow">
+        <span class="lb">押</span>
+        <span id="pickLabel" style="font-size:12px;color:var(--dim2)">先点一边</span>
+        <div class="amt">
+          <button type="button" id="amtDown" aria-label="减注">−</button>
+          <b id="amtVal">50</b>
+          <button type="button" id="amtUp" aria-label="加注">+</button>
+        </div>
+      </div>
+      <div class="betrow" id="quickRow"></div>
+      <div class="acts2">
+        <button class="btn l" type="button" id="betL">押左边</button>
+        <button class="btn r" type="button" id="betR">押右边</button>
+      </div>
+    </div>
+    <div class="board">
+      <div class="bh"><b>看台</b><span id="boardHint">九个人也在押，底下是他们的注</span></div>
+      <div class="list" id="boardList"></div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" type="button" id="btnQuit">离桌</button>
+      <button class="btn pri" type="button" id="btnFight" disabled>开笼</button>
+    </div>
+  </main>
+
+  <!-- ------------------------------------------------------------ 打斗 -->
+  <main class="scr" id="scr-fight" hidden>
+    <div class="hd">
+      <span>第 <b id="fRound">1</b> 局</span>
+      <span>· 第 <b id="fTurn">1</b> 回合</span>
+      <span class="potbox">池子 <b id="fPot">0</b></span>
+    </div>
+    <div class="fight">
+      <div class="fstage">
+        <div class="fside" id="fL"></div>
+        <div class="fside" id="fR"></div>
+      </div>
+      <div class="log" id="fLog"></div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" type="button" id="btnSpeed">×1</button>
+      <button class="btn" type="button" id="btnSkip">跳过</button>
+      <button class="btn pri" type="button" id="btnNext" disabled>看结果</button>
+    </div>
+  </main>
+
+  <div id="boot" role="status" aria-live="polite">
+    <div class="ring"></div>
+    <p id="bootText">正在载入…</p>
+  </div>
+
+  <div class="ov" id="ov" hidden>
+    <div class="card">
+      <p class="k" id="ovk">这一局</p>
+      <p class="big" id="ovt">—</p>
+      <p class="sc" id="ovs"></p>
+      <div class="pay" id="ovPay"></div>
+      <div class="acts2">
+        <button class="btn ghost" type="button" id="ovHome">回门口</button>
+        <button class="btn pri" type="button" id="ovAgain">下一局</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet" id="sheet" hidden>
+    <div class="box">
+      <h3 id="sheetTitle">规则</h3>
+      <div id="sheetBody"></div>
+      <button class="btn ghost close" type="button" id="sheetClose" style="width:100%">知道了</button>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+</div>
+<!-- @boot -->
+<script type="module" src="js/bugfight.js"></script>
+</body>
+</html>

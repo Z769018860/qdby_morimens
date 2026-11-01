@@ -102,6 +102,7 @@ CHARS = [
     ('up-chaoxing', 'assets/survivors/faces/chaoxing.webp', 'head'),
     ('up-maodie', 'assets/survivors/faces/maodie.webp', 'head'),
     ('up-baiyun', 'assets/survivors/faces/baiyun.webp', 'head'),
+    ('up-banxing', 'assets/survivors/faces/banxing.webp', 'head'),
     # 米酒没有立绘：他自己就是怪物（挂机奖励关那场里的精英），头像就是那只 Q 版
     ('mijiu', 'idle/public/img/mon/Portrait_Small_Monster_mijiu.webp', 'head'),
     # 校猫没有立绘，只有 96×96 的 Q 版头

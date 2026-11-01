@@ -53,6 +53,7 @@ const UPS = [
   { key: 'zhaoxing', mid: 14997071, name: '朝星-', kws: ['朝星', '朝星-', '朝星 忘却前夜'] },
   { key: 'maodie', mid: 1475217387, name: '路过的耄耋', kws: ['路过的耄耋', '耄耋 忘却前夜'] },
   { key: 'baiyun', mid: 621616293, name: '-白云出岫-', kws: ['白云出岫', '白云出岫 忘却前夜'] },
+  { key: 'banxing', mid: 3537122619296226, name: '半醒的鱼', kws: ['半醒的鱼', '半醒的鱼 忘却前夜', '半醒 忘却前夜'] },
 ];
 
 const arg = (k, d) => {
@@ -307,7 +308,11 @@ async function collect(u, rec) {
 }
 
 const db = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, 'utf8')) : {};
-const targets = ONLY ? UPS.filter((u) => String(u.mid) === String(ONLY)) : UPS;
+const targets = ONLY
+  ? (UPS.some((u) => String(u.mid) === String(ONLY))
+    ? UPS.filter((u) => String(u.mid) === String(ONLY))
+    : [{ key: 'mid' + ONLY, mid: Number(ONLY), name: 'mid' + ONLY, kws: [] }])
+  : UPS;
 for (const u of targets) {
   db[u.key] = db[u.key] || { mid: u.mid, name: u.name };
   await collect(u, db[u.key]);

@@ -58,5 +58,21 @@
     "src": "assets/ui/gameicons/reign.webp",
     "from": "assets/avatars-q/char-keeperf.webp",
     "who": "守密人（女）"
+  },
+  "lovelive": {
+    "src": "assets/ui/gameicons/lovelive.webp",
+    "from": "assets/avatars/a-15591.webp",
+    "who": "艾继丝"
+  },
+  "roulette": {
+    "src": "assets/ui/gameicons/roulette.webp",
+    "from": "assets/avatars/a-15604.webp",
+    "who": "莱克"
+  },
+  "keeper": {"src": "assets/ui/gameicons/keeper.webp", "from": "assets/hidden/keeper.webp", "who": "初代守密人"},
+  "bugfight": {
+    "src": "assets/ui/gameicons/bugfight.webp",
+    "from": "assets/monster/Portrait_Small_Monster_S0201.webp",
+    "who": "融蚀鼠王"
   }
 }

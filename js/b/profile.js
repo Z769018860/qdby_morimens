@@ -1528,6 +1528,24 @@ function reign() {
   };
 }
 
+function keeper() {
+  // js/keeper.js 的键 zjtt:keeper:v1：{ endings: [结局 id], forms: [形态], nights, meta, mid }
+  // 图鉴只增不减，所以这两个数字天然适合当排行榜的分数
+  const s = RD('keeper:v1') || {};
+  const e = Array.isArray(s.endings) ? s.endings.length : 0;
+  const f = Array.isArray(s.forms) ? s.forms.length : 0;
+  const nights = n(s.nights);
+  const T = 126;   // 与 js/keeper/endings.js 的 TOTAL 对齐（那边加了结局，这里跟着改）
+  return {
+    items: [
+      { k: '结局', v: e + ' / ' + T },
+      { k: '见过的形态', v: f + ' / 12' },
+      { k: '下过钥冢', v: nights ? nights + ' 次' : '—' },
+    ],
+    extra: e >= T ? '集齐了——第 ' + (T + 1) + ' 号在你手上' : (e ? '还有 ' + (T - e) + ' 个结局没走到' : ''),
+  };
+}
+
 function g2048() {
   // js/g2048.js 的 KEY：best 全难度 / best:<难度> / seen 历史合到过的最大块
   const best = numKey('g2048:best');
@@ -1596,6 +1614,46 @@ function duel() {
   };
 }
 
+function lovelive() {
+  // js/lovelive.js 的 KEY：一个 JSON { best: {'<曲>:<难度>': 分}, bestCombo, plays }
+  const thou = (x) => String(Math.round(n(x))).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const s = RD('lovelive') || {};
+  const best = (s.best && typeof s.best === 'object') ? s.best : {};
+  const scores = Object.keys(best).map((k) => n(best[k])).filter((x) => x > 0);
+  const top = scores.length ? Math.max.apply(null, scores) : 0;
+  const extra = [];
+  for (const k of Object.keys(best).sort()) if (n(best[k]) > 0) extra.push(k + ' ' + thou(best[k]));
+  return {
+    items: [
+      { k: '最高分', v: top ? thou(top) : '—' },
+      { k: '最长连击', v: n(s.bestCombo) ? String(n(s.bestCombo)) : '—' },
+      { k: '玩过谱面', v: scores.length + ' 张' },
+    ],
+    extra: extra.slice(0, 6).join(' · '),
+  };
+}
+
+// 弥萨格轮盘 —— 只有人机对战记账（js/roulette/view.js 的 roulette:v1）；
+// 同屏与好友房是跟人打的，不算进段位、也不算进胜率。
+// 段位分（rp）与「唤醒王：决斗链接」共用一套段位表（js/duel/tiers.js），见 js/roulette/rank.js。
+function roulette() {
+  const st = RD('roulette:v1') || {};
+  const rp = n(st.rp);
+  const p = rankProgress(rp);
+  const w = n(st.w), l = n(st.l), runs = w + l;
+  const parts = [`${runs} 局人机`];
+  if (n(st.best)) parts.push(`最高 ${n(st.best)} 连胜`);
+  if (n(st.streak) > 1) parts.push(`当前 ${n(st.streak)} 连胜`);
+  return {
+    items: [
+      { k: '段位', v: p.tier.n },
+      { k: '段位分', v: String(rp) },
+      { k: '人机战绩', v: `${w} 胜 ${l} 负` },
+    ],
+    extra: parts.join(' · '),
+  };
+}
+
 // 卡片顺序 = 首页的排列顺序，用户不用重新认路
 const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', icon: '🔍', read: detective, tip: '六边形自走棋推演' },
   { k: 'merge', n: '合成大杜勒', href: 'merge.html', icon: '⚫', read: merge, tip: '两个同级合成下一级' },
@@ -1609,6 +1667,9 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'g2048', n: '忘却 2048', href: '2048.html', icon: '🔢', read: g2048, tip: '两块同样的合流' },
   { k: 'duel', n: '唤醒王：决斗链接', href: 'duel.html', icon: '⚔', read: duel, tip: '卡牌对决，段位爬升' },
   { k: 'reign', n: '弥萨格王权', href: 'reign.html', icon: '👑', read: reign, tip: '准或不准，四项账' },
+  { k: 'lovelive', n: 'lovelive！mori⭐mens！', href: 'lovelive.html', icon: '🎵', read: lovelive, tip: '点按式音游' },
+  { k: 'keeper', n: '杀死守密人', href: 'keeper.html', icon: '🔪', read: keeper, tip: '126 个结局的文字恐怖' },
+  { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，73 位出战者，能上段' },
 ];
 
 // 一次性读全部：页面只调这一个
@@ -1690,6 +1751,16 @@ const GD_SPEC = [
     ['段位分', String(n(v[0]))],
     ['人机战绩', `${n(v[1])} 胜 ${n(v[2])} 负`],
   ] },
+  { k: 'll', n: 'lovelive！mori⭐mens！', f: (v) => [
+    ['最高分', v[0] ? String(Math.round(n(v[0]))).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '—'],
+    ['最长连击', n(v[1]) ? String(n(v[1])) : '—'],
+    ['玩过谱面', n(v[2]) + ' 张'],
+  ] },
+  { k: 'rl', n: '弥萨格轮盘', f: (v) => [
+    ['段位', n(v[0]) ? rankProgress(n(v[0])).tier.n : '—'],
+    ['段位分', String(n(v[0]))],
+    ['人机战绩', `${n(v[1])} 胜 ${n(v[2])} 负`],
+  ] },
 ];
 
 
@@ -1705,6 +1776,8 @@ const GD_SPEC = [
 //   wf 狼人 [局数, 胜场]             dt 报告 [已复原, 卷宗, 结案, 提交报告数, 确认报告数]
 //   g2 2048 [最高分, 最高块]         dl 决斗 [段位分, 胜, 负, 段位下标]
 //   rg 王权 [结局数, 最长任期天数, 当过几任, 金色结局次数]（首页榜按结局数排，同数比最长任期）
+//   ll 音游 [最高分(全谱), 最长连击, 玩过的谱面数]（首页榜按最高分排）
+//   rl 轮盘 [段位分, 胜, 负, 段位下标]（首页榜按段位分排，和决斗同构）
 // 单调递增的量（最好成绩、累计局数、时长），服务端合并时逐项取大即可。
 function digest() {
   const out = { at: Date.now() };
@@ -1747,6 +1820,18 @@ function digest() {
   const rgB = RD('reign:best') || {};
   const rgE = RD('reign:endings') || {};
   out.rg = [Object.keys(rgE).length, n(rgB.bestDay), n(rgB.runs), n(rgB.gold)];
+  // lovelive！mori⭐mens！ [最高分(全谱), 最长连击, 玩过的谱面数]：全部只增不减
+  const llS = RD('lovelive') || {};
+  const llBest = (llS.best && typeof llS.best === 'object') ? llS.best : {};
+  const llScores = Object.keys(llBest).map((k) => n(llBest[k])).filter((x) => x > 0);
+  out.ll = [llScores.length ? Math.max.apply(null, llScores) : 0, n(llS.bestCombo), llScores.length];
+  // 弥萨格轮盘 [段位分, 胜, 负, 段位下标]：和决斗同构，段位分只增不减
+  const rlS = RD('roulette:v1') || {};
+  out.rl = [n(rlS.rp), n(rlS.w), n(rlS.l), rankProgress(n(rlS.rp)).idx];
+  // 杀死守密人 [已解锁结局数, 见过的形态数, 下过几趟]。图鉴只能一格一格点亮，
+  // 所以第 0 位就是上限 126 的进度分，首页排行榜按它排。
+  const kpS = RD('keeper:v1') || {};
+  out.kp = [arr(kpS.endings).length, arr(kpS.forms).length, n(kpS.nights)];
   return out;
 }
 return { fmtDur, DIFF_MERGE, DIFF_BIRD, GAMES, readAll, credits, GD_SPEC, digest };
@@ -2650,12 +2735,16 @@ const GAMES = {
   duel: { zh: '唤醒王：决斗链接', prefix: ['zjtt:duel'], skip: /^$/ },
   // 弥萨格王权：进行中的任期、结局图鉴、人物册（音效是这台设备的偏好）
   reign: { zh: '弥萨格王权', prefix: ['zjtt:reign'], skip: /:sound/ },
+  // 杀死守密人：结局图鉴 + 形态记录 + 中途那一夜（刷新能接着玩）
+  keeper: { zh: '杀死守密人', prefix: ['zjtt:keeper'], skip: /^$/ },
   // 2048：局面（save）和最高分都值得跟着账号走，难度 / 侵蚀 / 音效是这台设备的偏好
   // （皮肤不同步：换设备一进来就得多拉四百来 KB 的换皮池，不值）
   g2048: {
     zh: '忘却 2048', prefix: ['zjtt:g2048'], skip: /:(snd|diff|rot|played|skin)/,
     trivial: (keys) => !keys['zjtt:g2048:save'] && !keys['zjtt:g2048:best'],
   },
+  // lovelive！mori⭐mens！：各谱最高分 / 最长连击 / 编队跟着账号走，静音是设备偏好
+  lovelive: { zh: 'lovelive！mori⭐mens！', prefix: ['zjtt:lovelive'], skip: /:(mute|snd)/ },
 };
 
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };

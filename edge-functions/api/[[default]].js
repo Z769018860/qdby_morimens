@@ -601,7 +601,7 @@ async function putAccount(request, env, kv, cors) {
 // 账号档案（/account）只放轻量的积分 / 解锁 / 最高分；挂机前夜这类「整份进度」是大对象，
 // 单独一个键 sv_{uid哈希}_{游戏}，带版本号做乐观锁：版本对不上返回 409 + 云端的摘要，
 // 由客户端决定用哪份（不会悄悄互相覆盖）。
-const SAVE_GAMES = new Set(['idle', 'deathreport', 'binding', 'survivors', 'protocol', 'wolf', 'merge', 'bird', 'g2048', 'duel', 'reign']);
+const SAVE_GAMES = new Set(['idle', 'deathreport', 'binding', 'survivors', 'protocol', 'wolf', 'merge', 'bird', 'g2048', 'duel', 'reign', 'lovelive']);
 const SAVE_MAX = 480 * 1024;
 
 function saveGameOf(g) {
@@ -801,6 +801,122 @@ async function deletePuzzle(request, env, kv, id, cors) {
   return reply({ ok: true }, 200, cors);
 }
 
+
+// ------------------------------------------------------------------ lovelive 云端曲库
+// 只收谱面（时间 + 轨道），**不收音频**：公开仓库/公开服务不分发唱片，
+// 玩家发布的是「怎么打」，音频各自本机配（客户端会校验时长差）。
+// 索引 ll_idx 只放 { id, at }，正文 ll_<hash> 单独一份，和工坊题库一样的套路。
+const LL_MAX = 900 * 1024;
+const LL_NOTES_MAX = 4000;
+
+async function llIndex(kv) {
+  const raw = await kvJson(kv, 'll_idx');
+  return Array.isArray(raw) ? raw : [];
+}
+async function llWriteIndex(kv, list) {
+  await kv.put('ll_idx', JSON.stringify(list.slice(0, 600)));
+}
+
+// 谱面清洗：只认 [t, lane, kind, tail, s]，越界的一律丢掉，最多 4000 个
+function llNotes(arr) {
+  if (!Array.isArray(arr)) throw new HttpError(400, 'bad_notes');
+  const out = [];
+  for (const a of arr.slice(0, LL_NOTES_MAX)) {
+    if (!Array.isArray(a)) continue;
+    const t = Number(a[0]);
+    const lane = Number(a[1]) | 0;
+    if (!isFinite(t) || t < 0 || t > 3600) continue;
+    if (lane < 0 || lane > 8) continue;
+    const kind = a[2] ? 1 : 0;
+    const tail = kind ? Math.max(0, Number(a[3]) || 0) : 0;
+    const sv = Number(a[4]);
+    out.push([
+      Math.round(t * 1000) / 1000, lane, kind,
+      Math.round(tail * 1000) / 1000,
+      isFinite(sv) ? Math.round(Math.min(1, Math.max(0, sv)) * 100) / 100 : 0.6,
+    ]);
+  }
+  out.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  return out;
+}
+
+async function postLlSong(request, env, kv, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) throw new HttpError(401, 'need_login');
+
+  const b = await readJson(request, LL_MAX + 8 * 1024);
+  const notes = llNotes(b.notes);
+  if (notes.length < 20) throw new HttpError(400, 'too_few_notes');
+  const dur = Math.round((Number(b.dur) || 0) * 10) / 10;
+  if (!(dur > 5) || dur > 3600) throw new HttpError(400, 'bad_dur');
+
+  let id = str(b.id, 64).trim();
+  if (!id) id = 'll-' + Math.random().toString(36).slice(2, 10);
+  const ph = await phash(id);
+  const cur = await kvJson(kv, 'll_' + ph);
+  if (cur && String(cur.author || '') && String(cur.author) !== me.uid) throw new HttpError(409, 'dup_id');
+
+  const rec = {
+    id,
+    author: me.uid,
+    authorName: me.name || '',
+    title: str(b.title || '', 40) || '未命名曲目',
+    artist: str(b.artist || '', 24),
+    dur,
+    count: notes.length,
+    notes,
+    at: Number(cur && cur.at) || Date.now(),
+    updatedAt: Date.now(),
+  };
+  const body = JSON.stringify(rec);
+  if (body.length > LL_MAX) throw new HttpError(413, 'too_large');
+  await kv.put('ll_' + ph, body);
+
+  const idx = (await llIndex(kv)).filter((x) => String(x && x.id) !== id);
+  idx.unshift({ id, at: rec.at });
+  await llWriteIndex(kv, idx);
+  return reply({ ok: true, id, count: notes.length }, 200, cors);
+}
+
+async function listLlSongs(env, kv, url, cors) {
+  const limit = Math.min(50, Math.max(1, Number(url.searchParams.get('limit')) || 30));
+  const offset = Math.max(0, Number(url.searchParams.get('offset')) || 0);
+  const idx = (await llIndex(kv)).filter((x) => x && x.id);
+  const page = idx.slice(offset, offset + limit);
+  const items = [];
+  for (const x of page) {
+    const row = await kvJson(kv, 'll_' + (await phash(x.id)));
+    if (!row) continue;
+    items.push({
+      id: row.id, title: row.title || '', artist: row.artist || '',
+      authorName: row.authorName || '', dur: row.dur || 0, count: row.count || 0,
+      at: row.at || 0, updatedAt: row.updatedAt || 0,
+    });
+  }
+  return reply({ ok: true, items, total: idx.length, limit, offset }, 200, cors);
+}
+
+async function getLlSong(env, kv, id, cors) {
+  const row = await kvJson(kv, 'll_' + (await phash(id)));
+  if (!row) throw new HttpError(404, 'not_found');
+  return reply({
+    ok: true, id: row.id, title: row.title || '', artist: row.artist || '',
+    authorName: row.authorName || '', dur: row.dur || 0, count: row.count || 0,
+    at: row.at || 0, notes: row.notes || [],
+  }, 200, cors);
+}
+
+async function deleteLlSong(request, env, kv, id, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) throw new HttpError(401, 'need_login');
+  const ph = await phash(id);
+  const row = await kvJson(kv, 'll_' + ph);
+  if (!row) throw new HttpError(404, 'not_found');
+  if (String(row.author || '') !== me.uid) throw new HttpError(403, 'not_author');
+  await kv.delete('ll_' + ph);
+  await llWriteIndex(kv, (await llIndex(kv)).filter((x) => String(x && x.id) !== id));
+  return reply({ ok: true }, 200, cors);
+}
 
 // 按 IP 的每日限额（评分 / BUG / 浏览打点用）：X-Device 之类的身份头是客户端自己报的，
 // 光靠它防不住刷。拿不到 IP 就不限（本地测试），拿得到就按天计数。
@@ -1337,7 +1453,7 @@ async function postAdminGrantBatch(request, env, kv, cors) {
 // 没登录 / 没同步过的人不会上榜。每次重算要读几百个键，所以缓存 3 分钟。
 const BOARD_TTL = 60 * 1000;
 // [游戏键, gd 键, 取分的下标, 说明, 副标]
-// 唤醒王：决斗链接的九个段位名（榜单副标用）。改段位名时和 js/duel/tiers.js 的 TIERS 一起改。
+// 唤醒王：决斗链接 / 弥萨格轮盘的九个段位名（榜单副标用）。改段位名时和 js/duel/tiers.js 的 TIERS 一起改。
 const DUEL_TIERS = ['见习守密人', '铜钥级', '银钥级', '金印级', '白夜级', '命轮师', '界域传说', '唤醒大师', '唤醒王'];
 
 const BOARD_SPEC = [
@@ -1365,7 +1481,20 @@ const BOARD_SPEC = [
   { k: 'rg', gd: 'rg', i: 0, unit: '个结局', label: '结局数',
     sub: (v) => [Number(v[1]) > 0 ? `最长任期第 ${Number(v[1])} 天` : '', Number(v[2]) > 0 ? `当过 ${Number(v[2])} 任` : ''].filter(Boolean).join(' · '),
     tb: (v) => Number(v[1]) || 0 },
+  // 杀死守密人：按已解锁结局数排（0~126，一格只能点亮一次，刷不动），
+  // 同分时比见过的形态数（见 tb）
+  { k: 'kp', gd: 'kp', i: 0, unit: '个结局', label: '结局数',
+    sub: (v) => [Number(v[1]) > 0 ? `见过 ${Number(v[1])} 种形态` : '', Number(v[2]) > 0 ? `下过 ${Number(v[2])} 趟钥冢` : ''].filter(Boolean).join(' · '),
+    tb: (v) => Number(v[1]) || 0 },
   { k: 'dl', gd: 'dl', i: 0, unit: '分', label: '段位分',
+    sub: (v) => {
+      const t = Number(v[3]) || 0;
+      const name = DUEL_TIERS[t] || '';
+      const w = Number(v[1]) || 0, l = Number(v[2]) || 0;
+      return [name, w + l > 0 ? `${w} 胜 ${l} 负` : ''].filter(Boolean).join(' · ');
+    } },
+  // 弥萨格轮盘：和决斗完全同构（段位分 + 胜负 + 段位下标），段位名共用同一张表
+  { k: 'rl', gd: 'rl', i: 0, unit: '分', label: '段位分',
     sub: (v) => {
       const t = Number(v[3]) || 0;
       const name = DUEL_TIERS[t] || '';
@@ -1497,8 +1626,10 @@ export async function onRequest(context) {
         // v7 多了 /save/:game（整份游戏存档上云，挂机前夜用），
         // v6 多了 /home/reviews（评分详情：分布 + 短评），
         // v5 档案里多了 gd（九个游戏的进度摘要），管理页能看全部游戏 + 挂机时长/角色数
-        // v10 榜单多了唤醒王：决斗链接（段位分），见 BOARD_SPEC 的 dl
-        ok: Boolean(store), service: 'zjtt', v: 10, runtime: 'edgeone',
+        // v10 榜单多了唤醒王：决斗链接（段位分），见 BOARD_SPEC 的 dl；
+        // v11 多了 /llsongs（lovelive 云端曲库：只收谱面，不收音频）
+        // v12 榜单多了杀死守密人（已解锁结局数），见 BOARD_SPEC 的 kp
+        ok: Boolean(store), service: 'zjtt', v: 12, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
@@ -1551,6 +1682,16 @@ export async function onRequest(context) {
       const id = decodeURIComponent(one[1]);
       if (method === 'GET') return await getPuzzle(env, kv, id, cors);
       if (method === 'DELETE') return await deletePuzzle(request, env, kv, id, cors);
+    }
+
+    // lovelive 云端曲库：谱面（不含音频）
+    if (path === '/llsongs' && method === 'GET') return await listLlSongs(env, kv, url, cors);
+    if (path === '/llsongs' && method === 'POST') return await postLlSong(request, env, kv, cors);
+    const ll = path.match(/^\/llsongs\/([^/]+)$/);
+    if (ll) {
+      const id = decodeURIComponent(ll[1]);
+      if (method === 'GET') return await getLlSong(env, kv, id, cors);
+      if (method === 'DELETE') return await deleteLlSong(request, env, kv, id, cors);
     }
 
     throw new HttpError(404, 'not_found');

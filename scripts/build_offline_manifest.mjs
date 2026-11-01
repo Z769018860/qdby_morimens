@@ -16,6 +16,9 @@ const stamp = process.argv[2] || 'dev';
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'desktop', '.preview', '.tmp-syn', 'server']);
 const ASSET_RE = /assets\/[A-Za-z0-9_\-.@/]+/g;
 const TEXT_EXT = /\.(?:html|js|mjs|json|webmanifest|css|svg)$/i;
+// 音游的原曲包（assets/ll-music/*.bin）不进离线包：二十九首近 100MB，
+// 本来也是「点哪首取哪首」，预下载只会把离线包撑爆。
+const NOT_OFFLINE = /^assets\/ll-music\//;
 
 function walk(dir, out = []) {
   for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -46,6 +49,7 @@ for (const rel of all) {
   try { txt = fs.readFileSync(abs, 'utf8'); } catch { continue; }
   for (const m of txt.match(ASSET_RE) || []) {
     const clean = m.replace(/[),.;'"]+$/, '');
+    if (NOT_OFFLINE.test(clean)) continue;
     if (fs.existsSync(path.join(ROOT, clean))) refs.add(clean);
   }
 }
@@ -59,6 +63,7 @@ for (const rel of all) {
   if (rel === 'data/offline.json') continue;
   if (ROOT_FILES.includes(rel)) { files.add(rel); continue; }
   if (WHOLE.some((w) => rel.startsWith(w))) { files.add(rel); continue; }
+  if (NOT_OFFLINE.test(rel)) continue;
   if (rel.startsWith('assets/') && (refs.has(rel) || rel.startsWith('assets/app/'))) files.add(rel);
 }
 // 图标与清单是安装（PWA）必需的，即使没被 html 引到也要有

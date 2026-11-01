@@ -29,3 +29,11 @@ desktop/node_modules/
 desktop/web/
 desktop/dist/
 .replay-cache/
+
+# lovelive：原曲的源文件只放本机。要入库的是打包后的密文
+# （assets/ll-music/*.bin + data/ll-music.json），源音频绝不提交。
+music/*
+!music/README.md
+
+# 杀死守密人：烘焙中间产物（时间表已内联进 js/keeper/audio.js）
+assets/audio/keeper/sprite.json

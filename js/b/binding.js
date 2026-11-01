@@ -4509,12 +4509,16 @@ const GAMES = {
   duel: { zh: '唤醒王：决斗链接', prefix: ['zjtt:duel'], skip: /^$/ },
   // 弥萨格王权：进行中的任期、结局图鉴、人物册（音效是这台设备的偏好）
   reign: { zh: '弥萨格王权', prefix: ['zjtt:reign'], skip: /:sound/ },
+  // 杀死守密人：结局图鉴 + 形态记录 + 中途那一夜（刷新能接着玩）
+  keeper: { zh: '杀死守密人', prefix: ['zjtt:keeper'], skip: /^$/ },
   // 2048：局面（save）和最高分都值得跟着账号走，难度 / 侵蚀 / 音效是这台设备的偏好
   // （皮肤不同步：换设备一进来就得多拉四百来 KB 的换皮池，不值）
   g2048: {
     zh: '忘却 2048', prefix: ['zjtt:g2048'], skip: /:(snd|diff|rot|played|skin)/,
     trivial: (keys) => !keys['zjtt:g2048:save'] && !keys['zjtt:g2048:best'],
   },
+  // lovelive！mori⭐mens！：各谱最高分 / 最长连击 / 编队跟着账号走，静音是设备偏好
+  lovelive: { zh: 'lovelive！mori⭐mens！', prefix: ['zjtt:lovelive'], skip: /:(mute|snd)/ },
 };
 
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
