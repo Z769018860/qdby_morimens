@@ -33,7 +33,13 @@ body{
   padding:max(8px, env(safe-area-inset-top)) 12px max(8px, env(safe-area-inset-bottom));
   display:flex; flex-direction:column;
 }
-@media (orientation:landscape){ .app{max-width:none} }
+/* 横屏：九格横排本来就宽，页面别跟着拉成一条长带子；居中到一个舒服的宽度。
+   矮屏（手机横过来只剩 390px 高）还要把上下留白压掉，否则九格会被挤窄。 */
+@media (orientation:landscape){
+  .app{max-width:none; padding-left:max(10px, env(safe-area-inset-left)); padding-right:max(10px, env(safe-area-inset-right))}
+  .app > main > section > .set-body, .shop-body, .song-list{max-width:820px; width:100%; margin:0 auto}
+}
+
 
 .hud{display:flex; align-items:center; gap:6px; flex:0 0 auto; margin-bottom:6px}
 .back{
@@ -341,7 +347,18 @@ main > section[hidden]{display:none}
 }
 .sheet h3{margin:0; font-size:16px}
 .sheet p{margin:0; font-size:12.5px; color:var(--dim); line-height:1.7}
+/* 暂停面板多了音量与方向，比原来高：横屏时舞台只有三百来像素，得能滚 */
 .sheet .acts{display:flex; gap:8px; justify-content:center; flex-wrap:wrap}
+.pause-sheet{width:min(92%, 430px); max-height:88%; overflow-y:auto; text-align:left}
+.pause-sheet h3, .pause-sheet #pause-src{text-align:center}
+.pause-sheet #pause-src{font-size:11.5px; color:var(--dim)}
+.prow{display:flex; align-items:center; gap:8px}
+.prow label{flex:0 0 46px; font-size:12px; color:var(--dim)}
+.prow input[type=range]{flex:1; min-width:0; accent-color:var(--pink); height:20px}
+.prow .v{flex:0 0 40px; font-size:11.5px; color:var(--dim); text-align:right; font-variant-numeric:tabular-nums}
+.prow .seg{flex:1; gap:5px; flex-wrap:nowrap}
+.prow .seg button{flex:1; padding:5px 0; font-size:12px}
+.sheet .acts a.btn{text-decoration:none; display:inline-flex; align-items:center; justify-content:center}
 dialog.help{border:1px solid var(--line); background:var(--panel); color:var(--text);
   border-radius:16px; padding:18px; max-width:420px; width:88%; max-height:80dvh; overflow-y:auto}
 dialog.help::backdrop{background:rgba(8,6,14,.8)}
@@ -356,10 +373,41 @@ dialog.help .acts{display:flex; justify-content:flex-end; margin-top:10px}
 /* 全站那个横竖屏开关在本页整个收起来：它固定在左下角，会压住曲目卡和第九格 */
 body .zj-orient{display:none !important}
 
+/* 局内收起页面级导航条（标题 + 主页/声音/设置/帮助四颗钮）：它要占 70px，
+   横屏总共才 390px 高，全给九格用；主页入口挪进暂停面板。 */
+body.live .hud{display:none}
+
+/* 手机横过来只有 390px 高：把上下几条都压扁，舞台才拿得到 280px 以上。
+   这段必须放在样式表末尾——.hud / .skills 的常规声明在上面，靠前会被覆盖。 */
+@media (orientation:landscape) and (max-height:560px){
+  .app{padding-top:4px; padding-bottom:4px}
+  main > section{gap:5px}
+  .live-hud{gap:6px}
+  .live-hud .meta b{font-size:12.5px}
+  .live-hud .meta span{font-size:9.5px}
+  .live-hud .score b{font-size:14px}
+  .live-hud .ico{width:28px; height:28px; flex-basis:28px; border-radius:8px; font-size:12px}
+  .stam{height:4px}
+  .skills{max-width:404px}
+  .skill{padding:1px; border-radius:6px}
+  .skill .gauge{height:2px}
+  /* 暂停面板排成两列：横屏只有 390px 高，一行一个滑块会把「继续」挤到屏幕外 */
+  .pause-sheet{
+    width:min(94%, 720px); max-height:none; padding:12px 16px; gap:6px 30px;
+    display:grid; grid-template-columns:1fr 1fr; align-items:center;
+  }
+  .pause-sheet .prow .v{flex:0 0 34px}
+  .pause-sheet h3, .pause-sheet #pause-src, .pause-sheet .acts{grid-column:1 / -1}
+  .pause-sheet h3{font-size:15px}
+  .pause-sheet #pause-src{font-size:11px}
+  .pause-sheet .acts{margin-top:2px}
+  .pause-sheet .btn{padding:9px 16px; font-size:13.5px}
+}
+
 #boot{position:fixed; inset:0; z-index:99; display:grid; place-items:center; background:var(--bg); color:var(--dim); text-align:center; font-size:14px}
 #boot.err{color:var(--bad)}
 </style>
-<meta name="build" content="19b091bc29">
+<meta name="build" content="2f3634b2e1">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -373,7 +421,7 @@ html{-webkit-tap-highlight-color:transparent}
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="忘忘小游戏">
 </head>
-<body>
+<body data-orient-default="land">
 <script>
 /* 首屏守护 + 启动数据预取（构建时注入，各页共用一份）
    1) 占位是纯 HTML，HTML 一到就能画，不等任何 JS；
@@ -611,6 +659,27 @@ html{-webkit-tap-highlight-color:transparent}
         </div>
 
         <div class="card">
+          <h3>屏幕与听歌</h3>
+          <div class="row">
+            <label>游玩方向</label>
+            <div class="seg" id="set-orient">
+              <button type="button" data-v="auto">自动</button>
+              <button type="button" data-v="land">横屏</button>
+              <button type="button" data-v="port">竖屏</button>
+            </div>
+          </div>
+          <div class="row">
+            <label>听歌模式</label>
+            <div class="seg" id="set-listen">
+              <button type="button" data-v="0">关</button>
+              <button type="button" data-v="1">开</button>
+            </div>
+          </div>
+          <p><b>方向</b>：手机上默认横屏——九格横着摆，每格才有 60 多像素；竖着玩每格只剩 30 多，点起来容易串。手机系统不让网页锁方向时（iPhone 的 Safari）会提示把机身转过来，也可以直接选「竖屏」就这么玩。</p>
+          <p><b>听歌模式</b>：音符自动按最低档（BAD）打掉、体力锁满，怎么放着都不会死，可以把整首听完。这一局不算成绩、不记最高分。局内暂停面板里也能随时开关。</p>
+        </div>
+
+        <div class="card">
           <h3>音量</h3>
           <div class="row">
             <label for="set-mus">音乐</label>
@@ -719,10 +788,36 @@ html{-webkit-tap-highlight-color:transparent}
         <div class="prog"><i id="live-prog"></i></div>
         <div class="banner" id="live-banner"></div>
         <div class="overlay" id="pauseDlg" hidden>
-          <div class="sheet">
+          <div class="sheet pause-sheet">
             <h3>暂停</h3>
-            <p>歌和音符都停在这了。</p>
+            <p id="pause-src">音源：—</p>
+            <div class="prow">
+              <label for="pause-mus">音乐</label>
+              <input type="range" id="pause-mus" min="0" max="100" step="1" value="70">
+              <span class="v" id="pause-mus-v">70%</span>
+            </div>
+            <div class="prow">
+              <label for="pause-fx">判定音</label>
+              <input type="range" id="pause-fx" min="0" max="100" step="1" value="60">
+              <span class="v" id="pause-fx-v">60%</span>
+            </div>
+            <div class="prow">
+              <label>方向</label>
+              <div class="seg" id="pause-orient">
+                <button type="button" data-v="auto">自动</button>
+                <button type="button" data-v="land">横屏</button>
+                <button type="button" data-v="port">竖屏</button>
+              </div>
+            </div>
+            <div class="prow">
+              <label>听歌</label>
+              <div class="seg" id="pause-listen">
+                <button type="button" data-v="0">关</button>
+                <button type="button" data-v="1">开</button>
+              </div>
+            </div>
             <div class="acts">
+              <a class="btn" id="pause-home" href="./">主页</a>
               <button class="btn" id="pause-quit" type="button">退出</button>
               <button class="btn" id="pause-retry" type="button">重开</button>
               <button class="btn pri" id="pause-resume" type="button">继续</button>
@@ -762,6 +857,8 @@ html{-webkit-tap-highlight-color:transparent}
   <p><b>看方向</b>：音符从上方那个发球点散开，沿直线飞向下方九格里属于它的那一格。<b>压进框里的那一刻点它</b>。落哪一格跟着原曲的音高走——旋律往上，音符就往右移，所以九格之间的走位就是那段旋律的形状。点得越准分越高：PERFECT &gt; GREAT &gt; GOOD &gt; BAD，错过就是 MISS，断连还掉体力——体力见底 Live 就中断了。</p>
   <p><b>长按</b>：外圈描了一道亮环的是长条，原曲里拖住的长音都会变成它。按住别松，<b>尾音也挂着一张头像</b>，那张头像进框就是松手的点；提前松手会断连（有护盾技能时不算）。两根长条同时来的时候按两根——两个框会一起亮。</p>
   <p><b>双押</b>：同一时刻两个框一起亮音符，那就是原曲里的强音（底鼓叠镲那一下）。两手下在隔开三四格的位置，别挤在一侧。</p>
+  <p><b>只听歌</b>：暂停面板或设置里打开<b>听歌模式</b>，音符会自己按最低档（BAD）打掉、体力锁满，放着不管也能把整首听完。这一局不计成绩、不写最高分、也不刷最高连击。想安静听就顺手把「判定音」拉到 0。</p>
+  <p><b>屏幕方向</b>：手机默认横屏——九格横着摆每格才够宽，竖着每格只有三十来像素容易点串。设置里能选自动 / 横屏 / 竖屏；iPhone 的 Safari 不让网页锁方向，竖着拿时会提示把机身转过来，也可以点「仍要竖屏玩」。暂停面板里能直接调音乐与判定音两路音量，不用退出去改设置。</p>
   <p><b>九个人</b>：编队最多九位唤醒体，第 1~9 位对应下面第 1~9 格，那一格的音符就是她的脸。技能全自动发动——判定放大、加分、Miss 救成 Good、护盾不断连、回体力、直接加连击、音符减速，攒满即放，不用点。</p>
   <p><b>操作</b>：手机上直接点框或点音符（支持多指同时按）；电脑上鼠标点，或者用 <code>A S D F G H J K L</code> 对应九格，<code>Esc</code> 暂停。长条用键盘就是按住不放。</p>
   <p><b>音源</b>：曲库里有原曲包的那几首直接放原曲（仓库里是加密封装的，取回来在浏览器里解）；没有包的走页面内合成的芯片改编。进「设置 → 音源」可以导入自己手里的 mp3（只存在这台设备上，会盖过内置包），谱面按那一版原曲的鼓点重做。偏移 / 宽松 / 流速也都在设置里。</p>
@@ -791,7 +888,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 20000);
 })();
 </script>
-<script type="module" src="js/b/lovelive.js?v=19b091bc29"></script>
+<script type="module" src="js/b/lovelive.js?v=2f3634b2e1"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
@@ -799,7 +896,9 @@ html{-webkit-tap-highlight-color:transparent}
        · 记在每个游戏自己的键上（zjtt:orient:<游戏>），换游戏不会互相影响
        · 优先用 screen.orientation.lock 真正锁方向（Chrome / PWA / 桌面版可用）
        · 锁不住（iOS Safari、桌面浏览器）时：横屏但手机竖着 → 提示「把手机横过来」
-       · 改完方向补一次 resize，canvas 游戏会按新尺寸重排 -->
+       · 改完方向补一次 resize，canvas 游戏会按新尺寸重排
+       · 页面可以用 <body data-orient-default="land"> 让手机第一次进来就默认横屏
+         （音游那种九格横排的，竖着看每格只有 30px，横过来才够宽） -->
 <style>
 .zj-orient{
   position:fixed; left:10px; bottom:10px; z-index:80;
@@ -857,10 +956,14 @@ html{-webkit-tap-highlight-color:transparent}
   ];
 
   function read() {
-    try { return localStorage.getItem(KEY) || 'auto'; } catch (e) { return 'auto'; }
+    try { return localStorage.getItem(KEY); } catch (e) { return null; }
   }
-  var pref = read();
-  var baseTitle = document.title;
+  // 页面可以在 <body data-orient-default="land"> 里指定「手机上的默认方向」。
+  // 只有屏幕短边 <820（手机/小平板）才吃这个默认值，桌面上永远跟随窗口。
+  var smallScreen = Math.min(screen.width || 9999, screen.height || 9999) < 820;
+  var defPref = (document.body && document.body.getAttribute('data-orient-default')) || 'auto';
+  if (['auto', 'land', 'port'].indexOf(defPref) < 0) defPref = 'auto';
+  var pref = read() || (smallScreen ? defPref : 'auto');
 
   // 窄屏（手机）上游戏画面本来就挤，左下角只留一颗小圆钮，点一下循环切换；
   // 宽屏才摊开成三个按钮。判定只在加载时做一次，避免旋屏时反复重建 DOM。
@@ -962,13 +1065,24 @@ html{-webkit-tap-highlight-color:transparent}
   function checkRotateHint() {
     var portrait = window.matchMedia && window.matchMedia('(orientation: portrait)').matches;
     var small = Math.min(screen.width || 9999, screen.height || 9999) < 820;
-    var need = pref === 'land' && portrait && small && !locked;
+    // 正在局内就别糊一张全屏提示上去了（玩家可能只是竖着打了一半，
+    // 遮罩会直接把画面盖住）。局内只靠页面自己的排版自适应。
+    var inGame = document.body && document.body.classList.contains('live');
+    var need = pref === 'land' && portrait && small && !locked && !inGame;
     overlay.classList.toggle('on', need && !dismissed);
     document.body.style.overflow = overlay.classList.contains('on') ? 'hidden' : '';
   }
 
   var locked = false;
   var dismissed = false;
+
+  // 给页面用的接口：音游把「自动 / 横屏 / 竖屏」摆进自己的设置与暂停面板，
+  // 与左下角这颗小钮共用同一个键，两边状态必须一致。
+  window.zjOrient = {
+    get: function () { return pref; },
+    set: function (k, fromUser) { set(k, fromUser !== false); },
+    modes: MODES
+  };
 
   function lock(mode) {
     if (!screen.orientation || typeof screen.orientation.lock !== 'function') return Promise.reject();

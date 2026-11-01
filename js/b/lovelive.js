@@ -763,6 +763,27 @@ const m_audio = await (async () => {
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
+// decodeAudioData 只会重采样，不会减声道。手机上最吃内存的就是这两条 4 字节浮点
+// 声道，混成单声道再省一半（听歌、外放都听不出差别）。
+function toMono(buf, OC) {
+  if (!buf || buf.numberOfChannels < 2) return buf;
+  try {
+    const n = buf.length;
+    const ch = buf.numberOfChannels;
+    const m = new OC(1, 1, buf.sampleRate).createBuffer(1, n, buf.sampleRate);
+    const out = m.getChannelData(0);
+    for (let c = 0; c < ch; c++) {
+      const src = buf.getChannelData(c);
+      for (let i = 0; i < n; i++) out[i] += src[i];
+    }
+    const k = 1 / ch;
+    for (let i = 0; i < n; i++) out[i] *= k;
+    return m;
+  } catch (e) {
+    return buf;                        // 混不了就照原样用，别为了省内存把歌弄没了
+  }
+}
+
 const Audio = {
   ac: null,
   master: null,
@@ -780,6 +801,9 @@ const Audio = {
   timer: 0,
   wave: 'square',
   vol: { mus: 0.7, fx: 0.6 },
+  lite: false,          // 上一次解码是不是走了「22.05k 单声道」降级路
+  forceLite: false,     // 强制走降级路（省内存 / 测试）
+  lastDecodeErr: '',
 
   ensure() {
     if (this.ac) {
@@ -816,16 +840,40 @@ const Audio = {
     if (this.fxGain) this.fxGain.gain.value = this.vol.fx * this.vol.fx;
   },
 
+  // 解码。手机上一首 4 分钟的原曲解出来是 90MB 的浮点 PCM（双声道 44.1k），
+  // 内存紧的机器 decodeAudioData 会直接抛 EncodingError —— 页面随后退回芯片，
+  // 用户听到的就是「电子音」。所以这里留一条降级路：用离线上下文按 22.05k
+  // 单声道重解，内存降到 1/4，音质差一档但原曲还在。AudioBuffer 可以跨
+  // context 使用，解出来的照样喂给主线路播放。
   async decode(data) {
+    this.lite = false;
+    this.lastDecodeErr = '';
     const ac = this.ensure();
     if (!ac) throw new Error('浏览器不支持 WebAudio');
-    const buf = await new Promise((res, rej) => {
+    // 每次解码都用一份新的字节：Safari 会把传进 decodeAudioData 的 ArrayBuffer
+    // transfer 掉（detach），同一份拿两次会失败
+    const once = (ctx) => new Promise((res, rej) => {
       // 老 Safari 只认回调式；新浏览器返回 Promise
       let p;
-      try { p = ac.decodeAudioData(data, res, rej); } catch (e) { rej(e); return; }
+      try { p = ctx.decodeAudioData(data.slice(0), res, rej); } catch (e) { rej(e); return; }
       if (p && typeof p.then === 'function') p.then(res, rej);
     });
-    return buf;
+    try {
+      // forceLite：跳过主路径直接走降级（测试用，也当「省内存模式」的钩子）
+      if (this.forceLite) throw new Error('force-lite');
+      return await once(ac);
+    } catch (e) {
+      this.lastDecodeErr = (e && (e.name || e.message)) || String(e);
+      const OC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (OC) {
+        try {
+          const off = new OC(1, 1, 22050);
+          const buf = await once(off);
+          if (buf) { this.lite = true; return toMono(buf, OC); }
+        } catch (e2) { this.lastDecodeErr += ' / 降级也失败：' + ((e2 && (e2.name || e2.message)) || e2); }
+      }
+      throw e;
+    }
   },
 
   // 曲目时间（秒）。暂停靠 ac.suspend()，currentTime 会停住。
@@ -1831,33 +1879,50 @@ const PASS = ['mori', 'mens', '\u2605', 'love', 'live', '-pack-1'].join('');
 const CACHE = new Map();          // id -> ArrayBuffer（只留最近两份，别把内存吃光）
 const enc = new TextEncoder();
 let keyP = null;
+let keyS = null;                  // 这份 key 是拿哪个 subtle 算出来的
 
-function haveCrypto() {
-  return !!(window.crypto && window.crypto.subtle && window.crypto.subtle.importKey);
+// 为什么要有 why()：手机上一旦取包/解密失败，页面会安静地退回芯片合成，
+// 用户只听见「电子音」却不知道坏在哪一步。把原因留在这里，暂停面板直接显示。
+let lastWhy = '';
+function why() { return lastWhy; }
+
+// WebCrypto：iOS 11 之前叫 crypto.webkitSubtle；某些手机内置浏览器两个都没有
+// （常见于非 https 打开），那时只能退回芯片合成。
+function subtleOf() {
+  const c = window.crypto;
+  if (!c) return null;
+  return c.subtle || c.webkitSubtle || null;
 }
 
-function getKey() {
-  if (!keyP) {
-    keyP = window.crypto.subtle
-      .digest('SHA-256', enc.encode(PASS))
-      .then((h) => window.crypto.subtle.importKey('raw', h, { name: 'AES-GCM' }, false, ['decrypt']));
-  }
+function getKey(s) {
+  if (keyP && keyS === s) return keyP;
+  keyS = s;
+  keyP = s.digest('SHA-256', enc.encode(PASS))
+    .then((h) => s.importKey('raw', h, { name: 'AES-GCM' }, false, ['decrypt']));
   return keyP;
 }
 
 // 解一个包：返回 ArrayBuffer（音频原始字节）。没有包 / 不是包 / 解不开都返回 null，
 // 调用方退回芯片改编，页面不能因此挂掉。
 async function unpack(buf) {
-  if (!buf || buf.byteLength < 32) return null;
+  lastWhy = '';
+  if (!buf || buf.byteLength < 32) { lastWhy = '包不对（太短）'; return null; }
   const head = new Uint8Array(buf, 0, 8);
-  for (let i = 0; i < MAGIC.length; i++) if (head[i] !== MAGIC.charCodeAt(i)) return null;
-  if (!haveCrypto()) return null;
-  const iv = new Uint8Array(buf, 8, 12);
-  const body = new Uint8Array(buf, 20);
+  for (let i = 0; i < MAGIC.length; i++) {
+    if (head[i] !== MAGIC.charCodeAt(i)) { lastWhy = '取回来的不是原曲包'; return null; }
+  }
+  const s = subtleOf();
+  if (!s) { lastWhy = '这个浏览器没有 WebCrypto（要用 https 打开）'; return null; }
+  // 关键：iv 与密文都复制成独立 Buffer，不传「带 byteOffset 的视图」。
+  // WebKit 在部分版本里对 TypedArray 视图会忽略 byteOffset，拿整个底层 buffer
+  // 去算 GCM —— 密文整体错位，每次都解不开。手机 Safari 上「全是电子音」就是它。
+  const iv = new Uint8Array(buf.slice(8, 20));
+  const body = buf.slice(20);
   try {
-    const key = await getKey();
-    return await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, body);
+    const key = await getKey(s);
+    return await s.decrypt({ name: 'AES-GCM', iv }, key, body);
   } catch (e) {
+    lastWhy = '解密失败：' + ((e && (e.name || e.message)) || e);
     return null;
   }
 }
@@ -1865,27 +1930,45 @@ async function unpack(buf) {
 // 取某个曲子的原曲包字节。PACKS 是构建时从 data/ll-music.json 生成的清单。
 async function fetchPack(packs, id) {
   const meta = packs && packs[id];
-  if (!meta || !meta.file) return null;
+  if (!meta || !meta.file) { lastWhy = '这首没有原曲包'; return null; }
   if (CACHE.has(id)) return CACHE.get(id);
-  let raw = null;
-  try {
-    const r = await fetch(meta.file, { cache: 'force-cache' });
-    if (!r.ok) return null;
-    raw = await r.arrayBuffer();
-  } catch (e) {
-    return null;
+  const want = (meta.kb || 0) * 1024;
+  // 两次尝试：第一次带 no-cache（有 304 就复用，省流量）；万一拿回来的是缓存里
+  // 躺着的旧包 / 上次没下完的截断包（手机上换网、后台被杀都很常见），
+  // 第二次换成带时间戳的 URL 硬重下 —— 这条能绕开所有中间缓存与 Service Worker。
+  const tries = [
+    { url: meta.file, cache: 'no-cache' },
+    { url: meta.file + (meta.file.includes('?') ? '&' : '?') + 'r=' + Date.now(), cache: 'reload' },
+  ];
+  for (const t of tries) {
+    let raw = null;
+    try {
+      const r = await fetch(t.url, { cache: t.cache });
+      if (!r.ok) { lastWhy = '取包失败 HTTP ' + r.status; continue; }
+      raw = await r.arrayBuffer();
+    } catch (e) {
+      lastWhy = '取包失败：' + ((e && e.message) || e);
+      continue;
+    }
+    // 长度对不上就当这份不能用（清单里记着 kb，正好拿来校验）
+    if (want > 0 && Math.abs(raw.byteLength - want) > want * 0.05) {
+      lastWhy = '包长度不对（' + raw.byteLength + ' / ' + want + '）';
+      continue;
+    }
+    const plain = await unpack(raw);
+    if (!plain) continue;
+    lastWhy = '';
+    CACHE.set(id, plain);
+    while (CACHE.size > 2) CACHE.delete(CACHE.keys().next().value);
+    return plain;
   }
-  const plain = await unpack(raw);
-  if (!plain) return null;
-  CACHE.set(id, plain);
-  while (CACHE.size > 2) CACHE.delete(CACHE.keys().next().value);
-  return plain;
+  return null;
 }
 
 function hasPack(packs, id) {
   return !!(packs && packs[id] && packs[id].file);
 }
-return { unpack, fetchPack, hasPack };
+return { why, unpack, fetchPack, hasPack };
 })();
 
 // ---- js/ll/shop.js
@@ -2876,7 +2959,7 @@ const { SONGS, arrange } = m_songs;
 const { Audio } = m_audio;
 const { detectOnsets, chartFromOnsets, chartFromArr, hashStr, packOnsets, unpackOnsets } = m_analyze;
 const { UNITS, PACKS } = m_gen;
-const { fetchPack, hasPack } = m_musicbox;
+const { fetchPack, hasPack, why: packWhy } = m_musicbox;
 const { initShop } = m_shop;
 const { startGameCloud } = m_gamecloud;
 // lovelive！mori⭐mens！ —— 点按式音游（学园偶像祭的玩法壳 + 《忘却前夜》的唤醒体）。
@@ -2956,7 +3039,7 @@ function loadSave() {
   s.keys = s.keys == null ? 1 : (s.keys ? 1 : 0);
   // 震动反馈（Android 的 navigator.vibrate；iOS 没有这个接口，开了也无事发生）：触屏设备默认开
   s.haptic = s.haptic == null ? (matchMedia('(pointer:coarse)').matches ? 1 : 0) : (s.haptic ? 1 : 0);
-  // 工坊：本机谱面的索引（正文在 IndexedDB，这里只留列表要用的字段）
+  s.listen = s.listen ? 1 : 0;  // 工坊：本机谱面的索引（正文在 IndexedDB，这里只留列表要用的字段）
   s.mine = Array.isArray(s.mine) ? s.mine.filter((m) => m && m.id).slice(0, 60) : [];
   // 云端谱面里「我已经把音频对上了」的那些：{ <cloudId>: { name, dur } }
   s.cloudAudio = (s.cloudAudio && typeof s.cloudAudio === 'object') ? s.cloudAudio : {};
@@ -3030,8 +3113,11 @@ const scr = {
 function show(name) {
   for (const k of Object.keys(scr)) scr[k].hidden = k !== name;
   G.scr = name;
-  // 打歌时把全站的横竖屏开关收起来（它固定在左下角，会压住最左边两格）
+  // 打歌时把全站的横竖屏开关收起来（它固定在左下角，会压住最左边两格），
+  // 顺便通知它重算一次：它会在竖屏时压一张「把手机横过来」的遮罩，
+  // 一进局内就得收起来，不然整局都被盖着。show 里 dispatch，组件监听 resize。
   document.body.classList.toggle('live', name === 'live');
+  window.dispatchEvent(new Event('resize'));
 }
 
 /* ================================================================ 全局状态 */
@@ -3041,6 +3127,8 @@ const G = {
   cnt: { p: 0, g: 0, go: 0, b: 0, m: 0 },
   accW: 0, stamina: 100, buffs: [], sk: [], banner: null, fx: [], flashes: [],
   holds: {}, active: new Set(), holdingLanes: [], running: false, over: false, paused: false, auto: AUTO,
+  // 听歌模式：自动把每个音按最低档（BAD）打掉、体力锁满，单纯把整首听完
+  listen: false, srcName: '', srcWhy: '', srcLite: false, srcPack: false,
   tickAt: 0, prep: false, stall: 0, lastT: 0,
 };
 
@@ -3225,14 +3313,23 @@ function judgeNote(n, j) {
   if (j === 'p') onPerfect();
   if (j === 'b') G.stamina = clamp(G.stamina - diffOf(G.diffK).stam * 0.55, 0, 100);
   addCombo(1);
-  Audio.fx(j, G.combo, n.lane);
-  pushFx(n.lane, j);
-  if (SAVE.haptic && !G.auto && j !== 'b' && navigator.vibrate) { try { navigator.vibrate(j === 'p' ? 9 : 6); } catch (e) { /* 不支持就算了 */ } }
-}
+  // 听歌模式把判定音与飘字一起收掉：目的是听完整首，不是看满地 BAD
+  if (!G.listen) { Audio.fx(j, G.combo, n.lane); pushFx(n.lane, j); }
+  if (SAVE.haptic && !G.auto && !G.listen && j !== 'b' && navigator.vibrate) {
+    try { navigator.vibrate(j === 'p' ? 9 : 6); } catch (e) { /* 不支持就算了 */ }
+  }}
 function missNote(n) {
   if (n.judged) return;
   n.judged = true;
   const now = chartTime();
+  // 听歌模式：漏过去的音也按最低档补一笔，不记 Miss。
+  // （局内刚开听歌模式时，暂停期间已经越过判定窗的那几个音会走到这里）
+  if (G.listen) {
+    G.cnt.b++;
+    G.accW += JW.b;
+    addCombo(1);
+    return;
+  }
   G.cnt.m++;
   // 技能优先级：自动救（Miss → Good）> 护盾（不断连不掉血）
   if (buffFlag('auto')) {
@@ -3292,10 +3389,12 @@ function layout() {
   const n = 9;
   const gap = Math.max(4, Math.min(8, W * 0.014));
   const side = Math.max(8, W * 0.02);
-  const bw = Math.min(76, (W - side * 2 - gap * (n - 1)) / n);
+  // 三条约束取最小：宽度装得下、高度留得出走廊（H*0.26）、宽屏才放大到 88
+  const cap = Math.min(W > 640 ? 88 : 76, H * 0.26);
+  const bw = Math.max(24, Math.min(cap, (W - side * 2 - gap * (n - 1)) / n));
   const total = bw * n + gap * (n - 1);
   const x0 = (W - total) / 2 + bw / 2;
-  const baseY = H - Math.max(58, Math.min(88, H * 0.155));
+  const baseY = H - Math.max(42, Math.min(88, H * 0.155));
   LAY.bw = bw;
   LAY.bh = bw;
   LAY.spawn = { x: W / 2, y: Math.max(30, H * 0.085) };
@@ -3504,8 +3603,10 @@ function fit() {
   const box = $('#stage');
   if (!box) return;
   const b = box.getBoundingClientRect();
-  W = Math.max(260, b.width);
-  H = Math.max(320, b.height);
+  // 宽度给个下限防止 0；高度必须**跟着容器**，不能设下限把它顶高——
+  // 横屏时舞台只有两百多像素，一撑就超出 .stage，底下的九格直接被裁没
+  W = Math.max(240, b.width);
+  H = Math.max(160, b.height);
   // 2.5 的像素比在手机上等于白烧一半填充率；2 已经看不出差别
   DPR = Math.min(2, window.devicePixelRatio || 1);
   cv.width = Math.round(W * DPR);
@@ -3782,9 +3883,14 @@ function loop(ts) {
   }
   // 过点判定
   const W4 = windows()[3];
+  // 听歌模式：体力锁满，怎么打都不会死（音符照样被自动清掉，谱面一直往前走）
+  if (G.listen) G.stamina = 100;
   while (G.ni < G.notes.length) {
     const n = G.notes[G.ni];
-    if (G.auto && !n.judged && n.t <= now) { autoHit(n, now); continue; }
+    if ((G.auto || G.listen) && !n.judged && n.t <= now) {
+      autoHit(n, now, G.listen ? 'b' : null);
+      continue;
+    }
     if (!n.judged) {
       if (n.t < now - W4) { missNote(n); continue; }
       break;
@@ -3794,10 +3900,10 @@ function loop(ts) {
   if (G.stamina <= 0) { finish(true); return; }
   if (G.chart && now > G.chart.dur) finish(false);
 }
-function autoHit(n, now) {
+function autoHit(n, now, fixed) {
   if (n.kind === 'hold') {
     n.holding = true;
-    const j = judgeBy(n.t - now) || 'p';
+    const j = fixed || judgeBy(n.t - now) || 'p';
     judgeNote(n, j);
     n.holding = false;
     // 自动模式直接算撑满
@@ -3806,7 +3912,7 @@ function autoHit(n, now) {
     G.accW += JW.go; G.cnt.go++;
     addCombo(1);
   } else {
-    judgeNote(n, judgeBy(n.t - now) || 'p');
+    judgeNote(n, fixed || judgeBy(n.t - now) || 'p');
   }
   G.ni++;
 }
@@ -3844,6 +3950,9 @@ function paintSkillChips(force) {
 
 /* ================================================================ 音源准备 */
 const TRACK_CACHE = new Map();
+// 上一次没能用上原曲的原因：手机上一旦取包/解密/解码失败，页面会安静退回芯片，
+// 耳朵里就是「全是电子音」。留个字符串，暂停面板直接摊给用户看。
+let trackWhy = '';
 // 取一首歌的音频，三档优先级：
 //   ① 本机导入的原曲（IndexedDB，玩家的私人版本，能盖过内置包）
 //   ② 仓库里的原曲包（assets/ll-music/*.bin，加密的，取回来在这里解）
@@ -3864,14 +3973,26 @@ async function prepareTrack(songId) {
     if (plain) {
       data = plain;
       pack = true;
+      trackWhy = '';
       const meta = PACKS[songId] || {};
       name = meta.src || ('原曲包 · ' + songId);
       const saved = await idbCGet('ons2:' + songId).catch(() => null);
       if (saved && saved.onsets) onsets = saved.onsets;
+    } else {
+      trackWhy = packWhy() || '原曲包取不到';
     }
+  } else if (!data) {
+    trackWhy = '本机没有这首的音源';
   }
   if (!data) return null;
-  const buffer = await Audio.decode(data.slice(0));
+  let buffer;
+  try {
+    buffer = await Audio.decode(data.slice(0));
+  } catch (e) {
+    // 解码失败（手机内存紧、格式怪）时也把原话留住，别只留一句「电子音」
+    trackWhy = '原曲解码失败：' + ((e && (e.name || e.message)) || e);
+    throw e;
+  }
   let on;
   // 数组形式是缓存下来的（7 个数一档），对象形式是本机导入时刚算的
   if (onsets && onsets.length) on = Array.isArray(onsets[0]) ? unpackOnsets(onsets) : onsets;
@@ -3953,6 +4074,12 @@ async function startLive() {
   G.accW = 0; G.stamina = 100; G.fx = []; G.flashes = []; G.holds = {};
   G.over = false; G.paused = false; G.banner = null; G.tickAt = 0;
   G.di = 0; G.holdingLanes = [];
+  // 这一局到底在放什么、听歌模式开没开：暂停面板要显示，别再让人猜「为什么是电子音」
+  G.listen = !!SAVE.listen;
+  G.srcPack = !!(track && track.pack);
+  G.srcLite = !!(track && Audio.lite);
+  G.srcName = track ? (track.name || '') : '';
+  G.srcWhy = track ? '' : (trackWhy || '没有可用的原曲');
   Audio.setMute(!!SAVE.mute);
   Audio.setVol(SAVE.musVol, SAVE.fxVol);
   Audio.setScale(song.root || 60);
@@ -3962,7 +4089,8 @@ async function startLive() {
   G.running = true;
   show('live');
   $('#live-song').textContent = song.n;
-  $('#live-diff').textContent = song.custom ? ('自制谱面' + (track ? '' : ' · 无音频')) : (D.n + (track ? ' · 原曲' : ' · 芯片改编'));
+  G.diffText = song.custom ? ('自制谱面' + (track ? '' : ' · 无音频')) : (D.n + (track ? ' · 原曲' : ' · 芯片改编'));
+  paintDiffText();
   $('#live-score').textContent = '0';
   $('#live-combo').textContent = '—';
   $('#live-banner').textContent = '';
@@ -3971,11 +4099,56 @@ async function startLive() {
   initSkills();
   paintSkillChips(true);
 }
+// 顶栏那行「NORMAL · 原曲」：局内开关听歌模式要跟着变，不然看不出现在是听歌还是正式打
+function paintDiffText() {
+  const el = $('#live-diff');
+  if (el) el.textContent = (G.diffText || '') + (G.listen ? ' · 听歌' : '');
+}
 function togglePause() {
   if (!G.running) return;
   G.paused = !G.paused;
   $('#pauseDlg').hidden = !G.paused;
-  if (G.paused) Audio.suspend(); else Audio.resume();
+  if (G.paused) { paintPause(); Audio.suspend(); } else Audio.resume();
+}
+
+// 屏幕方向托管给全站的 zj-orient 组件（它负责锁方向、转屏提示、记本地），
+// 这里只做读 / 写两层薄封装，让设置与暂停面板的分段控件跟它同步。
+// 手机第一次进来默认横屏（body 上有 data-orient-default="land"）。
+function orientPref() {
+  try {
+    if (window.zjOrient) return window.zjOrient.get();
+    return localStorage.getItem('zjtt:orient:lovelive') || 'auto';
+  } catch (e) { return 'auto'; }
+}
+function setOrient(k) {
+  try { if (window.zjOrient) window.zjOrient.set(k, true); } catch (e) { /* 组件不在就随它 */ }
+  $$('#set-orient button').forEach((b) => b.classList.toggle('on', b.dataset.v === k));
+  $$('#pause-orient button').forEach((b) => b.classList.toggle('on', b.dataset.v === k));
+  // 转屏后画布尺寸会变，晚一点再排一次（等浏览器把视口改完）
+  setTimeout(fit, 300);
+}
+
+// 暂停面板：音量两条、屏幕方向、听歌模式、当前音源。局内能直接调，
+// 不用退出到设置再进来（打歌中途谁也懒得来回切屏）。
+function srcLine() {
+  if (G.srcWhy) return '芯片合成 · ' + G.srcWhy;
+  const nm = G.song ? G.song.n : '';
+  return (G.srcPack ? '原曲' : '本机音频') + (nm ? ' · ' + nm : '') + (G.srcLite ? '（降级解码）' : '');
+}
+function paintPause() {
+  const m = $('#pause-mus'), f = $('#pause-fx');
+  if (m) {
+    m.value = String(Math.round(SAVE.musVol * 100));
+    $('#pause-mus-v').textContent = Math.round(SAVE.musVol * 100) + '%';
+  }
+  if (f) {
+    f.value = String(Math.round(SAVE.fxVol * 100));
+    $('#pause-fx-v').textContent = Math.round(SAVE.fxVol * 100) + '%';
+  }
+  $$('#pause-orient button').forEach((b) => b.classList.toggle('on', b.dataset.v === orientPref()));
+  $$('#pause-listen button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!G.listen));
+  const el = $('#pause-src');
+  if (el) el.textContent = '音源：' + srcLine();
 }
 function finish(failed) {
   if (G.over) return;
@@ -3991,20 +4164,27 @@ function finish(failed) {
   const fc = !failed && G.cnt.m === 0 && G.cnt.b === 0;
   const rank = failed ? 'F' : acc >= 0.985 ? 'SSS' : acc >= 0.945 ? 'SS' : acc >= 0.90 ? 'S'
     : acc >= 0.82 ? 'A' : acc >= 0.72 ? 'B' : acc >= 0.60 ? 'C' : 'D';
-  SAVE.plays++;
-  if (G.maxCombo > SAVE.bestCombo) SAVE.bestCombo = G.maxCombo;
   const bk = bestKey(G.song.id, G.diffK);
-  const isBest = (Number(SAVE.best[bk]) || 0) < Math.round(G.score);
-  if (isBest) SAVE.best[bk] = Math.round(G.score);
+  let isBest = false;
+  if (G.listen) {
+    // 听歌模式的判定是固定的 BAD，成绩没有可比性：不写最高分、也不计场次
+  } else {
+    SAVE.plays++;
+    if (G.maxCombo > SAVE.bestCombo) SAVE.bestCombo = G.maxCombo;
+    isBest = (Number(SAVE.best[bk]) || 0) < Math.round(G.score);
+    if (isBest) SAVE.best[bk] = Math.round(G.score);
+  }
   persist();
-  $('#res-rank').textContent = rank;
-  $('#res-title').textContent = failed ? '体力见底，Live 中断…' : (ap ? 'ALL PERFECT！' : fc ? 'FULL COMBO！' : 'Live 结束');
-  $('#res-song').textContent = G.song.n + ' · ' + diffOf(G.diffK).n + (G.chartSrc === 'audio' ? ' · 原曲' : '');
+  $('#res-rank').textContent = G.listen ? '🎧' : rank;
+  $('#res-title').textContent = G.listen ? '听歌模式 · 完整听完'
+    : failed ? '体力见底，Live 中断…' : (ap ? 'ALL PERFECT！' : fc ? 'FULL COMBO！' : 'Live 结束');
+  $('#res-song').textContent = G.song.n + ' · ' + diffOf(G.diffK).n
+    + (G.chartSrc === 'audio' ? ' · 原曲' : '') + (G.listen ? ' · 不计成绩' : '');
   $('#res-score').textContent = fmt(G.score);
   $('#res-acc').textContent = (acc * 100).toFixed(2) + '%';
   $('#res-combo').textContent = String(G.maxCombo);
   $('#res-notes').textContent = String(G.notes.length);
-  $('#res-best').textContent = isBest ? '★ 新纪录' : '最高 ' + fmt(SAVE.best[bk] || 0);
+  $('#res-best').textContent = G.listen ? '听歌模式不计成绩' : (isBest ? '★ 新纪录' : '最高 ' + fmt(SAVE.best[bk] || 0));
   $('#res-judge').innerHTML = ['p', 'g', 'go', 'b', 'm']
     .map((k) => '<li><span style="color:' + JC[k] + '">' + JN[k] + '</span><b>' + G.cnt[k] + '</b></li>').join('');
   $('#res-skills').innerHTML = G.sk.map((st) => (
@@ -4159,7 +4339,8 @@ function paintSet() {
   $$('#set-win button').forEach((b) => b.classList.toggle('on', Number(b.dataset.v) === SAVE.winMul));
   $$('#set-keys button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.keys));
   $$('#set-haptic button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.haptic));
-  renderTrackList();
+  $$('#set-orient button').forEach((b) => b.classList.toggle('on', b.dataset.v === orientPref()));
+  $$('#set-listen button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.listen));  renderTrackList();
 }
 function renderTrackList() {
   const box = $('#set-tracks');
@@ -4250,6 +4431,36 @@ $('#pause-retry').onclick = () => {
   G.running = false; G.over = true; Audio.stop();
   startLive();
 };
+// 局内音量：拖一下就立刻生效，不用等继续
+$('#pause-mus').oninput = (e) => {
+  SAVE.musVol = (Number(e.target.value) || 0) / 100;
+  $('#pause-mus-v').textContent = Math.round(SAVE.musVol * 100) + '%';
+  Audio.setVol(SAVE.musVol, null);
+  $('#set-mus').value = String(Math.round(SAVE.musVol * 100));
+  $('#set-mus-v').textContent = Math.round(SAVE.musVol * 100) + '%';
+  persist();
+};
+$('#pause-fx').oninput = (e) => {
+  SAVE.fxVol = (Number(e.target.value) || 0) / 100;
+  $('#pause-fx-v').textContent = Math.round(SAVE.fxVol * 100) + '%';
+  Audio.setVol(null, SAVE.fxVol);
+  $('#set-fx').value = String(Math.round(SAVE.fxVol * 100));
+  $('#set-fx-v').textContent = Math.round(SAVE.fxVol * 100) + '%';
+  persist();
+};
+$$('#pause-orient button').forEach((b) => { b.onclick = () => setOrient(b.dataset.v); });
+// 听歌模式：局内切换立刻生效（打开就把体力补满，关掉继续正常打）
+$$('#pause-listen button').forEach((b) => {
+  b.onclick = () => {
+    const on = b.dataset.v === '1';
+    G.listen = on;
+    SAVE.listen = on ? 1 : 0;
+    if (on) { G.stamina = 100; G.banner = { txt: '听歌模式：自动最低判定，不会掉血', until: chartTime() + 1.6, hue: 200 }; }
+    persist();
+    paintDiffText();
+    paintPause();
+  };
+});
 $('#pause-quit').onclick = () => {
   G.paused = false; $('#pauseDlg').hidden = true; G.running = false; G.over = true; Audio.stop();
   renderSongs(); show('songs');
@@ -4282,6 +4493,14 @@ $$('#set-win button').forEach((b) => {
     SAVE.winMul = Number(b.dataset.v) || 1;
     persist();
     $$('#set-win button').forEach((x) => x.classList.toggle('on', x === b));
+  };
+});
+$$('#set-orient button').forEach((b) => { b.onclick = () => setOrient(b.dataset.v); });
+$$('#set-listen button').forEach((b) => {
+  b.onclick = () => {
+    SAVE.listen = b.dataset.v === '1' ? 1 : 0;
+    persist();
+    $$('#set-listen button').forEach((x) => x.classList.toggle('on', x === b));
   };
 });
 $$('#set-keys button').forEach((b) => {
@@ -4351,6 +4570,7 @@ if (TEST) {
   window.__ll = {
     G, SAVE, UNITS, SONGS, DIFFS, LAY, KEYS, startLive, finish, buildChart, show,
     renderSongs, openTeam, renderTeam, paintSet, importTrack, prepareTrack,
+    srcLine, paintPause, LAY, size: () => ({ W, H, DPR }),
     tapLane, tapNear, notePos, leadEff, windows, judgeBy, chartTime,
     setDiff: (k) => { G.diffK = k; },
     pickSong: (id) => { G.song = SONGS.find((x) => x.id === id) || SONGS[0]; },
