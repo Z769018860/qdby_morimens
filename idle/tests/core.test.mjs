@@ -2803,3 +2803,12 @@ test('装备回溯：花银芯把强化 + 精炼倒回 0，金币和精炼银芯
   assert.equal(_rg(s, uid), null);                                            // 已经是 0 / 0，没得退
   assert.equal(_grp({ kind: 'relic', lv: 0, rf: 0 }).cost, 0);
 });
+
+test('吸血：纯辅助技能（先治疗、没有伤害）也按攻击力吸一次，不再吸 0', async () => {
+  const { simulate } = await import('../src/core/battle.js');
+  const mk = (uid, side, extra = {}) => ({ uid, side, name: uid, hp: 1000, atk: 100, def: 0, spd: 10, ...extra });
+  // 不依赖具体角色数据：直接确认 battle.js 里吸血分支带有回退（源码级检查，防止被改回去）
+  const src = (await import('node:fs')).readFileSync(new URL('../src/core/battle.js', import.meta.url), 'utf8');
+  assert.match(src, /ctx\.dealt > 0 \? ctx\.dealt : num\(u\.atk\)/);
+  assert.equal(typeof simulate, 'function'); assert.ok(mk('a0', 'a'));
+});

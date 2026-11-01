@@ -148,7 +148,8 @@ class Replay {
       }
       case 'dmg': case 'dot': case 'counter': {
         const u = U(e.who); if (!u) break;
-        if (e.hp != null) bar(u, e.hp);
+        if (!Number.isFinite(e.hp) || !Number.isFinite(e.amt)) break;   // 「挂上毒 / 流血」事件没有伤害数，别当成一次受击
+        bar(u, e.hp);
         if (e.blocked) { say(u, '屏障!', 'sh'); sound.play('block'); break; }
         if (e.crit) { u.el.classList.add('shake'); setTimeout(() => u.el.classList.remove('shake'), 260); }
         u.el.classList.remove('hit'); void u.el.offsetWidth; u.el.classList.add('hit');

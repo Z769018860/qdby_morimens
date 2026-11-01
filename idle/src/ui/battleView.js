@@ -279,6 +279,7 @@ export class BattleView {
   }
 
   setBars(u, e) {
+    if (!Number.isFinite(Number(e.hp))) return;
     const hp = u.el.querySelector('.hp');
     hp.firstElementChild.style.width = `${Math.max(0, (e.hp / u.max) * 100)}%`;
     hp.querySelector('b').textContent = fmt(e.hp);
@@ -331,6 +332,9 @@ export class BattleView {
       case 'status': { const u = U(e.who); if (u && !quiet) { this.float(u, STATUS[e.s]?.zh || ({ cleanse: '净化', stun: '眩晕', delay: '蓄力' })[e.s] || '', u.el.classList.contains('foe') ? 'debuff' : 'buff'); sound.play('status'); this.fx.aura(u.el, u.el.classList.contains('foe') ? COLORS.debuff : COLORS.buff, !u.el.classList.contains('foe')); } break; }
       case 'dmg': case 'dot': case 'counter': {
         const u = U(e.who); if (!u) break;
+        // 「挂上毒 / 流血」的事件只有 who、没有伤害和血量（真正的扣血是后面每回合的 dot 事件）：
+        // 以前照样拿去刷血条和飘字，血条变成「—」、飘出「-—」，所以这里直接跳过
+        if (!Number.isFinite(e.hp) || !Number.isFinite(e.amt)) break;
         this.setBars(u, e);
         if (e.blocked) { if (!quiet) { this.float(u, '屏障!', 'sh'); sound.play('block'); } break; }
         if (!quiet) {

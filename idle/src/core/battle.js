@@ -298,7 +298,9 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
           for (const t of targets(u, e.to)) addStatus(u, t, e.s, e.n, e.dur);
           break;
         case 'lifesteal':
-          if (ctx.dealt) heal(u, u, ctx.dealt * e.v / 100, true);
+          // 吸血按本次技能实际打出的伤害算；纯辅助技能（先治疗、没有伤害，如雷伊 / 沙耶的技能 1）没有可吸的伤害，
+          // 以前直接吸 0，等于白写。没打出伤害时按自身攻击力 ×1 当「一次出手」来算
+          heal(u, u, (ctx.dealt > 0 ? ctx.dealt : num(u.atk)) * e.v / 100, true);
           break;
         // ---- 专属技能（core/extra.js）用到的机制 ----
         case 'execute':    // 斩杀：目标血量低于 thr 时倍率翻倍
