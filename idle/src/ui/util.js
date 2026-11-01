@@ -96,19 +96,22 @@ export function toast(msg, ms = 2200) {
 
 let modalRoot;
 let modalKey = '', modalScroll = 0;
+// 滚动的是内层的 .modal-body，不是 .modal 本身：关闭键挂在 .modal 上（不滚），
+// 长弹窗往下翻时 ✕ 才不会被一起卷走。
+const modalBody = (root) => root?.querySelector('.modal-body') || root?.querySelector('.modal');
 // key：同一个弹窗被重新渲染（升级 / 叠位后刷新）时传同一个 key，滚动位置会保留——
 // 否则每点一次「叠位 +1」弹窗都跳回最上面，要重新往下拉才能点下一次。
 export function openModal(html, cls = '', key = '') {
-  if (modalRoot && modalKey) { const m = modalRoot.querySelector('.modal'); if (m) modalScroll = m.scrollTop; }
+  if (modalRoot && modalKey) { const m = modalBody(modalRoot); if (m) modalScroll = m.scrollTop; }
   const keep = key && key === modalKey ? modalScroll : 0;
   closeModal();
   modalKey = key;
   modalRoot = document.createElement('div');
   modalRoot.className = 'modal-bg';
-  modalRoot.innerHTML = `<div class="modal ${cls}"><button class="modal-x" data-act="close">✕</button>${html}</div>`;
+  modalRoot.innerHTML = `<div class="modal ${cls}"><button class="modal-x" data-act="close">✕</button><div class="modal-body">${html}</div></div>`;
   modalRoot.addEventListener('click', (e) => { if (e.target === modalRoot || e.target.closest('[data-act="close"]')) closeModal(); });
   document.body.appendChild(modalRoot);
-  if (keep) { const m = modalRoot.querySelector('.modal'); if (m) m.scrollTop = keep; }
+  if (keep) { const m = modalBody(modalRoot); if (m) m.scrollTop = keep; }
   return modalRoot;
 }
 export function closeModal() { if (modalRoot) { modalRoot.remove(); modalRoot = null; } modalKey = ''; modalScroll = 0; }

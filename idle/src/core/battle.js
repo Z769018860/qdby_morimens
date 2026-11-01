@@ -824,12 +824,15 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       // 她这时候选的是回血技能，看上去像「回血优先于大招」。队伍见底就别等了，也别捏着。
       if (teamInDanger(u)) { u.holdUlt = 0; u.ultWait = 0; return ultCard(u); }
       if (ultMode === 'first') {
-        // 血满了还放「治疗型大招」是白扔一次行动：大招和其它牌一起算分，
-        // 明显不如手上的牌就先捏着（最多捏两次，能量顶到 100 之后攒得也浪费）。
-        const nv = bestNormal(u);
+        // 「优先开大」的字面意思就是一攒满就放。
+        // 以前这里还会拿大招的分值跟手上最强的牌比一比，不到 72% 就捏着（最多捏两次行动）：
+        // 治疗型大招在满血时被算成 0 分（拉蒙娜 / 环行·拉蒙娜），护盾 + 小伤害的大招又比不过
+        // 自己的高倍率技能（奥吉尔），于是玩家明明选了「优先开大」，看到的是他俩一直放小技能。
+        // 现在只有一种情况会捏一下：这一发完全白给——纯治疗 / 护盾型大招、全队满血、
+        // 下一轮也没人要挨打、连充能收益都没有（分值为 0）。而且只捏一次行动，第二次必定开。
         const uv = cardValue(u, ultCard(u));
         u.holdUlt = (u.holdUlt || 0) + 1;
-        if (uv >= nv.v * 0.72 || u.holdUlt > 2 || hpPct(u) < 0.45) { u.holdUlt = 0; return ultCard(u); }
+        if (uv > 0 || u.holdUlt > 1) { u.holdUlt = 0; return ultCard(u); }
       }
       if (ultMode === 'order') {
         // 按玩家排好的顺序开：排在自己前面、而且已经攒满的人还没开（说明它这轮还没轮到），就先等它；

@@ -775,7 +775,7 @@ export const PRESETS = {
 export function setPreset(state, key) { const p = PRESETS[key]; state.strategy = { preset: key, defend: p.defend, target: p.target, ult: state.strategy?.ult || 'first' }; }
 /** 大招策略：first 优先开大 / sync 攒大招一起开 / order 按自定义顺序开 */
 export const ULT_MODES = {
-  first: { zh: '优先开大', desc: '大招一攒满就放，排在防御、技能之前（登场技是开场自动生效的，不占动作）。' },
+  first: { zh: '优先开大', desc: '大招一攒满就放，排在防御、技能之前（登场技是开场自动生效的，不占动作）。只有一种情况会捏一下：纯治疗 / 护盾型大招、全队满血、下一轮也没人要挨打——这一发放出去完全是白给，那就先做别的，下一次行动必定开。' },
   sync: { zh: '攒大招一起开', desc: '等全队的大招都攒满再一起放，打出爆发窗口；等太久（3 次行动）、自己血量见底，或者队里有人残血（任何队友 < 40%，或队均 < 50%）就不等了。' },
   order: { zh: '按顺序开大', desc: '在下面排好先后：排在前面的还攒着大招没放，后面的就先等（最多等 2 次行动），保证增益 / 充能类大招先落地，再让输出开。' },
 };

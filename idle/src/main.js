@@ -826,6 +826,12 @@ function onAct(e) {
       break;
     }
     case 'gear-tab': app.ui.gearTab = el.dataset.k; app.ui.gearLimit = 60; render(); break;
+    case 'gear-affix': {
+      const f = (app.ui.gearAffix ||= { wheel: '', covenant: '', relic: '' });
+      const k = app.ui.gearTab || 'wheel';
+      f[k] = f[k] === el.dataset.affix ? '' : el.dataset.affix;   // 再点一次同一个词条 = 取消筛选
+      app.ui.gearLimit = 60; render(); break;
+    }
     case 'gear-more': app.ui.gearLimit = (app.ui.gearLimit || 60) + 60; render(); break;
     // 命轮 / 密契页里的 4 人槽位：点一下就能换（不用先回角色详情）
     case 'gear-slot': {

@@ -506,6 +506,66 @@ await cdp.evalIife(`(() => { document.querySelector('.ttab[data-k="rift"]').clic
 await sleep(200);
 await cdp.shot('team-rift');
 
+// 11b) 编队编辑器：关闭键不跟着滚、可选唤醒体多了定位 / 稀有度筛选、装备列表按草稿实时显示归属
+const sqEdF = await cdp.evalIife(`(() => {
+  const s = __game.state, d = __game.data;
+  // 造一件能配进编队的装备：一队有独立配装（造物 3 件）
+  s.gear.items = s.gear.items || {};
+  const uids = [];
+  d.relics.slice(0, 6).forEach((r, i) => { const uid = 'rx' + i; s.gear.items[uid] = { uid, kind: 'relic', defId: r.id, lv: 10, rf: 0 }; uids.push(uid); });
+  for (const x of d.awakeners.slice(0, 6)) s.roster[x.slug] ||= { lv: 50, star: 1, brk: 0 };
+  s.squads.a = { team: [...s.team], lo: { equip: {}, relics: uids.slice(0, 3), orders: [null, null, null] } };
+  window.__go('team');
+  document.querySelector('.ttab[data-k="squads"]').click();
+  document.querySelector('[data-act="squad-edit"][data-k="a"]').click();
+  const shell = document.querySelector('.sqeditor');            // .sqeditor 就是 .modal 本身
+  const body = shell.querySelector('.modal-body');
+  const xBtn = shell.querySelector('.modal-x');
+  const before = Math.round(xBtn.getBoundingClientRect().top - shell.getBoundingClientRect().top);
+  body.scrollTop = 400;
+  const after = Math.round(xBtn.getBoundingClientRect().top - shell.getBoundingClientRect().top);
+  const rows = [...document.querySelectorAll('.sqeditor .sqrealms')].map((r) => [...r.querySelectorAll('button')].map((b) => b.innerText.trim()));
+  // 只看「守护」：可选列表里不该再出现突击 / 合唱
+  document.querySelector('[data-sq="type"][data-v="WARDEN"]').click();
+  const onlyWarden = [...document.querySelectorAll('.sqpick .tile')].every((t) => /守/.test(t.innerText));
+  const filtered = document.querySelectorAll('.sqpick .tile').length;
+  document.querySelector('[data-sq="fclear"]').click();
+  const cleared = document.querySelectorAll('.sqpick .tile').length;
+  // 造物换装：列表里那件装备的「已编入」应当出现「一队·草稿」
+  document.querySelector('[data-sq="relic"][data-i="0"]').click();
+  return { before, after, rows, onlyWarden, filtered, cleared,
+    draftChip: [...document.querySelectorAll('.modal .item')].filter((c) => c.querySelector('.sqchip.ed')).length,
+    pickerOpen: !!document.querySelector('[data-pick]') };
+})()`);
+await sleep(300);
+check(sqEdF.before === sqEdF.after, `编队编辑器的关闭键不跟着下滑（滚动前后距弹窗顶部都是 ${sqEdF.before}px）`);
+check(sqEdF.rows.length === 2 && sqEdF.rows[1].some((x) => /守护/.test(x)) && sqEdF.rows[1].some((x) => /创生/.test(x)),
+  `可选唤醒体可筛定位与稀有度：${(sqEdF.rows[1] || []).join(' / ')}`);
+check(sqEdF.onlyWarden && sqEdF.filtered > 0 && sqEdF.cleared > sqEdF.filtered,
+  `按「守护」筛选后只剩 ${sqEdF.filtered} 名（清掉筛选回到 ${sqEdF.cleared} 名）`);
+check(sqEdF.pickerOpen && sqEdF.draftChip > 0, `编队里换造物：列表按草稿标出「一队·草稿」（${sqEdF.draftChip} 件）`);
+await cdp.shot('squad-editor-filters');
+await cdp.evalIife(`(() => { document.querySelectorAll('.modal-x').forEach((x) => x.click()); return 1; })()`);
+
+// 11c) 装备页：按词条筛选
+const gearFx = await cdp.evalIife(`(() => {
+  window.__go('gear');
+  document.querySelector('[data-act="gear-tab"][data-k="relic"]').click();
+  const bar = [...document.querySelectorAll('.affixbar button')].map((b) => b.innerText.replace(/\\s+/g, ''));
+  const total = document.querySelectorAll('#gearlist .item').length;
+  const tap = [...document.querySelectorAll('.affixbar button')].find((b) => b.dataset.affix);
+  const word = tap.dataset.affix;
+  tap.click();
+  const one = document.querySelectorAll('#gearlist .item').length;
+  const head = document.querySelector('#view h3').innerText.replace(/\\s+/g, ' ');
+  // 点完页面会重绘，得重新查这颗胶囊是不是变成选中态（旧节点已经不在 DOM 里）
+  const on = !!document.querySelector('.affixbar button.on[data-affix="' + word + '"]');
+  return { bar, total, one, head, on, word };
+})()`);
+check(gearFx.bar.length >= 3 && gearFx.bar[0].startsWith('全部'), `装备页有词条筛选条：${gearFx.bar.slice(0, 6).join(' / ')}`);
+check(gearFx.on && gearFx.one > 0 && gearFx.one < gearFx.total, `点「${gearFx.word}」只剩 ${gearFx.one}/${gearFx.total} 件（标题：${gearFx.head}）`);
+await cdp.shot('gear-affix');
+
 // 12) 属性塔：四座塔各有自己的出战阵容条；挑战会先放一段战斗回放
 const rt = await cdp.evalIife(`(() => {
   window.__go('rtower');
