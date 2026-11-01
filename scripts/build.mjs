@@ -518,9 +518,55 @@ function genLive() {
   return { n: units.length, kb: Math.round(code.length / 1024) };
 }
 
+// ------------------------------------------- 弥萨格轮盘的十位出战唤醒体
+// 轮盘是「先选人、再猜子弹」的游戏，选人那一屏必须看得见脸；十张头像逐个请求，
+// 在边缘就是十个来回。所以和上面几个一样，构建时读成 data URI 塞进 js/roulette/gen.js。
+// 数值在 data/roulette-chars.json，脸和名字在 data/avatars.json，别手改 gen.js。
+function genRoulette() {
+  const cfg = readJson(path.join(ROOT, 'data/roulette-chars.json'));
+  const av = readJson(path.join(ROOT, 'data/avatars.json'));
+  const byId = new Map((av.items || []).filter((x) => x.k === 'awakener').map((x) => [x.id, x]));
+  const PASS = new Set(['echo', 'precog1', 'precog2', 'aim', 'armor', 'lifesteal', 'greed', 'extra', 'serrate', 'revive', 'lucky']);
+  const ITEM_IDS = new Set(['lens', 'smoke', 'pour', 'saw', 'cuff', 'pill', 'invert', 'glove',
+    'whisper', 'scroll', 'aegis', 'chain', 'seal', 'needle', 'hourglass', 'coin', 'oracle']);
+  const seen = new Set();
+  const chars = (cfg.chars || []).map((c) => {
+    const m = byId.get(c.id);
+    if (!m) throw new Error(`roulette-chars.json：${c.id} 不是唤醒体`);
+    if (seen.has(c.id)) throw new Error(`roulette-chars.json：${c.id} 重复`);
+    seen.add(c.id);
+    if (!(c.hp >= 3 && c.hp <= 8)) throw new Error(`roulette-chars.json：${m.n} 的 hp 应在 3~8`);
+    if (!Array.isArray(c.items) || !c.items.length) throw new Error(`roulette-chars.json：${m.n} 没带道具`);
+    for (const id of c.items) if (!ITEM_IDS.has(id)) throw new Error(`roulette-chars.json：${m.n} 的道具 ${id} 不认识`);
+    if (!c.passive || !PASS.has(c.passive.k)) throw new Error(`roulette-chars.json：${m.n} 的被动 ${c.passive && c.passive.k} 引擎里没有`);
+    const file = path.join(ROOT, m.src || `assets/avatars/${c.id}.webp`);
+    if (!has(file)) throw new Error('头像不存在：' + file);
+    return {
+      id: c.id, n: m.n, en: m.en, hp: c.hp | 0, items: c.items, passive: c.passive,
+      realm: c.realm || '', role: c.role || '', line: c.line || '',
+      face: 'data:image/webp;base64,' + fs.readFileSync(file).toString('base64'),
+    };
+  });
+  if (chars.length < 6) throw new Error('roulette-chars.json：至少要有 6 位能出战的唤醒体');
+  const map = {};
+  for (const c of chars) map[c.id] = c;
+  const code = [
+    '// 由 scripts/build.mjs 从 data/roulette-chars.json + data/avatars.json 生成，请勿手改。',
+    '// face 是 data URI：选人一屏的头像一次传完，页面只发一个脚本请求。',
+    `export const CHAR_ORDER = ${JSON.stringify(chars.map((c) => c.id))};`,
+    `export const CHARS = ${JSON.stringify(map, null, 1)};`,
+    '',
+  ].join('\n');
+  const out = path.join(ROOT, 'js/roulette/gen.js');
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
+  return { n: chars.length, kb: Math.round(code.length / 1024) };
+}
+
 // ------------------------------------------------------------------ 主流程
 const artCount = genMergeArt();
 const liveUnits = genLive();
+const rgChars = genRoulette();
 const birdArt = genBirdArt();
 const sv = genSurvivors();
 const pf = genProtocol();

@@ -63,5 +63,10 @@
     "src": "assets/ui/gameicons/lovelive.webp",
     "from": "assets/avatars/a-15591.webp",
     "who": "艾继丝"
+  },
+  "roulette": {
+    "src": "assets/ui/gameicons/roulette.webp",
+    "from": "assets/avatars/a-95786.webp",
+    "who": "杜勒赛因"
   }
 }

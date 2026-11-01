@@ -1129,7 +1129,7 @@ body.themed > .wrap > .foot { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg
 /* 启灵下拉：战报侦探的卡位输入 / 工坊出题共用 */
 .pot select.potsel { flex: 0 1 auto; min-width: 0; max-width: 150px; font: inherit; font-size: 12.5px; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); }
 </style>
-<meta name="build" content="54e130050e">
+<meta name="build" content="d3e28251c2">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -1284,6 +1284,7 @@ html{-webkit-tap-highlight-color:transparent}
 <p>四项都做了一件事：<b>越靠近两端越难推</b>（72 以上再加分、28 以下再扣分最多打六折）。没有这条，随便点也能在六十天里把某一项一路推到底，实测随机策略有三成是记忆直接顶满收场，玩家会以为是自己不会玩。黑潮是第五项、也是唯一没有软上限的一项：它每天自己涨、某些决定推得更快，每五分之一任期来一次躲不掉的<b>潮汐</b>（屏障外脚步声、宿舍区集体梦话、审查会封校门、黑池进水、黑潮拍墙），扛过去会退潮一段，涨满则当场终局。另外每天有两笔固定开销，写在源码注释里：记忆 -0.18（世界本来就在忘记）、银芯 -0.1（水电工资）。三档难度只动三样：任期 30 / 60 / 90 天、起始 52 / 46 / 46、黑潮系数 1 / 1 / 1.15（每张卡统一放大 1.1 倍）——长任期的压力来自「黑潮从不等你」，九十天里要扛五次潮汐。<b>平衡是跑出来的</b>：三档各 2000 局随机策略，撑完任期分别是 <b>83% / 47% / 24%</b>；长任期里近一半的死因是黑潮，这是刻意的——只算四项的人会被水淹。卡池从 221 张扩到 307 张之后重扫过一遍，旧的 58/50/50 与 1.1-1.2 的放大倍数会让标准档掉到三成，所以按新卡池重新标定了。</p>
 <p>这一版把「算账」摆到明面上：两个按钮下面直接写着这一下会动哪几笔账（<b>记忆+7 · 银芯−4</b>），数字走的是和结算同一个 <code>previewFx()</code>，所以软上限打的折在点之前就看得见——不然玩家会以为这游戏在骗人。四项属性上面多了一行<b>潮汐倒计时</b>（第几次、还有几天、剩两天变红），潮汐是这一局唯一写死的截止日，藏在规则里没人算得清。第三件是<b>人物册</b>：75 个人按界域分组，标了性别与身份，见过才亮，跨任期累计。性别一律照站内 <code>data/dictionary.json</code> 的 <code>sex</code> 字段，不照译名猜——阿格里帕、血链·希洛、詹金、奥尔拉都是「她」，皮克曼、杜勒赛因、波吕克斯是「他」，十一位主播也全是「他」。旧稿里阿格里帕和希洛的卡写成了「他」，这次逐条改过了。</p>
 <p>卡面不是整张立绘：<code>assets/card/*.webp</code> 是 240&times;600 的全身图，一张二三十 KB，二十几张直接内联就是 1MB 进首屏。<code>scripts/build_reign_faces.py</code> 统一裁顶部 240&times;330（头到胸口）、缩成 176&times;242、q76 压成一份 <b>804KB</b> 的 data URI 表（75 张：62 张裁自立绘，11 位主播用他们本人的 B 站头像、垫一层自身的模糊放大版，校猫那张 96&times;96 的 Q 版头与米酒挂机版那只 128&times;128 的 Q 版头同样处理），构建时拼进 <code>js/reign/art.js</code>——整局仍然只有「页面 + 一个脚本」两个请求。存档走 <code>zjtt:reign:save</code>（中途退出，下次从标题页继续，存档里连「轮到哪张卡」都记着，重进不会换人）、<code>zjtt:reign:best</code>（当过几任、最长撑到第几天）、<code>zjtt:reign:endings</code>（结局图鉴）。个人中心会读后两个。</p>
+<p><b>弥萨格轮盘</b>（<code>roulette.html</code>）是恶魔轮盘（Buckshot Roulette）那一套：桌上只有一把枪，枪膛里混着实弹与空壳，<b>数量公开、顺序不知道</b>；对着自己开枪，是空壳就保住回合接着打，对着对面开枪，响没响都交回合。道具在自己回合里随便用、不消耗行动，所以一回合可以「窥镜看清 → 装锯 → 铐住 → 开枪」连成一串。三局两胜，第一局 3 实 3 空各摸 2 件，第二局 4 实 4 空各摸 3 件，第三局 5 实 5 空各摸 4 件，一膛打完按同样的数量重装重洗。<b>十位唤醒体</b>（24、阿格里帕、艾继丝、血链·希洛、杜勒赛因、朵尔、尤乌哈希、环行·拉蒙娜、墨菲、薇薇安）各有自己的理智上限、两件随身道具（其中一件是只有她有的专属：絮语碎片、演算手稿、自律护罩、血链、寂灭王印、缝合针、回环沙漏、赌徒筹码、预见）和一条被动——24 对自己打出空壳会从「她们」那里再摸一件，阿格里帕打出的实弹若是亲手看清的那颗伤害 +1，杜勒赛因坐下就先让对手少拿一件道具，环行·拉蒙娜整场能死一次再站起来。全部数值写在 <code>data/roulette-chars.json</code>，头像由 <code>scripts/build.mjs</code> 读成 data URI 内联进 <code>js/roulette/gen.js</code>。人机对手只用自己的知情（<code>s.know</code>）和公开的实弹/空壳剩数推理，不偷看枪膛，三档难度只改「用不用道具」和「犯不犯错」；<b>平衡是跑出来的</b>：<code>scripts/roulette-sim.mjs</code> 让十人两两对打 2880 场，胜率 45.7%~54.0%，并逐场校验理智/护盾/槽位/uid 等不变量。<b>好友房</b>沿用唤醒王：决斗链接那套 ntfy 中继（主题前缀换成 <code>mrr1-</code>），房主只发种子、两边各重放同一串动作——引擎是纯确定性的（所有随机都从种子推进），重放 1440 局状态指纹零偏差；同屏双人是明牌，窥镜看出来的东西两个人都看得见。音效（枪响、空枪、回血、胜负）是 WebAudio 现场合成的，不下载任何音频。</p>
 <p>所有进度（银芯、解锁的 CG、失败题库、自建题目、偏好唤醒体、答题记录、语言与背景主题）默认存在浏览器 <code>localStorage</code> 的 <code>zjtt:</code> 前缀下；<b>登录后</b>会打包成账号档案同步到云端，换设备登录即可恢复，退出登录则回到只用本机数据。上传到云题库的题目是公开的，请不要把不想公开的内容放进去。</p>
 <p>题库共 <b>4101 道</b>：<code>data/puzzles.json</code>（1000 道核心题，每日一题只从这里出，保证扩充题库异步加载时题目不跳变）、<code>data/puzzles-extra.json</code>（1000 道扩充题）与 <code>data/puzzles-more.json</code>（2101 道追加题），后两份按顺序在后台加载、边到边用。难度分统一重算后按分位切成 4 档（1 档 1149 / 2 档 1148 / 3 档 1066 / 4 档 738），分档依据是「同签名题数」分布与伤害构成熵等公开信息，构建脚本 <code>scripts/finalize_puzzles.py</code> 会一并做结构审计：队伍 4 人唯一、命轮 1–2 件、密契齐全、钥令有效、造物 ≤18、UUID 完整、分桶号 4 个、公开线索 4 条；当前全部 4101 道通过，且没有任何两道题的公开线索完全重复。</p>
 <p>数据由 <a href="https://github.com/Z769018860/qdby_chinese">qdby_chinese</a> 生成，脚本见 <code>scripts/build_data.py</code>、<code>scripts/build_puzzles_more.py</code>、<code>scripts/enhance_data.py</code>、<code>scripts/build_official_terms.py</code>、<code>scripts/score_difficulty.py</code>、<code>scripts/finalize_puzzles.py</code>、<code>scripts/enrich_clues.py</code>（把线索用的隐藏数据封进答案）与 <code>scripts/build_card_types.py</code>（卡牌类型表，取自官方回放的 <code>Skill</code> 表）。</p>
@@ -1405,7 +1406,7 @@ html{-webkit-tap-highlight-color:transparent}
 
 </main>
 <footer class="foot">同人作品，与官方无关。</footer>
-<script type="module" src="js/b/about.js?v=54e130050e"></script>
+<script type="module" src="js/b/about.js?v=d3e28251c2"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

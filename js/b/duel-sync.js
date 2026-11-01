@@ -1614,6 +1614,24 @@ function lovelive() {
   };
 }
 
+// 弥萨格轮盘 —— 只有人机对战记账（js/roulette/view.js 的 roulette:v1）；
+// 同屏与好友房是跟人打的，不算进胜率。
+function roulette() {
+  const st = RD('roulette:v1') || {};
+  const w = n(st.w), l = n(st.l), runs = w + l;
+  const parts = [];
+  if (n(st.best)) parts.push(`最高 ${n(st.best)} 连胜`);
+  if (n(st.streak) > 1) parts.push(`当前 ${n(st.streak)} 连胜`);
+  return {
+    items: [
+      { k: '人机局数', v: String(runs) },
+      { k: '胜场', v: String(w) },
+      { k: '胜率', v: runs ? Math.round((w / runs) * 100) + '%' : '—' },
+    ],
+    extra: parts.join(' · '),
+  };
+}
+
 // 卡片顺序 = 首页的排列顺序，用户不用重新认路
 const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', icon: '🔍', read: detective, tip: '六边形自走棋推演' },
   { k: 'merge', n: '合成大杜勒', href: 'merge.html', icon: '⚫', read: merge, tip: '两个同级合成下一级' },
@@ -1628,6 +1646,7 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'duel', n: '唤醒王：决斗链接', href: 'duel.html', icon: '⚔', read: duel, tip: '卡牌对决，段位爬升' },
   { k: 'reign', n: '弥萨格王权', href: 'reign.html', icon: '👑', read: reign, tip: '准或不准，四项账' },
   { k: 'lovelive', n: 'lovelive！mori⭐mens！', href: 'lovelive.html', icon: '🎵', read: lovelive, tip: '点按式音游' },
+  { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，三局两胜' },
 ];
 
 // 一次性读全部：页面只调这一个

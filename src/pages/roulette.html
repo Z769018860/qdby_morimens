@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>弥萨格轮盘 · 忘忘同人小游戏</title>
+<meta name="description" content="《忘却前夜》同人的恶魔轮盘：桌上只有一把枪，枪膛里混着实弹与空壳。对自己开枪打出空壳，回合还归你；对别人开枪，就交出去。十位唤醒体各有自己的理智上限、随身道具和被动——24 的「她们」会在空枪后递来一件东西，杜勒赛因让对手少拿一件，拉蒙娜整场能回环一次。放大镜、手锯、镣铐、逆变器、残念药剂、窃取手套，谁先被打空理智谁留下。可人机、同屏双人，也能开房间码跟好友赌一把。">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0a0f%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2218%22%20fill%3D%22none%22%20stroke%3D%22%23e3b341%22%20stroke-width%3D%222.6%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%224.6%22%20fill%3D%22%23e0596b%22%2F%3E%3Cpath%20d%3D%22M32%2014v6M32%2044v6M14%2032h6M44%2032h6%22%20stroke%3D%22%23e3b341%22%20stroke-width%3D%222.4%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E" type="image/svg+xml">
+<style>
+/* 这一页不引 css/style.css：游戏壳自带一份。配色沿用站内的深色底 + 金 / 血红，
+   整体压得更暗——赌桌只留一盏灯，剩下的都是枪膛里那点反光。 */
+:root{
+  --bg:#0a0a0f; --bg2:#0e0e15; --panel:#15151f; --panel2:#1b1b26; --panel3:#22222f;
+  --line:#282836; --line2:#373748;
+  --text:#eaeaf2; --dim:#8d8da2; --dim2:#5f5f74;
+  --gold:#e3b341; --gold2:#f2d38a; --red:#e0596b; --red2:#ff8494;
+  --green:#4fc98a; --blue:#6ea8ff; --violet:#a37cff;
+  --live:#e0596b; --blank:#7c869c;
+  --shadow:0 24px 50px -30px #000;
+}
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#f2f1ec; --bg2:#eae8e1; --panel:#fff; --panel2:#f6f5f0; --panel3:#eceae3;
+    --line:#dcd9d0; --line2:#c6c2b6;
+    --text:#1d1b22; --dim:#6b6875; --dim2:#96939d;
+    --gold:#8a6200; --gold2:#6d4d00; --red:#c03b4c; --red2:#a42b3b;
+    --green:#1d8055; --blue:#2f6ad0; --violet:#6d47c8;
+    --live:#c03b4c; --blank:#7b8496;
+    --shadow:0 20px 40px -30px rgba(20,20,40,.4);
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--text); overflow:hidden;
+  font:15px/1.55 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-tap-highlight-color:transparent;
+  background-image:
+    radial-gradient(760px 520px at 50% -8%, rgba(227,179,65,.13), transparent 64%),
+    radial-gradient(680px 460px at 12% 108%, rgba(224,89,107,.12), transparent 66%),
+    radial-gradient(700px 520px at 92% 96%, rgba(110,168,255,.08), transparent 68%);
+  background-repeat:no-repeat;
+}
+.app{
+  position:relative; height:100dvh; max-width:720px; margin:0 auto;
+  padding:max(8px, env(safe-area-inset-top)) 12px max(8px, env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; gap:8px;
+}
+/* ---------------------------------------------------------------- 顶栏 */
+.top{display:flex; align-items:center; gap:8px; flex:0 0 auto}
+.back{
+  width:32px; height:32px; flex:0 0 32px; border-radius:9px; display:grid; place-items:center;
+  border:1px solid var(--line); background:var(--panel); color:var(--text);
+  text-decoration:none; font-size:15px; line-height:1;
+}
+.back:hover{border-color:var(--gold); color:var(--gold)}
+.ttl{display:flex; flex-direction:column; line-height:1.15; min-width:0}
+.ttl b{font-size:15px; letter-spacing:.06em; white-space:nowrap}
+.ttl span{font-size:11px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.ic{
+  margin-left:auto; height:30px; min-width:34px; padding:0 9px; flex:0 0 auto; border-radius:9px;
+  border:1px solid var(--line); background:var(--panel); color:var(--dim);
+  font:12px/1 inherit; cursor:pointer;
+}
+.ic + .ic{margin-left:0}
+.ic:hover{color:var(--gold); border-color:var(--gold)}
+.ic.off{color:var(--dim2); text-decoration:line-through}
+
+/* ---------------------------------------------------------------- 屏 */
+.scr{flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; overflow:auto}
+.scr[hidden]{display:none}
+.scr.pad{padding-bottom:4px}
+
+/* ---------------------------------------------------------------- 首页 */
+.hero{display:flex; flex-direction:column; align-items:center; gap:6px; padding:14px 0 4px; text-align:center}
+.hero .gunart{width:min(300px,72vw); color:var(--gold); opacity:.9}
+.hero h1{
+  margin:2px 0 0; font-size:26px; letter-spacing:.16em; font-weight:800;
+  background:linear-gradient(180deg,var(--gold2),var(--gold)); -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.hero p{margin:0; font-size:12.5px; line-height:1.75; color:var(--dim); max-width:34em}
+.modes{display:flex; flex-direction:column; gap:8px}
+.mode{
+  display:flex; flex-direction:column; gap:2px; align-items:flex-start; text-align:left;
+  padding:12px 14px; border-radius:14px; cursor:pointer;
+  border:1px solid var(--line); background:linear-gradient(160deg,var(--panel2),var(--panel));
+  color:var(--text); box-shadow:var(--shadow); transition:.16s;
+}
+.mode b{font-size:15px; letter-spacing:.06em}
+.mode span{font-size:11.5px; color:var(--dim)}
+.mode:hover{border-color:var(--gold); transform:translateY(-1px)}
+.mode:active{transform:translateY(0)}
+.mode[data-mode="net"] b::after{
+  content:"房间码"; margin-left:8px; font-size:10px; letter-spacing:.04em;
+  padding:1px 6px; border-radius:99px; background:rgba(227,179,65,.16); color:var(--gold);
+  vertical-align:2px; font-weight:600;
+}
+.dif{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+.dif .lb{font-size:11.5px; color:var(--dim); margin-right:2px}
+.dif button{
+  height:30px; padding:0 11px; border-radius:9px; cursor:pointer;
+  border:1px solid var(--line); background:var(--panel); color:var(--dim); font:12px/1 inherit;
+}
+.dif button[aria-pressed="true"]{color:var(--gold); border-color:var(--gold); background:rgba(227,179,65,.1)}
+.rec{font-size:11.5px; color:var(--dim2); line-height:1.7}
+.rec b{color:var(--dim); font-weight:600}
+.foot{margin-top:auto; display:flex; gap:8px; flex-wrap:wrap}
+.mini{
+  height:32px; padding:0 12px; border-radius:9px; cursor:pointer; font:12px/1 inherit;
+  border:1px solid var(--line); background:var(--panel); color:var(--dim); text-decoration:none;
+  display:inline-flex; align-items:center;
+}
+.mini:hover{color:var(--gold); border-color:var(--gold)}
+
+/* ---------------------------------------------------------------- 选人 */
+.hint{margin:2px 0 0; font-size:12.5px; color:var(--dim)}
+.hint b{color:var(--gold)}
+.grid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px}
+@media (min-width:520px){.grid{grid-template-columns:repeat(3,1fr)}}
+.pcard{
+  position:relative; display:flex; gap:9px; padding:9px; border-radius:13px; cursor:pointer;
+  border:1px solid var(--line); background:var(--panel); color:var(--text); text-align:left;
+  transition:.14s; overflow:hidden;
+}
+.pcard:hover{border-color:var(--line2); transform:translateY(-1px)}
+.pcard[aria-pressed="true"]{border-color:var(--gold); background:linear-gradient(150deg,rgba(227,179,65,.16),var(--panel))}
+.pcard img{width:44px; height:44px; flex:0 0 44px; border-radius:11px; object-fit:cover; background:var(--panel3)}
+.pcard .pm{min-width:0; flex:1}
+.pcard .pn{font-size:13.5px; font-weight:700; letter-spacing:.03em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.pcard .pt{font-size:10px; color:var(--dim2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.pcard .pp{font-size:10.5px; color:var(--dim); line-height:1.45; margin-top:3px;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+.pcard .php{font-size:10px; color:var(--red2); margin-top:2px}
+.pcard .badge{position:absolute; right:8px; top:8px; font-size:9.5px; color:var(--gold)}
+.pickfoot{display:flex; gap:8px; margin-top:auto; padding-top:4px}
+.btn{
+  flex:1; height:44px; border-radius:12px; cursor:pointer; font:600 14px/1 inherit;
+  border:1px solid var(--line); background:var(--panel2); color:var(--text);
+}
+.btn.pri{
+  border-color:transparent; background:linear-gradient(180deg,var(--gold2),var(--gold)); color:#191308;
+  box-shadow:0 10px 24px -12px rgba(227,179,65,.8);
+}
+.btn.ghost{flex:0 0 96px; color:var(--dim)}
+.btn:disabled{opacity:.45; cursor:not-allowed; box-shadow:none}
+
+/* ---------------------------------------------------------------- 房间 */
+.room{
+  margin:6px 0 auto; padding:16px; border-radius:16px; text-align:center;
+  border:1px solid var(--line); background:linear-gradient(170deg,var(--panel2),var(--panel));
+  box-shadow:var(--shadow); display:flex; flex-direction:column; gap:10px; align-items:center;
+}
+.room .k{font-size:11.5px; color:var(--dim)}
+.room .rcode{
+  font:700 30px/1.1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.28em;
+  color:var(--gold); text-shadow:0 0 26px rgba(227,179,65,.35); padding-left:.28em;
+}
+.room .rstate{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--dim)}
+.room .rstate i{width:8px; height:8px; border-radius:50%; background:var(--gold); animation:pulse 1.6s infinite}
+.room .rstate i.ok{background:var(--green); animation:none}
+.room .rstate i.bad{background:var(--red); animation:none}
+.room input{
+  width:100%; height:44px; text-align:center; border-radius:11px; letter-spacing:.3em;
+  border:1px solid var(--line2); background:var(--bg2); color:var(--text);
+  font:700 18px/1 ui-monospace,SFMono-Regular,Menlo,monospace; text-transform:uppercase;
+}
+.room .tip2{font-size:11px; color:var(--dim2); line-height:1.7; max-width:26em}
+@keyframes pulse{50%{opacity:.35}}
+
+/* ---------------------------------------------------------------- 战场 */
+.battle{gap:7px; overflow:hidden}
+.side{
+  position:relative; flex:0 0 auto; display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+  padding:8px 10px; border-radius:13px; border:1px solid var(--line);
+  background:linear-gradient(165deg,var(--panel2),var(--panel)); transition:.18s;
+}
+.side.acting{border-color:rgba(227,179,65,.55); box-shadow:0 0 0 1px rgba(227,179,65,.18) inset, 0 10px 30px -22px var(--gold)}
+.side.hit{animation:hit .42s}
+.side.dead{opacity:.5; filter:grayscale(.5)}
+@keyframes hit{
+  0%{transform:translateX(0)}
+  18%{transform:translateX(-6px)}
+  40%{transform:translateX(5px)}
+  65%{transform:translateX(-3px)}
+  100%{transform:translateX(0)}
+}
+.side .av{width:46px; height:46px; flex:0 0 46px; border-radius:12px; object-fit:cover; background:var(--panel3)}
+.side .hf{flex:1 1 150px; min-width:0}
+.side .nm{display:flex; align-items:baseline; gap:6px; min-width:0}
+.side .nm b{font-size:14px; letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.side .nm span{font-size:9.5px; color:var(--dim2); white-space:nowrap}
+.pips{display:flex; align-items:center; gap:3px; margin-top:4px}
+.pips i{
+  width:12px; height:8px; border-radius:2px; background:var(--panel3);
+  box-shadow:0 0 0 1px var(--line) inset;
+}
+.pips i.on{background:linear-gradient(180deg,var(--red2),var(--red)); box-shadow:0 0 8px -2px var(--red)}
+.pips .hpn{font-size:10px; color:var(--dim); margin-left:4px; font-variant-numeric:tabular-nums}
+.bdgs{display:flex; gap:4px; margin-top:3px; flex-wrap:wrap}
+.bdgs i{
+  font-size:9.5px; font-style:normal; padding:1px 5px; border-radius:99px; line-height:1.5;
+  border:1px solid var(--line2); color:var(--dim); background:var(--bg2);
+}
+.bdgs i.sh{color:var(--blue); border-color:rgba(110,168,255,.45)}
+.bdgs i.cf{color:var(--violet); border-color:rgba(163,124,255,.45)}
+.bdgs i.sw{color:var(--red2); border-color:rgba(224,89,107,.45)}
+.bdgs i.bl{color:var(--red2); border-color:rgba(224,89,107,.3)}
+
+.chips{display:flex; gap:5px; flex-wrap:wrap; align-items:center}
+.chip{
+  position:relative; display:flex; flex-direction:column; align-items:center; gap:1px;
+  width:52px; padding:5px 2px 4px; border-radius:10px; cursor:pointer;
+  border:1px solid var(--line2); background:var(--panel3); color:var(--text);
+  font:inherit; transition:.13s;
+}
+.chip i{font-style:normal; font-size:15px; line-height:1.1}
+.chip span{font-size:9px; color:var(--dim); white-space:nowrap; transform:scale(.94)}
+.chip:hover{border-color:var(--gold); transform:translateY(-1px)}
+.chip:disabled{opacity:.4; cursor:not-allowed; transform:none}
+.chip.c-info i{color:var(--blue)} .chip.c-heal i{color:var(--green)}
+.chip.c-atk i{color:var(--red2)} .chip.c-ctrl i{color:var(--violet)}
+.chip.c-util i{color:var(--gold)}
+.chip.mini{width:26px; height:26px; padding:0; justify-content:center; border-radius:8px; cursor:default}
+.chip.mini:hover{transform:none; border-color:var(--line2)}
+.chip.empty{
+  width:26px; height:26px; border-style:dashed; border-color:var(--line); background:transparent;
+  cursor:default; opacity:.5;
+}
+
+.mid{flex:1 1 auto; min-height:0; display:flex; flex-direction:column; justify-content:center; gap:6px; padding:2px 0}
+.counts{display:flex; align-items:center; gap:10px; justify-content:center; font-size:12px; color:var(--dim)}
+.counts b{font-size:16px; font-variant-numeric:tabular-nums; margin-left:2px}
+.counts .c-live b{color:var(--live)}
+.counts .c-blank b{color:var(--blank)}
+.counts .c-live i,.counts .c-blank i{display:inline-block; width:7px; height:7px; border-radius:50%; vertical-align:1px; margin-right:5px}
+.counts .c-live i{background:var(--live); box-shadow:0 0 8px var(--live)}
+.counts .c-blank i{background:var(--blank)}
+.turnbadge{
+  margin-left:auto; font-size:10.5px; padding:2px 8px; border-radius:99px;
+  border:1px solid var(--line2); color:var(--dim);
+}
+.turnbadge.me{color:var(--gold); border-color:var(--gold); background:rgba(227,179,65,.1)}
+.turnbadge.foe{color:var(--dim2)}
+.gunbox{display:flex; flex-direction:column; align-items:center; gap:4px}
+.gun{width:min(340px,88vw); color:var(--text); transform-origin:70% 50%; will-change:transform}
+.gun svg{display:block; width:100%; height:auto}
+.gun.fire{animation:recoil .34s cubic-bezier(.2,.8,.3,1)}
+.flash{opacity:0}
+.gun.fire .flash{animation:mflash .3s ease-out}
+@keyframes mflash{
+  0%{opacity:1} 45%{opacity:.45} 100%{opacity:0}
+}
+@keyframes recoil{
+  0%{transform:none}
+  16%{transform:translateX(10px) rotate(-1.2deg)}
+  40%{transform:translateX(-3px)}
+  100%{transform:none}
+}
+.muzzle{
+  position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none;
+  opacity:0; transition:opacity .1s;
+}
+.rack{position:relative; display:flex; gap:5px; align-items:center; justify-content:center; flex-wrap:wrap; min-height:14px}
+.rack i{
+  width:9px; height:14px; border-radius:3px 3px 2px 2px; background:var(--panel3);
+  box-shadow:0 0 0 1px var(--line) inset; transition:.2s;
+}
+.rack i.seen{box-shadow:0 0 0 1px var(--line2) inset}
+.rack i.live{background:linear-gradient(180deg,var(--red2),var(--red)); box-shadow:0 0 9px -1px var(--red)}
+.rack i.blank{background:linear-gradient(180deg,#b9c2d6,#8b95ab); box-shadow:0 0 8px -2px #9aa4bb}
+.rack i.gone{opacity:0; transform:translateY(-6px) scale(.6)}
+.say{
+  margin:0; min-height:2.6em; text-align:center; font-size:12px; line-height:1.42; color:var(--dim);
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.say.bad{color:var(--red2)} .say.good{color:var(--green)} .say.warn{color:var(--gold)}
+.say.hd{color:var(--gold2)}
+
+.dock{flex:0 0 auto; display:flex; flex-direction:column; gap:7px}
+.acts{display:flex; gap:8px}
+.act{
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:1px; padding:9px 6px;
+  border-radius:13px; cursor:pointer; font:inherit; color:var(--text);
+  border:1px solid var(--line2); background:linear-gradient(170deg,var(--panel3),var(--panel2));
+  transition:.14s;
+}
+.act b{font-size:14.5px; letter-spacing:.06em}
+.act span{font-size:9.5px; color:var(--dim2)}
+.act.foe{border-color:rgba(224,89,107,.5); background:linear-gradient(170deg,rgba(224,89,107,.18),var(--panel2))}
+.act.foe b{color:var(--red2)}
+.act:hover:not(:disabled){transform:translateY(-1px); border-color:var(--gold)}
+.act:disabled{opacity:.35; cursor:not-allowed}
+
+/* 飘字 */
+.float{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  font:800 22px/1 inherit; pointer-events:none; z-index:5; animation:floatUp 1s ease-out forwards;
+  text-shadow:0 2px 12px rgba(0,0,0,.8);
+}
+.float.dmg{color:var(--red2)} .float.heal{color:var(--green)} .float.info{color:var(--gold2)}
+@keyframes floatUp{
+  0%{opacity:0; transform:translate(-50%,-30%) scale(.8)}
+  22%{opacity:1; transform:translate(-50%,-60%) scale(1.08)}
+  100%{opacity:0; transform:translate(-50%,-140%) scale(1)}
+}
+.shake{animation:shake .36s}
+@keyframes shake{
+  0%,100%{transform:none}
+  20%{transform:translate(-4px,2px)}
+  45%{transform:translate(4px,-2px)}
+  70%{transform:translate(-2px,1px)}
+}
+
+/* ---------------------------------------------------------------- 弹层 */
+.ov{
+  position:fixed; inset:0; z-index:40; display:flex; align-items:center; justify-content:center;
+  padding:20px; background:rgba(6,6,10,.82); backdrop-filter:blur(4px);
+}
+.ov[hidden]{display:none}
+.ov .card{
+  width:100%; max-width:340px; padding:20px 18px; border-radius:18px; text-align:center;
+  border:1px solid var(--line2); background:linear-gradient(170deg,var(--panel2),var(--panel));
+  box-shadow:0 40px 80px -40px #000; animation:pop .26s ease-out;
+}
+@keyframes pop{from{opacity:0; transform:scale(.94) translateY(8px)}to{opacity:1; transform:none}}
+.ov .k{margin:0; font-size:11.5px; letter-spacing:.2em; color:var(--dim)}
+.ov .big{margin:6px 0 0; font-size:30px; letter-spacing:.1em; font-weight:800}
+.ov .big.win{color:var(--gold)} .ov .big.lose{color:var(--dim)}
+.ov .sc{margin:8px 0 0; font-size:13px; color:var(--dim); font-variant-numeric:tabular-nums}
+.ov .sc b{color:var(--text)}
+.ov .tip{margin:8px 0 0; font-size:11.5px; color:var(--dim2); line-height:1.7}
+.ov .acts2{display:flex; gap:8px; margin-top:14px}
+
+.sheet{
+  position:fixed; inset:0; z-index:45; display:flex; align-items:flex-end; justify-content:center;
+  background:rgba(6,6,10,.7);
+}
+.sheet[hidden]{display:none}
+.sheet .box{
+  width:100%; max-width:560px; max-height:86dvh; overflow:auto; padding:16px 16px 24px;
+  border-radius:18px 18px 0 0; border:1px solid var(--line2); border-bottom:0;
+  background:var(--panel); animation:up .24s ease-out;
+}
+@keyframes up{from{transform:translateY(14px); opacity:.6}to{transform:none; opacity:1}}
+.sheet h3{margin:0 0 8px; font-size:14px; letter-spacing:.1em}
+.sheet h4{margin:14px 0 6px; font-size:12px; color:var(--gold); letter-spacing:.08em}
+.sheet p,.sheet li{font-size:12.5px; line-height:1.72; color:var(--dim)}
+.sheet ul{margin:0; padding-left:18px}
+.sheet .close{position:sticky; bottom:0; margin-top:12px}
+.rulelist .row{display:flex; gap:8px; padding:5px 0; border-bottom:1px dashed var(--line)}
+.rulelist .row:last-child{border:0}
+.rulelist .row i{font-style:normal; flex:0 0 22px; text-align:center; font-size:14px}
+.rulelist .row b{font-size:12.5px; color:var(--text); font-weight:600}
+.rulelist .row span{font-size:11.5px; color:var(--dim); line-height:1.6}
+
+.toast{
+  position:fixed; left:50%; bottom:16%; transform:translate(-50%,8px); z-index:60;
+  padding:8px 14px; border-radius:11px; font-size:12.5px; color:var(--text);
+  background:rgba(30,30,42,.95); border:1px solid var(--line2); box-shadow:0 20px 40px -24px #000;
+  opacity:0; pointer-events:none; transition:.2s;
+}
+.toast.on{opacity:1; transform:translate(-50%,0)}
+
+/* 首屏守护（构建时注入的脚本靠 id 找它） */
+#boot{
+  position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:10px; text-align:center; background:var(--bg); color:var(--dim); font-size:13px; z-index:70;
+}
+#boot .ring{width:26px; height:26px; border-radius:50%; border:2px solid rgba(150,150,180,.22); border-top-color:var(--gold); animation:spin .9s linear infinite}
+#boot p{margin:0}
+#boot .err{color:var(--red2)}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <a class="back" href="index.html" aria-label="回首页">&larr;</a>
+    <div class="ttl"><b>弥萨格轮盘</b><span id="sub">一把枪、一膛子弹、两个人</span></div>
+    <button class="ic" id="btnItems" type="button">道具</button>
+    <button class="ic" id="btnRules" type="button">规则</button>
+    <button class="ic" id="btnMute" type="button" aria-label="声音开关">♪</button>
+  </header>
+
+  <!-- ------------------------------------------------------------ 首页 -->
+  <main class="scr on" id="scr-home">
+    <div class="hero">
+      <div class="gunart" id="heroGun" aria-hidden="true"></div>
+      <h1>弥萨格轮盘</h1>
+      <p>桌上只有一把枪，枪膛里混着实弹与空壳，数量公开、顺序不知道。<br>
+         对着自己开枪——空壳就保住回合，还能接着打；<br>
+         对着对面开枪——不管响没响，回合都交出去。<br>
+         谁先被打空理智，谁就留在桌上。</p>
+    </div>
+    <div class="modes">
+      <button class="mode" type="button" data-mode="ai"><b>人机对战</b><span>对面的唤醒体会数剩下的子弹</span></button>
+      <button class="mode" type="button" data-mode="hot"><b>同屏双人</b><span>一台设备，两个人轮流扣扳机</span></button>
+      <button class="mode" type="button" data-mode="net"><b>好友房</b><span>开个房间码，跨设备对战</span></button>
+    </div>
+    <div class="dif" id="diffRow"></div>
+    <div class="rec" id="rec"></div>
+    <div class="foot">
+      <button class="mini" type="button" id="btnRule2">怎么玩</button>
+      <button class="mini" type="button" id="btnItems2">道具图鉴</button>
+    </div>
+  </main>
+
+  <!-- ------------------------------------------------------------ 选人 -->
+  <main class="scr pad" id="scr-pick" hidden>
+    <p class="hint" id="pickHint">选一位出战的唤醒体</p>
+    <div class="grid" id="pickGrid"></div>
+    <div class="pickfoot">
+      <button class="btn ghost" type="button" id="pickBack">返回</button>
+      <button class="btn pri" type="button" id="pickGo" disabled>就她了</button>
+    </div>
+  </main>
+
+  <!-- ------------------------------------------------------------ 房间 -->
+  <main class="scr pad" id="scr-room" hidden>
+    <div class="room">
+      <p class="k" id="roomK">把下面这个房间码念给朋友</p>
+      <div class="rcode" id="roomCode">— — — — —</div>
+      <div class="rstate"><i id="roomDot"></i><span id="roomState">正在连中继…</span></div>
+      <div class="tip2" id="roomTip">两个人要在同一个房间里：一个人开房拿到码，另一个人输码进来。房主先手。</div>
+      <div class="acts2" style="display:flex;gap:8px;width:100%">
+        <button class="btn" type="button" id="roomCopy">复制房间码</button>
+        <button class="btn ghost" type="button" id="roomQuit">退出</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- ------------------------------------------------------------ 战场 -->
+  <main class="scr battle" id="scr-battle" hidden>
+    <section class="side" id="foeCard"></section>
+    <section class="mid">
+      <div class="counts">
+        <span class="c-live"><i></i>实弹<b id="nLive">0</b></span>
+        <span class="c-blank"><i></i>空壳<b id="nBlank">0</b></span>
+        <span class="turnbadge" id="turnBadge">—</span>
+      </div>
+      <div class="gunbox">
+        <div class="gun" id="gun"></div>
+        <div class="rack" id="rack"></div>
+      </div>
+      <p class="say" id="say">…</p>
+    </section>
+    <section class="side" id="meCard"></section>
+    <section class="dock">
+      <div class="chips" id="myChips"></div>
+      <div class="acts">
+        <button class="act self" type="button" id="shootSelf"><b>对自己开枪</b><span>空壳就还能接着打</span></button>
+        <button class="act foe" type="button" id="shootFoe"><b>对对手开枪</b><span>打空也算交出回合</span></button>
+      </div>
+    </section>
+  </main>
+
+  <div id="boot" role="status" aria-live="polite">
+    <div class="ring"></div>
+    <p id="bootText">正在载入…</p>
+  </div>
+
+  <div class="ov" id="ov" hidden>
+    <div class="card">
+      <p class="k" id="ovk">这一局</p>
+      <p class="big" id="ovt">—</p>
+      <p class="sc" id="ovs"></p>
+      <p class="tip" id="ovd"></p>
+      <div class="acts2">
+        <button class="btn" type="button" id="ovAgain">再来一局</button>
+        <a class="btn ghost" href="index.html">回首页</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet" id="sheet" hidden>
+    <div class="box">
+      <h3 id="sheetTitle">规则</h3>
+      <div id="sheetBody"></div>
+      <button class="btn ghost close" type="button" id="sheetClose" style="width:100%">知道了</button>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+</div>
+<!-- @boot -->
+<script type="module" src="js/roulette.js"></script>
+</body>
+</html>
