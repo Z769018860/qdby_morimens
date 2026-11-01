@@ -373,14 +373,24 @@ body{
 }
 .card:hover{transform:translateY(-3px); box-shadow:0 10px 18px -10px #000}
 .card .face{
-  flex:1 1 auto; min-height:0; position:relative; overflow:hidden; container-type:size;
+  flex:1 1 auto; min-height:0; position:relative; overflow:hidden;
   background-color:#0f1420;
   border-bottom:1px solid color-mix(in srgb, var(--rc) 40%, transparent);
 }
-/* 图集每格是正方形：按「框的长边」等比放大（--s），格子在框里居中，偏上取景（头像的脸在上半部），不再拉伸变形 */
+/* 图集每格是正方形，头像不能被拉伸。
+   默认（卡表 / 组牌 / 开包这类一屏几百张的列表）用便宜写法：<i> 取卡面的宽做成正方形，靠百分比定位取格子，不开容器查询——
+   几百张卡每张一个 size 容器，组牌界面点一下要重排七八秒。 */
 .card .face>i{
+  position:absolute; left:0; top:0; width:100%; aspect-ratio:1/1; min-height:100%;
+  background-image:var(--sheet,none); background-repeat:no-repeat;
+  background-size:calc(var(--cols,8) * 100%) calc(var(--rows,8) * 100%);
+  background-position:calc(var(--c) / (var(--cols,8) - 1) * 100%) calc(var(--r) / (var(--rows,8) - 1) * 100%);
+}
+/* 对战盘上的牌（场上 / 手牌 / 魔陷区，加起来不到三十张）用精确写法：按框的长边等比放大并居中偏上取景，场上宽扁的框也不变形 */
+#scr-duel .slot .card .face, #scr-duel .hand .card .face{container-type:size}
+#scr-duel .slot .card .face>i, #scr-duel .hand .card .face>i{
   --s:max(100cqw,100cqh);
-  position:absolute; inset:0; background-image:var(--sheet,none); background-repeat:no-repeat;
+  inset:0; width:auto; aspect-ratio:auto; min-height:0;
   background-size:calc(var(--cols,8) * var(--s)) calc(var(--rows,8) * var(--s));
   background-position:calc(var(--c) * var(--s) * -1 - (var(--s) - 100cqw) / 2) calc(var(--r) * var(--s) * -1 - (var(--s) - 100cqh) * .3);
 }
@@ -773,8 +783,62 @@ body{
 @media (max-width:899px) and (min-height:701px){
   #scr-duel{--off:410px}
 }
+/* 陷阱询问：对手动作满足应对型陷阱的条件时，结算前问持有者发不发动 */
+.trapask{position:fixed; inset:0; z-index:200; display:grid; place-items:end center; background:rgba(4,6,10,.55); padding:12px}
+.trapask .tbox{width:min(520px,100%); background:var(--panel,#fff); color:var(--text); border:1px solid var(--line); border-radius:16px; padding:14px 14px 12px; box-shadow:0 -10px 40px -18px #000}
+.trapask h3{margin:0 0 4px; font-size:15px}
+.trapask .sub{margin:0 0 8px; font-size:12px; color:var(--dim)}
+.trapask .tl{display:flex; flex-direction:column; gap:6px}
+.trapask .trow{display:grid; grid-template-columns:1fr auto; gap:2px 8px; text-align:left; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:transparent; color:inherit; cursor:pointer}
+.trapask .trow small{grid-column:1; font-size:11.5px; color:var(--dim); line-height:1.45}
+.trapask .trow i{grid-row:1 / span 2; grid-column:2; align-self:center; font-style:normal; font-size:12px; padding:3px 10px; border-radius:999px; border:1px solid var(--line)}
+.trapask .trow.on{border-color:var(--gold); background:color-mix(in srgb,var(--gold) 14%, transparent)}
+.trapask .trow.on i{background:var(--gold); color:#1a1206; border-color:transparent}
+.trapask .trow2{display:flex; gap:8px; margin-top:10px}
+.trapask .trow2 .btn{flex:1}
+
+/* ---- 自组卡组编辑器：状态条 / 详情条 / 两栏切换 ---- */
+.bstat{background:color-mix(in srgb,var(--panel) 70%, transparent); border:1px solid var(--line); border-radius:10px; padding:7px 9px}
+.bstat .bprog{height:6px; border-radius:99px; background:var(--line); overflow:hidden}
+.bstat .bprog i{display:block; height:100%; background:linear-gradient(90deg,var(--gold2,#c9a24a),#e8c874); transition:width .2s}
+.bstat.ok .bprog i{background:linear-gradient(90deg,#3fae78,#79d8a8)}
+.bstat .bnums{display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:5px; font-size:11.5px; color:var(--dim); font-variant-numeric:tabular-nums}
+.bstat .bnums b{color:var(--text)}
+.bstat .bissue{display:flex; flex-wrap:wrap; gap:4px; margin-top:5px}
+.bstat .bissue em{font-style:normal; font-size:11px; padding:1px 8px; border-radius:99px; background:color-mix(in srgb,var(--red,#d9606a) 16%, transparent); color:var(--red,#d9606a)}
+.bstat .bissue.ok em{background:color-mix(in srgb,#3fae78 16%, transparent); color:#2f8f5f}
+.btabs{display:none; gap:6px}
+.btabs button{flex:1; padding:7px 0; border-radius:9px; border:1px solid var(--line); background:var(--panel); color:var(--dim); font-weight:600; cursor:pointer}
+.btabs button.on{background:var(--gold2,#c9a24a); color:#1a1206; border-color:transparent}
+@media (max-width:760px){
+  .btabs{display:flex}
+  .bbody[data-tab="pool"] .bp-deck{display:none}
+  .bbody[data-tab="deck"] .bp-pool{display:none}
+  .bpool{max-height:52vh}
+  .bbody[data-tab="deck"] .blist{max-height:none}
+}
+.btools{display:flex; gap:6px; align-items:center; margin-bottom:4px}
+.btools .bpreset{flex:1; min-width:0}
+.bcell .bbar{gap:6px}
+.bcell .bbar .bmi,.bcell .bbar .bpl,.bit .bmi,.bit .bpl{width:24px; height:24px; border-radius:7px; border:1px solid var(--line); background:var(--panel); color:var(--text); font-size:14px; line-height:1; cursor:pointer; padding:0}
+.bcell .bbar .bpl,.bit .bpl{background:var(--gold2,#c9a24a); color:#1a1206; border-color:transparent; font-weight:700}
+.bcell .bbar .bmn{width:24px}
+.bcell.sel .bf .card{outline:2px solid #4a8fe0; outline-offset:1px}
+.bit{display:flex; align-items:center; gap:6px; cursor:pointer}
+.bit.sel{background:color-mix(in srgb,#4a8fe0 14%, transparent); border-color:#4a8fe0}
+.bit i{min-width:1.8em; text-align:right}
+.bdetail{position:sticky; bottom:0; z-index:5; display:flex; gap:10px; padding:8px 10px; margin-top:6px; border:1px solid var(--line2,var(--line)); border-radius:12px 12px 0 0;
+  background:color-mix(in srgb,var(--panel) 96%, transparent); box-shadow:0 -10px 30px -18px #000}
+.bdetail .dc{flex:0 0 74px}
+.bdetail .dc .card{width:74px; height:100px}
+.bdetail .dt{flex:1 1 auto; min-width:0}
+.bdetail h4{margin:0 0 3px; font-size:14px}
+.bdetail h4 small{display:block; font-weight:400; font-size:11px; color:var(--dim); margin-top:1px}
+.bdetail .eff{margin:0 0 4px; font-size:12.5px; line-height:1.55; max-height:7.5em; overflow-y:auto}
+.bdetail .dbtn{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.bdetail .dbtn b{font-variant-numeric:tabular-nums; min-width:2.4em; text-align:center}
 </style>
-<meta name="build" content="32c0da1727">
+<meta name="build" content="bde9e439fd">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -811,7 +875,7 @@ html{-webkit-tap-highlight-color:transparent}
 <div class="actbar" id="actbar"></div>
 <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
 
-<script type="module" src="js/b/duel.js?v=32c0da1727"></script>
+<script type="module" src="js/b/duel.js?v=bde9e439fd"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
@@ -826,17 +890,3 @@ if ('serviceWorker' in navigator) {
 </script>
 </body>
 </html>
-
-/* 陷阱询问：对手动作满足应对型陷阱的条件时，结算前问持有者发不发动 */
-.trapask{position:fixed; inset:0; z-index:200; display:grid; place-items:end center; background:rgba(4,6,10,.55); padding:12px}
-.trapask .tbox{width:min(520px,100%); background:var(--panel,#fff); color:var(--text); border:1px solid var(--line); border-radius:16px; padding:14px 14px 12px; box-shadow:0 -10px 40px -18px #000}
-.trapask h3{margin:0 0 4px; font-size:15px}
-.trapask .sub{margin:0 0 8px; font-size:12px; color:var(--dim)}
-.trapask .tl{display:flex; flex-direction:column; gap:6px}
-.trapask .trow{display:grid; grid-template-columns:1fr auto; gap:2px 8px; text-align:left; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:transparent; color:inherit; cursor:pointer}
-.trapask .trow small{grid-column:1; font-size:11.5px; color:var(--dim); line-height:1.45}
-.trapask .trow i{grid-row:1 / span 2; grid-column:2; align-self:center; font-style:normal; font-size:12px; padding:3px 10px; border-radius:999px; border:1px solid var(--line)}
-.trapask .trow.on{border-color:var(--gold); background:color-mix(in srgb,var(--gold) 14%, transparent)}
-.trapask .trow.on i{background:var(--gold); color:#1a1206; border-color:transparent}
-.trapask .trow2{display:flex; gap:8px; margin-top:10px}
-.trapask .trow2 .btn{flex:1}

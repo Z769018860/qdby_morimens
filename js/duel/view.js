@@ -578,7 +578,8 @@ function slotHTML(m, i, side, hot) {
       + '</div>';
   }
   const c = CARDS[m.id];
-  const tag = c.k === 'E' ? '觉醒' : (m.pos === 'def' ? '守备' : '攻击');
+  // 「空间折叠」给的本回合直接攻击：场上挂个「可直攻」，免得以为是 bug
+  const tag = side === 'me' && m.direct ? '可直攻' : (c.k === 'E' ? '觉醒' : (m.pos === 'def' ? '守备' : '攻击'));
   // 新机制的场上面板：屏障 / 流血 / 反击 / 嘲讽都要看得见，
   // 不然玩家算不准「这一下打不打」，只能靠翻日志。
   const badges = [];
@@ -1467,6 +1468,7 @@ function startBuild(id) {
     extra: (d.extra || []).slice(),
     k: 'all', rf: 'all', q: '',
     preset: 'all',      // 按预组筛：'all' = 全卡池，否则只显示那套预组用到的牌
+    sel: null, tab: 'pool',
   };
   show('build');
 }
@@ -1561,7 +1563,7 @@ function renderBuild() {
   if (oldQ) b.q = oldQ.value;
   // 每点一下都整块重绘：候选池与右侧清单的滚动位置得留着，不然选一张牌就跳回顶部
   const oldPool = document.querySelector('.bpool');
-  const oldList = document.querySelector('.bpanel:nth-child(2) .blist');
+  const oldList = document.querySelector('.bp-deck .blist');
   const poolTop = oldPool ? oldPool.scrollTop : 0;
   const listTop = oldList ? oldList.scrollTop : 0;
 
@@ -1570,8 +1572,7 @@ function renderBuild() {
   const realms = [['all', '全部'], ['chaos', '混沌'], ['caro', '血肉'], ['aqua', '深海'], ['ultra', '超维'], ['any', '无界']];
   const seg = (arr, cur, attr) => `<div class="seg">${arr.map(([v, t]) => `<button ${attr}="${v}" class="${cur === v ? 'on' : ''}">${t}</button>`).join('')}</div>`;
 
-  // 候选池按卡表的样子摊开：分区 + 卡面，点卡面加一张，点卡面下的「−」减一张。
-  // 以前是一行一行的列表，看不见卡面、也看不出「这张我已经放了几张」。
+  // 候选池按卡表的样子摊开：分区 + 卡面。点卡面 = 选中看效果（下面的详情条），「＋」加一张，「−」减一张。
   const pool = bPool();
   const cell = (id) => {
     const c = CARDS[id];
@@ -1580,12 +1581,13 @@ function renderBuild() {
     const cls = ['bcell'];
     if (n) cls.push('on');
     if (n >= (isExtra ? 1 : MAX_COPY)) cls.push('max');
+    if (b.sel === id) cls.push('sel');
     const minus = n > 0
       ? `<button class="bmi" ${isExtra ? `data-subx="${id}"` : `data-sub="${id}"`} title="减一张">−</button>`
       : '<span class="bmn"></span>';
     return `<div class="${cls.join(' ')}">
-      <div class="bf" data-add="${id}">${cardHTML(c, {})}</div>
-      <div class="bbar">${minus}<b>${n ? '×' + n : '＋'}</b></div>
+      <div class="bf" data-pick="${id}" title="点一下看效果">${cardHTML(c, {})}</div>
+      <div class="bbar">${minus}<b>${n ? '×' + n : '—'}</b><button class="bpl" data-add="${id}" title="加一张">＋</button></div>
     </div>`;
   };
   const poolHtml = CODEX_GROUPS.map(([k, label]) => {
@@ -1595,58 +1597,101 @@ function renderBuild() {
       <div class="bgrid">${arr.map(cell).join('')}</div>`;
   }).join('');
 
-  // 按预组筛：新手从「这套预组用了哪些牌」开始改，比面对 369 张无从下手好
+  // 按预组筛：新手从「这套预组用了哪些牌」开始改，比面对 380 张无从下手好
   const presetOpts = [['all', '全部卡池']].concat(DECKS.map((d) => [d.id, `预组 · ${d.n}`]));
   const presetSel = `<select class="bpreset" id="bpreset" title="只看某套预组用到的牌">`
     + presetOpts.map(([v, t]) => `<option value="${v}"${(b.preset || 'all') === v ? ' selected' : ''}>${t}</option>`).join('')
+    + '</select>';
+  const importSel = `<select class="bpreset" id="bimp" title="把一套预组整套搬进来当起点">`
+    + '<option value="">导入预组…</option>' + DECKS.map((d) => `<option value="${d.id}">${d.n}</option>`).join('')
     + '</select>';
 
   const secM = b.cards.filter(([id]) => CARDS[id] && CARDS[id].k === 'M');
   const secS = b.cards.filter(([id]) => CARDS[id] && CARDS[id].k === 'S');
   const secT = b.cards.filter(([id]) => CARDS[id] && CARDS[id].k === 'T');
   const cntOf = (arr) => arr.reduce((a, p) => a + p[1], 0);
-  const deckGroup = (arr, title, k) => `<h4>${title} · ${cntOf(arr)} 张</h4>`
-    + (arr.length ? arr.map(([id, n]) => bRow(id, n, `data-sub="${id}" data-k="${k}"`)).join('')
+  const row = (id, n, isExtra, note) => {
+    const c = CARDS[id];
+    if (!c) return '';
+    const sub = note || (c.k === 'E' ? '觉醒体'
+      : KIND_TXT[c.k] + ' · ' + (REALM_TXT[c.r] || c.r) + costTag(c)
+        + (c.lv ? ' · Lv' + c.lv : '') + (c.atk !== undefined ? ' · ' + c.atk + '/' + c.def : ''));
+    return `<div class="bit${b.sel === id ? ' sel' : ''}" data-pick="${id}"><b>${c.n}</b><span>${sub}</span>`
+      + `<button class="bmi" ${isExtra ? `data-subx="${id}"` : `data-sub="${id}"`} title="减一张">−</button>`
+      + `<i>${isExtra ? '' : '×' + n}</i>`
+      + (isExtra ? '' : `<button class="bpl" data-add="${id}" title="加一张">＋</button>`) + '</div>';
+  };
+  const deckGroup = (arr, title) => `<h4>${title} · ${cntOf(arr)} 张</h4>`
+    + (arr.length ? arr.map(([id, n]) => row(id, n, false)).join('')
       : '<p class="note" style="margin:0 0 4px">还没有</p>');
 
   // 额外卡组的素材检查：素材不在主卡组里，这张觉醒体一辈子召不出来
   const names = new Set(b.cards.map(([id]) => CARDS[id] && CARDS[id].n));
+  const issues = [];
   const extraHtml = b.extra.length ? b.extra.map((id) => {
     const c = CARDS[id];
     if (!c) return '';
     const miss = c.matRealm ? [] : (c.mat || []).filter((n) => !names.has(n));
-    return `<button class="bit" data-subx="${id}"><b>${c.n}</b><span>${miss.length ? '缺素材：' + miss.join('、') : (c.matRealm ? '任意两界域' : '素材齐了')}</span>`
-      + `<em>${miss.length ? '缺' : ''}</em><i>${c.atk}/${c.def}</i></button>`;
+    if (miss.length) issues.push(`「${c.n}」缺素材：${miss.join('、')}`);
+    return row(id, 1, true, miss.length ? '缺素材：' + miss.join('、') : (c.matRealm ? '任意两界域' : (c.mat ? '素材齐了' : '直接召唤')));
   }).join('') : '<p class="note" style="margin:0 0 4px">还没有（额外卡组可以空着）</p>';
+  if (total < DECK_MIN) issues.unshift(`主卡组还差 ${DECK_MIN - total} 张才够 ${DECK_MIN} 张`);
+  if (total > DECK_SIZE) issues.unshift(`主卡组多了 ${total - DECK_SIZE} 张`);
 
+  // 选中的那张：大图 + 完整效果 + 加减
+  const sc = b.sel && CARDS[b.sel];
+  let detail = '';
+  if (sc) {
+    const isE = sc.k === 'E';
+    const n = isE ? (b.extra.indexOf(sc.id) >= 0 ? 1 : 0) : bCount(sc.id);
+    const matTxt = isE ? `<p class="note">素材：${sc.mat ? sc.mat.join(' ＋ ') : (sc.matRealm ? '自己场上任意 2 只界域不同的怪兽' : '无（直接召唤）')}${sc.mat ? ` · ${sc.mat.every((x) => names.has(x)) ? '这套牌里都有' : '这套牌里还缺'}` : ''}</p>` : '';
+    detail = `<div class="bdetail"><div class="dc">${cardHTML(sc, {})}</div>
+      <div class="dt"><h4>${sc.n} <small>${KIND_TXT[sc.k]} · ${REALM_TXT[sc.r] || sc.r} · ${sc.rar}${sc.lv ? ' · Lv' + sc.lv : ''}${sc.atk !== undefined ? ' · ' + sc.atk + '/' + sc.def : ''}${costTag(sc)}</small></h4>
+        <p class="eff">${sc.text || ''}</p>${matTxt}
+        <div class="dbtn"><button class="btn sm" ${n ? (isE ? `data-subx="${sc.id}"` : `data-sub="${sc.id}"`) : 'disabled'}>− 减一张</button>
+          <b>${isE ? (n ? '已放入' : '未放入') : '×' + n}</b>
+          <button class="btn sm pri" data-add="${sc.id}">＋ 加一张</button>
+          <button class="btn sm ghost" data-pick="">收起</button></div></div></div>`;
+  }
+
+  const pct = Math.max(0, Math.min(100, (total / DECK_MIN) * 100));
+  const stat = `<div class="bstat ${total >= DECK_MIN && total <= DECK_SIZE && !issues.length ? 'ok' : ''}">
+      <div class="bprog"><i style="width:${pct}%"></i></div>
+      <div class="bnums"><span>主卡组 <b>${total}</b>/${DECK_MIN}~${DECK_SIZE}</span><span>怪兽 ${cntOf(secM)}</span><span>魔法 ${cntOf(secS)}</span><span>陷阱 ${cntOf(secT)}</span><span>额外 ${b.extra.length}/${EXTRA_MAX}</span></div>
+      ${issues.length ? `<div class="bissue">${issues.map((x) => `<em>${x}</em>`).join('')}</div>` : '<div class="bissue ok"><em>牌组合法，可以保存</em></div>'}
+    </div>`;
+
+  const tab = b.tab || 'pool';
   el.innerHTML = `
     <div class="bhead">
       <input class="bname" id="bname" maxlength="20" value="${b.n.replace(/"/g, '&quot;')}" placeholder="给这套牌起个名字">
-      <span class="bmeta">主卡组 ${total}/${DECK_SIZE} · 额外 ${b.extra.length}/${EXTRA_MAX}</span>
       <button class="btn sm pri" data-bsave="1">保存</button>
       <button class="btn sm ghost" data-bback="1">返回</button>
     </div>
-    <div class="bbody">
-      <div class="bpanel">
+    ${stat}
+    <div class="btabs"><button data-btab="pool" class="${tab === 'pool' ? 'on' : ''}">卡池</button><button data-btab="deck" class="${tab === 'deck' ? 'on' : ''}">我的卡组 ${total}</button></div>
+    <div class="bbody" data-tab="${tab}">
+      <div class="bpanel bp-pool">
         <div class="bq">
           <input id="bq" placeholder="搜卡名或效果文字" value="${(b.q || '').replace(/"/g, '&quot;')}">
         </div>
         ${seg(kinds, b.k, 'data-bk')}
         ${seg(realms, b.rf, 'data-br')}
-        <div class="bsel">${presetSel}<span class="note">${b.preset && b.preset !== 'all' ? '只看这套预组用到的牌' : '点卡面加一张，点「−」减一张'}</span></div>
+        <div class="bsel">${presetSel}<span class="note">${b.preset && b.preset !== 'all' ? '只看这套预组用到的牌' : '点卡面看效果，「＋」加一张'}</span></div>
         <div class="bpool">${poolHtml || '<p class="note">没有符合条件的牌</p>'}</div>
       </div>
-      <div class="bpanel">
-        ${deckGroup(secM, '怪兽', 'm')}
-        ${secM.length ? '' : ''}
-        ${deckGroup(secS, '魔法', 's')}
-        ${deckGroup(secT, '陷阱', 't')}
+      <div class="bpanel bp-deck">
+        <div class="btools">${importSel}<button class="btn sm ghost" data-bclear="1">清空</button></div>
+        ${deckGroup(secM, '怪兽')}
+        ${deckGroup(secS, '魔法')}
+        ${deckGroup(secT, '陷阱')}
         <h4>额外卡组 · ${b.extra.length} 张</h4>
         <div class="blist" style="max-height:22vh">${extraHtml}</div>
-        <p class="note" style="margin:6px 0 0">同名卡最多 ${MAX_COPY} 张；主卡组 ${DECK_MIN}~${DECK_SIZE} 张（${DECK_MIN} 张最稳，越往上越容易抽不到要的牌）；
-          「直接召唤」的额外怪兽最多 ${DIRECT_MAX} 张；觉醒体的素材必须在这套牌里，否则它永远召不出来。</p>
+        <p class="note" style="margin:6px 0 0">同名卡最多 ${MAX_COPY} 张；主卡组 ${DECK_MIN}~${DECK_SIZE} 张（${DECK_MIN} 张最稳）；
+          「直接召唤」的额外怪兽最多 ${DIRECT_MAX} 张；<b>觉醒体的素材必须在这套牌里</b>。自己的卡组可以拿去人机和好友对战（在主页选中它）。</p>
       </div>
-    </div>`;
+    </div>
+    ${detail}`;
 
   const q = $('#bq');
   if (q) {
@@ -1655,7 +1700,7 @@ function renderBuild() {
   }
   const np = document.querySelector('.bpool');
   if (np && poolTop) np.scrollTop = poolTop;
-  const nl = document.querySelector('.bpanel:nth-child(2) .blist');
+  const nl = document.querySelector('.bp-deck .blist');
   if (nl && listTop) nl.scrollTop = listTop;
 }
 
@@ -2109,9 +2154,22 @@ function bind() {
 
   // 编辑器里「按预组筛」的下拉：change 不是 input，得单独听
   document.addEventListener('change', (e) => {
-    if (e.target.id !== 'bpreset' || !S.build) return;
-    S.build.preset = e.target.value;
-    renderBuild();
+    if (!S.build) return;
+    if (e.target.id === 'bpreset') { S.build.preset = e.target.value; renderBuild(); return; }
+    if (e.target.id === 'bimp' && e.target.value) {
+      // 把一套预组整套搬进来当起点（只改编辑中的这份，保存之前不影响原来的卡组）
+      const d = DECKS.find((x) => x.id === e.target.value);
+      if (d) {
+        S.build.cards = d.cards.map((x) => [x[0], x[1]]);
+        S.build.extra = (d.extra || []).slice();
+        const nm = $('#bname');
+        if (nm) S.build.n = nm.value;
+        if (/^我的卡组/.test(S.build.n) || !S.build.n.trim()) { S.build.n = d.n + ' 改'; if (nm) nm.value = S.build.n; }
+        S.build.sel = null;
+        toast(`已导入「${d.n}」，接着改吧`);
+      }
+      renderBuild();
+    }
   });
 
   document.addEventListener('click', (e) => {
@@ -2149,10 +2207,18 @@ function bind() {
     if (e.target.closest('[data-br]')) { S.build.rf = e.target.closest('[data-br]').dataset.br; renderBuild(); return; }
     const addBtn = e.target.closest('[data-add]');
     if (addBtn) { bAdd(addBtn.dataset.add); return; }
+    const bt = e.target.closest('[data-btab]');
+    if (bt && S.build) { S.build.tab = bt.dataset.btab; renderBuild(); return; }
+    if (e.target.closest('[data-bclear]') && S.build) {
+      if (S.build.cards.length || S.build.extra.length) { S.build.cards = []; S.build.extra = []; toast('已清空（保存之前不会影响原来的卡组）'); renderBuild(); }
+      return;
+    }
     const subX = e.target.closest('[data-subx]');
     if (subX) { bSub(subX.dataset.subx, true); return; }
     const subBtn = e.target.closest('[data-sub]');
     if (subBtn) { bSub(subBtn.dataset.sub, false); return; }
+    const pick = e.target.closest('[data-pick]');
+    if (pick && S.build) { S.build.sel = pick.dataset.pick || null; renderBuild(); return; }
     const t = e.target.closest('[data-act],[data-deck],[data-buy],[data-buy2],[data-toggle],[data-modal],[data-awaken],[data-direct],[data-recycle],[data-ck],[data-cr],[data-d]');
     if (!t) {
       // 点空白处收起操作条
@@ -2413,9 +2479,12 @@ export function boot(opt) {
       netStart: (side, seed, deckA, deckB, send) => {
         S.room = { state: 'playing', role: side === 0 ? 'a' : 'b', code: 'TEST' };
         S.net = { send, close() {} };
-        startNetGame(side, seed, deckPayload(deckA), deckPayload(deckB));
+        const pl = (x) => (typeof x === 'string' ? deckPayload(x) : x);
+        startNetGame(side, seed, pl(deckA), pl(deckB));
       },
       onNet: (m) => onNetMsg(m),
+      payload: (id) => deckPayload(id),
+      saveBuild: () => saveBuild(),
       start: (deckId, seed) => {
         const mine = deckById(deckId || S.deckId);
         const foe = DECKS.filter((d) => d.id !== mine.id)[0];
