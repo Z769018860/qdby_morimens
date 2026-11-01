@@ -1166,12 +1166,12 @@ function pickRole(cb) {
 }
 
 // ---------------------------------------------------------------- 银芯
-// 和其他小游戏共用一个钱包（zjtt:credits）。按难度给一个「赢一局」的基数，
+// 和其他小游戏共用一个钱包（zjtt:credits）。按难度给一个「赢一局」的基数（一局 15~20 分钟，按每分钟约 1 枚起算，难度 ×0.6 / ×1 / ×1.6 / ×2.4 / ×3.4）,
 // 难度越高桌上越脏、AI 越会撒谎，基数跟着涨：
 //   赢：基数；活到最后 +15%。
 //   输：基数的 25%（至少 1），但要熬过第 2 天才给——开局被投出去不算。
 //   开过自动档（替你说话 / 投票）的一局半价：它不是你在打。
-const WOLF_PAY = { easy: 6, normal: 12, hard: 20, mad: 30, abyss: 42 };
+const WOLF_PAY = { easy: 12, normal: 20, hard: 32, mad: 48, abyss: 68 };
 const WOLF_LOSS_MIN_DAY = 2;
 function wolfReward(win, alive, day, diff, autoUsed) {
   const base = WOLF_PAY[diff] || WOLF_PAY.normal;
