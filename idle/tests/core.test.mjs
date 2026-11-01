@@ -1690,6 +1690,8 @@ test('联动活动：人气换征召券，门槛到了才能兑换，重复兑�
   assert.equal(sum.total, GUESTS.length);
   assert.ok(tiersView(s).some((t) => t.ready));
   assert.equal(GUEST_GATE.maodie, 700);
+  // 名单必须和 CREATORS 一一对应：漏一位的后果是「图鉴里有、联动页换不到」
+  assert.deepEqual(GUESTS.map((g) => g.slug).sort(), CREATORS.map((a) => a.slug).sort(), '联动页嘉宾名单漏了人');
 });
 
 test('联动活动：老存档迁移后带 event 字段，彩蛋角色能上阵打完一场', () => {
@@ -2540,9 +2542,9 @@ test('羁绊：主播 × 主播、主播 × 同界域唤醒体都能凑，两位
   assert.equal(teamBonds(['samo', 'mengyi'], data).active.some((x) => x.cat === 'crew'), false);
 });
 
-test('本命羁绊：15 条主播 × 羁绊唤醒体都在，且只在两人同队时激活', () => {
+test('本命羁绊：16 条主播 × 羁绊唤醒体都在，且只在两人同队时激活', () => {
   const patron = BONDS.filter((b) => b.cat === 'patron');
-  assert.equal(patron.length, 15);
+  assert.equal(patron.length, 16);
   const creators = new Set();
   for (const b of patron) {
     assert.equal(b.members.length, 2, `${b.id} 应该是一对`);
@@ -2552,9 +2554,9 @@ test('本命羁绊：15 条主播 × 羁绊唤醒体都在，且只在两人同�
     assert.ok(a.realm && c.realm);
     creators.add(b.members.find((s) => data.bySlug[s].creator));
   }
-  // 10 位主播每位至少有一条本命
+  // 每位主播至少有一条本命
   const all = new Set(Object.values(data.bySlug).filter((a) => a.creator).map((a) => a.slug));
-  assert.equal(all.size, 11);
+  assert.equal(all.size, CREATORS.length);
   for (const s of all) assert.ok(creators.has(s), `主播 ${s} 没有本命羁绊`);
   // 只上主播一个人：不激活，但提示「差 1」
   const solo = teamBonds(['samo'], data);

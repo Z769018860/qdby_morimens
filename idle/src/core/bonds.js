@@ -242,9 +242,14 @@ export const BONDS = [
     desc: '白云出岫 + 詹金：开局 1t 把对面直接带走，而詹金是他手里最快的那把刀。',
   },
   {
-    id: 'patron-banxing', zh: '保姆级攻略', cat: 'patron', members: ['banxing', 'celeste'], need: 2,
-    tiers: { 2: { atkPct: 10, aliGain: 12 } },
-    desc: '半醒的鱼 + 希莱斯特：配队板摆好、密契洗好，剩下的交给深海里这位老熟人。',
+    id: 'patron-banxing-fauxborn', zh: '按需选用', cat: 'patron', members: ['banxing', 'murphy-fauxborn'], need: 2,
+    tiers: { 2: { amp: 8, healBonus: 8 } },
+    desc: '半醒的鱼 + 诞妄·墨菲：深海的两位辅助同队，配队板一排开——增伤与治疗。',
+  },
+  {
+    id: 'patron-banxing-tawil', zh: '洗到出为止', cat: 'patron', members: ['banxing', 'tawil'], need: 2,
+    tiers: { 2: { critRate: 8, critDmg: 20 } },
+    desc: '半醒的鱼 + 塔薇：代洗密契这活儿他接了不知多少单，结论始终是「再洗一次」——暴击率与暴击伤害。',
   },
 
   /* ---------- 档案派系：原作档案「特性」标签相同的人 ----------
