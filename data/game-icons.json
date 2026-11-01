@@ -68,5 +68,6 @@
     "src": "assets/ui/gameicons/roulette.webp",
     "from": "assets/avatars/a-95786.webp",
     "who": "杜勒赛因"
-  }
+  },
+"keeper": {"src": "assets/ui/gameicons/keeper.webp", "from": "assets/hidden/keeper.webp", "who": "初代守密人"}
 }

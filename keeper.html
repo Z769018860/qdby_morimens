@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>杀死守密人 · 忘忘同人小游戏</title>
+<meta name="description" content="《忘却前夜》同人「杀死守密人」：规程说，钥冢最底下关着一位守密人，她记的东西太多，再记下去整座弥萨格就要被写穿。拿上裁页刀，下去，杀死她。112 个结局的文字恐怖游戏——她每晚都会变一个样子，而你杀过她一次，就再也不能忘记她。">
+<meta name="theme-color" content="#070709">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0a0d%22%2F%3E%3Cpath%20d%3D%22M32%2010v34%22%20stroke%3D%22%23d8d2c4%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M32%2044l-9%208h18z%22%20fill%3D%22%23b3413f%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2210%22%20r%3D%224.5%22%20fill%3D%22none%22%20stroke%3D%22%23d8d2c4%22%20stroke-width%3D%222.4%22%2F%3E%3C%2Fsvg%3E" type="image/svg+xml">
+<style>
+/* 杀死守密人 —— 单页文字恐怖游戏。
+   视觉基调：钥冢的墨黑 + 灯油金 + 档案纸骨白 + 血。所有恐怖感都压在光上：
+   背景是原作典藏馆的 CG，压到很暗，只剩轮廓；文字面板像一张摊开的档案纸。 */
+:root{
+  --bg:#070709; --panel:#121016; --panel2:#1a161f; --line:#2a2431;
+  --text:#e8e2d6; --dim:#938b97; --dim2:#5f5768;
+  --gold:#c9a961; --blood:#a83c3c; --blood2:#d05555;
+  --bone:#d8d2c4; --ink:#141118;
+  --chaos:#e8656f; --caro:#d98b6a; --aqua:#5b9bd5; --ultra:#e3b341;
+  --shadow:0 30px 70px -30px rgba(0,0,0,.98);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--text); overflow:hidden;
+  font:15px/1.6 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-tap-highlight-color:transparent; user-select:none;
+}
+/* -------------------------------------------------------------- 背景层 */
+#bgs{position:fixed; inset:0; z-index:0; background:#050506}
+#bgs img{
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  opacity:0; transition:opacity 1.6s ease;
+  will-change:transform,opacity;
+}
+#bgs img.on{opacity:1; animation:drift 26s ease-in-out infinite alternate}
+@keyframes drift{from{transform:scale(1.06) translate(0,0)}to{transform:scale(1.14) translate(-1.4%,1.2%)}}
+/* 暗角 + 颗粒 + 一层永远洗不掉的暗红 */
+#veil{position:fixed; inset:0; z-index:1; pointer-events:none;
+  background:
+    radial-gradient(120% 90% at 50% 30%, transparent 30%, rgba(4,4,6,.72) 82%, rgba(3,3,5,.94) 100%),
+    linear-gradient(180deg, rgba(5,5,7,.55), transparent 30%, transparent 62%, rgba(5,5,7,.82));
+}
+#veil::before{content:""; position:absolute; inset:0; opacity:.05;
+  background-image:repeating-linear-gradient(0deg, rgba(255,255,255,.6) 0 1px, transparent 1px 3px);
+  mix-blend-mode:overlay}
+#veil::after{content:""; position:absolute; inset:0; opacity:.055;
+  background-image:radial-gradient(rgba(255,120,120,.5) .5px, transparent 1px);
+  background-size:3px 3px}
+/* 整屏特效 */
+body.fx-shake #stage{animation:shk .5s cubic-bezier(.36,.07,.19,.97) both}
+@keyframes shk{
+  10%,90%{transform:translate(-2px,1px)}20%,80%{transform:translate(3px,-1px)}
+  30%,50%,70%{transform:translate(-4px,2px)}40%,60%{transform:translate(4px,-2px)}
+}
+#flash{position:fixed; inset:0; z-index:30; pointer-events:none; opacity:0; background:#f2ead8; transition:opacity .1s}
+#redwash{position:fixed; inset:0; z-index:2; pointer-events:none; opacity:0;
+  background:radial-gradient(90% 70% at 50% 50%, transparent 40%, rgba(120,20,24,.5) 100%);
+  transition:opacity 1.2s}
+body.danger #redwash{opacity:1; animation:beat 1.6s ease-in-out infinite}
+@keyframes beat{0%,100%{opacity:.35}12%{opacity:.85}24%{opacity:.35}36%{opacity:.6}48%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important; transition:none!important}
+  #bgs img.on{opacity:1}
+}
+/* -------------------------------------------------------------- 壳 */
+.app{position:relative; z-index:3; height:100dvh; max-width:860px; margin:0 auto;
+  display:flex; flex-direction:column;
+  padding:max(8px, env(safe-area-inset-top)) 12px max(8px, env(safe-area-inset-bottom));}
+.top{display:flex; align-items:center; gap:8px; flex:0 0 auto; min-height:34px}
+.back{width:32px;height:32px;flex:0 0 32px;border-radius:9px;display:grid;place-items:center;
+  border:1px solid var(--line);background:rgba(18,16,22,.82);color:var(--text);
+  text-decoration:none;font-size:15px}
+.back:hover{border-color:var(--gold);color:var(--gold)}
+.ttl{line-height:1.15; min-width:0; flex:1 1 auto; overflow:hidden}
+.ttl b{font-size:14.5px;letter-spacing:.14em;white-space:nowrap;display:block}
+.ttl span{font-size:10px;color:var(--dim2);letter-spacing:.1em;white-space:nowrap;display:block;
+  overflow:hidden;text-overflow:ellipsis}
+.chip{margin-left:auto;height:30px;padding:0 10px;border-radius:9px;flex:0 0 auto;
+  border:1px solid var(--line);background:rgba(18,16,22,.82);color:var(--gold);
+  font-size:11px;font-weight:600;letter-spacing:.08em;display:grid;place-items:center;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.ico{width:32px;height:32px;flex:0 0 32px;border-radius:9px;display:grid;place-items:center;
+  border:1px solid var(--line);background:rgba(18,16,22,.82);color:var(--dim);
+  font:inherit;font-size:13px;cursor:pointer;padding:0}
+.ico:hover{border-color:var(--gold);color:var(--gold)}
+.ico.off{opacity:.4}
+/* 刻痕四枚小签 */
+.marks{display:flex;gap:6px;flex:0 0 auto;margin-top:6px;align-items:center}
+.mk{display:flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;
+  font-size:10px;letter-spacing:.1em;border:1px solid var(--line);color:var(--dim2);
+  background:rgba(10,9,12,.7);font-variant-numeric:tabular-nums}
+.mk i{font-style:normal;width:7px;height:7px;border-radius:50%;background:var(--c)}
+.mk.on{color:var(--text);border-color:color-mix(in srgb,var(--c) 55%, transparent)}
+.wbar{margin-left:auto;display:flex;align-items:center;gap:7px;min-width:130px}
+.wbar .wk{font-size:9.5px;letter-spacing:.16em;color:var(--dim2);white-space:nowrap}
+.wbar .wt{flex:1 1 auto;height:3px;border-radius:3px;background:rgba(216,210,196,.1);overflow:hidden}
+.wbar .wt i{display:block;height:100%;width:0;border-radius:3px;
+  background:linear-gradient(90deg,#6b5f4a,var(--gold) 70%,var(--blood2));
+  transition:width .5s cubic-bezier(.2,.8,.3,1)}
+.wbar.hot .wt i{background:linear-gradient(90deg,var(--gold),var(--blood2) 55%,#ff6b6b)}
+/* -------------------------------------------------------------- 舞台 */
+#stage{position:relative;flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:flex-end}
+/* 标题页 */
+#scr-title{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;align-items:center;
+  text-align:center;padding:18px;overflow:auto}
+#scr-title.on{display:flex}
+.kicker{font-size:10px;letter-spacing:.42em;color:var(--dim2)}
+.hero h1{
+  margin:14px 0 0;font-size:clamp(40px,9vw,72px);letter-spacing:.18em;font-weight:800;color:var(--bone);
+  text-shadow:0 0 32px rgba(216,210,196,.14), 0 10px 44px rgba(0,0,0,.9);
+}
+.hero h1 .kill{color:var(--blood2);text-shadow:0 0 26px rgba(208,85,85,.4)}
+.hero .en{margin:10px 0 0;font-size:11px;letter-spacing:.5em;color:var(--dim2)}
+.hero .lead{margin:22px auto 0;max-width:34em;font-size:13px;line-height:2.1;color:var(--dim)}
+.hero .lead b{color:var(--bone);font-weight:600}
+.warn{margin:18px auto 0;font-size:10.5px;letter-spacing:.12em;color:#8a6a6a;line-height:2}
+.trow{display:flex;gap:10px;justify-content:center;margin:26px 0 0;flex-wrap:wrap}
+.btn{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  border:1px solid var(--line);background:rgba(18,16,22,.85);color:var(--text);
+  font:inherit;font-size:13.5px;padding:10px 20px;border-radius:11px;cursor:pointer;
+  text-decoration:none;transition:border-color .16s,color .16s,opacity .16s}
+.btn:hover{border-color:var(--gold);color:var(--gold)}
+.btn.primary{background:linear-gradient(100deg,#8d2f31,#b3413f);border-color:transparent;color:#f5ece4;
+  font-weight:700;padding:12px 30px;font-size:15px;letter-spacing:.22em;
+  box-shadow:0 0 34px rgba(168,60,60,.28)}
+.btn.primary:hover{opacity:.93;color:#fff}
+.btn:disabled{opacity:.4;pointer-events:none}
+.statline{margin:20px auto 0;font-size:11px;color:var(--dim2);letter-spacing:.1em}
+.disc{margin:26px auto 0;max-width:36em;font-size:10px;line-height:1.9;color:var(--dim2)}
+/* 对话面板 */
+#panel{
+  position:relative;border-radius:16px;overflow:hidden;flex:0 0 auto;
+  background:linear-gradient(180deg, rgba(16,13,19,.92), rgba(11,9,13,.96));
+  border:1px solid var(--line);box-shadow:var(--shadow);
+  backdrop-filter:blur(3px);
+}
+#panel::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background:linear-gradient(90deg, transparent, rgba(216,210,196,.04) 50%, transparent)}
+.phead{display:flex;align-items:center;gap:10px;padding:10px 16px 0}
+.speaker{font-size:12px;letter-spacing:.3em;font-weight:700}
+.speaker.rule{color:var(--gold)}
+.speaker.her{color:var(--bone)}
+.speaker.you{color:#9db4d8}
+.speaker.cat{color:#8fbf9f}
+.speaker.voice{color:var(--vc,var(--aqua));font-style:italic;letter-spacing:.18em}
+.speaker.sys{color:var(--dim2)}
+.pwho-sub{font-size:9.5px;color:var(--dim2);letter-spacing:.12em}
+.ptext{padding:8px 18px 14px;font-size:15.5px;line-height:2.05;color:var(--text);
+  min-height:3.4em;cursor:pointer;letter-spacing:.02em}
+.ptext .cur{border-right:2px solid var(--gold);animation:blinkc .9s steps(2) infinite}
+@keyframes blinkc{50%{border-color:transparent}}
+.ptext .whisper{color:var(--dim);font-style:italic}
+.ptext .creak{color:var(--blood2)}
+.ptext em{font-style:normal;color:var(--gold)}
+.ptext u{text-decoration:none;border-bottom:1px solid rgba(168,60,60,.7)}
+.echo{padding:0 18px 12px;font-size:12px;line-height:1.8;color:var(--vc,var(--dim));
+  font-style:italic;opacity:.9;letter-spacing:.06em}
+.echo b{font-style:normal;font-size:9.5px;letter-spacing:.2em;margin-right:8px;opacity:.75}
+/* 选项 */
+#choices{display:flex;flex-direction:column;gap:8px;flex:0 0 auto;margin-top:10px;
+  transition:opacity .18s}
+#choices.hide{opacity:0;pointer-events:none}
+.ch{appearance:none;cursor:pointer;font:inherit;text-align:left;
+  padding:10px 14px 9px;border-radius:12px;line-height:1.5;
+  border:1px solid var(--line);background:rgba(16,14,20,.88);color:var(--text);
+  display:flex;align-items:baseline;gap:10px;
+  transition:border-color .15s,background .15s,transform .08s}
+.ch:active{transform:scale(.99)}
+.ch .n{font-size:10px;color:var(--dim2);letter-spacing:.1em;flex:0 0 auto;
+  border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+.ch .t{flex:1 1 auto;font-size:13.5px}
+.ch .note{display:block;font-size:10.5px;color:var(--dim2);margin-top:2px;line-height:1.6}
+.ch[data-realm="chaos"]:hover{border-color:var(--chaos)}
+.ch[data-realm="caro"]:hover{border-color:var(--caro)}
+.ch[data-realm="aqua"]:hover{border-color:var(--aqua)}
+.ch[data-realm="ultra"]:hover{border-color:var(--ultra)}
+.ch.kill:hover{border-color:var(--blood2);background:rgba(80,20,22,.35)}
+.ch.warm:hover{border-color:var(--gold)}
+.ch.meta:hover{border-color:#8fbf9f}
+.ch.dim{opacity:.45}
+/* -------------------------------------------------------------- 结局页 */
+#scr-end{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
+  justify-content:center;text-align:center;padding:16px;overflow:auto}
+#scr-end.on{display:flex}
+.endno{font-size:10px;letter-spacing:.5em;color:var(--dim2)}
+.endtitle{margin:14px 0 0;font-size:clamp(28px,6vw,44px);letter-spacing:.2em;font-weight:800;
+  color:var(--et,var(--bone));text-shadow:0 0 30px rgba(0,0,0,.9)}
+.endgrp{margin:10px 0 0;font-size:10.5px;letter-spacing:.3em;color:var(--dim2)}
+.endtxt{margin:22px auto 0;max-width:36em;text-align:left;font-size:13.5px;line-height:2.15;color:var(--dim)}
+.endtxt p{margin:0 0 12px}
+.endtxt p:first-child{color:var(--text)}
+.endnew{margin:14px 0 0;display:none;align-items:center;gap:8px;font-size:11px;letter-spacing:.24em;
+  color:var(--gold);border:1px solid rgba(201,169,97,.5);border-radius:999px;padding:4px 14px}
+.endnew.on{display:inline-flex;animation:blinkc 1.6s ease-in-out infinite}
+.erow{display:flex;gap:9px;justify-content:center;margin:24px 0 0;flex-wrap:wrap}
+/* -------------------------------------------------------------- 弹窗 */
+.modal{position:fixed;inset:0;z-index:50;display:none;place-items:center;padding:16px;
+  background:rgba(4,3,6,.82);backdrop-filter:blur(5px)}
+.modal.on{display:grid}
+.mbox{width:min(620px,100%);max-height:84dvh;overflow:auto;border-radius:16px;
+  background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);padding:16px}
+.mhead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.mhead h3{margin:0;font-size:15px;letter-spacing:.16em}
+.mhead small{color:var(--dim2);font-size:11px;font-weight:400}
+.mhead .x{margin-left:auto;width:28px;height:28px;border-radius:8px;cursor:pointer;font:inherit;
+  background:transparent;border:1px solid var(--line);color:var(--dim)}
+.mhead .x:hover{border-color:var(--blood2);color:var(--blood2)}
+.rules{font-size:13px;line-height:2;color:var(--dim)}
+.rules p{margin:0 0 10px}
+.rules b{color:var(--text)}
+.rules h4{margin:16px 0 4px;font-size:12px;color:var(--gold);letter-spacing:.2em}
+.rules .q{color:var(--bone)}
+/* 图鉴 */
+.gsec{margin:14px 0 6px;font-size:12px;letter-spacing:.2em;color:var(--gold);display:flex;gap:8px;align-items:baseline}
+.gsec small{font-size:10px;color:var(--dim2);letter-spacing:.05em}
+.ggrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.ek{border:1px solid var(--line);border-radius:11px;padding:9px 12px;background:var(--panel2);cursor:pointer}
+.ek b{display:block;font-size:13px;color:var(--ec,var(--bone));letter-spacing:.06em}
+.ek span{display:block;margin-top:2px;font-size:10px;color:var(--dim2);line-height:1.6}
+.ek.lock{opacity:.42}
+.ek.lock b{color:var(--dim2)}
+.ek:hover{border-color:var(--gold)}
+.mfoot{margin:14px 0 0;font-size:10.5px;line-height:1.9;color:var(--dim2)}
+/* 结局回看 */
+.rev .no{font-size:10px;letter-spacing:.4em;color:var(--dim2)}
+.rev .tt{margin:8px 0 0;font-size:22px;letter-spacing:.16em;font-weight:800;color:var(--ec,var(--bone))}
+.rev .tx{margin:14px 0 0;font-size:13px;line-height:2.05;color:var(--dim);text-align:left}
+@media (max-width:560px){
+  .ptext{font-size:14px;line-height:1.9;padding:6px 14px 12px}
+  .ch .t{font-size:12.5px}
+  .ggrid{grid-template-columns:1fr}
+  .ttl b{font-size:13px}
+  .wbar{min-width:90px}
+}
+@media (max-height:620px){
+  .ptext{min-height:2.2em;font-size:13.5px;line-height:1.8}
+  .hero h1{font-size:38px}
+}
+</style>
+<meta name="build" content="4f33df8cb3">
+<style id="zj-lite">
+@media (pointer:coarse), (max-width:720px){
+  *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
+}
+button, a, [role="button"], input, select, label{touch-action:manipulation}
+html{-webkit-tap-highlight-color:transparent}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/app/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="忘忘小游戏">
+</head>
+<body>
+<div id="bgs"><img id="bgA" alt="" decoding="async"><img id="bgB" alt="" decoding="async"></div>
+<div id="veil"></div>
+<div id="redwash"></div>
+<div id="flash"></div>
+
+<div class="app">
+  <header class="top">
+    <a class="back" href="index.html" aria-label="返回项目列表">←</a>
+    <div class="ttl">
+      <b>杀死守密人</b>
+      <span>KILL THE KEEPER · 弥萨格档案室不存在的任务</span>
+    </div>
+    <span class="chip" id="nightChip">—</span>
+    <button class="ico" id="bookBtn" type="button" aria-label="结局图鉴" title="结局图鉴">册</button>
+    <button class="ico" id="soundBtn" type="button" aria-label="声音开关" title="声音">♪</button>
+    <button class="ico" id="helpBtn" type="button" aria-label="玩法说明" title="玩法说明">?</button>
+  </header>
+
+  <div class="marks" id="marks" aria-label="刻痕">
+    <span class="mk" data-m="blood" style="--c:#d05555"><i></i>血 <b>0</b></span>
+    <span class="mk" data-m="paper" style="--c:#c9a961"><i></i>纸 <b>0</b></span>
+    <span class="mk" data-m="salt" style="--c:#5b9bd5"><i></i>盐 <b>0</b></span>
+    <span class="mk" data-m="ash" style="--c:#8a8494"><i></i>灰 <b>0</b></span>
+    <span class="wbar" id="wbar"><span class="wk">记忆的重量</span><span class="wt"><i id="wfill"></i></span></span>
+  </div>
+
+  <main id="stage">
+    <section id="scr-title"></section>
+    <section id="playwrap" style="position:absolute;inset:0;display:none;flex-direction:column;justify-content:flex-end">
+      <div id="choices" class="hide"></div>
+      <div id="panel">
+        <div class="phead">
+          <span class="speaker rule" id="spk">规程</span>
+          <span class="pwho-sub" id="spksub"></span>
+        </div>
+        <div class="ptext" id="ptext"></div>
+        <div class="echo" id="echo" hidden></div>
+      </div>
+    </section>
+    <section id="scr-end"></section>
+  </main>
+</div>
+
+<div class="modal" id="modal"><div class="mbox" id="mbox"></div></div>
+<script type="module" src="js/b/keeper.js?v=4f33df8cb3"></script>
+<script>
+/* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
+   Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
+   而边缘一个来回就要 1~2 秒；SW 缓存能把这部分彻底省掉。 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+    /* 申请「持久存储」：图片缓存跟本地存档一样不被浏览器随手清掉 */
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  });
+}
+</script>
+</body>
+</html>
