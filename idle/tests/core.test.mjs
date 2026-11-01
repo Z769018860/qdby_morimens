@@ -10,7 +10,7 @@ import { buildKit, describeSkill } from '../src/core/skills.js';
 import { SLOTS } from '../src/core/constants.js';
 
 test('data pack is complete', () => {
-  assert.equal(data.awakeners.length, 72);   // 62 名官方 + 10 名联名彩蛋（core/creators.js）
+  assert.equal(data.awakeners.length, 73);   // 62 名官方 + 11 名联名彩蛋（core/creators.js）
   assert.ok(data.wheels.length >= 140 && data.relics.length >= 300 && data.covenants.length === 21);
   for (const a of data.awakeners) assert.ok(a.portrait && a.zh, a.slug);
 });
@@ -2540,9 +2540,9 @@ test('羁绊：主播 × 主播、主播 × 同界域唤醒体都能凑，两位
   assert.equal(teamBonds(['samo', 'mengyi'], data).active.some((x) => x.cat === 'crew'), false);
 });
 
-test('本命羁绊：14 条主播 × 羁绊唤醒体都在，且只在两人同队时激活', () => {
+test('本命羁绊：15 条主播 × 羁绊唤醒体都在，且只在两人同队时激活', () => {
   const patron = BONDS.filter((b) => b.cat === 'patron');
-  assert.equal(patron.length, 14);
+  assert.equal(patron.length, 15);
   const creators = new Set();
   for (const b of patron) {
     assert.equal(b.members.length, 2, `${b.id} 应该是一对`);
@@ -2554,7 +2554,7 @@ test('本命羁绊：14 条主播 × 羁绊唤醒体都在，且只在两人同�
   }
   // 10 位主播每位至少有一条本命
   const all = new Set(Object.values(data.bySlug).filter((a) => a.creator).map((a) => a.slug));
-  assert.equal(all.size, 10);
+  assert.equal(all.size, 11);
   for (const s of all) assert.ok(creators.has(s), `主播 ${s} 没有本命羁绊`);
   // 只上主播一个人：不激活，但提示「差 1」
   const solo = teamBonds(['samo'], data);

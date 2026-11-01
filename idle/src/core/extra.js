@@ -88,6 +88,7 @@ export const EXTRA_NAMES = {
   chaoxing: ['晨星坠落', '破晓星轨'],
   maodie: ['路过的风景', '长者的一瞥'],
   baiyun: ['十亿出伤', '上百条世界线'],
+  banxing: ['保姆级攻略', '必抽人权'],
 };
 
 
@@ -205,6 +206,7 @@ const SKILLS = {
   tinct: { theme: '辅助 · 能量超载驱散', lawEvery: 3, od: [H(0.55, 'allies'), Db('vuln', 25, 2, 'foes')], law: [DSP(), GBR(0.02, 'foes'), Db('vuln', 40, 3, 'foes'), B('amp', 30, 3, 'allies')] },
   arachne: { theme: '辅助 · 眩晕与能量', lawEvery: 5, od: [H(0.6, 'allies'), St('barrier', 1, 2, 'allies')], law: [STN('foes', 1), D(1.4, 'foes'), G('aliemus', 40, 'allies'), H(0.9, 'allies')] },
   zerok: { theme: '辅助 · 能量超载', od: [H(0.55, 'allies'), B('atk', 22, 2, 'allies'), G('aliemus', 8, 'allies')], law: [GBR(0.02, 'foes'), H(1.4, 'allies'), CLN()] },
+  banxing: { theme: '辅助 · 代洗密契', od: [CLN(), G('keyflare', 14, 'allies')], law: [CLN(), DSP(), D(1.8, 'foes'), B('amp', 26, 3, 'allies')] },
   baiyun: { theme: '辅助 · 暴击时序', od: [B('crit', 20, 3, 'allies'), G('aliemus', 15, 'allies')], law: [XT(), D(1.6, 'foes'), B('amp', 30, 3, 'allies'), Db('vuln', 25, 3, 'foes')] },
   xiamolin: { theme: '辅助 · 损失生命治疗', od: [H(0.6, 'allies'), B('def', 25, 2, 'allies')], law: [MH(70), D(1.3, 'foes'), S(1.1, 'allies'), B('def', 35, 3, 'allies')] },
   leigh: { theme: '辅助 · 苦痛回疗', od: [H(0.65, 'allies'), LS(35)], law: [MH(55), D(1.3, 'foes'), CLN(), Db('vuln', 30, 3, 'foes')] },
@@ -242,6 +244,7 @@ const TUNE = {
   "arachne": 2.200,
   "aurita": 2.200,
   "baiyun": 2.200,
+  "banxing": 1.800,
   "caecus": 2.200,
   "caraboo": 1.711,
   "casiah": 2.200,

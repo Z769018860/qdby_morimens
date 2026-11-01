@@ -1436,9 +1436,23 @@ function nextRound() {
   beginRound();
 }
 
+// 战绩：只在一桌散场时记一次（最高荷包、夺冠次数、打过几桌）。三项都只增不减，云端逐项取大；
+// 键名带 zjtt: 前缀，js/gamestats.js 才读得到（弥萨格轮盘第一版就栽在少了前缀上）。
+const STATS_KEY = 'zjtt:bugfight:v1';
+function recordTable(champion, bank) {
+  try {
+    const st = JSON.parse(localStorage.getItem(STATS_KEY) || 'null') || {};
+    st.runs = (Number(st.runs) || 0) + 1;
+    if (champion) st.wins = (Number(st.wins) || 0) + 1;
+    st.best = Math.max(Number(st.best) || 0, Math.round(bank) || 0);
+    localStorage.setItem(STATS_KEY, JSON.stringify(st));
+    document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: 'gd' }));
+  } catch (e) { /* 无痕模式 */ }
+}
 function showOver() {
   $('ovk').textContent = '散桌';
   const rank = T.rankOf(S, 'you');
+  recordTable(S.champion === 'you' || rank === 1, S.you.bank);
   const t = $('ovt');
   t.className = 'big';
   t.textContent = S.champion === 'you' ? '你把整桌赢走了'

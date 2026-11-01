@@ -241,6 +241,11 @@ export const BONDS = [
     tiers: { 2: { atkPct: 12, critDmg: 20 } },
     desc: '白云出岫 + 詹金：开局 1t 把对面直接带走，而詹金是他手里最快的那把刀。',
   },
+  {
+    id: 'patron-banxing', zh: '保姆级攻略', cat: 'patron', members: ['banxing', 'celeste'], need: 2,
+    tiers: { 2: { atkPct: 10, aliGain: 12 } },
+    desc: '半醒的鱼 + 希莱斯特：配队板摆好、密契洗好，剩下的交给深海里这位老熟人。',
+  },
 
   /* ---------- 档案派系：原作档案「特性」标签相同的人 ----------
      标签来自 data/dictionary.json 的 traits（维基档案的 |特性= 字段），全 62 人里只有两枚：

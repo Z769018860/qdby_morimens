@@ -359,7 +359,7 @@ body .zj-orient{display:none !important}
 #boot{position:fixed; inset:0; z-index:99; display:grid; place-items:center; background:var(--bg); color:var(--dim); text-align:center; font-size:14px}
 #boot.err{color:var(--bad)}
 </style>
-<meta name="build" content="0b2601babc">
+<meta name="build" content="6ab134892b">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -600,7 +600,14 @@ html{-webkit-tap-highlight-color:transparent}
               <button type="button" data-v="0">隐藏</button>
             </div>
           </div>
-          <p>判定偏移：老是「点早了」就调大，老是「点晚了」就调小。判定宽松只影响五个判定档的宽度，不影响分数比例。</p>
+          <div class="row">
+            <label>震动反馈</label>
+            <div class="seg" id="set-haptic">
+              <button type="button" data-v="1">开</button>
+              <button type="button" data-v="0">关</button>
+            </div>
+          </div>
+          <p>判定偏移：老是「点早了」就调大，老是「点晚了」就调小（蓝牙耳机的输出延迟浏览器报得出来时会自动扣掉，不够再自己调）；震动反馈只有安卓浏览器支持。判定宽松只影响五个判定档的宽度，不影响分数比例。</p>
         </div>
 
         <div class="card">
@@ -784,7 +791,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 20000);
 })();
 </script>
-<script type="module" src="js/b/lovelive.js?v=0b2601babc"></script>
+<script type="module" src="js/b/lovelive.js?v=6ab134892b"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。

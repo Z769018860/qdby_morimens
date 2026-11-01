@@ -1486,6 +1486,10 @@ const BOARD_SPEC = [
   { k: 'kp', gd: 'kp', i: 0, unit: '个结局', label: '结局数',
     sub: (v) => [Number(v[1]) > 0 ? `见过 ${Number(v[1])} 种形态` : '', Number(v[2]) > 0 ? `下过 ${Number(v[2])} 趟钥冢` : ''].filter(Boolean).join(' · '),
     tb: (v) => Number(v[1]) || 0 },
+  // 电子斗蛐蛐：按最高荷包排（开局 1000），副标写夺冠桌数与总桌数；同分比夺冠桌数
+  { k: 'bf', gd: 'bf', i: 0, unit: '筹码', label: '最高荷包',
+    sub: (v) => (Number(v[2]) > 0 ? `夺冠 ${Number(v[1]) || 0} 桌 · 共 ${Number(v[2])} 桌` : ''),
+    tb: (v) => Number(v[1]) || 0 },
   { k: 'dl', gd: 'dl', i: 0, unit: '分', label: '段位分',
     sub: (v) => {
       const t = Number(v[3]) || 0;

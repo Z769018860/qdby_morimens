@@ -73,6 +73,8 @@ function loadSave() {
   s.musVol = s.musVol == null ? 0.7 : clamp(Number(s.musVol), 0, 1);
   s.fxVol = s.fxVol == null ? 0.6 : clamp(Number(s.fxVol), 0, 1);
   s.keys = s.keys == null ? 1 : (s.keys ? 1 : 0);
+  // 震动反馈（Android 的 navigator.vibrate；iOS 没有这个接口，开了也无事发生）：触屏设备默认开
+  s.haptic = s.haptic == null ? (matchMedia('(pointer:coarse)').matches ? 1 : 0) : (s.haptic ? 1 : 0);
   // 工坊：本机谱面的索引（正文在 IndexedDB，这里只留列表要用的字段）
   s.mine = Array.isArray(s.mine) ? s.mine.filter((m) => m && m.id).slice(0, 60) : [];
   // 云端谱面里「我已经把音频对上了」的那些：{ <cloudId>: { name, dur } }
@@ -177,7 +179,10 @@ for (const u of UNITS) {
 const FACE_OK = (u) => u.img && u.img.complete && u.img.naturalWidth > 0;
 
 /* 曲目时间：音频时钟 - 偏移。判定、播放、绘制都用这一个 */
-const chartTime = () => Math.max(0, Audio.time() - SAVE.offset / 1000);
+// lag：这次输入事件已经在队列里等了多久（performance.now() - e.timeStamp）。手机上事件常比处理晚一两帧，
+// 不扣掉就等于每次都「点晚了」；封顶 80ms，防止后台切回来时的陈旧事件把时间拨乱。
+const chartTime = (lag) => Math.max(0, Audio.time() - SAVE.offset / 1000 - (lag > 0 ? Math.min(0.08, lag) : 0));
+const evLag = (e) => (e && e.timeStamp > 0 ? (performance.now() - e.timeStamp) / 1000 : 0);
 
 /* ================================================================ 技能立绘 */
 // 技能发动时，舞台右侧摆上这位唤醒体的立绘：assets/card/<slug>.webp，
@@ -341,6 +346,7 @@ function judgeNote(n, j) {
   addCombo(1);
   Audio.fx(j, G.combo, n.lane);
   pushFx(n.lane, j);
+  if (SAVE.haptic && !G.auto && j !== 'b' && navigator.vibrate) { try { navigator.vibrate(j === 'p' ? 9 : 6); } catch (e) { /* 不支持就算了 */ } }
 }
 function missNote(n) {
   if (n.judged) return;
@@ -436,9 +442,9 @@ function leadEff() {
 }
 
 /* ================================================================ 输入 */
-function tapLane(lane, ptr) {
+function tapLane(lane, ptr, lag) {
   if (!G.running || G.paused) return;
-  const now = chartTime();
+  const now = chartTime(lag);
   const W4 = windows()[3];
   let best = null, bestAbs = 1e9;
   for (let i = G.ni; i < G.notes.length; i++) {
@@ -450,11 +456,11 @@ function tapLane(lane, ptr) {
     if (a < bestAbs) { bestAbs = a; best = n; }
   }
   if (!best) return;
-  pressNote(best, ptr);
+  pressNote(best, ptr, lag);
 }
-function tapNear(x, y, ptr) {
+function tapNear(x, y, ptr, lag) {
   if (!G.running || G.paused) return;
-  const now = chartTime();
+  const now = chartTime(lag);
   const W4 = windows()[3];
   const le = leadEff();
   let best = null, bestCost = 1e9;
@@ -470,10 +476,10 @@ function tapNear(x, y, ptr) {
   }
   // 点音符本身也要把「哪根手指」传下去：长条不登记手指就永远等不到松手，
   // 会一直挂在框上（这一版之前「卡在下面」的主因就是这个）。
-  if (best) pressNote(best, ptr == null ? null : ptr);
+  if (best) pressNote(best, ptr == null ? null : ptr, lag);
 }
-function pressNote(n, ptr) {
-  const now = chartTime();
+function pressNote(n, ptr, lag) {
+  const now = chartTime(lag);
   const j = judgeBy(n.t - now);
   if (!j) return;
   if (n.kind === 'hold') {
@@ -637,8 +643,9 @@ cv.addEventListener('pointerdown', (e) => {
   const b = cv.getBoundingClientRect();
   const x = e.clientX - b.left, y = e.clientY - b.top;
   const lane = laneAt(x, y);
-  if (lane >= 0) tapLane(lane, 'p' + e.pointerId);
-  else tapNear(x, y, 'p' + e.pointerId);
+  const lag = evLag(e);
+  if (lane >= 0) tapLane(lane, 'p' + e.pointerId, lag);
+  else tapNear(x, y, 'p' + e.pointerId, lag);
   cv.setPointerCapture && cv.setPointerCapture(e.pointerId);
 }, { passive: false });
 window.addEventListener('pointerup', (e) => releasePtr('p' + e.pointerId));
@@ -650,7 +657,7 @@ window.addEventListener('keydown', (e) => {
   if (lane >= 0) {
     e.preventDefault();
     if (e.repeat) return;
-    tapLane(lane, 'k' + lane);
+    tapLane(lane, 'k' + lane, evLag(e));
     return;
   }
   if (e.key === 'Escape' && G.running) togglePause();
@@ -1270,6 +1277,7 @@ function paintSet() {
   $('#set-flow-v').textContent = '×' + SAVE.flow.toFixed(1);
   $$('#set-win button').forEach((b) => b.classList.toggle('on', Number(b.dataset.v) === SAVE.winMul));
   $$('#set-keys button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.keys));
+  $$('#set-haptic button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.haptic));
   renderTrackList();
 }
 function renderTrackList() {
@@ -1400,6 +1408,14 @@ $$('#set-keys button').forEach((b) => {
     SAVE.keys = b.dataset.v === '1' ? 1 : 0;
     persist();
     $$('#set-keys button').forEach((x) => x.classList.toggle('on', x === b));
+  };
+});
+$$('#set-haptic button').forEach((b) => {
+  b.onclick = () => {
+    SAVE.haptic = b.dataset.v === '1' ? 1 : 0;
+    persist();
+    $$('#set-haptic button').forEach((x) => x.classList.toggle('on', x === b));
+    if (SAVE.haptic && navigator.vibrate) { try { navigator.vibrate(30); } catch (e) { /* noop */ } }
   };
 });
 $('#set-flow').oninput = (e) => {

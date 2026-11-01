@@ -36,7 +36,8 @@ export const Audio = {
     }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
-    try { this.ac = new AC(); } catch (e) { return null; }
+    // 音游要最低延迟：明说 interactive（有的浏览器默认是 balanced），不支持这个参数就退回无参
+    try { this.ac = new AC({ latencyHint: 'interactive' }); } catch (e) { try { this.ac = new AC(); } catch (e2) { return null; } }
     const ac = this.ac;
     this.master = ac.createGain();
     this.master.gain.value = this.muted ? 0 : 1;
@@ -76,9 +77,24 @@ export const Audio = {
   },
 
   // 曲目时间（秒）。暂停靠 ac.suspend()，currentTime 会停住。
+  // 手感相关的两处修正（点击判定全靠这个钟）：
+  //  1) ac.currentTime 是按渲染块（128 帧 ≈ 3~6ms，Safari / Firefox 更粗）跳的，直接读会让每一帧的 now 抖几毫秒、
+  //     连按时判定忽早忽晚；这里记下「上次读到变化时的 performance.now」，两次变化之间按墙钟外推（最多 50ms，
+  //     暂停 / 挂起时不外推），再保证不倒退。
+  //  2) 声音从 currentTime 到真正进耳朵还有输出延迟（outputLatency，蓝牙耳机能到 150ms+）：玩家是照「听到的」点，
+  //     所以曲目时间要减掉它（浏览器不报就是 0，行为和以前一样）。
   time() {
     if (!this.playing) return 0;
-    if (this.ac && !this.usePerf) return Math.max(0, this.ac.currentTime - this.t0);
+    if (this.ac && !this.usePerf) {
+      const ac = this.ac, p = performance.now(), ct = ac.currentTime;
+      if (ct !== this._ct) { this._ct = ct; this._cp = p; }
+      const ext = ac.state === 'running' ? Math.min(0.05, Math.max(0, (p - this._cp) / 1000)) : 0;
+      const lat = Math.min(0.25, Math.max(0, Number(ac.outputLatency) || 0));
+      let r = ct + ext - lat - this.t0;
+      if (this._rt != null && r < this._rt && this._rt - r < 0.04) r = this._rt;   // 外推过头了，别倒退
+      this._rt = r;
+      return Math.max(0, r);
+    }
     return Math.max(0, performance.now() / 1000 - this.pt0);
   },
 
@@ -96,7 +112,7 @@ export const Audio = {
     this.node = src;
     this.mode = 'buffer';
     this.usePerf = false;
-    this.t0 = at - from;
+    this.t0 = at - from; this._rt = null; this._ct = -1;
     this.playing = true;
     return true;
   },
@@ -108,7 +124,7 @@ export const Audio = {
     this.mode = 'clock';
     if (ac) {
       this.usePerf = false;
-      this.t0 = ac.currentTime + 0.05;
+      this.t0 = ac.currentTime + 0.05; this._rt = null; this._ct = -1;
     } else {
       this.usePerf = true;
       this.pt0 = performance.now() / 1000;
@@ -141,7 +157,7 @@ export const Audio = {
     evs.sort((a, b) => a.t - b.t);
     this.evs = evs;
     this.ei = 0;
-    this.t0 = ac.currentTime + 0.12;
+    this.t0 = ac.currentTime + 0.12; this._rt = null; this._ct = -1;
     this.playing = true;
     const tick = () => {
       if (!this.playing || this.mode !== 'chip') return;

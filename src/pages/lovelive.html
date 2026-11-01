@@ -450,7 +450,14 @@ body .zj-orient{display:none !important}
               <button type="button" data-v="0">隐藏</button>
             </div>
           </div>
-          <p>判定偏移：老是「点早了」就调大，老是「点晚了」就调小。判定宽松只影响五个判定档的宽度，不影响分数比例。</p>
+          <div class="row">
+            <label>震动反馈</label>
+            <div class="seg" id="set-haptic">
+              <button type="button" data-v="1">开</button>
+              <button type="button" data-v="0">关</button>
+            </div>
+          </div>
+          <p>判定偏移：老是「点早了」就调大，老是「点晚了」就调小（蓝牙耳机的输出延迟浏览器报得出来时会自动扣掉，不够再自己调）；震动反馈只有安卓浏览器支持。判定宽松只影响五个判定档的宽度，不影响分数比例。</p>
         </div>
 
         <div class="card">

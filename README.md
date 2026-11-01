@@ -284,3 +284,9 @@ python3 scripts/replay_metrics_report.py                      # 出报告与逐�
 - 后端：`edge-functions/api/[[default]].js` 的 `/save/:game`（接口 v7，白名单 `SAVE_GAMES`），带版本号，409 冲突；每份上限 480KB。`server/worker.js` / `server/node.js` 没有这组接口。
 - 回归：`node scripts/test_gamecloud.mjs`（同步决策）、`node scripts/test_edge_api.mjs`（后端，195 项）。
 - 战报侦探的题目没有「存档」，它的进度（积分、失败题库、推理记录）本来就在账号云端档案里。
+
+## 审计与手感（lovelive / 电子斗蛐蛐 / 轮盘 / 守密人）
+
+- **榜单**：首页榜单 15 个游戏全部在列。电子斗蛐蛐原来没有任何存档，现在散桌时记 `zjtt:bugfight:v1`（最高荷包 / 夺冠桌数 / 打过几桌），云端摘要 `gd.bf`，榜按最高荷包排、同分比夺冠桌数（边缘接口 `BOARD_SPEC` 的 `bf`，测试已覆盖）。
+- **手机适配**：四个新页面在 390×844 竖屏与 844×390 横屏下无横向溢出、无控制台报错；关键按钮不小于 30px。lovelive 标题页横屏需要滚动一下（内容比屏高）。
+- **lovelive 手感**：① 音频时钟读数按 `performance.now` 外推并保证不倒退（`currentTime` 是按渲染块跳的），并扣掉 `outputLatency`（蓝牙耳机会自动补偿；原来手调过判定偏移的玩家可能要回调）；② 触点判定时间扣掉事件排队延迟（`performance.now() - e.timeStamp`，封顶 80ms），手机上不再系统性「点晚了」；③ AudioContext 明确 `latencyHint: 'interactive'`；④ 新增设置「震动反馈」（安卓 `navigator.vibrate`，Perfect 9ms / 其余 6ms，触屏设备默认开）。

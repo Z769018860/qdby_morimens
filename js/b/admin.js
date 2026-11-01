@@ -1739,6 +1739,19 @@ function roulette() {
   };
 }
 
+// 电子斗蛐蛐 —— 一桌散场时记账（js/bugfight/view.js 的 bugfight:v1）：最高荷包、夺冠桌数、打过几桌
+function bugfight() {
+  const st = RD('bugfight:v1') || {};
+  return {
+    items: [
+      { k: '最高荷包', v: String(n(st.best)) },
+      { k: '夺冠', v: `${n(st.wins)} 桌` },
+      { k: '打过', v: `${n(st.runs)} 桌` },
+    ],
+    extra: n(st.runs) ? `${n(st.runs)} 桌里夺冠 ${n(st.wins)} 次` : '',
+  };
+}
+
 // 卡片顺序 = 首页的排列顺序，用户不用重新认路
 const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', icon: '🔍', read: detective, tip: '六边形自走棋推演' },
   { k: 'merge', n: '合成大杜勒', href: 'merge.html', icon: '⚫', read: merge, tip: '两个同级合成下一级' },
@@ -1754,6 +1767,7 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'reign', n: '弥萨格王权', href: 'reign.html', icon: '👑', read: reign, tip: '准或不准，四项账' },
   { k: 'lovelive', n: 'lovelive！mori⭐mens！', href: 'lovelive.html', icon: '🎵', read: lovelive, tip: '点按式音游' },
   { k: 'keeper', n: '杀死守密人', href: 'keeper.html', icon: '🔪', read: keeper, tip: '126 个结局的文字恐怖' },
+  { k: 'bugfight', n: '电子斗蛐蛐', href: 'bugfight.html', icon: '🦗', read: bugfight, tip: '押注两队怪物，活着出笼' },
   { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，73 位出战者，能上段' },
 ];
 
@@ -1917,6 +1931,9 @@ function digest() {
   // 所以第 0 位就是上限 126 的进度分，首页排行榜按它排。
   const kpS = RD('keeper:v1') || {};
   out.kp = [arr(kpS.endings).length, arr(kpS.forms).length, n(kpS.nights)];
+  // 电子斗蛐蛐 [最高荷包, 夺冠桌数, 打过几桌]：全部只增不减，首页榜按最高荷包排
+  const bfS = RD('bugfight:v1') || {};
+  out.bf = [n(bfS.best), n(bfS.wins), n(bfS.runs)];
   return out;
 }
 return { fmtDur, DIFF_MERGE, DIFF_BIRD, GAMES, readAll, credits, GD_SPEC, digest };
