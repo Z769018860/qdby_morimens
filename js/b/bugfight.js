@@ -1045,12 +1045,18 @@ const INTENT_CLS = (code) => {
 
 function unitLine(m) {
   const { u, sk } = peek(m.mob, m.lv);
-  const it = sk ? (DATA.intent[sk.i] || '特殊行动') : '—';
+  const full = sk ? (DATA.intent[sk.i] || '特殊行动') : '—';
+  const narrow = window.matchMedia('(max-width:379px)').matches;
+  const it = narrow ? full.slice(0, 1) : full;
   const n = el('div', 'unit');
-  n.innerHTML = `<span class="mface" style="${faceStyle(m.mob.ix, 34)}"></span>`
+  n.innerHTML = `<span class="mface" style="${faceStyle(m.mob.ix, narrow ? 26 : 34)}"></span>`
     + `<div class="um"><div class="un">${m.mob.n}</div>`
-    + `<div class="uv">${money(u.maxHp)} 血 · ${Math.round(u.atk)} 攻 · ${E.LV[m.lv].n}</div></div>`
-    + `<span class="ui ${INTENT_CLS(sk && sk.i)}">${it}</span>`;
+    // 窄屏：势级队头已经写过，血/攻也用最省字数的写法，别把数字挤成省略号
+    + (narrow
+      ? `<div class="uv">${money(u.maxHp)}血 ${Math.round(u.atk)}攻</div></div>`
+      : `<div class="uv">${money(u.maxHp)} 血 · ${Math.round(u.atk)} 攻 · ${E.LV[m.lv].n}</div></div>`)
+    + `<span class="ui ${INTENT_CLS(sk && sk.i)}" title="点开看完整意图表">${it}<i>›</i></span>`;
+  n.title = '点开看这一只要做什么';
   n.addEventListener('click', (ev) => { ev.stopPropagation(); showMob(m.mob, m.lv); });
   return n;
 }
@@ -1080,6 +1086,7 @@ function renderBet() {
   renderTeam(1);
   renderBoard();
   renderAmt();
+  paintBank();
   const min = T.minStake(S.round);
   $('amtVal').textContent = money(amt);
   $('pickLabel').textContent = pickedSide < 0 ? '先点一边'
@@ -1104,6 +1111,16 @@ function renderBet() {
   }
 }
 
+/** 自己的荷包与「押完还剩多少」——下注屏最该看见的两个数。 */
+function paintBank() {
+  const mine = S.bets.find((b) => b.id === 'you');
+  const already = mine && !mine.pass ? mine.amt : 0;
+  $('betBank').textContent = money(S.you.bank);
+  $('betAfter').textContent = already
+    ? `已押 ${money(already)} · 余 ${money(S.you.bank - already)}`
+    : `押 ${money(amt)} · 余 ${money(Math.max(0, S.you.bank - amt))}`;
+}
+
 function renderAmt() {
   const min = T.minStake(S.round);
   amt = Math.max(min, Math.min(S.you.bank, Math.floor(amt / 10) * 10));
@@ -1116,6 +1133,7 @@ function renderAmt() {
   for (const b of qr.children) {
     if (b.textContent === money(amt) || (amt >= S.you.bank && b.textContent === '全押')) b.classList.add('on');
   }
+  paintBank();
 }
 
 function renderBoard() {
@@ -1126,18 +1144,19 @@ function renderBoard() {
   const pot = (S.carry || 0) + pool[0] + pool[1];
   $('hPot').textContent = money(pot);
   if (!revealed) {
-    $('boardHint').textContent = '九个人还没押——开笼才会亮注';
+    $('boardHint').textContent = '九个人还没押 · 右边的「余」是各自荷包';
     for (const p of S.ai) {
       if (p.out) continue;
       const r = el('div', 'row');
       r.innerHTML = `<img src="${p.face}" alt="" width="22" height="22" loading="lazy">`
         + `<span class="rn">${p.n}<span class="rs">${p.tag || ''}</span></span>`
+        + `<span class="bk">余 ${money(p.bank)}</span>`
         + `<span class="rb p">…</span>`;
       box.appendChild(r);
     }
     return;
   }
-  $('boardHint').textContent = '注都摆在桌上了';
+  $('boardHint').textContent = '注都摆上桌了 · 「余」是押完还剩下的';
   const byId = new Map(S.bets.map((b) => [b.id, b]));
   const rows = [S.you, ...S.ai].filter((p) => !p.out);
   rows.sort((a, b) => {
@@ -1153,7 +1172,9 @@ function renderBoard() {
     let tag;
     if (!b || b.pass) tag = `<span class="rb p">不下</span>`;
     else tag = `<span class="rb ${b.side === 0 ? 'l' : 'r'}">${b.side === 0 ? '左' : '右'} ${money(b.amt)}</span>`;
-    r.innerHTML = `${img}<span class="rn">${p.n}${p.isYou ? '' : `<span class="rs">${p.tag || ''}</span>`}</span>${tag}`;
+    const left = p.bank - (b && !b.pass ? b.amt : 0);
+    r.innerHTML = `${img}<span class="rn">${p.n}${p.isYou ? '' : `<span class="rs">${p.tag || ''}</span>`}</span>`
+      + `<span class="bk">余 ${money(left)}</span>${tag}`;
     box.appendChild(r);
   }
   // 赔率提示
@@ -1172,7 +1193,10 @@ function unitCard(u) {
     + `<div class="fm"><div class="fn">${u.n}</div>`
     + `<div class="bar"><i style="width:100%"></i></div>`
     + `<div class="fhp">${money(u.hp)} / ${money(u.maxHp)}</div>`
-    + `<div class="marks"></div></div>`;
+    + `<div class="marks"></div></div>`
+    + `<span class="fi"></span>`;
+  n.title = '点开看意图表';
+  n.addEventListener('click', () => showMob(mobOf(u), u.lv, u));
   return n;
 }
 
@@ -1211,6 +1235,14 @@ function paintUnit(u) {
   if (u.vuln > 0) add('vu', '易伤' + u.vuln);
   if (u.weak > 0) add('wk', '虚弱' + u.weak);
   if (u.barrier > 0) add('br', '屏障' + u.barrier);
+  const fi = n.querySelector('.fi');
+  if (fi) {
+    const bd = E.intentBadge(DATA, u);
+    // 窄屏放不下两个字以上的标签：缩成一个字，别去挤怪物的名字
+    const narrow = window.matchMedia('(max-width:379px)').matches;
+    fi.textContent = bd ? (narrow ? bd.n.slice(0, 1) : bd.n) : '';
+    fi.className = 'fi ' + (bd ? INTENT_CLS(bd.code) : '');
+  }
 }
 
 function logLine(txt, cls) {
@@ -1410,25 +1442,84 @@ function showOver() {
 }
 
 /* ---------------------------------------------------------------- 详情 / 规则 */
-function showMob(mob, lv) {
-  const u = E.makeUnit(mob, lv, 0, 0);
-  const seq = (mob.op || []).concat(mob.cy || []);
-  const uniq = [...new Set(seq)];
-  let html = `<p style="margin:0 0 4px"><b>${mob.n}</b> · ${E.RANK[mob.rank].n} · ${E.LV[lv].n}</p>`;
-  html += `<div class="tagbar"><i>${money(u.maxHp)} 血</i><i>${Math.round(u.atk)} 攻</i>`
-    + `<i>原作 hp ${mob.hp}</i><i>原作 atk ${mob.atk}</i></div>`;
-  if (mob.desc) html += `<p style="margin:6px 0 0;font-size:12px">${mob.desc}</p>`;
-  html += `<h4>意图循环（原作顺序）</h4>`;
-  html += `<p style="margin:0 0 6px;font-size:11.5px;color:var(--dim2)">前 ${(mob.op || []).length} 回合按表走，之后循环</p>`;
-  for (const sid of uniq) {
-    const sk = DATA.skills[sid];
-    if (!sk) continue;
-    const row = el('div', 'skillrow');
-    row.innerHTML = `<span class="si">${DATA.intent[sk.i] || '特殊'}</span>`
-      + `<div class="st"><b>${sk.n || '（无名）'}</b><br>${E.skillText(sk, u)}</div>`;
-    html += row.outerHTML;
+/** 战斗屏的单位只带 sid，得换回名录里的完整条目才看得到意图表。 */
+let MOB_IX = null;
+function mobOf(u) {
+  if (!MOB_IX) {
+    MOB_IX = new Map();
+    for (const m of DATA.mobs) MOB_IX.set(m.id, m);
   }
-  openSheet(`${mob.n}`, html);
+  return MOB_IX.get(u.sid) || {
+    id: u.sid, n: u.n, ix: u.ix, rank: u.rank, hp: 1, atk: 1,
+    op: u.op || [], cy: u.cy || [], desc: u.desc || '',
+  };
+}
+
+/** 现在是第几手（从 0 数）：开局按 op 走，走完在 cy 里转。 */
+function handIndex(u) {
+  const op = u.op || [], cy = u.cy || [];
+  if (u.acted < op.length) return u.acted;
+  if (!cy.length) return op.length ? u.acted % op.length : -1;
+  return op.length + ((u.acted - op.length) % cy.length);
+}
+
+// 开局表最长的有 48 手（一只首领），全列出来没人看——只列前 8 手，剩下折一行。
+const OP_SHOW = 8;
+
+/** 逐回合的意图表：先 op，再 cy（循环体）。 */
+function intentPlan(mob) {
+  const op = mob.op || [], cy = mob.cy || [];
+  const rows = [];
+  for (let i = 0; i < Math.min(op.length, OP_SHOW); i++) rows.push({ t: i + 1, sid: op[i], cyc: false });
+  if (op.length > OP_SHOW) rows.push({ gap: op.length - OP_SHOW });
+  for (let i = 0; i < cy.length; i++) rows.push({ t: op.length + i + 1, sid: cy[i], cyc: true });
+  return rows;
+}
+
+function showMob(mob, lv, live) {
+  const u = live || E.makeUnit(mob, lv, 0, 0);
+  const now = handIndex(u);
+  const nowSk = DATA.skills[E.intentOf(u)];
+  const opN = (mob.op || []).length;
+  const cyN = (mob.cy || []).length;
+
+  let html = `<p style="margin:0 0 4px"><b>${mob.n}</b> · ${E.RANK[mob.rank].n} · ${E.LV[lv].n}`
+    + (live ? ' · <span style="color:var(--gold)">场上</span>' : '') + '</p>';
+  html += `<div class="tagbar"><i>${money(u.maxHp)} 血</i><i>${Math.round(u.atk)} 攻</i>`
+    + (live ? `<i>剩 ${money(u.hp)}</i>` : '')
+    + `<i>原作 hp ${mob.hp}</i><i>原作 atk ${mob.atk}</i></div>`;
+  if (mob.desc) html += `<p class="mdesc">${mob.desc}</p>`;
+
+  // 这一手单独拎出来——下注前真正要看的就是它
+  html += `<h4>${live ? '第 ' + (now + 1) + ' 回合' : '第一回合'}要做的</h4>`;
+  html += `<div class="nowbox ${nowSk ? INTENT_CLS(nowSk.i) : ''}">`
+    + `<span class="ni">${nowSk ? (DATA.intent[nowSk.i] || '特殊行动') : '—'}</span>`
+    + `<div class="nb"><b>${nowSk ? (nowSk.n || '（无名）') : '没有可放的技能'}</b>`
+    + `<span>${nowSk ? E.skillText(nowSk, u) : ''}</span></div></div>`;
+
+  // 整张表：前 8 手按表走，之后在循环体里转
+  html += '<h4>意图表</h4>';
+  html += `<p class="sub2">开局 ${opN} 手按表走` + (cyN ? `，之后在最后 ${cyN} 手里循环` : '') + '。'
+    + '标金边的是这一回合要放的。</p>';
+  html += '<div class="itbl">';
+  for (const r of intentPlan(mob)) {
+    if (r.gap != null) {
+      html += `<div class="tg">… 开局还剩 ${r.gap} 手，略（都按表走）</div>`;
+      continue;
+    }
+    const sk = DATA.skills[r.sid];
+    if (!sk) continue;
+    const cur = r.t - 1 === now ? ' cur' : '';
+    html += `<div class="tr${cur}${r.cyc ? ' cyc' : ''}">`
+      + `<span class="tn">${r.t}</span>`
+      + `<span class="ti ${INTENT_CLS(sk.i)}">${DATA.intent[sk.i] || '特殊'}</span>`
+      + `<div class="tx"><b>${sk.n || '（无名）'}${r.cyc ? '<i>循环</i>' : ''}</b>`
+      + `<span>${E.skillText(sk, u)}</span></div></div>`;
+  }
+  html += '</div>';
+  html += `<p class="sub2" style="margin-top:8px">伤害按这一只的攻（${Math.round(u.atk)}）算；`
+    + '场上有力量、虚弱、易伤时实际会变，关掉再点开会按当下的状态重算。</p>';
+  openSheet(mob.n, html);
 }
 
 function showRules() {

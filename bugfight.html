@@ -152,10 +152,23 @@ body{
 }
 .unit .um{min-width:0; flex:1}
 .unit .un{font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.unit .uv{font-size:10px; color:var(--dim); font-variant-numeric:tabular-nums; white-space:nowrap}
+.unit .uv{
+  font-size:10px; color:var(--dim); font-variant-numeric:tabular-nums;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.unit .ui i{font-style:normal; opacity:.65; margin-left:3px}
+.unit{cursor:pointer}
 .unit .ui{
+  flex:0 0 auto; max-width:54px; overflow:hidden; text-overflow:ellipsis;
   font-size:9px; padding:0 4px; border-radius:99px; line-height:1.5; white-space:nowrap;
   border:1px solid var(--line2); color:var(--dim);
+}
+@media (max-width:379px){
+  /* 320 这一档卡里塞不下意图标签：收起来，靠名字后面的 › 提示可以点开 */
+  .unit .mface{width:26px; height:26px; flex:0 0 26px}
+  .unit .uv{font-size:9.5px}
+  .unit .ui{display:none}
+  .unit .un::after{content:'\203a'; opacity:.45; margin-left:3px}
 }
 .unit .ui.atk{color:var(--left2); border-color:rgba(212,85,63,.5)}
 .unit .ui.buf{color:var(--gold); border-color:rgba(217,164,65,.5)}
@@ -173,6 +186,12 @@ body{
   flex:0 0 auto; display:flex; flex-direction:column; gap:7px; padding:9px 10px;
   border-radius:13px; border:1px solid var(--line); background:var(--panel);
 }
+.bankrow{
+  display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+  font-size:11.5px; color:var(--dim);
+}
+.bankrow b{color:var(--gold2); font-size:15px; font-variant-numeric:tabular-nums; margin-left:3px}
+.bankrow #betAfter{font-size:11px; color:var(--dim2); font-variant-numeric:tabular-nums; white-space:nowrap}
 .betrow{display:flex; align-items:center; gap:7px}
 .betrow .lb{font-size:11.5px; color:var(--dim); white-space:nowrap}
 .chipbtn{
@@ -217,6 +236,8 @@ body{
 .row .rs{font-size:10px; color:var(--dim2); margin-left:4px}
 .row .rb{font-variant-numeric:tabular-nums; white-space:nowrap; font-size:11.5px}
 .row .rb.l{color:var(--left2)} .row .rb.r{color:var(--right2)} .row .rb.p{color:var(--dim2)}
+.row .bk{font-size:10.5px; color:var(--dim2); font-variant-numeric:tabular-nums; white-space:nowrap; flex:0 0 auto}
+.row.you .bk{color:var(--gold)}
 .row.you .rn{color:var(--gold2); font-weight:600}
 
 /* ---------------------------------------------------------------- 打斗 */
@@ -246,8 +267,36 @@ body{
 .bar i{display:block; height:100%; border-radius:3px; transition:width .25s}
 .fu.L .bar i{background:linear-gradient(90deg,var(--left),var(--left2))}
 .fu.R .bar i{background:linear-gradient(90deg,var(--right),var(--right2))}
-.fu .fhp{font-size:9.5px; color:var(--dim); font-variant-numeric:tabular-nums; margin-top:2px}
-.marks{display:flex; gap:3px; flex-wrap:wrap; margin-top:2px}
+.fu .fhp{
+  font-size:9.5px; color:var(--dim); font-variant-numeric:tabular-nums; margin-top:2px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.fu{cursor:pointer}
+.fu .fi{
+  flex:0 0 auto; align-self:flex-start; max-width:58px; overflow:hidden; text-overflow:ellipsis;
+  font-size:9.5px; padding:1px 5px; border-radius:99px; border:1px solid var(--line2);
+  color:var(--dim); white-space:nowrap;
+}
+@media (max-width:379px){ .fu .fi{max-width:22px; padding:1px 3px; text-align:center} }
+.fu .fi:empty{display:none}
+.fu .fi.atk{color:var(--left2); border-color:rgba(212,85,63,.5)}
+/* 矮屏（640/568 这一档）四只怪会顶出擂台：把卡压薄一点、擂台多分一点高度 */
+@media (max-height:600px){
+  /* 568 这一档：宁可收起队伍合计，也要让看台看得见几个人 */
+  .scr{gap:6px}
+  .cage .tfoot{display:none}
+  .board{min-height:68px}
+  .betbox{padding:7px 9px; gap:5px}
+  .acts2 .btn{height:38px}
+}
+@media (max-height:680px){
+  .fstage{max-height:66%}
+  .fside{gap:3px}
+  .fu{padding:4px}
+}
+.fu .fi.buf{color:var(--gold); border-color:rgba(217,164,65,.5)}
+.fu .fi.def{color:var(--right2); border-color:rgba(63,154,168,.5)}
+.marks{display:flex; gap:3px; flex-wrap:nowrap; overflow:hidden; margin-top:2px}
 .marks i{
   font-style:normal; font-size:8.5px; padding:0 3px; border-radius:99px; line-height:1.5;
   border:1px solid var(--line2); color:var(--dim);
@@ -303,6 +352,50 @@ body{
 .sheet p,.sheet li{font-size:12.5px; line-height:1.75; color:var(--dim)}
 .sheet ul{margin:0; padding-left:18px}
 .sheet .close{position:sticky; bottom:0; margin-top:12px}
+.sheet .mdesc{
+  margin:7px 0 0; padding-left:8px; border-left:2px solid var(--line2);
+  font-size:12px; line-height:1.7; color:var(--dim);
+}
+.sheet .sub2{margin:0 0 6px; font-size:11px; color:var(--dim2)}
+.nowbox{
+  display:flex; gap:8px; align-items:flex-start; padding:8px 10px; border-radius:11px;
+  border:1px solid var(--line2); background:var(--panel2);
+}
+.nowbox .ni{
+  flex:0 0 auto; font-size:10.5px; padding:2px 7px; border-radius:99px;
+  border:1px solid var(--line2); color:var(--dim); white-space:nowrap;
+}
+.nowbox .nb{min-width:0; font-size:12px; line-height:1.6}
+.nowbox .nb b{display:block; font-size:12.5px; color:var(--text)}
+.nowbox .nb span{color:var(--dim)}
+.nowbox.atk{border-color:rgba(212,85,63,.55)} .nowbox.atk .ni{color:var(--left2); border-color:rgba(212,85,63,.55)}
+.nowbox.buf{border-color:rgba(217,164,65,.55)} .nowbox.buf .ni{color:var(--gold); border-color:rgba(217,164,65,.55)}
+.nowbox.def{border-color:rgba(63,154,168,.55)} .nowbox.def .ni{color:var(--right2); border-color:rgba(63,154,168,.55)}
+.itbl{display:flex; flex-direction:column; gap:4px}
+.itbl .tr{
+  display:flex; gap:7px; align-items:flex-start; padding:5px 7px; border-radius:9px;
+  background:var(--panel2); border:1px solid transparent;
+}
+.itbl .tr.cur{border-color:var(--gold); background:rgba(217,164,65,.1)}
+.itbl .tn{
+  flex:0 0 20px; text-align:right; font-size:10.5px; color:var(--dim2);
+  font-variant-numeric:tabular-nums; line-height:1.9;
+}
+.itbl .tr.cur .tn{color:var(--gold2)}
+.itbl .ti{
+  flex:0 0 auto; font-size:10px; padding:1px 6px; border-radius:99px; line-height:1.7;
+  border:1px solid var(--line2); color:var(--dim); white-space:nowrap;
+}
+.itbl .ti.atk{color:var(--left2); border-color:rgba(212,85,63,.5)}
+.itbl .ti.buf{color:var(--gold); border-color:rgba(217,164,65,.5)}
+.itbl .ti.def{color:var(--right2); border-color:rgba(63,154,168,.5)}
+.itbl .tx{min-width:0; font-size:11.5px; line-height:1.6; color:var(--dim)}
+.itbl .tx b{display:block; color:var(--text)}
+.itbl .tx b i{
+  font-style:normal; font-size:9.5px; color:var(--gold); margin-left:4px;
+  border:1px solid rgba(217,164,65,.5); border-radius:99px; padding:0 4px;
+}
+.itbl .tg{font-size:10.5px; color:var(--dim2); padding:1px 0 1px 27px}
 .skillrow{display:flex; gap:7px; padding:5px 0; border-bottom:1px dashed var(--line)}
 .skillrow:last-child{border:0}
 .skillrow .si{flex:0 0 auto; font-size:9px; padding:0 5px; border-radius:99px; line-height:1.6;
@@ -330,7 +423,7 @@ body{
 #boot .err{color:var(--left2)}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
-<meta name="build" content="95546afe2d">
+<meta name="build" content="2bd540c8ab">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -388,6 +481,10 @@ html{-webkit-tap-highlight-color:transparent}
       <section class="team R" id="teamR" role="button" tabindex="0" aria-pressed="false"></section>
     </div>
     <div class="betbox">
+      <div class="bankrow">
+        <span>荷包 <b id="betBank">1000</b></span>
+        <span id="betAfter">押 50 · 余 950</span>
+      </div>
       <div class="betrow">
         <span class="lb">押</span>
         <span id="pickLabel" style="font-size:12px;color:var(--dim2)">先点一边</span>
@@ -599,7 +696,7 @@ html{-webkit-tap-highlight-color:transparent}
   if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
 })();
 </script>
-<script type="module" src="js/b/bugfight.js?v=95546afe2d"></script>
+<script type="module" src="js/b/bugfight.js?v=2bd540c8ab"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
