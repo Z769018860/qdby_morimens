@@ -178,6 +178,9 @@ body.vpad-on .autofire{right:auto; left:50%; transform:translateX(-50%); bottom:
 }
 .vpadbtn.on{color:var(--gold); border-color:color-mix(in oklab, var(--gold) 55%, transparent)}
 @media (pointer:coarse){ .vpadbtn{display:flex} }
+/* 触屏设备（含横屏、宽度超过 520px 的手机）不显示键盘提示；开了虚拟十字键连触屏提示也不要，别挡视线 */
+@media (pointer:coarse){ .stage .hint .kb{display:none} .stage .hint .tc{display:inline} }
+body.vpad-on .hint{display:none}
 body.vpad-on .vpadbtn{bottom:auto; top:84px}
 body.titlestate .stage .vpadbtn{display:none}
 
@@ -532,7 +535,7 @@ body.titlestate .ov#ovTitle .panel{
 
 .card p{white-space:pre-line}
 </style>
-<meta name="build" content="df76df76d4">
+<meta name="build" content="725c5d348c">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -727,7 +730,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 1000);
 })();
 </script>
-<script type="module" src="js/b/binding.js?v=df76df76d4"></script>
+<script type="module" src="js/b/binding.js?v=725c5d348c"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
