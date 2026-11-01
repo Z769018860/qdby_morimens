@@ -5,12 +5,14 @@
 //   2) 动作要不要发出去（好友房发，其它不发）。
 // 所以「动作只有一条路」这件事必须守住：任何点击都走 doAction()，
 // 一旦有人绕过它直接改状态，两台机器的 s 就会分叉，房间立刻不同步。
-import { CHAR_ORDER, CHARS } from './gen.js';
+import { CHAR_ORDER, CHARS, POWER, CREATORS } from './gen.js';
 import { ITEMS, ITEM_ORDER } from './items.js';
 import {
-  create, shoot, useItem, view, ROUNDS,
+  create, shoot, useItem, view, roundsFor, BEST_OF,
 } from './engine.js';
 import { aiStep, DIFFS } from './ai.js';
+import { gainFor, effectiveDiff, foePool } from './rank.js';
+import { progress as rankProgress, TIERS } from '../duel/tiers.js';
 import * as net from './net.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -19,6 +21,10 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': 
 const S = {
   mode: 'ai',
   diff: 'normal',
+  best: 3,          // 赛制：3 = 三局两胜，5 = 五局三胜
+  aiLv: 'normal',   // 这一场人机实际用的档位（段位会把难度抬上去）
+  q: '',            // 选人搜索框
+  tab: 'all',       // 选人筛选：all / 界域名 / creator
   pick: [null, null],
   picking: 0,
   expect: 1,        // 这一轮要选几个人（人机/好友房 1，同屏 2）
@@ -30,20 +36,35 @@ const S = {
   token: 0,         // 每次重开 +1，用来作废上一局遗留的 AI 定时器
   busy: false,
   muted: false,
-  stats: { w: 0, l: 0, streak: 0, best: 0 },
+  stats: { w: 0, l: 0, streak: 0, best: 0, rp: 0, bestStreak: 0 },
 };
 
 // ---------------------------------------------------------------- 存档小工具
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* 无痕模式 */ } };
-const STATS_KEY = 'roulette:v1';
+// 存档键统一挂在 zjtt: 前缀下。js/gamestats.js（个人中心 / 云端档案摘要 / 首页排行榜）
+// 读的是 zjtt:roulette:v1——第一版这里写成了裸 'roulette:v1'，于是战绩和段位分只存在本机，
+// 上报时永远是空数组，榜单上也永远不会出现这个游戏。
+const STATS_KEY = 'zjtt:roulette:v1';
+const OLD_KEYS = { stats: 'roulette:v1', diff: 'roulette:diff', best: 'roulette:best', mute: 'roulette:mute' };
+// 老版本写的是裸键：第一次读先看新键，没有就把旧值搬过来（旧键留着，回滚也不会丢）
+function lsPick(k, oldK) {
+  const v = lsGet(k);
+  if (v != null) return v;
+  const o = lsGet(oldK);
+  if (o != null) lsSet(k, o);
+  return o;
+}
 
 function loadStats() {
   try {
-    const j = JSON.parse(lsGet(STATS_KEY) || '{}');
+    const j = JSON.parse(lsPick(STATS_KEY, OLD_KEYS.stats) || '{}');
     S.stats = {
       w: j.w | 0, l: j.l | 0, streak: j.streak | 0, best: j.best | 0,
+      rp: Math.max(0, j.rp | 0), bestStreak: j.bestStreak | 0,
     };
+    // 老存档只有 w/l：段位分从 0 起算，连胜数沿用原来的
+    if (!S.stats.bestStreak) S.stats.bestStreak = S.stats.best;
   } catch (e) { /* 存档坏了就当没有 */ }
 }
 function saveStats() {
@@ -148,7 +169,7 @@ function show(name) {
     const el = document.getElementById('scr-' + id);
     if (el) el.hidden = id !== name;
   }
-  $('#sub').textContent = name === 'battle' ? '第 ' + (S.s ? S.s.round : 1) + ' 局 · 三局两胜'
+  $('#sub').textContent = name === 'battle' ? `第 ${S.s ? S.s.round : 1} 局 · ${fmtBest(S.best)}`
     : name === 'pick' ? '选出战的唤醒体'
       : name === 'room' ? '好友房' : '一把枪、一膛子弹、两个人';
   if (name === 'home') renderHome();
@@ -156,46 +177,101 @@ function show(name) {
 }
 
 // ---------------------------------------------------------------- 首页
+const fmtBest = (b) => (Number(b) === 5 ? '五局三胜' : '三局两胜');
+
+function rankCardHTML() {
+  const p = rankProgress(S.stats.rp);
+  const tier = p.tier;
+  // 段位会把「看心情」往上抬：先告诉玩家这一档实际会打成什么样
+  const eff = effectiveDiff(p.idx, S.diff);
+  const effName = (DIFFS.find((d) => d.k === eff) || { n: '' }).n;
+  return `<div class="rk" style="--rc:${tier.c}">
+    <div class="rk-h">
+      <b>${esc(tier.n)}</b>
+      <span>${p.rp} 分</span>
+    </div>
+    <div class="rk-bar"><i style="width:${p.pct}%"></i></div>
+    <div class="rk-n">${p.next ? `距「${esc(p.next.n)}」还差 <b>${p.left}</b> 分` : '已经是最高段位——命轮由你来转'}
+      <span class="rk-eff">这一档人机实际按「${esc(effName || '普通')}」打</span></div>
+  </div>`;
+}
+
 function renderHome() {
-  const row = $('#diffRow');
-  row.innerHTML = '<span class="lb">人机难度</span>' + DIFFS.map((d) => (
+  $('#diffRow').innerHTML = '<span class="lb">人机难度</span>' + DIFFS.map((d) => (
     `<button type="button" data-diff="${d.k}" aria-pressed="${d.k === S.diff}" title="${esc(d.d)}">${esc(d.n)}</button>`
   )).join('');
+  $('#bestRow').innerHTML = '<span class="lb">赛制</span>' + BEST_OF.map((b) => (
+    `<button type="button" data-best="${b}" aria-pressed="${b === S.best}" title="${b === 5 ? '谁先赢三局' : '谁先赢两局'}">${fmtBest(b)}</button>`
+  )).join('');
+  $('#rankCard').innerHTML = rankCardHTML();
   const st = S.stats;
   const rate = st.w + st.l ? Math.round((st.w / (st.w + st.l)) * 100) : 0;
   $('#rec').innerHTML = st.w + st.l
-    ? `人机战绩 <b>${st.w}</b> 胜 <b>${st.l}</b> 负（${rate}%）· 当前连胜 <b>${st.streak}</b> · 最高 <b>${st.best}</b> 连胜`
-    : '还没有人机战绩。同屏与好友房不记账——那两样是跟人打的，不算数。';
+    ? `人机战绩 <b>${st.w}</b> 胜 <b>${st.l}</b> 负（${rate}%）· 当前连胜 <b>${st.streak}</b> · 最高 <b>${st.bestStreak}</b> 连胜`
+    : '还没有人机战绩。同屏与好友房不记账——那两样是跟人打的，不算数；段位也只认人机。';
 }
 
 // ---------------------------------------------------------------- 选人
 function cardOf(id) { return CHARS[id]; }
 
+// 选人筛选：界域（四个）＋ 主播，另配一个搜索框。73 个人一屏滚下来太长了。
+const REALMS = ['混沌', '血肉', '深海', '超维'];
+const TABS = [['all', '全部'], ...REALMS.map((r) => [r, r]), ['creator', '主播']];
+
+function matchQuery(c, q) {
+  if (!q) return true;
+  const hay = [c.n, c.en || '', c.realm, c.role, c.passive.n, ...c.items.map((i) => ITEMS[i].n)].join('|').toLowerCase();
+  return hay.indexOf(q) >= 0;
+}
+
+function pickList() {
+  const q = S.q.trim().toLowerCase();
+  return CHAR_ORDER.filter((id) => {
+    const c = CHARS[id];
+    if (S.tab === 'creator' && !c.creator) return false;
+    if (S.tab !== 'all' && S.tab !== 'creator' && c.realm !== S.tab) return false;
+    return matchQuery(c, q);
+  });
+}
+
 function renderPick() {
   const need = S.expect;
   const idx = S.picking;
   $('#pickHint').innerHTML = need === 1
-    ? '选一位出战的唤醒体——她的理智上限、随身道具和被动就是你这局的本钱。'
+    ? `选一位出战的唤醒体——理智上限、随身道具和被动就是你这局的本钱。<span class="ph-n">共 ${CHAR_ORDER.length} 位：${CHAR_ORDER.length - CREATORS.length} 名唤醒体 + ${CREATORS.length} 位主播</span>`
     : `同屏双人：先给 <b>${idx === 0 ? '玩家一' : '玩家二'}</b> 选一位。`;
+  $('#pickTabs').innerHTML = TABS.map(([k, n]) => (
+    `<button type="button" data-tab="${k}" aria-pressed="${k === S.tab}">${esc(n)}</button>`
+  )).join('');
+  const ids = pickList();
   const grid = $('#pickGrid');
-  grid.innerHTML = CHAR_ORDER.map((id) => {
+  grid.innerHTML = ids.length ? ids.map((id) => {
     const c = CHARS[id];
     const on = S.pick[idx] === id;
     const taken = need === 2 && S.pick[1 - idx] === id && idx === 1;
     return `<button class="pcard" type="button" data-pick="${id}" aria-pressed="${on}" ${taken ? 'disabled' : ''}>
       <img src="${c.face}" alt="" width="44" height="44" decoding="async">
       <div class="pm">
-        <div class="pn">${esc(c.n)}</div>
+        <div class="pn">${esc(c.n)}${c.creator ? '<span class="cb">主播</span>' : ''}</div>
         <div class="pt">${esc(c.realm)} · ${esc(c.role)} · 理智 ${c.hp}</div>
         <div class="pp">${esc(c.passive.n)}：${esc(c.passive.d)}</div>
         <div class="php">随身：${c.items.map((i) => esc(ITEMS[i].n)).join(' / ')}</div>
       </div>
     </button>`;
-  }).join('');
+  }).join('') : '<p class="hint" style="grid-column:1/-1">没搜到——换个字试试，或者点「全部」。</p>';
   $('#pickGo').disabled = !S.pick[idx];
   $('#pickGo').textContent = need === 1 ? '就她了'
     : (idx === 0 ? '下一位' : '开打');
   $('#pickBack').textContent = idx === 0 ? '返回' : '上一位';
+  // 卡面上的被动被截成两行（73 张卡滚下来太长）：选中之后在吸底条里读全文
+  const cur = S.pick[idx] ? CHARS[S.pick[idx]] : null;
+  const info = $('#pickInfo');
+  if (info) {
+    info.innerHTML = cur
+      ? `<b>${esc(cur.n)}</b> · ${esc(cur.realm)} · ${esc(cur.role)} · 理智 ${cur.hp} · 随身 ${cur.items.map((i) => esc(ITEMS[i].n)).join(' / ')}<br>
+         <span class="pw">${esc(cur.passive.n)}</span>：${esc(cur.passive.d)}`
+      : '点一张卡看她的被动全文——理智上限、随身道具和被动就是你这局的本钱。';
+  }
 }
 
 function pickChar(id) {
@@ -204,14 +280,23 @@ function pickChar(id) {
   sfx.click();
 }
 
+// 人机挑人：段位越高，它挑的越靠前（scripts/roulette-power.mjs 量的胜率分位）。
+// 和决斗链接的「对手按对位表挑牌组」是一回事——不给它加血，只让它选个更能打的。
+function pickFoeId(myId) {
+  const tier = rankProgress(S.stats.rp).idx;
+  const pool = foePool(tier, POWER, CHAR_ORDER).filter((id) => id !== myId);
+  const list = pool.length ? pool : CHAR_ORDER.filter((id) => id !== myId);
+  return list[Math.floor(Math.random() * list.length)];
+}
+
 function pickNext() {
   if (!S.pick[S.picking]) return;
   if (S.picking < S.expect - 1) { S.picking += 1; renderPick(); sfx.click(); return; }
   if (S.mode === 'net') { openNetSheet(); return; }
   if (S.mode === 'hot') { startMatch([S.pick[0], S.pick[1]], 0); return; }
-  // 人机：对手随机，但不跟自己重样
-  const pool = CHAR_ORDER.filter((id) => id !== S.pick[0]);
-  const foeId = pool[Math.floor(Math.random() * pool.length)];
+  const foeId = pickFoeId(S.pick[0]);
+  // 段位会把人机档位往上抬（见 rank.js 的 floorFor）
+  S.aiLv = effectiveDiff(rankProgress(S.stats.rp).idx, S.diff);
   startMatch([S.pick[0], foeId], 0);
 }
 
@@ -219,7 +304,7 @@ function pickNext() {
 function newSeed() { return ((Date.now() & 0x7fffffff) ^ (Math.random() * 0xffffffff)) >>> 0; }
 
 function startMatch(chars, meSide) {
-  S.s = create(newSeed(), chars);
+  S.s = create(newSeed(), chars, { best: S.best });
   S.me = meSide;
   S.token += 1;
   S.busy = false;
@@ -250,6 +335,7 @@ function cardHTML(side) {
   if (s.cuff[side]) bdg.push(`<i class="cf">镣铐 ${s.cuff[side]}</i>`);
   if (s.saw[side]) bdg.push(`<i class="sw">锯 +${s.saw[side]}</i>`);
   if (s.blood[side]) bdg.push('<i class="bl">血链</i>');
+  if (s.mute[side]) bdg.push('<i class="mu">压制</i>');
   const items = s.items[side];
   // 自己的道具在下面那排「道具格」里已经有了一份，卡上只画对手的（省地方，也不重复）
   const chips = side === S.viewer ? ''
@@ -314,7 +400,7 @@ function renderBattle() {
   sayEl.textContent = last ? last.txt : '装填完毕。';
   sayEl.className = 'say ' + (last ? last.cls : '');
 
-  $('#sub').textContent = `第 ${s.round} 局 · 三局两胜 · ${s.wins[0]} : ${s.wins[1]}`;
+  $('#sub').textContent = `第 ${s.round} / ${s.rounds.length} 局 · ${fmtBest(s.best)} · ${s.wins[0]} : ${s.wins[1]}`;
 }
 
 // ---------------------------------------------------------------- 动画
@@ -415,7 +501,7 @@ function driveAi() {
   const s = S.s;
   if (S.mode !== 'ai' || !s || s.phase !== 'play' || s.turn === S.me) return;
   const tok = S.token;
-  const a = aiStep(s, s.turn, S.diff);
+  const a = aiStep(s, s.turn, S.aiLv || S.diff);
   if (!a) return;
   const delay = 520 + Math.round(Math.random() * 320);
   setTimeout(() => {
@@ -440,16 +526,20 @@ function showResult() {
   const t = $('#ovt');
   t.textContent = hot ? `${CHARS[s.chars[s.winner]].n} 赢` : (win ? '活下来了' : '留在了桌上');
   t.className = 'big ' + (win || hot ? 'win' : 'lose');
-  $('#ovs').innerHTML = `比分 <b>${s.wins[0]} : ${s.wins[1]}</b>　（三局两胜）`;
+  $('#ovs').innerHTML = `比分 <b>${s.wins[0]} : ${s.wins[1]}</b>　（${fmtBest(s.best)}）`;
 
   let tip = '';
+  let rankHtml = '';
   if (S.mode === 'ai') {
+    const rk0 = rankProgress(S.stats.rp);
     if (win) {
       S.stats.w += 1;
       S.stats.streak += 1;
-      if (S.stats.streak > S.stats.best) S.stats.best = S.stats.streak;
+      if (S.stats.streak > S.stats.bestStreak) S.stats.bestStreak = S.stats.streak;
+      S.stats.best = S.stats.streak;
       const sweep = s.wins[1] === 0;
-      const bonus = 3 + (sweep ? 2 : 0);
+      // 五局三胜更长，银芯也多给一点
+      const bonus = (S.best === 5 ? 5 : 3) + (sweep ? 2 : 0);
       walletAdd(bonus);
       tip = `银芯 +${bonus}${sweep ? '（横扫额外 +2）' : ''}。`;
       sfx.win();
@@ -460,7 +550,19 @@ function showResult() {
       tip = '银芯 +1（输也有参与奖）。';
       sfx.lose();
     }
+    // 段位分：只算人机。难度用的是「段位抬过之后」的实际档位，
+    // 所以高段位选「看心情」也拿不到低难度的分。
+    const gain = gainFor({
+      win, diff: S.aiLv || S.diff, tier: rk0.idx, streak: S.stats.streak, best: S.best,
+    });
+    S.stats.rp += gain;
     saveStats();
+    const rk = rankProgress(S.stats.rp);
+    rankHtml = `<div class="rkg" style="--rc:${rk.tier.c}">
+      <div class="rk-h"><b>${esc(rk.tier.n)}</b><span>段位 <b>+${gain}</b>${S.stats.streak > 1 ? ` · ${S.stats.streak} 连胜` : ''}</span></div>
+      <div class="rk-bar"><i style="width:${rk.pct}%"></i></div>
+      <div class="rk-n">${rk.idx > rk0.idx ? `<b class="up">升段！</b>` : ''}${rk.next ? `距「${esc(rk.next.n)}」还差 <b>${rk.left}</b> 分` : '已经是最高段位'}</div>
+    </div>`;
     const rate = Math.round((S.stats.w / (S.stats.w + S.stats.l)) * 100);
     tip += ` 人机战绩 ${S.stats.w} 胜 ${S.stats.l} 负（${rate}%）。`;
   } else if (hot) {
@@ -471,6 +573,7 @@ function showResult() {
     if (win) sfx.win(); else sfx.lose();
   }
   $('#ovd').textContent = tip;
+  $('#ovRank').innerHTML = rankHtml;
   const again = $('#ovAgain');
   again.textContent = S.mode === 'net' ? '回大厅' : '再来一局';
   ov.hidden = false;
@@ -547,7 +650,7 @@ function startNetGame(seed, chars, side) {
   S.hiTimer = 0;
   if (S.room) S.room.state = 'live';
   S.me = side;
-  S.s = create(seed, chars);
+  S.s = create(seed, chars, { best: S.best });
   S.token += 1;
   S.busy = false;
   S.remoteSeq = 0;
@@ -567,7 +670,8 @@ function onNetMsg(p) {
       // 房主定种子、定双方唤醒体，然后先手
       const seed = newSeed();
       roomStateUI('对手进来了，开局！', 'ok');
-      S.net.send({ k: 'open', seed, a: S.pick[0], b: S.peer });
+      // 赛制由房主定，跟着 open 一起发过去
+      S.net.send({ k: 'open', seed, a: S.pick[0], b: S.peer, best: S.best });
       startNetGame(seed, [S.pick[0], S.peer], 0);
     } else if (S.room.role === 'b' && p.role === 'a') {
       // 房主的握手：回一句，等他的 open
@@ -579,6 +683,7 @@ function onNetMsg(p) {
   if (p.k === 'open' && S.room.role === 'b') {
     if (!CHARS[p.a] || !CHARS[p.b]) { toast('对方的唤醒体不认识，可能是版本不一致'); return; }
     S.net.send({ k: 'ack' });
+    S.best = Number(p.best) === 5 ? 5 : 3;   // 赛制以房主为准
     startNetGame(p.seed >>> 0, [p.a, p.b], 1);
     return;
   }
@@ -617,18 +722,21 @@ function rulesHTML() {
   return `
   <h4>桌上那点事</h4>
   <ul>
-    <li>三局两胜。每局开打前补满理智、重新发道具、重新装填。</li>
+    <li>开局前选赛制：<b>三局两胜</b>或<b>五局三胜</b>。每局开打前补满理智、重新发道具、重新装填。</li>
     <li>枪膛里的<b>实弹与空壳数量公开，顺序不知道</b>；打完一膛就按同样的数量重装、重洗。</li>
     <li><b>对自己开枪</b>：空壳＝不扣血，而且回合还归你，可以接着打（继续开枪或用道具）；实弹＝扣血，交回合。</li>
     <li><b>对对手开枪</b>：不管响没响，回合都交出去。</li>
     <li>道具只在自己的回合用，用道具<b>不消耗行动</b>——用完还能接着开枪。</li>
-    <li>理智归零就输掉这一局；先赢两局的人赢下整场。</li>
-    <li>先手：第一局房主 / 玩家一先手，第二局换人，第三局再换回来。</li>
+    <li>理智归零就输掉这一局；三局两胜先赢两局、五局三胜先赢三局的人赢下整场。</li>
+    <li>先手逐局轮换：第一局房主 / 玩家一先手，第二局换人，第三局再换回来。</li>
   </ul>
-  <h4>首局与每局的子弹</h4>
+  <h4>每局的子弹</h4>
   <div class="rulelist">
-    ${ROUNDS.map((r, i) => `<div class="row"><i>${i + 1}</i><div><b>第 ${i + 1} 局</b><span>　${r.live} 实弹 + ${r.blank} 空壳，双方各摸 ${r.items} 件道具</span></div></div>`).join('')}
+    ${roundsFor(3).map((r, i) => `<div class="row"><i>${i + 1}</i><div><b>三局两胜 · 第 ${i + 1} 局</b><span>　${r.live} 实弹 + ${r.blank} 空壳，双方各摸 ${r.items} 件道具</span></div></div>`).join('')}
+    ${roundsFor(5).map((r, i) => `<div class="row"><i>${i + 1}</i><div><b>五局三胜 · 第 ${i + 1} 局</b><span>　${r.live} 实弹 + ${r.blank} 空壳，双方各摸 ${r.items} 件道具</span></div></div>`).join('')}
   </div>
+  <h4>段位</h4>
+  <p>只有人机对战记段位分（同屏和好友房不记）。段位表与「唤醒王：决斗链接」共用一套：见习守密人 → 铜钥级 → 银钥级 → 金印级 → 白夜级 → 命轮师 → 界域传说 → 唤醒大师 → 唤醒王。段位越高，人机至少按更高的档位打，也会挑更能打的唤醒体出场；输一局会给一点读档分，不会掉段。</p>
   <h4>道具</h4>
   <div class="rulelist">${ITEM_ORDER.map((id) => {
     const d = ITEMS[id];
@@ -648,9 +756,9 @@ function itemsHTML() {
   return `<p>通用道具每局从池子里随机摸；专属道具只会跟着对应唤醒体上场，不进随机池。</p>
   <div class="rulelist">${ITEM_ORDER.map((id) => {
     const d = ITEMS[id];
-    const own = CHAR_ORDER.filter((c) => CHARS[c].items.indexOf(id) >= 0).map((c) => CHARS[c].n);
+    const own = CHAR_ORDER.filter((c) => CHARS[c].items.indexOf(id) >= 0);
     return `<div class="row"><i style="color:${cls[d.c] || 'var(--gold)'}">${esc(d.g)}</i>
-      <div><b>${esc(d.n)}</b>${own.length ? `<span style="color:var(--dim2)">（${own.map(esc).join('、')} 随身）</span>` : ''}
+      <div><b>${esc(d.n)}</b>${own.length ? `<span style="color:var(--dim2)">（${own.length} 人随身：${own.slice(0, 3).map((c) => esc(CHARS[c].n)).join('、')}${own.length > 3 ? ' 等' : ''}）</span>` : ''}
       <span><br>${esc(d.d)}</span></div></div>`;
   }).join('')}</div>`;
 }
@@ -682,8 +790,26 @@ function bind() {
     const b = e.target.closest('button[data-diff]');
     if (!b) return;
     S.diff = b.dataset.diff;
-    lsSet('roulette:diff', S.diff);
+    lsSet('zjtt:roulette:diff', S.diff);
     renderHome(); sfx.click();
+  });
+  $('#bestRow').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-best]');
+    if (!b) return;
+    S.best = Number(b.dataset.best) === 5 ? 5 : 3;
+    lsSet('zjtt:roulette:best', String(S.best));
+    renderHome(); sfx.click();
+  });
+  $('#pickTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-tab]');
+    if (!b) return;
+    S.tab = b.dataset.tab;
+    S.picking = S.picking; // 选到一半换筛选不影响已选的人
+    renderPick(); sfx.click();
+  });
+  $('#pickSearch').addEventListener('input', (e) => {
+    S.q = e.target.value || '';
+    renderPick();
   });
   $('#pickGrid').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-pick]');
@@ -714,7 +840,7 @@ function bind() {
 
   $('#btnMute').addEventListener('click', () => {
     S.muted = !S.muted;
-    lsSet('roulette:mute', S.muted ? '1' : '');
+    lsSet('zjtt:roulette:mute', S.muted ? '1' : '');
     $('#btnMute').classList.toggle('off', S.muted);
     if (!S.muted) { sfx.init(); sfx.click(); }
   });
@@ -746,10 +872,12 @@ function bind() {
 // ---------------------------------------------------------------- 启动
 export function mount() {
   loadStats();
-  S.muted = lsGet('roulette:mute') === '1';
+  S.muted = lsPick('zjtt:roulette:mute', OLD_KEYS.mute) === '1';
   $('#btnMute').classList.toggle('off', S.muted);
-  const d = lsGet('roulette:diff');
+  const d = lsPick('zjtt:roulette:diff', OLD_KEYS.diff);
   if (DIFFS.some((x) => x.k === d)) S.diff = d;
+  const b = Number(lsPick('zjtt:roulette:best', OLD_KEYS.best));
+  S.best = b === 5 ? 5 : 3;
 
   $('#gun').innerHTML = gunSVG();
   $('#heroGun').innerHTML = gunSVG();

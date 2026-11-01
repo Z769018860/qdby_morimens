@@ -1701,18 +1701,21 @@ function lovelive() {
 }
 
 // 弥萨格轮盘 —— 只有人机对战记账（js/roulette/view.js 的 roulette:v1）；
-// 同屏与好友房是跟人打的，不算进胜率。
+// 同屏与好友房是跟人打的，不算进段位、也不算进胜率。
+// 段位分（rp）与「唤醒王：决斗链接」共用一套段位表（js/duel/tiers.js），见 js/roulette/rank.js。
 function roulette() {
   const st = RD('roulette:v1') || {};
+  const rp = n(st.rp);
+  const p = rankProgress(rp);
   const w = n(st.w), l = n(st.l), runs = w + l;
-  const parts = [];
+  const parts = [`${runs} 局人机`];
   if (n(st.best)) parts.push(`最高 ${n(st.best)} 连胜`);
   if (n(st.streak) > 1) parts.push(`当前 ${n(st.streak)} 连胜`);
   return {
     items: [
-      { k: '人机局数', v: String(runs) },
-      { k: '胜场', v: String(w) },
-      { k: '胜率', v: runs ? Math.round((w / runs) * 100) + '%' : '—' },
+      { k: '段位', v: p.tier.n },
+      { k: '段位分', v: String(rp) },
+      { k: '人机战绩', v: `${w} 胜 ${l} 负` },
     ],
     extra: parts.join(' · '),
   };
@@ -1732,7 +1735,7 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'duel', n: '唤醒王：决斗链接', href: 'duel.html', icon: '⚔', read: duel, tip: '卡牌对决，段位爬升' },
   { k: 'reign', n: '弥萨格王权', href: 'reign.html', icon: '👑', read: reign, tip: '准或不准，四项账' },
   { k: 'lovelive', n: 'lovelive！mori⭐mens！', href: 'lovelive.html', icon: '🎵', read: lovelive, tip: '点按式音游' },
-  { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，三局两胜' },
+  { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，73 位出战者，能上段' },
 ];
 
 // 一次性读全部：页面只调这一个
@@ -1819,6 +1822,11 @@ const GD_SPEC = [
     ['最长连击', n(v[1]) ? String(n(v[1])) : '—'],
     ['玩过谱面', n(v[2]) + ' 张'],
   ] },
+  { k: 'rl', n: '弥萨格轮盘', f: (v) => [
+    ['段位', n(v[0]) ? rankProgress(n(v[0])).tier.n : '—'],
+    ['段位分', String(n(v[0]))],
+    ['人机战绩', `${n(v[1])} 胜 ${n(v[2])} 负`],
+  ] },
 ];
 
 
@@ -1835,6 +1843,7 @@ const GD_SPEC = [
 //   g2 2048 [最高分, 最高块]         dl 决斗 [段位分, 胜, 负, 段位下标]
 //   rg 王权 [结局数, 最长任期天数, 当过几任, 金色结局次数]（首页榜按结局数排，同数比最长任期）
 //   ll 音游 [最高分(全谱), 最长连击, 玩过的谱面数]（首页榜按最高分排）
+//   rl 轮盘 [段位分, 胜, 负, 段位下标]（首页榜按段位分排，和决斗同构）
 // 单调递增的量（最好成绩、累计局数、时长），服务端合并时逐项取大即可。
 function digest() {
   const out = { at: Date.now() };
@@ -1882,6 +1891,9 @@ function digest() {
   const llBest = (llS.best && typeof llS.best === 'object') ? llS.best : {};
   const llScores = Object.keys(llBest).map((k) => n(llBest[k])).filter((x) => x > 0);
   out.ll = [llScores.length ? Math.max.apply(null, llScores) : 0, n(llS.bestCombo), llScores.length];
+  // 弥萨格轮盘 [段位分, 胜, 负, 段位下标]：和决斗同构，段位分只增不减
+  const rlS = RD('roulette:v1') || {};
+  out.rl = [n(rlS.rp), n(rlS.w), n(rlS.l), rankProgress(n(rlS.rp)).idx];
   return out;
 }
 return { fmtDur, DIFF_MERGE, DIFF_BIRD, GAMES, readAll, credits, GD_SPEC, digest };

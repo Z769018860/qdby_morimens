@@ -104,6 +104,22 @@ body{
   border:1px solid var(--line); background:var(--panel); color:var(--dim); font:12px/1 inherit;
 }
 .dif button[aria-pressed="true"]{color:var(--gold); border-color:var(--gold); background:rgba(227,179,65,.1)}
+/* 段位卡：和决斗链接那张一个路数（段名 + 进度条 + 差多少分） */
+.rk,.rkg{
+  padding:10px 12px; border-radius:12px; border:1px solid var(--line);
+  background:linear-gradient(150deg,color-mix(in oklab,var(--rc) 14%,var(--panel)),var(--panel));
+}
+.rk-h{display:flex; align-items:baseline; justify-content:space-between; gap:8px}
+.rk-h b{font-size:14px; letter-spacing:.06em; color:var(--rc)}
+.rk-h span{font-size:11.5px; color:var(--dim); font-variant-numeric:tabular-nums}
+.rk-h span b{color:var(--text); font-size:12.5px}
+.rk-bar{height:5px; border-radius:99px; background:var(--panel3); margin:7px 0 5px; overflow:hidden}
+.rk-bar i{display:block; height:100%; border-radius:99px; background:var(--rc); transition:width .4s}
+.rk-n{font-size:11px; color:var(--dim2); display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap}
+.rk-n b{color:var(--text)}
+.rk-n .up{color:var(--gold)}
+.rk-eff{color:var(--dim)}
+.rkg{margin-top:10px; text-align:left}
 .rec{font-size:11.5px; color:var(--dim2); line-height:1.7}
 .rec b{color:var(--dim); font-weight:600}
 .foot{margin-top:auto; display:flex; gap:8px; flex-wrap:wrap}
@@ -134,7 +150,40 @@ body{
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
 .pcard .php{font-size:10px; color:var(--red2); margin-top:2px}
 .pcard .badge{position:absolute; right:8px; top:8px; font-size:9.5px; color:var(--gold)}
-.pickfoot{display:flex; gap:8px; margin-top:auto; padding-top:4px}
+.pcard .pn .cb{
+  margin-left:5px; font-size:9px; font-weight:600; letter-spacing:0;
+  padding:1px 5px; border-radius:99px; vertical-align:1px;
+  background:rgba(110,168,255,.16); color:var(--blue);
+}
+.ph-n{display:block; margin-top:3px; font-size:11px; color:var(--dim2)}
+.pickbar input{
+  height:36px; padding:0 11px; border-radius:10px; font:12.5px/1 inherit;
+  border:1px solid var(--line); background:var(--panel); color:var(--text);
+}
+.pickbar input::placeholder{color:var(--dim2)}
+.tabs3{display:flex; gap:5px; flex-wrap:wrap}
+.tabs3 button{
+  height:28px; padding:0 10px; border-radius:99px; cursor:pointer; font:11.5px/1 inherit;
+  border:1px solid var(--line); background:var(--panel); color:var(--dim);
+}
+.tabs3 button[aria-pressed="true"]{color:var(--gold); border-color:var(--gold); background:rgba(227,179,65,.12); font-weight:600}
+.pickbar{
+  display:flex; flex-direction:column; gap:7px;
+  position:sticky; top:0; z-index:3; margin:-4px 0 0; padding:4px 0 6px;
+  background:linear-gradient(var(--bg) 78%, transparent);
+}
+.pickfoot{
+  display:flex; flex-direction:column; gap:6px; margin-top:auto;
+  position:sticky; bottom:0; z-index:3; padding:6px 0 2px;
+  background:linear-gradient(transparent, var(--bg) 26%);
+}
+.pickfoot .pf-row{display:flex; gap:8px}
+.pickinfo{
+  margin:0; font-size:11px; line-height:1.5; color:var(--dim); min-height:16px;
+  max-height:3.2em; overflow:hidden;
+}
+.pickinfo b{color:var(--text)}
+.pickinfo .pw{color:var(--gold)}
 .btn{
   flex:1; height:44px; border-radius:12px; cursor:pointer; font:600 14px/1 inherit;
   border:1px solid var(--line); background:var(--panel2); color:var(--text);
@@ -207,6 +256,7 @@ body{
 .bdgs i.cf{color:var(--violet); border-color:rgba(163,124,255,.45)}
 .bdgs i.sw{color:var(--red2); border-color:rgba(224,89,107,.45)}
 .bdgs i.bl{color:var(--red2); border-color:rgba(224,89,107,.3)}
+.bdgs i.mu{color:var(--violet); border-color:rgba(163,124,255,.45)}
 
 .chips{display:flex; gap:5px; flex-wrap:wrap; align-items:center}
 .chip{
@@ -372,8 +422,20 @@ body{
 #boot p{margin:0}
 #boot .err{color:var(--red2)}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* 横屏手机（高度 < 560）：竖排的「对手卡 / 桌面 / 我的卡 / 底栏」塞不下，
+   枪缩小一档、整屏允许滚动——不然计数行会被两侧角色卡盖住 */
+@media (max-height:560px){
+  .battle{overflow-y:auto}
+  .gun{width:min(230px,46vw)}
+  .side{padding:6px 10px}
+  .side .av{width:38px; height:38px; flex:0 0 38px}
+  /* 桌面那块不再被压缩：横屏高度不够时整屏滚动，谁也不盖谁 */
+  .mid{flex:0 0 auto; gap:4px}
+  .dock{gap:5px}
+  .act{padding:7px 6px}
+}
 </style>
-<meta name="build" content="483eda0c96">
+<meta name="build" content="9e536efc98">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -403,6 +465,7 @@ html{-webkit-tap-highlight-color:transparent}
       <div class="gunart" id="heroGun" aria-hidden="true"></div>
       <h1>弥萨格轮盘</h1>
       <p>桌上只有一把枪，枪膛里混着实弹与空壳，数量公开、顺序不知道。<br>
+         <b>73 位出战者</b>：62 名唤醒体 + 11 位主播，各有自己的理智上限、随身道具和被动。<br>
          对着自己开枪——空壳就保住回合，还能接着打；<br>
          对着对面开枪——不管响没响，回合都交出去。<br>
          谁先被打空理智，谁就留在桌上。</p>
@@ -413,6 +476,8 @@ html{-webkit-tap-highlight-color:transparent}
       <button class="mode" type="button" data-mode="net"><b>好友房</b><span>开个房间码，跨设备对战</span></button>
     </div>
     <div class="dif" id="diffRow"></div>
+    <div class="dif" id="bestRow"></div>
+    <div id="rankCard"></div>
     <div class="rec" id="rec"></div>
     <div class="foot">
       <button class="mini" type="button" id="btnRule2">怎么玩</button>
@@ -423,10 +488,18 @@ html{-webkit-tap-highlight-color:transparent}
   <!-- ------------------------------------------------------------ 选人 -->
   <main class="scr pad" id="scr-pick" hidden>
     <p class="hint" id="pickHint">选一位出战的唤醒体</p>
+    <div class="pickbar">
+      <input id="pickSearch" type="search" placeholder="搜名字 / 界域 / 职阶 / 被动" autocomplete="off">
+      <div class="tabs3" id="pickTabs"></div>
+    </div>
     <div class="grid" id="pickGrid"></div>
     <div class="pickfoot">
-      <button class="btn ghost" type="button" id="pickBack">返回</button>
-      <button class="btn pri" type="button" id="pickGo" disabled>就她了</button>
+      <!-- 卡面上的被动只有两行：73 个人滚下来太长，选中之后在这里读全文 -->
+      <p class="pickinfo" id="pickInfo"></p>
+      <div class="pf-row">
+        <button class="btn ghost" type="button" id="pickBack">返回</button>
+        <button class="btn pri" type="button" id="pickGo" disabled>就她了</button>
+      </div>
     </div>
   </main>
 
@@ -480,6 +553,7 @@ html{-webkit-tap-highlight-color:transparent}
       <p class="big" id="ovt">—</p>
       <p class="sc" id="ovs"></p>
       <p class="tip" id="ovd"></p>
+      <div id="ovRank"></div>
       <div class="acts2">
         <button class="btn" type="button" id="ovAgain">再来一局</button>
         <a class="btn ghost" href="index.html">回首页</a>
@@ -634,7 +708,7 @@ html{-webkit-tap-highlight-color:transparent}
   if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
 })();
 </script>
-<script type="module" src="js/b/roulette.js?v=483eda0c96"></script>
+<script type="module" src="js/b/roulette.js?v=9e536efc98"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

@@ -1453,7 +1453,7 @@ async function postAdminGrantBatch(request, env, kv, cors) {
 // 没登录 / 没同步过的人不会上榜。每次重算要读几百个键，所以缓存 3 分钟。
 const BOARD_TTL = 60 * 1000;
 // [游戏键, gd 键, 取分的下标, 说明, 副标]
-// 唤醒王：决斗链接的九个段位名（榜单副标用）。改段位名时和 js/duel/tiers.js 的 TIERS 一起改。
+// 唤醒王：决斗链接 / 弥萨格轮盘的九个段位名（榜单副标用）。改段位名时和 js/duel/tiers.js 的 TIERS 一起改。
 const DUEL_TIERS = ['见习守密人', '铜钥级', '银钥级', '金印级', '白夜级', '命轮师', '界域传说', '唤醒大师', '唤醒王'];
 
 const BOARD_SPEC = [
@@ -1482,6 +1482,14 @@ const BOARD_SPEC = [
     sub: (v) => [Number(v[1]) > 0 ? `最长任期第 ${Number(v[1])} 天` : '', Number(v[2]) > 0 ? `当过 ${Number(v[2])} 任` : ''].filter(Boolean).join(' · '),
     tb: (v) => Number(v[1]) || 0 },
   { k: 'dl', gd: 'dl', i: 0, unit: '分', label: '段位分',
+    sub: (v) => {
+      const t = Number(v[3]) || 0;
+      const name = DUEL_TIERS[t] || '';
+      const w = Number(v[1]) || 0, l = Number(v[2]) || 0;
+      return [name, w + l > 0 ? `${w} 胜 ${l} 负` : ''].filter(Boolean).join(' · ');
+    } },
+  // 弥萨格轮盘：和决斗完全同构（段位分 + 胜负 + 段位下标），段位名共用同一张表
+  { k: 'rl', gd: 'rl', i: 0, unit: '分', label: '段位分',
     sub: (v) => {
       const t = Number(v[3]) || 0;
       const name = DUEL_TIERS[t] || '';

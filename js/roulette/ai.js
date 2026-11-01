@@ -48,6 +48,7 @@ export function aiStep(s, side, lv = 'normal') {
   // 引擎那一侧的合法性，先过一遍
   const legal = (x) => {
     if (!x) return null;
+    if (s.mute && s.mute[side]) return null;   // 被「噤声」压着：这一回合只能用枪
     const kind = ITEMS[x.id] ? ITEMS[x.id].k : '';
     if (kind === 'cuff' && (s.cuff[you] || 0) > 0) return null;
     if (kind === 'saw' && (s.saw[side] || 0) > 0) return null;

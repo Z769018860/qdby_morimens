@@ -13,16 +13,30 @@
 import { CHARS } from './gen.js';
 import { ITEMS, POOL } from './items.js';
 
-// 每局：几实几空、双方各摸几件。第三局子弹最多，也就最赌。
-export const ROUNDS = [
+// 每局：几实几空、双方各摸几件。越往后子弹越多，也就越赌。
+// 三局两胜打前三局（3/3 → 4/4 → 5/5），五局三胜中间插两局 3/3、4/4 的「加赛」，
+// 让一场长盘不是简单地「多打两局」——先手轮得更匀，道具也攒得更厚。
+const BO3 = [
   { live: 3, blank: 3, items: 2 },
   { live: 4, blank: 4, items: 3 },
   { live: 5, blank: 5, items: 4 },
 ];
+const BO5 = [
+  { live: 3, blank: 3, items: 2 },
+  { live: 3, blank: 3, items: 2 },
+  { live: 4, blank: 4, items: 3 },
+  { live: 4, blank: 4, items: 3 },
+  { live: 5, blank: 5, items: 4 },
+];
+// 赛制：s.best=3 是三局两胜，5 是五局三胜。默认三局两胜（和旧存档、旧房间对得上）。
+export const BEST_OF = [3, 5];
+export function roundsFor(best) { return (Number(best) === 5 ? BO5 : BO3).slice(); }
+export const ROUNDS = BO3;
 // 道具槽上限。带满 5 件之后摸到的东西直接留在桌上（不进包）。
 export const SLOT_MAX = 5;
-// 三局两胜。
+// 三局两胜（默认赛制的胜场数）
 export const WIN_NEED = 2;
+export const needFor = (best) => Math.floor((Number(best) === 5 ? 5 : 3) / 2) + 1;
 
 // ---------------------------------------------------------------- 种子随机
 // mulberry32：一个 32 位整数就能复现整局，够用且比 LCG 均匀。
@@ -55,15 +69,17 @@ function say(s, txt, cls) {
 }
 
 // ---------------------------------------------------------------- 开局
-export function create(seed, chars) {
+export function create(seed, chars, opt) {
+  const best = Number(opt && opt.best) === 5 ? 5 : 3;
   const s = {
     r: (seed >>> 0) || 1,
     chars: [chars[0], chars[1]],
+    best, need: needFor(best), rounds: roundsFor(best),
     hp: [0, 0], max: [0, 0], shield: [0, 0],
     round: 0, wins: [0, 0], turn: 0,
     shells: [], know: [[], []],
     items: [[], []], uid: 1,
-    saw: [0, 0], blood: [0, 0], cuff: [0, 0],
+    saw: [0, 0], blood: [0, 0], cuff: [0, 0], mute: [0, 0],
     used: [{}, {}],        // 每局计数：echo 2 次、lifesteal 2 次
     rev: [false, false],   // 整场一次的「回环」是否已经用掉
     phase: 'play', winner: null,
@@ -75,18 +91,19 @@ export function create(seed, chars) {
 
 function startRound(s, n) {
   s.round = n;
-  const cfg = ROUNDS[n - 1];
+  const cfg = s.rounds[n - 1];
   s.hp = s.chars.map((id) => CHARS[id].hp);
   s.max = s.hp.slice();
   s.shield = [0, 0];
   s.saw = [0, 0];
   s.blood = [0, 0];
   s.cuff = [0, 0];
+  s.mute = [0, 0];
   s.items = [[], []];
   s.used = [{}, {}];
   s.roundOver = null;
-  // 第二局换先手，第三局再换回来：三局里谁都不会连着先手两次。
-  s.turn = n === 2 ? 1 : 0;
+  // 先手逐局轮换（第一局 0、第二局 1、第三局 0……）：奇数局不会有人连着先手两次。
+  s.turn = (n - 1) % 2;
 
   for (const side of [0, 1]) {
     const ch = CHARS[s.chars[side]];
@@ -119,21 +136,22 @@ function startRound(s, n) {
   // 开局被动：预知（放在装填之后，才知道是哪几颗）
   for (const side of [0, 1]) {
     const k = CHARS[s.chars[side]].passive.k;
+    const pn = CHARS[s.chars[side]].passive.n || '预感';
     if (k === 'precog1' || k === 'aim') {
       reveal(s, side, 1);
-      say(s, `${nameOf(s, side)} 的「命轮演算」：看清了第一颗——${s.know[side][0] ? '实弹' : '空壳'}。`, 'good');
+      say(s, `${nameOf(s, side)} 的「${pn}」：看清了第一颗——${s.know[side][0] ? '实弹' : '空壳'}。`, 'good');
     } else if (k === 'precog2') {
       const n = CHARS[s.chars[side]].passive.v || 2;
       reveal(s, side, n);
       const seen = s.know[side].slice(0, n).map((x) => (x ? '实弹' : '空壳')).join('、');
-      say(s, `${nameOf(s, side)} 的「先见」：前 ${n} 颗是${seen}。`, 'good');
+      say(s, `${nameOf(s, side)} 的「${pn}」：前 ${n} 颗是${seen}。`, 'good');
     }
   }
   if (s.rev[0] || s.rev[1]) say(s, '（「回环」这一场已经用掉了，不会再有第二次。）', 'dim');
 }
 
 function reload(s) {
-  const cfg = ROUNDS[s.round - 1];
+  const cfg = s.rounds[s.round - 1];
   const arr = [];
   for (let i = 0; i < cfg.live; i++) arr.push(true);
   for (let i = 0; i < cfg.blank; i++) arr.push(false);
@@ -186,6 +204,7 @@ export function shoot(s, side, target) {
   if (target !== 'self' && target !== 'foe') return { ok: false, err: '目标不对' };
   if (!s.shells.length) reload(s);
 
+  s.mute[side] = 0; // 这一枪把「这一回合」用掉了，压制到此为止
   const live = s.shells.shift();
   // 「算准了再打」：开枪前这一颗是不是自己亲手看清的（阿格里帕的演算就吃这一条）
   const knewLive = s.know[side][0] === true;
@@ -206,13 +225,40 @@ export function shoot(s, side, target) {
       aim = 1;
       s.used[side].aim = (s.used[side].aim || 0) + 1;
     }
-    const dmg = 1 + sawed + (chained ? 1 : 0) + aim;
+    let dmg = 1 + sawed + (chained ? 1 : 0) + aim;
+    // 「韧性」：每局第一次被实弹打中，那一下少掉 1 点（至少 0）
+    const vpc = CHARS[s.chars[victim]].passive;
+    let grit = 0;
+    if (vpc.k === 'grit' && !s.used[victim].grit) {
+      s.used[victim].grit = 1;
+      grit = 1;
+      dmg = Math.max(0, dmg - 1);
+    }
     const { real, cut } = hurt(s, victim, dmg);
-    ev.push({ t: 'damage', side: victim, dmg: real, cut, hp: s.hp[victim], shield: s.shield[victim] });
+    ev.push({ t: 'damage', side: victim, dmg: real, cut, hp: s.hp[victim], shield: s.shield[victim], grit: grit || 0 });
     say(s, target === 'self'
-      ? `${nameOf(s, side)} 对着自己扣下扳机——实弹。${cut ? `护盾挡住 ${cut} 点，` : ''}理智 -${real}。`
-      : `${nameOf(s, side)} 朝 ${nameOf(s, victim)} 开枪——实弹${aim ? '（算准了，+1）' : ''}。${cut ? `护盾挡住 ${cut} 点，` : ''}理智 -${real}。`,
+      ? `${nameOf(s, side)} 对着自己扣下扳机——实弹。${grit ? '被「' + vpc.n + '」卸掉 1 点，' : ''}${cut ? `护盾挡住 ${cut} 点，` : ''}理智 -${real}。`
+      : `${nameOf(s, side)} 朝 ${nameOf(s, victim)} 开枪——实弹${aim ? '（算准了，+1）' : ''}。${grit ? '被「' + vpc.n + '」卸掉 1 点，' : ''}${cut ? `护盾挡住 ${cut} 点，` : ''}理智 -${real}。`,
     target === 'self' ? 'warn' : 'bad');
+
+    // 「噤声」：打中对手之后，他下一回合抬不起手（用不了道具）
+    if (victim !== side && real > 0 && pc.k === 'menace') {
+      s.mute[victim] = 1;
+      ev.push({ t: 'mute', side: victim });
+      say(s, `${nameOf(s, side)} 的「${pc.n}」压住了 ${nameOf(s, victim)}：下一回合用不了道具。`, 'warn');
+    }
+    // 「幸灾乐祸」：对手自射吃实弹，你在旁边回 1 点
+    if (target === 'self' && real > 0) {
+      const opc = CHARS[s.chars[foe(side)]].passive;
+      const other = foe(side);
+      if (opc.k === 'siphon' && (s.used[other].siphon || 0) < (opc.v || 1)
+        && s.hp[other] > 0 && s.hp[other] < s.max[other]) {
+        s.used[other].siphon = (s.used[other].siphon || 0) + 1;
+        s.hp[other] += 1;
+        ev.push({ t: 'heal', side: other, n: 1 });
+        say(s, `${nameOf(s, other)} 的「${opc.n}」：看着你流血，自己缓了 1 点。`, 'good');
+      }
+    }
 
     // 血链·希洛：打中对手回血
     const lifesteal = CHARS[s.chars[side]].passive;
@@ -270,6 +316,7 @@ function afterShot(s, ev) {
 export function useItem(s, side, uid) {
   if (s.phase !== 'play') return { ok: false, err: '这一局已经结束了' };
   if (s.turn !== side) return { ok: false, err: '还没轮到你' };
+  if (s.mute[side]) return { ok: false, err: `被「压」着，这一回合用不了道具——先开一枪吧` };
   const idx = s.items[side].findIndex((x) => x.uid === uid);
   if (idx < 0) return { ok: false, err: '你没有这件道具' };
   const it = s.items[side][idx];
@@ -442,7 +489,7 @@ function endRound(s, winner, ev) {
   s.wins[winner] += 1;
   ev.push({ t: 'roundend', winner, wins: s.wins.slice(), loser });
   say(s, `第 ${s.round} 局结束：${nameOf(s, winner)} 拿下。比分 ${s.wins[0]} : ${s.wins[1]}。`, 'hd');
-  if (s.wins[winner] >= WIN_NEED) {
+  if (s.wins[winner] >= s.need) {
     s.phase = 'over';
     s.winner = winner;
     ev.push({ t: 'over', winner });
@@ -457,11 +504,11 @@ function endRound(s, winner, ev) {
 // 给界面用：桌面上的公开信息（谁都知道的部分）
 export function view(s, side) {
   return {
-    round: s.round,
+    round: s.round, best: s.best, need: s.need, total: s.rounds.length,
     turn: s.turn,
     wins: s.wins.slice(),
     hp: s.hp.slice(), max: s.max.slice(), shield: s.shield.slice(),
-    cuff: s.cuff.slice(), saw: s.saw.slice(), blood: s.blood.slice(),
+    cuff: s.cuff.slice(), saw: s.saw.slice(), blood: s.blood.slice(), mute: s.mute.slice(),
     live: liveLeft(s), blank: blankLeft(s), shells: s.shells.length,
     know: (s.know[side] || []).slice(),
     myItems: s.items[side].slice(),

@@ -1,5 +1,5 @@
 {
-  "note": "弥萨格轮盘（恶魔轮盘同人）的出战唤醒体。hp＝每局起始理智，每局开打前补满；items＝开局固定带的两件（专属 + 通用），之后每局再按局数摸牌。passive.k 是 js/roulette/engine.js 里认的钩子名，改之前先看那边有没有这一支；realm / role 抄自 data/dict.json，别手改。",
+  "note": "弥萨格轮盘（恶魔轮盘同人）的出战唤醒体。hp＝每局起始理智，每局开打前补满；items＝每局固定带的随身道具（之后每局再按局数摸牌）。passive.k 是 js/roulette/engine.js 里认的钩子名，改之前先看那边有没有这一支；realm / role 抄自 data/dict.json 与 idle 的主播名单，别手改。",
   "chars": [
     {
       "id": "a-15601",
@@ -16,7 +16,8 @@
       },
       "realm": "混沌",
       "role": "伤害型",
-      "line": "嘘——别让她们发现，我手上多了一样东西。"
+      "line": "嘘——别让她们发现，我手上多了一样东西。",
+      "n": "24"
     },
     {
       "id": "a-15600",
@@ -33,7 +34,8 @@
       },
       "realm": "血肉",
       "role": "防御型",
-      "line": "这一颗我算过了，你们不用猜。"
+      "line": "这一颗我算过了，你们不用猜。",
+      "n": "阿格里帕"
     },
     {
       "id": "a-15591",
@@ -49,7 +51,8 @@
       },
       "realm": "血肉",
       "role": "辅助型",
-      "line": "外壳还在，就还能再挨一下。"
+      "line": "外壳还在，就还能再挨一下。",
+      "n": "艾继丝"
     },
     {
       "id": "a-15567",
@@ -65,7 +68,8 @@
       },
       "realm": "血肉",
       "role": "伤害型",
-      "line": "你流的，正好是我的。"
+      "line": "你流的，正好是我的。",
+      "n": "血链·希洛"
     },
     {
       "id": "a-95786",
@@ -81,7 +85,8 @@
       },
       "realm": "血肉",
       "role": "伤害型",
-      "line": "坐下。这一局，你只需要看着我。"
+      "line": "坐下。这一局，你只需要看着我。",
+      "n": "杜勒赛因"
     },
     {
       "id": "a-15570",
@@ -97,7 +102,8 @@
       },
       "realm": "混沌",
       "role": "辅助型",
-      "line": "缝得上的都算我的，缝不上的……也算。"
+      "line": "缝得上的都算我的，缝不上的……也算。",
+      "n": "朵尔"
     },
     {
       "id": "a-15598",
@@ -115,7 +121,8 @@
       },
       "realm": "血肉",
       "role": "伤害型",
-      "line": "两把锯，够把这一局锯开。"
+      "line": "两把锯，够把这一局锯开。",
+      "n": "尤乌哈希"
     },
     {
       "id": "a-15568",
@@ -131,7 +138,8 @@
       },
       "realm": "混沌",
       "role": "辅助型",
-      "line": "这一段我走过。往回走一点，也还是我走过的。"
+      "line": "这一段我走过。往回走一点，也还是我走过的。",
+      "n": "环行·拉蒙娜"
     },
     {
       "id": "a-15576",
@@ -147,7 +155,8 @@
       },
       "realm": "深海",
       "role": "防御型",
-      "line": "五成？在我这儿是十成。"
+      "line": "五成？在我这儿是十成。",
+      "n": "墨菲"
     },
     {
       "id": "a-151844",
@@ -164,7 +173,1114 @@
       },
       "realm": "混沌",
       "role": "辅助型",
-      "line": "枪膛里的事，我提前看过了。"
+      "line": "枪膛里的事，我提前看过了。",
+      "n": "薇薇安"
+    },
+    {
+      "id": "a-77913",
+      "n": "凯蒂古拉",
+      "hp": 4,
+      "items": [
+        "saw",
+        "oracle"
+      ],
+      "passive": {
+        "k": "aim",
+        "n": "先算后打",
+        "d": "每局开局看清第一颗；每局一次的实弹若正是你亲手看清的那一颗，伤害 +1。",
+        "v": 1
+      },
+      "realm": "混沌",
+      "role": "伤害型",
+      "src": "assets/avatars/a-77913.webp"
+    },
+    {
+      "id": "a-15580",
+      "n": "宁菲亚",
+      "hp": 6,
+      "items": [
+        "chain",
+        "whisper"
+      ],
+      "passive": {
+        "k": "serrate",
+        "n": "磨过的齿",
+        "d": "每局第一把锯是 +2 伤害（锯齿），第二把退回普通的 +1。",
+        "v": 1
+      },
+      "realm": "混沌",
+      "role": "伤害型",
+      "src": "assets/avatars/a-15580.webp"
+    },
+    {
+      "id": "a-15560",
+      "n": "潘狄娅",
+      "hp": 4,
+      "items": [
+        "cuff",
+        "oracle"
+      ],
+      "passive": {
+        "k": "lifesteal",
+        "n": "借来的体温",
+        "d": "对对手造成实弹伤害后回复 1 点理智（每局最多 1 次）。",
+        "v": 1
+      },
+      "realm": "混沌",
+      "role": "伤害型",
+      "src": "assets/avatars/a-15560.webp"
+    },
+    {
+      "id": "a-94450",
+      "n": "茉夏",
+      "hp": 6,
+      "items": [
+        "saw",
+        "whisper"
+      ],
+      "passive": {
+        "k": "menace",
+        "n": "噤声",
+        "d": "你的实弹打中对手后，对手下一回合用不了道具。"
+      },
+      "realm": "混沌",
+      "role": "伤害型",
+      "src": "assets/avatars/a-94450.webp"
+    },
+    {
+      "id": "a-15569",
+      "n": "萝坦",
+      "hp": 6,
+      "items": [
+        "chain",
+        "oracle"
+      ],
+      "passive": {
+        "k": "precog1",
+        "n": "命轮演算",
+        "d": "每局开局看清第一颗子弹。",
+        "v": 1
+      },
+      "realm": "混沌",
+      "role": "伤害型",
+      "src": "assets/avatars/a-15569.webp"
+    },
+    {
+      "id": "a-145363",
+      "n": "蚀灭·萝坦",
+      "hp": 6,
+      "items": [
+        "cuff",
+        "whisper"
+      ],
+      "passive": {
+        "k": "siphon",
+        "n": "幸灾乐祸",
+        "d": "对手自射打出实弹时，你回复 1 点理智（每局最多 1 次）。",
+        "v": 1
+      },
+      "realm": "混沌",
+      "role": "伤害型",
+      "src": "assets/avatars/a-145363.webp"
+    },
+    {
+      "id": "c-dragond",
+      "n": "魔龙_D",
+      "hp": 4,
+      "items": [
+        "saw",
+        "oracle"
+      ],
+      "passive": {
+        "k": "grit",
+        "n": "不认账",
+        "d": "每局第一次被实弹打中时，那一下的伤害 -1（至少 0）。"
+      },
+      "realm": "混沌",
+      "role": "伤害型",
+      "src": "idle/public/img/awk/dragond.webp"
+    },
+    {
+      "id": "a-15585",
+      "n": "奥吉尔",
+      "hp": 5,
+      "items": [
+        "aegis",
+        "oracle"
+      ],
+      "passive": {
+        "k": "armor",
+        "n": "错位外壳",
+        "d": "每局开局自动获得 1 层护盾。",
+        "v": 1
+      },
+      "realm": "混沌",
+      "role": "防御型",
+      "src": "assets/avatars/a-15585.webp"
+    },
+    {
+      "id": "a-15588",
+      "n": "艾尔瓦",
+      "hp": 5,
+      "items": [
+        "smoke",
+        "whisper"
+      ],
+      "passive": {
+        "k": "grit",
+        "n": "不认账",
+        "d": "每局第一次被实弹打中时，那一下的伤害 -1（至少 0）。"
+      },
+      "realm": "混沌",
+      "role": "防御型",
+      "src": "assets/avatars/a-15588.webp"
+    },
+    {
+      "id": "a-15581",
+      "n": "莉莉",
+      "hp": 5,
+      "items": [
+        "pill",
+        "oracle"
+      ],
+      "passive": {
+        "k": "revive",
+        "n": "倒带",
+        "d": "整场一次：理智归零时回到 2 点，这一局接着打。"
+      },
+      "realm": "混沌",
+      "role": "防御型",
+      "src": "assets/avatars/a-15581.webp"
+    },
+    {
+      "id": "c-samo",
+      "n": "萨摩不耶",
+      "hp": 6,
+      "items": [
+        "aegis",
+        "whisper"
+      ],
+      "passive": {
+        "k": "lucky",
+        "n": "蒙对了",
+        "d": "残念药剂对你必定成功（稳定回 2 点理智）。"
+      },
+      "realm": "混沌",
+      "role": "防御型",
+      "src": "idle/public/img/awk/samo.webp"
+    },
+    {
+      "id": "a-15565",
+      "n": "诺缔拉",
+      "hp": 5,
+      "items": [
+        "smoke",
+        "oracle"
+      ],
+      "passive": {
+        "k": "extra",
+        "n": "兜比脸大",
+        "d": "每局多拿 1 件道具。"
+      },
+      "realm": "混沌",
+      "role": "防御型",
+      "src": "assets/avatars/a-15565.webp"
+    },
+    {
+      "id": "a-148578",
+      "n": "负誓·奥吉尔",
+      "hp": 6,
+      "items": [
+        "pill",
+        "whisper"
+      ],
+      "passive": {
+        "k": "greed",
+        "n": "王座旁听",
+        "d": "对手每局少拿 1 件道具——桌上东西都归你先挑。"
+      },
+      "realm": "混沌",
+      "role": "防御型",
+      "src": "assets/avatars/a-148578.webp"
+    },
+    {
+      "id": "a-54117",
+      "n": "哈姆林",
+      "hp": 5,
+      "items": [
+        "lens",
+        "oracle"
+      ],
+      "passive": {
+        "k": "precog2",
+        "n": "线头之前",
+        "d": "每局开局自动看清前 3 颗子弹。",
+        "v": 3
+      },
+      "realm": "混沌",
+      "role": "辅助型",
+      "src": "assets/avatars/a-54117.webp"
+    },
+    {
+      "id": "a-54116",
+      "n": "塔薇",
+      "hp": 5,
+      "items": [
+        "scroll",
+        "whisper"
+      ],
+      "passive": {
+        "k": "echo",
+        "n": "回声",
+        "d": "你对自己打出空壳时，从桌上再摸 1 件道具（每局最多 2 次）。",
+        "v": 2
+      },
+      "realm": "混沌",
+      "role": "辅助型",
+      "src": "assets/avatars/a-54116.webp"
+    },
+    {
+      "id": "a-15595",
+      "n": "拉蒙娜",
+      "hp": 4,
+      "items": [
+        "needle",
+        "oracle"
+      ],
+      "passive": {
+        "k": "extra",
+        "n": "兜比脸大",
+        "d": "每局多拿 1 件道具。"
+      },
+      "realm": "混沌",
+      "role": "辅助型",
+      "src": "assets/avatars/a-15595.webp"
+    },
+    {
+      "id": "a-15602",
+      "n": "熔毁·朵尔",
+      "hp": 6,
+      "items": [
+        "lens",
+        "whisper"
+      ],
+      "passive": {
+        "k": "precog1",
+        "n": "命轮演算",
+        "d": "每局开局看清第一颗子弹。",
+        "v": 1
+      },
+      "realm": "混沌",
+      "role": "辅助型",
+      "src": "assets/avatars/a-15602.webp"
+    },
+    {
+      "id": "a-15571",
+      "n": "珈伦",
+      "hp": 5,
+      "items": [
+        "scroll",
+        "oracle"
+      ],
+      "passive": {
+        "k": "greed",
+        "n": "王座旁听",
+        "d": "对手每局少拿 1 件道具——桌上东西都归你先挑。"
+      },
+      "realm": "混沌",
+      "role": "辅助型",
+      "src": "assets/avatars/a-15571.webp"
+    },
+    {
+      "id": "a-15604",
+      "n": "莱克",
+      "hp": 4,
+      "items": [
+        "needle",
+        "whisper"
+      ],
+      "passive": {
+        "k": "armor",
+        "n": "错位外壳",
+        "d": "每局开局自动获得 1 层护盾。",
+        "v": 1
+      },
+      "realm": "混沌",
+      "role": "辅助型",
+      "src": "assets/avatars/a-15604.webp"
+    },
+    {
+      "id": "a-15587",
+      "n": "希洛",
+      "hp": 5,
+      "items": [
+        "chain",
+        "needle"
+      ],
+      "passive": {
+        "k": "aim",
+        "n": "见血封喉",
+        "d": "每局开局看清第一颗；每局一次的实弹若正是你亲手看清的那一颗，伤害 +1。",
+        "v": 1
+      },
+      "realm": "血肉",
+      "role": "伤害型",
+      "src": "assets/avatars/a-15587.webp"
+    },
+    {
+      "id": "a-15584",
+      "n": "索蕾尔",
+      "hp": 6,
+      "items": [
+        "cuff",
+        "chain"
+      ],
+      "passive": {
+        "k": "serrate",
+        "n": "锯口",
+        "d": "每局第一把锯是 +2 伤害（锯齿），第二把退回普通的 +1。",
+        "v": 1
+      },
+      "realm": "血肉",
+      "role": "伤害型",
+      "src": "assets/avatars/a-15584.webp"
+    },
+    {
+      "id": "c-ratking",
+      "n": "鼠王",
+      "hp": 4,
+      "items": [
+        "saw",
+        "needle"
+      ],
+      "passive": {
+        "k": "lifesteal",
+        "n": "血偿",
+        "d": "对对手造成实弹伤害后回复 1 点理智（每局最多 1 次）。",
+        "v": 1
+      },
+      "realm": "血肉",
+      "role": "伤害型",
+      "src": "idle/public/img/awk/ratking.webp"
+    },
+    {
+      "id": "a-77921",
+      "n": "卡拉布",
+      "hp": 6,
+      "items": [
+        "aegis",
+        "chain"
+      ],
+      "passive": {
+        "k": "siphon",
+        "n": "舔伤口",
+        "d": "对手自射打出实弹时，你回复 1 点理智（每局最多 1 次）。",
+        "v": 1
+      },
+      "realm": "血肉",
+      "role": "防御型",
+      "src": "assets/avatars/a-77921.webp"
+    },
+    {
+      "id": "a-15577",
+      "n": "菲茵特",
+      "hp": 4,
+      "items": [
+        "smoke",
+        "needle"
+      ],
+      "passive": {
+        "k": "armor",
+        "n": "缝合外壳",
+        "d": "每局开局自动获得 1 层护盾。",
+        "v": 1
+      },
+      "realm": "血肉",
+      "role": "防御型",
+      "src": "assets/avatars/a-15577.webp"
+    },
+    {
+      "id": "a-15599",
+      "n": "萨尔瓦多",
+      "hp": 6,
+      "items": [
+        "pill",
+        "chain"
+      ],
+      "passive": {
+        "k": "grit",
+        "n": "皮糙肉厚",
+        "d": "每局第一次被实弹打中时，那一下的伤害 -1（至少 0）。"
+      },
+      "realm": "血肉",
+      "role": "防御型",
+      "src": "assets/avatars/a-15599.webp"
+    },
+    {
+      "id": "c-maodie",
+      "n": "路过的耄耋",
+      "hp": 5,
+      "items": [
+        "aegis",
+        "needle"
+      ],
+      "passive": {
+        "k": "revive",
+        "n": "不肯闭眼",
+        "d": "整场一次：理智归零时回到 2 点，这一局接着打。"
+      },
+      "realm": "血肉",
+      "role": "防御型",
+      "src": "idle/public/img/awk/maodie.webp"
+    },
+    {
+      "id": "a-125346",
+      "n": "徐",
+      "hp": 6,
+      "items": [
+        "lens",
+        "chain"
+      ],
+      "passive": {
+        "k": "menace",
+        "n": "拽住手腕",
+        "d": "你的实弹打中对手后，对手下一回合用不了道具。"
+      },
+      "realm": "血肉",
+      "role": "辅助型",
+      "src": "assets/avatars/a-125346.webp"
+    },
+    {
+      "id": "a-130226",
+      "n": "沙耶",
+      "hp": 4,
+      "items": [
+        "scroll",
+        "needle"
+      ],
+      "passive": {
+        "k": "precog2",
+        "n": "血脉记忆",
+        "d": "每局开局自动看清前 3 颗子弹。",
+        "v": 3
+      },
+      "realm": "血肉",
+      "role": "辅助型",
+      "src": "assets/avatars/a-130226.webp"
+    },
+    {
+      "id": "a-15596",
+      "n": "泰旖丝",
+      "hp": 5,
+      "items": [
+        "needle",
+        "chain"
+      ],
+      "passive": {
+        "k": "echo",
+        "n": "空壳回声",
+        "d": "你对自己打出空壳时，从桌上再摸 1 件道具（每局最多 2 次）。",
+        "v": 2
+      },
+      "realm": "血肉",
+      "role": "辅助型",
+      "src": "assets/avatars/a-15596.webp"
+    },
+    {
+      "id": "a-77926",
+      "n": "皮克曼",
+      "hp": 5,
+      "items": [
+        "lens",
+        "needle"
+      ],
+      "passive": {
+        "k": "extra",
+        "n": "兜底",
+        "d": "每局多拿 1 件道具。"
+      },
+      "realm": "血肉",
+      "role": "辅助型",
+      "src": "assets/avatars/a-77926.webp"
+    },
+    {
+      "id": "c-zerok",
+      "n": "立誓0氪",
+      "hp": 6,
+      "items": [
+        "scroll",
+        "chain"
+      ],
+      "passive": {
+        "k": "precog1",
+        "n": "手感",
+        "d": "每局开局看清第一颗子弹。",
+        "v": 1
+      },
+      "realm": "血肉",
+      "role": "辅助型",
+      "src": "idle/public/img/awk/zerok.webp"
+    },
+    {
+      "id": "a-15597",
+      "n": "雷娅",
+      "hp": 4,
+      "items": [
+        "needle",
+        "needle"
+      ],
+      "passive": {
+        "k": "greed",
+        "n": "抢在前头",
+        "d": "对手每局少拿 1 件道具——桌上东西都归你先挑。"
+      },
+      "realm": "血肉",
+      "role": "辅助型",
+      "src": "assets/avatars/a-15597.webp"
+    },
+    {
+      "id": "a-15563",
+      "n": "图鲁",
+      "hp": 6,
+      "items": [
+        "chain",
+        "pill"
+      ],
+      "passive": {
+        "k": "menace",
+        "n": "缠住",
+        "d": "你的实弹打中对手后，对手下一回合用不了道具。"
+      },
+      "realm": "深海",
+      "role": "伤害型",
+      "src": "assets/avatars/a-15563.webp"
+    },
+    {
+      "id": "a-15573",
+      "n": "奥瑞塔",
+      "hp": 6,
+      "items": [
+        "cuff",
+        "hourglass"
+      ],
+      "passive": {
+        "k": "precog1",
+        "n": "潮讯",
+        "d": "每局开局看清第一颗子弹。",
+        "v": 1
+      },
+      "realm": "深海",
+      "role": "伤害型",
+      "src": "assets/avatars/a-15573.webp"
+    },
+    {
+      "id": "a-15564",
+      "n": "戈利亚",
+      "hp": 6,
+      "items": [
+        "saw",
+        "pill"
+      ],
+      "passive": {
+        "k": "siphon",
+        "n": "分一杯",
+        "d": "对手自射打出实弹时，你回复 1 点理智（每局最多 1 次）。",
+        "v": 1
+      },
+      "realm": "深海",
+      "role": "伤害型",
+      "src": "assets/avatars/a-15564.webp"
+    },
+    {
+      "id": "a-130901",
+      "n": "莫丝",
+      "hp": 5,
+      "items": [
+        "chain",
+        "hourglass"
+      ],
+      "passive": {
+        "k": "grit",
+        "n": "咸水泡胀",
+        "d": "每局第一次被实弹打中时，那一下的伤害 -1（至少 0）。"
+      },
+      "realm": "深海",
+      "role": "伤害型",
+      "src": "assets/avatars/a-130901.webp"
+    },
+    {
+      "id": "a-77922",
+      "n": "克珀珊特",
+      "hp": 4,
+      "items": [
+        "smoke",
+        "pill"
+      ],
+      "passive": {
+        "k": "lucky",
+        "n": "押对了",
+        "d": "残念药剂对你必定成功（稳定回 2 点理智）。"
+      },
+      "realm": "深海",
+      "role": "防御型",
+      "src": "assets/avatars/a-77922.webp"
+    },
+    {
+      "id": "a-15594",
+      "n": "凯刻斯",
+      "hp": 6,
+      "items": [
+        "pill",
+        "hourglass"
+      ],
+      "passive": {
+        "k": "extra",
+        "n": "拾荒",
+        "d": "每局多拿 1 件道具。"
+      },
+      "realm": "深海",
+      "role": "防御型",
+      "src": "assets/avatars/a-15594.webp"
+    },
+    {
+      "id": "a-141302",
+      "n": "庞托斯",
+      "hp": 6,
+      "items": [
+        "aegis",
+        "pill"
+      ],
+      "passive": {
+        "k": "greed",
+        "n": "先挑",
+        "d": "对手每局少拿 1 件道具——桌上东西都归你先挑。"
+      },
+      "realm": "深海",
+      "role": "防御型",
+      "src": "assets/avatars/a-141302.webp"
+    },
+    {
+      "id": "a-15592",
+      "n": "珊",
+      "hp": 5,
+      "items": [
+        "smoke",
+        "hourglass"
+      ],
+      "passive": {
+        "k": "siphon",
+        "n": "分一杯",
+        "d": "对手自射打出实弹时，你回复 1 点理智（每局最多 1 次）。",
+        "v": 1
+      },
+      "realm": "深海",
+      "role": "防御型",
+      "src": "assets/avatars/a-15592.webp"
+    },
+    {
+      "id": "c-banxing",
+      "n": "半醒的鱼",
+      "hp": 5,
+      "items": [
+        "lens",
+        "pill"
+      ],
+      "passive": {
+        "k": "armor",
+        "n": "潮下茧",
+        "d": "每局开局自动获得 1 层护盾。",
+        "v": 1
+      },
+      "realm": "深海",
+      "role": "辅助型",
+      "src": "idle/public/img/awk/banxing.webp"
+    },
+    {
+      "id": "c-xiamolin",
+      "n": "夏茉琳",
+      "hp": 5,
+      "items": [
+        "scroll",
+        "hourglass"
+      ],
+      "passive": {
+        "k": "menace",
+        "n": "缠住",
+        "d": "你的实弹打中对手后，对手下一回合用不了道具。"
+      },
+      "realm": "深海",
+      "role": "辅助型",
+      "src": "idle/public/img/awk/xiamolin.webp"
+    },
+    {
+      "id": "a-15566",
+      "n": "希莱斯特",
+      "hp": 5,
+      "items": [
+        "needle",
+        "pill"
+      ],
+      "passive": {
+        "k": "precog2",
+        "n": "深潜预读",
+        "d": "每局开局自动看清前 3 颗子弹。",
+        "v": 3
+      },
+      "realm": "深海",
+      "role": "辅助型",
+      "src": "assets/avatars/a-15566.webp"
+    },
+    {
+      "id": "a-15582",
+      "n": "弥利亚姆",
+      "hp": 5,
+      "items": [
+        "lens",
+        "hourglass"
+      ],
+      "passive": {
+        "k": "echo",
+        "n": "拾回的回声",
+        "d": "你对自己打出空壳时，从桌上再摸 1 件道具（每局最多 2 次）。",
+        "v": 2
+      },
+      "realm": "深海",
+      "role": "辅助型",
+      "src": "assets/avatars/a-15582.webp"
+    },
+    {
+      "id": "c-mengyi",
+      "n": "梦依流苏",
+      "hp": 6,
+      "items": [
+        "scroll",
+        "pill"
+      ],
+      "passive": {
+        "k": "extra",
+        "n": "拾荒",
+        "d": "每局多拿 1 件道具。"
+      },
+      "realm": "深海",
+      "role": "辅助型",
+      "src": "idle/public/img/awk/mengyi.webp"
+    },
+    {
+      "id": "a-15575",
+      "n": "法洛思",
+      "hp": 5,
+      "items": [
+        "needle",
+        "hourglass"
+      ],
+      "passive": {
+        "k": "precog1",
+        "n": "潮讯",
+        "d": "每局开局看清第一颗子弹。",
+        "v": 1
+      },
+      "realm": "深海",
+      "role": "辅助型",
+      "src": "assets/avatars/a-15575.webp"
+    },
+    {
+      "id": "a-15589",
+      "n": "诞妄·墨菲",
+      "hp": 6,
+      "items": [
+        "lens",
+        "pill"
+      ],
+      "passive": {
+        "k": "greed",
+        "n": "先挑",
+        "d": "对手每局少拿 1 件道具——桌上东西都归你先挑。"
+      },
+      "realm": "深海",
+      "role": "辅助型",
+      "src": "assets/avatars/a-15589.webp"
+    },
+    {
+      "id": "c-chaoxing",
+      "n": "朝星",
+      "hp": 5,
+      "items": [
+        "cuff",
+        "cuff"
+      ],
+      "passive": {
+        "k": "aim",
+        "n": "校准",
+        "d": "每局开局看清第一颗；每局一次的实弹若正是你亲手看清的那一颗，伤害 +1。",
+        "v": 1
+      },
+      "realm": "超维",
+      "role": "伤害型",
+      "src": "idle/public/img/awk/chaoxing.webp"
+    },
+    {
+      "id": "a-77917",
+      "n": "波吕克斯",
+      "hp": 6,
+      "items": [
+        "saw",
+        "seal"
+      ],
+      "passive": {
+        "k": "serrate",
+        "n": "高频切割",
+        "d": "每局第一把锯是 +2 伤害（锯齿），第二把退回普通的 +1。",
+        "v": 1
+      },
+      "realm": "超维",
+      "role": "伤害型",
+      "src": "assets/avatars/a-77917.webp"
+    },
+    {
+      "id": "c-alice",
+      "n": "爱丽丝",
+      "hp": 6,
+      "items": [
+        "chain",
+        "cuff"
+      ],
+      "passive": {
+        "k": "lifesteal",
+        "n": "逆流",
+        "d": "对对手造成实弹伤害后回复 1 点理智（每局最多 1 次）。",
+        "v": 1
+      },
+      "realm": "超维",
+      "role": "伤害型",
+      "src": "idle/public/img/awk/alice.webp"
+    },
+    {
+      "id": "a-15562",
+      "n": "莉兹",
+      "hp": 6,
+      "items": [
+        "cuff",
+        "seal"
+      ],
+      "passive": {
+        "k": "menace",
+        "n": "静默区",
+        "d": "你的实弹打中对手后，对手下一回合用不了道具。"
+      },
+      "realm": "超维",
+      "role": "伤害型",
+      "src": "assets/avatars/a-15562.webp"
+    },
+    {
+      "id": "a-15593",
+      "n": "詹金",
+      "hp": 6,
+      "items": [
+        "saw",
+        "cuff"
+      ],
+      "passive": {
+        "k": "precog1",
+        "n": "一秒之后",
+        "d": "每局开局看清第一颗子弹。",
+        "v": 1
+      },
+      "realm": "超维",
+      "role": "伤害型",
+      "src": "assets/avatars/a-15593.webp"
+    },
+    {
+      "id": "a-15590",
+      "n": "达芙黛尔",
+      "hp": 7,
+      "items": [
+        "chain",
+        "seal"
+      ],
+      "passive": {
+        "k": "siphon",
+        "n": "旁观者收益",
+        "d": "对手自射打出实弹时，你回复 1 点理智（每局最多 1 次）。",
+        "v": 1
+      },
+      "realm": "超维",
+      "role": "伤害型",
+      "src": "assets/avatars/a-15590.webp"
+    },
+    {
+      "id": "a-77923",
+      "n": "卡斯托尔",
+      "hp": 5,
+      "items": [
+        "pill",
+        "cuff"
+      ],
+      "passive": {
+        "k": "armor",
+        "n": "白夜罩",
+        "d": "每局开局自动获得 1 层护盾。",
+        "v": 1
+      },
+      "realm": "超维",
+      "role": "防御型",
+      "src": "assets/avatars/a-77923.webp"
+    },
+    {
+      "id": "a-15586",
+      "n": "旺达",
+      "hp": 6,
+      "items": [
+        "aegis",
+        "seal"
+      ],
+      "passive": {
+        "k": "grit",
+        "n": "延迟结算",
+        "d": "每局第一次被实弹打中时，那一下的伤害 -1（至少 0）。"
+      },
+      "realm": "超维",
+      "role": "防御型",
+      "src": "assets/avatars/a-15586.webp"
+    },
+    {
+      "id": "a-15579",
+      "n": "温柯尔",
+      "hp": 5,
+      "items": [
+        "smoke",
+        "cuff"
+      ],
+      "passive": {
+        "k": "revive",
+        "n": "存档点",
+        "d": "整场一次：理智归零时回到 2 点，这一局接着打。"
+      },
+      "realm": "超维",
+      "role": "防御型",
+      "src": "assets/avatars/a-15579.webp"
+    },
+    {
+      "id": "a-15603",
+      "n": "艾瑞卡",
+      "hp": 5,
+      "items": [
+        "pill",
+        "seal"
+      ],
+      "passive": {
+        "k": "lucky",
+        "n": "概率坍缩",
+        "d": "残念药剂对你必定成功（稳定回 2 点理智）。"
+      },
+      "realm": "超维",
+      "role": "防御型",
+      "src": "assets/avatars/a-15603.webp"
+    },
+    {
+      "id": "a-77925",
+      "n": "克莱门汀",
+      "hp": 5,
+      "items": [
+        "scroll",
+        "seal"
+      ],
+      "passive": {
+        "k": "armor",
+        "n": "白夜罩",
+        "d": "每局开局自动获得 1 层护盾。",
+        "v": 1
+      },
+      "realm": "超维",
+      "role": "辅助型",
+      "src": "assets/avatars/a-77925.webp"
+    },
+    {
+      "id": "a-15572",
+      "n": "卡茜亚",
+      "hp": 5,
+      "items": [
+        "needle",
+        "cuff"
+      ],
+      "passive": {
+        "k": "menace",
+        "n": "静默区",
+        "d": "你的实弹打中对手后，对手下一回合用不了道具。"
+      },
+      "realm": "超维",
+      "role": "辅助型",
+      "src": "assets/avatars/a-15572.webp"
+    },
+    {
+      "id": "a-15583",
+      "n": "奥尔拉",
+      "hp": 6,
+      "items": [
+        "lens",
+        "seal"
+      ],
+      "passive": {
+        "k": "precog2",
+        "n": "时序回放",
+        "d": "每局开局自动看清前 3 颗子弹。",
+        "v": 3
+      },
+      "realm": "超维",
+      "role": "辅助型",
+      "src": "assets/avatars/a-15583.webp"
+    },
+    {
+      "id": "a-15574",
+      "n": "汀克特",
+      "hp": 5,
+      "items": [
+        "scroll",
+        "cuff"
+      ],
+      "passive": {
+        "k": "echo",
+        "n": "缓存残响",
+        "d": "你对自己打出空壳时，从桌上再摸 1 件道具（每局最多 2 次）。",
+        "v": 2
+      },
+      "realm": "超维",
+      "role": "辅助型",
+      "src": "assets/avatars/a-15574.webp"
+    },
+    {
+      "id": "c-baiyun",
+      "n": "白云出岫",
+      "hp": 5,
+      "items": [
+        "needle",
+        "seal"
+      ],
+      "passive": {
+        "k": "extra",
+        "n": "多线程",
+        "d": "每局多拿 1 件道具。"
+      },
+      "realm": "超维",
+      "role": "辅助型",
+      "src": "idle/public/img/awk/baiyun.webp"
+    },
+    {
+      "id": "a-77918",
+      "n": "阿拉克涅",
+      "hp": 6,
+      "items": [
+        "lens",
+        "cuff"
+      ],
+      "passive": {
+        "k": "precog1",
+        "n": "一秒之后",
+        "d": "每局开局看清第一颗子弹。",
+        "v": 1
+      },
+      "realm": "超维",
+      "role": "辅助型",
+      "src": "assets/avatars/a-77918.webp"
     }
   ]
 }
