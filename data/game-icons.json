@@ -58,5 +58,10 @@
     "src": "assets/ui/gameicons/reign.webp",
     "from": "assets/avatars-q/char-keeperf.webp",
     "who": "守密人（女）"
+  },
+  "lovelive": {
+    "src": "assets/ui/gameicons/lovelive.webp",
+    "from": "assets/avatars/a-15591.webp",
+    "who": "艾继丝"
   }
 }

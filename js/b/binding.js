@@ -4515,6 +4515,8 @@ const GAMES = {
     zh: '忘却 2048', prefix: ['zjtt:g2048'], skip: /:(snd|diff|rot|played|skin)/,
     trivial: (keys) => !keys['zjtt:g2048:save'] && !keys['zjtt:g2048:best'],
   },
+  // lovelive！mori⭐mens！：各谱最高分 / 最长连击 / 编队跟着账号走，静音是设备偏好
+  lovelive: { zh: 'lovelive！mori⭐mens！', prefix: ['zjtt:lovelive'], skip: /:(mute|snd)/ },
 };
 
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };

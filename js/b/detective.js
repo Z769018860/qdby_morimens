@@ -1752,6 +1752,25 @@ function duel() {
   };
 }
 
+function lovelive() {
+  // js/lovelive.js 的 KEY：一个 JSON { best: {'<曲>:<难度>': 分}, bestCombo, plays }
+  const thou = (x) => String(Math.round(n(x))).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const s = RD('lovelive') || {};
+  const best = (s.best && typeof s.best === 'object') ? s.best : {};
+  const scores = Object.keys(best).map((k) => n(best[k])).filter((x) => x > 0);
+  const top = scores.length ? Math.max.apply(null, scores) : 0;
+  const extra = [];
+  for (const k of Object.keys(best).sort()) if (n(best[k]) > 0) extra.push(k + ' ' + thou(best[k]));
+  return {
+    items: [
+      { k: '最高分', v: top ? thou(top) : '—' },
+      { k: '最长连击', v: n(s.bestCombo) ? String(n(s.bestCombo)) : '—' },
+      { k: '玩过谱面', v: scores.length + ' 张' },
+    ],
+    extra: extra.slice(0, 6).join(' · '),
+  };
+}
+
 // 卡片顺序 = 首页的排列顺序，用户不用重新认路
 const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', icon: '🔍', read: detective, tip: '六边形自走棋推演' },
   { k: 'merge', n: '合成大杜勒', href: 'merge.html', icon: '⚫', read: merge, tip: '两个同级合成下一级' },
@@ -1765,6 +1784,7 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'g2048', n: '忘却 2048', href: '2048.html', icon: '🔢', read: g2048, tip: '两块同样的合流' },
   { k: 'duel', n: '唤醒王：决斗链接', href: 'duel.html', icon: '⚔', read: duel, tip: '卡牌对决，段位爬升' },
   { k: 'reign', n: '弥萨格王权', href: 'reign.html', icon: '👑', read: reign, tip: '准或不准，四项账' },
+  { k: 'lovelive', n: 'lovelive！mori⭐mens！', href: 'lovelive.html', icon: '🎵', read: lovelive, tip: '点按式音游' },
 ];
 
 // 一次性读全部：页面只调这一个
@@ -1846,6 +1866,11 @@ const GD_SPEC = [
     ['段位分', String(n(v[0]))],
     ['人机战绩', `${n(v[1])} 胜 ${n(v[2])} 负`],
   ] },
+  { k: 'll', n: 'lovelive！mori⭐mens！', f: (v) => [
+    ['最高分', v[0] ? String(Math.round(n(v[0]))).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '—'],
+    ['最长连击', n(v[1]) ? String(n(v[1])) : '—'],
+    ['玩过谱面', n(v[2]) + ' 张'],
+  ] },
 ];
 
 
@@ -1861,6 +1886,7 @@ const GD_SPEC = [
 //   wf 狼人 [局数, 胜场]             dt 报告 [已复原, 卷宗, 结案, 提交报告数, 确认报告数]
 //   g2 2048 [最高分, 最高块]         dl 决斗 [段位分, 胜, 负, 段位下标]
 //   rg 王权 [结局数, 最长任期天数, 当过几任, 金色结局次数]（首页榜按结局数排，同数比最长任期）
+//   ll 音游 [最高分(全谱), 最长连击, 玩过的谱面数]（首页榜按最高分排）
 // 单调递增的量（最好成绩、累计局数、时长），服务端合并时逐项取大即可。
 function digest() {
   const out = { at: Date.now() };
@@ -1903,6 +1929,11 @@ function digest() {
   const rgB = RD('reign:best') || {};
   const rgE = RD('reign:endings') || {};
   out.rg = [Object.keys(rgE).length, n(rgB.bestDay), n(rgB.runs), n(rgB.gold)];
+  // lovelive！mori⭐mens！ [最高分(全谱), 最长连击, 玩过的谱面数]：全部只增不减
+  const llS = RD('lovelive') || {};
+  const llBest = (llS.best && typeof llS.best === 'object') ? llS.best : {};
+  const llScores = Object.keys(llBest).map((k) => n(llBest[k])).filter((x) => x > 0);
+  out.ll = [llScores.length ? Math.max.apply(null, llScores) : 0, n(llS.bestCombo), llScores.length];
   return out;
 }
 return { fmtDur, DIFF_MERGE, DIFF_BIRD, GAMES, readAll, credits, GD_SPEC, digest };

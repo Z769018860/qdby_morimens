@@ -475,8 +475,49 @@ function genReign() {
   return { n: Object.keys(faces).length, kb: Math.round(code.length / 1024) };
 }
 
+// ------------------------------------------- lovelive！mori⭐mens！的上场名册
+// data/lovelive-units.json 写的是唤醒体 id + 自动技能，这里校验 id 确实是
+// data/avatars.json 里的唤醒体，再把头像读成 data URI 内联成 js/ll/gen.js。
+// 音游页只发一个脚本请求；改技能数值改 json，别手改 gen.js。
+function genLive() {
+  const cfg = readJson(path.join(ROOT, 'data/lovelive-units.json'));
+  const av = readJson(path.join(ROOT, 'data/avatars.json'));
+  const byId = new Map((av.items || []).filter((x) => x.k === 'awakener').map((x) => [x.id, x]));
+  const TRIG = new Set(['combo', 'time', 'perfect', 'miss', 'start']);
+  const FX = new Set(['judge', 'score', 'guard', 'heal', 'auto', 'combo', 'lead']);
+  const seen = new Set();
+  const units = (cfg.units || []).map((u) => {
+    if (!byId.has(u.id)) throw new Error(`lovelive-units.json：${u.n}（${u.id}）不是唤醒体`);
+    if (seen.has(u.id)) throw new Error(`lovelive-units.json：${u.n} 重复`);
+    seen.add(u.id);
+    if (byId.get(u.id).n !== u.n) throw new Error(`lovelive-units.json：id ${u.id} 的名字应为「${byId.get(u.id).n}」，写的是「${u.n}」`);
+    const s = u.skill || {};
+    if (!TRIG.has(s.trig)) throw new Error(`lovelive-units.json：${u.n} 的触发方式 ${s.trig} 不认识`);
+    if (!FX.has(s.fx)) throw new Error(`lovelive-units.json：${u.n} 的效果 ${s.fx} 不认识`);
+    if (!(s.val > 0) || s.dur == null) throw new Error(`lovelive-units.json：${u.n} 的技能缺 val/dur`);
+    const file = path.join(ROOT, byId.get(u.id).src);
+    if (!has(file)) throw new Error('头像不存在：' + file);
+    return {
+      id: u.id, n: u.n, hue: u.hue | 0, skill: s, pass: u.pass || null,
+      art: 'data:image/webp;base64,' + fs.readFileSync(file).toString('base64'),
+    };
+  });
+  if (units.length < 6) throw new Error('lovelive-units.json：名册至少要有 6 名唤醒体');
+  const code = [
+    '// 由 scripts/build.mjs 从 data/lovelive-units.json + data/avatars.json 生成，请勿手改。',
+    '// art 是 data URI：上场名册一次传输，页面只发一个脚本请求。',
+    `export const UNITS = ${JSON.stringify(units)};`,
+    '',
+  ].join('\n');
+  const out = path.join(ROOT, 'js/ll/gen.js');
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
+  return { n: units.length, kb: Math.round(code.length / 1024) };
+}
+
 // ------------------------------------------------------------------ 主流程
 const artCount = genMergeArt();
+const liveUnits = genLive();
 const birdArt = genBirdArt();
 const sv = genSurvivors();
 const pf = genProtocol();
@@ -619,8 +660,8 @@ const bootPartial = read(path.join(SRC, 'partials/boot.html')).trimEnd();
 const DATA_PAGES = new Set(['detective', 'codex', 'workshop']);
 
 const orientPartial = read(path.join(SRC, 'partials/orient.html')).trimEnd();
-// 哪些页面挂方向开关：六个小游戏（挂机版与死亡报告是独立子项目，各自内联一份）
-const ORIENT_PAGES = new Set(['detective', 'merge', 'bird', 'binding', 'survivors', 'protocol', 'wolf']);
+// 哪些页面挂方向开关：小游戏（挂机版与死亡报告是独立子项目，各自内联一份）
+const ORIENT_PAGES = new Set(['detective', 'merge', 'bird', 'binding', 'survivors', 'protocol', 'wolf', 'lovelive']);
 // 手机端整体减负：全屏毛玻璃（backdrop-filter）每一帧都要对身后整个画面做一次模糊，canvas 游戏上面盖一层弹窗就会掉到个位数帧；
 // 弹窗底色本来就带 .7 以上的不透明度，去掉模糊肉眼几乎看不出区别。点击也不需要等 300ms 判断双击缩放。
 const liteCss = `<style id="zj-lite">
@@ -722,6 +763,7 @@ for (const p of built) {
   );
 }
 console.log(`共打包 ${totalModules} 次模块引用；data/boot.json ${Math.round(bootJson.length / 1024)}KB + data/dict.json ${Math.round(dictJson.length / 1024)}KB`);
+console.log(`  lovelive！mori⭐mens！：${liveUnits.n} 名唤醒体可上场，js/ll/gen.js ${liveUnits.kb}KB（头像已内联）`);
 console.log(`  唤醒体幸存者：${sv.chars} 名角色 / ${sv.weapons} 把武器，js/sv/gen.js ${sv.kb}KB（图集已内联）`);
 console.log(`  忘却协议：${pf.units} 名唤醒体 / ${pf.mobs} 种怪物，js/pf/gen.js ${pf.kb}KB（图集已内联）`);
 console.log(`  弥萨格王权：${rg.n} 张卡面，js/reign/art.js ${rg.kb}KB（立绘已内联）`);
