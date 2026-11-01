@@ -233,6 +233,8 @@ export const CHARS = [
   // 米酒不是主播，是给这个游戏摆关卡的人（脑缸组战斗设计师，和萨摩不耶是朋友）。
   // 他坐在这桌上不喊「省流」，说的是「先看机制」——所以语气原型用 art。
   { av: '9012', zh: '米酒', en: 'Mijiu', tone: 'art', realm: '超维', cls: '辅助型', call: '主播', hint: '脑缸组 · 战斗设计师', up: true, badge: '官' },
+  // 半醒的鱼：做萌新攻略和代洗密契的那位（B 站「半醒的鱼yyy」）。
+  { av: '9013', zh: '半醒的鱼', en: 'Halfawake', tone: 'warm', realm: '深海', cls: '辅助型', call: '主播', hint: 'B站 · 半醒的鱼yyy', up: true },
 ];
 
 export const CHAR_BY_NAME = Object.fromEntries(CHARS.map((c) => [c.zh, c]));

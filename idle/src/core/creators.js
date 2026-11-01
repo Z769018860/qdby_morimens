@@ -7,7 +7,7 @@
 //   2. 技能是手写的（CREATOR_KITS），不吃 skills.js 的「类型模板 + 原作文本反推」，因为他们在原作里不存在；
 //   3. 数值刻意压在史诗（SSR）之下、初始四人之上——彩蛋归彩蛋，不能破坏养成曲线。
 //
-// 10 位主播**都是男性**，所以文案里的第三人称统一用「他」——别按昵称 / 头像想当然。
+// 11 位主播**都是男性**，所以文案里的第三人称统一用「他」——别按昵称 / 头像想当然。
 //
 // creator.bio 一律**照录 B 站个人签名原文**（快照见 tools/faces/source.json 的 sign 字段），
 // 不要自己编写人物设定或事迹——签名是空的就留空，界面上会显示「没有填写签名」。
@@ -161,6 +161,22 @@ export const CREATORS = [
       hook: '上百条世界线 · 十亿出伤',
     },
   },
+  {
+    id: 'creator-11', slug: 'banxing', zh: '半醒的鱼', en: 'Halfawake', realm: 'AEQUOR', type: 'CHORUS', rarity: 'SR', avail: 'GIFT',
+    base: { CON: 38, ATK: 30, DEF: 32 }, scale: { CON: 1.70, ATK: 1.45, DEF: 1.55 }, sub: { ...SUB }, subScale: { ...SUB_SCALE },
+    portrait: portraitOf('banxing'), card: cardOf('banxing'),
+    // 专属特性：他那些「从 0 到融灾 425」的攻略全是在深渊里录的，对上海里的老熟人自然顺手。
+    trait: {
+      zh: '从 0 到 425',
+      desc: '对上首领「深海淑女」时，造成的伤害 +25%。',
+      vs: { 118029: 0.25 },
+    },
+    creator: {
+      uid: '3537122619296226', url: 'https://space.bilibili.com/3537122619296226', color: '#4fd1c5', tag: CREATOR_TAG, emoji: '🐟',
+      bio: '主播的忘却前夜群：560011366',
+      hook: '必抽人权 · 保姆级攻略',
+    },
+  },
 ];
 
 export const CREATOR_BY_SLUG = Object.fromEntries(CREATORS.map((a) => [a.slug, a]));
@@ -283,6 +299,16 @@ export const CREATOR_KITS = {
     Rouse: ['省流', () => [E.buff('atk', 24, 4, 'allies'), E.buff('amp', 15, 4, 'allies'), E.gauge('keyflare', 25)]],
     Exalt: ['1t 速杀', (lv) => [D(2.2, lv, { to: 'foes' }), D(2.0, lv), E.debuff('vuln', 25, 3), E.buff('crit', 25, 3, 'allies')]],
     OverExalt: ['上百条世界线', (lv) => [D(2.2, lv, { to: 'foes', hits: 2 }), E.buff('amp', 35, 3, 'allies'), E.buff('atk', 25, 3, 'allies'), E.gauge('keyflare', 20, 'allies')]],
+  }),
+  // 半醒的鱼：萌新攻略 + 代洗密契。技能名全是他视频里的说法，不另外编人设。
+  banxing: kit({
+    Strike: ['鱼线', (lv) => [D(0.88, lv), E.gauge('keyflare', 6)]],
+    Defense: ['按需选用', (lv) => [S(1.25, lv), E.buff('amp', 10, 3)]],
+    Skill1: ['配队板', (lv) => [E.buff('atk', 14, 3, 'allies'), E.buff('crit', 8, 3, 'allies'), E.gauge('aliemus', 10, 'allies')]],
+    Skill2: ['洗密契', (lv) => [E.buff('amp', 18, 3, 'allies'), E.gauge('keyflare', 12, 'allies')]],
+    Rouse: ['从 0 开始', (lv) => [H(0.55, lv), E.buff('def', 12, 3, 'allies')]],
+    Exalt: ['融灾 425', (lv) => [D(2.7, lv, { to: 'foes' }), E.debuff('vuln', 18, 2), E.gauge('keyflare', 10)]],
+    OverExalt: ['按需选用即可', (lv) => [D(1.3, lv, { to: 'foes' }), E.buff('amp', 24, 3, 'allies'), E.buff('crit', 12, 3, 'allies')]],
   }),
 };
 

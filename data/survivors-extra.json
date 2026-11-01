@@ -1,5 +1,5 @@
 {
-  "_note": "《唤醒体幸存者》彩蛋角色。官方 66 人来自 data/survivors-data.json（脚本生成），这里手写：B 站《忘却前夜》内容创作者 10 人 + 最终隐藏首领「弥萨格校猫」。由 scripts/build.mjs 的 genSurvivors() 追加进 CHARS / WEAPONS / MOBS，不参与官方数据重建。face 指向 assets/survivors/faces/*.webp（主播本人的 B 站头像，构建时转 data URI 内联）；glyph 只是头像还没解码出来时的兜底字。 bio 与 bioSrc 一律照抄主播 B 站空间的公开签名原文（接口 x/web-interface/card 的 data.card.sign），签名为空就留空，不要自己编人设。bonds = 与官方唤醒体的专属羁绊：with 写官方角色全名（构建时解析成 id，写错会直接报错），need 是「那把技能要练到几级」（0 基，2 = 面板 Lv.3），fx.add 是直接加减、fx.mul 是乘算。羁绊对象的那把技能由 buildPool 保底放进候选池，否则羁绊等于不存在。",
+  "_note": "《唤醒体幸存者》彩蛋角色。官方 66 人来自 data/survivors-data.json（脚本生成），这里手写：B 站《忘却前夜》内容创作者 11 人 + 最终隐藏首领「弥萨格校猫」。由 scripts/build.mjs 的 genSurvivors() 追加进 CHARS / WEAPONS / MOBS，不参与官方数据重建。face 指向 assets/survivors/faces/*.webp（主播本人的 B 站头像，构建时转 data URI 内联）；glyph 只是头像还没解码出来时的兜底字。 bio 与 bioSrc 一律照抄主播 B 站空间的公开签名原文（接口 x/web-interface/card 的 data.card.sign），签名为空就留空，不要自己编人设。bonds = 与官方唤醒体的专属羁绊：with 写官方角色全名（构建时解析成 id，写错会直接报错），need 是「那把技能要练到几级」（0 基，2 = 面板 Lv.3），fx.add 是直接加减、fx.mul 是乘算。羁绊对象的那把技能由 buildPool 保底放进候选池，否则羁绊等于不存在。",
   "chars": [
     {
       "id": "egg-samo",
@@ -571,6 +571,73 @@
         }
       ],
       "face": "assets/survivors/faces/baiyun.webp"
+    },
+    {
+      "id": "egg-banxing",
+      "pid": "guest-banxing",
+      "n": "半醒的鱼",
+      "en": "Halfawake",
+      "realm": "深海",
+      "realmCode": "AEQUOR",
+      "role": "辅助型",
+      "roleCode": "SUPPORT",
+      "rarity": "彩蛋",
+      "img": null,
+      "egg": true,
+      "glyph": "鱼",
+      "color": "#4fd1c5",
+      "talent": "按需选用",
+      "talentText": "同一套配队换个密契就不是那一套了，所以他先问你要打什么，再给你两套",
+      "kind": "B 站主播",
+      "bio": "主播的忘却前夜群：560011366",
+      "bioSrc": "B 站空间 · space.bilibili.com/3537122619296226",
+      "bonds": [
+        {
+          "with": "薇薇安",
+          "alias": "薇薇安",
+          "n": "按需选用",
+          "need": 2,
+          "text": "攻击范围 +12%，冷却 -8%。“薇薇安也可以用活体海洋，按需选用即可。”",
+          "fx": {
+            "add": {
+              "area": 0.12
+            },
+            "mul": {
+              "cd": 0.92
+            }
+          }
+        },
+        {
+          "with": "阿拉克涅",
+          "alias": "阿拉克涅",
+          "n": "必抽人权",
+          "need": 2,
+          "text": "暴击率 +8%，暴击伤害 +20%。他给的结论只有一句：必抽。",
+          "fx": {
+            "add": {
+              "crit": 0.08,
+              "critMul": 0.2
+            }
+          }
+        }
+      ],
+      "weapons": [
+        {
+          "n": "配队板",
+          "e": "Lineup Board",
+          "proto": "field",
+          "text": "把板子摆在场中央，站进去的人打得快一点——他不替你想，只把位置留出来"
+        },
+        {
+          "n": "密契重洗",
+          "e": "Sigil Reroll",
+          "proto": "chain",
+          "text": "一串密契在敌群之间跳着换，换到好的那一下最疼",
+          "cdMul": 0.94,
+          "color": "#4fd1c5"
+        }
+      ],
+      "face": "assets/survivors/faces/banxing.webp"
     }
   ],
   "boss": {
@@ -597,9 +664,19 @@
     "text": "《忘却前夜》脑缸组的战斗设计师，这一关就是他摆的。他不追人，只站在场边翻那张画满网格的纸，每过一会儿就在你脚边补两只怪：「这儿少了点压力。」血量不到校猫的一半，但他一直在改规则。",
     "tip": "校猫放学之后他才来验收，一局只来一次。他会不断往场上补小怪，先把小怪清掉再谈。",
     "lines": {
-      "spawn": ["这一关是我做的。你打到这儿了，那我把难度上调一档。", "别急，先看机制。", "校猫走了？那我得自己来看看。"],
-      "add": ["这里加两只。", "这块地太空了，补点东西。", "难度上调。"],
-      "die": ["行，你过了。这段我记下来了。"]
+      "spawn": [
+        "这一关是我做的。你打到这儿了，那我把难度上调一档。",
+        "别急，先看机制。",
+        "校猫走了？那我得自己来看看。"
+      ],
+      "add": [
+        "这里加两只。",
+        "这块地太空了，补点东西。",
+        "难度上调。"
+      ],
+      "die": [
+        "行，你过了。这段我记下来了。"
+      ]
     }
   }
 }
