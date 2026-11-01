@@ -19,7 +19,7 @@
 
 import { SONGS, arrange } from './ll/songs.js';
 import { Audio } from './ll/audio.js';
-import { detectOnsets, chartFromOnsets, chartFromArr, hashStr } from './ll/analyze.js';
+import { detectOnsets, chartFromOnsets, chartFromArr, hashStr, packOnsets, unpackOnsets } from './ll/analyze.js';
 import { UNITS, PACKS } from './ll/gen.js';
 import { fetchPack, hasPack } from './ll/musicbox.js';
 import { initShop } from './ll/shop.js';
@@ -122,12 +122,17 @@ const idbCDel = (k) => idbDo('c', 'readwrite', (st) => st.delete(k));
 /* ================================================================ 难度 */
 // win: Perfect / Great / Good / Bad 的半宽（秒，实际还要乘判定宽松）
 // lead: 音符从发球点飞到框里要走几秒（越大越好读）；flow 设置会再乘一次
-// gap: 谱面最小间隔；hold/dbl: 长条与双押比例；stam: Miss 扣体力
+// gap: 谱面最小间隔（节奏密集时会按响度再缩到 0.72 倍）
+// hold: 原曲里拖长音留成长条的概率；holdCap: 长条占比上限
+// holdAt: 同时最多几根长条在按着；maxTail: 长条最长几秒
+// jump: 相邻两下最多跨几格；tapQ: 强度低于全曲这个分位的当噪声丢掉
+// dbl: 双押比例（强音处再翻倍）；dblHold: 长条配第二只手的比例
+// stam: Miss 扣体力；pad: 芯片改编时叠鼓点的概率
 const DIFFS = [
-  { k: 'easy',   n: 'EASY',   win: [0.062, 0.112, 0.162, 0.212], lead: 1.85, gap: 0.46, hold: 0.12, holdCap: 0.10, dbl: 0,    stam: 4.5, pad: 0.20 },
-  { k: 'normal', n: 'NORMAL', win: [0.052, 0.098, 0.148, 0.198], lead: 1.55, gap: 0.30, hold: 0.32, holdCap: 0.15, dbl: 0.04, stam: 5.5, pad: 0.45 },
-  { k: 'hard',   n: 'HARD',   win: [0.046, 0.090, 0.135, 0.185], lead: 1.28, gap: 0.225, hold: 0.44, holdCap: 0.18, dbl: 0.09, stam: 6.5, pad: 0.70 },
-  { k: 'expert', n: 'EXPERT', win: [0.042, 0.082, 0.125, 0.170], lead: 1.08, gap: 0.175, hold: 0.52, holdCap: 0.20, dbl: 0.13, stam: 7.5, pad: 0.95 },
+  { k: 'easy',   n: 'EASY',   win: [0.062, 0.112, 0.162, 0.212], lead: 1.85, gap: 0.40,  hold: 0.55, holdCap: 0.14, holdAt: 1, maxTail: 1.2, jump: 1, tapQ: 0.36, dbl: 0,    dblHold: 0,    stam: 4.5, pad: 0.20 },
+  { k: 'normal', n: 'NORMAL', win: [0.052, 0.098, 0.148, 0.198], lead: 1.55, gap: 0.235, hold: 0.75, holdCap: 0.16, holdAt: 2, maxTail: 1.5, jump: 2, tapQ: 0.24, dbl: 0.07, dblHold: 0.30, stam: 5.5, pad: 0.45 },
+  { k: 'hard',   n: 'HARD',   win: [0.046, 0.090, 0.135, 0.185], lead: 1.28, gap: 0.17,  hold: 0.88, holdCap: 0.18, holdAt: 2, maxTail: 1.8, jump: 3, tapQ: 0.14, dbl: 0.11, dblHold: 0.55, stam: 6.5, pad: 0.70 },
+  { k: 'expert', n: 'EXPERT', win: [0.042, 0.082, 0.125, 0.170], lead: 1.08, gap: 0.135, hold: 0.95, holdCap: 0.20, holdAt: 2, maxTail: 2.0, jump: 4, tapQ: 0.07, dbl: 0.13, dblHold: 0.70, stam: 7.5, pad: 0.95 },
 ];
 const diffOf = (k) => DIFFS.find((d) => d.k === k) || DIFFS[1];
 const KEYS = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'];
@@ -152,7 +157,7 @@ const G = {
   notes: [], ni: 0, di: 0, combo: 0, maxCombo: 0, score: 0,
   cnt: { p: 0, g: 0, go: 0, b: 0, m: 0 },
   accW: 0, stamina: 100, buffs: [], sk: [], banner: null, fx: [], flashes: [],
-  holds: {}, active: new Set(), holdingLane: -1, running: false, over: false, paused: false, auto: AUTO,
+  holds: {}, active: new Set(), holdingLanes: [], running: false, over: false, paused: false, auto: AUTO,
   tickAt: 0, prep: false, stall: 0, lastT: 0,
 };
 
@@ -591,18 +596,18 @@ function buildStatic() {
     const u = laneUnit(i);
     const r = b.w / 2;
     rr2(boxCtx, b.x - r, b.y - r, b.w, b.h, 10);
-    boxCtx.fillStyle = 'rgba(10,14,26,0.34)';
+    boxCtx.fillStyle = 'rgba(10,14,26,0.20)';
     boxCtx.fill();
-    boxCtx.lineWidth = 2;
-    boxCtx.strokeStyle = 'hsla(' + u.hue + ',82%,74%,0.72)';
+    boxCtx.lineWidth = 1.6;
+    boxCtx.strokeStyle = 'hsla(' + u.hue + ',82%,74%,0.52)';
     boxCtx.stroke();
     const ir = r - 3.5;
-    boxCtx.globalAlpha = 0.46;                  // 脸也半透明：音符压下来才分得清谁是谁
+    boxCtx.globalAlpha = 0.32;                  // 脸也半透明：音符压下来才分得清谁是谁
     boxCtx.drawImage(sprite(u, ir), b.x - ir, b.y - ir, ir * 2, ir * 2);
     boxCtx.globalAlpha = 1;
     if (SAVE.keys) {
       boxCtx.font = '600 ' + Math.round(Math.min(13, b.w * 0.32)) + 'px ui-monospace,SFMono-Regular,Menlo,monospace';
-      boxCtx.fillStyle = 'rgba(200,210,235,0.72)';
+      boxCtx.fillStyle = 'rgba(200,210,235,0.55)';
       boxCtx.fillText(KEY_LABEL[i], b.x, b.y + r + 11);
     }
   }
@@ -689,7 +694,7 @@ function draw(clock) {
     const b = LAY.boxes[i];
     const u = laneUnit(i);
     const r = b.w / 2;
-    if (G.holdingLane === i) {
+    if (G.holdingLanes.indexOf(i) >= 0) {
       rr2(ctx, b.x - r, b.y - r, b.w, b.h, 10);
       ctx.lineWidth = 3.5;
       ctx.strokeStyle = 'hsla(' + u.hue + ',90%,76%,0.95)';
@@ -735,12 +740,20 @@ function draw(clock) {
     ctx.strokeStyle = n.broken ? 'rgba(160,160,175,0.3)' : 'hsla(' + col + ',0.85)';
     ctx.lineWidth = 3;
     ctx.stroke();
-    if (!n.holding && !n.broken) {
+    // 尾音也挂一张头像：该在哪松手、尾音什么时候进框，一眼看得出（判定就看这个）
+    let tx = tp.x, ty = tp.y;
+    if (n.holding && tp.k >= 1) { tx = b.x; ty = b.y; }   // 按着时尾音贴在框里
+    const tr = LAY.bw * 0.3;
+    const tfade = n.broken ? 0.32 : fadeK(n.holding ? Math.min(tp.k, 1) : tp.k);
+    if (tfade > 0.02) {
+      ctx.globalAlpha = tfade * 0.92;
+      ctx.drawImage(sprite(u, tr), tx - tr, ty - tr, tr * 2, tr * 2);
       ctx.beginPath();
-      ctx.arc(tp.x, tp.y, LAY.bw * 0.2, 0, Math.PI * 2);
-      ctx.strokeStyle = 'hsla(' + col + ',0.7)';
-      ctx.lineWidth = 2;
+      ctx.arc(tx, ty, tr + 2, 0, Math.PI * 2);
+      ctx.strokeStyle = n.broken ? 'rgba(160,160,175,0.5)' : 'hsla(' + col + ',0.85)';
+      ctx.lineWidth = 1.8;
       ctx.stroke();
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -874,9 +887,10 @@ function loop(ts) {
     if (!hn.holding) { G.active.delete(hn); continue; }
     if (now >= hn.tail + 0.02) releaseHold(hn, false);
   }
-  G.holdingLane = -1;
+  // 同时在按几根就亮几个框（双长按要两个框一起亮，不然看不出按住的是哪两根）
+  G.holdingLanes.length = 0;
   for (const hn of G.active) {
-    if (hn.holding) { G.holdingLane = hn.lane; break; }
+    if (hn.holding && G.holdingLanes.indexOf(hn.lane) < 0) G.holdingLanes.push(hn.lane);
   }
   // 过点判定
   const W4 = windows()[3];
@@ -946,8 +960,10 @@ const TRACK_CACHE = new Map();
 //   ① 本机导入的原曲（IndexedDB，玩家的私人版本，能盖过内置包）
 //   ② 仓库里的原曲包（assets/ll-music/*.bin，加密的，取回来在这里解）
 //   ③ 都没有 → null，回去走页面内合成
-// 抓点（onsets）算一次就够了：解出来的重音表存在 IndexedDB 里（'ons:' 前缀），
+// 抓点（onsets）算一次就够了：解出来的重音表存在 IndexedDB 里（'ons2:' 前缀），
 // 下次开同一首不用重新扫一遍几十万帧。
+// 前缀带版本号：抓点结果多带了「拖长 / 音区 / 频段」三个字段，旧缓存（ons:）
+// 只有时间与强度，出谱会退化成没有长条的随机铺点，看见老键就换新的。
 async function prepareTrack(songId) {
   if (TRACK_CACHE.has(songId)) return TRACK_CACHE.get(songId);
   const rec = await idbGet(songId).catch(() => null);
@@ -962,20 +978,18 @@ async function prepareTrack(songId) {
       pack = true;
       const meta = PACKS[songId] || {};
       name = meta.src || ('原曲包 · ' + songId);
-      const saved = await idbCGet('ons:' + songId).catch(() => null);
+      const saved = await idbCGet('ons2:' + songId).catch(() => null);
       if (saved && saved.onsets) onsets = saved.onsets;
     }
   }
   if (!data) return null;
   const buffer = await Audio.decode(data.slice(0));
   let on;
-  if (onsets && onsets.length) on = onsets.map((p) => ({ t: p[0], s: p[1] }));
+  // 数组形式是缓存下来的（7 个数一档），对象形式是本机导入时刚算的
+  if (onsets && onsets.length) on = Array.isArray(onsets[0]) ? unpackOnsets(onsets) : onsets;
   else {
     on = detectOnsets(buffer);
-    idbCSet('ons:' + songId, {
-      onsets: on.map((p) => [+p.t.toFixed(3), +p.s.toFixed(2)]),
-      dur: buffer.duration,
-    }).catch(() => {});
+    idbCSet('ons2:' + songId, { onsets: packOnsets(on), dur: buffer.duration }).catch(() => {});
   }
   const v = { buffer, onsets: on, name, dur: buffer.duration, pack };
   TRACK_CACHE.set(songId, v);
@@ -1050,7 +1064,7 @@ async function startLive() {
   G.cnt = { p: 0, g: 0, go: 0, b: 0, m: 0 };
   G.accW = 0; G.stamina = 100; G.fx = []; G.flashes = []; G.holds = {};
   G.over = false; G.paused = false; G.banner = null; G.tickAt = 0;
-  G.di = 0; G.holdingLane = -1;
+  G.di = 0; G.holdingLanes = [];
   Audio.setMute(!!SAVE.mute);
   Audio.setVol(SAVE.musVol, SAVE.fxVol);
   Audio.setScale(song.root || 60);
@@ -1289,7 +1303,7 @@ async function importTrack(songId, file) {
     status.textContent = '正在抓鼓点…（' + mmss(buffer.duration) + '）';
     await new Promise((r) => setTimeout(r, 30));
     const onsets = detectOnsets(buffer);
-    const flat = onsets.map((p) => [+p.t.toFixed(3), +p.s.toFixed(2)]);
+    const flat = packOnsets(onsets);
     await idbSet(songId, { name: file.name, data: raw, onsets: flat, dur: buffer.duration });
     TRACK_CACHE.set(songId, { buffer, onsets, name: file.name, dur: buffer.duration });
     SAVE.tracks[songId] = { name: file.name, dur: buffer.duration, notes: onsets.length };
@@ -1457,7 +1471,7 @@ if (TEST) {
 // 工坊要碰的东西不少（存储、对局、选曲列表），这里一次注入，避免两个模块互相 import 打架
 var SHOP = initShop({
   G, SAVE, persist, Audio, show, renderSongs, startLive, $, $$,
-  KEYS, fmt, mmss, diffOf, chartFromOnsets, detectOnsets,
+  KEYS, fmt, mmss, diffOf, chartFromOnsets, detectOnsets, packOnsets,
   idbGet, idbSet, idbDel, idbCGet, idbCSet, idbCDel,
 });
 

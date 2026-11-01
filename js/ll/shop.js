@@ -16,6 +16,7 @@ export function initShop(api) {
   const { G, SAVE, persist, Audio, show, startLive, renderSongs, $, $$ } = api;
   const chartFromOnsets = api.chartFromOnsets;
   const detectOnsets = api.detectOnsets;
+  const packOnsets = api.packOnsets;
   const diffOf = api.diffOf;
   const fmt = api.fmt;
   const mmss = api.mmss;
@@ -185,7 +186,7 @@ export function initShop(api) {
       const c = chartFromOnsets(onsets, buf.duration, D, seed);
       const id = uid();
       const audioKey = 'au:' + id;
-      await idbSet(audioKey, { name: file.name, data: raw.slice(0), onsets: onsets.map((p) => [+p.t.toFixed(3), +p.s.toFixed(2)]), dur: buf.duration });
+      await idbSet(audioKey, { name: file.name, data: raw.slice(0), onsets: packOnsets(onsets), dur: buf.duration });
       const title = file.name.replace(/\.[^.]+$/, '').slice(0, 40) || '未命名曲目';
       const meta = await saveChart({
         id, title, artist: '', dur: buf.duration, audioKey,
