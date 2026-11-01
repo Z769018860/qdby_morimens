@@ -19,17 +19,17 @@ binder: {
     {who:'sys', t:['她摊开着。像一本等人合上的书。'], ch:[
       {t:'拿刀，照着书脊来，干脆一点。', note:'这是规程的方案', kill:true, w:10, realm:'caro', mark:{blood:1}, go:'@end:E014'},
       {t:'先看看她写的是什么。', note:'不急这一下', tag:'read', realm:'ultra', mark:{paper:1}, go:3},
-      {t:'问她：为什么想被杀死？', note:'规程没写这一问', tag:'gentle', realm:'aqua', go:5},
+      {t:'问她：为什么想被杀死？', note:'规程没写这一问', tag:'gentle', realm:'aqua', go:4},
     ]},
     {who:'her', t:[
       '（你凑近玻璃。字太小，你把脸贴上去。她也不躲。）',
-      '「看什么？看我怎么写你的那页吗？」她笑了，纸页哗啦响了一声，「别急。都写着呢。往后的每一夜都有。」'], go:6},
+      '「看什么？看我怎么写你的那页吗？」她笑了，纸页哗啦响了一声，「别急。都写着呢。往后的每一夜都有。」'], go:5},
     {who:'her', t:[
       '「问这个的，你是第 409 个。」她说。',
       '「因为被杀是最后一次被翻开。你们这些记东西的，谁也不肯把一本读了一半的书合上——只有杀，算是一个结尾。」',
       '「我想要个结尾。哪怕是个烂的。」'], go:6},
     {who:'rule', t:['规程咳嗽了一声（它没有嗓子，但很会装）：「注意进度。条款规定：会面时间不超过一夜。」'], go:6},
-    {who:'her', t:['「所以，」她把身体往前倾了倾，线关节吱呀作响，「今晚怎么处理我？"]'], ch:[
+    {who:'her', t:['「所以，」她把身体往前倾了倾，线关节吱呀作响，「今晚怎么处理我？」'], ch:[
       {t:'把散开的线捡起来，把她缝好、合上。', note:'温柔是最锋利的刀', tag:'gentle', w:6, realm:'caro', mark:{paper:1,salt:1}, go:'@end:E013'},
       {t:'读她。从头读到尾，一页不跳。', note:'读完会看见什么', tag:'read', w:12, realm:'ultra', mark:{paper:2}, go:'@end:E015'},
       {t:'什么都不做。站着。', note:'不上，也不下', tag:'silence', mark:{ash:2}, go:'@end:E016'},
@@ -502,7 +502,8 @@ export const CATEVENT = [
   {bg:'cat', who:'sys', t:['楼梯拐角蹲着一只猫。规程的简报里没有它，规程的任何版本里都没有它。它看着你，尾巴慢慢地扫。'], ch:[
     {t:'蹲下来，摸它。', note:'它等着呢', flag:'cat', tag:'gentle', mark:{salt:1}, go:'@catpet'},
     {t:'问它：她怎么样了？', note:'它肯定知道', tag:'read', realm:'ultra', mark:{paper:1}, flag:'cat', go:'@catsay'},
-    {t:'绕开它继续走。', note:'正事要紧', tag:'silence', go:'@door'},
+    {t:'跟它走。', note:'它往没有编号的走廊去', tag:'read', realm:'ultra', mark:{ash:1}, go:'@end:E005'},
+    {t:'绕开它继续走。', note:'正事要紧', tag:'silence', go:'@stair'},
   ]},
   {bg:'cat', who:'sys', t:['它在你的膝盖底下呼噜了很久。走的时候它在你脚踝上蹭了一下——像盖了个章。这算入编了。'], go:'@next'},
   {bg:'cat', who:'her', t:[

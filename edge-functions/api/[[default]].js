@@ -1481,6 +1481,11 @@ const BOARD_SPEC = [
   { k: 'rg', gd: 'rg', i: 0, unit: '个结局', label: '结局数',
     sub: (v) => [Number(v[1]) > 0 ? `最长任期第 ${Number(v[1])} 天` : '', Number(v[2]) > 0 ? `当过 ${Number(v[2])} 任` : ''].filter(Boolean).join(' · '),
     tb: (v) => Number(v[1]) || 0 },
+  // 杀死守密人：按已解锁结局数排（0~112，一格只能点亮一次，刷不动），
+  // 同分时比见过的形态数（见 tb）
+  { k: 'kp', gd: 'kp', i: 0, unit: '个结局', label: '结局数',
+    sub: (v) => [Number(v[1]) > 0 ? `见过 ${Number(v[1])} 种形态` : '', Number(v[2]) > 0 ? `下过 ${Number(v[2])} 趟钥冢` : ''].filter(Boolean).join(' · '),
+    tb: (v) => Number(v[1]) || 0 },
   { k: 'dl', gd: 'dl', i: 0, unit: '分', label: '段位分',
     sub: (v) => {
       const t = Number(v[3]) || 0;
@@ -1623,7 +1628,8 @@ export async function onRequest(context) {
         // v5 档案里多了 gd（九个游戏的进度摘要），管理页能看全部游戏 + 挂机时长/角色数
         // v10 榜单多了唤醒王：决斗链接（段位分），见 BOARD_SPEC 的 dl；
         // v11 多了 /llsongs（lovelive 云端曲库：只收谱面，不收音频）
-        ok: Boolean(store), service: 'zjtt', v: 11, runtime: 'edgeone',
+        // v12 榜单多了杀死守密人（已解锁结局数），见 BOARD_SPEC 的 kp
+        ok: Boolean(store), service: 'zjtt', v: 12, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),

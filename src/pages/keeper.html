@@ -28,7 +28,7 @@ body{
   -webkit-tap-highlight-color:transparent; user-select:none;
 }
 /* -------------------------------------------------------------- 背景层 */
-#bgs{position:fixed; inset:0; z-index:0; background:#050506}
+#bgs{position:fixed; inset:0; z-index:0; background:#050506; overflow:hidden}
 #bgs img{
   position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
   opacity:0; transition:opacity 1.6s ease;
@@ -141,7 +141,7 @@ body.danger #redwash{opacity:1; animation:beat 1.6s ease-in-out infinite}
 .disc{margin:26px auto 0;max-width:36em;font-size:10px;line-height:1.9;color:var(--dim2)}
 /* 对话面板 */
 #panel{
-  position:relative;border-radius:16px;overflow:hidden;flex:0 0 auto;
+  position:relative;border-radius:16px;overflow:hidden;flex:0 0 auto;flex-shrink:0;
   background:linear-gradient(180deg, rgba(16,13,19,.92), rgba(11,9,13,.96));
   border:1px solid var(--line);box-shadow:var(--shadow);
   backdrop-filter:blur(3px);
@@ -169,9 +169,17 @@ body.danger #redwash{opacity:1; animation:beat 1.6s ease-in-out infinite}
   font-style:italic;opacity:.9;letter-spacing:.06em}
 .echo b{font-style:normal;font-size:9.5px;letter-spacing:.2em;margin-right:8px;opacity:.75}
 /* 选项 */
-#choices{display:flex;flex-direction:column;gap:8px;flex:0 0 auto;margin-top:10px;
-  transition:opacity .18s}
+#choices{display:flex;flex-direction:column;gap:8px;flex:0 1 auto;margin-top:10px;
+  transition:opacity .18s;
+  /* 终夜最深一层有 11 个选项，小屏放不下：让它自己滚，别把对话面板挤扁、也别顶到屏幕外 */
+  max-height:calc(100dvh - 320px); overflow-y:auto; overscroll-behavior:contain;
+  scrollbar-width:thin; scrollbar-color:rgba(201,169,97,.35) transparent; padding-right:2px}
+#choices::-webkit-scrollbar{width:4px}
+#choices::-webkit-scrollbar-thumb{background:rgba(201,169,97,.35);border-radius:4px}
 #choices.hide{opacity:0;pointer-events:none}
+/* 选项超出可视区时底部渐隐：暗示还能往下滑（滚到底自动取消） */
+#choices.more{mask-image:linear-gradient(180deg,#000 0,#000 calc(100% - 18px),rgba(0,0,0,.12) 100%)}
+#choices.moreup.more{mask-image:linear-gradient(180deg,rgba(0,0,0,.12) 0,#000 18px,#000 calc(100% - 18px),rgba(0,0,0,.12) 100%)}
 .ch{appearance:none;cursor:pointer;font:inherit;text-align:left;
   padding:10px 14px 9px;border-radius:12px;line-height:1.5;
   border:1px solid var(--line);background:rgba(16,14,20,.88);color:var(--text);
@@ -192,7 +200,11 @@ body.danger #redwash{opacity:1; animation:beat 1.6s ease-in-out infinite}
 .ch.dim{opacity:.45}
 /* -------------------------------------------------------------- 结局页 */
 #scr-end{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
-  justify-content:center;text-align:center;padding:16px;overflow:auto}
+  justify-content:flex-start;text-align:center;padding:18px 16px 22px;overflow:auto;
+  overscroll-behavior:contain}
+/* 内容短的时候居中，长结局（比如场外那几条）从头排、可以滚到底看到按钮 */
+#scr-end > *:first-child{margin-top:auto}
+#scr-end > *:last-child{margin-bottom:auto}
 #scr-end.on{display:flex}
 .endno{font-size:10px;letter-spacing:.5em;color:var(--dim2)}
 .endtitle{margin:14px 0 0;font-size:clamp(28px,6vw,44px);letter-spacing:.2em;font-weight:800;
@@ -245,6 +257,25 @@ body.danger #redwash{opacity:1; animation:beat 1.6s ease-in-out infinite}
   .wbar{min-width:90px}
   .sndhint{font-size:11.5px;letter-spacing:.1em;padding:7px 14px;gap:6px}
   .sndhint span{display:none}
+  /* 结局页：长结局在小屏上先让正文和按钮都排得下 */
+  .endtitle{margin-top:8px;font-size:clamp(24px,7vw,32px)}
+  .endtxt{margin-top:16px;font-size:13px;line-height:1.95}
+  .endtxt p{margin:0 0 8px}
+  .erow{margin-top:12px;gap:8px}
+  .erow .btn{padding:9px 16px;font-size:12.5px}
+}
+/* 320 这类窄屏：四枚刻痕 + 重量条挤不下，收紧一档 */
+@media (max-width:380px){
+  .marks{gap:4px;margin-top:5px;flex-wrap:wrap;row-gap:4px}
+  .mk{padding:2px 6px;gap:3px;font-size:9.5px;letter-spacing:.06em}
+  .mk i{width:6px;height:6px}
+  /* 四枚刻痕已经很挤，重量条单独占一行，别压成一根头发丝 */
+  .wbar{flex:1 0 100%;margin-left:0;min-width:0;gap:6px}
+  .wbar .wk{display:inline}
+  .wbar .wk{font-size:9px}
+  .ch{padding:9px 12px 8px;gap:8px}
+  .ch .t{font-size:12px}
+  .ch .note{font-size:10px}
 }
 @media (max-height:620px){
   .ptext{min-height:2.2em;font-size:13.5px;line-height:1.8}

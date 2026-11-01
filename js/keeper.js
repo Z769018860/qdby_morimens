@@ -135,8 +135,10 @@ function onTextTap() {
   }
   // 本段读完
   if (curBeat.ch) { if (!$('#choices').childElementCount) showChoices(curBeat.ch); return; }
-  const d = curDone; curBeat = null; curDone = null;
-  d && d(curBeat && curBeat.go);
+  const d = curDone, b = curBeat;
+  curBeat = null; curDone = null;
+  // 注意：go 要先取出来再清 curBeat，否则这里永远传 null，所有数字跳转 / @end 都会丢
+  d && d(b && b.go);
 }
 function speakerOf(who) {
   const spk = $('#spk'), sub = $('#spksub');
@@ -161,25 +163,41 @@ function needOk(n) {
   if (n.flag && !S.flags[n.flag]) return false;
   return true;
 }
+// 选项多到一屏放不下时，底部渐隐提示「还能往下滑」；滚到底部就取消
+function watchOverflow(box) {
+  if (!box) return;
+  const upd = () => {
+    const over = box.scrollHeight > box.clientHeight + 4;
+    box.classList.toggle('more', over && box.scrollTop + box.clientHeight < box.scrollHeight - 4);
+    box.classList.toggle('moreup', box.scrollTop > 4);
+  };
+  box.onscroll = upd;
+  requestAnimationFrame(upd);
+  setTimeout(upd, 60);
+}
 function showChoices(opts) {
   const box = $('#choices');
   box.innerHTML = '';
+  box.scrollTop = 0;
   box.classList.remove('hide');
   opts.filter((o) => !o.need || needOk(o.need)).forEach((o, i) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'ch';
     if (o.realm) b.dataset.realm = o.realm;
+    if (o.k) b.dataset.k = o.k;      // 选项 key：楼梯/门这类按 k 分辨的分支，调试与自动化都靠它
     if (o.kill) b.classList.add('kill');
     if (o.tag === 'gentle') b.classList.add('warm');
     b.innerHTML = `<span class="n">${i + 1}</span><span class="t">${o.t}${o.note ? `<span class="note">${o.note}</span>` : ''}</span>`;
     b.onclick = () => choose(o, i);
     box.appendChild(b);
   });
+  watchOverflow(box);
 }
 function choose(o, idx) {
   const box = $('#choices');
   box.innerHTML = '';          // 必须清空：下一幕的 showChoices 靠「没有子节点」判断要不要渲染
   box.classList.add('hide');
+  box.classList.remove('more', 'moreup');
   // 声音跟着动作走：敲门、动手、翻页、沉默，各有各的响法
   if (/敲/.test(o.t)) sfx('knock', .95);
   else if (o.kill) sfx('slash', 1);
@@ -190,11 +208,18 @@ function choose(o, idx) {
   if (o.w) S.w = Math.max(0, Math.min(100, S.w + o.w));
   if (o.tag) {
     S.tags[o.tag] = (S.tags[o.tag] || 0) + 1;
-    if (o.tag === 'silence') { S.silenceStreak++; if (S.silenceStreak >= 3) unlock('E100'); }
-    else S.silenceStreak = 0;
+    // E100「代声」写的是「连着三夜」：同一夜里点几次沉默只记一夜
+    if (o.tag === 'silence') {
+      if (S.silenceNight !== S.loop) {
+        S.silenceNight = S.loop;
+        S.silenceStreak++;
+        if (S.silenceStreak >= 3) unlock('E100');
+      }
+    } else S.silenceStreak = 0;
   }
   if (o.flag) S.flags[o.flag] = 1;
   if (o.set) for (const k in o.set) S.flags[k] = o.set[k];
+  const wasStair = S._isStair;
   if (S._isStair) {
     S.sameStair.push(o.k); S.sameStair = S.sameStair.slice(-3);
     if (S.sameStair.length === 3 && new Set(S.sameStair).size === 1) unlock('E110');
@@ -204,6 +229,8 @@ function choose(o, idx) {
   if (idx === 0) { S.firstStreak++; if (S.firstStreak >= 10) unlock('E099'); }
   else S.firstStreak = 0;
   renderMeters();
+  // 取刀 / 放刀这类只改状态、没有去处的楼梯选项：改完把楼梯重画一遍，否则会停在空白处
+  if (!o.go && wasStair) return stairChoice();
   resolveGo(o.go);
 }
 function resolveGo(go) {
@@ -214,8 +241,9 @@ function resolveGo(go) {
   if (go === '@meet') return meeting();
   if (go === '@loop') return transform();
   if (go === '@final') return finalNight();
-  if (go === '@catpet') return playSeq([CATEVENT[1]], () => doorScene());
-  if (go === '@catsay') return playSeq([CATEVENT[2]], () => doorScene());
+  if (go === '@stair') return stairChoice();
+  if (go === '@catpet') return playSeq([CATEVENT[1]], () => stairChoice());
+  if (go === '@catsay') return playSeq([CATEVENT[2]], () => stairChoice());
 }
 let numGo = null; // 场景内部按下标跳转（形态/终夜的 beat 图）
 // 顺序播一段 beat，结束回调 after(最后的go)
@@ -345,12 +373,18 @@ function stairLines() {
   return pool[(S.loop - 1) % pool.length];
 }
 function rotateOpts(opts, n) {
-  // 展示上限 6：轮换出现，保证每一条都有被选到的机会
-  if (opts.length <= 6) return opts;
-  const rest = opts.slice(0, -1), go = opts[opts.length - 1];
-  const rot = n % rest.length, pick = [];
-  for (let i = 0; i < 5; i++) pick.push(rest[(rot + i) % rest.length]);
-  return [...pick, go];
+  // 展示上限 6：轮换出现，保证每一条都有被选到的机会。
+  // 但「取刀 / 放刀」跟当前状态绑定、还决定 E109（五夜都不取刀）能不能成立，
+  // 所以它永远在列表里，只轮换纯探索的那几项。
+  const fixed = opts.filter((o) => o.needBlade || o.needNoBlade);
+  const rest = opts.filter((o) => !(o.needBlade || o.needNoBlade));
+  if (rest.length + fixed.length <= 6) return opts;
+  const tail = rest[rest.length - 1], body = rest.slice(0, -1);
+  if (!body.length) return [...fixed, tail];
+  const keep = Math.max(1, 5 - fixed.length);
+  const rot = n % body.length, pick = [];
+  for (let i = 0; i < keep; i++) pick.push(body[(rot + i) % body.length]);
+  return [...fixed, ...pick, tail];
 }
 function descend() {
   updateChip(); renderMeters();
@@ -364,7 +398,16 @@ function descend() {
   playSeq([
     { bg: S.loop === 1 ? 'hall' : 'voidwalk', who: 'rule', t: b },
     { bg: ['shaft', 'spiral', 'pit'][(S.loop - 1) % 3], who: 'sys', t: stairLines() },
-  ], () => stairChoice());
+  ], () => {
+    // 猫：第二夜起偶尔蹲在楼梯拐角。E005（跟着它走）也只有一个入口，就在这里。
+    if (S.loop >= 2 && !S.flags.catToday && Math.random() < 0.4) {
+      S.flags.catToday = 1;
+      setScene('night');
+      sfx('cat', .7);
+      return playSeq([CATEVENT[0]], () => stairChoice());
+    }
+    stairChoice();
+  });
 }
 function stairChoice() {
   const opts = STAIR_OPTS.filter((o) =>
@@ -395,6 +438,7 @@ function meeting() {
     P.forms.add(form);
     if (P.forms.size >= 12) unlock('E097');
     saveP();
+    cloudTouch();
   }
   MID = { run: JSON.parse(JSON.stringify(S)), at: 'meet' }; saveP();
   const F = FORMS[form];
@@ -496,6 +540,7 @@ function showEnding(id) {
     P.endings.add(id);
     try { walletAdd(2); } catch { /* 钱包不可用就算了 */ }
     saveP();
+    cloudTouch();
   }
   if (S) {
     if (e.grp === 'binder' || e.grp === 'lamp') S.spared++;
@@ -542,7 +587,9 @@ function showEnding(id) {
     $('#btnHome').onclick = home;
   }
   $('#btnBook2').onclick = openBook;
-  if (P.endings.size >= TOTAL) unlock('E098');
+  // 112 个里，E098 与 E112 互为前提，所以门槛分两级：
+  //   集齐其余 110 个 → E098；拿到 E098 后（111 个）→ E112。
+  if (P.endings.size >= TOTAL - 2) unlock('E098');
 }
 
 // ------------------------------------------------------------------ 图鉴
@@ -581,7 +628,7 @@ function openBook() {
       review(el.dataset.e);
     };
   });
-  if (P.endings.size >= TOTAL) unlock('E112');
+  if (P.endings.size >= TOTAL - 1) unlock('E112');
 }
 function review(id) {
   const e = ENDINGS.find((x) => x.id === id);
@@ -628,11 +675,18 @@ function openHelp() {
 
 // ------------------------------------------------------------------ 元结局
 const META_IDS = new Set(['E094', 'E095', 'E096', 'E097', 'E098', 'E099', 'E100', 'E101', 'E102', 'E103', 'E104', 'E105', 'E106', 'E107', 'E108', 'E109', 'E110', 'E111', 'E112']);
+// 结局 / 形态有变化才值得惊动云端：第一次用到时再动态拉 sync（几十 KB，不进首屏）
+let syncMod = null;
+function cloudTouch() {
+  if (syncMod) { try { syncMod.flush(); } catch { /* noop */ } return; }
+  import('./keeper-sync.js').then((m) => { syncMod = m; try { m.flush(); } catch { /* noop */ } }).catch(() => { /* 没登录 / 离线就算了 */ });
+}
 function unlock(id) {
   if (!META_IDS.has(id) || P.endings.has(id)) return;
   P.endings.add(id);
   try { walletAdd(2); } catch { /* noop */ }
   saveP();
+  cloudTouch();
   sfx('static', .5);           // 档案室翻到你的那一页
   const e = ENDINGS.find((x) => x.id === id);
   toast(`场外档案 · ${e ? e.t : id} 已归档（银芯 +2）`);

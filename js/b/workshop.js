@@ -1735,6 +1735,23 @@ function reign() {
   };
 }
 
+function keeper() {
+  // js/keeper.js 的键 zjtt:keeper:v1：{ endings: [结局 id], forms: [形态], nights, meta, mid }
+  // 图鉴只增不减，所以这两个数字天然适合当排行榜的分数
+  const s = RD('keeper:v1') || {};
+  const e = Array.isArray(s.endings) ? s.endings.length : 0;
+  const f = Array.isArray(s.forms) ? s.forms.length : 0;
+  const nights = n(s.nights);
+  return {
+    items: [
+      { k: '结局', v: e + ' / 112' },
+      { k: '见过的形态', v: f + ' / 12' },
+      { k: '下过钥冢', v: nights ? nights + ' 次' : '—' },
+    ],
+    extra: e >= 112 ? '集齐了——第 113 号在你手上' : (e ? '还有 ' + (112 - e) + ' 个结局没走到' : ''),
+  };
+}
+
 function g2048() {
   // js/g2048.js 的 KEY：best 全难度 / best:<难度> / seen 历史合到过的最大块
   const best = numKey('g2048:best');
@@ -1857,6 +1874,7 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'duel', n: '唤醒王：决斗链接', href: 'duel.html', icon: '⚔', read: duel, tip: '卡牌对决，段位爬升' },
   { k: 'reign', n: '弥萨格王权', href: 'reign.html', icon: '👑', read: reign, tip: '准或不准，四项账' },
   { k: 'lovelive', n: 'lovelive！mori⭐mens！', href: 'lovelive.html', icon: '🎵', read: lovelive, tip: '点按式音游' },
+  { k: 'keeper', n: '杀死守密人', href: 'keeper.html', icon: '🔪', read: keeper, tip: '112 个结局的文字恐怖' },
   { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，73 位出战者，能上段' },
 ];
 
@@ -2016,6 +2034,10 @@ function digest() {
   // 弥萨格轮盘 [段位分, 胜, 负, 段位下标]：和决斗同构，段位分只增不减
   const rlS = RD('roulette:v1') || {};
   out.rl = [n(rlS.rp), n(rlS.w), n(rlS.l), rankProgress(n(rlS.rp)).idx];
+  // 杀死守密人 [已解锁结局数, 见过的形态数, 下过几趟]。图鉴只能一格一格点亮，
+  // 所以第 0 位就是上限 112 的进度分，首页排行榜按它排。
+  const kpS = RD('keeper:v1') || {};
+  out.kp = [arr(kpS.endings).length, arr(kpS.forms).length, n(kpS.nights)];
   return out;
 }
 return { fmtDur, DIFF_MERGE, DIFF_BIRD, GAMES, readAll, credits, GD_SPEC, digest };

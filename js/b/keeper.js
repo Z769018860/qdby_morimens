@@ -95,17 +95,17 @@ binder: {
     {who:'sys', t:['她摊开着。像一本等人合上的书。'], ch:[
       {t:'拿刀，照着书脊来，干脆一点。', note:'这是规程的方案', kill:true, w:10, realm:'caro', mark:{blood:1}, go:'@end:E014'},
       {t:'先看看她写的是什么。', note:'不急这一下', tag:'read', realm:'ultra', mark:{paper:1}, go:3},
-      {t:'问她：为什么想被杀死？', note:'规程没写这一问', tag:'gentle', realm:'aqua', go:5},
+      {t:'问她：为什么想被杀死？', note:'规程没写这一问', tag:'gentle', realm:'aqua', go:4},
     ]},
     {who:'her', t:[
       '（你凑近玻璃。字太小，你把脸贴上去。她也不躲。）',
-      '「看什么？看我怎么写你的那页吗？」她笑了，纸页哗啦响了一声，「别急。都写着呢。往后的每一夜都有。」'], go:6},
+      '「看什么？看我怎么写你的那页吗？」她笑了，纸页哗啦响了一声，「别急。都写着呢。往后的每一夜都有。」'], go:5},
     {who:'her', t:[
       '「问这个的，你是第 409 个。」她说。',
       '「因为被杀是最后一次被翻开。你们这些记东西的，谁也不肯把一本读了一半的书合上——只有杀，算是一个结尾。」',
       '「我想要个结尾。哪怕是个烂的。」'], go:6},
     {who:'rule', t:['规程咳嗽了一声（它没有嗓子，但很会装）：「注意进度。条款规定：会面时间不超过一夜。」'], go:6},
-    {who:'her', t:['「所以，」她把身体往前倾了倾，线关节吱呀作响，「今晚怎么处理我？"]'], ch:[
+    {who:'her', t:['「所以，」她把身体往前倾了倾，线关节吱呀作响，「今晚怎么处理我？」'], ch:[
       {t:'把散开的线捡起来，把她缝好、合上。', note:'温柔是最锋利的刀', tag:'gentle', w:6, realm:'caro', mark:{paper:1,salt:1}, go:'@end:E013'},
       {t:'读她。从头读到尾，一页不跳。', note:'读完会看见什么', tag:'read', w:12, realm:'ultra', mark:{paper:2}, go:'@end:E015'},
       {t:'什么都不做。站着。', note:'不上，也不下', tag:'silence', mark:{ash:2}, go:'@end:E016'},
@@ -578,7 +578,8 @@ const CATEVENT = [
   {bg:'cat', who:'sys', t:['楼梯拐角蹲着一只猫。规程的简报里没有它，规程的任何版本里都没有它。它看着你，尾巴慢慢地扫。'], ch:[
     {t:'蹲下来，摸它。', note:'它等着呢', flag:'cat', tag:'gentle', mark:{salt:1}, go:'@catpet'},
     {t:'问它：她怎么样了？', note:'它肯定知道', tag:'read', realm:'ultra', mark:{paper:1}, flag:'cat', go:'@catsay'},
-    {t:'绕开它继续走。', note:'正事要紧', tag:'silence', go:'@door'},
+    {t:'跟它走。', note:'它往没有编号的走廊去', tag:'read', realm:'ultra', mark:{ash:1}, go:'@end:E005'},
+    {t:'绕开它继续走。', note:'正事要紧', tag:'silence', go:'@stair'},
   ]},
   {bg:'cat', who:'sys', t:['它在你的膝盖底下呼噜了很久。走的时候它在你脚踝上蹭了一下——像盖了个章。这算入编了。'], go:'@next'},
   {bg:'cat', who:'her', t:[
@@ -820,10 +821,10 @@ const ENDINGS = [
   hint:'把楼梯的级数数清楚',
   txt:[
     '你每次数的数都不一样：十七、十九、十四、十七。规程说数不清的楼梯是活的，数清的人已经下去了。',
-    '你偏要数清。你趴在台阶上一级一级摸着数，摸过 第七级（不存在）、第十三级（滑）、第十六级（温的）。',
+    '你偏要数清。你趴在台阶上一级一级摸着数，摸过第七级（不存在）、第十三级（滑）、第十六级（温的）。',
     '十七级。你数清了。',
     '楼梯愣住了。然后它认了——像一件被人看穿把戏的道具，叮的一声，变成了一段普普通通的楼梯。',
-    '门开了。她坐在里面，说：你数清了它，它就归你了。Congratulations，现在你也是钥冢的一部分。'],
+    '门开了。她坐在里面，说：你数清了它，它就归你了。恭喜——现在你也是钥冢的一部分。'],
 },
 { id:'E012', grp:'zero', t:'白昼',
   hint:'用刀把那扇门捅破',
@@ -1299,7 +1300,7 @@ const ENDINGS = [
   hint:'名字是会收紧的',
   txt:[
     '你后来才明白，名字不光是名字。',
-    '她开始只能做这个名字里的事。你取的那两个字太具体了——一个动词，一个名词，她的每一天都开始往这两个字里装，装进去就折痕permanent。',
+    '她开始只能做这个名字里的事。你取的那两个字太具体了——一个动词，一个名词，她的每一天都开始往这两个字里装，装进去就压出一道折痕，再也展不平。',
     '她想挪一挪，挪不动。她笑的时候只剩名字允许的那一种笑。',
     '你看着她被两个字慢慢装进去，像看一件小了一码的衣服慢慢长进身体。',
     '你后悔了。你说我改改，重新写。',
@@ -1682,10 +1683,10 @@ const ENDINGS = [
     '字条下面还有一行小字：「但你可以假装没看见。」'],
 },
 { id:'E095', grp:'meta', t:'震耳',
-  hint:'把音量开到最大。连开三夜',
+  hint:'同一夜里，把声音关了又开，来回六次',
   txt:[
-    '你把音量拧到最大，连开三夜。',
-    '规程的嗓音哑了。第三夜它只说了半句条款就停了下来，电流声里透着一丝抱歉。',
+    '你在同一夜里把声音关了又开，来回六次。到最后已经分不清哪一次是自己按下去的、哪一次是它自己熄的。',
+    '第六次之后，规程的嗓音哑了。它只说了半句条款就停了下来，电流声里透着一丝抱歉。',
     '「条款我念完了。」它说，「剩下的你自己看着办。」',
     '剩下的那一夜出奇地安静。没有条款，没有警告，没有「如前所述」。',
     '安静得像体贴。',
@@ -1711,9 +1712,9 @@ const ENDINGS = [
     '「放你那儿。」它说，「我每次去最底层都会想多。你拿着，我踏实。」'],
 },
 { id:'E098', grp:'meta', t:'第 113 号',
-  hint:'集齐全部 112 个结局',
+  hint:'除了一页空白，别的都集齐了',
   txt:[
-    '你集齐了全部 112 个结局。',
+    '你集齐了图鉴。一百一十二个格子，只剩最上面那一个还是空的。',
     '游戏向你发起申请：请撰写第 113 号结局。',
     '没有格式要求，没有字数下限，没有评分。你写什么都行——真的，写什么都行。写「大家都去吃面」也行。',
     '你写下的那句话，会出现在下一个玩家的第一夜楼梯上。他会停下来读。他会想：这句是谁写的。',
@@ -1852,7 +1853,7 @@ const ENDINGS = [
     '你把夹页放了回去。放回原位。总得有人接着写给下一个翻得快的。'],
 },
 { id:'E112', grp:'meta', t:'E000',
-  hint:'把 112 个结局从头到尾读一遍',
+  hint:'把图鉴从头翻到尾，再打开一次',
   txt:[
     '你把结局图鉴从头到尾读完了。一百一十二个，一个没落。',
     '合上图鉴的时候，你发现编号列表的最顶上亮了一个新条目。',
@@ -2264,8 +2265,10 @@ function onTextTap() {
   }
   // 本段读完
   if (curBeat.ch) { if (!$('#choices').childElementCount) showChoices(curBeat.ch); return; }
-  const d = curDone; curBeat = null; curDone = null;
-  d && d(curBeat && curBeat.go);
+  const d = curDone, b = curBeat;
+  curBeat = null; curDone = null;
+  // 注意：go 要先取出来再清 curBeat，否则这里永远传 null，所有数字跳转 / @end 都会丢
+  d && d(b && b.go);
 }
 function speakerOf(who) {
   const spk = $('#spk'), sub = $('#spksub');
@@ -2290,25 +2293,41 @@ function needOk(n) {
   if (n.flag && !S.flags[n.flag]) return false;
   return true;
 }
+// 选项多到一屏放不下时，底部渐隐提示「还能往下滑」；滚到底部就取消
+function watchOverflow(box) {
+  if (!box) return;
+  const upd = () => {
+    const over = box.scrollHeight > box.clientHeight + 4;
+    box.classList.toggle('more', over && box.scrollTop + box.clientHeight < box.scrollHeight - 4);
+    box.classList.toggle('moreup', box.scrollTop > 4);
+  };
+  box.onscroll = upd;
+  requestAnimationFrame(upd);
+  setTimeout(upd, 60);
+}
 function showChoices(opts) {
   const box = $('#choices');
   box.innerHTML = '';
+  box.scrollTop = 0;
   box.classList.remove('hide');
   opts.filter((o) => !o.need || needOk(o.need)).forEach((o, i) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'ch';
     if (o.realm) b.dataset.realm = o.realm;
+    if (o.k) b.dataset.k = o.k;      // 选项 key：楼梯/门这类按 k 分辨的分支，调试与自动化都靠它
     if (o.kill) b.classList.add('kill');
     if (o.tag === 'gentle') b.classList.add('warm');
     b.innerHTML = `<span class="n">${i + 1}</span><span class="t">${o.t}${o.note ? `<span class="note">${o.note}</span>` : ''}</span>`;
     b.onclick = () => choose(o, i);
     box.appendChild(b);
   });
+  watchOverflow(box);
 }
 function choose(o, idx) {
   const box = $('#choices');
   box.innerHTML = '';          // 必须清空：下一幕的 showChoices 靠「没有子节点」判断要不要渲染
   box.classList.add('hide');
+  box.classList.remove('more', 'moreup');
   // 声音跟着动作走：敲门、动手、翻页、沉默，各有各的响法
   if (/敲/.test(o.t)) sfx('knock', .95);
   else if (o.kill) sfx('slash', 1);
@@ -2319,11 +2338,18 @@ function choose(o, idx) {
   if (o.w) S.w = Math.max(0, Math.min(100, S.w + o.w));
   if (o.tag) {
     S.tags[o.tag] = (S.tags[o.tag] || 0) + 1;
-    if (o.tag === 'silence') { S.silenceStreak++; if (S.silenceStreak >= 3) unlock('E100'); }
-    else S.silenceStreak = 0;
+    // E100「代声」写的是「连着三夜」：同一夜里点几次沉默只记一夜
+    if (o.tag === 'silence') {
+      if (S.silenceNight !== S.loop) {
+        S.silenceNight = S.loop;
+        S.silenceStreak++;
+        if (S.silenceStreak >= 3) unlock('E100');
+      }
+    } else S.silenceStreak = 0;
   }
   if (o.flag) S.flags[o.flag] = 1;
   if (o.set) for (const k in o.set) S.flags[k] = o.set[k];
+  const wasStair = S._isStair;
   if (S._isStair) {
     S.sameStair.push(o.k); S.sameStair = S.sameStair.slice(-3);
     if (S.sameStair.length === 3 && new Set(S.sameStair).size === 1) unlock('E110');
@@ -2333,6 +2359,8 @@ function choose(o, idx) {
   if (idx === 0) { S.firstStreak++; if (S.firstStreak >= 10) unlock('E099'); }
   else S.firstStreak = 0;
   renderMeters();
+  // 取刀 / 放刀这类只改状态、没有去处的楼梯选项：改完把楼梯重画一遍，否则会停在空白处
+  if (!o.go && wasStair) return stairChoice();
   resolveGo(o.go);
 }
 function resolveGo(go) {
@@ -2343,8 +2371,9 @@ function resolveGo(go) {
   if (go === '@meet') return meeting();
   if (go === '@loop') return transform();
   if (go === '@final') return finalNight();
-  if (go === '@catpet') return playSeq([CATEVENT[1]], () => doorScene());
-  if (go === '@catsay') return playSeq([CATEVENT[2]], () => doorScene());
+  if (go === '@stair') return stairChoice();
+  if (go === '@catpet') return playSeq([CATEVENT[1]], () => stairChoice());
+  if (go === '@catsay') return playSeq([CATEVENT[2]], () => stairChoice());
 }
 let numGo = null; // 场景内部按下标跳转（形态/终夜的 beat 图）
 // 顺序播一段 beat，结束回调 after(最后的go)
@@ -2474,12 +2503,18 @@ function stairLines() {
   return pool[(S.loop - 1) % pool.length];
 }
 function rotateOpts(opts, n) {
-  // 展示上限 6：轮换出现，保证每一条都有被选到的机会
-  if (opts.length <= 6) return opts;
-  const rest = opts.slice(0, -1), go = opts[opts.length - 1];
-  const rot = n % rest.length, pick = [];
-  for (let i = 0; i < 5; i++) pick.push(rest[(rot + i) % rest.length]);
-  return [...pick, go];
+  // 展示上限 6：轮换出现，保证每一条都有被选到的机会。
+  // 但「取刀 / 放刀」跟当前状态绑定、还决定 E109（五夜都不取刀）能不能成立，
+  // 所以它永远在列表里，只轮换纯探索的那几项。
+  const fixed = opts.filter((o) => o.needBlade || o.needNoBlade);
+  const rest = opts.filter((o) => !(o.needBlade || o.needNoBlade));
+  if (rest.length + fixed.length <= 6) return opts;
+  const tail = rest[rest.length - 1], body = rest.slice(0, -1);
+  if (!body.length) return [...fixed, tail];
+  const keep = Math.max(1, 5 - fixed.length);
+  const rot = n % body.length, pick = [];
+  for (let i = 0; i < keep; i++) pick.push(body[(rot + i) % body.length]);
+  return [...fixed, ...pick, tail];
 }
 function descend() {
   updateChip(); renderMeters();
@@ -2493,7 +2528,16 @@ function descend() {
   playSeq([
     { bg: S.loop === 1 ? 'hall' : 'voidwalk', who: 'rule', t: b },
     { bg: ['shaft', 'spiral', 'pit'][(S.loop - 1) % 3], who: 'sys', t: stairLines() },
-  ], () => stairChoice());
+  ], () => {
+    // 猫：第二夜起偶尔蹲在楼梯拐角。E005（跟着它走）也只有一个入口，就在这里。
+    if (S.loop >= 2 && !S.flags.catToday && Math.random() < 0.4) {
+      S.flags.catToday = 1;
+      setScene('night');
+      sfx('cat', .7);
+      return playSeq([CATEVENT[0]], () => stairChoice());
+    }
+    stairChoice();
+  });
 }
 function stairChoice() {
   const opts = STAIR_OPTS.filter((o) =>
@@ -2524,6 +2568,7 @@ function meeting() {
     P.forms.add(form);
     if (P.forms.size >= 12) unlock('E097');
     saveP();
+    cloudTouch();
   }
   MID = { run: JSON.parse(JSON.stringify(S)), at: 'meet' }; saveP();
   const F = FORMS[form];
@@ -2625,6 +2670,7 @@ function showEnding(id) {
     P.endings.add(id);
     try { walletAdd(2); } catch { /* 钱包不可用就算了 */ }
     saveP();
+    cloudTouch();
   }
   if (S) {
     if (e.grp === 'binder' || e.grp === 'lamp') S.spared++;
@@ -2671,7 +2717,9 @@ function showEnding(id) {
     $('#btnHome').onclick = home;
   }
   $('#btnBook2').onclick = openBook;
-  if (P.endings.size >= TOTAL) unlock('E098');
+  // 112 个里，E098 与 E112 互为前提，所以门槛分两级：
+  //   集齐其余 110 个 → E098；拿到 E098 后（111 个）→ E112。
+  if (P.endings.size >= TOTAL - 2) unlock('E098');
 }
 
 // ------------------------------------------------------------------ 图鉴
@@ -2710,7 +2758,7 @@ function openBook() {
       review(el.dataset.e);
     };
   });
-  if (P.endings.size >= TOTAL) unlock('E112');
+  if (P.endings.size >= TOTAL - 1) unlock('E112');
 }
 function review(id) {
   const e = ENDINGS.find((x) => x.id === id);
@@ -2757,11 +2805,18 @@ function openHelp() {
 
 // ------------------------------------------------------------------ 元结局
 const META_IDS = new Set(['E094', 'E095', 'E096', 'E097', 'E098', 'E099', 'E100', 'E101', 'E102', 'E103', 'E104', 'E105', 'E106', 'E107', 'E108', 'E109', 'E110', 'E111', 'E112']);
+// 结局 / 形态有变化才值得惊动云端：第一次用到时再动态拉 sync（几十 KB，不进首屏）
+let syncMod = null;
+function cloudTouch() {
+  if (syncMod) { try { syncMod.flush(); } catch { /* noop */ } return; }
+  import('./keeper-sync.js').then((m) => { syncMod = m; try { m.flush(); } catch { /* noop */ } }).catch(() => { /* 没登录 / 离线就算了 */ });
+}
 function unlock(id) {
   if (!META_IDS.has(id) || P.endings.has(id)) return;
   P.endings.add(id);
   try { walletAdd(2); } catch { /* noop */ }
   saveP();
+  cloudTouch();
   sfx('static', .5);           // 档案室翻到你的那一页
   const e = ENDINGS.find((x) => x.id === id);
   toast(`场外档案 · ${e ? e.t : id} 已归档（银芯 +2）`);
