@@ -29,7 +29,9 @@ body{
   background-repeat:no-repeat;
 }
 .app{
-  height:100dvh; max-width:520px; margin:0 auto;
+  /* 高度用脚本量出来的 --app-h：100dvh 在老内置浏览器里不认，认的浏览器
+     也可能把地址栏算进去，底部九格就被推到看不见的地方（看着像判定错位）。 */
+  height:100dvh; height:var(--app-h, 100dvh); max-width:520px; margin:0 auto;
   padding:max(8px, env(safe-area-inset-top)) 12px max(8px, env(safe-area-inset-bottom));
   display:flex; flex-direction:column;
 }
@@ -376,6 +378,10 @@ body .zj-orient{display:none !important}
 /* 局内收起页面级导航条（标题 + 主页/声音/设置/帮助四颗钮）：它要占 70px，
    横屏总共才 390px 高，全给九格用；主页入口挪进暂停面板。 */
 body.live .hud{display:none}
+/* 局内四边收到最窄：横屏时左右各 10px 就是两格的距离，竖屏也把多余留白压掉 */
+body.live .app{padding-top:max(3px, env(safe-area-inset-top)); padding-bottom:max(3px, env(safe-area-inset-bottom));
+  padding-left:max(6px, env(safe-area-inset-left)); padding-right:max(6px, env(safe-area-inset-right))}
+body.live main > section{gap:5px}
 
 /* 手机横过来只有 390px 高：把上下几条都压扁，舞台才拿得到 280px 以上。
    这段必须放在样式表末尾——.hud / .skills 的常规声明在上面，靠前会被覆盖。 */
@@ -519,6 +525,13 @@ body.live .hud{display:none}
             </div>
           </div>
           <div class="row">
+            <label>全屏沉浸</label>
+            <div class="seg" id="set-immersive">
+              <button type="button" data-v="1">开</button>
+              <button type="button" data-v="0">关</button>
+            </div>
+          </div>
+          <div class="row">
             <label>听歌模式</label>
             <div class="seg" id="set-listen">
               <button type="button" data-v="0">关</button>
@@ -526,6 +539,7 @@ body.live .hud{display:none}
             </div>
           </div>
           <p><b>方向</b>：手机上默认横屏——九格横着摆，每格才有 60 多像素；竖着玩每格只剩 30 多，点起来容易串。手机系统不让网页锁方向时（iPhone 的 Safari）会提示把机身转过来，也可以直接选「竖屏」就这么玩。</p>
+          <p><b>全屏沉浸</b>：点「上场」时顺手把地址栏收上去，舞台能多出 50 多像素给弧顶那两格。用系统的返回手势退出全屏时会自动暂停。浏览器不给全屏（iPhone、部分内嵌浏览器）时这条不起作用，页面自己也会按实际可视高度排版。</p>
           <p><b>听歌模式</b>：音符自动按最低档（BAD）打掉、体力锁满，怎么放着都不会死，可以把整首听完。这一局不算成绩、不记最高分。局内暂停面板里也能随时开关。</p>
         </div>
 
@@ -704,11 +718,11 @@ body.live .hud{display:none}
 
 <dialog class="help" id="helpDlg">
   <h3>怎么玩</h3>
-  <p><b>看方向</b>：音符从上方那个发球点散开，沿直线飞向下方九格里属于它的那一格。<b>压进框里的那一刻点它</b>。落哪一格跟着原曲的音高走——旋律往上，音符就往右移，所以九格之间的走位就是那段旋律的形状。点得越准分越高：PERFECT &gt; GREAT &gt; GOOD &gt; BAD，错过就是 MISS，断连还掉体力——体力见底 Live 就中断了。</p>
+  <p><b>看方向</b>：音符从上方那个发球点散开，沿直线飞向下方九格里属于它的那一格。九格不是直排，是照 SIF 摆的一道弧——正中最低、往两侧逐级抬高，所以两边那几格会比你直觉的位置高一点，看弧线就对了。<b>压进框里的那一刻点它</b>。落哪一格跟着原曲的音高走——旋律往上，音符就往右移，所以九格之间的走位就是那段旋律的形状。点得越准分越高：PERFECT &gt; GREAT &gt; GOOD &gt; BAD，错过就是 MISS，断连还掉体力——体力见底 Live 就中断了。</p>
   <p><b>长按</b>：外圈描了一道亮环的是长条，原曲里拖住的长音都会变成它。按住别松，<b>尾音也挂着一张头像</b>，那张头像进框就是松手的点；提前松手会断连（有护盾技能时不算）。两根长条同时来的时候按两根——两个框会一起亮。</p>
   <p><b>双押</b>：同一时刻两个框一起亮音符，那就是原曲里的强音（底鼓叠镲那一下）。两手下在隔开三四格的位置，别挤在一侧。</p>
   <p><b>只听歌</b>：暂停面板或设置里打开<b>听歌模式</b>，音符会自己按最低档（BAD）打掉、体力锁满，放着不管也能把整首听完。这一局不计成绩、不写最高分、也不刷最高连击。想安静听就顺手把「判定音」拉到 0。</p>
-  <p><b>屏幕方向</b>：手机默认横屏——九格横着摆每格才够宽，竖着每格只有三十来像素容易点串。设置里能选自动 / 横屏 / 竖屏；iPhone 的 Safari 不让网页锁方向，竖着拿时会提示把机身转过来，也可以点「仍要竖屏玩」。暂停面板里能直接调音乐与判定音两路音量，不用退出去改设置。</p>
+  <p><b>屏幕方向</b>：手机默认横屏——九格横着摆每格才够宽，竖着每格只有三十来像素容易点串。设置里能选自动 / 横屏 / 竖屏；iPhone 的 Safari 不让网页锁方向，竖着拿时会提示把机身转过来，也可以点「仍要竖屏玩」。暂停面板里能直接调音乐与判定音两路音量，不用退出去改设置。<b>全屏沉浸</b>默认开着：点「上场」时顺手把地址栏收上去，弧顶那两格才不被挤；用系统返回手势退出全屏会自动暂停。浏览器不给全屏（iPhone、部分内嵌浏览器）时按实际可视高度排版，不影响判定。</p>
   <p><b>九个人</b>：编队最多九位唤醒体，第 1~9 位对应下面第 1~9 格，那一格的音符就是她的脸。技能全自动发动——判定放大、加分、Miss 救成 Good、护盾不断连、回体力、直接加连击、音符减速，攒满即放，不用点。</p>
   <p><b>操作</b>：手机上直接点框或点音符（支持多指同时按）；电脑上鼠标点，或者用 <code>A S D F G H J K L</code> 对应九格，<code>Esc</code> 暂停。长条用键盘就是按住不放。</p>
   <p><b>音源</b>：曲库里有原曲包的那几首直接放原曲（仓库里是加密封装的，取回来在浏览器里解）；没有包的走页面内合成的芯片改编。进「设置 → 音源」可以导入自己手里的 mp3（只存在这台设备上，会盖过内置包），谱面按那一版原曲的鼓点重做。偏移 / 宽松 / 流速也都在设置里。</p>

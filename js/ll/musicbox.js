@@ -14,9 +14,21 @@
 // 口令走 SHA-256 当密钥：Python 和 WebCrypto 两边算出来必须是同一串。
 // 改口令 = 之前打的所有包全部作废，得重跑脚本。
 
+import { aesGcmCtr, looksAudio } from './aesjs.js';
+
 const MAGIC = 'MBLLPK1\n';
 // 口令拆成几段拼起来，纯粹为了不让它在源码里以整串明文出现（还是那句话：不是保护）
 const PASS = ['mori', 'mens', '\u2605', 'love', 'live', '-pack-1'].join('');
+
+// 纯 JS 解密用的密钥字节：就是上面那段口令的 SHA-256，和 WebCrypto 那条路
+// digest 出来的是同一串（'1b255e8e…'）。写死是因为没有 subtle 的时候也就没有
+// digest，为了省掉一套纯 JS 的 SHA-256 实现——真要改口令，这里得跟着改。
+const KEY32 = (() => {
+  const hex = '1b255e8ee4ed6c3b3307c8e313026ab08568618591b1a2d87086e6c482633cb8';
+  const b = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) b[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return b;
+})();
 
 const CACHE = new Map();          // id -> ArrayBuffer（只留最近两份，别把内存吃光）
 const enc = new TextEncoder();
@@ -27,6 +39,10 @@ let keyS = null;                  // 这份 key 是拿哪个 subtle 算出来的
 // 用户只听见「电子音」却不知道坏在哪一步。把原因留在这里，暂停面板直接显示。
 let lastWhy = '';
 export function why() { return lastWhy; }
+// 上一次是走哪条路解开的：'wc' = WebCrypto，'js' = 纯 JS 兜底。
+// 面板上写一句「纯 JS 解密」比让用户以为卡住要好。
+let lastHow = '';
+export function how() { return lastHow; }
 
 // WebCrypto：iOS 11 之前叫 crypto.webkitSubtle；某些手机内置浏览器两个都没有
 // （常见于非 https 打开），那时只能退回芯片合成。
@@ -53,20 +69,31 @@ export async function unpack(buf) {
   for (let i = 0; i < MAGIC.length; i++) {
     if (head[i] !== MAGIC.charCodeAt(i)) { lastWhy = '取回来的不是原曲包'; return null; }
   }
-  const s = subtleOf();
-  if (!s) { lastWhy = '这个浏览器没有 WebCrypto（要用 https 打开）'; return null; }
-  // 关键：iv 与密文都复制成独立 Buffer，不传「带 byteOffset 的视图」。
-  // WebKit 在部分版本里对 TypedArray 视图会忽略 byteOffset，拿整个底层 buffer
-  // 去算 GCM —— 密文整体错位，每次都解不开。手机 Safari 上「全是电子音」就是它。
   const iv = new Uint8Array(buf.slice(8, 20));
   const body = buf.slice(20);
-  try {
-    const key = await getKey(s);
-    return await s.decrypt({ name: 'AES-GCM', iv }, key, body);
-  } catch (e) {
-    lastWhy = '解密失败：' + ((e && (e.name || e.message)) || e);
-    return null;
+  // ① 有 WebCrypto 就先走它：快，而且 GCM 的 tag 顺带做了完整性校验。
+  const s = subtleOf();
+  if (s) {
+    try {
+      const key = await getKey(s);
+      const plain = await s.decrypt({ name: 'AES-GCM', iv }, key, body);
+      if (looksAudio(new Uint8Array(plain, 0, Math.min(16, plain.byteLength)))) { lastHow = 'wc'; return plain; }
+      lastWhy = 'WebCrypto 解出来的不是音频';
+    } catch (e) {
+      lastWhy = 'WebCrypto 解不开：' + ((e && (e.name || e.message)) || e);
+    }
   }
+  // ② 没有 subtle、或者它解不开——纯 JS 再算一遍。
+  //    手机从 http 打开、或者内置浏览器把 crypto.subtle 关掉时就落到这里：
+  //    以前到这一步就只剩芯片合成了，玩家听到的全是电子音。
+  try {
+    const plain = aesGcmCtr(KEY32, iv, new Uint8Array(body, 0, body.byteLength - 16));
+    if (looksAudio(plain)) { lastWhy = ''; lastHow = 'js'; return plain.buffer; }
+    lastWhy = (lastWhy ? lastWhy + '；' : '') + '解出来的不是音频（包与密钥不匹配）';
+  } catch (e) {
+    lastWhy = (lastWhy ? lastWhy + '；' : '') + '纯 JS 解密失败：' + ((e && e.message) || e);
+  }
+  return null;
 }
 
 // 取某个曲子的原曲包字节。PACKS 是构建时从 data/ll-music.json 生成的清单。

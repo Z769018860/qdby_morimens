@@ -1853,9 +1853,163 @@ const PACKS = {"ashesreign":{"file":"assets/ll-music/ashesreign.bin","dur":247.8
 return { UNITS, PACKS };
 })();
 
+// ---- js/ll/aesjs.js
+const m_aesjs = await (async () => {
+
+// 纯 JS 的 AES-256-CTR：给「没有 crypto.subtle」的环境留一条能解出原曲的路。
+//
+// 为什么需要它：crypto.subtle 只在安全上下文（https / localhost / file）里存在。
+// 手机上从 http 打开、或者用的是某些内置浏览器（QQ / UC / 老 WebView），
+// 这个对象直接是 undefined，WebCrypto 那条路连钥匙都拿不到，页面就只剩芯片合成，
+// 玩家听到的全是电子音。包里的口令、格式都没有变，这里只是把 GCM 的 CTR 段
+// 用纯 JS 再算一遍——解出来的字节和 WebCrypto 那条路完全一样。
+//
+// 只做加密方向：GCM 的正文就是 CTR 模式的密钥流异或，用不到解密的 InvMixColumns。
+// T 表实现，手机上一次 4MB 大约 100~300ms，只发生在开歌那一下。
+//
+// 注意：不做 GCM 的 tag 校验（GHASH 要再写一套 GF(2^128) 乘法，为这点完整性不值）。
+// 解错时结果是乱码，由调用方的 looksAudio() 嗅魔数挡住，然后照旧退回芯片合成。
+
+const SBOX = new Uint8Array(256);
+const T0 = new Uint32Array(256);
+const T1 = new Uint32Array(256);
+const T2 = new Uint32Array(256);
+const T3 = new Uint32Array(256);
+
+function mul2(b) { return ((b << 1) ^ (b & 0x80 ? 0x1b : 0)) & 0xff; }
+function rotl8(x, n) { return ((x << n) | (x >> (8 - n))) & 0xff; }
+
+(function buildTables() {
+  // S 盒：GF(2^8) 的逆元再套仿射变换。p 走 3 的幂、q 走逆元，一圈覆盖所有非零元。
+  let p = 1, q = 1;
+  do {
+    p = (p ^ (p << 1) ^ (p & 0x80 ? 0x1b : 0)) & 0xff;
+    // 每一步都得截到 8 位：C 里 q 是 uint8_t，赋值天然会砍掉高位，
+    // JS 不砍的话后面 q<<2 / q<<4 会带着溢出位，整个 S 盒就歪了
+    q = (q ^ (q << 1)) & 0xff;
+    q = (q ^ (q << 2)) & 0xff;
+    q = (q ^ (q << 4)) & 0xff;
+    if (q & 0x80) q ^= 0x09;
+    const x = (q ^ rotl8(q, 1) ^ rotl8(q, 2) ^ rotl8(q, 3) ^ rotl8(q, 4)) & 0xff;
+    SBOX[p] = x ^ 0x63;
+  } while (p !== 1);
+  SBOX[0] = 0x63;
+
+  for (let i = 0; i < 256; i++) {
+    const s = SBOX[i];
+    const s2 = mul2(s);
+    const s3 = s2 ^ s;
+    T0[i] = ((s2 << 24) | (s << 16) | (s << 8) | s3) >>> 0;
+    T1[i] = ((s3 << 24) | (s2 << 16) | (s << 8) | s) >>> 0;
+    T2[i] = ((s << 24) | (s3 << 16) | (s2 << 8) | s) >>> 0;
+    T3[i] = ((s << 24) | (s << 16) | (s3 << 8) | s2) >>> 0;
+  }
+})();
+
+const RCON = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36];
+
+// AES-256：8 个 32 位字一段，14 轮
+function expandKey(key) {
+  const Nk = 8, Nr = 14;
+  const w = new Uint32Array(4 * (Nr + 1));
+  for (let i = 0; i < Nk; i++) {
+    w[i] = ((key[4 * i] << 24) | (key[4 * i + 1] << 16) | (key[4 * i + 2] << 8) | key[4 * i + 3]) >>> 0;
+  }
+  const subWord = (t) => ((SBOX[t >>> 24] << 24) | (SBOX[(t >>> 16) & 255] << 16)
+    | (SBOX[(t >>> 8) & 255] << 8) | SBOX[t & 255]) >>> 0;
+  for (let i = Nk; i < w.length; i++) {
+    let t = w[i - 1];
+    if (i % Nk === 0) {
+      t = ((t << 8) | (t >>> 24)) >>> 0;                    // RotWord
+      t = (subWord(t) ^ (RCON[(i / Nk | 0) - 1] << 24)) >>> 0;
+    } else if (i % Nk === 4) {
+      t = subWord(t);                                       // AES-256 独有的那半步
+    }
+    w[i] = (w[i - Nk] ^ t) >>> 0;
+  }
+  return { w, Nr };
+}
+
+// 加密一个 16 字节块：状态按列存成四个 u32，字节 0 在最高位
+function encBlock(w, Nr, src, so, dst, dO) {
+  let s0 = ((src[so] << 24) | (src[so + 1] << 16) | (src[so + 2] << 8) | src[so + 3]) ^ w[0];
+  let s1 = ((src[so + 4] << 24) | (src[so + 5] << 16) | (src[so + 6] << 8) | src[so + 7]) ^ w[1];
+  let s2 = ((src[so + 8] << 24) | (src[so + 9] << 16) | (src[so + 10] << 8) | src[so + 11]) ^ w[2];
+  let s3 = ((src[so + 12] << 24) | (src[so + 13] << 16) | (src[so + 14] << 8) | src[so + 15]) ^ w[3];
+  for (let r = 1; r < Nr; r++) {
+    const k = r << 2;
+    const t0 = (T0[s0 >>> 24] ^ T1[(s1 >>> 16) & 255] ^ T2[(s2 >>> 8) & 255] ^ T3[s3 & 255] ^ w[k]) >>> 0;
+    const t1 = (T0[s1 >>> 24] ^ T1[(s2 >>> 16) & 255] ^ T2[(s3 >>> 8) & 255] ^ T3[s0 & 255] ^ w[k + 1]) >>> 0;
+    const t2 = (T0[s2 >>> 24] ^ T1[(s3 >>> 16) & 255] ^ T2[(s0 >>> 8) & 255] ^ T3[s1 & 255] ^ w[k + 2]) >>> 0;
+    const t3 = (T0[s3 >>> 24] ^ T1[(s0 >>> 16) & 255] ^ T2[(s1 >>> 8) & 255] ^ T3[s2 & 255] ^ w[k + 3]) >>> 0;
+    s0 = t0; s1 = t1; s2 = t2; s3 = t3;
+  }
+  // 末轮：只做 SubBytes + ShiftRows，不再 MixColumns，最后照样要 AddRoundKey。
+  // （漏掉最后这一步的话，结果看起来一样是「一片随机字节」，但谁也认不出来。）
+  const k = Nr << 2;
+  const r0 = w[k], r1 = w[k + 1], r2 = w[k + 2], r3 = w[k + 3];
+  dst[dO] = SBOX[s0 >>> 24] ^ (r0 >>> 24);
+  dst[dO + 1] = SBOX[(s1 >>> 16) & 255] ^ ((r0 >>> 16) & 255);
+  dst[dO + 2] = SBOX[(s2 >>> 8) & 255] ^ ((r0 >>> 8) & 255);
+  dst[dO + 3] = SBOX[s3 & 255] ^ (r0 & 255);
+  dst[dO + 4] = SBOX[s1 >>> 24] ^ (r1 >>> 24);
+  dst[dO + 5] = SBOX[(s2 >>> 16) & 255] ^ ((r1 >>> 16) & 255);
+  dst[dO + 6] = SBOX[(s3 >>> 8) & 255] ^ ((r1 >>> 8) & 255);
+  dst[dO + 7] = SBOX[s0 & 255] ^ (r1 & 255);
+  dst[dO + 8] = SBOX[s2 >>> 24] ^ (r2 >>> 24);
+  dst[dO + 9] = SBOX[(s3 >>> 16) & 255] ^ ((r2 >>> 16) & 255);
+  dst[dO + 10] = SBOX[(s0 >>> 8) & 255] ^ ((r2 >>> 8) & 255);
+  dst[dO + 11] = SBOX[s1 & 255] ^ (r2 & 255);
+  dst[dO + 12] = SBOX[s3 >>> 24] ^ (r3 >>> 24);
+  dst[dO + 13] = SBOX[(s0 >>> 16) & 255] ^ ((r3 >>> 16) & 255);
+  dst[dO + 14] = SBOX[(s1 >>> 8) & 255] ^ ((r3 >>> 8) & 255);
+  dst[dO + 15] = SBOX[s2 & 255] ^ (r3 & 255);
+}
+
+// AES-GCM 的正文 = AES-CTR(J0+1)，J0 = iv || 0x00000001，12 字节 IV 时正好是
+// 「iv 后面补 00 00 00 02」开头，之后只递增最后 4 字节。
+function aesGcmCtr(key, iv, ct) {
+  const { w, Nr } = expandKey(key);
+  const ctr = new Uint8Array(16);
+  ctr.set(iv.subarray(0, 12));
+  ctr[15] = 2;
+  const ks = new Uint8Array(16);
+  const out = new Uint8Array(ct.length);
+  for (let off = 0; off < ct.length; off += 16) {
+    encBlock(w, Nr, ctr, 0, ks, 0);
+    const n = Math.min(16, ct.length - off);
+    for (let i = 0; i < n; i++) out[off + i] = ct[off + i] ^ ks[i];
+    for (let i = 15; i >= 12; i--) {
+      ctr[i] = (ctr[i] + 1) & 0xff;
+      if (ctr[i]) break;
+    }
+  }
+  return out;
+}
+
+// 解出来的到底是不是音频：只认几个开头的魔数。
+// 这一步替代了 GCM 的 tag 校验——密钥/IV 不对时算出来的是噪声，解不出可播的头。
+function looksAudio(b) {
+  if (!b || b.length < 12) return false;
+  const be = (o, s) => {
+    for (let i = 0; i < s.length; i++) if (b[o + i] !== s.charCodeAt(i)) return false;
+    return true;
+  };
+  if (be(0, 'ID3')) return true;                       // mp3 带标签
+  if (b[0] === 0xff && (b[1] & 0xe0) === 0xe0) return true;   // mp3 裸帧同步字
+  if (be(4, 'ftyp')) return true;                      // m4a / mp4
+  if (be(0, 'OggS')) return true;
+  if (be(0, 'fLaC')) return true;
+  if (be(0, 'RIFF')) return true;
+  if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return true;   // webm
+  return false;
+}
+return { aesGcmCtr, looksAudio };
+})();
+
 // ---- js/ll/musicbox.js
 const m_musicbox = await (async () => {
-
+const { aesGcmCtr, looksAudio } = m_aesjs;
 // 曲库原曲包：仓库里放的是加过密的音频块，页面拿到之后在本地解开。
 //
 // 为什么要这样：音游最好听的是原曲，但公开仓库直接放 mp3 等于把唱片重新分发一遍。
@@ -1872,9 +2026,21 @@ const m_musicbox = await (async () => {
 // 口令走 SHA-256 当密钥：Python 和 WebCrypto 两边算出来必须是同一串。
 // 改口令 = 之前打的所有包全部作废，得重跑脚本。
 
+
+
 const MAGIC = 'MBLLPK1\n';
 // 口令拆成几段拼起来，纯粹为了不让它在源码里以整串明文出现（还是那句话：不是保护）
 const PASS = ['mori', 'mens', '\u2605', 'love', 'live', '-pack-1'].join('');
+
+// 纯 JS 解密用的密钥字节：就是上面那段口令的 SHA-256，和 WebCrypto 那条路
+// digest 出来的是同一串（'1b255e8e…'）。写死是因为没有 subtle 的时候也就没有
+// digest，为了省掉一套纯 JS 的 SHA-256 实现——真要改口令，这里得跟着改。
+const KEY32 = (() => {
+  const hex = '1b255e8ee4ed6c3b3307c8e313026ab08568618591b1a2d87086e6c482633cb8';
+  const b = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) b[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return b;
+})();
 
 const CACHE = new Map();          // id -> ArrayBuffer（只留最近两份，别把内存吃光）
 const enc = new TextEncoder();
@@ -1885,6 +2051,10 @@ let keyS = null;                  // 这份 key 是拿哪个 subtle 算出来的
 // 用户只听见「电子音」却不知道坏在哪一步。把原因留在这里，暂停面板直接显示。
 let lastWhy = '';
 function why() { return lastWhy; }
+// 上一次是走哪条路解开的：'wc' = WebCrypto，'js' = 纯 JS 兜底。
+// 面板上写一句「纯 JS 解密」比让用户以为卡住要好。
+let lastHow = '';
+function how() { return lastHow; }
 
 // WebCrypto：iOS 11 之前叫 crypto.webkitSubtle；某些手机内置浏览器两个都没有
 // （常见于非 https 打开），那时只能退回芯片合成。
@@ -1911,20 +2081,31 @@ async function unpack(buf) {
   for (let i = 0; i < MAGIC.length; i++) {
     if (head[i] !== MAGIC.charCodeAt(i)) { lastWhy = '取回来的不是原曲包'; return null; }
   }
-  const s = subtleOf();
-  if (!s) { lastWhy = '这个浏览器没有 WebCrypto（要用 https 打开）'; return null; }
-  // 关键：iv 与密文都复制成独立 Buffer，不传「带 byteOffset 的视图」。
-  // WebKit 在部分版本里对 TypedArray 视图会忽略 byteOffset，拿整个底层 buffer
-  // 去算 GCM —— 密文整体错位，每次都解不开。手机 Safari 上「全是电子音」就是它。
   const iv = new Uint8Array(buf.slice(8, 20));
   const body = buf.slice(20);
-  try {
-    const key = await getKey(s);
-    return await s.decrypt({ name: 'AES-GCM', iv }, key, body);
-  } catch (e) {
-    lastWhy = '解密失败：' + ((e && (e.name || e.message)) || e);
-    return null;
+  // ① 有 WebCrypto 就先走它：快，而且 GCM 的 tag 顺带做了完整性校验。
+  const s = subtleOf();
+  if (s) {
+    try {
+      const key = await getKey(s);
+      const plain = await s.decrypt({ name: 'AES-GCM', iv }, key, body);
+      if (looksAudio(new Uint8Array(plain, 0, Math.min(16, plain.byteLength)))) { lastHow = 'wc'; return plain; }
+      lastWhy = 'WebCrypto 解出来的不是音频';
+    } catch (e) {
+      lastWhy = 'WebCrypto 解不开：' + ((e && (e.name || e.message)) || e);
+    }
   }
+  // ② 没有 subtle、或者它解不开——纯 JS 再算一遍。
+  //    手机从 http 打开、或者内置浏览器把 crypto.subtle 关掉时就落到这里：
+  //    以前到这一步就只剩芯片合成了，玩家听到的全是电子音。
+  try {
+    const plain = aesGcmCtr(KEY32, iv, new Uint8Array(body, 0, body.byteLength - 16));
+    if (looksAudio(plain)) { lastWhy = ''; lastHow = 'js'; return plain.buffer; }
+    lastWhy = (lastWhy ? lastWhy + '；' : '') + '解出来的不是音频（包与密钥不匹配）';
+  } catch (e) {
+    lastWhy = (lastWhy ? lastWhy + '；' : '') + '纯 JS 解密失败：' + ((e && e.message) || e);
+  }
+  return null;
 }
 
 // 取某个曲子的原曲包字节。PACKS 是构建时从 data/ll-music.json 生成的清单。
@@ -1968,7 +2149,7 @@ async function fetchPack(packs, id) {
 function hasPack(packs, id) {
   return !!(packs && packs[id] && packs[id].file);
 }
-return { why, unpack, fetchPack, hasPack };
+return { why, how, unpack, fetchPack, hasPack };
 })();
 
 // ---- js/ll/shop.js
@@ -2959,7 +3140,7 @@ const { SONGS, arrange } = m_songs;
 const { Audio } = m_audio;
 const { detectOnsets, chartFromOnsets, chartFromArr, hashStr, packOnsets, unpackOnsets } = m_analyze;
 const { UNITS, PACKS } = m_gen;
-const { fetchPack, hasPack, why: packWhy } = m_musicbox;
+const { fetchPack, hasPack, why: packWhy, how: packHow } = m_musicbox;
 const { initShop } = m_shop;
 const { startGameCloud } = m_gamecloud;
 // lovelive！mori⭐mens！ —— 点按式音游（学园偶像祭的玩法壳 + 《忘却前夜》的唤醒体）。
@@ -2988,6 +3169,23 @@ const { startGameCloud } = m_gamecloud;
 
 
 
+
+/* ================================================================ http → https */
+// 从 http 打开时浏览器会把 crypto.subtle 整个摘掉（非安全上下文），原曲包就解不开，
+// 耳朵里只剩芯片合成。自定义域上是有证书的，能上去就直接上去；
+// 上不去（证书没配好、内网）就留在原地——纯 JS 解密那条路能兜住，不影响玩。
+// 想留在 http 调试的话，地址后面加 &_http=1。
+(function upgradeToHttps() {
+  if (location.protocol !== 'http:') return;
+  const host = location.hostname;
+  if (/^(localhost|127\.|\[::1\]|0\.0\.0\.0)$/.test(host) || /\.local$/i.test(host)) return;
+  if (/[?&]_http=1/.test(location.search)) return;
+  const to = 'https://' + location.host + location.pathname + location.search + location.hash;
+  // no-cors 的 HEAD 只用来问一句「https 通不通」：证书不对会直接 reject，正好当探针
+  fetch('https://' + location.host + '/favicon.svg', { method: 'HEAD', mode: 'no-cors', cache: 'no-store' })
+    .then(() => { if (location.protocol === 'http:') location.replace(to); })
+    .catch(() => { /* https 上不去：留在 http，靠纯 JS 解密出原曲 */ });
+})();
 
 /* ================================================================ 小工具 */
 const $ = (s, r) => (r || document).querySelector(s);
@@ -3039,7 +3237,10 @@ function loadSave() {
   s.keys = s.keys == null ? 1 : (s.keys ? 1 : 0);
   // 震动反馈（Android 的 navigator.vibrate；iOS 没有这个接口，开了也无事发生）：触屏设备默认开
   s.haptic = s.haptic == null ? (matchMedia('(pointer:coarse)').matches ? 1 : 0) : (s.haptic ? 1 : 0);
-  s.listen = s.listen ? 1 : 0;  // 工坊：本机谱面的索引（正文在 IndexedDB，这里只留列表要用的字段）
+  s.listen = s.listen ? 1 : 0;
+  // 沉浸：进局内时请求全屏，把手机浏览器的地址栏收上去。默认开，设置里能关。
+  s.immersive = s.immersive == null ? 1 : (s.immersive ? 1 : 0);
+  // 工坊：本机谱面的索引（正文在 IndexedDB，这里只留列表要用的字段）
   s.mine = Array.isArray(s.mine) ? s.mine.filter((m) => m && m.id).slice(0, 60) : [];
   // 云端谱面里「我已经把音频对上了」的那些：{ <cloudId>: { name, dur } }
   s.cloudAudio = (s.cloudAudio && typeof s.cloudAudio === 'object') ? s.cloudAudio : {};
@@ -3117,8 +3318,46 @@ function show(name) {
   // 顺便通知它重算一次：它会在竖屏时压一张「把手机横过来」的遮罩，
   // 一进局内就得收起来，不然整局都被盖着。show 里 dispatch，组件监听 resize。
   document.body.classList.toggle('live', name === 'live');
+  // 回到菜单就不必占着全屏了；打歌与结算留着，省得来回切地址栏
+  if (name !== 'live' && name !== 'result') exitImmersive();
   window.dispatchEvent(new Event('resize'));
 }
+
+/* ================================================================ 沉浸：把地址栏收上去 */
+// 手机浏览器的地址栏常年占着 50~60px。九格本来就只分到两百多像素高，被它一压，
+// 弧顶那两格直接顶到分数条上，看着像「判定错位」其实是版面被挤掉了。
+// 全屏是最干净的收法：请求必须在用户手势里发起，所以挂在「上场」那一下的
+// 点击链上（startLive 的第一个 await 之前同步调用）。
+// 有的环境不给全屏（iOS Safari、某些内嵌 WebView），那就当没这回事。
+function vhFix() {
+  const vv = window.visualViewport;
+  const h = Math.round((vv && vv.height) || window.innerHeight || 0);
+  if (h > 120) document.documentElement.style.setProperty('--app-h', h + 'px');
+}
+function enterImmersive() {
+  if (!SAVE.immersive) return;
+  const el = document.documentElement;
+  if (document.fullscreenElement || !el.requestFullscreen) return;
+  try {
+    const p = el.requestFullscreen({ navigationUI: 'hide' });
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) { /* 不支持就当没这回事 */ }
+}
+function exitImmersive() {
+  if (document.fullscreenElement && document.exitFullscreen) {
+    try { document.exitFullscreen().catch(() => {}); } catch (e) { /* 已经退了 */ }
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  // 用系统手势 / 返回键退出全屏 = 不想打了：顺手暂停，别让音乐在看不见的地方空跑
+  if (!document.fullscreenElement && G.running && !G.paused) togglePause();
+  vhFix();
+  setTimeout(fit, 60);
+});
+window.addEventListener('resize', vhFix);
+window.addEventListener('orientationchange', () => setTimeout(vhFix, 260));
+if (window.visualViewport) window.visualViewport.addEventListener('resize', vhFix);
+vhFix();
 
 /* ================================================================ 全局状态 */
 const G = {
@@ -3384,24 +3623,43 @@ function releaseHold(nt, early) {
 }
 
 /* ================================================================ 布局：上单点 → 下九框 */
-const LAY = { spawn: { x: 0, y: 0 }, boxes: [], bw: 40, bh: 40 };
+const LAY = { spawn: { x: 0, y: 0 }, boxes: [], bw: 40, bh: 40, arc: 0 };
 function layout() {
   const n = 9;
   const gap = Math.max(4, Math.min(8, W * 0.014));
-  const side = Math.max(8, W * 0.02);
+  const side = Math.max(10, W * 0.03);
   // 三条约束取最小：宽度装得下、高度留得出走廊（H*0.26）、宽屏才放大到 88
   const cap = Math.min(W > 640 ? 88 : 76, H * 0.26);
   const bw = Math.max(24, Math.min(cap, (W - side * 2 - gap * (n - 1)) / n));
   const total = bw * n + gap * (n - 1);
   const x0 = (W - total) / 2 + bw / 2;
-  const baseY = H - Math.max(42, Math.min(88, H * 0.155));
+  // 底部留白要同时放下两件事：圆的下半身 + 键位字母。矮屏横过来时舞台只有
+  // 三百来像素，只按 H 的百分比留，字母就被切在边上了。
+  const padB = Math.max(42, Math.min(88, H * 0.155), bw * 0.5 + (SAVE.keys ? 21 : 8));
+  const baseY = H - padB;
   LAY.bw = bw;
   LAY.bh = bw;
   LAY.spawn = { x: W / 2, y: Math.max(30, H * 0.085) };
+
+  // 九格不是一个直排，而是沿一段弧围成半圈（学 SIF 的摆法）：正中那格最低，
+  // 往两侧一格格抬上去，最外侧最高。抬多少有两条硬约束——
+  //   · 最外侧不能顶到发球点，上方得留出音符散开的那段走廊，
+  //     撞上了就变成「音符一出生就贴在格子上」；
+  //   · 不超过舞台高度的三分之一，否则矮屏横过来时正中会空出一大块。
+  const room = baseY - (LAY.spawn.y + bw * 1.05);
+  const arc = Math.max(0, Math.min(H * 0.34, room));
+  const TH = 1.16;                       // 半张角约 66°
+  const k = 1 - Math.cos(TH);
+  LAY.arc = arc;
   LAY.boxes.length = 0;
   for (let i = 0; i < n; i++) {
-    const sag = (1 - Math.pow((i - 4) / 4, 2)) * Math.min(16, H * 0.022);
-    LAY.boxes.push({ x: x0 + i * (bw + gap), y: baseY + sag, h: bw, w: bw, key: KEY_LABEL[i] });
+    const t = (i - 4) / 4;               // -1 最左 … 0 正中 … +1 最右
+    const lift = (1 - Math.cos(t * TH)) / k;   // 0 正中 / 1 最外侧
+    LAY.boxes.push({
+      x: x0 + i * (bw + gap),
+      y: baseY - arc * lift,
+      h: bw, w: bw, key: KEY_LABEL[i], lift,
+    });
   }
 }
 // 音符在某时刻的位置：k=0 在发球点，k=1 在框里。
@@ -3499,16 +3757,6 @@ const bgCtx = bgLayer.getContext('2d');
 const boxCtx = boxLayer.getContext('2d');
 const SPRITE = new Map();
 
-function rr2(c, x, y, w, h, r) {
-  c.beginPath();
-  c.moveTo(x + r, y);
-  c.arcTo(x + w, y, x + w, y + h, r);
-  c.arcTo(x + w, y + h, x, y + h, r);
-  c.arcTo(x, y + h, x, y, r);
-  c.arcTo(x, y, x + w, y, r);
-  c.closePath();
-}
-
 // 圆形头像精灵：一次画好（含描边），之后每帧只是一次 drawImage。
 // 音符和框都吃这张缓存——同一张脸在同一尺寸下只做一次 clip。
 function sprite(u, px) {
@@ -3575,16 +3823,19 @@ function buildStatic() {
 
   // 九个框：底、边、头像、键位。底和头像都做成半透明——技能立绘在底下放的时候
   // 要能透出来，框只负责「定住位置」，不该像九块实心砖把舞台下半截盖死。
+  // 框是正圆而不是圆角方块：九格既然已经排成弧，方块会在弧线上留一圈拐角，
+  // 圆的才连成一串（SIF 那九个头像本来也是一圈圆）。
   boxCtx.textAlign = 'center';
   boxCtx.textBaseline = 'middle';
   for (let i = 0; i < 9; i++) {
     const b = LAY.boxes[i];
     const u = laneUnit(i);
     const r = b.w / 2;
-    rr2(boxCtx, b.x - r, b.y - r, b.w, b.h, 10);
+    boxCtx.beginPath();
+    boxCtx.arc(b.x, b.y, r, 0, Math.PI * 2);
     boxCtx.fillStyle = 'rgba(10,14,26,0.20)';
     boxCtx.fill();
-    boxCtx.lineWidth = 1.6;
+    boxCtx.lineWidth = 1.8;
     boxCtx.strokeStyle = 'hsla(' + u.hue + ',82%,74%,0.52)';
     boxCtx.stroke();
     const ir = r - 3.5;
@@ -3592,9 +3843,9 @@ function buildStatic() {
     boxCtx.drawImage(sprite(u, ir), b.x - ir, b.y - ir, ir * 2, ir * 2);
     boxCtx.globalAlpha = 1;
     if (SAVE.keys) {
-      boxCtx.font = '600 ' + Math.round(Math.min(13, b.w * 0.32)) + 'px ui-monospace,SFMono-Regular,Menlo,monospace';
+      boxCtx.font = '600 ' + Math.round(Math.min(13, b.w * 0.3)) + 'px ui-monospace,SFMono-Regular,Menlo,monospace';
       boxCtx.fillStyle = 'rgba(200,210,235,0.55)';
-      boxCtx.fillText(KEY_LABEL[i], b.x, b.y + r + 11);
+      boxCtx.fillText(KEY_LABEL[i], b.x, b.y + r + 12);
     }
   }
 }
@@ -3623,7 +3874,12 @@ document.addEventListener('zj:orient', () => setTimeout(fit, 120));
 cv.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   const b = cv.getBoundingClientRect();
-  const x = e.clientX - b.left, y = e.clientY - b.top;
+  // 正常情况下 canvas 的 CSS 尺寸就是 W×H（fit 里钉死），1:1 直接减就行。
+  // 但页面被缩放过（双击放大、某些内置浏览器的视口压缩、或者 CSS 把 canvas 拉宽）
+  // 时 rect 会跟 W/H 对不上，这时候不减比例就是「看着点到了、判到别的格」。
+  const sx = b.width ? W / b.width : 1;
+  const sy = b.height ? H / b.height : 1;
+  const x = (e.clientX - b.left) * sx, y = (e.clientY - b.top) * sy;
   const lane = laneAt(x, y);
   const lag = evLag(e);
   if (lane >= 0) tapLane(lane, 'p' + e.pointerId, lag);
@@ -3684,7 +3940,9 @@ function draw(clock) {
     const u = laneUnit(i);
     const r = b.w / 2;
     if (G.holdingLanes.indexOf(i) >= 0) {
-      rr2(ctx, b.x - r, b.y - r, b.w, b.h, 10);
+      // 按住时亮一圈：框已经是圆的了，这里也跟着画圆环，别在弧上留个方角
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, r - 1, 0, Math.PI * 2);
       ctx.lineWidth = 3.5;
       ctx.strokeStyle = 'hsla(' + u.hue + ',90%,76%,0.95)';
       ctx.stroke();
@@ -4023,6 +4281,8 @@ async function buildChart(song, diffK, track) {
 /* ================================================================ 开局 / 暂停 / 结算 */
 async function startLive() {
   if (G.prep) return;
+  // 全屏请求必须在手势的同一个任务里发出去，下面全是 await，错过这一行就请求不了了
+  enterImmersive();
   const song = G.song || SONGS[0];
   G.song = song;
   const D = diffOf(G.diffK);
@@ -4130,10 +4390,14 @@ function setOrient(k) {
 
 // 暂停面板：音量两条、屏幕方向、听歌模式、当前音源。局内能直接调，
 // 不用退出到设置再进来（打歌中途谁也懒得来回切屏）。
+// 从 http 打开时 crypto.subtle 是被浏览器摘掉的，原曲只能走纯 JS 解密：
+// 能听，但慢一点，得让用户知道「不是没生效，是换了一条路」。
+const HTTP_MODE = location.protocol === 'http:' && !/^(localhost|127\.|\[::1\])/.test(location.hostname);
 function srcLine() {
-  if (G.srcWhy) return '芯片合成 · ' + G.srcWhy;
+  if (G.srcWhy) return '芯片合成 · ' + G.srcWhy + (HTTP_MODE ? '（http 打开，浏览器关掉了 WebCrypto）' : '');
   const nm = G.song ? G.song.n : '';
-  return (G.srcPack ? '原曲' : '本机音频') + (nm ? ' · ' + nm : '') + (G.srcLite ? '（降级解码）' : '');
+  const via = G.srcPack && packHow() === 'js' ? '（纯 JS 解密）' : '';
+  return (G.srcPack ? '原曲' : '本机音频') + (nm ? ' · ' + nm : '') + (G.srcLite ? '（降级解码）' : '') + via;
 }
 function paintPause() {
   const m = $('#pause-mus'), f = $('#pause-fx');
@@ -4340,6 +4604,7 @@ function paintSet() {
   $$('#set-keys button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.keys));
   $$('#set-haptic button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.haptic));
   $$('#set-orient button').forEach((b) => b.classList.toggle('on', b.dataset.v === orientPref()));
+  $$('#set-immersive button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.immersive));
   $$('#set-listen button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.listen));  renderTrackList();
 }
 function renderTrackList() {
@@ -4496,6 +4761,15 @@ $$('#set-win button').forEach((b) => {
   };
 });
 $$('#set-orient button').forEach((b) => { b.onclick = () => setOrient(b.dataset.v); });
+$$('#set-immersive button').forEach((b) => {
+  b.onclick = () => {
+    SAVE.immersive = b.dataset.v === '1' ? 1 : 0;
+    persist();
+    $$('#set-immersive button').forEach((x) => x.classList.toggle('on', x === b));
+    // 当场生效：开就进全屏（这一下是用户点的，还在手势里），关就退出
+    if (SAVE.immersive) enterImmersive(); else exitImmersive();
+  };
+});
 $$('#set-listen button').forEach((b) => {
   b.onclick = () => {
     SAVE.listen = b.dataset.v === '1' ? 1 : 0;

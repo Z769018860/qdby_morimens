@@ -21,9 +21,26 @@ import { SONGS, arrange } from './ll/songs.js';
 import { Audio } from './ll/audio.js';
 import { detectOnsets, chartFromOnsets, chartFromArr, hashStr, packOnsets, unpackOnsets } from './ll/analyze.js';
 import { UNITS, PACKS } from './ll/gen.js';
-import { fetchPack, hasPack, why as packWhy } from './ll/musicbox.js';
+import { fetchPack, hasPack, why as packWhy, how as packHow } from './ll/musicbox.js';
 import { initShop } from './ll/shop.js';
 import { startGameCloud } from './gamecloud.js';
+
+/* ================================================================ http → https */
+// 从 http 打开时浏览器会把 crypto.subtle 整个摘掉（非安全上下文），原曲包就解不开，
+// 耳朵里只剩芯片合成。自定义域上是有证书的，能上去就直接上去；
+// 上不去（证书没配好、内网）就留在原地——纯 JS 解密那条路能兜住，不影响玩。
+// 想留在 http 调试的话，地址后面加 &_http=1。
+(function upgradeToHttps() {
+  if (location.protocol !== 'http:') return;
+  const host = location.hostname;
+  if (/^(localhost|127\.|\[::1\]|0\.0\.0\.0)$/.test(host) || /\.local$/i.test(host)) return;
+  if (/[?&]_http=1/.test(location.search)) return;
+  const to = 'https://' + location.host + location.pathname + location.search + location.hash;
+  // no-cors 的 HEAD 只用来问一句「https 通不通」：证书不对会直接 reject，正好当探针
+  fetch('https://' + location.host + '/favicon.svg', { method: 'HEAD', mode: 'no-cors', cache: 'no-store' })
+    .then(() => { if (location.protocol === 'http:') location.replace(to); })
+    .catch(() => { /* https 上不去：留在 http，靠纯 JS 解密出原曲 */ });
+})();
 
 /* ================================================================ 小工具 */
 const $ = (s, r) => (r || document).querySelector(s);
@@ -75,7 +92,10 @@ function loadSave() {
   s.keys = s.keys == null ? 1 : (s.keys ? 1 : 0);
   // 震动反馈（Android 的 navigator.vibrate；iOS 没有这个接口，开了也无事发生）：触屏设备默认开
   s.haptic = s.haptic == null ? (matchMedia('(pointer:coarse)').matches ? 1 : 0) : (s.haptic ? 1 : 0);
-  s.listen = s.listen ? 1 : 0;  // 工坊：本机谱面的索引（正文在 IndexedDB，这里只留列表要用的字段）
+  s.listen = s.listen ? 1 : 0;
+  // 沉浸：进局内时请求全屏，把手机浏览器的地址栏收上去。默认开，设置里能关。
+  s.immersive = s.immersive == null ? 1 : (s.immersive ? 1 : 0);
+  // 工坊：本机谱面的索引（正文在 IndexedDB，这里只留列表要用的字段）
   s.mine = Array.isArray(s.mine) ? s.mine.filter((m) => m && m.id).slice(0, 60) : [];
   // 云端谱面里「我已经把音频对上了」的那些：{ <cloudId>: { name, dur } }
   s.cloudAudio = (s.cloudAudio && typeof s.cloudAudio === 'object') ? s.cloudAudio : {};
@@ -153,8 +173,46 @@ function show(name) {
   // 顺便通知它重算一次：它会在竖屏时压一张「把手机横过来」的遮罩，
   // 一进局内就得收起来，不然整局都被盖着。show 里 dispatch，组件监听 resize。
   document.body.classList.toggle('live', name === 'live');
+  // 回到菜单就不必占着全屏了；打歌与结算留着，省得来回切地址栏
+  if (name !== 'live' && name !== 'result') exitImmersive();
   window.dispatchEvent(new Event('resize'));
 }
+
+/* ================================================================ 沉浸：把地址栏收上去 */
+// 手机浏览器的地址栏常年占着 50~60px。九格本来就只分到两百多像素高，被它一压，
+// 弧顶那两格直接顶到分数条上，看着像「判定错位」其实是版面被挤掉了。
+// 全屏是最干净的收法：请求必须在用户手势里发起，所以挂在「上场」那一下的
+// 点击链上（startLive 的第一个 await 之前同步调用）。
+// 有的环境不给全屏（iOS Safari、某些内嵌 WebView），那就当没这回事。
+function vhFix() {
+  const vv = window.visualViewport;
+  const h = Math.round((vv && vv.height) || window.innerHeight || 0);
+  if (h > 120) document.documentElement.style.setProperty('--app-h', h + 'px');
+}
+function enterImmersive() {
+  if (!SAVE.immersive) return;
+  const el = document.documentElement;
+  if (document.fullscreenElement || !el.requestFullscreen) return;
+  try {
+    const p = el.requestFullscreen({ navigationUI: 'hide' });
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) { /* 不支持就当没这回事 */ }
+}
+function exitImmersive() {
+  if (document.fullscreenElement && document.exitFullscreen) {
+    try { document.exitFullscreen().catch(() => {}); } catch (e) { /* 已经退了 */ }
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  // 用系统手势 / 返回键退出全屏 = 不想打了：顺手暂停，别让音乐在看不见的地方空跑
+  if (!document.fullscreenElement && G.running && !G.paused) togglePause();
+  vhFix();
+  setTimeout(fit, 60);
+});
+window.addEventListener('resize', vhFix);
+window.addEventListener('orientationchange', () => setTimeout(vhFix, 260));
+if (window.visualViewport) window.visualViewport.addEventListener('resize', vhFix);
+vhFix();
 
 /* ================================================================ 全局状态 */
 const G = {
@@ -420,24 +478,43 @@ function releaseHold(nt, early) {
 }
 
 /* ================================================================ 布局：上单点 → 下九框 */
-const LAY = { spawn: { x: 0, y: 0 }, boxes: [], bw: 40, bh: 40 };
+const LAY = { spawn: { x: 0, y: 0 }, boxes: [], bw: 40, bh: 40, arc: 0 };
 function layout() {
   const n = 9;
   const gap = Math.max(4, Math.min(8, W * 0.014));
-  const side = Math.max(8, W * 0.02);
+  const side = Math.max(10, W * 0.03);
   // 三条约束取最小：宽度装得下、高度留得出走廊（H*0.26）、宽屏才放大到 88
   const cap = Math.min(W > 640 ? 88 : 76, H * 0.26);
   const bw = Math.max(24, Math.min(cap, (W - side * 2 - gap * (n - 1)) / n));
   const total = bw * n + gap * (n - 1);
   const x0 = (W - total) / 2 + bw / 2;
-  const baseY = H - Math.max(42, Math.min(88, H * 0.155));
+  // 底部留白要同时放下两件事：圆的下半身 + 键位字母。矮屏横过来时舞台只有
+  // 三百来像素，只按 H 的百分比留，字母就被切在边上了。
+  const padB = Math.max(42, Math.min(88, H * 0.155), bw * 0.5 + (SAVE.keys ? 21 : 8));
+  const baseY = H - padB;
   LAY.bw = bw;
   LAY.bh = bw;
   LAY.spawn = { x: W / 2, y: Math.max(30, H * 0.085) };
+
+  // 九格不是一个直排，而是沿一段弧围成半圈（学 SIF 的摆法）：正中那格最低，
+  // 往两侧一格格抬上去，最外侧最高。抬多少有两条硬约束——
+  //   · 最外侧不能顶到发球点，上方得留出音符散开的那段走廊，
+  //     撞上了就变成「音符一出生就贴在格子上」；
+  //   · 不超过舞台高度的三分之一，否则矮屏横过来时正中会空出一大块。
+  const room = baseY - (LAY.spawn.y + bw * 1.05);
+  const arc = Math.max(0, Math.min(H * 0.34, room));
+  const TH = 1.16;                       // 半张角约 66°
+  const k = 1 - Math.cos(TH);
+  LAY.arc = arc;
   LAY.boxes.length = 0;
   for (let i = 0; i < n; i++) {
-    const sag = (1 - Math.pow((i - 4) / 4, 2)) * Math.min(16, H * 0.022);
-    LAY.boxes.push({ x: x0 + i * (bw + gap), y: baseY + sag, h: bw, w: bw, key: KEY_LABEL[i] });
+    const t = (i - 4) / 4;               // -1 最左 … 0 正中 … +1 最右
+    const lift = (1 - Math.cos(t * TH)) / k;   // 0 正中 / 1 最外侧
+    LAY.boxes.push({
+      x: x0 + i * (bw + gap),
+      y: baseY - arc * lift,
+      h: bw, w: bw, key: KEY_LABEL[i], lift,
+    });
   }
 }
 // 音符在某时刻的位置：k=0 在发球点，k=1 在框里。
@@ -535,16 +612,6 @@ const bgCtx = bgLayer.getContext('2d');
 const boxCtx = boxLayer.getContext('2d');
 const SPRITE = new Map();
 
-function rr2(c, x, y, w, h, r) {
-  c.beginPath();
-  c.moveTo(x + r, y);
-  c.arcTo(x + w, y, x + w, y + h, r);
-  c.arcTo(x + w, y + h, x, y + h, r);
-  c.arcTo(x, y + h, x, y, r);
-  c.arcTo(x, y, x + w, y, r);
-  c.closePath();
-}
-
 // 圆形头像精灵：一次画好（含描边），之后每帧只是一次 drawImage。
 // 音符和框都吃这张缓存——同一张脸在同一尺寸下只做一次 clip。
 function sprite(u, px) {
@@ -611,16 +678,19 @@ function buildStatic() {
 
   // 九个框：底、边、头像、键位。底和头像都做成半透明——技能立绘在底下放的时候
   // 要能透出来，框只负责「定住位置」，不该像九块实心砖把舞台下半截盖死。
+  // 框是正圆而不是圆角方块：九格既然已经排成弧，方块会在弧线上留一圈拐角，
+  // 圆的才连成一串（SIF 那九个头像本来也是一圈圆）。
   boxCtx.textAlign = 'center';
   boxCtx.textBaseline = 'middle';
   for (let i = 0; i < 9; i++) {
     const b = LAY.boxes[i];
     const u = laneUnit(i);
     const r = b.w / 2;
-    rr2(boxCtx, b.x - r, b.y - r, b.w, b.h, 10);
+    boxCtx.beginPath();
+    boxCtx.arc(b.x, b.y, r, 0, Math.PI * 2);
     boxCtx.fillStyle = 'rgba(10,14,26,0.20)';
     boxCtx.fill();
-    boxCtx.lineWidth = 1.6;
+    boxCtx.lineWidth = 1.8;
     boxCtx.strokeStyle = 'hsla(' + u.hue + ',82%,74%,0.52)';
     boxCtx.stroke();
     const ir = r - 3.5;
@@ -628,9 +698,9 @@ function buildStatic() {
     boxCtx.drawImage(sprite(u, ir), b.x - ir, b.y - ir, ir * 2, ir * 2);
     boxCtx.globalAlpha = 1;
     if (SAVE.keys) {
-      boxCtx.font = '600 ' + Math.round(Math.min(13, b.w * 0.32)) + 'px ui-monospace,SFMono-Regular,Menlo,monospace';
+      boxCtx.font = '600 ' + Math.round(Math.min(13, b.w * 0.3)) + 'px ui-monospace,SFMono-Regular,Menlo,monospace';
       boxCtx.fillStyle = 'rgba(200,210,235,0.55)';
-      boxCtx.fillText(KEY_LABEL[i], b.x, b.y + r + 11);
+      boxCtx.fillText(KEY_LABEL[i], b.x, b.y + r + 12);
     }
   }
 }
@@ -659,7 +729,12 @@ document.addEventListener('zj:orient', () => setTimeout(fit, 120));
 cv.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   const b = cv.getBoundingClientRect();
-  const x = e.clientX - b.left, y = e.clientY - b.top;
+  // 正常情况下 canvas 的 CSS 尺寸就是 W×H（fit 里钉死），1:1 直接减就行。
+  // 但页面被缩放过（双击放大、某些内置浏览器的视口压缩、或者 CSS 把 canvas 拉宽）
+  // 时 rect 会跟 W/H 对不上，这时候不减比例就是「看着点到了、判到别的格」。
+  const sx = b.width ? W / b.width : 1;
+  const sy = b.height ? H / b.height : 1;
+  const x = (e.clientX - b.left) * sx, y = (e.clientY - b.top) * sy;
   const lane = laneAt(x, y);
   const lag = evLag(e);
   if (lane >= 0) tapLane(lane, 'p' + e.pointerId, lag);
@@ -720,7 +795,9 @@ function draw(clock) {
     const u = laneUnit(i);
     const r = b.w / 2;
     if (G.holdingLanes.indexOf(i) >= 0) {
-      rr2(ctx, b.x - r, b.y - r, b.w, b.h, 10);
+      // 按住时亮一圈：框已经是圆的了，这里也跟着画圆环，别在弧上留个方角
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, r - 1, 0, Math.PI * 2);
       ctx.lineWidth = 3.5;
       ctx.strokeStyle = 'hsla(' + u.hue + ',90%,76%,0.95)';
       ctx.stroke();
@@ -1059,6 +1136,8 @@ async function buildChart(song, diffK, track) {
 /* ================================================================ 开局 / 暂停 / 结算 */
 async function startLive() {
   if (G.prep) return;
+  // 全屏请求必须在手势的同一个任务里发出去，下面全是 await，错过这一行就请求不了了
+  enterImmersive();
   const song = G.song || SONGS[0];
   G.song = song;
   const D = diffOf(G.diffK);
@@ -1166,10 +1245,14 @@ function setOrient(k) {
 
 // 暂停面板：音量两条、屏幕方向、听歌模式、当前音源。局内能直接调，
 // 不用退出到设置再进来（打歌中途谁也懒得来回切屏）。
+// 从 http 打开时 crypto.subtle 是被浏览器摘掉的，原曲只能走纯 JS 解密：
+// 能听，但慢一点，得让用户知道「不是没生效，是换了一条路」。
+const HTTP_MODE = location.protocol === 'http:' && !/^(localhost|127\.|\[::1\])/.test(location.hostname);
 function srcLine() {
-  if (G.srcWhy) return '芯片合成 · ' + G.srcWhy;
+  if (G.srcWhy) return '芯片合成 · ' + G.srcWhy + (HTTP_MODE ? '（http 打开，浏览器关掉了 WebCrypto）' : '');
   const nm = G.song ? G.song.n : '';
-  return (G.srcPack ? '原曲' : '本机音频') + (nm ? ' · ' + nm : '') + (G.srcLite ? '（降级解码）' : '');
+  const via = G.srcPack && packHow() === 'js' ? '（纯 JS 解密）' : '';
+  return (G.srcPack ? '原曲' : '本机音频') + (nm ? ' · ' + nm : '') + (G.srcLite ? '（降级解码）' : '') + via;
 }
 function paintPause() {
   const m = $('#pause-mus'), f = $('#pause-fx');
@@ -1376,6 +1459,7 @@ function paintSet() {
   $$('#set-keys button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.keys));
   $$('#set-haptic button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.haptic));
   $$('#set-orient button').forEach((b) => b.classList.toggle('on', b.dataset.v === orientPref()));
+  $$('#set-immersive button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.immersive));
   $$('#set-listen button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.listen));  renderTrackList();
 }
 function renderTrackList() {
@@ -1532,6 +1616,15 @@ $$('#set-win button').forEach((b) => {
   };
 });
 $$('#set-orient button').forEach((b) => { b.onclick = () => setOrient(b.dataset.v); });
+$$('#set-immersive button').forEach((b) => {
+  b.onclick = () => {
+    SAVE.immersive = b.dataset.v === '1' ? 1 : 0;
+    persist();
+    $$('#set-immersive button').forEach((x) => x.classList.toggle('on', x === b));
+    // 当场生效：开就进全屏（这一下是用户点的，还在手势里），关就退出
+    if (SAVE.immersive) enterImmersive(); else exitImmersive();
+  };
+});
 $$('#set-listen button').forEach((b) => {
   b.onclick = () => {
     SAVE.listen = b.dataset.v === '1' ? 1 : 0;
