@@ -90,10 +90,8 @@ function unitLine(m) {
   const n = el('div', 'unit');
   n.innerHTML = `<span class="mface" style="${faceStyle(m.mob.ix, narrow ? 26 : 34)}"></span>`
     + `<div class="um"><div class="un">${m.mob.n}</div>`
-    // 窄屏：势级队头已经写过，血/攻也用最省字数的写法，别把数字挤成省略号
-    + (narrow
-      ? `<div class="uv">${money(u.maxHp)}血 ${Math.round(u.atk)}攻</div></div>`
-      : `<div class="uv">${money(u.maxHp)} 血 · ${Math.round(u.atk)} 攻 · ${E.LV[m.lv].n}</div></div>`)
+    // 势级整队一致、队头已经写过一遍；血/攻用最省字数的写法，别让数字被省略号吃掉
+    + `<div class="uv">${money(u.maxHp)}血 ${Math.round(u.atk)}攻</div></div>`
     + `<span class="ui ${INTENT_CLS(sk && sk.i)}" title="点开看完整意图表">${it}<i>›</i></span>`;
   n.title = '点开看这一只要做什么';
   n.addEventListener('click', (ev) => { ev.stopPropagation(); showMob(m.mob, m.lv); });
