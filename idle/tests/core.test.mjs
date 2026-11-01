@@ -1635,11 +1635,12 @@ test('彩蛋角色：签到份数按 stats.signins 算，老存档一次补齐',
 test('联动活动：每日任务只数在线战斗，跨日重置', () => {
   const s = newState(data, 13);
   const d1 = new Date('2026-03-01T10:00:00Z').getTime();
-  for (let i = 0; i < 20; i++) noteBattle(s, { win: true, firstClear: i < 2 }, d1);
+  for (let i = 0; i < 20; i++) noteBattle(s, { win: true, firstClear: i < 2, kills: 3 }, d1);
   let v = dailyView(s, d1);
   assert.equal(v.find((t) => t.id === 'battles').cur, 20);
   assert.equal(v.find((t) => t.id === 'wins').cur, 15);
-  assert.equal(v.find((t) => t.id === 'clears').cur, 2);
+  assert.equal(v.find((t) => t.id === 'kills').cur, 40, '击败敌人按每场的 kills 累计（卡关时退到低关刷也能完成）');
+  assert.ok(!v.some((t) => t.id === 'clears'), '不再有「首次通关」这种卡关做不了的任务');
   assert.ok(v.every((t) => t.done));
   // 领取一次，人气进账，第二次领不到
   const before = s.event.fame;

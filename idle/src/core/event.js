@@ -18,7 +18,7 @@ export const SIGNIN_FAME = 5;
 
 export const dayKey = (now = Date.now()) => new Date(now).toISOString().slice(0, 10);
 
-export const emptyEvent = () => ({ day: '', daily: { battles: 0, wins: 0, clears: 0, claimed: [] }, fame: 0, tiers: [], used: 0, miles: 0 });
+export const emptyEvent = () => ({ day: '', daily: { battles: 0, wins: 0, kills: 0, clears: 0, claimed: [] }, fame: 0, tiers: [], used: 0, miles: 0 });
 
 export function eventState(state, now = Date.now()) {
   const e = (state.event ||= emptyEvent());
@@ -37,7 +37,8 @@ export function eventState(state, now = Date.now()) {
 export const DAILY = [
   { id: 'battles', zh: '在线挂机 20 场', short: '场', need: 20, fame: 30 },
   { id: 'wins', zh: '赢下 15 场', short: '胜', need: 15, fame: 30 },
-  { id: 'clears', zh: '首次通关 2 关', short: '关', need: 2, fame: 40 },
+  // 以前是「首次通关 2 关」：卡关之后根本做不了。现在数击败的敌人——卡关时系统会自动退到有收益的关继续刷，照样能完成。
+  { id: 'kills', zh: '击败 40 个敌人', short: '只', need: 40, fame: 40 },
 ];
 
 /** 在线战斗结算时调用（applyResult 之后）。rw 里要带 win / firstClear。 */
@@ -45,7 +46,8 @@ export function noteBattle(state, rw, now = Date.now()) {
   const e = eventState(state, now);
   e.daily.battles += 1;
   if (rw?.win) e.daily.wins += 1;
-  if (rw?.firstClear) e.daily.clears += 1;
+  e.daily.kills = (e.daily.kills || 0) + Math.max(0, Math.floor(rw?.kills || 0));
+  if (rw?.firstClear) e.daily.clears += 1;      // 旧字段留着（老存档 / 统计），不再是任务
   return e.daily;
 }
 

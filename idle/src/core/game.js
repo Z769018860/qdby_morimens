@@ -523,6 +523,7 @@ export function applyResult(state, data, res) {
   }
   // 联动活动的每日任务只数在线战斗（离线那 1000 多场不算，否则睡一觉任务就满了）
   rw.win = res.win;
+  rw.kills = res.kills || 0;
   noteBattle(state, rw);
   return rw;
 }
