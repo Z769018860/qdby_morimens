@@ -87,7 +87,7 @@ export const EXTRA_NAMES = {
   xiamolin: ['夏日茉莉', '花雨纷飞'],
   chaoxing: ['晨星坠落', '破晓星轨'],
   maodie: ['路过的风景', '长者的一瞥'],
-  baiyun: ['一亿出伤', '上百条世界线'],
+  baiyun: ['十亿出伤', '上百条世界线'],
 };
 
 

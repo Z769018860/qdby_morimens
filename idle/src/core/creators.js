@@ -147,9 +147,9 @@ export const CREATORS = [
   },
   {
     id: 'creator-10', slug: 'baiyun', zh: '白云出岫', en: 'Baiyun Chuxiu', realm: 'ULTRA', type: 'CHORUS', rarity: 'SR', avail: 'GIFT',
-    base: { CON: 35, ATK: 33, DEF: 31 }, scale: { CON: 1.62, ATK: 1.62, DEF: 1.5 }, sub: { ...SUB }, subScale: { ...SUB_SCALE },
+    base: { CON: 38, ATK: 41, DEF: 33 }, scale: { CON: 1.7, ATK: 1.9, DEF: 1.58 }, sub: { ...SUB }, subScale: { ...SUB_SCALE },
     portrait: portraitOf('baiyun'), card: cardOf('baiyun'),
-    // 专属特性：他最好的一批投稿全是拿「王邸管家」弗兰刷出来的（1t 癫狂二、一亿出伤）。
+    // 专属特性：他最好的一批投稿全是拿「王邸管家」弗兰刷出来的（1t 癫狂二、十亿出伤）。
     trait: {
       zh: '这条世界线我走过',
       desc: '对上首领「王邸管家」弗兰时，造成的伤害 +30%。',
@@ -158,7 +158,7 @@ export const CREATORS = [
     creator: {
       uid: '621616293', url: 'https://space.bilibili.com/621616293', color: '#b9c7d8', tag: CREATOR_TAG, emoji: '☁️',
       bio: '5771病友。。。。 主播的忘却前夜群：1073816018',
-      hook: '上百条世界线 · 一亿出伤',
+      hook: '上百条世界线 · 十亿出伤',
     },
   },
 ];
@@ -278,11 +278,11 @@ export const CREATOR_KITS = {
   baiyun: kit({
     Strike: ['云针', (lv) => [D(0.85, lv), E.gauge('keyflare', 6)]],
     Defense: ['复核', (lv) => [S(1.3, lv), E.buff('crit', 12, 3)]],
-    Skill1: ['时间线', (lv) => [E.buff('amp', 22, 3, 'allies'), E.buff('atk', 12, 3, 'allies'), E.gauge('aliemus', 12, 'allies')]],
-    Skill2: ['凹', (lv) => [D(0.8, lv, { hits: 4, to: 'foeRand' }), E.buff('crit', 10, 2)]],
-    Rouse: ['省流', () => [E.buff('atk', 16, 4, 'allies'), E.gauge('keyflare', 20)]],
-    Exalt: ['1t 速杀', (lv) => [D(3.0, lv), E.debuff('vuln', 20, 2), E.buff('crit', 20, 3, 'allies')]],
-    OverExalt: ['上百条世界线', (lv) => [D(1.4, lv, { to: 'foes' }), E.buff('amp', 26, 3, 'allies'), E.gauge('keyflare', 15, 'allies')]],
+    Skill1: ['时间线', (lv) => [E.buff('amp', 30, 3, 'allies'), E.buff('atk', 20, 3, 'allies'), E.gauge('aliemus', 16, 'allies'), E.gauge('keyflare', 8, 'allies')]],
+    Skill2: ['凹', (lv) => [D(1.0, lv, { hits: 4, to: 'foeRand' }), E.buff('crit', 14, 2, 'allies')]],
+    Rouse: ['省流', () => [E.buff('atk', 24, 4, 'allies'), E.buff('amp', 15, 4, 'allies'), E.gauge('keyflare', 25)]],
+    Exalt: ['1t 速杀', (lv) => [D(2.2, lv, { to: 'foes' }), D(2.0, lv), E.debuff('vuln', 25, 3), E.buff('crit', 25, 3, 'allies')]],
+    OverExalt: ['上百条世界线', (lv) => [D(2.2, lv, { to: 'foes', hits: 2 }), E.buff('amp', 35, 3, 'allies'), E.buff('atk', 25, 3, 'allies'), E.gauge('keyflare', 20, 'allies')]],
   }),
 };
 
