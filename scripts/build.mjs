@@ -479,6 +479,8 @@ function genReign() {
 // data/lovelive-units.json 写的是唤醒体 id + 自动技能，这里校验 id 确实是
 // data/avatars.json 里的唤醒体，再把头像读成 data URI 内联成 js/ll/gen.js。
 // 音游页只发一个脚本请求；改技能数值改 json，别手改 gen.js。
+// 立绘（技能发动时摆出来的那张）走 assets/card/，没卡面的个别唤醒体用下面这张 CG 顶替。
+const LL_CG_FALLBACK = { 'a-15601': 'assets/gallery-full/cg-c06-010.webp' };
 function genLive() {
   const cfg = readJson(path.join(ROOT, 'data/lovelive-units.json'));
   const av = readJson(path.join(ROOT, 'data/avatars.json'));
@@ -500,16 +502,47 @@ function genLive() {
     const thumb = path.join(ROOT, 'assets/ll-faces', u.id + '.webp');
     const file = has(thumb) ? thumb : path.join(ROOT, byId.get(u.id).src);
     if (!has(file)) throw new Error('头像不存在：' + file);
+    // 立绘：assets/card/<英文名 slug>.webp（240×600，官方素材库里那张竖版卡面）。
+    // 不内联——二十七 KB 一张，六十多张会把首屏脚本撑到 2MB；只给路径，
+    // 上场时按队伍预取九张，没取到就退回头像。
+    const slug = String(byId.get(u.id).en || '').toLowerCase()
+      .replace(/:\s*/g, '-').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const cardRel = 'assets/card/' + slug + '.webp';
+    let card = slug && has(path.join(ROOT, cardRel)) ? cardRel : '';
+    let wide = false;
+    // 素材库里没有竖版卡面的个别人（「24」的卡面缺失），拿官方 CG 顶上；
+    // CG 是横幅，前端按宽图摆，不硬裁。
+    const cgFallback = LL_CG_FALLBACK[u.id];
+    if (!card && cgFallback && has(path.join(ROOT, cgFallback))) { card = cgFallback; wide = true; }
     return {
       id: u.id, n: u.n, hue: u.hue | 0, skill: s, pass: u.pass || null,
       art: 'data:image/webp;base64,' + fs.readFileSync(file).toString('base64'),
+      card,
+      wide,
     };
   });
   if (units.length < 6) throw new Error('lovelive-units.json：名册至少要有 6 名唤醒体');
+  // 曲库原曲包（scripts/ll-music.py 生成）：只发清单，音频本体按需取。
+  // 清单进脚本，省掉「先问有没有、再下载」那一次来回；没有包就是空对象。
+  const packFile = path.join(ROOT, 'data/ll-music.json');
+  let packs = {};
+  if (has(packFile)) {
+    const j = readJson(packFile);
+    const bySong = (j && j.songs) || {};
+    for (const id of Object.keys(bySong)) {
+      const p = bySong[id];
+      if (!p || !p.file) continue;
+      const f = path.join(ROOT, p.file);
+      if (!has(f)) throw new Error('ll-music.json 里的音频包不存在：' + p.file);
+      packs[id] = { file: p.file, dur: Number(p.dur) || 0, kb: Math.round(fs.statSync(f).size / 1024) };
+    }
+  }
   const code = [
     '// 由 scripts/build.mjs 从 data/lovelive-units.json + data/avatars.json 生成，请勿手改。',
     '// art 是 data URI：上场名册一次传输，页面只发一个脚本请求。',
+    '// card 是立绘路径（assets/card/*.webp），按需取，不内联。',
     `export const UNITS = ${JSON.stringify(units)};`,
+    `export const PACKS = ${JSON.stringify(packs)};`,
     '',
   ].join('\n');
   const out = path.join(ROOT, 'js/ll/gen.js');
@@ -526,35 +559,51 @@ function genRoulette() {
   const cfg = readJson(path.join(ROOT, 'data/roulette-chars.json'));
   const av = readJson(path.join(ROOT, 'data/avatars.json'));
   const byId = new Map((av.items || []).filter((x) => x.k === 'awakener').map((x) => [x.id, x]));
-  const PASS = new Set(['echo', 'precog1', 'precog2', 'aim', 'armor', 'lifesteal', 'greed', 'extra', 'serrate', 'revive', 'lucky']);
+  const PASS = new Set(['echo', 'precog1', 'precog2', 'aim', 'armor', 'lifesteal', 'greed', 'extra',
+    'serrate', 'revive', 'lucky', 'grit', 'siphon', 'menace']);
   const ITEM_IDS = new Set(['lens', 'smoke', 'pour', 'saw', 'cuff', 'pill', 'invert', 'glove',
     'whisper', 'scroll', 'aegis', 'chain', 'seal', 'needle', 'hourglass', 'coin', 'oracle']);
   const seen = new Set();
   const chars = (cfg.chars || []).map((c) => {
+    // 唤醒体（a-）从 avatars.json 取名字与头像；主播（c-）是 idle 那边的彩蛋角色，
+    // avatars.json 里没有，名字与立绘都写在 roulette-chars.json 里。
     const m = byId.get(c.id);
-    if (!m) throw new Error(`roulette-chars.json：${c.id} 不是唤醒体`);
+    const creator = !m;
+    const name = m ? m.n : c.n;
+    if (!name) throw new Error(`roulette-chars.json：${c.id} 没有名字`);
     if (seen.has(c.id)) throw new Error(`roulette-chars.json：${c.id} 重复`);
     seen.add(c.id);
-    if (!(c.hp >= 3 && c.hp <= 8)) throw new Error(`roulette-chars.json：${m.n} 的 hp 应在 3~8`);
-    if (!Array.isArray(c.items) || !c.items.length) throw new Error(`roulette-chars.json：${m.n} 没带道具`);
-    for (const id of c.items) if (!ITEM_IDS.has(id)) throw new Error(`roulette-chars.json：${m.n} 的道具 ${id} 不认识`);
-    if (!c.passive || !PASS.has(c.passive.k)) throw new Error(`roulette-chars.json：${m.n} 的被动 ${c.passive && c.passive.k} 引擎里没有`);
-    const file = path.join(ROOT, m.src || `assets/avatars/${c.id}.webp`);
-    if (!has(file)) throw new Error('头像不存在：' + file);
+    if (!(c.hp >= 3 && c.hp <= 8)) throw new Error(`roulette-chars.json：${name} 的 hp 应在 3~8`);
+    if (!Array.isArray(c.items) || !c.items.length) throw new Error(`roulette-chars.json：${name} 没带道具`);
+    for (const id of c.items) if (!ITEM_IDS.has(id)) throw new Error(`roulette-chars.json：${name} 的道具 ${id} 不认识`);
+    if (!c.passive || !PASS.has(c.passive.k)) throw new Error(`roulette-chars.json：${name} 的被动 ${c.passive && c.passive.k} 引擎里没有`);
+    const src = c.src || (m && m.src) || `assets/avatars/${c.id}.webp`;
+    if (!has(path.join(ROOT, src))) throw new Error('头像不存在：' + src);
+    // 选人一屏要同时出现七十多张脸：优先用 64×64 的缩略图（scripts/build_roulette_faces.py），
+    // 没跑过那个脚本就退回原图（大一些，但至少能跑）。
+    const thumb = path.join(ROOT, 'assets/roulette/faces', c.id + '.webp');
+    const file = has(thumb) ? thumb : path.join(ROOT, src);
     return {
-      id: c.id, n: m.n, en: m.en, hp: c.hp | 0, items: c.items, passive: c.passive,
+      id: c.id, n: name, en: m ? m.en : '', hp: c.hp | 0, items: c.items, passive: c.passive,
       realm: c.realm || '', role: c.role || '', line: c.line || '',
+      creator,
       face: 'data:image/webp;base64,' + fs.readFileSync(file).toString('base64'),
     };
   });
   if (chars.length < 6) throw new Error('roulette-chars.json：至少要有 6 位能出战的唤醒体');
   const map = {};
   for (const c of chars) map[c.id] = c;
+  // 强度分位（scripts/roulette-power.mjs 量的）：高段位人机靠它挑人。
+  // 没有这个文件也能跑，只是段位不再影响对手强弱。
+  const powerFile = path.join(ROOT, 'data/roulette-power.json');
+  const power = has(powerFile) ? readJson(powerFile).pct || {} : null;
   const code = [
     '// 由 scripts/build.mjs 从 data/roulette-chars.json + data/avatars.json 生成，请勿手改。',
     '// face 是 data URI：选人一屏的头像一次传完，页面只发一个脚本请求。',
     `export const CHAR_ORDER = ${JSON.stringify(chars.map((c) => c.id))};`,
     `export const CHARS = ${JSON.stringify(map, null, 1)};`,
+    `export const POWER = ${JSON.stringify(power)};`,
+    `export const CREATORS = ${JSON.stringify(chars.filter((c) => c.creator).map((c) => c.id))};`,
     '',
   ].join('\n');
   const out = path.join(ROOT, 'js/roulette/gen.js');

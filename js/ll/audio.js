@@ -170,10 +170,20 @@ export const Audio = {
   },
 
   suspend() {
+    // 没有声卡的兜底时钟（usePerf）也要跟着停，不然暂停时谱面自己在跑
+    if (this.usePerf) {
+      if (this.playing && this._psAt == null) this._psAt = performance.now() / 1000;
+      return;
+    }
     if (this.ac) { if (this.ac.state === 'running') this.ac.suspend().catch(() => {}); }
     else if (this.playing) this._psAt = performance.now() / 1000;
   },
   resume() {
+    if (this.usePerf) {
+      if (this._psAt != null) { this.pt0 += performance.now() / 1000 - this._psAt; this._psAt = null; }
+      if (this.ac && this.ac.state === 'suspended') this.ac.resume().catch(() => {});
+      return;
+    }
     if (this.ac) { if (this.ac.state === 'suspended') this.ac.resume().catch(() => {}); }
     else if (this.playing) {
       if (this._psAt != null) { this.pt0 += performance.now() / 1000 - this._psAt; this._psAt = null; }
