@@ -173,8 +173,8 @@ export const BONDS = [
      另有一条「雪原利爪」是玩家点名补的（萨摩不耶 × 茉夏），幸存者表里没有这对组合。 */
   {
     id: 'patron-samo', zh: '血色节拍', cat: 'patron', members: ['samo', 'helot-catena'], need: 2,
-    tiers: { 2: { atkPct: 12, steal: 3 } },
-    desc: '萨摩不耶 + 血链·希洛：拍子踩在心跳上，攻击抬一档，伤害的 3% 转成治疗。',
+    tiers: { 2: { atkPct: 12, steal: 6 } },
+    desc: '萨摩不耶 + 血链·希洛：拍子踩在心跳上，攻击抬一档，伤害的 6% 转成治疗。',
   },
   {
     id: 'patron-samo-mouchette', zh: '雪原利爪', cat: 'patron', members: ['samo', 'mouchette'], need: 2,

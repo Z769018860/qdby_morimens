@@ -2565,7 +2565,7 @@ test('本命羁绊：14 条主播 × 羁绊唤醒体都在，且只在两人同�
   const on = pair.active.find((x) => x.id === 'patron-samo');
   assert.ok(on && on.tier === 2);
   assert.equal(on.bonus.atkPct, 12);
-  assert.equal(on.bonus.steal, 3);
+  assert.equal(on.bonus.steal, 6);
   const keys = new Set(Object.keys(ZERO()));
   for (const b of patron) for (const k of Object.keys(b.tiers[2])) assert.ok(keys.has(k), `${b.id} 用了加成池里没有的字段 ${k}`);
   // 详情页的「羁绊」标签：主播与那位唤醒体互相都认得对方这条本命
@@ -2804,11 +2804,19 @@ test('装备回溯：花银芯把强化 + 精炼倒回 0，金币和精炼银芯
   assert.equal(_grp({ kind: 'relic', lv: 0, rf: 0 }).cost, 0);
 });
 
-test('吸血：纯辅助技能（先治疗、没有伤害）也按攻击力吸一次，不再吸 0', async () => {
+test('吸血词条：满血时溢出转护盾（上限 30% 最大生命），受伤时先补血；纯辅助技能的 lifesteal 不再吸 0', async () => {
   const { simulate } = await import('../src/core/battle.js');
-  const mk = (uid, side, extra = {}) => ({ uid, side, name: uid, hp: 1000, atk: 100, def: 0, spd: 10, ...extra });
-  // 不依赖具体角色数据：直接确认 battle.js 里吸血分支带有回退（源码级检查，防止被改回去）
-  const src = (await import('node:fs')).readFileSync(new URL('../src/core/battle.js', import.meta.url), 'utf8');
-  assert.match(src, /ctx\.dealt > 0 \? ctx\.dealt : num\(u\.atk\)/);
-  assert.equal(typeof simulate, 'function'); assert.ok(mk('a0', 'a'));
+  const { prepareBattle: pb } = await import('../src/core/game.js');
+  const s = newState(data, 3);
+  for (const r of Object.values(s.roster)) { r.lv = 100; r.star = 10; r.brk = 5; }
+  const p = pb(s, data, 40);
+  p.allies.forEach((a) => (a.steal = 60));
+  const res = simulate({ allies: p.allies, enemies: p.enemies, seed: p.seed, strategy: s.strategy, maxRounds: 6, rules: p.rules, dotBoost: p.dotBoost });
+  const max = Object.fromEntries(p.allies.map((a, i) => [`a${i}`, a.hp]));
+  // 第一刀都是满血时打出的：应该立刻看到我方单位自己给自己加的护盾（吸血溢出），且不超过 30% 最大生命
+  const sh = res.events.filter((e) => e.k === 'shield' && e.who?.[0] === 'a');
+  assert.ok(sh.length > 0);
+  for (const e of sh) assert.ok(e.shield <= max[e.who] * 1.5 + 1);
+  const selfHeal = res.events.filter((e) => e.k === 'heal' && e.by === e.who && e.who?.[0] === 'a' && e.amt > 0);
+  assert.ok(selfHeal.length > 0);
 });

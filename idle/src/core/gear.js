@@ -48,7 +48,7 @@ export const COV_THEMES = [
   { zh: '锋芒', two: { critRate: 8 }, four: { critRate: 8, critDmg: 25 } },
   { zh: '共鸣', two: { aliGain: 15 }, four: { aliGain: 15, openAli: 40 } },
   { zh: '燃焰', two: { keyGain: 15 }, four: { keyGain: 15, openKey: 40 } },
-  { zh: '慈悲', two: { healBonus: 15 }, four: { healBonus: 20, steal: 8 } },
+  { zh: '慈悲', two: { healBonus: 15 }, four: { healBonus: 20, steal: 15 } },
   { zh: '狂潮', two: { amp: 10 }, four: { amp: 10, firstBoost: 35 } },
 ];
 export const covTheme = (id) => COV_THEMES[(parseInt(String(id).replace(/\D/g, ''), 10) || 0) % COV_THEMES.length];

@@ -201,7 +201,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     if (stats[tgt.uid]) stats[tgt.uid].taken += dmg;
     if (src.side !== tgt.side) {
       gainGauge(tgt, 'ali', 9);
-      if (src.steal && dmg > 0) heal(src, src, dmg * src.steal / 100, true);
+      if (src.steal && dmg + absorbed > 0) leech(src, (dmg + absorbed) * src.steal / 100);   // 按盾前伤害算，打在盾上也有吸血
     }
     // 反震：玩家一次打得太重（> 敌人最大生命 6%），要被反震 40% —— 持续伤害 / 反击 / 小段多次不触发
     if (RL.has('thorns') && kind === 'dmg' && src.side === 'a' && tgt.side === 'e' && src.alive && dmg > tgt.maxHp * 0.07) {
@@ -257,6 +257,24 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     if (!silent || real > 0) push({ k: 'heal', by: src.uid, who: tgt.uid, amt: real, hp: tgt.hp });
   }
 
+  // 吸血（词条 steal 和技能 lifesteal 共用）：先补血；满血时溢出的部分转成护盾（上限 = 最大生命的 30%），
+  // 否则前排没受伤时打得再狠也吸 0，词条等于白给。治疗压制规则对它照常生效（只吃一次折扣）
+  function leech(u, amt) {
+    if (!u.alive) return;
+    amt = Math.max(0, Math.round(num(amt) * (RL.has('antiheal') && u.side === 'a' ? 0.4 : 1)));
+    if (!amt) return;
+    const real = Math.max(0, Math.min(amt, u.maxHp - u.hp));
+    u.hp += real;
+    if (stats[u.uid]) stats[u.uid].heal += real;
+    if (real > 0) push({ k: 'heal', by: u.uid, who: u.uid, amt: real, hp: u.hp });
+    const over = amt - real;
+    if (over > 0) {
+      const room = Math.max(0, Math.round(u.maxHp * 0.3) - num(u.shield));
+      const add = Math.min(over, room);
+      if (add > 0) { u.shield = num(u.shield) + add; push({ k: 'shield', who: u.uid, amt: add, shield: u.shield }); }
+    }
+  }
+
   function run(u, effects) {
     const ctx = { dealt: 0 };
     for (const e of effects) {
@@ -300,7 +318,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         case 'lifesteal':
           // 吸血按本次技能实际打出的伤害算；纯辅助技能（先治疗、没有伤害，如雷伊 / 沙耶的技能 1）没有可吸的伤害，
           // 以前直接吸 0，等于白写。没打出伤害时按自身攻击力 ×1 当「一次出手」来算
-          heal(u, u, (ctx.dealt > 0 ? ctx.dealt : num(u.atk)) * e.v / 100, true);
+          leech(u, (ctx.dealt > 0 ? ctx.dealt : num(u.atk)) * e.v / 100);
           break;
         // ---- 专属技能（core/extra.js）用到的机制 ----
         case 'execute':    // 斩杀：目标血量低于 thr 时倍率翻倍
