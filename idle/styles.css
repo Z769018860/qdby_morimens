@@ -851,6 +851,12 @@ a.btn{display:inline-block;text-decoration:none}
 .item .i-body .who.sqin{color:var(--gold);opacity:.92;display:flex;flex-wrap:wrap;gap:3px;align-items:center}.item .i-body .who.sqin::before{content:'已编入';color:var(--dim);margin-right:2px}.sqchip{border:1px solid #5a4a1c;background:#2a2412;border-radius:9px;padding:0 6px;font-size:11px;line-height:16px}.sqchip.on{border-color:#2f6b49;background:#12301f;color:#7dffb0}.item .i-body .who.sqnone{color:var(--dim);opacity:.7}
 .sqlo-note .sqshare{display:inline-block;margin-left:8px;font-style:normal;font-size:11px;color:var(--gold);background:color-mix(in srgb,var(--gold) 13%,transparent);border:1px solid color-mix(in srgb,var(--gold) 45%,transparent);border-radius:999px;padding:0 8px}
 
+/* ---- 编队编辑器：草稿还空着时的说明（这个挑战现在用哪套、你在编哪套） ---- */
+.hint.sqnote{margin:8px 0 4px;padding:7px 9px;border-radius:8px;line-height:1.55;color:#cfd8e6;
+  background:color-mix(in srgb,var(--gold) 9%,transparent);border:1px solid color-mix(in srgb,var(--gold) 30%,transparent);
+  border-left:3px solid color-mix(in srgb,var(--gold) 70%,transparent)}
+.hint.sqnote b{color:var(--gold)}
+
 /* ---- 装备图鉴 / 50 连 500 连汇总 ---- */
 .dxgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:8px; margin-top:8px}
 .dxtile{border:1px solid var(--line,#2a3350); border-radius:10px; padding:6px 4px; text-align:center; background:var(--panel,#121a2b); min-width:0}

@@ -144,8 +144,18 @@ function equipSlot(app, slug, kind) {
     <img src="${img(def.img)}" alt=""><b>${esc(def.zh)}</b><small>Lv${it.lv}${it.rf ? ` · 精炼+${it.rf}` : ''}</small></button>`;
 }
 
-/** 造物详情：队伍页点「详情」进来，能直接强化 / 精炼，精炼前后数值对照着看 */
-export function relicModal(app, uid) {
+/** 当前这层「造物详情」的换件上下文：编队编辑器开着它时是非空函数（换的是那套编队的草稿）。
+    强化 / 精炼之后 main.js 会重开一层详情，那时候不带 opts，靠这个沿用上一次的上下文。 */
+let relicSwapCtx = null;
+
+/** 造物详情：队伍页点「详情」进来，能直接强化 / 精炼，精炼前后数值对照着看。
+ *  opts.onSwap：编队编辑器里点进来时用——「换一件」要改的是那套编队的独立配装草稿，
+ *  而不是主线的造物栏。以前不传这个，点在编队里的「换一件」会去改 s.gear.relics：
+ *  草稿纹丝不动（看着像没生效），主线那 6 件反倒被悄悄换掉。
+ *  opts 传 null（默认）= 沿用上一次的上下文（强化 / 精炼后重开用），传 {} = 回主线。 */
+export function relicModal(app, uid, opts = null) {
+  if (opts) relicSwapCtx = opts.onSwap || null;
+  const onSwap = relicSwapCtx;
   const s = app.state, it = s.gear.items[uid];
   if (!it || it.kind !== 'relic') return;
   const def = itemDef(app, it);
@@ -170,10 +180,16 @@ export function relicModal(app, uid) {
     <div class="row">
       <button class="btn sm" data-act="relic-up" data-uid="${uid}" ${canUp ? '' : 'disabled'}>${upCost ? `强化 ${fmt(upCost)} 金币` : `已满级 Lv${GEAR_MAX_LV}`}</button>
       <button class="btn sm gold" data-act="relic-refine" data-uid="${uid}" ${canRf ? '' : 'disabled'}>${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button>
-      <button class="btn sm" data-act="relic-swap" data-i="${relicIndexOf(s, uid)}">换一件</button>
+      <button class="btn sm" data-act="${onSwap ? 'sq-relic-swap' : 'relic-swap'}" data-i="${relicIndexOf(s, uid)}">换一件</button>
     </div>
     <p class="hint dim">金币 ${fmt(s.gold)} · 银芯 ${fmt(s.cores)}</p>`;
-  openModal(html);
+  const m = openModal(html);
+  // 编队编辑器里：这里的「换一件」必须换成草稿那一格，不能落到主线的造物栏上
+  if (onSwap) m.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-act="sq-relic-swap"]')) return;
+    e.stopPropagation();
+    pickItem(app, 'relic', '选择造物', (uid2) => { closeModal(); onSwap(uid2); });
+  });
 }
 
 const relicIndexOf = (s, uid) => s.gear.relics.indexOf(uid);
@@ -239,6 +255,13 @@ function loSummary(lo) {
   return `命轮密契 ${eq} · 造物 ${rl} · 钥令 ${od}`;
 }
 
+/** 挑战入口正用「当前队伍」时，「编队」该打开哪一套：优先第一个还空着的通用编队。
+    以前写死打开一队——一队往往已经被别的挑战占着，点「编队」看到的是别人那套，更容易存错。 */
+function freeSquadKey(app) {
+  const s = app.state;
+  return SQUAD_KEYS.find((k) => !squadMembers(s, k).length) || 'a';
+}
+
 /** 挑战页顶部的「出战阵容」选择条：当前队伍 / 一队 / 二队 / 三队 + 现场编队 */
 export function squadBar(app, mode, note = '') {
   const s = app.state;
@@ -250,7 +273,7 @@ export function squadBar(app, mode, note = '') {
   }).join('');
   const fb = cur !== 'cur' && !squadMembers(s, cur).length;
   return `<div class="squadbar"><span class="sqh">出战阵容</span>${chip('cur', '当前队伍', cur === 'cur')}${list}
-    <button class="btn sm sqedit" data-act="squad-edit" data-mode="${mode}" data-k="${cur === 'cur' ? 'a' : cur}">现场编队</button>
+    <button class="btn sm sqedit" data-act="squad-edit" data-mode="${mode}" data-k="${cur === 'cur' ? freeSquadKey(app) : cur}">现场编队</button>
     <small class="dim">${fb ? `「${SQUAD_ZH[cur]}」是空的，暂时按当前队伍打` : note || '在「队伍 → 挑战编队」里指定，或点「现场编队」当场排'}</small></div>`;
 }
 
@@ -291,7 +314,7 @@ function modeBlock(app, mode, title = '') {
   const nameZh = tk && lab.key === tk ? '本塔专用队' : lab.zh;
   return `<div class="assign ${lab.key !== 'cur' && !lab.fallback ? 'on' : ''}">
     <header><b>${title || MODE_ZH[mode]}</b><small>${lab.fallback ? `${lab.zh}（空）→ 当前队伍` : `${nameZh} · ${slugs.length} 人${t ? ` · 战力 ${fmt(t.power)}` : ''}`}</small>
-      <button class="btn sm" data-act="squad-edit" data-mode="${mode}" data-k="${lab.key === 'cur' ? (tk || 'a') : lab.key}">编队</button></header>
+      <button class="btn sm" data-act="squad-edit" data-mode="${mode}" data-k="${lab.key === 'cur' ? (tk || freeSquadKey(app)) : lab.key}" title="${lab.key === 'cur' ? `「${MODE_ZH[mode] || ''}」用的是当前队伍；这里编的是另一套，存下来才会换过去` : ''}">编队</button></header>
     <div class="sqav">${av}</div>
     <div class="sqlo-note">${loUsed ? `独立配装 · ${loSummary(loUsed)}` : '沿用主线配装（点「编队」可给这套单独配命轮 / 造物 / 钥令）'}</div>
     <div class="achips">${chips}</div></div>`;
@@ -368,7 +391,9 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
     st = { key, mode: mode || null, realm: lockR || '', team: [...squadMembers(s, key)], lo: JSON.parse(JSON.stringify(loadoutOf(s, key) || null)) };
     // 禁区这队还空着：先把它现在自动补位的那 4 个人填进来当草稿（五队互不重复，所以不能拿主线队伍顶）
     if (!st.team.length && isRiftM) st.team = [...(riftParty(s, data).find((p) => p.key === key)?.slugs || [])];
-    if (!st.team.length && mode && !isRiftM) st.team = teamSlugsFor(s, mode).filter((x) => s.roster[x]);
+    // 以前这里还有一句「草稿空着就拿 teamSlugsFor(s, mode) 预填」。当挑战入口选的是「当前队伍」时，
+    // 那句会把主线那 4 个人填进「一队」：标题写着编一队，槽位里却是主线队伍，改完存下一队还白改一套。
+    // 现在草稿只反映这套编队自己存了什么；想从主线 4 人起手，编辑器里有「套用当前队伍」。
     // 属性塔只收本界域的人：草稿里不合界的先剔掉（不然给血肉塔开编辑器，
     // 预填进来的是当前队伍里那 4 个混沌界域的人，保存时又全被剔空）
     if (lockR) st.team = st.team.filter((x) => data.bySlug[x]?.realm === lockR);
@@ -447,6 +472,19 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
       <h5>钥令 <small class="dim">已开 ${on}/${ORDER_SLOTS}</small></h5><div class="orderbar">${och}</div>`;
   };
 
+  /* 草稿空着时把话说清楚：这个挑战现在到底在用什么、你正在编的是哪一套。
+     以前这里什么都不说，草稿又被主线队伍填满，就会误以为「当前队伍」正在被编辑。 */
+  const modeLab = mode ? squadLabel(s, mode) : null;
+  const nowUsingZh = modeLab ? (modeLab.key === 'cur' ? '当前队伍' : modeLab.fallback ? `「${SQUAD_ZH[modeLab.key]}」（空）→ 当前队伍` : `「${SQUAD_ZH[modeLab.key]}」`) : '';
+  const nowUsingPeople = mode ? teamSlugsFor(s, mode).filter((x) => s.roster[x]).map((x) => data.bySlug[x]?.zh || x).join(' / ') : '';
+  const emptyNote = () => {
+    if (!mode || st.team.length) return '';
+    if (modeLab && modeLab.key === st.key) {
+      return `<p class="hint sqnote">「<b>${SQUAD_ZH[st.key]}</b>」是空的，${modeZh}现在暂时按 <b>当前队伍</b> 打${nowUsingPeople ? `：${esc(nowUsingPeople)}` : ''}。<b>编好存下来就生效</b>，别在这套还是空的时候去挑战。</p>`;
+    }
+    return `<p class="hint sqnote">${modeZh}现在用的是 <b>${nowUsingZh}</b>${nowUsingPeople ? `：${esc(nowUsingPeople)}` : ''}。你现在编的是「<b>${SQUAD_ZH[st.key]}</b>」，它还是空的——点下面的「套用当前队伍」把这几位搬过来，或者自己重排；存完 ${modeZh} 就改用它。</p>`;
+  };
+
   const body = () => {
     const slots = Array.from({ length: TEAM_SIZE }, (_, i) => {
       const slug = st.team[i], a = slug && data.bySlug[slug];
@@ -468,11 +506,12 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
         ${mode ? (isRift ? `保存后 <b>${SQUAD_ZH[st.key]}</b> 就是融灾禁区里的第 ${RIFT_SQUAD_KEYS.indexOf(st.key) + 1} 队（专用编队，不动通用那五套）。`
       : isTower ? `这套只给 <b>${modeZh}</b> 用：存完只动 <b>${SQUAD_ZH[st.key]}</b> 这一套，通用编队和别的塔都不受影响。`
         : `保存后 <b>${modeZh}</b> 就用这套出战。`) : ''}</p>
+      ${emptyNote()}
       <div class="row sqrealms">${realmChips}</div>
       <div class="sqslots">${slots}</div>
       ${bondStrip(app, st.team, { compact: true })}
       <div class="row"><button class="btn gold" data-sq="auto">一键上阵</button><button class="btn sm" data-sq="clear" ${st.team.length ? '' : 'disabled'}>清空</button>
-        <button class="btn sm" data-sq="from-team">套用当前队伍</button></div>
+        <button class="btn ${st.team.length ? 'sm' : 'sm gold'}" data-sq="from-team">套用当前队伍</button></div>
       <div class="sqlo">${loSection()}</div>
       <h4>可选唤醒体 <small class="dim">${cands().length} 名</small></h4>
       <div class="grid mini sqpick">${list}</div>
@@ -497,7 +536,15 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
     if (det) {
       e.stopPropagation();
       let back = false;
-      relicModal(app, det.dataset.uid);
+      // 「换一件」换的是草稿里这格（st.lo.relics），不能让它去动主线的造物栏
+      relicModal(app, det.dataset.uid, {
+        onSwap: (uid2) => {
+          if (!st.lo) return;
+          const i = st.lo.relics.indexOf(det.dataset.uid);
+          st.lo.relics = st.lo.relics.map((x) => (x === uid2 ? null : x));
+          if (i >= 0) st.lo.relics[i] = uid2 || null;
+        },
+      });
       const mo = new MutationObserver(() => {
         if (!document.querySelector('.modal-bg')) { mo.disconnect(); if (!back) { back = true; squadEditor(app, { resume: true }); } }
       });

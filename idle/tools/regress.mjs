@@ -361,6 +361,51 @@ const usage = await cdp.evalIife(`(() => {
   return { cards: document.querySelectorAll('.squad').length, use: (card?.querySelector('.squse')?.innerText || '') };
 })()`);
 check(usage.cards === 14 && /周Boss/.test(usage.use), `编队库 14 套（通用 5 + 属性塔 4 + 禁区 5），一队标注「${usage.use}」`);
+
+// 编队编辑器：打开的是这套编队自己的人，不是主线那 4 个；
+// 造物「详情 → 换一件」换的是这套的独立配装草稿，不能落到主线造物栏上
+const sqEdit = await cdp.evalIife(`(async () => {
+  const s = __game.state, d = __game.data;
+  // ① 周 Boss 用的是「当前队伍」时点「现场编队」：编辑器里必须是一套空编队，
+  //    不能把主线那 4 个人塞进来（以前就是这样，看着像在编一队，其实编的是主线）
+  s.squadPick.weekly = 'cur';
+  __game.save();
+  window.__go('weekly');
+  document.querySelector('[data-act="squad-edit"][data-mode="weekly"]').click();
+  await new Promise((r) => setTimeout(r, 400));
+  const prefill = [...document.querySelectorAll('.modal .sqslot.on b')].map((x) => x.textContent.trim());
+  const prefillTitle = (document.querySelector('.modal h3')?.textContent || '').replace(/\\s+/g, ' ').trim();
+  const note = (document.querySelector('.modal .sqnote')?.textContent || '').replace(/\\s+/g, ' ').trim();
+  document.querySelector('.modal-x').click();
+
+  // ② 二队：造物详情里的「换一件」换的是这套的独立配装草稿，不能落到主线造物栏上
+  s.maxStage = 280;
+  const uids = [];
+  for (let i = 0; i < 12; i++) { const uid = 'rgt' + i; s.gear.items[uid] = { uid, kind: 'relic', defId: d.relics[i].id, lv: 5, rf: 0 }; uids.push(uid); }
+  s.squads.b.lo = { equip: {}, relics: uids.slice(0, 6), orders: [] };
+  s.gear.relics = uids.slice(6, 12);
+  __game.save();
+  window.__go('team');
+  document.querySelector('.ttab[data-k="squads"]').click();
+  document.querySelector('.squad[data-squad="b"] [data-act="squad-edit"]').click();
+  const before = __game.ui.sqDraft.lo.relics.slice();
+  document.querySelectorAll('.modal .relic-slot')[0].querySelector('.rfbtn').click();
+  await new Promise((r) => setTimeout(r, 350));
+  [...document.querySelectorAll('.modal .btn')].find((b) => b.textContent.trim() === '换一件')?.click();
+  await new Promise((r) => setTimeout(r, 350));
+  document.querySelector('[data-pick="' + uids[10] + '"]')?.click();
+  await new Promise((r) => setTimeout(r, 600));
+  const draft = (__game.ui.sqDraft?.lo?.relics || []).slice();
+  const main = s.gear.relics.slice();
+  document.querySelector('.modal-x')?.click();
+  return { prefill, prefillTitle, note, mainNames: s.team.map((x) => d.bySlug[x].zh), before, draft, main, picked: uids[10], expectMain: uids.slice(6, 12) };
+})()`);
+check(sqEdit.prefill.length === 0,
+  `周Boss 用「当前队伍」时点现场编队：「${sqEdit.prefillTitle}」是空的（没有把主线的 ${sqEdit.mainNames.join(' / ')} 塞进来）`);
+check(/当前队伍/.test(sqEdit.note), `编辑器里说清了现在用哪套：${sqEdit.note.slice(0, 42)}…`);
+check(sqEdit.draft[0] === sqEdit.picked && sqEdit.main.join() === sqEdit.expectMain.join(),
+  `编队里换造物改的是这套的配装（第 1 件 ${sqEdit.before[0]} → ${sqEdit.draft[0]}），主线造物栏没被动（仍是 ${sqEdit.main.length} 件）`);
+
 await cdp.evalIife(`(() => { document.querySelector('.squads')?.scrollIntoView({ block: 'center' }); return 1; })()`);
 await sleep(300);
 await cdp.shot('team-squad');
