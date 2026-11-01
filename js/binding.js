@@ -37,6 +37,7 @@ function defaultMeta() {
     diff: 'hard',    // 上次选的难度：三层简单 / 五层困难 / 八层癫狂
     byDiff: {},      // 按难度分开记：{ easy: { runs, clears, bestFloor, bestScore }, ... }
     muted: false,
+    vpad: null,       // 虚拟十字键：null = 没选过（触屏设备默认开），true/false = 玩家自己的选择
     autoFire: false,  // 自动攻击：猫自己瞄准最近的敌人并持续开火，只需要走位
     codex: {},       // 已读的世界观条目（设定集）
     seen: {},        // 已看过的剧情场景，避免每次重开都重播
@@ -2308,6 +2309,46 @@ function bindUi() {
   // 开局的按键说明：第一次玩的人要多看一会儿（连「清空才开门」也写在这），老手 7 秒就够
   setTimeout(() => $('hintBar').classList.add('off'), G.meta.seen.intro ? 7000 : 17000);
   $('activeBtn').onclick = () => useActive();
+
+  // 虚拟十字键：左 = WASD 移动，右 = 方向键射击；手指在盘面上滑动会跟着换方向（8 向）。
+  // 直接写 G.keys，复用键盘那套移动 / 瞄准 / 开火逻辑，不另开一条路。
+  const coarse = matchMedia('(pointer:coarse)').matches;
+  const padOn = () => (G.meta.vpad == null ? coarse : !!G.meta.vpad);
+  const syncPad = () => {
+    document.body.classList.toggle('vpad-on', padOn());
+    $('padBtn').classList.toggle('on', padOn());
+    $('padBtn').setAttribute('aria-pressed', padOn() ? 'true' : 'false');
+    $('padLabel').textContent = padOn() ? '虚拟键：开' : '虚拟键';
+    if (!padOn()) for (const c of ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight']) G.keys[c] = false;
+  };
+  $('padBtn').onclick = () => { G.meta.vpad = !padOn(); saveMeta(); syncPad(); Audio2.ensure(); toast(padOn() ? '虚拟键：开 · 左边移动、右边射击' : '虚拟键：关 · 左半屏拖动移动、右半屏拖动射击'); };
+  const wirePad = (el, keys) => {
+    const dirs = { u: keys[0], d: keys[1], l: keys[2], r: keys[3] };
+    const set = (on) => {
+      for (const d of 'udlr') { G.keys[dirs[d]] = !!on[d]; el.querySelector(`[data-d="${d}"]`).classList.toggle('on', !!on[d]); }
+    };
+    const calc = (e) => {
+      const r = el.getBoundingClientRect();
+      const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+      const len = Math.hypot(dx, dy);
+      if (len < r.width * 0.12) return { u: 0, d: 0, l: 0, r: 0 };
+      const t = len * 0.38;      // 斜着推（两个方向都超过 38%）才算斜向
+      return { u: dy < -t, d: dy > t, l: dx < -t, r: dx > t };
+    };
+    let pid = null;
+    el.addEventListener('pointerdown', (e) => {
+      if (G.mode !== 'play') return;
+      pid = e.pointerId; try { el.setPointerCapture(pid); } catch (err) { /* 老浏览器没有也行 */ }
+      Audio2.ensure(); set(calc(e)); e.preventDefault();
+    });
+    el.addEventListener('pointermove', (e) => { if (e.pointerId === pid) set(calc(e)); });
+    const up = (e) => { if (e.pointerId === pid) { pid = null; set({}); } };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+  };
+  wirePad($('padL'), ['KeyW', 'KeyS', 'KeyA', 'KeyD']);
+  wirePad($('padR'), ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+  syncPad();
   // 自动攻击开关：状态存进档案，下次打开还是你上次选的
   const syncAuto = () => {
     const b = $('autoBtn');
@@ -2372,6 +2413,7 @@ function bindUi() {
   // 触屏：左半屏移动、右半屏瞄准射击（双摇杆）
   const touchStart = (e) => {
     if (G.mode !== 'play') return;
+    if (document.body.classList.contains('vpad-on')) { e.preventDefault(); return; }   // 开了虚拟十字键就不用浮动摇杆了
     Audio2.ensure();
     for (const tch of e.changedTouches) {
       const rect = cv.getBoundingClientRect();

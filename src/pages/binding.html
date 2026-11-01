@@ -145,6 +145,42 @@ button{font:inherit; color:inherit; cursor:pointer}
   .autofire{bottom:62px; padding:4px 8px 4px 6px; font-size:10px}
 }
 
+
+/* 虚拟方向键（手机）：左边 8 向移动、右边 8 向射击，像掌机的两个十字键。 */
+.vpad{
+  position:absolute; bottom:46px; width:clamp(96px, 26vmin, 140px); aspect-ratio:1; z-index:7;
+  display:none; touch-action:none; user-select:none; -webkit-user-select:none;
+  border-radius:50%; background:radial-gradient(circle, rgba(12,17,26,.55) 0 62%, rgba(12,17,26,.2) 100%);
+  border:1px solid var(--glassline);
+}
+.vpad.l{left:12px}
+.vpad.r{right:12px}
+body.vpad-on .vpad{display:block}
+body.titlestate .stage .vpad{display:none}
+.vpad i{
+  position:absolute; width:34%; height:34%; display:grid; place-items:center; border-radius:10px;
+  color:var(--glassdim); background:rgba(20,28,42,.7); border:1px solid var(--glassline);
+  font-style:normal; font-size:15px; line-height:1; pointer-events:none;
+}
+.vpad i.on{color:var(--gold); background:rgba(60,46,16,.9); border-color:color-mix(in oklab, var(--gold) 60%, transparent)}
+.vpad i[data-d="u"]{left:33%; top:3%}
+.vpad i[data-d="d"]{left:33%; bottom:3%}
+.vpad i[data-d="l"]{left:3%; top:33%}
+.vpad i[data-d="r"]{right:3%; top:33%}
+.vpad .lab{position:absolute; left:0; right:0; top:50%; transform:translateY(-50%); text-align:center; font-size:10px; color:var(--glassdim); opacity:.7; pointer-events:none}
+/* 开了虚拟键：钥令键和自动攻击挪到底部正中，别压在右边的射击键上 */
+body.vpad-on .active{right:auto; left:50%; margin-left:-26px; bottom:46px}
+body.vpad-on .autofire{right:auto; left:50%; transform:translateX(-50%); bottom:104px}
+.vpadbtn{
+  position:absolute; right:10px; bottom:108px; display:none; align-items:center; gap:4px;
+  padding:5px 9px; border-radius:999px; font-size:10.5px; line-height:1;
+  border:1px solid var(--glassline); background:rgba(12,17,26,.82); color:var(--glassdim); z-index:7;
+}
+.vpadbtn.on{color:var(--gold); border-color:color-mix(in oklab, var(--gold) 55%, transparent)}
+@media (pointer:coarse){ .vpadbtn{display:flex} }
+body.vpad-on .vpadbtn{bottom:auto; top:84px}
+body.titlestate .stage .vpadbtn{display:none}
+
 /* 拾取卡片 */
 .card{
   position:absolute; left:50%; bottom:64px; transform:translate(-50%, 14px);
@@ -523,6 +559,9 @@ body.titlestate .ov#ovTitle .panel{
     <button class="autofire" id="autoBtn" aria-pressed="false" title="自动攻击：猫自己瞄准最近的敌人并开火，你只管走位（F）">
       <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.4v2.2M8 12.4v2.2M1.4 8h2.2M12.4 8h2.2"/></svg><span id="autoLabel">自动</span>
     </button>
+    <div class="vpad l" id="padL" aria-hidden="true"><i data-d="u">▲</i><i data-d="d">▼</i><i data-d="l">◀</i><i data-d="r">▶</i><span class="lab">移动</span></div>
+    <div class="vpad r" id="padR" aria-hidden="true"><i data-d="u">▲</i><i data-d="d">▼</i><i data-d="l">◀</i><i data-d="r">▶</i><span class="lab">射击</span></div>
+    <button class="vpadbtn" id="padBtn" aria-pressed="false" title="虚拟方向键：左边移动、右边射击（掌机式十字键）"><span id="padLabel">虚拟键</span></button>
     <div class="card" id="itemCard"><img alt=""><div><em></em><h4></h4><p></p></div></div>
     <div class="toast" id="toast"></div>
     <!-- 剧情对话：压在场景背景上，点哪儿都继续 -->
@@ -538,7 +577,7 @@ body.titlestate .ov#ovTitle .panel{
     <div class="hint" id="hintBar">
       <span class="kb"><b>WASD</b> 移动 · <b>鼠标</b>或<b>方向键</b> 射击 · <b>空格</b> 钥令 · <b>F</b> 自动攻击 · <b>Esc</b> 暂停<br>
         清掉房间里的东西 → 门会亮 → 走进亮着的那扇门</span>
-      <span class="tc">左半屏拖动移动 · 右半屏拖动射击 · 右下角可以开<b>自动攻击</b> · <b>清空房间门才会开</b></span>
+      <span class="tc">左半屏拖动移动 · 右半屏拖动射击（或点右侧「虚拟键」换成两个十字键）· 右下角可以开<b>自动攻击</b> · <b>清空房间门才会开</b></span>
     </div>
     <div id="boot" role="status" aria-live="polite">
       <div class="ring"></div>
