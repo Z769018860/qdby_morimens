@@ -228,5 +228,10 @@ export function arrange(song) {
     }
   }
   const beats = bar * 4;
+  // 每个旋律音到下一个旋律音的间隔（含休止）：乐句尾的音后面跟着一串休止，
+  // 谱面生成用它判断「这里可以拉一条长条」。
+  for (let i = 0; i < notes.length; i++) {
+    notes[i].gap = (i + 1 < notes.length ? notes[i + 1].t : beats * spb) - notes[i].t;
+  }
   return { bpm: song.bpm, spb, beats, dur: beats * spb + spb, chords, notes, drums };
 }

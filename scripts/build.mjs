@@ -495,7 +495,10 @@ function genLive() {
     if (!TRIG.has(s.trig)) throw new Error(`lovelive-units.json：${u.n} 的触发方式 ${s.trig} 不认识`);
     if (!FX.has(s.fx)) throw new Error(`lovelive-units.json：${u.n} 的效果 ${s.fx} 不认识`);
     if (!(s.val > 0) || s.dur == null) throw new Error(`lovelive-units.json：${u.n} 的技能缺 val/dur`);
-    const file = path.join(ROOT, byId.get(u.id).src);
+    // 优先用 72×72 缩略图（scripts/build_ll_faces.py 生成）：六十多张脸要一起内联，
+    // 原图 3.9KB/张 会让脚本涨到 240KB，缩略图只要 130KB。
+    const thumb = path.join(ROOT, 'assets/ll-faces', u.id + '.webp');
+    const file = has(thumb) ? thumb : path.join(ROOT, byId.get(u.id).src);
     if (!has(file)) throw new Error('头像不存在：' + file);
     return {
       id: u.id, n: u.n, hue: u.hue | 0, skill: s, pass: u.pass || null,

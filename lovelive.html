@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>lovelive！mori⭐mens！ · 忘忘同人小游戏</title>
-<meta name="description" content="点按式音游：学园偶像祭的玩法壳，上场的是《忘却前夜》的唤醒体。九个站位把音符收进判定环，三位唤醒体各带一个自动发动的技能。曲目是 Love Live! 经典曲的芯片风短版改编（页面内合成，无音频文件）。">
+<meta name="description" content="点按式音游：上方一个发球点把音符撒到下方九个击打框，九位唤醒体一队、技能全自动。默认芯片改编，也可以导入自己手里的原曲 mp3，按鼓点自动生成谱面。">
 <meta name="theme-color" content="#140a1c">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
 <style>
@@ -35,7 +35,7 @@ body{
 }
 @media (orientation:landscape){ .app{max-width:none} }
 
-.hud{display:flex; align-items:center; gap:8px; flex:0 0 auto; margin-bottom:6px}
+.hud{display:flex; align-items:center; gap:6px; flex:0 0 auto; margin-bottom:6px}
 .back{
   width:32px; height:32px; flex:0 0 32px; border-radius:9px; display:grid; place-items:center;
   border:1px solid var(--line); background:var(--panel); color:var(--text);
@@ -65,12 +65,14 @@ main > section[hidden]{display:none}
   filter:drop-shadow(0 2px 14px rgba(240,120,180,.25))}
 .logo .l2{font-size:13px; color:var(--dim); letter-spacing:.34em; margin-top:8px}
 .home-best{text-align:center; color:var(--dim); font-size:12.5px; min-height:1.5em}
+.home-src{text-align:center; color:var(--dim); font-size:11.5px; margin:-4px 0 0}
 .menu{display:flex; flex-direction:column; gap:10px; max-width:340px; width:100%; margin:10px auto 0}
 .btn{
   appearance:none; border:1px solid var(--line); background:var(--panel); color:var(--text);
   font:inherit; font-size:15px; padding:13px 18px; border-radius:13px; cursor:pointer;
 }
 .btn:hover{border-color:var(--pink)}
+.btn:disabled{opacity:.55; cursor:default}
 .btn.pri{
   background:linear-gradient(100deg,#e95f9f,#b95fd9); border-color:transparent; color:#fff;
   font-weight:700; box-shadow:0 8px 26px -12px rgba(233,95,159,.8);
@@ -79,15 +81,17 @@ main > section[hidden]{display:none}
 .home-note{margin-top:auto; text-align:center; color:var(--dim); font-size:11.5px; line-height:1.7; padding-bottom:4px}
 
 /* ---------------------------------------------------------------- 选曲 */
-.scr-h{display:flex; align-items:center; gap:8px; flex:0 0 auto}
-.scr-h h2{font-size:17px; margin:0; flex:1; text-align:center}
+.scr-h{display:flex; align-items:center; gap:6px; flex:0 0 auto}
+.scr-h h2{font-size:17px; margin:0; flex:1; text-align:center; min-width:0;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .song-list{flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:6px}
 .song{border:1px solid var(--line); background:var(--panel); border-radius:14px; padding:12px 14px}
 .song .sh{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap}
 .song h3{margin:0; font-size:15.5px}
 .song .by{font-size:11.5px; color:var(--pink2)}
 .song .bpm{margin-left:auto; font-size:11px; color:var(--dim); font-variant-numeric:tabular-nums}
-.song .sdesc{margin:5px 0 9px; font-size:12px; color:var(--dim); line-height:1.6}
+.song .src{font-size:11px; color:var(--dim); margin:5px 0 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.song .src.on{color:var(--gold)}
 .dfs{display:grid; grid-template-columns:repeat(4,1fr); gap:6px}
 .df{
   appearance:none; border:1px solid var(--line); background:var(--panel2); color:var(--text);
@@ -101,15 +105,19 @@ main > section[hidden]{display:none}
 
 /* ---------------------------------------------------------------- 编队 */
 .team-pick{
-  flex:0 0 auto; display:flex; gap:8px; align-items:center; justify-content:center;
-  min-height:58px; flex-wrap:wrap;
+  flex:0 0 auto; display:grid; grid-template-columns:repeat(9,1fr); gap:4px; align-items:center;
 }
 .pick{
-  display:flex; align-items:center; gap:6px; border:1px solid var(--line);
-  background:var(--panel); border-radius:12px; padding:5px 10px 5px 5px; font-size:12.5px;
+  position:relative; display:grid; place-items:center; aspect-ratio:1; overflow:hidden;
+  border:1px solid hsl(var(--h,0),60%,55%); background:var(--panel); border-radius:9px;
 }
-.pick img{width:34px; height:34px; border-radius:9px; box-shadow:0 0 0 2px hsl(var(--h),80%,70%)}
-.pick b{font-weight:600}
+.pick img{width:100%; height:100%; object-fit:cover; display:block}
+.pick em{
+  position:absolute; left:2px; bottom:0; font-style:normal; font-size:9px; font-weight:800;
+  color:#fff; text-shadow:0 1px 3px #000; letter-spacing:.02em;
+}
+.pick.empty{border-style:dashed; border-color:var(--line); opacity:.55}
+.pick.empty em{position:static; color:var(--dim); text-shadow:none; font-size:10px; font-weight:600}
 .dim{color:var(--dim); font-size:12.5px}
 .unit-grid{
   flex:1; min-height:0; overflow-y:auto; display:grid; gap:8px;
@@ -138,6 +146,36 @@ main > section[hidden]{display:none}
 .team-foot .tip{flex:1; font-size:12px; color:var(--bad); min-height:1.4em}
 .team-foot .btn{padding:11px 22px}
 
+/* ---------------------------------------------------------------- 设置 */
+.set-body{flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:8px}
+.card{border:1px solid var(--line); background:var(--panel); border-radius:13px; padding:12px 14px; display:flex; flex-direction:column; gap:10px}
+.card h3{margin:0; font-size:13.5px; color:var(--pink2); font-weight:700; letter-spacing:.04em}
+.card p{margin:0; font-size:11.5px; color:var(--dim); line-height:1.7}
+.row{display:flex; align-items:center; gap:10px}
+.row label{font-size:12.5px; flex:0 0 76px; color:var(--text)}
+.row input[type=range]{flex:1; min-width:0; accent-color:var(--pink); height:22px}
+.row .v{font-size:11.5px; color:var(--dim); min-width:52px; text-align:right; font-variant-numeric:tabular-nums}
+.seg{display:flex; gap:6px; flex-wrap:wrap}
+.seg button{
+  appearance:none; font:inherit; font-size:12px; padding:6px 11px; border-radius:9px; cursor:pointer;
+  border:1px solid var(--line); background:var(--panel2); color:var(--text);
+}
+.seg button.on{border-color:var(--pink); color:var(--pink2); background:color-mix(in srgb, var(--pink) 14%, var(--panel2))}
+.trk{display:flex; align-items:center; gap:8px; padding:7px 0; border-top:1px solid var(--line)}
+.trk:first-of-type{border-top:none}
+.trk .ti{flex:1; min-width:0}
+.trk .ti b{display:block; font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.trk .ti span{display:block; font-size:10.5px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.trk.on .ti span{color:var(--gold)}
+.trk .ta{display:flex; gap:6px; flex:0 0 auto}
+.trk .ta button{
+  appearance:none; font:inherit; font-size:11.5px; padding:5px 9px; border-radius:8px; cursor:pointer;
+  border:1px solid var(--line); background:var(--panel2); color:var(--text);
+}
+.trk .ta button:hover{border-color:var(--pink); color:var(--pink2)}
+.set-status{font-size:11.5px; color:var(--dim); line-height:1.6; min-height:1.6em}
+.set-status.err{color:var(--bad)}
+
 /* ---------------------------------------------------------------- Live */
 .live-hud{flex:0 0 auto; display:flex; align-items:center; gap:8px}
 .live-hud .meta{flex:1; min-width:0; text-align:center}
@@ -152,30 +190,26 @@ main > section[hidden]{display:none}
 }
 .stam i{display:block; height:100%; width:100%; background:linear-gradient(90deg,#9be29b,#ffd76a); transition:width .25s ease}
 .stam.low i{background:linear-gradient(90deg,#e8695f,#ff9e5f)}
-.skills{flex:0 0 auto; display:flex; gap:8px}
+.skills{flex:0 0 auto; display:grid; grid-template-columns:repeat(9,1fr); gap:3px}
 .skill{
-  flex:1; display:flex; align-items:center; gap:7px; border:1px solid var(--line);
-  background:var(--panel); border-radius:11px; padding:5px 8px; min-width:0;
+  position:relative; border:1px solid var(--line); background:var(--panel); border-radius:7px;
+  padding:2px; display:flex; flex-direction:column; gap:2px; min-width:0;
 }
-.skill img{width:30px; height:30px; border-radius:8px; flex:0 0 30px}
-.skill .sm{min-width:0; flex:1}
-.skill .sm b{display:block; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.skill .sk-n{display:block; font-size:9.5px; color:hsl(var(--h),80%,74%); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.skill .gauge{flex:0 0 34px; height:5px; border-radius:3px; background:var(--panel2); overflow:hidden}
-.skill .gauge i{display:block; height:100%; width:0; background:hsl(var(--h),85%,68%)}
-.skill.ready{border-color:hsl(var(--h),85%,68%); box-shadow:0 0 12px -2px hsl(var(--h),85%,60%,.7)}
+.skill img{width:100%; aspect-ratio:1; border-radius:5px; display:block; object-fit:cover}
+.skill .gauge{display:block; height:3px; border-radius:2px; background:var(--panel2); overflow:hidden}
+.skill .gauge b{display:block; height:100%; width:0; background:hsl(var(--h),85%,68%)}
+.skill.ready{border-color:hsl(var(--h),85%,68%); box-shadow:0 0 10px -2px hsl(var(--h),85%,60%,.75)}
 .stage{flex:1; min-height:0; position:relative; border-radius:14px; overflow:hidden}
 .stage canvas{position:absolute; inset:0; touch-action:none}
 .prog{position:absolute; top:0; left:0; right:0; height:3px; background:rgba(255,255,255,.06)}
 .prog i{display:block; height:100%; width:0; background:var(--pink); opacity:.8}
 .banner{
-  position:absolute; left:50%; top:14%; transform:translateX(-50%);
-  max-width:86%; text-align:center; font-size:14px; font-weight:700; color:var(--text);
+  position:absolute; left:50%; top:23%; transform:translateX(-50%);
+  max-width:86%; text-align:center; font-size:13.5px; font-weight:700; color:var(--text);
   background:rgba(20,14,32,.78); border:1px solid var(--line); border-radius:11px;
-  padding:7px 14px; opacity:0; transition:opacity .18s ease; pointer-events:none;
+  padding:6px 14px; opacity:0; transition:opacity .18s ease; pointer-events:none;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
-.combo-hint{position:absolute; right:10px; bottom:8px; font-size:10.5px; color:var(--dim); pointer-events:none}
 
 /* ---------------------------------------------------------------- 结算 */
 .result{flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; align-items:center; gap:8px; padding:12px 4px}
@@ -192,12 +226,13 @@ main > section[hidden]{display:none}
 .judge-list{list-style:none; margin:4px 0 0; padding:0; display:grid; grid-template-columns:repeat(5,auto); gap:4px 14px}
 .judge-list li{display:flex; flex-direction:column; align-items:center; gap:1px; font-size:10.5px}
 .judge-list b{font-size:15px; color:var(--text); font-variant-numeric:tabular-nums}
-.res-skills{list-style:none; margin:6px 0 0; padding:0; width:100%; max-width:360px; display:flex; flex-direction:column; gap:5px}
-.res-skills li{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--dim);
-  border:1px solid var(--line); background:var(--panel); border-radius:10px; padding:5px 10px}
-.res-skills img{width:26px; height:26px; border-radius:7px}
+.res-skills{list-style:none; margin:6px 0 0; padding:0; width:100%; max-width:400px; display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:5px}
+.res-skills li{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--dim);
+  border:1px solid var(--line); background:var(--panel); border-radius:10px; padding:4px 8px}
+.res-skills img{width:24px; height:24px; border-radius:7px; box-shadow:0 0 0 1px hsl(var(--h,0),70%,60%)}
 .res-skills span{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.res-skills b{color:var(--text)}
+.res-skills b{color:var(--text); font-variant-numeric:tabular-nums}
 .res-acts{display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; justify-content:center}
 
 /* ---------------------------------------------------------------- 弹层 */
@@ -214,18 +249,20 @@ main > section[hidden]{display:none}
 .sheet p{margin:0; font-size:12.5px; color:var(--dim); line-height:1.7}
 .sheet .acts{display:flex; gap:8px; justify-content:center; flex-wrap:wrap}
 dialog.help{border:1px solid var(--line); background:var(--panel); color:var(--text);
-  border-radius:16px; padding:18px; max-width:400px; width:88%; max-height:80dvh; overflow-y:auto}
+  border-radius:16px; padding:18px; max-width:420px; width:88%; max-height:80dvh; overflow-y:auto}
 dialog.help::backdrop{background:rgba(8,6,14,.8)}
 dialog.help h3{margin:0 0 8px; font-size:16px}
 dialog.help p{font-size:12.5px; color:var(--dim); line-height:1.8; margin:0 0 8px}
 dialog.help b{color:var(--text)}
+dialog.help code{font-family:ui-monospace,Menlo,monospace; font-size:11.5px; border:1px solid var(--line);
+  border-radius:5px; padding:0 4px; color:var(--pink2)}
 dialog.help .acts{display:flex; justify-content:flex-end; margin-top:10px}
 
 /* 首屏守护的占位要能盖住整页 */
 #boot{position:fixed; inset:0; z-index:99; display:grid; place-items:center; background:var(--bg); color:var(--dim); text-align:center; font-size:14px}
 #boot.err{color:var(--bad)}
 </style>
-<meta name="build" content="99789b345c">
+<meta name="build" content="54e130050e">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -382,6 +419,7 @@ html{-webkit-tap-highlight-color:transparent}
   <header class="hud">
     <span class="who"><b>lovelive！mori⭐mens！</b><span>忘忘学园偶像祭</span></span>
     <button class="ico" id="mute" title="静音开关" aria-label="静音开关">♪</button>
+    <button class="ico" id="btn-set" title="设置" aria-label="设置">⚙</button>
     <button class="ico" id="btn-help" title="玩法说明" aria-label="玩法说明">?</button>
   </header>
   <main>
@@ -392,13 +430,14 @@ html{-webkit-tap-highlight-color:transparent}
         <div class="l2">START:DASH</div>
       </div>
       <p class="home-best" id="title-best"></p>
+      <p class="home-src" id="title-src"></p>
       <nav class="menu">
         <button class="btn pri" id="btn-play" type="button">开始 Live</button>
-        <button class="btn" id="btn-team" type="button">编队</button>
+        <button class="btn" id="btn-team" type="button">编队（九人）</button>
       </nav>
       <p class="home-note">
-        曲目是 Love Live! 经典曲的芯片风短版改编：旋律与鼓点全部在页面里用振荡器现场合成，<br>
-        没有使用任何原曲音源；谱面由旋律生成，四位唤醒体带着自动技能陪你打完全曲。
+        上方一个发球点，下方九个击打框——音符散开、你把它接住。<br>
+        默认音源是页面内合成的芯片改编；想听原曲就进设置导入自己的 mp3，谱面会按原曲的鼓点重新生成。
       </p>
     </section>
 
@@ -406,7 +445,7 @@ html{-webkit-tap-highlight-color:transparent}
       <div class="scr-h">
         <button class="back" id="songs-back" type="button" aria-label="返回">←</button>
         <h2>选曲</h2>
-        <span style="width:32px"></span>
+        <button class="ico" id="songs-set" type="button" title="设置 / 音源" aria-label="设置">⚙</button>
       </div>
       <div class="song-list" id="song-list"></div>
     </section>
@@ -425,6 +464,69 @@ html{-webkit-tap-highlight-color:transparent}
       </div>
     </section>
 
+    <section id="scr-set" hidden>
+      <div class="scr-h">
+        <button class="back" id="set-back" type="button" aria-label="返回">←</button>
+        <h2>设置</h2>
+        <span style="width:32px"></span>
+      </div>
+      <div class="set-body">
+        <div class="card">
+          <h3>手感</h3>
+          <div class="row">
+            <label for="set-offset">判定偏移</label>
+            <input type="range" id="set-offset" min="-200" max="200" step="5">
+            <span class="v" id="set-offset-v">0 ms</span>
+          </div>
+          <div class="row">
+            <label>判定宽松</label>
+            <div class="seg" id="set-win">
+              <button type="button" data-v="0.85">严格</button>
+              <button type="button" data-v="1">标准</button>
+              <button type="button" data-v="1.25">宽松</button>
+              <button type="button" data-v="1.5">很宽</button>
+            </div>
+          </div>
+          <div class="row">
+            <label for="set-flow">音符流速</label>
+            <input type="range" id="set-flow" min="0.6" max="1.8" step="0.1">
+            <span class="v" id="set-flow-v">×1.0</span>
+          </div>
+          <div class="row">
+            <label>按键提示</label>
+            <div class="seg" id="set-keys">
+              <button type="button" data-v="1">显示</button>
+              <button type="button" data-v="0">隐藏</button>
+            </div>
+          </div>
+          <p>判定偏移：老是「点早了」就调大，老是「点晚了」就调小。判定宽松只影响五个判定档的宽度，不影响分数比例。</p>
+        </div>
+
+        <div class="card">
+          <h3>音量</h3>
+          <div class="row">
+            <label for="set-mus">音乐</label>
+            <input type="range" id="set-mus" min="0" max="100" step="1">
+            <span class="v" id="set-mus-v"></span>
+          </div>
+          <div class="row">
+            <label for="set-fx">判定音</label>
+            <input type="range" id="set-fx" min="0" max="100" step="1">
+            <span class="v" id="set-fx-v"></span>
+          </div>
+          <p>两路分开拧：原曲本身比现场合成的响，导入原曲后把音乐关小一点、判定音就能一直听清。</p>
+        </div>
+
+        <div class="card">
+          <h3>音源</h3>
+          <p>曲名借 Love Live! 的经典曲，但这里不打包任何原曲音源（公开仓库不能分发唱片）。<b>自己手里的 mp3</b> 可以导入：只存在这台设备的浏览器里，不上传、不跨设备；解码后会按原曲的鼓点重新生成谱面。</p>
+          <div id="set-tracks"></div>
+          <div class="set-status" id="set-status"></div>
+          <input type="file" id="set-file" accept="audio/*" hidden>
+        </div>
+      </div>
+    </section>
+
     <section id="scr-live" hidden>
       <div class="live-hud">
         <button class="ico" id="live-pause" type="button" aria-label="暂停">❙❙</button>
@@ -437,7 +539,6 @@ html{-webkit-tap-highlight-color:transparent}
         <canvas id="cv"></canvas>
         <div class="prog"><i id="live-prog"></i></div>
         <div class="banner" id="live-banner"></div>
-        <div class="combo-hint">点击音符 · 电脑可用 A S D F G H J K L</div>
         <div class="overlay" id="pauseDlg" hidden>
           <div class="sheet">
             <h3>暂停</h3>
@@ -461,6 +562,7 @@ html{-webkit-tap-highlight-color:transparent}
         <div class="res-sub">
           <span>准确率 <b id="res-acc">0%</b></span>
           <span>连击 <b id="res-combo">0</b></span>
+          <span>音符 <b id="res-notes">0</b></span>
         </div>
         <div class="res-best" id="res-best"></div>
         <ul class="judge-list" id="res-judge"></ul>
@@ -478,11 +580,11 @@ html{-webkit-tap-highlight-color:transparent}
 
 <dialog class="help" id="helpDlg">
   <h3>怎么玩</h3>
-  <p><b>点音符</b>：九个站位围着判定环排成一道弧，音符（唤醒体的脸）从站位沿直线收进来，<b>压到环上的那一刻点它</b>。点得越准分越高：PERFECT &gt; GREAT &gt; GOOD &gt; BAD，错过就是 MISS，断连还掉体力——体力见底 Live 就中断了。</p>
-  <p><b>长条音符</b>（外圈描了一道亮环的）：按住别松，一直撑到尾音收进环里。提前松手会断连。</p>
-  <p><b>唤醒体技能</b>：上场三位，技能全自动发动——判定放大、加分、Miss 救成 Good、护盾不断连、回体力、直接加连击、音符减速。每个人头顶的格子攒满就会自己跳出来，不用点。被动常驻加分 / 加判定。</p>
-  <p><b>操作</b>：手机直接点屏幕（支持多点）；电脑用鼠标点，或者 A S D F G H J K L 对应九个站位，Esc 暂停。</p>
-  <p><b>关于曲目</b>：曲名来自 Love Live! 经典曲，但音频是页面里现场合成的芯片风短版改编（手工重编的旋律与和声），不是原曲音源；BPM 做过取整，一局约一分钟。</p>
+  <p><b>看方向</b>：音符从上方那个发球点散开，沿直线飞向下方九格里属于它的那一格。<b>压进框里的那一刻点它</b>。点得越准分越高：PERFECT &gt; GREAT &gt; GOOD &gt; BAD，错过就是 MISS，断连还掉体力——体力见底 Live 就中断了。</p>
+  <p><b>长按</b>：外圈描了一道亮环的是长条。按住别松，撑到尾音进框为止；提前松手会断连（有护盾技能时不算）。</p>
+  <p><b>九个人</b>：编队最多九位唤醒体，第 1~9 位对应下面第 1~9 格，那一格的音符就是她的脸。技能全自动发动——判定放大、加分、Miss 救成 Good、护盾不断连、回体力、直接加连击、音符减速，攒满即放，不用点。</p>
+  <p><b>操作</b>：手机上直接点框或点音符（支持多指同时按）；电脑上鼠标点，或者用 <code>A S D F G H J K L</code> 对应九格，<code>Esc</code> 暂停。长条用键盘就是按住不放。</p>
+  <p><b>音源</b>：默认是页面内合成的芯片风短版改编；进「设置 → 音源」可以导入自己手里的原曲 mp3，只存在这台设备上，谱面会按原曲的鼓点重做。手感相关的偏移 / 宽松 / 流速也都在设置里。</p>
   <div class="acts"><button class="btn pri" type="button" onclick="document.getElementById('helpDlg').close()">知道了</button></div>
 </dialog>
 
@@ -496,7 +598,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 4500);
   setTimeout(function () {
     var b = document.getElementById('boot');
-    if (!b || Date.now() - t0 < 16000) return;
+    if (!b || Date.now() - t0 < 20000) return;
     b.className = 'err';
     b.innerHTML = '<p id="bootText">载入超时</p>';
     var btn = document.createElement('button');
@@ -504,10 +606,10 @@ html{-webkit-tap-highlight-color:transparent}
     btn.style.cssText = 'margin:10px auto;display:block;padding:7px 16px;border-radius:9px;border:1px solid #332a4d;background:#1f1833;color:#f0ecfa;font:inherit;cursor:pointer';
     btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
     b.appendChild(btn);
-  }, 16000);
+  }, 20000);
 })();
 </script>
-<script type="module" src="js/b/lovelive.js?v=99789b345c"></script>
+<script type="module" src="js/b/lovelive.js?v=54e130050e"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
