@@ -1742,13 +1742,14 @@ function keeper() {
   const e = Array.isArray(s.endings) ? s.endings.length : 0;
   const f = Array.isArray(s.forms) ? s.forms.length : 0;
   const nights = n(s.nights);
+  const T = 126;   // 与 js/keeper/endings.js 的 TOTAL 对齐（那边加了结局，这里跟着改）
   return {
     items: [
-      { k: '结局', v: e + ' / 112' },
+      { k: '结局', v: e + ' / ' + T },
       { k: '见过的形态', v: f + ' / 12' },
       { k: '下过钥冢', v: nights ? nights + ' 次' : '—' },
     ],
-    extra: e >= 112 ? '集齐了——第 113 号在你手上' : (e ? '还有 ' + (112 - e) + ' 个结局没走到' : ''),
+    extra: e >= T ? '集齐了——第 ' + (T + 1) + ' 号在你手上' : (e ? '还有 ' + (T - e) + ' 个结局没走到' : ''),
   };
 }
 
@@ -1874,7 +1875,7 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'duel', n: '唤醒王：决斗链接', href: 'duel.html', icon: '⚔', read: duel, tip: '卡牌对决，段位爬升' },
   { k: 'reign', n: '弥萨格王权', href: 'reign.html', icon: '👑', read: reign, tip: '准或不准，四项账' },
   { k: 'lovelive', n: 'lovelive！mori⭐mens！', href: 'lovelive.html', icon: '🎵', read: lovelive, tip: '点按式音游' },
-  { k: 'keeper', n: '杀死守密人', href: 'keeper.html', icon: '🔪', read: keeper, tip: '112 个结局的文字恐怖' },
+  { k: 'keeper', n: '杀死守密人', href: 'keeper.html', icon: '🔪', read: keeper, tip: '126 个结局的文字恐怖' },
   { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，73 位出战者，能上段' },
 ];
 
@@ -2035,7 +2036,7 @@ function digest() {
   const rlS = RD('roulette:v1') || {};
   out.rl = [n(rlS.rp), n(rlS.w), n(rlS.l), rankProgress(n(rlS.rp)).idx];
   // 杀死守密人 [已解锁结局数, 见过的形态数, 下过几趟]。图鉴只能一格一格点亮，
-  // 所以第 0 位就是上限 112 的进度分，首页排行榜按它排。
+  // 所以第 0 位就是上限 126 的进度分，首页排行榜按它排。
   const kpS = RD('keeper:v1') || {};
   out.kp = [arr(kpS.endings).length, arr(kpS.forms).length, n(kpS.nights)];
   return out;

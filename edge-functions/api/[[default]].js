@@ -1481,7 +1481,7 @@ const BOARD_SPEC = [
   { k: 'rg', gd: 'rg', i: 0, unit: '个结局', label: '结局数',
     sub: (v) => [Number(v[1]) > 0 ? `最长任期第 ${Number(v[1])} 天` : '', Number(v[2]) > 0 ? `当过 ${Number(v[2])} 任` : ''].filter(Boolean).join(' · '),
     tb: (v) => Number(v[1]) || 0 },
-  // 杀死守密人：按已解锁结局数排（0~112，一格只能点亮一次，刷不动），
+  // 杀死守密人：按已解锁结局数排（0~126，一格只能点亮一次，刷不动），
   // 同分时比见过的形态数（见 tb）
   { k: 'kp', gd: 'kp', i: 0, unit: '个结局', label: '结局数',
     sub: (v) => [Number(v[1]) > 0 ? `见过 ${Number(v[1])} 种形态` : '', Number(v[2]) > 0 ? `下过 ${Number(v[2])} 趟钥冢` : ''].filter(Boolean).join(' · '),

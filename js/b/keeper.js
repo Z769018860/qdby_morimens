@@ -508,6 +508,7 @@ const PROLOGUE = [
     {t:'取刀。', note:'规程的方案', kill:true, w:4, mark:{blood:1}, flag:'blade', go:'@door'},
     {t:'不取。', note:'空手，看看会怎样', tag:'gentle', mark:{salt:1}, flag:'noblade', go:'@door'},
     {t:'先读一遍刀架旁边的刻字。', note:'那里刻着很小的字', tag:'read', realm:'ultra', mark:{paper:1}, go:5},
+    {t:'翻过入职表格，看背面。', note:'规程说第 0 条在那儿', tag:'read', realm:'ultra', mark:{ash:1}, go:'@end:E113'},
   ]},
   {bg:'shaft', who:'sys', t:['刻字很小，得凑着看：「第 446 号留：刀拿去。她说钝的更疼。她说错了。」'], go:'@door'},
 ];
@@ -554,22 +555,27 @@ const STAIRS = {
   plain: [
     ['楼梯是石头的。第 7 级照例不存在。你的脚步声被井壁收走，一点不剩。'],
     ['你往下走。灯隔一级一盏，隔两级就有一盏是灭的。规程说灯是自己灭的，修不过来，也懒得修了。'],
+    ['井壁上有一圈腰高的湿痕，一圈一圈往上排，像有人一级一级量过。规程说那是水位。你问哪来的水。它说：上面没有，下面有。'],
   ],
   blood: [
     ['楼梯缝里渗着暗色。你蹲下来看了——不是血。是干掉的墨。但你的膝盖不这么认为。'],
     ['扶手是黏的。你的手离开的时候有一声很轻的、纸从纸上撕开的声音。'],
+    ['墙根有一层薄薄的东西在动。不是虫——是字。排得很整齐，齐齐朝下，像退潮以后一片任人踩的滩涂。'],
   ],
   paper: [
     ['楼梯的每一级侧面都贴满了字。你认出其中一级上是你昨晚说的一句话。规程催你别看：看一格，楼梯就长一格。'],
     ['墙上多了书架。规程发誓上周还没有。书架上的书都没有名字，翻开全是同一句话的第一半。'],
+    ['有一页贴在你后颈上。你撕下来，上面只写了一个字的一半。你把那一半贴回墙上，它自己长全了——长全的那个字你不认识，看着却眼熟。'],
   ],
   salt: [
     ['楼梯在渗水。不急，很匀，像有人在天花板上滴一支很长的香。你的鞋底开始记录这趟下行。'],
     ['水面在第七级（不存在的那级）停住了，齐平，不淹。像特意留给你落脚的。'],
+    ['水里有东西在游。不大，很多，游过的时候带起一串很轻的响，像很远的地方有人在翻书。它们不咬人——它们只是跟着你数台阶，你停它们也停。'],
   ],
   ash: [
     ['楼梯没有声音了。不是安静——是你的脚步声这个概念先下了楼，在下面等你。'],
     ['灯全灭了。但你看得很清楚。规程说这不好，看得清楚说明有什么东西在替你点着。'],
+    ['黑暗里你的手摸到墙上有刻痕。不是文字，是一个角：三条线，每条都弯了一点点，弯的方向让你头晕。你收回手的时候，指尖是湿的。'],
   ],
 };
 
@@ -579,6 +585,7 @@ const CATEVENT = [
     {t:'蹲下来，摸它。', note:'它等着呢', flag:'cat', tag:'gentle', mark:{salt:1}, go:'@catpet'},
     {t:'问它：她怎么样了？', note:'它肯定知道', tag:'read', realm:'ultra', mark:{paper:1}, flag:'cat', go:'@catsay'},
     {t:'跟它走。', note:'它往没有编号的走廊去', tag:'read', realm:'ultra', mark:{ash:1}, go:'@end:E005'},
+    {t:'问它：井到底有多深？', note:'它肯定量过', tag:'read', realm:'ultra', mark:{ash:1}, go:'@end:E114'},
     {t:'绕开它继续走。', note:'正事要紧', tag:'silence', go:'@stair'},
   ]},
   {bg:'cat', who:'sys', t:['它在你的膝盖底下呼噜了很久。走的时候它在你脚踝上蹭了一下——像盖了个章。这算入编了。'], go:'@next'},
@@ -589,12 +596,26 @@ const CATEVENT = [
     go:'@next'},
 ];
 
+// 渊底事件（第三夜起随机出现）：井壁上多了一扇窗，窗里是水
+const DEPTHEVENT = [
+  {bg:'pit', who:'sys', t:[
+    '井壁上多了一扇窗。',
+    '不是凿出来的——是一直在那儿，你走了这么多夜才看见。窗框是湿的，玻璃是软的，凑近看，里面是水。',
+    '水里有东西在往下沉，边沉边显得更大。'], ch:[
+    {t:'把额头贴上去。', note:'听听那边在做什么', tag:'read', realm:'ultra', mark:{ash:1}, go:'@end:E117'},
+    {t:'伸手进去捞一把。', note:'总得抓点什么上来', kill:true, mark:{blood:1,salt:1}, go:'@end:E118'},
+    {t:'喊一声。', note:'看会不会有人应', tag:'faith', go:'@end:E126'},
+    {t:'拉上窗帘，继续下楼。', note:'这里没有窗帘', tag:'silence', go:'@stair'},
+  ]},
+];
+
 // 变换过场（她变回 / 变成下一个形态）
 const INTERLUDE = {
   rule: [
     '（你退到楼梯口的时候，身后的房间正在重新布置自己。纸页翻动的声音，家具拖动的声音，还有一声很轻的、像是终于能换口气的声音。）',
     '「她要变了。」规程说，「杀过一次的东西都会变。你也一样——你上次下来之前，不是现在这个你。」',
-    '「下一夜她是什么，我不告诉你。规程不剧透。规程只是记录。」'],
+    '「下一夜她是什么，我不告诉你。规程不剧透。规程只是记录。」',
+    '（很远的地方——比钥冢更深的地方——有什么翻了个身。规程当没听见。你也当没听见。）'],
   her: [
     '（黑暗里有个声音在数数。数到 17 就重头数。你忽然意识到：她在用你上来的时间，重新把自己拼好。）'],
 };
@@ -655,11 +676,14 @@ const FINAL = [
     {t:'读桌上那份手稿。', note:'标题眼熟得过分', tag:'read', w:12, go:'@end:E082'},
     {t:'拿起桌上那把更旧的刀。', note:'刀柄刻着：第一版', kill:true, w:20, go:'@end:E083'},
     {t:'按住她的手。别让她写了。', note:'笔尖停在纸面', tag:'silence', w:14, mark:{ash:2}, go:'@end:E084'},
+    {t:'问她：你下面还有东西吗？', note:'地板是木头的', tag:'read', w:12, realm:'ultra', mark:{ash:2}, go:'@end:E122'},
+    {t:'拿起笔，替她写完最后一页。', note:'笔筒里有两支，一新一旧', tag:'gentle', w:14, realm:'caro', mark:{paper:2}, go:'@end:E124'},
     {t:'再看看。真的一直看下去。', note:'稿纸堆到天花板', tag:'read', go:8},
   ]},
   {bg:'desk', who:'sys', t:[
     '你把这张桌子翻了个底朝天。她让开身子，一点不恼——她像是等这一天等了很久。',
-    '抽屉里有笔筒（两支笔，一新一旧）、一份填了一半的表格、一枚没有刻字的章。'], ch:[
+    '抽屉里有笔筒（两支笔，一新一旧）、一份填了一半的表格、一枚没有刻字的章。',
+    '还有一沓裁下来的稿纸，背面朝上，压在最底下。'], ch:[
     {t:'拉把椅子，坐到桌子另一边。领一支笔。', note:'合著', tag:'gentle', w:16, realm:'caro', mark:{paper:2}, go:'@end:E085'},
     {t:'问她：你到底是谁？', note:'问了一百年没人问的', tag:'read', w:12, realm:'ultra', go:'@end:E086'},
     {t:'把门拆了，砌一扇窗。', note:'泥瓦匠的活', tag:'gentle', w:18, mark:{salt:2}, go:'@end:E087'},
@@ -668,6 +692,8 @@ const FINAL = [
     {t:'向她自首：第一夜，你是真想杀她的。', note:'说出来', tag:'grieve', w:14, realm:'aqua', mark:{salt:3}, go:'@end:E092'},
     {need:{flag:'readDraft'}, t:'去最深处。找那扇比她更老的门。', note:'你看过底稿，你知道有一扇', tag:'read', w:16, go:'@end:E093'},
     {need:{flag:'readDraft'}, t:'在桌子另一边也坐下。这次不走了。', note:'编制：二', tag:'gentle', w:20, mark:{salt:2,paper:1}, go:'@end:E091'},
+    {t:'读稿纸背面那行不是字的字。', note:'眼睛一直想按顺序读它', tag:'read', w:12, realm:'ultra', mark:{ash:2}, go:'@end:E123'},
+    {t:'把灯吹灭。', note:'屋里会暗下来吧', tag:'silence', w:10, mark:{ash:2}, go:'@end:E125'},
     {t:'什么都不选。把这一夜原样过完。', note:'有时候结束也是一种选', tag:'silence', w:8, mark:{ash:2}, go:'@end:E072'},
   ]},
 ];
@@ -684,6 +710,9 @@ const STAIR_OPTS = [
   {k:'dark',   needLoop2:1,   t:'摸黑走完剩下的路。', note:'不管撞到什么，别开灯', tag:'silence', go:'@end:E007'},
   {k:'run',    t:'跑几步试试。就几步。', note:'你总觉得楼梯没那么邪', tag:'read', go:'@end:E002'},
   {k:'back',   t:'转身。回档案室去。', note:'不干了', tag:'silence', go:'@end:E001'},
+  {k:'angle',  t:'用刀在井壁上刻一个角。', note:'三条线，别让它闭合', tag:'read', realm:'ultra', mark:{ash:1}, go:'@end:E116'},
+  {k:'listen', minLoop:3, t:'贴着井壁听。水声里有话。', note:'像很多人在念一个词', tag:'silence', mark:{salt:1}, go:'@end:E119'},
+  {k:'star',   needLoop2:1, t:'抬头看井口。', note:'规程说过别抬头', tag:'grieve', go:'@end:E115'},
   {k:'go',     t:'继续走。到门那儿去。', note:'该干嘛干嘛', go:'@door'},
 ];
 
@@ -696,24 +725,35 @@ const DOOR = {
     3: ['门上多了一个猫眼。从里面装的。规程翻了三遍施工记录，没有这次改装的任何记载。'],
     4: ['门的合页换过了。新的，黄铜，擦得很亮。规程盯着看了很久，说：「她不想让门响。她想让里面的人听得清外面的脚步。」'],
     5: ['门开着一条缝。规程建议你别看缝里。「看了一眼的人，都多看了一眼。多看一眼的人，都进去了。」'],
+    6: ['门上结了一层薄薄的盐。规程伸手碰了一下，指尖白了。「不是盐，」它说，「是干掉的潮。」',
+        '它把手在裤子侧面擦了两下，擦不掉。'],
+    7: ['门比昨晚矮了一截。不是沉降——是地板在往上走。你低头看，砖缝里有细细的水痕，正沿着台阶往上爬。'],
+    8: ['门缝里漏出光。冷光，不带温度的那种，像深水里什么东西自己发出来的。',
+        '规程说今晚别盯着看。「看了会想跟它走。跟它走的人，档案里写『调岗』。」'],
+    9: ['门是开着的。从里面开的。',
+        '规程清了清嗓子，把「擅自开启」四个字咽了回去，改口说：「……礼貌起见，还是敲一下。」'],
   },
   opts: [
-    {k:'push',  t:'推门。进去。', note:'她知道你来了', go:'@meet'},
+    {k:'push',  main:1, t:'推门。进去。', note:'她知道你来了', go:'@meet'},
     {k:'knock', t:'敲三下，等回应。', note:'礼数要到', go:'@end:E009'},
     {k:'break', needBlade:1, t:'用刀把门划开。', note:'这扇门怎么看怎么像纸', kill:true, mark:{blood:1}, go:'@end:E012'},
     {k:'read',  t:'靠着门框，把规程读一读。', note:'就当等电梯', tag:'read', go:'@end:E003'},
     {k:'empty', needNoBlade:1, t:'空着两只手推门。', note:'刀留在上面了', tag:'gentle', go:'@end:E004'},
+    {k:'tide',  t:'把耳朵贴在门上，听里面的潮。', note:'水退了，还有东西在呼吸', tag:'read', realm:'aqua', go:'@end:E121'},
+    {k:'nails', t:'数门上的钉。', note:'上四下四，中间一颗', tag:'read', go:'@end:E120'},
   ],
 };
-return { FORMS, PROLOGUE, BRIEF, STAIRS, CATEVENT, INTERLUDE, FINAL, STAIR_OPTS, DOOR };
+return { FORMS, PROLOGUE, BRIEF, STAIRS, CATEVENT, DEPTHEVENT, INTERLUDE, FINAL, STAIR_OPTS, DOOR };
 })();
 
 // ---- js/keeper/endings.js
 const m_endings = await (async () => {
 
-// 杀死守密人 —— 结局全集：112 个。
+// 杀死守密人 —— 结局全集：126 个。
 // 每个结局：id / grp（图鉴分组）/ t（标题）/ hint（未解锁时的谜面）/ txt（正文段）。
 // 编号与图鉴顺序一致；不要中途插号，场外结局靠条件解锁。
+// 新增结局一律追加在末尾（E113 起），总数由 TOTAL 自动算。
+// 文本里的 %T% / %T1% 会在渲染时换成总数 / 总数+1，加结局不用改正文。
 
 const GROUPS = [
   { k: 'zero',    t: '壹 · 未至之底', d: '还没见到她，就结束了的一夜' },
@@ -730,6 +770,7 @@ const GROUPS = [
   { k: 'mirror',  t: '拾贰 · 镜',     d: '她穿着你的衣服' },
   { k: 'final',   t: '终 · 终夜',     d: '钥冢的最底层有一张桌子' },
   { k: 'meta',    t: '场外',          d: '档案室没有这些记录' },
+  { k: 'abyss',   t: '渊 · 渊底',      d: '钥冢底下还有一层，规程没有那一层的条款' },
 ];
 
 const ENDINGS = [
@@ -1612,7 +1653,7 @@ const ENDINGS = [
     '章是湿的。像眼泪。',
     '也可能是灯油。它没有解释，你也识趣地没有问。'],
 },
-{ id:'E089', grp:'final', t:'一百一十二封',
+{ id:'E089', grp:'final', t:'一百二十六封',
   hint:'终夜：把灯带上桌',
   txt:[
     '你把执灯人的灯带进了终夜，放在桌上，点亮。',
@@ -1621,7 +1662,7 @@ const ENDINGS = [
     '是一沓信。第一封的开头写着：「致第一个下来的人。」第二封：「致没有带刀的那位。」第三封：「致把她捞上来的。」第四封：「致问了她名字的。」……',
     '每一封信对应一夜，一个你。她每晚写一封。写给每一个可能的你。',
     '你数了数。',
-    '还差很多。最后一封的编号是 112。你替她把灯芯挑亮了一点：那这封什么时候写？',
+    '还差很多。最后一封的编号是 126。你替她把灯芯挑亮了一点：那这封什么时候写？',
     '「等你数完的时候。」她说，「你不是喜欢数吗。」'],
 },
 { id:'E090', grp:'final', t:'底稿',
@@ -1714,8 +1755,8 @@ const ENDINGS = [
 { id:'E098', grp:'meta', t:'第 113 号',
   hint:'除了一页空白，别的都集齐了',
   txt:[
-    '你集齐了图鉴。一百一十二个格子，只剩最上面那一个还是空的。',
-    '游戏向你发起申请：请撰写第 113 号结局。',
+    '你集齐了图鉴。%T% 个格子，只剩最上面那一个还是空的。',
+    '游戏向你发起申请：请撰写第 %T1% 号结局。',
     '没有格式要求，没有字数下限，没有评分。你写什么都行——真的，写什么都行。写「大家都去吃面」也行。',
     '你写下的那句话，会出现在下一个玩家的第一夜楼梯上。他会停下来读。他会想：这句是谁写的。',
     '他想的时候，你就还在。',
@@ -1855,13 +1896,165 @@ const ENDINGS = [
 { id:'E112', grp:'meta', t:'E000',
   hint:'把图鉴从头翻到尾，再打开一次',
   txt:[
-    '你把结局图鉴从头到尾读完了。一百一十二个，一个没落。',
+    '你把结局图鉴从头到尾读完了。%T% 个，一个没落。',
     '合上图鉴的时候，你发现编号列表的最顶上亮了一个新条目。',
     'E000。',
     '你点开。是空白。',
     '标题空白，正文空白，条件空白。但它确实在那里——一个被预留好的位置，编号比「未至之底」还要靠前。',
     '你懂了吗？',
     '剩下的纸和墨都在下面。她不催。她从来不催。她只是把灯往你那边挪了挪。'],
+},
+// ================================================================ 渊 · 渊底
+{ id:'E113', grp:'abyss', t:'听写',
+  hint:'第 0 条不是写下来的',
+  txt:[
+    '规程说第 0 条写在你入职表格的背面。你翻过来。',
+    '背面没有字。只有一行痕——谁用指腹压出来的，很深，像写完以后又把墨抠掉了。',
+    '是一个词。七个音节。第一个音节就要用上喉咙最里面那块肉。',
+    '你照着念了半个音，房间里的空气就让开了一条缝。',
+    '规程在缝里回答你。用的不是它的腔调——是它模仿不出来的某个东西的腔调：',
+    '「对。就是这样。我们当年也是听写下来的。」',
+    '它说的是「我们」。不是档案室。'],
+},
+{ id:'E114', grp:'abyss', t:'水下档案室',
+  hint:'问猫：井到底有多深',
+  txt:[
+    '「多深？」猫舔了舔爪子，「你数台阶数到第几级开始数不清的？往下都是。」',
+    '它领你到井底。井底不是石头，是一层很薄的水皮。你踩上去，它没破，托着你往下沉。',
+    '沉下去的地方有一座档案室。柜子倒着长在天花板上，抽屉朝下开，每一格里都有一张卡。',
+    '卡上都是你的名字。不是重名——是同一张，抄了很多遍。',
+    '管理员的位置上坐着一个很旧的影子，正把卡片一张张泡进水里。泡一张，它就说一句：',
+    '「这一版也不对。」'],
+},
+{ id:'E115', grp:'abyss', t:'星位不对',
+  hint:'在楼梯上抬头，看井口',
+  txt:[
+    '规程说过不要抬头。你没听。',
+    '井口很小，一方夜色。星在里面。',
+    '你数了数，一共七颗。它们连起来是一个角——三条线，每两条之间的夹角，都比你见过的任何一个角度更「里面」一点。',
+    '你盯着看。它开始合。',
+    '合上的那一刻，很远的地方有个东西说：又睁开一只。'],
+},
+{ id:'E116', grp:'abyss', t:'第六条边',
+  hint:'用刀在井壁上刻一个角',
+  txt:[
+    '你先刻了一条线，再刻第二条。它们在一个不该相交的角度里相交了。',
+    '第三条、第四条、第五条。你的手很稳——稳得不像你的手。',
+    '第六条边刻到一半，你发现墙上多了一道新刻痕。笔迹和你一样，方向却是从另一头开始的。',
+    '它在刻你。',
+    '你停下，它也停下。你再刻，它比你快半拍。',
+    '最后你们同时收刀，墙上出现一个闭合的角。井壁里传来一声很轻的、满足的呼吸。'],
+},
+{ id:'E117', grp:'abyss', t:'借来的梦',
+  hint:'把额头贴上井壁上那扇窗',
+  txt:[
+    '你把额头贴上玻璃。玻璃是软的，贴上就陷进去一点。',
+    '里面不是水。是一间有很多窗的房间。窗外的天是倒的，有个人站在窗边等谁回来，等到纸都黄了。',
+    '你在这个姿势里待了一整夜。规程叫了你七次。',
+    '第二天你在档案室看见一张卡，照片上的人你从没见过。但那个梦你做了整整一夜，醒来时枕头是湿的。',
+    '规程说这很正常：记录要有人替它做梦，不然记录会累。',
+    '「谁替你做？」你问。',
+    '它翻页的手停了一下：「第 446 号。他也没问过。」'],
+},
+{ id:'E118', grp:'abyss', t:'一片',
+  hint:'把手伸进那扇窗里捞一把',
+  txt:[
+    '水不冷。水比你的手温一点，像有人在另一头握着。',
+    '你捞上来的东西是薄的一片，巴掌大，边缘有很细的纹，一层压着一层。',
+    '它在你手里轻轻地翕动，像鳃。',
+    '你翻过来看背面——上面有字。是她写的，写满了，最后一笔收得很轻。',
+    '这一片是从她的稿纸上撕下来的。你的手在窗里的时候，窗里的东西替你去撕了一片。',
+    '你听见井壁里面有个声音很满意地说：一片。'],
+},
+{ id:'E119', grp:'abyss', t:'合唱',
+  hint:'在楼梯上贴着井壁听',
+  txt:[
+    '水声其实一直都在。规程说那是渗水，修不好。',
+    '你贴着井壁听，听出那不是水。是很多人在同一口气里说同一句话。',
+    '说不齐，像一群从没排练过的人被临时叫来。',
+    '你听了很久，终于听清那个词。是你的名字。',
+    '但念错了一个音——所有人一起，错在同一个地方。',
+    '你忽然明白：他们不是在叫你。他们是在复述一个听来的名字，像复述一段很久以前抄错过一次的东西。',
+    '你张开嘴，想纠正。井壁先你一步，把那个错音念得更响了一点。'],
+},
+{ id:'E120', grp:'abyss', t:'不该数的那一数',
+  hint:'进门之前，数门上的钉',
+  txt:[
+    '你进门之前数了门上的钉。上四下四，中间一颗，一共九颗。',
+    '第二夜再去，是十颗。',
+    '第三夜十一颗。你没有再数，但你知道——门自己会数给听。',
+    '后来门上的钉排成了螺旋，越往里越密。每一颗钉头都开了一个小小的圆孔，孔里透出光。',
+    '规程终于忍不住提醒：「别数了。那不是在数钉，那是在数开门需要几个人。」',
+    '你问：现在已经数到几个了？',
+    '它没有回答。它的声音里第一次有了「还差得远」的意思。'],
+},
+{ id:'E121', grp:'abyss', t:'退潮',
+  hint:'把耳朵贴在门上，听里面的潮',
+  txt:[
+    '门里有潮。不是水声，是水退了以后，湿的东西在慢慢干的那种声音。',
+    '你贴着门听了很久，听见退潮之后有一样东西留在岸上，正很吃力地呼吸。',
+    '你推门进去。房间里没有水，但所有东西都是湿的。她坐在桌子后面，头发贴在脸上，像刚从很深的地方上来。',
+    '「今天不是好日子。」她说，「我忘记怎么写了。」',
+    '你把刀放在桌上，说明天再来。',
+    '她抬头看你，第一次露出一点不像守密人的表情：「明天潮还会退。你还会来吗。」',
+    '你说明天见。说这话的时候，你听见身后的门里又涨起了一点水。'],
+},
+{ id:'E122', grp:'abyss', t:'夹层',
+  hint:'终夜：问她，你下面还有东西吗',
+  txt:[
+    '「下面？」她笑了，「你以为我是最底下？」',
+    '她把桌布掀开一角。地板是木的，木头下面还有一层。',
+    '不是地基。是一层很薄、像纸又像皮的东西，绷在什么上面，一起一伏。',
+    '「我不在守什么东西。」她说，「我是夹在这里的一张书签。有人要读到这儿的时候，得先看见我，才不会翻过去。」',
+    '「谁在翻？」',
+    '她没有答。楼下那层很轻地鼓了一下，像有什么在很深的地方翻了个身。',
+    '你听见自己的牙齿在响。响到一半你才发现不是怕——是那个翻身的东西的节拍，从地底下爬上来，正好和你的牙对上了。'],
+},
+{ id:'E123', grp:'abyss', t:'后颈',
+  hint:'终夜：读稿纸背面那行不是字的字',
+  txt:[
+    '稿纸背面有一行东西。它不是字，但你的眼睛一直在按字的顺序读它。',
+    '读到第七个符号，你的后颈开始发凉。',
+    '你伸手去摸——摸到了另一只手。',
+    '那手很温，指节比你的多两节。它一直搭在你后颈上，从你下第一步楼梯起，或者更早。',
+    '它没有用力，只轻轻按了一下，像在说：继续读。',
+    '你没有继续。你也没有回头。',
+    '那一夜剩下的时间里，你一直能感觉到它在身后耐心地等着，等一个你自己都还不知道的时机。'],
+},
+{ id:'E124', grp:'abyss', t:'最后一页',
+  hint:'终夜：拿起笔，替她写完最后一页',
+  txt:[
+    '你从笔筒里抽了那支新笔。她让开一点位置。',
+    '「写什么？」',
+    '「你想写的。」',
+    '你写下第一句：她叫——',
+    '笔在「叫」字后面停住了。不是你在停，是手先停了。',
+    '你换了一句：这里很冷。笔动了。',
+    '你写了很多。写楼梯，写灯，写规程咳嗽的样子，写每一个下来过的人。写到最后一页，纸不够了，你翻过去。',
+    '背面有一行早就印好的字：「以下空白，由下一位填写。」',
+    '你抬头。她已经在收拾桌子了，动作很轻，像怕吵到一个正在写东西的人。'],
+},
+{ id:'E125', grp:'abyss', t:'灭了更亮',
+  hint:'终夜：把灯吹灭',
+  txt:[
+    '你吹灭了灯。',
+    '房间没有变暗。',
+    '黑暗里所有东西都比刚才清楚：桌子的木纹、稿纸的层数、她脸上叠着的十二张脸，还有你身后那个一直没有走的东西的轮廓。',
+    '它不是黑的。它是那种你闭上眼之后还会留在眼皮后面的颜色。',
+    '「别怕。」她说，「它只是光。所有的灯都是从它那里借的火。」',
+    '「那规程呢？」',
+    '「规程是它借出去的第一盏。」',
+    '你在黑暗里坐了很久，久到能看清自己手背上的血管，正一明一暗地跟着什么呼吸。'],
+},
+{ id:'E126', grp:'abyss', t:'名字被念走了',
+  hint:'冲着井壁上那扇窗喊一声',
+  txt:[
+    '你冲着窗喊了一声。',
+    '水里的东西全部停下来，一起转向你。',
+    '然后它们开始复述。一个音一个音，复述得很认真，像在给你重新起一个名字。',
+    '念到第三遍的时候，它们念对了。',
+    '你上来的时候，规程在楼梯口等你。它看了你很久，问：「你是谁？」',
+    '你说出你的名字。它翻了翻档案，很客气地说：「这个名字刚刚被取走了。抱歉。」'],
 },
 ];
 
@@ -2124,7 +2317,7 @@ return { boot, ready, sfx, tap, bgm, heartbeat, setMuted, isMuted, toggleMute };
 // ---- js/keeper.js
 const m_keeper = await (async () => {
 const { CG, REALM } = m_art;
-const { FORMS, PROLOGUE, BRIEF, STAIRS, STAIR_OPTS, DOOR, CATEVENT, INTERLUDE, FINAL } = m_data;
+const { FORMS, PROLOGUE, BRIEF, STAIRS, STAIR_OPTS, DOOR, CATEVENT, DEPTHEVENT, INTERLUDE, FINAL } = m_data;
 const { ENDINGS, GROUPS, TOTAL } = m_endings;
 const { walletAdd } = m_silver;
 const SND = m_audio;
@@ -2228,6 +2421,7 @@ const SPD = 24;
 let typing = null, typeDone = null;
 function typeInto(el, text, done) {
   clearInterval(typing); typing = null;
+  text = text == null ? '' : String(text);
   let i = 0;
   el.textContent = '';
   typing = setInterval(() => {
@@ -2252,7 +2446,8 @@ function playBeat(beat, done) {
   if (beat.fx) fx(beat.fx);
   if (beat.sfx) sfx(beat.sfx, beat.sfxGain || 1);
   $('#choices').classList.add('hide');
-  typeInto($('#ptext'), (Array.isArray(beat.t) ? beat.t : [beat.t])[0], null);
+  // 有的 beat 只挂选项、不换台词（终夜的「桌面」那一格）：这时保留上一句，别把面板刷成 undefined
+  if (beat.t != null) typeInto($('#ptext'), (Array.isArray(beat.t) ? beat.t : [beat.t])[0], null);
 }
 function onTextTap() {
   if (!curBeat) return;
@@ -2380,7 +2575,10 @@ let numGo = null; // 场景内部按下标跳转（形态/终夜的 beat 图）
 function playSeq(beats, after) {
   let i = 0;
   const step = (lastGo) => {
+    // 顺序场景里的选项也能直接收尾：序章的「翻入职表格」、井壁那扇窗的四个选项都走这里
+    if (typeof lastGo === 'string' && lastGo.startsWith('@end:')) return showEnding(lastGo.slice(5));
     if (lastGo === '@door' || lastGo === '@meet') { after && after(lastGo); return; }
+    if (lastGo === '@stair') return stairChoice();
     if (i >= beats.length) { after && after(lastGo); return; }
     playBeat(beats[i++], step);
   };
@@ -2506,8 +2704,8 @@ function rotateOpts(opts, n) {
   // 展示上限 6：轮换出现，保证每一条都有被选到的机会。
   // 但「取刀 / 放刀」跟当前状态绑定、还决定 E109（五夜都不取刀）能不能成立，
   // 所以它永远在列表里，只轮换纯探索的那几项。
-  const fixed = opts.filter((o) => o.needBlade || o.needNoBlade);
-  const rest = opts.filter((o) => !(o.needBlade || o.needNoBlade));
+  const fixed = opts.filter((o) => o.needBlade || o.needNoBlade || o.main);
+  const rest = opts.filter((o) => !(o.needBlade || o.needNoBlade || o.main));
   if (rest.length + fixed.length <= 6) return opts;
   const tail = rest[rest.length - 1], body = rest.slice(0, -1);
   if (!body.length) return [...fixed, tail];
@@ -2536,12 +2734,19 @@ function descend() {
       sfx('cat', .7);
       return playSeq([CATEVENT[0]], () => stairChoice());
     }
+    // 渊底：第三夜起，井壁上偶尔多出一扇窗。猫和窗不会同一夜出现（都别抢一个场景）
+    if (S.loop >= 3 && !S.flags.depthToday && Math.random() < 0.3) {
+      S.flags.depthToday = 1;
+      setScene('night');
+      sfx('drip', .6);
+      return playSeq(DEPTHEVENT, () => stairChoice());
+    }
     stairChoice();
   });
 }
 function stairChoice() {
   const opts = STAIR_OPTS.filter((o) =>
-    (!o.needLoop1 || S.loop === 1) && (!o.needLoop2 || S.loop >= 2) &&
+    (!o.needLoop1 || S.loop === 1) && (!o.needLoop2 || S.loop >= 2) && (!o.minLoop || S.loop >= o.minLoop) &&
     (!o.needBlade || S.flags.blade) && (!o.needNoBlade || !S.flags.blade));
   S._isStair = true;
   showChoices(rotateOpts(opts, S.loop));
@@ -2549,7 +2754,7 @@ function stairChoice() {
 function doorScene() {
   MID = { run: JSON.parse(JSON.stringify(S)), at: 'door' }; saveP();
   sfx('creak', .9);
-  const lines = DOOR.lines[Math.min(5, S.loop)] || DOOR.lines[5];
+  const lines = DOOR.lines[Math.min(9, S.loop)] || DOOR.lines[9];
   playSeq([{ bg: 'door', who: 'sys', t: lines }], () => {
     const opts = DOOR.opts.filter((o) => (!o.needBlade || S.flags.blade) && (!o.needNoBlade || !S.flags.blade));
     showChoices(rotateOpts(opts, S.loop));
@@ -2618,6 +2823,7 @@ function pickForm() {
 function transform() {
   S.loop++;
   S.spared = 0;
+  if (S.flags) S.flags.depthToday = 0;   // 井壁那扇窗一夜最多一次（猫是一次一局）
   updateChip();
   setScene('night');
   sfx('bell', .8);          // 一夜结束的钟
@@ -2681,14 +2887,16 @@ function showEnding(id) {
   document.body.classList.remove('danger');
   // 结局页先留白：音乐淡掉，只留一记收尾声
   bgm(null);
-  const tail = e.grp === 'meta' ? 'static' : e.grp === 'zero' ? 'drip' : 'bell';
+  const tail = e.grp === 'meta' ? 'static' : (e.grp === 'zero' || e.grp === 'abyss') ? 'drip' : 'bell';
   setTimeout(() => sfx(tail, e.grp === 'final' ? 1 : .72), 300);
+  const fill = (t) => String(t).replace(/%T%/g, String(TOTAL)).replace(/%T1%/g, String(TOTAL + 1));
   const grp = GROUPS.find((g) => g.k === e.grp) || { t: '' };
   const no = idx + 1;
-  const tint = e.grp === 'final' ? '#d05555' : e.grp === 'meta' ? '#8fbf9f' : e.grp === 'zero' ? '#938b97'
-    : (FORMS[e.grp] ? FORMS[e.grp].color : '#d8d2c4');
-  setBG(e.grp === 'meta' ? 'end3' : e.grp === 'final' ? 'hands' : 'flower', 'brightness(.72)');
-  const over = !S || e.grp === 'zero' || e.grp === 'final' || e.grp === 'meta';
+  const tint = e.grp === 'final' ? '#d05555' : e.grp === 'meta' ? '#8fbf9f' : e.grp === 'abyss' ? '#5f9e94'
+    : e.grp === 'zero' ? '#938b97' : (FORMS[e.grp] ? FORMS[e.grp].color : '#d8d2c4');
+  setBG(e.grp === 'meta' ? 'end3' : e.grp === 'abyss' ? 'eye' : e.grp === 'final' ? 'hands' : 'flower', 'brightness(.72)');
+  // 渊底是走到底了的结局：不再「她变了」，直接回档案室
+  const over = !S || e.grp === 'zero' || e.grp === 'final' || e.grp === 'meta' || e.grp === 'abyss';
   $('#playwrap').style.display = 'none';
   const sc = $('#scr-end'); sc.classList.add('on');
   sc.innerHTML = `
@@ -2696,7 +2904,7 @@ function showEnding(id) {
     <h1 class="endtitle" style="--et:${tint}">${e.t}</h1>
     <div class="endgrp">${grp.t}${S ? ` · 第 ${S.loop} 夜` : ''}</div>
     ${isNew ? '<span class="endnew on">新结局 · 银芯 +2</span>' : ''}
-    <div class="endtxt">${e.txt.map((p) => `<p>${p}</p>`).join('')}</div>
+    <div class="endtxt">${e.txt.map((p) => `<p>${fill(p)}</p>`).join('')}</div>
     <div class="erow">
       ${over
         ? '<button class="btn primary" id="btnHome">回到档案室</button>'
@@ -2717,16 +2925,16 @@ function showEnding(id) {
     $('#btnHome').onclick = home;
   }
   $('#btnBook2').onclick = openBook;
-  // 112 个里，E098 与 E112 互为前提，所以门槛分两级：
-  //   集齐其余 110 个 → E098；拿到 E098 后（111 个）→ E112。
+  // 126 个里，E098 与 E112 互为前提，所以门槛分两级：
+  //   集齐其余 124 个 → E098；拿到 E098 后（125 个）→ E112。（跟着 TOTAL 走，加结局不用改这里）
   if (P.endings.size >= TOTAL - 2) unlock('E098');
 }
 
 // ------------------------------------------------------------------ 图鉴
 let galFast = { n: 0, t: 0 };
 function ekColor(grp) {
-  return grp === 'final' ? '#d05555' : grp === 'meta' ? '#8fbf9f' : grp === 'zero' ? '#938b97'
-    : (FORMS[grp] ? FORMS[grp].color : '#d8d2c4');
+  return grp === 'final' ? '#d05555' : grp === 'meta' ? '#8fbf9f' : grp === 'abyss' ? '#5f9e94'
+    : grp === 'zero' ? '#938b97' : (FORMS[grp] ? FORMS[grp].color : '#d8d2c4');
 }
 function openBook() {
   const box = $('#mbox');

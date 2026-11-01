@@ -2,7 +2,7 @@
 // 一局 = 一夜：下行（楼梯 → 门）→ 见面（十二形态）→ 结局，或她变了、再下一夜。
 // 终夜在见证足够多的形态之后打开。图鉴与场外开关存本机。
 import { CG, REALM } from './keeper/art.js';
-import { FORMS, PROLOGUE, BRIEF, STAIRS, STAIR_OPTS, DOOR, CATEVENT, INTERLUDE, FINAL } from './keeper/data.js';
+import { FORMS, PROLOGUE, BRIEF, STAIRS, STAIR_OPTS, DOOR, CATEVENT, DEPTHEVENT, INTERLUDE, FINAL } from './keeper/data.js';
 import { ENDINGS, GROUPS, TOTAL } from './keeper/endings.js';
 import { walletAdd } from './silver.js';
 import * as SND from './keeper/audio.js';
@@ -98,6 +98,7 @@ const SPD = 24;
 let typing = null, typeDone = null;
 function typeInto(el, text, done) {
   clearInterval(typing); typing = null;
+  text = text == null ? '' : String(text);
   let i = 0;
   el.textContent = '';
   typing = setInterval(() => {
@@ -122,7 +123,8 @@ function playBeat(beat, done) {
   if (beat.fx) fx(beat.fx);
   if (beat.sfx) sfx(beat.sfx, beat.sfxGain || 1);
   $('#choices').classList.add('hide');
-  typeInto($('#ptext'), (Array.isArray(beat.t) ? beat.t : [beat.t])[0], null);
+  // 有的 beat 只挂选项、不换台词（终夜的「桌面」那一格）：这时保留上一句，别把面板刷成 undefined
+  if (beat.t != null) typeInto($('#ptext'), (Array.isArray(beat.t) ? beat.t : [beat.t])[0], null);
 }
 function onTextTap() {
   if (!curBeat) return;
@@ -250,7 +252,10 @@ let numGo = null; // 场景内部按下标跳转（形态/终夜的 beat 图）
 function playSeq(beats, after) {
   let i = 0;
   const step = (lastGo) => {
+    // 顺序场景里的选项也能直接收尾：序章的「翻入职表格」、井壁那扇窗的四个选项都走这里
+    if (typeof lastGo === 'string' && lastGo.startsWith('@end:')) return showEnding(lastGo.slice(5));
     if (lastGo === '@door' || lastGo === '@meet') { after && after(lastGo); return; }
+    if (lastGo === '@stair') return stairChoice();
     if (i >= beats.length) { after && after(lastGo); return; }
     playBeat(beats[i++], step);
   };
@@ -376,8 +381,8 @@ function rotateOpts(opts, n) {
   // 展示上限 6：轮换出现，保证每一条都有被选到的机会。
   // 但「取刀 / 放刀」跟当前状态绑定、还决定 E109（五夜都不取刀）能不能成立，
   // 所以它永远在列表里，只轮换纯探索的那几项。
-  const fixed = opts.filter((o) => o.needBlade || o.needNoBlade);
-  const rest = opts.filter((o) => !(o.needBlade || o.needNoBlade));
+  const fixed = opts.filter((o) => o.needBlade || o.needNoBlade || o.main);
+  const rest = opts.filter((o) => !(o.needBlade || o.needNoBlade || o.main));
   if (rest.length + fixed.length <= 6) return opts;
   const tail = rest[rest.length - 1], body = rest.slice(0, -1);
   if (!body.length) return [...fixed, tail];
@@ -406,12 +411,19 @@ function descend() {
       sfx('cat', .7);
       return playSeq([CATEVENT[0]], () => stairChoice());
     }
+    // 渊底：第三夜起，井壁上偶尔多出一扇窗。猫和窗不会同一夜出现（都别抢一个场景）
+    if (S.loop >= 3 && !S.flags.depthToday && Math.random() < 0.3) {
+      S.flags.depthToday = 1;
+      setScene('night');
+      sfx('drip', .6);
+      return playSeq(DEPTHEVENT, () => stairChoice());
+    }
     stairChoice();
   });
 }
 function stairChoice() {
   const opts = STAIR_OPTS.filter((o) =>
-    (!o.needLoop1 || S.loop === 1) && (!o.needLoop2 || S.loop >= 2) &&
+    (!o.needLoop1 || S.loop === 1) && (!o.needLoop2 || S.loop >= 2) && (!o.minLoop || S.loop >= o.minLoop) &&
     (!o.needBlade || S.flags.blade) && (!o.needNoBlade || !S.flags.blade));
   S._isStair = true;
   showChoices(rotateOpts(opts, S.loop));
@@ -419,7 +431,7 @@ function stairChoice() {
 function doorScene() {
   MID = { run: JSON.parse(JSON.stringify(S)), at: 'door' }; saveP();
   sfx('creak', .9);
-  const lines = DOOR.lines[Math.min(5, S.loop)] || DOOR.lines[5];
+  const lines = DOOR.lines[Math.min(9, S.loop)] || DOOR.lines[9];
   playSeq([{ bg: 'door', who: 'sys', t: lines }], () => {
     const opts = DOOR.opts.filter((o) => (!o.needBlade || S.flags.blade) && (!o.needNoBlade || !S.flags.blade));
     showChoices(rotateOpts(opts, S.loop));
@@ -488,6 +500,7 @@ function pickForm() {
 function transform() {
   S.loop++;
   S.spared = 0;
+  if (S.flags) S.flags.depthToday = 0;   // 井壁那扇窗一夜最多一次（猫是一次一局）
   updateChip();
   setScene('night');
   sfx('bell', .8);          // 一夜结束的钟
@@ -551,14 +564,16 @@ function showEnding(id) {
   document.body.classList.remove('danger');
   // 结局页先留白：音乐淡掉，只留一记收尾声
   bgm(null);
-  const tail = e.grp === 'meta' ? 'static' : e.grp === 'zero' ? 'drip' : 'bell';
+  const tail = e.grp === 'meta' ? 'static' : (e.grp === 'zero' || e.grp === 'abyss') ? 'drip' : 'bell';
   setTimeout(() => sfx(tail, e.grp === 'final' ? 1 : .72), 300);
+  const fill = (t) => String(t).replace(/%T%/g, String(TOTAL)).replace(/%T1%/g, String(TOTAL + 1));
   const grp = GROUPS.find((g) => g.k === e.grp) || { t: '' };
   const no = idx + 1;
-  const tint = e.grp === 'final' ? '#d05555' : e.grp === 'meta' ? '#8fbf9f' : e.grp === 'zero' ? '#938b97'
-    : (FORMS[e.grp] ? FORMS[e.grp].color : '#d8d2c4');
-  setBG(e.grp === 'meta' ? 'end3' : e.grp === 'final' ? 'hands' : 'flower', 'brightness(.72)');
-  const over = !S || e.grp === 'zero' || e.grp === 'final' || e.grp === 'meta';
+  const tint = e.grp === 'final' ? '#d05555' : e.grp === 'meta' ? '#8fbf9f' : e.grp === 'abyss' ? '#5f9e94'
+    : e.grp === 'zero' ? '#938b97' : (FORMS[e.grp] ? FORMS[e.grp].color : '#d8d2c4');
+  setBG(e.grp === 'meta' ? 'end3' : e.grp === 'abyss' ? 'eye' : e.grp === 'final' ? 'hands' : 'flower', 'brightness(.72)');
+  // 渊底是走到底了的结局：不再「她变了」，直接回档案室
+  const over = !S || e.grp === 'zero' || e.grp === 'final' || e.grp === 'meta' || e.grp === 'abyss';
   $('#playwrap').style.display = 'none';
   const sc = $('#scr-end'); sc.classList.add('on');
   sc.innerHTML = `
@@ -566,7 +581,7 @@ function showEnding(id) {
     <h1 class="endtitle" style="--et:${tint}">${e.t}</h1>
     <div class="endgrp">${grp.t}${S ? ` · 第 ${S.loop} 夜` : ''}</div>
     ${isNew ? '<span class="endnew on">新结局 · 银芯 +2</span>' : ''}
-    <div class="endtxt">${e.txt.map((p) => `<p>${p}</p>`).join('')}</div>
+    <div class="endtxt">${e.txt.map((p) => `<p>${fill(p)}</p>`).join('')}</div>
     <div class="erow">
       ${over
         ? '<button class="btn primary" id="btnHome">回到档案室</button>'
@@ -587,16 +602,16 @@ function showEnding(id) {
     $('#btnHome').onclick = home;
   }
   $('#btnBook2').onclick = openBook;
-  // 112 个里，E098 与 E112 互为前提，所以门槛分两级：
-  //   集齐其余 110 个 → E098；拿到 E098 后（111 个）→ E112。
+  // 126 个里，E098 与 E112 互为前提，所以门槛分两级：
+  //   集齐其余 124 个 → E098；拿到 E098 后（125 个）→ E112。（跟着 TOTAL 走，加结局不用改这里）
   if (P.endings.size >= TOTAL - 2) unlock('E098');
 }
 
 // ------------------------------------------------------------------ 图鉴
 let galFast = { n: 0, t: 0 };
 function ekColor(grp) {
-  return grp === 'final' ? '#d05555' : grp === 'meta' ? '#8fbf9f' : grp === 'zero' ? '#938b97'
-    : (FORMS[grp] ? FORMS[grp].color : '#d8d2c4');
+  return grp === 'final' ? '#d05555' : grp === 'meta' ? '#8fbf9f' : grp === 'abyss' ? '#5f9e94'
+    : grp === 'zero' ? '#938b97' : (FORMS[grp] ? FORMS[grp].color : '#d8d2c4');
 }
 function openBook() {
   const box = $('#mbox');
