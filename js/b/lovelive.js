@@ -3230,6 +3230,9 @@ function loadSave() {
   s.bestCombo = Number(s.bestCombo) || 0;
   // 手感设置：偏移 / 判定宽松 / 流速 / 两路音量 / 按键提示
   s.offset = clamp(Number(s.offset) || 0, -200, 200);
+  // 自动校准：按实际击打偏差微调 offset（默认开）。手动拖过偏移滑块就关掉，
+  // 否则手调的值会被下一局又拉回去。
+  s.autoLat = s.autoLat == null ? 1 : (s.autoLat ? 1 : 0);
   s.winMul = clamp(Number(s.winMul) || 1, 0.6, 2);
   s.flow = clamp(Number(s.flow) || 1, 0.6, 1.8);
   s.musVol = s.musVol == null ? 0.7 : clamp(Number(s.musVol), 0, 1);
@@ -3295,11 +3298,16 @@ const idbCDel = (k) => idbDo('c', 'readwrite', (st) => st.delete(k));
 // jump: 相邻两下最多跨几格；tapQ: 强度低于全曲这个分位的当噪声丢掉
 // dbl: 双押比例（强音处再翻倍）；dblHold: 长条配第二只手的比例
 // stam: Miss 扣体力；pad: 芯片改编时叠鼓点的概率
+// 难度只改谱面，不改血量：四档的 stam（漏一个扣多少体力）是同一个数。
+// 区分靠三件事——出球间隔 gap（秒，越小越密）、tapQ（丢掉最弱的那一档起音，
+// 越大越稀）、双押概率 dbl。EASY 大约每秒 1.5 球、基本没有双押；
+// EXPERT 每秒 6~8 球、强拍成对下来，长条也更长。
+const STAM_LOSS = 5.5;
 const DIFFS = [
-  { k: 'easy',   n: 'EASY',   win: [0.062, 0.112, 0.162, 0.212], lead: 1.85, gap: 0.40,  hold: 0.55, holdCap: 0.14, holdAt: 1, maxTail: 1.2, jump: 1, tapQ: 0.36, dbl: 0,    dblHold: 0,    stam: 4.5, pad: 0.20 },
-  { k: 'normal', n: 'NORMAL', win: [0.052, 0.098, 0.148, 0.198], lead: 1.55, gap: 0.235, hold: 0.75, holdCap: 0.16, holdAt: 2, maxTail: 1.5, jump: 2, tapQ: 0.24, dbl: 0.07, dblHold: 0.30, stam: 5.5, pad: 0.45 },
-  { k: 'hard',   n: 'HARD',   win: [0.046, 0.090, 0.135, 0.185], lead: 1.28, gap: 0.17,  hold: 0.88, holdCap: 0.18, holdAt: 2, maxTail: 1.8, jump: 3, tapQ: 0.14, dbl: 0.11, dblHold: 0.55, stam: 6.5, pad: 0.70 },
-  { k: 'expert', n: 'EXPERT', win: [0.042, 0.082, 0.125, 0.170], lead: 1.08, gap: 0.135, hold: 0.95, holdCap: 0.20, holdAt: 2, maxTail: 2.0, jump: 4, tapQ: 0.07, dbl: 0.13, dblHold: 0.70, stam: 7.5, pad: 0.95 },
+  { k: 'easy',   n: 'EASY',   win: [0.068, 0.122, 0.172, 0.222], lead: 1.85, gap: 0.62,  hold: 0.45, holdCap: 0.11, holdAt: 1, maxTail: 1.1, jump: 1, tapQ: 0.46, dbl: 0,    dblHold: 0,    stam: STAM_LOSS, pad: 0.20 },
+  { k: 'normal', n: 'NORMAL', win: [0.052, 0.098, 0.148, 0.198], lead: 1.55, gap: 0.33,  hold: 0.72, holdCap: 0.15, holdAt: 2, maxTail: 1.4, jump: 2, tapQ: 0.28, dbl: 0.07, dblHold: 0.30, stam: STAM_LOSS, pad: 0.45 },
+  { k: 'hard',   n: 'HARD',   win: [0.046, 0.090, 0.135, 0.185], lead: 1.28, gap: 0.19,  hold: 0.88, holdCap: 0.18, holdAt: 2, maxTail: 1.8, jump: 3, tapQ: 0.12, dbl: 0.16, dblHold: 0.55, stam: STAM_LOSS, pad: 0.70 },
+  { k: 'expert', n: 'EXPERT', win: [0.042, 0.082, 0.125, 0.170], lead: 1.08, gap: 0.115, hold: 0.95, holdCap: 0.20, holdAt: 2, maxTail: 2.0, jump: 4, tapQ: 0.03, dbl: 0.26, dblHold: 0.70, stam: STAM_LOSS, pad: 0.95 },
 ];
 const diffOf = (k) => DIFFS.find((d) => d.k === k) || DIFFS[1];
 const KEYS = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'];
@@ -3369,6 +3377,8 @@ const G = {
   // 听歌模式：自动把每个音按最低档（BAD）打掉、体力锁满，单纯把整首听完
   listen: false, srcName: '', srcWhy: '', srcLite: false, srcPack: false,
   tickAt: 0, prep: false, stall: 0, lastT: 0,
+  // 击打延迟采样：最近 24 次命中的 dt（毫秒，正 = 按早、负 = 按晚）
+  lat: { buf: [], n: 0, avg: 0, last: 0 },
 };
 
 const team = () => (SAVE.team.length ? SAVE.team : UNITS.slice(0, TEAM_MAX).map((u) => u.id));
@@ -3514,6 +3524,50 @@ function judgeBy(dt) {
   if (a <= W[3]) return 'b';
   return null;
 }
+/* ---------------------------------------------------------------- 延迟 */
+// dt 正 = 音符还没进框就按了（手快/输出延迟小），负 = 按晚。
+// 拿最近 24 次的中位数当「这台设备的固有偏差」：比均值抗一次手抖。
+const LAT_N = 24;
+function medianMs(a) {
+  const b = a.slice().sort((x, y) => x - y);
+  return b[b.length >> 1];
+}
+function sampleLat(dt) {
+  if (G.listen || G.auto) return;                 // 听歌/自动打不算人手的偏差
+  const ms = dt * 1000;
+  if (Math.abs(ms) > windows()[3] * 1000) return;
+  const L = G.lat;
+  L.buf.push(ms);
+  if (L.buf.length > LAT_N) L.buf.shift();
+  L.n = L.buf.length;
+  let sum = 0;
+  for (const v of L.buf) sum += v;
+  L.avg = Math.round(sum / L.n);
+  L.last = Math.round(ms);
+  autoTune();
+}
+// 每攒够 16 次、且中位偏差超过 26ms 才动一次；一次最多 8ms，累计夹在 ±150ms。
+// 调完就清空样本，所以要再攒 16 次才会动下一次——这本身就是节流，不用再看时间。
+// 调的是 offset：dt 偏正说明判定时刻来早了，offset 要减小（chartTime = 音频 - offset）。
+function autoTune() {
+  if (!SAVE.autoLat) return;
+  const L = G.lat;
+  if (L.n < 16) return;
+  const med = medianMs(L.buf);
+  if (Math.abs(med) < 26) return;
+  const step = clamp(-med * 0.25, -8, 8);
+  const nv = clamp(Math.round(SAVE.offset + step), -150, 150);
+  if (nv === SAVE.offset) return;
+  SAVE.offset = nv;
+  persist();
+  const inp = $('#set-offset');
+  if (inp) inp.value = String(nv);
+  const lab = $('#set-offset-v');
+  if (lab) lab.textContent = (nv > 0 ? '+' : '') + nv + ' ms';
+  if (G.scr === 'live') G.banner = { txt: '延迟已校准 ' + (nv > 0 ? '+' : '') + nv + 'ms', until: chartTime() + 1.3, hue: 190 };
+  L.buf.length = 0; L.n = 0; L.avg = 0;          // 用新偏移重新采样
+}
+
 function addCombo(k, silent) {
   G.combo += k;
   if (G.combo > G.maxCombo) G.maxCombo = G.combo;
@@ -3626,37 +3680,44 @@ function releaseHold(nt, early) {
 const LAY = { spawn: { x: 0, y: 0 }, boxes: [], bw: 40, bh: 40, arc: 0 };
 function layout() {
   const n = 9;
-  const gap = Math.max(4, Math.min(8, W * 0.014));
-  const side = Math.max(10, W * 0.03);
-  // 三条约束取最小：宽度装得下、高度留得出走廊（H*0.26）、宽屏才放大到 88
-  const cap = Math.min(W > 640 ? 88 : 76, H * 0.26);
-  const bw = Math.max(24, Math.min(cap, (W - side * 2 - gap * (n - 1)) / n));
+  const wide = W >= 520;
+  // 九格要「散得开」而不是「挤成一串」：先把格子压小、间隙放大，再让整条弧
+  // 铺满可用宽度。以前格径 88、间隙 8，九个圆几乎相切，远看就是一根彩带，
+  // 中间三格（F/G/H）的脸全糊在一起。
+  const side = Math.max(8, W * 0.024);
+  const gapMin = wide ? Math.max(14, W * 0.03) : Math.max(3, W * 0.012);
+  const cap = wide ? Math.min(58, H * 0.19) : Math.min(40, H * 0.18, W * 0.115);
+  const bw = Math.max(22, Math.min(cap, (W - side * 2 - gapMin * (n - 1)) / n));
+  const gap = Math.max(gapMin, (W - side * 2 - bw * n) / (n - 1));
   const total = bw * n + gap * (n - 1);
-  const x0 = (W - total) / 2 + bw / 2;
-  // 底部留白要同时放下两件事：圆的下半身 + 键位字母。矮屏横过来时舞台只有
-  // 三百来像素，只按 H 的百分比留，字母就被切在边上了。
-  const padB = Math.max(42, Math.min(88, H * 0.155), bw * 0.5 + (SAVE.keys ? 21 : 8));
+  // 底部只留「圆的下半身 + 键位字母」：全屏之后舞台从 280 长到 380，
+  // 再多留白九格就离底太远，手指够不到。
+  const padB = Math.max(36, bw * 0.5 + (SAVE.keys ? 25 : 10), H * 0.06);
   const baseY = H - padB;
   LAY.bw = bw;
   LAY.bh = bw;
-  LAY.spawn = { x: W / 2, y: Math.max(30, H * 0.085) };
+  // 发球点贴到舞台最上沿：它上方已经没有顶栏了。y 就是圆的半径（再加 2px 余量），
+  // 再高一点光晕会被画布上边缘切掉，看着像半个括号。
+  LAY.spawn = { x: W / 2, y: Math.max(16, bw * 0.3 + 2) };
 
-  // 九格不是一个直排，而是沿一段弧围成半圈（学 SIF 的摆法）：正中那格最低，
-  // 往两侧一格格抬上去，最外侧最高。抬多少有两条硬约束——
-  //   · 最外侧不能顶到发球点，上方得留出音符散开的那段走廊，
-  //     撞上了就变成「音符一出生就贴在格子上」；
-  //   · 不超过舞台高度的三分之一，否则矮屏横过来时正中会空出一大块。
-  const room = baseY - (LAY.spawn.y + bw * 1.05);
-  const arc = Math.max(0, Math.min(H * 0.34, room));
-  const TH = 1.16;                       // 半张角约 66°
+  // 弧：正中最低、两侧逐级抬高，最外两格一路抬到发球点下方——九格连成半个碗，
+  // 发球点就是碗心。上面留 18px 余量，免得最外那格跟右上角的「延迟」打架。
+  const room = baseY - (LAY.spawn.y + bw * 1.15) - 18;
+  // 也不能光看 room：竖屏窄而高，room 有七百多，九格会被拉成一个竖着的长椭圆，
+  // 两端到发球点的距离只剩中间的四分之一，球速完全没法统一。横屏按 W*0.45 也够到 room。
+  const arc = Math.max(0, Math.min(room, Math.min(H * 0.62, W * 0.45)));
+  const TH = 1.02;                       // 半张角约 58°
   const k = 1 - Math.cos(TH);
   LAY.arc = arc;
   LAY.boxes.length = 0;
   for (let i = 0; i < n; i++) {
     const t = (i - 4) / 4;               // -1 最左 … 0 正中 … +1 最右
     const lift = (1 - Math.cos(t * TH)) / k;   // 0 正中 / 1 最外侧
+    // 横向也按弧来分：等距排的话中间三格（F/G/H）在弧底几乎贴着，两端却拉得很开。
+    // 中间放宽、两端略收，九格的「视觉间距」才均匀。
+    const sx = Math.sign(t) * Math.pow(Math.abs(t), 0.9);
     LAY.boxes.push({
-      x: x0 + i * (bw + gap),
+      x: W / 2 + sx * (total - bw) / 2,
       y: baseY - arc * lift,
       h: bw, w: bw, key: KEY_LABEL[i], lift,
     });
@@ -3676,7 +3737,10 @@ function notePos(n, now, le) {
 }
 const fadeK = (k) => (k <= 1 ? 1 : clamp(1 - (k - 1) / 0.45, 0, 1));
 function leadEff() {
-  return diffOf(G.diffK).lead * SAVE.flow;
+  // 偏移大（蓝牙耳机、电视投屏）时，音符也稍微提前出现：±200ms 只动 ±4.4%，
+  // 手感几乎不变，但「看到进框」和「听到声音」能重新对上。
+  const k = 1 - clamp(SAVE.offset, -200, 200) / 1000 * 0.22;
+  return diffOf(G.diffK).lead * SAVE.flow * k;
 }
 
 /* ================================================================ 输入 */
@@ -3718,8 +3782,10 @@ function tapNear(x, y, ptr, lag) {
 }
 function pressNote(n, ptr, lag) {
   const now = chartTime(lag);
-  const j = judgeBy(n.t - now);
+  const dt = n.t - now;
+  const j = judgeBy(dt);
   if (!j) return;
+  sampleLat(dt);
   if (n.kind === 'hold') {
     n.holding = true;
     if (!(n.tail > n.t)) n.tail = n.t + 0.4;      // 兜底：数据缺尾音也别卡死
@@ -3785,6 +3851,46 @@ function sprite(u, px) {
   return c;
 }
 
+// 飞行音符用的发光圆环：按轨道色预渲染成一张贴图，每帧一次 drawImage。
+// 不现画 shadowBlur —— 一屏十几个音符同时带模糊，中低端机直接掉帧。
+const RINGS = new Map();
+function ringSprite(hue, px) {
+  const size = Math.max(10, Math.round(px));
+  const key = hue + ':' + size;
+  const hit = RINGS.get(key);
+  if (hit) return hit;
+  if (RINGS.size > 90) RINGS.clear();
+  const s2 = Math.round(size * 2 * DPR);
+  const c = document.createElement('canvas');
+  c.width = s2; c.height = s2;
+  const g = c.getContext('2d');
+  const cx = s2 / 2;
+  const r = cx * 0.72;                       // 环半径，留 28% 给外发光
+  const halo = g.createRadialGradient(cx, cx, r * 0.55, cx, cx, cx);
+  halo.addColorStop(0, 'hsla(' + hue + ',96%,70%,0.34)');
+  halo.addColorStop(0.55, 'hsla(' + hue + ',96%,66%,0.20)');
+  halo.addColorStop(1, 'hsla(' + hue + ',96%,66%,0)');
+  g.fillStyle = halo;
+  g.beginPath(); g.arc(cx, cx, cx, 0, Math.PI * 2); g.fill();
+  // 环体：亮色描边 + 同色投影当辉光，环是空心的，底下轨道看得见
+  g.beginPath(); g.arc(cx, cx, r, 0, Math.PI * 2);
+  g.lineWidth = Math.max(2, s2 * 0.085);
+  g.strokeStyle = 'hsl(' + hue + ',94%,74%)';
+  g.shadowColor = 'hsla(' + hue + ',97%,64%,0.95)';
+  g.shadowBlur = s2 * 0.15;
+  g.stroke();
+  g.shadowBlur = 0;
+  g.beginPath(); g.arc(cx, cx, r * 0.6, 0, Math.PI * 2);
+  g.lineWidth = Math.max(1, s2 * 0.028);
+  g.strokeStyle = 'hsla(' + hue + ',92%,84%,0.5)';
+  g.stroke();
+  g.beginPath(); g.arc(cx, cx, Math.max(1.6, s2 * 0.05), 0, Math.PI * 2);
+  g.fillStyle = 'hsla(' + hue + ',96%,90%,0.95)';
+  g.fill();
+  RINGS.set(key, c);
+  return c;
+}
+
 function buildStatic() {
   for (const c of [bgLayer, boxLayer]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
   bgCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -3835,17 +3941,17 @@ function buildStatic() {
     boxCtx.arc(b.x, b.y, r, 0, Math.PI * 2);
     boxCtx.fillStyle = 'rgba(10,14,26,0.20)';
     boxCtx.fill();
-    boxCtx.lineWidth = 1.8;
-    boxCtx.strokeStyle = 'hsla(' + u.hue + ',82%,74%,0.52)';
+    boxCtx.lineWidth = 2;
+    boxCtx.strokeStyle = 'hsla(' + u.hue + ',88%,76%,0.7)';
     boxCtx.stroke();
     const ir = r - 3.5;
-    boxCtx.globalAlpha = 0.32;                  // 脸也半透明：音符压下来才分得清谁是谁
+    boxCtx.globalAlpha = 0.46;                  // 脸还是半透明（音符要压得下去），但别暗成一团
     boxCtx.drawImage(sprite(u, ir), b.x - ir, b.y - ir, ir * 2, ir * 2);
     boxCtx.globalAlpha = 1;
     if (SAVE.keys) {
-      boxCtx.font = '600 ' + Math.round(Math.min(13, b.w * 0.3)) + 'px ui-monospace,SFMono-Regular,Menlo,monospace';
-      boxCtx.fillStyle = 'rgba(200,210,235,0.55)';
-      boxCtx.fillText(KEY_LABEL[i], b.x, b.y + r + 12);
+      boxCtx.font = '600 ' + Math.round(Math.min(12, b.w * 0.28)) + 'px ui-monospace,SFMono-Regular,Menlo,monospace';
+      boxCtx.fillStyle = 'rgba(214,222,244,0.68)';
+      boxCtx.fillText(KEY_LABEL[i], b.x, b.y + r + 11);
     }
   }
 }
@@ -3923,14 +4029,14 @@ function draw(clock) {
   const sp = LAY.spawn;
   const pulse = 1 + Math.max(0, 0.5 - beat) * 0.12;
   ctx.beginPath();
-  ctx.arc(sp.x, sp.y, Math.max(12, LAY.bw * 0.36) * pulse, 0, Math.PI * 2);
+  ctx.arc(sp.x, sp.y, Math.max(10, LAY.bw * 0.28) * pulse, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(240,120,180,0.16)';
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,158,203,0.85)';
   ctx.lineWidth = 2;
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(sp.x, sp.y, Math.max(4, LAY.bw * 0.1), 0, Math.PI * 2);
+  ctx.arc(sp.x, sp.y, Math.max(3.5, LAY.bw * 0.085), 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(255,190,220,0.9)';
   ctx.fill();
 
@@ -3987,24 +4093,20 @@ function draw(clock) {
     ctx.strokeStyle = n.broken ? 'rgba(160,160,175,0.3)' : 'hsla(' + col + ',0.85)';
     ctx.lineWidth = 3;
     ctx.stroke();
-    // 尾音也挂一张头像：该在哪松手、尾音什么时候进框，一眼看得出（判定就看这个）
+    // 尾音是一个更小的同色圆环：该在哪松手、尾音什么时候进框，一眼看得出
     let tx = tp.x, ty = tp.y;
     if (n.holding && tp.k >= 1) { tx = b.x; ty = b.y; }   // 按着时尾音贴在框里
-    const tr = LAY.bw * 0.3;
-    const tfade = n.broken ? 0.32 : fadeK(n.holding ? Math.min(tp.k, 1) : tp.k);
+    const tr = LAY.bw * 0.42;
+    const tfade = n.broken ? 0.34 : fadeK(n.holding ? Math.min(tp.k, 1) : tp.k);
     if (tfade > 0.02) {
-      ctx.globalAlpha = tfade * 0.92;
-      ctx.drawImage(sprite(u, tr), tx - tr, ty - tr, tr * 2, tr * 2);
-      ctx.beginPath();
-      ctx.arc(tx, ty, tr + 2, 0, Math.PI * 2);
-      ctx.strokeStyle = n.broken ? 'rgba(160,160,175,0.5)' : 'hsla(' + col + ',0.85)';
-      ctx.lineWidth = 1.8;
-      ctx.stroke();
+      ctx.globalAlpha = tfade;
+      ctx.drawImage(ringSprite(u.hue, tr), tx - tr, ty - tr, tr * 2, tr * 2);
       ctx.globalAlpha = 1;
     }
   }
 
-  // 音符头（圆形头像精灵，不裁不描边，直接贴）
+  // 音符头：轨道色的发光圆环。头像留给下面的九格——飞在半空的十几个小脸
+  // 既看不清是谁，又和格子里的同一张脸打架；换成环，靠颜色分轨，干净得多。
   for (let i = G.di; i < G.notes.length; i++) {
     const n = G.notes[i];
     if ((n.t - now) / le > 1.05) break;
@@ -4013,16 +4115,12 @@ function draw(clock) {
     const p = n.holding ? { x: LAY.boxes[n.lane].x, y: LAY.boxes[n.lane].y - LAY.bh * 0.42, k: 1 } : notePos(n, now, le);
     const fade = fadeK(p.k);
     if (fade <= 0.02) continue;
-    const rr3 = LAY.bw * 0.36 + (n.s || 0.5) * LAY.bw * 0.06;
+    // 环的大小跟下面的格子对齐（格子直径 = LAY.bw）：环直径 = 2×0.72×rr3 ≈ 0.9bw，
+    // 压进框里刚好盖住格子，不会出现「球比框小一圈」的错位感。
+    // 强音（s 大）再大一点点，双押下来时看得出这两个是一起按的。
+    const rr3 = LAY.bw * 0.62 + (n.s || 0.5) * LAY.bw * 0.05;
     ctx.globalAlpha = fade;
-    ctx.drawImage(sprite(u, rr3), p.x - rr3, p.y - rr3, rr3 * 2, rr3 * 2);
-    if (n.kind === 'hold' && !n.holding) {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, rr3 + 3, 0, Math.PI * 2);
-      ctx.strokeStyle = 'hsla(' + u.hue + ',92%,82%,0.75)';
-      ctx.lineWidth = 1.6;
-      ctx.stroke();
-    }
+    ctx.drawImage(ringSprite(u.hue, rr3), p.x - rr3, p.y - rr3, rr3 * 2, rr3 * 2);
     ctx.globalAlpha = 1;
   }
 
@@ -4050,11 +4148,12 @@ function draw(clock) {
 
   // 连击
   if (G.combo >= 2) {
-    const cy = H * 0.42;
+    // 两端抬到发球点下方之后，连击数字得退到碗里（0.46H）才不压着它们
+    const cy = H * 0.46;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(240,244,255,0.9)';
-    ctx.font = '900 ' + Math.round(Math.min(64, H * 0.1)) + 'px system-ui,sans-serif';
+    ctx.font = '900 ' + Math.round(Math.min(56, H * 0.09)) + 'px system-ui,sans-serif';
     ctx.fillText(String(G.combo), W / 2, cy);
     ctx.fillStyle = 'rgba(240,120,180,0.7)';
     ctx.font = '700 ' + Math.round(Math.min(14, H * 0.024)) + 'px system-ui,sans-serif';
@@ -4066,7 +4165,7 @@ function draw(clock) {
 /* ================================================================ 主循环 */
 // HUD 只在数值真变了才写 DOM：每帧改 textContent / style.width 会逼着重排，
 // 分数和进度条是「看起来在动」就够的东西，10Hz 跟 60Hz 没区别。
-const HUDC = { score: '', combo: '', stam: -1, prog: -1 };
+const HUDC = { score: '', combo: '', stam: -1, prog: -1, lat: '' };
 let faceTick = 0, lastFrame = 0;
 function loop(ts) {
   requestAnimationFrame(loop);
@@ -4093,6 +4192,17 @@ function loop(ts) {
   if (sc !== HUDC.score) { HUDC.score = sc; $('#live-score').textContent = sc; }
   const cb = G.combo > 0 ? G.combo + ' 连击' : '—';
   if (cb !== HUDC.combo) { HUDC.combo = cb; $('#live-combo').textContent = cb; }
+  const la = G.lat.n ? G.lat.avg : 0;
+  const lt = (la > 0 ? '+' : '') + la + 'ms';
+  if (lt !== HUDC.lat) {
+    HUDC.lat = lt;
+    const el = $('#live-lat');
+    if (el) {
+      el.textContent = '延迟 ' + lt;
+      el.style.color = Math.abs(la) <= 15 ? 'rgba(150,230,170,.95)'
+        : Math.abs(la) <= 35 ? 'rgba(255,215,106,.95)' : 'rgba(255,140,130,.95)';
+    }
+  }
   const st = Math.round(G.stamina);
   if (st !== HUDC.stam) {
     HUDC.stam = st;
@@ -4334,6 +4444,8 @@ async function startLive() {
   G.accW = 0; G.stamina = 100; G.fx = []; G.flashes = []; G.holds = {};
   G.over = false; G.paused = false; G.banner = null; G.tickAt = 0;
   G.di = 0; G.holdingLanes = [];
+  // 每局重新采：上一首的偏移不该拿来判断这一首（换了耳机、换了握法都是新的）
+  G.lat = { buf: [], n: 0, avg: 0, last: 0 };
   // 这一局到底在放什么、听歌模式开没开：暂停面板要显示，别再让人猜「为什么是电子音」
   G.listen = !!SAVE.listen;
   G.srcPack = !!(track && track.pack);
@@ -4442,8 +4554,9 @@ function finish(failed) {
   $('#res-rank').textContent = G.listen ? '🎧' : rank;
   $('#res-title').textContent = G.listen ? '听歌模式 · 完整听完'
     : failed ? '体力见底，Live 中断…' : (ap ? 'ALL PERFECT！' : fc ? 'FULL COMBO！' : 'Live 结束');
+  const latEnd = G.lat && G.lat.n ? (' · 延迟 ' + (G.lat.avg > 0 ? '+' : '') + G.lat.avg + 'ms') : '';
   $('#res-song').textContent = G.song.n + ' · ' + diffOf(G.diffK).n
-    + (G.chartSrc === 'audio' ? ' · 原曲' : '') + (G.listen ? ' · 不计成绩' : '');
+    + (G.chartSrc === 'audio' ? ' · 原曲' : '') + (G.listen ? ' · 不计成绩' : '') + latEnd;
   $('#res-score').textContent = fmt(G.score);
   $('#res-acc').textContent = (acc * 100).toFixed(2) + '%';
   $('#res-combo').textContent = String(G.maxCombo);
@@ -4605,7 +4718,9 @@ function paintSet() {
   $$('#set-haptic button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.haptic));
   $$('#set-orient button').forEach((b) => b.classList.toggle('on', b.dataset.v === orientPref()));
   $$('#set-immersive button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.immersive));
-  $$('#set-listen button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.listen));  renderTrackList();
+  $$('#set-listen button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.listen));
+  $$('#set-autolat button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.autoLat));
+  renderTrackList();
 }
 function renderTrackList() {
   const box = $('#set-tracks');
@@ -4751,8 +4866,20 @@ if (homeEl) homeEl.onclick = () => {
 $('#set-offset').oninput = (e) => {
   SAVE.offset = Number(e.target.value) || 0;
   $('#set-offset-v').textContent = (SAVE.offset > 0 ? '+' : '') + SAVE.offset + ' ms';
+  // 手动拖了滑块就说明「我知道我在调什么」，把自动校准让位给它，不然下一局又被拉走
+  if (SAVE.autoLat) {
+    SAVE.autoLat = 0;
+    $$('#set-autolat button').forEach((b) => b.classList.toggle('on', b.dataset.v === '0'));
+  }
   persist();
 };
+$$('#set-autolat button').forEach((b) => {
+  b.onclick = () => {
+    SAVE.autoLat = b.dataset.v === '1' ? 1 : 0;
+    persist();
+    $$('#set-autolat button').forEach((x) => x.classList.toggle('on', x === b));
+  };
+});
 $$('#set-win button').forEach((b) => {
   b.onclick = () => {
     SAVE.winMul = Number(b.dataset.v) || 1;
@@ -4845,7 +4972,7 @@ if (TEST) {
     G, SAVE, UNITS, SONGS, DIFFS, LAY, KEYS, startLive, finish, buildChart, show,
     renderSongs, openTeam, renderTeam, paintSet, importTrack, prepareTrack,
     srcLine, paintPause, LAY, size: () => ({ W, H, DPR }),
-    tapLane, tapNear, notePos, leadEff, windows, judgeBy, chartTime,
+    tapLane, tapNear, notePos, leadEff, windows, judgeBy, chartTime, sampleLat, autoTune,
     setDiff: (k) => { G.diffK = k; },
     pickSong: (id) => { G.song = SONGS.find((x) => x.id === id) || SONGS[0]; },
     setTeam: (ids) => { SAVE.team = ids.slice(0, TEAM_MAX); persist(); },

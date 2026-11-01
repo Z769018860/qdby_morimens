@@ -65,7 +65,7 @@ body{
 .ico.off{opacity:.45}
 
 main{flex:1; min-height:0; display:flex; flex-direction:column}
-main > section{flex:1; min-height:0; display:flex; flex-direction:column; gap:10px}
+main > section{flex:1; min-height:0; display:flex; flex-direction:column; gap:10px; position:relative}
 main > section[hidden]{display:none}
 
 /* ---------------------------------------------------------------- 首页 */
@@ -195,19 +195,35 @@ main > section[hidden]{display:none}
 .set-status.err{color:var(--bad)}
 
 /* ---------------------------------------------------------------- Live */
-.live-hud{flex:0 0 auto; display:flex; align-items:center; gap:8px}
-.live-hud .meta{flex:1; min-width:0; text-align:center}
-.live-hud .meta b{display:block; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.live-hud .meta span{font-size:10.5px; color:var(--dim); letter-spacing:.1em}
-.live-hud .score{text-align:right}
-.live-hud .score b{display:block; font-size:16px; font-variant-numeric:tabular-nums}
-.live-hud .score span{font-size:10.5px; color:var(--dim)}
+/* 局内顶栏不再是「一条」：整条从文档流里拿出来浮在舞台上，只留左上暂停、
+   右上分数。歌名/难度放暂停面板，体力压成分数下面一根 3px 细条——
+   横屏总共 390px 高，顶栏、体力、技能三行曾经吃掉一百多像素，全给舞台。 */
+.live-hud{
+  position:absolute; top:0; left:0; right:0; z-index:4;
+  display:flex; align-items:flex-start; gap:8px; padding:5px 7px; pointer-events:none;
+}
+.live-hud .meta{display:none}
+.live-hud .score{margin-left:auto; text-align:right; padding-right:1px; text-shadow:0 1px 7px rgba(0,0,0,.8)}
+.live-hud .score b{display:block; font-size:15px; font-variant-numeric:tabular-nums; color:#fff}
+.live-hud .score span{font-size:10px; color:rgba(226,232,248,.72)}
+body.live .live-hud .ico{
+  pointer-events:auto; width:30px; height:30px; flex-basis:30px; border-radius:50%;
+  border-color:rgba(255,255,255,.22); background:rgba(12,16,26,.44); color:rgba(236,240,255,.9);
+}
 .stam{
-  flex:0 0 auto; height:6px; border-radius:4px; background:var(--panel2); overflow:hidden;
-  border:1px solid var(--line);
+  width:62px; height:3px; margin:4px 0 3px auto;
+  border-radius:2px; background:rgba(255,255,255,.16); overflow:hidden;
+}
+/* 延迟：最近二十几次击打相对音符的中位偏差，正 = 按早。绿/黄/红三档一眼看偏没偏。 */
+.live-hud .score #live-lat{
+  display:block; font-size:10px; font-variant-numeric:tabular-nums;
+  color:rgba(150,230,170,.95); letter-spacing:.02em; margin-top:1px;
 }
 .stam i{display:block; height:100%; width:100%; background:linear-gradient(90deg,#9be29b,#ffd76a); transition:width .25s ease}
 .stam.low i{background:linear-gradient(90deg,#e8695f,#ff9e5f)}
+/* 九宫技能条不进局内画面：它和顶栏一起占了横屏六分之一的高度，而技能状态
+   在局内只有「放没放」重要，右侧立绘已经交代了。要查充能去暂停面板。 */
+body.live .skills{display:none}
 .skills{flex:0 0 auto; display:grid; grid-template-columns:repeat(9,1fr); gap:3px; width:100%; max-width:560px; margin:0 auto}
 .skill{
   position:relative; border:1px solid var(--line); background:var(--panel); border-radius:7px;
@@ -388,15 +404,12 @@ body.live main > section{gap:5px}
 @media (orientation:landscape) and (max-height:560px){
   .app{padding-top:4px; padding-bottom:4px}
   main > section{gap:5px}
-  .live-hud{gap:6px}
-  .live-hud .meta b{font-size:12.5px}
-  .live-hud .meta span{font-size:9.5px}
+  /* 顶栏已经浮层化，这里只压暂停圆钮与分数 */
+  body.live .live-hud .ico{width:27px; height:27px; flex-basis:27px; font-size:11px}
   .live-hud .score b{font-size:14px}
-  .live-hud .ico{width:28px; height:28px; flex-basis:28px; border-radius:8px; font-size:12px}
-  .stam{height:4px}
-  .skills{max-width:404px}
-  .skill{padding:1px; border-radius:6px}
-  .skill .gauge{height:2px}
+  .live-hud .score span{font-size:9.5px}
+  .stam{width:54px}
+  .live-hud .score #live-lat{font-size:9.5px}
   /* 暂停面板排成两列：横屏只有 390px 高，一行一个滑块会把「继续」挤到屏幕外 */
   .pause-sheet{
     width:min(94%, 720px); max-height:none; padding:12px 16px; gap:6px 30px;
@@ -483,6 +496,14 @@ body.live main > section{gap:5px}
             <input type="range" id="set-offset" min="-200" max="200" step="5">
             <span class="v" id="set-offset-v">0 ms</span>
           </div>
+          <div class="row">
+            <label>自动校准</label>
+            <div class="seg" id="set-autolat">
+              <button type="button" data-v="0">关</button>
+              <button type="button" data-v="1">开</button>
+            </div>
+          </div>
+          <p>局内右上角会显示「延迟」：最近二十几次击打相对音符的中位偏差，<b>正数是按早、负数是按晚</b>，绿/黄/红三档。开着自动校准的话，偏差超过 26ms 会小步把上面的偏移往回调（一次最多 8ms，累计不超过 ±150ms），音符流速也跟着微调，让「看到进框」和「听到声音」对齐。手动拖过偏移滑块就会自动关掉校准。</p>
           <div class="row">
             <label>判定宽松</label>
             <div class="seg" id="set-win">
@@ -639,9 +660,13 @@ body.live main > section{gap:5px}
       <div class="live-hud">
         <button class="ico" id="live-pause" type="button" aria-label="暂停">❙❙</button>
         <div class="meta"><b id="live-song"></b><span id="live-diff"></span></div>
-        <div class="score"><b id="live-score">0</b><span id="live-combo">—</span></div>
+        <div class="score">
+          <b id="live-score">0</b>
+          <div class="stam"><i id="live-stam"></i></div>
+          <span id="live-combo">—</span>
+          <span id="live-lat">延迟 0ms</span>
+        </div>
       </div>
-      <div class="stam"><i id="live-stam"></i></div>
       <div class="skills" id="skills"></div>
       <div class="stage" id="stage">
         <div class="artbox" id="art-box">
@@ -718,13 +743,15 @@ body.live main > section{gap:5px}
 
 <dialog class="help" id="helpDlg">
   <h3>怎么玩</h3>
-  <p><b>看方向</b>：音符从上方那个发球点散开，沿直线飞向下方九格里属于它的那一格。九格不是直排，是照 SIF 摆的一道弧——正中最低、往两侧逐级抬高，所以两边那几格会比你直觉的位置高一点，看弧线就对了。<b>压进框里的那一刻点它</b>。落哪一格跟着原曲的音高走——旋律往上，音符就往右移，所以九格之间的走位就是那段旋律的形状。点得越准分越高：PERFECT &gt; GREAT &gt; GOOD &gt; BAD，错过就是 MISS，断连还掉体力——体力见底 Live 就中断了。</p>
+  <p><b>看方向</b>：音符从上方那个发球点散开，沿直线飞向下方九格里属于它的那一格。九格不是直排，是沿半圆摆成的一个碗——正中最低，往两侧一路抬到发球点下方，所以两边那几格会比你想的高不少，看这条弧找位置。<b>压进框里的那一刻点它</b>。落哪一格跟着原曲的音高走——旋律往上，音符就往右移，所以九格之间的走位就是那段旋律的形状。点得越准分越高：PERFECT &gt; GREAT &gt; GOOD &gt; BAD，错过就是 MISS，断连还掉体力——体力见底 Live 就中断了。</p>
   <p><b>长按</b>：外圈描了一道亮环的是长条，原曲里拖住的长音都会变成它。按住别松，<b>尾音也挂着一张头像</b>，那张头像进框就是松手的点；提前松手会断连（有护盾技能时不算）。两根长条同时来的时候按两根——两个框会一起亮。</p>
   <p><b>双押</b>：同一时刻两个框一起亮音符，那就是原曲里的强音（底鼓叠镲那一下）。两手下在隔开三四格的位置，别挤在一侧。</p>
   <p><b>只听歌</b>：暂停面板或设置里打开<b>听歌模式</b>，音符会自己按最低档（BAD）打掉、体力锁满，放着不管也能把整首听完。这一局不计成绩、不写最高分、也不刷最高连击。想安静听就顺手把「判定音」拉到 0。</p>
   <p><b>屏幕方向</b>：手机默认横屏——九格横着摆每格才够宽，竖着每格只有三十来像素容易点串。设置里能选自动 / 横屏 / 竖屏；iPhone 的 Safari 不让网页锁方向，竖着拿时会提示把机身转过来，也可以点「仍要竖屏玩」。暂停面板里能直接调音乐与判定音两路音量，不用退出去改设置。<b>全屏沉浸</b>默认开着：点「上场」时顺手把地址栏收上去，弧顶那两格才不被挤；用系统返回手势退出全屏会自动暂停。浏览器不给全屏（iPhone、部分内嵌浏览器）时按实际可视高度排版，不影响判定。</p>
+  <p><b>延迟</b>：右上角那行「延迟 ±xxms」是最近二十几次击打相对音符的中位偏差——<b>正数=按早了，负数=按晚了，绿色是贴得很准</b>。设置里「自动校准」开着时（默认开），偏差超过 26ms 会一次挪几毫秒把判定偏移往回调，音符流速也跟着变一点点，蓝牙耳机、电视投屏那两三百毫秒的延迟不用自己算。手动拖过偏移滑块，自动校准就会让位（怕把你手调的值拉回去）。</p>
   <p><b>九个人</b>：编队最多九位唤醒体，第 1~9 位对应下面第 1~9 格，那一格的音符就是她的脸。技能全自动发动——判定放大、加分、Miss 救成 Good、护盾不断连、回体力、直接加连击、音符减速，攒满即放，不用点。</p>
   <p><b>操作</b>：手机上直接点框或点音符（支持多指同时按）；电脑上鼠标点，或者用 <code>A S D F G H J K L</code> 对应九格，<code>Esc</code> 暂停。长条用键盘就是按住不放。</p>
+  <p><b>难度</b>：四档只改谱面密度，不改血量——四档漏一个都扣 5.5 体力，不会因为选了 EXPERT 就更脆。EASY 每秒约 1.5 个球、基本没有双押和长条；NORMAL 约 3 个；HARD 约 5 个、强拍开始成对落下；EXPERT 约 7~8 个，四分之一是双押，长条最长能拖到 2 秒，落球速度也更快（1.85 秒飞到 → 1.08 秒飞到）。觉得 EASY 太闲或者 EXPERT 挤成一团，差的就是这个。</p>
   <p><b>音源</b>：曲库里有原曲包的那几首直接放原曲（仓库里是加密封装的，取回来在浏览器里解）；没有包的走页面内合成的芯片改编。进「设置 → 音源」可以导入自己手里的 mp3（只存在这台设备上，会盖过内置包），谱面按那一版原曲的鼓点重做。偏移 / 宽松 / 流速也都在设置里。</p>
   <p><b>立绘</b>：技能发动时舞台右边会摆上这位唤醒体的立绘，左上角是她的名字和技能。在 PC 上把窗口拉大一点看得更清楚。</p>
   <p><b>工坊</b>：首页的「工坊」能导入任意音频，自动按鼓点出一版谱面，然后在时间轴上改：轻点空白加音符、拖音符改时间和轨道、右键删、滚轮缩放。改完可以存本机（选曲列表里会多一首「我的谱面」），登录后还能<b>发布到云端曲库</b>给所有人玩——发的是谱面数据，音频不上传，别人要自己配一份同一版本的音频。</p>

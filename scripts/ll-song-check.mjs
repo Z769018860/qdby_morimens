@@ -13,10 +13,10 @@ import { chartFromArr } from '../js/ll/analyze.js';
 
 // 跟 js/lovelive.js 的 DIFFS 保持一致（改了那边记得改这边）
 const DIFFS = [
-  { k: 'easy', n: 'EASY', win: 0.075, lead: 1.85, gap: 0.40, hold: 0.55, holdCap: 0.14, holdAt: 1, maxTail: 1.2, jump: 1, tapQ: 0.36, dbl: 0, dblHold: 0 },
-  { k: 'normal', n: 'NORMAL', win: 0.058, lead: 1.55, gap: 0.235, hold: 0.75, holdCap: 0.16, holdAt: 2, maxTail: 1.5, jump: 2, tapQ: 0.24, dbl: 0.07, dblHold: 0.30 },
-  { k: 'hard', n: 'HARD', win: 0.05, lead: 1.28, gap: 0.17, hold: 0.88, holdCap: 0.18, holdAt: 2, maxTail: 1.8, jump: 3, tapQ: 0.14, dbl: 0.11, dblHold: 0.55 },
-  { k: 'expert', n: 'EXPERT', win: 0.042, lead: 1.08, gap: 0.135, hold: 0.95, holdCap: 0.20, holdAt: 2, maxTail: 2.0, jump: 4, tapQ: 0.07, dbl: 0.13, dblHold: 0.70 },
+  { k: 'easy', n: 'EASY', win: 0.075, lead: 1.85, gap: 0.62, hold: 0.45, holdCap: 0.11, holdAt: 1, maxTail: 1.1, jump: 1, tapQ: 0.46, dbl: 0, dblHold: 0 },
+  { k: 'normal', n: 'NORMAL', win: 0.058, lead: 1.55, gap: 0.33, hold: 0.72, holdCap: 0.15, holdAt: 2, maxTail: 1.4, jump: 2, tapQ: 0.28, dbl: 0.07, dblHold: 0.30 },
+  { k: 'hard', n: 'HARD', win: 0.05, lead: 1.28, gap: 0.19, hold: 0.88, holdCap: 0.18, holdAt: 2, maxTail: 1.8, jump: 3, tapQ: 0.12, dbl: 0.16, dblHold: 0.55 },
+  { k: 'expert', n: 'EXPERT', win: 0.042, lead: 1.08, gap: 0.115, hold: 0.95, holdCap: 0.20, holdAt: 2, maxTail: 2.0, jump: 4, tapQ: 0.03, dbl: 0.26, dblHold: 0.70 },
 ];
 
 const only = process.argv[2];
