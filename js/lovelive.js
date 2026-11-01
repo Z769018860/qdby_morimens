@@ -20,7 +20,8 @@
 import { SONGS, arrange } from './ll/songs.js';
 import { Audio } from './ll/audio.js';
 import { detectOnsets, chartFromOnsets, chartFromArr, hashStr } from './ll/analyze.js';
-import { UNITS } from './ll/gen.js';
+import { UNITS, PACKS } from './ll/gen.js';
+import { fetchPack, hasPack } from './ll/musicbox.js';
 import { initShop } from './ll/shop.js';
 import { startGameCloud } from './gamecloud.js';
 
@@ -141,6 +142,8 @@ const scr = {
 function show(name) {
   for (const k of Object.keys(scr)) scr[k].hidden = k !== name;
   G.scr = name;
+  // 打歌时把全站的横竖屏开关收起来（它固定在左下角，会压住最左边两格）
+  document.body.classList.toggle('live', name === 'live');
 }
 
 /* ================================================================ 全局状态 */
@@ -149,8 +152,8 @@ const G = {
   notes: [], ni: 0, di: 0, combo: 0, maxCombo: 0, score: 0,
   cnt: { p: 0, g: 0, go: 0, b: 0, m: 0 },
   accW: 0, stamina: 100, buffs: [], sk: [], banner: null, fx: [], flashes: [],
-  holds: {}, holdingLane: -1, running: false, over: false, paused: false, auto: AUTO,
-  tickAt: 0, prep: false,
+  holds: {}, active: new Set(), holdingLane: -1, running: false, over: false, paused: false, auto: AUTO,
+  tickAt: 0, prep: false, stall: 0, lastT: 0,
 };
 
 const team = () => (SAVE.team.length ? SAVE.team : UNITS.slice(0, TEAM_MAX).map((u) => u.id));
@@ -172,33 +175,42 @@ const FACE_OK = (u) => u.img && u.img.complete && u.img.naturalWidth > 0;
 const chartTime = () => Math.max(0, Audio.time() - SAVE.offset / 1000);
 
 /* ================================================================ 技能立绘 */
-// 技能发动时，舞台背景换成这位唤醒体的立绘（大图虚化 + 一张清晰的小卡）。
-// 图只有 120px 的头像，所以大图走「放大 + 模糊 + 色相洗」当氛围，
-// 清晰的资格留给中间那张立绘卡——看起来才不糊。
+// 技能发动时，舞台右侧摆上这位唤醒体的立绘：assets/card/<slug>.webp，
+// 官方素材库里的竖版卡面（240×600）。原尺寸摆出来就清楚，不用再把 96px
+// 的头像放大糊一屏。个别人没有卡面（构建时给了 CG 或留空），空的话退回头像小卡。
 const ART = { on: false, timer: 0 };
-function showArt(u, txt) {
-  const bg = $('#art-bg');
-  const card = $('#art-card');
-  if (!bg) return;
-  bg.style.backgroundImage = 'url("' + u.art + '")';
-  bg.style.setProperty('--h', u.hue);
-  bg.classList.add('on');
-  if (card) {
-    card.style.setProperty('--h', u.hue);
-    $('#art-face').src = u.art;
-    $('#art-name').textContent = u.n;
-    $('#art-skill').textContent = txt || ('「' + u.skill.n + '」');
-    card.classList.remove('on');
-    void card.offsetWidth;          // 重启动画：连着触发两次也要重新滑进来
-    card.classList.add('on');
+const ART_PRE = new Set();
+function preloadArt(list) {
+  for (const id of list) {
+    const u = unitById(id);
+    if (!u || !u.card || ART_PRE.has(u.id)) continue;
+    ART_PRE.add(u.id);
+    const im = new Image();
+    im.decoding = 'async';
+    im.src = u.card;                 // 只把浏览器缓存喂热，不参与绘制
   }
+}
+function showArt(u, txt) {
+  const box = $('#art-box');
+  const fig = $('#art-fig');
+  if (!box || !fig) return;
+  const hasCard = !!u.card;
+  box.style.setProperty('--h', u.hue);
+  fig.classList.toggle('small', !hasCard);
+  fig.classList.toggle('wide', !!u.wide);
+  const src = hasCard ? u.card : u.art;
+  if (fig.getAttribute('src') !== src) fig.src = src;
+  $('#art-name').textContent = u.n;
+  $('#art-skill').textContent = txt || ('「' + u.skill.n + '」');
+  box.classList.remove('on');
+  void box.offsetWidth;              // 重启动画：连着触发两次也要重新滑进来
+  box.classList.add('on');
   ART.on = true;
   clearTimeout(ART.timer);
   ART.timer = setTimeout(() => {
-    bg.classList.remove('on');
-    if (card) card.classList.remove('on');
+    box.classList.remove('on');
     ART.on = false;
-  }, 2400);
+  }, 2600);
 }
 
 /* ================================================================ 技能 */
@@ -356,7 +368,8 @@ function missNote(n) {
 function releaseHold(nt, early) {
   if (!nt.holding) return;
   nt.holding = false;
-  if (nt._ptr != null) delete G.holds[nt._ptr];
+  G.active.delete(nt);
+  if (nt._ptr != null) { delete G.holds[nt._ptr]; nt._ptr = null; }
   const now = chartTime();
   if (early && now < nt.tail - 0.2) {
     nt.broken = true;
@@ -400,16 +413,19 @@ function layout() {
     LAY.boxes.push({ x: x0 + i * (bw + gap), y: baseY + sag, h: bw, w: bw, key: KEY_LABEL[i] });
   }
 }
-// 音符在某时刻的位置：k=0 在发球点，k=1 在框里
+// 音符在某时刻的位置：k=0 在发球点，k=1 在框里。
+// 越过 1 之后不再钉在 1.05 上（以前被忽略的音符会「贴」在框里不动，
+// 看着像卡住了）：让它继续往前滑一点再淡掉，错过的那一刻就消失。
 function notePos(n, now, le) {
   const b = boxOf(n.lane);
-  const k = clamp(1 - (n.t - now) / le, -0.18, 1.05);
+  const k = clamp(1 - (n.t - now) / le, -0.18, 1.5);
   return {
     x: LAY.spawn.x + (b.x - LAY.spawn.x) * k,
     y: LAY.spawn.y + (b.y - LAY.spawn.y) * k,
     k,
   };
 }
+const fadeK = (k) => (k <= 1 ? 1 : clamp(1 - (k - 1) / 0.45, 0, 1));
 function leadEff() {
   return diffOf(G.diffK).lead * SAVE.flow;
 }
@@ -431,7 +447,7 @@ function tapLane(lane, ptr) {
   if (!best) return;
   pressNote(best, ptr);
 }
-function tapNear(x, y) {
+function tapNear(x, y, ptr) {
   if (!G.running || G.paused) return;
   const now = chartTime();
   const W4 = windows()[3];
@@ -447,7 +463,9 @@ function tapNear(x, y) {
     const cost = Math.abs(n.t - now) * 2 + d / 300;
     if (cost < bestCost) { bestCost = cost; best = n; }
   }
-  if (best) pressNote(best, null);
+  // 点音符本身也要把「哪根手指」传下去：长条不登记手指就永远等不到松手，
+  // 会一直挂在框上（这一版之前「卡在下面」的主因就是这个）。
+  if (best) pressNote(best, ptr == null ? null : ptr);
 }
 function pressNote(n, ptr) {
   const now = chartTime();
@@ -455,7 +473,11 @@ function pressNote(n, ptr) {
   if (!j) return;
   if (n.kind === 'hold') {
     n.holding = true;
-    if (ptr != null) { n._ptr = ptr; G.holds[ptr] = n; }
+    if (!(n.tail > n.t)) n.tail = n.t + 0.4;      // 兜底：数据缺尾音也别卡死
+    const key = ptr != null ? ptr : ('v' + Math.round(n.t * 1000));
+    n._ptr = key;
+    G.holds[key] = n;
+    G.active.add(n);
     Audio.fx('holdstart');
   }
   judgeNote(n, j);
@@ -560,7 +582,8 @@ function buildStatic() {
     bgCtx.stroke();
   }
 
-  // 九个框：底、边、头像、键位
+  // 九个框：底、边、头像、键位。底和头像都做成半透明——技能立绘在底下放的时候
+  // 要能透出来，框只负责「定住位置」，不该像九块实心砖把舞台下半截盖死。
   boxCtx.textAlign = 'center';
   boxCtx.textBaseline = 'middle';
   for (let i = 0; i < 9; i++) {
@@ -568,16 +591,18 @@ function buildStatic() {
     const u = laneUnit(i);
     const r = b.w / 2;
     rr2(boxCtx, b.x - r, b.y - r, b.w, b.h, 10);
-    boxCtx.fillStyle = 'rgba(18,22,38,0.92)';
+    boxCtx.fillStyle = 'rgba(10,14,26,0.34)';
     boxCtx.fill();
     boxCtx.lineWidth = 2;
-    boxCtx.strokeStyle = 'hsla(' + u.hue + ',80%,72%,0.42)';
+    boxCtx.strokeStyle = 'hsla(' + u.hue + ',82%,74%,0.72)';
     boxCtx.stroke();
     const ir = r - 3.5;
+    boxCtx.globalAlpha = 0.46;                  // 脸也半透明：音符压下来才分得清谁是谁
     boxCtx.drawImage(sprite(u, ir), b.x - ir, b.y - ir, ir * 2, ir * 2);
+    boxCtx.globalAlpha = 1;
     if (SAVE.keys) {
       boxCtx.font = '600 ' + Math.round(Math.min(13, b.w * 0.32)) + 'px ui-monospace,SFMono-Regular,Menlo,monospace';
-      boxCtx.fillStyle = 'rgba(190,200,225,0.55)';
+      boxCtx.fillStyle = 'rgba(200,210,235,0.72)';
       boxCtx.fillText(KEY_LABEL[i], b.x, b.y + r + 11);
     }
   }
@@ -608,7 +633,7 @@ cv.addEventListener('pointerdown', (e) => {
   const x = e.clientX - b.left, y = e.clientY - b.top;
   const lane = laneAt(x, y);
   if (lane >= 0) tapLane(lane, 'p' + e.pointerId);
-  else tapNear(x, y);
+  else tapNear(x, y, 'p' + e.pointerId);
   cv.setPointerCapture && cv.setPointerCapture(e.pointerId);
 }, { passive: false });
 window.addEventListener('pointerup', (e) => releasePtr('p' + e.pointerId));
@@ -725,8 +750,11 @@ function draw(clock) {
     if ((n.t - now) / le > 1.05) break;
     if (n.judged && !(n.kind === 'hold' && n.holding)) continue;
     const u = laneUnit(n.lane);
-    const p = n.holding ? { x: LAY.boxes[n.lane].x, y: LAY.boxes[n.lane].y - LAY.bh * 0.42 } : notePos(n, now, le);
+    const p = n.holding ? { x: LAY.boxes[n.lane].x, y: LAY.boxes[n.lane].y - LAY.bh * 0.42, k: 1 } : notePos(n, now, le);
+    const fade = fadeK(p.k);
+    if (fade <= 0.02) continue;
     const rr3 = LAY.bw * 0.36 + (n.s || 0.5) * LAY.bw * 0.06;
+    ctx.globalAlpha = fade;
     ctx.drawImage(sprite(u, rr3), p.x - rr3, p.y - rr3, rr3 * 2, rr3 * 2);
     if (n.kind === 'hold' && !n.holding) {
       ctx.beginPath();
@@ -735,6 +763,7 @@ function draw(clock) {
       ctx.lineWidth = 1.6;
       ctx.stroke();
     }
+    ctx.globalAlpha = 1;
   }
 
   // 判定字：每个轨道同一时间只留一条（以前 GUARD / SAVED 叠成一片就是没去重）
@@ -797,6 +826,7 @@ function loop(ts) {
   }
   if (G.paused) return;
   const now = chartTime();
+  const prevNow = G.lastNow;
   G.lastNow = now;
   // HUD
   const sc = fmt(G.score);
@@ -823,15 +853,30 @@ function loop(ts) {
     bEl.style.opacity = G.banner ? 1 : 0;
     if (G.banner) bEl.style.borderColor = 'hsla(' + G.banner.hue + ',80%,70%,0.6)';
   }
-  // 按住中的长条撑到尾音
-  for (const k of Object.keys(G.holds)) {
-    const hn = G.holds[k];
-    if (hn && hn.holding && now >= hn.tail) releaseHold(hn, false);
+  // 时钟停摆保护：系统音频被挂起（切设备、系统休眠、蓝牙断开）时
+  // ac.currentTime 会冻住，谱面就停在原地不动——看着就是「音符卡在下面」。
+  // 先自己 resume 一次；还是不动就把这一局暂停下来，让玩家点「继续」再走。
+  const dt = G.lastT ? Math.max(0, t - G.lastT) : 0;
+  G.lastT = t;
+  if (prevNow != null && Math.abs(now - prevNow) < 1e-6) G.stall += dt;
+  else G.stall = 0;
+  if (G.stall > 0.8) {
+    Audio.resume();
+    if (G.stall > 2.2) {
+      G.stall = 0;
+      togglePause();
+      G.banner = { txt: '声音被系统掐断了，点「继续」接着打', until: now + 4, hue: 30 };
+    }
+  }
+  // 按住中的长条撑到尾音（按 active 集合走，不依赖「哪根手指按的」，
+  // 万一哪条登记漏了，也会在尾音后自己松开，不会永远挂在框上）
+  for (const hn of G.active) {
+    if (!hn.holding) { G.active.delete(hn); continue; }
+    if (now >= hn.tail + 0.02) releaseHold(hn, false);
   }
   G.holdingLane = -1;
-  for (const k of Object.keys(G.holds)) {
-    const hn = G.holds[k];
-    if (hn && hn.holding) { G.holdingLane = hn.lane; break; }
+  for (const hn of G.active) {
+    if (hn.holding) { G.holdingLane = hn.lane; break; }
   }
   // 过点判定
   const W4 = windows()[3];
@@ -897,13 +942,42 @@ function paintSkillChips(force) {
 
 /* ================================================================ 音源准备 */
 const TRACK_CACHE = new Map();
+// 取一首歌的音频，三档优先级：
+//   ① 本机导入的原曲（IndexedDB，玩家的私人版本，能盖过内置包）
+//   ② 仓库里的原曲包（assets/ll-music/*.bin，加密的，取回来在这里解）
+//   ③ 都没有 → null，回去走页面内合成
+// 抓点（onsets）算一次就够了：解出来的重音表存在 IndexedDB 里（'ons:' 前缀），
+// 下次开同一首不用重新扫一遍几十万帧。
 async function prepareTrack(songId) {
   if (TRACK_CACHE.has(songId)) return TRACK_CACHE.get(songId);
   const rec = await idbGet(songId).catch(() => null);
-  if (!rec || !rec.data) return null;
-  const buffer = await Audio.decode(rec.data.slice(0));
-  const onsets = (rec.onsets || []).map((p) => ({ t: p[0], s: p[1] }));
-  const v = { buffer, onsets, name: rec.name, dur: buffer.duration };
+  let data = rec && rec.data;
+  let name = rec && rec.name;
+  let onsets = rec && rec.onsets;
+  let pack = false;
+  if (!data && hasPack(PACKS, songId)) {
+    const plain = await fetchPack(PACKS, songId).catch(() => null);
+    if (plain) {
+      data = plain;
+      pack = true;
+      const meta = PACKS[songId] || {};
+      name = meta.src || ('原曲包 · ' + songId);
+      const saved = await idbCGet('ons:' + songId).catch(() => null);
+      if (saved && saved.onsets) onsets = saved.onsets;
+    }
+  }
+  if (!data) return null;
+  const buffer = await Audio.decode(data.slice(0));
+  let on;
+  if (onsets && onsets.length) on = onsets.map((p) => ({ t: p[0], s: p[1] }));
+  else {
+    on = detectOnsets(buffer);
+    idbCSet('ons:' + songId, {
+      onsets: on.map((p) => [+p.t.toFixed(3), +p.s.toFixed(2)]),
+      dur: buffer.duration,
+    }).catch(() => {});
+  }
+  const v = { buffer, onsets: on, name, dur: buffer.duration, pack };
   TRACK_CACHE.set(songId, v);
   return v;
 }
@@ -963,6 +1037,13 @@ async function startLive() {
   G.chart = chart;
   G.chartSrc = chart.src;
   G.notes = chart.notes;
+  // 谱面必须按时间排好：ni（判定）和 di（绘制）都是「从当前位置往后顺推」，
+  // 只要有一条乱序，它后面的音符就再也轮不到判定，会一直贴在框上。
+  // 工坊手工编辑 / 云端下载的谱面不保证有序，这里统一排一次。
+  G.notes.sort((a, b) => a.t - b.t || a.lane - b.lane);
+  for (const n of G.notes) { n.judged = false; n.hit = false; n.holding = false; n.broken = false; n._ptr = null; }
+  G.active.clear();
+  G.stall = 0; G.lastT = 0; G.lastNow = 0;
   G.ni = 0;
   G.holdTotal = chart.notes.reduce((a, n) => a + (n.kind === 'hold' ? 1 : 0), 0);
   G.combo = 0; G.maxCombo = 0; G.score = 0;
@@ -984,6 +1065,7 @@ async function startLive() {
   $('#live-combo').textContent = '—';
   $('#live-banner').textContent = '';
   fit();
+  preloadArt(team());
   initSkills();
   paintSkillChips(true);
 }
@@ -997,6 +1079,9 @@ function finish(failed) {
   if (G.over) return;
   G.over = true; G.running = false;
   Audio.stop();
+  for (const n of G.active) n.holding = false;
+  G.active.clear();
+  G.holds = {};
   // 长条尾音占半个判定位：满分时 accW 恰好等于这个分母（头 1.0 + 尾 0.5）
   const total = G.notes.length + (G.holdTotal || 0) * 0.5;
   const acc = total ? G.accW / total : 0;
@@ -1033,10 +1118,43 @@ function trackInfo(songId) {
   return SAVE.tracks[songId] || null;
 }
 function allSongs() { return SONGS.concat(SHOP ? SHOP.songs() : []); }
+// 曲目按来源分组（sub 里 `·` 前面那截：μ's / 剑网3 / 明日方舟 / 边狱巴士 / 鸣潮 / 自制）
+function songGroup(s) {
+  if (s.custom) return '自制';
+  return String(s.sub || '').split('·')[0].trim() || '其它';
+}
+let songTab = 'all';
 function renderSongs() {
   const box = $('#song-list');
+  const all = allSongs();
+  const groups = [];
+  for (const s of all) {
+    const g = songGroup(s);
+    if (groups.indexOf(g) < 0) groups.push(g);
+  }
+  if (songTab !== 'all' && groups.indexOf(songTab) < 0) songTab = 'all';
+  const tabs = $('#src-tabs');
+  if (tabs) {
+    tabs.textContent = '';
+    for (const g of ['全部'].concat(groups)) {
+      const key = g === '全部' ? 'all' : g;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tab' + (key === songTab ? ' on' : '');
+      b.dataset.g = key;
+      b.textContent = g === '全部' ? ('全部 ' + all.length) : g;
+      tabs.appendChild(b);
+    }
+    tabs.onclick = (e) => {
+      const b = e.target.closest('button.tab');
+      if (!b || b.dataset.g === songTab) return;
+      songTab = b.dataset.g;
+      renderSongs();
+    };
+  }
   box.textContent = '';
-  for (const s of allSongs()) {
+  for (const s of all) {
+    if (songTab !== 'all' && songGroup(s) !== songTab) continue;
     if (s.custom) {
       const card = document.createElement('article');
       card.className = 'song mine';
@@ -1049,6 +1167,7 @@ function renderSongs() {
       continue;
     }
     const t = trackInfo(s.id);
+    const pk = hasPack(PACKS, s.id);
     const card = document.createElement('article');
     card.className = 'song';
     const diffs = DIFFS.map((d) => {
@@ -1058,9 +1177,10 @@ function renderSongs() {
     }).join('');
     card.innerHTML = '<div class="sh"><h3>' + esc(s.n) + '</h3><span class="by">' + esc(s.sub) + '</span>'
       + '<span class="bpm">' + s.bpm + ' BPM</span></div>'
-      + '<div class="src' + (t ? ' on' : '') + '">' + (t
+      + '<div class="src' + ((t || pk) ? ' on' : '') + '">' + (t
         ? '♪ 原曲 · ' + esc(t.name) + ' · ' + mmss(t.dur)
-        : '♪ 芯片改编（页面内合成）') + '</div>'
+        : pk ? '♪ 原曲包（仓库内置 · 加密）'
+          : '♪ 芯片改编（页面内合成）') + '</div>'
       + '<div class="dfs">' + diffs + '</div>';
     box.appendChild(card);
   }
@@ -1143,11 +1263,13 @@ function renderTrackList() {
   box.innerHTML = '';
   for (const s of SONGS) {
     const t = trackInfo(s.id);
+    const pk = hasPack(PACKS, s.id);
     const row = document.createElement('div');
-    row.className = 'trk' + (t ? ' on' : '');
+    row.className = 'trk' + ((t || pk) ? ' on' : '');
     row.innerHTML = '<div class="ti"><b>' + esc(s.n) + '</b><span>' + (t
-      ? '原曲 · ' + esc(t.name) + ' · ' + mmss(t.dur)
-      : '芯片改编 · ' + mmss(arrange(s).dur)) + '</span></div>'
+      ? '本机原曲 · ' + esc(t.name) + ' · ' + mmss(t.dur)
+      : pk ? '原曲包（仓库内置 · 加密）'
+        : '芯片改编 · ' + mmss(arrange(s).dur)) + '</span></div>'
       + '<div class="ta">' + (t ? '<button type="button" data-clear="' + s.id + '">清除</button>' : '')
       + '<button type="button" data-pick="' + s.id + '">' + (t ? '换一个' : '导入原曲') + '</button></div>';
     box.appendChild(row);
@@ -1192,7 +1314,11 @@ function renderBest() {
     ? '玩过 ' + played + ' 张谱 · 最高分 ' + fmt(bestScore) + ' · 最长连击 ' + fmt(SAVE.bestCombo)
     : '还没玩过——选首歌，带上九位唤醒体试试？';
   const n = Object.keys(SAVE.tracks).length;
-  $('#title-src').textContent = n ? ('已导入 ' + n + ' 首原曲') : '音源：芯片改编（可导入原曲）';
+  const p = Object.keys(PACKS || {}).length;
+  const bits = [];
+  if (p) bits.push('曲库原曲包 ' + p + ' 首');
+  if (n) bits.push('本机导入 ' + n + ' 首');
+  $('#title-src').textContent = bits.length ? ('音源：' + bits.join(' · ')) : '音源：芯片改编（可在设置里导入原曲）';
 }
 
 /* ================================================================ 接线 */
@@ -1235,6 +1361,12 @@ $('#mute').onclick = () => {
   $('#mute').classList.toggle('off', !!SAVE.mute);
 };
 $('#mute').classList.toggle('off', !!SAVE.mute);
+
+// 返回小游戏主页：页面外的链接，走了就整页换掉——先把声音停干净再走
+const homeEl = $('#to-home');
+if (homeEl) homeEl.onclick = () => {
+  try { Audio.stop(); } catch (e) { /* 走就完了 */ }
+};
 
 // 设置项
 $('#set-offset').oninput = (e) => {
@@ -1315,7 +1447,8 @@ if (TEST) {
     pickTrackFile: (id) => { pendingSong = id; },
     audio: Audio,
     shop: SHOP,
-    showArt, allSongs, fireSkill, initSkills,
+    PACKS,
+    showArt, allSongs, fireSkill, initSkills, preloadArt,
     setSetting: (k, v) => { SAVE[k] = v; persist(); },
   };
 }

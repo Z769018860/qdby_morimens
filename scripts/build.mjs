@@ -612,10 +612,67 @@ function genRoulette() {
   return { n: chars.length, kb: Math.round(code.length / 1024) };
 }
 
+// ------------------------------------------- 电子斗蛐蛐的怪物名录
+// 345 只怪 + 964 条技能（约 280KB）没法拆成按需加载：一开桌就要同时摆出两队的
+// 血、攻、每一手的意图。所以和决斗一样，构建时校验完直接写进 js/bugfight/gen.js；
+// 立绘是单独一个文件（assets/bugfight/faces.webp，8 列 × 300 行 96px 格），跟样式一起到。
+function genBugfight() {
+  const data = readJson(path.join(ROOT, 'data/bugfight-mobs.json'));
+  const seatCfg = readJson(path.join(ROOT, 'data/bugfight-seats.json'));
+  if (!has(path.join(ROOT, 'assets/bugfight/faces.webp'))) {
+    throw new Error('assets/bugfight/faces.webp 不存在：先跑 python scripts/build_bugfight.py');
+  }
+  const a = data.atlas;
+  const cells = a.cols * a.rows;
+  const seen = new Map();
+  for (const m of data.mobs) {
+    if (!(m.ix >= 0 && m.ix < cells)) throw new Error(`怪物「${m.n}」的图集格号越界（${m.ix} / ${cells}）`);
+    if (!Array.isArray(m.op) || !m.op.length) throw new Error(`怪物「${m.n}」没有开局意图`);
+    if (seen.has(m.n)) throw new Error(`怪物重名：「${m.n}」`);
+    seen.set(m.n, 1);
+    for (const sid of m.op.concat(m.cy || [])) {
+      if (!data.skills[sid]) throw new Error(`「${m.n}」引用了不存在的技能 ${sid}`);
+    }
+    if (!['Normal', 'Elite', 'Boss'].includes(m.rank)) throw new Error(`「${m.n}」的阶级 ${m.rank} 不认识`);
+  }
+  // 技能的 fx 词表必须和 engine.js 的 applyFx 对齐：这里挡在构建期，免得线上「打了没反应」
+  const FX = new Set(['hit', 'shield', 'str', 'weak', 'vuln', 'bleed', 'poison', 'barrier',
+    'heal', 'summon', 'selfhurt', 'special']);
+  for (const [sid, sk] of Object.entries(data.skills)) {
+    for (const f of sk.fx) {
+      if (!FX.has(f.k)) throw new Error(`技能 ${sid}（${sk.n || '无名'}）的效果 ${f.k} 引擎里没有`);
+    }
+    if (!data.intent[sk.i]) throw new Error(`技能 ${sid} 的意图码 ${sk.i} 不在意图表里`);
+  }
+  const seats = (seatCfg.seats || []).map((s) => {
+    const p = path.join(ROOT, 'assets/bugfight/seats', s.id + '.webp');
+    if (!has(p)) throw new Error(`席位「${s.n}」缺头像：${path.relative(ROOT, p)}`);
+    return { ...s, face: 'data:image/webp;base64,' + fs.readFileSync(p).toString('base64') };
+  });
+  if (seats.length !== 9) throw new Error(`席位要 9 个（现在是 ${seats.length}）：一桌是「你 + 九个人」`);
+  const code = [
+    '// 由 scripts/build.mjs 从 data/bugfight-mobs.json + data/bugfight-seats.json 生成，请勿手改。',
+    '// face 是 data URI（40×40 缩略图）：名单一屏就要出现九张脸，逐个请求在边缘就是九个来回。',
+    '// atlas 是独立文件 assets/bugfight/faces.webp：切片由 view.js 按 ix 算，别在这里展开。',
+    `export const ATLAS = ${JSON.stringify(a)};`,
+    `export const INTENT = ${JSON.stringify(data.intent)};`,
+    `export const SKILLS = ${JSON.stringify(data.skills)};`,
+    `export const MOBS = ${JSON.stringify(data.mobs)};`,
+    `export const SEATS = ${JSON.stringify(seats)};`,
+    'export const DATA = { atlas: ATLAS, intent: INTENT, skills: SKILLS, mobs: MOBS };',
+    '',
+  ].join('\n');
+  const out = path.join(ROOT, 'js/bugfight/gen.js');
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
+  return { n: data.mobs.length, sk: Object.keys(data.skills).length, kb: Math.round(code.length / 1024) };
+}
+
 // ------------------------------------------------------------------ 主流程
 const artCount = genMergeArt();
 const liveUnits = genLive();
 const rgChars = genRoulette();
+const bfMobs = genBugfight();
 const birdArt = genBirdArt();
 const sv = genSurvivors();
 const pf = genProtocol();
@@ -759,7 +816,7 @@ const DATA_PAGES = new Set(['detective', 'codex', 'workshop']);
 
 const orientPartial = read(path.join(SRC, 'partials/orient.html')).trimEnd();
 // 哪些页面挂方向开关：小游戏（挂机版与死亡报告是独立子项目，各自内联一份）
-const ORIENT_PAGES = new Set(['detective', 'merge', 'bird', 'binding', 'survivors', 'protocol', 'wolf', 'lovelive']);
+const ORIENT_PAGES = new Set(['detective', 'merge', 'bird', 'binding', 'survivors', 'protocol', 'wolf', 'lovelive', 'bugfight']);
 // 手机端整体减负：全屏毛玻璃（backdrop-filter）每一帧都要对身后整个画面做一次模糊，canvas 游戏上面盖一层弹窗就会掉到个位数帧；
 // 弹窗底色本来就带 .7 以上的不透明度，去掉模糊肉眼几乎看不出区别。点击也不需要等 300ms 判断双击缩放。
 const liteCss = `<style id="zj-lite">
@@ -865,5 +922,6 @@ console.log(`  lovelive！mori⭐mens！：${liveUnits.n} 名唤醒体可上场�
 console.log(`  唤醒体幸存者：${sv.chars} 名角色 / ${sv.weapons} 把武器，js/sv/gen.js ${sv.kb}KB（图集已内联）`);
 console.log(`  忘却协议：${pf.units} 名唤醒体 / ${pf.mobs} 种怪物，js/pf/gen.js ${pf.kb}KB（图集已内联）`);
 console.log(`  弥萨格王权：${rg.n} 张卡面，js/reign/art.js ${rg.kb}KB（立绘已内联）`);
+console.log(`  电子斗蛐蛐：${bfMobs.n} 只怪 / ${bfMobs.sk} 条技能，js/bugfight/gen.js ${bfMobs.kb}KB（九张席位头像已内联）`);
 for (const e of extras) console.log(`  延迟加载 js/b/${e.out}`.padEnd(30), `${e.modules} 个模块 → ${e.kb}KB（不进首屏）`);
 console.log(`sw.js 预缓存 ${precache.length} 项`);

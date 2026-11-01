@@ -42,6 +42,9 @@ body{
   text-decoration:none; font-size:15px; cursor:pointer; padding:0; font:inherit;
 }
 .back:hover{border-color:var(--pink); color:var(--pink)}
+/* 头部那个是「回小游戏主页」，屏内那个是「回上一屏」——用文字胶囊把两者分开，
+   否则左边会叠着两个一模一样的箭头 */
+.back.home{width:auto; flex:0 0 auto; padding:0 10px; font-size:12px; letter-spacing:.5px}
 .hud .who{min-width:0; flex:1; text-align:center}
 .hud .who b{display:block; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .hud .who span{font-size:10.5px; color:var(--dim); letter-spacing:.08em}
@@ -84,6 +87,13 @@ main > section[hidden]{display:none}
 .scr-h{display:flex; align-items:center; gap:6px; flex:0 0 auto}
 .scr-h h2{font-size:17px; margin:0; flex:1; text-align:center; min-width:0;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.src-tabs{flex:0 0 auto; display:flex; gap:6px; overflow-x:auto; padding:0 1px 9px; scrollbar-width:none}
+.src-tabs::-webkit-scrollbar{display:none}
+.src-tabs button{
+  flex:0 0 auto; font:inherit; font-size:12.5px; line-height:1; padding:6px 11px; border-radius:999px; cursor:pointer;
+  background:transparent; color:var(--dim); border:1px solid var(--line); transition:.15s;
+}
+.src-tabs button.on{background:var(--pink2); color:#181022; border-color:transparent; font-weight:600}
 .song-list{flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:6px}
 .song{border:1px solid var(--line); background:var(--panel); border-radius:14px; padding:12px 14px}
 .song .sh{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap}
@@ -190,7 +200,7 @@ main > section[hidden]{display:none}
 }
 .stam i{display:block; height:100%; width:100%; background:linear-gradient(90deg,#9be29b,#ffd76a); transition:width .25s ease}
 .stam.low i{background:linear-gradient(90deg,#e8695f,#ff9e5f)}
-.skills{flex:0 0 auto; display:grid; grid-template-columns:repeat(9,1fr); gap:3px}
+.skills{flex:0 0 auto; display:grid; grid-template-columns:repeat(9,1fr); gap:3px; width:100%; max-width:560px; margin:0 auto}
 .skill{
   position:relative; border:1px solid var(--line); background:var(--panel); border-radius:7px;
   padding:2px; display:flex; flex-direction:column; gap:2px; min-width:0;
@@ -199,7 +209,8 @@ main > section[hidden]{display:none}
 .skill .gauge{display:block; height:3px; border-radius:2px; background:var(--panel2); overflow:hidden}
 .skill .gauge b{display:block; height:100%; width:0; background:hsl(var(--h),85%,68%)}
 .skill.ready{border-color:hsl(var(--h),85%,68%); box-shadow:0 0 10px -2px hsl(var(--h),85%,60%,.75)}
-.stage{flex:1; min-height:0; position:relative; border-radius:14px; overflow:hidden}
+/* 舞台自带深色底：立绘用的是 screen 混合，浅色主题下没有暗底会整块发白 */
+.stage{flex:1; min-height:0; position:relative; border-radius:14px; overflow:hidden; background:#0a0d15}
 .stage canvas{position:absolute; inset:0; touch-action:none}
 .prog{position:absolute; top:0; left:0; right:0; height:3px; background:rgba(255,255,255,.06)}
 .prog i{display:block; height:100%; width:0; background:var(--pink); opacity:.8}
@@ -213,26 +224,45 @@ main > section[hidden]{display:none}
 
 
 /* ---------------------------------------------------------------- 技能立绘 */
-/* 技能发动时舞台背景换成这位唤醒体的立绘：大图虚化当氛围（头像只有 120px，
-   放大不模糊是不可能的，所以干脆糊透），清晰的位置留给右下角那张小卡。 */
-.artbg{
-  position:absolute; inset:-8%; opacity:0; transition:opacity .32s ease; pointer-events:none;
-  background-size:cover; background-position:center 16%;
-  filter:blur(15px) saturate(1.3) brightness(.8); transform:scale(1.07);
+/* 技能发动时把这位唤醒体的立绘摆到舞台右侧：assets/card/*.webp（官方素材库的
+   竖版卡面，240×600），原尺寸就够清楚，不再把 96px 的头像放大糊一屏。
+   立绘用 screen 混合 + 径向遮罩融进暗底，边缘不留矩形硬边。 */
+.artbox{position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .3s ease}
+.artbox.on{opacity:1}
+.artfig{
+  position:absolute; right:-1%; bottom:0; height:99%; width:auto; max-width:62%;
+  object-fit:contain; object-position:bottom right; display:block;
+  filter:saturate(1.08) contrast(1.02) drop-shadow(0 6px 26px rgba(0,0,0,.6));
+  mix-blend-mode:screen;
+  -webkit-mask-image:linear-gradient(to right, transparent 0%, rgba(0,0,0,.35) 12%, #000 38%);
+  mask-image:linear-gradient(to right, transparent 0%, rgba(0,0,0,.35) 12%, #000 38%);
+  transform:translateY(12px); transition:transform .36s cubic-bezier(.2,.9,.2,1), opacity .2s ease;
 }
-.artbg.on{opacity:.78}
-.artcard{
-  position:absolute; right:6px; top:52px; width:88px; padding:5px; border-radius:12px;
-  background:linear-gradient(180deg, hsla(var(--h,300),55%,26%,.92), rgba(12,10,20,.92));
-  border:1px solid hsla(var(--h,300),80%,70%,.7);
-  box-shadow:0 12px 30px -14px hsla(var(--h,300),90%,60%,.9);
-  opacity:0; transform:translateX(22px) scale(.94); pointer-events:none; text-align:center;
-  transition:opacity .3s ease, transform .3s cubic-bezier(.2,.9,.2,1);
+.artbox.on .artfig{transform:none}
+/* 没有竖版卡面的，用官方 CG 顶上：横幅图按「一条画面带」摆，
+   取中间那位，别把 2:1 的 CG 硬压成细长条 */
+.artfig.wide{
+  inset:-10%; width:auto; height:auto; max-width:none; max-height:none;
+  object-fit:cover; object-position:center 32%;
+  -webkit-mask-image:radial-gradient(74% 72% at 50% 46%, #000 40%, rgba(0,0,0,.55) 76%, transparent 100%);
+  mask-image:radial-gradient(74% 72% at 50% 46%, #000 40%, rgba(0,0,0,.55) 76%, transparent 100%);
 }
-.artcard.on{opacity:1; transform:none}
-.artcard img{width:100%; aspect-ratio:1; border-radius:9px; display:block; object-fit:cover}
-.artcard b{display:block; font-size:11.5px; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.artcard span{display:block; font-size:10px; color:rgba(240,236,250,.72); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+/* 没有立绘的那位：头像小卡，不放大、不虚化 */
+.artfig.small{
+  width:110px; height:110px; right:10px; bottom:78px; border-radius:16px; object-fit:cover;
+  mix-blend-mode:normal; filter:none;
+  border:1px solid hsla(var(--h,300),80%,72%,.75); box-shadow:0 10px 26px -12px #000;
+  -webkit-mask-image:none; mask-image:none;
+}
+.artlab{
+  position:absolute; left:8px; top:8px; max-width:52%; padding:5px 10px 6px;
+  border-left:3px solid hsla(var(--h,300),85%,70%,.9); border-radius:0 10px 10px 0;
+  background:linear-gradient(90deg, rgba(10,8,18,.82), rgba(10,8,18,.25));
+  transform:translateX(-6px); transition:transform .3s ease;
+}
+.artbox.on .artlab{transform:none}
+.artlab b{display:block; font-size:13px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.artlab span{display:block; font-size:11px; color:rgba(240,236,250,.8); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 
 /* ---------------------------------------------------------------- 工坊 */
 .shop-body{flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:8px}
@@ -323,10 +353,13 @@ dialog.help code{font-family:ui-monospace,Menlo,monospace; font-size:11.5px; bor
 dialog.help .acts{display:flex; justify-content:flex-end; margin-top:10px}
 
 /* 首屏守护的占位要能盖住整页 */
+/* 全站那个横竖屏开关在本页整个收起来：它固定在左下角，会压住曲目卡和第九格 */
+body .zj-orient{display:none !important}
+
 #boot{position:fixed; inset:0; z-index:99; display:grid; place-items:center; background:var(--bg); color:var(--dim); text-align:center; font-size:14px}
 #boot.err{color:var(--bad)}
 </style>
-<meta name="build" content="9e536efc98">
+<meta name="build" content="cc44a94715">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -482,6 +515,7 @@ html{-webkit-tap-highlight-color:transparent}
 <div class="app" id="app">
   <header class="hud">
     <span class="who"><b>lovelive！mori⭐mens！</b><span>忘忘学园偶像祭</span></span>
+    <a class="back home" id="to-home" href="./" title="返回小游戏主页" aria-label="返回小游戏主页">主页</a>
     <button class="ico" id="mute" title="静音开关" aria-label="静音开关">♪</button>
     <button class="ico" id="btn-set" title="设置" aria-label="设置">⚙</button>
     <button class="ico" id="btn-help" title="玩法说明" aria-label="玩法说明">?</button>
@@ -502,7 +536,7 @@ html{-webkit-tap-highlight-color:transparent}
       </nav>
       <p class="home-note">
         上方一个发球点，下方九个击打框——音符散开、你把它接住。<br>
-        默认音源是页面内合成的芯片改编；想听原曲就进设置导入自己的 mp3，谱面会按原曲的鼓点重新生成。
+        有原曲包的曲目直接放原曲；没有的走页面内合成。设置里还能导入自己的 mp3。
       </p>
     </section>
 
@@ -513,6 +547,7 @@ html{-webkit-tap-highlight-color:transparent}
         <button class="ico" id="songs-shop" type="button" title="工坊" aria-label="工坊">✎</button>
         <button class="ico" id="songs-set" type="button" title="设置 / 音源" aria-label="设置">⚙</button>
       </div>
+      <div class="src-tabs" id="src-tabs"></div>
       <div class="song-list" id="song-list"></div>
     </section>
 
@@ -585,7 +620,8 @@ html{-webkit-tap-highlight-color:transparent}
 
         <div class="card">
           <h3>音源</h3>
-          <p>曲名借 Love Live! 的经典曲，但这里不打包任何原曲音源（公开仓库不能分发唱片）。<b>自己手里的 mp3</b> 可以导入：只存在这台设备的浏览器里，不上传、不跨设备；解码后会按原曲的鼓点重新生成谱面。</p>
+          <p>曲名借各家经典曲。仓库里能放原曲的那几首，音频是<b>加密打包</b>的（<code>assets/ll-music/*.bin</code>，AES-GCM 封装，取回来在浏览器里解），仓库里不出现能直接播放的文件——但这不是版权保护，曲子版权归原权利人。没有包的曲目走页面内合成。</p>
+          <p><b>自己手里的 mp3</b>当然更好：导入后只存在这台设备的浏览器里，不上传、不跨设备，解码后按原曲的鼓点重新生成谱面，会盖过内置包。</p>
           <div id="set-tracks"></div>
           <div class="set-status" id="set-status"></div>
           <input type="file" id="set-file" accept="audio/*" hidden>
@@ -668,11 +704,9 @@ html{-webkit-tap-highlight-color:transparent}
       <div class="stam"><i id="live-stam"></i></div>
       <div class="skills" id="skills"></div>
       <div class="stage" id="stage">
-        <div class="artbg" id="art-bg"></div>
-        <div class="artcard" id="art-card">
-          <img id="art-face" alt="">
-          <b id="art-name"></b>
-          <span id="art-skill"></span>
+        <div class="artbox" id="art-box">
+          <img class="artfig" id="art-fig" alt="" decoding="async">
+          <div class="artlab"><b id="art-name"></b><span id="art-skill"></span></div>
         </div>
         <canvas id="cv"></canvas>
         <div class="prog"><i id="live-prog"></i></div>
@@ -722,7 +756,8 @@ html{-webkit-tap-highlight-color:transparent}
   <p><b>长按</b>：外圈描了一道亮环的是长条。按住别松，撑到尾音进框为止；提前松手会断连（有护盾技能时不算）。</p>
   <p><b>九个人</b>：编队最多九位唤醒体，第 1~9 位对应下面第 1~9 格，那一格的音符就是她的脸。技能全自动发动——判定放大、加分、Miss 救成 Good、护盾不断连、回体力、直接加连击、音符减速，攒满即放，不用点。</p>
   <p><b>操作</b>：手机上直接点框或点音符（支持多指同时按）；电脑上鼠标点，或者用 <code>A S D F G H J K L</code> 对应九格，<code>Esc</code> 暂停。长条用键盘就是按住不放。</p>
-  <p><b>音源</b>：默认是页面内合成的芯片风短版改编；进「设置 → 音源」可以导入自己手里的原曲 mp3，只存在这台设备上，谱面会按原曲的鼓点重做。手感相关的偏移 / 宽松 / 流速也都在设置里。</p>
+  <p><b>音源</b>：曲库里有原曲包的那几首直接放原曲（仓库里是加密封装的，取回来在浏览器里解）；没有包的走页面内合成的芯片改编。进「设置 → 音源」可以导入自己手里的 mp3（只存在这台设备上，会盖过内置包），谱面按那一版原曲的鼓点重做。偏移 / 宽松 / 流速也都在设置里。</p>
+  <p><b>立绘</b>：技能发动时舞台右边会摆上这位唤醒体的立绘，左上角是她的名字和技能。在 PC 上把窗口拉大一点看得更清楚。</p>
   <p><b>工坊</b>：首页的「工坊」能导入任意音频，自动按鼓点出一版谱面，然后在时间轴上改：轻点空白加音符、拖音符改时间和轨道、右键删、滚轮缩放。改完可以存本机（选曲列表里会多一首「我的谱面」），登录后还能<b>发布到云端曲库</b>给所有人玩——发的是谱面数据，音频不上传，别人要自己配一份同一版本的音频。</p>
   <div class="acts"><button class="btn pri" type="button" onclick="document.getElementById('helpDlg').close()">知道了</button></div>
 </dialog>
@@ -748,7 +783,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 20000);
 })();
 </script>
-<script type="module" src="js/b/lovelive.js?v=9e536efc98"></script>
+<script type="module" src="js/b/lovelive.js?v=cc44a94715"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
