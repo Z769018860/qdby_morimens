@@ -1,0 +1,209 @@
+{
+ "_note": "lovelive 曲库原曲包清单。file 指 assets/ll-music/*.bin（AES-GCM 封装，密钥在 js/ll/musicbox.js）。构建时只把清单塞进脚本，音频按需取。",
+ "_build": "python scripts/ll-music.py（源音频在 music/，不入库）",
+ "songs": {
+  "ashesreign": {
+   "file": "assets/ll-music/ashesreign.bin",
+   "dur": 247.88,
+   "bytes": 3470306,
+   "src": "ashesreign.mp3",
+   "at": "2026-11-01"
+  },
+  "boiling": {
+   "file": "assets/ll-music/boiling.bin",
+   "dur": 208.69,
+   "bytes": 2921734,
+   "src": "boiling.mp3",
+   "at": "2026-11-01"
+  },
+  "bokura": {
+   "file": "assets/ll-music/bokura.bin",
+   "dur": 276.09,
+   "bytes": 3865277,
+   "src": "bokura.mp3",
+   "at": "2026-11-01"
+  },
+  "bujian": {
+   "file": "assets/ll-music/bujian.bin",
+   "dur": 363.68,
+   "bytes": 5091517,
+   "src": "bujian.mp3",
+   "at": "2026-11-01"
+  },
+  "dangzhan": {
+   "file": "assets/ll-music/dangzhan.bin",
+   "dur": 204.88,
+   "bytes": 2868340,
+   "src": "dangzhan.mp3",
+   "at": "2026-11-01"
+  },
+  "daogu": {
+   "file": "assets/ll-music/daogu.bin",
+   "dur": 284.16,
+   "bytes": 3978283,
+   "src": "daogu.mp3",
+   "at": "2026-11-01"
+  },
+  "dawnbreaker": {
+   "file": "assets/ll-music/dawnbreaker.bin",
+   "dur": 235.28,
+   "bytes": 3294032,
+   "src": "dawnbreaker.mp3",
+   "at": "2026-11-01"
+  },
+  "flywings": {
+   "file": "assets/ll-music/flywings.bin",
+   "dur": 194.72,
+   "bytes": 2726077,
+   "src": "flywings.mp3",
+   "at": "2026-11-01"
+  },
+  "glory": {
+   "file": "assets/ll-music/glory.bin",
+   "dur": 232.25,
+   "bytes": 3251609,
+   "src": "glory.mp3",
+   "at": "2026-11-01"
+  },
+  "hezengju": {
+   "file": "assets/ll-music/hezengju.bin",
+   "dur": 194.98,
+   "bytes": 2729734,
+   "src": "hezengju.mp3",
+   "at": "2026-11-01"
+  },
+  "jianghu": {
+   "file": "assets/ll-music/jianghu.bin",
+   "dur": 306.86,
+   "bytes": 4296089,
+   "src": "jianghu.mp3",
+   "at": "2026-11-01"
+  },
+  "kiseki": {
+   "file": "assets/ll-music/kiseki.bin",
+   "dur": 254.85,
+   "bytes": 3567952,
+   "src": "kiseki.mp3",
+   "at": "2026-11-01"
+  },
+  "kuang": {
+   "file": "assets/ll-music/kuang.bin",
+   "dur": 205.56,
+   "bytes": 2877849,
+   "src": "kuang.mp3",
+   "at": "2026-11-01"
+  },
+  "lament": {
+   "file": "assets/ll-music/lament.bin",
+   "dur": 223.87,
+   "bytes": 3134214,
+   "src": "lament.mp3",
+   "at": "2026-11-01"
+  },
+  "natsuiro": {
+   "file": "assets/ll-music/natsuiro.bin",
+   "dur": 269.77,
+   "bytes": 3776774,
+   "src": "natsuiro.mp3",
+   "at": "2026-11-01"
+  },
+  "opblade": {
+   "file": "assets/ll-music/opblade.bin",
+   "dur": 238.39,
+   "bytes": 3337552,
+   "src": "opblade.mp3",
+   "at": "2026-11-01"
+  },
+  "patches": {
+   "file": "assets/ll-music/patches.bin",
+   "dur": 232.91,
+   "bytes": 3260752,
+   "src": "patches.mp3",
+   "at": "2026-11-01"
+  },
+  "pyrite": {
+   "file": "assets/ll-music/pyrite.bin",
+   "dur": 262.92,
+   "bytes": 3680957,
+   "src": "pyrite.mp3",
+   "at": "2026-11-01"
+  },
+  "radiant": {
+   "file": "assets/ll-music/radiant.bin",
+   "dur": 252.34,
+   "bytes": 3532843,
+   "src": "radiant.mp3",
+   "at": "2026-11-01"
+  },
+  "reconn": {
+   "file": "assets/ll-music/reconn.bin",
+   "dur": 261.67,
+   "bytes": 3663403,
+   "src": "reconn.mp3",
+   "at": "2026-11-01"
+  },
+  "renegade": {
+   "file": "assets/ll-music/renegade.bin",
+   "dur": 234.11,
+   "bytes": 3278182,
+   "src": "renegade.mp3",
+   "at": "2026-11-01"
+  },
+  "snow": {
+   "file": "assets/ll-music/snow.bin",
+   "dur": 256.21,
+   "bytes": 3586969,
+   "src": "snow.mp3",
+   "at": "2026-11-01"
+  },
+  "solight": {
+   "file": "assets/ll-music/solight.bin",
+   "dur": 245.89,
+   "bytes": 3442512,
+   "src": "solight.mp3",
+   "at": "2026-11-01"
+  },
+  "tiantian": {
+   "file": "assets/ll-music/tiantian.bin",
+   "dur": 248.66,
+   "bytes": 3481277,
+   "src": "tiantian.mp3",
+   "at": "2026-11-01"
+  },
+  "wakingworld": {
+   "file": "assets/ll-music/wakingworld.bin",
+   "dur": 199.34,
+   "bytes": 2790809,
+   "src": "wakingworld.mp3",
+   "at": "2026-11-01"
+  },
+  "wanchong": {
+   "file": "assets/ll-music/wanchong.bin",
+   "dur": 242.08,
+   "bytes": 3389117,
+   "src": "wanchong.mp3",
+   "at": "2026-11-01"
+  },
+  "wanshen": {
+   "file": "assets/ll-music/wanshen.bin",
+   "dur": 307.07,
+   "bytes": 4299014,
+   "src": "wanshen.mp3",
+   "at": "2026-11-01"
+  },
+  "windwhere": {
+   "file": "assets/ll-music/windwhere.bin",
+   "dur": 290.17,
+   "bytes": 4062397,
+   "src": "windwhere.mp3",
+   "at": "2026-11-01"
+  },
+  "wolfking": {
+   "file": "assets/ll-music/wolfking.bin",
+   "dur": 214.7,
+   "bytes": 3005849,
+   "src": "wolfking.mp3",
+   "at": "2026-11-01"
+  }
+ }
+}

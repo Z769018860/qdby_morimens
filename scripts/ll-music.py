@@ -43,16 +43,15 @@ SONGS = [
     ('bokura', '僕らは今のなかで', ['bokura', '僕らは今のなかで', 'bokura wa ima no naka de', 'now no naka']),
     ('snow', 'Snow halation', ['snow halation', 'snow']),
     ('kiseki', 'それは僕たちの奇跡', ['kiseki', 'それは僕たちの奇跡', 'sore wa bokutachi no kiseki']),
-    ('kokoro', '君のこころは輝いてるかい？', ['kokoro', '君のこころは輝いてるかい', 'kimino kokoro']),
     ('natsuiro', '夏色えがおで1,2,Jump!', ['natsuiro', '夏色えがおで', 'natsu iro']),
     ('wanshen', '万神纪', ['万神纪', 'wanshen', 'wan shen ji']),
-    ('shanhe', '山河晴昼', ['山河晴昼', 'shanhe', 'shan he qing zhou']),
-    ('bujian', '不见长安', ['不见长安', 'bujian', 'bu jian chang an']),
+    ('bujian', '不见长安', ['不见长安', 'bujian', 'bu jian chang an', 'chang an']),
     ('jianghu', '江湖意', ['江湖意', 'jianghu']),
     ('wanchong', '万重山', ['万重山', 'wanchong', 'wan chong shan']),
     ('dangzhan', '当战', ['当战', 'dangzhan', 'dang zhan']),
     ('hezengju', '何曾惧', ['何曾惧', 'hezengju', 'he zeng ju']),
     ('kuang', '狂', ['剑网3狂', '狂', 'kuang']),
+    ('daogu', '我的一个道姑朋友', ['道姑朋友', 'daogu', 'dao gu peng you']),
     ('opblade', 'Operation Blade', ['operation blade', 'opblade', 'operation']),
     ('reconn', 'Reconnection', ['reconnection', 'reconn']),
     ('radiant', 'Radiant', ['radiant']),
@@ -63,12 +62,13 @@ SONGS = [
     ('boiling', 'Boiling Blood', ['boiling blood', 'boiling', '炽血蒸腾']),
     ('flywings', 'Fly, My Wings', ['fly my wings', 'flywings', 'my wings']),
     ('lament', 'In Hell We Live, Lament', ['in hell we live', 'lament', 'hell we live']),
-    ('bell', 'Bell of Twilight', ['bell of twilight', 'bell', 'twilight']),
-    ('ashes', 'Ashes', ['ashes', 'ash']),
+    ('tiantian', 'TIAN TIAN', ['tian tian', 'tiantian']),
+    ('patches', 'Through Patches of Violet', ['through patches', 'patches of violet', 'patches']),
     ('wakingworld', 'Waking of a World', ['waking of a world', 'wakingworld', 'waking']),
     ('dawnbreaker', 'Dawnbreaker', ['dawnbreaker', 'dawn breaker', '破晓']),
     ('ashesreign', '余烬重燃', ['余烬重燃', 'ashesreign', 'turning around']),
     ('windwhere', '风之所在', ['风之所在', 'windwhere', 'wind where']),
+    ('glory', '愿戴荣光坠入天渊', ['愿戴荣光', 'glory', 'yuan dai rong guang']),
 ]
 
 
@@ -83,8 +83,33 @@ def fmt_dur(sec):
     return '%d:%02d' % (sec // 60, sec % 60)
 
 
+MP3_BR1L3 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
+
+
+def mp3_dur(data):
+    """按首帧码率估时长。仓库里的包统一是 CBR mp3，误差在 1% 以内。"""
+    off = 0
+    if data[:3] == b'ID3' and len(data) > 10:
+        sz = ((data[6] & 0x7f) << 21) | ((data[7] & 0x7f) << 14) | ((data[8] & 0x7f) << 7) | (data[9] & 0x7f)
+        off = 10 + sz
+    for i in range(off, min(len(data) - 4, off + 65536)):
+        if data[i] != 0xFF or (data[i + 1] & 0xE0) != 0xE0:
+            continue
+        ver = (data[i + 1] >> 3) & 3          # 3 = MPEG1
+        layer = (data[i + 1] >> 1) & 3        # 1 = Layer III
+        bi = data[i + 2] >> 4
+        if ver != 3 or layer != 1 or bi in (0, 15):
+            continue
+        return (len(data) - off) / (MP3_BR1L3[bi] * 1000 / 8.0)
+    return 0
+
+
 def guess_dur(data):
-    """能猜就猜：mp3 的帧头扫描太麻烦，这里只对 wav 读采样数，其它交给浏览器解码。"""
+    """能猜就猜：mp3 读首帧码率，wav 读采样数，其它交给浏览器解码。"""
+    if len(data) > 4 and (data[:3] == b'ID3' or data[:2] in (b'\xff\xfb', b'\xff\xf3', b'\xff\xf2')):
+        d = mp3_dur(data)
+        if d:
+            return d
     if len(data) > 44 and data[:4] == b'RIFF' and data[8:12] == b'WAVE':
         try:
             i = 12
