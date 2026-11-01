@@ -359,7 +359,7 @@ body .zj-orient{display:none !important}
 #boot{position:fixed; inset:0; z-index:99; display:grid; place-items:center; background:var(--bg); color:var(--dim); text-align:center; font-size:14px}
 #boot.err{color:var(--bad)}
 </style>
-<meta name="build" content="17974f7e3d">
+<meta name="build" content="7c73183b04">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -536,7 +536,7 @@ html{-webkit-tap-highlight-color:transparent}
       </nav>
       <p class="home-note">
         上方一个发球点，下方九个击打框——音符散开、你把它接住。<br>
-        有原曲包的曲目直接放原曲；没有的走页面内合成。设置里还能导入自己的 mp3。
+        二十九首全是原曲（仓库里加密，浏览器取回本地解），谱面按原曲的鼓点现抓。设置里还能换成自己的 mp3。
       </p>
     </section>
 
@@ -620,7 +620,7 @@ html{-webkit-tap-highlight-color:transparent}
 
         <div class="card">
           <h3>音源</h3>
-          <p>曲名借各家经典曲。仓库里能放原曲的那几首，音频是<b>加密打包</b>的（<code>assets/ll-music/*.bin</code>，AES-GCM 封装，取回来在浏览器里解），仓库里不出现能直接播放的文件——但这不是版权保护，曲子版权归原权利人。没有包的曲目走页面内合成。</p>
+          <p>曲库二十九首全部是原曲，音频<b>加密打包</b>在 <code>assets/ll-music/*.bin</code>（AES-GCM 封装，取回浏览器里解，按曲子点哪首取哪首），仓库里不出现能直接播放的文件——但这不是版权保护，曲子版权归原权利人。</p>
           <p><b>自己手里的 mp3</b>当然更好：导入后只存在这台设备的浏览器里，不上传、不跨设备，解码后按原曲的鼓点重新生成谱面，会盖过内置包。</p>
           <div id="set-tracks"></div>
           <div class="set-status" id="set-status"></div>
@@ -783,7 +783,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 20000);
 })();
 </script>
-<script type="module" src="js/b/lovelive.js?v=17974f7e3d"></script>
+<script type="module" src="js/b/lovelive.js?v=7c73183b04"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
