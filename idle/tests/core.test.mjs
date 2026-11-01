@@ -176,6 +176,35 @@ test('poison ticks, barrier blocks, counter retaliates, sealed stops exalt', () 
   assert.ok(!r3.events.some((e) => e.k === 'act' && e.who === 'a0' && (e.slot === 'Exalt' || e.slot === 'OverExalt')), 'sealed units cannot exalt');
 });
 
+test('优先开大：治疗 / 护盾型大招攒满就开，不再被技能分压着捏', () => {
+  // 拉蒙娜 / 奥吉尔的大招是治疗 + 充能、护盾 + 小伤害：以前「优先开大」还会拿大招的分值
+  // 跟手上最强的牌比一比，满血时治疗算 0 分、护盾比不过高倍率技能，于是攒满了也一直放小技能。
+  // 现在只有「这一发完全白给」（分值为 0）才捏一次行动。
+  const s = newState(data, 1);
+  for (const slug of ['ramona', 'ogier']) s.roster[slug] = { lv: 45, star: 2 };
+  s.team = ['ramona', 'ogier', 'lotan', 'doll'];
+  const allies = s.team.map((x) => allyDef(s, data, x, s.team));
+  const dummy = { name: '木桩', type: 'ASSAULT', realm: 'CHAOS', hp: 400000, atk: 300, def: 120, pattern: [{ name: '攻击', effects: [{ t: 'dmg', m: 1, to: 'foe' }] }] };
+  const held = {}, casts = {};
+  for (const seed of [1, 5, 9]) {
+    const r = simulate({ allies, enemies: [dummy], seed, strategy: { ult: 'first' }, maxRounds: 22 });
+    const cur = {}, nameOf = {};
+    allies.forEach((u, i) => { const uid = `a${i}`; nameOf[uid] = u.slug; cur[uid] = { ali: u.openAli || 0, key: u.openKey || 0 }; });
+    for (const e of r.events) {
+      if (e.k === 'act' && cur[e.who]) {
+        const c = cur[e.who], ult = e.slot === 'Exalt' || e.slot === 'OverExalt';
+        if (c.ali >= 100 || c.key >= 100) {
+          const k = nameOf[e.who];
+          if (ult) casts[k] = (casts[k] || 0) + 1; else held[k] = (held[k] || 0) + 1;
+        }
+      }
+      if (e.k === 'gauge' && cur[e.who]) { cur[e.who].ali = e.ali; cur[e.who].key = e.key; }
+    }
+  }
+  assert.ok((casts.ramona || 0) > 0 && (casts.ogier || 0) > 0, `两位都该开过大：${JSON.stringify(casts)}`);
+  assert.deepEqual(held, {}, `攒满了却没开：${JSON.stringify(held)}`);
+});
+
 test('damage stats add up', () => {
   const s = newState(data, 1);
   const r = runBattle(s, data, 3);

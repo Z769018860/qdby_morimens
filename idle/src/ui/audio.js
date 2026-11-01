@@ -4,7 +4,14 @@
 //    用 step sequencer（预排 0.3 秒、按 AudioContext 时钟对齐）演奏，切换场景时交叉淡入淡出。
 // 没有 WebAudio、用户还没交互过（浏览器自动播放策略）时全部静默降级。
 const KEY = 'morimens-idle-audio';
-const DEFAULTS = { sfx: 0.7, bgm: 0.45, mute: false, autoMood: true };
+const DEFAULTS = { sfx: 0.65, bgm: 0.55, mute: false, autoMood: true };
+/* 音效与音乐的总线增益：
+   以前音效 ×1.7、音乐 ×0.8，同一个滑杆位置下音效比音乐响 9dB 左右——
+   战斗里连打几十下以后，音乐基本被压在底下，滑杆拉到 45% 也听不清旋律。
+   现在两边都归到「滑杆 100% ≈ 满幅」，音效稍微让一点，音乐抬上来，
+   再加上主总线的一个限幅器兜住瞬态，连打时不会糊成一片。 */
+const SFX_GAIN = 1.2;
+const BGM_GAIN = 1.5;
 const load = () => { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY)) }; } catch { return { ...DEFAULTS }; } };
 
 const SCALES = {
@@ -46,7 +53,16 @@ class Sound {
     if (!AC) return null;
     try {
       this.ctx = new AC();
+      // 主总线：音效总线 + 音乐总线 → 限幅器 → 输出。
+      // 限幅器是为了「音效和音乐各自都调好了、一起响的时候不糊」：连打时几十个瞬态叠在一起
+      // 很容易过载，压缩器把峰值压住，音乐就不会被挤没。
       this.master = this.ctx.createGain(); this.master.connect(this.ctx.destination);
+      if (this.ctx.createDynamicsCompressor) {
+        const comp = this.ctx.createDynamicsCompressor();
+        comp.threshold.value = -14; comp.knee.value = 12; comp.ratio.value = 4;
+        comp.attack.value = 0.004; comp.release.value = 0.22;
+        this.master.disconnect(); this.master.connect(comp); comp.connect(this.ctx.destination);
+      }
       this.sfxBus = this.ctx.createGain(); this.sfxBus.connect(this.master);
       this.bgmBus = this.ctx.createGain(); this.bgmBus.connect(this.master);
       // 音乐走一档低通，把方波/锯齿的高频毛刺磨掉，听感更像「背景」而不是「音效」
@@ -59,11 +75,13 @@ class Sound {
     } catch { this.ctx = null; }
     return this.ctx;
   }
+  /** 音乐总线的目标增益（滑杆 × 系数 × 交叉淡入系数），applyVolumes 与 crossfade 共用同一套算法 */
+  bgmTarget(m = this.cfg.mute ? 0 : 1) { return m * this.cfg.bgm * BGM_GAIN * this.gainNow; }
   applyVolumes() {
     if (!this.ctx) return;
     const m = this.cfg.mute ? 0 : 1;
-    this.sfxBus.gain.value = m * this.cfg.sfx * 1.7;
-    this.bgmBus.gain.value = m * this.cfg.bgm * 0.8 * this.gainNow;
+    this.sfxBus.gain.value = m * this.cfg.sfx * SFX_GAIN;
+    this.bgmBus.gain.value = this.bgmTarget(m);
   }
   set(k, v) {
     this.cfg[k] = v; this.save();
@@ -195,7 +213,7 @@ class Sound {
       this.next = this.ctx.currentTime + 0.06;
       const t2 = this.ctx.currentTime;
       this.gainNow = 1;
-      const target = (this.cfg.mute ? 0 : 1) * this.cfg.bgm * 0.8;
+      const target = this.bgmTarget();
       this.bgmBus.gain.cancelScheduledValues(t2);
       this.bgmBus.gain.setValueAtTime(0.0001, t2);
       this.bgmBus.gain.linearRampToValueAtTime(target, t2 + 0.9);

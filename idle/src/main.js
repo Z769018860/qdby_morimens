@@ -148,11 +148,14 @@ async function boot() {
     try { await Promise.race([cloudRun('boot'), new Promise((r) => setTimeout(r, 8000))]); } catch { /* 离线 / 没登录：按本机结算 */ }
     // 有冲突框：等玩家选完（选哪份都要在结算之前定下来），最多等 5 分钟
     for (let i = 0; i < 1200 && modalEl(); i++) await new Promise((r) => setTimeout(r, 250));
+    // 冲突框里点「用云端的」是异步的：框一关就要等那份存档真的落地。
+    // 不等的话结算会拿本机存档去算——金币按本机的挂机关卡，进度却是云端的。
+    await waitCloudIdle();
     app.booting = false;
     if (app.bootSeen) { app.state.lastSeen = app.bootSeen; app.bootSeen = 0; }
     if (app.state !== before) hadSave = true;      // 新设备：本机原来是空的，存档是从云端拉的
   }
-  const rep = hadSave ? offlineReport(app.state, app.data) : null;
+  app.hadSave = hadSave;
   show('battle');
   if (welcomeStatus(app.state, portalUser()).canClaim) setTimeout(() => toast('🎁 注册福利可领取：去「更多 → 签到」领取银芯', 4000), 1500);
   // 引导必须排在离线结算之后：结算弹窗是 z-index 50，引导层是 60，先弹引导会把结算盖住
@@ -166,10 +169,30 @@ async function boot() {
       });
     }, 420);
   };
-  if (rep && (rep.gold || rep.tickets)) {
-    app.offlinePending = true;
-    P.offlineModal(app, rep, () => { app.offlinePending = false; claimOffline(app.state, rep); app.save(); app.refreshTop(); toast('已领取离线收益'); app.bv.start(); maybeGuide(); });
-  } else { claimOffline(app.state, rep || null); app.bv.start(); maybeGuide(); }
+  /* 离线结算单拎出来：云端存档有可能在结算「之后」才落地（网络慢、玩家在冲突框里选了云端的），
+     那一刻必须换云端那份重算——否则金币是按本机挂机关卡结的，进度却是云端的。
+     settleToken 用来作废已经作废的那一份：弹窗被关掉时它会被触发一次「领取」，token 对不上就重算。 */
+  let settleToken = 0;
+  app.cancelSettle = () => { settleToken++; app.offlinePending = false; };
+  app.settleOffline = () => {
+    if (app.bootSeen) { app.state.lastSeen = app.bootSeen; app.bootSeen = 0; }   // 云存档的 lastSeen 可能被中间的 save() 冲掉过
+    const token = ++settleToken;
+    const rep = app.hadSave ? offlineReport(app.state, app.data) : null;
+    if (rep && (rep.gold || rep.tickets)) {
+      app.offlinePending = true;
+      P.offlineModal(app, rep, () => {
+        if (token !== settleToken) { app.settleOffline(); return; }   // 这份是按旧存档算的，作废重来
+        app.offlinePending = false;
+        claimOffline(app.state, rep); app.save(); app.refreshTop();
+        toast('已领取离线收益'); app.bv.start(); maybeGuide();
+      });
+    } else {
+      app.offlinePending = false;
+      claimOffline(app.state, rep || null);
+      app.bv.start(); maybeGuide();
+    }
+  };
+  app.settleOffline();
   // 累计签到送的那几位：达标就自动进包（老存档首次进游戏也会补发）
   checkSigninGifts();
   document.addEventListener('visibilitychange', onVisibility);
@@ -250,6 +273,8 @@ async function giftRun() {
 /* ---------- 云端存档 ----------
    登录了本站账号就自动同步整份存档（core/cloud.js）。状态放在 app.cloud，设置页读它显示。 */
 app.cloud = { status: 'idle', at: 0, err: '', busy: false, hold: false };
+app.cloudJob = null;          // 正在进行的「拉云端 / 套云端」：启动结算离线收益前要等它落地
+let keepCloudSeen = false;    // 这一轮拉下来的云存档保留它自己的 lastSeen（这段时间还没在哪儿结算过）
 let cloudTimer = 0;
 const CLOUD_GAP = 25000;     // 本机改动后，最多隔这么久推一次
 function cloudSoon() {
@@ -263,17 +288,41 @@ function applyCloudSave(save) {
   const doc = store.parse(save.data);
   if (!doc || !doc.roster) throw new Error('bad_cloud_save');
   app.state = migrate(doc, app.data);
-  // 启动时拉到的存档保留它自己的 lastSeen（从那之后到现在就是离线时间，随后按它结算）；
-  // 游戏运行中途拉到的才重置成现在（这段时间已经在另一台设备上过了）
-  app.state.lastSeen = app.booting ? (Number(doc.lastSeen) || Date.now()) : Date.now();
-  if (app.booting) app.bootSeen = app.state.lastSeen;      // 启动阶段中间若有谁调了 save()，lastSeen 会被冲成现在：记下来，结算前还原
+  // 启动 / 手机切回来这两种情况，这段时间还没在哪儿结算过：保留云端存档自己的 lastSeen，随后按它结算；
+  // 游戏中途同步的才重置成现在（那段时间已经在另一台设备上过了，这里不重复发）
+  const keepSeen = app.booting || keepCloudSeen;
+  app.state.lastSeen = keepSeen ? (Number(doc.lastSeen) || Date.now()) : Date.now();
+  if (keepSeen) app.bootSeen = app.state.lastSeen;      // 启动阶段中间若有谁调了 save()，lastSeen 会被冲成现在：记下来，结算前还原
   app.state.rev = Math.max(app.state.rev || 0, 0) + 1;
-  if (!app.booting) app.offlinePending = false;
+  app.hadSave = true;          // 云端有进度：这台设备现在也有存档了，离线结算按它算
+  // 存档整份换了：正在显示的离线结算如果是按旧档算的，作废（关掉弹窗会让它「领取」一次，靠 token 拦住）并重算
+  if (app.offlinePending) { app.cancelSettle?.(); closeModal(); }
+  else if (!app.booting) app.offlinePending = false;
   store.write(app.state);
   walletSync();
   Cloud.markSynced(app.state, save.ver);
   if (app.bv) { app.bv.app = app; app.bv.restart?.(); }
   if (app.root && !app.booting) { render(); app.refreshTop(); }
+}
+
+/** 拉云端存档并套上：整个动作挂到 app.cloudJob 上，启动结算前可以先等它落地 */
+async function pullCloudSave() {
+  const job = (async () => {
+    const save = await Cloud.fetchSave();
+    if (save) applyCloudSave(save);
+    return save;
+  })();
+  app.cloudJob = job;
+  try { return await job; } finally { if (app.cloudJob === job) app.cloudJob = null; }
+}
+
+/** 等云端那边「拉存档 / 套存档」做完（最多 ms 毫秒）。
+    启动时结算离线收益必须先等这一步：存档还没落地就算，算的是本机那份。 */
+async function waitCloudIdle(ms = 15000) {
+  const t0 = Date.now();
+  while (app.cloudJob && Date.now() - t0 < ms) {
+    await Promise.race([app.cloudJob, new Promise((r) => setTimeout(r, 120))]);
+  }
 }
 
 async function cloudPush(keepalive) {
@@ -306,8 +355,7 @@ export async function cloudRun(reason = 'auto') {
     } else if (act === 'pull') {
       // 离线收益弹窗还开着（还没领）时不能把存档换掉——否则这份离线收益就吞了；过几秒再来
       if (app.offlinePending) { setCloud('idle'); setTimeout(() => cloudRun('auto'), 4000); return; }
-      const save = await Cloud.fetchSave();
-      applyCloudSave(save);
+      await pullCloudSave();
       toast('已从云端同步最新进度', 3200);
       setCloud('ok');
     } else if (act === 'same') {
@@ -347,7 +395,7 @@ function cloudConflict(cm) {
     if (k === 'later') { app.cloud.hold = true; closeModal(); setCloud('hold'); return; }
     closeModal();
     try {
-      if (k === 'cloud') { applyCloudSave(await Cloud.fetchSave()); toast('已换成云端的进度', 3000); }
+      if (k === 'cloud') { const sv = await pullCloudSave(); if (!sv) throw new Error('云端还没有存档'); toast('已换成云端的进度', 3000); }
       else { const r = await Cloud.pushSave(s, cm.ver); if (r.conflict) throw new Error('conflict'); toast('已用本机的进度覆盖云端', 3000); }
       app.cloud.hold = false; setCloud('ok');
     } catch (err) { setCloud('error', err.message); }
@@ -368,17 +416,29 @@ function adoptNewerDisk() {
 
 function onVisibility() {
   if (document.hidden) { app.bv.stop(); app.save(); cloudPush(true); return; }
-  setTimeout(() => cloudRun('auto'), 1200);
   // 上一份离线收益还挂在弹窗里没领，就别再算第二份（lastSeen 没动，会把同一段时间算两遍）
-  if (app.offlinePending) return;
+  if (app.offlinePending) { setTimeout(() => cloudRun('auto'), 1200); return; }
   // 这段时间别的窗口 / 标签页如果存过更新的进度，就用它——否则这个旧窗口的内存状态会把新进度覆盖掉（看起来像「进度回档」）
   adoptNewerDisk();
-  const rep = offlineReport(app.state, app.data);
-  if (rep && (rep.gold || rep.tickets)) {
-    app.offlinePending = true;
-    P.offlineModal(app, rep, () => { app.offlinePending = false; claimOffline(app.state, rep); app.save(); app.refreshTop(); app.bv.start(); });
-  }
-  else { claimOffline(app.state, rep || null); app.bv.start(); }
+  const away = Date.now() - (Number(app.state.lastSeen) || 0);
+  // 就切出去几秒：没什么可结算的，直接开打，别为它等云端
+  if (away < 60000) { app.bv.start(); setTimeout(() => cloudRun('auto'), 1200); return; }
+  // 离线超过一分钟：先把云端对一遍再结算。以前这里 1.2 秒后才同步，
+  // 结算早就按本机存档算完了——金币按本机的挂机关卡发，进度却是云端那份。
+  (async () => {
+    if (Cloud.account() && Cloud.config().auto) {
+      keepCloudSeen = true;        // 拉下来的存档保留它自己的 lastSeen，随后按它结算
+      try {
+        await Promise.race([cloudRun('auto'), new Promise((r) => setTimeout(r, 6000))]);
+        await waitCloudIdle(6000);
+      } catch { /* 离线 / 没登录：按本机结算 */ } finally { keepCloudSeen = false; }
+    } else {
+      setTimeout(() => cloudRun('auto'), 1200);
+    }
+    if (app.offlinePending) return;      // 拉存档的时候就弹出了结算，别再算第二份
+    if (app.settleOffline) app.settleOffline();
+    else { claimOffline(app.state, null); app.bv.start(); }
+  })();
 }
 
 // 顶栏那个喇叭：一声点击就能静音，不用钻到设置页
@@ -609,7 +669,7 @@ function onAct(e) {
     case 'cloud-sync': cloudRun('manual'); break;
     case 'cloud-pull': {
       if (!confirm('用云端的存档覆盖这台设备上的进度？本机现在的进度会丢。')) break;
-      (async () => { try { const save = await Cloud.fetchSave(); if (!save) { toast('云端还没有存档'); return; } applyCloudSave(save); toast('已用云端存档覆盖本机', 3000); setCloud('ok'); } catch (err) { setCloud('error', err.message); } })();
+      (async () => { try { const save = await pullCloudSave(); if (!save) { toast('云端还没有存档'); return; } toast('已用云端存档覆盖本机', 3000); setCloud('ok'); } catch (err) { setCloud('error', err.message); } })();
       break;
     }
     case 'tip-close': { (s.tips ||= {})[el.dataset.k] = 1; app.ui.tipOpen = null; app.save(); render(); break; }
@@ -739,7 +799,9 @@ function onAct(e) {
       break;
     }
     // 队伍页 / 编队编辑器里的造物「详情」：原地强化、精炼，数字跟着变
-    case 'relic-detail': P.relicModal(app, el.dataset.uid); break;
+    // 这里传 {} 是「主线上下文」：编队编辑器会在自己的监听里另开一层并带上草稿上下文，
+    // 强化 / 精炼后重开的那一层则不传 opts，沿用上一次的上下文（否则编队里的换件又会打到主线）
+    case 'relic-detail': P.relicModal(app, el.dataset.uid, {}); break;
     case 'relic-up': {
       const uid = el.dataset.uid;
       if (enhanceItem(s, uid)) { app.save(); rerender(); P.relicModal(app, uid); } else toast('金币不够');
@@ -764,6 +826,12 @@ function onAct(e) {
       break;
     }
     case 'gear-tab': app.ui.gearTab = el.dataset.k; app.ui.gearLimit = 60; render(); break;
+    case 'gear-affix': {
+      const f = (app.ui.gearAffix ||= { wheel: '', covenant: '', relic: '' });
+      const k = app.ui.gearTab || 'wheel';
+      f[k] = f[k] === el.dataset.affix ? '' : el.dataset.affix;   // 再点一次同一个词条 = 取消筛选
+      app.ui.gearLimit = 60; render(); break;
+    }
     case 'gear-more': app.ui.gearLimit = (app.ui.gearLimit || 60) + 60; render(); break;
     // 命轮 / 密契页里的 4 人槽位：点一下就能换（不用先回角色详情）
     case 'gear-slot': {

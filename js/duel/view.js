@@ -224,6 +224,7 @@ function renderHome() {
       (E.REALM[d.r] || E.REALM.any).c}">
       <div class="dh"><b>${d.n}</b><span class="rm">${(E.REALM[d.r] || E.REALM.any).n}</span></div>
       <div class="ds">${d.desc}</div>
+      ${d.mech ? `<div class="dmk">核心机制 · ${d.mech}</div>` : ''}
       ${balTag(d)}
       <div class="db">${bonds.map((b) => `<span class="bond">${b.n}</span>`).join('') || '<span class="bond" style="opacity:.5">无羁绊</span>'}</div>
       <div class="dm">主卡组 ${total} 张 · 额外 ${d.extra.length} 张 · 羁绊 ${bonds.length} 条</div>
@@ -310,7 +311,7 @@ function renderHome() {
         轻松走 Lv1~5.5、普通 Lv2~8、认真 Lv4~10，九段之间是连续插值，所以每升一段都真的强一点。</p>
     </details>
 
-    <div class="sec-h"><h2>选一套卡组</h2><span class="r">预组 ${DECKS.length} 套 · 每套 40 张 + 觉醒体</span></div>
+    <div class="sec-h"><h2>选一套卡组</h2><span class="r">预组 ${DECKS.length} 套 · 每套 44 张 + 3~5 张觉醒体</span></div>
     <div class="decks">${decks}</div>
 
     <div class="sec-h"><h2>我的卡组</h2><span class="r">${mine.length} 套 · 40~50 张 / 同名最多 3 张 · 人机与好友房都能用</span></div>
@@ -562,6 +563,12 @@ function stTags(pl) {
   let s = '';
   if (pl.psn > 0) s += `<span class="stt ps" title="中毒 ${pl.psn} 层：自己回合开始失去 ${pl.psn * 100} 点命轮值">毒 ${pl.psn}</span>`;
   if (pl.br > 0) s += `<span class="stt brt" title="屏障 ${pl.br} 层：抵挡 ${pl.br} 次伤害">盾 ${pl.br}</span>`;
+  // 压制：命轮条后面直接写「封什么」，不然玩家只会看到一个点不动的攻击键
+  const lk = pl.lock || {};
+  if (lk.atk > 0) s += `<span class="stt lk" title="被压制：这个回合不能进行攻击宣言（下个回合结束解除）">封攻</span>`;
+  if (lk.sum > 0) s += `<span class="stt lk" title="被压制：这个回合不能召唤·特殊召唤">封召</span>`;
+  if (lk.sp > 0) s += `<span class="stt lk" title="被压制：这个回合不能发动魔法">封魔</span>`;
+  if (pl.trapLock) s += `<span class="stt lk" title="这个回合不能发动陷阱卡">封陷</span>`;
   return s;
 }
 
@@ -590,8 +597,15 @@ function slotHTML(m, i, side, hot) {
   if (m.taunt) badges.push('<i class="sf tt" title="嘲讽：对方必须优先攻击此卡">嘲</i>');
   else if (m.tauntCap > 0) badges.push(`<i class="sf tt" title="嘲讽（限高）：攻击力 ${m.tauntCap} 以下的怪兽必须先打它，更大的可以跨过去">嘲≤${m.tauntCap}</i>`);
   if (m.tauntOnce) badges.push('<i class="sf to" title="只拦一次：这回合拦过之后就能被绕开">一</i>');
+  // 额外卡组那批的抗性 / 反制：徽标写一个字的，鼠标悬停给完整解释
+  if (m.immune) badges.push('<i class="sf im" title="抗性：在场时不受对方魔法·陷阱效果影响（弹回 / 削攻 / 破坏 / 夺怪 / 上毒都无效），只能靠战斗解决">抗</i>');
+  if (m.negAtk) badges.push('<i class="sf na" title="免攻：每个回合可以弹开第一次攻击">免</i>');
+  if (m.hate) badges.push('<i class="sf da" title="反制：被攻击时，破坏那只攻击的怪兽">斩</i>');
+  if (m.refl) badges.push('<i class="sf rf" title="镜墙：被攻击时，本该由你承受的战斗伤害改由对方承受">镜</i>');
   const sfx = badges.length ? `<div class="sfs">${badges.join('')}</div>` : '';
-  return `<div class="slot" data-slot="${side}-${i}">`
+  // hot：正在选祭品 / 选攻击目标时，可点的怪兽要发光——空位那份早就这么做了，
+  // 但「场上有怪」这条分支一直漏着，献祭召唤的魔法让人看不出该点哪一只。
+  return `<div class="slot${hot ? ' hot' : ''}" data-slot="${side}-${i}">`
     + cardHTML(c, { uid: m.uid, def: m.pos === 'def', tag, used: side === 'me' && m.canAtk === false, atk: m.atk, defv: m.def })
     + sfx + '</div>';
 }
@@ -668,7 +682,7 @@ function renderDuel() {
 
   const modeTag = S.bt === 'local' ? `<span class="btag">同屏 · 轮到${nameOf(G.active)}</span>`
     : (S.bt === 'net' ? `<span class="btag">房间 ${S.room ? S.room.code : '—'}</span>`
-      : (S.ai ? `<span class="btag ai" title="对手这一局的档位与打错牌概率">Lv${S.ai.lv} · ${S.ai.n} · 失误${Math.round(S.ai.sloppy * 100)}%</span>${S.foeDeck ? `<span class="btag dvt" title="对手这套牌">${S.foeDeck}</span>` : ''}` : ''));
+      : (S.ai ? `<span class="btag ai" title="对手这一局的档位与打错牌概率">Lv${S.ai.lv} · <span class="an">${S.ai.n} · </span>失误${Math.round(S.ai.sloppy * 100)}%</span>${S.foeDeck ? `<span class="btag dvt" title="对手这套牌">${S.foeDeck}</span>` : ''}` : ''));
 
   const waitTxt = S.bt === 'net'
     ? (v.over ? '对决结束。' : '等好友出牌…')
@@ -683,8 +697,10 @@ function renderDuel() {
   const hintBits = [];
   if (myTurn) {
     hintBits.push(`<b>${stage}</b>`);
-    hintBits.push(callLeft > 0 ? `通常召唤剩 ${callLeft} 次` : '<s>通常召唤已用完</s>');
-    if (v.phase === 'battle') hintBits.push('点自己的怪兽，再点要打的目标');
+    const lk = v.me.lock || {};
+    hintBits.push(lk.sum > 0 ? '<s>召唤被压制</s>' : (callLeft > 0 ? `通常召唤剩 ${callLeft} 次` : '<s>通常召唤已用完</s>'));
+    if (v.phase === 'battle') hintBits.push(lk.atk > 0 ? '<s>攻击被压制</s>' : '点自己的怪兽，再点要打的目标');
+    else if (lk.atk > 0) hintBits.push('<s>这个回合不能攻击（被压制）</s>');
     else if (atkReady) hintBits.push('需要攻击请进入战斗阶段');
     else if (v.me.mons.some(Boolean)) hintBits.push('场上的怪这回合已经打过，或本来就不能攻击');
     else hintBits.push('先铺一只怪兽再进战斗阶段');
@@ -841,9 +857,19 @@ function renderActbar() {
     // 速攻（钥令那批）战斗阶段也能开；其余魔法只能在主要阶段。
     // 以前按钮一直亮着、点了才被引擎拒，看起来像「按键没反应」。
     const canNow = G.phase === 'main' || (c.t === 'quick' && G.phase === 'battle');
-    opts.push(canNow
-      ? '<button class="btn pri" data-act="spell">发动</button>'
-      : '<button class="btn" disabled>不是发动时机</button>');
+    // 解放召唤的魔法（造物·献祭之刃 那批）：场上没有怪兽时开了就是白扔一张，
+    // 所以按钮直接按死在这里，别让玩家点下去才发现落空。
+    const needTrib = (c.fx || []).some((f) => f.k === 'tributeSummon');
+    const hasTrib = !!p.mons.some(Boolean);
+    if (canNow && needTrib && !hasTrib) {
+      opts.push('<button class="btn" disabled>发动：场上没有可以解放的怪兽</button>');
+    } else if (!canNow) {
+      opts.push('<button class="btn" disabled>不是发动时机</button>');
+    } else if (needTrib) {
+      opts.push('<button class="btn pri" data-act="spell">发动（先选祭品）</button>');
+    } else {
+      opts.push('<button class="btn pri" data-act="spell">发动</button>');
+    }
   } else if (c.k === 'T') {
     opts.push('<button class="btn pri" data-act="trap">盖放</button>');
   }
@@ -1135,7 +1161,29 @@ function onHandAct(action) {
     bar.classList.add('on');
     return;
   }
-  const map = { setmon: 'setMon', spell: 'spell', trap: 'trap' };
+  const map = { setmon: 'setMon', trap: 'trap' };
+  // 解放召唤的魔法：先让玩家点一只自己场上的怪兽当祭品，再把 uid 带进 spell 动作。
+  // 和怪兽卡的「献祭特殊召唤」走的是同一套 mode='tribute'，只是结算入口不一样。
+  if (action === 'spell') {
+    const needTrib = (c.fx || []).some((f) => f.k === 'tributeSummon');
+    if (needTrib) {
+      if (!p.mons.some(Boolean)) return toast('场上没有可以解放的怪兽');
+      S.mode = 'tribute';
+      S.tribute = [];
+      S.pendingSummon = { uid, need: 1, spell: true };
+      renderDuel();
+      const bar = $('#actbar');
+      bar.innerHTML = `<div class="ah"><b>发动「${c.n}」</b><span class="note">需要解放 1 只怪兽</span>
+        <button class="btn sm ghost x" data-act="cancel">取消</button></div>
+        <div class="hint">点自己场上的 1 只怪兽作为祭品（会送进墓地），然后从卡组叫出更大的那只。</div>`;
+      bar.classList.add('on');
+      return;
+    }
+    const r = act({ t: 'spell', uid });
+    if (!r.ok) return toast(r.err);
+    S.sel = null; S.mode = 'idle'; renderDuel();
+    return;
+  }
   if (map[action]) {
     const r = act({ t: map[action], uid });
     if (!r.ok) return toast(r.err);
@@ -1158,8 +1206,11 @@ function onSlotClick(side, idx, isSpell) {
       if (S.tribute.length >= need) {
         const uid = S.pendingSummon.uid;
         const isSp = !!S.pendingSummon.special;
+        const isSpell = !!S.pendingSummon.spell;
         S.pendingSummon = null;
-        const r = isSp ? act({ t: 'special', uid, trib: S.tribute[0] }) : act({ t: 'summon', uid, tribs: S.tribute });
+        const r = isSpell ? act({ t: 'spell', uid, trib: S.tribute[0] })
+          : isSp ? act({ t: 'special', uid, trib: S.tribute[0] })
+            : act({ t: 'summon', uid, tribs: S.tribute });
         if (!r.ok) { toast(r.err); S.tribute = []; S.mode = 'idle'; renderDuel(); return; }
         S.tribute = []; S.mode = 'idle'; S.sel = null;
         renderDuel();
@@ -2038,9 +2089,15 @@ function showHowTo() {
       <li><b>场地</b>：怪兽 3 格、魔法·陷阱 3 格，卡组 40~50 张，起手 5 张。先手第一回合不抽牌。</li>
       <li><b>召唤</b>：每回合 1 次。等级 1–4 直接出，5–6 需要 1 只祭品，7 以上需要 2 只。祭品送墓。
         带「额外通常召唤」的牌（如「灯下夜谈」）可以让你这回合多召一次。</li>
-      <li><b>反制陷阱</b>：窥陷之眼（看穿并破坏）、缄默咒 / 泰旖丝·封印（<b>暂时封印</b>：到对方回合结束为止不能发动，不破坏）、清陷令 / 沙耶·拆陷（<b>永久破坏</b>）、断线（这回合对方不能发陷阱）；怪兽方面，艾尔瓦·无陷攻击时无视陷阱，奥吉尔·反咒 / 波吕克斯能无效对方 1 张陷阱（每场一次）。<b>反制反制</b>：护符·破坏之盾（挡拆陷阱）、护符·封锁之匙（挡封印 / 断线）、护符·顶回之环（顶回对方的「无效陷阱」）、温柯尔·守陷（在场就不让对方拆 / 封你的陷阱）。</li>
-      <li><b>特殊召唤</b>：<b>不占通常召唤权</b>。衍生物（「维度残影」这类）凭空多一个身位，可以当祭品、当墙、当嘲讽的靶子；
-        特殊召唤则直接从手牌或墓地拉一只小怪出来。</li>
+      <li><b>反制陷阱</b>：百万蒙宠之眼（看穿并破坏）、苦咒缚 / 泰旖丝·封印（<b>暂时封印</b>：到对方回合结束为止不能发动，不破坏）、陨日 / 沙耶·拆陷（<b>永久破坏</b>）、不存在之地（这回合对方不能发陷阱）；怪兽方面，艾尔瓦·无陷攻击时无视陷阱，奥吉尔·反咒 / 波吕克斯能无效对方 1 张陷阱（每场一次）。<b>反制反制</b>：心之壁垒（挡拆陷阱）、真理之门（挡封印 / 封锁）、宿命纺轮（顶回对方的「无效陷阱」）、温柯尔·守陷（在场就不让对方拆 / 封你的陷阱）。</li>
+      <li><b>压制</b>：把对方<b>下一个回合</b>的一类行动直接封掉——女王的戒律封攻击、被囚禁的疯狂封召唤、无声欢宴封魔法，临界点则在无效一次攻击的同时把对方下回合的攻击一起封掉。压制按「被封锁方的回合结束」计数，所以封一次正好停一整个回合；<b>不可承受的自由</b>（速攻）可以把自己身上的封锁全部挣脱，被按住的那个回合也要留一手。</li>
+      <li><b>抗性 / 反制</b>：额外卡组有一批自带抗性或反制的怪兽，它们改变的是「怎么打」而不是「多大」：<b>抗性</b>（在场时不受对方魔法·陷阱效果影响）不吃弹回、削攻、破坏、夺怪、上毒，只能靠战斗解决；<b>免攻</b>每回合弹开一次攻击；<b>斩</b>被攻击时反过来破坏攻击者；<b>镜</b>把本该自己承受的战斗伤害弹回去。所以撞之前先看清对方头顶的徽标，别拿大怪去换一个「免」字。</li>
+      <li><b>特殊召唤</b>：<b>不占通常召唤权</b>。衍生物（「维度残影」「灰烬傀儡」这类）凭空多一个身位，可以当祭品、当墙、当嘲讽的靶子；
+        特殊召唤则直接从手牌或墓地拉一只小怪出来。<b>解放召唤</b>（「造物·献祭之刃」这批）把自己场上 1 只怪兽送墓，
+        直接从卡组叫一只<b>指定等级</b>的怪兽——通常召唤 7 星要 2 只祭品，这类卡只收 1 只，省下的那 1 只就是它的价钱；
+        卡组里没有那个等级就整张落空，祭品也不会被白吃。
+        <b>替身陷阱</b>（「造物·替身人偶」「造物·残影帷幕」）在对方宣言攻击时把怪兽叫出来挡在面前：那一击如果是<b>直接攻击</b>，
+        会改成打它——所以「对方场上空着」不等于能打脸，撞之前先看他后场盖着什么。</li>
       <li><b>盖放</b>：怪兽可以里侧守备（等级 5 以上不行）；陷阱从手牌盖到魔陷区，盖放当回合不能发动。</li>
       <li><b>战斗</b>：攻击表示互殴，输的一方破坏、差值打脸；打守备怪兽时超过守备力就破坏它，没有贯穿就没有伤害；场上没有怪兽才能直接攻击。</li>
       <li><b>拦路</b>：三档。<b>嘲讽</b>不管攻守都得先打它；<b>限高嘲讽</b>（卡上写「攻击力 2000 以下的怪兽必须先打它」）只拦比它小的，
@@ -2053,7 +2110,7 @@ function showHowTo() {
       <li><b>觉醒召唤</b>：指定的素材<b>必须都在自己场上</b>，把它们送进墓地，从额外卡组特召，<b>不占通常召唤</b>；<b>刚觉醒的那一回合它不能攻击</b>。手牌和墓地里的牌不能当素材。</li>
       <li><b>特殊召唤</b>：觉醒体的素材角色各自带一种「从手牌特殊召唤」的办法（场上没怪兽 / 对方怪兽比你多 / 场上有同界域怪兽 / 献出命轮值 / 解放 1 只怪兽并献出命轮值），写在卡面「③」里。<b>不占通常召唤</b>，没有次数限制（条件和代价本身就是限制）；特殊召唤的怪兽当回合能攻击，对方的召唤陷阱照样能响应。</li>
       <li><b>自组卡组</b>：首页「我的卡组」里可以新建 / 编辑 / 改名 / 复制 / 删除，随便存几套。
-        主卡组 40~50 张（预组都是 40 张，牌越少越容易抽到要的），同名最多 3 张，额外最多 10 张、其中「直接召唤」最多 2 张；
+        主卡组 40~50 张（预组都是 44 张：40 张底 + 3 张压制 / 反制牌 + 1 张召唤牌），同名最多 3 张，额外最多 10 张、其中「直接召唤」最多 2 张；
         觉醒体的素材必须在这套牌里，否则它永远召不出来。
         人机、同屏双人、好友房都能用自己组的牌——好友房里传的是卡组内容，不是编号。</li>
       <li><b>命轮代价</b>：有些魔法·陷阱写着「代价 1500」——<b>发动时先付命轮值</b>，付不起就发不动（付完不能正好死）。
@@ -2118,6 +2175,7 @@ function showDeck(deckId) {
     + (CARDS[id] && CARDS[id].mat ? `<div class="lm">素材：${CARDS[id].mat.join(' ＋ ')}</div>` : '')).join('')}</div>` : '';
   openModal(`<div class="mtitle"><h3>${d.n}</h3><button class="btn sm ghost x" data-modal="close">关闭</button></div>
     <p class="sub">${(E.REALM[d.r] || E.REALM.any).n} · 主卡组 ${total} 张 · 点任意一张看详细效果</p>
+    ${d.mech ? `<p class="sub" style="margin-top:-2px"><b style="color:var(--gold2)">核心机制</b>：${d.mech}</p>` : ''}
     <p class="note" style="margin:0 0 8px">${d.desc}</p>
     ${bonds.length ? `<h4 class="gh">羁绊</h4><ul class="tips">${bonds.map((b) => `<li><b style="color:var(--gold2)">${b.n}</b>：${b.text}</li>`).join('')}</ul>` : ''}
     ${(d.combo || []).length ? `<h4 class="gh">连动</h4><ul class="tips">${d.combo.map((t) => `<li>${t}</li>`).join('')}</ul>` : ''}
@@ -2541,10 +2599,17 @@ export function boot(opt) {
         return out;
       },
       pack: (id) => buyPack(id || 'bp16'),
+      // 无头验收用：直接把「查看卡组内容」和「规则」两个弹窗拉起来
+      dv: (id) => { showDeck(id || 'd1'); return true; },
+      how: () => { showHowTo(); return true; },
     };
     // ?_test=1&go=build：无头截图时直接切到某个屏（build / packs / codex / home）
     const mGo = /[?&]go=([a-z]+)/.exec(location.search);
     if (mGo) setTimeout(() => (mGo[1] === 'build' ? window.__duel.build('new') : window.__duel.go(mGo[1])), 60);
+    // ?_test=1&dv=d1：直接弹「查看卡组内容」；?_test=1&how=1：直接弹规则页
+    const mDv = /[?&]dv=([a-z0-9]+)/.exec(location.search);
+    if (mDv) setTimeout(() => window.__duel.dv(mDv[1]), 260);
+    if (/[?&]how=1/.test(location.search)) setTimeout(() => window.__duel.how(), 260);
     // ?_test=1&diag=1：把关键容器宽度打出来（无头截图有没有横向溢出，看这个比看图准）
     if (/[?&]diag=1/.test(location.search)) {
       setTimeout(() => {

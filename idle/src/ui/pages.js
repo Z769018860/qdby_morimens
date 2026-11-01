@@ -37,7 +37,7 @@ import {
 } from '../core/constants.js';
 import { describeSkill } from '../core/skills.js';
 import {
-  wheelText, relicText, covTheme, gearCost, dismantleValue, relicBond, relicSlotCount, RELIC_BONDS, BOND_TIERS, bonusText,
+  wheelText, relicText, covTheme, gearCost, dismantleValue, relicBond, relicSlotCount, RELIC_BONDS, BOND_TIERS, bonusText, MAINSTAT, RELIC_THEMES,
 } from '../core/gear.js';
 import { orderSlotCount, orderLockedHint, orderText, orderUpCost, orderLvMult } from '../core/orders.js';
 import { teamBonds, bondHint, bondsOf, BONDS, BOND_CATS } from '../core/bonds.js';
@@ -61,15 +61,63 @@ export function itemText(app, it) {
 }
 const rarCls = (r) => `r-${r}`;
 
+/* 「词条」= 这件装备到底加什么：
+   命轮看主词条（暴击率 / 暴击伤害 / 伤害提升……），密契与造物看同主题套装（攻伐 / 生机 / 锋锐……）。
+   装备多了以后在长列表里找「加增伤的造物」很费劲，所以列表和换装弹窗都按词条筛。 */
+export function itemAffix(app, it) {
+  const def = itemDef(app, it);
+  if (!def) return { key: '', zh: '' };
+  if (it.kind === 'wheel') return { key: `w:${def.main}`, zh: MAINSTAT[def.main]?.zh || '其它' };
+  if (it.kind === 'covenant') return { key: `c:${covTheme(def.id).zh}`, zh: covTheme(def.id).zh };
+  return { key: `r:${relicTheme(def.id).zh}`, zh: relicTheme(def.id).zh };
+}
+
+/** 某一类装备的全部词条（按数据里的固定顺序，不按获得顺序抖） */
+function affixList(app, kind) {
+  if (kind === 'wheel') return Object.entries(MAINSTAT).map(([k, v]) => [`w:${k}`, v.zh]);
+  if (kind === 'covenant') return [...new Set(Object.values(app.data.covById).map((d) => covTheme(d.id).zh))].map((zh) => [`c:${zh}`, zh]);
+  // 造物主题是按 id 哈希出来的，直接枚举主题表，顺序稳定
+  return RELIC_THEMES.map((t) => [`r:${t.zh}`, t.zh]);
+}
+
+/** 词条筛选条：只列库存里真有的词条（后面跟件数）。
+ *  act 非空时胶囊带 data-act（走 main.js 的全局分发），否则只带 data-affix（由弹窗自己接管）。 */
+export function affixBar(app, kind, cur, act = '') {
+  const items = Object.values(app.state.gear.items).filter((i) => i.kind === kind);
+  if (!items.length) return '';
+  const n = {};
+  for (const it of items) { const k = itemAffix(app, it).key; n[k] = (n[k] || 0) + 1; }
+  const chip = (k, zh, c, on) => `<button class="sqchip ${on ? 'on' : ''}" ${act ? `data-act="${act}"` : ''} data-affix="${k}">${esc(zh)}<em>${c}</em></button>`;
+  const chips = affixList(app, kind).filter(([k]) => n[k]).map(([k, zh]) => chip(k, zh, n[k], cur === k)).join('');
+  return `<div class="row affixbar"><span class="dim">词条</span>${chip('', '全部', items.length, !cur)}${chips}</div>`;
+}
+
+/* 编队编辑器开着的时候，装备列表里的「已编入 …」要按**草稿**算：
+   刚把某件造物配进「三队」、还没点保存，列表里就该显示「三队」，而不是只显示存着的旧归属。
+   以前这里只读存档里的 squads，所以玩家在编辑器里换完装备，卡片上的队伍标签一动不动，
+   看着像「没生效」（实际改的是草稿，存下来才算）。 */
+let sqDraftCtx = null;   // 编队编辑器的草稿（app.ui.sqDraft 本身，属性随时在变，不能快照）
+export function setSquadDraftCtx(ctx) { sqDraftCtx = ctx; }
+
+/** 这件装备会在哪些编队里出战（含正在编辑的草稿）。 */
+function squadsForItem(state, uid) {
+  const st = sqDraftCtx;
+  if (!st || !st.key) return squadsEffectivelyUsing(state, uid);
+  const sq = { ...(squadsOf(state)[st.key] || { team: [] }), team: st.team || [] };
+  if (st.lo) sq.lo = st.lo; else delete sq.lo;
+  const tmp = { ...state, squads: { ...squadsOf(state), [st.key]: sq } };
+  return squadsEffectivelyUsing(tmp, uid);
+}
+
 function itemCard(app, it, extra = '') {
   const def = itemDef(app, it);
   const who = holder(app, it.uid);
   // 「已编入」提示：这件装备被哪些编队的独立配装占着。
   // 拿它配装时最怕以为它是没人用的散件，结果别的编队战力被抽空——所以列表里就写清楚。
-  const inSquads = squadsEffectivelyUsing(app.state, it.uid);
-  const sqTip = inSquads.length ? inSquads.map(squadKeyZh).join('、') : '';
+  const inSquads = squadsForItem(app.state, it.uid);
+  const editing = sqDraftCtx?.key;
   return `<div class="item ${rarCls(def.rarity || 'SR')} ${isEquipped(app.state, it.uid) ? 'eq' : ''}" data-uid="${it.uid}">
-    <img src="${img(def.img)}" alt="" loading="lazy"><div class="i-body"><b>${esc(def.zh)}</b> <em>${def.rarity || ''} Lv${it.lv}${it.rf ? ` · 精炼+${it.rf}` : ''}</em><small>${esc(itemText(app, it))}</small>${who ? `<small class="who">装备于 ${esc(who)}</small>` : ''}${inSquads.length ? `<small class="who sqin" title="这件装备会在这些编队里出战">${inSquads.map((k) => `<span class="sqchip${k === 'cur' ? ' on' : ''}">${esc(squadKeyZh(k))}</span>`).join('')}</small>` : '<small class="who sqnone">未编入任何编队</small>'}</div>${extra}</div>`;
+    <img src="${img(def.img)}" alt="" loading="lazy"><div class="i-body"><b>${esc(def.zh)}</b> <em>${def.rarity || ''} Lv${it.lv}${it.rf ? ` · 精炼+${it.rf}` : ''}</em><small>${esc(itemText(app, it))}</small>${who ? `<small class="who">装备于 ${esc(who)}</small>` : ''}${inSquads.length ? `<small class="who sqin" title="这件装备会在这些编队里出战；正在编辑的那套按草稿算，保存后才算数">${inSquads.map((k) => `<span class="sqchip${k === 'cur' ? ' on' : ''}${k === editing ? ' ed' : ''}">${esc(squadKeyZh(k))}${k === editing ? '·草稿' : ''}</span>`).join('')}</small>` : `<small class="who sqnone">${editing ? '还没编入任何编队（包括正在编的这套）' : '未编入任何编队'}</small>`}</div>${extra}</div>`;
 }
 function holder(app, uid) {
   const s = app.state;
@@ -144,8 +192,18 @@ function equipSlot(app, slug, kind) {
     <img src="${img(def.img)}" alt=""><b>${esc(def.zh)}</b><small>Lv${it.lv}${it.rf ? ` · 精炼+${it.rf}` : ''}</small></button>`;
 }
 
-/** 造物详情：队伍页点「详情」进来，能直接强化 / 精炼，精炼前后数值对照着看 */
-export function relicModal(app, uid) {
+/** 当前这层「造物详情」的换件上下文：编队编辑器开着它时是非空函数（换的是那套编队的草稿）。
+    强化 / 精炼之后 main.js 会重开一层详情，那时候不带 opts，靠这个沿用上一次的上下文。 */
+let relicSwapCtx = null;
+
+/** 造物详情：队伍页点「详情」进来，能直接强化 / 精炼，精炼前后数值对照着看。
+ *  opts.onSwap：编队编辑器里点进来时用——「换一件」要改的是那套编队的独立配装草稿，
+ *  而不是主线的造物栏。以前不传这个，点在编队里的「换一件」会去改 s.gear.relics：
+ *  草稿纹丝不动（看着像没生效），主线那 6 件反倒被悄悄换掉。
+ *  opts 传 null（默认）= 沿用上一次的上下文（强化 / 精炼后重开用），传 {} = 回主线。 */
+export function relicModal(app, uid, opts = null) {
+  if (opts) relicSwapCtx = opts.onSwap || null;
+  const onSwap = relicSwapCtx;
   const s = app.state, it = s.gear.items[uid];
   if (!it || it.kind !== 'relic') return;
   const def = itemDef(app, it);
@@ -170,10 +228,16 @@ export function relicModal(app, uid) {
     <div class="row">
       <button class="btn sm" data-act="relic-up" data-uid="${uid}" ${canUp ? '' : 'disabled'}>${upCost ? `强化 ${fmt(upCost)} 金币` : `已满级 Lv${GEAR_MAX_LV}`}</button>
       <button class="btn sm gold" data-act="relic-refine" data-uid="${uid}" ${canRf ? '' : 'disabled'}>${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button>
-      <button class="btn sm" data-act="relic-swap" data-i="${relicIndexOf(s, uid)}">换一件</button>
+      <button class="btn sm" data-act="${onSwap ? 'sq-relic-swap' : 'relic-swap'}" data-i="${relicIndexOf(s, uid)}">换一件</button>
     </div>
     <p class="hint dim">金币 ${fmt(s.gold)} · 银芯 ${fmt(s.cores)}</p>`;
-  openModal(html);
+  const m = openModal(html);
+  // 编队编辑器里：这里的「换一件」必须换成草稿那一格，不能落到主线的造物栏上
+  if (onSwap) m.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-act="sq-relic-swap"]')) return;
+    e.stopPropagation();
+    pickItem(app, 'relic', '选择造物', (uid2) => { closeModal(); onSwap(uid2); });
+  });
 }
 
 const relicIndexOf = (s, uid) => s.gear.relics.indexOf(uid);
@@ -239,6 +303,13 @@ function loSummary(lo) {
   return `命轮密契 ${eq} · 造物 ${rl} · 钥令 ${od}`;
 }
 
+/** 挑战入口正用「当前队伍」时，「编队」该打开哪一套：优先第一个还空着的通用编队。
+    以前写死打开一队——一队往往已经被别的挑战占着，点「编队」看到的是别人那套，更容易存错。 */
+function freeSquadKey(app) {
+  const s = app.state;
+  return SQUAD_KEYS.find((k) => !squadMembers(s, k).length) || 'a';
+}
+
 /** 挑战页顶部的「出战阵容」选择条：当前队伍 / 一队 / 二队 / 三队 + 现场编队 */
 export function squadBar(app, mode, note = '') {
   const s = app.state;
@@ -250,7 +321,7 @@ export function squadBar(app, mode, note = '') {
   }).join('');
   const fb = cur !== 'cur' && !squadMembers(s, cur).length;
   return `<div class="squadbar"><span class="sqh">出战阵容</span>${chip('cur', '当前队伍', cur === 'cur')}${list}
-    <button class="btn sm sqedit" data-act="squad-edit" data-mode="${mode}" data-k="${cur === 'cur' ? 'a' : cur}">现场编队</button>
+    <button class="btn sm sqedit" data-act="squad-edit" data-mode="${mode}" data-k="${cur === 'cur' ? freeSquadKey(app) : cur}">现场编队</button>
     <small class="dim">${fb ? `「${SQUAD_ZH[cur]}」是空的，暂时按当前队伍打` : note || '在「队伍 → 挑战编队」里指定，或点「现场编队」当场排'}</small></div>`;
 }
 
@@ -291,7 +362,7 @@ function modeBlock(app, mode, title = '') {
   const nameZh = tk && lab.key === tk ? '本塔专用队' : lab.zh;
   return `<div class="assign ${lab.key !== 'cur' && !lab.fallback ? 'on' : ''}">
     <header><b>${title || MODE_ZH[mode]}</b><small>${lab.fallback ? `${lab.zh}（空）→ 当前队伍` : `${nameZh} · ${slugs.length} 人${t ? ` · 战力 ${fmt(t.power)}` : ''}`}</small>
-      <button class="btn sm" data-act="squad-edit" data-mode="${mode}" data-k="${lab.key === 'cur' ? (tk || 'a') : lab.key}">编队</button></header>
+      <button class="btn sm" data-act="squad-edit" data-mode="${mode}" data-k="${lab.key === 'cur' ? (tk || freeSquadKey(app)) : lab.key}" title="${lab.key === 'cur' ? `「${MODE_ZH[mode] || ''}」用的是当前队伍；这里编的是另一套，存下来才会换过去` : ''}">编队</button></header>
     <div class="sqav">${av}</div>
     <div class="sqlo-note">${loUsed ? `独立配装 · ${loSummary(loUsed)}` : '沿用主线配装（点「编队」可给这套单独配命轮 / 造物 / 钥令）'}</div>
     <div class="achips">${chips}</div></div>`;
@@ -368,12 +439,16 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
     st = { key, mode: mode || null, realm: lockR || '', team: [...squadMembers(s, key)], lo: JSON.parse(JSON.stringify(loadoutOf(s, key) || null)) };
     // 禁区这队还空着：先把它现在自动补位的那 4 个人填进来当草稿（五队互不重复，所以不能拿主线队伍顶）
     if (!st.team.length && isRiftM) st.team = [...(riftParty(s, data).find((p) => p.key === key)?.slugs || [])];
-    if (!st.team.length && mode && !isRiftM) st.team = teamSlugsFor(s, mode).filter((x) => s.roster[x]);
+    // 以前这里还有一句「草稿空着就拿 teamSlugsFor(s, mode) 预填」。当挑战入口选的是「当前队伍」时，
+    // 那句会把主线那 4 个人填进「一队」：标题写着编一队，槽位里却是主线队伍，改完存下一队还白改一套。
+    // 现在草稿只反映这套编队自己存了什么；想从主线 4 人起手，编辑器里有「套用当前队伍」。
     // 属性塔只收本界域的人：草稿里不合界的先剔掉（不然给血肉塔开编辑器，
     // 预填进来的是当前队伍里那 4 个混沌界域的人，保存时又全被剔空）
     if (lockR) st.team = st.team.filter((x) => data.bySlug[x]?.realm === lockR);
   }
   app.ui.sqDraft = st;
+  // 装备列表里的「已编入 …」按这份草稿算：编进这套、还没保存，列表里也立刻显示出来
+  setSquadDraftCtx(st);
   mode = st.mode;
   // 禁区那五套（r1~r5）永远是禁区专用：不管是从「融灾禁区」页进来，还是从编队库直接点它们进来
   const isRift = mode === RIFT_MODE || isRiftSquad(st.key);
@@ -389,7 +464,11 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
   const taken = () => (isRift ? riftTaken(s, st.key) : { chars: new Map(), items: new Set(), orders: new Set() });
 
   const rows = () => Object.keys(s.roster).map((x, i) => ({ x, a: data.bySlug[x], r: s.roster[x], idx: i, power: powerOf(x) }));
-  const cands = () => rows().filter((o) => o.a && (!st.realm || o.a.realm === st.realm)).sort((x, y) => y.power - x.power);
+  // 可选唤醒体的筛选：界域（属性塔会锁死）+ 定位 + 稀有度；排序固定按战力，强的在上面
+  const cands = () => rows()
+    .filter((o) => o.a && (!st.realm || o.a.realm === st.realm) && (!st.type || o.a.type === st.type) && (!st.rar || o.a.rarity === st.rar))
+    .sort((x, y) => y.power - x.power);
+  const filterCount = () => (st.realm ? 1 : 0) + (st.type ? 1 : 0) + (st.rar ? 1 : 0);
 
   /* ---- 独立配装草稿：用一份「假 state」算战力，不动真实存档 ---- */
   const fakeWith = (lo) => ({ ...s, gear: { ...s.gear, equip: lo.equip, relics: lo.relics }, orders: { ...s.orders, slots: lo.orders } });
@@ -447,6 +526,19 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
       <h5>钥令 <small class="dim">已开 ${on}/${ORDER_SLOTS}</small></h5><div class="orderbar">${och}</div>`;
   };
 
+  /* 草稿空着时把话说清楚：这个挑战现在到底在用什么、你正在编的是哪一套。
+     以前这里什么都不说，草稿又被主线队伍填满，就会误以为「当前队伍」正在被编辑。 */
+  const modeLab = mode ? squadLabel(s, mode) : null;
+  const nowUsingZh = modeLab ? (modeLab.key === 'cur' ? '当前队伍' : modeLab.fallback ? `「${SQUAD_ZH[modeLab.key]}」（空）→ 当前队伍` : `「${SQUAD_ZH[modeLab.key]}」`) : '';
+  const nowUsingPeople = mode ? teamSlugsFor(s, mode).filter((x) => s.roster[x]).map((x) => data.bySlug[x]?.zh || x).join(' / ') : '';
+  const emptyNote = () => {
+    if (!mode || st.team.length) return '';
+    if (modeLab && modeLab.key === st.key) {
+      return `<p class="hint sqnote">「<b>${SQUAD_ZH[st.key]}</b>」是空的，${modeZh}现在暂时按 <b>当前队伍</b> 打${nowUsingPeople ? `：${esc(nowUsingPeople)}` : ''}。<b>编好存下来就生效</b>，别在这套还是空的时候去挑战。</p>`;
+    }
+    return `<p class="hint sqnote">${modeZh}现在用的是 <b>${nowUsingZh}</b>${nowUsingPeople ? `：${esc(nowUsingPeople)}` : ''}。你现在编的是「<b>${SQUAD_ZH[st.key]}</b>」，它还是空的——点下面的「套用当前队伍」把这几位搬过来，或者自己重排；存完 ${modeZh} 就改用它。</p>`;
+  };
+
   const body = () => {
     const slots = Array.from({ length: TEAM_SIZE }, (_, i) => {
       const slug = st.team[i], a = slug && data.bySlug[slug];
@@ -463,26 +555,34 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
     }).join('');
     const realmChips = [['', '全部'], ...Object.entries(REALMS).map(([k, v]) => [k, v.zh])]
       .map(([k, zh]) => `<button class="sqchip ${st.realm === k ? 'on' : ''}" data-sq="realm" data-v="${k}" ${lockRealm && k !== lockRealm ? 'disabled' : ''}>${zh}</button>`).join('');
+    // 定位 / 稀有度筛选：人多了以后只按界域挑不够用（同界域里还要分守 / 攻 / 辅）
+    const typeChips = [['', '全部定位'], ...Object.entries(TYPES).map(([k, v]) => [k, v.zh])]
+      .map(([k, zh]) => `<button class="sqchip ${st.type === k ? 'on' : ''}" data-sq="type" data-v="${k}">${zh}</button>`).join('');
+    const rarChips = [['', '全部稀有度'], ['Genesis', '创生'], ['SSR', '史诗'], ['SR', '精良'], ['R', '稀有']]
+      .map(([k, zh]) => `<button class="sqchip ${st.rar === k ? 'on' : ''}" data-sq="rar" data-v="${k}">${zh}</button>`).join('');
     return `<h3>编队 · ${SQUAD_ZH[st.key]} <small>${st.team.length}/${TEAM_SIZE} 人</small></h3>
       <p class="hint">点下面的头像加入这队，点上面的槽位移出；顺序就是站位（前两个是前排）。${lockRealm ? `<b>${REALMS[lockRealm].zh}塔只收${REALMS[lockRealm].zh}界域</b>，筛选已锁定。` : '「一键上阵」按当前筛选的界域取战力最高的 4 名（优先前排守护 + 治疗）。'}
         ${mode ? (isRift ? `保存后 <b>${SQUAD_ZH[st.key]}</b> 就是融灾禁区里的第 ${RIFT_SQUAD_KEYS.indexOf(st.key) + 1} 队（专用编队，不动通用那五套）。`
       : isTower ? `这套只给 <b>${modeZh}</b> 用：存完只动 <b>${SQUAD_ZH[st.key]}</b> 这一套，通用编队和别的塔都不受影响。`
         : `保存后 <b>${modeZh}</b> 就用这套出战。`) : ''}</p>
+      ${emptyNote()}
       <div class="row sqrealms">${realmChips}</div>
+      <div class="row sqrealms">${typeChips}${rarChips}${filterCount() ? '<button class="btn sm" data-sq="fclear" title="清空界域 / 定位 / 稀有度筛选">清除筛选</button>' : ''}</div>
       <div class="sqslots">${slots}</div>
       ${bondStrip(app, st.team, { compact: true })}
       <div class="row"><button class="btn gold" data-sq="auto">一键上阵</button><button class="btn sm" data-sq="clear" ${st.team.length ? '' : 'disabled'}>清空</button>
-        <button class="btn sm" data-sq="from-team">套用当前队伍</button></div>
+        <button class="btn ${st.team.length ? 'sm' : 'sm gold'}" data-sq="from-team">套用当前队伍</button></div>
       <div class="sqlo">${loSection()}</div>
-      <h4>可选唤醒体 <small class="dim">${cands().length} 名</small></h4>
-      <div class="grid mini sqpick">${list}</div>
+      <h4>可选唤醒体 <small class="dim">${cands().length}/${rows().length} 名${filterCount() ? ` · 已筛选 ${filterCount()} 项` : ''}</small></h4>
+      <div class="grid mini sqpick">${list || '<p class="hint">没有符合筛选条件的唤醒体，换个定位或稀有度试试。</p>'}</div>
       <div class="row sqsave"><span class="dim">存到</span>
         ${keys.map((k) => `<button class="btn ${k === st.key ? 'gold' : ''}" data-sq="save" data-k="${k}" ${st.team.length ? '' : 'disabled'}>${SQUAD_ZH[k]}</button>`).join('')}
       </div>`;
   };
 
   const m = openModal(body(), 'wide sqeditor');
-  const paint = () => { const sc = m.querySelector('.modal'); const y = sc.scrollTop; sc.innerHTML = `<button class="modal-x" data-act="close">✕</button>${body()}`; sc.scrollTop = y; };
+  // 只重绘内容层：✕ 挂在外面的 .modal 上，不参与重绘也不跟着滚
+  const paint = () => { const sc = m.querySelector('.modal-body'); const y = sc.scrollTop; sc.innerHTML = body(); sc.scrollTop = y; };
   // 选装备 / 钥令会弹出另一层窗口，把编队窗口顶掉；选完（或点 ✕ 取消）都回到编队窗口，草稿还在 app.ui.sqDraft
   const pickThenBack = (open) => {
     let picked = false;
@@ -492,12 +592,25 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
     mo.observe(document.body, { childList: true });
   };
   m.addEventListener('click', (e) => {
+    // 关掉编辑器（✕ 或点遮罩）就作废草稿：否则「已编入 …·草稿」会跟着跑到装备页上
+    if (e.target === m || e.target.closest('[data-act="close"]')) {
+      if (sqDraftCtx === st) setSquadDraftCtx(null);
+      return;
+    }
     // 造物「详情」：这里是弹窗套弹窗，文档级处理器会把编队窗口顶掉，所以自己接管
     const det = e.target.closest('[data-act="relic-detail"]');
     if (det) {
       e.stopPropagation();
       let back = false;
-      relicModal(app, det.dataset.uid);
+      // 「换一件」换的是草稿里这格（st.lo.relics），不能让它去动主线的造物栏
+      relicModal(app, det.dataset.uid, {
+        onSwap: (uid2) => {
+          if (!st.lo) return;
+          const i = st.lo.relics.indexOf(det.dataset.uid);
+          st.lo.relics = st.lo.relics.map((x) => (x === uid2 ? null : x));
+          if (i >= 0) st.lo.relics[i] = uid2 || null;
+        },
+      });
       const mo = new MutationObserver(() => {
         if (!document.querySelector('.modal-bg')) { mo.disconnect(); if (!back) { back = true; squadEditor(app, { resume: true }); } }
       });
@@ -508,6 +621,9 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
     if (!el || el.disabled) return;
     const a = el.dataset.sq;
     if (a === 'realm') { st.realm = el.dataset.v; paint(); return; }
+    if (a === 'type') { st.type = el.dataset.v; paint(); return; }
+    if (a === 'rar') { st.rar = el.dataset.v; paint(); return; }
+    if (a === 'fclear') { st.realm = lockRealm || ''; st.type = ''; st.rar = ''; paint(); return; }
     if (a === 'del') {
       const i = +el.dataset.i;
       if (st.team[i]) { st.team.splice(i, 1); paint(); sound.play('click'); }
@@ -588,6 +704,7 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
       else if (squadsOf(s)[k].lo) delete squadsOf(s)[k].lo;
       if (st.mode && !isRift) setSquadPick(s, st.mode, k);
       app.ui.sqDraft = null;
+      setSquadDraftCtx(null);
       app.save(); sound.play('stamp');
       toast(`已存入「${SQUAD_ZH[k]}」：${saved.length} 人${st.lo ? ' · 独立配装' : ''}${st.mode ? ` · ${isRift ? '融灾禁区第 ' + (RIFT_SQUAD_KEYS.indexOf(k) + 1) + ' 队' : isTower ? '只给 ' + modeZh + ' 用' : modeZh + ' 用它出战'}` : ''}`);
       closeModal();
@@ -748,10 +865,26 @@ export function pickAwakener(app, title, onPick, exclude = []) {
 }
 
 export function pickItem(app, kind, title, onPick, { allowNone = true, exclude = null } = {}) {
-  const items = Object.values(app.state.gear.items).filter((i) => i.kind === kind && !(exclude && exclude.has(i.uid))).sort((a, b) => (RARITY_ORDER[itemDef(app, b).rarity || 'SR'] - RARITY_ORDER[itemDef(app, a).rarity || 'SR']) || b.lv - a.lv);
-  const html = `<h3>${title}</h3>${allowNone ? '<button class="btn sm" data-pick="">卸下</button>' : ''}<div class="list">${items.map((i) => itemCard(app, i, `<button class="btn sm" data-pick="${i.uid}">选择</button>`)).join('') || '<p class="hint">没有可用的装备，去推图或祈愿获取。</p>'}</div>`;
-  const m = openModal(html, 'wide');
-  m.addEventListener('click', (e) => { const t = e.target.closest('[data-pick]'); if (t) { closeModal(); onPick(t.dataset.pick); } });
+  let affix = '';     // 这个弹窗自己的词条筛选（关掉就忘，不污染下一页）
+  const render = () => {
+    const all = Object.values(app.state.gear.items)
+      .filter((i) => i.kind === kind && !(exclude && exclude.has(i.uid)))
+      .sort((a, b) => (RARITY_ORDER[itemDef(app, b).rarity || 'SR'] - RARITY_ORDER[itemDef(app, a).rarity || 'SR']) || b.lv - a.lv);
+    const items = affix ? all.filter((i) => itemAffix(app, i).key === affix) : all;
+    const rows = items.map((i) => itemCard(app, i, `<button class="btn sm" data-pick="${i.uid}">选择</button>`)).join('');
+    const html = `<h3>${title} <small class="dim">${items.length}${affix ? ` / ${all.length}` : ''} 件</small></h3>
+      ${allowNone ? '<button class="btn sm" data-pick="">卸下</button>' : ''}
+      ${affixBar(app, kind, affix)}
+      <div class="list">${rows || `<p class="hint">${affix ? '这个词条下没有可用的装备了。' : '没有可用的装备，去推图或祈愿获取。'}</p>`}</div>`;
+    const m = openModal(html, 'wide');
+    m.addEventListener('click', (e) => {
+      const af = e.target.closest('[data-affix]');
+      if (af) { affix = af.dataset.affix === affix ? '' : af.dataset.affix; render(); return; }
+      const t = e.target.closest('[data-pick]');
+      if (t) { closeModal(); onPick(t.dataset.pick); }
+    });
+  };
+  render();
 }
 
 export function pickOrder(app, i, onPick, slots = null) {
@@ -967,8 +1100,10 @@ export function artModal(app, slug) {
 export function gearPage(app) {
   const { state: s } = app;
   const tab = app.ui.gearTab ||= 'wheel';
-  const items = Object.values(s.gear.items).filter((i) => i.kind === tab)
+  const affix = (app.ui.gearAffix ||= { wheel: '', covenant: '', relic: '' })[tab] || '';
+  const all = Object.values(s.gear.items).filter((i) => i.kind === tab)
     .sort((a, b) => (RARITY_ORDER[itemDef(app, b).rarity || 'SR'] - RARITY_ORDER[itemDef(app, a).rarity || 'SR']) || b.lv - a.lv);
+  const items = affix ? all.filter((it) => itemAffix(app, it).key === affix) : all;
   const tabs = [['wheel', '命轮'], ['covenant', '密契'], ['relic', '造物']].map(([k, z]) => `<button class="btn sm ${tab === k ? 'on' : ''}" data-act="gear-tab" data-k="${k}">${z} ${Object.values(s.gear.items).filter((i) => i.kind === k).length}</button>`).join('');
   const lim = app.ui.gearLimit ||= 60;
   const rows = items.slice(0, lim).map((it) => {
@@ -989,8 +1124,8 @@ export function gearPage(app) {
     <div class="row"><button class="btn gold" data-act="gear-upall" title="只强化主线编队（队伍页上阵的 4 人 + 造物栏）正在用的装备，每次升当前最便宜的一级">一键强化主线编队</button><button class="btn" data-act="gear-up-pick" title="选择要强化哪几套编队的装备">选择队伍…</button><button class="btn danger" data-act="dm-open" title="按类型 / 稀有度 / 强化等级批量分解没在用的装备">一键分解…</button><small class="dim">每件最高 Lv${GEAR_MAX_LV}；10 级以后每级 +5%，金币花得很多</small></div>
     <p class="hint">「一键强化」只会强化<b>主线编队</b>（队伍页上阵的 4 人身上的命轮 / 密契，加上造物栏）：把金币花在这些装备上，每次挑当前最便宜的一级升，直到金币不够或者全部满级。想强化别的编队（一队～五队、禁区队、属性塔队），点「选择队伍…」勾选；已编入别的编队、但不在主线编队里的装备，默认不会动。</p>
     <p class="hint">想一次性配好？回队伍页点「一键配队」，会连着命轮、密契、造物、钥令一起排；队伍页也有同一块槽位面板，不用来回切页。</p>
-    <h3>${tab === 'relic' ? '造物库存' : '库存'} <small>${items.length} 件</small></h3>
-    <div class="row">${tabs}</div><div class="list" id="gearlist">${rows}</div>${more}</div>`;
+    <h3>${tab === 'relic' ? '造物库存' : '库存'} <small>${items.length}${affix ? ` / ${all.length}` : ''} 件</small></h3>
+    <div class="row">${tabs}</div>${affixBar(app, tab, affix, 'gear-affix')}<div class="list" id="gearlist">${rows}</div>${more}</div>`;
 }
 
 /* ----------------------------- ORDERS (钥令) ----------------------------- */
@@ -1280,6 +1415,7 @@ export function settingsPage(app) {
       <label class="snd"><input type="checkbox" data-aud="mute" ${sound.cfg.mute ? 'checked' : ''}> 静音</label>
       <label class="snd">音效 <input type="range" min="0" max="100" value="${Math.round(sound.cfg.sfx * 100)}" data-aud="sfx"></label>
       <label class="snd">音乐 <input type="range" min="0" max="100" value="${Math.round(sound.cfg.bgm * 100)}" data-aud="bgm"></label>
+      <p class="hint">两个滑杆都按「100% ≈ 满幅」标定，默认音效 65 / 音乐 55。<b>战斗里连打时觉得音乐被盖住</b>，把「音乐」拉到 65 以上（音效也可以顺手降到 55）；反过来想安静听音乐就降音效。</p>
       <h4>背景音乐 <small>六首曲子都由浏览器实时合成演奏</small></h4>
       <div class="row tracks">
         <button class="btn sm ${sound.cfg.autoMood === false ? '' : 'on'}" data-act="bgm-auto">跟随页面</button>

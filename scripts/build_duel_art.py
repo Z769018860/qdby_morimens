@@ -9,6 +9,11 @@
   @spell   魔法卡统一图标（法阵），代替原来所有魔法都顶着一张「24」的脸
   @trap    陷阱卡统一图标（尖刺 + 警示），同上
   @token   衍生物的统一卡面（虚线圈 + 空心六边形）
+  @wheel   命轮的备用符号（只有 wheelbig 缺图时才落到这一格）
+
+命轮（assets/wheelbig/Weapon_Full_*.webp，197×400 竖版）不是方图，直接缩会变形，
+所以按 6%~55% 的高度裁一个正方形：道具和人物的头都在这一段里。卡面写
+art: "wheel:Weapon_Full_SR25" 或 "wheel:Weapon_Mini_SR25"（两种写法都认，自动换成 big）。
   @shadow  神王·图鲁的黑影（不露脸）
   @shadow2 王权·终焉图鲁的黑影（带金环，和上面区分）
 
@@ -24,7 +29,7 @@ import math
 import os
 import sys
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CELL = 128   # 唤醒体源图 96~120px、NPC 源图 160px：128 是两边都不吃亏的折中；
@@ -260,6 +265,13 @@ def main():
             continue
         if n.startswith('creation:'):
             p = os.path.join(ROOT, 'assets/creation', n.split(':', 1)[1] + '.webp')
+        elif n.startswith('wheel:'):
+            # 命轮只给了 mini（64×64 方图，放大到 128 会糊）和 big（197×400 竖版）两套，
+            # 卡面用 big 裁方。Mini_ 名字也认，换成 Full_ 再到 wheelbig 里找。
+            base = n.split(':', 1)[1].replace('Weapon_Mini_', 'Weapon_Full_')
+            p = os.path.join(ROOT, 'assets/wheelbig', base + '.webp')
+            if not os.path.exists(p):
+                p = os.path.join(ROOT, 'assets/wheel', n.split(':', 1)[1] + '.webp')
         elif n == '弥萨格校猫':
             p = os.path.join(ROOT, cat_q)
         elif n in fallback_q:
@@ -289,7 +301,14 @@ def main():
             continue
         if not p:
             continue
-        im = Image.open(p).convert('RGB').resize((CELL, CELL), Image.LANCZOS)
+        im = Image.open(p).convert('RGB')
+        if im.width and im.height > im.width * 1.15:
+            # 竖版（命轮 197×400）：从高度 6% 处开始裁一个正方形。
+            # 道具本体和人物的头都落在这段里，再往下裁就只剩胸口和手了。
+            side = im.width
+            top = int(im.height * 0.06)
+            im = im.crop((0, top, side, top + side))
+        im = im.resize((CELL, CELL), Image.LANCZOS)
         im = im.filter(ImageFilter.UnsharpMask(radius=1.2, percent=60, threshold=2))
         sheet.paste(im, (x, y))
         index[names[i]] = i

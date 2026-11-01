@@ -361,6 +361,51 @@ const usage = await cdp.evalIife(`(() => {
   return { cards: document.querySelectorAll('.squad').length, use: (card?.querySelector('.squse')?.innerText || '') };
 })()`);
 check(usage.cards === 14 && /周Boss/.test(usage.use), `编队库 14 套（通用 5 + 属性塔 4 + 禁区 5），一队标注「${usage.use}」`);
+
+// 编队编辑器：打开的是这套编队自己的人，不是主线那 4 个；
+// 造物「详情 → 换一件」换的是这套的独立配装草稿，不能落到主线造物栏上
+const sqEdit = await cdp.evalIife(`(async () => {
+  const s = __game.state, d = __game.data;
+  // ① 周 Boss 用的是「当前队伍」时点「现场编队」：编辑器里必须是一套空编队，
+  //    不能把主线那 4 个人塞进来（以前就是这样，看着像在编一队，其实编的是主线）
+  s.squadPick.weekly = 'cur';
+  __game.save();
+  window.__go('weekly');
+  document.querySelector('[data-act="squad-edit"][data-mode="weekly"]').click();
+  await new Promise((r) => setTimeout(r, 400));
+  const prefill = [...document.querySelectorAll('.modal .sqslot.on b')].map((x) => x.textContent.trim());
+  const prefillTitle = (document.querySelector('.modal h3')?.textContent || '').replace(/\\s+/g, ' ').trim();
+  const note = (document.querySelector('.modal .sqnote')?.textContent || '').replace(/\\s+/g, ' ').trim();
+  document.querySelector('.modal-x').click();
+
+  // ② 二队：造物详情里的「换一件」换的是这套的独立配装草稿，不能落到主线造物栏上
+  s.maxStage = 280;
+  const uids = [];
+  for (let i = 0; i < 12; i++) { const uid = 'rgt' + i; s.gear.items[uid] = { uid, kind: 'relic', defId: d.relics[i].id, lv: 5, rf: 0 }; uids.push(uid); }
+  s.squads.b.lo = { equip: {}, relics: uids.slice(0, 6), orders: [] };
+  s.gear.relics = uids.slice(6, 12);
+  __game.save();
+  window.__go('team');
+  document.querySelector('.ttab[data-k="squads"]').click();
+  document.querySelector('.squad[data-squad="b"] [data-act="squad-edit"]').click();
+  const before = __game.ui.sqDraft.lo.relics.slice();
+  document.querySelectorAll('.modal .relic-slot')[0].querySelector('.rfbtn').click();
+  await new Promise((r) => setTimeout(r, 350));
+  [...document.querySelectorAll('.modal .btn')].find((b) => b.textContent.trim() === '换一件')?.click();
+  await new Promise((r) => setTimeout(r, 350));
+  document.querySelector('[data-pick="' + uids[10] + '"]')?.click();
+  await new Promise((r) => setTimeout(r, 600));
+  const draft = (__game.ui.sqDraft?.lo?.relics || []).slice();
+  const main = s.gear.relics.slice();
+  document.querySelector('.modal-x')?.click();
+  return { prefill, prefillTitle, note, mainNames: s.team.map((x) => d.bySlug[x].zh), before, draft, main, picked: uids[10], expectMain: uids.slice(6, 12) };
+})()`);
+check(sqEdit.prefill.length === 0,
+  `周Boss 用「当前队伍」时点现场编队：「${sqEdit.prefillTitle}」是空的（没有把主线的 ${sqEdit.mainNames.join(' / ')} 塞进来）`);
+check(/当前队伍/.test(sqEdit.note), `编辑器里说清了现在用哪套：${sqEdit.note.slice(0, 42)}…`);
+check(sqEdit.draft[0] === sqEdit.picked && sqEdit.main.join() === sqEdit.expectMain.join(),
+  `编队里换造物改的是这套的配装（第 1 件 ${sqEdit.before[0]} → ${sqEdit.draft[0]}），主线造物栏没被动（仍是 ${sqEdit.main.length} 件）`);
+
 await cdp.evalIife(`(() => { document.querySelector('.squads')?.scrollIntoView({ block: 'center' }); return 1; })()`);
 await sleep(300);
 await cdp.shot('team-squad');
@@ -460,6 +505,66 @@ await cdp.shot('team-assign');
 await cdp.evalIife(`(() => { document.querySelector('.ttab[data-k="rift"]').click(); return 1; })()`);
 await sleep(200);
 await cdp.shot('team-rift');
+
+// 11b) 编队编辑器：关闭键不跟着滚、可选唤醒体多了定位 / 稀有度筛选、装备列表按草稿实时显示归属
+const sqEdF = await cdp.evalIife(`(() => {
+  const s = __game.state, d = __game.data;
+  // 造一件能配进编队的装备：一队有独立配装（造物 3 件）
+  s.gear.items = s.gear.items || {};
+  const uids = [];
+  d.relics.slice(0, 6).forEach((r, i) => { const uid = 'rx' + i; s.gear.items[uid] = { uid, kind: 'relic', defId: r.id, lv: 10, rf: 0 }; uids.push(uid); });
+  for (const x of d.awakeners.slice(0, 6)) s.roster[x.slug] ||= { lv: 50, star: 1, brk: 0 };
+  s.squads.a = { team: [...s.team], lo: { equip: {}, relics: uids.slice(0, 3), orders: [null, null, null] } };
+  window.__go('team');
+  document.querySelector('.ttab[data-k="squads"]').click();
+  document.querySelector('[data-act="squad-edit"][data-k="a"]').click();
+  const shell = document.querySelector('.sqeditor');            // .sqeditor 就是 .modal 本身
+  const body = shell.querySelector('.modal-body');
+  const xBtn = shell.querySelector('.modal-x');
+  const before = Math.round(xBtn.getBoundingClientRect().top - shell.getBoundingClientRect().top);
+  body.scrollTop = 400;
+  const after = Math.round(xBtn.getBoundingClientRect().top - shell.getBoundingClientRect().top);
+  const rows = [...document.querySelectorAll('.sqeditor .sqrealms')].map((r) => [...r.querySelectorAll('button')].map((b) => b.innerText.trim()));
+  // 只看「守护」：可选列表里不该再出现突击 / 合唱
+  document.querySelector('[data-sq="type"][data-v="WARDEN"]').click();
+  const onlyWarden = [...document.querySelectorAll('.sqpick .tile')].every((t) => /守/.test(t.innerText));
+  const filtered = document.querySelectorAll('.sqpick .tile').length;
+  document.querySelector('[data-sq="fclear"]').click();
+  const cleared = document.querySelectorAll('.sqpick .tile').length;
+  // 造物换装：列表里那件装备的「已编入」应当出现「一队·草稿」
+  document.querySelector('[data-sq="relic"][data-i="0"]').click();
+  return { before, after, rows, onlyWarden, filtered, cleared,
+    draftChip: [...document.querySelectorAll('.modal .item')].filter((c) => c.querySelector('.sqchip.ed')).length,
+    pickerOpen: !!document.querySelector('[data-pick]') };
+})()`);
+await sleep(300);
+check(sqEdF.before === sqEdF.after, `编队编辑器的关闭键不跟着下滑（滚动前后距弹窗顶部都是 ${sqEdF.before}px）`);
+check(sqEdF.rows.length === 2 && sqEdF.rows[1].some((x) => /守护/.test(x)) && sqEdF.rows[1].some((x) => /创生/.test(x)),
+  `可选唤醒体可筛定位与稀有度：${(sqEdF.rows[1] || []).join(' / ')}`);
+check(sqEdF.onlyWarden && sqEdF.filtered > 0 && sqEdF.cleared > sqEdF.filtered,
+  `按「守护」筛选后只剩 ${sqEdF.filtered} 名（清掉筛选回到 ${sqEdF.cleared} 名）`);
+check(sqEdF.pickerOpen && sqEdF.draftChip > 0, `编队里换造物：列表按草稿标出「一队·草稿」（${sqEdF.draftChip} 件）`);
+await cdp.shot('squad-editor-filters');
+await cdp.evalIife(`(() => { document.querySelectorAll('.modal-x').forEach((x) => x.click()); return 1; })()`);
+
+// 11c) 装备页：按词条筛选
+const gearFx = await cdp.evalIife(`(() => {
+  window.__go('gear');
+  document.querySelector('[data-act="gear-tab"][data-k="relic"]').click();
+  const bar = [...document.querySelectorAll('.affixbar button')].map((b) => b.innerText.replace(/\\s+/g, ''));
+  const total = document.querySelectorAll('#gearlist .item').length;
+  const tap = [...document.querySelectorAll('.affixbar button')].find((b) => b.dataset.affix);
+  const word = tap.dataset.affix;
+  tap.click();
+  const one = document.querySelectorAll('#gearlist .item').length;
+  const head = document.querySelector('#view h3').innerText.replace(/\\s+/g, ' ');
+  // 点完页面会重绘，得重新查这颗胶囊是不是变成选中态（旧节点已经不在 DOM 里）
+  const on = !!document.querySelector('.affixbar button.on[data-affix="' + word + '"]');
+  return { bar, total, one, head, on, word };
+})()`);
+check(gearFx.bar.length >= 3 && gearFx.bar[0].startsWith('全部'), `装备页有词条筛选条：${gearFx.bar.slice(0, 6).join(' / ')}`);
+check(gearFx.on && gearFx.one > 0 && gearFx.one < gearFx.total, `点「${gearFx.word}」只剩 ${gearFx.one}/${gearFx.total} 件（标题：${gearFx.head}）`);
+await cdp.shot('gear-affix');
 
 // 12) 属性塔：四座塔各有自己的出战阵容条；挑战会先放一段战斗回放
 const rt = await cdp.evalIife(`(() => {
