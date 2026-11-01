@@ -86,16 +86,29 @@ export function intentOf(u) {
 export function skillText(sk, u) {
   if (!sk) return '';
   const args = sk.a || [];
-  return String(sk.t || '').replace(/\{(\d)\}/g, (m, i) => {
+  const tpl = String(sk.t || '');
+  const hit = (sk.fx || []).find((f) => f.k === 'hit');
+  const out = tpl.replace(/\{(\d)\}/g, (m, i, off) => {
     const a = args[Number(i) - 1];
-    if (!a) return '?';
+    // 参数表里的 ["x"] 是「这个数不在这张表里」：伤害与次数由效果表给，其余是运行时才算的。
+    // 能从效果表推的就推出来，推不出来写「若干」——给玩家看问号等于没写。
+    if (!a || a[1] == null) {
+      const before = tpl.slice(Math.max(0, off - 8), off);
+      const after = tpl.slice(off + m.length, off + m.length + 8);
+      // 紧跟「次」的是次数，前后提到「伤害」的是伤害；两个都不是就说不准，写「若干」
+      if (hit && /^\s*次/.test(after)) return String(hit.t || 1);
+      if (hit && /伤害/.test(before + after)) return String(Math.round(u.atk * (hit.m || 1)));
+      return '若干';
+    }
     const [k, v] = a;
-    if (v == null) return '?';
+    if (v == null) return '若干';
     if (k === 'a') return String(Math.round(u.atk * v));
     if (k === 'd') return String(Math.round(u.atk * v));
     if (k === 'n') return String(Math.round(v));
     return String(Math.round(v));
   });
+  // 「若干 点力量」这种空格是模板为了数字留的，换成两个字就别留了
+  return out.indexOf('若干') >= 0 ? out.replace(/若干\s+/g, '若干') : out;
 }
 
 function alive(side) {
