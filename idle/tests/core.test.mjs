@@ -2786,3 +2786,20 @@ test('一键强化：默认只强化主线编队，选了编队才动别的队�
   assert.ok(r2.n > 0 && wOther.lv > 0, '选了二队才升');
   assert.ok(_esc(s).some((x) => x.key === 'cur') && _esc(s).some((x) => x.key === 'b'), '可选范围包含主线编队和编了人的编队');
 });
+
+import { rewindGear as _rg } from '../src/core/game.js';
+import { gearRewindPlan as _grp, GEAR_REWIND_COST as _GRC, REFINE_COST as _RC } from '../src/core/gear.js';
+test('装备回溯：花银芯把强化 + 精炼倒回 0，金币和精炼银芯全额返还（净成本只有回溯费）', () => {
+  const s = newState(1); const uid = 'g_rw1';
+  s.gear.items[uid] = { uid, kind: 'wheel', defId: 'x', lv: 12, rf: 3 };
+  const plan = _grp(s.gear.items[uid]);
+  let gold = 0; for (let l = 0; l < 12; l++) gold += _gc('wheel', l);
+  assert.equal(plan.refund, gold); assert.equal(plan.refundCores, _RC[0] + _RC[1] + _RC[2]); assert.equal(plan.cost, _GRC);
+  s.cores = _GRC - 1; assert.equal(_rg(s, uid), null);                        // 银芯不够
+  s.cores = 1000; s.gold = 5;
+  const r = _rg(s, uid); assert.ok(r);
+  assert.equal(s.gold, 5 + gold); assert.equal(s.cores, 1000 - _GRC + plan.refundCores);
+  assert.equal(s.gear.items[uid].lv, 0); assert.equal(s.gear.items[uid].rf, 0);
+  assert.equal(_rg(s, uid), null);                                            // 已经是 0 / 0，没得退
+  assert.equal(_grp({ kind: 'relic', lv: 0, rf: 0 }).cost, 0);
+});

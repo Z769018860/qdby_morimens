@@ -167,3 +167,15 @@ export const REFINE_COST = [40, 80, 140, 220, 320];
 export const refineMult = (it) => 1 + 0.08 * (it?.rf || 0);
 export const refineCost = (it) => ((it?.rf || 0) >= REFINE_MAX ? 0 : REFINE_COST[it?.rf || 0]);
 export function scaleBonus(b, m) { m = Number.isFinite(Number(m)) ? Number(m) : 1; if (m === 1) return b; for (const k of Object.keys(b)) b[k] = (Number.isFinite(b[k]) ? b[k] : 0) * m; return b; }
+
+// 装备回溯：花固定银芯，把单件装备的强化等级和精炼阶数都倒回 0，当初强化花的金币、精炼花的银芯全部返还。
+// 装备本身（种类、词条）不变；穿戴在身上的也能回溯，回溯后继续穿着。
+export const GEAR_REWIND_COST = 50;
+export function gearRewindPlan(it) {
+  const lv = Math.max(0, Math.floor(it?.lv || 0)), rf = Math.max(0, Math.floor(it?.rf || 0));
+  if (!it || (lv <= 0 && rf <= 0)) return { lv: 0, rf: 0, refund: 0, refundCores: 0, cost: 0 };
+  let refund = 0;
+  for (let l = 0; l < lv; l++) refund += gearCost(it.kind, l);
+  const refundCores = REFINE_COST.slice(0, rf).reduce((a, x) => a + x, 0);
+  return { lv, rf, refund, refundCores, cost: GEAR_REWIND_COST };
+}

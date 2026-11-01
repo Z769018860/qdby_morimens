@@ -7,7 +7,7 @@ import { baseStats, lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCos
 import { buildKit, makeMedians } from './skills.js';
 import {
   ZERO, addBonus, wheelBonus, relicBonus, relicBond, relicSlotCount, relicTheme, covenantBonus, gearCost, dismantleValue,
-  refineMult, refineCost, scaleBonus, REFINE_COST,
+  refineMult, refineCost, scaleBonus, REFINE_COST, gearRewindPlan,
 } from './gear.js';
 import { ordersBonus, orderUpCost, orderBonus, orderSlotCount } from './orders.js';
 import { teamBonds } from './bonds.js';
@@ -974,6 +974,16 @@ export function refineItem(state, uid) {
   const it = state.gear.items[uid]; if (!it) return false;
   const c = refineCost(it); if (!c || state.cores < c) return false;
   state.cores -= c; state.stats.coresSpent = (state.stats.coresSpent || 0) + c; it.rf = (it.rf || 0) + 1; return true;
+}
+// 装备回溯：见 gear.js 的 gearRewindPlan。成功返回 plan，银芯不足或没东西可退返回 null
+export function rewindGear(state, uid) {
+  const it = state.gear.items[uid]; if (!it) return null;
+  const plan = gearRewindPlan(it);
+  if (!plan.cost || state.cores < plan.cost) return null;
+  state.cores -= plan.cost; state.stats.coresSpent = (state.stats.coresSpent || 0) + plan.cost;
+  state.gold += plan.refund; state.cores += plan.refundCores;
+  it.lv = 0; it.rf = 0;
+  return plan;
 }
 export const bestOwner = (state, data, def) => null;
 

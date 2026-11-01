@@ -1,10 +1,11 @@
 import './ui/orient.js';   // 横屏 / 竖屏开关（顶栏那颗方向按钮）
 import {
   indexData, newState, migrate, offlineReport, claimOffline, claimGifts, levelUp, levelUpMax, setTeam, autoTeam, autoLoadout, setPreset, setUltMode, moveUltOrder,
-  equipItem, unequipItem, enhanceItem, enhanceAllEquipped, dismantleMatching, autoDismantle, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem,
+  equipItem, unequipItem, enhanceItem, enhanceAllEquipped, dismantleMatching, autoDismantle, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem, rewindGear,
   dismantleCores, breakThrough, awakenUp, overdriveUp, lawUp, upgradeOrder, rewindLevel,
 } from './core/game.js';
 import { setOrderSlot } from './core/orders.js';
+import { gearRewindPlan } from './core/gear.js';
 import { TEAM_SIZE } from './core/constants.js';
 import { BattleView } from './ui/battleView.js';
 import * as P from './ui/pages.js';
@@ -841,6 +842,15 @@ function onAct(e) {
         else { const e2 = s.gear.equip[slug] || {}; unequipItem(s, e2[kind === 'wheel' ? 'wheel' : 'cov']); }
         app.save(); rerender();
       });
+      break;
+    }
+    case 'gear-rewind': {
+      const it = s.gear.items[el.dataset.uid]; if (!it) break;
+      const p = gearRewindPlan(it);
+      if (!confirm(`花 ${p.cost} 银芯回溯这件装备？强化 Lv${p.lv}、精炼 +${p.rf} 倒回 0，返还 金币 ${fmt(p.refund)}${p.refundCores ? ` + 银芯 ${p.refundCores}` : ''}。`)) break;
+      const r = rewindGear(s, el.dataset.uid);
+      if (r) { sound.play('lvup'); toast(`回溯完成：金币+${fmt(r.refund)}${r.refundCores ? ` 银芯+${r.refundCores}` : ''}（花了 ${r.cost} 银芯）`); app.save(); rerender(); if (document.querySelector('.modal [data-act="relic-up"]')) P.relicModal(app, el.dataset.uid); }
+      else toast(`银芯不足（回溯要 ${p.cost} 银芯）`);
       break;
     }
     case 'gear-up': enhanceItem(s, el.dataset.uid); rerender(); break;

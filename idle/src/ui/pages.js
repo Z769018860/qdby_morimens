@@ -25,7 +25,7 @@ import { fxMode } from './fx.js';
 import { settleMode } from './report.js';
 import { watchMode } from './replay.js';
 import { SHOP, boughtToday, goldTicketPrice, GOLD_TICKET_ID, GOLD_TICKET_LIMIT } from '../core/shop.js';
-import { refineCost, refineMult, relicRefineGain, relicRefineView, relicTheme, REFINE_MAX } from '../core/gear.js';
+import { refineCost, refineMult, relicRefineGain, relicRefineView, relicTheme, REFINE_MAX, gearRewindPlan, GEAR_REWIND_COST } from '../core/gear.js';
 import {
   lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, growthPerLevel,
   awakenAmp, awakenSkill, nextAwakenMilestone, rewindPlan, REWIND_COST,
@@ -201,6 +201,11 @@ let relicSwapCtx = null;
  *  而不是主线的造物栏。以前不传这个，点在编队里的「换一件」会去改 s.gear.relics：
  *  草稿纹丝不动（看着像没生效），主线那 6 件反倒被悄悄换掉。
  *  opts 传 null（默认）= 沿用上一次的上下文（强化 / 精炼后重开用），传 {} = 回主线。 */
+const rewindBtn = (s, it, cls = 'btn sm') => {
+  const p = gearRewindPlan(it); if (!p.cost) return '';
+  const back = `${p.refund ? `金币 ${fmt(p.refund)}` : ''}${p.refund && p.refundCores ? ' + ' : ''}${p.refundCores ? `银芯 ${p.refundCores}` : ''}`;
+  return `<button class="${cls}" data-act="gear-rewind" data-uid="${it.uid}" ${s.cores >= p.cost ? '' : 'disabled'} title="回溯：强化和精炼倒回 0，返还 ${back}">回溯 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${p.cost}</button>`;
+};
 export function relicModal(app, uid, opts = null) {
   if (opts) relicSwapCtx = opts.onSwap || null;
   const onSwap = relicSwapCtx;
@@ -229,7 +234,9 @@ export function relicModal(app, uid, opts = null) {
       <button class="btn sm" data-act="relic-up" data-uid="${uid}" ${canUp ? '' : 'disabled'}>${upCost ? `强化 ${fmt(upCost)} 金币` : `已满级 Lv${GEAR_MAX_LV}`}</button>
       <button class="btn sm gold" data-act="relic-refine" data-uid="${uid}" ${canRf ? '' : 'disabled'}>${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button>
       <button class="btn sm" data-act="${onSwap ? 'sq-relic-swap' : 'relic-swap'}" data-i="${relicIndexOf(s, uid)}">换一件</button>
+      ${rewindBtn(s, it)}
     </div>
+    ${gearRewindPlan(it).cost ? `<p class="hint">回溯：花 ${GEAR_REWIND_COST} 银芯，把这件造物的强化和精炼倒回 0，当初花的金币和精炼银芯<b>全部返还</b>。</p>` : ''}
     <p class="hint dim">金币 ${fmt(s.gold)} · 银芯 ${fmt(s.cores)}</p>`;
   const m = openModal(html);
   // 编队编辑器里：这里的「换一件」必须换成草稿那一格，不能落到主线的造物栏上
@@ -1110,7 +1117,7 @@ export function gearPage(app) {
     const def = itemDef(app, it);
     const cost = it.lv < GEAR_MAX_LV ? gearCost(it.kind, it.lv) : 0, rc = refineCost(it);
     const eqd = isEquipped(s, it.uid);
-    const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button><button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity, it, s) ? ` +<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${dismantleCores(def.rarity, it, s)}` : ''}</button></div>`;
+    const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button>${rewindBtn(s, it)}<button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity, it, s) ? ` +<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${dismantleCores(def.rarity, it, s)}` : ''}</button></div>`;
     return itemCard(app, it, btns);
   }).join('') || '<p class="hint">暂无。推图有概率掉落，也可在「召唤」页用金币祈愿。</p>';
   const more = items.length > lim ? `<button class="btn" data-act="gear-more">显示更多（还有 ${items.length - lim} 件）</button>` : '';
