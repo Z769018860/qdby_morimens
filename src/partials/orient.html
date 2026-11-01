@@ -5,7 +5,9 @@
        · 记在每个游戏自己的键上（zjtt:orient:<游戏>），换游戏不会互相影响
        · 优先用 screen.orientation.lock 真正锁方向（Chrome / PWA / 桌面版可用）
        · 锁不住（iOS Safari、桌面浏览器）时：横屏但手机竖着 → 提示「把手机横过来」
-       · 改完方向补一次 resize，canvas 游戏会按新尺寸重排 -->
+       · 改完方向补一次 resize，canvas 游戏会按新尺寸重排
+       · 页面可以用 <body data-orient-default="land"> 让手机第一次进来就默认横屏
+         （音游那种九格横排的，竖着看每格只有 30px，横过来才够宽） -->
 <style>
 .zj-orient{
   position:fixed; left:10px; bottom:10px; z-index:80;
@@ -63,10 +65,14 @@
   ];
 
   function read() {
-    try { return localStorage.getItem(KEY) || 'auto'; } catch (e) { return 'auto'; }
+    try { return localStorage.getItem(KEY); } catch (e) { return null; }
   }
-  var pref = read();
-  var baseTitle = document.title;
+  // 页面可以在 <body data-orient-default="land"> 里指定「手机上的默认方向」。
+  // 只有屏幕短边 <820（手机/小平板）才吃这个默认值，桌面上永远跟随窗口。
+  var smallScreen = Math.min(screen.width || 9999, screen.height || 9999) < 820;
+  var defPref = (document.body && document.body.getAttribute('data-orient-default')) || 'auto';
+  if (['auto', 'land', 'port'].indexOf(defPref) < 0) defPref = 'auto';
+  var pref = read() || (smallScreen ? defPref : 'auto');
 
   // 窄屏（手机）上游戏画面本来就挤，左下角只留一颗小圆钮，点一下循环切换；
   // 宽屏才摊开成三个按钮。判定只在加载时做一次，避免旋屏时反复重建 DOM。
@@ -168,13 +174,24 @@
   function checkRotateHint() {
     var portrait = window.matchMedia && window.matchMedia('(orientation: portrait)').matches;
     var small = Math.min(screen.width || 9999, screen.height || 9999) < 820;
-    var need = pref === 'land' && portrait && small && !locked;
+    // 正在局内就别糊一张全屏提示上去了（玩家可能只是竖着打了一半，
+    // 遮罩会直接把画面盖住）。局内只靠页面自己的排版自适应。
+    var inGame = document.body && document.body.classList.contains('live');
+    var need = pref === 'land' && portrait && small && !locked && !inGame;
     overlay.classList.toggle('on', need && !dismissed);
     document.body.style.overflow = overlay.classList.contains('on') ? 'hidden' : '';
   }
 
   var locked = false;
   var dismissed = false;
+
+  // 给页面用的接口：音游把「自动 / 横屏 / 竖屏」摆进自己的设置与暂停面板，
+  // 与左下角这颗小钮共用同一个键，两边状态必须一致。
+  window.zjOrient = {
+    get: function () { return pref; },
+    set: function (k, fromUser) { set(k, fromUser !== false); },
+    modes: MODES
+  };
 
   function lock(mode) {
     if (!screen.orientation || typeof screen.orientation.lock !== 'function') return Promise.reject();

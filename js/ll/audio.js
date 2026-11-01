@@ -11,6 +11,27 @@
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
+// decodeAudioData 只会重采样，不会减声道。手机上最吃内存的就是这两条 4 字节浮点
+// 声道，混成单声道再省一半（听歌、外放都听不出差别）。
+function toMono(buf, OC) {
+  if (!buf || buf.numberOfChannels < 2) return buf;
+  try {
+    const n = buf.length;
+    const ch = buf.numberOfChannels;
+    const m = new OC(1, 1, buf.sampleRate).createBuffer(1, n, buf.sampleRate);
+    const out = m.getChannelData(0);
+    for (let c = 0; c < ch; c++) {
+      const src = buf.getChannelData(c);
+      for (let i = 0; i < n; i++) out[i] += src[i];
+    }
+    const k = 1 / ch;
+    for (let i = 0; i < n; i++) out[i] *= k;
+    return m;
+  } catch (e) {
+    return buf;                        // 混不了就照原样用，别为了省内存把歌弄没了
+  }
+}
+
 export const Audio = {
   ac: null,
   master: null,
@@ -28,6 +49,9 @@ export const Audio = {
   timer: 0,
   wave: 'square',
   vol: { mus: 0.7, fx: 0.6 },
+  lite: false,          // 上一次解码是不是走了「22.05k 单声道」降级路
+  forceLite: false,     // 强制走降级路（省内存 / 测试）
+  lastDecodeErr: '',
 
   ensure() {
     if (this.ac) {
@@ -64,16 +88,40 @@ export const Audio = {
     if (this.fxGain) this.fxGain.gain.value = this.vol.fx * this.vol.fx;
   },
 
+  // 解码。手机上一首 4 分钟的原曲解出来是 90MB 的浮点 PCM（双声道 44.1k），
+  // 内存紧的机器 decodeAudioData 会直接抛 EncodingError —— 页面随后退回芯片，
+  // 用户听到的就是「电子音」。所以这里留一条降级路：用离线上下文按 22.05k
+  // 单声道重解，内存降到 1/4，音质差一档但原曲还在。AudioBuffer 可以跨
+  // context 使用，解出来的照样喂给主线路播放。
   async decode(data) {
+    this.lite = false;
+    this.lastDecodeErr = '';
     const ac = this.ensure();
     if (!ac) throw new Error('浏览器不支持 WebAudio');
-    const buf = await new Promise((res, rej) => {
+    // 每次解码都用一份新的字节：Safari 会把传进 decodeAudioData 的 ArrayBuffer
+    // transfer 掉（detach），同一份拿两次会失败
+    const once = (ctx) => new Promise((res, rej) => {
       // 老 Safari 只认回调式；新浏览器返回 Promise
       let p;
-      try { p = ac.decodeAudioData(data, res, rej); } catch (e) { rej(e); return; }
+      try { p = ctx.decodeAudioData(data.slice(0), res, rej); } catch (e) { rej(e); return; }
       if (p && typeof p.then === 'function') p.then(res, rej);
     });
-    return buf;
+    try {
+      // forceLite：跳过主路径直接走降级（测试用，也当「省内存模式」的钩子）
+      if (this.forceLite) throw new Error('force-lite');
+      return await once(ac);
+    } catch (e) {
+      this.lastDecodeErr = (e && (e.name || e.message)) || String(e);
+      const OC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (OC) {
+        try {
+          const off = new OC(1, 1, 22050);
+          const buf = await once(off);
+          if (buf) { this.lite = true; return toMono(buf, OC); }
+        } catch (e2) { this.lastDecodeErr += ' / 降级也失败：' + ((e2 && (e2.name || e2.message)) || e2); }
+      }
+      throw e;
+    }
   },
 
   // 曲目时间（秒）。暂停靠 ac.suspend()，currentTime 会停住。
