@@ -160,6 +160,15 @@ test('poison ticks, barrier blocks, counter retaliates, sealed stops exalt', () 
   assert.ok(r.events.some((e) => e.k === 'dot' && e.s === 'poison' && e.amt > 0));
   assert.ok(r.events.some((e) => e.k === 'st' && e.list.some((x) => x.id === 'poison')));
 
+  // 中毒 / 流血也要吃盾：以前回合最开头就清我方盾、毒结算排在后面，于是我方毒伤永远全额进血，
+  // 而敌方盾要到它自己出手前才清（那时毒早结算完）——同一套机制两边行为相反。
+  const tank = unit({ hp: 100000, kit: mkKit([fx.shield(1.2, 'self')]) });
+  const venom = { ...unit({ hp: 100000 }), pattern: [{ name: 'venom', effects: [fx.status('poison', 5, 4, 'foe')] }] };
+  const rv = sim2({ allies: [tank], enemies: [venom], seed: 3, maxRounds: 4 });
+  const pv = rv.events.filter((e) => e.k === 'dot' && e.s === 'poison' && e.who === 'a0');
+  assert.ok(pv.length >= 2, `我方中毒该跳至少 2 次，实际 ${pv.length}`);
+  assert.ok(pv.every((e) => e.absorbed > 0 && e.amt === 0), `我方中毒要先吃盾：${pv.map((e) => `${e.amt}/${e.absorbed}`).join(',')}`);
+
   const hitter = { ...unit({ hp: 100000, atk: 300 }), pattern: [{ name: 'hit', effects: [fx.dmg(1.0)] }] };
   const shielded = unit({ kit: mkKit([fx.status('barrier', 2, 3, 'self')]) });
   const r2 = sim2({ allies: [shielded], enemies: [hitter], seed: 3, maxRounds: 3 });

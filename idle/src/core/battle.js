@@ -954,7 +954,6 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   while (round < maxRounds && !finished()) {
     round++;
     push({ k: 'round', n: round });
-    for (const u of A) u.shield = 0;      // 我方的盾撑到下一回合开头：本回合队友给的盾要能挡住这回合敌人的出手
     if (round % 2 === 0) {
       if (RL.has('barrier')) for (const u of E) if (u.alive) u.st.barrier = { n: Math.min(barrierCap(u), (u.st.barrier?.n || 0) + 2), dur: 99 };
       if (RL.has('seal')) {
@@ -985,6 +984,11 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         if (ps.n <= 0) delete u.st.poison;
       }
     }
+    // 我方的盾撑到下一回合开头：先让它吃掉这一轮跳下来的毒 / 流血，再清零。
+    // 以前是在回合最开头就清（在毒结算之前），于是「中毒穿盾」——我方永远吃不到盾；
+    // 敌方盾要到它自己出手前才清（见 act()），那时毒早结算完，所以只有玩家侧吃亏。
+    // 本回合队友给的盾仍然从发出一直留到下一回合开头，不受影响。
+    for (const u of A) u.shield = 0;
     emitAll();
     if (finished()) break;
     for (const u of [...A, ...E]) {
