@@ -222,7 +222,7 @@ body{
 /* ---------------------------------------------------------------- 打斗 */
 .fight{flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:7px}
 .fstage{
-  position:relative; flex:1 1 auto; min-height:0; display:flex; gap:7px;
+  position:relative; flex:0 0 auto; min-height:180px; max-height:52%; display:flex; gap:7px;
   padding:8px; border-radius:14px; border:1px solid var(--line);
   background:
     linear-gradient(180deg, rgba(217,164,65,.05), transparent 30%),
@@ -256,7 +256,7 @@ body{
 .marks i.vu{color:var(--left2)} .marks i.bl{color:var(--lose)} .marks i.po{color:var(--win)}
 .marks i.br{color:var(--right2)}
 .log{
-  flex:0 0 30%; min-height:112px; overflow:auto; padding:7px 9px; border-radius:12px;
+  flex:1 1 auto; min-height:112px; overflow:auto; padding:7px 9px; border-radius:12px;
   border:1px solid var(--line); background:var(--bg2);
   font-size:11.5px; line-height:1.6; color:var(--dim);
 }
@@ -330,7 +330,7 @@ body{
 #boot .err{color:var(--left2)}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
-<meta name="build" content="90637ae638">
+<meta name="build" content="b4cdbaae3d">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -599,7 +599,7 @@ html{-webkit-tap-highlight-color:transparent}
   if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
 })();
 </script>
-<script type="module" src="js/b/bugfight.js?v=90637ae638"></script>
+<script type="module" src="js/b/bugfight.js?v=b4cdbaae3d"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
