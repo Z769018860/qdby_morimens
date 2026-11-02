@@ -233,13 +233,15 @@ body.live .skills{display:none}
 .skill .gauge{display:block; height:3px; border-radius:2px; background:var(--panel2); overflow:hidden}
 .skill .gauge b{display:block; height:100%; width:0; background:hsl(var(--h),85%,68%)}
 .skill.ready{border-color:hsl(var(--h),85%,68%); box-shadow:0 0 10px -2px hsl(var(--h),85%,60%,.75)}
-/* 舞台自带深色底：立绘用的是 screen 混合，浅色主题下没有暗底会整块发白 */
-.stage{flex:1; min-height:0; position:relative; border-radius:14px; overflow:hidden; background:#0a0d15}
-.stage canvas{position:absolute; inset:0; touch-action:none}
-.prog{position:absolute; top:0; left:0; right:0; height:3px; background:rgba(255,255,255,.06)}
+/* 舞台自带深色底：立绘用的是 screen 混合，浅色主题下没有暗底会整块发白。
+   isolation:isolate 把混合范围关在舞台里，顺便让子层 z-index 各归各位。 */
+.stage{flex:1; min-height:0; position:relative; border-radius:14px; overflow:hidden; background:#0a0d15; isolation:isolate}
+/* 画布在立绘之上：击打框、飞行音符、判定特效永远压在背景板前面 */
+.stage canvas{position:absolute; inset:0; z-index:2; touch-action:none}
+.prog{position:absolute; top:0; left:0; right:0; height:3px; z-index:3; background:rgba(255,255,255,.06)}
 .prog i{display:block; height:100%; width:0; background:var(--pink); opacity:.8}
 .banner{
-  position:absolute; left:50%; top:23%; transform:translateX(-50%);
+  position:absolute; left:50%; top:23%; z-index:4; transform:translateX(-50%);
   max-width:86%; text-align:center; font-size:13.5px; font-weight:700; color:var(--text);
   background:rgba(20,14,32,.78); border:1px solid var(--line); border-radius:11px;
   padding:6px 14px; opacity:0; transition:opacity .18s ease; pointer-events:none;
@@ -250,13 +252,26 @@ body.live .skills{display:none}
 /* ---------------------------------------------------------------- 技能立绘 */
 /* 技能发动时把这位唤醒体的立绘摆到舞台右侧：assets/card/*.webp（官方素材库的
    竖版卡面，240×600），原尺寸就够清楚，不再把 96px 的头像放大糊一屏。
-   立绘用 screen 混合 + 径向遮罩融进暗底，边缘不留矩形硬边。 */
-.artbox{position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .3s ease}
+   立绘用 screen 混合 + 径向遮罩融进暗底，边缘不留矩形硬边。
+
+   它是一层**背景板**，不是前景贴纸：z-index 写死 0，画布（击打框、飞行音符、
+   判定特效）在 2 层，永远压在上面。以前两个都是 auto，靠 DOM 顺序凑巧成立，
+   谁给祖先加个 transform/opacity 就会翻上来盖住键位；而且立绘本身太亮，
+   最右边那两格（K/L）正好落在人物身上，环和头像被冲成一片。
+   现在再加两件事：立绘整体降到 62% 不透明，叠一层自上而下加深的压暗，
+   让它退成一张「海报墙」，前面的键和音符才看得清。 */
+.artbox{position:absolute; inset:0; z-index:0; pointer-events:none; opacity:0; transition:opacity .3s ease}
 .artbox.on{opacity:1}
+/* 压暗层：跟着立绘一起淡入淡出，位置在人物图之上、画布之下 */
+.artbox::after{
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(180deg, rgba(8,11,18,.34), rgba(8,11,18,.12) 42%, rgba(8,11,18,.46));
+}
 .artfig{
   position:absolute; right:-1%; bottom:0; height:99%; width:auto; max-width:62%;
   object-fit:contain; object-position:bottom right; display:block;
-  filter:saturate(1.08) contrast(1.02) drop-shadow(0 6px 26px rgba(0,0,0,.6));
+  opacity:.62;
+  filter:saturate(1.06) contrast(1.02) drop-shadow(0 6px 26px rgba(0,0,0,.6));
   mix-blend-mode:screen;
   -webkit-mask-image:linear-gradient(to right, transparent 0%, rgba(0,0,0,.35) 12%, #000 38%);
   mask-image:linear-gradient(to right, transparent 0%, rgba(0,0,0,.35) 12%, #000 38%);
@@ -267,19 +282,27 @@ body.live .skills{display:none}
    取中间那位，别把 2:1 的 CG 硬压成细长条 */
 .artfig.wide{
   inset:-10%; width:auto; height:auto; max-width:none; max-height:none;
-  object-fit:cover; object-position:center 32%;
+  object-fit:cover; object-position:center 32%; opacity:.42;
   -webkit-mask-image:radial-gradient(74% 72% at 50% 46%, #000 40%, rgba(0,0,0,.55) 76%, transparent 100%);
   mask-image:radial-gradient(74% 72% at 50% 46%, #000 40%, rgba(0,0,0,.55) 76%, transparent 100%);
 }
-/* 没有立绘的那位：头像小卡，不放大、不虚化 */
+/* 没有立绘的那位：头像小卡，不放大、不虚化。整块缩到 76% 不透明，
+   它落在右下的空地上，但也要确定自己在键位后面 */
 .artfig.small{
   width:110px; height:110px; right:10px; bottom:78px; border-radius:16px; object-fit:cover;
-  mix-blend-mode:normal; filter:none;
+  mix-blend-mode:normal; filter:none; opacity:.76;
   border:1px solid hsla(var(--h,300),80%,72%,.75); box-shadow:0 10px 26px -12px #000;
   -webkit-mask-image:none; mask-image:none;
 }
+/* 竖屏的舞台又窄又高：99% 高度等于让整个人物铺满半屏，脸正好顶在连击数后面。
+   缩到 78% 高、压到 48%，只当右墙上的海报 */
+@media (orientation:portrait){
+  .artfig{height:78%; max-width:58%; opacity:.48}
+  .artfig.small{width:96px; height:96px; bottom:96px}
+}
+/* 标签原来是 top:8px，正好压在左上角那颗 30px 的暂停键底下。往下让 30px */
 .artlab{
-  position:absolute; left:8px; top:8px; max-width:52%; padding:5px 10px 6px;
+  position:absolute; left:8px; top:38px; max-width:52%; padding:5px 10px 6px;
   border-left:3px solid hsla(var(--h,300),85%,70%,.9); border-radius:0 10px 10px 0;
   background:linear-gradient(90deg, rgba(10,8,18,.82), rgba(10,8,18,.25));
   transform:translateX(-6px); transition:transform .3s ease;
@@ -426,7 +449,7 @@ body.live main > section{gap:5px}
 #boot{position:fixed; inset:0; z-index:99; display:grid; place-items:center; background:var(--bg); color:var(--dim); text-align:center; font-size:14px}
 #boot.err{color:var(--bad)}
 </style>
-<meta name="build" content="2f9ff2c1ab">
+<meta name="build" content="79cbd0e8dc">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -904,7 +927,7 @@ html{-webkit-tap-highlight-color:transparent}
   <p><b>操作</b>：手机上直接点框或点音符（支持多指同时按）；电脑上鼠标点，或者用 <code>A S D F G H J K L</code> 对应九格，<code>Esc</code> 暂停。长条用键盘就是按住不放。</p>
   <p><b>难度</b>：四档只改谱面密度，不改血量——四档漏一个都扣 5.5 体力，不会因为选了 EXPERT 就更脆。EASY 每秒约 1.5 个球、基本没有双押和长条；NORMAL 约 3 个；HARD 约 5 个、强拍开始成对落下；EXPERT 约 7~8 个，四分之一是双押，长条最长能拖到 2 秒，落球速度也更快（1.85 秒飞到 → 1.08 秒飞到）。觉得 EASY 太闲或者 EXPERT 挤成一团，差的就是这个。</p>
   <p><b>音源</b>：曲库里有原曲包的那几首直接放原曲（仓库里是加密封装的，取回来在浏览器里解）；没有包的走页面内合成的芯片改编。进「设置 → 音源」可以导入自己手里的 mp3（只存在这台设备上，会盖过内置包），谱面按那一版原曲的鼓点重做。偏移 / 宽松 / 流速也都在设置里。</p>
-  <p><b>立绘</b>：技能发动时舞台右边会摆上这位唤醒体的立绘，左上角是她的名字和技能。在 PC 上把窗口拉大一点看得更清楚。</p>
+  <p><b>立绘</b>：技能发动时舞台右边会摆上这位唤醒体的立绘，左上角是她的名字和技能。立绘是<b>背景板</b>，压暗之后垫在击打框和音符下面，永远不会挡住要打的东西。在 PC 上把窗口拉大一点看得更清楚。</p>
   <p><b>工坊</b>：首页的「工坊」能导入任意音频，自动按鼓点出一版谱面，然后在时间轴上改：轻点空白加音符、拖音符改时间和轨道、右键删、滚轮缩放。改完可以存本机（选曲列表里会多一首「我的谱面」），登录后还能<b>发布到云端曲库</b>给所有人玩——发的是谱面数据，音频不上传，别人要自己配一份同一版本的音频。</p>
   <div class="acts"><button class="btn pri" type="button" onclick="document.getElementById('helpDlg').close()">知道了</button></div>
 </dialog>
@@ -930,7 +953,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 20000);
 })();
 </script>
-<script type="module" src="js/b/lovelive.js?v=2f9ff2c1ab"></script>
+<script type="module" src="js/b/lovelive.js?v=79cbd0e8dc"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
