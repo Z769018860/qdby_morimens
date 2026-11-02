@@ -222,7 +222,7 @@ export function relicBonuses(state, data) {
     const def = it && data.relicById[it.defId];
     if (!def) { defs.push(null); continue; }
     defs.push(def);
-    addBonus(bonus, scaleBonus(relicBonus(def, it.lv), refineMult(it)));
+    addBonus(bonus, scaleBonus(relicBonus(def, it.lv, it.rune), refineMult(it)));
   }
   return { items, defs, bonus, bond: relicBond(defs) };
 }
@@ -1055,15 +1055,15 @@ const RUNE_RARITY = { N: 0.5, R: 0.7, SR: 1, SSR: 1.4 };
 export const runeCost = (state, def) => Math.max(300, Math.round(stageGold(Math.max(1, state.maxStage || 1)) * 12 * (RUNE_RARITY[def?.rarity] ?? 1)));
 export function rollRune(state, data, uid) {
   const it = state.gear.items[uid];
-  if (!it || it.kind !== 'wheel') return null;
-  const def = data.wheelById[it.defId];
+  if (!it || (it.kind !== 'wheel' && it.kind !== 'relic')) return null;      // 命轮的「器纹」和造物的「特质」是同一套刷取
+  const def = (it.kind === 'wheel' ? data.wheelById : data.relicById)[it.defId];
   const cost = runeCost(state, def);
   if (state.gold < cost) return null;
   state.gold -= cost;
   const rng = mulberry32(battleSeed(state));
   it.runeNew = rollRuneWith(rng);
   state.stats.runeRolls = (state.stats.runeRolls || 0) + 1;
-  return { cost, cand: it.runeNew, cur: runeOf(def, it.rune) };
+  return { cost, cand: it.runeNew, cur: runeOf(def, it.rune, it.kind) };
 }
 /** 决定候选器纹：accept = 换上，否则丢掉候选。返回是否换上了 */
 export function settleRune(state, uid, accept) {

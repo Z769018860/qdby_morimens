@@ -3615,3 +3615,27 @@ test('器纹刷取：16 种属性 × 5 个品阶，花金币，候选先看后�
 });
 function ZERO_KEYS() { return _ZERO(); }
 import { ZERO as _ZERO } from '../src/core/gear.js';
+
+import { relicBonus as _rb2, relicText as _rtx, relicTrait as _rtr } from '../src/core/gear.js';
+test('造物特质也能刷：同一套 16 种属性 × 5 个品阶，没刷过的数值不变', () => {
+  const s = newState(data, 41);
+  const r = data.relics.find((x) => x.rarity === 'SSR');
+  const it = _ai2(s, 'relic', r.id);
+  // 没刷过 = 老特质、「精」档：和原来的固定值一致
+  const old = _rtr(r), b0 = _rb2(r, 5, null);
+  assert.ok(b0[old.key] >= old.v - 1e-9);
+  assert.match(_rtx(r, 5, 0, null), /特质 .*（精）/);
+  s.gold = _rc(s, r) * 2;
+  const x = _rr(s, data, it.uid);
+  assert.ok(x && x.cost === _rc(s, r) && _RK.includes(x.cand.key));
+  _sr(s, it.uid, true);
+  const b1 = _rb2(r, 5, it.rune);
+  assert.ok(b1[it.rune.key] >= _RB[it.rune.key] * _RT[it.rune.t - 1].m - 1e-9);
+  assert.match(_rtx(r, 5, 0, it.rune), new RegExp('（' + _RT[it.rune.t - 1].zh + '）'));
+  // 战斗里确实吃到：装备到造物栏，队伍加成里能看到这条
+  it.rune = { key: 'steal', t: 5 };
+  s.gear.relics[0] = it.uid;
+  const bonus = relicBonuses(s, data).bonus;
+  assert.ok(bonus.steal >= _RB.steal * 2.2 - 1e-9);
+});
+import { relicBonuses } from '../src/core/game.js';

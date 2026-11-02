@@ -1053,7 +1053,7 @@ function onAct(e) {
     case 'rune-take': case 'rune-keep': {
       const took = settleRune(s, el.dataset.uid, a === 'rune-take');
       app.save(); closeModal(); rerender(); P.runeModal(app, el.dataset.uid);
-      toast(took ? '已换上新器纹' : '保留了原来的器纹');
+      const nmR = s.gear.items[el.dataset.uid]?.kind === 'relic' ? '特质' : '器纹'; toast(took ? `已换上新${nmR}` : `保留了原来的${nmR}`);
       break;
     }
     case 'relic-up': {

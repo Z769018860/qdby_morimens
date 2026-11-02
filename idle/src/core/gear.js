@@ -77,9 +77,9 @@ export const RUNE_TIERS = [
 export const RUNE_DEFAULT_TIER = 3;
 const fmtRune = (key, v) => (key === 'surviveChance' ? `${Math.round(v * 1000) / 10}%` : key === 'openAli' || key === 'openKey' ? `${Math.round(v * 10) / 10}` : `${Math.round(v * 10) / 10}%`);
 /** 某件命轮当前生效的器纹：玩家刷过的（it.rune）优先，没刷过按老规则（哈希出的一条，「精」档） */
-export function runeOf(def, rune) {
+export function runeOf(def, rune, kind = 'wheel') {
   if (rune && RUNE_BASE[rune.key] != null && rune.t >= 1 && rune.t <= 5) return { key: rune.key, t: rune.t, rolled: true };
-  return { key: wheelRune(def).key, t: RUNE_DEFAULT_TIER, rolled: false };
+  return { key: (kind === 'relic' ? relicTrait(def) : wheelRune(def)).key, t: RUNE_DEFAULT_TIER, rolled: false };
 }
 export const runeValue = (key, t) => RUNE_BASE[key] * (RUNE_TIERS[(t || RUNE_DEFAULT_TIER) - 1] || RUNE_TIERS[2]).m;
 export const runeLabel = (r) => `${STAT_ZH[r.key]} +${fmtRune(r.key, runeValue(r.key, r.t))}（${RUNE_TIERS[r.t - 1].zh}）`;
@@ -139,20 +139,22 @@ export function relicBase(def, lv) {
   const th = relicTheme(def.id);
   return { th, v: (RELIC_BASE[def.rarity] ?? 6) * th.per * lvMult(lv), open: th.key.startsWith('open') };
 }
-export function relicBonus(def, lv) {
+export function relicBonus(def, lv, rune = null) {
   const { th, v } = relicBase(def, lv);
   const b = ZERO();
   b[th.key] = v;
-  const t = relicTrait(def);
-  b[t.key] = (b[t.key] || 0) + t.v;
+  // 特质和命轮的器纹同一套刷取规则（16 种属性 × 5 个品阶）；没刷过的按哈希出的老特质、「精」档，数值不变
+  const t = runeOf(def, rune, 'relic');
+  b[t.key] = (b[t.key] || 0) + runeValue(t.key, t.t);
+  if (b.surviveChance) b.surviveChance = Math.min(0.9, b.surviveChance);
   return b;
 }
 /** 精炼给的增量：每阶 +8% 基础值（rf 阶就是 +8% × rf） */
 export const relicRefineGain = (def, lv, rf = 0) => relicBase(def, lv).v * 0.08 * (rf || 0);
-export const relicText = (def, lv, rf = 0) => {
+export const relicText = (def, lv, rf = 0, rune = null) => {
   const { th, v, open } = relicBase(def, lv);
   const total = v * refineMult({ rf });
-  return `全队${th.zh}：${total.toFixed(1)}${open ? ' 点起始能量' : '%'} · 特质 ${relicTrait(def).zh}`;
+  return `全队${th.zh}：${total.toFixed(1)}${open ? ' 点起始能量' : '%'} · 特质 ${runeLabel(runeOf(def, rune, 'relic'))}`;
 };
 /** 精炼前 / 后对照，弹窗里用：{ base, now, next, rf, max } */
 export function relicRefineView(def, lv, rf = 0) {

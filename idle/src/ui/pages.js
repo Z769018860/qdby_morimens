@@ -56,7 +56,7 @@ export function itemDef(app, it) {
 export function itemText(app, it) {
   const def = itemDef(app, it);
   if (it.kind === 'wheel') return wheelText(def, it.lv, it.rf, it.rune);
-  if (it.kind === 'relic') return relicText(def, it.lv, it.rf);
+  if (it.kind === 'relic') return relicText(def, it.lv, it.rf, it.rune);
   // 密契：判定是「全队同款」，不是同主题；4 件那档印的是累计值（2 件 + 4 件），别让人以为只有 15%
   const { th, two, four } = covenantTiers(def.id, it.lv, it.rf);
   const f = (o) => Object.entries(o).map(([k, v]) => `${k}+${Math.round(v * 10) / 10}`).join(' ');
@@ -209,22 +209,23 @@ const rwCount = (s) => Math.max(0, Math.floor(Number(s?.vouchers?.rewind) || 0))
 /** 命轮器纹弹窗：当前器纹 + 刷一次的价格 + 候选（换上 / 保留原来）+ 五个品阶的概率表 */
 export function runeModal(app, uid) {
   const s = app.state, it = s.gear.items[uid];
-  if (!it || it.kind !== 'wheel') return;
+  if (!it || (it.kind !== 'wheel' && it.kind !== 'relic')) return;
   const def = itemDef(app, it);
-  const cur = runeOf(def, it.rune), cost = runeCost(s, def), can = s.gold >= cost;
+  const nm = it.kind === 'relic' ? '特质' : '器纹';          // 命轮叫器纹，造物叫特质，刷取规则一样
+  const cur = runeOf(def, it.rune, it.kind), cost = runeCost(s, def), can = s.gold >= cost;
   const tag = (r) => `<b style="color:${RUNE_TIERS[r.t - 1].color}">${esc(runeLabel(r))}</b>`;
   const cand = it.runeNew;
   const total = RUNE_TIERS.reduce((n, x) => n + x.w, 0);
   const tiers = RUNE_TIERS.map((x) => `<span style="color:${x.color}">${x.zh} ×${x.m}（${Math.round(x.w / total * 100)}%）</span>`).join(' · ');
-  const html = `<h3>${esc(def.zh)} · 器纹 <small class="dim">${def.rarity || ''} Lv${it.lv}</small></h3>
+  const html = `<h3>${esc(def.zh)} · ${nm} <small class="dim">${def.rarity || ''} Lv${it.lv}</small></h3>
     <div class="rfbox">
-      <div class="rfrow"><span>当前器纹${cur.rolled ? '' : '（出厂自带，还没刷过）'}</span>${tag(cur)}</div>
-      ${cand ? `<div class="rfrow"><span>刷出来的新器纹</span>${tag(cand)}</div>` : ''}
+      <div class="rfrow"><span>当前${nm}${cur.rolled ? '' : '（出厂自带，还没刷过）'}</span>${tag(cur)}</div>
+      ${cand ? `<div class="rfrow"><span>刷出来的新${nm}</span>${tag(cand)}</div>` : ''}
     </div>
     ${cand ? `<div class="row"><button class="btn sm gold" data-act="rune-take" data-uid="${uid}">换上新的</button><button class="btn sm" data-act="rune-keep" data-uid="${uid}">保留原来的</button></div>
       <p class="hint">不满意就保留原来的——这一次的金币不退。再刷一次会直接顶掉这条候选。</p>` : ''}
-    <div class="row"><button class="btn sm ${can ? 'gold' : ''}" data-act="rune-roll" data-uid="${uid}" ${can ? '' : 'disabled'}>刷取器纹 🪙${fmt(cost)}</button></div>
-    <p class="hint">每次随机抽 <b>${RUNE_KEYS.length} 种属性</b>（${RUNE_KEYS.map((k) => STAT_ZH[k]).join(' / ')}）之一，和 <b>5 个品阶</b>：${tiers}。品阶只管倍率，「精」就是出厂器纹的数值。器纹是固定加成，<b>不吃强化等级与精炼</b>；价格 = 约 12 场胜利的金币 × 稀有度，随最高通关关卡一起涨。</p>
+    <div class="row"><button class="btn sm ${can ? 'gold' : ''}" data-act="rune-roll" data-uid="${uid}" ${can ? '' : 'disabled'}>刷取${nm} 🪙${fmt(cost)}</button></div>
+    <p class="hint">每次随机抽 <b>${RUNE_KEYS.length} 种属性</b>（${RUNE_KEYS.map((k) => STAT_ZH[k]).join(' / ')}）之一，和 <b>5 个品阶</b>：${tiers}。品阶只管倍率，「精」就是出厂${nm}的数值。${nm}是固定加成，<b>不吃强化等级与精炼</b>；价格 = 约 12 场胜利的金币 × 稀有度，随最高通关关卡一起涨。</p>
     <p class="hint dim">金币 ${fmt(s.gold)}</p>`;
   openModal(html);
 }
@@ -263,6 +264,7 @@ export function relicModal(app, uid, opts = null) {
       <button class="btn sm" data-act="relic-up" data-uid="${uid}" ${canUp ? '' : 'disabled'}>${upCost ? `强化 ${fmt(upCost)} 金币` : `已满级 Lv${GEAR_MAX_LV}`}</button>
       <button class="btn sm gold" data-act="relic-refine" data-uid="${uid}" ${canRf ? '' : 'disabled'}>${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button>
       <button class="btn sm" data-act="${onSwap ? 'sq-relic-swap' : 'relic-swap'}" data-i="${relicIndexOf(s, uid)}">换一件</button>
+      <button class="btn sm" data-act="rune-open" data-uid="${uid}" title="特质：花金币随机刷 16 种属性 × 5 个品阶">特质${it.rune ? `·${RUNE_TIERS[it.rune.t - 1].zh}` : ''}</button>
       ${rewindBtn(s, it)}
     </div>
     ${gearRewindPlan(it).cost ? `<p class="hint">回溯：${rwCount(s) ? `用一张<b>免费回溯券</b>（还剩 ${rwCount(s)} 张），不花银芯` : `花 ${GEAR_REWIND_COST} 银芯`}，把这件造物的强化和精炼倒回 0，当初花的金币和精炼银芯<b>全部返还</b>。</p>` : ''}
@@ -1187,7 +1189,7 @@ export function gearPage(app) {
     const def = itemDef(app, it);
     const cost = it.lv < GEAR_MAX_LV ? gearCost(it.kind, it.lv) : 0, rc = refineCost(it);
     const eqd = isEquipped(s, it.uid);
-    const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button>${it.kind === 'wheel' ? `<button class="btn sm" data-act="rune-open" data-uid="${it.uid}" title="器纹：花金币随机刷 16 种属性 × 5 个品阶">器纹${it.rune ? `·${RUNE_TIERS[it.rune.t - 1].zh}` : ''}</button>` : ''}${rewindBtn(s, it)}<button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity, it, s) ? ` +<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${dismantleCores(def.rarity, it, s)}` : ''}</button></div>`;
+    const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button>${it.kind !== 'covenant' ? `<button class="btn sm" data-act="rune-open" data-uid="${it.uid}" title="${it.kind === 'relic' ? '特质' : '器纹'}：花金币随机刷 16 种属性 × 5 个品阶">${it.kind === 'relic' ? '特质' : '器纹'}${it.rune ? `·${RUNE_TIERS[it.rune.t - 1].zh}` : ''}</button>` : ''}${rewindBtn(s, it)}<button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity, it, s) ? ` +<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${dismantleCores(def.rarity, it, s)}` : ''}</button></div>`;
     return itemCard(app, it, btns);
   }).join('') || '<p class="hint">暂无。推图有概率掉落，也可在「召唤」页用金币祈愿。</p>';
   const more = items.length > lim ? `<button class="btn" data-act="gear-more">显示更多（还有 ${items.length - lim} 件）</button>` : '';
