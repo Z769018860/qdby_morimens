@@ -434,8 +434,16 @@ function decideHolds(notes, D, rnd) {
 // 但音区本身不是均匀分布的（流行歌大半时间在中低音区），直接线性映射会
 // 把谱面挤在中间两三格。所以先按音高排名做一次均匀化：把这一首用到的
 // 音高按名次等分成九档，每档一格——顺序不变，九格都能用到。
-// 再叠三条约束：相邻两下不跨太远（难度越高跨得越多）、同轨不连按三次、
-// 正在按长条的轨不接新点。左右各留一点余量，谱面不贴边。
+//
+// 光有「音高目标 + 步伐上限」是不够的：那等于让落点做一次随机游走，
+// 走成一条钟形——中间三格堆满、最外两格整首摸不到（实测 240 音里最右一格
+// 只有 2 下），而且走到哪停就在哪连着，同一格里能叠两三个长条。
+// 所以现在每一步在「不越级」的候选里按代价挑：
+//   · 离音高目标多远（保持旋律走向）；
+//   · 这条轨已经用掉多少（超出当前应得份额就罚，九格才会都用上）；
+//   · 刚才是不是刚用过（隔开同轨连按）；
+//   · 这条轨刚收过一条长条就再也不给长条（长按冷却，免得一手连按三次）。
+// 音高只是「倾向」，九格均衡和可读性优先。
 function rankSpread(notes) {
   const n = notes.length;
   const idx = notes.map((q, i) => i);
@@ -451,49 +459,87 @@ function rankSpread(notes) {
 }
 
 function assignLanes(notes, D, rnd) {
-  const busy = new Array(9).fill(-9);
   const jump = D.jump == null ? 3 : D.jump;
   const ps = rankSpread(notes);
+  const use = new Array(9).fill(0);           // 每条轨已经落了多少
+  const lastAt = new Array(9).fill(-9);       // 上一次落点时间
+  const holdCool = new Array(9).fill(-9);     // 这个时刻之前别再给长条
+  const busy = new Array(9).fill(-9);         // 这条轨忙到这个时刻（长条按到尾）
+  const holdCd = D.holdCd == null ? 1.7 : D.holdCd;   // 长按冷却（秒）
   let prev = 4, same = 0;
+
+  const take = (n, l) => {
+    n.lane = l;
+    use[l]++;
+    lastAt[l] = n.t;
+    if (n.kind === 'hold') {
+      holdCool[l] = n.tail + holdCd;
+      busy[l] = n.tail + 0.06;
+    } else busy[l] = n.t;
+  };
+
   for (let i = 0; i < notes.length; i++) {
     const n = notes[i];
-    // 双押 / 双长按的第二只：跟前一下隔 3~5 格（两只手分开，不打架），
-    // 优先 3 格，找不到空的就往外挪，实在没有就退回成单点。
+    // 双押 / 双长按的第二只：跟前一下隔 2 格以上（两只手分开，不打架），
+    // 在同等的距离里挑「用得最少」的那条轨，别让某一条轨专收双押。
     if (n.duo) {
-      let lane = -1, bestD = 99;
+      let lane = -1, bestScore = 1e9;
+      let cool = -1, coolScore = 1e9;
       for (let l = 0; l <= 8; l++) {
         if (n.t < busy[l] + 0.02) continue;
         const dist = Math.abs(l - prev);
         if (dist < 2) continue;
-        if (dist < bestD) { bestD = dist; lane = l; }
+        let sc = dist + use[l] * 0.45;
+        if (n.kind === 'hold') {
+          if (holdCool[l] > n.t) sc += 3;
+          else if (sc < coolScore) { coolScore = sc; cool = l; }
+        }
+        if (sc < bestScore) { bestScore = sc; lane = l; }
       }
+      if (n.kind === 'hold' && cool >= 0) lane = cool;
       if (lane < 0) { n.kind = 'tap'; n.tail = 0; n.duo = false; continue; }
-      n.lane = lane;
-      busy[lane] = n.kind === 'hold' ? n.tail + 0.06 : n.t;
+      take(n, lane);
       continue;
     }
-    let want = 0.2 + ps[i] * 7.6;                   // 0.2~7.8，两端不容易贴边
-    // 跳轨上限：朝目标走，但不许一步跨太远
-    want = clamp(want, prev - jump, prev + jump);
-    if (n.b && n.b[0] > n.b[2] * 2.2) want -= 0.5;  // 低频重音（底鼓）偏左
-    let lane = clamp(Math.round(want), 0, 8);
-    if (lane === prev && same >= 2) lane = clamp(lane + (prev < 4 ? 1 : -1), 0, 8);
-    // 避开还按着的长条：往两边找最近的空轨
-    if (n.t < busy[lane] + 0.02) {
-      let found = -1;
-      for (let k = 1; k <= 4 && found < 0; k++) {
+
+    // 音高目标：按名次均匀铺开（0.15~7.85，两端留一点点余量不贴边）
+    const tgt = 0.15 + ps[i] * 7.7;
+    const fair = ((i + 1) / 9) * 1.08;        // 到这一下为止每条轨「应得」的量
+    const lo0 = Math.max(0, prev - jump), hi0 = Math.min(8, prev + jump);
+    let lane = -1, best = 1e9;
+    let cool = -1, bestCool = 1e9;              // 没在冷却期的最佳候选（长条优先用它）
+    // 候选先看「不跨级」的那一段；全被长条占着就逐圈放宽（谱面不能凭空少一个音）
+    for (let span = 0; span <= 8 && lane < 0; span++) {
+      for (let l = Math.max(0, lo0 - span); l <= Math.min(8, hi0 + span); l++) {
+        if (n.t < busy[l] + 0.02) continue;
+        let sc = Math.abs(l - tgt) * 0.9 + (l === prev ? 0.5 : 0) + span * 0.4;
+        const over = use[l] - fair;
+        if (over > 0) sc += over * 2.4;         // 用超了自己的份额：罚
+        if (n.t - lastAt[l] < 0.33) sc += 1.1;  // 刚用过
+        if (l === prev && same >= 2) sc += 1.6; // 同轨不许连着三下
+        if (n.kind === 'hold') {
+          if (holdCool[l] > n.t) sc += 4.5;     // 这条轨刚长按过
+          else if (sc < bestCool) { bestCool = sc; cool = l; }
+        }
+        if (sc < best) { best = sc; lane = l; }
+      }
+    }
+    // 长条优先落到「不在冷却期」的轨上：同一格连着两三个长按，手指根本没法换气。
+    // 冷却期全满才退回普通评分（宁可连，也不能让这个音没落点）。
+    if (n.kind === 'hold' && cool >= 0) lane = cool;
+    if (lane < 0) {
+      // 整条谱面九条轨全忙（理论上只有极端密集才会）：退回原地的最近空闲轨
+      for (let k = 1; k <= 8 && lane < 0; k++) {
         for (const d2 of [-k, k]) {
-          const l2 = lane + d2;
-          if (l2 < 0 || l2 > 8) continue;
-          if (n.t >= busy[l2] + 0.02) { found = l2; break; }
+          const l2 = prev + d2;
+          if (l2 >= 0 && l2 <= 8 && n.t >= busy[l2] + 0.02) { lane = l2; break; }
         }
       }
-      if (found >= 0) lane = found;
+      if (lane < 0) lane = clamp(Math.round(tgt), 0, 8);
     }
     same = lane === prev ? same + 1 : 0;
     prev = lane;
-    n.lane = lane;
-    busy[lane] = n.kind === 'hold' ? n.tail + 0.06 : n.t;
+    take(n, lane);
   }
   // 收尾：同轨的长条不许压到下一张
   const byLane = new Map();
@@ -514,6 +560,129 @@ function assignLanes(notes, D, rnd) {
       }
     }
   }
+}
+
+/* ================================================================ 收尾：九格摊平 */
+// 前面按份额罚分只能做到「大体匀」，短谱面（EASY 五十来个音）还是会漏下：
+// 某一格整首没摸到、另一格却占了全曲一成半。这一步在生成完之后做微调，
+// 每次只挪一个音，四条硬约束一条都不能破：
+//   ① 目的格这个时刻空着（0.2 秒内没有别的音，也没有长条按着）；
+//   ② 前后两个音到目的格都不超过 jump+1 格（一眼还能读出来）；
+//   ③ 不把别的格子搬空（搬完不能比下限还少）；
+//   ④ 长条搬过去之后，目的格前后冷却期里不能再有长条。
+// 顺带把「同一格连着两条长条」也给拆开——这是玩家最容易骂的地方：
+// 手指刚松、下一根长条又落在同一点上，根本没时间换手。
+function tidyLanes(notes, D) {
+  const n = notes.length;
+  if (n < 27) return;
+  const jump = (D.jump == null ? 3 : D.jump) + 1;
+  const cd = D.holdCd == null ? 1.7 : D.holdCd;
+  const seq = notes.slice().sort((a, b) => a.t - b.t || a.lane - b.lane);
+  const avg = n / 9;
+  const floor = Math.max(2, Math.round(avg * 0.4));
+  const cap = Math.max(floor + 1, Math.round(avg * 1.45));
+
+  let byLane = [];
+  const rebuild = () => {
+    byLane = [[], [], [], [], [], [], [], [], []];
+    for (const x of seq) byLane[x.lane].push(x);
+  };
+  rebuild();
+
+  const fits = (l, x, i) => {
+    for (const m of byLane[l]) {
+      if (m === x) continue;
+      if (Math.abs(m.t - x.t) < 0.19) return false;
+      if (m.kind === 'hold' && m.t <= x.t + 1e-6 && m.tail >= x.t - 0.02) return false;
+      if (x.kind === 'hold' && m.t > x.t && m.t <= x.tail + 0.02) return false;
+      // 长条的冷却按「上一根的尾音」算：两根长条起点隔得远、但中间几乎没空隙，
+      // 手感一样是「刚松手又要按」。只看起点会让它们互相搬来搬去搬不完。
+      if (x.kind === 'hold' && m.kind === 'hold') {
+        if (m.t <= x.t && (m.tail || m.t) + cd > x.t) return false;
+        if (m.t > x.t && x.tail + cd > m.t) return false;
+      }
+    }
+    const pv = seq[i - 1], nx2 = seq[i + 1];
+    if (pv && Math.abs(pv.lane - l) > jump) return false;
+    if (nx2 && Math.abs(nx2.lane - l) > jump) return false;
+    return true;
+  };
+  const move = (x, l) => { x.lane = l; rebuild(); };
+
+  // ① 补闲置格
+  for (let l = 0; l < 9; l++) {
+    let guard = 0;
+    while (byLane[l].length < floor && guard++ < 24) {
+      let pick = -1, bestD = 99;
+      for (let i = 0; i < seq.length; i++) {
+        const x = seq[i];
+        if (x.duo || x.lane === l) continue;
+        if (byLane[x.lane].length <= floor) continue;
+        if (!fits(l, x, i)) continue;
+        const d = Math.abs(x.lane - l);
+        if (d < bestD) { bestD = d; pick = i; }
+      }
+      if (pick < 0) break;
+      move(seq[pick], l);
+    }
+  }
+  // ② 削冒头：超过 cap 的格子往还欠账的格子里匀
+  for (let l = 0; l < 9; l++) {
+    let guard = 0;
+    while (byLane[l].length > cap && guard++ < 48) {
+      const order = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        .filter((k) => k !== l && byLane[k].length < avg)
+        .sort((a, b) => byLane[a].length - byLane[b].length || Math.abs(a - l) - Math.abs(b - l));
+      let done = false;
+      for (const k of order) {
+        for (let i = 0; i < seq.length && !done; i++) {
+          const x = seq[i];
+          if (x.lane !== l || x.duo) continue;
+          if (!fits(k, x, i)) continue;
+          move(x, k);
+          done = true;
+        }
+        if (done) break;
+      }
+      if (!done) break;
+    }
+  }
+  // ③ 拆同格连长条
+  for (let pass = 0; pass < 3; pass++) {
+    let changed = false;
+    for (let l = 0; l < 9; l++) {
+      const q = byLane[l];
+      for (let i = 1; i < q.length; i++) {
+        if (q[i].kind !== 'hold' || q[i - 1].kind !== 'hold') continue;
+        const prevEnd = q[i - 1].tail || q[i - 1].t;
+        if (q[i].t - prevEnd >= cd) continue;
+        const x = q[i];
+        const idx = seq.indexOf(x);
+        let moved = false;
+        for (const k of [l + 1, l - 1, l + 2, l - 2, l + 3, l - 3, l + 4, l - 4]) {
+          if (k < 0 || k > 8) continue;
+          if (!fits(k, x, idx)) continue;
+          move(x, k);
+          moved = true;
+          changed = true;
+          break;
+        }
+        // 九条轨全被人占着：降成单点。留着它只会让人「刚松手又要按」，
+        // 长条本来就是点缀，少一条不影响曲子，手感坏一条却会毁掉整段。
+        // 双长按的第二只要拆位置很难（另一手正按在同一条弧上），直接降成单点，
+        // 这一下仍然是「两手一起下」，只是不用再按住而已。
+        if (!moved && (x.duo || x.tail - x.t < 1.0)) {
+          x.kind = 'tap';
+          x.tail = 0;
+          rebuild();
+          changed = true;
+        }
+        break;                                  // 这一格改完重新扫（byLane 已重建）
+      }
+    }
+    if (!changed) break;
+  }
+  notes.sort((a, b) => a.t - b.t || a.lane - b.lane);
 }
 
 /* ================================================================ 双押 */
@@ -574,6 +743,7 @@ export function chartFromOnsets(onsets, dur, D, seed) {
   decideHolds(notes, D, rnd);
   assignLanes(notes, D, rnd);
   addDoubles(notes, D, rnd);
+  tidyLanes(notes, D);
   return { notes, dur, src: 'audio' };
 }
 
@@ -617,5 +787,6 @@ export function chartFromArr(arr, D, seed) {
   decideHolds(notes, D, rnd);
   assignLanes(notes, D, rnd);
   addDoubles(notes, D, rnd);
+  tidyLanes(notes, D);
   return { notes, dur: arr.dur + lead + 1.1, src: 'chip' };
 }

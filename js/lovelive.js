@@ -19,6 +19,7 @@
 
 import { SONGS, arrange } from './ll/songs.js';
 import { Audio } from './ll/audio.js';
+import { DIFFS, diffOf } from './ll/diffs.js';
 import { detectOnsets, chartFromOnsets, chartFromArr, hashStr, packOnsets, unpackOnsets } from './ll/analyze.js';
 import { UNITS, PACKS } from './ll/gen.js';
 import { fetchPack, hasPack, why as packWhy, how as packHow } from './ll/musicbox.js';
@@ -90,8 +91,16 @@ function loadSave() {
   s.autoLat = s.autoLat == null ? 1 : (s.autoLat ? 1 : 0);
   s.winMul = clamp(Number(s.winMul) || 1, 0.6, 2);
   s.flow = clamp(Number(s.flow) || 1, 0.6, 1.8);
-  s.musVol = s.musVol == null ? 0.7 : clamp(Number(s.musVol), 0, 1);
-  s.fxVol = s.fxVol == null ? 0.6 : clamp(Number(s.fxVol), 0, 1);
+  s.musVol = s.musVol == null ? 0.6 : clamp(Number(s.musVol), 0, 1);
+  s.fxVol = s.fxVol == null ? 0.78 : clamp(Number(s.fxVol), 0, 1);
+  // 默认比例改过一次（判定音加了低频层、整体更实，音乐这边让一点位置）：
+  // 老存档还停在旧默认值（音乐 0.7 / 音效 0.6）的，跟着换一次；
+  // 自己拧过滑块的数值不是旧默认值，不会被动。
+  if (!s.volRev) {
+    s.volRev = 1;
+    if (Math.abs(s.musVol - 0.7) < 1e-6) s.musVol = 0.6;
+    if (Math.abs(s.fxVol - 0.6) < 1e-6) s.fxVol = 0.78;
+  }
   s.keys = s.keys == null ? 1 : (s.keys ? 1 : 0);
   // 震动反馈（Android 的 navigator.vibrate；iOS 没有这个接口，开了也无事发生）：触屏设备默认开
   s.haptic = s.haptic == null ? (matchMedia('(pointer:coarse)').matches ? 1 : 0) : (s.haptic ? 1 : 0);
@@ -145,26 +154,7 @@ const idbCSet = (k, v) => idbDo('c', 'readwrite', (st) => st.put(v, k));
 const idbCDel = (k) => idbDo('c', 'readwrite', (st) => st.delete(k));
 
 /* ================================================================ 难度 */
-// win: Perfect / Great / Good / Bad 的半宽（秒，实际还要乘判定宽松）
-// lead: 音符从发球点飞到框里要走几秒（越大越好读）；flow 设置会再乘一次
-// gap: 谱面最小间隔（节奏密集时会按响度再缩到 0.72 倍）
-// hold: 原曲里拖长音留成长条的概率；holdCap: 长条占比上限
-// holdAt: 同时最多几根长条在按着；maxTail: 长条最长几秒
-// jump: 相邻两下最多跨几格；tapQ: 强度低于全曲这个分位的当噪声丢掉
-// dbl: 双押比例（强音处再翻倍）；dblHold: 长条配第二只手的比例
-// stam: Miss 扣体力；pad: 芯片改编时叠鼓点的概率
-// 难度只改谱面，不改血量：四档的 stam（漏一个扣多少体力）是同一个数。
-// 区分靠三件事——出球间隔 gap（秒，越小越密）、tapQ（丢掉最弱的那一档起音，
-// 越大越稀）、双押概率 dbl。EASY 大约每秒 1.5 球、基本没有双押；
-// EXPERT 每秒 6~8 球、强拍成对下来，长条也更长。
-const STAM_LOSS = 5.5;
-const DIFFS = [
-  { k: 'easy',   n: 'EASY',   win: [0.068, 0.122, 0.172, 0.222], lead: 1.85, gap: 0.62,  hold: 0.45, holdCap: 0.11, holdAt: 1, maxTail: 1.1, jump: 1, tapQ: 0.46, dbl: 0,    dblHold: 0,    stam: STAM_LOSS, pad: 0.20 },
-  { k: 'normal', n: 'NORMAL', win: [0.052, 0.098, 0.148, 0.198], lead: 1.55, gap: 0.33,  hold: 0.72, holdCap: 0.15, holdAt: 2, maxTail: 1.4, jump: 2, tapQ: 0.28, dbl: 0.07, dblHold: 0.30, stam: STAM_LOSS, pad: 0.45 },
-  { k: 'hard',   n: 'HARD',   win: [0.046, 0.090, 0.135, 0.185], lead: 1.28, gap: 0.19,  hold: 0.88, holdCap: 0.18, holdAt: 2, maxTail: 1.8, jump: 3, tapQ: 0.12, dbl: 0.16, dblHold: 0.55, stam: STAM_LOSS, pad: 0.70 },
-  { k: 'expert', n: 'EXPERT', win: [0.042, 0.082, 0.125, 0.170], lead: 1.08, gap: 0.115, hold: 0.95, holdCap: 0.20, holdAt: 2, maxTail: 2.0, jump: 4, tapQ: 0.03, dbl: 0.26, dblHold: 0.70, stam: STAM_LOSS, pad: 0.95 },
-];
-const diffOf = (k) => DIFFS.find((d) => d.k === k) || DIFFS[1];
+// 难度表在 js/ll/diffs.js（体检脚本也读同一份，免得两边漂）
 const KEYS = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'];
 const KEY_LABEL = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'];
 
@@ -464,7 +454,8 @@ function judgeNote(n, j) {
   // 听歌模式把判定音与飘字一起收掉：目的是听完整首，不是看满地 BAD
   if (!G.listen) { Audio.fx(j, G.combo, n.lane); pushFx(n.lane, j); }
   if (SAVE.haptic && !G.auto && !G.listen && j !== 'b' && navigator.vibrate) {
-    try { navigator.vibrate(j === 'p' ? 9 : 6); } catch (e) { /* 不支持就算了 */ }
+    // 判定越准，震得越干脆：PERFECT 一记短的实震，GREAT 轻一点，GOOD 几乎只是一下提示
+    try { navigator.vibrate(j === 'p' ? 12 : j === 'g' ? 8 : 5); } catch (e) { /* 不支持就算了 */ }
   }}
 function missNote(n) {
   if (n.judged) return;
@@ -948,10 +939,12 @@ function draw(clock) {
     ctx.strokeStyle = n.broken ? 'rgba(160,160,175,0.3)' : 'hsla(' + col + ',0.85)';
     ctx.lineWidth = 3;
     ctx.stroke();
-    // 尾音是一个更小的同色圆环：该在哪松手、尾音什么时候进框，一眼看得出
+    // 尾音也是一个同色圆环。尺寸跟音符头完全一样（ringSprite 里环半径 = 0.72×径），
+    // 以前尾环比头小一圈（0.42 对 0.62），看着像「远处一个小点」，
+    // 到底什么时候该松手全凭猜。现在两个环一样大，尾音进框就是松手的那一刻。
     let tx = tp.x, ty = tp.y;
     if (n.holding && tp.k >= 1) { tx = b.x; ty = b.y; }   // 按着时尾音贴在框里
-    const tr = LAY.bw * 0.42;
+    const tr = LAY.bw * 0.62;
     const tfade = n.broken ? 0.34 : fadeK(n.holding ? Math.min(tp.k, 1) : tp.k);
     if (tfade > 0.02) {
       ctx.globalAlpha = tfade;
@@ -1312,7 +1305,9 @@ async function startLive() {
   Audio.setScale(song.root || 60);
   if (track && track.buffer) Audio.playBuffer(track.buffer, 0);
   else if (song.custom) Audio.playClock();
-  else Audio.playChip(chart.arr, song.wave);
+  // 芯片线路：谱面第一条音符在 lead 秒，音乐整体后挪同样的时间（以前没挪，
+  // 每个音都在听到之后 1~1.8 秒才被敲到，整首听起来踩在反拍上）
+  else Audio.playChip(chart.arr, song.wave, D.lead);
   G.running = true;
   show('live');
   $('#live-song').textContent = song.n;

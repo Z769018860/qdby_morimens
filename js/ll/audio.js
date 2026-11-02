@@ -5,9 +5,13 @@
 //      音画判定天然同步。
 //   ② 芯片线路 —— 没有导入原曲时的兜底：把 songs.js 的事件表交给前瞻调度器，
 //      每 80ms 醒一次，把未来 0.3 秒的旋律/贝斯/和弦/鼓按 ac.currentTime 精确排期。
+//      事件表从 0 秒开始，而谱面第一条音符落在 lead 秒（见 analyze.js 的
+//      chartFromArr）：这 lead 秒是「音符飞进来」的时间，音乐必须跟着往后挪，
+//      否则每个音都会在听到之后 lead 秒才被敲到——整首听起来都踩在反拍上。
 //
 // 音效单独一路增益（fxGain）：原曲本身就响，判定音得不靠音量的运气。
-// 五档判定各有一个音色（叮 / 嗒 / 哒 / 闷响 / 嗡嗡），连击里程碑另有一套。
+// 五档判定各有一套音色（亮铃+实心一击 / 软铃 / 木鱼 / 闷响 / 嗡嗡下坠），
+// 每一下都垫一个 60ms 的低频「砸」——这是打击感的来源，光有高频叮当只有塑料味。
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -35,6 +39,7 @@ function toMono(buf, OC) {
 export const Audio = {
   ac: null,
   master: null,
+  limiter: null,
   musGain: null,
   fxGain: null,
   muted: false,
@@ -42,13 +47,14 @@ export const Audio = {
   mode: 'idle',     // 'buffer' | 'chip'
   node: null,       // 原曲的 BufferSource
   t0: 0,            // 曲目零点（ac 时间轴）
+  leadIn: 0,        // 芯片线路的前奏留白（秒）：音乐整体后挪这么久，跟谱面对齐
   usePerf: false,   // 没有可用的 AudioContext 时，用 performance.now 走表
   pt0: 0,
   evs: [],
   ei: 0,
   timer: 0,
   wave: 'square',
-  vol: { mus: 0.7, fx: 0.6 },
+  vol: { mus: 0.6, fx: 0.78 },
   lite: false,          // 上一次解码是不是走了「22.05k 单声道」降级路
   forceLite: false,     // 强制走降级路（省内存 / 测试）
   lastDecodeErr: '',
@@ -65,7 +71,21 @@ export const Audio = {
     const ac = this.ac;
     this.master = ac.createGain();
     this.master.gain.value = this.muted ? 0 : 1;
-    this.master.connect(ac.destination);
+    // 判定音和原曲会同时砸下来，加起来容易超过 1.0（手机上就是破音）。
+    // 串一个温和的限幅：阈值 -3dB、12:1，只在峰值上动手，平时听不出压缩。
+    if (ac.createDynamicsCompressor) {
+      const lim = ac.createDynamicsCompressor();
+      lim.threshold.value = -3;
+      lim.knee.value = 0;
+      lim.ratio.value = 12;
+      lim.attack.value = 0.002;
+      lim.release.value = 0.12;
+      this.master.connect(lim);
+      lim.connect(ac.destination);
+      this.limiter = lim;
+    } else {
+      this.master.connect(ac.destination);
+    }
     this.musGain = ac.createGain();
     this.musGain.gain.value = this.vol.mus * this.vol.mus;
     this.musGain.connect(this.master);
@@ -182,11 +202,14 @@ export const Audio = {
   },
 
   // ---------------------------------------------------------------- 芯片
-  playChip(arr, wave) {
+  // leadIn：谱面里第一条音符在 lead 秒，这段时间是「音符飞进来」。
+  // 事件表本身从 0 秒开始，所以整条音乐往后挪 leadIn，两条时间轴才对得上。
+  playChip(arr, wave, leadIn) {
     const ac = this.ensure();
     this.stop();
     this.wave = wave || 'square';
     this.mode = 'chip';
+    this.leadIn = Math.max(0, Number(leadIn) || 0);
     if (!ac || ac.state === 'suspended') {
       // 拿不到声就只走表：照样能玩，只是没声
       this.usePerf = true;
@@ -210,8 +233,8 @@ export const Audio = {
     const tick = () => {
       if (!this.playing || this.mode !== 'chip') return;
       const horizon = ac.currentTime + 0.3;
-      while (this.ei < this.evs.length && this.t0 + this.evs[this.ei].t < horizon) {
-        this.voice(this.evs[this.ei], this.t0 + this.evs[this.ei].t);
+      while (this.ei < this.evs.length && this.t0 + this.leadIn + this.evs[this.ei].t < horizon) {
+        this.voice(this.evs[this.ei], this.t0 + this.leadIn + this.evs[this.ei].t);
         this.ei++;
       }
       this.timer = setTimeout(tick, 80);
@@ -346,8 +369,12 @@ export const Audio = {
   // 左右声道按第几格偏一点声像。连打起来会自己长出一条旋律，
   // 「贴不贴节奏」靠的就是「短、准、有音高」这三件事。
   //
-  // 五档仍然是五种性格：PERFECT 双泛音亮铃、GREAT 单泛音软铃、
-  // GOOD 闷木鱼、BAD 低频闷响、MISS 往下掉的嗡嗡。
+  // 五档是五种手感，不是五档音量：
+  //   PERFECT 亮铃 + 一记实心低频（最实、最亮，打在手指上）
+  //   GREAT   软铃 + 半记低频（好听但不抢）
+  //   GOOD    木鱼：只有中频「哒」，没有低频，明显比上一档空
+  //   BAD     闷响：低、短、脏，一听就知道没打准
+  //   MISS    往下掉的嗡嗡（不垫低频，避免和音乐的低音糊在一起）
   scaleRoot: 60,
   setScale(root) { this.scaleRoot = Number(root) || 60; },
 
@@ -382,6 +409,23 @@ export const Audio = {
     o.start(t); o.stop(t + dur + 0.02);
   },
 
+  // 打击感的那一半：正弦从 186Hz 掉到 58Hz、70ms 收干。
+  // 手机小喇叭放不出 60Hz，但谐波和二三次谐波还在，耳朵听成「咚」，
+  // 手指按下去的那一下就有了「打实了」的反馈。
+  punch(t, vol, dest) {
+    const ac = this.ac;
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(186, t);
+    o.frequency.exponentialRampToValueAtTime(58, t + 0.055);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0006, t + 0.085);
+    o.connect(g); g.connect(dest || this.fxGain);
+    o.start(t); o.stop(t + 0.1);
+  },
+
   click(t, dur, vol, hp, dest) {
     const ac = this.ac;
     const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * (dur + 0.01)), ac.sampleRate);
@@ -410,25 +454,28 @@ export const Audio = {
     const f = this.hitFreq(combo);
     switch (kind) {
       case 'p':
-        // 亮铃：基音 + 两个高泛音，衰减 60ms 内收干，像在框上敲了一下玻璃
-        this.tone(t, f * 1.5, 0.085, 0.085, 'sine', null, out);
-        this.tone(t, f * 2, 0.05, 0.05, 'sine', null, out);
-        this.tone(t, f * 3, 0.03, 0.028, 'sine', null, out);
-        this.click(t, 0.014, 0.05, 4200, out);
+        // 亮铃：实心低频 + 基音 + 两个高泛音 + 一记玻璃脆响，60ms 内收干
+        this.punch(t, 0.17, out);
+        this.tone(t, f * 1.5, 0.1, 0.1, 'sine', null, out);
+        this.tone(t, f * 2, 0.055, 0.055, 'sine', null, out);
+        this.tone(t, f * 3, 0.032, 0.03, 'sine', null, out);
+        this.click(t, 0.016, 0.07, 4600, out);
         break;
       case 'g':
-        this.tone(t, f, 0.07, 0.075, 'sine', null, out);
-        this.tone(t, f * 2, 0.035, 0.03, 'sine', null, out);
-        this.click(t, 0.012, 0.035, 3400, out);
+        // 软铃：同样的音高关系，低频减半、少一个泛音
+        this.punch(t, 0.09, out);
+        this.tone(t, f, 0.085, 0.085, 'sine', null, out);
+        this.tone(t, f * 2, 0.042, 0.035, 'sine', null, out);
+        this.click(t, 0.013, 0.045, 3600, out);
         break;
       case 'go':
-        // 木鱼：短促的三角波 + 一点点噪声，闷但干净
-        this.tone(t, f * 0.75, 0.055, 0.07, 'triangle', null, out);
-        this.click(t, 0.02, 0.045, 1500, out);
+        // 木鱼：中频三角波 + 一点噪声，没有低频——「打到了，但没打准」
+        this.tone(t, f * 0.75, 0.06, 0.08, 'triangle', null, out);
+        this.click(t, 0.018, 0.045, 1400, out);
         break;
       case 'b':
-        this.tone(t, 196, 0.085, 0.11, 'sawtooth', 132, out);
-        this.click(t, 0.03, 0.045, 700, out);
+        this.tone(t, 196, 0.09, 0.115, 'sawtooth', 118, out);
+        this.click(t, 0.03, 0.05, 680, out);
         break;
       case 'm':
         this.tone(t, 212, 0.22, 0.1, 'square', 84, out);
@@ -440,8 +487,8 @@ export const Audio = {
         this.tone(t + 0.045, f * 1.5, 0.1, 0.05, 'sine', null, out);
         break;
       case 'holdstart':
-        this.click(t, 0.024, 0.055, 1900, out);
-        this.tone(t, f * 0.5, 0.07, 0.045, 'sine', f * 0.75, out);
+        // 跟判定音同时响，只留一点点「咬住」的质感，别叠成一团
+        this.click(t, 0.02, 0.035, 1900, out);
         break;
       case 'break':
         this.tone(t, 300, 0.12, 0.08, 'sawtooth', 158, out);

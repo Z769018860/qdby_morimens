@@ -757,9 +757,13 @@ const m_audio = await (async () => {
 //      音画判定天然同步。
 //   ② 芯片线路 —— 没有导入原曲时的兜底：把 songs.js 的事件表交给前瞻调度器，
 //      每 80ms 醒一次，把未来 0.3 秒的旋律/贝斯/和弦/鼓按 ac.currentTime 精确排期。
+//      事件表从 0 秒开始，而谱面第一条音符落在 lead 秒（见 analyze.js 的
+//      chartFromArr）：这 lead 秒是「音符飞进来」的时间，音乐必须跟着往后挪，
+//      否则每个音都会在听到之后 lead 秒才被敲到——整首听起来都踩在反拍上。
 //
 // 音效单独一路增益（fxGain）：原曲本身就响，判定音得不靠音量的运气。
-// 五档判定各有一个音色（叮 / 嗒 / 哒 / 闷响 / 嗡嗡），连击里程碑另有一套。
+// 五档判定各有一套音色（亮铃+实心一击 / 软铃 / 木鱼 / 闷响 / 嗡嗡下坠），
+// 每一下都垫一个 60ms 的低频「砸」——这是打击感的来源，光有高频叮当只有塑料味。
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -787,6 +791,7 @@ function toMono(buf, OC) {
 const Audio = {
   ac: null,
   master: null,
+  limiter: null,
   musGain: null,
   fxGain: null,
   muted: false,
@@ -794,13 +799,14 @@ const Audio = {
   mode: 'idle',     // 'buffer' | 'chip'
   node: null,       // 原曲的 BufferSource
   t0: 0,            // 曲目零点（ac 时间轴）
+  leadIn: 0,        // 芯片线路的前奏留白（秒）：音乐整体后挪这么久，跟谱面对齐
   usePerf: false,   // 没有可用的 AudioContext 时，用 performance.now 走表
   pt0: 0,
   evs: [],
   ei: 0,
   timer: 0,
   wave: 'square',
-  vol: { mus: 0.7, fx: 0.6 },
+  vol: { mus: 0.6, fx: 0.78 },
   lite: false,          // 上一次解码是不是走了「22.05k 单声道」降级路
   forceLite: false,     // 强制走降级路（省内存 / 测试）
   lastDecodeErr: '',
@@ -817,7 +823,21 @@ const Audio = {
     const ac = this.ac;
     this.master = ac.createGain();
     this.master.gain.value = this.muted ? 0 : 1;
-    this.master.connect(ac.destination);
+    // 判定音和原曲会同时砸下来，加起来容易超过 1.0（手机上就是破音）。
+    // 串一个温和的限幅：阈值 -3dB、12:1，只在峰值上动手，平时听不出压缩。
+    if (ac.createDynamicsCompressor) {
+      const lim = ac.createDynamicsCompressor();
+      lim.threshold.value = -3;
+      lim.knee.value = 0;
+      lim.ratio.value = 12;
+      lim.attack.value = 0.002;
+      lim.release.value = 0.12;
+      this.master.connect(lim);
+      lim.connect(ac.destination);
+      this.limiter = lim;
+    } else {
+      this.master.connect(ac.destination);
+    }
     this.musGain = ac.createGain();
     this.musGain.gain.value = this.vol.mus * this.vol.mus;
     this.musGain.connect(this.master);
@@ -934,11 +954,14 @@ const Audio = {
   },
 
   // ---------------------------------------------------------------- 芯片
-  playChip(arr, wave) {
+  // leadIn：谱面里第一条音符在 lead 秒，这段时间是「音符飞进来」。
+  // 事件表本身从 0 秒开始，所以整条音乐往后挪 leadIn，两条时间轴才对得上。
+  playChip(arr, wave, leadIn) {
     const ac = this.ensure();
     this.stop();
     this.wave = wave || 'square';
     this.mode = 'chip';
+    this.leadIn = Math.max(0, Number(leadIn) || 0);
     if (!ac || ac.state === 'suspended') {
       // 拿不到声就只走表：照样能玩，只是没声
       this.usePerf = true;
@@ -962,8 +985,8 @@ const Audio = {
     const tick = () => {
       if (!this.playing || this.mode !== 'chip') return;
       const horizon = ac.currentTime + 0.3;
-      while (this.ei < this.evs.length && this.t0 + this.evs[this.ei].t < horizon) {
-        this.voice(this.evs[this.ei], this.t0 + this.evs[this.ei].t);
+      while (this.ei < this.evs.length && this.t0 + this.leadIn + this.evs[this.ei].t < horizon) {
+        this.voice(this.evs[this.ei], this.t0 + this.leadIn + this.evs[this.ei].t);
         this.ei++;
       }
       this.timer = setTimeout(tick, 80);
@@ -1098,8 +1121,12 @@ const Audio = {
   // 左右声道按第几格偏一点声像。连打起来会自己长出一条旋律，
   // 「贴不贴节奏」靠的就是「短、准、有音高」这三件事。
   //
-  // 五档仍然是五种性格：PERFECT 双泛音亮铃、GREAT 单泛音软铃、
-  // GOOD 闷木鱼、BAD 低频闷响、MISS 往下掉的嗡嗡。
+  // 五档是五种手感，不是五档音量：
+  //   PERFECT 亮铃 + 一记实心低频（最实、最亮，打在手指上）
+  //   GREAT   软铃 + 半记低频（好听但不抢）
+  //   GOOD    木鱼：只有中频「哒」，没有低频，明显比上一档空
+  //   BAD     闷响：低、短、脏，一听就知道没打准
+  //   MISS    往下掉的嗡嗡（不垫低频，避免和音乐的低音糊在一起）
   scaleRoot: 60,
   setScale(root) { this.scaleRoot = Number(root) || 60; },
 
@@ -1134,6 +1161,23 @@ const Audio = {
     o.start(t); o.stop(t + dur + 0.02);
   },
 
+  // 打击感的那一半：正弦从 186Hz 掉到 58Hz、70ms 收干。
+  // 手机小喇叭放不出 60Hz，但谐波和二三次谐波还在，耳朵听成「咚」，
+  // 手指按下去的那一下就有了「打实了」的反馈。
+  punch(t, vol, dest) {
+    const ac = this.ac;
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(186, t);
+    o.frequency.exponentialRampToValueAtTime(58, t + 0.055);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0006, t + 0.085);
+    o.connect(g); g.connect(dest || this.fxGain);
+    o.start(t); o.stop(t + 0.1);
+  },
+
   click(t, dur, vol, hp, dest) {
     const ac = this.ac;
     const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * (dur + 0.01)), ac.sampleRate);
@@ -1162,25 +1206,28 @@ const Audio = {
     const f = this.hitFreq(combo);
     switch (kind) {
       case 'p':
-        // 亮铃：基音 + 两个高泛音，衰减 60ms 内收干，像在框上敲了一下玻璃
-        this.tone(t, f * 1.5, 0.085, 0.085, 'sine', null, out);
-        this.tone(t, f * 2, 0.05, 0.05, 'sine', null, out);
-        this.tone(t, f * 3, 0.03, 0.028, 'sine', null, out);
-        this.click(t, 0.014, 0.05, 4200, out);
+        // 亮铃：实心低频 + 基音 + 两个高泛音 + 一记玻璃脆响，60ms 内收干
+        this.punch(t, 0.17, out);
+        this.tone(t, f * 1.5, 0.1, 0.1, 'sine', null, out);
+        this.tone(t, f * 2, 0.055, 0.055, 'sine', null, out);
+        this.tone(t, f * 3, 0.032, 0.03, 'sine', null, out);
+        this.click(t, 0.016, 0.07, 4600, out);
         break;
       case 'g':
-        this.tone(t, f, 0.07, 0.075, 'sine', null, out);
-        this.tone(t, f * 2, 0.035, 0.03, 'sine', null, out);
-        this.click(t, 0.012, 0.035, 3400, out);
+        // 软铃：同样的音高关系，低频减半、少一个泛音
+        this.punch(t, 0.09, out);
+        this.tone(t, f, 0.085, 0.085, 'sine', null, out);
+        this.tone(t, f * 2, 0.042, 0.035, 'sine', null, out);
+        this.click(t, 0.013, 0.045, 3600, out);
         break;
       case 'go':
-        // 木鱼：短促的三角波 + 一点点噪声，闷但干净
-        this.tone(t, f * 0.75, 0.055, 0.07, 'triangle', null, out);
-        this.click(t, 0.02, 0.045, 1500, out);
+        // 木鱼：中频三角波 + 一点噪声，没有低频——「打到了，但没打准」
+        this.tone(t, f * 0.75, 0.06, 0.08, 'triangle', null, out);
+        this.click(t, 0.018, 0.045, 1400, out);
         break;
       case 'b':
-        this.tone(t, 196, 0.085, 0.11, 'sawtooth', 132, out);
-        this.click(t, 0.03, 0.045, 700, out);
+        this.tone(t, 196, 0.09, 0.115, 'sawtooth', 118, out);
+        this.click(t, 0.03, 0.05, 680, out);
         break;
       case 'm':
         this.tone(t, 212, 0.22, 0.1, 'square', 84, out);
@@ -1192,8 +1239,8 @@ const Audio = {
         this.tone(t + 0.045, f * 1.5, 0.1, 0.05, 'sine', null, out);
         break;
       case 'holdstart':
-        this.click(t, 0.024, 0.055, 1900, out);
-        this.tone(t, f * 0.5, 0.07, 0.045, 'sine', f * 0.75, out);
+        // 跟判定音同时响，只留一点点「咬住」的质感，别叠成一团
+        this.click(t, 0.02, 0.035, 1900, out);
         break;
       case 'break':
         this.tone(t, 300, 0.12, 0.08, 'sawtooth', 158, out);
@@ -1213,6 +1260,43 @@ const Audio = {
   },
 };
 return { Audio };
+})();
+
+// ---- js/ll/diffs.js
+const m_diffs = await (async () => {
+
+// 难度表：唯一真源。
+//
+// 以前这张表在 js/lovelive.js 里，scripts/ll-song-check.mjs 又抄了一份，
+// 改游戏忘了改体检脚本，脚本就一直拿旧参数在测一份「游戏里根本不存在的谱面」。
+// 现在两处都从这里读。
+//
+// 难度只改谱面，不改血量：四档的 stam（漏一个扣多少体力）是同一个数。
+// 区分靠三件事——出球间隔 gap（秒，越小越密）、tapQ（丢掉最弱的那一档起音，
+// 越大越稀）、双押概率 dbl。EASY 大约每秒 1.5 球、基本没有双押；
+// EXPERT 每秒 6~8 球、强拍成对下来，长条也更长。
+//
+// 各字段：
+//   win      Perfect / Great / Good / Bad 的半宽（秒，实际再乘判定宽松）
+//   lead     音符从发球点飞到框里要走几秒（越大越好读，flow 设置会再乘一次）
+//   gap      谱面最小间隔（节奏密集时会按响度再缩到 0.72 倍）
+//   hold     原曲里拖长音留成长条的概率；holdCap 长条占比上限
+//   holdAt   同时最多几根长条在按着；maxTail 长条最长几秒
+//   holdCd   同一条轨两条长条之间的冷却（秒）：刚松手就再来一根，手指换不过来
+//   jump     相邻两下最多跨几格
+//   dbl      双押比例（强音处再翻倍）；dblHold 长条配第二只手的比例
+//   stam     Miss 扣体力；pad 芯片改编时叠鼓点的概率
+const STAM_LOSS = 5.5;
+
+const DIFFS = [
+  { k: 'easy',   n: 'EASY',   win: [0.068, 0.122, 0.172, 0.222], lead: 1.85, gap: 0.62,  hold: 0.45, holdCap: 0.11, holdAt: 1, maxTail: 1.1, holdCd: 2.2, jump: 2, tapQ: 0.46, dbl: 0,    dblHold: 0,    stam: STAM_LOSS, pad: 0.20 },
+  { k: 'normal', n: 'NORMAL', win: [0.052, 0.098, 0.148, 0.198], lead: 1.55, gap: 0.33,  hold: 0.72, holdCap: 0.15, holdAt: 2, maxTail: 1.4, holdCd: 1.9, jump: 2, tapQ: 0.28, dbl: 0.07, dblHold: 0.30, stam: STAM_LOSS, pad: 0.45 },
+  { k: 'hard',   n: 'HARD',   win: [0.046, 0.090, 0.135, 0.185], lead: 1.28, gap: 0.19,  hold: 0.88, holdCap: 0.18, holdAt: 2, maxTail: 1.8, holdCd: 1.6, jump: 3, tapQ: 0.12, dbl: 0.16, dblHold: 0.55, stam: STAM_LOSS, pad: 0.70 },
+  { k: 'expert', n: 'EXPERT', win: [0.042, 0.082, 0.125, 0.170], lead: 1.08, gap: 0.115, hold: 0.95, holdCap: 0.20, holdAt: 2, maxTail: 2.0, holdCd: 1.4, jump: 4, tapQ: 0.03, dbl: 0.26, dblHold: 0.70, stam: STAM_LOSS, pad: 0.95 },
+];
+
+const diffOf = (k) => DIFFS.find((d) => d.k === k) || DIFFS[1];
+return { STAM_LOSS, DIFFS, diffOf };
 })();
 
 // ---- js/ll/analyze.js
@@ -1654,8 +1738,16 @@ function decideHolds(notes, D, rnd) {
 // 但音区本身不是均匀分布的（流行歌大半时间在中低音区），直接线性映射会
 // 把谱面挤在中间两三格。所以先按音高排名做一次均匀化：把这一首用到的
 // 音高按名次等分成九档，每档一格——顺序不变，九格都能用到。
-// 再叠三条约束：相邻两下不跨太远（难度越高跨得越多）、同轨不连按三次、
-// 正在按长条的轨不接新点。左右各留一点余量，谱面不贴边。
+//
+// 光有「音高目标 + 步伐上限」是不够的：那等于让落点做一次随机游走，
+// 走成一条钟形——中间三格堆满、最外两格整首摸不到（实测 240 音里最右一格
+// 只有 2 下），而且走到哪停就在哪连着，同一格里能叠两三个长条。
+// 所以现在每一步在「不越级」的候选里按代价挑：
+//   · 离音高目标多远（保持旋律走向）；
+//   · 这条轨已经用掉多少（超出当前应得份额就罚，九格才会都用上）；
+//   · 刚才是不是刚用过（隔开同轨连按）；
+//   · 这条轨刚收过一条长条就再也不给长条（长按冷却，免得一手连按三次）。
+// 音高只是「倾向」，九格均衡和可读性优先。
 function rankSpread(notes) {
   const n = notes.length;
   const idx = notes.map((q, i) => i);
@@ -1671,49 +1763,87 @@ function rankSpread(notes) {
 }
 
 function assignLanes(notes, D, rnd) {
-  const busy = new Array(9).fill(-9);
   const jump = D.jump == null ? 3 : D.jump;
   const ps = rankSpread(notes);
+  const use = new Array(9).fill(0);           // 每条轨已经落了多少
+  const lastAt = new Array(9).fill(-9);       // 上一次落点时间
+  const holdCool = new Array(9).fill(-9);     // 这个时刻之前别再给长条
+  const busy = new Array(9).fill(-9);         // 这条轨忙到这个时刻（长条按到尾）
+  const holdCd = D.holdCd == null ? 1.7 : D.holdCd;   // 长按冷却（秒）
   let prev = 4, same = 0;
+
+  const take = (n, l) => {
+    n.lane = l;
+    use[l]++;
+    lastAt[l] = n.t;
+    if (n.kind === 'hold') {
+      holdCool[l] = n.tail + holdCd;
+      busy[l] = n.tail + 0.06;
+    } else busy[l] = n.t;
+  };
+
   for (let i = 0; i < notes.length; i++) {
     const n = notes[i];
-    // 双押 / 双长按的第二只：跟前一下隔 3~5 格（两只手分开，不打架），
-    // 优先 3 格，找不到空的就往外挪，实在没有就退回成单点。
+    // 双押 / 双长按的第二只：跟前一下隔 2 格以上（两只手分开，不打架），
+    // 在同等的距离里挑「用得最少」的那条轨，别让某一条轨专收双押。
     if (n.duo) {
-      let lane = -1, bestD = 99;
+      let lane = -1, bestScore = 1e9;
+      let cool = -1, coolScore = 1e9;
       for (let l = 0; l <= 8; l++) {
         if (n.t < busy[l] + 0.02) continue;
         const dist = Math.abs(l - prev);
         if (dist < 2) continue;
-        if (dist < bestD) { bestD = dist; lane = l; }
+        let sc = dist + use[l] * 0.45;
+        if (n.kind === 'hold') {
+          if (holdCool[l] > n.t) sc += 3;
+          else if (sc < coolScore) { coolScore = sc; cool = l; }
+        }
+        if (sc < bestScore) { bestScore = sc; lane = l; }
       }
+      if (n.kind === 'hold' && cool >= 0) lane = cool;
       if (lane < 0) { n.kind = 'tap'; n.tail = 0; n.duo = false; continue; }
-      n.lane = lane;
-      busy[lane] = n.kind === 'hold' ? n.tail + 0.06 : n.t;
+      take(n, lane);
       continue;
     }
-    let want = 0.2 + ps[i] * 7.6;                   // 0.2~7.8，两端不容易贴边
-    // 跳轨上限：朝目标走，但不许一步跨太远
-    want = clamp(want, prev - jump, prev + jump);
-    if (n.b && n.b[0] > n.b[2] * 2.2) want -= 0.5;  // 低频重音（底鼓）偏左
-    let lane = clamp(Math.round(want), 0, 8);
-    if (lane === prev && same >= 2) lane = clamp(lane + (prev < 4 ? 1 : -1), 0, 8);
-    // 避开还按着的长条：往两边找最近的空轨
-    if (n.t < busy[lane] + 0.02) {
-      let found = -1;
-      for (let k = 1; k <= 4 && found < 0; k++) {
+
+    // 音高目标：按名次均匀铺开（0.15~7.85，两端留一点点余量不贴边）
+    const tgt = 0.15 + ps[i] * 7.7;
+    const fair = ((i + 1) / 9) * 1.08;        // 到这一下为止每条轨「应得」的量
+    const lo0 = Math.max(0, prev - jump), hi0 = Math.min(8, prev + jump);
+    let lane = -1, best = 1e9;
+    let cool = -1, bestCool = 1e9;              // 没在冷却期的最佳候选（长条优先用它）
+    // 候选先看「不跨级」的那一段；全被长条占着就逐圈放宽（谱面不能凭空少一个音）
+    for (let span = 0; span <= 8 && lane < 0; span++) {
+      for (let l = Math.max(0, lo0 - span); l <= Math.min(8, hi0 + span); l++) {
+        if (n.t < busy[l] + 0.02) continue;
+        let sc = Math.abs(l - tgt) * 0.9 + (l === prev ? 0.5 : 0) + span * 0.4;
+        const over = use[l] - fair;
+        if (over > 0) sc += over * 2.4;         // 用超了自己的份额：罚
+        if (n.t - lastAt[l] < 0.33) sc += 1.1;  // 刚用过
+        if (l === prev && same >= 2) sc += 1.6; // 同轨不许连着三下
+        if (n.kind === 'hold') {
+          if (holdCool[l] > n.t) sc += 4.5;     // 这条轨刚长按过
+          else if (sc < bestCool) { bestCool = sc; cool = l; }
+        }
+        if (sc < best) { best = sc; lane = l; }
+      }
+    }
+    // 长条优先落到「不在冷却期」的轨上：同一格连着两三个长按，手指根本没法换气。
+    // 冷却期全满才退回普通评分（宁可连，也不能让这个音没落点）。
+    if (n.kind === 'hold' && cool >= 0) lane = cool;
+    if (lane < 0) {
+      // 整条谱面九条轨全忙（理论上只有极端密集才会）：退回原地的最近空闲轨
+      for (let k = 1; k <= 8 && lane < 0; k++) {
         for (const d2 of [-k, k]) {
-          const l2 = lane + d2;
-          if (l2 < 0 || l2 > 8) continue;
-          if (n.t >= busy[l2] + 0.02) { found = l2; break; }
+          const l2 = prev + d2;
+          if (l2 >= 0 && l2 <= 8 && n.t >= busy[l2] + 0.02) { lane = l2; break; }
         }
       }
-      if (found >= 0) lane = found;
+      if (lane < 0) lane = clamp(Math.round(tgt), 0, 8);
     }
     same = lane === prev ? same + 1 : 0;
     prev = lane;
-    n.lane = lane;
-    busy[lane] = n.kind === 'hold' ? n.tail + 0.06 : n.t;
+    take(n, lane);
   }
   // 收尾：同轨的长条不许压到下一张
   const byLane = new Map();
@@ -1734,6 +1864,129 @@ function assignLanes(notes, D, rnd) {
       }
     }
   }
+}
+
+/* ================================================================ 收尾：九格摊平 */
+// 前面按份额罚分只能做到「大体匀」，短谱面（EASY 五十来个音）还是会漏下：
+// 某一格整首没摸到、另一格却占了全曲一成半。这一步在生成完之后做微调，
+// 每次只挪一个音，四条硬约束一条都不能破：
+//   ① 目的格这个时刻空着（0.2 秒内没有别的音，也没有长条按着）；
+//   ② 前后两个音到目的格都不超过 jump+1 格（一眼还能读出来）；
+//   ③ 不把别的格子搬空（搬完不能比下限还少）；
+//   ④ 长条搬过去之后，目的格前后冷却期里不能再有长条。
+// 顺带把「同一格连着两条长条」也给拆开——这是玩家最容易骂的地方：
+// 手指刚松、下一根长条又落在同一点上，根本没时间换手。
+function tidyLanes(notes, D) {
+  const n = notes.length;
+  if (n < 27) return;
+  const jump = (D.jump == null ? 3 : D.jump) + 1;
+  const cd = D.holdCd == null ? 1.7 : D.holdCd;
+  const seq = notes.slice().sort((a, b) => a.t - b.t || a.lane - b.lane);
+  const avg = n / 9;
+  const floor = Math.max(2, Math.round(avg * 0.4));
+  const cap = Math.max(floor + 1, Math.round(avg * 1.45));
+
+  let byLane = [];
+  const rebuild = () => {
+    byLane = [[], [], [], [], [], [], [], [], []];
+    for (const x of seq) byLane[x.lane].push(x);
+  };
+  rebuild();
+
+  const fits = (l, x, i) => {
+    for (const m of byLane[l]) {
+      if (m === x) continue;
+      if (Math.abs(m.t - x.t) < 0.19) return false;
+      if (m.kind === 'hold' && m.t <= x.t + 1e-6 && m.tail >= x.t - 0.02) return false;
+      if (x.kind === 'hold' && m.t > x.t && m.t <= x.tail + 0.02) return false;
+      // 长条的冷却按「上一根的尾音」算：两根长条起点隔得远、但中间几乎没空隙，
+      // 手感一样是「刚松手又要按」。只看起点会让它们互相搬来搬去搬不完。
+      if (x.kind === 'hold' && m.kind === 'hold') {
+        if (m.t <= x.t && (m.tail || m.t) + cd > x.t) return false;
+        if (m.t > x.t && x.tail + cd > m.t) return false;
+      }
+    }
+    const pv = seq[i - 1], nx2 = seq[i + 1];
+    if (pv && Math.abs(pv.lane - l) > jump) return false;
+    if (nx2 && Math.abs(nx2.lane - l) > jump) return false;
+    return true;
+  };
+  const move = (x, l) => { x.lane = l; rebuild(); };
+
+  // ① 补闲置格
+  for (let l = 0; l < 9; l++) {
+    let guard = 0;
+    while (byLane[l].length < floor && guard++ < 24) {
+      let pick = -1, bestD = 99;
+      for (let i = 0; i < seq.length; i++) {
+        const x = seq[i];
+        if (x.duo || x.lane === l) continue;
+        if (byLane[x.lane].length <= floor) continue;
+        if (!fits(l, x, i)) continue;
+        const d = Math.abs(x.lane - l);
+        if (d < bestD) { bestD = d; pick = i; }
+      }
+      if (pick < 0) break;
+      move(seq[pick], l);
+    }
+  }
+  // ② 削冒头：超过 cap 的格子往还欠账的格子里匀
+  for (let l = 0; l < 9; l++) {
+    let guard = 0;
+    while (byLane[l].length > cap && guard++ < 48) {
+      const order = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        .filter((k) => k !== l && byLane[k].length < avg)
+        .sort((a, b) => byLane[a].length - byLane[b].length || Math.abs(a - l) - Math.abs(b - l));
+      let done = false;
+      for (const k of order) {
+        for (let i = 0; i < seq.length && !done; i++) {
+          const x = seq[i];
+          if (x.lane !== l || x.duo) continue;
+          if (!fits(k, x, i)) continue;
+          move(x, k);
+          done = true;
+        }
+        if (done) break;
+      }
+      if (!done) break;
+    }
+  }
+  // ③ 拆同格连长条
+  for (let pass = 0; pass < 3; pass++) {
+    let changed = false;
+    for (let l = 0; l < 9; l++) {
+      const q = byLane[l];
+      for (let i = 1; i < q.length; i++) {
+        if (q[i].kind !== 'hold' || q[i - 1].kind !== 'hold') continue;
+        const prevEnd = q[i - 1].tail || q[i - 1].t;
+        if (q[i].t - prevEnd >= cd) continue;
+        const x = q[i];
+        const idx = seq.indexOf(x);
+        let moved = false;
+        for (const k of [l + 1, l - 1, l + 2, l - 2, l + 3, l - 3, l + 4, l - 4]) {
+          if (k < 0 || k > 8) continue;
+          if (!fits(k, x, idx)) continue;
+          move(x, k);
+          moved = true;
+          changed = true;
+          break;
+        }
+        // 九条轨全被人占着：降成单点。留着它只会让人「刚松手又要按」，
+        // 长条本来就是点缀，少一条不影响曲子，手感坏一条却会毁掉整段。
+        // 双长按的第二只要拆位置很难（另一手正按在同一条弧上），直接降成单点，
+        // 这一下仍然是「两手一起下」，只是不用再按住而已。
+        if (!moved && (x.duo || x.tail - x.t < 1.0)) {
+          x.kind = 'tap';
+          x.tail = 0;
+          rebuild();
+          changed = true;
+        }
+        break;                                  // 这一格改完重新扫（byLane 已重建）
+      }
+    }
+    if (!changed) break;
+  }
+  notes.sort((a, b) => a.t - b.t || a.lane - b.lane);
 }
 
 /* ================================================================ 双押 */
@@ -1794,6 +2047,7 @@ function chartFromOnsets(onsets, dur, D, seed) {
   decideHolds(notes, D, rnd);
   assignLanes(notes, D, rnd);
   addDoubles(notes, D, rnd);
+  tidyLanes(notes, D);
   return { notes, dur, src: 'audio' };
 }
 
@@ -1837,6 +2091,7 @@ function chartFromArr(arr, D, seed) {
   decideHolds(notes, D, rnd);
   assignLanes(notes, D, rnd);
   addDoubles(notes, D, rnd);
+  tidyLanes(notes, D);
   return { notes, dur: arr.dur + lead + 1.1, src: 'chip' };
 }
 return { mulberry32, hashStr, detectOnsets, analyzeTrack, packOnsets, unpackOnsets, chartFromOnsets, chartFromArr };
@@ -3138,6 +3393,7 @@ return { GAMES, account, isTrivial, collect, hashOf, record, plan, statusOf, syn
 const m_lovelive = await (async () => {
 const { SONGS, arrange } = m_songs;
 const { Audio } = m_audio;
+const { DIFFS, diffOf } = m_diffs;
 const { detectOnsets, chartFromOnsets, chartFromArr, hashStr, packOnsets, unpackOnsets } = m_analyze;
 const { UNITS, PACKS } = m_gen;
 const { fetchPack, hasPack, why: packWhy, how: packHow } = m_musicbox;
@@ -3161,6 +3417,7 @@ const { startGameCloud } = m_gamecloud;
 //
 // 自动化测试：?_test=1 把内部状态挂到 window.__ll；加 &_auto=1 自动 Perfect
 // 打完全曲，供无头浏览器核对结算。
+
 
 
 
@@ -3235,8 +3492,16 @@ function loadSave() {
   s.autoLat = s.autoLat == null ? 1 : (s.autoLat ? 1 : 0);
   s.winMul = clamp(Number(s.winMul) || 1, 0.6, 2);
   s.flow = clamp(Number(s.flow) || 1, 0.6, 1.8);
-  s.musVol = s.musVol == null ? 0.7 : clamp(Number(s.musVol), 0, 1);
-  s.fxVol = s.fxVol == null ? 0.6 : clamp(Number(s.fxVol), 0, 1);
+  s.musVol = s.musVol == null ? 0.6 : clamp(Number(s.musVol), 0, 1);
+  s.fxVol = s.fxVol == null ? 0.78 : clamp(Number(s.fxVol), 0, 1);
+  // 默认比例改过一次（判定音加了低频层、整体更实，音乐这边让一点位置）：
+  // 老存档还停在旧默认值（音乐 0.7 / 音效 0.6）的，跟着换一次；
+  // 自己拧过滑块的数值不是旧默认值，不会被动。
+  if (!s.volRev) {
+    s.volRev = 1;
+    if (Math.abs(s.musVol - 0.7) < 1e-6) s.musVol = 0.6;
+    if (Math.abs(s.fxVol - 0.6) < 1e-6) s.fxVol = 0.78;
+  }
   s.keys = s.keys == null ? 1 : (s.keys ? 1 : 0);
   // 震动反馈（Android 的 navigator.vibrate；iOS 没有这个接口，开了也无事发生）：触屏设备默认开
   s.haptic = s.haptic == null ? (matchMedia('(pointer:coarse)').matches ? 1 : 0) : (s.haptic ? 1 : 0);
@@ -3290,26 +3555,7 @@ const idbCSet = (k, v) => idbDo('c', 'readwrite', (st) => st.put(v, k));
 const idbCDel = (k) => idbDo('c', 'readwrite', (st) => st.delete(k));
 
 /* ================================================================ 难度 */
-// win: Perfect / Great / Good / Bad 的半宽（秒，实际还要乘判定宽松）
-// lead: 音符从发球点飞到框里要走几秒（越大越好读）；flow 设置会再乘一次
-// gap: 谱面最小间隔（节奏密集时会按响度再缩到 0.72 倍）
-// hold: 原曲里拖长音留成长条的概率；holdCap: 长条占比上限
-// holdAt: 同时最多几根长条在按着；maxTail: 长条最长几秒
-// jump: 相邻两下最多跨几格；tapQ: 强度低于全曲这个分位的当噪声丢掉
-// dbl: 双押比例（强音处再翻倍）；dblHold: 长条配第二只手的比例
-// stam: Miss 扣体力；pad: 芯片改编时叠鼓点的概率
-// 难度只改谱面，不改血量：四档的 stam（漏一个扣多少体力）是同一个数。
-// 区分靠三件事——出球间隔 gap（秒，越小越密）、tapQ（丢掉最弱的那一档起音，
-// 越大越稀）、双押概率 dbl。EASY 大约每秒 1.5 球、基本没有双押；
-// EXPERT 每秒 6~8 球、强拍成对下来，长条也更长。
-const STAM_LOSS = 5.5;
-const DIFFS = [
-  { k: 'easy',   n: 'EASY',   win: [0.068, 0.122, 0.172, 0.222], lead: 1.85, gap: 0.62,  hold: 0.45, holdCap: 0.11, holdAt: 1, maxTail: 1.1, jump: 1, tapQ: 0.46, dbl: 0,    dblHold: 0,    stam: STAM_LOSS, pad: 0.20 },
-  { k: 'normal', n: 'NORMAL', win: [0.052, 0.098, 0.148, 0.198], lead: 1.55, gap: 0.33,  hold: 0.72, holdCap: 0.15, holdAt: 2, maxTail: 1.4, jump: 2, tapQ: 0.28, dbl: 0.07, dblHold: 0.30, stam: STAM_LOSS, pad: 0.45 },
-  { k: 'hard',   n: 'HARD',   win: [0.046, 0.090, 0.135, 0.185], lead: 1.28, gap: 0.19,  hold: 0.88, holdCap: 0.18, holdAt: 2, maxTail: 1.8, jump: 3, tapQ: 0.12, dbl: 0.16, dblHold: 0.55, stam: STAM_LOSS, pad: 0.70 },
-  { k: 'expert', n: 'EXPERT', win: [0.042, 0.082, 0.125, 0.170], lead: 1.08, gap: 0.115, hold: 0.95, holdCap: 0.20, holdAt: 2, maxTail: 2.0, jump: 4, tapQ: 0.03, dbl: 0.26, dblHold: 0.70, stam: STAM_LOSS, pad: 0.95 },
-];
-const diffOf = (k) => DIFFS.find((d) => d.k === k) || DIFFS[1];
+// 难度表在 js/ll/diffs.js（体检脚本也读同一份，免得两边漂）
 const KEYS = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'];
 const KEY_LABEL = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'];
 
@@ -3609,7 +3855,8 @@ function judgeNote(n, j) {
   // 听歌模式把判定音与飘字一起收掉：目的是听完整首，不是看满地 BAD
   if (!G.listen) { Audio.fx(j, G.combo, n.lane); pushFx(n.lane, j); }
   if (SAVE.haptic && !G.auto && !G.listen && j !== 'b' && navigator.vibrate) {
-    try { navigator.vibrate(j === 'p' ? 9 : 6); } catch (e) { /* 不支持就算了 */ }
+    // 判定越准，震得越干脆：PERFECT 一记短的实震，GREAT 轻一点，GOOD 几乎只是一下提示
+    try { navigator.vibrate(j === 'p' ? 12 : j === 'g' ? 8 : 5); } catch (e) { /* 不支持就算了 */ }
   }}
 function missNote(n) {
   if (n.judged) return;
@@ -4093,10 +4340,12 @@ function draw(clock) {
     ctx.strokeStyle = n.broken ? 'rgba(160,160,175,0.3)' : 'hsla(' + col + ',0.85)';
     ctx.lineWidth = 3;
     ctx.stroke();
-    // 尾音是一个更小的同色圆环：该在哪松手、尾音什么时候进框，一眼看得出
+    // 尾音也是一个同色圆环。尺寸跟音符头完全一样（ringSprite 里环半径 = 0.72×径），
+    // 以前尾环比头小一圈（0.42 对 0.62），看着像「远处一个小点」，
+    // 到底什么时候该松手全凭猜。现在两个环一样大，尾音进框就是松手的那一刻。
     let tx = tp.x, ty = tp.y;
     if (n.holding && tp.k >= 1) { tx = b.x; ty = b.y; }   // 按着时尾音贴在框里
-    const tr = LAY.bw * 0.42;
+    const tr = LAY.bw * 0.62;
     const tfade = n.broken ? 0.34 : fadeK(n.holding ? Math.min(tp.k, 1) : tp.k);
     if (tfade > 0.02) {
       ctx.globalAlpha = tfade;
@@ -4457,7 +4706,9 @@ async function startLive() {
   Audio.setScale(song.root || 60);
   if (track && track.buffer) Audio.playBuffer(track.buffer, 0);
   else if (song.custom) Audio.playClock();
-  else Audio.playChip(chart.arr, song.wave);
+  // 芯片线路：谱面第一条音符在 lead 秒，音乐整体后挪同样的时间（以前没挪，
+  // 每个音都在听到之后 1~1.8 秒才被敲到，整首听起来踩在反拍上）
+  else Audio.playChip(chart.arr, song.wave, D.lead);
   G.running = true;
   show('live');
   $('#live-song').textContent = song.n;
