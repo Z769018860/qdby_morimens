@@ -913,10 +913,21 @@ function renderActbar() {
     // 所以按钮直接按死在这里，别让玩家点下去才发现落空。
     const needTrib = (c.fx || []).some((f) => f.k === 'tributeSummon');
     const hasTrib = !!p.mons.some(Boolean);
-    if (canNow && needTrib && !hasTrib) {
-      opts.push('<button class="btn" disabled>发动：场上没有可以解放的怪兽</button>');
-    } else if (!canNow) {
+    // 场地：占一格魔陷，同一时间只能有一张。格子满了又没场地可顶的时候，
+    // 引擎会回一句「魔法·陷阱区满了」——那就先在按钮上说清楚，别让玩家点了个寂寞。
+    const isField = c.t === 'field';
+    const freeSp = p.spells.filter((x) => !x).length;
+    const fieldOn = p.spells.some((x) => x && CARDS[x.id] && CARDS[x.id].t === 'field');
+    if (!canNow) {
       opts.push('<button class="btn" disabled>不是发动时机</button>');
+    } else if (isField && freeSp <= 0 && !fieldOn) {
+      opts.push('<button class="btn" disabled>发动：魔陷区三格都占了，先腾一格</button>');
+    } else if (isField && fieldOn && freeSp <= 0) {
+      opts.push('<button class="btn pri" data-act="spell">发动（顶掉场上那张场地）</button>');
+    } else if (isField) {
+      opts.push('<button class="btn pri" data-act="spell">发动（占一格魔陷）</button>');
+    } else if (needTrib && !hasTrib) {
+      opts.push('<button class="btn" disabled>发动：场上没有可以解放的怪兽</button>');
     } else if (needTrib) {
       opts.push('<button class="btn pri" data-act="spell">发动（先选祭品）</button>');
     } else {
@@ -930,9 +941,11 @@ function renderActbar() {
       ? `等级 ${c.lv}：${E.tributeNeed(c.id) ? '需要 ' + E.tributeNeed(c.id) + ' 只祭品' : '可以直接召唤'}`
       : (p.normalUsed ? '本回合已经通常召唤过了' : '现在不能召唤它'))
     : (c.k === 'S'
-      ? (c.t === 'quick'
-        ? '速攻魔法：主要阶段和战斗阶段都能发动；开完立刻结算。'
-        : '魔法只能在自己的主要阶段从手牌发动；永续与装备留在场上。')
+      ? (c.t === 'field'
+        ? '场地：占一格魔陷，同一时间只能有一张——新的直接把旧的推进墓地，所以要摆哪张是真要做决定的。发动后按卡面改规矩：抬高或压低本回合的特殊召唤次数、给特召出来的怪兽加攻、特召成功抽牌、或者让对面每次特招掉血。'
+        : (c.t === 'quick'
+          ? '速攻魔法：主要阶段和战斗阶段都能发动；开完立刻结算。'
+          : '魔法只能在自己的主要阶段从手牌发动；永续与装备留在场上。'))
       : '陷阱盖放后：应对型（无效 / 反击伤害 / 屏障…）对方做出对应动作时会先问你发不发动；其余的（抽牌、回复、弹牌、削攻、永续…）除了盖放的那一回合，自己的回合和对方的回合都能点开主动发动。');
   bar.innerHTML = `
     <div class="ah"><b>${c.n}</b><span class="note">${KIND_TXT[c.k]} · ${REALM_TXT[c.r] || c.r}${costTag(c)}</span>
@@ -2063,17 +2076,22 @@ function buyPack(packId) {
 const CODEX_GROUPS = [['M', '怪兽'], ['S', '魔法'], ['T', '陷阱'], ['E', '额外卡组']];
 
 function renderCodex() {
-  const kinds = [['all', '全部'], ['M', '怪兽'], ['S', '魔法'], ['T', '陷阱'], ['E', '额外卡组']];
+  // 「场地」是魔法的一种（t === 'field'），但它是这一版最容易被问「在哪」的一类——
+  // 单开一个筛选，不然它混在一百多张魔法里，翻不到就等于没做。
+  const kinds = [['all', '全部'], ['M', '怪兽'], ['S', '魔法'], ['F', '场地'], ['T', '陷阱'], ['E', '额外卡组']];
   const realms = [['all', '全界域'], ['chaos', '混沌'], ['caro', '血肉'], ['aqua', '深海'], ['ultra', '超维'], ['any', '无界']];
   // 衍生物（tk1/tk2）不进卡表：它不是能收进收藏的牌，只由效果叫出来
   const all = Object.keys(CARDS).map((id) => CARDS[id]).filter((c) => !c.token);
   const list = all.filter((c) => {
-    if (S.codex.k !== 'all' && c.k !== S.codex.k) return false;
+    if (S.codex.k === 'F') { if (!(c.k === 'S' && c.t === 'field')) return false; }
+    else if (S.codex.k !== 'all' && c.k !== S.codex.k) return false;
     if (S.codex.r !== 'all' && (c.r || 'any') !== S.codex.r) return false;
     return true;
   });
   const order = { M: 0, S: 1, T: 2, E: 3 };
+  const subOrder = { field: 0, normal: 1, quick: 1, cont: 1, equip: 1 };
   list.sort((a, b) => (order[a.k] - order[b.k]) || (a.r || '').localeCompare(b.r || '')
+    || ((subOrder[a.t] || 1) - (subOrder[b.t] || 1))
     || (Number(!!b.direct) - Number(!!a.direct)) || (b.atk || 0) - (a.atk || 0));
 
   const cell = (c) => `<div>${cardHTML(c, {})}<div style="text-align:center;font-size:9px;color:var(--dim2);margin-top:2px">`
@@ -2083,6 +2101,14 @@ function renderCodex() {
   const blocks = CODEX_GROUPS.map(([k, label]) => {
     const arr = list.filter((c) => c.k === k);
     if (!arr.length) return '';
+    if (k === 'S') {
+      // 魔法里再分一层：场地是「摆上去改规矩」的，和点开就结算的通常/速攻不是一回事
+      const fd = arr.filter((c) => c.t === 'field');
+      const sp = arr.filter((c) => c.t !== 'field');
+      return `<div class="chead"><b>${label}</b><span>${arr.length} 张 · 场地 ${fd.length}</span></div>`
+        + (fd.length ? `<div class="csub">场地<span>摆上魔陷区、同一时间只有一张，改的是这一局的规矩</span></div>${grid(fd)}` : '')
+        + (sp.length ? `<div class="csub">其他魔法<span>通常 / 速攻 / 永续 / 装备 / 反击</span></div>${grid(sp)}` : '');
+    }
     if (k !== 'E') return `<div class="chead"><b>${label}</b><span>${arr.length} 张</span></div>${grid(arr)}`;
     // 额外卡组里两种召唤方式分开列：凑素材的、满足条件白给的，混在一起看不懂
     const aw = arr.filter((c) => !c.direct), dr = arr.filter((c) => c.direct);
@@ -2138,7 +2164,7 @@ function showHowTo() {
   openModal(`<div class="mtitle"><h3>怎么打</h3><button class="btn sm ghost x" data-modal="close">关闭</button></div>
     <p class="sub">目标是先把对方的命轮值打到 0。双方各 8000 点起手。</p>
     <ul class="tips">
-      <li><b>场地</b>：怪兽 3 格、魔法·陷阱 3 格，卡组 40~50 张，起手 5 张。先手第一回合不抽牌。</li>
+      <li><b>场上</b>：怪兽 3 格、魔法·陷阱 3 格，卡组 40~50 张，起手 5 张。先手第一回合不抽牌。（「场地」是另一回事，见下面那条。）</li>
       <li><b>召唤</b>：每回合 1 次。等级 1–4 直接出，5–6 需要 1 只祭品，7 以上需要 2 只。祭品送墓。
         带「额外通常召唤」的牌（如「灯下夜谈」）可以让你这回合多召一次。</li>
       <li><b>反制陷阱</b>：百万蒙宠之眼（看穿并破坏）、苦咒缚 / 泰旖丝·封印（<b>暂时封印</b>：到对方回合结束为止不能发动，不破坏）、陨日 / 沙耶·拆陷（<b>永久破坏</b>）、不存在之地（这回合对方不能发陷阱）；怪兽方面，艾尔瓦·无陷攻击时无视陷阱，奥吉尔·反咒 / 波吕克斯能无效对方 1 张陷阱（每场一次）。<b>反制反制</b>：心之壁垒（挡拆陷阱）、真理之门（挡封印 / 封锁）、宿命纺轮（顶回对方的「无效陷阱」）、温柯尔·守陷（在场就不让对方拆 / 封你的陷阱）。</li>
@@ -2174,10 +2200,11 @@ function showHowTo() {
       <li><b>造物</b>：「造物·××」只做魔法·陷阱（装备 / 永续 / 场地 / 通常 / 速攻），
         <b>不当怪兽、也不进觉醒体</b>——它们是道具，不是人。场地魔法占一格，同一时间只能有一张，新的把旧的顶掉；
         造物各有一枚自己的道具图标，认图标比认名字快。</li>
-      <li><b>场地</b>：造物·守夜灯那一类写在魔陷区，占一格，<b>同一时间只能有一张</b>——新的直接把旧的顶进墓地，
+      <li><b>场地</b>：写在魔陷区，占一格，<b>同一时间只能有一张</b>——新的直接把旧的顶进墓地，
         所以要摆哪张是真要做决定的。除了攻守光环，一部分场地专门冲着特殊召唤来：<b>强化</b>（自己每回合多特召一次、
         特召出来的怪兽加攻、特召成功就抽牌）与<b>限制</b>（把对方压到每回合只能特召一次、对方每次特召成功就掉血）。
-        「校猫的讲台」两边都管：自己多一次，对方少一次。</li>
+        「校猫的讲台」两边都管：自己多一次，对方少一次。现在一共 26 张，<b>22 套预组每套都带一张</b>；
+        想看全就在「卡表」里点<b>场地</b>筛选（以前它混在一百多张魔法里，翻不到就等于没做）。</li>
       <li><b>直接召唤</b>：额外卡组里另一种召唤方式。<b>满足卡面条件</b>（如「自己场上有 2 只怪兽」）或<b>献出命轮值</b>即可召唤，
         不用素材、<b>不占通常召唤</b>；代价是每回合只能 1 次，而且当回合不能攻击。为了不破坏平衡，额外卡组里最多放 2 张。</li>
       <li><b>陷阱</b>：分两种。<b>应对型</b>（无效攻击 / 召唤 / 魔法、反击伤害、屏障…）满足条件时，会在对方动作结算之前<b>弹出询问，由你决定发不发动</b>（好友房里每个动作都是对方陷阱的一个时点：对方没有能响应的陷阱就直接继续，有才会停下来等对方选）；<b>主动型</b>（抽牌、回复、弹手牌、削攻、永续…）盖放的那一回合不能用，之后自己的回合和对方的回合都可以点开自己盖着的牌主动发动（好友房 / 同屏只能在自己的回合）。</li>
