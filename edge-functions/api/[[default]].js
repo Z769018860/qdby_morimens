@@ -1512,7 +1512,9 @@ async function postAdminGrantBatch(request, env, kv, cors) {
 const BOARD_TTL = 60 * 1000;
 // [游戏键, gd 键, 取分的下标, 说明, 副标]
 // 唤醒王：决斗链接 / 弥萨格轮盘的九个段位名（榜单副标用）。改段位名时和 js/duel/tiers.js 的 TIERS 一起改。
-const DUEL_TIERS = ['见习守密人', '铜钥级', '银钥级', '金印级', '白夜级', '命轮师', '界域传说', '唤醒大师', '唤醒王'];
+// 必须和 js/duel/tiers.js 的 TIERS 逐项一致（后端读不到前端模块，只能抄一份；scripts/test_edge_api.mjs 会对一遍）。
+// 以前只抄了前 9 段，12096 分（至尊唤醒王）的段位名是空的——榜单上只剩「58 胜 17 负」。
+const DUEL_TIERS = ['见习守密人', '铜钥级', '银钥级', '金印级', '白夜级', '命轮师', '界域传说', '唤醒大师', '唤醒王', '唤醒王SS', '唤醒王SSS', '至尊唤醒王', '弥萨格校猫'];
 
 const BOARD_SPEC = [
   // 战报侦探：按答对的题数排，副标写正确率；答对数相同时正确率高的在前
@@ -1697,9 +1699,10 @@ export async function onRequest(context) {
         // v11 多了 /llsongs（lovelive 云端曲库：只收谱面，不收音频）
         // v12 榜单多了杀死守密人（已解锁结局数），见 BOARD_SPEC 的 kp
         // v13 赠礼支持 rw（免费回溯券，挂机前夜的「回溯券」），/grants/mine 会带回来
+        // v16 榜单的决斗 / 轮盘段位名补齐到 13 段（原来只有 9 段，高段位显示空白）
         // v15 榜单补上 lovelive（BOARD_SPEC 的 ll，之前漏了，榜单一直是空的）
         // v14 赠礼再加 tk（召唤券）/ gold（金币）；多了 GET /admin/bugs（后台看 BUG 反馈详情）
-        ok: Boolean(store), service: 'zjtt', v: 15, runtime: 'edgeone',
+        ok: Boolean(store), service: 'zjtt', v: 16, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),

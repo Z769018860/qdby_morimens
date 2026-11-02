@@ -6,6 +6,7 @@
 //
 // 用法：node scripts/test_edge_api.mjs
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 
 const MOD = await import('../edge-functions/api/[[default]].js');
 const onRequest = MOD.onRequest || MOD.default;
@@ -687,6 +688,14 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   eq('王权榜按结局数排，同数最长任期长者在前，没有门槛', bd.json.games.rg.items.map((x) => [x.name, x.score, x.sub]), [['乙', 12, '最长任期第 55 天 · 当过 9 任'], ['甲', 12, '最长任期第 40 天 · 当过 7 任'], ['丙', 1, '最长任期第 5 天 · 当过 1 任']]);
   check('王权榜单位与标签', bd.json.games.rg.unit === '个结局' && bd.json.games.rg.label === '结局数' && !('tb' in bd.json.games.rg.items[0]));
   eq('守密人榜按结局数排，同数见过的形态多的在前，副标写形态与下冢次数', bd.json.games.kp.items.map((x) => [x.name, x.score, x.sub]), [['乙', 30, '见过 9 种形态 · 下过 2 趟钥冢'], ['甲', 30, '见过 6 种形态 · 下过 4 趟钥冢'], ['丙', 7, '见过 3 种形态 · 下过 1 趟钥冢']]);
+  {
+    // 后端抄了一份段位名：必须和前端段位表逐项一致（以前只抄了 9 段，高段位在榜单上没有段位名）
+    const { TIERS } = await import('../js/duel/tiers.js');
+    const src = fs.readFileSync(new URL('../edge-functions/api/[[default]].js', import.meta.url), 'utf8');
+    const m = src.match(/const DUEL_TIERS = (\[[^\]]*\]);/);
+    const names = m ? JSON.parse(m[1].replace(/'/g, '"')) : [];
+    eq('后端的段位名 = 前端 13 段', names, TIERS.map((x) => x.n));
+  }
   eq('lovelive 榜按最高分排，副标写最长连击与谱面数', bd.json.games.ll.items.map((x) => [x.name, x.score, x.sub]), [['甲', 123456, '最长连击 310 · 玩过 6 张谱面']]);
   eq('斗蛐蛐榜按最高荷包排，同分夺冠桌数多的在前', bd.json.games.bf.items.map((x) => [x.name, x.score, x.sub]), [['乙', 2400, '夺冠 4 桌 · 共 6 桌'], ['甲', 2400, '夺冠 2 桌 · 共 5 桌']]);
   check('守密人榜单位与标签', bd.json.games.kp.unit === '个结局' && bd.json.games.kp.label === '结局数' && !('tb' in bd.json.games.kp.items[0]));
