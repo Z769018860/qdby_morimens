@@ -34,8 +34,22 @@ const SMALL_TRAITS = [
   { key: 'amp', v: 2, zh: '增伤 +2%' },
   { key: 'healBonus', v: 3, zh: '治疗 +3%' },
 ];
-export const wheelRune = (def) => SMALL_TRAITS[hash(String(def?.id || '') + ':w') % SMALL_TRAITS.length];
-export const relicTrait = (def) => SMALL_TRAITS[hash(String(def?.id || '') + ':r') % SMALL_TRAITS.length];
+// FNV 的低位很差：造物主题 = hash(id) % 10、特质 = hash(id+':r') % 8，两个数的奇偶会连在一起，
+// 结果每个主题只能抽到 8 种特质里的 4 种（例如「蚀刻」永远没有起手钥焰、「祝福」永远没有首击增伤）。
+// 特质这里先过一遍整数混合器再取模，和主题彻底脱钩。
+const mixHash = (s) => {
+  let h = hash(s);
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+  return (h ^ (h >>> 16)) >>> 0;
+};
+const TRAIT_BY_KEY = Object.fromEntries(SMALL_TRAITS.map((t) => [t.key, t]));
+// 暴击系装备（暴击率 / 暴击伤害的命轮，星辉 / 蚀刻造物）固定带「起手钥焰」：暴击流要靠钥焰开局顶大招，
+// 以前特质是随机抽的，暴击装备大多没有它（暴击伤害命轮 17 件里只有 1 件）。
+const CRIT_MAINS = new Set(['CRIT_RATE', 'CRIT_DMG']);
+const CRIT_RELIC_THEMES = new Set(['星辉', '蚀刻']);
+export const wheelRune = (def) => (CRIT_MAINS.has(def?.main) ? TRAIT_BY_KEY.openKey : SMALL_TRAITS[mixHash(String(def?.id || '') + ':w') % SMALL_TRAITS.length]);
+export const relicTrait = (def) => (CRIT_RELIC_THEMES.has(relicTheme(def?.id || '').zh) ? TRAIT_BY_KEY.openKey : SMALL_TRAITS[mixHash(String(def?.id || '') + ':r') % SMALL_TRAITS.length]);
 const RARITY_MULT = { N: 0.5, R: 0.7, SR: 1, SSR: 1.4 };
 // 10 级以前每级 +10%（和原来一样，老存档的数不变）；10 级之后每级 +5%：满 40 级是 3.5 倍，
 // 比原来的满级（2 倍）多 75%，但这 30 级要几十倍的金币，是给后期金币找的去处，不是白送战力。

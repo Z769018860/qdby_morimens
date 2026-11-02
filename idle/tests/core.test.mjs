@@ -3573,3 +3573,14 @@ test('大运有自己的出战入口和专用编队：能选 当前队伍 / 通�
   const n = _np({ luck: 'lk', tower: 'lk', weekly: 'b' });
   assert.equal(n.luck, 'lk'); assert.equal(n.tower, 'cur'); assert.equal(n.weekly, 'b');
 });
+
+import { wheelRune as _wr, relicTrait as _rt, relicTheme as _rth } from '../src/core/gear.js';
+test('装备特质：暴击系命轮 / 造物固定带起手钥焰，每个造物主题都能抽到各种特质（不再只有一半）', () => {
+  for (const w of data.wheels.filter((x) => x.main === 'CRIT_RATE' || x.main === 'CRIT_DMG')) assert.equal(_wr(w).key, 'openKey', w.id);
+  const by = {};
+  for (const r of data.relics) { const th = _rth(r.id).zh; (by[th] ||= new Set()).add(_rt(r).key); if (th === '星辉' || th === '蚀刻') assert.equal(_rt(r).key, 'openKey', r.id); }
+  for (const [th, set] of Object.entries(by)) if (th !== '星辉' && th !== '蚀刻') assert.ok(set.size >= 6, `${th} 只抽到 ${set.size} 种特质（哈希又和主题连上了？）`);
+  // 其它命轮 8 种器纹整体都出现过
+  const all = new Set(data.wheels.filter((x) => !String(x.main).startsWith('CRIT')).map((w) => _wr(w).key));
+  assert.ok(all.size >= 7);
+});
