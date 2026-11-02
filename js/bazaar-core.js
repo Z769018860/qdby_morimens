@@ -1,8 +1,12 @@
-// 《大巴扎：银钥》核心逻辑：商店、布阵、自动战斗。
+// 《大巴扎：银钥》核心逻辑：商店、十格战场、自动战斗。
 // 不碰 DOM，node 里能直接跑（scripts/bazaar-sim.mjs 就是拿它做平衡实测的）。
 //
-// 一场战斗的心跳是「拍」（beat）：造物按冷却排期，到点就触发，双方同时走；
-// 40 拍打不完按剩余血量比例判。难度、当天曲线、怪物分池都在 js/bazaar-data.js。
+// 一场战斗的心跳是「拍」（beat），四个东西同时走：
+//   唤酲体 —— 每 cd 拍产出 gen 点算力（顺手打一下 / 架盾 / 挂易伤），并对左右两家放光环；
+//   命轮　 —— 攒够 cpu 算力就在自己的节拍上开一炮，主要输出；
+//   造物　 —— 不占出手，纯静态加成（算力上限、产出、增伤、暴击……）；
+//   地形　 —— 敌我同吃，熔岩掉血、雾障加盾、疾风加速、脆裂削血。
+// 40 拍打不完按剩余血量比例判。难度、当天曲线、地形表都在 js/bazaar-data.js。
 
 import * as DATA from './bazaar-data.js';
 
@@ -17,7 +21,11 @@ export const PACTS = DATA.PACTS;
 export const FOES = DATA.FOES;
 export const DIFFS = DATA.DIFFS;
 export const SCHEDULE = DATA.SCHEDULE;
+export const TERRAINS = DATA.TERRAINS;
+export const MOD_ZH = DATA.MOD_ZH;
+export const AURA_ZH = DATA.AURA_ZH;
 export const REALM_COLOR = DATA.REALM_COLOR;
+export const ARCH_ZH = DATA.ARCH_ZH;
 
 const DOT_TURNS = 3;
 const ITEM_BY_ID = new Map(ITEMS.map((x) => [x.id, x]));
@@ -25,19 +33,15 @@ const WHEEL_BY_ID = new Map(WHEELS.map((x) => [x.id, x]));
 const FOE_BY_ID = new Map(FOES.map((x) => [x.id, x]));
 const HERO_BY_ID = new Map(HEROES.map((x) => [x.id, x]));
 const PACT_BY_ID = new Map(PACTS.map((x) => [x.id, x]));
+const TER_BY_ID = new Map(TERRAINS.map((x) => [x.id, x]));
 
 export const itemOf = (id) => ITEM_BY_ID.get(id);
 export const wheelOf = (id) => WHEEL_BY_ID.get(id);
 export const foeOf = (id) => FOE_BY_ID.get(id);
 export const heroOf = (id) => HERO_BY_ID.get(id);
 export const pactOf = (id) => PACT_BY_ID.get(id);
+export const terrainOf = (id) => TER_BY_ID.get(id) || TERRAINS[0];
 export const diffOf = (id) => DIFFS.find((d) => d.id === id) || DIFFS[0];
-
-// 相邻：2 行 × 3 列，上下左右算相邻
-export const ADJ = [
-  [1, 3], [0, 2, 4], [1, 5],
-  [0, 4], [1, 3, 5], [2, 4],
-];
 
 export function rngFrom(seed) {
   let a = seed >>> 0;
@@ -53,33 +57,122 @@ export function rngFrom(seed) {
 const ru = (rnd, arr) => arr[Math.floor(rnd() * arr.length) % arr.length];
 
 let UID = 1;
-const mkItem = (key, tier = 1) => ({ uid: UID++, key, tier });
+const uid = () => UID++;
 
-const RARITY_ORDER = ['N', 'SR', 'SSR'];
+// ---------------------------------------------------------------- 开局
+export function heroPrice(def) {
+  return 9 + (def.slots || 1) * 5;
+}
+export function wheelPrice(def) {
+  return 7 + Math.round((def.cpu || 12) / 2);
+}
+export function relicPrice(def) {
+  return 4 + (def.r === 'SSR' ? 6 : def.r === 'SR' ? 3 : 0) + (def.cost || 0) % 2;
+}
+export function sellPrice(kind, def) {
+  const base = kind === 'hero' ? heroPrice(def) : kind === 'wheel' ? wheelPrice(def) : relicPrice(def);
+  return Math.max(1, Math.floor(base * TUNING.sellRate));
+}
 
-export function newRun({ seed = Date.now() >>> 0, heroId, pactId, diffId = 'normal' } = {}) {
-  const hero = heroOf(heroId) || HEROES[0];
-  const pact = pactOf(pactId) || PACTS[0];
+export function newRun({ seed = Date.now() >>> 0, heroIds, pactId, diffId = 'normal', heroId } = {}) {
   const diff = diffOf(diffId);
+  const pact = pactOf(pactId) || PACTS[0];
+  const ids = (heroIds && heroIds.length ? heroIds : [heroId || HEROES[0].id]);
   const run = {
-    seed, rnd: rngFrom(seed), hero, pact, diff, totalDays: diff.days,
+    seed, rnd: rngFrom(seed), pact, diff, totalDays: diff.days,
     day: 1, sane: diff.sane, gold: TUNING.startGold,
-    items: new Array(TUNING.slotN).fill(null),
-    wheels: [],
+    squad: [], wheels: [], relics: [], cores: 0,
     shop: [], rerolls: 0, freeReroll: 0,
-    foeId: null, wins: 0, losses: 0,
-    bonusHp: 0,
-    over: false, cleared: false,
-    history: [],
+    foeId: null, terrain: 'plain',
+    wins: 0, losses: 0, bonusHp: 0,
+    over: false, cleared: false, history: [],
   };
   if (pact.k === 'rich') run.gold += pact.v;
-  hero.kit.forEach((k, i) => { if (i < TUNING.slotN) run.items[i] = mkItem(k, 1); });
-  // 本命命轮：直接戴在身上，白送一个词条
-  const nw = wheelOf(hero.wheel);
-  if (nw) run.wheels.push({ uid: UID++, key: nw.id, native: true, n: nw.n, spr: nw.spr, main: nw.main, mainZh: nw.mainZh, v: nw.v, realm: nw.realm, perk: nw.perk, cost: 0 });
+  for (const id of ids) addHero(run, id);
+  // 本命命轮：领队那条白送，其余靠集市买
+  const lead = heroOf(run.squad[0].key);
+  const nw = wheelOf(lead.wheel);
+  if (nw) run.wheels.push({ uid: uid(), key: nw.id, native: true });
   pickFoe(run);
   rollShop(run, { free: true });
   return run;
+}
+
+// ---------------------------------------------------------------- 战场（十格）
+export function usedSlots(run) {
+  let n = 0;
+  for (const h of run.squad) n += (heroOf(h.key) || {}).slots || 1;
+  return n;
+}
+export function freeSlots(run) {
+  return TUNING.fieldSlots - usedSlots(run);
+}
+// 队伍顺序即站位：0 号在最左，往后依次排开，每人占 slots 格
+export function layoutOf(run) {
+  let at = 0;
+  return run.squad.map((h) => {
+    const def = heroOf(h.key);
+    const rec = { uid: h.uid, key: h.key, def, start: at, len: def.slots || 1 };
+    at += rec.len;
+    return rec;
+  });
+}
+export function canAddHero(run, id) {
+  const def = heroOf(id);
+  return !!def && usedSlots(run) + def.slots <= TUNING.fieldSlots;
+}
+export function addHero(run, id) {
+  if (!canAddHero(run, id)) return null;
+  const rec = { uid: uid(), key: id };
+  run.squad.push(rec);
+  return rec;
+}
+export function moveHero(run, hid, to) {
+  const from = run.squad.findIndex((h) => h.uid === hid);
+  if (from < 0) return false;
+  const t = Math.max(0, Math.min(run.squad.length - 1, to));
+  if (t === from) return false;
+  const [x] = run.squad.splice(from, 1);
+  run.squad.splice(t, 0, x);
+  return true;
+}
+export function removeHero(run, hid) {
+  if (run.squad.length <= 1) return false;
+  const i = run.squad.findIndex((h) => h.uid === hid);
+  if (i < 0) return false;
+  run.squad.splice(i, 1);
+  return true;
+}
+
+// 面板上的「每拍产出 / 每拍消耗」——和 createFight 用同一套规则，免得显示和实际对不上
+export function planOf(run) {
+  const units = run.squad.map((h) => {
+    const d = heroOf(h.key);
+    return { gen: d.gen, cd: d.cd, pow: 1, aura: d.aura };
+  });
+  units.forEach((u, i) => {
+    for (const j of [i - 1, i + 1]) {
+      const nb = units[j];
+      if (!nb) continue;
+      const a = nb.aura || {};
+      if (a.k === 'gen') u.gen += a.v;
+      else if (a.k === 'cd') u.cd -= a.v;
+      else if (a.k === 'pow') u.pow += a.v;
+    }
+  });
+  let gen = 0;
+  for (const u of units) gen += u.gen / Math.max(TUNING.cdMin, u.cd);
+  let need = 0;
+  for (const w of run.wheels) {
+    const d = wheelOf(w.key);
+    if (d) need += d.cpu / d.wcd;
+  }
+  return {
+    gen: Math.round(gen * 10) / 10,
+    need: Math.round(need * 10) / 10,
+    cap: TUNING.cpuBase + run.cores * TUNING.coreGain,
+    slots: usedSlots(run),
+  };
 }
 
 // ---------------------------------------------------------------- 商店
@@ -92,9 +185,9 @@ export function priceOf(run, base) {
 
 function pickRarity(run, rnd) {
   const d = run.day;
-  const wN = Math.max(1.5, 11 - d * 1.15);
+  const wN = Math.max(1.2, 10 - d * 1.1);
   const wSR = 2 + d * 0.8;
-  const wSSR = Math.max(0, d - 2.5) * 0.95;
+  const wSSR = Math.max(0, d - 2.5) * 1.0;
   const tot = wN + wSR + wSSR;
   const x = rnd() * tot;
   if (x < wSSR) return 'SSR';
@@ -117,14 +210,23 @@ export function rollShop(run, { free = false } = {}) {
   const n = 4 + (run.pact.k === 'rich' && run.day === 1 ? 1 : 0);
   const out = [];
   const used = new Set();
+  const ownHeroes = new Set(run.squad.map((h) => h.key));
+  const ownWheels = new Set(run.wheels.map((w) => w.key));
   for (let i = 0; i < n; i++) {
     let offer = null;
-    for (let tries = 0; tries < 14 && !offer; tries++) {
-      if (rnd() < 0.2) {
+    for (let tries = 0; tries < 20 && !offer; tries++) {
+      const roll = rnd();
+      if (roll < 0.30) {
+        const pool = HEROES.filter((h) => !ownHeroes.has(h.id) && h.slots <= freeSlots(run) + 2);
+        const h = pool.length ? ru(rnd, pool) : null;
+        if (!h || used.has('h' + h.id)) continue;
+        used.add('h' + h.id);
+        offer = { kind: 'hero', key: h.id, price: priceOf(run, heroPrice(h)) };
+      } else if (roll < 0.58) {
         const w = ru(rnd, WHEELS);
-        if (used.has('w' + w.id) || run.wheels.length >= 3) continue;
+        if (used.has('w' + w.id) || ownWheels.has(w.id)) continue;
         used.add('w' + w.id);
-        offer = { kind: 'wheel', key: w.id, price: priceOf(run, w.cost) };
+        offer = { kind: 'wheel', key: w.id, price: priceOf(run, wheelPrice(w)) };
       } else {
         const r = pickRarity(run, rnd);
         const pool = SHOP_ITEMS.filter((x) => x.r === r);
@@ -132,7 +234,7 @@ export function rollShop(run, { free = false } = {}) {
         const it = ru(rnd, pool);
         if (used.has(it.id)) continue;
         used.add(it.id);
-        offer = { kind: 'item', key: it.id, price: priceOf(run, it.cost) };
+        offer = { kind: 'relic', key: it.id, price: priceOf(run, relicPrice(it)) };
       }
     }
     if (offer) { offer.sold = false; out.push(offer); }
@@ -143,19 +245,18 @@ export function rollShop(run, { free = false } = {}) {
 }
 
 export function defOf(offer) {
-  return offer.kind === 'wheel' ? wheelOf(offer.key) : itemOf(offer.key);
-}
-
-export function firstEmptySlot(run) {
-  return run.items.findIndex((x) => !x);
+  if (offer.kind === 'hero') return heroOf(offer.key);
+  if (offer.kind === 'wheel') return wheelOf(offer.key);
+  return itemOf(offer.key);
 }
 
 export function canBuy(run, idx) {
   const o = run.shop[idx];
   if (!o || o.sold) return false;
   if (run.gold < o.price) return false;
-  if (o.kind === 'wheel') return run.wheels.length < 3;
-  return firstEmptySlot(run) >= 0;
+  if (o.kind === 'hero') return canAddHero(run, o.key);
+  if (o.kind === 'wheel') return run.wheels.length < TUNING.wheelSlots;
+  return run.relics.length < TUNING.relicSlots;
 }
 
 export function buy(run, idx) {
@@ -163,79 +264,72 @@ export function buy(run, idx) {
   const o = run.shop[idx];
   run.gold -= o.price;
   o.sold = true;
-  if (o.kind === 'wheel') {
-    const w = wheelOf(o.key);
-    run.wheels.push({ uid: UID++, key: w.id, n: w.n, spr: w.spr, main: w.main, mainZh: w.mainZh, v: w.v, realm: w.realm, perk: w.perk, cost: w.cost });
-  } else {
-    run.items[firstEmptySlot(run)] = mkItem(o.key, 1);
-  }
+  if (o.kind === 'hero') addHero(run, o.key);
+  else if (o.kind === 'wheel') run.wheels.push({ uid: uid(), key: o.key });
+  else run.relics.push({ uid: uid(), key: o.key });
   return true;
 }
 
-export function sell(run, uid) {
-  for (let i = 0; i < run.items.length; i++) {
-    const it = run.items[i];
-    if (it && it.uid === uid) {
-      const def = itemOf(it.key);
-      const back = Math.max(1, Math.floor(def.cost * TUNING.sellRate * TUNING.tierMul[it.tier]));
-      run.items[i] = null;
-      run.gold += back;
-      return back;
-    }
-  }
-  const w = run.wheels.findIndex((x) => x.uid === uid);
-  if (w >= 0 && !run.wheels[w].native) {
-    const back = Math.max(1, Math.floor(run.wheels[w].cost * TUNING.sellRate));
+// uid 在三种东西里都可能，统一按 uid 找
+export function owned(run, id) {
+  const h = run.squad.find((x) => x.uid === id);
+  if (h) return { kind: 'hero', rec: h, def: heroOf(h.key) };
+  const w = run.wheels.find((x) => x.uid === id);
+  if (w) return { kind: 'wheel', rec: w, def: wheelOf(w.key) };
+  const r = run.relics.find((x) => x.uid === id);
+  if (r) return { kind: 'relic', rec: r, def: itemOf(r.key) };
+  return null;
+}
+
+export function sell(run, id) {
+  const o = owned(run, id);
+  if (!o) return 0;
+  if (o.kind === 'hero') {
+    if (run.squad.length <= 1) return 0;
+    const back = sellPrice('hero', o.def);
+    removeHero(run, id);
     run.gold += back;
-    run.wheels.splice(w, 1);
     return back;
   }
-  return 0;
+  if (o.kind === 'wheel') {
+    if (o.rec.native) return 0;
+    const i = run.wheels.indexOf(o.rec);
+    run.wheels.splice(i, 1);
+    const back = sellPrice('wheel', o.def);
+    run.gold += back;
+    return back;
+  }
+  const i = run.relics.indexOf(o.rec);
+  run.relics.splice(i, 1);
+  const back = sellPrice('relic', o.def);
+  run.gold += back;
+  return back;
 }
 
-export function upgradeCost(run, it) {
-  return TUNING.upgradeCost + (it.tier - 1) * 5;
+export function coreCostOf(run) {
+  return TUNING.coreCost + run.cores * 3;
 }
-
-export function upgrade(run, uid) {
-  const it = run.items.find((x) => x && x.uid === uid);
-  if (!it || it.tier >= 3) return false;
-  const c = upgradeCost(run, it);
+export function expandCore(run) {
+  const c = coreCostOf(run);
   if (run.gold < c) return false;
   run.gold -= c;
-  it.tier += 1;
+  run.cores += 1;
   return true;
 }
 
-// 把 a 槽的东西挪到 b 槽；b 槽有东西就交换；同款同阶则合并升阶
-export function move(run, a, b) {
-  if (a === b) return 'noop';
-  const A = run.items[a], B = run.items[b];
-  if (!A) return 'noop';
-  if (B && B.key === A.key && B.tier === A.tier && A.tier < 3) {
-    run.items[b] = { ...B, uid: B.uid, tier: B.tier + 1 };
-    run.items[a] = null;
-    return 'merge';
-  }
-  run.items[a] = B;
-  run.items[b] = A;
-  return 'swap';
-}
-
-// ---------------------------------------------------------------- 对手
+// ---------------------------------------------------------------- 对手与地形
 export function rowOf(run, day = run.day) {
   return DATA.rowFor(day, run.diff.id);
 }
 
 export function pickFoe(run, day = run.day) {
   const row = rowOf(run, day);
-  const id = ru(run.rnd, row.pool);
-  run.foeId = id;
-  return FOE_BY_ID.get(id);
+  run.foeId = ru(run.rnd, row.pool);
+  run.terrain = ru(run.rnd, TERRAINS).id;
+  return FOE_BY_ID.get(run.foeId);
 }
 
 // 一只怪技能表折算出来的「每拍输出」（不含当天系数），用来把同一天的不同怪拉到同一档。
-// 中毒/灼烧按 3 拍持续结算，强化（str）按「每次攻击都多加一截」折中估。
 export function rawDps(foe) {
   let d = 0;
   for (const s of foe.skills) {
@@ -250,7 +344,6 @@ export function rawDps(foe) {
   return Math.max(0.6, d);
 }
 
-// 会自愈/架盾/削弱的怪等于多了一大截血，从生命预算里扣掉
 const supDps = (foe) => {
   let d = 0;
   for (const s of foe.skills) {
@@ -268,18 +361,19 @@ export function foeStats(run, day = run.day) {
   const foe = FOE_BY_ID.get(run.foeId) || FOES[0];
   const row = rowOf(run, day);
   const diff = run.diff;
+  const ter = terrainOf(run.terrain);
   const weaken = run.pact.k === 'weaken' ? 1 - run.pact.v : 1;
   const rankMul = row.boss && foe.rank !== 'boss' ? 1.06 : 1;
   const hpMul = foe.rank === 'boss' ? 1.12 : foe.rank === 'elite' ? 1.04 : 1;
   const sup = 1 + (day - 1) * 0.2;
   const t = Math.min(day, TUNING.dayHp.length - 1);
-  // 难度的数值加成按天渐入：第一天只给一半，第三天给全。
-  // 不这么做的话「深渊」开局就是 1.4 倍 + 精英，第一场等于抛硬币，
-  // 玩家连摊子长什么样都还没看清就散场了（实测首日胜率 44%）。
-  const ramp = day >= 3 ? 1 : 0.5 + (day - 1) * 0.25;
+  // 难度的数值加成按天渐入：第一天只给四成，第五天给全。
+  // 开局手里只有一两条命轮，高难度如果第一天就全量加成，等于开局抛硬币。
+  const ramp = day >= 5 ? 1 : 0.4 + (day - 1) * 0.15;
   const hpDiff = 1 + (diff.hp - 1) * ramp;
   const dpsDiff = 1 + (diff.dps - 1) * ramp;
-  const budget = TUNING.dayHp[t] * hpDiff * weaken * rankMul * hpMul;
+  const terHp = 1 + (ter.k === 'hp' ? ter.v : 0);
+  const budget = TUNING.dayHp[t] * hpDiff * terHp * weaken * rankMul * hpMul;
   const sustain = supDps(foe) * sup * 22;
   return {
     foe,
@@ -292,59 +386,54 @@ export function foeStats(run, day = run.day) {
 }
 
 // ---------------------------------------------------------------- 战斗
+const MOD_KEYS = ['cap', 'gen', 'amp', 'crit', 'cdmg', 'shcap', 'regen', 'start', 'wcd', 'thorns', 'gold'];
+
+function addMod(mod, k, v) {
+  if (MOD_KEYS.indexOf(k) < 0) return;
+  if (k === 'shcap') mod.shieldCap += v;
+  else if (k === 'start') mod.startCpu += v;
+  else if (k === 'wcd') mod.wcdDown += v;
+  else mod[k] += v;
+}
+
+function addWheelMod(mod, w) {
+  if (!w) return;
+  const v = w.v || 0;
+  switch (w.main) {
+    case 'CRIT_RATE': mod.crit += v; break;
+    case 'CRIT_DMG': mod.cdmg += v; break;
+    case 'DMG_AMP': mod.amp += v; break;
+    case 'KEYFLARE_REGEN': mod.regen += v; break;
+    case 'SIGIL_YIELD': mod.gold += v; break;
+    case 'REALM_MASTERY': mod.flat += v; break;
+    case 'DEATH_RESISTANCE': mod.hp += v; break;
+    case 'ALIEMUS_REGEN': mod.ward += v; break;
+    default: break;
+  }
+  const p = w.perk;
+  if (p) addMod(mod, p.k, p.v);
+}
+
 export function createFight(run) {
   const { foe, maxHp, atk, sup } = foeStats(run);
-  const hero = run.hero;
   const pact = run.pact;
-  const pas = hero.pas || { k: 'none', v: 0 };
+  const ter = terrainOf(run.terrain);
 
   const mod = {
     amp: 0, crit: 0.08, cdmg: 0.5, regen: 0, gold: 0, flat: 0, hp: 0, ward: 0,
-    leech: 0, cdDown: 0, openShield: 0, pierce: 0, thorns: 0, venom: 0, fear: 0,
-    save: 0, dupFirst: 0, lowLeech: 0, headstart: 0, shieldCap: 60,
+    leech: 0, wcdDown: 0, openShield: 0, pierce: 0, thorns: 0, venom: 0, fear: 0,
+    save: 0, dupFirst: 0, lowLeech: 0, startCpu: 0, shieldCap: 60,
+    gen: 0, cap: 0,
   };
-
-  const addWheel = (w) => {
-    if (!w) return;
-    const v = w.v || 0;
-    switch (w.main) {
-      case 'CRIT_RATE': mod.crit += v; break;
-      case 'CRIT_DMG': mod.cdmg += v; break;
-      case 'DMG_AMP': mod.amp += v; break;
-      case 'KEYFLARE_REGEN': mod.regen += v; break;
-      case 'SIGIL_YIELD': mod.gold += v; break;
-      case 'REALM_MASTERY': mod.flat += v; break;
-      case 'DEATH_RESISTANCE': mod.hp += v; break;
-      case 'ALIEMUS_REGEN': mod.ward += v; break;
-      default: break;
-    }
-    const p = w.perk;
-    if (p) {
-      if (p.k === 'amp') mod.amp += p.v;
-      else if (p.k === 'poison') mod.venom += p.v;
-      else if (p.k === 'shield') mod.openShield += p.v;
-      else if (p.k === 'haste') mod.headstart += p.v;
-    }
-  };
-  for (const w of run.wheels) addWheel(w);
-
-  // 唤醒体被动（12 种原型，数值随客户端副属性走）
-  switch (pas.k) {
-    case 'amp': mod.amp += pas.v; break;
-    case 'pierce': mod.pierce += pas.v; break;
-    case 'leech': mod.leech += pas.v; break;
-    case 'regen': mod.regen += pas.v; break;
-    case 'cddown': mod.cdDown += pas.v; break;
-    case 'thorns': mod.thorns += pas.v; break;
-    case 'tide': mod.hp += pas.v; break;
-    case 'venom': mod.venom += pas.v; break;
-    case 'bulwark': mod.shieldCap += pas.v; break;
-    default: break;
+  for (const r of run.relics) addMod(mod, itemOf(r.key).m.k, itemOf(r.key).m.v);
+  for (const w of run.wheels) addWheelMod(mod, wheelOf(w.key));
+  for (const h of run.squad) {
+    const f = heroOf(h.key).fate;
+    if (f) addMod(mod, f.k, f.v);
   }
 
-  // 密契
   switch (pact.k) {
-    case 'cddown': mod.cdDown += pact.v; break;
+    case 'cddown': mod.wcdDown += pact.v; break;
     case 'dupfirst': mod.dupFirst = 1; break;
     case 'openshield': mod.openShield += pact.v; break;
     case 'lowleech': mod.lowLeech = pact.v; break;
@@ -352,7 +441,7 @@ export function createFight(run) {
     case 'save': mod.save = pact.v; break;
     case 'bulwark2': mod.shieldCap += pact.v; mod.openShield += 15; break;
     case 'leech': mod.leech += pact.v; break;
-    case 'headstart': mod.headstart += pact.v; break;
+    case 'headstart': mod.startCpu += pact.v; break;
     case 'tank': mod.hp += pact.v; break;
     case 'greed': mod.amp += 0.2; break;
     case 'venom': mod.venom += pact.v; break;
@@ -361,7 +450,39 @@ export function createFight(run) {
     default: break;
   }
 
-  const maxHP = Math.max(40, TUNING.startHp + mod.hp + run.bonusHp);
+  const terAmp = ter.k === 'amp' ? ter.v : 0;
+  const terHp = ter.k === 'hp' ? ter.v : 0;
+  const cdTer = (ter.k === 'slow' ? ter.v : 0) - (ter.k === 'fast' ? ter.v : 0);
+
+  const maxHP = Math.max(40, Math.round((TUNING.startHp + mod.hp + run.bonusHp) * (1 + terHp)));
+  const cpuCap = TUNING.cpuBase + mod.cap + run.cores * TUNING.coreGain;
+
+  // 唤醒体（含左右光环）
+  const units = run.squad.map((h) => {
+    const d = heroOf(h.key);
+    return { uid: h.uid, def: d, cd: d.cd, timer: 0, gen: d.gen, pow: 1, act: d.act, aura: d.aura, fired: 0 };
+  });
+  units.forEach((u, i) => {
+    for (const j of [i - 1, i + 1]) {
+      const nb = units[j];
+      if (!nb || !nb.aura) continue;
+      if (nb.aura.k === 'gen') u.gen += nb.aura.v;
+      else if (nb.aura.k === 'cd') u.cd -= nb.aura.v;
+      else if (nb.aura.k === 'pow') u.pow += nb.aura.v;
+    }
+  });
+  for (const u of units) {
+    u.cd = Math.max(TUNING.cdMin, u.cd + cdTer);
+    u.gen = Math.max(1, Math.round(u.gen * (1 + mod.gen)));
+  }
+
+  // 命轮
+  const wheels = run.wheels.map((w) => {
+    const d = wheelOf(w.key);
+    return { uid: w.uid, def: d, cost: d.cpu, wcd: d.wcd, timer: 0, native: !!w.native, waiting: false };
+  });
+  for (const w of wheels) w.wcd = Math.max(TUNING.wcdMin, w.wcd + cdTer - mod.wcdDown);
+
   const f = {
     t: 0, over: null, win: false,
     p: {
@@ -372,44 +493,17 @@ export function createFight(run) {
       hp: maxHp, maxHp, shield: 0, poison: 0, poisonT: 0, burn: 0, burnT: 0,
       str: 0, vuln: 0, vulnT: 0, slow: 0,
       name: foe.n, spr: foe.spr, rank: foe.rank, desc: foe.desc,
-      skills: foe.skills.map((s) => ({ n: s.n, cd: s.cd, timer: 0, op: s.op })),
+      skills: foe.skills.map((s) => ({ n: s.n, cd: Math.max(2, s.cd + cdTer), timer: 0, op: s.op })),
     },
-    items: [], gold: 0, firstDone: false,
-    mod, hero, pact, foe, diff: run.diff,
+    units, wheels, cpu: 0, cpuCap, cpuGain: 0, cpuSpent: 0, gold: 0,
+    mod, pact, foe, diff: run.diff, ter, terAmp,
     atkMul: atk, supMul: sup, rnd: run.rnd,
-    shieldCap: Math.max(10, mod.shieldCap),
-    surgeT: 0, saveUsed: false, dupUsed: false,
+    shieldCap: Math.max(10, mod.shieldCap), wheelAmp: 1 + mod.amp + terAmp,
+    surgeT: 0, saveUsed: false, dupUsed: false, firstWheel: true,
     dealt: 0, taken: 0,
   };
 
-  // 造物实例（含相邻光环、冷却）
-  const live = [];
-  run.items.forEach((it, slot) => {
-    if (!it) return;
-    const def = itemOf(it.key);
-    const mul = TUNING.tierMul[it.tier] || 1;
-    live.push({ slot, def, tier: it.tier, mul, timer: 0, cd: def.cd, aura: 0, auraCd: 0 });
-  });
-  // 相邻光环：光环造物只加成相邻的
-  for (const a of live) {
-    if (a.def.cd > 0) continue;
-    const op = a.def.op[0] || {};
-    for (const nb of ADJ[a.slot]) {
-      const b = live.find((x) => x.slot === nb);
-      if (!b) continue;
-      if (op.k2 === 'cd') b.auraCd += (op.v || 0) * a.mul;
-      else b.aura += (op.v || 0) * a.mul;
-    }
-  }
-  // 冷却：密契/被动减拍，回溯/四月礼赞让计时先走几拍
-  for (const a of live) {
-    if (a.cd <= 0) continue;
-    a.cd = Math.max(2, a.cd - Math.floor(a.auraCd) - mod.cdDown);
-    if (mod.headstart) a.timer = Math.min(a.cd - 1, mod.headstart);
-    if (pas.k === 'tempo') a.timer = Math.max(a.timer, Math.min(a.cd - 1, pas.v));
-  }
-  f.items = live;
-
+  f.cpu = Math.min(cpuCap, mod.startCpu);
   if (mod.openShield) f.p.shield = Math.min(f.shieldCap, mod.openShield);
   return f;
 }
@@ -431,14 +525,16 @@ function damageTo(target, amount, pierce = 0) {
 function hurt(f, target, amount, pierce = 0) {
   const isPlayer = target === f.p;
   if (isPlayer) {
-    if (f.hero.pas.k === 'bulwark' && f.p.shield > 0) amount *= 0.8;
     f.taken += amount;
   }
   const lost = damageTo(target, amount, pierce);
-  if (isPlayer && lost > 0 && f.mod.thorns > 0 && !f.over) {
-    const back = Math.min(f.mod.thorns, Math.max(1, Math.round(amount * 0.35)));
-    f.e.hp -= back;
-    f.dealt += back;
+  const back = isPlayer ? f.mod.thorns + (f.ter.k === 'thorns' ? f.ter.v : 0)
+    : (f.ter.k === 'thorns' ? f.ter.v : 0);
+  if (lost > 0 && back > 0 && !f.over) {
+    const other = isPlayer ? f.e : f.p;
+    const v = Math.min(back, Math.max(1, Math.round(amount * 0.4)));
+    other.hp -= v;
+    if (isPlayer) f.dealt += v;
   }
   if (isPlayer && f.p.hp <= 0 && f.mod.save && !f.saveUsed) {
     f.saveUsed = true;
@@ -447,17 +543,12 @@ function hurt(f, target, amount, pierce = 0) {
   return lost;
 }
 
-// 一方的伤害倍率
-function rollDamage(f, side, base) {
-  if (side === 'e') {
-    let raw = base * (1 + f.e.str * 0.02);
-    if (f.mod.fear) raw *= 1 - f.mod.fear;
-    return { raw, crit: false };
-  }
-  let raw = base + f.p.str + f.mod.flat;
-  raw *= 1 + f.mod.amp;
+// 我方伤害：kind='wheel' 才吃「命轮增伤」
+function rollDamage(f, base, kind) {
+  let raw = base + f.mod.flat + f.p.str * 0.5;
+  raw *= 1 + (kind === 'wheel' ? f.mod.amp : 0) + f.terAmp;
   if (f.p.weakT > 0) raw *= 1 - f.p.weak;
-  const crit = f.rnd() < Math.min(0.6, f.mod.crit);
+  const crit = f.rnd() < Math.min(0.65, f.mod.crit);
   if (crit) raw *= 1.5 + f.mod.cdmg;
   if (f.e.vulnT > 0) raw *= 1 + f.e.vuln;
   return { raw, crit };
@@ -475,10 +566,15 @@ function applyOp(f, side, op, mul, ctx = {}) {
       let total = 0;
       let anyCrit = false;
       for (let h = 0; h < hits; h++) {
-        const { raw, crit } = rollDamage(f, side, op.v * mul + (ctx.aura || 0));
+        let raw;
+        let crit = false;
         if (side === 'p') {
-          hurt(f, target, raw, f.mod.pierce);
+          const r = rollDamage(f, op.v * mul, ctx.kind);
+          raw = r.raw; crit = r.crit;
+          hurt(f, target, raw, ctx.kind === 'wheel' ? f.mod.pierce : 0);
         } else {
+          raw = op.v * mul * (1 + f.e.str * 0.02) * (1 + f.terAmp);
+          if (f.mod.fear) raw *= 1 - f.mod.fear;
           hurt(f, target, raw);
         }
         total += raw;
@@ -486,7 +582,7 @@ function applyOp(f, side, op, mul, ctx = {}) {
       }
       if (op.vsPoison && target.poison > 0) {
         const extra = op.vsPoison * mul;
-        hurt(f, target, extra, side === 'p' ? f.mod.pierce : 0);
+        hurt(f, target, extra);
         total += extra;
       }
       if (side === 'p') {
@@ -495,55 +591,54 @@ function applyOp(f, side, op, mul, ctx = {}) {
         if (f.mod.lowLeech && f.p.hp < f.p.maxHp * 0.5) leech += f.mod.lowLeech;
         if (leech > 0) {
           const h = Math.round(total * leech);
-          if (h > 0) { self.hp = Math.min(self.maxHp, self.hp + h); ev.push({ s: 'p', k: 'heal', v: h, slot: src.slot }); }
+          if (h > 0) { self.hp = Math.min(self.maxHp, self.hp + h); ev.push({ s: 'p', k: 'heal', v: h }); }
         }
       }
-      ev.push({ s: side, k: 'dmg', v: Math.round(total), hits, crit: anyCrit, slot: src.slot });
+      ev.push({ s: side, k: 'dmg', v: Math.round(total), hits, crit: anyCrit, src: ctx.srcId });
       break;
     }
     case 'poison': {
       let v = op.v * mul;
-      if (side === 'p' && f.mod.venom) v *= 1 + f.mod.venom;
-      if (side === 'p' && f.mod.venom) v += 1;
+      if (side === 'p' && f.mod.venom) { v *= 1 + f.mod.venom; v += 1; }
       target.poison = Math.max(target.poison, Math.round(v));
       target.poisonT = DOT_TURNS;
-      ev.push({ s: side, k: 'poison', v: Math.round(v), slot: src.slot });
+      ev.push({ s: side, k: 'poison', v: Math.round(v), src: ctx.srcId });
       break;
     }
     case 'burn': {
       const v = Math.round(op.v * mul);
       target.burn = Math.max(target.burn, v);
       target.burnT = DOT_TURNS;
-      ev.push({ s: side, k: 'burn', v, slot: src.slot });
+      ev.push({ s: side, k: 'burn', v, src: ctx.srcId });
       break;
     }
     case 'shield': {
       const v = op.v * mul;
-      const cap = side === 'p' ? f.shieldCap : 40;
+      const cap = side === 'p' ? f.shieldCap : 60;
       self.shield = Math.min(cap, self.shield + v);
-      ev.push({ s: side, k: 'shield', v: Math.round(v), slot: src.slot });
+      ev.push({ s: side, k: 'shield', v: Math.round(v), src: ctx.srcId });
       break;
     }
     case 'heal': {
       const v = Math.round(op.v * mul);
       self.hp = Math.min(self.maxHp, self.hp + v);
-      ev.push({ s: side, k: 'heal', v, slot: src.slot });
+      ev.push({ s: side, k: 'heal', v, src: ctx.srcId });
       break;
     }
     case 'gold': {
-      if (side === 'p') { f.gold += Math.round(op.v * mul); ev.push({ s: 'p', k: 'gold', v: Math.round(op.v * mul), slot: src.slot }); }
+      if (side === 'p') { f.gold += Math.round(op.v * mul); ev.push({ s: 'p', k: 'gold', v: Math.round(op.v * mul) }); }
       break;
     }
     case 'str': {
       self.str += op.v * mul;
-      ev.push({ s: side, k: 'str', v: Math.round(op.v * mul), slot: src.slot });
+      ev.push({ s: side, k: 'str', v: Math.round(op.v * mul * 10) / 10, src: ctx.srcId });
       break;
     }
     case 'vuln': {
       if (side === 'p') {
         target.vuln = Math.max(target.vuln, op.v * mul);
         target.vulnT = DOT_TURNS;
-        ev.push({ s: 'p', k: 'vuln', v: op.v * mul, slot: src.slot });
+        ev.push({ s: 'p', k: 'vuln', v: op.v * mul, src: ctx.srcId });
       }
       break;
     }
@@ -553,7 +648,7 @@ function applyOp(f, side, op, mul, ctx = {}) {
         if (add > 0) {
           f.e.slow += add;
           for (const s of f.e.skills) s.cd += add;
-          ev.push({ s: 'p', k: 'slow', v: add, slot: src.slot });
+          ev.push({ s: 'p', k: 'slow', v: add });
         }
       }
       break;
@@ -568,35 +663,17 @@ function applyOp(f, side, op, mul, ctx = {}) {
     }
     case 'stun': {
       if (side === 'e') {
-        for (const it of f.items) if (it.cd > 0) it.timer = Math.max(0, it.timer - (op.v || 1));
-        ev.push({ s: 'e', k: 'stun', v: op.v || 1 });
-      }
-      break;
-    }
-    case 'haste': {
-      if (side === 'p') {
-        for (const nb of ADJ[src.slot] || []) {
-          const it = f.items.find((x) => x.slot === nb && x.cd > 0);
-          if (it) it.cd = Math.max(2, it.cd - op.v);
-        }
-        ev.push({ s: 'p', k: 'haste', v: op.v, slot: src.slot, adj: ADJ[src.slot] });
-      }
-      break;
-    }
-    case 'charge': {
-      if (side === 'p') {
-        for (const nb of ADJ[src.slot] || []) {
-          const it = f.items.find((x) => x.slot === nb && x.cd > 0);
-          if (it) it.timer += op.v * mul;
-        }
-        ev.push({ s: 'p', k: 'charge', v: op.v, slot: src.slot, adj: ADJ[src.slot] });
+        const n = op.v || 1;
+        for (const u of f.units) u.timer = Math.max(0, u.timer - n);
+        for (const w of f.wheels) w.timer = Math.max(0, w.timer - n);
+        ev.push({ s: 'e', k: 'stun', v: n });
       }
       break;
     }
     case 'regen': {
       if (side === 'p') {
         f.mod.regen += op.v * mul;
-        ev.push({ s: 'p', k: 'regen', v: Math.round(op.v * mul), slot: src.slot });
+        ev.push({ s: 'p', k: 'regen', v: Math.round(op.v * mul) });
       }
       break;
     }
@@ -610,18 +687,26 @@ export function stepFight(f) {
   const ev = [];
   if (f.over) return ev;
   f.t += 1;
+  const ter = f.ter;
 
-  // 1) 被动
-  const pas = f.hero.pas || {};
-  if (pas.k === 'ward' && f.t % Math.max(2, pas.v) === 0) {
-    const w = pas.w || 6;
-    f.p.shield = Math.min(f.shieldCap, f.p.shield + w);
-    ev.push({ s: 'p', k: 'shield', v: w, pas: 1 });
+  // 1) 地形：敌我同吃
+  if (ter.every && f.t % ter.every === 0) {
+    if (ter.k === 'drain') {
+      f.p.hp -= ter.v; f.e.hp -= ter.v;
+      ev.push({ s: 'p', k: 'dmg', v: ter.v, ter: 1 });
+      ev.push({ s: 'e', k: 'dmg', v: ter.v, ter: 1 });
+    } else if (ter.k === 'heal') {
+      f.p.hp = Math.min(f.p.maxHp, f.p.hp + ter.v);
+      f.e.hp = Math.min(f.e.maxHp, f.e.hp + ter.v);
+      ev.push({ s: 'p', k: 'heal', v: ter.v, ter: 1 });
+    } else if (ter.k === 'shield') {
+      f.p.shield = Math.min(f.shieldCap, f.p.shield + ter.v);
+      f.e.shield = Math.min(60, f.e.shield + ter.v);
+      ev.push({ s: 'p', k: 'shield', v: ter.v, ter: 1 });
+    }
   }
-  if (pas.k === 'tide' && f.p.hp < f.p.maxHp * 0.5) {
-    f.p.hp = Math.min(f.p.maxHp, f.p.hp + 1);
-    ev.push({ s: 'p', k: 'heal', v: 1, pas: 1 });
-  }
+
+  // 2) 每拍回血
   if (f.mod.regen) {
     f.p.hp = Math.min(f.p.maxHp, f.p.hp + f.mod.regen);
     if (f.mod.regen >= 1) ev.push({ s: 'p', k: 'heal', v: Math.round(f.mod.regen), pas: 1 });
@@ -629,9 +714,8 @@ export function stepFight(f) {
   if (f.mod.ward && f.t % 4 === 0) {
     f.p.shield = Math.min(f.shieldCap, f.p.shield + f.mod.ward);
   }
-  if (pas.k === 'surge' && f.t % Math.max(2, pas.v) === 0) f.surgeT = 1;
 
-  // 2) 状态结算
+  // 3) 状态结算
   for (const [side, obj] of [['p', f.p], ['e', f.e]]) {
     if (obj.poisonT > 0) {
       obj.hp -= obj.poison;
@@ -650,43 +734,47 @@ export function stepFight(f) {
   }
   if (checkOver(f)) return ev;
 
-  // 3) 造物触发
-  const queue = [];
-  if (f.surgeT) {
-    f.surgeT = 0;
-    const active = f.items.filter((x) => x.cd > 0);
-    if (active.length) queue.push(active[Math.floor(f.rnd() * active.length)]);
+  // 4) 唤醒体出手：产算力 + 副效果
+  f.cpuGain = 0;
+  for (const u of f.units) {
+    u.timer += 1;
+    if (u.timer < u.cd) continue;
+    u.timer = 0;
+    const room = Math.max(0, f.cpuCap - f.cpu);
+    const got = Math.min(room, u.gen);
+    f.cpu += got;
+    f.cpuGain += got;
+    ev.push({ s: 'p', k: 'cpu', v: got, waste: u.gen - got, uid: u.uid });
+    for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow, { srcId: u.uid }));
+    if (checkOver(f)) return ev;
   }
-  for (const it of f.items) {
-    if (it.cd <= 0) continue;
-    it.timer += 1;
-    if (it.timer >= it.cd) { it.timer = 0; queue.push(it); }
-  }
-  let guard = 0;
-  while (queue.length && guard++ < 32) {
-    const it = queue.shift();
-    const isFirst = !f.firstDone;
-    f.firstDone = true;
-    const mul = it.mul;
-    for (const op of it.def.op) ev.push(...applyOp(f, 'p', op, mul, { src: it, aura: it.aura }));
-    // 二律背反：第一件造物再算一次（只追加伤害类，免得刷盾刷到无敌）
-    if (isFirst && f.pact.k === 'firstcrit') {
-      const dmg = it.def.op.find((o) => o.k === 'dmg');
-      if (dmg) {
-        const extra = Math.round(dmg.v * mul + it.aura);
-        hurt(f, f.e, extra, f.mod.pierce);
-        ev.push({ s: 'p', k: 'dmg', v: extra, crit: true, slot: it.slot });
+
+  // 5) 命轮开火：攒够算力才放
+  for (const w of f.wheels) {
+    if (w.timer < w.wcd) w.timer += 1;
+    if (w.timer < w.wcd) { w.waiting = false; continue; }
+    if (f.cpu < w.cost) { w.waiting = true; continue; }
+    w.waiting = false;
+    f.cpu -= w.cost;
+    f.cpuSpent += w.cost;
+    w.timer = 0;
+    for (const op of w.def.op) ev.push(...applyOp(f, 'p', op, 1, { kind: 'wheel', srcId: w.uid }));
+    // 再衍化：每场第一发命轮再打一次
+    if (f.firstWheel && f.mod.dupFirst && !f.dupUsed) {
+      f.dupUsed = true;
+      for (const op of w.def.op) {
+        if (op.k !== 'dmg') continue;
+        const extra = Math.round(op.v * (op.hits || 1));
+        f.e.hp -= extra;
+        f.dealt += extra;
+        ev.push({ s: 'p', k: 'dmg', v: extra });
       }
     }
-    // 再衍化：每场第一件造物触发完再触发一次
-    if (isFirst && f.mod.dupFirst && !f.dupUsed) {
-      f.dupUsed = true;
-      queue.unshift(it);
-    }
+    f.firstWheel = false;
+    if (checkOver(f)) return ev;
   }
-  if (checkOver(f)) return ev;
 
-  // 4) 敌方技能
+  // 6) 敌方技能
   for (const s of f.e.skills) {
     s.timer += 1;
     if (s.timer >= s.cd) {
@@ -705,7 +793,6 @@ function checkOver(f) {
   if (f.over) return true;
   if (f.e.hp <= 0) { f.over = 'win'; f.win = true; return true; }
   if (f.p.hp <= 0) { f.over = 'lose'; f.win = false; return true; }
-  // 打满还没分出胜负：按剩血百分比判，谁剩得多谁赢（同比例算玩家赢）
   if (f.t >= TUNING.beats) {
     const pr = f.p.hp / f.p.maxHp, er = f.e.hp / f.e.maxHp;
     f.win = pr >= er;
@@ -716,14 +803,12 @@ function checkOver(f) {
   return false;
 }
 
-// 打完一整场（给模拟用）
 export function autoFight(f) {
   let guard = 0;
   while (!f.over && guard++ < TUNING.beats + 2) stepFight(f);
   return f;
 }
 
-// 战斗结束 → 结算回 run
 export function settle(run, f) {
   const income = Math.round((TUNING.income[Math.min(run.day, TUNING.income.length - 1)] || 0) * run.diff.income);
   let goldGain = f.gold + f.mod.gold + (f.win ? income : 0);
@@ -734,7 +819,6 @@ export function settle(run, f) {
   if (f.win) {
     run.wins += 1;
     if (run.pact.k === 'grow') run.bonusHp += run.pact.v;
-    if (run.pact.k === 'feast') run.bonusHp = Math.max(-TUNING.startHp, run.bonusHp); // 欢宴只是回血，不改上限
     run.day += 1;
     run.freeReroll = 0;
     if (run.day > run.totalDays) { run.cleared = true; run.over = true; }
@@ -742,7 +826,6 @@ export function settle(run, f) {
   } else {
     run.losses += 1;
     run.sane -= 1;
-    // 最后一天打输也算散场（这里以前会顺手标成通关）
     if (run.sane <= 0 || run.day >= run.totalDays) {
       run.over = true;
     } else {
@@ -761,15 +844,15 @@ export function scoreOf(run) {
   return Math.round((day * 120 + Math.max(0, run.sane) * 60 + run.gold * 2 + (run.cleared ? 400 : 0)) * diffMul);
 }
 
-// ---------------------------------------------------------------- 卡面文本（和 op 现算，保证一致）
-const num = (v) => (Math.abs(v - Math.round(v)) < 1e-9 ? String(Math.round(v)) : v.toFixed(1));
-const pct = (v) => Math.round(v * 100) + '%';
+// ---------------------------------------------------------------- 卡面文本（和数值同源，保证一致）
+const num = (v) => (Math.abs(v - Math.round(v)) < 1e-9 ? String(Math.round(v)) : String(Math.round(v * 10) / 10));
+const pctv = (v) => Math.round(v * 100) + '%';
 
-export function opText(op, mul = 1, aura = 0) {
+export function opText(op, mul = 1) {
   switch (op.k) {
     case 'dmg': {
-      let t = `造成 ${num(op.v * mul + aura)} 点伤害`;
-      if (op.hits > 1) t += `，共 ${op.hits} 次`;
+      let t = `造成 ${num(op.v * mul)} 点伤害`;
+      if (op.hits > 1) t += `，共 ${op.hits} 段`;
       if (op.pierce) t += '，无视护盾';
       if (op.leech) t += '，并吸取 30%';
       if (op.vsPoison) t += `，对中毒目标追加 ${num(op.vsPoison * mul)} 点`;
@@ -781,28 +864,31 @@ export function opText(op, mul = 1, aura = 0) {
     case 'heal': return `回复 ${num(Math.round(op.v * mul))} 点生命`;
     case 'gold': return `战斗结束额外获得 ${num(Math.round(op.v * mul))} 金币`;
     case 'slow': return `对手所有技能延后 ${num(op.v * mul)} 拍`;
-    case 'haste': return `相邻造物冷却 -${num(op.v)} 拍（不改变已排的进度）`;
-    case 'charge': return `相邻造物立刻推进 ${num(op.v * mul)} 拍`;
     case 'str': return `本场每次伤害 +${num(op.v * mul)}（可叠加）`;
-    case 'vuln': return `目标受到的伤害 +${pct(op.v * mul)}（3 拍）`;
+    case 'vuln': return `目标受到的伤害 +${pctv(op.v * mul)}（3 拍）`;
     case 'regen': return `本场每拍回复 ${num(op.v * mul)} 点生命`;
     case 'thorns': return `受到伤害时反弹 ${num(op.v * mul)} 点`;
-    case 'weaken': return `你的伤害 -${pct(op.v)}（${op.t || 3} 拍）`;
-    case 'stun': return '打断：所有造物延后一拍';
-    case 'aura': return op.k2 === 'cd' ? `相邻造物冷却 -${num(aura || op.v)} 拍` : `相邻造物的伤害 +${num(aura || op.v)}`;
+    case 'weaken': return `你的伤害 -${pctv(op.v)}（${op.t || 3} 拍）`;
+    case 'stun': return '打断：所有唤醒体与命轮延后一拍';
     default: return '';
   }
 }
 
-export function itemText(it) {
-  const def = it.def || it;
-  const mul = it.mul || 1;
-  return def.op.map((o) => opText(o, mul)).filter(Boolean).join('；');
+// 造物的一条加成 → 文案
+export function modText(k, v) {
+  const z = MOD_ZH[k];
+  if (!z) return '';
+  const pctK = k === 'gen' || k === 'amp' || k === 'crit' || k === 'cdmg';
+  const show = pctK ? String(Math.round(v * 100))
+    : k === 'wcd' ? String(Math.round(v)) : num(v);
+  return `${z[0]} ${z[1]}${show}${z[2]}`;
 }
 
-export function cdText(cd) {
-  if (!cd) return '光环';
-  if (cd <= 2) return '极快';
-  if (cd <= 3) return cd + ' 拍';
-  return cd + ' 拍';
+export function itemText(def) {
+  if (!def || !def.m) return '';
+  return modText(def.m.k, def.m.v);
+}
+
+export function wheelFireText(def) {
+  return def.op.map((o) => opText(o, 1)).join('；');
 }

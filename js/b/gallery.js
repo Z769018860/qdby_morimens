@@ -1790,7 +1790,7 @@ function bazaar() {
       { k: '最远', v: n(s.day) ? '第 ' + n(s.day) + ' 天' : '—' },
       { k: '开摊', v: runs + ' 次' },
     ],
-    extra: runs ? (wins ? `收满十二天的有 ${wins} 摊` : `还没走完十二天`) : '',
+    extra: runs ? (wins ? `打穿全部天数的有 ${wins} 摊` : `还没走完全部天数`) : '',
   };
 }
 
@@ -1811,7 +1811,7 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'keeper', n: '杀死守密人', href: 'keeper.html', icon: '🔪', read: keeper, tip: '126 个结局的文字恐怖' },
   { k: 'bugfight', n: '电子斗蛐蛐', href: 'bugfight.html', icon: '🦗', read: bugfight, tip: '押注两队怪物，活着出笼' },
   { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，73 位出战者，能上段' },
-  { k: 'bazaar', n: '大巴扎：银钥', href: 'bazaar.html', icon: '🏪', read: bazaar, tip: '六格造物，按拍自动打满四十回合' },
+  { k: 'bazaar', n: '大巴扎：银钥', href: 'bazaar.html', icon: '🏪', read: bazaar, tip: '十格布阵，唤醒体产算力、命轮吃算力开火' },
 ];
 
 // 一次性读全部：页面只调这一个

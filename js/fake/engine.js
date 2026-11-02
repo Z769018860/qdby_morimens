@@ -1,10 +1,19 @@
-// 《寻找伪人：Morimens》的状态机。
+// 《寻找伪人：Morimens》的状态机（v3）。
 //
-// 一条铁律：伪人的破绽必须**一定可查**——它只抄错一条，而这一条在登记卡上
-// （界域 / 职介 / 登记号）或只能在问话里问到。不存在「完全没法判断」的伪人，
-// 也不存在「看起来像其实不是」的冤案：真人一条都不错。
+// 结构：白天（屋子里）↔ 夜里（门后），七天。
 //
-// 所有随机都走 makeRng(seed)，同一个种子重开一局完全一样（方便复现 bug）。
+// 白天你面对的是**已经住进来的人**，夜里你面对的是门外的人。
+// 放错人进来不会当场扣理智——它会在这个晚上杀掉屋里的一个真人。天亮你才发现少了谁。
+// 所以判断的代价变成了「别人的命」，而不是你自己的一条进度条。
+//
+// 一条铁律：伪人身上有且只有**一处不对**，一定查得到。
+// 这一处可能落在六种地方：
+//   card 登记卡（界域/职介/登记号）   ask 答话（生日/身高/别名/星座）
+//   self 自称   eye 瞳色   item 随身物   pet 身上的动物   line 口头禅
+// 前两种档案里就有真值，随时可对；后五种**档案上没有**，只能靠图鉴里你核实过的真值。
+// 图鉴的真值只在「对方说的就是真的」时才点亮——所以一周目靠档案，多周目靠眼力。
+//
+// 随机全部走种子：同一个种子重开一局完全一样（方便复现 bug、也方便机器人跑平衡）。
 
 import { CHARS, META } from './gen.js';
 
@@ -14,7 +23,6 @@ export const FIELD_LABEL = {
   sign: '签名', live: '直播间标题', area: '分区',
 };
 
-// 问话时念出来的句子（门房的口吻，不是表单口吻）
 export const FIELD_ASK = {
   birthday: '你生日是哪天？',
   height: '你多高？',
@@ -25,20 +33,38 @@ export const FIELD_ASK = {
   area: '你挂在哪个分区？',
 };
 
+// 六处破绽的人话名字
+export const LIE_LABEL = {
+  card: '登记卡', ask: '答话', self: '自称', eye: '眼睛', item: '随身物',
+  pet: '身上的动物', line: '口头禅',
+};
+
 export const NIGHT_NAME = ['第一夜', '第二夜', '第三夜', '第四夜', '第五夜', '第六夜', '第七夜'];
 
-// acts＝这一夜每个来访者能问/看几次；lie＝破绽落在登记卡还是问话里
-// obs＝观察时伪人露破绽的概率（真人永远是 0）
+export const DAYS = 7;
+export const VISITS = 3;         // 每晚敲几次门
+export const ROOM_MAX = 6;       // 屋子最多住几个人
+export const START_HOME = 2;     // 开局屋里已有的住户（都是真人）
+export const HEAR_LIMIT = 1;     // 门外「听它说」的次数
+export const PEEK_LIMIT = 1;     // 门外「凑近看」的次数
+export const TALK_PER_DAY = 2;   // 白天每个住户能聊几个话题
+
+// 每晚几个伪人 + 破绽可能落在哪几处。
+// 前三夜一定留着 card / ask（档案里有真值），第四夜起才让隐晦的那几种登场——
+// 一周目能抓到的就那么多，剩下的要靠图鉴，这是「多周目」存在的理由。
 export const NIGHTS = [
-  { f: 1, acts: 3, lie: 'card', obs: 0.62 },
-  { f: 1, acts: 3, lie: 'card', obs: 0.58 },
-  { f: 1, acts: 3, lie: 'ask', obs: 0.50 },
-  { f: 2, acts: 3, lie: 'ask', obs: 0.46 },
-  { f: 2, acts: 3, lie: 'ask', obs: 0.38 },
-  { f: 2, acts: 3, lie: 'ask', obs: 0.28 },
-  { f: 2, acts: 3, lie: 'ask', obs: 0 },   // 首领：它没有影子，也没有呼吸
+  { f: 1, acts: 3, pool: ['card', 'ask'] },
+  { f: 1, acts: 3, pool: ['card', 'ask'] },
+  { f: 2, acts: 3, pool: ['card', 'ask', 'self'] },
+  { f: 1, acts: 3, pool: ['ask', 'self', 'eye'] },
+  { f: 2, acts: 3, pool: ['ask', 'self', 'eye', 'item'] },
+  { f: 2, acts: 3, pool: ['self', 'eye', 'item', 'pet', 'line'] },
+  { f: 2, acts: 3, pool: ['eye', 'item', 'pet', 'line'] },
 ];
-export const VISITS_PER_NIGHT = 3;
+export const FAKE_TOTAL = NIGHTS.reduce((a, b) => a + b.f, 0);
+
+// 破绽落在「档案上」还是「身上」——结算和提示文案都要用
+export const ON_PAPER = { card: 1, ask: 1 };
 
 /* ------------------------------------------------------------------ 随机 */
 export function makeRng(seed) {
@@ -51,7 +77,7 @@ export function makeRng(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const pick = (rng, arr) => arr[Math.floor(rng() * arr.length) % arr.length];
+const pick = (rng, arr) => arr[Math.min(arr.length - 1, Math.floor(rng() * arr.length))];
 const shuffle = (rng, arr) => {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -60,103 +86,204 @@ const shuffle = (rng, arr) => {
   }
   return a;
 };
+// 存进存档的随机：只存一个整数，取第 n 个数时按需推进（读档后照样接得上）
+function roll(s) {
+  s.rp = (s.rp || 0) + 1;
+  return makeRng((s.seed ^ Math.imul(s.rp, 0x9e3779b1)) >>> 0)();
+}
+const rollInt = (s, n) => Math.floor(roll(s) * n) % n;
 
 const byName = new Map(CHARS.map((c) => [c.n, c]));
 export const charOf = (cid) => byName.get(cid) || null;
 export const ALL_CHARS = CHARS;
 
-/* --------------------------------------------------------------- 造一局 */
-// 21 个来访者：10 个真人 + 11 个伪人，同一个人不会既是真人又是伪人。
-// 伪人「用的是谁的名字」是随机的——所以同一个名字可能在别的夜里也来过，那才是真的。
+const realmOf = (c) => (c.k === 's' ? '主播' : c.realm);
+
+// 同一界域里别人的自称/瞳色/随身物——伪人抄错时就从这些里拿
+function othersOf(c, key) {
+  const out = [];
+  for (const x of CHARS) {
+    if (x === c || realmOf(x) !== realmOf(c)) continue;
+    const v = x.tr && x.tr[key];
+    if (v && v !== c.tr[key]) out.push(v);
+  }
+  return Array.from(new Set(out));
+}
+function anyRealmOthers(c, key) {
+  const out = [];
+  for (const x of CHARS) {
+    if (x === c || realmOf(x) === realmOf(c)) continue;
+    const v = x.tr && x.tr[key];
+    if (v) out.push(v);
+  }
+  return Array.from(new Set(out));
+}
+
+// 口头禅里换掉一个词：换完还是通顺的，就是念着不对劲
+const SWAP = [
+  ['灯', '火'], ['水', '雨'], ['门', '口'], ['影子', '颜色'], ['名字', '编号'],
+  ['上面', '里面'], ['记得', '知道'], ['走廊', '楼梯'], ['疼', '冷'], ['镜子', '窗户'],
+  ['眼睛', '眼眶'], ['梦', '日子'],
+];
+function twistLine(line) {
+  for (const [a, b] of SWAP) {
+    if (line.includes(a)) return line.replace(a, b);
+  }
+  return line + '（它把尾音吞了）';
+}
+
+/* --------------------------------------------------------------- 造人 */
+function makePerson(rng, c, fake, night) {
+  const claims = { ...c.facts };
+  const shown = c.tr ? { ...c.tr } : { self: '我', eye: '灰', item: '什么也没有', pet: '', line: '' };
+  let lie = null;
+  let lieV = null;
+
+  if (fake) {
+    const pool = shuffle(rng, NIGHTS[night] ? NIGHTS[night].pool : ['card', 'ask']);
+    for (const kind of pool) {
+      if (kind === 'card' || kind === 'ask') {
+        const fields = shuffle(rng, (kind === 'card' ? c.card : c.ask) || []);
+        let done = false;
+        for (const f of fields) {
+          const cands = CHARS
+            .filter((x) => x.k === c.k && x.facts[f] && x.facts[f] !== c.facts[f])
+            .map((x) => x.facts[f]);
+          if (!cands.length) continue;
+          lie = kind;
+          lieV = pick(rng, Array.from(new Set(cands)));
+          claims[f] = lieV;
+          done = true;
+          break;
+        }
+        if (done) break;
+      } else if (kind === 'self') {
+        const cands = anyRealmOthers(c, 'self');   // 自称要串界域才起疑
+        if (!cands.length) continue;
+        lie = 'self';
+        lieV = pick(rng, cands);
+        shown.self = lieV;
+        break;
+      } else if (kind === 'eye') {
+        const cands = othersOf(c, 'eye');
+        if (!cands.length) continue;
+        lie = 'eye';
+        lieV = pick(rng, cands);
+        shown.eye = lieV;
+        break;
+      } else if (kind === 'item') {
+        const cands = othersOf(c, 'item');
+        if (!cands.length) continue;
+        lie = 'item';
+        lieV = pick(rng, cands);
+        shown.item = lieV;
+        break;
+      } else if (kind === 'pet') {
+        lie = 'pet';
+        if (shown.pet) { lieV = '空着手，什么动物也没有'; shown.pet = ''; }
+        else {
+          const cands = Array.from(new Set(CHARS.map((x) => x.tr && x.tr.pet).filter(Boolean)));
+          if (!cands.length) { lie = null; continue; }
+          lieV = pick(rng, cands);
+          shown.pet = lieV;
+        }
+        break;
+      } else if (kind === 'line') {
+        if (!shown.line) continue;
+        lie = 'line';
+        lieV = twistLine(shown.line);
+        shown.line = lieV;
+        break;
+      }
+    }
+    // 兜底：真出现「什么都换不动」的怪事，就退回界域
+    if (!lie) {
+      lie = 'card';
+      lieV = c.realm === '混沌' ? '血肉' : '混沌';
+      claims.realm = lieV;
+    }
+  }
+
+  return {
+    cid: c.n, c, fake, lie, lieV, claims, shown,
+    alive: true, joined: night, from: 'door', talked: {}, killedBy: null, killedDay: null,
+  };
+}
+
+function makeResident(rng, c, night) {
+  const p = makePerson(rng, c, false, night);
+  p.from = 'start';
+  return p;
+}
+
 export function newRun(seed) {
   const rng = makeRng(seed);
   const roster = shuffle(rng, CHARS);
-  const realCount = VISITS_PER_NIGHT * NIGHTS.length - NIGHTS.reduce((s, n) => s + n.f, 0);
-  const real = roster.slice(0, realCount);
-  const fakes = roster.slice(realCount, realCount + NIGHTS.reduce((s, n) => s + n.f, 0));
+  const realN = VISITS * DAYS - FAKE_TOTAL;
+  const residents = roster.slice(0, START_HOME).map((c) => makeResident(rng, c, 0));
+  const real = roster.slice(START_HOME, START_HOME + realN);
+  const fakes = roster.slice(START_HOME + realN, START_HOME + realN + FAKE_TOTAL);
 
   const list = [];
   let ri = 0;
   let fi = 0;
   for (let n = 0; n < NIGHTS.length; n++) {
     const pos = shuffle(rng, [0, 1, 2]).slice(0, NIGHTS[n].f);
-    for (let i = 0; i < VISITS_PER_NIGHT; i++) {
+    for (let i = 0; i < VISITS; i++) {
       const fake = pos.includes(i);
       const c = fake ? fakes[fi++] : real[ri++];
-      list.push(makeVisitor(rng, c, fake, n));
+      const v = makePerson(rng, c, fake, n);
+      v.acts = NIGHTS[n].acts;
+      v.askedFields = [];
+      v.heard = false;
+      v.peeked = false;
+      v.peekOdd = -1;
+      v.obsRoll = rng();
+      v.done = false;
+      v.result = null;
+      list.push(v);
     }
   }
-  const state = {
-    v: 2,
+
+  const s = {
+    v: 3,
     seed: seed >>> 0,
+    rp: 0,
+    day: 0,
     night: 0,
+    phase: 'day',        // day | night | over
     vi: 0,
     list,
-    sanity: 100,
+    home: residents,
     bullets: 6,
-    caught: 0,
-    leaked: 0,
+    sanity: 100,
+    caught: 0,           // 看破的伪人（门外拒掉 + 屋里打死）
+    leaked: 0,           // 放进来的伪人
     refusedReal: 0,
     killedReal: 0,
     killedFake: 0,
-    asked: 0,
-    observed: 0,
+    deaths: [],          // 屋里死的人
+    talks: 0,
     met: [],
     log: [],
+    nightReport: null,   // 昨夜死了谁
     over: false,
     ending: null,
+    endingWho: null,
     started: Date.now(),
   };
-  touch(state);
-  return state;
+  touch(s);
+  return s;
 }
 
-function makeVisitor(rng, c, fake, night) {
-  const claims = { ...c.facts };
-  let lie = null;
-  let lieV = null;
-  if (fake) {
-    const cfg = NIGHTS[night];
-    const pool = cfg.lie === 'card' ? c.card.slice() : c.ask.slice();
-    // 逐个试，直到挑到一个「换掉之后确实不一样」的字段
-    const order = shuffle(rng, pool);
-    for (const f of order) {
-      const candidates = CHARS
-        .filter((x) => x.k === c.k && x.facts[f] && x.facts[f] !== c.facts[f])
-        .map((x) => x.facts[f]);
-      if (!candidates.length) continue;
-      lie = f;
-      lieV = pick(rng, Array.from(new Set(candidates)));
-      claims[f] = lieV;
-      break;
-    }
-    // 兜底：真出现「所有字段都换不动」的怪事，就退回界域
-    if (!lie) {
-      lie = 'realm';
-      lieV = c.realm === '混沌' ? '血肉' : '混沌';
-      claims.realm = lieV;
-    }
-  }
-  return {
-    cid: c.n,
-    c,
-    fake,
-    lie,
-    lieV,
-    claims,
-    acts: NIGHTS[night].acts,
-    askedFields: [],
-    obsUsed: false,
-    obsResult: null,
-    tell: fake ? Math.floor(rng() * 12) : -1,
-    obsRoll: rng(),
-    done: false,
-    result: null,
-  };
-}
-
+/* -------------------------------------------------------------- 查询 */
 export const currentVisitor = (s) => (s.over ? null : s.list[s.vi] || null);
 export const nightCfg = (s) => NIGHTS[Math.min(s.night, NIGHTS.length - 1)];
+export const homeAlive = (s) => s.home.filter((h) => h.alive);
+export const homeReal = (s) => s.home.filter((h) => h.alive && !h.fake);
+export const homeFake = (s) => s.home.filter((h) => h.alive && h.fake);
+export const homeOf = (s, cid) => s.home.find((h) => h.cid === cid && h.alive) || null;
+export const roomFull = (s) => homeAlive(s).length >= ROOM_MAX;
 
 export function startVisit(s) {
   const v = currentVisitor(s);
@@ -165,110 +292,295 @@ export function startVisit(s) {
   return v;
 }
 
-/* ------------------------------------------------------------------ 动作 */
+/* ---------------------------------------------------------- 门外的动作 */
 export function canAsk(s, v, field) {
   return !!(v && !v.done && !s.over && v.acts > 0 && v.c.ask.includes(field) && !v.askedFields.includes(field));
 }
-// 观察不占问话次数：贴着玻璃看是免费的，但一个人只能看一次。
-export function canObserve(s, v) {
-  return !!(v && !v.done && !s.over && !v.obsUsed);
-}
+export const canHear = (s, v) => !!(v && !v.done && !s.over && !v.heard);
+export const canPeek = (s, v) => !!(v && !v.done && !s.over && !v.peeked);
 
 export function ask(s, field) {
   const v = currentVisitor(s);
   if (!canAsk(s, v, field)) return null;
   v.acts -= 1;
   v.askedFields.push(field);
-  s.asked += 1;
+  const ok = v.claims[field] === v.c.facts[field];
   touch(s);
-  return { field, claim: v.claims[field], truth: v.c.facts[field], ok: v.claims[field] === v.c.facts[field] };
+  return { field, claim: v.claims[field], truth: v.c.facts[field], ok };
 }
 
-export function observe(s) {
+// 「听它说」：一次听两样东西——自称和口头禅。真人说的就是真值，伪人可能抄错。
+export function hear(s) {
   const v = currentVisitor(s);
-  if (!canObserve(s, v)) return null;
-  const cfg = nightCfg(s);
-  v.obsUsed = true;
-  s.observed += 1;
-  // 真人永远看不出异常；伪人按这一夜的概率露一次破绽
-  const seen = v.fake && v.obsRoll < cfg.obs;
-  v.obsResult = seen ? 'anomaly' : 'none';
+  if (!canHear(s, v)) return null;
+  v.heard = true;
+  const k1 = noteTruth(s, v, 'self', v.shown.self);
+  const k2 = noteTruth(s, v, 'line', v.shown.line);
   touch(s);
-  return { seen, tell: seen ? v.tell : -1 };
+  return { self: v.shown.self, line: v.shown.line, known: [k1, k2].filter(Boolean) };
 }
 
-const delta = (s, k, n) => { s[k] = Math.max(0, Math.min(100, s[k] + n)); };
+// 「凑近看」：瞳色、随身的东西、有没有带动物。另外还有一层说不清的直觉（软破绽）。
+export function peek(s) {
+  const v = currentVisitor(s);
+  if (!canPeek(s, v)) return null;
+  v.peeked = true;
+  const known = [];
+  ['eye', 'item', 'pet'].forEach((k) => {
+    const n = noteTruth(s, v, k, v.shown[k]);
+    if (n) known.push(n);
+  });
+  // 软破绽：真人永远看不出，伪人按夜里的概率露一相（和底细无关的另一层不安）
+  const chance = [0.55, 0.5, 0.45, 0.4, 0.33, 0.25, 0.18][Math.min(6, s.night)];
+  const odd = v.fake && v.obsRoll < chance ? Math.floor(roll(s) * 12) : -1;
+  v.peekOdd = odd;
+  touch(s);
+  return { eye: v.shown.eye, item: v.shown.item, pet: v.shown.pet, odd, known };
+}
 
-// 决定：admit（开门）/ refuse（不开）/ shoot（开枪）
+// 记图鉴：只有当对方说的**确实是真值**时才点亮（伪人说错的那一项永远点不亮）
+function noteTruth(s, v, field, value) {
+  if (!v.c.tr) return null;
+  if (value === v.c.tr[field]) {
+    markKnown(v.cid, field);
+    return field;
+  }
+  return null;
+}
+
+// 门外决定：只有开门 / 不开门。枪留到白天——先让人进来，再决定要不要杀，这才是这套玩法。
 export function decide(s, kind) {
   const v = currentVisitor(s);
   if (!v || v.done || s.over) return null;
-  if (kind === 'shoot' && s.bullets <= 0) return null;
-  if (kind === 'shoot') s.bullets -= 1;
+  if (kind === 'admit' && roomFull(s)) return null;
 
   let key;
   let d = 0;
   let tag = '';
   if (kind === 'admit') {
-    if (v.fake) { key = 'admit-fake'; d = -26; s.leaked++; tag = '漏进'; }
-    else { key = 'admit-real'; d = +5; tag = '放行'; }
-  } else if (kind === 'refuse') {
-    if (v.fake) { key = 'refuse-fake'; d = +4; s.caught++; tag = '拦下'; }
-    else { key = 'refuse-real'; d = -11; s.refusedReal++; tag = '误拒'; }
+    if (v.fake) { key = 'admit-fake'; d = 0; s.leaked++; tag = '放进'; }
+    else { key = 'admit-real'; d = +2; tag = '放行'; }
   } else {
-    if (v.fake) { key = 'kill-fake'; d = +7; s.killedFake++; s.caught++; tag = '击杀'; }
-    else { key = 'kill-real'; d = -30; s.killedReal++; tag = '误杀'; }
+    if (v.fake) { key = 'refuse-fake'; d = +3; s.caught++; tag = '拦下'; }
+    else { key = 'refuse-real'; d = -5; s.refusedReal++; tag = '误拒'; }
   }
-  delta(s, 'sanity', d);
+  s.sanity = clampSan(s.sanity + d);
   v.done = true;
   v.result = { kind, key, d, tag, fake: v.fake };
-  s.log.push({
-    night: s.night, name: v.c.n, fake: v.fake, lie: v.lie, lieV: v.lieV, kind, tag,
-  });
-  if (!s.met.includes(v.c.n)) s.met.push(v.c.n);
-  checkOver(s);
+
+  if (kind === 'admit') {
+    const h = {
+      cid: v.cid, c: v.c, fake: v.fake, lie: v.lie, lieV: v.lieV,
+      claims: v.claims, shown: v.shown, alive: true,
+      joined: s.day, from: 'door', talked: {}, killedBy: null, killedDay: null,
+    };
+    s.home.push(h);
+  }
+  s.log.push({ night: s.night, name: v.c.n, fake: v.fake, lie: v.lie, lieV: v.lieV, kind, tag, at: 'door' });
+  if (!s.met.includes(v.cid)) s.met.push(v.cid);
   touch(s);
   return v.result;
-}
-
-function checkOver(s) {
-  if (s.over) return;
-  if (s.sanity <= 0) { s.over = true; s.ending = 'san'; }
-  else if (s.leaked >= 3) { s.over = true; s.ending = 'leak'; }
-  else if (s.killedReal >= 2) { s.over = true; s.ending = 'kill'; }
 }
 
 export function nextVisitor(s) {
   const v = currentVisitor(s);
   if (v && !v.done) return null;
   s.vi += 1;
-  if (s.vi >= s.list.length) { finish(s); return null; }
-  if (s.vi % VISITS_PER_NIGHT === 0) s.night += 1;
+  if (s.vi >= s.list.length) return null;
   touch(s);
   return startVisit(s);
 }
 
+export const nightDone = (s) => s.list.every((v) => v.done) || s.vi >= s.list.length;
+
+/* -------------------------------------------------------- 夜里结算 */
+// 屋子里的伪人，一个一个挑人杀。挑的是**活着的真人**——它们不杀同类。
+// 天亮你只知道少了谁，不知道是谁动的手：这是这套玩法的核心恐惧。
+export function endNight(s) {
+  const deaths = [];
+  const fakes = homeFake(s);
+  for (const f of fakes) {
+    const targets = homeReal(s);
+    if (!targets.length) break;
+    const t = targets[rollInt(s, targets.length)];
+    t.alive = false;
+    t.killedBy = f.cid;
+    t.killedDay = s.day + 1;
+    deaths.push({ cid: t.cid, name: t.c.n, by: f.c.n, realm: t.c.realm, k: t.c.k });
+    s.deaths.push({ cid: t.cid, name: t.c.n, by: f.c.n, day: s.day + 1, how: 'night' });
+    s.sanity = clampSan(s.sanity - 15);
+  }
+  const lonely = fakes.length > 0 && homeReal(s).length === 0;
+  if (lonely) s.sanity = clampSan(s.sanity - 8);
+  s.nightReport = { deaths, lonely, night: s.night };
+  s.night += 1;
+  if (s.night >= DAYS) { finish(s); return s.nightReport; }
+  s.phase = 'day';
+  s.day = s.night;
+  // 每天补给一发：七夜下来一共 6+6 发，够用但不富余
+  s.bullets = Math.min(9, s.bullets + 1);
+  if (s.sanity <= 0) { s.over = true; s.ending = 'san'; }
+  checkOver(s);
+  touch(s);
+  return s.nightReport;
+}
+
+/* ---------------------------------------------------------- 白天的动作 */
+export const TOPICS = ['card', 'fact', 'self', 'eye', 'item', 'who', 'past'];
+
+export function canTalk(s, h, topic) {
+  if (!h || !h.alive || s.over || s.phase !== 'day') return false;
+  if (h.talked[topic]) return false;
+  return (h.talkCount || 0) < TALK_PER_DAY;
+}
+
+export function talk(s, cid, topic) {
+  const h = homeOf(s, cid);
+  if (!h || !canTalk(s, h, topic)) return null;
+  h.talked[topic] = 1;
+  h.talkCount = (h.talkCount || 0) + 1;
+  s.talks += 1;
+
+  const out = { topic, who: h.c.n, lines: [], known: [], lie: null };
+
+  if (topic === 'card') {
+    // 让它把卡上那三行再报一遍，和档案对
+    (h.c.card || []).forEach((f) => {
+      out.lines.push(FIELD_LABEL[f] + '：' + h.claims[f]);
+      if (h.claims[f] !== h.c.facts[f]) out.lie = f;
+    });
+  } else if (topic === 'fact') {
+    const left = (h.c.ask || []).filter((f) => !h.talked['f_' + f]);
+    const f = left.length ? left[0] : (h.c.ask || [])[0];
+    if (f) {
+      h.talked['f_' + f] = 1;
+      out.field = f;
+      out.lines.push(FIELD_ASK[f] + '\n「' + h.claims[f] + '」');
+      out.claim = h.claims[f];
+      out.truth = h.c.facts[f];
+      if (h.claims[f] !== h.c.facts[f]) out.lie = f;
+    }
+  } else if (topic === 'self') {
+    out.lines.push('「' + h.shown.self + '。」');
+    const n = noteTruth(s, h, 'self', h.shown.self);
+    if (n) out.known.push(n);
+    if (h.lie === 'self') out.lie = 'self';
+  } else if (topic === 'eye') {
+    out.lines.push('它把眼睛转过来。瞳色是' + h.shown.eye + '的。');
+    const n = noteTruth(s, h, 'eye', h.shown.eye);
+    if (n) out.known.push(n);
+    if (h.lie === 'eye') out.lie = 'eye';
+  } else if (topic === 'item') {
+    out.lines.push('它把口袋翻出来：' + (h.shown.item || '什么也没有') +
+      (h.shown.pet ? '。身边还跟着' + h.shown.pet : '。什么活物也没带'));
+    const n1 = noteTruth(s, h, 'item', h.shown.item);
+    const n2 = noteTruth(s, h, 'pet', h.shown.pet);
+    if (n1) out.known.push(n1);
+    if (n2) out.known.push(n2);
+    if (h.lie === 'item') out.lie = 'item';
+    if (h.lie === 'pet') out.lie = 'pet';
+  } else if (topic === 'who') {
+    // 情报：真人可能看错，伪人一定往真人身上指
+    const reals = homeReal(s).filter((x) => x.cid !== h.cid);
+    const fakes = homeFake(s).filter((x) => x.cid !== h.cid);
+    let target = null;
+    if (h.fake) {
+      if (reals.length) target = reals[rollInt(s, reals.length)];
+    } else if (fakes.length && roll(s) < 0.62) {
+      target = fakes[rollInt(s, fakes.length)];
+    } else if (reals.length) {
+      target = reals[rollInt(s, reals.length)];
+    }
+    out.accuse = target ? target.cid : null;
+    out.accuseName = target ? target.c.n : '';
+    out.trust = target ? (h.fake ? 'lie' : (fakes.includes(target) ? 'hit' : 'miss')) : 'none';
+  } else if (topic === 'past') {
+    out.realmLine = h.c.realm;
+  }
+  touch(s);
+  return out;
+}
+
+export function shoot(s, cid) {
+  const h = homeOf(s, cid);
+  if (!h || !h.alive || s.bullets <= 0 || s.over) return null;
+  s.bullets -= 1;
+  h.alive = false;
+  h.killedBy = 'you';
+  h.killedDay = s.day;
+  let key;
+  if (h.fake) {
+    key = 'shoot-fake';
+    s.killedFake += 1;
+    s.caught += 1;
+    s.sanity = clampSan(s.sanity + 8);
+  } else {
+    key = 'shoot-real';
+    s.killedReal += 1;
+    s.sanity = clampSan(s.sanity - 25);
+    s.deaths.push({ cid: h.cid, name: h.c.n, by: '你', day: s.day, how: 'you' });
+  }
+  s.log.push({ night: s.night, name: h.c.n, fake: h.fake, lie: h.lie, lieV: h.lieV, kind: key, tag: h.fake ? '处决' : '误杀', at: 'home' });
+  checkOver(s);
+  touch(s);
+  return { key, fake: h.fake, cid: h.cid, name: h.c.n, lie: h.lie, lieV: h.lieV, sanity: s.sanity };
+}
+
+// 天亮之后点「去门后」：进下一夜
+export function startNight(s) {
+  if (s.over) return null;
+  s.phase = 'night';
+  s.vi = s.day * VISITS;
+  s.list.forEach((v) => { v.talkCount = 0; });
+  s.home.forEach((h) => { h.talkCount = 0; });
+  touch(s);
+  return startVisit(s);
+}
+
+function checkOver(s) {
+  if (s.over) return;
+  if (s.sanity <= 0) { s.over = true; s.ending = 'san'; return; }
+  if (s.killedReal >= 3) { s.over = true; s.ending = 'kill'; }
+}
+
+/* ------------------------------------------------------------- 结局 */
 export function finish(s) {
-  if (s.over) return s.ending;
+  if (s.over) { if (!s.ending) s.ending = 'san'; return s.ending; }
   s.over = true;
-  const clean = s.leaked === 0 && s.refusedReal === 0 && s.killedReal === 0;
-  if (clean) s.ending = 'perfect';
-  else if (s.leaked <= 1 && s.killedReal === 0) s.ending = 'keeper';
-  else if (s.refusedReal >= 3) s.ending = 'shut';
-  else s.ending = 'dawn';
+  s.phase = 'over';
+  const reals = homeReal(s);
+  const fakes = homeFake(s);
+  const clean = s.deaths.filter((d) => d.how === 'night').length === 0 && s.killedReal === 0;
+
+  if (s.sanity <= 0) s.ending = 'san';
+  else if (s.killedReal >= 3) s.ending = 'kill';
+  else if (!reals.length && fakes.length >= 2) s.ending = 'leak';
+  else if (!reals.length) s.ending = 'alone';
+  else if (s.leaked + s.refusedReal >= 0 && homeReal(s).length <= 2 && s.leaked + s.refusedReal >= 14) s.ending = 'shut';
+  else if (clean && s.leaked === 0) s.ending = 'perfect';
+  else {
+    // 和你一起活到最后的是谁，决定这是哪个结局
+    const names = reals.map((h) => h.cid);
+    if (names.includes('24')) s.ending = 'split';
+    else if (reals.some((h) => h.c.k === 's')) s.ending = 'broadcast';
+    else if (reals.length >= 3) s.ending = 'keeper';
+    else s.ending = 'dawn';
+  }
+  s.endingWho = reals.map((h) => h.c.n);
   return s.ending;
 }
 
 export function score(s) {
-  const total = s.list.length;
+  const knownN = Object.keys(codex().known || {}).reduce((a, k) => a + Object.keys(codex().known[k]).length, 0);
   return Math.max(0, Math.round(
-    s.caught * 100 + s.killedFake * 40 + s.leaked * -80 + s.refusedReal * -45 + s.killedReal * -160
-    + s.sanity * 2 + s.bullets * 10 + (s.ending === 'perfect' ? 600 : 0),
+    s.caught * 90 + s.killedFake * 50 + s.leaked * -70 + s.refusedReal * -40 + s.killedReal * -150
+    + s.sanity * 3 + s.bullets * 12 + knownN * 4
+    + (s.ending === 'perfect' ? 500 : 0) + (s.ending === 'archive' ? 900 : 0),
   ));
 }
 
 /* -------------------------------------------------------------- 存档 */
-const K = { save: 'zjtt:fake:save', codex: 'zjtt:fake:codex', best: 'zjtt:fake:best', tells: 'zjtt:fake:tells' };
+const K = { save: 'zjtt:fake:save', codex: 'zjtt:fake:codex', best: 'zjtt:fake:best' };
 
 function read(key, dflt) {
   try {
@@ -284,24 +596,40 @@ function write(key, val) {
 
 let dirty = 0;
 export function touch(s) {
-  // 每步都写一次太吵，合并到 400ms 内一次；退出时 pagehide 会强制 flush
   if (dirty) return;
   dirty = setTimeout(() => { dirty = 0; write(K.save, s); }, 400);
 }
 export function flush(s) { write(K.save, s); }
 export function loadSave() {
   const s = read(K.save, null);
-  if (!s || s.v !== 2 || !Array.isArray(s.list)) return null;
+  if (!s || s.v !== 3 || !Array.isArray(s.list) || !Array.isArray(s.home)) return null;
   return s;
 }
 export function clearSave() { try { localStorage.removeItem(K.save); } catch (e) {} }
 
 export function codex() {
-  const c = read(K.codex, { met: [], tells: [] });
+  const c = read(K.codex, { met: [], known: {} });
   if (!Array.isArray(c.met)) c.met = [];
-  if (!Array.isArray(c.tells)) c.tells = [];
+  if (!c.known || typeof c.known !== 'object') c.known = {};
   return c;
 }
+export function markKnown(cid, field) {
+  const c = codex();
+  const k = c.known[cid] || (c.known[cid] = {});
+  if (k[field]) return false;
+  k[field] = 1;
+  write(K.codex, c);
+  return true;
+}
+export function isKnown(cid, field) {
+  const c = codex();
+  return !!(c.known[cid] && c.known[cid][field]);
+}
+export function knownCount() {
+  const c = codex();
+  return Object.keys(c.known || {}).reduce((a, k) => a + Object.keys(c.known[k]).length, 0);
+}
+export const KNOWN_MAX = CHARS.length * 5;
 export function meetAll(names) {
   const c = codex();
   let add = 0;
@@ -309,23 +637,17 @@ export function meetAll(names) {
   if (add) write(K.codex, c);
   return add;
 }
-export function addTells(keys) {
-  const c = codex();
-  let add = 0;
-  for (const k of keys) if (!c.tells.includes(k)) { c.tells.push(k); add++; }
-  if (add) write(K.codex, c);
-  return add;
-}
-export function best() { return read(K.best, { ending: null, score: 0, runs: 0, nights: 0 }); }
+export function best() { return read(K.best, { ending: null, score: 0, runs: 0, days: 0 }); }
 export function saveBest(res) {
   const b = best();
   const out = {
     ending: res.score > (b.score || 0) ? res.ending : b.ending,
     score: Math.max(b.score || 0, res.score),
     runs: (b.runs || 0) + 1,
-    nights: Math.max(b.nights || 0, res.night + 1),
+    days: Math.max(b.days || 0, res.day + 1),
   };
   write(K.best, out);
   return out;
 }
+const clampSan = (v) => Math.max(0, Math.min(100, v));
 export const ART_META = META;
