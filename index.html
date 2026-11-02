@@ -430,7 +430,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
   .links{grid-template-columns:1fr 1fr}
 }
 </style>
-<meta name="build" content="42180aa516">
+<meta name="build" content="54e6160900">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -474,7 +474,7 @@ html{-webkit-tap-highlight-color:transparent}
     <h1>忘忘同人小游戏</h1>
     <p class="sub">《忘却前夜》同人小游戏合集。纯属恶搞——<b>无盈利、无充值</b>，与官方无关。</p>
     <div class="stamps">
-      <span>10 个可玩</span><span>手机可玩</span><span>点开就玩，不用注册</span><span>支持断网离线版</span>
+      <span id="playN">16 个可玩</span><span>手机可玩</span><span>点开就玩，不用注册</span><span>支持断网离线版</span>
     </div>
     <div class="rule"></div>
   </header>
@@ -493,7 +493,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">只看一份匿名战报的伤害、格挡和治疗，反推这局上了谁、带了什么命轮密契。每日一题，也能自己出题考别人。</p>
-      <ul class="tags"><li>推理</li><li>4101 题</li><li>每日一题</li></ul>
+      <ul class="tags"><li>推理</li><li>每日一题</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -513,7 +513,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">合成大西瓜，头像换成游戏角色。两个同级相撞合成下一级，一路合到杜勒赛因。</p>
-      <ul class="tags"><li>休闲</li><li>10 级合成</li><li>四档难度</li></ul>
+      <ul class="tags"><li>合成</li><li>四档难度</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -533,7 +533,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">平台踩上去就开始塌，边往下掉边躲怪，一路下到第 100 层。</p>
-      <ul class="tags"><li>下落</li><li>100 层</li><li>四档难度</li></ul>
+      <ul class="tags"><li>下落闯关</li><li>100 层</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -553,7 +553,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">以撒的玩法，主角是弥萨格校猫。一间间打过去，捡到的造物会真的挂在猫身上；七种体型从幼猫到老校猫。</p>
-      <ul class="tags"><li>地牢射击</li><li>3–8 层</li><li>7 种造型</li><li>34 件造物</li></ul>
+      <ul class="tags"><li>地牢射击</li><li>造物构筑</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -573,7 +573,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">四人小队自动战斗，推图、周本、属性塔、竞技场、融灾禁区都在里面；打不过的关会自动退到「有收益的最高层」继续刷，关掉自动就切手动挂机。62 名唤醒体按突击 / 守护 / 合唱分工，合唱再分司疗、咏唱、击拍、蚀咏、守律五种打法、各带一条队伍光环；命轮与造物除主属性外还各有一条器纹 / 特质，钥令按稀有度给预算，属性条数不再等于强度。另有「疾驰欢愉的大运」爬塔局：五档难度、16 个事件、28 件造物、30 级挑战等级与 12 项天赋，等级奖励和成就都会发免费回溯券。</p>
-      <ul class="tags"><li>放置</li><li>五人编队</li><li>100 层融灾</li><li>疾驰大运</li></ul>
+      <ul class="tags"><li>放置</li><li>五人编队</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -593,7 +593,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">只带出生技进场，剩下全靠升级三选一。撑满 15 分钟算通关，62 名唤醒体任选。</p>
-      <ul class="tags"><li>割草</li><li>15 分钟一局</li><li>62 人</li></ul>
+      <ul class="tags"><li>割草</li><li>15 分钟一局</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -613,7 +613,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">六边形自走棋：买人、摆阵、凑界域与职阶羁绊，守住十二波。</p>
-      <ul class="tags"><li>自走棋</li><li>六边形棋盘</li><li>62 人</li></ul>
+      <ul class="tags"><li>自走棋</li><li>羁绊</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -633,7 +633,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">钥冢里躺着三届阵亡名册。键入记录名复原档案，对名册与地图核对地点，最后交三份报告：死因、凶器、加害人。也能自己写一份卷宗，让别人来查。</p>
-      <ul class="tags"><li>推理</li><li>三届案件</li><li>可自撰卷宗</li></ul>
+      <ul class="tags"><li>推理</li><li>自撰卷宗</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -652,7 +652,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">人机狼人杀，你是主位上的守密人。参考 Gnosia 的随机发牌：身份跟着人走，这局灵视者、下局可能是融蚀体，发言也跟着身份变。轮到你说话时可亮牌、指认、替人辩护，也能号召「有身份的人站出来」看谁敢应。桌上还坐着十一位忘却前夜的 B 站主播——头像是本人，说话是他们各自的视频腔：有人先给结论，有人只剩省略号。</p>
-      <ul class="tags"><li>12 种身份</li><li>五档难度</li><li>可自动对局</li><li>11 位 B 站主播</li></ul>
+      <ul class="tags"><li>身份推理</li><li>人机对局</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -672,7 +672,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">2048 的玩法，方格换成游戏里的造物：两块同样的合流就往上显影一级，从路边捡的染血鹅卵石一路合到「祂的神谕」。攒满狂气能「忘却」掉场上最小的两块给自己腾地方；也可以开侵蚀模式添堵——每 12 步落一块蚀，它挪不动也合不了，只有紧挨着发生合成才会被震碎。整套皮都能换：十一级随机抽造物图标，或者抽唤醒体的脸——颜色仍按等级走，不会认错。手上也调过：按住不松能连着划、斜划不乱猜方向，合并时从那一格飞出一个 +N。每局按「棋盘 × 得分」换银芯，三档各一张阶梯——4×4 打到 2048 差不多 19 枚，5×5 门槛整体抬高，3×3 六十来分就有第一枚。</p>
-      <ul class="tags"><li>2048</li><li>11 级显影</li><li>三档棋盘</li><li>可选侵蚀</li><li>可换皮</li><li>按分换银芯</li></ul>
+      <ul class="tags"><li>合并</li><li>三档棋盘</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -692,7 +692,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">点按式音游：上方一个发球点把音符撒向下方九个击打框，压进框里那一刻点它，长条要按住到尾音。九位唤醒体一队（全员可选），技能全自动，发动时舞台右侧摆上她的官方立绘。29 首曲目全部配了原曲：Love Live!、国风原创（万神纪 / 不见长安）、剑网3（万重山 / 当战 / 何曾惧 / 狂 …）、明日方舟、边狱巴士、鸣潮——音频在仓库里加密封装、浏览器内解，谱面按原曲重做——拖长的音变长按（头尾是两个一样大的同色环，尾环进框就是松手点）、音高决定落哪一格（旋律往上音符就右移）、强音成对落下，双轨长按也有。也能导入自己的 mp3。工坊里可以拿任意音频自动出谱、在时间轴上改，登录后发布到云端曲库。手机默认横屏（设置里能切自动/横屏/竖屏），点「上场」会自动进全屏把地址栏收上去；局内不再有一条顶栏，只留左上暂停和右上分数两处浮层，发球点贴到舞台最上沿，九格沿半圆摆成一个碗（正中最低、最外两格抬到发球点下方、彼此拉开距离），飞下来的音符是按轨道色发光的空心圆环、大小跟击打框对齐。四档难度只改谱面不改血量：EASY 每秒一个半球、EXPERT 七到八个，双押从零到四分之一。九格用量按份额摊平——不会再出现某一格整首摸不到、另一格连着两根长条。五档判定五种打击音（PERFECT 垫了一层低频，敲下去有实感；GOOD 是没低频的木鱼，BAD 是闷响），连击每十下一级音高。没有 WebCrypto（http 打开、老内置浏览器）时原曲改走纯 JS 解密，不再退回电子音。局内暂停面板能直接调音乐与判定音音量；右上角常显<b>延迟</b>（最近二十几次击打相对音符的中位偏差，正=按早、负=按晚），偏得多了会自动微调判定偏移和音符流速，蓝牙耳机那两百毫秒也能自己贴回来。想吃个饭只听歌就开<b>听歌模式</b>——音符自动按最低档打掉、体力锁满，整首听完不会死，这一局不计成绩也不上最高分。</p>
-      <ul class="tags"><li>音游</li><li>29 首原曲</li><li>加密封装</li><li>长按 + 双押</li><li>弧形九格</li><li>全屏沉浸</li><li>延迟校准</li><li>五档打击音</li><li>九格均衡</li><li>四档密度</li><li>旋律分轨</li><li>听歌模式</li><li>62 位唤醒体</li><li>官方立绘</li><li>谱面工坊</li></ul>
+      <ul class="tags"><li>音游</li><li>长按 + 双押</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -712,7 +712,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">规程说：钥冢最底下关着一位守密人，她记的东西太多，再记下去整座弥萨格就会被写穿。拿上裁页刀下去，杀死她——规程是这么说的。规程没说的是：你杀过她一次，就再也不能忘记她。选择取向的文字恐怖游戏，玩法致敬《Slay the Princess》：她每晚变一个样子（装订者、裁页者、执灯人、塔、盐、万卷、空守、终天者、猫、未命名、镜……），你的每一次出手、阅读、沉默都会在钥冢上留下刻痕，把楼梯和下一夜的她捏成新的形状。见证三种以上形态后，最底层会打开。126 个结局（含 19 个「场外」——档案室在偷看你，外加 14 个「渊底」——钥冢下面那一层），结局图鉴存本机，新结局给银芯。背景全部用原作典藏馆 CG；4 首循环配乐加 23 段音效（敲门、裁页、低语、钟声……全部 CC0 素材），点一下才开声，可随时静音。结局进度跟着账号上云端——换设备接着点亮图鉴，首页排行榜按结局数排。</p>
-      <ul class="tags"><li>文字恐怖</li><li>126 个结局</li><li>12 种形态</li><li>周目推进</li><li>结局图鉴</li></ul>
+      <ul class="tags"><li>文字恐怖</li><li>多结局</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -732,7 +732,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">游戏王式的卡牌对战，牌面是《忘却前夜》的唤醒体。每回合一次通常召唤，等级 5 以上要献祭；场上三格怪兽、三格魔陷；额外卡组放觉醒体——把指定的两个人送进墓地（素材可以在场上，也可以直接从手牌抽出来），命轮就替她们给出一个答案，通常不是她们想要的。22 套预组各有自己的羁绊，每套都带一张场地卡，能在自己回合改规矩——多特招一次、按特招扣血、或者反手把你的特招压到只剩一次；20 个卡包按档案室的口径命名，可以和人机、同屏双人，也能开房间码跟好友打；人机对手是融灾榜单上的玩家名，一个人固定一套牌，十三个段位各有称号：段位越高对方越少打错牌，从 Lv7 起还会把自己那几套预组各拆一半混成一副、专挑克你的那套，唤醒王之上还有四级，最后一位弥萨格校猫会比你多 4000 命轮。还有一整套弥萨格的世界观设定。</p>
-      <ul class="tags"><li>22 套预组</li><li>442 张卡</li><li>13 个段位</li><li>自组卡组</li><li>好友房</li></ul>
+      <ul class="tags"><li>卡牌对战</li><li>自组卡组</li><li>好友房</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -751,7 +751,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">王权那一套：有人走到你桌前提要求，你只能准或不准——两个按钮下面直接写着这一下会动哪几笔账。七十五个人轮着来：62 名唤醒体、11 位 B 站主播、一只校猫，还有给这所学校摆关卡的设计师米酒——每人都有自己的说法。24 想请三天假、阿格里帕要二十个学生、魔龙_D 说你配错了人。记忆、理智、银芯、羁绊哪一头见底或涨满，这一任就结束；黑潮每天在涨，每五分之一任期一次躲不掉的潮汐，倒计时就摆在四项属性上方。三十个结局，其中七个不太正经。</p>
-      <ul class="tags"><li>卡牌抉择</li><li>75 位提要求的人</li><li>307 张公文</li><li>30 个结局</li></ul>
+      <ul class="tags"><li>卡牌抉择</li><li>多结局</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -771,7 +771,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">恶魔轮盘那一套，搬进弥萨格：桌上只有一把枪，枪膛里混着实弹与空壳，数量公开、顺序谁也不知道。对着自己开枪，是空壳就保住回合接着打；对着对面开枪，响没响都交回合。73 位出战者随便挑——62 名唤醒体加 11 位主播，各有各的理智上限、随身道具和被动：莱克的错位外壳每局开一层护盾，阿格里帕算准了的实弹多打一点，杜勒赛因坐下来就先拿走你一件道具，环行·拉蒙娜整场能死一次再站起来。放大镜、手锯、镣铐、逆变器、残念药剂、窃取手套十七种道具，三局两胜或五局三胜自己定。可以人机（三档难度、对面的确会数子弹，赢了涨段位分，十三段一路爬到弥萨格校猫）、同屏双人，也能开房间码跟好友赌一把；人机战绩和银芯照常记账。</p>
-      <ul class="tags"><li>恶魔轮盘</li><li>73 位出战者</li><li>17 种道具</li><li>三局 / 五局三胜</li><li>人机可上段</li><li>同屏 / 好友房</li></ul>
+      <ul class="tags"><li>恶魔轮盘</li><li>好友房</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -789,7 +789,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">《忘却前夜》的怪物关进同一个笼子，你押哪边能活着出来。每一只的血、攻、以及每一回合要放什么，全部照客户端数据表的原值摆出来——意图就写在卡上，谁都能自己算。押注是彩池制：押对的人按注额分掉整池，本金拿回来，输家的钱一起分；全场没人押中，池子压到桌上滚进下一局。九个人机坐在你对面，各有各的看法：杜勒赛因只认血厚的，白云出岫只看谁打得疼，立誓0氪只数只数，阿格里帕把血攻意图全算一遍，魔龙_D 专反着大家来。底注每三局翻一倍，荷包不够就下不了桌——三百四十五只怪、九百六十四条技能，从融蚀鼠王到守灯人都在名录上。</p>
-      <ul class="tags"><li>彩池押注</li><li>345 只怪</li><li>9 个人机</li><li>原作数值与意图</li></ul>
+      <ul class="tags"><li>彩池押注</li><li>九人同桌</li></ul>
       <div class="rate" data-rate>
         <span class="stars" aria-hidden="true">★★★★★</span>
         <b class="score">—</b><span class="cnt">暂无评分</span>
@@ -1545,6 +1545,8 @@ html{-webkit-tap-highlight-color:transparent}
   }
 
   // ------------------------------------------------------------ 评分
+  // 首页顶部的「N 个可玩」按卡片上的「可玩」徽章数自己算，不再手写（加游戏时老是忘改）
+  (function () { var n = $$('.proj .badge.ok').length, el = document.getElementById('playN'); if (el && n) el.textContent = n + ' 个可玩'; })();
   var GAMES = {};
   $$('.proj[data-game]').forEach(function (card) {
     GAMES[card.dataset.game] = card.querySelector('h2').textContent.replace(/v[\d.]+$/, '').trim();
