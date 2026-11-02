@@ -667,7 +667,7 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   // 唤醒王：决斗链接：段位分（只增不减）+ 段位下标，副标要能翻成段位名
   await call('/account', { method: 'PUT', headers: U3, body: { doc: { cr: 1, mb: 15000, bb: 40, bs: 2200, gd: { dl: [1200, 12, 4, 3] } }, ver: 1 } });
   // 弥萨格王权：按结局数排，同数比最长任期；没有门槛（1 个结局也上榜）
-  await call('/account', { method: 'PUT', headers: U1, body: { doc: { cr: 1, gd: { dt: [10, 3, 0, 8, 6], dr: [20, 15, 9], mg: [1234], bd: [30, 800], rg: [12, 40, 7, 1], kp: [30, 6, 4], bf: [2400, 2, 5] } }, ver: 1 } });
+  await call('/account', { method: 'PUT', headers: U1, body: { doc: { cr: 1, gd: { dt: [10, 3, 0, 8, 6], dr: [20, 15, 9], mg: [1234], bd: [30, 800], rg: [12, 40, 7, 1], kp: [30, 6, 4], bf: [2400, 2, 5], ll: [123456, 310, 6] } }, ver: 1 } });
   await call('/account', { method: 'PUT', headers: U2, body: { doc: { cr: 1, gd: { dr: [30, 15, 12], mg: [900], rg: [12, 55, 9, 0], kp: [30, 9, 2], bf: [2400, 4, 6] } }, ver: 1 } });
   await call('/account', { method: 'PUT', headers: U3, body: { doc: { cr: 1, mb: 15000, bb: 40, bs: 2200, gd: { dl: [1200, 12, 4, 3], rg: [1, 5, 1, 0], kp: [7, 3, 1] } }, ver: 2 } });
   const bd = await call('/board');
@@ -687,6 +687,7 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   eq('王权榜按结局数排，同数最长任期长者在前，没有门槛', bd.json.games.rg.items.map((x) => [x.name, x.score, x.sub]), [['乙', 12, '最长任期第 55 天 · 当过 9 任'], ['甲', 12, '最长任期第 40 天 · 当过 7 任'], ['丙', 1, '最长任期第 5 天 · 当过 1 任']]);
   check('王权榜单位与标签', bd.json.games.rg.unit === '个结局' && bd.json.games.rg.label === '结局数' && !('tb' in bd.json.games.rg.items[0]));
   eq('守密人榜按结局数排，同数见过的形态多的在前，副标写形态与下冢次数', bd.json.games.kp.items.map((x) => [x.name, x.score, x.sub]), [['乙', 30, '见过 9 种形态 · 下过 2 趟钥冢'], ['甲', 30, '见过 6 种形态 · 下过 4 趟钥冢'], ['丙', 7, '见过 3 种形态 · 下过 1 趟钥冢']]);
+  eq('lovelive 榜按最高分排，副标写最长连击与谱面数', bd.json.games.ll.items.map((x) => [x.name, x.score, x.sub]), [['甲', 123456, '最长连击 310 · 玩过 6 张谱面']]);
   eq('斗蛐蛐榜按最高荷包排，同分夺冠桌数多的在前', bd.json.games.bf.items.map((x) => [x.name, x.score, x.sub]), [['乙', 2400, '夺冠 4 桌 · 共 6 桌'], ['甲', 2400, '夺冠 2 桌 · 共 5 桌']]);
   check('守密人榜单位与标签', bd.json.games.kp.unit === '个结局' && bd.json.games.kp.label === '结局数' && !('tb' in bd.json.games.kp.items[0]));
   check('没分的游戏榜单为空', bd.json.games.sv.items.length === 0);

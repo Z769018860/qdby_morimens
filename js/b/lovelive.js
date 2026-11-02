@@ -4886,6 +4886,8 @@ function finish(failed) {
     if (G.maxCombo > SAVE.bestCombo) SAVE.bestCombo = G.maxCombo;
     isBest = (Number(SAVE.best[bk]) || 0) < Math.round(G.score);
     if (isBest) SAVE.best[bk] = Math.round(G.score);
+    // 让 account.js 把新的最高分排队推上云（榜单读的是云端摘要；不通知的话要等下次别的页面触发同步）
+    try { document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: 'gd' })); } catch (e) { /* noop */ }
   }
   persist();
   $('#res-rank').textContent = G.listen ? '🎧' : rank;

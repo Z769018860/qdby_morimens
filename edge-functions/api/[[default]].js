@@ -1545,6 +1545,11 @@ const BOARD_SPEC = [
     sub: (v) => [Number(v[1]) > 0 ? `见过 ${Number(v[1])} 种形态` : '', Number(v[2]) > 0 ? `下过 ${Number(v[2])} 趟钥冢` : ''].filter(Boolean).join(' · '),
     tb: (v) => Number(v[1]) || 0 },
   // 电子斗蛐蛐：按最高荷包排（开局 1000），副标写夺冠桌数与总桌数；同分比夺冠桌数
+  // lovelive！mori⭐mens！：按全谱最高单曲分排，副标写最长连击与玩过几张谱面（js/gamestats.js 的 out.ll = [最高分, 最长连击, 玩过的谱面数]）。
+  // 之前前端的榜单页签、云端摘要都有 ll，唯独这里的 BOARD_SPEC 漏了它——所以榜单永远是空的，跟有没有人打完无关。
+  { k: 'll', gd: 'll', i: 0, unit: '分', label: '最高分',
+    sub: (v) => [Number(v[1]) > 0 ? `最长连击 ${Number(v[1])}` : '', Number(v[2]) > 0 ? `玩过 ${Number(v[2])} 张谱面` : ''].filter(Boolean).join(' · '),
+    tb: (v) => Number(v[1]) || 0 },
   { k: 'bf', gd: 'bf', i: 0, unit: '筹码', label: '最高荷包',
     sub: (v) => (Number(v[2]) > 0 ? `夺冠 ${Number(v[1]) || 0} 桌 · 共 ${Number(v[2])} 桌` : ''),
     tb: (v) => Number(v[1]) || 0 },
@@ -1692,8 +1697,9 @@ export async function onRequest(context) {
         // v11 多了 /llsongs（lovelive 云端曲库：只收谱面，不收音频）
         // v12 榜单多了杀死守密人（已解锁结局数），见 BOARD_SPEC 的 kp
         // v13 赠礼支持 rw（免费回溯券，挂机前夜的「回溯券」），/grants/mine 会带回来
+        // v15 榜单补上 lovelive（BOARD_SPEC 的 ll，之前漏了，榜单一直是空的）
         // v14 赠礼再加 tk（召唤券）/ gold（金币）；多了 GET /admin/bugs（后台看 BUG 反馈详情）
-        ok: Boolean(store), service: 'zjtt', v: 14, runtime: 'edgeone',
+        ok: Boolean(store), service: 'zjtt', v: 15, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
