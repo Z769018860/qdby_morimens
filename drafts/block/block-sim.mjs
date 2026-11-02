@@ -6,7 +6,7 @@
 
 import {
   LEVELS, newRun, moveTo, release, settle, floatTarget,
-} from '../js/block-core.js';
+} from './block-core.js';
 
 const N = Number(process.argv[2]) || 60;
 const SEED = Number(process.argv[3]) || 20261103;
