@@ -12,6 +12,7 @@
 //   4. 生成 sw.js：带构建戳的运行时缓存，绕开 must-revalidate 的强制回源
 //
 // 用法：node scripts/build.mjs
+import vm from 'node:vm';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -710,6 +711,9 @@ for (const f of pageFiles) {
   const entry = (src.match(/<script type="module" src="js\/([\w.-]+\.js)"/) || [])[1];
   if (!entry) { built.push({ name, src, entry: null }); continue; }
   const { code, modules } = bundle('js/' + entry);
+  // 打成一个经典脚本之后，各模块的顶层 const / function 在同一个作用域里：两个模块各写一个 `const when`
+  // 就是整页「脚本没启动」（后台就这样白屏过）。构建时先当脚本解析一遍，重名当场报错，不让它发出去。
+  try { new vm.Script(code, { filename: `js/b/${name}.js` }); } catch (e) { throw new Error(`打包后的 js/b/${name}.js 语法有误：${e.message}（多半是两个模块的顶层声明重名）`); }
   const outName = `${name}.js`;
   fs.writeFileSync(path.join(OUT_JS, outName), code + '\n', 'utf8');
   staleNames.delete(outName);
