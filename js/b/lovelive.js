@@ -3633,6 +3633,9 @@ function show(name) {
   // 顺便通知它重算一次：它会在竖屏时压一张「把手机横过来」的遮罩，
   // 一进局内就得收起来，不然整局都被盖着。show 里 dispatch，组件监听 resize。
   document.body.classList.toggle('live', name === 'live');
+  // 离开设置页就把「等你按键」取消：不然点了某一格直接按返回，全站的键盘
+  // 都会被 captureRemap 吃掉，表现得像键盘坏了
+  if (name !== 'set') REMAP = -1;
   // 回到菜单就不必占着全屏了；打歌与结算留着，省得来回切地址栏
   if (name !== 'live' && name !== 'result') exitImmersive();
   window.dispatchEvent(new Event('resize'));
