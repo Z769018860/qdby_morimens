@@ -65,6 +65,9 @@ for (const rel of all) {
   if (ROOT_FILES.includes(rel)) { files.add(rel); continue; }
   if (WHOLE.some((w) => rel.startsWith(w))) { files.add(rel); continue; }
   if (NOT_OFFLINE.test(rel)) continue;
+  // 大巴扎的待机立绘是按 slug 拼出来的（assets/bazaar/idle/<slug>.webp），扫不到字面引用，
+  // 但离线版没有它战斗页就空一格，所以整目录收（62 个文件共 0.84MB）。
+  if (rel.startsWith('assets/bazaar/idle/')) { files.add(rel); continue; }
   if (rel.startsWith('assets/') && (refs.has(rel) || rel.startsWith('assets/app/'))) files.add(rel);
 }
 // 图标与清单是安装（PWA）必需的，即使没被 html 引到也要有

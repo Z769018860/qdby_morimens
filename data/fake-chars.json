@@ -1,0 +1,2638 @@
+{
+ "_note": "由 scripts/build_fake_data.py 生成，勿手改。每人的 facts 是档案真相；card 是登记卡上印着的三条，ask 是只能靠问的三~四条。伪人 = 抄错一条的那位。",
+ "chars": [
+  {
+   "id": "24",
+   "n": "24",
+   "en": "24",
+   "k": "a",
+   "realm": "混沌",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "21.86",
+   "weight": "-",
+   "facts": {
+    "realm": "混沌",
+    "role": "伤害型",
+    "no": "No.15601",
+    "birthday": "7月19日",
+    "height": "5'6\"",
+    "alias": "梅森、分裂患者",
+    "zodiac": "巨蟹座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "24",
+    "card": "24",
+    "bust": "24"
+   }
+  },
+  {
+   "id": "agrippa",
+   "n": "阿格里帕",
+   "en": "Agrippa",
+   "k": "a",
+   "realm": "血肉",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "?",
+   "weight": "90lbs",
+   "facts": {
+    "realm": "血肉",
+    "role": "防御型",
+    "no": "No.15600",
+    "birthday": "4月15日",
+    "height": "5'2\"",
+    "alias": "黛达洛斯、蜘蛛、小蜘蛛、迷宫蛛",
+    "zodiac": "白羊座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "agrippa",
+    "card": "agrippa",
+    "bust": "agrippa"
+   }
+  },
+  {
+   "id": "aigis",
+   "n": "艾继丝",
+   "en": "Aigis",
+   "k": "a",
+   "realm": "血肉",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "25.8",
+   "weight": "70lbs",
+   "facts": {
+    "realm": "血肉",
+    "role": "辅助型",
+    "no": "No.15591",
+    "birthday": "6月27日",
+    "height": "4'6\"",
+    "alias": "石化妹、石之眼",
+    "zodiac": "巨蟹座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "aigis",
+    "card": "aigis",
+    "bust": "aigis"
+   }
+  },
+  {
+   "id": "alva",
+   "n": "艾尔瓦",
+   "en": "Alva",
+   "k": "a",
+   "realm": "混沌",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "22.3",
+   "weight": "143lbs",
+   "facts": {
+    "realm": "混沌",
+    "role": "防御型",
+    "no": "No.15588",
+    "birthday": "1月20日",
+    "height": "5'8''",
+    "alias": "铁T、艾姐、空想利刃、酷姐",
+    "zodiac": "水瓶座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "alva",
+    "card": "alva",
+    "bust": "alva"
+   }
+  },
+  {
+   "id": "aurita",
+   "n": "奥瑞塔",
+   "en": "Aurita",
+   "k": "a",
+   "realm": "深海",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "21.11",
+   "weight": "45lbs",
+   "facts": {
+    "realm": "深海",
+    "role": "伤害型",
+    "no": "No.15573",
+    "birthday": "6月8日",
+    "height": "5'10.5\"",
+    "alias": "海月水母、海月、水母",
+    "zodiac": "双子座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "aurita",
+    "card": "aurita",
+    "bust": "aurita"
+   }
+  },
+  {
+   "id": "caecus",
+   "n": "凯刻斯",
+   "en": "Caecus",
+   "k": "a",
+   "realm": "深海",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "男",
+   "age": "21",
+   "weight": "114.6lbs",
+   "facts": {
+    "realm": "深海",
+    "role": "防御型",
+    "no": "No.15594",
+    "birthday": "11月11日",
+    "height": "5'5\"",
+    "alias": "小粉鱼、小鱼、粉毛、小鱼人",
+    "zodiac": "天蝎座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "caecus",
+    "card": "caecus",
+    "bust": "caecus"
+   }
+  },
+  {
+   "id": "casiah",
+   "n": "卡茜亚",
+   "en": "Casiah",
+   "k": "a",
+   "realm": "超维",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "21.75",
+   "weight": "99lbs",
+   "facts": {
+    "realm": "超维",
+    "role": "辅助型",
+    "no": "No.15572",
+    "birthday": "4月1日",
+    "height": "4'12''",
+    "alias": "魔术师、奇术师",
+    "zodiac": "白羊座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "casiah",
+    "card": "casiah",
+    "bust": "casiah"
+   }
+  },
+  {
+   "id": "castor",
+   "n": "卡斯托尔",
+   "en": "Castor",
+   "k": "a",
+   "realm": "超维",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "男",
+   "age": "23.39",
+   "weight": "205lbs",
+   "facts": {
+    "realm": "超维",
+    "role": "防御型",
+    "no": "No.77923",
+    "birthday": "6月20日",
+    "height": "6'0.3\"（展翼9'9.8\"）",
+    "alias": "小鸟、鸟哥、圣子",
+    "zodiac": "双子座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "castor",
+    "card": "castor",
+    "bust": "castor"
+   }
+  },
+  {
+   "id": "celeste",
+   "n": "希莱斯特",
+   "en": "Celeste",
+   "k": "a",
+   "realm": "深海",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "?",
+   "weight": "?",
+   "facts": {
+    "realm": "深海",
+    "role": "辅助型",
+    "no": "No.15566",
+    "birthday": "3月15日",
+    "height": "5'5\"",
+    "alias": "不死鸟、守梦人、船、船妹",
+    "zodiac": "双鱼座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "celeste",
+    "card": "celeste",
+    "bust": "celeste"
+   }
+  },
+  {
+   "id": "clementine",
+   "n": "克莱门汀",
+   "en": "Clementine",
+   "k": "a",
+   "realm": "超维",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "21.31",
+   "weight": "102lbs",
+   "facts": {
+    "realm": "超维",
+    "role": "辅助型",
+    "no": "No.77925",
+    "birthday": "8月16日",
+    "height": "5'57\"",
+    "alias": "医生、心理医生、扑棱蛾子、催眠妖虫",
+    "zodiac": "狮子座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "clementine",
+    "card": "clementine",
+    "bust": "clementine"
+   }
+  },
+  {
+   "id": "corposant",
+   "n": "克珀珊特",
+   "en": "Corposant",
+   "k": "a",
+   "realm": "深海",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "23",
+   "weight": "145lbs",
+   "facts": {
+    "realm": "深海",
+    "role": "防御型",
+    "no": "No.77922",
+    "birthday": "10月3日",
+    "height": "5'9\"",
+    "alias": "领航员、船长、磕泼、KP",
+    "zodiac": "天秤座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "corposant",
+    "card": "corposant",
+    "bust": "corposant"
+   }
+  },
+  {
+   "id": "daffodil",
+   "n": "达芙黛尔",
+   "en": "Daffodil",
+   "k": "a",
+   "realm": "超维",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "43",
+   "weight": "132lbs",
+   "facts": {
+    "realm": "超维",
+    "role": "伤害型",
+    "no": "No.15590",
+    "birthday": "10月10日",
+    "height": "5'7.7\"",
+    "alias": "水仙夫人、店长、大福袋儿、福袋",
+    "zodiac": "天秤座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "daffodil",
+    "card": "daffodil",
+    "bust": "daffodil"
+   }
+  },
+  {
+   "id": "doll",
+   "n": "朵尔",
+   "en": "Doll",
+   "k": "a",
+   "realm": "混沌",
+   "role": "辅助型",
+   "rarity": "SR",
+   "sex": "女",
+   "age": "22",
+   "weight": "90Ibs",
+   "facts": {
+    "realm": "混沌",
+    "role": "辅助型",
+    "no": "No.15570",
+    "birthday": "1月11日",
+    "height": "5'2\"",
+    "alias": "缸脑、ドール、Dolores·D·Franklin",
+    "zodiac": "摩羯座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "doll",
+    "card": "doll",
+    "bust": "doll"
+   }
+  },
+  {
+   "id": "doresain",
+   "n": "杜勒赛因",
+   "en": "Doresain",
+   "k": "a",
+   "realm": "血肉",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "男",
+   "age": "37.58",
+   "weight": "137lbs",
+   "facts": {
+    "realm": "血肉",
+    "role": "伤害型",
+    "no": "No.95786",
+    "birthday": "11月20日",
+    "height": "6'1.7\"",
+    "alias": "食尸鬼、食尸鬼之王、骨王、sin",
+    "zodiac": "天蝎座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "doresain",
+    "card": "doresain",
+    "bust": "doresain"
+   }
+  },
+  {
+   "id": "erica",
+   "n": "艾瑞卡",
+   "en": "Erica",
+   "k": "a",
+   "realm": "超维",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "未知",
+   "weight": "183lbs",
+   "facts": {
+    "realm": "超维",
+    "role": "防御型",
+    "no": "No.15603",
+    "birthday": "9月29日",
+    "height": "5'6.9\"",
+    "alias": "机械姬、喋喋人",
+    "zodiac": "天秤座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "erica",
+    "card": "erica",
+    "bust": "erica"
+   }
+  },
+  {
+   "id": "faint",
+   "n": "菲茵特",
+   "en": "Faint",
+   "k": "a",
+   "realm": "血肉",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "31.4",
+   "weight": "73lbs",
+   "facts": {
+    "realm": "血肉",
+    "role": "防御型",
+    "no": "No.15577",
+    "birthday": "3月7日",
+    "height": "4'6\"",
+    "alias": "星之芽、摇篮",
+    "zodiac": "双鱼座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "faint",
+    "card": "faint",
+    "bust": "faint"
+   }
+  },
+  {
+   "id": "faros",
+   "n": "法洛思",
+   "en": "Faros",
+   "k": "a",
+   "realm": "深海",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "23",
+   "weight": "?",
+   "facts": {
+    "realm": "深海",
+    "role": "辅助型",
+    "no": "No.15575",
+    "birthday": "4月8日",
+    "height": "5'5.7\"",
+    "alias": "灯塔、灯塔姐、灯塔头、原始信徒",
+    "zodiac": "白羊座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "faros",
+    "card": "faros",
+    "bust": "faros"
+   }
+  },
+  {
+   "id": "doll-inferno",
+   "n": "熔毁·朵尔",
+   "en": "Doll: Inferno",
+   "k": "a",
+   "realm": "混沌",
+   "role": "辅助型",
+   "rarity": "本源",
+   "sex": "女",
+   "age": "42.31",
+   "weight": "89.9Ibs",
+   "facts": {
+    "realm": "混沌",
+    "role": "辅助型",
+    "no": "No.15602",
+    "birthday": "1月11日",
+    "height": "5'2\"",
+    "alias": "熔朵、sp朵、异格朵、腐坏之脑",
+    "zodiac": "摩羯座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "doll-inferno",
+    "card": "doll-inferno",
+    "bust": "doll-inferno"
+   }
+  },
+  {
+   "id": "helot-catena",
+   "n": "血链·希洛",
+   "en": "Helot: Catena",
+   "k": "a",
+   "realm": "血肉",
+   "role": "伤害型",
+   "rarity": "本源",
+   "sex": "女",
+   "age": "26",
+   "weight": "71mina",
+   "facts": {
+    "realm": "血肉",
+    "role": "伤害型",
+    "no": "No.15567",
+    "birthday": "12月25日",
+    "height": "1.07bēma",
+    "alias": "血希、血洗、雪莲、链希",
+    "zodiac": "摩羯座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "helot-catena",
+    "card": "helot-catena",
+    "bust": "helot-catena"
+   }
+  },
+  {
+   "id": "ramona-timeworn",
+   "n": "环行·拉蒙娜",
+   "en": "Ramona: Timeworn",
+   "k": "a",
+   "realm": "混沌",
+   "role": "辅助型",
+   "rarity": "本源",
+   "sex": "女",
+   "age": "25",
+   "weight": "102lbs",
+   "facts": {
+    "realm": "混沌",
+    "role": "辅助型",
+    "no": "No.15568",
+    "birthday": "12月12日",
+    "height": "5'5\"",
+    "alias": "环娜、知者、晓美娜、sp娜",
+    "zodiac": "射手座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "ramona-timeworn",
+    "card": "ramona-timeworn",
+    "bust": "ramona-timeworn"
+   }
+  },
+  {
+   "id": "goliath",
+   "n": "戈利亚",
+   "en": "Goliath",
+   "k": "a",
+   "realm": "深海",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "男",
+   "age": "?",
+   "weight": "?",
+   "facts": {
+    "realm": "深海",
+    "role": "伤害型",
+    "no": "No.15564",
+    "birthday": "5月20日",
+    "height": "9'4.2''",
+    "alias": "鲨鱼哥、鲨鱼、复仇之刃",
+    "zodiac": "金牛座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "goliath",
+    "card": "goliath",
+    "bust": "goliath"
+   }
+  },
+  {
+   "id": "hameln",
+   "n": "哈姆林",
+   "en": "Hameln",
+   "k": "a",
+   "realm": "混沌",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "男",
+   "age": "22.46",
+   "weight": "121lbs",
+   "facts": {
+    "realm": "混沌",
+    "role": "辅助型",
+    "no": "No.54117",
+    "birthday": "9月21日",
+    "height": "5'10\"",
+    "alias": "指挥家、音乐家、hml、奏者",
+    "zodiac": "处女座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "hameln",
+    "card": "hameln",
+    "bust": "hameln"
+   }
+  },
+  {
+   "id": "helot",
+   "n": "希洛",
+   "en": "Helot",
+   "k": "a",
+   "realm": "血肉",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "26",
+   "weight": "75mina",
+   "facts": {
+    "realm": "血肉",
+    "role": "伤害型",
+    "no": "No.15587",
+    "birthday": "12月25日",
+    "height": "1.07bēma",
+    "alias": "蜘蛛希洛、赫洛忒、破链者、西洛",
+    "zodiac": "摩羯座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "helot",
+    "card": "helot",
+    "bust": "helot"
+   }
+  },
+  {
+   "id": "horla",
+   "n": "奥尔拉",
+   "en": "Horla",
+   "k": "a",
+   "realm": "超维",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "21.12",
+   "weight": "89lbs",
+   "facts": {
+    "realm": "超维",
+    "role": "辅助型",
+    "no": "No.15583",
+    "birthday": "2月14日",
+    "height": "5'42\"",
+    "alias": "小玫瑰、无名诗篇",
+    "zodiac": "水瓶座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "horla",
+    "card": "horla",
+    "bust": "horla"
+   }
+  },
+  {
+   "id": "jenkin",
+   "n": "詹金",
+   "en": "Jenkin",
+   "k": "a",
+   "realm": "超维",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "21.43",
+   "weight": "67lbs",
+   "facts": {
+    "realm": "超维",
+    "role": "伤害型",
+    "no": "No.15593",
+    "birthday": "1月1日",
+    "height": "4'4.4\"",
+    "alias": "小老鼠、鼠鼠、窜行者",
+    "zodiac": "摩羯座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "jenkin",
+    "card": "jenkin",
+    "bust": "jenkin"
+   }
+  },
+  {
+   "id": "karen",
+   "n": "珈伦",
+   "en": "Karen",
+   "k": "a",
+   "realm": "混沌",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "21.08",
+   "weight": "99lbs",
+   "facts": {
+    "realm": "混沌",
+    "role": "辅助型",
+    "no": "No.15571",
+    "birthday": "9月9日",
+    "height": "5'1\"",
+    "alias": "女仆、凸月侍女、猫猫、猫",
+    "zodiac": "处女座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "karen",
+    "card": "karen",
+    "bust": "karen"
+   }
+  },
+  {
+   "id": "kathigu-ra",
+   "n": "凯蒂古拉",
+   "en": "Kathigu-Ra",
+   "k": "a",
+   "realm": "混沌",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "29.7",
+   "weight": "135lbs",
+   "facts": {
+    "realm": "混沌",
+    "role": "伤害型",
+    "no": "No.77913",
+    "birthday": "8月30日",
+    "height": "6'0\"",
+    "alias": "枪女、团长、凯蒂、Kitty",
+    "zodiac": "处女座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "kathigu-ra",
+    "card": "kathigu-ra",
+    "bust": "kathigu-ra"
+   }
+  },
+  {
+   "id": "leigh",
+   "n": "雷娅",
+   "en": "Leigh",
+   "k": "a",
+   "realm": "血肉",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "22.05",
+   "weight": "91lbs",
+   "facts": {
+    "realm": "血肉",
+    "role": "辅助型",
+    "no": "No.15597",
+    "birthday": "6月28日",
+    "height": "5'3\"",
+    "alias": "抖M、血徒、渴血患者、卡文迪许",
+    "zodiac": "巨蟹座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "leigh",
+    "card": "leigh",
+    "bust": "leigh"
+   }
+  },
+  {
+   "id": "lily",
+   "n": "莉莉",
+   "en": "Lily",
+   "k": "a",
+   "realm": "混沌",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "27.6",
+   "weight": "340lbs",
+   "facts": {
+    "realm": "混沌",
+    "role": "防御型",
+    "no": "No.15581",
+    "birthday": "6月15日",
+    "height": "4'4.2\"",
+    "alias": "Lily",
+    "zodiac": "双子座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "lily",
+    "card": "lily",
+    "bust": "lily"
+   }
+  },
+  {
+   "id": "liz",
+   "n": "莉兹",
+   "en": "Liz",
+   "k": "a",
+   "realm": "超维",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "?",
+   "weight": "?",
+   "facts": {
+    "realm": "超维",
+    "role": "伤害型",
+    "no": "No.15562",
+    "birthday": "1月31日",
+    "height": "5'5\"",
+    "alias": "栗子、荔枝、青炎舞者、青炎",
+    "zodiac": "水瓶座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "liz",
+    "card": "liz",
+    "bust": "liz"
+   }
+  },
+  {
+   "id": "lotan",
+   "n": "萝坦",
+   "en": "Lotan",
+   "k": "a",
+   "realm": "混沌",
+   "role": "伤害型",
+   "rarity": "SR",
+   "sex": "女",
+   "age": "21",
+   "weight": "25ton",
+   "facts": {
+    "realm": "混沌",
+    "role": "伤害型",
+    "no": "No.15569",
+    "birthday": "3月21日",
+    "height": "5'6\"",
+    "alias": "鲸鱼、鲸跃、泽洛瑟斯、利维坦",
+    "zodiac": "白羊座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "lotan",
+    "card": "lotan",
+    "bust": "lotan"
+   }
+  },
+  {
+   "id": "miryam",
+   "n": "弥利亚姆",
+   "en": "Miryam",
+   "k": "a",
+   "realm": "深海",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "22.61",
+   "weight": "110lbs",
+   "facts": {
+    "realm": "深海",
+    "role": "辅助型",
+    "no": "No.15582",
+    "birthday": "7月2日",
+    "height": "5'5.7\"",
+    "alias": "米粒、教母、酵母、海之使徒",
+    "zodiac": "巨蟹座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "miryam",
+    "card": "miryam",
+    "bust": "miryam"
+   }
+  },
+  {
+   "id": "mouchette",
+   "n": "茉夏",
+   "en": "Mouchette",
+   "k": "a",
+   "realm": "混沌",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "不稳定",
+   "weight": "99lbs",
+   "facts": {
+    "realm": "混沌",
+    "role": "伤害型",
+    "no": "No.94450",
+    "birthday": "11月28日",
+    "height": "5'24.6\"",
+    "alias": "雾境看板娘、雾中骸兽、麻虾",
+    "zodiac": "射手座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "mouchette",
+    "card": "mouchette",
+    "bust": "mouchette"
+   }
+  },
+  {
+   "id": "murphy",
+   "n": "墨菲",
+   "en": "Murphy",
+   "k": "a",
+   "realm": "深海",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "21.21",
+   "weight": "92.5Ibs",
+   "facts": {
+    "realm": "深海",
+    "role": "防御型",
+    "no": "No.15576",
+    "birthday": "12月22日",
+    "height": "4'8.7”",
+    "alias": "大小姐、深海淑女、大小姐墨菲、脆皮肠",
+    "zodiac": "摩羯座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "murphy",
+    "card": "murphy",
+    "bust": "murphy"
+   }
+  },
+  {
+   "id": "murphy-fauxborn",
+   "n": "诞妄·墨菲",
+   "en": "Murphy: Fauxborn",
+   "k": "a",
+   "realm": "深海",
+   "role": "辅助型",
+   "rarity": "本源",
+   "sex": "女",
+   "age": "21.21",
+   "weight": "92.5lbs",
+   "facts": {
+    "realm": "深海",
+    "role": "辅助型",
+    "no": "No.15589",
+    "birthday": "12月22日",
+    "height": "4'8.7\"",
+    "alias": "白章鱼、蓝环章鱼、海嗣神母、神母",
+    "zodiac": "摩羯座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "murphy-fauxborn",
+    "card": "murphy-fauxborn",
+    "bust": "murphy-fauxborn"
+   }
+  },
+  {
+   "id": "nautila",
+   "n": "诺缔拉",
+   "en": "Nautila",
+   "k": "a",
+   "realm": "混沌",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "21.3",
+   "weight": "105lbs",
+   "facts": {
+    "realm": "混沌",
+    "role": "防御型",
+    "no": "No.15565",
+    "birthday": "7月29日",
+    "height": "5'2\"",
+    "alias": "鹦鹉螺、摩托妹、摩托",
+    "zodiac": "狮子座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "nautila",
+    "card": "nautila",
+    "bust": "nautila"
+   }
+  },
+  {
+   "id": "nymphaea",
+   "n": "宁菲亚",
+   "en": "Nymphaea",
+   "k": "a",
+   "realm": "混沌",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "21.05",
+   "weight": "90lbs",
+   "facts": {
+    "realm": "混沌",
+    "role": "伤害型",
+    "no": "No.15580",
+    "birthday": "12月7日",
+    "height": "5'1\"",
+    "alias": "宁妃、文学少女、睡莲、宁菲亚·波洛涅斯",
+    "zodiac": "射手座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "nymphaea",
+    "card": "nymphaea",
+    "bust": "nymphaea"
+   }
+  },
+  {
+   "id": "ogier",
+   "n": "奥吉尔",
+   "en": "Ogier",
+   "k": "a",
+   "realm": "混沌",
+   "role": "防御型",
+   "rarity": "SR",
+   "sex": "男",
+   "age": "22",
+   "weight": "66Ibs",
+   "facts": {
+    "realm": "混沌",
+    "role": "防御型",
+    "no": "No.15585",
+    "birthday": "5月5日",
+    "height": "他坚信自己身高五尺",
+    "alias": "美德骑士、美德、小骑士、オジール",
+    "zodiac": "金牛座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "ogier",
+    "card": "ogier",
+    "bust": "ogier"
+   }
+  },
+  {
+   "id": "pandia",
+   "n": "潘狄娅",
+   "en": "Pandia",
+   "k": "a",
+   "realm": "混沌",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "21.06",
+   "weight": "86lbs",
+   "facts": {
+    "realm": "混沌",
+    "role": "伤害型",
+    "no": "No.15560",
+    "birthday": "10月28日",
+    "height": "4'9.9\"",
+    "alias": "蜡烛、甜蜜恶鬼、潘神、潘",
+    "zodiac": "天蝎座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "pandia",
+    "card": "pandia",
+    "bust": "pandia"
+   }
+  },
+  {
+   "id": "pickman",
+   "n": "皮克曼",
+   "en": "Pickman",
+   "k": "a",
+   "realm": "血肉",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "男",
+   "age": "28.2",
+   "weight": "143lbs",
+   "facts": {
+    "realm": "血肉",
+    "role": "辅助型",
+    "no": "No.77926",
+    "birthday": "2月17日",
+    "height": "6'0.1\"",
+    "alias": "画家、艺术生、美术生、绘者",
+    "zodiac": "水瓶座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "pickman",
+    "card": "pickman",
+    "bust": "pickman"
+   }
+  },
+  {
+   "id": "pollux",
+   "n": "波吕克斯",
+   "en": "Pollux",
+   "k": "a",
+   "realm": "超维",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "男",
+   "age": "25.46",
+   "weight": "141lbs",
+   "facts": {
+    "realm": "超维",
+    "role": "伤害型",
+    "no": "No.77917",
+    "birthday": "6月20日",
+    "height": "5'8\"",
+    "alias": "弟弟、鸟弟、圣子",
+    "zodiac": "双子座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "pollux",
+    "card": "pollux",
+    "bust": "pollux"
+   }
+  },
+  {
+   "id": "ramona",
+   "n": "拉蒙娜",
+   "en": "Ramona",
+   "k": "a",
+   "realm": "混沌",
+   "role": "辅助型",
+   "rarity": "SR",
+   "sex": "女",
+   "age": "25",
+   "weight": "102Ibs",
+   "facts": {
+    "realm": "混沌",
+    "role": "辅助型",
+    "no": "No.15595",
+    "birthday": "12月12日",
+    "height": "5'5\"",
+    "alias": "知者、娜娜、普娜、女主角",
+    "zodiac": "射手座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "ramona",
+    "card": "ramona",
+    "bust": "ramona"
+   }
+  },
+  {
+   "id": "ryker",
+   "n": "莱克",
+   "en": "Ryker",
+   "k": "a",
+   "realm": "混沌",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "男",
+   "age": "?",
+   "weight": "102lbs",
+   "facts": {
+    "realm": "混沌",
+    "role": "辅助型",
+    "no": "No.15604",
+    "birthday": "6月6日",
+    "height": "?",
+    "alias": "赌狗、野兽、幸运侦探、好运侦探",
+    "zodiac": "双子座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "ryker",
+    "card": "ryker",
+    "bust": "ryker"
+   }
+  },
+  {
+   "id": "salvador",
+   "n": "萨尔瓦多",
+   "en": "Salvador",
+   "k": "a",
+   "realm": "血肉",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "男",
+   "age": "45",
+   "weight": "165lbs",
+   "facts": {
+    "realm": "血肉",
+    "role": "防御型",
+    "no": "No.15599",
+    "birthday": "5月30日",
+    "height": "6'1.6\"",
+    "alias": "神父、主教、主祭",
+    "zodiac": "双子座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "salvador",
+    "card": "salvador",
+    "bust": "salvador"
+   }
+  },
+  {
+   "id": "sanga",
+   "n": "珊",
+   "en": "Sanga",
+   "k": "a",
+   "realm": "深海",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "22.98",
+   "weight": "176lbs",
+   "facts": {
+    "realm": "深海",
+    "role": "防御型",
+    "no": "No.15592",
+    "birthday": "10月31日",
+    "height": "5'5\"",
+    "alias": "雕砌者、珊瑚、克劳岱尔",
+    "zodiac": "天蝎座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "sanga",
+    "card": "sanga",
+    "bust": "sanga"
+   }
+  },
+  {
+   "id": "sorel",
+   "n": "索蕾尔",
+   "en": "Sorel",
+   "k": "a",
+   "realm": "血肉",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "23.1421",
+   "weight": "130lbs",
+   "facts": {
+    "realm": "血肉",
+    "role": "伤害型",
+    "no": "No.15584",
+    "birthday": "2月9日",
+    "height": "5'7\"",
+    "alias": "红夫人、奈亚、红女王、蔷薇姐",
+    "zodiac": "水瓶座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "sorel",
+    "card": "sorel",
+    "bust": "sorel"
+   }
+  },
+  {
+   "id": "tawil",
+   "n": "塔薇",
+   "en": "Tawil",
+   "k": "a",
+   "realm": "混沌",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "无法估测",
+   "weight": "未知",
+   "facts": {
+    "realm": "混沌",
+    "role": "辅助型",
+    "no": "No.54116",
+    "birthday": "12月31日",
+    "height": "5'5\"",
+    "alias": "智之质体、门之钥、Tawii、TV",
+    "zodiac": "摩羯座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "tawil",
+    "card": "tawil",
+    "bust": "tawil"
+   }
+  },
+  {
+   "id": "thais",
+   "n": "泰旖丝",
+   "en": "Thais",
+   "k": "a",
+   "realm": "血肉",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "28.4",
+   "weight": "149lbs",
+   "facts": {
+    "realm": "血肉",
+    "role": "辅助型",
+    "no": "No.15596",
+    "birthday": "4月19日",
+    "height": "5'9\"",
+    "alias": "羊妈、嗓子有痰、丰穰之息、黑山羊",
+    "zodiac": "白羊座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "thais",
+    "card": "thais",
+    "bust": "thais"
+   }
+  },
+  {
+   "id": "tinct",
+   "n": "汀克特",
+   "en": "Tinct",
+   "k": "a",
+   "realm": "超维",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "23.67",
+   "weight": "110lbs",
+   "facts": {
+    "realm": "超维",
+    "role": "辅助型",
+    "no": "No.15574",
+    "birthday": "3月7日",
+    "height": "5'24\"",
+    "alias": "汀妈、歌者、歌姬、紫薯",
+    "zodiac": "双鱼座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "tinct",
+    "card": "tinct",
+    "bust": "tinct"
+   }
+  },
+  {
+   "id": "tulu",
+   "n": "图鲁",
+   "en": "Tulu",
+   "k": "a",
+   "realm": "深海",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "男",
+   "age": "49.51",
+   "weight": "70.5lbs",
+   "facts": {
+    "realm": "深海",
+    "role": "伤害型",
+    "no": "No.15563",
+    "birthday": "8月20日",
+    "height": "8'3\"",
+    "alias": "幼主、小少爷、沉睡之主、秃呕",
+    "zodiac": "狮子座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "tulu",
+    "card": "tulu",
+    "bust": "tulu"
+   }
+  },
+  {
+   "id": "uvhash",
+   "n": "尤乌哈希",
+   "en": "Uvhash",
+   "k": "a",
+   "realm": "血肉",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "男",
+   "age": "23.01",
+   "weight": "198lbs",
+   "facts": {
+    "realm": "血肉",
+    "role": "伤害型",
+    "no": "No.15598",
+    "birthday": "4月4日",
+    "height": "6'2\"",
+    "alias": "尤乌、油污、心脏哥、u5",
+    "zodiac": "白羊座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "uvhash",
+    "card": "uvhash",
+    "bust": "uvhash"
+   }
+  },
+  {
+   "id": "wanda",
+   "n": "旺达",
+   "en": "Wanda",
+   "k": "a",
+   "realm": "超维",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "23.41",
+   "weight": "121lbs",
+   "facts": {
+    "realm": "超维",
+    "role": "防御型",
+    "no": "No.15586",
+    "birthday": "11月2日",
+    "height": "5'7\"",
+    "alias": "荆棘女王、荆棘",
+    "zodiac": "天蝎座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "wanda",
+    "card": "wanda",
+    "bust": "wanda"
+   }
+  },
+  {
+   "id": "winkle",
+   "n": "温柯尔",
+   "en": "Winkle",
+   "k": "a",
+   "realm": "超维",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "21.7",
+   "weight": "123lbs",
+   "facts": {
+    "realm": "超维",
+    "role": "防御型",
+    "no": "No.15579",
+    "birthday": "9月7日",
+    "height": "5'6\"",
+    "alias": "迁移者、温",
+    "zodiac": "处女座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "winkle",
+    "card": "winkle",
+    "bust": "winkle"
+   }
+  },
+  {
+   "id": "xu",
+   "n": "徐",
+   "en": "Xu",
+   "k": "a",
+   "realm": "血肉",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "43.34",
+   "weight": "?+105lbs",
+   "facts": {
+    "realm": "血肉",
+    "role": "辅助型",
+    "no": "No.125346",
+    "birthday": "6月1日",
+    "height": "?+5'52\"",
+    "alias": "千扇、肿胀之女、孔雀、千扇玄女",
+    "zodiac": "双子座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "xu",
+    "card": "xu",
+    "bust": "xu"
+   }
+  },
+  {
+   "id": "vortice",
+   "n": "莫丝",
+   "en": "Vortice",
+   "k": "a",
+   "realm": "深海",
+   "role": "伤害型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "21.35",
+   "weight": "由于其身体构成特殊，无法计算",
+   "facts": {
+    "realm": "深海",
+    "role": "伤害型",
+    "no": "No.130901",
+    "birthday": "7月13日",
+    "height": "6'20\"",
+    "alias": "鲨鱼妹、鱼香肉丝、漩涡",
+    "zodiac": "巨蟹座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "vortice",
+    "card": "vortice",
+    "bust": "vortice"
+   }
+  },
+  {
+   "id": "arachne",
+   "n": "阿拉克涅",
+   "en": "Arachne",
+   "k": "a",
+   "realm": "超维",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "52.29",
+   "weight": "135lbs",
+   "facts": {
+    "realm": "超维",
+    "role": "辅助型",
+    "no": "No.77918",
+    "birthday": "5月24日",
+    "height": "5'8\"",
+    "alias": "蜘蛛、大蜘蛛、阿拉、阿特拉克",
+    "zodiac": "双子座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "arachne",
+    "card": "arachne",
+    "bust": "arachne"
+   }
+  },
+  {
+   "id": "saya",
+   "n": "沙耶",
+   "en": "Saya",
+   "k": "a",
+   "realm": "血肉",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "22.57",
+   "weight": "?",
+   "facts": {
+    "realm": "血肉",
+    "role": "辅助型",
+    "no": "No.130226",
+    "birthday": "未知",
+    "height": "?",
+    "alias": "肉块、美少女"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias"
+   ],
+   "img": {
+    "idle": "saya",
+    "card": "saya",
+    "bust": "saya"
+   }
+  },
+  {
+   "id": "pontos",
+   "n": "庞托斯",
+   "en": "Pontos",
+   "k": "a",
+   "realm": "深海",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "男",
+   "age": "45.52",
+   "weight": "无法测量",
+   "facts": {
+    "realm": "深海",
+    "role": "防御型",
+    "no": "No.141302",
+    "birthday": "8月27日",
+    "height": "6'1\"",
+    "alias": "海老头、KFC、肯德基、古旧渊影",
+    "zodiac": "处女座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "pontos",
+    "card": "pontos",
+    "bust": "pontos"
+   }
+  },
+  {
+   "id": "lotan-cetarchon",
+   "n": "蚀灭·萝坦",
+   "en": "Lotan: Cetarchon",
+   "k": "a",
+   "realm": "混沌",
+   "role": "伤害型",
+   "rarity": "本源",
+   "sex": "女",
+   "age": "39.03",
+   "weight": "30ton",
+   "facts": {
+    "realm": "混沌",
+    "role": "伤害型",
+    "no": "No.145363",
+    "birthday": "3月21日",
+    "height": "5'6\"",
+    "alias": "鲸落、蚀萝、蚀坦、骨萝",
+    "zodiac": "白羊座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "lotan-cetarchon",
+    "card": "lotan-cetarchon",
+    "bust": "lotan-cetarchon"
+   }
+  },
+  {
+   "id": "caraboo",
+   "n": "卡拉布",
+   "en": "Caraboo",
+   "k": "a",
+   "realm": "血肉",
+   "role": "防御型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "21",
+   "weight": "73.16lbs",
+   "facts": {
+    "realm": "血肉",
+    "role": "防御型",
+    "no": "No.77921",
+    "birthday": "4月27日",
+    "height": "4'7.6\"",
+    "alias": "白色蠕虫、蠕虫、奶油蛋糕、冰淇淋",
+    "zodiac": "金牛座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "caraboo",
+    "card": "caraboo",
+    "bust": "caraboo"
+   }
+  },
+  {
+   "id": "ogier-oathbound",
+   "n": "负誓·奥吉尔",
+   "en": "Ogier: Oathbound",
+   "k": "a",
+   "realm": "混沌",
+   "role": "防御型",
+   "rarity": "本源",
+   "sex": "男",
+   "age": "22",
+   "weight": "72lbs",
+   "facts": {
+    "realm": "混沌",
+    "role": "防御型",
+    "no": "No.148578",
+    "birthday": "5月5日",
+    "height": "4'8\"",
+    "alias": "本源小骑士、悼影骑士、龙骑士、负奥",
+    "zodiac": "金牛座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "ogier-oathbound",
+    "card": "ogier-oathbound",
+    "bust": "ogier-oathbound"
+   }
+  },
+  {
+   "id": "vivian",
+   "n": "薇薇安",
+   "en": "Vivian",
+   "k": "a",
+   "realm": "混沌",
+   "role": "辅助型",
+   "rarity": "SSR",
+   "sex": "女",
+   "age": "28.3",
+   "weight": "你礼貌吗？",
+   "facts": {
+    "realm": "混沌",
+    "role": "辅助型",
+    "no": "No.151844",
+    "birthday": "2月22日",
+    "height": "6'7\"",
+    "alias": "vva、公主、大蛤蟆、魔女",
+    "zodiac": "双鱼座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "vivian",
+    "card": "vivian",
+    "bust": "vivian"
+   }
+  },
+  {
+   "id": "samo",
+   "n": "萨摩不耶",
+   "en": "Samo",
+   "k": "s",
+   "realm": "混沌",
+   "role": "伤害型",
+   "color": "#ff7a9c",
+   "facts": {
+    "realm": "混沌",
+    "role": "伤害型",
+    "platform": "B 站",
+    "sign": "再见了，忘却前夜",
+    "live": "【忘却前夜】锐评胡言乱语16天",
+    "area": "手游 / 其他手游",
+    "no": "C-01"
+   },
+   "card": [
+    "realm",
+    "role",
+    "platform"
+   ],
+   "ask": [
+    "sign",
+    "live",
+    "area"
+   ],
+   "img": {
+    "face": "assets/survivors/faces/samo.webp"
+   }
+  },
+  {
+   "id": "susu",
+   "n": "梦依流苏",
+   "en": "Sue",
+   "k": "s",
+   "realm": "深海",
+   "role": "辅助型",
+   "color": "#9d8bff",
+   "facts": {
+    "realm": "深海",
+    "role": "辅助型",
+    "platform": "B 站",
+    "sign": "（没写签名）",
+    "live": "今晚不播",
+    "area": "手游",
+    "no": "C-02"
+   },
+   "card": [
+    "realm",
+    "role",
+    "platform"
+   ],
+   "ask": [
+    "sign",
+    "live",
+    "area"
+   ],
+   "img": {
+    "face": "assets/survivors/faces/mengyi.webp"
+   }
+  },
+  {
+   "id": "alice",
+   "n": "爱丽丝",
+   "en": "Alice",
+   "k": "s",
+   "realm": "超维",
+   "role": "伤害型",
+   "color": "#5fd0ff",
+   "facts": {
+    "realm": "超维",
+    "role": "伤害型",
+    "platform": "B 站",
+    "sign": "（没写签名）",
+    "live": "【忘却前夜 】心态最好的直播间",
+    "area": "单机游戏 / 杀戮尖塔2",
+    "no": "C-03"
+   },
+   "card": [
+    "realm",
+    "role",
+    "platform"
+   ],
+   "ask": [
+    "sign",
+    "live",
+    "area"
+   ],
+   "img": {
+    "face": "assets/survivors/faces/alice.webp"
+   }
+  },
+  {
+   "id": "ratking",
+   "n": "鼠王",
+   "en": "Rat King",
+   "k": "s",
+   "realm": "血肉",
+   "role": "伤害型",
+   "color": "#c8e06a",
+   "facts": {
+    "realm": "血肉",
+    "role": "伤害型",
+    "platform": "B 站",
+    "sign": "（没写签名）",
+    "live": "今晚不播",
+    "area": "手游",
+    "no": "C-04"
+   },
+   "card": [
+    "realm",
+    "role",
+    "platform"
+   ],
+   "ask": [
+    "sign",
+    "live",
+    "area"
+   ],
+   "img": {
+    "face": "assets/survivors/faces/ratking.webp"
+   }
+  },
+  {
+   "id": "dragon",
+   "n": "魔龙_D",
+   "en": "Dragon D",
+   "k": "s",
+   "realm": "血肉",
+   "role": "防御型",
+   "color": "#ff9a4d",
+   "facts": {
+    "realm": "血肉",
+    "role": "防御型",
+    "platform": "B 站",
+    "sign": "PKU 本硕 | AI | 在数据的噪音中寻找信…",
+    "live": "【忘却前夜】闲聊杂谈",
+    "area": "单机游戏 / 新游推荐",
+    "no": "C-05"
+   },
+   "card": [
+    "realm",
+    "role",
+    "platform"
+   ],
+   "ask": [
+    "sign",
+    "live",
+    "area"
+   ],
+   "img": {
+    "face": "assets/survivors/faces/dragond.webp"
+   }
+  },
+  {
+   "id": "zerokr",
+   "n": "立誓0氪",
+   "en": "Zero KR",
+   "k": "s",
+   "realm": "混沌",
+   "role": "伤害型",
+   "color": "#ffd76a",
+   "facts": {
+    "realm": "混沌",
+    "role": "伤害型",
+    "platform": "B 站",
+    "sign": "（没写签名）",
+    "live": "今晚不播",
+    "area": "手游",
+    "no": "C-06"
+   },
+   "card": [
+    "realm",
+    "role",
+    "platform"
+   ],
+   "ask": [
+    "sign",
+    "live",
+    "area"
+   ],
+   "img": {
+    "face": "assets/survivors/faces/zerok.webp"
+   }
+  },
+  {
+   "id": "moreen",
+   "n": "夏茉琳",
+   "en": "Moreen",
+   "k": "s",
+   "realm": "深海",
+   "role": "辅助型",
+   "color": "#8ce0a8",
+   "facts": {
+    "realm": "深海",
+    "role": "辅助型",
+    "platform": "B 站",
+    "sign": "红色沙漠真好玩",
+    "live": "今晚不播",
+    "area": "手游",
+    "no": "C-07"
+   },
+   "card": [
+    "realm",
+    "role",
+    "platform"
+   ],
+   "ask": [
+    "sign",
+    "live",
+    "area"
+   ],
+   "img": {
+    "face": "assets/survivors/faces/xiamolin.webp"
+   }
+  },
+  {
+   "id": "chaoxing",
+   "n": "朝星",
+   "en": "Chaoxing",
+   "k": "s",
+   "realm": "超维",
+   "role": "伤害型",
+   "color": "#8fa8ff",
+   "facts": {
+    "realm": "超维",
+    "role": "伤害型",
+    "platform": "B 站",
+    "sign": "神赐予野性，人得了愚昧",
+    "live": "今晚不播",
+    "area": "手游",
+    "no": "C-08"
+   },
+   "card": [
+    "realm",
+    "role",
+    "platform"
+   ],
+   "ask": [
+    "sign",
+    "live",
+    "area"
+   ],
+   "img": {
+    "face": "assets/survivors/faces/chaoxing.webp"
+   }
+  },
+  {
+   "id": "maodie",
+   "n": "路过的耄耋",
+   "en": "Passing Maodie",
+   "k": "s",
+   "realm": "血肉",
+   "role": "防御型",
+   "color": "#a9a29a",
+   "facts": {
+    "realm": "血肉",
+    "role": "防御型",
+    "platform": "B 站",
+    "sign": "（没写签名）",
+    "live": "夫妻测试",
+    "area": "手游 / 其他手游",
+    "no": "C-09"
+   },
+   "card": [
+    "realm",
+    "role",
+    "platform"
+   ],
+   "ask": [
+    "sign",
+    "live",
+    "area"
+   ],
+   "img": {
+    "face": "assets/survivors/faces/maodie.webp"
+   }
+  },
+  {
+   "id": "baiyun",
+   "n": "白云出岫",
+   "en": "Baiyun Chuxiu",
+   "k": "s",
+   "realm": "超维",
+   "role": "辅助型",
+   "color": "#b9c7d8",
+   "facts": {
+    "realm": "超维",
+    "role": "辅助型",
+    "platform": "B 站",
+    "sign": "（没写签名）",
+    "live": "小玩一会",
+    "area": "手游 / 综合二游",
+    "no": "C-10"
+   },
+   "card": [
+    "realm",
+    "role",
+    "platform"
+   ],
+   "ask": [
+    "sign",
+    "live",
+    "area"
+   ],
+   "img": {
+    "face": "assets/survivors/faces/baiyun.webp"
+   }
+  },
+  {
+   "id": "banxing",
+   "n": "半醒的鱼",
+   "en": "Halfawake",
+   "k": "s",
+   "realm": "深海",
+   "role": "辅助型",
+   "color": "#4fd1c5",
+   "facts": {
+    "realm": "深海",
+    "role": "辅助型",
+    "platform": "B 站",
+    "sign": "（没写签名）",
+    "live": "【忘却前夜】打打癫狂",
+    "area": "单机游戏 / 其他单机",
+    "no": "C-11"
+   },
+   "card": [
+    "realm",
+    "role",
+    "platform"
+   ],
+   "ask": [
+    "sign",
+    "live",
+    "area"
+   ],
+   "img": {
+    "face": "assets/survivors/faces/banxing.webp"
+   }
+  }
+ ]
+}

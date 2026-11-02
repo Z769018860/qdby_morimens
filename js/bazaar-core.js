@@ -1,8 +1,8 @@
-// 《弥萨格大巴扎》核心逻辑：商店、布阵、自动战斗。
+// 《大巴扎：银钥》核心逻辑：商店、布阵、自动战斗。
 // 不碰 DOM，node 里能直接跑（scripts/bazaar-sim.mjs 就是拿它做平衡实测的）。
 //
-// 一场战斗的心跳是「拍」（beat）：造物按冷却排期，到点就触发，
-// 双方同时走；谁先归零谁输，40 拍打不完算输。
+// 一场战斗的心跳是「拍」（beat）：造物按冷却排期，到点就触发，双方同时走；
+// 40 拍打不完按剩余血量比例判。难度、当天曲线、怪物分池都在 js/bazaar-data.js。
 
 import * as DATA from './bazaar-data.js';
 
@@ -11,11 +11,13 @@ import * as DATA from './bazaar-data.js';
 export const TUNING = DATA.TUNING;
 export const HEROES = DATA.HEROES;
 export const ITEMS = DATA.ITEMS;
+export const SHOP_ITEMS = DATA.SHOP_ITEMS;
 export const WHEELS = DATA.WHEELS;
-export const WHEEL_FX = DATA.WHEEL_FX;
 export const PACTS = DATA.PACTS;
 export const FOES = DATA.FOES;
+export const DIFFS = DATA.DIFFS;
 export const SCHEDULE = DATA.SCHEDULE;
+export const REALM_COLOR = DATA.REALM_COLOR;
 
 const DOT_TURNS = 3;
 const ITEM_BY_ID = new Map(ITEMS.map((x) => [x.id, x]));
@@ -29,6 +31,7 @@ export const wheelOf = (id) => WHEEL_BY_ID.get(id);
 export const foeOf = (id) => FOE_BY_ID.get(id);
 export const heroOf = (id) => HERO_BY_ID.get(id);
 export const pactOf = (id) => PACT_BY_ID.get(id);
+export const diffOf = (id) => DIFFS.find((d) => d.id === id) || DIFFS[0];
 
 // 相邻：2 行 × 3 列，上下左右算相邻
 export const ADJ = [
@@ -48,29 +51,32 @@ export function rngFrom(seed) {
 }
 
 const ru = (rnd, arr) => arr[Math.floor(rnd() * arr.length) % arr.length];
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 let UID = 1;
 const mkItem = (key, tier = 1) => ({ uid: UID++, key, tier });
 
-export function newRun({ seed = Date.now() >>> 0, heroId, pactId, totalDays = 12 } = {}) {
+const RARITY_ORDER = ['N', 'SR', 'SSR'];
+
+export function newRun({ seed = Date.now() >>> 0, heroId, pactId, diffId = 'normal' } = {}) {
   const hero = heroOf(heroId) || HEROES[0];
   const pact = pactOf(pactId) || PACTS[0];
+  const diff = diffOf(diffId);
   const run = {
-    seed, rnd: rngFrom(seed), hero, pact, totalDays,
-    day: 1, sane: TUNING.sane, gold: TUNING.startGold,
+    seed, rnd: rngFrom(seed), hero, pact, diff, totalDays: diff.days,
+    day: 1, sane: diff.sane, gold: TUNING.startGold,
     items: new Array(TUNING.slotN).fill(null),
     wheels: [],
-    shop: [], rerolls: 0,
+    shop: [], rerolls: 0, freeReroll: 0,
     foeId: null, wins: 0, losses: 0,
-    bonusHp: 0,            // 光合祭礼之类的永久加血
+    bonusHp: 0,
     over: false, cleared: false,
     history: [],
   };
   if (pact.k === 'rich') run.gold += pact.v;
-  hero.kit.forEach((k, i) => { run.items[i] = mkItem(k, 1); });
+  hero.kit.forEach((k, i) => { if (i < TUNING.slotN) run.items[i] = mkItem(k, 1); });
   // 本命命轮：直接戴在身上，白送一个词条
-  run.wheels.push({ uid: UID++, key: 'native' + hero.id, native: true, n: hero.wheel.n, im: hero.wheel.im, main: hero.wheel.main, cost: 0 });
+  const nw = wheelOf(hero.wheel);
+  if (nw) run.wheels.push({ uid: UID++, key: nw.id, native: true, n: nw.n, spr: nw.spr, main: nw.main, mainZh: nw.mainZh, v: nw.v, realm: nw.realm, perk: nw.perk, cost: 0 });
   pickFoe(run);
   rollShop(run, { free: true });
   return run;
@@ -78,15 +84,17 @@ export function newRun({ seed = Date.now() >>> 0, heroId, pactId, totalDays = 12
 
 // ---------------------------------------------------------------- 商店
 export function priceOf(run, base) {
-  const p = run.pact.k === 'discount' ? 1 - run.pact.v : 1;
+  let p = 1;
+  if (run.pact.k === 'discount') p -= run.pact.v;
+  if (run.pact.k === 'greed') p += run.pact.v;
   return Math.max(1, Math.round(base * p));
 }
 
 function pickRarity(run, rnd) {
   const d = run.day;
-  const wN = Math.max(2, 12 - d * 1.3);
-  const wSR = 2 + d * 0.75;
-  const wSSR = Math.max(0, d - 3) * 0.85;
+  const wN = Math.max(1.5, 11 - d * 1.15);
+  const wSR = 2 + d * 0.8;
+  const wSSR = Math.max(0, d - 2.5) * 0.95;
   const tot = wN + wSR + wSSR;
   const x = rnd() * tot;
   if (x < wSSR) return 'SSR';
@@ -98,24 +106,29 @@ export function rollShop(run, { free = false } = {}) {
   const rnd = run.rnd;
   if (!free) {
     const cost = TUNING.rerollCost + run.rerolls;
-    if (run.gold < cost) return false;
-    run.gold -= cost;
-    run.rerolls += 1;
+    if (run.pact.k === 'freereroll' && run.freeReroll < 1) {
+      run.freeReroll += 1;
+    } else {
+      if (run.gold < cost) return false;
+      run.gold -= cost;
+      run.rerolls += 1;
+    }
   }
   const n = 4 + (run.pact.k === 'rich' && run.day === 1 ? 1 : 0);
   const out = [];
   const used = new Set();
   for (let i = 0; i < n; i++) {
     let offer = null;
-    for (let tries = 0; tries < 12 && !offer; tries++) {
-      if (rnd() < 0.22) {
+    for (let tries = 0; tries < 14 && !offer; tries++) {
+      if (rnd() < 0.2) {
         const w = ru(rnd, WHEELS);
-        if (used.has('w' + w.id)) continue;
+        if (used.has('w' + w.id) || run.wheels.length >= 3) continue;
         used.add('w' + w.id);
         offer = { kind: 'wheel', key: w.id, price: priceOf(run, w.cost) };
       } else {
         const r = pickRarity(run, rnd);
-        const pool = ITEMS.filter((x) => x.r === r);
+        const pool = SHOP_ITEMS.filter((x) => x.r === r);
+        if (!pool.length) continue;
         const it = ru(rnd, pool);
         if (used.has(it.id)) continue;
         used.add(it.id);
@@ -150,8 +163,12 @@ export function buy(run, idx) {
   const o = run.shop[idx];
   run.gold -= o.price;
   o.sold = true;
-  if (o.kind === 'wheel') run.wheels.push({ uid: UID++, key: o.key, ...wheelOf(o.key) });
-  else run.items[firstEmptySlot(run)] = mkItem(o.key, 1);
+  if (o.kind === 'wheel') {
+    const w = wheelOf(o.key);
+    run.wheels.push({ uid: UID++, key: w.id, n: w.n, spr: w.spr, main: w.main, mainZh: w.mainZh, v: w.v, realm: w.realm, perk: w.perk, cost: w.cost });
+  } else {
+    run.items[firstEmptySlot(run)] = mkItem(o.key, 1);
+  }
   return true;
 }
 
@@ -206,16 +223,19 @@ export function move(run, a, b) {
 }
 
 // ---------------------------------------------------------------- 对手
+export function rowOf(run, day = run.day) {
+  return DATA.rowFor(day, run.diff.id);
+}
+
 export function pickFoe(run, day = run.day) {
-  const row = SCHEDULE.find((x) => x.day === day) || SCHEDULE[SCHEDULE.length - 1];
+  const row = rowOf(run, day);
   const id = ru(run.rnd, row.pool);
   run.foeId = id;
   return FOE_BY_ID.get(id);
 }
 
 // 一只怪技能表折算出来的「每拍输出」（不含当天系数），用来把同一天的不同怪拉到同一档。
-// 权重是经验值：中毒/灼烧按持续结算打折，护盾/治疗按等效血量折算。
-// 中毒/灼烧是「3 拍内每拍掉 v 点」的持续伤害，等效总量 3v；折成每拍才好和其他技能相加。
+// 中毒/灼烧按 3 拍持续结算，强化（str）按「每次攻击都多加一截」折中估。
 export function rawDps(foe) {
   let d = 0;
   for (const s of foe.skills) {
@@ -223,14 +243,14 @@ export function rawDps(foe) {
     for (const op of s.op) {
       if (op.k === 'dmg') per += (op.v || 0) * (op.hits || 1);
       else if (op.k === 'poison' || op.k === 'burn') per += (op.v || 0) * 3;
+      else if (op.k === 'str') per += (op.v || 0) * 0.9;
     }
     d += per / Math.max(1, s.cd);
   }
   return Math.max(0.6, d);
 }
 
-// 会自愈/架盾的怪等于多了一大截血。这里把「撑住的血」从生命预算里扣掉，
-// 否则一只治疗怪既有满额输出又打不死，同一天里它就成了必败场。
+// 会自愈/架盾/削弱的怪等于多了一大截血，从生命预算里扣掉
 const supDps = (foe) => {
   let d = 0;
   for (const s of foe.skills) {
@@ -246,21 +266,28 @@ const supDps = (foe) => {
 
 export function foeStats(run, day = run.day) {
   const foe = FOE_BY_ID.get(run.foeId) || FOES[0];
-  const row = SCHEDULE.find((x) => x.day === day) || SCHEDULE[SCHEDULE.length - 1];
+  const row = rowOf(run, day);
+  const diff = run.diff;
   const weaken = run.pact.k === 'weaken' ? 1 - run.pact.v : 1;
   const rankMul = row.boss && foe.rank !== 'boss' ? 1.06 : 1;
-  const hpMul = foe.rank === 'boss' ? 1.12 : 1;
+  const hpMul = foe.rank === 'boss' ? 1.12 : foe.rank === 'elite' ? 1.04 : 1;
   const sup = 1 + (day - 1) * 0.2;
-  const budget = TUNING.dayHp[day] * weaken * rankMul * hpMul;
+  const t = Math.min(day, TUNING.dayHp.length - 1);
+  // 难度的数值加成按天渐入：第一天只给一半，第三天给全。
+  // 不这么做的话「深渊」开局就是 1.4 倍 + 精英，第一场等于抛硬币，
+  // 玩家连摊子长什么样都还没看清就散场了（实测首日胜率 44%）。
+  const ramp = day >= 3 ? 1 : 0.5 + (day - 1) * 0.25;
+  const hpDiff = 1 + (diff.hp - 1) * ramp;
+  const dpsDiff = 1 + (diff.dps - 1) * ramp;
+  const budget = TUNING.dayHp[t] * hpDiff * weaken * rankMul * hpMul;
   const sustain = supDps(foe) * sup * 22;
   return {
     foe,
     maxHp: Math.round(Math.max(budget * 0.55, budget - sustain)),
-    // 起手要等冷却、收尾常常差半拍，实测三成左右的输出落在战斗之外；
-    // 乘回去之后 dayDps 才真的等于「这只怪每拍打掉多少」。
-    atk: (TUNING.dayDps[day] / rawDps(foe)) * 1.38,
+    atk: (TUNING.dayDps[t] * dpsDiff / rawDps(foe)) * 1.38,
     sup,
     boss: foe.rank === 'boss',
+    elite: foe.rank === 'elite',
   };
 }
 
@@ -269,38 +296,89 @@ export function createFight(run) {
   const { foe, maxHp, atk, sup } = foeStats(run);
   const hero = run.hero;
   const pact = run.pact;
+  const pas = hero.pas || { k: 'none', v: 0 };
 
-  // 汇总全局修正
-  const mod = { amp: 0, crit: 0.1, cdmg: 0.5, regen: 0, gold: 0, flat: 0, hp: 0, ward: 0, leech: 0, cdDown: 0, openShield: 0 };
-  const addWheel = (main) => {
-    const fx = WHEEL_FX[main];
-    if (!fx) return;
-    for (const k of ['amp', 'crit', 'cdmg', 'regen', 'gold', 'flat', 'hp', 'ward']) if (fx[k]) mod[k] += fx[k];
+  const mod = {
+    amp: 0, crit: 0.08, cdmg: 0.5, regen: 0, gold: 0, flat: 0, hp: 0, ward: 0,
+    leech: 0, cdDown: 0, openShield: 0, pierce: 0, thorns: 0, venom: 0, fear: 0,
+    save: 0, dupFirst: 0, lowLeech: 0, headstart: 0, shieldCap: 60,
   };
-  addWheel(hero.wheel.main);
-  for (const w of run.wheels) if (!w.native) addWheel(w.main);
 
-  if (hero.pas.k === 'amp') mod.amp += hero.pas.v;
-  if (hero.pas.k === 'tide') mod.hp += hero.pas.v;
-  if (hero.pas.k === 'bulwark') mod.hp += 0;
-  if (pact.k === 'cddown') mod.cdDown = pact.v;
-  if (pact.k === 'leech') mod.leech = pact.v;
-  if (pact.k === 'openshield') mod.openShield = pact.v;
+  const addWheel = (w) => {
+    if (!w) return;
+    const v = w.v || 0;
+    switch (w.main) {
+      case 'CRIT_RATE': mod.crit += v; break;
+      case 'CRIT_DMG': mod.cdmg += v; break;
+      case 'DMG_AMP': mod.amp += v; break;
+      case 'KEYFLARE_REGEN': mod.regen += v; break;
+      case 'SIGIL_YIELD': mod.gold += v; break;
+      case 'REALM_MASTERY': mod.flat += v; break;
+      case 'DEATH_RESISTANCE': mod.hp += v; break;
+      case 'ALIEMUS_REGEN': mod.ward += v; break;
+      default: break;
+    }
+    const p = w.perk;
+    if (p) {
+      if (p.k === 'amp') mod.amp += p.v;
+      else if (p.k === 'poison') mod.venom += p.v;
+      else if (p.k === 'shield') mod.openShield += p.v;
+      else if (p.k === 'haste') mod.headstart += p.v;
+    }
+  };
+  for (const w of run.wheels) addWheel(w);
 
-  const maxHP = TUNING.startHp + mod.hp + run.bonusHp;
+  // 唤醒体被动（12 种原型，数值随客户端副属性走）
+  switch (pas.k) {
+    case 'amp': mod.amp += pas.v; break;
+    case 'pierce': mod.pierce += pas.v; break;
+    case 'leech': mod.leech += pas.v; break;
+    case 'regen': mod.regen += pas.v; break;
+    case 'cddown': mod.cdDown += pas.v; break;
+    case 'thorns': mod.thorns += pas.v; break;
+    case 'tide': mod.hp += pas.v; break;
+    case 'venom': mod.venom += pas.v; break;
+    case 'bulwark': mod.shieldCap += pas.v; break;
+    default: break;
+  }
+
+  // 密契
+  switch (pact.k) {
+    case 'cddown': mod.cdDown += pact.v; break;
+    case 'dupfirst': mod.dupFirst = 1; break;
+    case 'openshield': mod.openShield += pact.v; break;
+    case 'lowleech': mod.lowLeech = pact.v; break;
+    case 'glass': mod.amp += pact.v; mod.hp -= 12; break;
+    case 'save': mod.save = pact.v; break;
+    case 'bulwark2': mod.shieldCap += pact.v; mod.openShield += 15; break;
+    case 'leech': mod.leech += pact.v; break;
+    case 'headstart': mod.headstart += pact.v; break;
+    case 'tank': mod.hp += pact.v; break;
+    case 'greed': mod.amp += 0.2; break;
+    case 'venom': mod.venom += pact.v; break;
+    case 'fear': mod.fear = pact.v; break;
+    case 'wolf': mod.amp += pact.v; mod.shieldCap -= 30; break;
+    default: break;
+  }
+
+  const maxHP = Math.max(40, TUNING.startHp + mod.hp + run.bonusHp);
   const f = {
     t: 0, over: null, win: false,
-    p: { hp: maxHP, maxHp: maxHP, shield: 0, poison: 0, poisonT: 0, burn: 0, burnT: 0 },
-    e: {
-      hp: maxHp, maxHp, shield: 0, poison: 0, poisonT: 0, burn: 0, burnT: 0, name: foe.n, im: foe.im, rank: foe.rank,
-      skills: foe.skills.map((s) => ({ n: s.n, cd: s.cd, timer: 0, op: s.op })),
-      slow: 0,
+    p: {
+      hp: maxHP, maxHp: maxHP, shield: 0, poison: 0, poisonT: 0, burn: 0, burnT: 0,
+      str: 0, weak: 0, weakT: 0,
     },
-    items: [], slotOf: [], gold: 0, firstDone: false,
-    mod, hero, pact, foe,
-    atkMul: atk, supMul: sup, rnd: run.rnd, pw: 1,
-    shieldCap: 60 + (hero.pas.k === 'bulwark' ? hero.pas.v : 0),
-    surgeT: 0, wardT: 0, saveUsed: false,
+    e: {
+      hp: maxHp, maxHp, shield: 0, poison: 0, poisonT: 0, burn: 0, burnT: 0,
+      str: 0, vuln: 0, vulnT: 0, slow: 0,
+      name: foe.n, spr: foe.spr, rank: foe.rank, desc: foe.desc,
+      skills: foe.skills.map((s) => ({ n: s.n, cd: s.cd, timer: 0, op: s.op })),
+    },
+    items: [], gold: 0, firstDone: false,
+    mod, hero, pact, foe, diff: run.diff,
+    atkMul: atk, supMul: sup, rnd: run.rnd,
+    shieldCap: Math.max(10, mod.shieldCap),
+    surgeT: 0, saveUsed: false, dupUsed: false,
     dealt: 0, taken: 0,
   };
 
@@ -310,20 +388,25 @@ export function createFight(run) {
     if (!it) return;
     const def = itemOf(it.key);
     const mul = TUNING.tierMul[it.tier] || 1;
-    live.push({ slot, def, tier: it.tier, mul, timer: 0, cd: def.cd, aura: 0 });
+    live.push({ slot, def, tier: it.tier, mul, timer: 0, cd: def.cd, aura: 0, auraCd: 0 });
   });
   // 相邻光环：光环造物只加成相邻的
   for (const a of live) {
     if (a.def.cd > 0) continue;
+    const op = a.def.op[0] || {};
     for (const nb of ADJ[a.slot]) {
       const b = live.find((x) => x.slot === nb);
-      if (b) b.aura += (a.def.op[0].v || 0) * a.mul;
+      if (!b) continue;
+      if (op.k2 === 'cd') b.auraCd += (op.v || 0) * a.mul;
+      else b.aura += (op.v || 0) * a.mul;
     }
   }
-  // 冷却：密契减 1、拉蒙娜开局先走 2 拍
-  for (const a of live) if (a.cd > 0) {
-    a.cd = Math.max(2, a.cd - mod.cdDown);
-    if (hero.pas.k === 'tempo') a.timer = Math.min(a.cd, hero.pas.v);
+  // 冷却：密契/被动减拍，回溯/四月礼赞让计时先走几拍
+  for (const a of live) {
+    if (a.cd <= 0) continue;
+    a.cd = Math.max(2, a.cd - Math.floor(a.auraCd) - mod.cdDown);
+    if (mod.headstart) a.timer = Math.min(a.cd - 1, mod.headstart);
+    if (pas.k === 'tempo') a.timer = Math.max(a.timer, Math.min(a.cd - 1, pas.v));
   }
   f.items = live;
 
@@ -331,35 +414,60 @@ export function createFight(run) {
   return f;
 }
 
-function damageTo(target, amount) {
+// 护盾吸收；pierce 是「有这一份比例的伤害绕过护盾」
+function damageTo(target, amount, pierce = 0) {
+  let through = 0;
+  if (pierce > 0) {
+    through = amount * Math.min(1, pierce);
+    amount -= through;
+  }
   const sh = Math.min(target.shield, amount);
   target.shield -= sh;
-  target.hp -= amount - sh;
-  return amount - sh;
+  const hpLoss = amount - sh + through;
+  target.hp -= hpLoss;
+  return hpLoss;
 }
 
-function hurt(f, target, amount) {
-  if (target === f.p && f.hero.pas.k === 'bulwark' && f.p.shield > 0) amount *= 0.8;
-  if (target === f.p) f.taken += amount;
-  return damageTo(target, amount);
+function hurt(f, target, amount, pierce = 0) {
+  const isPlayer = target === f.p;
+  if (isPlayer) {
+    if (f.hero.pas.k === 'bulwark' && f.p.shield > 0) amount *= 0.8;
+    f.taken += amount;
+  }
+  const lost = damageTo(target, amount, pierce);
+  if (isPlayer && lost > 0 && f.mod.thorns > 0 && !f.over) {
+    const back = Math.min(f.mod.thorns, Math.max(1, Math.round(amount * 0.35)));
+    f.e.hp -= back;
+    f.dealt += back;
+  }
+  if (isPlayer && f.p.hp <= 0 && f.mod.save && !f.saveUsed) {
+    f.saveUsed = true;
+    f.p.hp = Math.min(f.p.maxHp, f.mod.save);
+  }
+  return lost;
 }
 
-// 一方的伤害倍率：玩家吃暴击/增伤，敌人吃当天的 atk 系数
+// 一方的伤害倍率
 function rollDamage(f, side, base) {
-  if (side === 'e') return { raw: base, crit: false };
-  let raw = base * (1 + f.mod.amp);
-  const crit = f.rnd() < f.mod.crit;
+  if (side === 'e') {
+    let raw = base * (1 + f.e.str * 0.02);
+    if (f.mod.fear) raw *= 1 - f.mod.fear;
+    return { raw, crit: false };
+  }
+  let raw = base + f.p.str + f.mod.flat;
+  raw *= 1 + f.mod.amp;
+  if (f.p.weakT > 0) raw *= 1 - f.p.weak;
+  const crit = f.rnd() < Math.min(0.6, f.mod.crit);
   if (crit) raw *= 1.5 + f.mod.cdmg;
-  if (side === 'p' && f.hero.pas.k === 'bulwark' && f.p.shield > 0) raw *= 1;
+  if (f.e.vulnT > 0) raw *= 1 + f.e.vuln;
   return { raw, crit };
 }
 
 function applyOp(f, side, op, mul, ctx = {}) {
   const ev = [];
   const src = ctx.src || {};
-  const e = f.e, p = f.p;
-  const target = side === 'p' ? e : p;
-  const self = side === 'p' ? p : e;
+  const target = side === 'p' ? f.e : f.p;
+  const self = side === 'p' ? f.p : f.e;
 
   switch (op.k) {
     case 'dmg': {
@@ -367,22 +475,27 @@ function applyOp(f, side, op, mul, ctx = {}) {
       let total = 0;
       let anyCrit = false;
       for (let h = 0; h < hits; h++) {
-        const { raw, crit } = rollDamage(f, side, op.v * mul + (ctx.aura || 0) + (side === 'p' ? f.mod.flat : 0));
-        if (op.pierce) target.hp -= raw; else hurt(f, target, raw);
+        const { raw, crit } = rollDamage(f, side, op.v * mul + (ctx.aura || 0));
+        if (side === 'p') {
+          hurt(f, target, raw, f.mod.pierce);
+        } else {
+          hurt(f, target, raw);
+        }
         total += raw;
         anyCrit = anyCrit || crit;
       }
       if (op.vsPoison && target.poison > 0) {
         const extra = op.vsPoison * mul;
-        hurt(f, target, extra);
+        hurt(f, target, extra, side === 'p' ? f.mod.pierce : 0);
         total += extra;
       }
       if (side === 'p') {
         f.dealt += total;
-        const leech = (op.leech || 0) + f.mod.leech;
+        let leech = (op.leech || 0) + f.mod.leech;
+        if (f.mod.lowLeech && f.p.hp < f.p.maxHp * 0.5) leech += f.mod.lowLeech;
         if (leech > 0) {
           const h = Math.round(total * leech);
-          if (h > 0) { self.hp = Math.min(self.maxHp, self.hp + h); ev.push({ s: 'p', k: 'heal', v: h }); }
+          if (h > 0) { self.hp = Math.min(self.maxHp, self.hp + h); ev.push({ s: 'p', k: 'heal', v: h, slot: src.slot }); }
         }
       }
       ev.push({ s: side, k: 'dmg', v: Math.round(total), hits, crit: anyCrit, slot: src.slot });
@@ -390,14 +503,15 @@ function applyOp(f, side, op, mul, ctx = {}) {
     }
     case 'poison': {
       let v = op.v * mul;
-      if (side === 'p' && f.hero.pas.k === 'venom') v += 1;
-      target.poison = Math.max(target.poison, v);
+      if (side === 'p' && f.mod.venom) v *= 1 + f.mod.venom;
+      if (side === 'p' && f.mod.venom) v += 1;
+      target.poison = Math.max(target.poison, Math.round(v));
       target.poisonT = DOT_TURNS;
-      ev.push({ s: side, k: 'poison', v, slot: src.slot });
+      ev.push({ s: side, k: 'poison', v: Math.round(v), slot: src.slot });
       break;
     }
     case 'burn': {
-      const v = op.v * mul;
+      const v = Math.round(op.v * mul);
       target.burn = Math.max(target.burn, v);
       target.burnT = DOT_TURNS;
       ev.push({ s: side, k: 'burn', v, slot: src.slot });
@@ -405,8 +519,9 @@ function applyOp(f, side, op, mul, ctx = {}) {
     }
     case 'shield': {
       const v = op.v * mul;
-      self.shield = Math.min(side === 'p' ? f.shieldCap : 40, self.shield + v);
-      ev.push({ s: side, k: 'shield', v, slot: src.slot });
+      const cap = side === 'p' ? f.shieldCap : 40;
+      self.shield = Math.min(cap, self.shield + v);
+      ev.push({ s: side, k: 'shield', v: Math.round(v), slot: src.slot });
       break;
     }
     case 'heal': {
@@ -419,6 +534,19 @@ function applyOp(f, side, op, mul, ctx = {}) {
       if (side === 'p') { f.gold += Math.round(op.v * mul); ev.push({ s: 'p', k: 'gold', v: Math.round(op.v * mul), slot: src.slot }); }
       break;
     }
+    case 'str': {
+      self.str += op.v * mul;
+      ev.push({ s: side, k: 'str', v: Math.round(op.v * mul), slot: src.slot });
+      break;
+    }
+    case 'vuln': {
+      if (side === 'p') {
+        target.vuln = Math.max(target.vuln, op.v * mul);
+        target.vulnT = DOT_TURNS;
+        ev.push({ s: 'p', k: 'vuln', v: op.v * mul, slot: src.slot });
+      }
+      break;
+    }
     case 'slow': {
       if (side === 'p') {
         const add = Math.min(3 - f.e.slow, op.v * mul);
@@ -427,6 +555,21 @@ function applyOp(f, side, op, mul, ctx = {}) {
           for (const s of f.e.skills) s.cd += add;
           ev.push({ s: 'p', k: 'slow', v: add, slot: src.slot });
         }
+      }
+      break;
+    }
+    case 'weaken': {
+      if (side === 'e') {
+        f.p.weak = Math.max(f.p.weak, op.v);
+        f.p.weakT = op.t || 3;
+        ev.push({ s: 'e', k: 'weaken', v: op.v });
+      }
+      break;
+    }
+    case 'stun': {
+      if (side === 'e') {
+        for (const it of f.items) if (it.cd > 0) it.timer = Math.max(0, it.timer - (op.v || 1));
+        ev.push({ s: 'e', k: 'stun', v: op.v || 1 });
       }
       break;
     }
@@ -450,6 +593,13 @@ function applyOp(f, side, op, mul, ctx = {}) {
       }
       break;
     }
+    case 'regen': {
+      if (side === 'p') {
+        f.mod.regen += op.v * mul;
+        ev.push({ s: 'p', k: 'regen', v: Math.round(op.v * mul), slot: src.slot });
+      }
+      break;
+    }
     default: break;
   }
   return ev;
@@ -462,25 +612,24 @@ export function stepFight(f) {
   f.t += 1;
 
   // 1) 被动
-  if (f.hero.pas.k === 'ward' && f.t % f.hero.pas.v === 0) {
-    f.p.shield = Math.min(f.shieldCap, f.p.shield + 8);
-    ev.push({ s: 'p', k: 'shield', v: 8, pas: 1 });
+  const pas = f.hero.pas || {};
+  if (pas.k === 'ward' && f.t % Math.max(2, pas.v) === 0) {
+    const w = pas.w || 6;
+    f.p.shield = Math.min(f.shieldCap, f.p.shield + w);
+    ev.push({ s: 'p', k: 'shield', v: w, pas: 1 });
   }
-  if (f.hero.pas.k === 'tide' && f.p.hp < f.p.maxHp * 0.5) {
+  if (pas.k === 'tide' && f.p.hp < f.p.maxHp * 0.5) {
     f.p.hp = Math.min(f.p.maxHp, f.p.hp + 1);
     ev.push({ s: 'p', k: 'heal', v: 1, pas: 1 });
   }
   if (f.mod.regen) {
     f.p.hp = Math.min(f.p.maxHp, f.p.hp + f.mod.regen);
-    if (f.mod.regen >= 1) ev.push({ s: 'p', k: 'heal', v: f.mod.regen, pas: 1 });
+    if (f.mod.regen >= 1) ev.push({ s: 'p', k: 'heal', v: Math.round(f.mod.regen), pas: 1 });
   }
   if (f.mod.ward && f.t % 4 === 0) {
     f.p.shield = Math.min(f.shieldCap, f.p.shield + f.mod.ward);
   }
-  // 24 的狂气：每 N 拍随机一件造物立刻触发
-  if (f.hero.pas.k === 'surge' && f.t % f.hero.pas.v === 0) {
-    f.surgeT = 1;
-  }
+  if (pas.k === 'surge' && f.t % Math.max(2, pas.v) === 0) f.surgeT = 1;
 
   // 2) 状态结算
   for (const [side, obj] of [['p', f.p], ['e', f.e]]) {
@@ -496,6 +645,8 @@ export function stepFight(f) {
       ev.push({ s: side, k: 'burnTick', v: obj.burn });
       if (!obj.burnT) obj.burn = 0;
     }
+    if (obj.vulnT > 0) obj.vulnT -= 1;
+    if (obj.weakT > 0) obj.weakT -= 1;
   }
   if (checkOver(f)) return ev;
 
@@ -512,21 +663,25 @@ export function stepFight(f) {
     if (it.timer >= it.cd) { it.timer = 0; queue.push(it); }
   }
   let guard = 0;
-  while (queue.length && guard++ < 24) {
+  while (queue.length && guard++ < 32) {
     const it = queue.shift();
     const isFirst = !f.firstDone;
     f.firstDone = true;
     const mul = it.mul;
     for (const op of it.def.op) ev.push(...applyOp(f, 'p', op, mul, { src: it, aura: it.aura }));
-    // 首次触发 ×2（二律背反）
+    // 二律背反：第一件造物再算一次（只追加伤害类，免得刷盾刷到无敌）
     if (isFirst && f.pact.k === 'firstcrit') {
-      // 追加一次等额伤害，简单直接
       const dmg = it.def.op.find((o) => o.k === 'dmg');
       if (dmg) {
         const extra = Math.round(dmg.v * mul + it.aura);
-        hurt(f, f.e, extra);
+        hurt(f, f.e, extra, f.mod.pierce);
         ev.push({ s: 'p', k: 'dmg', v: extra, crit: true, slot: it.slot });
       }
+    }
+    // 再衍化：每场第一件造物触发完再触发一次
+    if (isFirst && f.mod.dupFirst && !f.dupUsed) {
+      f.dupUsed = true;
+      queue.unshift(it);
     }
   }
   if (checkOver(f)) return ev;
@@ -570,24 +725,29 @@ export function autoFight(f) {
 
 // 战斗结束 → 结算回 run
 export function settle(run, f) {
-  const goldGain = f.gold + (f.win ? TUNING.income[run.day] : 0) + f.mod.gold;
+  const income = Math.round((TUNING.income[Math.min(run.day, TUNING.income.length - 1)] || 0) * run.diff.income);
+  let goldGain = f.gold + f.mod.gold + (f.win ? income : 0);
+  if (run.pact.k === 'tank' && f.win) goldGain = Math.round(goldGain * 0.85);
   run.gold += goldGain;
   run.history.push({ day: run.day, foe: f.foe.n, win: f.win, hp: Math.max(0, Math.round(f.p.hp)) });
   let cleared = false;
   if (f.win) {
     run.wins += 1;
     if (run.pact.k === 'grow') run.bonusHp += run.pact.v;
+    if (run.pact.k === 'feast') run.bonusHp = Math.max(-TUNING.startHp, run.bonusHp); // 欢宴只是回血，不改上限
     run.day += 1;
+    run.freeReroll = 0;
     if (run.day > run.totalDays) { run.cleared = true; run.over = true; }
     else { pickFoe(run); rollShop(run, { free: true }); }
   } else {
     run.losses += 1;
     run.sane -= 1;
-    // 最后一天打输也算散场（以前这里会顺手标成通关，白送一个「摊子开到最后」）
+    // 最后一天打输也算散场（这里以前会顺手标成通关）
     if (run.sane <= 0 || run.day >= run.totalDays) {
       run.over = true;
     } else {
       run.day += 1;
+      run.freeReroll = 0;
       pickFoe(run);
       rollShop(run, { free: true });
     }
@@ -597,42 +757,52 @@ export function settle(run, f) {
 
 export function scoreOf(run) {
   const day = Math.min(run.cleared ? run.totalDays : run.day - 1, run.totalDays);
-  return day * 120 + Math.max(0, run.sane) * 60 + run.gold * 2 + (run.cleared ? 400 : 0);
+  const diffMul = run.diff.id === 'normal' ? 1 : run.diff.id === 'hard' ? 1.35 : run.diff.id === 'nightmare' ? 1.8 : 2.4;
+  return Math.round((day * 120 + Math.max(0, run.sane) * 60 + run.gold * 2 + (run.cleared ? 400 : 0)) * diffMul);
 }
 
 // ---------------------------------------------------------------- 卡面文本（和 op 现算，保证一致）
 const num = (v) => (Math.abs(v - Math.round(v)) < 1e-9 ? String(Math.round(v)) : v.toFixed(1));
+const pct = (v) => Math.round(v * 100) + '%';
 
 export function opText(op, mul = 1, aura = 0) {
   switch (op.k) {
     case 'dmg': {
-      const v = num(Math.round(op.v * mul + aura));
-      let t = `造成 ${v} 点伤害`;
-      if (op.hits > 1) t += ` ${op.hits} 次`;
-      if (op.pierce) t += '（无视护盾）';
-      if (op.vsPoison) t += `；目标中毒时再造成 ${num(Math.round(op.vsPoison * mul))} 点`;
-      if (op.leech) t += `；吸取 ${Math.round(op.leech * 100)}% 伤害为生命`;
+      let t = `造成 ${num(op.v * mul + aura)} 点伤害`;
+      if (op.hits > 1) t += `，共 ${op.hits} 次`;
+      if (op.pierce) t += '，无视护盾';
+      if (op.leech) t += '，并吸取 30%';
+      if (op.vsPoison) t += `，对中毒目标追加 ${num(op.vsPoison * mul)} 点`;
       return t;
     }
-    case 'poison': return `施加 ${num(op.v * mul)} 点中毒（${DOT_TURNS} 拍，无视护盾）`;
-    case 'burn': return `施加 ${num(op.v * mul)} 点灼烧（${DOT_TURNS} 拍）`;
+    case 'poison': return `施加 ${num(op.v * mul)} 层中毒（3 拍内每拍掉等量血，无视护盾）`;
+    case 'burn': return `施加 ${num(op.v * mul)} 层灼烧（3 拍内每拍掉等量血）`;
     case 'shield': return `获得 ${num(Math.round(op.v * mul))} 点护盾`;
     case 'heal': return `回复 ${num(Math.round(op.v * mul))} 点生命`;
-    case 'gold': return `战斗中额外获得 ${num(Math.round(op.v * mul))} 金币`;
-    case 'slow': return `敌方所有技能冷却 +${num(op.v * mul)}`;
-    case 'haste': return `相邻造物冷却 -${num(op.v)}`;
-    case 'charge': return `相邻造物计时立刻 +${num(op.v * mul)} 拍`;
-    case 'aura': return `相邻造物伤害 +${num(Math.round(op.v * mul))}`;
+    case 'gold': return `战斗结束额外获得 ${num(Math.round(op.v * mul))} 金币`;
+    case 'slow': return `对手所有技能延后 ${num(op.v * mul)} 拍`;
+    case 'haste': return `相邻造物冷却 -${num(op.v)} 拍（不改变已排的进度）`;
+    case 'charge': return `相邻造物立刻推进 ${num(op.v * mul)} 拍`;
+    case 'str': return `本场每次伤害 +${num(op.v * mul)}（可叠加）`;
+    case 'vuln': return `目标受到的伤害 +${pct(op.v * mul)}（3 拍）`;
+    case 'regen': return `本场每拍回复 ${num(op.v * mul)} 点生命`;
+    case 'thorns': return `受到伤害时反弹 ${num(op.v * mul)} 点`;
+    case 'weaken': return `你的伤害 -${pct(op.v)}（${op.t || 3} 拍）`;
+    case 'stun': return '打断：所有造物延后一拍';
+    case 'aura': return op.k2 === 'cd' ? `相邻造物冷却 -${num(aura || op.v)} 拍` : `相邻造物的伤害 +${num(aura || op.v)}`;
     default: return '';
   }
 }
 
-export function itemText(it, tier = 1) {
-  const def = itemOf(it.key || it.id);
-  const mul = TUNING.tierMul[tier];
-  return def.op.map((o) => opText(o, mul)).join('；');
+export function itemText(it) {
+  const def = it.def || it;
+  const mul = it.mul || 1;
+  return def.op.map((o) => opText(o, mul)).filter(Boolean).join('；');
 }
 
 export function cdText(cd) {
-  return cd > 0 ? `${cd} 拍` : '光环';
+  if (!cd) return '光环';
+  if (cd <= 2) return '极快';
+  if (cd <= 3) return cd + ' 拍';
+  return cd + ' 拍';
 }

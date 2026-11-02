@@ -1675,7 +1675,7 @@ function bugfight() {
   };
 }
 
-// 弥萨格大巴扎 —— 每局散场时记账（js/bazaar.js 的 zjtt:bazaar:v1）：最高分、走到第几天、开过几摊
+// 大巴扎：银钥 —— 每局散场时记账（js/bazaar.js 的 zjtt:bazaar:v1）：最高分、走到第几天、开过几摊
 function bazaar() {
   const s = RD('bazaar:v1') || {};
   const runs = n(s.runs);
@@ -1707,7 +1707,7 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'keeper', n: '杀死守密人', href: 'keeper.html', icon: '🔪', read: keeper, tip: '126 个结局的文字恐怖' },
   { k: 'bugfight', n: '电子斗蛐蛐', href: 'bugfight.html', icon: '🦗', read: bugfight, tip: '押注两队怪物，活着出笼' },
   { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，73 位出战者，能上段' },
-  { k: 'bazaar', n: '弥萨格大巴扎', href: 'bazaar.html', icon: '🏪', read: bazaar, tip: '六格造物，按拍自动打满四十回合' },
+  { k: 'bazaar', n: '大巴扎：银钥', href: 'bazaar.html', icon: '🏪', read: bazaar, tip: '六格造物，按拍自动打满四十回合' },
 ];
 
 // 一次性读全部：页面只调这一个
@@ -1799,7 +1799,7 @@ const GD_SPEC = [
     ['段位分', String(n(v[0]))],
     ['人机战绩', `${n(v[1])} 胜 ${n(v[2])} 负`],
   ] },
-  { k: 'bz', n: '弥萨格大巴扎', f: (v) => [
+  { k: 'bz', n: '大巴扎：银钥', f: (v) => [
     ['最高分', v[0] ? String(n(v[0])) : '—'],
     ['最远', v[1] ? '第 ' + n(v[1]) + ' 天' : '—'],
     ['开摊', n(v[2]) ? n(v[2]) + ' 次' : '—'],
@@ -1880,7 +1880,7 @@ function digest() {
   // 电子斗蛐蛐 [最高荷包, 夺冠桌数, 打过几桌]：全部只增不减，首页榜按最高荷包排
   const bfS = RD('bugfight:v1') || {};
   out.bf = [n(bfS.best), n(bfS.wins), n(bfS.runs)];
-  // 弥萨格大巴扎 [最高分, 最远第几天, 开摊次数, 收满十二天的摊数]：四个数都只增不减
+  // 大巴扎：银钥 [最高分, 最远第几天, 开摊次数, 收满十二天的摊数]：四个数都只增不减
   const bzS = RD('bazaar:v1') || {};
   out.bz = [n(bzS.best), n(bzS.day), n(bzS.runs), n(bzS.wins)];
   return out;
