@@ -36,6 +36,9 @@ export const LUCK_DIFFS = [
   { id: 'ruin', zh: '劫数', lv: 190, scale: 1.7, stage: 14, mult: 6.4, note: '强度挪到主线 90 关档，域规开始出现：屏障、反震、压疗、重甲、封印轮着来' },
   { id: 'fate', zh: '天命', lv: 240, scale: 2.05, stage: 26, mult: 9.0, note: '主线 100+ 关的敌人加一层厚血，几乎每场都要带着解法才打得过' },
   { id: 'apex', zh: '终途', lv: 300, scale: 2.5, stage: 40, mult: 13.0, note: '给通关主线、阵容与装备都练到头的人：第一层就是连环硬仗，没有解法走不完' },
+  // 后期队伍的两档：前面都能稳过之后再往上走。强度档位继续后挪（≈主线第 100~150 关），域规全程在线
+  { id: 'cycle', zh: '轮回', lv: 360, scale: 3.0, stage: 56, mult: 18.0, note: '强度挪到主线 100 关以后：每一层都带域规，造物 / 天赋 / 专属强化缺一块就走不完' },
+  { id: 'abyss', zh: '归墟', lv: 440, scale: 3.6, stage: 72, mult: 25.0, note: '大运的尽头：满配、满天赋、满造物构筑的队伍才有机会，容错几乎为零' },
 ];
 export const diffOf = (id) => LUCK_DIFFS.find((d) => d.id === id) || LUCK_DIFFS[1];
 
@@ -291,6 +294,8 @@ export const LUCK_ACH = [
   { id: 'a_ruin', zh: '劫数难逃', desc: '在「劫数」难度下通关', reward: { gold: 12000, cores: 200, tickets: 6, rw: 1 } },
   { id: 'a_fate', zh: '天命所归', desc: '在「天命」难度下通关', reward: { gold: 24000, cores: 320, tickets: 10, rw: 2 } },
   { id: 'a_apex', zh: '终途之上', desc: '在「终途」难度下通关', reward: { gold: 50000, cores: 600, tickets: 20, rw: 3 } },
+  { id: 'a_cycle', zh: '轮回不止', desc: '在「轮回」难度下通关', reward: { gold: 90000, cores: 900, tickets: 30, rw: 3 } },
+  { id: 'a_abyss', zh: '归于虚墟', desc: '在「归墟」难度下通关', reward: { gold: 200000, cores: 1500, tickets: 50, rw: 5 } },
   { id: 'a_score12000', zh: '万点轰鸣', desc: '单局得分达到 12000', reward: { gold: 9000, cores: 160, tickets: 4, rw: 1 } },
   { id: 'a_score30000', zh: '传说车速', desc: '单局得分达到 30000', reward: { gold: 30000, cores: 400, tickets: 12, rw: 2 } },
 ];
@@ -547,6 +552,8 @@ export function endRun(state, win) {
   if (win && run.diff === 'ruin') mark('a_ruin');
   if (win && run.diff === 'fate') mark('a_fate');
   if (win && run.diff === 'apex') mark('a_apex');
+  if (win && run.diff === 'cycle') mark('a_cycle');
+  if (win && run.diff === 'abyss') mark('a_abyss');
   if (score >= 12000) mark('a_score12000');
   if (score >= 30000) mark('a_score30000');
   if (score >= 1500) mark('a_1500');

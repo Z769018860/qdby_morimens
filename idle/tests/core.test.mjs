@@ -3277,10 +3277,10 @@ test('大运：分数进等级、成就与天赋点一起结算', async () => {
   assert.ok(L.claimLevel(s, 1) === null, '同一级不能领两次');
 });
 
-test('大运：八档难度推荐等级递增、怪越难分越高，后三档强度档位后挪', async () => {
+test('大运：十档难度推荐等级递增、怪越难分越高，后五档强度档位后挪', async () => {
   const L = await import('../src/core/luckrun.js');
-  assert.equal(L.LUCK_DIFFS.length, 8);
-  assert.deepEqual(L.LUCK_DIFFS.slice(5).map((d) => d.id), ['ruin', 'fate', 'apex']);
+  assert.equal(L.LUCK_DIFFS.length, 10);
+  assert.deepEqual(L.LUCK_DIFFS.slice(5).map((d) => d.id), ['ruin', 'fate', 'apex', 'cycle', 'abyss']);
   assert.ok(L.LUCK_DIFFS.slice(5).every((d) => d.stage > 0) && L.LUCK_DIFFS.slice(0, 5).every((d) => !d.stage));
   for (let i = 1; i < L.LUCK_DIFFS.length; i++) {
     assert.ok(L.LUCK_DIFFS[i].lv > L.LUCK_DIFFS[i - 1].lv);
