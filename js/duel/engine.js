@@ -1257,9 +1257,12 @@ function summonTraps(G, p, mon, kind) {
     if (negateTrapOnce(G, p.idx, o, s)) continue;
     const f = fx(d);
     const neg = f.find((x) => x.k === 'negateSummon');
-    const dst = f.find((x) => x.k === 'destroySummon');
+    // 「不受对方魔法·陷阱效果影响」的怪兽（轮转·万象命轮 / 画中之物·倒错）：陷阱的「破坏」对它无效，这一类陷阱就不发动。
+    // 「无效召唤」不算（那是挡掉这次召唤本身，不是对怪兽的效果，和卡面一致）。
+    const immune = effImmune(mon);
+    const dst = immune ? null : f.find((x) => x.k === 'destroySummon');
     const negSp = isSp ? f.find((x) => x.k === 'negateSpecial') : null;
-    const dstSp = isSp ? f.find((x) => x.k === 'destroySpecial') : null;
+    const dstSp = isSp && !immune ? f.find((x) => x.k === 'destroySpecial') : null;
     if (neg || negSp) {
       const lockSp = negSp && negSp.spLock;
       fire(G, o, s, false);
@@ -1371,14 +1374,16 @@ function attackTraps(G, atkSide, atkMon, direct) {
     if (negateTrapOnce(G, atkSide, def, s)) continue;
     const list = fx(d);
     const neg = list.find((x) => x.k === 'negateAttack');
-    const dst = list.find((x) => x.k === 'destroyAttacker');
+    // 同上：攻击者不受陷阱效果影响时，「破坏攻击者」「削攻击力」都对它无效（之前陷阱照样把万象命轮破坏了）
+    const immuneAtk = effImmune(atkMon);
+    const dst = immuneAtk ? null : list.find((x) => x.k === 'destroyAttacker');
     const ref = list.find((x) => x.k === 'reflect');
     const boost = list.find((x) => x.k === 'battleBoost');
     // 密契那批（bp07）用的三个新触发：给屏障 / 下毒 / 直接反伤
     const bar = list.find((x) => x.k === 'trapBarrier');
     const psn = list.find((x) => x.k === 'trapPoison');
     const tct = list.find((x) => x.k === 'trapCounter');
-    const tcm = list.find((x) => x.k === 'trapCounterMon');
+    const tcm = immuneAtk ? null : list.find((x) => x.k === 'trapCounterMon');
     if (neg) {
       fire(G, def, s, false);
       log(G, '那次攻击被无效了', 'trap');
@@ -1794,7 +1799,10 @@ export function eligibleTraps(G, side, a) {
     if (!s || !s.set || s.turnSet >= G.turn) continue;
     const d = CARDS[s.id];
     if (!d || d.k !== 'T' || !canFire(o, s)) continue;
-    const ks = fx(d).map((f) => f.k);
+    let ks = fx(d).map((f) => f.k);
+    // 对「不受陷阱效果影响」的怪兽，破坏 / 削攻击力这类陷阱没有可发动的理由，不弹询问
+    const actor = a.t === 'attack' ? me.mons.find((x) => x && x.uid === a.uid) : (a.t === 'summon' || a.t === 'special') ? (() => { const h = me.hand.find((x) => x.uid === a.uid); return h ? { id: h.id } : null; })() : null;
+    if (actor && hasFx(actor, 'unaffected')) ks = ks.filter((k) => !['destroyAttacker', 'trapCounterMon', 'destroySummon', 'destroySpecial'].includes(k));
     let hit = false;
     if (a.t === 'attack') hit = ks.some((k) => ATK_REACT.includes(k) && (k !== 'reflect' || direct));
     else if (a.t === 'summon' || a.t === 'special') {

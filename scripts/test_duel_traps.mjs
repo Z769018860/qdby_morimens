@@ -185,5 +185,40 @@ for (const id of free) {
   const mons = Object.values(CARDS).filter((c) => c.k === 'M' && (c.fx || []).some((f) => ['trapWard', 'trapImmune', 'negateTrapOnce', 'trapSeal'].includes(f.k)));
   check('原有怪兽里有一批带了抗性 / 反制', mons.length >= 15, mons.length);
 }
+// ---- 卡面文字必须和实际数据一致（以前出过：兽性·换命契约写「索蕾尔」、实际要「血链·希洛」；万象命轮写不受陷阱影响却被陷阱破坏）----
+{
+  const strip = (s) => String(s).replace(/^「|」$/g, '');
+  const bad = [];
+  for (const c of Object.values(CARDS).filter((x) => x.k === 'E' && x.mat && x.mat.length === 2)) {
+    const m = String(c.text).match(/^「([^」]+)」＋「([^」]+)」/);
+    if (m && JSON.stringify([m[1], m[2]].map(strip)) !== JSON.stringify(c.mat.map(strip))) bad.push(`${c.n}：写 ${m[1]}＋${m[2]}，实际 ${c.mat.join('＋')}`);
+  }
+  check('额外卡组的素材：卡面文字 = 实际素材', bad.length === 0, bad.join('；'));
+  // 文字写「贯穿」的怪兽必须真有 pierce
+  const noPierce = Object.values(CARDS).filter((c) => /贯穿/.test(c.text || '') && c.k === 'M' && !(c.fx || []).some((f) => f.k === 'pierce'));
+  check('写「贯穿」的怪兽都有 pierce', noPierce.length === 0, noPierce.map((c) => c.n).join('、'));
+}
+// ---- 「不受对方魔法·陷阱效果影响」：陷阱的破坏 / 削攻击对它无效，也不弹询问 ----
+{
+  const e25 = Object.values(CARDS).find((c) => c.n === '轮转·万象命轮'), t = Object.values(CARDS).find((c) => c.n === '融蚀之槛');
+  const G = fresh(); const a = G.players[0], b = G.players[1];
+  G.turn = 5; G.active = 0; G.phase = 'battle';
+  a.mons[0] = { uid: 951, id: e25.id, pos: 'atk', set: false, atkCount: 0, atk: e25.atk, def: e25.def };
+  b.spells[0] = mk(t.id, 0);
+  const el = E.eligibleTraps(G, 0, { t: 'attack', uid: 951, target: null });
+  check('万象命轮攻击时，「融蚀之槛」不会弹出询问', !el.some((x) => x.id === t.id), JSON.stringify(el));
+  const lpb = b.lp;
+  const r = E.applyAction(G, 0, { t: 'attack', uid: 951, target: null });
+  check('万象命轮没有被「融蚀之槛」破坏，攻击照常命中', r.ok && a.mons[0] && a.mons[0].id === e25.id && b.lp < lpb, JSON.stringify([r.ok, !!a.mons[0], b.lp, lpb]));
+  // 普通怪兽照旧会被破坏
+  const G2 = fresh(); const a2 = G2.players[0], b2 = G2.players[1];
+  G2.turn = 5; G2.active = 0; G2.phase = 'battle';
+  const plain = Object.values(CARDS).find((c) => c.k === 'M' && !(c.fx || []).some((f) => f.k === 'unaffected'));
+  a2.mons[0] = { uid: 952, id: plain.id, pos: 'atk', set: false, atkCount: 0, atk: plain.atk, def: plain.def };
+  b2.spells[0] = mk(t.id, 0);
+  E.applyAction(G2, 0, { t: 'attack', uid: 952, target: null });
+  check('普通怪兽撞上「融蚀之槛」仍然被破坏', !a2.mons[0] || a2.mons[0].id !== plain.id);
+}
+
 console.log(bad ? `\n${bad} 项失败` : '\n全部通过 ✓');
 process.exit(bad ? 1 : 0);
