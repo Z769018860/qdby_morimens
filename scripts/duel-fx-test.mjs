@@ -105,8 +105,10 @@ function give(G, side, id) {
   const s = give(G, 1, 's85');           // 割让：破坏对方最强怪兽
   G.active = 1;
   const r = E.applyAction(G, 1, { t: 'spell', uid: s.uid });
-  ok('割让能发动', r.ok, r.err);
+  // 对方只有不受魔陷影响的怪兽：选不中目标，这张魔法发不动（只能取消），而不是发动了却空发
+  ok('割让选不中抗性兽：发动被拦下', !r.ok && /选不中|目标/.test(r.err || ''), r.err);
   ok('抗性兽没有被破坏', G.players[0].mons[0] === tank);
+  ok('卡还在手上、命轮值没有被扣', G.players[1].hand.some((h) => h.uid === s.uid) && G.players[1].lp === 8000, String(G.players[1].lp));
   // 削攻也不吃
   const w = give(G, 1, 's04');
   E.applyAction(G, 1, { t: 'spell', uid: w.uid });
