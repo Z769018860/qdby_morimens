@@ -16,6 +16,7 @@ import { nextAction, aiPolicyFor } from '../js/duel/ai.js';
 import { DECKS, CARDS } from '../js/duel/gen.js';
 
 const WRITE = process.argv.includes('--write');
+const FIX = process.argv.includes('--fix-counters');
 const N = Number(process.env.N || 12);        // 每对局数
 const BASE = DECKS.filter((d) => !d.foeOnly && !d.mix);   // 只拿预组当原料
 const MAX_COPY = 3, DECK_SIZE = 40, EXTRA_MAX = 10, DIRECT_MAX = 2;
@@ -26,6 +27,40 @@ const flat = (d) => { const out = []; for (const [id, n] of d.cards) for (let i 
 function pick(arr, want) {
   const step = arr.length / want;
   return Array.from({ length: want }, (_, i) => arr[Math.min(arr.length - 1, Math.floor((i + 0.5) * step))]);
+}
+
+
+// 反制 / 抗性牌（和 scripts/test_duel_traps.mjs 的 COUNTER_FX 同一份口径）：每套卡组至少要有 MIN_COUNTER 张，
+// 混牌从两套预组各拆一半，抽样时很容易把对方陷阱的应对手段拆没（这一版 x01/x02/x05/x08~x11 只剩 2~3 张）。
+const COUNTER_FX = ['trapSeal', 'snipe', 'snipeAttack', 'snipeAll', 'reveal', 'trapLock', 'trapWard', 'trapImmune', 'negateTrapOnce', 'shieldSnipe', 'shieldLock', 'shieldNegate'];
+const MIN_COUNTER = 4;
+const isCounter = (id) => (CARDS[id].fx || []).some((f) => COUNTER_FX.includes(f.k));
+const countCounters = (ids) => ids.reduce((n, id) => n + (isCounter(id) ? 1 : 0), 0);
+// 把 ids（40 张的平铺列表）补到反制牌 ≥ MIN_COUNTER：从来源预组里挑反制牌顶替「最不重要」的非反制牌。
+// 最不重要 = 先让掉同名超过 1 张的重复牌，再让掉普通魔法 / 陷阱单张；反特召（t48/t49）和怪兽不动，免得卡组骨架变形。
+function ensureCounters(ids, sources) {
+  const out = ids.slice();
+  const pool = [];
+  for (const d of sources) for (const id of flat(d)) if (isCounter(id)) pool.push(id);
+  const have = (id) => out.filter((x) => x === id).length;
+  let guard = 0;
+  while (countCounters(out) < MIN_COUNTER && guard++ < 40) {
+    const add = pool.find((id) => have(id) < MAX_COPY);
+    if (!add) break;
+    let i = -1;
+    for (let k = out.length - 1; k >= 0 && i < 0; k--) {
+      const id = out[k];
+      if (!isCounter(id) && !['t48', 't49'].includes(id) && have(id) >= 2 && (CARDS[id].k === 'S' || CARDS[id].k === 'T')) i = k;
+    }
+    for (let k = out.length - 1; k >= 0 && i < 0; k--) {
+      const id = out[k];
+      if (!isCounter(id) && !['t48', 't49'].includes(id) && (CARDS[id].k === 'S' || CARDS[id].k === 'T')) i = k;
+    }
+    if (i < 0) break;
+    out[i] = add;
+    pool.splice(pool.indexOf(add), 1);
+  }
+  return out;
 }
 
 function mixDeck(a, b, seed) {
@@ -52,11 +87,12 @@ function mixDeck(a, b, seed) {
     const i = out.findIndex((id) => cnt0.get(id) >= 2);     // 优先让掉一张重复的
     out[i >= 0 ? i : out.length - 1] = ANTI[seed % 2];
   }
+  const fixed = ensureCounters(out, [a, b]);
   const bag = new Map();
-  for (const id of out) bag.set(id, (bag.get(id) || 0) + 1);
+  for (const id of fixed) bag.set(id, (bag.get(id) || 0) + 1);
 
   // 额外卡组：素材还在这副牌里的才留；直接召唤最多 2 张（build.mjs 也会卡这条）
-  const names = new Set(out.map((id) => CARDS[id].n));
+  const names = new Set(fixed.map((id) => CARDS[id].n));
   const extra = [];
   let direct = 0;
   for (const id of a.extra.concat(b.extra)) {
@@ -67,6 +103,34 @@ function mixDeck(a, b, seed) {
     if ((e.mat || []).every((nm) => names.has(nm))) extra.push(id);
   }
   return { cards: [...bag.entries()], extra };
+}
+
+// --fix-counters：不重跑模拟、不换搭配，只把 data/duel-packs.json 里已有的 x01~x12 补到反制牌 ≥ 4 张（文本原地改，保持一行一套）
+if (FIX) {
+  const P0 = 'data/duel-packs.json';
+  let txt = fs.readFileSync(P0, 'utf8');
+  const all = JSON.parse(txt).decks;
+  let changed = 0;
+  for (const dk of all.filter((d) => d.mix)) {
+    const ids = flat(dk);
+    if (countCounters(ids) >= MIN_COUNTER) continue;
+    const src = dk.mix.map((id) => all.find((d) => d.id === id));
+    const fixed = ensureCounters(ids, src);
+    const bag = new Map();
+    for (const id of fixed) bag.set(id, (bag.get(id) || 0) + 1);
+    const oldArr = JSON.stringify(dk.cards).replace(/","/g, '", "').replace(/":\[/g, '": [');
+    const newCards = [...bag.entries()];
+    const re = new RegExp('("id":\\s*"' + dk.id + '"[^\\n]*?"cards":\\s*)\\[\\[.*?\\]\\](,\\s*"extra")');
+    const m = txt.match(re);
+    if (!m) { console.error('没匹配到', dk.id); process.exit(1); }
+    txt = txt.replace(re, (_, h, t) => h + JSON.stringify(newCards).replace(/\],\[/g, '], [') + t);
+    console.log(`${dk.id} ${dk.n}: 反制牌 ${countCounters(ids)} → ${countCounters(fixed)}`);
+    changed++;
+  }
+  JSON.parse(txt);
+  fs.writeFileSync(P0, txt);
+  console.log(`已补 ${changed} 套`);
+  process.exit(0);
 }
 
 // 短名：预组全名是「终天教团 · 熵火」，混合卡组只需要后半段
