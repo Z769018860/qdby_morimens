@@ -42,7 +42,7 @@ BOSS = {
 # 70 / 71 / 72 期都是：70 期地图表是别的期次的内容、71 期的 wave 序与禁区序相反、72 期是本地客户端表（与开服首日回放不同）。
 REPLAY_WINS = {(s, z) for s in (70, 71, 72) for z in range(1, 6)}
 
-FILES = ['data/puzzles.json', 'data/puzzles-extra.json', 'data/puzzles-more.json', 'data/puzzles-70.json'] + sorted(
+FILES = ['data/puzzles.json', 'data/puzzles-extra.json', 'data/puzzles-more.json', 'data/puzzles-70.json', 'data/puzzles-72b.json'] + sorted(
     os.path.relpath(p, ROOT) for p in glob.glob(os.path.join(ROOT, 'data/bank/c*.json')))
 
 

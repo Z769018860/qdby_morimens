@@ -317,3 +317,12 @@ python3 scripts/replay_metrics_report.py                      # 出报告与逐�
 - 权威表：`scripts/fix_boss_map.py` 的 `BOSS`（以官方战斗回放为准，逐区核对），题目数据（`data/puzzles*.json`、`data/bank/`）里的 `boss` 都按它改写；`python3 scripts/fix_boss_map.py --check` 能验证，`node scripts/test_detective_boss.mjs` 也会对一遍（10202 道题）。
 - **展示层的旧纠正表已删除**：`js/game.js` 里以前留着一张「展示时再纠正一遍」的硬编码表（71 期五区、72 期五区），是旧口径——71 期五个禁区整体错位（五区的题显示成知者、一区显示成父亲 / 母亲……），72 期五区显示成宁菲亚。数据修好之后这张表反而把对的盖成错的。现在直接用题目数据里的 `boss`。
 - `puzzles-70.json`（分片前的源文件）原来不在改写范围里，里面 70 期的首领还是旧值，重新分片会把旧值带回 bank；已纳入 `fix_boss_map.py` 并改正。
+
+## 题库扩充：第 72 期更新榜单 +1000 题（唤醒体均匀）
+
+- `scripts/build_puzzles_s72_balanced.py` 读 qdby_chinese 的 `data/morimens/dzone/season72/`（2026-11-02 更新的榜单快照），在去掉库里已有的战报（按 id 和 uuid 去重）后，按「缺谁补谁」贪心选 1000 题，输出 `data/puzzles-72b.json`：每个禁区 200 道，四个成员里**出现次数最少的唤醒体优先**；重跑结果完全一致（固定种子，且不把自己上次的输出当成「已有」）。
+- 结果：62 位唤醒体全覆盖，中位 66 次、90% 的角色落在 61~67 次；莉兹（榜单里总共只出现 23 次）、达芙黛尔（45）、尤乌哈希（47）是供给不够，已经全部选上。
+- 流程：`python3 scripts/build_puzzles_s72_balanced.py <qdby_chinese>/data/morimens/dzone/season72 --n 1000` → `python3 scripts/finalize_puzzles.py`（全库重算难度分、分桶、结构审计）→ `node scripts/split_bank.mjs` → `python3 scripts/fix_boss_map.py`。题库现在 7101 题（含主线 1000），新题放在最后，已有分片的顺序不变；核心 1000 题的顺序不变，每日一题不会换。
+- 顺手修了三处会出事的地方：`split_bank.mjs` 里留着一份旧口径的首领表（每次分片都会把首领改回旧值）已换成权威表；`finalize_puzzles.py` 写回时没给新文件留位置（会把新题并进 mainline 文件）；`fix_boss_map.py` 和 `apply_replay_metrics.mjs` 的文件清单补上新文件。
+- 全库难度分是按分位算的，加入新题后旧题的分位会轻微移动：这次有 491 道旧题的难度档变了一档（占 8%），属于「全库重算」的正常现象。
+- 新题还没有回放指标（钥令次数、侵蚀伤害）：那两项要联网拉回放（`fetch_replay_metrics.mjs`），本次没跑。

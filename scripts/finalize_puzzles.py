@@ -21,6 +21,7 @@ EXTRA = ROOT / 'data' / 'puzzles-extra.json'
 MORE = ROOT / 'data' / 'puzzles-more.json'
 S70 = ROOT / 'data' / 'puzzles-70.json'
 SML = ROOT / 'data' / 'puzzles-mainline.json'
+S72B = ROOT / 'data' / 'puzzles-72b.json'     # 更新后的 72 期榜单里按唤醒体均匀挑的 1000 题（scripts/build_puzzles_s72_balanced.py）
 PEPPER = re.search(r"'([0-9a-f]+)'", (ROOT / 'js/pepper.js').read_text(encoding='utf-8')).group(1)
 BUCKETS = 128
 
@@ -184,7 +185,8 @@ def main():
     more = jl(MORE) if MORE.exists() else {'seasons': core['seasons'], 'puzzles': []}
     p70 = jl(S70) if S70.exists() else {'seasons': [70], 'puzzles': []}
     pml = jl(SML) if SML.exists() else {'seasons': [73], 'puzzles': []}
-    ps = core['puzzles'] + extra['puzzles'] + more['puzzles'] + p70['puzzles'] + pml['puzzles']
+    p72b = jl(S72B) if S72B.exists() else {'seasons': [72], 'puzzles': []}
+    ps = core['puzzles'] + extra['puzzles'] + more['puzzles'] + p70['puzzles'] + pml['puzzles'] + p72b['puzzles']
     print(f'core {len(core["puzzles"])} + extra {len(extra["puzzles"])} + more {len(more["puzzles"])}'
           f' + 70期 {len(p70["puzzles"])} = {len(ps)} 题')
 
@@ -260,7 +262,10 @@ def main():
     extra['puzzles'] = ps[n1:n2]
     more['puzzles'] = ps[n2:n3]
     p70['puzzles'] = ps[n3:n3 + n70]
-    pml['puzzles'] = ps[n3 + n70:]
+    nml = len(pml['puzzles'])
+    pml['puzzles'] = ps[n3 + n70:n3 + n70 + nml]
+    p72b['puzzles'] = ps[n3 + n70 + nml:]       # 顺序要和上面拼 ps 时一致（以前少了这一段，72b 会被并进 mainline 文件）
+    p72b['extra'] = True
     extra['extra'] = True
     more['extra'] = True
     p70['extra'] = True
@@ -274,6 +279,8 @@ def main():
         files.append('data/puzzles-70.json')
     if pml['puzzles']:
         files.append('data/puzzles-mainline.json')
+    if p72b['puzzles']:
+        files.append('data/puzzles-72b.json')
     core['extraFiles'] = files
     core['extraFile'] = files[0] if files else None   # 兼容旧前端
     CORE.write_text(json.dumps(core, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
@@ -284,6 +291,8 @@ def main():
         S70.write_text(json.dumps(p70, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     if pml['puzzles']:
         SML.write_text(json.dumps(pml, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    if p72b['puzzles']:
+        S72B.write_text(json.dumps(p72b, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     print(f'\n已写回 {", ".join(["data/puzzles.json"] + files)}')
 
 

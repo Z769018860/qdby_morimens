@@ -27,6 +27,7 @@ const SOURCES = [
   { file: 'puzzles-more.json', core: false },
   { file: 'puzzles-70.json', core: false },
   { file: 'puzzles-mainline.json', core: false },
+  { file: 'puzzles-72b.json', core: false },       // 第 72 期更新榜单里按唤醒体均匀挑的 1000 题；放最后，不挪动已有分片
 ];
 
 const read = (f) => {
@@ -39,10 +40,12 @@ const read = (f) => {
 // Normalise published records even when upstream source JSON has older boss IDs
 // or zero-filled optional extrema. Never derive poison/counter from party damage.
 const BOSS_BY_ZONE = {
-  '71-1':['80576','80577'], '71-2':['94940'], '71-3':['67103'],
-  '71-4':['14063'], '71-5':['81279'],
+  // 与 scripts/fix_boss_map.py 的 BOSS 完全一致（官方回放逐区核对）。以前这里留着旧口径的一份，
+  // 每次重新分片都会把首领改回旧值，再靠 fix_boss_map 改回来——两份表必须一致，scripts/test_detective_boss.mjs 会对。
+  '70-1':['147675'], '70-2':['125901'], '70-3':['14011'], '70-4':['140713'], '70-5':['14015'],
+  '71-1':['81279'], '71-2':['14063'], '71-3':['67103'], '71-4':['94940'], '71-5':['80576','80577'],
   '72-1':['14008','14013'], '72-2':['14064'], '72-3':['60096'],
-  '72-4':['120308','120310','120306'], '72-5':['14086'],
+  '72-4':['120308','120310','120306'], '72-5':['14039'],
 };
 function normalizePuzzle(p) {
   const boss = BOSS_BY_ZONE[`${p.season}-${p.zone}`];
