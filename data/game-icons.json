@@ -9,6 +9,11 @@
     "from": "assets/avatars-q/char-b10.webp",
     "who": "杜勒赛因"
   },
+  "block": {
+    "src": "assets/ui/gameicons/block.webp",
+    "from": "",
+    "who": "自绘"
+  },
   "bird": {
     "src": "assets/ui/gameicons/bird.webp",
     "from": "assets/avatars-q/char-d14.webp",

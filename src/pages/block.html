@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>蚀界方块 · 忘忘同人小游戏</title>
+<meta name="description" content="三个形状，一块八乘八的盘面。填满一整行或一整列就炸掉，攒满八次溢出可以一次清场。一百回合，看你能撑到哪个评级。">
+<meta name="theme-color" content="#070b16">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+/* 这一页不引 css/style.css：那 65KB 是给整站的，这里只要一个游戏壳。
+   背景、方块、眼睛全部由 canvas 现画，页面只有一次脚本请求。 */
+:root{
+  --bg:#070b16; --panel:#101a30; --panel2:#16223c; --line:rgba(120,170,240,.18);
+  --text:#e8eefc; --dim:#8494b4; --accent:#63d2ff; --gold:#e3b341;
+  --bad:#e8695f; --good:#57d8a0;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overscroll-behavior:none}
+body{
+  background:var(--bg); color:var(--text); overflow:hidden;
+  font:15px/1.45 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none; user-select:none;
+}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.app{
+  height:100dvh; max-width:540px; margin:0 auto;
+  padding:max(8px,env(safe-area-inset-top)) 10px max(8px,env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; gap:7px;
+}
+
+/* ---------------------------------------------------------------- 顶栏 */
+.hud{flex:0 0 auto; display:flex; align-items:center; gap:9px}
+.back{
+  width:32px;height:32px;flex:0 0 32px;border-radius:9px;display:grid;place-items:center;
+  border:1px solid var(--line); background:rgba(16,26,48,.72); color:var(--text);
+  text-decoration:none;font-size:15px;line-height:1;
+}
+.back:hover{border-color:var(--accent);color:var(--accent)}
+.scbox{display:flex;flex-direction:column;line-height:1.1;min-width:0}
+.scbox .lbl{font-size:10px;letter-spacing:.14em;color:var(--dim)}
+.sl{display:flex;align-items:baseline;gap:6px}
+.sl #rank{
+  font-size:26px;font-weight:800;font-style:italic;line-height:1;
+  color:#8a93a8;transition:color .25s ease;
+}
+.sl #sc{
+  font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.01em;
+  line-height:1;
+}
+.hud .sp{flex:1}
+.ico{
+  width:32px;height:32px;flex:0 0 32px;border-radius:9px;display:grid;place-items:center;
+  border:1px solid var(--line);background:rgba(16,26,48,.72);color:var(--dim);
+}
+.ico:hover{border-color:var(--accent);color:var(--accent)}
+.ico.off{opacity:.45}
+.ico svg{width:16px;height:16px;display:block}
+
+/* 溢出条 */
+.en{flex:0 0 auto;display:flex;flex-direction:column;gap:3px}
+.entop{display:flex;align-items:baseline;justify-content:space-between;font-size:10.5px;color:var(--dim);letter-spacing:.06em}
+.entop b{font-variant-numeric:tabular-nums;font-weight:600;color:var(--dim);font-size:10.5px}
+.en.ok .entop span{color:var(--gold)}
+.en.ok .entop b{color:var(--gold)}
+.enbar{height:7px;border-radius:99px;background:rgba(120,170,240,.12);overflow:hidden;position:relative}
+.enbar i{
+  display:block;height:100%;width:0;border-radius:99px;
+  background:linear-gradient(90deg,#3a7bd5,#63d2ff);
+  transition:width .3s cubic-bezier(.3,1.4,.6,1);
+}
+.en.ok .enbar i{
+  background:linear-gradient(90deg,#e3b341,#ffe9a8);
+  box-shadow:0 0 12px rgba(227,179,65,.8);
+  animation:enpulse 1.3s ease-in-out infinite;
+}
+@keyframes enpulse{50%{filter:brightness(1.28)}}
+.enbar::after{
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(90deg,transparent 0 calc(12.5% - 1px),rgba(7,11,22,.85) calc(12.5% - 1px) 12.5%);
+  pointer-events:none;
+}
+
+/* ---------------------------------------------------------------- 棋盘 */
+.stage{position:relative;flex:1 1 auto;min-height:0}
+canvas#cv{display:block;border-radius:18px;touch-action:none}
+
+#boot{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:10px;text-align:center;border-radius:18px;
+  background:rgba(7,11,22,.94);color:var(--dim);font-size:13px;
+  transition:opacity .3s ease;
+}
+#boot.gone{opacity:0;pointer-events:none}
+#boot .ring{
+  width:26px;height:26px;border-radius:50%;
+  border:2px solid rgba(150,170,210,.2);border-top-color:var(--accent);
+  animation:spin .9s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+#bootText{margin:0}
+
+.tip{
+  position:absolute;left:50%;bottom:10px;transform:translate(-50%,8px);
+  padding:6px 14px;border-radius:999px;white-space:nowrap;font-size:12px;
+  background:rgba(12,20,38,.94);border:1px solid var(--line);color:var(--text);
+  box-shadow:0 12px 28px -14px #000;
+  opacity:0;transition:opacity .2s ease,transform .2s ease;pointer-events:none;
+  max-width:92%;overflow:hidden;text-overflow:ellipsis;
+}
+.tip.on{opacity:1;transform:translate(-50%,0)}
+
+/* ---------------------------------------------------------------- 底栏 */
+.dock{flex:0 0 auto;display:flex;align-items:center;gap:8px}
+.rounds{display:flex;flex-direction:column;line-height:1.15}
+.rounds span{font-size:10px;letter-spacing:.1em;color:var(--dim)}
+.rounds b{font-size:14px;font-variant-numeric:tabular-nums;font-weight:600}
+.tools{margin-left:auto;display:flex;gap:8px}
+.tool{
+  position:relative;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;
+  border:1px solid var(--line);background:radial-gradient(circle at 34% 28%,#1d2c4b,#101a30);
+  color:#a9bde0;transition:transform .1s ease,border-color .16s ease,color .16s ease;
+}
+.tool:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.tool:active:not(:disabled){transform:scale(.92)}
+.tool:disabled{opacity:.34;cursor:default}
+.tool svg{width:21px;height:21px;display:block}
+.tool .n{
+  position:absolute;right:-1px;bottom:-1px;min-width:15px;height:15px;padding:0 4px;
+  border-radius:999px;background:#22304c;border:1px solid var(--line);
+  font-size:9.5px;line-height:13px;text-align:center;color:#c7d6f2;
+  font-variant-numeric:tabular-nums;
+}
+.tool.on{border-color:var(--bad);color:#ffb3ab;box-shadow:0 0 0 3px rgba(232,105,95,.18)}
+.tool.ready{
+  border-color:var(--gold);color:#ffe9a8;
+  box-shadow:0 0 0 1px rgba(227,179,65,.5),0 0 22px -4px rgba(227,179,65,.9);
+  animation:toolpulse 1.4s ease-in-out infinite;
+}
+@keyframes toolpulse{50%{box-shadow:0 0 0 1px rgba(227,179,65,.7),0 0 26px 2px rgba(227,179,65,.85)}}
+.tool.urgent{animation:toolurgent .7s ease-in-out infinite}
+@keyframes toolurgent{50%{transform:scale(1.1)}}
+
+/* ---------------------------------------------------------------- 手牌 */
+.tray{
+  flex:0 0 auto;height:clamp(84px,15vh,122px);
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-items:center;
+  touch-action:none;
+}
+.hcard{
+  height:100%;border-radius:14px;display:grid;place-items:center;
+  border:1px solid var(--line);background:rgba(18,28,50,.62);
+  transition:opacity .12s ease,transform .12s ease,border-color .16s ease;
+  touch-action:none;cursor:grab;
+}
+.hcard:hover{border-color:rgba(120,170,240,.38)}
+.hcard.empty{border-style:dashed;border-color:rgba(120,170,240,.10);background:rgba(18,28,50,.22)}
+.hcard.drag{opacity:.28}
+.hcard.nope{animation:shake .22s ease}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.pre{position:relative}
+.pz{
+  position:absolute;border-radius:5px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 2px 6px -1px rgba(0,0,0,.55);
+}
+.pz.relic{box-shadow:inset 0 0 0 2px rgba(255,255,255,.55),0 0 10px rgba(87,216,160,.7)}
+
+/* ---------------------------------------------------------------- 结算 */
+.ov{
+  position:absolute;inset:0;display:grid;place-items:center;padding:16px;border-radius:18px;
+  background:rgba(5,9,18,.78);backdrop-filter:blur(6px);
+  opacity:0;transition:opacity .2s ease;
+}
+.ov.on{opacity:1}
+.ov[hidden]{display:none}
+.card{
+  width:min(300px,100%);padding:20px 20px 18px;text-align:center;
+  background:#101a30;border:1px solid #26355a;border-radius:16px;
+  box-shadow:0 30px 70px -30px #000;
+}
+.card .k{margin:0 0 10px;font-size:11.5px;letter-spacing:.2em;color:var(--dim)}
+.card .big{display:flex;align-items:center;justify-content:center;gap:10px;margin:0 0 2px}
+.card .big b#ovRank{font-size:44px;line-height:1;font-weight:800;font-style:italic}
+.card .big span{font-size:36px;line-height:1;font-weight:700;font-variant-numeric:tabular-nums}
+.card .cred{margin:12px 0 4px;font-size:12.5px;color:var(--dim)}
+.card .cred b{font-size:20px;color:var(--dim);font-variant-numeric:tabular-nums;margin:0 2px}
+.card .cred.on b{color:var(--gold)}
+.card .cred span{margin-left:6px;font-size:10.5px;color:var(--dim)}
+.card .sub{margin:0 0 4px;font-size:12px;color:#b6c4de}
+.card .sub2{margin:0 0 16px;font-size:11.5px;color:var(--dim)}
+.acts{display:flex;gap:8px}
+.btn{
+  flex:1;display:inline-flex;align-items:center;justify-content:center;padding:10px 0;
+  border-radius:10px;border:1px solid #2b3a5c;background:#16223c;color:var(--text);
+  font-size:13.5px;text-decoration:none;
+}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{
+  background:linear-gradient(100deg,#3f8fe0,#7f6bf0);border-color:transparent;
+  color:#fff;font-weight:600;
+}
+.btn.primary:hover{color:#fff;opacity:.92}
+
+.intro-ov{position:fixed;inset:0;z-index:60;border-radius:0;background:rgba(5,9,18,.8)}
+.card.intro{text-align:left}
+.card.intro .k{text-align:center}
+.rules{margin:0 0 12px;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+.rules li{position:relative;padding-left:26px;font-size:12.8px;line-height:1.55;color:#c3cfE6}
+.rules li b{
+  position:absolute;left:0;top:1px;width:19px;height:19px;border-radius:6px;display:grid;place-items:center;
+  font-size:11px;font-weight:700;color:#0a1328;background:linear-gradient(140deg,#9fe4ff,#63d2ff);
+}
+.rules li b{text-align:center}
+.card.intro .sub2{text-align:center;margin-bottom:14px}
+.card.intro .btn{width:100%}
+@media (max-height:620px){
+  .tray{height:76px}
+  .sl #rank{font-size:22px}
+  .sl #sc{font-size:19px}
+  .tool{width:40px;height:40px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="hud">
+    <a class="back" href="index.html" title="回首页" aria-label="回首页">←</a>
+    <div class="scbox">
+      <span class="lbl">当前分数</span>
+      <div class="sl"><b id="rank">D</b><b id="sc">0</b></div>
+    </div>
+    <span class="sp"></span>
+    <button class="ico" id="snd" aria-pressed="true" title="音效开关">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9.5h3.2L12 5.5v13L7.2 14.5H4z"/><path d="M16 9.2a4 4 0 0 1 0 5.6"/>
+      </svg>
+    </button>
+    <button class="ico" id="rst" title="重新开始（R）">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 11a8 8 0 1 1-2.6-5.6"/><path d="M20 4.5V10h-5.4"/>
+      </svg>
+    </button>
+    <a class="ico" href="index.html" title="暂离（进度会留着）">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H15"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h9"/>
+      </svg>
+    </a>
+  </header>
+
+  <div class="en" id="en">
+    <div class="entop"><span id="enText">溢出强化</span><b id="enNum">0/8</b></div>
+    <div class="enbar"><i id="enFill"></i></div>
+  </div>
+
+  <main class="stage" id="stage">
+    <canvas id="cv" aria-label="蚀界方块棋盘"></canvas>
+    <div id="boot" role="status" aria-live="polite">
+      <div class="ring"></div>
+      <p id="bootText">正在铺开牌面…</p>
+    </div>
+    <div class="tip" id="tip" role="status" aria-live="polite"></div>
+    <div class="ov intro-ov" id="intro" hidden>
+      <div class="card intro">
+        <p class="k">怎么玩</p>
+        <ul class="rules">
+          <li><b>拖</b>拖动下面的形状，摆进棋盘空格里。</li>
+          <li><b>消</b>填满一整行或一整列，整排一起炸掉。</li>
+          <li><b>攒</b>消行攒溢出，满 8 格点右下角清场。</li>
+        </ul>
+        <p class="sub2">一百回合，看你能撑到哪个评级。</p>
+        <button class="btn primary" id="introGo" type="button">开始</button>
+      </div>
+    </div>
+    <div class="ov" id="ov" hidden>
+      <div class="card">
+        <p class="k" id="ovk">结束了</p>
+        <p class="big"><b id="ovRank">D</b><span id="ovs">0</span></p>
+        <p class="cred" id="ovc"></p>
+        <p class="sub" id="ovd"></p>
+        <p class="sub2" id="ovb"></p>
+        <div class="acts">
+          <button class="btn primary" id="again">再来一局</button>
+          <a class="btn" href="index.html">回首页</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="dock">
+    <div class="rounds"><span>已用回合数</span><b id="step">00/100</b></div>
+    <div class="tools">
+      <button class="tool" id="bHammer" title="碎击：敲掉任意一格（每局 3 次）">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13.4 4.2 19.8 10.6"/><path d="M16.6 6.2a3.4 3.4 0 0 1 0-1.6l2.5-1.1 3 3-1.1 2.5a3.4 3.4 0 0 1-1.6 0z"/>
+          <path d="m12.2 8.4-8 8a1.7 1.7 0 0 0 2.4 2.4l8-8"/>
+        </svg>
+        <i class="n">3</i>
+      </button>
+      <button class="tool" id="bShuffle" title="换牌：重发手上的三个形状（每局 2 次）">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3.6" y="3.6" width="16.8" height="16.8" rx="4.2"/>
+          <circle cx="8.6" cy="8.6" r="1.15" fill="currentColor" stroke="none"/>
+          <circle cx="15.4" cy="8.6" r="1.15" fill="currentColor" stroke="none"/>
+          <circle cx="8.6" cy="15.4" r="1.15" fill="currentColor" stroke="none"/>
+          <circle cx="15.4" cy="15.4" r="1.15" fill="currentColor" stroke="none"/>
+        </svg>
+        <i class="n">2</i>
+      </button>
+      <button class="tool" id="bBurst" title="溢出强化：攒满 8 格，一次清空全场（Q）">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2.6l2.2 5.6 5.8-1.4-3.4 4.9 4.6 3.6-5.9.9.4 5.9-4.4-4-4.4 4 .4-5.9-5.9-.9 4.6-3.6L2 7.8l5.8 1.4z"/>
+        </svg>
+        <i class="n">0</i>
+      </button>
+    </div>
+  </div>
+
+  <footer class="tray" id="tray" aria-label="待放置的形状"></footer>
+</div>
+<script>
+/* 载入守护：脚本没到时至少给个说法 */
+(function () {
+  var t0 = Date.now();
+  setTimeout(function () {
+    var t = document.getElementById('bootText');
+    if (t) t.textContent = '还在画方块…（首次访问会慢一些）';
+  }, 5000);
+  setTimeout(function () {
+    var b = document.getElementById('boot');
+    if (!b || Date.now() - t0 < 18000) return;
+    b.innerHTML = '<p id="bootText">载入超时</p>';
+    var btn = document.createElement('button');
+    btn.textContent = '重新载入';
+    btn.style.cssText = 'padding:7px 16px;border-radius:9px;border:1px solid #26355a;background:#16223c;color:#e8eefc;font:inherit;cursor:pointer';
+    btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
+    b.appendChild(btn);
+  }, 18000);
+})();
+</script>
+<script type="module" src="js/block.js"></script>
+</body>
+</html>
