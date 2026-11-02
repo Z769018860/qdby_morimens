@@ -3996,20 +3996,22 @@ function layout() {
   // 铺满可用宽度。以前格径 88、间隙 8，九个圆几乎相切，远看就是一根彩带，
   // 中间三格（F/G/H）的脸全糊在一起。
   const side = Math.max(8, W * 0.024);
-  const gapMin = wide ? Math.max(14, W * 0.03) : Math.max(3, W * 0.012);
-  const cap = wide ? Math.min(58, H * 0.19) : Math.min(40, H * 0.18, W * 0.115);
+  // 桌面宽屏：格子原来封顶 58px，1400 宽的屏上九格之间全是留白。现在间隙收到宽度的 1.2%，
+  // 格径按「宽度 / 高度」两头取小、封顶 124px，击打区大一倍多；手机横屏（宽度也 ≥520）同样受益。
+  const gapMin = wide ? Math.max(10, W * 0.012) : Math.max(3, W * 0.012);
+  const cap = wide ? Math.min(124, H * 0.22, W * 0.085) : Math.min(40, H * 0.18, W * 0.115);
   const bw = Math.max(22, Math.min(cap, (W - side * 2 - gapMin * (n - 1)) / n));
   const gap = Math.max(gapMin, (W - side * 2 - bw * n) / (n - 1));
   const total = bw * n + gap * (n - 1);
   // 底部只留「圆的下半身 + 键位字母」：全屏之后舞台从 280 长到 380，
   // 再多留白九格就离底太远，手指够不到。
-  const padB = Math.max(36, bw * 0.5 + (SAVE.keys ? 25 : 10), H * 0.06);
+  const padB = Math.max(36, bw * 0.5 + (SAVE.keys ? Math.min(18, Math.max(11, bw * 0.16)) + 14 : 10), H * 0.06);
   const baseY = H - padB;
   LAY.bw = bw;
   LAY.bh = bw;
   // 发球点贴到舞台最上沿：它上方已经没有顶栏了。y 就是圆的半径（再加 2px 余量），
   // 再高一点光晕会被画布上边缘切掉，看着像半个括号。
-  LAY.spawn = { x: W / 2, y: Math.max(16, bw * 0.3 + 2) };
+  LAY.spawn = { x: W / 2, y: Math.max(16, bw * 0.36 + 3) };   // 发球圈半径 = bw*0.36，再留 3px，别被上沿切掉
 
   // 弧：正中最低、两侧逐级抬高，最外两格一路抬到发球点下方——九格连成半个碗，
   // 发球点就是碗心。上面留 18px 余量，免得最外那格跟右上角的「延迟」打架。
@@ -4260,9 +4262,9 @@ function buildStatic() {
     boxCtx.drawImage(sprite(u, ir), b.x - ir, b.y - ir, ir * 2, ir * 2);
     boxCtx.globalAlpha = 1;
     if (SAVE.keys) {
-      boxCtx.font = '600 ' + Math.round(Math.min(12, b.w * 0.28)) + 'px ui-monospace,SFMono-Regular,Menlo,monospace';
+      boxCtx.font = '600 ' + Math.round(Math.min(20, Math.max(11, b.w * 0.22))) + 'px ui-monospace,SFMono-Regular,Menlo,monospace';
       boxCtx.fillStyle = 'rgba(214,222,244,0.68)';
-      boxCtx.fillText(KEY_LABEL[i], b.x, b.y + r + 11);
+      boxCtx.fillText(KEY_LABEL[i], b.x, b.y + r + Math.min(18, Math.max(11, b.w * 0.16)));
     }
   }
 }
