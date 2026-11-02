@@ -498,7 +498,7 @@ export function applyBattle(state, data, run, res) {
   run.battles++;
   // 战后效果：天赋 / 造物的回血与掉血（血契、狂乱是负的）
   const afterPct = talentMods(s).after + relicSum(run, 'after');
-  if (afterPct) for (const x of run.slugs) run.hp[x] = Math.max(0, Math.min(1, (run.hp[x] ?? 1) + afterPct / 100));
+  if (afterPct) healLiving(run, afterPct / 100);
   // 不灭余烬：每层一次，把第一个倒下的人以 30% 生命拉起来（在回血之后判定，免得刚拉起来就被血契压死）
   const revivePct = relicSum(run, 'revive');
   if (revivePct > 0 && run.reviveAct !== run.act) {
@@ -522,7 +522,7 @@ export function applyBattle(state, data, run, res) {
     run.act++; run.node = 0;
     // 每层之间给一口回血，否则第三层基本是拖着残血硬顶；压舱石再加 12%
     const actHeal = 0.15 + relicSum(run, 'act') / 100;
-    for (const x of run.slugs) run.hp[x] = Math.min(1, (run.hp[x] ?? 1) + actHeal);
+    healLiving(run, actHeal);
     return { newAct: run.act };
   }
   run.node++;
@@ -634,12 +634,26 @@ function giveRelic(run, id) {
   return true;
 }
 
+/** 全队回血 / 掉血（frac 是占生命上限的比例，负数是掉血）。**只作用在还活着的人身上**：
+ *  以前倒下的人（血量 0）也会被「涌泉」「热汤」「泉眼」一并加上血，等于每次战后 / 商店 / 事件都把死人白白救活，
+ *  倒下一次也不算数；真正的复活只有「不灭余烬」。 */
+function healLiving(run, frac) {
+  for (const x of run.slugs) {
+    const hp = run.hp[x] ?? 1;
+    if (hp <= 0.001) continue;
+    run.hp[x] = Math.max(0, Math.min(1, hp + frac));
+  }
+}
+
 /** 战后 / 商店的候选池：增益（可重复）+ 造物（唯一）+ 本队的专属强化（每档一次） */
-export function offerPool(state, data, run, n = 3) {
-  const rng = runRng(run, `offer:${run.act}:${run.node}:${run.battles}`);
-  const relics = shuffle(rng, LUCK_RELICS.filter((r) => !run.relics.includes(r.id)));
-  const ups = shuffle(rng, run.slugs.flatMap((sl) => [0, 1].map((i) => charUp(sl, data, i))).filter((u) => u && !run.ups.some((x) => x.id === u.id)));
-  const buffs = shuffle(rng, LUCK_BUFFS);
+export function offerPool(state, data, run, n = 3, skip = []) {
+  // 种子里带上「已经重掷了几次」：以前同一个节点的种子固定，重掷出来的永远是同一批，重掷等于没用
+  const rng = runRng(run, `offer:${run.act}:${run.node}:${run.battles}:${run.rr || 0}`);
+  // skip：上一批里出现过的 id。重掷时尽量排开它们（剩下的候选不够凑数时才放回来）
+  const fresh = (arr) => { const f = arr.filter((x) => !skip.includes(x.id)); return f.length ? f : arr; };
+  const relics = shuffle(rng, fresh(LUCK_RELICS.filter((r) => !run.relics.includes(r.id))));
+  const ups = shuffle(rng, fresh(run.slugs.flatMap((sl) => [0, 1].map((i) => charUp(sl, data, i))).filter((u) => u && !run.ups.some((x) => x.id === u.id))));
+  const buffs = shuffle(rng, fresh(LUCK_BUFFS));
   const out = [];
   // 造物优先：它是整局唯一能改玩法的东西，先保证每次至少出现一件（有的话）
   if (relics.length) { const r = relics[0]; out.push({ type: 'relic', ...r }); }
@@ -668,7 +682,9 @@ export function takeOffer(state, data, run, id) {
 export function rerollOffer(state, data, run) {
   if (run.reroll <= 0) return false;
   run.reroll--;
-  run.offer = offerPool(state, data, run, 3);
+  run.rr = (run.rr || 0) + 1;
+  const prev = (run.offer || []).map((x) => x.id);
+  run.offer = offerPool(state, data, run, 3, prev);
   return true;
 }
 
@@ -691,7 +707,7 @@ export function applyEvent(state, data, run, optIdx) {
   if (g.glow) { const v = Math.round(g.glow * boost); run.glow += v; out.glow = v; }
   if (g.score) { const v = Math.round(g.score * boost); run.score += v; out.score = v; }
   if (g.heal) {
-    for (const x of run.slugs) run.hp[x] = Math.max(0, Math.min(1, (run.hp[x] ?? 1) + g.heal / 100));
+    healLiving(run, g.heal / 100);
     out.heal = g.heal;
   }
   // 生命上限：血量记的是「占上限的比例」，所以上限涨了、当前血也按比例跟上
@@ -747,7 +763,7 @@ export function shopBuy(state, data, run, idx) {
   if (!it || run.glow < it.price) return { err: '余晖不够' };
   if (it.type === 'heal') {
     run.glow -= it.price;
-    for (const x of run.slugs) run.hp[x] = Math.min(1, (run.hp[x] ?? 1) + 0.3);
+    healLiving(run, 0.3);
   } else if (it.type === 'relic') {
     run.glow -= it.price; giveRelic(run, it.id);
   } else {
@@ -764,7 +780,7 @@ function advanceNode(state, run) {
     if (run.act >= LUCK_ACTS - 1) { endRun(state, true); return { cleared: true }; }
     run.act++; run.node = 0;
     const actHeal = 0.15 + relicSum(run, 'act') / 100;
-    for (const x of run.slugs) run.hp[x] = Math.min(1, (run.hp[x] ?? 1) + actHeal);
+    healLiving(run, actHeal);
     return { newAct: run.act };
   }
   run.node++;

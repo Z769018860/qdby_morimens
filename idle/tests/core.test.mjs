@@ -3766,3 +3766,32 @@ test('云存档：器纹 / 特质（含没决定的候选）跟着存档走，�
   const mism = Object.values(s.gear.items).filter((it) => JSON.stringify(got.gear.items[it.uid]?.rune) !== JSON.stringify(it.rune));
   assert.equal(mism.length, 0, '所有装备的词条都应一致');
 });
+
+test('大运：重投每次都出新的一批（种子带重掷次数、尽量排开上一批）；回血 / 热汤 / 泉眼不会把倒下的人救活', async () => {
+  const L = await import('../src/core/luckrun.js');
+  const s = newState(data, 17);
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  s.team = team; for (const sl of team) s.roster[sl] = { lv: 90, star: 20, brk: 6 };
+  const run = L.startRun(s, data, 'ride', team);
+  run.reroll = 6; run.offer = L.offerPool(s, data, run, 3);
+  const seen = new Set([run.offer.map((x) => x.id).sort().join(',')]);
+  for (let i = 0; i < 5; i++) {
+    const prev = run.offer.map((x) => x.id);
+    assert.equal(L.rerollOffer(s, data, run), true);
+    const now = run.offer.map((x) => x.id);
+    assert.ok(!now.every((id) => prev.includes(id)), '重掷出来的不能和上一批一模一样');
+    seen.add(now.slice().sort().join(','));
+  }
+  assert.ok(seen.size >= 5, `6 批候选里至少 5 种不同组合，得到 ${seen.size}`);
+  assert.equal(run.reroll, 1);
+  // 倒下的人：涌泉 / 事件治疗 / 热汤都不会让他回血
+  const r2 = L.startRun(s, data, 'ride', team); r2.hp.ogier = 0; r2.hp.lotan = 0.5; r2.relics.push('r_spring');
+  L.applyBattle(s, data, r2, { win: true, rounds: 3, roundLimit: 18, kills: 2, allies: [], __prep: null });
+  assert.equal(r2.hp.ogier, 0); assert.ok(r2.hp.lotan > 0.5);
+  r2.glow = 999; r2.node = 6; r2.shop = L.shopStock(s, data, r2); const hi = r2.shop.findIndex((x) => x.type === 'heal');
+  L.shopBuy(s, data, r2, hi); assert.equal(r2.hp.ogier, 0);
+  // 不灭余烬仍然能把人拉起来（这是它存在的意义）
+  const r3 = L.startRun(s, data, 'ride', team); r3.hp.ogier = 0; r3.relics.push('r_revive');
+  L.applyBattle(s, data, r3, { win: true, rounds: 3, roundLimit: 18, kills: 2, allies: [], __prep: null });
+  assert.ok(r3.hp.ogier > 0.29);
+});
