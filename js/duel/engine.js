@@ -376,6 +376,7 @@ export function canSummon(G, p, id) {
   if (p.normalUsed && p.normalExtra <= 0) return false;
   const d = CARDS[id];
   if (!d || d.k !== 'M') return false;
+  if (d.token) return false;                   // 衍生物：不能通常召唤
   const need = tributeNeed(id);
   const own = p.mons.filter(Boolean).length;
   if (own < need) return false;
@@ -1618,7 +1619,8 @@ export function canAwaken(G, p, extraId) {
   // 素材必须都在自己场上：以前手牌（甚至墓地）里的牌也能当素材，觉醒就变成「谁先抽到两张素材」，
   // 场上怎么打都无所谓了。现在得先把素材叫上场（通常召唤，或者怪兽卡自带的「特殊召唤」，后者不占通常召唤）。
   const pool = [];
-  for (const m of p.mons) if (m && !m.set) pool.push({ uid: m.uid, id: m.id, src: 'field' });
+  // 衍生物（维度残影 / 灰烬傀儡）卡面写着「不能作为觉醒素材」：不进素材池，「任意两只不同界域」那类觉醒也不能拿它凑数
+  for (const m of p.mons) if (m && !m.set && !(CARDS[m.id] && CARDS[m.id].token)) pool.push({ uid: m.uid, id: m.id, src: 'field' });
 
   if (d.matRealm === 'any') {
     for (let i = 0; i < pool.length; i++) {
@@ -1813,6 +1815,8 @@ export function eligibleTraps(G, side, a) {
     const m = me.mons.find((x) => x && x.uid === a.uid);
     if (!m || !canAttack(G, me, m)) return out;
     direct = a.target == null;
+    // 「此卡攻击宣言时，对方的陷阱不能发动（无视陷阱的攻击）」：连询问都不该有（以前照样弹出来，选了也不生效）
+    if (hasFx(m, 'trapImmune')) return out;
   }
   // 这一步的主角（攻击者 / 刚召唤的怪兽）。它「不受对方魔法·陷阱效果影响」时，破坏它、削它攻击力的陷阱
   // 仍然列在询问里（陷阱本身可以发动），但目标选不中——返回时带 blocked，界面把「发动」灰掉，只能选「都不发动」。
