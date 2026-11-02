@@ -95,6 +95,10 @@ function mkPlayer(G, idx, def) {
     spCount: 0,
     // 中毒层数 / 屏障次数：挂在玩家身上的两种状态，回合开始与受伤时结算
     psn: 0, br: 0,
+    // 「捕网·维度缠丝」这类：本回合剩下的特殊召唤被掐掉（只管特召，不管通常召唤）。
+    // 单独一个字段而不是复用 lock.sum，是因为它们要表达的封锁范围不一样：
+    // 「被囚禁的疯狂」封的是召唤+特召，「捕网」只管特召。
+    spLock: 0,
     // 压制：对方用「女王的戒律」这类牌封住的下个回合，key 是 atk / sum / sp。
     // 数字是「还要封几个回合」，每次自己的回合结束减 1，所以封一下正好停一回合。
     lock: { atk: 0, sum: 0, sp: 0 },
@@ -1101,6 +1105,8 @@ const REACTIVE_TRAP = new Set([
   // 替身：只在对方向你宣言攻击时有用，自己回合主动翻开没有任何意义
   'summonOnAttack', 'tokenOnAttack',
   'destroySummon', 'negateSummon', 'negateSpell', 'negateSpellSnipe', 'negateTrap', 'shieldTraps',
+  // 反特召：只在对方特殊召唤时点有用（含衍生物、解放召唤、额外卡组直接落地）
+  'negateSpecial', 'destroySpecial',
 ]);
 const CONT_TRAP = new Set(['contBoth', 'contBurn', 'contPunish', 'contBarrier', 'contHeal', 'contPoison', 'contBleed']);
 /** 这张盖放的陷阱现在能不能由持有者主动发动；返回 null 表示可以，否则是原因 */
@@ -1237,8 +1243,12 @@ function counterTrap(G, side, trigger) {
   return false;
 }
 
-function summonTraps(G, p, mon) {
+// kind：'normal'（通常召唤/盖放）或 'special'（手牌特召、解放召唤、额外卡组直接落地、衍生物）。
+// 反特召的两张陷阱只在这一步是「特殊召唤」时才认——不然它们就和「圣所钟声」没区别，
+// 而「圣所钟声」是反击通常召唤用的，玩家手里攥着它的时候应该能分得清自己在防什么。
+function summonTraps(G, p, mon, kind) {
   const o = G.players[1 - p.idx];
+  const isSp = kind === 'special';
   for (const s of o.spells.slice()) {
     if (!s || !s.set || s.turnSet >= G.turn) continue;
     const d = CARDS[s.id];
@@ -1248,16 +1258,27 @@ function summonTraps(G, p, mon) {
     const f = fx(d);
     const neg = f.find((x) => x.k === 'negateSummon');
     const dst = f.find((x) => x.k === 'destroySummon');
-    if (neg) {
+    const negSp = isSp ? f.find((x) => x.k === 'negateSpecial') : null;
+    const dstSp = isSp ? f.find((x) => x.k === 'destroySpecial') : null;
+    if (neg || negSp) {
+      const lockSp = negSp && negSp.spLock;
       fire(G, o, s, false);
-      log(G, `「${CARDS[mon.id].n}」的召唤被无效`, 'trap');
+      log(G, isSp ? `「${CARDS[mon.id].n}」的特殊召唤被无效` : `「${CARDS[mon.id].n}」的召唤被无效`, 'trap');
       removeMon(G, p, mon);
       p.grave.push(mon.id);
+      // 捕网额外把这一整个回合的剩余特召也掐掉：1 换 1 拦不住铺场，得让它这一回合铺不下去
+      if (lockSp) {
+        p.spLock = Math.max(p.spLock, lockSp);
+        log(G, `${pname(p)}这一回合不能再用特殊召唤`, 'trap');
+      }
       return true;
     }
-    if (dst && atkOf(G, p, mon) <= (dst.v || 2000)) {
+    if ((dst && atkOf(G, p, mon) <= (dst.v || 2000)) || dstSp) {
       fire(G, o, s, false);
       destroyMon(G, p, mon, '被陷阱破坏');
+      // 「空位·回收令」这类：破坏之后自己摸一张，因为是 1 换 1 的交换，不给牌就没人愿意盖
+      const dr = dstSp && dstSp.draw;
+      if (dr) drawCards(G, o, dr);
       return true;
     }
   }
@@ -1649,10 +1670,46 @@ export function awaken(G, side, extraId) {
 //   sp: { cond: 'sameRealm' }           自己场上有同界域的怪兽时
 //   sp: { cond: 'lp', v: N }            献出 N 点命轮值
 //   sp: { cond: 'tribute', v: N }       解放自己场上 1 只怪兽 + 献出 N 点命轮值（给 6 级以上的大个子，免掉 1~2 只祭品）
-// 每回合最多 1 次，特殊召唤的怪兽当回合不能攻击（和觉醒体一样）。对方的召唤陷阱照样能响应。
+// 每回合最多 2 次（SP_PER_TURN），特殊召唤的怪兽当回合不能攻击（和觉醒体一样）。对方的召唤陷阱照样能响应。
+//
+// 这两句以前只写在注释里：spCount 有初始化、有每回合归零，但**从来没有人读它**，
+// 于是「手牌特召不占通常召唤」等于没有次数上限——只要手牌够、怪兽区有空位，
+// 一回合能连着把 3 只大个子摊上场，这就是「特招速攻速通」的根。上限补上之后，
+// 第 3 次要点按钮会被拒绝，AI 的 bestSpecial 也会自动跳过。
+export const SP_PER_TURN = 2;
+
+// 场地卡上对「特殊召唤」的修正。只认场地（t: 'field'）：卡被顶掉、被拆掉，效果立刻失效。
+//   spPlus  v=1    自己每回合能多特召几次
+//   spCap   v=1    把**对方**每回合的特召次数压到 v 次（限制型场地）
+//   spAtk   v=300  自己特召出来的怪兽 +v 攻
+//   spDraw  v=1    自己特召成功后抽 v 张
+//   spTax   v=300  对方特召成功时受到 v 点伤害（限制型的另一种写法）
+// 每次现算不缓存：场地说顶掉就顶掉，缓存反而容易对不上。
+function fieldFx(p, key) {
+  let v = 0;
+  for (const s of p.spells) {
+    if (!s || !CARDS[s.id] || CARDS[s.id].t !== 'field') continue;
+    for (const f of fx(CARDS[s.id])) if (f.k === key) v += f.v || 0;
+  }
+  return v;
+}
+
+// 这一方这回合还能特召几次：基础 2 次 + 自己场地的 spPlus，再被对方场地的 spCap 封顶。
+export function spMaxOf(G, p) {
+  const o = G.players[1 - p.idx];
+  const cap = fieldFx(o, 'spCap');
+  let n = SP_PER_TURN + fieldFx(p, 'spPlus');
+  if (cap > 0) n = Math.min(n, cap);
+  return Math.max(0, n);
+}
+export function spLeft(G, p) {
+  return Math.max(0, spMaxOf(G, p) - (p.spCount || 0));
+}
 export function canSpecial(G, p, uid) {
   if (G.over || G.active !== p.idx || G.phase !== 'main') return null;
   if (p.lock && p.lock.sum > 0) return null;
+  if (p.spLock > 0) return null;
+  if (p.spCount >= spMaxOf(G, p)) return null;
   const h = p.hand.find((x) => x.uid === uid);
   const d = h && CARDS[h.id];
   if (!d || d.k !== 'M' || !d.sp) return null;
@@ -1686,13 +1743,29 @@ export function specialSummon(G, side, uid, tribUid) {
     if (lp > 0) { log(G, `献出 ${lp} 点命轮值作为代价`, 'cost'); damagePlayer(G, p, lp, 'cost'); if (G.over) return ok(); }
   }
   p.hand.splice(hi, 1);
+  // 宣言即计入：后面即使被「圣所钟声」这类召唤陷阱无效掉，这一次也算用掉了（规则一致）
+  p.spCount++;
+  const o = G.players[1 - side];
   const mon = mkMon(G, id, side);
+  // 场地：自己特招出来的怪兽加攻。加在实例上，离场就没了——场地本身也占一格，等于拿一格换这段压制。
+  const buff = fieldFx(p, 'spAtk');
+  if (buff > 0) { mon.atk += buff; mon.fieldAtk = buff; }
   const slot = freeSlot(p.mons);
   p.mons[slot < 0 ? 0 : slot] = mon;
   mon.atkCount = 9;     // 特殊召唤是白送的一个身位：当回合不能攻击（和觉醒体一样），否则就是每回合白赚一脚
   log(G, `${pname(p)}特殊召唤「${d.n}」（${REALM[d.r].n} · ${atkOf(G, p, mon)}/${defOf(G, p, mon)}）`, 'summon');
-  const killed = summonTraps(G, p, mon);
+  const killed = summonTraps(G, p, mon, 'special');
   if (!killed && !mon.set) triggerSummonFx(G, p, mon);
+  if (!killed) {
+    // 场地：特召成功就抽牌（强化）／对方特召成功我收税（限制），两条都由场地方的光环判定
+    const dr = fieldFx(p, 'spDraw');
+    if (dr > 0) { log(G, `「${pname(p)}」的场地让这次特召换来 ${dr} 张牌`, 'draw'); drawCards(G, p, dr); }
+    const tax = fieldFx(o, 'spTax');
+    if (tax > 0) {
+      log(G, `场地反噬：${pname(p)}特召的代价是 ${tax} 点命轮值`, 'effect');
+      damagePlayer(G, p, tax, 'effect');
+    }
+  }
   return ok();
 }
 
@@ -1724,7 +1797,11 @@ export function eligibleTraps(G, side, a) {
     const ks = fx(d).map((f) => f.k);
     let hit = false;
     if (a.t === 'attack') hit = ks.some((k) => ATK_REACT.includes(k) && (k !== 'reflect' || direct));
-    else if (a.t === 'summon' || a.t === 'special') hit = ks.includes('negateSummon') || ks.includes('destroySummon');
+    else if (a.t === 'summon' || a.t === 'special') {
+      hit = ks.includes('negateSummon') || ks.includes('destroySummon');
+      // 反特召那两张只在特殊召唤时点亮：牌摆在盖牌区，玩家要能一眼看出「这张现在能不能用」
+      if (!hit && a.t === 'special') hit = ks.includes('negateSpecial') || ks.includes('destroySpecial');
+    }
     else if (a.t === 'spell') hit = ks.includes('negateSpell') || ks.includes('negateSpellSnipe') || ks.includes('negateAny');
     else if (a.t === 'activateTrap') hit = ks.includes('negateTrap') || ks.includes('negateAny');
     // 护符：对方这一步的牌带「破坏盖放陷阱 / 封锁陷阱」的效果时可以响应（shieldNegate 只在连锁里自动用，不弹询问）
@@ -1799,6 +1876,10 @@ export function directSummon(G, side, extraId) {
   }
   p.mons[freeSlot(p.mons)] = mon;
   log(G, `${pname(p)}直接召唤「${d.n}」！`, 'awaken');
+  // 直接召唤也是特殊召唤的一种，同样要吃对方的召唤陷阱。
+  // 以前这里直接 triggerSummonFx 就结束了——额外卡组那批「付够命轮值/凑够场面就落地」的怪
+  // 因此完全免疫所有反制，一条没有对手能拦的路，速攻铺场当然推得平。
+  if (summonTraps(G, p, mon, 'special')) return ok();
   triggerSummonFx(G, p, mon);
   return ok();
 }
@@ -1899,6 +1980,8 @@ export function endTurn(G) {
     p.lock.sum = Math.max(0, p.lock.sum - 1);
     p.lock.sp = Math.max(0, p.lock.sp - 1);
   }
+  if (p.spLock > 0) p.spLock--;
+  if (o.spLock > 0) o.spLock--;
 
   G.turn++;
   G.active = 1 - G.active;

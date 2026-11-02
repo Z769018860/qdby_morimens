@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>唤醒王：决斗链接 · 忘忘同人小游戏</title>
-<meta name="description" content="《忘却前夜》同人卡牌对战：把唤醒体写进命轮，用祭品、觉醒召唤、魔法与陷阱和对手赌一段记忆。22 套预组卡组、19 个卡包、417 张卡，主卡组 44 张（额外 3~5 张）；中毒、流血、屏障、反击、嘲讽、衍生物、命轮代价、造物、直接召唤、解放召唤十套机制，外加压制（封攻击 / 封召唤 / 封魔法）、抗性·反制与替身挡刀；可自组多套卡组，人机、同屏双人、房间码好友对战，附世界观设定。">
+<meta name="description" content="《忘却前夜》同人卡牌对战：把唤醒体写进命轮，用祭品、觉醒召唤、魔法与陷阱和对手赌一段记忆。22 套预组卡组、20 个卡包、442 张卡，主卡组 46 张（额外 3~5 张）；中毒、流血、屏障、反击、嘲讽、衍生物、命轮代价、造物、直接召唤、解放召唤十套机制，外加压制（封攻击 / 封召唤 / 封魔法）、抗性·反制与替身挡刀；可自组多套卡组，人机、同屏双人、房间码好友对战，附世界观设定。">
 <meta name="theme-color" content="#0a0c12">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0c12%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2219%22%20fill%3D%22none%22%20stroke%3D%22%23e3b341%22%20stroke-width%3D%223%22%2F%3E%3Cpath%20d%3D%22M32%2018l9%2014-9%2014-9-14z%22%20fill%3D%22%23e8656f%22%20opacity%3D%22.9%22%2F%3E%3C%2Fsvg%3E" type="image/svg+xml">
 <style>
@@ -134,8 +134,10 @@ body{
 .seg{display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--panel)}
 .seg button{
   height:34px; padding:0 12px; border:0; background:transparent; color:var(--dim);
-  font:inherit; font-size:12px; cursor:pointer;
+  font:inherit; font-size:12px; cursor:pointer; white-space:nowrap;
 }
+/* 320 宽的机器上六个界域按钮挤成一排，文字会被压到换行、竖直溢出 3px：收窄内边距就够了 */
+@media (max-width:380px){ .seg button{padding:0 7px; font-size:11.5px} }
 .seg button.on{background:var(--panel3); color:var(--text); font-weight:600}
 .nav-tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin-top:10px}
 .tile{
@@ -340,7 +342,7 @@ body{
 }
 .bsel .note{flex:1 1 auto; font-size:10.5px; color:var(--dim2); margin:0}
 .bpool{max-height:46vh; overflow-y:auto; padding-right:2px}
-.bgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(62px,1fr)); gap:6px}
+.bgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(66px,1fr)); gap:6px}
 .bcell{display:flex; flex-direction:column; gap:2px}
 .bcell .bf{position:relative; cursor:pointer}
 .bcell .bf .card{width:100%; height:auto; aspect-ratio:76/104}
@@ -661,6 +663,11 @@ body{
   color:var(--dim); border:1px solid var(--line); background:var(--panel3);
 }
 .achips .foed.more{color:var(--gold2); border-color:color-mix(in srgb, var(--gold) 34%, var(--line))}
+/* 混合卡组：人机自己把两套预组拆一半混出来的牌，用一个小角标跟预组区分开 */
+.achips .foed .mixb{
+  font-weight:800; font-size:9px; margin-right:4px; padding:0 3px; border-radius:4px; vertical-align:1px;
+  color:var(--gold2); border:1px solid color-mix(in srgb, var(--gold) 34%, var(--line));
+}
 
 /* 十档梯度表：折起来，想看的人点开 */
 .lvt{

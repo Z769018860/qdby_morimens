@@ -441,6 +441,9 @@ function genDuel() {
     `export const PACKS = ${JSON.stringify(packs.packs)};`,
     `export const BONDS = ${JSON.stringify(packs.bonds)};`,
     `export const DECKS = ${JSON.stringify(packs.decks)};`,
+    // 只有玩家能选的那些预组（混合卡组 x01~x12 是人机专属，data 里标了 foeOnly）。
+    // 平衡模拟、对位表、卡池统计这些「按预组口径」的脚本要用它，不然混牌会混进去。
+    'export const PRESETS = DECKS.filter((d) => !d.foeOnly);',
     `export const LORE = ${JSON.stringify(lore)};`,
     `export const FACES = ${JSON.stringify(uri)};`,
     `export const BACK = ${JSON.stringify(back)};`,

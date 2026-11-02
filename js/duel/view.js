@@ -13,7 +13,7 @@ import {
   loadSave, saveSave, freeLeft, ticketDayLeft, payPack, grantPveTicket, addRank, RULES, PVE_SILVER, PVE_LOSS_MIN_ROUNDS,
 } from './store.js';
 import { progress as rankProgress, DIFF_TXT, TIERS } from './tiers.js';
-import { aiFor, foePick, foeBand, foeWinRate, poolLabel, AI_LV } from './rank.js';
+import { aiFor, foePick, foeBand, foeWinRate, foeIds, proxyWeights, poolLabel, AI_LV, FOE_CAP } from './rank.js';
 import { NAMES } from './names.js';
 import { walletGet, walletAdd, walletSpend, scTag } from '../silver.js';
 
@@ -21,6 +21,11 @@ const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.prototype.slice.call((root || document).querySelectorAll(sel));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const PACK_PRICE = RULES.PACK_PRICE;
+
+// 玩家能选的预组。混合卡组（data 里标 foeOnly 的 x01~x12）是人机自己的牌：
+// 它们本来就是「对手拆两套混出来的」，放进玩家列表既没必要，也会把对手的底牌摊在明面上。
+// 注意这个常量必须在 nameDeck / NAMES_BY_DECK 之前定义——那两处在模块加载时就要用它。
+const PICK_DECKS = DECKS.filter((d) => !d.foeOnly);
 
 const REALM_TXT = { chaos: '混沌', caro: '血肉', aqua: '深海', ultra: '超维', any: '无界' };
 const KIND_TXT = { M: '怪兽', S: '魔法', T: '陷阱', E: '觉醒体' };
@@ -101,7 +106,8 @@ function escTxt(v) {
 }
 
 // 名字 → 牌组：同一个名字永远带同一套牌（换段位只是「打得更认真」，不会换牌）。
-// 用名字的稳定哈希落位，所以不同名字的牌组天然分散在九套预组上。
+// 用名字的稳定哈希落位。落位只在**预组**上算：混牌（x01~x12）没有自己的主人，
+// 它们的主人是被拆开的那两套的人——见下面的 namesOfDeck。
 function nameDeck(name) {
   let h = 2166136261;
   const t = String(name);
@@ -109,13 +115,13 @@ function nameDeck(name) {
     h ^= t.charCodeAt(i);
     h = Math.imul(h, 16777619) >>> 0;
   }
-  return DECKS[h % DECKS.length].id;
+  return PICK_DECKS[h % PICK_DECKS.length].id;
 }
 
 // 按牌组把名字分好桶，开局先按难度定「这局该用哪套牌」，再从这套牌的名字里抽一个人
 const NAMES_BY_DECK = (() => {
   const map = {};
-  for (const d of DECKS) map[d.id] = [];
+  for (const d of PICK_DECKS) map[d.id] = [];
   for (const n of NAMES) {
     const id = nameDeck(n);
     if (map[id]) map[id].push(n);
@@ -123,8 +129,16 @@ const NAMES_BY_DECK = (() => {
   return map;
 })();
 
-// 这个牌组的「主人」们；空桶就退回全名单（新加牌组时不至于没人）
+// 这个牌组的「主人」们；空桶就退回全名单（新加牌组时不至于没人）。
+// 混牌的主人 = 它拆开的那两套的主人：同一个人到高段位会拿出自己混的牌，
+// 低段位拿的还是原套预组，名字和牌始终对得上。
 function namesOfDeck(deckId) {
+  const d = DECKS.find((x) => x.id === deckId);
+  if (d && d.mix) {
+    const merged = [];
+    for (const src of d.mix) for (const n of NAMES_BY_DECK[src] || []) if (!merged.includes(n)) merged.push(n);
+    if (merged.length) return merged;
+  }
   const list = NAMES_BY_DECK[deckId];
   return list && list.length ? list : NAMES;
 }
@@ -209,6 +223,16 @@ function deckById(id) {
   return DECKS.find((d) => d.id === id) || myDecks().find((d) => d.id === id) || DECKS[0];
 }
 
+// 玩家自组卡组没有实测对位（COUNTER 里只有预组和混牌的行），于是按卡牌重叠把它当成
+// 「最像的那两三套预组拼起来的牌」来查表。不这么做的话 foeWinRate 对自组一律返回 50，
+// 对手等于随机挑一套——高段位「专挑死克你的」这条对自组玩家完全失效，
+// 而「自己组一套速攻就能速通」有一半原因就在这儿。
+// 权重按最像那套归一化（1 / 0.6 / 0.3），三套之外的不参与。
+function myWeights(deck) {
+  if (!deck || !isMyDeck(deck.id)) return null;
+  return proxyWeights(deck.cards, PICK_DECKS);
+}
+
 function deckList(def) {
   const out = [];
   for (const p of def.cards) for (let i = 0; i < p[1]; i++) out.push(p[0]);
@@ -217,7 +241,7 @@ function deckList(def) {
 
 
 function renderHome() {
-  const decks = DECKS.map((d) => {
+  const decks = PICK_DECKS.map((d) => {
     const bonds = E.evalBonds(deckList(d));
     const total = d.cards.reduce((s, p) => s + p[1], 0);
     return `<div class="dwrap"><button class="deck ${d.id === S.deckId ? 'on' : ''}" data-deck="${d.id}" style="--rc:${
@@ -261,10 +285,14 @@ function renderHome() {
   const stars = [0, 1, 2].map((i) => `<i class="${i < rk.stars ? 'on' : ''}">★</i>`).join('');
   // 这一档对手可能用的牌组：按「它打你这套的胜率」由低到高截一段（rank.js 的 foeBand）。
   // 主页把它摊开，是「人机用什么牌」这件事唯一说清楚的地方——不然玩家只能从开局 toast 里猜。
-  const band = foeBand(ai.pool, sel.id, DECKS.map((d) => d.id));
+  // 自组卡组没有实测行，按「最像哪几套预组」加权查表（myWeights）；预组直接查自己的行。
+  const myW = myWeights(sel);
+  const foeOpt = { ...ai, my: myW };
+  const band = foeBand(ai.pool, sel.id, foeIds(DECKS.map((d) => d.id), ai.pool), foeOpt);
   const bandChips = band.slice(0, 6).map((id) => {
     const d = deckById(id);
-    return `<i class="foed" title="它打你这套约 ${foeWinRate(id, sel.id)}% 胜率">${d.n}</i>`;
+    const tag = d.mix ? '<b class="mixb">混</b>' : '';
+    return `<i class="foed" title="它打你这套约 ${Math.round(foeWinRate(id, sel.id, myW))}% 胜率${d.mix ? '（对手自己混的牌）' : ''}">${tag}${d.n}</i>`;
   }).join('') + (band.length > 6 ? `<i class="foed more">＋${band.length - 6}</i>` : '');
 
   $('#scr-home').innerHTML = `
@@ -285,33 +313,45 @@ function renderHome() {
       </div>
       <div class="rkbar"><i style="width:${rk.pct.toFixed(1)}%"></i></div>
       <div class="rkfoot">
-        <span>${rk.next ? `距「${rk.next.n}」还差 <b>${rk.left}</b> 分` : '已经是最高段位——命轮由你来转'}</span>
+        <span>${rk.next ? `距「${rk.next.n}」还差 <b>${rk.left}</b> 分` : '已经是最高段位——下一步只剩规程附注第一条'}</span>
         <span class="rkstars">${stars}</span>
       </div>
       <div class="ailv">
         <div class="arow"><span class="ak">下一局对手</span><b class="av">Lv${ai.lv}／${ai.max}「${ai.n}」</b>
-          <span class="ax">打错牌 ${Math.round(ai.sloppy * 100)}% · ${poolLabel(ai.pool)}</span></div>
+          <span class="ax">打错牌 ${Math.round(ai.sloppy * 100)}% · ${poolLabel(ai.pool, ai.band)}</span></div>
         <div class="arow"><span class="ak">它会用的牌组</span><span class="achips">${bandChips}</span></div>
       </div>
-      <p class="note" style="margin:2px 0 0">两边的命轮值永远是 8000，段位<b>不加血也不多抽牌</b>——对手变强只靠两件事：
-        少打错牌（该召唤就召唤、该盖就盖、不拿小的撞大的），以及挑一套<b>打你这套顺手</b>的预组。
-        上面那几套就是它这一档的候选，一档一个窗口，越往上越靠「克制你」的那一端；真能死克你的牌组会被踢出候选，
-        所以最凶的一档也是 46% 左右的可战局，不是必输。对手是融灾榜单上的玩家名，一个人固定一套牌。
+      <p class="note" style="margin:2px 0 0">两边的命轮值默认都是 8000，段位<b>不加血也不多抽牌</b>——对手变强靠三件事：
+        少打错牌（该召唤就召唤、该盖就盖、不拿小的撞大的）、挑一套<b>打你这套顺手</b>的预组、
+        把候选<b>收窄</b>到最克你的那几套。上面那几套就是它这一档的候选，一档一个窗口，越往上越靠「克制你」的那一端。
+        带<b class="mixb" style="font-style:normal">混</b>角标的是对手<b>自己拆两套混出来的牌</b>——从 Lv7 上下开始出现，
+        低段位还是「拿自己那套预组的人」。混牌拼不出羁绊，但两边最顺手的那几张都在。
+        唤醒王之前，「真能死克你的牌组会被踢出候选」，所以最凶也只是 48% 上下的可战局；
+        <b>唤醒王之上这四档先松这道保险，再给对手加命轮值</b>（+0 / +1000 / +2500 / +4000），
+        弥萨格校猫基本不设保险——它会真的拿那套最克你的，还比你多 4000 点命轮（12000 对 8000）。
+        这就是校猫：规程对它不适用。对手是融灾榜单上的玩家名，一个人固定一套牌。
         ${S.save.bestStreak ? `你最长连胜过 ${S.save.bestStreak} 场。` : ''}</p>
     </div>
     <details class="lvt">
-      <summary>人机梯度：十档，每档实测胜率</summary>
+      <summary>人机梯度：${AI_LV.length} 档，每档实测胜率</summary>
       <table>
-        <thead><tr><th>档</th><th>称号</th><th>打错牌</th><th>挑牌</th><th>参考胜率</th></tr></thead>
+        <thead><tr><th>档</th><th>称号</th><th>打错牌</th><th>挑牌</th><th>克制上限</th><th>对方命轮</th><th>参考胜率</th></tr></thead>
         <tbody>${AI_LV.map((r, i) => `<tr class="${Math.round(ai.lv) === i + 1 ? 'on' : ''}">
           <td>Lv${i + 1}</td><td>${r.n}</td><td>${Math.round(r.sloppy * 100)}%</td>
-          <td>${poolLabel(r.pool)}</td><td>${r.win}%</td></tr>`).join('')}</tbody>
+          <td>${poolLabel(r.pool, r.band)}</td>
+          <td>${r.cap != null ? r.cap + '%' : FOE_CAP + '%'}</td>
+          <td>${r.lp ? '8000 + ' + r.lp : '8000'}</td>
+          <td>${r.win}%</td></tr>`).join('')}</tbody>
       </table>
-      <p class="note" style="margin:8px 0 0">「参考胜率」= 玩家一侧不犯错时，用 22 套预组各打 40 局的实测胜率（<code>scripts/duel-ladder.mjs</code>）。
-        轻松走 Lv1~5.5、普通 Lv2~8、认真 Lv4~10，九段之间是连续插值，所以每升一段都真的强一点。</p>
+      <p class="note" style="margin:8px 0 0">「参考胜率」= 玩家一侧不犯错时，用 22 套预组各打 80 局的实测胜率（每档 1760 局，<code>scripts/duel-ladder.mjs 80</code>）。
+        Lv1~Lv4 挤在一起（63~68%）不是没调——「少打错牌」这一档在低段几乎没有收益，真正拉开是从 Lv5 起；
+        Lv10→Lv14 这十个百分点的落差，大头是「对方命轮」（收紧候选只值一两个百分点，实测过）。
+        轻松走 Lv1~6.5、普通 Lv2~10、认真 Lv4~14，段位之间是连续插值，所以每升一段都真的强一点。
+        「克制上限」是这一档允许对手拿「打你多少胜率以内」的牌组；Lv1~10 都是 ${FOE_CAP}%（怕没得打），
+        唤醒王之上才开始松，弥萨格校猫只剩 96% 这条底线（等于不设）。</p>
     </details>
 
-    <div class="sec-h"><h2>选一套卡组</h2><span class="r">预组 ${DECKS.length} 套 · 每套 44 张 + 3~5 张觉醒体</span></div>
+    <div class="sec-h"><h2>选一套卡组</h2><span class="r">预组 ${PICK_DECKS.length} 套 · 每套 46 张 + 3~5 张觉醒体</span></div>
     <div class="decks">${decks}</div>
 
     <div class="sec-h"><h2>我的卡组</h2><span class="r">${mine.length} 套 · 40~50 张 / 同名最多 3 张 · 人机与好友房都能用</span></div>
@@ -373,8 +413,11 @@ function newGame(bt, side, mine, foe, seed) {
   S.fxLp = null; S.fxSeq = 0; S.fxGrave = null;
   S.turnKey = null; S.acted = false;
   S.sel = null; S.mode = 'idle'; S.tribute = []; S.pendingSummon = null;
-  // 两边命轮值都是 8000（羁绊加成各算各的）：段位只影响对手「会不会打、拿什么牌」，不改血量
-  S.G = E.createGame({ cards: mine.cards, extra: mine.extra, lp: mine.lp, hand: mine.hand }, { cards: foe.cards, extra: foe.extra, lp: foe.lp, hand: foe.hand }, { seed });
+  // 命轮值默认 8000（羁绊加成各算各的）。唤醒王之上那四档例外：S.ai.lp 是那一档给对手加的量，
+  // 顶栏会照常显示成「8000 / 12000」这种，玩家一眼能看到自己面对的是多厚的一条命轮。
+  const opts = { seed };
+  if (bt === 'pve' && S.ai && S.ai.lp > 0) opts.aiLp = E.LP_MAX + (foe.lp || 0) + S.ai.lp;
+  S.G = E.createGame({ cards: mine.cards, extra: mine.extra, lp: mine.lp, hand: mine.hand }, { cards: foe.cards, extra: foe.extra, lp: foe.lp, hand: foe.hand }, opts);
   show('duel');
   renderDuel();
 }
@@ -388,7 +431,8 @@ function startDuel() {
   const rk = rankProgress(S.save.rp);
   S.ai = aiFor(S.diff, rk.idx);
   // 先定这局对手用哪套牌（段位越高越偏向克你的那套），再挑一个「这套牌的主人」
-  const foeId = foePick(S.ai.pool, S.deckId, DECKS.map((d) => d.id));
+  const foeId = foePick(S.ai.pool, S.deckId, foeIds(DECKS.map((d) => d.id), S.ai.pool), null,
+    { ...S.ai, my: myWeights(mine) });
   const foe = deckById(foeId) || mine;
   S.foeName = pickName(foe.id);
   // 彩蛋：抽到「校猫的私藏」时，坐下来的可能是做这套牌的人。
@@ -850,9 +894,17 @@ function renderActbar() {
     const need = E.tributeNeed(c.id);
     if (canS) opts.push('<button class="btn pri" data-act="summon">召唤</button>');
     if (need === 0) opts.push('<button class="btn" data-act="setmon">里侧守备</button>');
-    if (c.sp) opts.push(E.canSpecial(G, p, h.uid)
-      ? '<button class="btn pri" data-act="special">特殊召唤（不占通常召唤）</button>'
-      : '<button class="btn" disabled>特殊召唤：条件未满足</button>');
+    if (c.sp) {
+      // 「条件未满足」太笼统：额度和条件都满足不了的时候，玩家只会以为是自己看漏了条件。
+      // 上限不再是固定 2 次——场地会往上加（spPlus）也会往下压（对方的 spCap），所以现算。
+      const maxSp = E.spMaxOf(G, p);
+      const left = E.spLeft(G, p);
+      opts.push(E.canSpecial(G, p, h.uid)
+        ? `<button class="btn pri" data-act="special">特殊召唤（不占通常召唤${left < maxSp ? ` · 还剩 ${left} 次` : (maxSp !== E.SP_PER_TURN ? ` · 本回合共 ${maxSp} 次` : '')}）</button>`
+        : (left <= 0
+          ? `<button class="btn" disabled>特殊召唤：本回合 ${maxSp} 次已经用完了</button>`
+          : '<button class="btn" disabled>特殊召唤：条件未满足</button>'));
+    }
   } else if (c.k === 'S') {
     // 速攻（钥令那批）战斗阶段也能开；其余魔法只能在主要阶段。
     // 以前按钮一直亮着、点了才被引擎拒，看起来像「按键没反应」。
@@ -1019,7 +1071,7 @@ function act(a) {
     }
   }
   // 人机：对手（AI）盖着的陷阱按它的水平决定发不发、发哪张
-  if (S.bt === 'pve' && !G.over) G.trapPolicy = aiPolicyFor(G, side, a, S.ai ? S.ai.sloppy : S.diff);
+  if (S.bt === 'pve' && !G.over) G.trapPolicy = aiPolicyFor(G, side, a, S.ai || S.diff);
   const r = E.applyAction(G, side, a);
   G.trapPolicy = null;
   if (r.ok) S.acted = true;      // 出过一次手就不再是「准备阶段」
@@ -1096,7 +1148,7 @@ async function runAI() {
   let steps = 0;
   while (!G.over && G.active === 1 && steps < 80) {
     steps++;
-    const a = nextAction(G, 1, S.bt === 'pve' && S.ai ? S.ai.sloppy : S.diff);
+    const a = nextAction(G, 1, S.bt === 'pve' && S.ai ? S.ai : S.diff);
     if (!a) break;
     const ra = aiAction(a);
     // 对手的动作可能触发我盖着的应对型陷阱：先问我发不发动（不再自动发）
@@ -1649,12 +1701,12 @@ function renderBuild() {
   }).join('');
 
   // 按预组筛：新手从「这套预组用了哪些牌」开始改，比面对 380 张无从下手好
-  const presetOpts = [['all', '全部卡池']].concat(DECKS.map((d) => [d.id, `预组 · ${d.n}`]));
+  const presetOpts = [['all', '全部卡池']].concat(PICK_DECKS.map((d) => [d.id, `预组 · ${d.n}`]));
   const presetSel = `<select class="bpreset" id="bpreset" title="只看某套预组用到的牌">`
     + presetOpts.map(([v, t]) => `<option value="${v}"${(b.preset || 'all') === v ? ' selected' : ''}>${t}</option>`).join('')
     + '</select>';
   const importSel = `<select class="bpreset" id="bimp" title="把一套预组整套搬进来当起点">`
-    + '<option value="">导入预组…</option>' + DECKS.map((d) => `<option value="${d.id}">${d.n}</option>`).join('')
+    + '<option value="">导入预组…</option>' + PICK_DECKS.map((d) => `<option value="${d.id}">${d.n}</option>`).join('')
     + '</select>';
 
   const secM = b.cards.filter(([id]) => CARDS[id] && CARDS[id].k === 'M');
@@ -2097,7 +2149,11 @@ function showHowTo() {
         直接从卡组叫一只<b>指定等级</b>的怪兽——通常召唤 7 星要 2 只祭品，这类卡只收 1 只，省下的那 1 只就是它的价钱；
         卡组里没有那个等级就整张落空，祭品也不会被白吃。
         <b>替身陷阱</b>（「造物·替身人偶」「造物·残影帷幕」）在对方宣言攻击时把怪兽叫出来挡在面前：那一击如果是<b>直接攻击</b>，
-        会改成打它——所以「对方场上空着」不等于能打脸，撞之前先看他后场盖着什么。</li>
+        会改成打它——所以「对方场上空着」不等于能打脸，撞之前先看他后场盖着什么。
+        <b>每回合最多 2 次</b>：不占通常召唤不等于不限次，手牌再厚也只能特召两只，
+        第 3 只的按钮会直接按死并写明「本回合 2 次已经用完了」。<b>反特召</b>
+        （「捕网·维度缠丝」无效并破坏、「空位·回收令」破坏并让持有者抽 1）只在<b>特殊召唤</b>时亮，
+        通常召唤那张盖着的陷阱不会动——想靠一张大怪压场，得先想清楚对面后场盖的是哪一种。</li>
       <li><b>盖放</b>：怪兽可以里侧守备（等级 5 以上不行）；陷阱从手牌盖到魔陷区，盖放当回合不能发动。</li>
       <li><b>战斗</b>：攻击表示互殴，输的一方破坏、差值打脸；打守备怪兽时超过守备力就破坏它，没有贯穿就没有伤害；场上没有怪兽才能直接攻击。</li>
       <li><b>拦路</b>：三档。<b>嘲讽</b>不管攻守都得先打它；<b>限高嘲讽</b>（卡上写「攻击力 2000 以下的怪兽必须先打它」）只拦比它小的，
@@ -2108,9 +2164,9 @@ function showHowTo() {
       <li><b>反击</b>：被攻击之后还手。多数打攻击方的命轮值，写了「咬住」的那种改打攻击方怪兽的攻击力，削到 0 就破坏它。
         整套「以牙还牙」就是靠这个逼对手不敢随便撞。</li>
       <li><b>觉醒召唤</b>：指定的素材<b>必须都在自己场上</b>，把它们送进墓地，从额外卡组特召，<b>不占通常召唤</b>；<b>刚觉醒的那一回合它不能攻击</b>。手牌和墓地里的牌不能当素材。</li>
-      <li><b>特殊召唤</b>：觉醒体的素材角色各自带一种「从手牌特殊召唤」的办法（场上没怪兽 / 对方怪兽比你多 / 场上有同界域怪兽 / 献出命轮值 / 解放 1 只怪兽并献出命轮值），写在卡面「③」里。<b>不占通常召唤</b>，没有次数限制（条件和代价本身就是限制）；特殊召唤的怪兽当回合能攻击，对方的召唤陷阱照样能响应。</li>
+      <li><b>特殊召唤</b>：觉醒体的素材角色各自带一种「从手牌特殊召唤」的办法（场上没怪兽 / 对方怪兽比你多 / 场上有同界域怪兽 / 献出命轮值 / 解放 1 只怪兽并献出命轮值），写在卡面「③」里。<b>不占通常召唤</b>，但<b>每回合最多 2 次</b>（宣言了就算用掉，哪怕被无效；场地能把这个上限抬高或压低）；特殊召唤的怪兽当回合能攻击，对方的召唤陷阱照样能响应——「反特召」类的陷阱只在特殊召唤 / 直接召唤时亮。</li>
       <li><b>自组卡组</b>：首页「我的卡组」里可以新建 / 编辑 / 改名 / 复制 / 删除，随便存几套。
-        主卡组 40~50 张（预组都是 44 张：40 张底 + 3 张压制 / 反制牌 + 1 张召唤牌），同名最多 3 张，额外最多 10 张、其中「直接召唤」最多 2 张；
+        主卡组 40~50 张（预组都是 46 张：40 张底 + 3 张压制 / 反制牌 + 1 张召唤牌 + 1 张反特召 + 1 张场地），同名最多 3 张，额外最多 10 张、其中「直接召唤」最多 2 张；
         觉醒体的素材必须在这套牌里，否则它永远召不出来。
         人机、同屏双人、好友房都能用自己组的牌——好友房里传的是卡组内容，不是编号。</li>
       <li><b>命轮代价</b>：有些魔法·陷阱写着「代价 1500」——<b>发动时先付命轮值</b>，付不起就发不动（付完不能正好死）。
@@ -2118,6 +2174,10 @@ function showHowTo() {
       <li><b>造物</b>：「造物·××」只做魔法·陷阱（装备 / 永续 / 场地 / 通常 / 速攻），
         <b>不当怪兽、也不进觉醒体</b>——它们是道具，不是人。场地魔法占一格，同一时间只能有一张，新的把旧的顶掉；
         造物各有一枚自己的道具图标，认图标比认名字快。</li>
+      <li><b>场地</b>：造物·守夜灯那一类写在魔陷区，占一格，<b>同一时间只能有一张</b>——新的直接把旧的顶进墓地，
+        所以要摆哪张是真要做决定的。除了攻守光环，一部分场地专门冲着特殊召唤来：<b>强化</b>（自己每回合多特召一次、
+        特召出来的怪兽加攻、特召成功就抽牌）与<b>限制</b>（把对方压到每回合只能特召一次、对方每次特召成功就掉血）。
+        「校猫的讲台」两边都管：自己多一次，对方少一次。</li>
       <li><b>直接召唤</b>：额外卡组里另一种召唤方式。<b>满足卡面条件</b>（如「自己场上有 2 只怪兽」）或<b>献出命轮值</b>即可召唤，
         不用素材、<b>不占通常召唤</b>；代价是每回合只能 1 次，而且当回合不能攻击。为了不破坏平衡，额外卡组里最多放 2 张。</li>
       <li><b>陷阱</b>：分两种。<b>应对型</b>（无效攻击 / 召唤 / 魔法、反击伤害、屏障…）满足条件时，会在对方动作结算之前<b>弹出询问，由你决定发不发动</b>（好友房里每个动作都是对方陷阱的一个时点：对方没有能响应的陷阱就直接继续，有才会停下来等对方选）；<b>主动型</b>（抽牌、回复、弹手牌、削攻、永续…）盖放的那一回合不能用，之后自己的回合和对方的回合都可以点开自己盖着的牌主动发动（好友房 / 同屏只能在自己的回合）。</li>
@@ -2216,7 +2276,7 @@ function bind() {
     if (e.target.id === 'bpreset') { S.build.preset = e.target.value; renderBuild(); return; }
     if (e.target.id === 'bimp' && e.target.value) {
       // 把一套预组整套搬进来当起点（只改编辑中的这份，保存之前不影响原来的卡组）
-      const d = DECKS.find((x) => x.id === e.target.value);
+      const d = PICK_DECKS.find((x) => x.id === e.target.value);
       if (d) {
         S.build.cards = d.cards.map((x) => [x[0], x[1]]);
         S.build.extra = (d.extra || []).slice();

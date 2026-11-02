@@ -67,6 +67,14 @@ function scoreSpell(G, p, o, card) {
     if (f.k === 'weakenEnemyAll' || f.k === 'weakenHighest') s += o.mons.filter(Boolean).length ? 4 : -5;
     if (f.k === 'equipAtk' || f.k === 'equipDef') s += p.mons.filter(Boolean).length ? 4 : -5;
     if (f.k === 'equipGrant') s += p.mons.filter(Boolean).length ? 4 : -5;
+    // ---- 场地（bp19）：特召的强化与限制 ----
+    // 强化类的价值取决于「自己还铺不铺得动」，限制类的取决于「对方还铺不铺得动」；
+    // AI 看不到对手手牌，就用场上怪兽数当代理：场越空说明双方都还想再铺。
+    if (f.k === 'spPlus') s += p.mons.filter(Boolean).length < 2 ? 6 : 4;
+    if (f.k === 'spDraw') s += 4;
+    if (f.k === 'spAtk') s += p.hand.some((x) => d(x.id) && d(x.id).k === 'M' && d(x.id).sp) ? 6 : 2;
+    if (f.k === 'spCap') s += o.mons.filter(Boolean).length >= 2 ? 6 : 4;
+    if (f.k === 'spTax') s += 5;
     if (f.k === 'contHeal' || f.k === 'contBoth') s += p.lp < 4500 ? 5 : 2;
     if (f.k === 'contBurn') s += 4;
     // ---- 新机制：毒/流血要「对面还站得住」才值，屏障要「自己快挨打了」才值 ----
@@ -147,9 +155,14 @@ function bestSpell(G, p, o) {  let best = null;
   for (const h of p.hand) {
     const def = d(h.id);
     if (!def || def.k !== 'S') continue;
-    const isCont = def.t === 'cont' || def.t === 'equip';
-    // 场地魔法也占一格，但它能顶掉自己旧的场地，所以满了也还能开
-    if (isCont && p.spells.indexOf(null) < 0 && def.t !== 'field') continue;
+    const isCont = def.t === 'cont' || def.t === 'equip' || def.t === 'field';
+    // 永续 / 装备 / 场地都要占魔陷格。场地只有在**场上已经有场地**时才开得动（新的顶掉旧的），
+    // 满格又没场地时一样会被引擎拒——以前这里漏了 field，AI 满格还硬开，日志里全是
+    // 「动作被拒绝 spell: 魔法·陷阱区已经满了」。
+    if (isCont && p.spells.indexOf(null) < 0) {
+      const hasField = p.spells.some((x) => x && d(x.id) && d(x.id).t === 'field');
+      if (!(def.t === 'field' && hasField)) continue;
+    }
     if (def.cost && def.cost.lp && p.lp <= def.cost.lp) continue;
     const s = scoreSpell(G, p, o, h);
     if (s > bestScore) { bestScore = s; best = h; }
@@ -274,7 +287,17 @@ function bestAttack(G, side) {
 
 // sloppy＝「打错牌」的概率（0~0.8）。历史上只有 easy/normal/hard 三个字符串，
 // 现在段位要把对手一级一级往上顶，所以也接受直接给数字（见 duel/rank.js 的 aiFor）。
+// 唤醒王之上的四档还会带 need（陷阱出手门槛），所以也接受整个档位对象——
+// 传 S.ai 进来比传 S.ai.sloppy 更省事，也不会漏掉新加的旋钮。
+function skillNum(skill, key, dflt) {
+  if (skill && typeof skill === 'object') {
+    const v = skill[key];
+    return typeof v === 'number' && isFinite(v) ? v : dflt;
+  }
+  return dflt;
+}
 function sloppyOf(skill) {
+  if (skill && typeof skill === 'object') return Math.max(0, Math.min(0.8, skillNum(skill, 'sloppy', 0.16)));
   if (typeof skill === 'number' && isFinite(skill)) return Math.max(0, Math.min(0.8, skill));
   return skill === 'easy' ? 0.4 : skill === 'hard' ? 0 : 0.16;
 }
@@ -373,6 +396,8 @@ export function aiTrapChoice(G, owner, a, list, skill) {
   if (sloppy >= 0.35) return G.rng() < 0.85 ? sorted.map((x) => x.uid) : [];            // 见到就发（连小动作也发，还可能一次翻好几张）
   const need = sloppy >= 0.15 ? 800 : (me.lp < me.lpMax * 0.5 ? 600 : 1300);
   if (threat < need) return [];
+  // 只翻最对症的那一张。试过「一次翻两张」和「门槛降到 0」：都让 AI **更弱** 2~3pp，
+  // 因为陷阱是稀缺资源，早翻等于把后手的解留给了一只看不清的小怪。
   return [sorted[0].uid];
 }
 

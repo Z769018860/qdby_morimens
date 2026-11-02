@@ -3,7 +3,9 @@
 // 为什么单独一个脚本：难度是不是「一路往上变凶」，不能靠看 sloppy 数值猜。
 // 这里按玩家实际会遇到的那条路径复现一遍——难度 × 段位 → 档位 → 抽对手牌组 → 开局，
 // 玩家一侧固定用「不犯错」的 AI 代打（sloppy=0），量出每一级、每一段的玩家胜率。
-// 判据：相邻档位胜率单调下降，三条难度线的九段各自不许出现「升段反而更好打」的凸起。
+// 判据：相邻档位胜率单调下降，三条难度线的十三段各自不许出现「升段反而更好打」的凸起。
+// 但「单调」得带着噪声看：每档 22×N 局、p≈0.5，两档相减的标准误约 ±2.4pp（N=40），
+// 所以脚本按这个带宽判——落在带宽里的一律记作「噪声内」，不当作梯度坏了。
 //
 // 用法：
 //   node scripts/duel-ladder.mjs             # 每格 24 局
@@ -11,8 +13,8 @@
 //   node scripts/duel-ladder.mjs 24 0.16     # 玩家一侧也带 16% 打错牌（模拟普通玩家）
 import * as E from '../js/duel/engine.js';
 import { nextAction, aiPolicyFor } from '../js/duel/ai.js';
-import { DECKS } from '../js/duel/gen.js';
-import { AI_LV, aiFor, foePick } from '../js/duel/rank.js';
+import { DECKS, PRESETS } from '../js/duel/gen.js';
+import { AI_LV, aiFor, foePick, foeIds } from '../js/duel/rank.js';
 import { TIERS } from '../js/duel/tiers.js';
 
 const N = Number(process.argv[2] || 24);
@@ -26,13 +28,17 @@ function lcg(seed) {
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
 }
 
-const IDS = DECKS.map((d) => d.id);
+const IDS = DECKS.map((d) => d.id);          // 对手候选池：预组 + 人机的混合卡组
+const MINE = PRESETS.map((d) => d.id);      // 玩家侧只跑预组（混牌是 foeOnly，玩家选不到）
 const deckById = (id) => DECKS.find((d) => d.id === id) || DECKS[0];
 
 function play(myDeck, foeDeck, seed, foeSkill) {
   let G;
+  // foeSkill 是整档对象（含 sloppy / lp）；lp 是「命轮值加成」，和线上 newGame 走同一条路
+  const opts = { seed };
+  if (foeSkill && foeSkill.lp > 0) opts.aiLp = E.LP_MAX + (foeDeck.lp || 0) + foeSkill.lp;
   try {
-    G = E.createGame({ cards: myDeck.cards, extra: myDeck.extra, lp: myDeck.lp, hand: myDeck.hand }, { cards: foeDeck.cards, extra: foeDeck.extra, lp: foeDeck.lp, hand: foeDeck.hand }, { seed });
+    G = E.createGame({ cards: myDeck.cards, extra: myDeck.extra, lp: myDeck.lp, hand: myDeck.hand }, { cards: foeDeck.cards, extra: foeDeck.extra, lp: foeDeck.lp, hand: foeDeck.hand }, opts);
   } catch (e) { return { r: 'err', e: e.message }; }
   let steps = 0;
   try {
@@ -55,8 +61,9 @@ function cell(myId, row, tag, n) {
   let win = 0, game = 0, err = 0;
   const rnd = lcg(0x9e3779b9 ^ (tag * 131071) ^ (IDS.indexOf(myId) * 7919));
   for (let s = 0; s < n; s++) {
-    const foeId = foePick(row.pool, myId, IDS, rnd);
-    const out = play(deckById(myId), deckById(foeId), (555001 + SB * 104729 + tag * 7919 + IDS.indexOf(myId) * 104729 + s * 77) >>> 0, row.sloppy);
+    // 把整档传进去：唤醒王之上那四档靠 cap/band 收窄候选，光给 pool 抽不到「最克的那几套」
+    const foeId = foePick(row.pool, myId, foeIds(IDS, row.pool), rnd, row);
+    const out = play(deckById(myId), deckById(foeId), (555001 + SB * 104729 + tag * 7919 + IDS.indexOf(myId) * 104729 + s * 77) >>> 0, row);
     game++;
     if (out.r === 'win') win++;
     else if (out.r === 'err' || out.r === 'stuck') { err++; console.log('!!', myId, 'vs', foeId, out); }
@@ -66,7 +73,7 @@ function cell(myId, row, tag, n) {
 
 function line(row, tag) {
   let win = 0, game = 0; const per = [];
-  for (const id of IDS) {
+  for (const id of MINE) {
     const c = cell(id, row, tag, N);
     win += c.win; game += c.game; per.push([id, c.pct]);
   }
@@ -75,18 +82,20 @@ function line(row, tag) {
 }
 
 const t0 = Date.now();
-console.log(`每格 ${N} 局 · 玩家侧 sloppy=${PLAYER_SKILL} · 玩家牌组 ${IDS.length} 套`);
+console.log(`每格 ${N} 局 · 玩家侧 sloppy=${PLAYER_SKILL} · 玩家牌组 ${MINE.length} 套`);
 console.log('— 逐档（每档 = 22 套玩家牌组各自 N 局）—');
 const byLv = [];
 for (let lv = 1; lv <= AI_LV.length; lv++) {
   const r = AI_LV[lv - 1];
   const o = line(r, lv * 10);
   byLv.push(o.pct);
-  console.log(`Lv${String(lv).padStart(2)} ${r.n.padEnd(5, '　')} sloppy=${r.sloppy.toFixed(2)} pool=${r.pool.toFixed(2)}`
+  const ex = (r.cap != null ? ` cap=${r.cap}` : '') + (r.band != null ? ` band=${r.band}` : '')
+    + (r.lp ? ` 命轮+${r.lp}` : '');
+  console.log(`Lv${String(lv).padStart(2)} ${r.n.padEnd(6, '　')} sloppy=${r.sloppy.toFixed(2)} pool=${r.pool.toFixed(2)}${ex}`
     + `  玩家胜率 ${o.pct.toFixed(1)}%   (最惨 ${o.low[0]}:${o.low[1].toFixed(0)}%  最爽 ${o.high[0]}:${o.high[1].toFixed(0)}%)`);
 }
 
-console.log('\n— 三条难度线的九段 —');
+console.log(`\n— 三条难度线的 ${TIERS.length} 段 —`);
 const diffs = ['easy', 'normal', 'hard'];
 const grid = {};
 for (const df of diffs) {
@@ -100,18 +109,21 @@ for (const df of diffs) {
   console.log(df.padEnd(7) + arr.map((x) => `T${x.ti + 1}(Lv${x.ai.x.toFixed(1)}) ${x.pct.toFixed(0)}%`).join('  '));
 }
 
-console.log('\n— 体检 —');
+// 噪声带：每格 = 22 套 × N 局、p≈0.5 → 单格标准误 √(0.25/N/22)，两格相减再乘 √2
+const NOISE = Math.sqrt(0.25 / (N * MINE.length)) * Math.SQRT2 * 100;
+
+console.log(`\n— 体检（噪声带 ±${NOISE.toFixed(1)}pp，N=${N}）—`);
 let bad = 0;
 for (let i = 1; i < byLv.length; i++) {
   const d = byLv[i] - byLv[i - 1];
-  const flag = d > 1.0 ? '  ✗ 反而更好打' : d > -1.5 ? '  · 几乎没变' : '';
+  const flag = d > NOISE ? '  ✗ 反而更好打' : d > -NOISE ? '  · 在噪声内' : '';
   if (flag.includes('✗')) bad++;
   console.log(`Lv${i}→Lv${i + 1}: ${d >= 0 ? '+' : ''}${d.toFixed(1)}pp${flag}`);
 }
 for (const df of diffs) {
   let up = 0;
-  for (let i = 1; i < grid[df].length; i++) if (grid[df][i].pct - grid[df][i - 1].pct > 1.5) up++;
-  if (up) { bad++; console.log(`${df}: 有 ${up} 处「升段更好打」`); }
+  for (let i = 1; i < grid[df].length; i++) if (grid[df][i].pct - grid[df][i - 1].pct > NOISE) up++;
+  if (up) { bad++; console.log(`${df}: 有 ${up} 处「升段更好打」（超出噪声带）`); }
 }
-console.log(bad ? `结论：梯度有问题（${bad} 处）` : '结论：梯度单调，没有凸起');
+console.log(bad ? `结论：梯度有问题（${bad} 处）` : '结论：梯度单调（噪声带内无凸起）');
 console.log(`耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s`);

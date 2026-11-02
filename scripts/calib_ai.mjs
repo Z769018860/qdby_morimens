@@ -11,7 +11,7 @@
 //   node scripts/duel-ladder.mjs 24 0.16     # 玩家一侧也带 16% 打错牌（模拟普通玩家）
 import * as E from '../js/duel/engine.js';
 import { nextAction, aiPolicyFor } from '../js/duel/ai.js';
-import { DECKS } from '../js/duel/gen.js';
+import { PRESETS, DECKS } from '../js/duel/gen.js';
 import { AI_LV, aiFor, foePick } from '../js/duel/rank.js';
 import { TIERS } from '../js/duel/tiers.js';
 
@@ -26,7 +26,7 @@ function lcg(seed) {
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
 }
 
-const IDS = DECKS.map((d) => d.id);
+const IDS = PRESETS.map((d) => d.id);
 const deckById = (id) => DECKS.find((d) => d.id === id) || DECKS[0];
 
 function play(myDeck, foeDeck, seed, foeSkill) {

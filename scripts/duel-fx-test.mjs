@@ -472,6 +472,168 @@ const logHas = (G, re) => G.log.some((l) => re.test(l.text));
   eq('回复了 600 点命轮值', p.lp, 5600);
 }
 
+// ---------------------------------------------------------------- 14. 反特召：次数上限 / 捕网 / 回收令
+{
+  // 手牌特召每回合最多 2 次。spCount 以前只有初始化、没有读取，
+  // 于是「特招速攻」可以一回合把三只大个子摊上场——这是速通真正的根。
+  const G = mk();
+  const p = G.players[0];
+  const a = give(G, 0, 'm01'), b = give(G, 0, 'm02'), c = give(G, 0, 'm07');
+  const r1 = E.applyAction(G, 0, { t: 'special', uid: a.uid });
+  const r2 = E.applyAction(G, 0, { t: 'special', uid: b.uid });
+  const r3 = E.applyAction(G, 0, { t: 'special', uid: c.uid });
+  ok('第 1 次手牌特召成功', r1.ok, r1.err);
+  ok('第 2 次手牌特召成功', r2.ok, r2.err);
+  ok('第 3 次被次数上限挡住', !r3.ok, r3.err);
+  eq('场上只站了两只', p.mons.filter(Boolean).length, 2);
+  eq('场上站的是先叫的那两只', p.mons.filter(Boolean).map((m) => m.id).sort().join(','), 'm01,m02');
+  ok('被挡住的那只没上场', !p.mons.some((m) => m && m.id === 'm07'));
+}
+{
+  // 下个自己的回合，次数重置
+  const G = mk();
+  const p = G.players[0];
+  p.spCount = 2;
+  const h = give(G, 0, 'm01');
+  ok('这一回合的额度用完了', !E.applyAction(G, 0, { t: 'special', uid: h.uid }).ok);
+  p.spCount = 0;                       // 等价于「新回合开始」（startTurn 里的 p.spCount = 0）
+  const r = E.applyAction(G, 0, { t: 'special', uid: h.uid });
+  ok('新回合又能特召了', r.ok, r.err);
+}
+{
+  // 捕网·维度缠丝：对方特召时无效并破坏
+  const G = mk();
+  const me = G.players[0], op = G.players[1];
+  op.spells[0] = { uid: 7100, id: 't48', set: true, turnSet: G.turn - 1, equipOn: 0 };
+  const h = give(G, 0, 'm02');
+  const r = E.applyAction(G, 0, { t: 'special', uid: h.uid });
+  ok('特召被允许发动（陷阱另算）', r.ok, r.err);
+  ok('那只怪进了墓地', me.grave.includes('m02'), String(me.grave));
+  eq('场上没留下怪兽', me.mons.filter(Boolean).length, 0);
+  eq('捕网用掉了', op.spells.filter(Boolean).length, 0);
+}
+{
+  // 空位·回收令：破坏 + 抽 1
+  const G = mk();
+  const me = G.players[0], op = G.players[1];
+  op.spells[0] = { uid: 7101, id: 't49', set: true, turnSet: G.turn - 1, equipOn: 0 };
+  op.deck = ['m01', 'm01', 'm01'];
+  const before = op.hand.length;
+  const h = give(G, 0, 'm02');
+  E.applyAction(G, 0, { t: 'special', uid: h.uid });
+  ok('怪被回收令破坏', me.grave.includes('m02'));
+  eq('持有者抽了 1 张', op.hand.length, before + 1);
+  eq('回收令用掉了', op.spells.filter(Boolean).length, 0);
+}
+{
+  // 反特召不能拿来拦通常召唤：这才是它和「圣所钟声」的区别
+  const G = mk();
+  const me = G.players[0], op = G.players[1];
+  op.spells[0] = { uid: 7102, id: 't48', set: true, turnSet: G.turn - 1, equipOn: 0 };
+  const h = give(G, 0, 'm04');
+  const r = E.applyAction(G, 0, { t: 'summon', uid: h.uid, tribs: [] });
+  ok('通常召唤照样成功', r.ok, r.err);
+  eq('怪兽站住了', me.mons.filter(Boolean).length, 1);
+  eq('陷阱没有被浪费', op.spells.filter(Boolean).length, 1);
+}
+{
+  // 询问窗口：特召时点亮、通常召唤时不亮
+  const G = mk();
+  const op = G.players[1];
+  op.spells[0] = { uid: 7103, id: 't48', set: true, turnSet: G.turn - 1, equipOn: 0 };
+  const sp = give(G, 0, 'm01');
+  const n = give(G, 0, 'm04');
+  ok('特召时它进询问窗口', E.eligibleTraps(G, 0, { t: 'special', uid: sp.uid }).some((x) => x.id === 't48'));
+  ok('通常召唤时它不亮', !E.eligibleTraps(G, 0, { t: 'summon', uid: n.uid }).some((x) => x.id === 't48'));
+}
+{
+  // 22 套预组每套都带一张反特召，不然「速通」总有一条路是没有对手拦得住的
+  const packs = JSON.parse(fs.readFileSync(new URL('../data/duel-packs.json', import.meta.url), 'utf8'));
+  const missing = packs.decks.filter((d) => !d.cards.some(([id]) => id === 't48' || id === 't49'));
+  eq('每套预组都有反特召', missing.length, 0);
+  ok('没带的那几套', missing.length === 0, missing.map((d) => d.n).join('、'));
+}
+
+// ---------------------------------------------------------------- 15. 场地：占一格 / 顶掉旧的 / 对特招的强化与限制
+{
+  // 场地占魔陷区一格，同一时间只留一张，新的把旧的压掉（旧的进墓地）
+  const G = mk();
+  const p = G.players[0];
+  const f1 = give(G, 0, 's108');                 // 观测井：自己每回合特召 3 次
+  const r = E.applyAction(G, 0, { t: 'spell', uid: f1.uid });
+  ok('场地能发动', r.ok, r.err);
+  eq('场地占了魔陷一格', p.spells.filter(Boolean).length, 1);
+  eq('自己特召上限从 2 变成 3', E.spMaxOf(G, p), 3);
+  const f2 = give(G, 0, 's103');                 // 夜巡的街：对方每回合最多特召 1 次
+  E.applyAction(G, 0, { t: 'spell', uid: f2.uid });
+  eq('新场地顶掉旧的，还是只占一格', p.spells.filter(Boolean).length, 1);
+  ok('旧的进了墓地', p.grave.includes('s108'), String(p.grave));
+  eq('自己的上限退回 2', E.spMaxOf(G, p), 2);
+  eq('对方被压到 1 次', E.spMaxOf(G, G.players[1]), 1);
+}
+{
+  // spPlus 真的能多特召一次：不出场地是 2 次，出了就是 3 次
+  const G = mk();
+  const p = G.players[0];
+  E.applyAction(G, 0, { t: 'spell', uid: give(G, 0, 's108').uid });
+  const hs = ['m01', 'm02', 'm07'].map((id) => give(G, 0, id));
+  const rs = hs.map((h) => E.applyAction(G, 0, { t: 'special', uid: h.uid }));
+  ok('第 3 次特召也能过', rs[2].ok, rs[2].err);
+  eq('场上站了三只', p.mons.filter(Boolean).length, 3);
+}
+{
+  // spCap 是「限制」：自己没场地、对方有，自己这回合只能特召 1 次
+  const G = mk();
+  const me = G.players[0], op = G.players[1];
+  op.spells[0] = { uid: 7200, id: 's103', set: false, turnSet: G.turn - 1, equipOn: 0 };
+  eq('被压到 1 次', E.spMaxOf(G, me), 1);
+  const a = give(G, 0, 'm01'), b = give(G, 0, 'm02');
+  ok('第 1 次还是能特召', E.applyAction(G, 0, { t: 'special', uid: a.uid }).ok);
+  const r2 = E.applyAction(G, 0, { t: 'special', uid: b.uid });
+  ok('第 2 次被场地挡住', !r2.ok, r2.err);
+  eq('场上只有一只', me.mons.filter(Boolean).length, 1);
+}
+{
+  // spAtk：特召出来的怪兽加攻（加在实例上，不是永久改卡面）
+  const G = mk();
+  const p = G.players[0];
+  p.spells[0] = { uid: 7201, id: 's118', set: false, turnSet: G.turn - 1, equipOn: 0 };  // 换命的圈 +300
+  const h = give(G, 0, 'm46');
+  E.applyAction(G, 0, { t: 'special', uid: h.uid });
+  const m = p.mons.find(Boolean);
+  eq('特召出来的怪兽 +300 攻', E.atkOf(G, p, m), CARDS.m46.atk + 300);
+}
+{
+  // spDraw：特召成功后抽 1（手牌先 -1 再 +1，净持平）
+  const G = mk();
+  const p = G.players[0];
+  p.spells[0] = { uid: 7202, id: 's104', set: false, turnSet: G.turn - 1, equipOn: 0 };  // 回响之海
+  p.deck = ['m01', 'm01', 'm01'];
+  const h = give(G, 0, 'm46');
+  const before = p.hand.length;
+  E.applyAction(G, 0, { t: 'special', uid: h.uid });
+  eq('特召换来 1 张牌（手牌净持平）', p.hand.length, before);
+}
+{
+  // spTax：对方场地的限制写法——我特召成功，我掉血
+  const G = mk();
+  const me = G.players[0], op = G.players[1];
+  op.spells[0] = { uid: 7203, id: 's122', set: false, turnSet: G.turn - 1, equipOn: 0 };  // 牙还牙的院 400
+  const lp0 = me.lp;
+  // 用 m46（空场特召、无代价）——m02 那类带 lp 代价的会把「税」和「代价」搅在一起
+  E.applyAction(G, 0, { t: 'special', uid: give(G, 0, 'm46').uid });
+  eq('对方场地收税 400', me.lp, lp0 - 400);
+}
+{
+  // 数据口径：每套预组都带一张场地（混牌不算，它们是从预组身上拆的）
+  const packs = JSON.parse(fs.readFileSync(new URL('../data/duel-packs.json', import.meta.url), 'utf8'));
+  const miss = packs.decks.filter((d) => !d.foeOnly && !d.cards.some(([id]) => CARDS[id] && CARDS[id].t === 'field'));
+  eq('每套预组都有场地', miss.length, 0);
+  ok('没带的那几套', miss.length === 0, miss.map((d) => d.n).join('、'));
+  const fields = Object.values(CARDS).filter((c) => c.t === 'field').length;
+  ok('场地卡总数不少于 22 张', fields >= 22, String(fields));
+}
+
 console.log(`通过 ${pass} 项`);
 if (fails.length) {
   console.log('失败：');

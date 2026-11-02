@@ -7,7 +7,7 @@
 // 用法：node scripts/duel-mix-sim.mjs [每对局数，默认 6]
 import * as E from '../js/duel/engine.js';
 import { nextAction, aiPolicyFor } from '../js/duel/ai.js';
-import { DECKS, CARDS } from '../js/duel/gen.js';
+import { PRESETS, CARDS } from '../js/duel/gen.js';
 
 const N = Number(process.argv[2] || 6);
 const MAX_COPY = 3, DECK_SIZE = 40, EXTRA_MAX = 10, DIRECT_MAX = 2;
@@ -96,21 +96,21 @@ const seen = new Set();
 let sd = 20261031;
 const rnd = () => ((sd = (sd * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 while (mixes.length < 24 && seen.size < 600) {
-  const i = Math.floor(rnd() * DECKS.length);
-  const j = Math.floor(rnd() * DECKS.length);
+  const i = Math.floor(rnd() * PRESETS.length);
+  const j = Math.floor(rnd() * PRESETS.length);
   if (i === j) continue;
   const key = i < j ? `${i}-${j}` : `${j}-${i}`;
   if (seen.has(key)) continue;
   seen.add(key);
-  mixes.push(mixDeck(DECKS[Math.min(i, j)], DECKS[Math.max(i, j)], 9001 + mixes.length * 137));
+  mixes.push(mixDeck(PRESETS[Math.min(i, j)], PRESETS[Math.max(i, j)], 9001 + mixes.length * 137));
 }
 
 // ---- 1) 混合 vs 预组 ----
 const vs = mixes.map(() => ({ w: 0, n: 0, worst: ['', 99], best: ['', 0] }));
 for (let mi = 0; mi < mixes.length; mi++) {
   const M = mixes[mi];
-  for (let di = 0; di < DECKS.length; di++) {
-    const D = DECKS[di];
+  for (let di = 0; di < PRESETS.length; di++) {
+    const D = PRESETS[di];
     let w = 0, n = 0;
     for (let s = 0; s < N; s++) {
       const seed = (313001 + mi * 7919 + di * 104729 + s * 233) >>> 0;

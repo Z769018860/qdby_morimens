@@ -7,14 +7,14 @@
 // ±3 个百分点的误差，要判 45%~55% 这种窄区间请用 N≥40。
 import * as E from '../js/duel/engine.js';
 import { nextAction, aiPolicyFor } from '../js/duel/ai.js';
-import { DECKS, CARDS, PACKS, BONDS, ART } from '../js/duel/gen.js';
+import { DECKS, PRESETS, CARDS, PACKS, BONDS, ART } from '../js/duel/gen.js';
 const N = Number(process.argv[2] || 12);
 const total = (G) => G.players.reduce((n, p) => n + p.deck.length + p.hand.length + p.grave.length + p.mons.filter(Boolean).length + p.spells.filter(Boolean).length + p.extra.length, 0);
 const problems = new Map(); const note = (k) => problems.set(k, (problems.get(k) || 0) + 1);
 const res = { win0: 0, win1: 0, draw: 0, timeout: 0, turns: 0, games: 0 };
 const byDeck = {};
-for (let ia = 0; ia < DECKS.length; ia++) for (let ib = 0; ib < DECKS.length; ib++) for (let s = 0; s < N; s++) {
-  const a = DECKS[ia], b = DECKS[ib];
+for (let ia = 0; ia < PRESETS.length; ia++) for (let ib = 0; ib < PRESETS.length; ib++) for (let s = 0; s < N; s++) {
+  const a = PRESETS[ia], b = PRESETS[ib];
   const SB = Number(process.env.SB || 777001);
   const seed = (SB + ia * 7919 + ib * 104729 + s * 77) >>> 0;
   let G;
