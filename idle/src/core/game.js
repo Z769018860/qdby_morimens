@@ -7,7 +7,7 @@ import { baseStats, lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCos
 import { buildKit, makeMedians } from './skills.js';
 import {
   ZERO, addBonus, wheelBonus, relicBonus, relicBond, relicSlotCount, relicTheme, covenantBonus, gearCost, dismantleValue,
-  refineMult, refineCost, scaleBonus, REFINE_COST, gearRewindPlan,
+  refineMult, refineCost, scaleBonus, REFINE_COST, gearRewindPlan, rollRuneWith, runeOf, RUNE_TIERS,
 } from './gear.js';
 import { ordersBonus, orderUpCost, orderBonus, orderSlotCount } from './orders.js';
 import { teamBonds } from './bonds.js';
@@ -237,7 +237,7 @@ export function allyDef(state, data, slug, teamSlugs = state.team, extra = null)
   const bonus = ZERO();
   const eq = state.gear.equip[slug] || {};
   const wi = eq.wheel && state.gear.items[eq.wheel];
-  if (wi) addBonus(bonus, scaleBonus(wheelBonus(data.wheelById[wi.defId], wi.lv, a), refineMult(wi)));
+  if (wi) addBonus(bonus, scaleBonus(wheelBonus(data.wheelById[wi.defId], wi.lv, a, wi.rune), refineMult(wi)));
   const ci = eq.cov && state.gear.items[eq.cov];
   if (ci) {
     const count = teamSlugs.filter((t) => { const e = state.gear.equip[t]; const it = e?.cov && state.gear.items[e.cov]; return it && it.defId === ci.defId; }).length;
@@ -1048,6 +1048,32 @@ export function refineItem(state, uid) {
   const c = refineCost(it); if (!c || state.cores < c) return false;
   state.cores -= c; state.stats.coresSpent = (state.stats.coresSpent || 0) + c; it.rf = (it.rf || 0) + 1; return true;
 }
+// ---------- 器纹刷取 ----------
+// 每次刷花金币：约 12 场胜利的金币（按最高通关关卡算，越往后越贵），再乘命轮稀有度。
+// 刷出来的是「候选」：先看再决定换不换（item.runeNew），不满意就保留原来的——花掉的金币不退。
+const RUNE_RARITY = { N: 0.5, R: 0.7, SR: 1, SSR: 1.4 };
+export const runeCost = (state, def) => Math.max(300, Math.round(stageGold(Math.max(1, state.maxStage || 1)) * 12 * (RUNE_RARITY[def?.rarity] ?? 1)));
+export function rollRune(state, data, uid) {
+  const it = state.gear.items[uid];
+  if (!it || it.kind !== 'wheel') return null;
+  const def = data.wheelById[it.defId];
+  const cost = runeCost(state, def);
+  if (state.gold < cost) return null;
+  state.gold -= cost;
+  const rng = mulberry32(battleSeed(state));
+  it.runeNew = rollRuneWith(rng);
+  state.stats.runeRolls = (state.stats.runeRolls || 0) + 1;
+  return { cost, cand: it.runeNew, cur: runeOf(def, it.rune) };
+}
+/** 决定候选器纹：accept = 换上，否则丢掉候选。返回是否换上了 */
+export function settleRune(state, uid, accept) {
+  const it = state.gear.items[uid];
+  if (!it || !it.runeNew) return false;
+  if (accept) it.rune = it.runeNew;
+  delete it.runeNew;
+  return !!accept;
+}
+
 // 装备回溯：见 gear.js 的 gearRewindPlan。同样先用免费回溯券；券也没有、银芯也不够，或没东西可退返回 null
 export function rewindGear(state, uid) {
   const it = state.gear.items[uid]; if (!it) return null;

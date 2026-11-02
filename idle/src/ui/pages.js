@@ -1,7 +1,7 @@
 import {
   allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, ULT_MODES, normalizeUltOrder, equipItem, unequipItem, isEquipped,
   enhanceItem, enhanceAllEquipped, enhanceScopes, dismantle, dismantlePreview, autoDmOf, dismantleCores, summon, equipPull, gearDexKey, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST,
-  PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, BATTLES_PER_HOUR, fillLoadout, MIXED_SYNERGY, teamView,
+  PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, runeCost, BATTLES_PER_HOUR, fillLoadout, MIXED_SYNERGY, teamView,
 } from '../core/game.js';
 import {
   REALMS, TYPES, SLOTS, SLOT_ZH, MAX_LV, MAX_AWAKEN, MAX_LV_HARD, TEAM_SIZE, RARITY_ORDER, GEAR_MAX_LV,
@@ -38,7 +38,7 @@ import {
 } from '../core/constants.js';
 import { describeSkill } from '../core/skills.js';
 import {
-  wheelText, relicText, covTheme, covenantTiers, gearCost, dismantleValue, relicBond, relicSlotCount, RELIC_BONDS, BOND_TIERS, bonusText, MAINSTAT, RELIC_THEMES,
+  wheelText, runeOf, runeLabel, runeValue, RUNE_TIERS, RUNE_KEYS, STAT_ZH, relicText, covTheme, covenantTiers, gearCost, dismantleValue, relicBond, relicSlotCount, RELIC_BONDS, BOND_TIERS, bonusText, MAINSTAT, RELIC_THEMES,
 } from '../core/gear.js';
 import { orderSlotCount, orderLockedHint, orderText, orderUpCost, orderLvMult } from '../core/orders.js';
 import { teamBonds, bondHint, bondsOf, BONDS, BOND_CATS } from '../core/bonds.js';
@@ -55,7 +55,7 @@ export function itemDef(app, it) {
 }
 export function itemText(app, it) {
   const def = itemDef(app, it);
-  if (it.kind === 'wheel') return wheelText(def, it.lv, it.rf);
+  if (it.kind === 'wheel') return wheelText(def, it.lv, it.rf, it.rune);
   if (it.kind === 'relic') return relicText(def, it.lv, it.rf);
   // 密契：判定是「全队同款」，不是同主题；4 件那档印的是累计值（2 件 + 4 件），别让人以为只有 15%
   const { th, two, four } = covenantTiers(def.id, it.lv, it.rf);
@@ -206,6 +206,29 @@ let relicSwapCtx = null;
  *  opts 传 null（默认）= 沿用上一次的上下文（强化 / 精炼后重开用），传 {} = 回主线。 */
 /** 免费回溯券的张数：有券的时候回溯不花银芯，按钮直接写「券」 */
 const rwCount = (s) => Math.max(0, Math.floor(Number(s?.vouchers?.rewind) || 0));
+/** 命轮器纹弹窗：当前器纹 + 刷一次的价格 + 候选（换上 / 保留原来）+ 五个品阶的概率表 */
+export function runeModal(app, uid) {
+  const s = app.state, it = s.gear.items[uid];
+  if (!it || it.kind !== 'wheel') return;
+  const def = itemDef(app, it);
+  const cur = runeOf(def, it.rune), cost = runeCost(s, def), can = s.gold >= cost;
+  const tag = (r) => `<b style="color:${RUNE_TIERS[r.t - 1].color}">${esc(runeLabel(r))}</b>`;
+  const cand = it.runeNew;
+  const total = RUNE_TIERS.reduce((n, x) => n + x.w, 0);
+  const tiers = RUNE_TIERS.map((x) => `<span style="color:${x.color}">${x.zh} ×${x.m}（${Math.round(x.w / total * 100)}%）</span>`).join(' · ');
+  const html = `<h3>${esc(def.zh)} · 器纹 <small class="dim">${def.rarity || ''} Lv${it.lv}</small></h3>
+    <div class="rfbox">
+      <div class="rfrow"><span>当前器纹${cur.rolled ? '' : '（出厂自带，还没刷过）'}</span>${tag(cur)}</div>
+      ${cand ? `<div class="rfrow"><span>刷出来的新器纹</span>${tag(cand)}</div>` : ''}
+    </div>
+    ${cand ? `<div class="row"><button class="btn sm gold" data-act="rune-take" data-uid="${uid}">换上新的</button><button class="btn sm" data-act="rune-keep" data-uid="${uid}">保留原来的</button></div>
+      <p class="hint">不满意就保留原来的——这一次的金币不退。再刷一次会直接顶掉这条候选。</p>` : ''}
+    <div class="row"><button class="btn sm ${can ? 'gold' : ''}" data-act="rune-roll" data-uid="${uid}" ${can ? '' : 'disabled'}>刷取器纹 🪙${fmt(cost)}</button></div>
+    <p class="hint">每次随机抽 <b>${RUNE_KEYS.length} 种属性</b>（${RUNE_KEYS.map((k) => STAT_ZH[k]).join(' / ')}）之一，和 <b>5 个品阶</b>：${tiers}。品阶只管倍率，「精」就是出厂器纹的数值。器纹是固定加成，<b>不吃强化等级与精炼</b>；价格 = 约 12 场胜利的金币 × 稀有度，随最高通关关卡一起涨。</p>
+    <p class="hint dim">金币 ${fmt(s.gold)}</p>`;
+  openModal(html);
+}
+
 const rewindBtn = (s, it, cls = 'btn sm') => {
   const p = gearRewindPlan(it); if (!p.cost) return '';
   const back = `${p.refund ? `金币 ${fmt(p.refund)}` : ''}${p.refund && p.refundCores ? ' + ' : ''}${p.refundCores ? `银芯 ${p.refundCores}` : ''}`;
@@ -1164,7 +1187,7 @@ export function gearPage(app) {
     const def = itemDef(app, it);
     const cost = it.lv < GEAR_MAX_LV ? gearCost(it.kind, it.lv) : 0, rc = refineCost(it);
     const eqd = isEquipped(s, it.uid);
-    const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button>${rewindBtn(s, it)}<button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity, it, s) ? ` +<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${dismantleCores(def.rarity, it, s)}` : ''}</button></div>`;
+    const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button>${it.kind === 'wheel' ? `<button class="btn sm" data-act="rune-open" data-uid="${it.uid}" title="器纹：花金币随机刷 16 种属性 × 5 个品阶">器纹${it.rune ? `·${RUNE_TIERS[it.rune.t - 1].zh}` : ''}</button>` : ''}${rewindBtn(s, it)}<button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity, it, s) ? ` +<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${dismantleCores(def.rarity, it, s)}` : ''}</button></div>`;
     return itemCard(app, it, btns);
   }).join('') || '<p class="hint">暂无。推图有概率掉落，也可在「召唤」页用金币祈愿。</p>';
   const more = items.length > lim ? `<button class="btn" data-act="gear-more">显示更多（还有 ${items.length - lim} 件）</button>` : '';

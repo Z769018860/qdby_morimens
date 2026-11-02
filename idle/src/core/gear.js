@@ -55,7 +55,43 @@ const RARITY_MULT = { N: 0.5, R: 0.7, SR: 1, SSR: 1.4 };
 // 比原来的满级（2 倍）多 75%，但这 30 级要几十倍的金币，是给后期金币找的去处，不是白送战力。
 const lvMult = (lv) => (lv <= 10 ? 1 + 0.1 * lv : 2 + 0.05 * (lv - 10));
 
-export function wheelBonus(def, lv, awakener) {
+/* ---------- 器纹刷取 ----------
+   命轮的「器纹」原来是按 id 哈希固定的一条小加成。现在每件命轮都可以花金币刷：
+   · 16 种属性（ZERO() 里的 16 个加成字段，一个不少）随机抽一种；
+   · 5 个品阶：凡 / 良 / 精 / 极 / 绝，品阶决定数值倍率（精 = 原来的固定值 ×1.0）；
+   · 不吃强化等级与精炼：器纹是固定的小加成，不会跟着强化滚雪球盖过主属性。
+   没刷过的命轮沿用老规则（哈希出的那一条，按「精」算），所以老存档的数一个都不变。 */
+export const RUNE_KEYS = ['atkPct', 'hpPct', 'defPct', 'critRate', 'critDmg', 'amp', 'aliGain', 'keyGain', 'healBonus', 'shieldBonus', 'steal', 'surviveChance', 'openAli', 'openKey', 'firstBoost', 'gold'];
+// 「精」档的基础值：前 8 项与旧的固定器纹完全一致（起手共鸣 / 钥焰 +6、吸血 +2、濒死 +2%、金币 +4、首击 +8、增伤 +2、治疗 +3）
+export const RUNE_BASE = {
+  atkPct: 3, hpPct: 4, defPct: 4, critRate: 2, critDmg: 4, amp: 2, aliGain: 4, keyGain: 4,
+  healBonus: 3, shieldBonus: 4, steal: 2, surviveChance: 0.02, openAli: 6, openKey: 6, firstBoost: 8, gold: 4,
+};
+export const RUNE_TIERS = [
+  { t: 1, zh: '凡', m: 0.5, w: 40, color: '#9aa3b2' },
+  { t: 2, zh: '良', m: 0.75, w: 30, color: '#7fd18b' },
+  { t: 3, zh: '精', m: 1, w: 18, color: '#6aa8ff' },
+  { t: 4, zh: '极', m: 1.5, w: 9, color: '#b07cff' },
+  { t: 5, zh: '绝', m: 2.2, w: 3, color: '#ffc857' },
+];
+export const RUNE_DEFAULT_TIER = 3;
+const fmtRune = (key, v) => (key === 'surviveChance' ? `${Math.round(v * 1000) / 10}%` : key === 'openAli' || key === 'openKey' ? `${Math.round(v * 10) / 10}` : `${Math.round(v * 10) / 10}%`);
+/** 某件命轮当前生效的器纹：玩家刷过的（it.rune）优先，没刷过按老规则（哈希出的一条，「精」档） */
+export function runeOf(def, rune) {
+  if (rune && RUNE_BASE[rune.key] != null && rune.t >= 1 && rune.t <= 5) return { key: rune.key, t: rune.t, rolled: true };
+  return { key: wheelRune(def).key, t: RUNE_DEFAULT_TIER, rolled: false };
+}
+export const runeValue = (key, t) => RUNE_BASE[key] * (RUNE_TIERS[(t || RUNE_DEFAULT_TIER) - 1] || RUNE_TIERS[2]).m;
+export const runeLabel = (r) => `${STAT_ZH[r.key]} +${fmtRune(r.key, runeValue(r.key, r.t))}（${RUNE_TIERS[r.t - 1].zh}）`;
+/** 抽一条器纹：品阶按权重，属性 16 选 1。rng 是 0~1 的函数 */
+export function rollRuneWith(rng) {
+  const total = RUNE_TIERS.reduce((n, x) => n + x.w, 0);
+  let r = rng() * total, tier = RUNE_TIERS[0];
+  for (const x of RUNE_TIERS) { if (r < x.w) { tier = x; break; } r -= x.w; }
+  return { key: RUNE_KEYS[Math.min(RUNE_KEYS.length - 1, Math.floor(rng() * RUNE_KEYS.length))], t: tier.t };
+}
+
+export function wheelBonus(def, lv, awakener, rune) {
   const b = ZERO();
   const m = MAINSTAT[def.main];
   if (!m) return b;
@@ -63,18 +99,18 @@ export function wheelBonus(def, lv, awakener) {
   const realm = awakener && def.realm === awakener.realm ? 1.25 : 1;
   b[m.key] += m.base * rm * lvMult(lv) * realm;
   b.atkPct += 3 * rm * lvMult(lv);
-  const r = wheelRune(def);
-  b[r.key] += r.v;
+  const r = runeOf(def, rune);
+  b[r.key] += runeValue(r.key, r.t);
   if (b.surviveChance) b.surviveChance = Math.min(0.9, b.surviveChance);
   return b;
 }
-export function wheelText(def, lv, rf = 0) {
+export function wheelText(def, lv, rf = 0, rune = null) {
   const m = MAINSTAT[def.main];
   if (!m) return '';
   const rm = RARITY_MULT[def.rarity] ?? 1;
   const v = m.base * rm * lvMult(lv) * refineMult({ rf });
   const main = m.fmt ? m.fmt(v) : `${m.zh} +${v.toFixed(1)}%`;
-  return `${main} · 器纹 ${wheelRune(def).zh}`;
+  return `${main} · 器纹 ${runeLabel(runeOf(def, rune))}`;
 }
 
 export const COV_THEMES = [

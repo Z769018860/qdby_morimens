@@ -1,7 +1,7 @@
 import './ui/orient.js';   // 横屏 / 竖屏开关（顶栏那颗方向按钮）
 import {
   indexData, newState, migrate, offlineReport, claimOffline, claimGifts, levelUp, levelUpMax, setTeam, autoTeam, autoLoadout, setPreset, setUltMode, moveUltOrder,
-  equipItem, unequipItem, enhanceItem, enhanceAllEquipped, dismantleMatching, autoDismantle, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem, rewindGear,
+  equipItem, unequipItem, enhanceItem, enhanceAllEquipped, dismantleMatching, autoDismantle, dismantle, summon, equipPull, isEquipped, summonCores, equipPullCores, refineItem, rewindGear, rollRune, settleRune,
   dismantleCores, breakThrough, awakenUp, overdriveUp, lawUp, upgradeOrder, rewindLevel,
 } from './core/game.js';
 import { setOrderSlot } from './core/orders.js';
@@ -1042,6 +1042,20 @@ function onAct(e) {
     // 这里传 {} 是「主线上下文」：编队编辑器会在自己的监听里另开一层并带上草稿上下文，
     // 强化 / 精炼后重开的那一层则不传 opts，沿用上一次的上下文（否则编队里的换件又会打到主线）
     case 'relic-detail': P.relicModal(app, el.dataset.uid, {}); break;
+    // ---- 命轮器纹：花金币刷，候选先看后换 ----
+    case 'rune-open': P.runeModal(app, el.dataset.uid); break;
+    case 'rune-roll': {
+      const r = rollRune(s, d, el.dataset.uid);
+      if (!r) { toast('金币不够'); break; }
+      sound.play(r.cand.t >= 4 ? 'ach' : 'click'); app.save(); app.refreshTop(); closeModal(); P.runeModal(app, el.dataset.uid);
+      break;
+    }
+    case 'rune-take': case 'rune-keep': {
+      const took = settleRune(s, el.dataset.uid, a === 'rune-take');
+      app.save(); closeModal(); rerender(); P.runeModal(app, el.dataset.uid);
+      toast(took ? '已换上新器纹' : '保留了原来的器纹');
+      break;
+    }
     case 'relic-up': {
       const uid = el.dataset.uid;
       if (enhanceItem(s, uid)) { app.save(); rerender(); P.relicModal(app, uid); } else toast('金币不够');

@@ -3584,3 +3584,34 @@ test('装备特质：暴击系命轮 / 造物固定带起手钥焰，每个造�
   const all = new Set(data.wheels.filter((x) => !String(x.main).startsWith('CRIT')).map((w) => _wr(w).key));
   assert.ok(all.size >= 7);
 });
+
+import { rollRune as _rr, settleRune as _sr, runeCost as _rc, addItem as _ai2 } from '../src/core/game.js';
+import { wheelBonus as _wb2, RUNE_KEYS as _RK, RUNE_BASE as _RB, RUNE_TIERS as _RT, rollRuneWith as _rrw, runeOf as _ro, wheelRune as _wr2 } from '../src/core/gear.js';
+test('器纹刷取：16 种属性 × 5 个品阶，花金币，候选先看后换；没刷过的和旧数值一致', () => {
+  assert.equal(_RK.length, 16); assert.equal(_RT.length, 5);
+  assert.deepEqual([..._RK].sort(), Object.keys(ZERO_KEYS()).sort());           // 16 种正好是加成池里的全部字段
+  const s = newState(data, 31);
+  const w = data.wheels.find((x) => x.main === 'DMG_AMP');
+  const it = _ai2(s, 'wheel', w.id);
+  // 没刷过：和旧的固定器纹一模一样（「精」档 ×1.0）
+  const old = _wr2(w); const b0 = _wb2(w, 5, null);
+  assert.equal(_ro(w, null).t, 3); assert.equal(b0[old.key] - (old.key === 'amp' ? 8 * 1 * 1.5 : 0) - (old.key === 'atkPct' ? 3 * 1.5 : 0) > 0, true);
+  // 刷：钱不够 → null；够了扣钱并给候选，不立刻生效
+  s.gold = 0; assert.equal(_rr(s, data, it.uid), null);
+  s.gold = _rc(s, w) * 3;
+  const r = _rr(s, data, it.uid);
+  assert.ok(r && r.cost === _rc(s, w) && _RK.includes(r.cand.key) && r.cand.t >= 1 && r.cand.t <= 5);
+  assert.equal(s.gold, _rc(s, w) * 2); assert.equal(it.rune, undefined);
+  // 保留原来的 → 候选丢弃；再刷 → 换上
+  assert.equal(_sr(s, it.uid, false), false); assert.equal(it.runeNew, undefined);
+  _rr(s, data, it.uid); const cand = { ...it.runeNew };
+  assert.equal(_sr(s, it.uid, true), true); assert.deepEqual(it.rune, cand);
+  const b1 = _wb2(w, 5, null, it.rune); assert.ok(b1[cand.key] >= _RB[cand.key] * _RT[cand.t - 1].m - 1e-9);
+  // 概率：大量抽样，16 种属性都出现、五个品阶都出现，凡档最多、绝档最少
+  let st = 7; const rnd = () => ((st = (st * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const ks = new Set(), ts = [0, 0, 0, 0, 0, 0];
+  for (let i = 0; i < 4000; i++) { const x = _rrw(rnd); ks.add(x.key); ts[x.t]++; }
+  assert.equal(ks.size, 16); assert.ok(ts[1] > ts[2] && ts[2] > ts[3] && ts[3] > ts[4] && ts[4] > ts[5] && ts[5] > 0);
+});
+function ZERO_KEYS() { return _ZERO(); }
+import { ZERO as _ZERO } from '../src/core/gear.js';
