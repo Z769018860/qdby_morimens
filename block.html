@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>蚀界方块 · 忘忘同人小游戏</title>
-<meta name="description" content="方块从上方落下，左右拖动、落地堆叠，填满一行就消掉。四界域配色、唤醒体头像、投射光线与飘忽洋流，十二关递进加一个无尽关。">
+<meta name="description" content="方块从水面下浮上来，左右拖动、松手就往上顶，填满一行就消掉。四界域配色、唤醒体头像、投射光线与飘忽洋流，十二关递进加一个无尽关。">
 <meta name="theme-color" content="#070b16">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
 <style>
@@ -33,6 +33,7 @@ img{display:block}
   display:flex;flex-direction:column;
 }
 .scr{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
+#scrPre{justify-content:center}
 .scr[hidden]{display:none}
 
 /* ---------------------------------------------------------------- 通用头 */
@@ -141,7 +142,7 @@ img{display:block}
 }
 .wk img{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid var(--rc)}
 .wk span{font-size:10px;color:#b6c5de;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.prefoot{flex:0 0 auto;display:flex;gap:8px;padding-top:2px;margin-top:auto}
+.prefoot{flex:0 0 auto;display:flex;gap:8px;padding-top:2px;margin-top:0}
 .prefoot .ghost{
   flex:0 0 96px;padding:12px;border-radius:12px;font-size:13.5px;
   border:1px solid var(--line);background:rgba(16,26,48,.72);color:#a9b8d2;
@@ -324,7 +325,7 @@ img{display:block}
   .pi{width:50px}
 }
 </style>
-<meta name="build" content="66baa62fd5">
+<meta name="build" content="00c541bba6">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -347,7 +348,7 @@ html{-webkit-tap-highlight-color:transparent}
       <a class="back" href="index.html" aria-label="返回首页">←</a>
       <div>
         <h1>蚀界方块</h1>
-        <p>拖住落下的方块，填满一行就消掉</p>
+        <p>方块从水里浮上来，拖住它，填满一行就消掉</p>
       </div>
       <span class="sp"></span>
       <button class="ico" id="btnSnd" type="button" aria-label="音效开关">♪</button>
@@ -473,7 +474,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/block.js?v=66baa62fd5"></script>
+<script type="module" src="js/b/block.js?v=00c541bba6"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

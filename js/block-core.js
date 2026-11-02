@@ -1,8 +1,9 @@
-// 蚀界方块的核心规则：方块从上方落下、左右移动、落地堆叠、满行消除。
-// 这里不碰任何 DOM，node 里可以直接 import 跑模拟（scripts/block-sim.mjs）。
+// 蚀界方块的核心规则（v3）：方块从**下方**浮上来，左右移动，松手后一路升到顶，
+// 撞到东西就锁住。满行消除、上方压实。这里不碰任何 DOM，node 里可以直接 import
+// 跑模拟（scripts/block-sim.mjs）。
 //
-// 一条容易踩错的约定：board 是 [行][列]，行 0 在最上面。渲染层的 y 也是这个方向。
-// 「洋流上升」往数组前面塞行，「压实」往数组后面走 —— 别搞反。
+// 一条容易踩错的约定：board 是 [行][列]，行 0 在最上面，行 rows-1 在最下面（贴着水面）。
+// 「上浮」= 行号变小。别和上一版的「下落」搞混 —— 这一版没有任何东西往下掉。
 
 // ------------------------------------------------------------------ 界域
 // 配色抄 data/duel-lore.json 的 realms：混沌红、血肉橙、深海蓝、超维金。
@@ -16,14 +17,13 @@ export const REALMS = [
 // ------------------------------------------------------------------ 形状
 // 一格到四格。竖条在 5 列的窄盘上最容易卡住，所以形状池按列数过滤（见 shapePool）。
 export const SHAPES = [
-  { id: 's1', c: [[0, 0]], w: 9 },
+  { id: 's1', c: [[0, 0]], w: 10 },
   { id: 'h2', c: [[0, 0], [1, 0]], w: 16 },
-  { id: 'v2', c: [[0, 0], [0, 1]], w: 16 },
-  { id: 'h3', c: [[0, 0], [1, 0], [2, 0]], w: 13 },
-  { id: 'v3', c: [[0, 0], [0, 1], [0, 2]], w: 13 },
-  { id: 'h4', c: [[0, 0], [1, 0], [2, 0], [3, 0]], w: 8 },
-  { id: 'v4', c: [[0, 0], [0, 1], [0, 2], [0, 3]], w: 8 },
-  { id: 'q4', c: [[0, 0], [1, 0], [0, 1], [1, 1]], w: 9 },
+  { id: 'v2', c: [[0, 0], [0, 1]], w: 13 },
+  { id: 'h3', c: [[0, 0], [1, 0], [2, 0]], w: 14 },
+  { id: 'v3', c: [[0, 0], [0, 1], [0, 2]], w: 9 },
+  { id: 'h4', c: [[0, 0], [1, 0], [2, 0], [3, 0]], w: 9 },
+  { id: 'q4', c: [[0, 0], [1, 0], [0, 1], [1, 1]], w: 10 },
 ];
 
 export const BY_ID = Object.fromEntries(SHAPES.map((s) => [s.id, s]));
@@ -45,88 +45,90 @@ export const SPECIALS = {
 export const ITEMS = [
   { id: 'hammer', n: '碎击锤', d: '砸掉任意一格', icon: 'hammer', aim: 1 },
   { id: 'bomb', n: '爆裂瓶', d: '清掉 3×3 一片', icon: 'bomb', aim: 1 },
-  { id: 'purge', n: '净化液', d: '清空最底一行', icon: 'flask', aim: 0 },
-  { id: 'freeze', n: '冻结钟', d: '八秒内不自动下落', icon: 'clock', aim: 0 },
-  { id: 'reroll', n: '重抽签', d: '换掉下一块', icon: 'scroll', aim: 0 },
+  { id: 'purge', n: '净化液', d: '清空紧贴水面的那一行', icon: 'flask', aim: 0 },
+  { id: 'sink', n: '压舱石', d: '整盘往水里沉一行', icon: 'stone', aim: 0 },
+  { id: 'reroll', n: '重抽签', d: '换掉正在上浮的这一块', icon: 'scroll', aim: 0 },
 ];
 export const ITEM_BY_ID = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
 
 // ------------------------------------------------------------------ 关卡
-// 十二关递进 + 一个无尽关。goal 是「消满多少行」，moves 是「放了多少块」的上限。
-// speed 越大下落越快（1.0 大约一秒一格）。
+// 十二关递进 + 一个无尽关。
+// goal = 要消满多少行，moves = 放多少块的上限，fill = 开局就堆在水面几行。
+// 这一版没有「下落速度」这回事 —— 节奏完全由玩家松手决定，难度靠「回合上限 + 开局堆得更高 +
+// 每回合浮上来几块 + 机制」堆。
 export const LEVELS = [
   {
-    id: 1, t: '无光区深潜 1', sub: '浅层 · 无声', cols: 6, rows: 12,
-    goal: 10, moves: 60, speed: 0.9, mods: [],
-    tip: '先学会把地填平，别在一列上叠高。',
+    id: 1, t: '无光区深潜 1', sub: '浅层 · 无声', cols: 8, rows: 12,
+    goal: 12, moves: 60, fill: 2, lift: 3, mods: [],
+    tip: '横着拖，松手它自己会浮上去。先把水面铺平。',
   },
   {
-    id: 2, t: '无光区深潜 2', sub: '浅层 · 落影', cols: 6, rows: 12,
-    goal: 12, moves: 58, speed: 0.96, mods: ['rain:0.12'],
-    tip: '棋盘上方偶尔会掉下孤块，看箭头躲开那一列。',
+    id: 2, t: '无光区深潜 2', sub: '浅层 · 落影', cols: 8, rows: 12,
+    goal: 13, moves: 58, fill: 2, lift: 3, mods: ['rain:0.16'],
+    tip: '顶上偶尔会砸下一格，别把某一列堆太高。',
   },
   {
-    id: 3, t: '无光区深潜 3', sub: '中层 · 涨潮', cols: 6, rows: 12,
-    goal: 13, moves: 58, speed: 1.02, mods: ['tide:9'],
-    tip: '洋流会从底下顶上来，别让顶层留着方块。',
+    id: 3, t: '无光区深潜 3', sub: '中层 · 涨潮', cols: 8, rows: 12,
+    goal: 14, moves: 56, fill: 3, lift: 3, mods: ['tide:9'],
+    tip: '洋流会突然把整盘顶上去一行，留点余量。',
   },
   {
-    id: 4, t: '无光区深潜 4', sub: '中层 · 浪与光', cols: 6, rows: 12,
-    goal: 14, moves: 56, speed: 1.08, mods: ['rain:0.16', 'tide:10'],
+    id: 4, t: '无光区深潜 4', sub: '中层 · 浪与光', cols: 8, rows: 12,
+    goal: 15, moves: 54, fill: 3, lift: 3, mods: ['rain:0.18', 'tide:8'],
     tip: '落影和涨潮一起来，节奏会比前一关快一截。',
   },
   {
-    id: 5, t: '无光区深潜 5', sub: '深层 · 起雾', cols: 6, rows: 12,
-    goal: 15, moves: 56, speed: 1.14, mods: ['fog'],
-    tip: '雾里看不见下一块，只能凭手上的形状走。',
+    id: 5, t: '无光区深潜 5', sub: '深层 · 起雾', cols: 8, rows: 12,
+    goal: 16, moves: 54, fill: 3, lift: 2, mods: ['fog', 'tide:9'],
+    tip: '雾里看不见下一块，只能凭手上这块走。',
   },
   {
-    id: 6, t: '无光区深潜 6', sub: '深层 · 结晶', cols: 6, rows: 12,
-    goal: 16, moves: 54, speed: 1.2, mods: ['harden:0.2'],
+    id: 6, t: '无光区深潜 6', sub: '深层 · 结晶', cols: 8, rows: 12,
+    goal: 16, moves: 52, fill: 3, lift: 2, mods: ['harden:0.22', 'tide:8'],
     tip: '带壳的结晶要消两次，第一次只会裂开。',
   },
   {
-    id: 7, t: '无光区深潜 7', sub: '窄道 · 五列', cols: 5, rows: 12,
-    goal: 15, moves: 54, speed: 1.26, mods: [],
-    tip: '只剩五列，横四会变少，竖条更卡人。',
+    id: 7, t: '无光区深潜 7', sub: '窄道 · 七列', cols: 7, rows: 12,
+    goal: 16, moves: 52, fill: 3, lift: 2, mods: ['tide:9'],
+    tip: '只剩七列，横四变少，竖条更卡人。',
   },
   {
-    id: 8, t: '无光区深潜 8', sub: '废墟 · 残块', cols: 6, rows: 12,
-    goal: 19, moves: 52, speed: 1.32, mods: ['rubble:8'],
-    tip: '开局就有一堆残块压在底下，先啃平再谈消行。',
+    id: 8, t: '无光区深潜 8', sub: '废墟 · 残块', cols: 8, rows: 12,
+    goal: 17, moves: 50, fill: 4, lift: 2, mods: ['rubble:6', 'tide:8'],
+    tip: '开局水面上就压着一层残块，先啃平。',
   },
   {
-    id: 9, t: '无光区深潜 9', sub: '暴雨 · 无星', cols: 6, rows: 12,
-    goal: 21, moves: 52, speed: 1.38, mods: ['rain:0.26', 'fog'],
+    id: 9, t: '无光区深潜 9', sub: '暴雨 · 无星', cols: 8, rows: 12,
+    goal: 15, moves: 56, fill: 3, lift: 1, mods: ['rain:0.26', 'fog', 'tide:7'],
     tip: '落影变密，而且看不见下一块 —— 留好退路。',
   },
   {
-    id: 10, t: '无光区深潜 10', sub: '暗流 · 双压', cols: 6, rows: 12,
-    goal: 24, moves: 50, speed: 1.44, mods: ['tide:7', 'harden:0.24'],
-    tip: '涨潮变勤，结晶更多，别指望慢慢磨。',
+    id: 10, t: '无光区深潜 10', sub: '暗流 · 双压', cols: 8, rows: 12,
+    goal: 12, moves: 56, fill: 3, lift: 1, mods: ['tide:7', 'harden:0.2'],
+    tip: '洋流变勤，结晶更多，别指望慢慢磨。',
   },
   {
-    id: 11, t: '无光区深潜 11', sub: '断崖 · 五列', cols: 5, rows: 12,
-    goal: 24, moves: 50, speed: 1.5, mods: ['rubble:9', 'fog'],
-    tip: '五列加残块，起手就是半残的盘面。',
+    id: 11, t: '无光区深潜 11', sub: '断崖 · 七列', cols: 7, rows: 12,
+    goal: 12, moves: 52, fill: 3, lift: 1, mods: ['rubble:7', 'harden:0.2', 'tide:7'],
+    tip: '七列加残块，起手就是半残的盘面。',
   },
   {
-    id: 12, t: '无光区深潜 12', sub: '最深处 · 无光', cols: 6, rows: 12,
-    goal: 25, moves: 48, speed: 1.58,
-    mods: ['rain:0.22', 'tide:6', 'harden:0.26'],
-    tip: '这一关的机制全开。撑到二十二行，就算走到头了。',
+    id: 12, t: '无光区深潜 12', sub: '最深处 · 无光', cols: 8, rows: 12,
+    goal: 12, moves: 52, fill: 3, lift: 1,
+    mods: ['rain:0.24', 'tide:7', 'harden:0.24'],
+    tip: '这一关的机制全开。撑到二十一行，就算走到头了。',
   },
   {
-    id: 13, t: '无尽 · 忘却回廊', sub: '走不到头', cols: 6, rows: 12,
-    goal: 0, moves: 0, speed: 1.5, endless: true,
+    id: 13, t: '无尽 · 忘却回廊', sub: '走不到头', cols: 8, rows: 12,
+    goal: 0, moves: 0, fill: 3, lift: 2, endless: true,
     mods: ['rain:0.2', 'tide:9'],
-    tip: '没有回合上限，速度随着消行一路加快，直到你撑不住。',
+    tip: '没有回合上限，每消八行洋流就快一档，直到你撑不住。',
   },
 ];
 
-// 无尽关按已消行数慢慢加热，别让人一辈子不输
-export function endlessSpeed(lines) {
-  return Math.min(3.4, 1.5 + lines * 0.045);
+// 无尽关：每消十行，洋流就快一档（压到最短 3 回合一次）
+export function endlessTide(lines) {
+  return Math.max(3, 9 - Math.floor(lines / 8));
 }
 
 // ------------------------------------------------------------------ 随机
@@ -182,7 +184,10 @@ export function newRun(levelId, seed, opts) {
     rng,
     mods,
     board: [],
+    // cur 是「正在水上、还没浮上去」的那一块；oy 是它顶端所在的棋盘行，
+    // 可以是 rows 甚至更大（完全在水面以下）。浮上去时 oy 一路减到 ty。
     cur: null,
+    curList: [], // 一回合浮上来多块时，排队等待的其余几块（batch > 1）
     next: null,
     score: 0,
     lines: 0,
@@ -194,32 +199,45 @@ export function newRun(levelId, seed, opts) {
     bestClear: 0,
     items: [],
     itemCap: 4,
-    pity: 0, // 连着几行没掉造物，用来保底
-    acc: 0,
-    dropSec: 1 / (0.82 * (lv.speed || 1)),
-    frozen: 0,
+    pity: 0,
+    rise: 0, // 上浮动画还剩多少格要走（0 表示已经落定）
+    riseSpeed: 26, // 格/秒
     tideTick: 0,
-    pending: [], // 雨的预告：[{col, realm, t}]
+    pending: [],
     over: false,
     win: false,
     reason: '',
     fx: [],
     clearedCells: 0,
     resonate: 0,
-    gained: 0, // 本局拿到的造物总数（结算展示用）
+    gained: 0,
+    fill: lv.fill || 2,
+    lift: lv.lift == null ? 2 : lv.lift,
   };
 
   for (let i = 0; i < st.rows; i++) st.board.push(new Array(st.cols).fill(null));
 
-  // 残块：开局就在底部堆几格，逼玩家绕开
+  // 开局就压在水面上的那几行。每行都留至少一个洞，否则一开局就白送消行。
+  for (let r = st.rows - st.fill; r < st.rows; r++) {
+    if (r < 0) continue;
+    const holes = 1 + ((rng() < 0.35) ? 1 : 0);
+    const free = [];
+    for (let c = 0; c < st.cols; c++) free.push(c);
+    for (let i = 0; i < st.cols - holes; i++) {
+      const idx = (rng() * free.length) | 0;
+      const c = free.splice(idx, 1)[0];
+      st.board[r][c] = { r: (rng() * REALMS.length) | 0, sp: null, hp: 1 };
+    }
+  }
+
+  // 残块：比开局的几行更高一点，逼玩家先啃
   if (mods.rubble) {
     let placed = 0;
     let guard = 0;
-    while (placed < mods.rubble && guard++ < 500) {
+    while (placed < mods.rubble && guard++ < 400) {
       const c = (rng() * st.cols) | 0;
-      // 只堆在下面四行，否则一开局就是死局
-      const r = st.rows - 1 - ((rng() * 4) | 0);
-      if (st.board[r][c]) continue;
+      const r = st.rows - st.fill - 1 - ((rng() * 2) | 0);
+      if (r < 0 || st.board[r][c]) continue;
       st.board[r][c] = { r: (rng() * REALMS.length) | 0, sp: null, hp: 1, grit: true };
       placed++;
     }
@@ -251,7 +269,6 @@ function rollPiece(st) {
     const roll = st.rng();
     cells[i].sp = roll < 0.4 ? 'bomb' : roll < 0.75 ? 'line' : 'prism';
   }
-  // 棱彩单独再摇一次，它算万能色，能让玩家凑同色共鸣
   if (st.rng() < 0.03 && !cells.some((c) => c.sp)) {
     const i = (st.rng() * cells.length) | 0;
     cells[i].sp = 'prism';
@@ -266,142 +283,158 @@ function rollPiece(st) {
   };
 }
 
-function spawn(st) {
-  const p = st.next || rollPiece(st);
-  st.next = rollPiece(st);
-  const mid = ((st.cols - p.w) / 2) | 0;
-  const oy = -p.h; // 整个方块先藏在棋盘上方，逐格掉进来
-  const cur = { ...p, ox: mid, oy, cells: p.cells.map((c) => ({ ...c })) };
-
-  // 中心列被顶住了就往两边找最近的空位，能找到就还能继续 —— 一上来就判负太粗暴了
-  if (!canPlace(st, cur, mid, oy)) {
-    let found = -1;
-    for (let d = 1; d < st.cols && found < 0; d++) {
-      for (const ox of [mid - d, mid + d]) {
-        if (ox < 0 || ox + p.w > st.cols) continue;
-        if (canPlace(st, cur, ox, oy) || liftTo(st, cur, ox, oy)) {
-          cur.ox = ox;
-          if (!canPlace(st, cur, ox, oy)) {
-            let y = oy;
-            while (y < 0 && !canPlace(st, cur, ox, y)) y++;
-            cur.oy = y;
-          }
-          found = ox;
-          break;
-        }
-      }
-    }
-    if (found < 0) {
-      st.over = true;
-      st.reason = '棋盘堵到了顶';
-      st.cur = null;
-      st.fx.push({ k: 'over', reason: st.reason });
-      return;
-    }
-  }
-  st.cur = cur;
-  st.acc = 0;
+// 方块待在水面以下时的 oy：整块藏在棋盘底边之外
+function restY(st) {
+  return st.rows + 1;
 }
 
-// 方块完全在棋盘上方时，只要这一列的顶部几行没被占死，就还能落进来
-function liftTo(st, p, ox, oy) {
-  let y = oy;
-  while (y <= 0) {
-    if (canPlace(st, p, ox, y)) return true;
-    y++;
+// 方块浮上去会停在哪一行 —— 找**从水面往上第一个能整块放下的位置**。
+//
+// 这一行是整个手感的命门：如果按「浮到最高」算，方块会一路升到棋盘顶部，
+// 堆在上头，跟录像里方块压着水面完全反着来。方块是从水下浮起来的，浮到
+// 水面就顶住了，所以它只在「这一列被占住」的时候才继续往上走 —— 于是堆叠
+// 自然从底下往上长，最下面是实的，上面是空的。
+export function floatTarget(st, p, ox) {
+  // 方块是从水里浮上来的，默认顶到水面就停（贴着底行那一格）。底行这一段的列
+  // 被占死了它才继续往上钻，最多钻 `st.lift` 行 —— 这个上限是难度的旋钮：
+  // 允许往上钻 = 还能往洞里去，钻不动 = 只能把整盘顶起来（见 release）。
+  const from = st.rows - p.h;
+  const up = Math.max(0, st.lift == null ? 2 : st.lift);
+  for (let y = from; y >= from - up && y >= 0; y--) {
+    if (canFit(st, p, ox, y)) return y;
   }
-  return canPlace(st, p, ox, 0);
+  return -1;
 }
 
-// ------------------------------------------------------------------ 碰撞
-export function canPlace(st, p, ox, oy) {
+// 只是「这一行能不能整块放下」的碰撞检测
+function canFit(st, p, ox, oy) {
   for (const cl of p.cells) {
     const c = ox + cl.dc;
     const r = oy + cl.dr;
     if (c < 0 || c >= st.cols) return false;
-    if (r >= st.rows) return false;
-    if (r >= 0 && st.board[r][c]) return false;
+    if (r < 0) return false; // 顶到天花板
+    if (r >= st.rows) continue; // 还在水面以下，随便占
+    if (st.board[r][c]) return false;
   }
   return true;
 }
 
-// 方块落地后会停在哪一行（渲染画影子用）
-export function ghostY(st, p) {
-  let y = p.oy;
-  while (canPlace(st, p, p.ox, y + 1)) y++;
-  return y;
+// 回合开始时把一块放到「水面以下」，等玩家左右挪
+function spawn(st) {
+  const p = st.curList.length ? st.curList.shift() : (st.next || rollPiece(st));
+  if (!p) return;
+  if (!st.curList.length) st.next = rollPiece(st);
+  const mid = ((st.cols - p.w) / 2) | 0;
+  const cur = { ...p, ox: mid, oy: restY(st), ty: restY(st), cells: p.cells.map((c) => ({ ...c })) };
+
+  // 中间列放不下就往两边找最近的能放下的位置 —— 一上来就判负太粗暴
+  if (!canFit(st, cur, mid, cur.oy)) {
+    let found = -1;
+    for (let d = 1; d < st.cols && found < 0; d++) {
+      for (const ox of [mid - d, mid + d]) {
+        if (ox < 0 || ox + p.w > st.cols) continue;
+        if (canFit(st, cur, ox, cur.oy)) { found = ox; break; }
+      }
+    }
+    if (found < 0) {
+      // 连水面下都塞不进去：底行已经彻底堵死
+      st.over = true;
+      st.reason = '水面被堵死了';
+      st.cur = null;
+      st.fx.push({ k: 'over', reason: st.reason });
+      return;
+    }
+    cur.ox = found;
+  }
+  st.cur = cur;
+  st.rise = 0;
 }
 
 // ------------------------------------------------------------------ 移动
 export function move(st, dx) {
-  if (st.over || !st.cur) return false;
+  if (st.over || !st.cur || st.rise > 0) return false;
   const nx = st.cur.ox + dx;
-  if (!canPlace(st, st.cur, nx, st.cur.oy)) return false;
+  if (nx < 0 || nx + st.cur.w > st.cols) return false;
+  if (!canFit(st, st.cur, nx, st.cur.oy)) return false;
   st.cur.ox = nx;
   return true;
 }
 
 export function moveTo(st, col) {
-  if (st.over || !st.cur) return false;
+  if (st.over || !st.cur || st.rise > 0) return false;
   const target = Math.max(0, Math.min(st.cols - st.cur.w, col));
   if (target === st.cur.ox) return false;
-  // 一格一格挪，中途被挡就停下（不会穿墙）
   const dir = target > st.cur.ox ? 1 : -1;
   let moved = false;
-  while (st.cur.ox !== target && canPlace(st, st.cur, st.cur.ox + dir, st.cur.oy)) {
+  while (st.cur.ox !== target && canFit(st, st.cur, st.cur.ox + dir, st.cur.oy)) {
     st.cur.ox += dir;
     moved = true;
   }
   return moved;
 }
 
-function stepDown(st) {
-  if (!st.cur) return false;
-  if (canPlace(st, st.cur, st.cur.ox, st.cur.oy + 1)) {
-    st.cur.oy++;
-    return true;
+// 松手：这一块开始上浮。返回它将要停的行（-1 表示无处可去）。
+//
+// 关键一步：方块是浮上来的，底下的水面要是被整排堵死，它连棋盘都进不去。
+// 这时候**整盘被顶上去一行**（水面升高），底行空出来它才钻得进来 —— 这就是
+// 「移动之后下方会上浮」的那一下。可能连着顶好几行，所以走 while。
+export function release(st) {
+  if (st.over || !st.cur || st.rise > 0) return -1;
+  const p = st.cur;
+  let ty = floatTarget(st, p, p.ox);
+  let risen = 0;
+  while (ty < 0) {
+    if (!liftBoard(st, '水面被堵死，方块挤不上来')) return -1; // 顶穿了，liftBoard 里已经置 over
+    if (++risen > st.rows + 2) break;
+    ty = floatTarget(st, p, p.ox);
   }
-  return false;
-}
-
-export function softDrop(st) {
-  if (st.over || !st.cur) return false;
-  if (stepDown(st)) {
-    st.acc = 0;
-    st.score += 1;
-    return true;
+  if (ty < 0) {
+    st.cur = null;
+    st.over = true;
+    st.reason = '水面被堵死了';
+    st.fx.push({ k: 'over', reason: st.reason });
+    return -1;
   }
-  lock(st);
-  return true;
-}
-
-export function hardDrop(st) {
-  if (st.over || !st.cur) return;
-  let n = 0;
-  while (stepDown(st)) n++;
-  st.score += n * 2;
-  lock(st);
+  p.ty = ty;
+  st.rise = p.oy - ty; // 还要走几格
+  if (st.rise <= 0) {
+    st.rise = 0;
+    lock(st);
+    return ty;
+  }
+  st.fx.push({ k: 'lift', ox: p.ox, from: p.oy, to: ty, w: p.w, h: p.h, risen });
+  return ty;
 }
 
 // ------------------------------------------------------------------ 时间推进
+// 这一版只有「上浮动画」和时间有关，方块不会自己往下掉。
 export function tick(st, dt) {
-  if (st.over || !st.cur) return false;
-  if (st.frozen > 0) {
-    st.frozen = Math.max(0, st.frozen - dt);
+  if (st.over) return false;
+  if (!st.cur) return false;
+  if (st.rise <= 0) return false;
+
+  const move = st.riseSpeed * dt;
+  if (move >= st.rise) {
+    st.cur.oy = st.cur.ty;
+    st.rise = 0;
+    lock(st);
     return true;
   }
-  st.acc += dt;
-  let changed = false;
-  let guard = 0;
-  while (st.acc >= st.dropSec && guard++ < 40) {
-    st.acc -= st.dropSec;
-    if (!stepDown(st)) {
-      lock(st);
-      return true;
-    }
-    changed = true;
+  st.rise -= move;
+  st.cur.oy = st.cur.ty + st.rise;
+  return true;
+}
+
+// 直接跳到锁定（模拟脚本用，省得逐帧推进）
+export function settle(st) {
+  if (st.over || !st.cur) return false;
+  if (st.rise > 0) {
+    st.cur.oy = st.cur.ty;
+    st.rise = 0;
+    lock(st);
+    return true;
   }
-  return changed;
+  return false;
 }
 
 // ------------------------------------------------------------------ 锁定
@@ -430,7 +463,7 @@ function lock(st) {
 
   if (buried > 0) {
     st.over = true;
-    st.reason = '棋盘堵到了顶';
+    st.reason = '方块的顶上就是天';
     st.fx.push({ k: 'over', reason: st.reason });
     return;
   }
@@ -450,7 +483,7 @@ function checkState(st) {
   }
   if (st.maxMoves && st.moves >= st.maxMoves) {
     st.over = true;
-    st.reason = '回合用完了';
+    st.reason = '块用完了';
     st.fx.push({ k: 'over', reason: st.reason });
     return false;
   }
@@ -490,7 +523,7 @@ function resolve(st) {
     if (!rows.length) break;
     chain++;
 
-    const del = new Map(); // key -> {r,c}
+    const del = new Map();
     for (const r of rows) for (let c = 0; c < st.cols; c++) del.set(r * st.cols + c, { r, c });
 
     // 特殊块连锁：爆破炸一圈、贯穿清行列。新清出来的格子也要检查，所以走队列
@@ -545,7 +578,6 @@ function resolve(st) {
       cleared.push({ r, c, realm: cell.r, sp: cell.sp });
     }
 
-    // 全被结晶挡住 -> 这轮没真消掉东西，跳出，免得死循环
     if (!cleared.length) {
       for (const { r, c } of cracked) st.fx.push({ k: 'crack', r, c });
       break;
@@ -560,7 +592,6 @@ function resolve(st) {
     st.lines += nRows;
     st.clearedCells += cleared.length;
     st.combo = chain;
-    // 连消 = 一次下去消掉几行（含连锁），这才是玩家看得懂的数
     st.maxCombo = Math.max(st.maxCombo, nRows + chain - 1);
     st.bestClear = Math.max(st.bestClear, nRows);
 
@@ -575,7 +606,7 @@ function resolve(st) {
       st.resonate += resonate;
     }
 
-    // 造物掉落：每行三成，连着两轮一行不掉就补一个
+    // 造物掉落：每行三成，连着几轮一行不掉就补一个
     let drops = 0;
     for (let i = 0; i < nRows; i++) if (st.rng() < 0.34) drops++;
     if (st.pity >= 3) drops++;
@@ -603,7 +634,7 @@ function resolve(st) {
     compact(st);
   }
 
-  if (chain > 3) st.score += 400; // 三连以上给一笔链赏
+  if (chain > 3) st.score += 400;
   st.combo = 0;
   return totalRows;
 }
@@ -639,8 +670,8 @@ function compact(st) {
 }
 
 // ------------------------------------------------------------------ 机制：投射光线
+// 从天上砸一格下来。落到那一列最上面的空位（也就是堆叠的顶）。
 function dropRain(st) {
-  // 上一轮预告到点的落下来
   const due = st.pending.filter((x) => x.t <= 0);
   st.pending = st.pending.filter((x) => x.t > 0);
   for (const d of due) landRain(st, d.col, d.realm);
@@ -670,6 +701,7 @@ function landRain(st, col, realm) {
 
 // ------------------------------------------------------------------ 机制：飘忽洋流
 function tickTide(st) {
+  if (st.lv.endless) st.mods.tide = endlessTide(st.lines);
   if (!st.mods.tide) return;
   st.tideTick++;
   if (st.tideTick < st.mods.tide) return;
@@ -677,16 +709,25 @@ function tickTide(st) {
   riseOne(st);
 }
 
-export function riseOne(st) {
+// 整盘被顶上去一行，底行清空。顶到天花板上还有方块就结束。
+// 这是「放不下 / 洋流」共用的那一层，只负责挪，不负责往底行塞东西。
+export function liftBoard(st, reason) {
   if (st.board[0].some(Boolean)) {
     st.over = true;
-    st.reason = '洋流把棋盘顶穿了';
+    st.reason = reason || '洋流把棋盘顶穿了';
     st.fx.push({ k: 'over', reason: st.reason });
     return false;
   }
   st.board.shift();
-  const row = new Array(st.cols).fill(null);
-  // 新的一行只填一半左右，留出可操作的空隙
+  st.board.push(new Array(st.cols).fill(null));
+  st.fx.push({ k: 'slide' });
+  return true;
+}
+
+// 洋流：上浮一行，而且新露出来的底行还带着半排方块
+export function riseOne(st) {
+  if (!liftBoard(st)) return false;
+  const row = st.board[st.rows - 1];
   const fill = Math.max(1, Math.round(st.cols * 0.45));
   const cols = [];
   for (let c = 0; c < st.cols; c++) cols.push(c);
@@ -695,7 +736,6 @@ export function riseOne(st) {
     const c = cols.splice(idx, 1)[0];
     row[c] = { r: (st.rng() * REALMS.length) | 0, sp: null, hp: 1 };
   }
-  st.board.push(row);
   st.fx.push({ k: 'tide' });
   resolve(st);
   return true;
@@ -745,12 +785,21 @@ export function useItem(st, id, r, c) {
     }
     used = any;
     if (used) st.fx.push({ k: 'purge' });
-  } else if (id === 'freeze') {
-    st.frozen = 8;
-    st.fx.push({ k: 'freeze' });
+  } else if (id === 'sink') {
+    // 整盘下沉一行：最底下那一行直接丢进水里
+    st.board.pop();
+    st.board.unshift(new Array(st.cols).fill(null));
+    st.fx.push({ k: 'sink' });
     used = true;
   } else if (id === 'reroll') {
+    // 换掉正在上浮的这一块（连同排队的那几块一起重摇）
+    st.curList = [];
     st.next = rollPiece(st);
+    if (st.cur) {
+      const p = rollPiece(st);
+      const mid = ((st.cols - p.w) / 2) | 0;
+      st.cur = { ...p, ox: Math.min(mid, st.cols - p.w), oy: restY(st), ty: restY(st), cells: p.cells.map((x) => ({ ...x })) };
+    }
     st.fx.push({ k: 'reroll' });
     used = true;
   }
@@ -762,16 +811,6 @@ export function useItem(st, id, r, c) {
     compact(st);
     resolve(st);
     if (!st.over) checkState(st);
-    // 砸开之后可能又有地方放了，把误判的「堵顶」撤回
-    if (st.over && st.reason === '棋盘堵到了顶' && !st.cur) {
-      const trial = rollPiece(st);
-      const ox = ((st.cols - trial.w) / 2) | 0;
-      if (canPlace(st, trial, ox, -trial.h)) {
-        st.over = false;
-        st.reason = '';
-        spawn(st);
-      }
-    }
   }
   return true;
 }
@@ -779,6 +818,12 @@ export function useItem(st, id, r, c) {
 // ------------------------------------------------------------------ 查询
 export function progress(st) {
   return st.goal ? Math.min(1, st.lines / st.goal) : 0;
+}
+
+// 某一列从下往上第一格空位（渲染画「这一块会停在哪」的引导线用）
+export function columnTop(st, c) {
+  for (let r = 0; r < st.rows; r++) if (!st.board[r][c]) return r;
+  return -1;
 }
 
 export function rankOf(st) {
@@ -792,9 +837,8 @@ export function rankOf(st) {
   }
   if (!st.win) return 'D';
   // 达标是 B。往上要靠两件事：省回合、连消。两条都做到才是 S。
-  // 不能只看回合剩余 —— 前面几关回合本来就宽松，那样人人开局就 S。
   const spare = st.maxMoves ? (st.maxMoves - st.moves) / st.maxMoves : 0;
-  let pt = 2; // 达标就至少是 B
+  let pt = 2;
   if (spare >= 0.2) pt++;
   if (spare >= 0.4) pt++;
   if (st.maxCombo >= 3) pt++;

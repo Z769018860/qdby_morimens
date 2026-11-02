@@ -1,4 +1,4 @@
-// 「蚀界方块」——方块从上方落下，左右拖动，满一行就消掉。
+// 「蚀界方块」——方块从水面下浮上来，左右拖动，松手它就一路浮到顶，满一行消掉。
 //
 // 这一页的约定：
 // 1. 背景（夜空、船桅、月亮、浪）全是 canvas 现画，只有在改窗口大小时重绘一次；
@@ -7,8 +7,8 @@
 // 3. 棋盘尺寸由容器算，不写死 —— 6 列和 5 列的关要共用同一套布局。
 import {
   LEVELS, REALMS, ITEMS, ITEM_BY_ID, SPECIALS,
-  newRun, tick, move, moveTo, softDrop, hardDrop, useItem,
-  ghostY, canPlace, rankOf, creditOf, progress, levelMods, endlessSpeed,
+  newRun, tick, move, moveTo, release, settle, useItem,
+  floatTarget, rankOf, creditOf, progress, levelMods, endlessTide,
 } from './block-core.js';
 
 // ------------------------------------------------------------------ 四界域的代表唤醒体
@@ -105,6 +105,24 @@ function beep(freq, dur, type, gain) {
 const sfx = {
   move: () => beep(320, 0.05, 'square', 0.02),
   drop: () => beep(150, 0.12, 'sine', 0.06),
+  // 上浮：往上滑的短音，和「往下掉」的闷响区分开
+  lift() {
+    if (!sndOn) return;
+    const a = audio();
+    if (!a) return;
+    const o = a.createOscillator();
+    const g = a.createGain();
+    o.type = 'sine';
+    const t0 = a.currentTime;
+    o.frequency.setValueAtTime(300, t0);
+    o.frequency.exponentialRampToValueAtTime(760, t0 + 0.18);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.055, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.24);
+    o.connect(g).connect(a.destination);
+    o.start(t0);
+    o.stop(t0 + 0.26);
+  },
   clear: (n) => {
     beep(380 + n * 70, 0.14, 'triangle', 0.07);
     setTimeout(() => beep(520 + n * 90, 0.16, 'triangle', 0.05), 55);
@@ -135,7 +153,6 @@ const G = {
   aimCell: null,
   paused: false,
   drag: null,
-  dropBoost: 0,
   t: 0,
   lastFrame: 0,
   resultShown: false,
@@ -170,31 +187,75 @@ function resize() {
 
 function layoutBoard(w, h) {
   const st = G.st;
-  const cols = st ? st.cols : 6;
+  const cols = st ? st.cols : 8;
   const rows = st ? st.rows : 12;
-  // 上方要留出两格多，正在掉进来的方块得看得见完整形状 —— 只露一格的话，
-  // 玩家不知道手上是横三还是竖三，根本没法提前摆位。
+  // 水面在棋盘底边。棋盘**下面**这块要留出两格多的水 —— 还没浮上来的那块就泡
+  // 在那儿，玩家得看见它的形状才知道往哪一格送。上方只留半个格当余量。
   const padX = 8;
-  const padBottom = 6;
-  const topBands = 2.4;
+  const padBottom = 8;
+  const underBands = 2.3;
+  const topBands = 0.45;
   const availW = w - padX * 2;
+  const bands = rows + topBands + underBands;
   let cw = availW / cols;
   let ch = cw * 0.66;
-  const need = (rows + topBands) * ch + padBottom;
-  if (need > h) {
-    ch = (h - padBottom) / (rows + topBands);
+  // 高度还有富余就把格子往上撑（最多撑到 0.8 的宽高比，再高就不像「块」了）
+  const maxCh = (h - padBottom) / bands;
+  if (ch < maxCh) ch = Math.min(maxCh, cw * 0.8);
+  // 宽屏上如果只按宽度算，格子会被拉成一条（1280 宽时一格 158×44），
+  // 所以反过来用高度把宽度收回来
+  cw = Math.min(cw, ch / 0.66);
+  if (ch * bands + padBottom > h) {
+    ch = (h - padBottom) / bands;
     cw = Math.min(ch / 0.66, availW / cols);
-    ch = cw * 0.66;
+    ch = Math.min(ch, cw * 0.8);
   }
   const bw = cw * cols;
   const bh = ch * rows;
   G.cell = { w: cw, h: ch };
   G.board = {
     x: (w - bw) / 2,
-    y: Math.max(ch * topBands, (h - bh) / 2),
+    y: Math.max(ch * topBands, (h - (bh + ch * underBands)) / 2),
     w: bw,
     h: bh,
   };
+}
+
+// 水面：棋盘底边那一条。方块就是从这底下浮上来的。
+function drawWaterline(B, ch) {
+  const y = B.y + B.h;
+  const t = G.t;
+  ctx.save();
+  const g2 = ctx.createLinearGradient(0, y, 0, y + ch * 2.3);
+  g2.addColorStop(0, 'rgba(96,168,235,.30)');
+  g2.addColorStop(0.55, 'rgba(44,96,170,.14)');
+  g2.addColorStop(1, 'rgba(20,50,110,0)');
+  ctx.fillStyle = g2;
+  ctx.fillRect(B.x - 2, y, B.w + 4, ch * 2.3);
+
+  ctx.beginPath();
+  for (let x = 0; x <= B.w; x += 5) {
+    const yy = y + Math.sin(x / 24 + t * 1.7) * 1.7 + Math.sin(x / 9 - t * 2.3) * 0.7;
+    if (x === 0) ctx.moveTo(B.x, yy);
+    else ctx.lineTo(B.x + x, yy);
+  }
+  ctx.strokeStyle = 'rgba(176,228,255,.9)';
+  ctx.lineWidth = 1.7;
+  ctx.stroke();
+
+  // 水面下的气泡，慢慢往上飘
+  for (let i = 0; i < 7; i++) {
+    const seed = i * 37.7;
+    const bx = B.x + ((seed * 13) % B.w);
+    const ph = (t * 0.35 + i * 0.19) % 1;
+    const by = y + ch * 2.1 * (1 - ph);
+    ctx.globalAlpha = 0.28 * (1 - ph) * (0.5 + 0.5 * Math.sin(seed));
+    ctx.fillStyle = '#cfeaff';
+    ctx.beginPath();
+    ctx.arc(bx + Math.sin(t * 2 + i) * 2, by, 1.2 + (i % 3) * 0.7, 0, 7);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 // 背景只在尺寸变化时重画一次（每帧重画这些渐变太费）
@@ -474,6 +535,22 @@ function drawBlockCell(g, x, y, cw, ch, realm, sp, opt) {
   g.restore();
 }
 
+// 这一格落下去之后，它所在的那一行会不会满？只用于描色提示，不追求精确
+// （特殊块的连锁不算在内）。
+function rowAfterFill(st, r, p, ty) {
+  if (r < 0 || r >= st.rows) return false;
+  for (let c = 0; c < st.cols; c++) {
+    let has = !!st.board[r][c];
+    if (!has) {
+      for (const cl of p.cells) {
+        if (ty + cl.dr === r && p.ox + cl.dc === c) { has = true; break; }
+      }
+    }
+    if (!has) return false;
+  }
+  return true;
+}
+
 // ------------------------------------------------------------------ 主绘制
 function draw() {
   const st = G.st;
@@ -534,35 +611,54 @@ function draw() {
     }
   }
 
-  // 落点影子
+  // 水面（方块从这底下浮上来）
+  drawWaterline(B, ch);
+
+  // 手上这块会浮到哪一格
   const cur = st.cur;
   if (cur && !st.over) {
-    const gy = ghostY(st, cur);
-    if (gy !== cur.oy) {
+    const ty = st.rise > 0 ? cur.ty : floatTarget(st, cur, cur.ox);
+    const under = cur.oy >= st.rows;
+    if (ty >= 0) {
       ctx.save();
-      ctx.globalAlpha = 0.3;
+      ctx.setLineDash([4, 3]);
+      ctx.lineWidth = 1.5;
       for (const cl of cur.cells) {
-        const r = gy + cl.dr;
+        const r = ty + cl.dr;
         const c = cur.ox + cl.dc;
-        if (r < 0) continue;
-        const x = B.x + c * cw;
-        const y = B.y + r * ch;
-        ctx.strokeStyle = 'rgba(190,225,255,.75)';
-        ctx.lineWidth = 1.4;
-        ctx.setLineDash([4, 3]);
-        roundRect(ctx, x + cw * 0.1, y + ch * 0.12, cw * 0.8, ch * 0.76, Math.min(cw, ch) * 0.2);
+        if (r < 0 || r >= st.rows || c < 0 || c >= st.cols) continue;
+        // 这一格要是把某行填满了，描成暖色，提前告诉玩家「这里会消」
+        const rowAfter = rowAfterFill(st, ty + cl.dr, cur, ty);
+        ctx.strokeStyle = rowAfter ? 'rgba(255,214,130,.95)' : 'rgba(180,232,255,.82)';
+        roundRect(ctx, B.x + c * cw + 2, B.y + r * ch + 2, cw - 4, ch - 4, Math.min(cw, ch) * 0.22);
         ctx.stroke();
-        ctx.setLineDash([]);
       }
+      ctx.setLineDash([]);
       ctx.restore();
     }
 
-    // 当前方块
+    // 方块本体。还在水面下（oy >= rows）就画得淡一点，像隔着水
     for (const cl of cur.cells) {
       const r = cur.oy + cl.dr;
       const c = cur.ox + cl.dc;
-      if (r < -3) continue;
-      drawBlockCell(ctx, B.x + c * cw, B.y + r * ch, cw, ch, cur.realm, cl.sp, null);
+      if (c < 0 || c >= st.cols) continue;
+      if (r > st.rows + 2) continue;
+      drawBlockCell(ctx, B.x + c * cw, B.y + r * ch, cw, ch, cur.realm, cl.sp, under ? { alpha: 0.66 } : null);
+    }
+
+    // 从方块到落点的一条淡淡的竖线，让「往上浮」这件事看得出来
+    if (ty >= 0 && under) {
+      ctx.save();
+      ctx.globalAlpha = 0.32;
+      ctx.strokeStyle = '#a9dcff';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([3, 4]);
+      const cx = B.x + (cur.ox + cur.w / 2) * cw;
+      ctx.beginPath();
+      ctx.moveTo(cx, B.y + B.h + ch * 0.1);
+      ctx.lineTo(cx, B.y + (ty + cur.h) * ch);
+      ctx.stroke();
+      ctx.restore();
     }
   }
 
@@ -653,15 +749,6 @@ function draw() {
     ctx.restore();
   }
 
-  // 冻结的提示
-  if (st.frozen > 0) {
-    ctx.save();
-    ctx.strokeStyle = 'rgba(160,220,255,.5)';
-    ctx.lineWidth = 2;
-    roundRect(ctx, B.x - 5, B.y - 5, B.w + 10, B.h + 10, 12);
-    ctx.stroke();
-    ctx.restore();
-  }
 }
 
 // ------------------------------------------------------------------ 特效
@@ -718,9 +805,31 @@ function drainFx() {
       sfx.drop();
     } else if (e.k === 'lock') {
       sfx.drop();
-    } else if (e.k === 'tide') {
+    } else if (e.k === 'lift') {
+      // 上浮的水花：从水面往上一串气泡
+      const x = B.x + (e.ox + e.w / 2) * cw;
+      const y = B.y + B.h;
+      for (let i = 0; i < 7; i++) {
+        G.parts.push({
+          x: x + (Math.random() - 0.5) * e.w * cw,
+          y,
+          vx: (Math.random() - 0.5) * 40,
+          vy: -60 - Math.random() * 90,
+          s: 1.2 + Math.random() * 2,
+          c: i % 2 ? '#cfeaff' : '#8fc8ff',
+          life: 0.4 + Math.random() * 0.3,
+          max: 0.7,
+        });
+      }
+    } else if (e.k === 'sink') {
       G.shake = Math.max(G.shake, 0.4);
-      pushFloat(B.x + B.w / 2, B.y + B.h * 0.7, '洋流上升', '#9ed4ff', 15);
+      pushFloat(B.x + B.w / 2, B.y + B.h * 0.5, '压舱石', '#a9c8ff', 15);
+    } else if (e.k === 'slide') {
+      // 水面顶上来一行（方块塞不进去时的自动上浮），不是洋流，别弹那行字
+      G.shake = Math.max(G.shake, 0.32);
+    } else if (e.k === 'tide') {
+      G.shake = Math.max(G.shake, 0.45);
+      pushFloat(B.x + B.w / 2, B.y + ch * 1.2, '洋流上升', '#9ed4ff', 15);
     } else if (e.k === 'rain') {
       burst(e.r, e.c, e.realm);
     } else if (e.k === 'win') {
@@ -741,11 +850,8 @@ function frame(now) {
   G.t += dt;
 
   if (G.st && G.mode === 'play' && !G.paused) {
-    if (G.st.lvId === 13) {
-      const sp = endlessSpeed(G.st.lines);
-      G.st.dropSec = 1 / (0.82 * sp);
-    }
-    tick(G.st, dt * (G.dropBoost > 0 ? 8 : 1));
+    // 这一版没有「自己往下掉」：tick 只推上浮动画，玩家不松手它就一直在水面上等着
+    tick(G.st, dt);
     drainFx();
     syncHud();
   }
@@ -804,7 +910,8 @@ let hudCache = {};
 function syncHud() {
   const st = G.st;
   if (!st) return;
-  const rk = liveRank(st);
+  // 结算之后 HUD 不再刷新，这里直接用最终评级，免得顶上还挂着实时的 B
+  const rk = st.over || st.win ? rankOf(st) : liveRank(st);
   if (hudCache.rank !== rk) {
     hudCache.rank = rk;
     const el = $('#rank');
@@ -954,45 +1061,45 @@ function stageDown(e) {
     return;
   }
 
-  G.drag = {
-    x0: pt.clientX,
-    y0: pt.clientY,
-    col0: st.cur ? st.cur.ox : 0,
-    moved: false,
-    t0: performance.now(),
-  };
+  if (!st.cur || st.rise > 0) return;
+  G.drag = { x0: pt.clientX, y0: pt.clientY, ox0: st.cur.ox, moved: false };
 }
 
+// 挡住就停下，不穿墙：这段逻辑在 core 的 moveTo 里，这里只管把位移换成格数
 function stageMove(e) {
   const st = G.st;
   if (!st) return;
   const pt = e.touches ? e.touches[0] : e;
   if (G.aim) {
-    const cell = cellFromPoint(pt.clientX, pt.clientY);
-    G.aimCell = cell;
+    G.aimCell = cellFromPoint(pt.clientX, pt.clientY);
     return;
   }
-  if (!G.drag || !st.cur || st.over) return;
+  if (!G.drag || !st.cur || st.over || st.rise > 0) return;
   const dx = pt.clientX - G.drag.x0;
-  const dy = pt.clientY - G.drag.y0;
-  const cw = G.cell.w;
-  const steps = Math.round(dx / (cw * 0.72));
-  if (steps !== 0) {
-    const target = clamp(G.drag.col0 + steps, 0, st.cols - 1);
-    if (moveTo(st, target)) {
-      G.drag.moved = true;
-      sfx.move();
-    }
+  const steps = Math.round(dx / (G.cell.w * 0.78));
+  const target = clamp(G.drag.ox0 + steps, 0, st.cols - st.cur.w);
+  if (target !== st.cur.ox && moveTo(st, target)) {
+    G.drag.moved = true;
+    sfx.move();
+    draw();
   }
-  // 往下拖 = 加速下落
-  G.dropBoost = dy > 26 ? 1 : 0;
+}
+
+// 松手 = 放它走。方块从水面浮起来，撞到什么就锁在哪。
+function doRelease() {
+  const st = G.st;
+  if (!st || !st.cur || st.over || st.rise > 0) return false;
+  if (G.mode !== 'play' || G.paused) return false;
+  if (release(st) < 0) { drainFx(); return false; }
+  sfx.lift();
+  drainFx();
+  return true;
 }
 
 function stageUp() {
-  if (G.drag) {
-    G.drag = null;
-    G.dropBoost = 0;
-  }
+  if (!G.drag) return;
+  G.drag = null;
+  doRelease();
 }
 
 function bindStage() {
@@ -1000,7 +1107,7 @@ function bindStage() {
   cv.addEventListener('pointermove', stageMove);
   cv.addEventListener('pointerup', stageUp);
   cv.addEventListener('pointercancel', stageUp);
-  cv.addEventListener('pointerleave', stageUp);
+  // 注意别再绑 pointerleave：手指擦出画布就松手，会白放一块
   // 触屏上 pointer 事件也要 preventDefault，否则会跟着滚页面
   cv.addEventListener('touchstart', (e) => { if (G.mode === 'play') e.preventDefault(); }, { passive: false });
   cv.addEventListener('touchmove', (e) => { if (G.mode === 'play') e.preventDefault(); }, { passive: false });
@@ -1008,11 +1115,16 @@ function bindStage() {
   window.addEventListener('keydown', (e) => {
     const st = G.st;
     if (!st || G.mode !== 'play' || G.paused) return;
-    if (e.key === 'ArrowLeft') { if (move(st, -1)) sfx.move(); e.preventDefault(); }
-    else if (e.key === 'ArrowRight') { if (move(st, 1)) sfx.move(); e.preventDefault(); }
-    else if (e.key === 'ArrowDown') { softDrop(st); e.preventDefault(); }
-    else if (e.key === ' ' || e.key === 'Enter') { hardDrop(st); drainFx(); e.preventDefault(); }
-    else if (e.key === 'p' || e.key === 'P') togglePause();
+    if (e.key === 'ArrowLeft') {
+      if (move(st, -1)) { sfx.move(); draw(); }
+      e.preventDefault();
+    } else if (e.key === 'ArrowRight') {
+      if (move(st, 1)) { sfx.move(); draw(); }
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp' || e.key === ' ' || e.key === 'Enter') {
+      doRelease();
+      e.preventDefault();
+    } else if (e.key === 'p' || e.key === 'P') togglePause();
   });
 }
 
@@ -1114,7 +1226,9 @@ function openPre(id) {
   const pBox = $('#prePieces');
   pBox.innerHTML = '';
   const wake = wakeOf(id);
-  const shapes = lv.cols === 5 ? ['s1', 'h2', 'v2', 'h3', 'v3', 'q4'] : ['s1', 'h3', 'v4', 'q4', 'h4', 'v2'];
+  // 固定 8 格，窄盘把横四换成横二，免得格子数一变排版就跳
+  const shapes = ['s1', 'h2', 'v2', 'h3', 'v3', 'h4', 'v4', 'q4']
+    .map((sid) => (sid === 'h4' && lv.cols < 4 ? 'h2' : sid));
   const cellsOf = { s1: [[0, 0]], h2: [[0, 0], [1, 0]], v2: [[0, 0], [0, 1]], h3: [[0, 0], [1, 0], [2, 0]], v3: [[0, 0], [0, 1], [0, 2]], h4: [[0, 0], [1, 0], [2, 0], [3, 0]], v4: [[0, 0], [0, 1], [0, 2], [0, 3]], q4: [[0, 0], [1, 0], [0, 1], [1, 1]] };
   shapes.forEach((sid, i) => {
     const c = document.createElement('canvas');
@@ -1371,6 +1485,18 @@ if (location.search.includes('_test=1')) {
       syncHud();
       draw();
     },
+    // 一回合：挪到某列 → 放手 → 直接落定（不等动画），方便脚本连跑
+    drop(ox, quiet) {
+      const st = G.st;
+      if (!st || !st.cur || st.over) return null;
+      if (ox != null) moveTo(st, ox);
+      const ty = release(st);
+      if (st.rise > 0) settle(st);
+      drainFx();
+      syncHud();
+      if (!quiet) draw();
+      return ty;
+    },
     fill(rows) {
       // 用 '0-3' 或 '.' 摆一个盘面，方便截图看效果
       const st = G.st;
@@ -1393,6 +1519,7 @@ if (location.search.includes('_test=1')) {
         lv: st.lvId, cols: st.cols, lines: st.lines, goal: st.goal, moves: st.moves,
         maxMoves: st.maxMoves, score: st.score, over: st.over, win: st.win, reason: st.reason,
         items: st.items.slice(), cur: st.cur ? { sh: st.cur.sh, ox: st.cur.ox, oy: st.cur.oy } : null,
+        lift: st.lift, rows: st.rows,
         mode: G.mode, paused: G.paused,
       };
     },
