@@ -1,6 +1,6 @@
 // 画面：一间地下室，一扇门，门外一个人。
 //
-// 全部用 2D canvas 现画（480×270，CSS 再整数倍放大，image-rendering: pixelated）。
+// 全部用 2D canvas 现画（480×270，CSS 再放大，image-rendering: pixelated）。
 // 三个理由：
 //   1) 不改图、不加请求，墙面、门框、灯、桌上的枪都是几行矩形；
 //   2) 立绘是构建时拼好的像素图集（assets/fake/*.webp），按帧矩形画进去就行；
@@ -14,15 +14,17 @@ import { ART, META, CHARS } from './gen.js';
 const W = 480;
 const H = 270;
 
-// 窗（门外的人从这个框里露出来）
-const WIN = { x: 128, y: 74, w: 176, h: 134 };
-const DOOR = { x: 100, y: 30, w: 232, h: 224 };
+// 门与窗（门外的人从这个框里露出来）
+const DOOR = { x: 118, y: 32, w: 214, h: 212 };
+const WIN = { x: 144, y: 66, w: 162, h: 132 };
+const SILL = WIN.y + WIN.h;      // 窗台：再往下就看不见了，站在门后本来也只能看到这儿
 
 const COL = {
-  wall: '#15151b', wall2: '#191921', seam: '#0e0e13', trim: '#0a0a0d',
-  door: '#2a2119', door2: '#241c15', door3: '#1c1610', hi: '#3b2f22',
-  frame: '#0d0b09', brass: '#7a5f34', brass2: '#c9a961',
-  glass: 'rgba(120,170,190,.055)', corridor: '#0a0f14', corridor2: '#05080b',
+  wall: '#101015', wall2: '#141419', wall3: '#0c0c10',
+  rail: '#1d1c22', board: '#0e0e13',
+  door: '#2b2318', door2: '#241d14', door3: '#1b1610', hi: '#3d3021',
+  frame: '#0b0906', brass: '#6d5528', brass2: '#c9a961',
+  corridor: '#131a20', corridor2: '#080d11',
   blood: '#8e2f2a',
 };
 
@@ -55,10 +57,9 @@ export function makeScene(canvas, art) {
   const st = {
     mode: 'idle',       // idle | visit | black | end
     char: null,
-    red: 0,             // 0..1 红色预警（决定之后闪一下）
+    red: 0,
     flash: 0,
     shake: 0,
-    knock: 0,
     t0: performance.now(),
     raf: 0,
   };
@@ -69,219 +70,320 @@ export function makeScene(canvas, art) {
   const nctx = noise.getContext('2d');
   const nd = nctx.createImageData(96, 54);
   for (let i = 0; i < nd.data.length; i += 4) {
-    const v = 120 + Math.random() * 110;
+    const v = 110 + Math.random() * 120;
     nd.data[i] = nd.data[i + 1] = nd.data[i + 2] = v;
-    nd.data[i + 3] = 26;
+    nd.data[i + 3] = 30;
   }
   nctx.putImageData(nd, 0, 0);
 
   function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x | 0, y | 0, w | 0, h | 0); }
 
+  // 墙面：竖条纹 + 棋盘噪点 + 护墙板。棋盘是像素画的「水泥味」，比纯色耐看。
   function wall(t) {
     rect(0, 0, W, H, COL.wall);
-    for (let x = 0; x < W; x += 16) {
-      rect(x, 0, 8, 232, x % 32 ? COL.wall2 : '#171720');
+    for (let x = 0; x < W; x += 18) rect(x, 18, 3, 176, x % 36 ? COL.wall2 : '#0d0d12');
+    ctx.fillStyle = 'rgba(255,255,255,.018)';
+    for (let y = 20; y < 194; y += 4) {
+      for (let x = (y % 8 === 0 ? 0 : 2); x < W; x += 4) ctx.fillRect(x, y, 1, 1);
     }
-    // 墙面上的旧水渍：两个固定的，位置写死，别让它每帧乱跳
-    ctx.fillStyle = 'rgba(0,0,0,.28)';
-    ctx.beginPath(); ctx.ellipse(70, 150, 26, 44, .2, 0, 6.284); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(420, 120, 34, 56, -.15, 0, 6.284); ctx.fill();
-    // 踢脚 + 地板
-    rect(0, 232, W, 4, COL.trim);
-    rect(0, 236, W, H - 236, '#101016');
-    for (let y = 240; y < H; y += 6) rect(0, y, W, 1, 'rgba(255,255,255,.016)');
+    // 天花板阴影
+    const g = ctx.createLinearGradient(0, 0, 0, 40);
+    g.addColorStop(0, 'rgba(0,0,0,.85)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, 40);
+    // 护墙线 + 护墙板
+    rect(0, 190, W, 3, COL.rail);
+    rect(0, 193, W, 45, '#0d0d12');
+    for (let x = 6; x < W; x += 26) rect(x, 197, 2, 39, COL.board);
+    // 地板
+    rect(0, 238, W, 32, '#0f0e0c');
+    for (let i = 0; i < 6; i++) rect(0, 239 + i * 6, W, 1, 'rgba(255,255,255,.02)');
+    for (let x = -60; x < W + 60; x += 44) {
+      ctx.strokeStyle = 'rgba(255,255,255,.025)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x + 120, 238); ctx.lineTo(x, 270); ctx.stroke();
+    }
   }
 
+  // 吊灯：灯罩 + 灯泡 + 一团打在桌上的暖光（别照门，门那盏在走廊里）
   function lamp(t) {
-    const fl = 0.82 + Math.sin(t * 9.1) * 0.03 + Math.sin(t * 23.7) * 0.02;
-    // 灯线 + 灯罩
-    rect(52, 0, 2, 18, '#0a0a0c');
-    ctx.fillStyle = '#241d13';
-    ctx.beginPath(); ctx.moveTo(38, 34); ctx.lineTo(68, 34); ctx.lineTo(62, 20); ctx.lineTo(44, 20); ctx.closePath(); ctx.fill();
-    rect(48, 33, 10, 3, '#3a2c18');
-    // 光锥（三角形 + 径向渐变）
-    const g = ctx.createRadialGradient(53, 37, 4, 53, 37, 190);
-    g.addColorStop(0, 'rgba(227,179,65,' + (0.30 * fl) + ')');
-    g.addColorStop(0.35, 'rgba(227,179,65,' + (0.09 * fl) + ')');
+    const fl = 0.8 + Math.sin(t * 8.7) * 0.035 + Math.sin(t * 21.3) * 0.02;
+    rect(66, 0, 2, 14, '#0a0a0c');
+    rect(58, 12, 18, 3, '#241d13');
+    ctx.fillStyle = '#2a2114';
+    ctx.beginPath(); ctx.moveTo(50, 34); ctx.lineTo(84, 34); ctx.lineTo(76, 16); ctx.lineTo(58, 16); ctx.closePath(); ctx.fill();
+    rect(62, 33, 10, 3, '#3a2c18');
+    rect(64, 36, 6, 4, 'rgba(255,231,158,' + (0.9 * fl) + ')');
+    const g = ctx.createRadialGradient(67, 44, 4, 67, 44, 150);
+    g.addColorStop(0, 'rgba(227,179,65,' + (0.22 * fl) + ')');
+    g.addColorStop(0.4, 'rgba(227,179,65,' + (0.07 * fl) + ')');
     g.addColorStop(1, 'rgba(227,179,65,0)');
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.moveTo(44, 36); ctx.lineTo(62, 36); ctx.lineTo(150, 250); ctx.lineTo(-60, 250); ctx.closePath(); ctx.fill();
-    // 灯泡
-    rect(51, 36, 5, 4, 'rgba(255,229,150,' + (0.85 * fl) + ')');
+    ctx.beginPath(); ctx.moveTo(52, 38); ctx.lineTo(82, 38); ctx.lineTo(160, 262); ctx.lineTo(-40, 262); ctx.closePath(); ctx.fill();
+  }
+
+  // 门上挂的东西：门牌、便条、挂钩
+  function doorProps() {
+    // 门牌
+    rect(DOOR.x + DOOR.w - 52, DOOR.y + 12, 34, 16, '#1b2026');
+    rect(DOOR.x + DOOR.w - 52, DOOR.y + 12, 34, 1, '#39434c');
+    ctx.fillStyle = '#7d8994';
+    ctx.font = '9px monospace';
+    ctx.fillText('11', DOOR.x + DOOR.w - 42, DOOR.y + 24);
+    // 便条（档案室塞进来的）
+    const note = { x: DOOR.x + 22, y: DOOR.y + 150, w: 26, h: 30 };
+    rect(note.x, note.y, note.w, note.h, '#b9b2a0');
+    rect(note.x, note.y, note.w, 1, '#d8d2c4');
+    for (let i = 0; i < 4; i++) rect(note.x + 3, note.y + 5 + i * 5, note.w - 6, 1, 'rgba(40,38,32,.45)');
+    rect(note.x + 10, note.y - 2, 6, 4, 'rgba(180,60,50,.8)');
   }
 
   function door(t) {
-    // 门框
-    rect(DOOR.x - 10, DOOR.y - 10, DOOR.w + 20, DOOR.h + 12, COL.frame);
-    rect(DOOR.x - 4, DOOR.y - 4, DOOR.w + 8, DOOR.h + 6, '#171310');
+    // 门框：三层，最外层是门套的阴影
+    rect(DOOR.x - 12, DOOR.y - 12, DOOR.w + 24, DOOR.h + 14, COL.frame);
+    rect(DOOR.x - 7, DOOR.y - 7, DOOR.w + 14, DOOR.h + 9, '#171310');
+    rect(DOOR.x - 2, DOOR.y - 2, DOOR.w + 4, DOOR.h + 4, '#0f0c09');
     // 门板
     rect(DOOR.x, DOOR.y, DOOR.w, DOOR.h, COL.door);
-    rect(DOOR.x, DOOR.y, DOOR.w, 6, COL.hi);
-    rect(DOOR.x, DOOR.y, 4, DOOR.h, COL.hi);
-    rect(DOOR.x + DOOR.w - 4, DOOR.y, 4, DOOR.h, COL.door3);
-    // 两块凹板（下）
-    rect(DOOR.x + 26, DOOR.y + 150, 76, 62, COL.door3);
-    rect(DOOR.x + 26, DOOR.y + 150, 76, 2, COL.door2);
-    rect(DOOR.x + 130, DOOR.y + 150, 76, 62, COL.door3);
-    rect(DOOR.x + 130, DOOR.y + 150, 76, 2, COL.door2);
-    // 合页
-    rect(DOOR.x - 6, DOOR.y + 22, 8, 6, COL.brass);
-    rect(DOOR.x - 6, DOOR.y + 186, 8, 6, COL.brass);
-    // 门牌
-    rect(DOOR.x + 188, DOOR.y + 44, 34, 18, '#20262c');
-    rect(DOOR.x + 188, DOOR.y + 44, 34, 1, '#39434c');
-    ctx.fillStyle = '#6f7d88';
-    ctx.font = '9px monospace';
-    ctx.fillText('11', DOOR.x + 200, DOOR.y + 57);
+    rect(DOOR.x, DOOR.y, DOOR.w, 4, COL.hi);
+    rect(DOOR.x, DOOR.y, 3, DOOR.h, COL.hi);
+    rect(DOOR.x + DOOR.w - 3, DOOR.y, 3, DOOR.h, COL.door3);
+    rect(DOOR.x, DOOR.y + DOOR.h - 3, DOOR.w, 3, '#120e0a');
+    // 上半部分的凹板（窗在中间，板在两侧）
+    rect(DOOR.x + 6, DOOR.y + 8, 12, WIN.y - DOOR.y - 16, COL.door2);
+    rect(DOOR.x + DOOR.w - 18, DOOR.y + 8, 12, WIN.y - DOOR.y - 16, COL.door2);
+    // 下半部分两块凹板
+    rect(DOOR.x + 16, DOOR.y + 156, 82, 44, COL.door3);
+    rect(DOOR.x + 16, DOOR.y + 156, 82, 2, COL.door2);
+    rect(DOOR.x + 116, DOOR.y + 156, 82, 44, COL.door3);
+    rect(DOOR.x + 116, DOOR.y + 156, 82, 2, COL.door2);
+    // 合页（右开）
+    rect(DOOR.x + DOOR.w - 4, DOOR.y + 18, 8, 8, COL.brass);
+    rect(DOOR.x + DOOR.w - 4, DOOR.y + 180, 8, 8, COL.brass);
+    // 把手 + 锁孔（左开）
+    rect(DOOR.x + 8, DOOR.y + 122, 8, 4, COL.brass);
+    ctx.fillStyle = COL.brass2;
+    ctx.beginPath(); ctx.arc(DOOR.x + 11, DOOR.y + 124, 3.4, 0, 6.284); ctx.fill();
+    rect(DOOR.x + 10, DOOR.y + 132, 2, 5, '#0a0805');
+    // 门缝透出的走廊光（下沿 + 左右各一像素）
+    const g = ctx.createLinearGradient(0, DOOR.y + DOOR.h, 0, DOOR.y + DOOR.h + 12);
+    g.addColorStop(0, 'rgba(214,198,150,.16)');
+    g.addColorStop(1, 'rgba(214,198,150,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(DOOR.x + 2, DOOR.y + DOOR.h, DOOR.w - 4, 12);
+    rect(DOOR.x + DOOR.w, DOOR.y + 8, 1, DOOR.h - 12, 'rgba(214,198,150,.07)');
     // 窗洞外框
     rect(WIN.x - 6, WIN.y - 6, WIN.w + 12, WIN.h + 12, COL.frame);
     rect(WIN.x - 3, WIN.y - 3, WIN.w + 6, WIN.h + 6, '#100d0b');
+    // 窗台
+    rect(WIN.x - 10, SILL + 3, WIN.w + 20, 5, '#241d14');
+    rect(WIN.x - 10, SILL + 3, WIN.w + 20, 1, '#3d3021');
+    doorProps();
   }
 
+  // 门外：一条走廊。里面比屋里亮，不然门外的人看不出来。
   function corridor(t) {
     const g = ctx.createLinearGradient(0, WIN.y, 0, WIN.y + WIN.h);
-    g.addColorStop(0, COL.corridor2);
-    g.addColorStop(0.55, COL.corridor);
-    g.addColorStop(1, '#070b0e');
+    g.addColorStop(0, '#151d24');
+    g.addColorStop(0.5, COL.corridor);
+    g.addColorStop(1, COL.corridor2);
     ctx.fillStyle = g;
     ctx.fillRect(WIN.x, WIN.y, WIN.w, WIN.h);
-    // 走廊地板线 + 尽头的一点灯
-    rect(WIN.x, WIN.y + WIN.h - 34, WIN.w, 1, 'rgba(150,180,200,.10)');
-    rect(WIN.x, WIN.y + WIN.h - 20, WIN.w, 1, 'rgba(150,180,200,.05)');
-    const pulse = 0.5 + Math.sin(t * 1.3) * 0.12;
-    ctx.fillStyle = 'rgba(190,215,235,' + (0.10 * pulse) + ')';
-    ctx.beginPath(); ctx.arc(WIN.x + 146, WIN.y + 24, 26, 0, 6.284); ctx.fill();
-    rect(WIN.x + 145, WIN.y + 6, 2, 14, 'rgba(200,220,240,.18)');
+    // 走廊尽头的灯：一团冷光，慢慢呼吸
+    const pulse = 0.55 + Math.sin(t * 1.2) * 0.12;
+    const rg = ctx.createRadialGradient(WIN.x + 81, WIN.y + 22, 2, WIN.x + 81, WIN.y + 22, 80);
+    rg.addColorStop(0, 'rgba(196,214,228,' + (0.22 * pulse) + ')');
+    rg.addColorStop(1, 'rgba(196,214,228,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(WIN.x, WIN.y, WIN.w, WIN.h);
+    rect(WIN.x + 80, WIN.y + 8, 2, 12, 'rgba(210,225,235,.28)');
+    // 走廊地板与墙脚线
+    rect(WIN.x, WIN.y + WIN.h - 30, WIN.w, 1, 'rgba(160,185,200,.13)');
+    rect(WIN.x, WIN.y + WIN.h - 30, WIN.w, 18, 'rgba(8,12,15,.55)');
+    rect(WIN.x, WIN.y + WIN.h - 12, WIN.w, 1, 'rgba(160,185,200,.08)');
   }
 
   function awakenBody(c, t) {
     const i = IDX.get(c.img.idle);
     if (i == null) return;
     const r = META.idle.rects[i];
-    const h = WIN.h - 20;
-    const k = Math.min(h / r[3], 1.15);
+    const box = WIN.h - 6;
+    const k = Math.min(box / r[3], 1.25);
     const dw = Math.round(r[2] * k);
     const dh = Math.round(r[3] * k);
-    const bob = Math.round(Math.sin(t * 1.6 + i) * 1);
+    const bob = Math.round(Math.sin(t * 1.5 + i) * 1);
     const x = Math.round(WIN.x + (WIN.w - dw) / 2);
-    const y = Math.round(WIN.y + WIN.h - 10 - dh + bob);
-    // 影子
-    ctx.fillStyle = 'rgba(0,0,0,.45)';
-    ctx.beginPath(); ctx.ellipse(WIN.x + WIN.w / 2, WIN.y + WIN.h - 8, dw * 0.34, 4, 0, 0, 6.284); ctx.fill();
+    const y = Math.round(SILL - dh + 8 + bob);
+    // 脚下的一小片暗影（看不到脚，影子落在窗台下面）
+    ctx.fillStyle = 'rgba(0,0,0,.5)';
+    ctx.beginPath(); ctx.ellipse(WIN.x + WIN.w / 2, SILL - 2, dw * 0.32, 4, 0, 0, 6.284); ctx.fill();
+    // 身后的冷光把轮廓托出来
+    const g = ctx.createRadialGradient(x + dw / 2, y + dh * 0.42, 6, x + dw / 2, y + dh * 0.42, dh * 0.8);
+    g.addColorStop(0, 'rgba(150,190,215,.13)');
+    g.addColorStop(1, 'rgba(150,190,215,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - 20, y - 10, dw + 40, dh + 20);
     ctx.drawImage(art.idle, r[0], r[1], r[2], r[3], x, y, dw, dh);
   }
 
   function stickBody(c, t) {
     const cx = WIN.x + WIN.w / 2;
-    const top = WIN.y + 34;
-    const sway = Math.sin(t * 1.4) * 1.2;
+    const headR = 18;
+    const top = WIN.y + 22;
+    const sway = Math.sin(t * 1.35) * 1.4;
     const col = c.color || '#c8cbd4';
-    const headR = 17;
     const hy = top + headR;
+    const hx = Math.round(cx + sway);
+    // 身后的冷光
+    const g = ctx.createRadialGradient(hx, hy + 30, 4, hx, hy + 30, 70);
+    g.addColorStop(0, 'rgba(150,190,215,.14)');
+    g.addColorStop(1, 'rgba(150,190,215,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(WIN.x, WIN.y, WIN.w, WIN.h);
     // 头：B 站头像裁成圆
     ctx.save();
-    ctx.beginPath(); ctx.arc(cx + sway, hy, headR, 0, 6.284); ctx.clip();
+    ctx.beginPath(); ctx.arc(hx, hy, headR, 0, 6.284); ctx.clip();
     const i = S_IDX.get(c.id);
     if (i != null) {
       const r = META.face.rects[i];
-      ctx.drawImage(art.face, r[0], r[1], r[2], r[3], cx + sway - headR, hy - headR, headR * 2, headR * 2);
+      ctx.drawImage(art.face, r[0], r[1], r[2], r[3], hx - headR, hy - headR, headR * 2, headR * 2);
     } else {
-      rect(cx + sway - headR, hy - headR, headR * 2, headR * 2, '#2a2f3a');
+      rect(hx - headR, hy - headR, headR * 2, headR * 2, '#2a2f3a');
     }
     ctx.restore();
     ctx.strokeStyle = col;
     ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(cx + sway, hy, headR, 0, 6.284); ctx.stroke();
+    ctx.beginPath(); ctx.arc(hx, hy, headR - 1, 0, 6.284); ctx.stroke();
     // 火柴人：脖子、躯干、手臂、腿
-    const neck = hy + headR;
+    const neck = hy + headR - 1;
     const hip = neck + 40;
-    ctx.strokeStyle = 'rgba(230,234,242,.82)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(226,231,240,.9)';
+    ctx.lineWidth = 2.4;
     ctx.beginPath();
-    ctx.moveTo(cx + sway, neck); ctx.lineTo(cx + sway, hip);
+    ctx.moveTo(hx, neck); ctx.lineTo(hx, hip);
     const armY = neck + 10;
-    ctx.moveTo(cx + sway, armY); ctx.lineTo(cx + sway - 18, armY + 16 + Math.sin(t * 2.2) * 2);
-    ctx.moveTo(cx + sway, armY); ctx.lineTo(cx + sway + 18, armY + 12 - Math.sin(t * 2.2) * 2);
-    ctx.moveTo(cx + sway, hip); ctx.lineTo(cx + sway - 12, hip + 30);
-    ctx.moveTo(cx + sway, hip); ctx.lineTo(cx + sway + 12, hip + 30);
+    ctx.moveTo(hx, armY); ctx.lineTo(hx - 19, armY + 16 + Math.sin(t * 2.1) * 2);
+    ctx.moveTo(hx, armY); ctx.lineTo(hx + 19, armY + 12 - Math.sin(t * 2.1) * 2);
+    ctx.moveTo(hx, hip); ctx.lineTo(hx - 13, hip + 34);
+    ctx.moveTo(hx, hip); ctx.lineTo(hx + 13, hip + 34);
     ctx.stroke();
     // 手里的话筒
-    rect(cx + sway + 18, armY + 10, 3, 12, '#3c4250');
-    rect(cx + sway + 17, armY + 7, 5, 4, '#8b93a3');
-    // LIVE 灯
-    const blink = (Math.sin(t * 4) > 0);
-    if (blink) rect(cx + sway - 22, hy - 24, 14, 7, 'rgba(200,50,45,.85)');
-    ctx.fillStyle = 'rgba(255,255,255,.85)';
-    ctx.font = '6px monospace';
-    if (blink) ctx.fillText('LIVE', cx + sway - 21, hy - 18);
+    rect(hx + 18, armY + 9, 3, 13, '#2b303a');
+    rect(hx + 17, armY + 6, 5, 4, '#9aa2b2');
+    // LIVE 灯：挂在窗户右上角，别压在脸上
+    if (Math.sin(t * 4) > 0) {
+      const lx = WIN.x + WIN.w - 34, ly = WIN.y + 18;
+      rect(lx, ly, 15, 7, 'rgba(190,48,44,.9)');
+      ctx.fillStyle = '#fff';
+      ctx.font = '5px monospace';
+      ctx.fillText('LIVE', lx + 1.5, ly + 5);
+    }
   }
 
   function glass() {
-    ctx.fillStyle = COL.glass;
+    ctx.fillStyle = 'rgba(120,170,195,.05)';
     ctx.fillRect(WIN.x, WIN.y, WIN.w, WIN.h);
-    // 玻璃上的两道反光
-    ctx.strokeStyle = 'rgba(255,255,255,.045)';
+    // 玻璃反光
+    ctx.strokeStyle = 'rgba(255,255,255,.04)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(WIN.x + 8, WIN.y + 16); ctx.lineTo(WIN.x + 42, WIN.y - 4);
-    ctx.moveTo(WIN.x + 118, WIN.y + WIN.h); ctx.lineTo(WIN.x + 168, WIN.y + 40);
+    ctx.moveTo(WIN.x + 6, WIN.y + 22); ctx.lineTo(WIN.x + 40, WIN.y - 2);
+    ctx.moveTo(WIN.x + 96, WIN.y + WIN.h); ctx.lineTo(WIN.x + 150, WIN.y + 44);
     ctx.stroke();
-    // 铁栅
+    // 铁栅：两根竖的 + 顶上一根横的（横的压在额头上方，不挡脸）
     for (let k = 1; k <= 2; k++) {
-      rect(WIN.x + Math.round(WIN.w * k / 3) - 1, WIN.y, 3, WIN.h, '#0b0906');
-      rect(WIN.x + Math.round(WIN.w * k / 3) - 1, WIN.y, 1, WIN.h, '#241f19');
+      const x = WIN.x + Math.round(WIN.w * k / 3);
+      rect(x - 1, WIN.y, 3, WIN.h, '#0a0806');
+      rect(x - 1, WIN.y, 1, WIN.h, '#251f18');
     }
-    rect(WIN.x, WIN.y + Math.round(WIN.h * 0.52), WIN.w, 3, '#0b0906');
-    // 内框阴影
-    rect(WIN.x, WIN.y, WIN.w, 2, 'rgba(0,0,0,.55)');
-    rect(WIN.x, WIN.y + WIN.h - 2, WIN.w, 2, 'rgba(0,0,0,.45)');
+    rect(WIN.x, WIN.y + 12, WIN.w, 3, '#0a0806');
+    rect(WIN.x, WIN.y + 12, WIN.w, 1, '#251f18');
+    // 窗框内阴影
+    rect(WIN.x, WIN.y, WIN.w, 2, 'rgba(0,0,0,.6)');
+    rect(WIN.x, WIN.y + WIN.h - 2, WIN.w, 2, 'rgba(0,0,0,.5)');
+    rect(WIN.x, WIN.y, 2, WIN.h, 'rgba(0,0,0,.35)');
+    rect(WIN.x + WIN.w - 2, WIN.y, 2, WIN.h, 'rgba(0,0,0,.35)');
   }
 
+  // 桌子：你坐在门后，桌上摊着登记簿、一把左轮、一杯凉了的茶
   function desk(t) {
-    // 桌沿
-    rect(0, 236, W, 34, '#0c0b09');
-    rect(0, 236, W, 2, '#2a2118');
-    // 台灯底座
-    rect(30, 226, 26, 12, '#1b1710');
-    // 登记簿：摊开的两页
-    rect(196, 244, 92, 22, '#0a0a0b');
-    rect(200, 242, 84, 22, '#b9b2a2');
-    rect(200, 242, 84, 2, '#d6cfbf');
-    rect(241, 242, 1, 22, 'rgba(0,0,0,.35)');
-    for (let i = 0; i < 4; i++) rect(204, 247 + i * 4, 32, 1, 'rgba(30,30,34,.35)');
-    // 左轮（没子弹的时候看起来也一样）
-    rect(322, 250, 26, 6, '#20232a');
-    rect(322, 250, 26, 1, '#4a505c');
-    rect(330, 256, 8, 6, '#171a1f');
-    // 杯子
-    rect(372, 246, 12, 14, '#2b2f36');
-    rect(384, 249, 3, 7, '#2b2f36');
-    // 灯下的一圈暖光
-    const g = ctx.createRadialGradient(241, 254, 2, 241, 254, 90);
-    g.addColorStop(0, 'rgba(227,179,65,.16)');
+    rect(0, 246, W, 24, '#0b0a08');
+    rect(0, 246, W, 2, '#372c1e');
+    rect(0, 248, W, 1, 'rgba(0,0,0,.6)');
+    const g = ctx.createRadialGradient(150, 250, 4, 150, 250, 150);
+    g.addColorStop(0, 'rgba(227,179,65,.10)');
     g.addColorStop(1, 'rgba(227,179,65,0)');
     ctx.fillStyle = g;
-    ctx.fillRect(150, 230, 180, 40);
+    ctx.fillRect(40, 240, 260, 30);
+    // 登记簿（摊开）
+    rect(186, 244, 108, 26, '#0a0a0b');
+    rect(190, 242, 100, 26, '#a9a292');
+    rect(190, 242, 100, 2, '#cfc7b4');
+    rect(239, 242, 2, 26, 'rgba(20,18,14,.4)');
+    for (let i = 0; i < 4; i++) {
+      rect(195, 248 + i * 4, 36, 1, 'rgba(40,38,32,.42)');
+      rect(246, 248 + i * 4, 36, 1, 'rgba(40,38,32,.42)');
+    }
+    // 左轮
+    rect(318, 252, 30, 5, '#1d2027');
+    rect(318, 252, 30, 1, '#4b515d');
+    rect(320, 257, 8, 5, '#16181d');
+    rect(338, 257, 4, 7, '#20242b');
+    // 笔
+    rect(150, 258, 22, 2, '#3b3a34');
+    // 茶缸
+    rect(392, 246, 13, 15, '#2a2e34');
+    rect(405, 249, 3, 7, '#2a2e34');
+    rect(392, 246, 13, 1, '#454b55');
+    // 桌上摊开的几张纸
+    rect(56, 252, 26, 14, '#8e8878');
+    rect(56, 252, 26, 1, '#b0a998');
+    rect(62, 256, 14, 1, 'rgba(30,28,24,.4)');
+  }
+
+  // 右墙：档案柜的轮廓 + 挂钟
+  function props(t) {
+    rect(408, 96, 60, 142, '#0a0a0e');
+    rect(410, 98, 56, 138, '#111116');
+    for (let i = 0; i < 4; i++) {
+      rect(414, 104 + i * 33, 48, 28, '#141419');
+      rect(414, 104 + i * 33, 48, 1, '#1c1c23');
+      rect(432, 116 + i * 33, 12, 2, '#2a2a32');
+    }
+    // 挂钟
+    const cx = 376, cy = 62, r = 15;
+    ctx.fillStyle = '#0a0a0d';
+    ctx.beginPath(); ctx.arc(cx, cy, r + 2, 0, 6.284); ctx.fill();
+    ctx.fillStyle = '#1b1a1e';
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.284); ctx.fill();
+    ctx.strokeStyle = '#4a4640';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, r - 1, 0, 6.284); ctx.stroke();
+    // 只有分针在动：走的是一分钟一格，不是秒
+    const ang = (t * 0.02) % 6.284;
+    ctx.strokeStyle = '#b9b2a0';
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ang) * 10, cy + Math.sin(ang) * 10); ctx.stroke();
+    rect(cx - 1, cy - 8, 2, 8, '#6f6a60');
   }
 
   function overlay(t) {
     // 扫描线
-    ctx.fillStyle = 'rgba(0,0,0,.14)';
+    ctx.fillStyle = 'rgba(0,0,0,.16)';
     for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
     // 噪点
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = 0.55;
     const ox = Math.floor(t * 37) % 96;
     const oy = Math.floor(t * 53) % 54;
     ctx.drawImage(noise, -ox, -oy, W + 96, H + 54);
     ctx.globalAlpha = 1;
     // 暗角
-    const g = ctx.createRadialGradient(W / 2, H / 2, 60, W / 2, H / 2, 300);
+    const g = ctx.createRadialGradient(W / 2, H * 0.48, 70, W / 2, H * 0.48, 320);
     g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(0.65, 'rgba(0,0,0,.42)');
-    g.addColorStop(1, 'rgba(0,0,0,.86)');
+    g.addColorStop(0.6, 'rgba(0,0,0,.4)');
+    g.addColorStop(1, 'rgba(0,0,0,.9)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
-    // 红：伪人露馅 / 放进来之后
     if (st.red > 0.01) {
       ctx.fillStyle = 'rgba(140,32,28,' + (st.red * 0.5) + ')';
       ctx.fillRect(0, 0, W, H);
@@ -298,29 +400,21 @@ export function makeScene(canvas, art) {
       ctx.translate((Math.random() - .5) * st.shake * 5, (Math.random() - .5) * st.shake * 5);
     }
     wall(t);
+    props(t);
     lamp(t);
     door(t);
     corridor(t);
     if (st.mode === 'black') {
       rect(WIN.x, WIN.y, WIN.w, WIN.h, '#040506');
-      // 黑暗里的一双眼睛
       const e = 0.5 + Math.sin(t * 1.1) * 0.2;
       ctx.fillStyle = 'rgba(210,215,225,' + (0.55 * e) + ')';
-      ctx.fillRect(WIN.x + 66, WIN.y + 58, 9, 3);
-      ctx.fillRect(WIN.x + 100, WIN.y + 58, 9, 3);
+      ctx.fillRect(WIN.x + 52, WIN.y + 58, 10, 3);
+      ctx.fillRect(WIN.x + 96, WIN.y + 58, 10, 3);
     } else if (st.mode === 'visit' && st.char) {
       if (st.char.k === 's') stickBody(st.char, t); else awakenBody(st.char, t);
     }
     if (st.mode !== 'black') glass();
     desk(t);
-    if (st.mode === 'visit' && st.char) {
-      // 门缝下面透进来的那道光
-      const g = ctx.createLinearGradient(0, 250, 0, 270);
-      g.addColorStop(0, 'rgba(190,170,120,.10)');
-      g.addColorStop(1, 'rgba(190,170,120,0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(DOOR.x, 252, DOOR.w, 18);
-    }
     overlay(t);
     ctx.restore();
   }
@@ -397,7 +491,7 @@ export const sfx = (() => {
     toggle(v) {
       on = v;
       if (master) master.gain.value = v ? 0.5 : 0;
-      if (!v && drone) { try { drone.g.gain.value = 0; } catch (e) {} }
+      if (drone) { try { drone.g.gain.value = v ? 0.035 : 0; } catch (e) {} }
     },
     isOn: () => on,
     knock() {
@@ -443,13 +537,13 @@ export const sfx = (() => {
       setTimeout(() => hit(44, 0.2, 0.22, 'sine'), 170);
     },
     startDrone() {
-      const a = ctx(); if (!a || !on || drone) return;
+      const a = ctx(); if (!a || drone) return;
       const o = a.createOscillator();
       const o2 = a.createOscillator();
       const g = a.createGain();
       o.type = 'sine'; o.frequency.value = 46;
       o2.type = 'sine'; o2.frequency.value = 46.7;
-      g.gain.value = 0.035;
+      g.gain.value = on ? 0.035 : 0;
       o.connect(g); o2.connect(g); g.connect(master);
       o.start(); o2.start();
       drone = { o, o2, g };

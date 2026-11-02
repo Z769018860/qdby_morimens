@@ -34,8 +34,8 @@ export const NIGHTS = [
   { f: 1, acts: 3, lie: 'card', obs: 0.58 },
   { f: 1, acts: 3, lie: 'ask', obs: 0.50 },
   { f: 2, acts: 3, lie: 'ask', obs: 0.46 },
-  { f: 2, acts: 2, lie: 'ask', obs: 0.34 },
-  { f: 2, acts: 2, lie: 'ask', obs: 0.30 },
+  { f: 2, acts: 3, lie: 'ask', obs: 0.38 },
+  { f: 2, acts: 3, lie: 'ask', obs: 0.28 },
   { f: 2, acts: 3, lie: 'ask', obs: 0 },   // 首领：它没有影子，也没有呼吸
 ];
 export const VISITS_PER_NIGHT = 3;
@@ -169,8 +169,9 @@ export function startVisit(s) {
 export function canAsk(s, v, field) {
   return !!(v && !v.done && !s.over && v.acts > 0 && v.c.ask.includes(field) && !v.askedFields.includes(field));
 }
+// 观察不占问话次数：贴着玻璃看是免费的，但一个人只能看一次。
 export function canObserve(s, v) {
-  return !!(v && !v.done && !s.over && v.acts > 0 && !v.obsUsed);
+  return !!(v && !v.done && !s.over && !v.obsUsed);
 }
 
 export function ask(s, field) {
@@ -187,7 +188,6 @@ export function observe(s) {
   const v = currentVisitor(s);
   if (!canObserve(s, v)) return null;
   const cfg = nightCfg(s);
-  v.acts -= 1;
   v.obsUsed = true;
   s.observed += 1;
   // 真人永远看不出异常；伪人按这一夜的概率露一次破绽

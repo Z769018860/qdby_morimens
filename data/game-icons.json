@@ -74,7 +74,11 @@
     "from": "assets/avatars/a-15604.webp",
     "who": "莱克"
   },
-  "keeper": {"src": "assets/ui/gameicons/keeper.webp", "from": "assets/hidden/keeper.webp", "who": "初代守密人"},
+  "keeper": {
+    "src": "assets/ui/gameicons/keeper.webp",
+    "from": "assets/hidden/keeper.webp",
+    "who": "初代守密人"
+  },
   "bugfight": {
     "src": "assets/ui/gameicons/bugfight.webp",
     "from": "assets/monster/Portrait_Small_Monster_S0201.webp",
@@ -84,5 +88,10 @@
     "src": "assets/ui/gameicons/bazaar.webp",
     "from": "assets/avatars-q/char-c01.webp",
     "who": "拉蒙娜"
+  },
+  "fake": {
+    "src": "assets/ui/gameicons/fake.webp",
+    "from": "assets/avatars-q/char-c06.webp",
+    "who": "24"
   }
 }

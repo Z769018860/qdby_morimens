@@ -221,15 +221,21 @@ function paintHud() {
 function fieldRow(label, truth, claim, asked) {
   const row = el('div', 'frow');
   row.appendChild(el('span', 'fl', label));
-  const tv = el('span', 'fv', truth || '—');
-  row.appendChild(tv);
+  row.appendChild(el('span', 'fv', truth || '—'));
   if (claim != null) {
     const ok = claim === truth;
-    const cv = el('span', 'fc' + (ok ? ' ok' : ' bad'), claim);
-    if (!ok) { row.classList.add('bad'); mismatch = true; }
-    row.appendChild(el('span', 'fmark', ok ? '✓' : '✗'));
-    row.appendChild(cv);
+    if (ok) {
+      // 对得上就只打勾，不再把同一个值写两遍
+      row.appendChild(el('span', 'fc ok', '✓'));
+      row.appendChild(el('span', 'fc dim', ''));
+    } else {
+      mismatch = true;
+      row.classList.add('bad');
+      row.appendChild(el('span', 'fc bad', '✗ 本人说'));
+      row.appendChild(el('span', 'fc bad', claim));
+    }
   } else {
+    row.appendChild(el('span', 'fc dim', ''));
     row.appendChild(el('span', 'fc dim', asked ? '未问' : '待问'));
   }
   return row;
@@ -388,7 +394,7 @@ function renderActs(mode, extra) {
 
   const ob = el('button', 'btn', '贴着玻璃看' + (v.obsUsed ? '（看过了）' : ''));
   ob.type = 'button';
-  ob.disabled = v.obsUsed || v.acts <= 0;
+  ob.disabled = v.obsUsed;
   ob.onclick = doObserve;
   const q = el('button', 'btn', '问话');
   q.type = 'button';
@@ -398,7 +404,7 @@ function renderActs(mode, extra) {
   d.type = 'button';
   d.onclick = () => { sfx.tick(); renderActs('decide'); };
   acts.appendChild(ob); acts.appendChild(q); acts.appendChild(d);
-  const left = el('span', 'left', '还能问/看 ' + v.acts + ' 次');
+  const left = el('span', 'left', '还能问 ' + v.acts + ' 次 · 看玻璃不占次数');
   acts.appendChild(left);
 }
 
@@ -714,6 +720,14 @@ async function boot() {
     if (e.key === '3' && !isModal()) { tab = 'log'; paintPanes(); }
   });
   window.addEventListener('pagehide', () => { if (S && !S.over) flush(S); });
+  // 调画面用的后门：?debug=1 时能把门外的人换成指定角色（只看画面，不动存档）
+  if (/[?&]debug/.test(location.search)) {
+    window.__fake = {
+      setChar(n) { const c = ALL_CHARS.find((x) => x.n === n || x.id === n); if (c) scene.setChar(c); return !!c; },
+      state: () => S,
+      codexAll() { ALL_CHARS.forEach((c) => meetAll([c.n])); return ALL_CHARS.length; },
+    };
+  }
   scene.setMode('idle');
 }
 
