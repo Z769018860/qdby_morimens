@@ -3575,15 +3575,31 @@ test('大运有自己的出战入口和专用编队：能选 当前队伍 / 通�
 });
 
 import { wheelRune as _wr, relicTrait as _rt, relicTheme as _rth } from '../src/core/gear.js';
-test('装备特质：暴击系命轮 / 造物固定带起手钥焰，每个造物主题都能抽到各种特质（不再只有一半）', () => {
-  for (const w of data.wheels.filter((x) => x.main === 'CRIT_RATE' || x.main === 'CRIT_DMG')) assert.equal(_wr(w).key, 'openKey', w.id);
+test('初始器纹 / 特质：获得时随机抽（16 种属性 × 5 个品阶），不再是按 id 固定的一条；老存档迁移时补抽一次', () => {
+  const s = newState(data, 77);
+  const ws = data.wheels.filter((x) => x.main === 'CRIT_RATE').slice(0, 20);
+  const keys = new Set(), tiers = new Set();
+  for (const w of ws) { const it = _ai2(s, 'wheel', w.id); assert.ok(it.rune && _RK.includes(it.rune.key) && it.rune.t >= 1 && it.rune.t <= 5); keys.add(it.rune.key); tiers.add(it.rune.t); }
+  assert.ok(keys.size >= 5, '同一类命轮的初始属性应该各不相同，而不是全是同一条');
+  assert.ok(tiers.size >= 2);
+  const rs = data.relics.slice(0, 40).map((r) => _ai2(s, 'relic', r.id).rune.key);
+  assert.ok(new Set(rs).size >= 8);
+  // 同一件装备、同一个存档：读档后不变；换一个存档就不一样
+  const a = _initR('g1', 5), b = _initR('g1', 5), c = _initR('g1', 6);
+  assert.deepEqual(a, b); assert.ok(c && c.key);
+  // 老存档：没有 rune 的命轮 / 造物迁移时补上，迁移两次结果一样（已经存进档里）
+  const old = newState(data, 78);
+  old.gear.items.gx = { uid: 'gx', kind: 'wheel', defId: ws[0].id, lv: 3 };
+  old.gear.items.gy = { uid: 'gy', kind: 'relic', defId: data.relics[0].id, lv: 0 };
+  const m1 = migrate(old, data), m2 = migrate(m1, data);
+  assert.ok(m1.gear.items.gx.rune && m1.gear.items.gy.rune);
+  assert.deepEqual(m1.gear.items.gx.rune, m2.gear.items.gx.rune);
+  // 兜底的老规则（没有 rune 字段时）：每个造物主题仍能抽到各种特质
   const by = {};
-  for (const r of data.relics) { const th = _rth(r.id).zh; (by[th] ||= new Set()).add(_rt(r).key); if (th === '星辉' || th === '蚀刻') assert.equal(_rt(r).key, 'openKey', r.id); }
-  for (const [th, set] of Object.entries(by)) if (th !== '星辉' && th !== '蚀刻') assert.ok(set.size >= 6, `${th} 只抽到 ${set.size} 种特质（哈希又和主题连上了？）`);
-  // 其它命轮 8 种器纹整体都出现过
-  const all = new Set(data.wheels.filter((x) => !String(x.main).startsWith('CRIT')).map((w) => _wr(w).key));
-  assert.ok(all.size >= 7);
+  for (const r of data.relics) (by[_rth(r.id).zh] ||= new Set()).add(_rt(r).key);
+  for (const [th, set] of Object.entries(by)) assert.ok(set.size >= 6, `${th} 只抽到 ${set.size} 种`);
 });
+import { initialRune as _initR } from '../src/core/gear.js';
 
 import { rollRune as _rr, settleRune as _sr, runeCost as _rc, addItem as _ai2 } from '../src/core/game.js';
 import { wheelBonus as _wb2, RUNE_KEYS as _RK, RUNE_BASE as _RB, RUNE_TIERS as _RT, rollRuneWith as _rrw, runeOf as _ro, wheelRune as _wr2 } from '../src/core/gear.js';
@@ -3597,11 +3613,13 @@ test('器纹刷取：16 种属性 × 5 个品阶，花金币，候选先看后�
   const old = _wr2(w); const b0 = _wb2(w, 5, null);
   assert.equal(_ro(w, null).t, 3); assert.equal(b0[old.key] - (old.key === 'amp' ? 8 * 1 * 1.5 : 0) - (old.key === 'atkPct' ? 3 * 1.5 : 0) > 0, true);
   // 刷：钱不够 → null；够了扣钱并给候选，不立刻生效
+  delete it.rune;                                              // 手动清掉随机的初始器纹，测老规则的兜底
+  assert.equal(_ro(w, it.rune).t, 3);
   s.gold = 0; assert.equal(_rr(s, data, it.uid), null);
   s.gold = _rc(s, w) * 3;
   const r = _rr(s, data, it.uid);
   assert.ok(r && r.cost === _rc(s, w) && _RK.includes(r.cand.key) && r.cand.t >= 1 && r.cand.t <= 5);
-  assert.equal(s.gold, _rc(s, w) * 2); assert.equal(it.rune, undefined);
+  assert.equal(s.gold, _rc(s, w) * 2); assert.equal(it.rune, undefined);   // 候选不会立刻生效
   // 保留原来的 → 候选丢弃；再刷 → 换上
   assert.equal(_sr(s, it.uid, false), false); assert.equal(it.runeNew, undefined);
   _rr(s, data, it.uid); const cand = { ...it.runeNew };

@@ -219,13 +219,13 @@ export function runeModal(app, uid) {
   const tiers = RUNE_TIERS.map((x) => `<span style="color:${x.color}">${x.zh} ×${x.m}（${Math.round(x.w / total * 100)}%）</span>`).join(' · ');
   const html = `<h3>${esc(def.zh)} · ${nm} <small class="dim">${def.rarity || ''} Lv${it.lv}</small></h3>
     <div class="rfbox">
-      <div class="rfrow"><span>当前${nm}${cur.rolled ? '' : '（出厂自带，还没刷过）'}</span>${tag(cur)}</div>
+      <div class="rfrow"><span>当前${nm}</span>${tag(cur)}</div>
       ${cand ? `<div class="rfrow"><span>刷出来的新${nm}</span>${tag(cand)}</div>` : ''}
     </div>
     ${cand ? `<div class="row"><button class="btn sm gold" data-act="rune-take" data-uid="${uid}">换上新的</button><button class="btn sm" data-act="rune-keep" data-uid="${uid}">保留原来的</button></div>
       <p class="hint">不满意就保留原来的——这一次的金币不退。再刷一次会直接顶掉这条候选。</p>` : ''}
     <div class="row"><button class="btn sm ${can ? 'gold' : ''}" data-act="rune-roll" data-uid="${uid}" ${can ? '' : 'disabled'}>刷取${nm} 🪙${fmt(cost)}</button></div>
-    <p class="hint">每次随机抽 <b>${RUNE_KEYS.length} 种属性</b>（${RUNE_KEYS.map((k) => STAT_ZH[k]).join(' / ')}）之一，和 <b>5 个品阶</b>：${tiers}。品阶只管倍率，「精」就是出厂${nm}的数值。${nm}是固定加成，<b>不吃强化等级与精炼</b>；价格 = 约 12 场胜利的金币 × 稀有度，随最高通关关卡一起涨。</p>
+    <p class="hint">每次随机抽 <b>${RUNE_KEYS.length} 种属性</b>（${RUNE_KEYS.map((k) => STAT_ZH[k]).join(' / ')}）之一，和 <b>5 个品阶</b>：${tiers}。品阶只管倍率，「精」= 基础值，凡 / 良更低，极 / 绝更高；新装备获得时也是随机抽一条。${nm}是固定加成，<b>不吃强化等级与精炼</b>；价格 = 约 12 场胜利的金币 × 稀有度，随最高通关关卡一起涨。</p>
     <p class="hint dim">金币 ${fmt(s.gold)}</p>`;
   openModal(html);
 }

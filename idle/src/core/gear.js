@@ -1,4 +1,4 @@
-import { hash } from './rng.js';
+import { hash, mulberry32 } from './rng.js';
 import { GEAR_MAX_LV, RELIC_BASE_SLOTS, RELIC_SLOTS, RELIC_UNLOCK } from './constants.js';
 
 export const ZERO = () => ({
@@ -44,12 +44,10 @@ const mixHash = (s) => {
   return (h ^ (h >>> 16)) >>> 0;
 };
 const TRAIT_BY_KEY = Object.fromEntries(SMALL_TRAITS.map((t) => [t.key, t]));
-// 暴击系装备（暴击率 / 暴击伤害的命轮，星辉 / 蚀刻造物）固定带「起手钥焰」：暴击流要靠钥焰开局顶大招，
-// 以前特质是随机抽的，暴击装备大多没有它（暴击伤害命轮 17 件里只有 1 件）。
-const CRIT_MAINS = new Set(['CRIT_RATE', 'CRIT_DMG']);
-const CRIT_RELIC_THEMES = new Set(['星辉', '蚀刻']);
-export const wheelRune = (def) => (CRIT_MAINS.has(def?.main) ? TRAIT_BY_KEY.openKey : SMALL_TRAITS[mixHash(String(def?.id || '') + ':w') % SMALL_TRAITS.length]);
-export const relicTrait = (def) => (CRIT_RELIC_THEMES.has(relicTheme(def?.id || '').zh) ? TRAIT_BY_KEY.openKey : SMALL_TRAITS[mixHash(String(def?.id || '') + ':r') % SMALL_TRAITS.length]);
+// 兜底用的老规则（按 id 哈希出一条）：只给「没有 rune 字段」的装备用（测试里手捏的、极老的存档在 migrate 之前）。
+// 真实的装备在获得 / 迁移时就已经随机抽好了初始器纹（见 initialRune），不再有「固定属性」。
+export const wheelRune = (def) => SMALL_TRAITS[mixHash(String(def?.id || '') + ':w') % SMALL_TRAITS.length];
+export const relicTrait = (def) => SMALL_TRAITS[mixHash(String(def?.id || '') + ':r') % SMALL_TRAITS.length];
 const RARITY_MULT = { N: 0.5, R: 0.7, SR: 1, SSR: 1.4 };
 // 10 级以前每级 +10%（和原来一样，老存档的数不变）；10 级之后每级 +5%：满 40 级是 3.5 倍，
 // 比原来的满级（2 倍）多 75%，但这 30 级要几十倍的金币，是给后期金币找的去处，不是白送战力。
@@ -83,6 +81,9 @@ export function runeOf(def, rune, kind = 'wheel') {
 }
 export const runeValue = (key, t) => RUNE_BASE[key] * (RUNE_TIERS[(t || RUNE_DEFAULT_TIER) - 1] || RUNE_TIERS[2]).m;
 export const runeLabel = (r) => `${STAT_ZH[r.key]} +${fmtRune(r.key, runeValue(r.key, r.t))}（${RUNE_TIERS[r.t - 1].zh}）`;
+/** 初始器纹 / 特质：装备获得的那一刻随机抽（16 种属性 × 5 个品阶，和后面花金币刷取同一张表）。
+ *  按「装备编号 + 存档种子」播种：同一件装备每次读档结果一致，但每个存档、每件装备各不相同。 */
+export const initialRune = (uid, seed) => rollRuneWith(mulberry32(hash(`rune:${uid}:${seed}`)));
 /** 抽一条器纹：品阶按权重，属性 16 选 1。rng 是 0~1 的函数 */
 export function rollRuneWith(rng) {
   const total = RUNE_TIERS.reduce((n, x) => n + x.w, 0);

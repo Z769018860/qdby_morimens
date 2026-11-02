@@ -7,7 +7,7 @@ import { baseStats, lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCos
 import { buildKit, makeMedians } from './skills.js';
 import {
   ZERO, addBonus, wheelBonus, relicBonus, relicBond, relicSlotCount, relicTheme, covenantBonus, gearCost, dismantleValue,
-  refineMult, refineCost, scaleBonus, REFINE_COST, gearRewindPlan, rollRuneWith, runeOf, RUNE_TIERS,
+  refineMult, refineCost, scaleBonus, REFINE_COST, gearRewindPlan, initialRune, rollRuneWith, runeOf, RUNE_TIERS,
 } from './gear.js';
 import { ordersBonus, orderUpCost, orderBonus, orderSlotCount } from './orders.js';
 import { teamBonds } from './bonds.js';
@@ -113,6 +113,8 @@ export function migrate(s, data) {
   else s = { ...s, roster: Object.fromEntries(Object.entries(s.roster).filter(([, r]) => r && typeof r === 'object' && !Array.isArray(r))) };
   const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity }, tower: { ...base.tower, ...s.tower }, trials: { cleared: { ...(s.trials?.cleared || {}) }, ...(s.trials?.gold ? { gold: { ...s.trials.gold } } : {}) }, ach: { ...s.ach }, signin: s.signin ? { ...s.signin } : null, welcome: s.welcome ? { ...s.welcome } : null, shop: s.shop ? { ...s.shop } : null, codex: { ...s.codex }, weekly: s.weekly ? { ...s.weekly } : null, rtower: { ...s.rtower }, arena: s.arena ? { ...s.arena } : null };
   // 装备图鉴：老存档没有，用现在手上的装备垫个底（以前分解掉的补不回来）
+  // 老存档里没有随机初始属性的命轮 / 造物：补抽一次（按编号 + 存档创建时间播种，之后存进档里就不再变）
+  for (const it of Object.values(m.gear.items || {})) if ((it.kind === 'wheel' || it.kind === 'relic') && !it.rune) it.rune = initialRune(it.uid, m.created || m.seed);
   m.gear.dex = { ...(m.gear.dex || {}) };
   for (const it of Object.values(m.gear.items || {})) { const k = gearDexKey(it.kind, it.defId); if (!m.gear.dex[k]) m.gear.dex[k] = 1; }
   // 数值字段：非数字 / 负数 / 无穷一律回到安全值，免得 NaN 写进存档后一路传染（金币、离线结算……）
@@ -435,6 +437,8 @@ export function addItem(state, kind, defId) {
   const dk = gearDexKey(kind, defId);
   dex[dk] = (dex[dk] || 0) + 1;       // 图鉴：累计获得过几件（分解、卖掉也不会掉）
   state.gear.items[uid] = { uid, kind, defId, lv: 0 };
+  // 命轮的器纹 / 造物的特质：获得时随机抽初始属性（不再是按 id 固定的一条）
+  if (kind === 'wheel' || kind === 'relic') state.gear.items[uid].rune = initialRune(uid, state.seed);
   return state.gear.items[uid];
 }
 
