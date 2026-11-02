@@ -1,170 +1,149 @@
-// 「蚀界方块」平衡模拟：一局一局地跑，看分数分布、能活多少步。
-// 用法：node scripts/block-sim.mjs [局数] [种子]
-// 两种打法各跑一遍：贪心（会挑消除和紧凑位置）与随机（等价于瞎点）。
+// 蚀界方块的关卡难度模拟。
+// 用法：node scripts/block-sim.mjs [每关局数] [种子基数]
+// 输出每一关的通关率、平均消行、平均回合、平均分。
+//
+// AI 是贪心的：把每一块拖到每一列，评估「消行数 / 落地高度 / 空洞 / 表面凹凸」，
+// 挑分最高的落点。它不会规划连消、也不会主动用造物 —— 所以它代表「手不算太差
+// 也不算强」的玩家。关卡难度就按它的通关率定：前三关 ≥90%，后三关 25%~50%，
+// 中间平滑下降。
+
 import {
-  N, MAX_STEPS, ENERGY_MAX, emptyBoard, deal, canPlace, applyPlace,
-  fullLines, clearLines, anyPlacement, bestWindow, clearWindow,
-  countFilled, scorePlace, scoreClear, rankOf, creditOf,
+  newRun, tick, moveTo, canPlace, ghostY, useItem,
+  LEVELS, rankOf,
 } from '../js/block-core.js';
 
-const RUNS = Number(process.argv[2] || 300);
-const SEED0 = Number(process.argv[3] || 20261103);
+const N = Number(process.argv[2]) || 120;
+const BASE = Number(process.argv[3]) || 20261103;
 
-function mulberry(a) {
-  return function () {
-    a |= 0; a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// 空洞：一个空格，四邻都被占（或出界）就算埋死
-function holes(b) {
-  let h = 0;
-  for (let r = 0; r < N; r++) {
-    for (let c = 0; c < N; c++) {
-      if (b[r][c]) continue;
-      const up = r === 0 || b[r - 1][c];
-      const dn = r === N - 1 || b[r + 1][c];
-      const lf = c === 0 || b[r][c - 1];
-      const rt = c === N - 1 || b[r][c + 1];
-      if (up && dn && lf && rt) h++;
-    }
+function evalPlacement(st, col) {
+  const p = st.cur;
+  if (!canPlace(st, p, col, p.oy)) return null;
+  const y = ghostY(st, { ...p, ox: col });
+  const rows = st.rows;
+  const cols = st.cols;
+  const shadow = st.board.map((r) => r.map(Boolean));
+  for (const cl of p.cells) {
+    const r = y + cl.dr;
+    const c = col + cl.dc;
+    if (r >= 0 && r < rows && c >= 0 && c < cols) shadow[r][c] = true;
   }
-  return h;
-}
 
-function adjacency(b) {
-  let n = 0;
-  for (let r = 0; r < N; r++) {
-    for (let c = 0; c < N; c++) {
-      if (!b[r][c]) continue;
-      if (r + 1 < N && b[r + 1][c]) n++;
-      if (c + 1 < N && b[r][c + 1]) n++;
-    }
-  }
-  return n;
-}
+  let clearedRows = 0;
+  for (let r = 0; r < rows; r++) if (shadow[r].every(Boolean)) clearedRows++;
 
-function evalPlace(b, card, r0, c0) {
-  const cp = b.map((row) => row.slice());
-  applyPlace(cp, card, r0, c0);
-  const lines = fullLines(cp);
-  const nLines = lines.rows.length + lines.cols.length;
-  let clearN = 0;
-  if (nLines) clearN = clearLines(cp, lines).n;
-  let s = 0;
-  s += nLines * 130 + clearN * 4;
-  s -= holes(cp) * 11;
-  s += adjacency(cp) * 1.6;
-  // 贴着边和角放更安全
-  if (r0 === 0 || c0 === 0) s += 3;
-  s -= countFilled(cp) * 0.3;
-  return s;
-}
-
-function bestMove(b, cards) {
-  let best = null;
-  for (let i = 0; i < cards.length; i++) {
-    const card = cards[i];
-    for (let r0 = 0; r0 <= N - card.sh.rows; r0++) {
-      for (let c0 = 0; c0 <= N - card.sh.cols; c0++) {
-        if (!canPlace(b, card.sh, r0, c0)) continue;
-        const s = evalPlace(b, card, r0, c0);
-        if (!best || s > best.s) best = { i, r0, c0, s };
+  const heights = new Array(cols).fill(0);
+  let holes = 0;
+  let maxH = 0;
+  for (let c = 0; c < cols; c++) {
+    let first = -1;
+    for (let r = 0; r < rows; r++) {
+      if (shadow[r][c]) {
+        first = r;
+        break;
       }
     }
+    heights[c] = first < 0 ? 0 : rows - first;
+    maxH = Math.max(maxH, heights[c]);
+    if (first >= 0) {
+      for (let r = first + 1; r < rows; r++) if (!shadow[r][c]) holes++;
+    }
+  }
+  let bump = 0;
+  for (let c = 1; c < cols; c++) bump += Math.abs(heights[c] - heights[c - 1]);
+
+  let score = 0;
+  score += clearedRows * 900;
+  score -= holes * 42;
+  score -= maxH * 6;
+  score -= bump * 5;
+  score -= heights[col] * 3;
+
+  const freeTop = st.rows - maxH;
+  if (freeTop <= 2) score -= 800;
+
+  return { col, score, clearedRows };
+}
+
+function bestMove(st) {
+  let best = null;
+  for (let col = 0; col <= st.cols - st.cur.w; col++) {
+    const ev = evalPlacement(st, col);
+    if (!ev) continue;
+    if (!best || ev.score > best.score) best = ev;
   }
   return best;
 }
 
-function randomMove(b, cards, rng) {
-  const opts = [];
-  for (let i = 0; i < cards.length; i++) {
-    for (let r0 = 0; r0 <= N - cards[i].sh.rows; r0++) {
-      for (let c0 = 0; c0 <= N - cards[i].sh.cols; c0++) {
-        if (canPlace(b, cards[i].sh, r0, c0)) opts.push({ i, r0, c0 });
-      }
-    }
-  }
-  return opts.length ? opts[(rng() * opts.length) | 0] : null;
+function topHeight(st) {
+  for (let r = 0; r < st.rows; r++) if (st.board[r].some(Boolean)) return st.rows - r;
+  return 0;
 }
 
-function play(seed, smart) {
-  const rng = mulberry(seed);
-  const b = emptyBoard();
-  let score = 0, steps = 0, combo = 0, energy = 0, lines = 0, bestCombo = 0;
-  let cards = deal(rng);
-  let useWindow = false;
-
-  while (steps < MAX_STEPS) {
-    // 三张都放不下：有溢出就用，没有就结束
-    while (cards.length && !cards.some((c) => anyPlacement(b, c.sh))) {
-      if (energy >= ENERGY_MAX) {
-        const w = bestWindow(b);
-        score += clearWindow(b, w) * 6;
-        energy = 0;
-        continue;
-      }
-      return { score, steps, lines, bestCombo, dead: true, cards };
+function playOne(levelId, seed) {
+  const st = newRun(levelId, seed);
+  let guard = 0;
+  while (!st.over && !st.win && guard++ < 4000) {
+    if (!st.cur) break;
+    const mv = bestMove(st);
+    if (!mv) {
+      st.over = true;
+      st.reason = '无处可放';
+      break;
     }
-    if (!cards.length) { cards = deal(rng); continue; }
-
-    const mv = smart ? bestMove(b, cards) : randomMove(b, cards, rng);
-    if (!mv) return { score, steps, lines, bestCombo, dead: true, cards };
-
-    const card = cards[mv.i];
-    applyPlace(b, card, mv.r0, mv.c0);
-    score += scorePlace(card);
-    steps++;
-
-    const fl = fullLines(b);
-    const nLines = fl.rows.length + fl.cols.length;
-    if (nLines) {
-      const cl = clearLines(b, fl);
-      combo++;
-      bestCombo = Math.max(bestCombo, combo);
-      score += scoreClear(cl.n, nLines, combo) + cl.relics * 28;
-      energy = Math.min(ENERGY_MAX, energy + nLines + cl.relics);
-      lines += nLines;
-    } else {
-      combo = 0;
+    moveTo(st, mv.col);
+    // 快进到底：一直推进时间，直到这一块锁住（moves 变化）就停 ——
+    // 不能只看 st.cur 是否为空，锁定后 spawn 会立刻补上新块，
+    // 那样会连带把下一块也推到中间去，整局就变成原地叠高。
+    const before = st.moves;
+    let spin = 0;
+    while (st.cur && !st.over && !st.win && st.moves === before && spin++ < 3000) {
+      tick(st, st.dropSec);
     }
+    if (st.moves === before) tick(st, st.dropSec * 4);
 
-    cards.splice(mv.i, 1);
-    if (!cards.length) cards = deal(rng);
+    // 快堆到顶了就丢个冻结，模拟玩家会用手上的道具
+    if (st.items.includes('freeze') && st.rows - topHeight(st) <= 2) useItem(st, 'freeze');
   }
-  return { score, steps, lines, bestCombo, dead: false, cards };
+  return st;
 }
 
-function report(label, fn) {
-  const scores = [], steps = [], lines = [];
-  let dead = 0;
-  for (let i = 0; i < RUNS; i++) {
-    const r = fn(SEED0 + i * 7919);
-    scores.push(r.score); steps.push(r.steps); lines.push(r.lines);
-    if (r.dead) dead++;
-  }
-  scores.sort((a, b) => a - b);
-  steps.sort((a, b) => a - b);
-  const p = (arr, q) => arr[Math.min(arr.length - 1, Math.floor(arr.length * q))];
-  const avg = (arr) => Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
-  const dist = { S: 0, A: 0, B: 0, C: 0, D: 0 };
-  for (const s of scores) dist[rankOf(s).k]++;
-  console.log(
-    `${label.padEnd(8)} 均分 ${String(avg(scores)).padStart(7)}  ` +
-    `p10 ${String(p(scores, .1)).padStart(6)} p50 ${String(p(scores, .5)).padStart(6)} p90 ${String(p(scores, .9)).padStart(6)} p99 ${String(p(scores, .99)).padStart(7)}  ` +
-    `步数 均 ${String(avg(steps)).padStart(3)} p50 ${String(p(steps, .5)).padStart(3)} p90 ${String(p(steps, .9)).padStart(3)}  ` +
-    `提前死 ${Math.round(dead / RUNS * 100)}%`
-  );
-  const pct = (n) => (n / RUNS * 100).toFixed(1) + '%';
-  console.log(
-    `         评级 S ${pct(dist.S)} / A ${pct(dist.A)} / B ${pct(dist.B)} / C ${pct(dist.C)} / D ${pct(dist.D)}` +
-    `   银芯中位 ${creditOf(p(scores, .5))}`
-  );
+function pad(s, n, dir) {
+  s = String(s);
+  let w = 0;
+  for (const ch of s) w += /[\u4e00-\u9fa5·]/.test(ch) ? 2 : 1;
+  const need = Math.max(0, n - w);
+  return dir === -1 ? ' '.repeat(need) + s : s + ' '.repeat(need);
 }
 
-console.log(`跑 ${RUNS} 局，种子 ${SEED0}\n`);
-report('贪心', (s) => play(s, true));
-report('随机', (s) => play(s, false));
+function pct(x, n) {
+  return `${((x / n) * 100).toFixed(0)}%`;
+}
+
+console.log(`每关 ${N} 局，种子基数 ${BASE}`);
+const head = ['关卡', '列', '目标', '回合', '通关', '均消行', '均用块', '均分', 'S/A/B/C', '耗时'];
+const widths = [14, 3, 5, 5, 6, 7, 7, 7, 9, 7];
+console.log(head.map((s, i) => pad(s, widths[i])).join(''));
+
+for (const lv of LEVELS) {
+  let wins = 0;
+  let lines = 0;
+  let moves = 0;
+  let score = 0;
+  const ranks = { S: 0, A: 0, B: 0, C: 0, D: 0 };
+  const t0 = Date.now();
+  for (let i = 0; i < N; i++) {
+    const st = playOne(lv.id, BASE + i * 7919);
+    if (st.win) wins++;
+    moves += st.moves;
+    lines += st.lines;
+    score += st.score;
+    if (st.win) ranks[rankOf(st)]++;
+  }
+  const cells = [
+    lv.t, String(lv.cols), String(lv.goal || '—'), String(lv.moves || '—'),
+    lv.endless ? '—' : pct(wins, N), (lines / N).toFixed(1), (moves / N).toFixed(1),
+    String(Math.round(score / N)), `${ranks.S}/${ranks.A}/${ranks.B}/${ranks.C}`,
+    `${Date.now() - t0}ms`,
+  ];
+  console.log(cells.map((s, i) => pad(s, widths[i])).join(''));
+}
