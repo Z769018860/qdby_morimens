@@ -2,10 +2,11 @@
 // 只依赖 core/affinity.js 与 ui/util.js —— 不 import pages.js，免得和 detailModal 循环引用。
 import { esc, fmt, img, openModal } from './util.js';
 import {
-  AFF_MAX, AFF_STEPS, AFF_TALENTS, GIFTS, GIFT_BY_ID, DAILY_GIFTS,
-  affLv, affOf, affProgress, cardEffectText,
+  AFF_MAX, AFF_STEPS, AFF_TALENTS, AFF_GIFT_MAX, AFF_CARD_LV, AFF_GLOW_LV, GIFTS, GIFT_BY_ID, DAILY_GIFTS,
+  affLv, affOf, affProgress, cardEffectText, taOf,
 } from '../core/affinity.js';
 
+const giftOpen = (lv) => lv < AFF_GIFT_MAX;      // Lv10 以后礼物不再有用，只能靠推关涨
 const REALM_ZH = { CHAOS: '混沌', CARO: '血肉', AEQUOR: '深海', ULTRA: '超维' };
 const TYPE_ZH = { ASSAULT: '突击', WARDEN: '守护', CHORUS: '合唱' };
 const RCOLOR = { Genesis: '#e5b84b', SSR: '#c58bff', SR: '#7ec8ff', R: '#8b95a7', N: '#6b7280' };
@@ -42,19 +43,19 @@ export function affinityPage(app) {
     return `<div class="affrow" data-slug="${slug}">
       <img src="${img(a.portrait)}" alt="" style="border-color:${rc(a)}">
       <div class="affmain">
-        <b>${esc(a.zh)} <small>${TYPE_ZH[a.type] || a.type} · ${REALM_ZH[a.realm] || '—'}</small>${lv >= AFF_MAX ? '<span class="affmax">满</span>' : ''}</b>
+        <b>${esc(a.zh)} <small>${TYPE_ZH[a.type] || a.type} · ${REALM_ZH[a.realm] || '—'}</small>${lv >= AFF_MAX ? '<span class="affmax">满</span>' : lv >= AFF_GIFT_MAX ? '<span class="affmax" title="Lv10 以后只能靠推关涨">推关</span>' : ''}</b>
         ${barOf(affOf(s, slug))}
       </div>
-      <button class="btn sm ${lv >= AFF_MAX ? '' : 'gold'}" data-act="aff-gift" data-slug="${slug}" data-back="aff" ${lv >= AFF_MAX ? 'disabled' : ''}>赠送</button>
+      <button class="btn sm ${giftOpen(lv) ? 'gold' : ''}" data-act="aff-gift" data-slug="${slug}" data-back="aff" ${giftOpen(lv) ? '' : 'disabled'} title="${giftOpen(lv) ? '' : `Lv.${AFF_GIFT_MAX} 以后礼物不再有用，只能带着 ${taOf(a)} 推关涨`}">赠送</button>
     </div>`;
   }).join('');
 
   const daily = Object.entries(DAILY_GIFTS).map(([k, n]) => `${GIFT_BY_ID[k].zh} ×${n}`).join(' · ');
-  return `<div class="page"><h2>同调率 <small>带着她推关、送她礼物，就会越来越默契</small></h2>
+  return `<div class="page"><h2>同调率 <small>带着 TA 们推关、送礼物，就会越来越默契</small></h2>
     <div class="banner-card"><h3>这一页是什么 <small>${owned.length} 位唤醒体 · 累计 ${fmt(sum)} 点 · 满级 ${maxed} 位</small></h3>
       <p class="hint">每次<b>打赢</b>一场，当前队伍的四个人各涨同调点（第 40 关起 2 点、第 80 关起 3 点，首领关翻倍）。离线挂机也算，但压得很低（一场约 0.35 点、单次最多 60 点）。</p>
-      <p class="hint">同调等级给的是<b>这个人自己</b>的属性（生命 / 攻击 / 防御 / 暴击），满级再给她的「技能一」加一条<b>专属效果</b>：
-        突击拿真伤、守护拿屏障、合唱拿全队增伤。和等级、叠位、装备都不冲突，是给「一直带着的那几个」的第二条养成线。</p>
+      <p class="hint">同调等级给的是<b>这个人自己</b>的属性（生命 / 攻击 / 防御 / 暴击），Lv10 再给 TA 的「技能一」加一条<b>专属效果</b>：
+        突击拿真伤、守护拿屏障、合唱拿全队增伤。<b>Lv10 之后（11~20）礼物不再有用，只能靠带着 TA 推关（挂机）慢慢涨</b>；Lv20 解锁角色专属特性（预留），战斗里头像会换上流光溢彩的边框。和等级、叠位、装备都不冲突，是给「一直带着的那几个」的第二条养成线。</p>
     </div>
     <div class="banner-card"><h3>礼物仓库 <small>每天跨天自动补：${esc(daily)}</small></h3>
       <div class="giftrow">${gifts}</div>
@@ -74,15 +75,15 @@ export function affinityCard(app, slug) {
   const card = cardEffectText(a.type);
   const talents = AFF_TALENTS.map((t) => {
     const on = lv >= t.lv;
-    return `<li class="${on ? 'on' : ''}"><b>Lv.${t.lv} ${esc(t.zh)}</b><span>${esc(t.desc)}</span></li>`;
+    return `<li class="${on ? 'on' : ''} ${t.reserved ? 'rsv' : ''}"><b>Lv.${t.lv} ${esc(t.zh)}</b><span>${esc(t.desc)}</span></li>`;
   }).join('');
-  return `<h4>同调率 <small class="dim">Lv.${lv}/${AFF_MAX} · 累计 ${pts} 点（满 ${AFF_STEPS[AFF_MAX - 1]}）</small></h4>
+  return `<h4>同调率 <small class="dim">Lv.${lv}/${AFF_MAX} · 累计 ${pts} 点（满 ${AFF_STEPS[AFF_MAX - 1]}）${lv >= AFF_GLOW_LV ? ' · ✨流光溢彩' : ''}</small></h4>
     <div class="affcard">
       ${barOf(pts)}
       <ul class="afftal">${talents}</ul>
-      <div class="affpact ${lv >= AFF_MAX ? 'on' : ''}"><b>${esc(card.zh)}</b><span>${esc(card.desc)}</span><em>${lv >= AFF_MAX ? '已生效' : `Lv.${AFF_MAX} 解锁`}</em></div>
-      <div class="row"><button class="btn sm gold" data-act="aff-gift" data-slug="${slug}" data-back="detail" ${lv >= AFF_MAX ? 'disabled' : ''}>赠送礼物</button>
-        <span class="dim">带着她推关也会涨（每场 +1~3，首领关翻倍）</span></div>
+      <div class="affpact ${lv >= AFF_CARD_LV ? 'on' : ''}"><b>${esc(card.zh)}</b><span>${esc(card.desc)}</span><em>${lv >= AFF_CARD_LV ? '已生效' : `Lv.${AFF_CARD_LV} 解锁`}</em></div>
+      <div class="row"><button class="btn sm ${giftOpen(lv) ? 'gold' : ''}" data-act="aff-gift" data-slug="${slug}" data-back="detail" ${giftOpen(lv) ? '' : 'disabled'}>赠送礼物</button>
+        <span class="dim">${giftOpen(lv) ? `带着${taOf(a)}推关也会涨（每场 +1~3，首领关翻倍）` : `Lv.${AFF_GIFT_MAX} 以后礼物不再有用，只能带着${taOf(a)}推关（挂机）涨（每场 +1~3，首领关翻倍）`}</span></div>
     </div>`;
 }
 
@@ -93,13 +94,13 @@ export function giftModal(app, slug, back = 'aff') {
   const lv = affLv(affOf(s, slug));
   const btns = GIFTS.map((g) => {
     const n = giftCount(s, g.id);
-    return `<button class="btn ${n ? 'gold' : ''}" data-act="aff-send" data-slug="${slug}" data-k="${g.id}" data-back="${back}" ${n && lv < AFF_MAX ? '' : 'disabled'}>
+    return `<button class="btn ${n ? 'gold' : ''}" data-act="aff-send" data-slug="${slug}" data-k="${g.id}" data-back="${back}" ${n && giftOpen(lv) ? '' : 'disabled'}>
       ${esc(g.zh)} <small>+${g.pts}（有 ${n}）</small></button>`;
   }).join('');
   const buy = GIFTS.map((g) => `<button class="btn sm" data-act="aff-buy" data-k="${g.id}" ${s.gold >= g.price ? '' : 'disabled'}>买${esc(g.zh)} 🪙${fmt(g.price)}</button>`).join('');
   openModal(`<h3>送给 ${esc(a.zh)} <small>同调 Lv.${lv}/${AFF_MAX}</small></h3>
     ${barOf(affOf(s, slug))}
-    <p class="hint">${esc(GIFTS[0].desc)}</p>
+    <p class="hint">${giftOpen(lv) ? esc(GIFTS[0].desc) : `同调已经到 Lv.${lv}：Lv.${AFF_GIFT_MAX} 之后礼物不再有用，只能带着${taOf(a)}推关（挂机）慢慢涨。`}</p>
     <div class="row">${btns}</div>
     <h4>没有存货？用金币买</h4>
     <div class="row">${buy}</div>

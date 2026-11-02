@@ -1050,3 +1050,10 @@ button, a, [role="button"], input, select, label{touch-action:manipulation}
 .lkstats{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:4px 10px;margin:6px 0 2px}
 .lkst{display:flex;justify-content:space-between;gap:6px;font-size:12px}
 .lkst em{font-style:normal;opacity:.65}
+
+/* 同调 Lv20：战斗里头像换成流光溢彩的边框（彩色锥形渐变绕着转；不支持 @property 的浏览器就是一圈静态彩虹） */
+@property --affang{syntax:'<angle>';initial-value:0deg;inherits:false}
+.u-pic.aff20{border:3px solid transparent;background:linear-gradient(#000,#000) padding-box,conic-gradient(from var(--affang),#ff6ec7,#ffd36e,#7dffb5,#6ec8ff,#b07cff,#ff6ec7) border-box;animation:affspin 3.2s linear infinite;box-shadow:0 0 10px 1px rgba(255,160,230,.45)}
+@keyframes affspin{to{--affang:360deg}}
+@media (prefers-reduced-motion:reduce){.u-pic.aff20{animation:none}}
+.afftal li.rsv{opacity:.7;font-style:italic}

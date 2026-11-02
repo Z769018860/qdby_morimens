@@ -18,7 +18,7 @@ import { emptySquads, emptyPick, normalizeSquads, normalizePick, squadUsesItem, 
 import { emptyGacha, normalizeGacha, recordPull, recordBatch } from './gacha.js';
 import { CREATORS, creatorKit } from './creators.js';
 import { emptyEvent, noteBattle } from './event.js';
-import { emptyAff, normalizeAff, affLv, affOf, affBonus, affKit, gainFromBattle, addAff, AFF_MAX } from './affinity.js';
+import { emptyAff, normalizeAff, affLv, affOf, affBonus, affKit, gainFromBattle, addAff, AFF_CARD_LV } from './affinity.js';
 
 export const BATTLE_SECONDS = 25;       // assumed wall-clock length of one farm battle (offline maths)
 export const OFFLINE_CAP_HOURS = 8;
@@ -256,7 +256,7 @@ export function allyDef(state, data, slug, teamSlugs = state.team, extra = null)
   addBonus(bonus, affBonus(state, slug));
   const affLvNow = affLv(affOf(state, slug));
   const sl = skillLevel(r.lv, r.star);
-  const kitNow = affLvNow >= AFF_MAX ? affKit(slug, a.type, data.kit(slug, sl), sl) : data.kit(slug, sl);
+  const kitNow = affLvNow >= AFF_CARD_LV ? affKit(slug, a.type, data.kit(slug, sl), sl) : data.kit(slug, sl);
   // 叠位：每 10 层 +3% 增伤（属性与等级上限在 baseStats / levelCap 里）
   bonus.amp += Math.floor((Number.isFinite(Number(r.star)) ? Number(r.star) : 0) / 10) * 3;
   bonus.amp += overdriveAmp(r.od);          // 超限：叠满 99 之后的成长（上限 99）

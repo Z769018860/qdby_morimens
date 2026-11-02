@@ -57,7 +57,7 @@ class Replay {
     const mk = (d, side) => {
       const realm = REALMS[d.realm] || { color: '#6b7280' };
       return `<div class="unit ${side === 'e' ? 'foe' : ''} ${d.boss ? 'boss' : ''} ${d.reward ? 'reward' : ''}" id="rp-u-${d.uid}" style="--rc:${realm.color}">
-        <div class="u-pic"><img src="${img(d.img)}" alt=""><span class="u-tag">${esc(d.type && side === 'a' ? TYPES[d.type]?.short || '' : '')}</span><div class="u-say"></div></div>
+        <div class="u-pic ${side === 'a' && (d.affLv || 0) >= 20 ? 'aff20' : ''}"><img src="${img(d.img)}" alt=""><span class="u-tag">${esc(d.type && side === 'a' ? TYPES[d.type]?.short || '' : '')}</span><div class="u-say"></div></div>
         <div class="u-name">${esc(d.name)}${d.reward ? '<span class="rw-tag">奖励</span>' : ''}</div>
         <div class="u-st"></div>
         <div class="bar hp"><i style="width:100%"></i><b>${Math.round(d.hp)}</b><u class="sh" style="width:0"></u></div>

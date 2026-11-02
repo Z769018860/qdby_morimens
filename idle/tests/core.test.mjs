@@ -3711,3 +3711,29 @@ test('大运：新高难度把强度后挪并带域规；队伍状态面板的�
   const end = L.endRun(s, true);
   assert.ok(end.got.includes('a_apex') && end.got.includes('a_score30000'));
 });
+
+import { AFF_MAX as _AM, AFF_STEPS as _AS, AFF_GIFT_MAX as _AGM, AFF_GLOW_LV as _AGL, affLv as _aLv, giveGift as _gg, addAff as _aa, taOf as _ta, affBonus as _ab, AFF_TALENTS as _AT } from '../src/core/affinity.js';
+test('同调率：最高 Lv20，Lv10 以后礼物无效只能靠推关涨，Lv20 预留特性不加属性，按性别称呼', () => {
+  assert.equal(_AM, 20); assert.equal(_AS.length, 20); assert.equal(_AGM, 10); assert.equal(_AGL, 20);
+  for (let i = 1; i < _AS.length; i++) assert.ok(_AS[i] > _AS[i - 1]);
+  const s = newState(data, 91); const slug = Object.keys(s.roster)[0];
+  s.aff = { day: 'x', gifts: { flower: 5, record: 5, crystal: 5 }, pts: {}, ticks: 0 };
+  _aa(s, slug, _AS[9]);                                         // 刚好 Lv10
+  assert.equal(_aLv(s.aff.pts[slug]), 10);
+  const r = _gg(s, slug, 'flower');
+  assert.equal(r.ok, false); assert.equal(s.aff.gifts.flower, 5);   // 礼物没有被吃掉
+  const up = _aa(s, slug, 200); assert.ok(up.to > 10);              // 推关还能继续涨
+  _aa(s, slug, 99999); assert.equal(_aLv(s.aff.pts[slug]), 20); assert.equal(s.aff.pts[slug], _AS[19]);   // 封顶 Lv20
+  const b = _ab(s, slug), b10 = (() => { const t = newState(data, 91); t.aff = { pts: { [slug]: _AS[9] } }; return _ab(t, slug); })();
+  assert.deepEqual(b, b10);                                       // Lv20 预留特性不给属性
+  assert.ok(_AT.some((t) => t.lv === 20 && t.reserved));
+  assert.equal(_ta({ sex: '男' }), '他'); assert.equal(_ta({ sex: '女' }), '她'); assert.equal(_ta({ creator: {} }), 'TA');
+  assert.ok(data.awakeners.filter((a) => !a.creator).every((a) => a.sex === '男' || a.sex === '女'), '官方唤醒体都有性别');
+});
+
+test('同调率：等级越高升一级要的点数越多（每一级都比上一级贵），前 10 级和以前一样', () => {
+  const cost = _AS.map((x, i) => (i ? x - _AS[i - 1] : 0)).slice(1);
+  for (let i = 1; i < cost.length; i++) assert.ok(cost[i] > cost[i - 1], `第 ${i + 1} 级升下一级比上一级贵`);
+  assert.deepEqual(_AS.slice(0, 10), [0, 30, 70, 120, 180, 250, 330, 420, 520, 630]);   // 老存档 Lv1~10 的门槛不变
+  assert.ok(cost[18] > cost[9] * 3, '19→20 要比 10→11 贵很多');
+});

@@ -41,6 +41,7 @@ for r in load(DB / 'catalogs/awakeners.json')['records']:
     slug = r['route']['slug']
     awk.append({
         'id': r['id'], 'slug': slug, 'zh': z.get('zh') or r['name'], 'en': r['name'].strip('"'),
+        'sex': z.get('sex', '') if z.get('sex', '') in ('男', '女') else '',   # 同调率等界面按性别称呼（他 / 她），没数据就是空
         'realm': r['realm'], 'type': r['type'], 'rarity': r['rarity'], 'avail': r.get('availabilityType', ''),
         'base': rec['baseStatsLv1'], 'scale': rec['statScaling'],
         'sub': rec['substatsLv1'], 'subScale': rec['substatScaling'],

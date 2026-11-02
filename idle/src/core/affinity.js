@@ -2,17 +2,29 @@
 //
 // 为什么单独做一层：等级 / 叠位 / 装备是「数值」，羁绊是「组队关系」，
 // 但它们都不认「你一直带着谁」。这一层认人——同一队刷得越久，那个人越强，
-// 满级还会给她的技能加一条专属效果，等于给「一直用的老角色」一条不掉队的路。
+// Lv10 会给 TA 的技能加一条专属效果，等于给「一直用的老角色」一条不掉队的路。Lv20 是最高级，预留一个角色专属特性（还没设计）。
 //
 // 数据形状（存在 state.aff）：
 //   { day: 'YYYY-MM-DD', gifts: { flower, record, crystal }, pts: { [slug]: number } }
 // 等级不单独存，一律从 pts 推（AFF_STEPS）——存两份迟早对不上。
 import { ZERO, addBonus } from './gear.js';
 
-export const AFF_MAX = 10;
-/* 到第 n 级所需的累计点数（索引 0 = 1 级，不花点）。
-   1→2 需 30，之后每级 +10：2→3 需 40……9→10 需 110，满级累计 630。 */
-export const AFF_STEPS = [0, 30, 70, 120, 180, 250, 330, 420, 520, 630];
+export const AFF_MAX = 20;
+/** 礼物只能送到这一级：Lv10 以后（11~20）同调点只能靠带着 TA 打仗（挂机）涨，送礼物不再有用 */
+export const AFF_GIFT_MAX = 10;
+/** 「契约」卡牌特殊效果在这一级生效（原来的满级） */
+export const AFF_CARD_LV = 10;
+/** 到这一级起，战斗里头像会带「流光溢彩」边框；同时预留「角色专属特性」的位置（还没设计） */
+export const AFF_GLOW_LV = 20;
+/* 每级升级需要的点数，等级越高越贵：
+   1→2 需 30，之后每级 +10：2→3 需 40……9→10 需 110（累计 630，和以前一样）；
+   10 级以后改成乘法：每级比上一级贵 18%（10→11 需 130，15→16 需 297，19→20 需 576），满级累计约 3690 点。
+   只靠推关涨的这一段（11~20）本来就是长线，越往后越慢才对得上「越高越难」。 */
+const stepCost = (lv) => (lv < 10 ? 20 + lv * 10 : Math.round(110 * Math.pow(1.18, lv - 9)));   // lv → lv+1 的花费
+/* 到第 n 级所需的累计点数（索引 0 = 1 级，不花点） */
+export const AFF_STEPS = Array.from({ length: AFF_MAX }, (_, i) => { let t = 0; for (let l = 1; l <= i; l++) t += stepCost(l); return t; });
+/** 按性别称呼：男 → 他，女 → 她，没数据（联名主播等）→ TA */
+export const taOf = (a) => (a?.sex === '男' ? '他' : a?.sex === '女' ? '她' : 'TA');
 
 /** 同调等级（1..10），只由累计点数决定 */
 export function affLv(pts) {
@@ -48,6 +60,8 @@ export const AFF_TALENTS = [
   { lv: 6, id: 'stand', zh: '并肩', desc: '防御 +10%', b: { defPct: 10 } },
   { lv: 8, id: 'link', zh: '灵犀', desc: '暴击率 +5% · 暴击伤害 +10%', b: { critRate: 5, critDmg: 10 } },
   { lv: 10, id: 'pact', zh: '契约', desc: '卡牌特殊效果', card: true },
+  // Lv20：角色专属特性——先占位，不做设计；到这一级先给战斗里的「流光溢彩」边框
+  { lv: 20, id: 'trait', zh: '专属特性', desc: '（预留，暂未开放）· 战斗中头像带流光溢彩边框', reserved: true },
 ];
 
 /* Lv10 的「卡牌特殊效果」按定位给，挂在技能一（Skill1）上：
@@ -130,7 +144,7 @@ export function giveGift(state, slug, giftId) {
   const g = GIFT_BY_ID[giftId];
   if (!g) return { ok: false, why: '没有这种礼物' };
   if (!(state.aff.gifts[giftId] > 0)) return { ok: false, why: `没有${g.zh}了` };
-  if (affLv(affOf(state, slug)) >= AFF_MAX) return { ok: false, why: '同调已经满了' };
+  if (affLv(affOf(state, slug)) >= AFF_GIFT_MAX) return { ok: false, why: `同调到 Lv.${AFF_GIFT_MAX} 之后，礼物不再有用：只能带着 TA 推关（挂机）慢慢涨` };
   state.aff.gifts[giftId] -= 1;
   const r = addAff(state, slug, g.pts);
   return { ok: true, pts: g.pts, up: r.up, lv: r.to };
@@ -154,7 +168,7 @@ export function buyGift(state, giftId, n = 1) {
 export function affBonus(state, slug) {
   const lv = affLv(affOf(state, slug));
   const b = ZERO();
-  for (const t of AFF_TALENTS) if (!t.card && lv >= t.lv) addBonus(b, t.b);
+  for (const t of AFF_TALENTS) if (!t.card && !t.reserved && lv >= t.lv) addBonus(b, t.b);
   return b;
 }
 
