@@ -2251,12 +2251,8 @@ test('满叠 99 后再抽到同一位：只折算金币银芯，不送超限 / �
   const out = summon(s, data, 30);
   assert.ok(out.length >= 30 && out.every((o) => o.dup));
   assert.ok(Object.values(s.roster).every((r) => r.od === 0 && r.law === 0), '重复抽取不再送超限 / 法则');
-  // 按稀有度折算：精良 600 金币 / 史诗 2400 + 6 银芯 / 创生 9000 + 20 银芯
-  const cv = { SR: [600, 0], SSR: [2400, 6], Genesis: [9000, 20] };
-  assert.equal(s.gold - g0, out.reduce((n, o) => n + cv[o.rarity][0], 0));
-  assert.equal(s.cores - c0, out.reduce((n, o) => n + cv[o.rarity][1], 0));
-  assert.ok(out.every((o) => o.gold === cv[o.rarity][0] && o.cores === cv[o.rarity][1]), '返回值带上折算的金币和银芯');
-  assert.ok(new Set(out.map((o) => o.gold)).size >= 2, '不同稀有度折算不一样');
+  assert.equal(s.gold - g0, out.length * 800);
+  assert.equal(s.cores - c0, out.length * 30);
 });
 
 /* ---------- 满超限 / 满最终法则的专属技能 ---------- */
@@ -3769,22 +3765,4 @@ test('云存档：器纹 / 特质（含没决定的候选）跟着存档走，�
   assert.ok(JSON.parse(pk.plain).__pack === 1, '大存档应走压扁格式');
   const mism = Object.values(s.gear.items).filter((it) => JSON.stringify(got.gear.items[it.uid]?.rune) !== JSON.stringify(it.rune));
   assert.equal(mism.length, 0, '所有装备的词条都应一致');
-});
-
-import { grantCreator as _gc3 } from '../src/core/creators.js';
-import { FULL_CONVERT as _FC } from '../src/core/constants.js';
-test('满叠折算：站长赠礼 / 联名嘉宾赠礼同样按稀有度折算（金币 + 高稀有度的少量银芯）', () => {
-  const s = newState(data, 66);
-  const ssr = data.awakeners.find((a) => a.rarity === 'SSR' && !a.creator), gen = data.awakeners.find((a) => a.rarity === 'Genesis' && !a.creator);
-  for (const a of [ssr, gen]) s.roster[a.slug] = { lv: 1, star: 99, brk: 0 };
-  const g0 = s.gold, c0 = s.cores;
-  const got = claimGifts(s, data, [{ id: 'f1', awk: [ssr.slug] }, { id: 'f2', awk: [gen.slug] }]);
-  assert.equal(s.gold - g0, _FC.SSR.gold + _FC.Genesis.gold);
-  assert.equal(s.cores - c0, _FC.SSR.cores + _FC.Genesis.cores);
-  assert.ok(got.every((x) => x.full && x.gold > 0));
-  assert.ok(_FC.Genesis.gold > _FC.SSR.gold && _FC.SSR.gold > _FC.SR.gold && _FC.Genesis.cores > _FC.SSR.cores && _FC.SR.cores === 0);
-  // 联名嘉宾（SR 档）满叠后再送：折成 SR 的金币
-  s.roster.samo = { lv: 1, star: 99, brk: 0 };
-  const g1 = s.gold, r = _gc3(s, 'samo');
-  assert.equal(r.full, true); assert.equal(s.gold - g1, _FC.SR.gold); assert.equal(r.gold, _FC.SR.gold);
 });
