@@ -3758,7 +3758,7 @@ test('云存档：器纹 / 特质（含没决定的候选）跟着存档走，�
   const a = migrate(JSON.parse(JSON.stringify(ex)), data), b = migrate(JSON.parse(JSON.stringify(ex)), data);
   assert.deepEqual(a.gear.items[w.uid].rune, b.gear.items[w.uid].rune);
   // 整条上传 / 下载链路（大存档会走压扁 + gzip）
-  for (let i = 0; i < 4000; i++) _ai2(s, 'wheel', data.wheels[i % data.wheels.length].id);
+  for (let i = 0; i < 8000; i++) _ai2(s, 'wheel', data.wheels[i % data.wheels.length].id);
   const pk = await _ps9(s), got = await _us9(pk.data);
   assert.deepEqual(fill(got.gear.items[w.uid]), fill(s.gear.items[w.uid]));
   assert.deepEqual(fill(got.gear.items[r.uid]), fill(s.gear.items[r.uid]));
