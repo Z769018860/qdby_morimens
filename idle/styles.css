@@ -1039,3 +1039,14 @@ button, a, [role="button"], input, select, label{touch-action:manipulation}
 /* ---------- 免费回溯券（后台发放 / 大运等级奖励） ---------- */
 .tag.rwtag{background:color-mix(in srgb, #7fd1c1 16%, transparent);color:#7fd1c1;border:1px solid color-mix(in srgb, #7fd1c1 45%, transparent);white-space:nowrap}
 .subtyp{font-style:normal;color:var(--acc);margin-left:4px;padding:0 4px;border:1px solid var(--line);border-radius:5px;font-size:10px}
+
+/* 大运 · 队伍状态面板：每人一张可折叠的属性卡 */
+.lkstatus{margin:8px 0;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:rgba(255,255,255,.03)}
+.lkstatus>summary{cursor:pointer;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.lkunit{margin:6px 0;border-top:1px dashed var(--line);padding-top:4px}
+.lkunit>summary{cursor:pointer;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lkunit>summary img{width:26px;height:26px;border-radius:6px;object-fit:cover}
+.lkunit.dead{opacity:.55}
+.lkstats{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:4px 10px;margin:6px 0 2px}
+.lkst{display:flex;justify-content:space-between;gap:6px;font-size:12px}
+.lkst em{font-style:normal;opacity:.65}

@@ -7,7 +7,7 @@
 // 所有函数都吃 (state, data, run) 这三个纯数据，不碰 DOM、不读时间——所以能直接在 Node 里跑完整一局做体检。
 import { hash, mulberry32 } from './rng.js';
 import { simulate, roundLimitFor } from './battle.js';
-import { buildEnemies } from './enemies.js';
+import { buildEnemies, domainRules, lateDotBoost } from './enemies.js';
 import { teamDefs } from './game.js';
 
 export const LUCK_ACTS = 3;
@@ -30,6 +30,12 @@ export const LUCK_DIFFS = [
   // 第五档：满配（叠位 + 超限 + 满装）才有意义，分数倍率单独拉高一截，
   // 30 级的那条长阶梯主要靠它推进
   { id: 'void', zh: '无疆', lv: 150, scale: 1.58, mult: 4.6, note: '怪物的身板和拳头都按满配算，给把逆天当日常的人' },
+  // 前五档只调「同一关的敌人多硬」，主线通关 80 层的队伍能随便满血打穿。后三档多了两样东西：
+  //   stage：敌人的强度档位整体往后挪（≈主线第 N 关 + stage），第 91 关起主线才有的域规（屏障 / 反震 / 压疗 / 重甲 / 封印）也跟着上；
+  //   scale：在挪档之上再乘一层。分数倍率同步拉高，等级阶梯（60 级）靠它们推进。
+  { id: 'ruin', zh: '劫数', lv: 190, scale: 1.7, stage: 14, mult: 6.4, note: '强度挪到主线 90 关档，域规开始出现：屏障、反震、压疗、重甲、封印轮着来' },
+  { id: 'fate', zh: '天命', lv: 240, scale: 2.05, stage: 26, mult: 9.0, note: '主线 100+ 关的敌人加一层厚血，几乎每场都要带着解法才打得过' },
+  { id: 'apex', zh: '终途', lv: 300, scale: 2.5, stage: 40, mult: 13.0, note: '给通关主线、阵容与装备都练到头的人：第一层就是连环硬仗，没有解法走不完' },
 ];
 export const diffOf = (id) => LUCK_DIFFS.find((d) => d.id === id) || LUCK_DIFFS[1];
 
@@ -281,6 +287,12 @@ export const LUCK_ACH = [
   { id: 'a_relic12', zh: '满载而归', desc: '单局拿到 12 件造物', reward: { gold: 3500, cores: 70 } },
   { id: 'a_glow500', zh: '余晖堆成山', desc: '单局结束时持有 500 以上余晖', reward: { gold: 2600, cores: 45 } },
   { id: 'a_clear5', zh: '大运常客', desc: '累计通关 5 次', reward: { gold: 5000, cores: 90, tickets: 2, rw: 1 } },
+  // 第三批：给「劫数 / 天命 / 终途」三档新难度和 60 级阶梯配的里程碑
+  { id: 'a_ruin', zh: '劫数难逃', desc: '在「劫数」难度下通关', reward: { gold: 12000, cores: 200, tickets: 6, rw: 1 } },
+  { id: 'a_fate', zh: '天命所归', desc: '在「天命」难度下通关', reward: { gold: 24000, cores: 320, tickets: 10, rw: 2 } },
+  { id: 'a_apex', zh: '终途之上', desc: '在「终途」难度下通关', reward: { gold: 50000, cores: 600, tickets: 20, rw: 3 } },
+  { id: 'a_score12000', zh: '万点轰鸣', desc: '单局得分达到 12000', reward: { gold: 9000, cores: 160, tickets: 4, rw: 1 } },
+  { id: 'a_score30000', zh: '传说车速', desc: '单局得分达到 30000', reward: { gold: 30000, cores: 400, tickets: 12, rw: 2 } },
 ];
 
 // ------------------------------------------------------------------ 分数等级
@@ -288,17 +300,17 @@ export const LUCK_ACH = [
 // 15 级以前沿用原来的 1.3 倍曲线（第 15 级约 6300 分）；再往后换成 1.06 倍——
 // 继续按 1.3 走，第 30 级要几十万分，等于把台阶修到看不见的地方。
 // 每 5 级两张召唤券，每 10 级一张免费回溯券。
-export const LUCK_LEVEL_MAX = 30;
+export const LUCK_LEVEL_MAX = 60;
 export const LUCK_LEVELS = Array.from({ length: LUCK_LEVEL_MAX }, (_, i) => {
   const lv = i + 1;
   return {
     lv,
-    need: lv <= 15 ? Math.round(160 * Math.pow(1.3, i)) : Math.round(6300 * Math.pow(1.06, lv - 15)),
+    need: lv <= 15 ? Math.round(160 * Math.pow(1.3, i)) : lv <= 30 ? Math.round(6300 * Math.pow(1.06, lv - 15)) : Math.round(6300 * Math.pow(1.06, 15) * Math.pow(1.07, lv - 30)),
     gold: 400 + lv * 260,
     cores: 8 + lv * 6,
     tickets: lv % 5 === 0 ? 2 : 0,
     rw: lv % 10 === 0 ? 1 : 0,
-    tp: 1,                                          // 每级 1 点天赋点
+    tp: lv <= 30 ? 1 : (lv % 4 === 0 ? 1 : 0),      // 30 级以前每级 1 点；31~60 级每 4 级 1 点（天赋总共 38 点可花，发多了就浪费）
   };
 });
 export function levelOf(pts) {
@@ -334,7 +346,7 @@ export function talentMods(s) {
 export const nodeKindOf = (run) => NODE_PLAN[run.node] || 'battle';
 
 /** 第 (act, node) 个节点对应的等效主线关卡：越往后越硬，但每层之间留一档落差 */
-export const nodeStage = (act, node) => Math.round(16 + act * 21 + node * 1.6);
+export const nodeStage = (act, node, off = 0) => Math.round(16 + act * 21 + node * 1.6) + (off || 0);
 
 export function startRun(state, data, diffId, slugs = state.team) {
   const s = luckState(state);
@@ -399,8 +411,35 @@ export function battlePrep(state, data, run) {
   const kind = nodeKindOf(run);
   const alive = run.slugs.filter((x) => (run.hp[x] ?? 1) > 0.001);
   if (!alive.length) return null;
-  const t = teamDefs(state, data, alive);
-  const list = t.list.map((d) => {
+  const list = allyDefsOf(state, data, run, alive);
+  const stage = nodeStage(run.act, run.node, diff.stage);
+  const info = {
+    boss: kind === 'boss', elite: kind === 'elite',
+    node: kind === 'boss' ? 10 : kind === 'elite' ? 5 : 3,
+  };
+  // 高难度挪档之后，强度 ≥ 主线第 91 关就和主线一样带域规（屏障 / 反震 / 压疗 / 重甲 / 封印）和持续伤害补偿；
+  // 敌人曲线用主线那条（90 关之后复利放缓，和玩家队伍的成长对得上）
+  const enemies = buildEnemies(stage, data.monsters, { seed: `luck${run.seed}:${run.act}:${run.node}`, info, msk: data.msk, main: true })
+    .map((e) => ({
+      ...e,
+      hp: Math.max(1, Math.round(e.hp * diff.scale)),
+      atk: Math.max(1, Math.round(e.atk * diff.scale)),
+      def: Math.round(e.def * diff.scale),
+    }));
+  return {
+    allies: list, enemies, stage, kind,
+    seed: hash(`${run.seed}:fight:${run.act}:${run.node}`) >>> 0,
+    maxRounds: roundLimitFor(info),
+    rules: domainRules(stage), dotBoost: lateDotBoost(stage),
+  };
+}
+
+/** 队伍里每个人在这一趟里的「实际属性」：队伍基础值 + 天赋 / 增益 / 造物 / 专属强化。
+ *  战斗里用的就是它，界面上「队伍状态」面板显示的也是它，所以两边永远对得上。slugs 默认是整队（含已倒下的）。 */
+export function allyDefsOf(state, data, run, slugs = run.slugs) {
+  const s = luckState(state);
+  const t = teamDefs(state, data, slugs);
+  return t.list.map((d) => {
     const m = modsOf(s, run, d.slug);
     const out = { ...d };
     out.hp = Math.max(1, Math.round(d.hp * (1 + (m.hp + num(run.maxhpPct)) / 100)));
@@ -420,24 +459,6 @@ export function battlePrep(state, data, run) {
     out.hpNow = Math.max(1, Math.round(out.hp * (run.hp[d.slug] ?? 1)));
     return out;
   });
-  const stage = nodeStage(run.act, run.node);
-  const info = {
-    boss: kind === 'boss', elite: kind === 'elite',
-    node: kind === 'boss' ? 10 : kind === 'elite' ? 5 : 3,
-  };
-  const enemies = buildEnemies(stage, data.monsters, { seed: `luck${run.seed}:${run.act}:${run.node}`, info, msk: data.msk })
-    .map((e) => ({
-      ...e,
-      hp: Math.max(1, Math.round(e.hp * diff.scale)),
-      atk: Math.max(1, Math.round(e.atk * diff.scale)),
-      def: Math.round(e.def * diff.scale),
-    }));
-  return {
-    allies: list, enemies, stage, kind,
-    seed: hash(`${run.seed}:fight:${run.act}:${run.node}`) >>> 0,
-    maxRounds: roundLimitFor(info),
-    rules: [],
-  };
 }
 
 /** 这一局手上某类造物的数值合计：glow / eliteScore / revive / act / discount / event 都按这个读，
@@ -523,6 +544,11 @@ export function endRun(state, win) {
   if (run.act >= 1 || win) mark('a_first');
   if (win) mark('a_clear');
   if (win && run.diff === 'defy') mark('a_defy');
+  if (win && run.diff === 'ruin') mark('a_ruin');
+  if (win && run.diff === 'fate') mark('a_fate');
+  if (win && run.diff === 'apex') mark('a_apex');
+  if (score >= 12000) mark('a_score12000');
+  if (score >= 30000) mark('a_score30000');
   if (score >= 1500) mark('a_1500');
   if (score >= 3500) mark('a_3500');
   if (run.relics.length >= 8) mark('a_relic8');
@@ -745,7 +771,7 @@ export function fightNode(state, data, run) {
   if (!['battle', 'elite', 'boss'].includes(nodeKindOf(run))) return null;
   const prep = battlePrep(state, data, run);
   if (!prep) { endRun(state, false); return null; }
-  const res = simulate({ allies: prep.allies, enemies: prep.enemies, seed: prep.seed, strategy: state.strategy, maxRounds: prep.maxRounds, rules: prep.rules });
+  const res = simulate({ allies: prep.allies, enemies: prep.enemies, seed: prep.seed, strategy: state.strategy, maxRounds: prep.maxRounds, rules: prep.rules, dotBoost: prep.dotBoost });
   res.__prep = prep;
   const step = applyBattle(state, data, run, res);
   return { res, prep, step };

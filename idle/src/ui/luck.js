@@ -10,7 +10,9 @@ import {
 } from '../core/luckrun.js';
 import { esc, img, fmt, openModal, rewardText } from './util.js';
 import { squadBar } from './pages.js';
-import { teamSlugsFor } from '../core/squad.js';
+import { teamSlugsFor, withLoadout } from '../core/squad.js';
+import { allyDefsOf } from '../core/luckrun.js';
+import { domainRules, DOMAINS } from '../core/enemies.js';
 
 const KIND_ZH = { battle: '战斗', elite: '精英', boss: '首领', event: '事件', shop: '商店' };
 const KIND_ICON = { battle: '⚔', elite: '✦', boss: '☠', event: '❖', shop: '⌂' };
@@ -83,7 +85,7 @@ function homePage(app, s) {
   </div></div>
   ${squadBar(app, 'luck', '整趟大运固定用这一队；「大运专用队」只给大运用，不动推图 / 塔的编队')}
   <h3>选一个难度</h3><div class="lkdiffs">${diffs}</div>
-  <h3>挑战等级 <small>累积分数换等级（共 ${LUCK_LEVELS.length} 级），每级 1 点天赋点；每 10 级送 1 张免费回溯券</small></h3><div class="list">${lvRows}</div>
+  <h3>挑战等级 <small>累积分数换等级（共 ${LUCK_LEVELS.length} 级），30 级以前每级 1 点天赋点，之后每 4 级 1 点；每 10 级送 1 张免费回溯券</small></h3><div class="list">${lvRows}</div>
   <h3>大运专属天赋 <small>天赋点 ${freeTp(s)} 可用 · 已投入 ${spentTp(s)}（点满需要 ${LUCK_TALENTS.reduce((n, x) => n + x.cost.length, 0)} 点）</small></h3><div class="list">${talRows}</div>
   <h3>专属成就</h3><div class="list">${achRows}</div>
   ${s.lastRun ? `<h3>上一趟</h3><div class="list"><div class="lkrow"><b>${s.lastRun.win ? '打通三层' : `止步第 ${s.lastRun.act + 1} 层`}</b><span>得分 <b>${fmt(s.lastRun.score)}</b></span><span class="dim">${new Date(s.lastRun.at).toLocaleString()}</span></div></div>` : ''}
@@ -118,16 +120,18 @@ function runPage(app, run) {
     ? run.ups.map((u) => `<span class="lktag up" title="${esc(u.desc)}">${esc(u.zh)}</span>`).join('')
     : '<span class="dim">还没有专属强化</span>';
 
-  const stage = nodeStage(run.act, run.node);
+  const stage = nodeStage(run.act, run.node, diff.stage);
+  const rules = domainRules(stage);
   const body = kind === 'event' ? eventPanel(app, run)
     : kind === 'shop' ? shopPanel(app, run)
-      : `<div class="lkbattle"><p>下一场：<b>${KIND_ZH[kind]}</b>　强度≈主线第 <b>${stage}</b> 关　难度 <b>${esc(diff.zh)}</b></p>
+      : `<div class="lkbattle"><p>下一场：<b>${KIND_ZH[kind]}</b>　强度≈主线第 <b>${stage}</b> 关　难度 <b>${esc(diff.zh)}</b>${rules.length ? `　域规 ${rules.map((k) => `<span class="lktag buff" title="${esc(DOMAINS[k].d)}">${esc(DOMAINS[k].short)}</span>`).join('')}` : ''}</p>
         <p class="hint">${kind === 'boss' ? '本层首领，打完进下一层（全队回复 15% 生命）。' : kind === 'elite' ? '精英战，敌人比普通关多一个、血更厚。' : '普通战斗，赢下来才能继续前进。'}</p>
         <button class="btn big gold" data-act="luck-fight">开打</button></div>`;
 
   return `<div class="page"><h2>大运 · 第 ${run.act + 1} / ${LUCK_ACTS} 层 <small>${esc(diff.zh)} · 余晖 ${fmt(run.glow)} · 得分 ${fmt(run.score)}</small></h2>
   <div class="lkpath">${path}</div>
   <div class="lkfaces">${team}</div>
+  ${statusPanel(app, run)}
   <div class="lkside"><b>造物</b><div class="lktags">${relics}</div>
     <b>增益</b><div class="lktags">${buffs}</div>
     <b>专属强化</b><div class="lktags">${ups}</div>
@@ -135,6 +139,31 @@ function runPage(app, run) {
   ${body}
   <div class="row"><button class="btn sm" data-act="luck-abandon">放弃这一趟</button></div>
   </div>`;
+}
+
+/** 队伍状态：每个人此刻的实际属性（队伍基础值 + 天赋 / 增益 / 造物 / 专属强化 + 当前血量）。
+ *  战斗用的就是 allyDefsOf 算出来的这份，所以这里看到的数字和打起来的数字一致；每走一格页面都会重绘，随时是最新的。 */
+function statusPanel(app, run) {
+  const { state: s } = app;
+  let defs = [];
+  try { defs = withLoadout(s, run.sq || null, () => allyDefsOf(s, app.data, run)); } catch { return ''; }
+  const f1 = (x) => (Math.round(x * 10) / 10);
+  const cell = (k, v, tip = '') => `<span class="lkst" title="${esc(tip)}"><em>${k}</em><b>${v}</b></span>`;
+  const rows = defs.map((d) => {
+    const p = hpPct(run, d.slug), now = Math.round(d.hp * p);
+    const dead = p <= 0.001;
+    const a = app.data.bySlug[d.slug];
+    return `<details class="lkunit ${dead ? 'dead' : ''}" ${dead ? '' : 'open'}>
+      <summary>${a?.portrait ? `<img src="${img(a.portrait)}" alt="">` : ''}<b>${esc(a?.zh || d.slug)}</b>
+        <span class="dim">生命 ${fmt(now)} / ${fmt(d.hp)}（${Math.round(p * 100)}%）</span>${dead ? '<em class="new">倒下</em>' : ''}</summary>
+      <div class="lkstats">
+        ${cell('攻击', fmt(d.atk))}${cell('防御', fmt(d.def))}${cell('暴击率', f1(d.critRate) + '%')}${cell('暴击伤害', '+' + f1(d.critDmg) + '%')}
+        ${cell('增伤', f1(d.amp) + '%')}${cell('治疗加成', f1(d.healBonus) + '%')}${cell('护盾加成', f1(d.shieldBonus) + '%')}${cell('吸血', f1(d.steal) + '%')}
+        ${cell('濒死存活', f1((d.surviveChance || 0) * 100) + '%', '触发一次后概率折半，可连续触发')}${cell('首击增伤', f1(d.firstBoost) + '%')}
+        ${cell('共鸣回复', f1(d.aliGain) + '%')}${cell('钥焰回复', f1(d.keyGain) + '%')}${d.shield ? cell('开场护盾', fmt(d.shield)) : ''}
+      </div></details>`;
+  }).join('');
+  return `<details class="lkstatus" open><summary><b>队伍状态</b><span class="dim">（实时；数值含天赋 / 增益 / 造物 / 专属强化，战斗里就用这份）</span></summary>${rows}</details>`;
 }
 
 function eventPanel(app, run) {

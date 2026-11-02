@@ -3277,9 +3277,11 @@ test('大运：分数进等级、成就与天赋点一起结算', async () => {
   assert.ok(L.claimLevel(s, 1) === null, '同一级不能领两次');
 });
 
-test('大运：五档难度推荐等级递增、怪越难分越高', async () => {
+test('大运：八档难度推荐等级递增、怪越难分越高，后三档强度档位后挪', async () => {
   const L = await import('../src/core/luckrun.js');
-  assert.equal(L.LUCK_DIFFS.length, 5);
+  assert.equal(L.LUCK_DIFFS.length, 8);
+  assert.deepEqual(L.LUCK_DIFFS.slice(5).map((d) => d.id), ['ruin', 'fate', 'apex']);
+  assert.ok(L.LUCK_DIFFS.slice(5).every((d) => d.stage > 0) && L.LUCK_DIFFS.slice(0, 5).every((d) => !d.stage));
   for (let i = 1; i < L.LUCK_DIFFS.length; i++) {
     assert.ok(L.LUCK_DIFFS[i].lv > L.LUCK_DIFFS[i - 1].lv);
     assert.ok(L.LUCK_DIFFS[i].mult > L.LUCK_DIFFS[i - 1].mult);
@@ -3287,9 +3289,9 @@ test('大运：五档难度推荐等级递增、怪越难分越高', async () =>
   }
 });
 
-test('大运：等级阶梯拉到 30 级，门槛单调、奖励随级增长、天赋点够花', async () => {
+test('大运：等级阶梯拉到 60 级，门槛单调、奖励随级增长、天赋点够花', async () => {
   const L = await import('../src/core/luckrun.js');
-  assert.equal(L.LUCK_LEVELS.length, 30);
+  assert.equal(L.LUCK_LEVELS.length, 60);
   for (let i = 1; i < L.LUCK_LEVELS.length; i++) {
     const a = L.LUCK_LEVELS[i - 1], b = L.LUCK_LEVELS[i];
     assert.ok(b.need > a.need, `${b.lv} 级门槛要高于上一级`);
@@ -3297,14 +3299,15 @@ test('大运：等级阶梯拉到 30 级，门槛单调、奖励随级增长、�
   }
   // 天赋点的总上限不能低于等级总数，否则 20 级以后点数没处花
   const cap = L.LUCK_TALENTS.reduce((n, t) => n + t.cost.length, 0);
-  assert.ok(cap >= L.LUCK_LEVELS.length, `天赋上限 ${cap} 点要够 ${L.LUCK_LEVELS.length} 级花`);
+  const tpAll = L.LUCK_LEVELS.reduce((n, x) => n + x.tp, 0);
+  assert.ok(cap >= tpAll, `天赋上限 ${cap} 点要够 ${tpAll} 点花`);
   for (const x of L.LUCK_LEVELS) {
     assert.equal(x.rw, x.lv % 10 === 0 ? 1 : 0, `Lv.${x.lv} 的回溯券`);
     assert.equal(x.tickets, x.lv % 5 === 0 ? 2 : 0, `Lv.${x.lv} 的召唤券`);
   }
-  // 30 级不该遥不可及：按逆天/无疆一趟的分数，二十来趟能摸到顶
-  const top = L.LUCK_LEVELS.reduce((n, x) => n + x.need, 0);
-  assert.ok(top > 100000 && top < 300000, `到顶的累计分数 ${top} 要落在长线区间`);
+  // 门槛是累积分数，到顶要的是最后一级的 need：按终途一趟 1.5 万分算，几十趟能摸到顶，但不是无穷远
+  const top = L.LUCK_LEVELS[L.LUCK_LEVELS.length - 1].need;
+  assert.ok(top > 80000 && top < 400000, `60 级的累积分数 ${top} 要落在长线区间`);
 });
 
 test('大运：内容池扩容，且事件收益都真的被结算认（不许出现点了没反应的选项）', async () => {
@@ -3682,4 +3685,29 @@ test('迁移不会动已经刷过（或已有）器纹 / 特质的装备，也�
   assert.deepEqual(m.gear.items.ga.rune, { key: 'critDmg', t: 5 });
   assert.deepEqual(m.gear.items.gb.rune, { key: 'gold', t: 1 });
   assert.deepEqual(m.gear.items.gb.runeNew, { key: 'amp', t: 4 });
+});
+
+test('大运：新高难度把强度后挪并带域规；队伍状态面板的数字就是战斗里用的那份', async () => {
+  const L = await import('../src/core/luckrun.js');
+  const s = newState(data, 13);
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  s.team = team;
+  for (const sl of team) s.roster[sl] = { lv: 90, star: 20, brk: 6 };
+  const a = L.startRun(s, data, 'void', team), pa = L.battlePrep(s, data, a);
+  const run = L.startRun(s, data, 'apex', team);
+  run.act = 2; run.node = 11;                               // 最后一战
+  const p = L.battlePrep(s, data, run);
+  assert.equal(p.stage, L.nodeStage(2, 11) + 40);
+  assert.ok(p.stage >= 91 && p.rules.length > 0, `终途后段应带域规，得到 ${JSON.stringify(p.rules)}`);
+  assert.ok(pa.rules.length === 0 && pa.stage < 91, '无疆和以前一样：不带域规');
+  // 同一个节点上，高难度敌人更硬
+  const e0 = L.battlePrep(s, data, { ...run, diff: 'void' }).enemies.reduce((n, e) => n + e.hp, 0);
+  assert.ok(p.enemies.reduce((n, e) => n + e.hp, 0) > e0 * 1.5);
+  // 面板用的 allyDefsOf 与战斗里的我方数值一致
+  const defs = L.allyDefsOf(s, data, run), prep = L.battlePrep(s, data, run);
+  for (const d of prep.allies) { const x = defs.find((y) => y.slug === d.slug); assert.equal(x.hp, d.hp); assert.equal(x.atk, d.atk); assert.equal(x.critRate, d.critRate); }
+  // 新成就能达成：终途通关
+  run.score = 40000; run.act = 2;
+  const end = L.endRun(s, true);
+  assert.ok(end.got.includes('a_apex') && end.got.includes('a_score30000'));
 });
