@@ -791,9 +791,11 @@ function onAct(e) {
     }
     // ---- 疾驰欢愉的大运 ----
     case 'luck-start': {
-      const team = (s.team || []).filter((x) => s.roster[x]);
+      // 用「大运」入口选定的那一队（当前队伍 / 通用一~五队 / 大运专用队）；整趟固定，连装备配置也一起记下来
+      const team = teamSlugsFor(s, 'luck').filter((x) => s.roster[x]);
       const run = luckStart(s, d, el.dataset.k, team);
       if (!run) { toast('先编好队伍再上车'); break; }
+      run.sq = squadKeyFor(s, 'luck') || null;
       sound.play('nav'); app.save(); render();
       break;
     }
@@ -801,7 +803,7 @@ function onAct(e) {
       const run = luckState(s).cur;
       if (!run) { render(); break; }
       const act = run.act + 1, nodeNo = run.node + 1;
-      const r = luckFight(s, d, run);
+      const r = withLoadout(s, run.sq || null, () => luckFight(s, d, run));   // 这一队有独立配装就按它的装备打
       if (!r) { app.save(); render(); break; }
       // 先渲染：这一场打完节点已经往前推了，页面上的按钮必须跟着换，
       // 否则回放还没结束时看到的还是旧节点（还能再点一次「开打」）

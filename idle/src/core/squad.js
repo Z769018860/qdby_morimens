@@ -14,14 +14,19 @@ export const RIFT_SQUAD_KEYS = ['r1', 'r2', 'r3', 'r4', 'r5'];
 // 同样是踩过坑才拆出来的——之前四座塔都借通用一队~五队，默认还都落在「一队」，
 // 于是给混沌塔编一次，血肉 / 深海 / 超维跟着一起变，等于四座塔共用一套。
 export const TOWER_SQUAD_KEYS = ['t_CHAOS', 't_CARO', 't_AEQUOR', 't_ULTRA'];
-export const ALL_SQUAD_KEYS = [...SQUAD_KEYS, ...RIFT_SQUAD_KEYS, ...TOWER_SQUAD_KEYS];
+// 疾驰欢愉的大运专用编队：一趟三层的肉鸽，队伍整趟固定，不该和推图 / 塔共用同一套（改一边另一边跟着变）。
+// 只有「大运」入口能选它；其他入口仍是 当前队伍 / 通用一队~五队。
+export const LUCK_SQUAD_KEYS = ['lk'];
+export const ALL_SQUAD_KEYS = [...SQUAD_KEYS, ...RIFT_SQUAD_KEYS, ...TOWER_SQUAD_KEYS, ...LUCK_SQUAD_KEYS];
 export const SQUAD_ZH = {
   a: '一队', b: '二队', c: '三队', d: '四队', e: '五队',
   r1: '禁区一队', r2: '禁区二队', r3: '禁区三队', r4: '禁区四队', r5: '禁区五队',
   t_CHAOS: '混沌尖塔队', t_CARO: '血肉之塔队', t_AEQUOR: '深海回廊队', t_ULTRA: '超维阶梯队',
+  lk: '大运专用队',
 };
 export const isRiftSquad = (k) => RIFT_SQUAD_KEYS.includes(k);
 export const isTowerSquad = (k) => TOWER_SQUAD_KEYS.includes(k);
+export const isLuckSquad = (k) => LUCK_SQUAD_KEYS.includes(k);
 
 // 挑战入口：每个入口单独记「用哪套队」，默认跟随当前队伍。
 // 属性塔按界域拆开——混沌塔只能上混沌队，四个界域各存一份选择才讲得通。
@@ -30,7 +35,7 @@ export const isTowerSquad = (k) => TOWER_SQUAD_KEYS.includes(k);
 export const SQUAD_MODES = [
   ['tower', '无限塔'],
   ['rt_CHAOS', '混沌尖塔'], ['rt_CARO', '血肉之塔'], ['rt_AEQUOR', '深海回廊'], ['rt_ULTRA', '超维阶梯'],
-  ['weekly', '周Boss'], ['trial', '融灾'], ['arena', '竞技场'],
+  ['weekly', '周Boss'], ['trial', '融灾'], ['arena', '竞技场'], ['luck', '疾驰大运'],
 ];
 export const MODE_ZH = Object.fromEntries(SQUAD_MODES);
 // 队伍页把入口分组显示，塔的四个界域压成一段，免得八行铺满一屏；
@@ -40,6 +45,7 @@ export const MODE_GROUPS = [
   ['属性塔', ['rt_CHAOS', 'rt_CARO', 'rt_AEQUOR', 'rt_ULTRA'], '只收本界域成员，四座塔各存一套'],
   ['周 Boss', ['weekly'], '限 12 回合拼伤害'],
   ['融灾试炼', ['trial'], '区域首领，逐级解锁'],
+  ['疾驰大运', ['luck'], '一趟三层的肉鸽：整趟用选定的那一队，另有大运专用队'],
   ['竞技场', ['arena'], '天梯与好友对战共用'],
   ['融灾禁区', ['rift'], '一次派五队：禁区一队~五队各打一组'],
 ];
@@ -231,7 +237,7 @@ export function squadKeyFor(state, mode) {
 export function normalizePick(raw) {
   const out = emptyPick();
   if (!raw || typeof raw !== 'object') return out;
-  const ok = (v) => v === 'cur' || SQUAD_KEYS.includes(v) || RIFT_SQUAD_KEYS.includes(v) || TOWER_SQUAD_KEYS.includes(v);
+  const ok = (v) => v === 'cur' || SQUAD_KEYS.includes(v) || RIFT_SQUAD_KEYS.includes(v) || TOWER_SQUAD_KEYS.includes(v) || LUCK_SQUAD_KEYS.includes(v);
   const fallback = ok(raw.rtower) ? raw.rtower : null;   // M13 只有一个「属性塔」入口，升级后分给四座塔
   for (const [k] of SQUAD_MODES) {
     const tk = towerSquadKey(k);
@@ -241,7 +247,7 @@ export function normalizePick(raw) {
       if (raw[k] === 'cur' || raw[k] === tk || SQUAD_KEYS.includes(raw[k])) out[k] = raw[k];
       else if (fallback === 'cur') out[k] = 'cur';
       else if (fallback && SQUAD_KEYS.includes(fallback)) out[k] = fallback;
-    } else if (ok(raw[k])) out[k] = raw[k];
+    } else if (ok(raw[k]) && (raw[k] !== 'lk' || k === 'luck')) out[k] = raw[k];
     else if (fallback && RT_MODES.includes(k)) out[k] = fallback;
   }
   return out;
@@ -267,7 +273,7 @@ export function setSquadPick(state, mode, key) {
   const tk = towerSquadKey(mode);
   // 属性塔只能「用自己那套」或退回当前队伍：四座塔之间不许互相借，借一次就又耦合了
   if (tk) { if (key !== 'cur' && key !== tk) return false; }
-  else if (key !== 'cur' && !SQUAD_KEYS.includes(key) && !RIFT_SQUAD_KEYS.includes(key)) return false;
+  else if (key !== 'cur' && !SQUAD_KEYS.includes(key) && !RIFT_SQUAD_KEYS.includes(key) && !(mode === 'luck' && key === 'lk')) return false;
   (state.squadPick ||= emptyPick())[mode] = key;
   return true;
 }

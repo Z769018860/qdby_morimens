@@ -1552,8 +1552,9 @@ test('融灾禁区：老存档补字段，越界层数被夹回 0~150', () => {
   const crazy = migrate({ ...newState(data, 23), rift: { floor: 999, best: -5, tries: 99 } }, data);
   assert.equal(crazy.rift.floor, RIFT_FLOORS);
   assert.equal(crazy.rift.best, RIFT_FLOORS);
-  // 通用五套 + 属性塔专用四套 + 禁区专用五套，十四套编队都要能存（老存档只有三套）
-  assert.equal(Object.keys(crazy.squads).length, 14);
+  // 通用五套 + 属性塔专用四套 + 禁区专用五套 + 大运专用一套，十五套编队都要能存（老存档只有三套）
+  assert.equal(Object.keys(crazy.squads).length, 15);
+  assert.ok(Array.isArray(crazy.squads.lk.team), '大运专用队 lk 要补出来');
   for (const k of ['r1', 'r2', 'r3', 'r4', 'r5']) assert.ok(Array.isArray(crazy.squads[k].team), `禁区分队 ${k} 要补出来`);
   for (const k of ['t_CHAOS', 't_CARO', 't_AEQUOR', 't_ULTRA']) assert.ok(Array.isArray(crazy.squads[k].team), `属性塔分队 ${k} 要补出来`);
 });
@@ -3553,4 +3554,22 @@ test('站长赠礼：回溯券 / 召唤券 / 金币直接进账，每条只领�
   // 超上限被夹住（和后端 cleanTk / cleanGold 一致）
   claimGifts(s, data, [{ id: 'x2', tk: 99999, gold: 5e10 }]);
   assert.equal(s.tickets, t0 + 30 + 9999); assert.equal(s.gold, g0 + 5000 + 1e9);
+});
+
+import { setSquadPick as _ssp, teamSlugsFor as _tsf, squadKeyFor as _skf, SQUAD_MODES as _SM, normalizePick as _np, setSquadTeam as _sst2 } from '../src/core/squad.js';
+test('大运有自己的出战入口和专用编队：能选 当前队伍 / 通用一~五队 / 大运专用队，其他入口借不到专用队', () => {
+  assert.ok(_SM.some(([k]) => k === 'luck'));
+  const s = newState(data, 11);
+  const slugs = Object.keys(s.roster).slice(0, 4);
+  _sst2(s, 'lk', slugs.slice(0, 3));
+  assert.equal(_ssp(s, 'luck', 'lk'), true);
+  assert.deepEqual(_tsf(s, 'luck'), slugs.slice(0, 3));
+  assert.equal(_skf(s, 'luck'), 'lk');
+  assert.equal(_ssp(s, 'tower', 'lk'), false);               // 专用队只给大运
+  assert.equal(_ssp(s, 'luck', 'a'), true);                  // 也能借通用一队
+  assert.equal(_ssp(s, 'luck', 'cur'), true);
+  assert.deepEqual(_tsf(s, 'luck'), [...s.team]);
+  // 存档规整：别的入口里混进 lk 要丢掉，大运里的 lk 留着
+  const n = _np({ luck: 'lk', tower: 'lk', weekly: 'b' });
+  assert.equal(n.luck, 'lk'); assert.equal(n.tower, 'cur'); assert.equal(n.weekly, 'b');
 });

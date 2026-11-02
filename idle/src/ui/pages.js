@@ -11,8 +11,8 @@ import {
 import { sound, TRACK_LIST } from './audio.js';
 import { affinityCard } from './affinity.js';
 import {
-  SQUAD_KEYS, RIFT_SQUAD_KEYS, TOWER_SQUAD_KEYS, ALL_SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, RIFT_MODE,
-  isRiftSquad, isTowerSquad, towerSquadKey, squadMembers, squadUsage, pickedSquad, loadoutOf, riftTaken, normalizeLoadout, withLoadout, squadKeyFor, squadsOf,
+  SQUAD_KEYS, RIFT_SQUAD_KEYS, TOWER_SQUAD_KEYS, LUCK_SQUAD_KEYS, ALL_SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, RIFT_MODE,
+  isRiftSquad, isTowerSquad, isLuckSquad, towerSquadKey, squadMembers, squadUsage, pickedSquad, loadoutOf, riftTaken, normalizeLoadout, withLoadout, squadKeyFor, squadsOf,
   squadLabel, teamSlugsFor, setSquadTeam, setSquadPick, autoSquadSlugs, squadsOfSlug, squadKeyZh, squadIsOnMain,
   squadsUsingItem, squadsEffectivelyUsing, sharedItemsOf,
   RT_MODES, rtModeOf, realmOfMode,
@@ -328,13 +328,13 @@ export function squadBar(app, mode, note = '') {
   const s = app.state;
   const cur = pickedSquad(s, mode);
   const chip = (k, label, on) => `<button class="sqchip ${on ? 'on' : ''}" data-act="squad-pick" data-mode="${mode}" data-k="${k}">${label}</button>`;
-  const list = SQUAD_KEYS.map((k) => {
+  const list = (mode === 'luck' ? [...SQUAD_KEYS, ...LUCK_SQUAD_KEYS] : SQUAD_KEYS).map((k) => {
     const n = squadMembers(s, k).length;
     return chip(k, `${SQUAD_ZH[k]}${n ? `<em>${n}人</em>` : '<em class="dim">空</em>'}`, cur === k);
   }).join('');
   const fb = cur !== 'cur' && !squadMembers(s, cur).length;
   return `<div class="squadbar"><span class="sqh">出战阵容</span>${chip('cur', '当前队伍', cur === 'cur')}${list}
-    <button class="btn sm sqedit" data-act="squad-edit" data-mode="${mode}" data-k="${cur === 'cur' ? freeSquadKey(app) : cur}">现场编队</button>
+    <button class="btn sm sqedit" data-act="squad-edit" data-mode="${mode}" data-k="${cur === 'cur' ? (mode === 'luck' ? 'lk' : freeSquadKey(app)) : cur}">现场编队</button>
     <small class="dim">${fb ? `「${SQUAD_ZH[cur]}」是空的，暂时按当前队伍打` : note || '在「队伍 → 挑战编队」里指定，或点「现场编队」当场排'}</small></div>`;
 }
 
@@ -348,6 +348,7 @@ export const TEAM_TABS = [
   ['weekly', '周 Boss', '限 12 回合拼伤害'],
   ['rt', '属性塔', '只收本界域成员，四座塔各存一套'],
   ['arena', '竞技场', '天梯与好友对战共用'],
+  ['luck', '疾驰大运', '整趟用选定的那一队，另有大运专用队'],
   ['squads', '编队库', '通用 / 属性塔 / 禁区，分开存'],
 ];
 const TEAM_TAB_KEYS = TEAM_TABS.map(([k]) => k);
@@ -366,7 +367,7 @@ function modeBlock(app, mode, title = '') {
   // 属性塔只用「自己那套专用编队」或「当前队伍」：不再列出通用一队~五队——
   // 让四座塔借用通用编队正是它们互相覆盖的根源
   const tk = towerSquadKey(mode);
-  const chipKeys = tk ? ['cur', tk] : ['cur', ...SQUAD_KEYS];
+  const chipKeys = tk ? ['cur', tk] : mode === 'luck' ? ['cur', ...SQUAD_KEYS, ...LUCK_SQUAD_KEYS] : ['cur', ...SQUAD_KEYS];
   const chips = chipKeys.map((k) => {
     const n = k === 'cur' ? s.team.length : squadMembers(s, k).length;
     const zh = k === 'cur' ? '当前队伍' : SQUAD_ZH[k];
@@ -375,7 +376,7 @@ function modeBlock(app, mode, title = '') {
   const nameZh = tk && lab.key === tk ? '本塔专用队' : lab.zh;
   return `<div class="assign ${lab.key !== 'cur' && !lab.fallback ? 'on' : ''}">
     <header><b>${title || MODE_ZH[mode]}</b><small>${lab.fallback ? `${lab.zh}（空）→ 当前队伍` : `${nameZh} · ${slugs.length} 人${t ? ` · 战力 ${fmt(t.power)}` : ''}`}</small>
-      <button class="btn sm" data-act="squad-edit" data-mode="${mode}" data-k="${lab.key === 'cur' ? (tk || freeSquadKey(app)) : lab.key}" title="${lab.key === 'cur' ? `「${MODE_ZH[mode] || ''}」用的是当前队伍；这里编的是另一套，存下来才会换过去` : ''}">编队</button></header>
+      <button class="btn sm" data-act="squad-edit" data-mode="${mode}" data-k="${lab.key === 'cur' ? (tk || (mode === 'luck' ? 'lk' : freeSquadKey(app))) : lab.key}" title="${lab.key === 'cur' ? `「${MODE_ZH[mode] || ''}」用的是当前队伍；这里编的是另一套，存下来才会换过去` : ''}">编队</button></header>
     <div class="sqav">${av}</div>
     <div class="sqlo-note">${loUsed ? `独立配装 · ${loSummary(loUsed)}` : '沿用主线配装（点「编队」可给这套单独配命轮 / 造物 / 钥令）'}</div>
     <div class="achips">${chips}</div></div>`;
@@ -427,6 +428,8 @@ function squadsPanel(app) {
     <h3>属性塔专用 <small>四座塔各一套 · 只收本界域成员</small></h3>
     <div class="squads">${TOWER_SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
     <p class="hint">这四套<b>只给对应的那座塔用</b>（混沌尖塔 / 血肉之塔 / 深海回廊 / 超维阶梯），和上面的通用编队、和别的塔都分开存：调混沌塔不会动到其它塔。<b>留空就退回「当前队伍」</b>（会自动剔掉非本界域的成员，一个都不剩时挑最强的 4 名补上）。</p>
+    <h3>疾驰大运专用 <small>只给大运用</small></h3>
+    <div class="squads">${LUCK_SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
     <h3>融灾禁区专用 <small>禁区一队~禁区五队 · 对应第 1~5 组敌人</small></h3>
     <div class="squads">${RIFT_SQUAD_KEYS.map((k) => squadCard(app, k)).join('')}</div>
     <p class="hint">这五套<b>只给融灾禁区用</b>，调它们不会动到上面那五套通用编队。<b>五队的唤醒体和装备不能重复</b>；哪队还没编，挑战时会自动用没被占用的人和装备补满。</p>`;
@@ -474,7 +477,8 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
   const isTower = !!towerSquadKey(st.mode) || isTowerSquad(st.key);
   // 融灾禁区编辑的是它自己那五套（禁区一队~五队），存完只落这一处，不碰通用编队；
   // 属性塔更窄：只有一座塔的那一套，保存按钮就一个
-  const keys = isRift ? RIFT_SQUAD_KEYS : isTower ? [towerSquadKey(st.mode) || st.key] : SQUAD_KEYS;
+  // 大运：从「大运」入口进来可以存到通用一队~五队或大运专用队；从编队库直接编专用队就只留它自己
+  const keys = isRift ? RIFT_SQUAD_KEYS : isTower ? [towerSquadKey(st.mode) || st.key] : st.mode === 'luck' ? [...SQUAD_KEYS, ...LUCK_SQUAD_KEYS] : isLuckSquad(st.key) ? LUCK_SQUAD_KEYS : SQUAD_KEYS;
   const lockRealm = mode && String(mode).startsWith('rt_') ? String(mode).slice(3) : null;
   const modeZh = mode ? (MODE_ZH[mode] || (mode === RIFT_MODE ? '融灾禁区' : mode)) : '';
   const powerOf = (slug) => teamView(s, data)(slug)?.power || 0;
@@ -790,6 +794,7 @@ export function teamPage(app) {
     weekly: () => modeBlock(app, 'weekly'),
     trial: () => modeBlock(app, 'trial'),
     arena: () => modeBlock(app, 'arena'),
+    luck: () => `${modeBlock(app, 'luck', '疾驰欢愉的大运')}<p class="hint">大运一趟三层，<b>开局时定下上阵的 4 人</b>，整趟不换。这里选的是下一趟出发用哪一队：「大运专用队」只给大运用，不动推图 / 塔 / 周 Boss 在用的那几套；也可以直接借通用一队~五队。出发前在大运主页也能改。</p>`,
     rift: riftPanel,
     squads: squadsPanel,
   }[tab];

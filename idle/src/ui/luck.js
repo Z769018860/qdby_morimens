@@ -9,6 +9,8 @@ import {
   nodeKindOf, nodeStage, offerPool, eventOf, shopStock,
 } from '../core/luckrun.js';
 import { esc, img, fmt, openModal, rewardText } from './util.js';
+import { squadBar } from './pages.js';
+import { teamSlugsFor } from '../core/squad.js';
 
 const KIND_ZH = { battle: '战斗', elite: '精英', boss: '首领', event: '事件', shop: '商店' };
 const KIND_ICON = { battle: '⚔', elite: '✦', boss: '☠', event: '❖', shop: '⌂' };
@@ -33,7 +35,7 @@ function homePage(app, s) {
   const prevNeed = lv ? LUCK_LEVELS[lv - 1].need : 0;
   const pct = next ? Math.max(0, Math.min(100, ((s.pts - prevNeed) / Math.max(1, next.need - prevNeed)) * 100)) : 100;
   const avg = (() => {
-    const t = (st.team || []).filter((x) => st.roster[x]);
+    const t = teamSlugsFor(st, 'luck').filter((x) => st.roster[x]);   // 选了哪一队就按哪一队算
     if (!t.length) return 0;
     return Math.round(t.reduce((n, x) => n + (st.roster[x].lv || 1), 0) / t.length);
   })();
@@ -75,10 +77,11 @@ function homePage(app, s) {
   <div class="banner-card lk"><div><h3>开往欢愉的大运 <small>${s.runs} 趟 · 通关 ${s.clears} 次 · 最高单局 ${fmt(s.best)} 分</small></h3>
     <p>三层，每层 ${NODE_PLAN.filter((x) => x !== 'event' && x !== 'shop').length} 场战斗：中间夹着事件与商店，血量在节点之间继承，不会自动回满。
     每场战斗之后从「战斗增益 / 造物 / 本队角色的专属强化」里挑一个；造物整局生效，是这套玩法真正改命的东西。</p>
-    <p class="hint">当前队伍平均等级 <b>${avg}</b>${t.length < 4 ? '（不满 4 人，建议先编好队）' : ''}　·　分数累积到 <b>${fmt(s.pts)}</b>，等级 <b>Lv.${lv}</b></p>
+    <p class="hint">出战队伍平均等级 <b>${avg}</b>${t.length < 4 ? '（不满 4 人，建议先编好队）' : ''}　·　分数累积到 <b>${fmt(s.pts)}</b>，等级 <b>Lv.${lv}</b></p>
     <div class="bar big"><i style="width:${pct}%"></i></div>
     <p class="dim">${next ? `${fmt(next.need - s.pts)} 分升到 Lv.${next.lv}` : '等级已经满了，继续刷最高分吧'}</p>
   </div></div>
+  ${squadBar(app, 'luck', '整趟大运固定用这一队；「大运专用队」只给大运用，不动推图 / 塔的编队')}
   <h3>选一个难度</h3><div class="lkdiffs">${diffs}</div>
   <h3>挑战等级 <small>累积分数换等级（共 ${LUCK_LEVELS.length} 级），每级 1 点天赋点；每 10 级送 1 张免费回溯券</small></h3><div class="list">${lvRows}</div>
   <h3>大运专属天赋 <small>天赋点 ${freeTp(s)} 可用 · 已投入 ${spentTp(s)}（点满需要 ${LUCK_TALENTS.reduce((n, x) => n + x.cost.length, 0)} 点）</small></h3><div class="list">${talRows}</div>
