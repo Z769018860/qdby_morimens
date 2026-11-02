@@ -907,10 +907,11 @@ function reportPanel() {
         h('div', { class: 'invest' }, invest.join(' · '))),
     );
   });
-  // The season-72 zone-5 encounter is 宁菲亚 (14086); legacy bank chunks
-  // contain a mismatched boss ID. Correct it at presentation time as well,
-  // so existing cached question chunks and shared links display the right boss.
-  const bossIds = ({"71-1":["80576","80577"],"71-2":["94940"],"71-3":["67103"],"71-4":["14063"],"71-5":["81279"],"72-1":["14008","14013"],"72-2":["14064"],"72-3":["60096"],"72-4":["120308","120310","120306"],"72-5":["14086"]})[String(p.season) + '-' + String(p.zone)] || (p.boss || []);
+  // 首领以题目数据里的 boss 为准：data/puzzles*.json 与 data/bank 已经按官方回放逐区核对过
+  // （scripts/fix_boss_map.py 维护，--check 能验证）。这里以前留着一份「展示时再纠正一遍」的硬编码表，
+  // 但表是旧口径：71 期五个禁区的首领整体错位（一区显示成父亲 / 母亲，五区显示成知者），72 期五区显示成宁菲亚。
+  // 数据修好之后这张旧表反而把对的盖成错的，所以删掉，不要再在展示层改首领。
+  const bossIds = p.boss || [];
   const ml = p.kind === 'mainline';
   const bosses = bossIds.map(id => D.monster.find(m => String(m.id) === String(id))).filter(Boolean);
   // Values below are recorded battle-summary extrema, not a partition of total damage.
