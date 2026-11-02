@@ -206,7 +206,9 @@ for (const id of free) {
   a.mons[0] = { uid: 951, id: e25.id, pos: 'atk', set: false, atkCount: 0, atk: e25.atk, def: e25.def };
   b.spells[0] = mk(t.id, 0);
   const el = E.eligibleTraps(G, 0, { t: 'attack', uid: 951, target: null });
-  check('万象命轮攻击时，「融蚀之槛」不会弹出询问', !el.some((x) => x.id === t.id), JSON.stringify(el));
+  const ent = el.find((x) => x.id === t.id);
+  check('万象命轮攻击时，「融蚀之槛」仍在询问里，但标成「无法选中」（只能取消）', !!ent && !!ent.blocked, JSON.stringify(el));
+  G.trapPolicy = { 1: new Set([ent.uid]) };       // 就算硬把它选进策略，也不会真的生效
   const lpb = b.lp;
   const r = E.applyAction(G, 0, { t: 'attack', uid: 951, target: null });
   check('万象命轮没有被「融蚀之槛」破坏，攻击照常命中', r.ok && a.mons[0] && a.mons[0].id === e25.id && b.lp < lpb, JSON.stringify([r.ok, !!a.mons[0], b.lp, lpb]));
@@ -220,5 +222,28 @@ for (const id of free) {
   check('普通怪兽撞上「融蚀之槛」仍然被破坏', !a2.mons[0] || a2.mons[0].id !== plain.id);
 }
 
+// ---- 破坏 / 弹回 / 弱化怪兽的魔陷：可以发动，但「不受魔法·陷阱影响」的怪兽选不中；一只能选的都没有就只能取消 ----
+{
+  const e25 = Object.values(CARDS).find((c) => c.n === '轮转·万象命轮');
+  const spell = Object.values(CARDS).find((c) => c.k === 'S' && (c.fx || []).some((f) => f.k === 'destroyStrongest'));
+  const plain = Object.values(CARDS).find((c) => c.k === 'M' && !(c.fx || []).some((f) => f.k === 'unaffected') && c.atk <= 1500);
+  const setup2 = () => { const G = fresh(); G.turn = 5; G.active = 0; G.phase = 'main'; return G; };
+  const mon = (id, uid) => ({ uid, id, pos: 'atk', set: false, atkCount: 0, atk: CARDS[id].atk, def: CARDS[id].def });
+  // 1) 对方只有不受影响的怪兽：这张魔法发不动（目标选不中，只能取消）
+  let G = setup2(); const me = G.players[0], foe = G.players[1];
+  foe.mons[0] = mon(e25.id, 961); me.hand = []; E.handAdd(G, me, spell.id);
+  let r = E.applyAction(G, 0, { t: 'spell', uid: me.hand[0].uid });
+  check(`「${spell.n}」遇到只有不受影响的怪兽：发动被拦下，卡还在手上`, !r.ok && /选不中|目标/.test(r.err || '') && me.hand.length === 1, JSON.stringify(r));
+  check('那只不受影响的怪兽毫发无伤', foe.mons[0] && foe.mons[0].id === e25.id);
+  // 2) 对方还有别的能选的怪兽：魔法照常发动，破坏的是能选中的那只（以前会因为最强的那只免疫而整张空发）
+  G = setup2(); const me2 = G.players[0], foe2 = G.players[1];
+  foe2.mons[0] = mon(e25.id, 962); foe2.mons[1] = mon(plain.id, 963); me2.hand = []; E.handAdd(G, me2, spell.id);
+  r = E.applyAction(G, 0, { t: 'spell', uid: me2.hand[0].uid });
+  check('还有能选中的怪兽：魔法正常发动并破坏它', r.ok && !foe2.mons[1] && foe2.mons[0] && foe2.mons[0].id === e25.id, JSON.stringify(r));
+  // 3) 对方一只怪兽都没有：和以前一样可以发动
+  G = setup2(); const me3 = G.players[0]; me3.hand = []; E.handAdd(G, me3, spell.id);
+  r = E.applyAction(G, 0, { t: 'spell', uid: me3.hand[0].uid });
+  check('对方没有怪兽：照旧可以发动（空发）', r.ok, JSON.stringify(r));
+}
 console.log(bad ? `\n${bad} 项失败` : '\n全部通过 ✓');
 process.exit(bad ? 1 : 0);

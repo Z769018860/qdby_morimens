@@ -332,6 +332,21 @@ function fxV(m, k) {
 // 单独抽成一个入口，是因为弹回 / 削攻 / 破坏 / 夺怪 / 上毒五条路各写各的，
 // 散着写一定会漏掉一条，最后变成「有些牌能打死它、有些不能」的玄学。
 function effImmune(m) { return !!m && hasFx(m, 'unaffected'); }
+// 「选中」一只对方怪兽：不受魔法·陷阱效果影响的怪兽根本选不中，所以从剩下能选的里面挑最强的；
+// 一只能选的都没有时返回 null（发动前就会被 noTargetBlock 拦下，只能取消发动，走到这里是兜底）。
+function strongestTargetable(o) {
+  return o.mons.filter((m) => m && !effImmune(m)).sort((a, b) => b.atk - a.atk)[0] || null;
+}
+const MON_TARGET_FX = ['bounce', 'weaken', 'destroyStrongest', 'destroyWeak', 'weakenHighest', 'stealMon'];
+/** 这张魔法 / 陷阱要选一只对方怪兽当目标，但对方场上的怪兽全都不受魔法·陷阱效果影响 → 选不中任何目标，只能取消发动。
+ *  对方场上没有怪兽时不拦（和以前一样，空发一次）。返回原因文字，没问题返回 null。 */
+function noTargetBlock(G, p, d) {
+  if (!d || !(d.fx || []).some((f) => MON_TARGET_FX.includes(f.k))) return null;
+  const o = G.players[1 - p.idx];
+  const mons = o.mons.filter(Boolean);
+  if (mons.length && mons.every((m) => effImmune(m))) return '没有可选的目标：对方场上的怪兽都不受魔法·陷阱效果影响，选不中，只能取消发动';
+  return null;
+}
 function effTarget(G, mon, what) {
   if (!effImmune(mon)) return mon;
   log(G, `「${CARDS[mon.id].n}」不受效果影响，${what || '这个效果'}没有生效`, 'info');
@@ -522,7 +537,7 @@ function applyFx(G, p, f, ctx) {
       break;
     }
     case 'bounce': {
-      const t = effTarget(G, strongest(o), '弹回');
+      const t = effTarget(G, strongestTargetable(o), '弹回');
       if (t && !barrierBlock(G, t, '这次弹回')) {
         removeMon(G, o, t);
         if (CARDS[t.id].token) {
@@ -575,7 +590,7 @@ function applyFx(G, p, f, ctx) {
       break;
     }
     case 'weaken': {
-      const t = effTarget(G, strongest(o), '弱化');
+      const t = effTarget(G, strongestTargetable(o), '弱化');
       if (t && !barrierBlock(G, t, '这次弱化')) {
         t.atk = Math.max(0, t.atk - (f.v || 0));
         log(G, `「${CARDS[t.id].n}」攻击力下降 ${f.v}`, 'spell');
@@ -584,12 +599,12 @@ function applyFx(G, p, f, ctx) {
     }
     case 'pumpSelf': if (mon) { mon.atk += f.v || 0; log(G, `「${CARDS[mon.id].n}」攻击力永久 +${f.v}`, 'buff'); } break;
     case 'destroyStrongest': {
-      const t = effTarget(G, strongest(o), '破坏');
+      const t = effTarget(G, strongestTargetable(o), '破坏');
       if (t) destroyMon(G, o, t, '效果破坏');
       break;
     }
     case 'destroyWeak': {
-      const t = effTarget(G, strongest(o), '破坏');
+      const t = effTarget(G, strongestTargetable(o), '破坏');
       if (t && atkOf(G, o, t) <= (f.v || 0)) destroyMon(G, o, t, '效果破坏');
       else log(G, `「忘却之楔」没能破坏任何怪兽`, 'info');
       break;
@@ -621,7 +636,7 @@ function applyFx(G, p, f, ctx) {
       break;
     }
     case 'weakenHighest': {
-      const t = effTarget(G, strongest(o), '弱化');
+      const t = effTarget(G, strongestTargetable(o), '弱化');
       if (t) { t.tmpAtk -= f.v || 0; log(G, `「${CARDS[t.id].n}」本回合攻击力 -${f.v}`, 'spell'); }
       break;
     }
@@ -1011,6 +1026,8 @@ function activateSpell(G, side, uid, trib) {
   const id = p.hand[hi].id;
   const d = CARDS[id];
   if (!d || d.k !== 'S') return fail('这不是魔法卡');
+  const nt = noTargetBlock(G, p, d);
+  if (nt) return fail(nt);                       // 目标全是「不受魔法·陷阱影响」的怪兽：选不中，只能取消发动
   // 解封牌（不可承受的自由）自己必須穿得过去，否则被封魔后就永远解不开了
   const isUnlock = fx(d).some((f) => f.k === 'unlockAll');
   if (p.lock && p.lock.sp > 0 && !isUnlock) return fail('这个回合你的魔法被「无声欢宴」封住了');
@@ -1155,6 +1172,8 @@ function activateTrap(G, side, uid) {
   const why = trapManualBlock(G, side, s);
   if (why) return fail(why);
   const d = CARDS[s.id];
+  const nt = noTargetBlock(G, p, d);
+  if (nt) return fail(nt);
   const cont = fx(d).some((f) => CONT_TRAP.has(f.k));
   fire(G, p, s, cont);
   if (counterTrap(G, 1 - side, 'trap')) {
@@ -1819,35 +1838,43 @@ function eligibleTraps(G, side, a) {
     if (!m || !canAttack(G, me, m)) return out;
     direct = a.target == null;
   }
+  // 这一步的主角（攻击者 / 刚召唤的怪兽）。它「不受对方魔法·陷阱效果影响」时，破坏它、削它攻击力的陷阱
+  // 仍然列在询问里（陷阱本身可以发动），但目标选不中——返回时带 blocked，界面把「发动」灰掉，只能选「都不发动」。
+  const actor = a.t === 'attack' ? me.mons.find((x) => x && x.uid === a.uid) : (a.t === 'summon' || a.t === 'special') ? (() => { const h = me.hand.find((x) => x.uid === a.uid); return h ? { id: h.id } : null; })() : null;
+  const actorImmune = !!actor && hasFx(actor, 'unaffected');
+  const TARGETING = ['destroyAttacker', 'trapCounterMon', 'destroySummon', 'destroySpecial'];
   for (const s of o.spells) {
     if (!s || !s.set || s.turnSet >= G.turn) continue;
     const d = CARDS[s.id];
     if (!d || d.k !== 'T' || !canFire(o, s)) continue;
-    let ks = fx(d).map((f) => f.k);
-    // 对「不受陷阱效果影响」的怪兽，破坏 / 削攻击力这类陷阱没有可发动的理由，不弹询问
-    const actor = a.t === 'attack' ? me.mons.find((x) => x && x.uid === a.uid) : (a.t === 'summon' || a.t === 'special') ? (() => { const h = me.hand.find((x) => x.uid === a.uid); return h ? { id: h.id } : null; })() : null;
-    if (actor && hasFx(actor, 'unaffected')) ks = ks.filter((k) => !['destroyAttacker', 'trapCounterMon', 'destroySummon', 'destroySpecial'].includes(k));
-    let hit = false;
-    if (a.t === 'attack') hit = ks.some((k) => ATK_REACT.includes(k) && (k !== 'reflect' || direct));
-    else if (a.t === 'summon' || a.t === 'special') {
-      hit = ks.includes('negateSummon') || ks.includes('destroySummon');
-      // 反特召那两张只在特殊召唤时点亮：牌摆在盖牌区，玩家要能一眼看出「这张现在能不能用」
-      if (!hit && a.t === 'special') hit = ks.includes('negateSpecial') || ks.includes('destroySpecial');
-    }
-    else if (a.t === 'spell') hit = ks.includes('negateSpell') || ks.includes('negateSpellSnipe') || ks.includes('negateAny');
-    else if (a.t === 'activateTrap') hit = ks.includes('negateTrap') || ks.includes('negateAny');
-    // 护符：对方这一步的牌带「破坏盖放陷阱 / 封锁陷阱」的效果时可以响应（shieldNegate 只在连锁里自动用，不弹询问）
-    const wantSnipe = ks.includes('shieldSnipe') || ks.includes('shieldTraps'), wantLock = ks.includes('shieldLock') || ks.includes('shieldTraps');
-    if (!hit && (wantSnipe || wantLock)) {
-      const cardOf = (uid) => { const h = me.hand.find((x) => x.uid === uid); return h && CARDS[h.id]; };
-      let c = null;
-      if (a.t === 'spell' || a.t === 'summon' || a.t === 'special') c = cardOf(a.uid);
-      else if (a.t === 'attack') { const m = me.mons.find((x) => x && x.uid === a.uid); c = m && CARDS[m.id]; }
-      else if (a.t === 'activateTrap') { const sp = me.spells.find((x) => x && x.uid === a.uid); c = sp && CARDS[sp.id]; }
-      const SN = ['snipe', 'snipeDraw', 'snipeAttack', 'snipeAll', 'negateSpellSnipe'], LK = ['trapLock', 'trapSeal'];
-      hit = !!c && fx(c).some((f) => (wantSnipe && SN.includes(f.k)) || (wantLock && LK.includes(f.k)));
-    }
-    if (hit) out.push({ uid: s.uid, id: s.id });
+    const allKs = fx(d).map((f) => f.k);
+    const hitOf = (ks) => {
+      let hit = false;
+      if (a.t === 'attack') hit = ks.some((k) => ATK_REACT.includes(k) && (k !== 'reflect' || direct));
+      else if (a.t === 'summon' || a.t === 'special') {
+        hit = ks.includes('negateSummon') || ks.includes('destroySummon');
+        // 反特召那两张只在特殊召唤时点亮：牌摆在盖牌区，玩家要能一眼看出「这张现在能不能用」
+        if (!hit && a.t === 'special') hit = ks.includes('negateSpecial') || ks.includes('destroySpecial');
+      }
+      else if (a.t === 'spell') hit = ks.includes('negateSpell') || ks.includes('negateSpellSnipe') || ks.includes('negateAny');
+      else if (a.t === 'activateTrap') hit = ks.includes('negateTrap') || ks.includes('negateAny');
+      // 护符：对方这一步的牌带「破坏盖放陷阱 / 封锁陷阱」的效果时可以响应（shieldNegate 只在连锁里自动用，不弹询问）
+      const wantSnipe = ks.includes('shieldSnipe') || ks.includes('shieldTraps'), wantLock = ks.includes('shieldLock') || ks.includes('shieldTraps');
+      if (!hit && (wantSnipe || wantLock)) {
+        const cardOf = (uid) => { const h = me.hand.find((x) => x.uid === uid); return h && CARDS[h.id]; };
+        let c = null;
+        if (a.t === 'spell' || a.t === 'summon' || a.t === 'special') c = cardOf(a.uid);
+        else if (a.t === 'attack') { const m = me.mons.find((x) => x && x.uid === a.uid); c = m && CARDS[m.id]; }
+        else if (a.t === 'activateTrap') { const sp = me.spells.find((x) => x && x.uid === a.uid); c = sp && CARDS[sp.id]; }
+        const SN = ['snipe', 'snipeDraw', 'snipeAttack', 'snipeAll', 'negateSpellSnipe'], LK = ['trapLock', 'trapSeal'];
+        hit = !!c && fx(c).some((f) => (wantSnipe && SN.includes(f.k)) || (wantLock && LK.includes(f.k)));
+      }
+      return hit;
+    };
+    const full = hitOf(allKs);
+    if (!full) continue;
+    const legal = actorImmune ? hitOf(allKs.filter((k) => !TARGETING.includes(k))) : true;
+    out.push(legal ? { uid: s.uid, id: s.id } : { uid: s.uid, id: s.id, blocked: '目标不受魔法·陷阱效果影响，选不中，只能取消发动' });
   }
   return out;
 }
@@ -2121,7 +2148,7 @@ function publicView(G, side) {
     log: G.log.slice(-40),
   };
 }
-return { LP_MAX, ZONES, HAND_MAX, REALM, handAdd, log, evalBonds, createGame, drawCards, atkOf, defOf, maxAttacks, canAttack, mustHitFirst, isTaunt, tributeNeed, canSummon, summon, setMonster, toGrave, removeMon, destroyMon, activateSpell, setTrap, canUse, trapManualBlock, activateTrap, attack, canAwaken, awaken, SP_PER_TURN, spMaxOf, spLeft, canSpecial, specialSummon, eligibleTraps, canDirect, directSummon, beginTurn, endTurn, toBattle, toMain2, changePos, applyAction, publicView };
+return { LP_MAX, ZONES, HAND_MAX, REALM, handAdd, log, evalBonds, createGame, drawCards, atkOf, defOf, noTargetBlock, maxAttacks, canAttack, mustHitFirst, isTaunt, tributeNeed, canSummon, summon, setMonster, toGrave, removeMon, destroyMon, activateSpell, setTrap, canUse, trapManualBlock, activateTrap, attack, canAwaken, awaken, SP_PER_TURN, spMaxOf, spLeft, canSpecial, specialSummon, eligibleTraps, canDirect, directSummon, beginTurn, endTurn, toBattle, toMain2, changePos, applyAction, publicView };
 })();
 
 // ---- js/duel/ai.js
@@ -2533,7 +2560,7 @@ function aiTrapChoice(G, owner, a, list, skill) {
 
 /** 行动者 actorSide 要做动作 a：对方（AI 持有的陷阱）这一步要不要响应，返回写进 G.trapPolicy 的对象（没有可响应的陷阱就是 null） */
 function aiPolicyFor(G, actorSide, a, skill, eligible) {
-  const el = eligible || eligibleTraps(G, actorSide, a);
+  const el = (eligible || eligibleTraps(G, actorSide, a)).filter((x) => !x.blocked);   // 选不中目标的陷阱 AI 也不会发
   if (!el.length) return null;
   return { [1 - actorSide]: new Set(aiTrapChoice(G, 1 - actorSide, a, el, skill)) };
 }
@@ -4952,11 +4979,14 @@ function askTraps(list, a, G, actor = 1) {
     el.className = 'trapask';
     el.innerHTML = `<div class="tbox"><h3>${S.bt === 'local' ? nameOf(actor) : '对手'}${actionText(a, G, actor)}</h3>
       <p class="sub">${S.bt === 'local' ? nameOf(1 - actor) + '盖着的' : '你盖着的'}陷阱里有可以发动的，要发动吗？</p>
-      <div class="tl">${list.map((x) => { const c = CARDS[x.id]; return `<button class="trow" type="button" data-t="${x.uid}"><b>${c.n}</b><small>${c.text}${costTag(c)}</small><i>发动</i></button>`; }).join('')}</div>
+      <div class="tl">${list.map((x) => { const c = CARDS[x.id]; return x.blocked
+        ? `<button class="trow blocked" type="button" disabled data-t="${x.uid}"><b>${c.n}</b><small>${c.text}${costTag(c)}</small><small class="why">${x.blocked}</small><i>无法选中</i></button>`
+        : `<button class="trow" type="button" data-t="${x.uid}"><b>${c.n}</b><small>${c.text}${costTag(c)}</small><i>发动</i></button>`; }).join('')}</div>
       <div class="trow2"><button class="btn pri" data-ta="go">确认</button><button class="btn" data-ta="skip">都不发动</button></div></div>`;
     document.body.appendChild(el);
     el.addEventListener('click', (e) => {
       const row = e.target.closest('[data-t]');
+      if (row && row.disabled) return;      // 目标选不中的陷阱：只能点「都不发动」取消
       if (row) {
         const uid = Number(row.dataset.t);
         if (chosen.has(uid)) { chosen.delete(uid); row.classList.remove('on'); } else { chosen.add(uid); row.classList.add('on'); }

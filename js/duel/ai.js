@@ -403,7 +403,7 @@ export function aiTrapChoice(G, owner, a, list, skill) {
 
 /** 行动者 actorSide 要做动作 a：对方（AI 持有的陷阱）这一步要不要响应，返回写进 G.trapPolicy 的对象（没有可响应的陷阱就是 null） */
 export function aiPolicyFor(G, actorSide, a, skill, eligible) {
-  const el = eligible || eligibleTraps(G, actorSide, a);
+  const el = (eligible || eligibleTraps(G, actorSide, a)).filter((x) => !x.blocked);   // 选不中目标的陷阱 AI 也不会发
   if (!el.length) return null;
   return { [1 - actorSide]: new Set(aiTrapChoice(G, 1 - actorSide, a, el, skill)) };
 }

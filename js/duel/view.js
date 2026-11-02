@@ -1134,11 +1134,14 @@ function askTraps(list, a, G, actor = 1) {
     el.className = 'trapask';
     el.innerHTML = `<div class="tbox"><h3>${S.bt === 'local' ? nameOf(actor) : '对手'}${actionText(a, G, actor)}</h3>
       <p class="sub">${S.bt === 'local' ? nameOf(1 - actor) + '盖着的' : '你盖着的'}陷阱里有可以发动的，要发动吗？</p>
-      <div class="tl">${list.map((x) => { const c = CARDS[x.id]; return `<button class="trow" type="button" data-t="${x.uid}"><b>${c.n}</b><small>${c.text}${costTag(c)}</small><i>发动</i></button>`; }).join('')}</div>
+      <div class="tl">${list.map((x) => { const c = CARDS[x.id]; return x.blocked
+        ? `<button class="trow blocked" type="button" disabled data-t="${x.uid}"><b>${c.n}</b><small>${c.text}${costTag(c)}</small><small class="why">${x.blocked}</small><i>无法选中</i></button>`
+        : `<button class="trow" type="button" data-t="${x.uid}"><b>${c.n}</b><small>${c.text}${costTag(c)}</small><i>发动</i></button>`; }).join('')}</div>
       <div class="trow2"><button class="btn pri" data-ta="go">确认</button><button class="btn" data-ta="skip">都不发动</button></div></div>`;
     document.body.appendChild(el);
     el.addEventListener('click', (e) => {
       const row = e.target.closest('[data-t]');
+      if (row && row.disabled) return;      // 目标选不中的陷阱：只能点「都不发动」取消
       if (row) {
         const uid = Number(row.dataset.t);
         if (chosen.has(uid)) { chosen.delete(uid); row.classList.remove('on'); } else { chosen.add(uid); row.classList.add('on'); }
