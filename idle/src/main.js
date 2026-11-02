@@ -297,10 +297,10 @@ async function giftRun() {
   if (app.cloud && (app.cloud.busy || app.cloud.hold || app.cloud.status === 'conflict')) { setTimeout(giftRun, 6000); return; }
   try {
     const items = await Cloud.fetchGrants();
-    const got = claimGifts(app.state, app.data, items.filter((g) => (Array.isArray(g.awk) && g.awk.length) || Number(g.rw) > 0));
+    const got = claimGifts(app.state, app.data, items.filter((g) => (Array.isArray(g.awk) && g.awk.length) || Number(g.rw) > 0 || Number(g.tk) > 0 || Number(g.gold) > 0));
     if (!got.length) return;
     app.save(); render(); app.refreshTop();
-    const names = got.map((g) => (g.voucher ? `回溯券 ×${g.voucher}` : g.isNew ? `${g.zh}（新）` : `${g.zh} 叠位+1`)).join('、');
+    const names = got.map((g) => (g.voucher ? `回溯券 ×${g.voucher}` : g.tickets ? `召唤券 ×${g.tickets}` : g.gold ? `金币 +${fmt(g.gold)}` : g.isNew ? `${g.zh}（新）` : `${g.zh} 叠位+1`)).join('、');
     toast(`收到站长赠礼：${names}`, 5000);
   } catch { /* 没网 / 没登录：下次进游戏再领 */ }
 }

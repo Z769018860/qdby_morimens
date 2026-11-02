@@ -135,10 +135,18 @@ function denied(d) {
 }
 
 // ------------------------------------------------------------------ 发放面板
+// 带名字的输入框：以前只有 placeholder，值一填上（银芯默认 100、回溯券默认 0）就不知道哪格是什么，
+// 站长看见的是一排光秃秃的数字，找不到「回溯券」在哪。现在每格上面都写着名字和单位。
+const field = (label, el, hint) => h('label', { class: 'fld', style: 'display:flex;flex-direction:column;gap:3px;flex:1 1 130px;min-width:120px' },
+  h('span', { style: 'font-size:12px;font-weight:600;opacity:.8' }, label), el,
+  hint ? h('span', { class: 'sub', style: 'font-size:11px' }, hint) : '');
+const numEl = (max, ph) => h('input', { type: 'number', min: '0', max: String(max), value: '0', placeholder: ph });
 function openGrant(u, onDone) {
-  const amountEl = h('input', { type: 'number', min: '1', max: '100000', value: '100', placeholder: '银芯数量' });
+  const amountEl = h('input', { type: 'number', min: '0', max: '100000', value: '100', placeholder: '银芯数量' });
   // 回溯券：一张可免费回溯一次（角色与装备通用），不占银芯。0 = 不发。
-  const rwEl = h('input', { type: 'number', min: '0', max: '99', value: '0', placeholder: '回溯券张数（0 = 不发）' });
+  const rwEl = numEl(99, '0 = 不发');
+  const tkEl = numEl(9999, '0 = 不发');
+  const goldEl = numEl(1000000000, '0 = 不发');
   const noteEl = h('input', { type: 'text', maxlength: '120', placeholder: '备注（会显示给用户，例如「BUG 反馈奖励」）' });
   const okBtn = h('button', { class: 'btn gold', onclick: send }, '确认发放');
   const quick = h('div', { class: 'quick' }, [50, 100, 300, 1000, 3000].map((v) => h('button', {
@@ -148,13 +156,14 @@ function openGrant(u, onDone) {
   async function send() {
     const amount = Math.round(Number(amountEl.value) || 0);
     const rw = Math.max(0, Math.min(99, Math.round(Number(rwEl.value) || 0)));
-    if (!(amount > 0) && !rw) { toast('银芯和回溯券至少发一样'); return; }
-    if (!(amount >= 0)) { toast('数量要大于 0'); return; }
+    const tk = Math.max(0, Math.min(9999, Math.round(Number(tkEl.value) || 0)));
+    const gold = Math.max(0, Math.min(1e9, Math.round(Number(goldEl.value) || 0)));
+    if (!(amount > 0) && !rw && !tk && !gold) { toast('银芯、回溯券、召唤券、金币至少发一样'); return; }
     okBtn.disabled = true;
     okBtn.textContent = '发放中…';
     try {
-      const r = await req('/admin/grant', { method: 'POST', body: { uid: u.uid, amount, rw, note: noteEl.value.trim() } });
-      const what = [r.amount > 0 ? `${r.amount} 银芯` : '', (r.rw || 0) > 0 ? `${r.rw} 张回溯券` : ''].filter(Boolean).join(' + ');
+      const r = await req('/admin/grant', { method: 'POST', body: { uid: u.uid, amount, rw, tk, gold, note: noteEl.value.trim() } });
+      const what = [r.amount > 0 ? `${r.amount} 银芯` : '', (r.rw || 0) > 0 ? `${r.rw} 张回溯券` : '', (r.tk || 0) > 0 ? `${r.tk} 张召唤券` : '', (r.gold || 0) > 0 ? `${fmt(r.gold)} 金币` : ''].filter(Boolean).join(' + ');
       toast(`已给「${u.name || u.uid}」发放 ${what}（对方下次打开站点时到账）`);
       closeSheet();
       if (onDone) onDone();
@@ -166,11 +175,12 @@ function openGrant(u, onDone) {
   }
 
   sheetBox.replaceChildren(
-    h('h3', {}, '发放银芯 / 回溯券'),
+    h('h3', {}, '发放银芯 / 回溯券 / 召唤券 / 金币'),
     h('p', { class: 'who' }, `${u.name || '（未命名）'} · 当前 ${u.acct ? u.acct.cr : 0} 银芯 · UID ${String(u.uid).slice(0, 10)}…`),
     quick,
-    h('div', { class: 'row' }, amountEl),
-    h('div', { class: 'row' }, rwEl),
+    h('div', { class: 'row' }, field('银芯（全站钱包）', amountEl, '0 = 不发')),
+    h('div', { class: 'row' }, field('免费回溯券（张）', rwEl, '挂机前夜：角色 / 装备回溯各用一张'), field('召唤券（张）', tkEl, '挂机前夜召唤用')),
+    h('div', { class: 'row' }, field('金币', goldEl, '挂机前夜；单条最多 10 亿')),
     h('div', { class: 'row' }, noteEl),
     h('div', { class: 'acts' },
       h('button', { class: 'btn ghost', onclick: closeSheet }, '取消'), okBtn));
@@ -241,6 +251,49 @@ async function openIdleSave(u) {
   }
 }
 
+// ------------------------------------------------------------------ BUG 反馈详情
+// 首页「报 bug」写进去的反馈：以前后台只数条数，正文没有任何读取入口。这里按时间倒序列出（最多 100 条），
+// 每条带游戏、版本、联系方式、设备 UA 和全文，方便按反馈去发奖励（在上面的发放面板里发回溯券 / 银芯）。
+const GAME_ZH = { home: '首页', detective: '战报侦探', merge: '合成大杜勒', bird: '是鸟弟就下100层', binding: '校猫的结合', idle: '挂机前夜', survivors: '唤醒体幸存者', protocol: '忘却协议', wolf: '弥萨格狼人杀', deathreport: '弥萨格大逃杀', g2048: '忘却 2048', duel: '唤醒王：决斗链接', reign: '弥萨格王权', lovelive: 'lovelive！mori⭐mens！', keeper: '杀死守密人', roulette: '弥萨格轮盘', bugfight: '电子斗蛐蛐' };
+const when = (t) => { const d = new Date(Number(t) || 0); const p = (n) => String(n).padStart(2, '0'); return t ? `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}` : ''; };
+function bugCard() {
+  const list = h('div', { class: 'buglist' }, h('p', { class: 'sub' }, '点「读取 / 刷新」加载最近的 BUG 反馈。'));
+  const sel = h('select', {}, h('option', { value: '' }, '全部游戏'), ...Object.entries(GAME_ZH).map(([k, v]) => h('option', { value: k }, v)));
+  let all = [];
+  const paint = () => {
+    const g = sel.value;
+    const rows = all.filter((b) => !g || b.game === g);
+    if (!rows.length) { list.replaceChildren(h('p', { class: 'sub' }, all.length ? '这个游戏下没有反馈。' : '还没有 BUG 反馈。')); return; }
+    list.replaceChildren(...rows.map((b) => h('details', { class: 'bugrow', style: 'border:1px solid rgba(128,128,128,.28);border-radius:10px;padding:8px 10px;margin:6px 0' },
+      h('summary', { style: 'cursor:pointer;display:flex;gap:8px;flex-wrap:wrap;align-items:baseline' },
+        h('b', {}, b.id), h('span', {}, GAME_ZH[b.game] || b.game || '—'), h('span', { class: 'sub' }, [when(b.at), b.ver ? 'v' + b.ver : ''].filter(Boolean).join(' · ')),
+        h('span', { class: 'sub', style: 'flex:1 1 200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, b.text.slice(0, 60))),
+      h('p', { style: 'white-space:pre-wrap;word-break:break-word;margin:8px 0' }, b.text),
+      h('p', { class: 'sub' }, `联系方式：${b.contact || '（没留）'}`),
+      h('p', { class: 'sub', style: 'word-break:break-all' }, `设备：${b.ua || '—'}`),
+      h('div', { class: 'acts' }, h('button', { type: 'button', class: 'btn ghost sm', onclick: () => { try { navigator.clipboard.writeText(`${b.id} [${GAME_ZH[b.game] || b.game}] ${when(b.at)}\n${b.text}\n联系：${b.contact}\n${b.ua}`); toast('已复制'); } catch { toast('复制失败'); } } }, '复制')))));
+  };
+  const btn = h('button', { type: 'button', class: 'btn sm', onclick: load }, '读取 / 刷新');
+  async function load() {
+    btn.disabled = true; btn.textContent = '读取中…';
+    try {
+      const r = await req('/admin/bugs?limit=100', { timeout: 40000 });
+      all = r.items || [];
+      sub.textContent = `共 ${r.total || 0} 条（列出最近 ${all.length} 条）`;
+      paint();
+    } catch (e) {
+      list.replaceChildren(h('p', { class: 'sub', style: 'color:#b45309' }, '读取失败：' + (e.message || e.code || '未知错误') + (e.status === 404 ? '（后端还是旧版，需要在 EdgeOne 重新部署边缘函数）' : '')));
+    } finally { btn.disabled = false; btn.textContent = '读取 / 刷新'; }
+  }
+  sel.addEventListener('change', paint);
+  const sub = h('span', { class: 'sub' }, '');
+  load();
+  return h('section', { class: 'card', id: 'bugs' },
+    h('h2', {}, 'BUG 反馈'),
+    h('p', { class: 'sub' }, '首页各游戏「报 bug」提交的内容，最新在前。要给提交的人发奖励，到上面的「批量发放」或用户列表里的发放面板发回溯券 / 银芯。'),
+    h('div', { class: 'toolbar' }, sel, btn, sub), list);
+}
+
 // ------------------------------------------------------------------ 主体
 let USERS = [];
 let Q = '';
@@ -258,7 +311,7 @@ function kpis(s, users) {
     box('总浏览', fmt(s.total), ''),
     box('有云端档案', String(synced), `占 ${pct(synced, users.length)}%`),
     box('有游戏数据', String(withGd), '九个游戏的进度摘要'),
-    box('BUG 反馈', String(s.bugs || 0), '历史累计'));
+    box('BUG 反馈', String(s.bugs || 0), '往下翻看详情'));
 }
 
 function row(u) {
@@ -327,7 +380,9 @@ function batchCard(onDone) {
   const picked = new Set();
   let target = 'all';
   const amountEl = h('input', { type: 'number', min: '0', max: '100000', value: '100', placeholder: '银芯数量（0 = 不发）' });
-  const rwEl = h('input', { type: 'number', min: '0', max: '99', value: '0', placeholder: '回溯券张数（0 = 不发）' });
+  const rwEl = numEl(99, '0 = 不发');
+  const tkEl = numEl(9999, '0 = 不发');
+  const goldEl = numEl(1000000000, '0 = 不发');
   const noteEl = h('input', { type: 'text', maxlength: '120', placeholder: '备注（会显示给用户，例如「全服补偿」）' });
   const awkBox = h('div', { class: 'awkbox' }, h('span', { class: 'sub' }, '读取唤醒体清单…'));
   const awkSearch = h('input', { type: 'text', placeholder: '搜唤醒体名字', style: 'width:160px' });
@@ -364,9 +419,11 @@ function batchCard(onDone) {
   async function send() {
     const amount = Math.round(Number(amountEl.value) || 0);
     const rw = Math.max(0, Math.min(99, Math.round(Number(rwEl.value) || 0)));
+    const tk = Math.max(0, Math.min(9999, Math.round(Number(tkEl.value) || 0)));
+    const gold = Math.max(0, Math.min(1e9, Math.round(Number(goldEl.value) || 0)));
     const awk = [...picked];
-    if (!(amount > 0) && !awk.length && !rw) { toast('银芯、唤醒体、回溯券至少发一样'); return; }
-    let body = { amount, awk, rw, note: noteEl.value.trim() };
+    if (!(amount > 0) && !awk.length && !rw && !tk && !gold) { toast('银芯、唤醒体、回溯券、召唤券、金币至少发一样'); return; }
+    let body = { amount, awk, rw, tk, gold, note: noteEl.value.trim() };
     let who = '';
     if (target === 'all') { body.all = true; who = `全部 ${USERS.length} 个账号`; }
     else {
@@ -375,7 +432,7 @@ function batchCard(onDone) {
       body.uids = list.map((u) => String(u.uid));
       who = `${list.length} 个账号`;
     }
-    const what = [amount > 0 ? `${amount} 银芯` : '', awk.length ? `${awk.length} 名唤醒体` : '', rw ? `${rw} 张回溯券` : ''].filter(Boolean).join(' + ');
+    const what = [amount > 0 ? `${amount} 银芯` : '', awk.length ? `${awk.length} 名唤醒体` : '', rw ? `${rw} 张回溯券` : '', tk ? `${tk} 张召唤券` : '', gold ? `${fmt(gold)} 金币` : ''].filter(Boolean).join(' + ');
     if (!confirm(`给 ${who} 各发放：${what}。\n\n发出去收不回，确定？`)) return;
     okBtn.disabled = true; okBtn.textContent = '发放中…';
     try {
@@ -392,10 +449,11 @@ function batchCard(onDone) {
 
   return h('section', { class: 'card' },
     h('h2', {}, '批量发放'),
-    h('p', { class: 'sub' }, '银芯进账号钱包（所有游戏通用），唤醒体进挂机前夜的角色库——没有就新增，已有就叠位 +1；回溯券进挂机前夜的道具栏，一张可免费回溯一次（角色与装备通用）。可以只发其中一样。'),
+    h('p', { class: 'sub' }, '银芯进账号钱包（所有游戏通用），唤醒体进挂机前夜的角色库——没有就新增，已有就叠位 +1；回溯券进挂机前夜的道具栏，召唤券和金币直接进挂机前夜的账上，一张可免费回溯一次（角色与装备通用）。可以只发其中一样。'),
     tgt, batchHintEl,
     h('div', { class: 'quick' }, [50, 100, 300, 1000, 3000].map((v) => h('button', { type: 'button', onclick: () => { amountEl.value = String(v); } }, String(v)))),
-    h('div', { class: 'row' }, amountEl, rwEl, noteEl),
+    h('div', { class: 'row' }, field('银芯（全站钱包）', amountEl, '0 = 不发'), field('免费回溯券（张）', rwEl, '角色 / 装备回溯各用一张'), field('召唤券（张）', tkEl, '挂机前夜召唤'), field('金币', goldEl, '挂机前夜，单条最多 10 亿')),
+    h('div', { class: 'row' }, noteEl),
     h('div', { class: 'row' }, awkSearch, h('button', { type: 'button', class: 'btn sm ghost', onclick: () => { picked.clear(); paintAwk(); paintPicked(); } }, '清空唤醒体')),
     awkBox, pickedEl,
     h('div', { class: 'acts' }, okBtn));
@@ -424,6 +482,7 @@ function render(data, h0) {
       h('p', { class: 'sub' }, '浏览数从 2026-10 起统计；注册用户指用过本站的账号。'),
       kpis(stats, data.users || [])),
     batchCard(),
+    bugCard(),
     h('section', { class: 'card' },
       h('h2', {}, `用户列表 · ${(data.users || []).length}`),
       h('p', { class: 'sub', id: 'ixmsg', style: 'color:#b45309' }, ''),

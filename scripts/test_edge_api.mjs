@@ -636,6 +636,17 @@ console.log('\n[20] 后台批量赠礼 + 榜单');
   await new Promise((res) => setTimeout(res, 5));
   seedSession(kv, 'u9', '9109', '后来者'); await call('/whoami', { headers: { Authorization: 'Bearer u9' } });
   eq('发放之后才注册的账号拿不到全员赠礼', (await call('/grants/mine', { headers: { Authorization: 'Bearer u9' } })).json.items.length, 0);
+  // 召唤券 / 金币 / 回溯券：单人接口发给后来者（只有这一个人受影响）；超上限的会被夹住，什么都不带 → 400
+  const g9 = await call('/admin/grant', { method: 'POST', headers: AD, body: { uid: '9109', rw: 3, tk: 20000, gold: 5000000000, note: 'BUG 奖励' } });
+  check('单人发回溯券 + 召唤券 + 金币', g9.json.ok && g9.json.rw === 3 && g9.json.tk === 9999 && g9.json.gold === 1e9, g9.json);
+  const g9m = await call('/grants/mine', { headers: { Authorization: 'Bearer u9' } });
+  check('拿到的赠礼带 rw / tk / gold（上限夹住）', g9m.json.items.length === 1 && g9m.json.items[0].rw === 3 && g9m.json.items[0].tk === 9999 && g9m.json.items[0].gold === 1e9, g9m.json);
+  eq('只带 0 的券 → 400', (await call('/admin/grant', { method: 'POST', headers: AD, body: { uid: '9109', rw: 0, tk: 0, gold: 0 } })).status, 400);
+  // 后台看 BUG 反馈详情
+  eq('非管理员读不了 BUG 反馈', (await call('/admin/bugs', { headers: U1 })).status, 403);
+  await call('/home/bug', { method: 'POST', headers: { 'X-Device': 'dev-admin-bug' }, body: { game: 'lovelive', text: '点了开始以后画面卡在载入，原曲没有声音', contact: 'qq123' } });
+  const bl = await call('/admin/bugs?limit=20', { headers: AD });
+  check('管理员读到 BUG 反馈详情（含正文 / 游戏 / 联系方式）', bl.json.ok && bl.json.total >= 1 && bl.json.items.length >= 1 && bl.json.items[0].text.length >= 8 && bl.json.items[0].game === 'lovelive' && bl.json.items[0].contact === 'qq123' && /^B-/.test(bl.json.items[0].id), bl.json);
   const b2 = await call('/admin/grant-batch', { method: 'POST', headers: AD, body: { uids: ['9102'], awk: ['lotan'] } });
   eq('只发唤醒体、不发银芯 → 成功 1 人', b2.json.sent, 1);
   eq('乙有 2 条赠礼', (await call('/grants/mine', { headers: U2 })).json.items.length, 2);

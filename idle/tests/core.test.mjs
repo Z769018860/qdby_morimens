@@ -3540,3 +3540,17 @@ test('同谱羁绊：62 个人每人至少有一条点名羁绊，按打法凑�
   assert.ok(four && four.tier === 4, `四位该到最高档，实际 ${four?.tier}`);
   assert.ok(four.bonus.amp > two.bonus.amp, '高档要更肥');
 });
+
+test('站长赠礼：回溯券 / 召唤券 / 金币直接进账，每条只领一次', () => {
+  const s = newState(data, 5);
+  const t0 = s.tickets, g0 = s.gold, r0 = s.vouchers.rewind;
+  const gifts = [{ id: 'x1', rw: 2, tk: 30, gold: 5000 }];
+  const got = claimGifts(s, data, gifts);
+  assert.equal(s.vouchers.rewind, r0 + 2); assert.equal(s.tickets, t0 + 30); assert.equal(s.gold, g0 + 5000);
+  assert.ok(got.some((x) => x.voucher === 2) && got.some((x) => x.tickets === 30) && got.some((x) => x.gold === 5000));
+  assert.equal(claimGifts(s, data, gifts).length, 0);          // 同一条不重复领
+  assert.equal(s.tickets, t0 + 30);
+  // 超上限被夹住（和后端 cleanTk / cleanGold 一致）
+  claimGifts(s, data, [{ id: 'x2', tk: 99999, gold: 5e10 }]);
+  assert.equal(s.tickets, t0 + 30 + 9999); assert.equal(s.gold, g0 + 5000 + 1e9);
+});

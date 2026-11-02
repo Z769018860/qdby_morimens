@@ -959,7 +959,7 @@ async function ipLimit(kv, request, tag) {
 //   bug_idx                = JSON [id...]      最新的在前，只留 500 条给作者看
 // 为什么不做严格去重/防刷：这是同人站的评分，量级小、收益低。
 // 但 agg 用「读改写」会有并发丢失，所以写入时用 after-write 重算兜底（见 postHomeRate）。
-const HOME_GAMES = new Set(['detective', 'merge', 'bird', 'binding', 'idle', 'survivors', 'protocol', 'wolf', 'deathreport']);
+const HOME_GAMES = new Set(['detective', 'merge', 'bird', 'binding', 'idle', 'survivors', 'protocol', 'wolf', 'deathreport', 'g2048', 'duel', 'reign', 'lovelive', 'keeper', 'roulette', 'bugfight']);
 const BUG_IDX_MAX = 500;
 
 // 评分身份：登录用 uid，没登录用本机随机 id（前端 X-Device），都没有就不给投
@@ -1390,6 +1390,15 @@ function cleanRw(v) {
   const n = Math.floor(Number(v) || 0);
   return n > 0 ? Math.min(99, n) : 0;
 }
+// 挂机前夜的其他赠礼道具：召唤券（tk，每条最多 9999 张）、金币（gold，每条最多 10 亿；后期一小时就几百万，再大没意义）
+function cleanTk(v) {
+  const n = Math.floor(Number(v) || 0);
+  return n > 0 ? Math.min(9999, n) : 0;
+}
+function cleanGold(v) {
+  const n = Math.floor(Number(v) || 0);
+  return n > 0 ? Math.min(1e9, n) : 0;
+}
 
 // 赠礼存成一份文档 gx_idx（最近 100 条，每条自带收件范围）：
 //   · 发给所有人：rec.all = true，一次写入，不管有多少账号；
@@ -1422,15 +1431,37 @@ function grantRecord(b, me, to) {
   const amount = Math.round(Number(b.amount) || 0);
   const awk = cleanAwk(b.awk);
   const rw = cleanRw(b.rw);
+  const tk = cleanTk(b.tk);
+  const gold = cleanGold(b.gold);
   const note = str(b.note, 120).trim();
   if (!(amount >= 0 && amount <= 100000)) throw new HttpError(400, 'bad_amount');
-  if (!amount && !awk.length && !rw) throw new HttpError(400, 'bad_amount');
+  if (!amount && !awk.length && !rw && !tk && !gold) throw new HttpError(400, 'bad_amount');
   const id = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const rec = { id, amount, note, at: Date.now(), by: me.name || me.uid };
   if (awk.length) rec.awk = awk;
   if (rw) rec.rw = rw;
+  if (tk) rec.tk = tk;
+  if (gold) rec.gold = gold;
   if (to != null) rec.to = to;
   return rec;
+}
+
+// GET /admin/bugs?limit=100 —— 管理员看 BUG 反馈详情（以前只统计了条数，正文写进去却没有任何读取入口）。
+// bug_idx 是编号索引（最新在前），正文各存一个 bug_<编号>；一次最多读 100 条，读不出来的编号跳过。
+async function getAdminBugs(request, env, kv, url, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) throw new HttpError(401, 'need_login');
+  if (!(await isAdmin(env, kv, me))) throw new HttpError(403, 'not_admin', publicWhy(await adminWhy(env, kv, me)));
+  const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 50));
+  const idx = await softly(() => kvJson(kv, 'bug_idx', true), null);
+  const ids = Array.isArray(idx) ? idx : [];
+  const items = [];
+  for (let i = 0; i < ids.length && items.length < limit; i += 8) {
+    const part = ids.slice(i, i + 8);
+    const rows = await Promise.all(part.map((id) => softly(() => kvJson(kv, 'bug_' + String(id).replace(/-/g, ''), true), null)));
+    for (const r of rows) if (r && r.text && items.length < limit) items.push({ id: String(r.id || ''), game: String(r.game || ''), text: String(r.text), contact: String(r.contact || ''), ver: String(r.ver || ''), ua: String(r.ua || ''), at: Number(r.at) || 0 });
+  }
+  return reply({ ok: true, total: ids.length, items }, 200, cors);
 }
 
 // POST /admin/grant { uid, amount, awk?, note }
@@ -1447,7 +1478,7 @@ async function postAdminGrant(request, env, kv, cors) {
   const rec = grantRecord(b, me, null);
   rec.to = [await uhash(uid)];
   await putGrantDoc(kv, rec);
-  return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], rw: rec.rw || 0, uid, note: rec.note }, 200, cors);
+  return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], rw: rec.rw || 0, tk: rec.tk || 0, gold: rec.gold || 0, uid, note: rec.note }, 200, cors);
 }
 
 // POST /admin/grant-batch { uids?: string[], all?: boolean, amount, awk?, note }
@@ -1472,7 +1503,7 @@ async function postAdminGrantBatch(request, env, kv, cors) {
     rec.to = await Promise.all(uids.map((u) => uhash(u)));
   }
   await putGrantDoc(kv, rec);
-  return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], rw: rec.rw || 0, sent: total, total, failed: 0, failedUids: [], note: rec.note }, 200, cors);
+  return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], rw: rec.rw || 0, tk: rec.tk || 0, gold: rec.gold || 0, sent: total, total, failed: 0, failedUids: [], note: rec.note }, 200, cors);
 }
 
 // ------------------------------------------------------------------ 榜单
@@ -1609,8 +1640,8 @@ async function getMyGrants(request, env, kv, cors) {
     ok: true,
     items: all.map((g) => ({
       id: String(g.id || ''), amount: Number(g.amount) || 0, note: String(g.note || ''), at: Number(g.at) || 0,
-      awk: cleanAwk(g.awk), rw: cleanRw(g.rw),
-    })).filter((g) => g.id && (g.amount > 0 || g.awk.length || g.rw > 0) && !seen.has(g.id) && seen.add(g.id)),
+      awk: cleanAwk(g.awk), rw: cleanRw(g.rw), tk: cleanTk(g.tk), gold: cleanGold(g.gold),
+    })).filter((g) => g.id && (g.amount > 0 || g.awk.length || g.rw > 0 || g.tk > 0 || g.gold > 0) && !seen.has(g.id) && seen.add(g.id)),
   }, 200, cors);
 }
 
@@ -1661,7 +1692,8 @@ export async function onRequest(context) {
         // v11 多了 /llsongs（lovelive 云端曲库：只收谱面，不收音频）
         // v12 榜单多了杀死守密人（已解锁结局数），见 BOARD_SPEC 的 kp
         // v13 赠礼支持 rw（免费回溯券，挂机前夜的「回溯券」），/grants/mine 会带回来
-        ok: Boolean(store), service: 'zjtt', v: 13, runtime: 'edgeone',
+        // v14 赠礼再加 tk（召唤券）/ gold（金币）；多了 GET /admin/bugs（后台看 BUG 反馈详情）
+        ok: Boolean(store), service: 'zjtt', v: 14, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
@@ -1689,6 +1721,7 @@ export async function onRequest(context) {
     if (path === '/whoami' && method === 'GET') return await getWhoami(request, env, kv, cors);
     if (path === '/grants/mine' && method === 'GET') return await getMyGrants(request, env, kv, cors);
     if (path === '/admin/overview' && method === 'GET') return await getAdminOverview(request, env, kv, cors, url);
+    if (path === '/admin/bugs' && method === 'GET') return await getAdminBugs(request, env, kv, url, cors);
     if (path === '/admin/grant' && method === 'POST') return await postAdminGrant(request, env, kv, cors);
     if (path === '/admin/grant-batch' && method === 'POST') return await postAdminGrantBatch(request, env, kv, cors);
     if (path === '/board' && method === 'GET') return await getBoard(request, env, kv, cors);

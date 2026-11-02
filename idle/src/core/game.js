@@ -1097,6 +1097,11 @@ export function claimGifts(state, data, items) {
     if (id === 'c:' || done.has(id)) continue;
     const rw = Math.max(0, Math.min(99, Math.floor(Number(g.rw) || 0)));
     if (rw) { (state.vouchers ||= { rewind: 0 }).rewind += rw; got.push({ voucher: rw }); }
+    // 召唤券 / 金币（站长在后台发的补偿）：直接进账；金币上限 10 亿一条，和后端 cleanGold 一致
+    const tk = Math.max(0, Math.min(9999, Math.floor(Number(g.tk) || 0)));
+    if (tk) { state.tickets = (Number(state.tickets) || 0) + tk; got.push({ tickets: tk }); }
+    const gd = Math.max(0, Math.min(1e9, Math.floor(Number(g.gold) || 0)));
+    if (gd) { state.gold = (Number(state.gold) || 0) + gd; got.push({ gold: gd }); }
     for (const slug of Array.isArray(g.awk) ? g.awk : []) {
       const a = data.bySlug[slug];
       if (!a) continue;
