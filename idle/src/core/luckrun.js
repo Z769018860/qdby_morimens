@@ -50,7 +50,7 @@ export const LUCK_BUFFS = [
   { id: 'b_ali', zh: '共鸣', desc: '全队共鸣回复 +18%', tag: '鸣', key: 'aliGain', v: 18 },
   { id: 'b_key', zh: '钥焰', desc: '全队钥焰回复 +18%', tag: '钥', key: 'keyGain', v: 18 },
   // 两条「保命」取向的增益：生存压力大的中后期，比再多的攻击都实在
-  { id: 'b_survive', zh: '韧性', desc: '全队濒死存活 +7%（每场最多救一次）', tag: '韧', key: 'surviveChance', v: 0.07 },
+  { id: 'b_survive', zh: '韧性', desc: '全队濒死存活 +7%（触发一次后概率折半，可连续触发）', tag: '韧', key: 'surviveChance', v: 0.07 },
   { id: 'b_shieldopen', zh: '铁幕', desc: '每场战斗开局全队获得 12% 最大生命的护盾', tag: '幕', key: 'shield', v: 12 },
 ];
 

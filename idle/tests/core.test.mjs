@@ -3639,3 +3639,18 @@ test('造物特质也能刷：同一套 16 种属性 × 5 个品阶，没刷过�
   assert.ok(bonus.steal >= _RB.steal * 2.2 - 1e-9);
 });
 import { relicBonuses } from '../src/core/game.js';
+
+test('濒死存活：触发一次后概率折半，可以连续触发（不再整场只救一次）', () => {
+  let most = 0, firstOnly = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const ally = mkAlly({ hp: 500, def: 0, surviveChance: 0.9 });
+    const foe = mkFoe({ hp: 1e7, atk: 5000, pattern: [{ name: '重击', effects: [{ t: 'dmg', m: 1, to: 'foe' }] }] });
+    const r = simulate({ allies: [ally], enemies: [foe], seed, maxRounds: 8 });
+    const saved = r.events.filter((e) => e.k === 'dmg' && e.who === 'a0' && e.saved).length;
+    most = Math.max(most, saved);
+    if (saved === 1) firstOnly++;
+  }
+  assert.ok(most >= 2, `同一场里应能触发多次，最多只有 ${most} 次`);
+  assert.ok(most <= 8, '概率每次折半，不会无限触发');
+  assert.ok(firstOnly > 0, '也会有只触发一次的场次（折半后概率变低）');
+});

@@ -28,7 +28,7 @@ export function makeUnit(def, side, idx) {
     critRate: num(def.critRate, 0), critDmg: num(def.critDmg, 50), amp: num(def.amp, 0),
     aliGain: num(def.aliGain, 0), keyGain: num(def.keyGain, 0),
     healBonus: num(def.healBonus, 0), shieldBonus: num(def.shieldBonus, 0), steal: num(def.steal, 0),
-    surviveChance: num(def.surviveChance, 0), survived: false,
+    surviveChance: num(def.surviveChance, 0), survived: 0,
     openAli: num(def.openAli, 0), openKey: num(def.openKey, 0),
     firstBoost: num(def.firstBoost, 0),
     rank: def.rank || null, kit: def.kit || null, extra: def.extra || null, pattern: def.pattern || null, opening: def.opening || [], boss: !!def.boss, reward: !!def.reward, affix: def.affix || null,
@@ -226,8 +226,11 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     let absorbed = 0;
     if (tgt.shield > 0) { absorbed = Math.min(tgt.shield, dmg); tgt.shield -= absorbed; dmg -= absorbed; }
     let saved = false;
-    if (dmg >= tgt.hp && tgt.surviveChance && !tgt.survived && rng() < tgt.surviveChance) {
-      tgt.survived = true; saved = true; dmg = tgt.hp - 1;
+    // 濒死存活：致命一击按概率挡成「剩 1 点血」。触发一次后概率折半，可以连续触发（以前整场只能救一次）；
+    // survived 记已经触发了几次，surviveChance 就地折半，低于 0.1% 直接归零
+    if (dmg >= tgt.hp && tgt.surviveChance > 0 && rng() < tgt.surviveChance) {
+      tgt.survived = (tgt.survived || 0) + 1; saved = true; dmg = tgt.hp - 1;
+      tgt.surviveChance = tgt.surviveChance / 2 < 0.001 ? 0 : tgt.surviveChance / 2;
     }
     tgt.hp = Math.max(0, tgt.hp - dmg);
     push({ k: kind, by: src.uid, who: tgt.uid, amt: dmg, absorbed, crit, hp: tgt.hp, shield: tgt.shield, saved, ...extra });
