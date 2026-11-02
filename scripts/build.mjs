@@ -672,6 +672,56 @@ function genBugfight() {
   return { n: data.mobs.length, sk: Object.keys(data.skills).length, kb: Math.round(code.length / 1024) };
 }
 
+// ------------------------------------------- 寻找伪人的像素图集与档案
+// 73 个角色（62 唤醒体 + 11 主播）如果各拉一张图，边缘就是七十几个 1~2 秒的来回。
+// 素材已经由 scripts/build_fake_art.py 拼成四张图集（战斗立绘 / 立绘 / 头像 / 主播头像），
+// 这里连同 data/fake-chars.json 的档案一起内联成 js/fake/gen.js。
+// 构建期顺手校验一遍「谁少了哪张图」——线上少一张脸，比构建失败难查得多。
+function genFake() {
+  const meta = readJson(path.join(ROOT, 'data/fake-art.json'));
+  const raw = readJson(path.join(ROOT, 'data/fake-chars.json'));
+  const chars = raw.chars || [];
+  if (chars.length !== 73) throw new Error(`寻找伪人：角色应为 73 名（现在是 ${chars.length}）`);
+  const slots = { idle: 0, card: 0, bust: 0, face: 0 };
+  const seen = new Set();
+  for (const c of chars) {
+    if (seen.has(c.n)) throw new Error(`寻找伪人：角色重名「${c.n}」`);
+    seen.add(c.n);
+    for (const k of ['realm', 'role']) {
+      if (!c.facts[k]) throw new Error(`寻找伪人：「${c.n}」缺 ${k}`);
+    }
+    if (!c.card.length || !c.ask.length) throw new Error(`寻找伪人：「${c.n}」的核对项是空的`);
+    if (c.k === 'a') {
+      slots.idle++; slots.card++; slots.bust++;
+    } else {
+      slots.face++;
+    }
+  }
+  const ART_SRC = { idle: 'assets/fake/idle.webp', card: 'assets/fake/card.webp', bust: 'assets/fake/bust.webp', face: 'assets/fake/face.webp' };
+  for (const [k, rel] of Object.entries(ART_SRC)) {
+    const p = path.join(ROOT, rel);
+    if (!has(p)) throw new Error(`缺少 ${rel}：先跑 python scripts/build_fake_art.py`);
+    const n = (meta[k] && meta[k].rects || []).length;
+    if (n !== slots[k]) throw new Error(`${rel} 有 ${n} 格，但要用 ${slots[k]} 张：重跑 build_fake_art.py`);
+  }
+  const art = {};
+  for (const [k, rel] of Object.entries(ART_SRC)) {
+    art[k] = 'data:image/webp;base64,' + fs.readFileSync(path.join(ROOT, rel)).toString('base64');
+  }
+  const code = [
+    '// 由 scripts/build.mjs 从 data/fake-art.json + data/fake-chars.json 生成，请勿手改。',
+    '// ART 是四张图集的 data URI；META 每格记 [x, y, w, h]，画的时候直接切。',
+    `export const ART = ${JSON.stringify(art)};`,
+    `export const META = ${JSON.stringify(meta)};`,
+    `export const CHARS = ${JSON.stringify(chars)};`,
+    '',
+  ].join('\n');
+  const out = path.join(ROOT, 'js/fake/gen.js');
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  if (!has(out) || read(out) !== code) fs.writeFileSync(out, code, 'utf8');
+  return { n: chars.length, kb: Math.round(code.length / 1024) };
+}
+
 // ------------------------------------------------------------------ 主流程
 const artCount = genMergeArt();
 const liveUnits = genLive();
@@ -682,6 +732,7 @@ const sv = genSurvivors();
 const pf = genProtocol();
 const rg = genReign();
 const duel = genDuel();
+const fakeArt = genFake();
 // 「校猫的结合」要内联四十多张图（猫 + 造物 + 密契 + 钥令 + 首领），逻辑单独放一个脚本，
 // 这里只负责在构建时调它，保证 js/binding-art.js 不会和 data/binding-art.json 走散。
 execFileSync(process.execPath, [path.join(ROOT, 'scripts/build_binding_art.mjs')], { stdio: 'pipe' });
@@ -708,7 +759,7 @@ let totalModules = 0;
 for (const f of pageFiles) {
   const name = f.replace(/\.html$/, '');
   const src = read(path.join(PAGES, f));
-  const entry = (src.match(/<script type="module" src="js\/([\w.-]+\.js)"/) || [])[1];
+  const entry = (src.match(/<script type="module" src="js\/([\w./-]+\.js)"/) || [])[1];
   if (!entry) { built.push({ name, src, entry: null }); continue; }
   const { code, modules } = bundle('js/' + entry);
   // 打成一个经典脚本之后，各模块的顶层 const / function 在同一个作用域里：两个模块各写一个 `const when`
@@ -906,7 +957,7 @@ for (const p of built) {
     .replace(/__DICT__/g, () => (DATA_PAGES.has(p.name) ? 'data/dict.json' : '')));
   // 入口脚本换成打包文件
   if (p.entry) {
-    s = s.replace(/(<script type="module" src="js\/)[\w.-]+\.js"/,
+    s = s.replace(/(<script type="module" src="js\/)[\w./-]+\.js"/,
       `$1b/${p.entry}?v=${stamp}"`);
   }
   // 构建戳 + SW 注册
@@ -960,5 +1011,6 @@ console.log(`  唤醒体幸存者：${sv.chars} 名角色 / ${sv.weapons} 把武
 console.log(`  忘却协议：${pf.units} 名唤醒体 / ${pf.mobs} 种怪物，js/pf/gen.js ${pf.kb}KB（图集已内联）`);
 console.log(`  弥萨格王权：${rg.n} 张卡面，js/reign/art.js ${rg.kb}KB（立绘已内联）`);
 console.log(`  电子斗蛐蛐：${bfMobs.n} 只怪 / ${bfMobs.sk} 条技能，js/bugfight/gen.js ${bfMobs.kb}KB（九张席位头像已内联）`);
+console.log(`  寻找伪人：${fakeArt.n} 名角色，js/fake/gen.js ${fakeArt.kb}KB（四张像素图集已内联）`);
 for (const e of extras) console.log(`  延迟加载 js/b/${e.out}`.padEnd(30), `${e.modules} 个模块 → ${e.kb}KB（不进首屏）`);
 console.log(`sw.js 预缓存 ${precache.length} 项`);

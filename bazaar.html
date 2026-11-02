@@ -263,6 +263,9 @@ button{font:inherit;color:inherit}
 .filters button.on{color:var(--text);background:color-mix(in oklab,var(--accent) 16%,var(--panel));
   box-shadow:inset 0 0 0 1px var(--accent)}
 .hgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;flex:0 0 auto;
+  /* 列表是内部滚动的，底边淡出一点，别让人以为卡片被按钮切了 */
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 16px),transparent);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 16px),transparent);
   max-height:min(28vh,240px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding-right:2px}
 @media (min-width:520px){ .hgrid{grid-template-columns:repeat(5,1fr)} }
 .hcard{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 3px 3px;
@@ -277,6 +280,8 @@ button{font:inherit;color:inherit}
 .hcard.r-CH{--realm:var(--chaos)} .hcard.r-CA{--realm:var(--caro)}
 .hcard.r-AE{--realm:var(--aqua)} .hcard.r-UL{--realm:var(--ultra)}
 .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px;flex:0 0 auto;
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 16px),transparent);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 16px),transparent);
   max-height:min(20vh,180px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding-right:2px}
 .pcard{display:flex;gap:6px;align-items:center;padding:4px 6px;text-align:left;cursor:pointer;
   min-width:0;border:0;background:var(--panel);box-shadow:inset 0 0 0 1px var(--line);--cut:7px}
@@ -366,7 +371,7 @@ button{font:inherit;color:inherit}
   #heroBan .bpas{-webkit-line-clamp:2}
 }
 </style>
-<meta name="build" content="82a39cba37">
+<meta name="build" content="604ef96f20">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -548,7 +553,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/bazaar.js?v=82a39cba37"></script>
+<script type="module" src="js/b/bazaar.js?v=604ef96f20"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

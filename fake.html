@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>寻找伪人：Morimens · 忘忘同人小游戏</title>
+<meta name="description" content="《忘却前夜》同人像素恐怖：你是弥萨格地下十一层的门房，每晚有人敲门，自称是登记簿上的唤醒体。核对登记卡、翻档案、隔着玻璃问几句话，然后决定开不开门——伪人只会抄错一条，你只有两三次机会看出来。62 名唤醒体（官方立绘 + 战斗立绘）与 11 位 B 站主播全员登场。">
+<meta name="theme-color" content="#08080b">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
+<style>
+/* 寻找伪人 —— 像素恐怖。
+   视觉只有三件事：一盏灯、一扇门、一本档案。所有面板都是硬边、硬阴影、无圆角，
+   颜色压到只有「墨黑 / 骨白 / 灯油金 / 血」，界域色只在徽章上露一点。 */
+:root{
+  --bg:#08080b; --bg2:#0d0e13; --panel:#111218; --panel2:#16171f;
+  --line:#2b2d38; --line2:#3b3e4c;
+  --text:#ded8cb; --dim:#8e887c; --dim2:#605c53;
+  --gold:#e3b341; --gold2:#8a6a2a; --blood:#b3413f; --blood2:#d76a5f;
+  --good:#6fae7c;
+  --chaos:#d16b9b; --caro:#d29a4e; --aqua:#4fb0c9; --ultra:#9a86d8;
+  --px:2px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--text); overflow:hidden;
+  font:14px/1.5 ui-monospace,"Cascadia Mono",Consolas,"Sarasa Mono SC","Microsoft YaHei",monospace;
+  -webkit-tap-highlight-color:transparent; user-select:none;
+  letter-spacing:.01em;
+}
+/* 全屏扫描线：只在最外层画一次，别给每个面板加 */
+body::after{
+  content:""; position:fixed; inset:0; z-index:900; pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.17) 0 1px,rgba(0,0,0,0) 1px 3px);
+  mix-blend-mode:multiply;
+}
+button{font:inherit; color:inherit; letter-spacing:inherit}
+a{color:inherit; text-decoration:none}
+h1,h2,h3,p{margin:0}
+[hidden]{display:none !important}
+
+/* ---------------------------------------------------------------- 按钮 */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  padding:9px 14px; background:var(--panel2); color:var(--text);
+  border:var(--px) solid var(--line2); box-shadow:3px 3px 0 #040406;
+  cursor:pointer; white-space:nowrap;
+}
+.btn:hover{background:#1d1f28}
+.btn:active{transform:translate(2px,2px); box-shadow:1px 1px 0 #040406}
+.btn:disabled{opacity:.4; cursor:not-allowed; transform:none; box-shadow:3px 3px 0 #040406}
+.btn.primary{background:var(--gold); color:#0a0a0c; border-color:#f0cb72; font-weight:700}
+.btn.primary:hover{background:#f0cb72}
+.btn.danger{background:#2a1413; border-color:var(--blood); color:#f0b6ae}
+.btn.danger:hover{background:#3a1a18}
+.btn.ghost{background:transparent; box-shadow:none; border-color:var(--line)}
+.btn.small{padding:6px 10px; font-size:12.5px}
+.btn.done{opacity:.45}
+
+/* ---------------------------------------------------------------- 首屏 */
+#boot{
+  position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+  background:var(--bg); z-index:50;
+}
+#boot .ring{width:26px; height:26px; border:2px solid #262832; border-top-color:var(--gold); border-radius:50%; animation:spin .9s linear infinite}
+#boot p{margin:0; font-size:13px; color:var(--dim)}
+#boot.err .ring{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.app{height:100dvh; display:flex; flex-direction:column; overflow:hidden}
+
+/* ---------------------------------------------------------------- 标题页 */
+.title{
+  flex:1; position:relative; display:flex; align-items:center; justify-content:center;
+  overflow:hidden; padding:24px;
+  background:
+    radial-gradient(680px 340px at 18% 8%,rgba(227,179,65,.10),transparent 60%),
+    radial-gradient(900px 500px at 70% 110%,rgba(179,65,63,.08),transparent 62%),
+    #07070a;
+}
+/* 背景里那扇门：一块比画面更暗的矩形 + 门缝里的一线光 */
+.title::before{
+  content:""; position:absolute; left:50%; top:12%; width:min(38vw,340px); height:78%;
+  transform:translateX(-50%); background:#0c0c11; border:3px solid #191a22;
+  box-shadow:inset 0 0 0 6px #0a0a0e, 0 0 90px rgba(0,0,0,.9);
+}
+.title::after{
+  content:""; position:absolute; left:50%; bottom:12%; width:min(34vw,300px); height:3px;
+  transform:translateX(-50%); background:linear-gradient(90deg,transparent,rgba(227,179,65,.55),transparent);
+  animation:breathe 4.5s ease-in-out infinite;
+}
+@keyframes breathe{0%,100%{opacity:.45}50%{opacity:.9}}
+.tinner{position:relative; z-index:2; text-align:center; max-width:640px}
+.eyebrow{font-size:12px; color:var(--dim); letter-spacing:.22em; margin-bottom:14px}
+.title h1{
+  font-size:clamp(30px,6.2vw,54px); line-height:1.1; letter-spacing:.06em; color:#f2ecdd;
+  text-shadow:3px 3px 0 #000,6px 6px 0 rgba(179,65,63,.22);
+}
+.title h1 span{color:var(--gold); font-size:.55em; letter-spacing:.02em; display:inline-block; text-shadow:2px 2px 0 #000}
+.lead{margin:20px 0 6px; color:#b6b0a3; font-size:13.5px; line-height:1.9; white-space:pre-line}
+.menu{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin:26px 0 14px}
+.menu .btn{min-width:132px}
+.best{font-size:12px; color:var(--gold2); min-height:1.5em}
+.tiny{font-size:11px; color:var(--dim2); margin-top:26px; line-height:1.8}
+
+/* ---------------------------------------------------------------- 游戏页 */
+.game{flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; padding:8px}
+.hud{
+  display:flex; align-items:center; gap:12px; padding:5px 8px;
+  border:var(--px) solid var(--line); background:var(--bg2);
+}
+.hud .home{color:var(--dim); font-size:16px; padding:0 6px; border-right:1px solid var(--line); margin-right:2px}
+.hud .home:hover{color:var(--gold)}
+.night{display:flex; flex-direction:column; line-height:1.15; min-width:88px}
+.night b{font-size:13px; color:var(--gold); letter-spacing:.08em}
+.night span{font-size:10.5px; color:var(--dim)}
+.sanity{display:flex; align-items:center; gap:7px; flex:1; max-width:300px}
+.sanity>span{font-size:10.5px; color:var(--dim); letter-spacing:.1em}
+.bar{flex:1; height:9px; background:#1b1c24; border:1px solid #33353f; position:relative; overflow:hidden}
+.bar i{display:block; height:100%; width:100%; background:linear-gradient(90deg,#5d8f66,#8dc08a); transition:width .35s steps(6)}
+.bar i.warn{background:linear-gradient(90deg,#8a6a2a,#e3b341)}
+.bar i.bad{background:linear-gradient(90deg,#7a2523,#d76a5f)}
+.sanity b{font-size:12px; min-width:26px; text-align:right}
+.ammo{display:flex; gap:3px}
+.ammo i{width:6px; height:13px; background:#23242c; border:1px solid #3a3c47; display:block}
+.ammo i.on{background:var(--gold); border-color:#f0cb72}
+.ico{width:30px; height:28px; display:grid; place-items:center; background:transparent; border:var(--px) solid var(--line); color:var(--dim); cursor:pointer}
+.ico:hover{color:var(--gold); border-color:var(--line2)}
+.ico.off{color:var(--dim2); text-decoration:line-through}
+
+.main{
+  flex:1; min-height:0; display:grid; gap:8px;
+  grid-template-columns:minmax(0,1fr) 374px;
+  grid-template-rows:minmax(0,1fr) auto;
+}
+.stage{
+  grid-column:1; grid-row:1; position:relative; min-height:0;
+  display:flex; align-items:center; justify-content:center;
+  background:#050507; border:var(--px) solid var(--line); overflow:hidden;
+}
+.stage canvas{width:100%; height:100%; object-fit:contain; image-rendering:pixelated; display:block}
+/* 门牌：第几夜，压在画面右上角 */
+.stagetag{position:absolute; right:8px; top:8px; font-size:10px; color:#7f7a6e; letter-spacing:.18em; text-shadow:1px 1px 0 #000}
+
+.side{grid-column:2; grid-row:1 / span 2; display:flex; flex-direction:column; min-height:0;
+  border:var(--px) solid var(--line); background:var(--bg2)}
+.tabs{display:flex; border-bottom:var(--px) solid var(--line)}
+.tabs button{
+  flex:1; padding:8px 4px; background:transparent; border:0; border-right:1px solid var(--line);
+  color:var(--dim); cursor:pointer; font-size:12.5px; position:relative;
+}
+.tabs button:last-child{border-right:0}
+.tabs button.on{background:var(--panel); color:var(--gold)}
+.tabs button.flag::after{
+  content:"!"; position:absolute; right:8px; top:5px; color:var(--blood2); font-weight:700;
+}
+.pane{flex:1; min-height:0; overflow:auto; padding:10px 12px 14px}
+.pane::-webkit-scrollbar{width:6px}
+.pane::-webkit-scrollbar-thumb{background:#2c2e38}
+.hint{font-size:11px; color:var(--dim2); line-height:1.7; margin-top:8px}
+.fhead{font-size:11px; color:var(--dim); letter-spacing:.2em; margin:2px 0 8px}
+
+/* 登记卡：一张递进来的证件 */
+.idcard{position:relative; background:#c9c2ae; color:#16150f; padding:12px 12px 10px; border:2px solid #8d856f;
+  box-shadow:4px 4px 0 #050508, inset 0 0 0 1px rgba(255,255,255,.35)}
+.idhead{display:flex; gap:10px; align-items:center; padding-bottom:8px; border-bottom:1px dashed rgba(0,0,0,.35)}
+.idhead .spr{background-color:#2a2a2a; filter:grayscale(.15) contrast(1.05)}
+.idname{display:flex; flex-direction:column; line-height:1.25}
+.idname b{font-size:19px; letter-spacing:.04em}
+.idname span{font-size:10.5px; color:#4a473d; letter-spacing:.08em}
+.idrow{display:flex; justify-content:space-between; align-items:baseline; padding:5px 0 4px; border-bottom:1px dotted rgba(0,0,0,.22)}
+.idrow span{font-size:11px; color:#5a564a; letter-spacing:.12em}
+.idrow b{font-size:14px}
+.idfoot{font-size:9.5px; color:#6b6759; margin-top:8px; letter-spacing:.14em}
+.stamp{
+  position:absolute; right:10px; top:50px; transform:rotate(-14deg);
+  border:2px solid rgba(150,45,40,.65); color:rgba(150,45,40,.75);
+  padding:2px 6px; font-size:9.5px; letter-spacing:.1em; opacity:.85;
+}
+.asked{margin-top:12px; border-top:1px solid var(--line); padding-top:6px}
+.aline{display:grid; grid-template-columns:70px 1fr; gap:2px 8px; padding:5px 0; border-bottom:1px dotted #23242c; font-size:12px}
+.aline span{color:var(--dim)}
+.aline b{color:var(--text); word-break:break-all}
+.aline em{grid-column:2; font-style:normal; font-size:10.5px; color:var(--good)}
+.aline.bad em{color:var(--blood2)}
+
+/* 档案 */
+.file{display:flex; gap:10px; align-items:flex-start; margin-bottom:10px}
+.photo{position:relative; flex:none; background:#0a0a0d; border:2px solid #33353f; padding:3px; box-shadow:3px 3px 0 #050508}
+.photo .spr{filter:sepia(.18) contrast(1.04)}
+.photo.s{background:#12141a}
+.phcap{display:block; font-size:9px; color:var(--dim2); text-align:center; margin-top:3px; max-width:100px; line-height:1.4}
+.fmeta{display:flex; flex-direction:column; gap:4px; min-width:0}
+.fmeta b{font-size:17px}
+.fmeta span{font-size:11px; color:var(--dim); line-height:1.6}
+.ftable{border-top:1px solid var(--line); margin-top:2px; padding-top:4px}
+.frow{display:grid; grid-template-columns:62px 1fr auto auto; gap:2px 6px; align-items:baseline;
+  padding:5px 0; border-bottom:1px dotted #23242c; font-size:12px}
+.fl{font-size:10.5px; color:var(--dim); letter-spacing:.1em}
+.fv{color:#cfc9bc; word-break:break-all}
+.fc{color:var(--text); word-break:break-all; font-size:11.5px}
+.fc.dim{color:var(--dim2)}
+.fc.ok{color:var(--good)}
+.fc.bad{color:var(--blood2)}
+.fmark{font-size:11px; color:var(--good); width:10px}
+.frow.bad .fmark{color:var(--blood2)}
+.frow.bad .fv{text-decoration:underline wavy rgba(179,65,63,.6)}
+
+/* 记录 */
+.lrow{display:grid; grid-template-columns:56px 1fr auto; gap:6px; padding:6px 0; border-bottom:1px dotted #23242c; font-size:12px}
+.lrow .ln{color:var(--dim2); font-size:10.5px}
+.lrow b{font-weight:600}
+.lrow em{font-style:normal; font-size:10.5px; padding:0 5px; border:1px solid var(--line2); color:var(--dim)}
+.lrow.fake em{color:var(--blood2); border-color:#5a2422}
+.lrow.real em{color:var(--good); border-color:#2c4432}
+.logfoot{display:flex; flex-direction:column; gap:4px; margin-top:10px; font-size:10.5px; color:var(--dim2)}
+
+/* 对话框 */
+.talk{
+  grid-column:1; grid-row:2; min-height:126px; display:flex; flex-direction:column; gap:6px;
+  padding:9px 12px 10px; border:var(--px) solid var(--line); background:var(--bg2);
+}
+.who{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+.who span{font-size:12.5px; color:var(--gold); letter-spacing:.08em}
+.who em{font-style:normal; font-size:10.5px; color:var(--dim)}
+.who em.bad{color:var(--blood2)}
+.who em.good{color:var(--good)}
+#tLine{flex:1; white-space:pre-wrap; font-size:13.5px; line-height:1.75; color:#ddd7ca; min-height:56px}
+.acts{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.acts .left{margin-left:auto; font-size:10.5px; color:var(--dim2)}
+
+/* ---------------------------------------------------------------- 结局 */
+.ending{flex:1; min-height:0; overflow:auto; display:flex; align-items:flex-start; justify-content:center; padding:24px 16px;
+  background:radial-gradient(700px 400px at 50% 0%,rgba(227,179,65,.07),transparent 60%),#07070a}
+.endcard{width:min(680px,100%); border:var(--px) solid var(--line2); background:#0c0d12; padding:22px 22px 18px;
+  box-shadow:6px 6px 0 #040406}
+.ek{font-size:10.5px; letter-spacing:.32em; color:var(--dim)}
+.endcard h2{font-size:clamp(22px,4.4vw,32px); margin:6px 0 4px; color:#f0e9d8; letter-spacing:.04em}
+.es{font-size:11.5px; color:var(--gold2); letter-spacing:.12em}
+.ebody{margin:16px 0 14px; padding:14px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line)}
+.ebody p{font-size:13px; line-height:2; color:#c8c2b5; margin-bottom:2px}
+.estats{display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:6px}
+.erow{display:flex; justify-content:space-between; gap:8px; padding:6px 8px; background:#111218; border:1px solid #23242c; font-size:11.5px}
+.erow span{color:var(--dim)}
+.erow b{color:var(--gold); font-size:13px}
+.eacts{display:flex; gap:10px; flex-wrap:wrap; margin-top:18px}
+
+/* ---------------------------------------------------------------- 弹窗 */
+.modal{position:fixed; inset:0; z-index:800; display:flex; align-items:center; justify-content:center;
+  background:rgba(4,4,6,.82); padding:16px; backdrop-filter:blur(2px)}
+.modal[hidden]{display:none}
+.mbox{width:min(520px,100%); max-height:88vh; overflow:auto; background:#0e0f15; border:var(--px) solid var(--line2);
+  padding:18px 18px 14px; box-shadow:7px 7px 0 #030304}
+.mbox.wide{width:min(880px,100%)}
+.mbox h3{font-size:16px; letter-spacing:.08em; color:var(--gold); margin-bottom:10px}
+.mbody p{font-size:13px; line-height:1.9; color:#cdc7ba; margin-bottom:8px}
+.mbody p.pre{white-space:pre-line}
+.macts{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; margin-top:14px}
+.hrow{padding:8px 0; border-bottom:1px dotted #23242c}
+.hrow b{font-size:12.5px; color:var(--gold)}
+.hrow p{font-size:12px; color:#c2bcb0; line-height:1.8; white-space:pre-line; margin-top:2px}
+
+/* 图鉴 */
+.cfilter{display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap}
+.cfilter button{padding:5px 10px; background:transparent; border:1px solid var(--line2); color:var(--dim); cursor:pointer; font-size:11.5px}
+.cfilter button.on{background:var(--gold); color:#0a0a0c; border-color:var(--gold); font-weight:700}
+.cgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(74px,1fr)); gap:6px}
+.citem{display:flex; flex-direction:column; align-items:center; gap:3px; padding:5px 3px;
+  background:#111218; border:1px solid #23242c; cursor:pointer; overflow:hidden}
+.citem:hover{border-color:var(--line2); background:#171922}
+.citem span{font-size:10px; color:#b8b2a6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
+.citem.lock{opacity:.45; cursor:default}
+.citem .spr{flex:none}
+.cdetail{display:flex; gap:14px; align-items:flex-start}
+.cinfo{min-width:0; flex:1}
+.cinfo h3{margin-bottom:2px}
+.cen{font-size:11px; color:var(--dim); letter-spacing:.06em; margin-bottom:6px}
+.ctags{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px}
+.ctag{font-size:10.5px; padding:2px 7px; border:1px solid var(--line2); color:var(--dim)}
+
+@media (max-width:820px){
+  .main{grid-template-columns:1fr; grid-template-rows:auto auto minmax(0,1fr); gap:6px}
+  .stage{grid-column:1; grid-row:1; aspect-ratio:16/9; min-height:0; max-height:42vh}
+  .talk{grid-column:1; grid-row:2; min-height:0}
+  .side{grid-column:1; grid-row:3; min-height:0}
+  .hud{gap:7px; padding:4px 6px}
+  .night{min-width:70px}
+  .sanity{max-width:none}
+  #tLine{font-size:13px; min-height:44px}
+  .acts .btn{padding:7px 11px; font-size:12.5px}
+  .pane{padding:8px 10px 12px}
+  .title{padding:20px 16px}
+  .photo .spr{max-height:150px}
+  .cdetail{gap:10px}
+}
+@media (max-width:400px){
+  .sanity>span{display:none}
+  .ammo{display:none}
+  .acts .left{width:100%; margin-left:0}
+}
+</style>
+<meta name="build" content="604ef96f20">
+<style id="zj-lite">
+@media (pointer:coarse), (max-width:720px){
+  *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
+}
+button, a, [role="button"], input, select, label{touch-action:manipulation}
+html{-webkit-tap-highlight-color:transparent}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/app/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="忘忘小游戏">
+</head>
+<body>
+
+<div id="boot" role="status" aria-live="polite">
+  <div class="ring"></div>
+  <p id="bootText">正在擦玻璃…</p>
+  <p id="bootHint"></p>
+</div>
+
+<div class="app" id="app" hidden>
+
+  <section class="title" id="scrTitle">
+    <div class="tinner">
+      <p class="eyebrow">弥萨格 · 地下十一层 · 门房值夜记录</p>
+      <h1>寻找伪人<span>：Morimens</span></h1>
+      <p class="lead">每晚都有人敲门，说自己是登记簿上的唤醒体。
+放错一个进来，这一层就没了。</p>
+      <div class="menu">
+        <button class="btn primary" id="btnNew" type="button">开始值夜</button>
+        <button class="btn" id="btnCont" type="button" hidden>接着上一夜</button>
+        <button class="btn" id="btnCodex" type="button">档案库 <em id="codexCount">0/73</em></button>
+        <button class="btn ghost" id="btnHelp" type="button">玩法</button>
+      </div>
+      <p class="best" id="bestLine"></p>
+      <p class="tiny">62 名唤醒体 + 11 位 B 站主播，全员登场。<br>粉丝向二创；角色与素材版权归原权利方所有。</p>
+    </div>
+  </section>
+
+  <section class="game" id="scrGame" hidden>
+    <header class="hud">
+      <a class="home" href="index.html" title="回首页">←</a>
+      <div class="night"><b id="hNight">第一夜</b><span id="hProg">第 1 个 / 共 3 个</span></div>
+      <div class="sanity"><span>理智</span><div class="bar"><i id="hSanBar"></i></div><b id="hSan">100</b></div>
+      <div class="ammo" id="hAmmo" title="子弹"></div>
+      <button class="ico" id="btnSound" type="button" title="声音">♪</button>
+      <button class="ico" id="btnHelp2" type="button" title="玩法">?</button>
+    </header>
+
+    <div class="main">
+      <div class="stage">
+        <canvas id="cv" width="480" height="270"></canvas>
+        <span class="stagetag" id="stageTag">11F</span>
+      </div>
+
+      <aside class="side">
+        <div class="tabs">
+          <button type="button" data-tab="card" class="on">登记卡</button>
+          <button type="button" data-tab="file">档案</button>
+          <button type="button" data-tab="log">记录</button>
+        </div>
+        <div class="pane" data-pane="card" id="paneCard"></div>
+        <div class="pane" data-pane="file" id="paneFile" hidden></div>
+        <div class="pane" data-pane="log" id="paneLog" hidden></div>
+      </aside>
+
+      <div class="talk">
+        <div class="who"><span id="tWho">门外</span><em id="tSub"></em></div>
+        <p id="tLine"></p>
+        <div class="acts" id="acts"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ending" id="scrEnd" hidden></section>
+
+</div>
+
+<div class="modal" id="modal" hidden><div class="mbox" id="mbox"></div></div>
+
+<script>
+/* 首屏守护 + 启动数据预取（构建时注入，各页共用一份）
+   1) 占位是纯 HTML，HTML 一到就能画，不等任何 JS；
+   2) 模块或数据卡住时给出可点的界面，绝不留只有页脚的白屏；
+   3) 启动数据拆两路并行：data/boot.json（索引/标签/关键词，约 110KB）与
+      data/dict.json（图鉴字典，约 520KB，只有要用字典的页面才下）。
+      拿到 boot.json 就能开拉题库分片，字典在后台并行走——原来挤成一个 918KB 的文件，
+      分片必须等它下完才能开始，手机上白白多一个「1~2 秒」的轮次。 */
+(function () {
+  // ---------------------------------------------------------------- 兼容垫片
+  // 手机上的内置浏览器（微信 / QQ / 各家浏览器）内核普遍比 Chrome 慢两三年，
+  // 少一个 API 就是整页报错、什么都不显示。这里补两个最常用的。
+  if (window.Element && !Element.prototype.replaceChildren) {
+    Element.prototype.replaceChildren = function () {
+      while (this.firstChild) this.removeChild(this.firstChild);
+      for (var i = 0; i < arguments.length; i++) {
+        var n = arguments[i];
+        if (n == null) continue;
+        this.appendChild(typeof n === 'string' ? document.createTextNode(n) : n);
+      }
+    };
+  }
+  if (!String.prototype.replaceAll) {
+    String.prototype.replaceAll = function (find, rep) { return this.split(find).join(rep); };
+  }
+  // <dialog> 在 iOS 15.4 之前根本没有：没有 showModal 时退回「加 open 属性」，
+  // 版式由 css/style.css 的 dialog.picker[open] 兜住，至少还能选、不会整页崩掉。
+  (function () {
+    var proto = window.HTMLDialogElement && HTMLDialogElement.prototype;
+    if (!proto || proto.showModal) return;
+    proto.showModal = function () { this.setAttribute('open', ''); };
+    proto.close = function () { this.removeAttribute('open'); };
+  })();
+
+  var bootEl = document.getElementById('boot');
+  var textEl = document.getElementById('bootText');
+  var hintEl = document.getElementById('bootHint');
+  var t0 = Date.now();
+  var settled = false;
+
+  function setHint(s) { if (hintEl) hintEl.textContent = s; }
+
+  function retryBtn(label) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
+    return btn;
+  }
+
+  // 慢一点就说句话，别让人以为死了
+  var hintTimer = setTimeout(function () {
+    if (!document.getElementById('boot')) return;
+    setHint('网络较慢，正在继续载入（站点在新加坡节点，首次访问会慢一些）…');
+  }, 7000);
+
+  // 看门狗：20 秒还没渲染出内容，给一个明确的按钮。
+  // 这时候如果主脚本压根没跑起来（语法太旧 / 被插件或代理拦了），提示要说清楚，
+  // 否则用户只会反复点「重新载入」。
+  var dog = setInterval(function () {
+    if (!document.getElementById('boot')) { clearInterval(dog); clearTimeout(hintTimer); settled = true; return; }
+    if (Date.now() - t0 < 20000) return;
+    clearInterval(dog);
+    if (settled) return;
+    settled = true;
+    bootEl.className = 'err';
+    if (!window.__bootMain) {
+      textEl.textContent = '脚本没能启动';
+      setHint('浏览器可能太旧了：请用 Chrome / Edge 90 以上、或 iOS 15 以上的 Safari 打开；'
+        + '360、QQ 浏览器请在地址栏切到「极速」模式。');
+    } else {
+      textEl.textContent = '载入超时';
+      setHint('可能是到服务器的连接卡住了，点下面的按钮重试（会重新拉一次）。');
+    }
+    bootEl.appendChild(retryBtn('重新载入'));
+  }, 1000);
+
+  // 内核探测：以前靠「顶层 await 能不能解析」判断内核新旧。现在打包产物里已经没有
+  // 顶层 await（Chrome 61+ / Safari 11+ 都能跑），这条路不需要了——真的跑不起来时，
+  // 脚本的 onerror 和下面的看门狗会接手。
+
+  function fail(msg) {
+    if (settled || !document.getElementById('boot')) return;
+    settled = true;
+    clearInterval(dog);
+    bootEl.className = 'err';
+    textEl.textContent = '载入失败';
+    setHint(msg || '');
+    bootEl.appendChild(retryBtn('重试'));
+  }
+  window.__bootFailed = fail;
+
+  window.addEventListener('error', function (e) {
+    var t = e && e.target;
+    if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+      fail('脚本加载失败：' + (t.src || t.href || ''));
+    } else if (e && e.message && /import|module|MIME|Failed to fetch/i.test(e.message)) {
+      fail(e.message);
+    }
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e && e.reason;
+    fail(r && (r.message || String(r)));
+  });
+
+  // 带超时与一次重试的 JSON 拉取：实测边缘偶尔会挂起连接不返回
+  function get(url, retried) {
+    var ctl = new AbortController();
+    var timer = setTimeout(function () { ctl.abort(); }, 10000);
+    return fetch(url, { signal: ctl.signal }).then(function (r) {
+      clearTimeout(timer);
+      if (!r.ok) throw new Error(url + ' ' + r.status);
+      return r.json();
+    }).catch(function (err) {
+      clearTimeout(timer);
+      if (retried) throw err;
+      return get(url + (url.indexOf('?') < 0 ? '?' : '&') + 'rt=' + Date.now(), true);
+    });
+  }
+
+  //  /  由构建替换：要用启动数据的页面是真地址，其余是空串（一个字节都不下）
+  var dataUrl = '';
+  var data = dataUrl ? get(dataUrl) : null;
+  if (data) data.catch(function () {});
+  var dictUrl = '';
+  var dict = dictUrl ? get(dictUrl) : null;
+  if (dict) dict.catch(function () {});
+  window.__boot = { data: data, dict: dict };
+})();
+</script>
+<script nomodule>/* 老到不支持 ES module（多半是 360/QQ 浏览器的「兼容模式」= IE 内核） */
+(function () {
+  var el = document.getElementById('boot'); if (el) el.className = 'err';
+  var t = document.getElementById('bootText'); if (t) t.textContent = '浏览器内核太旧';
+  var h = document.getElementById('bootHint');
+  if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
+})();
+</script>
+<script type="module" src="js/fake/main.js"></script>
+<script>
+/* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
+   Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
+   而边缘一个来回就要 1~2 秒；SW 缓存能把这部分彻底省掉。 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+    /* 申请「持久存储」：图片缓存跟本地存档一样不被浏览器随手清掉 */
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  });
+  /* sw.js 发现本机离线包是旧版（版本戳对不上）会喊一声。既然网站已经有新内容了，
+     就给一条能点走的提示，别让人一直以为「离线版就是几个月前的样子」。
+     局内（body.live）不弹：那会儿满屏都是判定框，任何浮层都是碍事。 */
+  navigator.serviceWorker.addEventListener('message', function (e) {
+    var d = e.data || {};
+    if (d.type !== 'offline-stale') return;
+    if (/offline.html$/i.test(location.pathname)) return;
+    if (document.body.classList.contains('live')) return;
+    try { if (sessionStorage.getItem('zjtt-stale') === d.build) return; } catch (err) {}
+    var a = document.createElement('a');
+    a.href = 'offline.html';
+    a.textContent = '本机离线包是旧版（' + String(d.stamp || '').slice(0, 8) + '）· 点这里更新';
+    a.setAttribute('style', 'position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:99999;'
+      + 'padding:7px 14px;border-radius:999px;font:600 12.5px/1.4 system-ui,sans-serif;text-decoration:none;'
+      + 'color:#08111f;background:linear-gradient(180deg,#ffe9a8,#e3b341);box-shadow:0 6px 18px rgba(0,0,0,.38);'
+      + 'max-width:88vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis');
+    a.addEventListener('click', function () {
+      try { sessionStorage.setItem('zjtt-stale', d.build); } catch (err) {}
+    });
+    document.body.appendChild(a);
+    /* 进局内就把提示收掉：横屏顶部正中间是发球点，浮层压在那里最碍事 */
+    var obs = new MutationObserver(function () {
+      if (document.body.classList.contains('live')) { a.remove(); obs.disconnect(); }
+    });
+    try { obs.observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (err) {}
+    setTimeout(function () { a.remove(); obs.disconnect(); }, 15000);
+  });
+}
+</script>
+</body>
+</html>
