@@ -79,5 +79,10 @@
     "src": "assets/ui/gameicons/bugfight.webp",
     "from": "assets/monster/Portrait_Small_Monster_S0201.webp",
     "who": "融蚀鼠王"
+  },
+  "bazaar": {
+    "src": "assets/ui/gameicons/bazaar.webp",
+    "from": "assets/avatars-q/char-c01.webp",
+    "who": "拉蒙娜"
   }
 }

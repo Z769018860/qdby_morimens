@@ -1761,6 +1761,21 @@ function bugfight() {
   };
 }
 
+// 弥萨格大巴扎 —— 每局散场时记账（js/bazaar.js 的 zjtt:bazaar:v1）：最高分、走到第几天、开过几摊
+function bazaar() {
+  const s = RD('bazaar:v1') || {};
+  const runs = n(s.runs);
+  const wins = n(s.wins);
+  return {
+    items: [
+      { k: '最高分', v: n(s.best) ? String(n(s.best)) : '—' },
+      { k: '最远', v: n(s.day) ? '第 ' + n(s.day) + ' 天' : '—' },
+      { k: '开摊', v: runs + ' 次' },
+    ],
+    extra: runs ? (wins ? `收满十二天的有 ${wins} 摊` : `还没走完十二天`) : '',
+  };
+}
+
 // 卡片顺序 = 首页的排列顺序，用户不用重新认路
 const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', icon: '🔍', read: detective, tip: '六边形自走棋推演' },
   { k: 'merge', n: '合成大杜勒', href: 'merge.html', icon: '⚫', read: merge, tip: '两个同级合成下一级' },
@@ -1778,6 +1793,7 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'keeper', n: '杀死守密人', href: 'keeper.html', icon: '🔪', read: keeper, tip: '126 个结局的文字恐怖' },
   { k: 'bugfight', n: '电子斗蛐蛐', href: 'bugfight.html', icon: '🦗', read: bugfight, tip: '押注两队怪物，活着出笼' },
   { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，73 位出战者，能上段' },
+  { k: 'bazaar', n: '弥萨格大巴扎', href: 'bazaar.html', icon: '🏪', read: bazaar, tip: '六格造物，按拍自动打满四十回合' },
 ];
 
 // 一次性读全部：页面只调这一个
@@ -1869,6 +1885,12 @@ const GD_SPEC = [
     ['段位分', String(n(v[0]))],
     ['人机战绩', `${n(v[1])} 胜 ${n(v[2])} 负`],
   ] },
+  { k: 'bz', n: '弥萨格大巴扎', f: (v) => [
+    ['最高分', v[0] ? String(n(v[0])) : '—'],
+    ['最远', v[1] ? '第 ' + n(v[1]) + ' 天' : '—'],
+    ['开摊', n(v[2]) ? n(v[2]) + ' 次' : '—'],
+    ['收满十二天', n(v[3]) + ' 摊'],
+  ] },
 ];
 
 
@@ -1886,6 +1908,7 @@ const GD_SPEC = [
 //   rg 王权 [结局数, 最长任期天数, 当过几任, 金色结局次数]（首页榜按结局数排，同数比最长任期）
 //   ll 音游 [最高分(全谱), 最长连击, 玩过的谱面数]（首页榜按最高分排）
 //   rl 轮盘 [段位分, 胜, 负, 段位下标]（首页榜按段位分排，和决斗同构）
+//   bz 大巴扎 [最高分, 最远第几天, 开摊次数, 收满十二天的摊数]
 // 单调递增的量（最好成绩、累计局数、时长），服务端合并时逐项取大即可。
 function digest() {
   const out = { at: Date.now() };
@@ -1943,6 +1966,9 @@ function digest() {
   // 电子斗蛐蛐 [最高荷包, 夺冠桌数, 打过几桌]：全部只增不减，首页榜按最高荷包排
   const bfS = RD('bugfight:v1') || {};
   out.bf = [n(bfS.best), n(bfS.wins), n(bfS.runs)];
+  // 弥萨格大巴扎 [最高分, 最远第几天, 开摊次数, 收满十二天的摊数]：四个数都只增不减
+  const bzS = RD('bazaar:v1') || {};
+  out.bz = [n(bzS.best), n(bzS.day), n(bzS.runs), n(bzS.wins)];
   return out;
 }
 return { fmtDur, DIFF_MERGE, DIFF_BIRD, GAMES, readAll, credits, GD_SPEC, digest };
@@ -2210,7 +2236,7 @@ async function openIdleSave(u) {
 // ------------------------------------------------------------------ BUG 反馈详情
 // 首页「报 bug」写进去的反馈：以前后台只数条数，正文没有任何读取入口。这里按时间倒序列出（最多 100 条），
 // 每条带游戏、版本、联系方式、设备 UA 和全文，方便按反馈去发奖励（在上面的发放面板里发回溯券 / 银芯）。
-const BUG_GAME_ZH = { home: '首页', detective: '战报侦探', merge: '合成大杜勒', bird: '是鸟弟就下100层', binding: '校猫的结合', idle: '挂机前夜', survivors: '唤醒体幸存者', protocol: '忘却协议', wolf: '弥萨格狼人杀', deathreport: '弥萨格大逃杀', g2048: '忘却 2048', duel: '唤醒王：决斗链接', reign: '弥萨格王权', lovelive: 'lovelive！mori⭐mens！', keeper: '杀死守密人', roulette: '弥萨格轮盘', bugfight: '电子斗蛐蛐' };
+const BUG_GAME_ZH = { home: '首页', detective: '战报侦探', merge: '合成大杜勒', bird: '是鸟弟就下100层', binding: '校猫的结合', idle: '挂机前夜', survivors: '唤醒体幸存者', protocol: '忘却协议', wolf: '弥萨格狼人杀', deathreport: '弥萨格大逃杀', g2048: '忘却 2048', duel: '唤醒王：决斗链接', reign: '弥萨格王权', lovelive: 'lovelive！mori⭐mens！', keeper: '杀死守密人', roulette: '弥萨格轮盘', bugfight: '电子斗蛐蛐', bazaar: '弥萨格大巴扎' };
 const bugWhen = (t) => { const d = new Date(Number(t) || 0); const p = (n) => String(n).padStart(2, '0'); return t ? `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}` : ''; };
 function bugCard() {
   const list = h('div', { class: 'buglist' }, h('p', { class: 'sub' }, '点「读取 / 刷新」加载最近的 BUG 反馈。'));
