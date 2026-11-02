@@ -311,6 +311,21 @@ body.live .skills{display:none}
 .artlab b{display:block; font-size:13px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .artlab span{display:block; font-size:11px; color:rgba(240,236,250,.8); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 
+/* ---------------------------------------------------------------- 键位面板 */
+/* 九格键位，和局内那九个框一一对应（从左到右）。点一格 → 变成「按键…」→
+   下一颗按下的键绑上去；撞到别的格就对调。中间那颗描一道粉色，提醒它是空格。 */
+.km{display:grid; grid-template-columns:repeat(9,1fr); gap:4px; margin:2px 0 4px}
+.kmk{
+  appearance:none; font:inherit; cursor:pointer; min-width:0; padding:6px 1px 4px;
+  display:flex; flex-direction:column; align-items:center; gap:1px;
+  border:1px solid var(--line); border-radius:8px; background:var(--panel2); color:var(--text);
+}
+.kmk b{font-size:11.5px; font-weight:700; line-height:1.15; white-space:nowrap}
+.kmk span{font-size:9px; color:var(--dim); font-variant-numeric:tabular-nums}
+.kmk.mid{border-color:hsla(330,80%,70%,.45)}
+.kmk.wait{border-color:var(--pink); color:var(--pink2); animation:kmwait 1.1s ease-in-out infinite}
+@keyframes kmwait{50%{box-shadow:0 0 0 3px hsla(330,90%,66%,.16)}}
+
 /* ---------------------------------------------------------------- 工坊 */
 .shop-body{flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:8px}
 .mine-list{display:flex; flex-direction:column}
@@ -449,7 +464,7 @@ body.live main > section{gap:5px}
 #boot{position:fixed; inset:0; z-index:99; display:grid; place-items:center; background:var(--bg); color:var(--dim); text-align:center; font-size:14px}
 #boot.err{color:var(--bad)}
 </style>
-<meta name="build" content="79cbd0e8dc">
+<meta name="build" content="08db8a38af">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -709,6 +724,13 @@ html{-webkit-tap-highlight-color:transparent}
         </div>
 
         <div class="card">
+          <h3>按键<button class="mini" id="set-km-reset" type="button">恢复默认</button></h3>
+          <div class="km" id="set-keymap"></div>
+          <p>九格从左到右一一对应。点一格，再按键盘上想用的键就绑上了（<b>Esc 取消</b>），局内也能随时改。默认是 <b>A S D F 空格 H J K L</b>——正中那格打得最多，给空格，两只手的大拇指都够得着，也不用为找 G 把手挪一下。</p>
+          <p>想用的键已经绑在别的格上时，两格直接对调，不会出现「某一格永远打不到」。修饰键（Shift / Ctrl / Alt）、Tab、回车不参与。这一栏只在电脑上起作用，手机上点的是屏幕；把上面的「按键提示」关掉只是不显示字母，键位照旧生效。</p>
+        </div>
+
+        <div class="card">
           <h3>屏幕与听歌</h3>
           <div class="row">
             <label>游玩方向</label>
@@ -924,7 +946,7 @@ html{-webkit-tap-highlight-color:transparent}
   <p><b>屏幕方向</b>：手机默认横屏——九格横着摆每格才够宽，竖着每格只有三十来像素容易点串。设置里能选自动 / 横屏 / 竖屏；iPhone 的 Safari 不让网页锁方向，竖着拿时会提示把机身转过来，也可以点「仍要竖屏玩」。暂停面板里能直接调音乐与判定音两路音量，不用退出去改设置。<b>全屏沉浸</b>默认开着：点「上场」时顺手把地址栏收上去，弧顶那两格才不被挤；用系统返回手势退出全屏会自动暂停。浏览器不给全屏（iPhone、部分内嵌浏览器）时按实际可视高度排版，不影响判定。</p>
   <p><b>延迟</b>：右上角那行「延迟 ±xxms」是最近二十几次击打相对音符的中位偏差——<b>正数=按早了，负数=按晚了，绿色是贴得很准</b>。设置里「自动校准」开着时（默认开），偏差超过 26ms 会一次挪几毫秒把判定偏移往回调，音符流速也跟着变一点点，蓝牙耳机、电视投屏那两三百毫秒的延迟不用自己算。手动拖过偏移滑块，自动校准就会让位（怕把你手调的值拉回去）。</p>
   <p><b>九个人</b>：编队最多九位唤醒体，第 1~9 位对应下面第 1~9 格，那一格的音符就是她的脸。技能全自动发动——判定放大、加分、Miss 救成 Good、护盾不断连、回体力、直接加连击、音符减速，攒满即放，不用点。</p>
-  <p><b>操作</b>：手机上直接点框或点音符（支持多指同时按）；电脑上鼠标点，或者用 <code>A S D F G H J K L</code> 对应九格，<code>Esc</code> 暂停。长条用键盘就是按住不放。</p>
+  <p><b>操作</b>：手机上直接点框或点音符（支持多指同时按）；电脑上鼠标点，或者用键盘——默认 <code>A S D F 空格 H J K L</code> 对应九格（正中间那颗是空格），可以在设置里改成自己顺手的键。<code>Esc</code> 暂停。长条用键盘就是按住不放。</p>
   <p><b>难度</b>：四档只改谱面密度，不改血量——四档漏一个都扣 5.5 体力，不会因为选了 EXPERT 就更脆。EASY 每秒约 1.5 个球、基本没有双押和长条；NORMAL 约 3 个；HARD 约 5 个、强拍开始成对落下；EXPERT 约 7~8 个，四分之一是双押，长条最长能拖到 2 秒，落球速度也更快（1.85 秒飞到 → 1.08 秒飞到）。觉得 EASY 太闲或者 EXPERT 挤成一团，差的就是这个。</p>
   <p><b>音源</b>：曲库里有原曲包的那几首直接放原曲（仓库里是加密封装的，取回来在浏览器里解）；没有包的走页面内合成的芯片改编。进「设置 → 音源」可以导入自己手里的 mp3（只存在这台设备上，会盖过内置包），谱面按那一版原曲的鼓点重做。偏移 / 宽松 / 流速也都在设置里。</p>
   <p><b>立绘</b>：技能发动时舞台右边会摆上这位唤醒体的立绘，左上角是她的名字和技能。立绘是<b>背景板</b>，压暗之后垫在击打框和音符下面，永远不会挡住要打的东西。在 PC 上把窗口拉大一点看得更清楚。</p>
@@ -953,7 +975,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 20000);
 })();
 </script>
-<script type="module" src="js/b/lovelive.js?v=79cbd0e8dc"></script>
+<script type="module" src="js/b/lovelive.js?v=08db8a38af"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。

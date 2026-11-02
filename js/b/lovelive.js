@@ -3472,6 +3472,48 @@ function flash(sel, msg) {
   el._ft = setTimeout(() => { el.textContent = ''; }, 2600);
 }
 
+/* ================================================================ 键位 */
+// 九格各绑一个键，存在 SAVE.keymap 里（存的是键位 id，不是字符）：
+//   'a'…'z' / '0'…'9' / 'space' / 'left' 这类方向键 / ';' ',' '.' 这些标点
+// 默认 ASDF + 空格 + HJKL：正中那颗是全曲打得最多的一格，给空格最省事——
+// 两只手的大拇指都落得上去，也不用为了找 G 把手挪一下。
+// 认键用 e.code（物理位置）而不是 e.key：换了键盘布局、开着中文输入法，
+// 按下去的字符会变，物理位置不会。
+const DEFAULT_KEYS = ['a', 's', 'd', 'f', 'space', 'h', 'j', 'k', 'l'];
+const KEY_NAMES = { space: '空格', left: '←', right: '→', up: '↑', down: '↓' };
+const CODE_MAP = {
+  Space: 'space', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
+  Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backslash: '\\',
+  BracketLeft: '[', BracketRight: ']', Minus: '-', Equal: '=', Backquote: '`',
+};
+// 修饰键和 Tab/回车不参与：按住 Shift 打不出来，回车会把焦点送去按按钮
+const BAD_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab', 'Enter',
+  'Backspace', 'Escape', 'ContextMenu']);
+
+function keyIdOf(e) {
+  if (!e || BAD_KEYS.has(e.key)) return '';
+  const c = e.code || '';
+  if (CODE_MAP[c]) return CODE_MAP[c];
+  if (/^Key[A-Z]$/.test(c)) return c.slice(3).toLowerCase();
+  if (/^Digit\d$/.test(c) || /^Numpad\d$/.test(c)) return c.slice(-1);
+  // 老浏览器没有 e.code，退回字符本身（这时布局差异躲不掉，但至少有键能用）
+  const k = (e.key || '').toLowerCase();
+  if (k === ' ' || k === 'spacebar') return 'space';
+  return k.length === 1 ? k : '';
+}
+const keyLabel = (id) => KEY_NAMES[id] || (id && id.length === 1 ? id.toUpperCase() : (id || '—'));
+// 读存档时体检一遍：重复的键会让某一格永远打不到，缺的补默认
+function tidyKeymap(list) {
+  const out = [];
+  for (let i = 0; i < 9; i++) {
+    let k = Array.isArray(list) ? list[i] : '';
+    if (typeof k !== 'string' || !k) k = DEFAULT_KEYS[i];
+    if (out.indexOf(k) >= 0) k = DEFAULT_KEYS.find((d) => out.indexOf(d) < 0) || DEFAULT_KEYS[i];
+    out.push(k);
+  }
+  return out;
+}
+
 /* ================================================================ 存档 */
 const KEY = 'zjtt:lovelive';
 const TEAM_MAX = 9;
@@ -3503,6 +3545,8 @@ function loadSave() {
     if (Math.abs(s.fxVol - 0.6) < 1e-6) s.fxVol = 0.78;
   }
   s.keys = s.keys == null ? 1 : (s.keys ? 1 : 0);
+  // 九格键位（电脑端用）。老存档没有这一项，直接吃新的默认值（中间是空格）
+  s.keymap = tidyKeymap(s.keymap);
   // 震动反馈（Android 的 navigator.vibrate；iOS 没有这个接口，开了也无事发生）：触屏设备默认开
   s.haptic = s.haptic == null ? (matchMedia('(pointer:coarse)').matches ? 1 : 0) : (s.haptic ? 1 : 0);
   s.listen = s.listen ? 1 : 0;
@@ -3556,8 +3600,25 @@ const idbCDel = (k) => idbDo('c', 'readwrite', (st) => st.delete(k));
 
 /* ================================================================ 难度 */
 // 难度表在 js/ll/diffs.js（体检脚本也读同一份，免得两边漂）
-const KEYS = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'];
-const KEY_LABEL = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'];
+// 键位常量（DEFAULT_KEYS / keyIdOf / keyLabel）在上面存档那一节，
+// 因为 loadSave 要先给 SAVE.keymap 做体检。
+const KEYS = DEFAULT_KEYS.slice();        // 每格当前绑的键（id）
+const KEY_LABEL = KEYS.map(keyLabel);     // 画在框下面的那个字
+let REMAP = -1;                           // 设置里正在等键的那一格（-1 = 没在等）
+
+// 把一份键位表套上去（九个 id）。save=true 时写回存档。
+function applyKeymap(next, save) {
+  for (let i = 0; i < 9; i++) {
+    KEYS[i] = next && next[i] ? next[i] : DEFAULT_KEYS[i];
+    KEY_LABEL[i] = keyLabel(KEYS[i]);
+  }
+  for (let i = 0; i < LAY.boxes.length; i++) LAY.boxes[i].key = KEY_LABEL[i];
+  if (save) { SAVE.keymap = KEYS.slice(); persist(); }
+  try { buildStatic(); } catch (e) { /* 还没排版，等 fit 完了自然会画 */ }
+  paintKeymap();
+  // 选人界面那九个小胶囊上的字母也跟着换
+  $$('#team-pick .pick em').forEach((el, i) => { el.textContent = KEY_LABEL[i]; });
+}
 
 /* ================================================================ DOM 骨架 */
 const scr = {
@@ -4241,10 +4302,15 @@ cv.addEventListener('pointerdown', (e) => {
 }, { passive: false });
 window.addEventListener('pointerup', (e) => releasePtr('p' + e.pointerId));
 window.addEventListener('pointercancel', (e) => releasePtr('p' + e.pointerId));
+// 键盘一律在 capture 阶段拦：局内空格现在是最常打的那一格，不先 preventDefault
+// 的话浏览器会顺手把页面往下滚；设置里「等你按键」也得抢在别的监听前面。
 window.addEventListener('keydown', (e) => {
+  // 设置里点了某一格在等键：这一下只用来改键位，不往局内送
+  if (REMAP >= 0) { captureRemap(e); return; }
   if (G.scr !== 'live' && G.scr !== 'edit') return;
-  const k = e.key.toLowerCase();
-  const lane = KEYS.indexOf(k);
+  const typing = e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName || '');
+  if (typing && G.scr === 'edit') return;      // 编辑器里在填输入框，让字符正常进
+  const lane = KEYS.indexOf(keyIdOf(e));
   if (lane >= 0) {
     e.preventDefault();
     if (e.repeat) return;
@@ -4252,9 +4318,9 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Escape' && G.running) togglePause();
-});
+}, true);
 window.addEventListener('keyup', (e) => {
-  const lane = KEYS.indexOf(e.key.toLowerCase());
+  const lane = KEYS.indexOf(keyIdOf(e));
   if (lane >= 0) releasePtr('k' + lane);
 });
 
@@ -4955,6 +5021,54 @@ function renderTeam() {
 }
 
 /* ================================================================ 设置 */
+// 九格键位面板：点一格 → 变成「按键…」→ 下一颗按下的键绑上去。
+// 撞到已经绑在别的格上的键就对调（不然那一格永远打不到）。
+// 这栏只对电脑有意义，手机上点的是屏幕。
+function paintKeymap() {
+  const box = $('#set-keymap');
+  if (!box) return;
+  if (!box.children.length) {
+    for (let i = 0; i < 9; i++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'kmk';
+      b.dataset.lane = String(i);
+      b.innerHTML = '<b></b><span>' + (i + 1) + '</span>';
+      b.title = '第 ' + (i + 1) + ' 格：点一下再按键盘上想用的键';
+      b.onclick = () => {
+        REMAP = REMAP === i ? -1 : i;
+        b.blur();                 // 不然接着按空格会当成「又点了一次这个按钮」
+        paintKeymap();
+      };
+      box.appendChild(b);
+    }
+  }
+  for (let i = 0; i < box.children.length; i++) {
+    const b = box.children[i];
+    b.querySelector('b').textContent = REMAP === i ? '按键…' : KEY_LABEL[i];
+    b.classList.toggle('wait', REMAP === i);
+    b.classList.toggle('mid', i === 4);
+  }
+}
+// 改键时把这一下按键吃掉：不算击打、不滚页面、不激活按钮
+function captureRemap(e) {
+  if (REMAP < 0) return false;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.key === 'Escape') { REMAP = -1; paintKeymap(); flash('#set-status', '没改，保持原样'); return true; }
+  const id = keyIdOf(e);
+  if (!id) return true;                       // Shift / F5 / 输入法候选键：继续等着
+  const lane = REMAP;
+  const next = KEYS.slice();
+  const dup = next.indexOf(id);
+  if (dup >= 0 && dup !== lane) next[dup] = next[lane];   // 两格撞键 → 对调
+  next[lane] = id;
+  REMAP = -1;
+  applyKeymap(next, true);
+  flash('#set-status', '第 ' + (lane + 1) + ' 格改成「' + keyLabel(id) + '」');
+  return true;
+}
+
 function paintSet() {
   $('#set-offset').value = String(SAVE.offset);
   $('#set-offset-v').textContent = (SAVE.offset > 0 ? '+' : '') + SAVE.offset + ' ms';
@@ -4971,6 +5085,7 @@ function paintSet() {
   $$('#set-immersive button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.immersive));
   $$('#set-listen button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.listen));
   $$('#set-autolat button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === !!SAVE.autoLat));
+  paintKeymap();
   renderTrackList();
 }
 function renderTrackList() {
@@ -5162,6 +5277,11 @@ $$('#set-keys button').forEach((b) => {
     $$('#set-keys button').forEach((x) => x.classList.toggle('on', x === b));
   };
 });
+$('#set-km-reset').onclick = () => {
+  REMAP = -1;
+  applyKeymap(DEFAULT_KEYS.slice(), true);
+  flash('#set-status', '按键恢复默认（中间是空格）');
+};
 $$('#set-haptic button').forEach((b) => {
   b.onclick = () => {
     SAVE.haptic = b.dataset.v === '1' ? 1 : 0;
@@ -5233,6 +5353,10 @@ if (TEST) {
     PACKS,
     showArt, allSongs, fireSkill, initSkills, preloadArt,
     setSetting: (k, v) => { SAVE[k] = v; persist(); },
+    keymap: () => KEYS.slice(),
+    setKeymap: (a) => applyKeymap(a, true),
+    remapLane: (i) => { REMAP = i; paintKeymap(); },
+    keyIdOf,
   };
 }
 
@@ -5253,6 +5377,7 @@ Audio.setMute(!!SAVE.mute);
 Audio.setVol(SAVE.musVol, SAVE.fxVol);
 startGameCloud('lovelive');
 fit();
+applyKeymap(SAVE.keymap);      // 键位要在排版之后套：框下面那行字是画进静态层的
 return {  };
 })();
 
