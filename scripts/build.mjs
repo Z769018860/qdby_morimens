@@ -778,6 +778,9 @@ for (const b of built) if (b.entry) h.update(read(path.join(OUT_JS, b.entry)));
 for (const e of extras) h.update(read(path.join(OUT_JS, e.out)));
 // 九宫格图标内联进了首页 HTML，换图必须换戳，否则老访客还是旧头像
 for (const g of Object.keys(gameIcons)) h.update(gameIcons[g]);
+// 构建脚本自己也进哈希：注入到每页 <head>/尾部的那些标签（SW 注册、PWA 清单、
+// 旧离线包提示）都是它拼出来的，改了它却不换戳，老访客会一直停留在旧注入结果。
+h.update(read(path.join(ROOT, 'scripts/build.mjs')));
 h.update(read(path.join(SRC, 'sw.js')));
 // 挂机版（idle/）是独立子项目，不参与上面的打包，但它的资源同样走 SW 的
 // cache-first：只改 idle 而版本号不动的话，老访客会一直拿到旧的 src/*.js 与
@@ -835,6 +838,33 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(function () {});
     /* 申请「持久存储」：图片缓存跟本地存档一样不被浏览器随手清掉 */
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  });
+  /* sw.js 发现本机离线包是旧版（版本戳对不上）会喊一声。既然网站已经有新内容了，
+     就给一条能点走的提示，别让人一直以为「离线版就是几个月前的样子」。
+     局内（body.live）不弹：那会儿满屏都是判定框，任何浮层都是碍事。 */
+  navigator.serviceWorker.addEventListener('message', function (e) {
+    var d = e.data || {};
+    if (d.type !== 'offline-stale') return;
+    if (/offline\.html$/i.test(location.pathname)) return;
+    if (document.body.classList.contains('live')) return;
+    try { if (sessionStorage.getItem('zjtt-stale') === d.build) return; } catch (err) {}
+    var a = document.createElement('a');
+    a.href = 'offline.html';
+    a.textContent = '本机离线包是旧版（' + String(d.stamp || '').slice(0, 8) + '）· 点这里更新';
+    a.setAttribute('style', 'position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:99999;'
+      + 'padding:7px 14px;border-radius:999px;font:600 12.5px/1.4 system-ui,sans-serif;text-decoration:none;'
+      + 'color:#08111f;background:linear-gradient(180deg,#ffe9a8,#e3b341);box-shadow:0 6px 18px rgba(0,0,0,.38);'
+      + 'max-width:88vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis');
+    a.addEventListener('click', function () {
+      try { sessionStorage.setItem('zjtt-stale', d.build); } catch (err) {}
+    });
+    document.body.appendChild(a);
+    /* 进局内就把提示收掉：横屏顶部正中间是发球点，浮层压在那里最碍事 */
+    var obs = new MutationObserver(function () {
+      if (document.body.classList.contains('live')) { a.remove(); obs.disconnect(); }
+    });
+    try { obs.observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (err) {}
+    setTimeout(function () { a.remove(); obs.disconnect(); }, 15000);
   });
 }
 </script>`;

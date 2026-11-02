@@ -11,7 +11,7 @@
 // 预缓存不放在 install 里：那会让「装上」这个动作被 400KB 的下载拖住，
 // 期间页面还不受控。这里改成 activate 之后在后台慢慢填——当前页先受控，
 // 等它填完，之后切页就都是本地读取了。
-const VERSION = '81e91815f8';
+const VERSION = '01b898a215';
 const CACHE = 'zjtt-' + VERSION;
 // 用户主动「下载离线包」写进这里：独立命名、activate 时不清理，重装浏览器才没
 const OFFLINE = 'zjtt-offline-v1';
@@ -78,6 +78,40 @@ async function offlineHit(req) {
   }
 }
 
+// 离线包是哪一版：offline.html 下完会在包里写一份 /__offline-meta，带构建戳。
+// 跟当前戳对不上 = 用户下的是老包。以前这里无条件先用包，结果是「网站发了新版，
+// 只要用户下过离线包，打开永远还是几个月前那一版」——在线也看不到新内容。
+const PACK_META = '/__offline-meta';
+const PACK_TTL = 1000;
+let packMemo = null;      // { at, stamp }
+
+async function packStamp() {
+  const now = Date.now();
+  if (packMemo && now - packMemo.at < PACK_TTL) return packMemo.stamp;
+  let stamp = '';
+  try {
+    const cache = await caches.open(OFFLINE);
+    const r = await cache.match(PACK_META);
+    if (r) stamp = (await r.json()).stamp || '';
+  } catch (e) { stamp = ''; }
+  packMemo = { at: now, stamp };
+  return stamp;
+}
+
+// 告诉页面「本机离线包是旧版」。导航请求的 event.source 是 null（那一刻页面还不存在），
+// 所以只能广播给已开的窗口；每个窗口按 client.id 记一次，免得每张图都弹一条。
+const staleSent = new Map();
+function warnStale(event, stamp) {
+  self.clients.matchAll({ type: 'window' }).then((cs) => {
+    if (staleSent.size > 60) staleSent.clear();
+    for (const c of cs) {
+      if (staleSent.get(c.id) === stamp) continue;
+      staleSent.set(c.id, stamp);
+      c.postMessage({ type: 'offline-stale', stamp, build: VERSION });
+    }
+  }).catch(() => {});
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -120,12 +154,41 @@ async function imageFirst(req, event, url) {
 }
 
 async function route(req, event, url) {
-  // offline.html 自己永远走网络（它要拿最新的清单和逻辑），其余一律先看离线包
-  if (!/\/offline\.html$/i.test(url.pathname)) {
+  // 离线页下载/更新离线包时带 ?dl=<构建戳>：这些请求必须直连网络。
+  // 两个原因：① 走 offlineHit 会拿包里那份旧文件冒充「刚下的」，
+  // 「重新下载」等于原地转圈；② 每个文件再往 CACHE 里存一份，等于写两遍，慢一倍。
+  if (url.searchParams.has('dl')) return fetch(req);
+
+  const isOfflinePage = /\/offline\.html$/i.test(url.pathname);
+  const st = await packStamp();               // '' = 用户没下过离线包
+  const stale = !!st && st !== VERSION;
+  const offline = self.navigator.onLine === false;
+  if (stale) warnStale(event, st);
+
+  // 版本对得上的包直接命中（这就是「离线版」的意义）；断网时老包也照用。
+  // offline.html 自己永远不查包：它要拿最新的清单和逻辑。
+  if (st && (!stale || offline) && !isOfflinePage) {
     const off = await offlineHit(req);
     if (off) return off;
   }
 
+  // 老包 + 有网：走线上内容（顺手把新版写进缓存），线上拿不到再退回包里那份
+  if (stale && !offline) {
+    const old = isOfflinePage ? null : await offlineHit(req);
+    try {
+      const fresh = await onlineRoute(req, event, url);
+      if (fresh && fresh.status < 500) return fresh;
+      return old || fresh;
+    } catch (e) {
+      if (old) return old;
+      throw e;
+    }
+  }
+
+  return onlineRoute(req, event, url);
+}
+
+async function onlineRoute(req, event, url) {
   if (req.mode === 'navigate') {
     // 子项目（idle/ / deathreport/ / casefile/）是独立迭代的：页面外壳很小，走网络拿最新的，
     // 免得「先给缓存」让老访客一直看到旧界面。离线时才回落到缓存。

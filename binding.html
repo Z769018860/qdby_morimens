@@ -535,7 +535,7 @@ body.titlestate .ov#ovTitle .panel{
 
 .card p{white-space:pre-line}
 </style>
-<meta name="build" content="81e91815f8">
+<meta name="build" content="01b898a215">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -730,7 +730,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 1000);
 })();
 </script>
-<script type="module" src="js/b/binding.js?v=81e91815f8"></script>
+<script type="module" src="js/b/binding.js?v=01b898a215"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。
@@ -1007,6 +1007,33 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(function () {});
     /* 申请「持久存储」：图片缓存跟本地存档一样不被浏览器随手清掉 */
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  });
+  /* sw.js 发现本机离线包是旧版（版本戳对不上）会喊一声。既然网站已经有新内容了，
+     就给一条能点走的提示，别让人一直以为「离线版就是几个月前的样子」。
+     局内（body.live）不弹：那会儿满屏都是判定框，任何浮层都是碍事。 */
+  navigator.serviceWorker.addEventListener('message', function (e) {
+    var d = e.data || {};
+    if (d.type !== 'offline-stale') return;
+    if (/offline.html$/i.test(location.pathname)) return;
+    if (document.body.classList.contains('live')) return;
+    try { if (sessionStorage.getItem('zjtt-stale') === d.build) return; } catch (err) {}
+    var a = document.createElement('a');
+    a.href = 'offline.html';
+    a.textContent = '本机离线包是旧版（' + String(d.stamp || '').slice(0, 8) + '）· 点这里更新';
+    a.setAttribute('style', 'position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:99999;'
+      + 'padding:7px 14px;border-radius:999px;font:600 12.5px/1.4 system-ui,sans-serif;text-decoration:none;'
+      + 'color:#08111f;background:linear-gradient(180deg,#ffe9a8,#e3b341);box-shadow:0 6px 18px rgba(0,0,0,.38);'
+      + 'max-width:88vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis');
+    a.addEventListener('click', function () {
+      try { sessionStorage.setItem('zjtt-stale', d.build); } catch (err) {}
+    });
+    document.body.appendChild(a);
+    /* 进局内就把提示收掉：横屏顶部正中间是发球点，浮层压在那里最碍事 */
+    var obs = new MutationObserver(function () {
+      if (document.body.classList.contains('live')) { a.remove(); obs.disconnect(); }
+    });
+    try { obs.observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (err) {}
+    setTimeout(function () { a.remove(); obs.disconnect(); }, 15000);
   });
 }
 </script>

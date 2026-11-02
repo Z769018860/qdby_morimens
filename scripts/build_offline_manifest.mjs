@@ -8,6 +8,7 @@
 // 用法：node scripts/build_offline_manifest.mjs [stamp]
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -72,13 +73,27 @@ for (const extra of ['manifest.webmanifest', 'favicon.svg', 'data/offline.json']
 }
 
 const list = [...files].sort();
-const bytes = list.reduce((n, rel) => n + fs.statSync(path.join(ROOT, rel)).size, 0);
+// 每个文件算一份短指纹：离线版「更新」只重下指纹变了的那些文件。
+// 文件名不带指纹，光看清单看不出版本，所以只能按内容算。12 位十六进制
+// 够用（碰撞概率对「要不要重下一个文件」这件事可以忽略），又不至于把清单撑大。
+const sizes = [];
+const hashes = [];
+let bytes = 0;
+for (const rel of list) {
+  const buf = fs.readFileSync(path.join(ROOT, rel));
+  sizes.push(buf.length);
+  bytes += buf.length;
+  hashes.push(crypto.createHash('sha1').update(buf).digest('hex').slice(0, 12));
+}
 const out = {
   stamp,
   builtAt: new Date().toISOString(),
   bytes,
   count: list.length,
   files: list,
+  sizes,
+  hashes,
 };
 fs.writeFileSync(path.join(ROOT, 'data/offline.json'), JSON.stringify(out) + '\n', 'utf8');
-console.log(`  data/offline.json  ${list.length} 个文件 · ${(bytes / 1048576).toFixed(1)}MB · stamp ${stamp}`);
+const kb = (fs.statSync(path.join(ROOT, 'data/offline.json')).size / 1024).toFixed(0);
+console.log(`  data/offline.json  ${list.length} 个文件 · ${(bytes / 1048576).toFixed(1)}MB · 清单 ${kb}KB · stamp ${stamp}`);
