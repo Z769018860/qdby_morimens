@@ -124,7 +124,9 @@ async function gunzipB64(b64) {
 
 /** 压扁存档（只在上传时用，内存和本机存档永远是原结构）：
     gear.items 从 { g123: {uid,kind,defId,lv,rf} } 变成 [ [123, 1, "cov_201", 9, 2], … ]，
-    kind 用 0/1/2 编号，uid 从键名里取 —— 九千件装备从 ~600KB 掉到 ~200KB。 */
+    kind 用 0/1/2 编号，uid 从键名里取 —— 九千件装备从 ~600KB 掉到 ~200KB。
+    第 6 / 7 列是命轮器纹 / 造物特质（item.rune）和还没决定的候选（item.runeNew），各是 [属性, 品阶]，没有就不带。
+    以前这里只认前五列，**词条在上传时被丢掉了**——换设备拉回来后装备都变成「没有词条」，再被迁移随机补一遍。 */
 const PACK_KEY = '__pack';
 const KIND_NO = { wheel: 0, covenant: 1, relic: 2 };
 const NO_KIND = ['wheel', 'covenant', 'relic'];
@@ -135,7 +137,10 @@ export function compactSave(s) {
   for (const [k, it] of Object.entries(items)) {
     if (!it || typeof it !== 'object') continue;
     const n = Number(String(k).replace(/^g/, ''));
-    rows.push([Number.isFinite(n) ? n : String(k), KIND_NO[it.kind] ?? 9, it.defId || '', it.lv || 0, it.rf || 0]);
+    const row = [Number.isFinite(n) ? n : String(k), KIND_NO[it.kind] ?? 9, it.defId || '', it.lv || 0, it.rf || 0];
+    const rn = (x) => (x && typeof x.key === 'string' ? [x.key, x.t | 0] : 0);
+    if (it.rune || it.runeNew) { row.push(rn(it.rune)); if (it.runeNew) row.push(rn(it.runeNew)); }
+    rows.push(row);
   }
   return { ...s, [PACK_KEY]: 1, gear: { ...s.gear, items: rows } };
 }
@@ -151,6 +156,8 @@ export function expandSave(v) {
     // lv / rf 一律补上（哪怕 0）：另一台设备拉下来展开后要和上传那台的内容哈希一致，
     // 少了 rf:0 这个键就会被判成「两份不一样」，同步一直来回推。
     items[key] = { uid: key, kind: NO_KIND[r[1]] || 'covenant', defId: r[2], lv: r[3] || 0, rf: r[4] || 0 };
+    if (Array.isArray(r[5])) items[key].rune = { key: r[5][0], t: r[5][1] };
+    if (Array.isArray(r[6])) items[key].runeNew = { key: r[6][0], t: r[6][1] };
   }
   out.gear = { ...v.gear, items };
   return out;

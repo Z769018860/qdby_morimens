@@ -114,7 +114,7 @@ export function migrate(s, data) {
   const m = { ...base, ...s, strategy: { ...base.strategy, ...s.strategy }, gear: { ...base.gear, ...s.gear }, stats: { ...base.stats, ...s.stats }, pity: { ...base.pity, ...s.pity }, tower: { ...base.tower, ...s.tower }, trials: { cleared: { ...(s.trials?.cleared || {}) }, ...(s.trials?.gold ? { gold: { ...s.trials.gold } } : {}) }, ach: { ...s.ach }, signin: s.signin ? { ...s.signin } : null, welcome: s.welcome ? { ...s.welcome } : null, shop: s.shop ? { ...s.shop } : null, codex: { ...s.codex }, weekly: s.weekly ? { ...s.weekly } : null, rtower: { ...s.rtower }, arena: s.arena ? { ...s.arena } : null };
   // 装备图鉴：老存档没有，用现在手上的装备垫个底（以前分解掉的补不回来）
   // 老存档里没有随机初始属性的命轮 / 造物：补抽一次（按编号 + 存档创建时间播种，之后存进档里就不再变）
-  for (const it of Object.values(m.gear.items || {})) if ((it.kind === 'wheel' || it.kind === 'relic') && !it.rune) it.rune = initialRune(it.uid, m.created || m.seed);
+  for (const it of Object.values(m.gear.items || {})) if ((it.kind === 'wheel' || it.kind === 'relic') && !it.rune) it.rune = initialRune(it.uid, m.created || 0);   // 只用账号创建时间播种（同一个账号在哪台设备迁移都一样），不用 seed（每台设备的 seed 都不同）
   m.gear.dex = { ...(m.gear.dex || {}) };
   for (const it of Object.values(m.gear.items || {})) { const k = gearDexKey(it.kind, it.defId); if (!m.gear.dex[k]) m.gear.dex[k] = 1; }
   // 数值字段：非数字 / 负数 / 无穷一律回到安全值，免得 NaN 写进存档后一路传染（金币、离线结算……）

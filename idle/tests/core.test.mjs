@@ -3737,3 +3737,32 @@ test('同调率：等级越高升一级要的点数越多（每一级都比上�
   assert.deepEqual(_AS.slice(0, 10), [0, 30, 70, 120, 180, 250, 330, 420, 520, 630]);   // 老存档 Lv1~10 的门槛不变
   assert.ok(cost[18] > cost[9] * 3, '19→20 要比 10→11 贵很多');
 });
+
+import { compactSave as _cs9, expandSave as _es9, packSave as _ps9, unpackSave as _us9 } from '../src/core/cloud.js';
+test('云存档：器纹 / 特质（含没决定的候选）跟着存档走，换设备拉回来不丢也不重抽', async () => {
+  const s = newState(data, 55);
+  const w = _ai2(s, 'wheel', data.wheels[3].id), r = _ai2(s, 'relic', data.relics[5].id), c = _ai2(s, 'covenant', data.covenants[0].id);
+  w.rune = { key: 'critDmg', t: 5 }; w.lv = 7; w.rf = 2;
+  r.runeNew = { key: 'amp', t: 4 };            // 刷出来还没决定的候选
+  const fill = (it) => ({ ...it, rf: it.rf || 0 });                                // 展开时 lv / rf 一律补上（为了内容哈希一致）
+  const back = _es9(JSON.parse(JSON.stringify(_cs9(s))));
+  assert.deepEqual(back.gear.items[w.uid], fill(s.gear.items[w.uid]));
+  assert.deepEqual(back.gear.items[r.uid], fill(s.gear.items[r.uid]));
+  assert.equal(back.gear.items[c.uid].rune, undefined);                 // 密契没有这个字段，不凭空多出来
+  assert.ok(!('runeNew' in back.gear.items[w.uid]));
+  // 老格式（只有前五列，旧版本上传的）仍能展开，不报错
+  const old = JSON.parse(JSON.stringify(_cs9(s))); old.gear.items = old.gear.items.map((row) => row.slice(0, 5));
+  const ex = _es9(old);
+  assert.equal(ex.gear.items[w.uid].lv, 7); assert.equal(ex.gear.items[w.uid].rune, undefined);
+  // 再迁移一遍：老格式补出来的初始词条，在任何设备上都一样（只看账号创建时间与装备编号）
+  const a = migrate(JSON.parse(JSON.stringify(ex)), data), b = migrate(JSON.parse(JSON.stringify(ex)), data);
+  assert.deepEqual(a.gear.items[w.uid].rune, b.gear.items[w.uid].rune);
+  // 整条上传 / 下载链路（大存档会走压扁 + gzip）
+  for (let i = 0; i < 4000; i++) _ai2(s, 'wheel', data.wheels[i % data.wheels.length].id);
+  const pk = await _ps9(s), got = await _us9(pk.data);
+  assert.deepEqual(fill(got.gear.items[w.uid]), fill(s.gear.items[w.uid]));
+  assert.deepEqual(fill(got.gear.items[r.uid]), fill(s.gear.items[r.uid]));
+  assert.ok(JSON.parse(pk.plain).__pack === 1, '大存档应走压扁格式');
+  const mism = Object.values(s.gear.items).filter((it) => JSON.stringify(got.gear.items[it.uid]?.rune) !== JSON.stringify(it.rune));
+  assert.equal(mism.length, 0, '所有装备的词条都应一致');
+});
