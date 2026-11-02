@@ -3672,3 +3672,14 @@ test('濒死存活：触发一次后概率折半，可以连续触发（不再�
   assert.ok(most <= 8, '概率每次折半，不会无限触发');
   assert.ok(firstOnly > 0, '也会有只触发一次的场次（折半后概率变低）');
 });
+
+test('迁移不会动已经刷过（或已有）器纹 / 特质的装备，也不会丢掉没决定的候选', () => {
+  const s = newState(data, 79);
+  const w = data.wheels[0], r = data.relics[0];
+  s.gear.items.ga = { uid: 'ga', kind: 'wheel', defId: w.id, lv: 2, rune: { key: 'critDmg', t: 5 } };
+  s.gear.items.gb = { uid: 'gb', kind: 'relic', defId: r.id, lv: 1, rune: { key: 'gold', t: 1 }, runeNew: { key: 'amp', t: 4 } };
+  const m = migrate(JSON.parse(JSON.stringify(s)), data);
+  assert.deepEqual(m.gear.items.ga.rune, { key: 'critDmg', t: 5 });
+  assert.deepEqual(m.gear.items.gb.rune, { key: 'gold', t: 1 });
+  assert.deepEqual(m.gear.items.gb.runeNew, { key: 'amp', t: 4 });
+});
