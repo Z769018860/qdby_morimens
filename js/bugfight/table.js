@@ -137,7 +137,10 @@ export function newTable(data, seats, seed) {
     rnd: null,
     round: 0,
     phase: 'idle',          // idle / bet / fight / settle / over
-    you: { id: 'you', n: '你', bank: START_BANK, style: 'you', out: false, isYou: true },
+    you: {
+      id: 'you', n: '你', bank: START_BANK, style: 'you', out: false, isYou: true,
+      outRound: null,   // 第几局出局的：观战期间人机还在动账，座次得按出局先后排
+    },
     ai: seats.map((x) => ({
       id: x.id, n: x.n, tag: x.tag, who: x.who, style: x.style, line: x.line, why: x.why,
       bank: x.bank, out: false, face: x.face || '',
@@ -162,6 +165,14 @@ function mulberry(a) {
   };
 }
 
+/** 判出局：记下第几局走的。座次按出局先后排——先走的名次低，
+ *  用「当前荷包」排会把先出局的人永远压在最底下，观战几局后座次就乱了。 */
+function markOut(s, p) {
+  if (p.out) return;
+  p.out = true;
+  p.outRound = s.round;
+}
+
 export function alivePlayers(s) {
   return [s.you, ...s.ai].filter((p) => !p.out);
 }
@@ -169,6 +180,11 @@ export function alivePlayers(s) {
 export function standings(s) {
   return [s.you, ...s.ai].slice().sort((a, b) => {
     if (a.out !== b.out) return a.out ? 1 : -1;
+    // 都出局了：谁走得晚谁在前（同局出局的再看荷包）。这才是淘汰赛的名次，
+    // 不然观战到散桌时，先出局的人会一直垫在最底下。
+    if (a.out && b.out && (a.outRound || 0) !== (b.outRound || 0)) {
+      return (b.outRound || 0) - (a.outRound || 0);
+    }
     return b.bank - a.bank;
   });
 }
@@ -249,7 +265,7 @@ export function settle(s) {
       if (!p) continue;
       p.bank -= x.amt;
       rows.push({ id: x.id, side: x.side, amt: x.amt, back: 0, net: -x.amt, win: false });
-      if (p.bank < minStake(s.round + 1)) p.out = true;
+      if (p.bank < minStake(s.round + 1)) markOut(s, p);
     }
     s.carry = pool;
     s.result = { winner, pool, winStake: 0, rows, carry: pool, noOne: true, draw: winner === 'draw' };
@@ -284,7 +300,7 @@ export function settle(s) {
       p.bank -= x.amt;
       rows.push({ id: x.id, side: x.side, amt: x.amt, back: 0, net: -x.amt, win: false });
     }
-    if (p.bank < minStake(s.round + 1)) p.out = true;
+    if (p.bank < minStake(s.round + 1)) markOut(s, p);
   }
   s.carry = 0;
   s.result = { winner, pool, winStake, rows, carry: 0, draw: winner === 'draw' };
@@ -293,6 +309,8 @@ export function settle(s) {
 
 /** 淘汰判完之后收尾：还坐着的只剩一个人（或打满局数）就开总结算。 */
 function afterSettle(s, rows) {
+  // 注意：玩家出局后 alivePlayers 只剩人机，只要还坐着两个以上就继续开下一局
+  // （观战就是这么来的）；散桌条件与正常局完全一致。
   s.phase = 'settle';
   const alive = alivePlayers(s);
   if (alive.length <= 1 || s.round >= MAX_ROUNDS) {

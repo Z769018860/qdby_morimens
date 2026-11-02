@@ -198,6 +198,16 @@ body{
 }
 .bankrow b{color:var(--gold2); font-size:15px; font-variant-numeric:tabular-nums; margin-left:3px}
 .bankrow #betAfter{font-size:11px; color:var(--dim2); font-variant-numeric:tabular-nums; white-space:nowrap}
+/* 出局观战：钱不够下一局底注了，押注控件整套收起来，只留一句说明 */
+.spectbar{display:none}
+#scr-bet.spect .spectbar{
+  display:flex; align-items:center; gap:6px;
+  font-size:11px; line-height:1.5; color:var(--dim);
+  background:rgba(217,164,65,.07); border:1px solid rgba(217,164,65,.26);
+  border-radius:9px; padding:6px 8px;
+}
+#scr-bet.spect .spectbar b{color:var(--gold); font-size:12px; flex:0 0 auto}
+#scr-bet.spect .betrow, #scr-bet.spect .acts2{display:none}
 .betrow{display:flex; align-items:center; gap:7px}
 .betrow .lb{font-size:11.5px; color:var(--dim); white-space:nowrap}
 .chipbtn{
@@ -477,6 +487,9 @@ body{
       <div class="bankrow">
         <span>荷包 <b id="betBank">1000</b></span>
         <span id="betAfter">押 50 · 余 950</span>
+      </div>
+      <div class="spectbar" id="spectBar">
+        <b>你已出局</b><span>荷包不够下一局底注，只能坐在边上看。点「开笼 · 观战」让人机押完再打。</span>
       </div>
       <div class="betrow">
         <span class="lb">押</span>

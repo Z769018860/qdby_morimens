@@ -114,6 +114,9 @@ function renderTeam(side) {
 }
 
 function renderBet() {
+  // 荷包不够下一局底注就出局了：这一屏降级成「观战席」——押注控件整套收起，只剩开笼。
+  const spect = !!S.you.out && !S.over;
+  $('scr-bet').classList.toggle('spect', spect);
   $('hRound').textContent = S.round;
   $('hMin').textContent = money(T.minStake(S.round));
   $('potCarry') || 0;
@@ -126,11 +129,15 @@ function renderBet() {
   paintBank();
   const min = T.minStake(S.round);
   $('amtVal').textContent = money(amt);
-  $('pickLabel').textContent = pickedSide < 0 ? '先点一边'
+  $('pickLabel').textContent = spect ? '你已出局'
+    : pickedSide < 0 ? '先点一边'
     : `押${pickedSide === 0 ? '左' : '右'} · ${money(amt)} 注`;
-  $('betL').disabled = S.you.bank < min;
-  $('betR').disabled = S.you.bank < min;
-  $('btnFight').disabled = pickedSide < 0 || busy;
+  $('betL').disabled = spect || S.you.bank < min;
+  $('betR').disabled = spect || S.you.bank < min;
+  // 观战时押注那套是藏起来的，开笼反而要能点——人机自己押完就开打
+  $('btnFight').disabled = spect ? busy : (pickedSide < 0 || busy);
+  $('btnFight').textContent = spect ? '开笼 · 观战' : '开笼';
+  if (spect) { $('quickRow').innerHTML = ''; return; }
   // 快捷注额
   const qr = $('quickRow');
   qr.innerHTML = '';
@@ -153,12 +160,17 @@ function paintBank() {
   const mine = S.bets.find((b) => b.id === 'you');
   const already = mine && !mine.pass ? mine.amt : 0;
   $('betBank').textContent = money(S.you.bank);
+  if (S.you.out) {
+    $('betAfter').textContent = '出局 · 只能观战';
+    return;
+  }
   $('betAfter').textContent = already
     ? `已押 ${money(already)} · 余 ${money(S.you.bank - already)}`
     : `押 ${money(amt)} · 余 ${money(Math.max(0, S.you.bank - amt))}`;
 }
 
 function renderAmt() {
+  if (S.you.out) return;   // 观战席没有可调的注额
   const min = T.minStake(S.round);
   amt = Math.max(min, Math.min(S.you.bank, Math.floor(amt / 10) * 10));
   $('amtVal').textContent = money(amt);
@@ -359,14 +371,21 @@ function showSettle() {
   else { t.textContent = win === 0 ? '左笼赢了' : '右笼赢了'; t.className = 'big win'; }
   const myBet = S.bets.find((b) => b.id === 'you');
   const myRow = r.rows.find((x) => x.id === 'you');
+  const spect = !!S.you.out && !S.over;   // 结算完发现荷包不够下一局底注了
+  const justOut = spect && !!myRow;       // 就是这一局输光的（观战局里没有你的注）
   let sc = `池子 <b>${money(r.pool)}</b>`;
   if (r.noOne) sc += ` · <b style="color:var(--lose)">全场没人押中，这 ${money(r.pool)} 压在桌上滚到下一局</b>`;
   else if (myRow) {
     sc += myRow.win
       ? ` · 你押${myRow.side === 0 ? '左' : '右'}中了，本息 <b>${money(myRow.back)}</b>（净 <b style="color:var(--win)">+${money(myRow.net)}</b>）`
       : ` · 你押${myRow.side === 0 ? '左' : '右'}，这一注 <b style="color:var(--lose)">−${money(myRow.amt)}</b>`;
-  } else if (myBet && myBet.pass) sc += ' · 你这一局没押';
+  } else if (spect) sc += ' · 你在观战，这一局没押';
+  else if (myBet && myBet.pass) sc += ' · 你这一局没押';
   else sc += ' · 你这一局没押';
+  if (justOut) {
+    sc += `<br><b style="color:var(--lose)">荷包 ${money(S.you.bank)}，不够下一局底注 `
+      + `${money(T.minStake(S.round + 1))}——这一桌你出局了。</b>`;
+  }
   $('ovs').innerHTML = sc;
 
   // 分账表：按净收益排，赢的在上
@@ -389,8 +408,9 @@ function showSettle() {
     pay.appendChild(d);
   }
   $('ov').hidden = false;
-  ovMode = S.over ? 'over' : 'next';
-  $('ovAgain').textContent = S.over ? '看看座次' : '下一局';
+  ovMode = S.over ? 'over' : spect ? 'spect' : 'next';
+  $('ovAgain').textContent = S.over ? '看看座次' : spect ? '坐着观战' : '下一局';
+  $('ovHome').textContent = spect ? '就此离桌' : '回门口';
 }
 
 /* ---------------------------------------------------------------- 流程 */
@@ -417,7 +437,9 @@ function beginRound() {
   busy = false;
   go('bet');
   renderBet();
-  $('sub').textContent = `第 ${S.round} 局 · 底注 ${money(T.minStake(S.round))}`;
+  $('sub').textContent = S.you.out
+    ? `第 ${S.round} 局 · 观战（已出局）`
+    : `第 ${S.round} 局 · 底注 ${money(T.minStake(S.round))}`;
 }
 
 function pickSide(side) {
@@ -440,10 +462,10 @@ function revealAndFight() {
   T.aiBet(S, (p, f, pool, tb, MIN) => A.decideBet(p, f, pool, tb, DATA, MIN, S.rnd));
   revealed = true;
   renderBet();
-  $('boardHint').textContent = '注都摆上桌了…';
+  $('boardHint').textContent = S.you.out ? '观战 · 人机押完就开打' : '注都摆上桌了…';
   setTimeout(() => {
     const my = S.bets.find((b) => b.id === 'you');
-    if (!my) { toast('你没押，这一局只能看'); }
+    if (!my && !S.you.out) { toast('你没押，这一局只能看'); }
     S.carry = S.carry || 0;
     B = T.startBattle(S);
     go('fight');
@@ -477,19 +499,27 @@ function recordTable(champion, bank) {
 }
 function showOver() {
   $('ovk').textContent = '散桌';
+  // 座次由 table.standings 给：还在坐的按荷包，已出局的按出局先后（越晚走越高）
   const rank = T.rankOf(S, 'you');
   recordTable(S.champion === 'you' || rank === 1, S.you.bank);
   const t = $('ovt');
   t.className = 'big';
   t.textContent = S.champion === 'you' ? '你把整桌赢走了'
-    : rank === 1 ? '你钱最多' : `你排第 ${rank}`;
-  $('ovs').innerHTML = `荷包 <b>${money(S.you.bank)}</b> · 打了 ${S.round} 局`;
-  $('ovPay').innerHTML = T.standings(S).map((p, i) =>
-    `<div class="pr"><span class="pn">${i + 1}. ${p.n}${p.out ? '（出局）' : ''}</span>`
-    + `<span class="pv ${p.isYou ? 'up' : 'ps'}">${money(p.bank)}</span></div>`).join('');
+    : rank === 1 ? '你钱最多'
+    : S.you.out ? `你第 ${rank} 名出局` : `你排第 ${rank}`;
+  const watched = S.you.out ? Math.max(0, S.round - (S.you.outRound || S.round)) : 0;
+  $('ovs').innerHTML = `荷包 <b>${money(S.you.bank)}</b> · 打了 ${S.round} 局`
+    + (watched > 0 ? ` · 出局后又看了 ${watched} 局` : '');
+  // 出局的人按「离场先后」排：钱多不代表名次高，所以给他们标一下第几局走的
+  $('ovPay').innerHTML = T.standings(S).map((p, i) => {
+    const tag = p.out ? (p.outRound ? `（第 ${p.outRound} 局出局）` : '（出局）') : '';
+    return `<div class="pr"><span class="pn">${i + 1}. ${p.n}${tag}</span>`
+      + `<span class="pv ${p.isYou ? 'up' : 'ps'}">${money(p.bank)}</span></div>`;
+  }).join('');
   $('ov').hidden = false;
   ovMode = 'again';
   $('ovAgain').textContent = '再开一桌';
+  $('ovHome').textContent = '回门口';   // 上一屏可能是观战结算的「就此离桌」，这里要还原
 }
 
 /* ---------------------------------------------------------------- 详情 / 规则 */
@@ -593,6 +623,8 @@ function showRules() {
   <h4>五、什么时候下桌</h4>
   <p>底注每 3 局翻一倍（50→100→200→400）。<b>荷包不够下一局底注就出局</b>。
   打满 12 局按荷包排名，或者提前只剩一个人。</p>
+  <p>出局不是立刻赶人：会问你是<b>就此离桌</b>（看这桌的座次），还是<b>坐着观战</b>——
+  剩下的人机照常押、照常打，直到散桌。观战中途想走，「离桌」随时可以。</p>
   <h4>六、九个人机</h4>
   <p>他们押的是同一副牌，但看的东西不一样：杜勒赛因只认血厚的，白云出岫只看谁打得疼，
   立誓0氪只数只数，阿格里帕把血攻意图全算一遍，魔龙_D 专反着大家来。
@@ -637,8 +669,14 @@ export function mount() {
     amt = Math.min(S.you.bank, amt + Math.max(10, Math.round(amt * 0.1)));
     renderAmt();
   });
-  $('btnFight').addEventListener('click', () => { if (pickedSide >= 0) doBet(pickedSide); });
-  $('btnQuit').addEventListener('click', () => { go('home'); renderHome(); });
+  $('btnFight').addEventListener('click', () => {
+    if (S.you.out) { revealAndFight(); return; }   // 观战：不下注，人机押完就开打
+    if (pickedSide >= 0) doBet(pickedSide);
+  });
+  $('btnQuit').addEventListener('click', () => {
+    if (S.you.out) { showOver(); return; }   // 观战席离桌：把这桌的座次交出来，别白看
+    go('home'); renderHome();
+  });
 
   // 战斗
   $('btnSkip').addEventListener('click', () => {
@@ -657,9 +695,14 @@ export function mount() {
   $('ovAgain').addEventListener('click', () => {
     if (ovMode === 'over') { showOver(); return; }
     if (ovMode === 'again') { $('ov').hidden = true; startTable(); beginRound(); return; }
+    if (ovMode === 'spect') { $('ov').hidden = true; beginRound(); return; }   // 坐着看下一局
     nextRound();
   });
-  $('ovHome').addEventListener('click', () => { $('ov').hidden = true; go('home'); renderHome(); });
+  $('ovHome').addEventListener('click', () => {
+    $('ov').hidden = true;
+    if (ovMode === 'spect') { showOver(); return; }   // 出局后「就此离桌」＝直接看座次
+    go('home'); renderHome();
+  });
 
   // 开桌
   startTable();
@@ -678,6 +721,24 @@ export function mount() {
       mob: (i) => showMob(DATA.mobs[i], 1),
     };
     const go2 = q.get('go');
+    // 观战席：玩家已出局（第 4 名，荷包 20 < 第 6 局底注 100），落到下注屏看人机押
+    if (go2 === 'spect' || go2 === 'out') {
+      startTable();
+      S.round = 5;
+      S.you.out = true;
+      S.you.outRound = 5;
+      S.you.bank = 20;
+      beginRound();
+      if (go2 === 'out') {
+        revealAndFight();
+        setTimeout(() => {
+          if (!B) return;
+          window.__bf.skip();
+          setTimeout(showSettle, 80);
+        }, 1400);
+      }
+      return;
+    }
     if (go2 === 'bet' || go2 === 'fight' || go2 === 'settle') {
       startTable();
       beginRound();
