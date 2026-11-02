@@ -74,3 +74,13 @@ export const STATUS = {
   barrier: { zh: '屏障', kw: 'barrier' }, fortress: { zh: '护垒', kw: 'fortress' },
   fragile: { zh: '脆弱', kw: 'fragile' }, sealed: { zh: '封印', kw: 'sealed' },
 };
+
+/** 唤醒体叠位已满（99）之后再得到同一位：按稀有度折算成金币，高稀有度再给少量银芯。
+ *  （以前不分稀有度，一律 800 金币 + 30 银芯——抽到满叠的 SR 和满叠的创生拿一样多。）
+ *  抽卡、站长赠礼、联名嘉宾的签到赠礼共用这一张表。 */
+export const FULL_CONVERT = {
+  SR: { gold: 600, cores: 0 },
+  SSR: { gold: 2400, cores: 6 },
+  Genesis: { gold: 9000, cores: 20 },
+};
+export const fullConvertOf = (rarity) => FULL_CONVERT[rarity] || FULL_CONVERT.SR;

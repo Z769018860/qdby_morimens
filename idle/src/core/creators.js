@@ -21,7 +21,7 @@
 //   python tools/build_creators.py --portrait samo=D:/图/samo.png --card samo=D:/图/samo-card.png
 // 该脚本的默认行为是用姓名首字画一枚符印头像（无素材时的占位，风格与游戏内卡片一致）。
 import { fx as E } from './skills.js';
-import { MAX_AWAKEN } from './constants.js';
+import { MAX_AWAKEN, fullConvertOf } from './constants.js';
 
 // 与 skills.js 的 GROWTH 保持同一口径：技能等级 0..4 对应 Lv.1–5
 const G = (lv) => 0.98 + 0.03 * (lv || 0);
@@ -343,7 +343,7 @@ export function grantCreator(state, slug) {
     return { slug, zh: a.zh, isNew: true, star: 0 };
   }
   const star = Math.max(0, Math.floor(own.star || 0));
-  if (star >= MAX_AWAKEN) return { slug, zh: a.zh, isNew: false, full: true, star };
+  if (star >= MAX_AWAKEN) { const cv = fullConvertOf(a.rarity); state.gold = (state.gold || 0) + cv.gold; state.cores = (state.cores || 0) + cv.cores; return { slug, zh: a.zh, isNew: false, full: true, star, gold: cv.gold, cores: cv.cores }; }
   own.star = star + 1;
   return { slug, zh: a.zh, isNew: false, star: own.star };
 }

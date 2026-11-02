@@ -1024,7 +1024,7 @@ function odBox(s, r, slug) {
     </div>
     ${full ? '' : `<div class="row"><button class="btn gold sm" data-act="od" data-slug="${slug}" ${can ? '' : 'disabled'}>超限 +1</button>
       <button class="btn sm" data-act="od" data-slug="${slug}" data-n="10" ${can ? '' : 'disabled'} title="连续超限，直到金币或银芯不够，最多 10 级">超限 ×10</button></div>`}
-    <p class="hint">叠满之后再<b>抽到这位</b>，只折算 <b>800 金币 + 30 银芯</b>，不送超限 / 最终法则——这两条要自己花金币和银芯练。</p>
+    <p class="hint">叠满之后再<b>抽到这位</b>，按稀有度折算成金币（精良 600 / 史诗 2400 / 创生 9000），史诗再给 6 银芯、创生 20 银芯，不送超限 / 最终法则——这两条要自己花金币和银芯练。</p>
     ${full ? lawBox(s, r, slug) : ''}</div>`;
 }
 
@@ -1424,7 +1424,7 @@ export function showPulls(app, out) {
     return `<div class="tile ${rarCls(p.rarity)} pull" style="--rc:${R(a).color};--d:${(i * 0.055).toFixed(3)}s">
       <span class="rr">${RAR_ZH[p.rarity]}</span>
       <img src="${img(a.portrait)}" alt=""><b>${esc(a.zh)}</b>
-      <small>${p.isNew ? '<em class="new">NEW</em>' : p.gold ? `满叠位 +${p.gold} 金币` : `叠位 ${p.star}`}</small></div>`;
+      <small>${p.isNew ? '<em class="new">NEW</em>' : p.gold ? `满叠位 +${p.gold} 金币${p.cores ? ` +${p.cores} 银芯` : ''}` : `叠位 ${p.star}`}</small></div>`;
   }).join('')}</div>`;
   openModal(html, 'wide');
 }

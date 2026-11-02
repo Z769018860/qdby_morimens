@@ -1,6 +1,6 @@
 import { hash, mulberry32 } from './rng.js';
 import {
-  MAX_LV_HARD, MAX_AWAKEN, OVERDRIVE_MAX, LAW_MAX, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, ORDER_SLOTS, SAVE_VERSION, GEAR_MAX_LV, RARITY_ORDER, RIFT_FLOORS,
+  MAX_LV_HARD, MAX_AWAKEN, fullConvertOf, OVERDRIVE_MAX, LAW_MAX, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, ORDER_SLOTS, SAVE_VERSION, GEAR_MAX_LV, RARITY_ORDER, RIFT_FLOORS,
 } from './constants.js';
 import { extraKit } from './extra.js';
 import { baseStats, lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, rewindPlan, overdrive, overdriveAmp, overdriveCost, law, lawAmp, lawCrit, lawCost } from './stats.js';
@@ -1109,12 +1109,12 @@ export function pullOnce(state, data, rng) {
   const pool = data.awakeners.filter((a) => a.rarity === rarity && !a.creator);
   const a = pool[Math.floor(rng() * pool.length)];
   const own = state.roster[a.slug];
-  let dup = false, gold = 0;
+  let dup = false, gold = 0, cores = 0;
   if (!own) state.roster[a.slug] = { lv: 1, star: 0, brk: 0 };
   else if (own.star < MAX_AWAKEN) { own.star++; dup = true; }
-  else { gold = 800; state.gold += gold; state.cores += 30; dup = true; }   // 满叠后重复：只折算金币银芯，不送超限 / 最终法则
+  else { const cv = fullConvertOf(a.rarity); gold = cv.gold; cores = cv.cores; state.gold += gold; state.cores += cores; dup = true; }   // 满叠后重复：按稀有度折算金币（高稀有度再给点银芯），不送超限 / 最终法则
   state.stats.pulls++;
-  return { slug: a.slug, rarity, isNew: !own, dup, gold, star: state.roster[a.slug].star };
+  return { slug: a.slug, rarity, isNew: !own, dup, gold, cores, star: state.roster[a.slug].star };
 }
 /** 管理员在后台发的唤醒体（站点 /grants/mine 的 awk 列表）：没有就是新获得，已有就叠位 +1。
  *  同一条赠礼里还可以带「免费回溯券」（rw）：直接进 state.vouchers.rewind，角色 / 装备回溯都能用。
@@ -1138,7 +1138,7 @@ export function claimGifts(state, data, items) {
       const own = state.roster[slug];
       if (!own) { state.roster[slug] = { lv: 1, star: 0, brk: 0 }; got.push({ slug, zh: a.zh, isNew: true }); }
       else if (own.star < MAX_AWAKEN) { own.star++; got.push({ slug, zh: a.zh, isNew: false }); }
-      else { state.cores += 30; got.push({ slug, zh: a.zh, isNew: false, full: true }); }
+      else { const cv = fullConvertOf(a.rarity); state.gold += cv.gold; state.cores += cv.cores; got.push({ slug, zh: a.zh, isNew: false, full: true, gold: cv.gold, cores: cv.cores }); }
     }
     done.add(id);
   }

@@ -300,7 +300,7 @@ async function giftRun() {
     const got = claimGifts(app.state, app.data, items.filter((g) => (Array.isArray(g.awk) && g.awk.length) || Number(g.rw) > 0 || Number(g.tk) > 0 || Number(g.gold) > 0));
     if (!got.length) return;
     app.save(); render(); app.refreshTop();
-    const names = got.map((g) => (g.voucher ? `回溯券 ×${g.voucher}` : g.tickets ? `召唤券 ×${g.tickets}` : g.gold ? `金币 +${fmt(g.gold)}` : g.isNew ? `${g.zh}（新）` : `${g.zh} 叠位+1`)).join('、');
+    const names = got.map((g) => (g.voucher ? `回溯券 ×${g.voucher}` : g.tickets ? `召唤券 ×${g.tickets}` : g.gold ? `金币 +${fmt(g.gold)}` : g.isNew ? `${g.zh}（新）` : g.full ? `${g.zh} 满叠折算 ${fmt(g.gold || 0)} 金币${g.cores ? ` + ${g.cores} 银芯` : ''}` : `${g.zh} 叠位+1`)).join('、');
     toast(`收到站长赠礼：${names}`, 5000);
   } catch { /* 没网 / 没登录：下次进游戏再领 */ }
 }
@@ -1224,7 +1224,7 @@ function onAct(e) {
         sound.play(r.isNew ? 'summonSSR' : 'lvup');
         toast(r.isNew
           ? `🎉 联名嘉宾「${d.bySlug[slug].zh}」加入队伍`
-          : r.full ? `「${d.bySlug[slug].zh}」的叠位已经满了` : `「${d.bySlug[slug].zh}」叠位 +1（现在 ${r.star} 层）`, 2800);
+          : r.full ? `「${d.bySlug[slug].zh}」的叠位已经满了，折算 ${fmt(r.gold || 0)} 金币${r.cores ? ` + ${r.cores} 银芯` : ''}` : `「${d.bySlug[slug].zh}」叠位 +1（现在 ${r.star} 层）`, 2800);
         if (r.isNew) P.detailModal(app, slug);
         else render();
       } else toast('征召券不够，或者人气还没到这位的门槛');
