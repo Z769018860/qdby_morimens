@@ -3996,45 +3996,60 @@ function layout() {
   // 铺满可用宽度。以前格径 88、间隙 8，九个圆几乎相切，远看就是一根彩带，
   // 中间三格（F/G/H）的脸全糊在一起。
   const side = Math.max(8, W * 0.024);
-  // 桌面宽屏：格子原来封顶 58px，1400 宽的屏上九格之间全是留白。现在间隙收到宽度的 1.2%，
-  // 格径按「宽度 / 高度」两头取小、封顶 124px，击打区大一倍多；手机横屏（宽度也 ≥520）同样受益。
   const gapMin = wide ? Math.max(10, W * 0.012) : Math.max(3, W * 0.012);
   const cap = wide ? Math.min(124, H * 0.22, W * 0.085) : Math.min(40, H * 0.18, W * 0.115);
-  const bw = Math.max(22, Math.min(cap, (W - side * 2 - gapMin * (n - 1)) / n));
-  const gap = Math.max(gapMin, (W - side * 2 - bw * n) / (n - 1));
-  const total = bw * n + gap * (n - 1);
-  // 底部只留「圆的下半身 + 键位字母」：全屏之后舞台从 280 长到 380，
-  // 再多留白九格就离底太远，手指够不到。
-  const padB = Math.max(36, bw * 0.5 + (SAVE.keys ? Math.min(18, Math.max(11, bw * 0.16)) + 14 : 10), H * 0.06);
-  const baseY = H - padB;
-  LAY.bw = bw;
-  LAY.bh = bw;
-  // 发球点贴到舞台最上沿：它上方已经没有顶栏了。y 就是圆的半径（再加 2px 余量），
-  // 再高一点光晕会被画布上边缘切掉，看着像半个括号。
-  LAY.spawn = { x: W / 2, y: Math.max(16, bw * 0.36 + 3) };   // 发球圈半径 = bw*0.36，再留 3px，别被上沿切掉
-
-  // 弧：正中最低、两侧逐级抬高，最外两格一路抬到发球点下方——九格连成半个碗，
-  // 发球点就是碗心。上面留 18px 余量，免得最外那格跟右上角的「延迟」打架。
-  const room = baseY - (LAY.spawn.y + bw * 1.15) - 18;
-  // 也不能光看 room：竖屏窄而高，room 有七百多，九格会被拉成一个竖着的长椭圆，
-  // 两端到发球点的距离只剩中间的四分之一，球速完全没法统一。横屏按 W*0.45 也够到 room。
-  const arc = Math.max(0, Math.min(room, Math.min(H * 0.62, W * 0.45)));
   const TH = 1.02;                       // 半张角约 58°
   const k = 1 - Math.cos(TH);
-  LAY.arc = arc;
-  LAY.boxes.length = 0;
-  for (let i = 0; i < n; i++) {
-    const t = (i - 4) / 4;               // -1 最左 … 0 正中 … +1 最右
-    const lift = (1 - Math.cos(t * TH)) / k;   // 0 正中 / 1 最外侧
-    // 横向也按弧来分：等距排的话中间三格（F/G/H）在弧底几乎贴着，两端却拉得很开。
-    // 中间放宽、两端略收，九格的「视觉间距」才均匀。
-    const sx = Math.sign(t) * Math.pow(Math.abs(t), 0.9);
-    LAY.boxes.push({
-      x: W / 2 + sx * (total - bw) / 2,
-      y: baseY - arc * lift,
-      h: bw, w: bw, key: KEY_LABEL[i], lift,
-    });
+  // 给定格径，算出整套布局（九个框的位置 + 发球点）。桌面端要反复试，所以单独成函数
+  const place = (bw, spanAll) => {
+    const sd = spanAll ? Math.max(8, W * 0.012) : side;
+    const pw = spanAll ? 0.85 : 0.9;
+    const gap = Math.max(gapMin, (W - sd * 2 - bw * n) / (n - 1));
+    const total = spanAll ? W - sd * 2 : bw * n + gap * (n - 1);
+    // 底部只留「圆的下半身 + 键位字母」：全屏之后舞台从 280 长到 380，
+    // 再多留白九格就离底太远，手指够不到。
+    const padB = Math.max(36, bw * 0.5 + (SAVE.keys ? Math.min(18, Math.max(11, bw * 0.16)) + 14 : 10), H * 0.06);
+    const baseY = H - padB;
+    // 发球圈半径 = bw*0.36，再留 3px，别被上沿切掉
+    const spawn = { x: W / 2, y: Math.max(16, bw * 0.36 + 3) };
+    // 弧：正中最低、两侧逐级抬高，最外两格一路抬到发球点下方——九格连成半个碗，
+    // 发球点就是碗心。上面留 18px 余量，免得最外那格跟右上角的「延迟」打架。
+    const room = baseY - (spawn.y + bw * 1.15) - 18;
+    // 也不能光看 room：竖屏窄而高，room 有七百多，九格会被拉成一个竖着的长椭圆，
+    // 两端到发球点的距离只剩中间的四分之一，球速完全没法统一。横屏按 W*0.45 也够到 room。
+    const arc = Math.max(0, Math.min(room, Math.min(H * 0.62, W * 0.45)));
+    const boxes = [];
+    for (let i = 0; i < n; i++) {
+      const t = (i - 4) / 4;               // -1 最左 … 0 正中 … +1 最右
+      const lift = (1 - Math.cos(t * TH)) / k;   // 0 正中 / 1 最外侧
+      // 横向也按弧来分：等距排的话中间三格（F/G/H）在弧底几乎贴着，两端却拉得很开。
+      // 中间放宽、两端略收，九格的「视觉间距」才均匀。
+      const sx = Math.sign(t) * Math.pow(Math.abs(t), pw);
+      boxes.push({ x: W / 2 + sx * (total - bw) / 2, y: baseY - arc * lift, h: bw, w: bw, key: KEY_LABEL[i], lift });
+    }
+    return { bw, spawn, arc, boxes };
+  };
+  const minPitch = (bx) => { let d = 1e9; for (let i = 1; i < bx.length; i++) d = Math.min(d, Math.hypot(bx[i].x - bx[i - 1].x, bx[i].y - bx[i - 1].y)); return d; };
+  let L;
+  if (FINE && W >= 900) {
+    // 电脑端：不再用固定上限，而是「放到相邻两格刚好不碰」为止——1440×800 的屏上格径约 190px
+    // （之前封顶 124px，横向还剩大片空地）。从大往小试，相邻圆心距 ≥ 格径的 1.04 倍就收手。
+    // 二分找「最大的不碰」格径：格径一变，弧高 / 发球点 / 底边留白都跟着变，不能一步算出来
+    let lo = 60, hi = Math.min(300, H * 0.34, W * 0.2);
+    L = place(lo, true);
+    for (let it = 0; it < 18; it++) {
+      const mid = (lo + hi) / 2, T = place(mid, true);
+      if (minPitch(T.boxes) >= mid * 1.04) { lo = mid; L = T; } else hi = mid;
+    }
+  } else {
+    L = place(Math.max(22, Math.min(cap, (W - side * 2 - gapMin * (n - 1)) / n)), false);
   }
+  LAY.bw = L.bw;
+  LAY.bh = L.bw;
+  LAY.spawn = L.spawn;
+  LAY.arc = L.arc;
+  LAY.boxes.length = 0;
+  for (const b of L.boxes) LAY.boxes.push(b);
 }
 // 音符在某时刻的位置：k=0 在发球点，k=1 在框里。
 // 越过 1 之后不再钉在 1.05 上（以前被忽略的音符会「贴」在框里不动，
