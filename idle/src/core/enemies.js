@@ -72,7 +72,7 @@ export const DOMAINS = {
   barrier: { zh: '屏障怪', short: '屏障', d: '敌人带多层屏障（普通 5 / 精英 8 / 首领 14），每层抵消一次直接伤害，每 2 回合回 2 层', hint: '多段攻击、群体伤害，或者毒 / 流血 / 反击这类不被屏障挡的持续伤害' },
   thorns: { zh: '反震', short: '反震', d: '单次伤害超过敌人最大生命 7% 的一击，会被反震 35% 给攻击者', hint: '把输出拆成小伤害：持续伤害、反击、多段攻击；或者上护盾 / 治疗扛反震' },
   antiheal: { zh: '治疗压制', short: '压疗', d: '我方受到的治疗效果只剩 40%，敌人攻击 +12%', hint: '护盾、屏障、嘲讽减伤，或者反击 / 速攻在被打死之前把对面打完' },
-  armor: { zh: '重甲', short: '重甲', d: '敌人防御 ×2，直接伤害大幅缩水', hint: '易伤 / 降防、毒 / 流血 / 反击这类无视防御的伤害，或者直接用比例伤害' },
+  armor: { zh: '重甲', short: '重甲', d: '敌人防御 ×2，直接伤害大幅缩水', hint: '易伤 / 降防（毒 / 流血 / 反击一样要过防御），或者用比例伤害绕开防御' },
   seal: { zh: '封印', short: '封印', d: '每 2 回合封印攒能量最多的两名队友（本回合不能放大招）', hint: '净化，或者分散能量（别让一个人独占满条）、多带不靠大招的输出' },
 };
 export const DOMAIN_KEYS = Object.keys(DOMAINS);
@@ -96,7 +96,7 @@ export function makeEnemy(m, rank, stage, rng, { affixes = true, msk = null, mai
   const st0 = Math.max(1, Number.isFinite(Number(stage)) ? Number(stage) : 1);
   const S = main ? enemyScaleMain(st0) : enemyScale(st0);
   const late = main ? lateBoostMain(stage) : lateBoost(stage);
-  const hpM = { Normal: 1, Elite: 2.4, Boss: 5.5 }[rank] * clamp(m.hp ?? 1, 0.5, 1.8);
+  const hpM = { Normal: 1, Elite: 2.2, Boss: 5.5 }[rank] * clamp(m.hp ?? 1, 0.5, 1.8);
   const atkM = { Normal: 1, Elite: 1.15, Boss: 1.3 }[rank] * clamp(m.atk ?? 1, 0.75, 1.25);
   const df = Number(m.df);
   const dfM = clamp(1 + (Number.isFinite(df) ? df : 0) * 0.35, 0.6, 1.8);
@@ -131,13 +131,30 @@ export function buildEnemies(stage, monsters, opts = {}) {
   const mate = info.reward ? monsters.find((m) => m.mate) : null;
   const plain = monsters.filter((m) => !m.reward && !m.mate);
   const pool = { Normal: plain.filter((m) => m.rank === 'Normal'), Elite: plain.filter((m) => m.rank === 'Elite'), Boss: plain.filter((m) => m.rank === 'Boss') };
-  const comp = info.boss ? ['Boss', 'Normal', 'Normal'] : info.elite ? ['Elite', 'Normal'] : Array(2 + (info.node >= 3 ? 1 : 0)).fill('Normal');
-  if (info.node === 9) comp.push('Normal');
+  /* 编成：奖励关是「校猫 + 米酒」两只。
+     以前奖励关沿用 Boss 编成（Boss + 2 普通），校猫已经按 5.5 倍血站在那儿了，
+     再塞一只米酒（精英档 2.2 倍血）和一只普通怪 = 三只中两只都不是普通怪，
+     第 40/80/120 关于是成了整条曲线最陡的尖峰（体检里 40 关需要的等级比 41 关高 30 级）。
+     现在少一只普通怪：仍然是「奖励关要比普通 Boss 关难一点」，但不至于卡住整章进度。 */
+  const comp = info.reward ? ['Boss', 'Normal']
+    : info.boss ? ['Boss', 'Normal', 'Normal']
+      : info.elite ? ['Elite', 'Normal']
+        : Array(2 + (info.node >= 3 ? 1 : 0)).fill('Normal');
+  if (info.node === 9 && !info.reward) comp.push('Normal');
+  /* 第 9 关那只「多出来的第四只」是关底前的一次加压，但它以前按满编普通怪算，
+     于是第 9 关是整章最陡的一关（体检里 49 关需要的等级比 48 关高 20 级）。
+     关底加压保留，改成一只偏脆的：血 65% / 攻 80%。 */
+  const softIdx = comp.length === 4 ? comp.length - 1 : -1;
   return comp.map((rank, i) => {
     const isMate = !!(mate && i === 1);
     const m = reward && i === 0 ? reward : isMate ? mate : pool[rank][Math.floor(rng() * pool[rank].length)];
     // 陪场的按精英档给数值（不然第二个回合就没了），但不吃随机词缀 ——
     // 否则他会变成「狂暴米酒」「坚壳米酒」，和「他就是这一关的设计师」对不上。
-    return makeEnemy(m, isMate ? 'Elite' : rank, stage, rng, { msk: opts.msk, affixes: !isMate, main: !!opts.main });
+    const e = makeEnemy(m, isMate ? 'Elite' : rank, stage, rng, { msk: opts.msk, affixes: !isMate, main: !!opts.main });
+    if (i === softIdx) {
+      e.hp = Math.round(e.hp * 0.65); e.atk = Math.round(e.atk * 0.8);
+      e.soft = true;
+    }
+    return e;
   });
 }

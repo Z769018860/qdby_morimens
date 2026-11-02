@@ -2093,6 +2093,8 @@ function denied(d) {
 // ------------------------------------------------------------------ 发放面板
 function openGrant(u, onDone) {
   const amountEl = h('input', { type: 'number', min: '1', max: '100000', value: '100', placeholder: '银芯数量' });
+  // 回溯券：一张可免费回溯一次（角色与装备通用），不占银芯。0 = 不发。
+  const rwEl = h('input', { type: 'number', min: '0', max: '99', value: '0', placeholder: '回溯券张数（0 = 不发）' });
   const noteEl = h('input', { type: 'text', maxlength: '120', placeholder: '备注（会显示给用户，例如「BUG 反馈奖励」）' });
   const okBtn = h('button', { class: 'btn gold', onclick: send }, '确认发放');
   const quick = h('div', { class: 'quick' }, [50, 100, 300, 1000, 3000].map((v) => h('button', {
@@ -2101,12 +2103,15 @@ function openGrant(u, onDone) {
 
   async function send() {
     const amount = Math.round(Number(amountEl.value) || 0);
-    if (!(amount > 0)) { toast('数量要大于 0'); return; }
+    const rw = Math.max(0, Math.min(99, Math.round(Number(rwEl.value) || 0)));
+    if (!(amount > 0) && !rw) { toast('银芯和回溯券至少发一样'); return; }
+    if (!(amount >= 0)) { toast('数量要大于 0'); return; }
     okBtn.disabled = true;
     okBtn.textContent = '发放中…';
     try {
-      const r = await req('/admin/grant', { method: 'POST', body: { uid: u.uid, amount, note: noteEl.value.trim() } });
-      toast(`已给「${u.name || u.uid}」发放 ${r.amount} 银芯（对方下次打开站点时到账）`);
+      const r = await req('/admin/grant', { method: 'POST', body: { uid: u.uid, amount, rw, note: noteEl.value.trim() } });
+      const what = [r.amount > 0 ? `${r.amount} 银芯` : '', (r.rw || 0) > 0 ? `${r.rw} 张回溯券` : ''].filter(Boolean).join(' + ');
+      toast(`已给「${u.name || u.uid}」发放 ${what}（对方下次打开站点时到账）`);
       closeSheet();
       if (onDone) onDone();
     } catch (e) {
@@ -2117,10 +2122,11 @@ function openGrant(u, onDone) {
   }
 
   sheetBox.replaceChildren(
-    h('h3', {}, '发放银芯'),
+    h('h3', {}, '发放银芯 / 回溯券'),
     h('p', { class: 'who' }, `${u.name || '（未命名）'} · 当前 ${u.acct ? u.acct.cr : 0} 银芯 · UID ${String(u.uid).slice(0, 10)}…`),
     quick,
     h('div', { class: 'row' }, amountEl),
+    h('div', { class: 'row' }, rwEl),
     h('div', { class: 'row' }, noteEl),
     h('div', { class: 'acts' },
       h('button', { class: 'btn ghost', onclick: closeSheet }, '取消'), okBtn));
@@ -2277,6 +2283,7 @@ function batchCard(onDone) {
   const picked = new Set();
   let target = 'all';
   const amountEl = h('input', { type: 'number', min: '0', max: '100000', value: '100', placeholder: '银芯数量（0 = 不发）' });
+  const rwEl = h('input', { type: 'number', min: '0', max: '99', value: '0', placeholder: '回溯券张数（0 = 不发）' });
   const noteEl = h('input', { type: 'text', maxlength: '120', placeholder: '备注（会显示给用户，例如「全服补偿」）' });
   const awkBox = h('div', { class: 'awkbox' }, h('span', { class: 'sub' }, '读取唤醒体清单…'));
   const awkSearch = h('input', { type: 'text', placeholder: '搜唤醒体名字', style: 'width:160px' });
@@ -2312,9 +2319,10 @@ function batchCard(onDone) {
 
   async function send() {
     const amount = Math.round(Number(amountEl.value) || 0);
+    const rw = Math.max(0, Math.min(99, Math.round(Number(rwEl.value) || 0)));
     const awk = [...picked];
-    if (!(amount > 0) && !awk.length) { toast('银芯和唤醒体至少发一样'); return; }
-    let body = { amount, awk, note: noteEl.value.trim() };
+    if (!(amount > 0) && !awk.length && !rw) { toast('银芯、唤醒体、回溯券至少发一样'); return; }
+    let body = { amount, awk, rw, note: noteEl.value.trim() };
     let who = '';
     if (target === 'all') { body.all = true; who = `全部 ${USERS.length} 个账号`; }
     else {
@@ -2323,7 +2331,7 @@ function batchCard(onDone) {
       body.uids = list.map((u) => String(u.uid));
       who = `${list.length} 个账号`;
     }
-    const what = [amount > 0 ? `${amount} 银芯` : '', awk.length ? `${awk.length} 名唤醒体` : ''].filter(Boolean).join(' + ');
+    const what = [amount > 0 ? `${amount} 银芯` : '', awk.length ? `${awk.length} 名唤醒体` : '', rw ? `${rw} 张回溯券` : ''].filter(Boolean).join(' + ');
     if (!confirm(`给 ${who} 各发放：${what}。\n\n发出去收不回，确定？`)) return;
     okBtn.disabled = true; okBtn.textContent = '发放中…';
     try {
@@ -2340,10 +2348,10 @@ function batchCard(onDone) {
 
   return h('section', { class: 'card' },
     h('h2', {}, '批量发放'),
-    h('p', { class: 'sub' }, '银芯进账号钱包（所有游戏通用），唤醒体进挂机前夜的角色库——没有就新增，已有就叠位 +1。可以只发其中一样。'),
+    h('p', { class: 'sub' }, '银芯进账号钱包（所有游戏通用），唤醒体进挂机前夜的角色库——没有就新增，已有就叠位 +1；回溯券进挂机前夜的道具栏，一张可免费回溯一次（角色与装备通用）。可以只发其中一样。'),
     tgt, batchHintEl,
     h('div', { class: 'quick' }, [50, 100, 300, 1000, 3000].map((v) => h('button', { type: 'button', onclick: () => { amountEl.value = String(v); } }, String(v)))),
-    h('div', { class: 'row' }, amountEl, noteEl),
+    h('div', { class: 'row' }, amountEl, rwEl, noteEl),
     h('div', { class: 'row' }, awkSearch, h('button', { type: 'button', class: 'btn sm ghost', onclick: () => { picked.clear(); paintAwk(); paintPicked(); } }, '清空唤醒体')),
     awkBox, pickedEl,
     h('div', { class: 'acts' }, okBtn));

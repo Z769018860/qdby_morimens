@@ -1719,7 +1719,7 @@ function startRound(s, n) {
   if (s.rev[0] || s.rev[1]) say(s, '（「回环」这一场已经用掉了，不会再有第二次。）', 'dim');
 }
 
-function reload(s) {
+function reload(s, deal) {
   const cfg = s.rounds[s.round - 1];
   const arr = [];
   for (let i = 0; i < cfg.live; i++) arr.push(true);
@@ -1727,6 +1727,14 @@ function reload(s) {
   shuffle(s, arr);
   s.shells = arr;
   s.know = [arr.map(() => null), arr.map(() => null)];
+  // 对局中的重装（打空膛 / 倾出退膛 / 寂灭王印）：双方各随机摸一件道具——
+  // 原版 Buckshot 的规矩是「每一膛都重新发牌」，只有开局那一次装填不发（开局的随身件和 cfg.items 已经发过）。
+  if (deal) {
+    for (const side of [0, 1]) {
+      const it = drawItem(s, side);
+      if (it) say(s, `装填的间隙，${nameOf(s, side)} 摸到一件${ITEMS[it.id].n}。`, 'dim');
+    }
+  }
 }
 
 function drawItem(s, side) {
@@ -1771,7 +1779,7 @@ function shoot(s, side, target) {
   if (s.phase !== 'play') return { ok: false, err: '这一局已经结束了' };
   if (s.turn !== side) return { ok: false, err: '还没轮到你' };
   if (target !== 'self' && target !== 'foe') return { ok: false, err: '目标不对' };
-  if (!s.shells.length) reload(s);
+  if (!s.shells.length) reload(s, true);
 
   s.mute[side] = 0; // 这一枪把「这一回合」用掉了，压制到此为止
   const live = s.shells.shift();
@@ -1875,7 +1883,7 @@ function shoot(s, side, target) {
 function afterShot(s, ev) {
   if (s.phase !== 'play') return;
   if (!s.shells.length) {
-    reload(s);
+    reload(s, true);
     ev.push({ t: 'reload' });
     say(s, '枪膛空了，重新装填——还是那么多发实弹与空壳，顺序重洗。', 'hd');
   }
@@ -1918,13 +1926,13 @@ function useItem(s, side, uid) {
       break;
     }
     case 'eject': {
-      if (!s.shells.length) reload(s);
+      if (!s.shells.length) reload(s, true);
       const live = s.shells.shift();
       s.know[0].shift();
       s.know[1].shift();
       ev.push({ t: 'eject', side, live });
       say(s, `${me} 倾出一颗——${live ? '实弹' : '空壳'}，退膛了，没打出去。`, 'dim');
-      if (!s.shells.length) { reload(s); ev.push({ t: 'reload' }); }
+      if (!s.shells.length) { reload(s, true); ev.push({ t: 'reload' }); }
       break;
     }
     case 'saw': {
@@ -1963,7 +1971,7 @@ function useItem(s, side, uid) {
       break;
     }
     case 'invert': {
-      if (!s.shells.length) reload(s);
+      if (!s.shells.length) reload(s, true);
       s.shells[0] = !s.shells[0];
       if (s.know[side][0] !== null && s.know[side][0] !== undefined) s.know[side][0] = s.shells[0];
       ev.push({ t: 'invert', side, now: s.shells[0] });
@@ -2010,7 +2018,7 @@ function useItem(s, side, uid) {
       break;
     }
     case 'reload': {
-      reload(s);
+      reload(s, true);
       ev.push({ t: 'reload', seal: true });
       say(s, `${me} 按下寂灭王印：枪膛清空重装，顺序重洗。`, 'hd');
       break;

@@ -11,12 +11,14 @@ import {
 } from './gear.js';
 import { ordersBonus, orderUpCost, orderBonus, orderSlotCount } from './orders.js';
 import { teamBonds } from './bonds.js';
+import { chorusAura, chorusRoleId, thornsOf, applyRolePatch } from './roles.js';
 import { buildEnemies, stageInfo, domainRules, lateDotBoost } from './enemies.js';
 import { simulate, roundLimitFor } from './battle.js';
 import { emptySquads, emptyPick, normalizeSquads, normalizePick, squadUsesItem, squadsRemoveItem, SQUAD_KEYS, ALL_SQUAD_KEYS, squadsOf, RT_MODES, towerSquadKey, realmOfMode } from './squad.js';
 import { emptyGacha, normalizeGacha, recordPull, recordBatch } from './gacha.js';
 import { CREATORS, creatorKit } from './creators.js';
 import { emptyEvent, noteBattle } from './event.js';
+import { emptyAff, normalizeAff, affLv, affOf, affBonus, affKit, gainFromBattle, addAff, AFF_MAX } from './affinity.js';
 
 export const BATTLE_SECONDS = 25;       // assumed wall-clock length of one farm battle (offline maths)
 export const OFFLINE_CAP_HOURS = 8;
@@ -56,7 +58,8 @@ export function indexData(pack) {
     kit(slug, level = 2) {
       // 彩蛋角色的技能是手写的，不走「类型模板 + 原作文本反推」那一套
       const ck = creatorKit(slug, level);
-      if (ck) return ck;
+      // 彩蛋角色手写 kit 也要套定位补正（core/roles.js）：不走 buildKit 就吃不到
+      if (ck) return applyRolePatch(slug, ck);
       const id = `${slug}:${level}`;
       return kits[id] || (kits[id] = buildKit(d.bySlug[slug], level, med));
     },
@@ -93,6 +96,12 @@ export function newState(data, now = Date.now()) {
     event: emptyEvent(),
     // 签到轮转发到第几份了（core/creators.js 的 syncSigninGifts）
     gift: { signin: 0 },
+    // 疾驰欢愉的大运（core/luckrun.js）：分数等级 / 天赋 / 专属成就 / 当前这一局
+    luck: { pts: 0, best: 0, clears: 0, runs: 0, lvClaimed: {}, talents: {}, tp: 0, ach: {}, cur: null },
+    // 免费回溯券：后台发放 / 大运等级奖励给的「免费用一次回溯」，角色与装备通用（core/game.js spendRewind）
+    vouchers: { rewind: 0 },
+    // 同调率（core/affinity.js）：带着推关 / 送礼攒点，等级天赋 + 满级卡牌效果
+    aff: emptyAff(),
   };
 }
 
@@ -119,6 +128,8 @@ export function migrate(s, data) {
   delete m.speed; delete m.skipAnim;
   // 累计游玩秒数：老存档没有就从 0 开始
   m.play = Math.max(0, Math.floor(Number(m.play) || 0));
+  // 免费回溯券：老存档没有就从 0 开始；数字被手改坏了也回到 0
+  m.vouchers = { rewind: Math.max(0, Math.min(999, Math.floor(Number(s.vouchers?.rewind) || 0))) };
   m.team = [...new Set(Array.isArray(m.team) ? m.team : [])].filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
   if (m.strategy.ult === 'manual') m.strategy.ult = 'first';   // 手动开大已下线：老存档回到默认策略
   normalizeUltOrder(m);
@@ -193,6 +204,8 @@ export function migrate(s, data) {
   m.event = { ...base.event, ...(s.event || {}), daily: { ...base.event.daily, ...(s.event?.daily || {}) } };
   // 签到轮转：老存档按已经签到的天数折算，进游戏一次补齐（syncSigninGifts 会做）
   m.gift = { signin: Math.max(0, Math.floor(s.gift?.signin || 0)) };
+  // 同调率：老存档没有就是空的（不补历史，第一次进游戏才记下今天的日子）
+  m.aff = normalizeAff(s.aff);
   return m;
 }
 
@@ -237,6 +250,11 @@ export function allyDef(state, data, slug, teamSlugs = state.team, extra = null)
   addBonus(bonus, ordersBonus(state, data));
   // 唤醒体羁绊（core/bonds.js）：也是全队被动，由 teamDefs 统一算一次传进来
   if (extra) addBonus(bonus, extra);
+  // 同调率（core/affinity.js）：等级天赋只作用在这一个人身上
+  addBonus(bonus, affBonus(state, slug));
+  const affLvNow = affLv(affOf(state, slug));
+  const sl = skillLevel(r.lv, r.star);
+  const kitNow = affLvNow >= AFF_MAX ? affKit(slug, a.type, data.kit(slug, sl), sl) : data.kit(slug, sl);
   // 叠位：每 10 层 +3% 增伤（属性与等级上限在 baseStats / levelCap 里）
   bonus.amp += Math.floor((Number.isFinite(Number(r.star)) ? Number(r.star) : 0) / 10) * 3;
   bonus.amp += overdriveAmp(r.od);          // 超限：叠满 99 之后的成长（上限 99）
@@ -251,8 +269,11 @@ export function allyDef(state, data, slug, teamSlugs = state.team, extra = null)
     aliGain: st.aliGain + bonus.aliGain, keyGain: st.keyGain + bonus.keyGain,
     healBonus: bonus.healBonus, shieldBonus: bonus.shieldBonus, steal: bonus.steal,
     surviveChance: Math.min(0.9, bonus.surviveChance), openAli: bonus.openAli, openKey: bonus.openKey,
-    firstBoost: bonus.firstBoost, kit: data.kit(slug, skillLevel(r.lv, r.star)), goldBonus: bonus.gold,
+    firstBoost: bonus.firstBoost, kit: kitNow, goldBonus: bonus.gold,
     trait: a.trait || null,
+    affLv: affLvNow,
+    chorus: a.type === 'CHORUS' ? chorusRoleId(a) : null,   // 合唱子定位（core/roles.js）
+    thorns: thornsOf(slug),                                 // 纯盾型守护的「铁壁」反伤比例（没有就是 0）
     extra: extraKit(slug, a, r),            // 满超限 / 满最终法则解锁的专属技能（没解锁是 null）
   };
   def.power = power(def);
@@ -285,8 +306,23 @@ export function teamDefs(state, data, slugs = state.team) {
   const mixed = k ? 0 : (MIXED_SYNERGY[bonds.realms.length] || 0);
   const mul = k || mixed;
   if (mul) for (const d of list) { d.hp = Math.round(d.hp * (1 + mul)); d.atk = Math.round(d.atk * (1 + mul)); }
+  /* 守护的「掩护」：队伍里每有一位守护，全队增伤 +5%（最多 +10%）。
+     体检里守护位是全定位垫底（胜率 73%，突击 95%）——不是因为它不耐打，
+     而是挂机判负几乎都是「打满回合没清场」，纯堆防御对胜率一点用都没有。
+     所以把「站得住才敢打」折算成输出：守护在场，全队的伤害往上抬一档。 */
+  const wardens = list.filter((d) => d.type === 'WARDEN').length;
+  if (wardens) for (const d of list) { d.amp += Math.min(2, wardens) * 5; d.cover = Math.min(2, wardens) * 5; }
+  /* 合唱的「和声」：按子定位给全队一条流派光环（同类最多叠 2 层，见 roles.js 的 AURA_CAP）。
+     以前辅助的价值全压在「谁面板高」上——24 个人做的都是同一件事（+攻击）。
+     现在带了谁，队伍就偏向哪条路：咏唱抬攻击、击拍抬暴伤、蚀咏抬增伤（毒也吃）、守律抬护盾、司疗抬受疗。 */
+  const aura = chorusAura(live, data);
+  if (aura.atkPct) for (const d of list) d.atk = Math.round(d.atk * (1 + aura.atkPct / 100));
+  if (aura.critDmg) for (const d of list) d.critDmg += aura.critDmg;
+  if (aura.amp) for (const d of list) d.amp += aura.amp;
+  if (aura.healBonus) for (const d of list) d.healBonus += aura.healBonus;
+  if (aura.shieldBonus) for (const d of list) d.shieldBonus += aura.shieldBonus;
   const goldBonus = list.reduce((s, d) => s + d.goldBonus, 0);
-  return { list, synergy: k, mixed, bonds, goldBonus, power: list.reduce((s, d) => s + power(d), 0) };
+  return { list, synergy: k, mixed, bonds, aura, goldBonus, power: list.reduce((s, d) => s + power(d), 0) };
 }
 
 // ---------- rewards ----------
@@ -503,6 +539,8 @@ export function applyResult(state, data, res) {
     if (dt) { drip.tickets -= dt; rw.tickets += dt; }
     if (dc) { drip.cores -= dc; rw.cores += dc; rw.dripCores = dc; }
     state.gold += rw.gold; state.tickets += rw.tickets; state.cores += rw.cores; state.stats.gold += rw.gold;
+    // 同调率：这一场带着的四个人涨点（首领关翻倍）。结算页 / 战斗页会把它提示出来。
+    rw.aff = gainFromBattle(state, (res.prep?.team?.list || []).map((d) => d.slug), res.stage, stageInfo(res.stage).boss);
     const alive = res.allies.filter((a) => a.alive).length;
     rw.comfortable = alive >= 3 && res.rounds <= (stageInfo(res.stage).boss ? 20 : 14);
     if (state.auto) {
@@ -540,8 +578,12 @@ export function applyResult(state, data, res) {
 }
 
 // ---------- offline ----------
-export function offlineReport(state, data, now = Date.now()) {
-  const secs = Math.max(0, (now - state.lastSeen) / 1000);
+export function offlineReport(state, data, now = Date.now(), since = 0) {
+  // since：按「哪个时刻」开始算。默认用存档里的 lastSeen（关页面 / 换设备重进游戏）。
+  // 网页最小化 / 手机熄屏不算关页面，后台期间存档还在每 15 秒写一次、lastSeen 被刷成「刚刚」，
+  // 所以那条路径要把「切走的时刻」显式传进来，否则回来会被当成没离线过、一分钱都不结算。
+  const from = Number(since) || Number(state.lastSeen) || 0;
+  const secs = Math.max(0, (now - from) / 1000);
   if (secs < 60) return null;
   const capped = Math.min(secs, OFFLINE_CAP_HOURS * 3600);
   const n = Math.floor(capped / BATTLE_SECONDS);
@@ -561,7 +603,7 @@ export function offlineReport(state, data, now = Date.now()) {
   const gold = Math.round(w * stageGold(stage) * (1 + t.goldBonus / 100));
   const tickets = Math.floor(w * ticketPerWin(stage)), cores = Math.floor(w * corePerWin(stage));
   const ticketFrac = w * ticketPerWin(stage) - tickets, coreFrac = w * corePerWin(stage) - cores;
-  const rng = mulberry32(hash(String(state.lastSeen)));
+  const rng = mulberry32(hash(String(from)));
   const drops = [];
   const nd = Math.min(25, Math.round(w * DROP_RATE));
   for (let i = 0; i < nd; i++) { const it = rollItem(rng, stage, data); drops.push(it); }
@@ -581,6 +623,10 @@ export function claimOffline(state, rep, now = Date.now()) {
     /* 结算时已经按「有收益的最高层」算过了，就把挂机层也切过去：
        否则领完收益又回去对着零收益的关卡打，下一次离线还是 0。 */
     if (rep.fellBack && rep.stage) { state.stage = rep.stage; const miss = (state.miss ||= { stage: 0, n: 0 }); miss.stage = rep.stage; miss.n = 0; }
+    /* 离线挂机也算「带着这四个人」：按胜场给同调点，但压得很克制——
+       一场 0.35 点、单次最多 60 点。不压的话睡一觉直接满级，同调就没有养成的意思了。 */
+    const affN = Math.min(60, Math.round((rep.wins || 0) * 0.35));
+    if (affN > 0) { rep.aff = []; for (const slug of state.team || []) { const r2 = addAff(state, slug, affN); rep.aff.push({ slug, n: affN, up: r2.up }); } }
   }
   state.lastSeen = now;
 }
@@ -609,13 +655,29 @@ export function breakThrough(state, slug) {
   r.brk = Math.floor(r.lv / LEVEL_GATE);
   return c;
 }
-// 回溯：花 100 银芯把等级直接倒回 1 级，返还当初升级与突破花的全部金币和银芯；叠位不变，等级上限也不变（上限归叠位）
+/** 免费回溯券：有券先用券（不扣银芯），没券才按原价扣银芯。
+ *  返回 true = 用券、false = 扣了银芯、null = 券也没有、银芯也不够。
+ *  角色回溯和装备回溯共用这一条，所以「券」对两边都通用。 */
+export function spendRewind(state, cost) {
+  const v = (state.vouchers ||= { rewind: 0 });
+  if (v.rewind > 0) { v.rewind -= 1; return true; }
+  if (state.cores < cost) return null;
+  state.cores -= cost;
+  state.stats.coresSpent = (state.stats.coresSpent || 0) + cost;
+  return false;
+}
+export const rewindVouchers = (state) => Math.max(0, Math.floor(Number(state?.vouchers?.rewind) || 0));
+
+// 回溯：花 100 银芯（或有券就免费用券）把等级直接倒回 1 级，返还当初升级与突破花的全部金币和银芯；
+// 叠位不变，等级上限也不变（上限归叠位）
 export function rewindLevel(state, slug) {
   const r = state.roster[slug];
   if (!r || r.lv <= 1) return null;
   const plan = rewindPlan(r);
-  if (state.cores < plan.cost) return null;
-  state.cores -= plan.cost; state.stats.coresSpent = (state.stats.coresSpent || 0) + plan.cost;
+  const paid = spendRewind(state, plan.cost);
+  if (paid == null) return null;
+  plan.free = paid;
+  plan.cost = paid ? 0 : plan.cost;
   state.gold += plan.refund; state.cores += plan.refundCores;
   r.lv = 1; r.brk = 0;
   return plan;
@@ -986,12 +1048,15 @@ export function refineItem(state, uid) {
   const c = refineCost(it); if (!c || state.cores < c) return false;
   state.cores -= c; state.stats.coresSpent = (state.stats.coresSpent || 0) + c; it.rf = (it.rf || 0) + 1; return true;
 }
-// 装备回溯：见 gear.js 的 gearRewindPlan。成功返回 plan，银芯不足或没东西可退返回 null
+// 装备回溯：见 gear.js 的 gearRewindPlan。同样先用免费回溯券；券也没有、银芯也不够，或没东西可退返回 null
 export function rewindGear(state, uid) {
   const it = state.gear.items[uid]; if (!it) return null;
   const plan = gearRewindPlan(it);
-  if (!plan.cost || state.cores < plan.cost) return null;
-  state.cores -= plan.cost; state.stats.coresSpent = (state.stats.coresSpent || 0) + plan.cost;
+  if (!plan.cost) return null;
+  const paid = spendRewind(state, plan.cost);
+  if (paid == null) return null;
+  plan.free = paid;
+  plan.cost = paid ? 0 : plan.cost;
   state.gold += plan.refund; state.cores += plan.refundCores;
   it.lv = 0; it.rf = 0;
   return plan;
@@ -1022,6 +1087,7 @@ export function pullOnce(state, data, rng) {
   return { slug: a.slug, rarity, isNew: !own, dup, gold, star: state.roster[a.slug].star };
 }
 /** 管理员在后台发的唤醒体（站点 /grants/mine 的 awk 列表）：没有就是新获得，已有就叠位 +1。
+ *  同一条赠礼里还可以带「免费回溯券」（rw）：直接进 state.vouchers.rewind，角色 / 装备回溯都能用。
  *  每条赠礼只领一次（id 记在 state.giftIds 里，云存档会一起带走，换设备也不会重领）。返回这次实际发出去的。 */
 export function claimGifts(state, data, items) {
   const done = new Set(Array.isArray(state.giftIds) ? state.giftIds : []);
@@ -1029,6 +1095,8 @@ export function claimGifts(state, data, items) {
   for (const g of Array.isArray(items) ? items : []) {
     const id = 'c:' + String(g && g.id || '');
     if (id === 'c:' || done.has(id)) continue;
+    const rw = Math.max(0, Math.min(99, Math.floor(Number(g.rw) || 0)));
+    if (rw) { (state.vouchers ||= { rewind: 0 }).rewind += rw; got.push({ voucher: rw }); }
     for (const slug of Array.isArray(g.awk) ? g.awk : []) {
       const a = data.bySlug[slug];
       if (!a) continue;

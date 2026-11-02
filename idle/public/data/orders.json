@@ -1,6 +1,6 @@
 {
- "version": 2,
- "note": "原作 64 件钥令的中文名、界域与钥令原文；bonus 是把原文关键词映射到本作加成键的结果（本作没有牌库/算力机制）。",
+ "version": 3,
+ "note": "原作 64 件钥令的中文名、界域与钥令原文；bonus 是把原文关键词映射到本作加成键、再按稀有度预算（R 11 / SR 16 / SSR 22 分）重新分配的结果：招牌键优先、最多 3 个键、主属性拿 62% 预算。tag 是招牌键对应的定位（锐意/起手/慈悲…），键数不再等于强度。",
  "sources": [
   "data/dictionary.json → key",
   "assets/key/*.webp"
@@ -15,9 +15,10 @@
    "img": "img/key/KeyToken_Skill_04.webp",
    "glyph": "鼠",
    "bonus": {
-    "openKey": 15,
-    "openAli": 15
+    "openKey": 16,
+    "openAli": 14
    },
+   "tag": "起手",
    "desc": "获得 3 点算力。",
    "use": 11.4
   },
@@ -31,10 +32,10 @@
    "glyph": "深",
    "bonus": {
     "amp": 10,
-    "atkPct": 10,
-    "openKey": 15,
-    "openAli": 15
+    "openKey": 5,
+    "atkPct": 3
    },
+   "tag": "锐意",
    "desc": "获得 1 点算力，并对所有敌人施加 ※ 临时力量降低。若徐在队伍中，同时对所有敌人施加 1 层咒缚。",
    "use": 8.1
   },
@@ -47,9 +48,10 @@
    "img": "img/key/KeyToken_Skill_48.webp",
    "glyph": "来",
    "bonus": {
-    "openKey": 15,
-    "openAli": 15
+    "openKey": 16,
+    "openAli": 14
    },
+   "tag": "起手",
    "desc": "抽 2 张「打击」。若茉夏在队伍中，使其算力消耗 -1。",
    "use": 7.6
   },
@@ -62,9 +64,10 @@
    "img": "img/key/KeyToken_Skill_51.webp",
    "glyph": "溺",
    "bonus": {
-    "aliGain": 21,
-    "openAli": 17
+    "aliGain": 15,
+    "openAli": 14
    },
+   "tag": "狂澜",
    "desc": "使选定的唤醒体获得 ※ 点狂气，并使所有其他唤醒体获得 ※ 点狂气。若莫丝在队伍中，她发动追猎：Vortex! Shell! 数值成长：原初精通成长",
    "use": 5.4
   },
@@ -77,9 +80,10 @@
    "img": "img/key/KeyToken_Skill_46.webp",
    "glyph": "偏",
    "bonus": {
-    "openKey": 15,
-    "openAli": 15
+    "openKey": 16,
+    "openAli": 14
    },
+   "tag": "起手",
    "desc": "获得 1 点算力，并对所有敌人施加 5 层诞生仪式。若诞妄·墨菲在队伍中，抽 1 张螺湮圆舞。",
    "use": 5.2
   },
@@ -92,9 +96,10 @@
    "img": "img/key/KeyToken_Skill_05.webp",
    "glyph": "小",
    "bonus": {
-    "aliGain": 21,
-    "openAli": 17
+    "aliGain": 15,
+    "openAli": 14
    },
+   "tag": "狂澜",
    "desc": "使选定的唤醒体获得 ※ 点狂气。数值成长：原初精通成长",
    "use": 4.9
   },
@@ -107,10 +112,11 @@
    "img": "img/key/KeyToken_Skill_40.webp",
    "glyph": "不",
    "bonus": {
-    "openKey": 10,
-    "openAli": 10,
-    "atkPct": 9
+    "atkPct": 8,
+    "openKey": 3,
+    "openAli": 5
    },
+   "tag": "强攻",
    "desc": "获得 1 点算力与 ※ 临时伤害强效。若凯蒂古拉在队伍中，抽 1 张她的指令卡并对其施加 1 层 Fiamma。数值成长：原初精通成长",
    "use": 3.9
   },
@@ -123,9 +129,10 @@
    "img": "img/key/KeyToken_Skill_22.webp",
    "glyph": "全",
    "bonus": {
-    "aliGain": 14,
-    "openAli": 12
+    "aliGain": 11,
+    "openAli": 10
    },
+   "tag": "狂澜",
    "desc": "使界域精通提高 ※。使选定的唤醒体获得 ※ 点狂气。数值成长：原初精通成长",
    "use": 3.6
   },
@@ -138,10 +145,11 @@
    "img": "img/key/KeyToken_Skill_23.webp",
    "glyph": "唯",
    "bonus": {
-    "aliGain": 14,
-    "openAli": 22,
-    "openKey": 10
+    "aliGain": 10,
+    "openAli": 5,
+    "openKey": 3
    },
+   "tag": "狂澜",
    "desc": "选择手牌中一张非衍生指令卡，创造其基础复制品。该复制品带有消耗。使其唤醒体获得 ※ 点狂气。数值成长：原初精通成长",
    "use": 3.6
   },
@@ -154,12 +162,11 @@
    "img": "img/key/KeyToken_Skill_41.webp",
    "glyph": "泣",
    "bonus": {
-    "openKey": 10,
-    "openAli": 10,
-    "critRate": 7,
-    "critDmg": 14,
-    "atkPct": 9
+    "critDmg": 10,
+    "critRate": 2,
+    "atkPct": 2
    },
+   "tag": "锋锐",
    "desc": "抽 1 张牌并使其算力消耗 -1。若抽到指令卡，其唤醒体获得 +※ 临时暴击伤害。若波吕克斯在队伍中，获得 5 层罪印。数值成长：原初精通成长",
    "use": 3.5
   },
@@ -172,10 +179,11 @@
    "img": "img/key/KeyToken_Skill_25.webp",
    "glyph": "海",
    "bonus": {
-    "aliGain": 14,
-    "openAli": 22,
-    "openKey": 10
+    "aliGain": 10,
+    "openAli": 5,
+    "openKey": 3
    },
+   "tag": "狂澜",
    "desc": "抽 2 张牌。获得 2 点算力。所有唤醒体失去 5 点狂气。若你的触腕体势为静海，对所有敌人施加 ※ 层中毒。首领战中改为施加 3 倍的中毒。数值成长：原初精通成长",
    "use": 2.9
   },
@@ -188,12 +196,11 @@
    "img": "img/key/KeyToken_Skill_55.webp",
    "glyph": "噬",
    "bonus": {
-    "amp": 7,
-    "atkPct": 7,
-    "aliGain": 14,
-    "openAli": 12,
-    "steal": 4
+    "steal": 3,
+    "aliGain": 3,
+    "amp": 2
    },
+   "tag": "汲取",
    "desc": "获得 ※ 点力量。选择 1 名唤醒体，从其他唤醒体身上偷取至多 10 点狂气。若蚀灭·萝坦在队伍中，其下一次「打击」额外生效 1 次。数值成长：原初精通成长",
    "use": 2.9
   },
@@ -206,9 +213,10 @@
    "img": "img/key/KeyToken_Skill_01.webp",
    "glyph": "纯",
    "bonus": {
-    "openKey": 10,
+    "openKey": 12,
     "openAli": 10
    },
+   "tag": "起手",
    "desc": "弃置手牌，然后抽取相同张数 +2 的牌。",
    "use": 2.8
   },
@@ -221,12 +229,11 @@
    "img": "img/key/KeyToken_Skill_52.webp",
    "glyph": "罗",
    "bonus": {
-    "shieldBonus": 12,
-    "defPct": 9,
-    "openKey": 10,
-    "openAli": 10,
-    "atkPct": 9
+    "defPct": 6,
+    "shieldBonus": 3,
+    "atkPct": 2
    },
+   "tag": "守势",
    "desc": "获得 ※ 点护盾与 +※ 临时伤害强效。若阿拉克涅在队伍中，抽 1 张永恒织造并使其算力消耗 -1。数值成长：原初精通成长",
    "use": 2.3
   },
@@ -239,10 +246,11 @@
    "img": "img/key/KeyToken_Skill_39.webp",
    "glyph": "残",
    "bonus": {
-    "amp": 7,
-    "atkPct": 7,
-    "steal": 4
+    "steal": 3,
+    "amp": 2,
+    "atkPct": 2
    },
+   "tag": "汲取",
    "desc": "从所有敌人身上偷取 ※ 点力量。若杜勒赛因在队伍中，他获得 1 具尸体。",
    "use": 2.2
   },
@@ -255,13 +263,13 @@
    "img": "img/key/KeyToken_Skill_36.webp",
    "glyph": "错",
    "bonus": {
-    "aliGain": 14,
-    "openAli": 22,
-    "openKey": 10,
-    "atkPct": 9
+    "aliGain": 10,
+    "openAli": 5,
+    "atkPct": 2
    },
+   "tag": "狂澜",
    "desc": "使选定的唤醒体获得 ※ 点狂气。从抽卡堆中抽取算力消耗最低的 2 张牌。若卡斯托尔在队伍中，使其临时伤害强效提高 ※。数值成长：原初精通成长",
-   "use": 2.0
+   "use": 2
   },
   {
    "id": "k94559",
@@ -272,9 +280,10 @@
    "img": "img/key/KeyToken_Skill_42.webp",
    "glyph": "猎",
    "bonus": {
-    "openKey": 10,
+    "openKey": 12,
     "openAli": 10
    },
+   "tag": "起手",
    "desc": "从队伍中唤醒体的基础技能指令中发现 3 选 1，选择 1 张并将其临时复制品置入手牌，使其算力消耗 -1。若界域包含血肉，可选择 Gobble Up!",
    "use": 1.9
   },
@@ -287,10 +296,11 @@
    "img": "img/key/KeyToken_Skill_30.webp",
    "glyph": "虚",
    "bonus": {
-    "healBonus": 13,
-    "aliGain": 14,
-    "openAli": 12
+    "healBonus": 6,
+    "aliGain": 3,
+    "openAli": 5
    },
+   "tag": "慈悲",
    "desc": "使选定的唤醒体获得 ※ 点狂气，并对每名敌人施加 ※ 层中毒。每名敌人每损失 1% 生命，触发其 1% 的中毒，至多 50%。数值成长：原初精通成长",
    "use": 1.6
   },
@@ -303,10 +313,11 @@
    "img": "img/key/KeyToken_Skill_02.webp",
    "glyph": "脑",
    "bonus": {
-    "amp": 7,
-    "atkPct": 7,
-    "steal": 4
+    "steal": 3,
+    "amp": 2,
+    "atkPct": 2
    },
+   "tag": "汲取",
    "desc": "对每名敌人施加 1 层虚弱与易伤，并从其身上偷取 ※ 点力量。",
    "use": 1.5
   },
@@ -319,9 +330,10 @@
    "img": "img/key/KeyToken_Skill_29.webp",
    "glyph": "门",
    "bonus": {
-    "keyGain": 14,
-    "openKey": 12
+    "keyGain": 8,
+    "openKey": 7
    },
+   "tag": "钥流",
    "desc": "从 3 个随机钥令中发现 1 个，选择 1 个并触发其效果，并获得 ※ 点银钥。数值成长：原初精通成长",
    "use": 1.5
   },
@@ -334,13 +346,11 @@
    "img": "img/key/KeyToken_Skill_57.webp",
    "glyph": "永",
    "bonus": {
-    "shieldBonus": 12,
-    "defPct": 9,
-    "amp": 7,
-    "atkPct": 7,
-    "aliGain": 14,
-    "openAli": 12
+    "defPct": 6,
+    "aliGain": 3,
+    "shieldBonus": 3
    },
+   "tag": "守势",
    "desc": "获得 ※ 点护盾与 ※ 点力量。若负誓·奥吉尔在队伍中，负誓·奥吉尔获得 ※ 点狂气并获得 1 层暗流。数值成长：原初精通成长",
    "use": 1.5
   },
@@ -353,9 +363,10 @@
    "img": "img/key/KeyToken_Skill_16.webp",
    "glyph": "跨",
    "bonus": {
-    "openKey": 7,
+    "openKey": 8,
     "openAli": 7
    },
+   "tag": "起手",
    "desc": "从抽卡堆中检索 1 张卡牌置入手牌，并使其算力消耗 -1。",
    "use": 1.4
   },
@@ -368,9 +379,10 @@
    "img": "img/key/KeyToken_Skill_24.webp",
    "glyph": "群",
    "bonus": {
-    "openKey": 7,
+    "openKey": 8,
     "openAli": 7
    },
+   "tag": "起手",
    "desc": "选择一名唤醒体；抽取其 2 张指令卡。",
    "use": 1.4
   },
@@ -383,10 +395,11 @@
    "img": "img/key/KeyToken_Skill_03.webp",
    "glyph": "注",
    "bonus": {
-    "shieldBonus": 8,
-    "defPct": 6,
-    "healBonus": 9
+    "healBonus": 4,
+    "defPct": 1,
+    "shieldBonus": 2
    },
+   "tag": "慈悲",
    "desc": "获得 ※ 点护盾，当前生命若低于 25%，回复 ※ 点生命。",
    "use": 1.1
   },
@@ -400,8 +413,9 @@
    "glyph": "腐",
    "bonus": {
     "amp": 5,
-    "atkPct": 5
+    "atkPct": 4
    },
+   "tag": "锐意",
    "desc": "获得 ※ 点反击，并对所有敌人暂时施加 ※ 点力量降低。若处于超维回合，则改为对所有敌人触发 100% 反击，而不施加力量降低。数值成长：原初精通成长",
    "use": 1.1
   },
@@ -414,11 +428,11 @@
    "img": "img/key/KeyToken_Skill_53.webp",
    "glyph": "献",
    "bonus": {
-    "shieldBonus": 8,
-    "defPct": 6,
-    "openKey": 7,
-    "openAli": 7
+    "defPct": 4,
+    "shieldBonus": 2,
+    "openKey": 2
    },
+   "tag": "守势",
    "desc": "获得 ※ 点护盾。抽 2 张「技能」卡并使其获得感知扭曲。沙耶：获得 1 层雌蕊。",
    "use": 1.1
   },
@@ -432,12 +446,12 @@
    "glyph": "短",
    "bonus": {
     "amp": 5,
-    "atkPct": 5,
-    "openKey": 7,
-    "openAli": 7
+    "openKey": 2,
+    "atkPct": 2
    },
+   "tag": "锐意",
    "desc": "获得 1 点算力。选择一名唤醒体；创造其 1 张基础打击与 1 张基础防御。这些复制品带有消耗与虚无。若界域包含超维，获得 ※ 点临时力量与 ※ 点临时戒备。数值成长：原初精通成长",
-   "use": 1.0
+   "use": 1
   },
   {
    "id": "k141174",
@@ -448,13 +462,13 @@
    "img": "img/key/KeyToken_Skill_54.webp",
    "glyph": "空",
    "bonus": {
-    "amp": 5,
-    "atkPct": 11,
-    "critRate": 5,
-    "critDmg": 10
+    "atkPct": 5,
+    "critDmg": 2,
+    "critRate": 1
    },
+   "tag": "强攻",
    "desc": "临时暴击伤害 +※，暂时使所有敌人的力量降低提高 ※。若庞托斯在队伍中，获得 1 层群猎。数值成长：原初精通成长",
-   "use": 1.0
+   "use": 1
   },
   {
    "id": "k10032",
@@ -466,8 +480,9 @@
    "glyph": "永",
    "bonus": {
     "amp": 5,
-    "atkPct": 5
+    "atkPct": 4
    },
+   "tag": "锐意",
    "desc": "获得 ※ 点力量，然后获得相当于永久力量 25% 的临时力量。数值成长：原初精通成长",
    "use": 0.9
   },
@@ -480,15 +495,11 @@
    "img": "img/key/KeyToken_Skill_09.webp",
    "glyph": "最",
    "bonus": {
-    "shieldBonus": 8,
-    "defPct": 6,
-    "amp": 5,
-    "atkPct": 5,
-    "openKey": 7,
-    "openAli": 7,
-    "critRate": 5,
-    "critDmg": 10
+    "defPct": 4,
+    "critDmg": 2,
+    "critRate": 1
    },
+   "tag": "守势",
    "desc": "获得 +※ 临时暴击率与 ※ 点临时力量。若处于首领战且本回合尚未打出卡牌，尝试触发 1 次死亡抵抗。若成功，获得 ※ 点护盾。该效果每场战斗仅可触发 1 次。数值成长：原初精通成长",
    "use": 0.8
   },
@@ -501,10 +512,11 @@
    "img": "img/key/KeyToken_Skill_10.webp",
    "glyph": "奥",
    "bonus": {
-    "openKey": 7,
-    "openAli": 7,
-    "atkPct": 6
+    "atkPct": 5,
+    "openKey": 2,
+    "openAli": 3
    },
+   "tag": "强攻",
    "desc": "从抽卡堆中抽取算力消耗最低的 3 张牌。若界域包含深海，获得 ※ 点触腕伤害。数值成长：原初精通成长",
    "use": 0.6
   },
@@ -517,12 +529,11 @@
    "img": "img/key/KeyToken_Skill_11.webp",
    "glyph": "咆",
    "bonus": {
-    "healBonus": 9,
-    "amp": 5,
-    "atkPct": 5,
-    "aliGain": 10,
-    "openAli": 8
+    "healBonus": 4,
+    "aliGain": 2,
+    "amp": 2
    },
+   "tag": "慈悲",
    "desc": "使选定的唤醒体获得 ※ 点狂气。获得 ※ 点力量。若界域包含血肉，消耗 10% 的生命，使胚胎融合 +※。数值成长：原初精通成长",
    "use": 0.6
   },
@@ -535,8 +546,9 @@
    "img": "img/key/KeyToken_Skill_31.webp",
    "glyph": "群",
    "bonus": {
-    "amp": 4
+    "amp": 8
    },
+   "tag": "锐意",
    "desc": "选择「沉眠」或「苏醒」。",
    "use": 0.6
   },
@@ -549,11 +561,11 @@
    "img": "img/key/KeyToken_Skill_35.webp",
    "glyph": "不",
    "bonus": {
-    "shieldBonus": 8,
-    "defPct": 6,
-    "openKey": 7,
-    "openAli": 7
+    "defPct": 4,
+    "shieldBonus": 2,
+    "openKey": 2
    },
+   "tag": "守势",
    "desc": "获得 ※ 点护盾，抽 2 张牌。若克珀珊特在队伍中，还会将 1 张「领航」置入手中。",
    "use": 0.6
   },
@@ -566,11 +578,11 @@
    "img": "img/key/KeyToken_Skill_45.webp",
    "glyph": "美",
    "bonus": {
-    "shieldBonus": 8,
-    "defPct": 6,
-    "amp": 5,
-    "atkPct": 5
+    "defPct": 4,
+    "shieldBonus": 2,
+    "amp": 2
    },
+   "tag": "守势",
    "desc": "获得 ※ 点护盾，以及相当于你当前护盾 10% 的临时力量。",
    "use": 0.6
   },
@@ -583,9 +595,10 @@
    "img": "img/key/KeyToken_Skill_56.webp",
    "glyph": "并",
    "bonus": {
-    "shieldBonus": 8,
-    "defPct": 6
+    "defPct": 4,
+    "shieldBonus": 4
    },
+   "tag": "守势",
    "desc": "获得 ※ 点护盾，使界域精通提高 ※。若卡拉布在队伍中，卡拉布的下一张卡拉布的祝福不再附带代价。数值成长：原初精通成长",
    "use": 0.6
   },
@@ -598,12 +611,11 @@
    "img": "img/key/KeyToken_Skill_19.webp",
    "glyph": "玫",
    "bonus": {
-    "healBonus": 9,
-    "amp": 5,
-    "atkPct": 5,
-    "openKey": 7,
-    "openAli": 7
+    "healBonus": 4,
+    "amp": 2,
+    "openKey": 2
    },
+   "tag": "慈悲",
    "desc": "抽 2 张牌并获得 ※ 点临时力量。若界域包含血肉，消耗 10% 的生命，再获得 ※ 点临时力量，且手牌中每有一个胚胎再获得 ※ 点临时力量。数值成长：原初精通成长",
    "use": 0.5
   },
@@ -616,14 +628,11 @@
    "img": "img/key/KeyToken_Skill_21.webp",
    "glyph": "巨",
    "bonus": {
-    "amp": 5,
-    "atkPct": 11,
-    "aliGain": 10,
-    "openAli": 15,
-    "openKey": 7,
-    "critRate": 5,
-    "critDmg": 10
+    "atkPct": 5,
+    "aliGain": 2,
+    "critDmg": 2
    },
+   "tag": "强攻",
    "desc": "获得 1 点算力与 ※ 点力量，然后使选定的唤醒体获得 ※ 点狂气。若你的触腕体势为怒涛，则改为获得 +※ 临时暴击率与暴击伤害。数值成长：原初精通成长",
    "use": 0.5
   },
@@ -636,11 +645,11 @@
    "img": "img/key/KeyToken_Skill_08.webp",
    "glyph": "不",
    "bonus": {
-    "healBonus": 9,
-    "hpPct": 7,
-    "aliGain": 10,
-    "openAli": 8
+    "healBonus": 4,
+    "hpPct": 1,
+    "aliGain": 2
    },
+   "tag": "慈悲",
    "desc": "使所有唤醒体获得 ※ 点狂气。承受相当于最大生命 5% 的延迟献祭。数值成长：原初精通成长",
    "use": 0.4
   },
@@ -653,11 +662,11 @@
    "img": "img/key/KeyToken_Skill_14.webp",
    "glyph": "蚀",
    "bonus": {
-    "shieldBonus": 8,
-    "defPct": 6,
-    "openKey": 7,
-    "openAli": 7
+    "defPct": 4,
+    "shieldBonus": 2,
+    "openKey": 2
    },
+   "tag": "守势",
    "desc": "获得 1 点算力，并在下回合开始时获得 ※ 点护盾。若你的触腕体势为汹涌潮汐，则改为产生 1 条触腕。",
    "use": 0.4
   },
@@ -670,10 +679,11 @@
    "img": "img/key/KeyToken_Skill_15.webp",
    "glyph": "湖",
    "bonus": {
-    "shieldBonus": 8,
-    "defPct": 6,
-    "healBonus": 9
+    "healBonus": 4,
+    "defPct": 1,
+    "shieldBonus": 2
    },
+   "tag": "慈悲",
    "desc": "对生命最高的敌人施加 ※ 层中毒，并获得 ※ 点护盾。若本回合触发过吞噬，则改为触发该敌人 50% 的中毒，而不获得护盾。数值成长：原初精通成长",
    "use": 0.4
   },
@@ -686,10 +696,11 @@
    "img": "img/key/KeyToken_Skill_44.webp",
    "glyph": "虚",
    "bonus": {
-    "aliGain": 10,
-    "openAli": 15,
-    "openKey": 7
+    "aliGain": 7,
+    "openAli": 3,
+    "openKey": 2
    },
+   "tag": "狂澜",
    "desc": "使选定的唤醒体获得 ※ 点狂气，并将 1 张洞悉洗入抽卡堆。若皮克曼在队伍中，他获得 1 层创意。数值成长：原初精通成长",
    "use": 0.4
   },
@@ -703,8 +714,9 @@
    "glyph": "灰",
    "bonus": {
     "amp": 5,
-    "atkPct": 5
+    "atkPct": 4
    },
+   "tag": "锐意",
    "desc": "获得 ※ 点力量并创造 1 张洞悉。若处于超维回合，则改为创造 2 张洞悉。数值成长：原初精通成长",
    "use": 0.3
   },
@@ -717,11 +729,11 @@
    "img": "img/key/KeyToken_Skill_20.webp",
    "glyph": "神",
    "bonus": {
-    "shieldBonus": 8,
-    "defPct": 6,
-    "amp": 5,
-    "atkPct": 11
+    "atkPct": 5,
+    "defPct": 1,
+    "shieldBonus": 2
    },
+   "tag": "强攻",
    "desc": "获得 ※ 点力量。直到你的下回合，每当受到主动伤害，获得相当于该伤害 10% 的延迟护盾。若界域包含血肉，则改为累积相当于该伤害 10% 的猩红熔炉。数值成长：原初精通成长",
    "use": 0.3
   },
@@ -734,14 +746,11 @@
    "img": "img/key/KeyToken_Skill_34.webp",
    "glyph": "特",
    "bonus": {
-    "shieldBonus": 8,
-    "defPct": 6,
-    "healBonus": 9,
-    "amp": 5,
-    "atkPct": 11,
-    "aliGain": 10,
-    "openAli": 8
+    "atkPct": 5,
+    "healBonus": 1,
+    "defPct": 1
    },
+   "tag": "强攻",
    "desc": "回复 ※ 点生命并获得 ※ 点力量。若克莱门汀在队伍中，为她的下一张指令卡额外增加 1 次以下效果：伤害、护盾、生命回复、狂气与银钥。数值成长：原初精通成长",
    "use": 0.3
   },
@@ -754,11 +763,11 @@
    "img": "img/key/KeyToken_Skill_43.webp",
    "glyph": "定",
    "bonus": {
-    "openKey": 7,
-    "openAli": 7,
-    "critRate": 5,
-    "critDmg": 10
+    "critDmg": 7,
+    "critRate": 1,
+    "openKey": 2
    },
+   "tag": "锋锐",
    "desc": "选择一名唤醒体；将其 1 张算力消耗为 0 的临时基础「打击」置入手牌。每第 3 次释放时，改为将 1 张虚无的美人置入手牌并获得 +※ 临时暴击率。数值成长：原初精通成长",
    "use": 0.3
   },
@@ -771,9 +780,10 @@
    "img": "img/key/KeyToken_Skill_07.webp",
    "glyph": "不",
    "bonus": {
-    "openKey": 7,
+    "openKey": 8,
     "openAli": 7
    },
+   "tag": "起手",
    "desc": "抽 4 张牌。",
    "use": 0.2
   },
@@ -786,12 +796,11 @@
    "img": "img/key/KeyToken_Skill_32.webp",
    "glyph": "黑",
    "bonus": {
-    "aliGain": 10,
-    "openAli": 8,
-    "critRate": 5,
-    "critDmg": 10,
-    "atkPct": 6
+    "aliGain": 7,
+    "critDmg": 2,
+    "critRate": 1
    },
+   "tag": "狂澜",
    "desc": "使选定的唤醒体获得 ※ 点狂气。本回合其指令卡的暴击率与暴击伤害 +※。若莉兹在队伍中，创造 1 张带有消耗的堕落之火。数值成长：原初精通成长",
    "use": 0.2
   },
@@ -804,9 +813,10 @@
    "img": "img/key/KeyToken_Skill_47.webp",
    "glyph": "重",
    "bonus": {
-    "openKey": 7,
+    "openKey": 8,
     "openAli": 7
    },
+   "tag": "起手",
    "desc": "将弃卡堆中 1 张指令卡返回手牌。本回合打出的下一张拉蒙娜指令卡生效 2 次。",
    "use": 0.2
   },
@@ -819,11 +829,11 @@
    "img": "img/key/KeyToken_Skill_50.webp",
    "glyph": "岁",
    "bonus": {
-    "openKey": 7,
-    "openAli": 7,
-    "critRate": 5,
-    "critDmg": 10
+    "critDmg": 7,
+    "critRate": 1,
+    "openKey": 2
    },
+   "tag": "锋锐",
    "desc": "获得 1 点算力与 +※ 临时暴击率。每场战斗首次释放时，对所有敌人施加 ※ 层古老余烬。数值成长：原初精通成长",
    "use": 0.2
   },
@@ -836,10 +846,11 @@
    "img": "img/key/KeyToken_Skill_18.webp",
    "glyph": "仲",
    "bonus": {
-    "aliGain": 10,
-    "openAli": 15,
-    "openKey": 7
+    "aliGain": 7,
+    "openAli": 3,
+    "openKey": 2
    },
+   "tag": "狂澜",
    "desc": "抽 1 张牌；若抽到的是指令卡或觉醒卡，使其算力消耗降为 0，并使其唤醒体获得 ※ 点狂气。否则弃置该牌并重复此过程。数值成长：原初精通成长",
    "use": 0.1
   },
@@ -852,9 +863,10 @@
    "img": "img/key/KeyToken_Skill_27.webp",
    "glyph": "一",
    "bonus": {
-    "critRate": 5,
-    "critDmg": 10
+    "critDmg": 7,
+    "critRate": 2
    },
+   "tag": "锋锐",
    "desc": "创造 1 枚闪耀八面骰，并获得 ※ 临时暴击率。数值成长：原初精通成长",
    "use": 0.1
   },
@@ -867,10 +879,11 @@
    "img": "img/key/KeyToken_Skill_28.webp",
    "glyph": "第",
    "bonus": {
-    "keyGain": 10,
-    "openKey": 15,
-    "openAli": 7
+    "keyGain": 5,
+    "openKey": 2,
+    "openAli": 3
    },
+   "tag": "钥流",
    "desc": "若本回合你打出的下一张卡牌算力消耗不低于 3，获得 2 点算力；否则抽 2 张牌。若这是本场战斗第 4 次释放该钥令，则改为创造 4 张洞悉。",
    "use": 0.1
   },
@@ -883,8 +896,9 @@
    "img": "img/key/KeyToken_Skill_33.webp",
    "glyph": "酒",
    "bonus": {
-    "amp": 4
+    "amp": 8
    },
+   "tag": "锐意",
    "desc": "创造 1 枚莉亚的硬币并将其置入弃卡堆。",
    "use": 0.1
   },
@@ -897,8 +911,9 @@
    "img": "img/key/KeyToken_Skill_26.webp",
    "glyph": "春",
    "bonus": {
-    "amp": 4
+    "amp": 8
    },
+   "tag": "锐意",
    "desc": "从尚未选择的四张诗页中选择一张；所有诗篇都被选择后重置。",
    "use": null
   },
@@ -912,8 +927,9 @@
    "glyph": "原",
    "bonus": {
     "amp": 5,
-    "atkPct": 5
+    "atkPct": 4
    },
+   "tag": "锐意",
    "desc": "暂时使所有敌人的力量降低提高 ※。数值成长：原初精通成长",
    "use": null
   },
@@ -926,9 +942,10 @@
    "img": "img/key/KeyToken_Skill_00.webp",
    "glyph": "原",
    "bonus": {
-    "aliGain": 10,
-    "openAli": 8
+    "aliGain": 7,
+    "openAli": 7
    },
+   "tag": "狂澜",
    "desc": "所有唤醒体获得 ※ 点狂气。数值成长：原初精通成长",
    "use": null
   },
@@ -941,8 +958,9 @@
    "img": "img/key/KeyToken_Skill_00.webp",
    "glyph": "原",
    "bonus": {
-    "healBonus": 9
+    "healBonus": 8
    },
+   "tag": "慈悲",
    "desc": "回复 ※ 点生命。数值成长：原初精通成长",
    "use": null
   },
@@ -955,8 +973,9 @@
    "img": "img/key/KeyToken_Skill_00.webp",
    "glyph": "原",
    "bonus": {
-    "amp": 4
+    "amp": 8
    },
+   "tag": "锐意",
    "desc": "对所有敌人施加 ※ 层中毒。数值成长：原初精通成长",
    "use": null
   },
@@ -969,8 +988,9 @@
    "img": "img/key/KeyToken_Skill_00.webp",
    "glyph": "原",
    "bonus": {
-    "amp": 4
+    "amp": 8
    },
+   "tag": "锐意",
    "desc": "获得 ※ 层临时反击。数值成长：原初精通成长",
    "use": null
   },
@@ -984,8 +1004,9 @@
    "glyph": "原",
    "bonus": {
     "amp": 5,
-    "atkPct": 5
+    "atkPct": 4
    },
+   "tag": "锐意",
    "desc": "获得 ※ 点力量。数值成长：原初精通成长",
    "use": null
   },
@@ -998,9 +1019,10 @@
    "img": "img/key/KeyToken_Skill_00.webp",
    "glyph": "原",
    "bonus": {
-    "shieldBonus": 8,
-    "defPct": 6
+    "defPct": 4,
+    "shieldBonus": 4
    },
+   "tag": "守势",
    "desc": "获得 ※ 点护盾。数值成长：原初精通成长",
    "use": null
   },
@@ -1013,8 +1035,9 @@
    "img": "img/key/KeyToken_Skill_00.webp",
    "glyph": "原",
    "bonus": {
-    "atkPct": 6
+    "atkPct": 9
    },
+   "tag": "强攻",
    "desc": "获得 ※ 临时伤害强效。数值成长：原初精通成长",
    "use": null
   }

@@ -9,6 +9,7 @@ import {
   AWAKEN_STAT_PER, AWAKEN_AMP_EVERY, AWAKEN_AMP_PER, AWAKEN_SKILL_EVERY,
 } from '../core/constants.js';
 import { sound, TRACK_LIST } from './audio.js';
+import { affinityCard } from './affinity.js';
 import {
   SQUAD_KEYS, RIFT_SQUAD_KEYS, TOWER_SQUAD_KEYS, ALL_SQUAD_KEYS, SQUAD_ZH, SQUAD_MODES, MODE_ZH, RIFT_MODE,
   isRiftSquad, isTowerSquad, towerSquadKey, squadMembers, squadUsage, pickedSquad, loadoutOf, riftTaken, normalizeLoadout, withLoadout, squadKeyFor, squadsOf,
@@ -41,7 +42,8 @@ import {
 } from '../core/gear.js';
 import { orderSlotCount, orderLockedHint, orderText, orderUpCost, orderLvMult } from '../core/orders.js';
 import { teamBonds, bondHint, bondsOf, BONDS, BOND_CATS } from '../core/bonds.js';
-import { esc, img, fmt, openModal, closeModal, toast, markup } from './util.js';
+import { roleChipOf, chorusRoleOf } from '../core/roles.js';
+import { esc, img, fmt, openModal, closeModal, toast, markup, dropModalScroll, modalEl } from './util.js';
 
 const R = (a) => REALMS[a.realm];
 // 叠位到 99 之后不能再画星星，改成数字 + 一档小标
@@ -202,10 +204,13 @@ let relicSwapCtx = null;
  *  而不是主线的造物栏。以前不传这个，点在编队里的「换一件」会去改 s.gear.relics：
  *  草稿纹丝不动（看着像没生效），主线那 6 件反倒被悄悄换掉。
  *  opts 传 null（默认）= 沿用上一次的上下文（强化 / 精炼后重开用），传 {} = 回主线。 */
+/** 免费回溯券的张数：有券的时候回溯不花银芯，按钮直接写「券」 */
+const rwCount = (s) => Math.max(0, Math.floor(Number(s?.vouchers?.rewind) || 0));
 const rewindBtn = (s, it, cls = 'btn sm') => {
   const p = gearRewindPlan(it); if (!p.cost) return '';
   const back = `${p.refund ? `金币 ${fmt(p.refund)}` : ''}${p.refund && p.refundCores ? ' + ' : ''}${p.refundCores ? `银芯 ${p.refundCores}` : ''}`;
-  return `<button class="${cls}" data-act="gear-rewind" data-uid="${it.uid}" ${s.cores >= p.cost ? '' : 'disabled'} title="回溯：强化和精炼倒回 0，返还 ${back}">回溯 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${p.cost}</button>`;
+  const rw = rwCount(s), free = rw > 0;
+  return `<button class="${cls}" data-act="gear-rewind" data-uid="${it.uid}" ${free || s.cores >= p.cost ? '' : 'disabled'} title="回溯：强化和精炼倒回 0，返还 ${back}${free ? `（用一张免费回溯券，不花银芯；还剩 ${rw} 张）` : ''}">回溯 ${free ? `券×${rw}` : `<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${p.cost}`}</button>`;
 };
 export function relicModal(app, uid, opts = null) {
   if (opts) relicSwapCtx = opts.onSwap || null;
@@ -237,7 +242,7 @@ export function relicModal(app, uid, opts = null) {
       <button class="btn sm" data-act="${onSwap ? 'sq-relic-swap' : 'relic-swap'}" data-i="${relicIndexOf(s, uid)}">换一件</button>
       ${rewindBtn(s, it)}
     </div>
-    ${gearRewindPlan(it).cost ? `<p class="hint">回溯：花 ${GEAR_REWIND_COST} 银芯，把这件造物的强化和精炼倒回 0，当初花的金币和精炼银芯<b>全部返还</b>。</p>` : ''}
+    ${gearRewindPlan(it).cost ? `<p class="hint">回溯：${rwCount(s) ? `用一张<b>免费回溯券</b>（还剩 ${rwCount(s)} 张），不花银芯` : `花 ${GEAR_REWIND_COST} 银芯`}，把这件造物的强化和精炼倒回 0，当初花的金币和精炼银芯<b>全部返还</b>。</p>` : ''}
     <p class="hint dim">金币 ${fmt(s.gold)} · 银芯 ${fmt(s.cores)}</p>`;
   const m = openModal(html);
   // 编队编辑器里：这里的「换一件」必须换成草稿那一格，不能落到主线的造物栏上
@@ -427,6 +432,11 @@ function squadsPanel(app) {
     <p class="hint">这五套<b>只给融灾禁区用</b>，调它们不会动到上面那五套通用编队。<b>五队的唤醒体和装备不能重复</b>；哪队还没编，挑战时会自动用没被占用的人和装备补满。</p>`;
 }
 
+/** 编队编辑器的弹窗标识：换装备要「弹窗套弹窗」，靠这个把滚动位置带回来 */
+const SQ_EDITOR_KEY = 'sqeditor';
+/** 编辑器里连续换装用的挑装备弹窗标识：同一类装备连着换，列表停在原处，不用每次重新往下拉 */
+const sqPickKey = (kind) => `sqpick:${kind}`;
+
 /**
  * 编队编辑器：四个槽位 + 界域筛选 + 一键上阵，存到一/二/三队。
  * mode 有值时，保存后把这个挑战入口直接指向刚存的编队。
@@ -588,7 +598,10 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
       </div>`;
   };
 
-  const m = openModal(body(), 'wide sqeditor');
+  const m = openModal(body(), 'wide sqeditor', SQ_EDITOR_KEY);
+  // 这个弹窗会为了「选装备 / 看造物详情」被另一层顶掉（本身 DOM 被移除），选完再重开一次。
+  // 带上 SQ_EDITOR_KEY 后位置跟着走：在造物那一段换完一件就还在造物那一段，
+  // 不会被弹回最上面、再往下拉一遍。
   // 只重绘内容层：✕ 挂在外面的 .modal 上，不参与重绘也不跟着滚
   const paint = () => { const sc = m.querySelector('.modal-body'); const y = sc.scrollTop; sc.innerHTML = body(); sc.scrollTop = y; };
   // 选装备 / 钥令会弹出另一层窗口，把编队窗口顶掉；选完（或点 ✕ 取消）都回到编队窗口，草稿还在 app.ui.sqDraft
@@ -603,6 +616,9 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
     // 关掉编辑器（✕ 或点遮罩）就作废草稿：否则「已编入 …·草稿」会跟着跑到装备页上
     if (e.target === m || e.target.closest('[data-act="close"]')) {
       if (sqDraftCtx === st) setSquadDraftCtx(null);
+      // 编辑器真的关掉了，别再记着这一层滚到哪；下次从编队库进来从头看
+      dropModalScroll(SQ_EDITOR_KEY);
+      for (const k of ['wheel', 'cov', 'relic']) dropModalScroll(sqPickKey(k));
       return;
     }
     // 造物「详情」：这里是弹窗套弹窗，文档级处理器会把编队窗口顶掉，所以自己接管
@@ -672,7 +688,7 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
         for (const o of Object.values(st.lo.equip)) if (uid && o[f] === uid) delete o[f];   // 同一套里一件装备只给一个人
         const e = (st.lo.equip[slug] ||= {});
         if (uid) e[f] = uid; else delete e[f];
-      }), { exclude: taken().items }));
+      }), { exclude: taken().items, key: sqPickKey(kind) }));
       return;
     }
     if (a === 'relic') {
@@ -680,7 +696,7 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
       pickThenBack((done) => pickItem(app, 'relic', '选择造物', (uid) => done(() => {
         st.lo.relics = st.lo.relics.map((x) => (x === uid ? null : x));
         st.lo.relics[i] = uid || null;
-      }), { exclude: taken().items }));
+      }), { exclude: taken().items, key: sqPickKey('relic') }));
       return;
     }
     if (a === 'order') {
@@ -716,6 +732,8 @@ export function squadEditor(app, { key = 'a', mode = null, resume = false } = {}
       app.save(); sound.play('stamp');
       toast(`已存入「${SQUAD_ZH[k]}」：${saved.length} 人${st.lo ? ' · 独立配装' : ''}${st.mode ? ` · ${isRift ? '融灾禁区第 ' + (RIFT_SQUAD_KEYS.indexOf(k) + 1) + ' 队' : isTower ? '只给 ' + modeZh + ' 用' : modeZh + ' 用它出战'}` : ''}`);
       closeModal();
+      dropModalScroll(SQ_EDITOR_KEY);
+      for (const k of ['wheel', 'cov', 'relic']) dropModalScroll(sqPickKey(k));
       app.render?.();
     }
   });
@@ -786,6 +804,10 @@ function mainPanel(app) {
   const { state: s, data } = app;
   const t = teamDefs(s, data);
   const slots = Array.from({ length: TEAM_SIZE }, (_, i) => s.team[i] || null);
+  // 合唱光环：带了哪几位辅助，队伍就偏向哪条路（core/roles.js）
+  const auraText = (t.aura && t.aura.roles.length)
+    ? `；合唱光环 ${t.aura.roles.map((r) => `${r.zh}×${Math.min(2, r.n)}`).join(' + ')}`
+    : '';
   const synText = t.synergy ? `同领域加成 +${Math.round(t.synergy * 100)}% 生命/攻击`
     : t.mixed ? `跨域共鸣 +${Math.round(t.mixed * 100)}% 生命/攻击`
       : '同领域 3 人 +8%、4 人 +15%；凑 3 / 4 个不同界域则改为跨域共鸣 +6% / +10%';
@@ -794,7 +816,7 @@ function mainPanel(app) {
     if (!slug) return `<div class="slot empty" data-act="pick-slot" data-i="${i}">＋ 选择唤醒体<small class="pos ${i < FRONT_SLOTS ? 'front' : 'back'}">${row}</small></div>`;
     const a = data.bySlug[slug], d = t.list.find((x) => x.slug === slug), r = s.roster[slug];
     return `<div class="slot" style="--rc:${R(a).color}" data-act="pick-slot" data-i="${i}">
-      <img src="${img(a.portrait)}" alt=""><div><b>${esc(a.zh)}</b><small class="typ">${R(a).zh} · ${TYPES[a.type].short}<span class="pos ${i < FRONT_SLOTS ? 'front' : 'back'}">${row}</span></small>
+      <img src="${img(a.portrait)}" alt=""><div><b>${esc(a.zh)}</b><small class="typ">${R(a).zh} · ${TYPES[a.type].short}${a.type === 'CHORUS' ? `<em class="subtyp">${chorusRoleOf(a).zh}</em>` : ''}<span class="pos ${i < FRONT_SLOTS ? 'front' : 'back'}">${row}</span></small>
       <small>Lv${r.lv}/${levelCap(r.star)} · ${awk(r.star)}</small><small>战力 ${fmt(d.power)}</small></div>
       <button class="btn sm" data-act="detail" data-slug="${slug}">详情</button></div>`;
   }).join('');
@@ -839,7 +861,7 @@ function mainPanel(app) {
     return def ? `<span class="ochip on" title="${esc(orderText(def, s.orders.owned[id]))}">${oglyph(def)} ${esc(def.zh)}<em>Lv${s.orders.owned[id]}</em></span>` : `<span class="ochip">空位 ${i + 1}</span>`;
   }).join('');
 
-  return `<p class="hint">${synText}。站位 1–2 是<b>前排</b>、3–4 是<b>后排</b>：敌人的单体攻击只会打前排，前排全灭才轮到后排（Boss 例外，可以越过前排）；我方守护也只能打敌阵前排，突击与合唱（远程）可以直接点名后排。每场还有<b>回合上限</b>（普通关 ${ROUND_LIMIT.normal} 回合、Boss 关 ${ROUND_LIMIT.boss} 回合），打不完算超时判负，四奶互相吊着磨是过不去的。</p>
+  return `<p class="hint">${synText}${auraText}。站位 1–2 是<b>前排</b>、3–4 是<b>后排</b>：敌人的单体攻击只会打前排，前排全灭才轮到后排（Boss 例外，可以越过前排）；我方守护也只能打敌阵前排，突击与合唱（远程）可以直接点名后排。每场还有<b>回合上限</b>（${ROUND_LIMIT.normal === ROUND_LIMIT.boss ? `统一 ${ROUND_LIMIT.normal} 回合` : `普通关 ${ROUND_LIMIT.normal} 回合、Boss 关 ${ROUND_LIMIT.boss} 回合`}），打不完算超时判负，四奶互相吊着磨是过不去的。</p>
     <div class="slots">${cards}</div>
     <div class="row"><button class="btn gold" data-act="autoteam">一键配队</button><button class="btn sm" data-act="guide-growth">养成指南</button></div>
     <p class="hint">「一键配队」会一起排好：4 人队伍（含同界域加成）、<b>每人 1 件命轮 + 1 件密契</b>、已解锁格里的造物（优先凑羁绊）、3 个钥令位。下面三块就是给它填的地方，格子都能直接点开换。</p>
@@ -873,9 +895,13 @@ export function pickAwakener(app, title, onPick, exclude = []) {
   m.addEventListener('click', (e) => { const t = e.target.closest('[data-pick]'); if (t) { closeModal(); onPick(t.dataset.pick); } });
 }
 
-export function pickItem(app, kind, title, onPick, { allowNone = true, exclude = null } = {}) {
+export function pickItem(app, kind, title, onPick, { allowNone = true, exclude = null, key = '' } = {}) {
   let affix = '';     // 这个弹窗自己的词条筛选（关掉就忘，不污染下一页）
+  let opened = false; // 第一次打开时别把「上一层弹窗」的滚动位置当成自己的
   const render = () => {
+    // 切词条筛选也要停在同一处，不然刚拉到下半截一筛就跳回顶部
+    const prev = opened ? modalEl()?.querySelector('.modal-body') : null, y = prev ? prev.scrollTop : 0;
+    opened = true;
     const all = Object.values(app.state.gear.items)
       .filter((i) => i.kind === kind && !(exclude && exclude.has(i.uid)))
       .sort((a, b) => (RARITY_ORDER[itemDef(app, b).rarity || 'SR'] - RARITY_ORDER[itemDef(app, a).rarity || 'SR']) || b.lv - a.lv);
@@ -885,7 +911,8 @@ export function pickItem(app, kind, title, onPick, { allowNone = true, exclude =
       ${allowNone ? '<button class="btn sm" data-pick="">卸下</button>' : ''}
       ${affixBar(app, kind, affix)}
       <div class="list">${rows || `<p class="hint">${affix ? '这个词条下没有可用的装备了。' : '没有可用的装备，去推图或祈愿获取。'}</p>`}</div>`;
-    const m = openModal(html, 'wide');
+    const m = openModal(html, 'wide', key);
+    if (y) { const sc = m.querySelector('.modal-body'); if (sc) sc.scrollTop = y; }
     m.addEventListener('click', (e) => {
       const af = e.target.closest('[data-affix]');
       if (af) { affix = af.dataset.affix === affix ? '' : af.dataset.affix; render(); return; }
@@ -903,7 +930,7 @@ export function pickOrder(app, i, onPick, slots = null) {
   const html = `<h3>第 ${i + 1} 个钥令位</h3><button class="btn sm" data-pick="">清空</button>
     <div class="list">${owned.map((def) => {
       const lv = s.orders.owned[def.id], used = slots.some((x, j) => x === def.id && j !== i);
-      return `<div class="item ${rarCls(def.rarity)}">${oglyph(def)}<div class="i-body"><b>${esc(def.zh)}</b> <em>Lv${lv}</em><small>${esc(orderText(def, lv))}</small>${used ? '<small class="who">已装在别的位置</small>' : ''}</div><button class="btn sm" data-pick="${def.id}" ${used ? 'disabled' : ''}>选择</button></div>`;
+      return `<div class="item ${rarCls(def.rarity)}">${oglyph(def)}<div class="i-body"><b>${esc(def.zh)}</b>${otag(def)} <em>Lv${lv}</em><small>${esc(orderText(def, lv))}</small>${used ? '<small class="who">已装在别的位置</small>' : ''}</div><button class="btn sm" data-pick="${def.id}" ${used ? 'disabled' : ''}>选择</button></div>`;
     }).join('') || '<p class="hint">还没有钥令。Boss 首通、无限塔每 10 层、周 Boss 里程碑、银芯商店都会给。</p>'}</div>`;
   const m = openModal(html, 'wide');
   m.addEventListener('click', (e) => { const t = e.target.closest('[data-pick]'); if (t && !t.disabled) { closeModal(); onPick(t.dataset.pick); } });
@@ -921,7 +948,7 @@ export function rosterPage(app) {
   const list = sortRoster(rows, f.sort, f.dir);
   const opt = (obj, cur, k) => `<select data-filter="${k}"><option value="">全部</option>${Object.entries(obj).map(([v, o]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${o.zh}</option>`).join('')}</select>`;
   const sorts = ROSTER_SORTS.map(([k, zh]) => `<button class="btn sm ${f.sort === k ? 'on' : ''}" data-act="roster-sort" data-k="${k}">${zh}${f.sort === k ? (f.dir < 0 ? ' ↓' : ' ↑') : ''}</button>`).join('');
-  return `<div class="page"><h2>唤醒体 <small>${Object.keys(s.roster).length}/${data.awakeners.length}</small>${tipBtn(app, 'roster')}</h2>${tipCard(app, 'roster')}
+  return `<div class="page"><h2>唤醒体 <small>${Object.keys(s.roster).length}/${data.awakeners.length}</small>${rwCount(s) ? `<span class="tag rwtag" title="免费回溯券：角色与装备回溯各用一张，不花银芯">回溯券 ×${rwCount(s)}</span>` : ''}${tipBtn(app, 'roster')}</h2>${tipCard(app, 'roster')}
     <div class="row filters"><span class="dim">界域</span>${opt(REALMS, f.realm, 'realm')}<span class="dim">类型</span>${opt(TYPES, f.type, 'type')}<label><input type="checkbox" data-filter="owned" ${f.owned ? 'checked' : ''}> 仅已拥有</label></div>
     <div class="row sortbar"><span class="dim">排序</span>${sorts}</div>
     <div class="grid">${list.map(({ a, r, power: p }) => {
@@ -1029,14 +1056,14 @@ export function detailModal(app, slug) {
       <button class="btn" data-act="lvmax" data-slug="${slug}" ${cost ? '' : 'disabled'}>升至最高</button>
       ${needBrk ? `<button class="btn gold" data-act="brk" data-slug="${slug}" ${s.gold >= brkCost.gold && s.cores >= brkCost.cores ? '' : 'disabled'}>突破 Lv${r.lv}→${r.lv + 1}（🪙${fmt(brkCost.gold)} <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${brkCost.cores}）</button>` : ''}
     </div>
-    ${r.lv > 1 ? `<div class="row rewind"><button class="btn" data-act="rewind" data-slug="${slug}" ${s.cores >= REWIND_COST ? '' : 'disabled'}>回溯到 1 级（<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${REWIND_COST}）</button>
+    ${r.lv > 1 ? `<div class="row rewind"><button class="btn" data-act="rewind" data-slug="${slug}" ${rwCount(s) || s.cores >= REWIND_COST ? '' : 'disabled'}>${rwCount(s) ? `用回溯券回溯到 1 级（剩 ${rwCount(s)} 张）` : `回溯到 1 级（<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${REWIND_COST}）`}</button>
       <span class="dim">返还 🪙${fmt(rewindPlan(r).refund)}${rewindPlan(r).refundCores ? ` + <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rewindPlan(r).refundCores}` : ''}</span></div>
-    <p class="hint">花 ${REWIND_COST} 银芯，直接把等级倒回 1 级，当初升级和突破花的金币、银芯<b>全部返还</b>；<b>叠位、等级上限不变</b>。想把等级让给别的唤醒体时用。</p>` : ''}` : '';
+    <p class="hint">${rwCount(s) ? `有 <b>${rwCount(s)} 张免费回溯券</b>，这次回溯不花银芯` : `花 ${REWIND_COST} 银芯`}，直接把等级倒回 1 级，当初升级和突破花的金币、银芯<b>全部返还</b>；<b>叠位、等级上限不变</b>。想把等级让给别的唤醒体时用。</p>` : ''}` : '';
 
   const html = `<div class="detail" style="--rc:${R(a).color}">
     <div class="d-art"><img src="${img(a.card)}" alt="${esc(a.zh)}立绘" data-act="zoom" data-slug="${slug}" loading="lazy"><span class="zoomhint">${a.creator ? '点开看大图' : '点立绘看大图'}</span></div>
     <div class="d-body"><h3>${esc(a.zh)} <small>${esc(a.en)}</small></h3>
-      <div class="tags"><span class="tag" style="background:${R(a).color}">${R(a).zh}</span><span class="tag">${TYPES[a.type].zh}</span><span class="tag ${rarCls(a.rarity)}">${a.rarity === 'Genesis' ? '创生' : a.rarity}</span>${a.creator ? `<span class="tag ctag">${esc(a.creator.emoji)} 联名嘉宾</span>` : ''}</div>
+      <div class="tags"><span class="tag" style="background:${R(a).color}">${R(a).zh}</span><span class="tag">${TYPES[a.type].zh}</span>${roleChipOf(a) ? `<span class="tag roletag" style="--rc2:${roleChipOf(a).color}">${roleChipOf(a).zh}</span>` : ''}<span class="tag ${rarCls(a.rarity)}">${a.rarity === 'Genesis' ? '创生' : a.rarity}</span>${a.creator ? `<span class="tag ctag">${esc(a.creator.emoji)} 联名嘉宾</span>` : ''}</div>
       ${r ? `<div class="sqtags"><span class="dim">编队</span>${sq.length
         ? sq.map((k) => `<span class="tag sqtag${k === 'cur' ? ' on' : ''}">${squadKeyZh(k)}</span>`).join('')
         : '<span class="tag sqtag none">未编入任何队伍</span>'}</div>` : ''}
@@ -1063,9 +1090,17 @@ export function detailModal(app, slug) {
       <h4>叠位效果 <small class="dim">${awk(r?.star || 0)} / ${MAX_AWAKEN}</small></h4>
       ${awakenTable(preview)}
       ${r ? `<div class="eqrow">${slotBox('wheel', 'wheel', '命轮')}${slotBox('cov', 'covenant', '密契')}</div>` : ''}
+      ${(() => {
+        const chip = roleChipOf(a);
+        if (!chip) return '';
+        return `<h4>定位特性 <small class="dim">${a.type === 'CHORUS' ? '合唱的子定位，决定技能构成' : '常驻，无需触发'}</small></h4>
+        <div class="traitbox rolebox" style="--rc2:${chip.color}"><b>${esc(chip.zh)}</b><p>${esc(chip.desc)}</p>
+          ${chip.aura ? `<p class="dim">队伍光环：${esc(chip.aura)}（同队同类最多叠 2 人）</p>` : ''}</div>`;
+      })()}
       ${a.trait ? `<h4>特性 <small class="dim">常驻，无需触发</small></h4>
         <div class="traitbox"><b>${esc(a.trait.zh)}</b><p>${esc(a.trait.desc)}</p></div>` : ''}
       <h4>技能 <small class="dim">技能等级 Lv.${lvl + 1}/5（每 15 级 +1，每 ${AWAKEN_SKILL_EVERY} 叠位 +1）</small></h4><div class="skills">${SLOTS.map((k) => `<div class="skill"><b class="sk ${k}">${SLOT_ZH[k]}</b> <em>${esc(kit[k].name)}</em>${k === 'Rouse' ? '<small class="dim">登场即生效，不占回合</small>' : ''}${kit[k].real?.e ? ` <small class="en">${esc(kit[k].real.e)}</small>` : ''}<small>本作效果：${esc(describeSkill(kit[k]))}</small>${numLine(kit[k])}${kit[k].real ? `<details><summary>原作技能文本（译）</summary><p class="real">${markup(kit[k].real.d, data.kw)}</p></details>` : ''}</div>`).join('')}</div>
+      ${affinityCard(app, slug)}
       ${extraBox(a, slug, r)}
       ${a.rk_en?.length ? `<details class="en-box"><summary>启灵（原作文本，仅供参考）</summary>${a.rk_en.map((x) => `<div class="skill"><b>${esc(x.ty)}</b> <em>${esc(x.n)}</em><p class="real">${markup(x.d, data.kw)}</p></div>`).join('')}</details>` : ''}
       <div class="matsrc">
@@ -1132,7 +1167,7 @@ export function gearPage(app) {
   // 队伍里每个人的命轮 / 密契槽位：点一下直接换，不用先点进角色详情
   const teamRows = equipPanel(app);
   const sets = covenantSetText(app);
-  return `<div class="page"><h2>命轮 · 密契 <small>每人各 1 件</small></h2>
+  return `<div class="page"><h2>命轮 · 密契 <small>每人各 1 件</small>${rwCount(s) ? `<span class="tag rwtag" title="免费回溯券：角色与装备回溯各用一张，不花银芯">回溯券 ×${rwCount(s)}</span>` : ''}</h2>
     <p class="hint">命轮与密契是<b>绑在单个唤醒体身上</b>的两件装备：点下面的槽位直接更换，点「已装备」的槽位可以卸下。密契全队同款凑到 2 / 4 件会触发套装效果（当前：${sets || '还没有凑成套'}）。造物与钥令是全队被动，分别在队伍页与钥令页配置。</p>
     <div class="eqpanel">${teamRows}</div>
     <div class="row"><button class="btn gold" data-act="gear-upall" title="只强化主线编队（队伍页上阵的 4 人 + 造物栏）正在用的装备，每次升当前最便宜的一级">一键强化主线编队</button><button class="btn" data-act="gear-up-pick" title="选择要强化哪几套编队的装备">选择队伍…</button><button class="btn danger" data-act="dm-open" title="按类型 / 稀有度 / 强化等级批量分解没在用的装备">一键分解…</button><small class="dim">每件最高 Lv${GEAR_MAX_LV}；10 级以后每级 +5%，金币花得很多</small></div>
@@ -1151,6 +1186,10 @@ const oglyph = (def) => {
   return `<span class="oglyph r-${def.rarity}"><i>${ch}</i><img src="${img(def.img)}" alt="${esc(def.zh)}" loading="lazy" onerror="this.remove()"></span>`;
 };
 
+// 钥令定位标签：由「招牌键」决定（锐意 / 起手 / 慈悲…），一眼看出这件是加伤害、
+// 给起手资源还是保命，不用先读完加成那串字。数据在 public/data/orders.json 的 tag。
+const otag = (def) => (def?.tag ? `<i class="otag">${esc(def.tag)}</i>` : '');
+
 export function ordersPage(app) {
   const { state: s, data } = app;
   const n = orderSlotCount(s.maxStage);
@@ -1158,7 +1197,7 @@ export function ordersPage(app) {
     if (i >= n) return `<div class="oslot locked" >🔒 ${i + 1} 号位<br><small>最高通关 ${orderLockedHint(i, s.maxStage)} 关解锁</small></div>`;
     const id = s.orders.slots[i], def = id && data.orderById[id];
     return `<div class="oslot ${def ? 'on r-' + def.rarity : 'empty'}" data-act="pick-order" data-i="${i}">
-      ${def ? `${oglyph(def)}<div><b>${esc(def.zh)}</b> Lv${s.orders.owned[id]}<small>${esc(orderText(def, s.orders.owned[id]))}</small></div>` : `＋ 空位 ${i + 1}`}</div>`;
+      ${def ? `${oglyph(def)}<div><b>${esc(def.zh)}</b>${otag(def)} Lv${s.orders.owned[id]}<small>${esc(orderText(def, s.orders.owned[id]))}</small></div>` : `＋ 空位 ${i + 1}`}</div>`;
   }).join('');
   const owned = data.orders.filter((o) => s.orders.owned[o.id] != null);
   const locked = data.orders.filter((o) => s.orders.owned[o.id] == null);
@@ -1168,7 +1207,7 @@ export function ordersPage(app) {
     const on = s.orders.slots.includes(def.id);
     return `<div class="order ${have ? '' : 'locked'} ${on ? 'on' : ''} ${rarCls(def.rarity)}">
       ${oglyph(def)}
-      <div class="ob"><b>${esc(def.zh)}</b> <em>${def.rarity}${def.realm ? ` · ${esc(def.realm)}` : ''}${have ? ` · Lv${lv}/${ORDER_MAX_LV}` : ''}</em>
+      <div class="ob"><b>${esc(def.zh)}</b>${otag(def)} <em>${def.rarity}${def.realm ? ` · ${esc(def.realm)}` : ''}${have ? ` · Lv${lv}/${ORDER_MAX_LV}` : ''}</em>
         <small>${have ? esc(orderText(def, lv)) : '未获得'}</small>
         ${have && lv < ORDER_MAX_LV ? `<small class="dim">下一级：${esc(bonusText(Object.fromEntries(Object.entries(def.bonus).map(([k, v]) => [k, v * (orderLvMult(lv + 1) - orderLvMult(lv))]))))}</small>` : ''}
         <small class="flavor">${esc(def.desc)}</small></div>
@@ -1393,22 +1432,28 @@ export function showItems(app, items) {
   openModal(`<h3>获得装备</h3><div class="list">${items.map((i) => itemCard(app, i)).join('')}</div>`, 'wide');
 }
 export function showOrders(app, orders) {
-  openModal(`<h3>获得钥令</h3><div class="list">${orders.map((o) => { const def = app.data.orderById[o.id]; return `<div class="order on ${rarCls(def.rarity)}">${oglyph(def)}<div class="ob"><b>${esc(def.zh)}</b> <em>${def.rarity}${def.realm ? ` · ${esc(def.realm)}` : ''}</em><small>${esc(orderText(def, 0))}</small><small class="flavor">${esc(def.desc)}</small></div></div>`; }).join('')}</div>`, 'wide');
+  openModal(`<h3>获得钥令</h3><div class="list">${orders.map((o) => { const def = app.data.orderById[o.id]; return `<div class="order on ${rarCls(def.rarity)}">${oglyph(def)}<div class="ob"><b>${esc(def.zh)}</b>${otag(def)} <em>${def.rarity}${def.realm ? ` · ${esc(def.realm)}` : ''}</em><small>${esc(orderText(def, 0))}</small><small class="flavor">${esc(def.desc)}</small></div></div>`; }).join('')}</div>`, 'wide');
 }
 
 /* ----------------------------- SETTINGS ----------------------------- */
 function cloudCard(app) {
   const acct = Cloud.account(), cfg = Cloud.config(), c = app.cloud || {}, sync = Cloud.syncRecord();
+  const errZh = c.err === 'too_large'
+    ? `存档太大（${Math.round((c.bytes || 0) / 1024)}KB，服务端上限 480KB），这次没传上去`
+    : (c.err || '网络不通');
   const st = {
     idle: '等待同步', syncing: '同步中…', ok: `已同步${c.at ? `（${new Date(c.at).toLocaleTimeString()}）` : ''}`,
     nologin: '还没登录', conflict: '本机和云端进度不同，等你选择', hold: '已暂停同步（有进度冲突，点「立即同步」重新处理）',
-    error: `同步失败：${esc(c.err || '网络不通')}，稍后会自动重试`,
+    error: `同步失败：${esc(errZh)}，稍后会自动重试`,
   }[c.status] || '';
   const dirty = acct && sync && sync.acct === acct.name && (app.state.rev || 0) > (sync.rev || 0);
+  let kb = 0;
+  try { kb = Math.round(JSON.stringify(app.state).length / 1024); } catch { kb = 0; }
   return `<div class="banner-card"><h3>云端存档 <small>${acct ? `账号：${esc(acct.name)}` : '未登录'}</small></h3>
     ${acct ? `<p>状态：<b>${st}</b>${dirty && c.status === 'ok' ? '（有新改动，稍后自动上传）' : ''}</p>
       <label class="snd"><input type="checkbox" data-cloud-auto ${cfg.auto ? 'checked' : ''}> 自动同步（登录后每次改动自动上传，进游戏时自动拉取）</label>
-      <div class="row"><button class="btn gold" data-act="cloud-sync" ${c.busy ? 'disabled' : ''}>立即同步</button><button class="btn" data-act="cloud-pull">用云端存档覆盖本机</button></div>`
+      <div class="row"><button class="btn gold" data-act="cloud-sync" ${c.busy ? 'disabled' : ''}>立即同步</button><button class="btn" data-act="cloud-pull">用云端存档覆盖本机</button></div>
+      <p class="hint">本机存档 ${kb} KB。（服务端单条上限 480KB；超过 400KB 会自动压缩后上传，装备堆到几千件也不会卡住同步。）</p>`
     : `<p>登录本站账号后，挂机前夜的<b>整份进度</b>会自动存到云端，换手机 / 电脑登录同一个账号就能接着玩。</p>
       <div class="row"><a class="btn gold" href="../profile.html">去登录 / 注册</a></div>`}
     <p class="hint">云端存的是整份游戏进度（角色、装备、关卡、抽卡记录……）。两台设备都玩过时，进游戏会让你选用哪一份，<b>不会悄悄覆盖</b>。个人中心的「云端档案」只同步积分和最高分，和这份不是一回事。浏览器清数据前，也可以在下面「导出存档」留一份。</p></div>`;
@@ -1417,6 +1462,10 @@ function cloudCard(app) {
 export function settingsPage(app) {
   const s = app.state;
   const st = s.stats;
+  // 曲目按钮：手动选定（autoMood=false）的那首高亮。
+  const trkBtn = (t) => `<button class="btn sm ${sound.cfg.autoMood === false && sound.mood === t.k ? 'on' : ''}" data-act="bgm-track" data-k="${t.k}">${t.zh}</button>`;
+  const trkScene = TRACK_LIST.filter((t) => t.grp !== 'll');
+  const trkLL = TRACK_LIST.filter((t) => t.grp === 'll');
   return `<div class="page"><h2>设置与存档</h2>
     ${cloudCard(app)}
     <div class="banner-card"><h3>新手引导</h3>
@@ -1430,12 +1479,14 @@ export function settingsPage(app) {
       <label class="snd">音效 <input type="range" min="0" max="100" value="${Math.round(sound.cfg.sfx * 100)}" data-aud="sfx"></label>
       <label class="snd">音乐 <input type="range" min="0" max="100" value="${Math.round(sound.cfg.bgm * 100)}" data-aud="bgm"></label>
       <p class="hint">两个滑杆都按「100% ≈ 满幅」标定，默认音效 65 / 音乐 55。<b>战斗里连打时觉得音乐被盖住</b>，把「音乐」拉到 65 以上（音效也可以顺手降到 55）；反过来想安静听音乐就降音效。</p>
-      <h4>背景音乐 <small>六首曲子都由浏览器实时合成演奏</small></h4>
+      <h4>背景音乐 <small>十首曲子都由浏览器实时合成演奏</small></h4>
       <div class="row tracks">
         <button class="btn sm ${sound.cfg.autoMood === false ? '' : 'on'}" data-act="bgm-auto">跟随页面</button>
-        ${TRACK_LIST.map((t) => `<button class="btn sm ${sound.cfg.autoMood === false && sound.mood === t.k ? 'on' : ''}" data-act="bgm-track" data-k="${t.k}">${t.zh}</button>`).join('')}
+        ${trkScene.map(trkBtn).join('')}
       </div>
       <p class="hint">城镇 / 推图 / 战斗 / 首领 / 召唤 / 挑战各一首；换页面自动换曲并交叉淡入，战斗遇到 Boss 会切到「威压」。点上面的曲名可以锁定一首，点「跟随页面」恢复自动。</p>
+      <div class="row tracks">${trkLL.map(trkBtn).join('')}</div>
+      <p class="hint">下面四首是 Love Live! 的曲子（僕らは今のなかで / Snow halation / それは僕たちの奇跡 / 夏色えがおで1,2,Jump!），按原曲的气质重编了一小段副歌旋律循环演奏——<b>没有原曲音源</b>，只是用振荡器把旋律和鼓组现场弹出来。这几首不会自动出现，点一下才会切过去，切过去以后就固定住（想回自动点「跟随页面」）。</p>
       <h4>音效试听</h4>
       <div class="row">${[['hit', '命中'], ['crit', '暴击'], ['heal', '治疗'], ['shield', '护盾'], ['exalt', '共鸣'], ['summon', '召唤'], ['reveal3', '创生'], ['win', '胜利'], ['lose', '失败'], ['coin', '金币'], ['deny', '不可用']].map(([k, z]) => `<button class="btn sm" data-act="snd-test" data-k="${k}">${z}</button>`).join('')}</div>
       <label class="snd">结算弹窗 <select data-settle>${[['key', '首通 / Boss / 新怪物时'], ['all', '每场战斗'], ['off', '从不（在战斗页手动打开）']].map(([k, z]) => `<option value="${k}" ${settleMode.get() === k ? 'selected' : ''}>${z}</option>`).join('')}</select></label>

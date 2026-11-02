@@ -7,16 +7,35 @@ export const ZERO = () => ({
 });
 
 // Wheel main stats (names come from the data) -> this game's stat keys.
+// base 按「实战收益」排过一轮：共鸣/钥焰回复原来给 22，等于用一条主词条换到近 +10% 输出，
+// 比增伤（8%）和攻击（8%）都值；暴击率偏小、暴击伤害偏大。现在把回复压到 16，
+// 暴击率提到 8、暴击伤害提到 16，让 8 条主词条的可选性接近「看队伍缺什么」而不是「看谁数值最大」。
 export const MAINSTAT = {
-  CRIT_RATE: { zh: '暴击率', key: 'critRate', base: 6, unit: '%' },
-  CRIT_DMG: { zh: '暴击伤害', key: 'critDmg', base: 14, unit: '%' },
+  CRIT_RATE: { zh: '暴击率', key: 'critRate', base: 8, unit: '%' },
+  CRIT_DMG: { zh: '暴击伤害', key: 'critDmg', base: 16, unit: '%' },
   DMG_AMP: { zh: '伤害提升', key: 'amp', base: 8, unit: '%' },
-  ALIEMUS_REGEN: { zh: '共鸣回复', key: 'aliGain', base: 22, unit: '%' },
-  KEYFLARE_REGEN: { zh: '钥焰回复', key: 'keyGain', base: 22, unit: '%' },
+  ALIEMUS_REGEN: { zh: '共鸣回复', key: 'aliGain', base: 16, unit: '%' },
+  KEYFLARE_REGEN: { zh: '钥焰回复', key: 'keyGain', base: 16, unit: '%' },
   SIGIL_YIELD: { zh: '印记收益(金币)', key: 'gold', base: 8, unit: '%' },
   REALM_MASTERY: { zh: '领域精通(攻击)', key: 'atkPct', base: 8, unit: '%' },
   DEATH_RESISTANCE: { zh: '死扛', key: 'surviveChance', base: 0.12, unit: '', fmt: (v) => `${Math.round(v * 100)}%濒死存活` },
 };
+
+/* 器纹 / 特质：命轮以前只有 8 种（= 8 条主词条），同主词条的两件除了名字和界域一模一样；
+   造物同理，310 件只有 10 个主题。这里按 id 哈希再挂一条**固定**的小加成，
+   让每件都有自己的个性；不吃等级与精炼，所以不会随强化滚雪球、盖过主属性。 */
+const SMALL_TRAITS = [
+  { key: 'openAli', v: 6, zh: '起手共鸣 +6' },
+  { key: 'openKey', v: 6, zh: '起手钥焰 +6' },
+  { key: 'steal', v: 2, zh: '吸血 +2%' },
+  { key: 'surviveChance', v: 0.02, zh: '濒死存活 +2%' },
+  { key: 'gold', v: 4, zh: '金币 +4%' },
+  { key: 'firstBoost', v: 8, zh: '首击增伤 +8%' },
+  { key: 'amp', v: 2, zh: '增伤 +2%' },
+  { key: 'healBonus', v: 3, zh: '治疗 +3%' },
+];
+export const wheelRune = (def) => SMALL_TRAITS[hash(String(def?.id || '') + ':w') % SMALL_TRAITS.length];
+export const relicTrait = (def) => SMALL_TRAITS[hash(String(def?.id || '') + ':r') % SMALL_TRAITS.length];
 const RARITY_MULT = { N: 0.5, R: 0.7, SR: 1, SSR: 1.4 };
 // 10 级以前每级 +10%（和原来一样，老存档的数不变）；10 级之后每级 +5%：满 40 级是 3.5 倍，
 // 比原来的满级（2 倍）多 75%，但这 30 级要几十倍的金币，是给后期金币找的去处，不是白送战力。
@@ -30,6 +49,8 @@ export function wheelBonus(def, lv, awakener) {
   const realm = awakener && def.realm === awakener.realm ? 1.25 : 1;
   b[m.key] += m.base * rm * lvMult(lv) * realm;
   b.atkPct += 3 * rm * lvMult(lv);
+  const r = wheelRune(def);
+  b[r.key] += r.v;
   if (b.surviveChance) b.surviveChance = Math.min(0.9, b.surviveChance);
   return b;
 }
@@ -38,7 +59,8 @@ export function wheelText(def, lv, rf = 0) {
   if (!m) return '';
   const rm = RARITY_MULT[def.rarity] ?? 1;
   const v = m.base * rm * lvMult(lv) * refineMult({ rf });
-  return m.fmt ? m.fmt(v) : `${m.zh} +${v.toFixed(1)}%`;
+  const main = m.fmt ? m.fmt(v) : `${m.zh} +${v.toFixed(1)}%`;
+  return `${main} · 器纹 ${wheelRune(def).zh}`;
 }
 
 export const COV_THEMES = [
@@ -71,6 +93,8 @@ export function relicBonus(def, lv) {
   const { th, v } = relicBase(def, lv);
   const b = ZERO();
   b[th.key] = v;
+  const t = relicTrait(def);
+  b[t.key] = (b[t.key] || 0) + t.v;
   return b;
 }
 /** 精炼给的增量：每阶 +8% 基础值（rf 阶就是 +8% × rf） */
@@ -78,7 +102,7 @@ export const relicRefineGain = (def, lv, rf = 0) => relicBase(def, lv).v * 0.08 
 export const relicText = (def, lv, rf = 0) => {
   const { th, v, open } = relicBase(def, lv);
   const total = v * refineMult({ rf });
-  return `全队${th.zh}：${total.toFixed(1)}${open ? ' 点起始能量' : '%'}`;
+  return `全队${th.zh}：${total.toFixed(1)}${open ? ' 点起始能量' : '%'} · 特质 ${relicTrait(def).zh}`;
 };
 /** 精炼前 / 后对照，弹窗里用：{ base, now, next, rf, max } */
 export function relicRefineView(def, lv, rf = 0) {

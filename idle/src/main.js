@@ -30,13 +30,22 @@ import { claimAchievement, claimAllAchievements, claimableCount } from './core/a
 import { signToday, backfill, claimCum } from './core/signin.js';
 import { buy as shopBuy, SHOP, buyTicketWithGold } from './core/shop.js';
 import { signinPage, eventPage } from './ui/pages4.js';
+import * as LK from './ui/luck.js';
+import * as AF from './ui/affinity.js';
+import { affTick, giveGift, buyGift } from './core/affinity.js';
+import {
+  luckState, startRun as luckStart, fightNode as luckFight, takeOffer as luckTakeOffer, rerollOffer as luckReroll,
+  applyEvent as luckApplyEvent, eventOf as luckEventOf, shopStock as luckShopStock, shopBuy as luckShopBuy,
+  leaveNode as luckLeaveNode, abandonRun as luckAbandon, claimLevel as luckClaimLevel, buyTalent as luckBuyTalent,
+  claimLuckAch, offerPool as luckOfferPool,
+} from './core/luckrun.js';
 import { claimDaily, redeemGuest, claimMile, dailyView, milePending } from './core/event.js';
 import { syncSigninGifts } from './core/creators.js';
 import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
 import { startGuide } from './ui/guide.js';
 import * as Cloud from './core/cloud.js';
 import { readWallet, writeWallet, reconcile, WALLET_KEY } from './core/wallet.js';
-import { $, $$, fmt, esc, store, askPersist, toast, closeModal, openModal, modalEl, showKwPop } from './ui/util.js';
+import { $, $$, fmt, esc, dur, store, askPersist, toast, closeModal, openModal, modalEl, showKwPop } from './ui/util.js';
 
 /* 底部导航按「功能域」分 5 组。13 个平铺页签在手机上要横滚，一眼看不到全貌，
    而且签到、设置这类低频页和战斗平起平坐也不合理。组内多页用顶部胶囊二级导航。 */
@@ -53,8 +62,8 @@ const GROUPS = [
   { k: 'battle', zh: '战斗', icon: ICON.battle, tabs: [['battle', '战斗']] },
   { k: 'team', zh: '养成', icon: ICON.team, tabs: [['team', '队伍'], ['roster', '唤醒体'], ['gear', '命轮密契'], ['orders', '钥令']] },
   { k: 'summon', zh: '召唤', icon: ICON.summon, tabs: [['summon', '召唤']] },
-  { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '无限塔'], ['rift', '融灾禁区'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场']] },
-  { k: 'more', zh: '更多', icon: ICON.more, tabs: [['signin', '签到'], ['event', '联动'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']] },
+  { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '无限塔'], ['rift', '融灾禁区'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场'], ['luck', '疾驰欢愉的大运']] },
+  { k: 'more', zh: '更多', icon: ICON.more, tabs: [['signin', '签到'], ['event', '联动'], ['aff', '同调'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']] },
 ];
 
 /* 每个页面用一张典藏室（原作 CG 壁纸）当底，压暗后铺在内容后面。
@@ -63,7 +72,7 @@ const GROUPS = [
 const BG = {
   battle: '17', team: '13', roster: '14', gear: '15', orders: '16', summon: '18',
   challenge: '19', weekly: '20', rtower: '21', arena: '22', signin: '23', codex: '24', ach: '25', settings: '26', rift: '33',
-  event: '34',
+  event: '34', luck: '35',
 };
 let bgNow = '';
 function setBg(tab) {
@@ -89,11 +98,15 @@ const app = {
   ui: { lastTab: {} }, tab: 'battle',
   // 离线收益弹窗还没点「领取」时不能推进 lastSeen，否则刷新 / 关页 / 切后台都会把这段离线时间吞掉
   offlinePending: false,
+  bgSince: 0,                        // 页面切到后台的时刻（最小化 / 熄屏 / 换标签页），回来按它结算后台挂机
   noSave: false,                     // 重置 / 导入过程中不能再写盘（beforeunload 会把旧状态写回去）
   save() {
     if (this.noSave || !this.state) return;
     walletSync();
-    if (!this.offlinePending) this.state.lastSeen = Date.now();
+    // 切到后台（最小化 / 熄屏 / 换标签页）时不推进 lastSeen：这段时间要么由「后台挂机」结算，
+    // 要么被直接关掉、由下次启动按 lastSeen 结算。以前后台每 15 秒照样写一次，lastSeen 永远
+    // 是「刚刚」，最小化两小时回来也被当成没离线过，收益就白丢了。
+    if (!this.offlinePending && !document.hidden) this.state.lastSeen = Date.now();
     this.state.rev = (this.state.rev || 0) + 1;
     const ok = store.write(this.state);
     // 浏览器存不下（配额满 / 无痕）：进度只在 IndexedDB 镜像里，提示一次，让玩家去导出
@@ -142,6 +155,13 @@ async function boot() {
   // 原来是先按本机存档算离线、过 2.5 秒才同步，而「拉取云端」会把 lastSeen 重置成现在——
   // 云端更新的存档一落地，这一段离线时间就被吞了，离线收益白白消失。
   // 现在启动时先把云端对一遍（最多等 8 秒），拉下来的存档保留它自己的 lastSeen，之后再按最终的存档结算。
+  // 账号可能是页面加载之后才由门户交过来的（手机端从门户里打开时最常见）：
+  // 不等它的话，「云端有没有更新」这一步会被整个跳过，离线收益就先结算弹出去了，
+  // 等账号到位再同步就成了「云端 vs 本机」的冲突——玩家刚点领取的挂机收益会被云端那份盖掉。
+  if (!Cloud.account() && Cloud.config().auto) {
+    const a = await accountMod().catch(() => null);
+    if (a && a.ready) await Promise.race([a.ready().catch(() => {}), new Promise((r) => setTimeout(r, 4000))]);
+  }
   let hadSave = !!saved;
   if (Cloud.account() && Cloud.config().auto) {
     app.booting = true;
@@ -175,17 +195,22 @@ async function boot() {
      settleToken 用来作废已经作废的那一份：弹窗被关掉时它会被触发一次「领取」，token 对不上就重算。 */
   let settleToken = 0;
   app.cancelSettle = () => { settleToken++; app.offlinePending = false; };
-  app.settleOffline = () => {
+  app.settleOffline = (since = 0) => {
     if (app.bootSeen) { app.state.lastSeen = app.bootSeen; app.bootSeen = 0; }   // 云存档的 lastSeen 可能被中间的 save() 冲掉过
     const token = ++settleToken;
-    const rep = app.hadSave ? offlineReport(app.state, app.data) : null;
+    const rep = app.hadSave ? offlineReport(app.state, app.data, Date.now(), since) : null;
     if (rep && (rep.gold || rep.tickets)) {
       app.offlinePending = true;
       P.offlineModal(app, rep, () => {
         if (token !== settleToken) { app.settleOffline(); return; }   // 这份是按旧存档算的，作废重来
         app.offlinePending = false;
         claimOffline(app.state, rep); app.save(); app.refreshTop();
+        // 记一笔「刚领、还没传上云」：万一云端那份在同步回来之后才落地（手机网络慢的常见路径），
+        // applyCloudSave 会把这笔补回到新存档上，不会白领。
+        app.claim = { ...rep, at: Date.now() };
         toast('已领取离线收益'); app.bv.start(); maybeGuide();
+        // 领完立刻推一次：别留一个「本机多一笔、云端还没有」的分叉，等下一次自动同步就变成冲突了
+        cloudRun('auto');
       });
     } else {
       app.offlinePending = false;
@@ -196,6 +221,15 @@ async function boot() {
   app.settleOffline();
   // 累计签到送的那几位：达标就自动进包（老存档首次进游戏也会补发）
   checkSigninGifts();
+  // 同调率：跨天补给礼物（花束 ×2 / 唱片 ×1），自动进包，不用点领取
+  {
+    const got = affTick(app.state);
+    if (got) {
+      app.save();
+      const txt = Object.entries(got).map(([k, n]) => `${({ flower: '共鸣花束', record: '旧唱片', crystal: '共鸣水晶' })[k] || k} ×${n}`).join(' · ');
+      setTimeout(() => toast(`🎁 今日同调补给：${txt}（更多 → 同调）`, 3600), 1200);
+    }
+  }
   document.addEventListener('visibilitychange', onVisibility);
   setTimeout(() => cloudRun('auto'), 2500);
   setTimeout(giftRun, 4000);
@@ -263,10 +297,10 @@ async function giftRun() {
   if (app.cloud && (app.cloud.busy || app.cloud.hold || app.cloud.status === 'conflict')) { setTimeout(giftRun, 6000); return; }
   try {
     const items = await Cloud.fetchGrants();
-    const got = claimGifts(app.state, app.data, items.filter((g) => Array.isArray(g.awk) && g.awk.length));
+    const got = claimGifts(app.state, app.data, items.filter((g) => (Array.isArray(g.awk) && g.awk.length) || Number(g.rw) > 0));
     if (!got.length) return;
     app.save(); render(); app.refreshTop();
-    const names = got.map((g) => (g.isNew ? `${g.zh}（新）` : `${g.zh} 叠位+1`)).join('、');
+    const names = got.map((g) => (g.voucher ? `回溯券 ×${g.voucher}` : g.isNew ? `${g.zh}（新）` : `${g.zh} 叠位+1`)).join('、');
     toast(`收到站长赠礼：${names}`, 5000);
   } catch { /* 没网 / 没登录：下次进游戏再领 */ }
 }
@@ -275,6 +309,7 @@ async function giftRun() {
    登录了本站账号就自动同步整份存档（core/cloud.js）。状态放在 app.cloud，设置页读它显示。 */
 app.cloud = { status: 'idle', at: 0, err: '', busy: false, hold: false };
 app.cloudJob = null;          // 正在进行的「拉云端 / 套云端」：启动结算离线收益前要等它落地
+app.claim = null;             // 刚领、还没传上云的离线收益（云端存档若在此之后落地，要原样补回来）
 let keepCloudSeen = false;    // 这一轮拉下来的云存档保留它自己的 lastSeen（这段时间还没在哪儿结算过）
 let cloudTimer = 0;
 const CLOUD_GAP = 25000;     // 本机改动后，最多隔这么久推一次
@@ -282,11 +317,26 @@ function cloudSoon() {
   if (!Cloud.config().auto || app.cloud.hold || cloudTimer || !Cloud.account()) return;
   cloudTimer = setTimeout(() => { cloudTimer = 0; cloudPush(false); }, CLOUD_GAP);
 }
-function setCloud(status, err = '') { app.cloud.status = status; app.cloud.err = err; if (status === 'ok') app.cloud.at = Date.now(); if (app.tab === 'settings') render(); }
+let cloudRetryAt = 0, cloudRetryN = 0;     // 同步失败后的退避重试
+function setCloud(status, err = '', extra = {}) {
+  app.cloud.status = status; app.cloud.err = err;
+  Object.assign(app.cloud, extra);
+  if (status === 'ok') { app.cloud.at = Date.now(); cloudRetryN = 0; app.claim = null; }
+  if (app.tab === 'settings') render();
+}
+/** 失败了自己再试（15 秒起，指数退避，封顶 5 分钟）。
+    以前只在「下一次存档」时才重试，玩家挂着看战斗 / 停在设置页时，那条「稍后会自动重试」其实永远不会重试。 */
+function cloudRetryLater() {
+  if (cloudRetryAt || !Cloud.config().auto || app.cloud.hold || !Cloud.account()) return;
+  const wait = Math.min(300000, 15000 * 2 ** Math.min(cloudRetryN, 4));
+  cloudRetryN++;
+  cloudRetryAt = Date.now() + wait;
+  setTimeout(() => { cloudRetryAt = 0; cloudRun('auto'); }, wait);
+}
 
 // 把云端那份存档套到本机：lastSeen 重置为现在（这段时间已经在另一台设备上结算过，不重复发离线收益）
-function applyCloudSave(save) {
-  const doc = store.parse(save.data);
+async function applyCloudSave(save) {
+  const doc = await Cloud.unpackSave(save.data);   // 大存档是 gz1: 压缩包，老存档是明文
   if (!doc || !doc.roster) throw new Error('bad_cloud_save');
   app.state = migrate(doc, app.data);
   // 启动 / 手机切回来这两种情况，这段时间还没在哪儿结算过：保留云端存档自己的 lastSeen，随后按它结算；
@@ -296,6 +346,16 @@ function applyCloudSave(save) {
   if (keepSeen) app.bootSeen = app.state.lastSeen;      // 启动阶段中间若有谁调了 save()，lastSeen 会被冲成现在：记下来，结算前还原
   app.state.rev = Math.max(app.state.rev || 0, 0) + 1;
   app.hadSave = true;          // 云端有进度：这台设备现在也有存档了，离线结算按它算
+  // 上一份存档刚领过离线收益、还没来得及传上去，云端这份就落地了：
+  // 那笔收益是「这段时间没玩」的补偿，不该因为换了存档就蒸发——补回到新存档上再往下走。
+  // （claimOffline 会顺手把 lastSeen 推到现在，所以这段时长不会被重复发一次。）
+  const carry = app.claim;
+  app.claim = null;
+  if (carry) {
+    claimOffline(app.state, carry);
+    app.bootSeen = 0;          // 已经按「现在」结算过了，别让启动结算再把 lastSeen 倒回去发一遍
+    toast(`刚领的挂机收益已经保住了：金币 +${fmt(carry.gold || 0)}`, 4000);
+  }
   // 存档整份换了：正在显示的离线结算如果是按旧档算的，作废（关掉弹窗会让它「领取」一次，靠 token 拦住）并重算
   if (app.offlinePending) { app.cancelSettle?.(); closeModal(); }
   else if (!app.booting) app.offlinePending = false;
@@ -310,7 +370,7 @@ function applyCloudSave(save) {
 async function pullCloudSave() {
   const job = (async () => {
     const save = await Cloud.fetchSave();
-    if (save) applyCloudSave(save);
+    if (save) await applyCloudSave(save);
     return save;
   })();
   app.cloudJob = job;
@@ -337,7 +397,7 @@ async function cloudPush(keepalive) {
     const r = await Cloud.pushSave(app.state, sync.ver, { keepalive });
     if (r.conflict) return cloudRun('conflict');
     setCloud('ok');
-  } catch (e) { setCloud('error', e.message); }
+  } catch (e) { setCloud('error', e.message, { bytes: e.bytes || 0 }); cloudRetryLater(); }
 }
 
 export async function cloudRun(reason = 'auto') {
@@ -366,7 +426,7 @@ export async function cloudRun(reason = 'auto') {
       // 弹框之前再核一遍：云端老存档的摘要里没有哈希，取整份下来对一下，一样就别问了
       let same = false;
       try {
-        const doc = store.parse((await Cloud.fetchSave()).data);
+        const doc = await Cloud.unpackSave((await Cloud.fetchSave()).data);
         same = !!doc && Cloud.contentHash(migrate(doc, app.data)) === Cloud.contentHash(app.state);
       } catch { same = false; }
       if (same) { Cloud.markSynced(app.state, cm.ver); setCloud('ok'); }
@@ -376,7 +436,8 @@ export async function cloudRun(reason = 'auto') {
       setCloud('ok');
     }
   } catch (e) {
-    setCloud(e.message === 'need_login' ? 'nologin' : 'error', e.message);
+    setCloud(e.message === 'need_login' ? 'nologin' : 'error', e.message, { bytes: e.bytes || 0 });
+    if (e.message !== 'need_login') cloudRetryLater();
   } finally { app.cloud.busy = false; if (app.tab === 'settings') render(); }
 }
 
@@ -385,9 +446,13 @@ function cloudConflict(cm) {
   const s = app.state, mine = Cloud.metaOf(s), c = cm?.meta || {};
   const t = (ms) => (ms ? new Date(ms).toLocaleString() : '—');
   const col = (title, m, at) => `<div class="cfcol"><b>${title}</b><p>最高通关 <b>${m.maxStage ?? '—'}</b> 关</p><p>唤醒体 <b>${m.roster ?? '—'}</b> 个</p><p>游玩 <b>${Math.round((m.play || 0) / 60)}</b> 分钟</p><p class="dim">最后保存 ${t(at)}</p></div>`;
+  // 本机这笔挂机收益还没传上云：选云端等于把本机存档整份丢掉，这里必须提前说清楚
+  const keep = app.claim
+    ? `<p class="hint">这台设备上刚领了一笔挂机收益（金币 +${fmt(app.claim.gold || 0)}${app.claim.tickets ? `、券 +${fmt(app.claim.tickets)}` : ''}），还没传上云端。<br>选「用云端的」时这笔会<b>自动补回</b>到云端那份存档上，不会白领。</p>`
+    : '';
   const m = openModal(`<h3>本机和云端的进度不一样</h3>
     <p class="hint">这个账号在云端有一份存档，和这台设备上的不同。选一份留下，<b>另一份会被覆盖</b>。</p>
-    <div class="cfrow">${col('本机', mine, mine.lastSeen)}${col('云端', c, cm?.at)}</div>
+    <div class="cfrow">${col('本机', mine, mine.lastSeen)}${col('云端', c, cm?.at)}</div>${keep}
     <div class="row"><button class="btn gold" data-cf="cloud">用云端的</button><button class="btn" data-cf="local">用本机的（覆盖云端）</button></div>
     <div class="row"><button class="btn sm" data-cf="later">先不处理</button></div>`, 'wide');
   m.addEventListener('click', async (e) => {
@@ -415,13 +480,40 @@ function adoptNewerDisk() {
   return true;
 }
 
+/** 后台挂机结算：最小化 / 手机熄屏回来，把「切走的那段时间」按挂机收益补上。
+    跟启动时的离线结算同一套公式，但不弹结算框（那条路径是重新进游戏才用的），只发一条 toast 报账。 */
+function settleBackground(since) {
+  const rep = app.hadSave ? offlineReport(app.state, app.data, Date.now(), since) : null;
+  if (!rep || (!rep.gold && !rep.tickets && !rep.drops.length)) {
+    claimOffline(app.state, rep || null);       // 只把 lastSeen 推到现在，免得下次重复算
+    app.bv.start();
+    return false;
+  }
+  claimOffline(app.state, rep);
+  app.save(); app.refreshTop();
+  const bits = [`金币 +${fmt(rep.gold)}`];
+  if (rep.tickets) bits.push(`召唤券 +${rep.tickets}`);
+  if (rep.cores) bits.push(`银芯 +${rep.cores}`);
+  if (rep.drops.length) bits.push(`装备 ${rep.drops.length} 件`);
+  toast(`后台挂机 ${dur(rep.secs)}：${bits.join('，')}`, 4200);
+  app.bv.start();
+  return true;
+}
+
 function onVisibility() {
-  if (document.hidden) { app.bv.stop(); app.save(); cloudPush(true); return; }
+  if (document.hidden) {
+    if (!app.bgSince) app.bgSince = Date.now();     // 记下「什么时候切走的」，回来按它算后台挂机
+    app.bv.stop(); app.save(); cloudPush(true); return;
+  }
   // 上一份离线收益还挂在弹窗里没领，就别再算第二份（lastSeen 没动，会把同一段时间算两遍）
   if (app.offlinePending) { setTimeout(() => cloudRun('auto'), 1200); return; }
   // 这段时间别的窗口 / 标签页如果存过更新的进度，就用它——否则这个旧窗口的内存状态会把新进度覆盖掉（看起来像「进度回档」）
   adoptNewerDisk();
-  const away = Date.now() - (Number(app.state.lastSeen) || 0);
+  // 后台挂机：从「切走的时刻」算，而不是 lastSeen（后台期间存档还在写，lastSeen 一直是刚刚）
+  const bgFrom = app.bgSince; app.bgSince = 0;
+  const last = Number(app.state.lastSeen) || Date.now();
+  const since = bgFrom ? Math.min(bgFrom, last) : last;
+  const away = Date.now() - since;
   // 就切出去几秒：没什么可结算的，直接开打，别为它等云端
   if (away < 60000) { app.bv.start(); setTimeout(() => cloudRun('auto'), 1200); return; }
   // 离线超过一分钟：先把云端对一遍再结算。以前这里 1.2 秒后才同步，
@@ -437,8 +529,7 @@ function onVisibility() {
       setTimeout(() => cloudRun('auto'), 1200);
     }
     if (app.offlinePending) return;      // 拉存档的时候就弹出了结算，别再算第二份
-    if (app.settleOffline) app.settleOffline();
-    else { claimOffline(app.state, null); app.bv.start(); }
+    settleBackground(since);
   })();
 }
 
@@ -454,7 +545,22 @@ function keywordGuide() {
   const kw = app.data?.kw || {};
   const entries = Object.entries(kw).filter(([, k]) => k && k.n && k.d)
     .sort((a, b) => String(a[1].n).localeCompare(String(b[1].n), 'zh'));
-  const html = '<h2>词条说明</h2><p class="hint">点击词条查看完整说明；包括战斗状态、技能机制与界域。</p>' +
+  /* 伤害乘区放在最前面：列表里那几十条只是各自的说明，讲不清「为什么这两个一起上更划算」。
+     实际结算见 battle.js 的 damage() / guarded()：同一乘区里是加法（会稀释），跨乘区才是再乘一遍。 */
+  const zones = `<div class="zonebox">
+    <h4>伤害乘区 <small>同一乘区内相加，跨乘区相乘</small></h4>
+    <p class="zhint">一次伤害是几块乘数连乘出来的。同一条乘区里再加一项只是加法（越叠越稀释），换一条乘区则是实打实的再乘一遍——所以要「分开放」。</p>
+    <div class="zonelist">
+      <div class="zonerow"><b>① 攻击 × 倍率</b><span>面板攻击 ×（1 + 攻击加成%）× 技能倍率</span></div>
+      <div class="zonerow"><b>② 增伤 amp</b><span>所有「伤害提升 X%」先<em>相加</em>，再整体 ×（1 + 总增伤%）</span></div>
+      <div class="zonerow"><b>③ 暴击</b><span>暴击时 ×（1 + 暴击伤害%），不暴击 ×1；暴伤默认 50%</span></div>
+      <div class="zonerow"><b>④ 防御</b><span>×（1 − 防御 ÷（防御 + 150））：防御 150 ＝ 减伤一半，再往上每点越来越不值</span></div>
+      <div class="zonerow"><b>⑤ 易伤 vuln</b><span>挨打方身上的「受到伤害 +X%」，和增伤各乘一次，所以两样一起上最划算</span></div>
+      <div class="zonerow"><b>⑥ 持续与反击</b><span>毒 / 流血 / 反击只吃<em>半量</em>防御，增伤与易伤照乘（另有 ×1.2 补偿，免得它们被重甲甩开）</span></div>
+    </div>
+    <p class="zoneeg">例：攻击 100、技能倍率 1.0、增伤 +50%、暴击且暴伤 +100%、敌方防御 150（减伤一半）、易伤 +20% → 100 × 1.5 × 2.0 × 0.5 × 1.2 ＝ <b>180</b>。</p>
+  </div>`;
+  const html = '<h2>词条说明</h2>' + zones + '<p class="hint">点击词条查看完整说明；包括战斗状态、技能机制与界域。</p>' +
     '<div class="idle-glossary">' + entries.map(([id, k]) =>
       '<button type="button" class="idle-glossary-item" data-kw="' + esc(id) + '">' + esc(k.n) + '</button>'
     ).join('') + '</div>';
@@ -547,13 +653,22 @@ function refreshArena() {
   if (app.tab === 'arena') render();
 }
 function render() {
-  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, orders: P.ordersPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, rift: P3.riftPage, ach: P2.achievementPage, event: eventPage }[app.tab];
+  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, orders: P.ordersPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, rift: P3.riftPage, ach: P2.achievementPage, event: eventPage, luck: LK.luckPage, aff: AF.affinityPage }[app.tab];
   if (f) { const y = window.scrollY; $('#view').innerHTML = f(app); window.scrollTo(0, y); }
   app.refreshTop();
   refreshBadges();
 }
-const rewardLine = (r) => `召唤券+${r.tickets} 银芯+${r.cores} 金币+${r.gold}`;
+const rewardLine = (r) => [`召唤券+${r.tickets}`, `银芯+${r.cores}`, `金币+${r.gold}`, r.rw ? `回溯券+${r.rw}` : ''].filter(Boolean).join(' ');
 const rerender = () => { app.save(); render(); };
+
+/* 大运：一场打完之后的出口——还活着就出「三选一」，全灭 / 通关就直接结算。 */
+function afterLuckBattle(app, r) {
+  const s = app.state;
+  app.save(); render();
+  const run = luckState(s).cur;
+  if (!run) { const end = luckState(s).lastRun; if (end) LK.luckEndModal(app, end); return; }
+  if (r?.res?.win) { run.offer = luckOfferPool(s, app.data, run, 3); LK.luckOfferModal(app, run); }
+}
 
 /* 累计签到送的联名嘉宾（core/creators.js 的 SIGNIN_GIFTS）：达标自动进包，
    已拥有就什么都不做，所以可以放心每次签到后都调一次。 */
@@ -652,6 +767,124 @@ function onAct(e) {
     case 'guide-growth': P.growthGuideModal(app); break;
     case 'go-orders': show('orders'); break;
     case 'go-rift': show('rift'); break;
+    case 'go-luck': show('luck'); break;
+    case 'go-aff': show('aff'); break;
+    // ---- 同调率 ----
+    case 'aff-gift': AF.giftModal(app, el.dataset.slug, el.dataset.back || 'aff'); break;
+    case 'aff-send': {
+      const slug = el.dataset.slug, r = giveGift(s, slug, el.dataset.k);
+      if (!r.ok) { toast(r.why, 2000); break; }
+      sound.play(r.up > 0 ? 'lvup' : 'coin');
+      toast(AF.sendText(app, slug, r), r.up > 0 ? 3200 : 1800);
+      app.save();
+      // 送完接着弹同一个人的赠送框（可以连着送）；下面那一页顺手刷新，等级别显示成旧的
+      if (el.dataset.back === 'detail') { closeModal(); render(); P.detailModal(app, slug); }
+      else { render(); AF.giftModal(app, slug); }
+      break;
+    }
+    case 'aff-buy': {
+      const r = buyGift(s, el.dataset.k, 1);
+      if (!r.ok) { toast(r.why, 2000); break; }
+      sound.play('coin'); toast(`买到 ${r.n} 份，花了 ${fmt(r.cost)} 金币`, 2200);
+      app.save(); render();
+      break;
+    }
+    // ---- 疾驰欢愉的大运 ----
+    case 'luck-start': {
+      const team = (s.team || []).filter((x) => s.roster[x]);
+      const run = luckStart(s, d, el.dataset.k, team);
+      if (!run) { toast('先编好队伍再上车'); break; }
+      sound.play('nav'); app.save(); render();
+      break;
+    }
+    case 'luck-fight': {
+      const run = luckState(s).cur;
+      if (!run) { render(); break; }
+      const act = run.act + 1, nodeNo = run.node + 1;
+      const r = luckFight(s, d, run);
+      if (!r) { app.save(); render(); break; }
+      // 先渲染：这一场打完节点已经往前推了，页面上的按钮必须跟着换，
+      // 否则回放还没结束时看到的还是旧节点（还能再点一次「开打」）
+      app.save(); render();
+      sound.play(r.res.win ? 'win' : 'lose');
+      watchOrSkip(replayOf(r.res, {
+        title: `大运 · 第 ${act} 层 · 第 ${nodeNo} 关`,
+        sub: r.res.win ? `还剩 ${Math.round(r.res.allies.reduce((n, a) => n + a.hp, 0) / Math.max(1, r.res.allies.reduce((n, a) => n + a.maxHp, 0)) * 100)}% 生命` : '这一场没顶住',
+        note: '跳过回放不影响结算', kw: d.kw,
+      }), () => afterLuckBattle(app, r));
+      break;
+    }
+    case 'luck-pick': {
+      const run = luckState(s).cur;
+      if (!run) { closeModal(); break; }
+      const it = luckTakeOffer(s, d, run, el.dataset.id);
+      closeModal(); app.save(); render();
+      if (it) { sound.play('ach'); toast(`已获得：${it.zh}`, 2600); }
+      break;
+    }
+    case 'luck-reroll': {
+      const run = luckState(s).cur;
+      if (!run) { closeModal(); break; }
+      if (luckReroll(s, d, run)) { closeModal(); app.save(); LK.luckOfferModal(app, run); sound.play('click'); }
+      else toast('没有重掷次数了');
+      break;
+    }
+    case 'luck-ev': {
+      const run = luckState(s).cur;
+      if (!run) { render(); break; }
+      const out = luckApplyEvent(s, d, run, +el.dataset.i);
+      if (out?.err) { toast(out.err); break; }
+      app.save(); render(); sound.play('gold');
+      const bits = [];
+      if (out?.glow) bits.push(`余晖 +${fmt(out.glow)}`);
+      if (out?.heal > 0) bits.push(`回复 ${out.heal}% 生命`);
+      if (out?.heal < 0) bits.push(`失去 ${-out.heal}% 生命`);
+      if (out?.maxhp) bits.push(`生命上限 +${out.maxhp}%`);
+      if (out?.reroll) bits.push(`重掷次数 +${out.reroll}`);
+      if (out?.score) bits.push(`得分 +${fmt(out.score)}`);
+      if (out?.got?.length) bits.push(`获得 ${out.got.join('、')}`);
+      toast(bits.length ? bits.join('，') : '什么都没发生', 3200);
+      break;
+    }
+    case 'luck-buy': {
+      const run = luckState(s).cur;
+      if (!run) { render(); break; }
+      const r2 = luckShopBuy(s, d, run, +el.dataset.i);
+      if (r2?.err) { toast(r2.err); break; }
+      app.save(); render(); sound.play('gold');
+      toast(`买下：${r2.zh}`);
+      break;
+    }
+    case 'luck-leave': {
+      const run = luckState(s).cur;
+      if (!run) { render(); break; }
+      luckLeaveNode(s, run); app.save(); render(); sound.play('nav');
+      break;
+    }
+    case 'luck-abandon': {
+      const run = luckState(s).cur;
+      if (!run) { render(); break; }
+      if (!confirm('放弃这一趟？已经拿到的分数会照常结算（这一局算失败）。')) break;
+      const end = luckAbandon(s);
+      app.save(); render(); sound.play('lose');
+      if (end) LK.luckEndModal(app, end);
+      break;
+    }
+    case 'luck-claim-lv': {
+      const r2 = luckClaimLevel(s, +el.dataset.i);
+      if (r2) { sound.play('ach'); toast(`Lv.${r2.lv} 奖励到账：${rewardLine(r2)}${r2.tp ? ` · 天赋点 +${r2.tp}` : ''}`); rerender(); }
+      break;
+    }
+    case 'luck-talent': {
+      if (luckBuyTalent(s, el.dataset.id)) { sound.play('lvup'); rerender(); } else toast('天赋点不够');
+      break;
+    }
+    case 'luck-lv-toggle': { app.ui.luckAllLv = !app.ui.luckAllLv; render(); sound.play('click'); break; }
+    case 'luck-ach': {
+      const rw = claimLuckAch(s, el.dataset.id);
+      if (rw) { sound.play('ach'); toast(`成就奖励：${rewardLine(rw)}`); rerender(); }
+      break;
+    }
     case 'pick-order': {
       const i = +el.dataset.i;
       P.pickOrder(app, i, (id) => { setOrderSlot(s, i, id); rerender(); });
@@ -678,10 +911,14 @@ function onAct(e) {
     case 'rewind': {
       const r0 = s.roster[el.dataset.slug];
       if (!r0 || r0.lv <= 1) break;
-      if (!confirm(`花 100 银芯把 ${d.bySlug[el.dataset.slug].zh} 回溯到 1 级？升级和突破的金币、银芯全部返还，叠位不变。`)) break;
+      const rw = Math.max(0, Math.floor(Number(s.vouchers?.rewind) || 0));
+      const ask = rw > 0
+        ? `用一张免费回溯券把 ${d.bySlug[el.dataset.slug].zh} 回溯到 1 级？（还剩 ${rw} 张，不花银芯）升级和突破的金币、银芯全部返还，叠位不变。`
+        : `花 100 银芯把 ${d.bySlug[el.dataset.slug].zh} 回溯到 1 级？升级和突破的金币、银芯全部返还，叠位不变。`;
+      if (!confirm(ask)) break;
       const r = rewindLevel(s, el.dataset.slug);
-      if (r) { sound.play('lvup'); toast(`回溯到 1 级：银芯-${r.cost}${r.refundCores ? ` +${r.refundCores}` : ''} 金币+${fmt(r.refund)}`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
-      else toast('银芯不足（回溯要 100 银芯）');
+      if (r) { sound.play('lvup'); toast(r.free ? `回溯到 1 级：用掉 1 张回溯券（剩 ${rw - 1} 张），金币+${fmt(r.refund)}` : `回溯到 1 级：银芯-${r.cost}${r.refundCores ? ` +${r.refundCores}` : ''} 金币+${fmt(r.refund)}`); app.save(); P.detailModal(app, el.dataset.slug); render(); }
+      else toast('回溯券用完了，银芯也不够（回溯要 100 银芯）');
       break;
     }
     case 'law': {
@@ -847,10 +1084,14 @@ function onAct(e) {
     case 'gear-rewind': {
       const it = s.gear.items[el.dataset.uid]; if (!it) break;
       const p = gearRewindPlan(it);
-      if (!confirm(`花 ${p.cost} 银芯回溯这件装备？强化 Lv${p.lv}、精炼 +${p.rf} 倒回 0，返还 金币 ${fmt(p.refund)}${p.refundCores ? ` + 银芯 ${p.refundCores}` : ''}。`)) break;
+      const rw = Math.max(0, Math.floor(Number(s.vouchers?.rewind) || 0));
+      const ask = rw > 0
+        ? `用一张免费回溯券回溯这件装备？（还剩 ${rw} 张）强化 Lv${p.lv}、精炼 +${p.rf} 倒回 0，返还 金币 ${fmt(p.refund)}${p.refundCores ? ` + 银芯 ${p.refundCores}` : ''}。`
+        : `花 ${p.cost} 银芯回溯这件装备？强化 Lv${p.lv}、精炼 +${p.rf} 倒回 0，返还 金币 ${fmt(p.refund)}${p.refundCores ? ` + 银芯 ${p.refundCores}` : ''}。`;
+      if (!confirm(ask)) break;
       const r = rewindGear(s, el.dataset.uid);
-      if (r) { sound.play('lvup'); toast(`回溯完成：金币+${fmt(r.refund)}${r.refundCores ? ` 银芯+${r.refundCores}` : ''}（花了 ${r.cost} 银芯）`); app.save(); rerender(); if (document.querySelector('.modal [data-act="relic-up"]')) P.relicModal(app, el.dataset.uid); }
-      else toast(`银芯不足（回溯要 ${p.cost} 银芯）`);
+      if (r) { sound.play('lvup'); toast(`回溯完成：金币+${fmt(r.refund)}${r.refundCores ? ` 银芯+${r.refundCores}` : ''}（${r.free ? `用掉 1 张回溯券，剩 ${rw - 1} 张` : `花了 ${r.cost} 银芯`}）`); app.save(); rerender(); if (document.querySelector('.modal [data-act="relic-up"]')) P.relicModal(app, el.dataset.uid); }
+      else toast('回溯券用完了，银芯也不够（回溯要 ' + p.cost + ' 银芯）');
       break;
     }
     case 'gear-up': enhanceItem(s, el.dataset.uid); rerender(); break;

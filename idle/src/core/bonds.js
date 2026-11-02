@@ -26,6 +26,7 @@ export const BOND_CATS = {
   guest: '主播 × 唤醒体',
   patron: '本命羁绊',
   archive: '档案派系',
+  school: '同谱',
   mixed: '跨界同行',
 };
 
@@ -273,6 +274,56 @@ export const BONDS = [
   },
 
 
+  /* ---------- 同谱：档案里写着同一套打法的人 ----------
+     依据是原作档案页上那串技能关键词（dictionary.json 的 kw 字段，就是角色页「特性」下面
+     列出来的那些标签）—— 它描述的正是这个人怎么打，而不是他属于哪个界域。
+     之前 62 个人里有 29 个一条点名羁绊都没有（图鉴里点进去「羁绊」是空的），
+     凑队时它们只是「凑数」；这里按打法把这些人接上：带反击的、靠跃迁的、吃余震的、
+     吞血的、烧尽自己的、靠停滞消耗的、放血的。
+     数值口径和别的一样（BOND_POWER 会再乘 1.4），所以三档之间不要拉太开。 */
+  {
+    id: 'school-counter', zh: '刃上行走', cat: 'school', need: 3,
+    members: ['24', 'caecus', 'nautila', 'winkle', 'arachne', 'saya', 'caraboo', 'vivian'],
+    tiers: { 2: { hpPct: 4, critDmg: 8, amp: 3 }, 3: { hpPct: 7, critDmg: 14, amp: 6 }, 4: { hpPct: 11, critDmg: 22, amp: 10 } },
+    desc: '档案里都写着「反击」的人：24 / 凯刻斯 / 诺缔拉 / 温柯尔 / 阿拉克涅 / 沙耶 / 卡拉布 / 薇薇安。挨打才出力，所以先活得久一点 —— 生命、暴伤与增伤。',
+  },
+  {
+    id: 'school-leap', zh: '越界者', cat: 'school', need: 3,
+    members: ['casiah', 'daffodil', 'horla', 'liz', 'tinct', 'winkle', 'arachne'],
+    tiers: { 2: { atkPct: 5, critRate: 4 }, 3: { atkPct: 9, critRate: 7 }, 4: { atkPct: 14, critRate: 10, amp: 6 } },
+    desc: '档案里都写着「跃迁」的人：卡茜亚 / 达芙黛尔 / 奥尔拉 / 莉兹 / 汀克特 / 温柯尔 / 阿拉克涅。进出战场只在一瞬之间，攻击与暴击率跟着抬。',
+  },
+  {
+    id: 'school-aftershock', zh: '余波共鸣', cat: 'school', need: 3,
+    members: ['aurita', 'casiah', 'corposant', 'vortice', 'pontos'],
+    tiers: { 2: { amp: 5, aliGain: 8 }, 3: { amp: 9, aliGain: 14 }, 4: { amp: 15, aliGain: 22 } },
+    desc: '档案里都写着「余震」的人：奥瑞塔 / 卡茜亚 / 克珀珊特 / 沃提斯 / 庞托斯。一次出手留三下回响，增伤与共鸣回复一起涨。',
+  },
+  {
+    id: 'school-devour', zh: '饕食者', cat: 'school', need: 3,
+    members: ['doresain', 'leigh', 'pickman', 'salvador', 'uvhash', 'xu', 'saya', 'caraboo'],
+    tiers: { 2: { steal: 6, hpPct: 4 }, 3: { steal: 10, hpPct: 7 }, 4: { steal: 15, hpPct: 12, atkPct: 6 } },
+    desc: '档案里都写着「吞噬」的人：杜勒赛因 / 莱克 / 皮克曼 / 萨尔瓦多 / 尤乌哈希 / 徐 / 沙耶 / 卡拉布。吃下去的就变成自己的 —— 吸血与生命。',
+  },
+  {
+    id: 'school-exhaust', zh: '燃尽', cat: 'school', need: 3,
+    members: ['alva', 'aurita', 'hameln', 'lily', 'liz', 'pickman', 'ryker', 'uvhash'],
+    tiers: { 2: { atkPct: 6, keyGain: 8 }, 3: { atkPct: 10, keyGain: 14 }, 4: { atkPct: 15, keyGain: 22, critDmg: 10 } },
+    desc: '档案里都写着「燃尽」的人：艾尔瓦 / 奥瑞塔 / 哈姆林 / 莉莉 / 莉兹 / 皮克曼 / 雷克 / 尤乌哈希。烧的是自己的余量，换来攻击与钥焰回复。',
+  },
+  {
+    id: 'school-stagnation', zh: '停滞', cat: 'school', need: 3,
+    members: ['aigis', 'celeste', 'karen', 'arachne', 'caraboo'],
+    tiers: { 2: { defPct: 6, shieldBonus: 8 }, 3: { defPct: 10, shieldBonus: 14 }, 4: { defPct: 16, shieldBonus: 22, hpPct: 6 } },
+    desc: '档案里都写着「停滞」的人：艾继丝 / 希莱斯特 / 珈伦 / 阿拉克涅 / 卡拉布。把战场拖进泥里，防御与护盾。',
+  },
+  {
+    id: 'school-bleed', zh: '放血', cat: 'school', need: 3,
+    members: ['clementine', 'helot-catena', 'helot', 'pollux', 'thais'],
+    tiers: { 2: { atkPct: 5, amp: 4 }, 3: { atkPct: 9, amp: 7 }, 4: { atkPct: 13, amp: 12, critRate: 6 } },
+    desc: '档案里都写着「流血」的人：克莱门汀 / 血链·希洛 / 希洛 / 波吕克斯 / 泰旖丝。伤口开着就别想合上 —— 攻击与增伤。',
+  },
+
   /* ---------- 跨界同行：四个界域各出一个人（混编队的正解） ---------- */
   {
     id: 'mixed-four', zh: '四域同行', cat: 'mixed', rule: 'mixed', need: 4,
@@ -286,6 +337,23 @@ const REALM_ZH = { CHAOS: '混沌', CARO: '血肉', AEQUOR: '深海', ULTRA: '�
 const TYPE_ZH = { ASSAULT: '突击', WARDEN: '守护', CHORUS: '合唱' };
 const catName = (b) => BOND_CATS[b.cat] || '';
 export const bondLabel = (b) => `${b.zh}`;
+
+/* 羁绊整体强度系数。
+   羁绊是「白送的全队被动」：不看站位、不看存活，只要四个人凑得出来就一直生效。
+   上线时数值定得保守（大多是一条羁绊 +8%~14%），结果四同域 / 四域同行这种最容易凑的
+   反而比不过一件密契套装——「凑羁绊」在实战里没有存在感。
+   这里把战斗类词条统一乘 1.4（金币收益不乘：那是经济，不跟着战斗强度走），
+   让「凑出来的那 2~3 条」真的能顶半套装备。 */
+export const BOND_POWER = 1.4;
+const scaleTier = (b) => {
+  const out = { ...b };
+  for (const k of Object.keys(out)) {
+    if (k === 'gold') continue;                       // 经济词条不吃这个系数
+    const v = Number(out[k]);
+    out[k] = Number.isFinite(v) ? Math.round(v * BOND_POWER * 10) / 10 : out[k];
+  }
+  return out;
+};
 
 /**
  * 一条羁绊现在凑了几个。
@@ -349,7 +417,7 @@ export function teamBonds(slugs = [], data) {
     const n = countOf(b, ctx);
     const tiers = Object.keys(b.tiers).map(Number).sort((x, y) => x - y);
     const tier = tiers.filter((t) => n >= t).pop() || 0;
-    if (tier) active.push({ ...b, n, tier, bonus: b.tiers[tier] });
+    if (tier) active.push({ ...b, n, tier, bonus: scaleTier(b.tiers[tier]) });
     else near.push({ ...b, n, gap: gapOf(b, ctx, n) });
   }
   // 「差 1 人」的排前面：羁绊表长到三十多条以后，按声明顺序排的话界面只会一直显示

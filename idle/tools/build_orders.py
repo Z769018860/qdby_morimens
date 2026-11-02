@@ -40,11 +40,41 @@ def rarity_of(use):
 
 SCALE = {'R': 1.0, 'SR': 1.45, 'SSR': 2.1}
 
+# ---- 价值折算 ------------------------------------------------------------
+# 单位是「分」：每 1 点存储值折多少分（存 10 表示 +10% 的属性）。
+# 权重不是纯理论收益，而是**锚在原数据的量级上**：拿主键预算（约 13.6 分）除以权重，
+# 正好落回原来最强那批钥令的数值（攻击 11%、增伤 10%、起始钥焰 15 点、暴伤 14%…），
+# 所以重排之后玩家的直觉不用改，变的只是「键多就强」和「R 比 SSR 强」这两件事。
+VALUE_W = {
+    'atkPct': 1.18, 'amp': 1.3, 'critRate': 1.85, 'critDmg': 0.93,
+    'hpPct': 1.85, 'defPct': 1.6, 'healBonus': 1.44, 'shieldBonus': 1.08,
+    'aliGain': 0.93, 'keyGain': 1.3, 'openAli': 0.59, 'openKey': 0.86,
+    'steal': 3.2, 'gold': 1.6, 'firstBoost': 1.2,
+    'surviveChance': 300.0,      # 存的是 0.03（=3%），所以 1% 折 3 分
+}
+# 每件钥令的总价值预算（按稀有度）。以前只有 SCALE 按稀有度缩放，
+# 但「原文命中几条规则就多几个属性」这一层没有任何约束：
+# 键数 1→8 对应价值 5→38，R 卡能比 SSR 强三倍。现在先定预算，再把预算分给属性。
+BUDGET = {'R': 11.0, 'SR': 16.0, 'SSR': 22.0}
+# 招牌键：这几样决定钥令「是干什么用的」，筛键时优先留下
+SIGNATURE = ('openKey', 'openAli', 'aliGain', 'keyGain', 'steal', 'surviveChance',
+             'firstBoost', 'gold', 'healBonus', 'shieldBonus')
+TAG_OF = {
+    'amp': '锐意', 'atkPct': '强攻', 'critRate': '锋矢', 'critDmg': '锋锐',
+    'hpPct': '坚壁', 'defPct': '守势', 'healBonus': '慈悲', 'shieldBonus': '护盾',
+    'openKey': '起手', 'openAli': '共鸣', 'keyGain': '钥流', 'aliGain': '狂澜',
+    'steal': '汲取', 'surviveChance': '死扛', 'gold': '财源', 'firstBoost': '首击',
+}
+
 
 def bonus_of(text, rarity):
     """钥令原文 → 本作的加成键（只写 ZERO() 里已有的键）。
 
-    一件钥令通常命中 1–2 条规则；都没命中时给一个通用的增伤，避免出现「白板钥令」。
+    先按原文命中规则收候选，**再按稀有度预算重新分配**：
+      1. 招牌键优先、单项价值高的优先，最多留 3 个（3 个再打 94 折，多属性=更泛用但不更赚）；
+      2. 主属性吃掉 62% 的预算，剩下的平分给其它键 —— 每件钥令因此有明确的「招牌」；
+      3. 总价值只由稀有度决定，键数不再等于强度（以前描述越长越强）。
+    返回 (加成表, 招牌键)。
     """
     b = {}
 
@@ -77,11 +107,18 @@ def bonus_of(text, rarity):
         add('surviveChance', 0.03)
     if not b:
         add('amp', 4)
-    m = SCALE[rarity]
+
+    # 主键 = 按价值最高的那个；价值接近时招牌键优先（它是这件钥令「在讲什么」）
+    order = sorted(b.items(), key=lambda kv: (-(kv[1] * VALUE_W.get(kv[0], 0.5)), kv[0] not in SIGNATURE))
+    keep = order[:3]
+    budget = BUDGET[rarity] * (0.94 if len(keep) >= 3 else 1.0)
+    share = [0.62] + [0.38 / (len(keep) - 1)] * (len(keep) - 1) if len(keep) > 1 else [1.0]
     out = {}
-    for k, v in b.items():
-        out[k] = round(v * m, 2) if k == 'surviveChance' else round(v * m)
-    return out
+    for (k, _), s in zip(keep, share):
+        w = VALUE_W.get(k, 0.5)
+        v = budget * s / w
+        out[k] = round(v, 2) if k == 'surviveChance' else max(1, round(v))
+    return out, keep[0][0]
 
 
 def main():
@@ -104,6 +141,7 @@ def main():
                 shutil.copyfile(src_img, os.path.join(IMGDIR, name))
                 copied.add(name)
             img = 'img/key/' + name
+        bonus, main_key = bonus_of(text, rarity)
         items.append({
             'id': 'k' + str(k['id']).split(':')[-1],
             'zh': zh,
@@ -112,15 +150,18 @@ def main():
             'rarity': rarity,
             'img': img,
             'glyph': zh[0],
-            'bonus': bonus_of(text, rarity),
+            'bonus': bonus,
+            'tag': TAG_OF.get(main_key, '通用'),
             'desc': text[:150],
             'use': k.get('use'),
         })
     # 界域多的、使用率高的排前面，界面上的「已获得」看起来更像图鉴
     items.sort(key=lambda x: ({'SSR': 0, 'SR': 1, 'R': 2}[x['rarity']], -(x['use'] or 0)))
     pack = {
-        'version': 2,
-        'note': '原作 64 件钥令的中文名、界域与钥令原文；bonus 是把原文关键词映射到本作加成键的结果（本作没有牌库/算力机制）。',
+        'version': 3,
+        'note': '原作 64 件钥令的中文名、界域与钥令原文；bonus 是把原文关键词映射到本作加成键、'
+                '再按稀有度预算（R 11 / SR 16 / SSR 22 分）重新分配的结果：招牌键优先、最多 3 个键、'
+                '主属性拿 62% 预算。tag 是招牌键对应的定位（锐意/起手/慈悲…），键数不再等于强度。',
         'sources': ['data/dictionary.json → key', 'assets/key/*.webp'],
         'items': items,
     }

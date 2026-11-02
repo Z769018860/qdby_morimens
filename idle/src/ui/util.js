@@ -95,15 +95,19 @@ export function toast(msg, ms = 2200) {
 }
 
 let modalRoot;
-let modalKey = '', modalScroll = 0;
+let modalKey = '';
 // 滚动的是内层的 .modal-body，不是 .modal 本身：关闭键挂在 .modal 上（不滚），
 // 长弹窗往下翻时 ✕ 才不会被一起卷走。
 const modalBody = (root) => root?.querySelector('.modal-body') || root?.querySelector('.modal');
+// key → 这一层上次滚到哪。每个弹窗各记一份，不是全局一个槽：
+// 弹窗被另一层「顶掉」再重开（编队编辑器 → 选装备 → 回到编辑器）时也要能回到原位，
+// 否则在造物那一段换完一件就被弹回最上面，得重新往下拉一次。
+const modalScrolls = new Map();
 // key：同一个弹窗被重新渲染（升级 / 叠位后刷新）时传同一个 key，滚动位置会保留——
 // 否则每点一次「叠位 +1」弹窗都跳回最上面，要重新往下拉才能点下一次。
 export function openModal(html, cls = '', key = '') {
-  if (modalRoot && modalKey) { const m = modalBody(modalRoot); if (m) modalScroll = m.scrollTop; }
-  const keep = key && key === modalKey ? modalScroll : 0;
+  if (modalRoot && modalKey) { const m = modalBody(modalRoot); if (m) modalScrolls.set(modalKey, m.scrollTop); }
+  const keep = key ? (modalScrolls.get(key) || 0) : 0;
   closeModal();
   modalKey = key;
   modalRoot = document.createElement('div');
@@ -114,7 +118,14 @@ export function openModal(html, cls = '', key = '') {
   if (keep) { const m = modalBody(modalRoot); if (m) m.scrollTop = keep; }
   return modalRoot;
 }
-export function closeModal() { if (modalRoot) { modalRoot.remove(); modalRoot = null; } modalKey = ''; modalScroll = 0; }
+export function closeModal() {
+  // 关之前把位置存下来：同一层再被打开时（比如换完装备回到编队编辑器）能接着上次的位置
+  if (modalRoot && modalKey) { const m = modalBody(modalRoot); if (m) modalScrolls.set(modalKey, m.scrollTop); }
+  if (modalRoot) { modalRoot.remove(); modalRoot = null; }
+  modalKey = '';
+}
+/** 真的不想记住某一层的滚动位置了（比如编队编辑器被彻底关掉），把它从表里删掉 */
+export function dropModalScroll(key) { if (key) modalScrolls.delete(key); }
 export const modalEl = () => modalRoot;
 
 // ---------- keywords (status / mechanic tags with icons) ----------
@@ -152,4 +163,4 @@ export function showKwPop(kw, slug, anchor) {
 }
 
 // reward object -> text ({ gold, tickets, cores })
-export const rewardText = (r) => [r.gold ? `金币 +${fmt(r.gold)}` : '', r.tickets ? `召唤券 +${r.tickets}` : '', r.cores ? `银芯 +${r.cores}` : ''].filter(Boolean).join('　');
+export const rewardText = (r) => [r.gold ? `金币 +${fmt(r.gold)}` : '', r.tickets ? `召唤券 +${r.tickets}` : '', r.cores ? `银芯 +${r.cores}` : '', r.rw ? `回溯券 +${r.rw}` : ''].filter(Boolean).join('　');

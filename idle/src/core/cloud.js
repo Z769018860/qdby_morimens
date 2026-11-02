@@ -89,6 +89,96 @@ export function plan({ state, cloudMeta, sync, acct }) {
   return 'conflict';
 }
 
+// ---------- 上传用的载荷 ----------
+// 云端一条存档有大小上限（服务端 SAVE_MAX = 480KB）。以前是直接把 JSON 明文 PUT 上去，
+// 装备库存堆到几千件（一次 500 连装备祈愿就几百件）就顶穿了：报 too_large、每次重试都失败，
+// 云端的存档从此停在旧版本 —— 换设备拉下来的就是几个月前的进度（签到 / 编队 / 塔与禁区 /
+// 联动人气 / 培养全都不见了）。现在超过阈值先「压扁」装备库存（仍是合法 JSON，老服务端也认），
+// 还超就再 gzip + base64，带 "gz1:" 前缀上传；服务端只当字符串存，拉下来再还原。
+export const SAVE_LIMIT = 480 * 1024;      // 服务端一条存档的上限（明文）
+export const PLAIN_LIMIT = 400 * 1024;     // 明文超过这个就先压（留 80KB 余量给 meta / JSON 转义）
+const GZ_TAG = 'gz1:';
+
+const b64Of = (buf) => {
+  const u = new Uint8Array(buf);
+  let s = '';
+  for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+const bufOf = (b64) => { const s = atob(b64); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+
+async function gzipB64(text) {
+  try {
+    if (typeof CompressionStream === 'undefined' || typeof Blob === 'undefined' || typeof btoa === 'undefined') return '';
+    const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
+    return b64Of(await new Response(stream).arrayBuffer());
+  } catch { return ''; }
+}
+async function gunzipB64(b64) {
+  try {
+    if (typeof DecompressionStream === 'undefined' || typeof atob === 'undefined') return '';
+    const stream = new Blob([bufOf(b64)]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return await new Response(stream).text();
+  } catch { return ''; }
+}
+
+/** 压扁存档（只在上传时用，内存和本机存档永远是原结构）：
+    gear.items 从 { g123: {uid,kind,defId,lv,rf} } 变成 [ [123, 1, "cov_201", 9, 2], … ]，
+    kind 用 0/1/2 编号，uid 从键名里取 —— 九千件装备从 ~600KB 掉到 ~200KB。 */
+const PACK_KEY = '__pack';
+const KIND_NO = { wheel: 0, covenant: 1, relic: 2 };
+const NO_KIND = ['wheel', 'covenant', 'relic'];
+export function compactSave(s) {
+  const items = s && s.gear && s.gear.items;
+  if (!items || typeof items !== 'object' || Array.isArray(items)) return s;
+  const rows = [];
+  for (const [k, it] of Object.entries(items)) {
+    if (!it || typeof it !== 'object') continue;
+    const n = Number(String(k).replace(/^g/, ''));
+    rows.push([Number.isFinite(n) ? n : String(k), KIND_NO[it.kind] ?? 9, it.defId || '', it.lv || 0, it.rf || 0]);
+  }
+  return { ...s, [PACK_KEY]: 1, gear: { ...s.gear, items: rows } };
+}
+export function expandSave(v) {
+  if (!v || v[PACK_KEY] !== 1) return v;
+  const out = { ...v };
+  delete out[PACK_KEY];
+  const rows = Array.isArray(v.gear && v.gear.items) ? v.gear.items : [];
+  const items = {};
+  for (const r of rows) {
+    if (!Array.isArray(r) || r.length < 3) continue;
+    const key = typeof r[0] === 'number' ? 'g' + r[0] : String(r[0]);
+    // lv / rf 一律补上（哪怕 0）：另一台设备拉下来展开后要和上传那台的内容哈希一致，
+    // 少了 rf:0 这个键就会被判成「两份不一样」，同步一直来回推。
+    items[key] = { uid: key, kind: NO_KIND[r[1]] || 'covenant', defId: r[2], lv: r[3] || 0, rf: r[4] || 0 };
+  }
+  out.gear = { ...v.gear, items };
+  return out;
+}
+
+/** 存档 → 上传用的载荷：小存档走明文（老服务端也能认），大的先压扁、再不够就 gzip */
+export async function packSave(state) {
+  const plain = JSON.stringify(state);
+  if (plain.length <= PLAIN_LIMIT) return { data: plain, plain, gz: false };
+  // 先「压扁」：装备库存是存档里最大的一块，一件要 60~70 字节（键名 + kind + uid 重复三遍），
+  // 换成数组后约 20 字节。这一步仍然是**合法 JSON**，所以就算服务端还没更新也能照常收。
+  const compact = JSON.stringify(compactSave(state));
+  if (compact.length <= PLAIN_LIMIT) return { data: compact, plain: compact, gz: false };
+  const gz = await gzipB64(compact);
+  return gz ? { data: GZ_TAG + gz, plain: compact, gz: true } : { data: compact, plain: compact, gz: false };
+}
+
+/** 云端载荷 → 存档对象：兼容老的明文和老格式，认不出就返回 null（调用方当坏档处理） */
+export async function unpackSave(text) {
+  if (typeof text !== 'string' || !text) return null;
+  let body = text;
+  if (body.startsWith(GZ_TAG)) { body = await gunzipB64(body.slice(GZ_TAG.length)); if (!body) return null; }
+  try {
+    const v = JSON.parse(body);
+    return v && typeof v === 'object' && !Array.isArray(v) ? expandSave(v) : null;
+  } catch { return null; }
+}
+
 // ---------- 网络 ----------
 let liveBase = '';
 function candidates() {
@@ -144,11 +234,21 @@ export async function fetchSave(opt) {
 /** 上传：ver = 本机记得的云端版本（第一次传是 0）；成功后更新本机同步记录 */
 export async function pushSave(state, ver, opt = {}) {
   const acct = account();
-  const r = await call('PUT', `/save/${GAME}`, { data: JSON.stringify(state), ver, rev: state.rev || 0, meta: metaOf(state) }, opt);
+  const pack = await packSave(state);
+  const meta = metaOf(state);
+  const body = (data) => ({ data, ver, rev: state.rev || 0, meta });
+  let r = await call('PUT', `/save/${GAME}`, body(pack.data), opt);
+  // 老服务端还不认识压缩包（400 bad_save）或者这台服务器根本装不下（413）：退回明文再传一次。
+  // 明文要是也超限，照样报 too_large —— 至少不会因为「换了新格式」把同步彻底打死。
+  if (!r.ok && pack.gz && (r.status === 400 || r.status === 413)) r = await call('PUT', `/save/${GAME}`, body(pack.plain), opt);
   if (r.status === 409) return { conflict: true, cloud: r.json };
-  if (!r.ok) throw new Error(r.json.error || 'HTTP ' + r.status);
+  if (!r.ok) {
+    const e = new Error(r.json.error || 'HTTP ' + r.status);
+    e.status = r.status; e.bytes = pack.data.length; e.plainBytes = pack.plain.length;
+    throw e;
+  }
   setSyncRecord({ acct: acct.name, ver: r.json.ver, rev: state.rev || 0, hash: contentHash(state), at: Date.now() });
-  return { ver: r.json.ver };
+  return { ver: r.json.ver, bytes: pack.data.length };
 }
 /** 记下「本机已经和云端 ver 对齐」（拉取成功后调用） */
 export function markSynced(state, ver) {

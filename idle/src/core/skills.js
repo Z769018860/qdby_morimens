@@ -18,6 +18,7 @@ const E = {
 export { E as fx };
 
 import { STATUS } from './constants.js';
+import { chorusRoleOf, applyRolePatch } from './roles.js';
 
 const STAT_ZH = { atk: '攻击', def: '防御', crit: '暴击率', amp: '增伤', vuln: '受伤' };
 const TO_ZH = {
@@ -111,9 +112,23 @@ function typeKit(type) {
   }
 }
 
+/* 合唱按子定位换模板（core/roles.js）：以前 24 个辅助共用「治疗 + 全队攻击」那一套，
+   谁都一样，编队时只剩「谁面板高」。现在司疗 / 咏唱 / 击拍 / 蚀咏 / 守律各有一套技能构成，
+   换的是效果本身，不是名字。其余定位仍然走 typeKit。 */
+function chorusKit(a) {
+  const r = chorusRoleOf(a);
+  const cp = (arr) => (Array.isArray(arr) ? arr.map((e) => ({ ...e })) : []);
+  return {
+    Skill1: cp(r.kit.Skill1), Skill2: cp(r.kit.Skill2),
+    Exalt: cp(r.kit.Exalt), OverExalt: cp(r.kit.OverExalt),
+  };
+}
+
 export function buildKit(a, level = 2, med = null) {
-  const n = KIT_NAMES[a.type];
-  const t = typeKit(a.type);
+  const chorus = a.type === 'CHORUS';
+  const role = chorus ? chorusRoleOf(a) : null;
+  const n = chorus ? { ...KIT_NAMES.CHORUS, ...role.names } : KIT_NAMES[a.type];
+  const t = chorus ? chorusKit(a) : typeKit(a.type);
   const r = realmRider(a.realm);
   const k = {
     Strike: { slot: 'Strike', name: `${STRIKE[a.type]}`, effects: [E.dmg(a.type === 'ASSAULT' ? 1.1 : 0.9), ...r.strike] },
@@ -138,10 +153,21 @@ export function buildKit(a, level = 2, med = null) {
       const i = eff.findIndex((x) => x.t === 'dmg' && x.to === 'foe' && (x.hits || 1) === 1);
       if (i >= 0) eff = eff.map((x, j) => (j === i ? { ...x, to: 'foes', m: +(x.m * 0.7).toFixed(2) } : x));
     }
+    // 卡面写着「造成 … 点伤害 N 次」的，就真的拆成 N 段。
+    // 以前这一段信息被整个丢掉：不管卡面写几次，打出来都是一下——
+    // 于是「屏障怪一层挡一次直接伤害」这条域规基本只有 Alice / 鼠王 那几个手写 kit 能解，
+    // 别的多段角色（卡斯托尔、克莱门汀这些）明明卡面是多段，却打不穿屏障。
+    // 总倍率按 0.9 折算：多段本身还顺带绕开反震（每次都没到阈值），不算白送。
+    const nHit = hitsOfCard(rk.d);
+    if (nHit > 1) {
+      const i = eff.findIndex((x) => x.t === 'dmg' && (x.hits || 1) === 1);
+      if (i >= 0) eff = eff.map((x, j) => (j === i ? { ...x, m: +((x.m * 0.9) / nHit).toFixed(3), hits: nHit } : x));
+    }
     k[slot].effects = [...eff, ...riders(slot, rk, a, f).filter((r) => !['shield', 'heal'].includes(r.t) || !eff.some((x) => x.t === r.t))];
     scaleReal(k[slot], rk, slot, level, med);
   }
-  return k;
+  // 定位补正（core/roles.js 的 ROLE_PATCH）：审计里垫底、且槽位明显浪费的几位，追加一条 rider
+  return applyRolePatch(a.slug, k);
 }
 
 // ---------- real numbers ----------
@@ -204,6 +230,15 @@ function scaleReal(sk, rk, slot, level, med) {
 // ---------- keyword riders ----------
 const strip = (t) => String(t || '').replace(/⟦[^|⟧]+\|([^⟧]*)⟧/g, '$1');
 const SLOT_SCALE = { Strike: 0.55, Defense: 0.55, Skill1: 0.8, Skill2: 0.9, Rouse: 0.9, Exalt: 1.15, OverExalt: 1.4 };
+/** 卡面里的段数：「造成 … 点伤害 3 次」「3 次伤害」都算；「触发 1 次」「生效 3 次」不算（那些不是伤害段）。
+ *  上限 3 段，和怪物技能同一个上限，免得某张卡写出 5 段把屏障一次扒光。 */
+export function hitsOfCard(text) {
+  const t = strip(text);
+  const m = t.match(/伤害\s*(\d+)\s*次/) || t.match(/(\d+)\s*次[^。；]{0,4}伤害/);
+  if (!m) return 1;
+  return Math.max(1, Math.min(3, +m[1] || 1));
+}
+
 export function flagsOf(rk) {
   const t = strip(rk.d);
   return {

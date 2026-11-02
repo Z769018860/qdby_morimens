@@ -603,6 +603,21 @@ async function putAccount(request, env, kv, cors) {
 // 由客户端决定用哪份（不会悄悄互相覆盖）。
 const SAVE_GAMES = new Set(['idle', 'deathreport', 'binding', 'survivors', 'protocol', 'wolf', 'merge', 'bird', 'g2048', 'duel', 'reign', 'lovelive']);
 const SAVE_MAX = 480 * 1024;
+// 挂机前夜的大存档：客户端超过阈值就先 gzip，再以 "gz1:" + base64 上传（见 idle/src/core/cloud.js）。
+// 这里只校验形状不做解压；读正文（管理员查看、榜单补阵容）走下面的 idleDoc。
+const GZ_TAG = 'gz1:';
+const GZ_RE = /^gz1:[A-Za-z0-9+/]+={0,2}$/;
+
+/** 存档正文 → 对象：明文直接 parse，压缩包先解；解不出来返回 null */
+async function idleDoc(text) {
+  if (typeof text !== 'string' || !text) return null;
+  if (!text.startsWith(GZ_TAG)) { try { return JSON.parse(text); } catch { return null; } }
+  try {
+    const bin = Uint8Array.from(atob(text.slice(GZ_TAG.length)), (c) => c.charCodeAt(0));
+    const stream = new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return JSON.parse(await new Response(stream).text());
+  } catch { return null; }
+}
 
 function saveGameOf(g) {
   const game = str(g, 24);
@@ -642,8 +657,14 @@ async function putSave(request, env, kv, game, cors) {
   const data = typeof b.data === 'string' ? b.data : JSON.stringify(b.data || null);
   if (!data || data.length > SAVE_MAX) throw new HttpError(413, 'too_large');
   let parsed = null;
-  try { parsed = JSON.parse(data); } catch { parsed = null; }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new HttpError(400, 'bad_save');
+  // 挂机前夜的存档堆到几百 KB 之后客户端会先 gzip（"gz1:" + base64）再传，这里只校验格式，不当 JSON 解析；
+  // 老的明文存档照旧解析。压缩包的大小上限按 SAVE_MAX 算，一直够用（25 万字节的存档压完约 30KB）。
+  if (data.startsWith(GZ_TAG)) {
+    if (!GZ_RE.test(data)) throw new HttpError(400, 'bad_save');
+  } else {
+    try { parsed = JSON.parse(data); } catch { parsed = null; }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new HttpError(400, 'bad_save');
+  }
 
   const key = 'sv_' + (await uhash(me.uid)) + '_' + game;
   const cur = await kvJson(kv, key);
@@ -1287,8 +1308,7 @@ async function getAdminIdleSave(request, env, kv, url, cors) {
   if (!uid) throw new HttpError(400, 'bad_uid');
   const row = await kvJson(kv, 'sv_' + (await uhash(uid)) + '_idle');
   if (!row) return reply({ ok: true, found: false }, 200, cors);
-  let d = null;
-  try { d = JSON.parse(row.data); } catch { d = null; }
+  const d = await idleDoc(row.data);
   if (!d || typeof d !== 'object') return reply({ ok: true, found: true, broken: true, ver: row.ver, at: row.at }, 200, cors);
   const num = (x) => Math.round(Number(x) || 0);
   const stats = d.stats && typeof d.stats === 'object' ? d.stats : {};
@@ -1342,7 +1362,7 @@ async function postReindex(request, env, kv, cors) {
     const sv = await softly(() => kvJson(kv, 'sv_' + uh + '_idle', true), null);
     let il = sv && sv.meta ? { ...sv.meta } : null;
     if (sv && il && !(Array.isArray(il.team) && il.team.length) && typeof sv.data === 'string') {
-      try { il.team = teamOfIdle(JSON.parse(sv.data)); } catch { /* 正文坏了就没有阵容 */ }
+      il.team = teamOfIdle(await idleDoc(sv.data));   // 正文坏了 / 解不开就没有阵容
     }
     return [uh, { u: String(u.uid), n: String(u.name || ''), at: Number(u.at) || 0, seen: Number(u.seen) || 0, ...(a && a.doc ? { a: ixAcct(a.doc) } : {}), ...(il ? { il } : {}) }];
   });
@@ -1359,11 +1379,16 @@ async function postReindex(request, env, kv, cors) {
   return reply({ ok: true, done: ok.length, asked: keys.length }, 200, cors);
 }
 
-// 赠礼记录：银芯 amount 和/或挂机前夜唤醒体 awk（slug 列表）。两样可以只发一样。
+// 赠礼记录：银芯 amount、挂机前夜唤醒体 awk（slug 列表）、免费回溯券 rw（张）。三样可以只发一样。
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,39}$/i;
 function cleanAwk(v) {
   const list = Array.isArray(v) ? v : [];
   return [...new Set(list.map((x) => str(x, 40).trim()).filter((x) => SLUG_RE.test(x)))].slice(0, 20);
+}
+// 免费回溯券：一张 = 一次角色 / 装备回溯不花银芯。单条赠礼最多 99 张，够发全服补偿了
+function cleanRw(v) {
+  const n = Math.floor(Number(v) || 0);
+  return n > 0 ? Math.min(99, n) : 0;
 }
 
 // 赠礼存成一份文档 gx_idx（最近 100 条，每条自带收件范围）：
@@ -1396,12 +1421,14 @@ async function readGrantDoc(kv) {
 function grantRecord(b, me, to) {
   const amount = Math.round(Number(b.amount) || 0);
   const awk = cleanAwk(b.awk);
+  const rw = cleanRw(b.rw);
   const note = str(b.note, 120).trim();
   if (!(amount >= 0 && amount <= 100000)) throw new HttpError(400, 'bad_amount');
-  if (!amount && !awk.length) throw new HttpError(400, 'bad_amount');
+  if (!amount && !awk.length && !rw) throw new HttpError(400, 'bad_amount');
   const id = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const rec = { id, amount, note, at: Date.now(), by: me.name || me.uid };
   if (awk.length) rec.awk = awk;
+  if (rw) rec.rw = rw;
   if (to != null) rec.to = to;
   return rec;
 }
@@ -1420,7 +1447,7 @@ async function postAdminGrant(request, env, kv, cors) {
   const rec = grantRecord(b, me, null);
   rec.to = [await uhash(uid)];
   await putGrantDoc(kv, rec);
-  return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], uid, note: rec.note }, 200, cors);
+  return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], rw: rec.rw || 0, uid, note: rec.note }, 200, cors);
 }
 
 // POST /admin/grant-batch { uids?: string[], all?: boolean, amount, awk?, note }
@@ -1445,7 +1472,7 @@ async function postAdminGrantBatch(request, env, kv, cors) {
     rec.to = await Promise.all(uids.map((u) => uhash(u)));
   }
   await putGrantDoc(kv, rec);
-  return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], sent: total, total, failed: 0, failedUids: [], note: rec.note }, 200, cors);
+  return reply({ ok: true, id: rec.id, amount: rec.amount, awk: rec.awk || [], rw: rec.rw || 0, sent: total, total, failed: 0, failedUids: [], note: rec.note }, 200, cors);
 }
 
 // ------------------------------------------------------------------ 榜单
@@ -1582,8 +1609,8 @@ async function getMyGrants(request, env, kv, cors) {
     ok: true,
     items: all.map((g) => ({
       id: String(g.id || ''), amount: Number(g.amount) || 0, note: String(g.note || ''), at: Number(g.at) || 0,
-      awk: cleanAwk(g.awk),
-    })).filter((g) => g.id && (g.amount > 0 || g.awk.length) && !seen.has(g.id) && seen.add(g.id)),
+      awk: cleanAwk(g.awk), rw: cleanRw(g.rw),
+    })).filter((g) => g.id && (g.amount > 0 || g.awk.length || g.rw > 0) && !seen.has(g.id) && seen.add(g.id)),
   }, 200, cors);
 }
 
@@ -1633,7 +1660,8 @@ export async function onRequest(context) {
         // v10 榜单多了唤醒王：决斗链接（段位分），见 BOARD_SPEC 的 dl；
         // v11 多了 /llsongs（lovelive 云端曲库：只收谱面，不收音频）
         // v12 榜单多了杀死守密人（已解锁结局数），见 BOARD_SPEC 的 kp
-        ok: Boolean(store), service: 'zjtt', v: 12, runtime: 'edgeone',
+        // v13 赠礼支持 rw（免费回溯券，挂机前夜的「回溯券」），/grants/mine 会带回来
+        ok: Boolean(store), service: 'zjtt', v: 13, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),

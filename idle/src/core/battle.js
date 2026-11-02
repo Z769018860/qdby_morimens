@@ -2,9 +2,11 @@ import { mulberry32 } from './rng.js';
 
 export const DEF_K = 150;
 export const MAX_ROUNDS = 30;
-// 通关回合上限：普通关 18 回合、Boss 关 22 回合（周 Boss 另有自己的 12 回合赛制）。
+// 通关回合上限：普通关、Boss 关都是 20 回合（周 Boss 另有自己的 12 回合赛制）。
 // 打不完就判「超时」= 本次不通关，四奶互相吊着磨的打法因此不成立。
-export const ROUND_LIMIT = { normal: 18, boss: 22 };
+// 以前普通 18 / Boss 22：同样的阵容在两种关里「能磨多久」不一样，玩家看到的上限还会变；
+// 现在统一成 20，问「几回合」只有一个答案。
+export const ROUND_LIMIT = { normal: 20, boss: 20 };
 export const roundLimitFor = (info = {}) => (info.boss || info.reward ? ROUND_LIMIT.boss : ROUND_LIMIT.normal);
 // 前排几个位置能吃单体攻击：站位 1–2 是前排，3–4 是后排
 export const FRONT_SLOTS = 2;
@@ -31,7 +33,11 @@ export function makeUnit(def, side, idx) {
     firstBoost: num(def.firstBoost, 0),
     rank: def.rank || null, kit: def.kit || null, extra: def.extra || null, pattern: def.pattern || null, opening: def.opening || [], boss: !!def.boss, reward: !!def.reward, affix: def.affix || null,
     mid: def.mid || null, trait: def.trait || null,
-    ali: num(def.openAli, 0), key: num(def.openKey, 0), shield: 0, buffs: [], dots: [], cd: {}, st: {}, sig: '',
+    thorns: num(def.thorns, 0),          // 铁壁：回合结束按未消耗护盾的比例反伤（纯盾型守护，见 core/roles.js）
+    ali: num(def.openAli, 0), key: num(def.openKey, 0), shield: num(def.shield, 0),
+    // 开场就挂着的增减益（关卡词条 / 测试用）；平常没人传，等于空数组
+    buffs: Array.isArray(def.buffs) ? def.buffs.map((b) => ({ stat: b.stat, v: num(b.v), dur: positive(b.dur, 1) })) : [],
+    dots: [], cd: {}, st: {}, sig: '',
     roused: false, patIdx: 0, enrage: 0, alive: true, acted: 0,
     taunt: 0, csGuard: 0, reflect: null, stunned: 0, echo: 0, delayed: [],     // 专属技能用到的状态（core/extra.js）
   };
@@ -160,7 +166,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     const crit = rng() < Math.min(1, (src.critRate + sumBuff(src, 'crit')) / 100);
     let raw = src.atk * (1 + sumBuff(src, 'atk') / 100) * num(mult, 1);
     if (src.st.weakness) raw *= WEAK_MULT;
-    raw *= 1 + (src.amp + sumBuff(src, 'amp')) / 100;
+    raw *= ampF(src);
     if (src.firstBoost && src.acted <= 1) raw *= 1 + src.firstBoost / 100;
     if (crit) raw *= 1 + src.critDmg / 100;
     if (src.enrage) raw *= 1 + src.enrage;
@@ -170,15 +176,44 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     raw *= 0.95 + rng() * 0.1;
     raw *= src.side === 'a' ? DMG_SCALE : 1;
     const d = Math.max(0, tgt.def * (1 + sumBuff(tgt, 'def') / 100));
-    let dmg = raw * (1 - d / (d + DEF_K)) * (1 + sumBuff(tgt, 'vuln') / 100);
+    let dmg = raw * (1 - d / (d + DEF_K)) * vulnF(tgt);
     if (tgt.st.fortress) dmg *= 1 - Math.min(50, tgt.st.fortress.n) / 100;
     dmg = Math.max(1, Math.round(num(dmg, 1)));
     return applyDamage(src, tgt, dmg, crit, ctx);
   }
 
+  /** 防御减免：把「已经算好的固定伤害」过一遍防御曲线，和 damage() 里那一道完全一样。
+      以前毒 / 流血 / 反击 / 延迟爆发 / 护盾转伤害这类直接调 applyDamage，等于绕开了防御——
+      重甲（防御 ×2）对它们毫无抗性，前排堆防御也不减少这些伤害。现在统一走这里。
+      defCut 是同一个乘数（0 防御 = 1，防御 150 = 0.5），AI 估价也用它。 */
+  function defCut(tgt) {
+    const d = Math.max(0, num(tgt.def) * (1 + sumBuff(tgt, 'def') / 100));
+    return 1 - d / (d + DEF_K);
+  }
+  /** 增伤（amp）与易伤（vuln）的乘数：damage() 里那两道，抽出来给固定伤害共用。
+      以前「已经算好的固定伤害」这条捷径把防御、增伤、易伤一起绕开了：给毒队配个增伤拐，
+      增益挂上去了，毒每跳的数字纹丝不动；易伤挂在怪身上，毒也不多吃。现在统一乘进来。
+      注意乘的是**结算这一刻**的数值：增伤 3 回合就只管这 3 回合里跳的毒，
+      和直接伤害「挂上增伤后这 3 回合出手才变大」是同一套时序。 */
+  const ampF = (u) => (u ? 1 + (num(u.amp) + sumBuff(u, 'amp')) / 100 : 1);
+  const vulnF = (t) => (t ? 1 + sumBuff(t, 'vuln') / 100 : 1);
+  /** 毒 / 流血 / 反击只吃「一半」防御：它们是靠层数堆出来的固定数值伤害，要是按直接伤害那样全额减，
+      高防怪（重甲防御 ×2）面前基本等于没有，靠持续 / 反击吃饭的阵容会直接掉队。
+      半量减伤既让防御对这些伤害生效，又保住了它们「对付重甲有半条路」的定位。
+      SOFT_KEEP = 1.2：这些数值原本是按「完全无视防御」调的，吃上半量防御后中前期大约掉 10~20%，
+      这里补回一点，让持续 / 反击阵容不至于因为这条规则直接掉档（实测全员胜率 −1.7pp → +0.2pp）。 */
+  const SOFT_KEEP = 1.2;
+  const softCut = (tgt) => (1 - (1 - defCut(tgt)) * 0.5) * SOFT_KEEP;
+  /** 「已经算好的固定伤害」统一入口：防御 + 增伤（出手方）+ 易伤（挨打方），三样一个不少。
+      src 是**谁打的**（毒 / 流血是当初下毒的那位），tgt 是**谁挨的**。 */
+  function guarded(src, tgt, raw, soft = false) {
+    const v = num(raw) * (soft ? softCut(tgt) : defCut(tgt)) * ampF(src) * vulnF(tgt);
+    return Math.max(1, Math.round(num(v, 1)));
+  }
+
   function applyDamage(src, tgt, dmg, crit, ctx, kind = 'dmg', extra) {
     dmg = Math.max(0, Math.round(num(dmg)));
-    // 主线 90 关之后：怪物生命复利涨得比「毒 / 流血 / 反击」的层数上限快，这类不吃防御的伤害会被甩开；
+    // 主线 90 关之后：怪物生命复利涨得比「毒 / 流血 / 反击」的层数上限快，这类固定数值的伤害会被甩开；
     // 按怪物成长补一个倍率（只加给我方对敌方的持续 / 反击伤害），让「不靠大招爆发」的阵容也跟得上
     if (dotBoost > 1 && (kind === 'dot' || kind === 'counter') && src.side === 'a' && tgt.side === 'e') dmg = Math.round(dmg * dotBoost);
     tgt.hp = Math.max(0, Math.min(tgt.maxHp, num(tgt.hp, tgt.maxHp)));
@@ -205,7 +240,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     }
     // 反震：玩家一次打得太重（> 敌人最大生命 6%），要被反震 40% —— 持续伤害 / 反击 / 小段多次不触发
     if (RL.has('thorns') && kind === 'dmg' && src.side === 'a' && tgt.side === 'e' && src.alive && dmg > tgt.maxHp * 0.07) {
-      applyDamage(tgt, src, Math.max(1, Math.round(dmg * 0.35)), false, null, 'counter', { thorns: true });
+      applyDamage(tgt, src, guarded(tgt, src, dmg * 0.35, true), false, null, 'counter', { thorns: true });
     }
     if (tgt.hp <= 0) {
       tgt.alive = false;
@@ -213,11 +248,11 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       push({ k: 'die', who: tgt.uid });
     } else if (kind === 'dmg' && src.side !== tgt.side && tgt.st.counter && src.alive) {
       const c = tgt.st.counter;
-      applyDamage(tgt, src, Math.max(1, Math.round(c.per * c.n)), false, null, 'counter');
+      applyDamage(tgt, src, guarded(tgt, src, c.per * c.n, true), false, null, 'counter');
     }
     // 反射：把受到伤害的一部分原样弹回去（只对直接伤害生效，反射出去的不再反射）
     if (kind === 'dmg' && tgt.reflect && tgt.alive && src.side !== tgt.side && src.alive && dmg > 0) {
-      applyDamage(tgt, src, Math.max(1, Math.round(dmg * tgt.reflect.pct / 100)), false, null, 'counter');
+      applyDamage(tgt, src, guarded(tgt, src, dmg * tgt.reflect.pct / 100, true), false, null, 'counter');
     }
     return dmg;
   }
@@ -227,7 +262,14 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     n = Math.max(0, num(n, 1)); dur = positive(dur);
     let cur = t.st[s];
     switch (s) {
-      case 'poison': t.st.poison = { n: Math.min(POISON_CAP, (cur?.n || 0) + n), per: Math.max(cur?.per || 0, src.atk * 0.1), dur: 99 }; break;
+      // per 取「更强的那一次」，by 跟着 per 走：毒跳伤要按**下毒的那位**的增伤算，
+      // 所以得记住是谁下的；后手贴一层更淡的毒不该把原来那位顶掉
+      case 'poison': {
+        const mine = src.atk * 0.1;
+        const keep = cur && cur.per >= mine ? cur : { per: mine, by: src.uid };
+        t.st.poison = { n: Math.min(POISON_CAP, (cur?.n || 0) + n), per: keep.per, by: keep.by, dur: 99 };
+        break;
+      }
       case 'counter': {
         // 反击转移：队里有人开着「转移」，所有队友（含自己）拿到的反击层都归他——他嘲讽吸火，反击才打得到人
         const guard = (t.side === 'a' ? A : E).find((x) => x.alive && x.csGuard > 0 && x !== t);
@@ -393,7 +435,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         case 'shieldDmg': {   // 护盾转伤害：全队当前护盾总和 × m 打向单体（不消耗护盾）
           const sum = friendsOf(u).reduce((s, x) => s + num(x.shield), 0);
           const t = targets(u, 'foe')[0];
-          if (t && sum > 0) applyDamage(u, t, Math.max(1, Math.round(sum * num(e.m, 1))), false, ctx);
+          if (t && sum > 0) applyDamage(u, t, guarded(u, t, sum * num(e.m, 1), true), false, ctx);
           break;
         }
         case 'blood': {       // 献祭：自损 cost% 最大生命，换取更高倍率的全体伤害
@@ -417,7 +459,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         case 'poisonBurst':   // 引爆中毒：吃掉所有敌人身上的中毒层，一次性结算
           for (const t of foesOf(u)) {
             const p = t.st.poison;
-            if (p && t.alive) { applyDamage(u, t, Math.max(1, Math.round(p.n * p.per * num(e.m, 1.5))), false, ctx); delete t.st.poison; }
+            if (p && t.alive) { applyDamage(u, t, guarded(u, t, p.n * p.per * num(e.m, 1.5), true), false, ctx); delete t.st.poison; }
           }
           break;
         case 'dotBurst':      // 引爆流血：把剩余的流血伤害一次性打出
@@ -425,13 +467,13 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
             if (!t.alive || !t.dots.length) continue;
             const sum = t.dots.reduce((s, d) => s + num(d.dmg) * num(d.dur), 0);
             t.dots = [];
-            applyDamage(u, t, Math.max(1, Math.round(sum * num(e.m, 1))), false, ctx);
+            applyDamage(u, t, guarded(u, t, sum * num(e.m, 1), true), false, ctx);
           }
           break;
         case 'counterBurst': {   // 反击爆发：把全队身上的反击层数一次性打出去（没层数也有保底两下）
           const stacks = friendsOf(u).reduce((s, x) => s + num(x.st.counter?.n), 0);
           const hit = u.atk * num(e.m, 0.15) * Math.max(3, stacks);
-          for (const t of foesOf(u)) if (t.alive) applyDamage(u, t, Math.max(1, Math.round(hit)), false, ctx);
+          for (const t of foesOf(u)) if (t.alive) applyDamage(u, t, guarded(u, t, hit, true), false, ctx);
           for (const x of friendsOf(u)) if (x.st.counter) delete x.st.counter;
           break;
         }
@@ -447,7 +489,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         case 'gaugeBurn': {   // 超载：把攒着的共鸣 / 超共鸣能量全烧成伤害（保底按 60 点算）
           const pool = Math.max(60, num(u.ali) + num(u.key));
           u.ali = 0; u.key = 0; u.holdUlt = 0;
-          for (const t of targets(u, e.to || 'foe')) if (t.alive) applyDamage(u, t, Math.max(1, Math.round(u.atk * pool * num(e.m, 0.02) / 100)), false, ctx);
+          for (const t of targets(u, e.to || 'foe')) if (t.alive) applyDamage(u, t, guarded(u, t, u.atk * pool * num(e.m, 0.02) / 100), false, ctx);
           push({ k: 'gauge', who: u.uid, ali: 0, key: 0 });
           break;
         }
@@ -502,13 +544,13 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   const critF = (u) => 1 + Math.min(1, Math.max(0, (u.critRate + sumBuff(u, 'crit')) / 100)) * Math.max(0, u.critDmg) / 100;
   /** 这一下大概能打多少（取暴击期望，不含 ±5% 随机浮动）。defMul 用来算破防牌的增量。 */
   function estHit(u, t, m, defMul = 1) {
-    let v = atkOf(u) * num(m, 1) * (1 + (u.amp + sumBuff(u, 'amp')) / 100) * critF(u);
+    let v = atkOf(u) * num(m, 1) * ampF(u) * critF(u);
     if (u.st.weakness) v *= WEAK_MULT;
     if (u.firstBoost && u.acted <= 1) v *= 1 + u.firstBoost / 100;
     if (u.enrage) v *= 1 + u.enrage;
     const d = t.def * (1 + sumBuff(t, 'def') / 100) * defMul;
     v *= 1 - d / (d + DEF_K);
-    v *= 1 + sumBuff(t, 'vuln') / 100;
+    v *= vulnF(t);
     if (t.st.fortress) v *= 1 - Math.min(50, t.st.fortress.n) / 100;
     return Math.max(1, v) * (u.side === 'a' ? DMG_SCALE : 1);
   }
@@ -582,9 +624,10 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       const bad = b.stat === 'vuln' ? b.v > 0 : b.v < 0;
       if (bad) v += hit * (Math.abs(b.v) / 100) * positive(b.dur, 1);
     }
-    for (const d of t.dots) v += num(d.dmg) * Math.max(0, num(d.dur));
+    // 毒 / 流血的估价也要跟着「防御 + 增伤 + 易伤」三样一起算，否则 AI 会把群毒估高一截（或者低估别人的增伤拐）
+    for (const d of t.dots) v += num(d.dmg) * Math.max(0, num(d.dur)) * softCut(t) * vulnF(t);
     const ps = t.st.poison;
-    if (ps) v += num(ps.n) * num(ps.per) * 0.7;
+    if (ps) v += num(ps.n) * num(ps.per) * 0.7 * softCut(t) * vulnF(t);
     if (t.st.weakness) v += hit * 0.25 * 2;
     if (t.st.fragile) v += hit * 0.2 * 2;
     if (t.st.sealed) v += atkOf(t) * 0.3;
@@ -652,7 +695,8 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       }
       case 'dot': {
         const per = atkOf(u) * num(e.m, 0);
-        for (const t of foeTargets(u, e.to || 'foe')) acc.o += Math.min(per * positive(e.dur, 1), num(t.hp) * 0.9);
+        // 流血现在也要过防御、也吃增伤 / 易伤（见 guarded），估价按同一套折扣算
+        for (const t of foeTargets(u, e.to || 'foe')) acc.o += Math.min(per * positive(e.dur, 1) * softCut(t) * ampF(u) * vulnF(t), num(t.hp) * 0.9);
         break;
       }
       case 'gauge': {
@@ -671,8 +715,8 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         for (const t of list) {
           if (!t || !t.alive) continue;
           switch (e.s) {
-            case 'poison': acc.o += Math.min(num(e.n, 1) * atkOf(u) * 0.1 * dur * 0.7, num(t.hp)); break;
-            case 'counter': acc.s += Math.min(num(e.n, 1), 6) * atkOf(t) * 0.27 * 0.7; break;
+            case 'poison': acc.o += Math.min(num(e.n, 1) * atkOf(u) * 0.1 * dur * 0.7 * softCut(t) * ampF(u) * vulnF(t), num(t.hp)); break;
+            case 'counter': acc.s += Math.min(num(e.n, 1), 6) * atkOf(t) * 0.27 * 0.7 * ampF(t); break;
             case 'barrier': acc.s += (hitFoes(u) / Math.max(1, foesOf(u).length)) * num(e.n, 1) * (t === u ? 1 : 0.8); break;
             case 'fortress': acc.s += hitFoes(u) * Math.min(50, num(e.n, 1)) / 100 * dur * 0.6; break;
             case 'weakness': acc.s += atkOf(t) * 0.25 * dur * 0.5; break;
@@ -967,19 +1011,21 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       if (!u.delayed.length) continue;
       const due = u.delayed.filter((d) => d.at <= round);
       u.delayed = u.delayed.filter((d) => d.at > round);
-      for (const d of due) for (const t of E) if (t.alive && u.alive) applyDamage(u, t, Math.max(1, Math.round(u.atk * d.m * DMG_SCALE)), false, null, 'dmg');
+      for (const d of due) for (const t of E) if (t.alive && u.alive) applyDamage(u, t, guarded(u, t, u.atk * d.m * DMG_SCALE), false, null, 'dmg');
     }
     for (const u of [...A, ...E]) {
       if (!u.alive) continue;
       for (const d of u.dots) {
         if (!u.alive) break;
         const src = [...A, ...E].find((x) => x.uid === d.by);
-        applyDamage(src || u, u, Math.max(1, Math.round(d.dmg)), false, null, 'dot');
+        applyDamage(src || u, u, guarded(src || u, u, d.dmg, true), false, null, 'dot');
       }
       u.dots = u.dots.map((d) => ({ ...d, dur: d.dur - 1 })).filter((d) => d.dur > 0);
       const ps = u.st.poison;
       if (ps && u.alive) {
-        applyDamage([...A, ...E].find((x) => x.side !== u.side) || u, u, Math.max(1, Math.round(ps.n * ps.per)), false, null, 'dot', { s: 'poison' });
+        // 下毒的人可能已经倒下 / 被打散，找不到就退回「对面随便一位」——只影响增伤乘数，不影响伤害本身
+        const src = [...A, ...E].find((x) => x.uid === ps.by) || [...A, ...E].find((x) => x.side !== u.side) || u;
+        applyDamage(src, u, guarded(src, u, ps.n * ps.per, true), false, null, 'dot', { s: 'poison' });
         ps.n -= Math.max(1, Math.floor(ps.n * 0.2));
         if (ps.n <= 0) delete u.st.poison;
       }
@@ -994,6 +1040,24 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     for (const u of [...A, ...E]) {
       if (finished()) break;
       if (u.alive) act(u);
+    }
+    /* 铁壁（core/roles.js）：纯盾型守护把这一回合没被打掉的护盾按比例砸回去。
+       护盾在本回合开头就清零了（见上面那行 `u.shield = 0`），所以这里读到的是
+       「这一回合真正发出去、而且没被消耗掉」的那部分 —— 堆盾本身终于算输出。
+       走 guarded 这条口子：跟毒 / 反击一样吃半量防御、吃增伤与易伤，不是白给的真伤。 */
+    for (const u of A) {
+      if (!u.alive || !u.thorns) continue;
+      const pool = num(u.shield);
+      if (pool < 1) continue;
+      const live = E.filter((x) => x.alive);
+      if (!live.length) continue;
+      const tgt = live[Math.min(live.length - 1, Math.floor(rng() * live.length))];
+      // ① 反震：没消耗掉的护盾按比例砸回去（半量防御，和毒 / 反击一个口径）
+      applyDamage(u, tgt, guarded(u, tgt, (pool * u.thorns) / 100, true), false, null, 'dmg', { s: 'thorns' });
+      // ② 压制：被缠住的敌人降防 15%（2 回合）—— 守护真正的贡献不是自己那点伤害，
+      //    而是让全队打得更快。只加反震的话，实测每回合才 19 点，等于没加。
+      tgt.buffs.push({ stat: 'def', v: -15, dur: 2 });
+      push({ k: 'buff', who: tgt.uid, stat: 'def', v: -15, dur: 2 });
     }
     for (const u of [...A, ...E]) {
       u.buffs = u.buffs.map((b) => ({ ...b, dur: b.dur - 1 })).filter((b) => b.dur > 0);

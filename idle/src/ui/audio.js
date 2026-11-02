@@ -18,6 +18,7 @@ const SCALES = {
   minor: [0, 2, 3, 5, 7, 8, 10],
   dorian: [0, 2, 3, 5, 7, 9, 10],
   penta: [0, 3, 5, 7, 10],
+  maj: [0, 2, 4, 5, 7, 9, 11],
 };
 
 /* 每个场景一首。prog 是和弦的「级数」（不是半音），三和弦按调式音阶叠三度生成，所以永远在调内。
@@ -29,8 +30,23 @@ const TRACKS = {
   boss:   { zh: '威压 · 首领', bpm: 138, root: 45, scale: 'minor', prog: [0, 1, 5, 6], pad: 0.5, bass: 0.95, arp: 0.42, lead: 0.5, perc: 0.72, hat: 1 },
   summon: { zh: '共鸣 · 召唤', bpm: 74, root: 55, scale: 'penta', prog: [0, 4, 2, 3], pad: 0.62, bass: 0.42, arp: 0.72, lead: 0.42, perc: 0.06, hat: 0 },
   tower:  { zh: '攀登 · 挑战', bpm: 96, root: 48, scale: 'dorian', prog: [0, 6, 3, 4], pad: 0.46, bass: 0.72, arp: 0.5, lead: 0.4, perc: 0.4, hat: 1 },
+  /* ---- Love Live! 那几首（设置页里可以直接选） ----
+     和 js/ll/songs.js 是同一套「按原曲气质重编的短版」：没有原曲音源，
+     旋律、和弦、鼓组全部在这里用振荡器现场合成。mel 是副歌四小节，
+     每个八分音符一个半音偏移（相对主音，null = 休止），循环播放；
+     prog 也刻意取四小节，跟 mel 同周期，和弦和旋律不会越走越散。
+     bpm / 主音 / 调式都跟 songs.js 里的原曲参数一致，听着是同一首。 */
+  ll_bokura:  { zh: '僕らは今のなかで', bpm: 186, root: 62, scale: 'maj', prog: [0, 4, 5, 3], pad: 0.42, bass: 0.72, arp: 0.34, lead: 0.62, perc: 0.55, hat: 1,
+    mel: [7, 7, 9, 7, 4, 4, 2, 4, 7, 7, 9, 7, 4, null, 2, null, 9, 9, 11, 9, 7, 7, 5, 7, 9, 9, 11, 12, 9, null, 7, null] },
+  ll_snow:    { zh: 'Snow halation', bpm: 152, root: 57, scale: 'maj', prog: [0, 5, 3, 4], pad: 0.5, bass: 0.5, arp: 0.3, lead: 0.55, perc: 0.1, hat: 0,
+    mel: [7, null, 4, null, 7, 9, 7, null, 4, null, 7, null, 9, null, 7, null, 5, null, 7, null, 9, 11, 9, null, 7, null, 9, null, 11, null, 9, null] },
+  ll_kiseki:  { zh: 'それは僕たちの奇跡', bpm: 155, root: 52, scale: 'minor', prog: [0, 6, 5, 6], pad: 0.4, bass: 0.75, arp: 0.42, lead: 0.6, perc: 0.45, hat: 1,
+    mel: [12, 12, 10, 8, 7, 7, 8, 7, 12, 12, 10, 8, 7, null, 3, null, 8, 8, 7, 8, 10, 10, 8, 10, 12, 12, 10, 12, 8, null, 7, null] },
+  ll_natsuiro: { zh: '夏色えがおで1,2,Jump!', bpm: 185, root: 60, scale: 'maj', prog: [0, 3, 4, 5], pad: 0.38, bass: 0.78, arp: 0.4, lead: 0.6, perc: 0.6, hat: 1,
+    mel: [7, 7, 7, 4, 7, 7, 9, 7, 5, 5, 5, 2, 5, 5, 7, 5, 4, 4, 4, 0, 4, 4, 5, 4, 2, 2, 4, 2, 7, null, 7, null] },
 };
-export const TRACK_LIST = Object.entries(TRACKS).map(([k, v]) => ({ k, zh: v.zh }));
+/* grp 只是给设置页分组用：scene = 跟着页面自动切的六首场景曲，ll = 手动选的联动曲。 */
+export const TRACK_LIST = Object.entries(TRACKS).map(([k, v]) => ({ k, zh: v.zh, grp: k.startsWith('ll_') ? 'll' : 'scene' }));
 
 const midi = (n) => 440 * 2 ** ((n - 69) / 12);
 
@@ -257,7 +273,7 @@ class Sound {
     // 铺底和弦：每小节一次，慢起慢收
     if (st === 0) {
       chord.forEach((f, i) => this.pad(t + i * 0.035, f, beat * 4 * 0.98, 0.052 * tr.pad));
-      if (tr.lead > 0) this.leadNote(t + beat * 0.5, chordHi[Math.floor(Math.random() * 3)], beat * 1.5, 0.05 * tr.lead);
+      if (tr.lead > 0 && !tr.mel) this.leadNote(t + beat * 0.5, chordHi[Math.floor(Math.random() * 3)], beat * 1.5, 0.05 * tr.lead);
     }
     // 低音：强拍 + 后半拍
     if (st === 0 || st === 8 || (tr.perc > 0.45 && st === 14)) {
@@ -270,8 +286,14 @@ class Sound {
       const n = chord[seq[i]] * (i >= 3 ? 2 : 1);
       this.arp(t, n, 0.2, 0.028 * tr.arp, i % 2 ? 0.25 : -0.25);
     }
-    // 主旋律：二、三、四拍上偶尔落一个长音，走和弦音所以不会跑调
-    if (tr.lead > 0 && (st === 6 || st === 10 || st === 12) && Math.random() < 0.55 * tr.lead + 0.15) {
+    // 主旋律：有谱子的曲子（Love Live 那几首）按谱走，一耳朵能认出来；
+    // 其余曲子还是「二、三、四拍上偶尔落一个长音」，走和弦音所以不会跑调
+    if (tr.mel) {
+      if (st % 2 === 0) {
+        const n = tr.mel[Math.floor(this.step / 2) % tr.mel.length];
+        if (n != null) this.leadNote(t, midi(tr.root + 12 + n), beat * 0.42, 0.075 * (tr.lead || 0.6));
+      }
+    } else if (tr.lead > 0 && (st === 6 || st === 10 || st === 12) && Math.random() < 0.55 * tr.lead + 0.15) {
       this.leadNote(t, chordHi[Math.floor(Math.random() * chordHi.length)] * (Math.random() < 0.25 ? 2 : 1), beat * 0.9, 0.045 * tr.lead);
     }
     // 打击：底鼓 + 军鼓 + 踩镲

@@ -173,6 +173,23 @@ test('offline report accrues capped income', () => {
   assert.equal(offlineReport({ ...s, lastSeen: 1000 }, data, 2000), null);
 });
 
+test('后台挂机：最小化 / 熄屏按「切走的时刻」结算，后台存档刷新 lastSeen 也不会把收益吞掉', () => {
+  const s = newState(data, 7);
+  for (const k of s.team) s.roster[k] = { lv: 40, star: 3, brk: 2 };
+  s.stage = s.maxStage = 12;
+  const now = Date.now();
+  s.lastSeen = now - 5000;                  // 后台期间存档又写了一次，lastSeen 变成「刚刚」
+  assert.equal(offlineReport(s, data, now), null, '只看 lastSeen 会以为没离线过——这正是以前最小化不结算的原因');
+  const t0 = now - 30 * 60 * 1000;
+  const rep = offlineReport(s, data, now, t0);
+  assert.ok(rep, '给出切走的时刻就要算');
+  assert.ok(rep.secs >= 1790 && rep.secs <= 1810, `按 30 分钟算：${rep.secs}`);
+  assert.ok(rep.wins > 0 && rep.gold > 0 && rep.drops.length > 0);
+  claimOffline(s, rep, now);
+  assert.equal(s.lastSeen, now);
+  assert.equal(offlineReport(s, data, now), null, '领完不能重复算');
+});
+
 test('auto team picks a warden/support when available; ', () => {
   const s = newState(data, 1); autoTeam(s, data); assert.equal(s.team.length, 4);
   
@@ -247,6 +264,27 @@ test('poison ticks, barrier blocks, counter retaliates, sealed stops exalt', () 
   const exalter = unit({ kit: mkKit([fx.dmg(0.1)]), openAli: 96, openKey: 0 });
   const r3 = sim2({ allies: [exalter], enemies: [sealer], seed: 3, maxRounds: 4 });
   assert.ok(!r3.events.some((e) => e.k === 'act' && e.who === 'a0' && (e.slot === 'Exalt' || e.slot === 'OverExalt')), 'sealed units cannot exalt');
+});
+
+test('多段技能逐段扣屏障：卡面写「3 次」的真的能打穿屏障', () => {
+  // 屏障是「每层挡一次直接伤害」。以前卡面上的「N 次」被整个丢掉，一律打一下——
+  // 于是多段角色（卡斯托尔、克莱门汀这些）面对屏障和单段角色毫无区别。
+  const wall = () => unit({ hp: 100000, kit: mkKit([fx.status('barrier', 1, 4, 'self')]) });
+  const multi = { ...unit({ hp: 100000, atk: 400 }), pattern: [{ name: 'three', effects: [fx.dmg(0.6, { hits: 3 })] }] };
+  const single = { ...unit({ hp: 100000, atk: 400 }), pattern: [{ name: 'one', effects: [fx.dmg(0.6)] }] };
+  const hitBy = (r) => r.events.filter((e) => e.k === 'dmg' && e.by === 'e0' && e.who === 'a0');
+
+  // 同一段总倍率：3 段会拆成 3 个伤害事件，前两段被屏障吃掉，第三段真的落到血上
+  const h3 = hitBy(sim2({ allies: [wall()], enemies: [multi], seed: 5, maxRounds: 1 }));
+  assert.equal(h3.length, 3, `3 段技能该拆成 3 个伤害事件，实际 ${h3.length}`);
+  assert.ok(h3.filter((e) => e.blocked).length < 3, '屏障不该把 3 段全吃掉');
+  assert.ok(h3[h3.length - 1].amt > 0, `最后一段应该打出伤害，实际 ${h3[h3.length - 1].amt}`);
+
+  // 换成单段：整段被屏障挡掉，一滴血都不掉——这正是以前所有多段角色都有的待遇
+  const h1 = hitBy(sim2({ allies: [wall()], enemies: [single], seed: 5, maxRounds: 1 }));
+  assert.equal(h1.length, 1);
+  assert.equal(h1[0].blocked, true, '单段技能打上去应该被整段挡掉');
+  assert.equal(h1[0].amt, 0);
 });
 
 test('优先开大：治疗 / 护盾型大招攒满就开，不再被技能分压着捏', () => {
@@ -2057,6 +2095,93 @@ test('云存档：只比真实进度（rev / lastSeen / play 不算），一样�
   assert.equal(cloudPlan2({ state: { ...played, gold: 77 }, cloudMeta: other, sync: { acct, ver: 3, rev: 5, hash: contentHash(played) }, acct }), 'conflict');
 });
 
+test('云端载荷：小存档传明文、大存档先压扁、再大就 gzip，解回来要和原来一模一样', async () => {
+  const { packSave, unpackSave, PLAIN_LIMIT, SAVE_LIMIT } = await import('../src/core/cloud.js');
+  const { contentHash } = await import('../src/core/cloud.js');
+  const small = { gold: 1, roster: { a: { lv: 3 } } };
+  const p1 = await packSave(small);
+  assert.equal(p1.gz, false, '小存档不压，老服务端也认');
+  assert.deepEqual(await unpackSave(p1.data), small);
+
+  const mkBig = (n) => {
+    const s = { roster: {}, gear: { items: {} } };
+    for (let i = 0; i < n; i++) s.gear.items['g' + i] = { uid: 'g' + i, kind: ['wheel', 'covenant', 'relic'][i % 3], defId: 'cov_201', lv: i % 40, rf: i % 6 };
+    return s;
+  };
+  // 装备库存堆到几千件（一次 500 连装备祈愿就几百件）—— 就是它把云存档顶穿的。
+  // 第一档：压扁成数组就够小了，仍然是合法 JSON，服务端不用改也能收。
+  const big = mkBig(9000);
+  assert.ok(JSON.stringify(big).length > 480 * 1024, '这一档的明文本来就超限');
+  const p2 = await packSave(big);
+  assert.equal(p2.gz, false);
+  assert.ok(p2.data.includes('"__pack":1'), '要先压扁装备库存');
+  assert.ok(p2.data.length < SAVE_LIMIT, `压扁后要能塞进上限：${p2.data.length}`);
+  const back2 = await unpackSave(p2.data);
+  assert.deepEqual(back2, big);
+  assert.equal(contentHash(back2), contentHash(big), '展开后内容哈希要和上传那台一致，否则同步会一直来回推');
+
+  // 第二档：几万件，压扁也不够，再 gzip
+  const huge = mkBig(20000);
+  assert.ok(JSON.stringify(huge).length > PLAIN_LIMIT);
+  const p3 = await packSave(huge);
+  assert.ok(p3.gz && p3.data.startsWith('gz1:'), '压扁还不够就要 gzip');
+  assert.ok(p3.data.length < 200 * 1024, `gzip 后要小很多：${p3.data.length}`);
+  assert.deepEqual(await unpackSave(p3.data), huge);
+
+  // 兼容：明文老存档照样能解；坏数据不抛异常
+  assert.deepEqual(await unpackSave(JSON.stringify(small)), small);
+  assert.equal(await unpackSave('gz1:@@@not-base64'), null);
+  assert.equal(await unpackSave(''), null);
+  assert.equal(await unpackSave('[1,2,3]'), null);
+});
+
+test('云端上传：装不下时先压扁 / 压缩再传；服务端不认压缩包就退回上一种格式重试', async () => {
+  const C = await import('../src/core/cloud.js');
+  const old = { ls: globalThis.localStorage, f: globalThis.fetch };
+  const mem = {};
+  globalThis.localStorage = {
+    getItem: (k) => (k in mem ? mem[k] : null),
+    setItem: (k, v) => { mem[k] = String(v); },
+    removeItem: (k) => { delete mem[k]; },
+  };
+  mem['zjtt:authToken'] = JSON.stringify('tok-1');
+  mem['zjtt:authUser'] = JSON.stringify({ name: 'tester' });
+  const seen = [];
+  let acceptGz = true;
+  const res = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { 'Content-Type': 'application/json' } });
+  globalThis.fetch = async (url, opt = {}) => {
+    if (String(url).endsWith('/health')) return res({ service: 'zjtt' });
+    const body = JSON.parse(opt.body);
+    seen.push(body.data);
+    if (!acceptGz && body.data.startsWith('gz1:')) return res({ ok: false, error: 'bad_save' }, 400);
+    if (body.data.length > 480 * 1024) return res({ ok: false, error: 'too_large' }, 413);
+    return res({ ok: true, ver: 2 });
+  };
+  const mkBig = (n) => {
+    const s = { rev: 5, roster: {}, gear: { items: {} } };
+    for (let i = 0; i < n; i++) s.gear.items['g' + i] = { uid: 'g' + i, kind: ['wheel', 'covenant', 'relic'][i % 3], defId: 'cov_201', lv: 9, rf: 2 };
+    return s;
+  };
+  try {
+    // 9000 件：压扁就够了，一次请求，不用 gzip
+    const r1 = await C.pushSave(mkBig(9000), 1);
+    assert.equal(r1.ver, 2);
+    assert.equal(seen.length, 1);
+    assert.ok(seen[0].includes('"__pack":1') && !seen[0].startsWith('gz1:'));
+    assert.ok(seen[0].length < 480 * 1024);
+    // 20000 件：必须 gzip；老服务端不认 gz1 时退回压扁的明文再试一次
+    acceptGz = false;
+    const r2 = await C.pushSave(mkBig(20000), 2);
+    assert.equal(r2.ver, 2);
+    assert.equal(seen.length, 3, '第二次上传先试 gz、被拒后退回一组');
+    assert.ok(seen[1].startsWith('gz1:'));
+    assert.ok(!seen[2].startsWith('gz1:'), '退回的是明文（压扁过的 JSON）');
+  } finally {
+    globalThis.localStorage = old.ls;
+    globalThis.fetch = old.f;
+  }
+});
+
 /* ---------- 超限：叠满 99 后的无限成长 ---------- */
 import { overdriveUp } from '../src/core/game.js';
 import { overdriveCost, overdriveAmp, overdriveStatPct, baseStats as baseStats2 } from '../src/core/stats.js';
@@ -2547,7 +2672,7 @@ test('装备「已编入」提示：沿用主线配装的编队也算', () => {
 });
 
 /* ---------- 唤醒体羁绊（core/bonds.js） ---------- */
-import { teamBonds, bondsOf, BONDS, BOND_CATS } from '../src/core/bonds.js';
+import { teamBonds, bondsOf, BONDS, BOND_CATS, BOND_POWER } from '../src/core/bonds.js';
 import { WEEKLY_TIER, weeklyOpen, wkTrack, weeklyEnemy } from '../src/core/weekly.js';
 
 test('羁绊表：点名的成员都在数据里，规则型羁绊参数合法', () => {
@@ -2639,8 +2764,9 @@ test('本命羁绊：16 条主播 × 羁绊唤醒体都在，且只在两人同�
   const pair = teamBonds(['samo', 'helot-catena'], data);
   const on = pair.active.find((x) => x.id === 'patron-samo');
   assert.ok(on && on.tier === 2);
-  assert.equal(on.bonus.atkPct, 12);
-  assert.equal(on.bonus.steal, 6);
+  // 羁绊数值统一乘过 BOND_POWER（见 bonds.js），这里按同一口径断言
+  assert.equal(on.bonus.atkPct, Math.round(12 * BOND_POWER * 10) / 10);
+  assert.equal(on.bonus.steal, Math.round(6 * BOND_POWER * 10) / 10);
   const keys = new Set(Object.keys(ZERO()));
   for (const b of patron) for (const k of Object.keys(b.tiers[2])) assert.ok(keys.has(k), `${b.id} 用了加成池里没有的字段 ${k}`);
   // 详情页的「羁绊」标签：主播与那位唤醒体互相都认得对方这条本命
@@ -2650,8 +2776,8 @@ test('本命羁绊：16 条主播 × 羁绊唤醒体都在，且只在两人同�
   assert.equal(solo.near.find((x) => x.id === 'patron-samo-mouchette').gap, 1);
   const sm = teamBonds(['samo', 'mouchette'], data).active.find((x) => x.id === 'patron-samo-mouchette');
   assert.ok(sm && sm.tier === 2, '萨摩 + 茉夏应该激活雪原利爪');
-  assert.equal(sm.bonus.critRate, 6);
-  assert.equal(sm.bonus.critDmg, 20);
+  assert.equal(sm.bonus.critRate, Math.round(6 * BOND_POWER * 10) / 10);
+  assert.equal(sm.bonus.critDmg, Math.round(20 * BOND_POWER * 10) / 10);
   assert.ok(bondsOf('samo', data).some((b) => b.id === 'patron-samo-mouchette'));
   assert.ok(bondsOf('mouchette', data).some((b) => b.id === 'patron-samo-mouchette'));
 });
@@ -2879,6 +3005,64 @@ test('装备回溯：花银芯把强化 + 精炼倒回 0，金币和精炼银芯
   assert.equal(_grp({ kind: 'relic', lv: 0, rf: 0 }).cost, 0);
 });
 
+test('免费回溯券：角色和装备都先用券、不花银芯，券用完了才回到银芯', () => {
+  const s = newState(data, 61);
+  const slug = 'ogier';
+  Object.assign(s.roster[slug], { lv: 1, star: 0, brk: 0 });
+  s.gold = 1e9; s.cores = 500;
+  for (let guard = 0; guard < 100 && s.roster[slug].lv < 20; guard++) {
+    if (!levelUp(s, slug, 1)) breakThrough(s, slug);
+  }
+  s.vouchers = { rewind: 1 };
+  const cores0 = s.cores;
+  const out = rewindLevel(s, slug);
+  assert.ok(out && out.free === true, '有券的时候该免费');
+  assert.equal(s.vouchers.rewind, 0, '用掉一张');
+  assert.equal(out.cost, 0);
+  assert.equal(s.cores, cores0 + out.refundCores, '不扣银芯，突破还的银芯照退');
+  assert.equal(s.roster[slug].lv, 1);
+
+  // 券用完了：回到 100 银芯
+  const s2 = newState(data, 62);
+  Object.assign(s2.roster[slug], { lv: 25, star: 0, brk: 1 });
+  s2.cores = 100; s2.vouchers = { rewind: 0 };
+  const out2 = rewindLevel(s2, slug);
+  assert.ok(out2 && !out2.free);
+  assert.equal(out2.cost, 100);
+
+  // 装备回溯同一套逻辑
+  const g = newState(data, 63);
+  g.vouchers = { rewind: 1 }; g.cores = 300;
+  g.gear.items.g1 = { uid: 'g1', kind: 'wheel', defId: 'x', lv: 6, rf: 2 };
+  const c0 = g.cores;
+  const gp = _rg(g, 'g1');
+  assert.ok(gp && gp.free === true);
+  assert.equal(g.vouchers.rewind, 0);
+  assert.equal(g.cores, c0 + gp.refundCores);
+  g.gear.items.g2 = { uid: 'g2', kind: 'wheel', defId: 'x', lv: 4, rf: 1 };
+  const c1 = g.cores;
+  const gp2 = _rg(g, 'g2');
+  assert.ok(gp2 && gp2.free === false);
+  assert.equal(g.cores, c1 - gp2.cost + gp2.refundCores, '没券才扣 50 银芯');
+});
+
+test('后台赠礼：回溯券（rw）进道具栏，同一条只领一次，老存档迁移成 0', () => {
+  const s = newState(data, 64);
+  assert.equal(s.vouchers.rewind, 0);
+  const got = claimGifts(s, data, [{ id: 'g_test', amount: 0, awk: [], rw: 2 }]);
+  assert.equal(s.vouchers.rewind, 2);
+  assert.ok(got.some((g) => g.voucher === 2), '要告诉界面这次收到几张券');
+  claimGifts(s, data, [{ id: 'g_test', rw: 2 }]);
+  assert.equal(s.vouchers.rewind, 2, '同一条赠礼不能重复领（换设备也一样）');
+  claimGifts(s, data, [{ id: 'g_test2', rw: 1 }]);
+  assert.equal(s.vouchers.rewind, 3);
+  // 老存档没有 vouchers 字段
+  const old = migrate({ ...s, vouchers: undefined }, data);
+  assert.equal(old.vouchers.rewind, 0);
+  const bad = migrate({ ...s, vouchers: { rewind: -5 } }, data);
+  assert.equal(bad.vouchers.rewind, 0, '手改坏了也不该变成负数');
+});
+
 test('吸血词条：满血时溢出转护盾（上限 30% 最大生命），受伤时先补血；纯辅助技能的 lifesteal 不再吸 0', async () => {
   const { simulate } = await import('../src/core/battle.js');
   const { prepareBattle: pb } = await import('../src/core/game.js');
@@ -2887,11 +3071,472 @@ test('吸血词条：满血时溢出转护盾（上限 30% 最大生命），受
   const p = pb(s, data, 40);
   p.allies.forEach((a) => (a.steal = 60));
   const res = simulate({ allies: p.allies, enemies: p.enemies, seed: p.seed, strategy: s.strategy, maxRounds: 6, rules: p.rules, dotBoost: p.dotBoost });
-  const max = Object.fromEntries(p.allies.map((a, i) => [`a${i}`, a.hp]));
+  const max = Object.fromEntries(p.allies.map((a, i) => [`a${i}`, a.hp]));   // 开打前满血 = 最大生命
   // 第一刀都是满血时打出的：应该立刻看到我方单位自己给自己加的护盾（吸血溢出），且不超过 30% 最大生命
   const sh = res.events.filter((e) => e.k === 'shield' && e.who?.[0] === 'a');
   assert.ok(sh.length > 0);
   for (const e of sh) assert.ok(e.shield <= max[e.who] * 1.5 + 1);
-  const selfHeal = res.events.filter((e) => e.k === 'heal' && e.by === e.who && e.who?.[0] === 'a' && e.amt > 0);
+  // 受伤时先补血：另起一局，让 a1 带伤开局（其余人满血）。
+  // 不靠毒 / 流血把它打伤——那些伤害现在要吃防御，量会随敌方防御浮动。
+  const p2 = pb(s, data, 40);
+  p2.seed = p.seed;                       // 用同一颗种子，两局只差「a1 是否带伤」
+  p2.allies.forEach((a) => (a.steal = 60));
+  p2.allies[1].hpNow = Math.round(p2.allies[1].hp * 0.6);   // 开局带伤（起始血量看 hpNow）
+  const res2 = simulate({ allies: p2.allies, enemies: p2.enemies, seed: p2.seed, strategy: s.strategy, maxRounds: 6, rules: p2.rules, dotBoost: p2.dotBoost });
+  const selfHeal = res2.events.filter((e) => e.k === 'heal' && e.by === e.who && e.who === 'a1' && e.amt > 0);
   assert.ok(selfHeal.length > 0);
+});
+
+test('毒 / 流血 / 反击也要过防御：高防目标身上明显变少，但只吃一半、不会被抹平', async () => {
+  const { simulate } = await import('../src/core/battle.js');
+  const { prepareBattle } = await import('../src/core/game.js');
+  const s = newState(data, 42);
+  const team = ['castor', 'lily', 'agrippa', 'karen'];    // 四个都带持续伤害
+  s.team = team;
+  for (const sl of team) s.roster[sl] = { lv: 60, star: 10, brk: 6 };
+  const p = prepareBattle(s, data, 40);
+  const dotTotal = (def) => simulate({
+    allies: p.allies.map((a) => ({ ...a })),
+    enemies: p.enemies.map((e) => ({ ...e, def })),
+    seed: 7, strategy: s.strategy, maxRounds: 8, rules: p.rules, dotBoost: p.dotBoost,
+  }).events.filter((e) => e.k === 'dot' && e.who?.[0] === 'e').reduce((n, e) => n + (e.amt || 0), 0);
+  const bare = dotTotal(0), hard = dotTotal(3000);
+  assert.ok(bare > 0, '这队要先能挂上毒 / 流血');
+  // 阈值 0.85：这一关的编成会随版本变（怪的数量、精英血倍率），两队人挂毒的目标数也跟着变，
+  // 比例在 0.78~0.83 之间浮动。要验的是「明显变少」，不是某个精确比例。
+  assert.ok(hard < bare * 0.85, `高防敌人身上的毒 / 流血要变少（${hard} vs ${bare}）`);
+  assert.ok(hard > bare * 0.4, `只吃一半防御，不该被抹平（${hard} vs ${bare}）`);
+});
+
+test('毒 / 流血吃增伤与易伤：增伤拐挂上去，毒每跳的数字要跟着变大', async () => {
+  const { simulate } = await import('../src/core/battle.js');
+  const { prepareBattle } = await import('../src/core/game.js');
+  const s = newState(data, 42);
+  const team = ['castor', 'lily', 'agrippa', 'karen'];    // 四个都带持续伤害
+  s.team = team;
+  for (const sl of team) s.roster[sl] = { lv: 60, star: 10, brk: 6 };
+  const p = prepareBattle(s, data, 40);
+  // 敌人做成打不死的木桩（血量 ×40、攻击 0）：只比「这 8 回合毒跳了多少」，
+  // 免得「谁先把对面打死」把回合数差出来，那样比的是战斗长度不是增伤
+  const stub = (e) => ({ ...e, hp: e.hp * 40, atk: 0, def: 0 });
+  const dotTotal = ({ amp = 0, vuln = 0 } = {}) => simulate({
+    allies: p.allies.map((a) => ({ ...a, amp: (a.amp || 0) + amp })),
+    enemies: p.enemies.map((e) => ({ ...stub(e), buffs: vuln ? [{ stat: 'vuln', v: vuln, dur: 99 }] : [] })),
+    seed: 7, strategy: s.strategy, maxRounds: 8, rules: p.rules, dotBoost: p.dotBoost,
+  }).events.filter((e) => e.k === 'dot' && e.who?.[0] === 'e').reduce((n, e) => n + (e.amt || 0), 0);
+  const bare = dotTotal(), amp = dotTotal({ amp: 150 }), vuln = dotTotal({ vuln: 60 });
+  assert.ok(bare > 0, '这队要先能挂上毒 / 流血');
+  assert.ok(amp > bare * 1.6, `增伤 150% 之后毒 / 流血要明显变高（${amp} vs ${bare}）`);
+  assert.ok(vuln > bare * 1.25, `敌人吃 60% 易伤之后毒 / 流血要变高（${vuln} vs ${bare}）`);
+});
+
+test('反击吃增伤：给反击手挂增伤，弹回去的数字跟着涨', async () => {
+  const { simulate } = await import('../src/core/battle.js');
+  const { prepareBattle } = await import('../src/core/game.js');
+  const s = newState(data, 77);
+  const team = ['pandia', 'karen', 'ogier', 'doll'];       // 潘狄娅带反击层
+  s.team = team;
+  for (const sl of team) s.roster[sl] = { lv: 60, star: 10, brk: 6, od: 99, law: 99 };
+  const p = prepareBattle(s, data, 40);
+  const stub = (e) => ({ ...e, hp: e.hp * 40, atk: 0, def: 0 });
+  // 反击事件的 by 是「弹出去的那位」，who 是挨弹的敌人；反震的 by 是敌人，这里只数我方的
+  // 看「单次反击的平均伤害」而不是整场的反击总和：伤害一高，敌人死得快、能弹的次数就少，
+  // 总和会被「战斗变短」抵掉（实测增伤 150% 时总和只涨 1.4 倍，单次是 2.5 倍）。
+  const counterAvg = (amp) => {
+    const ev = simulate({
+      allies: p.allies.map((a) => ({ ...a, amp: (a.amp || 0) + amp })),
+      enemies: p.enemies.map(stub),
+      seed: 5, strategy: s.strategy, maxRounds: 8, rules: p.rules, dotBoost: p.dotBoost,
+    }).events.filter((e) => e.k === 'counter' && e.by?.[0] === 'a');
+    const total = ev.reduce((n, e) => n + (e.amt || 0), 0);
+    return { total, n: ev.length, avg: ev.length ? total / ev.length : 0 };
+  };
+  const bare = counterAvg(0), amp = counterAvg(150);
+  assert.ok(bare.n > 0, '这队要先能弹出反击');
+  // 别按「+150% 就该 ×2.5」来断言：这队叠满超限 / 最终法则，本身已经有 +93% 增伤，
+  // 加上去的 150% 是落在 1.93 → 3.43 这个区间上，理论倍率就是 1.78。
+  assert.ok(amp.avg > bare.avg * 1.6, `增伤 150% 之后每次反击要明显变高（${amp.avg.toFixed(0)} vs ${bare.avg.toFixed(0)}）`);
+});
+
+test('持续伤害的账记在下毒的人头上，不是一号位', async () => {
+  const { simulate } = await import('../src/core/battle.js');
+  const { prepareBattle } = await import('../src/core/game.js');
+  const { analyzeBattle } = await import('../src/core/report.js');
+  const s = newState(data, 3);
+  // 一号位放奶妈（自己不挂毒），毒全靠后面三位——归属记错了会一眼看出来
+  const team = ['karen', 'castor', 'lily', 'agrippa'];
+  s.team = team;
+  for (const sl of team) s.roster[sl] = { lv: 60, star: 10, brk: 6 };
+  const p = prepareBattle(s, data, 40);
+  const res = simulate({ allies: p.allies, enemies: p.enemies, seed: 9, strategy: s.strategy, maxRounds: 18, rules: p.rules, dotBoost: p.dotBoost });
+  const u = analyzeBattle(res, p.allies, p.enemies).units;
+  const total = u.a0.dot + u.a1.dot + u.a2.dot + u.a3.dot;
+  assert.ok(total > 0);
+  assert.ok(u.a0.dot < total * 0.25, `一号位（奶妈）不该背下毒手的账：a0 ${u.a0.dot} / 合计 ${total}`);
+  assert.ok(u.a1.dot > u.a0.dot * 3, `下毒最多的应该是一号位以外的角色（a1 ${u.a1.dot} vs a0 ${u.a0.dot}）`);
+});
+
+// ---------------------------------------------------------------- 疾驰欢愉的大运
+test('大运：节点模板是 10 战 + 事件 + 商店，开局就在第一格', async () => {
+  const L = await import('../src/core/luckrun.js');
+  const s = newState(data, 11);
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  s.team = team;
+  for (const sl of team) s.roster[sl] = { lv: 60, star: 10, brk: 6 };
+  const run = L.startRun(s, data, 'ride', team);
+  assert.equal(L.NODE_PLAN.filter((k) => k === 'battle' || k === 'elite' || k === 'boss').length, 10, '每层要有 10 场战斗');
+  assert.equal(L.LUCK_NODES, 12);
+  assert.equal(L.nodeKindOf(run), 'battle');
+  assert.equal(run.act, 0); assert.equal(run.node, 0);
+  assert.equal(L.luckState(s).cur, run);
+});
+
+test('大运：打完一场出三个候选，选造物进背包且不重复', async () => {
+  const L = await import('../src/core/luckrun.js');
+  const s = newState(data, 12);
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  s.team = team;
+  for (const sl of team) s.roster[sl] = { lv: 60, star: 10, brk: 6 };
+  const run = L.startRun(s, data, 'ride', team);
+  const r = L.fightNode(s, data, run);
+  assert.ok(r, '这一场要能打起来');
+  const off = L.offerPool(s, data, run, 3);
+  assert.equal(off.length, 3);
+  const relic = off.find((x) => x.type === 'relic');
+  assert.ok(relic, '至少要有一件造物可选');
+  run.offer = off;
+  L.takeOffer(s, data, run, relic.id);
+  assert.ok(run.relics.includes(relic.id));
+  // 同一个造物不会再出现在候选里
+  const again = L.offerPool(s, data, run, 3);
+  assert.ok(!again.some((x) => x.type === 'relic' && x.id === relic.id));
+});
+
+test('大运：血量在节点之间继承，倒下的人下一场不上', async () => {
+  const L = await import('../src/core/luckrun.js');
+  const s = newState(data, 13);
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  s.team = team;
+  for (const sl of team) s.roster[sl] = { lv: 60, star: 10, brk: 6 };
+  const run = L.startRun(s, data, 'fortune', team);
+  // 血量写回：拿一份构造好的战斗结果走 applyBattle 的记账（真打第一关太弱，一秒就清场，谁也掉不了血）
+  const prep = L.battlePrep(s, data, run);
+  assert.ok(prep);
+  const fake = {
+    win: true, rounds: 3, roundLimit: 18, kills: 2, events: [],
+    allies: prep.allies.map((d, i) => ({ uid: `a${i}`, hp: Math.round(d.maxHp ?? d.hp * (0.2 + 0.1 * i)), maxHp: d.hp, alive: true })),
+    __prep: prep,
+  };
+  fake.allies.forEach((a, i) => { a.maxHp = prep.allies[i].hp; a.hp = Math.round(a.maxHp * (0.25 + 0.1 * i)); });
+  L.applyBattle(s, data, run, fake);
+  team.forEach((sl, i) => {
+    assert.equal(Math.round(run.hp[sl] * 100), Math.round((0.25 + 0.1 * i) * 100), `${sl} 的血量比要写回这一局`);
+  });
+  // 下一场按剩下的血上场
+  const prep2 = L.battlePrep(s, data, run);
+  for (const d of prep2.allies) {
+    assert.ok(d.hpNow <= d.hp, '上场血量不能超过上限');
+    assert.ok(d.hpNow < d.hp, '带伤上场：这一场不该是满血');
+  }
+  // 血量归零的人不上场
+  run.hp[team[0]] = 0;
+  const prep3 = L.battlePrep(s, data, run);
+  assert.ok(prep3 && !prep3.allies.some((d) => d.slug === team[0]), '血量归零的人不该再上场');
+});
+
+test('大运：专属强化只加在本人身上，且每个角色都有两条', async () => {
+  const L = await import('../src/core/luckrun.js');
+  const a = L.charUp('ogier', data, 0), b = L.charUp('ogier', data, 1);
+  assert.ok(a && b && a.id !== b.id, '同一角色要有两档不同的强化');
+  assert.ok(/^ogier/.test(a.id.replace('u_', '')), '强化 id 里要带角色，方便查');
+  const other = L.charUp('lotan', data, 0);
+  assert.notEqual(a.zh.split(' · ')[0], other.zh.split(' · ')[0], '不同角色的强化名要不同');
+});
+
+test('大运：分数进等级、成就与天赋点一起结算', async () => {
+  const L = await import('../src/core/luckrun.js');
+  const s = newState(data, 14);
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  s.team = team;
+  for (const sl of team) s.roster[sl] = { lv: 90, star: 10, brk: 6 };
+  const run = L.startRun(s, data, 'ride', team);
+  run.score = 2600; run.relics = ['r_edge', 'r_ember'];
+  const end = L.endRun(s, true);
+  assert.ok(end.score > 2600, '通关要有额外分');
+  const st = L.luckState(s);
+  assert.equal(st.pts, end.score);
+  assert.equal(st.clears, 1);
+  assert.ok(L.levelOf(st.pts) >= 5, `2600 分不该还停在低等级（${L.levelOf(st.pts)}）`);
+  // 等级奖励：领了才给钱和天赋点
+  const lv1 = L.LUCK_LEVELS[0];
+  const gold0 = s.gold;
+  const r1 = L.claimLevel(s, 1);
+  assert.ok(r1 && s.gold > gold0, '领等级奖励要真的到账');
+  assert.ok(L.freeTp(st) >= lv1.tp, '领了带天赋点的等级，点数要能用');
+  assert.ok(L.claimLevel(s, 1) === null, '同一级不能领两次');
+});
+
+test('大运：五档难度推荐等级递增、怪越难分越高', async () => {
+  const L = await import('../src/core/luckrun.js');
+  assert.equal(L.LUCK_DIFFS.length, 5);
+  for (let i = 1; i < L.LUCK_DIFFS.length; i++) {
+    assert.ok(L.LUCK_DIFFS[i].lv > L.LUCK_DIFFS[i - 1].lv);
+    assert.ok(L.LUCK_DIFFS[i].mult > L.LUCK_DIFFS[i - 1].mult);
+    assert.ok(L.LUCK_DIFFS[i].scale >= L.LUCK_DIFFS[i - 1].scale);
+  }
+});
+
+test('大运：等级阶梯拉到 30 级，门槛单调、奖励随级增长、天赋点够花', async () => {
+  const L = await import('../src/core/luckrun.js');
+  assert.equal(L.LUCK_LEVELS.length, 30);
+  for (let i = 1; i < L.LUCK_LEVELS.length; i++) {
+    const a = L.LUCK_LEVELS[i - 1], b = L.LUCK_LEVELS[i];
+    assert.ok(b.need > a.need, `${b.lv} 级门槛要高于上一级`);
+    assert.ok(b.gold > a.gold && b.cores > a.cores, `${b.lv} 级奖励要涨`);
+  }
+  // 天赋点的总上限不能低于等级总数，否则 20 级以后点数没处花
+  const cap = L.LUCK_TALENTS.reduce((n, t) => n + t.cost.length, 0);
+  assert.ok(cap >= L.LUCK_LEVELS.length, `天赋上限 ${cap} 点要够 ${L.LUCK_LEVELS.length} 级花`);
+  for (const x of L.LUCK_LEVELS) {
+    assert.equal(x.rw, x.lv % 10 === 0 ? 1 : 0, `Lv.${x.lv} 的回溯券`);
+    assert.equal(x.tickets, x.lv % 5 === 0 ? 2 : 0, `Lv.${x.lv} 的召唤券`);
+  }
+  // 30 级不该遥不可及：按逆天/无疆一趟的分数，二十来趟能摸到顶
+  const top = L.LUCK_LEVELS.reduce((n, x) => n + x.need, 0);
+  assert.ok(top > 100000 && top < 300000, `到顶的累计分数 ${top} 要落在长线区间`);
+});
+
+test('大运：内容池扩容，且事件收益都真的被结算认（不许出现点了没反应的选项）', async () => {
+  const L = await import('../src/core/luckrun.js');
+  assert.ok(L.LUCK_EVENTS.length >= 16, '事件至少 16 个');
+  assert.ok(L.LUCK_RELICS.length >= 28, '造物至少 28 件');
+  assert.ok(L.LUCK_BUFFS.length >= 14, '增益至少 14 条');
+  assert.ok(L.LUCK_ACH.length >= 12, '成就至少 12 条');
+  // applyEvent 里实现了的收益键
+  const OK = new Set(['glow', 'score', 'heal', 'maxhp', 'buff', 'relic', 'gamble', 'reroll', 'up']);
+  for (const ev of L.LUCK_EVENTS) {
+    assert.ok(ev.opts.length >= 2, `${ev.id} 至少两个选项`);
+    for (const o of ev.opts) {
+      for (const k of Object.keys(o.gain || {})) assert.ok(OK.has(k), `${ev.id}「${o.k}」的 ${k} 没有结算逻辑`);
+    }
+  }
+  // 增益只能写 modsOf 认的键
+  const MOD = new Set(['atk', 'hp', 'def', 'critRate', 'critDmg', 'amp', 'healBonus', 'shieldBonus', 'steal', 'firstBoost', 'aliGain', 'keyGain', 'surviveChance', 'shield']);
+  for (const b of L.LUCK_BUFFS) assert.ok(MOD.has(b.key), `${b.id} 的 ${b.key}`);
+  const ids = new Set();
+  for (const r of L.LUCK_RELICS) { assert.ok(!ids.has(r.id), `造物 id 重复：${r.id}`); ids.add(r.id); }
+});
+
+test('大运：生命上限事件真的变厚、不灭余烬每层只救一次', async () => {
+  const L = await import('../src/core/luckrun.js');
+  const s = newState(data, 65);
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  s.team = team;
+  for (const sl of team) s.roster[sl] = { lv: 90, star: 10, brk: 6 };
+  const run = L.startRun(s, data, 'ride', team);
+  const hp0 = L.battlePrep(s, data, run).allies[0].hp;
+  run.maxhpPct = 20;
+  const hp1 = L.battlePrep(s, data, run).allies[0].hp;
+  assert.ok(hp1 > hp0 * 1.15, `生命上限 +20% 要真的变厚（${hp0} → ${hp1}）`);
+
+  run.relics = ['r_revive'];
+  run.hp = { ogier: 0.6, lotan: 0, doll: 0.6, ramona: 0.6 };
+  const fight = () => {
+    const prep = { allies: run.slugs.map((sl) => ({ slug: sl })) };
+    const res = {
+      __prep: prep, win: true, rounds: 5, roundLimit: 20, kills: 1,
+      allies: run.slugs.map((sl) => ({ hp: Math.round((run.hp[sl] ?? 1) * 100), maxHp: 100 })),
+    };
+    return L.applyBattle(s, data, run, res);
+  };
+  fight();
+  assert.ok(run.hp.lotan > 0.25, '不灭余烬要把倒下的人拉起来');
+  const act = run.act;
+  run.hp.lotan = 0;
+  fight();
+  assert.equal(run.act, act);
+  assert.ok(run.hp.lotan <= 0.001, '同一层只救一次');
+});
+
+test('同调率：等级换算、每日补给、送礼物', async () => {
+  const A = await import('../src/core/affinity.js');
+  assert.equal(A.affLv(0), 1);
+  assert.equal(A.affLv(A.AFF_STEPS[1] - 1), 1);
+  assert.equal(A.affLv(A.AFF_STEPS[1]), 2);
+  assert.equal(A.affLv(A.AFF_STEPS[A.AFF_MAX - 1]), A.AFF_MAX);
+  assert.equal(A.affLv(999999), A.AFF_MAX, '超出的点数不该算出 Lv11');
+  const p0 = A.affProgress(0);
+  assert.equal(p0.lv, 1); assert.equal(p0.next, A.AFF_STEPS[1]);
+  assert.equal(A.affProgress(A.AFF_STEPS[A.AFF_MAX - 1]).next, null, '满级没有下一档');
+
+  // 每日补给：跨天才发，同一天只发一次
+  const s = newState(data, 1);
+  s.aff.day = '2000-01-01';
+  const got = A.affTick(s, Date.now());
+  assert.ok(got && got.flower === 2 && got.record === 1, `每日补给：${JSON.stringify(got)}`);
+  assert.equal(A.affTick(s, Date.now()), null, '同一天不该再发一次');
+
+  // 送礼物：扣库存、加点、库存空了就送不出去
+  s.aff.gifts.flower = 1;
+  const r1 = A.giveGift(s, 'ogier', 'flower');
+  assert.ok(r1.ok);
+  assert.equal(A.affOf(s, 'ogier'), A.GIFT_BY_ID.flower.pts);
+  const r2 = A.giveGift(s, 'ogier', 'flower');
+  assert.equal(r2.ok, false, '没有库存了还该能送出去');
+
+  // 金币购买：扣钱进货
+  const s2 = newState(data, 1);
+  s2.gold = 1e6;
+  const before = s2.aff.gifts.record || 0;
+  assert.ok(A.buyGift(s2, 'record', 2).ok);
+  assert.equal(s2.aff.gifts.record, before + 2);
+  assert.ok(s2.gold < 1e6);
+});
+
+test('同调率：推关给四个人加分，等级天赋进面板，满级给技能一加 rider', async () => {
+  const A = await import('../src/core/affinity.js');
+  const s = newState(data, 1);
+  const res = runBattle(s, data, 1);
+  if (res.win) {
+    const rw = applyResult(s, data, res);
+    assert.ok(rw.aff && rw.aff.length === s.team.length, `结算要带上四个人的同调：${JSON.stringify(rw.aff)}`);
+    for (const t of s.team) assert.ok(A.affOf(s, t) > 0, `${t} 打完一场应该有同调点`);
+  }
+  // 首领关给的是双倍
+  assert.ok(A.affPerWin(50, true) === A.affPerWin(50) * 2, '首领关同调翻倍');
+
+  // 天赋：Lv4（默契）给攻击 +6%
+  const s2 = newState(data, 1);
+  const base = allyDef(s2, data, 'ogier', ['ogier']);
+  s2.aff.pts.ogier = A.AFF_STEPS[3];        // 到 Lv4
+  const buffed = allyDef(s2, data, 'ogier', ['ogier']);
+  assert.ok(buffed.atk > base.atk, `Lv4 默契该加攻击：${base.atk} → ${buffed.atk}`);
+  assert.equal(buffed.affLv, 4);
+
+  // 满级：技能一多一条 rider，且不改原 kit（同一份 kit 会被所有角色共用）
+  const lv0 = data.kit('ogier', 0);
+  const n0 = lv0.Skill1.effects.length;
+  s2.aff.pts.ogier = A.AFF_STEPS[A.AFF_MAX - 1];
+  const maxed = allyDef(s2, data, 'ogier', ['ogier']);
+  assert.equal(maxed.kit.Skill1.effects.length, n0 + 1, '满同调要在技能一上追加一条效果');
+  assert.equal(data.kit('ogier', 0).Skill1.effects.length, n0, '原始 kit 不能被改写');
+  // 三个定位各给各的：守护是屏障、合唱是全队增伤、突击是真伤
+  assert.equal(A.CARD_EFFECT.WARDEN.fx().s, 'barrier');
+  assert.equal(A.CARD_EFFECT.CHORUS.fx().to, 'allies');
+  assert.equal(A.CARD_EFFECT.ASSAULT.fx().t, 'pctHp');
+});
+
+test('羁绊整体强度：BOND_POWER 生效，金币词条不跟着涨', async () => {
+  const { teamBonds } = await import('../src/core/bonds.js');
+  const on = teamBonds(['samo', 'helot-catena'], data).active.find((x) => x.id === 'patron-samo');
+  assert.equal(on.bonus.atkPct, 16.8, '12% × 1.4');
+  // 金币词条不乘（alice + pandia 的「予取予求的洞」）
+  const g = teamBonds(['alice', 'pandia'], data).active.find((x) => x.id === 'patron-alice-pandia');
+  assert.equal(g.bonus.gold, 18, '经济词条不该吃战斗系数');
+});
+
+test('合唱五个子定位：每人只归一处，技能构成真的不一样', async () => {
+  const R = await import('../src/core/roles.js');
+  const chorus = data.awakeners.filter((a) => a.type === 'CHORUS');
+  const byRole = {};
+  for (const a of chorus) {
+    const id = R.chorusRoleId(a);
+    assert.ok(R.CHORUS_ROLES[id], `${a.slug} 落到了不存在的子定位 ${id}`);
+    (byRole[id] ||= []).push(a.slug);
+  }
+  assert.equal(Object.keys(byRole).length, 5, `五个子定位都要有人：${JSON.stringify(Object.keys(byRole))}`);
+
+  // 构成差异：司疗的技能一必须是治疗、击拍的是伤害、蚀咏的是易伤、守律带全队盾
+  const has = (slug, slot, pred) => data.kit(slug, 2)[slot].effects.some(pred);
+  const kick = byRole.heal[0], beat = byRole.beat[0], blight = byRole.blight[0], ward = byRole.ward[0];
+  assert.ok(has(kick, 'Skill1', (e) => e.t === 'heal'), `司疗 ${kick} 的技能一该是治疗`);
+  assert.ok(has(beat, 'Skill1', (e) => e.t === 'dmg'), `击拍 ${beat} 的技能一该有伤害`);
+  assert.ok(has(blight, 'Skill1', (e) => e.t === 'debuff' && e.stat === 'vuln'), `蚀咏 ${blight} 的技能一该挂易伤`);
+  assert.ok(has(ward, 'Skill2', (e) => e.t === 'shield' && e.to === 'allies'), `守律 ${ward} 的技能二该是全队盾`);
+
+  // 五套模板本身必须互不相同（具体某个人还会叠 rider / 手写 kit，那层差异本来就在）
+  const sig = (id) => ['Skill1', 'Skill2', 'Exalt', 'OverExalt']
+    .map((sl) => R.CHORUS_ROLES[id].kit[sl].map((e) => e.t + (e.stat ? ':' + e.stat : '') + (e.to ? '@' + e.to : '')).join('+')).join('|');
+  const sigs = new Set(R.CHORUS_ROLE_IDS.map(sig));
+  assert.equal(sigs.size, 5, `五套模板不该有重样的：${[...sigs].join(' / ')}`);
+
+  // 队伍光环：同类叠两层封顶，不同类型给不同字段
+  const aura = (team) => R.chorusAura(team, data);
+  const a1 = aura(['doll']);
+  assert.equal(a1.healBonus, 12);
+  assert.equal(a1.amp, 4);
+  assert.equal(aura(['doll', 'thais']).healBonus, 24, '两位司疗叠两层');
+  assert.equal(aura(['doll', 'thais', 'leigh']).healBonus, 24, '第三位不该继续叠');
+  const a2 = aura(['casiah']);
+  assert.equal(a2.atkPct, 6);
+  assert.equal(aura(['casiah', 'hameln']).atkPct, 12);
+  assert.equal(aura(['celeste']).amp, 5, '蚀咏给的是增伤（毒也吃）');
+  assert.equal(aura(['ryker']).critDmg, 10);
+  assert.equal(aura(['aigis']).shieldBonus, 15);
+});
+
+test('合唱光环进战斗：戴咏唱的队伍攻击更高，戴守律的护盾更厚', async () => {
+  const s = newState(data, 1);
+  for (const a of data.awakeners) s.roster[a.slug] = { lv: 60, star: 10, brk: 6, od: 0, law: 0 };
+  const def = (team) => {
+    const t = teamDefs(s, data, team);
+    return Object.fromEntries(t.list.map((d) => [d.slug, d]));
+  };
+  // 三位辅助都放在混沌，免得「同域加成」的档位差（4 同域 +15% / 3 同域 +8%）把结论带偏
+  const withSong = def(['hameln', 'lotan', 'ogier', '24']);
+  const withBeat = def(['ryker', 'lotan', 'ogier', '24']);
+  const withHeal = def(['doll', 'lotan', 'ogier', '24']);
+  assert.ok(withSong.lotan.atk > withBeat.lotan.atk, `咏唱队该攻击更高：${withSong.lotan.atk} vs ${withBeat.lotan.atk}`);
+  assert.ok(withBeat.lotan.critDmg > withSong.lotan.critDmg, '击拍队该暴伤更高');
+  assert.ok(withHeal.lotan.healBonus > withSong.lotan.healBonus, '司疗队该受疗更高');
+  // 光环是「队伍级」的：两个子定位都能同时吃到（同类才封顶）
+  const both = def(['hameln', 'ryker', 'lotan', 'ogier']);
+  assert.ok(both.lotan.atk > withBeat.lotan.atk, '再带一位咏唱，攻击还要往上');
+  assert.ok(both.lotan.critDmg > withSong.lotan.critDmg, '同时带到击拍，暴伤也要吃到');
+});
+
+test('铁壁：纯盾守护回合结束把没花掉的护盾砸回去，顺手降防', async () => {
+  const wall = unit({
+    hp: 200000, atk: 100, def: 60,
+    kit: mkKit([fx.shield(3, 'self')]),
+    thorns: 10,
+  });
+  const plain = { ...wall, thorns: 0 };
+  const dummy = unit({ hp: 400000, atk: 10, def: 50, type: 'ASSAULT' });
+  const run = (ally) => sim2({ allies: [ally], enemies: [{ ...dummy }], seed: 7, maxRounds: 6 });
+  const rb = run({ ...wall });
+  const th = rb.events.filter((e) => e.k === 'dmg' && e.s === 'thorns');
+  assert.ok(th.length >= 3, `六回合该砸出去至少三下，实际 ${th.length}`);
+  assert.ok(th.every((e) => e.by === 'a0' && e.who === 'e0'), '铁壁的伤害要记在守护自己头上');
+  const defDown = rb.events.filter((e) => e.k === 'buff' && e.stat === 'def' && e.v < 0);
+  assert.ok(defDown.length >= 3, `每次铁壁都该顺手降防，实际 ${defDown.length}`);
+  assert.equal(run({ ...plain }).events.filter((e) => e.k === 'dmg' && e.s === 'thorns').length, 0, '没铁壁的人不该有反震');
+
+  // 名单上的都是守护，而且都是纯盾型（伤害倍率低）
+  const R = await import('../src/core/roles.js');
+  for (const slug of Object.keys(R.IRON_GUARD)) {
+    const a = data.bySlug[slug];
+    assert.equal(a?.type, 'WARDEN', `${slug} 不是守护`);
+    assert.ok(R.thornsOf(slug) >= 5 && R.thornsOf(slug) <= 12, `${slug} 的铁壁系数越界`);
+  }
+});
+
+test('同谱羁绊：62 个人每人至少有一条点名羁绊，按打法凑得起来', async () => {
+  const { BONDS, teamBonds } = await import('../src/core/bonds.js');
+  const named = new Set();
+  for (const b of BONDS) if (b.members) for (const m of b.members) named.add(m);
+  const all = data.awakeners.filter((a) => !a.creator && a.avail !== 'GIFT').map((a) => a.slug);
+  const none = all.filter((s) => !named.has(s));
+  assert.deepEqual(none, [], `这些唤醒体一条点名羁绊都没有：${none.join(' ')}`);
+
+  // 同谱的成员都得真实存在
+  for (const b of BONDS.filter((x) => x.cat === 'school')) {
+    for (const m of b.members) assert.ok(data.bySlug[m], `${b.id} 里的 ${m} 不存在`);
+  }
+  // 三位反击手：凑够两人就有一条，凑到四人到高档
+  const two = teamBonds(['nautila', 'saya'], data).active.find((x) => x.id === 'school-counter');
+  assert.ok(two && two.tier === 2, '两位刃上行走该激活最低档');
+  const four = teamBonds(['nautila', 'saya', 'caraboo', 'vivian'], data).active.find((x) => x.id === 'school-counter');
+  assert.ok(four && four.tier === 4, `四位该到最高档，实际 ${four?.tier}`);
+  assert.ok(four.bonus.amp > two.bonus.amp, '高档要更肥');
 });

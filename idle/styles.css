@@ -380,11 +380,16 @@ body{background:#0a0d13}
 .order.on{border-color:color-mix(in srgb,var(--gold) 40%,transparent)}
 .order.locked{filter:grayscale(.55)}
 .order .ob{flex:1;min-width:0}
-.order .ob b{display:block}
-.order .ob em{font-style:normal;font-size:11px;color:var(--dim)}
+.order .ob b{display:inline}
+/* 名字和定位标签排一行，稀有度那行另起（以前 b 是 block 独占一行，标签加了会掉到下一行） */
+.order .ob em{display:block;font-style:normal;font-size:11px;color:var(--dim)}
 .order .ob small{display:block;font-size:11px;color:#9ad1a0}
 .order .flavor{color:#7f8a9c}
 .order .ibtns{flex:none}
+/* 钥令定位标签（锐意 / 起手 / 慈悲…）：由「招牌键」决定，一眼看出这件是干什么的。
+   和 .o .ob 里的名字同排放，名字太长时先挤压它自己而不是把整行撑开。 */
+.otag{display:inline-block;margin-left:5px;padding:0 6px;border-radius:999px;font-style:normal;font-size:10px;line-height:16px;vertical-align:1px;white-space:nowrap;color:#9fc4ff;background:color-mix(in srgb,#9fc4ff 14%,transparent);border:1px solid color-mix(in srgb,#9fc4ff 38%,transparent)}
+.oslot .otag,.order .ob .otag{font-size:9.5px;line-height:15px;padding:0 5px;margin-left:4px}
 
 /* 养成数值 */
 .awaken{color:#9ec1ff}
@@ -795,10 +800,25 @@ body{background:#0a0d13}
 .sqlo button.ochip{cursor:pointer;font:inherit;color:inherit}
 @media (max-width:520px){
   .sqlo .eqrow{flex-wrap:nowrap;gap:4px}
-  .sqlo .eqwho{flex:0 0 62px}
+  /* 62px 里横着放 42px 头像，名字只剩 13px 宽，于是「拉蒙娜」一个字一行。
+     手机上改回竖排（头像在上、名字在下），头像缩到 34，名字单行省略。 */
+  .sqlo .eqwho{flex:0 0 52px;flex-direction:column;gap:1px;text-align:center}
+  .sqlo .eqwho img{width:34px;height:34px}
+  .sqlo .eqwho b{width:100%;font-size:10.5px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sqlo .eqwho small{display:none}
-  .sqlo .eqrow .eqslot{flex:1 1 0;min-width:0}
-  .sqlo .relic-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  /* 「＋ 命轮」也被 106px 的格子压成「命 / 轮」两行：文字不换行、整组居中，＋ 让位 */
+  .sqlo .eqrow .eqslot{flex:1 1 0;min-width:0;justify-content:center;gap:3px;padding:6px 4px}
+  .sqlo .eqrow .eqslot small{font-size:10.5px;white-space:nowrap}
+  .sqlo .relic-row{display:grid;grid-template-columns:1fr;gap:6px}
+  /* 造物格：手机上一格只有 180px 宽，横排时「精炼+1 已含 +3.4%」和「详情」两头一挤，
+     中间那串说明就被压成竖条（一个字一行）。改成一列的「两行」卡：
+     图 + 说明占第一行，精炼标记与「详情」落到第二行右对齐。 */
+  .relic-slot{flex-wrap:wrap;gap:6px;padding:7px 8px}
+  .relic-slot img{width:40px;height:40px;flex:0 0 40px}
+  .relic-slot small{flex:1 1 calc(100% - 50px);font-size:10.5px;line-height:1.5;overflow-wrap:anywhere}
+  .relic-slot small b{overflow-wrap:anywhere}
+  .relic-slot em.rf{order:5;flex:0 1 auto;max-width:calc(100% - 60px);font-size:10px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+  .relic-slot .rfbtn{order:6;margin-left:auto;padding:2px 8px;font-size:11px}
   .sqeditor .modal{max-height:92vh}
   .sqeditor .modal-body{padding-top:30px}   /* 给右上角的关闭键让出位置，筛选条不被压住 */
 }
@@ -832,6 +852,25 @@ a.btn{display:inline-block;text-decoration:none}
 .idle-glossary-item{padding:9px 5px;border:1px solid var(--line);background:var(--panel2);border-radius:9px;text-align:center;cursor:pointer}
 .glossary-modal{max-width:min(620px,94vw)}
 @media(max-width:380px){.idle-terms-btn{padding:4px 5px;font-size:11px}}
+
+/* 「伤害乘区」：词条说明排在最前的一块，讲清伤害是几条乘数连乘出来的。
+   左边一列写乘区名、右边写怎么算；窄屏折成上下两行，不然 104px 一挤又成竖条。 */
+.zonebox{margin:6px 0 12px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--gold) 34%,var(--line));border-radius:12px;background:linear-gradient(180deg,rgba(31,26,15,.6),rgba(14,19,30,.5))}
+.zonebox h4{margin:0 0 5px;font-size:13.5px;color:var(--gold)}
+.zonebox h4 small{margin-left:6px;font-size:11px;font-weight:400;color:var(--dim)}
+.zonebox .zhint{margin:0 0 8px;font-size:12px;line-height:1.6;color:#b9c3d4}
+.zonelist{display:grid;gap:5px;margin:0 0 8px}
+.zonerow{display:grid;grid-template-columns:96px 1fr;gap:8px;align-items:start;font-size:12px;line-height:1.55}
+.zonerow b{color:var(--text);font-weight:600;white-space:nowrap}
+.zonerow span{color:#b9c3d4;min-width:0}
+.zonerow em{font-style:normal;color:var(--gold)}
+.zoneeg{margin:0;font-size:11.5px;line-height:1.6;color:var(--dim)}
+.zoneeg b{color:#7fd4a8}
+@media(max-width:430px){
+  .zonebox{padding:9px 10px}
+  .zonerow{grid-template-columns:1fr;gap:0}
+  .zonerow b{white-space:normal}
+}
 
 /* 周 Boss 里程碑：档位多，已领取 / 更高的档位折起来 */
 .wkfold{margin:8px 0}
@@ -901,3 +940,102 @@ button, a, [role="button"], input, select, label{touch-action:manipulation}
 .farmx.rule{color:#e6c9ff;border-left:3px solid #a67cff;padding-left:8px;line-height:1.55}.farmx.rule small{color:var(--dim)}
 
 .ehlist{display:flex;flex-direction:column;gap:6px;margin:8px 0}.ehrow{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;padding:6px 8px;border:1px solid #2b3447;border-radius:8px}
+
+/* ---------- 疾驰欢愉的大运 ---------- */
+.banner-card.lk{border-left:3px solid var(--gold)}
+.lkdiffs{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin:8px 0}
+.lkdiff{border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--panel)}
+.lkdiff.on{border-color:var(--gold);box-shadow:0 0 0 1px #e5b84b55 inset}
+.lkdiff .hd{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.lkdiff p{margin:4px 0}
+/* 12 格的路线条：走过的暗下去，当前这格亮起来，节点类型靠底色区分 */
+.lkpath{display:grid;grid-template-columns:repeat(12,1fr);gap:4px;margin:10px 0}
+.lknode{position:relative;border:1px solid var(--line);border-radius:8px;padding:6px 0;text-align:center;background:var(--panel);opacity:.55}
+.lknode i{font-style:normal;font-size:15px;line-height:1}
+.lknode small{display:block;font-size:10px;color:var(--dim)}
+.lknode.done{opacity:.3}
+.lknode.now{opacity:1;border-color:var(--gold);box-shadow:0 0 0 1px #e5b84b66 inset;background:var(--panel2)}
+.lknode.k-elite{border-left:2px solid #b073ff}.lknode.k-boss{border-left:2px solid var(--bad)}
+.lknode.k-event{border-left:2px solid var(--acc)}.lknode.k-shop{border-left:2px solid var(--ok)}
+.lkfaces{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}
+.lkface{text-align:center}
+.lkface img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.lkface b{display:block;font-size:12px;margin-top:2px}
+/* 血条：.bar i 本身没有底色，各页各自指定；这里沿用队伍页那种「健康绿」
+   低血量转黄 / 红，扫一眼就知道谁快倒了 */
+.lkface .bar{height:5px;margin:4px 0 2px}
+.lkface .bar i{background:var(--ok)}
+.lkface.hurt .bar i{background:var(--gold)}
+.lkface.dead .bar i{background:var(--bad)}
+.lkface small{color:var(--dim);font-size:10px}
+.lkface.dead img{filter:grayscale(1) brightness(.5)}
+/* 没有立绘时（数据里缺 portrait）给一个占位块，别让 <img> 露成破图 */
+.lkface i.noface{display:block;width:100%;aspect-ratio:1;border-radius:8px;border:1px solid var(--line);background:linear-gradient(135deg,#1b2230,#28313f)}
+.lkface.dead i.noface{opacity:.5}
+.lkface.dead b{color:var(--bad)}
+.lkside{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--panel);margin:8px 0}
+.lkside b{font-size:12px;color:var(--gold);display:block;margin:4px 0}
+.lktags{display:flex;flex-wrap:wrap;gap:4px}
+.lktag{font-size:12px;border:1px solid var(--line);border-radius:6px;padding:1px 6px;background:var(--panel2)}
+.lktag.relic{border-color:var(--gold);color:#f0d79a}
+.lktag.buff{border-color:var(--acc);color:#b9cdfb}
+.lktag.up{border-color:#b073ff;color:#dcc8ff}
+.lkbattle,.lkevent,.lkshop{border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--panel);margin:10px 0}
+.lkevent h3,.lkshop h3{margin-top:0;color:var(--gold)}
+.lkevent .row,.lkshop .row{display:flex;gap:8px;flex-wrap:wrap}
+.lkevent .btn{flex:1 1 160px;text-align:left}
+.lkpicks{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin:10px 0}
+.lkpick{display:block;text-align:left;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--panel)}
+.lkpick:hover{border-color:var(--gold)}
+.lkpick em{font-style:normal;font-size:11px;color:var(--dim);display:block}
+.lkpick b{display:block;margin:2px 0;color:var(--gold)}
+.lkpick.relic b{color:#f0d79a}.lkpick.up b{color:#dcc8ff}.lkpick.buff b{color:#b9cdfb}
+.lkpick p{margin:0;font-size:12px;color:var(--dim)}
+.lkrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 8px;border-bottom:1px solid var(--line)}
+.lkrow:last-child{border-bottom:0}
+.lkrow>b{min-width:64px}
+.lkrow .dots{display:flex;gap:3px}
+.lkrow .dots i{width:8px;height:8px;border-radius:50%;background:#2a3344;display:block}
+.lkrow .dots i.on{background:var(--gold)}
+.lkrow.done{opacity:.6}
+@media(max-width:560px){.lkpath{grid-template-columns:repeat(6,1fr)}.lkfaces{grid-template-columns:repeat(4,1fr)}}
+
+/* ---------- 同调率（core/affinity.js + ui/affinity.js） ---------- */
+.afflist{display:grid;gap:6px;margin-top:6px}
+.affrow{display:flex;align-items:center;gap:10px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.affrow img{width:46px;height:46px;border-radius:9px;object-fit:cover;border:1px solid var(--line);flex:0 0 auto}
+.affmain{flex:1;min-width:0}
+.affmain>b{display:block;font-size:13px;font-weight:600}
+.affmain>b small{color:var(--dim);font-weight:400;margin-left:4px;font-size:11px}
+.affbar{height:6px;border-radius:4px;background:#05070b;overflow:hidden;margin:3px 0 2px}
+.affbar i{display:block;height:100%;background:linear-gradient(90deg,#7aa2f7,#c58bff)}
+.affnum{color:var(--dim);font-size:11px}
+.affmax{display:inline-block;margin-left:5px;padding:0 5px;border-radius:5px;background:var(--gold);color:#20180a;font-size:10px;font-weight:700;vertical-align:1px}
+.giftrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+.giftbox{display:flex;flex-direction:column;gap:3px;align-items:center;padding:8px 6px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);text-align:center}
+.giftbox b{font-size:12px}
+.giftbox em{color:var(--acc);font-style:normal;font-size:11px}
+.giftbox .gcount{color:var(--gold);font-size:12px;font-weight:700}
+.giftbox .btn{margin-top:2px;width:100%}
+.affcard{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--panel2);margin:4px 0 8px}
+.afftal{list-style:none;margin:6px 0;padding:0;display:grid;gap:3px;font-size:12px}
+.afftal li{display:flex;gap:8px;color:var(--dim);opacity:.65}
+.afftal li.on{color:var(--tx);opacity:1}
+.afftal li b{flex:0 0 auto;font-weight:600}
+.afftal li.on b{color:var(--ok)}
+.affpact{display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;padding:6px 8px;border:1px dashed var(--line);border-radius:8px;font-size:12px;color:var(--dim)}
+.affpact b{color:var(--tx)}
+.affpact em{font-style:normal;margin-left:auto;font-size:11px}
+.affpact.on{border-color:var(--gold);border-style:solid}
+.affpact.on b,.affpact.on em{color:var(--gold)}
+@media(max-width:560px){.giftrow{grid-template-columns:1fr 1fr 1fr;gap:6px}.giftbox{padding:6px 4px}.giftbox b{font-size:11px}}
+
+/* ---------- 定位特性（core/roles.js） ---------- */
+.tag.roletag{background:color-mix(in srgb, var(--rc2) 18%, transparent);color:var(--rc2);border:1px solid color-mix(in srgb, var(--rc2) 45%, transparent)}
+.rolebox{border-left:3px solid var(--rc2)}
+.rolebox b{color:var(--rc2)}
+.rolebox p.dim{color:var(--dim);margin:4px 0 0}
+
+/* ---------- 免费回溯券（后台发放 / 大运等级奖励） ---------- */
+.tag.rwtag{background:color-mix(in srgb, #7fd1c1 16%, transparent);color:#7fd1c1;border:1px solid color-mix(in srgb, #7fd1c1 45%, transparent);white-space:nowrap}
+.subtyp{font-style:normal;color:var(--acc);margin-left:4px;padding:0 4px;border:1px solid var(--line);border-radius:5px;font-size:10px}
