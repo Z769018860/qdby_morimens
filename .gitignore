@@ -37,3 +37,4 @@ music/*
 
 # 杀死守密人：烘焙中间产物（时间表已内联进 js/keeper/audio.js）
 assets/audio/keeper/sprite.json
+assets/bazaar/_raw/

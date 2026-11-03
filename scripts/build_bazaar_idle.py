@@ -8,7 +8,7 @@
 
   1. 抽 8 帧（在整段里均匀取样，够看出呼吸感）；
   2. 按非透明区域并集裁剪，等比缩到 H；
-  3. 存成 assets/bazaar/idle/<slug>.webp（动图，循环播放）。
+  3. 存成 assets/bazaar/idle/<slug>.gif（GIF 动图，循环播放）。
 
 原始 gif 复用 assets/protocol/_raw 里已经下好的；缺的按中文名现下，
 下不到就退回 assets/card 的官方全身立绘（静态一帧）。
@@ -83,7 +83,7 @@ def union_bbox(frames):
 
 def anim_from_gif(path):
     im = Image.open(path)
-    allf = list(ImageSequence.Iterator(im))
+    allf = [f.convert('RGBA') for f in ImageSequence.Iterator(im)]   # 必须逐帧拷贝：迭代器每次返回同一个对象，不拷贝的话 N 帧全是最后一帧（旧版的「动图」其实是静止的）
     n = len(allf)
     if n < 2:
         raise IOError('不是动图')
@@ -95,7 +95,7 @@ def anim_from_gif(path):
     idx = [round(i * (n - 1) / (want - 1)) for i in range(want)]
     out = []
     for i in idx:
-        f = allf[i].convert('RGBA').crop(box)
+        f = allf[i].crop(box)
         w = max(1, round(f.width * H / f.height))
         out.append(f.resize((w, H), Image.LANCZOS))
     return out, int(round(dur * n / want))
@@ -151,7 +151,7 @@ def main():
                 break
         if src is None:
             p = RAW_B / ('%s.gif' % slug)
-            if fetch(wiki_name, p):
+            if fetch(wiki_name if wiki_name.endswith('.gif') else '%s-待机.gif' % wiki_name, p):
                 src = p
 
         try:
@@ -168,11 +168,15 @@ def main():
             frames, dur = still_from_card(card)
             how = 'card'
 
+        # 存成真正的 GIF 动图：本机 Pillow 不带动图 WebP 编码，存出来只有一帧；GIF 到处都能播
         buf = io.BytesIO()
-        frames[0].save(buf, 'WEBP', quality=Q, method=6, save_all=True,
-                       append_images=frames[1:], duration=dur, loop=0, minimize_size=True)
+        q = [f.quantize(colors=64, method=Image.FASTOCTREE, dither=Image.NONE) for f in frames]
+        q[0].save(buf, 'GIF', save_all=True, append_images=q[1:], duration=dur, loop=0, disposal=2, optimize=True, transparency=0)
         data = buf.getvalue()
-        (OUT / ('%s.webp' % slug)).write_bytes(data)
+        (OUT / ('%s.gif' % slug)).write_bytes(data)
+        old = OUT / ('%s.webp' % slug)
+        if old.exists():
+            old.unlink()
         total += len(data)
         ok += 1
         report.append((slug, how, len(frames), frames[0].width, frames[0].height, len(data) / 1024))

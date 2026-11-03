@@ -52,7 +52,8 @@ function paintSp(el, spr) {
 // 待机立绘：每个唤醒体一个动图文件（约 14KB），用到谁才下谁
 const REALM_VAR = { CHAOS: '--chaos', CARO: '--caro', AEQUOR: '--aqua', ULTRA: '--ultra' };
 const REALM_CLS = { CHAOS: 'CH', CARO: 'CA', AEQUOR: 'AE', ULTRA: 'UL' };
-const idleUrl = (h) => `assets/bazaar/idle/${h.id}.webp`;
+// 待机立绘：唤醒体是 GIF 动图（循环播放），主播彩蛋只有一张静图（.webp）
+const idleUrl = (h) => `assets/bazaar/idle/${h.id}.${h.egg ? 'webp' : 'gif'}`;
 const artHTML = (h) => (h ? `<img src="${idleUrl(h)}" alt="${h.n}" decoding="async">` : '');
 function setRealm(h, els) {
   const v = h ? `var(${REALM_VAR[h.realm] || '--accent'})` : 'var(--accent)';
