@@ -153,13 +153,14 @@ export const sfx = {
     if (!gate('beat', 40)) return;
     const k = ((Math.max(1, n | 0) - 1) % 4) + 1;
     if (k === 1 || k === 3) {
-      tone(k === 1 ? 120 : 100, { to: 48, dur: 0.16, type: 'sine', gain: k === 1 ? 0.22 : 0.17 });
+      tone(k === 1 ? 130 : 110, { to: 50, dur: 0.18, type: 'sine', gain: k === 1 ? 0.5 : 0.4 });
       if (k === 1) tone(1568, { dur: 0.07, type: 'triangle', gain: 0.05, at: 0.005 });
     } else {
-      noise({ dur: 0.1, gain: 0.11, lp: 3800, hp: 1200 });
-      tone(210, { to: 150, dur: 0.07, type: 'triangle', gain: 0.07 });
+      noise({ dur: 0.1, gain: 0.26, lp: 3800, hp: 1200 });
+      tone(210, { to: 150, dur: 0.08, type: 'triangle', gain: 0.2 });
     }
-    noise({ dur: 0.04, gain: 0.04, lp: 9000, hp: 6000, at: 0.0 });
+    noise({ dur: 0.05, gain: 0.12, lp: 9000, hp: 5000, at: 0.0 });
+    tone(k === 1 ? 1568 : 1100, { dur: 0.04, type: 'square', gain: 0.08 });   // 每拍都有的「嗒」，哪怕小声也一定听得见节拍
   },
   // 胜负
   win() {

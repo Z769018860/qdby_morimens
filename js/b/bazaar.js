@@ -1295,13 +1295,14 @@ const sfx = {
     if (!gate('beat', 40)) return;
     const k = ((Math.max(1, n | 0) - 1) % 4) + 1;
     if (k === 1 || k === 3) {
-      tone(k === 1 ? 120 : 100, { to: 48, dur: 0.16, type: 'sine', gain: k === 1 ? 0.22 : 0.17 });
+      tone(k === 1 ? 130 : 110, { to: 50, dur: 0.18, type: 'sine', gain: k === 1 ? 0.5 : 0.4 });
       if (k === 1) tone(1568, { dur: 0.07, type: 'triangle', gain: 0.05, at: 0.005 });
     } else {
-      noise({ dur: 0.1, gain: 0.11, lp: 3800, hp: 1200 });
-      tone(210, { to: 150, dur: 0.07, type: 'triangle', gain: 0.07 });
+      noise({ dur: 0.1, gain: 0.26, lp: 3800, hp: 1200 });
+      tone(210, { to: 150, dur: 0.08, type: 'triangle', gain: 0.2 });
     }
-    noise({ dur: 0.04, gain: 0.04, lp: 9000, hp: 6000, at: 0.0 });
+    noise({ dur: 0.05, gain: 0.12, lp: 9000, hp: 5000, at: 0.0 });
+    tone(k === 1 ? 1568 : 1100, { dur: 0.04, type: 'square', gain: 0.08 });   // 每拍都有的「嗒」，哪怕小声也一定听得见节拍
   },
   // 胜负
   win() {
@@ -1379,7 +1380,7 @@ function sprStyle(spr) {
   const col = i % s.cols, row = Math.floor(i / s.cols);
   const px = s.cols > 1 ? (col / (s.cols - 1)) * 100 : 0;
   const py = s.rows > 1 ? (row / (s.rows - 1)) * 100 : 0;
-  return `background-image:url(${s.src});background-size:${s.cols * 100}% ${s.rows * 100}%;background-position:${px}% ${py}%`;
+  return `background-image:url(${s.src}?v=${ASSET_V});background-size:${s.cols * 100}% ${s.rows * 100}%;background-position:${px}% ${py}%`;
 }
 const sp = (spr, cls = '') => `<span class="sp ${cls}" style="${sprStyle(spr)}"></span>`;
 function paintSp(el, spr) {
@@ -1391,7 +1392,9 @@ function paintSp(el, spr) {
 const REALM_VAR = { CHAOS: '--chaos', CARO: '--caro', AEQUOR: '--aqua', ULTRA: '--ultra' };
 const REALM_CLS = { CHAOS: 'CH', CARO: 'CA', AEQUOR: 'AE', ULTRA: 'UL' };
 // 待机立绘：唤醒体是 GIF 动图（循环播放），主播彩蛋只有一张静图（.webp）
-const idleUrl = (h) => `assets/bazaar/idle/${h.id}.${h.egg ? 'webp' : 'gif'}`;
+// 资源地址带版本号：图集 / 立绘换过之后，线上和浏览器缓存里的旧文件不会和新数据错位（图标名字对不上就是这么来的）
+const ASSET_V = '3.1.5';
+const idleUrl = (h) => `assets/bazaar/idle/${h.id}.${h.egg ? 'webp' : 'gif'}?v=${ASSET_V}`;
 const artHTML = (h) => (h ? `<img src="${idleUrl(h)}" alt="${h.n}" decoding="async">` : '');
 function setRealm(h, els) {
   const v = h ? `var(${REALM_VAR[h.realm] || '--accent'})` : 'var(--accent)';
@@ -1521,6 +1524,7 @@ function unitHTML(u, inBattle) {
     <span class="ucd${inBattle && left <= 1 ? ' now' : ''}" id="${inBattle ? 'b' : ''}ucd${u.uid}" style="--p:${inBattle ? Math.round((timer / cd) * 100) : 0}"><i>${left}</i></span>
     <span class="ut">${d.n}</span>
     <span class="um">产 ${d.gen}${d.egg ? ' · 主播' : ''}</span>
+    <span class="ucf" id="${inBattle ? 'b' : ''}ucf${u.uid}" style="height:${inBattle ? Math.min(100, Math.round((timer / cd) * 100)) : 0}%"></span>
     <span class="ub"><i id="${inBattle ? 'b' : ''}ub${u.uid}" style="width:${inBattle ? Math.round((timer / cd) * 100) : 0}%"></i></span>
   </div>`;
 }
@@ -1907,6 +1911,16 @@ function paintBars() {
       el.style.transition = reset ? 'none' : `width ${Math.round(TUNING.beatMs / speed)}ms linear`;
       el.style.width = (reset ? pct(u.timer, u.cd) : to) + '%';
       el.dataset.p = String(reset ? pct(u.timer, u.cd) : to);
+    }
+    const cf = $(`bucf${u.uid}`);
+    if (cf) {
+      // 技能 CD：界域色从脚底一路漫到头顶，满了就出手，出手后落回脚底
+      const to = Math.min(100, pct(u.timer + 1, u.cd));
+      const prev = parseFloat(cf.dataset.p || '0');
+      const reset = pct(u.timer, u.cd) < prev - 0.5;
+      cf.style.transition = reset ? 'none' : `height ${Math.round(TUNING.beatMs / speed)}ms linear`;
+      cf.style.height = (reset ? pct(u.timer, u.cd) : to) + '%';
+      cf.dataset.p = String(reset ? pct(u.timer, u.cd) : to);
     }
     const ring = $(`bucd${u.uid}`);
     if (ring) {
