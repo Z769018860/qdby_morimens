@@ -36,6 +36,13 @@
     "idle": "24",
     "card": "24",
     "bust": "24"
+   },
+   "tr": {
+    "self": "我们",
+    "eye": "玫红",
+    "item": "一把只有三个齿的梳子",
+    "pet": "",
+    "line": "你要是听见有人叫你，先应一声，再回头看。"
    }
   },
   {
@@ -73,6 +80,13 @@
     "idle": "agrippa",
     "card": "agrippa",
     "bust": "agrippa"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "赤褐",
+    "item": "一副磨花的护目镜",
+    "pet": "",
+    "line": "缝合的时候别看我，我会分心。"
    }
   },
   {
@@ -110,6 +124,13 @@
     "idle": "aigis",
     "card": "aigis",
     "bust": "aigis"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "赤褐",
+    "item": "一撮自己的头发",
+    "pet": "一只别在袖口的甲虫",
+    "line": "伤口不许它长好，长好了就忘了疼。"
    }
   },
   {
@@ -147,6 +168,13 @@
     "idle": "alva",
     "card": "alva",
     "bust": "alva"
+   },
+   "tr": {
+    "self": "本小姐",
+    "eye": "紫",
+    "item": "空的火柴盒",
+    "pet": "",
+    "line": "我数过了，这层楼只有十一级台阶。"
    }
   },
   {
@@ -184,6 +212,13 @@
     "idle": "aurita",
     "card": "aurita",
     "bust": "aurita"
+   },
+   "tr": {
+    "self": "咱",
+    "eye": "灰青",
+    "item": "一个进水的手电",
+    "pet": "",
+    "line": "水位每天涨一点，你们都不看。"
    }
   },
   {
@@ -221,6 +256,13 @@
     "idle": "caecus",
     "card": "caecus",
     "bust": "caecus"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "灰青",
+    "item": "一颗光滑的黑石子",
+    "pet": "",
+    "line": "别把耳朵贴到墙上，会听见回声。"
    }
   },
   {
@@ -258,6 +300,13 @@
     "idle": "casiah",
     "card": "casiah",
     "bust": "casiah"
+   },
+   "tr": {
+    "self": "本座",
+    "eye": "灰",
+    "item": "一个装着沙子的瓶子",
+    "pet": "一只没有眼睛的乌鸦",
+    "line": "数字会自己变，别记。"
    }
   },
   {
@@ -295,6 +344,13 @@
     "idle": "castor",
     "card": "castor",
     "bust": "castor"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "灰",
+    "item": "一枚边缘发烫的硬币",
+    "pet": "",
+    "line": "时间在这里是折起来的，别数。"
    }
   },
   {
@@ -332,6 +388,13 @@
     "idle": "celeste",
     "card": "celeste",
     "bust": "celeste"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "深蓝",
+    "item": "一颗光滑的黑石子",
+    "pet": "",
+    "line": "湿的东西才有记忆。"
    }
   },
   {
@@ -369,6 +432,13 @@
     "idle": "clementine",
     "card": "clementine",
     "bust": "clementine"
+   },
+   "tr": {
+    "self": "在下的这具壳",
+    "eye": "银白",
+    "item": "一根量不出长度的线",
+    "pet": "一只别在袖口的甲虫",
+    "line": "数字会自己变，别记。"
    }
   },
   {
@@ -406,6 +476,13 @@
     "idle": "corposant",
     "card": "corposant",
     "bust": "corposant"
+   },
+   "tr": {
+    "self": "咱",
+    "eye": "深蓝",
+    "item": "一段打了结的渔线",
+    "pet": "",
+    "line": "湿的东西才有记忆。"
    }
   },
   {
@@ -443,6 +520,13 @@
     "idle": "daffodil",
     "card": "daffodil",
     "bust": "daffodil"
+   },
+   "tr": {
+    "self": "在下的这具壳",
+    "eye": "灰",
+    "item": "一叠没寄出的信",
+    "pet": "",
+    "line": "我看见的这条走廊，有四个方向。"
    }
   },
   {
@@ -480,6 +564,13 @@
     "idle": "doll",
     "card": "doll",
     "bust": "doll"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "紫",
+    "item": "缝了七针的布偶",
+    "pet": "一条盘在手腕上的白蛇",
+    "line": "走廊尽头那盏灯，是我换的。"
    }
   },
   {
@@ -517,6 +608,13 @@
     "idle": "doresain",
     "card": "doresain",
     "bust": "doresain"
+   },
+   "tr": {
+    "self": "爷",
+    "eye": "浅金",
+    "item": "一枚黄铜指套",
+    "pet": "",
+    "line": "我闻得出血的味道，也知道是谁的。"
    }
   },
   {
@@ -554,6 +652,13 @@
     "idle": "erica",
     "card": "erica",
     "bust": "erica"
+   },
+   "tr": {
+    "self": "本座",
+    "eye": "淡紫",
+    "item": "一叠没寄出的信",
+    "pet": "",
+    "line": "数字会自己变，别记。"
    }
   },
   {
@@ -591,6 +696,13 @@
     "idle": "faint",
     "card": "faint",
     "bust": "faint"
+   },
+   "tr": {
+    "self": "爷",
+    "eye": "赤褐",
+    "item": "一副磨花的护目镜",
+    "pet": "",
+    "line": "缝合的时候别看我，我会分心。"
    }
   },
   {
@@ -628,6 +740,13 @@
     "idle": "faros",
     "card": "faros",
     "bust": "faros"
+   },
+   "tr": {
+    "self": "吾",
+    "eye": "深蓝",
+    "item": "一枚湿的贝壳",
+    "pet": "一只别在袖口的甲虫",
+    "line": "湿的东西才有记忆。"
    }
   },
   {
@@ -665,6 +784,13 @@
     "idle": "doll-inferno",
     "card": "doll-inferno",
     "bust": "doll-inferno"
+   },
+   "tr": {
+    "self": "这个人",
+    "eye": "紫",
+    "item": "空的火柴盒",
+    "pet": "",
+    "line": "每次闭眼，我都能听见楼上有人翻身。"
    }
   },
   {
@@ -702,6 +828,13 @@
     "idle": "helot-catena",
     "card": "helot-catena",
     "bust": "helot-catena"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "琥珀",
+    "item": "半瓶没有标签的药",
+    "pet": "",
+    "line": "肉会记得刀，骨头不会。"
    }
   },
   {
@@ -739,6 +872,13 @@
     "idle": "ramona-timeworn",
     "card": "ramona-timeworn",
     "bust": "ramona-timeworn"
+   },
+   "tr": {
+    "self": "我啦",
+    "eye": "灰紫",
+    "item": "一颗不知道谁的门牙",
+    "pet": "一只没有眼睛的乌鸦",
+    "line": "灯亮着的时候，别回头看。"
    }
   },
   {
@@ -776,6 +916,13 @@
     "idle": "goliath",
     "card": "goliath",
     "bust": "goliath"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "青",
+    "item": "一个进水的手电",
+    "pet": "",
+    "line": "别把耳朵贴到墙上，会听见回声。"
    }
   },
   {
@@ -813,6 +960,13 @@
     "idle": "hameln",
     "card": "hameln",
     "bust": "hameln"
+   },
+   "tr": {
+    "self": "本小姐",
+    "eye": "玫红",
+    "item": "空的火柴盒",
+    "pet": "",
+    "line": "我不做梦。我只是每天醒过来。"
    }
   },
   {
@@ -850,6 +1004,13 @@
     "idle": "helot",
     "card": "helot",
     "bust": "helot"
+   },
+   "tr": {
+    "self": "俺",
+    "eye": "赤褐",
+    "item": "半瓶没有标签的药",
+    "pet": "",
+    "line": "我闻得出血的味道，也知道是谁的。"
    }
   },
   {
@@ -887,6 +1048,13 @@
     "idle": "horla",
     "card": "horla",
     "bust": "horla"
+   },
+   "tr": {
+    "self": "在下的这具壳",
+    "eye": "灰",
+    "item": "一根量不出长度的线",
+    "pet": "",
+    "line": "有些门只能开一次，我记住了是哪一扇。"
    }
   },
   {
@@ -924,6 +1092,13 @@
     "idle": "jenkin",
     "card": "jenkin",
     "bust": "jenkin"
+   },
+   "tr": {
+    "self": "它这具身体",
+    "eye": "银白",
+    "item": "一叠没寄出的信",
+    "pet": "",
+    "line": "有些门只能开一次，我记住了是哪一扇。"
    }
   },
   {
@@ -961,6 +1136,13 @@
     "idle": "karen",
     "card": "karen",
     "bust": "karen"
+   },
+   "tr": {
+    "self": "我们",
+    "eye": "灰紫",
+    "item": "空的火柴盒",
+    "pet": "",
+    "line": "你要是听见有人叫你，先应一声，再回头看。"
    }
   },
   {
@@ -998,6 +1180,13 @@
     "idle": "kathigu-ra",
     "card": "kathigu-ra",
     "bust": "kathigu-ra"
+   },
+   "tr": {
+    "self": "这个人",
+    "eye": "紫",
+    "item": "一枚刻错字的怀表",
+    "pet": "",
+    "line": "灯亮着的时候，别回头看。"
    }
   },
   {
@@ -1035,6 +1224,13 @@
     "idle": "leigh",
     "card": "leigh",
     "bust": "leigh"
+   },
+   "tr": {
+    "self": "这家伙",
+    "eye": "琥珀",
+    "item": "一撮自己的头发",
+    "pet": "",
+    "line": "肉会记得刀，骨头不会。"
    }
   },
   {
@@ -1072,6 +1268,13 @@
     "idle": "lily",
     "card": "lily",
     "bust": "lily"
+   },
+   "tr": {
+    "self": "我啦",
+    "eye": "灰紫",
+    "item": "一颗不知道谁的门牙",
+    "pet": "",
+    "line": "我数过了，这层楼只有十一级台阶。"
    }
   },
   {
@@ -1109,6 +1312,13 @@
     "idle": "liz",
     "card": "liz",
     "bust": "liz"
+   },
+   "tr": {
+    "self": "本座",
+    "eye": "银白",
+    "item": "一叠没寄出的信",
+    "pet": "",
+    "line": "别问我几点，这里没有几点。"
    }
   },
   {
@@ -1146,6 +1356,13 @@
     "idle": "lotan",
     "card": "lotan",
     "bust": "lotan"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "紫",
+    "item": "一小瓶洗不掉的黑墨水",
+    "pet": "一只趴在肩上不动的黑猫",
+    "line": "我数过了，这层楼只有十一级台阶。"
    }
   },
   {
@@ -1183,6 +1400,13 @@
     "idle": "miryam",
     "card": "miryam",
     "bust": "miryam"
+   },
+   "tr": {
+    "self": "这条命",
+    "eye": "灰青",
+    "item": "一个进水的手电",
+    "pet": "",
+    "line": "别把耳朵贴到墙上，会听见回声。"
    }
   },
   {
@@ -1220,6 +1444,13 @@
     "idle": "mouchette",
     "card": "mouchette",
     "bust": "mouchette"
+   },
+   "tr": {
+    "self": "我啦",
+    "eye": "紫",
+    "item": "一张对折过很多次的照片",
+    "pet": "",
+    "line": "每次闭眼，我都能听见楼上有人翻身。"
    }
   },
   {
@@ -1257,6 +1488,13 @@
     "idle": "murphy",
     "card": "murphy",
     "bust": "murphy"
+   },
+   "tr": {
+    "self": "这条命",
+    "eye": "灰青",
+    "item": "一段打了结的渔线",
+    "pet": "",
+    "line": "我在水里听见过自己的名字。"
    }
   },
   {
@@ -1294,6 +1532,13 @@
     "idle": "murphy-fauxborn",
     "card": "murphy-fauxborn",
     "bust": "murphy-fauxborn"
+   },
+   "tr": {
+    "self": "这片水",
+    "eye": "灰青",
+    "item": "一颗光滑的黑石子",
+    "pet": "一只装在罐子里的鱼",
+    "line": "涨潮之前必须回去。"
    }
   },
   {
@@ -1331,6 +1576,13 @@
     "idle": "nautila",
     "card": "nautila",
     "bust": "nautila"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "灰紫",
+    "item": "一张对折过很多次的照片",
+    "pet": "一只趴在肩上不动的黑猫",
+    "line": "灯亮着的时候，别回头看。"
    }
   },
   {
@@ -1368,6 +1620,13 @@
     "idle": "nymphaea",
     "card": "nymphaea",
     "bust": "nymphaea"
+   },
+   "tr": {
+    "self": "本小姐",
+    "eye": "紫",
+    "item": "一小瓶洗不掉的黑墨水",
+    "pet": "",
+    "line": "记不住名字没关系，记住脸就行。"
    }
   },
   {
@@ -1405,6 +1664,13 @@
     "idle": "ogier",
     "card": "ogier",
     "bust": "ogier"
+   },
+   "tr": {
+    "self": "咱",
+    "eye": "紫",
+    "item": "半截没烧完的蜡烛",
+    "pet": "一只趴在肩上不动的黑猫",
+    "line": "别把水喝光，底下那层会渴。"
    }
   },
   {
@@ -1442,6 +1708,13 @@
     "idle": "pandia",
     "card": "pandia",
     "bust": "pandia"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "紫",
+    "item": "一小瓶洗不掉的黑墨水",
+    "pet": "一只别在袖口的甲虫",
+    "line": "每次闭眼，我都能听见楼上有人翻身。"
    }
   },
   {
@@ -1479,6 +1752,13 @@
     "idle": "pickman",
     "card": "pickman",
     "bust": "pickman"
+   },
+   "tr": {
+    "self": "本人",
+    "eye": "浅金",
+    "item": "一块干硬的面包",
+    "pet": "",
+    "line": "我这身皮是借来的，用久了要还。"
    }
   },
   {
@@ -1516,6 +1796,13 @@
     "idle": "pollux",
     "card": "pollux",
     "bust": "pollux"
+   },
+   "tr": {
+    "self": "在下的这具壳",
+    "eye": "灰",
+    "item": "一只停了的怀表",
+    "pet": "",
+    "line": "我看见的这条走廊，有四个方向。"
    }
   },
   {
@@ -1553,6 +1840,13 @@
     "idle": "ramona",
     "card": "ramona",
     "bust": "ramona"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "紫",
+    "item": "一把只有三个齿的梳子",
+    "pet": "",
+    "line": "灯亮着的时候，别回头看。"
    }
   },
   {
@@ -1590,6 +1884,13 @@
     "idle": "ryker",
     "card": "ryker",
     "bust": "ryker"
+   },
+   "tr": {
+    "self": "咱",
+    "eye": "玫红",
+    "item": "一枚刻错字的怀表",
+    "pet": "一条盘在手腕上的白蛇",
+    "line": "每次闭眼，我都能听见楼上有人翻身。"
    }
   },
   {
@@ -1627,6 +1928,13 @@
     "idle": "salvador",
     "card": "salvador",
     "bust": "salvador"
+   },
+   "tr": {
+    "self": "本人",
+    "eye": "琥珀",
+    "item": "一撮自己的头发",
+    "pet": "一条盘在手腕上的白蛇",
+    "line": "疼是好事，说明还在。"
    }
   },
   {
@@ -1664,6 +1972,13 @@
     "idle": "sanga",
     "card": "sanga",
     "bust": "sanga"
+   },
+   "tr": {
+    "self": "咱",
+    "eye": "灰青",
+    "item": "一片透明的东西（像鳞）",
+    "pet": "一只趴在肩上不动的黑猫",
+    "line": "我在水里听见过自己的名字。"
    }
   },
   {
@@ -1701,6 +2016,13 @@
     "idle": "sorel",
     "card": "sorel",
     "bust": "sorel"
+   },
+   "tr": {
+    "self": "本人",
+    "eye": "琥珀",
+    "item": "一枚黄铜指套",
+    "pet": "",
+    "line": "我闻得出血的味道，也知道是谁的。"
    }
   },
   {
@@ -1738,6 +2060,13 @@
     "idle": "tawil",
     "card": "tawil",
     "bust": "tawil"
+   },
+   "tr": {
+    "self": "咱",
+    "eye": "玫红",
+    "item": "一把只有三个齿的梳子",
+    "pet": "",
+    "line": "我不做梦。我只是每天醒过来。"
    }
   },
   {
@@ -1775,6 +2104,13 @@
     "idle": "thais",
     "card": "thais",
     "bust": "thais"
+   },
+   "tr": {
+    "self": "爷",
+    "eye": "赤褐",
+    "item": "一撮自己的头发",
+    "pet": "",
+    "line": "伤口不许它长好，长好了就忘了疼。"
    }
   },
   {
@@ -1812,6 +2148,13 @@
     "idle": "tinct",
     "card": "tinct",
     "bust": "tinct"
+   },
+   "tr": {
+    "self": "本座",
+    "eye": "银白",
+    "item": "一根量不出长度的线",
+    "pet": "",
+    "line": "别问我几点，这里没有几点。"
    }
   },
   {
@@ -1849,6 +2192,13 @@
     "idle": "tulu",
     "card": "tulu",
     "bust": "tulu"
+   },
+   "tr": {
+    "self": "这条命",
+    "eye": "灰青",
+    "item": "一小袋盐",
+    "pet": "",
+    "line": "涨潮之前必须回去。"
    }
   },
   {
@@ -1886,6 +2236,13 @@
     "idle": "uvhash",
     "card": "uvhash",
     "bust": "uvhash"
+   },
+   "tr": {
+    "self": "俺",
+    "eye": "琥珀",
+    "item": "一撮自己的头发",
+    "pet": "",
+    "line": "缝合的时候别看我，我会分心。"
    }
   },
   {
@@ -1923,6 +2280,13 @@
     "idle": "wanda",
     "card": "wanda",
     "bust": "wanda"
+   },
+   "tr": {
+    "self": "它这具身体",
+    "eye": "银白",
+    "item": "一张写满同一个词的纸",
+    "pet": "",
+    "line": "有些门只能开一次，我记住了是哪一扇。"
    }
   },
   {
@@ -1960,6 +2324,13 @@
     "idle": "winkle",
     "card": "winkle",
     "bust": "winkle"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "灰",
+    "item": "一枚边缘发烫的硬币",
+    "pet": "",
+    "line": "数字会自己变，别记。"
    }
   },
   {
@@ -1997,6 +2368,13 @@
     "idle": "xu",
     "card": "xu",
     "bust": "xu"
+   },
+   "tr": {
+    "self": "这家伙",
+    "eye": "赤褐",
+    "item": "半瓶没有标签的药",
+    "pet": "",
+    "line": "缝合的时候别看我，我会分心。"
    }
   },
   {
@@ -2034,6 +2412,13 @@
     "idle": "vortice",
     "card": "vortice",
     "bust": "vortice"
+   },
+   "tr": {
+    "self": "这条命",
+    "eye": "青",
+    "item": "一瓶海水",
+    "pet": "一只别在袖口的甲虫",
+    "line": "盐是唯一不会骗人的东西。"
    }
   },
   {
@@ -2071,6 +2456,13 @@
     "idle": "arachne",
     "card": "arachne",
     "bust": "arachne"
+   },
+   "tr": {
+    "self": "此身",
+    "eye": "淡紫",
+    "item": "一根量不出长度的线",
+    "pet": "",
+    "line": "时间在这里是折起来的，别数。"
    }
   },
   {
@@ -2106,6 +2498,13 @@
     "idle": "saya",
     "card": "saya",
     "bust": "saya"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "浅金",
+    "item": "一卷缝合线",
+    "pet": "",
+    "line": "缝合的时候别看我，我会分心。"
    }
   },
   {
@@ -2143,6 +2542,13 @@
     "idle": "pontos",
     "card": "pontos",
     "bust": "pontos"
+   },
+   "tr": {
+    "self": "这条命",
+    "eye": "青",
+    "item": "一颗光滑的黑石子",
+    "pet": "",
+    "line": "水位每天涨一点，你们都不看。"
    }
   },
   {
@@ -2180,6 +2586,13 @@
     "idle": "lotan-cetarchon",
     "card": "lotan-cetarchon",
     "bust": "lotan-cetarchon"
+   },
+   "tr": {
+    "self": "我们",
+    "eye": "灰紫",
+    "item": "缝了七针的布偶",
+    "pet": "",
+    "line": "记不住名字没关系，记住脸就行。"
    }
   },
   {
@@ -2217,6 +2630,13 @@
     "idle": "caraboo",
     "card": "caraboo",
     "bust": "caraboo"
+   },
+   "tr": {
+    "self": "爷",
+    "eye": "浅金",
+    "item": "一卷缝合线",
+    "pet": "",
+    "line": "饿了就说，别硬撑。"
    }
   },
   {
@@ -2254,6 +2674,13 @@
     "idle": "ogier-oathbound",
     "card": "ogier-oathbound",
     "bust": "ogier-oathbound"
+   },
+   "tr": {
+    "self": "咱",
+    "eye": "紫",
+    "item": "空的火柴盒",
+    "pet": "",
+    "line": "记不住名字没关系，记住脸就行。"
    }
   },
   {
@@ -2291,6 +2718,13 @@
     "idle": "vivian",
     "card": "vivian",
     "bust": "vivian"
+   },
+   "tr": {
+    "self": "我们",
+    "eye": "玫红",
+    "item": "缝了七针的布偶",
+    "pet": "",
+    "line": "记不住名字没关系，记住脸就行。"
    }
   },
   {
@@ -2322,6 +2756,13 @@
    ],
    "img": {
     "face": "assets/survivors/faces/samo.webp"
+   },
+   "tr": {
+    "self": "本人",
+    "eye": "褐",
+    "item": "一副耳机",
+    "pet": "",
+    "line": "先把灯关了，画面对比度会更好。"
    }
   },
   {
@@ -2353,6 +2794,13 @@
    ],
    "img": {
     "face": "assets/survivors/faces/mengyi.webp"
+   },
+   "tr": {
+    "self": "我啦",
+    "eye": "褐",
+    "item": "一块充电宝",
+    "pet": "",
+    "line": "给我三分钟，我把这一段讲完。"
    }
   },
   {
@@ -2384,6 +2832,13 @@
    ],
    "img": {
     "face": "assets/survivors/faces/alice.webp"
+   },
+   "tr": {
+    "self": "我",
+    "eye": "褐",
+    "item": "一盒喉糖",
+    "pet": "",
+    "line": "家人们，这层楼真的有东西。"
    }
   },
   {
@@ -2415,6 +2870,13 @@
    ],
    "img": {
     "face": "assets/survivors/faces/ratking.webp"
+   },
+   "tr": {
+    "self": "咱",
+    "eye": "琥珀",
+    "item": "一块充电宝",
+    "pet": "",
+    "line": "弹幕说别开门。你们说晚了一步。"
    }
   },
   {
@@ -2446,6 +2908,13 @@
    ],
    "img": {
     "face": "assets/survivors/faces/dragond.webp"
+   },
+   "tr": {
+    "self": "我啦",
+    "eye": "黑",
+    "item": "一个手机支架",
+    "pet": "",
+    "line": "我现在心跳一百四，你们听得见吗。"
    }
   },
   {
@@ -2477,6 +2946,13 @@
    ],
    "img": {
     "face": "assets/survivors/faces/zerok.webp"
+   },
+   "tr": {
+    "self": "我啦",
+    "eye": "琥珀",
+    "item": "一支补光灯",
+    "pet": "",
+    "line": "这个素材我留着，回头剪。"
    }
   },
   {
@@ -2508,6 +2984,13 @@
    ],
    "img": {
     "face": "assets/survivors/faces/xiamolin.webp"
+   },
+   "tr": {
+    "self": "本人",
+    "eye": "琥珀",
+    "item": "一支补光灯",
+    "pet": "",
+    "line": "我现在心跳一百四，你们听得见吗。"
    }
   },
   {
@@ -2539,6 +3022,13 @@
    ],
    "img": {
     "face": "assets/survivors/faces/chaoxing.webp"
+   },
+   "tr": {
+    "self": "主播我",
+    "eye": "琥珀",
+    "item": "半包纸巾",
+    "pet": "一只装在罐子里的鱼",
+    "line": "这里信号一格，我尽量不卡。"
    }
   },
   {
@@ -2570,6 +3060,13 @@
    ],
    "img": {
     "face": "assets/survivors/faces/maodie.webp"
+   },
+   "tr": {
+    "self": "咱",
+    "eye": "黑",
+    "item": "一个领夹麦",
+    "pet": "",
+    "line": "这里信号一格，我尽量不卡。"
    }
   },
   {
@@ -2601,6 +3098,13 @@
    ],
    "img": {
     "face": "assets/survivors/faces/baiyun.webp"
+   },
+   "tr": {
+    "self": "咱",
+    "eye": "黑",
+    "item": "一个手机支架",
+    "pet": "",
+    "line": "弹幕说别开门。你们说晚了一步。"
    }
   },
   {
@@ -2632,7 +3136,15 @@
    ],
    "img": {
     "face": "assets/survivors/faces/banxing.webp"
+   },
+   "tr": {
+    "self": "咱",
+    "eye": "褐",
+    "item": "一盒喉糖",
+    "pet": "",
+    "line": "我现在心跳一百四，你们听得见吗。"
    }
   }
- ]
+ ],
+ "_traitsNote": "每人的底细：self 自称 / eye 瞳色 / item 随身物 / pet 随行动物（多数为空）/ line 口头禅。伪人抄错的那一条可能落在其中任何一项；这些没有档案可查，只能靠图鉴里核实过的真值对照。瞳色按界域色系分配（不按立绘统计——统计只有一半能猜对，见脚本注释）。"
 }

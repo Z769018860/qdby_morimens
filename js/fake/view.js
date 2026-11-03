@@ -396,38 +396,59 @@ export function makeScene(canvas, art) {
     wg.addColorStop(1, '#33383e');
     ctx.fillStyle = wg;
     ctx.fillRect(WX, WY, WW, WH);
-    // 百叶
-    for (let i = 0; i < 11; i++) rect(WX + 2, WY + 6 + i * 8, WW - 4, 2, 'rgba(20,22,26,.55)');
+    // 百叶：几条粗的，别画成梯子
+    for (let i = 0; i < 6; i++) rect(WX + 2, WY + 10 + i * 15, WW - 4, 5, 'rgba(18,20,24,.5)');
+    // 窗心那一块是全天最亮的地方——外面永远是灰的，但它是白天
+    const cg = ctx.createRadialGradient(WX + WW / 2, WY + WH * 0.5, 6, WX + WW / 2, WY + WH * 0.5, 90);
+    cg.addColorStop(0, 'rgba(206,214,226,.30)');
+    cg.addColorStop(1, 'rgba(206,214,226,0)');
+    ctx.fillStyle = cg;
+    ctx.fillRect(WX, WY, WW, WH);
     rect(WX + WW / 2 - 1, WY, 2, WH, '#20242a');
     // 窗台上的水杯和空罐头
     rect(WX + 14, WY + WH - 8, 8, 8, '#585f68');
     rect(WX + 14, WY + WH - 8, 8, 1, '#78808a');
     rect(WX + 96, WY + WH - 6, 7, 6, '#4a5058');
 
-    // 沙发上坐着的人：几个活人就是几个剪影（细节在下面的住户条里）
+    // 沙发靠背
+    rect(236, 116, 220, 60, '#241c17');
+    rect(236, 116, 220, 3, '#33281f');
+    rect(236, 116, 3, 60, '#2c231b');
+
+    // 坐在沙发上的人：脑袋露在靠背上方。几个活人就是几个剪影——这一屏要说的就这一件事。
     const n = Math.min(6, st.room || 0);
     for (let i = 0; i < n; i++) {
-      const bx = 250 + i * 34;
-      const bob = Math.sin(t * 0.9 + i * 1.7) * 1.2;
-      // 头
-      ctx.fillStyle = '#0d0e11';
+      const bx = 246 + i * 35;
+      const bob = Math.sin(t * 0.8 + i * 2.1) * 1.4;
+      const hy = 108 + bob;
+      // 肩：从靠背上沿开始，被靠背挡住下半截
+      ctx.fillStyle = '#0b0c0f';
       ctx.beginPath();
-      ctx.arc(bx + 12, 138 + bob, 9, 0, 6.284);
+      ctx.moveTo(bx, 170); ctx.lineTo(bx + 2, hy + 12);
+      ctx.quadraticCurveTo(bx + 13, hy + 6, bx + 24, hy + 12);
+      ctx.lineTo(bx + 26, 170); ctx.closePath(); ctx.fill();
+      // 头
+      ctx.beginPath();
+      ctx.arc(bx + 13, hy, 9.5, 0, 6.284);
       ctx.fill();
-      // 肩
-      rect(bx, 146 + bob, 24, 34, '#0d0e11');
-      rect(bx + 2, 146 + bob, 20, 3, '#171a1e');
+      // 后脑一圈微光，别让它糊在靠背上
+      ctx.strokeStyle = 'rgba(150,160,175,.16)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(bx + 13, hy, 10, -2.4, -0.5);
+      ctx.stroke();
       // 偶尔动一下：活人坐着也不完全静止
-      if ((Math.floor(t * 3 + i * 5) % 17) === 0) rect(bx + 8, 152 + bob, 8, 2, '#2b3037');
+      if ((Math.floor(t * 2.5 + i * 5) % 13) === 0) {
+        rect(bx + 6, hy + 2, 3, 2, '#2c3138');
+        rect(bx + 17, hy + 2, 3, 2, '#2c3138');
+      }
     }
 
-    // 沙发：靠背 + 坐垫 + 扶手
-    rect(236, 118, 220, 62, '#241c17');
-    rect(236, 118, 220, 3, '#33281f');
-    rect(232, 172, 228, 22, '#2b211a');
-    rect(232, 172, 228, 2, '#3a2c22');
-    rect(228, 130, 14, 62, '#1f1813');
-    rect(450, 130, 14, 62, '#1f1813');
+    // 坐垫 + 扶手（画在人前面，人才像"陷"在沙发里）
+    rect(232, 170, 228, 24, '#2b211a');
+    rect(232, 170, 228, 2, '#3a2c22');
+    rect(228, 128, 14, 66, '#1f1813');
+    rect(450, 128, 14, 66, '#1f1813');
     // 地板
     rect(0, 194, W, 76, '#15161a');
     for (let i = 0; i < 7; i++) rect(0, 196 + i * 10, W, 1, 'rgba(255,255,255,.018)');

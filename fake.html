@@ -250,9 +250,8 @@ h1,h2,h3,p{margin:0}
 
 /* ------------------------------------------------------- 白天（屋里的人） */
 .isDay .tabs, .isDay .pane{display:none}
-.isDay .daypane{display:flex !important}
 .isDay .acts{display:none}
-.daypane{flex:1; min-height:0; flex-direction:column; gap:8px; padding:10px 12px 12px; overflow:auto}
+.daypane{flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; padding:10px 12px 12px; overflow:auto}
 .daypane::-webkit-scrollbar{width:6px}
 .daypane::-webkit-scrollbar-thumb{background:#2c2e38}
 .reslist{flex:none; max-height:46vh; overflow:auto; display:flex; flex-direction:column; gap:5px}
@@ -370,8 +369,9 @@ h1,h2,h3,p{margin:0}
   .tdoor{display:none}
   .tinner{text-align:center; max-width:100%}
   .menu{justify-content:center}
-  .photo .spr{max-height:150px}
-  .cdetail{gap:10px}
+  .photo .spr{max-height:150px; max-width:100%}
+  .cdetail{flex-direction:column; gap:10px}
+  .cdetail .photo{align-self:center; max-width:100%}
 }
 @media (max-width:400px){
   .sanity>span{display:none}
@@ -379,7 +379,7 @@ h1,h2,h3,p{margin:0}
   .acts .left{width:100%; margin-left:0}
 }
 </style>
-<meta name="build" content="5eedc80876">
+<meta name="build" content="3c1d2a3bf3">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -407,12 +407,12 @@ html{-webkit-tap-highlight-color:transparent}
     <div class="tinner">
       <p class="eyebrow">弥萨格 · 地下十一层 · 门房值夜记录</p>
       <h1>寻找伪人<span>：Morimens</span></h1>
-      <p class="lead">每晚都有人敲门，说自己是登记簿上的唤醒体。
-放错一个进来，这一层就没了。</p>
+      <p class="lead">夜里有人敲门，白天屋里坐着人。
+放错一个进来，它会在今晚替你杀掉屋里的一个。</p>
       <div class="menu">
         <button class="btn primary" id="btnNew" type="button">开始值夜</button>
         <button class="btn" id="btnCont" type="button" hidden>接着上一夜</button>
-        <button class="btn" id="btnCodex" type="button">档案库 <em id="codexCount">0/73</em></button>
+        <button class="btn" id="btnCodex" type="button">图鉴 <em id="codexCount">0/73</em></button>
         <button class="btn ghost" id="btnHelp" type="button">玩法</button>
       </div>
       <p class="best" id="bestLine"></p>
@@ -434,6 +434,7 @@ html{-webkit-tap-highlight-color:transparent}
       <div class="sanity"><span>理智</span><div class="bar"><i id="hSanBar"></i></div><b id="hSan">100</b></div>
       <div class="ammo" id="hAmmo" title="子弹"></div>
       <button class="ico" id="btnSound" type="button" title="声音">♪</button>
+      <button class="ico" id="btnCodex2" type="button" title="图鉴">鉴</button>
       <button class="ico" id="btnHelp2" type="button" title="玩法">?</button>
     </header>
 
@@ -607,7 +608,7 @@ html{-webkit-tap-highlight-color:transparent}
   if (h) h.textContent = '请在地址栏右侧把「兼容」切成「极速」（闪电图标），或改用 Chrome / Edge 打开。';
 })();
 </script>
-<script type="module" src="js/b/fake.js?v=5eedc80876"></script>
+<script type="module" src="js/b/fake.js?v=3c1d2a3bf3"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

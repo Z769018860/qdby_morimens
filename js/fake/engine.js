@@ -43,7 +43,7 @@ export const NIGHT_NAME = ['第一夜', '第二夜', '第三夜', '第四夜', '
 
 export const DAYS = 7;
 export const VISITS = 3;         // 每晚敲几次门
-export const ROOM_MAX = 6;       // 屋子最多住几个人
+export const ROOM_MAX = 8;       // 屋子最多住几个人（挤一点没关系，命要紧）
 export const START_HOME = 2;     // 开局屋里已有的住户（都是真人）
 export const HEAR_LIMIT = 1;     // 门外「听它说」的次数
 export const PEEK_LIMIT = 1;     // 门外「凑近看」的次数
@@ -274,6 +274,8 @@ export function newRun(seed) {
     started: Date.now(),
   };
   touch(s);
+  // 一开始就坐在屋里的人，你也算见过——图鉴别等他进门才点亮
+  residents.forEach((h) => markMet(h.cid));
   return s;
 }
 
@@ -315,10 +317,9 @@ export function hear(s) {
   const v = currentVisitor(s);
   if (!canHear(s, v)) return null;
   v.heard = true;
-  const k1 = noteTruth(s, v, 'self', v.shown.self);
-  const k2 = noteTruth(s, v, 'line', v.shown.line);
+  const kn = { self: judge(v, 'self', v.shown.self), line: judge(v, 'line', v.shown.line) };
   touch(s);
-  return { self: v.shown.self, line: v.shown.line, known: [k1, k2].filter(Boolean) };
+  return { self: v.shown.self, line: v.shown.line, kn };
 }
 
 // 「凑近看」：瞳色、随身的东西、有没有带动物。另外还有一层说不清的直觉（软破绽）。
@@ -326,27 +327,43 @@ export function peek(s) {
   const v = currentVisitor(s);
   if (!canPeek(s, v)) return null;
   v.peeked = true;
-  const known = [];
-  ['eye', 'item', 'pet'].forEach((k) => {
-    const n = noteTruth(s, v, k, v.shown[k]);
-    if (n) known.push(n);
-  });
+  const kn = {
+    eye: judge(v, 'eye', v.shown.eye),
+    item: judge(v, 'item', v.shown.item),
+    pet: judge(v, 'pet', v.shown.pet),
+  };
   // 软破绽：真人永远看不出，伪人按夜里的概率露一相（和底细无关的另一层不安）
-  const chance = [0.55, 0.5, 0.45, 0.4, 0.33, 0.25, 0.18][Math.min(6, s.night)];
+  const chance = [0.42, 0.4, 0.36, 0.32, 0.28, 0.22, 0.16][Math.min(6, s.night)];
   const odd = v.fake && v.obsRoll < chance ? Math.floor(roll(s) * 12) : -1;
   v.peekOdd = odd;
   touch(s);
-  return { eye: v.shown.eye, item: v.shown.item, pet: v.shown.pet, odd, known };
+  return { eye: v.shown.eye, item: v.shown.item, pet: v.shown.pet, odd, kn };
+}
+
+// 记图鉴 + 给这一项一个判定。
+//   'ok'  你**本来就记着**，而且对得上 —— 这一句可以放心
+//   'bad' 你本来就记着，但它说的不一样 —— 直接是破绽
+//   'new' 你没记过：悄悄记一笔（只有说对了才会真的记进去），当下不给你结论
+// 「new」不告诉你真假，是为了别让「它没被记进去」变成一眼看穿的测谎仪——
+// 要知道真假，得自己翻图鉴、自己比。
+function judge(v, field, value) {
+  const pre = isKnown(v.cid, field);
+  if (pre) {
+    const truth = v.c.tr ? v.c.tr[field] : undefined;
+    return (value || '') === (truth || '') ? 'ok' : 'bad';
+  }
+  noteTruth(v, field, value);
+  return 'new';
 }
 
 // 记图鉴：只有当对方说的**确实是真值**时才点亮（伪人说错的那一项永远点不亮）
-function noteTruth(s, v, field, value) {
-  if (!v.c.tr) return null;
+function noteTruth(v, field, value) {
+  if (!v.c.tr) return false;
   if (value === v.c.tr[field]) {
     markKnown(v.cid, field);
-    return field;
+    return true;
   }
-  return null;
+  return false;
 }
 
 // 门外决定：只有开门 / 不开门。枪留到白天——先让人进来，再决定要不要杀，这才是这套玩法。
@@ -364,7 +381,7 @@ export function decide(s, kind) {
     s.admitted = (s.admitted || 0) + 1;
   } else {
     if (v.fake) { key = 'refuse-fake'; d = +3; s.caught++; tag = '拦下'; }
-    else { key = 'refuse-real'; d = -5; s.refusedReal++; tag = '误拒'; }
+    else { key = 'refuse-real'; d = -8; s.refusedReal++; tag = '误拒'; }
   }
   s.sanity = clampSan(s.sanity + d);
   v.done = true;
@@ -379,7 +396,7 @@ export function decide(s, kind) {
     s.home.push(h);
   }
   s.log.push({ night: s.night, name: v.c.n, fake: v.fake, lie: v.lie, lieV: v.lieV, kind, tag, at: 'door' });
-  if (!s.met.includes(v.cid)) s.met.push(v.cid);
+  if (!s.met.includes(v.cid)) { s.met.push(v.cid); markMet(v.cid); }
   touch(s);
   return v.result;
 }
@@ -411,16 +428,19 @@ export function endNight(s) {
   for (const f of fakes) {
     const targets = homeReal(s);
     if (!targets.length) break;
+    if (roll(s) > 0.8) continue;   // 这一夜它只是坐着看了很久
     const t = targets[rollInt(s, targets.length)];
     t.alive = false;
     t.killedBy = f.cid;
     t.killedDay = s.day + 1;
     deaths.push({ cid: t.cid, name: t.c.n, by: f.c.n, realm: t.c.realm, k: t.c.k });
     s.deaths.push({ cid: t.cid, name: t.c.n, by: f.c.n, day: s.day + 1, how: 'night' });
-    s.sanity = clampSan(s.sanity - 15);
+    s.sanity = clampSan(s.sanity - 12);
   }
   const lonely = fakes.length > 0 && homeReal(s).length === 0;
   if (lonely) s.sanity = clampSan(s.sanity - 8);
+  // 屋里一个活人都不剩、而且坐着两个以上的它们：这一层已经不算你的了
+  if (lonely && fakes.length >= 2) { s.over = true; s.ending = 'leak'; s.phase = 'over'; }
   s.nightReport = { deaths, lonely, night: s.night };
   s.night += 1;
   if (s.night >= DAYS) { finish(s); return s.nightReport; }
@@ -476,23 +496,20 @@ export function talk(s, cid, topic) {
     }
   } else if (topic === 'self') {
     out.lines.push('「' + h.shown.self + '。」');
-    const n = noteTruth(s, h, 'self', h.shown.self);
-    if (n) out.known.push(n);
+    out.kn = { self: judge(h, 'self', h.shown.self) };
     if (h.lie === 'self') out.lie = 'self';
   } else if (topic === 'eye') {
     out.lines.push('它把眼睛转过来。瞳色是' + h.shown.eye + '的。');
-    const n = noteTruth(s, h, 'eye', h.shown.eye);
-    if (n) out.known.push(n);
+    out.kn = { eye: judge(h, 'eye', h.shown.eye) };
     if (h.lie === 'eye') out.lie = 'eye';
+    out.odd = h.fake && roll(s) < 0.34 ? Math.floor(roll(s) * 12) : -1;
   } else if (topic === 'item') {
     out.lines.push('它把口袋翻出来：' + (h.shown.item || '什么也没有') +
-      (h.shown.pet ? '。身边还跟着' + h.shown.pet : '。什么活物也没带'));
-    const n1 = noteTruth(s, h, 'item', h.shown.item);
-    const n2 = noteTruth(s, h, 'pet', h.shown.pet);
-    if (n1) out.known.push(n1);
-    if (n2) out.known.push(n2);
+      (h.shown.pet ? '。身上还带着' + h.shown.pet : '。身边没有活物'));
+    out.kn = { item: judge(h, 'item', h.shown.item), pet: judge(h, 'pet', h.shown.pet) };
     if (h.lie === 'item') out.lie = 'item';
     if (h.lie === 'pet') out.lie = 'pet';
+    out.odd = h.fake && roll(s) < 0.34 ? Math.floor(roll(s) * 12) : -1;
   } else if (topic === 'who') {
     // 情报：真人可能看错，伪人一定往真人身上指
     const reals = homeReal(s).filter((x) => x.cid !== h.cid);
@@ -570,8 +587,8 @@ export function finish(s) {
   else if (s.killedReal >= 3) s.ending = 'kill';
   else if (!reals.length && fakes.length >= 2) s.ending = 'leak';
   else if (!reals.length) s.ending = 'alone';
-  else if ((s.admitted || 0) <= 2) s.ending = 'shut';
-  else if (clean && s.leaked === 0 && knownCount() >= 240) s.ending = 'archive';
+  else if ((s.admitted || 0) <= 2 || s.refusedReal >= 6) s.ending = 'shut';
+  else if (clean && s.leaked === 0 && knownCount() >= 300) s.ending = 'archive';
   else if (clean && s.leaked === 0) s.ending = 'perfect';
   else {
     // 和你一起活到最后的是谁，决定这是哪个结局
@@ -645,6 +662,14 @@ export function knownCount() {
   return Object.keys(c.known || {}).reduce((a, k) => a + Object.keys(c.known[k]).length, 0);
 }
 export const KNOWN_MAX = CHARS.length * 5;
+// 见过一面就记进图鉴：局内点「鉴」也能看到这个人，不用等这一局走完
+export function markMet(cid) {
+  const c = codex();
+  if (c.met.includes(cid)) return false;
+  c.met.push(cid);
+  write(K.codex, c);
+  return true;
+}
 export function meetAll(names) {
   const c = codex();
   let add = 0;

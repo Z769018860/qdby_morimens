@@ -164,7 +164,6 @@ function continueRun() {
   if (!sv || sv.over) return startNew();
   S = sv;
   $('#scrTitle').hidden = true;
-  $('#scrEnd').hidden = false;
   $('#scrEnd').hidden = true;
   $('#scrGame').hidden = false;
   if (S.phase === 'night') {
@@ -178,6 +177,7 @@ function continueRun() {
 
 /* ------------------------------------------------------------ 夜晚相位 */
 function startVisit(v) {
+  $('#sideDay').hidden = true;
   $('#scrGame').classList.remove('isDay');
   scene.setMode('visit');
   scene.setChar(v.c);
@@ -252,6 +252,7 @@ const DEAD_OPEN = {
 function enterDay(fresh) {
   S.phase = 'day';
   pick = null;
+  $('#sideDay').hidden = false;
   $('#scrGame').classList.add('isDay');
   scene.setMode('day');
   scene.setRoom(homeAlive(S).length);
@@ -514,7 +515,7 @@ function paintLog() {
   if (!v.heard && !v.peeked) {
     p.appendChild(el('p', 'hint', '还没听它说过话，也没凑近看过。\n这两样不占问话次数，一个人各能来一次。'));
   } else {
-    p.appendChild(el('p', 'hint', '带「？」的是图鉴里还没有的项——没有对照，就看不出真假。'));
+    p.appendChild(el('p', 'hint', '这里只记它说了什么、身上是什么。\n要判真假，点右上角「鉴」翻图鉴——你核实过的那一项，才拿来对。'));
   }
 
   const c = codex();
@@ -523,21 +524,12 @@ function paintLog() {
   p.appendChild(foot);
 }
 
-// 一项底细：值 + 图鉴对照
+// 一项底细：只说它是什么，不给结论——结论要你自己翻图鉴对
 function traitRow(label, field, cid, value) {
   const row = el('div', 'trow');
   row.appendChild(el('span', 'tl', label));
   row.appendChild(el('b', 'tv', value || '—'));
-  const c = charOf(cid);
-  if (!isKnown(cid, field)) {
-    row.appendChild(el('em', 'tk dim', '图鉴里没有'));
-    row.dataset.known = '0';
-    return row;
-  }
-  const truth = c.tr[field];
-  const ok = (value || '') === (truth || '');
-  row.classList.toggle('bad', !ok);
-  row.appendChild(el('em', 'tk ' + (ok ? 'ok' : 'bad'), ok ? '✓' : '图鉴：' + (truth || '（没有）')));
+  row.appendChild(el('em', 'tk dim', ''));
   return row;
 }
 
@@ -628,7 +620,7 @@ function doPeek() {
   const tail = pickBy(PEEK_TAIL, v.cid + 'q');
   let body = head + '\n\n瞳色是' + r.eye + '的。' +
     (r.item ? '手里攥着' + r.item + '。' : '手里什么也没拿。') +
-    (r.pet ? '脚边跟着' + r.pet + '。' : '身边没有活物。');
+    (r.pet ? '身上还带着' + r.pet + '。' : '身边没有活物。');
   if (r.odd >= 0) {
     body += '\n\n' + OBSERVE_ANOMALY[r.odd].t;
     scene.red(0.55); scene.shake(0.5); sfx.heartbeat();
@@ -671,13 +663,14 @@ function doDecide(kind) {
 }
 
 /* ---------------------------------------------------------- 白天：对话 */
-function cmpKnown(cid, field, value) {
+// 一句话的判定：只有「你本来就记着」的时候才给结论。
+// 第一次听到的不下结论——那正是要靠图鉴（和多周目）补上的部分。
+function verdictLine(cid, field, kn) {
   const c = charOf(cid);
-  if (!isKnown(cid, field)) return '\n〔图鉴里还没有这一项，现在对不上也没法判〕';
   const truth = c.tr[field] || '（没有）';
-  return (value || '') === (c.tr[field] || '')
-    ? '\n✓ 和图鉴记的一样：' + truth
-    : '\n✗ 图鉴记的是：' + truth;
+  if (kn === 'ok') return '\n✓ 和你记的一样：' + truth;
+  if (kn === 'bad') return '\n✗ 你记的是：' + truth;
+  return '\n〔这一项先记下，回头对图鉴〕';
 }
 
 function doTalk(topic) {
@@ -707,14 +700,14 @@ function doTalk(topic) {
       scene.red(0.4); sfx.heartbeat();
     } else { body += '\n\n✓ 和档案一致'; tone = 'good'; sub = '和档案一致'; }
   } else if (topic === 'self') {
-    body += r.lines.join('\n') + cmpKnown(h.cid, 'self', h.shown.self);
-    tone = r.lie === 'self' ? 'bad' : '';
+    body += r.lines.join('\n') + verdictLine(h.cid, 'self', r.kn.self);
+    tone = r.kn.self === 'bad' ? 'bad' : '';
   } else if (topic === 'eye') {
-    body += r.lines.join('\n') + cmpKnown(h.cid, 'eye', h.shown.eye);
-    tone = r.lie === 'eye' ? 'bad' : '';
+    body += r.lines.join('\n') + verdictLine(h.cid, 'eye', r.kn.eye);
+    tone = r.kn.eye === 'bad' ? 'bad' : '';
   } else if (topic === 'item') {
-    body += r.lines.join('\n') + cmpKnown(h.cid, 'item', h.shown.item) + cmpKnown(h.cid, 'pet', h.shown.pet);
-    tone = (r.lie === 'item' || r.lie === 'pet') ? 'bad' : '';
+    body += r.lines.join('\n') + verdictLine(h.cid, 'item', r.kn.item) + verdictLine(h.cid, 'pet', r.kn.pet);
+    tone = (r.kn.item === 'bad' || r.kn.pet === 'bad') ? 'bad' : '';
   } else if (topic === 'who') {
     if (!r.accuse) {
       body += pickBy(TALK_WHO_NONE, h.cid + S.day);
@@ -726,6 +719,13 @@ function doTalk(topic) {
   } else if (topic === 'past') {
     const pool = PAST[h.c.realm] || PAST['混沌'];
     body += pool[(S.day + h.joined) % pool.length];
+  }
+
+  if (r.odd >= 0) {
+    body += '\n\n' + OBSERVE_ANOMALY[r.odd].t;
+    tone = 'bad';
+    sub = '有一点不对';
+    scene.red(0.4); sfx.heartbeat();
   }
 
   say(body);
@@ -768,6 +768,7 @@ function doShoot() {
 
 /* ------------------------------------------------------------------ 结局 */
 function showEnding() {
+  closeModal();
   flush(S);
   sfx.stopDrone();
   const E = ENDINGS[S.ending] || ENDINGS.dawn;
@@ -838,7 +839,8 @@ function paintCodex() {
   const box = $('#mbox');
   box.replaceChildren();
   box.classList.add('wide');
-  box.appendChild(el('h3', null, '图鉴 · ' + Object.keys(c.known || {}).length + ' / ' + ALL_CHARS.length + ' 人'));
+  box.appendChild(el('h3', null, '图鉴 · 见过 ' + (c.met || []).length + ' / ' + ALL_CHARS.length
+    + ' 人 · 核实 ' + knownCount() + ' 项'));
 
   const bar = el('div', 'cfilter');
   [['all', '全部'], ['known', '有记录'], ['a', '唤醒体'], ['s', '主播']].forEach(([k, t]) => {
@@ -850,10 +852,12 @@ function paintCodex() {
   box.appendChild(bar);
 
   const grid = el('div', 'cgrid');
-  ALL_CHARS.forEach((ch) => {
+  // 见过的排前面、核实项多的再靠前——否则一屋子 ？？？里翻自己认识的那两个人太费劲
+  const order = ALL_CHARS.map((ch, i) => {
     const k = c.known[ch.n] || {};
-    const n = Object.keys(k).length;
-    const met = c.met.includes(ch.n);
+    return { ch, i, n: Object.keys(k).length, met: c.met.includes(ch.n) };
+  }).sort((a, b) => (b.met - a.met) || (b.n - a.n) || (a.i - b.i));
+  order.forEach(({ ch, n, met }) => {
     if (codexFilter === 'known' && !n) return;
     if (codexFilter === 'a' && ch.k !== 'a') return;
     if (codexFilter === 's' && ch.k !== 's') return;
@@ -995,6 +999,7 @@ async function boot() {
   $('#btnCodex').onclick = () => { sfx.paper(); openCodex(); };
   $('#btnHelp').onclick = () => { sfx.tick(); openHelp(); };
   $('#btnHelp2').onclick = () => { sfx.tick(); openHelp(); };
+  $('#btnCodex2').onclick = () => { sfx.paper(); openCodex(); };
   $('#btnSound').onclick = () => {
     sfx.unlock();
     const on = !sfx.isOn();

@@ -61,7 +61,7 @@ const NIGHT_NAME = ['第一夜', '第二夜', '第三夜', '第四夜', '第五�
 
 const DAYS = 7;
 const VISITS = 3;         // 每晚敲几次门
-const ROOM_MAX = 6;       // 屋子最多住几个人
+const ROOM_MAX = 8;       // 屋子最多住几个人（挤一点没关系，命要紧）
 const START_HOME = 2;     // 开局屋里已有的住户（都是真人）
 const HEAR_LIMIT = 1;     // 门外「听它说」的次数
 const PEEK_LIMIT = 1;     // 门外「凑近看」的次数
@@ -292,6 +292,8 @@ function newRun(seed) {
     started: Date.now(),
   };
   touch(s);
+  // 一开始就坐在屋里的人，你也算见过——图鉴别等他进门才点亮
+  residents.forEach((h) => markMet(h.cid));
   return s;
 }
 
@@ -333,10 +335,9 @@ function hear(s) {
   const v = currentVisitor(s);
   if (!canHear(s, v)) return null;
   v.heard = true;
-  const k1 = noteTruth(s, v, 'self', v.shown.self);
-  const k2 = noteTruth(s, v, 'line', v.shown.line);
+  const kn = { self: judge(v, 'self', v.shown.self), line: judge(v, 'line', v.shown.line) };
   touch(s);
-  return { self: v.shown.self, line: v.shown.line, known: [k1, k2].filter(Boolean) };
+  return { self: v.shown.self, line: v.shown.line, kn };
 }
 
 // 「凑近看」：瞳色、随身的东西、有没有带动物。另外还有一层说不清的直觉（软破绽）。
@@ -344,27 +345,43 @@ function peek(s) {
   const v = currentVisitor(s);
   if (!canPeek(s, v)) return null;
   v.peeked = true;
-  const known = [];
-  ['eye', 'item', 'pet'].forEach((k) => {
-    const n = noteTruth(s, v, k, v.shown[k]);
-    if (n) known.push(n);
-  });
+  const kn = {
+    eye: judge(v, 'eye', v.shown.eye),
+    item: judge(v, 'item', v.shown.item),
+    pet: judge(v, 'pet', v.shown.pet),
+  };
   // 软破绽：真人永远看不出，伪人按夜里的概率露一相（和底细无关的另一层不安）
-  const chance = [0.55, 0.5, 0.45, 0.4, 0.33, 0.25, 0.18][Math.min(6, s.night)];
+  const chance = [0.42, 0.4, 0.36, 0.32, 0.28, 0.22, 0.16][Math.min(6, s.night)];
   const odd = v.fake && v.obsRoll < chance ? Math.floor(roll(s) * 12) : -1;
   v.peekOdd = odd;
   touch(s);
-  return { eye: v.shown.eye, item: v.shown.item, pet: v.shown.pet, odd, known };
+  return { eye: v.shown.eye, item: v.shown.item, pet: v.shown.pet, odd, kn };
+}
+
+// 记图鉴 + 给这一项一个判定。
+//   'ok'  你**本来就记着**，而且对得上 —— 这一句可以放心
+//   'bad' 你本来就记着，但它说的不一样 —— 直接是破绽
+//   'new' 你没记过：悄悄记一笔（只有说对了才会真的记进去），当下不给你结论
+// 「new」不告诉你真假，是为了别让「它没被记进去」变成一眼看穿的测谎仪——
+// 要知道真假，得自己翻图鉴、自己比。
+function judge(v, field, value) {
+  const pre = isKnown(v.cid, field);
+  if (pre) {
+    const truth = v.c.tr ? v.c.tr[field] : undefined;
+    return (value || '') === (truth || '') ? 'ok' : 'bad';
+  }
+  noteTruth(v, field, value);
+  return 'new';
 }
 
 // 记图鉴：只有当对方说的**确实是真值**时才点亮（伪人说错的那一项永远点不亮）
-function noteTruth(s, v, field, value) {
-  if (!v.c.tr) return null;
+function noteTruth(v, field, value) {
+  if (!v.c.tr) return false;
   if (value === v.c.tr[field]) {
     markKnown(v.cid, field);
-    return field;
+    return true;
   }
-  return null;
+  return false;
 }
 
 // 门外决定：只有开门 / 不开门。枪留到白天——先让人进来，再决定要不要杀，这才是这套玩法。
@@ -382,7 +399,7 @@ function decide(s, kind) {
     s.admitted = (s.admitted || 0) + 1;
   } else {
     if (v.fake) { key = 'refuse-fake'; d = +3; s.caught++; tag = '拦下'; }
-    else { key = 'refuse-real'; d = -5; s.refusedReal++; tag = '误拒'; }
+    else { key = 'refuse-real'; d = -8; s.refusedReal++; tag = '误拒'; }
   }
   s.sanity = clampSan(s.sanity + d);
   v.done = true;
@@ -397,7 +414,7 @@ function decide(s, kind) {
     s.home.push(h);
   }
   s.log.push({ night: s.night, name: v.c.n, fake: v.fake, lie: v.lie, lieV: v.lieV, kind, tag, at: 'door' });
-  if (!s.met.includes(v.cid)) s.met.push(v.cid);
+  if (!s.met.includes(v.cid)) { s.met.push(v.cid); markMet(v.cid); }
   touch(s);
   return v.result;
 }
@@ -429,16 +446,19 @@ function endNight(s) {
   for (const f of fakes) {
     const targets = homeReal(s);
     if (!targets.length) break;
+    if (roll(s) > 0.8) continue;   // 这一夜它只是坐着看了很久
     const t = targets[rollInt(s, targets.length)];
     t.alive = false;
     t.killedBy = f.cid;
     t.killedDay = s.day + 1;
     deaths.push({ cid: t.cid, name: t.c.n, by: f.c.n, realm: t.c.realm, k: t.c.k });
     s.deaths.push({ cid: t.cid, name: t.c.n, by: f.c.n, day: s.day + 1, how: 'night' });
-    s.sanity = clampSan(s.sanity - 15);
+    s.sanity = clampSan(s.sanity - 12);
   }
   const lonely = fakes.length > 0 && homeReal(s).length === 0;
   if (lonely) s.sanity = clampSan(s.sanity - 8);
+  // 屋里一个活人都不剩、而且坐着两个以上的它们：这一层已经不算你的了
+  if (lonely && fakes.length >= 2) { s.over = true; s.ending = 'leak'; s.phase = 'over'; }
   s.nightReport = { deaths, lonely, night: s.night };
   s.night += 1;
   if (s.night >= DAYS) { finish(s); return s.nightReport; }
@@ -494,23 +514,20 @@ function talk(s, cid, topic) {
     }
   } else if (topic === 'self') {
     out.lines.push('「' + h.shown.self + '。」');
-    const n = noteTruth(s, h, 'self', h.shown.self);
-    if (n) out.known.push(n);
+    out.kn = { self: judge(h, 'self', h.shown.self) };
     if (h.lie === 'self') out.lie = 'self';
   } else if (topic === 'eye') {
     out.lines.push('它把眼睛转过来。瞳色是' + h.shown.eye + '的。');
-    const n = noteTruth(s, h, 'eye', h.shown.eye);
-    if (n) out.known.push(n);
+    out.kn = { eye: judge(h, 'eye', h.shown.eye) };
     if (h.lie === 'eye') out.lie = 'eye';
+    out.odd = h.fake && roll(s) < 0.34 ? Math.floor(roll(s) * 12) : -1;
   } else if (topic === 'item') {
     out.lines.push('它把口袋翻出来：' + (h.shown.item || '什么也没有') +
-      (h.shown.pet ? '。身边还跟着' + h.shown.pet : '。什么活物也没带'));
-    const n1 = noteTruth(s, h, 'item', h.shown.item);
-    const n2 = noteTruth(s, h, 'pet', h.shown.pet);
-    if (n1) out.known.push(n1);
-    if (n2) out.known.push(n2);
+      (h.shown.pet ? '。身上还带着' + h.shown.pet : '。身边没有活物'));
+    out.kn = { item: judge(h, 'item', h.shown.item), pet: judge(h, 'pet', h.shown.pet) };
     if (h.lie === 'item') out.lie = 'item';
     if (h.lie === 'pet') out.lie = 'pet';
+    out.odd = h.fake && roll(s) < 0.34 ? Math.floor(roll(s) * 12) : -1;
   } else if (topic === 'who') {
     // 情报：真人可能看错，伪人一定往真人身上指
     const reals = homeReal(s).filter((x) => x.cid !== h.cid);
@@ -588,8 +605,8 @@ function finish(s) {
   else if (s.killedReal >= 3) s.ending = 'kill';
   else if (!reals.length && fakes.length >= 2) s.ending = 'leak';
   else if (!reals.length) s.ending = 'alone';
-  else if ((s.admitted || 0) <= 2) s.ending = 'shut';
-  else if (clean && s.leaked === 0 && knownCount() >= 240) s.ending = 'archive';
+  else if ((s.admitted || 0) <= 2 || s.refusedReal >= 6) s.ending = 'shut';
+  else if (clean && s.leaked === 0 && knownCount() >= 300) s.ending = 'archive';
   else if (clean && s.leaked === 0) s.ending = 'perfect';
   else {
     // 和你一起活到最后的是谁，决定这是哪个结局
@@ -663,6 +680,14 @@ function knownCount() {
   return Object.keys(c.known || {}).reduce((a, k) => a + Object.keys(c.known[k]).length, 0);
 }
 const KNOWN_MAX = CHARS.length * 5;
+// 见过一面就记进图鉴：局内点「鉴」也能看到这个人，不用等这一局走完
+function markMet(cid) {
+  const c = codex();
+  if (c.met.includes(cid)) return false;
+  c.met.push(cid);
+  write(K.codex, c);
+  return true;
+}
 function meetAll(names) {
   const c = codex();
   let add = 0;
@@ -684,7 +709,7 @@ function saveBest(res) {
 }
 const clampSan = (v) => Math.max(0, Math.min(100, v));
 const ART_META = META;
-return { FIELD_LABEL, FIELD_ASK, LIE_LABEL, NIGHT_NAME, DAYS, VISITS, ROOM_MAX, START_HOME, HEAR_LIMIT, PEEK_LIMIT, TALK_PER_DAY, NIGHTS, FAKE_TOTAL, ON_PAPER, makeRng, charOf, ALL_CHARS, newRun, currentVisitor, nightCfg, homeAlive, homeReal, homeFake, homeOf, roomFull, startVisit, canAsk, canHear, canPeek, ask, hear, peek, decide, nextVisitor, nightDone, endNight, TOPICS, canTalk, talk, shoot, startNight, finish, score, touch, flush, loadSave, clearSave, codex, markKnown, isKnown, knownCount, KNOWN_MAX, meetAll, best, saveBest, ART_META };
+return { FIELD_LABEL, FIELD_ASK, LIE_LABEL, NIGHT_NAME, DAYS, VISITS, ROOM_MAX, START_HOME, HEAR_LIMIT, PEEK_LIMIT, TALK_PER_DAY, NIGHTS, FAKE_TOTAL, ON_PAPER, makeRng, charOf, ALL_CHARS, newRun, currentVisitor, nightCfg, homeAlive, homeReal, homeFake, homeOf, roomFull, startVisit, canAsk, canHear, canPeek, ask, hear, peek, decide, nextVisitor, nightDone, endNight, TOPICS, canTalk, talk, shoot, startNight, finish, score, touch, flush, loadSave, clearSave, codex, markKnown, isKnown, knownCount, KNOWN_MAX, markMet, meetAll, best, saveBest, ART_META };
 })();
 
 // ---- js/fake/view.js
@@ -1088,38 +1113,59 @@ function makeScene(canvas, art) {
     wg.addColorStop(1, '#33383e');
     ctx.fillStyle = wg;
     ctx.fillRect(WX, WY, WW, WH);
-    // 百叶
-    for (let i = 0; i < 11; i++) rect(WX + 2, WY + 6 + i * 8, WW - 4, 2, 'rgba(20,22,26,.55)');
+    // 百叶：几条粗的，别画成梯子
+    for (let i = 0; i < 6; i++) rect(WX + 2, WY + 10 + i * 15, WW - 4, 5, 'rgba(18,20,24,.5)');
+    // 窗心那一块是全天最亮的地方——外面永远是灰的，但它是白天
+    const cg = ctx.createRadialGradient(WX + WW / 2, WY + WH * 0.5, 6, WX + WW / 2, WY + WH * 0.5, 90);
+    cg.addColorStop(0, 'rgba(206,214,226,.30)');
+    cg.addColorStop(1, 'rgba(206,214,226,0)');
+    ctx.fillStyle = cg;
+    ctx.fillRect(WX, WY, WW, WH);
     rect(WX + WW / 2 - 1, WY, 2, WH, '#20242a');
     // 窗台上的水杯和空罐头
     rect(WX + 14, WY + WH - 8, 8, 8, '#585f68');
     rect(WX + 14, WY + WH - 8, 8, 1, '#78808a');
     rect(WX + 96, WY + WH - 6, 7, 6, '#4a5058');
 
-    // 沙发上坐着的人：几个活人就是几个剪影（细节在下面的住户条里）
+    // 沙发靠背
+    rect(236, 116, 220, 60, '#241c17');
+    rect(236, 116, 220, 3, '#33281f');
+    rect(236, 116, 3, 60, '#2c231b');
+
+    // 坐在沙发上的人：脑袋露在靠背上方。几个活人就是几个剪影——这一屏要说的就这一件事。
     const n = Math.min(6, st.room || 0);
     for (let i = 0; i < n; i++) {
-      const bx = 250 + i * 34;
-      const bob = Math.sin(t * 0.9 + i * 1.7) * 1.2;
-      // 头
-      ctx.fillStyle = '#0d0e11';
+      const bx = 246 + i * 35;
+      const bob = Math.sin(t * 0.8 + i * 2.1) * 1.4;
+      const hy = 108 + bob;
+      // 肩：从靠背上沿开始，被靠背挡住下半截
+      ctx.fillStyle = '#0b0c0f';
       ctx.beginPath();
-      ctx.arc(bx + 12, 138 + bob, 9, 0, 6.284);
+      ctx.moveTo(bx, 170); ctx.lineTo(bx + 2, hy + 12);
+      ctx.quadraticCurveTo(bx + 13, hy + 6, bx + 24, hy + 12);
+      ctx.lineTo(bx + 26, 170); ctx.closePath(); ctx.fill();
+      // 头
+      ctx.beginPath();
+      ctx.arc(bx + 13, hy, 9.5, 0, 6.284);
       ctx.fill();
-      // 肩
-      rect(bx, 146 + bob, 24, 34, '#0d0e11');
-      rect(bx + 2, 146 + bob, 20, 3, '#171a1e');
+      // 后脑一圈微光，别让它糊在靠背上
+      ctx.strokeStyle = 'rgba(150,160,175,.16)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(bx + 13, hy, 10, -2.4, -0.5);
+      ctx.stroke();
       // 偶尔动一下：活人坐着也不完全静止
-      if ((Math.floor(t * 3 + i * 5) % 17) === 0) rect(bx + 8, 152 + bob, 8, 2, '#2b3037');
+      if ((Math.floor(t * 2.5 + i * 5) % 13) === 0) {
+        rect(bx + 6, hy + 2, 3, 2, '#2c3138');
+        rect(bx + 17, hy + 2, 3, 2, '#2c3138');
+      }
     }
 
-    // 沙发：靠背 + 坐垫 + 扶手
-    rect(236, 118, 220, 62, '#241c17');
-    rect(236, 118, 220, 3, '#33281f');
-    rect(232, 172, 228, 22, '#2b211a');
-    rect(232, 172, 228, 2, '#3a2c22');
-    rect(228, 130, 14, 62, '#1f1813');
-    rect(450, 130, 14, 62, '#1f1813');
+    // 坐垫 + 扶手（画在人前面，人才像"陷"在沙发里）
+    rect(232, 170, 228, 24, '#2b211a');
+    rect(232, 170, 228, 2, '#3a2c22');
+    rect(228, 128, 14, 66, '#1f1813');
+    rect(450, 128, 14, 66, '#1f1813');
     // 地板
     rect(0, 194, W, 76, '#15161a');
     for (let i = 0; i < 7; i++) rect(0, 196 + i * 10, W, 1, 'rgba(255,255,255,.018)');
@@ -1884,7 +1930,6 @@ function continueRun() {
   if (!sv || sv.over) return startNew();
   S = sv;
   $('#scrTitle').hidden = true;
-  $('#scrEnd').hidden = false;
   $('#scrEnd').hidden = true;
   $('#scrGame').hidden = false;
   if (S.phase === 'night') {
@@ -1898,6 +1943,7 @@ function continueRun() {
 
 /* ------------------------------------------------------------ 夜晚相位 */
 function startVisit(v) {
+  $('#sideDay').hidden = true;
   $('#scrGame').classList.remove('isDay');
   scene.setMode('visit');
   scene.setChar(v.c);
@@ -1972,6 +2018,7 @@ const DEAD_OPEN = {
 function enterDay(fresh) {
   S.phase = 'day';
   pick = null;
+  $('#sideDay').hidden = false;
   $('#scrGame').classList.add('isDay');
   scene.setMode('day');
   scene.setRoom(homeAlive(S).length);
@@ -2234,7 +2281,7 @@ function paintLog() {
   if (!v.heard && !v.peeked) {
     p.appendChild(el('p', 'hint', '还没听它说过话，也没凑近看过。\n这两样不占问话次数，一个人各能来一次。'));
   } else {
-    p.appendChild(el('p', 'hint', '带「？」的是图鉴里还没有的项——没有对照，就看不出真假。'));
+    p.appendChild(el('p', 'hint', '这里只记它说了什么、身上是什么。\n要判真假，点右上角「鉴」翻图鉴——你核实过的那一项，才拿来对。'));
   }
 
   const c = codex();
@@ -2243,21 +2290,12 @@ function paintLog() {
   p.appendChild(foot);
 }
 
-// 一项底细：值 + 图鉴对照
+// 一项底细：只说它是什么，不给结论——结论要你自己翻图鉴对
 function traitRow(label, field, cid, value) {
   const row = el('div', 'trow');
   row.appendChild(el('span', 'tl', label));
   row.appendChild(el('b', 'tv', value || '—'));
-  const c = charOf(cid);
-  if (!isKnown(cid, field)) {
-    row.appendChild(el('em', 'tk dim', '图鉴里没有'));
-    row.dataset.known = '0';
-    return row;
-  }
-  const truth = c.tr[field];
-  const ok = (value || '') === (truth || '');
-  row.classList.toggle('bad', !ok);
-  row.appendChild(el('em', 'tk ' + (ok ? 'ok' : 'bad'), ok ? '✓' : '图鉴：' + (truth || '（没有）')));
+  row.appendChild(el('em', 'tk dim', ''));
   return row;
 }
 
@@ -2348,7 +2386,7 @@ function doPeek() {
   const tail = pickBy(PEEK_TAIL, v.cid + 'q');
   let body = head + '\n\n瞳色是' + r.eye + '的。' +
     (r.item ? '手里攥着' + r.item + '。' : '手里什么也没拿。') +
-    (r.pet ? '脚边跟着' + r.pet + '。' : '身边没有活物。');
+    (r.pet ? '身上还带着' + r.pet + '。' : '身边没有活物。');
   if (r.odd >= 0) {
     body += '\n\n' + OBSERVE_ANOMALY[r.odd].t;
     scene.red(0.55); scene.shake(0.5); sfx.heartbeat();
@@ -2391,13 +2429,14 @@ function doDecide(kind) {
 }
 
 /* ---------------------------------------------------------- 白天：对话 */
-function cmpKnown(cid, field, value) {
+// 一句话的判定：只有「你本来就记着」的时候才给结论。
+// 第一次听到的不下结论——那正是要靠图鉴（和多周目）补上的部分。
+function verdictLine(cid, field, kn) {
   const c = charOf(cid);
-  if (!isKnown(cid, field)) return '\n〔图鉴里还没有这一项，现在对不上也没法判〕';
   const truth = c.tr[field] || '（没有）';
-  return (value || '') === (c.tr[field] || '')
-    ? '\n✓ 和图鉴记的一样：' + truth
-    : '\n✗ 图鉴记的是：' + truth;
+  if (kn === 'ok') return '\n✓ 和你记的一样：' + truth;
+  if (kn === 'bad') return '\n✗ 你记的是：' + truth;
+  return '\n〔这一项先记下，回头对图鉴〕';
 }
 
 function doTalk(topic) {
@@ -2427,14 +2466,14 @@ function doTalk(topic) {
       scene.red(0.4); sfx.heartbeat();
     } else { body += '\n\n✓ 和档案一致'; tone = 'good'; sub = '和档案一致'; }
   } else if (topic === 'self') {
-    body += r.lines.join('\n') + cmpKnown(h.cid, 'self', h.shown.self);
-    tone = r.lie === 'self' ? 'bad' : '';
+    body += r.lines.join('\n') + verdictLine(h.cid, 'self', r.kn.self);
+    tone = r.kn.self === 'bad' ? 'bad' : '';
   } else if (topic === 'eye') {
-    body += r.lines.join('\n') + cmpKnown(h.cid, 'eye', h.shown.eye);
-    tone = r.lie === 'eye' ? 'bad' : '';
+    body += r.lines.join('\n') + verdictLine(h.cid, 'eye', r.kn.eye);
+    tone = r.kn.eye === 'bad' ? 'bad' : '';
   } else if (topic === 'item') {
-    body += r.lines.join('\n') + cmpKnown(h.cid, 'item', h.shown.item) + cmpKnown(h.cid, 'pet', h.shown.pet);
-    tone = (r.lie === 'item' || r.lie === 'pet') ? 'bad' : '';
+    body += r.lines.join('\n') + verdictLine(h.cid, 'item', r.kn.item) + verdictLine(h.cid, 'pet', r.kn.pet);
+    tone = (r.kn.item === 'bad' || r.kn.pet === 'bad') ? 'bad' : '';
   } else if (topic === 'who') {
     if (!r.accuse) {
       body += pickBy(TALK_WHO_NONE, h.cid + S.day);
@@ -2446,6 +2485,13 @@ function doTalk(topic) {
   } else if (topic === 'past') {
     const pool = PAST[h.c.realm] || PAST['混沌'];
     body += pool[(S.day + h.joined) % pool.length];
+  }
+
+  if (r.odd >= 0) {
+    body += '\n\n' + OBSERVE_ANOMALY[r.odd].t;
+    tone = 'bad';
+    sub = '有一点不对';
+    scene.red(0.4); sfx.heartbeat();
   }
 
   say(body);
@@ -2488,6 +2534,7 @@ function doShoot() {
 
 /* ------------------------------------------------------------------ 结局 */
 function showEnding() {
+  closeModal();
   flush(S);
   sfx.stopDrone();
   const E = ENDINGS[S.ending] || ENDINGS.dawn;
@@ -2558,7 +2605,8 @@ function paintCodex() {
   const box = $('#mbox');
   box.replaceChildren();
   box.classList.add('wide');
-  box.appendChild(el('h3', null, '图鉴 · ' + Object.keys(c.known || {}).length + ' / ' + ALL_CHARS.length + ' 人'));
+  box.appendChild(el('h3', null, '图鉴 · 见过 ' + (c.met || []).length + ' / ' + ALL_CHARS.length
+    + ' 人 · 核实 ' + knownCount() + ' 项'));
 
   const bar = el('div', 'cfilter');
   [['all', '全部'], ['known', '有记录'], ['a', '唤醒体'], ['s', '主播']].forEach(([k, t]) => {
@@ -2570,10 +2618,12 @@ function paintCodex() {
   box.appendChild(bar);
 
   const grid = el('div', 'cgrid');
-  ALL_CHARS.forEach((ch) => {
+  // 见过的排前面、核实项多的再靠前——否则一屋子 ？？？里翻自己认识的那两个人太费劲
+  const order = ALL_CHARS.map((ch, i) => {
     const k = c.known[ch.n] || {};
-    const n = Object.keys(k).length;
-    const met = c.met.includes(ch.n);
+    return { ch, i, n: Object.keys(k).length, met: c.met.includes(ch.n) };
+  }).sort((a, b) => (b.met - a.met) || (b.n - a.n) || (a.i - b.i));
+  order.forEach(({ ch, n, met }) => {
     if (codexFilter === 'known' && !n) return;
     if (codexFilter === 'a' && ch.k !== 'a') return;
     if (codexFilter === 's' && ch.k !== 's') return;
@@ -2715,6 +2765,7 @@ async function boot() {
   $('#btnCodex').onclick = () => { sfx.paper(); openCodex(); };
   $('#btnHelp').onclick = () => { sfx.tick(); openHelp(); };
   $('#btnHelp2').onclick = () => { sfx.tick(); openHelp(); };
+  $('#btnCodex2').onclick = () => { sfx.paper(); openCodex(); };
   $('#btnSound').onclick = () => {
     sfx.unlock();
     const on = !sfx.isOn();
