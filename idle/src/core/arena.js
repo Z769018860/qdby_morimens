@@ -12,7 +12,7 @@ export const LADDER = 1000, UNRANKED = LADDER + 1, ARENA_DAILY = 5, WINDOW = 5;
 // 登顶之后的「层数」：名次 1 之上再接 FLOORS 层，名次写成 0、-1、-2…（第 n 层 = 名次 1-n）。
 // 以前打到第 1 名就没有更高的对手了，而第 1 名那只人机只有 100 级 / 20 叠位——满养成的队伍随便碾过去，
 // 有人已经登顶、竞技场就此没东西可打。现在第 1 名之上还有 100 层，一层比一层强，第 100 层远超满养成的裸队。
-export const FLOORS = 100, MIN_RANK = 1 - FLOORS;
+export const FLOORS = 1100, MIN_RANK = 1 - FLOORS;
 export const floorOf = (rank) => (rank <= 0 ? 1 - rank : 0);                    // 名次 → 第几层（没登顶 = 0）
 export const rankZh = (rank) => (rank >= UNRANKED ? '未上榜' : rank <= 0 ? `登顶第 ${floorOf(rank)} 层` : `第 ${rank} 名`);
 // 候选对手的名次跨度：从自己名次开始依次往上减 1、2、4、8、16，
@@ -44,7 +44,7 @@ const KEYS = ['hp', 'atk', 'def', 'critRate', 'critDmg', 'amp', 'aliGain', 'keyG
 export function snapshot(team) {
   return team.list.map((d) => ({ slug: d.slug, lv: d.lv, star: d.star, ...Object.fromEntries(KEYS.map((k) => [k, d[k] || 0])) }));
 }
-const CAP = { hp: 5e6, atk: 2e5, def: 2e5, critRate: 100, critDmg: 400, amp: 300, aliGain: 300, keyGain: 300, healBonus: 300, shieldBonus: 300, steal: 100, surviveChance: 0.9, openAli: 100, openKey: 100, firstBoost: 300 };
+const CAP = { hp: 5e7, atk: 5e6, def: 5e6, critRate: 100, critDmg: 400, amp: 300, aliGain: 300, keyGain: 300, healBonus: 300, shieldBonus: 300, steal: 100, surviveChance: 0.9, openAli: 100, openKey: 100, firstBoost: 300 };
 export function hydrate(snap, data) {
   return (snap || []).filter((s) => data.bySlug[s.slug]).slice(0, 4).map((s) => {
     const a = data.bySlug[s.slug];
@@ -57,7 +57,7 @@ export function hydrate(snap, data) {
 
 // ---- bots
 const RANK1_POWER = 8200;                                      // 第 1 名人机的战力（测过：snapshot 口径 hp/10+atk+0.8def）
-const FLOOR_TOP = 22;                                          // 第 100 层的战力是第 1 名人机的多少倍
+const FLOOR_TOP = 22, FLOOR_END = 260, FLOOR_MID = 100;       // 第 100 层是第 1 名人机的 22 倍，第 1100 层 260 倍（之后每层约 +0.25%）
 export function botEntry(rank, data) {
   const rng = mulberry32(hash(`arena-bot${rank}`));
   const floor = floorOf(rank);                                // 登顶层数（名次 ≥ 1 时是 0）
@@ -81,7 +81,8 @@ export function botEntry(rank, data) {
   if (floor) {
     // 登顶层的目标战力按「第 1 名那只人机」的倍数给：第 1 层 1.3 倍，第 100 层 FLOOR_TOP 倍，指数过渡；
     // 再按这一层的裸属性反推「装备倍率」。满养成的裸队（159 级 / 99 叠位 / 超限 99 / 法则 60）约是第 1 名人机的 5.5 倍。
-    const target = RANK1_POWER * 1.3 * Math.pow(FLOOR_TOP / 1.3, (floor - 1) / (FLOORS - 1));
+    const target = floor <= FLOOR_MID ? RANK1_POWER * 1.3 * Math.pow(FLOOR_TOP / 1.3, (floor - 1) / (FLOOR_MID - 1))
+      : RANK1_POWER * FLOOR_TOP * Math.pow(FLOOR_END / FLOOR_TOP, (floor - FLOOR_MID) / (FLOORS - FLOOR_MID));
     gear = target / powOf(raw, 1);
   }
   const snap = raw.map((s) => ({ ...s, hp: Math.round(s.hp * gear), atk: Math.round(s.atk * gear), def: Math.round(s.def * gear) }));
@@ -95,10 +96,10 @@ export function localOpponents(state, data) {
   let r = Math.min(a.rank, UNRANKED);
   if (r <= MIN_RANK) return out;
   for (let i = 0; i < STEPS.length; i++) {
-    r = Math.max(MIN_RANK, r - (r <= 1 ? FSTEPS : STEPS)[i]);
+    r = Math.max(MIN_RANK, r - (r <= 1 ? FSTEPS : STEPS)[i] * (r <= 0 ? Math.min(10, 1 + Math.floor(floorOf(r) / 100)) : 1));
     if (seen.has(r)) break;
     seen.add(r); out.push(botEntry(r, data));
-    if (r === MIN_RANK) break;                                // 第 100 层是最后一层
+    if (r === MIN_RANK) break;                                // 最后一层
     if (out.length >= WINDOW) break;
   }
   return out;

@@ -495,7 +495,7 @@ test('arena: bots scale with rank, snapshots round-trip, winning moves you up', 
   assert.deepEqual(localOpponents(top, data).map((o) => o.rank), [1, 0, -2, -5, -10]);
   // hostile snapshots are clamped
   const evil = hydrate([{ slug: 'xu', lv: 999, star: 99, hp: 1e18, atk: -5 }], data)[0];
-  assert.ok(evil.lv === 159 && evil.star === 99 && evil.hp <= 5e6 && evil.atk === 0);
+  assert.ok(evil.lv === 159 && evil.star === 99 && evil.hp <= 5e7 && evil.atk === 0);
 });
 
 test('friend battle codes round-trip, reject damage, and fight without rewards', () => {
@@ -3100,7 +3100,7 @@ test('毒 / 流血 / 反击也要过防御：高防目标身上明显变少，�
     allies: p.allies.map((a) => ({ ...a })),
     enemies: p.enemies.map((e) => ({ ...e, def })),
     seed: 7, strategy: s.strategy, maxRounds: 8, rules: p.rules, dotBoost: p.dotBoost,
-  }).events.filter((e) => e.k === 'dot' && e.who?.[0] === 'e').reduce((n, e) => n + (e.amt || 0), 0);
+  }).events.filter((e) => e.k === 'dot' && e.who?.[0] === 'e').reduce((n, e, _, l) => n + (e.amt || 0) / l.length, 0);   // 单跳平均：防御高的敌人活得久，总和会被「多跳几次」抵掉
   const bare = dotTotal(0), hard = dotTotal(3000);
   assert.ok(bare > 0, '这队要先能挂上毒 / 流血');
   // 阈值 0.85：这一关的编成会随版本变（怪的数量、精英血倍率），两队人挂毒的目标数也跟着变，
@@ -3798,16 +3798,18 @@ test('大运：重投每次都出新的一批（种子带重掷次数、尽量�
 });
 
 test('arena floors: 100 floors above rank 1, ever harder, with floor rewards', () => {
-  assert.equal(FLOORS, 100); assert.equal(MIN_RANK, -99);
-  assert.equal(floorOf(0), 1); assert.equal(floorOf(-99), 100); assert.equal(floorOf(5), 0);
+  assert.equal(FLOORS, 1100); assert.equal(MIN_RANK, -1099);
+  assert.equal(floorOf(0), 1); assert.equal(floorOf(-99), 100); assert.equal(floorOf(MIN_RANK), 1100); assert.equal(floorOf(5), 0);
   assert.equal(rankZh(-9), '登顶第 10 层'); assert.equal(rankZh(3), '第 3 名');
   let prev = botEntry(1, data).power;
-  for (const r of [0, -9, -24, -49, -74, -99]) { const p = botEntry(r, data).power; assert.ok(p > prev, `floor ${floorOf(r)}`); prev = p; }
+  for (const r of [0, -9, -24, -49, -99, -299, -599, -1099]) { const p = botEntry(r, data).power; assert.ok(p > prev, `floor ${floorOf(r)}`); prev = p; }
   assert.ok(botEntry(0, data).power > botEntry(1, data).power * 1.2);
   const s = mkTeamState(40); arenaState(s).rank = 1; arenaState(s).best = 1;
   assert.deepEqual(localOpponents(s, data).map((o) => floorOf(o.rank)), [1, 2, 4, 7, 12]);
   arenaState(s).rank = MIN_RANK; assert.equal(localOpponents(s, data).length, 0);
   assert.ok(dailyRankReward(-99) > dailyRankReward(1));
+  const deep = botEntry(MIN_RANK, data);
+  assert.ok(deep.snap.every((x) => x.hp < 5e7 && x.atk < 5e6 && x.def < 5e6), '最后一层不能被属性上限削平');
 });
 
 /* ---------- 守护改动：反击盾 / 蓄盾 / 盾爆 / 站位 / 耐毒 ---------- */

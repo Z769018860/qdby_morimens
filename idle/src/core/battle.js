@@ -952,6 +952,20 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     push({ k: 'intent', who: u.uid, name: sk.name, ic: sk.ic || null, text: sk.plain || '' });
   }
 
+  /** 中毒：改为在**中毒者自己行动结束后**结算（以前是每回合一开头）。
+      含义：中毒的人先出手再掉血，死前至少还能打一轮；毒不再「开场先扣血」，毒队的收益略有后移。 */
+  function tickPoison(u) {
+    const ps = u.st.poison;
+    if (!(ps && u.alive)) return;
+      // 下毒的人可能已经倒下 / 被打散，找不到就退回「对面随便一位」——只影响增伤乘数，不影响伤害本身
+      const src = [...A, ...E].find((x) => x.uid === ps.by) || [...A, ...E].find((x) => x.side !== u.side) || u;
+      applyDamage(src, u, guarded(src, u, ps.n * ps.per, true), false, null, 'dot', { s: 'poison' });
+      // 耐毒：场上每有一位活着的友方守护（最多 2 位），毒层每回合多褪 10%
+      const wards = isPlayerLike(u) ? Math.min(2, (u.side === 'a' ? A : E).filter((x) => x.alive && x.type === 'WARDEN' && x.kit).length) : 0;
+      ps.n -= Math.max(1, Math.floor(ps.n * (POISON_DECAY + POISON_DECAY_WARD * wards)));
+      if (ps.n <= 0) delete u.st.poison;
+  }
+
   function act(u, bonus = false) {
     if (u.stunned > 0) { u.stunned--; push({ k: 'act', who: u.uid, slot: 'Strike', name: '眩晕', round }); return; }
     u.acted++;
@@ -1044,18 +1058,8 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         applyDamage(src || u, u, guarded(src || u, u, d.dmg, true), false, null, 'dot');
       }
       u.dots = u.dots.map((d) => ({ ...d, dur: d.dur - 1 })).filter((d) => d.dur > 0);
-      const ps = u.st.poison;
-      if (ps && u.alive) {
-        // 下毒的人可能已经倒下 / 被打散，找不到就退回「对面随便一位」——只影响增伤乘数，不影响伤害本身
-        const src = [...A, ...E].find((x) => x.uid === ps.by) || [...A, ...E].find((x) => x.side !== u.side) || u;
-        applyDamage(src, u, guarded(src, u, ps.n * ps.per, true), false, null, 'dot', { s: 'poison' });
-        // 耐毒：场上每有一位活着的友方守护（最多 2 位），毒层每回合多褪 10%
-        const wards = isPlayerLike(u) ? Math.min(2, (u.side === 'a' ? A : E).filter((x) => x.alive && x.type === 'WARDEN' && x.kit).length) : 0;
-        ps.n -= Math.max(1, Math.floor(ps.n * (POISON_DECAY + POISON_DECAY_WARD * wards)));
-        if (ps.n <= 0) delete u.st.poison;
-      }
     }
-    // 我方的盾撑到下一回合开头：先让它吃掉这一轮跳下来的毒 / 流血，再清零。
+    // 我方的盾撑到下一回合开头：先让它吃掉这一轮跳下来的流血，再清零（毒现在在各自行动后结算）。
     // 以前是在回合最开头就清（在毒结算之前），于是「中毒穿盾」——我方永远吃不到盾；
     // 敌方盾要到它自己出手前才清（见 act()），那时毒早结算完，所以只有玩家侧吃亏。
     // 本回合队友给的盾仍然从发出一直留到下一回合开头，不受影响。
@@ -1064,7 +1068,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     if (finished()) break;
     for (const u of [...A, ...E]) {
       if (finished()) break;
-      if (u.alive) act(u);
+      if (u.alive) { act(u); tickPoison(u); }
     }
     /* 铁壁（core/roles.js）：纯盾型守护把这一回合没被打掉的护盾按比例砸回去。
        护盾在本回合开头就清零了（见上面那行 `u.shield = 0`），所以这里读到的是

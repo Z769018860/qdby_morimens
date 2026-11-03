@@ -93,7 +93,7 @@ export const ACHIEVEMENTS = [
   { id: 'arena30', cat: 'arena', zh: '前三百', desc: '竞技场最高名次进入前 300', cur: arenaRank, goal: 701, reward: reward(3) },
   { id: 'arena10', cat: 'arena', zh: '百强', desc: '竞技场最高名次进入前 100', cur: arenaRank, goal: 901, reward: reward(5) },
   { id: 'arena1', cat: 'arena', zh: '天梯之巅', desc: '竞技场登顶第 1 名', cur: arenaRank, goal: LADDER, reward: reward(6) },
-  ...tiers('arena', 'floor', ['凌云', '摘星', '绝顶', '无人之境', '天外有天'], (g) => `竞技场登顶层数达到第 ${g} 层`, arenaFloor, [1, 10, 30, 60, FLOORS]),
+  ...tiers('arena', 'floor', ['凌云', '摘星', '绝顶', '无人之境', '天外有天', '九霄', '登神长阶'], (g) => `竞技场登顶层数达到第 ${g} 层`, arenaFloor, [1, 10, 30, 100, 300, 600, FLOORS]),
   ...tiers('arena', 'awin', ['初试锋芒', '常胜', '百战天梯'], (g) => `竞技场累计胜利 ${g} 场`, (s) => s.arena?.wins || 0, [5, 30, 100]),
   ...tiers('arena', 'duel', ['以武会友', '切磋', '知己'], (g) => `好友对战累计 ${g} 场`, friendDuels, [1, 10, 30]),
   ...tiers('codex', 'codex', ['初识异形', '融蚀图鉴', '博物学家', '无所不知'], (g) => `遭遇 ${g} 种怪物`, seenCount, [30, 100, 250, 400]),
