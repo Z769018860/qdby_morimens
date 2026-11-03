@@ -60,6 +60,10 @@ export const TUNING = {
   beatMs: 480,        // 一拍的实际时长（×1/×2/×3 倍速）
   startHp: 130,
   startGold: 32,
+  heroBase: 9,        // 唤醒体价格 = 基数 + 占格 × 每格 - 全局减价
+  heroPerSlot: 5,
+  wheelBase: 7,       // 命轮价格 = 基数 + 耗算力 / 2 - 全局减价
+  priceCut: 2,        // 当前口径：所有唤醒体 / 命轮统降 2 金
   fieldSlots: 15,     // 战场十五格：唤醒体（1~3 格）和命轮（1~2 格）共用，可以互相拖动换位
   draftSlots: 8,      // 开局只能带 8 格的（大约三个）
   relicSlots: 4,      // 造物槽

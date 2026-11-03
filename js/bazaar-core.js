@@ -70,11 +70,13 @@ let UID = 1;
 const uid = () => UID++;
 
 // ---------------------------------------------------------------- 开局
+// 价格 = 基数 + 规模 - 全局减价。唤醒体按占格算，命轮按耗算力算。
+// 调价只动 TUNING 里的四个数，免得两处写死打架。
 export function heroPrice(def) {
-  return 9 + (def.slots || 1) * 5;
+  return TUNING.heroBase + (def.slots || 1) * TUNING.heroPerSlot - TUNING.priceCut;
 }
 export function wheelPrice(def) {
-  return 7 + Math.round((def.cpu || 12) / 2);
+  return TUNING.wheelBase + Math.round((def.cpu || 12) / 2) - TUNING.priceCut;
 }
 export function relicPrice(def) {
   return 4 + (def.r === 'SSR' ? 6 : def.r === 'SR' ? 3 : 0) + (def.cost || 0) % 2;
