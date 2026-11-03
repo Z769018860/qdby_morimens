@@ -190,7 +190,7 @@ button{font:inherit;color:inherit}
 .rbar button[data-realm="AEQUOR"].on{background:var(--aqua);color:#fff}
 .rbar button[data-realm="ULTRA"].on{background:var(--ultra);color:#fff}
 .rbar button[data-realm="mixed"].on{background:var(--gold);color:#0b0f18}
-/* 启灵角标：1~3 启写数字，超限 / 最终法则直接写星（类名避开排行榜的 .rk） */
+/* 档位角标：1~3 写数字，第四、五档（超限·最终法则 / 超叠·终式）换配色（类名避开排行榜的 .rk） */
 .orb{position:absolute;left:1px;top:1px;z-index:5;font-size:8px;line-height:1;padding:1px 3px;
   background:color-mix(in oklab,var(--gold) 88%,#000);color:#0b0f18;font-weight:800;letter-spacing:.5px}
 .orb.max{background:linear-gradient(90deg,#e8c24a,#d16b9b);color:#120d16}
@@ -254,12 +254,12 @@ button{font:inherit;color:inherit}
   background:linear-gradient(180deg,color-mix(in oklab,var(--gold) 10%,var(--panel2)),var(--panel))}
 .card.sold{opacity:.28;pointer-events:none}
 .card.poor{opacity:.55}
-/* 升启：同名唤醒体 / 命轮再抓到一次，不占格也不进仓库，直接往上叠一档 */
+/* 启灵 / 叠位：同名唤醒体 / 命轮再抓到一次，不占格也不进仓库，直接往上叠一档 */
 .card.isdup{box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--gold) 62%,var(--line));
   background:linear-gradient(180deg,color-mix(in oklab,var(--gold) 13%,var(--panel2)),var(--panel))}
 .card .dup{display:inline-block;margin-right:4px;padding:0 3px;font-size:8.5px;font-weight:800;
   color:#0b0f18;background:var(--gold);letter-spacing:.5px}
-/* 摊位是奇数个（多出一个升启位）时，最后一张占满一整行，不留半格空 */
+/* 摊位是奇数个（多出一个启灵 / 叠位位）时，最后一张占满一整行，不留半格空 */
 .card.odd{grid-column:span 2}
 
 /* ---------- 底栏 ---------- */
@@ -619,7 +619,7 @@ button{font:inherit;color:inherit}
   .sheet{max-width:820px}
 }
 </style>
-<meta name="build" content="7d00a94052">
+<meta name="build" content="57fc4ee66f">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -779,10 +779,11 @@ html{-webkit-tap-highlight-color:transparent}
       <p>场上同一个界域的人越多，全队吃一条额外加成：<b>混沌</b>——直伤（全队伤害 +10% / 18% / 26%，命轮再穿 8% / 14% / 20% 护盾）、<b>血肉</b>——回复（治疗 +20% / 35% / 50%，每次治疗顺带 4 / 6 / 9 点护盾）、<b>深海</b>——持续伤害（中毒与冻伤 +25% / 45% / 65%）、<b>超维</b>——多段（<b>每一段</b>伤害 +5% / 8% / 12%，三段就是 +15% / 24% / 36%）。所以「全堆一色」和「混着搭」是两条真不一样的路。</p>
       <h4>自己决定今天开哪一界的店</h4>
       <p>集市上面那排按钮是<b>界域选择</b>：挑了某一界，今天摊位上的<b>唤醒体和命轮只出那一界</b>（造物不受限，它本来就是通用件）。<b>每天第一次换免费</b>，之后每换一次 1 金，和刷新同价。想凑共鸣就把店定在你要的那一界，天天刷它。</p>
-      <h4>启灵：抓到同一个就往上叠</h4>
-      <p>商店里会多出一个<b>「升启」摊位</b>（金框、写着「同名」）：买它不是多一个人，而是把<b>你已经有的那张唤醒体 / 命轮往上顶一档</b>——不占格、不进仓库。五档是 <b>1 启 → 2 启 → 3 启 → 超限 → 最终法则</b>：三启解锁节拍 −1，超限让它的<b>光环也变强</b>（节拍光环 +1、增幅光环 ×1.5），最终法则每次出手<b>顺带一次半效果追击</b>。场上单位的左上角有启灵角标，点开能看到这一档具体加了什么、下一档要什么。</p>
+      <h4>启灵 / 叠位：抓到同一个就往上叠</h4>
+      <p>商店里会多出一个<b>「同名」摊位</b>（金框）：买它不是多一个人，而是把<b>你已经有的那张唤醒体 / 命轮往上顶一档</b>——不占格、不进仓库。<b>唤醒体叫「启灵」</b>：1 启 → 2 启 → 3 启 → 超限 → 最终法则；<b>命轮叫「叠位」</b>：1 叠 → 2 叠 → 3 叠 → 超叠 → 终式。</p>
+      <p>更关键的是：<b>每一档加什么，都按这一张自己的流派 / 机制族单独设计，不是全游戏一张表。</b>狂乱叠的是力量、过载叠的是算力、霜蚀叠的是冻伤、折跃叠的是段数；命轮里裂击叠段数、处决叠处决线、回响叠回响次数、血壁叠护盾。点开场上任意一张，能看到<b>当前这一档具体加了什么、再抓一张会给什么</b>。</p>
       <h4>打赢之后会撞上一件事</h4>
-      <p>赢下一天，除了开集市，还会先弹出<b>一个事件</b>：流浪商人、血池、赌桌、旧日遗物、同路人、拾荒、启灵仪式、界域祭坛。<b>两个选项各有代价</b>——钱、生命上限、理智、一件造物、一个白送的唤醒体、一次升启、多一次免费刷新，或者今天再免费换一次界域商店。掉理智的选项要看清楚，理智就是命。</p>
+      <p>赢下一天，除了开集市，还会先弹出<b>一个事件</b>：流浪商人、血池、赌桌、旧日遗物、同路人、拾荒、启灵与叠位的仪式、界域祭坛。<b>两个选项各有代价</b>——钱、生命上限、理智、一件造物、一个白送的唤醒体、一次启灵 / 叠位、多一次免费刷新，或者今天再免费换一次界域商店。掉理智的选项要看清楚，理智就是命。</p>
       <h4>仓库与卖出</h4>
       <p>战场十五格放不下的人 / 命轮，买下后自动进<b>仓库</b>（最多 4 件）。点仓库里的东西可以<b>上场</b>，场上满了就选一个换下来；场上的人和命轮点开也能「移入仓库」。任何东西点开都能<b>卖掉，返还一半金币</b>（本命命轮和战场上最后一个人不能卖）。刷新一次只要 1 金。</p>
       <h4>造物不只是加属性</h4>
@@ -837,7 +838,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/bazaar.js?v=7d00a94052"></script>
+<script type="module" src="js/b/bazaar.js?v=57fc4ee66f"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

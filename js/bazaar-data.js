@@ -4,7 +4,7 @@
 // 之所以分成两份：三百多 KB 的客户端表是生成物，别手改；难度、曲线、地形这些是设计，要能一眼看见。
 
 import { HEROES as G_HEROES, ITEMS as G_ITEMS, WHEELS as G_WHEELS, PACTS as G_PACTS, FOES as G_FOES, SHEETS as G_SHEETS } from './bazaar-gen.js';
-import { designHeroes, designWheels, designItems, ARCH as ARCH_RAW, ARCH_ZH as ARCH_ZH_RAW, WARCH as WARCH_RAW, REALM_TRAIT as REALM_TRAIT_RAW } from './bazaar-arch.js';
+import { designHeroes, designWheels, designItems, ARCH as ARCH_RAW, ARCH_ZH as ARCH_ZH_RAW, WARCH as WARCH_RAW, REALM_TRAIT as REALM_TRAIT_RAW, HERO_RANKS as HERO_RANKS_RAW, WHEEL_RANKS as WHEEL_RANKS_RAW } from './bazaar-arch.js';
 
 export const SHEETS = G_SHEETS;
 // 流派（设计层，见 js/bazaar-arch.js）：唤醒体 12 个、命轮 13 个机制族、造物按机制分。
@@ -13,8 +13,12 @@ export const WARCH = WARCH_RAW;
 export const ARCH_ZH = ARCH_ZH_RAW;
 // 界域特性：同界域 2 / 3 / 4 人三档共鸣
 export const REALM_TRAIT = REALM_TRAIT_RAW;
-// 启灵档位：抓到同名唤醒体 / 同一条命轮就往上升一档
+// 唤醒体的五档叫「启灵」；命轮的五档叫「叠位」——命轮不是觉醒，是这条轮盘又叠了一层。
+// 两边的每一档具体加什么，都按流派 / 机制族分别写在 js/bazaar-arch.js 里（HERO_RANKS / WHEEL_RANKS）。
 export const RANK_TIER = ['', '1 启', '2 启', '3 启', '超限', '最终法则'];
+export const WHEEL_TIER = ['', '1 叠', '2 叠', '3 叠', '超叠', '终式'];
+export const HERO_RANKS = HERO_RANKS_RAW;
+export const WHEEL_RANKS = WHEEL_RANKS_RAW;
 // 唤醒体、命轮、造物都要经过流派设计层：生成表里 73 个人只有 3 套数值、149 条命轮只有
 // 「直伤 + 一点毒或盾」，不拆开的话名字换一百遍打起来还是同一套。设计全在 js/bazaar-arch.js。
 export const HEROES = designHeroes(G_HEROES);
@@ -28,7 +32,7 @@ const EXTRA_PACTS = [
   { id: 'p024', n: '缓毒', spr: 'item:328', k: 'zone', v: 50, txt: '毒圈晚 50 拍出现（第 150 拍起），慢热卡组多一段发育时间。' },
   { id: 'p025', n: '苔生', spr: 'item:329', k: 'mossregen', v: 2, txt: '每拍回复 2 点生命。' },
   { id: 'p026', n: '行囊', spr: 'item:330', k: 'bench', v: 2, txt: '仓库 +2 格，换阵容不用卖东西。' },
-  { id: 'p027', n: '早启', spr: 'item:331', k: 'rank', v: 1, txt: '开局每个唤醒体与命轮都算 +1 启灵。' },
+  { id: 'p027', n: '早启', spr: 'item:331', k: 'rank', v: 1, txt: '开局每个唤醒体 +1 启、每条命轮 +1 叠。' },
   { id: 'p028', n: '疾行', spr: 'item:332', k: 'herocd', v: 1, txt: '所有唤醒体的节拍 -1（最低 2 拍）。' },
   { id: 'p029', n: '双刃', spr: 'item:333', k: 'twoedge', v: 0.3, txt: '命轮伤害 +30%，但你受到的伤害也多 15%。' },
 ];
@@ -65,7 +69,7 @@ export const TUNING = {
   shopSize: 6,        // 集市一次摆几个选项（2 列 × 3 行）
   rerollCost: 1,      // 刷新一次的价钱（原来 2）：放宽一点，玩家才有钱多刷几次找想要的人 / 命轮
   benchSlots: 4,      // 仓库格数：装不下的人 / 命轮先放仓库，随时换上场或卖掉
-  rankMax: 5,         // 启灵上限：1/2/3 启 → 超限 → 最终法则
+  rankMax: 5,         // 启灵 / 叠位上限：1/2/3 → 超限·超叠 → 最终法则·终式
   dupRate: 0.45,      // 集市多摆一个「升启」摊位的概率（买下就是把已有的那张往上顶一档，不占格）
   realmShopCost: 1,   // 一天里第二次以后换界域商店的价钱
   sellRate: 0.5,

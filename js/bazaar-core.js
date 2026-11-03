@@ -31,6 +31,9 @@ export const ARCH_ZH = DATA.ARCH_ZH;
 export const REALM_TRAIT = DATA.REALM_TRAIT;
 export const RANK_ZH = DATA.RANK_ZH;
 export const RANK_TIER = DATA.RANK_TIER;
+export const WHEEL_TIER = DATA.WHEEL_TIER;
+export const HERO_RANKS = DATA.HERO_RANKS;
+export const WHEEL_RANKS = DATA.WHEEL_RANKS;
 export const ALL_EVENTS = EVENTS;
 export const eventOf = (id) => EVENT_BY_ID.get(id);
 
@@ -106,44 +109,95 @@ export function newRun({ seed = Date.now() >>> 0, pactId, diffId = 'normal' } = 
 // 唤醒体占 1~3 格，命轮占 1~2 格（SSR 占 2），一共 TUNING.fieldSlots（15）格。
 // 站位顺序存在 run.order（uid 列表）：人和命轮混着排，可以互相拖动；
 // 唤醒体的光环喂左右相邻的两个——不管邻居是人还是命轮。
-// ---------------------------------------------------------------- 启灵
-// 抓到同名的唤醒体 / 同一条命轮，就把它往上顶一档：1/2/3 启 → 超限 → 最终法则。
-// 每档都实打实加东西，第三档（3 启）解锁节拍 -1，最后两档是倍率跳变。
+// ---------------------------------------------------------------- 启灵 / 叠位
+// 抓到同名的唤醒体 / 同一条命轮，就把它往上顶一档：
+//   唤醒体 —— 1 启 / 2 启 / 3 启 / 超限 / 最终法则；命轮 —— 1 叠 / 2 叠 / 3 叠 / 超叠 / 终式。
+// 每一档加什么不是一张全游戏通用的表，而是按「流派 / 机制族」分别设计，
+// 表在 js/bazaar-arch.js 的 HERO_RANKS / WHEEL_RANKS（改数值只改那里）。
 export const rankOf = (rec) => Math.min(TUNING.rankMax, (rec && rec.rank) || 0);
-const HERO_RANK = {
-  gen: [0, 1, 2, 2, 3, 4],
-  act: [1, 1.08, 1.16, 1.24, 1.38, 1.55],
-  cd: [0, 0, 0, 1, 1, 1],
-};
-const WHEEL_RANK = {
-  cost: [0, 1, 1, 1, 2, 2],
-  pow: [1, 1, 1.1, 1.2, 1.35, 1.5],
-  wcd: [0, 0, 0, 1, 1, 1],
-};
-// 每一档启灵到底多了什么（详情面板直接显示，和上面的表同源，别两边各写一份）
-export const RANK_DESC = [
-  '基础形态。',
-  '产算力 +1。',
-  '产算力 +2，行动效果 ×1.08。',
-  '产算力 +2，节拍 -1，行动效果 ×1.24。',
-  '超限：行动效果 ×1.38，光环也变强（节拍光环 +1、增幅光环 ×1.5）。',
-  '最终法则：行动效果 ×1.55，每次出手顺带一次半效果的追击。',
-];
-export const RANK_DESC_W = [
-  '基础形态。',
-  '耗算力 -1。',
-  '耗算力 -1，效果 ×1.1。',
-  '耗算力 -1，节拍 -1，效果 ×1.2。',
-  '超限：耗算力 -2，效果 ×1.35。',
-  '最终法则：耗算力 -2，节拍 -1，效果 ×1.5。',
-];
+const ROUND = (x) => Math.round(x * 100) / 100;
+// 取某一档的累计效果：gen / cd / cost / wcd 与段数逐档累加，
+// 倍率（mul）按「这一档的总倍率」覆盖，extra / follow / echo 取当前档。
+function rankStepOf(table, id, r) {
+  const list = table && table[id];
+  if (!list || !r) return {};
+  const out = { mul: {} };
+  let hits = 0;
+  for (let i = 1; i <= r; i++) {
+    const st = list[i];
+    if (!st) continue;
+    for (const k of ['gen', 'cd', 'cost', 'wcd']) if (st[k]) out[k] = (out[k] || 0) + st[k];
+    if (st.mul) {
+      for (const k of Object.keys(st.mul)) if (k !== 'hits') out.mul[k] = st.mul[k];
+      if (st.mul.hits) hits += st.mul.hits;
+    }
+    if (st.extra) out.extra = st.extra;
+    if (st.follow != null) out.follow = st.follow;
+    if (st.aura) out.aura = true;
+    if (st.echo != null) out.echo = st.echo;
+  }
+  if (hits) out.mul.hits = hits;
+  out.d = (list[r] && list[r].d) || '';
+  return out;
+}
+
+// 把这一档的 mul / extra 落到 op 列表上：伤害、毒、盾、治疗、段数、处决线、延后……
+function rankOps(ops, step) {
+  const m = step.mul || {};
+  const out = ops.map((o0) => {
+    const o = { ...o0 };
+    if (o.k === 'dmg') {
+      if (m.dmg) o.v = ROUND(o.v * m.dmg);
+      if (m.hits) o.hits = (o.hits || 1) + m.hits;
+      if (m.leech) o.leech = ROUND((o.leech || 0) + m.leech);
+      if (m.pierce != null) o.pierce = Math.max(o.pierce || 0, m.pierce);
+      if (m.exec != null) o.execute = m.exec;
+    } else if (o.k === 'poison' || o.k === 'burn') {
+      if (m.dot) o.v = Math.max(1, Math.round(o.v * m.dot));
+    } else if (o.k === 'str') {
+      if (m.str) o.v = ROUND(o.v * m.str);
+    } else if (o.k === 'shield') {
+      if (m.shield) o.v = ROUND(o.v * m.shield);
+    } else if (o.k === 'heal') {
+      if (m.heal) o.v = ROUND(o.v * m.heal);
+    } else if (o.k === 'vuln') {
+      if (m.vuln) o.v = ROUND(o.v * m.vuln);
+    } else if (o.k === 'slow') {
+      if (m.slow) o.v = ROUND(o.v * m.slow);
+    }
+    return o;
+  });
+  // extra 拿的是「已经放大过」的 op——它模拟的是每次出手真正多出来的那一下
+  if (step.extra) out.push(...step.extra(out));
+  return out;
+}
+
+// 详情面板直接吃这两条：当前这一档到底多了什么（和实现同源，别在界面里另抄一份）
+export function heroRankDesc(def, rank) {
+  const r = Math.min(TUNING.rankMax, Math.max(0, rank | 0));
+  if (!r) return '基础形态。';
+  return rankStepOf(HERO_RANKS, def && def.arch, r).d || '基础形态。';
+}
+export function wheelRankDesc(def, rank) {
+  const r = Math.min(TUNING.rankMax, Math.max(0, rank | 0));
+  if (!r) return '基础形态。';
+  return rankStepOf(WHEEL_RANKS, def && def.arch, r).d || '基础形态。';
+}
 // 面板 / 战斗共用的「这个唤醒体在当前启灵下长什么样」
+// 命轮在当前叠位下的实际 op（界面拿它显示「现在打多少」，和战斗同源）
+export const wheelOp = (def, rank = 0) =>
+  rankOps(def.op, rankStepOf(WHEEL_RANKS, def.arch, Math.min(TUNING.rankMax, rank | 0)));
+
 export function heroPlan(def, rank = 0) {
   const r = Math.min(TUNING.rankMax, rank | 0);
+  const step = rankStepOf(HERO_RANKS, def.arch, r);
   return {
-    gen: def.gen + HERO_RANK.gen[r],
-    cd: Math.max(TUNING.cdMin, def.cd - HERO_RANK.cd[r]),
-    pow: HERO_RANK.act[r],
+    gen: def.gen + (step.gen || 0),
+    cd: Math.max(TUNING.cdMin, def.cd - (step.cd || 0)),
+    pow: 1,
+    act: rankOps(def.act, step),
+    follow: step.follow || 0,
+    auraBoost: !!step.aura,
   };
 }
 
@@ -239,11 +293,12 @@ export function auraMap(run) {
       if (!nb || nb.kind !== 'hero' || !nb.def.aura) continue;
       const a = nb.def.aura;
       const r = Math.min(TUNING.rankMax, nb.rank | 0);
-      // 超限（4 启）之后光环本身也变强：产算力光环不放大（否则算力会重新过剩），
-      // 只放大节拍（+1 整数档）和增幅（×1.5）。
+      // 超限之后光环本身也变强（哪个流派有这条，写在 HERO_RANKS 的 aura 字段上）：
+      // 产算力光环不放大（否则算力会重新过剩），只放大节拍（+1 整数档）和增幅（×1.5）。
+      const boost = !!rankStepOf(HERO_RANKS, nb.def.arch, r).aura;
       if (a.k === 'gen') o.gen += a.v;
-      else if (a.k === 'cd') o.cd += r >= 4 ? a.v + 1 : a.v;
-      else if (a.k === 'pow') o.pow += r >= 4 ? a.v * 1.5 : a.v;
+      else if (a.k === 'cd') o.cd += boost ? a.v + 1 : a.v;
+      else if (a.k === 'pow') o.pow += boost ? a.v * 1.5 : a.v;
     }
     m.set(e.uid, o);
   });
@@ -258,10 +313,14 @@ export function wheelPlan(run, e) {
 }
 const wheelStat = (d, au, cdTer, mod, rank = 0) => {
   const r = Math.min(TUNING.rankMax, rank | 0);
+  const step = rankStepOf(WHEEL_RANKS, d.arch, r);
   return {
-    cost: Math.max(4, d.cpu - 2 * au.gen - WHEEL_RANK.cost[r]),
-    wcd: Math.max(TUNING.wcdMin, d.wcd - au.cd + cdTer - mod.wcdDown - WHEEL_RANK.wcd[r]),
-    pow: (1 + au.pow) * WHEEL_RANK.pow[r],
+    cost: Math.max(4, d.cpu - 2 * au.gen - (step.cost || 0)),
+    wcd: Math.max(TUNING.wcdMin, d.wcd - au.cd + cdTer - mod.wcdDown - (step.wcd || 0)),
+    pow: 1 + au.pow,
+    op: rankOps(d.op, step),
+    echo: step.echo || 1,
+    follow: step.follow || 0,
   };
 };
 
@@ -839,14 +898,18 @@ export function createFight(run) {
       const d = e.def;
       const hp = heroPlan(d, e.rank || 0);
       units.push({
-        uid: e.uid, def: d, rank: e.rank || 0, timer: 0, act: d.act, aura: d.aura, fired: 0,
+        uid: e.uid, def: d, rank: e.rank || 0, timer: 0, act: hp.act, aura: d.aura, fired: 0,
         cd: Math.max(TUNING.cdMin, hp.cd - au.cd + cdTer - mod.herocd),
         gen: Math.max(1, Math.round((hp.gen + au.gen) * (1 + mod.gen))),
-        pow: (1 + au.pow) * hp.pow,
+        pow: (1 + au.pow) * hp.pow, follow: hp.follow || 0,
       });
     } else {
       const ws = wheelStat(e.def, au, cdTer, mod, e.rank || 0);
-      wheels.push({ uid: e.uid, def: e.def, rank: e.rank || 0, cost: ws.cost, wcd: ws.wcd, pow: ws.pow, timer: 0, native: !!e.native, waiting: false });
+      wheels.push({
+        uid: e.uid, def: e.def, rank: e.rank || 0, cost: ws.cost, wcd: ws.wcd, pow: ws.pow,
+        op: ws.op, echoLeft: ws.echo, follow: ws.follow,
+        timer: 0, native: !!e.native, waiting: false,
+      });
     }
   }
 
@@ -1127,9 +1190,9 @@ export function stepFight(f) {
     f.cpuGain += got;
     ev.push({ s: 'p', k: 'cpu', v: got, waste: u.gen - got, uid: u.uid });
     for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow, { srcId: u.uid }));
-    // 最终法则（5 启）：出手顺带一次半效果追击——抓到第五张同名卡才有的东西
-    if (u.rank >= TUNING.rankMax) {
-      for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow * 0.5, { srcId: u.uid }));
+    // 追击档（最终法则 / 终式）：按这一档表里写的比例再打一次——不同流派追的东西不一样
+    if (u.follow > 0) {
+      for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow * u.follow, { srcId: u.uid }));
     }
     if (checkOver(f)) return ev;
   }
@@ -1143,11 +1206,11 @@ export function stepFight(f) {
     f.cpu -= w.cost;
     f.cpuSpent += w.cost;
     w.timer = 0;
-    for (const op of w.def.op) ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid }));
-    // 回响：每场第一次开火，这一发再结算一次（超维·回响命轮；一次性，不会无限翻倍）
-    if (!w.echoUsed && w.def.op.some((o) => o.k === 'echo')) {
-      w.echoUsed = true;
-      for (const op of w.def.op) {
+    for (const op of w.op) ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid }));
+    // 回响：叠到超叠 / 终式之后，前几发开火各再结算一次（每场 echoLeft 次，用完为止）
+    if (w.echoLeft > 0 && w.op.some((o) => o.k === 'echo')) {
+      w.echoLeft -= 1;
+      for (const op of w.op) {
         if (op.k !== 'dmg') continue;
         ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid, echo: true }));
       }
@@ -1156,7 +1219,7 @@ export function stepFight(f) {
     // 再衍化：每场第一发命轮再打一次
     if (f.firstWheel && f.mod.dupFirst && !f.dupUsed) {
       f.dupUsed = true;
-      for (const op of w.def.op) {
+      for (const op of w.op) {
         if (op.k !== 'dmg') continue;
         const extra = Math.round(op.v * (op.hits || 1));
         f.e.hp -= extra;
@@ -1318,8 +1381,10 @@ export function applyEvent(run, id, optIndex = 0) {
       if (!cands.length) { run.gold += 10; msg = '没有可升的，折成 10 金'; break; }
       const r = evRand(run, cands);
       r.rank = rankOf(r) + 1;
-      const d = r.kind === 'wheel' || run.wheels.includes(r) ? wheelOf(r.key) : heroOf(r.key);
-      msg = `「${d ? d.n : ''}」升到 ${RANK_TIER[r.rank] || r.rank}`;
+      const isWheel = r.kind === 'wheel' || run.wheels.includes(r);
+      const d = isWheel ? wheelOf(r.key) : heroOf(r.key);
+      const tier = isWheel ? WHEEL_TIER : RANK_TIER;
+      msg = `「${d ? d.n : ''}」${isWheel ? '叠到' : '升到'} ${tier[r.rank] || r.rank}`;
       break;
     }
     case 'reroll':

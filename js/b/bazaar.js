@@ -153,6 +153,236 @@ const ARCH = {
   },
 };
 
+// ---------------------------------------------------------------- 启灵 / 叠位
+// 五档成长不是全游戏一张表：每个流派按自己的打法往上长。
+//   mul    —— 这一档把哪些 op 放大（dmg 伤害 / dot 毒与冻伤 / str 力量 / shield 护盾 /
+//             heal 治疗 / vuln 易伤 / slow 延后 / leech 吸血 / hits 段数 / exec 处决线 / pierce 穿盾）
+//   gen / cd  —— 产算力、节拍（唤醒体）；cost / wcd —— 耗算力、节拍（命轮）
+//   extra  —— 每次出手追加的东西（函数，参数是这条流派 / 这条命轮的基础 op）
+//   follow —— 出手后再来一次这个比例的追击
+//   aura   —— 超限（第 4 档）时相邻光环一起变强
+//   echo   —— 命轮每场能回响几次
+// 唤醒体叫「启灵」：1 启 / 2 启 / 3 启 / 超限 / 最终法则。
+// 命轮叫「叠位」：1 叠 / 2 叠 / 3 叠 / 超叠 / 终式——它不是「觉醒」，是这条轮盘叠了几层。
+const opVal = (ops, k) => {
+  const o = ops.find((x) => x.k === k);
+  return o ? o.v : 0;
+};
+
+const HERO_RANKS = {
+  // 混沌·直伤：狂乱滚力量、过载灌算力、爆燃靠盾换伤害
+  berserk: [
+    {},
+    { mul: { str: 1.4 }, d: '力量叠得更凶：每次叠加 ×1.4。' },
+    { mul: { dmg: 1.18, str: 1.8 }, d: '伤害 +18%，力量叠层 ×1.8。' },
+    { cd: 1, d: '节拍 -1：力量滚得更快。' },
+    { mul: { dmg: 1.35, str: 2.4 }, aura: true, d: '超限：伤害 ×1.35、力量 ×2.4，光环也变强。' },
+    { mul: { dmg: 1.5, str: 3.2 }, extra: (ops) => [{ k: 'str', v: r2(opVal(ops, 'str') * 0.35) }],
+      d: '最终法则：伤害 ×1.5、力量 ×3.2，每次出手再叠一次力量。' },
+  ],
+  overload: [
+    {},
+    { gen: 1, d: '产算力 +1——算力就是弹药。' },
+    { gen: 1, mul: { dmg: 1.15 }, d: '产算力再 +1，直伤 +15%。' },
+    { cd: 1, d: '节拍 -1：弹药进得更快。' },
+    { gen: 1, mul: { dmg: 1.35 }, aura: true, d: '超限：产算力再 +1、直伤 ×1.35，光环也变强。' },
+    { gen: 1, mul: { dmg: 1.55 }, d: '最终法则：产算力再 +1（累计 +4），直伤 ×1.55。' },
+  ],
+  blast: [
+    {},
+    { mul: { shield: 1.3 }, d: '护盾 +30%。' },
+    { mul: { shield: 1.6, dmg: 1.2 }, d: '护盾 ×1.6，直伤 +20%。' },
+    { cd: 1, d: '节拍 -1：盾补得更勤。' },
+    { mul: { shield: 2.0, dmg: 1.4 }, aura: true, d: '超限：护盾 ×2.0、直伤 ×1.4，光环也变强。' },
+    { mul: { shield: 2.4, dmg: 1.6 }, extra: (ops) => [{ k: 'dmg', v: r1(opVal(ops, 'shield') * 0.4) }],
+      d: '最终法则：护盾 ×2.4、直伤 ×1.6，架盾后追加相当于护盾 40% 的直伤。' },
+  ],
+
+  // 血肉·回复：噬血靠吸血比例、血泉靠治疗量、血壁靠盾
+  leech: [
+    {},
+    { mul: { leech: 0.12 }, d: '吸血 35% → 47%。' },
+    { mul: { dmg: 1.15, leech: 0.2 }, d: '伤害 +15%，吸血 → 55%。' },
+    { cd: 1, d: '节拍 -1：回血更频繁。' },
+    { mul: { dmg: 1.3, leech: 0.32 }, aura: true, d: '超限：伤害 ×1.3，吸血 → 67%，光环也变强。' },
+    { mul: { dmg: 1.45, leech: 0.45 }, d: '最终法则：伤害 ×1.45，吸血 → 80%。' },
+  ],
+  tide: [
+    {},
+    { mul: { heal: 1.35 }, d: '治疗 +35%。' },
+    { mul: { heal: 1.6, shield: 1.35 }, d: '治疗 ×1.6、护盾 +35%。' },
+    { cd: 1, d: '节拍 -1：治疗更密。' },
+    { mul: { heal: 1.9, shield: 1.7 }, aura: true, d: '超限：治疗 ×1.9、护盾 ×1.7，光环也变强。' },
+    { mul: { heal: 2.3, shield: 2.0 }, extra: (ops) => [{ k: 'shield', v: r1(opVal(ops, 'heal') * 0.35) }],
+      d: '最终法则：治疗 ×2.3，每次治疗额外架起相当于治疗量 35% 的护盾。' },
+  ],
+  bulwark: [
+    {},
+    { mul: { shield: 1.35 }, d: '护盾 +35%。' },
+    { mul: { shield: 1.7, dmg: 1.25 }, d: '护盾 ×1.7，撞击 +25%。' },
+    { cd: 1, d: '节拍 -1：盾墙更厚。' },
+    { mul: { shield: 2.1, dmg: 1.45 }, aura: true, d: '超限：护盾 ×2.1、撞击 ×1.45，光环也变强。' },
+    { mul: { shield: 2.5, dmg: 1.6 }, follow: 0.5, d: '最终法则：护盾 ×2.5、撞击 ×1.6，出手后追一次半效果的撞击。' },
+  ],
+
+  // 深海·持续伤害：冻伤 / 中毒越叠越狠，滞潮顺手拖对面节拍
+  frost: [
+    {},
+    { mul: { dot: 1.5 }, d: '冻伤 +50%。' },
+    { mul: { dmg: 1.15, dot: 2.0 }, d: '伤害 +15%，冻伤 ×2.0。' },
+    { cd: 1, d: '节拍 -1：冻伤挂得更勤。' },
+    { mul: { dmg: 1.25, dot: 2.6 }, aura: true, d: '超限：伤害 ×1.25、冻伤 ×2.6，光环也变强。' },
+    { mul: { dmg: 1.35, dot: 3.2 }, extra: (ops) => [{ k: 'burn', v: Math.max(1, Math.round(opVal(ops, 'burn') * 0.4)) }],
+      d: '最终法则：冻伤 ×3.2，每次出手再补一层冻伤。' },
+  ],
+  venom: [
+    {},
+    { mul: { dot: 1.5 }, d: '中毒 +50%。' },
+    { mul: { dot: 2.0, dmg: 1.15 }, d: '中毒 ×2.0，补刀 +15%。' },
+    { cd: 1, d: '节拍 -1：毒层不断。' },
+    { mul: { dot: 2.5, dmg: 1.25 }, aura: true, d: '超限：中毒 ×2.5、补刀 ×1.25，光环也变强。' },
+    { mul: { dot: 3.0, dmg: 1.35 }, extra: (ops) => [{ k: 'poison', v: Math.max(1, Math.round(opVal(ops, 'poison') * 0.4)) }],
+      d: '最终法则：中毒 ×3.0，每次出手再叠半层毒。' },
+  ],
+  slowtide: [
+    {},
+    { mul: { dot: 1.4, slow: 1.3 }, d: '中毒 +40%，延后 ×1.3。' },
+    { mul: { dot: 1.8, slow: 1.6 }, d: '中毒 ×1.8，延后 ×1.6。' },
+    { cd: 1, d: '节拍 -1：拖得更勤。' },
+    { mul: { dot: 2.2, slow: 1.9 }, aura: true, d: '超限：中毒 ×2.2、延后 ×1.9，光环也变强。' },
+    { mul: { dot: 2.6, slow: 2.2 }, follow: 0.5, d: '最终法则：中毒 ×2.6、延后 ×2.2，出手后追一次半效果。' },
+  ],
+
+  // 超维·多段：每档多半是「多打一段」或「每段更疼」，段数吃满就是这套体系的爽点
+  haste: [
+    {},
+    { mul: { dmg: 1.15 }, d: '每段 +15%。' },
+    { mul: { dmg: 1.3, hits: 1 }, d: '每段 ×1.3，段数 +1（4 段）。' },
+    { cd: 1, d: '节拍 -1：连击更密。' },
+    { mul: { dmg: 1.45, hits: 1 }, aura: true, d: '超限：每段 ×1.45，段数再 +1（5 段），光环也变强。' },
+    { mul: { dmg: 1.6 }, follow: 0.5, d: '最终法则：每段 ×1.6，出手后追一次半效果的连击。' },
+  ],
+  vuln: [
+    {},
+    { mul: { vuln: 1.4 }, d: '易伤 +40%。' },
+    { mul: { vuln: 1.8, dmg: 1.15 }, d: '易伤 ×1.8，每段 +15%。' },
+    { cd: 1, d: '节拍 -1：易伤不断档。' },
+    { mul: { vuln: 2.2, dmg: 1.3, hits: 1 }, aura: true, d: '超限：易伤 ×2.2，段数 +1（3 段），光环也变强。' },
+    { mul: { vuln: 2.6, dmg: 1.45, hits: 1 }, follow: 0.5, d: '最终法则：易伤 ×2.6，4 段连击，出手后追一次半效果。' },
+  ],
+  phase: [
+    {},
+    { mul: { dmg: 1.2 }, d: '每段 +20%。' },
+    { mul: { dmg: 1.3, shield: 1.3, hits: 1 }, d: '段数 +1（4 段），每段 ×1.3，护盾 +30%。' },
+    { cd: 1, d: '节拍 -1：折跃更频。' },
+    { mul: { dmg: 1.45, shield: 1.5, hits: 1 }, aura: true, d: '超限：5 段、每段 ×1.45，光环也变强。' },
+    { mul: { dmg: 1.6 }, follow: 0.5, d: '最终法则：每段 ×1.6，出手后追一次半效果的穿盾连击。' },
+  ],
+};
+
+const WHEEL_RANKS = {
+  // 混沌：一发、残血翻倍、叠力量、易伤
+  burst: [
+    {}, { mul: { dmg: 1.15 }, d: '伤害 +15%。' },
+    { cost: 1, mul: { dmg: 1.25 }, d: '耗算力 -1，伤害 ×1.25。' },
+    { wcd: 1, d: '节拍 -1。' },
+    { cost: 1, mul: { dmg: 1.45 }, d: '超叠：耗算力再 -1（累计 -2），伤害 ×1.45。' },
+    { mul: { dmg: 1.7, pierce: 0.25 }, d: '终式：伤害 ×1.7，并穿 25% 护盾。' },
+  ],
+  execute: [
+    {}, { mul: { exec: 0.55 }, d: '处决线 45% → 55%。' },
+    { cost: 1, mul: { dmg: 1.15 }, d: '耗算力 -1，伤害 +15%。' },
+    { wcd: 1, d: '节拍 -1。' },
+    { mul: { dmg: 1.3, exec: 0.65 }, d: '超叠：伤害 ×1.3，处决线 65%。' },
+    { mul: { dmg: 1.5, exec: 0.75 }, d: '终式：伤害 ×1.5，残血 75% 以下就翻倍。' },
+  ],
+  str: [
+    {}, { mul: { str: 1.5 }, d: '叠力量 ×1.5。' },
+    { cost: 1, mul: { dmg: 1.15 }, d: '耗算力 -1，伤害 +15%。' },
+    { wcd: 1, d: '节拍 -1。' },
+    { mul: { str: 2.2, dmg: 1.2 }, d: '超叠：力量 ×2.2、伤害 ×1.2。' },
+    { mul: { str: 3.0, dmg: 1.35 }, extra: (ops) => [{ k: 'str', v: r2(opVal(ops, 'str') * 0.5) }],
+      d: '终式：力量 ×3.0，每次开火再叠一次力量。' },
+  ],
+  vuln: [
+    {}, { mul: { vuln: 1.5 }, d: '易伤 +50%。' },
+    { cost: 1, mul: { dmg: 1.15 }, d: '耗算力 -1，伤害 +15%。' },
+    { wcd: 1, d: '节拍 -1。' },
+    { mul: { vuln: 2.0, dmg: 1.25 }, d: '超叠：易伤 ×2.0、伤害 ×1.25。' },
+    { mul: { vuln: 2.6, dmg: 1.4 }, d: '终式：易伤 ×2.6、伤害 ×1.4。' },
+  ],
+
+  // 血肉：吸血、盾墙、血泉
+  leech: [
+    {}, { mul: { leech: 0.15 }, d: '吸血 40% → 55%。' },
+    { cost: 1, mul: { dmg: 1.15 }, d: '耗算力 -1，伤害 +15%。' },
+    { wcd: 1, d: '节拍 -1。' },
+    { mul: { dmg: 1.3, leech: 0.3 }, d: '超叠：伤害 ×1.3，吸血 → 70%。' },
+    { mul: { dmg: 1.55, leech: 0.5 }, d: '终式：伤害 ×1.55，吸血 → 90%。' },
+  ],
+  bulwark: [
+    {}, { mul: { shield: 1.3 }, d: '护盾 +30%。' },
+    { cost: 1, mul: { shield: 1.5 }, d: '耗算力 -1，护盾 ×1.5。' },
+    { wcd: 1, d: '节拍 -1。' },
+    { mul: { shield: 1.9, dmg: 1.3 }, d: '超叠：护盾 ×1.9、伤害 ×1.3。' },
+    { mul: { shield: 2.3, dmg: 1.5 }, d: '终式：护盾 ×2.3、伤害 ×1.5。' },
+  ],
+  tide: [
+    {}, { mul: { heal: 1.35 }, d: '治疗 +35%。' },
+    { cost: 1, mul: { shield: 1.3 }, d: '耗算力 -1，护盾 +30%。' },
+    { wcd: 1, d: '节拍 -1。' },
+    { mul: { heal: 1.7, shield: 1.6, dmg: 1.2 }, d: '超叠：治疗 ×1.7、护盾 ×1.6。' },
+    { mul: { heal: 2.1, shield: 2.0, dmg: 1.4 }, extra: (ops) => [{ k: 'shield', v: r1(opVal(ops, 'heal') * 0.3) }],
+      d: '终式：治疗 ×2.1、护盾 ×2.0，并额外架起治疗量 30% 的盾。' },
+  ],
+
+  // 深海：中毒、冻伤、滞潮
+  venom: [
+    {}, { mul: { dot: 1.4 }, d: '中毒 +40%。' },
+    { cost: 1, mul: { dot: 1.6 }, d: '耗算力 -1，中毒 ×1.6。' },
+    { wcd: 1, d: '节拍 -1。' },
+    { cost: 1, mul: { dot: 2.0, dmg: 1.2 }, d: '超叠：中毒 ×2.0、伤害 ×1.2。' },
+    { mul: { dot: 2.4, dmg: 1.3 }, d: '终式：中毒 ×2.4、伤害 ×1.3。' },
+  ],
+  burn: [
+    {}, { mul: { dot: 1.4 }, d: '冻伤 +40%。' },
+    { mul: { dmg: 1.15, dot: 1.6 }, d: '伤害 +15%，冻伤 ×1.6。' },
+    { wcd: 1, d: '节拍 -1。' },
+    { cost: 1, mul: { dot: 2.0, dmg: 1.3 }, d: '超叠：冻伤 ×2.0、伤害 ×1.3。' },
+    { mul: { dot: 2.4, dmg: 1.45 }, d: '终式：冻伤 ×2.4、伤害 ×1.45。' },
+  ],
+  slow: [
+    {}, { mul: { slow: 2 }, d: '延后 1 拍 → 2 拍。' },
+    { cost: 1, mul: { dmg: 1.15 }, d: '耗算力 -1，伤害 +15%。' },
+    { wcd: 1, d: '节拍 -1。' },
+    { mul: { dmg: 1.3, slow: 2.5 }, d: '超叠：伤害 ×1.3，延后 2.5 拍。' },
+    { mul: { dmg: 1.5, slow: 3 }, d: '终式：伤害 ×1.5，延后 3 拍（上限）。' },
+  ],
+
+  // 超维：多段、回响、穿盾
+  multi: [
+    {}, { mul: { hits: 1 }, d: '段数 +1（5 段）。' },
+    { mul: { dmg: 1.15 }, d: '每段 +15%。' },
+    { wcd: 1, d: '节拍 -1。' },
+    { cost: 1, mul: { dmg: 1.2, hits: 1 }, d: '超叠：段数再 +1（6 段），每段 ×1.2。' },
+    { mul: { dmg: 1.35 }, d: '终式：每段 ×1.35。' },
+  ],
+  echo: [
+    {}, { mul: { dmg: 1.15 }, d: '伤害 +15%。' },
+    { cost: 1, d: '耗算力 -1。' },
+    { wcd: 1, d: '节拍 -1。' },
+    { mul: { dmg: 1.3 }, echo: 2, d: '超叠：每场回响两次。' },
+    { mul: { dmg: 1.5 }, echo: 3, d: '终式：每场回响三次。' },
+  ],
+  pierce: [
+    {}, { mul: { dmg: 1.15 }, d: '伤害 +15%。' },
+    { cost: 1, d: '耗算力 -1。' },
+    { wcd: 1, d: '节拍 -1。' },
+    { cost: 1, mul: { dmg: 1.35 }, d: '超叠：耗算力再 -1（累计 -2），伤害 ×1.35。' },
+    { mul: { dmg: 1.6 }, d: '终式：伤害 ×1.6（本就全穿盾）。' },
+  ],
+};
+
 // 界域特性：同一个界域的人凑得越多，共鸣越强（2 / 3 / 4 人三档）。
 // 四界的性格就是四种「伤害怎么算」：混沌比这一拍有多疼，血肉比谁先耗死谁，
 // 深海比三拍后还在掉多少，超维比这一下拆成了几段。
@@ -295,13 +525,13 @@ function designItems(items) {
     return { ...it, m: { k, v } };
   });
 }
-return { ARCH, REALM_TRAIT, ARCH_ZH, designHeroes, WARCH, designWheels, designItems };
+return { ARCH, HERO_RANKS, WHEEL_RANKS, REALM_TRAIT, ARCH_ZH, designHeroes, WARCH, designWheels, designItems };
 })();
 
 // ---- js/bazaar-data.js
 const m_bazaar_data = await (async () => {
 const { HEROES: G_HEROES, ITEMS: G_ITEMS, WHEELS: G_WHEELS, PACTS: G_PACTS, FOES: G_FOES, SHEETS: G_SHEETS } = m_bazaar_gen;
-const { designHeroes, designWheels, designItems, ARCH: ARCH_RAW, ARCH_ZH: ARCH_ZH_RAW, WARCH: WARCH_RAW, REALM_TRAIT: REALM_TRAIT_RAW } = m_bazaar_arch;
+const { designHeroes, designWheels, designItems, ARCH: ARCH_RAW, ARCH_ZH: ARCH_ZH_RAW, WARCH: WARCH_RAW, REALM_TRAIT: REALM_TRAIT_RAW, HERO_RANKS: HERO_RANKS_RAW, WHEEL_RANKS: WHEEL_RANKS_RAW } = m_bazaar_arch;
 // 《大巴扎：银钥》的数据层 —— 大表在 js/bazaar-gen.js（由 scripts/build_bazaar_gen.py 生成），
 // 这里只放「规则常数」「地形」和「按难度拼出来的关卡排期」。
 //
@@ -317,8 +547,12 @@ const WARCH = WARCH_RAW;
 const ARCH_ZH = ARCH_ZH_RAW;
 // 界域特性：同界域 2 / 3 / 4 人三档共鸣
 const REALM_TRAIT = REALM_TRAIT_RAW;
-// 启灵档位：抓到同名唤醒体 / 同一条命轮就往上升一档
+// 唤醒体的五档叫「启灵」；命轮的五档叫「叠位」——命轮不是觉醒，是这条轮盘又叠了一层。
+// 两边的每一档具体加什么，都按流派 / 机制族分别写在 js/bazaar-arch.js 里（HERO_RANKS / WHEEL_RANKS）。
 const RANK_TIER = ['', '1 启', '2 启', '3 启', '超限', '最终法则'];
+const WHEEL_TIER = ['', '1 叠', '2 叠', '3 叠', '超叠', '终式'];
+const HERO_RANKS = HERO_RANKS_RAW;
+const WHEEL_RANKS = WHEEL_RANKS_RAW;
 // 唤醒体、命轮、造物都要经过流派设计层：生成表里 73 个人只有 3 套数值、149 条命轮只有
 // 「直伤 + 一点毒或盾」，不拆开的话名字换一百遍打起来还是同一套。设计全在 js/bazaar-arch.js。
 const HEROES = designHeroes(G_HEROES);
@@ -332,7 +566,7 @@ const EXTRA_PACTS = [
   { id: 'p024', n: '缓毒', spr: 'item:328', k: 'zone', v: 50, txt: '毒圈晚 50 拍出现（第 150 拍起），慢热卡组多一段发育时间。' },
   { id: 'p025', n: '苔生', spr: 'item:329', k: 'mossregen', v: 2, txt: '每拍回复 2 点生命。' },
   { id: 'p026', n: '行囊', spr: 'item:330', k: 'bench', v: 2, txt: '仓库 +2 格，换阵容不用卖东西。' },
-  { id: 'p027', n: '早启', spr: 'item:331', k: 'rank', v: 1, txt: '开局每个唤醒体与命轮都算 +1 启灵。' },
+  { id: 'p027', n: '早启', spr: 'item:331', k: 'rank', v: 1, txt: '开局每个唤醒体 +1 启、每条命轮 +1 叠。' },
   { id: 'p028', n: '疾行', spr: 'item:332', k: 'herocd', v: 1, txt: '所有唤醒体的节拍 -1（最低 2 拍）。' },
   { id: 'p029', n: '双刃', spr: 'item:333', k: 'twoedge', v: 0.3, txt: '命轮伤害 +30%，但你受到的伤害也多 15%。' },
 ];
@@ -369,7 +603,7 @@ const TUNING = {
   shopSize: 6,        // 集市一次摆几个选项（2 列 × 3 行）
   rerollCost: 1,      // 刷新一次的价钱（原来 2）：放宽一点，玩家才有钱多刷几次找想要的人 / 命轮
   benchSlots: 4,      // 仓库格数：装不下的人 / 命轮先放仓库，随时换上场或卖掉
-  rankMax: 5,         // 启灵上限：1/2/3 启 → 超限 → 最终法则
+  rankMax: 5,         // 启灵 / 叠位上限：1/2/3 → 超限·超叠 → 最终法则·终式
   dupRate: 0.45,      // 集市多摆一个「升启」摊位的概率（买下就是把已有的那张往上顶一档，不占格）
   realmShopCost: 1,   // 一天里第二次以后换界域商店的价钱
   sellRate: 0.5,
@@ -483,7 +717,7 @@ function rowFor(day, diffId) {
   const row = SCHEDULE[Math.min(day, SCHEDULE.length) - 1] || SCHEDULE[SCHEDULE.length - 1];
   return row.bands[diffId] || row.bands.normal;
 }
-return { SHEETS, ARCH, WARCH, ARCH_ZH, REALM_TRAIT, RANK_TIER, HEROES, ITEMS, WHEELS, PACTS, FOES, SHOP_ITEMS, TUNING, DIFFS, REALM_ZH, TYPE_ZH, RANK_ZH, REALM_COLOR, ITEM_ARCH_ZH, MOD_ZH, AURA_ZH, TERRAINS, SCHEDULE, rowFor };
+return { SHEETS, ARCH, WARCH, ARCH_ZH, REALM_TRAIT, RANK_TIER, WHEEL_TIER, HERO_RANKS, WHEEL_RANKS, HEROES, ITEMS, WHEELS, PACTS, FOES, SHOP_ITEMS, TUNING, DIFFS, REALM_ZH, TYPE_ZH, RANK_ZH, REALM_COLOR, ITEM_ARCH_ZH, MOD_ZH, AURA_ZH, TERRAINS, SCHEDULE, rowFor };
 })();
 
 // ---- js/bazaar-events.js
@@ -552,10 +786,10 @@ const EVENTS = [
     ],
   },
   {
-    id: 'ritual', n: '启灵仪式', art: 'item:300',
-    txt: '地上画着圈。把已经有的东西放进去，它会变成「更多」。',
+    id: 'ritual', n: '启灵与叠位', art: 'item:300',
+    txt: '地上画着两个圈：一个给活着的人，一个给转着的轮。放进去的东西会变成「更多」。',
     opts: [
-      { t: '举行仪式', d: '随机一个唤醒体或命轮 +1 启', k: 'rank', v: 1 },
+      { t: '举行仪式', d: '随机一个唤醒体 +1 启，或一条命轮 +1 叠', k: 'rank', v: 1 },
       { t: '把粉扫走', d: '得 10 金', k: 'gold', v: 10 },
     ],
   },
@@ -610,6 +844,9 @@ const ARCH_ZH = DATA.ARCH_ZH;
 const REALM_TRAIT = DATA.REALM_TRAIT;
 const RANK_ZH = DATA.RANK_ZH;
 const RANK_TIER = DATA.RANK_TIER;
+const WHEEL_TIER = DATA.WHEEL_TIER;
+const HERO_RANKS = DATA.HERO_RANKS;
+const WHEEL_RANKS = DATA.WHEEL_RANKS;
 const ALL_EVENTS = EVENTS;
 const eventOf = (id) => EVENT_BY_ID.get(id);
 
@@ -685,44 +922,95 @@ function newRun({ seed = Date.now() >>> 0, pactId, diffId = 'normal' } = {}) {
 // 唤醒体占 1~3 格，命轮占 1~2 格（SSR 占 2），一共 TUNING.fieldSlots（15）格。
 // 站位顺序存在 run.order（uid 列表）：人和命轮混着排，可以互相拖动；
 // 唤醒体的光环喂左右相邻的两个——不管邻居是人还是命轮。
-// ---------------------------------------------------------------- 启灵
-// 抓到同名的唤醒体 / 同一条命轮，就把它往上顶一档：1/2/3 启 → 超限 → 最终法则。
-// 每档都实打实加东西，第三档（3 启）解锁节拍 -1，最后两档是倍率跳变。
+// ---------------------------------------------------------------- 启灵 / 叠位
+// 抓到同名的唤醒体 / 同一条命轮，就把它往上顶一档：
+//   唤醒体 —— 1 启 / 2 启 / 3 启 / 超限 / 最终法则；命轮 —— 1 叠 / 2 叠 / 3 叠 / 超叠 / 终式。
+// 每一档加什么不是一张全游戏通用的表，而是按「流派 / 机制族」分别设计，
+// 表在 js/bazaar-arch.js 的 HERO_RANKS / WHEEL_RANKS（改数值只改那里）。
 const rankOf = (rec) => Math.min(TUNING.rankMax, (rec && rec.rank) || 0);
-const HERO_RANK = {
-  gen: [0, 1, 2, 2, 3, 4],
-  act: [1, 1.08, 1.16, 1.24, 1.38, 1.55],
-  cd: [0, 0, 0, 1, 1, 1],
-};
-const WHEEL_RANK = {
-  cost: [0, 1, 1, 1, 2, 2],
-  pow: [1, 1, 1.1, 1.2, 1.35, 1.5],
-  wcd: [0, 0, 0, 1, 1, 1],
-};
-// 每一档启灵到底多了什么（详情面板直接显示，和上面的表同源，别两边各写一份）
-const RANK_DESC = [
-  '基础形态。',
-  '产算力 +1。',
-  '产算力 +2，行动效果 ×1.08。',
-  '产算力 +2，节拍 -1，行动效果 ×1.24。',
-  '超限：行动效果 ×1.38，光环也变强（节拍光环 +1、增幅光环 ×1.5）。',
-  '最终法则：行动效果 ×1.55，每次出手顺带一次半效果的追击。',
-];
-const RANK_DESC_W = [
-  '基础形态。',
-  '耗算力 -1。',
-  '耗算力 -1，效果 ×1.1。',
-  '耗算力 -1，节拍 -1，效果 ×1.2。',
-  '超限：耗算力 -2，效果 ×1.35。',
-  '最终法则：耗算力 -2，节拍 -1，效果 ×1.5。',
-];
+const ROUND = (x) => Math.round(x * 100) / 100;
+// 取某一档的累计效果：gen / cd / cost / wcd 与段数逐档累加，
+// 倍率（mul）按「这一档的总倍率」覆盖，extra / follow / echo 取当前档。
+function rankStepOf(table, id, r) {
+  const list = table && table[id];
+  if (!list || !r) return {};
+  const out = { mul: {} };
+  let hits = 0;
+  for (let i = 1; i <= r; i++) {
+    const st = list[i];
+    if (!st) continue;
+    for (const k of ['gen', 'cd', 'cost', 'wcd']) if (st[k]) out[k] = (out[k] || 0) + st[k];
+    if (st.mul) {
+      for (const k of Object.keys(st.mul)) if (k !== 'hits') out.mul[k] = st.mul[k];
+      if (st.mul.hits) hits += st.mul.hits;
+    }
+    if (st.extra) out.extra = st.extra;
+    if (st.follow != null) out.follow = st.follow;
+    if (st.aura) out.aura = true;
+    if (st.echo != null) out.echo = st.echo;
+  }
+  if (hits) out.mul.hits = hits;
+  out.d = (list[r] && list[r].d) || '';
+  return out;
+}
+
+// 把这一档的 mul / extra 落到 op 列表上：伤害、毒、盾、治疗、段数、处决线、延后……
+function rankOps(ops, step) {
+  const m = step.mul || {};
+  const out = ops.map((o0) => {
+    const o = { ...o0 };
+    if (o.k === 'dmg') {
+      if (m.dmg) o.v = ROUND(o.v * m.dmg);
+      if (m.hits) o.hits = (o.hits || 1) + m.hits;
+      if (m.leech) o.leech = ROUND((o.leech || 0) + m.leech);
+      if (m.pierce != null) o.pierce = Math.max(o.pierce || 0, m.pierce);
+      if (m.exec != null) o.execute = m.exec;
+    } else if (o.k === 'poison' || o.k === 'burn') {
+      if (m.dot) o.v = Math.max(1, Math.round(o.v * m.dot));
+    } else if (o.k === 'str') {
+      if (m.str) o.v = ROUND(o.v * m.str);
+    } else if (o.k === 'shield') {
+      if (m.shield) o.v = ROUND(o.v * m.shield);
+    } else if (o.k === 'heal') {
+      if (m.heal) o.v = ROUND(o.v * m.heal);
+    } else if (o.k === 'vuln') {
+      if (m.vuln) o.v = ROUND(o.v * m.vuln);
+    } else if (o.k === 'slow') {
+      if (m.slow) o.v = ROUND(o.v * m.slow);
+    }
+    return o;
+  });
+  // extra 拿的是「已经放大过」的 op——它模拟的是每次出手真正多出来的那一下
+  if (step.extra) out.push(...step.extra(out));
+  return out;
+}
+
+// 详情面板直接吃这两条：当前这一档到底多了什么（和实现同源，别在界面里另抄一份）
+function heroRankDesc(def, rank) {
+  const r = Math.min(TUNING.rankMax, Math.max(0, rank | 0));
+  if (!r) return '基础形态。';
+  return rankStepOf(HERO_RANKS, def && def.arch, r).d || '基础形态。';
+}
+function wheelRankDesc(def, rank) {
+  const r = Math.min(TUNING.rankMax, Math.max(0, rank | 0));
+  if (!r) return '基础形态。';
+  return rankStepOf(WHEEL_RANKS, def && def.arch, r).d || '基础形态。';
+}
 // 面板 / 战斗共用的「这个唤醒体在当前启灵下长什么样」
+// 命轮在当前叠位下的实际 op（界面拿它显示「现在打多少」，和战斗同源）
+const wheelOp = (def, rank = 0) =>
+  rankOps(def.op, rankStepOf(WHEEL_RANKS, def.arch, Math.min(TUNING.rankMax, rank | 0)));
+
 function heroPlan(def, rank = 0) {
   const r = Math.min(TUNING.rankMax, rank | 0);
+  const step = rankStepOf(HERO_RANKS, def.arch, r);
   return {
-    gen: def.gen + HERO_RANK.gen[r],
-    cd: Math.max(TUNING.cdMin, def.cd - HERO_RANK.cd[r]),
-    pow: HERO_RANK.act[r],
+    gen: def.gen + (step.gen || 0),
+    cd: Math.max(TUNING.cdMin, def.cd - (step.cd || 0)),
+    pow: 1,
+    act: rankOps(def.act, step),
+    follow: step.follow || 0,
+    auraBoost: !!step.aura,
   };
 }
 
@@ -818,11 +1106,12 @@ function auraMap(run) {
       if (!nb || nb.kind !== 'hero' || !nb.def.aura) continue;
       const a = nb.def.aura;
       const r = Math.min(TUNING.rankMax, nb.rank | 0);
-      // 超限（4 启）之后光环本身也变强：产算力光环不放大（否则算力会重新过剩），
-      // 只放大节拍（+1 整数档）和增幅（×1.5）。
+      // 超限之后光环本身也变强（哪个流派有这条，写在 HERO_RANKS 的 aura 字段上）：
+      // 产算力光环不放大（否则算力会重新过剩），只放大节拍（+1 整数档）和增幅（×1.5）。
+      const boost = !!rankStepOf(HERO_RANKS, nb.def.arch, r).aura;
       if (a.k === 'gen') o.gen += a.v;
-      else if (a.k === 'cd') o.cd += r >= 4 ? a.v + 1 : a.v;
-      else if (a.k === 'pow') o.pow += r >= 4 ? a.v * 1.5 : a.v;
+      else if (a.k === 'cd') o.cd += boost ? a.v + 1 : a.v;
+      else if (a.k === 'pow') o.pow += boost ? a.v * 1.5 : a.v;
     }
     m.set(e.uid, o);
   });
@@ -837,10 +1126,14 @@ function wheelPlan(run, e) {
 }
 const wheelStat = (d, au, cdTer, mod, rank = 0) => {
   const r = Math.min(TUNING.rankMax, rank | 0);
+  const step = rankStepOf(WHEEL_RANKS, d.arch, r);
   return {
-    cost: Math.max(4, d.cpu - 2 * au.gen - WHEEL_RANK.cost[r]),
-    wcd: Math.max(TUNING.wcdMin, d.wcd - au.cd + cdTer - mod.wcdDown - WHEEL_RANK.wcd[r]),
-    pow: (1 + au.pow) * WHEEL_RANK.pow[r],
+    cost: Math.max(4, d.cpu - 2 * au.gen - (step.cost || 0)),
+    wcd: Math.max(TUNING.wcdMin, d.wcd - au.cd + cdTer - mod.wcdDown - (step.wcd || 0)),
+    pow: 1 + au.pow,
+    op: rankOps(d.op, step),
+    echo: step.echo || 1,
+    follow: step.follow || 0,
   };
 };
 
@@ -1418,14 +1711,18 @@ function createFight(run) {
       const d = e.def;
       const hp = heroPlan(d, e.rank || 0);
       units.push({
-        uid: e.uid, def: d, rank: e.rank || 0, timer: 0, act: d.act, aura: d.aura, fired: 0,
+        uid: e.uid, def: d, rank: e.rank || 0, timer: 0, act: hp.act, aura: d.aura, fired: 0,
         cd: Math.max(TUNING.cdMin, hp.cd - au.cd + cdTer - mod.herocd),
         gen: Math.max(1, Math.round((hp.gen + au.gen) * (1 + mod.gen))),
-        pow: (1 + au.pow) * hp.pow,
+        pow: (1 + au.pow) * hp.pow, follow: hp.follow || 0,
       });
     } else {
       const ws = wheelStat(e.def, au, cdTer, mod, e.rank || 0);
-      wheels.push({ uid: e.uid, def: e.def, rank: e.rank || 0, cost: ws.cost, wcd: ws.wcd, pow: ws.pow, timer: 0, native: !!e.native, waiting: false });
+      wheels.push({
+        uid: e.uid, def: e.def, rank: e.rank || 0, cost: ws.cost, wcd: ws.wcd, pow: ws.pow,
+        op: ws.op, echoLeft: ws.echo, follow: ws.follow,
+        timer: 0, native: !!e.native, waiting: false,
+      });
     }
   }
 
@@ -1706,9 +2003,9 @@ function stepFight(f) {
     f.cpuGain += got;
     ev.push({ s: 'p', k: 'cpu', v: got, waste: u.gen - got, uid: u.uid });
     for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow, { srcId: u.uid }));
-    // 最终法则（5 启）：出手顺带一次半效果追击——抓到第五张同名卡才有的东西
-    if (u.rank >= TUNING.rankMax) {
-      for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow * 0.5, { srcId: u.uid }));
+    // 追击档（最终法则 / 终式）：按这一档表里写的比例再打一次——不同流派追的东西不一样
+    if (u.follow > 0) {
+      for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow * u.follow, { srcId: u.uid }));
     }
     if (checkOver(f)) return ev;
   }
@@ -1722,11 +2019,11 @@ function stepFight(f) {
     f.cpu -= w.cost;
     f.cpuSpent += w.cost;
     w.timer = 0;
-    for (const op of w.def.op) ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid }));
-    // 回响：每场第一次开火，这一发再结算一次（超维·回响命轮；一次性，不会无限翻倍）
-    if (!w.echoUsed && w.def.op.some((o) => o.k === 'echo')) {
-      w.echoUsed = true;
-      for (const op of w.def.op) {
+    for (const op of w.op) ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid }));
+    // 回响：叠到超叠 / 终式之后，前几发开火各再结算一次（每场 echoLeft 次，用完为止）
+    if (w.echoLeft > 0 && w.op.some((o) => o.k === 'echo')) {
+      w.echoLeft -= 1;
+      for (const op of w.op) {
         if (op.k !== 'dmg') continue;
         ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid, echo: true }));
       }
@@ -1735,7 +2032,7 @@ function stepFight(f) {
     // 再衍化：每场第一发命轮再打一次
     if (f.firstWheel && f.mod.dupFirst && !f.dupUsed) {
       f.dupUsed = true;
-      for (const op of w.def.op) {
+      for (const op of w.op) {
         if (op.k !== 'dmg') continue;
         const extra = Math.round(op.v * (op.hits || 1));
         f.e.hp -= extra;
@@ -1897,8 +2194,10 @@ function applyEvent(run, id, optIndex = 0) {
       if (!cands.length) { run.gold += 10; msg = '没有可升的，折成 10 金'; break; }
       const r = evRand(run, cands);
       r.rank = rankOf(r) + 1;
-      const d = r.kind === 'wheel' || run.wheels.includes(r) ? wheelOf(r.key) : heroOf(r.key);
-      msg = `「${d ? d.n : ''}」升到 ${RANK_TIER[r.rank] || r.rank}`;
+      const isWheel = r.kind === 'wheel' || run.wheels.includes(r);
+      const d = isWheel ? wheelOf(r.key) : heroOf(r.key);
+      const tier = isWheel ? WHEEL_TIER : RANK_TIER;
+      msg = `「${d ? d.n : ''}」${isWheel ? '叠到' : '升到'} ${tier[r.rank] || r.rank}`;
       break;
     }
     case 'reroll':
@@ -1982,7 +2281,7 @@ function itemText(def) {
 function wheelFireText(def) {
   return def.op.map((o) => opText(o, 1)).join('；');
 }
-return { TUNING, HEROES, ITEMS, SHOP_ITEMS, WHEELS, PACTS, FOES, DIFFS, SCHEDULE, TERRAINS, MOD_ZH, AURA_ZH, REALM_COLOR, ARCH_ZH, REALM_TRAIT, RANK_ZH, RANK_TIER, ALL_EVENTS, eventOf, itemOf, wheelOf, foeOf, heroOf, pactOf, terrainOf, diffOf, rngFrom, heroPrice, wheelPrice, relicPrice, sellPrice, newRun, rankOf, RANK_DESC, RANK_DESC_W, heroPlan, wheelCells, usedSlots, freeSlots, syncOrder, layoutOf, canAddHero, canAddWheel, addHero, moveHero, removeHero, auraMap, wheelPlan, planOf, priceOf, shopMix, rollShop, setShopRealm, defOf, benchRoom, canBuy, buy, owned, benchStore, benchDeploy, sell, coreCostOf, expandCore, rowOf, pickFoe, rawDps, foeStats, modsOf, createFight, stepFight, autoFight, settle, applyEvent, scoreOf, opText, modText, itemText, wheelFireText };
+return { TUNING, HEROES, ITEMS, SHOP_ITEMS, WHEELS, PACTS, FOES, DIFFS, SCHEDULE, TERRAINS, MOD_ZH, AURA_ZH, REALM_COLOR, ARCH_ZH, REALM_TRAIT, RANK_ZH, RANK_TIER, WHEEL_TIER, HERO_RANKS, WHEEL_RANKS, ALL_EVENTS, eventOf, itemOf, wheelOf, foeOf, heroOf, pactOf, terrainOf, diffOf, rngFrom, heroPrice, wheelPrice, relicPrice, sellPrice, newRun, rankOf, heroRankDesc, wheelRankDesc, wheelOp, heroPlan, wheelCells, usedSlots, freeSlots, syncOrder, layoutOf, canAddHero, canAddWheel, addHero, moveHero, removeHero, auraMap, wheelPlan, planOf, priceOf, shopMix, rollShop, setShopRealm, defOf, benchRoom, canBuy, buy, owned, benchStore, benchDeploy, sell, coreCostOf, expandCore, rowOf, pickFoe, rawDps, foeStats, modsOf, createFight, stepFight, autoFight, settle, applyEvent, scoreOf, opText, modText, itemText, wheelFireText };
 })();
 
 // ---- js/bazaar-sfx.js
@@ -2288,13 +2587,14 @@ function preload(h) {
   im.src = idleUrl(h);
 }
 
-// 启灵角标：0 启不显示；1~3 启写数字，超限 / 最终法则换配色。
-// 抓到同一个唤醒体会往上叠，所以「这张卡喂过几次」得一眼能看见，不然玩家不知道重复抓有什么用。
+// 档位角标：0 不显示；1~3 写数字，第四、五档换配色。
+// 唤醒体叫「启灵」（1 启 → 最终法则），命轮叫「叠位」（1 叠 → 终式）——两套名字别混用。
 const RANK_SHORT = ['', '1', '2', '3', '超', '终'];
-const rankBadge = (rank) => (rank > 0
-  ? `<span class="orb${rank >= 4 ? ' max' : ''}" title="${C.RANK_TIER[rank] || rank}">${RANK_SHORT[rank] || rank}</span>`
+const tierName = (kind, r) => (kind === 'wheel' ? C.WHEEL_TIER[r] : C.RANK_TIER[r]) || '';
+const rankBadge = (rank, kind = 'hero') => (rank > 0
+  ? `<span class="orb${rank >= 4 ? ' max' : ''}" title="${tierName(kind, rank)}">${RANK_SHORT[rank] || rank}</span>`
   : '');
-const rankLabel = (rank) => (rank > 0 ? C.RANK_TIER[rank] || `${rank} 启` : '');
+const rankLabel = (rank, kind = 'hero') => (rank > 0 ? tierName(kind, rank) || `${rank}` : '');
 
 // 界域商店的五个按钮（id 为空串 = 混合）。名字和流派都从数据层取，别在这里抄一份。
 const SHOP_REALMS = [{ id: '', n: '混合', t: '四个界域混着出，什么都可能有（造物本来就不分界域）' }]
@@ -2390,7 +2690,7 @@ const TUT = [
   { at: null, t: '欢迎来到弥萨格大巴扎',
     d: '这是一个「摆摊自走」小游戏：每天先在集市买东西、摆好阵，再开战，战斗全自动。<b>连赢 12 天、理智别掉光</b>就算通关（输一场掉 1 点理智，但留在原地有补给让你补强再打）。接下来 1 分钟带你认一遍界面。' },
   { at: 'shop', t: '① 集市：一次六个选项，用金币招人、买命轮',
-    d: '开局你只有 <b>32 金</b>：刚好够招 <b>2 个 1 格唤醒体</b>，或者 <b>1 个唤醒体 + 1 条命轮</b>。点卡面直接买，点左边小图标看详情。<b>第一个唤醒体会白送他的本命命轮</b>，所以先招人最稳。不想要这批货可以「刷新」（要花钱）。上面那排是<b>界域选择</b>：挑了某一界，今天只出那一界的唤醒体和命轮（每天第一次免费，之后 1 金）。摊位里偶尔还会多一张金框的<b>「升启」</b>卡——买它不占格、不进仓库，直接把已有的那张往上顶一档。' },
+    d: '开局你只有 <b>32 金</b>：刚好够招 <b>2 个 1 格唤醒体</b>，或者 <b>1 个唤醒体 + 1 条命轮</b>。点卡面直接买，点左边小图标看详情。<b>第一个唤醒体会白送他的本命命轮</b>，所以先招人最稳。不想要这批货可以「刷新」（要花钱）。上面那排是<b>界域选择</b>：挑了某一界，今天只出那一界的唤醒体和命轮（每天第一次免费，之后 1 金）。摊位里偶尔还会多一张金框的<b>「启灵 / 叠位」</b>卡——买它不占格、不进仓库，直接把已有的那张往上顶一档（唤醒体叫启灵，命轮叫叠位，每一档加什么按它自己的流派走）。' },
   { at: 'track', t: '② 战场：十五格，人和命轮共用',
     d: '<b>唤醒体和命轮一起站在十五格里</b>：唤醒体占 1~3 格，命轮占 1~2 格（SSR 占 2）。<b>按住任何一个左右拖</b>可以换位置，人和命轮可以互相换。每个人头顶的圆圈数字是「还差几拍出手」。<b>光环给左右相邻的那两个——不管邻居是人还是命轮</b>：把有光环的唤醒体贴在命轮旁边，命轮就能更快、更省算力、更疼。每个唤醒体出手时除了产算力，还会<b>顺手打一下</b>（输出主力还是命轮）。<b>唤醒体分十二个流派，界域就决定「伤害怎么算」</b>：混沌直伤（狂乱叠力量、过载灌一发、爆燃盾后爆发）、血肉回复（噬血、血泉、血壁）、深海持续伤害（霜蚀冻伤、腐潮下毒、滞潮拖节拍）、超维多段（速律、虚隙、折跃都是分段连击）。卡片右上角就是流派名，先看清它是干嘛的再买。' },
   { at: 'cpuBar', t: '③ 算力：唤醒体产，命轮花',
@@ -2505,7 +2805,7 @@ function wheelUnitHTML(u, inBattle) {
   // 冷却条按界域上色：血肉红 / 深海蓝 / 混沌黄 / 超维紫，中立命轮仍是金色
   const rv = REALM_VAR[d.realm] ? `var(${REALM_VAR[d.realm]})` : 'var(--gold)';
   return `<div class="unit wu${u.len < 2 ? ' w1' : ''}${u.native ? ' native' : ''}" data-uid="${u.uid}" data-kind="wheel" style="--at:${u.start};--len:${u.len};--realm:${rv}">
-    ${rankBadge(u.rank || 0)}
+    ${rankBadge(u.rank || 0, 'wheel')}
     <span class="wsp">${sp(d.spr)}</span>
     <span class="ucd${inBattle && ws.wcd - timer <= 1 ? ' now' : ''}" id="${b}ucd${u.uid}"><i>${inBattle ? Math.max(0, ws.wcd - timer) : ws.wcd}</i></span>
     <span class="ut">${d.n}</span>
@@ -2519,15 +2819,16 @@ function unitHTML(u, inBattle) {
   const d = u.def;
   // 角上的环 = 还差几拍出手。数字比进度条直观，环本身给「快到了」的感觉。
   // 战斗单位带 timer/cd（会跳动），布局单位没有 —— 没有就按满 cd 算。
-  const cd = u.cd != null ? u.cd : d.cd;
+  const hp = C.heroPlan(d, u.rank || 0);
+  const cd = u.cd != null ? u.cd : hp.cd;
   const timer = u.timer != null ? u.timer : 0;
   const left = inBattle ? Math.max(0, cd - timer) : d.cd;
   return `<div class="unit r-${REALM_CLS[d.realm]}" data-uid="${u.uid}" style="--at:${u.start};--len:${u.len};--realm:var(${REALM_VAR[d.realm]})">
-    ${rankBadge(u.rank || 0)}
+    ${rankBadge(u.rank || 0, 'hero')}
     <img src="${idleUrl(d)}" alt="${d.n}" decoding="async">
     <span class="ucd${inBattle && left <= 1 ? ' now' : ''}" id="${inBattle ? 'b' : ''}ucd${u.uid}" style="--p:${inBattle ? Math.round((timer / cd) * 100) : 0}"><i>${left}</i></span>
     <span class="ut">${d.n}</span>
-    <span class="um">产 ${d.gen}${d.egg ? ' · 主播' : ''}</span>
+    <span class="um">产 ${hp.gen}${d.egg ? ' · 主播' : ''}</span>
     <span class="ucf" id="${inBattle ? 'b' : ''}ucf${u.uid}" style="height:${inBattle ? Math.min(100, Math.round((timer / cd) * 100)) : 0}%"></span>
     <span class="ub"><i id="${inBattle ? 'b' : ''}ub${u.uid}" style="width:${inBattle ? Math.round((timer / cd) * 100) : 0}%"></i></span>
   </div>`;
@@ -2560,11 +2861,15 @@ function renderCpu() {
 
 function renderWheels() {
   const parts = ['<span class="lab">命轮</span>'];
+  const lay = C.layoutOf(run);
   for (const w of run.wheels) {
     const d = C.wheelOf(w.key);
-    const rk = rankLabel(C.rankOf(w));
-    parts.push(`<button class="wh" type="button" data-wid="${w.uid}" title="${wheelFire(d)}${rk ? `（${rk}）` : ''}">
-      ${rankBadge(C.rankOf(w))}${sp(d.spr)}<span class="wi"><b>${d.n}</b><i>耗 ${d.cpu} · ${d.wcd} 拍${rk ? ` · ${rk}` : ''}</i></span>
+    const rk = rankLabel(C.rankOf(w), 'wheel');
+    const e = lay.find((x) => x.uid === w.uid);
+    const ws = e ? C.wheelPlan(run, e) : { cost: d.cpu, wcd: d.wcd };
+    const op = C.wheelOp(d, C.rankOf(w));
+    parts.push(`<button class="wh" type="button" data-wid="${w.uid}" title="${wheelFire({ op })}${rk ? `（${rk}）` : ''}">
+      ${rankBadge(C.rankOf(w), 'wheel')}${sp(d.spr)}<span class="wi"><b>${d.n}</b><i>耗 ${ws.cost} · ${ws.wcd} 拍${rk ? ` · ${rk}` : ''}</i></span>
       <span class="wp"><i></i></span></button>`);
   }
   if (!run.wheels.length) parts.push('<span class="wh empty">还没命轮（买下后和唤醒体一起站在上面的十五格里）</span>');
@@ -2598,9 +2903,9 @@ function renderBench() {
   const parts = [`<span class="lab">仓库 ${run.bench.length}/${TUNING.benchSlots}</span>`];
   for (const b of run.bench) {
     const d = b.kind === 'hero' ? C.heroOf(b.key) : C.wheelOf(b.key);
-    const rk = rankLabel(C.rankOf(b));
+    const rk = rankLabel(C.rankOf(b), b.kind);
     parts.push(`<button class="wh bn" type="button" data-bid="${b.uid}" title="点开：上场 / 换下场上的 / 卖掉">
-      ${rankBadge(C.rankOf(b))}${sp(d.spr)}<span class="wi"><b>${d.n}</b><i>${b.kind === 'hero' ? `唤醒体 · 占 ${d.slots} 格` : `命轮 · 耗 ${d.cpu} · ${d.wcd} 拍`}${rk ? ` · ${rk}` : ''}</i></span></button>`);
+      ${rankBadge(C.rankOf(b), b.kind)}${sp(d.spr)}<span class="wi"><b>${d.n}</b><i>${b.kind === 'hero' ? `唤醒体 · 占 ${d.slots} 格` : `命轮 · 耗 ${d.cpu} · ${d.wcd} 拍`}${rk ? ` · ${rk}` : ''}</i></span></button>`);
   }
   if (!run.bench.length) parts.push('<span class="wh empty">空（买不进战场的人 / 命轮会放这里）</span>');
   host.innerHTML = parts.join('');
@@ -2656,15 +2961,15 @@ function benchActions(o) {
 function offerText(o, def) {
   if (o.dup) {
     const up = dupTarget(o);
-    const to = up ? rankLabel(C.rankOf(up) + 1) : '';
-    return `同名${o.kind === 'hero' ? '唤醒体' : '命轮'} · 升到 ${to}（不占格）`;
+    const to = up ? rankLabel(C.rankOf(up) + 1, o.kind) : '';
+    return `同名${o.kind === 'hero' ? '唤醒体' : '命轮'} · ${o.kind === 'wheel' ? '叠到' : '升到'} ${to}（不占格）`;
   }
   if (o.kind === 'hero') return `占 ${def.slots} 格 · 每 ${def.cd} 拍产 ${def.gen} 算力`;
   if (o.kind === 'wheel') return `耗 ${def.cpu} 算力 · ${wheelFire(def)}（${def.wcd} 拍）`;
   return C.itemText(def);
 }
 
-// 「升启」报价要升的是谁：优先场上，其次仓库，再轮到命轮格
+// 「启灵 / 叠位」报价要升的是谁：优先场上，其次仓库，再轮到命轮格
 function dupTarget(o) {
   if (!o || !o.dup) return null;
   const pool = o.kind === 'hero'
@@ -2753,7 +3058,7 @@ function renderShop() {
       <span class="ci" data-info="${i}">${sp(def.spr)}</span>
       ${o.kind === 'hero' && !o.dup ? `<span class="ca" style="background-image:url(${idleUrl(def)})"></span>` : ''}
       <span class="cp ${run.gold < o.price ? 'no' : ''}">${o.price}</span>
-      <span class="cn">${o.dup ? '<span class="dup">升启</span>' : ''}${def.n}</span>
+      <span class="cn">${o.dup ? `<span class="dup">${o.kind === 'wheel' ? '叠位' : '启灵'}</span>` : ''}${def.n}</span>
       <span class="ct">${offerText(o, def)}</span>
       <span class="r">${o.kind === 'hero' ? (def.archZh || '唤醒体') : o.kind === 'wheel' ? (def.archZh || '命轮') : (ITEM_ARCH_ZH[def.arch] || def.r)}</span>
     </button>`;
@@ -2876,39 +3181,48 @@ window.addEventListener('pointercancel', () => {
 
 // ---------------------------------------------------------------- 详情
 // 详情面板：三条信息源共用一块 DOM —— 队伍里的东西（可卖）、集市里的东西（可买）、战斗中的东西（只看）
-function rankLines(rank, desc) {
+// 五档说明按这一张自己的流派 / 机制族取，不是全游戏同一段话
+function rankLines(rank, kind, def) {
   const r = Math.max(0, Math.min(TUNING.rankMax, rank | 0));
-  const cur = `${C.RANK_TIER[r] || '未启灵'}：${desc[r]}`;
-  const next = r < TUNING.rankMax ? `<br>再抓一张同名 → ${C.RANK_TIER[r + 1]}：${desc[r + 1]}` : '';
+  const word = kind === 'wheel' ? '叠位' : '启灵';
+  const desc = (n) => (kind === 'wheel' ? C.wheelRankDesc(def, n) : C.heroRankDesc(def, n));
+  const cur = `${tierName(kind, r) || `未${word}`}：${desc(r)}`;
+  const next = r < TUNING.rankMax
+    ? `<br>再抓一张同名 → ${tierName(kind, r + 1)}：${desc(r + 1)}`
+    : `<br>已经到${word}的最后一档。`;
   return `<em>${cur}${next}</em>`;
 }
 function sheetHero(d, rank = 0, note = '') {
   paintSp($('sImg'), d.spr);
   $('sName').textContent = d.n;
-  $('sMeta').textContent = `${d.realmZh} · ${d.type} · ${d.archZh || ''} · 占 ${d.slots} 格 · 每 ${d.cd} 拍产 ${d.gen}`
-    + (rank > 0 ? ` · ${C.RANK_TIER[rank]}` : '');
+  const hp = C.heroPlan(d, rank);
+  $('sMeta').textContent = `${d.realmZh} · ${d.type} · ${d.archZh || ''} · 占 ${d.slots} 格 · 每 ${hp.cd} 拍产 ${hp.gen}`
+    + (rank > 0 ? ` · ${tierName('hero', rank)}` : '');
   $('sTxt').innerHTML = [
     `<b>${d.txt}</b>`,
+    rank > 0 ? `<b>现在：每 ${hp.cd} 拍产 ${hp.gen} 算力，${hp.act.map((o) => C.opText(o)).join('；')}</b>` : '',
     note,
-    rankLines(rank, C.RANK_DESC),
+    rankLines(rank, 'hero', d),
     `光环：${d.auraTxt}（只喂左右相邻的两家）`,
     `本命：${d.fate.n}　${C.modText(d.fate.k, d.fate.v)}`,
     `本命命轮：${(C.wheelOf(d.wheel) || {}).n || '—'}`,
   ].filter(Boolean).join('<br>');
   $('sArt').innerHTML = artHTML(d);
 }
-function sheetWheel(d, native, rank = 0, note = '') {
+function sheetWheel(d, native, rank = 0, note = '', ws = null) {
   paintSp($('sImg'), d.spr);
   $('sName').textContent = d.n + (native ? '（本命）' : '');
-  $('sMeta').textContent = `命轮 · ${d.archZh || ''} · 耗 ${d.cpu} 算力 · ${d.wcd} 拍一次`
-    + (rank > 0 ? ` · ${C.RANK_TIER[rank]}` : '');
+  const wop = C.wheelOp(d, rank);
+  const live = ws || { cost: d.cpu, wcd: d.wcd };
+  $('sMeta').textContent = `命轮 · ${d.archZh || ''} · 耗 ${live.cost} 算力 · ${live.wcd} 拍一次`
+    + (rank > 0 ? ` · ${tierName('wheel', rank)}` : '');
   $('sTxt').innerHTML = [
-    `<b>${wheelFire(d)}</b>`,
+    `<b>${wheelFire({ op: wop })}</b>`,
     note,
-    rankLines(rank, C.RANK_DESC_W),
+    rankLines(rank, 'wheel', d),
     `主词条：${wheelPassive(d)}`,
     d.perk ? `<em>${d.perk.txt}</em>` : '',
-    '算力不够就会卡在「等算力」，先把产出跟上。',
+    '算力不够就会卡在「等算力」，先把产出跟上。命轮往上叠的是「叠位」，不是启灵。',
   ].filter(Boolean).join('<br>');
 }
 function sheetRelic(d) {
@@ -2961,12 +3275,12 @@ function openDetail(kind, id, opt) {
     if (own) sheetHero(d, C.rankOf(o.rec));
     else {
       const upd = dupTarget(offer);
-      if (upd) sheetHero(d, C.rankOf(upd), `买下就是升到 <b>${rankLabel(C.rankOf(upd) + 1)}</b>：同名卡不占格、不进仓库。`);
+      if (upd) sheetHero(d, C.rankOf(upd), `买下就是升到 <b>${rankLabel(C.rankOf(upd) + 1, 'hero')}</b>：同名卡不占格、不进仓库。`);
       else sheetHero(d);
     }
     if (isOffer) {
       const upd = dupTarget(offer);
-      const nextT = upd ? rankLabel(C.rankOf(upd) + 1) : '';
+      const nextT = upd ? rankLabel(C.rankOf(upd) + 1, 'hero') : '';
       $('sSell').textContent = offer.sold ? '已经买下了'
         : (offer.dup ? `升到 ${nextT} · ${offer.price} 金` : `买下 ${offer.price} 金`);
       $('sSell').disabled = offer.sold || !C.canBuy(run, opt.offer);
@@ -2986,22 +3300,25 @@ function openDetail(kind, id, opt) {
     }
   } else if (kind === 'wheel') {
     const d = own ? o.def : C.wheelOf(offer.key);
-    if (own) sheetWheel(d, o.rec.native, C.rankOf(o.rec));
+    if (own) {
+      const e = C.layoutOf(run).find((x) => x.uid === o.rec.uid);
+      sheetWheel(d, o.rec.native, C.rankOf(o.rec), '', e ? C.wheelPlan(run, e) : null);
+    }
     else {
       const upd = dupTarget(offer);
-      if (upd) sheetWheel(d, false, C.rankOf(upd), `买下就是升到 <b>${rankLabel(C.rankOf(upd) + 1)}</b>：同名命轮不占格。`);
+      if (upd) sheetWheel(d, false, C.rankOf(upd), `买下就是叠到 <b>${rankLabel(C.rankOf(upd) + 1, 'wheel')}</b>：同名命轮不占格。`);
       else sheetWheel(d, false);
     }
     if (isOffer) {
       const upd = dupTarget(offer);
-      const nextT = upd ? rankLabel(C.rankOf(upd) + 1) : '';
+      const nextT = upd ? rankLabel(C.rankOf(upd) + 1, 'wheel') : '';
       $('sSell').textContent = offer.sold ? '已经买下了'
-        : (offer.dup ? `升到 ${nextT} · ${offer.price} 金` : `买下 ${offer.price} 金`);
+        : (offer.dup ? `叠到 ${nextT} · ${offer.price} 金` : `买下 ${offer.price} 金`);
       $('sSell').disabled = offer.sold || !C.canBuy(run, opt.offer);
       $('sSell').onclick = () => {
         if (!C.buy(run, opt.offer)) { sfx.error(); toast('买不了：钱不够，或者战场格子不够'); return; }
         sfx.buy(); closeSheet(); renderAll();
-        toast(offer.dup ? `${d.n} 升到 ${nextT}` : `${d.n} 上膛`);
+        toast(offer.dup ? `${d.n} 叠到 ${nextT}` : `${d.n} 上膛`);
       };
     } else {
       const back = C.sellPrice('wheel', d);
@@ -3076,7 +3393,7 @@ function paintFight() {
     if (el) openDetail('hero', Number(el.dataset.uid));
   };
   $('bWheels').innerHTML = ['<span class="lab">命轮</span>'].concat(f.wheels.map((w) => `
-    <span class="wh" data-bw="${w.uid}" title="${wheelFire(w.def)}">
+    <span class="wh" data-bw="${w.uid}" title="${wheelFire(w)}">
       ${sp(w.def.spr)}<span class="wi"><b>${w.def.n}</b><i id="wst${w.uid}">耗 ${w.cost} · ${w.wcd} 拍</i></span>
       <span class="wp"><i id="wp${w.uid}"></i></span>
     </span>`)).join('');
