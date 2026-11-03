@@ -21,7 +21,7 @@ const TIER = {
 // 一个流派 = 一种打法：谁负责叠力量、谁负责下毒、谁负责把对面节拍拖慢。
 // act(s) 里的 s 是占格倍率；光环按格数微调（大个子光环更强，但更贵、更占地方）。
 export const ARCH = {
-  // ---- 混沌：伤害走「越打越狠」，辅助走「算力过载」，防御走「焚身烫回去」
+  // ---- 混沌：直伤。三个流派都是「这一拍砸下去多少血」，区别只在怎么把伤害堆起来
   berserk: {
     n: '狂乱', realm: 'CHAOS', type: 'ASSAULT', tag: '叠力量',
     genOff: 0, cdOff: 0,
@@ -31,23 +31,23 @@ export const ARCH = {
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，本场每次伤害 +${a[1].v}（可叠加）。`,
   },
   overload: {
-    n: '过载', realm: 'CHAOS', type: 'CHORUS', tag: '榨算力',
+    n: '过载', realm: 'CHAOS', type: 'CHORUS', tag: '榨算力换一发',
     genOff: 1, cdOff: 0,
-    act: (s) => [{ k: 'dmg', v: r1(1.75 * s), hits: 2 }],
+    act: (s) => [{ k: 'dmg', v: r1(3.6 * s) }],
     aura: { k: 'gen', v: [1, 1, 2] },
     fate: { k: 'gen', v: 0.08 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，并打出 ${a[0].v} 点伤害（2 段）。`,
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，再把算力灌成一发 ${a[0].v} 点直伤（不分段，全砸在一起）。`,
   },
-  burn: {
-    n: '焚身', realm: 'CHAOS', type: 'WARDEN', tag: '灼烧',
+  blast: {
+    n: '爆燃', realm: 'CHAOS', type: 'WARDEN', tag: '盾后爆发',
     genOff: 0, cdOff: 0,
-    act: (s) => [{ k: 'shield', v: r1(6 * s) }, { k: 'burn', v: Math.round(1.5 * s) }],
+    act: (s) => [{ k: 'shield', v: r1(6 * s) }, { k: 'dmg', v: r1(2.2 * s) }],
     aura: { k: 'cd', v: [1, 1, 1] },
     fate: { k: 'amp', v: 0.07 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并给对手点上 ${a[1].v} 层灼烧。`,
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，烧出 ${Math.round(a[0].v)} 点护盾，并撞出 ${a[1].v} 点直伤。`,
   },
 
-  // ---- 血肉：伤害吸血、辅助下毒、防御做盾墙
+  // ---- 血肉：回复。吸血、血泉、盾墙——都往「血条」上做，长局里靠续命和护盾上限滚
   leech: {
     n: '噬血', realm: 'CARO', type: 'ASSAULT', tag: '吸血',
     genOff: 0, cdOff: 0,
@@ -56,13 +56,13 @@ export const ARCH = {
     fate: { k: 'leech', v: 0.06 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，并把这发的 35% 吸回自己身上。`,
   },
-  venom: {
-    n: '蚀毒', realm: 'CARO', type: 'CHORUS', tag: '下毒',
+  tide: {
+    n: '血泉', realm: 'CARO', type: 'CHORUS', tag: '回血续航',
     genOff: 0, cdOff: 0,
-    act: (s) => [{ k: 'poison', v: Math.round(1.6 * s) }, { k: 'dmg', v: r1(1.1 * s) }],
-    aura: { k: 'pow', v: [0.22, 0.28, 0.34] },
-    fate: { k: 'venom', v: 0.12 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，施加 ${a[0].v} 层中毒，并补 ${a[1].v} 点伤害。`,
+    act: (s) => [{ k: 'heal', v: r1(3.2 * s) }, { k: 'shield', v: r1(3.6 * s) }],
+    aura: { k: 'gen', v: [1, 1, 1] },
+    fate: { k: 'regen', v: 1.5 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，回复 ${Math.round(a[0].v)} 点生命，并架起 ${Math.round(a[1].v)} 点护盾。`,
   },
   bulwark: {
     n: '血壁', realm: 'CARO', type: 'WARDEN', tag: '护盾',
@@ -73,78 +73,78 @@ export const ARCH = {
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并撞出 ${a[1].v} 点伤害。`,
   },
 
-  // ---- 深海：伤害走多段碎击、辅助回血、防御拖节拍
+  // ---- 深海：持续伤害。冻伤、中毒、滞潮——不靠这一拍，靠「还在掉」的三拍
   frost: {
-    n: '霜刃', realm: 'AEQUOR', type: 'ASSAULT', tag: '多段',
+    n: '霜蚀', realm: 'AEQUOR', type: 'ASSAULT', tag: '冻伤',
     genOff: 0, cdOff: 0,
-    act: (s) => [{ k: 'dmg', v: r1(2.25 * s), hits: 2 }],
+    act: (s) => [{ k: 'dmg', v: r1(1.9 * s) }, { k: 'burn', v: Math.round(1.2 * s) }],
     aura: { k: 'pow', v: [0.22, 0.26, 0.32] },
     fate: { k: 'crit', v: 0.04 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，碎击两次、共 ${a[0].v} 点伤害。`,
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，并给对手挂上 ${a[1].v} 层冻伤。`,
   },
-  tide: {
-    n: '涌泉', realm: 'AEQUOR', type: 'CHORUS', tag: '续航',
+  venom: {
+    n: '腐潮', realm: 'AEQUOR', type: 'CHORUS', tag: '下毒',
     genOff: 0, cdOff: 0,
-    act: (s) => [{ k: 'heal', v: r1(3.2 * s) }, { k: 'shield', v: r1(3.6 * s) }],
-    aura: { k: 'gen', v: [1, 1, 1] },
-    fate: { k: 'regen', v: 1.5 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，回复 ${Math.round(a[0].v)} 点生命，并架起 ${Math.round(a[1].v)} 点护盾。`,
+    act: (s) => [{ k: 'poison', v: Math.round(1.6 * s) }, { k: 'dmg', v: r1(1.1 * s) }],
+    aura: { k: 'pow', v: [0.22, 0.28, 0.34] },
+    fate: { k: 'venom', v: 0.12 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，施加 ${a[0].v} 层中毒，并补 ${a[1].v} 点伤害。`,
   },
   slowtide: {
-    n: '滞潮', realm: 'AEQUOR', type: 'WARDEN', tag: '拖节拍',
+    n: '滞潮', realm: 'AEQUOR', type: 'WARDEN', tag: '毒 + 拖节拍',
     genOff: 0, cdOff: 0,
-    act: (s) => [{ k: 'dmg', v: r1(1.6 * s) }, { k: 'slow', v: r2(0.4 * s) }],
+    act: (s) => [{ k: 'poison', v: Math.round(1.1 * s) }, { k: 'slow', v: r2(0.4 * s) }],
     aura: { k: 'cd', v: [1, 1, 1] },
     fate: { k: 'fear', v: 0.05 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，并让对手的技能延后 ${a[1].v} 拍。`,
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，下 ${a[0].v} 层中毒，并让对手的技能延后 ${a[1].v} 拍。`,
   },
 
-  // ---- 超维：辅助放大易伤、伤害走处决、防御折跃穿盾
-  vuln: {
-    n: '虚隙', realm: 'ULTRA', type: 'CHORUS', tag: '易伤',
-    genOff: 1, cdOff: 0,
-    act: (s) => [{ k: 'vuln', v: r2(0.07 * s) }, { k: 'dmg', v: r1(0.9 * s) }],
-    aura: { k: 'pow', v: [0.24, 0.30, 0.36] },
-    fate: { k: 'amp', v: 0.06 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，让对手易伤 +${Math.round(a[0].v * 100)}%（3 拍），并补 ${a[1].v} 点伤害。`,
-  },
+  // ---- 超维：多段。伤害拆成好几下打出去，段数越多越吃「每段加成」和暴击
   haste: {
-    n: '速律', realm: 'ULTRA', type: 'ASSAULT', tag: '快节拍',
+    n: '速律', realm: 'ULTRA', type: 'ASSAULT', tag: '快节拍连击',
     genOff: -1, cdOff: -1,
-    act: (s) => [{ k: 'dmg', v: r1(2.85 * s) }, { k: 'str', v: r2(0.2 * s) }],
+    act: (s) => [{ k: 'dmg', v: r1(0.95 * s), hits: 3 }, { k: 'str', v: r2(0.15 * s) }],
     aura: { k: 'cd', v: [1, 1, 1] },
     fate: { k: 'crit', v: 0.04 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，本场每次伤害 +${a[1].v}。节拍比别人快一拍。`,
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，连打三次、每次 ${a[0].v} 点，本场每次伤害 +${a[1].v}。节拍比别人快一拍。`,
+  },
+  vuln: {
+    n: '虚隙', realm: 'ULTRA', type: 'CHORUS', tag: '易伤 + 连击',
+    genOff: 1, cdOff: 0,
+    act: (s) => [{ k: 'vuln', v: r2(0.07 * s) }, { k: 'dmg', v: r1(0.45 * s), hits: 2 }],
+    aura: { k: 'pow', v: [0.24, 0.30, 0.36] },
+    fate: { k: 'amp', v: 0.06 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，让对手易伤 +${Math.round(a[0].v * 100)}%（3 拍），并连打两次、每次 ${a[1].v} 点。`,
   },
   phase: {
-    n: '折跃', realm: 'ULTRA', type: 'WARDEN', tag: '穿盾',
+    n: '折跃', realm: 'ULTRA', type: 'WARDEN', tag: '穿盾连击',
     genOff: 0, cdOff: 0,
-    act: (s) => [{ k: 'shield', v: r1(6 * s) }, { k: 'dmg', v: r1(1.5 * s), pierce: 1 }],
+    act: (s) => [{ k: 'shield', v: r1(6 * s) }, { k: 'dmg', v: r1(0.48 * s), hits: 3, pierce: 1 }],
     aura: { k: 'pow', v: [0.18, 0.22, 0.28] },
     fate: { k: 'pierce', v: 0.15 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并穿过护盾打出 ${a[1].v} 点伤害。`,
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并穿盾连打三次、每次 ${a[1].v} 点。`,
   },
 };
 
 // 界域特性：同一个界域的人凑得越多，共鸣越强（2 / 3 / 4 人三档）。
-// 这是「开本界域的店、一队人全买同一界域」的回报，也是四套体系的性格：
-// 混沌靠成长滚雪球，血肉靠持续伤害磨，深海靠回复拖，超维靠直伤穿盾。
+// 四界的性格就是四种「伤害怎么算」：混沌比这一拍有多疼，血肉比谁先耗死谁，
+// 深海比三拍后还在掉多少，超维比这一下拆成了几段。
 export const REALM_TRAIT = {
-  CHAOS: { n: '成长', k: 'amp', v: [0.08, 0.15, 0.22],
-    txt: '全队造成的伤害 +8% / 15% / 22%（同界域 2 / 3 / 4 人）' },
-  CARO: { n: '持续伤害', k: 'dot', v: [0.25, 0.45, 0.65],
-    txt: '中毒与灼烧 +25% / 45% / 65%（同界域 2 / 3 / 4 人）' },
-  AEQUOR: { n: '回复', k: 'heal', v: [0.2, 0.35, 0.5],
-    txt: '治疗 +20% / 35% / 50%，每次治疗附带 4 点护盾（同界域 2 / 3 / 4 人）' },
-  ULTRA: { n: '直伤', k: 'burst', v: [0.1, 0.18, 0.26],
-    txt: '直伤 +10% / 18% / 26%，并穿透 8% / 14% / 20% 护盾（同界域 2 / 3 / 4 人）' },
+  CHAOS: { n: '直伤', k: 'burst', v: [0.1, 0.18, 0.26], pierce: [0.08, 0.14, 0.2],
+    txt: '全队造成的伤害 +10% / 18% / 26%，命轮再穿 8% / 14% / 20% 护盾（同界域 2 / 3 / 4 人）' },
+  CARO: { n: '回复', k: 'heal', v: [0.2, 0.35, 0.5], sh: [4, 6, 9],
+    txt: '治疗 +20% / 35% / 50%，每次治疗顺带 4 / 6 / 9 点护盾（同界域 2 / 3 / 4 人）' },
+  AEQUOR: { n: '持续伤害', k: 'dot', v: [0.25, 0.45, 0.65],
+    txt: '中毒与冻伤 +25% / 45% / 65%（同界域 2 / 3 / 4 人）' },
+  ULTRA: { n: '多段', k: 'multi', v: [0.05, 0.08, 0.12],
+    txt: '每一段伤害 +5% / 8% / 12%——三段就是 +15% / 24% / 36%（同界域 2 / 3 / 4 人）' },
 };
 
 // 界域 × 类型 → 流派。（十二格刚好十二个流派，老角色的定位不会被推翻）
 const CELL = {
-  CHAOS: { ASSAULT: 'berserk', CHORUS: 'overload', WARDEN: 'burn' },
-  CARO: { ASSAULT: 'leech', CHORUS: 'venom', WARDEN: 'bulwark' },
-  AEQUOR: { ASSAULT: 'frost', CHORUS: 'tide', WARDEN: 'slowtide' },
+  CHAOS: { ASSAULT: 'berserk', CHORUS: 'overload', WARDEN: 'blast' },
+  CARO: { ASSAULT: 'leech', CHORUS: 'tide', WARDEN: 'bulwark' },
+  AEQUOR: { ASSAULT: 'frost', CHORUS: 'venom', WARDEN: 'slowtide' },
   ULTRA: { ASSAULT: 'haste', CHORUS: 'vuln', WARDEN: 'phase' },
 };
 
@@ -195,13 +195,13 @@ export function designHeroes(heroes) {
 }
 
 // ---------------------------------------------------------------- 命轮机制族
-// 每条命轮按界域分到三四个机制族里：同样是「花算力换伤害」，但毒 / 灼烧 / 穿盾 / 回响 / 叠力量
+// 每条命轮按界域分到三四个机制族里：同样是「花算力换伤害」，但中毒 / 冻伤 / 穿盾 / 回响 / 叠力量
 // 在长局里的曲线完全不同，配谁上场、先买哪条，就是流派。
 export const WARCH = {
   burst: { n: '直伤', op: (s) => [{ k: 'dmg', v: r1(18 * s) }], cpu: 22, wcd: 5 },
-  multi: { n: '霜刃', op: (s) => [{ k: 'dmg', v: r1(5 * s), hits: 4 }], cpu: 21, wcd: 5 },
+  multi: { n: '裂击', op: (s) => [{ k: 'dmg', v: r1(5 * s), hits: 4 }], cpu: 21, wcd: 5 },
   venom: { n: '蚀毒', op: (s) => [{ k: 'dmg', v: r1(8.5 * s) }, { k: 'poison', v: Math.round(3 * s) }], cpu: 21, wcd: 5 },
-  burn: { n: '焚身', op: (s) => [{ k: 'dmg', v: r1(7 * s) }, { k: 'burn', v: Math.round(3.2 * s) }], cpu: 21, wcd: 5 },
+  burn: { n: '霜噬', op: (s) => [{ k: 'dmg', v: r1(7 * s) }, { k: 'burn', v: Math.round(3.2 * s) }], cpu: 21, wcd: 5 },
   leech: { n: '噬血', op: (s) => [{ k: 'dmg', v: r1(14 * s), leech: 0.4 }], cpu: 21, wcd: 5 },
   execute: { n: '处决', op: (s) => [{ k: 'dmg', v: r1(15 * s), execute: 0.45 }], cpu: 22, wcd: 5 },
   pierce: { n: '折跃', op: (s) => [{ k: 'dmg', v: r1(13.5 * s), pierce: 1 }], cpu: 22, wcd: 5 },
@@ -210,14 +210,14 @@ export const WARCH = {
   str: { n: '蓄势', op: (s) => [{ k: 'dmg', v: r1(9 * s) }, { k: 'str', v: r2(1.1 * s) }], cpu: 20, wcd: 5 },
   bulwark: { n: '血壁', op: (s) => [{ k: 'shield', v: r1(24 * s) }, { k: 'dmg', v: r1(6 * s) }], cpu: 19, wcd: 5 },
   echo: { n: '回响', op: (s) => [{ k: 'dmg', v: r1(11 * s) }, { k: 'echo', v: 1 }], cpu: 23, wcd: 6 },
-  tide: { n: '涌泉', op: (s) => [{ k: 'shield', v: r1(14 * s) }, { k: 'heal', v: r1(10 * s) }, { k: 'dmg', v: r1(6 * s) }], cpu: 20, wcd: 5 },
+  tide: { n: '血泉', op: (s) => [{ k: 'shield', v: r1(14 * s) }, { k: 'heal', v: r1(10 * s) }, { k: 'dmg', v: r1(6 * s) }], cpu: 20, wcd: 5 },
 };
 
 const WPOOL = {
-  CHAOS: ['str', 'burn', 'execute', 'burst'],
-  CARO: ['venom', 'leech', 'bulwark'],
-  AEQUOR: ['slow', 'multi', 'tide'],
-  ULTRA: ['vuln', 'pierce', 'echo'],
+  CHAOS: ['burst', 'str', 'execute', 'vuln'],       // 直伤：一发、叠力量、残血翻倍、易伤放大
+  CARO: ['leech', 'bulwark', 'tide'],                // 回复：吸血、盾墙、血泉
+  AEQUOR: ['venom', 'burn', 'slow'],                 // 持续伤害：中毒、冻伤、滞潮
+  ULTRA: ['multi', 'echo', 'pierce'],                // 多段：四连、回响、穿盾连击
 };
 const WNEUTRAL = ['burst', 'multi', 'venom', 'burn', 'execute', 'pierce', 'slow', 'leech'];
 const RAR_S = { N: 0.88, SR: 1, SSR: 1.12 };

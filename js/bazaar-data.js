@@ -23,7 +23,7 @@ export const WHEELS = designWheels(G_WHEELS);
 // 原有 21 条密契大多是「某项数值 +X%」，差别只在数字。这里补 8 条机制型的，
 // 让「开局选哪份密契」真的会改变这一局的打法。
 const EXTRA_PACTS = [
-  { id: 'p022', n: '蚀刻', spr: 'item:326', k: 'dotamp', v: 0.6, txt: '中毒与灼烧 +60%，但生命上限 -15。' },
+  { id: 'p022', n: '蚀刻', spr: 'item:326', k: 'dotamp', v: 0.6, txt: '中毒与冻伤 +60%，但生命上限 -15。' },
   { id: 'p023', n: '狙击', spr: 'item:327', k: 'snipe', v: 0.3, txt: '命轮伤害 30% 穿透护盾——对面越爱架盾越吃亏。' },
   { id: 'p024', n: '缓毒', spr: 'item:328', k: 'zone', v: 50, txt: '毒圈晚 50 拍出现（第 150 拍起），慢热卡组多一段发育时间。' },
   { id: 'p025', n: '苔生', spr: 'item:329', k: 'mossregen', v: 2, txt: '每拍回复 2 点生命。' },
@@ -72,8 +72,8 @@ export const TUNING = {
   cdMin: 2,
   wcdMin: 3,
   // 每天的血量预算 / 目标强度 / 收入。以 12 天为基准调出来，后面按同一斜率外推。
-  dayHp: LATE_SCALE(RAW_DAY_HP, 1.55),
-  dayDps: LATE_SCALE(RAW_DAY_DPS, 1.32),
+  dayHp: LATE_SCALE(RAW_DAY_HP, 1.63),
+  dayDps: LATE_SCALE(RAW_DAY_DPS, 1.34),
   income: [0, 15, 15, 14, 13, 13, 13, 13, 13, 13, 13, 14, 15, 15, 16, 16, 17, 17, 18],
 };
 
@@ -96,7 +96,7 @@ export const REALM_COLOR = { 混沌: '#ecd24f', 血肉: '#cf3f46', 深海: '#4a8
 
 // 造物卡片上那一小行标签（用的是原表的 arch 字段）
 export const ITEM_ARCH_ZH = {
-  dmg: '直伤', poison: '中毒', burn: '灼烧', shield: '护盾', heal: '回复', gold: '金币',
+  dmg: '直伤', poison: '中毒', burn: '冻伤', shield: '护盾', heal: '回复', gold: '金币',
   crit: '暴击', haste: '节拍', regen: '回血', slow: '滞缓', vuln: '易伤', aura: '光环',
   str: '力量', thorns: '反伤', fate: '本命',
 };

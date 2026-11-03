@@ -48,7 +48,7 @@ const TIER = {
 // 一个流派 = 一种打法：谁负责叠力量、谁负责下毒、谁负责把对面节拍拖慢。
 // act(s) 里的 s 是占格倍率；光环按格数微调（大个子光环更强，但更贵、更占地方）。
 const ARCH = {
-  // ---- 混沌：伤害走「越打越狠」，辅助走「算力过载」，防御走「焚身烫回去」
+  // ---- 混沌：直伤。三个流派都是「这一拍砸下去多少血」，区别只在怎么把伤害堆起来
   berserk: {
     n: '狂乱', realm: 'CHAOS', type: 'ASSAULT', tag: '叠力量',
     genOff: 0, cdOff: 0,
@@ -58,23 +58,23 @@ const ARCH = {
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，本场每次伤害 +${a[1].v}（可叠加）。`,
   },
   overload: {
-    n: '过载', realm: 'CHAOS', type: 'CHORUS', tag: '榨算力',
+    n: '过载', realm: 'CHAOS', type: 'CHORUS', tag: '榨算力换一发',
     genOff: 1, cdOff: 0,
-    act: (s) => [{ k: 'dmg', v: r1(1.75 * s), hits: 2 }],
+    act: (s) => [{ k: 'dmg', v: r1(3.6 * s) }],
     aura: { k: 'gen', v: [1, 1, 2] },
     fate: { k: 'gen', v: 0.08 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，并打出 ${a[0].v} 点伤害（2 段）。`,
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，再把算力灌成一发 ${a[0].v} 点直伤（不分段，全砸在一起）。`,
   },
-  burn: {
-    n: '焚身', realm: 'CHAOS', type: 'WARDEN', tag: '灼烧',
+  blast: {
+    n: '爆燃', realm: 'CHAOS', type: 'WARDEN', tag: '盾后爆发',
     genOff: 0, cdOff: 0,
-    act: (s) => [{ k: 'shield', v: r1(6 * s) }, { k: 'burn', v: Math.round(1.5 * s) }],
+    act: (s) => [{ k: 'shield', v: r1(6 * s) }, { k: 'dmg', v: r1(2.2 * s) }],
     aura: { k: 'cd', v: [1, 1, 1] },
     fate: { k: 'amp', v: 0.07 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并给对手点上 ${a[1].v} 层灼烧。`,
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，烧出 ${Math.round(a[0].v)} 点护盾，并撞出 ${a[1].v} 点直伤。`,
   },
 
-  // ---- 血肉：伤害吸血、辅助下毒、防御做盾墙
+  // ---- 血肉：回复。吸血、血泉、盾墙——都往「血条」上做，长局里靠续命和护盾上限滚
   leech: {
     n: '噬血', realm: 'CARO', type: 'ASSAULT', tag: '吸血',
     genOff: 0, cdOff: 0,
@@ -83,13 +83,13 @@ const ARCH = {
     fate: { k: 'leech', v: 0.06 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，并把这发的 35% 吸回自己身上。`,
   },
-  venom: {
-    n: '蚀毒', realm: 'CARO', type: 'CHORUS', tag: '下毒',
+  tide: {
+    n: '血泉', realm: 'CARO', type: 'CHORUS', tag: '回血续航',
     genOff: 0, cdOff: 0,
-    act: (s) => [{ k: 'poison', v: Math.round(1.6 * s) }, { k: 'dmg', v: r1(1.1 * s) }],
-    aura: { k: 'pow', v: [0.22, 0.28, 0.34] },
-    fate: { k: 'venom', v: 0.12 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，施加 ${a[0].v} 层中毒，并补 ${a[1].v} 点伤害。`,
+    act: (s) => [{ k: 'heal', v: r1(3.2 * s) }, { k: 'shield', v: r1(3.6 * s) }],
+    aura: { k: 'gen', v: [1, 1, 1] },
+    fate: { k: 'regen', v: 1.5 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，回复 ${Math.round(a[0].v)} 点生命，并架起 ${Math.round(a[1].v)} 点护盾。`,
   },
   bulwark: {
     n: '血壁', realm: 'CARO', type: 'WARDEN', tag: '护盾',
@@ -100,78 +100,78 @@ const ARCH = {
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并撞出 ${a[1].v} 点伤害。`,
   },
 
-  // ---- 深海：伤害走多段碎击、辅助回血、防御拖节拍
+  // ---- 深海：持续伤害。冻伤、中毒、滞潮——不靠这一拍，靠「还在掉」的三拍
   frost: {
-    n: '霜刃', realm: 'AEQUOR', type: 'ASSAULT', tag: '多段',
+    n: '霜蚀', realm: 'AEQUOR', type: 'ASSAULT', tag: '冻伤',
     genOff: 0, cdOff: 0,
-    act: (s) => [{ k: 'dmg', v: r1(2.25 * s), hits: 2 }],
+    act: (s) => [{ k: 'dmg', v: r1(1.9 * s) }, { k: 'burn', v: Math.round(1.2 * s) }],
     aura: { k: 'pow', v: [0.22, 0.26, 0.32] },
     fate: { k: 'crit', v: 0.04 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，碎击两次、共 ${a[0].v} 点伤害。`,
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，并给对手挂上 ${a[1].v} 层冻伤。`,
   },
-  tide: {
-    n: '涌泉', realm: 'AEQUOR', type: 'CHORUS', tag: '续航',
+  venom: {
+    n: '腐潮', realm: 'AEQUOR', type: 'CHORUS', tag: '下毒',
     genOff: 0, cdOff: 0,
-    act: (s) => [{ k: 'heal', v: r1(3.2 * s) }, { k: 'shield', v: r1(3.6 * s) }],
-    aura: { k: 'gen', v: [1, 1, 1] },
-    fate: { k: 'regen', v: 1.5 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，回复 ${Math.round(a[0].v)} 点生命，并架起 ${Math.round(a[1].v)} 点护盾。`,
+    act: (s) => [{ k: 'poison', v: Math.round(1.6 * s) }, { k: 'dmg', v: r1(1.1 * s) }],
+    aura: { k: 'pow', v: [0.22, 0.28, 0.34] },
+    fate: { k: 'venom', v: 0.12 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，施加 ${a[0].v} 层中毒，并补 ${a[1].v} 点伤害。`,
   },
   slowtide: {
-    n: '滞潮', realm: 'AEQUOR', type: 'WARDEN', tag: '拖节拍',
+    n: '滞潮', realm: 'AEQUOR', type: 'WARDEN', tag: '毒 + 拖节拍',
     genOff: 0, cdOff: 0,
-    act: (s) => [{ k: 'dmg', v: r1(1.6 * s) }, { k: 'slow', v: r2(0.4 * s) }],
+    act: (s) => [{ k: 'poison', v: Math.round(1.1 * s) }, { k: 'slow', v: r2(0.4 * s) }],
     aura: { k: 'cd', v: [1, 1, 1] },
     fate: { k: 'fear', v: 0.05 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，并让对手的技能延后 ${a[1].v} 拍。`,
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，下 ${a[0].v} 层中毒，并让对手的技能延后 ${a[1].v} 拍。`,
   },
 
-  // ---- 超维：辅助放大易伤、伤害走处决、防御折跃穿盾
-  vuln: {
-    n: '虚隙', realm: 'ULTRA', type: 'CHORUS', tag: '易伤',
-    genOff: 1, cdOff: 0,
-    act: (s) => [{ k: 'vuln', v: r2(0.07 * s) }, { k: 'dmg', v: r1(0.9 * s) }],
-    aura: { k: 'pow', v: [0.24, 0.30, 0.36] },
-    fate: { k: 'amp', v: 0.06 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，让对手易伤 +${Math.round(a[0].v * 100)}%（3 拍），并补 ${a[1].v} 点伤害。`,
-  },
+  // ---- 超维：多段。伤害拆成好几下打出去，段数越多越吃「每段加成」和暴击
   haste: {
-    n: '速律', realm: 'ULTRA', type: 'ASSAULT', tag: '快节拍',
+    n: '速律', realm: 'ULTRA', type: 'ASSAULT', tag: '快节拍连击',
     genOff: -1, cdOff: -1,
-    act: (s) => [{ k: 'dmg', v: r1(2.85 * s) }, { k: 'str', v: r2(0.2 * s) }],
+    act: (s) => [{ k: 'dmg', v: r1(0.95 * s), hits: 3 }, { k: 'str', v: r2(0.15 * s) }],
     aura: { k: 'cd', v: [1, 1, 1] },
     fate: { k: 'crit', v: 0.04 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，本场每次伤害 +${a[1].v}。节拍比别人快一拍。`,
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，连打三次、每次 ${a[0].v} 点，本场每次伤害 +${a[1].v}。节拍比别人快一拍。`,
+  },
+  vuln: {
+    n: '虚隙', realm: 'ULTRA', type: 'CHORUS', tag: '易伤 + 连击',
+    genOff: 1, cdOff: 0,
+    act: (s) => [{ k: 'vuln', v: r2(0.07 * s) }, { k: 'dmg', v: r1(0.45 * s), hits: 2 }],
+    aura: { k: 'pow', v: [0.24, 0.30, 0.36] },
+    fate: { k: 'amp', v: 0.06 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，让对手易伤 +${Math.round(a[0].v * 100)}%（3 拍），并连打两次、每次 ${a[1].v} 点。`,
   },
   phase: {
-    n: '折跃', realm: 'ULTRA', type: 'WARDEN', tag: '穿盾',
+    n: '折跃', realm: 'ULTRA', type: 'WARDEN', tag: '穿盾连击',
     genOff: 0, cdOff: 0,
-    act: (s) => [{ k: 'shield', v: r1(6 * s) }, { k: 'dmg', v: r1(1.5 * s), pierce: 1 }],
+    act: (s) => [{ k: 'shield', v: r1(6 * s) }, { k: 'dmg', v: r1(0.48 * s), hits: 3, pierce: 1 }],
     aura: { k: 'pow', v: [0.18, 0.22, 0.28] },
     fate: { k: 'pierce', v: 0.15 },
-    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并穿过护盾打出 ${a[1].v} 点伤害。`,
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并穿盾连打三次、每次 ${a[1].v} 点。`,
   },
 };
 
 // 界域特性：同一个界域的人凑得越多，共鸣越强（2 / 3 / 4 人三档）。
-// 这是「开本界域的店、一队人全买同一界域」的回报，也是四套体系的性格：
-// 混沌靠成长滚雪球，血肉靠持续伤害磨，深海靠回复拖，超维靠直伤穿盾。
+// 四界的性格就是四种「伤害怎么算」：混沌比这一拍有多疼，血肉比谁先耗死谁，
+// 深海比三拍后还在掉多少，超维比这一下拆成了几段。
 const REALM_TRAIT = {
-  CHAOS: { n: '成长', k: 'amp', v: [0.08, 0.15, 0.22],
-    txt: '全队造成的伤害 +8% / 15% / 22%（同界域 2 / 3 / 4 人）' },
-  CARO: { n: '持续伤害', k: 'dot', v: [0.25, 0.45, 0.65],
-    txt: '中毒与灼烧 +25% / 45% / 65%（同界域 2 / 3 / 4 人）' },
-  AEQUOR: { n: '回复', k: 'heal', v: [0.2, 0.35, 0.5],
-    txt: '治疗 +20% / 35% / 50%，每次治疗附带 4 点护盾（同界域 2 / 3 / 4 人）' },
-  ULTRA: { n: '直伤', k: 'burst', v: [0.1, 0.18, 0.26],
-    txt: '直伤 +10% / 18% / 26%，并穿透 8% / 14% / 20% 护盾（同界域 2 / 3 / 4 人）' },
+  CHAOS: { n: '直伤', k: 'burst', v: [0.1, 0.18, 0.26], pierce: [0.08, 0.14, 0.2],
+    txt: '全队造成的伤害 +10% / 18% / 26%，命轮再穿 8% / 14% / 20% 护盾（同界域 2 / 3 / 4 人）' },
+  CARO: { n: '回复', k: 'heal', v: [0.2, 0.35, 0.5], sh: [4, 6, 9],
+    txt: '治疗 +20% / 35% / 50%，每次治疗顺带 4 / 6 / 9 点护盾（同界域 2 / 3 / 4 人）' },
+  AEQUOR: { n: '持续伤害', k: 'dot', v: [0.25, 0.45, 0.65],
+    txt: '中毒与冻伤 +25% / 45% / 65%（同界域 2 / 3 / 4 人）' },
+  ULTRA: { n: '多段', k: 'multi', v: [0.05, 0.08, 0.12],
+    txt: '每一段伤害 +5% / 8% / 12%——三段就是 +15% / 24% / 36%（同界域 2 / 3 / 4 人）' },
 };
 
 // 界域 × 类型 → 流派。（十二格刚好十二个流派，老角色的定位不会被推翻）
 const CELL = {
-  CHAOS: { ASSAULT: 'berserk', CHORUS: 'overload', WARDEN: 'burn' },
-  CARO: { ASSAULT: 'leech', CHORUS: 'venom', WARDEN: 'bulwark' },
-  AEQUOR: { ASSAULT: 'frost', CHORUS: 'tide', WARDEN: 'slowtide' },
+  CHAOS: { ASSAULT: 'berserk', CHORUS: 'overload', WARDEN: 'blast' },
+  CARO: { ASSAULT: 'leech', CHORUS: 'tide', WARDEN: 'bulwark' },
+  AEQUOR: { ASSAULT: 'frost', CHORUS: 'venom', WARDEN: 'slowtide' },
   ULTRA: { ASSAULT: 'haste', CHORUS: 'vuln', WARDEN: 'phase' },
 };
 
@@ -222,13 +222,13 @@ function designHeroes(heroes) {
 }
 
 // ---------------------------------------------------------------- 命轮机制族
-// 每条命轮按界域分到三四个机制族里：同样是「花算力换伤害」，但毒 / 灼烧 / 穿盾 / 回响 / 叠力量
+// 每条命轮按界域分到三四个机制族里：同样是「花算力换伤害」，但中毒 / 冻伤 / 穿盾 / 回响 / 叠力量
 // 在长局里的曲线完全不同，配谁上场、先买哪条，就是流派。
 const WARCH = {
   burst: { n: '直伤', op: (s) => [{ k: 'dmg', v: r1(18 * s) }], cpu: 22, wcd: 5 },
-  multi: { n: '霜刃', op: (s) => [{ k: 'dmg', v: r1(5 * s), hits: 4 }], cpu: 21, wcd: 5 },
+  multi: { n: '裂击', op: (s) => [{ k: 'dmg', v: r1(5 * s), hits: 4 }], cpu: 21, wcd: 5 },
   venom: { n: '蚀毒', op: (s) => [{ k: 'dmg', v: r1(8.5 * s) }, { k: 'poison', v: Math.round(3 * s) }], cpu: 21, wcd: 5 },
-  burn: { n: '焚身', op: (s) => [{ k: 'dmg', v: r1(7 * s) }, { k: 'burn', v: Math.round(3.2 * s) }], cpu: 21, wcd: 5 },
+  burn: { n: '霜噬', op: (s) => [{ k: 'dmg', v: r1(7 * s) }, { k: 'burn', v: Math.round(3.2 * s) }], cpu: 21, wcd: 5 },
   leech: { n: '噬血', op: (s) => [{ k: 'dmg', v: r1(14 * s), leech: 0.4 }], cpu: 21, wcd: 5 },
   execute: { n: '处决', op: (s) => [{ k: 'dmg', v: r1(15 * s), execute: 0.45 }], cpu: 22, wcd: 5 },
   pierce: { n: '折跃', op: (s) => [{ k: 'dmg', v: r1(13.5 * s), pierce: 1 }], cpu: 22, wcd: 5 },
@@ -237,14 +237,14 @@ const WARCH = {
   str: { n: '蓄势', op: (s) => [{ k: 'dmg', v: r1(9 * s) }, { k: 'str', v: r2(1.1 * s) }], cpu: 20, wcd: 5 },
   bulwark: { n: '血壁', op: (s) => [{ k: 'shield', v: r1(24 * s) }, { k: 'dmg', v: r1(6 * s) }], cpu: 19, wcd: 5 },
   echo: { n: '回响', op: (s) => [{ k: 'dmg', v: r1(11 * s) }, { k: 'echo', v: 1 }], cpu: 23, wcd: 6 },
-  tide: { n: '涌泉', op: (s) => [{ k: 'shield', v: r1(14 * s) }, { k: 'heal', v: r1(10 * s) }, { k: 'dmg', v: r1(6 * s) }], cpu: 20, wcd: 5 },
+  tide: { n: '血泉', op: (s) => [{ k: 'shield', v: r1(14 * s) }, { k: 'heal', v: r1(10 * s) }, { k: 'dmg', v: r1(6 * s) }], cpu: 20, wcd: 5 },
 };
 
 const WPOOL = {
-  CHAOS: ['str', 'burn', 'execute', 'burst'],
-  CARO: ['venom', 'leech', 'bulwark'],
-  AEQUOR: ['slow', 'multi', 'tide'],
-  ULTRA: ['vuln', 'pierce', 'echo'],
+  CHAOS: ['burst', 'str', 'execute', 'vuln'],       // 直伤：一发、叠力量、残血翻倍、易伤放大
+  CARO: ['leech', 'bulwark', 'tide'],                // 回复：吸血、盾墙、血泉
+  AEQUOR: ['venom', 'burn', 'slow'],                 // 持续伤害：中毒、冻伤、滞潮
+  ULTRA: ['multi', 'echo', 'pierce'],                // 多段：四连、回响、穿盾连击
 };
 const WNEUTRAL = ['burst', 'multi', 'venom', 'burn', 'execute', 'pierce', 'slow', 'leech'];
 const RAR_S = { N: 0.88, SR: 1, SSR: 1.12 };
@@ -327,7 +327,7 @@ const WHEELS = designWheels(G_WHEELS);
 // 原有 21 条密契大多是「某项数值 +X%」，差别只在数字。这里补 8 条机制型的，
 // 让「开局选哪份密契」真的会改变这一局的打法。
 const EXTRA_PACTS = [
-  { id: 'p022', n: '蚀刻', spr: 'item:326', k: 'dotamp', v: 0.6, txt: '中毒与灼烧 +60%，但生命上限 -15。' },
+  { id: 'p022', n: '蚀刻', spr: 'item:326', k: 'dotamp', v: 0.6, txt: '中毒与冻伤 +60%，但生命上限 -15。' },
   { id: 'p023', n: '狙击', spr: 'item:327', k: 'snipe', v: 0.3, txt: '命轮伤害 30% 穿透护盾——对面越爱架盾越吃亏。' },
   { id: 'p024', n: '缓毒', spr: 'item:328', k: 'zone', v: 50, txt: '毒圈晚 50 拍出现（第 150 拍起），慢热卡组多一段发育时间。' },
   { id: 'p025', n: '苔生', spr: 'item:329', k: 'mossregen', v: 2, txt: '每拍回复 2 点生命。' },
@@ -376,8 +376,8 @@ const TUNING = {
   cdMin: 2,
   wcdMin: 3,
   // 每天的血量预算 / 目标强度 / 收入。以 12 天为基准调出来，后面按同一斜率外推。
-  dayHp: LATE_SCALE(RAW_DAY_HP, 1.55),
-  dayDps: LATE_SCALE(RAW_DAY_DPS, 1.32),
+  dayHp: LATE_SCALE(RAW_DAY_HP, 1.63),
+  dayDps: LATE_SCALE(RAW_DAY_DPS, 1.34),
   income: [0, 15, 15, 14, 13, 13, 13, 13, 13, 13, 13, 14, 15, 15, 16, 16, 17, 17, 18],
 };
 
@@ -400,7 +400,7 @@ const REALM_COLOR = { 混沌: '#ecd24f', 血肉: '#cf3f46', 深海: '#4a8fdb', �
 
 // 造物卡片上那一小行标签（用的是原表的 arch 字段）
 const ITEM_ARCH_ZH = {
-  dmg: '直伤', poison: '中毒', burn: '灼烧', shield: '护盾', heal: '回复', gold: '金币',
+  dmg: '直伤', poison: '中毒', burn: '冻伤', shield: '护盾', heal: '回复', gold: '金币',
   crit: '暴击', haste: '节拍', regen: '回血', slow: '滞缓', vuln: '易伤', aura: '光环',
   str: '力量', thorns: '反伤', fate: '本命',
 };
@@ -1332,6 +1332,7 @@ function modsOf(run) {
     gen: 0, cap: 0,
     // 3.9 新机制：界域共鸣、持续伤害/治疗/直伤放大、毒圈推迟、我方易伤、开局限启
     burst: 0, dotAmp: 0, healAmp: 0, fragile: 0, zoneDelay: 0, herocd: 0,
+    multi: 0, realmHeal: 0,
     benchBonus: 0, startRank: 0, realm: null,
   };
   for (const r of run.relics) addMod(mod, itemOf(r.key).m.k, itemOf(r.key).m.v);
@@ -1358,8 +1359,9 @@ function modsOf(run) {
       mod.realm = { id: top, n: tr.n, count: topN, tier, v };
       if (tr.k === 'amp') mod.amp += v;
       else if (tr.k === 'dot') mod.dotAmp += v;
-      else if (tr.k === 'heal') { mod.healAmp += v; mod.realmHeal = 4; }
-      else if (tr.k === 'burst') { mod.burst += v; mod.pierce += [0.08, 0.14, 0.2][tier - 1]; }
+      else if (tr.k === 'heal') { mod.healAmp += v; mod.realmHeal = tr.sh[tier - 1]; }
+      else if (tr.k === 'burst') { mod.burst += v; mod.pierce += tr.pierce[tier - 1]; }
+      else if (tr.k === 'multi') mod.multi = v;              // 每一段都吃，段数越多越赚
     }
   }
 
@@ -1510,6 +1512,8 @@ function applyOp(f, side, op, mul, ctx = {}) {
       const hits = op.hits || 1;
       // 处决：目标掉到这个血线以下时，这发伤害 ×1.8（超维·处决命轮）
       const execute = side === 'p' && op.execute && target.hp <= target.maxHp * op.execute ? 1.8 : 1;
+      // 多段共鸣：每一段都加一点，所以拆得越碎赚得越多（三段吃三份、一段只吃一份）
+      const seg = side === 'p' && f.mod.multi ? 1 + f.mod.multi * hits : 1;
       const pierce = side === 'p'
         ? (op.pierce != null ? op.pierce : (ctx.kind === 'wheel' ? f.mod.pierce : 0))
         : 0;
@@ -1519,7 +1523,7 @@ function applyOp(f, side, op, mul, ctx = {}) {
         let raw;
         let crit = false;
         if (side === 'p') {
-          const r = rollDamage(f, op.v * mul * execute, ctx.kind);
+          const r = rollDamage(f, op.v * mul * execute * seg, ctx.kind);
           raw = r.raw; crit = r.crit;
           hurt(f, target, raw, pierce);
         } else {
@@ -1943,7 +1947,7 @@ function opText(op, mul = 1) {
       return t;
     }
     case 'poison': return `施加 ${num(op.v * mul)} 层中毒（3 拍内每拍掉等量血，无视护盾）`;
-    case 'burn': return `施加 ${num(op.v * mul)} 层灼烧（3 拍内每拍掉等量血）`;
+    case 'burn': return `施加 ${num(op.v * mul)} 层冻伤（3 拍内每拍掉等量血）`;
     case 'shield': return `获得 ${num(Math.round(op.v * mul))} 点护盾`;
     case 'heal': return `回复 ${num(Math.round(op.v * mul))} 点生命`;
     case 'gold': return `战斗结束额外获得 ${num(Math.round(op.v * mul))} 金币`;
@@ -2388,7 +2392,7 @@ const TUT = [
   { at: 'shop', t: '① 集市：一次六个选项，用金币招人、买命轮',
     d: '开局你只有 <b>32 金</b>：刚好够招 <b>2 个 1 格唤醒体</b>，或者 <b>1 个唤醒体 + 1 条命轮</b>。点卡面直接买，点左边小图标看详情。<b>第一个唤醒体会白送他的本命命轮</b>，所以先招人最稳。不想要这批货可以「刷新」（要花钱）。上面那排是<b>界域选择</b>：挑了某一界，今天只出那一界的唤醒体和命轮（每天第一次免费，之后 1 金）。摊位里偶尔还会多一张金框的<b>「升启」</b>卡——买它不占格、不进仓库，直接把已有的那张往上顶一档。' },
   { at: 'track', t: '② 战场：十五格，人和命轮共用',
-    d: '<b>唤醒体和命轮一起站在十五格里</b>：唤醒体占 1~3 格，命轮占 1~2 格（SSR 占 2）。<b>按住任何一个左右拖</b>可以换位置，人和命轮可以互相换。每个人头顶的圆圈数字是「还差几拍出手」。<b>光环给左右相邻的那两个——不管邻居是人还是命轮</b>：把有光环的唤醒体贴在命轮旁边，命轮就能更快、更省算力、更疼。每个唤醒体出手时除了产算力，还会<b>顺手打一下</b>（输出主力还是命轮）。<b>唤醒体分十二个流派</b>：狂乱叠力量、蚀毒下毒、焚身灼烧、血壁架盾、霜刃多段、涌泉回血、滞潮拖节拍、速律快节拍、虚隙加易伤、折跃穿盾……卡片右上角就是流派名，先看清它是干嘛的再买。' },
+    d: '<b>唤醒体和命轮一起站在十五格里</b>：唤醒体占 1~3 格，命轮占 1~2 格（SSR 占 2）。<b>按住任何一个左右拖</b>可以换位置，人和命轮可以互相换。每个人头顶的圆圈数字是「还差几拍出手」。<b>光环给左右相邻的那两个——不管邻居是人还是命轮</b>：把有光环的唤醒体贴在命轮旁边，命轮就能更快、更省算力、更疼。每个唤醒体出手时除了产算力，还会<b>顺手打一下</b>（输出主力还是命轮）。<b>唤醒体分十二个流派，界域就决定「伤害怎么算」</b>：混沌直伤（狂乱叠力量、过载灌一发、爆燃盾后爆发）、血肉回复（噬血、血泉、血壁）、深海持续伤害（霜蚀冻伤、腐潮下毒、滞潮拖节拍）、超维多段（速律、虚隙、折跃都是分段连击）。卡片右上角就是流派名，先看清它是干嘛的再买。' },
   { at: 'cpuBar', t: '③ 算力：唤醒体产，命轮花',
     d: '这条蓝条是<b>算力</b>。唤醒体每隔几拍产一次算力（右边写着 产 X · 耗 Y），命轮开火要消耗算力。<b>产 ≥ 耗（绿色 +）</b>才够用；不够就去招更多人或「扩容」。上限满了产出会浪费。' },
   { at: 'wheels', t: '④ 命轮才是主要输出',

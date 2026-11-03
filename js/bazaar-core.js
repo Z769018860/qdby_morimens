@@ -753,6 +753,7 @@ export function modsOf(run) {
     gen: 0, cap: 0,
     // 3.9 新机制：界域共鸣、持续伤害/治疗/直伤放大、毒圈推迟、我方易伤、开局限启
     burst: 0, dotAmp: 0, healAmp: 0, fragile: 0, zoneDelay: 0, herocd: 0,
+    multi: 0, realmHeal: 0,
     benchBonus: 0, startRank: 0, realm: null,
   };
   for (const r of run.relics) addMod(mod, itemOf(r.key).m.k, itemOf(r.key).m.v);
@@ -779,8 +780,9 @@ export function modsOf(run) {
       mod.realm = { id: top, n: tr.n, count: topN, tier, v };
       if (tr.k === 'amp') mod.amp += v;
       else if (tr.k === 'dot') mod.dotAmp += v;
-      else if (tr.k === 'heal') { mod.healAmp += v; mod.realmHeal = 4; }
-      else if (tr.k === 'burst') { mod.burst += v; mod.pierce += [0.08, 0.14, 0.2][tier - 1]; }
+      else if (tr.k === 'heal') { mod.healAmp += v; mod.realmHeal = tr.sh[tier - 1]; }
+      else if (tr.k === 'burst') { mod.burst += v; mod.pierce += tr.pierce[tier - 1]; }
+      else if (tr.k === 'multi') mod.multi = v;              // 每一段都吃，段数越多越赚
     }
   }
 
@@ -931,6 +933,8 @@ function applyOp(f, side, op, mul, ctx = {}) {
       const hits = op.hits || 1;
       // 处决：目标掉到这个血线以下时，这发伤害 ×1.8（超维·处决命轮）
       const execute = side === 'p' && op.execute && target.hp <= target.maxHp * op.execute ? 1.8 : 1;
+      // 多段共鸣：每一段都加一点，所以拆得越碎赚得越多（三段吃三份、一段只吃一份）
+      const seg = side === 'p' && f.mod.multi ? 1 + f.mod.multi * hits : 1;
       const pierce = side === 'p'
         ? (op.pierce != null ? op.pierce : (ctx.kind === 'wheel' ? f.mod.pierce : 0))
         : 0;
@@ -940,7 +944,7 @@ function applyOp(f, side, op, mul, ctx = {}) {
         let raw;
         let crit = false;
         if (side === 'p') {
-          const r = rollDamage(f, op.v * mul * execute, ctx.kind);
+          const r = rollDamage(f, op.v * mul * execute * seg, ctx.kind);
           raw = r.raw; crit = r.crit;
           hurt(f, target, raw, pierce);
         } else {
@@ -1364,7 +1368,7 @@ export function opText(op, mul = 1) {
       return t;
     }
     case 'poison': return `施加 ${num(op.v * mul)} 层中毒（3 拍内每拍掉等量血，无视护盾）`;
-    case 'burn': return `施加 ${num(op.v * mul)} 层灼烧（3 拍内每拍掉等量血）`;
+    case 'burn': return `施加 ${num(op.v * mul)} 层冻伤（3 拍内每拍掉等量血）`;
     case 'shield': return `获得 ${num(Math.round(op.v * mul))} 点护盾`;
     case 'heal': return `回复 ${num(Math.round(op.v * mul))} 点生命`;
     case 'gold': return `战斗结束额外获得 ${num(Math.round(op.v * mul))} 金币`;
