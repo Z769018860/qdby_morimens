@@ -195,6 +195,26 @@ function pickRarity(run, rnd) {
   return 'N';
 }
 
+// 商店配比：前面几天先把「人 + 命轮」凑出来，造物只是调剂；第 5 天往后造物才慢慢变成主角。
+// 这不是数值平衡，是体感——开局四条摊位全摆造物，玩家连一次「换人 / 换轮」的选择都做不了。
+// 槽位满了 / 战场挤不进人时，对应那一类自动降权，免得刷出一堆买不了的东西。
+export function shopMix(run) {
+  const d = run.day;
+  let hero = d <= 2 ? 0.46 : d <= 4 ? 0.36 : d <= 7 ? 0.28 : 0.22;
+  let wheel = d <= 2 ? 0.40 : d <= 4 ? 0.36 : d <= 7 ? 0.32 : 0.28;
+  // 队伍还不够三个人时，人再往上提一点（三个人刚好能吃到光环）
+  if (run.squad.length < 3) hero += 0.06;
+  // 命轮不足两条时，先把命轮补起来——没有命轮这局根本打不出伤害
+  if (run.wheels.length < 2) wheel += 0.08;
+  if (run.relics.length >= TUNING.relicSlots) hero += 0.05;
+  if (run.wheels.length >= TUNING.wheelSlots) { wheel *= 0.25; hero += 0.05; }
+  if (freeSlots(run) < 1) { hero *= 0.3; wheel += 0.04; }
+  let relic = Math.max(0.06, 1 - hero - wheel);
+  if (run.relics.length >= TUNING.relicSlots) relic *= 0.12;
+  const sum = hero + wheel + relic;
+  return { hero: hero / sum, wheel: wheel / sum, relic: relic / sum };
+}
+
 export function rollShop(run, { free = false } = {}) {
   const rnd = run.rnd;
   if (!free) {
@@ -212,33 +232,59 @@ export function rollShop(run, { free = false } = {}) {
   const used = new Set();
   const ownHeroes = new Set(run.squad.map((h) => h.key));
   const ownWheels = new Set(run.wheels.map((w) => w.key));
+
+  // 造一件指定类型的东西；造不出来（池子抽空 / 没槽位）返回 null
+  const make = (kind) => {
+    if (kind === 'hero') {
+      const pool = HEROES.filter((h) => !ownHeroes.has(h.id) && h.slots <= freeSlots(run) + 2);
+      if (!pool.length) return null;
+      const h = ru(rnd, pool);
+      if (!h || used.has('h' + h.id)) return null;
+      used.add('h' + h.id);
+      return { kind: 'hero', key: h.id, price: priceOf(run, heroPrice(h)) };
+    }
+    if (kind === 'wheel') {
+      if (run.wheels.length >= TUNING.wheelSlots) return null;
+      const w = ru(rnd, WHEELS);
+      if (used.has('w' + w.id) || ownWheels.has(w.id)) return null;
+      used.add('w' + w.id);
+      return { kind: 'wheel', key: w.id, price: priceOf(run, wheelPrice(w)) };
+    }
+    const r = pickRarity(run, rnd);
+    const pool = SHOP_ITEMS.filter((x) => x.r === r);
+    if (!pool.length) return null;
+    const it = ru(rnd, pool);
+    if (used.has(it.id)) return null;
+    used.add(it.id);
+    return { kind: 'relic', key: it.id, price: priceOf(run, relicPrice(it)) };
+  };
+
+  const mix = shopMix(run);
   for (let i = 0; i < n; i++) {
     let offer = null;
-    for (let tries = 0; tries < 20 && !offer; tries++) {
+    for (let tries = 0; tries < 24 && !offer; tries++) {
       const roll = rnd();
-      if (roll < 0.30) {
-        const pool = HEROES.filter((h) => !ownHeroes.has(h.id) && h.slots <= freeSlots(run) + 2);
-        const h = pool.length ? ru(rnd, pool) : null;
-        if (!h || used.has('h' + h.id)) continue;
-        used.add('h' + h.id);
-        offer = { kind: 'hero', key: h.id, price: priceOf(run, heroPrice(h)) };
-      } else if (roll < 0.58) {
-        const w = ru(rnd, WHEELS);
-        if (used.has('w' + w.id) || ownWheels.has(w.id)) continue;
-        used.add('w' + w.id);
-        offer = { kind: 'wheel', key: w.id, price: priceOf(run, wheelPrice(w)) };
-      } else {
-        const r = pickRarity(run, rnd);
-        const pool = SHOP_ITEMS.filter((x) => x.r === r);
-        if (!pool.length) continue;
-        const it = ru(rnd, pool);
-        if (used.has(it.id)) continue;
-        used.add(it.id);
-        offer = { kind: 'relic', key: it.id, price: priceOf(run, relicPrice(it)) };
-      }
+      offer = make(roll < mix.hero ? 'hero' : roll < mix.hero + mix.wheel ? 'wheel' : 'relic');
     }
     if (offer) { offer.sold = false; out.push(offer); }
   }
+
+  // 头三天保底：至少一条命轮、一个能上场的人。凑不齐构筑的前期最难玩，
+  // 而造物这一层只是加成，晚两天拿不会死人。
+  if (run.day <= 3) {
+    const has = (k) => out.some((o) => o.kind === k);
+    const swap = (kind) => {
+      for (let i = out.length - 1; i >= 0; i--) {
+        if (out[i].kind !== 'relic') continue;
+        const o = make(kind);
+        if (o) { o.sold = false; out[i] = o; return true; }
+      }
+      return false;
+    };
+    if (!has('wheel')) swap('wheel');
+    if (!has('hero') && freeSlots(run) >= 1) swap('hero');
+  }
+
   run.shop = out;
   run.rerolls = 0;
   return true;

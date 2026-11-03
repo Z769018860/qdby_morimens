@@ -54,8 +54,15 @@ class Sheet:
 
     def add(self, path):
         self.items.append(len(self.paths))
-        self.paths.append(path)
+        self.paths.append(str(path))
         return len(self.paths) - 1
+
+    def idx(self, path):
+        """同一张图只占一格：主播的维度影像要复用官方那批，别各加一份。"""
+        p = str(path)
+        if p in self.paths:
+            return self.paths.index(p)
+        return self.add(p)
 
     def render(self):
         rows = max(1, (len(self.paths) + self.cols - 1) // self.cols)
@@ -399,6 +406,84 @@ def build_heroes(items, fate, wheels):
     return out
 
 
+# ---------------------------------------------------------------- 主播（彩蛋卡池）
+# 11 位 B 站《忘却前夜》内容创作者，素材来自《唤醒体幸存者》那份 data/survivors-extra.json：
+# 官方只给了 120×120 的 B 站头像，没有战斗立绘，所以战场上的「立绘」用一张现画的挂牌
+# （模糊头像做底 + 圆角头像 + 领域色描边），存进 assets/bazaar/idle/<id>.webp，
+# 和官方待机立绘走同一条路径，界面那边不用分叉。
+EX = json.load(open(os.path.join(ROOT, 'data', 'survivors-extra.json'), encoding='utf-8'))
+
+
+def _rgb(h):
+    h = h.lstrip('#')
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def poster(face, color, out):
+    from PIL import ImageDraw, ImageFilter
+    W, H = 300, 460
+    av = Image.open(face).convert('RGB')
+    bg = av.resize((W, W), Image.LANCZOS).resize((W, H), Image.BICUBIC).filter(ImageFilter.GaussianBlur(26))
+    bg = Image.blend(bg, Image.new('RGB', (W, H), _rgb(color)), 0.40)
+    dark = Image.new('RGB', (W, H), (7, 10, 18))
+    bg = Image.blend(bg, dark, 0.46)
+    # 底部渐隐到背景色，跟官方立绘在格子里的收边一致
+    grad = Image.new('L', (1, H))
+    for y in range(H):
+        t = y / float(H - 1)
+        grad.putpixel((0, y), int(255 * max(0.0, min(1.0, (t - 0.46) / 0.54)) ** 0.9))
+    canvas = Image.composite(dark, bg, grad.resize((W, H)))
+    side = 176
+    art = av.resize((side, side), Image.LANCZOS)
+    mask = Image.new('L', (side, side), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, side - 1, side - 1], radius=16, fill=255)
+    px, py = (W - side) // 2, 116
+    canvas.paste(art, (px, py), mask)
+    d = ImageDraw.Draw(canvas)
+    d.rounded_rectangle([px, py, px + side - 1, py + side - 1], radius=16, outline=_rgb(color), width=2)
+    # 名牌：两条金线夹一个菱形，主播这档没有立绘，就给个「挂牌」的样子
+    cy = py + side + 30
+    d.line([W // 2 - 64, cy, W // 2 - 14, cy], fill=(227, 179, 65), width=2)
+    d.line([W // 2 + 14, cy, W // 2 + 64, cy], fill=(227, 179, 65), width=2)
+    d.polygon([(W // 2, cy - 6), (W // 2 + 6, cy), (W // 2, cy + 6), (W // 2 - 6, cy)], outline=(227, 179, 65))
+    canvas.save(out, 'WEBP', quality=78, method=6)
+
+
+def build_streamers(wheels, fate):
+    fate_list = list(fate.values())
+    idles = os.path.join(OUT_DIR, 'idle')
+    os.makedirs(idles, exist_ok=True)
+    out = []
+    for c in EX['chars']:
+        if 'B 站主播' not in str(c.get('kind') or ''):
+            continue
+        # 主播那套定位里 SUPPORT 就是辅助，和官方的 CHORUS 是同一档
+        role = 'CHORUS' if c['roleCode'] == 'SUPPORT' else c['roleCode']
+        # 彩蛋不参与强度分档：哈希散在 0.26~0.84，强弱都有，免得十一个人一个手感
+        p = 0.26 + (hv(c['id']) % 58) / 100.0
+        slots, gen, cd, act, txt, aura, aura_txt = hero_kit({'type': role}, p)
+        spr = SHEET_HERO.idx(os.path.join(ROOT, c['face']))
+        fr = fate_list[hv(c['id'] + 'f') % len(fate_list)]
+        fm = FATE_MOD[c['realmCode']](p)
+        fate_rec = {'n': '维度影像·%s' % c['talent'][:6],
+                    'spr': 'item:%d' % SHEET_ITEM.idx(os.path.join(SRC, fr['img'])),
+                    'k': fm['k'], 'v': fm['v']}
+        same = [w for w in wheels if w['realm'] == c['realmCode']]
+        nw = same[hv(c['id'] + 'w') % len(same)] if same else wheels[0]
+        face = os.path.join(ROOT, c['face'])
+        art = os.path.join(idles, c['id'] + '.webp')
+        if not os.path.exists(art):
+            poster(face, c['color'], art)
+        out.append({'id': c['id'], 'n': c['n'], 'en': c['en'], 'realm': c['realmCode'],
+                    'realmZh': REALM_ZH[c['realmCode']], 'type': TYPE_ZH[role],
+                    'typeKey': role, 'rar': 'SR', 'spr': 'hero:%d' % spr,
+                    'wheel': nw['id'], 'slots': slots, 'gen': gen, 'cd': cd,
+                    'act': act, 'txt': txt, 'aura': aura, 'auraTxt': aura_txt,
+                    'fate': fate_rec, 'egg': True,
+                    'lore': '主播｜B 站内容创作者 · %s' % c['n']})
+    return out
+
+
 # ---------------------------------------------------------------- 怪物
 # 意图码：001 攻击 / 002 重击 / 003 削弱 / 004 强力削弱 / 005 强化 / 006 强力强化
 # 007 防御 / 008 攻防兼备 / 009 攻击·削弱 / 010 攻击·强化 / 011 防御·强化
@@ -490,6 +575,8 @@ def main():
     wheels = build_wheels()
     pacts = build_pacts()
     heroes = build_heroes(items, fate, wheels)
+    eggs = build_streamers(wheels, fate)
+    heroes += eggs
     foes = build_foes()
     meta = [SHEET_HERO.render(), SHEET_ITEM.render(), SHEET_WHEEL.render(), SHEET_MON.render()]
 
@@ -519,8 +606,8 @@ def main():
     slots = {}
     for h in heroes:
         slots[h['slots']] = slots.get(h['slots'], 0) + 1
-    print('唤醒体 %d / 造物 %d / 命轮 %d / 密契 %d / 怪物 %d' % (
-        len(heroes), len(items), len(wheels), len(pacts), len(foes)))
+    print('唤醒体 %d（其中主播 %d）/ 造物 %d / 命轮 %d / 密契 %d / 怪物 %d' % (
+        len(heroes), len(eggs), len(items), len(wheels), len(pacts), len(foes)))
     print('占格分布：', json.dumps(slots, ensure_ascii=False))
     print('造物流派分布：', json.dumps(arch, ensure_ascii=False))
     print('造物加成分布：', json.dumps(

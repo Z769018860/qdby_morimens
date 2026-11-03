@@ -8,6 +8,7 @@
 
 import * as C from './bazaar-core.js';
 import { TUNING, HEROES, WHEELS, PACTS, DIFFS, SHEETS, ARCH_ZH, RANK_ZH, AURA_ZH } from './bazaar-data.js';
+import { sfx, toggle as sfxToggle, isOn as sfxIsOn } from './bazaar-sfx.js';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.round(n).toLocaleString('zh-CN');
@@ -140,7 +141,7 @@ function renderSetup() {
       ${sp(h.spr)}
       <span class="hs">${h.slots}格</span>
       <span class="hn">${h.n}</span>
-      <span class="hd">${h.realmZh.slice(0, 1)}·${h.type}</span>
+      <span class="hd">${h.realmZh.slice(0, 1)}·${h.type}${h.egg ? '·主播' : ''}</span>
     </button>`).join('');
   $('heroPick').onclick = (e) => {
     const el = e.target.closest('[data-hero]');
@@ -244,20 +245,33 @@ function renderTerrain() {
 
 function unitHTML(u, inBattle) {
   const d = u.def;
+  // 角上的环 = 还差几拍出手。数字比进度条直观，环本身给「快到了」的感觉。
+  // 战斗单位带 timer/cd（会跳动），布局单位没有 —— 没有就按满 cd 算。
+  const cd = u.cd != null ? u.cd : d.cd;
+  const timer = u.timer != null ? u.timer : 0;
+  const left = inBattle ? Math.max(0, cd - timer) : d.cd;
   return `<div class="unit r-${REALM_CLS[d.realm]}" data-uid="${u.uid}" style="--at:${u.start};--len:${u.len};--realm:var(${REALM_VAR[d.realm]})">
     <img src="${idleUrl(d)}" alt="${d.n}" decoding="async">
+    <span class="ucd${inBattle && left <= 1 ? ' now' : ''}" id="ucd${u.uid}" style="--p:${inBattle ? Math.round((timer / cd) * 100) : 0}"><i>${left}</i></span>
     <span class="ut">${d.n}</span>
-    <span class="um">${d.slots}格 · ${d.gen}/${d.cd}</span>
+    <span class="um">产 ${d.gen}${d.egg ? ' · 主播' : ''}</span>
     <span class="ub"><i id="ub${u.uid}"></i></span>
   </div>`;
 }
 
 function renderTrack(host, inBattle) {
   const lay = C.layoutOf(run);
+  // 战斗页：战斗单位有 timer/cd 但没 start/len，把布局的位置补进去再渲染。
+  const units = inBattle && fight
+    ? fight.units.map((u) => {
+        const rec = lay.find((x) => x.uid === u.uid);
+        return rec ? { ...u, start: rec.start, len: rec.len } : u;
+      })
+    : lay;
   const used = lay.reduce((s, u) => s + u.len, 0);
   const cells = Array.from({ length: TUNING.fieldSlots }, (_, i) => `<i class="cell ${i < used ? 'on' : ''}"></i>`).join('');
-  host.innerHTML = `<div class="cells">${cells}</div><div class="units">${lay.map((u) => unitHTML(u, inBattle)).join('')}</div>`
-    + (lay.length ? '' : '<div class="empty">战场空着 —— 打开集市招个唤醒体</div>');
+  host.innerHTML = `<div class="cells">${cells}</div><div class="units">${units.map((u) => unitHTML(u, inBattle)).join('')}</div>`
+    + (units.length ? '' : '<div class="empty">战场空着 —— 打开集市招个唤醒体</div>');
   if (!inBattle) bindTrack(host);
 }
 
@@ -314,13 +328,14 @@ function renderShop() {
     const def = C.defOf(o);
     const can = C.canBuy(run, i);
     const rar = o.kind === 'relic' ? def.r : def.r || 'SSR';
+    // 图标那一块单独可点：看详情，不买。手机上一张卡就是「买」，误触的代价太大。
     return `<button class="card k-${o.kind} r-${rar} ${o.sold ? 'sold' : ''} ${!can && !o.sold ? 'poor' : ''}" type="button" data-offer="${i}">
-      ${sp(def.spr)}
+      <span class="ci" data-info="${i}">${sp(def.spr)}</span>
       ${o.kind === 'hero' ? `<span class="ca" style="background-image:url(${idleUrl(def)})"></span>` : ''}
       <span class="cp ${run.gold < o.price ? 'no' : ''}">${o.price}</span>
       <span class="cn">${def.n}</span>
       <span class="ct">${offerText(o, def)}</span>
-      <span class="r">${o.kind === 'hero' ? '唤醒体' : o.kind === 'wheel' ? '命轮' : (ARCH_ZH[def.arch] || def.r)}</span>
+      <span class="r">${o.kind === 'hero' ? (def.egg ? '主播' : '唤醒体') : o.kind === 'wheel' ? '命轮' : (ARCH_ZH[def.arch] || def.r)}</span>
     </button>`;
   }).join('');
   $('shopHint').textContent = `还剩 ${run.shop.filter((x) => !x.sold).length} 个摊位`;
@@ -328,12 +343,21 @@ function renderShop() {
 
 function renderShopClick() {
   $('shop').onclick = (e) => {
+    // 先看图标：点图标 = 看详情（详情里也能买），点其它地方 = 直接买
+    const info = e.target.closest('[data-info]');
+    if (info) {
+      const oi = Number(info.dataset.info);
+      const of = run.shop[oi];
+      if (of) openDetail(of.kind, of.key, { offer: oi });
+      return;
+    }
     const el = e.target.closest('[data-offer]');
     if (!el) return;
     const i = Number(el.dataset.offer);
     const o = run.shop[i];
     if (!o || o.sold) return;
     if (!C.canBuy(run, i)) {
+      sfx.error();
       if (run.gold < o.price) toast('金币不够');
       else if (o.kind === 'hero') toast(`战场只剩 ${C.freeSlots(run)} 格，装不下他`);
       else if (o.kind === 'wheel') toast('命轮最多戴三条，先卖一条');
@@ -341,6 +365,7 @@ function renderShopClick() {
       return;
     }
     C.buy(run, i);
+    sfx.buy();
     renderAll();
   };
 }
@@ -423,62 +448,112 @@ window.addEventListener('pointercancel', () => {
 });
 
 // ---------------------------------------------------------------- 详情
-function openDetail(kind, id) {
-  const o = C.owned(run, id);
-  if (!o) return;
-  sheetId = id;
-  $('sArt').innerHTML = '';
-  if (kind === 'hero') {
-    const d = o.def;
-    paintSp($('sImg'), d.spr);
-    $('sName').textContent = d.n;
-    $('sMeta').textContent = `${d.realmZh} · ${d.type} · 占 ${d.slots} 格 · 每 ${d.cd} 拍`;
-    $('sTxt').innerHTML = [
-      `<b>${d.txt}</b>`,
-      `光环：${d.auraTxt}（只给左右相邻）`,
-      `本命：${d.fate.n}　${C.modText(d.fate.k, d.fate.v)}`,
-      `本命命轮：${(C.wheelOf(d.wheel) || {}).n || '—'}`,
-    ].join('<br>');
-    $('sArt').innerHTML = artHTML(d);
-    const back = C.sellPrice('hero', d);
-    $('sSell').textContent = `移出队伍 +${back}`;
-    $('sSell').disabled = run.squad.length <= 1;
-    $('sSell').onclick = () => {
-      if (C.sell(run, id)) { closeSheet(); renderAll(); toast(`腾出 ${d.slots} 格，+${back} 金`); }
-      else toast('至少留一个人守摊');
-    };
-  } else if (kind === 'wheel') {
-    const d = o.def;
-    paintSp($('sImg'), d.spr);
-    $('sName').textContent = d.n + (o.rec.native ? '（本命）' : '');
-    $('sMeta').textContent = `命轮 · 耗 ${d.cpu} 算力 · ${d.wcd} 拍一次`;
-    $('sTxt').innerHTML = [
-      `<b>${wheelFire(d)}</b>`,
-      `主词条：${wheelPassive(d)}`,
-      d.perk ? `<em>${d.perk.txt}</em>` : '',
-      '算力不够就会卡在「等算力」，先把产出跟上。',
-    ].filter(Boolean).join('<br>');
-    const back = C.sellPrice('wheel', d);
-    $('sSell').textContent = o.rec.native ? '本命，卖不了' : `卖出 +${back}`;
-    $('sSell').disabled = !!o.rec.native;
-    $('sSell').onclick = () => { if (C.sell(run, id)) { closeSheet(); renderAll(); } };
-  } else {
-    const d = o.def;
-    paintSp($('sImg'), d.spr);
-    $('sName').textContent = d.n;
-    $('sMeta').textContent = `造物 · ${d.r}`;
-    $('sTxt').innerHTML = `<b>${C.itemText(d)}</b><br>造物不占出手，只要装在身上就一直生效。`;
-    const back = C.sellPrice('relic', d);
-    $('sSell').textContent = `卖出 +${back}`;
-    $('sSell').disabled = false;
-    $('sSell').onclick = () => { if (C.sell(run, id)) { closeSheet(); renderAll(); } };
-  }
-  $('sheet').classList.add('on');
+// 详情面板：三条信息源共用一块 DOM —— 队伍里的东西（可卖）、集市里的东西（可买）、战斗中的东西（只看）
+function sheetHero(d) {
+  paintSp($('sImg'), d.spr);
+  $('sName').textContent = d.n;
+  $('sMeta').textContent = `${d.realmZh} · ${d.type} · 占 ${d.slots} 格 · 每 ${d.cd} 拍产 ${d.gen}`;
+  $('sTxt').innerHTML = [
+    `<b>${d.txt}</b>`,
+    `光环：${d.auraTxt}（只喂左右相邻的两家）`,
+    `本命：${d.fate.n}　${C.modText(d.fate.k, d.fate.v)}`,
+    `本命命轮：${(C.wheelOf(d.wheel) || {}).n || '—'}`,
+  ].join('<br>');
+  $('sArt').innerHTML = artHTML(d);
+}
+function sheetWheel(d, native) {
+  paintSp($('sImg'), d.spr);
+  $('sName').textContent = d.n + (native ? '（本命）' : '');
+  $('sMeta').textContent = `命轮 · 耗 ${d.cpu} 算力 · ${d.wcd} 拍一次`;
+  $('sTxt').innerHTML = [
+    `<b>${wheelFire(d)}</b>`,
+    `主词条：${wheelPassive(d)}`,
+    d.perk ? `<em>${d.perk.txt}</em>` : '',
+    '算力不够就会卡在「等算力」，先把产出跟上。',
+  ].filter(Boolean).join('<br>');
+}
+function sheetRelic(d) {
+  paintSp($('sImg'), d.spr);
+  $('sName').textContent = d.n;
+  $('sMeta').textContent = `造物 · ${d.r}`;
+  $('sTxt').innerHTML = `<b>${C.itemText(d)}</b><br>造物不占出手，只要装在身上就一直生效。`;
 }
 
+// 打开方式二：own = uid（队伍 / 战场上的），offer = 集市第 i 个摊位（可以在这里直接买）
+function openDetail(kind, id, opt) {
+  const isOffer = opt && typeof opt.offer === 'number';
+  const o = isOffer ? null : C.owned(run, id);
+  if (!isOffer && !o) return;
+  const offer = isOffer ? run.shop[opt.offer] : null;
+  if (isOffer && !offer) return;
+  sheetId = isOffer ? opt.offer : id;
+  $('sArt').innerHTML = '';
+  const own = !!o;
+
+  if (kind === 'hero') {
+    const d = own ? o.def : C.heroOf(offer.key);
+    sheetHero(d);
+    if (isOffer) {
+      $('sSell').textContent = offer.sold ? '已经买下了' : `买下 ${offer.price} 金`;
+      $('sSell').disabled = offer.sold || !C.canBuy(run, opt.offer);
+      $('sSell').onclick = () => {
+        if (!C.buy(run, opt.offer)) { sfx.error(); toast('买不了：钱不够或者战场装不下'); return; }
+        sfx.buy(); closeSheet(); renderAll(); toast(`${d.n} 上场`);
+      };
+    } else {
+      const back = C.sellPrice('hero', d);
+      $('sSell').textContent = `移出队伍 +${back}`;
+      $('sSell').disabled = run.squad.length <= 1;
+      $('sSell').onclick = () => {
+        if (C.sell(run, id)) { sfx.sell(); closeSheet(); renderAll(); toast(`腾出 ${d.slots} 格，+${back} 金`); }
+        else { sfx.error(); toast('至少留一个人守摊'); }
+      };
+    }
+  } else if (kind === 'wheel') {
+    const d = own ? o.def : C.wheelOf(offer.key);
+    sheetWheel(d, own ? o.rec.native : false);
+    if (isOffer) {
+      $('sSell').textContent = offer.sold ? '已经买下了' : `买下 ${offer.price} 金`;
+      $('sSell').disabled = offer.sold || !C.canBuy(run, opt.offer);
+      $('sSell').onclick = () => {
+        if (!C.buy(run, opt.offer)) { sfx.error(); toast('买不了：钱不够或者三条命轮已满'); return; }
+        sfx.buy(); closeSheet(); renderAll(); toast(`${d.n} 上膛`);
+      };
+    } else {
+      const back = C.sellPrice('wheel', d);
+      $('sSell').textContent = o.rec.native ? '本命，卖不了' : `卖出 +${back}`;
+      $('sSell').disabled = !!o.rec.native;
+      $('sSell').onclick = () => { if (C.sell(run, id)) { sfx.sell(); closeSheet(); renderAll(); } };
+    }
+  } else {
+    const d = own ? o.def : C.itemOf(offer.key);
+    sheetRelic(d);
+    if (isOffer) {
+      $('sSell').textContent = offer.sold ? '已经买下了' : `买下 ${offer.price} 金`;
+      $('sSell').disabled = offer.sold || !C.canBuy(run, opt.offer);
+      $('sSell').onclick = () => {
+        if (!C.buy(run, opt.offer)) { sfx.error(); toast('买不了：钱不够或者四个造物槽满了'); return; }
+        sfx.buy(); closeSheet(); renderAll(); toast(`${d.n} 已装好`);
+      };
+    } else {
+      const back = C.sellPrice('relic', d);
+      $('sSell').textContent = `卖出 +${back}`;
+      $('sSell').disabled = false;
+      $('sSell').onclick = () => { if (C.sell(run, id)) { sfx.sell(); closeSheet(); renderAll(); } };
+    }
+  }
+  $('sheet').classList.add('on');
+  sheetAt = Date.now();
+  sfx.open();
+}
+
+let sheetAt = 0;
 function closeSheet() {
-  $('sheet').classList.remove('on');
+  const el = $('sheet');
+  if (!el.classList.contains('on')) return;
+  el.classList.remove('on');
   $('sSell').disabled = false;
+  if (Date.now() - sheetAt > 120) sfx.close();
 }
 
 // ---------------------------------------------------------------- 战斗
@@ -487,6 +562,7 @@ function startFight() {
   if (!run.wheels.length) { toast('没有命轮就打不出伤害，先去集市买一条'); return; }
   fight = C.createFight(run);
   closeSheet();
+  sfx.start();
   setRealm(C.heroOf(run.squad[0].key), [$('battle')]);
   $('battle').classList.add('on');
   paintFight();
@@ -507,11 +583,19 @@ function paintFight() {
   $('bFoeSkills').innerHTML = f.e.skills.map((s, i) => `
     <span class="skill" id="sk${i}" title="${skillText(C.foeStats(run), s)}">${s.n}<i id="skb${i}"></i></span>`).join('');
   renderTrack($('bTrack'), true);
+  $('bTrack').onclick = (e) => {
+    const el = e.target.closest('.unit');
+    if (el) openDetail('hero', Number(el.dataset.uid));
+  };
   $('bWheels').innerHTML = ['<span class="lab">命轮</span>'].concat(f.wheels.map((w) => `
     <span class="wh" data-bw="${w.uid}" title="${wheelFire(w.def)}">
       ${sp(w.def.spr)}<span class="wi"><b>${w.def.n}</b><i id="wst${w.uid}">耗 ${w.cost} · ${w.wcd} 拍</i></span>
       <span class="wp"><i id="wp${w.uid}"></i></span>
     </span>`)).join('');
+  $('bWheels').onclick = (e) => {
+    const el = e.target.closest('[data-bw]');
+    if (el) openDetail('wheel', Number(el.dataset.bw));
+  };
   paintBars();
   resetLog(`地形 · ${f.ter.n}：${f.ter.txt}`);
   const plan = C.planOf(run);
@@ -548,6 +632,14 @@ function paintBars() {
   for (const u of f.units) {
     const el = $(`ub${u.uid}`);
     if (el) el.style.width = pct(u.timer, u.cd) + '%';
+    const ring = $(`ucd${u.uid}`);
+    if (ring) {
+      const left = Math.max(0, u.cd - u.timer);
+      ring.style.setProperty('--p', String(Math.round(pct(u.timer, u.cd))));
+      const num = ring.firstElementChild;
+      if (num && num.textContent !== String(left)) num.textContent = left;
+      ring.classList.toggle('now', left <= 1);
+    }
   }
   for (const w of f.wheels) {
     const el = $(`wp${w.uid}`);
@@ -617,10 +709,12 @@ function applyEvents(ev) {
       if (e.s === 'p') {
         float('e', `${e.crit ? '暴击 ' : ''}${fmt(e.v)}`, e.crit ? '#ffd166' : '#ff8f7a');
         if (e.src != null) flash(e.src);
+        if (e.crit) sfx.crit(); else sfx.fire();
         parts.push(`${e.ter ? '地形' : '命轮'}打掉 ${fmt(e.v)} 点${e.crit ? '（暴击）' : ''}`);
         cls = 'hi';
       } else {
         float('p', `-${fmt(e.v)}`, '#e8695f');
+        sfx.hit();
         parts.push(`${f.foe.n} 打掉你 ${fmt(e.v)} 点`);
         cls = 'bad';
       }
@@ -629,15 +723,18 @@ function applyEvents(ev) {
         const el = document.querySelector(`[data-uid="${e.uid}"]`);
         if (el) float('p', `+${e.v} 算力`, '#8fb6ff', el);
         flash(e.uid);
+        sfx.gen();
       } else if (e.waste > 0) {
         parts.push('算力满了溢出，该扩容了');
       }
     } else if (e.k === 'shield') {
       float(e.s === 'p' ? 'p' : 'e', `+盾 ${fmt(e.v)}`, '#7fb2ff');
       if (e.src != null) flash(e.src);
+      sfx.shield();
       parts.push(e.s === 'p' ? `架起 ${fmt(e.v)} 点护盾` : `${f.foe.n} 架盾 ${fmt(e.v)}`);
     } else if (e.k === 'heal') {
       float(e.s === 'p' ? 'p' : 'e', `+${fmt(e.v)}`, '#6fd39a');
+      sfx.heal();
       parts.push(e.s === 'p' ? `回复 ${fmt(e.v)} 点` : `${f.foe.n} 回了 ${fmt(e.v)} 点`);
     } else if (e.k === 'poison') {
       float(e.s === 'p' ? 'e' : 'p', `毒 ${fmt(e.v)}`, '#a98cff');
@@ -687,6 +784,7 @@ function endFight() {
   const timeout = fight.timeout;
   paintBars();
   pushLog(win ? (timeout ? '四十拍打满，按剩血比例算你赢' : '对面撑不住了') : (timeout ? '四十拍打满，你的血更少' : '你被打趴下了'), win ? 'hi' : 'bad');
+  if (win) sfx.win(); else sfx.lose();
   setTimeout(() => {
     const gain = C.settle(run, fight);
     $('battle').classList.remove('on');
@@ -730,6 +828,11 @@ function recordStats(score) {
     wheels: wheelsOwned,
   };
   try { localStorage.setItem(STATS_KEY, JSON.stringify(out)); } catch (e) { /* 无痕模式 */ }
+  // 榜单同步：本机先落盘（立刻生效），云端那条链按需加载、后台推，失败也不影响玩。
+  // 只有成绩真的有变化才推，否则每局都白跑一次 PUT。
+  if (score > (Number(s.best) || 0) || run.cleared || day > (Number(s.day) || 0)) {
+    import('./bazaar-sync.js').then((m) => m.pushScore()).catch(() => {});
+  }
 }
 
 function showResult() {
@@ -761,29 +864,107 @@ function again() {
   renderSetup();
 }
 
+// ---------------------------------------------------------------- 榜单
+// 服务端 /board 会把每个玩家云端档案里的摘要排出来（js/gamestats.js 的 digest 里有 bz 这一项）。
+// 游戏页本身不引 account / auth 那两百来 KB，点开榜单才动态 import 一次：
+// 断了 / 没登录 / 后端没起来，都只影响这一屏，不影响玩。
+let boardLoading = false;
+function paintBoard(g) {
+  const listEl = $('bListB');
+  const items = (g && g.items) || [];
+  const mine = loadBest();
+  $('bNote').innerHTML = items.length
+    ? `共 ${items.length} 位摊主上榜 · 每局结束自动同步一次（服务端缓存 3 分钟）`
+    : '还没有人上榜。登录后打一局，成绩会跟着云端档案走。';
+  if (!items.length) {
+    listEl.innerHTML = `<li class="bempty">${mine > 0 ? `你的最好成绩 ${fmt(mine)} 分，登录后就能上榜` : '还没有人上榜'}</li>`;
+    return;
+  }
+  listEl.innerHTML = items.map((it, i) => `
+    <li>
+      <span class="rk">${i + 1}</span>
+      <span class="nm">${it.name}${it.sub ? `<small>${it.sub}</small>` : ''}</span>
+      <span class="sc">${fmt(it.score)}<small>${it.unit || '分'}</small></span>
+    </li>`).join('') + (mine > 0
+    ? `<li class="me"><span class="rk">你</span><span class="nm">本机最好成绩<small>登录后随云端档案同步</small></span><span class="sc">${fmt(mine)}<small>分</small></span></li>`
+    : '');
+}
+function openBoard() {
+  $('board').classList.add('on');
+  sfx.open();
+  if (boardLoading) return;
+  boardLoading = true;
+  $('bListB').innerHTML = '<li class="bempty">正在连线…</li>';
+  import('./bazaar-sync.js')
+    .then((m) => m.fetchBoard())
+    .then((g) => paintBoard(g))
+    .catch(() => {
+      $('bNote').textContent = '榜单连不上（离线 / 后端没起来）。本机成绩照样记。';
+      $('bListB').innerHTML = loadBest() > 0
+        ? `<li class="me"><span class="rk">你</span><span class="nm">本机最好成绩</span><span class="sc">${fmt(loadBest())}<small>分</small></span></li>`
+        : '<li class="bempty">还没有本机成绩</li>';
+    })
+    .then(() => { boardLoading = false; });
+}
+
 // ---------------------------------------------------------------- 绑定
 $('btnReroll').onclick = () => {
-  if (!C.rollShop(run)) { toast('金币不够刷新'); return; }
+  if (!C.rollShop(run)) { sfx.error(); toast('金币不够刷新'); return; }
+  sfx.tap();
   renderAll();
 };
 $('btnCore').onclick = () => {
-  if (!C.expandCore(run)) { toast('金币不够扩容'); return; }
+  if (!C.expandCore(run)) { sfx.error(); toast('金币不够扩容'); return; }
+  sfx.coin();
   renderAll();
   toast(`算力上限 +${TUNING.coreGain}`);
 };
 $('btnFight').onclick = startFight;
 $('btnSpeed').onclick = () => {
   speed = speed === 1 ? 2 : speed === 2 ? 3 : 1;
-  $('btnSpeed').textContent = '×' + speed;
+  $('btnSpeed').textContent = 'x' + speed;
+  sfx.tap();
 };
 $('btnSkip').onclick = skipFight;
 $('btnAgain').onclick = again;
 $('btnStart').onclick = startRun;
-$('btnHelp').onclick = () => $('help').classList.add('on');
-$('setupHelp').onclick = () => $('help').classList.add('on');
-$('helpClose').onclick = () => $('help').classList.remove('on');
-$('sheet').addEventListener('click', (e) => { if (e.target === $('sheet')) closeSheet(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+$('btnHelp').onclick = () => { $('help').classList.add('on'); sfx.open(); };
+$('setupHelp').onclick = () => { $('help').classList.add('on'); sfx.open(); };
+$('helpClose').onclick = () => { $('help').classList.remove('on'); sfx.close(); };
+$('btnBoard').onclick = openBoard;
+$('btnBoardB').onclick = openBoard;
+$('bClose').onclick = () => { $('board').classList.remove('on'); sfx.close(); };
+$('btnBoardC').onclick = () => { $('board').classList.remove('on'); sfx.close(); };
+
+// 音效开关：图标本身的字形就说明状态，不额外占一行
+function paintSfx() {
+  const el = $('btnSfx');
+  if (!el) return;
+  const on = sfxIsOn();
+  el.textContent = '♪';
+  el.classList.toggle('off', !on);
+  el.setAttribute('aria-label', on ? '关闭音效' : '打开音效');
+}
+if ($('btnSfx')) {
+  paintSfx();
+  $('btnSfx').onclick = () => { sfxToggle(); paintSfx(); if (sfxIsOn()) sfx.tap(); };
+}
+
+$('sClose').onclick = closeSheet;
+// 点面板外面也关：面板只占屏幕下半截，点上面任意地方都该收起来
+document.addEventListener('click', (e) => {
+  const sheet = $('sheet');
+  if (!sheet.classList.contains('on')) return;
+  if (Date.now() - sheetAt < 240) return;
+  if (e.target.closest('#sheet')) return;
+  if (e.target.closest('.ci') || e.target.closest('.unit') || e.target.closest('[data-wid]') || e.target.closest('[data-bw]') || e.target.closest('[data-rid]')) return;
+  closeSheet();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if ($('board').classList.contains('on')) { $('board').classList.remove('on'); return; }
+  closeSheet();
+});
 renderShopClick();
 
 // 选人界面默认打开

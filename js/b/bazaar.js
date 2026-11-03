@@ -6,11 +6,11 @@
 const m_bazaar_gen = await (async () => {
 
 // 《大巴扎：银钥》数据表 —— 由 scripts/build_bazaar_gen.py 从客户端数据生成，**别手改**。
-// 唤醒体 62 / 造物 310 / 命轮 149 / 密契 21 / 怪物 537；图集见 SHEETS。
+// 唤醒体 73 / 造物 310 / 命轮 149 / 密契 21 / 怪物 537；图集见 SHEETS。
 
-const SHEETS = {"hero":{"src":"assets/bazaar/sheet-hero.webp","cols":8,"rows":8,"cell":80,"n":62,"bytes":121608},"item":{"src":"assets/bazaar/sheet-item.webp","cols":19,"rows":21,"cell":56,"n":393,"bytes":465208},"wheel":{"src":"assets/bazaar/sheet-wheel.webp","cols":13,"rows":12,"cell":48,"n":149,"bytes":58336},"mon":{"src":"assets/bazaar/sheet-mon.webp","cols":20,"rows":27,"cell":56,"n":537,"bytes":610864}};
+const SHEETS = {"hero":{"src":"assets/bazaar/sheet-hero.webp","cols":8,"rows":10,"cell":80,"n":73,"bytes":134504},"item":{"src":"assets/bazaar/sheet-item.webp","cols":19,"rows":21,"cell":56,"n":393,"bytes":465208},"wheel":{"src":"assets/bazaar/sheet-wheel.webp","cols":13,"rows":12,"cell":48,"n":149,"bytes":58336},"mon":{"src":"assets/bazaar/sheet-mon.webp","cols":20,"rows":27,"cell":56,"n":537,"bytes":610864}};
 
-const HEROES = [{"id":"24","n":"24","en":"24","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:0","wheel":"0020","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":13.0}],"txt":"每 5 拍：产出 10 算力，并造成 13 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·24","spr":"item:331","k":"amp","v":0.093},"lore":"混沌·伤害｜24"},{"id":"agrippa","n":"阿格里帕","en":"Agrippa","realm":"CARO","realmZh":"血肉","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:1","wheel":"0007","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·阿格里帕","spr":"item:332","k":"gen","v":0.085},"lore":"血肉·防御｜Agrippa"},{"id":"aigis","n":"艾继丝","en":"Aigis","realm":"CARO","realmZh":"血肉","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:2","wheel":"0003","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.12}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +12%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·艾继丝","spr":"item:333","k":"gen","v":0.079},"lore":"血肉·辅助｜Aigis"},{"id":"alva","n":"艾尔瓦","en":"Alva","realm":"CHAOS","realmZh":"混沌","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:3","wheel":"0025","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·艾尔瓦","spr":"item:334","k":"amp","v":0.076},"lore":"混沌·防御｜Alva"},{"id":"aurita","n":"奥瑞塔","en":"Aurita","realm":"AEQUOR","realmZh":"深海","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:4","wheel":"0054","slots":1,"gen":3,"cd":3,"act":[{"k":"dmg","v":5.5}],"txt":"每 3 拍：产出 3 算力，并造成 5.5 点伤害。","aura":{"k":"pow","v":0.16},"auraTxt":"相邻唤醒体的动作效果 +16%","fate":{"n":"维度影像·奥瑞塔","spr":"item:335","k":"shcap","v":9},"lore":"深海·伤害｜Aurita"},{"id":"caecus","n":"凯刻斯","en":"Caecus","realm":"AEQUOR","realmZh":"深海","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:5","wheel":"0053","slots":3,"gen":10,"cd":5,"act":[{"k":"shield","v":18}],"txt":"每 5 拍：产出 10 算力，并架起 18 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·凯刻斯","spr":"item:336","k":"shcap","v":14},"lore":"深海·防御｜Caecus"},{"id":"casiah","n":"卡茜亚","en":"Casiah","realm":"ULTRA","realmZh":"超维","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:6","wheel":"0038","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.12}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +12%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·卡茜亚","spr":"item:337","k":"crit","v":0.038},"lore":"超维·辅助｜Casiah"},{"id":"castor","n":"卡斯托尔","en":"Castor","realm":"ULTRA","realmZh":"超维","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:7","wheel":"0039","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·卡斯托尔","spr":"item:338","k":"crit","v":0.048},"lore":"超维·防御｜Castor"},{"id":"celeste","n":"希莱斯特","en":"Celeste","realm":"AEQUOR","realmZh":"深海","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:8","wheel":"0058","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.09}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +9%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·希莱斯特","spr":"item:339","k":"shcap","v":7},"lore":"深海·辅助｜Celeste"},{"id":"clementine","n":"克莱门汀","en":"Clementine","realm":"ULTRA","realmZh":"超维","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:9","wheel":"0041","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·克莱门汀","spr":"item:340","k":"crit","v":0.047},"lore":"超维·辅助｜Clementine"},{"id":"corposant","n":"克珀珊特","en":"Corposant","realm":"AEQUOR","realmZh":"深海","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:10","wheel":"0059","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·克珀珊特","spr":"item:341","k":"shcap","v":12},"lore":"深海·防御｜Corposant"},{"id":"daffodil","n":"达芙黛尔","en":"Daffodil","realm":"ULTRA","realmZh":"超维","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:11","wheel":"0031","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.6}],"txt":"每 5 拍：产出 10 算力，并造成 12.6 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·达芙黛尔","spr":"item:342","k":"crit","v":0.06},"lore":"超维·伤害｜Daffodil"},{"id":"doll","n":"朵尔","en":"Doll","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"SR","spr":"hero:12","wheel":"0015","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.1}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +10%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·朵尔","spr":"item:343","k":"amp","v":0.044},"lore":"混沌·辅助｜Doll"},{"id":"doresain","n":"杜勒赛因","en":"Doresain","realm":"CARO","realmZh":"血肉","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:13","wheel":"0011","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.0}],"txt":"每 5 拍：产出 10 算力，并造成 12 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·杜勒赛因","spr":"item:344","k":"gen","v":0.097},"lore":"血肉·伤害｜Doresain"},{"id":"erica","n":"艾瑞卡","en":"Erica","realm":"ULTRA","realmZh":"超维","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:14","wheel":"0037","slots":3,"gen":10,"cd":5,"act":[{"k":"shield","v":19}],"txt":"每 5 拍：产出 10 算力，并架起 19 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·艾瑞卡","spr":"item:345","k":"crit","v":0.061},"lore":"超维·防御｜Erica"},{"id":"faint","n":"菲茵特","en":"Faint","realm":"CARO","realmZh":"血肉","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:15","wheel":"0010","slots":1,"gen":3,"cd":3,"act":[{"k":"shield","v":9}],"txt":"每 3 拍：产出 3 算力，并架起 9 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·菲茵特","spr":"item:346","k":"gen","v":0.064},"lore":"血肉·防御｜Faint"},{"id":"faros","n":"法洛思","en":"Faros","realm":"AEQUOR","realmZh":"深海","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:16","wheel":"0052","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.12}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +12%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·法洛思","spr":"item:347","k":"shcap","v":10},"lore":"深海·辅助｜Faros"},{"id":"doll-inferno","n":"熔毁·朵尔","en":"Doll: Inferno","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"Genesis","spr":"hero:17","wheel":"0016","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.1}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +10%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·熔毁·朵尔","spr":"item:348","k":"amp","v":0.044},"lore":"混沌·辅助｜Doll: Inferno"},{"id":"helot-catena","n":"血链·希洛","en":"Helot: Catena","realm":"CARO","realmZh":"血肉","type":"伤害","typeKey":"ASSAULT","rar":"Genesis","spr":"hero:18","wheel":"0006","slots":2,"gen":6,"cd":4,"act":[{"k":"dmg","v":9.5}],"txt":"每 4 拍：产出 6 算力，并造成 9.5 点伤害。","aura":{"k":"pow","v":0.22},"auraTxt":"相邻唤醒体的动作效果 +22%","fate":{"n":"维度影像·血链·希洛","spr":"item:349","k":"gen","v":0.094},"lore":"血肉·伤害｜Helot: Catena"},{"id":"ramona-timeworn","n":"环行·拉蒙娜","en":"Ramona: Timeworn","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"Genesis","spr":"hero:19","wheel":"0181","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·环行·拉蒙娜","spr":"item:350","k":"amp","v":0.069},"lore":"混沌·辅助｜Ramona: Timeworn"},{"id":"goliath","n":"戈利亚","en":"Goliath","realm":"AEQUOR","realmZh":"深海","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:20","wheel":"0055","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":13.6}],"txt":"每 5 拍：产出 10 算力，并造成 13.6 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·戈利亚","spr":"item:351","k":"shcap","v":18},"lore":"深海·伤害｜Goliath"},{"id":"hameln","n":"哈姆林","en":"Hameln","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:21","wheel":"0040","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·哈姆林","spr":"item:352","k":"amp","v":0.071},"lore":"混沌·辅助｜Hameln"},{"id":"helot","n":"希洛","en":"Helot","realm":"CARO","realmZh":"血肉","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:22","wheel":"0005","slots":2,"gen":6,"cd":4,"act":[{"k":"dmg","v":9.5}],"txt":"每 4 拍：产出 6 算力，并造成 9.5 点伤害。","aura":{"k":"pow","v":0.22},"auraTxt":"相邻唤醒体的动作效果 +22%","fate":{"n":"维度影像·希洛","spr":"item:353","k":"gen","v":0.094},"lore":"血肉·伤害｜Helot"},{"id":"horla","n":"奥尔拉","en":"Horla","realm":"ULTRA","realmZh":"超维","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:23","wheel":"0035","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.11}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +11%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·奥尔拉","spr":"item:354","k":"crit","v":0.03},"lore":"超维·辅助｜Horla"},{"id":"jenkin","n":"詹金","en":"Jenkin","realm":"ULTRA","realmZh":"超维","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:24","wheel":"0036","slots":2,"gen":6,"cd":4,"act":[{"k":"dmg","v":9.2}],"txt":"每 4 拍：产出 6 算力，并造成 9.2 点伤害。","aura":{"k":"pow","v":0.22},"auraTxt":"相邻唤醒体的动作效果 +22%","fate":{"n":"维度影像·詹金","spr":"item:355","k":"crit","v":0.048},"lore":"超维·伤害｜Jenkin"},{"id":"karen","n":"珈伦","en":"Karen","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:25","wheel":"0026","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.11}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +11%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·珈伦","spr":"item:356","k":"amp","v":0.057},"lore":"混沌·辅助｜Karen"},{"id":"kathigu-ra","n":"凯蒂古拉","en":"Kathigu-Ra","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:26","wheel":"0028","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.2}],"txt":"每 5 拍：产出 10 算力，并造成 12.2 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·凯蒂古拉","spr":"item:357","k":"amp","v":0.083},"lore":"混沌·伤害｜Kathigu-Ra"},{"id":"leigh","n":"雷娅","en":"Leigh","realm":"CARO","realmZh":"血肉","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:27","wheel":"0009","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.09}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +9%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·雷娅","spr":"item:358","k":"gen","v":0.05},"lore":"血肉·辅助｜Leigh"},{"id":"lily","n":"莉莉","en":"Lily","realm":"CHAOS","realmZh":"混沌","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:28","wheel":"0024","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·莉莉","spr":"item:359","k":"amp","v":0.07},"lore":"混沌·防御｜Lily"},{"id":"liz","n":"莉兹","en":"Liz","realm":"ULTRA","realmZh":"超维","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:29","wheel":"0030","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.0}],"txt":"每 5 拍：产出 10 算力，并造成 12 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·莉兹","spr":"item:360","k":"crit","v":0.054},"lore":"超维·伤害｜Liz"},{"id":"lotan","n":"萝坦","en":"Lotan","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"SR","spr":"hero:30","wheel":"0018","slots":2,"gen":6,"cd":4,"act":[{"k":"dmg","v":9.3}],"txt":"每 4 拍：产出 6 算力，并造成 9.3 点伤害。","aura":{"k":"pow","v":0.22},"auraTxt":"相邻唤醒体的动作效果 +22%","fate":{"n":"维度影像·萝坦","spr":"item:361","k":"amp","v":0.075},"lore":"混沌·伤害｜Lotan"},{"id":"miryam","n":"弥利亚姆","en":"Miryam","realm":"AEQUOR","realmZh":"深海","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:31","wheel":"0056","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.12}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +12%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·弥利亚姆","spr":"item:362","k":"shcap","v":11},"lore":"深海·辅助｜Miryam"},{"id":"mouchette","n":"茉夏","en":"Mouchette","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:32","wheel":"0029","slots":2,"gen":6,"cd":4,"act":[{"k":"dmg","v":9.1}],"txt":"每 4 拍：产出 6 算力，并造成 9.1 点伤害。","aura":{"k":"pow","v":0.22},"auraTxt":"相邻唤醒体的动作效果 +22%","fate":{"n":"维度影像·茉夏","spr":"item:363","k":"amp","v":0.073},"lore":"混沌·伤害｜Mouchette"},{"id":"murphy","n":"墨菲","en":"Murphy","realm":"AEQUOR","realmZh":"深海","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:33","wheel":"0051","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·墨菲","spr":"item:364","k":"shcap","v":13},"lore":"深海·防御｜Murphy"},{"id":"murphy-fauxborn","n":"诞妄·墨菲","en":"Murphy: Fauxborn","realm":"AEQUOR","realmZh":"深海","type":"辅助","typeKey":"CHORUS","rar":"Genesis","spr":"hero:34","wheel":"0111","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.11}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +11%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·诞妄·墨菲","spr":"item:365","k":"shcap","v":10},"lore":"深海·辅助｜Murphy: Fauxborn"},{"id":"nautila","n":"诺缔拉","en":"Nautila","realm":"CHAOS","realmZh":"混沌","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:35","wheel":"0021","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·诺缔拉","spr":"item:366","k":"amp","v":0.07},"lore":"混沌·防御｜Nautila"},{"id":"nymphaea","n":"宁菲亚","en":"Nymphaea","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:36","wheel":"0022","slots":1,"gen":3,"cd":3,"act":[{"k":"dmg","v":5.8}],"txt":"每 3 拍：产出 3 算力，并造成 5.8 点伤害。","aura":{"k":"pow","v":0.16},"auraTxt":"相邻唤醒体的动作效果 +16%","fate":{"n":"维度影像·宁菲亚","spr":"item:367","k":"amp","v":0.059},"lore":"混沌·伤害｜Nymphaea"},{"id":"ogier","n":"奥吉尔","en":"Ogier","realm":"CHAOS","realmZh":"混沌","type":"防御","typeKey":"WARDEN","rar":"SR","spr":"hero:37","wheel":"0017","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·奥吉尔","spr":"item:368","k":"amp","v":0.074},"lore":"混沌·防御｜Ogier"},{"id":"pandia","n":"潘狄娅","en":"Pandia","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:38","wheel":"0023","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":11.9}],"txt":"每 5 拍：产出 10 算力，并造成 11.9 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·潘狄娅","spr":"item:369","k":"amp","v":0.079},"lore":"混沌·伤害｜Pandia"},{"id":"pickman","n":"皮克曼","en":"Pickman","realm":"CARO","realmZh":"血肉","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:39","wheel":"0012","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·皮克曼","spr":"item:370","k":"gen","v":0.085},"lore":"血肉·辅助｜Pickman"},{"id":"pollux","n":"波吕克斯","en":"Pollux","realm":"ULTRA","realmZh":"超维","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:40","wheel":"0042","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":11.9}],"txt":"每 5 拍：产出 10 算力，并造成 11.9 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·波吕克斯","spr":"item:371","k":"crit","v":0.053},"lore":"超维·伤害｜Pollux"},{"id":"ramona","n":"拉蒙娜","en":"Ramona","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"SR","spr":"hero:41","wheel":"0014","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·拉蒙娜","spr":"item:372","k":"amp","v":0.069},"lore":"混沌·辅助｜Ramona"},{"id":"ryker","n":"莱克","en":"Ryker","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:42","wheel":"0019","slots":3,"gen":10,"cd":5,"act":[{"k":"vuln","v":0.19}],"txt":"每 5 拍：产出 10 算力，并让对手易伤 +19%（3 拍）。","aura":{"k":"gen","v":3},"auraTxt":"相邻唤醒体每次多产 3 算力","fate":{"n":"维度影像·莱克","spr":"item:373","k":"amp","v":0.083},"lore":"混沌·辅助｜Ryker"},{"id":"salvador","n":"萨尔瓦多","en":"Salvador","realm":"CARO","realmZh":"血肉","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:43","wheel":"0002","slots":3,"gen":10,"cd":5,"act":[{"k":"shield","v":18}],"txt":"每 5 拍：产出 10 算力，并架起 18 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·萨尔瓦多","spr":"item:374","k":"gen","v":0.098},"lore":"血肉·防御｜Salvador"},{"id":"sanga","n":"珊","en":"Sanga","realm":"AEQUOR","realmZh":"深海","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:44","wheel":"0057","slots":1,"gen":3,"cd":3,"act":[{"k":"shield","v":10}],"txt":"每 3 拍：产出 3 算力，并架起 10 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·珊","spr":"item:375","k":"shcap","v":11},"lore":"深海·防御｜Sanga"},{"id":"sorel","n":"索蕾尔","en":"Sorel","realm":"CARO","realmZh":"血肉","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:45","wheel":"0004","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.7}],"txt":"每 5 拍：产出 10 算力，并造成 12.7 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·索蕾尔","spr":"item:376","k":"gen","v":0.107},"lore":"血肉·伤害｜Sorel"},{"id":"tawil","n":"塔薇","en":"Tawil","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:46","wheel":"0027","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·塔薇","spr":"item:377","k":"amp","v":0.069},"lore":"混沌·辅助｜Tawil"},{"id":"thais","n":"泰旖丝","en":"Thais","realm":"CARO","realmZh":"血肉","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:47","wheel":"0001","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·泰旖丝","spr":"item:378","k":"gen","v":0.084},"lore":"血肉·辅助｜Thais"},{"id":"tinct","n":"汀克特","en":"Tinct","realm":"ULTRA","realmZh":"超维","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:48","wheel":"0032","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.11}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +11%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·汀克特","spr":"item:379","k":"crit","v":0.032},"lore":"超维·辅助｜Tinct"},{"id":"tulu","n":"图鲁","en":"Tulu","realm":"AEQUOR","realmZh":"深海","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:49","wheel":"0050","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.6}],"txt":"每 5 拍：产出 10 算力，并造成 12.6 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·图鲁","spr":"item:380","k":"shcap","v":16},"lore":"深海·伤害｜Tulu"},{"id":"uvhash","n":"尤乌哈希","en":"Uvhash","realm":"CARO","realmZh":"血肉","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:50","wheel":"0008","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.0}],"txt":"每 5 拍：产出 10 算力，并造成 12 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·尤乌哈希","spr":"item:381","k":"gen","v":0.098},"lore":"血肉·伤害｜Uvhash"},{"id":"wanda","n":"旺达","en":"Wanda","realm":"ULTRA","realmZh":"超维","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:51","wheel":"0033","slots":1,"gen":3,"cd":3,"act":[{"k":"shield","v":10}],"txt":"每 3 拍：产出 3 算力，并架起 10 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·旺达","spr":"item:382","k":"crit","v":0.043},"lore":"超维·防御｜Wanda"},{"id":"winkle","n":"温柯尔","en":"Winkle","realm":"ULTRA","realmZh":"超维","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:52","wheel":"0034","slots":1,"gen":3,"cd":3,"act":[{"k":"shield","v":10}],"txt":"每 3 拍：产出 3 算力，并架起 10 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·温柯尔","spr":"item:383","k":"crit","v":0.038},"lore":"超维·防御｜Winkle"},{"id":"xu","n":"徐","en":"Xu","realm":"CARO","realmZh":"血肉","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:53","wheel":"0013","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.16}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +16%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·徐","spr":"item:384","k":"gen","v":0.089},"lore":"血肉·辅助｜Xu"},{"id":"vortice","n":"莫丝","en":"Vortice","realm":"AEQUOR","realmZh":"深海","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:54","wheel":"0060","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.8}],"txt":"每 5 拍：产出 10 算力，并造成 12.8 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·莫丝","spr":"item:385","k":"shcap","v":16},"lore":"深海·伤害｜Vortice"},{"id":"arachne","n":"阿拉克涅","en":"Arachne","realm":"ULTRA","realmZh":"超维","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:55","wheel":"0128","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.12}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +12%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·阿拉克涅","spr":"item:386","k":"crit","v":0.037},"lore":"超维·辅助｜Arachne"},{"id":"saya","n":"沙耶","en":"Saya","realm":"CARO","realmZh":"血肉","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:56","wheel":"0167","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.1}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +10%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·沙耶","spr":"item:387","k":"gen","v":0.062},"lore":"血肉·辅助｜Saya"},{"id":"pontos","n":"庞托斯","en":"Pontos","realm":"AEQUOR","realmZh":"深海","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:57","wheel":"0169","slots":3,"gen":10,"cd":5,"act":[{"k":"shield","v":18}],"txt":"每 5 拍：产出 10 算力，并架起 18 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·庞托斯","spr":"item:388","k":"shcap","v":14},"lore":"深海·防御｜Pontos"},{"id":"lotan-cetarchon","n":"蚀灭·萝坦","en":"Lotan: Cetarchon","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"Genesis","spr":"hero:58","wheel":"0172","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":13.6}],"txt":"每 5 拍：产出 10 算力，并造成 13.6 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·蚀灭·萝坦","spr":"item:389","k":"amp","v":0.1},"lore":"混沌·伤害｜Lotan: Cetarchon"},{"id":"caraboo","n":"卡拉布","en":"Caraboo","realm":"CARO","realmZh":"血肉","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:59","wheel":"0175","slots":1,"gen":3,"cd":3,"act":[{"k":"shield","v":9}],"txt":"每 3 拍：产出 3 算力，并架起 9 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·卡拉布","spr":"item:390","k":"gen","v":0.069},"lore":"血肉·防御｜Caraboo"},{"id":"ogier-oathbound","n":"负誓·奥吉尔","en":"Ogier: Oathbound","realm":"CHAOS","realmZh":"混沌","type":"防御","typeKey":"WARDEN","rar":"Genesis","spr":"hero:60","wheel":"0178","slots":3,"gen":10,"cd":5,"act":[{"k":"shield","v":19}],"txt":"每 5 拍：产出 10 算力，并架起 19 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·负誓·奥吉尔","spr":"item:391","k":"amp","v":0.087},"lore":"混沌·防御｜Ogier: Oathbound"},{"id":"vivian","n":"薇薇安","en":"Vivian","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:61","wheel":"0181","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.11}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +11%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·薇薇安","spr":"item:392","k":"amp","v":0.054},"lore":"混沌·辅助｜Vivian"}];
+const HEROES = [{"id":"24","n":"24","en":"24","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:0","wheel":"0020","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":13.0}],"txt":"每 5 拍：产出 10 算力，并造成 13 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·24","spr":"item:331","k":"amp","v":0.093},"lore":"混沌·伤害｜24"},{"id":"agrippa","n":"阿格里帕","en":"Agrippa","realm":"CARO","realmZh":"血肉","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:1","wheel":"0007","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·阿格里帕","spr":"item:332","k":"gen","v":0.085},"lore":"血肉·防御｜Agrippa"},{"id":"aigis","n":"艾继丝","en":"Aigis","realm":"CARO","realmZh":"血肉","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:2","wheel":"0003","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.12}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +12%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·艾继丝","spr":"item:333","k":"gen","v":0.079},"lore":"血肉·辅助｜Aigis"},{"id":"alva","n":"艾尔瓦","en":"Alva","realm":"CHAOS","realmZh":"混沌","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:3","wheel":"0025","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·艾尔瓦","spr":"item:334","k":"amp","v":0.076},"lore":"混沌·防御｜Alva"},{"id":"aurita","n":"奥瑞塔","en":"Aurita","realm":"AEQUOR","realmZh":"深海","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:4","wheel":"0054","slots":1,"gen":3,"cd":3,"act":[{"k":"dmg","v":5.5}],"txt":"每 3 拍：产出 3 算力，并造成 5.5 点伤害。","aura":{"k":"pow","v":0.16},"auraTxt":"相邻唤醒体的动作效果 +16%","fate":{"n":"维度影像·奥瑞塔","spr":"item:335","k":"shcap","v":9},"lore":"深海·伤害｜Aurita"},{"id":"caecus","n":"凯刻斯","en":"Caecus","realm":"AEQUOR","realmZh":"深海","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:5","wheel":"0053","slots":3,"gen":10,"cd":5,"act":[{"k":"shield","v":18}],"txt":"每 5 拍：产出 10 算力，并架起 18 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·凯刻斯","spr":"item:336","k":"shcap","v":14},"lore":"深海·防御｜Caecus"},{"id":"casiah","n":"卡茜亚","en":"Casiah","realm":"ULTRA","realmZh":"超维","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:6","wheel":"0038","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.12}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +12%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·卡茜亚","spr":"item:337","k":"crit","v":0.038},"lore":"超维·辅助｜Casiah"},{"id":"castor","n":"卡斯托尔","en":"Castor","realm":"ULTRA","realmZh":"超维","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:7","wheel":"0039","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·卡斯托尔","spr":"item:338","k":"crit","v":0.048},"lore":"超维·防御｜Castor"},{"id":"celeste","n":"希莱斯特","en":"Celeste","realm":"AEQUOR","realmZh":"深海","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:8","wheel":"0058","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.09}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +9%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·希莱斯特","spr":"item:339","k":"shcap","v":7},"lore":"深海·辅助｜Celeste"},{"id":"clementine","n":"克莱门汀","en":"Clementine","realm":"ULTRA","realmZh":"超维","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:9","wheel":"0041","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·克莱门汀","spr":"item:340","k":"crit","v":0.047},"lore":"超维·辅助｜Clementine"},{"id":"corposant","n":"克珀珊特","en":"Corposant","realm":"AEQUOR","realmZh":"深海","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:10","wheel":"0059","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·克珀珊特","spr":"item:341","k":"shcap","v":12},"lore":"深海·防御｜Corposant"},{"id":"daffodil","n":"达芙黛尔","en":"Daffodil","realm":"ULTRA","realmZh":"超维","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:11","wheel":"0031","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.6}],"txt":"每 5 拍：产出 10 算力，并造成 12.6 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·达芙黛尔","spr":"item:342","k":"crit","v":0.06},"lore":"超维·伤害｜Daffodil"},{"id":"doll","n":"朵尔","en":"Doll","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"SR","spr":"hero:12","wheel":"0015","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.1}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +10%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·朵尔","spr":"item:343","k":"amp","v":0.044},"lore":"混沌·辅助｜Doll"},{"id":"doresain","n":"杜勒赛因","en":"Doresain","realm":"CARO","realmZh":"血肉","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:13","wheel":"0011","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.0}],"txt":"每 5 拍：产出 10 算力，并造成 12 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·杜勒赛因","spr":"item:344","k":"gen","v":0.097},"lore":"血肉·伤害｜Doresain"},{"id":"erica","n":"艾瑞卡","en":"Erica","realm":"ULTRA","realmZh":"超维","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:14","wheel":"0037","slots":3,"gen":10,"cd":5,"act":[{"k":"shield","v":19}],"txt":"每 5 拍：产出 10 算力，并架起 19 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·艾瑞卡","spr":"item:345","k":"crit","v":0.061},"lore":"超维·防御｜Erica"},{"id":"faint","n":"菲茵特","en":"Faint","realm":"CARO","realmZh":"血肉","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:15","wheel":"0010","slots":1,"gen":3,"cd":3,"act":[{"k":"shield","v":9}],"txt":"每 3 拍：产出 3 算力，并架起 9 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·菲茵特","spr":"item:346","k":"gen","v":0.064},"lore":"血肉·防御｜Faint"},{"id":"faros","n":"法洛思","en":"Faros","realm":"AEQUOR","realmZh":"深海","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:16","wheel":"0052","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.12}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +12%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·法洛思","spr":"item:347","k":"shcap","v":10},"lore":"深海·辅助｜Faros"},{"id":"doll-inferno","n":"熔毁·朵尔","en":"Doll: Inferno","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"Genesis","spr":"hero:17","wheel":"0016","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.1}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +10%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·熔毁·朵尔","spr":"item:348","k":"amp","v":0.044},"lore":"混沌·辅助｜Doll: Inferno"},{"id":"helot-catena","n":"血链·希洛","en":"Helot: Catena","realm":"CARO","realmZh":"血肉","type":"伤害","typeKey":"ASSAULT","rar":"Genesis","spr":"hero:18","wheel":"0006","slots":2,"gen":6,"cd":4,"act":[{"k":"dmg","v":9.5}],"txt":"每 4 拍：产出 6 算力，并造成 9.5 点伤害。","aura":{"k":"pow","v":0.22},"auraTxt":"相邻唤醒体的动作效果 +22%","fate":{"n":"维度影像·血链·希洛","spr":"item:349","k":"gen","v":0.094},"lore":"血肉·伤害｜Helot: Catena"},{"id":"ramona-timeworn","n":"环行·拉蒙娜","en":"Ramona: Timeworn","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"Genesis","spr":"hero:19","wheel":"0181","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·环行·拉蒙娜","spr":"item:350","k":"amp","v":0.069},"lore":"混沌·辅助｜Ramona: Timeworn"},{"id":"goliath","n":"戈利亚","en":"Goliath","realm":"AEQUOR","realmZh":"深海","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:20","wheel":"0055","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":13.6}],"txt":"每 5 拍：产出 10 算力，并造成 13.6 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·戈利亚","spr":"item:351","k":"shcap","v":18},"lore":"深海·伤害｜Goliath"},{"id":"hameln","n":"哈姆林","en":"Hameln","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:21","wheel":"0040","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·哈姆林","spr":"item:352","k":"amp","v":0.071},"lore":"混沌·辅助｜Hameln"},{"id":"helot","n":"希洛","en":"Helot","realm":"CARO","realmZh":"血肉","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:22","wheel":"0005","slots":2,"gen":6,"cd":4,"act":[{"k":"dmg","v":9.5}],"txt":"每 4 拍：产出 6 算力，并造成 9.5 点伤害。","aura":{"k":"pow","v":0.22},"auraTxt":"相邻唤醒体的动作效果 +22%","fate":{"n":"维度影像·希洛","spr":"item:353","k":"gen","v":0.094},"lore":"血肉·伤害｜Helot"},{"id":"horla","n":"奥尔拉","en":"Horla","realm":"ULTRA","realmZh":"超维","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:23","wheel":"0035","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.11}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +11%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·奥尔拉","spr":"item:354","k":"crit","v":0.03},"lore":"超维·辅助｜Horla"},{"id":"jenkin","n":"詹金","en":"Jenkin","realm":"ULTRA","realmZh":"超维","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:24","wheel":"0036","slots":2,"gen":6,"cd":4,"act":[{"k":"dmg","v":9.2}],"txt":"每 4 拍：产出 6 算力，并造成 9.2 点伤害。","aura":{"k":"pow","v":0.22},"auraTxt":"相邻唤醒体的动作效果 +22%","fate":{"n":"维度影像·詹金","spr":"item:355","k":"crit","v":0.048},"lore":"超维·伤害｜Jenkin"},{"id":"karen","n":"珈伦","en":"Karen","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:25","wheel":"0026","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.11}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +11%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·珈伦","spr":"item:356","k":"amp","v":0.057},"lore":"混沌·辅助｜Karen"},{"id":"kathigu-ra","n":"凯蒂古拉","en":"Kathigu-Ra","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:26","wheel":"0028","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.2}],"txt":"每 5 拍：产出 10 算力，并造成 12.2 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·凯蒂古拉","spr":"item:357","k":"amp","v":0.083},"lore":"混沌·伤害｜Kathigu-Ra"},{"id":"leigh","n":"雷娅","en":"Leigh","realm":"CARO","realmZh":"血肉","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:27","wheel":"0009","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.09}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +9%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·雷娅","spr":"item:358","k":"gen","v":0.05},"lore":"血肉·辅助｜Leigh"},{"id":"lily","n":"莉莉","en":"Lily","realm":"CHAOS","realmZh":"混沌","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:28","wheel":"0024","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·莉莉","spr":"item:359","k":"amp","v":0.07},"lore":"混沌·防御｜Lily"},{"id":"liz","n":"莉兹","en":"Liz","realm":"ULTRA","realmZh":"超维","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:29","wheel":"0030","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.0}],"txt":"每 5 拍：产出 10 算力，并造成 12 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·莉兹","spr":"item:360","k":"crit","v":0.054},"lore":"超维·伤害｜Liz"},{"id":"lotan","n":"萝坦","en":"Lotan","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"SR","spr":"hero:30","wheel":"0018","slots":2,"gen":6,"cd":4,"act":[{"k":"dmg","v":9.3}],"txt":"每 4 拍：产出 6 算力，并造成 9.3 点伤害。","aura":{"k":"pow","v":0.22},"auraTxt":"相邻唤醒体的动作效果 +22%","fate":{"n":"维度影像·萝坦","spr":"item:361","k":"amp","v":0.075},"lore":"混沌·伤害｜Lotan"},{"id":"miryam","n":"弥利亚姆","en":"Miryam","realm":"AEQUOR","realmZh":"深海","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:31","wheel":"0056","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.12}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +12%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·弥利亚姆","spr":"item:362","k":"shcap","v":11},"lore":"深海·辅助｜Miryam"},{"id":"mouchette","n":"茉夏","en":"Mouchette","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:32","wheel":"0029","slots":2,"gen":6,"cd":4,"act":[{"k":"dmg","v":9.1}],"txt":"每 4 拍：产出 6 算力，并造成 9.1 点伤害。","aura":{"k":"pow","v":0.22},"auraTxt":"相邻唤醒体的动作效果 +22%","fate":{"n":"维度影像·茉夏","spr":"item:363","k":"amp","v":0.073},"lore":"混沌·伤害｜Mouchette"},{"id":"murphy","n":"墨菲","en":"Murphy","realm":"AEQUOR","realmZh":"深海","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:33","wheel":"0051","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·墨菲","spr":"item:364","k":"shcap","v":13},"lore":"深海·防御｜Murphy"},{"id":"murphy-fauxborn","n":"诞妄·墨菲","en":"Murphy: Fauxborn","realm":"AEQUOR","realmZh":"深海","type":"辅助","typeKey":"CHORUS","rar":"Genesis","spr":"hero:34","wheel":"0111","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.11}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +11%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·诞妄·墨菲","spr":"item:365","k":"shcap","v":10},"lore":"深海·辅助｜Murphy: Fauxborn"},{"id":"nautila","n":"诺缔拉","en":"Nautila","realm":"CHAOS","realmZh":"混沌","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:35","wheel":"0021","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·诺缔拉","spr":"item:366","k":"amp","v":0.07},"lore":"混沌·防御｜Nautila"},{"id":"nymphaea","n":"宁菲亚","en":"Nymphaea","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:36","wheel":"0022","slots":1,"gen":3,"cd":3,"act":[{"k":"dmg","v":5.8}],"txt":"每 3 拍：产出 3 算力，并造成 5.8 点伤害。","aura":{"k":"pow","v":0.16},"auraTxt":"相邻唤醒体的动作效果 +16%","fate":{"n":"维度影像·宁菲亚","spr":"item:367","k":"amp","v":0.059},"lore":"混沌·伤害｜Nymphaea"},{"id":"ogier","n":"奥吉尔","en":"Ogier","realm":"CHAOS","realmZh":"混沌","type":"防御","typeKey":"WARDEN","rar":"SR","spr":"hero:37","wheel":"0017","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·奥吉尔","spr":"item:368","k":"amp","v":0.074},"lore":"混沌·防御｜Ogier"},{"id":"pandia","n":"潘狄娅","en":"Pandia","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:38","wheel":"0023","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":11.9}],"txt":"每 5 拍：产出 10 算力，并造成 11.9 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·潘狄娅","spr":"item:369","k":"amp","v":0.079},"lore":"混沌·伤害｜Pandia"},{"id":"pickman","n":"皮克曼","en":"Pickman","realm":"CARO","realmZh":"血肉","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:39","wheel":"0012","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·皮克曼","spr":"item:370","k":"gen","v":0.085},"lore":"血肉·辅助｜Pickman"},{"id":"pollux","n":"波吕克斯","en":"Pollux","realm":"ULTRA","realmZh":"超维","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:40","wheel":"0042","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":11.9}],"txt":"每 5 拍：产出 10 算力，并造成 11.9 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·波吕克斯","spr":"item:371","k":"crit","v":0.053},"lore":"超维·伤害｜Pollux"},{"id":"ramona","n":"拉蒙娜","en":"Ramona","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"SR","spr":"hero:41","wheel":"0014","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·拉蒙娜","spr":"item:372","k":"amp","v":0.069},"lore":"混沌·辅助｜Ramona"},{"id":"ryker","n":"莱克","en":"Ryker","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:42","wheel":"0019","slots":3,"gen":10,"cd":5,"act":[{"k":"vuln","v":0.19}],"txt":"每 5 拍：产出 10 算力，并让对手易伤 +19%（3 拍）。","aura":{"k":"gen","v":3},"auraTxt":"相邻唤醒体每次多产 3 算力","fate":{"n":"维度影像·莱克","spr":"item:373","k":"amp","v":0.083},"lore":"混沌·辅助｜Ryker"},{"id":"salvador","n":"萨尔瓦多","en":"Salvador","realm":"CARO","realmZh":"血肉","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:43","wheel":"0002","slots":3,"gen":10,"cd":5,"act":[{"k":"shield","v":18}],"txt":"每 5 拍：产出 10 算力，并架起 18 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·萨尔瓦多","spr":"item:374","k":"gen","v":0.098},"lore":"血肉·防御｜Salvador"},{"id":"sanga","n":"珊","en":"Sanga","realm":"AEQUOR","realmZh":"深海","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:44","wheel":"0057","slots":1,"gen":3,"cd":3,"act":[{"k":"shield","v":10}],"txt":"每 3 拍：产出 3 算力，并架起 10 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·珊","spr":"item:375","k":"shcap","v":11},"lore":"深海·防御｜Sanga"},{"id":"sorel","n":"索蕾尔","en":"Sorel","realm":"CARO","realmZh":"血肉","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:45","wheel":"0004","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.7}],"txt":"每 5 拍：产出 10 算力，并造成 12.7 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·索蕾尔","spr":"item:376","k":"gen","v":0.107},"lore":"血肉·伤害｜Sorel"},{"id":"tawil","n":"塔薇","en":"Tawil","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:46","wheel":"0027","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·塔薇","spr":"item:377","k":"amp","v":0.069},"lore":"混沌·辅助｜Tawil"},{"id":"thais","n":"泰旖丝","en":"Thais","realm":"CARO","realmZh":"血肉","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:47","wheel":"0001","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·泰旖丝","spr":"item:378","k":"gen","v":0.084},"lore":"血肉·辅助｜Thais"},{"id":"tinct","n":"汀克特","en":"Tinct","realm":"ULTRA","realmZh":"超维","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:48","wheel":"0032","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.11}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +11%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·汀克特","spr":"item:379","k":"crit","v":0.032},"lore":"超维·辅助｜Tinct"},{"id":"tulu","n":"图鲁","en":"Tulu","realm":"AEQUOR","realmZh":"深海","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:49","wheel":"0050","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.6}],"txt":"每 5 拍：产出 10 算力，并造成 12.6 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·图鲁","spr":"item:380","k":"shcap","v":16},"lore":"深海·伤害｜Tulu"},{"id":"uvhash","n":"尤乌哈希","en":"Uvhash","realm":"CARO","realmZh":"血肉","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:50","wheel":"0008","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.0}],"txt":"每 5 拍：产出 10 算力，并造成 12 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·尤乌哈希","spr":"item:381","k":"gen","v":0.098},"lore":"血肉·伤害｜Uvhash"},{"id":"wanda","n":"旺达","en":"Wanda","realm":"ULTRA","realmZh":"超维","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:51","wheel":"0033","slots":1,"gen":3,"cd":3,"act":[{"k":"shield","v":10}],"txt":"每 3 拍：产出 3 算力，并架起 10 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·旺达","spr":"item:382","k":"crit","v":0.043},"lore":"超维·防御｜Wanda"},{"id":"winkle","n":"温柯尔","en":"Winkle","realm":"ULTRA","realmZh":"超维","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:52","wheel":"0034","slots":1,"gen":3,"cd":3,"act":[{"k":"shield","v":10}],"txt":"每 3 拍：产出 3 算力，并架起 10 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·温柯尔","spr":"item:383","k":"crit","v":0.038},"lore":"超维·防御｜Winkle"},{"id":"xu","n":"徐","en":"Xu","realm":"CARO","realmZh":"血肉","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:53","wheel":"0013","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.16}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +16%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·徐","spr":"item:384","k":"gen","v":0.089},"lore":"血肉·辅助｜Xu"},{"id":"vortice","n":"莫丝","en":"Vortice","realm":"AEQUOR","realmZh":"深海","type":"伤害","typeKey":"ASSAULT","rar":"SSR","spr":"hero:54","wheel":"0060","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.8}],"txt":"每 5 拍：产出 10 算力，并造成 12.8 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·莫丝","spr":"item:385","k":"shcap","v":16},"lore":"深海·伤害｜Vortice"},{"id":"arachne","n":"阿拉克涅","en":"Arachne","realm":"ULTRA","realmZh":"超维","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:55","wheel":"0128","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.12}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +12%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·阿拉克涅","spr":"item:386","k":"crit","v":0.037},"lore":"超维·辅助｜Arachne"},{"id":"saya","n":"沙耶","en":"Saya","realm":"CARO","realmZh":"血肉","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:56","wheel":"0167","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.1}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +10%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·沙耶","spr":"item:387","k":"gen","v":0.062},"lore":"血肉·辅助｜Saya"},{"id":"pontos","n":"庞托斯","en":"Pontos","realm":"AEQUOR","realmZh":"深海","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:57","wheel":"0169","slots":3,"gen":10,"cd":5,"act":[{"k":"shield","v":18}],"txt":"每 5 拍：产出 10 算力，并架起 18 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·庞托斯","spr":"item:388","k":"shcap","v":14},"lore":"深海·防御｜Pontos"},{"id":"lotan-cetarchon","n":"蚀灭·萝坦","en":"Lotan: Cetarchon","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"Genesis","spr":"hero:58","wheel":"0172","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":13.6}],"txt":"每 5 拍：产出 10 算力，并造成 13.6 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·蚀灭·萝坦","spr":"item:389","k":"amp","v":0.1},"lore":"混沌·伤害｜Lotan: Cetarchon"},{"id":"caraboo","n":"卡拉布","en":"Caraboo","realm":"CARO","realmZh":"血肉","type":"防御","typeKey":"WARDEN","rar":"SSR","spr":"hero:59","wheel":"0175","slots":1,"gen":3,"cd":3,"act":[{"k":"shield","v":9}],"txt":"每 3 拍：产出 3 算力，并架起 9 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·卡拉布","spr":"item:390","k":"gen","v":0.069},"lore":"血肉·防御｜Caraboo"},{"id":"ogier-oathbound","n":"负誓·奥吉尔","en":"Ogier: Oathbound","realm":"CHAOS","realmZh":"混沌","type":"防御","typeKey":"WARDEN","rar":"Genesis","spr":"hero:60","wheel":"0178","slots":3,"gen":10,"cd":5,"act":[{"k":"shield","v":19}],"txt":"每 5 拍：产出 10 算力，并架起 19 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·负誓·奥吉尔","spr":"item:391","k":"amp","v":0.087},"lore":"混沌·防御｜Ogier: Oathbound"},{"id":"vivian","n":"薇薇安","en":"Vivian","realm":"CHAOS","realmZh":"混沌","type":"辅助","typeKey":"CHORUS","rar":"SSR","spr":"hero:61","wheel":"0181","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.11}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +11%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·薇薇安","spr":"item:392","k":"amp","v":0.054},"lore":"混沌·辅助｜Vivian"},{"id":"egg-samo","n":"萨摩不耶","en":"Samo","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"SR","spr":"hero:62","wheel":"0017","slots":3,"gen":10,"cd":5,"act":[{"k":"dmg","v":12.5}],"txt":"每 5 拍：产出 10 算力，并造成 12.5 点伤害。","aura":{"k":"pow","v":0.28},"auraTxt":"相邻唤醒体的动作效果 +28%","fate":{"n":"维度影像·节拍器","spr":"item:267","k":"amp","v":0.086},"egg":true,"lore":"主播｜B 站内容创作者 · 萨摩不耶"},{"id":"egg-susu","n":"梦依流苏","en":"Sue","realm":"AEQUOR","realmZh":"深海","type":"辅助","typeKey":"CHORUS","rar":"SR","spr":"hero:63","wheel":"0057","slots":2,"gen":6,"cd":4,"act":[{"k":"vuln","v":0.15}],"txt":"每 4 拍：产出 6 算力，并让对手易伤 +15%（3 拍）。","aura":{"k":"gen","v":2},"auraTxt":"相邻唤醒体每次多产 2 算力","fate":{"n":"维度影像·不做梦的人","spr":"item:279","k":"shcap","v":12},"egg":true,"lore":"主播｜B 站内容创作者 · 梦依流苏"},{"id":"egg-alice","n":"爱丽丝","en":"Alice","realm":"ULTRA","realmZh":"超维","type":"伤害","typeKey":"ASSAULT","rar":"SR","spr":"hero:64","wheel":"0035","slots":1,"gen":3,"cd":3,"act":[{"k":"dmg","v":5.7}],"txt":"每 3 拍：产出 3 算力，并造成 5.7 点伤害。","aura":{"k":"pow","v":0.16},"auraTxt":"相邻唤醒体的动作效果 +16%","fate":{"n":"维度影像·洞口的兔子","spr":"item:309","k":"crit","v":0.035},"egg":true,"lore":"主播｜B 站内容创作者 · 爱丽丝"},{"id":"egg-ratking","n":"鼠王","en":"Rat King","realm":"CARO","realmZh":"血肉","type":"伤害","typeKey":"ASSAULT","rar":"SR","spr":"hero:65","wheel":"0004","slots":1,"gen":3,"cd":3,"act":[{"k":"dmg","v":6.5}],"txt":"每 3 拍：产出 3 算力，并造成 6.5 点伤害。","aura":{"k":"pow","v":0.16},"auraTxt":"相邻唤醒体的动作效果 +16%","fate":{"n":"维度影像·数不清","spr":"item:308","k":"gen","v":0.082},"egg":true,"lore":"主播｜B 站内容创作者 · 鼠王"},{"id":"egg-dragon","n":"魔龙_D","en":"Dragon D","realm":"CARO","realmZh":"血肉","type":"防御","typeKey":"WARDEN","rar":"SR","spr":"hero:66","wheel":"0013","slots":2,"gen":6,"cd":4,"act":[{"k":"shield","v":14}],"txt":"每 4 拍：产出 6 算力，并架起 14 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·逆鳞","spr":"item:280","k":"gen","v":0.087},"egg":true,"lore":"主播｜B 站内容创作者 · 魔龙_D"},{"id":"egg-zerokr","n":"立誓0氪","en":"Zero KR","realm":"CHAOS","realmZh":"混沌","type":"伤害","typeKey":"ASSAULT","rar":"SR","spr":"hero:67","wheel":"0025","slots":2,"gen":6,"cd":4,"act":[{"k":"dmg","v":8.7}],"txt":"每 4 拍：产出 6 算力，并造成 8.7 点伤害。","aura":{"k":"pow","v":0.22},"auraTxt":"相邻唤醒体的动作效果 +22%","fate":{"n":"维度影像·一分不花","spr":"item:294","k":"amp","v":0.068},"egg":true,"lore":"主播｜B 站内容创作者 · 立誓0氪"},{"id":"egg-moreen","n":"夏茉琳","en":"Moreen","realm":"AEQUOR","realmZh":"深海","type":"辅助","typeKey":"CHORUS","rar":"SR","spr":"hero:68","wheel":"0057","slots":3,"gen":10,"cd":5,"act":[{"k":"vuln","v":0.18}],"txt":"每 5 拍：产出 10 算力，并让对手易伤 +18%（3 拍）。","aura":{"k":"gen","v":3},"auraTxt":"相邻唤醒体每次多产 3 算力","fate":{"n":"维度影像·花间行走","spr":"item:253","k":"shcap","v":14},"egg":true,"lore":"主播｜B 站内容创作者 · 夏茉琳"},{"id":"egg-chaoxing","n":"朝星","en":"Chaoxing","realm":"ULTRA","realmZh":"超维","type":"伤害","typeKey":"ASSAULT","rar":"SR","spr":"hero:69","wheel":"0030","slots":2,"gen":6,"cd":4,"act":[{"k":"dmg","v":9.2}],"txt":"每 4 拍：产出 6 算力，并造成 9.2 点伤害。","aura":{"k":"pow","v":0.22},"auraTxt":"相邻唤醒体的动作效果 +22%","fate":{"n":"维度影像·破晓","spr":"item:302","k":"crit","v":0.048},"egg":true,"lore":"主播｜B 站内容创作者 · 朝星"},{"id":"egg-maodie","n":"路过的耄耋","en":"Passing Maodie","realm":"CARO","realmZh":"血肉","type":"防御","typeKey":"WARDEN","rar":"SR","spr":"hero:70","wheel":"0012","slots":1,"gen":3,"cd":3,"act":[{"k":"shield","v":10}],"txt":"每 3 拍：产出 3 算力，并架起 10 点护盾。","aura":{"k":"cd","v":1},"auraTxt":"相邻唤醒体的节拍 -1","fate":{"n":"维度影像·我什么都没看","spr":"item:278","k":"gen","v":0.077},"egg":true,"lore":"主播｜B 站内容创作者 · 路过的耄耋"},{"id":"egg-baiyun","n":"白云出岫","en":"Baiyun Chuxiu","realm":"ULTRA","realmZh":"超维","type":"辅助","typeKey":"CHORUS","rar":"SR","spr":"hero:71","wheel":"0042","slots":3,"gen":10,"cd":5,"act":[{"k":"vuln","v":0.19}],"txt":"每 5 拍：产出 10 算力，并让对手易伤 +19%（3 拍）。","aura":{"k":"gen","v":3},"auraTxt":"相邻唤醒体每次多产 3 算力","fate":{"n":"维度影像·复现","spr":"item:281","k":"crit","v":0.054},"egg":true,"lore":"主播｜B 站内容创作者 · 白云出岫"},{"id":"egg-banxing","n":"半醒的鱼","en":"Halfawake","realm":"AEQUOR","realmZh":"深海","type":"辅助","typeKey":"CHORUS","rar":"SR","spr":"hero:72","wheel":"0131","slots":1,"gen":3,"cd":3,"act":[{"k":"vuln","v":0.12}],"txt":"每 3 拍：产出 3 算力，并让对手易伤 +12%（3 拍）。","aura":{"k":"gen","v":1},"auraTxt":"相邻唤醒体每次多产 1 算力","fate":{"n":"维度影像·按需选用","spr":"item:274","k":"shcap","v":11},"egg":true,"lore":"主播｜B 站内容创作者 · 半醒的鱼"}];
 
 const ITEMS = [{"id":"0059","n":"深渊通信","spr":"item:0","r":"SSR","cost":8,"m":{"k":"crit","v":0.081},"arch":"dmg"},{"id":"0060","n":"深海戒指","spr":"item:1","r":"SSR","cost":9,"m":{"k":"cap","v":12},"arch":"aura"},{"id":"0061","n":"阿方索之器","spr":"item:2","r":"N","cost":5,"m":{"k":"amp","v":0.07},"arch":"dmg"},{"id":"0062","n":"异形之心","spr":"item:3","r":"N","cost":4,"m":{"k":"amp","v":0.081},"arch":"str"},{"id":"0063","n":"老旧拼图","spr":"item:4","r":"SSR","cost":8,"m":{"k":"crit","v":0.103},"arch":"dmg"},{"id":"0064","n":"阿尔卡纳记录","spr":"item:5","r":"N","cost":4,"m":{"k":"amp","v":0.081},"arch":"aura"},{"id":"0065","n":"阿尔卡纳遗物","spr":"item:6","r":"N","cost":6,"m":{"k":"crit","v":0.046},"arch":"dmg"},{"id":"0066","n":"魔术手套","spr":"item:7","r":"N","cost":4,"m":{"k":"regen","v":1},"arch":"shield"},{"id":"0067","n":"Argent Return","spr":"item:8","r":"SR","cost":6,"m":{"k":"crit","v":0.069},"arch":"dmg"},{"id":"0074","n":"渔叉","spr":"item:9","r":"N","cost":5,"m":{"k":"amp","v":0.07},"arch":"dmg"},{"id":"0075","n":"大嘴纽扣","spr":"item:10","r":"SR","cost":6,"m":{"k":"crit","v":0.069},"arch":"dmg"},{"id":"0076","n":"黑烛","spr":"item:11","r":"SR","cost":8,"m":{"k":"cdmg","v":0.198},"arch":"burn"},{"id":"0077","n":"黑星燃烧之烬","spr":"item:12","r":"SR","cost":7,"m":{"k":"cdmg","v":0.22},"arch":"burn"},{"id":"0078","n":"恩赐之血","spr":"item:13","r":"N","cost":6,"m":{"k":"amp","v":0.081},"arch":"dmg"},{"id":"0079","n":"染血鹅卵石","spr":"item:14","r":"N","cost":5,"m":{"k":"cap","v":7},"arch":"regen"},{"id":"0080","n":"骸骨杯盏","spr":"item:15","r":"SSR","cost":9,"m":{"k":"cdmg","v":0.32},"arch":"str"},{"id":"0081","n":"崭新的钱包","spr":"item:16","r":"N","cost":4,"m":{"k":"start","v":5},"arch":"gold"},{"id":"0082","n":"Brass Censer","spr":"item:17","r":"SSR","cost":10,"m":{"k":"crit","v":0.081},"arch":"dmg"},{"id":"0083","n":"残缺面孔","spr":"item:18","r":"SR","cost":8,"m":{"k":"crit","v":0.06},"arch":"dmg"},{"id":"0084","n":"血肉戒指","spr":"item:19","r":"SSR","cost":9,"m":{"k":"cap","v":12},"arch":"aura"},{"id":"0085","n":"猫的宝藏","spr":"item:20","r":"SR","cost":7,"m":{"k":"start","v":8},"arch":"gold"},{"id":"0086","n":"秘典星象仪","spr":"item:21","r":"N","cost":4,"m":{"k":"cdmg","v":0.172},"arch":"crit"},{"id":"0087","n":"锡兰红茶","spr":"item:22","r":"N","cost":4,"m":{"k":"shcap","v":14},"arch":"heal"},{"id":"0088","n":"海眷歌谣","spr":"item:23","r":"N","cost":4,"m":{"k":"crit","v":0.046},"arch":"dmg"},{"id":"0089","n":"混沌戒指","spr":"item:24","r":"SSR","cost":8,"m":{"k":"cap","v":15},"arch":"aura"},{"id":"0090","n":"时灵摆「回噬」","spr":"item:25","r":"SR","cost":7,"m":{"k":"cdmg","v":0.22},"arch":"str"},{"id":"0091","n":"时灵摆「均衡」","spr":"item:26","r":"SR","cost":6,"m":{"k":"shcap","v":21},"arch":"shield"},{"id":"0092","n":"时灵摆「赐福」","spr":"item:27","r":"SR","cost":7,"m":{"k":"regen","v":2},"arch":"heal"},{"id":"0093","n":"时灵摆「温床」","spr":"item:28","r":"SR","cost":6,"m":{"k":"cap","v":9},"arch":"regen"},{"id":"0094","n":"Chrono Pendulum \"Buildup\"","spr":"item:29","r":"SR","cost":6,"m":{"k":"cdmg","v":0.198},"arch":"str"},{"id":"0095","n":"时灵摆「混沌馈赠」","spr":"item:30","r":"SR","cost":8,"m":{"k":"cdmg","v":0.22},"arch":"crit"},{"id":"0096","n":"时灵摆「蓄力！」","spr":"item:31","r":"SR","cost":8,"m":{"k":"amp","v":0.115},"arch":"str"},{"id":"0097","n":"时灵摆「深化」","spr":"item:32","r":"SR","cost":8,"m":{"k":"amp","v":0.09},"arch":"poison"},{"id":"0098","n":"时灵摆「窃梦」","spr":"item:33","r":"SR","cost":6,"m":{"k":"crit","v":0.069},"arch":"vuln"},{"id":"0099","n":"时灵摆「回响」","spr":"item:34","r":"SR","cost":7,"m":{"k":"amp","v":0.09},"arch":"aura"},{"id":"0100","n":"时灵摆「演绎」","spr":"item:35","r":"SR","cost":7,"m":{"k":"cdmg","v":0.22},"arch":"crit"},{"id":"0101","n":"时灵摆「终结」","spr":"item:36","r":"SR","cost":7,"m":{"k":"amp","v":0.115},"arch":"dmg"},{"id":"0102","n":"时灵摆「衍化」","spr":"item:37","r":"SR","cost":7,"m":{"k":"regen","v":2},"arch":"regen"},{"id":"0103","n":"时灵摆「眼」","spr":"item:38","r":"SR","cost":7,"m":{"k":"crit","v":0.069},"arch":"crit"},{"id":"0104","n":"时灵摆「迷梦」","spr":"item:39","r":"SR","cost":7,"m":{"k":"amp","v":0.115},"arch":"vuln"},{"id":"0105","n":"时灵摆「间隙」","spr":"item:40","r":"SR","cost":7,"m":{"k":"cap","v":8},"arch":"haste"},{"id":"0106","n":"时灵摆「迷失」","spr":"item:41","r":"SR","cost":8,"m":{"k":"amp","v":0.115},"arch":"slow"},{"id":"0107","n":"时灵摆「冥想」","spr":"item:42","r":"SR","cost":8,"m":{"k":"shcap","v":18},"arch":"heal"},{"id":"0108","n":"时灵摆「月亮」","spr":"item:43","r":"SR","cost":7,"m":{"k":"cap","v":8},"arch":"regen"},{"id":"0109","n":"时灵摆「梦魇」","spr":"item:44","r":"SR","cost":7,"m":{"k":"amp","v":0.115},"arch":"vuln"},{"id":"0110","n":"时灵摆「隐秘」","spr":"item:45","r":"SR","cost":8,"m":{"k":"cdmg","v":0.253},"arch":"crit"},{"id":"0111","n":"时灵摆「解析」","spr":"item:46","r":"SR","cost":8,"m":{"k":"cdmg","v":0.198},"arch":"crit"},{"id":"0112","n":"时灵摆「疫症」","spr":"item:47","r":"SR","cost":7,"m":{"k":"amp","v":0.1},"arch":"poison"},{"id":"0113","n":"时灵摆「校长寄语」","spr":"item:48","r":"SR","cost":6,"m":{"k":"cap","v":10},"arch":"gold"},{"id":"0114","n":"时灵摆「投射」","spr":"item:49","r":"SR","cost":7,"m":{"k":"crit","v":0.06},"arch":"dmg"},{"id":"0115","n":"时灵摆「增殖」","spr":"item:50","r":"SR","cost":6,"m":{"k":"amp","v":0.09},"arch":"poison"},{"id":"0116","n":"Chrono Pendulum \"Reciprocate\"","spr":"item:51","r":"SR","cost":8,"m":{"k":"thorns","v":3},"arch":"thorns"},{"id":"0117","n":"时灵摆「复苏」","spr":"item:52","r":"SR","cost":7,"m":{"k":"regen","v":2},"arch":"heal"},{"id":"0118","n":"时灵摆「不眠」","spr":"item:53","r":"SR","cost":7,"m":{"k":"wcd","v":1},"arch":"haste"},{"id":"0119","n":"时灵摆「浅眠」","spr":"item:54","r":"SR","cost":6,"m":{"k":"regen","v":2},"arch":"shield"},{"id":"0120","n":"时灵摆「群星」","spr":"item:55","r":"SR","cost":6,"m":{"k":"crit","v":0.054},"arch":"crit"},{"id":"0121","n":"时灵摆「惊梦」","spr":"item:56","r":"SR","cost":8,"m":{"k":"crit","v":0.054},"arch":"vuln"},{"id":"0122","n":"时灵摆「执拗」","spr":"item:57","r":"SR","cost":8,"m":{"k":"shcap","v":18},"arch":"thorns"},{"id":"0123","n":"时灵摆「潜游」","spr":"item:58","r":"SR","cost":6,"m":{"k":"regen","v":2},"arch":"shield"},{"id":"0124","n":"时灵摆「沉船秘宝」","spr":"item:59","r":"SR","cost":6,"m":{"k":"cap","v":8},"arch":"gold"},{"id":"0125","n":"时灵摆「涌动」","spr":"item:60","r":"SR","cost":7,"m":{"k":"cap","v":9},"arch":"haste"},{"id":"0126","n":"时灵摆「潮涌」","spr":"item:61","r":"SR","cost":6,"m":{"k":"crit","v":0.06},"arch":"dmg"},{"id":"0127","n":"时灵摆「入迷」","spr":"item:62","r":"SR","cost":7,"m":{"k":"amp","v":0.115},"arch":"vuln"},{"id":"0128","n":"时灵摆「秘宝α」","spr":"item:63","r":"SR","cost":6,"m":{"k":"cap","v":9},"arch":"gold"},{"id":"0129","n":"时灵摆「双生」","spr":"item:64","r":"SR","cost":7,"m":{"k":"crit","v":0.054},"arch":"dmg"},{"id":"0130","n":"时灵摆「不洁」","spr":"item:65","r":"SR","cost":6,"m":{"k":"crit","v":0.069},"arch":"poison"},{"id":"0131","n":"Chrono Pendulum \"Wings\"","spr":"item:66","r":"SR","cost":8,"m":{"k":"cap","v":10},"arch":"haste"},{"id":"0132","n":"时灵摆「祈愿」","spr":"item:67","r":"SR","cost":6,"m":{"k":"cap","v":10},"arch":"gold"},{"id":"0133","n":"精密计时器","spr":"item:68","r":"N","cost":6,"m":{"k":"crit","v":0.046},"arch":"dmg"},{"id":"0134","n":"Coalsie II","spr":"item:69","r":"SSR","cost":8,"m":{"k":"crit","v":0.081},"arch":"dmg"},{"id":"0135","n":"Concubines' Conceit","spr":"item:70","r":"SSR","cost":9,"m":{"k":"amp","v":0.172},"arch":"dmg"},{"id":"0136","n":"乐团指挥棒","spr":"item:71","r":"SR","cost":8,"m":{"k":"amp","v":0.1},"arch":"dmg"},{"id":"0137","n":"红宝石胸针","spr":"item:72","r":"N","cost":5,"m":{"k":"shcap","v":11},"arch":"thorns"},{"id":"0138","n":"诅咒石碑","spr":"item:73","r":"SR","cost":6,"m":{"k":"crit","v":0.069},"arch":"vuln"},{"id":"0139","n":"亲爱的宝贝","spr":"item:74","r":"N","cost":6,"m":{"k":"cap","v":6},"arch":"gold"},{"id":"0140","n":"故人的怀表","spr":"item:75","r":"N","cost":6,"m":{"k":"cap","v":6},"arch":"haste"},{"id":"0141","n":"Destiny Spindle","spr":"item:76","r":"SSR","cost":8,"m":{"k":"amp","v":0.135},"arch":"dmg"},{"id":"0142","n":"奉献精神","spr":"item:77","r":"N","cost":6,"m":{"k":"crit","v":0.036},"arch":"dmg"},{"id":"0143","n":"银白差分机","spr":"item:78","r":"N","cost":5,"m":{"k":"crit","v":0.04},"arch":"dmg"},{"id":"0144","n":"Dimension Pendulum-Alert","spr":"item:79","r":"SR","cost":7,"m":{"k":"cdmg","v":0.198},"arch":"crit"},{"id":"0145","n":"Dimension Pendulum-Confuse","spr":"item:80","r":"SR","cost":6,"m":{"k":"cap","v":10},"arch":"slow"},{"id":"0146","n":"Dimension Pendulum-Duel","spr":"item:81","r":"SR","cost":7,"m":{"k":"crit","v":0.054},"arch":"dmg"},{"id":"0147","n":"Dimension Pendulum-Lurk","spr":"item:82","r":"SR","cost":7,"m":{"k":"regen","v":2},"arch":"shield"},{"id":"0148","n":"Dimension Pendulum-Scare","spr":"item:83","r":"SR","cost":6,"m":{"k":"crit","v":0.069},"arch":"vuln"},{"id":"0149","n":"Dimension Pendulum-Voodoo","spr":"item:84","r":"SR","cost":7,"m":{"k":"crit","v":0.069},"arch":"vuln"},{"id":"0150","n":"神母的庇护","spr":"item:85","r":"SR","cost":7,"m":{"k":"regen","v":2},"arch":"shield"},{"id":"0151","n":"祂的神谕","spr":"item:86","r":"SSR","cost":10,"m":{"k":"crit","v":0.103},"arch":"dmg"},{"id":"0152","n":"医生手提箱","spr":"item:87","r":"N","cost":5,"m":{"k":"crit","v":0.046},"arch":"dmg"},{"id":"0153","n":"档案夹","spr":"item:88","r":"N","cost":5,"m":{"k":"amp","v":0.081},"arch":"dmg"},{"id":"0154","n":"鸽羽扇","spr":"item:89","r":"N","cost":5,"m":{"k":"amp","v":0.063},"arch":"dmg"},{"id":"0155","n":"彩蛋时间","spr":"item:90","r":"N","cost":5,"m":{"k":"crit","v":0.04},"arch":"dmg"},{"id":"0156","n":"Echoes from Beyond","spr":"item:91","r":"SSR","cost":8,"m":{"k":"crit","v":0.103},"arch":"dmg"},{"id":"0157","n":"古怪钩爪","spr":"item:92","r":"SR","cost":6,"m":{"k":"thorns","v":3},"arch":"thorns"},{"id":"0158","n":"蛊惑风铃","spr":"item:93","r":"SR","cost":6,"m":{"k":"amp","v":0.1},"arch":"poison"},{"id":"0159","n":"须臾的火","spr":"item:94","r":"N","cost":4,"m":{"k":"amp","v":0.07},"arch":"burn"},{"id":"0160","n":"科考团","spr":"item:95","r":"SR","cost":8,"m":{"k":"crit","v":0.069},"arch":"dmg"},{"id":"0161","n":"褪色照片","spr":"item:96","r":"N","cost":6,"m":{"k":"amp","v":0.081},"arch":"dmg"},{"id":"0163","n":"节日祝福","spr":"item:97","r":"N","cost":5,"m":{"k":"amp","v":0.07},"arch":"dmg"},{"id":"0164","n":"缠丝玛瑙","spr":"item:98","r":"N","cost":6,"m":{"k":"crit","v":0.04},"arch":"dmg"},{"id":"0165","n":"终末科研手稿","spr":"item:99","r":"SSR","cost":8,"m":{"k":"amp","v":0.15},"arch":"aura"},{"id":"0166","n":"美丽瞬间","spr":"item:100","r":"N","cost":6,"m":{"k":"crit","v":0.046},"arch":"dmg"},{"id":"0167","n":"异乡邮票夹","spr":"item:101","r":"N","cost":6,"m":{"k":"start","v":6},"arch":"gold"},{"id":"0168","n":"蒙尘缝纫机","spr":"item:102","r":"N","cost":6,"m":{"k":"crit","v":0.036},"arch":"dmg"},{"id":"0169","n":"先贤断章","spr":"item:103","r":"N","cost":4,"m":{"k":"amp","v":0.081},"arch":"aura"},{"id":"0170","n":"被遗忘者之血","spr":"item:104","r":"N","cost":5,"m":{"k":"crit","v":0.036},"arch":"dmg"},{"id":"0171","n":"「万象门扉α」","spr":"item:105","r":"SR","cost":6,"m":{"k":"crit","v":0.054},"arch":"dmg"},{"id":"0172","n":"沉重画框","spr":"item:106","r":"SSR","cost":9,"m":{"k":"crit","v":0.081},"arch":"dmg"},{"id":"0173","n":"黄金向导","spr":"item:107","r":"N","cost":5,"m":{"k":"cap","v":7},"arch":"gold"},{"id":"0174","n":"金色梦乡","spr":"item:108","r":"N","cost":5,"m":{"k":"start","v":4},"arch":"gold"},{"id":"0175","n":"万象灵知秘仪","spr":"item:109","r":"SSR","cost":9,"m":{"k":"amp","v":0.135},"arch":"aura"},{"id":"0176","n":"守护之手","spr":"item:110","r":"N","cost":6,"m":{"k":"shcap","v":14},"arch":"shield"},{"id":"0177","n":"伊拉斯莫的指引","spr":"item:111","r":"SSR","cost":10,"m":{"k":"amp","v":0.172},"arch":"dmg"},{"id":"0178","n":"哈福德灵药","spr":"item:112","r":"N","cost":6,"m":{"k":"shcap","v":11},"arch":"heal"},{"id":"0179","n":"止血钳","spr":"item:113","r":"N","cost":6,"m":{"k":"amp","v":0.081},"arch":"dmg"},{"id":"0180","n":"祭司权杖","spr":"item:114","r":"N","cost":5,"m":{"k":"amp","v":0.07},"arch":"dmg"},{"id":"0181","n":"无上荣宠","spr":"item:115","r":"N","cost":6,"m":{"k":"crit","v":0.036},"arch":"dmg"},{"id":"0182","n":"甜蜜墨水","spr":"item:116","r":"N","cost":4,"m":{"k":"shcap","v":12},"arch":"heal"},{"id":"0183","n":"超弦海渊制剂","spr":"item:117","r":"SSR","cost":9,"m":{"k":"shcap","v":23},"arch":"heal"},{"id":"0184","n":"超弦腐血制剂","spr":"item:118","r":"SSR","cost":9,"m":{"k":"amp","v":0.172},"arch":"poison"},{"id":"0185","n":"超弦怀表","spr":"item:119","r":"N","cost":5,"m":{"k":"cap","v":6},"arch":"haste"},{"id":"0186","n":"在夕光里","spr":"item:120","r":"N","cost":4,"m":{"k":"crit","v":0.04},"arch":"dmg"},{"id":"0187","n":"逆向观赏","spr":"item:121","r":"SSR","cost":9,"m":{"k":"crit","v":0.081},"arch":"dmg"},{"id":"0188","n":"重锁","spr":"item:122","r":"N","cost":5,"m":{"k":"amp","v":0.063},"arch":"slow"},{"id":"0189","n":"白鸦喙","spr":"item:123","r":"N","cost":6,"m":{"k":"cdmg","v":0.15},"arch":"str"},{"id":"0190","n":"翠玉拓印","spr":"item:124","r":"SR","cost":8,"m":{"k":"cap","v":10},"arch":"aura"},{"id":"0191","n":"快乐唱片","spr":"item:125","r":"SR","cost":8,"m":{"k":"amp","v":0.09},"arch":"dmg"},{"id":"0192","n":"万花筒","spr":"item:126","r":"N","cost":4,"m":{"k":"crit","v":0.04},"arch":"dmg"},{"id":"0193","n":"求知读书轮","spr":"item:127","r":"SSR","cost":8,"m":{"k":"wcd","v":1},"arch":"haste"},{"id":"0194","n":"Lamp of Salvation","spr":"item:128","r":"SSR","cost":8,"m":{"k":"amp","v":0.15},"arch":"dmg"},{"id":"0195","n":"七鳃鳗之吻","spr":"item:129","r":"SR","cost":6,"m":{"k":"amp","v":0.1},"arch":"poison"},{"id":"0196","n":"桂叶袖扣","spr":"item:130","r":"N","cost":5,"m":{"k":"crit","v":0.046},"arch":"dmg"},{"id":"0197","n":"螺湮的欢愉","spr":"item:131","r":"N","cost":6,"m":{"k":"amp","v":0.07},"arch":"dmg"},{"id":"0198","n":"人工呼吸","spr":"item:132","r":"N","cost":4,"m":{"k":"shcap","v":14},"arch":"heal"},{"id":"0199","n":"文明之光","spr":"item:133","r":"N","cost":4,"m":{"k":"crit","v":0.046},"arch":"dmg"},{"id":"0200","n":"Little N's Camera","spr":"item:134","r":"SR","cost":8,"m":{"k":"crit","v":0.069},"arch":"dmg"},{"id":"0203","n":"独行者之徽","spr":"item:135","r":"SR","cost":6,"m":{"k":"start","v":6},"arch":"gold"},{"id":"0204","n":"幸运兔脚","spr":"item:136","r":"N","cost":6,"m":{"k":"amp","v":0.081},"arch":"dmg"},{"id":"0205","n":"幸运风衣","spr":"item:137","r":"SR","cost":7,"m":{"k":"regen","v":2},"arch":"shield"},{"id":"0206","n":"辉光沙漏","spr":"item:138","r":"N","cost":4,"m":{"k":"cap","v":6},"arch":"haste"},{"id":"0207","n":"恶童","spr":"item:139","r":"N","cost":6,"m":{"k":"crit","v":0.046},"arch":"dmg"},{"id":"0208","n":"纯真玛丽","spr":"item:140","r":"SSR","cost":9,"m":{"k":"crit","v":0.081},"arch":"dmg"},{"id":"0209","n":"Medal of Rescue","spr":"item:141","r":"SR","cost":6,"m":{"k":"crit","v":0.06},"arch":"dmg"},{"id":"0214","n":"「记忆」与「梦」","spr":"item:142","r":"SSR","cost":10,"m":{"k":"crit","v":0.09},"arch":"vuln"},{"id":"0215","n":"孟菲斯仪式镜","spr":"item:143","r":"SSR","cost":10,"m":{"k":"cdmg","v":0.368},"arch":"crit"},{"id":"0216","n":"意识铭刻","spr":"item:144","r":"SR","cost":7,"m":{"k":"crit","v":0.069},"arch":"dmg"},{"id":"0217","n":"群氓之歌","spr":"item:145","r":"SSR","cost":9,"m":{"k":"crit","v":0.09},"arch":"dmg"},{"id":"0218","n":"新式轮轴","spr":"item:146","r":"N","cost":5,"m":{"k":"cap","v":7},"arch":"haste"},{"id":"0219","n":"母亲造像","spr":"item:147","r":"N","cost":4,"m":{"k":"cap","v":5},"arch":"regen"},{"id":"0220","n":"失声唱机","spr":"item:148","r":"N","cost":4,"m":{"k":"crit","v":0.04},"arch":"dmg"},{"id":"0221","n":"缄默手套","spr":"item:149","r":"N","cost":5,"m":{"k":"regen","v":1},"arch":"shield"},{"id":"0222","n":"弥萨格徽章","spr":"item:150","r":"N","cost":5,"m":{"k":"cap","v":7},"arch":"gold"},{"id":"0223","n":"无名附肢","spr":"item:151","r":"N","cost":6,"m":{"k":"cdmg","v":0.135},"arch":"str"},{"id":"0224","n":"刺荨麻背心","spr":"item:152","r":"N","cost":6,"m":{"k":"shcap","v":14},"arch":"thorns"},{"id":"0225","n":"神经毒素","spr":"item:153","r":"N","cost":6,"m":{"k":"amp","v":0.07},"arch":"poison"},{"id":"0226","n":"噩梦表象","spr":"item:154","r":"SR","cost":8,"m":{"k":"wcd","v":1},"arch":"haste"},{"id":"0227","n":"偏方骰子","spr":"item:155","r":"SR","cost":8,"m":{"k":"amp","v":0.1},"arch":"dmg"},{"id":"0228","n":"Ogai's Notes","spr":"item:156","r":"SSR","cost":10,"m":{"k":"amp","v":0.15},"arch":"dmg"},{"id":"0229","n":"厄运仪式鸟","spr":"item:157","r":"SR","cost":7,"m":{"k":"amp","v":0.09},"arch":"vuln"},{"id":"0230","n":"「全知之眼」","spr":"item:158","r":"SR","cost":6,"m":{"k":"cdmg","v":0.198},"arch":"crit"},{"id":"0231","n":"异种喉舌","spr":"item:159","r":"N","cost":4,"m":{"k":"regen","v":1},"arch":"regen"},{"id":"0232","n":"我们的家","spr":"item:160","r":"N","cost":4,"m":{"k":"crit","v":0.036},"arch":"dmg"},{"id":"0233","n":"Pallid Egg","spr":"item:161","r":"SSR","cost":8,"m":{"k":"crit","v":0.09},"arch":"dmg"},{"id":"0234","n":"行道之骸","spr":"item:162","r":"SR","cost":7,"m":{"k":"amp","v":0.115},"arch":"dmg"},{"id":"0235","n":"妙手空空","spr":"item:163","r":"N","cost":6,"m":{"k":"amp","v":0.07},"arch":"dmg"},{"id":"0236","n":"瘟疫诊断书","spr":"item:164","r":"N","cost":6,"m":{"k":"amp","v":0.081},"arch":"poison"},{"id":"0237","n":"怀表镜","spr":"item:165","r":"N","cost":6,"m":{"k":"cdmg","v":0.172},"arch":"crit"},{"id":"0238","n":"普拉斯诺镜","spr":"item:166","r":"SSR","cost":8,"m":{"k":"cdmg","v":0.288},"arch":"crit"},{"id":"0239","n":"蝴蝶标本","spr":"item:167","r":"N","cost":5,"m":{"k":"crit","v":0.036},"arch":"dmg"},{"id":"0240","n":"美学原理","spr":"item:168","r":"N","cost":5,"m":{"k":"amp","v":0.081},"arch":"dmg"},{"id":"0241","n":"先知的许愿灯","spr":"item:169","r":"N","cost":4,"m":{"k":"amp","v":0.081},"arch":"burn"},{"id":"0242","n":"原型电池","spr":"item:170","r":"N","cost":4,"m":{"k":"amp","v":0.07},"arch":"dmg"},{"id":"0243","n":"Psyche Analysis","spr":"item:171","r":"SSR","cost":10,"m":{"k":"crit","v":0.081},"arch":"dmg"},{"id":"0244","n":"Pure Silver Core","spr":"item:172","r":"SR","cost":7,"m":{"k":"amp","v":0.115},"arch":"dmg"},{"id":"0251","n":"普特尼晨报","spr":"item:173","r":"N","cost":4,"m":{"k":"amp","v":0.063},"arch":"dmg"},{"id":"0252","n":"镭射颌骨","spr":"item:174","r":"N","cost":5,"m":{"k":"shcap","v":12},"arch":"thorns"},{"id":"0253","n":"过往的贡物","spr":"item:175","r":"N","cost":5,"m":{"k":"cap","v":7},"arch":"gold"},{"id":"0254","n":"莱茵德纸草书","spr":"item:176","r":"N","cost":5,"m":{"k":"cap","v":6},"arch":"aura"},{"id":"0255","n":"春之祭","spr":"item:177","r":"N","cost":4,"m":{"k":"cap","v":7},"arch":"regen"},{"id":"0256","n":"遗落的祭祀刀","spr":"item:178","r":"N","cost":5,"m":{"k":"crit","v":0.046},"arch":"dmg"},{"id":"0257","n":"腐血海渊制剂","spr":"item:179","r":"SSR","cost":9,"m":{"k":"amp","v":0.135},"arch":"poison"},{"id":"0258","n":"锈蚀钢锯","spr":"item:180","r":"N","cost":5,"m":{"k":"thorns","v":2},"arch":"thorns"},{"id":"0259","n":"锈蚀柳叶刀","spr":"item:181","r":"N","cost":4,"m":{"k":"amp","v":0.063},"arch":"dmg"},{"id":"0260","n":"苦痛圣腕","spr":"item:182","r":"SR","cost":7,"m":{"k":"cdmg","v":0.253},"arch":"str"},{"id":"0261","n":"安全出口","spr":"item:183","r":"N","cost":4,"m":{"k":"amp","v":0.063},"arch":"dmg"},{"id":"0262","n":"水手哨","spr":"item:184","r":"N","cost":6,"m":{"k":"crit","v":0.046},"arch":"dmg"},{"id":"0263","n":"救济之肢","spr":"item:185","r":"SR","cost":6,"m":{"k":"regen","v":2},"arch":"heal"},{"id":"0264","n":"怪蛇残蜕","spr":"item:186","r":"N","cost":5,"m":{"k":"crit","v":0.046},"arch":"poison"},{"id":"0265","n":"Sparganum","spr":"item:187","r":"N","cost":5,"m":{"k":"amp","v":0.063},"arch":"dmg"},{"id":"0266","n":"Shapeshifter's Invitation","spr":"item:188","r":"SSR","cost":9,"m":{"k":"crit","v":0.081},"arch":"dmg"},{"id":"0267","n":"变色拘束服","spr":"item:189","r":"N","cost":5,"m":{"k":"regen","v":1},"arch":"shield"},{"id":"0268","n":"通讯设备","spr":"item:190","r":"N","cost":6,"m":{"k":"amp","v":0.063},"arch":"dmg"},{"id":"0269","n":"寂静序曲","spr":"item:191","r":"N","cost":6,"m":{"k":"crit","v":0.04},"arch":"dmg"},{"id":"0270","n":"银色方扣缎带","spr":"item:192","r":"N","cost":4,"m":{"k":"amp","v":0.063},"arch":"dmg"},{"id":"0271","n":"伶牙俐齿","spr":"item:193","r":"N","cost":5,"m":{"k":"amp","v":0.063},"arch":"str"},{"id":"0272","n":"人鱼泪珠","spr":"item:194","r":"N","cost":4,"m":{"k":"shcap","v":12},"arch":"heal"},{"id":"0273","n":"日月轮盘","spr":"item:195","r":"N","cost":6,"m":{"k":"cap","v":5},"arch":"haste"},{"id":"0274","n":"求救信号","spr":"item:196","r":"SSR","cost":8,"m":{"k":"amp","v":0.15},"arch":"dmg"},{"id":"0275","n":"神王的权能","spr":"item:197","r":"SR","cost":7,"m":{"k":"crit","v":0.06},"arch":"dmg"},{"id":"0276","n":"空间偏折仪","spr":"item:198","r":"N","cost":4,"m":{"k":"amp","v":0.07},"arch":"aura"},{"id":"0277","n":"替身玩偶","spr":"item:199","r":"SSR","cost":9,"m":{"k":"amp","v":0.135},"arch":"dmg"},{"id":"0278","n":"群星之酒","spr":"item:200","r":"N","cost":4,"m":{"k":"regen","v":1},"arch":"heal"},{"id":"0279","n":"潜水头盔","spr":"item:201","r":"N","cost":5,"m":{"k":"regen","v":1},"arch":"shield"},{"id":"0280","n":"偶然谬误","spr":"item:202","r":"SSR","cost":9,"m":{"k":"amp","v":0.172},"arch":"dmg"},{"id":"0281","n":"虫群意识","spr":"item:203","r":"SR","cost":7,"m":{"k":"crit","v":0.069},"arch":"poison"},{"id":"0282","n":"The Futile Travail","spr":"item:204","r":"SSR","cost":9,"m":{"k":"crit","v":0.09},"arch":"dmg"},{"id":"0283","n":"失衡的天平","spr":"item:205","r":"N","cost":4,"m":{"k":"crit","v":0.04},"arch":"dmg"},{"id":"0284","n":"Time Scarab","spr":"item:206","r":"N","cost":5,"m":{"k":"crit","v":0.04},"arch":"dmg"},{"id":"0285","n":"小小襁褓","spr":"item:207","r":"SSR","cost":8,"m":{"k":"regen","v":3},"arch":"shield"},{"id":"0286","n":"小八音盒","spr":"item:208","r":"N","cost":4,"m":{"k":"amp","v":0.063},"arch":"dmg"},{"id":"0287","n":"诡术礼帽","spr":"item:209","r":"SR","cost":8,"m":{"k":"amp","v":0.1},"arch":"dmg"},{"id":"0288","n":"三棱镜","spr":"item:210","r":"N","cost":5,"m":{"k":"cdmg","v":0.15},"arch":"crit"},{"id":"0289","n":"定向罗盘","spr":"item:211","r":"N","cost":6,"m":{"k":"amp","v":0.063},"arch":"dmg"},{"id":"0290","n":"知无不言","spr":"item:212","r":"N","cost":5,"m":{"k":"amp","v":0.063},"arch":"dmg"},{"id":"0291","n":"双生人偶","spr":"item:213","r":"N","cost":4,"m":{"k":"amp","v":0.07},"arch":"dmg"},{"id":"0292","n":"Twisted Palette","spr":"item:214","r":"SSR","cost":8,"m":{"k":"amp","v":0.135},"arch":"dmg"},{"id":"0293","n":"超维戒指","spr":"item:215","r":"SSR","cost":8,"m":{"k":"amp","v":0.135},"arch":"aura"},{"id":"0294","n":"可疑的药膏","spr":"item:216","r":"N","cost":4,"m":{"k":"regen","v":1},"arch":"heal"},{"id":"0295","n":"统合衍化制剂","spr":"item:217","r":"SSR","cost":9,"m":{"k":"regen","v":3},"arch":"heal"},{"id":"0296","n":"无名之神的面纱","spr":"item:218","r":"N","cost":4,"m":{"k":"regen","v":1},"arch":"shield"},{"id":"0297","n":"视力矫正器","spr":"item:219","r":"N","cost":5,"m":{"k":"cdmg","v":0.172},"arch":"crit"},{"id":"0298","n":"活性注射器","spr":"item:220","r":"N","cost":6,"m":{"k":"regen","v":1},"arch":"heal"},{"id":"0299","n":"旅行阳伞","spr":"item:221","r":"N","cost":4,"m":{"k":"regen","v":1},"arch":"shield"},{"id":"0300","n":"哀嚎摇铃","spr":"item:222","r":"SR","cost":7,"m":{"k":"amp","v":0.115},"arch":"dmg"},{"id":"0301","n":"跃迁装置","spr":"item:223","r":"SSR","cost":9,"m":{"k":"crit","v":0.103},"arch":"dmg"},{"id":"0302","n":"哭泣烟斗","spr":"item:224","r":"N","cost":6,"m":{"k":"amp","v":0.063},"arch":"vuln"},{"id":"0303","n":"Winner's Cup","spr":"item:225","r":"SSR","cost":10,"m":{"k":"amp","v":0.135},"arch":"dmg"},{"id":"0304","n":"蠕动的脐带","spr":"item:226","r":"SR","cost":8,"m":{"k":"regen","v":2},"arch":"regen"},{"id":"0305","n":"小黄螺","spr":"item:227","r":"N","cost":6,"m":{"k":"amp","v":0.07},"arch":"dmg"},{"id":"0307","n":"☆应急食品☆","spr":"item:228","r":"N","cost":6,"m":{"k":"shcap","v":11},"arch":"heal"},{"id":"0308","n":"☆失落之美☆","spr":"item:229","r":"SSR","cost":9,"m":{"k":"crit","v":0.103},"arch":"dmg"},{"id":"0309","n":"☆六分仪☆","spr":"item:230","r":"SSR","cost":9,"m":{"k":"amp","v":0.172},"arch":"aura"},{"id":"0310","n":"☆美好回忆☆","spr":"item:231","r":"SSR","cost":10,"m":{"k":"amp","v":0.135},"arch":"dmg"},{"id":"0311","n":"☆逃生平面图☆","spr":"item:232","r":"N","cost":5,"m":{"k":"amp","v":0.063},"arch":"dmg"},{"id":"0312","n":"☆淑女小包☆","spr":"item:233","r":"N","cost":5,"m":{"k":"amp","v":0.081},"arch":"dmg"},{"id":"0313","n":"Armor of Whalebone","spr":"item:234","r":"SSR","cost":8,"m":{"k":"crit","v":0.09},"arch":"dmg"},{"id":"0315","n":"水晶球","spr":"item:235","r":"SSR","cost":9,"m":{"k":"amp","v":0.135},"arch":"dmg"},{"id":"0316","n":"Pistoles de Marie","spr":"item:236","r":"SSR","cost":10,"m":{"k":"amp","v":0.15},"arch":"dmg"},{"id":"0317","n":"☆枯竭的瞳孔☆","spr":"item:237","r":"N","cost":6,"m":{"k":"crit","v":0.04},"arch":"crit"},{"id":"0318","n":"☆镇痛药片☆","spr":"item:238","r":"N","cost":5,"m":{"k":"shcap","v":14},"arch":"heal"},{"id":"0319","n":"☆长生者血肉☆","spr":"item:239","r":"SR","cost":8,"m":{"k":"amp","v":0.1},"arch":"dmg"},{"id":"0320","n":"☆旧船锚☆","spr":"item:240","r":"N","cost":6,"m":{"k":"crit","v":0.036},"arch":"dmg"},{"id":"0321","n":"☆精制义眼☆","spr":"item:241","r":"N","cost":4,"m":{"k":"cdmg","v":0.15},"arch":"crit"},{"id":"0322","n":"☆噩梦魂灯☆","spr":"item:242","r":"SSR","cost":8,"m":{"k":"amp","v":0.172},"arch":"burn"},{"id":"0323","n":"☆商会勋章☆","spr":"item:243","r":"SSR","cost":8,"m":{"k":"start","v":12},"arch":"gold"},{"id":"0324","n":"Blackened Flame","spr":"item:244","r":"SSR","cost":10,"m":{"k":"crit","v":0.103},"arch":"dmg"},{"id":"0325","n":"受诅的羽毛","spr":"item:245","r":"SSR","cost":8,"m":{"k":"amp","v":0.172},"arch":"vuln"},{"id":"0328","n":"Sheriff Badge","spr":"item:246","r":"SSR","cost":10,"m":{"k":"crit","v":0.103},"arch":"dmg"},{"id":"0329","n":"Ceremonial Spur","spr":"item:247","r":"SSR","cost":9,"m":{"k":"amp","v":0.172},"arch":"dmg"},{"id":"0001","n":"维度影像·「24」","spr":"item:248","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"「24」"},{"id":"0002","n":"维度影像·阿格里帕","spr":"item:249","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"阿格里帕"},{"id":"0003","n":"维度影像·艾继丝","spr":"item:250","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"艾继丝"},{"id":"0004","n":"维度影像·艾尔瓦","spr":"item:251","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"艾尔瓦"},{"id":"0005","n":"维度影像·奥瑞塔","spr":"item:252","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"奥瑞塔"},{"id":"0006","n":"维度影像·凯刻斯","spr":"item:253","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"凯刻斯"},{"id":"0007","n":"维度影像·卡茜亚","spr":"item:254","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"卡茜亚"},{"id":"0008","n":"维度影像·卡斯托尔","spr":"item:255","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"卡斯托尔"},{"id":"0009","n":"维度影像·希莱斯特","spr":"item:256","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"希莱斯特"},{"id":"0010","n":"维度影像·克莱门汀","spr":"item:257","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"克莱门汀"},{"id":"0011","n":"维度影像·克珀珊特","spr":"item:258","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"克珀珊特"},{"id":"0012","n":"维度影像·达芙黛尔","spr":"item:259","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"达芙黛尔"},{"id":"0013","n":"维度影像·朵尔","spr":"item:260","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"朵尔"},{"id":"0014","n":"维度影像·杜勒赛因","spr":"item:261","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"杜勒赛因"},{"id":"0015","n":"维度影像·艾瑞卡","spr":"item:262","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"艾瑞卡"},{"id":"0016","n":"维度影像·菲茵特","spr":"item:263","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"菲茵特"},{"id":"0017","n":"维度影像·法洛思","spr":"item:264","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"法洛思"},{"id":"0018","n":"维度影像·熔毁·朵尔","spr":"item:265","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"熔毁·朵尔"},{"id":"0019","n":"维度影像·血链·希洛","spr":"item:266","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"血链·希洛"},{"id":"0020","n":"维度影像·环行·拉蒙娜","spr":"item:267","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"环行·拉蒙娜"},{"id":"0021","n":"维度影像·戈利亚","spr":"item:268","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"戈利亚"},{"id":"0022","n":"维度影像·哈姆林","spr":"item:269","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"哈姆林"},{"id":"0023","n":"维度影像·希洛","spr":"item:270","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"希洛"},{"id":"0024","n":"维度影像·奥尔拉","spr":"item:271","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"奥尔拉"},{"id":"0025","n":"维度影像·詹金","spr":"item:272","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"詹金"},{"id":"0026","n":"维度影像·珈伦","spr":"item:273","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"珈伦"},{"id":"0027","n":"维度影像·凯蒂古拉","spr":"item:274","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"凯蒂古拉"},{"id":"0028","n":"维度影像·雷娅","spr":"item:275","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"雷娅"},{"id":"0029","n":"维度影像·莉莉","spr":"item:276","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"莉莉"},{"id":"0030","n":"维度影像·莉兹","spr":"item:277","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"莉兹"},{"id":"0031","n":"维度影像·萝坦","spr":"item:278","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"萝坦"},{"id":"0032","n":"维度影像·弥利亚姆","spr":"item:279","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"弥利亚姆"},{"id":"0033","n":"维度影像·茉夏","spr":"item:280","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"茉夏"},{"id":"0034","n":"维度影像·墨菲","spr":"item:281","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"墨菲"},{"id":"0035","n":"维度影像·诞妄·墨菲","spr":"item:282","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"诞妄·墨菲"},{"id":"0036","n":"维度影像·诺缔拉","spr":"item:283","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"诺缔拉"},{"id":"0037","n":"维度影像·宁菲亚","spr":"item:284","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"宁菲亚"},{"id":"0038","n":"维度影像·奥吉尔","spr":"item:285","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"奥吉尔"},{"id":"0039","n":"维度影像·潘狄娅","spr":"item:286","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"潘狄娅"},{"id":"0040","n":"维度影像·皮克曼","spr":"item:287","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"皮克曼"},{"id":"0041","n":"维度影像·波吕克斯","spr":"item:288","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"波吕克斯"},{"id":"0042","n":"维度影像·拉蒙娜","spr":"item:289","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"拉蒙娜"},{"id":"0043","n":"维度影像·莱克","spr":"item:290","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"莱克"},{"id":"0044","n":"维度影像·萨尔瓦多","spr":"item:291","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"萨尔瓦多"},{"id":"0045","n":"维度影像·珊","spr":"item:292","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"珊"},{"id":"0046","n":"维度影像·索蕾尔","spr":"item:293","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"索蕾尔"},{"id":"0047","n":"维度影像·塔薇","spr":"item:294","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"塔薇"},{"id":"0048","n":"维度影像·泰旖丝","spr":"item:295","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"泰旖丝"},{"id":"0049","n":"维度影像·汀克特","spr":"item:296","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"汀克特"},{"id":"0050","n":"维度影像·图鲁","spr":"item:297","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"图鲁"},{"id":"0051","n":"维度影像·尤乌哈希","spr":"item:298","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"尤乌哈希"},{"id":"0052","n":"维度影像·旺达","spr":"item:299","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"旺达"},{"id":"0053","n":"维度影像·温柯尔","spr":"item:300","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"温柯尔"},{"id":"0054","n":"维度影像·徐","spr":"item:301","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"徐"},{"id":"0055","n":"维度影像·莫丝","spr":"item:302","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"莫丝"},{"id":"0056","n":"维度影像·阿拉克涅","spr":"item:303","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"阿拉克涅"},{"id":"0057","n":"维度影像·沙耶","spr":"item:304","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"沙耶"},{"id":"0058","n":"维度影像·庞托斯","spr":"item:305","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"庞托斯"},{"id":"0306","n":"维度影像·蚀灭·萝坦","spr":"item:306","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"蚀灭·萝坦"},{"id":"0314","n":"维度影像·卡拉布","spr":"item:307","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"卡拉布"},{"id":"0326","n":"维度影像·负誓·奥吉尔","spr":"item:308","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"负誓·奥吉尔"},{"id":"0327","n":"维度影像·薇薇安","spr":"item:309","r":"FATE","cost":0,"m":{"k":"cap","v":6},"arch":"fate","fate":"薇薇安"}];
 
@@ -359,6 +359,26 @@ function pickRarity(run, rnd) {
   return 'N';
 }
 
+// 商店配比：前面几天先把「人 + 命轮」凑出来，造物只是调剂；第 5 天往后造物才慢慢变成主角。
+// 这不是数值平衡，是体感——开局四条摊位全摆造物，玩家连一次「换人 / 换轮」的选择都做不了。
+// 槽位满了 / 战场挤不进人时，对应那一类自动降权，免得刷出一堆买不了的东西。
+function shopMix(run) {
+  const d = run.day;
+  let hero = d <= 2 ? 0.46 : d <= 4 ? 0.36 : d <= 7 ? 0.28 : 0.22;
+  let wheel = d <= 2 ? 0.40 : d <= 4 ? 0.36 : d <= 7 ? 0.32 : 0.28;
+  // 队伍还不够三个人时，人再往上提一点（三个人刚好能吃到光环）
+  if (run.squad.length < 3) hero += 0.06;
+  // 命轮不足两条时，先把命轮补起来——没有命轮这局根本打不出伤害
+  if (run.wheels.length < 2) wheel += 0.08;
+  if (run.relics.length >= TUNING.relicSlots) hero += 0.05;
+  if (run.wheels.length >= TUNING.wheelSlots) { wheel *= 0.25; hero += 0.05; }
+  if (freeSlots(run) < 1) { hero *= 0.3; wheel += 0.04; }
+  let relic = Math.max(0.06, 1 - hero - wheel);
+  if (run.relics.length >= TUNING.relicSlots) relic *= 0.12;
+  const sum = hero + wheel + relic;
+  return { hero: hero / sum, wheel: wheel / sum, relic: relic / sum };
+}
+
 function rollShop(run, { free = false } = {}) {
   const rnd = run.rnd;
   if (!free) {
@@ -376,33 +396,59 @@ function rollShop(run, { free = false } = {}) {
   const used = new Set();
   const ownHeroes = new Set(run.squad.map((h) => h.key));
   const ownWheels = new Set(run.wheels.map((w) => w.key));
+
+  // 造一件指定类型的东西；造不出来（池子抽空 / 没槽位）返回 null
+  const make = (kind) => {
+    if (kind === 'hero') {
+      const pool = HEROES.filter((h) => !ownHeroes.has(h.id) && h.slots <= freeSlots(run) + 2);
+      if (!pool.length) return null;
+      const h = ru(rnd, pool);
+      if (!h || used.has('h' + h.id)) return null;
+      used.add('h' + h.id);
+      return { kind: 'hero', key: h.id, price: priceOf(run, heroPrice(h)) };
+    }
+    if (kind === 'wheel') {
+      if (run.wheels.length >= TUNING.wheelSlots) return null;
+      const w = ru(rnd, WHEELS);
+      if (used.has('w' + w.id) || ownWheels.has(w.id)) return null;
+      used.add('w' + w.id);
+      return { kind: 'wheel', key: w.id, price: priceOf(run, wheelPrice(w)) };
+    }
+    const r = pickRarity(run, rnd);
+    const pool = SHOP_ITEMS.filter((x) => x.r === r);
+    if (!pool.length) return null;
+    const it = ru(rnd, pool);
+    if (used.has(it.id)) return null;
+    used.add(it.id);
+    return { kind: 'relic', key: it.id, price: priceOf(run, relicPrice(it)) };
+  };
+
+  const mix = shopMix(run);
   for (let i = 0; i < n; i++) {
     let offer = null;
-    for (let tries = 0; tries < 20 && !offer; tries++) {
+    for (let tries = 0; tries < 24 && !offer; tries++) {
       const roll = rnd();
-      if (roll < 0.30) {
-        const pool = HEROES.filter((h) => !ownHeroes.has(h.id) && h.slots <= freeSlots(run) + 2);
-        const h = pool.length ? ru(rnd, pool) : null;
-        if (!h || used.has('h' + h.id)) continue;
-        used.add('h' + h.id);
-        offer = { kind: 'hero', key: h.id, price: priceOf(run, heroPrice(h)) };
-      } else if (roll < 0.58) {
-        const w = ru(rnd, WHEELS);
-        if (used.has('w' + w.id) || ownWheels.has(w.id)) continue;
-        used.add('w' + w.id);
-        offer = { kind: 'wheel', key: w.id, price: priceOf(run, wheelPrice(w)) };
-      } else {
-        const r = pickRarity(run, rnd);
-        const pool = SHOP_ITEMS.filter((x) => x.r === r);
-        if (!pool.length) continue;
-        const it = ru(rnd, pool);
-        if (used.has(it.id)) continue;
-        used.add(it.id);
-        offer = { kind: 'relic', key: it.id, price: priceOf(run, relicPrice(it)) };
-      }
+      offer = make(roll < mix.hero ? 'hero' : roll < mix.hero + mix.wheel ? 'wheel' : 'relic');
     }
     if (offer) { offer.sold = false; out.push(offer); }
   }
+
+  // 头三天保底：至少一条命轮、一个能上场的人。凑不齐构筑的前期最难玩，
+  // 而造物这一层只是加成，晚两天拿不会死人。
+  if (run.day <= 3) {
+    const has = (k) => out.some((o) => o.kind === k);
+    const swap = (kind) => {
+      for (let i = out.length - 1; i >= 0; i--) {
+        if (out[i].kind !== 'relic') continue;
+        const o = make(kind);
+        if (o) { o.sold = false; out[i] = o; return true; }
+      }
+      return false;
+    };
+    if (!has('wheel')) swap('wheel');
+    if (!has('hero') && freeSlots(run) >= 1) swap('hero');
+  }
+
   run.shop = out;
   run.rerolls = 0;
   return true;
@@ -1056,13 +1102,195 @@ function itemText(def) {
 function wheelFireText(def) {
   return def.op.map((o) => opText(o, 1)).join('；');
 }
-return { TUNING, HEROES, ITEMS, SHOP_ITEMS, WHEELS, PACTS, FOES, DIFFS, SCHEDULE, TERRAINS, MOD_ZH, AURA_ZH, REALM_COLOR, ARCH_ZH, itemOf, wheelOf, foeOf, heroOf, pactOf, terrainOf, diffOf, rngFrom, heroPrice, wheelPrice, relicPrice, sellPrice, newRun, usedSlots, freeSlots, layoutOf, canAddHero, addHero, moveHero, removeHero, planOf, priceOf, rollShop, defOf, canBuy, buy, owned, sell, coreCostOf, expandCore, rowOf, pickFoe, rawDps, foeStats, createFight, stepFight, autoFight, settle, scoreOf, opText, modText, itemText, wheelFireText };
+return { TUNING, HEROES, ITEMS, SHOP_ITEMS, WHEELS, PACTS, FOES, DIFFS, SCHEDULE, TERRAINS, MOD_ZH, AURA_ZH, REALM_COLOR, ARCH_ZH, itemOf, wheelOf, foeOf, heroOf, pactOf, terrainOf, diffOf, rngFrom, heroPrice, wheelPrice, relicPrice, sellPrice, newRun, usedSlots, freeSlots, layoutOf, canAddHero, addHero, moveHero, removeHero, planOf, priceOf, shopMix, rollShop, defOf, canBuy, buy, owned, sell, coreCostOf, expandCore, rowOf, pickFoe, rawDps, foeStats, createFight, stepFight, autoFight, settle, scoreOf, opText, modText, itemText, wheelFireText };
+})();
+
+// ---- js/bazaar-sfx.js
+const m_bazaar_sfx = await (async () => {
+
+// 《大巴扎：银钥》的音效：全部用 WebAudio 现场合成，一个音频文件都不下。
+//
+// 这站每个静态请求在边缘要 1~2 秒，一个 20KB 的 mp3 就是一个额外来回；
+// 而这一局需要的声音全是短促的「叮、咚、擦」，合成出来既不占请求也随手能调。
+//
+// 约定：
+//   · 第一次真实交互（pointerdown / keydown）才创建 AudioContext，否则会被自动播放策略挂起；
+//   · 同一个音效 30ms 内只响一次（战斗一拍里三个唤醒体同时产算力，不压一下就是噪音）；
+//   · 静音开关存在 zjtt:bazaar:sfx，默认开；
+//   · 所有音都过 master，静音就是 master.gain = 0，不逐个判断。
+const KEY = 'zjtt:bazaar:sfx';
+
+let ac = null;
+let master = null;
+let noiseBuf = null;
+let on = true;
+try { on = localStorage.getItem(KEY) !== '0'; } catch (e) { on = true; }
+
+const lastAt = Object.create(null);
+let voices = 0;
+
+function boot() {
+  if (ac) return ac;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  try { ac = new AC(); } catch (e) { return null; }
+  master = ac.createGain();
+  master.gain.value = on ? 0.5 : 0;
+  master.connect(ac.destination);
+  return ac;
+}
+
+function unlock() {
+  const c = boot();
+  if (c && c.state === 'suspended') c.resume().catch(() => {});
+}
+
+const isOn = () => on;
+function setOn(v) {
+  on = !!v;
+  try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) { /* 无痕模式 */ }
+  if (master) master.gain.setTargetAtTime(on ? 0.5 : 0, ac.currentTime, 0.02);
+  if (on) unlock();
+  return on;
+}
+function toggle() { return setOn(!on); }
+
+// 一个带包络的振荡器：sweep 是滑到的频率（Hz），不写就是定音
+function tone(f, { to = 0, dur = 0.12, type = 'triangle', gain = 0.18, at = 0, curve = 'exp' } = {}) {
+  const c = boot();
+  if (!c || !master) return;
+  const t0 = c.currentTime + at;
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(f, t0);
+  if (to) osc.frequency.exponentialRampToValueAtTime(Math.max(20, to), t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(gain, t0 + Math.min(0.02, dur * 0.25));
+  if (curve === 'exp') g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  else g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g);
+  g.connect(master);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.02);
+  voices += 1;
+  osc.onended = () => { voices -= 1; };
+}
+
+function noise({ dur = 0.1, gain = 0.14, lp = 1400, hp = 120, at = 0 } = {}) {
+  const c = boot();
+  if (!c || !master) return;
+  if (!noiseBuf) {
+    noiseBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.4), c.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const t0 = c.currentTime + at;
+  const src = c.createBufferSource();
+  src.buffer = noiseBuf;
+  const f1 = c.createBiquadFilter();
+  f1.type = 'lowpass';
+  f1.frequency.value = lp;
+  const f2 = c.createBiquadFilter();
+  f2.type = 'highpass';
+  f2.frequency.value = hp;
+  const g = c.createGain();
+  g.gain.setValueAtTime(gain, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(f1); f1.connect(f2); f2.connect(g); g.connect(master);
+  src.start(t0);
+  src.stop(t0 + dur + 0.02);
+}
+
+// 同一个名字 30ms 内只响一次；voice 太多（连点刷新）就丢，别把 AudioContext 堆爆
+function gate(name, gap = 30) {
+  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  if (lastAt[name] && now - lastAt[name] < gap) return false;
+  lastAt[name] = now;
+  return voices < 24;
+}
+
+const sfx = {
+  // 界面
+  tap() { if (gate('tap', 40)) tone(760, { to: 620, dur: 0.05, type: 'square', gain: 0.07 }); },
+  open() { if (gate('open')) { tone(520, { to: 780, dur: 0.1, type: 'triangle', gain: 0.1 }); } },
+  close() { if (gate('close')) tone(700, { to: 420, dur: 0.09, type: 'triangle', gain: 0.09 }); },
+  error() { if (gate('error', 120)) { tone(220, { dur: 0.08, type: 'square', gain: 0.09 }); tone(180, { dur: 0.12, type: 'square', gain: 0.08, at: 0.07 }); } },
+  // 集市
+  buy() {
+    if (!gate('buy', 90)) return;
+    tone(523, { dur: 0.08, type: 'triangle', gain: 0.14 });
+    tone(784, { dur: 0.12, type: 'triangle', gain: 0.13, at: 0.06 });
+  },
+  sell() {
+    if (!gate('sell', 90)) return;
+    tone(660, { dur: 0.08, type: 'triangle', gain: 0.12 });
+    tone(440, { dur: 0.12, type: 'triangle', gain: 0.11, at: 0.06 });
+  },
+  coin() { if (gate('coin', 70)) { tone(1180, { dur: 0.06, type: 'sine', gain: 0.08 }); tone(1560, { dur: 0.07, type: 'sine', gain: 0.06, at: 0.03 }); } },
+  // 战斗
+  gen() {
+    // 产算力：一局里响得最频繁，压到很轻，音高按 uid 错开一点
+    if (!gate('gen', 45)) return;
+    tone(520 + Math.random() * 90, { to: 700, dur: 0.09, type: 'sine', gain: 0.05 });
+  },
+  fire() {
+    if (!gate('fire', 60)) return;
+    noise({ dur: 0.09, gain: 0.1, lp: 2600, hp: 400 });
+    tone(300, { to: 120, dur: 0.12, type: 'sawtooth', gain: 0.09 });
+  },
+  crit() {
+    if (!gate('crit', 60)) return;
+    noise({ dur: 0.12, gain: 0.14, lp: 4200, hp: 700 });
+    tone(880, { to: 1320, dur: 0.1, type: 'square', gain: 0.09 });
+  },
+  hit() {
+    if (!gate('hit', 55)) return;
+    noise({ dur: 0.1, gain: 0.11, lp: 1200, hp: 90 });
+    tone(150, { to: 80, dur: 0.1, type: 'sine', gain: 0.1 });
+  },
+  shield() {
+    if (!gate('shield', 70)) return;
+    tone(300, { to: 420, dur: 0.14, type: 'sine', gain: 0.09 });
+    tone(600, { dur: 0.1, type: 'sine', gain: 0.05, at: 0.04 });
+  },
+  heal() { if (gate('heal', 90)) tone(440, { to: 660, dur: 0.16, type: 'sine', gain: 0.08 }); },
+  poison() { if (gate('poison', 90)) tone(240, { to: 180, dur: 0.16, type: 'triangle', gain: 0.07 }); },
+  // 节拍
+  beat() { if (gate('beat', 90)) tone(1320, { dur: 0.03, type: 'square', gain: 0.03 }); },
+  // 胜负
+  win() {
+    if (!gate('win', 400)) return;
+    const seq = [523, 659, 784, 1047];
+    seq.forEach((f, i) => tone(f, { dur: 0.2, type: 'triangle', gain: 0.13, at: i * 0.09 }));
+    tone(131, { dur: 0.5, type: 'sine', gain: 0.08, at: 0.1 });
+  },
+  lose() {
+    if (!gate('lose', 400)) return;
+    [392, 330, 262].forEach((f, i) => tone(f, { dur: 0.26, type: 'triangle', gain: 0.12, at: i * 0.14 }));
+    noise({ dur: 0.4, gain: 0.05, lp: 500, at: 0.1 });
+  },
+  start() {
+    if (!gate('start', 300)) return;
+    tone(392, { to: 784, dur: 0.24, type: 'triangle', gain: 0.12 });
+    noise({ dur: 0.2, gain: 0.06, lp: 1800, at: 0.02 });
+  },
+};
+
+// 第一次交互把 AudioContext 唤醒：iOS / Chrome 都要求有用户手势
+if (typeof document !== 'undefined') {
+  const kick = () => { unlock(); };
+  document.addEventListener('pointerdown', kick, { once: true, passive: true });
+  document.addEventListener('keydown', kick, { once: true });
+}
+return { unlock, isOn, setOn, toggle, sfx };
 })();
 
 // ---- js/bazaar.js
 const m_bazaar = await (async () => {
 const C = m_bazaar_core;
 const { TUNING, HEROES, WHEELS, PACTS, DIFFS, SHEETS, ARCH_ZH, RANK_ZH, AURA_ZH } = m_bazaar_data;
+const { sfx, toggle: sfxToggle, isOn: sfxIsOn } = m_bazaar_sfx;
 // 《大巴扎：银钥》界面层：布阵、集市、十格战场、自动战斗的表现。
 // 规则本身全在 js/bazaar-core.js（node 里能跑，scripts/bazaar-sim.mjs 就是拿它做平衡的），
 // 这里只负责把状态画出来、把点击/拖动翻译成动作。
@@ -1070,6 +1298,7 @@ const { TUNING, HEROES, WHEELS, PACTS, DIFFS, SHEETS, ARCH_ZH, RANK_ZH, AURA_ZH 
 // 图片全部走雪碧图（assets/bazaar/sheet-*.webp）：一千多张图各发一个请求，
 // 在本站「每个请求 1~2 秒」的边缘上开局就要等半分钟，所以拼四张大图 + 百分比定位。
 // 唤醒体的待机立绘是单独的动图文件（每个约 14KB），用到谁才请求谁。
+
 
 
 
@@ -1205,7 +1434,7 @@ function renderSetup() {
       ${sp(h.spr)}
       <span class="hs">${h.slots}格</span>
       <span class="hn">${h.n}</span>
-      <span class="hd">${h.realmZh.slice(0, 1)}·${h.type}</span>
+      <span class="hd">${h.realmZh.slice(0, 1)}·${h.type}${h.egg ? '·主播' : ''}</span>
     </button>`).join('');
   $('heroPick').onclick = (e) => {
     const el = e.target.closest('[data-hero]');
@@ -1309,20 +1538,33 @@ function renderTerrain() {
 
 function unitHTML(u, inBattle) {
   const d = u.def;
+  // 角上的环 = 还差几拍出手。数字比进度条直观，环本身给「快到了」的感觉。
+  // 战斗单位带 timer/cd（会跳动），布局单位没有 —— 没有就按满 cd 算。
+  const cd = u.cd != null ? u.cd : d.cd;
+  const timer = u.timer != null ? u.timer : 0;
+  const left = inBattle ? Math.max(0, cd - timer) : d.cd;
   return `<div class="unit r-${REALM_CLS[d.realm]}" data-uid="${u.uid}" style="--at:${u.start};--len:${u.len};--realm:var(${REALM_VAR[d.realm]})">
     <img src="${idleUrl(d)}" alt="${d.n}" decoding="async">
+    <span class="ucd${inBattle && left <= 1 ? ' now' : ''}" id="ucd${u.uid}" style="--p:${inBattle ? Math.round((timer / cd) * 100) : 0}"><i>${left}</i></span>
     <span class="ut">${d.n}</span>
-    <span class="um">${d.slots}格 · ${d.gen}/${d.cd}</span>
+    <span class="um">产 ${d.gen}${d.egg ? ' · 主播' : ''}</span>
     <span class="ub"><i id="ub${u.uid}"></i></span>
   </div>`;
 }
 
 function renderTrack(host, inBattle) {
   const lay = C.layoutOf(run);
+  // 战斗页：战斗单位有 timer/cd 但没 start/len，把布局的位置补进去再渲染。
+  const units = inBattle && fight
+    ? fight.units.map((u) => {
+        const rec = lay.find((x) => x.uid === u.uid);
+        return rec ? { ...u, start: rec.start, len: rec.len } : u;
+      })
+    : lay;
   const used = lay.reduce((s, u) => s + u.len, 0);
   const cells = Array.from({ length: TUNING.fieldSlots }, (_, i) => `<i class="cell ${i < used ? 'on' : ''}"></i>`).join('');
-  host.innerHTML = `<div class="cells">${cells}</div><div class="units">${lay.map((u) => unitHTML(u, inBattle)).join('')}</div>`
-    + (lay.length ? '' : '<div class="empty">战场空着 —— 打开集市招个唤醒体</div>');
+  host.innerHTML = `<div class="cells">${cells}</div><div class="units">${units.map((u) => unitHTML(u, inBattle)).join('')}</div>`
+    + (units.length ? '' : '<div class="empty">战场空着 —— 打开集市招个唤醒体</div>');
   if (!inBattle) bindTrack(host);
 }
 
@@ -1379,13 +1621,14 @@ function renderShop() {
     const def = C.defOf(o);
     const can = C.canBuy(run, i);
     const rar = o.kind === 'relic' ? def.r : def.r || 'SSR';
+    // 图标那一块单独可点：看详情，不买。手机上一张卡就是「买」，误触的代价太大。
     return `<button class="card k-${o.kind} r-${rar} ${o.sold ? 'sold' : ''} ${!can && !o.sold ? 'poor' : ''}" type="button" data-offer="${i}">
-      ${sp(def.spr)}
+      <span class="ci" data-info="${i}">${sp(def.spr)}</span>
       ${o.kind === 'hero' ? `<span class="ca" style="background-image:url(${idleUrl(def)})"></span>` : ''}
       <span class="cp ${run.gold < o.price ? 'no' : ''}">${o.price}</span>
       <span class="cn">${def.n}</span>
       <span class="ct">${offerText(o, def)}</span>
-      <span class="r">${o.kind === 'hero' ? '唤醒体' : o.kind === 'wheel' ? '命轮' : (ARCH_ZH[def.arch] || def.r)}</span>
+      <span class="r">${o.kind === 'hero' ? (def.egg ? '主播' : '唤醒体') : o.kind === 'wheel' ? '命轮' : (ARCH_ZH[def.arch] || def.r)}</span>
     </button>`;
   }).join('');
   $('shopHint').textContent = `还剩 ${run.shop.filter((x) => !x.sold).length} 个摊位`;
@@ -1393,12 +1636,21 @@ function renderShop() {
 
 function renderShopClick() {
   $('shop').onclick = (e) => {
+    // 先看图标：点图标 = 看详情（详情里也能买），点其它地方 = 直接买
+    const info = e.target.closest('[data-info]');
+    if (info) {
+      const oi = Number(info.dataset.info);
+      const of = run.shop[oi];
+      if (of) openDetail(of.kind, of.key, { offer: oi });
+      return;
+    }
     const el = e.target.closest('[data-offer]');
     if (!el) return;
     const i = Number(el.dataset.offer);
     const o = run.shop[i];
     if (!o || o.sold) return;
     if (!C.canBuy(run, i)) {
+      sfx.error();
       if (run.gold < o.price) toast('金币不够');
       else if (o.kind === 'hero') toast(`战场只剩 ${C.freeSlots(run)} 格，装不下他`);
       else if (o.kind === 'wheel') toast('命轮最多戴三条，先卖一条');
@@ -1406,6 +1658,7 @@ function renderShopClick() {
       return;
     }
     C.buy(run, i);
+    sfx.buy();
     renderAll();
   };
 }
@@ -1488,62 +1741,112 @@ window.addEventListener('pointercancel', () => {
 });
 
 // ---------------------------------------------------------------- 详情
-function openDetail(kind, id) {
-  const o = C.owned(run, id);
-  if (!o) return;
-  sheetId = id;
-  $('sArt').innerHTML = '';
-  if (kind === 'hero') {
-    const d = o.def;
-    paintSp($('sImg'), d.spr);
-    $('sName').textContent = d.n;
-    $('sMeta').textContent = `${d.realmZh} · ${d.type} · 占 ${d.slots} 格 · 每 ${d.cd} 拍`;
-    $('sTxt').innerHTML = [
-      `<b>${d.txt}</b>`,
-      `光环：${d.auraTxt}（只给左右相邻）`,
-      `本命：${d.fate.n}　${C.modText(d.fate.k, d.fate.v)}`,
-      `本命命轮：${(C.wheelOf(d.wheel) || {}).n || '—'}`,
-    ].join('<br>');
-    $('sArt').innerHTML = artHTML(d);
-    const back = C.sellPrice('hero', d);
-    $('sSell').textContent = `移出队伍 +${back}`;
-    $('sSell').disabled = run.squad.length <= 1;
-    $('sSell').onclick = () => {
-      if (C.sell(run, id)) { closeSheet(); renderAll(); toast(`腾出 ${d.slots} 格，+${back} 金`); }
-      else toast('至少留一个人守摊');
-    };
-  } else if (kind === 'wheel') {
-    const d = o.def;
-    paintSp($('sImg'), d.spr);
-    $('sName').textContent = d.n + (o.rec.native ? '（本命）' : '');
-    $('sMeta').textContent = `命轮 · 耗 ${d.cpu} 算力 · ${d.wcd} 拍一次`;
-    $('sTxt').innerHTML = [
-      `<b>${wheelFire(d)}</b>`,
-      `主词条：${wheelPassive(d)}`,
-      d.perk ? `<em>${d.perk.txt}</em>` : '',
-      '算力不够就会卡在「等算力」，先把产出跟上。',
-    ].filter(Boolean).join('<br>');
-    const back = C.sellPrice('wheel', d);
-    $('sSell').textContent = o.rec.native ? '本命，卖不了' : `卖出 +${back}`;
-    $('sSell').disabled = !!o.rec.native;
-    $('sSell').onclick = () => { if (C.sell(run, id)) { closeSheet(); renderAll(); } };
-  } else {
-    const d = o.def;
-    paintSp($('sImg'), d.spr);
-    $('sName').textContent = d.n;
-    $('sMeta').textContent = `造物 · ${d.r}`;
-    $('sTxt').innerHTML = `<b>${C.itemText(d)}</b><br>造物不占出手，只要装在身上就一直生效。`;
-    const back = C.sellPrice('relic', d);
-    $('sSell').textContent = `卖出 +${back}`;
-    $('sSell').disabled = false;
-    $('sSell').onclick = () => { if (C.sell(run, id)) { closeSheet(); renderAll(); } };
-  }
-  $('sheet').classList.add('on');
+// 详情面板：三条信息源共用一块 DOM —— 队伍里的东西（可卖）、集市里的东西（可买）、战斗中的东西（只看）
+function sheetHero(d) {
+  paintSp($('sImg'), d.spr);
+  $('sName').textContent = d.n;
+  $('sMeta').textContent = `${d.realmZh} · ${d.type} · 占 ${d.slots} 格 · 每 ${d.cd} 拍产 ${d.gen}`;
+  $('sTxt').innerHTML = [
+    `<b>${d.txt}</b>`,
+    `光环：${d.auraTxt}（只喂左右相邻的两家）`,
+    `本命：${d.fate.n}　${C.modText(d.fate.k, d.fate.v)}`,
+    `本命命轮：${(C.wheelOf(d.wheel) || {}).n || '—'}`,
+  ].join('<br>');
+  $('sArt').innerHTML = artHTML(d);
+}
+function sheetWheel(d, native) {
+  paintSp($('sImg'), d.spr);
+  $('sName').textContent = d.n + (native ? '（本命）' : '');
+  $('sMeta').textContent = `命轮 · 耗 ${d.cpu} 算力 · ${d.wcd} 拍一次`;
+  $('sTxt').innerHTML = [
+    `<b>${wheelFire(d)}</b>`,
+    `主词条：${wheelPassive(d)}`,
+    d.perk ? `<em>${d.perk.txt}</em>` : '',
+    '算力不够就会卡在「等算力」，先把产出跟上。',
+  ].filter(Boolean).join('<br>');
+}
+function sheetRelic(d) {
+  paintSp($('sImg'), d.spr);
+  $('sName').textContent = d.n;
+  $('sMeta').textContent = `造物 · ${d.r}`;
+  $('sTxt').innerHTML = `<b>${C.itemText(d)}</b><br>造物不占出手，只要装在身上就一直生效。`;
 }
 
+// 打开方式二：own = uid（队伍 / 战场上的），offer = 集市第 i 个摊位（可以在这里直接买）
+function openDetail(kind, id, opt) {
+  const isOffer = opt && typeof opt.offer === 'number';
+  const o = isOffer ? null : C.owned(run, id);
+  if (!isOffer && !o) return;
+  const offer = isOffer ? run.shop[opt.offer] : null;
+  if (isOffer && !offer) return;
+  sheetId = isOffer ? opt.offer : id;
+  $('sArt').innerHTML = '';
+  const own = !!o;
+
+  if (kind === 'hero') {
+    const d = own ? o.def : C.heroOf(offer.key);
+    sheetHero(d);
+    if (isOffer) {
+      $('sSell').textContent = offer.sold ? '已经买下了' : `买下 ${offer.price} 金`;
+      $('sSell').disabled = offer.sold || !C.canBuy(run, opt.offer);
+      $('sSell').onclick = () => {
+        if (!C.buy(run, opt.offer)) { sfx.error(); toast('买不了：钱不够或者战场装不下'); return; }
+        sfx.buy(); closeSheet(); renderAll(); toast(`${d.n} 上场`);
+      };
+    } else {
+      const back = C.sellPrice('hero', d);
+      $('sSell').textContent = `移出队伍 +${back}`;
+      $('sSell').disabled = run.squad.length <= 1;
+      $('sSell').onclick = () => {
+        if (C.sell(run, id)) { sfx.sell(); closeSheet(); renderAll(); toast(`腾出 ${d.slots} 格，+${back} 金`); }
+        else { sfx.error(); toast('至少留一个人守摊'); }
+      };
+    }
+  } else if (kind === 'wheel') {
+    const d = own ? o.def : C.wheelOf(offer.key);
+    sheetWheel(d, own ? o.rec.native : false);
+    if (isOffer) {
+      $('sSell').textContent = offer.sold ? '已经买下了' : `买下 ${offer.price} 金`;
+      $('sSell').disabled = offer.sold || !C.canBuy(run, opt.offer);
+      $('sSell').onclick = () => {
+        if (!C.buy(run, opt.offer)) { sfx.error(); toast('买不了：钱不够或者三条命轮已满'); return; }
+        sfx.buy(); closeSheet(); renderAll(); toast(`${d.n} 上膛`);
+      };
+    } else {
+      const back = C.sellPrice('wheel', d);
+      $('sSell').textContent = o.rec.native ? '本命，卖不了' : `卖出 +${back}`;
+      $('sSell').disabled = !!o.rec.native;
+      $('sSell').onclick = () => { if (C.sell(run, id)) { sfx.sell(); closeSheet(); renderAll(); } };
+    }
+  } else {
+    const d = own ? o.def : C.itemOf(offer.key);
+    sheetRelic(d);
+    if (isOffer) {
+      $('sSell').textContent = offer.sold ? '已经买下了' : `买下 ${offer.price} 金`;
+      $('sSell').disabled = offer.sold || !C.canBuy(run, opt.offer);
+      $('sSell').onclick = () => {
+        if (!C.buy(run, opt.offer)) { sfx.error(); toast('买不了：钱不够或者四个造物槽满了'); return; }
+        sfx.buy(); closeSheet(); renderAll(); toast(`${d.n} 已装好`);
+      };
+    } else {
+      const back = C.sellPrice('relic', d);
+      $('sSell').textContent = `卖出 +${back}`;
+      $('sSell').disabled = false;
+      $('sSell').onclick = () => { if (C.sell(run, id)) { sfx.sell(); closeSheet(); renderAll(); } };
+    }
+  }
+  $('sheet').classList.add('on');
+  sheetAt = Date.now();
+  sfx.open();
+}
+
+let sheetAt = 0;
 function closeSheet() {
-  $('sheet').classList.remove('on');
+  const el = $('sheet');
+  if (!el.classList.contains('on')) return;
+  el.classList.remove('on');
   $('sSell').disabled = false;
+  if (Date.now() - sheetAt > 120) sfx.close();
 }
 
 // ---------------------------------------------------------------- 战斗
@@ -1552,6 +1855,7 @@ function startFight() {
   if (!run.wheels.length) { toast('没有命轮就打不出伤害，先去集市买一条'); return; }
   fight = C.createFight(run);
   closeSheet();
+  sfx.start();
   setRealm(C.heroOf(run.squad[0].key), [$('battle')]);
   $('battle').classList.add('on');
   paintFight();
@@ -1572,11 +1876,19 @@ function paintFight() {
   $('bFoeSkills').innerHTML = f.e.skills.map((s, i) => `
     <span class="skill" id="sk${i}" title="${skillText(C.foeStats(run), s)}">${s.n}<i id="skb${i}"></i></span>`).join('');
   renderTrack($('bTrack'), true);
+  $('bTrack').onclick = (e) => {
+    const el = e.target.closest('.unit');
+    if (el) openDetail('hero', Number(el.dataset.uid));
+  };
   $('bWheels').innerHTML = ['<span class="lab">命轮</span>'].concat(f.wheels.map((w) => `
     <span class="wh" data-bw="${w.uid}" title="${wheelFire(w.def)}">
       ${sp(w.def.spr)}<span class="wi"><b>${w.def.n}</b><i id="wst${w.uid}">耗 ${w.cost} · ${w.wcd} 拍</i></span>
       <span class="wp"><i id="wp${w.uid}"></i></span>
     </span>`)).join('');
+  $('bWheels').onclick = (e) => {
+    const el = e.target.closest('[data-bw]');
+    if (el) openDetail('wheel', Number(el.dataset.bw));
+  };
   paintBars();
   resetLog(`地形 · ${f.ter.n}：${f.ter.txt}`);
   const plan = C.planOf(run);
@@ -1613,6 +1925,14 @@ function paintBars() {
   for (const u of f.units) {
     const el = $(`ub${u.uid}`);
     if (el) el.style.width = pct(u.timer, u.cd) + '%';
+    const ring = $(`ucd${u.uid}`);
+    if (ring) {
+      const left = Math.max(0, u.cd - u.timer);
+      ring.style.setProperty('--p', String(Math.round(pct(u.timer, u.cd))));
+      const num = ring.firstElementChild;
+      if (num && num.textContent !== String(left)) num.textContent = left;
+      ring.classList.toggle('now', left <= 1);
+    }
   }
   for (const w of f.wheels) {
     const el = $(`wp${w.uid}`);
@@ -1682,10 +2002,12 @@ function applyEvents(ev) {
       if (e.s === 'p') {
         float('e', `${e.crit ? '暴击 ' : ''}${fmt(e.v)}`, e.crit ? '#ffd166' : '#ff8f7a');
         if (e.src != null) flash(e.src);
+        if (e.crit) sfx.crit(); else sfx.fire();
         parts.push(`${e.ter ? '地形' : '命轮'}打掉 ${fmt(e.v)} 点${e.crit ? '（暴击）' : ''}`);
         cls = 'hi';
       } else {
         float('p', `-${fmt(e.v)}`, '#e8695f');
+        sfx.hit();
         parts.push(`${f.foe.n} 打掉你 ${fmt(e.v)} 点`);
         cls = 'bad';
       }
@@ -1694,15 +2016,18 @@ function applyEvents(ev) {
         const el = document.querySelector(`[data-uid="${e.uid}"]`);
         if (el) float('p', `+${e.v} 算力`, '#8fb6ff', el);
         flash(e.uid);
+        sfx.gen();
       } else if (e.waste > 0) {
         parts.push('算力满了溢出，该扩容了');
       }
     } else if (e.k === 'shield') {
       float(e.s === 'p' ? 'p' : 'e', `+盾 ${fmt(e.v)}`, '#7fb2ff');
       if (e.src != null) flash(e.src);
+      sfx.shield();
       parts.push(e.s === 'p' ? `架起 ${fmt(e.v)} 点护盾` : `${f.foe.n} 架盾 ${fmt(e.v)}`);
     } else if (e.k === 'heal') {
       float(e.s === 'p' ? 'p' : 'e', `+${fmt(e.v)}`, '#6fd39a');
+      sfx.heal();
       parts.push(e.s === 'p' ? `回复 ${fmt(e.v)} 点` : `${f.foe.n} 回了 ${fmt(e.v)} 点`);
     } else if (e.k === 'poison') {
       float(e.s === 'p' ? 'e' : 'p', `毒 ${fmt(e.v)}`, '#a98cff');
@@ -1752,6 +2077,7 @@ function endFight() {
   const timeout = fight.timeout;
   paintBars();
   pushLog(win ? (timeout ? '四十拍打满，按剩血比例算你赢' : '对面撑不住了') : (timeout ? '四十拍打满，你的血更少' : '你被打趴下了'), win ? 'hi' : 'bad');
+  if (win) sfx.win(); else sfx.lose();
   setTimeout(() => {
     const gain = C.settle(run, fight);
     $('battle').classList.remove('on');
@@ -1795,6 +2121,11 @@ function recordStats(score) {
     wheels: wheelsOwned,
   };
   try { localStorage.setItem(STATS_KEY, JSON.stringify(out)); } catch (e) { /* 无痕模式 */ }
+  // 榜单同步：本机先落盘（立刻生效），云端那条链按需加载、后台推，失败也不影响玩。
+  // 只有成绩真的有变化才推，否则每局都白跑一次 PUT。
+  if (score > (Number(s.best) || 0) || run.cleared || day > (Number(s.day) || 0)) {
+    import('./bazaar-sync.js').then((m) => m.pushScore()).catch(() => {});
+  }
 }
 
 function showResult() {
@@ -1826,29 +2157,107 @@ function again() {
   renderSetup();
 }
 
+// ---------------------------------------------------------------- 榜单
+// 服务端 /board 会把每个玩家云端档案里的摘要排出来（js/gamestats.js 的 digest 里有 bz 这一项）。
+// 游戏页本身不引 account / auth 那两百来 KB，点开榜单才动态 import 一次：
+// 断了 / 没登录 / 后端没起来，都只影响这一屏，不影响玩。
+let boardLoading = false;
+function paintBoard(g) {
+  const listEl = $('bListB');
+  const items = (g && g.items) || [];
+  const mine = loadBest();
+  $('bNote').innerHTML = items.length
+    ? `共 ${items.length} 位摊主上榜 · 每局结束自动同步一次（服务端缓存 3 分钟）`
+    : '还没有人上榜。登录后打一局，成绩会跟着云端档案走。';
+  if (!items.length) {
+    listEl.innerHTML = `<li class="bempty">${mine > 0 ? `你的最好成绩 ${fmt(mine)} 分，登录后就能上榜` : '还没有人上榜'}</li>`;
+    return;
+  }
+  listEl.innerHTML = items.map((it, i) => `
+    <li>
+      <span class="rk">${i + 1}</span>
+      <span class="nm">${it.name}${it.sub ? `<small>${it.sub}</small>` : ''}</span>
+      <span class="sc">${fmt(it.score)}<small>${it.unit || '分'}</small></span>
+    </li>`).join('') + (mine > 0
+    ? `<li class="me"><span class="rk">你</span><span class="nm">本机最好成绩<small>登录后随云端档案同步</small></span><span class="sc">${fmt(mine)}<small>分</small></span></li>`
+    : '');
+}
+function openBoard() {
+  $('board').classList.add('on');
+  sfx.open();
+  if (boardLoading) return;
+  boardLoading = true;
+  $('bListB').innerHTML = '<li class="bempty">正在连线…</li>';
+  import('./bazaar-sync.js')
+    .then((m) => m.fetchBoard())
+    .then((g) => paintBoard(g))
+    .catch(() => {
+      $('bNote').textContent = '榜单连不上（离线 / 后端没起来）。本机成绩照样记。';
+      $('bListB').innerHTML = loadBest() > 0
+        ? `<li class="me"><span class="rk">你</span><span class="nm">本机最好成绩</span><span class="sc">${fmt(loadBest())}<small>分</small></span></li>`
+        : '<li class="bempty">还没有本机成绩</li>';
+    })
+    .then(() => { boardLoading = false; });
+}
+
 // ---------------------------------------------------------------- 绑定
 $('btnReroll').onclick = () => {
-  if (!C.rollShop(run)) { toast('金币不够刷新'); return; }
+  if (!C.rollShop(run)) { sfx.error(); toast('金币不够刷新'); return; }
+  sfx.tap();
   renderAll();
 };
 $('btnCore').onclick = () => {
-  if (!C.expandCore(run)) { toast('金币不够扩容'); return; }
+  if (!C.expandCore(run)) { sfx.error(); toast('金币不够扩容'); return; }
+  sfx.coin();
   renderAll();
   toast(`算力上限 +${TUNING.coreGain}`);
 };
 $('btnFight').onclick = startFight;
 $('btnSpeed').onclick = () => {
   speed = speed === 1 ? 2 : speed === 2 ? 3 : 1;
-  $('btnSpeed').textContent = '×' + speed;
+  $('btnSpeed').textContent = 'x' + speed;
+  sfx.tap();
 };
 $('btnSkip').onclick = skipFight;
 $('btnAgain').onclick = again;
 $('btnStart').onclick = startRun;
-$('btnHelp').onclick = () => $('help').classList.add('on');
-$('setupHelp').onclick = () => $('help').classList.add('on');
-$('helpClose').onclick = () => $('help').classList.remove('on');
-$('sheet').addEventListener('click', (e) => { if (e.target === $('sheet')) closeSheet(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+$('btnHelp').onclick = () => { $('help').classList.add('on'); sfx.open(); };
+$('setupHelp').onclick = () => { $('help').classList.add('on'); sfx.open(); };
+$('helpClose').onclick = () => { $('help').classList.remove('on'); sfx.close(); };
+$('btnBoard').onclick = openBoard;
+$('btnBoardB').onclick = openBoard;
+$('bClose').onclick = () => { $('board').classList.remove('on'); sfx.close(); };
+$('btnBoardC').onclick = () => { $('board').classList.remove('on'); sfx.close(); };
+
+// 音效开关：图标本身的字形就说明状态，不额外占一行
+function paintSfx() {
+  const el = $('btnSfx');
+  if (!el) return;
+  const on = sfxIsOn();
+  el.textContent = '♪';
+  el.classList.toggle('off', !on);
+  el.setAttribute('aria-label', on ? '关闭音效' : '打开音效');
+}
+if ($('btnSfx')) {
+  paintSfx();
+  $('btnSfx').onclick = () => { sfxToggle(); paintSfx(); if (sfxIsOn()) sfx.tap(); };
+}
+
+$('sClose').onclick = closeSheet;
+// 点面板外面也关：面板只占屏幕下半截，点上面任意地方都该收起来
+document.addEventListener('click', (e) => {
+  const sheet = $('sheet');
+  if (!sheet.classList.contains('on')) return;
+  if (Date.now() - sheetAt < 240) return;
+  if (e.target.closest('#sheet')) return;
+  if (e.target.closest('.ci') || e.target.closest('.unit') || e.target.closest('[data-wid]') || e.target.closest('[data-bw]') || e.target.closest('[data-rid]')) return;
+  closeSheet();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if ($('board').classList.contains('on')) { $('board').classList.remove('on'); return; }
+  closeSheet();
+});
 renderShopClick();
 
 // 选人界面默认打开
