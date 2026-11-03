@@ -1062,3 +1062,11 @@ button, a, [role="button"], input, select, label{touch-action:manipulation}
 @keyframes affspin{to{--affang:360deg}}
 @media (prefers-reduced-motion:reduce){.u-pic.aff20{animation:none}}
 .afftal li.rsv{opacity:.7;font-style:italic}
+
+/* 更新公告 */
+.news-modal{max-width:560px}
+.news .news-item{margin:0 0 14px}
+.news .news-item h4{margin:0 0 6px;font-size:15px}
+.news .news-item h4 small{font-weight:400;font-size:11px;color:var(--dim,#8c97ad);margin-left:6px}
+.news ul{margin:0;padding-left:18px;display:grid;gap:7px;font-size:13px;line-height:1.65}
+.news b{color:var(--gold,#e8c36a)}

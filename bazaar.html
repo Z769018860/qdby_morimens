@@ -365,6 +365,17 @@ button{font:inherit;color:inherit}
 #boot{position:fixed;inset:0;display:grid;place-items:center;background:var(--bg);z-index:60;
   font-size:13px;color:var(--dim);text-align:center;padding:20px}
 #boot.off{display:none}
+.helptut{margin:0 0 12px}
+.tut{position:fixed;inset:0;z-index:120}
+.tut-hole{position:fixed;display:none;border:2px solid var(--gold);border-radius:6px;box-shadow:0 0 0 9999px rgba(8,12,22,.62),0 0 18px color-mix(in oklab,var(--gold) 70%,transparent);pointer-events:none;transition:left .25s,top .25s,width .25s,height .25s}
+.tut-card{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);width:min(520px,calc(100vw - 24px));background:var(--panel,#fff);border:1px solid var(--gold);padding:14px 16px;box-shadow:0 10px 40px rgba(0,0,0,.45)}
+.tut-card.top{bottom:auto;top:18px}
+.tut-n{font-size:11px;color:var(--dim);letter-spacing:2px}
+.tut-t{margin:4px 0 6px;font-size:15px;color:var(--text)}
+.tut-d{margin:0 0 12px;font-size:13px;line-height:1.75;color:var(--text)}
+.tut-d b{color:var(--gold)}
+.tut-b{display:flex;align-items:center;gap:8px}
+.tut-sp{flex:1}
 .helpbody{font-size:12.5px;line-height:1.75}
 .helpbody h4{margin:13px 0 5px;font-size:12px;color:var(--gold);letter-spacing:2px}
 .helpbody h4:first-child{margin-top:0}
@@ -533,7 +544,7 @@ button{font:inherit;color:inherit}
   .sheet{max-width:820px}
 }
 </style>
-<meta name="build" content="7a0ee45a25">
+<meta name="build" content="23b9afae37">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -672,6 +683,7 @@ html{-webkit-tap-highlight-color:transparent}
   <div class="ovh"><h3>怎么开这一摊</h3><button class="x cut" id="helpClose" type="button">✕</button></div>
   <div class="ovbody">
     <div class="helpbody">
+      <div class="helptut"><button class="btn go" id="helpTut" type="button">▶ 重看新手指导（一步一步框出来讲）</button></div>
       <h4>一天一轮</h4>
       <p>集市买人买轮买造物 → 拖动排位置 → 开战。赢了进下一天，输了掉一点理智；<b>理智掉光就散场</b>，撑过最后一天算通关。</p>
       <h4>三个人，十格地</h4>
@@ -722,7 +734,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/bazaar.js?v=7a0ee45a25"></script>
+<script type="module" src="js/b/bazaar.js?v=23b9afae37"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

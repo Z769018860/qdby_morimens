@@ -45,6 +45,7 @@ import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welc
 import { startGuide } from './ui/guide.js';
 import * as Cloud from './core/cloud.js';
 import { readWallet, writeWallet, reconcile, WALLET_KEY } from './core/wallet.js';
+import { NEWS, NEWS_LATEST } from './core/news.js';
 import { $, $$, fmt, esc, dur, store, askPersist, toast, closeModal, openModal, modalEl, showKwPop } from './ui/util.js';
 
 /* 底部导航按「功能域」分 5 组。13 个平铺页签在手机上要横滚，一眼看不到全貌，
@@ -124,6 +125,28 @@ const app = {
     $('#cores').textContent = fmt(this.state.cores || 0);
   },
 };
+
+/* ---------- 更新公告 ---------- */
+const newsHtml = (list) => list.map((n) => `<div class="news-item"><h4>${esc(n.title)} <small>v${esc(n.v)} · ${esc(n.id)}</small></h4><ul>${n.items.map((t) => `<li>${esc(t).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')}</li>`).join('')}</ul></div>`).join('');
+function openNews(onlyNew) {
+  const seen = app.state?.newsSeen;
+  const list = onlyNew ? NEWS.filter((n) => n.id > (seen || '')) : NEWS;
+  openModal(`<h3>更新公告</h3><div class="news">${newsHtml(list.length ? list : NEWS.slice(0, 1))}</div><div class="row"><button class="btn gold" data-act="news-ok">知道了</button></div>`, 'news-modal');
+}
+// 离线结算 / 新手引导收起来之后再弹（它们的层级比公告高，抢着弹会互相盖住）；最多等 2 分钟
+function maybeNews() {
+  if (!app.state || app.state.newsSeen === NEWS_LATEST) return;
+  if (!app.state.guide && !app.hadSave) { app.state.newsSeen = NEWS_LATEST; app.save(); return; }   // 全新玩家：从头开始玩，不用看更新
+  let tries = 0;
+  const t = setInterval(() => {
+    if (++tries > 80 || !app.state || app.state.newsSeen === NEWS_LATEST) { clearInterval(t); return; }
+    if (app.offlinePending || app.booting || document.hidden || document.querySelector('.guide-bg')) return;
+    clearInterval(t);
+    openNews(true);
+    // 一弹出就记「已读」：战斗结算等弹窗之后可能会把它顶掉，不能因此每次进游戏都再弹一遍
+    app.state.newsSeen = NEWS_LATEST; app.save();
+  }, 1500);
+}
 
 async function boot() {
   const [pack, orders, special] = await Promise.all([
@@ -219,6 +242,7 @@ async function boot() {
     }
   };
   app.settleOffline();
+  maybeNews();
   // 累计签到送的那几位：达标就自动进包（老存档首次进游戏也会补发）
   checkSigninGifts();
   // 同调率：跨天补给礼物（花束 ×2 / 唱片 ×1），自动进包，不用点领取
@@ -1077,6 +1101,8 @@ function onAct(e) {
     case 'detail': P.detailModal(app, el.dataset.slug); break;
     case 'zoom': sound.play('open'); P.artModal(app, el.dataset.slug); break;
     case 'guide': startGuide(app, () => {}); break;
+    case 'news': openNews(false); break;
+    case 'news-ok': app.state.newsSeen = NEWS_LATEST; app.save(); closeModal(); break;
     case 'lvup': sound.play('lvup'); levelUp(s, el.dataset.slug, +el.dataset.n); app.save(); P.detailModal(app, el.dataset.slug); render(); break;
     case 'lvmax': sound.play('lvup'); levelUpMax(s, el.dataset.slug); app.save(); P.detailModal(app, el.dataset.slug); render(); break;
     case 'pick-slot': {

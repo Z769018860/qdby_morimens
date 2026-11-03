@@ -138,6 +138,84 @@ function startRun() {
   setRealm(null, [$('app')]);
   renderAll();
   toast(`第 1 天：${run.foeId ? C.foeOf(run.foeId).n : ''} · 去集市招个唤醒体`);
+  if (!tutSeen()) setTimeout(() => openTutorial(false), 700);
+}
+
+// ---------------------------------------------------------------- 新手指导
+// 第一次开局自动弹出：一步一步框出界面上的东西讲清楚。看完 / 跳过都记一笔（localStorage），之后只能从「?」里重看。
+const TUT_KEY = 'zjtt:bazaar:tut';
+function tutSeen() { try { return localStorage.getItem(TUT_KEY) === '1'; } catch (e) { return true; } }
+function tutMark() { try { localStorage.setItem(TUT_KEY, '1'); } catch (e) { /* 无痕模式 */ } }
+const TUT = [
+  { at: null, t: '欢迎来到弥萨格大巴扎',
+    d: '这是一个「摆摊自走」小游戏：每天先在集市买东西、摆好阵，再开战，战斗全自动。<b>12 天里撑住，理智别掉光</b>就算通关（输一场掉 1 点理智）。接下来 1 分钟带你认一遍界面。' },
+  { at: 'shop', t: '① 集市：用金币招人、买命轮',
+    d: '开局你只有 <b>32 金</b>：刚好够招 <b>2 个 1 格唤醒体</b>，或者 <b>1 个唤醒体 + 1 条命轮</b>。点卡面直接买，点左边小图标看详情。<b>第一个唤醒体会白送他的本命命轮</b>，所以先招人最稳。不想要这批货可以「刷新」（要花钱）。' },
+  { at: 'track', t: '② 战场：十格地，人占 1~3 格',
+    d: '队伍从左到右站在十格里，每个唤醒体占 1~3 格（占得越宽越强）。<b>按住人头左右拖</b>可以换位置。每个人头顶的圆圈数字是「还差几拍出手」。<b>光环只给左右相邻的人</b>，所以站位有用。' },
+  { at: 'cpuBar', t: '③ 算力：唤醒体产，命轮花',
+    d: '这条蓝条是<b>算力</b>。唤醒体每隔几拍产一次算力（右边写着 产 X · 耗 Y），命轮开火要消耗算力。<b>产 ≥ 耗（绿色 +）</b>才够用；不够就去招更多人或「扩容」。上限满了产出会浪费。' },
+  { at: 'wheels', t: '④ 命轮才是主要输出',
+    d: '命轮有自己的节拍，走满后还要吃一口算力才开火；算力不够就卡在「等算力」。最多戴 3 条。别一味买贵的，先让产出跟上。下面的「造物」不出手，只给加成，最多装 4 件。' },
+  { at: 'btnFight', t: '⑤ 开战：40 拍定胜负',
+    d: '点「开战」自动打 40 拍。战斗里<b>每个人的立绘会被界域色从脚底漫到头顶，漫满就出手</b>；每一拍有一个鼓点，四拍一小节。右下角可以 ×1/×2/×3 加速或跳过。打满 40 拍按<b>剩余血量比例</b>判胜负，所以护盾、回血、削对面血都算。' },
+  { at: 'foeBar', t: '⑥ 看清今天的对手和地形',
+    d: '顶上是今天的对手（血量、技能节拍）和地形（对双方都生效，比如熔岩每三拍两边掉血）。赢了拿金币进下一天，商店会变丰富；<b>别忘了每天先买再开战</b>。随时可以点右上角「?」重看这份指导。' },
+];
+let tutEl = null;
+function closeTutorial() {
+  if (tutEl) { tutEl.remove(); tutEl = null; }
+  window.removeEventListener('resize', tutPlace);
+  tutMark();
+}
+function tutPlace() {
+  if (!tutEl) return;
+  const st = TUT[tutEl.__i];
+  const hole = tutEl.querySelector('.tut-hole');
+  const el = st.at ? $(st.at) : null;
+  if (el) {
+    const r = el.getBoundingClientRect();
+    hole.style.cssText = `display:block;left:${Math.max(4, r.left - 6)}px;top:${Math.max(4, r.top - 6)}px;width:${r.width + 12}px;height:${r.height + 12}px`;
+  } else {
+    hole.style.cssText = 'display:none';
+  }
+}
+function openTutorial(force) {
+  if (!force && tutSeen()) return;
+  if ($('app').hidden) { toast('先开一局，新手指导会自动弹出'); return; }
+  closeTutorial();
+  tutEl = document.createElement('div');
+  tutEl.className = 'tut';
+  tutEl.__i = 0;
+  tutEl.innerHTML = '<div class="tut-hole"></div><div class="tut-card cut"><div class="tut-n"></div><h4 class="tut-t"></h4><p class="tut-d"></p><div class="tut-b"><button class="btn" type="button" data-k="skip">跳过</button><span class="tut-sp"></span><button class="btn" type="button" data-k="prev">上一步</button><button class="btn go" type="button" data-k="next">下一步</button></div></div>';
+  document.body.appendChild(tutEl);
+  const show = () => {
+    const st = TUT[tutEl.__i];
+    tutEl.querySelector('.tut-n').textContent = `${tutEl.__i + 1} / ${TUT.length}`;
+    tutEl.querySelector('.tut-t').textContent = st.t;
+    tutEl.querySelector('.tut-d').innerHTML = st.d;
+    tutEl.querySelector('[data-k=prev]').style.visibility = tutEl.__i ? 'visible' : 'hidden';
+    tutEl.querySelector('[data-k=next]').textContent = tutEl.__i === TUT.length - 1 ? '开始摆摊' : '下一步';
+    const el = st.at ? $(st.at) : null;
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    tutPlace();
+    // 提示卡躲开被框的区域：目标在上半屏，卡放下面；目标在下半屏，卡放上面
+    const card = tutEl.querySelector('.tut-card');
+    const r = el ? el.getBoundingClientRect() : null;
+    card.classList.toggle('top', !!r && r.top + r.height / 2 > window.innerHeight * 0.5);
+  };
+  tutEl.addEventListener('click', (e) => {
+    const k = e.target.closest('[data-k]');
+    if (!k) return;
+    sfx.tap();
+    if (k.dataset.k === 'skip') { closeTutorial(); return; }
+    if (k.dataset.k === 'prev') tutEl.__i = Math.max(0, tutEl.__i - 1);
+    else if (tutEl.__i >= TUT.length - 1) { closeTutorial(); toast('祝开张大吉'); return; }
+    else tutEl.__i += 1;
+    show();
+  });
+  window.addEventListener('resize', tutPlace);
+  show();
 }
 
 // ---------------------------------------------------------------- 集市
@@ -883,6 +961,7 @@ $('btnStart').onclick = startRun;
 $('btnHelp').onclick = () => { $('help').classList.add('on'); sfx.open(); };
 $('setupHelp').onclick = () => { $('help').classList.add('on'); sfx.open(); };
 $('helpClose').onclick = () => { $('help').classList.remove('on'); sfx.close(); };
+$('helpTut').onclick = () => { $('help').classList.remove('on'); openTutorial(true); };
 $('btnBoard').onclick = openBoard;
 $('btnBoardB').onclick = openBoard;
 $('bClose').onclick = () => { $('board').classList.remove('on'); sfx.close(); };
