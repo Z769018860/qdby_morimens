@@ -15,7 +15,7 @@ export const FOES = G_FOES;
 export const SHOP_ITEMS = ITEMS.filter((x) => x.r !== 'FATE');
 
 export const TUNING = {
-  beats: 40,          // 每场固定 40 拍
+  beats: 1000,        // 一直打到有人倒下；超过 1000 拍还没分出胜负，才按剩余血量百分比判（见 bazaar-core.js 的 checkOver）
   beatMs: 480,        // 一拍的实际时长（×1/×2/×3 倍速）
   startHp: 130,
   startGold: 32,

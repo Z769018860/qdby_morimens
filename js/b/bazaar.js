@@ -42,7 +42,7 @@ const FOES = G_FOES;
 const SHOP_ITEMS = ITEMS.filter((x) => x.r !== 'FATE');
 
 const TUNING = {
-  beats: 40,          // 每场固定 40 拍
+  beats: 1000,        // 一直打到有人倒下；超过 1000 拍还没分出胜负，才按剩余血量百分比判（见 bazaar-core.js 的 checkOver）
   beatMs: 480,        // 一拍的实际时长（×1/×2/×3 倍速）
   startHp: 130,
   startGold: 32,
@@ -170,7 +170,7 @@ const DATA = m_bazaar_data;
 //   命轮　 —— 攒够 cpu 算力就在自己的节拍上开一炮，主要输出；
 //   造物　 —— 不占出手，纯静态加成（算力上限、产出、增伤、暴击……）；
 //   地形　 —— 敌我同吃，熔岩掉血、雾障加盾、疾风加速、脆裂削血。
-// 40 拍打不完按剩余血量比例判。难度、当天曲线、地形表都在 js/bazaar-data.js。
+// 一直打到有人倒下；打到 TUNING.beats（1000）拍还没分出胜负，按剩余血量百分比判。难度、当天曲线、地形表都在 js/bazaar-data.js。
 
 
 
@@ -1383,6 +1383,9 @@ const STATS_KEY = 'zjtt:bazaar:v1';
 let run = null;
 let fight = null;
 let speed = 1;
+// 不再有 40 拍上限，一场可能打几百拍：拖得越久自动越快（100 拍后 ×2，300 拍后 ×4，600 拍后 ×8），再叠上玩家选的倍速
+const longMul = () => (fight && fight.t > 600 ? 8 : fight && fight.t > 300 ? 4 : fight && fight.t > 100 ? 2 : 1);
+const effSpeed = () => speed * longMul();
 let timer = 0;
 let last = 0;
 let playing = false;
@@ -1417,7 +1420,7 @@ const REALM_VAR = { CHAOS: '--chaos', CARO: '--caro', AEQUOR: '--aqua', ULTRA: '
 const REALM_CLS = { CHAOS: 'CH', CARO: 'CA', AEQUOR: 'AE', ULTRA: 'UL' };
 // 待机立绘：唤醒体是 GIF 动图（循环播放），主播彩蛋只有一张静图（.webp）
 // 资源地址带版本号：图集 / 立绘换过之后，线上和浏览器缓存里的旧文件不会和新数据错位（图标名字对不上就是这么来的）
-const ASSET_V = '3.1.6';
+const ASSET_V = '3.3.0';
 const idleUrl = (h) => `assets/bazaar/idle/${h.id}.${h.egg ? 'webp' : 'gif'}?v=${ASSET_V}`;
 const artHTML = (h) => (h ? `<img src="${idleUrl(h)}" alt="${h.n}" decoding="async">` : '');
 function setRealm(h, els) {
@@ -1520,8 +1523,8 @@ const TUT = [
     d: '这条蓝条是<b>算力</b>。唤醒体每隔几拍产一次算力（右边写着 产 X · 耗 Y），命轮开火要消耗算力。<b>产 ≥ 耗（绿色 +）</b>才够用；不够就去招更多人或「扩容」。上限满了产出会浪费。' },
   { at: 'wheels', t: '④ 命轮才是主要输出',
     d: '命轮有自己的节拍，走满后还要吃一口算力才开火；算力不够就卡在「等算力」。最多戴 3 条。别一味买贵的，先让产出跟上。下面的「造物」不出手，只给加成，最多装 4 件。' },
-  { at: 'btnFight', t: '⑤ 开战：40 拍定胜负',
-    d: '点「开战」自动打 40 拍。战斗里<b>每个人的立绘会被界域色从脚底漫到头顶，漫满就出手</b>；每一拍有一个鼓点，四拍一小节。右下角可以 ×1/×2/×3 加速或跳过。打满 40 拍按<b>剩余血量比例</b>判胜负，所以护盾、回血、削对面血都算。' },
+  { at: 'btnFight', t: '⑤ 开战：一直打到有人倒下',
+    d: '点「开战」自动开打，<b>一直打到有一方倒下</b>。战斗里<b>每个人的立绘会被界域色从脚底漫到头顶，漫满就出手</b>；每一拍有一个鼓点，四拍一小节。右下角可以 ×1/×2/×3 加速或跳过。极端情况下打满 1000 拍还没分出胜负，才按<b>剩余血量百分比</b>判。所以护盾、回血、续航越强越能熬死对面。' },
   { at: 'foeBar', t: '⑥ 看清今天的对手和地形',
     d: '顶上是今天的对手（血量、技能节拍）和地形（对双方都生效，比如熔岩每三拍两边掉血）。赢了拿金币进下一天，商店会变丰富；<b>别忘了每天先买再开战</b>。随时可以点右上角「?」重看这份指导。' },
 ];
@@ -2035,7 +2038,7 @@ function paintBars() {
   $('bCpuFill').style.width = pct(f.cpu, f.cpuCap) + '%';
   $('bCpuRate').textContent = `产 ${f.cpuGain || 0} · 剩 ${f.cpuCap - Math.floor(f.cpu)} 空间`;
   const ls = $('logSum');
-  if (ls) ls.textContent = `第 ${Math.min(f.t, TUNING.beats)} / ${TUNING.beats} 拍`;
+  if (ls) ls.textContent = `第 ${f.t} 拍 · 打到有人倒下${longMul() > 1 ? ` · 拖得久，自动 ×${longMul()}` : ''}`;
   for (const u of f.units) {
     const el = $(`bub${u.uid}`);   // 战斗页的单位 id 带 b 前缀：棋盘页那一份同样的单位在底下，不加前缀 $() 会先命中底下那份，战斗页的条就永远不动
     if (el) {
@@ -2043,7 +2046,7 @@ function paintBars() {
       const to = Math.min(100, pct(u.timer + 1, u.cd));
       const prev = parseFloat(el.dataset.p || '0');
       const reset = pct(u.timer, u.cd) < prev - 0.5;
-      el.style.transition = reset ? 'none' : `width ${Math.round(TUNING.beatMs / speed)}ms linear`;
+      el.style.transition = reset ? 'none' : `width ${Math.round(TUNING.beatMs / effSpeed())}ms linear`;
       el.style.width = (reset ? pct(u.timer, u.cd) : to) + '%';
       el.dataset.p = String(reset ? pct(u.timer, u.cd) : to);
     }
@@ -2053,7 +2056,7 @@ function paintBars() {
       const to = Math.min(100, pct(u.timer + 1, u.cd));
       const prev = parseFloat(cf.dataset.p || '0');
       const reset = pct(u.timer, u.cd) < prev - 0.5;
-      cf.style.transition = reset ? 'none' : `height ${Math.round(TUNING.beatMs / speed)}ms linear`;
+      cf.style.transition = reset ? 'none' : `height ${Math.round(TUNING.beatMs / effSpeed())}ms linear`;
       cf.style.height = (reset ? pct(u.timer, u.cd) : to) + '%';
       cf.dataset.p = String(reset ? pct(u.timer, u.cd) : to);
     }
@@ -2193,7 +2196,7 @@ function loop(now) {
   if (!playing) return;
   const dt = Math.min(120, now - last);
   last = now;
-  timer += dt * speed;
+  timer += dt * effSpeed();
   if (timer >= TUNING.beatMs) {
     timer -= TUNING.beatMs;
     const ev = C.stepFight(fight);
@@ -2210,7 +2213,7 @@ function endFight() {
   const win = fight.win;
   const timeout = fight.timeout;
   paintBars();
-  pushLog(win ? (timeout ? '四十拍打满，按剩血比例算你赢' : '对面撑不住了') : (timeout ? '四十拍打满，你的血更少' : '你被打趴下了'), win ? 'hi' : 'bad');
+  pushLog(win ? (timeout ? '打了 1000 拍还没分出胜负，按剩血百分比算你赢' : '对面撑不住了') : (timeout ? '打了 1000 拍还没分出胜负，你的剩血百分比更低' : '你被打趴下了'), win ? 'hi' : 'bad');
   if (win) sfx.win(); else sfx.lose();
   setTimeout(() => {
     const gain = C.settle(run, fight);
