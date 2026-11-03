@@ -1565,6 +1565,12 @@ const BOARD_SPEC = [
   { k: 'fk', gd: 'fk', i: 0, unit: '分', label: '最高分',
     sub: (v) => [Number(v[1]) > 0 ? `走到第 ${Number(v[1])} 天` : '', Number(v[2]) > 0 ? `结局 ${Number(v[2])} 种` : ''].filter(Boolean).join(' · '),
     tb: (v) => Number(v[1]) || 0 },
+  // 蚀界方块：按「无尽关最高分」排（gd.bk = [无尽最高分, 那一趟消的行数, 已过关卡数]）。
+  // 普通关是按评级过关，分高不代表什么；能无限比下去的只有无尽关，所以榜单只认它。
+  { k: 'bk', gd: 'bk', i: 0, unit: '分', label: '无尽关最高分',
+    sub: (v) => [Number(v[1]) > 0 ? `消 ${Number(v[1])} 行` : '',
+      Number(v[2]) > 0 ? `过 ${Number(v[2])} 关` : ''].filter(Boolean).join(' · '),
+    tb: (v) => Number(v[1]) || 0 },
   { k: 'dl', gd: 'dl', i: 0, unit: '分', label: '段位分',
     sub: (v) => {
       const t = Number(v[3]) || 0;

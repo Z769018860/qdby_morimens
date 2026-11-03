@@ -114,13 +114,15 @@ function playOne(levelId, seed, noise) {
   TIE = (seed ^ 0x9e3779b9) & 0x7fffffff;  // 每局固定，可复现
   const st = newRun(levelId, seed);
   let guard = 0;
+  let sssAt = null;
   while (!st.over && !st.win && guard++ < 4000) {
     const mv = bestMove(st, noise);
     if (!mv) break; // 一个能动的都没有
     const r = commit(st, mv.bid, mv.d);
     if (!r.ok) break;
+    if (st.sss && sssAt == null) sssAt = st.moves;
   }
-  return st;
+  return { st, sssAt };
 }
 
 const rows = [];
@@ -130,13 +132,19 @@ for (const lv of LEVELS) {
   let sumMoves = 0;
   let sumScore = 0;
   const lines = [];
+  let sumCombo = 0;
+  let sumRes = 0;
+  let sumSssAt = 0;
+  let sssCount = 0;
   for (let i = 0; i < N; i++) {
-    const st = playOne(lv.id, SEED + i * 7919, 0);
-    if (st.win) win++;
+    const { st, sssAt } = playOne(lv.id, SEED + i * 7919, 0);
+    if (st.sss) { win++; sssCount++; sumSssAt += sssAt; }
     lines.push(st.lines);
     sumLines += st.lines;
     sumMoves += st.moves;
     sumScore += st.score;
+    sumCombo += st.maxCombo;
+    sumRes += st.resonate;
   }
   lines.sort((a, b) => a - b);
   rows.push({
@@ -146,13 +154,16 @@ for (const lv of LEVELS) {
     med: lines[(N / 2) | 0],
     score: sumScore / N,
     used: sumMoves / N,
+    sssAt: sssCount ? sumSssAt / sssCount : 0,
+    combo: sumCombo / N,
+    res: sumRes / N,
     q1: lines[(N * 0.25) | 0],
     q3: lines[(N * 0.75) | 0],
   });
 }
 
 console.log(`局数 ${N}/关，种子 ${SEED}`);
-console.log('关  目标  回合  达标率  平均行  中位行  平均分  实际回合  25%~75%');
+console.log('关  目标  回合  SSS率  SSS回合  平均行  中位行  平均分  实际回合  连消  共鸣');
 let rateSum = 0;
 for (const r of rows) {
   rateSum += r.rate;
@@ -161,14 +172,16 @@ for (const r of rows) {
     String(r.goal || '—').padStart(4),
     String(r.moves || '—').padStart(4),
     (r.rate + '%').padStart(6),
+    (r.sssAt ? r.sssAt.toFixed(1) : '—').padStart(7),
     r.avg.toFixed(1).padStart(6),
     String(r.med).padStart(6),
     String(Math.round(r.score)).padStart(6),
     r.used.toFixed(1).padStart(7),
-    `${String(r.q1).padStart(4)}~${String(r.q3).padStart(4)}`,
+    r.combo.toFixed(1).padStart(5),
+    r.res.toFixed(1).padStart(5),
   );
 }
-console.log(`平均达标率 ${Math.round(rateSum / rows.length)}%`);
+console.log(`平均 SSS 率 ${Math.round(rateSum / rows.length)}%`);
 
 // 手抖 30% 的梯度（只看有目标的关）
 const noiseRows = [];
@@ -176,9 +189,9 @@ for (const lv of LEVELS) {
   if (!lv.goal) continue;
   let win = 0;
   for (let i = 0; i < N; i++) {
-    const st = playOne(lv.id, SEED + i * 104729, 0.3);
-    if (st.win) win++;
+    const { st } = playOne(lv.id, SEED + i * 104729, 0.3);
+    if (st.sss) win++;
   }
   noiseRows.push(Math.round((win / N) * 100));
 }
-console.log('30% 手抖达标率：' + noiseRows.join('/') + ' %');
+console.log('30% 手抖 SSS 率：' + noiseRows.join('/') + ' %');

@@ -4,22 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>蚀界方块 · 忘忘同人小游戏</title>
-<meta name="description" content="照着《Slidey》和《Slydris》的玩法：盘面上本来就有方块，按住一块左右滑，上面的方块失去支撑会掉下来补空；松手算一步，底下的水就顶上来一整行。填满一行消掉，顶到天花板就结束。四界域配色、唤醒体头像，十二关递进加一个无尽关。">
+<meta name="description" content="照着《Slidey》和《Slydris》的玩法：盘面上本来就有方块，按住一块左右滑，上面的方块失去支撑会掉下来补空；松手算一步，底下的水就顶上来一整行。填满一行消掉，顶到天花板就结束。四界域配色、唤醒体头像，十二关递进加一个无尽关；每关评级打到 SSS 才算过，到手后可以接着玩也可以收手。">
 <meta name="theme-color" content="#070b16">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
 <style>
 /* 这一页不引整站的 css/style.css：这里只要一个游戏壳。
    背景、方块、头像圆贴全部由 canvas 现画，整页只有一次脚本请求 + 四张头像。 */
 :root{
-  --bg:#070b16; --panel:#101a30; --panel2:#16223c; --line:rgba(120,170,240,.18);
-  --text:#e8eefc; --dim:#8494b4; --accent:#63d2ff; --gold:#e3b341;
+  --bg:#0a0f1e; --panel:#141d33; --panel2:#1c2745; --line:rgba(150,185,255,.2);
+  --text:#eef3ff; --dim:#93a3c4; --accent:#7cd8ff; --pink:#ff9ec4; --gold:#e3b341;
   --bad:#e8695f; --good:#57d8a0;
-  --r:12px;
+  --r:15px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overscroll-behavior:none}
 body{
-  background:radial-gradient(120% 80% at 50% 0%,#101c3a 0%,#070b16 62%),var(--bg);
+  background:
+    radial-gradient(78% 42% at 84% -8%,rgba(255,158,196,.16),transparent 62%),
+    radial-gradient(72% 40% at 8% 2%,rgba(124,216,255,.18),transparent 58%),
+    radial-gradient(130% 82% at 50% 104%,#17203f 0%,#080c1a 68%),
+    var(--bg);
   color:var(--text);overflow:hidden;
   font:15px/1.45 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
   -webkit-tap-highlight-color:transparent;
@@ -39,17 +43,17 @@ img{display:block}
 /* ---------------------------------------------------------------- 通用头 */
 .shead{flex:0 0 auto;display:flex;align-items:center;gap:10px}
 .back{
-  width:34px;height:34px;flex:0 0 34px;border-radius:10px;display:grid;place-items:center;
-  border:1px solid var(--line);background:rgba(16,26,48,.72);color:var(--text);
+  width:34px;height:34px;flex:0 0 34px;border-radius:12px;display:grid;place-items:center;
+  border:1px solid var(--line);background:rgba(18,27,50,.72);color:var(--text);
   text-decoration:none;font-size:16px;line-height:1;
 }
 .back:hover{border-color:var(--accent);color:var(--accent)}
 .shead h1{margin:0;font-size:17px;letter-spacing:.02em}
-.shead p{margin:1px 0 0;font-size:11.5px;color:var(--dim)}
+.shead p{margin:1px 0 0;font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .shead .sp{flex:1}
 .ico{
-  width:34px;height:34px;flex:0 0 34px;border-radius:10px;display:grid;place-items:center;
-  border:1px solid var(--line);background:rgba(16,26,48,.72);color:var(--dim);font-size:15px;
+  width:34px;height:34px;flex:0 0 34px;border-radius:12px;display:grid;place-items:center;
+  border:1px solid var(--line);background:rgba(18,27,50,.72);color:var(--dim);font-size:15px;
 }
 .ico:hover{border-color:var(--accent);color:var(--accent)}
 .ico.off{opacity:.42}
@@ -60,17 +64,30 @@ img{display:block}
   display:flex;flex-direction:column;gap:7px;padding:2px 2px 12px;
 }
 .lv{
+  position:relative;
   display:flex;align-items:center;gap:11px;width:100%;text-align:left;
   padding:10px 12px;border-radius:var(--r);
-  border:1px solid var(--line);background:linear-gradient(150deg,rgba(22,34,60,.92),rgba(13,21,38,.92));
+  border:1px solid var(--line);background:linear-gradient(150deg,rgba(24,36,64,.94),rgba(13,21,38,.94));
   transition:border-color .16s ease,transform .12s ease;
 }
+/* 卡片顶上的两只猫耳，跟方块呼应 */
+.lv::before,.lv::after{
+  content:"";position:absolute;top:-6px;width:13px;height:9.5px;pointer-events:none;
+  background:linear-gradient(180deg,rgba(52,74,118,.98),rgba(26,38,66,.98));
+  clip-path:polygon(50% 0,100% 100%,0 100%);
+  transition:background .16s ease;
+}
+.lv::before{left:15px}
+.lv::after{right:15px}
+.lv:not(.lock):hover::before,.lv:not(.lock):hover::after{background:rgba(124,216,255,.5)}
 .lv:not(.lock):hover{border-color:rgba(99,210,255,.5);transform:translateX(2px)}
 .lv.lock{opacity:.44}
 .lv .no{
-  flex:0 0 34px;height:34px;border-radius:9px;display:grid;place-items:center;
+  flex:0 0 34px;height:34px;border-radius:12px;display:grid;place-items:center;
   font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;
-  background:rgba(99,210,255,.12);color:#9fe0ff;border:1px solid rgba(99,210,255,.24);
+  background:linear-gradient(150deg,rgba(124,216,255,.4),rgba(255,158,196,.3));
+  color:#f2fbff;border:1px solid rgba(170,225,255,.46);
+  box-shadow:0 2px 10px rgba(90,160,255,.2),inset 0 1px 0 rgba(255,255,255,.22);
 }
 .lv.endless .no{background:rgba(227,179,65,.14);color:var(--gold);border-color:rgba(227,179,65,.32);font-size:17px}
 .lv .meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
@@ -79,15 +96,18 @@ img{display:block}
 .lv .meta em{font-size:11px;color:#7e90b2;font-style:normal}
 .lv .rk{flex:0 0 auto;font-size:12px;color:var(--dim)}
 .lv .rk b{
-  display:inline-block;min-width:22px;text-align:center;font-size:15px;font-weight:800;font-style:italic;
-  color:#8a93a8;
+  display:inline-block;min-width:24px;text-align:center;font-size:15px;font-weight:800;font-style:italic;
+  color:#8a93a8;border-radius:8px;padding:1px 0;
+  background:rgba(255,255,255,.05);
 }
 .lv .rk b[data-k="S"]{color:#ffd45e}
+.lv .rk b[data-k="SS"]{color:#a9e6ff;text-shadow:0 0 10px rgba(140,220,255,.35)}
+.lv .rk b[data-k="SSS"]{color:#ffd45e;text-shadow:0 0 12px rgba(255,212,94,.55)}
 .lv .rk b[data-k="A"]{color:#8fd0ff}
 .lv .rk b[data-k="B"]{color:#9ee6b4}
 .lv .rk b[data-k="C"]{color:#c9c2ae}
 .lv .rk b.none{font-size:12px;font-style:normal;color:#5d6b88}
-.sfoot{flex:0 0 auto;text-align:center;font-size:11px;color:#5f6f8e;padding:4px 0 2px}
+.sfoot{flex:0 0 auto;text-align:center;font-size:11px;color:#7486a8;padding:5px 0 3px;letter-spacing:.03em}
 
 /* ---------------------------------------------------------------- 开战前的关卡面板 */
 .precard{
@@ -108,6 +128,12 @@ img{display:block}
   background:rgba(9,15,30,.55);border:1px solid rgba(120,170,240,.14);
 }
 .pgoals b{color:var(--text);font-size:13px;font-variant-numeric:tabular-nums}
+.pgoals .phelp{
+  flex:0 0 auto;padding:7px 10px;border-radius:9px;font-size:12px;color:#9fdcff;
+  border:1px solid rgba(124,216,255,.3);background:rgba(124,216,255,.1);
+  white-space:nowrap;
+}
+.pgoals .phelp:active{transform:translateY(1px)}
 .precard h3{
   margin:14px 0 7px;font-size:12px;font-weight:600;color:#9fb0d0;letter-spacing:.06em;
   display:flex;align-items:center;gap:7px;
@@ -152,9 +178,9 @@ img{display:block}
 .prefoot .ghost:hover{border-color:var(--accent);color:var(--accent)}
 .primary{
   flex:1;display:flex;align-items:center;justify-content:center;gap:7px;
-  padding:12px;border-radius:12px;font-size:14.5px;font-weight:650;color:#04121f;
-  background:linear-gradient(140deg,#9fe4ff,#4fb8ee);
-  box-shadow:0 6px 22px rgba(80,190,255,.24);
+  padding:12px;border-radius:15px;font-size:14.5px;font-weight:700;color:#08131f;
+  background:linear-gradient(135deg,#a9e8ff,#7cc8ff 46%,#ffb6d2);
+  box-shadow:0 8px 26px rgba(110,190,255,.3);
 }
 .primary:active{transform:translateY(1px)}
 .primary svg{width:15px;height:15px}
@@ -165,13 +191,18 @@ img{display:block}
 .scbox{display:flex;align-items:baseline;gap:7px;min-width:0}
 .scbox #rank{
   font-size:26px;font-weight:800;font-style:italic;line-height:1;
-  color:#8a93a8;transition:color .3s ease;
+  color:#8a93a8;transition:color .3s ease;text-shadow:0 0 18px rgba(124,216,255,.26);
 }
 #rank[data-k="S"]{color:#ffd45e}
 #rank[data-k="A"]{color:#8fd0ff}
 #rank[data-k="B"]{color:#9ee6b4}
 #rank[data-k="C"]{color:#c9c2ae}
 #rank[data-k="D"]{color:#8a93a8}
+#rank[data-k="SS"]{color:#a9e6ff;text-shadow:0 0 14px rgba(140,220,255,.4)}
+.scbox #rank[data-k="SSS"]{
+  font-size:19px;letter-spacing:-.02em;color:#ffd45e;
+  text-shadow:0 0 16px rgba(255,205,90,.55);
+}
 .scbox #score{
   font-size:21px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;
 }
@@ -186,7 +217,10 @@ img{display:block}
   background:linear-gradient(90deg,#4fb8ee,#9fe4ff);
   transition:width .3s ease;
 }
-.stage{flex:1;min-height:0;position:relative;border-radius:14px;overflow:hidden}
+.stage{
+  flex:1;min-height:0;position:relative;border-radius:18px;overflow:hidden;
+  box-shadow:0 12px 40px rgba(90,140,255,.10),inset 0 0 0 1px rgba(160,200,255,.06);
+}
 #cv{display:block;width:100%;height:100%;touch-action:none}
 /* 提示不再浮在棋盘上：小屏上那一条会正好压住最底一行。
    现在借底部那一行显示，关卡名和提示交替出现。 */
@@ -195,12 +229,12 @@ img{display:block}
 .dock i{font-size:9.5px;color:var(--dim);font-style:normal;letter-spacing:.1em}
 .itembox{
   flex:1;display:flex;align-items:center;gap:8px;min-width:0;
-  padding:6px 9px;border-radius:11px;border:1px solid var(--line);background:rgba(16,26,48,.7);
+  padding:6px 9px;border-radius:14px;border:1px solid var(--line);background:rgba(18,27,50,.7);
 }
 #itemBar{display:flex;gap:8px;flex:1;justify-content:flex-start}
 .slot{
-  width:38px;height:38px;border-radius:9px;display:grid;place-items:center;
-  border:1px dashed rgba(120,170,240,.16);background:rgba(9,15,30,.42);color:#7f8fae;
+  width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
+  border:1px dashed rgba(150,185,255,.22);background:rgba(9,15,30,.42);color:#8b9bba;
 }
 .slot.has{
   border-style:solid;border-color:rgba(120,170,240,.34);color:#cfe0f8;
@@ -210,7 +244,7 @@ img{display:block}
 .slot.on{border-color:var(--gold);box-shadow:0 0 0 2px rgba(227,179,65,.24);color:#ffe9a8}
 .slot:disabled{opacity:.5;cursor:default}
 .slot .ic{width:21px;height:21px}
-.lvname{flex:0 0 auto;text-align:center;font-size:10.5px;color:#5f6f8e;letter-spacing:.06em;padding-bottom:1px}
+.lvname{flex:0 0 auto;text-align:center;font-size:10.5px;color:#8fa6cc;letter-spacing:.06em;padding-bottom:1px}
 
 /* 造物图标：纯 CSS，省一次图片请求 */
 .ic{
@@ -274,6 +308,39 @@ img{display:block}
   transform:translateY(8px) scale(.985);transition:transform .26s cubic-bezier(.2,.9,.3,1.1);
 }
 .ov.on .card{transform:none}
+
+/* ---- 新手教学（第一关自动弹一次） ---- */
+.tutcard{text-align:left}
+.tutno{
+  margin:0 0 9px;font-size:11px;letter-spacing:.16em;color:#8093b8;text-align:center;
+  font-variant-numeric:tabular-nums;
+}
+.tutart{
+  position:relative;height:96px;margin-bottom:12px;border-radius:14px;overflow:hidden;
+  border:1px solid rgba(120,170,240,.18);
+  background:radial-gradient(120% 110% at 50% 0%,rgba(96,176,255,.16),rgba(9,16,34,.55));
+}
+.tutart .ta{
+  position:absolute;inset:0;width:100%;height:100%;
+  opacity:0;transition:opacity .22s ease;
+}
+.tutart .ta.on{opacity:1}
+.tutart .tb{fill:rgba(124,216,255,.2);stroke:rgba(160,215,255,.6);stroke-width:1.3}
+.tutart .tb.dim{fill:rgba(124,216,255,.1);stroke:rgba(150,200,255,.34)}
+.tutart .tb.hot{fill:rgba(255,170,208,.3);stroke:#ffb6d2;stroke-width:1.6}
+.tutart .tb.ghost{fill:rgba(255,255,255,.06);stroke:rgba(190,225,255,.5);stroke-dasharray:4 3}
+.tutart .tb.rise{fill:rgba(124,216,255,.38);stroke:rgba(196,238,255,.9)}
+.tutart .tb.full{fill:rgba(255,214,94,.26);stroke:#ffd45e}
+.tutart .arw{fill:none;stroke:#9fdcff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tutart .spk{fill:none;stroke:#f4fff9;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 2px rgba(6,12,24,.55))}
+.tutart .sss{
+  fill:#ffd45e;font:900 30px/1 system-ui,-apple-system,"PingFang SC",sans-serif;
+  font-style:italic;letter-spacing:.04em;filter:drop-shadow(0 0 8px rgba(255,205,90,.45));
+}
+.tutcard h3{font-size:16.5px;margin:0 0 6px}
+.tutcard .why{font-size:13px;line-height:1.6;color:#a7b6d4;margin:0 0 14px;text-align:left}
+.tutcard .prime{margin-bottom:6px}
+.tutcard .link{width:100%}
 .card .big{
   font-size:58px;font-weight:900;font-style:italic;line-height:1;margin:2px 0 4px;
   color:#8a93a8;letter-spacing:-.02em;
@@ -283,6 +350,22 @@ img{display:block}
 .card .big[data-k="B"]{color:#9ee6b4}
 .card .big[data-k="C"]{color:#c9c2ae}
 .card .big[data-k="D"]{color:#7c879e}
+.card .big[data-k="SS"]{color:#a9e6ff;text-shadow:0 0 22px rgba(140,220,255,.4)}
+.card .big[data-k="SSS"]{
+  font-size:46px;letter-spacing:.03em;
+  background:linear-gradient(102deg,#fff6d0,#ffd45e 38%,#ffb04a 68%,#fff6d0);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 16px rgba(255,205,90,.5));
+  animation:sssPulse 1.9s ease-in-out infinite;
+}
+@keyframes sssPulse{
+  0%,100%{filter:drop-shadow(0 0 12px rgba(255,205,90,.42))}
+  50%{filter:drop-shadow(0 0 24px rgba(255,214,110,.72))}
+}
+.ssscard{
+  border-color:rgba(255,212,94,.4);
+  box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 46px rgba(255,200,80,.14);
+}
 .card h3{margin:0 0 3px;font-size:16px}
 .card .why{margin:0 0 14px;font-size:11.5px;color:var(--dim)}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
@@ -293,8 +376,8 @@ img{display:block}
 .stats i{display:block;font-size:10px;color:var(--dim);font-style:normal;letter-spacing:.08em}
 .stats b{font-size:16px;font-variant-numeric:tabular-nums}
 .card .prime{
-  width:100%;padding:11px;border-radius:11px;font-size:14px;font-weight:650;color:#04121f;
-  background:linear-gradient(140deg,#9fe4ff,#4fb8ee);margin-bottom:8px;
+  width:100%;padding:11px;border-radius:14px;font-size:14px;font-weight:700;color:#08131f;
+  background:linear-gradient(135deg,#a9e8ff,#7cc8ff 46%,#ffb6d2);margin-bottom:8px;
 }
 .card .minor{
   width:100%;padding:10px;border-radius:11px;font-size:13px;color:#a9b8d2;
@@ -320,7 +403,7 @@ img{display:block}
   .pi{width:50px}
 }
 </style>
-<meta name="build" content="9b22e61a30">
+<meta name="build" content="57d3273678">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -343,13 +426,14 @@ html{-webkit-tap-highlight-color:transparent}
       <a class="back" href="index.html" aria-label="返回首页">←</a>
       <div>
         <h1>蚀界方块</h1>
-        <p>按住一块左右滑，上面掉下来补空；松手水顶一行</p>
+        <p>按住一块横滑，松手水顶一行</p>
       </div>
       <span class="sp"></span>
+      <button class="ico" id="btnBgm" type="button" aria-label="音乐开关">♫</button>
       <button class="ico" id="btnSnd" type="button" aria-label="音效开关">♪</button>
     </header>
     <div class="lvlist" id="lvList"></div>
-    <footer class="sfoot">十二关递进 · 打通后开无尽 · 银芯按消行结算</footer>
+    <footer class="sfoot">评级打到 SSS 才算过 · 十二关递进 · 打通后开无尽</footer>
   </section>
 
   <!-- ================================================================ 开战面板 -->
@@ -360,8 +444,9 @@ html{-webkit-tap-highlight-color:transparent}
         <p id="preSub">浅层 · 无声</p>
       </div>
       <div class="pgoals">
-        <span>目标 <b id="preGoal">10 行</b></span>
+        <span>通关 <b id="preGoal">评级 SSS</b></span>
         <span>回合 <b id="preMoves">60</b></span>
+        <button class="phelp" id="preHelp" type="button" aria-label="新手教学">怎么玩</button>
       </div>
 
       <h3>关卡机制</h3>
@@ -397,7 +482,7 @@ html{-webkit-tap-highlight-color:transparent}
       </div>
       <span class="sp"></span>
       <div class="meta">
-        <div><i>已消</i><b id="goalTxt">0 / 10</b></div>
+        <div><i>消行</i><b id="goalTxt" title="到 SSS 大约要消这么多行">0 / 10</b></div>
         <div><i>回合</i><b id="moveTxt">0 / 60</b></div>
       </div>
     </header>
@@ -413,6 +498,59 @@ html{-webkit-tap-highlight-color:transparent}
     </div>
     <div class="lvname" id="lvName">无光区深潜 1</div>
   </section>
+</div>
+
+<!-- ==================================================================== 新手教学 -->
+<!-- 第一次进第一关会自动弹；之后从开战面板的「怎么玩」随时能再看一遍 -->
+<div class="ov" id="ovTut" hidden>
+  <div class="card tutcard">
+    <p class="tutno" id="tutNo">1 / 4</p>
+    <div class="tutart">
+      <svg class="tutdefs" width="0" height="0" aria-hidden="true">
+        <symbol id="catblk" viewBox="0 0 40 44" preserveAspectRatio="none">
+          <path d="M0 11 L6 0 L13 11 Q20 7.5 27 11 L34 0 L40 11 L40 36 A8 8 0 0 1 32 44 L8 44 A8 8 0 0 1 0 36 Z"/>
+        </symbol>
+      </svg>
+      <svg class="ta a1" viewBox="0 0 240 96" aria-hidden="true">
+        <use class="tb dim" href="#catblk" x="25" y="20" width="40" height="44"/>
+        <use class="tb hot" href="#catblk" x="75" y="20" width="40" height="44"/>
+        <use class="tb dim" href="#catblk" x="125" y="20" width="40" height="44"/>
+        <use class="tb dim" href="#catblk" x="175" y="20" width="40" height="44"/>
+        <path class="arw" d="M64 80H44m6-6-6 6 6 6"/>
+        <path class="arw" d="M126 80h20m-6-6 6 6-6 6"/>
+      </svg>
+      <svg class="ta a2" viewBox="0 0 240 96" aria-hidden="true">
+        <use class="tb ghost" href="#catblk" x="95" y="2" width="40" height="26"/>
+        <path class="arw drop" d="M115 32v10m-5-5 5 5 5-5"/>
+        <use class="tb dim" href="#catblk" x="52" y="46" width="40" height="34"/>
+        <use class="tb dim" href="#catblk" x="142" y="46" width="40" height="34"/>
+        <path class="arw" d="M92 24v10m-5-5 5 5 5-5" opacity="0"/>
+        <path class="arw" d="M38 78V66m-4 4 4-4 4 4"/>
+        <use class="tb rise" href="#catblk" x="30" y="82" width="180" height="12"/>
+      </svg>
+      <svg class="ta a3" viewBox="0 0 240 96" aria-hidden="true">
+        <use class="tb dim" href="#catblk" x="34" y="8" width="38" height="30"/>
+        <use class="tb dim" href="#catblk" x="101" y="8" width="38" height="30"/>
+        <use class="tb dim" href="#catblk" x="168" y="8" width="38" height="30"/>
+        <use class="tb full" href="#catblk" x="20" y="50" width="40" height="42"/>
+        <use class="tb full" href="#catblk" x="62" y="50" width="40" height="42"/>
+        <use class="tb full" href="#catblk" x="104" y="50" width="40" height="42"/>
+        <use class="tb full" href="#catblk" x="146" y="50" width="40" height="42"/>
+        <use class="tb full" href="#catblk" x="188" y="50" width="40" height="42"/>
+        <path class="spk" d="M112 70l8 8 16-20"/>
+      </svg>
+      <svg class="ta a4" viewBox="0 0 240 96" aria-hidden="true">
+        <use class="tb dim" href="#catblk" x="38" y="56" width="40" height="36"/>
+        <use class="tb dim" href="#catblk" x="100" y="56" width="40" height="36"/>
+        <use class="tb dim" href="#catblk" x="162" y="56" width="40" height="36"/>
+        <text class="sss" x="120" y="46" text-anchor="middle">SSS</text>
+      </svg>
+    </div>
+    <h3 id="tutTitle">盘上的方块本来就在</h3>
+    <p class="why" id="tutBody">方块一开局就浮在水里，不用等它往下掉。按住任意一块，左右滑。</p>
+    <button class="prime" id="tutNext" type="button">下一步</button>
+    <button class="link" id="tutSkip" type="button">跳过，直接开打</button>
+  </div>
 </div>
 
 <!-- ==================================================================== 结算 -->
@@ -434,6 +572,17 @@ html{-webkit-tap-highlight-color:transparent}
 </div>
 
 <!-- ==================================================================== 暂停 -->
+<!-- 评级摸到 SSS：通关到手，但不硬结算，让玩家自己决定要不要再赚点 -->
+<div class="ov" id="ovSSS" hidden>
+  <div class="card ssscard">
+    <div class="big" data-k="SSS">SSS</div>
+    <h3>这局成了</h3>
+    <p class="why">评级已经到 SSS，这关算过了。想再攒点银芯、多消几行就接着玩；不想冒险就现在收手。</p>
+    <button class="prime" id="sssGo" type="button">接着玩</button>
+    <button class="minor" id="sssDone" type="button">现在就结算</button>
+  </div>
+</div>
+
 <div class="ov" id="ovPause" hidden>
   <div class="card">
     <h3>暂停一下</h3>
@@ -465,7 +614,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/block.js?v=9b22e61a30"></script>
+<script type="module" src="js/b/block.js?v=57d3273678"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

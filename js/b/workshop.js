@@ -1915,9 +1915,29 @@ function fake() {
   };
 }
 
+// 蚀界方块 —— 读本机存档（zjtt:block:v2，由 js/block.js 的 bumpEndless 写）。
+// 只有无尽关能拿来比：普通关是按评级过关，分高不代表什么。
+function blockGame() {
+  const s = RD('block:v2') || {};
+  const best = s.best && typeof s.best === 'object' ? s.best : {};
+  const cleared = Object.keys(best).length;
+  const score = n(s.endlessBest);
+  const lines = n(s.endlessBestLines) || n(s.endless);
+  if (!score && !cleared) return { items: [], extra: '' };
+  return {
+    items: [
+      { k: '无尽最高分', v: score ? String(score) : '—' },
+      { k: '那一趟', v: lines ? lines + ' 行' : '—' },
+      { k: '已过关卡', v: cleared + ' 关' },
+    ],
+    extra: score ? '首页榜单按无尽关最高分排' : '还没打过无尽关',
+  };
+}
+
 // 卡片顺序 = 首页的排列顺序，用户不用重新认路
 const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', icon: '🔍', read: detective, tip: '六边形自走棋推演' },
   { k: 'merge', n: '合成大杜勒', href: 'merge.html', icon: '⚫', read: merge, tip: '两个同级合成下一级' },
+  { k: 'block', n: '蚀界方块', href: 'block.html', icon: '🟪', read: blockGame, tip: '按住一块横滑，松手水顶一行' },
   { k: 'bird', n: '是鸟弟就下100层', href: 'bird.html', icon: '🐤', read: bird, tip: '往下跳，别被扎到' },
   { k: 'binding', n: '校猫的结合', href: 'binding.html', icon: '🐱', read: binding, tip: '地牢射击' },
   { k: 'idle', n: '弥萨格挂机版', href: 'idle/', icon: '🏰', read: idle, tip: '五人队爬塔' },
@@ -2036,6 +2056,12 @@ const GD_SPEC = [
     ['走到', v[1] ? '第 ' + n(v[1]) + ' 天' : '—'],
     ['结局', n(v[2]) + ' 种'],
   ] },
+  // 蚀界方块：首页榜按「无尽关最高分」排，所以第 0 位必须是分数
+  { k: 'bk', n: '蚀界方块', f: (v) => [
+    ['无尽关最高分', v[0] ? String(n(v[0])) : '—'],
+    ['那一趟消行', v[1] ? n(v[1]) + ' 行' : '—'],
+    ['已过关卡', n(v[2]) + ' 关'],
+  ] },
 ];
 
 
@@ -2054,6 +2080,7 @@ const GD_SPEC = [
 //   ll 音游 [最高分(全谱), 最长连击, 玩过的谱面数]（首页榜按最高分排）
 //   rl 轮盘 [段位分, 胜, 负, 段位下标]（首页榜按段位分排，和决斗同构）
 //   bz 大巴扎 [最高分, 最远第几天, 开摊次数, 收满十二天的摊数]
+//   bk 蚀界方块 [无尽关最高分, 那一趟的行数, 已过关卡数]（首页榜按无尽关最高分排）
 // 单调递增的量（最好成绩、累计局数、时长），服务端合并时逐项取大即可。
 function digest() {
   const out = { at: Date.now() };
@@ -2119,6 +2146,10 @@ function digest() {
   try { fkB = JSON.parse(RAW('zjtt:fake:best') || 'null'); } catch { fkB = null; }
   fkB = fkB && typeof fkB === 'object' ? fkB : {};
   out.fk = [n(fkB.score), n(fkB.days), Object.keys(fkB.endings || {}).length];
+  // 蚀界方块：无尽的分数 [无尽关最高分, 那一趟的行数, 已过关卡数]。
+  // 榜单只认无尽关 —— 普通关是按评级过关，分高不代表什么，无尽关才是能无限比的一项。
+  const bkB = RD('block:v2') || {};
+  out.bk = [n(bkB.endlessBest), n(bkB.endlessBestLines) || n(bkB.endless), Object.keys(bkB.best || {}).length];
   return out;
 }
 return { fmtDur, DIFF_MERGE, DIFF_BIRD, GAMES, readAll, credits, GD_SPEC, digest };
