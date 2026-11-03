@@ -9,7 +9,7 @@
 import {
   LEVELS, REALMS, ITEMS, ITEM_BY_ID, SPECIALS,
   newRun, commit, pass, hasMove, useItem, previewMove,
-  blockAt, cellsOf, slideRange, rankOf, liveRank, creditOf, progress, levelMods,
+  blockAt, cellsOf, slideRange, rankOf, liveRank, creditOf, progress, sssLines, levelMods,
 } from './block-core.js';
 
 // ------------------------------------------------------------------ 四界域的代表唤醒体
@@ -1362,6 +1362,9 @@ function drainFx() {
     } else if (e.k === 'reroll') {
       sfx.reroll();
       pushFloat(B.x + B.w / 2, G.nextY + ch * 0.3, '重抽', '#bff0c6', 14);
+    } else if (e.k === 'sss') {
+      sfx.win();
+      showSSS();
     } else if (e.k === 'win') {
       sfx.win();
       finish(true);
@@ -1437,8 +1440,10 @@ function syncHud() {
   }
   if (hudCache.lines !== st.lines) {
     hudCache.lines = st.lines;
-    $('#goalTxt').textContent = st.goal ? `${st.lines} / ${st.goal}` : `${st.lines}`;
-    $('#goalBar').style.width = (st.goal ? Math.min(100, (st.lines / st.goal) * 100) : Math.min(100, (st.lines / 45) * 100)) + '%';
+    // 分母是「到 SSS 要消的行数」，进度条满 = 够得着 SSS
+    const need = sssLines(st);
+    $('#goalTxt').textContent = need ? `${st.lines} / ${need}` : `${st.lines}`;
+    $('#goalBar').style.width = Math.min(100, (st.lines / (need || 45)) * 100) + '%';
   }
   if (hudCache.moves !== st.moves || hudCache.maxMoves !== st.maxMoves) {
     hudCache.moves = st.moves;
@@ -1683,7 +1688,7 @@ function paintSelect() {
       <span class="meta">
         <b>${lv.t}</b>
         <i>${lv.sub}</i>
-        <em>${isEndless ? `最高 ${data.endless || 0} 行` : `目标 ${lv.goal} 行 · ${lv.moves} 回合`}${tags.length ? ' · ' + tags.join('/') : ''}</em>
+        <em>${isEndless ? `最高 ${data.endless || 0} 行` : `评级 SSS 过关 · ${lv.moves} 回合`}${tags.length ? ' · ' + tags.join('/') : ''}</em>
       </span>
       <span class="rk">${best ? `<b data-k="${best}">${best}</b>` : open ? '<b class="none">—</b>' : '锁'}</span>
     `;
@@ -1704,7 +1709,7 @@ function openPre(id) {
 
   $('#preTitle').textContent = lv.t;
   $('#preSub').textContent = lv.sub;
-  $('#preGoal').textContent = lv.endless ? '不限' : `${lv.goal} 行`;
+  $('#preGoal').textContent = lv.endless ? '不限' : '评级 SSS';
   $('#preMoves').textContent = lv.endless ? '不限' : `${lv.moves} 回合`;
 
   // 机制
@@ -1784,6 +1789,8 @@ function startRun() {
   G.mode = 'play';
   G.paused = false;
   G.resultShown = false;
+  G.sssShown = false;
+  hideSSS();
   G.parts.length = 0;
   G.floats.length = 0;
   G.comboText = null;
@@ -1824,6 +1831,22 @@ function startRun() {
 }
 
 // ------------------------------------------------------------------ 结束
+// 评级摸到 SSS：不直接结算，先问一句「接着玩还是现在收手」。
+// 继续玩不会再弹第二次 —— st.sss 已经锁住，怎么打都是 SSS。
+function showSSS() {
+  if (!G.st || G.sssShown) return;
+  G.sssShown = true;
+  const ov = $('#ovSSS');
+  ov.hidden = false;
+  requestAnimationFrame(() => ov.classList.add('on'));
+}
+
+function hideSSS() {
+  const ov = $('#ovSSS');
+  ov.classList.remove('on');
+  ov.hidden = true;
+}
+
 function finish(win) {
   const st = G.st;
   if (!st || G.resultShown) return;
@@ -1831,15 +1854,17 @@ function finish(win) {
   G.mode = 'over';
   bgmStop(0.6);
 
-  const rank = win ? rankOf(st) : 'D';
+  // 通关口径：摸到过 SSS 就算过 —— 之后接着玩到沉了，成绩照样算通关
+  const passed = win || !!st.sss;
+  const rank = passed ? rankOf(st) : 'D';
   const data = seenSave();
   const prev = data.best[st.lvId];
-  const order = { D: 0, C: 1, B: 2, A: 3, S: 4 };
-  if (win && (!prev || order[rank] > order[prev])) data.best[st.lvId] = rank;
+  const order = { D: 0, C: 1, B: 2, A: 3, S: 4, SS: 5, SSS: 6 };
+  if (passed && (!prev || order[rank] > order[prev])) data.best[st.lvId] = rank;
   if (st.lvId === 13 && st.lines > (data.endless || 0)) data.endless = st.lines;
 
   // 银芯按消行折算，只在第一次拿到这个评级时给（重刷不给，避免刷分）
-  const credit = win && (!prev || order[rank] > order[prev]) ? creditOf(st.lines) : (win ? 1 : 0);
+  const credit = passed && (!prev || order[rank] > order[prev]) ? creditOf(st.lines) : (passed ? 1 : 0);
   if (credit > 0) payCredits(credit);
   writeJSON(SAVE, data);
 
@@ -1849,19 +1874,20 @@ function finish(win) {
     requestAnimationFrame(() => ov.classList.add('on'));
     $('#resRank').textContent = rank;
     $('#resRank').dataset.k = rank;
-    $('#resTitle').textContent = win ? (st.lvId === 13 ? '走到尽头了' : '守住了') : '沉下去了';
-    $('#resWhy').textContent = win
-      ? (st.lvId === 13 ? `这一趟消了 ${st.lines} 行。` : `目标 ${st.goal} 行，你用了 ${st.moves} 回合。`)
+    $('#resTitle').textContent = passed ? (st.lvId === 13 ? '走到尽头了' : '过关') : '沉下去了';
+    $('#resWhy').textContent = passed
+      ? (st.lvId === 13 ? `这一趟消了 ${st.lines} 行。`
+        : `SSS 到手，共消 ${st.lines} 行、用了 ${st.moves} 回合${win ? '，自己收了手' : '，之后撑到沉了'}。`)
       : (st.reason || '没撑住');
     $('#resLines').textContent = st.lines;
     $('#resScore').textContent = st.score.toLocaleString('en-US');
     $('#resCombo').textContent = st.maxCombo > 1 ? `×${st.maxCombo}` : '—';
     $('#resCredit').textContent = credit > 0 ? `+${credit}` : '+0';
     const nextLv = LEVELS.find((x) => x.id === st.lvId + 1);
-    $('#resNext').hidden = !(win && nextLv);
+    $('#resNext').hidden = !(passed && nextLv);
     $('#resNext').textContent = nextLv ? `下一关：${nextLv.t}` : '';
-    $('#resRetry').textContent = win ? '再打一次' : '重来';
-  }, win ? 420 : 700);
+    $('#resRetry').textContent = passed ? '再打一次' : '重来';
+  }, passed ? 420 : 700);
 }
 
 function payCredits(n) {
@@ -1902,6 +1928,12 @@ function togglePause(force) {
 // ------------------------------------------------------------------ 绑定
 function bindUi() {
   $('#preGo').addEventListener('click', startRun);
+  $('#sssGo').addEventListener('click', () => hideSSS());
+  $('#sssDone').addEventListener('click', () => {
+    hideSSS();
+    if (G.st) G.st.win = true;
+    finish(true);
+  });
   $('#preBack').addEventListener('click', backToSelect);
   $('#btnPause').addEventListener('click', () => togglePause());
   $('#pContinue').addEventListener('click', () => togglePause(false));

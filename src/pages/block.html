@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>蚀界方块 · 忘忘同人小游戏</title>
-<meta name="description" content="照着《Slidey》和《Slydris》的玩法：盘面上本来就有方块，按住一块左右滑，上面的方块失去支撑会掉下来补空；松手算一步，底下的水就顶上来一整行。填满一行消掉，顶到天花板就结束。四界域配色、唤醒体头像，十二关递进加一个无尽关。">
+<meta name="description" content="照着《Slidey》和《Slydris》的玩法：盘面上本来就有方块，按住一块左右滑，上面的方块失去支撑会掉下来补空；松手算一步，底下的水就顶上来一整行。填满一行消掉，顶到天花板就结束。四界域配色、唤醒体头像，十二关递进加一个无尽关；每关评级打到 SSS 才算过，到手后可以接着玩也可以收手。">
 <meta name="theme-color" content="#070b16">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <style>
@@ -101,6 +101,8 @@ img{display:block}
   background:rgba(255,255,255,.05);
 }
 .lv .rk b[data-k="S"]{color:#ffd45e}
+.lv .rk b[data-k="SS"]{color:#a9e6ff;text-shadow:0 0 10px rgba(140,220,255,.35)}
+.lv .rk b[data-k="SSS"]{color:#ffd45e;text-shadow:0 0 12px rgba(255,212,94,.55)}
 .lv .rk b[data-k="A"]{color:#8fd0ff}
 .lv .rk b[data-k="B"]{color:#9ee6b4}
 .lv .rk b[data-k="C"]{color:#c9c2ae}
@@ -190,6 +192,11 @@ img{display:block}
 #rank[data-k="B"]{color:#9ee6b4}
 #rank[data-k="C"]{color:#c9c2ae}
 #rank[data-k="D"]{color:#8a93a8}
+#rank[data-k="SS"]{color:#a9e6ff;text-shadow:0 0 14px rgba(140,220,255,.4)}
+.scbox #rank[data-k="SSS"]{
+  font-size:19px;letter-spacing:-.02em;color:#ffd45e;
+  text-shadow:0 0 16px rgba(255,205,90,.55);
+}
 .scbox #score{
   font-size:21px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;
 }
@@ -304,6 +311,22 @@ img{display:block}
 .card .big[data-k="B"]{color:#9ee6b4}
 .card .big[data-k="C"]{color:#c9c2ae}
 .card .big[data-k="D"]{color:#7c879e}
+.card .big[data-k="SS"]{color:#a9e6ff;text-shadow:0 0 22px rgba(140,220,255,.4)}
+.card .big[data-k="SSS"]{
+  font-size:46px;letter-spacing:.03em;
+  background:linear-gradient(102deg,#fff6d0,#ffd45e 38%,#ffb04a 68%,#fff6d0);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 16px rgba(255,205,90,.5));
+  animation:sssPulse 1.9s ease-in-out infinite;
+}
+@keyframes sssPulse{
+  0%,100%{filter:drop-shadow(0 0 12px rgba(255,205,90,.42))}
+  50%{filter:drop-shadow(0 0 24px rgba(255,214,110,.72))}
+}
+.ssscard{
+  border-color:rgba(255,212,94,.4);
+  box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 46px rgba(255,200,80,.14);
+}
 .card h3{margin:0 0 3px;font-size:16px}
 .card .why{margin:0 0 14px;font-size:11.5px;color:var(--dim)}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
@@ -358,7 +381,7 @@ img{display:block}
       <button class="ico" id="btnSnd" type="button" aria-label="音效开关">♪</button>
     </header>
     <div class="lvlist" id="lvList"></div>
-    <footer class="sfoot">十二关递进 · 打通后开无尽 · 银芯按消行结算</footer>
+    <footer class="sfoot">评级打到 SSS 才算过 · 十二关递进 · 打通后开无尽</footer>
   </section>
 
   <!-- ================================================================ 开战面板 -->
@@ -369,7 +392,7 @@ img{display:block}
         <p id="preSub">浅层 · 无声</p>
       </div>
       <div class="pgoals">
-        <span>目标 <b id="preGoal">10 行</b></span>
+        <span>通关 <b id="preGoal">评级 SSS</b></span>
         <span>回合 <b id="preMoves">60</b></span>
       </div>
 
@@ -406,7 +429,7 @@ img{display:block}
       </div>
       <span class="sp"></span>
       <div class="meta">
-        <div><i>已消</i><b id="goalTxt">0 / 10</b></div>
+        <div><i>消行</i><b id="goalTxt" title="到 SSS 大约要消这么多行">0 / 10</b></div>
         <div><i>回合</i><b id="moveTxt">0 / 60</b></div>
       </div>
     </header>
@@ -443,6 +466,17 @@ img{display:block}
 </div>
 
 <!-- ==================================================================== 暂停 -->
+<!-- 评级摸到 SSS：通关到手，但不硬结算，让玩家自己决定要不要再赚点 -->
+<div class="ov" id="ovSSS" hidden>
+  <div class="card ssscard">
+    <div class="big" data-k="SSS">SSS</div>
+    <h3>这局成了</h3>
+    <p class="why">评级已经到 SSS，这关算过了。想再攒点银芯、多消几行就接着玩；不想冒险就现在收手。</p>
+    <button class="prime" id="sssGo" type="button">接着玩</button>
+    <button class="minor" id="sssDone" type="button">现在就结算</button>
+  </div>
+</div>
+
 <div class="ov" id="ovPause" hidden>
   <div class="card">
     <h3>暂停一下</h3>

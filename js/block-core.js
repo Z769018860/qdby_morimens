@@ -170,7 +170,7 @@ export function newRun(levelId, seed) {
     combo: 0, maxCombo: 0, bestClear: 0,
     items: ['hammer', 'bomb'], itemCap: 4,
     clearedCells: 0, gained: 0, resonate: 0, pity: 0,
-    over: false, win: false, reason: '',
+    over: false, win: false, sss: false, reason: '',   // sss：这一局已经摸到 SSS，通关到手（之后怎么死都算过）
     fx: [], anim: [],
     endless: !!lv.endless,
     seed: seed >>> 0,
@@ -537,10 +537,11 @@ export function pass(st) {
 
 function checkState(st) {
   if (st.over || st.win) return true;
-  if (st.goal && st.lines >= st.goal) {
-    st.win = true;
-    st.fx.push({ k: 'win' });
-    return true;
+  // 通关口径改成「评级到 SSS」：到了不强制结束，弹面板让玩家选继续还是现在就结算。
+  // 普通关才有这一关；无尽关本来是冲到死，按行数评级。
+  if (!st.endless && !st.sss && liveRank(st) === 'SSS') {
+    st.sss = true;
+    st.fx.push({ k: 'sss' });   // 不 return：这一步的水照常顶上来，流程不被打断
   }
   if (st.maxMoves && st.moves >= st.maxMoves) {
     st.over = true;
@@ -608,15 +609,25 @@ export function columnTop(st, c) {
   return st.rows;
 }
 
-// 实时评级：按「完成度 + 连消」算
+// 实时评级：完成度 × 连消 × 共鸣 × 省下的回合，满 100。
+// SSS 是通关线，一旦到了就锁死（接着玩不会掉级，不然「继续玩」变成惩罚）。
 export function liveRank(st) {
-  const p = st.goal ? st.lines / st.goal : Math.min(1, st.lines / 30);
-  let pt = p * 70 + Math.min(20, st.maxCombo * 4) + Math.min(10, st.resonate * 2);
+  if (st.sss) return 'SSS';
+  // 无尽关没有「通关」，一直冲到沉为止，评级只看消了多少行
+  if (st.endless) return st.lines >= 45 ? 'S' : st.lines >= 30 ? 'A' : st.lines >= 18 ? 'B' : st.lines >= 8 ? 'C' : 'D';
+  // 主项是「超了目标多少倍」：这游戏能控制的只有消得多不多，连消和共鸣只是加分项
+  // （实测贪心 AI 的连消均值才 1.1~1.8、共鸣 0.2~0.8，按满值归一化的话永远到不了 SSS）。
+  const ratio = st.goal ? st.lines / st.goal : st.lines / 30;
+  // 消到目标的 1.55 倍就是条满线；连消、共鸣各能补几分，够不着的局就往下掉一档
+  let pt = Math.min(1, ratio / 1.55) * 90
+    + Math.min(8, Math.max(0, st.maxCombo - 1) * 4)
+    + Math.min(6, st.resonate * 3);
   if (st.over && !st.win) pt *= 0.6;
-  return pt >= 92 ? 'S' : pt >= 78 ? 'A' : pt >= 58 ? 'B' : pt >= 34 ? 'C' : 'D';
+  return pt >= 90 ? 'SSS' : pt >= 80 ? 'SS' : pt >= 68 ? 'S' : pt >= 52 ? 'A' : pt >= 32 ? 'B' : pt >= 15 ? 'C' : 'D';
 }
 
 export function rankOf(st) {
+  if (st.sss) return 'SSS';
   if (st.win) {
     const spare = st.maxMoves ? Math.max(0, st.maxMoves - st.moves) / st.maxMoves : 0;
     const pt = 70 + spare * 40 + Math.min(20, st.maxCombo * 4) + Math.min(10, st.resonate * 2);
@@ -624,6 +635,11 @@ export function rankOf(st) {
   }
   if (st.endless) return st.lines >= 45 ? 'S' : st.lines >= 30 ? 'A' : st.lines >= 18 ? 'B' : st.lines >= 8 ? 'C' : 'D';
   return 'D';
+}
+
+// 到 SSS 大约要消多少行：目标 × 1.55（连消好的局能早一点，所以这是「够稳」的线）
+export function sssLines(st) {
+  return st.goal ? Math.max(st.goal, Math.round(st.goal * 1.55)) : 0;
 }
 
 export function creditOf(lines) {
