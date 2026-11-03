@@ -259,6 +259,7 @@ export function newRun(seed) {
     sanity: 100,
     caught: 0,           // 看破的伪人（门外拒掉 + 屋里打死）
     leaked: 0,           // 放进来的伪人
+    admitted: 0,         // 一共开过几次门
     refusedReal: 0,
     killedReal: 0,
     killedFake: 0,
@@ -360,6 +361,7 @@ export function decide(s, kind) {
   if (kind === 'admit') {
     if (v.fake) { key = 'admit-fake'; d = 0; s.leaked++; tag = '放进'; }
     else { key = 'admit-real'; d = +2; tag = '放行'; }
+    s.admitted = (s.admitted || 0) + 1;
   } else {
     if (v.fake) { key = 'refuse-fake'; d = +3; s.caught++; tag = '拦下'; }
     else { key = 'refuse-real'; d = -5; s.refusedReal++; tag = '误拒'; }
@@ -385,13 +387,20 @@ export function decide(s, kind) {
 export function nextVisitor(s) {
   const v = currentVisitor(s);
   if (v && !v.done) return null;
+  const to = (s.night + 1) * VISITS;
+  // 今夜的三个人走完就该收摊，别再顺手把明晚第一个放进来
+  if (s.vi + 1 >= to) return null;
   s.vi += 1;
-  if (s.vi >= s.list.length) return null;
   touch(s);
   return startVisit(s);
 }
 
-export const nightDone = (s) => s.list.every((v) => v.done) || s.vi >= s.list.length;
+// 今夜这 3 个都处理完了没有（不能看整局：21 个里绝大部分还没轮到）
+export const nightDone = (s) => {
+  const from = s.night * VISITS;
+  const to = from + VISITS;
+  return s.vi >= to - 1 && s.list.slice(from, to).every((v) => v.done);
+};
 
 /* -------------------------------------------------------- 夜里结算 */
 // 屋子里的伪人，一个一个挑人杀。挑的是**活着的真人**——它们不杀同类。
@@ -417,6 +426,8 @@ export function endNight(s) {
   if (s.night >= DAYS) { finish(s); return s.nightReport; }
   s.phase = 'day';
   s.day = s.night;
+  // 新的一天：每个人又能聊两句了
+  s.home.forEach((h) => { h.talkCount = 0; });
   // 每天补给一发：七夜下来一共 6+6 发，够用但不富余
   s.bullets = Math.min(9, s.bullets + 1);
   if (s.sanity <= 0) { s.over = true; s.ending = 'san'; }
@@ -445,9 +456,12 @@ export function talk(s, cid, topic) {
 
   if (topic === 'card') {
     // 让它把卡上那三行再报一遍，和档案对
+    out.pairs = [];
     (h.c.card || []).forEach((f) => {
+      const ok = h.claims[f] === h.c.facts[f];
+      out.pairs.push({ f, claim: h.claims[f], truth: h.c.facts[f], ok });
       out.lines.push(FIELD_LABEL[f] + '：' + h.claims[f]);
-      if (h.claims[f] !== h.c.facts[f]) out.lie = f;
+      if (!ok) out.lie = f;
     });
   } else if (topic === 'fact') {
     const left = (h.c.ask || []).filter((f) => !h.talked['f_' + f]);
@@ -556,7 +570,8 @@ export function finish(s) {
   else if (s.killedReal >= 3) s.ending = 'kill';
   else if (!reals.length && fakes.length >= 2) s.ending = 'leak';
   else if (!reals.length) s.ending = 'alone';
-  else if (s.leaked + s.refusedReal >= 0 && homeReal(s).length <= 2 && s.leaked + s.refusedReal >= 14) s.ending = 'shut';
+  else if ((s.admitted || 0) <= 2) s.ending = 'shut';
+  else if (clean && s.leaked === 0 && knownCount() >= 240) s.ending = 'archive';
   else if (clean && s.leaked === 0) s.ending = 'perfect';
   else {
     // 和你一起活到最后的是谁，决定这是哪个结局

@@ -248,6 +248,47 @@ h1,h2,h3,p{margin:0}
 .lrow.real em{color:var(--good); border-color:#2c4432}
 .logfoot{display:flex; flex-direction:column; gap:4px; margin-top:10px; font-size:10.5px; color:var(--dim2)}
 
+/* ------------------------------------------------------- 白天（屋里的人） */
+.isDay .tabs, .isDay .pane{display:none}
+.isDay .daypane{display:flex !important}
+.isDay .acts{display:none}
+.daypane{flex:1; min-height:0; flex-direction:column; gap:8px; padding:10px 12px 12px; overflow:auto}
+.daypane::-webkit-scrollbar{width:6px}
+.daypane::-webkit-scrollbar-thumb{background:#2c2e38}
+.reslist{flex:none; max-height:46vh; overflow:auto; display:flex; flex-direction:column; gap:5px}
+.reslist::-webkit-scrollbar{width:6px}
+.reslist::-webkit-scrollbar-thumb{background:#2c2e38}
+.res{
+  display:flex; align-items:center; gap:8px; padding:5px 7px; text-align:left; cursor:pointer;
+  background:var(--panel); border:var(--px) solid var(--line); color:var(--text);
+}
+.res:hover{border-color:var(--line2)}
+.res.on{border-color:var(--gold); background:#1a1710}
+.res .spr{flex:0 0 auto; background-color:#0a0b0e}
+.res .rname{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px}
+.res .rname b{font-size:12.5px; font-weight:400; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.res .rname em{font-style:normal; font-size:10px; color:var(--dim2)}
+.res .rleft{font-size:10px; color:var(--dim); white-space:nowrap}
+.res.dead{opacity:.42; cursor:default; filter:grayscale(.7)}
+.res.dead .rname b{text-decoration:line-through}
+.dtopics{border-top:1px solid var(--line); padding-top:6px; display:flex; flex-wrap:wrap; gap:5px}
+.dtopics .fhead{width:100%}
+.dtopics .btn.small{font-size:11px; padding:5px 8px}
+.dshot{border-top:1px solid var(--line); padding-top:7px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.dshot .hint{margin:0; flex:1; min-width:120px}
+.dfoot{border-top:1px solid var(--line); padding-top:8px}
+.dfoot .btn{width:100%}
+/* 记录页里的一行底细 */
+.trow{display:grid; grid-template-columns:44px 1fr auto; gap:2px 6px; align-items:baseline; padding:3px 0; border-bottom:1px dashed rgba(255,255,255,.05)}
+.tl{font-size:10.5px; color:var(--dim); letter-spacing:.1em}
+.tv{font-size:12px; color:var(--text); overflow-wrap:anywhere}
+.tk{font-style:normal; font-size:10px; color:var(--dim2); white-space:nowrap}
+.tk.ok{color:var(--good)}
+.tk.bad{color:var(--blood2)}
+.trow.bad .tv{text-decoration:underline wavy rgba(179,65,63,.6)}
+.odd{font-size:12px; color:var(--blood2); line-height:1.7; margin:8px 0 0}
+.drep{border-top:1px dashed var(--line); margin-top:8px; padding-top:6px}
+
 /* 对话框 */
 .talk{
   grid-column:1; grid-row:2; min-height:126px; display:flex; flex-direction:column; gap:6px;
@@ -303,6 +344,9 @@ h1,h2,h3,p{margin:0}
 .citem:hover{border-color:var(--line2); background:#171922}
 .citem span{font-size:10px; color:#b8b2a6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
 .citem.lock{opacity:.45; cursor:default}
+.citem .ck{font-style:normal; font-size:9px; color:var(--dim2)}
+.citem.has .ck{color:var(--gold)}
+.fv.dim{color:var(--dim2)}
 .citem .spr{flex:none}
 .cdetail{display:flex; gap:14px; align-items:flex-start}
 .cinfo{min-width:0; flex:1}
@@ -359,6 +403,7 @@ h1,h2,h3,p{margin:0}
         <button class="btn ghost" id="btnHelp" type="button">玩法</button>
       </div>
       <p class="best" id="bestLine"></p>
+      <p class="tiny" id="knownLine"></p>
       <p class="tiny">62 名唤醒体 + 11 位 B 站主播，全员登场。<br>粉丝向二创；角色与素材版权归原权利方所有。</p>
     </div>
     <div class="tdoor" aria-hidden="true">
@@ -394,6 +439,7 @@ h1,h2,h3,p{margin:0}
         <div class="pane" data-pane="card" id="paneCard"></div>
         <div class="pane" data-pane="file" id="paneFile" hidden></div>
         <div class="pane" data-pane="log" id="paneLog" hidden></div>
+        <div class="daypane" id="sideDay" hidden></div>
       </aside>
 
       <div class="talk">

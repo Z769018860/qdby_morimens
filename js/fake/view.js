@@ -55,8 +55,10 @@ export function makeScene(canvas, art) {
   ctx.imageSmoothingEnabled = false;
 
   const st = {
-    mode: 'idle',       // idle | visit | black | end
+    mode: 'idle',       // idle | visit | black | day | end
     char: null,
+    room: 0,            // 白天的沙发上坐几个人
+    ammo: 6,            // 白天茶几上摆几发子弹
     red: 0,
     flash: 0,
     shake: 0,
@@ -367,8 +369,88 @@ export function makeScene(canvas, art) {
     rect(cx - 1, cy - 8, 2, 8, '#6f6a60');
   }
 
+  // 白天：镜头转过来，你面对的是屋里。比夜里亮，但窗子外面永远是灰的。
+  // 沙发上坐几个人＝屋里还有几个活人，是这一屏唯一要传达的信息。
+  function drawRoom(t) {
+    rect(0, 0, W, H, '#1d1e22');
+    // 墙：竖条纹比夜里浅一档
+    for (let x = 0; x < W; x += 18) rect(x, 18, 3, 180, x % 36 ? '#232429' : '#181a1e');
+    ctx.fillStyle = 'rgba(255,255,255,.02)';
+    for (let y = 20; y < 198; y += 4) {
+      for (let x = (y % 8 === 0 ? 0 : 2); x < W; x += 4) ctx.fillRect(x, y, 1, 1);
+    }
+    // 天花板阴影
+    const ct = ctx.createLinearGradient(0, 0, 0, 40);
+    ct.addColorStop(0, 'rgba(0,0,0,.8)');
+    ct.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = ct;
+    ctx.fillRect(0, 0, W, 40);
+
+    // 窗：白天也是灰的，只在中间亮一块
+    const WX = 46, WY = 46, WW = 128, WH = 96;
+    rect(WX - 6, WY - 6, WW + 12, WH + 12, '#15171a');
+    rect(WX, WY, WW, WH, '#3c4249');
+    const wg = ctx.createLinearGradient(WX, WY, WX, WY + WH);
+    wg.addColorStop(0, '#6c7681');
+    wg.addColorStop(0.55, '#4e565f');
+    wg.addColorStop(1, '#33383e');
+    ctx.fillStyle = wg;
+    ctx.fillRect(WX, WY, WW, WH);
+    // 百叶
+    for (let i = 0; i < 11; i++) rect(WX + 2, WY + 6 + i * 8, WW - 4, 2, 'rgba(20,22,26,.55)');
+    rect(WX + WW / 2 - 1, WY, 2, WH, '#20242a');
+    // 窗台上的水杯和空罐头
+    rect(WX + 14, WY + WH - 8, 8, 8, '#585f68');
+    rect(WX + 14, WY + WH - 8, 8, 1, '#78808a');
+    rect(WX + 96, WY + WH - 6, 7, 6, '#4a5058');
+
+    // 沙发上坐着的人：几个活人就是几个剪影（细节在下面的住户条里）
+    const n = Math.min(6, st.room || 0);
+    for (let i = 0; i < n; i++) {
+      const bx = 250 + i * 34;
+      const bob = Math.sin(t * 0.9 + i * 1.7) * 1.2;
+      // 头
+      ctx.fillStyle = '#0d0e11';
+      ctx.beginPath();
+      ctx.arc(bx + 12, 138 + bob, 9, 0, 6.284);
+      ctx.fill();
+      // 肩
+      rect(bx, 146 + bob, 24, 34, '#0d0e11');
+      rect(bx + 2, 146 + bob, 20, 3, '#171a1e');
+      // 偶尔动一下：活人坐着也不完全静止
+      if ((Math.floor(t * 3 + i * 5) % 17) === 0) rect(bx + 8, 152 + bob, 8, 2, '#2b3037');
+    }
+
+    // 沙发：靠背 + 坐垫 + 扶手
+    rect(236, 118, 220, 62, '#241c17');
+    rect(236, 118, 220, 3, '#33281f');
+    rect(232, 172, 228, 22, '#2b211a');
+    rect(232, 172, 228, 2, '#3a2c22');
+    rect(228, 130, 14, 62, '#1f1813');
+    rect(450, 130, 14, 62, '#1f1813');
+    // 地板
+    rect(0, 194, W, 76, '#15161a');
+    for (let i = 0; i < 7; i++) rect(0, 196 + i * 10, W, 1, 'rgba(255,255,255,.018)');
+    // 茶几：上面摆着左轮和没数完的子弹
+    rect(150, 206, 150, 8, '#2a2119');
+    rect(150, 206, 150, 2, '#3d3023');
+    rect(158, 214, 6, 26, '#1d1712');
+    rect(286, 214, 6, 26, '#1d1712');
+    rect(176, 200, 30, 5, '#1b1e24');
+    rect(176, 200, 30, 1, '#454b57');
+    rect(178, 205, 8, 5, '#15171c');
+    for (let i = 0; i < (st.ammo != null ? st.ammo : 6); i++) {
+      rect(224 + i * 7, 200, 4, 6, '#8a6b32');
+      rect(224 + i * 7, 200, 4, 1, '#c9a24e');
+    }
+    // 吊灯（白天是关着的，只剩个罩子）
+    rect(376, 0, 2, 20, '#0e0e11');
+    ctx.fillStyle = '#26262b';
+    ctx.beginPath(); ctx.moveTo(360, 34); ctx.lineTo(394, 34); ctx.lineTo(386, 20); ctx.lineTo(368, 20); ctx.closePath(); ctx.fill();
+    rect(366, 33, 22, 3, '#33333a');
+  }
+
   function overlay(t) {
-    // 扫描线
     ctx.fillStyle = 'rgba(0,0,0,.16)';
     for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
     // 噪点
@@ -398,6 +480,12 @@ export function makeScene(canvas, art) {
     ctx.save();
     if (st.shake > 0.01) {
       ctx.translate((Math.random() - .5) * st.shake * 5, (Math.random() - .5) * st.shake * 5);
+    }
+    if (st.mode === 'day') {
+      drawRoom(t);
+      overlay(t);
+      ctx.restore();
+      return;
     }
     wall(t);
     props(t);
@@ -435,6 +523,8 @@ export function makeScene(canvas, art) {
   return {
     setChar(c) { st.char = c; st.mode = c ? 'visit' : 'idle'; },
     setMode(m) { st.mode = m; if (m !== 'visit') st.char = null; },
+    setRoom(n) { st.room = n; },
+    setAmmo(n) { st.ammo = n; },
     red(n) { st.red = Math.max(st.red, n); },
     flash(n) { st.flash = Math.max(st.flash, n); },
     shake(n) { st.shake = Math.max(st.shake, n); },

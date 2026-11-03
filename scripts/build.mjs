@@ -691,6 +691,11 @@ function genFake() {
       if (!c.facts[k]) throw new Error(`寻找伪人：「${c.n}」缺 ${k}`);
     }
     if (!c.card.length || !c.ask.length) throw new Error(`寻找伪人：「${c.n}」的核对项是空的`);
+    // 底细：判断隐晦破绽全靠它，缺一项就等于那个人永远查不出来
+    const tr = c.tr || {};
+    for (const k of ['self', 'eye', 'item', 'line']) {
+      if (!tr[k]) throw new Error(`寻找伪人：「${c.n}」缺底细 ${k}（先跑 python scripts/build_fake_traits.py）`);
+    }
     if (c.k === 'a') {
       slots.idle++; slots.card++; slots.bust++;
     } else {

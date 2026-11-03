@@ -424,8 +424,17 @@ button{font:inherit;color:inherit}
   .cards{grid-auto-rows:74px}
   .wh .sp{width:22px;height:22px}
 }
+/* 宽屏（平板 / 桌面）：商店两列，单列在 580px 宽下会拉成一排空盒子 */
+@media (min-width:560px){
+  .cards{grid-template-columns:1fr 1fr;grid-auto-rows:minmax(74px,1fr);align-content:stretch}
+  .card{padding:8px 10px 7px;justify-content:flex-end}
+  .card .sp{left:50%;top:38%;width:78px;height:78px;transform:translate(-50%,-50%);--cut:10px;background-color:transparent}
+  .card .ca{width:70%;top:6px;bottom:46px;background-position:50% 100%;background-size:contain;
+    opacity:.4;-webkit-mask-image:linear-gradient(to top,transparent,#000 34%);mask-image:linear-gradient(to top,transparent,#000 34%)}
+  .card .cn{padding-right:34px}
+}
 </style>
-<meta name="build" content="4e525c60a1">
+<meta name="build" content="5eedc80876">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -614,7 +623,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/bazaar.js?v=4e525c60a1"></script>
+<script type="module" src="js/b/bazaar.js?v=5eedc80876"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
