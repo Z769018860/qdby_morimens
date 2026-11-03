@@ -11,15 +11,19 @@
 /* 这一页不引整站的 css/style.css：这里只要一个游戏壳。
    背景、方块、头像圆贴全部由 canvas 现画，整页只有一次脚本请求 + 四张头像。 */
 :root{
-  --bg:#070b16; --panel:#101a30; --panel2:#16223c; --line:rgba(120,170,240,.18);
-  --text:#e8eefc; --dim:#8494b4; --accent:#63d2ff; --gold:#e3b341;
+  --bg:#0a0f1e; --panel:#141d33; --panel2:#1c2745; --line:rgba(150,185,255,.2);
+  --text:#eef3ff; --dim:#93a3c4; --accent:#7cd8ff; --pink:#ff9ec4; --gold:#e3b341;
   --bad:#e8695f; --good:#57d8a0;
-  --r:12px;
+  --r:15px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overscroll-behavior:none}
 body{
-  background:radial-gradient(120% 80% at 50% 0%,#101c3a 0%,#070b16 62%),var(--bg);
+  background:
+    radial-gradient(78% 42% at 84% -8%,rgba(255,158,196,.16),transparent 62%),
+    radial-gradient(72% 40% at 8% 2%,rgba(124,216,255,.18),transparent 58%),
+    radial-gradient(130% 82% at 50% 104%,#17203f 0%,#080c1a 68%),
+    var(--bg);
   color:var(--text);overflow:hidden;
   font:15px/1.45 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
   -webkit-tap-highlight-color:transparent;
@@ -39,8 +43,8 @@ img{display:block}
 /* ---------------------------------------------------------------- 通用头 */
 .shead{flex:0 0 auto;display:flex;align-items:center;gap:10px}
 .back{
-  width:34px;height:34px;flex:0 0 34px;border-radius:10px;display:grid;place-items:center;
-  border:1px solid var(--line);background:rgba(16,26,48,.72);color:var(--text);
+  width:34px;height:34px;flex:0 0 34px;border-radius:12px;display:grid;place-items:center;
+  border:1px solid var(--line);background:rgba(18,27,50,.72);color:var(--text);
   text-decoration:none;font-size:16px;line-height:1;
 }
 .back:hover{border-color:var(--accent);color:var(--accent)}
@@ -48,8 +52,8 @@ img{display:block}
 .shead p{margin:1px 0 0;font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .shead .sp{flex:1}
 .ico{
-  width:34px;height:34px;flex:0 0 34px;border-radius:10px;display:grid;place-items:center;
-  border:1px solid var(--line);background:rgba(16,26,48,.72);color:var(--dim);font-size:15px;
+  width:34px;height:34px;flex:0 0 34px;border-radius:12px;display:grid;place-items:center;
+  border:1px solid var(--line);background:rgba(18,27,50,.72);color:var(--dim);font-size:15px;
 }
 .ico:hover{border-color:var(--accent);color:var(--accent)}
 .ico.off{opacity:.42}
@@ -60,17 +64,30 @@ img{display:block}
   display:flex;flex-direction:column;gap:7px;padding:2px 2px 12px;
 }
 .lv{
+  position:relative;
   display:flex;align-items:center;gap:11px;width:100%;text-align:left;
   padding:10px 12px;border-radius:var(--r);
-  border:1px solid var(--line);background:linear-gradient(150deg,rgba(22,34,60,.92),rgba(13,21,38,.92));
+  border:1px solid var(--line);background:linear-gradient(150deg,rgba(24,36,64,.94),rgba(13,21,38,.94));
   transition:border-color .16s ease,transform .12s ease;
 }
+/* 卡片顶上的两只猫耳，跟方块呼应 */
+.lv::before,.lv::after{
+  content:"";position:absolute;top:-6px;width:13px;height:9.5px;pointer-events:none;
+  background:linear-gradient(180deg,rgba(52,74,118,.98),rgba(26,38,66,.98));
+  clip-path:polygon(50% 0,100% 100%,0 100%);
+  transition:background .16s ease;
+}
+.lv::before{left:15px}
+.lv::after{right:15px}
+.lv:not(.lock):hover::before,.lv:not(.lock):hover::after{background:rgba(124,216,255,.5)}
 .lv:not(.lock):hover{border-color:rgba(99,210,255,.5);transform:translateX(2px)}
 .lv.lock{opacity:.44}
 .lv .no{
-  flex:0 0 34px;height:34px;border-radius:9px;display:grid;place-items:center;
+  flex:0 0 34px;height:34px;border-radius:12px;display:grid;place-items:center;
   font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;
-  background:rgba(99,210,255,.12);color:#9fe0ff;border:1px solid rgba(99,210,255,.24);
+  background:linear-gradient(150deg,rgba(124,216,255,.4),rgba(255,158,196,.3));
+  color:#f2fbff;border:1px solid rgba(170,225,255,.46);
+  box-shadow:0 2px 10px rgba(90,160,255,.2),inset 0 1px 0 rgba(255,255,255,.22);
 }
 .lv.endless .no{background:rgba(227,179,65,.14);color:var(--gold);border-color:rgba(227,179,65,.32);font-size:17px}
 .lv .meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
@@ -79,15 +96,16 @@ img{display:block}
 .lv .meta em{font-size:11px;color:#7e90b2;font-style:normal}
 .lv .rk{flex:0 0 auto;font-size:12px;color:var(--dim)}
 .lv .rk b{
-  display:inline-block;min-width:22px;text-align:center;font-size:15px;font-weight:800;font-style:italic;
-  color:#8a93a8;
+  display:inline-block;min-width:24px;text-align:center;font-size:15px;font-weight:800;font-style:italic;
+  color:#8a93a8;border-radius:8px;padding:1px 0;
+  background:rgba(255,255,255,.05);
 }
 .lv .rk b[data-k="S"]{color:#ffd45e}
 .lv .rk b[data-k="A"]{color:#8fd0ff}
 .lv .rk b[data-k="B"]{color:#9ee6b4}
 .lv .rk b[data-k="C"]{color:#c9c2ae}
 .lv .rk b.none{font-size:12px;font-style:normal;color:#5d6b88}
-.sfoot{flex:0 0 auto;text-align:center;font-size:11px;color:#5f6f8e;padding:4px 0 2px}
+.sfoot{flex:0 0 auto;text-align:center;font-size:11px;color:#7486a8;padding:5px 0 3px;letter-spacing:.03em}
 
 /* ---------------------------------------------------------------- 开战前的关卡面板 */
 .precard{
@@ -152,9 +170,9 @@ img{display:block}
 .prefoot .ghost:hover{border-color:var(--accent);color:var(--accent)}
 .primary{
   flex:1;display:flex;align-items:center;justify-content:center;gap:7px;
-  padding:12px;border-radius:12px;font-size:14.5px;font-weight:650;color:#04121f;
-  background:linear-gradient(140deg,#9fe4ff,#4fb8ee);
-  box-shadow:0 6px 22px rgba(80,190,255,.24);
+  padding:12px;border-radius:15px;font-size:14.5px;font-weight:700;color:#08131f;
+  background:linear-gradient(135deg,#a9e8ff,#7cc8ff 46%,#ffb6d2);
+  box-shadow:0 8px 26px rgba(110,190,255,.3);
 }
 .primary:active{transform:translateY(1px)}
 .primary svg{width:15px;height:15px}
@@ -165,7 +183,7 @@ img{display:block}
 .scbox{display:flex;align-items:baseline;gap:7px;min-width:0}
 .scbox #rank{
   font-size:26px;font-weight:800;font-style:italic;line-height:1;
-  color:#8a93a8;transition:color .3s ease;
+  color:#8a93a8;transition:color .3s ease;text-shadow:0 0 18px rgba(124,216,255,.26);
 }
 #rank[data-k="S"]{color:#ffd45e}
 #rank[data-k="A"]{color:#8fd0ff}
@@ -186,7 +204,10 @@ img{display:block}
   background:linear-gradient(90deg,#4fb8ee,#9fe4ff);
   transition:width .3s ease;
 }
-.stage{flex:1;min-height:0;position:relative;border-radius:14px;overflow:hidden}
+.stage{
+  flex:1;min-height:0;position:relative;border-radius:18px;overflow:hidden;
+  box-shadow:0 12px 40px rgba(90,140,255,.10),inset 0 0 0 1px rgba(160,200,255,.06);
+}
 #cv{display:block;width:100%;height:100%;touch-action:none}
 /* 提示不再浮在棋盘上：小屏上那一条会正好压住最底一行。
    现在借底部那一行显示，关卡名和提示交替出现。 */
@@ -195,12 +216,12 @@ img{display:block}
 .dock i{font-size:9.5px;color:var(--dim);font-style:normal;letter-spacing:.1em}
 .itembox{
   flex:1;display:flex;align-items:center;gap:8px;min-width:0;
-  padding:6px 9px;border-radius:11px;border:1px solid var(--line);background:rgba(16,26,48,.7);
+  padding:6px 9px;border-radius:14px;border:1px solid var(--line);background:rgba(18,27,50,.7);
 }
 #itemBar{display:flex;gap:8px;flex:1;justify-content:flex-start}
 .slot{
-  width:38px;height:38px;border-radius:9px;display:grid;place-items:center;
-  border:1px dashed rgba(120,170,240,.16);background:rgba(9,15,30,.42);color:#7f8fae;
+  width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
+  border:1px dashed rgba(150,185,255,.22);background:rgba(9,15,30,.42);color:#8b9bba;
 }
 .slot.has{
   border-style:solid;border-color:rgba(120,170,240,.34);color:#cfe0f8;
@@ -210,7 +231,7 @@ img{display:block}
 .slot.on{border-color:var(--gold);box-shadow:0 0 0 2px rgba(227,179,65,.24);color:#ffe9a8}
 .slot:disabled{opacity:.5;cursor:default}
 .slot .ic{width:21px;height:21px}
-.lvname{flex:0 0 auto;text-align:center;font-size:10.5px;color:#5f6f8e;letter-spacing:.06em;padding-bottom:1px}
+.lvname{flex:0 0 auto;text-align:center;font-size:10.5px;color:#8fa6cc;letter-spacing:.06em;padding-bottom:1px}
 
 /* 造物图标：纯 CSS，省一次图片请求 */
 .ic{
@@ -293,8 +314,8 @@ img{display:block}
 .stats i{display:block;font-size:10px;color:var(--dim);font-style:normal;letter-spacing:.08em}
 .stats b{font-size:16px;font-variant-numeric:tabular-nums}
 .card .prime{
-  width:100%;padding:11px;border-radius:11px;font-size:14px;font-weight:650;color:#04121f;
-  background:linear-gradient(140deg,#9fe4ff,#4fb8ee);margin-bottom:8px;
+  width:100%;padding:11px;border-radius:14px;font-size:14px;font-weight:700;color:#08131f;
+  background:linear-gradient(135deg,#a9e8ff,#7cc8ff 46%,#ffb6d2);margin-bottom:8px;
 }
 .card .minor{
   width:100%;padding:10px;border-radius:11px;font-size:13px;color:#a9b8d2;
@@ -320,7 +341,7 @@ img{display:block}
   .pi{width:50px}
 }
 </style>
-<meta name="build" content="486c3cd58f">
+<meta name="build" content="cc3311d927">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -466,7 +487,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/block.js?v=486c3cd58f"></script>
+<script type="module" src="js/b/block.js?v=cc3311d927"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，

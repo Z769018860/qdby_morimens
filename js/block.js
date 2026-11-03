@@ -406,8 +406,8 @@ function layoutBoard(w, h) {
   // 这一版没有手上的方块，玩家唯一的情报就是「下一步水会顶上来什么」，所以这槽必须显眼。
   const padX = 10;
   const padTop = 6;
-  const padBottom = 6;
-  const nextBands = 1.5;
+  const padBottom = 10;
+  const nextBands = 1.62;
   const bands = rows + nextBands;
   let cw = (w - padX * 2) / cols;
   let ch = cw * 0.62;
@@ -478,7 +478,7 @@ function drawNextStrip(st, B, cw, ch) {
       if (c < 0 || c >= st.cols) continue;
       drawBlockCell(ctx, B.x + c * cw, y, cw, hh,
         run.sp === 'prism' ? -1 : run.k, run.sp,
-        { alpha: st.over || st.win ? 0.3 : 0.68, ghost: false, jl: i > 0, jr: i < run.len - 1 });
+        { alpha: st.over || st.win ? 0.3 : 0.82, ghost: false, jl: i > 0, jr: i < run.len - 1, ph: run.c0 * 0.9 + run.k });
     }
   }
   ctx.restore();
@@ -594,146 +594,316 @@ function roundRect(g, x, y, w, h, r) {
   g.closePath();
 }
 
-// 左右两侧可以各自「接上邻格」（接上的那一侧不留缝、不倒角）：同一块的几格画成一整条，一眼看出是几格
-function blockRect(g, x, y, w, h, r, jl, jr) {
-  if (!jl && !jr) { roundRect(g, x, y, w, h, r); return; }
-  const rr = clamp(r, 0, Math.min(w, h) / 2);
-  const a = jl ? 0 : rr, b = jr ? 0 : rr;
+// 带猫耳的方块轮廓：两侧尖耳冲上、右下切一个 45° 角、左下圆角 —— 切角 + 细亮线是战双那套。
+// jl / jr 表示左边 / 右边接着同一块的邻格：接上的那一侧不出耳、不留缝，几格连成一整条长猫。
+// tilt 是耳尖的横向摆动量（负=往左），两只耳对称地朝外张。
+function catPath(g, x, y, w, h, eh, ew, rb, cut, jl, jr, tilt) {
+  const tip = ew * 0.44;
+  const t = tilt || 0;
   g.beginPath();
-  g.moveTo(x + a, y);
-  g.lineTo(x + w - b, y);
-  if (b) g.arcTo(x + w, y, x + w, y + h, b); else g.lineTo(x + w, y);
-  if (b) g.arcTo(x + w, y + h, x, y + h, b); else g.lineTo(x + w, y + h);
-  g.lineTo(x + a, y + h);
-  if (a) g.arcTo(x, y + h, x, y, a); else g.lineTo(x, y + h);
-  if (a) g.arcTo(x, y, x + w, y, a); else g.lineTo(x, y);
+  g.moveTo(x, y + eh);
+  if (!jl) {
+    // 耳的两条边都带点弧度，才像耳廓；直边看着像文件夹的角
+    g.quadraticCurveTo(x + ew * 0.08, y + eh * 0.34, x + tip + t, y);
+    g.quadraticCurveTo(x + ew * 0.82, y + eh * 0.3, x + ew, y + eh);
+  }
+  g.lineTo(jr ? x + w : x + w - ew, y + eh);
+  if (!jr) {
+    g.quadraticCurveTo(x + w - ew * 0.82, y + eh * 0.3, x + w - tip - t, y);
+    g.quadraticCurveTo(x + w - ew * 0.08, y + eh * 0.34, x + w, y + eh);
+  }
+  g.lineTo(x + w, y + h - cut);
+  g.lineTo(x + w - cut, y + h);
+  g.lineTo(x + rb, y + h);
+  g.arcTo(x, y + h, x, y + h - rb, rb);
+  g.lineTo(x, y + eh);
   g.closePath();
 }
 
-// 棱彩走彩虹，其余走界域色
+// 角色色锚点：一个唤醒体一个主色。一关只用到四个（四个界域各轮出一个），
+// 所以同一屏最多四种颜色，彼此拉得开 —— 玩家记的是「这颜色是莉莉」，不是「这是混沌色」。
+// 全部取高明度的糖色：方块是半透明叠在深夜色上的，颜色一暗就糊成泥。
+// 界域色只做兜底（选关界面的特殊块图鉴、数据缺失）。
+const CHAR_TONE = {
+  // 混沌：金
+  24: '#f2c14e', 艾尔瓦: '#e8a63c', 哈姆林: '#ffe08a', 珈伦: '#e8c46a',
+  凯蒂古拉: '#ffd98a', 莉莉: '#c9973c',
+  // 血肉：红
+  阿格里帕: '#ef5b62', 艾继丝: '#e04a68', 杜勒赛因: '#d9534f', 菲茵特: '#ff7a6e',
+  希洛: '#c94054', 雷娅: '#ff8f8f',
+  // 深海：蓝
+  奥瑞塔: '#7fd4ee', 凯刻斯: '#7aa8f0', 希莱斯特: '#7fe4dc', 克珀珊特: '#7fa3f0',
+  法洛思: '#a9b8f5', 戈利亚: '#6fb0cc',
+  // 超维：紫
+  卡茜亚: '#b06cf5', 卡斯托尔: '#d0a6ff', 克莱门汀: '#8f5fdd', 达芙黛尔: '#c9a0f2',
+  艾瑞卡: '#a874f0', 奥尔拉: '#e0b8ff',
+};
+
+let TONES = null;    // 当前这一关的四色，startRun 时按关卡算一次
+
+function mixHex(hex, to, t) {
+  const p = (h, i) => parseInt(h.slice(i, i + 2), 16);
+  const q = (v, w) => Math.round(v + (w - v) * t).toString(16).padStart(2, '0');
+  return `#${q(p(hex, 1), p(to, 1))}${q(p(hex, 3), p(to, 3))}${q(p(hex, 5), p(to, 5))}`;
+}
+
+function rgba(hex, a) {
+  const p = (i) => parseInt(hex.slice(i, i + 2), 16) || 0;
+  return `rgba(${p(1)},${p(3)},${p(5)},${a})`;
+}
+
+// 主色 → 暗部 / 亮部：保留色相，只压亮度、提白，比直接给三套色好维护
+function toneFrom(hex) {
+  return { c: hex, d: mixHex(hex, '#05070d', 0.56), l: mixHex(hex, '#ffffff', 0.5) };
+}
+
+// 取头像顶部一小片的平均色当「眼皮」：眨眼时用角色自己的发色盖下去，
+// 比一律涂深色自然得多。图还没解码好、或者画布被污染，就返回 null 退回只压扁。
+function topColor(im) {
+  try {
+    const c = document.createElement('canvas');
+    c.width = c.height = 10;
+    const g = c.getContext('2d');
+    g.drawImage(im, 0, 0, 10, 10);
+    const px = g.getImageData(0, 0, 10, 3).data;
+    let r = 0, gg = 0, b = 0, n = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i + 3] < 40) continue;
+      r += px[i]; gg += px[i + 1]; b += px[i + 2]; n++;
+    }
+    if (!n) return null;
+    const h2 = (v) => Math.round(v).toString(16).padStart(2, '0');
+    return mixHex(`#${h2(r / n)}${h2(gg / n)}${h2(b / n)}`, '#000000', 0.2);
+  } catch {
+    return null;
+  }
+}
+
 function realmColors(idx) {
+  if (TONES && TONES[idx]) return TONES[idx];
   if (idx < 0 || idx >= REALMS.length) return { c: '#cfd6e6', d: '#5a6478', l: '#ffffff' };
   const r = REALMS[idx];
   return { c: r.c, d: r.d, l: r.l };
 }
 
-// 一格方块：底色 + 上缘高光 + 头像 + 特殊块标记
+// 一格方块：半透明玻璃 + 猫耳 + 角色色亮边 + 头像 + 特殊块标记
 function drawBlockCell(g, x, y, cw, ch, realm, sp, opt) {
   const o = opt || {};
   const jl = !!o.jl, jr = !!o.jr;                          // 左 / 右接着同一块的邻格
-  const pad = Math.min(cw, ch) * 0.09;                     // 块与块之间的缝（同色相邻也要看得出是两块）
-  const bx = x + (jl ? 0 : pad);
+  const pad = Math.min(cw, ch) * 0.075;                    // 块与块之间的缝（同色相邻也要看得出是两块）
+  // 连排侧往外多铺半像素：相邻格之间不留一根发丝缝
+  const ov = 0.45;
+  const bx = x + (jl ? -ov : pad);
   const by = y + pad;
-  const bw = cw - (jl ? 0 : pad) - (jr ? 0 : pad);
-  const bh = ch - pad * 2;
-  const rad = Math.min(cw - pad * 2, bh) * 0.26;
+  const bw = cw - (jl ? -ov : pad) - (jr ? -ov : pad);
+  const bh = ch - pad * 2;                                 // 含耳的总高
   const col = realmColors(realm);
   const alpha = o.alpha == null ? 1 : o.alpha;
+  const minS = Math.min(bw, bh);
+  const eh = Math.min(bh * 0.26, bw * 0.26);               // 耳高
+  const ew = Math.min(bw * 0.2, bh * 0.22);                // 耳根宽（窄一点才像猫耳，宽了像电池槽）
+  // 左下圆角 / 右下切角只长在整条的端头，中间格切了就是给邻格挖洞
+  const rb = jl ? 0 : minS * 0.14;
+  const cut = jr ? 0 : minS * 0.15;
+  const ty = by + eh;                                      // 主体顶（耳根一线）
+  const mh = bh - eh;                                      // 主体高
+
+  // 待机动画：耳朵慢慢摆（每条猫各自一个相位），过一会儿眨一下眼。
+  // 幅度都很小 —— 盘面上几十块一起动，大一点就成噪音了。
+  const ph = o.ph || 0;
+  const tilt = Math.sin(G.t * 1.9 + ph) * ew * 0.3;
+  // 眨眼分三组错开：整盘一起眨像画面在抖，此起彼伏才像一群小猫
+  const grp = Math.floor(ph) % 3;
+  const bs = (G.t * 0.3 + grp * 0.33) % 1;
+  const blink = bs < 0.04 ? Math.sin((bs / 0.04) * Math.PI) : 0;
 
   g.save();
   g.globalAlpha = alpha;
 
   // 影子
   if (!o.ghost) {
-    g.fillStyle = 'rgba(2,6,16,.4)';
-    blockRect(g, bx + 1, by + 2.5, bw, bh, rad, jl, jr);
+    g.fillStyle = 'rgba(2,6,16,.42)';
+    catPath(g, bx + 1, by + 2.5, bw, bh, eh, ew, rb, cut, jl, jr, tilt);
     g.fill();
   }
 
-  // 主体：上亮下暗的两段
-  const grd = g.createLinearGradient(bx, by, bx, by + bh);
-  grd.addColorStop(0, col.l);
-  grd.addColorStop(0.42, col.c);
-  grd.addColorStop(1, col.d);
-  g.fillStyle = grd;
-  blockRect(g, bx, by, bw, bh, rad, jl, jr);
+  // 底：先铺一层深玻璃。半透明的角色色叠在它上面才成「有色玻璃」，
+  // 不垫这一层的话棋盘网格线会直愣愣地穿过来。
+  g.fillStyle = 'rgba(7,12,24,.52)';
+  catPath(g, bx, by, bw, bh, eh, ew, rb, cut, jl, jr, tilt);
   g.fill();
-  // 描一圈深色细边，把「这一整条」和邻块分开
-  g.globalAlpha = alpha * 0.55;
-  g.strokeStyle = col.d;
-  g.lineWidth = 1.3;
+
+  // 主体：角色色玻璃，上亮下暗
+  const grd = g.createLinearGradient(bx, ty, bx, by + bh);
+  grd.addColorStop(0, rgba(col.c, 0.72));
+  grd.addColorStop(0.46, rgba(col.c, 0.46));
+  grd.addColorStop(1, rgba(col.d, 0.66));
+  g.fillStyle = grd;
+  catPath(g, bx, by, bw, bh, eh, ew, rb, cut, jl, jr, tilt);
+  g.fill();
+
+  // 玻璃里的东西都裁在块内
   g.save();
-  g.beginPath();
-  g.rect(jl ? bx + 1 : bx - 3, by - 3, bw + (jl ? -1 : 3) + (jr ? -1 : 3), bh + 6);   // 接缝那一侧的描边裁掉，几格才连成一整条
+  catPath(g, bx, by, bw, bh, eh, ew, rb, cut, jl, jr, tilt);
   g.clip();
-  blockRect(g, bx, by, bw, bh, rad, jl, jr);
-  g.stroke();
+
+  // 斜向扫光：一条 45° 的窄带，玻璃的「厚度」全靠它
+  g.globalAlpha = alpha * 0.1;
+  g.fillStyle = '#ffffff';
+  g.beginPath();
+  g.moveTo(bx + bw * 0.06, by + bh);
+  g.lineTo(bx + bw * 0.4, by);
+  g.lineTo(bx + bw * 0.62, by);
+  g.lineTo(bx + bw * 0.28, by + bh);
+  g.closePath();
+  g.fill();
+
+  // 角色色从底边反上来一道内发光
+  const gm = g.createLinearGradient(bx, by + bh - mh * 0.55, bx, by + bh);
+  gm.addColorStop(0, rgba(col.l, 0));
+  gm.addColorStop(1, rgba(col.l, 0.5));
+  g.globalAlpha = alpha * 0.52;
+  g.fillStyle = gm;
+  g.fillRect(bx - 1, by + bh - mh * 0.55, bw + 2, mh * 0.55);
+
+  // 棱彩：整块扫一道彩虹，压得很淡，只当「这格不是纯色」的底
+  if (realm < 0) {
+    const rb2 = g.createLinearGradient(bx, by, bx + bw, by + bh);
+    rb2.addColorStop(0, 'rgba(255,120,150,.9)');
+    rb2.addColorStop(0.35, 'rgba(150,210,255,.9)');
+    rb2.addColorStop(0.7, 'rgba(180,255,190,.9)');
+    rb2.addColorStop(1, 'rgba(255,235,150,.9)');
+    g.globalAlpha = alpha * 0.5;
+    g.fillStyle = rb2;
+    g.fillRect(bx, by, bw, bh);
+  }
   g.restore();
   g.globalAlpha = alpha;
 
-  if (realm < 0) {
-    // 棱彩：斜着扫一道彩带
-    g.save();
-    blockRect(g, bx, by, bw, bh, rad, jl, jr);
-    g.clip();
-    const rb = g.createLinearGradient(bx, by, bx + bw, by + bh);
-    rb.addColorStop(0, 'rgba(255,120,150,.85)');
-    rb.addColorStop(0.35, 'rgba(150,210,255,.85)');
-    rb.addColorStop(0.7, 'rgba(180,255,190,.85)');
-    rb.addColorStop(1, 'rgba(255,235,150,.85)');
-    g.globalAlpha = alpha * 0.55;
-    g.fillStyle = rb;
-    g.fillRect(bx, by, bw, bh);
-    g.restore();
-  }
+  // 描边：外面一圈很淡的辉光 + 一道角色亮色细边。
+  // 接缝那一侧的描边裁掉，几格才连成一整条。
+  g.save();
+  g.beginPath();
+  g.rect(jl ? bx + 1 : bx - 4, by - 4, bw + (jl ? -1 : 4) + (jr ? -1 : 4), bh + 8);
+  g.clip();
+  g.strokeStyle = rgba(col.l, 0.14);
+  g.lineWidth = 3.6;
+  catPath(g, bx, by, bw, bh, eh, ew, rb, cut, jl, jr, tilt);
+  g.stroke();
+  g.strokeStyle = rgba(col.l, 0.85);
+  g.lineWidth = Math.max(1.1, minS * 0.038);
+  catPath(g, bx, by, bw, bh, eh, ew, rb, cut, jl, jr, tilt);
+  g.stroke();
+  g.restore();
 
-  // 上缘高光
-  g.globalAlpha = alpha * 0.55;
-  g.fillStyle = 'rgba(255,255,255,.5)';
-  const hl = jl ? 0 : bw * 0.1, hr = jr ? 0 : bw * 0.1;
-  blockRect(g, bx + hl, by + bh * 0.09, bw - hl - hr, bh * 0.26, rad * 0.7, jl, jr);
-  g.fill();
+  // 顶上留一道短高光当玻璃厚度。整圈内框线在连排时会变成一排「书脊」，去掉了
+  g.globalAlpha = alpha * 0.34;
+  g.strokeStyle = 'rgba(255,255,255,.85)';
+  g.lineWidth = 0.9;
+  {
+    g.beginPath();
+    g.moveTo(bx + (jl ? 0 : ew * 0.9) + (jl ? 0 : bw * 0.16), ty + 2.2);
+    g.lineTo(bx + bw - (jr ? 0 : ew * 0.9) - (jr ? 0 : bw * 0.16), ty + 2.2);
+    g.stroke();
+  }
   g.globalAlpha = alpha;
 
-  // 头像：圆形裁切，贴在格子正中
-  const img = G.imgs[clamp(realm, 0, 3)];
-  const d = Math.min(bw, bh) * 0.62;
+  // 耳尖点一颗小亮点，像指示灯
+  if (!o.ghost) {
+    g.fillStyle = rgba(col.l, 0.9);
+    const tipR = Math.max(0.9, minS * 0.032);
+    if (!jl) { g.beginPath(); g.arc(bx + ew * 0.44, by + tipR * 0.6, tipR, 0, 7); g.fill(); }
+    if (!jr) { g.beginPath(); g.arc(bx + bw - ew * 0.44, by + tipR * 0.6, tipR, 0, 7); g.fill(); }
+  }
+
+  // 头像：圆形裁切，贴在主体的中心偏下
+  const img = G.imgs ? G.imgs[clamp(realm, 0, 3)] : null;
+  const d = Math.min(bw, mh) * 0.66;
   const cx = bx + bw / 2;
-  const cy = by + bh * 0.58;
+  const cy = ty + mh * 0.54;
   if (img && img.ok && !o.ghost) {
+    // 头像后面垫一圈暗色，头像边才咬得住玻璃，不然整张脸白得浮起来
+    g.fillStyle = 'rgba(6,11,22,.5)';
+    g.beginPath();
+    g.arc(cx, cy, d * 0.58, 0, 7);
+    g.fill();
+
     g.save();
     g.beginPath();
     g.arc(cx, cy, d / 2, 0, 7);
     g.clip();
     g.globalAlpha = alpha;
-    g.drawImage(img, cx - d / 2, cy - d / 2, d, d);
+    // 呼吸：极轻的缩放；眨眼时以底边为轴往下压一点，看着就是「眯了下眼」
+    const br = 1 + Math.sin(G.t * 1.5 + ph) * 0.018;
+    g.save();
+    g.translate(cx, cy + d * 0.5);
+    g.scale(br, br * (1 - blink * 0.22));
+    g.drawImage(img, -d / 2, -d, d, d);
     g.restore();
-    // 头像外圈
-    g.globalAlpha = alpha * 0.8;
-    g.strokeStyle = 'rgba(255,255,255,.5)';
+    // 把头像轻轻染一层角色色：只叠在头像自己的像素上（source-atop），
+    // 用 multiply 会把脸压成泥，看着脏。
+    g.globalCompositeOperation = 'source-atop';
+    g.globalAlpha = alpha * 0.18;
+    g.fillStyle = col.c;
+    g.fillRect(cx - d / 2, cy - d / 2, d, d);
+    g.globalCompositeOperation = 'source-over';
+    g.globalAlpha = alpha;
+    // 眼皮：拿头像自己的顶色压下来，边缘做成渐隐，像刘海罩一下而不是贴了块布
+    if (blink > 0.02 && img.top) {
+      const ly = cy - d * 0.62;
+      const lh = d * (0.24 + blink * 0.3);
+      const lg = g.createLinearGradient(0, ly, 0, ly + lh);
+      lg.addColorStop(0, img.top);
+      lg.addColorStop(0.55, img.top);
+      lg.addColorStop(1, rgba(img.top, 0));
+      g.globalAlpha = alpha * Math.min(1, blink * 1.7);
+      g.fillStyle = lg;
+      g.fillRect(cx - d * 0.6, ly, d * 1.2, lh);
+    }
+    g.restore();
+    // 头像外圈：角色亮色细环 + 外面一圈暗环分界
+    g.globalAlpha = alpha * 0.3;
+    g.strokeStyle = 'rgba(6,11,22,.8)';
+    g.lineWidth = Math.max(1.1, d * 0.05);
+    g.beginPath();
+    g.arc(cx, cy, d / 2, 0, 7);
+    g.stroke();
+    g.globalAlpha = alpha * 0.85;
+    g.strokeStyle = rgba(col.l, 0.9);
     g.lineWidth = Math.max(1, d * 0.05);
     g.beginPath();
     g.arc(cx, cy, d / 2, 0, 7);
     g.stroke();
   } else if (!o.ghost) {
-    // 图还没到，先画个界域符号顶着，不要留空洞
+    // 图还没到，先画一颗角色色的点顶着，不要留空洞
     g.globalAlpha = alpha * 0.85;
-    g.fillStyle = 'rgba(255,255,255,.75)';
+    g.fillStyle = rgba(col.l, 0.85);
     g.beginPath();
     g.arc(cx, cy, d * 0.28, 0, 7);
     g.fill();
   }
   g.globalAlpha = alpha;
 
-  // 特殊块标记
+  // 特殊块标记：都算在主体区（ty / mh），别爬到猫耳上去
   if (sp === 'crystal') {
-    g.globalAlpha = alpha * 0.9;
-    g.strokeStyle = 'rgba(190,235,255,.95)';
-    g.lineWidth = Math.max(1.4, bw * 0.07);
-    roundRect(g, bx + bw * 0.06, by + bh * 0.08, bw * 0.88, bh * 0.84, rad * 0.8);
+    // 冰封：整块罩一层冷蓝 + 四角结一圈冰棱。裂纹不往脸中间划，免得像长了胡子
+    g.globalAlpha = alpha;
+    g.fillStyle = 'rgba(150,220,255,.18)';
+    g.fillRect(bx + 1, ty + 1, bw - 2, mh - 2);
+    g.strokeStyle = 'rgba(226,247,255,.85)';
+    g.lineWidth = Math.max(1, minS * 0.04);
+    const kk = Math.min(bw, mh) * 0.24;
+    g.beginPath();
+    g.moveTo(bx + 2, ty + kk); g.lineTo(bx + 2, ty + 2); g.lineTo(bx + kk, ty + 2);
+    g.moveTo(bx + bw - kk, ty + 2); g.lineTo(bx + bw - 2, ty + 2); g.lineTo(bx + bw - 2, ty + kk);
+    g.moveTo(bx + 2, ty + mh - kk); g.lineTo(bx + 2, ty + mh - 2); g.lineTo(bx + kk, ty + mh - 2);
+    g.moveTo(bx + bw - kk, ty + mh - 2); g.lineTo(bx + bw - 2, ty + mh - 2); g.lineTo(bx + bw - 2, ty + mh - kk);
     g.stroke();
-    // 两个角上点几粒冰碴
-    g.fillStyle = 'rgba(220,245,255,.9)';
-    for (const [px, py] of [[0.14, 0.2], [0.86, 0.26], [0.2, 0.84]]) {
-      g.beginPath();
-      g.arc(bx + bw * px, by + bh * py, Math.max(1, bw * 0.045), 0, 7);
-      g.fill();
-    }
   } else if (sp === 'bomb') {
     // 彩色底上直接画亮黄线看不清，先垫一层深色再画
     const sx = bx + bw * 0.2;
-    const sy = by + bh * 0.22;
-    const r = Math.min(bw, bh) * 0.2;
+    const sy = ty + mh * 0.22;
+    const r = Math.min(bw, mh) * 0.2;
     g.globalAlpha = alpha * 0.72;
     g.fillStyle = 'rgba(12,6,4,.72)';
     g.beginPath();
@@ -741,7 +911,7 @@ function drawBlockCell(g, x, y, cw, ch, realm, sp, opt) {
     g.fill();
     g.globalAlpha = alpha;
     g.strokeStyle = '#ffd07a';
-    g.lineWidth = Math.max(1.2, Math.min(bw, bh) * 0.055);
+    g.lineWidth = Math.max(1.2, Math.min(bw, mh) * 0.055);
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
       g.beginPath();
@@ -751,30 +921,30 @@ function drawBlockCell(g, x, y, cw, ch, realm, sp, opt) {
     }
   } else if (sp === 'line') {
     g.globalAlpha = alpha * 0.8;
-    const lw = Math.max(1.6, Math.min(bw, bh) * 0.1);
+    const lw = Math.max(1.6, Math.min(bw, mh) * 0.1);
     // 先用深色描一遍，再叠亮线，任何底色上都看得见
     g.strokeStyle = 'rgba(8,14,26,.62)';
     g.lineWidth = lw * 2.1;
     g.beginPath();
-    g.moveTo(bx + bw * 0.14, by + bh * 0.82);
-    g.lineTo(bx + bw * 0.86, by + bh * 0.82);
-    g.moveTo(bx + bw * 0.84, by + bh * 0.14);
-    g.lineTo(bx + bw * 0.84, by + bh * 0.86);
+    g.moveTo(bx + bw * 0.14, ty + mh * 0.82);
+    g.lineTo(bx + bw * 0.86, ty + mh * 0.82);
+    g.moveTo(bx + bw * 0.84, ty + mh * 0.14);
+    g.lineTo(bx + bw * 0.84, ty + mh * 0.86);
     g.stroke();
     g.globalAlpha = alpha;
     g.strokeStyle = '#d6f2ff';
     g.lineWidth = lw;
     g.beginPath();
-    g.moveTo(bx + bw * 0.14, by + bh * 0.82);
-    g.lineTo(bx + bw * 0.86, by + bh * 0.82);
-    g.moveTo(bx + bw * 0.84, by + bh * 0.14);
-    g.lineTo(bx + bw * 0.84, by + bh * 0.86);
+    g.moveTo(bx + bw * 0.14, ty + mh * 0.82);
+    g.lineTo(bx + bw * 0.86, ty + mh * 0.82);
+    g.moveTo(bx + bw * 0.84, ty + mh * 0.14);
+    g.lineTo(bx + bw * 0.84, ty + mh * 0.86);
     g.stroke();
   } else if (sp === 'prism') {
     g.globalAlpha = alpha * 0.95;
     g.fillStyle = 'rgba(255,255,255,.92)';
     const sx = bx + bw * 0.76;
-    const sy = by + bh * 0.2;
+    const sy = ty + mh * 0.2;
     g.beginPath();
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
@@ -817,18 +987,32 @@ function draw() {
 
   // 棋盘底
   ctx.save();
-  ctx.fillStyle = 'rgba(9,16,34,.62)';
-  roundRect(ctx, B.x - 3, B.y - 3, B.w + 6, B.h + 6, 10);
+  ctx.fillStyle = 'rgba(16,22,48,.54)';
+  roundRect(ctx, B.x - 3, B.y - 3, B.w + 6, B.h + 6, 14);
   ctx.fill();
-  ctx.strokeStyle = 'rgba(110,168,255,.28)';
+  // 上方压一层很淡的紫粉光，整块盘就没那么冷
+  const amb = ctx.createRadialGradient(B.x + B.w / 2, B.y, 8, B.x + B.w / 2, B.y, B.h * 0.95);
+  amb.addColorStop(0, 'rgba(168,140,255,.13)');
+  amb.addColorStop(0.55, 'rgba(120,170,255,.05)');
+  amb.addColorStop(1, 'rgba(120,170,255,0)');
+  ctx.fillStyle = amb;
+  roundRect(ctx, B.x - 3, B.y - 3, B.w + 6, B.h + 6, 14);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(160,200,255,.32)';
   ctx.lineWidth = 1.4;
-  roundRect(ctx, B.x - 3, B.y - 3, B.w + 6, B.h + 6, 10);
+  roundRect(ctx, B.x - 3, B.y - 3, B.w + 6, B.h + 6, 14);
   ctx.stroke();
   ctx.restore();
 
-  // 网格
+  // 极淡的棋盘格：空盘的时候不至于是一整块死板的色
   ctx.save();
-  ctx.strokeStyle = 'rgba(120,170,240,.10)';
+  ctx.fillStyle = 'rgba(150,195,255,.032)';
+  for (let r = 0; r < st.rows; r++) {
+    for (let c = r % 2; c < st.cols; c += 2) ctx.fillRect(B.x + c * cw, B.y + r * ch, cw, ch);
+  }
+
+  // 网格
+  ctx.strokeStyle = 'rgba(150,195,255,.13)';
   ctx.lineWidth = 1;
   for (let c = 1; c < st.cols; c++) {
     ctx.beginPath();
@@ -868,7 +1052,7 @@ function draw() {
       const isDrag = dragBid != null && cell.b === dragBid;
       const jl = c > 0 && st.board[r][c - 1] && st.board[r][c - 1].b === cell.b;
       const jr = c < st.cols - 1 && st.board[r][c + 1] && st.board[r][c + 1].b === cell.b;
-      drawBlockCell(ctx, B.x + c * cw + (isDrag ? offX : 0), B.y + (r + twOffset(cell.b)) * ch, cw, ch, cell.k, cell.sp, { jl, jr });
+      drawBlockCell(ctx, B.x + c * cw + (isDrag ? offX : 0), B.y + (r + twOffset(cell.b)) * ch, cw, ch, cell.k, cell.sp, { jl, jr, ph: (cell.b % 89) * 0.7 });
     }
   }
 
@@ -956,7 +1140,7 @@ function draw() {
       ctx.translate(cx0, cy0);
       ctx.scale(sc, sc);
       ctx.translate(-cx0, -cy0);
-      drawBlockCell(ctx, B.x + gh.c * cw, B.y + gh.r * ch, cw, ch, gh.k, gh.sp, { alpha: k * 0.85, ghost: true, jl: false, jr: false });
+      drawBlockCell(ctx, B.x + gh.c * cw, B.y + gh.r * ch, cw, ch, gh.k, gh.sp, { alpha: k * 0.85, ghost: true, jl: false, jr: false, ph: (gh.r * 7 + gh.c * 3) * 0.7 });
       ctx.globalAlpha = k * 0.7;
       ctx.fillStyle = '#ffffff';
       roundRect(ctx, B.x + gh.c * cw + 2, B.y + gh.r * ch + 2, cw - 4, ch - 4, Math.min(cw, ch) * 0.24);
@@ -981,9 +1165,14 @@ function draw() {
     ctx.save();
     ctx.globalAlpha = clamp(p.life / p.max, 0, 1);
     ctx.fillStyle = p.c;
-    const s = p.s * (0.4 + (p.life / p.max) * 0.6);
+    const s = p.s * (0.4 + (p.life / p.max) * 0.6) * 1.7;
+    // 四角闪光：比圆点更像「爆开的糖」
     ctx.beginPath();
-    ctx.arc(p.x, p.y, s, 0, 7);
+    ctx.moveTo(p.x, p.y - s);
+    ctx.quadraticCurveTo(p.x, p.y, p.x + s, p.y);
+    ctx.quadraticCurveTo(p.x, p.y, p.x, p.y + s);
+    ctx.quadraticCurveTo(p.x, p.y, p.x - s, p.y);
+    ctx.quadraticCurveTo(p.x, p.y, p.x, p.y - s);
     ctx.fill();
     ctx.restore();
   }
@@ -1602,6 +1791,10 @@ function startRun() {
   G.shake = 0;
   hudCache = {};
   G.st = newRun(lv.id, (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0);
+
+  // 这一关的四个角色色：颜色跟着头像上的角色走（四界域各轮出一个）
+  TONES = wakeOf(lv.id).map(([, name], i) => toneFrom(CHAR_TONE[name] || REALMS[i].c));
+
   bgmStart();
 
   // 四张头像先挂上，loaded 之后重画
@@ -1612,6 +1805,7 @@ function startRun() {
     im.decoding = 'async';
     im.onload = () => {
       im.ok = true;
+      im.top = topColor(im);          // 眨眼用的眼皮色
       G.ready++;
       draw();
     };
