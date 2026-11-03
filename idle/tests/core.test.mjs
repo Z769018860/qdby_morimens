@@ -3836,3 +3836,17 @@ test('守护耐毒：场上有守护，友方毒层褪得更快，同一场毒�
   const none = poisonTotal(['ASSAULT', 'ASSAULT']), withWard = poisonTotal(['ASSAULT', 'WARDEN']);
   assert.ok(none > 0 && withWard < none * 0.95, `有守护毒伤要更低：${withWard} vs ${none}`);
 });
+
+test('周 Boss 扩到 8 层：逐层更硬、奖励更多、解锁门槛递增，旧存档不受影响', () => {
+  assert.equal(WEEKLY_TIER.length, 8);
+  for (let i = 1; i < 8; i++) {
+    const a = WEEKLY_TIER[i - 1], b = WEEKLY_TIER[i];
+    assert.ok(b.atkMul > a.atkMul && b.defMul > a.defMul && b.rewardMul > a.rewardMul && b.stageAdd > a.stageAdd, `第 ${b.n} 层`);
+  }
+  const e1 = weeklyEnemy(data, undefined, 3), e8 = weeklyEnemy(data, undefined, 8);
+  assert.ok(e8.atk > e1.atk * 2 && e8.def > e1.def * 2);
+  const s = newState(data, 9); weeklyState(s);
+  assert.equal(weeklyOpen(s, 1), true); assert.equal(weeklyOpen(s, 8), false);
+  s.weekly.tiers[7].damage = WEEKLY_TIER[7].unlock;
+  assert.equal(weeklyOpen(s, 8), true);
+});

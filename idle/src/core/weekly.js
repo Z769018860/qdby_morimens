@@ -1,7 +1,7 @@
 // Weekly boss: one real boss per ISO week. Every attempt is a 12-round fight against an (effectively) endless HP pool;
 // the damage dealt is what counts. Weekly damage is cumulative and unlocks milestone rewards (claim once per week).
 //
-// 三层（tier）：同一个 Boss，从第二层开始数值更硬、词缀更狠、奖励更多，但要先把前一层打出足够伤害才解锁。
+// 八层（tier；最初三层，0.12.8 扩到八层）：同一个 Boss，从第二层开始数值更硬、词缀更狠、奖励更多，但要先把前一层打出足够伤害才解锁。
 // 为什么加层：羁绊上线后满编队的单次伤害比之前高一截，一层很快就打满了；分层让「我能不能上一层」变成每周的新目标。
 //   第 1 层 = 原来的周 Boss，一点没动（老存档的累计伤害与已领档位直接落在这层）。
 import { hash, mulberry32 } from './rng.js';
@@ -10,7 +10,7 @@ import { makeEnemy } from './enemies.js';
 import { teamDefs, battleSeed, addItem, rollItem, addOrder, rollOrder, recordCodex } from './game.js';
 
 export const WEEKLY_DAILY = 3, WEEKLY_ROUNDS = 12, WEEKLY_STAGE = 48;
-export const WEEKLY_TIERS = 3;
+export const WEEKLY_TIERS = 8;
 /**
  * 一层一层往上：
  *   stageAdd  这一层的 Boss 按「第 48+stageAdd 关」的模板出数值（Boss 档 5.5 倍生命 / 1.3 倍攻击）
@@ -22,6 +22,12 @@ export const WEEKLY_TIER = [
   { n: 1, zh: '第 1 层', stageAdd: 0, atkMul: 1, defMul: 1, rewardMul: 1, unlock: 0, affix: null, tip: '基准难度，老存档的进度都在这层' },
   { n: 2, zh: '第 2 层', stageAdd: 8, atkMul: 1.35, defMul: 1.25, rewardMul: 1.6, unlock: 120000, affix: 'fury', tip: '第 1 层累计 12 万伤害后解锁 · 奖励 ×1.6' },
   { n: 3, zh: '第 3 层', stageAdd: 16, atkMul: 1.7, defMul: 1.5, rewardMul: 2.4, unlock: 700000, affix: 'shell', tip: '第 2 层累计 70 万伤害后解锁 · 奖励 ×2.4' },
+  // 4~8 层（0.12.8 新增）：满编队单次也要打得很吃力的深层，同一档奖励成倍增加
+  { n: 4, zh: '第 4 层', stageAdd: 24, atkMul: 2.0, defMul: 1.7, rewardMul: 3.4, unlock: 2000000, affix: 'fury', tip: '第 3 层累计 200 万伤害后解锁 · 奖励 ×3.4 · 狂暴' },
+  { n: 5, zh: '第 5 层', stageAdd: 32, atkMul: 2.3, defMul: 1.9, rewardMul: 4.6, unlock: 4000000, affix: 'shell', tip: '第 4 层累计 400 万伤害后解锁 · 奖励 ×4.6 · 坚壳' },
+  { n: 6, zh: '第 6 层', stageAdd: 40, atkMul: 2.6, defMul: 2.1, rewardMul: 6, unlock: 6000000, affix: 'both', tip: '第 5 层累计 600 万伤害后解锁 · 奖励 ×6 · 狂暴 + 坚壳' },
+  { n: 7, zh: '第 7 层', stageAdd: 48, atkMul: 3.0, defMul: 2.4, rewardMul: 7.6, unlock: 6000000, affix: 'both', tip: '第 6 层累计 600 万伤害后解锁 · 奖励 ×7.6 · 狂暴 + 坚壳' },
+  { n: 8, zh: '第 8 层', stageAdd: 56, atkMul: 3.4, defMul: 2.7, rewardMul: 9.5, unlock: 2500000, affix: 'both', tip: '第 7 层累计 250 万伤害后解锁 · 奖励 ×9.5 · 狂暴 + 坚壳' },
 ];
 export const TIER_LAST = WEEKLY_TIERS;
 export const tierOf = (n) => WEEKLY_TIER[Math.max(0, Math.min(WEEKLY_TIERS - 1, (Number(n) || 1) - 1))];
@@ -106,8 +112,8 @@ export function weeklyEnemy(data, wk = weekId(), tier = 1) {
     e.atk = Math.round(e.atk * t.atkMul);
     e.def = Math.round(e.def * t.defMul);
     // 层数越高词缀越狠：第 2 层狂暴（攻击再抬一档），第 3 层再套一层坚壳（血厚防高）
-    if (t.affix === 'fury') { e.atk = Math.round(e.atk * 1.2); e.name = `狂暴的${e.name}`; e.affix = 'fury'; }
-    if (t.affix === 'shell') { e.def = Math.round(e.def * 1.3); e.name = `坚壳的${e.name}`; e.affix = 'shell'; }
+    if (t.affix === 'fury' || t.affix === 'both') { e.atk = Math.round(e.atk * 1.2); e.name = `狂暴的${e.name}`; e.affix = t.affix; }
+    if (t.affix === 'shell' || t.affix === 'both') { e.def = Math.round(e.def * 1.3); e.name = `坚壳的${e.name}`; e.affix = t.affix; }
   }
   return e;
 }
