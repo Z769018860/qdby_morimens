@@ -35,8 +35,9 @@ OUT_JSON = ROOT / 'data/protocol-art.json'
 UA = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) qdby-morimens/forget-protocol'}
 BASE = 'https://huiji-public.huijistatic.com/morimens/uploads'
 
-IDLE_N, ATK_N = 8, 8           # 每个动作取几帧
-H, Q = 110, 52                 # 立绘高度 / webp 质量
+IDLE_N, ATK_N = 6, 5           # 每个动作取几帧
+AQ = 30                        # alpha 通道质量：透明图集里 alpha 占了大头，压它最划算
+H, Q = 96, 30                  # 立绘高度 / webp 质量
 MOB_H = 118
 
 # 波次里出场的怪物（id 取自 data/dictionary.json 的 monster）
@@ -223,7 +224,7 @@ def main():
         sheet, rects, size = sheet2, rects2, size2
 
     buf = io.BytesIO()
-    sheet.save(buf, 'WEBP', quality=Q, method=6)
+    sheet.save(buf, 'WEBP', quality=Q, alpha_quality=AQ, method=6)
     data = buf.getvalue()
     OUT_IMG.parent.mkdir(parents=True, exist_ok=True)
     OUT_IMG.write_bytes(data)

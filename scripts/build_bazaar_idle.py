@@ -33,7 +33,7 @@ OUT = ROOT / 'assets/bazaar/idle'
 UA = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) qdby-morimens/bazaar'}
 WIKI = 'https://huiji-public.huijistatic.com/morimens/uploads'
 
-H, Q, FRAMES = 320, 56, 8
+H, Q, FRAMES = 240, 56, 10
 
 # 站内 slug → 灰机词条名 / 已缓存的原始 gif 名
 ALIAS = {
@@ -170,7 +170,7 @@ def main():
 
         # 存成真正的 GIF 动图：本机 Pillow 不带动图 WebP 编码，存出来只有一帧；GIF 到处都能播
         buf = io.BytesIO()
-        q = [f.quantize(colors=64, method=Image.FASTOCTREE, dither=Image.NONE) for f in frames]
+        q = [f.quantize(colors=48, method=Image.FASTOCTREE, dither=Image.NONE) for f in frames]
         q[0].save(buf, 'GIF', save_all=True, append_images=q[1:], duration=dur, loop=0, disposal=2, optimize=True, transparency=0)
         data = buf.getvalue()
         (OUT / ('%s.gif' % slug)).write_bytes(data)
