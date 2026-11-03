@@ -31,9 +31,8 @@ export const TUNING = {
   beatMs: 480,        // 一拍的实际时长（×1/×2/×3 倍速）
   startHp: 130,
   startGold: 32,
-  fieldSlots: 10,     // 战场十格
+  fieldSlots: 15,     // 战场十五格：唤醒体（1~3 格）和命轮（1~2 格）共用，可以互相拖动换位
   draftSlots: 8,      // 开局只能带 8 格的（大约三个）
-  wheelSlots: 3,      // 命轮槽
   relicSlots: 4,      // 造物槽
   cpuBase: 26,        // 算力上限（扩容前）
   coreCost: 6,        // 扩容一次的价格（每次 +3）

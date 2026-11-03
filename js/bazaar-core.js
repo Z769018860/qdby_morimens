@@ -95,42 +95,76 @@ export function newRun({ seed = Date.now() >>> 0, pactId, diffId = 'normal' } = 
   return run;
 }
 
-// ---------------------------------------------------------------- 战场（十格）
+// ---------------------------------------------------------------- 战场（十五格：人和命轮共用）
+// 唤醒体占 1~3 格，命轮占 1~2 格（SSR 占 2），一共 TUNING.fieldSlots（15）格。
+// 站位顺序存在 run.order（uid 列表）：人和命轮混着排，可以互相拖动；
+// 唤醒体的光环喂左右相邻的两个——不管邻居是人还是命轮。
+export const wheelCells = (def) => (def && def.r === 'SSR' ? 2 : 1);
 export function usedSlots(run) {
   let n = 0;
   for (const h of run.squad) n += (heroOf(h.key) || {}).slots || 1;
+  for (const w of run.wheels) n += wheelCells(wheelOf(w.key));
   return n;
 }
 export function freeSlots(run) {
   return TUNING.fieldSlots - usedSlots(run);
 }
-// 队伍顺序即站位：0 号在最左，往后依次排开，每人占 slots 格
+// 让 run.order 和 squad / wheels 对齐：多出来的删掉，新来的接在末尾（人先、轮后）
+export function syncOrder(run) {
+  const ids = new Set([...run.squad.map((h) => h.uid), ...run.wheels.map((w) => w.uid)]);
+  const ord = (run.order || []).filter((id) => ids.has(id));
+  const seen = new Set(ord);
+  for (const h of run.squad) if (!seen.has(h.uid)) { ord.push(h.uid); seen.add(h.uid); }
+  for (const w of run.wheels) if (!seen.has(w.uid)) { ord.push(w.uid); seen.add(w.uid); }
+  run.order = ord;
+  return ord;
+}
+// 站位顺序：0 号在最左，往后依次排开，每个占 len 格；kind 区分唤醒体 / 命轮
 export function layoutOf(run) {
+  const ord = syncOrder(run);
   let at = 0;
-  return run.squad.map((h) => {
-    const def = heroOf(h.key);
-    const rec = { uid: h.uid, key: h.key, def, start: at, len: def.slots || 1 };
-    at += rec.len;
-    return rec;
-  });
+  const out = [];
+  for (const id of ord) {
+    const h = run.squad.find((x) => x.uid === id);
+    if (h) {
+      const def = heroOf(h.key);
+      out.push({ uid: h.uid, kind: 'hero', key: h.key, def, start: at, len: def.slots || 1 });
+      at += def.slots || 1;
+      continue;
+    }
+    const w = run.wheels.find((x) => x.uid === id);
+    if (w) {
+      const def = wheelOf(w.key);
+      out.push({ uid: w.uid, kind: 'wheel', key: w.key, def, native: !!w.native, start: at, len: wheelCells(def) });
+      at += wheelCells(def);
+    }
+  }
+  return out;
 }
 export function canAddHero(run, id) {
   const def = heroOf(id);
   return !!def && usedSlots(run) + def.slots <= TUNING.fieldSlots;
 }
+export function canAddWheel(run, key) {
+  const def = wheelOf(key);
+  return !!def && usedSlots(run) + wheelCells(def) <= TUNING.fieldSlots;
+}
 export function addHero(run, id) {
   if (!canAddHero(run, id)) return null;
   const rec = { uid: uid(), key: id };
   run.squad.push(rec);
+  syncOrder(run);
   return rec;
 }
+// 把一个人 / 命轮拖到站位的第 to 位（按「条目」数，不是格数）
 export function moveHero(run, hid, to) {
-  const from = run.squad.findIndex((h) => h.uid === hid);
+  const ord = syncOrder(run);
+  const from = ord.indexOf(hid);
   if (from < 0) return false;
-  const t = Math.max(0, Math.min(run.squad.length - 1, to));
+  const t = Math.max(0, Math.min(ord.length - 1, to));
   if (t === from) return false;
-  const [x] = run.squad.splice(from, 1);
-  run.squad.splice(t, 0, x);
+  const [x] = ord.splice(from, 1);
+  ord.splice(t, 0, x);
   return true;
 }
 export function removeHero(run, hid) {
@@ -138,38 +172,62 @@ export function removeHero(run, hid) {
   const i = run.squad.findIndex((h) => h.uid === hid);
   if (i < 0) return false;
   run.squad.splice(i, 1);
+  syncOrder(run);
   return true;
 }
+
+// 每个位置从左右邻居那里吃到的光环（邻居是唤醒体才有光环）：人和命轮共用这一份，面板和实战不会错位
+//   gen  产出 +v（人）/ 开火耗算力 −2v（命轮）
+//   cd   节拍 −v（人 / 命轮都吃）
+//   pow  动作 / 命轮效果 +v（比例）
+export function auraMap(run) {
+  const lay = layoutOf(run);
+  const m = new Map();
+  lay.forEach((e, i) => {
+    const o = { gen: 0, cd: 0, pow: 0 };
+    for (const j of [i - 1, i + 1]) {
+      const nb = lay[j];
+      if (!nb || nb.kind !== 'hero' || !nb.def.aura) continue;
+      const a = nb.def.aura;
+      if (a.k === 'gen') o.gen += a.v;
+      else if (a.k === 'cd') o.cd += a.v;
+      else if (a.k === 'pow') o.pow += a.v;
+    }
+    m.set(e.uid, o);
+  });
+  return { lay, m };
+}
+// 面板上某条命轮（已吃到左右邻居光环 / 地形 / 造物之后）的实际耗算力、节拍、效果倍率
+export function wheelPlan(run, e) {
+  const ter = terrainOf(run.terrain);
+  const cdTer = (ter.k === 'slow' ? ter.v : 0) - (ter.k === 'fast' ? ter.v : 0);
+  const au = auraMap(run).m.get(e.uid) || { gen: 0, cd: 0, pow: 0 };
+  return wheelStat(e.def, au, cdTer, modsOf(run));
+}
+const wheelStat = (d, au, cdTer, mod) => ({
+  cost: Math.max(4, d.cpu - 2 * au.gen),
+  wcd: Math.max(TUNING.wcdMin, d.wcd - au.cd + cdTer - mod.wcdDown),
+  pow: 1 + au.pow,
+});
 
 // 面板上的「每拍产出 / 每拍消耗」——和 createFight 用同一套规则，免得显示和实际对不上
 export function planOf(run) {
   const mod = modsOf(run);
   const ter = terrainOf(run.terrain);
   const cdTer = (ter.k === 'slow' ? ter.v : 0) - (ter.k === 'fast' ? ter.v : 0);
-  const units = run.squad.map((h) => {
-    const d = heroOf(h.key);
-    return { gen: d.gen, cd: d.cd, pow: 1, aura: d.aura };
-  });
-  units.forEach((u, i) => {
-    for (const j of [i - 1, i + 1]) {
-      const nb = units[j];
-      if (!nb || !nb.aura) continue;
-      const a = nb.aura;
-      if (a.k === 'gen') u.gen += a.v;
-      else if (a.k === 'cd') u.cd -= a.v;
-      else if (a.k === 'pow') u.pow += a.v;
-    }
-  });
+  const { lay, m } = auraMap(run);
   let gen = 0;
-  for (const u of units) {
-    const cd = Math.max(TUNING.cdMin, u.cd + cdTer);
-    const g = Math.max(1, Math.round(u.gen * (1 + mod.gen)));
-    gen += g / cd;
-  }
   let need = 0;
-  for (const w of run.wheels) {
-    const d = wheelOf(w.key);
-    if (d) need += d.cpu / Math.max(TUNING.wcdMin, d.wcd + cdTer - mod.wcdDown);
+  for (const e of lay) {
+    const au = m.get(e.uid);
+    if (e.kind === 'hero') {
+      const cd = Math.max(TUNING.cdMin, e.def.cd - au.cd + cdTer);
+      const g = Math.max(1, Math.round((e.def.gen + au.gen) * (1 + mod.gen)));
+      gen += g / cd;
+    } else {
+      const ws = wheelStat(e.def, au, cdTer, mod);
+      need += ws.cost / ws.wcd;
+    }
   }
   return {
     gen: Math.round(gen * 10) / 10,
@@ -211,7 +269,6 @@ export function shopMix(run) {
   // 命轮不足两条时，先把命轮补起来——没有命轮这局根本打不出伤害
   if (run.wheels.length < 2) wheel += 0.08;
   if (run.relics.length >= TUNING.relicSlots) hero += 0.05;
-  if (run.wheels.length >= TUNING.wheelSlots) { wheel *= 0.25; hero += 0.05; }
   if (freeSlots(run) < 1) { hero *= 0.3; wheel += 0.04; }
   let relic = Math.max(0.06, 1 - hero - wheel);
   if (run.relics.length >= TUNING.relicSlots) relic *= 0.12;
@@ -248,7 +305,7 @@ export function rollShop(run, { free = false } = {}) {
       return { kind: 'hero', key: h.id, price: priceOf(run, heroPrice(h)) };
     }
     if (kind === 'wheel') {
-      if (run.wheels.length >= TUNING.wheelSlots && !benchRoom(run)) return null;
+      if (freeSlots(run) < 1 && !benchRoom(run)) return null;
       const w = ru(rnd, WHEELS);
       if (used.has('w' + w.id) || ownWheels.has(w.id)) return null;
       used.add('w' + w.id);
@@ -319,7 +376,7 @@ export function canBuy(run, idx) {
   if (run.gold < o.price) return false;
   // 战场 / 命轮槽放不下时，只要仓库还有格子就能买（买下直接进仓库）
   if (o.kind === 'hero') return canAddHero(run, o.key) || benchRoom(run);
-  if (o.kind === 'wheel') return run.wheels.length < TUNING.wheelSlots || benchRoom(run);
+  if (o.kind === 'wheel') return canAddWheel(run, o.key) || benchRoom(run);
   return run.relics.length < TUNING.relicSlots;
 }
 
@@ -332,19 +389,19 @@ export function buy(run, idx) {
   if (o.kind === 'hero' && !canAddHero(run, o.key)) {
     run.bench.push({ uid: uid(), kind: 'hero', key: o.key });
     o.toBench = true;
-  } else if (o.kind === 'wheel' && run.wheels.length >= TUNING.wheelSlots) {
+  } else if (o.kind === 'wheel' && !canAddWheel(run, o.key)) {
     run.bench.push({ uid: uid(), kind: 'wheel', key: o.key });
     o.toBench = true;
   } else if (o.kind === 'hero') {
     const first = run.squad.length === 0;
     addHero(run, o.key);
     // 第一个唤醒体的本命命轮白送：开局没钱买齐命轮，先让领队能开出第一枪。
-    if (first && run.wheels.length < TUNING.wheelSlots) {
+    if (first) {
       const d = heroOf(o.key);
       const nw = d && wheelOf(d.wheel);
-      if (nw) run.wheels.push({ uid: uid(), key: nw.id, native: true });
+      if (nw && canAddWheel(run, nw.id)) { run.wheels.push({ uid: uid(), key: nw.id, native: true }); syncOrder(run); }
     }
-  } else if (o.kind === 'wheel') run.wheels.push({ uid: uid(), key: o.key });
+  } else if (o.kind === 'wheel') { run.wheels.push({ uid: uid(), key: o.key }); syncOrder(run); }
   else run.relics.push({ uid: uid(), key: o.key });
   return true;
 }
@@ -399,19 +456,25 @@ export function benchDeploy(run, id, replaceId = null) {
     if (usedSlots(run) - (heroOf(out.key).slots || 1) + def.slots > TUNING.fieldSlots) return { ok: false, why: '换完还是放不下，换个占格多的下来' };
     const at = run.squad.indexOf(out);
     run.squad.splice(at, 1, { uid: b.uid, key: b.key });      // 站在被换下的人的位置上
+    const oi = (run.order || []).indexOf(out.uid);
+    if (oi >= 0) run.order.splice(oi, 1, b.uid);
     run.bench.splice(i, 1, { uid: out.uid, kind: 'hero', key: out.key });
     return { ok: true };
   }
-  if (run.wheels.length < TUNING.wheelSlots && !replaceId) {
+  if (canAddWheel(run, b.key) && !replaceId) {
     run.bench.splice(i, 1);
     run.wheels.push({ uid: b.uid, key: b.key });
+    syncOrder(run);
     return { ok: true };
   }
   const out = replaceId && run.wheels.find((w) => w.uid === replaceId);
-  if (!out) return { ok: false, why: '命轮槽满了，得选一条换下来', needSwap: true };
+  if (!out) return { ok: false, why: '战场格子不够，得选一条命轮换下来', needSwap: true };
   if (out.native) return { ok: false, why: '本命命轮不能换下' };
+  if (usedSlots(run) - wheelCells(wheelOf(out.key)) + wheelCells(wheelOf(b.key)) > TUNING.fieldSlots) return { ok: false, why: '换完还是放不下，换个占格多的下来' };
   const at = run.wheels.indexOf(out);
   run.wheels.splice(at, 1, { uid: b.uid, key: b.key });
+  const oi = (run.order || []).indexOf(out.uid);          // 站在被换下那条命轮的位置上
+  if (oi >= 0) run.order.splice(oi, 1, b.uid);
   run.bench.splice(i, 1, { uid: out.uid, kind: 'wheel', key: out.key });
   return { ok: true };
 }
@@ -608,31 +671,25 @@ export function createFight(run) {
   const maxHP = Math.max(40, Math.round((TUNING.startHp + mod.hp + run.bonusHp) * (1 + terHp)));
   const cpuCap = TUNING.cpuBase + mod.cap + run.cores * TUNING.coreGain;
 
-  // 唤醒体（含左右光环）
-  const units = run.squad.map((h) => {
-    const d = heroOf(h.key);
-    return { uid: h.uid, def: d, cd: d.cd, timer: 0, gen: d.gen, pow: 1, act: d.act, aura: d.aura, fired: 0 };
-  });
-  units.forEach((u, i) => {
-    for (const j of [i - 1, i + 1]) {
-      const nb = units[j];
-      if (!nb || !nb.aura) continue;
-      if (nb.aura.k === 'gen') u.gen += nb.aura.v;
-      else if (nb.aura.k === 'cd') u.cd -= nb.aura.v;
-      else if (nb.aura.k === 'pow') u.pow += nb.aura.v;
+  // 唤醒体 + 命轮（站位顺序里左右相邻的人给光环：人吃产出 / 节拍 / 动作加成，命轮吃耗算力 / 节拍 / 效果加成）
+  const { lay, m: auras } = auraMap(run);
+  const units = [];
+  const wheels = [];
+  for (const e of lay) {
+    const au = auras.get(e.uid);
+    if (e.kind === 'hero') {
+      const d = e.def;
+      units.push({
+        uid: e.uid, def: d, timer: 0, act: d.act, aura: d.aura, fired: 0,
+        cd: Math.max(TUNING.cdMin, d.cd - au.cd + cdTer),
+        gen: Math.max(1, Math.round((d.gen + au.gen) * (1 + mod.gen))),
+        pow: 1 + au.pow,
+      });
+    } else {
+      const ws = wheelStat(e.def, au, cdTer, mod);
+      wheels.push({ uid: e.uid, def: e.def, cost: ws.cost, wcd: ws.wcd, pow: ws.pow, timer: 0, native: !!e.native, waiting: false });
     }
-  });
-  for (const u of units) {
-    u.cd = Math.max(TUNING.cdMin, u.cd + cdTer);
-    u.gen = Math.max(1, Math.round(u.gen * (1 + mod.gen)));
   }
-
-  // 命轮
-  const wheels = run.wheels.map((w) => {
-    const d = wheelOf(w.key);
-    return { uid: w.uid, def: d, cost: d.cpu, wcd: d.wcd, timer: 0, native: !!w.native, waiting: false };
-  });
-  for (const w of wheels) w.wcd = Math.max(TUNING.wcdMin, w.wcd + cdTer - mod.wcdDown);
 
   const f = {
     t: 0, over: null, win: false,
@@ -909,7 +966,7 @@ export function stepFight(f) {
     f.cpu -= w.cost;
     f.cpuSpent += w.cost;
     w.timer = 0;
-    for (const op of w.def.op) ev.push(...applyOp(f, 'p', op, 1, { kind: 'wheel', srcId: w.uid }));
+    for (const op of w.def.op) ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid }));
     // 再衍化：每场第一发命轮再打一次
     if (f.firstWheel && f.mod.dupFirst && !f.dupUsed) {
       f.dupUsed = true;
