@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>蚀界方块 · 忘忘同人小游戏</title>
-<meta name="description" content="方块从水面下浮上来，左右拖动、松手就往上顶，填满一行就消掉。四界域配色、唤醒体头像、投射光线与飘忽洋流，十二关递进加一个无尽关。">
+<meta name="description" content="照着《Slidey》和《Slydris》的玩法：盘面上本来就有方块，按住一块左右滑，上面的方块失去支撑会掉下来补空；松手算一步，底下的水就顶上来一整行。填满一行消掉，顶到天花板就结束。四界域配色、唤醒体头像，十二关递进加一个无尽关。">
 <meta name="theme-color" content="#070b16">
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
 <style>
 /* 这一页不引整站的 css/style.css：这里只要一个游戏壳。
    背景、方块、头像圆贴全部由 canvas 现画，整页只有一次脚本请求 + 四张头像。 */
@@ -123,6 +123,8 @@ img{display:block}
 .mod b{display:block;font-size:12.5px;color:#bfe4ff;margin-bottom:2px}
 .mod p{margin:0;font-size:11px;line-height:1.45;color:#8fa1c0}
 .row{display:flex;flex-wrap:wrap;gap:6px}
+.pc{display:flex;flex-direction:column;align-items:center;gap:1px;width:52px}
+.pc span{font-size:10px;color:var(--dim);letter-spacing:.02em}
 .row canvas{border-radius:8px;background:rgba(9,15,30,.45)}
 .pi{
   display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -190,19 +192,12 @@ img{display:block}
    现在借底部那一行显示，关卡名和提示交替出现。 */
 .lvname.hl{color:#9fe0ff;font-size:11px;letter-spacing:0}
 .dock{flex:0 0 auto;display:flex;gap:8px;align-items:stretch}
-.nextbox{
-  flex:0 0 auto;display:flex;align-items:center;gap:8px;
-  padding:6px 10px 6px 9px;border-radius:11px;
-  border:1px solid var(--line);background:rgba(16,26,48,.7);
-}
 .dock i{font-size:9.5px;color:var(--dim);font-style:normal;letter-spacing:.1em}
-.nextbox #nextPv{width:44px;height:44px;display:grid;place-items:center}
-.nextbox #nextPv canvas{width:44px;height:44px}
 .itembox{
   flex:1;display:flex;align-items:center;gap:8px;min-width:0;
   padding:6px 9px;border-radius:11px;border:1px solid var(--line);background:rgba(16,26,48,.7);
 }
-#itemBar{display:flex;gap:6px;flex:1;justify-content:flex-end}
+#itemBar{display:flex;gap:8px;flex:1;justify-content:flex-start}
 .slot{
   width:38px;height:38px;border-radius:9px;display:grid;place-items:center;
   border:1px dashed rgba(120,170,240,.16);background:rgba(9,15,30,.42);color:#7f8fae;
@@ -325,6 +320,19 @@ img{display:block}
   .pi{width:50px}
 }
 </style>
+<meta name="build" content="f77d135d64">
+<style id="zj-lite">
+@media (pointer:coarse), (max-width:720px){
+  *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
+}
+button, a, [role="button"], input, select, label{touch-action:manipulation}
+html{-webkit-tap-highlight-color:transparent}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/app/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="忘忘小游戏">
 </head>
 <body>
 <div class="app">
@@ -335,7 +343,7 @@ img{display:block}
       <a class="back" href="index.html" aria-label="返回首页">←</a>
       <div>
         <h1>蚀界方块</h1>
-        <p>方块从水里浮上来，拖住它，填满一行就消掉</p>
+        <p>按住一块左右滑，上面掉下来补空；松手水顶一行</p>
       </div>
       <span class="sp"></span>
       <button class="ico" id="btnSnd" type="button" aria-label="音效开关">♪</button>
@@ -398,10 +406,6 @@ img{display:block}
       <canvas id="cv"></canvas>
     </div>
     <div class="dock">
-      <div class="nextbox">
-        <i>下一块</i>
-        <div id="nextPv"></div>
-      </div>
       <div class="itembox">
         <i>造物</i>
         <div id="itemBar"></div>
@@ -461,6 +465,45 @@ img{display:block}
   }, 18000);
 })();
 </script>
-<script type="module" src="js/block.js"></script>
+<script type="module" src="js/b/block.js?v=f77d135d64"></script>
+<script>
+/* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
+   Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
+   而边缘一个来回就要 1~2 秒；SW 缓存能把这部分彻底省掉。 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+    /* 申请「持久存储」：图片缓存跟本地存档一样不被浏览器随手清掉 */
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  });
+  /* sw.js 发现本机离线包是旧版（版本戳对不上）会喊一声。既然网站已经有新内容了，
+     就给一条能点走的提示，别让人一直以为「离线版就是几个月前的样子」。
+     局内（body.live）不弹：那会儿满屏都是判定框，任何浮层都是碍事。 */
+  navigator.serviceWorker.addEventListener('message', function (e) {
+    var d = e.data || {};
+    if (d.type !== 'offline-stale') return;
+    if (/offline.html$/i.test(location.pathname)) return;
+    if (document.body.classList.contains('live')) return;
+    try { if (sessionStorage.getItem('zjtt-stale') === d.build) return; } catch (err) {}
+    var a = document.createElement('a');
+    a.href = 'offline.html';
+    a.textContent = '本机离线包是旧版（' + String(d.stamp || '').slice(0, 8) + '）· 点这里更新';
+    a.setAttribute('style', 'position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:99999;'
+      + 'padding:7px 14px;border-radius:999px;font:600 12.5px/1.4 system-ui,sans-serif;text-decoration:none;'
+      + 'color:#08111f;background:linear-gradient(180deg,#ffe9a8,#e3b341);box-shadow:0 6px 18px rgba(0,0,0,.38);'
+      + 'max-width:88vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis');
+    a.addEventListener('click', function () {
+      try { sessionStorage.setItem('zjtt-stale', d.build); } catch (err) {}
+    });
+    document.body.appendChild(a);
+    /* 进局内就把提示收掉：横屏顶部正中间是发球点，浮层压在那里最碍事 */
+    var obs = new MutationObserver(function () {
+      if (document.body.classList.contains('live')) { a.remove(); obs.disconnect(); }
+    });
+    try { obs.observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (err) {}
+    setTimeout(function () { a.remove(); obs.disconnect(); }, 15000);
+  });
+}
+</script>
 </body>
 </html>
