@@ -45,7 +45,7 @@ const TUNING = {
   beats: 40,          // 每场固定 40 拍
   beatMs: 480,        // 一拍的实际时长（×1/×2/×3 倍速）
   startHp: 130,
-  startGold: 60,
+  startGold: 32,
   fieldSlots: 10,     // 战场十格
   draftSlots: 8,      // 开局只能带 8 格的（大约三个）
   wheelSlots: 3,      // 命轮槽
@@ -58,9 +58,9 @@ const TUNING = {
   cdMin: 2,
   wcdMin: 3,
   // 每天的血量预算 / 目标强度 / 收入。以 12 天为基准调出来，后面按同一斜率外推。
-  dayHp: [0, 123, 176, 206, 272, 362, 458, 520, 630, 706, 800, 868, 1014, 1065, 1118, 1174, 1233, 1295, 1360],
-  dayDps: [0, 4.5, 5.4, 5.9, 6.0, 6.0, 6.8, 7.2, 7.2, 7.6, 8.0, 8.1, 8.6, 8.9, 9.2, 9.5, 9.8, 10.1, 10.4],
-  income: [0, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 14, 14, 15, 15, 16, 16, 17],
+  dayHp: [0, 72, 115, 155, 220, 305, 410, 490, 610, 706, 800, 868, 1014, 1065, 1118, 1174, 1233, 1295, 1360],
+  dayDps: [0, 2.8, 3.7, 4.5, 5.3, 5.7, 6.5, 7.0, 7.2, 7.6, 8.0, 8.1, 8.6, 8.9, 9.2, 9.5, 9.8, 10.1, 10.4],
+  income: [0, 14, 14, 13, 12, 12, 12, 12, 12, 12, 12, 13, 14, 14, 15, 15, 16, 16, 17],
 };
 
 // 四档难度：dps/hp 是乘在每天曲线上的，sane 是理智，pole 越大强敌来得越早
@@ -306,6 +306,9 @@ function removeHero(run, hid) {
 
 // 面板上的「每拍产出 / 每拍消耗」——和 createFight 用同一套规则，免得显示和实际对不上
 function planOf(run) {
+  const mod = modsOf(run);
+  const ter = terrainOf(run.terrain);
+  const cdTer = (ter.k === 'slow' ? ter.v : 0) - (ter.k === 'fast' ? ter.v : 0);
   const units = run.squad.map((h) => {
     const d = heroOf(h.key);
     return { gen: d.gen, cd: d.cd, pow: 1, aura: d.aura };
@@ -313,24 +316,28 @@ function planOf(run) {
   units.forEach((u, i) => {
     for (const j of [i - 1, i + 1]) {
       const nb = units[j];
-      if (!nb) continue;
-      const a = nb.aura || {};
+      if (!nb || !nb.aura) continue;
+      const a = nb.aura;
       if (a.k === 'gen') u.gen += a.v;
       else if (a.k === 'cd') u.cd -= a.v;
       else if (a.k === 'pow') u.pow += a.v;
     }
   });
   let gen = 0;
-  for (const u of units) gen += u.gen / Math.max(TUNING.cdMin, u.cd);
+  for (const u of units) {
+    const cd = Math.max(TUNING.cdMin, u.cd + cdTer);
+    const g = Math.max(1, Math.round(u.gen * (1 + mod.gen)));
+    gen += g / cd;
+  }
   let need = 0;
   for (const w of run.wheels) {
     const d = wheelOf(w.key);
-    if (d) need += d.cpu / d.wcd;
+    if (d) need += d.cpu / Math.max(TUNING.wcdMin, d.wcd + cdTer - mod.wcdDown);
   }
   return {
     gen: Math.round(gen * 10) / 10,
     need: Math.round(need * 10) / 10,
-    cap: TUNING.cpuBase + run.cores * TUNING.coreGain,
+    cap: TUNING.cpuBase + mod.cap + run.cores * TUNING.coreGain,
     slots: usedSlots(run),
   };
 }
@@ -394,9 +401,9 @@ function rollShop(run, { free = false } = {}) {
   const ownWheels = new Set(run.wheels.map((w) => w.key));
 
   // 造一件指定类型的东西；造不出来（池子抽空 / 没槽位）返回 null
-  const make = (kind) => {
+  const make = (kind, cheap = false) => {
     if (kind === 'hero') {
-      const pool = HEROES.filter((h) => !ownHeroes.has(h.id) && h.slots <= freeSlots(run) + 2);
+      const pool = HEROES.filter((h) => !ownHeroes.has(h.id) && h.slots <= freeSlots(run) && (!cheap || h.slots <= 1));   // 只摆装得下的：摊位上看到的，买了就能上场
       if (!pool.length) return null;
       const h = ru(rnd, pool);
       if (!h || used.has('h' + h.id)) return null;
@@ -433,18 +440,27 @@ function rollShop(run, { free = false } = {}) {
   // 而造物这一层只是加成，晚两天拿不会死人。
   if (run.day <= 3) {
     const has = (k) => out.some((o) => o.kind === k);
-    const swap = (kind) => {
+    const swap = (kind, cheap = false) => {
       for (let i = out.length - 1; i >= 0; i--) {
         if (out[i].kind !== 'relic') continue;
-        const o = make(kind);
+        const o = make(kind, cheap);
         if (o) { o.sold = false; out[i] = o; return true; }
       }
       return false;
     };
     if (!has('wheel')) swap('wheel');
-    // 开局战场上没人：至少给两个价位不同的唤醒体挑，别只甩一个让人没得选
-    const heroNeed = (run.day === 1 && run.squad.length === 0) ? 2 : (has('hero') ? 0 : 1);
-    for (let k = 0; k < heroNeed; k++) if (freeSlots(run) >= 1) swap('hero');
+    // 开局战场上没人：起手金币只够「两个 1 格的人」或「一人一轮」，所以摊位里保底摆两个买得起的 1 格唤醒体。
+    if (run.day === 1 && run.squad.length === 0) {
+      const cheap = () => out.filter((o) => o.kind === 'hero' && heroOf(o.key).slots <= 1).length;
+      const rank = (o) => (o.kind === 'relic' ? 0 : o.kind === 'hero' ? 1 : 2);     // 先换造物，再换贵人，最后才动命轮
+      while (cheap() < 2) {
+        const i = out.map((o, k) => ({ o, k })).filter(({ o }) => !(o.kind === 'hero' && heroOf(o.key).slots <= 1) && !(o.kind === 'wheel' && out.filter((x) => x.kind === 'wheel').length <= 1))
+          .sort((x, y) => rank(x.o) - rank(y.o))[0];
+        const o = make('hero', true);
+        if (!i || !o) break;
+        o.sold = false; out[i.k] = o;
+      }
+    } else if (!has('hero') && freeSlots(run) >= 1) swap('hero');
   }
 
   run.shop = out;
@@ -630,11 +646,11 @@ function addWheelMod(mod, w) {
   if (p) addMod(mod, p.k, p.v);
 }
 
-function createFight(run) {
-  const { foe, maxHp, atk, sup } = foeStats(run);
+// 一局当前的所有加成（造物 / 命轮 / 本命 / 契约）。createFight 和 planOf 共用——
+// 以前面板上的「产 / 耗 / 上限」只算了裸数，造物给的算力上限、产出加成、地形加减拍都没算，
+// 买的和实际上场的对不上。
+function modsOf(run) {
   const pact = run.pact;
-  const ter = terrainOf(run.terrain);
-
   const mod = {
     amp: 0, crit: 0.08, cdmg: 0.5, regen: 0, gold: 0, flat: 0, hp: 0, ward: 0,
     leech: 0, wcdDown: 0, openShield: 0, pierce: 0, thorns: 0, venom: 0, fear: 0,
@@ -665,6 +681,16 @@ function createFight(run) {
     case 'wolf': mod.amp += pact.v; mod.shieldCap -= 30; break;
     default: break;
   }
+
+  return mod;
+}
+
+function createFight(run) {
+  const { foe, maxHp, atk, sup } = foeStats(run);
+  const pact = run.pact;
+  const ter = terrainOf(run.terrain);
+
+  const mod = modsOf(run);
 
   const terAmp = ter.k === 'amp' ? ter.v : 0;
   const terHp = ter.k === 'hp' ? ter.v : 0;
@@ -1108,7 +1134,7 @@ function itemText(def) {
 function wheelFireText(def) {
   return def.op.map((o) => opText(o, 1)).join('；');
 }
-return { TUNING, HEROES, ITEMS, SHOP_ITEMS, WHEELS, PACTS, FOES, DIFFS, SCHEDULE, TERRAINS, MOD_ZH, AURA_ZH, REALM_COLOR, ARCH_ZH, itemOf, wheelOf, foeOf, heroOf, pactOf, terrainOf, diffOf, rngFrom, heroPrice, wheelPrice, relicPrice, sellPrice, newRun, usedSlots, freeSlots, layoutOf, canAddHero, addHero, moveHero, removeHero, planOf, priceOf, shopMix, rollShop, defOf, canBuy, buy, owned, sell, coreCostOf, expandCore, rowOf, pickFoe, rawDps, foeStats, createFight, stepFight, autoFight, settle, scoreOf, opText, modText, itemText, wheelFireText };
+return { TUNING, HEROES, ITEMS, SHOP_ITEMS, WHEELS, PACTS, FOES, DIFFS, SCHEDULE, TERRAINS, MOD_ZH, AURA_ZH, REALM_COLOR, ARCH_ZH, itemOf, wheelOf, foeOf, heroOf, pactOf, terrainOf, diffOf, rngFrom, heroPrice, wheelPrice, relicPrice, sellPrice, newRun, usedSlots, freeSlots, layoutOf, canAddHero, addHero, moveHero, removeHero, planOf, priceOf, shopMix, rollShop, defOf, canBuy, buy, owned, sell, coreCostOf, expandCore, rowOf, pickFoe, rawDps, foeStats, modsOf, createFight, stepFight, autoFight, settle, scoreOf, opText, modText, itemText, wheelFireText };
 })();
 
 // ---- js/bazaar-sfx.js

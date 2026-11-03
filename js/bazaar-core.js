@@ -142,6 +142,9 @@ export function removeHero(run, hid) {
 
 // 面板上的「每拍产出 / 每拍消耗」——和 createFight 用同一套规则，免得显示和实际对不上
 export function planOf(run) {
+  const mod = modsOf(run);
+  const ter = terrainOf(run.terrain);
+  const cdTer = (ter.k === 'slow' ? ter.v : 0) - (ter.k === 'fast' ? ter.v : 0);
   const units = run.squad.map((h) => {
     const d = heroOf(h.key);
     return { gen: d.gen, cd: d.cd, pow: 1, aura: d.aura };
@@ -149,24 +152,28 @@ export function planOf(run) {
   units.forEach((u, i) => {
     for (const j of [i - 1, i + 1]) {
       const nb = units[j];
-      if (!nb) continue;
-      const a = nb.aura || {};
+      if (!nb || !nb.aura) continue;
+      const a = nb.aura;
       if (a.k === 'gen') u.gen += a.v;
       else if (a.k === 'cd') u.cd -= a.v;
       else if (a.k === 'pow') u.pow += a.v;
     }
   });
   let gen = 0;
-  for (const u of units) gen += u.gen / Math.max(TUNING.cdMin, u.cd);
+  for (const u of units) {
+    const cd = Math.max(TUNING.cdMin, u.cd + cdTer);
+    const g = Math.max(1, Math.round(u.gen * (1 + mod.gen)));
+    gen += g / cd;
+  }
   let need = 0;
   for (const w of run.wheels) {
     const d = wheelOf(w.key);
-    if (d) need += d.cpu / d.wcd;
+    if (d) need += d.cpu / Math.max(TUNING.wcdMin, d.wcd + cdTer - mod.wcdDown);
   }
   return {
     gen: Math.round(gen * 10) / 10,
     need: Math.round(need * 10) / 10,
-    cap: TUNING.cpuBase + run.cores * TUNING.coreGain,
+    cap: TUNING.cpuBase + mod.cap + run.cores * TUNING.coreGain,
     slots: usedSlots(run),
   };
 }
@@ -230,9 +237,9 @@ export function rollShop(run, { free = false } = {}) {
   const ownWheels = new Set(run.wheels.map((w) => w.key));
 
   // 造一件指定类型的东西；造不出来（池子抽空 / 没槽位）返回 null
-  const make = (kind) => {
+  const make = (kind, cheap = false) => {
     if (kind === 'hero') {
-      const pool = HEROES.filter((h) => !ownHeroes.has(h.id) && h.slots <= freeSlots(run) + 2);
+      const pool = HEROES.filter((h) => !ownHeroes.has(h.id) && h.slots <= freeSlots(run) && (!cheap || h.slots <= 1));   // 只摆装得下的：摊位上看到的，买了就能上场
       if (!pool.length) return null;
       const h = ru(rnd, pool);
       if (!h || used.has('h' + h.id)) return null;
@@ -269,18 +276,27 @@ export function rollShop(run, { free = false } = {}) {
   // 而造物这一层只是加成，晚两天拿不会死人。
   if (run.day <= 3) {
     const has = (k) => out.some((o) => o.kind === k);
-    const swap = (kind) => {
+    const swap = (kind, cheap = false) => {
       for (let i = out.length - 1; i >= 0; i--) {
         if (out[i].kind !== 'relic') continue;
-        const o = make(kind);
+        const o = make(kind, cheap);
         if (o) { o.sold = false; out[i] = o; return true; }
       }
       return false;
     };
     if (!has('wheel')) swap('wheel');
-    // 开局战场上没人：至少给两个价位不同的唤醒体挑，别只甩一个让人没得选
-    const heroNeed = (run.day === 1 && run.squad.length === 0) ? 2 : (has('hero') ? 0 : 1);
-    for (let k = 0; k < heroNeed; k++) if (freeSlots(run) >= 1) swap('hero');
+    // 开局战场上没人：起手金币只够「两个 1 格的人」或「一人一轮」，所以摊位里保底摆两个买得起的 1 格唤醒体。
+    if (run.day === 1 && run.squad.length === 0) {
+      const cheap = () => out.filter((o) => o.kind === 'hero' && heroOf(o.key).slots <= 1).length;
+      const rank = (o) => (o.kind === 'relic' ? 0 : o.kind === 'hero' ? 1 : 2);     // 先换造物，再换贵人，最后才动命轮
+      while (cheap() < 2) {
+        const i = out.map((o, k) => ({ o, k })).filter(({ o }) => !(o.kind === 'hero' && heroOf(o.key).slots <= 1) && !(o.kind === 'wheel' && out.filter((x) => x.kind === 'wheel').length <= 1))
+          .sort((x, y) => rank(x.o) - rank(y.o))[0];
+        const o = make('hero', true);
+        if (!i || !o) break;
+        o.sold = false; out[i.k] = o;
+      }
+    } else if (!has('hero') && freeSlots(run) >= 1) swap('hero');
   }
 
   run.shop = out;
@@ -466,11 +482,11 @@ function addWheelMod(mod, w) {
   if (p) addMod(mod, p.k, p.v);
 }
 
-export function createFight(run) {
-  const { foe, maxHp, atk, sup } = foeStats(run);
+// 一局当前的所有加成（造物 / 命轮 / 本命 / 契约）。createFight 和 planOf 共用——
+// 以前面板上的「产 / 耗 / 上限」只算了裸数，造物给的算力上限、产出加成、地形加减拍都没算，
+// 买的和实际上场的对不上。
+export function modsOf(run) {
   const pact = run.pact;
-  const ter = terrainOf(run.terrain);
-
   const mod = {
     amp: 0, crit: 0.08, cdmg: 0.5, regen: 0, gold: 0, flat: 0, hp: 0, ward: 0,
     leech: 0, wcdDown: 0, openShield: 0, pierce: 0, thorns: 0, venom: 0, fear: 0,
@@ -501,6 +517,16 @@ export function createFight(run) {
     case 'wolf': mod.amp += pact.v; mod.shieldCap -= 30; break;
     default: break;
   }
+
+  return mod;
+}
+
+export function createFight(run) {
+  const { foe, maxHp, atk, sup } = foeStats(run);
+  const pact = run.pact;
+  const ter = terrainOf(run.terrain);
+
+  const mod = modsOf(run);
 
   const terAmp = ter.k === 'amp' ? ter.v : 0;
   const terHp = ter.k === 'hp' ? ter.v : 0;
