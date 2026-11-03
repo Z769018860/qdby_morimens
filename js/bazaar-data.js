@@ -6,7 +6,17 @@
 import { HEROES as G_HEROES, ITEMS as G_ITEMS, WHEELS as G_WHEELS, PACTS as G_PACTS, FOES as G_FOES, SHEETS as G_SHEETS } from './bazaar-gen.js';
 
 export const SHEETS = G_SHEETS;
-export const HEROES = G_HEROES;
+// 唤醒体都要能出手打一下（以前只有「伤害型」会打，守护只架盾、辅助只挂易伤，整队站着不动）。
+// 按「伤害型同产出的伤害 ≈ 产出 ×1.25 + 0.5」折算：守护打 4 成、辅助打 3 成——比命轮低得多，但不再是零。
+// 生成表（bazaar-gen.js）是脚本生成物不手改，所以在这里统一补一层。
+const heroAttack = (h) => 1.25 * h.gen + 0.5;
+function withAttack(h) {
+  if (h.act.some((a) => a.k === 'dmg')) return h;                      // 伤害型本来就有
+  const k = h.typeKey === 'WARDEN' ? 0.4 : 0.3;
+  const v = Math.round(heroAttack(h) * k * 10) / 10;
+  return { ...h, act: [...h.act, { k: 'dmg', v }], txt: String(h.txt || '').replace(/。$/, '') + `，另外打出 ${v} 点伤害。` };
+}
+export const HEROES = G_HEROES.map(withAttack);
 export const ITEMS = G_ITEMS;
 export const WHEELS = G_WHEELS;
 export const PACTS = G_PACTS;
@@ -16,8 +26,8 @@ export const SHOP_ITEMS = ITEMS.filter((x) => x.r !== 'FATE');
 
 export const TUNING = {
   beats: 1000,        // 兜底上限（毒圈会让战斗在两三百拍内结束，实际碰不到）；真碰到才按剩余血量百分比判
-  zoneFrom: 100,      // 第 100 拍之后出现「毒圈」：双方同时掉血（同样的固定点数）
-  zoneStep: 0.4,      // 毒圈固定点数：第 N 拍（N>100）双方各掉 (N-100)×0.4 点，无视护盾——第 130 拍 12 点，第 150 拍 20 点；和血量多少无关
+  zoneFrom: 100,      // 第 100 拍之后出现「毒圈」：双方同时掉血（按各自最大生命的百分比）
+  zoneStep: 0.0003,   // 毒圈按各自最大生命的比例掉：第 N 拍（N>100）双方各掉最大生命的 (N-100)×0.03%，无视护盾——第 150 拍每拍 1.5%，约 180 拍双方都撑不住
   beatMs: 480,        // 一拍的实际时长（×1/×2/×3 倍速）
   startHp: 130,
   startGold: 32,
@@ -28,14 +38,15 @@ export const TUNING = {
   cpuBase: 26,        // 算力上限（扩容前）
   coreCost: 6,        // 扩容一次的价格（每次 +3）
   coreGain: 5,        // 扩容一次加多少上限
-  rerollCost: 2,
+  rerollCost: 1,      // 刷新一次的价钱（原来 2）：放宽一点，玩家才有钱多刷几次找想要的人 / 命轮
+  benchSlots: 4,      // 仓库格数：装不下的人 / 命轮先放仓库，随时换上场或卖掉
   sellRate: 0.5,
   cdMin: 2,
   wcdMin: 3,
   // 每天的血量预算 / 目标强度 / 收入。以 12 天为基准调出来，后面按同一斜率外推。
-  dayHp: [0, 72, 115, 155, 220, 305, 410, 490, 610, 706, 800, 868, 1014, 1065, 1118, 1174, 1233, 1295, 1360],
-  dayDps: [0, 2.8, 3.7, 4.5, 5.3, 5.7, 6.5, 7.0, 7.2, 7.6, 8.0, 8.1, 8.6, 8.9, 9.2, 9.5, 9.8, 10.1, 10.4],
-  income: [0, 14, 14, 13, 12, 12, 12, 12, 12, 12, 12, 13, 14, 14, 15, 15, 16, 16, 17],
+  dayHp: [0, 93.6, 149.5, 201.5, 286.0, 396.5, 533.0, 637.0, 793.0, 917.8, 1040.0, 1128.4, 1318.2, 1384.5, 1453.4, 1526.2, 1602.9, 1683.5, 1768.0],
+  dayDps: [0, 3.2, 4.3, 5.2, 6.1, 6.6, 7.5, 8.0, 8.3, 8.7, 9.2, 9.3, 9.9, 10.2, 10.6, 10.9, 11.3, 11.6, 12.0],
+  income: [0, 15, 15, 14, 13, 13, 13, 13, 13, 13, 13, 14, 15, 15, 16, 16, 17, 17, 18],
 };
 
 // 四档难度：dps/hp 是乘在每天曲线上的，sane 是理智，pole 越大强敌来得越早

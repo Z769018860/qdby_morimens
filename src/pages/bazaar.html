@@ -143,7 +143,8 @@ button{font:inherit;color:inherit}
 .cpu .rate em.ok{color:var(--good)}
 
 /* ---------- 命轮 / 造物 ---------- */
-.wheels,.relics{display:flex;align-items:center;gap:5px;flex:0 0 auto;overflow-x:auto;scrollbar-width:none}
+.bench{flex-wrap:wrap}
+.wheels,.relics,.bench{display:flex;align-items:center;gap:5px;flex:0 0 auto;overflow-x:auto;scrollbar-width:none}
 .wheels::-webkit-scrollbar,.relics::-webkit-scrollbar{display:none}
 .wheels .lab,.relics .lab{font-size:9px;color:var(--dim);flex:0 0 auto;letter-spacing:1px}
 .wh{display:flex;align-items:center;gap:5px;padding:3px 7px 3px 3px;cursor:pointer;border:0;
@@ -468,7 +469,7 @@ button{font:inherit;color:inherit}
   .pgrid{grid-template-columns:repeat(4,1fr)}   /* 横屏矮：四列铺开，少滚几屏 */
   .app{max-width:none;width:100%;display:grid;align-content:start;
     grid-template-columns:minmax(0,1.55fr) minmax(240px,0.92fr);
-    grid-template-rows:auto auto auto auto auto auto auto auto;
+    grid-template-rows:auto auto auto auto auto auto auto auto auto;
     grid-template-areas:
       "hud hud"
       "foe shop"
@@ -477,6 +478,7 @@ button{font:inherit;color:inherit}
       "cpu shop"
       "whl shop"
       "rel shop"
+      "bch shop"
       "trl bar";
     column-gap:10px;row-gap:5px}
   .app>.hud{grid-area:hud}
@@ -486,6 +488,7 @@ button{font:inherit;color:inherit}
   #cpuBar{grid-area:cpu}
   #wheels{grid-area:whl}
   #relics{grid-area:rel}
+  #bench{grid-area:bch}
   .app>.shop{grid-area:shop;min-height:0;overflow:hidden}
   #trail{grid-area:trl}
   .app>.bar2{grid-area:bar}
@@ -512,7 +515,7 @@ button{font:inherit;color:inherit}
 @media (min-width:900px){
   .app{max-width:1400px;margin:0 auto;display:grid;
     grid-template-columns:minmax(0,1fr) minmax(320px,26%);
-    grid-template-rows:auto auto auto auto auto auto auto 1fr;
+    grid-template-rows:auto auto auto auto auto auto auto auto 1fr;
     align-content:start;
     grid-template-areas:
       "hud   hud"
@@ -522,6 +525,7 @@ button{font:inherit;color:inherit}
       "cpu   shop"
       "whl   shop"
       "rel   shop"
+      "bch   shop"
       "trl   bar";
     column-gap:14px;row-gap:6px;padding:10px 16px}
   .app>.hud{grid-area:hud}
@@ -531,6 +535,7 @@ button{font:inherit;color:inherit}
   #cpuBar{grid-area:cpu}
   #wheels{grid-area:whl}
   #relics{grid-area:rel}
+  #bench{grid-area:bch}
   .app>.shop{grid-area:shop;min-height:0}
   #trail{grid-area:trl}
   .app>.bar2{grid-area:bar}
@@ -593,6 +598,7 @@ button{font:inherit;color:inherit}
 
   <section class="wheels" id="wheels" aria-label="命轮"></section>
   <section class="relics" id="relics" aria-label="造物"></section>
+  <section class="bench" id="bench" aria-label="仓库"></section>
 
   <section class="shop">
     <div class="shoph"><b>集 市</b><span id="shopHint">点一下买下</span></div>
@@ -700,12 +706,16 @@ button{font:inherit;color:inherit}
       <p>命轮有自己的节拍，走满了还要<b>吃一口算力</b>才能开火。算力不够它就卡在「等算力」——所以别一味堆贵的命轮，先把产出跟上。</p>
       <h4>站位是有用的</h4>
       <p>唤醒体带<b>光环</b>，只给左右相邻的那两家：辅助型「供能」（邻位每次多产算力）、防御型「加速」（邻位节拍 -1）、伤害型「增幅」（邻位动作效果 +X%）。把人按光环对上，产出能翻一截。</p>
+      <h4>唤醒体也会打</h4>
+      <p>每个唤醒体出手时，除了产算力，还会顺手<b>打一下</b>：伤害型打得最疼，守护型（同时架盾）约四成，辅助型（同时挂易伤）约三成。比命轮低得多，但前期没命轮时它们也能啃血。</p>
+      <h4>仓库与卖出</h4>
+      <p>战场十格或命轮槽放不下的人 / 命轮，买下后自动进<b>仓库</b>（最多 4 件）。点仓库里的东西可以<b>上场</b>，场上满了就选一个换下来；场上的人和命轮点开也能「移入仓库」。任何东西点开都能<b>卖掉，返还一半金币</b>（本命命轮和战场上最后一个人不能卖）。刷新一次只要 1 金。</p>
       <h4>造物只加属性</h4>
       <p>造物不占出手，纯粹是面板加成：算力上限、算力产出、命轮伤害、暴击、护盾上限、每拍回血、开战算力、命轮节拍、反伤、金币。最多装 4 件。</p>
       <h4>地形对双方都生效</h4>
       <p>每天换一片地：共鸣加伤害、熔岩每三拍两边一起掉血、迟滞让所有人的节拍 +1、雾障给双方加盾、脆裂把双方血量上限一起削。<b>看清楚再决定要不要拖长战斗。</b></p>
       <h4>打不过怎么办</h4>
-      <p>战斗<b>一直打到有一方倒下</b>：对面血打光你赢，你的血打光你输。<b>第 100 拍之后出现毒圈</b>：双方每拍同时掉<b>同样的固定点数</b>（不看血量比例，无视护盾），越往后越疼，直到有人倒下为止。所以血少的一方先倒，后期血厚的怪拖不过去——要在 100 拍内把它打死。对手的血量和伤害按天数和难度缩放，同一天里换哪只怪强度都一样。</p>
+      <p>战斗<b>一直打到有一方倒下</b>：对面血打光你赢，你的血打光你输。<b>第 100 拍之后出现毒圈</b>：双方每拍同时掉最大生命的一截（无视护盾），越往后越疼，直到有人倒下为止。所以拖得起的是血线更高的一方：护盾、回血、削对面血都是在抢血线。对手的血量和伤害按天数和难度缩放，同一天里换哪只怪强度都一样。</p>
       <h4>立绘</h4>
       <p>战场上的头像取自灰机 wiki 的<b>唤醒体待机立绘</b>（动图抽帧），点开还能看到全身。</p>
     </div>
@@ -721,6 +731,7 @@ button{font:inherit;color:inherit}
     <div><h4 id="sName">—</h4><p id="sMeta">—</p></div>
   </div>
   <div class="txt" id="sTxt">—</div>
+  <div class="acts" id="sMore" style="flex-wrap:wrap"></div>
   <div class="acts"><button class="btn" id="sSell" type="button">卖出</button></div>
 </div>
 

@@ -6,8 +6,8 @@
 //   命轮　 —— 攒够 cpu 算力就在自己的节拍上开一炮，主要输出；
 //   造物　 —— 不占出手，纯静态加成（算力上限、产出、增伤、暴击……）；
 //   地形　 —— 敌我同吃，熔岩掉血、雾障加盾、疾风加速、脆裂削血。
-// 一直打到有人倒下。第 100 拍后出现「毒圈」：双方每拍同时掉同样的固定点数（真伤，无视护盾），越往后越疼，
-// 直到有人倒下为止（固定点数，不按血量比例：血少的一方先撑不住）。TUNING.beats（1000）只是兜底，按剩余血量百分比判，正常碰不到。难度、当天曲线、地形表都在 js/bazaar-data.js。
+// 一直打到有人倒下。第 100 拍后出现「毒圈」：双方每拍同时掉最大生命的一截（真伤，无视护盾），越往后越疼，
+// 直到有人倒下为止（按各自最大生命的百分比掉，所以拼的是血线）。TUNING.beats（1000）只是兜底，按剩余血量百分比判，正常碰不到。难度、当天曲线、地形表都在 js/bazaar-data.js。
 
 import * as DATA from './bazaar-data.js';
 
@@ -81,7 +81,7 @@ export function newRun({ seed = Date.now() >>> 0, pactId, diffId = 'normal' } = 
   const run = {
     seed, rnd: rngFrom(seed), pact, diff, totalDays: diff.days,
     day: 1, sane: diff.sane, gold: TUNING.startGold,
-    squad: [], wheels: [], relics: [], cores: 0,
+    squad: [], wheels: [], relics: [], bench: [], cores: 0,
     shop: [], rerolls: 0, freeReroll: 0,
     foeId: null, terrain: 'plain',
     wins: 0, losses: 0, bonusHp: 0,
@@ -234,13 +234,13 @@ export function rollShop(run, { free = false } = {}) {
   const n = 4 + (run.pact.k === 'rich' && run.day === 1 ? 1 : 0);
   const out = [];
   const used = new Set();
-  const ownHeroes = new Set(run.squad.map((h) => h.key));
-  const ownWheels = new Set(run.wheels.map((w) => w.key));
+  const ownHeroes = new Set([...run.squad.map((h) => h.key), ...run.bench.filter((b) => b.kind === 'hero').map((b) => b.key)]);
+  const ownWheels = new Set([...run.wheels.map((w) => w.key), ...run.bench.filter((b) => b.kind === 'wheel').map((b) => b.key)]);
 
   // 造一件指定类型的东西；造不出来（池子抽空 / 没槽位）返回 null
   const make = (kind, cheap = false) => {
     if (kind === 'hero') {
-      const pool = HEROES.filter((h) => !ownHeroes.has(h.id) && h.slots <= freeSlots(run) && (!cheap || h.slots <= 1));   // 只摆装得下的：摊位上看到的，买了就能上场
+      const pool = HEROES.filter((h) => !ownHeroes.has(h.id) && (h.slots <= freeSlots(run) || benchRoom(run)) && (!cheap || h.slots <= 1));   // 装得下就直接上场；装不下但仓库有空位，买了进仓库
       if (!pool.length) return null;
       const h = ru(rnd, pool);
       if (!h || used.has('h' + h.id)) return null;
@@ -248,7 +248,7 @@ export function rollShop(run, { free = false } = {}) {
       return { kind: 'hero', key: h.id, price: priceOf(run, heroPrice(h)) };
     }
     if (kind === 'wheel') {
-      if (run.wheels.length >= TUNING.wheelSlots) return null;
+      if (run.wheels.length >= TUNING.wheelSlots && !benchRoom(run)) return null;
       const w = ru(rnd, WHEELS);
       if (used.has('w' + w.id) || ownWheels.has(w.id)) return null;
       used.add('w' + w.id);
@@ -311,12 +311,15 @@ export function defOf(offer) {
   return itemOf(offer.key);
 }
 
+export const benchRoom = (run) => (run.bench || []).length < TUNING.benchSlots;
+
 export function canBuy(run, idx) {
   const o = run.shop[idx];
   if (!o || o.sold) return false;
   if (run.gold < o.price) return false;
-  if (o.kind === 'hero') return canAddHero(run, o.key);
-  if (o.kind === 'wheel') return run.wheels.length < TUNING.wheelSlots;
+  // 战场 / 命轮槽放不下时，只要仓库还有格子就能买（买下直接进仓库）
+  if (o.kind === 'hero') return canAddHero(run, o.key) || benchRoom(run);
+  if (o.kind === 'wheel') return run.wheels.length < TUNING.wheelSlots || benchRoom(run);
   return run.relics.length < TUNING.relicSlots;
 }
 
@@ -325,7 +328,14 @@ export function buy(run, idx) {
   const o = run.shop[idx];
   run.gold -= o.price;
   o.sold = true;
-  if (o.kind === 'hero') {
+  o.toBench = false;
+  if (o.kind === 'hero' && !canAddHero(run, o.key)) {
+    run.bench.push({ uid: uid(), kind: 'hero', key: o.key });
+    o.toBench = true;
+  } else if (o.kind === 'wheel' && run.wheels.length >= TUNING.wheelSlots) {
+    run.bench.push({ uid: uid(), kind: 'wheel', key: o.key });
+    o.toBench = true;
+  } else if (o.kind === 'hero') {
     const first = run.squad.length === 0;
     addHero(run, o.key);
     // 第一个唤醒体的本命命轮白送：开局没钱买齐命轮，先让领队能开出第一枪。
@@ -347,12 +357,74 @@ export function owned(run, id) {
   if (w) return { kind: 'wheel', rec: w, def: wheelOf(w.key) };
   const r = run.relics.find((x) => x.uid === id);
   if (r) return { kind: 'relic', rec: r, def: itemOf(r.key) };
+  const b = (run.bench || []).find((x) => x.uid === id);
+  if (b) return { kind: b.kind, rec: b, def: b.kind === 'hero' ? heroOf(b.key) : wheelOf(b.key), bench: true };
   return null;
+}
+
+// ---------------------------------------------------------------- 仓库
+// 战场放不下的人、命轮槽放不下的命轮先放仓库；仓库里的随时可以上场（或和场上的互换），也可以直接卖。
+export function benchStore(run, id) {
+  if (!benchRoom(run)) return { ok: false, why: '仓库满了，先卖一件' };
+  const o = owned(run, id);
+  if (!o || o.bench) return { ok: false, why: '找不到' };
+  if (o.kind === 'hero') {
+    if (run.squad.length <= 1) return { ok: false, why: '战场上至少留一个人' };
+    run.squad.splice(run.squad.indexOf(o.rec), 1);
+    run.bench.push({ uid: o.rec.uid, kind: 'hero', key: o.rec.key });
+    return { ok: true };
+  }
+  if (o.kind === 'wheel') {
+    if (o.rec.native) return { ok: false, why: '本命命轮跟着第一个人走，不能收仓库' };
+    run.wheels.splice(run.wheels.indexOf(o.rec), 1);
+    run.bench.push({ uid: o.rec.uid, kind: 'wheel', key: o.rec.key });
+    return { ok: true };
+  }
+  return { ok: false, why: '造物不能进仓库' };
+}
+// 上场：战场 / 命轮槽有空位就直接上；没空位就要指定和谁互换（replaceId）
+export function benchDeploy(run, id, replaceId = null) {
+  const i = run.bench.findIndex((x) => x.uid === id);
+  if (i < 0) return { ok: false, why: '找不到' };
+  const b = run.bench[i];
+  if (b.kind === 'hero') {
+    const def = heroOf(b.key);
+    if (usedSlots(run) + def.slots <= TUNING.fieldSlots && !replaceId) {
+      run.bench.splice(i, 1);
+      run.squad.push({ uid: b.uid, key: b.key });
+      return { ok: true };
+    }
+    const out = replaceId && run.squad.find((h) => h.uid === replaceId);
+    if (!out) return { ok: false, why: `战场只剩 ${freeSlots(run)} 格，得选一个人换下来`, needSwap: true };
+    if (usedSlots(run) - (heroOf(out.key).slots || 1) + def.slots > TUNING.fieldSlots) return { ok: false, why: '换完还是放不下，换个占格多的下来' };
+    const at = run.squad.indexOf(out);
+    run.squad.splice(at, 1, { uid: b.uid, key: b.key });      // 站在被换下的人的位置上
+    run.bench.splice(i, 1, { uid: out.uid, kind: 'hero', key: out.key });
+    return { ok: true };
+  }
+  if (run.wheels.length < TUNING.wheelSlots && !replaceId) {
+    run.bench.splice(i, 1);
+    run.wheels.push({ uid: b.uid, key: b.key });
+    return { ok: true };
+  }
+  const out = replaceId && run.wheels.find((w) => w.uid === replaceId);
+  if (!out) return { ok: false, why: '命轮槽满了，得选一条换下来', needSwap: true };
+  if (out.native) return { ok: false, why: '本命命轮不能换下' };
+  const at = run.wheels.indexOf(out);
+  run.wheels.splice(at, 1, { uid: b.uid, key: b.key });
+  run.bench.splice(i, 1, { uid: out.uid, kind: 'wheel', key: out.key });
+  return { ok: true };
 }
 
 export function sell(run, id) {
   const o = owned(run, id);
   if (!o) return 0;
+  if (o.bench) {                                   // 仓库里的：直接卖，没有「留一个人」的限制
+    const back = sellPrice(o.kind, o.def);
+    run.bench.splice(run.bench.indexOf(o.rec), 1);
+    run.gold += back;
+    return back;
+  }
   if (o.kind === 'hero') {
     if (run.squad.length <= 1) return 0;
     const back = sellPrice('hero', o.def);
@@ -864,15 +936,15 @@ export function stepFight(f) {
       }
     }
   }
-  // 7) 毒圈：第 zoneFrom 拍之后，双方同时掉同样的固定点数（无视护盾），越往后越疼
+  // 7) 毒圈：第 zoneFrom 拍之后，双方同时掉血（按各自最大生命的比例，无视护盾），越往后越疼
   if (f.t > TUNING.zoneFrom && !f.over) {
     const pre = { p: f.p.hp / f.p.maxHp, e: f.e.hp / f.e.maxHp };
-    const k = TUNING.zoneStep * (f.t - TUNING.zoneFrom);   // 固定点数：双方一样（不按血量比例），第 N 拍各掉 k 点
-    const dp = k;
-    const de = k;
+    const k = TUNING.zoneStep * (f.t - TUNING.zoneFrom);
+    const dp = f.p.maxHp * k;
+    const de = f.e.maxHp * k;
     f.p.hp -= dp;
     f.e.hp -= de;
-    f.zone = Math.round(k * 10) / 10;            // 当前每拍掉的点数（给界面显示）
+    f.zone = Math.round(k * 1000) / 10;            // 当前每拍掉的百分比（给界面显示）
     ev.push({ s: 'z', k: 'zone', p: dp, e: de, pct: f.zone, first: f.t === TUNING.zoneFrom + 1 });
     if (f.p.hp <= 0 && f.e.hp <= 0) {                // 同一拍双方一起倒：进圈前血线高的赢
       f.win = pre.p >= pre.e;

@@ -189,7 +189,7 @@ export const sfx = {
   // 毒圈：每拍一声低沉的「嗡」，越往后越高越急
   zone(pct = 0) {
     if (!gate('zone', 60)) return;
-    const k = Math.min(1, pct / 40);
+    const k = Math.min(1, pct / 6);
     tone(70 + k * 90, { to: 50, dur: 0.22, type: 'sawtooth', gain: 0.1 + k * 0.12 });
     noise({ dur: 0.18, gain: 0.05 + k * 0.1, lp: 500 + k * 1500, hp: 60 });
   },
