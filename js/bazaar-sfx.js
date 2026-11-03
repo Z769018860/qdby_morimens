@@ -100,6 +100,18 @@ function gate(name, gap = 30) {
   return voices < 24;
 }
 
+// 稳定的小哈希（FNV-1a）：同一个唤醒体每次都发同一个音，不同唤醒体尽量错开
+function hashStr(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+// 大调五声音阶：几个人的音同时叠在一起也不会刺耳
+const PENTA = [0, 2, 4, 7, 9];
+// 界域 → 基音与波形（混沌粗糙、血肉钝、深海干净、超维清亮）
+const CAST_BASE = { CHAOS: 207.65, CARO: 233.08, AEQUOR: 261.63, ULTRA: 293.66 };
+const CAST_WAVE = { CHAOS: 'sawtooth', CARO: 'square', AEQUOR: 'sine', ULTRA: 'triangle' };
+
 export const sfx = {
   // 界面
   tap() { if (gate('tap', 40)) tone(760, { to: 620, dur: 0.05, type: 'square', gain: 0.07 }); },
@@ -123,6 +135,18 @@ export const sfx = {
     // 产算力：一局里响得最频繁，压到很轻，音高按 uid 错开一点
     if (!gate('gen', 45)) return;
     tone(520 + Math.random() * 90, { to: 700, dur: 0.09, type: 'sine', gain: 0.05 });
+  },
+  // 唤醒体「出手」（每 cd 拍产一次算力，就是它放技能的时刻）：每个唤醒体一个专属音色。
+  // 界域定基音与波形，id 的哈希在五声音阶里挑一个音、再决定高八度 —— 同一个角色永远同一个音，
+  // 不同角色听感分得开；几人同拍出手时是一小串和声，不会糊成一团。
+  cast(id, realm) {
+    if (!gate('cast:' + id, 55)) return;
+    const h = hashStr(String(id || 'x'));
+    const f = (CAST_BASE[realm] || CAST_BASE.CARO) * (1 + ((h >>> 4) % 2)) * Math.pow(2, PENTA[h % 5] / 12);
+    const type = CAST_WAVE[realm] || 'triangle';
+    tone(f, { dur: 0.16, type, gain: 0.085 });
+    tone(f * 1.5, { dur: 0.1, type: 'sine', gain: 0.032, at: 0.03 });
+    if (realm === 'CHAOS') noise({ dur: 0.05, gain: 0.03, lp: 2600, hp: 700 });
   },
   fire() {
     if (!gate('fire', 60)) return;

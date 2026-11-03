@@ -1242,6 +1242,18 @@ function gate(name, gap = 30) {
   return voices < 24;
 }
 
+// 稳定的小哈希（FNV-1a）：同一个唤醒体每次都发同一个音，不同唤醒体尽量错开
+function hashStr(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+// 大调五声音阶：几个人的音同时叠在一起也不会刺耳
+const PENTA = [0, 2, 4, 7, 9];
+// 界域 → 基音与波形（混沌粗糙、血肉钝、深海干净、超维清亮）
+const CAST_BASE = { CHAOS: 207.65, CARO: 233.08, AEQUOR: 261.63, ULTRA: 293.66 };
+const CAST_WAVE = { CHAOS: 'sawtooth', CARO: 'square', AEQUOR: 'sine', ULTRA: 'triangle' };
+
 const sfx = {
   // 界面
   tap() { if (gate('tap', 40)) tone(760, { to: 620, dur: 0.05, type: 'square', gain: 0.07 }); },
@@ -1265,6 +1277,18 @@ const sfx = {
     // 产算力：一局里响得最频繁，压到很轻，音高按 uid 错开一点
     if (!gate('gen', 45)) return;
     tone(520 + Math.random() * 90, { to: 700, dur: 0.09, type: 'sine', gain: 0.05 });
+  },
+  // 唤醒体「出手」（每 cd 拍产一次算力，就是它放技能的时刻）：每个唤醒体一个专属音色。
+  // 界域定基音与波形，id 的哈希在五声音阶里挑一个音、再决定高八度 —— 同一个角色永远同一个音，
+  // 不同角色听感分得开；几人同拍出手时是一小串和声，不会糊成一团。
+  cast(id, realm) {
+    if (!gate('cast:' + id, 55)) return;
+    const h = hashStr(String(id || 'x'));
+    const f = (CAST_BASE[realm] || CAST_BASE.CARO) * (1 + ((h >>> 4) % 2)) * Math.pow(2, PENTA[h % 5] / 12);
+    const type = CAST_WAVE[realm] || 'triangle';
+    tone(f, { dur: 0.16, type, gain: 0.085 });
+    tone(f * 1.5, { dur: 0.1, type: 'sine', gain: 0.032, at: 0.03 });
+    if (realm === 'CHAOS') noise({ dur: 0.05, gain: 0.03, lp: 2600, hp: 700 });
   },
   fire() {
     if (!gate('fire', 60)) return;
@@ -1393,7 +1417,7 @@ const REALM_VAR = { CHAOS: '--chaos', CARO: '--caro', AEQUOR: '--aqua', ULTRA: '
 const REALM_CLS = { CHAOS: 'CH', CARO: 'CA', AEQUOR: 'AE', ULTRA: 'UL' };
 // 待机立绘：唤醒体是 GIF 动图（循环播放），主播彩蛋只有一张静图（.webp）
 // 资源地址带版本号：图集 / 立绘换过之后，线上和浏览器缓存里的旧文件不会和新数据错位（图标名字对不上就是这么来的）
-const ASSET_V = '3.1.5';
+const ASSET_V = '3.1.6';
 const idleUrl = (h) => `assets/bazaar/idle/${h.id}.${h.egg ? 'webp' : 'gif'}?v=${ASSET_V}`;
 const artHTML = (h) => (h ? `<img src="${idleUrl(h)}" alt="${h.n}" decoding="async">` : '');
 function setRealm(h, els) {
@@ -1583,6 +1607,8 @@ function renderFoe() {
       <div class="fhp"><span>生命 ${fmt(st.maxHp)}</span><div class="bar"><i style="width:100%"></i></div></div>
       <div class="fsk">${foe.skills.map((s) => `<span title="${skillText(st, s)}">${s.n} · ${s.cd} 拍</span>`).join('')}</div>
     </div>`;
+  // 点今天这只怪：看它几拍放什么技能、掉多少血
+  $('foeBar').onclick = () => openDetail('foe', run.foeId);
 }
 
 function renderTerrain() {
@@ -1676,8 +1702,10 @@ function renderShop() {
     const def = C.defOf(o);
     const can = C.canBuy(run, i);
     const rar = o.kind === 'relic' ? def.r : def.r || 'SSR';
+    // 英雄卡带上界域色：图标描一圈对应色，不同唤醒体一眼分得开（和「每个唤醒体一个专属音色」呼应）
+    const rstyle = (o.kind === 'hero' && REALM_VAR[def.realm]) ? ` style="--realm:var(${REALM_VAR[def.realm]})"` : '';
     // 图标那一块单独可点：看详情，不买。手机上一张卡就是「买」，误触的代价太大。
-    return `<button class="card k-${o.kind} r-${rar} ${o.sold ? 'sold' : ''} ${!can && !o.sold ? 'poor' : ''}" type="button" data-offer="${i}">
+    return `<button class="card k-${o.kind} r-${rar} ${o.sold ? 'sold' : ''} ${!can && !o.sold ? 'poor' : ''}" type="button" data-offer="${i}"${rstyle}>
       <span class="ci" data-info="${i}">${sp(def.spr)}</span>
       ${o.kind === 'hero' ? `<span class="ca" style="background-image:url(${idleUrl(def)})"></span>` : ''}
       <span class="cp ${run.gold < o.price ? 'no' : ''}">${o.price}</span>
@@ -1828,9 +1856,35 @@ function sheetRelic(d) {
   $('sMeta').textContent = `造物 · ${d.r}`;
   $('sTxt').innerHTML = `<b>${C.itemText(d)}</b><br>造物不占出手，只要装在身上就一直生效。`;
 }
+// 怪物详情：点今天的对手 / 战斗页那只怪，看它掉什么血、几拍放什么技能（数值按当天缩放）
+function sheetFoe(d, st) {
+  paintSp($('sImg'), d.spr);
+  $('sName').textContent = d.n;
+  $('sMeta').textContent = `怪物 · ${RANK_ZH[d.rank] || '普通'} · 生命 ${fmt(st.maxHp)}`;
+  const sk = (d.skills || []).map((s) => `<b>${s.n}</b>：${skillText(st, s)}（${s.cd} 拍一次）`);
+  $('sTxt').innerHTML = [
+    st.boss ? '<em>首领：血厚、技能重，先把输出堆起来再打。</em>'
+      : st.elite ? '<em>精英：比普通怪多一手，别硬顶。</em>' : '',
+    sk.length ? sk.join('<br>') : '没有特殊技能，纯靠普通攻击磨血。',
+  ].filter(Boolean).join('<br>');
+  $('sArt').innerHTML = '';
+}
 
 // 打开方式二：own = uid（队伍 / 战场上的），offer = 集市第 i 个摊位（可以在这里直接买）
 function openDetail(kind, id, opt) {
+  // 怪物：不在队伍里，走单独一条（只能看，不能卖）
+  if (kind === 'foe') {
+    const fd = C.foeOf(id);
+    if (!fd) return;
+    sheetFoe(fd, C.foeStats(run));
+    $('sSell').textContent = '知道了';
+    $('sSell').disabled = false;
+    $('sSell').onclick = closeSheet;
+    $('sheet').classList.add('on');
+    sheetAt = Date.now();
+    sfx.open();
+    return;
+  }
   const isOffer = opt && typeof opt.offer === 'number';
   const o = isOffer ? null : C.owned(run, id);
   if (!isOffer && !o) return;
@@ -1932,6 +1986,9 @@ function paintFight() {
   $('bFoeHpTxt').textContent = `${fmt(f.e.maxHp)} / ${fmt(f.e.maxHp)}`;
   $('bFoeSkills').innerHTML = f.e.skills.map((s, i) => `
     <span class="skill" id="sk${i}" title="${skillText(C.foeStats(run), s)}">${s.n}<i id="skb${i}"></i></span>`).join('');
+  // 点战斗页这只怪，看它的技能详情（跟集市页同一块面板）
+  const bf = $('bFoe');
+  if (bf) bf.onclick = () => openDetail('foe', f.foe.id);
   renderTrack($('bTrack'), true);
   $('bTrack').onclick = (e) => {
     const el = e.target.closest('.unit');
@@ -2091,7 +2148,8 @@ function applyEvents(ev) {
         const el = document.querySelector(`[data-uid="${e.uid}"]`);
         if (el) float('p', `+${e.v} 算力`, '#8fb6ff', el);
         flash(e.uid);
-        sfx.gen();
+        const bu = f.units.find((x) => x.uid === e.uid);
+        if (bu && bu.def) sfx.cast(bu.def.id, bu.def.realm); else sfx.gen();
       } else if (e.waste > 0) {
         parts.push('算力满了溢出，该扩容了');
       }
@@ -2327,7 +2385,7 @@ document.addEventListener('click', (e) => {
   if (!sheet.classList.contains('on')) return;
   if (Date.now() - sheetAt < 240) return;
   if (e.target.closest('#sheet')) return;
-  if (e.target.closest('.ci') || e.target.closest('.unit') || e.target.closest('[data-wid]') || e.target.closest('[data-bw]') || e.target.closest('[data-rid]')) return;
+  if (e.target.closest('.ci') || e.target.closest('.unit') || e.target.closest('[data-wid]') || e.target.closest('[data-bw]') || e.target.closest('[data-rid]') || e.target.closest('#foeBar') || e.target.closest('#bFoe')) return;
   closeSheet();
 });
 document.addEventListener('keydown', (e) => {
