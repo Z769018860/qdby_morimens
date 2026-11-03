@@ -103,39 +103,88 @@ function beep(freq, dur, type, gain) {
   o.start(t0);
   o.stop(t0 + dur + 0.02);
 }
+// 噪声爆裂：消除 / 爆炸的「哗」一声（带通滤波，音高可调）
+function noise(dur, gain, freq, q) {
+  if (!sndOn) return;
+  const a = audio();
+  if (!a) return;
+  const n = Math.max(1, Math.floor(a.sampleRate * dur));
+  const buf = a.createBuffer(1, n, a.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2);
+  const src = a.createBufferSource();
+  src.buffer = buf;
+  const f = a.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = freq || 1800;
+  f.Q.value = q || 0.9;
+  const g = a.createGain();
+  g.gain.value = gain || 0.1;
+  src.connect(f).connect(g).connect(a.destination);
+  src.start();
+}
+// 带音高滑动的一声（落地闷响 / 水涌）
+function sweep(f0, f1, dur, type, gain) {
+  if (!sndOn) return;
+  const a = audio();
+  if (!a) return;
+  const o = a.createOscillator();
+  const g = a.createGain();
+  o.type = type || 'sine';
+  const t0 = a.currentTime;
+  o.frequency.setValueAtTime(f0, t0);
+  o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(gain || 0.1, t0 + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(a.destination);
+  o.start(t0);
+  o.stop(t0 + dur + 0.03);
+}
+let landAt = 0;
 const sfx = {
-  move: () => beep(320, 0.05, 'square', 0.02),
-  drop: () => beep(150, 0.12, 'sine', 0.06),
+  move: () => beep(320, 0.05, 'square', 0.04),
+  // 松手：块「啪」地落位
+  drop: () => sweep(220, 90, 0.1, 'sine', 0.12),
+  // 方块落地：闷响 + 一点灰（一帧内多块同时落地只响一次）
+  land(dist) {
+    const now = performance.now();
+    if (now - landAt < 70) return;
+    landAt = now;
+    sweep(150 + dist * 6, 60, 0.13, 'sine', Math.min(0.2, 0.1 + dist * 0.02));
+    noise(0.06, 0.05, 700, 1);
+  },
   // 水顶上来一行：低频往上抬，和落子的「闷响」区分开
   rise() {
-    if (!sndOn) return;
-    const a2 = audio();
-    if (!a2) return;
-    const o = a2.createOscillator();
-    const g = a2.createGain();
-    o.type = 'sine';
-    const t0 = a2.currentTime;
-    o.frequency.setValueAtTime(110, t0);
-    o.frequency.exponentialRampToValueAtTime(190, t0 + 0.22);
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.05, t0 + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.26);
-    o.connect(g).connect(a2.destination);
-    o.start(t0);
-    o.stop(t0 + 0.28);
+    sweep(100, 200, 0.28, 'sine', 0.12);
+    noise(0.22, 0.04, 500, 0.7);
   },
-  slide: () => beep(260, 0.07, 'sine', 0.035),
-  nope: () => beep(120, 0.09, 'square', 0.03),
-  clear: (n) => {
-    beep(380 + n * 70, 0.14, 'triangle', 0.07);
-    setTimeout(() => beep(520 + n * 90, 0.16, 'triangle', 0.05), 55);
+  slide: () => beep(260, 0.07, 'sine', 0.07),
+  nope: () => beep(120, 0.09, 'square', 0.06),
+  // 消行：碎裂的「哗」+ 往上的琶音；行数、连锁越多越高越亮
+  clear(n, combo) {
+    n = Math.max(1, n | 0);
+    combo = Math.max(1, combo | 0);
+    noise(0.22 + n * 0.05, 0.16 + n * 0.03, 2400 + n * 500, 0.8);
+    const base = 392 * Math.pow(2, (combo - 1) * 2 / 12);
+    const notes = [0, 4, 7, 12, 16].slice(0, 2 + n);
+    notes.forEach((st, i) => setTimeout(() => beep(base * Math.pow(2, st / 12), 0.2, 'triangle', 0.12), i * 55));
+  },
+  // 炸开 / 结晶碎裂
+  boom() {
+    noise(0.3, 0.2, 900, 0.6);
+    sweep(180, 40, 0.28, 'sine', 0.18);
+  },
+  crack() {
+    noise(0.12, 0.14, 4200, 1.4);
+    beep(1480, 0.08, 'triangle', 0.07);
   },
   item: () => {
-    beep(680, 0.1, 'sine', 0.05);
-    setTimeout(() => beep(920, 0.12, 'sine', 0.04), 60);
+    beep(680, 0.12, 'sine', 0.11);
+    setTimeout(() => beep(920, 0.14, 'sine', 0.09), 70);
   },
-  win: () => [0, 110, 220, 340].forEach((d, i) => setTimeout(() => beep([523, 659, 784, 1047][i], 0.24, 'triangle', 0.06), d)),
-  lose: () => [0, 120, 260].forEach((d, i) => setTimeout(() => beep([392, 330, 262][i], 0.3, 'sine', 0.06), d)),
+  win: () => [0, 110, 220, 340].forEach((d, i) => setTimeout(() => beep([523, 659, 784, 1047][i], 0.28, 'triangle', 0.12), d)),
+  lose: () => [0, 120, 260].forEach((d, i) => setTimeout(() => beep([392, 330, 262][i], 0.34, 'sine', 0.12), d)),
 };
 
 // ------------------------------------------------------------------ 状态
@@ -149,6 +198,9 @@ const G = {
   board: { x: 0, y: 0, w: 240, h: 340 },
   bg: null,
   parts: [],
+  rings: [],            // 消行时扩散的冲击环
+  ghosts: [],           // 刚被消掉的格子：原地闪白、放大、淡出
+  tw: new Map(),        // 方块 id → 落下 / 顶起的补间（visual offset）
   floats: [],
   shake: 0,
   flash: 0,
@@ -658,7 +710,7 @@ function draw() {
       const isDrag = dragBid != null && cell.b === dragBid;
       const jl = c > 0 && st.board[r][c - 1] && st.board[r][c - 1].b === cell.b;
       const jr = c < st.cols - 1 && st.board[r][c + 1] && st.board[r][c + 1].b === cell.b;
-      drawBlockCell(ctx, B.x + c * cw + (isDrag ? offX : 0), B.y + r * ch, cw, ch, cell.k, cell.sp, { jl, jr });
+      drawBlockCell(ctx, B.x + c * cw + (isDrag ? offX : 0), B.y + (r + twOffset(cell.b)) * ch, cw, ch, cell.k, cell.sp, { jl, jr });
     }
   }
 
@@ -728,6 +780,44 @@ function draw() {
 
   ctx.restore();
 
+  // 消除特效：整行闪光 + 被消掉的格子放大淡出 + 冲击环
+  for (const gh of G.ghosts) {
+    const k = clamp(gh.life / gh.max, 0, 1);
+    ctx.save();
+    if (gh.row != null) {
+      const grd = ctx.createLinearGradient(B.x, 0, B.x + B.w, 0);
+      grd.addColorStop(0, 'rgba(255,255,255,0)');
+      grd.addColorStop(0.5, 'rgba(255,248,214,' + (0.75 * k) + ')');
+      grd.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = grd;
+      ctx.fillRect(B.x, B.y + gh.row * ch, B.w, ch);
+    } else {
+      const cx0 = B.x + gh.c * cw + cw / 2;
+      const cy0 = B.y + gh.r * ch + ch / 2;
+      const sc = 1 + (1 - k) * 0.5;
+      ctx.translate(cx0, cy0);
+      ctx.scale(sc, sc);
+      ctx.translate(-cx0, -cy0);
+      drawBlockCell(ctx, B.x + gh.c * cw, B.y + gh.r * ch, cw, ch, gh.k, gh.sp, { alpha: k * 0.85, ghost: true, jl: false, jr: false });
+      ctx.globalAlpha = k * 0.7;
+      ctx.fillStyle = '#ffffff';
+      roundRect(ctx, B.x + gh.c * cw + 2, B.y + gh.r * ch + 2, cw - 4, ch - 4, Math.min(cw, ch) * 0.24);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  for (const rg of G.rings) {
+    const k = 1 - clamp(rg.life / rg.max, 0, 1);
+    ctx.save();
+    ctx.globalAlpha = (1 - k) * 0.75;
+    ctx.strokeStyle = '#cfe8ff';
+    ctx.lineWidth = 2.5 * (1 - k) + 0.5;
+    ctx.beginPath();
+    ctx.ellipse(rg.x, rg.y, rg.w * (0.08 + 0.5 * k), Math.min(cw, ch) * (0.25 + 0.9 * k), 0, 0, 7);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // 粒子
   for (const p of G.parts) {
     ctx.save();
@@ -782,9 +872,9 @@ function burst(r, c, realm) {
   const x = B.x + c * cw + cw / 2;
   const y = B.y + r * ch + ch / 2;
   const col = realmColors(realm);
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 12; i++) {
     const a = Math.random() * Math.PI * 2;
-    const v = 40 + Math.random() * 130;
+    const v = 50 + Math.random() * 190;
     G.parts.push({
       x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 40,
       s: 1.4 + Math.random() * 2.6, c: i % 3 === 0 ? '#ffffff' : (i % 3 === 1 ? col.c : col.l),
@@ -797,6 +887,69 @@ function pushFloat(x, y, text, color, size) {
   G.floats.push({ x, y, text, c: color, size: size || 18, life: 0.9, max: 0.9 });
 }
 
+// ------------------------------------------------------------------ 动画：落下 / 顶起 / 消除
+// core 一步算到终局（消行、塌落、升行都在一次 commit 里完成），所以画面用「前后对比」补出过程：
+// 记下动手前每块所在的行，动手后凡是行变了的块，从旧位置补间到新位置。
+function snapBlocks(st) {
+  const m = new Map();
+  for (let r = 0; r < st.rows; r++) {
+    for (let c = 0; c < st.cols; c++) {
+      const x = st.board[r][c];
+      if (x && !m.has(x.b)) m.set(x.b, r);
+    }
+  }
+  return m;
+}
+function startTweens(old, st) {
+  if (!old || !st) return;
+  const hit = st.fx.some((e) => e.k === 'clear' || e.k === 'boom');
+  const delay = hit ? 0.26 : 0;          // 有消除时先让「消」演完，再让上面的块落下来
+  const cur = snapBlocks(st);
+  for (const [bid, r] of cur) {
+    const from = old.has(bid) ? old.get(bid) : r + 1;     // 新升上来的那一行从底下的预告条里冒出来
+    if (from === r) continue;
+    const dist = Math.abs(from - r);
+    const fall = from < r;
+    G.tw.set(bid, { from, to: r, t: 0, delay, dur: fall ? Math.min(0.5, 0.13 + 0.06 * dist) : 0.24, fall, dist });
+  }
+}
+// 块当前在画面上的竖直偏移（单位：行）
+function twOffset(bid) {
+  const a = G.tw.get(bid);
+  if (!a) return 0;
+  const p = clamp((a.t - a.delay) / a.dur, 0, 1);
+  const e = a.fall ? p * p : 1 - Math.pow(1 - p, 3);
+  return (a.from - a.to) * (1 - e);
+}
+function stepTweens(dt) {
+  if (!G.tw.size) return;
+  const B = G.board;
+  const { w: cw, h: ch } = G.cell;
+  for (const [bid, a] of G.tw) {
+    a.t += dt;
+    if (a.t < a.delay + a.dur) continue;
+    G.tw.delete(bid);
+    if (!a.fall || !G.st) continue;
+    // 落地：沿着这一块的下沿扬一小撮灰，响一声闷响
+    const cs = cellsOf(G.st, bid);
+    if (!cs.length) continue;
+    const r = cs[0].r;
+    const c0 = Math.min(...cs.map((x) => x.c));
+    const c1 = Math.max(...cs.map((x) => x.c));
+    for (let i = 0; i < 4 + (c1 - c0) * 2; i++) {
+      G.parts.push({
+        x: B.x + (c0 + Math.random() * (c1 - c0 + 1)) * cw,
+        y: B.y + (r + 1) * ch - 2,
+        vx: (Math.random() - 0.5) * 90, vy: -20 - Math.random() * 50,
+        s: 1 + Math.random() * 1.6, c: 'rgba(210,225,245,.9)',
+        life: 0.22 + Math.random() * 0.18, max: 0.4,
+      });
+    }
+    sfx.land(a.dist);
+    G.shake = Math.max(G.shake, Math.min(0.28, 0.06 * a.dist));
+  }
+}
+
 // 把 core 记下的 fx 变成看得见的东西
 function drainFx() {
   const st = G.st;
@@ -805,7 +958,12 @@ function drainFx() {
   const { w: cw, h: ch } = G.cell;
   for (const e of st.fx) {
     if (e.k === 'clear') {
-      for (const x of e.cells) burst(x.r, x.c, x.k);
+      for (const x of e.cells) { burst(x.r, x.c, x.k); G.ghosts.push({ r: x.r, c: x.c, k: x.k, sp: x.sp, life: 0.34, max: 0.34 }); }
+      for (const r of e.rows) {
+        G.ghosts.push({ row: r, life: 0.38, max: 0.38 });
+        G.rings.push({ x: B.x + B.w / 2, y: B.y + r * ch + ch / 2, life: 0.45, max: 0.45, w: B.w });
+      }
+      sfx.clear(e.rows.length, e.combo);
       const topRow = Math.min(...e.rows);
       const gain = e.gain + (e.resonate ? e.resonate * 200 : 0);
       pushFloat(B.x + B.w / 2, B.y + topRow * ch + ch * 0.4, '+' + gain, e.resonate ? '#ffd7a8' : '#ffe9a8', 20);
@@ -824,8 +982,12 @@ function drainFx() {
       if (it) pushFloat(B.x + B.w - 24, B.y + B.h - 20, it.n, '#bff0c6', 14);
     } else if (e.k === 'crack' || e.k === 'boom') {
       burst(e.r, e.c, -1);
-      G.shake = Math.max(G.shake, 0.3);
-      sfx.drop();
+      if (e.k === 'boom') {
+        burst(e.r, e.c, -1);
+        G.rings.push({ x: B.x + e.c * cw + cw / 2, y: B.y + e.r * ch + ch / 2, life: 0.4, max: 0.4, w: cw * (e.big ? 7 : 3.5) });
+      }
+      G.shake = Math.max(G.shake, e.k === 'boom' ? 0.5 : 0.3);
+      if (e.k === 'boom') sfx.boom(); else sfx.crack();
     } else if (e.k === 'rise') {
       // 底下顶上来一整行：贴着棋盘底边冒一串水泡
       sfx.rise();
@@ -888,6 +1050,15 @@ function frame(now) {
     G.comboText.life -= dt;
     if (G.comboText.life <= 0) G.comboText = null;
   }
+  for (let i = G.ghosts.length - 1; i >= 0; i--) {
+    G.ghosts[i].life -= dt;
+    if (G.ghosts[i].life <= 0) G.ghosts.splice(i, 1);
+  }
+  for (let i = G.rings.length - 1; i >= 0; i--) {
+    G.rings[i].life -= dt;
+    if (G.rings[i].life <= 0) G.rings.splice(i, 1);
+  }
+  stepTweens(dt);
   if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 3);
 
   draw();
@@ -976,9 +1147,11 @@ function tapItem(id) {
     showTip(G.aim ? '点棋盘上要用它的位置' : '');
     return;
   }
+  const old0 = snapBlocks(st);
   if (useItem(st, id, -1, -1)) {
     G.aim = null;
     paintItems();
+    startTweens(old0, st);
     drainFx();
     draw();
   }
@@ -994,7 +1167,9 @@ function stageDown(e) {
   // 瞄准模式：这一下直接落子
   if (G.aim) {
     const cell = cellFromPoint(pt.clientX, pt.clientY);
+    const old1 = snapBlocks(st);
     if (cell && useItem(st, G.aim, cell.r, cell.c)) {
+      startTweens(old1, st);
       G.aim = null;
       G.aimCell = null;
       paintItems();
@@ -1006,8 +1181,9 @@ function stageDown(e) {
 
   // 一个能推的块都没有：这一下就让水顶上来一行，不然就死局了
   if (!hasMove(st)) {
+    const old2 = snapBlocks(st);
     if (pass(st)) {
-      sfx.rise();
+      startTweens(old2, st);
       showTip('没有能推的块了，水顶上来一行');
       drainFx();
       afterMove();
@@ -1064,12 +1240,14 @@ function stageUp() {
   if (!d.dx) { draw(); return; }
 
   const before = st.lines;
+  const old = snapBlocks(st);
   const res = commit(st, d.bid, d.dx);
   G.drag = null;
   if (!res.ok) { draw(); return; }
 
-  if (st.lines > before) { sfx.clear(); G.shake = Math.max(G.shake, 0.55); }
+  if (st.lines > before) G.shake = Math.max(G.shake, 0.55);
   else sfx.slide();
+  startTweens(old, st);
   drainFx();
   afterMove();
 }
