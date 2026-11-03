@@ -1,4 +1,4 @@
-// 《寻找伪人：Morimens》v3 的平衡模拟：机器人按真实玩家能拿到的信息做判断，跑 N 局统计结局。
+// 《寻找伪人：Morimens》v4 的平衡模拟：机器人按真实玩家能拿到的信息做判断，跑 N 局统计结局。
 //
 // 机器人拿不到「谁是真」这种答案，只能：
 //   · 卡面 / 答话 —— 和档案对（档案随时可查）
@@ -7,6 +7,9 @@
 // 所以「跑 N 局」等于「同一个玩家玩了 N 个周目」，图鉴是累积的。
 //
 // 用法：node scripts/fake-sim.mjs 400 [seedBase]
+//   DIFF=intro|std|hard|night   选难度（默认 intro）
+//   STYLE=0|1|2                 机器人性格：保守 / 平衡 / 大胆
+//   FRESH=1                     每局清图鉴（＝第一周目）
 
 const store = new Map();
 globalThis.localStorage = {
@@ -21,6 +24,7 @@ const N = +(process.argv[2] || 200);
 const BASE = +(process.argv[3] || 20261103);
 // 机器人性格：0=保守（看不懂就不放） 1=平衡 2=大胆（能放就放）
 const STYLE = process.env.STYLE || '1';
+const DIFF = process.env.DIFF || 'intro';
 
 const TR = ['self', 'eye', 'item', 'pet', 'line'];
 
@@ -62,7 +66,8 @@ function playVisit(s) {
   // 没查出问题：按性格决定放不放
   const roomy = !E.roomFull(s);
   const admit = STYLE === '2' ? roomy : (STYLE === '1' ? (roomy && s.sanity > 45) : (roomy && s.sanity > 70));
-  E.decide(s, admit ? 'admit' : 'refuse');
+  const r = E.decide(s, admit ? 'admit' : 'refuse');
+  if (!r) E.decide(s, 'refuse');   // 屋子满了：放不进来，只能让他走
 }
 
 function playDay(s) {
@@ -99,21 +104,23 @@ function playDay(s) {
 
 const tally = {};
 const sanity = [];
-let runs = 0, totalDeaths = 0, shots = 0, leaks = 0, caught = 0;
+let runs = 0, totalDeaths = 0, shots = 0, leaks = 0, caught = 0, gain = 0, taskAll = 0;
 const dayEnd = [];
+const cfgDays = E.diffOf(DIFF).days;
 
 for (let i = 0; i < N; i++) {
   // FRESH=1 时每局清空图鉴：模拟一个从零开始的新玩家（第一周目的真实难度）
   if (process.env.FRESH) store.clear();
-  const s = E.newRun((BASE + i * 7919) >>> 0);
+  const s = E.newRun((BASE + i * 7919) >>> 0, DIFF);
   playDay(s);
-  for (let n = 0; n < E.DAYS; n++) {
+  for (let n = 0; n < s.days; n++) {
     if (s.over) break;
     E.startNight(s);
-    for (let k = 0; k < E.VISITS; k++) {
+    const nv = s.nights[s.night] ? s.nights[s.night].visits : 0;
+    for (let k = 0; k < nv; k++) {
       playVisit(s);
       if (s.over) break;
-      if (k < E.VISITS - 1) E.nextVisitor(s);
+      if (k < nv - 1) E.nextVisitor(s);
     }
     if (s.over) break;
     E.endNight(s);
@@ -128,17 +135,22 @@ for (let i = 0; i < N; i++) {
   shots += s.killedReal;
   leaks += s.leaked;
   caught += s.caught;
+  gain += E.rewardOf(s).gain;
+  if (E.tasksDone(s) === s.tasks.length) taskAll++;
   dayEnd.push(s.day);
 }
 
 const pct = (n) => (n / runs * 100).toFixed(1) + '%';
-const all = ['perfect', 'archive', 'split', 'broadcast', 'keeper', 'dawn', 'alone', 'shut', 'leak', 'san', 'kill'];
-console.log(`局数 ${runs} · 性格 ${STYLE} · 种子基数 ${BASE}`);
+const all = ['doctrine', 'archive', 'perfect', 'deaf', 'host', 'crowd', 'tenant', 'cockroach',
+  'split', 'broadcast', 'keeper', 'dawn', 'alone', 'shut', 'leak', 'san', 'kill'];
+console.log(`局数 ${runs} · 难度 ${DIFF}（${cfgDays} 夜） · 性格 ${STYLE} · 种子基数 ${BASE}`);
 console.log('结局：' + all.map((k) => `${k} ${((tally[k] || 0) / runs * 100).toFixed(1)}%`).join(' · '));
 console.log('平均：理智 ' + (sanity.reduce((a, b) => a + b, 0) / runs).toFixed(1)
   + ' · 夜里死人 ' + (totalDeaths / runs).toFixed(2)
   + ' · 误杀 ' + (shots / runs).toFixed(2)
   + ' · 放进伪人 ' + (leaks / runs).toFixed(2)
   + ' · 看破 ' + (caught / runs).toFixed(2)
-  + ' · 撑到第 ' + (dayEnd.reduce((a, b) => a + b, 0) / runs + 1).toFixed(1) + ' 天');
+  + ' · 撑到第 ' + (dayEnd.reduce((a, b) => a + b, 0) / runs + 1).toFixed(1) + ' 天'
+  + ' · 银芯 ' + (gain / runs).toFixed(0)
+  + ' · 三任务全达 ' + pct(taskAll));
 console.log('图鉴核实 ' + E.knownCount() + ' / ' + E.KNOWN_MAX);

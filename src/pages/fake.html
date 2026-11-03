@@ -72,8 +72,8 @@ h1,h2,h3,p{margin:0}
 
 /* ---------------------------------------------------------------- 标题页 */
 .title{
-  flex:1; position:relative; display:flex; align-items:center; justify-content:center;
-  gap:clamp(18px,6vw,86px); padding:24px clamp(18px,6vw,76px); overflow:hidden;
+  flex:1; position:relative; display:flex; align-items:flex-start; justify-content:center;
+  gap:clamp(18px,6vw,86px); padding:24px clamp(18px,6vw,76px); overflow:auto;
   background:
     radial-gradient(620px 340px at 12% 6%,rgba(227,179,65,.09),transparent 62%),
     radial-gradient(760px 460px at 82% 108%,rgba(179,65,63,.07),transparent 64%),
@@ -83,7 +83,7 @@ h1,h2,h3,p{margin:0}
   content:""; position:absolute; inset:0; pointer-events:none;
   background:radial-gradient(ellipse at 50% 45%,transparent 40%,rgba(0,0,0,.72) 100%);
 }
-.tinner{position:relative; z-index:3; max-width:560px; text-align:left}
+.tinner{position:relative; z-index:3; max-width:560px; text-align:left; margin-block:auto}
 .eyebrow{font-size:11.5px; color:var(--dim); letter-spacing:.24em; margin-bottom:16px}
 .title h1{
   font-size:clamp(30px,5.6vw,52px); line-height:1.12; letter-spacing:.06em; color:#f2ecdd;
@@ -378,6 +378,42 @@ h1,h2,h3,p{margin:0}
   .ammo{display:none}
   .acts .left{width:100%; margin-left:0}
 }
+/* ---- 难度选择 ---- */
+.diffpick{display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:18px 0 4px}
+.diffpick .diff{flex:1 1 150px; max-width:180px; display:flex; flex-direction:column; gap:3px; text-align:left;
+  padding:10px 12px; background:var(--panel2); color:var(--text); border:var(--px) solid var(--line2);
+  box-shadow:3px 3px 0 #040406; cursor:pointer; transition:transform .08s, border-color .08s}
+.diffpick .diff:hover{transform:translate(-1px,-1px)}
+.diffpick .diff.on{border-color:var(--gold); box-shadow:0 0 0 1px var(--gold),3px 3px 0 #040406}
+.diffpick .diff b{font-size:14px; color:var(--gold)}
+.diffpick .diff em{font-style:normal; font-size:11px; color:var(--dim)}
+.diffpick .diff span{font-size:11px; color:var(--dim2); line-height:1.5}
+.diffpick .diff i{font-style:normal; font-size:11px; color:var(--blood2); margin-top:2px}
+.diffnote{font-size:12px; color:var(--dim); min-height:2.6em; max-width:560px; margin:2px auto 0; line-height:1.7}
+.hud .hdiff{font-size:10px; color:var(--gold2); border:1px solid var(--gold2); border-radius:3px; padding:0 4px; margin-left:2px}
+/* ---- 白天任务条 ---- */
+.dtasks{border:var(--px) solid var(--line); background:var(--bg2); padding:7px 9px; margin-bottom:8px}
+.dtasks .fhead{font-size:11px; color:var(--dim); letter-spacing:.06em; margin-bottom:4px}
+.task{display:flex; align-items:center; gap:6px; font-size:12px; padding:2px 0; color:var(--dim)}
+.task .tk{color:var(--dim2); width:12px}
+.task.on .tk{color:var(--gold)}
+.task.on .tt{color:var(--text)}
+.task em{margin-left:auto; font-style:normal; color:var(--dim2); font-size:11px}
+/* ---- 结局：银芯结算 / 任务 ---- */
+.epay{border:var(--px) solid var(--line); background:var(--bg2); padding:8px 10px; margin:10px 0}
+.epay .fhead{font-size:11px; color:var(--gold2); letter-spacing:.06em; margin-bottom:4px}
+.erow.big{border-top:1px dashed var(--line2); margin-top:4px; padding-top:6px; font-size:14px}
+.erow.big b{color:var(--gold)}
+.etasks{display:flex; flex-direction:column; gap:3px; margin:8px 0}
+.etasks .task em{color:var(--dim)}
+/* ---- 排行榜弹窗 ---- */
+.board{display:flex; flex-direction:column; gap:4px; max-height:48vh; overflow:auto; padding-right:4px}
+.brow{display:flex; align-items:center; gap:8px; font-size:13px; padding:4px 6px; border-bottom:1px solid var(--line)}
+.brow .rk{width:20px; color:var(--dim); text-align:right; font-variant-numeric:tabular-nums}
+.brow .nm{flex:1; color:var(--text); display:flex; flex-direction:column}
+.brow .nm em{font-style:normal; font-size:10.5px; color:var(--dim2)}
+.brow .sc{color:var(--gold); font-weight:700; font-variant-numeric:tabular-nums}
+.brow:first-child .rk{color:var(--gold)}
 </style>
 </head>
 <body>
@@ -396,9 +432,12 @@ h1,h2,h3,p{margin:0}
       <h1>寻找伪人<span>：Morimens</span></h1>
       <p class="lead">夜里有人敲门，白天屋里坐着人。
 放错一个进来，它会在今晚替你杀掉屋里的一个。</p>
+      <div class="diffpick" id="diffPick"></div>
+      <p class="diffnote" id="diffNote"></p>
       <div class="menu">
         <button class="btn primary" id="btnNew" type="button">开始值夜</button>
         <button class="btn" id="btnCont" type="button" hidden>接着上一夜</button>
+        <button class="btn" id="btnBoard" type="button">排行榜</button>
         <button class="btn" id="btnCodex" type="button">图鉴 <em id="codexCount">0/73</em></button>
         <button class="btn ghost" id="btnHelp" type="button">玩法</button>
       </div>
@@ -417,11 +456,12 @@ h1,h2,h3,p{margin:0}
   <section class="game" id="scrGame" hidden>
     <header class="hud">
       <a class="home" href="index.html" title="回首页">←</a>
-      <div class="night"><b id="hNight">第一夜</b><span id="hProg">第 1 个 / 共 3 个</span></div>
+      <div class="night"><b id="hNight">第一夜</b><span id="hProg">第 1 个 / 共 3 个</span><span class="hdiff" id="hDiff"></span></div>
       <div class="sanity"><span>理智</span><div class="bar"><i id="hSanBar"></i></div><b id="hSan">100</b></div>
       <div class="ammo" id="hAmmo" title="子弹"></div>
       <button class="ico" id="btnSound" type="button" title="声音">♪</button>
       <button class="ico" id="btnCodex2" type="button" title="图鉴">鉴</button>
+      <button class="ico" id="btnBoard2" type="button" title="排行榜">榜</button>
       <button class="ico" id="btnHelp2" type="button" title="玩法">?</button>
     </header>
 

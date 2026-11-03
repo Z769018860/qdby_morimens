@@ -1,19 +1,19 @@
-// 《寻找伪人：Morimens》的状态机（v3）。
+// 《寻找伪人：Morimens》的状态机（v4）。
 //
-// 结构：白天（屋子里）↔ 夜里（门后），七天。
+// 结构：白天（屋子里）↔ 夜里（门后）。每个难度天数不同（7 / 10 / 14 / 18），
+// 每晚敲门的次数**不固定**（2~5 个，按难度和那一夜的剧情来）。
 //
 // 白天你面对的是**已经住进来的人**，夜里你面对的是门外的人。
 // 放错人进来不会当场扣理智——它会在这个晚上杀掉屋里的一个真人。天亮你才发现少了谁。
-// 所以判断的代价变成了「别人的命」，而不是你自己的一条进度条。
 //
 // 一条铁律：伪人身上有且只有**一处不对**，一定查得到。
-// 这一处可能落在六种地方：
+// 这一处可能落在七种地方：
 //   card 登记卡（界域/职介/登记号）   ask 答话（生日/身高/别名/星座）
 //   self 自称   eye 瞳色   item 随身物   pet 身上的动物   line 口头禅
 // 前两种档案里就有真值，随时可对；后五种**档案上没有**，只能靠图鉴里你核实过的真值。
 // 图鉴的真值只在「对方说的就是真的」时才点亮——所以一周目靠档案，多周目靠眼力。
 //
-// 随机全部走种子：同一个种子重开一局完全一样（方便复现 bug、也方便机器人跑平衡）。
+// 随机全部走种子：同一个种子 + 同一个难度重开一局完全一样（方便复现 bug、也方便机器人跑平衡）。
 
 import { CHARS, META } from './gen.js';
 
@@ -33,38 +33,106 @@ export const FIELD_ASK = {
   area: '你挂在哪个分区？',
 };
 
-// 六处破绽的人话名字
+// 七处破绽的人话名字
 export const LIE_LABEL = {
   card: '登记卡', ask: '答话', self: '自称', eye: '眼睛', item: '随身物',
   pet: '身上的动物', line: '口头禅',
 };
 
-export const NIGHT_NAME = ['第一夜', '第二夜', '第三夜', '第四夜', '第五夜', '第六夜', '第七夜'];
+/* ================================================================ 难度 */
+// mul 是银芯的难度乘区；days 决定这一局有多长。
+// 敲门次数是每晚现摇的（vmin~vmax），所以同一档玩两遍，节奏也不一样。
+export const DIFFS = [
+  {
+    k: 'intro', n: '入门', days: 7, vmin: 2, vmax: 4,
+    rate0: 0.30, rate1: 0.44, san: 100, bullets: 4, roomMax: 8, mul: 1,
+    sub: '七夜 · 敲门两到四个', note: '第一遍值夜就该从这儿开始：人不多，破绽也多落在档案上。',
+  },
+  {
+    k: 'std', n: '标准', days: 10, vmin: 2, vmax: 5,
+    rate0: 0.34, rate1: 0.50, san: 100, bullets: 4, roomMax: 10, mul: 1.6,
+    sub: '十夜 · 名单越来越长', note: '十夜，屋里会住得比较满。后半程几乎全靠图鉴。',
+  },
+  {
+    k: 'hard', n: '硬核', days: 14, vmin: 3, vmax: 5,
+    rate0: 0.38, rate1: 0.54, san: 90, bullets: 3, roomMax: 12, mul: 2.4,
+    sub: '十四夜 · 理智只有 90', note: '十四夜。开局理智不满，子弹也少一发。',
+  },
+  {
+    k: 'night', n: '噩梦', days: 18, vmin: 2, vmax: 5,
+    rate0: 0.42, rate1: 0.58, san: 90, bullets: 3, roomMax: 14, mul: 3.4,
+    sub: '十八夜 · 没人替你数', note: '十八夜，理智 80。破绽从第三夜起就不在纸上了。',
+  },
+];
+export const diffOf = (k) => DIFFS.find((d) => d.k === k) || DIFFS[0];
+export const DIFF_INDEX = (k) => Math.max(0, DIFFS.findIndex((d) => d.k === k));
 
-export const DAYS = 7;
-export const VISITS = 3;         // 每晚敲几次门
-export const ROOM_MAX = 8;       // 屋子最多住几个人（挤一点没关系，命要紧）
+export const ROOM_MAX = 9;       // 屋子最多住几个人（硬核/噩梦放开到 9）
 export const START_HOME = 2;     // 开局屋里已有的住户（都是真人）
 export const HEAR_LIMIT = 1;     // 门外「听它说」的次数
 export const PEEK_LIMIT = 1;     // 门外「凑近看」的次数
 export const TALK_PER_DAY = 2;   // 白天每个住户能聊几个话题
+export const ACTS = 3;           // 每个人给你三次问话
 
-// 每晚几个伪人 + 破绽可能落在哪几处。
-// 前三夜一定留着 card / ask（档案里有真值），第四夜起才让隐晦的那几种登场——
-// 一周目能抓到的就那么多，剩下的要靠图鉴，这是「多周目」存在的理由。
-export const NIGHTS = [
-  { f: 1, acts: 3, pool: ['card', 'ask'] },
-  { f: 1, acts: 3, pool: ['card', 'ask'] },
-  { f: 2, acts: 3, pool: ['card', 'ask', 'self'] },
-  { f: 1, acts: 3, pool: ['ask', 'self', 'eye'] },
-  { f: 2, acts: 3, pool: ['ask', 'self', 'eye', 'item'] },
-  { f: 2, acts: 3, pool: ['self', 'eye', 'item', 'pet', 'line'] },
-  { f: 2, acts: 3, pool: ['eye', 'item', 'pet', 'line'] },
+// 夜的编号：天数一长，七夜的名字就不够用了
+const CN_NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
+  '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十'];
+export const nightName = (i) => '第' + (CN_NUM[i] || (i + 1)) + '夜';
+
+/* ============================================================ 固定剧情 */
+// 每一局都会撞上的四场戏：位置按天数比例算，所以 7 夜和 18 夜都会遇到，
+// 只是「第几夜」不同。它们不只是文本——每一个都会改那一夜的规矩。
+export const EVENT_INFO = {
+  blackout: { n: '停电', tag: '走廊的灯全灭了，今晚来的人最少，但来的那个多半不对' },
+  letter: { n: '一页名单', tag: '档案室塞进门缝一页纸：今晚多给你一次「听」和一次「看」' },
+  chairs: { n: '楼上的椅子', tag: '拖椅子的声音没停过：这一夜它们不会只是坐着' },
+  final: { n: '档案室来电', tag: '最后一夜，名单比平时长，而且不止一个不对' },
+};
+
+function eventFor(i, days) {
+  if (days <= 4) return i === days - 1 ? 'final' : null;
+  if (i === 2) return 'blackout';
+  const l = Math.max(3, Math.round((days - 1) * 0.4));
+  const c = Math.max(4, Math.round((days - 1) * 0.65));
+  if (i === l && l !== c) return 'letter';
+  if (i === c) return 'chairs';
+  if (i === days - 1) return 'final';
+  return null;
+}
+
+// 破绽池：越到后面越隐晦。一周目能抓到的就那么多，剩下的要靠图鉴——这是「多周目」存在的理由。
+function poolOf(frac) {
+  if (frac < 0.18) return ['card', 'ask'];
+  if (frac < 0.34) return ['card', 'ask', 'self'];
+  if (frac < 0.52) return ['ask', 'self', 'eye'];
+  if (frac < 0.70) return ['ask', 'self', 'eye', 'item'];
+  if (frac < 0.86) return ['self', 'eye', 'item', 'pet', 'line'];
+  return ['eye', 'item', 'pet', 'line'];
+}
+
+/* ============================================================ 固定任务 */
+// 每局抽三条，写在白天的侧栏上。全部达成 → 「值夜人手册」结局，并且银芯翻一档。
+export const TASK_POOL = [
+  { k: 'noleak', t: '一个伪人都别放进来', goal: 0, cmp: '<=', val: (s) => s.leaked },
+  { k: 'clean', t: '别误杀任何一个活人', goal: 0, cmp: '<=', val: (s) => s.killedReal },
+  { k: 'talk', t: '和屋里的人说满 8 次话', goal: 8, cmp: '>=', val: (s) => s.talks },
+  { k: 'exec', t: '处决至少 1 个伪人', goal: 1, cmp: '>=', val: (s) => s.killedFake },
+  { k: 'look', t: '听 / 看满 10 次', goal: 10, cmp: '>=', val: (s) => (s.hearN || 0) + (s.peekN || 0) },
+  { k: 'guard', t: '夜里别死超过 2 个人', goal: 2, cmp: '<=', val: (s) => s.deaths.filter((d) => d.how === 'night').length },
+  { k: 'close', t: '至少拦下 6 个伪人', goal: 6, cmp: '>=', val: (s) => s.caught },
+  { k: 'few', t: '开门的次数不超过 10 次', goal: 10, cmp: '<=', val: (s) => s.admitted },
 ];
-export const FAKE_TOTAL = NIGHTS.reduce((a, b) => a + b.f, 0);
+const TASK_TARGET = 3;
 
-// 破绽落在「档案上」还是「身上」——结算和提示文案都要用
-export const ON_PAPER = { card: 1, ask: 1 };
+export function tasksOf(s) {
+  return (s.tasks || []).map((t) => {
+    const def = TASK_POOL.find((x) => x.k === t.k) || TASK_POOL[0];
+    const v = def.val(s);
+    const done = def.cmp === '<=' ? v <= def.goal : v >= def.goal;
+    return { ...def, v, done, key: t.k };
+  });
+}
+export const tasksDone = (s) => tasksOf(s).filter((t) => t.done).length;
 
 /* ------------------------------------------------------------------ 随机 */
 export function makeRng(seed) {
@@ -133,15 +201,15 @@ function twistLine(line) {
 }
 
 /* --------------------------------------------------------------- 造人 */
-function makePerson(rng, c, fake, night) {
+function makePerson(rng, c, fake, night, pool) {
   const claims = { ...c.facts };
   const shown = c.tr ? { ...c.tr } : { self: '我', eye: '灰', item: '什么也没有', pet: '', line: '' };
   let lie = null;
   let lieV = null;
 
   if (fake) {
-    const pool = shuffle(rng, NIGHTS[night] ? NIGHTS[night].pool : ['card', 'ask']);
-    for (const kind of pool) {
+    const kinds = shuffle(rng, pool || ['card', 'ask']);
+    for (const kind of kinds) {
       if (kind === 'card' || kind === 'ask') {
         const fields = shuffle(rng, (kind === 'card' ? c.card : c.ask) || []);
         let done = false;
@@ -210,30 +278,61 @@ function makePerson(rng, c, fake, night) {
   };
 }
 
-function makeResident(rng, c, night) {
-  const p = makePerson(rng, c, false, night);
+function makeResident(rng, c, night, pool) {
+  const p = makePerson(rng, c, false, night, pool);
   p.from = 'start';
   return p;
 }
 
-export function newRun(seed) {
+/* ------------------------------------------------------------- 一局的生成 */
+export function newRun(seed, diffKey) {
+  const cfg = diffOf(diffKey);
   const rng = makeRng(seed);
   const roster = shuffle(rng, CHARS);
-  const realN = VISITS * DAYS - FAKE_TOTAL;
-  const residents = roster.slice(0, START_HOME).map((c) => makeResident(rng, c, 0));
-  const real = roster.slice(START_HOME, START_HOME + realN);
-  const fakes = roster.slice(START_HOME + realN, START_HOME + realN + FAKE_TOTAL);
+  const start = roster.slice(0, START_HOME);
+  const residents = start.map((c) => makeResident(rng, c, 0, ['card', 'ask']));
+  const stock = roster.slice(START_HOME);
 
+  // 1) 先摇每晚来几个人，再按「人数不够」的情况削回去
+  const visitsArr = [];
+  for (let i = 0; i < cfg.days; i++) {
+    let v = cfg.vmin + Math.floor(rng() * (cfg.vmax - cfg.vmin + 1));
+    const ev = eventFor(i, cfg.days);
+    if (ev === 'blackout') v = cfg.vmin;
+    if (ev === 'final') v += 1;
+    visitsArr.push(Math.max(2, v));
+  }
+  let total = visitsArr.reduce((a, b) => a + b, 0);
+  while (total > stock.length) {
+    const i = visitsArr.findIndex((v) => v > 2);
+    if (i < 0) break;
+    visitsArr[i] -= 1;
+    total -= 1;
+  }
+
+  // 2) 按夜装配：谁站在门外、几个不对、能问几次
   const list = [];
-  let ri = 0;
-  let fi = 0;
-  for (let n = 0; n < NIGHTS.length; n++) {
-    const pos = shuffle(rng, [0, 1, 2]).slice(0, NIGHTS[n].f);
-    for (let i = 0; i < VISITS; i++) {
-      const fake = pos.includes(i);
-      const c = fake ? fakes[fi++] : real[ri++];
-      const v = makePerson(rng, c, fake, n);
-      v.acts = NIGHTS[n].acts;
+  const nights = [];
+  const offsets = [];
+  let cursor = 0;
+  for (let i = 0; i < cfg.days; i++) {
+    const visits = visitsArr[i];
+    const ev = eventFor(i, cfg.days);
+    const frac = cfg.days > 1 ? i / (cfg.days - 1) : 0;
+    const pool = poolOf(frac);
+    const rate = cfg.rate0 + (cfg.rate1 - cfg.rate0) * frac;
+    let fN = Math.max(1, Math.min(visits - 1, Math.round(visits * rate)));
+    if (ev === 'blackout') fN = Math.min(visits - 1, fN + 1);
+    if (ev === 'final') fN = Math.max(fN, Math.min(visits - 1, 2));
+
+    const pos = shuffle(rng, Array.from({ length: visits }, (_, k) => k)).slice(0, fN);
+    offsets.push(list.length);
+    for (let k = 0; k < visits; k++) {
+      const fake = pos.includes(k);
+      const c = stock[cursor++];
+      if (!c) break;
+      const v = makePerson(rng, c, fake, i, pool);
+      v.acts = ACTS;
       v.askedFields = [];
       v.heard = false;
       v.peeked = false;
@@ -243,36 +342,48 @@ export function newRun(seed) {
       v.result = null;
       list.push(v);
     }
+    nights.push({ visits: Math.min(visits, list.length - offsets[i]), fakes: fN, acts: ACTS, ev, pool: pool.slice() });
   }
 
+  const fakeTotal = list.filter((v) => v.fake).length;
+  const tasks = shuffle(rng, TASK_POOL).slice(0, TASK_TARGET).map((t) => ({ k: t.k }));
+
   const s = {
-    v: 3,
+    v: 4,
     seed: seed >>> 0,
+    diff: cfg.k,
+    days: cfg.days,
     rp: 0,
     day: 0,
     night: 0,
     phase: 'day',        // day | night | over
     vi: 0,
     list,
+    nights,
+    offsets,
     home: residents,
-    bullets: 6,
-    sanity: 100,
+    bullets: cfg.bullets,
+    sanity: cfg.san,
     caught: 0,           // 看破的伪人（门外拒掉 + 屋里打死）
     leaked: 0,           // 放进来的伪人
     admitted: 0,         // 一共开过几次门
     refusedReal: 0,
     killedReal: 0,
     killedFake: 0,
+    hearN: 0,
+    peekN: 0,
     deaths: [],          // 屋里死的人
     talks: 0,
     met: [],
     log: [],
+    tasks,
     nightReport: null,   // 昨夜死了谁
     over: false,
     ending: null,
     endingWho: null,
     started: Date.now(),
   };
+  s.fakeTotal = fakeTotal;
   touch(s);
   // 一开始就坐在屋里的人，你也算见过——图鉴别等他进门才点亮
   residents.forEach((h) => markMet(h.cid));
@@ -281,12 +392,18 @@ export function newRun(seed) {
 
 /* -------------------------------------------------------------- 查询 */
 export const currentVisitor = (s) => (s.over ? null : s.list[s.vi] || null);
-export const nightCfg = (s) => NIGHTS[Math.min(s.night, NIGHTS.length - 1)];
+export const nightCfg = (s) => s.nights[Math.min(s.night, s.nights.length - 1)] || { visits: 2, acts: ACTS, ev: null };
 export const homeAlive = (s) => s.home.filter((h) => h.alive);
 export const homeReal = (s) => s.home.filter((h) => h.alive && !h.fake);
 export const homeFake = (s) => s.home.filter((h) => h.alive && h.fake);
 export const homeOf = (s, cid) => s.home.find((h) => h.cid === cid && h.alive) || null;
-export const roomFull = (s) => homeAlive(s).length >= ROOM_MAX;
+export const roomFull = (s) => homeAlive(s).length >= roomMax(s);
+export const roomMax = (s) => diffOf(s.diff).roomMax || ROOM_MAX;
+// 那一夜特殊规矩：多给一次听/看；它们一定下手
+export const nightExtraLook = (s) => nightCfg(s).ev === 'letter';
+export const shareLimit = (s, kind) => (kind === 'hear' ? HEAR_LIMIT : PEEK_LIMIT) + (nightExtraLook(s) ? 1 : 0);
+export const nightVisits = (s) => (s.nights[s.night] ? s.nights[s.night].visits : 0);
+export const nightFrom = (s) => s.offsets[s.night] || 0;
 
 export function startVisit(s) {
   const v = currentVisitor(s);
@@ -299,8 +416,8 @@ export function startVisit(s) {
 export function canAsk(s, v, field) {
   return !!(v && !v.done && !s.over && v.acts > 0 && v.c.ask.includes(field) && !v.askedFields.includes(field));
 }
-export const canHear = (s, v) => !!(v && !v.done && !s.over && !v.heard);
-export const canPeek = (s, v) => !!(v && !v.done && !s.over && !v.peeked);
+export const canHear = (s, v) => !!(v && !v.done && !s.over && (v.hearN || 0) < shareLimit(s, 'hear'));
+export const canPeek = (s, v) => !!(v && !v.done && !s.over && (v.peekN || 0) < shareLimit(s, 'peek'));
 
 export function ask(s, field) {
   const v = currentVisitor(s);
@@ -317,9 +434,11 @@ export function hear(s) {
   const v = currentVisitor(s);
   if (!canHear(s, v)) return null;
   v.heard = true;
+  v.hearN = (v.hearN || 0) + 1;
+  s.hearN = (s.hearN || 0) + 1;
   const kn = { self: judge(v, 'self', v.shown.self), line: judge(v, 'line', v.shown.line) };
   touch(s);
-  return { self: v.shown.self, line: v.shown.line, kn };
+  return { self: v.shown.self, line: v.shown.line, kn, times: v.hearN };
 }
 
 // 「凑近看」：瞳色、随身的东西、有没有带动物。另外还有一层说不清的直觉（软破绽）。
@@ -327,6 +446,8 @@ export function peek(s) {
   const v = currentVisitor(s);
   if (!canPeek(s, v)) return null;
   v.peeked = true;
+  v.peekN = (v.peekN || 0) + 1;
+  s.peekN = (s.peekN || 0) + 1;
   const kn = {
     eye: judge(v, 'eye', v.shown.eye),
     item: judge(v, 'item', v.shown.item),
@@ -370,7 +491,10 @@ function noteTruth(v, field, value) {
 export function decide(s, kind) {
   const v = currentVisitor(s);
   if (!v || v.done || s.over) return null;
-  if (kind === 'admit' && roomFull(s)) return null;
+  const full = roomFull(s);
+  if (kind === 'admit' && full) return null;
+  // 屋里住满了，门外的人只能走。这不叫误拒——你自己也没地方了，所以不扣理智、不计账。
+  if (kind === 'refuse' && full) kind = 'refuse_full';
 
   let key;
   let d = 0;
@@ -379,6 +503,10 @@ export function decide(s, kind) {
     if (v.fake) { key = 'admit-fake'; d = 0; s.leaked++; tag = '放进'; }
     else { key = 'admit-real'; d = +2; tag = '放行'; }
     s.admitted = (s.admitted || 0) + 1;
+  } else if (kind === 'refuse_full') {
+    key = 'refuse-full';
+    d = 0;
+    tag = '没地方';
   } else {
     if (v.fake) { key = 'refuse-fake'; d = +3; s.caught++; tag = '拦下'; }
     else { key = 'refuse-real'; d = -8; s.refusedReal++; tag = '误拒'; }
@@ -404,18 +532,19 @@ export function decide(s, kind) {
 export function nextVisitor(s) {
   const v = currentVisitor(s);
   if (v && !v.done) return null;
-  const to = (s.night + 1) * VISITS;
-  // 今夜的三个人走完就该收摊，别再顺手把明晚第一个放进来
+  const from = nightFrom(s);
+  const to = from + nightVisits(s);
+  // 今夜的几个人走完就该收摊，别再顺手把明晚第一个放进来
   if (s.vi + 1 >= to) return null;
   s.vi += 1;
   touch(s);
   return startVisit(s);
 }
 
-// 今夜这 3 个都处理完了没有（不能看整局：21 个里绝大部分还没轮到）
+// 今夜这几个都处理完了没有（不能看整局：几十个人里绝大部分还没轮到）
 export const nightDone = (s) => {
-  const from = s.night * VISITS;
-  const to = from + VISITS;
+  const from = nightFrom(s);
+  const to = from + nightVisits(s);
   return s.vi >= to - 1 && s.list.slice(from, to).every((v) => v.done);
 };
 
@@ -425,30 +554,48 @@ export const nightDone = (s) => {
 export function endNight(s) {
   const deaths = [];
   const fakes = homeFake(s);
+  const hardKill = nightCfg(s).ev === 'chairs' || nightCfg(s).ev === 'final';
   for (const f of fakes) {
     const targets = homeReal(s);
     if (!targets.length) break;
-    if (roll(s) > 0.8) continue;   // 这一夜它只是坐着看了很久
+    if (!hardKill && roll(s) > 0.8) continue;   // 这一夜它只是坐着看了很久
     const t = targets[rollInt(s, targets.length)];
     t.alive = false;
     t.killedBy = f.cid;
     t.killedDay = s.day + 1;
     deaths.push({ cid: t.cid, name: t.c.n, by: f.c.n, realm: t.c.realm, k: t.c.k });
     s.deaths.push({ cid: t.cid, name: t.c.n, by: f.c.n, day: s.day + 1, how: 'night' });
-    s.sanity = clampSan(s.sanity - 12);
+    s.sanity = clampSan(s.sanity - 8);
   }
   const lonely = fakes.length > 0 && homeReal(s).length === 0;
   if (lonely) s.sanity = clampSan(s.sanity - 8);
+  // 天亮回一点理智，回多少看屋里还剩几个活人：
+  // 你为谁守夜，谁就是你的锚。人是你的理智来源，不是分数。
+  // 一夜平安才回得了理智：屋里人多回得多，人少了就回不动。
+  // 连着死人那几夜，你睡不下，也补不回来——长局的压力就压在这儿。
+  if (!lonely && !deaths.length) s.sanity = clampSan(s.sanity + 2 + Math.min(4, homeReal(s).length));
+
+  // 屋里太挤，天亮时总有人自己走。走的是真人——它们不走。
+  const left = [];
+  const cap = roomMax(s);
+  if (homeReal(s).length > Math.max(2, cap - 2) && roll(s) < 0.45) {
+    const reals = homeReal(s);
+    const t = reals[rollInt(s, reals.length)];
+    t.alive = false;
+    t.leftDay = s.day + 1;
+    left.push({ cid: t.cid, name: t.c.n });
+  }
+
   // 屋里一个活人都不剩、而且坐着两个以上的它们：这一层已经不算你的了
   if (lonely && fakes.length >= 2) { s.over = true; s.ending = 'leak'; s.phase = 'over'; }
-  s.nightReport = { deaths, lonely, night: s.night };
+  s.nightReport = { deaths, lonely, left, night: s.night, ev: nightCfg(s).ev };
   s.night += 1;
-  if (s.night >= DAYS) { finish(s); return s.nightReport; }
+  if (s.night >= s.days) { finish(s); return s.nightReport; }
   s.phase = 'day';
   s.day = s.night;
   // 新的一天：每个人又能聊两句了
   s.home.forEach((h) => { h.talkCount = 0; });
-  // 每天补给一发：七夜下来一共 6+6 发，够用但不富余
+  // 每天补给一发：十四夜下来能攒出几发，但不富余
   s.bullets = Math.min(9, s.bullets + 1);
   if (s.sanity <= 0) { s.over = true; s.ending = 'san'; }
   checkOver(s);
@@ -475,7 +622,7 @@ export function talk(s, cid, topic) {
   const out = { topic, who: h.c.n, lines: [], known: [], lie: null };
 
   if (topic === 'card') {
-    // 让它把卡上那三行再报一遍，和档案对
+    // 让它把卡上那几行再报一遍，和档案对
     out.pairs = [];
     (h.c.card || []).forEach((f) => {
       const ok = h.claims[f] === h.c.facts[f];
@@ -561,8 +708,7 @@ export function shoot(s, cid) {
 export function startNight(s) {
   if (s.over) return null;
   s.phase = 'night';
-  s.vi = s.day * VISITS;
-  s.list.forEach((v) => { v.talkCount = 0; });
+  s.vi = nightFrom(s);
   s.home.forEach((h) => { h.talkCount = 0; });
   touch(s);
   return startVisit(s);
@@ -582,37 +728,54 @@ export function finish(s) {
   const reals = homeReal(s);
   const fakes = homeFake(s);
   const clean = s.deaths.filter((d) => d.how === 'night').length === 0 && s.killedReal === 0;
+  const names = reals.map((h) => h.cid);
+  const allTasks = tasksDone(s) === (s.tasks || []).length && (s.tasks || []).length > 0;
 
   if (s.sanity <= 0) s.ending = 'san';
   else if (s.killedReal >= 3) s.ending = 'kill';
   else if (!reals.length && fakes.length >= 2) s.ending = 'leak';
   else if (!reals.length) s.ending = 'alone';
   else if ((s.admitted || 0) <= 2 || s.refusedReal >= 6) s.ending = 'shut';
+  else if (allTasks && clean) s.ending = 'doctrine';
   else if (clean && s.leaked === 0 && knownCount() >= 300) s.ending = 'archive';
   else if (clean && s.leaked === 0) s.ending = 'perfect';
-  else {
-    // 和你一起活到最后的是谁，决定这是哪个结局
-    const names = reals.map((h) => h.cid);
-    if (names.includes('24')) s.ending = 'split';
-    else if (reals.some((h) => h.c.k === 's')) s.ending = 'broadcast';
-    else if (reals.length >= 3) s.ending = 'keeper';
-    else s.ending = 'dawn';
-  }
+  else if ((s.hearN || 0) + (s.peekN || 0) === 0) s.ending = 'deaf';
+  else if (names.includes('24') && reals.some((h) => h.c.k === 's')) s.ending = 'host';
+  else if (names.includes('24')) s.ending = 'split';
+  else if (reals.some((h) => h.c.k === 's')) s.ending = 'broadcast';
+  else if (reals.length >= 6) s.ending = 'crowd';
+  else if (s.leaked >= 6) s.ending = 'tenant';
+  else if (DIFF_INDEX(s.diff) >= 2) s.ending = 'cockroach';
+  else if (reals.length >= 3) s.ending = 'keeper';
+  else s.ending = 'dawn';
   s.endingWho = reals.map((h) => h.c.n);
   return s.ending;
 }
 
-export function score(s) {
-  const knownN = Object.keys(codex().known || {}).reduce((a, k) => a + Object.keys(codex().known[k]).length, 0);
-  return Math.max(0, Math.round(
+// 分数：难度乘区 + 时间乘区（活得越久越值钱），这就是「银芯跟难度和时间挂钩」的算法
+export function scoreParts(s) {
+  const cfg = diffOf(s.diff);
+  const base = Math.max(0, Math.round(
     s.caught * 90 + s.killedFake * 50 + s.leaked * -70 + s.refusedReal * -40 + s.killedReal * -150
-    + s.sanity * 3 + s.bullets * 12 + knownN * 4
-    + (s.ending === 'perfect' ? 500 : 0) + (s.ending === 'archive' ? 900 : 0),
+    + s.sanity * 3 + s.bullets * 12 + knownCount() * 3
+    + (s.ending === 'perfect' ? 500 : 0) + (s.ending === 'archive' ? 900 : 0)
+    + (s.ending === 'doctrine' ? 700 : 0),
   ));
+  const timeMul = 0.6 + 0.4 * Math.min(1, (s.day + 1) / cfg.days);
+  return { base, timeMul, diffMul: cfg.mul, total: Math.round(base * cfg.mul * timeMul) };
+}
+export function score(s) { return scoreParts(s).total; }
+
+// 银芯：基础分按难度和时间放大，任务再补一档
+export function rewardOf(s) {
+  const p = scoreParts(s);
+  const taskBonus = tasksDone(s) * 18;
+  const gain = Math.max(2, Math.round(p.total / 12) + taskBonus);
+  return { gain, taskBonus, ...p };
 }
 
 /* -------------------------------------------------------------- 存档 */
-const K = { save: 'zjtt:fake:save', codex: 'zjtt:fake:codex', best: 'zjtt:fake:best' };
+const K = { save: 'zjtt:fake:save', codex: 'zjtt:fake:codex', best: 'zjtt:fake:best', stat: 'zjtt:fake:stat' };
 
 function read(key, dflt) {
   try {
@@ -634,7 +797,7 @@ export function touch(s) {
 export function flush(s) { write(K.save, s); }
 export function loadSave() {
   const s = read(K.save, null);
-  if (!s || s.v !== 3 || !Array.isArray(s.list) || !Array.isArray(s.home)) return null;
+  if (!s || s.v !== 4 || !Array.isArray(s.list) || !Array.isArray(s.home)) return null;
   return s;
 }
 export function clearSave() { try { localStorage.removeItem(K.save); } catch (e) {} }
@@ -677,17 +840,39 @@ export function meetAll(names) {
   if (add) write(K.codex, c);
   return add;
 }
-export function best() { return read(K.best, { ending: null, score: 0, runs: 0, days: 0 }); }
+
+export function best() {
+  return read(K.best, { ending: null, score: 0, runs: 0, days: 0, diff: null, endings: {}, gain: 0 });
+}
+// 结局只增不减的一本账：排行榜和「结局数」这一栏都读它
 export function saveBest(res) {
   const b = best();
+  const endings = { ...(b.endings || {}) };
+  if (res.ending) endings[res.ending] = 1;
   const out = {
     ending: res.score > (b.score || 0) ? res.ending : b.ending,
     score: Math.max(b.score || 0, res.score),
     runs: (b.runs || 0) + 1,
-    days: Math.max(b.days || 0, res.day + 1),
+    days: Math.max(b.days || 0, res.days || 0),
+    diff: res.score > (b.score || 0) ? res.diff : (b.diff || res.diff),
+    endings,
+    gain: (b.gain || 0) + (res.gain || 0),
   };
   write(K.best, out);
   return out;
 }
+export function endingCount() { return Object.keys(best().endings || {}).length; }
+
+// 银芯：和 js/common.js 的钱包同一个键（zjtt:credits，JSON 数字）。
+// 本页不加载账号那一整套，所以只写本地；下次进带顶栏的页面时，account.js 会按流水推上云。
+export function walletAdd(n) {
+  let cur = 0;
+  try { cur = Number(localStorage.getItem('zjtt:credits')) || 0; } catch (e) { cur = 0; }
+  const v = cur + Math.max(0, Math.round(n));
+  try { localStorage.setItem('zjtt:credits', JSON.stringify(v)); } catch (e) { /* 隐私模式 */ }
+  try { document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: 'credits' })); } catch (e) { /* noop */ }
+  return v;
+}
+
 const clampSan = (v) => Math.max(0, Math.min(100, v));
 export const ART_META = META;

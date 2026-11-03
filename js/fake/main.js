@@ -6,21 +6,22 @@
 // 判断的信息只在四处：登记卡、档案、它说的话、它身上的东西。别的地方不放线索。
 
 import {
-  newRun, loadSave, currentVisitor, nightCfg, NIGHT_NAME, NIGHTS, VISITS, DAYS,
-  ROOM_MAX, TALK_PER_DAY, FAKE_TOTAL, LIE_LABEL,
+  newRun, loadSave, currentVisitor, nightCfg, nightName, nightVisits, nightFrom, shareLimit,
+  DIFFS, diffOf, DIFF_INDEX, tasksOf, tasksDone, rewardOf, scoreParts, walletAdd,
   ask, hear, peek, decide, nextVisitor, nightDone, endNight, startNight,
-  talk, shoot, canTalk, canAsk, canHear, canPeek, roomFull,
-  homeAlive, homeReal, homeFake, homeOf,
+  talk, shoot, canTalk, canAsk, canHear, canPeek, roomFull, roomMax,
+  homeAlive, homeReal, homeFake, homeOf, LIE_LABEL, TALK_PER_DAY,
   score, clearSave, codex, meetAll, isKnown, knownCount, KNOWN_MAX,
   best, saveBest, flush, FIELD_LABEL, FIELD_ASK, ALL_CHARS, ART_META, charOf, TOPICS,
+  endingCount,
 } from './engine.js';
 import { loadArt, makeScene, sfx } from './view.js';
 import {
-  NIGHT_INTRO, NIGHT_END, OPEN_REAL, OPEN_FAKE, OBSERVE_ANOMALY,
-  OUTCOME, ENDINGS, HELP, HEAR_HEAD, HEAR_TAIL, PEEK_HEAD, PEEK_TAIL,
-  DAY_INTRO, DAY_REPORT_DEAD, DAY_REPORT_NONE, DAY_REPORT_LONELY,
+  OPEN_REAL, OPEN_FAKE, OBSERVE_ANOMALY, ENDINGS, HELP, OUTCOME,
+  HEAR_HEAD, HEAR_TAIL, PEEK_HEAD, PEEK_TAIL,
+  dayIntro, nightIntro, nightEnd, DAY_REPORT_DEAD, DAY_REPORT_NONE, DAY_REPORT_LONELY,
   TALK_ASK, TALK_WHO_NONE, TALK_WHO_HIT, TALK_WHO_MISS, TALK_WHO_LIE, PAST,
-  SHOOT_REAL, SHOOT_FAKE,
+  SHOOT_REAL, SHOOT_FAKE, EVENT_TEXT, TASK_DESC, DIFF_INTRO,
 } from './text.js';
 
 const $ = (s, r) => (r || document).querySelector(s);
@@ -133,22 +134,52 @@ function closeModal() { $('#modal').hidden = true; $('#modal').classList.remove(
 function isModal() { return !$('#modal').hidden; }
 
 /* ------------------------------------------------------------------ 标题 */
+let pickDiff = 'intro';    // 标题页选中的难度
 function paintTitle() {
   const b = best();
   const c = codex();
   $('#codexCount').textContent = Object.keys(c.known || {}).length + '/' + ALL_CHARS.length;
+  const dl = b.diff ? diffOf(b.diff) : null;
   $('#bestLine').textContent = b.score
-    ? '最高分 ' + b.score + ' · ' + (ENDINGS[b.ending] ? '「' + ENDINGS[b.ending].t + '」' : '') + ' · 第 ' + b.runs + ' 次值夜'
+    ? '最高分 ' + b.score + (dl ? ' · ' + dl.n : '') + ' · ' + (ENDINGS[b.ending] ? '「' + ENDINGS[b.ending].t + '」' : '')
+      + ' · 第 ' + b.runs + ' 次值夜'
     : '还没有值过夜。';
-  $('#knownLine').textContent = '图鉴已核实 ' + knownCount() + ' / ' + KNOWN_MAX + ' 项';
+  $('#knownLine').textContent = '图鉴已核实 ' + knownCount() + ' / ' + KNOWN_MAX + ' 项 · 见过的结局 '
+    + endingCount() + ' / ' + Object.keys(ENDINGS).length + ' · 累计银芯 ' + (b.gain || 0);
+  paintDiff();
   const sv = loadSave();
   $('#btnCont').hidden = !sv || sv.over;
-  $('#btnCont').textContent = sv && !sv.over ? (sv.phase === 'day' ? '接着（第 ' + (sv.day + 1) + ' 天白天）' : '接着（第' + (sv.night + 1) + '夜）') : '';
+  $('#btnCont').textContent = sv && !sv.over
+    ? (sv.phase === 'day'
+      ? '接着（' + diffOf(sv.diff).n + ' · 第 ' + (sv.day + 1) + ' 天白天）'
+      : '接着（' + diffOf(sv.diff).n + ' · ' + nightName(sv.night) + '）')
+    : '';
+}
+
+// 四个难度做成卡片，点一下选中，再点「开始」才开局——选错难度不该直接把你扔进十八夜
+function paintDiff() {
+  const box = $('#diffPick');
+  if (!box) return;
+  box.replaceChildren();
+  DIFFS.forEach((d) => {
+    const b = el('button', 'diff' + (pickDiff === d.k ? ' on' : ''));
+    b.type = 'button';
+    b.appendChild(el('b', null, d.n));
+    b.appendChild(el('em', null, d.sub));
+    b.appendChild(el('span', null, d.note));
+    b.appendChild(el('i', null, '银芯 ×' + d.mul));
+    b.onclick = () => { sfx.tick(); pickDiff = d.k; paintDiff(); };
+    box.appendChild(b);
+  });
+  const note = $('#diffNote');
+  if (note) note.textContent = DIFF_INTRO[pickDiff] || '';
 }
 
 /* ------------------------------------------------------------------ 开局 */
-function startNew() {
-  S = newRun((Date.now() % 2147483647) >>> 0);
+function startNew(diffKey) {
+  const key = diffKey || pickDiff;
+  pickDiff = diffOf(key).k;
+  S = newRun((Date.now() % 2147483647) >>> 0, pickDiff);
   mismatch = false;
   pick = null;
   $('#scrTitle').hidden = true;
@@ -163,6 +194,7 @@ function continueRun() {
   const sv = loadSave();
   if (!sv || sv.over) return startNew();
   S = sv;
+  pickDiff = S.diff || 'intro';
   $('#scrTitle').hidden = true;
   $('#scrEnd').hidden = true;
   $('#scrGame').hidden = false;
@@ -181,6 +213,8 @@ function startVisit(v) {
   $('#scrGame').classList.remove('isDay');
   scene.setMode('visit');
   scene.setChar(v.c);
+  // 看过一次就一直看得见：那是你记在脑子里的脸，不该因为换页就忘掉
+  scene.setPeek(!!v.peeked);
   paintHud();
   tab = 'card';
   mismatch = false;
@@ -194,9 +228,19 @@ function startVisit(v) {
   renderActs('main');
 }
 
+// 那一夜有戏：先把剧情摊开，再让你坐到门后
 function showNightIntro() {
-  const n = Math.min(S.night, NIGHTS.length - 1);
-  modal(NIGHT_NAME[n] + ' · 第 ' + (n + 1) + ' 夜', [el('p', 'pre', NIGHT_INTRO[n])],
+  const n = Math.min(S.night, S.days - 1);
+  const cfg = nightCfg(S);
+  const ev = cfg.ev && EVENT_TEXT[cfg.ev];
+  const body = [];
+  if (ev) {
+    body.push(el('p', 'evk', ev.t));
+    ev.body.forEach((x) => body.push(el('p', 'pre', x)));
+  }
+  body.push(el('p', 'pre', nightIntro(n, S.days)));
+  modal(ev ? nightName(n) + ' · ' + EVENT_TEXT[cfg.ev].t.split(' · ').pop() : nightName(n),
+    body,
     [{ t: '坐到门后', kind: 'btn primary', fn: () => startVisit(currentVisitor(S)) }]);
 }
 
@@ -211,11 +255,11 @@ function advanceNight() {
   const rep = endNight(S);
   paintHud();
   if (S.over) {
-    modal(NIGHT_NAME[prev] + ' 结束', [el('p', 'pre', NIGHT_END[prev])],
+    modal(nightName(prev) + ' 结束', [el('p', 'pre', nightEnd(prev, S.days))],
       [{ t: '……天亮了', kind: 'btn', fn: () => showEnding() }]);
     return;
   }
-  modal(NIGHT_NAME[prev] + ' 结束', [el('p', 'pre', NIGHT_END[prev])],
+  modal(nightName(prev) + ' 结束', [el('p', 'pre', nightEnd(prev, S.days))],
     [{ t: '等到天亮', kind: 'btn primary', fn: () => afterNight(rep) }]);
 }
 
@@ -260,10 +304,10 @@ function enterDay(fresh) {
   paintHud();
   paintDay();
   if (fresh) {
-    modal('第 ' + (S.day + 1) + ' 天 · 白天', [el('p', 'pre', DAY_INTRO[Math.min(S.day, DAY_INTRO.length - 1)])],
+    modal('第 ' + (S.day + 1) + ' 天 · 白天', [el('p', 'pre', dayIntro(Math.min(S.day, S.days - 1), S.days))],
       [{ t: '认一遍屋里的人', kind: 'btn primary', fn: () => paintDay() }]);
   }
-  speaker('屋里', '第 ' + (S.day + 1) + ' 天', '');
+  speaker('屋里', '第 ' + (S.day + 1) + ' / ' + S.days + ' 天', '');
   const alive = homeAlive(S);
   say(alive.length
     ? '屋里还有 ' + alive.length + ' 个人。跟他们说话，或者做点别的。'
@@ -279,7 +323,7 @@ function paintDay() {
   const alive = homeAlive(S);
   const dead = S.home.filter((h) => !h.alive);
 
-  side.appendChild(el('div', 'fhead', '屋里的人 · ' + alive.length + '/' + ROOM_MAX));
+  side.appendChild(el('div', 'fhead', '屋里的人 · ' + alive.length + '/' + roomMax(S)));
 
   const list = el('div', 'reslist');
   alive.forEach((h) => {
@@ -332,7 +376,21 @@ function paintDay() {
   }
 
   const foot = el('div', 'dfoot');
-  const go = el('button', 'btn primary', S.night >= DAYS ? '天要黑了' : '去门后（第' + (S.night + 1) + '夜）');
+  // 任务进度：三条，全在侧栏上摆着，不用翻弹窗
+  if ((S.tasks || []).length) {
+    const tb = el('div', 'dtasks');
+    const done = tasksDone(S);
+    tb.appendChild(el('div', 'fhead', '这一局的规矩 · ' + done + '/' + S.tasks.length));
+    tasksOf(S).forEach((t) => {
+      const row = el('div', 'task' + (t.done ? ' on' : ''));
+      row.appendChild(el('span', 'tk', t.done ? '✓' : '·'));
+      row.appendChild(el('span', 'tt', t.t));
+      row.appendChild(el('em', null, t.cmp === '<=' ? (t.v + ' / ' + t.goal) : (t.v + ' / ' + t.goal)));
+      tb.appendChild(row);
+    });
+    foot.appendChild(tb);
+  }
+  const go = el('button', 'btn primary', '去门后（' + nightName(Math.min(S.night, S.days - 1)) + '）');
   go.type = 'button';
   go.onclick = () => { sfx.click(); enterNight(); };
   foot.appendChild(go);
@@ -357,15 +415,18 @@ function enterNight() {
 /* ------------------------------------------------------------------ HUD */
 function paintHud() {
   const day = S.phase === 'day';
-  $('#hNight').textContent = day ? '第 ' + (S.day + 1) + ' 天' : NIGHT_NAME[Math.min(S.night, 6)];
+  const cfg = diffOf(S.diff);
+  $('#hNight').textContent = day ? '第 ' + (S.day + 1) + ' / ' + S.days + ' 天' : nightName(Math.min(S.night, S.days - 1));
   const prog = $('#hProg');
   if (day) {
-    prog.textContent = '屋里 ' + homeAlive(S).length + ' 人 · 白天';
+    prog.textContent = cfg.n + ' · 屋里 ' + homeAlive(S).length + ' 人';
   } else {
-    const inNight = (S.vi % VISITS) + 1;
-    prog.textContent = '第 ' + Math.min(inNight, VISITS) + ' 个 / 共 ' + VISITS + ' 个';
+    const nv = nightVisits(S);
+    const inNight = Math.min(nv, S.vi - nightFrom(S) + 1);
+    prog.textContent = '第 ' + Math.max(1, inNight) + ' 个 / 共 ' + nv + ' 个';
   }
   $('#hSan').textContent = Math.round(S.sanity);
+  // 理智条按这一档的上限算：硬核开局只有 90，条不该是满的
   const bar = $('#hSanBar');
   bar.style.width = Math.max(0, Math.min(100, S.sanity)) + '%';
   bar.className = S.sanity <= 30 ? 'bad' : (S.sanity <= 60 ? 'warn' : '');
@@ -374,6 +435,8 @@ function paintHud() {
   for (let i = 0; i < 6; i++) ammo.appendChild(el('i', i < Math.min(6, S.bullets) ? 'on' : ''));
   ammo.title = '子弹 ' + S.bullets;
   ammo.appendChild(el('em', null, String(S.bullets)));
+  const hd = $('#hDiff');
+  if (hd) hd.textContent = cfg.n;
 }
 
 /* ------------------------------------------------------------------ 面板 */
@@ -568,11 +631,13 @@ function renderActs(mode) {
     return;
   }
 
-  const h = el('button', 'btn', '听它说' + (v.heard ? '（听过了）' : ''));
+  const hLeft = shareLimit(S, 'hear') - (v.hearN || 0);
+  const h = el('button', 'btn', hLeft > 0 ? '听它说' + (hLeft > 1 ? '（还剩 ' + hLeft + '）' : '') : '听过了');
   h.type = 'button';
   h.disabled = !canHear(S, v);
   h.onclick = doHear;
-  const ob = el('button', 'btn', '凑近看' + (v.peeked ? '（看过了）' : ''));
+  const pLeft = shareLimit(S, 'peek') - (v.peekN || 0);
+  const ob = el('button', 'btn', pLeft > 0 ? '凑近看' + (pLeft > 1 ? '（还剩 ' + pLeft + '）' : '') : '看过了');
   ob.type = 'button';
   ob.disabled = !canPeek(S, v);
   ob.onclick = doPeek;
@@ -616,9 +681,10 @@ function doPeek() {
   const r = peek(S);
   if (!r) return;
   sfx.paper();
-  const head = pickBy(PEEK_HEAD, v.cid + 'p');
+  scene.setPeek(true);          // 窗口换成它的脸：瞳色、随身的东西、身上有没有活物都在这儿看
+  const head = pickBy(PEEK_HEAD, v.cid + 'p' + (v.peekN || 1));
   const tail = pickBy(PEEK_TAIL, v.cid + 'q');
-  let body = head + '\n\n瞳色是' + r.eye + '的。' +
+  let body = head + '\n\n玻璃上就是它的脸，离得只有两指厚。\n瞳色是' + r.eye + '的。' +
     (r.item ? '手里攥着' + r.item + '。' : '手里什么也没拿。') +
     (r.pet ? '身上还带着' + r.pet + '。' : '身边没有活物。');
   if (r.odd >= 0) {
@@ -767,21 +833,28 @@ function doShoot() {
 }
 
 /* ------------------------------------------------------------------ 结局 */
+let awarded = false;
 function showEnding() {
   closeModal();
   flush(S);
   sfx.stopDrone();
   const E = ENDINGS[S.ending] || ENDINGS.dawn;
-  const sc = score(S);
-  saveBest({ ending: S.ending, score: sc, day: S.day });
-  meetAll(S.met);
+  const rw = rewardOf(S);
+  const sc = rw.total;
+  if (!awarded) {
+    awarded = true;
+    walletAdd(rw.gain);
+    saveBest({ ending: S.ending, score: sc, days: S.day + 1, diff: S.diff, gain: rw.gain });
+    meetAll(S.met);
+    cloudTouch();      // 登录了才真的推；没登录就算了，本机照样记账
+  }
 
   $('#scrGame').hidden = true;
   $('#scrEnd').hidden = false;
   const box = $('#scrEnd');
   box.replaceChildren();
   const inner = el('div', 'endcard');
-  inner.appendChild(el('p', 'ek', '结局'));
+  inner.appendChild(el('p', 'ek', '结局 · ' + diffOf(S.diff).n));
   inner.appendChild(el('h2', null, E.t));
   inner.appendChild(el('p', 'es', E.sub));
   const body = el('div', 'ebody');
@@ -790,8 +863,8 @@ function showEnding() {
 
   const stats = el('div', 'estats');
   const rows = [
-    ['值到', '第 ' + Math.min(S.day, DAYS) + ' 天'],
-    ['看破的伪人', S.caught + ' / ' + FAKE_TOTAL],
+    ['值到', '第 ' + (S.day + 1) + ' / ' + S.days + ' 天'],
+    ['看破的伪人', S.caught + ' / ' + S.fakeTotal],
     ['放进来的伪人', S.leaked],
     ['屋里死的人', S.deaths.filter((d) => d.how === 'night').length],
     ['误杀活人', S.killedReal],
@@ -807,23 +880,75 @@ function showEnding() {
   });
   inner.appendChild(stats);
 
+  // 银芯怎么算出来的，摊开写：难度乘区 × 时间乘区，别让玩家觉得是随机给的
+  const pay = el('div', 'epay');
+  pay.appendChild(el('div', 'fhead', '银芯结算'));
+  const line = (k, v) => {
+    const r = el('div', 'erow');
+    r.appendChild(el('span', null, k));
+    r.appendChild(el('b', null, String(v)));
+    pay.appendChild(r);
+  };
+  line('得分', rw.base);
+  line('难度乘区 · ' + diffOf(S.diff).n, '×' + rw.diffMul);
+  line('时间乘区 · 第 ' + (S.day + 1) + '/' + S.days + ' 天', '×' + rw.timeMul.toFixed(2));
+  if (rw.taskBonus) line('任务奖励 · 完成 ' + tasksDone(S) + ' 条', '+' + rw.taskBonus);
+  const tot = el('div', 'erow big');
+  tot.appendChild(el('span', null, '进钱包'));
+  tot.appendChild(el('b', null, '+' + rw.gain));
+  pay.appendChild(tot);
+  inner.appendChild(pay);
+
+  const tk = el('div', 'etasks');
+  tasksOf(S).forEach((t) => {
+    const row = el('div', 'task' + (t.done ? ' on' : ''));
+    row.appendChild(el('span', 'tk', t.done ? '✓' : '✗'));
+    row.appendChild(el('span', 'tt', t.t));
+    row.appendChild(el('em', null, t.v + ' / ' + t.goal));
+    tk.appendChild(row);
+  });
+  inner.appendChild(tk);
+
   if (S.endingWho && S.endingWho.length) {
     inner.appendChild(el('p', 'hint', '和你一起活到最后的人：' + S.endingWho.join('、')));
   }
 
   const acts = el('div', 'eacts');
-  const again = el('button', 'btn primary', '再值一夜');
+  const again = el('button', 'btn primary', '再值一夜（' + diffOf(S.diff).n + '）');
   again.type = 'button';
-  again.onclick = () => { clearSave(); startNew(); };
+  again.onclick = () => { clearSave(); awarded = false; startNew(S.diff); };
+  const other = el('button', 'btn', '换个难度');
+  other.type = 'button';
+  other.onclick = () => { clearSave(); awarded = false; backToTitle(); };
+  const bd = el('button', 'btn', '排行榜');
+  bd.type = 'button';
+  bd.onclick = openBoard;
   const cx = el('button', 'btn', '图鉴');
   cx.type = 'button';
   cx.onclick = openCodex;
   const home = el('a', 'btn ghost', '回首页');
   home.href = 'index.html';
-  acts.appendChild(again); acts.appendChild(cx); acts.appendChild(home);
+  acts.appendChild(again); acts.appendChild(other); acts.appendChild(bd); acts.appendChild(cx); acts.appendChild(home);
   inner.appendChild(acts);
   box.appendChild(inner);
   clearSave();
+}
+
+function backToTitle() {
+  $('#scrEnd').hidden = true;
+  $('#scrGame').hidden = true;
+  $('#scrTitle').hidden = false;
+  S = null;
+  paintTitle();
+}
+
+// 结局 / 分数变了才值得惊动云端：几十 KB 的账号链路不进首屏，用到时再拉
+let syncMod = null;
+function cloudTouch() {
+  if (syncMod) { try { syncMod.flush(); } catch (e) { /* noop */ } return; }
+  import('./fake-sync.js')
+    .then((m) => { syncMod = m; try { m.flush(); } catch (e) { /* noop */ } })
+    .catch(() => { /* 没登录 / 离线就算了 */ });
 }
 
 /* ------------------------------------------------------------------ 图鉴 */
@@ -979,6 +1104,95 @@ function openHelp() {
   $('#modal').classList.add('on');
 }
 
+/* ------------------------------------------------------------- 排行榜 */
+// 榜单在服务端算：每个人云端档案里的摘要（gd.fk）互相比。前端只负责取和画。
+// 没登录也能看——这是公开接口；要上榜才需要登录过、并且同步过档案。
+const EDGE_API = 'https://morimens.qingdengbuyi.top/api';
+function apiCandidates() {
+  const out = [];
+  try {
+    const c = String(JSON.parse(localStorage.getItem('zjtt:apiBase') || '""') || '').trim().replace(/\/+$/, '');
+    if (c) out.push(c);
+  } catch (e) { /* 存坏了就算了 */ }
+  if (/^https?:$/.test(location.protocol) && !/\.github\.io$/i.test(location.hostname)) {
+    out.push(location.origin + '/api');
+  }
+  if (out.indexOf(EDGE_API) < 0) out.push(EDGE_API);
+  return out;
+}
+function probeApi() {
+  try {
+    const v = JSON.parse(localStorage.getItem('zjtt:site:api') || 'null');
+    if (v && v.base && Date.now() - Number(v.at || 0) < 600000) return Promise.resolve(v.base);
+  } catch (e) { /* 重新探 */ }
+  const list = apiCandidates();
+  let i = 0;
+  const next = () => {
+    if (i >= list.length) return Promise.resolve('');
+    const base = list[i++];
+    return fetch(base + '/health', { headers: { Accept: 'application/json' } })
+      .then((r) => r.json().catch(() => null))
+      .then((j) => {
+        if (j && j.service === 'zjtt') {
+          try { localStorage.setItem('zjtt:site:api', JSON.stringify({ base, at: Date.now() })); } catch (e) { /* noop */ }
+          return base;
+        }
+        return next();
+      })
+      .catch(next);
+  };
+  return next();
+}
+
+function openBoard() {
+  const box = $('#mbox');
+  box.replaceChildren();
+  box.classList.remove('wide');
+  box.appendChild(el('h3', null, '地下十一层的门房 · 排行榜'));
+  const body = el('div', 'mbody');
+  const list = el('div', 'board');
+  list.appendChild(el('p', 'hint', '读取中…'));
+  body.appendChild(list);
+  const mine = best();
+  body.appendChild(el('p', 'hint', '你本机最好的一局：' + (mine.score || 0) + ' 分'
+    + (mine.diff ? '（' + diffOf(mine.diff).n + ' · 第 ' + (mine.days || 0) + ' 天）' : '')
+    + '\n榜单只收登录并同步过档案的玩家；同分按活得更久排。'));
+  box.appendChild(body);
+  const macts = el('div', 'macts');
+  const close = el('button', 'btn', '合上');
+  close.type = 'button'; close.onclick = closeModal;
+  macts.appendChild(close);
+  box.appendChild(macts);
+  $('#modal').hidden = false;
+  $('#modal').classList.add('on');
+
+  probeApi().then((base) => {
+    if (!base) throw new Error('offline');
+    return fetch(base + '/board', { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null));
+  }).then((j) => {
+    const g = j && j.games && j.games.fk;
+    list.replaceChildren();
+    if (!g || !g.items || !g.items.length) {
+      list.appendChild(el('p', 'hint', '还没有人上榜。登录后玩一局，成绩会随云端档案同步上来。'));
+      return;
+    }
+    list.appendChild(el('p', 'hint', '按最高分排 · 共 ' + g.items.length + ' 人上榜'));
+    g.items.forEach((it, i) => {
+      const row = el('div', 'brow');
+      row.appendChild(el('span', 'rk', String(i + 1)));
+      const nm = el('span', 'nm', it.name || '匿名');
+      if (it.sub) nm.appendChild(el('em', null, it.sub));
+      row.appendChild(nm);
+      row.appendChild(el('b', 'sc', String(it.score)));
+      list.appendChild(row);
+    });
+  }).catch(() => {
+    list.replaceChildren();
+    list.appendChild(el('p', 'hint', '榜单服务没连上（离线 / 后端没起来）。\n本机成绩照常记，等能连上了再来看。'));
+  });
+}
+
 /* ------------------------------------------------------------------ 启动 */
 async function boot() {
   try {
@@ -1000,6 +1214,10 @@ async function boot() {
   $('#btnHelp').onclick = () => { sfx.tick(); openHelp(); };
   $('#btnHelp2').onclick = () => { sfx.tick(); openHelp(); };
   $('#btnCodex2').onclick = () => { sfx.paper(); openCodex(); };
+  const bb = $('#btnBoard');
+  if (bb) bb.onclick = () => { sfx.paper(); openBoard(); };
+  const bb2 = $('#btnBoard2');
+  if (bb2) bb2.onclick = () => { sfx.paper(); openBoard(); };
   $('#btnSound').onclick = () => {
     sfx.unlock();
     const on = !sfx.isOn();
@@ -1044,6 +1262,11 @@ async function boot() {
       },
       day() { enterDay(false); },
       night() { enterNight(); },
+      ending(e) { S.over = true; S.ending = e || 'archive'; showEnding(); },
+      start(diff) { clearSave(); awarded = false; startNew(diff || pickDiff); },
+      diff(d) { pickDiff = diffOf(d).k; paintDiff(); return pickDiff; },
+      reward() { return S ? rewardOf(S) : null; },
+      board: openBoard,
     };
   }
   scene.setMode('idle');

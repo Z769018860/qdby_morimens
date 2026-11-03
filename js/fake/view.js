@@ -29,6 +29,7 @@ const COL = {
 };
 
 const IDX = new Map(META.chars.map((c, i) => [c.slug, i]));
+const B_IDX = new Map(META.chars.map((c, i) => [c.slug, i]));
 const S_IDX = new Map(CHARS.filter((c) => c.k === 's').map((c, i) => [c.id, i]));
 
 function loadImage(src) {
@@ -62,6 +63,8 @@ export function makeScene(canvas, art) {
     red: 0,
     flash: 0,
     shake: 0,
+    peek: 0,            // 目标值：1 = 贴着玻璃看（窗口换成它的人像特写）
+    peekK: 0,           // 当前值，缓动过去
     t0: performance.now(),
     raf: 0,
   };
@@ -281,6 +284,37 @@ export function makeScene(canvas, art) {
       ctx.font = '5px monospace';
       ctx.fillText('LIVE', lx + 1.5, ly + 5);
     }
+  }
+
+  // 贴着玻璃看：窗口不再画「站在走廊里的形状」，而是它自己的头像/立绘特写。
+  // 这是整局里唯一能看清「眼睛是什么颜色、手里攥着什么」的地方，所以画得比别处实。
+  function closeUp(c, t, a) {
+    const src = c.k === 's'
+      ? { img: art.face, r: META.face.rects[S_IDX.get(c.id)] || [0, 0, 48, 48] }
+      : { img: art.bust, r: META.bust.rects[B_IDX.get(c.img.bust)] || [0, 0, 48, 48] };
+    ctx.save();
+    ctx.globalAlpha = a;
+    rect(WIN.x, WIN.y, WIN.w, WIN.h, '#07090b');
+    // cover：宁可裁掉两侧，也别把脸压扁
+    const k = Math.max(WIN.w / src.r[2], WIN.h / src.r[3]);
+    const dw = Math.round(src.r[2] * k);
+    const dh = Math.round(src.r[3] * k);
+    const dx = Math.round(WIN.x + (WIN.w - dw) / 2);
+    const dy = Math.round(WIN.y + (WIN.h - dh) / 2);
+    ctx.drawImage(src.img, src.r[0], src.r[1], src.r[2], src.r[3], dx, dy, dw, dh);
+    // 灯只打在脸上一圈，四周压黑——不然整张图会太亮，不像隔着玻璃
+    const cx = WIN.x + WIN.w / 2;
+    const cy = WIN.y + WIN.h * 0.46;
+    const vg = ctx.createRadialGradient(cx, cy, 16, cx, cy, WIN.w * 0.78);
+    vg.addColorStop(0, 'rgba(6,8,10,0)');
+    vg.addColorStop(0.62, 'rgba(6,8,10,.32)');
+    vg.addColorStop(1, 'rgba(4,5,6,.86)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(WIN.x, WIN.y, WIN.w, WIN.h);
+    // 你手里那盏灯：亮度轻轻起伏，看得久了会觉得自己也在被看
+    ctx.fillStyle = 'rgba(214,226,238,' + (0.04 + 0.022 * Math.sin(t * 1.7)) + ')';
+    ctx.fillRect(WIN.x, WIN.y, WIN.w, WIN.h);
+    ctx.restore();
   }
 
   function glass() {
@@ -521,6 +555,7 @@ export function makeScene(canvas, art) {
       ctx.fillRect(WIN.x + 96, WIN.y + 58, 10, 3);
     } else if (st.mode === 'visit' && st.char) {
       if (st.char.k === 's') stickBody(st.char, t); else awakenBody(st.char, t);
+      if (st.peekK > 0.01) closeUp(st.char, t, st.peekK);
     }
     if (st.mode !== 'black') glass();
     desk(t);
@@ -537,13 +572,16 @@ export function makeScene(canvas, art) {
     st.red = Math.max(0, st.red - 0.012);
     st.flash = Math.max(0, st.flash - 0.05);
     st.shake = Math.max(0, st.shake - 0.06);
+    st.peekK += (st.peek - st.peekK) * 0.18;
+    if (st.peekK < 0.004) st.peekK = 0;
     draw(t);
   }
   st.raf = requestAnimationFrame(loop);
 
   return {
-    setChar(c) { st.char = c; st.mode = c ? 'visit' : 'idle'; },
-    setMode(m) { st.mode = m; if (m !== 'visit') st.char = null; },
+    setChar(c) { st.char = c; st.mode = c ? 'visit' : 'idle'; st.peek = 0; },
+    setMode(m) { st.mode = m; if (m !== 'visit') st.char = null; if (m !== 'visit') st.peek = 0; },
+    setPeek(on) { st.peek = on ? 1 : 0; },
     setRoom(n) { st.room = n; },
     setAmmo(n) { st.ammo = n; },
     red(n) { st.red = Math.max(st.red, n); },

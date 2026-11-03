@@ -330,6 +330,23 @@ function bazaar() {
   };
 }
 
+// 寻找伪人：Morimens —— 读本机最高分摘要（zjtt:fake:best，由 js/fake/engine.js 的 saveBest 写）
+function fake() {
+  const b = null;
+  let best = null;
+  try { best = JSON.parse(RAW('zjtt:fake:best') || 'null'); } catch { best = null; }
+  if (!best || !best.score) return { items: [], extra: '' };
+  const diffName = { intro: '入门', std: '标准', hard: '硬核', night: '噩梦' }[best.diff] || best.diff || '';
+  return {
+    items: [
+      { k: '最高分', v: String(best.score) },
+      { k: '难度', v: diffName || '—' },
+      { k: '走到', v: best.days ? '第 ' + best.days + ' 天' : '—' },
+    ],
+    extra: best.score ? '据难度与活过天数结算银芯' : '',
+  };
+}
+
 // 卡片顺序 = 首页的排列顺序，用户不用重新认路
 export const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', icon: '🔍', read: detective, tip: '六边形自走棋推演' },
   { k: 'merge', n: '合成大杜勒', href: 'merge.html', icon: '⚫', read: merge, tip: '两个同级合成下一级' },
@@ -348,6 +365,7 @@ export const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.ht
   { k: 'bugfight', n: '电子斗蛐蛐', href: 'bugfight.html', icon: '🦗', read: bugfight, tip: '押注两队怪物，活着出笼' },
   { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，73 位出战者，能上段' },
   { k: 'bazaar', n: '大巴扎：银钥', href: 'bazaar.html', icon: '🏪', read: bazaar, tip: '十格布阵，唤醒体产算力、命轮吃算力开火' },
+  { k: 'fake', n: '寻找伪人：Morimens', href: 'fake.html', icon: '🚪', read: fake, tip: '昼夜轮转，放错的人会在夜里杀人' },
 ];
 
 // 一次性读全部：页面只调这一个
@@ -445,6 +463,11 @@ export const GD_SPEC = [
     ['开摊', n(v[2]) ? n(v[2]) + ' 次' : '—'],
     ['收满十二天', n(v[3]) + ' 摊'],
   ] },
+  { k: 'fk', n: '寻找伪人：Morimens', f: (v) => [
+    ['最高分', v[0] ? String(n(v[0])) : '—'],
+    ['走到', v[1] ? '第 ' + n(v[1]) + ' 天' : '—'],
+    ['结局', n(v[2]) + ' 种'],
+  ] },
 ];
 
 
@@ -523,5 +546,10 @@ export function digest() {
   // 大巴扎：银钥 [最高分, 最远第几天, 开摊次数, 收满十二天的摊数]：四个数都只增不减
   const bzS = RD('bazaar:v1') || {};
   out.bz = [n(bzS.best), n(bzS.day), n(bzS.runs), n(bzS.wins)];
+  // 寻找伪人：Morimens [最高分, 走到第几天, 已解锁结局数]：三个数都只增不减
+  let fkB = null;
+  try { fkB = JSON.parse(RAW('zjtt:fake:best') || 'null'); } catch { fkB = null; }
+  fkB = fkB && typeof fkB === 'object' ? fkB : {};
+  out.fk = [n(fkB.score), n(fkB.days), Object.keys(fkB.endings || {}).length];
   return out;
 }

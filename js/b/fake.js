@@ -16,22 +16,22 @@ return { ART, META, CHARS };
 // ---- js/fake/engine.js
 const m_engine = await (async () => {
 const { CHARS, META } = m_gen;
-// 《寻找伪人：Morimens》的状态机（v3）。
+// 《寻找伪人：Morimens》的状态机（v4）。
 //
-// 结构：白天（屋子里）↔ 夜里（门后），七天。
+// 结构：白天（屋子里）↔ 夜里（门后）。每个难度天数不同（7 / 10 / 14 / 18），
+// 每晚敲门的次数**不固定**（2~5 个，按难度和那一夜的剧情来）。
 //
 // 白天你面对的是**已经住进来的人**，夜里你面对的是门外的人。
 // 放错人进来不会当场扣理智——它会在这个晚上杀掉屋里的一个真人。天亮你才发现少了谁。
-// 所以判断的代价变成了「别人的命」，而不是你自己的一条进度条。
 //
 // 一条铁律：伪人身上有且只有**一处不对**，一定查得到。
-// 这一处可能落在六种地方：
+// 这一处可能落在七种地方：
 //   card 登记卡（界域/职介/登记号）   ask 答话（生日/身高/别名/星座）
 //   self 自称   eye 瞳色   item 随身物   pet 身上的动物   line 口头禅
 // 前两种档案里就有真值，随时可对；后五种**档案上没有**，只能靠图鉴里你核实过的真值。
 // 图鉴的真值只在「对方说的就是真的」时才点亮——所以一周目靠档案，多周目靠眼力。
 //
-// 随机全部走种子：同一个种子重开一局完全一样（方便复现 bug、也方便机器人跑平衡）。
+// 随机全部走种子：同一个种子 + 同一个难度重开一局完全一样（方便复现 bug、也方便机器人跑平衡）。
 
 
 
@@ -51,38 +51,106 @@ const FIELD_ASK = {
   area: '你挂在哪个分区？',
 };
 
-// 六处破绽的人话名字
+// 七处破绽的人话名字
 const LIE_LABEL = {
   card: '登记卡', ask: '答话', self: '自称', eye: '眼睛', item: '随身物',
   pet: '身上的动物', line: '口头禅',
 };
 
-const NIGHT_NAME = ['第一夜', '第二夜', '第三夜', '第四夜', '第五夜', '第六夜', '第七夜'];
+/* ================================================================ 难度 */
+// mul 是银芯的难度乘区；days 决定这一局有多长。
+// 敲门次数是每晚现摇的（vmin~vmax），所以同一档玩两遍，节奏也不一样。
+const DIFFS = [
+  {
+    k: 'intro', n: '入门', days: 7, vmin: 2, vmax: 4,
+    rate0: 0.30, rate1: 0.44, san: 100, bullets: 4, roomMax: 8, mul: 1,
+    sub: '七夜 · 敲门两到四个', note: '第一遍值夜就该从这儿开始：人不多，破绽也多落在档案上。',
+  },
+  {
+    k: 'std', n: '标准', days: 10, vmin: 2, vmax: 5,
+    rate0: 0.34, rate1: 0.50, san: 100, bullets: 4, roomMax: 10, mul: 1.6,
+    sub: '十夜 · 名单越来越长', note: '十夜，屋里会住得比较满。后半程几乎全靠图鉴。',
+  },
+  {
+    k: 'hard', n: '硬核', days: 14, vmin: 3, vmax: 5,
+    rate0: 0.38, rate1: 0.54, san: 90, bullets: 3, roomMax: 12, mul: 2.4,
+    sub: '十四夜 · 理智只有 90', note: '十四夜。开局理智不满，子弹也少一发。',
+  },
+  {
+    k: 'night', n: '噩梦', days: 18, vmin: 2, vmax: 5,
+    rate0: 0.42, rate1: 0.58, san: 90, bullets: 3, roomMax: 14, mul: 3.4,
+    sub: '十八夜 · 没人替你数', note: '十八夜，理智 80。破绽从第三夜起就不在纸上了。',
+  },
+];
+const diffOf = (k) => DIFFS.find((d) => d.k === k) || DIFFS[0];
+const DIFF_INDEX = (k) => Math.max(0, DIFFS.findIndex((d) => d.k === k));
 
-const DAYS = 7;
-const VISITS = 3;         // 每晚敲几次门
-const ROOM_MAX = 8;       // 屋子最多住几个人（挤一点没关系，命要紧）
+const ROOM_MAX = 9;       // 屋子最多住几个人（硬核/噩梦放开到 9）
 const START_HOME = 2;     // 开局屋里已有的住户（都是真人）
 const HEAR_LIMIT = 1;     // 门外「听它说」的次数
 const PEEK_LIMIT = 1;     // 门外「凑近看」的次数
 const TALK_PER_DAY = 2;   // 白天每个住户能聊几个话题
+const ACTS = 3;           // 每个人给你三次问话
 
-// 每晚几个伪人 + 破绽可能落在哪几处。
-// 前三夜一定留着 card / ask（档案里有真值），第四夜起才让隐晦的那几种登场——
-// 一周目能抓到的就那么多，剩下的要靠图鉴，这是「多周目」存在的理由。
-const NIGHTS = [
-  { f: 1, acts: 3, pool: ['card', 'ask'] },
-  { f: 1, acts: 3, pool: ['card', 'ask'] },
-  { f: 2, acts: 3, pool: ['card', 'ask', 'self'] },
-  { f: 1, acts: 3, pool: ['ask', 'self', 'eye'] },
-  { f: 2, acts: 3, pool: ['ask', 'self', 'eye', 'item'] },
-  { f: 2, acts: 3, pool: ['self', 'eye', 'item', 'pet', 'line'] },
-  { f: 2, acts: 3, pool: ['eye', 'item', 'pet', 'line'] },
+// 夜的编号：天数一长，七夜的名字就不够用了
+const CN_NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
+  '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十'];
+const nightName = (i) => '第' + (CN_NUM[i] || (i + 1)) + '夜';
+
+/* ============================================================ 固定剧情 */
+// 每一局都会撞上的四场戏：位置按天数比例算，所以 7 夜和 18 夜都会遇到，
+// 只是「第几夜」不同。它们不只是文本——每一个都会改那一夜的规矩。
+const EVENT_INFO = {
+  blackout: { n: '停电', tag: '走廊的灯全灭了，今晚来的人最少，但来的那个多半不对' },
+  letter: { n: '一页名单', tag: '档案室塞进门缝一页纸：今晚多给你一次「听」和一次「看」' },
+  chairs: { n: '楼上的椅子', tag: '拖椅子的声音没停过：这一夜它们不会只是坐着' },
+  final: { n: '档案室来电', tag: '最后一夜，名单比平时长，而且不止一个不对' },
+};
+
+function eventFor(i, days) {
+  if (days <= 4) return i === days - 1 ? 'final' : null;
+  if (i === 2) return 'blackout';
+  const l = Math.max(3, Math.round((days - 1) * 0.4));
+  const c = Math.max(4, Math.round((days - 1) * 0.65));
+  if (i === l && l !== c) return 'letter';
+  if (i === c) return 'chairs';
+  if (i === days - 1) return 'final';
+  return null;
+}
+
+// 破绽池：越到后面越隐晦。一周目能抓到的就那么多，剩下的要靠图鉴——这是「多周目」存在的理由。
+function poolOf(frac) {
+  if (frac < 0.18) return ['card', 'ask'];
+  if (frac < 0.34) return ['card', 'ask', 'self'];
+  if (frac < 0.52) return ['ask', 'self', 'eye'];
+  if (frac < 0.70) return ['ask', 'self', 'eye', 'item'];
+  if (frac < 0.86) return ['self', 'eye', 'item', 'pet', 'line'];
+  return ['eye', 'item', 'pet', 'line'];
+}
+
+/* ============================================================ 固定任务 */
+// 每局抽三条，写在白天的侧栏上。全部达成 → 「值夜人手册」结局，并且银芯翻一档。
+const TASK_POOL = [
+  { k: 'noleak', t: '一个伪人都别放进来', goal: 0, cmp: '<=', val: (s) => s.leaked },
+  { k: 'clean', t: '别误杀任何一个活人', goal: 0, cmp: '<=', val: (s) => s.killedReal },
+  { k: 'talk', t: '和屋里的人说满 8 次话', goal: 8, cmp: '>=', val: (s) => s.talks },
+  { k: 'exec', t: '处决至少 1 个伪人', goal: 1, cmp: '>=', val: (s) => s.killedFake },
+  { k: 'look', t: '听 / 看满 10 次', goal: 10, cmp: '>=', val: (s) => (s.hearN || 0) + (s.peekN || 0) },
+  { k: 'guard', t: '夜里别死超过 2 个人', goal: 2, cmp: '<=', val: (s) => s.deaths.filter((d) => d.how === 'night').length },
+  { k: 'close', t: '至少拦下 6 个伪人', goal: 6, cmp: '>=', val: (s) => s.caught },
+  { k: 'few', t: '开门的次数不超过 10 次', goal: 10, cmp: '<=', val: (s) => s.admitted },
 ];
-const FAKE_TOTAL = NIGHTS.reduce((a, b) => a + b.f, 0);
+const TASK_TARGET = 3;
 
-// 破绽落在「档案上」还是「身上」——结算和提示文案都要用
-const ON_PAPER = { card: 1, ask: 1 };
+function tasksOf(s) {
+  return (s.tasks || []).map((t) => {
+    const def = TASK_POOL.find((x) => x.k === t.k) || TASK_POOL[0];
+    const v = def.val(s);
+    const done = def.cmp === '<=' ? v <= def.goal : v >= def.goal;
+    return { ...def, v, done, key: t.k };
+  });
+}
+const tasksDone = (s) => tasksOf(s).filter((t) => t.done).length;
 
 /* ------------------------------------------------------------------ 随机 */
 function makeRng(seed) {
@@ -151,15 +219,15 @@ function twistLine(line) {
 }
 
 /* --------------------------------------------------------------- 造人 */
-function makePerson(rng, c, fake, night) {
+function makePerson(rng, c, fake, night, pool) {
   const claims = { ...c.facts };
   const shown = c.tr ? { ...c.tr } : { self: '我', eye: '灰', item: '什么也没有', pet: '', line: '' };
   let lie = null;
   let lieV = null;
 
   if (fake) {
-    const pool = shuffle(rng, NIGHTS[night] ? NIGHTS[night].pool : ['card', 'ask']);
-    for (const kind of pool) {
+    const kinds = shuffle(rng, pool || ['card', 'ask']);
+    for (const kind of kinds) {
       if (kind === 'card' || kind === 'ask') {
         const fields = shuffle(rng, (kind === 'card' ? c.card : c.ask) || []);
         let done = false;
@@ -228,30 +296,61 @@ function makePerson(rng, c, fake, night) {
   };
 }
 
-function makeResident(rng, c, night) {
-  const p = makePerson(rng, c, false, night);
+function makeResident(rng, c, night, pool) {
+  const p = makePerson(rng, c, false, night, pool);
   p.from = 'start';
   return p;
 }
 
-function newRun(seed) {
+/* ------------------------------------------------------------- 一局的生成 */
+function newRun(seed, diffKey) {
+  const cfg = diffOf(diffKey);
   const rng = makeRng(seed);
   const roster = shuffle(rng, CHARS);
-  const realN = VISITS * DAYS - FAKE_TOTAL;
-  const residents = roster.slice(0, START_HOME).map((c) => makeResident(rng, c, 0));
-  const real = roster.slice(START_HOME, START_HOME + realN);
-  const fakes = roster.slice(START_HOME + realN, START_HOME + realN + FAKE_TOTAL);
+  const start = roster.slice(0, START_HOME);
+  const residents = start.map((c) => makeResident(rng, c, 0, ['card', 'ask']));
+  const stock = roster.slice(START_HOME);
 
+  // 1) 先摇每晚来几个人，再按「人数不够」的情况削回去
+  const visitsArr = [];
+  for (let i = 0; i < cfg.days; i++) {
+    let v = cfg.vmin + Math.floor(rng() * (cfg.vmax - cfg.vmin + 1));
+    const ev = eventFor(i, cfg.days);
+    if (ev === 'blackout') v = cfg.vmin;
+    if (ev === 'final') v += 1;
+    visitsArr.push(Math.max(2, v));
+  }
+  let total = visitsArr.reduce((a, b) => a + b, 0);
+  while (total > stock.length) {
+    const i = visitsArr.findIndex((v) => v > 2);
+    if (i < 0) break;
+    visitsArr[i] -= 1;
+    total -= 1;
+  }
+
+  // 2) 按夜装配：谁站在门外、几个不对、能问几次
   const list = [];
-  let ri = 0;
-  let fi = 0;
-  for (let n = 0; n < NIGHTS.length; n++) {
-    const pos = shuffle(rng, [0, 1, 2]).slice(0, NIGHTS[n].f);
-    for (let i = 0; i < VISITS; i++) {
-      const fake = pos.includes(i);
-      const c = fake ? fakes[fi++] : real[ri++];
-      const v = makePerson(rng, c, fake, n);
-      v.acts = NIGHTS[n].acts;
+  const nights = [];
+  const offsets = [];
+  let cursor = 0;
+  for (let i = 0; i < cfg.days; i++) {
+    const visits = visitsArr[i];
+    const ev = eventFor(i, cfg.days);
+    const frac = cfg.days > 1 ? i / (cfg.days - 1) : 0;
+    const pool = poolOf(frac);
+    const rate = cfg.rate0 + (cfg.rate1 - cfg.rate0) * frac;
+    let fN = Math.max(1, Math.min(visits - 1, Math.round(visits * rate)));
+    if (ev === 'blackout') fN = Math.min(visits - 1, fN + 1);
+    if (ev === 'final') fN = Math.max(fN, Math.min(visits - 1, 2));
+
+    const pos = shuffle(rng, Array.from({ length: visits }, (_, k) => k)).slice(0, fN);
+    offsets.push(list.length);
+    for (let k = 0; k < visits; k++) {
+      const fake = pos.includes(k);
+      const c = stock[cursor++];
+      if (!c) break;
+      const v = makePerson(rng, c, fake, i, pool);
+      v.acts = ACTS;
       v.askedFields = [];
       v.heard = false;
       v.peeked = false;
@@ -261,36 +360,48 @@ function newRun(seed) {
       v.result = null;
       list.push(v);
     }
+    nights.push({ visits: Math.min(visits, list.length - offsets[i]), fakes: fN, acts: ACTS, ev, pool: pool.slice() });
   }
 
+  const fakeTotal = list.filter((v) => v.fake).length;
+  const tasks = shuffle(rng, TASK_POOL).slice(0, TASK_TARGET).map((t) => ({ k: t.k }));
+
   const s = {
-    v: 3,
+    v: 4,
     seed: seed >>> 0,
+    diff: cfg.k,
+    days: cfg.days,
     rp: 0,
     day: 0,
     night: 0,
     phase: 'day',        // day | night | over
     vi: 0,
     list,
+    nights,
+    offsets,
     home: residents,
-    bullets: 6,
-    sanity: 100,
+    bullets: cfg.bullets,
+    sanity: cfg.san,
     caught: 0,           // 看破的伪人（门外拒掉 + 屋里打死）
     leaked: 0,           // 放进来的伪人
     admitted: 0,         // 一共开过几次门
     refusedReal: 0,
     killedReal: 0,
     killedFake: 0,
+    hearN: 0,
+    peekN: 0,
     deaths: [],          // 屋里死的人
     talks: 0,
     met: [],
     log: [],
+    tasks,
     nightReport: null,   // 昨夜死了谁
     over: false,
     ending: null,
     endingWho: null,
     started: Date.now(),
   };
+  s.fakeTotal = fakeTotal;
   touch(s);
   // 一开始就坐在屋里的人，你也算见过——图鉴别等他进门才点亮
   residents.forEach((h) => markMet(h.cid));
@@ -299,12 +410,18 @@ function newRun(seed) {
 
 /* -------------------------------------------------------------- 查询 */
 const currentVisitor = (s) => (s.over ? null : s.list[s.vi] || null);
-const nightCfg = (s) => NIGHTS[Math.min(s.night, NIGHTS.length - 1)];
+const nightCfg = (s) => s.nights[Math.min(s.night, s.nights.length - 1)] || { visits: 2, acts: ACTS, ev: null };
 const homeAlive = (s) => s.home.filter((h) => h.alive);
 const homeReal = (s) => s.home.filter((h) => h.alive && !h.fake);
 const homeFake = (s) => s.home.filter((h) => h.alive && h.fake);
 const homeOf = (s, cid) => s.home.find((h) => h.cid === cid && h.alive) || null;
-const roomFull = (s) => homeAlive(s).length >= ROOM_MAX;
+const roomFull = (s) => homeAlive(s).length >= roomMax(s);
+const roomMax = (s) => diffOf(s.diff).roomMax || ROOM_MAX;
+// 那一夜特殊规矩：多给一次听/看；它们一定下手
+const nightExtraLook = (s) => nightCfg(s).ev === 'letter';
+const shareLimit = (s, kind) => (kind === 'hear' ? HEAR_LIMIT : PEEK_LIMIT) + (nightExtraLook(s) ? 1 : 0);
+const nightVisits = (s) => (s.nights[s.night] ? s.nights[s.night].visits : 0);
+const nightFrom = (s) => s.offsets[s.night] || 0;
 
 function startVisit(s) {
   const v = currentVisitor(s);
@@ -317,8 +434,8 @@ function startVisit(s) {
 function canAsk(s, v, field) {
   return !!(v && !v.done && !s.over && v.acts > 0 && v.c.ask.includes(field) && !v.askedFields.includes(field));
 }
-const canHear = (s, v) => !!(v && !v.done && !s.over && !v.heard);
-const canPeek = (s, v) => !!(v && !v.done && !s.over && !v.peeked);
+const canHear = (s, v) => !!(v && !v.done && !s.over && (v.hearN || 0) < shareLimit(s, 'hear'));
+const canPeek = (s, v) => !!(v && !v.done && !s.over && (v.peekN || 0) < shareLimit(s, 'peek'));
 
 function ask(s, field) {
   const v = currentVisitor(s);
@@ -335,9 +452,11 @@ function hear(s) {
   const v = currentVisitor(s);
   if (!canHear(s, v)) return null;
   v.heard = true;
+  v.hearN = (v.hearN || 0) + 1;
+  s.hearN = (s.hearN || 0) + 1;
   const kn = { self: judge(v, 'self', v.shown.self), line: judge(v, 'line', v.shown.line) };
   touch(s);
-  return { self: v.shown.self, line: v.shown.line, kn };
+  return { self: v.shown.self, line: v.shown.line, kn, times: v.hearN };
 }
 
 // 「凑近看」：瞳色、随身的东西、有没有带动物。另外还有一层说不清的直觉（软破绽）。
@@ -345,6 +464,8 @@ function peek(s) {
   const v = currentVisitor(s);
   if (!canPeek(s, v)) return null;
   v.peeked = true;
+  v.peekN = (v.peekN || 0) + 1;
+  s.peekN = (s.peekN || 0) + 1;
   const kn = {
     eye: judge(v, 'eye', v.shown.eye),
     item: judge(v, 'item', v.shown.item),
@@ -388,7 +509,10 @@ function noteTruth(v, field, value) {
 function decide(s, kind) {
   const v = currentVisitor(s);
   if (!v || v.done || s.over) return null;
-  if (kind === 'admit' && roomFull(s)) return null;
+  const full = roomFull(s);
+  if (kind === 'admit' && full) return null;
+  // 屋里住满了，门外的人只能走。这不叫误拒——你自己也没地方了，所以不扣理智、不计账。
+  if (kind === 'refuse' && full) kind = 'refuse_full';
 
   let key;
   let d = 0;
@@ -397,6 +521,10 @@ function decide(s, kind) {
     if (v.fake) { key = 'admit-fake'; d = 0; s.leaked++; tag = '放进'; }
     else { key = 'admit-real'; d = +2; tag = '放行'; }
     s.admitted = (s.admitted || 0) + 1;
+  } else if (kind === 'refuse_full') {
+    key = 'refuse-full';
+    d = 0;
+    tag = '没地方';
   } else {
     if (v.fake) { key = 'refuse-fake'; d = +3; s.caught++; tag = '拦下'; }
     else { key = 'refuse-real'; d = -8; s.refusedReal++; tag = '误拒'; }
@@ -422,18 +550,19 @@ function decide(s, kind) {
 function nextVisitor(s) {
   const v = currentVisitor(s);
   if (v && !v.done) return null;
-  const to = (s.night + 1) * VISITS;
-  // 今夜的三个人走完就该收摊，别再顺手把明晚第一个放进来
+  const from = nightFrom(s);
+  const to = from + nightVisits(s);
+  // 今夜的几个人走完就该收摊，别再顺手把明晚第一个放进来
   if (s.vi + 1 >= to) return null;
   s.vi += 1;
   touch(s);
   return startVisit(s);
 }
 
-// 今夜这 3 个都处理完了没有（不能看整局：21 个里绝大部分还没轮到）
+// 今夜这几个都处理完了没有（不能看整局：几十个人里绝大部分还没轮到）
 const nightDone = (s) => {
-  const from = s.night * VISITS;
-  const to = from + VISITS;
+  const from = nightFrom(s);
+  const to = from + nightVisits(s);
   return s.vi >= to - 1 && s.list.slice(from, to).every((v) => v.done);
 };
 
@@ -443,30 +572,48 @@ const nightDone = (s) => {
 function endNight(s) {
   const deaths = [];
   const fakes = homeFake(s);
+  const hardKill = nightCfg(s).ev === 'chairs' || nightCfg(s).ev === 'final';
   for (const f of fakes) {
     const targets = homeReal(s);
     if (!targets.length) break;
-    if (roll(s) > 0.8) continue;   // 这一夜它只是坐着看了很久
+    if (!hardKill && roll(s) > 0.8) continue;   // 这一夜它只是坐着看了很久
     const t = targets[rollInt(s, targets.length)];
     t.alive = false;
     t.killedBy = f.cid;
     t.killedDay = s.day + 1;
     deaths.push({ cid: t.cid, name: t.c.n, by: f.c.n, realm: t.c.realm, k: t.c.k });
     s.deaths.push({ cid: t.cid, name: t.c.n, by: f.c.n, day: s.day + 1, how: 'night' });
-    s.sanity = clampSan(s.sanity - 12);
+    s.sanity = clampSan(s.sanity - 8);
   }
   const lonely = fakes.length > 0 && homeReal(s).length === 0;
   if (lonely) s.sanity = clampSan(s.sanity - 8);
+  // 天亮回一点理智，回多少看屋里还剩几个活人：
+  // 你为谁守夜，谁就是你的锚。人是你的理智来源，不是分数。
+  // 一夜平安才回得了理智：屋里人多回得多，人少了就回不动。
+  // 连着死人那几夜，你睡不下，也补不回来——长局的压力就压在这儿。
+  if (!lonely && !deaths.length) s.sanity = clampSan(s.sanity + 2 + Math.min(4, homeReal(s).length));
+
+  // 屋里太挤，天亮时总有人自己走。走的是真人——它们不走。
+  const left = [];
+  const cap = roomMax(s);
+  if (homeReal(s).length > Math.max(2, cap - 2) && roll(s) < 0.45) {
+    const reals = homeReal(s);
+    const t = reals[rollInt(s, reals.length)];
+    t.alive = false;
+    t.leftDay = s.day + 1;
+    left.push({ cid: t.cid, name: t.c.n });
+  }
+
   // 屋里一个活人都不剩、而且坐着两个以上的它们：这一层已经不算你的了
   if (lonely && fakes.length >= 2) { s.over = true; s.ending = 'leak'; s.phase = 'over'; }
-  s.nightReport = { deaths, lonely, night: s.night };
+  s.nightReport = { deaths, lonely, left, night: s.night, ev: nightCfg(s).ev };
   s.night += 1;
-  if (s.night >= DAYS) { finish(s); return s.nightReport; }
+  if (s.night >= s.days) { finish(s); return s.nightReport; }
   s.phase = 'day';
   s.day = s.night;
   // 新的一天：每个人又能聊两句了
   s.home.forEach((h) => { h.talkCount = 0; });
-  // 每天补给一发：七夜下来一共 6+6 发，够用但不富余
+  // 每天补给一发：十四夜下来能攒出几发，但不富余
   s.bullets = Math.min(9, s.bullets + 1);
   if (s.sanity <= 0) { s.over = true; s.ending = 'san'; }
   checkOver(s);
@@ -493,7 +640,7 @@ function talk(s, cid, topic) {
   const out = { topic, who: h.c.n, lines: [], known: [], lie: null };
 
   if (topic === 'card') {
-    // 让它把卡上那三行再报一遍，和档案对
+    // 让它把卡上那几行再报一遍，和档案对
     out.pairs = [];
     (h.c.card || []).forEach((f) => {
       const ok = h.claims[f] === h.c.facts[f];
@@ -579,8 +726,7 @@ function shoot(s, cid) {
 function startNight(s) {
   if (s.over) return null;
   s.phase = 'night';
-  s.vi = s.day * VISITS;
-  s.list.forEach((v) => { v.talkCount = 0; });
+  s.vi = nightFrom(s);
   s.home.forEach((h) => { h.talkCount = 0; });
   touch(s);
   return startVisit(s);
@@ -600,37 +746,54 @@ function finish(s) {
   const reals = homeReal(s);
   const fakes = homeFake(s);
   const clean = s.deaths.filter((d) => d.how === 'night').length === 0 && s.killedReal === 0;
+  const names = reals.map((h) => h.cid);
+  const allTasks = tasksDone(s) === (s.tasks || []).length && (s.tasks || []).length > 0;
 
   if (s.sanity <= 0) s.ending = 'san';
   else if (s.killedReal >= 3) s.ending = 'kill';
   else if (!reals.length && fakes.length >= 2) s.ending = 'leak';
   else if (!reals.length) s.ending = 'alone';
   else if ((s.admitted || 0) <= 2 || s.refusedReal >= 6) s.ending = 'shut';
+  else if (allTasks && clean) s.ending = 'doctrine';
   else if (clean && s.leaked === 0 && knownCount() >= 300) s.ending = 'archive';
   else if (clean && s.leaked === 0) s.ending = 'perfect';
-  else {
-    // 和你一起活到最后的是谁，决定这是哪个结局
-    const names = reals.map((h) => h.cid);
-    if (names.includes('24')) s.ending = 'split';
-    else if (reals.some((h) => h.c.k === 's')) s.ending = 'broadcast';
-    else if (reals.length >= 3) s.ending = 'keeper';
-    else s.ending = 'dawn';
-  }
+  else if ((s.hearN || 0) + (s.peekN || 0) === 0) s.ending = 'deaf';
+  else if (names.includes('24') && reals.some((h) => h.c.k === 's')) s.ending = 'host';
+  else if (names.includes('24')) s.ending = 'split';
+  else if (reals.some((h) => h.c.k === 's')) s.ending = 'broadcast';
+  else if (reals.length >= 6) s.ending = 'crowd';
+  else if (s.leaked >= 6) s.ending = 'tenant';
+  else if (DIFF_INDEX(s.diff) >= 2) s.ending = 'cockroach';
+  else if (reals.length >= 3) s.ending = 'keeper';
+  else s.ending = 'dawn';
   s.endingWho = reals.map((h) => h.c.n);
   return s.ending;
 }
 
-function score(s) {
-  const knownN = Object.keys(codex().known || {}).reduce((a, k) => a + Object.keys(codex().known[k]).length, 0);
-  return Math.max(0, Math.round(
+// 分数：难度乘区 + 时间乘区（活得越久越值钱），这就是「银芯跟难度和时间挂钩」的算法
+function scoreParts(s) {
+  const cfg = diffOf(s.diff);
+  const base = Math.max(0, Math.round(
     s.caught * 90 + s.killedFake * 50 + s.leaked * -70 + s.refusedReal * -40 + s.killedReal * -150
-    + s.sanity * 3 + s.bullets * 12 + knownN * 4
-    + (s.ending === 'perfect' ? 500 : 0) + (s.ending === 'archive' ? 900 : 0),
+    + s.sanity * 3 + s.bullets * 12 + knownCount() * 3
+    + (s.ending === 'perfect' ? 500 : 0) + (s.ending === 'archive' ? 900 : 0)
+    + (s.ending === 'doctrine' ? 700 : 0),
   ));
+  const timeMul = 0.6 + 0.4 * Math.min(1, (s.day + 1) / cfg.days);
+  return { base, timeMul, diffMul: cfg.mul, total: Math.round(base * cfg.mul * timeMul) };
+}
+function score(s) { return scoreParts(s).total; }
+
+// 银芯：基础分按难度和时间放大，任务再补一档
+function rewardOf(s) {
+  const p = scoreParts(s);
+  const taskBonus = tasksDone(s) * 18;
+  const gain = Math.max(2, Math.round(p.total / 12) + taskBonus);
+  return { gain, taskBonus, ...p };
 }
 
 /* -------------------------------------------------------------- 存档 */
-const K = { save: 'zjtt:fake:save', codex: 'zjtt:fake:codex', best: 'zjtt:fake:best' };
+const K = { save: 'zjtt:fake:save', codex: 'zjtt:fake:codex', best: 'zjtt:fake:best', stat: 'zjtt:fake:stat' };
 
 function read(key, dflt) {
   try {
@@ -652,7 +815,7 @@ function touch(s) {
 function flush(s) { write(K.save, s); }
 function loadSave() {
   const s = read(K.save, null);
-  if (!s || s.v !== 3 || !Array.isArray(s.list) || !Array.isArray(s.home)) return null;
+  if (!s || s.v !== 4 || !Array.isArray(s.list) || !Array.isArray(s.home)) return null;
   return s;
 }
 function clearSave() { try { localStorage.removeItem(K.save); } catch (e) {} }
@@ -695,21 +858,43 @@ function meetAll(names) {
   if (add) write(K.codex, c);
   return add;
 }
-function best() { return read(K.best, { ending: null, score: 0, runs: 0, days: 0 }); }
+
+function best() {
+  return read(K.best, { ending: null, score: 0, runs: 0, days: 0, diff: null, endings: {}, gain: 0 });
+}
+// 结局只增不减的一本账：排行榜和「结局数」这一栏都读它
 function saveBest(res) {
   const b = best();
+  const endings = { ...(b.endings || {}) };
+  if (res.ending) endings[res.ending] = 1;
   const out = {
     ending: res.score > (b.score || 0) ? res.ending : b.ending,
     score: Math.max(b.score || 0, res.score),
     runs: (b.runs || 0) + 1,
-    days: Math.max(b.days || 0, res.day + 1),
+    days: Math.max(b.days || 0, res.days || 0),
+    diff: res.score > (b.score || 0) ? res.diff : (b.diff || res.diff),
+    endings,
+    gain: (b.gain || 0) + (res.gain || 0),
   };
   write(K.best, out);
   return out;
 }
+function endingCount() { return Object.keys(best().endings || {}).length; }
+
+// 银芯：和 js/common.js 的钱包同一个键（zjtt:credits，JSON 数字）。
+// 本页不加载账号那一整套，所以只写本地；下次进带顶栏的页面时，account.js 会按流水推上云。
+function walletAdd(n) {
+  let cur = 0;
+  try { cur = Number(localStorage.getItem('zjtt:credits')) || 0; } catch (e) { cur = 0; }
+  const v = cur + Math.max(0, Math.round(n));
+  try { localStorage.setItem('zjtt:credits', JSON.stringify(v)); } catch (e) { /* 隐私模式 */ }
+  try { document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: 'credits' })); } catch (e) { /* noop */ }
+  return v;
+}
+
 const clampSan = (v) => Math.max(0, Math.min(100, v));
 const ART_META = META;
-return { FIELD_LABEL, FIELD_ASK, LIE_LABEL, NIGHT_NAME, DAYS, VISITS, ROOM_MAX, START_HOME, HEAR_LIMIT, PEEK_LIMIT, TALK_PER_DAY, NIGHTS, FAKE_TOTAL, ON_PAPER, makeRng, charOf, ALL_CHARS, newRun, currentVisitor, nightCfg, homeAlive, homeReal, homeFake, homeOf, roomFull, startVisit, canAsk, canHear, canPeek, ask, hear, peek, decide, nextVisitor, nightDone, endNight, TOPICS, canTalk, talk, shoot, startNight, finish, score, touch, flush, loadSave, clearSave, codex, markKnown, isKnown, knownCount, KNOWN_MAX, markMet, meetAll, best, saveBest, ART_META };
+return { FIELD_LABEL, FIELD_ASK, LIE_LABEL, DIFFS, diffOf, DIFF_INDEX, ROOM_MAX, START_HOME, HEAR_LIMIT, PEEK_LIMIT, TALK_PER_DAY, ACTS, nightName, EVENT_INFO, TASK_POOL, tasksOf, tasksDone, makeRng, charOf, ALL_CHARS, newRun, currentVisitor, nightCfg, homeAlive, homeReal, homeFake, homeOf, roomFull, roomMax, nightExtraLook, shareLimit, nightVisits, nightFrom, startVisit, canAsk, canHear, canPeek, ask, hear, peek, decide, nextVisitor, nightDone, endNight, TOPICS, canTalk, talk, shoot, startNight, finish, scoreParts, score, rewardOf, touch, flush, loadSave, clearSave, codex, markKnown, isKnown, knownCount, KNOWN_MAX, markMet, meetAll, best, saveBest, endingCount, walletAdd, ART_META };
 })();
 
 // ---- js/fake/view.js
@@ -746,6 +931,7 @@ const COL = {
 };
 
 const IDX = new Map(META.chars.map((c, i) => [c.slug, i]));
+const B_IDX = new Map(META.chars.map((c, i) => [c.slug, i]));
 const S_IDX = new Map(CHARS.filter((c) => c.k === 's').map((c, i) => [c.id, i]));
 
 function loadImage(src) {
@@ -779,6 +965,8 @@ function makeScene(canvas, art) {
     red: 0,
     flash: 0,
     shake: 0,
+    peek: 0,            // 目标值：1 = 贴着玻璃看（窗口换成它的人像特写）
+    peekK: 0,           // 当前值，缓动过去
     t0: performance.now(),
     raf: 0,
   };
@@ -998,6 +1186,37 @@ function makeScene(canvas, art) {
       ctx.font = '5px monospace';
       ctx.fillText('LIVE', lx + 1.5, ly + 5);
     }
+  }
+
+  // 贴着玻璃看：窗口不再画「站在走廊里的形状」，而是它自己的头像/立绘特写。
+  // 这是整局里唯一能看清「眼睛是什么颜色、手里攥着什么」的地方，所以画得比别处实。
+  function closeUp(c, t, a) {
+    const src = c.k === 's'
+      ? { img: art.face, r: META.face.rects[S_IDX.get(c.id)] || [0, 0, 48, 48] }
+      : { img: art.bust, r: META.bust.rects[B_IDX.get(c.img.bust)] || [0, 0, 48, 48] };
+    ctx.save();
+    ctx.globalAlpha = a;
+    rect(WIN.x, WIN.y, WIN.w, WIN.h, '#07090b');
+    // cover：宁可裁掉两侧，也别把脸压扁
+    const k = Math.max(WIN.w / src.r[2], WIN.h / src.r[3]);
+    const dw = Math.round(src.r[2] * k);
+    const dh = Math.round(src.r[3] * k);
+    const dx = Math.round(WIN.x + (WIN.w - dw) / 2);
+    const dy = Math.round(WIN.y + (WIN.h - dh) / 2);
+    ctx.drawImage(src.img, src.r[0], src.r[1], src.r[2], src.r[3], dx, dy, dw, dh);
+    // 灯只打在脸上一圈，四周压黑——不然整张图会太亮，不像隔着玻璃
+    const cx = WIN.x + WIN.w / 2;
+    const cy = WIN.y + WIN.h * 0.46;
+    const vg = ctx.createRadialGradient(cx, cy, 16, cx, cy, WIN.w * 0.78);
+    vg.addColorStop(0, 'rgba(6,8,10,0)');
+    vg.addColorStop(0.62, 'rgba(6,8,10,.32)');
+    vg.addColorStop(1, 'rgba(4,5,6,.86)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(WIN.x, WIN.y, WIN.w, WIN.h);
+    // 你手里那盏灯：亮度轻轻起伏，看得久了会觉得自己也在被看
+    ctx.fillStyle = 'rgba(214,226,238,' + (0.04 + 0.022 * Math.sin(t * 1.7)) + ')';
+    ctx.fillRect(WIN.x, WIN.y, WIN.w, WIN.h);
+    ctx.restore();
   }
 
   function glass() {
@@ -1238,6 +1457,7 @@ function makeScene(canvas, art) {
       ctx.fillRect(WIN.x + 96, WIN.y + 58, 10, 3);
     } else if (st.mode === 'visit' && st.char) {
       if (st.char.k === 's') stickBody(st.char, t); else awakenBody(st.char, t);
+      if (st.peekK > 0.01) closeUp(st.char, t, st.peekK);
     }
     if (st.mode !== 'black') glass();
     desk(t);
@@ -1254,13 +1474,16 @@ function makeScene(canvas, art) {
     st.red = Math.max(0, st.red - 0.012);
     st.flash = Math.max(0, st.flash - 0.05);
     st.shake = Math.max(0, st.shake - 0.06);
+    st.peekK += (st.peek - st.peekK) * 0.18;
+    if (st.peekK < 0.004) st.peekK = 0;
     draw(t);
   }
   st.raf = requestAnimationFrame(loop);
 
   return {
-    setChar(c) { st.char = c; st.mode = c ? 'visit' : 'idle'; },
-    setMode(m) { st.mode = m; if (m !== 'visit') st.char = null; },
+    setChar(c) { st.char = c; st.mode = c ? 'visit' : 'idle'; st.peek = 0; },
+    setMode(m) { st.mode = m; if (m !== 'visit') st.char = null; if (m !== 'visit') st.peek = 0; },
+    setPeek(on) { st.peek = on ? 1 : 0; },
     setRoom(n) { st.room = n; },
     setAmmo(n) { st.ammo = n; },
     red(n) { st.red = Math.max(st.red, n); },
@@ -1389,7 +1612,7 @@ return { loadArt, makeScene, sfx };
 // ---- js/fake/text.js
 const m_text = await (async () => {
 
-// 《寻找伪人：Morimens》的全部文案（v3）。
+// 《寻找伪人：Morimens》的全部文案（v4）。
 //
 // 分开放的原因：这游戏九成的体验在字上，改台词不该碰到状态机。
 //
@@ -1397,16 +1620,35 @@ const m_text = await (async () => {
 // 伪人抄错的那一条，可能印在卡上、可能藏在它的答话里、也可能在它的自称、瞳色、
 // 随身的东西、和它复述的那句口头禅里。前两种档案能对，后几种只能靠你记得。
 
+/* ------------------------------------------------------------ 难度 */
+const DIFF_INTRO = {
+  intro: '七个夜晚。名单上的人不算多，破绽也多半落在登记卡和答话上——\n这一档是给你认路的。',
+  std: '十个夜晚。后半程来的人，身上能对的东西越来越少。\n你要是还想靠卡面过关，会死得很难看。',
+  hard: '十四个夜晚。开局理智只有 90，子弹也少一发。\n这里的伪人不着急，它们等得起。',
+  night: '十八个夜晚。理智 80。第三夜之后，破绽基本不在纸上。\n没人替你数，也没人替你记得。',
+};
+
 /* ------------------------------------------------------------------ 夜 */
+// 前七夜是写死的，再往后按池子轮：天数一长，不能靠数组下标硬撑。
 const NIGHT_INTRO = [
   '第一夜。走廊的灯只亮一盏。\n屋里已经住了两个人，他们比你先来，比你更知道这层楼的规矩。',
-  '第二夜。保温壶里还是昨晚的水。\n门外今晚来三个，名单是档案室送下来的——他们从不下来。',
-  '第三夜。走廊尽头的灯开始闪。\n你数了数子弹：六发。白天也许用得上。',
-  '第四夜。楼上有东西在拖椅子，拖了整整一分钟，然后停了。\n名单上是三个人，可你只听见两次敲门。',
+  '第二夜。保温壶里还是昨晚的水。\n门外今晚来几个说不准——名单是档案室送下来的，他们从不下来。',
+  '第三夜。走廊尽头的灯开始闪。\n你数了数子弹：够用，但不够用错。',
+  '第四夜。楼上有东西在拖椅子，拖了整整一分钟，然后停了。',
   '第五夜。台灯的光比昨天暗了一点。\n登记簿的边角被翻过——有人在你睡着的时候读过它。',
   '第六夜。走廊的墙上多了一道门，门牌号和你这间一样。\n你没有去开它。门外的人却都比平时安静。',
-  '第七夜。档案室第一次主动联系你：今晚来的，可能不止三个。\n天亮之前，别开门给错的人。',
+  '第七夜。档案室第一次主动联系你。\n天亮之前，别开门给错的人。',
 ];
+const NIGHT_INTRO_LATE = [
+  '又一夜。你已经不数这是第几夜了，是登记簿在替你数。',
+  '灯亮起来的时候，走廊尽头站着一个还没敲门的人。你等着它敲。',
+  '你把左轮从抽屉里拿出来，摆在桌上，像摆一碟咸菜。',
+  '水壶空了。你没去接水——接了也没人喝。',
+  '屋里的人越来越少，椅子却一把没少。',
+  '这一夜走廊特别安静，安静到你能听见自己数子弹的声音。',
+  '登记簿的纸开始发脆。你翻页的时候小心了一点。',
+];
+const NIGHT_INTRO_LAST = '最后一夜。档案室没有再发名单下来。\n门外站着谁，今晚得你自己认。';
 
 const NIGHT_END = [
   '你把名字一个个划掉。笔尖在纸上顿了一下——今晚的名字，好像比名单上少一个。',
@@ -1417,6 +1659,80 @@ const NIGHT_END = [
   '你给自己倒了杯水。水面上浮着一层灰，像有人在里面洗过手。',
   '天快亮了。走廊的灯一盏一盏亮起来，最后一盏，就在你门外。',
 ];
+const NIGHT_END_LATE = [
+  '你把这一夜的门闩重新插好，插了三遍才插到底。',
+  '走廊里有人走过，脚步很轻，走到你门口就没了。',
+  '你听见墙里有东西在挪动，像一整套椅子在被慢慢摆好。',
+  '你坐着没动，直到灯自己亮起来。',
+  '登记簿上今晚的名字，有一行是自己浮现出来的。你没敢细看。',
+  '你把灯关了又开，开了又关。屋里还是那些人。',
+];
+const NIGHT_END_LAST = '最后一次合上登记簿。\n手心的汗把封皮洇出一小块深色。';
+
+function nightIntro(i, days) {
+  if (i >= days - 1) return NIGHT_INTRO_LAST;
+  if (i < NIGHT_INTRO.length) return NIGHT_INTRO[i];
+  return NIGHT_INTRO_LATE[(i - NIGHT_INTRO.length) % NIGHT_INTRO_LATE.length];
+}
+function nightEnd(i, days) {
+  if (i >= days - 1) return NIGHT_END_LAST;
+  if (i < NIGHT_END.length) return NIGHT_END[i];
+  return NIGHT_END_LATE[(i - NIGHT_END.length) % NIGHT_END_LATE.length];
+}
+
+/* ------------------------------------------------- 固定剧情（每局必遇） */
+// 四场戏：停电 / 一页名单 / 楼上的椅子 / 档案室来电。位置按天数比例算，见 engine 的 eventFor。
+const EVENT_TEXT = {
+  blackout: {
+    t: '第三夜 · 停电',
+    body: [
+      '走廊的灯在傍晚全灭了。不是坏了——是有人在总闸那边，一格一格地把它们关掉。',
+      '屋里的人没有一个人去开手电。他们都很习惯黑。',
+      '停电的这一夜，敲门的人会特别少。可你心里清楚：少，不等于对。',
+      '（今夜来的人最少，但来的那个多半不对。）',
+    ],
+  },
+  letter: {
+    t: '门缝里的一页名单',
+    body: [
+      '早上门缝里塞进来一页纸。上面是今晚的名字，只有几个，字迹和档案室的完全一样。',
+      '纸的背面另有一行小字，是手写的：「今晚你可以多看一次，多听一次。」',
+      '你翻到纸的正面，发现有一个名字被墨水涂掉了——涂得很用力，把纸都划破了。',
+      '（今夜「听」和「看」各多一次。）',
+    ],
+  },
+  chairs: {
+    t: '楼上的椅子',
+    body: [
+      '拖椅子的声音从中午就开始了，一直没停。',
+      '你抬头看天花板，灰尘一粒一粒往下掉，掉得很均匀，像有人在上面按节拍走。',
+      '到了傍晚，声音停了。停得太干脆，你反而坐直了。',
+      '（今夜它们不会只是坐着看——你放进来的人，一定会动手。）',
+    ],
+  },
+  final: {
+    t: '档案室来电',
+    body: [
+      '电话响了。这是这层楼第一次有电话响。',
+      '对面没有人说话，只有翻纸的声音，一页一页，翻了很久。',
+      '然后是钢笔落下的声音。写完了，电话挂了。',
+      '门外的走廊里，响起的不止一次敲门声。',
+      '（最后一夜。名单比平时长，而且不止一个不对。）',
+    ],
+  },
+};
+
+/* ------------------------------------------------------------ 固定任务 */
+const TASK_DESC = {
+  noleak: '门外那一个不对的，别放进来。放进来的每一个都会记账。',
+  clean: '打死的必须是伪人。错杀一个活人，这条就废了。',
+  talk: '白天和屋里的人说话。聊天不扣体力，但一天只有两次机会/人。',
+  exec: '在白天处决掉一个伪人——尸体不会说谎。',
+  look: '门外的「听它说」和「凑近看」。这两样不占问话次数。',
+  guard: '天亮的时候数人。夜里死的人不能超过两个。',
+  close: '看破的伪人数量。拒掉门外的一个，或者屋里打死一个，都算。',
+  few: '开门的次数。开得越多，进来的人越杂。',
+};
 
 /* ------------------------------------------------- 开门前的那句搭话 */
 const OPEN_REAL = {
@@ -1425,30 +1741,40 @@ const OPEN_REAL = {
     '外头在下东西，不是雨。让我进去躲一会儿。',
     '我把名字写在最上面了，你看见没有？',
     '别照我脸，晃眼睛。',
+    '你手在抖。抖的人不该守门，可这层楼就剩你了。',
+    '我不急。你什么时候问完，我什么时候进。',
   ],
   血肉: [
     '我身上有伤，不重。让我进去，我自己处理。',
     '你手上的枪先放下，我认得那玩意儿。',
     '名单第三个是我。我数过了。',
     '门开一条缝就行，我不占地方。',
+    '我这身皮不是原来的了。别问，问了你也睡不着。',
+    '缝合线今天早上还在渗。你要看就快点看。',
   ],
   深海: [
     '我从下面上来，鞋还是湿的。',
     '走廊的水位到膝盖了，你没听见吗？',
     '我不吵。让我在角落里坐着就好。',
     '你这里的灯，比下面的暖。',
+    '底下有东西在往上浮。你们这层，是最先淹的。',
+    '我上来的时候，看见门牌号都是同一个。',
   ],
   超维: [
     '我按约定的时间来的。你迟到了。',
     '你昨晚也是这么看我的。',
     '别问太多。问多了，答案会变。',
     '我带了东西给你，放在门口了。',
+    '这扇门我开过很多次。每次里面坐的人，都不是同一个。',
+    '你要不要先想想——你为什么会记得我？',
   ],
   主播: [
     '门房老师，今晚也麻烦你了。我开个播就走。',
     '观众都在等我，你就让我进去坐十分钟。',
     '我路上还在想选题——「地下十一层的门房」，怎么样？',
     '别紧张，我不录你。真的。',
+    '弹幕在问我这是哪儿。我说了，他们不信。',
+    '手机电量还有 3%。就 3%。',
   ],
 };
 
@@ -1461,6 +1787,10 @@ const OPEN_FAKE = [
   '你数过今晚有几个人吗？再数一遍。',
   '我记得你的名字。你不知道我的。',
   '让我进去。我不会占两个人的位置。',
+  '你屋里已经坐了那么多。少一个，多一个，有人会发现吗？',
+  '名单是纸做的。我也是纸做的。我们很像。',
+  '你要是不开，我就一直站在这里。站到你开门为止。',
+  '我不是来杀人的。我是来坐一会儿的。',
 ];
 
 /* ------------------------------------------------------- 问话的回答 */
@@ -1469,12 +1799,13 @@ const REAL_TAIL = [
   '记吧，反正也就你还在记。',
   '这也要写进簿子？',
   '你要是不信，可以再问一遍。',
+  '我答完了。你想听见什么？',
 ];
-
 const FAKE_TAIL = [
   '还有别的问题吗？',
   '你问完了吗。',
   '这些你应该都记着才对。',
+  '你可以再问一遍。我的答案不会变。',
 ];
 
 /* ------------------------------------------------ 门外：听它说 / 凑近看 */
@@ -1483,20 +1814,28 @@ const HEAR_HEAD = [
   '你把耳朵贴近门板。它开始说话了，语速很匀。',
   '你说：说两句吧，随便什么。它想了一下，开口。',
   '门外的人清了清喉咙。',
+  '你把门缝开了一线，声音从那儿挤进来。',
+  '它没有等你问，自己就开始说了——像是排练过。',
 ];
 const HEAR_TAIL = [
   '它说完就停了，等着你接话。',
   '声音落下去，走廊里安静了半秒才恢复。',
   '它说完，隔着门你看不见它的表情。',
+  '它说完以后又补了一句什么，声音太小，你没听清。',
+  '你退开半步。门板上有一块被呼吸焐热的地方。',
 ];
 
 const PEEK_HEAD = [
   '你举着灯，把脸凑到玻璃上。',
   '你把灯举高，贴着玻璃看它。',
+  '你把玻璃上的灰抹开一小块，凑近看。',
+  '你屏住气，从猫眼往外看——猫眼今天特别清楚。',
 ];
 const PEEK_TAIL = [
   '你看得眼睛发酸，退开半步。',
   '玻璃凉得像冰，你把手收回来。',
+  '你退开的时候，玻璃上留下一个额头的印子。',
+  '你看得太久了。它一直没有眨眼。',
 ];
 
 /* ------------------------------------------------------------ 观察 */
@@ -1514,6 +1853,14 @@ const OBSERVE_ANOMALY = [
   { k: 'neck', t: '它转身的时候，肩膀转过去了，脸还朝着你。' },
   { k: 'name', t: '你念它的名字，它慢了半拍才应。像在等别人先应。' },
   { k: 'glass', t: '玻璃上映出的那张脸，比玻璃外面的那张，晚了半个动作。' },
+  { k: 'hair', t: '它头发梢在动，可走廊里一丝风都没有。' },
+  { k: 'coat', t: '它的外套下摆湿了。这一层楼没有雨，走廊也没有水。' },
+  { k: 'count', t: '它的手指在身侧轻轻点着，像在数数——数到三，从头再来。' },
+  { k: 'wait', t: '你说什么它都应「好」，连你说「你走吧」都应了「好」。' },
+  { k: 'tie', t: '它领口别着一枚登记章，章上的日期是明天。' },
+  { k: 'echo', t: '走廊尽头的灯照过来，它的影子朝着光的方向倒。' },
+  { k: 'smell', t: '隔着门板，你闻到墨水的味道。很新，像刚写完字。' },
+  { k: 'mouth', t: '它说话的时候，嘴型对不上声音，差一个词。' },
 ];
 
 /* ------------------------------------------------------ 决定之后 */
@@ -1521,18 +1868,22 @@ const OUTCOME = {
   'admit-real': [
     '门开了。她进来，鞋底在门口的地毯上蹭了两下——活人才会蹭那两下。\n屋里有人给她挪了个位置。',
     '门开了。他进来时先探头看了看屋里，才迈步。\n你没说话，只是把门重新锁上。',
+    '门开了。她进门第一件事是找了个靠墙的位置坐下，能看见门。\n活人才会挑那个位置。',
   ],
   'admit-fake': [
     '门开了。\n它没有立刻进来——它先低头，看了看门槛，像在确认这道线能不能过。\n然后它进来了，走得很轻。',
     '门开了。它走进来的时候没有声音。\n屋里的人抬头看了它一眼，又低下头去。',
+    '门开了。它跨过门槛，回头对你笑了一下。\n那个笑停在脸上，比它的人多留了半秒。',
   ],
   'refuse-real': [
     '你说：今晚不行。\n门外安静了很久。然后你听见她坐下来，背靠着门，一直坐到天亮。\n她没有再敲。',
     '你说：名单上没有你。\n它（她）说：有的。你再看一眼。\n你没有看。脚步声往上走了，走得很慢。',
+    '你说：今晚不行。\n她说：好。\n那声「好」应得太快了，快得你有点后悔。',
   ],
   'refuse-fake': [
     '你说：今晚不行。\n它没有争辩。它笑了一下，往后退，退进走廊的黑里。\n脚步声是往上的——可这一层上面，没有楼。',
     '你说：把手从玻璃上拿开。\n它照做了。玻璃上留下五个指印，过了很久才褪。',
+    '你说：今晚不行。\n它说：那我明天再来。\n你记下了这句话。明天是第几天，你没敢算。',
   ],
 };
 
@@ -1546,15 +1897,28 @@ const DAY_INTRO = [
   '白天。走廊外面今天很安静，安静得像在等你先动。\n你还有一点时间，够问几个人。',
   '白天。最后一天了。\n你把子弹摆在桌上，一颗一颗数过去。',
 ];
+const DAY_INTRO_LATE = [
+  '白天。你已经不太记得这是第几天，但每个人都记得你叫什么。',
+  '白天。有人在墙角刻了一道记号。你不记得自己刻过。',
+  '白天。屋里很挤。你数了两遍，数目都对，可你还是想再数一遍。',
+  '白天。有人在低声说话，你一走过去就不说了。',
+];
+function dayIntro(i, days) {
+  if (i >= DAY_INTRO.length) return DAY_INTRO_LATE[(i - DAY_INTRO.length) % DAY_INTRO_LATE.length];
+  return DAY_INTRO[i];
+}
 
 const DAY_REPORT_HEAD = '昨夜屋里少了人';
 const DAY_REPORT_NONE = [
   '一夜无事。你睡了一会儿，醒来时屋里的人都还在。',
   '天亮的时候，屋里的人一个不少。没人说话，但都还在。',
+  '这一夜没人死。你把登记簿合上，手指在封面上敲了两下。',
+  '一夜无事——如果「听见有人在门外一直站着」也算无事的话。',
 ];
 const DAY_REPORT_LONELY = [
   '屋里已经没有活人了。它们都在，安安静静地坐着，等你说话。',
   '你数了三遍。全是它们。',
+  '没有一个人应你。它们都抬起头了，但没有一个人应你。',
 ];
 // 有人死了：只报名字，不报真假——这才是最难熬的部分
 const DAY_REPORT_DEAD = [
@@ -1564,11 +1928,14 @@ const DAY_REPORT_DEAD = [
   '地上一道拖痕，从床边一直拖到墙根。拖痕的尽头什么也没有。',
   '你在水槽底下找到她。她睁着眼，眼睛还是那个颜色。',
   '床单上有一大片深色的东西，形状像是有人躺过。人是没有的。',
+  '他躺在自己的位置上，被子盖到下巴，盖得很整齐。整齐得不像他自己盖的。',
+  '你找到一只鞋。另一只在门边。人不在任何一边。',
+  '窗户是关着的。玻璃上从里面按着一个手印，手印比手小一圈。',
 ];
 
 /* --------------------------------------------------- 白天的对话 */
 const TALK_ASK = {
-  card: '你把登记簿翻开：把卡上那三行再报一遍。',
+  card: '你把登记簿翻开：把卡上那几行再报一遍。',
   fact: '你决定再核一遍档案。',
   self: '你问：你怎么称呼自己？',
   eye: '你说：把脸转过来，让我看看你的眼睛。',
@@ -1581,22 +1948,25 @@ const TALK_NONE = [
   '它看着你，没有回答。',
   '它把脸转开了。',
 ];
-
 const TALK_WHO_NONE = [
   '「都挺好的。」它说，「你要是连我们都不信，这屋里就没活人了。」',
   '「看不出来。」它说，「我要是看得出来，还用得着你？」',
+  '「你要问，」它慢慢地说，「就去问那个从来不先开口的。」',
 ];
 const TALK_WHO_HIT = [
   '它想了很久，才说出一个名字。说的时候没有看你。',
   '它凑近了一点，声音压到几乎听不见：「他夜里不睡觉。我数过，一次都没睡。」',
+  '它没有马上答，而是先看了一眼门，才报出那个名字。',
 ];
 const TALK_WHO_MISS = [
   '它想了一会儿，说了一个名字。说完自己也犹豫了：「……我可能看错了。」',
   '它说：那个人的眼神不对。你听着，觉得它只是在挑一个最不熟的。',
+  '它报了个名字，语气很平。平得像早就准备好的答案。',
 ];
 const TALK_WHO_LIE = [
   '它答得很快，几乎是抢着说的。太快了，像早就挑好了人。',
   '它说出一个名字，语气很笃定。笃定得不太正常。',
+  '它说出一个名字，然后补了一句：「我可以帮你。」——它不该说这句。',
 ];
 
 // 「你从哪儿来」——按界域，每天一段，慢慢把这一层楼的事说出来
@@ -1606,30 +1976,40 @@ const PAST = {
     '「我是被一张纸叫下来的。纸上写着我的名字，字是别人的。」',
     '「这层楼以前有人守。他走的时候没锁门。」',
     '「你听见过走廊里有人念名字吗？念到你的那一次，别答应。」',
+    '「我在上面也守过门。守了三天，第四天门自己开了。」',
+    '「你要不要知道，为什么这一层只有一间屋子亮着灯？」',
   ],
   血肉: [
     '「从缝合房出来。出来的时候身上少了一样东西，我不知道是什么。」',
     '「我这身皮不是我的。原来的主人没意见，他早就不用了。」',
     '「下面那层在长东西，长得比人快。」',
     '「疼的时候我才确定我还在这边。」',
+    '「缝合房的手艺越来越好。上个月他们还缝不出会说话的。」',
+    '「别摸我肩膀。那块地方不是长上去的，是钉上去的。」',
   ],
   深海: [
     '「从底下。底下有灯，灯下面还有东西。」',
     '「水是这几天才涨上来的。你们都没发现，因为你们不低头。」',
     '「我在水里待过很久。久到忘了自己原来是站着走的。」',
     '「涨潮之前我得回去。回不去就算了。」',
+    '「底下的门比这里的多。每扇后面都有人敲门，敲得很轻。」',
+    '「你听见水声了吗？没有？那就更不对了。」',
   ],
   超维: [
     '「从这扇门后面。同一个门，另一个方向。」',
     '「我先到的，你后到的。我们谁是后来的，说不准。」',
     '「这条走廊有四个方向。你只走过一个。」',
     '「我见过你很多次。每次你都问我这个问题。」',
+    '「上一次你把门关上了。这一次你开了。哪一个是真的你？」',
+    '「你的登记簿只写了七天。你自己翻翻看，是不是已经翻到第八页了。」',
   ],
   主播: [
     '「从直播间。今天没开播，观众会以为我鸽了。」',
     '「我本来是来拍都市传说的。拍到第三天，就不敢关机了。」',
     '「信号只有一格。你不觉得这本身就很奇怪吗——地下十一层，还有信号？」',
     '「我把这几天的素材传上去了。要是我不在了，你记得看一眼评论区。」',
+    '「昨天有个观众在弹幕里问：门房是不是也是伪人。我没敢回。」',
+    '「我数过观看人数。一直是 11。从来没变过。」',
   ],
 };
 
@@ -1637,14 +2017,27 @@ const PAST = {
 const SHOOT_REAL = [
   '枪响。\n她倒下去的时候还在说「是我」。血从椅子底下流出来，是热的。\n你蹲下去看了很久，才想起来要关灯。',
   '枪响。\n他往后退了半步，撞在墙上，然后坐下去了。\n手是热的，指节有薄茧。你摸过才知道。',
+  '枪响。\n她倒下得比你想的快。你走过去，看见她手里攥着半张纸——是登记簿上撕下来的一角。',
 ];
 const SHOOT_FAKE = [
   '枪响。\n它的形状散了一下，像被水冲开的墨。地板上只剩一滩登记用的墨水，和一枚不属于任何人的指节。',
   '枪响。\n它没有倒。它只是变薄了，薄到能透过它看见墙，然后就没有了。',
+  '枪响。\n它低下头，看了看自己胸口那个洞，像是在看一处印错的字。\n然后它抬起头，对你说了句「谢谢」，才散掉。',
 ];
 
 /* ------------------------------------------------------------- 结局 */
 const ENDINGS = {
+  doctrine: {
+    t: '值夜人手册',
+    sub: '三条规矩，你一条没破',
+    body: [
+      '天亮的时候，你把这几天记下的东西整理成三条，写在新的一页上：',
+      '「一，不对的人不放进来。二，打死的必须是不对的。三，天亮的时候，人要在。」',
+      '写完之后你才发现，这三条不是你想出来的——它们一直在你手上，只是没说出口。',
+      '档案室的门开了。里面站着一个人，把手册接过去，翻了两页，点了点头。',
+      '「下一个值夜的，会拿到这本。」它说，「这一次，写上你的名字。」',
+    ],
+  },
   archive: {
     t: '档案室',
     sub: '你把这一层的人都认完了',
@@ -1657,12 +2050,64 @@ const ENDINGS = {
   },
   perfect: {
     t: '一盏灯都没灭',
-    sub: '七天，一个人也没有少',
+    sub: '一个人也没有少',
     body: [
-      '第七夜的最后一次敲门，你等到了天亮也没有等到。',
+      '最后一个人的最后一次敲门，你等到了天亮也没有等到。',
       '屋里的人都在。他们把椅子搬回原位，把水壶灌满，像什么都没发生过。',
       '档案室发来一张纸条，上面只有一行字：「这层楼，终于清干净了。」',
       '你摸了摸门框——木头的，有毛刺，扎手。是真的。',
+    ],
+  },
+  deaf: {
+    t: '只看纸',
+    sub: '你一次也没抬头看它',
+    body: [
+      '你活下来了。这件事连你自己都有点意外。',
+      '这些天你只相信两样东西：登记卡和档案。你没听过它们说话，也没凑近看过任何一张脸。',
+      '纸没有骗过你。纸也没告诉过你，屋里坐着的人里，有一个从头到尾都没长过同一张脸。',
+      '天亮以后，你把灯关了。你不想看。看了也没用。',
+    ],
+  },
+  host: {
+    t: '两个人的直播间',
+    sub: '一个主播，和一个「24」',
+    body: [
+      '天亮的时候，屋里还剩两个人。',
+      '一个是主播，手机还举着，屏幕上是滚动的弹幕；另一个坐在窗台上，两条腿垂着，哼一段没有调子的歌。',
+      '「家人们，」主播对着手机说，「这是 24。她抄错了自己，所以她永远是对的。」',
+      '弹幕停了一秒，然后整屏都刷成了同一个字。你没看清那是什么字。',
+      '你只知道，从那一夜起，这一层楼的观看人数变成了 12。',
+    ],
+  },
+  crowd: {
+    t: '挤满人',
+    sub: '天亮时屋里还坐着六个人',
+    body: [
+      '天亮的时候，屋里坐得满满的。六个人，一个没少。',
+      '他们把那几把旧椅子全搬出来了，还有人坐在地上。有人在分一壶水。',
+      '你站在门口看了一会儿，忽然觉得这不像值夜，像搬家。',
+      '「明天还得挤。」有人说。',
+      '你没接话。你在想明天还来不来得及。',
+    ],
+  },
+  tenant: {
+    t: '同住',
+    sub: '你放进来太多不对的东西，然后活了下来',
+    body: [
+      '这层楼现在很热闹。',
+      '你放进来的人比应该放的多，它们也没让你太难做——它们不吵，不抢，甚至替你关灯。',
+      '只是有一件事你一直没敢细想：它们从什么时候开始，不再需要你开门了。',
+      '你数了数屋里的椅子。比你搬进来那天多了三把。',
+    ],
+  },
+  cockroach: {
+    t: '第十八夜之后',
+    sub: '你在这层楼里活得比谁都久',
+    body: [
+      '你没算过自己值了多少夜。登记簿替你算了：厚了一倍，封皮都磨掉了角。',
+      '那些人来了又走，走了又来。有些脸你认得，认得的方式不太对——它们明明死过。',
+      '走廊的灯已经坏得只剩一盏，但你已经不需要灯了。',
+      '你坐在门后，听见脚步声响起来，抬手敲了敲门板，代替它们。',
     ],
   },
   split: {
@@ -1670,7 +2115,7 @@ const ENDINGS = {
     sub: '「24」还在屋里',
     body: [
       '天亮的时候，24 坐在窗台上，两条腿垂着，哼一段没有调子的歌。',
-      '这七天里你问过它三次「你是谁」，三次的答案不一样，三次都是真的。',
+      '这些天里你问过它三次「你是谁」，三次的答案不一样，三次都是真的。',
       '它说：「我抄错了自己，所以我永远是对的。」',
       '你把它写进登记簿。写完抬头，看见簿子上已经有两个一模一样的名字。',
     ],
@@ -1680,7 +2125,7 @@ const ENDINGS = {
     sub: '有人把你这一层播了出去',
     body: [
       '天亮的时候，那位主播还活着。它把手机举起来，屏幕上是滚动的弹幕。',
-      '「家人们，七天，他一个人没杀错。」它说，「这就是我说的那个门房。」',
+      '「家人们，他一个人没杀错。」它说，「这就是我说的那个门房。」',
       '你想让它关掉，它说信号只有一格，关不掉。',
       '后来这一层楼来了很多人。他们都看过那场直播，都想来看看那扇门。',
       '门是真的。毛刺也是真的。你只是不再确定，自己有没有被拍进去。',
@@ -1691,7 +2136,7 @@ const ENDINGS = {
     sub: '屋里还有人，天亮得刚好',
     body: [
       '天亮了。走廊的灯一盏一盏亮起来，最后一盏就在你门外。',
-      '屋里坐着三个人，谁也没说话。他们都活过了这七天，这是你能给的全部。',
+      '屋里坐着几个人，谁也没说话。他们都活过了这些日子，这是你能给的全部。',
       '你把左轮收进抽屉，把登记簿翻回第一页。',
       '下一个值夜的人会看到你留下的字：名单上的名字未必是人，屋里的人未必是鬼。',
     ],
@@ -1711,7 +2156,7 @@ const ENDINGS = {
     sub: '你守住了门，没守住人',
     body: [
       '天亮了。你把每一张床都掀开看过，被子下面什么也没有。',
-      '这七天你没有开错几次门——但你开的那几次，够了。',
+      '这些天你没有开错几次门——但你开的那几次，够了。',
       '你在登记簿上把他们的名字一个一个描了一遍，描到半夜。',
       '后来你开始跟空气说话。空气会应你，应得很快。',
     ],
@@ -1731,7 +2176,7 @@ const ENDINGS = {
     sub: '你把门链挂上了，再没摘下来',
     body: [
       '天亮了。门外没有人。',
-      '整七天，你几乎没让谁进来过。屋里还是那两个人，他们后来说什么都不说了。',
+      '这些天你几乎没让谁进来过。屋里还是那两个人，他们后来说什么都不说了。',
       '你把门链挂上，又加了一道插销。',
       '从那天起，你只在猫眼里看人。看得久了，你会发现每个人都很像。',
     ],
@@ -1763,21 +2208,26 @@ const ENDINGS = {
 /* --------------------------------------------------------- 玩法说明 */
 const HELP = [
   ['你是谁', '弥萨格地下十一层的门房。这层楼有一间屋子，屋里住着人。\n夜里有人在门外敲门；白天你和屋里的人待在一起。'],
-  ['七天', '七个夜里，每晚来三个人。你只能决定两件事：开不开门。\n枪留到白天用——先让人进来，再决定要不要杀，这才是最难的部分。'],
+  ['难度', '入门七夜、标准十夜、硬核十四夜、噩梦十八夜。\n难度越高，门外的伪人越多，理智越少，银芯乘区也越高。'],
+  ['每个晚上', '敲门的次数每晚都不一样（两到五个），最后一夜还会再多一个。\n你只能决定一件事：开不开门。枪留到白天用。'],
   ['放错的代价', '放进来的伪人不会当场害你。它会在这个夜里，杀掉屋里的一个活人。\n天亮你只知道少了谁，不知道是谁动的手。'],
   ['怎么认', '伪人身上有且只有一处不对，一定查得到：\n· 登记卡上的界域 / 职介 / 登记号（档案能对）\n· 答话里的生日 / 身高 / 别名 / 星座（档案能对）\n· 自称、瞳色、随身的东西、身上的动物、那句口头禅（档案上没有，只能靠图鉴）'],
+  ['凑近看', '「凑近看」会把它的头像拉到窗口上——你能看清瞳色、随身的东西、和它身上有没有活物。\n真人和伪人长得一模一样，区别只在细节。'],
   ['图鉴', '你听它说、凑近看、和它说话时，如果它说的是真的，这一项就在图鉴里点亮。\n点亮过的项，下次直接拿来对——所以第一周目靠档案，后面几周目靠眼力。'],
   ['白天', '每个住户每天能聊两个话题。聊出来的东西拿去和图鉴、档案对。\n也可以开枪——打死了就能看清它是什么。打错人，你自己会知道代价。'],
+  ['固定任务', '每一局会抽三条任务，写在白天侧栏上。全部达成有专属结局，银芯也多一档。'],
+  ['剧情', '每局必撞上四场戏：停电、一页名单、楼上的椅子、档案室来电。\n它们不只是文本，都会改那一夜的规矩。'],
   ['理智', '屋里死一个人掉一截理智，打错人掉得更狠。理智见底就结束了。\n你能守住门，但守不住所有人的命。'],
+  ['银芯', '活到最后按「得分 × 难度乘区 × 时间乘区」折算成银芯，直接进钱包。\n结局页会写清每一项乘区。'],
 ];
-return { NIGHT_INTRO, NIGHT_END, OPEN_REAL, OPEN_FAKE, REAL_TAIL, FAKE_TAIL, HEAR_HEAD, HEAR_TAIL, PEEK_HEAD, PEEK_TAIL, OBSERVE_ANOMALY, OUTCOME, DAY_INTRO, DAY_REPORT_HEAD, DAY_REPORT_NONE, DAY_REPORT_LONELY, DAY_REPORT_DEAD, TALK_ASK, TALK_NONE, TALK_WHO_NONE, TALK_WHO_HIT, TALK_WHO_MISS, TALK_WHO_LIE, PAST, SHOOT_REAL, SHOOT_FAKE, ENDINGS, HELP };
+return { DIFF_INTRO, NIGHT_INTRO, NIGHT_INTRO_LATE, NIGHT_INTRO_LAST, NIGHT_END, NIGHT_END_LATE, NIGHT_END_LAST, nightIntro, nightEnd, EVENT_TEXT, TASK_DESC, OPEN_REAL, OPEN_FAKE, REAL_TAIL, FAKE_TAIL, HEAR_HEAD, HEAR_TAIL, PEEK_HEAD, PEEK_TAIL, OBSERVE_ANOMALY, OUTCOME, DAY_INTRO, DAY_INTRO_LATE, dayIntro, DAY_REPORT_HEAD, DAY_REPORT_NONE, DAY_REPORT_LONELY, DAY_REPORT_DEAD, TALK_ASK, TALK_NONE, TALK_WHO_NONE, TALK_WHO_HIT, TALK_WHO_MISS, TALK_WHO_LIE, PAST, SHOOT_REAL, SHOOT_FAKE, ENDINGS, HELP };
 })();
 
 // ---- js/fake/main.js
 const m_main = await (async () => {
-const { newRun, loadSave, currentVisitor, nightCfg, NIGHT_NAME, NIGHTS, VISITS, DAYS, ROOM_MAX, TALK_PER_DAY, FAKE_TOTAL, LIE_LABEL, ask, hear, peek, decide, nextVisitor, nightDone, endNight, startNight, talk, shoot, canTalk, canAsk, canHear, canPeek, roomFull, homeAlive, homeReal, homeFake, homeOf, score, clearSave, codex, meetAll, isKnown, knownCount, KNOWN_MAX, best, saveBest, flush, FIELD_LABEL, FIELD_ASK, ALL_CHARS, ART_META, charOf, TOPICS } = m_engine;
+const { newRun, loadSave, currentVisitor, nightCfg, nightName, nightVisits, nightFrom, shareLimit, DIFFS, diffOf, DIFF_INDEX, tasksOf, tasksDone, rewardOf, scoreParts, walletAdd, ask, hear, peek, decide, nextVisitor, nightDone, endNight, startNight, talk, shoot, canTalk, canAsk, canHear, canPeek, roomFull, roomMax, homeAlive, homeReal, homeFake, homeOf, LIE_LABEL, TALK_PER_DAY, score, clearSave, codex, meetAll, isKnown, knownCount, KNOWN_MAX, best, saveBest, flush, FIELD_LABEL, FIELD_ASK, ALL_CHARS, ART_META, charOf, TOPICS, endingCount } = m_engine;
 const { loadArt, makeScene, sfx } = m_view;
-const { NIGHT_INTRO, NIGHT_END, OPEN_REAL, OPEN_FAKE, OBSERVE_ANOMALY, OUTCOME, ENDINGS, HELP, HEAR_HEAD, HEAR_TAIL, PEEK_HEAD, PEEK_TAIL, DAY_INTRO, DAY_REPORT_DEAD, DAY_REPORT_NONE, DAY_REPORT_LONELY, TALK_ASK, TALK_WHO_NONE, TALK_WHO_HIT, TALK_WHO_MISS, TALK_WHO_LIE, PAST, SHOOT_REAL, SHOOT_FAKE } = m_text;
+const { OPEN_REAL, OPEN_FAKE, OBSERVE_ANOMALY, ENDINGS, HELP, OUTCOME, HEAR_HEAD, HEAR_TAIL, PEEK_HEAD, PEEK_TAIL, dayIntro, nightIntro, nightEnd, DAY_REPORT_DEAD, DAY_REPORT_NONE, DAY_REPORT_LONELY, TALK_ASK, TALK_WHO_NONE, TALK_WHO_HIT, TALK_WHO_MISS, TALK_WHO_LIE, PAST, SHOOT_REAL, SHOOT_FAKE, EVENT_TEXT, TASK_DESC, DIFF_INTRO } = m_text;
 // 《寻找伪人：Morimens》的控制器（v3）。
 //
 // 一套屏幕，两种相位：夜里门外有人敲门，白天屋里坐着人。画布只有一个，靠 setMode 切场景；
@@ -1899,22 +2349,52 @@ function closeModal() { $('#modal').hidden = true; $('#modal').classList.remove(
 function isModal() { return !$('#modal').hidden; }
 
 /* ------------------------------------------------------------------ 标题 */
+let pickDiff = 'intro';    // 标题页选中的难度
 function paintTitle() {
   const b = best();
   const c = codex();
   $('#codexCount').textContent = Object.keys(c.known || {}).length + '/' + ALL_CHARS.length;
+  const dl = b.diff ? diffOf(b.diff) : null;
   $('#bestLine').textContent = b.score
-    ? '最高分 ' + b.score + ' · ' + (ENDINGS[b.ending] ? '「' + ENDINGS[b.ending].t + '」' : '') + ' · 第 ' + b.runs + ' 次值夜'
+    ? '最高分 ' + b.score + (dl ? ' · ' + dl.n : '') + ' · ' + (ENDINGS[b.ending] ? '「' + ENDINGS[b.ending].t + '」' : '')
+      + ' · 第 ' + b.runs + ' 次值夜'
     : '还没有值过夜。';
-  $('#knownLine').textContent = '图鉴已核实 ' + knownCount() + ' / ' + KNOWN_MAX + ' 项';
+  $('#knownLine').textContent = '图鉴已核实 ' + knownCount() + ' / ' + KNOWN_MAX + ' 项 · 见过的结局 '
+    + endingCount() + ' / ' + Object.keys(ENDINGS).length + ' · 累计银芯 ' + (b.gain || 0);
+  paintDiff();
   const sv = loadSave();
   $('#btnCont').hidden = !sv || sv.over;
-  $('#btnCont').textContent = sv && !sv.over ? (sv.phase === 'day' ? '接着（第 ' + (sv.day + 1) + ' 天白天）' : '接着（第' + (sv.night + 1) + '夜）') : '';
+  $('#btnCont').textContent = sv && !sv.over
+    ? (sv.phase === 'day'
+      ? '接着（' + diffOf(sv.diff).n + ' · 第 ' + (sv.day + 1) + ' 天白天）'
+      : '接着（' + diffOf(sv.diff).n + ' · ' + nightName(sv.night) + '）')
+    : '';
+}
+
+// 四个难度做成卡片，点一下选中，再点「开始」才开局——选错难度不该直接把你扔进十八夜
+function paintDiff() {
+  const box = $('#diffPick');
+  if (!box) return;
+  box.replaceChildren();
+  DIFFS.forEach((d) => {
+    const b = el('button', 'diff' + (pickDiff === d.k ? ' on' : ''));
+    b.type = 'button';
+    b.appendChild(el('b', null, d.n));
+    b.appendChild(el('em', null, d.sub));
+    b.appendChild(el('span', null, d.note));
+    b.appendChild(el('i', null, '银芯 ×' + d.mul));
+    b.onclick = () => { sfx.tick(); pickDiff = d.k; paintDiff(); };
+    box.appendChild(b);
+  });
+  const note = $('#diffNote');
+  if (note) note.textContent = DIFF_INTRO[pickDiff] || '';
 }
 
 /* ------------------------------------------------------------------ 开局 */
-function startNew() {
-  S = newRun((Date.now() % 2147483647) >>> 0);
+function startNew(diffKey) {
+  const key = diffKey || pickDiff;
+  pickDiff = diffOf(key).k;
+  S = newRun((Date.now() % 2147483647) >>> 0, pickDiff);
   mismatch = false;
   pick = null;
   $('#scrTitle').hidden = true;
@@ -1929,6 +2409,7 @@ function continueRun() {
   const sv = loadSave();
   if (!sv || sv.over) return startNew();
   S = sv;
+  pickDiff = S.diff || 'intro';
   $('#scrTitle').hidden = true;
   $('#scrEnd').hidden = true;
   $('#scrGame').hidden = false;
@@ -1947,6 +2428,8 @@ function startVisit(v) {
   $('#scrGame').classList.remove('isDay');
   scene.setMode('visit');
   scene.setChar(v.c);
+  // 看过一次就一直看得见：那是你记在脑子里的脸，不该因为换页就忘掉
+  scene.setPeek(!!v.peeked);
   paintHud();
   tab = 'card';
   mismatch = false;
@@ -1960,9 +2443,19 @@ function startVisit(v) {
   renderActs('main');
 }
 
+// 那一夜有戏：先把剧情摊开，再让你坐到门后
 function showNightIntro() {
-  const n = Math.min(S.night, NIGHTS.length - 1);
-  modal(NIGHT_NAME[n] + ' · 第 ' + (n + 1) + ' 夜', [el('p', 'pre', NIGHT_INTRO[n])],
+  const n = Math.min(S.night, S.days - 1);
+  const cfg = nightCfg(S);
+  const ev = cfg.ev && EVENT_TEXT[cfg.ev];
+  const body = [];
+  if (ev) {
+    body.push(el('p', 'evk', ev.t));
+    ev.body.forEach((x) => body.push(el('p', 'pre', x)));
+  }
+  body.push(el('p', 'pre', nightIntro(n, S.days)));
+  modal(ev ? nightName(n) + ' · ' + EVENT_TEXT[cfg.ev].t.split(' · ').pop() : nightName(n),
+    body,
     [{ t: '坐到门后', kind: 'btn primary', fn: () => startVisit(currentVisitor(S)) }]);
 }
 
@@ -1977,11 +2470,11 @@ function advanceNight() {
   const rep = endNight(S);
   paintHud();
   if (S.over) {
-    modal(NIGHT_NAME[prev] + ' 结束', [el('p', 'pre', NIGHT_END[prev])],
+    modal(nightName(prev) + ' 结束', [el('p', 'pre', nightEnd(prev, S.days))],
       [{ t: '……天亮了', kind: 'btn', fn: () => showEnding() }]);
     return;
   }
-  modal(NIGHT_NAME[prev] + ' 结束', [el('p', 'pre', NIGHT_END[prev])],
+  modal(nightName(prev) + ' 结束', [el('p', 'pre', nightEnd(prev, S.days))],
     [{ t: '等到天亮', kind: 'btn primary', fn: () => afterNight(rep) }]);
 }
 
@@ -2026,10 +2519,10 @@ function enterDay(fresh) {
   paintHud();
   paintDay();
   if (fresh) {
-    modal('第 ' + (S.day + 1) + ' 天 · 白天', [el('p', 'pre', DAY_INTRO[Math.min(S.day, DAY_INTRO.length - 1)])],
+    modal('第 ' + (S.day + 1) + ' 天 · 白天', [el('p', 'pre', dayIntro(Math.min(S.day, S.days - 1), S.days))],
       [{ t: '认一遍屋里的人', kind: 'btn primary', fn: () => paintDay() }]);
   }
-  speaker('屋里', '第 ' + (S.day + 1) + ' 天', '');
+  speaker('屋里', '第 ' + (S.day + 1) + ' / ' + S.days + ' 天', '');
   const alive = homeAlive(S);
   say(alive.length
     ? '屋里还有 ' + alive.length + ' 个人。跟他们说话，或者做点别的。'
@@ -2045,7 +2538,7 @@ function paintDay() {
   const alive = homeAlive(S);
   const dead = S.home.filter((h) => !h.alive);
 
-  side.appendChild(el('div', 'fhead', '屋里的人 · ' + alive.length + '/' + ROOM_MAX));
+  side.appendChild(el('div', 'fhead', '屋里的人 · ' + alive.length + '/' + roomMax(S)));
 
   const list = el('div', 'reslist');
   alive.forEach((h) => {
@@ -2098,7 +2591,21 @@ function paintDay() {
   }
 
   const foot = el('div', 'dfoot');
-  const go = el('button', 'btn primary', S.night >= DAYS ? '天要黑了' : '去门后（第' + (S.night + 1) + '夜）');
+  // 任务进度：三条，全在侧栏上摆着，不用翻弹窗
+  if ((S.tasks || []).length) {
+    const tb = el('div', 'dtasks');
+    const done = tasksDone(S);
+    tb.appendChild(el('div', 'fhead', '这一局的规矩 · ' + done + '/' + S.tasks.length));
+    tasksOf(S).forEach((t) => {
+      const row = el('div', 'task' + (t.done ? ' on' : ''));
+      row.appendChild(el('span', 'tk', t.done ? '✓' : '·'));
+      row.appendChild(el('span', 'tt', t.t));
+      row.appendChild(el('em', null, t.cmp === '<=' ? (t.v + ' / ' + t.goal) : (t.v + ' / ' + t.goal)));
+      tb.appendChild(row);
+    });
+    foot.appendChild(tb);
+  }
+  const go = el('button', 'btn primary', '去门后（' + nightName(Math.min(S.night, S.days - 1)) + '）');
   go.type = 'button';
   go.onclick = () => { sfx.click(); enterNight(); };
   foot.appendChild(go);
@@ -2123,15 +2630,18 @@ function enterNight() {
 /* ------------------------------------------------------------------ HUD */
 function paintHud() {
   const day = S.phase === 'day';
-  $('#hNight').textContent = day ? '第 ' + (S.day + 1) + ' 天' : NIGHT_NAME[Math.min(S.night, 6)];
+  const cfg = diffOf(S.diff);
+  $('#hNight').textContent = day ? '第 ' + (S.day + 1) + ' / ' + S.days + ' 天' : nightName(Math.min(S.night, S.days - 1));
   const prog = $('#hProg');
   if (day) {
-    prog.textContent = '屋里 ' + homeAlive(S).length + ' 人 · 白天';
+    prog.textContent = cfg.n + ' · 屋里 ' + homeAlive(S).length + ' 人';
   } else {
-    const inNight = (S.vi % VISITS) + 1;
-    prog.textContent = '第 ' + Math.min(inNight, VISITS) + ' 个 / 共 ' + VISITS + ' 个';
+    const nv = nightVisits(S);
+    const inNight = Math.min(nv, S.vi - nightFrom(S) + 1);
+    prog.textContent = '第 ' + Math.max(1, inNight) + ' 个 / 共 ' + nv + ' 个';
   }
   $('#hSan').textContent = Math.round(S.sanity);
+  // 理智条按这一档的上限算：硬核开局只有 90，条不该是满的
   const bar = $('#hSanBar');
   bar.style.width = Math.max(0, Math.min(100, S.sanity)) + '%';
   bar.className = S.sanity <= 30 ? 'bad' : (S.sanity <= 60 ? 'warn' : '');
@@ -2140,6 +2650,8 @@ function paintHud() {
   for (let i = 0; i < 6; i++) ammo.appendChild(el('i', i < Math.min(6, S.bullets) ? 'on' : ''));
   ammo.title = '子弹 ' + S.bullets;
   ammo.appendChild(el('em', null, String(S.bullets)));
+  const hd = $('#hDiff');
+  if (hd) hd.textContent = cfg.n;
 }
 
 /* ------------------------------------------------------------------ 面板 */
@@ -2334,11 +2846,13 @@ function renderActs(mode) {
     return;
   }
 
-  const h = el('button', 'btn', '听它说' + (v.heard ? '（听过了）' : ''));
+  const hLeft = shareLimit(S, 'hear') - (v.hearN || 0);
+  const h = el('button', 'btn', hLeft > 0 ? '听它说' + (hLeft > 1 ? '（还剩 ' + hLeft + '）' : '') : '听过了');
   h.type = 'button';
   h.disabled = !canHear(S, v);
   h.onclick = doHear;
-  const ob = el('button', 'btn', '凑近看' + (v.peeked ? '（看过了）' : ''));
+  const pLeft = shareLimit(S, 'peek') - (v.peekN || 0);
+  const ob = el('button', 'btn', pLeft > 0 ? '凑近看' + (pLeft > 1 ? '（还剩 ' + pLeft + '）' : '') : '看过了');
   ob.type = 'button';
   ob.disabled = !canPeek(S, v);
   ob.onclick = doPeek;
@@ -2382,9 +2896,10 @@ function doPeek() {
   const r = peek(S);
   if (!r) return;
   sfx.paper();
-  const head = pickBy(PEEK_HEAD, v.cid + 'p');
+  scene.setPeek(true);          // 窗口换成它的脸：瞳色、随身的东西、身上有没有活物都在这儿看
+  const head = pickBy(PEEK_HEAD, v.cid + 'p' + (v.peekN || 1));
   const tail = pickBy(PEEK_TAIL, v.cid + 'q');
-  let body = head + '\n\n瞳色是' + r.eye + '的。' +
+  let body = head + '\n\n玻璃上就是它的脸，离得只有两指厚。\n瞳色是' + r.eye + '的。' +
     (r.item ? '手里攥着' + r.item + '。' : '手里什么也没拿。') +
     (r.pet ? '身上还带着' + r.pet + '。' : '身边没有活物。');
   if (r.odd >= 0) {
@@ -2533,21 +3048,28 @@ function doShoot() {
 }
 
 /* ------------------------------------------------------------------ 结局 */
+let awarded = false;
 function showEnding() {
   closeModal();
   flush(S);
   sfx.stopDrone();
   const E = ENDINGS[S.ending] || ENDINGS.dawn;
-  const sc = score(S);
-  saveBest({ ending: S.ending, score: sc, day: S.day });
-  meetAll(S.met);
+  const rw = rewardOf(S);
+  const sc = rw.total;
+  if (!awarded) {
+    awarded = true;
+    walletAdd(rw.gain);
+    saveBest({ ending: S.ending, score: sc, days: S.day + 1, diff: S.diff, gain: rw.gain });
+    meetAll(S.met);
+    cloudTouch();      // 登录了才真的推；没登录就算了，本机照样记账
+  }
 
   $('#scrGame').hidden = true;
   $('#scrEnd').hidden = false;
   const box = $('#scrEnd');
   box.replaceChildren();
   const inner = el('div', 'endcard');
-  inner.appendChild(el('p', 'ek', '结局'));
+  inner.appendChild(el('p', 'ek', '结局 · ' + diffOf(S.diff).n));
   inner.appendChild(el('h2', null, E.t));
   inner.appendChild(el('p', 'es', E.sub));
   const body = el('div', 'ebody');
@@ -2556,8 +3078,8 @@ function showEnding() {
 
   const stats = el('div', 'estats');
   const rows = [
-    ['值到', '第 ' + Math.min(S.day, DAYS) + ' 天'],
-    ['看破的伪人', S.caught + ' / ' + FAKE_TOTAL],
+    ['值到', '第 ' + (S.day + 1) + ' / ' + S.days + ' 天'],
+    ['看破的伪人', S.caught + ' / ' + S.fakeTotal],
     ['放进来的伪人', S.leaked],
     ['屋里死的人', S.deaths.filter((d) => d.how === 'night').length],
     ['误杀活人', S.killedReal],
@@ -2573,23 +3095,75 @@ function showEnding() {
   });
   inner.appendChild(stats);
 
+  // 银芯怎么算出来的，摊开写：难度乘区 × 时间乘区，别让玩家觉得是随机给的
+  const pay = el('div', 'epay');
+  pay.appendChild(el('div', 'fhead', '银芯结算'));
+  const line = (k, v) => {
+    const r = el('div', 'erow');
+    r.appendChild(el('span', null, k));
+    r.appendChild(el('b', null, String(v)));
+    pay.appendChild(r);
+  };
+  line('得分', rw.base);
+  line('难度乘区 · ' + diffOf(S.diff).n, '×' + rw.diffMul);
+  line('时间乘区 · 第 ' + (S.day + 1) + '/' + S.days + ' 天', '×' + rw.timeMul.toFixed(2));
+  if (rw.taskBonus) line('任务奖励 · 完成 ' + tasksDone(S) + ' 条', '+' + rw.taskBonus);
+  const tot = el('div', 'erow big');
+  tot.appendChild(el('span', null, '进钱包'));
+  tot.appendChild(el('b', null, '+' + rw.gain));
+  pay.appendChild(tot);
+  inner.appendChild(pay);
+
+  const tk = el('div', 'etasks');
+  tasksOf(S).forEach((t) => {
+    const row = el('div', 'task' + (t.done ? ' on' : ''));
+    row.appendChild(el('span', 'tk', t.done ? '✓' : '✗'));
+    row.appendChild(el('span', 'tt', t.t));
+    row.appendChild(el('em', null, t.v + ' / ' + t.goal));
+    tk.appendChild(row);
+  });
+  inner.appendChild(tk);
+
   if (S.endingWho && S.endingWho.length) {
     inner.appendChild(el('p', 'hint', '和你一起活到最后的人：' + S.endingWho.join('、')));
   }
 
   const acts = el('div', 'eacts');
-  const again = el('button', 'btn primary', '再值一夜');
+  const again = el('button', 'btn primary', '再值一夜（' + diffOf(S.diff).n + '）');
   again.type = 'button';
-  again.onclick = () => { clearSave(); startNew(); };
+  again.onclick = () => { clearSave(); awarded = false; startNew(S.diff); };
+  const other = el('button', 'btn', '换个难度');
+  other.type = 'button';
+  other.onclick = () => { clearSave(); awarded = false; backToTitle(); };
+  const bd = el('button', 'btn', '排行榜');
+  bd.type = 'button';
+  bd.onclick = openBoard;
   const cx = el('button', 'btn', '图鉴');
   cx.type = 'button';
   cx.onclick = openCodex;
   const home = el('a', 'btn ghost', '回首页');
   home.href = 'index.html';
-  acts.appendChild(again); acts.appendChild(cx); acts.appendChild(home);
+  acts.appendChild(again); acts.appendChild(other); acts.appendChild(bd); acts.appendChild(cx); acts.appendChild(home);
   inner.appendChild(acts);
   box.appendChild(inner);
   clearSave();
+}
+
+function backToTitle() {
+  $('#scrEnd').hidden = true;
+  $('#scrGame').hidden = true;
+  $('#scrTitle').hidden = false;
+  S = null;
+  paintTitle();
+}
+
+// 结局 / 分数变了才值得惊动云端：几十 KB 的账号链路不进首屏，用到时再拉
+let syncMod = null;
+function cloudTouch() {
+  if (syncMod) { try { syncMod.flush(); } catch (e) { /* noop */ } return; }
+  import('./fake-sync.js')
+    .then((m) => { syncMod = m; try { m.flush(); } catch (e) { /* noop */ } })
+    .catch(() => { /* 没登录 / 离线就算了 */ });
 }
 
 /* ------------------------------------------------------------------ 图鉴 */
@@ -2745,6 +3319,95 @@ function openHelp() {
   $('#modal').classList.add('on');
 }
 
+/* ------------------------------------------------------------- 排行榜 */
+// 榜单在服务端算：每个人云端档案里的摘要（gd.fk）互相比。前端只负责取和画。
+// 没登录也能看——这是公开接口；要上榜才需要登录过、并且同步过档案。
+const EDGE_API = 'https://morimens.qingdengbuyi.top/api';
+function apiCandidates() {
+  const out = [];
+  try {
+    const c = String(JSON.parse(localStorage.getItem('zjtt:apiBase') || '""') || '').trim().replace(/\/+$/, '');
+    if (c) out.push(c);
+  } catch (e) { /* 存坏了就算了 */ }
+  if (/^https?:$/.test(location.protocol) && !/\.github\.io$/i.test(location.hostname)) {
+    out.push(location.origin + '/api');
+  }
+  if (out.indexOf(EDGE_API) < 0) out.push(EDGE_API);
+  return out;
+}
+function probeApi() {
+  try {
+    const v = JSON.parse(localStorage.getItem('zjtt:site:api') || 'null');
+    if (v && v.base && Date.now() - Number(v.at || 0) < 600000) return Promise.resolve(v.base);
+  } catch (e) { /* 重新探 */ }
+  const list = apiCandidates();
+  let i = 0;
+  const next = () => {
+    if (i >= list.length) return Promise.resolve('');
+    const base = list[i++];
+    return fetch(base + '/health', { headers: { Accept: 'application/json' } })
+      .then((r) => r.json().catch(() => null))
+      .then((j) => {
+        if (j && j.service === 'zjtt') {
+          try { localStorage.setItem('zjtt:site:api', JSON.stringify({ base, at: Date.now() })); } catch (e) { /* noop */ }
+          return base;
+        }
+        return next();
+      })
+      .catch(next);
+  };
+  return next();
+}
+
+function openBoard() {
+  const box = $('#mbox');
+  box.replaceChildren();
+  box.classList.remove('wide');
+  box.appendChild(el('h3', null, '地下十一层的门房 · 排行榜'));
+  const body = el('div', 'mbody');
+  const list = el('div', 'board');
+  list.appendChild(el('p', 'hint', '读取中…'));
+  body.appendChild(list);
+  const mine = best();
+  body.appendChild(el('p', 'hint', '你本机最好的一局：' + (mine.score || 0) + ' 分'
+    + (mine.diff ? '（' + diffOf(mine.diff).n + ' · 第 ' + (mine.days || 0) + ' 天）' : '')
+    + '\n榜单只收登录并同步过档案的玩家；同分按活得更久排。'));
+  box.appendChild(body);
+  const macts = el('div', 'macts');
+  const close = el('button', 'btn', '合上');
+  close.type = 'button'; close.onclick = closeModal;
+  macts.appendChild(close);
+  box.appendChild(macts);
+  $('#modal').hidden = false;
+  $('#modal').classList.add('on');
+
+  probeApi().then((base) => {
+    if (!base) throw new Error('offline');
+    return fetch(base + '/board', { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null));
+  }).then((j) => {
+    const g = j && j.games && j.games.fk;
+    list.replaceChildren();
+    if (!g || !g.items || !g.items.length) {
+      list.appendChild(el('p', 'hint', '还没有人上榜。登录后玩一局，成绩会随云端档案同步上来。'));
+      return;
+    }
+    list.appendChild(el('p', 'hint', '按最高分排 · 共 ' + g.items.length + ' 人上榜'));
+    g.items.forEach((it, i) => {
+      const row = el('div', 'brow');
+      row.appendChild(el('span', 'rk', String(i + 1)));
+      const nm = el('span', 'nm', it.name || '匿名');
+      if (it.sub) nm.appendChild(el('em', null, it.sub));
+      row.appendChild(nm);
+      row.appendChild(el('b', 'sc', String(it.score)));
+      list.appendChild(row);
+    });
+  }).catch(() => {
+    list.replaceChildren();
+    list.appendChild(el('p', 'hint', '榜单服务没连上（离线 / 后端没起来）。\n本机成绩照常记，等能连上了再来看。'));
+  });
+}
+
 /* ------------------------------------------------------------------ 启动 */
 async function boot() {
   try {
@@ -2766,6 +3429,10 @@ async function boot() {
   $('#btnHelp').onclick = () => { sfx.tick(); openHelp(); };
   $('#btnHelp2').onclick = () => { sfx.tick(); openHelp(); };
   $('#btnCodex2').onclick = () => { sfx.paper(); openCodex(); };
+  const bb = $('#btnBoard');
+  if (bb) bb.onclick = () => { sfx.paper(); openBoard(); };
+  const bb2 = $('#btnBoard2');
+  if (bb2) bb2.onclick = () => { sfx.paper(); openBoard(); };
   $('#btnSound').onclick = () => {
     sfx.unlock();
     const on = !sfx.isOn();
@@ -2810,6 +3477,11 @@ async function boot() {
       },
       day() { enterDay(false); },
       night() { enterNight(); },
+      ending(e) { S.over = true; S.ending = e || 'archive'; showEnding(); },
+      start(diff) { clearSave(); awarded = false; startNew(diff || pickDiff); },
+      diff(d) { pickDiff = diffOf(d).k; paintDiff(); return pickDiff; },
+      reward() { return S ? rewardOf(S) : null; },
+      board: openBoard,
     };
   }
   scene.setMode('idle');
