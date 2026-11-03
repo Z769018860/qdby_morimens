@@ -13,7 +13,7 @@
 
 import {
   newRun, createFight, autoFight, settle, buy, canBuy, planOf, freeSlots,
-  expandCore, coreCostOf, moveHero, addHero,
+  expandCore, coreCostOf, moveHero, addHero, applyEvent, setShopRealm, eventOf,
   TUNING, PACTS, diffOf, heroOf, wheelOf, itemOf, HEROES,
 } from '../js/bazaar-core.js';
 
@@ -23,18 +23,47 @@ const SB = Number(process.env.SB || 20261103);
 const ONLY = process.env.H || '';
 const DIFF = process.env.D || 'normal';
 const diff = diffOf(DIFF);
+// HP= / DPS= 临时缩放敌人曲线，用来一次性扫平衡（不改 bazaar-data.js）
+const HP_MUL = Number(process.env.HP || 1);
+const DPS_MUL = Number(process.env.DPS || 1);
+if (HP_MUL !== 1) TUNING.dayHp = TUNING.dayHp.map((v) => v * HP_MUL);
+if (DPS_MUL !== 1) TUNING.dayDps = TUNING.dayDps.map((v) => v * DPS_MUL);
+// DUP=0 / 0.3：临时改「升启报价」的出现概率，用来单独看它对构筑速度的影响
+if (process.env.DUP != null) TUNING.dupRate = Number(process.env.DUP);
 
 // 一个唤醒体每拍产多少算力（含自己能给邻位的部分估个半价）
 const heroRate = (h) => h.gen / h.cd;
 const heroAura = (h) => (h.aura ? (h.aura.k === 'gen' ? h.aura.v * 0.5 : h.aura.k === 'cd' ? 0.5 : 0.3) : 0);
-const heroScore = (h) => (heroRate(h) + heroAura(h)) * 4 + (h.act[0].k === 'shield' ? 0.6 : 0.2);
+// 出手的副效果也算钱：盾 / 奶是保命，毒 / 灼烧 / 力量 / 易伤 / 减速是输出曲线
+const actValue = (a) => {
+  switch (a.k) {
+    case 'dmg': return a.v * (a.hits || 1) / 3;
+    case 'poison': return a.v * 0.8;
+    case 'burn': return a.v * 0.7;
+    case 'shield': return a.v * 0.07;
+    case 'heal': return a.v * 0.05;
+    case 'str': return a.v * 1.2;
+    case 'vuln': return a.v * 6;
+    case 'slow': return a.v * 2;
+    default: return 0;
+  }
+};
+const heroScore = (h) => (heroRate(h) + heroAura(h)) * 4 + h.act.reduce((n, a) => n + actValue(a), 0) / Math.max(1, h.cd);
 
+// 命轮机制族很多（直伤 / 毒 / 灼烧 / 叠力量 / 处决 / 回响…），估值要按各自的曲线折算，
+// 否则买手机器人只会买「数字最大的那条」，测出来的平衡是假的。
 const wheelDps = (w) => {
   let d = 0;
   for (const o of w.op) {
-    if (o.k === 'dmg') d += o.v * (o.hits || 1);
-    else if (o.k === 'poison') d += o.v * 2.2;
-    else if (o.k === 'shield') d += o.v * 0.15;
+    if (o.k === 'dmg') d += o.v * (o.hits || 1) * (o.execute ? 1.3 : 1) * (o.pierce ? 1.1 : 1);
+    else if (o.k === 'poison') d += o.v * 2.6;
+    else if (o.k === 'burn') d += o.v * 2.2;
+    else if (o.k === 'str') d += o.v * 3.2;          // 叠力量在长局里越滚越大
+    else if (o.k === 'shield') d += o.v * 0.18;
+    else if (o.k === 'heal') d += o.v * 0.35;
+    else if (o.k === 'vuln') d += o.v * 20;
+    else if (o.k === 'slow') d += 4;
+    else if (o.k === 'echo') d += 7;
   }
   return d / w.wcd;
 };
@@ -64,6 +93,14 @@ const relicScore = (it, plan) => {
     case 'regen': return 0.5 * m.v;
     case 'thorns': return 0.3 * m.v;
     case 'gold': return 2 * m.v;
+    // 新机制：都按「一件 SSR 大概值多少」折算，别让机器人凭 0 分把它们全跳过
+    case 'flat': return 4 * m.v;
+    case 'ward': return 1.6 * m.v;
+    case 'leech': return 30 * m.v;
+    case 'pierce': return 35 * m.v;
+    case 'venom': return 30 * m.v;
+    case 'fear': return 40 * m.v;
+    case 'hp': return 0.5 * m.v;
     default: return 0;
   }
 };
@@ -93,13 +130,46 @@ function scoreOffer(o, plan, run) {
   else if (o.kind === 'wheel') s = wheelScore(wheelOf(o.key), plan);
   else s = relicScore(itemOf(o.key), plan);
   s /= Math.max(1, o.price * 0.35);
+  // 升启报价（同名卡）：不占格，但只把已有的一张往上顶一档，按「大半个新单位」估值。
+  // 队伍还没搭起来时先别把钱花在叠卡上——缺人比缺启灵致命得多。
+  if (o.dup) s *= process.env.RANKCHASE === '1' ? 2.2 : (run && run.squad.length >= 4 ? 0.75 : 0.12);
   // 开局 squad 还没凑起来时，优先把唤醒体买齐（光环 / 产出都靠人，没人就什么都转不动）
   if (o.kind === 'hero' && run && run.squad.length < 3) s *= 3;
   return s;
 }
 
+// REALM=1：模拟「玩家会跟着队伍选界域商店」——场上最多的那个界域（≥2 人）就开它的店
+const PICK_REALM = process.env.REALM === '1';
+function chooseRealm(run) {
+  const cnt = {};
+  for (const h of run.squad) { const r = (heroOf(h.key) || {}).realm; if (r) cnt[r] = (cnt[r] || 0) + 1; }
+  const best = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
+  const realm = best && best[1] >= 2 ? best[0] : null;
+  if ((run.shopRealm || null) !== realm) setShopRealm(run, realm);
+}
+
+// 事件的选项值：理智最贵（一次掉理智可能直接结束一局），金币按 1:1，造物 / 人 / 升启按 12 金估
+function eventValue(o) {
+  let v = 0;
+  switch (o.k) {
+    case 'gold': v += o.v; break;
+    case 'gamble': v += (o.win * o.odds - o.v * (1 - o.odds)) * 0.7; break;
+    case 'maxhp': v += 1.4 * o.v; break;
+    case 'relic': case 'hero': case 'rank': v += 12; break;
+    case 'reroll': v += 3 * o.v; break;
+    case 'realm': v += 1; break;
+    default: break;
+  }
+  if (o.cost) v -= o.cost;
+  if (o.gold) v += o.gold;
+  if (o.maxhp) v += 1.4 * o.maxhp;
+  if (o.sane) v += 14 * o.sane;
+  return v;
+}
+
 function shopStep(run, strat) {
   if (strat === 'idle') return;
+  if (PICK_REALM) chooseRealm(run);
   for (let pass = 0; pass < 3; pass++) {
     const plan = planOf(run);
     const cands = run.shop
@@ -137,6 +207,8 @@ const pactIds = PACTS.map((p) => p.id);
 const dayStat = {};
 const foeStat = {};
 let runs = 0, cleared = 0, daysSum = 0, scoreSum = 0;
+let evStat = 0, rankMaxSum = 0, rankSum = 0;
+const rankHist = [0, 0, 0, 0, 0, 0];
 let genSum = 0, needSum = 0, daySum2 = 0;
 const t0 = Date.now();
 
@@ -170,8 +242,28 @@ for (let i = 0; i < N; i++) {
     foeStat[fk].n += 1;
     if (f.win) foeStat[fk].win += 1;
     settle(run, f);
+    // 战后事件：机器人按「期望值」挑一项（掉理智 / 掉血上限 / 赌钱都算代价）。
+    // EV=0 关掉，用来做有 / 无事件的对照。
+    if (run.pendingEvent && process.env.EV !== '0') {
+      const ev = eventOf(run.pendingEvent);
+      let best = 0, bestV = -1e9;
+      (ev ? ev.opts : []).forEach((o, i) => {
+        const v = eventValue(o);
+        if (v > bestV) { bestV = v; best = i; }
+      });
+      const msg = applyEvent(run, run.pendingEvent, best);
+      if (msg && msg !== '金币不够') evStat += 1;
+      else if (run.pendingEvent) applyEvent(run, run.pendingEvent, 1 - best);
+    }
   }
   runs += 1;
+  {
+    const all = [...run.squad, ...run.wheels, ...(run.bench || [])].map((r) => r.rank || 0);
+    const mx = all.length ? Math.max(...all) : 0;
+    rankMaxSum += mx;
+    rankHist[Math.min(5, mx)] += 1;
+    rankSum += all.reduce((a, b) => a + b, 0);
+  }
   const reached = Math.min(run.day - 1, run.totalDays);
   daysSum += reached;
   if (run.cleared) cleared += 1;
@@ -195,7 +287,10 @@ if (process.env.V) {
   }
   console.log('节奏：' + dl.join(' | '));
 }
-console.log(`平均推进 ${(daysSum / runs).toFixed(2)} 天 · 通关 ${pc(cleared, runs)} · 均价 ${Math.round(scoreSum / runs)} 分 · 每拍均产 ${(genSum / daySum2).toFixed(1)} 均耗 ${(needSum / daySum2).toFixed(1)}`);
+console.log(`平均推进 ${(daysSum / runs).toFixed(2)} 天 · 通关 ${pc(cleared, runs)} · 均价 ${Math.round(scoreSum / runs)} 分 · 每拍均产 ${(genSum / daySum2).toFixed(1)} 均耗 ${(needSum / daySum2).toFixed(1)}`
+  + ` · 事件 ${(evStat / Math.max(1, daySum2) * 100).toFixed(0)}%`
+  + ` · 队内最高启灵 ${(rankMaxSum / runs).toFixed(2)}（总启灵 ${(rankSum / runs).toFixed(1)}）`);
+if (process.env.V) console.log('最高启灵分布 0/1/2/3/超限/终：' + rankHist.map((n) => (n / runs * 100).toFixed(0) + '%').join(' / '));
 
 const worst = Object.entries(foeStat)
   .filter(([, s]) => s.n >= 20)

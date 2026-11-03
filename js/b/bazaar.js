@@ -22,9 +22,286 @@ const FOES = [{"id":"13950","n":"提灯教牧","spr":"mon:0","rank":"normal","ra
 return { SHEETS, HEROES, ITEMS, WHEELS, PACTS, FOES };
 })();
 
+// ---- js/bazaar-arch.js
+const m_bazaar_arch = await (async () => {
+
+// 《大巴扎：银钥》的**流派设计层**。
+//
+// js/bazaar-gen.js 是客户端数据的直译：73 个唤醒体只有三套数值（1 格产 3 / 2 格产 6 / 3 格产 10），
+// 149 条命轮全是「直伤 + 一点毒或盾」，310 件造物只有 11 种属性。名字不同、打起来一模一样。
+//
+// 这一层负责把它们拆开：按「界域 × 类型」定 12 个流派，每个流派有自己的出手方式、光环和本命造物；
+// 命轮按界域分到各自的机制族；造物按原表里的 arch 标签换成真正有区别的加成（吸血 / 穿透 / 反伤 / 减速…）。
+// 生成表不手改，设计全在这里——改数值只改这个文件。
+
+const r1 = (x) => Math.round(x * 10) / 10;
+const r2 = (x) => Math.round(x * 100) / 100;
+
+// 占格 → 产出 / 节拍 / 效果倍率。和原来的三档基座一致，只是现在由流派决定落在哪一档。
+const TIER = {
+  gen: [3, 6, 10],
+  cd: [3, 4, 5],
+  mul: [1, 1.85, 2.9],
+};
+
+// ---------------------------------------------------------------- 唤醒体流派
+// 一个流派 = 一种打法：谁负责叠力量、谁负责下毒、谁负责把对面节拍拖慢。
+// act(s) 里的 s 是占格倍率；光环按格数微调（大个子光环更强，但更贵、更占地方）。
+const ARCH = {
+  // ---- 混沌：伤害走「越打越狠」，辅助走「算力过载」，防御走「焚身烫回去」
+  berserk: {
+    n: '狂乱', realm: 'CHAOS', type: 'ASSAULT', tag: '叠力量',
+    genOff: 0, cdOff: 0,
+    act: (s) => [{ k: 'dmg', v: r1(4.25 * s) }, { k: 'str', v: r2(0.45 * s) }],
+    aura: { k: 'pow', v: [0.24, 0.30, 0.38] },
+    fate: { k: 'amp', v: 0.08 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，本场每次伤害 +${a[1].v}（可叠加）。`,
+  },
+  overload: {
+    n: '过载', realm: 'CHAOS', type: 'CHORUS', tag: '榨算力',
+    genOff: 1, cdOff: 0,
+    act: (s) => [{ k: 'dmg', v: r1(1.75 * s), hits: 2 }],
+    aura: { k: 'gen', v: [1, 1, 2] },
+    fate: { k: 'gen', v: 0.08 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，并打出 ${a[0].v} 点伤害（2 段）。`,
+  },
+  burn: {
+    n: '焚身', realm: 'CHAOS', type: 'WARDEN', tag: '灼烧',
+    genOff: 0, cdOff: 0,
+    act: (s) => [{ k: 'shield', v: r1(6 * s) }, { k: 'burn', v: Math.round(1.5 * s) }],
+    aura: { k: 'cd', v: [1, 1, 1] },
+    fate: { k: 'amp', v: 0.07 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并给对手点上 ${a[1].v} 层灼烧。`,
+  },
+
+  // ---- 血肉：伤害吸血、辅助下毒、防御做盾墙
+  leech: {
+    n: '噬血', realm: 'CARO', type: 'ASSAULT', tag: '吸血',
+    genOff: 0, cdOff: 0,
+    act: (s) => [{ k: 'dmg', v: r1(3.8 * s), leech: 0.35 }],
+    aura: { k: 'gen', v: [1, 1, 1] },
+    fate: { k: 'leech', v: 0.06 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，并把这发的 35% 吸回自己身上。`,
+  },
+  venom: {
+    n: '蚀毒', realm: 'CARO', type: 'CHORUS', tag: '下毒',
+    genOff: 0, cdOff: 0,
+    act: (s) => [{ k: 'poison', v: Math.round(1.6 * s) }, { k: 'dmg', v: r1(1.1 * s) }],
+    aura: { k: 'pow', v: [0.22, 0.28, 0.34] },
+    fate: { k: 'venom', v: 0.12 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，施加 ${a[0].v} 层中毒，并补 ${a[1].v} 点伤害。`,
+  },
+  bulwark: {
+    n: '血壁', realm: 'CARO', type: 'WARDEN', tag: '护盾',
+    genOff: -1, cdOff: 0,
+    act: (s) => [{ k: 'shield', v: r1(6.5 * s) }, { k: 'dmg', v: r1(1.2 * s) }],
+    aura: { k: 'cd', v: [1, 1, 1] },
+    fate: { k: 'shcap', v: 8 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并撞出 ${a[1].v} 点伤害。`,
+  },
+
+  // ---- 深海：伤害走多段碎击、辅助回血、防御拖节拍
+  frost: {
+    n: '霜刃', realm: 'AEQUOR', type: 'ASSAULT', tag: '多段',
+    genOff: 0, cdOff: 0,
+    act: (s) => [{ k: 'dmg', v: r1(2.25 * s), hits: 2 }],
+    aura: { k: 'pow', v: [0.22, 0.26, 0.32] },
+    fate: { k: 'crit', v: 0.04 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，碎击两次、共 ${a[0].v} 点伤害。`,
+  },
+  tide: {
+    n: '涌泉', realm: 'AEQUOR', type: 'CHORUS', tag: '续航',
+    genOff: 0, cdOff: 0,
+    act: (s) => [{ k: 'heal', v: r1(3.2 * s) }, { k: 'shield', v: r1(3.6 * s) }],
+    aura: { k: 'gen', v: [1, 1, 1] },
+    fate: { k: 'regen', v: 1.5 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，回复 ${Math.round(a[0].v)} 点生命，并架起 ${Math.round(a[1].v)} 点护盾。`,
+  },
+  slowtide: {
+    n: '滞潮', realm: 'AEQUOR', type: 'WARDEN', tag: '拖节拍',
+    genOff: 0, cdOff: 0,
+    act: (s) => [{ k: 'dmg', v: r1(1.6 * s) }, { k: 'slow', v: r2(0.4 * s) }],
+    aura: { k: 'cd', v: [1, 1, 1] },
+    fate: { k: 'fear', v: 0.05 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，并让对手的技能延后 ${a[1].v} 拍。`,
+  },
+
+  // ---- 超维：辅助放大易伤、伤害走处决、防御折跃穿盾
+  vuln: {
+    n: '虚隙', realm: 'ULTRA', type: 'CHORUS', tag: '易伤',
+    genOff: 1, cdOff: 0,
+    act: (s) => [{ k: 'vuln', v: r2(0.07 * s) }, { k: 'dmg', v: r1(0.9 * s) }],
+    aura: { k: 'pow', v: [0.24, 0.30, 0.36] },
+    fate: { k: 'amp', v: 0.06 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，让对手易伤 +${Math.round(a[0].v * 100)}%（3 拍），并补 ${a[1].v} 点伤害。`,
+  },
+  haste: {
+    n: '速律', realm: 'ULTRA', type: 'ASSAULT', tag: '快节拍',
+    genOff: -1, cdOff: -1,
+    act: (s) => [{ k: 'dmg', v: r1(2.85 * s) }, { k: 'str', v: r2(0.2 * s) }],
+    aura: { k: 'cd', v: [1, 1, 1] },
+    fate: { k: 'crit', v: 0.04 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，本场每次伤害 +${a[1].v}。节拍比别人快一拍。`,
+  },
+  phase: {
+    n: '折跃', realm: 'ULTRA', type: 'WARDEN', tag: '穿盾',
+    genOff: 0, cdOff: 0,
+    act: (s) => [{ k: 'shield', v: r1(6 * s) }, { k: 'dmg', v: r1(1.5 * s), pierce: 1 }],
+    aura: { k: 'pow', v: [0.18, 0.22, 0.28] },
+    fate: { k: 'pierce', v: 0.15 },
+    txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并穿过护盾打出 ${a[1].v} 点伤害。`,
+  },
+};
+
+// 界域特性：同一个界域的人凑得越多，共鸣越强（2 / 3 / 4 人三档）。
+// 这是「开本界域的店、一队人全买同一界域」的回报，也是四套体系的性格：
+// 混沌靠成长滚雪球，血肉靠持续伤害磨，深海靠回复拖，超维靠直伤穿盾。
+const REALM_TRAIT = {
+  CHAOS: { n: '成长', k: 'amp', v: [0.08, 0.15, 0.22],
+    txt: '全队造成的伤害 +8% / 15% / 22%（同界域 2 / 3 / 4 人）' },
+  CARO: { n: '持续伤害', k: 'dot', v: [0.25, 0.45, 0.65],
+    txt: '中毒与灼烧 +25% / 45% / 65%（同界域 2 / 3 / 4 人）' },
+  AEQUOR: { n: '回复', k: 'heal', v: [0.2, 0.35, 0.5],
+    txt: '治疗 +20% / 35% / 50%，每次治疗附带 4 点护盾（同界域 2 / 3 / 4 人）' },
+  ULTRA: { n: '直伤', k: 'burst', v: [0.1, 0.18, 0.26],
+    txt: '直伤 +10% / 18% / 26%，并穿透 8% / 14% / 20% 护盾（同界域 2 / 3 / 4 人）' },
+};
+
+// 界域 × 类型 → 流派。（十二格刚好十二个流派，老角色的定位不会被推翻）
+const CELL = {
+  CHAOS: { ASSAULT: 'berserk', CHORUS: 'overload', WARDEN: 'burn' },
+  CARO: { ASSAULT: 'leech', CHORUS: 'venom', WARDEN: 'bulwark' },
+  AEQUOR: { ASSAULT: 'frost', CHORUS: 'tide', WARDEN: 'slowtide' },
+  ULTRA: { ASSAULT: 'haste', CHORUS: 'vuln', WARDEN: 'phase' },
+};
+
+const ARCH_ZH = Object.entries(ARCH).reduce((a, [id, d]) => {
+  a[id] = d.n;
+  return a;
+}, {});
+
+// 占格：防御型撑 2~3 格，辅助多为 1~2 格，伤害型 1~3 格都有人——
+// 十五格里怎么搭、是先上大件还是铺一地小件，变成真正的选择。
+function tierFor(arch, i) {
+  if (arch.type === 'WARDEN') return i % 2 ? 2 : 3;
+  if (arch.type === 'CHORUS') return i % 3 === 0 ? 2 : 1;
+  return 1 + (i % 3);
+}
+
+function designHeroes(heroes) {
+  const seen = {};
+  return heroes.map((h) => {
+    const cell = CELL[h.realm] || CELL.CHAOS;
+    const id = cell[h.typeKey] || 'berserk';
+    const arch = ARCH[id];
+    const i = (seen[id] = (seen[id] || 0) + 1) - 1;
+    const t = tierFor(arch, i);
+    const s = TIER.mul[t - 1];
+    const gen = Math.max(1, TIER.gen[t - 1] + arch.genOff);
+    const cd = Math.max(2, TIER.cd[t - 1] + arch.cdOff);
+    const act = arch.act(s);
+    const av = arch.aura.v[t - 1];
+    const auraTxt = arch.aura.k === 'gen' ? `相邻单位每次多产 ${av} 算力`
+      : arch.aura.k === 'cd' ? `相邻单位的节拍 -${av}`
+        : `相邻单位的动作效果 +${Math.round(av * 100)}%`;
+    return {
+      ...h,
+      arch: id,
+      archZh: arch.n,
+      type: h.type,
+      slots: t,
+      gen,
+      cd,
+      act,
+      txt: arch.txt(gen, cd, act),
+      aura: { k: arch.aura.k, v: av },
+      auraTxt,
+      fate: { ...h.fate, k: arch.fate.k, v: arch.fate.v },
+    };
+  });
+}
+
+// ---------------------------------------------------------------- 命轮机制族
+// 每条命轮按界域分到三四个机制族里：同样是「花算力换伤害」，但毒 / 灼烧 / 穿盾 / 回响 / 叠力量
+// 在长局里的曲线完全不同，配谁上场、先买哪条，就是流派。
+const WARCH = {
+  burst: { n: '直伤', op: (s) => [{ k: 'dmg', v: r1(18 * s) }], cpu: 22, wcd: 5 },
+  multi: { n: '霜刃', op: (s) => [{ k: 'dmg', v: r1(5 * s), hits: 4 }], cpu: 21, wcd: 5 },
+  venom: { n: '蚀毒', op: (s) => [{ k: 'dmg', v: r1(8.5 * s) }, { k: 'poison', v: Math.round(3 * s) }], cpu: 21, wcd: 5 },
+  burn: { n: '焚身', op: (s) => [{ k: 'dmg', v: r1(7 * s) }, { k: 'burn', v: Math.round(3.2 * s) }], cpu: 21, wcd: 5 },
+  leech: { n: '噬血', op: (s) => [{ k: 'dmg', v: r1(14 * s), leech: 0.4 }], cpu: 21, wcd: 5 },
+  execute: { n: '处决', op: (s) => [{ k: 'dmg', v: r1(15 * s), execute: 0.45 }], cpu: 22, wcd: 5 },
+  pierce: { n: '折跃', op: (s) => [{ k: 'dmg', v: r1(13.5 * s), pierce: 1 }], cpu: 22, wcd: 5 },
+  slow: { n: '滞潮', op: (s) => [{ k: 'dmg', v: r1(10 * s) }, { k: 'slow', v: 1 }], cpu: 20, wcd: 5 },
+  vuln: { n: '虚隙', op: (s) => [{ k: 'dmg', v: r1(9 * s) }, { k: 'vuln', v: r2(0.22 * s) }], cpu: 20, wcd: 5 },
+  str: { n: '蓄势', op: (s) => [{ k: 'dmg', v: r1(9 * s) }, { k: 'str', v: r2(1.1 * s) }], cpu: 20, wcd: 5 },
+  bulwark: { n: '血壁', op: (s) => [{ k: 'shield', v: r1(24 * s) }, { k: 'dmg', v: r1(6 * s) }], cpu: 19, wcd: 5 },
+  echo: { n: '回响', op: (s) => [{ k: 'dmg', v: r1(11 * s) }, { k: 'echo', v: 1 }], cpu: 23, wcd: 6 },
+  tide: { n: '涌泉', op: (s) => [{ k: 'shield', v: r1(14 * s) }, { k: 'heal', v: r1(10 * s) }, { k: 'dmg', v: r1(6 * s) }], cpu: 20, wcd: 5 },
+};
+
+const WPOOL = {
+  CHAOS: ['str', 'burn', 'execute', 'burst'],
+  CARO: ['venom', 'leech', 'bulwark'],
+  AEQUOR: ['slow', 'multi', 'tide'],
+  ULTRA: ['vuln', 'pierce', 'echo'],
+};
+const WNEUTRAL = ['burst', 'multi', 'venom', 'burn', 'execute', 'pierce', 'slow', 'leech'];
+const RAR_S = { N: 0.88, SR: 1, SSR: 1.12 };
+
+function designWheels(wheels) {
+  const seen = {};
+  return wheels.map((w) => {
+    const pool = WPOOL[w.realm] || WNEUTRAL;
+    const i = (seen[w.realm || 'NEUTRAL'] = (seen[w.realm || 'NEUTRAL'] || 0) + 1) - 1;
+    const id = pool[i % pool.length];
+    const d = WARCH[id];
+    const s = RAR_S[w.r] || 1;
+    return { ...w, arch: id, archZh: d.n, cpu: d.cpu, wcd: d.wcd, op: d.op(s) };
+  });
+}
+
+// ---------------------------------------------------------------- 造物加成
+// 原来 310 件造物只有 11 种属性（伤害 / 暴击 / 上限…），同质化最严重的一层。
+// 现在按原表的 arch 标签分发到「吸血 / 穿透 / 反伤 / 减速 / 每拍护盾 / 生命」这些真正有区别的机制上。
+const INT_KEY = { flat: 1, shcap: 1, ward: 1, regen: 1, gold: 1, cap: 1, thorns: 1, hp: 1, wcd: 1 };
+const ITEM_TABLE = {
+  dmg: [['amp', 0.075], ['flat', 5.5], ['crit', 0.045]],
+  str: [['flat', 6.5], ['amp', 0.06]],
+  crit: [['crit', 0.055], ['cdmg', 0.18]],
+  poison: [['venom', 0.18], ['amp', 0.06]],
+  burn: [['amp', 0.07], ['flat', 5]],
+  vuln: [['amp', 0.07], ['pierce', 0.18]],
+  shield: [['shcap', 9], ['ward', 3]],
+  heal: [['regen', 1.2], ['hp', 16]],
+  regen: [['regen', 1.4], ['hp', 14]],
+  gold: [['gold', 1.6]],
+  haste: [['wcd', 1]],
+  slow: [['fear', 0.06], ['hp', 14]],
+  thorns: [['thorns', 3]],
+  aura: [['cap', 8], ['gen', 0.06]],
+};
+const RAR_M = { N: 0.8, SR: 1, SSR: 1.2 };
+
+function designItems(items) {
+  const seen = {};
+  return items.map((it) => {
+    const tab = ITEM_TABLE[it.arch];
+    if (!tab) return it;                                   // 本命造物（FATE）不动
+    const i = (seen[it.arch] = (seen[it.arch] || 0) + 1) - 1;
+    const [k, base] = tab[i % tab.length];
+    const m = RAR_M[it.r] || 1;
+    const v = INT_KEY[k] ? Math.max(1, Math.round(base * m)) : r2(base * m);
+    return { ...it, m: { k, v } };
+  });
+}
+return { ARCH, REALM_TRAIT, ARCH_ZH, designHeroes, WARCH, designWheels, designItems };
+})();
+
 // ---- js/bazaar-data.js
 const m_bazaar_data = await (async () => {
 const { HEROES: G_HEROES, ITEMS: G_ITEMS, WHEELS: G_WHEELS, PACTS: G_PACTS, FOES: G_FOES, SHEETS: G_SHEETS } = m_bazaar_gen;
+const { designHeroes, designWheels, designItems, ARCH: ARCH_RAW, ARCH_ZH: ARCH_ZH_RAW, WARCH: WARCH_RAW, REALM_TRAIT: REALM_TRAIT_RAW } = m_bazaar_arch;
 // 《大巴扎：银钥》的数据层 —— 大表在 js/bazaar-gen.js（由 scripts/build_bazaar_gen.py 生成），
 // 这里只放「规则常数」「地形」和「按难度拼出来的关卡排期」。
 //
@@ -32,24 +309,49 @@ const { HEROES: G_HEROES, ITEMS: G_ITEMS, WHEELS: G_WHEELS, PACTS: G_PACTS, FOES
 
 
 
+
 const SHEETS = G_SHEETS;
-// 唤醒体都要能出手打一下（以前只有「伤害型」会打，守护只架盾、辅助只挂易伤，整队站着不动）。
-// 按「伤害型同产出的伤害 ≈ 产出 ×1.25 + 0.5」折算：守护打 4 成、辅助打 3 成——比命轮低得多，但不再是零。
-// 生成表（bazaar-gen.js）是脚本生成物不手改，所以在这里统一补一层。
-const heroAttack = (h) => 1.25 * h.gen + 0.5;
-function withAttack(h) {
-  if (h.act.some((a) => a.k === 'dmg')) return h;                      // 伤害型本来就有
-  const k = h.typeKey === 'WARDEN' ? 0.4 : 0.3;
-  const v = Math.round(heroAttack(h) * k * 10) / 10;
-  return { ...h, act: [...h.act, { k: 'dmg', v }], txt: String(h.txt || '').replace(/。$/, '') + `，另外打出 ${v} 点伤害。` };
-}
-const HEROES = G_HEROES.map(withAttack);
-const ITEMS = G_ITEMS;
-const WHEELS = G_WHEELS;
-const PACTS = G_PACTS;
+// 流派（设计层，见 js/bazaar-arch.js）：唤醒体 12 个、命轮 13 个机制族、造物按机制分。
+const ARCH = ARCH_RAW;
+const WARCH = WARCH_RAW;
+const ARCH_ZH = ARCH_ZH_RAW;
+// 界域特性：同界域 2 / 3 / 4 人三档共鸣
+const REALM_TRAIT = REALM_TRAIT_RAW;
+// 启灵档位：抓到同名唤醒体 / 同一条命轮就往上升一档
+const RANK_TIER = ['', '1 启', '2 启', '3 启', '超限', '最终法则'];
+// 唤醒体、命轮、造物都要经过流派设计层：生成表里 73 个人只有 3 套数值、149 条命轮只有
+// 「直伤 + 一点毒或盾」，不拆开的话名字换一百遍打起来还是同一套。设计全在 js/bazaar-arch.js。
+const HEROES = designHeroes(G_HEROES);
+const ITEMS = designItems(G_ITEMS);
+const WHEELS = designWheels(G_WHEELS);
+// 原有 21 条密契大多是「某项数值 +X%」，差别只在数字。这里补 8 条机制型的，
+// 让「开局选哪份密契」真的会改变这一局的打法。
+const EXTRA_PACTS = [
+  { id: 'p022', n: '蚀刻', spr: 'item:326', k: 'dotamp', v: 0.6, txt: '中毒与灼烧 +60%，但生命上限 -15。' },
+  { id: 'p023', n: '狙击', spr: 'item:327', k: 'snipe', v: 0.3, txt: '命轮伤害 30% 穿透护盾——对面越爱架盾越吃亏。' },
+  { id: 'p024', n: '缓毒', spr: 'item:328', k: 'zone', v: 50, txt: '毒圈晚 50 拍出现（第 150 拍起），慢热卡组多一段发育时间。' },
+  { id: 'p025', n: '苔生', spr: 'item:329', k: 'mossregen', v: 2, txt: '每拍回复 2 点生命。' },
+  { id: 'p026', n: '行囊', spr: 'item:330', k: 'bench', v: 2, txt: '仓库 +2 格，换阵容不用卖东西。' },
+  { id: 'p027', n: '早启', spr: 'item:331', k: 'rank', v: 1, txt: '开局每个唤醒体与命轮都算 +1 启灵。' },
+  { id: 'p028', n: '疾行', spr: 'item:332', k: 'herocd', v: 1, txt: '所有唤醒体的节拍 -1（最低 2 拍）。' },
+  { id: 'p029', n: '双刃', spr: 'item:333', k: 'twoedge', v: 0.3, txt: '命轮伤害 +30%，但你受到的伤害也多 15%。' },
+];
+const PACTS = G_PACTS.concat(EXTRA_PACTS);
 const FOES = G_FOES;
 // 集市里能刷出来的只有普通造物：维度影像（r='FATE'）是唤醒体随身带的本命造物，不外售
 const SHOP_ITEMS = ITEMS.filter((x) => x.r !== 'FATE');
+
+// 原始敌人曲线（12 天基准）。
+const RAW_DAY_HP = [0, 104.4, 166.8, 224.8, 319.0, 442.2, 594.5, 710.5, 884.5, 1023.7, 1160.0, 1258.6, 1470.3, 1544.2, 1621.1, 1702.3, 1787.8, 1877.8, 1972.0];
+const RAW_DAY_DPS = [0, 3.4, 4.5, 5.5, 6.5, 7.0, 7.9, 8.5, 8.8, 9.3, 9.8, 9.9, 10.5, 10.9, 11.2, 11.6, 12.0, 12.3, 12.7];
+
+// 唤醒体拆成流派之后，玩家的成长曲线比原来陡得多（毒 / 灼烧会叠、力量越滚越高、穿盾不吃护盾、
+// 回响一发两响），敌人如果还按老曲线走，第十天以后基本是走个过场。
+// 所以第六天起把差距补回来：前五天完全不动（开局本来就是抛硬币，再抬难度就只剩运气），
+// 第 6~7 天每天补一截，之后按满额走。
+function LATE_SCALE(arr, x) {
+  return arr.map((v, i) => Math.round(v * (1 + (x - 1) * Math.min(1, i / 6)) * 10) / 10);
+}
 
 const TUNING = {
   beats: 1000,        // 兜底上限（毒圈会让战斗在两三百拍内结束，实际碰不到）；真碰到才按剩余血量百分比判
@@ -67,12 +369,15 @@ const TUNING = {
   shopSize: 6,        // 集市一次摆几个选项（2 列 × 3 行）
   rerollCost: 1,      // 刷新一次的价钱（原来 2）：放宽一点，玩家才有钱多刷几次找想要的人 / 命轮
   benchSlots: 4,      // 仓库格数：装不下的人 / 命轮先放仓库，随时换上场或卖掉
+  rankMax: 5,         // 启灵上限：1/2/3 启 → 超限 → 最终法则
+  dupRate: 0.45,      // 集市多摆一个「升启」摊位的概率（买下就是把已有的那张往上顶一档，不占格）
+  realmShopCost: 1,   // 一天里第二次以后换界域商店的价钱
   sellRate: 0.5,
   cdMin: 2,
   wcdMin: 3,
   // 每天的血量预算 / 目标强度 / 收入。以 12 天为基准调出来，后面按同一斜率外推。
-  dayHp: [0, 104.4, 166.8, 224.8, 319.0, 442.2, 594.5, 710.5, 884.5, 1023.7, 1160.0, 1258.6, 1470.3, 1544.2, 1621.1, 1702.3, 1787.8, 1877.8, 1972.0],
-  dayDps: [0, 3.4, 4.5, 5.5, 6.5, 7.0, 7.9, 8.5, 8.8, 9.3, 9.8, 9.9, 10.5, 10.9, 11.2, 11.6, 12.0, 12.3, 12.7],
+  dayHp: LATE_SCALE(RAW_DAY_HP, 1.55),
+  dayDps: LATE_SCALE(RAW_DAY_DPS, 1.32),
   income: [0, 15, 15, 14, 13, 13, 13, 13, 13, 13, 13, 14, 15, 15, 16, 16, 17, 17, 18],
 };
 
@@ -82,18 +387,19 @@ const DIFFS = [
     desc: '12 天，3 点理智。前四天只有普通怪，首领从第九天开始露面。' },
   { id: 'hard', n: '艰难', days: 12, dps: 1.02, hp: 1.0, income: 1.0, sane: 2, pole: 1,
     desc: '12 天，2 点理智。精英提前到第三天，第七天就有首领。' },
-  { id: 'nightmare', n: '噩梦', days: 15, dps: 0.95, hp: 0.96, income: 0.92, sane: 2, pole: 1.5,
-    desc: '15 天，2 点理智，收入 -8%。第二天起就会撞上精英。' },
-  { id: 'abyss', n: '深渊', days: 18, dps: 0.94, hp: 0.94, income: 0.82, sane: 2, pole: 2,
-    desc: '18 天，2 点理智，收入 -18%。精英从第三天就露头，第十天之后全是首领。' },
+  { id: 'nightmare', n: '噩梦', days: 15, dps: 1.02, hp: 1.04, income: 0.92, sane: 4, pole: 1.5,
+    desc: '15 天，4 点理智，收入 -8%。第二天起就会撞上精英，敌人也比寻常更硬。' },
+  { id: 'abyss', n: '深渊', days: 18, dps: 1.07, hp: 1.09, income: 0.82, sane: 5, pole: 2,
+    desc: '18 天，5 点理智，收入 -18%。精英从第三天就露头，第十天之后全是首领。' },
 ];
 
 const REALM_ZH = { CHAOS: '混沌', CARO: '血肉', AEQUOR: '深海', ULTRA: '超维' };
 const TYPE_ZH = { ASSAULT: '伤害', CHORUS: '辅助', WARDEN: '防御' };
 const RANK_ZH = { normal: '普通', elite: '精英', boss: '首领' };
-const REALM_COLOR = { 混沌: '#c4708f', 血肉: '#b8873f', 深海: '#4f9bb5', 超维: '#8f7fc4' };
+const REALM_COLOR = { 混沌: '#ecd24f', 血肉: '#cf3f46', 深海: '#4a8fdb', 超维: '#a58ce8' };
 
-const ARCH_ZH = {
+// 造物卡片上那一小行标签（用的是原表的 arch 字段）
+const ITEM_ARCH_ZH = {
   dmg: '直伤', poison: '中毒', burn: '灼烧', shield: '护盾', heal: '回复', gold: '金币',
   crit: '暴击', haste: '节拍', regen: '回血', slow: '滞缓', vuln: '易伤', aura: '光环',
   str: '力量', thorns: '反伤', fate: '本命',
@@ -112,6 +418,14 @@ const MOD_ZH = {
   wcd: ['命轮节拍', '-', ' 拍'],
   thorns: ['反伤', '+', ''],
   gold: ['每场金币', '+', ''],
+  // 新机制：让造物不再只是「伤害/暴击」两种
+  flat: ['命轮伤害', '+', ' 点'],
+  ward: ['每 4 拍护盾', '+', ''],
+  leech: ['吸血', '+', '%'],
+  pierce: ['穿透护盾', '+', '%'],
+  venom: ['中毒效果', '+', '%'],
+  fear: ['敌方伤害', '-', '%'],
+  hp: ['生命上限', '+', ''],
 };
 
 const AURA_ZH = { gen: '供能', cd: '加速', pow: '增幅' };
@@ -169,12 +483,100 @@ function rowFor(day, diffId) {
   const row = SCHEDULE[Math.min(day, SCHEDULE.length) - 1] || SCHEDULE[SCHEDULE.length - 1];
   return row.bands[diffId] || row.bands.normal;
 }
-return { SHEETS, HEROES, ITEMS, WHEELS, PACTS, FOES, SHOP_ITEMS, TUNING, DIFFS, REALM_ZH, TYPE_ZH, RANK_ZH, REALM_COLOR, ARCH_ZH, MOD_ZH, AURA_ZH, TERRAINS, SCHEDULE, rowFor };
+return { SHEETS, ARCH, WARCH, ARCH_ZH, REALM_TRAIT, RANK_TIER, HEROES, ITEMS, WHEELS, PACTS, FOES, SHOP_ITEMS, TUNING, DIFFS, REALM_ZH, TYPE_ZH, RANK_ZH, REALM_COLOR, ITEM_ARCH_ZH, MOD_ZH, AURA_ZH, TERRAINS, SCHEDULE, rowFor };
+})();
+
+// ---- js/bazaar-events.js
+const m_bazaar_events = await (async () => {
+
+// 大巴扎的「战后事件」表：每赢一天，除了看商店，还会撞上一件小事——两三个选项，各有代价。
+// 数据是纯描述，效果由 core 的 applyEvent 执行（不在这里动 run，避免两边各写一套规则）。
+//
+// 效果键：
+//   gold  金币增减
+//   maxhp 生命上限增减
+//   sane  理智增减
+//   relic 白得一件随机造物
+//   hero  白得一个随机唤醒体
+//   rank  随机一个唤醒体 / 命轮 +1 启
+//   reroll 明天多一次免费刷新
+//   realm 今天可以免费再换一次界域商店
+
+const EVENTS = [
+  {
+    id: 'merchant', n: '流浪商人', art: 'item:120',
+    txt: '一个背着整副货架的人拦住你：「眼睛比钱重要，挑一件？」',
+    opts: [
+      { t: '花 8 金买一件', d: '得一件随机造物', k: 'relic', v: 1, cost: 8 },
+      { t: '只讨 5 金', d: '他叹口气，还是给了', k: 'gold', v: 5 },
+    ],
+  },
+  {
+    id: 'pool', n: '血池', art: 'item:150',
+    txt: '池子里的东西在动。伸手进去，它会替你撑开一点血管。',
+    opts: [
+      { t: '伸手', d: '生命上限 +12，理智 -1', k: 'maxhp', v: 12, sane: -1 },
+      { t: '走开', d: '捡起旁边的 6 金', k: 'gold', v: 6 },
+    ],
+  },
+  {
+    id: 'gamble', n: '赌桌', art: 'item:180',
+    txt: '三张扣着的牌。庄家笑得很客气：「押十，翻倍。」',
+    opts: [
+      { t: '押 10 金', d: '五成得 25 金，五成血本无归', k: 'gamble', v: 10, win: 25, odds: 0.5 },
+      { t: '不玩', d: '揣走桌上的 2 金', k: 'gold', v: 2 },
+    ],
+  },
+  {
+    id: 'relic', n: '旧日遗物', art: 'item:210',
+    txt: '一具没埋好的身体，怀里抱着件还在发热的东西。',
+    opts: [
+      { t: '扒下来', d: '得一件造物，理智 -1', k: 'relic', v: 1, sane: -1 },
+      { t: '鞠一躬', d: '得 8 金（他身上的零钱）', k: 'gold', v: 8 },
+    ],
+  },
+  {
+    id: 'companion', n: '同路人', art: 'item:240',
+    txt: '有人在摊子外面站了很久。她说她也会算力，只是没人肯带。',
+    opts: [
+      { t: '带上她', d: '得一个随机唤醒体', k: 'hero', v: 1 },
+      { t: '给她 12 金', d: '她自己去买命轮', k: 'gold', v: 12 },
+    ],
+  },
+  {
+    id: 'scavenge', n: '拾荒', art: 'item:270',
+    txt: '翻得动的都翻了。有些东西能卖钱，有些东西只配扔。',
+    opts: [
+      { t: '全卖掉', d: '得 20 金，生命上限 -8', k: 'gold', v: 20, maxhp: -8 },
+      { t: '留下有用的', d: '得一次免费刷新 + 5 金', k: 'reroll', v: 1, gold: 5 },
+    ],
+  },
+  {
+    id: 'ritual', n: '启灵仪式', art: 'item:300',
+    txt: '地上画着圈。把已经有的东西放进去，它会变成「更多」。',
+    opts: [
+      { t: '举行仪式', d: '随机一个唤醒体或命轮 +1 启', k: 'rank', v: 1 },
+      { t: '把粉扫走', d: '得 10 金', k: 'gold', v: 10 },
+    ],
+  },
+  {
+    id: 'altar', n: '界域祭坛', art: 'item:330',
+    txt: '四座石台空着三座。今天你想让哪一界的人来摆摊？',
+    opts: [
+      { t: '摸一下石台', d: '今天可再免费换一次界域商店 + 4 金', k: 'realm', v: 1, gold: 4 },
+      { t: '不碰', d: '得 10 金', k: 'gold', v: 10 },
+    ],
+  },
+];
+
+const EVENT_BY_ID = new Map(EVENTS.map((e) => [e.id, e]));
+return { EVENTS, EVENT_BY_ID };
 })();
 
 // ---- js/bazaar-core.js
 const m_bazaar_core = await (async () => {
 const DATA = m_bazaar_data;
+const { EVENTS, EVENT_BY_ID } = m_bazaar_events;
 // 《大巴扎：银钥》核心逻辑：商店、十格战场、自动战斗。
 // 不碰 DOM，node 里能直接跑（scripts/bazaar-sim.mjs 就是拿它做平衡实测的）。
 //
@@ -185,6 +587,7 @@ const DATA = m_bazaar_data;
 //   地形　 —— 敌我同吃，熔岩掉血、雾障加盾、疾风加速、脆裂削血。
 // 一直打到有人倒下。第 100 拍后出现「毒圈」：双方每拍同时掉最大生命的一截（真伤，无视护盾），越往后越疼，
 // 直到有人倒下为止（按各自最大生命的百分比掉，所以拼的是血线）。TUNING.beats（1000）只是兜底，按剩余血量百分比判，正常碰不到。难度、当天曲线、地形表都在 js/bazaar-data.js。
+
 
 
 
@@ -204,6 +607,11 @@ const MOD_ZH = DATA.MOD_ZH;
 const AURA_ZH = DATA.AURA_ZH;
 const REALM_COLOR = DATA.REALM_COLOR;
 const ARCH_ZH = DATA.ARCH_ZH;
+const REALM_TRAIT = DATA.REALM_TRAIT;
+const RANK_ZH = DATA.RANK_ZH;
+const RANK_TIER = DATA.RANK_TIER;
+const ALL_EVENTS = EVENTS;
+const eventOf = (id) => EVENT_BY_ID.get(id);
 
 const DOT_TURNS = 3;
 const ITEM_BY_ID = new Map(ITEMS.map((x) => [x.id, x]));
@@ -259,7 +667,8 @@ function newRun({ seed = Date.now() >>> 0, pactId, diffId = 'normal' } = {}) {
     seed, rnd: rngFrom(seed), pact, diff, totalDays: diff.days,
     day: 1, sane: diff.sane, gold: TUNING.startGold,
     squad: [], wheels: [], relics: [], bench: [], cores: 0,
-    shop: [], rerolls: 0, freeReroll: 0,
+    shop: [], rerolls: 0, freeReroll: 0, freeShops: 0,
+    shopRealm: null, realmSwitched: false, pendingEvent: null,
     foeId: null, terrain: 'plain',
     wins: 0, losses: 0, bonusHp: 0,
     over: false, cleared: false, history: [],
@@ -276,6 +685,47 @@ function newRun({ seed = Date.now() >>> 0, pactId, diffId = 'normal' } = {}) {
 // 唤醒体占 1~3 格，命轮占 1~2 格（SSR 占 2），一共 TUNING.fieldSlots（15）格。
 // 站位顺序存在 run.order（uid 列表）：人和命轮混着排，可以互相拖动；
 // 唤醒体的光环喂左右相邻的两个——不管邻居是人还是命轮。
+// ---------------------------------------------------------------- 启灵
+// 抓到同名的唤醒体 / 同一条命轮，就把它往上顶一档：1/2/3 启 → 超限 → 最终法则。
+// 每档都实打实加东西，第三档（3 启）解锁节拍 -1，最后两档是倍率跳变。
+const rankOf = (rec) => Math.min(TUNING.rankMax, (rec && rec.rank) || 0);
+const HERO_RANK = {
+  gen: [0, 1, 2, 2, 3, 4],
+  act: [1, 1.08, 1.16, 1.24, 1.38, 1.55],
+  cd: [0, 0, 0, 1, 1, 1],
+};
+const WHEEL_RANK = {
+  cost: [0, 1, 1, 1, 2, 2],
+  pow: [1, 1, 1.1, 1.2, 1.35, 1.5],
+  wcd: [0, 0, 0, 1, 1, 1],
+};
+// 每一档启灵到底多了什么（详情面板直接显示，和上面的表同源，别两边各写一份）
+const RANK_DESC = [
+  '基础形态。',
+  '产算力 +1。',
+  '产算力 +2，行动效果 ×1.08。',
+  '产算力 +2，节拍 -1，行动效果 ×1.24。',
+  '超限：行动效果 ×1.38，光环也变强（节拍光环 +1、增幅光环 ×1.5）。',
+  '最终法则：行动效果 ×1.55，每次出手顺带一次半效果的追击。',
+];
+const RANK_DESC_W = [
+  '基础形态。',
+  '耗算力 -1。',
+  '耗算力 -1，效果 ×1.1。',
+  '耗算力 -1，节拍 -1，效果 ×1.2。',
+  '超限：耗算力 -2，效果 ×1.35。',
+  '最终法则：耗算力 -2，节拍 -1，效果 ×1.5。',
+];
+// 面板 / 战斗共用的「这个唤醒体在当前启灵下长什么样」
+function heroPlan(def, rank = 0) {
+  const r = Math.min(TUNING.rankMax, rank | 0);
+  return {
+    gen: def.gen + HERO_RANK.gen[r],
+    cd: Math.max(TUNING.cdMin, def.cd - HERO_RANK.cd[r]),
+    pow: HERO_RANK.act[r],
+  };
+}
+
 const wheelCells = (def) => (def && def.r === 'SSR' ? 2 : 1);
 function usedSlots(run) {
   let n = 0;
@@ -305,14 +755,14 @@ function layoutOf(run) {
     const h = run.squad.find((x) => x.uid === id);
     if (h) {
       const def = heroOf(h.key);
-      out.push({ uid: h.uid, kind: 'hero', key: h.key, def, start: at, len: def.slots || 1 });
+      out.push({ uid: h.uid, kind: 'hero', key: h.key, def, rank: rankOf(h), start: at, len: def.slots || 1 });
       at += def.slots || 1;
       continue;
     }
     const w = run.wheels.find((x) => x.uid === id);
     if (w) {
       const def = wheelOf(w.key);
-      out.push({ uid: w.uid, kind: 'wheel', key: w.key, def, native: !!w.native, start: at, len: wheelCells(def) });
+      out.push({ uid: w.uid, kind: 'wheel', key: w.key, def, rank: rankOf(w), native: !!w.native, start: at, len: wheelCells(def) });
       at += wheelCells(def);
     }
   }
@@ -326,9 +776,10 @@ function canAddWheel(run, key) {
   const def = wheelOf(key);
   return !!def && usedSlots(run) + wheelCells(def) <= TUNING.fieldSlots;
 }
+const baseRank = (run) => (run.pact && run.pact.k === 'rank' ? Math.min(TUNING.rankMax, run.pact.v) : 0);
 function addHero(run, id) {
   if (!canAddHero(run, id)) return null;
-  const rec = { uid: uid(), key: id };
+  const rec = { uid: uid(), key: id, rank: baseRank(run) };
   run.squad.push(rec);
   syncOrder(run);
   return rec;
@@ -366,9 +817,12 @@ function auraMap(run) {
       const nb = lay[j];
       if (!nb || nb.kind !== 'hero' || !nb.def.aura) continue;
       const a = nb.def.aura;
+      const r = Math.min(TUNING.rankMax, nb.rank | 0);
+      // 超限（4 启）之后光环本身也变强：产算力光环不放大（否则算力会重新过剩），
+      // 只放大节拍（+1 整数档）和增幅（×1.5）。
       if (a.k === 'gen') o.gen += a.v;
-      else if (a.k === 'cd') o.cd += a.v;
-      else if (a.k === 'pow') o.pow += a.v;
+      else if (a.k === 'cd') o.cd += r >= 4 ? a.v + 1 : a.v;
+      else if (a.k === 'pow') o.pow += r >= 4 ? a.v * 1.5 : a.v;
     }
     m.set(e.uid, o);
   });
@@ -379,13 +833,16 @@ function wheelPlan(run, e) {
   const ter = terrainOf(run.terrain);
   const cdTer = (ter.k === 'slow' ? ter.v : 0) - (ter.k === 'fast' ? ter.v : 0);
   const au = auraMap(run).m.get(e.uid) || { gen: 0, cd: 0, pow: 0 };
-  return wheelStat(e.def, au, cdTer, modsOf(run));
+  return wheelStat(e.def, au, cdTer, modsOf(run), rankOf(e));
 }
-const wheelStat = (d, au, cdTer, mod) => ({
-  cost: Math.max(4, d.cpu - 2 * au.gen),
-  wcd: Math.max(TUNING.wcdMin, d.wcd - au.cd + cdTer - mod.wcdDown),
-  pow: 1 + au.pow,
-});
+const wheelStat = (d, au, cdTer, mod, rank = 0) => {
+  const r = Math.min(TUNING.rankMax, rank | 0);
+  return {
+    cost: Math.max(4, d.cpu - 2 * au.gen - WHEEL_RANK.cost[r]),
+    wcd: Math.max(TUNING.wcdMin, d.wcd - au.cd + cdTer - mod.wcdDown - WHEEL_RANK.wcd[r]),
+    pow: (1 + au.pow) * WHEEL_RANK.pow[r],
+  };
+};
 
 // 面板上的「每拍产出 / 每拍消耗」——和 createFight 用同一套规则，免得显示和实际对不上
 function planOf(run) {
@@ -398,11 +855,12 @@ function planOf(run) {
   for (const e of lay) {
     const au = m.get(e.uid);
     if (e.kind === 'hero') {
-      const cd = Math.max(TUNING.cdMin, e.def.cd - au.cd + cdTer);
-      const g = Math.max(1, Math.round((e.def.gen + au.gen) * (1 + mod.gen)));
+      const hp = heroPlan(e.def, e.rank || 0);
+      const cd = Math.max(TUNING.cdMin, hp.cd - au.cd + cdTer - mod.herocd);
+      const g = Math.max(1, Math.round((hp.gen + au.gen) * (1 + mod.gen)));
       gen += g / cd;
     } else {
-      const ws = wheelStat(e.def, au, cdTer, mod);
+      const ws = wheelStat(e.def, au, cdTer, mod, e.rank || 0);
       need += ws.cost / ws.wcd;
     }
   }
@@ -457,7 +915,9 @@ function rollShop(run, { free = false } = {}) {
   const rnd = run.rnd;
   if (!free) {
     const cost = TUNING.rerollCost + run.rerolls;
-    if (run.pact.k === 'freereroll' && run.freeReroll < 1) {
+    if (run.freeShops > 0) {
+      run.freeShops -= 1;
+    } else if (run.pact.k === 'freereroll' && run.freeReroll < 1) {
       run.freeReroll += 1;
     } else {
       if (run.gold < cost) return false;
@@ -471,10 +931,18 @@ function rollShop(run, { free = false } = {}) {
   const ownHeroes = new Set([...run.squad.map((h) => h.key), ...run.bench.filter((b) => b.kind === 'hero').map((b) => b.key)]);
   const ownWheels = new Set([...run.wheels.map((w) => w.key), ...run.bench.filter((b) => b.kind === 'wheel').map((b) => b.key)]);
 
+  // 界域商店：玩家当天挑一个界域（或混合）。挑了就把人和命轮限制在那个界域里，
+  // 造物不受限——造物本来就是通用的面板件。
+  const realm = run.shopRealm || null;
+  const inRealm = (d) => !realm || d.realm === realm;
+  const ownedHeroRecs = () => [...run.squad, ...(run.bench || []).filter((b) => b.kind === 'hero')];
+  const ownedWheelRecs = () => [...run.wheels, ...(run.bench || []).filter((b) => b.kind === 'wheel')];
+
   // 造一件指定类型的东西；造不出来（池子抽空 / 没槽位）返回 null
   const make = (kind, cheap = false) => {
     if (kind === 'hero') {
-      const pool = HEROES.filter((h) => !ownHeroes.has(h.id) && (h.slots <= freeSlots(run) || benchRoom(run)) && (!cheap || h.slots <= 1));   // 装得下就直接上场；装不下但仓库有空位，买了进仓库
+      let pool = HEROES.filter((h) => !ownHeroes.has(h.id) && inRealm(h) && (h.slots <= freeSlots(run) || benchRoom(run)) && (!cheap || h.slots <= 1));   // 装得下就直接上场；装不下但仓库有空位，买了进仓库
+      if (!pool.length) pool = HEROES.filter((h) => !ownHeroes.has(h.id) && (h.slots <= freeSlots(run) || benchRoom(run)) && (!cheap || h.slots <= 1));
       if (!pool.length) return null;
       const h = ru(rnd, pool);
       if (!h || used.has('h' + h.id)) return null;
@@ -483,8 +951,10 @@ function rollShop(run, { free = false } = {}) {
     }
     if (kind === 'wheel') {
       if (freeSlots(run) < 1 && !benchRoom(run)) return null;
-      const w = ru(rnd, WHEELS);
-      if (used.has('w' + w.id) || ownWheels.has(w.id)) return null;
+      let pool = WHEELS.filter((w) => inRealm(w) && !ownWheels.has(w.id));
+      if (!pool.length) pool = WHEELS.filter((w) => !ownWheels.has(w.id));
+      const w = ru(rnd, pool);
+      if (!w || used.has('w' + w.id) || ownWheels.has(w.id)) return null;
       used.add('w' + w.id);
       return { kind: 'wheel', key: w.id, price: priceOf(run, wheelPrice(w)) };
     }
@@ -534,9 +1004,44 @@ function rollShop(run, { free = false } = {}) {
     } else if (!has('hero') && freeSlots(run) >= 1) swap('hero');
   }
 
+  // 升启报价：单独加一个摊位，不占那六个名额——已经有的人 / 命轮再「抓到一次」，
+  // 不占格也不进仓库，直接往上叠一档（1/2/3 启 → 超限 → 最终法则）。
+  // 放在最后，七个摊位时界面上单独占一整行。
+  if (rnd() < TUNING.dupRate) {
+    const cands = [
+      ...ownedHeroRecs().filter((r) => rankOf(r) < TUNING.rankMax).map((r) => ({ kind: 'hero', r })),
+      ...ownedWheelRecs().filter((r) => rankOf(r) < TUNING.rankMax).map((r) => ({ kind: 'wheel', r })),
+    ].filter(({ kind, r }) => inRealm(kind === 'hero' ? heroOf(r.key) : wheelOf(r.key)));
+    if (cands.length) {
+      // 一半以上的时候往「已经喂得最高的那张」上叠：不然五档启灵在一局里永远摸不到。
+      // 剩下的随机分，免得只堆一个、整队只有一个人能打。
+      const top = Math.max(...cands.map(({ r }) => rankOf(r)));
+      const lead = cands.filter(({ r }) => rankOf(r) === top);
+      const pick = rnd() < 0.55 ? lead[Math.floor(rnd() * lead.length)] : cands[Math.floor(rnd() * cands.length)];
+      const { kind, r } = pick;
+      const d = kind === 'hero' ? heroOf(r.key) : wheelOf(r.key);
+      const base = kind === 'hero' ? heroPrice(d) : wheelPrice(d);
+      out.push({ kind, key: d.id, dup: true, sold: false, price: priceOf(run, Math.round(base * 0.7)) });
+    }
+  }
+
   run.shop = out;
   run.rerolls = 0;
   return true;
+}
+
+// 换一个界域的店：当天第一次免费，之后再换要花 1 金（和刷新同价）
+function setShopRealm(run, realm) {
+  const next = realm || null;
+  if ((run.shopRealm || null) === next) return { ok: true };
+  if (run.realmSwitched) {
+    if (run.gold < TUNING.realmShopCost) return { ok: false, why: '金币不够' };
+    run.gold -= TUNING.realmShopCost;
+  }
+  run.realmSwitched = true;
+  run.shopRealm = next;
+  rollShop(run, { free: true });
+  return { ok: true };
 }
 
 function defOf(offer) {
@@ -545,12 +1050,13 @@ function defOf(offer) {
   return itemOf(offer.key);
 }
 
-const benchRoom = (run) => (run.bench || []).length < TUNING.benchSlots;
+const benchRoom = (run) => (run.bench || []).length < TUNING.benchSlots + (run.pact && run.pact.k === 'bench' ? run.pact.v : 0);
 
 function canBuy(run, idx) {
   const o = run.shop[idx];
   if (!o || o.sold) return false;
   if (run.gold < o.price) return false;
+  if (o.dup) return true;                                  // 升启不占格
   // 战场 / 命轮槽放不下时，只要仓库还有格子就能买（买下直接进仓库）
   if (o.kind === 'hero') return canAddHero(run, o.key) || benchRoom(run);
   if (o.kind === 'wheel') return canAddWheel(run, o.key) || benchRoom(run);
@@ -560,14 +1066,28 @@ function canBuy(run, idx) {
 function buy(run, idx) {
   if (!canBuy(run, idx)) return false;
   const o = run.shop[idx];
+  // 升启：买的是「已经有的人 / 命轮」，直接把它往上一档，不占格、不进仓库。
+  // 先找目标再扣钱——卖掉了 / 已经到头了就当作买不成，别白白吃金币。
+  if (o.dup) {
+    const pool = o.kind === 'hero'
+      ? [...run.squad, ...(run.bench || []).filter((b) => b.kind === 'hero')]
+      : [...run.wheels, ...(run.bench || []).filter((b) => b.kind === 'wheel')];
+    const rec = pool.find((r) => r.key === o.key && rankOf(r) < TUNING.rankMax);
+    if (!rec) return false;
+    run.gold -= o.price;
+    o.sold = true;
+    o.toBench = false;
+    rec.rank = rankOf(rec) + 1;
+    return true;
+  }
   run.gold -= o.price;
   o.sold = true;
   o.toBench = false;
   if (o.kind === 'hero' && !canAddHero(run, o.key)) {
-    run.bench.push({ uid: uid(), kind: 'hero', key: o.key });
+    run.bench.push({ uid: uid(), kind: 'hero', key: o.key, rank: baseRank(run) });
     o.toBench = true;
   } else if (o.kind === 'wheel' && !canAddWheel(run, o.key)) {
-    run.bench.push({ uid: uid(), kind: 'wheel', key: o.key });
+    run.bench.push({ uid: uid(), kind: 'wheel', key: o.key, rank: baseRank(run) });
     o.toBench = true;
   } else if (o.kind === 'hero') {
     const first = run.squad.length === 0;
@@ -576,9 +1096,9 @@ function buy(run, idx) {
     if (first) {
       const d = heroOf(o.key);
       const nw = d && wheelOf(d.wheel);
-      if (nw && canAddWheel(run, nw.id)) { run.wheels.push({ uid: uid(), key: nw.id, native: true }); syncOrder(run); }
+      if (nw && canAddWheel(run, nw.id)) { run.wheels.push({ uid: uid(), key: nw.id, native: true, rank: baseRank(run) }); syncOrder(run); }
     }
-  } else if (o.kind === 'wheel') { run.wheels.push({ uid: uid(), key: o.key }); syncOrder(run); }
+  } else if (o.kind === 'wheel') { run.wheels.push({ uid: uid(), key: o.key, rank: baseRank(run) }); syncOrder(run); }
   else run.relics.push({ uid: uid(), key: o.key });
   return true;
 }
@@ -605,13 +1125,13 @@ function benchStore(run, id) {
   if (o.kind === 'hero') {
     if (run.squad.length <= 1) return { ok: false, why: '战场上至少留一个人' };
     run.squad.splice(run.squad.indexOf(o.rec), 1);
-    run.bench.push({ uid: o.rec.uid, kind: 'hero', key: o.rec.key });
+    run.bench.push({ uid: o.rec.uid, kind: 'hero', key: o.rec.key, rank: o.rec.rank || 0 });
     return { ok: true };
   }
   if (o.kind === 'wheel') {
     if (o.rec.native) return { ok: false, why: '本命命轮跟着第一个人走，不能收仓库' };
     run.wheels.splice(run.wheels.indexOf(o.rec), 1);
-    run.bench.push({ uid: o.rec.uid, kind: 'wheel', key: o.rec.key });
+    run.bench.push({ uid: o.rec.uid, kind: 'wheel', key: o.rec.key, rank: o.rec.rank || 0 });
     return { ok: true };
   }
   return { ok: false, why: '造物不能进仓库' };
@@ -625,22 +1145,22 @@ function benchDeploy(run, id, replaceId = null) {
     const def = heroOf(b.key);
     if (usedSlots(run) + def.slots <= TUNING.fieldSlots && !replaceId) {
       run.bench.splice(i, 1);
-      run.squad.push({ uid: b.uid, key: b.key });
+      run.squad.push({ uid: b.uid, key: b.key, rank: b.rank || 0 });
       return { ok: true };
     }
     const out = replaceId && run.squad.find((h) => h.uid === replaceId);
     if (!out) return { ok: false, why: `战场只剩 ${freeSlots(run)} 格，得选一个人换下来`, needSwap: true };
     if (usedSlots(run) - (heroOf(out.key).slots || 1) + def.slots > TUNING.fieldSlots) return { ok: false, why: '换完还是放不下，换个占格多的下来' };
     const at = run.squad.indexOf(out);
-    run.squad.splice(at, 1, { uid: b.uid, key: b.key });      // 站在被换下的人的位置上
+    run.squad.splice(at, 1, { uid: b.uid, key: b.key, rank: b.rank || 0 });      // 站在被换下的人的位置上
     const oi = (run.order || []).indexOf(out.uid);
     if (oi >= 0) run.order.splice(oi, 1, b.uid);
-    run.bench.splice(i, 1, { uid: out.uid, kind: 'hero', key: out.key });
+    run.bench.splice(i, 1, { uid: out.uid, kind: 'hero', key: out.key, rank: out.rank || 0 });
     return { ok: true };
   }
   if (canAddWheel(run, b.key) && !replaceId) {
     run.bench.splice(i, 1);
-    run.wheels.push({ uid: b.uid, key: b.key });
+    run.wheels.push({ uid: b.uid, key: b.key, rank: b.rank || 0 });
     syncOrder(run);
     return { ok: true };
   }
@@ -649,10 +1169,10 @@ function benchDeploy(run, id, replaceId = null) {
   if (out.native) return { ok: false, why: '本命命轮不能换下' };
   if (usedSlots(run) - wheelCells(wheelOf(out.key)) + wheelCells(wheelOf(b.key)) > TUNING.fieldSlots) return { ok: false, why: '换完还是放不下，换个占格多的下来' };
   const at = run.wheels.indexOf(out);
-  run.wheels.splice(at, 1, { uid: b.uid, key: b.key });
+  run.wheels.splice(at, 1, { uid: b.uid, key: b.key, rank: b.rank || 0 });
   const oi = (run.order || []).indexOf(out.uid);          // 站在被换下那条命轮的位置上
   if (oi >= 0) run.order.splice(oi, 1, b.uid);
-  run.bench.splice(i, 1, { uid: out.uid, kind: 'wheel', key: out.key });
+  run.bench.splice(i, 1, { uid: out.uid, kind: 'wheel', key: out.key, rank: out.rank || 0 });
   return { ok: true };
 }
 
@@ -767,7 +1287,12 @@ function foeStats(run, day = run.day) {
 }
 
 // ---------------------------------------------------------------- 战斗
-const MOD_KEYS = ['cap', 'gen', 'amp', 'crit', 'cdmg', 'shcap', 'regen', 'start', 'wcd', 'thorns', 'gold'];
+// 造物能给的加成键。前 11 个是老的那批；后面几个是 3.9 加的「真机制」——
+// 以前 310 件造物只有伤害/暴击/上限几种，同质化最严重的就是这一层。
+const MOD_KEYS = [
+  'cap', 'gen', 'amp', 'crit', 'cdmg', 'shcap', 'regen', 'start', 'wcd', 'thorns', 'gold',
+  'flat', 'ward', 'leech', 'pierce', 'venom', 'fear', 'hp',
+];
 
 function addMod(mod, k, v) {
   if (MOD_KEYS.indexOf(k) < 0) return;
@@ -805,12 +1330,37 @@ function modsOf(run) {
     leech: 0, wcdDown: 0, openShield: 0, pierce: 0, thorns: 0, venom: 0, fear: 0,
     save: 0, dupFirst: 0, lowLeech: 0, startCpu: 0, shieldCap: 60,
     gen: 0, cap: 0,
+    // 3.9 新机制：界域共鸣、持续伤害/治疗/直伤放大、毒圈推迟、我方易伤、开局限启
+    burst: 0, dotAmp: 0, healAmp: 0, fragile: 0, zoneDelay: 0, herocd: 0,
+    benchBonus: 0, startRank: 0, realm: null,
   };
   for (const r of run.relics) addMod(mod, itemOf(r.key).m.k, itemOf(r.key).m.v);
   for (const w of run.wheels) addWheelMod(mod, wheelOf(w.key));
   for (const h of run.squad) {
     const f = heroOf(h.key).fate;
     if (f) addMod(mod, f.k, f.v);
+  }
+
+  // 界域共鸣：同界域上场人数 2 / 3 / 4 人 → 三档。开本界域的店、一队同色，才吃得到。
+  const cnt = {};
+  for (const h of run.squad) {
+    const r = heroOf(h.key).realm;
+    if (r) cnt[r] = (cnt[r] || 0) + 1;
+  }
+  let top = null;
+  let topN = 1;
+  for (const k of Object.keys(cnt)) if (cnt[k] > topN) { top = k; topN = cnt[k]; }
+  if (top) {
+    const tr = REALM_TRAIT[top];
+    const tier = Math.min(3, topN - 1);                    // 2 人 = 1 档，4 人 = 3 档
+    if (tier >= 1) {
+      const v = tr.v[tier - 1];
+      mod.realm = { id: top, n: tr.n, count: topN, tier, v };
+      if (tr.k === 'amp') mod.amp += v;
+      else if (tr.k === 'dot') mod.dotAmp += v;
+      else if (tr.k === 'heal') { mod.healAmp += v; mod.realmHeal = 4; }
+      else if (tr.k === 'burst') { mod.burst += v; mod.pierce += [0.08, 0.14, 0.2][tier - 1]; }
+    }
   }
 
   switch (pact.k) {
@@ -828,6 +1378,14 @@ function modsOf(run) {
     case 'venom': mod.venom += pact.v; break;
     case 'fear': mod.fear = pact.v; break;
     case 'wolf': mod.amp += pact.v; mod.shieldCap -= 30; break;
+    case 'dotamp': mod.dotAmp += pact.v; mod.hp -= 15; break;
+    case 'snipe': mod.pierce += pact.v; break;
+    case 'zone': mod.zoneDelay = pact.v; break;
+    case 'mossregen': mod.regen += pact.v; break;
+    case 'bench': mod.benchBonus += pact.v; break;
+    case 'rank': mod.startRank += pact.v; break;
+    case 'herocd': mod.herocd += pact.v; break;
+    case 'twoedge': mod.amp += pact.v; mod.fragile += 0.15; break;
     default: break;
   }
 
@@ -856,15 +1414,16 @@ function createFight(run) {
     const au = auras.get(e.uid);
     if (e.kind === 'hero') {
       const d = e.def;
+      const hp = heroPlan(d, e.rank || 0);
       units.push({
-        uid: e.uid, def: d, timer: 0, act: d.act, aura: d.aura, fired: 0,
-        cd: Math.max(TUNING.cdMin, d.cd - au.cd + cdTer),
-        gen: Math.max(1, Math.round((d.gen + au.gen) * (1 + mod.gen))),
-        pow: 1 + au.pow,
+        uid: e.uid, def: d, rank: e.rank || 0, timer: 0, act: d.act, aura: d.aura, fired: 0,
+        cd: Math.max(TUNING.cdMin, hp.cd - au.cd + cdTer - mod.herocd),
+        gen: Math.max(1, Math.round((hp.gen + au.gen) * (1 + mod.gen))),
+        pow: (1 + au.pow) * hp.pow,
       });
     } else {
-      const ws = wheelStat(e.def, au, cdTer, mod);
-      wheels.push({ uid: e.uid, def: e.def, cost: ws.cost, wcd: ws.wcd, pow: ws.pow, timer: 0, native: !!e.native, waiting: false });
+      const ws = wheelStat(e.def, au, cdTer, mod, e.rank || 0);
+      wheels.push({ uid: e.uid, def: e.def, rank: e.rank || 0, cost: ws.cost, wcd: ws.wcd, pow: ws.pow, timer: 0, native: !!e.native, waiting: false });
     }
   }
 
@@ -911,6 +1470,7 @@ function hurt(f, target, amount, pierce = 0) {
   const isPlayer = target === f.p;
   if (isPlayer) {
     f.taken += amount;
+    if (f.mod.fragile) amount *= 1 + f.mod.fragile;
   }
   const lost = damageTo(target, amount, pierce);
   const back = isPlayer ? f.mod.thorns + (f.ter.k === 'thorns' ? f.ter.v : 0)
@@ -931,7 +1491,7 @@ function hurt(f, target, amount, pierce = 0) {
 // 我方伤害：kind='wheel' 才吃「命轮增伤」
 function rollDamage(f, base, kind) {
   let raw = base + f.mod.flat + f.p.str * 0.5;
-  raw *= 1 + (kind === 'wheel' ? f.mod.amp : 0) + f.terAmp;
+  raw *= 1 + (kind === 'wheel' ? f.mod.amp : 0) + f.terAmp + (f.mod.burst || 0);
   if (f.p.weakT > 0) raw *= 1 - f.p.weak;
   const crit = f.rnd() < Math.min(0.65, f.mod.crit);
   if (crit) raw *= 1.5 + f.mod.cdmg;
@@ -948,15 +1508,20 @@ function applyOp(f, side, op, mul, ctx = {}) {
   switch (op.k) {
     case 'dmg': {
       const hits = op.hits || 1;
+      // 处决：目标掉到这个血线以下时，这发伤害 ×1.8（超维·处决命轮）
+      const execute = side === 'p' && op.execute && target.hp <= target.maxHp * op.execute ? 1.8 : 1;
+      const pierce = side === 'p'
+        ? (op.pierce != null ? op.pierce : (ctx.kind === 'wheel' ? f.mod.pierce : 0))
+        : 0;
       let total = 0;
       let anyCrit = false;
       for (let h = 0; h < hits; h++) {
         let raw;
         let crit = false;
         if (side === 'p') {
-          const r = rollDamage(f, op.v * mul, ctx.kind);
+          const r = rollDamage(f, op.v * mul * execute, ctx.kind);
           raw = r.raw; crit = r.crit;
-          hurt(f, target, raw, ctx.kind === 'wheel' ? f.mod.pierce : 0);
+          hurt(f, target, raw, pierce);
         } else {
           raw = op.v * mul * (1 + f.e.str * 0.02) * (1 + f.terAmp);
           if (f.mod.fear) raw *= 1 - f.mod.fear;
@@ -984,6 +1549,7 @@ function applyOp(f, side, op, mul, ctx = {}) {
     }
     case 'poison': {
       let v = op.v * mul;
+      if (side === 'p') v *= 1 + f.mod.dotAmp;
       if (side === 'p' && f.mod.venom) { v *= 1 + f.mod.venom; v += 1; }
       target.poison = Math.max(target.poison, Math.round(v));
       target.poisonT = DOT_TURNS;
@@ -991,7 +1557,7 @@ function applyOp(f, side, op, mul, ctx = {}) {
       break;
     }
     case 'burn': {
-      const v = Math.round(op.v * mul);
+      const v = Math.round(op.v * mul * (side === 'p' ? 1 + f.mod.dotAmp : 1));
       target.burn = Math.max(target.burn, v);
       target.burnT = DOT_TURNS;
       ev.push({ s: side, k: 'burn', v, src: ctx.srcId });
@@ -1005,9 +1571,14 @@ function applyOp(f, side, op, mul, ctx = {}) {
       break;
     }
     case 'heal': {
-      const v = Math.round(op.v * mul);
+      let v = Math.round(op.v * mul);
+      if (side === 'p') v = Math.round(v * (1 + f.mod.healAmp));
       self.hp = Math.min(self.maxHp, self.hp + v);
       ev.push({ s: side, k: 'heal', v, src: ctx.srcId });
+      if (side === 'p' && f.mod.realmHeal) {
+        self.shield = Math.min(f.shieldCap, self.shield + f.mod.realmHeal);
+        ev.push({ s: 'p', k: 'shield', v: f.mod.realmHeal, src: ctx.srcId });
+      }
       break;
     }
     case 'gold': {
@@ -1131,6 +1702,10 @@ function stepFight(f) {
     f.cpuGain += got;
     ev.push({ s: 'p', k: 'cpu', v: got, waste: u.gen - got, uid: u.uid });
     for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow, { srcId: u.uid }));
+    // 最终法则（5 启）：出手顺带一次半效果追击——抓到第五张同名卡才有的东西
+    if (u.rank >= TUNING.rankMax) {
+      for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow * 0.5, { srcId: u.uid }));
+    }
     if (checkOver(f)) return ev;
   }
 
@@ -1144,6 +1719,15 @@ function stepFight(f) {
     f.cpuSpent += w.cost;
     w.timer = 0;
     for (const op of w.def.op) ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid }));
+    // 回响：每场第一次开火，这一发再结算一次（超维·回响命轮；一次性，不会无限翻倍）
+    if (!w.echoUsed && w.def.op.some((o) => o.k === 'echo')) {
+      w.echoUsed = true;
+      for (const op of w.def.op) {
+        if (op.k !== 'dmg') continue;
+        ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid, echo: true }));
+      }
+      ev.push({ s: 'p', k: 'echo', src: w.uid });
+    }
     // 再衍化：每场第一发命轮再打一次
     if (f.firstWheel && f.mod.dupFirst && !f.dupUsed) {
       f.dupUsed = true;
@@ -1171,15 +1755,16 @@ function stepFight(f) {
     }
   }
   // 7) 毒圈：第 zoneFrom 拍之后，双方同时掉血（按各自最大生命的比例，无视护盾），越往后越疼
-  if (f.t > TUNING.zoneFrom && !f.over) {
+  const zoneAt = TUNING.zoneFrom + (f.mod.zoneDelay || 0);
+  if (f.t > zoneAt && !f.over) {
     const pre = { p: f.p.hp / f.p.maxHp, e: f.e.hp / f.e.maxHp };
-    const k = TUNING.zoneStep * (f.t - TUNING.zoneFrom);
+    const k = TUNING.zoneStep * (f.t - zoneAt);
     const dp = f.p.maxHp * k;
     const de = f.e.maxHp * k;
     f.p.hp -= dp;
     f.e.hp -= de;
     f.zone = Math.round(k * 1000) / 10;            // 当前每拍掉的百分比（给界面显示）
-    ev.push({ s: 'z', k: 'zone', p: dp, e: de, pct: f.zone, first: f.t === TUNING.zoneFrom + 1 });
+    ev.push({ s: 'z', k: 'zone', p: dp, e: de, pct: f.zone, first: f.t === zoneAt + 1 });
     if (f.p.hp <= 0 && f.e.hp <= 0) {                // 同一拍双方一起倒：进圈前血线高的赢
       f.win = pre.p >= pre.e;
       f.over = f.win ? 'win' : 'lose';
@@ -1226,7 +1811,12 @@ function settle(run, f) {
     run.day += 1;
     run.freeReroll = 0;
     if (run.day > run.totalDays) { run.cleared = true; run.over = true; }
-    else { pickFoe(run); rollShop(run, { free: true }); }
+    else {
+      run.realmSwitched = false;                 // 新的一天，换界域商店又免费了
+      pickFoe(run);
+      rollShop(run, { free: true });
+      run.pendingEvent = pickEvent(run);         // 打赢之后先撞上一件事，再看商店
+    }
   } else {
     run.losses += 1;
     run.sane -= 1;
@@ -1246,6 +1836,91 @@ function settle(run, f) {
   return { goldGain, cleared, retry, stipend };
 }
 
+// ---------------------------------------------------------------- 战后事件
+function pickEvent(run) {
+  if (run.rnd() > 0.62) return null;
+  const pool = EVENTS.filter((e) => !e.minDay || run.day >= e.minDay);
+  return pool[Math.floor(run.rnd() * pool.length)].id;
+}
+
+const evRand = (run, arr) => arr[Math.floor(run.rnd() * arr.length) % arr.length];
+
+// 选项落地。返回一句话给界面做提示（金币不够 / 拿到了什么）。
+function applyEvent(run, id, optIndex = 0) {
+  const ev = EVENT_BY_ID.get(id);
+  if (!ev) { run.pendingEvent = null; return ''; }
+  const o = ev.opts[optIndex] || ev.opts[0];
+  if (o.cost && run.gold < o.cost) return '金币不够';
+  if (o.k === 'gamble' && run.gold < o.v) return '金币不够';
+  if (o.cost) run.gold -= o.cost;
+  let msg = '';
+  switch (o.k) {
+    case 'gold':
+      run.gold += o.v;
+      msg = `拿到 ${o.v} 金`;
+      break;
+    case 'gamble': {
+      run.gold -= o.v;
+      if (run.rnd() < o.odds) { run.gold += o.win; msg = `赢了，进账 ${o.win} 金`; }
+      else msg = `输了，押的 ${o.v} 金没了`;
+      break;
+    }
+    case 'maxhp':
+      run.bonusHp += o.v;
+      msg = `生命上限 +${o.v}`;
+      break;
+    case 'relic': {
+      if (run.relics.length >= TUNING.relicSlots) { run.gold += 10; msg = '造物槽满了，折成 10 金'; break; }
+      const it = evRand(run, SHOP_ITEMS);
+      run.relics.push({ uid: uid(), key: it.id });
+      msg = `得造物「${it.n}」`;
+      break;
+    }
+    case 'hero': {
+      const own = new Set([...run.squad.map((h) => h.key), ...(run.bench || []).map((b) => b.key)]);
+      const pool = HEROES.filter((h) => !own.has(h.id));
+      if (!pool.length) { run.gold += 12; msg = '没人可带，折成 12 金'; break; }
+      const h = evRand(run, pool);
+      if (canAddHero(run, h.id)) { addHero(run, h.id); msg = `「${h.n}」入队`; }
+      else if (benchRoom(run)) {
+        run.bench.push({ uid: uid(), kind: 'hero', key: h.id, rank: baseRank(run) });
+        msg = `「${h.n}」进了仓库`;
+      } else { run.gold += 12; msg = '队伍满了，折成 12 金'; }
+      break;
+    }
+    case 'rank': {
+      const cands = [...run.squad, ...(run.bench || []), ...run.wheels].filter((r) => rankOf(r) < TUNING.rankMax);
+      if (!cands.length) { run.gold += 10; msg = '没有可升的，折成 10 金'; break; }
+      const r = evRand(run, cands);
+      r.rank = rankOf(r) + 1;
+      const d = r.kind === 'wheel' || run.wheels.includes(r) ? wheelOf(r.key) : heroOf(r.key);
+      msg = `「${d ? d.n : ''}」升到 ${RANK_TIER[r.rank] || r.rank}`;
+      break;
+    }
+    case 'reroll':
+      run.freeShops += o.v;
+      if (o.gold) run.gold += o.gold;
+      msg = `多了 ${o.v} 次免费刷新`;
+      break;
+    case 'realm':
+      run.realmSwitched = false;
+      if (o.gold) run.gold += o.gold;
+      msg = '界域商店可以免费再换一次';
+      break;
+    default:
+      break;
+  }
+  if (o.sane) {
+    run.sane += o.sane;
+    if (run.sane <= 0) { run.sane = 0; run.over = true; }
+    msg += `，理智 ${o.sane > 0 ? '+' : ''}${o.sane}`;
+  }
+  if (o.maxhp) { run.bonusHp += o.maxhp; msg += `，生命上限 ${o.maxhp > 0 ? '+' : ''}${o.maxhp}`; }
+  if (o.gold && o.k !== 'reroll' && o.k !== 'realm') run.gold += o.gold;
+  run.pendingEvent = null;
+  return msg;
+}
+
 function scoreOf(run) {
   const day = Math.min(run.cleared ? run.totalDays : run.day - 1, run.totalDays);
   const diffMul = run.diff.id === 'normal' ? 1 : run.diff.id === 'hard' ? 1.35 : run.diff.id === 'nightmare' ? 1.8 : 2.4;
@@ -1262,8 +1937,9 @@ function opText(op, mul = 1) {
       let t = `造成 ${num(op.v * mul)} 点伤害`;
       if (op.hits > 1) t += `，共 ${op.hits} 段`;
       if (op.pierce) t += '，无视护盾';
-      if (op.leech) t += '，并吸取 30%';
+      if (op.leech) t += `，并吸取 ${Math.round(op.leech * 100)}%`;
       if (op.vsPoison) t += `，对中毒目标追加 ${num(op.vsPoison * mul)} 点`;
+      if (op.execute) t += `；目标生命低于 ${Math.round(op.execute * 100)}% 时伤害 ×1.8`;
       return t;
     }
     case 'poison': return `施加 ${num(op.v * mul)} 层中毒（3 拍内每拍掉等量血，无视护盾）`;
@@ -1278,6 +1954,7 @@ function opText(op, mul = 1) {
     case 'thorns': return `受到伤害时反弹 ${num(op.v * mul)} 点`;
     case 'weaken': return `你的伤害 -${pctv(op.v)}（${op.t || 3} 拍）`;
     case 'stun': return '打断：所有唤醒体与命轮延后一拍';
+    case 'echo': return '回响：每场第一次开火，这一发再结算一次';
     default: return '';
   }
 }
@@ -1286,7 +1963,8 @@ function opText(op, mul = 1) {
 function modText(k, v) {
   const z = MOD_ZH[k];
   if (!z) return '';
-  const pctK = k === 'gen' || k === 'amp' || k === 'crit' || k === 'cdmg';
+  const pctK = k === 'gen' || k === 'amp' || k === 'crit' || k === 'cdmg'
+    || k === 'leech' || k === 'pierce' || k === 'venom' || k === 'fear';
   const show = pctK ? String(Math.round(v * 100))
     : k === 'wcd' ? String(Math.round(v)) : num(v);
   return `${z[0]} ${z[1]}${show}${z[2]}`;
@@ -1300,7 +1978,7 @@ function itemText(def) {
 function wheelFireText(def) {
   return def.op.map((o) => opText(o, 1)).join('；');
 }
-return { TUNING, HEROES, ITEMS, SHOP_ITEMS, WHEELS, PACTS, FOES, DIFFS, SCHEDULE, TERRAINS, MOD_ZH, AURA_ZH, REALM_COLOR, ARCH_ZH, itemOf, wheelOf, foeOf, heroOf, pactOf, terrainOf, diffOf, rngFrom, heroPrice, wheelPrice, relicPrice, sellPrice, newRun, wheelCells, usedSlots, freeSlots, syncOrder, layoutOf, canAddHero, canAddWheel, addHero, moveHero, removeHero, auraMap, wheelPlan, planOf, priceOf, shopMix, rollShop, defOf, benchRoom, canBuy, buy, owned, benchStore, benchDeploy, sell, coreCostOf, expandCore, rowOf, pickFoe, rawDps, foeStats, modsOf, createFight, stepFight, autoFight, settle, scoreOf, opText, modText, itemText, wheelFireText };
+return { TUNING, HEROES, ITEMS, SHOP_ITEMS, WHEELS, PACTS, FOES, DIFFS, SCHEDULE, TERRAINS, MOD_ZH, AURA_ZH, REALM_COLOR, ARCH_ZH, REALM_TRAIT, RANK_ZH, RANK_TIER, ALL_EVENTS, eventOf, itemOf, wheelOf, foeOf, heroOf, pactOf, terrainOf, diffOf, rngFrom, heroPrice, wheelPrice, relicPrice, sellPrice, newRun, rankOf, RANK_DESC, RANK_DESC_W, heroPlan, wheelCells, usedSlots, freeSlots, syncOrder, layoutOf, canAddHero, canAddWheel, addHero, moveHero, removeHero, auraMap, wheelPlan, planOf, priceOf, shopMix, rollShop, setShopRealm, defOf, benchRoom, canBuy, buy, owned, benchStore, benchDeploy, sell, coreCostOf, expandCore, rowOf, pickFoe, rawDps, foeStats, modsOf, createFight, stepFight, autoFight, settle, applyEvent, scoreOf, opText, modText, itemText, wheelFireText };
 })();
 
 // ---- js/bazaar-sfx.js
@@ -1532,7 +2210,7 @@ return { unlock, isOn, setOn, toggle, sfx };
 // ---- js/bazaar.js
 const m_bazaar = await (async () => {
 const C = m_bazaar_core;
-const { TUNING, HEROES, WHEELS, PACTS, DIFFS, SHEETS, ARCH_ZH, RANK_ZH, AURA_ZH } = m_bazaar_data;
+const { TUNING, HEROES, WHEELS, PACTS, DIFFS, SHEETS, ITEM_ARCH_ZH, RANK_ZH, AURA_ZH, REALM_ZH, ARCH } = m_bazaar_data;
 const { sfx, toggle: sfxToggle, isOn: sfxIsOn } = m_bazaar_sfx;
 // 《大巴扎：银钥》界面层：布阵、集市、十格战场、自动战斗的表现。
 // 规则本身全在 js/bazaar-core.js（node 里能跑，scripts/bazaar-sim.mjs 就是拿它做平衡的），
@@ -1593,7 +2271,7 @@ const REALM_VAR = { CHAOS: '--chaos', CARO: '--caro', AEQUOR: '--aqua', ULTRA: '
 const REALM_CLS = { CHAOS: 'CH', CARO: 'CA', AEQUOR: 'AE', ULTRA: 'UL' };
 // 待机立绘：唤醒体是 GIF 动图（循环播放），主播彩蛋只有一张静图（.webp）
 // 资源地址带版本号：图集 / 立绘换过之后，线上和浏览器缓存里的旧文件不会和新数据错位（图标名字对不上就是这么来的）
-const ASSET_V = '3.8.0';
+const ASSET_V = '3.9.0';
 const idleUrl = (h) => `assets/bazaar/idle/${h.id}.${h.egg ? 'webp' : 'gif'}?v=${ASSET_V}`;
 const artHTML = (h) => (h ? `<img src="${idleUrl(h)}" alt="${h.n}" decoding="async">` : '');
 function setRealm(h, els) {
@@ -1605,6 +2283,25 @@ function preload(h) {
   const im = new Image();
   im.src = idleUrl(h);
 }
+
+// 启灵角标：0 启不显示；1~3 启写数字，超限 / 最终法则换配色。
+// 抓到同一个唤醒体会往上叠，所以「这张卡喂过几次」得一眼能看见，不然玩家不知道重复抓有什么用。
+const RANK_SHORT = ['', '1', '2', '3', '超', '终'];
+const rankBadge = (rank) => (rank > 0
+  ? `<span class="orb${rank >= 4 ? ' max' : ''}" title="${C.RANK_TIER[rank] || rank}">${RANK_SHORT[rank] || rank}</span>`
+  : '');
+const rankLabel = (rank) => (rank > 0 ? C.RANK_TIER[rank] || `${rank} 启` : '');
+
+// 界域商店的五个按钮（id 为空串 = 混合）。名字和流派都从数据层取，别在这里抄一份。
+const SHOP_REALMS = [{ id: '', n: '混合', t: '四个界域混着出，什么都可能有（造物本来就不分界域）' }]
+  .concat(['CHAOS', 'CARO', 'AEQUOR', 'ULTRA'].map((id) => {
+    const arch = Object.keys(ARCH).filter((k) => ARCH[k].realm === id).map((k) => ARCH[k].n);
+    const tr = C.REALM_TRAIT[id];
+    return {
+      id, n: REALM_ZH[id],
+      t: `${REALM_ZH[id]}：${arch.join(' / ')}\n共鸣（${tr ? tr.n : ''}）：同界域 2 / 3 / 4 人时全队吃加成`,
+    };
+  }));
 
 // ---------------------------------------------------------------- 小工具
 let toastTimer = 0;
@@ -1689,19 +2386,19 @@ const TUT = [
   { at: null, t: '欢迎来到弥萨格大巴扎',
     d: '这是一个「摆摊自走」小游戏：每天先在集市买东西、摆好阵，再开战，战斗全自动。<b>连赢 12 天、理智别掉光</b>就算通关（输一场掉 1 点理智，但留在原地有补给让你补强再打）。接下来 1 分钟带你认一遍界面。' },
   { at: 'shop', t: '① 集市：一次六个选项，用金币招人、买命轮',
-    d: '开局你只有 <b>32 金</b>：刚好够招 <b>2 个 1 格唤醒体</b>，或者 <b>1 个唤醒体 + 1 条命轮</b>。点卡面直接买，点左边小图标看详情。<b>第一个唤醒体会白送他的本命命轮</b>，所以先招人最稳。不想要这批货可以「刷新」（要花钱）。' },
+    d: '开局你只有 <b>32 金</b>：刚好够招 <b>2 个 1 格唤醒体</b>，或者 <b>1 个唤醒体 + 1 条命轮</b>。点卡面直接买，点左边小图标看详情。<b>第一个唤醒体会白送他的本命命轮</b>，所以先招人最稳。不想要这批货可以「刷新」（要花钱）。上面那排是<b>界域选择</b>：挑了某一界，今天只出那一界的唤醒体和命轮（每天第一次免费，之后 1 金）。摊位里偶尔还会多一张金框的<b>「升启」</b>卡——买它不占格、不进仓库，直接把已有的那张往上顶一档。' },
   { at: 'track', t: '② 战场：十五格，人和命轮共用',
-    d: '<b>唤醒体和命轮一起站在十五格里</b>：唤醒体占 1~3 格，命轮占 1~2 格（SSR 占 2）。<b>按住任何一个左右拖</b>可以换位置，人和命轮可以互相换。每个人头顶的圆圈数字是「还差几拍出手」。<b>光环给左右相邻的那两个——不管邻居是人还是命轮</b>：把有光环的唤醒体贴在命轮旁边，命轮就能更快、更省算力、更疼。每个唤醒体出手时除了产算力，还会<b>顺手打一下</b>：伤害型最疼，守护 / 辅助只打一点（输出主力还是命轮）。' },
+    d: '<b>唤醒体和命轮一起站在十五格里</b>：唤醒体占 1~3 格，命轮占 1~2 格（SSR 占 2）。<b>按住任何一个左右拖</b>可以换位置，人和命轮可以互相换。每个人头顶的圆圈数字是「还差几拍出手」。<b>光环给左右相邻的那两个——不管邻居是人还是命轮</b>：把有光环的唤醒体贴在命轮旁边，命轮就能更快、更省算力、更疼。每个唤醒体出手时除了产算力，还会<b>顺手打一下</b>（输出主力还是命轮）。<b>唤醒体分十二个流派</b>：狂乱叠力量、蚀毒下毒、焚身灼烧、血壁架盾、霜刃多段、涌泉回血、滞潮拖节拍、速律快节拍、虚隙加易伤、折跃穿盾……卡片右上角就是流派名，先看清它是干嘛的再买。' },
   { at: 'cpuBar', t: '③ 算力：唤醒体产，命轮花',
     d: '这条蓝条是<b>算力</b>。唤醒体每隔几拍产一次算力（右边写着 产 X · 耗 Y），命轮开火要消耗算力。<b>产 ≥ 耗（绿色 +）</b>才够用；不够就去招更多人或「扩容」。上限满了产出会浪费。' },
   { at: 'wheels', t: '④ 命轮才是主要输出',
-    d: '命轮有自己的节拍，走满后还要吃一口算力才开火；算力不够就卡在「等算力」。命轮也占格子，和人抢十五格。别一味买贵的，先让产出跟上。下面的「造物」不出手，只给加成，最多装 4 件。' },
+    d: '命轮有自己的节拍，走满后还要吃一口算力才开火；算力不够就卡在「等算力」。命轮也占格子，和人抢十五格。别一味买贵的，先让产出跟上。<b>冷却条的颜色 = 界域</b>：血肉红、深海蓝、混沌黄、超维紫，中立是金色。下面的「造物」不出手，最多装 4 件——除了面板属性，还有吸血 / 穿盾 / 每四拍护盾 / 压敌方伤害这些机制件。' },
   { at: 'bench', t: '⑤ 仓库：放不下的先存着，也能卖',
     d: '战场十五格放不下的人 / 命轮，买下后会<b>自动进仓库</b>（最多 4 件）。点仓库里的可以<b>上场</b>，满了就选一个<b>换下来</b>；场上的人和命轮点开也能「移入仓库」。不要的点开可以<b>卖掉，返还一半金币</b>。刷新一次只要 1 金，多刷几次挑想要的。' },
   { at: 'btnFight', t: '⑥ 开战：一直打到有人倒下',
     d: '点「开战」自动开打，<b>一直打到有一方倒下</b>：打到第 100 拍后<b>毒圈</b>出现，双方每拍同时掉最大生命的一截（无视护盾）、越往后越疼，所以拖不过去。战斗里<b>每个人的立绘会被界域色从脚底漫到头顶，漫满就出手</b>；每一拍有一个鼓点，四拍一小节。右下角可以 ×1/×2/×3 加速或跳过。毒圈无视护盾，所以最后比的是谁的血线更高：护盾、回血、削对面血都是在抢血线。' },
   { at: 'foeBar', t: '⑦ 看清今天的对手和地形',
-    d: '顶上是今天的对手（血量、技能节拍）和地形（对双方都生效，比如熔岩每三拍两边掉血）。赢了拿金币进下一天，商店会变丰富；<b>别忘了每天先买再开战</b>。输了会掉 1 点理智，但<b>不会往下一天走</b>：留在原地，系统补给一笔金币、刷一批新货，让你补强后再挑战同一个对手。理智掉光才散场。随时可以点右上角「?」重看这份指导。' },
+    d: '顶上是今天的对手（血量、技能节拍）和地形（对双方都生效，比如熔岩每三拍两边掉血）。赢了拿金币进下一天，商店会变丰富；<b>别忘了每天先买再开战</b>。打赢之后会先撞上<b>一件小事</b>（流浪商人 / 血池 / 赌桌 / 旧日遗物……），两个选项各有代价，选完才回集市。输了会掉 1 点理智，但<b>不会往下一天走</b>：留在原地，系统补给一笔金币、刷一批新货，让你补强后再挑战同一个对手。理智掉光才散场。随时可以点右上角「?」重看这份指导。' },
 ];
 let tutEl = null;
 function closeTutorial() {
@@ -1801,7 +2498,10 @@ function wheelUnitHTML(u, inBattle) {
   const timer = inBattle && u.timer != null ? u.timer : 0;
   const boosted = ws.pow > 1.001 || ws.wcd < d.wcd || ws.cost < d.cpu;
   const b = inBattle ? 'b' : '';
-  return `<div class="unit wu${u.len < 2 ? ' w1' : ''}${u.native ? ' native' : ''}" data-uid="${u.uid}" data-kind="wheel" style="--at:${u.start};--len:${u.len};--realm:var(--gold)">
+  // 冷却条按界域上色：血肉红 / 深海蓝 / 混沌黄 / 超维紫，中立命轮仍是金色
+  const rv = REALM_VAR[d.realm] ? `var(${REALM_VAR[d.realm]})` : 'var(--gold)';
+  return `<div class="unit wu${u.len < 2 ? ' w1' : ''}${u.native ? ' native' : ''}" data-uid="${u.uid}" data-kind="wheel" style="--at:${u.start};--len:${u.len};--realm:${rv}">
+    ${rankBadge(u.rank || 0)}
     <span class="wsp">${sp(d.spr)}</span>
     <span class="ucd${inBattle && ws.wcd - timer <= 1 ? ' now' : ''}" id="${b}ucd${u.uid}"><i>${inBattle ? Math.max(0, ws.wcd - timer) : ws.wcd}</i></span>
     <span class="ut">${d.n}</span>
@@ -1819,6 +2519,7 @@ function unitHTML(u, inBattle) {
   const timer = u.timer != null ? u.timer : 0;
   const left = inBattle ? Math.max(0, cd - timer) : d.cd;
   return `<div class="unit r-${REALM_CLS[d.realm]}" data-uid="${u.uid}" style="--at:${u.start};--len:${u.len};--realm:var(${REALM_VAR[d.realm]})">
+    ${rankBadge(u.rank || 0)}
     <img src="${idleUrl(d)}" alt="${d.n}" decoding="async">
     <span class="ucd${inBattle && left <= 1 ? ' now' : ''}" id="${inBattle ? 'b' : ''}ucd${u.uid}" style="--p:${inBattle ? Math.round((timer / cd) * 100) : 0}"><i>${left}</i></span>
     <span class="ut">${d.n}</span>
@@ -1834,7 +2535,7 @@ function renderTrack(host, inBattle) {
   const units = inBattle && fight
     ? lay.map((rec) => {
         const live = rec.kind === 'wheel' ? fight.wheels.find((w) => w.uid === rec.uid) : fight.units.find((u) => u.uid === rec.uid);
-        return live ? { ...live, kind: rec.kind, start: rec.start, len: rec.len, native: rec.native } : rec;
+        return live ? { ...live, kind: rec.kind, rank: rec.rank, start: rec.start, len: rec.len, native: rec.native } : rec;
       })
     : lay;
   const used = lay.reduce((s, u) => s + u.len, 0);
@@ -1857,8 +2558,9 @@ function renderWheels() {
   const parts = ['<span class="lab">命轮</span>'];
   for (const w of run.wheels) {
     const d = C.wheelOf(w.key);
-    parts.push(`<button class="wh" type="button" data-wid="${w.uid}" title="${wheelFire(d)}">
-      ${sp(d.spr)}<span class="wi"><b>${d.n}</b><i>耗 ${d.cpu} · ${d.wcd} 拍</i></span>
+    const rk = rankLabel(C.rankOf(w));
+    parts.push(`<button class="wh" type="button" data-wid="${w.uid}" title="${wheelFire(d)}${rk ? `（${rk}）` : ''}">
+      ${rankBadge(C.rankOf(w))}${sp(d.spr)}<span class="wi"><b>${d.n}</b><i>耗 ${d.cpu} · ${d.wcd} 拍${rk ? ` · ${rk}` : ''}</i></span>
       <span class="wp"><i></i></span></button>`);
   }
   if (!run.wheels.length) parts.push('<span class="wh empty">还没命轮（买下后和唤醒体一起站在上面的十五格里）</span>');
@@ -1892,8 +2594,9 @@ function renderBench() {
   const parts = [`<span class="lab">仓库 ${run.bench.length}/${TUNING.benchSlots}</span>`];
   for (const b of run.bench) {
     const d = b.kind === 'hero' ? C.heroOf(b.key) : C.wheelOf(b.key);
+    const rk = rankLabel(C.rankOf(b));
     parts.push(`<button class="wh bn" type="button" data-bid="${b.uid}" title="点开：上场 / 换下场上的 / 卖掉">
-      ${sp(d.spr)}<span class="wi"><b>${d.n}</b><i>${b.kind === 'hero' ? `唤醒体 · 占 ${d.slots} 格` : `命轮 · 耗 ${d.cpu} · ${d.wcd} 拍`}</i></span></button>`);
+      ${rankBadge(C.rankOf(b))}${sp(d.spr)}<span class="wi"><b>${d.n}</b><i>${b.kind === 'hero' ? `唤醒体 · 占 ${d.slots} 格` : `命轮 · 耗 ${d.cpu} · ${d.wcd} 拍`}${rk ? ` · ${rk}` : ''}</i></span></button>`);
   }
   if (!run.bench.length) parts.push('<span class="wh empty">空（买不进战场的人 / 命轮会放这里）</span>');
   host.innerHTML = parts.join('');
@@ -1947,31 +2650,112 @@ function benchActions(o) {
 }
 
 function offerText(o, def) {
+  if (o.dup) {
+    const up = dupTarget(o);
+    const to = up ? rankLabel(C.rankOf(up) + 1) : '';
+    return `同名${o.kind === 'hero' ? '唤醒体' : '命轮'} · 升到 ${to}（不占格）`;
+  }
   if (o.kind === 'hero') return `占 ${def.slots} 格 · 每 ${def.cd} 拍产 ${def.gen} 算力`;
   if (o.kind === 'wheel') return `耗 ${def.cpu} 算力 · ${wheelFire(def)}（${def.wcd} 拍）`;
   return C.itemText(def);
 }
 
+// 「升启」报价要升的是谁：优先场上，其次仓库，再轮到命轮格
+function dupTarget(o) {
+  if (!o || !o.dup) return null;
+  const pool = o.kind === 'hero'
+    ? [...run.squad, ...(run.bench || []).filter((b) => b.kind === 'hero')]
+    : [...run.wheels, ...(run.bench || []).filter((b) => b.kind === 'wheel')];
+  return pool.find((r) => r.key === o.key && C.rankOf(r) < TUNING.rankMax) || null;
+}
+
+// 界域商店：今天开哪一界的摊。当天第一次免费，之后每次 1 金（和刷新同价）。
+function renderShopRealm() {
+  const host = $('realmPick');
+  if (!host) return;
+  const cur = run.shopRealm || '';
+  host.innerHTML = SHOP_REALMS.map((r) => {
+    const cost = run.realmSwitched && r.id !== cur ? ` · ${TUNING.realmShopCost} 金` : '';
+    return `<button type="button" data-realm="${r.id || 'mixed'}" class="${cur === r.id ? 'on' : ''}"
+      title="${r.t}${cost}">${r.n}</button>`;
+  }).join('');
+  host.onclick = (e) => {
+    const el = e.target.closest('[data-realm]');
+    if (!el) return;
+    const id = el.dataset.realm === 'mixed' ? null : el.dataset.realm;
+    if ((run.shopRealm || null) === id) return;
+    const r = C.setShopRealm(run, id);
+    if (!r.ok) { sfx.error(); toast(r.why || '换不了'); return; }
+    sfx.open();
+    renderAll();
+    toast(id ? `今天只开${REALM_ZH[id]}的摊` : '混合集市：四个界域混着出');
+  };
+}
+
+// 战后事件：打赢之后先撞上一件事，选完才回集市。延迟一拍再弹，让「+N 金」的提示先被看见。
+let evTimer = 0;
+let evCur = null;
+function renderEvent() {
+  const ov = $('eventOv');
+  if (!ov) return;
+  const id = run.pendingEvent;
+  if (!id) {
+    clearTimeout(evTimer);
+    evCur = null;
+    ov.classList.remove('on');
+    return;
+  }
+  const ev = C.eventOf(id);
+  if (!ev) { run.pendingEvent = null; ov.classList.remove('on'); return; }
+  $('evName').textContent = ev.n;
+  $('evTxt').textContent = ev.txt;
+  $('evOpts').innerHTML = ev.opts.map((o, i) => {
+    const poor = (o.cost && run.gold < o.cost) || (o.k === 'gamble' && run.gold < o.v);
+    const tag = o.cost ? ` · ${o.cost} 金` : (o.k === 'gamble' ? ` · 押 ${o.v} 金` : '');
+    return `<button type="button" data-evopt="${i}"${poor ? ' disabled' : ''}><b>${o.t}</b><span>${o.d}${tag}</span></button>`;
+  }).join('');
+  $('evOpts').onclick = (e) => {
+    const el = e.target.closest('[data-evopt]');
+    if (!el || el.disabled) return;
+    const msg = C.applyEvent(run, id, Number(el.dataset.evopt));
+    if (msg === '金币不够') { sfx.error(); toast('金币不够'); return; }
+    sfx.buy();
+    ov.classList.remove('on');
+    renderAll();
+    if (msg) toast(msg);
+  };
+  if (evCur !== id) {
+    evCur = id;
+    clearTimeout(evTimer);
+    evTimer = setTimeout(() => {
+      if (run && run.pendingEvent === id) ov.classList.add('on');
+    }, 650);
+  }
+}
+
 function renderShop() {
   const s = $('shop');
   if (!run.shop.length) { s.innerHTML = '<div class="tipbox">今天的摊位收完了，开战吧。</div>'; return; }
+  const lastOdd = run.shop.length % 2 === 1 ? run.shop.length - 1 : -1;
   s.innerHTML = run.shop.map((o, i) => {
     const def = C.defOf(o);
     const can = C.canBuy(run, i);
     const rar = o.kind === 'relic' ? def.r : def.r || 'SSR';
     // 英雄卡带上界域色：图标描一圈对应色，不同唤醒体一眼分得开（和「每个唤醒体一个专属音色」呼应）
-    const rstyle = (o.kind === 'hero' && REALM_VAR[def.realm]) ? ` style="--realm:var(${REALM_VAR[def.realm]})"` : '';
+    const tint = (o.kind === 'hero' || o.kind === 'wheel') && REALM_VAR[def.realm] ? REALM_VAR[def.realm] : '';
+    const rstyle = tint ? ` style="--realm:var(${tint})"` : '';
     // 图标那一块单独可点：看详情，不买。手机上一张卡就是「买」，误触的代价太大。
-    return `<button class="card k-${o.kind} r-${rar} ${o.sold ? 'sold' : ''} ${!can && !o.sold ? 'poor' : ''}" type="button" data-offer="${i}"${rstyle}>
+    return `<button class="card k-${o.kind} r-${rar} ${o.sold ? 'sold' : ''} ${!can && !o.sold ? 'poor' : ''}${o.dup ? ' isdup' : ''}${i === lastOdd ? ' odd' : ''}" type="button" data-offer="${i}"${rstyle}>
       <span class="ci" data-info="${i}">${sp(def.spr)}</span>
-      ${o.kind === 'hero' ? `<span class="ca" style="background-image:url(${idleUrl(def)})"></span>` : ''}
+      ${o.kind === 'hero' && !o.dup ? `<span class="ca" style="background-image:url(${idleUrl(def)})"></span>` : ''}
       <span class="cp ${run.gold < o.price ? 'no' : ''}">${o.price}</span>
-      <span class="cn">${def.n}</span>
+      <span class="cn">${o.dup ? '<span class="dup">升启</span>' : ''}${def.n}</span>
       <span class="ct">${offerText(o, def)}</span>
-      <span class="r">${o.kind === 'hero' ? (def.egg ? '主播' : '唤醒体') : o.kind === 'wheel' ? '命轮' : (ARCH_ZH[def.arch] || def.r)}</span>
+      <span class="r">${o.kind === 'hero' ? (def.archZh || '唤醒体') : o.kind === 'wheel' ? (def.archZh || '命轮') : (ITEM_ARCH_ZH[def.arch] || def.r)}</span>
     </button>`;
   }).join('');
-  $('shopHint').textContent = `还剩 ${run.shop.filter((x) => !x.sold).length} 个摊位`;
+  const total = run.shop.filter((x) => !x.sold).length;
+  $('shopHint').textContent = `${run.shopRealm ? `${REALM_ZH[run.shopRealm]}店` : '混合店'} · 还剩 ${total} 个摊位`;
 }
 
 function renderShopClick() {
@@ -2024,8 +2808,10 @@ function renderAll() {
   renderWheels();
   renderRelics();
   renderBench();
+  renderShopRealm();
   renderShop();
   renderTrail();
+  renderEvent();
   $('btnCore').textContent = `扩容 ${C.coreCostOf(run)}`;
   $('btnCore').disabled = run.gold < C.coreCostOf(run);
   const cost = TUNING.rerollCost + run.rerolls;
@@ -2086,24 +2872,36 @@ window.addEventListener('pointercancel', () => {
 
 // ---------------------------------------------------------------- 详情
 // 详情面板：三条信息源共用一块 DOM —— 队伍里的东西（可卖）、集市里的东西（可买）、战斗中的东西（只看）
-function sheetHero(d) {
+function rankLines(rank, desc) {
+  const r = Math.max(0, Math.min(TUNING.rankMax, rank | 0));
+  const cur = `${C.RANK_TIER[r] || '未启灵'}：${desc[r]}`;
+  const next = r < TUNING.rankMax ? `<br>再抓一张同名 → ${C.RANK_TIER[r + 1]}：${desc[r + 1]}` : '';
+  return `<em>${cur}${next}</em>`;
+}
+function sheetHero(d, rank = 0, note = '') {
   paintSp($('sImg'), d.spr);
   $('sName').textContent = d.n;
-  $('sMeta').textContent = `${d.realmZh} · ${d.type} · 占 ${d.slots} 格 · 每 ${d.cd} 拍产 ${d.gen}`;
+  $('sMeta').textContent = `${d.realmZh} · ${d.type} · ${d.archZh || ''} · 占 ${d.slots} 格 · 每 ${d.cd} 拍产 ${d.gen}`
+    + (rank > 0 ? ` · ${C.RANK_TIER[rank]}` : '');
   $('sTxt').innerHTML = [
     `<b>${d.txt}</b>`,
+    note,
+    rankLines(rank, C.RANK_DESC),
     `光环：${d.auraTxt}（只喂左右相邻的两家）`,
     `本命：${d.fate.n}　${C.modText(d.fate.k, d.fate.v)}`,
     `本命命轮：${(C.wheelOf(d.wheel) || {}).n || '—'}`,
-  ].join('<br>');
+  ].filter(Boolean).join('<br>');
   $('sArt').innerHTML = artHTML(d);
 }
-function sheetWheel(d, native) {
+function sheetWheel(d, native, rank = 0, note = '') {
   paintSp($('sImg'), d.spr);
   $('sName').textContent = d.n + (native ? '（本命）' : '');
-  $('sMeta').textContent = `命轮 · 耗 ${d.cpu} 算力 · ${d.wcd} 拍一次`;
+  $('sMeta').textContent = `命轮 · ${d.archZh || ''} · 耗 ${d.cpu} 算力 · ${d.wcd} 拍一次`
+    + (rank > 0 ? ` · ${C.RANK_TIER[rank]}` : '');
   $('sTxt').innerHTML = [
     `<b>${wheelFire(d)}</b>`,
+    note,
+    rankLines(rank, C.RANK_DESC_W),
     `主词条：${wheelPassive(d)}`,
     d.perk ? `<em>${d.perk.txt}</em>` : '',
     '算力不够就会卡在「等算力」，先把产出跟上。',
@@ -2156,13 +2954,22 @@ function openDetail(kind, id, opt) {
 
   if (kind === 'hero') {
     const d = own ? o.def : C.heroOf(offer.key);
-    sheetHero(d);
+    if (own) sheetHero(d, C.rankOf(o.rec));
+    else {
+      const upd = dupTarget(offer);
+      if (upd) sheetHero(d, C.rankOf(upd), `买下就是升到 <b>${rankLabel(C.rankOf(upd) + 1)}</b>：同名卡不占格、不进仓库。`);
+      else sheetHero(d);
+    }
     if (isOffer) {
-      $('sSell').textContent = offer.sold ? '已经买下了' : `买下 ${offer.price} 金`;
+      const upd = dupTarget(offer);
+      const nextT = upd ? rankLabel(C.rankOf(upd) + 1) : '';
+      $('sSell').textContent = offer.sold ? '已经买下了'
+        : (offer.dup ? `升到 ${nextT} · ${offer.price} 金` : `买下 ${offer.price} 金`);
       $('sSell').disabled = offer.sold || !C.canBuy(run, opt.offer);
       $('sSell').onclick = () => {
         if (!C.buy(run, opt.offer)) { sfx.error(); toast('买不了：钱不够或者战场装不下'); return; }
-        sfx.buy(); closeSheet(); renderAll(); toast(`${d.n} 上场`);
+        sfx.buy(); closeSheet(); renderAll();
+        toast(offer.dup ? `${d.n} 升到 ${nextT}` : `${d.n} 上场`);
       };
     } else {
       const back = C.sellPrice('hero', d);
@@ -2175,13 +2982,22 @@ function openDetail(kind, id, opt) {
     }
   } else if (kind === 'wheel') {
     const d = own ? o.def : C.wheelOf(offer.key);
-    sheetWheel(d, own ? o.rec.native : false);
+    if (own) sheetWheel(d, o.rec.native, C.rankOf(o.rec));
+    else {
+      const upd = dupTarget(offer);
+      if (upd) sheetWheel(d, false, C.rankOf(upd), `买下就是升到 <b>${rankLabel(C.rankOf(upd) + 1)}</b>：同名命轮不占格。`);
+      else sheetWheel(d, false);
+    }
     if (isOffer) {
-      $('sSell').textContent = offer.sold ? '已经买下了' : `买下 ${offer.price} 金`;
+      const upd = dupTarget(offer);
+      const nextT = upd ? rankLabel(C.rankOf(upd) + 1) : '';
+      $('sSell').textContent = offer.sold ? '已经买下了'
+        : (offer.dup ? `升到 ${nextT} · ${offer.price} 金` : `买下 ${offer.price} 金`);
       $('sSell').disabled = offer.sold || !C.canBuy(run, opt.offer);
       $('sSell').onclick = () => {
         if (!C.buy(run, opt.offer)) { sfx.error(); toast('买不了：钱不够，或者战场格子不够'); return; }
-        sfx.buy(); closeSheet(); renderAll(); toast(`${d.n} 上膛`);
+        sfx.buy(); closeSheet(); renderAll();
+        toast(offer.dup ? `${d.n} 升到 ${nextT}` : `${d.n} 上膛`);
       };
     } else {
       const back = C.sellPrice('wheel', d);
