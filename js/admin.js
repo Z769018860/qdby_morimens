@@ -254,7 +254,7 @@ async function openIdleSave(u) {
 // ------------------------------------------------------------------ BUG 反馈详情
 // 首页「报 bug」写进去的反馈：以前后台只数条数，正文没有任何读取入口。这里按时间倒序列出（最多 100 条），
 // 每条带游戏、版本、联系方式、设备 UA 和全文，方便按反馈去发奖励（在上面的发放面板里发回溯券 / 银芯）。
-const BUG_GAME_ZH = { home: '首页', detective: '战报侦探', merge: '合成大杜勒', bird: '是鸟弟就下100层', binding: '校猫的结合', idle: '挂机前夜', survivors: '唤醒体幸存者', protocol: '忘却协议', wolf: '弥萨格狼人杀', deathreport: '弥萨格大逃杀', g2048: '忘却 2048', duel: '唤醒王：决斗链接', reign: '弥萨格王权', lovelive: 'lovelive！mori⭐mens！', keeper: '杀死守密人', roulette: '弥萨格轮盘', bugfight: '电子斗蛐蛐' };
+const BUG_GAME_ZH = { home: '首页', detective: '战报侦探', merge: '合成大杜勒', bird: '是鸟弟就下100层', binding: '校猫的结合', idle: '挂机前夜', survivors: '唤醒体幸存者', protocol: '忘却协议', wolf: '弥萨格狼人杀', deathreport: '弥萨格大逃杀', g2048: '忘却 2048', duel: '唤醒王：决斗链接', reign: '弥萨格王权', lovelive: 'lovelive！mori⭐mens！', keeper: '杀死守密人', roulette: '弥萨格轮盘', bugfight: '电子斗蛐蛐', bazaar: '大巴扎：银钥' };
 const bugWhen = (t) => { const d = new Date(Number(t) || 0); const p = (n) => String(n).padStart(2, '0'); return t ? `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}` : ''; };
 function bugCard() {
   const list = h('div', { class: 'buglist' }, h('p', { class: 'sub' }, '点「读取 / 刷新」加载最近的 BUG 反馈。'));

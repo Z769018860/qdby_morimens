@@ -1555,6 +1555,16 @@ const BOARD_SPEC = [
   { k: 'bf', gd: 'bf', i: 0, unit: '筹码', label: '最高荷包',
     sub: (v) => (Number(v[2]) > 0 ? `夺冠 ${Number(v[1]) || 0} 桌 · 共 ${Number(v[2])} 桌` : ''),
     tb: (v) => Number(v[1]) || 0 },
+  // 大巴扎：银钥：按「摊子分」排（js/gamestats.js 的 out.bz = [最高分, 最远第几天, 开摊次数, 打穿次数]），
+  // 副标写走到第几天与通关次数；同分比谁走得远
+  { k: 'bz', gd: 'bz', i: 0, unit: '分', label: '最高分',
+    sub: (v) => [Number(v[1]) > 0 ? `最远第 ${Number(v[1])} 天` : '',
+      Number(v[3]) > 0 ? `通关 ${Number(v[3])} 次` : ''].filter(Boolean).join(' · '),
+    tb: (v) => Number(v[1]) || 0 },
+  // 寻找伪人：Morimens：按最高分排（gd.fk = [最高分, 走到第几天, 结局数]），同分比活得更久
+  { k: 'fk', gd: 'fk', i: 0, unit: '分', label: '最高分',
+    sub: (v) => [Number(v[1]) > 0 ? `走到第 ${Number(v[1])} 天` : '', Number(v[2]) > 0 ? `结局 ${Number(v[2])} 种` : ''].filter(Boolean).join(' · '),
+    tb: (v) => Number(v[1]) || 0 },
   { k: 'dl', gd: 'dl', i: 0, unit: '分', label: '段位分',
     sub: (v) => {
       const t = Number(v[3]) || 0;

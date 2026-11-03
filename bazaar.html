@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>大巴扎：银钥 · 忘忘同人小游戏</title>
+<meta name="description" content="照《大巴扎 The Bazaar》重做的忘却前夜同人：十格战场、多名唤醒体产算力、命轮吃算力开火、造物加属性、关卡地形敌我同吃。62 名唤醒体、310 件造物、149 条命轮、21 份密契、537 只怪，四档难度。">
+<meta name="theme-color" content="#080b12">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2430%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%2213%22%20fill%3D%22none%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%224.5%22%2F%3E%0A%20%20%3Cline%20x1%3D%2237.5%22%20y1%3D%2236.5%22%20x2%3D%2249%22%20y2%3D%2248%22%20stroke%3D%22%23e8b04b%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2228%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%23e8b04b%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
+<style>
+:root{
+  --bg:#070a11; --bg2:#0d1220; --panel:#111826; --panel2:#18202f; --line:#28344a;
+  --text:#e9eef8; --dim:#8a96ad; --accent:#6ea8ff; --gold:#e3b341; --bad:#e8695f; --good:#66c08a;
+  --chaos:#d16b9b; --caro:#d29a4e; --aqua:#4fb0c9; --ultra:#9a86d8;
+  --realm:var(--accent);
+  --n:#6b7688; --sr:#6ea8ff; --ssr:#e3b341; --fate:#d16b9b;
+  --cut:10px;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#eef1f7; --bg2:#f8f9fc; --panel:#fff; --panel2:#eef1f7; --line:#cfd8e6;
+    --text:#161c29; --dim:#616b80; --accent:#2c6fdb; --gold:#8a6200; --bad:#c03a32; --good:#2b8055;
+    --chaos:#a83b52; --caro:#8a5a17; --aqua:#1d6274; --ultra:#4a3b86;
+    --n:#7c8598; --sr:#2c6fdb; --ssr:#8a6200; --fate:#a83b52; }
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--text); overflow:hidden;
+  font:15px/1.45 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-tap-highlight-color:transparent; user-select:none;
+}
+button{font:inherit;color:inherit}
+/* 斜切角：右上、左下各削一刀——战双那套面板的骨相。削多少由元件自己的 --cut 决定。 */
+.cut,.card,.pcard,.wh,.rs,.diff,.trail .dot,.sp,.unit{
+  clip-path:polygon(0 0,calc(100% - var(--cut)) 0,100% var(--cut),100% 100%,var(--cut) 100%,0 calc(100% - var(--cut)))
+}
+.app{
+  height:100dvh; max-width:600px; margin:0 auto; position:relative;
+  padding:max(6px,env(safe-area-inset-top)) 10px max(8px,env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; gap:6px;
+  background:
+    radial-gradient(120% 44% at 78% -6%,color-mix(in oklab,var(--realm) 20%,transparent),transparent 62%),
+    linear-gradient(180deg,var(--bg2),var(--bg) 42%);
+}
+/* 雪碧图：格子是正方形，靠百分比定位，元素多大多小都对得上 */
+.sp{--cut:5px;display:block;flex:0 0 auto;background-repeat:no-repeat;background-position:center;
+  background-size:100% 100%;border-radius:inherit}
+
+/* ---------- 顶栏 ---------- */
+.hud{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.back{width:30px;height:30px;flex:0 0 30px;display:grid;place-items:center;text-decoration:none;
+  color:var(--dim);font-size:15px;background:color-mix(in oklab,var(--panel) 80%,transparent);
+  box-shadow:inset 0 0 0 1px var(--line);--cut:7px}
+.back:hover{color:var(--accent)}
+.day{display:flex;align-items:baseline;gap:4px;padding:3px 9px;background:var(--panel);
+  box-shadow:inset 0 0 0 1px var(--line);--cut:7px;font-variant-numeric:tabular-nums}
+.day b{font-size:15px;letter-spacing:.5px}
+.day span{font-size:10.5px;color:var(--dim)}
+.dbadge{--cut:5px;font-size:9.5px;letter-spacing:1px;padding:2px 6px;color:var(--gold);
+  box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--gold) 40%,var(--line))}
+.sane{margin-left:auto;display:flex;gap:2px;font-size:12px;letter-spacing:1px}
+.sane i{font-style:normal;color:var(--bad)}
+.sane i.off{color:var(--line)}
+.gold{display:flex;align-items:center;gap:3px;font-size:14px;font-weight:700;
+  font-variant-numeric:tabular-nums;color:var(--gold)}
+.gold svg{width:13px;height:13px}
+.ico{width:30px;height:30px;flex:0 0 30px;display:grid;place-items:center;cursor:pointer;padding:0;
+  font-size:12px;color:var(--dim);background:var(--panel);box-shadow:inset 0 0 0 1px var(--line);--cut:7px}
+.ico:hover{color:var(--accent)}
+
+/* ---------- 今日对手 ---------- */
+.foe{display:flex;align-items:center;gap:9px;padding:6px 10px 6px 8px;flex:0 0 auto;
+  background:linear-gradient(100deg,color-mix(in oklab,var(--bad) 12%,var(--panel)),var(--panel) 55%);
+  box-shadow:inset 0 0 0 1px var(--line)}
+.foe .fp{width:40px;height:40px;--cut:8px;background-color:var(--panel2)}
+.foe .fi{min-width:0;flex:1}
+.foe .fn{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;white-space:nowrap}
+.foe .fn b{font-weight:700;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.foe .fn em{font-style:normal;font-size:9px;padding:1px 5px;color:var(--dim);
+  box-shadow:inset 0 0 0 1px var(--line)}
+.foe .fn em.boss{color:var(--gold);box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--gold) 50%,var(--line))}
+.foe .fn em.elite{color:var(--accent);box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--accent) 45%,var(--line))}
+.foe .fhp{margin-top:3px;display:flex;align-items:center;gap:6px;font-size:10px;color:var(--dim);
+  font-variant-numeric:tabular-nums}
+.bar{height:5px;background:color-mix(in oklab,var(--line) 80%,transparent);flex:1;overflow:hidden;position:relative}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,color-mix(in oklab,var(--bad) 70%,black),var(--bad))}
+.fsk{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.fsk span{--cut:4px;font-size:9px;padding:1px 5px;color:var(--dim);background:var(--panel2);
+  box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
+/* 地形：敌我同吃，所以单独一条，不用红色（不是敌人的东西） */
+.ter{display:flex;align-items:center;gap:5px;flex:0 0 auto;padding:3px 8px;font-size:9.5px;
+  color:var(--dim);background:color-mix(in oklab,var(--good) 8%,var(--panel));
+  box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--good) 26%,var(--line));--cut:6px}
+.ter b{color:color-mix(in oklab,var(--good) 70%,var(--text));font-size:10px;letter-spacing:1px;flex:0 0 auto}
+.ter span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- 战场：十格 ---------- */
+.track{position:relative;flex:0 0 auto;height:min(15vh,104px);touch-action:pan-y}
+.track .cells{position:absolute;inset:0;display:grid;grid-template-columns:repeat(10,1fr);gap:2px}
+.track .cell{background:color-mix(in oklab,var(--panel) 40%,transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--line) 55%,transparent)}
+.track .cell.on{background:color-mix(in oklab,var(--panel) 78%,transparent)}
+.track .units{position:absolute;inset:0}
+.unit{position:absolute;top:0;bottom:0;padding:0;border:0;background:var(--panel2);overflow:hidden;
+  cursor:grab;--cut:8px;touch-action:none;
+  left:calc(var(--at) * 10%);width:calc(var(--len) * 10% - 2px);
+  box-shadow:inset 0 0 0 1px var(--line),inset 0 -2px 0 var(--realm)}
+.unit img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 6%;
+  display:block;pointer-events:none;filter:saturate(1.02)}
+.unit::after{content:'';position:absolute;left:0;right:0;bottom:0;height:56%;pointer-events:none;
+  background:linear-gradient(to top,color-mix(in oklab,var(--bg) 88%,transparent) 8%,transparent)}
+.unit .ut{position:absolute;left:0;right:0;bottom:10px;z-index:2;padding:0 3px;text-align:center;
+  font-size:8.5px;font-weight:700;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  text-shadow:0 0 3px var(--bg),0 1px 2px var(--bg)}
+.unit .um{position:absolute;left:0;right:0;bottom:2px;z-index:2;text-align:center;font-size:8px;
+  color:color-mix(in oklab,var(--realm) 72%,var(--text));line-height:1;font-variant-numeric:tabular-nums;
+  text-shadow:0 0 3px var(--bg),0 1px 2px var(--bg)}
+.unit .ub{position:absolute;left:0;right:0;bottom:0;height:2px;z-index:3;background:rgba(0,0,0,.35)}
+.unit .ub i{display:block;height:100%;width:0;background:var(--accent);transition:width .12s linear}
+.unit.dragging{cursor:grabbing;z-index:9;opacity:.92;box-shadow:inset 0 0 0 2px var(--accent),0 8px 20px rgba(0,0,0,.5)}
+.track .empty{position:absolute;inset:0;display:grid;place-items:center;font-size:11px;color:var(--dim);
+  pointer-events:none;text-align:center;padding:0 16px;line-height:1.5}
+.unit.fire{animation:ufire .32s ease}
+@keyframes ufire{0%{transform:translateY(0)}40%{transform:translateY(-4px)}100%{transform:translateY(0)}}
+
+/* ---------- 算力条 ---------- */
+.cpu{display:flex;align-items:center;gap:6px;flex:0 0 auto;font-size:9.5px;color:var(--dim);
+  font-variant-numeric:tabular-nums}
+.cpu b{color:var(--accent);font-size:12px;letter-spacing:.5px}
+.cpu .cbar{flex:1;height:8px;background:color-mix(in oklab,var(--line) 70%,transparent);overflow:hidden;position:relative}
+.cpu .cbar i{display:block;height:100%;width:0;transition:width .16s linear;
+  background:linear-gradient(90deg,color-mix(in oklab,var(--accent) 60%,black),var(--accent))}
+.cpu .cbar::after{content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(90deg,transparent 0 11px,rgba(0,0,0,.3) 11px 12px)}
+.cpu .rate{flex:0 0 auto;font-size:9px;white-space:nowrap}
+.cpu .rate em{font-style:normal;color:var(--bad)}
+.cpu .rate em.ok{color:var(--good)}
+
+/* ---------- 命轮 / 造物 ---------- */
+.wheels,.relics{display:flex;align-items:center;gap:5px;flex:0 0 auto;overflow-x:auto;scrollbar-width:none}
+.wheels::-webkit-scrollbar,.relics::-webkit-scrollbar{display:none}
+.wheels .lab,.relics .lab{font-size:9px;color:var(--dim);flex:0 0 auto;letter-spacing:1px}
+.wh{display:flex;align-items:center;gap:5px;padding:3px 7px 3px 3px;cursor:pointer;border:0;
+  background:var(--panel);box-shadow:inset 0 0 0 1px var(--line);--cut:7px;min-width:0;flex:0 1 auto}
+.wh .sp{width:26px;height:26px;--cut:5px;background-color:var(--panel2)}
+.wh .wi{min-width:0;text-align:left;line-height:1.15}
+.wh b{display:block;font-size:10px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wh i{display:block;font-style:normal;font-size:8.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+.wh .wp{position:absolute;left:0;right:0;bottom:0;height:2px;background:rgba(0,0,0,.3)}
+.wh .wp i{display:block;height:100%;width:0;background:var(--gold)}
+.wh{position:relative}
+.wh.ready{box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--gold) 60%,var(--line))}
+.wh.wait{box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--bad) 55%,var(--line))}
+.wh.wait i{color:var(--bad)}
+.wh.fire{animation:wfire .34s ease}
+@keyframes wfire{0%{transform:scale(1)}40%{transform:scale(1.05);box-shadow:inset 0 0 0 2px var(--gold)}100%{transform:scale(1)}}
+.wh.empty{--cut:6px;padding:5px 9px;font-size:9px;color:var(--dim);
+  box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--line) 55%,transparent);white-space:nowrap}
+.rs{display:flex;align-items:center;gap:4px;padding:2px 6px 2px 2px;font-size:9px;color:var(--dim);
+  cursor:pointer;border:0;background:var(--panel);box-shadow:inset 0 0 0 1px var(--line);
+  --cut:6px;white-space:nowrap;max-width:52%;flex:0 0 auto}
+.rs .sp{width:20px;height:20px;--cut:4px;background-color:var(--panel2)}
+.rs b{color:var(--text);font-weight:600;font-size:9.5px;overflow:hidden;text-overflow:ellipsis;max-width:74px}
+.rs.empty{--cut:5px;padding:4px 8px;box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--line) 55%,transparent)}
+
+/* ---------- 集市 ---------- */
+.shop{flex:1 1 auto;min-height:74px;display:flex;flex-direction:column;gap:5px;overflow-y:auto;
+  scrollbar-width:none;overscroll-behavior:contain}
+.shop::-webkit-scrollbar{display:none}
+.shoph{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--dim);letter-spacing:.5px;flex:0 0 auto}
+.shoph b{color:var(--gold);font-size:10.5px;font-weight:700;letter-spacing:2px}
+.cards{display:grid;grid-template-columns:1fr;gap:5px;align-content:start;grid-auto-rows:82px;
+  flex:1 1 auto;min-height:0}
+.card{position:relative;padding:7px 44px 6px 54px;text-align:left;display:flex;flex-direction:column;gap:2px;
+  justify-content:center;cursor:pointer;min-height:0;overflow:hidden;border:0;
+  background:linear-gradient(100deg,var(--panel2),var(--panel) 62%);
+  box-shadow:inset 0 0 0 1px var(--line);--cut:9px}
+/* 图标那一块单独可点 = 看详情（不买）：手机上整张卡都是「买」，误触代价太大 */
+.card .ci{position:absolute;left:7px;top:50%;transform:translateY(-50%);width:40px;height:40px;z-index:2;
+  display:grid;place-items:center;cursor:zoom-in;border-radius:2px}
+.card .ci::after{content:'';position:absolute;inset:-3px;border:1px dashed transparent;pointer-events:none}
+.card .ci:hover::after{border-color:color-mix(in oklab,var(--accent) 50%,transparent)}
+.card .ci .sp{position:static;width:36px;height:36px;--cut:7px;
+  background-color:color-mix(in oklab,var(--bg) 60%,var(--panel2))}
+.card .ca{position:absolute;right:0;top:0;bottom:0;width:40%;opacity:.28;pointer-events:none;
+  background-position:50% 8%;background-size:cover;background-repeat:no-repeat;
+  -webkit-mask-image:linear-gradient(to right,transparent,#000 42%);
+  mask-image:linear-gradient(to right,transparent,#000 42%)}
+.card .cn{font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:30px}
+.card .ct{font-size:9px;line-height:1.35;color:var(--dim);flex:0 0 auto;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.card .cp{position:absolute;right:7px;top:5px;font-size:11.5px;font-weight:800;color:var(--gold);
+  font-variant-numeric:tabular-nums;text-shadow:0 1px 4px rgba(0,0,0,.75)}
+.card .cp.no{color:var(--bad)}
+.card .r{position:absolute;right:6px;bottom:4px;font-size:8px;padding:0 4px;color:var(--dim);
+  box-shadow:inset 0 0 0 1px var(--line)}
+.card.k-hero .r{color:var(--accent);box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--accent) 45%,var(--line))}
+.card.r-SR{box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--sr) 50%,var(--line))}
+.card.r-SSR{box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--ssr) 55%,var(--line));
+  background:linear-gradient(180deg,color-mix(in oklab,var(--gold) 10%,var(--panel2)),var(--panel))}
+.card.sold{opacity:.28;pointer-events:none}
+.card.poor{opacity:.55}
+
+/* ---------- 底栏 ---------- */
+.trail{display:flex;align-items:center;gap:3px;flex:0 0 auto}
+.trail .dot{flex:1 1 0;height:13px;display:grid;place-items:center;font-size:8px;color:var(--dim);
+  background:color-mix(in oklab,var(--panel) 60%,transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--line) 70%,transparent);overflow:hidden;--cut:4px}
+.trail .dot.win{background:color-mix(in oklab,var(--good) 24%,var(--panel));
+  box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--good) 55%,var(--line));color:var(--text)}
+.trail .dot.lose{background:color-mix(in oklab,var(--bad) 24%,var(--panel));
+  box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--bad) 55%,var(--line));color:var(--text)}
+.trail .dot.now{box-shadow:inset 0 0 0 1px var(--gold);color:var(--gold)}
+.bar2{display:flex;gap:6px;flex:0 0 auto}
+.btn{flex:1;height:40px;font-size:13px;font-weight:700;letter-spacing:.5px;cursor:pointer;
+  background:var(--panel);box-shadow:inset 0 0 0 1px var(--line);border:0;
+  clip-path:polygon(9px 0,100% 0,calc(100% - 9px) 100%,0 100%)}
+.btn:hover{box-shadow:inset 0 0 0 1px var(--accent)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.go{flex:1.5;background:linear-gradient(180deg,color-mix(in oklab,var(--accent) 88%,white),var(--accent));
+  color:#06101f;box-shadow:none}
+.btn.go:hover{filter:brightness(1.07)}
+.btn.sm{flex:0 0 auto;padding:0 12px;font-size:11.5px}
+
+/* ---------- 浮层通用 ---------- */
+.ov{position:fixed;inset:0;z-index:30;display:none;flex-direction:column;
+  padding:max(8px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));
+  max-width:600px;margin:0 auto;
+  background:radial-gradient(120% 44% at 78% -6%,color-mix(in oklab,var(--realm) 22%,transparent),transparent 60%),
+    linear-gradient(180deg,var(--bg2),var(--bg) 46%)}
+.ov.on{display:flex;gap:6px}
+.ovh{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.ovh h3{margin:0;font-size:14px;letter-spacing:3px;font-weight:700;
+  padding-left:8px;border-left:2px solid var(--accent)}
+.ovh .x{margin-left:auto;width:30px;height:30px;color:var(--dim);cursor:pointer;
+  background:var(--panel);box-shadow:inset 0 0 0 1px var(--line);--cut:7px;border:0}
+.ovbody{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  display:flex;flex-direction:column;gap:6px;scrollbar-width:thin;padding-bottom:4px}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--panel);
+  box-shadow:0 -14px 34px -12px rgba(0,0,0,.55),inset 0 1px 0 var(--line);
+  border-top:2px solid color-mix(in oklab,var(--accent) 55%,var(--line));
+  padding:12px 14px max(14px,env(safe-area-inset-bottom));
+  transform:translateY(105%);transition:transform .22s ease;max-width:600px;margin:0 auto}
+.sheet.on{transform:none}
+.sheet .sh{display:flex;gap:10px;align-items:center}
+.sheet .sh .sp{width:46px;height:46px;--cut:8px;background-color:var(--panel2)}
+.sheet .sh h4{margin:0;font-size:15px}
+.sheet .sh p{margin:2px 0 0;font-size:10.5px;color:var(--dim)}
+.sheet .art{position:absolute;right:0;top:0;bottom:0;width:44%;opacity:.5;pointer-events:none;
+  display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
+.sheet .art img{height:150%;object-fit:contain;object-position:bottom;filter:drop-shadow(0 4px 12px rgba(0,0,0,.6))}
+.sheet .txt{margin:10px 0;font-size:12px;line-height:1.6;position:relative;z-index:1;max-width:72%}
+.sheet .txt em{font-style:normal;color:var(--gold)}
+.sheet .acts{display:flex;gap:8px;position:relative;z-index:1}
+.sheet .acts .btn{height:38px;font-size:12.5px}
+
+/* ---------- 开张：选难度 + 密契 ---------- */
+.diffs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;flex:0 0 auto}
+.diff{padding:4px 3px 3px;text-align:center;cursor:pointer;background:var(--panel);
+  box-shadow:inset 0 0 0 1px var(--line);border:0;--cut:7px}
+.diff b{display:block;font-size:12px;letter-spacing:1px}
+.diff span{display:block;font-size:8.5px;color:var(--dim);margin-top:1px}
+.diff.on{background:color-mix(in oklab,var(--gold) 12%,var(--panel));
+  box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--gold) 60%,var(--line))}
+.diff.on b{color:var(--gold)}
+.difftip{font-size:10px;color:var(--dim);line-height:1.45;flex:0 0 auto}
+.sintro{font-size:11px;line-height:1.6;color:var(--text);flex:0 0 auto;margin:0;
+  padding:8px 10px;background:color-mix(in oklab,var(--realm) 12%,var(--panel));
+  box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--realm) 42%,var(--line));--cut:8px}
+.sintro b{color:var(--gold);font-weight:800;font-variant-numeric:tabular-nums}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px;flex:0 0 auto;
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 16px),transparent);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 16px),transparent);
+  max-height:min(17vh,150px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding-right:2px}
+.pcard{display:flex;gap:6px;align-items:center;padding:4px 6px;text-align:left;cursor:pointer;
+  min-width:0;border:0;background:var(--panel);box-shadow:inset 0 0 0 1px var(--line);--cut:7px}
+.pcard .sp{width:24px;height:24px;--cut:5px;background-color:var(--panel2)}
+.pcard .pw{min-width:0}
+.pcard .pn{display:block;font-size:10.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .pt{display:block;font-size:8.5px;color:var(--dim);line-height:1.3;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pcard.on{background:color-mix(in oklab,var(--gold) 12%,var(--panel));
+  box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--gold) 60%,var(--line))}
+.sech{display:flex;align-items:center;gap:6px;font-size:9.5px;color:var(--dim);flex:0 0 auto;margin-top:1px}
+.sech b{color:var(--text);font-size:10.5px;letter-spacing:2px;font-weight:700}
+
+/* ---------- 战斗 ---------- */
+.bfoe{display:flex;gap:10px;align-items:center;padding:8px 12px 8px 8px;flex:0 0 auto;
+  background:linear-gradient(100deg,color-mix(in oklab,var(--bad) 15%,var(--panel)),var(--panel) 58%);
+  box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--bad) 30%,var(--line));--cut:12px}
+.bfoe .fp{width:56px;height:56px;--cut:9px;background-color:var(--panel2)}
+.bfoe .bi{flex:1;min-width:0}
+.bfoe .bn{font-size:13.5px;font-weight:800;display:flex;gap:6px;align-items:center;letter-spacing:.5px;
+  margin-bottom:4px}
+.bfoe .bn em{font-style:normal;font-size:9px;letter-spacing:.5px;padding:1px 5px;color:var(--dim);
+  box-shadow:inset 0 0 0 1px var(--line);--cut:4px}
+.bfoe .bn em.boss{color:var(--gold);box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--gold) 50%,var(--line))}
+.bfoe .bn em.elite{color:var(--accent);box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--accent) 45%,var(--line))}
+.bigbar{height:8px;background:color-mix(in oklab,var(--line) 85%,transparent);overflow:hidden;position:relative}
+.bigbar i{display:block;height:100%;width:100%;transition:width .16s linear;
+  background:linear-gradient(90deg,color-mix(in oklab,var(--bad) 70%,black),var(--bad))}
+.bigbar::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 13px,rgba(0,0,0,.32) 13px 14px)}
+.bignum{font-size:9.5px;color:var(--dim);margin-top:3px;font-variant-numeric:tabular-nums;
+  display:flex;gap:10px;min-height:12px;overflow:hidden;white-space:nowrap}
+.skills{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+.skill{--cut:4px;font-size:9px;padding:2px 6px;color:var(--dim);position:relative;overflow:hidden;
+  white-space:nowrap;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line)}
+.skill i{position:absolute;left:0;bottom:0;height:2px;background:var(--bad);width:0}
+/* 我方血条 */
+.mybar{display:flex;align-items:center;gap:6px;flex:0 0 auto;font-size:9px;color:var(--dim);
+  font-variant-numeric:tabular-nums}
+.mybar .mb{flex:1;height:8px;background:color-mix(in oklab,var(--line) 80%,transparent);overflow:hidden}
+.mybar .mb i{display:block;height:100%;width:100%;transition:width .16s linear;
+  background:linear-gradient(90deg,color-mix(in oklab,var(--good) 60%,black),var(--good))}
+.mybar .st{flex:0 0 auto;white-space:nowrap;overflow:hidden;max-width:52%;text-overflow:ellipsis}
+.logwrap{flex:2 1 0;min-height:76px;display:flex;flex-direction:column;
+  background:color-mix(in oklab,var(--panel) 46%,transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--line) 55%,transparent)}
+.logh{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:3px 9px 2px;
+  font-size:9px;color:var(--dim);letter-spacing:.5px;font-variant-numeric:tabular-nums;
+  box-shadow:inset 0 -1px 0 color-mix(in oklab,var(--line) 50%,transparent)}
+.logh b{color:var(--gold);font-size:10px;font-weight:700;letter-spacing:3px}
+.logh span{margin-left:auto}
+#log{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  display:flex;flex-direction:column;justify-content:flex-end;gap:2px;padding:5px 9px 6px;
+  font-size:11px;line-height:1.45;color:var(--dim);text-align:left;scrollbar-width:none}
+#log::-webkit-scrollbar{display:none}
+#log .l{display:flex;gap:5px;align-items:baseline}
+#log .l i{flex:0 0 auto;min-width:20px;text-align:right;font-style:normal;font-size:8.5px;
+  opacity:.62;font-variant-numeric:tabular-nums}
+#log .l b{flex:1 1 auto;font-weight:400;color:color-mix(in oklab,var(--text) 82%,var(--dim))}
+#log .l.hi b{color:var(--gold);font-weight:700}
+#log .l.bad b{color:color-mix(in oklab,var(--bad) 80%,var(--text))}
+#battle .track{flex:3 1 0;height:auto;min-height:132px;max-height:min(44vh,364px)}
+.fx{position:fixed;font-size:14px;font-weight:800;pointer-events:none;z-index:50;
+  animation:fly .72s ease-out forwards;white-space:nowrap;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+@keyframes fly{0%{opacity:0;transform:translate(-50%,-30%) scale(.7)}25%{opacity:1;transform:translate(-50%,-60%) scale(1.1)}100%{opacity:0;transform:translate(-50%,-140%) scale(1)}}
+.bt-foot{display:flex;gap:6px;flex:0 0 auto}
+.bt-foot .btn{height:38px;font-size:12px}
+
+/* ---------- 结算 ---------- */
+.res{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center}
+.res h2{margin:0;font-size:23px;letter-spacing:5px}
+.res .sub{font-size:11.5px;color:var(--dim);line-height:1.65}
+.res .sc{font-size:36px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums;
+  text-shadow:0 0 22px color-mix(in oklab,var(--gold) 40%,transparent)}
+.res .rows{display:flex;gap:20px;font-size:10.5px;color:var(--dim)}
+.res .rows b{display:block;font-size:17px;color:var(--text);font-variant-numeric:tabular-nums;margin-top:2px}
+.res .acts{display:flex;gap:8px;margin-top:6px}
+.res .acts a.btn{display:grid;place-items:center;flex:0 0 auto;padding:0 18px;text-decoration:none;color:var(--text)}
+.res .acts .btn{padding:0 18px;flex:0 0 auto;height:40px}
+
+.toast{position:fixed;left:50%;bottom:max(84px,calc(env(safe-area-inset-bottom) + 78px));transform:translate(-50%,8px);
+  z-index:55;max-width:86vw;padding:7px 14px;font-size:12px;line-height:1.4;text-align:center;
+  color:var(--text);background:color-mix(in oklab,var(--panel) 94%,transparent);
+  box-shadow:inset 0 0 0 1px var(--line),0 8px 22px -8px rgba(0,0,0,.7);
+  opacity:0;pointer-events:none;transition:opacity .16s,transform .16s;--cut:8px}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ---------- 载入 ---------- */
+#boot{position:fixed;inset:0;display:grid;place-items:center;background:var(--bg);z-index:60;
+  font-size:13px;color:var(--dim);text-align:center;padding:20px}
+#boot.off{display:none}
+.helpbody{font-size:12.5px;line-height:1.75}
+.helpbody h4{margin:13px 0 5px;font-size:12px;color:var(--gold);letter-spacing:2px}
+.helpbody h4:first-child{margin-top:0}
+.helpbody p{margin:0 0 6px;color:var(--dim)}
+.helpbody b{color:var(--text)}
+
+/* 矮屏收一收 */
+@media (max-height:740px){
+  .track{height:min(14vh,86px)}
+  #battle .track{min-height:118px}
+  .pgrid{max-height:min(15vh,120px)}
+  .trail{display:none}
+  .cards{grid-auto-rows:74px}
+  .wh .sp{width:22px;height:22px}
+}
+/* 宽屏（平板 / 桌面）：商店两列，单列在 580px 宽下会拉成一排空盒子 */
+@media (min-width:560px){
+  .cards{grid-template-columns:1fr 1fr;grid-auto-rows:minmax(74px,1fr);align-content:stretch}
+  .card{padding:8px 10px 7px;justify-content:flex-end}
+  .card .ci{left:50%;top:38%;width:78px;height:78px;transform:translate(-50%,-50%)}
+  .card .ci .sp{width:78px;height:78px;--cut:10px;background-color:transparent}
+  .card .ca{width:70%;top:0;bottom:0;background-position:50% 20%;background-size:cover;
+    opacity:.34;-webkit-mask-image:linear-gradient(to right,transparent,#000 45%);mask-image:linear-gradient(to right,transparent,#000 45%)}
+  .card .cn{padding-right:34px}
+}
+
+/* ---------- 节拍环：头顶还差几拍出手 ---------- */
+.unit .ucd{position:absolute;right:1px;top:1px;z-index:4;width:17px;height:17px;border-radius:50%;
+  display:grid;place-items:center;font-variant-numeric:tabular-nums;
+  background:conic-gradient(var(--realm) calc(var(--p,0) * 1%),rgba(0,0,0,.66) 0);
+  box-shadow:0 0 0 1px rgba(0,0,0,.5),0 1px 4px rgba(0,0,0,.45)}
+.unit .ucd i{width:13px;height:13px;border-radius:50%;display:grid;place-items:center;font-style:normal;
+  font-size:8px;font-weight:700;line-height:1;color:var(--text);
+  background:color-mix(in oklab,var(--bg) 88%,transparent)}
+.unit .ucd.now{box-shadow:0 0 0 1px color-mix(in oklab,var(--gold) 70%,transparent),
+  0 0 9px color-mix(in oklab,var(--gold) 50%,transparent)}
+.unit .ucd.now i{color:var(--gold)}
+
+/* ---------- 详情面板的关闭键 ---------- */
+.sx{position:absolute;right:9px;top:9px;z-index:3;width:26px;height:26px;padding:0;border:0;
+  display:grid;place-items:center;font-size:11px;cursor:pointer;color:var(--dim);
+  background:color-mix(in oklab,var(--panel2) 86%,transparent);
+  box-shadow:inset 0 0 0 1px var(--line);--cut:6px}
+.sx:hover{color:var(--text)}
+.sheet .sh{padding-right:30px}
+
+/* ---------- 榜单 ---------- */
+.bnote{margin:0;padding:0 2px;font-size:10px;line-height:1.5;color:var(--dim);flex:0 0 auto}
+.blist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.blist li{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--panel);
+  box-shadow:inset 0 0 0 1px var(--line)}
+.blist .rk{flex:0 0 24px;text-align:center;font-size:12px;font-weight:800;color:var(--dim);
+  font-variant-numeric:tabular-nums}
+.blist li:nth-child(1) .rk{color:var(--gold)}
+.blist li:nth-child(2) .rk{color:color-mix(in oklab,var(--text) 72%,var(--dim))}
+.blist li:nth-child(3) .rk{color:color-mix(in oklab,var(--gold) 62%,var(--dim))}
+.blist .nm{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25;font-size:12px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.blist .nm small{font-size:9px;color:var(--dim);overflow:hidden;text-overflow:ellipsis}
+.blist .sc{flex:0 0 auto;font-size:13.5px;font-weight:800;color:var(--gold);
+  font-variant-numeric:tabular-nums}
+.blist .sc small{font-size:8.5px;font-weight:400;color:var(--dim);margin-left:2px}
+.blist li.me{box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--accent) 55%,var(--line))}
+.blist li.me .rk{font-size:10px;color:var(--accent)}
+.blist .bempty{justify-content:center;font-size:11px;color:var(--dim);background:transparent;
+  box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--line) 55%,transparent)}
+
+/* ---------- 风格化：四角角花 / 分隔线 / 侧边条 ---------- */
+.app::before,.app::after{content:'';position:fixed;width:15px;height:15px;pointer-events:none;z-index:6;
+  border-color:color-mix(in oklab,var(--gold) 62%,transparent)}
+.app::before{left:4px;top:4px;border-left:1px solid;border-top:1px solid}
+.app::after{right:4px;bottom:4px;border-right:1px solid;border-bottom:1px solid}
+.shoph::after{content:'';flex:1 1 10px;height:1px;margin-left:3px;
+  background:linear-gradient(90deg,color-mix(in oklab,var(--gold) 42%,transparent),transparent)}
+.day b::before{content:'◆';font-size:7px;color:var(--gold);vertical-align:2px;margin-right:3px}
+.foe{position:relative;overflow:hidden}
+.foe::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;
+  background:linear-gradient(180deg,var(--bad),transparent)}
+.card:hover{box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--accent) 45%,var(--line))}
+.card:active{transform:translateY(1px)}
+#btnSfx.off{color:color-mix(in oklab,var(--dim) 55%,var(--line));text-decoration:line-through;opacity:.75}
+
+/* ---------- 横屏：战场在左、集市在右（手机 / 平板横过来，任意高度都生效） ---------- */
+@media (orientation:landscape){
+  .toast{bottom:10px}
+  .app{max-width:none;width:100%;display:grid;align-content:start;
+    grid-template-columns:minmax(0,1.55fr) minmax(240px,0.92fr);
+    grid-template-rows:auto auto minmax(100px,1fr) auto auto auto auto auto;
+    grid-template-areas:
+      "hud hud"
+      "foe shop"
+      "track shop"
+      "ter shop"
+      "cpu shop"
+      "whl shop"
+      "rel shop"
+      "trl bar";
+    column-gap:10px;row-gap:5px}
+  .app>.hud{grid-area:hud}
+  #foeBar{grid-area:foe}
+  #terBar{grid-area:ter}
+  #track{grid-area:track}
+  #cpuBar{grid-area:cpu}
+  #wheels{grid-area:whl}
+  #relics{grid-area:rel}
+  .app>.shop{grid-area:shop;min-height:0;overflow:hidden}
+  #trail{grid-area:trl}
+  .app>.bar2{grid-area:bar}
+  /* 战场给足高度，立绘才不糊 */
+  .track{height:auto;min-height:100px}
+  #battle .track{min-height:100px;max-height:none}
+  .logwrap{min-height:54px}
+  /* 集市：单列大卡片，左图标 + 名字 + 一行描述 + 价格，清清楚楚 */
+  .cards{grid-template-columns:1fr;grid-auto-rows:minmax(56px,auto);align-content:start;overflow-y:auto}
+  .card{padding:7px 12px 7px 50px;justify-content:center;gap:2px}
+  .card .ci{left:7px;top:50%;transform:translateY(-50%);width:38px;height:38px}
+  .card .ci .sp{width:34px;height:34px;--cut:7px;background-color:color-mix(in oklab,var(--bg) 55%,var(--panel2))}
+  .card .ca{display:block;width:30%;opacity:.18;
+    -webkit-mask-image:linear-gradient(to right,transparent,#000 50%);mask-image:linear-gradient(to right,transparent,#000 50%)}
+  .card .cn{font-size:12px;padding-right:32px}
+  .card .ct{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;font-size:9.5px}
+  .card .cp{font-size:12px}
+  /* 选人 / 战斗浮层在横屏也不要被压扁 */
+  #setup,#battle{max-width:none}
+  #setup .ovbody,#battle .ovbody{max-width:1100px;margin:0 auto;width:100%}
+}
+
+/* ---------- 电脑 / 平板横置宽屏：左主栏 + 右侧集市 ---------- */
+@media (min-width:900px){
+  .app{max-width:1400px;margin:0 auto;display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(320px,26%);
+    grid-template-rows:auto auto auto minmax(150px,1fr) auto auto auto auto;
+    grid-template-areas:
+      "hud   hud"
+      "foe   shop"
+      "ter   shop"
+      "track shop"
+      "cpu   shop"
+      "whl   shop"
+      "rel   shop"
+      "trl   bar";
+    column-gap:14px;row-gap:6px;padding:10px 16px}
+  .app>.hud{grid-area:hud}
+  #foeBar{grid-area:foe}
+  #terBar{grid-area:ter}
+  #track{grid-area:track}
+  #cpuBar{grid-area:cpu}
+  #wheels{grid-area:whl}
+  #relics{grid-area:rel}
+  .app>.shop{grid-area:shop;min-height:0}
+  #trail{grid-area:trl}
+  .app>.bar2{grid-area:bar}
+  .track{height:auto;min-height:150px}
+  .cards{grid-template-columns:1fr 1fr;grid-auto-rows:minmax(72px,1fr);align-content:stretch}
+  .unit .ut{font-size:11px;bottom:14px}
+  .unit .um{font-size:10px;bottom:5px}
+  .unit .ucd{width:22px;height:22px;right:4px;top:4px}
+  .unit .ucd i{width:17px;height:17px;font-size:10px}
+  #battle{max-width:1100px}
+  .ov{max-width:none}
+  #battle .ovbody, #setup .ovbody{max-width:1120px;margin:0 auto;width:100%}
+  #setup .ovbody{max-width:1120px}
+  .pgrid{grid-template-columns:repeat(5,1fr)}
+  .sheet{max-width:820px}
+}
+</style>
+<meta name="build" content="67fb9fa47b">
+<style id="zj-lite">
+@media (pointer:coarse), (max-width:720px){
+  *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
+}
+button, a, [role="button"], input, select, label{touch-action:manipulation}
+html{-webkit-tap-highlight-color:transparent}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/app/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="忘忘小游戏">
+</head>
+<body>
+
+<div id="boot">正在支摊…</div>
+
+<div class="app" id="app" hidden>
+  <header class="hud">
+    <a class="back cut" href="index.html" aria-label="返回">←</a>
+    <div class="day cut"><b id="hDay">第 1 天</b><span id="hDayMax">/ 12</span></div>
+    <span class="dbadge cut" id="hDiff">寻常</span>
+    <div class="sane" id="hSane" aria-label="理智"></div>
+    <div class="gold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 5v6M6 6.6h3.2M6 9.4h3.2"/></svg><span id="hGold">0</span></div>
+    <button class="ico cut" id="btnSfx" type="button" aria-label="音效">♪</button>
+    <button class="ico cut" id="btnBoard" type="button" aria-label="榜单">榜</button>
+    <button class="ico cut" id="btnHelp" type="button" aria-label="玩法说明">?</button>
+  </header>
+
+  <section class="foe cut" id="foeBar" aria-label="今日对手"></section>
+  <div class="ter cut" id="terBar" aria-label="关卡地形"></div>
+
+  <section class="track" id="track" aria-label="战场"></section>
+
+  <div class="cpu" id="cpuBar">
+    <b id="cpuNow">0</b><span id="cpuCap">/26</span>
+    <div class="cbar"><i id="cpuFill"></i></div>
+    <span class="rate" id="cpuRate">产 0 · 耗 0</span>
+  </div>
+
+  <section class="wheels" id="wheels" aria-label="命轮"></section>
+  <section class="relics" id="relics" aria-label="造物"></section>
+
+  <section class="shop">
+    <div class="shoph"><b>集 市</b><span id="shopHint">点一下买下</span></div>
+    <div class="cards" id="shop"></div>
+  </section>
+
+  <section class="trail" id="trail" aria-label="进度"></section>
+
+  <footer class="bar2">
+    <button class="btn sm" id="btnCore" type="button">扩容 6</button>
+    <button class="btn" id="btnReroll" type="button">刷新 2</button>
+    <button class="btn go" id="btnFight" type="button">开战</button>
+  </footer>
+</div>
+
+<!-- 选人 -->
+<div class="ov" id="setup">
+  <div class="ovh"><h3>银钥 · 布阵</h3><button class="x cut" id="setupHelp" type="button">?</button></div>
+  <div class="ovbody">
+    <p class="sintro" id="intro">开局自带 <b id="introGold">30</b> 金币，不再预选唤醒体 —— 进集市自己招人、买命轮、凑构筑。撑过最后一天算通关。</p>
+    <div class="diffs" id="diffPick"></div>
+    <div class="difftip" id="diffTip"></div>
+    <div class="sech"><b>密契</b><span id="pactHint">整局的规矩，开局定一份</span></div>
+    <div class="pgrid" id="pactPick"></div>
+  </div>
+  <footer class="bar2">
+    <button class="btn go" id="btnStart" type="button">开张</button>
+  </footer>
+</div>
+
+<!-- 战斗 -->
+<div class="ov" id="battle">
+  <div class="bfoe cut">
+    <span class="sp fp" id="bFoeImg"></span>
+    <div class="bi">
+      <div class="bn" id="bFoeName">—</div>
+      <div class="bigbar"><i id="bFoeHp" style="width:100%"></i></div>
+      <div class="bignum"><span id="bFoeHpTxt">0 / 0</span><span id="bFoeShield"></span><span id="bFoeDot"></span></div>
+      <div class="skills" id="bFoeSkills"></div>
+    </div>
+  </div>
+  <div class="mybar">
+    <span>我方</span>
+    <div class="mb"><i id="bMyHp" style="width:100%"></i></div>
+    <span id="bMyHpTxt">0/0</span>
+    <span class="st" id="bMyDot"></span>
+  </div>
+  <section class="track" id="bTrack" aria-label="战场"></section>
+  <div class="cpu">
+    <b id="bCpuNow">0</b><span id="bCpuCap">/26</span>
+    <div class="cbar"><i id="bCpuFill"></i></div>
+    <span class="rate" id="bCpuRate">产 0</span>
+  </div>
+  <section class="wheels" id="bWheels"></section>
+  <div class="logwrap">
+    <div class="logh"><b>战 报</b><span id="logSum"></span></div>
+    <div id="log"></div>
+  </div>
+  <div class="bt-foot">
+    <button class="btn sm" id="btnSpeed" type="button">×1</button>
+    <button class="btn" id="btnSkip" type="button">跳过</button>
+  </div>
+</div>
+
+<!-- 结算 -->
+<div class="ov" id="result">
+  <div class="res">
+    <h2 id="rTitle">散场</h2>
+    <p class="sub" id="rSub"></p>
+    <div class="sc" id="rScore">0</div>
+    <div class="rows">
+      <div>撑了<b id="rDays">0</b></div>
+      <div>金币<b id="rGold">0</b></div>
+      <div>最佳<b id="rBest">0</b></div>
+    </div>
+    <div class="acts">
+      <button class="btn" id="btnAgain" type="button">再摆一摊</button>
+      <button class="btn sm" id="btnBoardB" type="button">看榜单</button>
+      <a class="btn" href="index.html">回首页</a>
+    </div>
+  </div>
+</div>
+
+<!-- 榜单 -->
+<div class="ov" id="board">
+  <div class="ovh"><h3>摊 主 榜</h3><button class="x cut" id="bClose" type="button">✕</button></div>
+  <p class="bnote" id="bNote">正在连线…</p>
+  <div class="ovbody"><ul class="blist" id="bListB"></ul></div>
+  <footer class="bar2"><button class="btn" id="btnBoardC" type="button">关上</button></footer>
+</div>
+
+<!-- 说明 -->
+<div class="ov" id="help">
+  <div class="ovh"><h3>怎么开这一摊</h3><button class="x cut" id="helpClose" type="button">✕</button></div>
+  <div class="ovbody">
+    <div class="helpbody">
+      <h4>一天一轮</h4>
+      <p>集市买人买轮买造物 → 拖动排位置 → 开战。赢了进下一天，输了掉一点理智；<b>理智掉光就散场</b>，撑过最后一天算通关。</p>
+      <h4>三个人，十格地</h4>
+      <p>战场横排 <b>十格</b>，每个唤醒体占 1~3 格 —— 手越硬占得越宽。开局只有 6 格预算，之后能在集市招人，但总和不能超过 10 格。<b>按住人头左右拖</b>就能换位置，队伍顺序就是站位。</p>
+      <h4>算力：唤醒体产，命轮花</h4>
+      <p>唤醒体每隔几拍出手一次，产出<b>算力</b>（面板上那条蓝条），顺手打一下 / 架个盾 / 挂个易伤。算力有上限，满了会浪费，所以「扩容」和加算力上限的造物很值钱。</p>
+      <h4>命轮才是输出</h4>
+      <p>命轮有自己的节拍，走满了还要<b>吃一口算力</b>才能开火。算力不够它就卡在「等算力」——所以别一味堆贵的命轮，先把产出跟上。</p>
+      <h4>站位是有用的</h4>
+      <p>唤醒体带<b>光环</b>，只给左右相邻的那两家：辅助型「供能」（邻位每次多产算力）、防御型「加速」（邻位节拍 -1）、伤害型「增幅」（邻位动作效果 +X%）。把人按光环对上，产出能翻一截。</p>
+      <h4>造物只加属性</h4>
+      <p>造物不占出手，纯粹是面板加成：算力上限、算力产出、命轮伤害、暴击、护盾上限、每拍回血、开战算力、命轮节拍、反伤、金币。最多装 4 件。</p>
+      <h4>地形对双方都生效</h4>
+      <p>每天换一片地：共鸣加伤害、熔岩每三拍两边一起掉血、迟滞让所有人的节拍 +1、雾障给双方加盾、脆裂把双方血量上限一起削。<b>看清楚再决定要不要拖长战斗。</b></p>
+      <h4>打不过怎么办</h4>
+      <p>打满 40 拍按<b>剩余血量比例</b>判胜负，所以护盾、回血、削对面血都算分。对手的血量和伤害按天数和难度缩放，同一天里换哪只怪强度都一样。</p>
+      <h4>立绘</h4>
+      <p>战场上的头像取自灰机 wiki 的<b>唤醒体待机立绘</b>（动图抽帧），点开还能看到全身。</p>
+    </div>
+  </div>
+</div>
+
+<!-- 详情面板 -->
+<div class="sheet" id="sheet">
+  <div class="art" id="sArt"></div>
+  <button class="sx cut" id="sClose" type="button" aria-label="关闭">✕</button>
+  <div class="sh">
+    <span class="sp" id="sImg"></span>
+    <div><h4 id="sName">—</h4><p id="sMeta">—</p></div>
+  </div>
+  <div class="txt" id="sTxt">—</div>
+  <div class="acts"><button class="btn" id="sSell" type="button">卖出</button></div>
+</div>
+
+<script>
+(function () {
+  var t0 = Date.now();
+  setTimeout(function () {
+    var b = document.getElementById('boot');
+    if (b) b.textContent = '还在支摊…（第一次来会慢一点）';
+  }, 5000);
+  setTimeout(function () {
+    var b = document.getElementById('boot');
+    if (!b || Date.now() - t0 < 18000) return;
+    b.innerHTML = '<div style="text-align:center"><p>载入超时</p><button id="bootRe" style="padding:7px 16px;border:1px solid #28344a;background:#18202f;color:#e9eef8;font:inherit;cursor:pointer">重新载入</button></div>';
+    var btn = document.getElementById('bootRe');
+    if (btn) btn.onclick = function () { location.replace(location.pathname + '?r=' + Date.now()); };
+  }, 18000);
+})();
+</script>
+<script type="module" src="js/b/bazaar.js?v=67fb9fa47b"></script>
+<script>
+/* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
+   Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
+   而边缘一个来回就要 1~2 秒；SW 缓存能把这部分彻底省掉。 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+    /* 申请「持久存储」：图片缓存跟本地存档一样不被浏览器随手清掉 */
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  });
+  /* sw.js 发现本机离线包是旧版（版本戳对不上）会喊一声。既然网站已经有新内容了，
+     就给一条能点走的提示，别让人一直以为「离线版就是几个月前的样子」。
+     局内（body.live）不弹：那会儿满屏都是判定框，任何浮层都是碍事。 */
+  navigator.serviceWorker.addEventListener('message', function (e) {
+    var d = e.data || {};
+    if (d.type !== 'offline-stale') return;
+    if (/offline.html$/i.test(location.pathname)) return;
+    if (document.body.classList.contains('live')) return;
+    try { if (sessionStorage.getItem('zjtt-stale') === d.build) return; } catch (err) {}
+    var a = document.createElement('a');
+    a.href = 'offline.html';
+    a.textContent = '本机离线包是旧版（' + String(d.stamp || '').slice(0, 8) + '）· 点这里更新';
+    a.setAttribute('style', 'position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:99999;'
+      + 'padding:7px 14px;border-radius:999px;font:600 12.5px/1.4 system-ui,sans-serif;text-decoration:none;'
+      + 'color:#08111f;background:linear-gradient(180deg,#ffe9a8,#e3b341);box-shadow:0 6px 18px rgba(0,0,0,.38);'
+      + 'max-width:88vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis');
+    a.addEventListener('click', function () {
+      try { sessionStorage.setItem('zjtt-stale', d.build); } catch (err) {}
+    });
+    document.body.appendChild(a);
+    /* 进局内就把提示收掉：横屏顶部正中间是发球点，浮层压在那里最碍事 */
+    var obs = new MutationObserver(function () {
+      if (document.body.classList.contains('live')) { a.remove(); obs.disconnect(); }
+    });
+    try { obs.observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (err) {}
+    setTimeout(function () { a.remove(); obs.disconnect(); }, 15000);
+  });
+}
+</script>
+</body>
+</html>
+

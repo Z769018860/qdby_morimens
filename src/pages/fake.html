@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>寻找伪人：Morimens · 忘忘同人小游戏</title>
+<meta name="description" content="《忘却前夜》同人像素恐怖：你是弥萨格地下十一层的门房，每晚有人敲门，自称是登记簿上的唤醒体。核对登记卡、翻档案、隔着玻璃问几句话，然后决定开不开门——伪人只会抄错一条，你只有两三次机会看出来。62 名唤醒体（官方立绘 + 战斗立绘）与 11 位 B 站主播全员登场。">
+<meta name="theme-color" content="#08080b">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+/* 寻找伪人 —— 像素恐怖。
+   视觉只有三件事：一盏灯、一扇门、一本档案。所有面板都是硬边、硬阴影、无圆角，
+   颜色压到只有「墨黑 / 骨白 / 灯油金 / 血」，界域色只在徽章上露一点。 */
+:root{
+  --bg:#08080b; --bg2:#0d0e13; --panel:#111218; --panel2:#16171f;
+  --line:#2b2d38; --line2:#3b3e4c;
+  --text:#ded8cb; --dim:#8e887c; --dim2:#605c53;
+  --gold:#e3b341; --gold2:#8a6a2a; --blood:#b3413f; --blood2:#d76a5f;
+  --good:#6fae7c;
+  --chaos:#d16b9b; --caro:#d29a4e; --aqua:#4fb0c9; --ultra:#9a86d8;
+  --px:2px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--text); overflow:hidden;
+  font:14px/1.5 ui-monospace,"Cascadia Mono",Consolas,"Sarasa Mono SC","Microsoft YaHei",monospace;
+  -webkit-tap-highlight-color:transparent; user-select:none;
+  letter-spacing:.01em;
+}
+/* 全屏扫描线：只在最外层画一次，别给每个面板加 */
+body::after{
+  content:""; position:fixed; inset:0; z-index:900; pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.17) 0 1px,rgba(0,0,0,0) 1px 3px);
+  mix-blend-mode:multiply;
+}
+button{font:inherit; color:inherit; letter-spacing:inherit}
+a{color:inherit; text-decoration:none}
+h1,h2,h3,p{margin:0}
+[hidden]{display:none !important}
+
+/* ---------------------------------------------------------------- 按钮 */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  padding:9px 14px; background:var(--panel2); color:var(--text);
+  border:var(--px) solid var(--line2); box-shadow:3px 3px 0 #040406;
+  cursor:pointer; white-space:nowrap;
+}
+.btn:hover{background:#1d1f28}
+.btn:active{transform:translate(2px,2px); box-shadow:1px 1px 0 #040406}
+.btn:disabled{opacity:.4; cursor:not-allowed; transform:none; box-shadow:3px 3px 0 #040406}
+.btn.primary{background:var(--gold); color:#0a0a0c; border-color:#f0cb72; font-weight:700}
+.btn.primary:hover{background:#f0cb72}
+.btn.danger{background:#2a1413; border-color:var(--blood); color:#f0b6ae}
+.btn.danger:hover{background:#3a1a18}
+.btn.ghost{background:transparent; box-shadow:none; border-color:var(--line)}
+.btn.small{padding:6px 10px; font-size:12.5px}
+.btn.done{opacity:.45}
+
+/* ---------------------------------------------------------------- 首屏 */
+#boot{
+  position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+  background:var(--bg); z-index:50;
+}
+#boot .ring{width:26px; height:26px; border:2px solid #262832; border-top-color:var(--gold); border-radius:50%; animation:spin .9s linear infinite}
+#boot p{margin:0; font-size:13px; color:var(--dim)}
+#boot.err .ring{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.app{height:100dvh; display:flex; flex-direction:column; overflow:hidden}
+
+/* ---------------------------------------------------------------- 标题页 */
+.title{
+  flex:1; position:relative; display:flex; align-items:flex-start; justify-content:center;
+  gap:clamp(18px,6vw,86px); padding:24px clamp(18px,6vw,76px); overflow:auto;
+  background:
+    radial-gradient(620px 340px at 12% 6%,rgba(227,179,65,.09),transparent 62%),
+    radial-gradient(760px 460px at 82% 108%,rgba(179,65,63,.07),transparent 64%),
+    #07070a;
+}
+.title::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(ellipse at 50% 45%,transparent 40%,rgba(0,0,0,.72) 100%);
+}
+.tinner{position:relative; z-index:3; max-width:560px; text-align:left; margin-block:auto}
+.eyebrow{font-size:11.5px; color:var(--dim); letter-spacing:.24em; margin-bottom:16px}
+.title h1{
+  font-size:clamp(30px,5.6vw,52px); line-height:1.12; letter-spacing:.06em; color:#f2ecdd;
+  text-shadow:3px 3px 0 #000,7px 7px 0 rgba(179,65,63,.18);
+}
+.title h1 span{color:var(--gold); font-size:.52em; letter-spacing:.02em; display:inline-block; text-shadow:2px 2px 0 #000}
+.lead{margin:20px 0 4px; color:#b6b0a3; font-size:13.5px; line-height:1.95; white-space:pre-line}
+.menu{display:flex; gap:10px; flex-wrap:wrap; margin:26px 0 12px}
+.menu .btn{min-width:126px}
+.best{font-size:12px; color:var(--gold2); min-height:1.5em}
+.tiny{font-size:11px; color:var(--dim2); margin-top:30px; line-height:1.9}
+
+/* 标题页右边那扇门：纯 CSS，和游戏里的门同一个比例 */
+.tdoor{
+  position:relative; flex:none; z-index:2;
+  width:clamp(170px,23vw,262px); height:clamp(320px,66vh,500px);
+  background:linear-gradient(180deg,#1c1811,#14110c 42%,#100d09);
+  border:4px solid #2c2419;
+  box-shadow:inset 0 0 0 7px #0d0a07, inset 0 0 60px rgba(0,0,0,.9), 0 30px 80px -30px #000;
+}
+.tdoor::before{
+  content:""; position:absolute; inset:14px; border:1px solid #0a0806;
+  box-shadow:inset 0 0 24px rgba(0,0,0,.8);
+}
+.tdoor .twin{
+  position:absolute; left:16%; right:16%; top:11%; height:25%;
+  background:linear-gradient(180deg,#141c22,#080d11);
+  border:3px solid #0a0806; box-shadow:inset 0 0 30px #000; overflow:hidden;
+}
+.tdoor .twin i{
+  position:absolute; left:50%; top:0; transform:translateX(-50%); width:70%; height:100%;
+  background:radial-gradient(ellipse at 50% 18%,rgba(190,215,235,.20),transparent 70%);
+  animation:breathe 5.5s ease-in-out infinite;
+}
+.tdoor .twin::before,.tdoor .twin::after{content:""; position:absolute; top:0; bottom:0; width:3px; background:#090705}
+.tdoor .twin::before{left:32%}
+.tdoor .twin::after{left:65%}
+.tdoor .tnum{
+  position:absolute; right:12%; top:4%; padding:2px 7px; font-size:10px; letter-spacing:.1em;
+  color:#7d8994; background:#1b2026; border:1px solid #39434c;
+}
+.tdoor .tknob{
+  position:absolute; left:9%; top:53%; width:11px; height:11px; border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#f0d28a,#8a6a2a); box-shadow:0 0 16px rgba(227,179,65,.45);
+}
+.tdoor .tglow{
+  position:absolute; left:-4px; right:-4px; bottom:-12px; height:16px;
+  background:linear-gradient(180deg,rgba(227,179,65,.30),rgba(227,179,65,0));
+  filter:blur(1px);
+}
+@keyframes breathe{0%,100%{opacity:.45}50%{opacity:.95}}
+
+/* ---------------------------------------------------------------- 游戏页 */
+.game{flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; padding:8px}
+.hud{
+  display:flex; align-items:center; gap:12px; padding:5px 8px;
+  border:var(--px) solid var(--line); background:var(--bg2);
+}
+.hud .home{color:var(--dim); font-size:16px; padding:0 6px; border-right:1px solid var(--line); margin-right:2px}
+.hud .home:hover{color:var(--gold)}
+.night{display:flex; flex-direction:column; line-height:1.15; min-width:88px}
+.night b{font-size:13px; color:var(--gold); letter-spacing:.08em}
+.night span{font-size:10.5px; color:var(--dim)}
+.sanity{display:flex; align-items:center; gap:7px; flex:1; max-width:300px}
+.sanity>span{font-size:10.5px; color:var(--dim); letter-spacing:.1em}
+.bar{flex:1; height:9px; background:#1b1c24; border:1px solid #33353f; position:relative; overflow:hidden}
+.bar i{display:block; height:100%; width:100%; background:linear-gradient(90deg,#5d8f66,#8dc08a); transition:width .35s steps(6)}
+.bar i.warn{background:linear-gradient(90deg,#8a6a2a,#e3b341)}
+.bar i.bad{background:linear-gradient(90deg,#7a2523,#d76a5f)}
+.sanity b{font-size:12px; min-width:26px; text-align:right}
+.ammo{display:flex; gap:3px}
+.ammo i{width:6px; height:13px; background:#23242c; border:1px solid #3a3c47; display:block}
+.ammo i.on{background:var(--gold); border-color:#f0cb72}
+.ico{width:30px; height:28px; display:grid; place-items:center; background:transparent; border:var(--px) solid var(--line); color:var(--dim); cursor:pointer}
+.ico:hover{color:var(--gold); border-color:var(--line2)}
+.ico.off{color:var(--dim2); text-decoration:line-through}
+
+.main{
+  flex:1; min-height:0; display:grid; gap:8px;
+  grid-template-columns:minmax(0,1fr) 374px;
+  grid-template-rows:minmax(0,1fr) auto;
+}
+.stage{
+  grid-column:1; grid-row:1; position:relative; min-height:0;
+  display:flex; align-items:center; justify-content:center;
+  background:#050507; border:var(--px) solid var(--line); overflow:hidden;
+}
+.stage canvas{width:100%; height:100%; object-fit:contain; image-rendering:pixelated; display:block}
+/* 门牌：第几夜，压在画面右上角 */
+.stagetag{position:absolute; right:8px; top:8px; font-size:10px; color:#7f7a6e; letter-spacing:.18em; text-shadow:1px 1px 0 #000}
+
+.side{grid-column:2; grid-row:1 / span 2; display:flex; flex-direction:column; min-height:0;
+  border:var(--px) solid var(--line); background:var(--bg2)}
+.tabs{display:flex; border-bottom:var(--px) solid var(--line)}
+.tabs button{
+  flex:1; padding:8px 4px; background:transparent; border:0; border-right:1px solid var(--line);
+  color:var(--dim); cursor:pointer; font-size:12.5px; position:relative;
+}
+.tabs button:last-child{border-right:0}
+.tabs button.on{background:var(--panel); color:var(--gold)}
+.tabs button.flag::after{
+  content:"!"; position:absolute; right:8px; top:5px; color:var(--blood2); font-weight:700;
+}
+.pane{flex:1; min-height:0; overflow:auto; padding:10px 12px 14px}
+.pane::-webkit-scrollbar{width:6px}
+.pane::-webkit-scrollbar-thumb{background:#2c2e38}
+.hint{font-size:11px; color:var(--dim2); line-height:1.7; margin-top:8px}
+.fhead{font-size:11px; color:var(--dim); letter-spacing:.2em; margin:2px 0 8px}
+
+/* 登记卡：一张递进来的证件 */
+.idcard{position:relative; background:#c9c2ae; color:#16150f; padding:12px 12px 10px; border:2px solid #8d856f;
+  box-shadow:4px 4px 0 #050508, inset 0 0 0 1px rgba(255,255,255,.35)}
+.idhead{display:flex; gap:10px; align-items:center; padding-bottom:8px; border-bottom:1px dashed rgba(0,0,0,.35)}
+.idhead .spr{background-color:#2a2a2a; filter:grayscale(.15) contrast(1.05)}
+.idname{display:flex; flex-direction:column; line-height:1.25}
+.idname b{font-size:19px; letter-spacing:.04em}
+.idname span{font-size:10.5px; color:#4a473d; letter-spacing:.08em}
+.idrow{display:flex; justify-content:space-between; align-items:baseline; padding:5px 0 4px; border-bottom:1px dotted rgba(0,0,0,.22)}
+.idrow span{font-size:11px; color:#5a564a; letter-spacing:.12em}
+.idrow b{font-size:14px}
+.idfoot{font-size:9.5px; color:#6b6759; margin-top:8px; letter-spacing:.14em}
+.stamp{
+  position:absolute; right:10px; top:50px; transform:rotate(-14deg);
+  border:2px solid rgba(150,45,40,.65); color:rgba(150,45,40,.75);
+  padding:2px 6px; font-size:9.5px; letter-spacing:.1em; opacity:.85;
+}
+.asked{margin-top:12px; border-top:1px solid var(--line); padding-top:6px}
+.aline{display:grid; grid-template-columns:70px 1fr; gap:2px 8px; padding:5px 0; border-bottom:1px dotted #23242c; font-size:12px}
+.aline span{color:var(--dim)}
+.aline b{color:var(--text); word-break:break-all}
+.aline em{grid-column:2; font-style:normal; font-size:10.5px; color:var(--good)}
+.aline.bad em{color:var(--blood2)}
+
+/* 档案 */
+.file{display:flex; gap:10px; align-items:flex-start; margin-bottom:10px}
+.photo{position:relative; flex:none; background:#0a0a0d; border:2px solid #33353f; padding:3px; box-shadow:3px 3px 0 #050508}
+.photo .spr{filter:sepia(.18) contrast(1.04)}
+.photo.s{background:#12141a}
+.phcap{display:block; font-size:9px; color:var(--dim2); text-align:center; margin-top:3px; max-width:100px; line-height:1.4}
+.fmeta{display:flex; flex-direction:column; gap:4px; min-width:0}
+.fmeta b{font-size:17px}
+.fmeta span{font-size:11px; color:var(--dim); line-height:1.6}
+.ftable{border-top:1px solid var(--line); margin-top:2px; padding-top:4px}
+.frow{display:grid; grid-template-columns:62px 1fr auto auto; gap:2px 6px; align-items:baseline;
+  padding:5px 0; border-bottom:1px dotted #23242c; font-size:12px}
+.fl{font-size:10.5px; color:var(--dim); letter-spacing:.1em}
+.fv{color:#cfc9bc; word-break:break-all}
+.fc{color:var(--text); word-break:break-all; font-size:11.5px}
+.fc.dim{color:var(--dim2)}
+.fc.ok{color:var(--good)}
+.fc.bad{color:var(--blood2)}
+.fmark{font-size:11px; color:var(--good); width:10px}
+.frow.bad .fmark{color:var(--blood2)}
+.frow.bad .fv{text-decoration:underline wavy rgba(179,65,63,.6)}
+
+/* 记录 */
+.lrow{display:grid; grid-template-columns:56px 1fr auto; gap:6px; padding:6px 0; border-bottom:1px dotted #23242c; font-size:12px}
+.lrow .ln{color:var(--dim2); font-size:10.5px}
+.lrow b{font-weight:600}
+.lrow em{font-style:normal; font-size:10.5px; padding:0 5px; border:1px solid var(--line2); color:var(--dim)}
+.lrow.fake em{color:var(--blood2); border-color:#5a2422}
+.lrow.real em{color:var(--good); border-color:#2c4432}
+.logfoot{display:flex; flex-direction:column; gap:4px; margin-top:10px; font-size:10.5px; color:var(--dim2)}
+
+/* ------------------------------------------------------- 白天（屋里的人） */
+.isDay .tabs, .isDay .pane{display:none}
+.isDay .acts{display:none}
+.daypane{flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; padding:10px 12px 12px; overflow:auto}
+.daypane::-webkit-scrollbar{width:6px}
+.daypane::-webkit-scrollbar-thumb{background:#2c2e38}
+.reslist{flex:none; max-height:46vh; overflow:auto; display:flex; flex-direction:column; gap:5px}
+.reslist::-webkit-scrollbar{width:6px}
+.reslist::-webkit-scrollbar-thumb{background:#2c2e38}
+.res{
+  display:flex; align-items:center; gap:8px; padding:5px 7px; text-align:left; cursor:pointer;
+  background:var(--panel); border:var(--px) solid var(--line); color:var(--text);
+}
+.res:hover{border-color:var(--line2)}
+.res.on{border-color:var(--gold); background:#1a1710}
+.res .spr{flex:0 0 auto; background-color:#0a0b0e}
+.res .rname{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px}
+.res .rname b{font-size:12.5px; font-weight:400; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.res .rname em{font-style:normal; font-size:10px; color:var(--dim2)}
+.res .rleft{font-size:10px; color:var(--dim); white-space:nowrap}
+.res.dead{opacity:.42; cursor:default; filter:grayscale(.7)}
+.res.dead .rname b{text-decoration:line-through}
+.dtopics{border-top:1px solid var(--line); padding-top:6px; display:flex; flex-wrap:wrap; gap:5px}
+.dtopics .fhead{width:100%}
+.dtopics .btn.small{font-size:11px; padding:5px 8px}
+.dshot{border-top:1px solid var(--line); padding-top:7px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.dshot .hint{margin:0; flex:1; min-width:120px}
+.dfoot{border-top:1px solid var(--line); padding-top:8px}
+.dfoot .btn{width:100%}
+/* 记录页里的一行底细 */
+.trow{display:grid; grid-template-columns:44px 1fr auto; gap:2px 6px; align-items:baseline; padding:3px 0; border-bottom:1px dashed rgba(255,255,255,.05)}
+.tl{font-size:10.5px; color:var(--dim); letter-spacing:.1em}
+.tv{font-size:12px; color:var(--text); overflow-wrap:anywhere}
+.tk{font-style:normal; font-size:10px; color:var(--dim2); white-space:nowrap}
+.tk.ok{color:var(--good)}
+.tk.bad{color:var(--blood2)}
+.trow.bad .tv{text-decoration:underline wavy rgba(179,65,63,.6)}
+.odd{font-size:12px; color:var(--blood2); line-height:1.7; margin:8px 0 0}
+.drep{border-top:1px dashed var(--line); margin-top:8px; padding-top:6px}
+
+/* 对话框 */
+.talk{
+  grid-column:1; grid-row:2; min-height:126px; display:flex; flex-direction:column; gap:6px;
+  padding:9px 12px 10px; border:var(--px) solid var(--line); background:var(--bg2);
+}
+.who{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+.who span{font-size:12.5px; color:var(--gold); letter-spacing:.08em}
+.who em{font-style:normal; font-size:10.5px; color:var(--dim)}
+.who em.bad{color:var(--blood2)}
+.who em.good{color:var(--good)}
+#tLine{flex:1; white-space:pre-wrap; font-size:13.5px; line-height:1.75; color:#ddd7ca; min-height:56px}
+.acts{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.acts .left{margin-left:auto; font-size:10.5px; color:var(--dim2)}
+
+/* ---------------------------------------------------------------- 结局 */
+.ending{flex:1; min-height:0; overflow:auto; display:flex; align-items:center; justify-content:center; padding:28px 16px;
+  background:radial-gradient(760px 420px at 50% 0%,rgba(227,179,65,.08),transparent 62%),#07070a}
+.endcard{width:min(720px,100%); border:var(--px) solid var(--line2); background:#0c0d12; padding:24px 24px 20px;
+  box-shadow:7px 7px 0 #040406}
+.ek{font-size:10.5px; letter-spacing:.32em; color:var(--dim)}
+.endcard h2{font-size:clamp(22px,4.4vw,32px); margin:6px 0 4px; color:#f0e9d8; letter-spacing:.04em}
+.es{font-size:11.5px; color:var(--gold2); letter-spacing:.12em}
+.ebody{margin:16px 0 14px; padding:14px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line)}
+.ebody p{font-size:13px; line-height:2; color:#c8c2b5; margin-bottom:2px}
+.estats{display:grid; grid-template-columns:repeat(auto-fit,minmax(158px,1fr)); gap:6px}
+.erow{display:flex; justify-content:space-between; gap:8px; padding:6px 9px; background:#111218; border:1px solid #23242c; font-size:11.5px}
+.erow span{color:var(--dim); white-space:nowrap}
+.erow b{color:var(--gold); font-size:13px}
+.eacts{display:flex; gap:10px; flex-wrap:wrap; margin-top:18px}
+
+/* ---------------------------------------------------------------- 弹窗 */
+.modal{position:fixed; inset:0; z-index:800; display:flex; align-items:center; justify-content:center;
+  background:rgba(4,4,6,.82); padding:16px; backdrop-filter:blur(2px)}
+.modal[hidden]{display:none}
+.mbox{width:min(520px,100%); max-height:88vh; overflow:auto; background:#0e0f15; border:var(--px) solid var(--line2);
+  padding:18px 18px 14px; box-shadow:7px 7px 0 #030304}
+.mbox.wide{width:min(880px,100%)}
+.mbox h3{font-size:16px; letter-spacing:.08em; color:var(--gold); margin-bottom:10px}
+.mbody p{font-size:13px; line-height:1.9; color:#cdc7ba; margin-bottom:8px}
+.mbody p.pre{white-space:pre-line}
+.macts{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; margin-top:14px}
+.hrow{padding:8px 0; border-bottom:1px dotted #23242c}
+.hrow b{font-size:12.5px; color:var(--gold)}
+.hrow p{font-size:12px; color:#c2bcb0; line-height:1.8; white-space:pre-line; margin-top:2px}
+
+/* 图鉴 */
+.cfilter{display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap}
+.cfilter button{padding:5px 10px; background:transparent; border:1px solid var(--line2); color:var(--dim); cursor:pointer; font-size:11.5px}
+.cfilter button.on{background:var(--gold); color:#0a0a0c; border-color:var(--gold); font-weight:700}
+.cgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(74px,1fr)); gap:6px}
+.citem{display:flex; flex-direction:column; align-items:center; gap:3px; padding:5px 3px;
+  background:#111218; border:1px solid #23242c; cursor:pointer; overflow:hidden}
+.citem:hover{border-color:var(--line2); background:#171922}
+.citem span{font-size:10px; color:#b8b2a6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
+.citem.lock{opacity:.45; cursor:default}
+.citem .ck{font-style:normal; font-size:9px; color:var(--dim2)}
+.citem.has .ck{color:var(--gold)}
+.fv.dim{color:var(--dim2)}
+.citem .spr{flex:none}
+.cdetail{display:flex; gap:14px; align-items:flex-start}
+.cinfo{min-width:0; flex:1}
+.cinfo h3{margin-bottom:2px}
+.cen{font-size:11px; color:var(--dim); letter-spacing:.06em; margin-bottom:6px}
+.ctags{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px}
+.ctag{font-size:10.5px; padding:2px 7px; border:1px solid var(--line2); color:var(--dim)}
+
+@media (max-width:820px){
+  .main{grid-template-columns:1fr; grid-template-rows:auto auto minmax(0,1fr); gap:6px}
+  .stage{grid-column:1; grid-row:1; aspect-ratio:16/9; min-height:0; max-height:42vh}
+  .talk{grid-column:1; grid-row:2; min-height:0}
+  .side{grid-column:1; grid-row:3; min-height:0}
+  .hud{gap:7px; padding:4px 6px}
+  .night{min-width:70px}
+  .sanity{max-width:none}
+  #tLine{font-size:13px; min-height:44px}
+  .acts .btn{padding:7px 11px; font-size:12.5px}
+  .pane{padding:8px 10px 12px}
+  .title{padding:20px 16px; gap:0}
+  .tdoor{display:none}
+  .tinner{text-align:center; max-width:100%}
+  .menu{justify-content:center}
+  .photo .spr{max-height:150px; max-width:100%}
+  .cdetail{flex-direction:column; gap:10px}
+  .cdetail .photo{align-self:center; max-width:100%}
+}
+@media (max-width:400px){
+  .sanity>span{display:none}
+  .ammo{display:none}
+  .acts .left{width:100%; margin-left:0}
+}
+/* ---- 难度选择 ---- */
+.diffpick{display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:18px 0 4px}
+.diffpick .diff{flex:1 1 150px; max-width:180px; display:flex; flex-direction:column; gap:3px; text-align:left;
+  padding:10px 12px; background:var(--panel2); color:var(--text); border:var(--px) solid var(--line2);
+  box-shadow:3px 3px 0 #040406; cursor:pointer; transition:transform .08s, border-color .08s}
+.diffpick .diff:hover{transform:translate(-1px,-1px)}
+.diffpick .diff.on{border-color:var(--gold); box-shadow:0 0 0 1px var(--gold),3px 3px 0 #040406}
+.diffpick .diff b{font-size:14px; color:var(--gold)}
+.diffpick .diff em{font-style:normal; font-size:11px; color:var(--dim)}
+.diffpick .diff span{font-size:11px; color:var(--dim2); line-height:1.5}
+.diffpick .diff i{font-style:normal; font-size:11px; color:var(--blood2); margin-top:2px}
+.diffnote{font-size:12px; color:var(--dim); min-height:2.6em; max-width:560px; margin:2px auto 0; line-height:1.7}
+.hud .hdiff{font-size:10px; color:var(--gold2); border:1px solid var(--gold2); border-radius:3px; padding:0 4px; margin-left:2px}
+/* ---- 白天任务条 ---- */
+.dtasks{border:var(--px) solid var(--line); background:var(--bg2); padding:7px 9px; margin-bottom:8px}
+.dtasks .fhead{font-size:11px; color:var(--dim); letter-spacing:.06em; margin-bottom:4px}
+.task{display:flex; align-items:center; gap:6px; font-size:12px; padding:2px 0; color:var(--dim)}
+.task .tk{color:var(--dim2); width:12px}
+.task.on .tk{color:var(--gold)}
+.task.on .tt{color:var(--text)}
+.task em{margin-left:auto; font-style:normal; color:var(--dim2); font-size:11px}
+/* ---- 结局：银芯结算 / 任务 ---- */
+.epay{border:var(--px) solid var(--line); background:var(--bg2); padding:8px 10px; margin:10px 0}
+.epay .fhead{font-size:11px; color:var(--gold2); letter-spacing:.06em; margin-bottom:4px}
+.erow.big{border-top:1px dashed var(--line2); margin-top:4px; padding-top:6px; font-size:14px}
+.erow.big b{color:var(--gold)}
+.etasks{display:flex; flex-direction:column; gap:3px; margin:8px 0}
+.etasks .task em{color:var(--dim)}
+/* ---- 排行榜弹窗 ---- */
+.board{display:flex; flex-direction:column; gap:4px; max-height:48vh; overflow:auto; padding-right:4px}
+.brow{display:flex; align-items:center; gap:8px; font-size:13px; padding:4px 6px; border-bottom:1px solid var(--line)}
+.brow .rk{width:20px; color:var(--dim); text-align:right; font-variant-numeric:tabular-nums}
+.brow .nm{flex:1; color:var(--text); display:flex; flex-direction:column}
+.brow .nm em{font-style:normal; font-size:10.5px; color:var(--dim2)}
+.brow .sc{color:var(--gold); font-weight:700; font-variant-numeric:tabular-nums}
+.brow:first-child .rk{color:var(--gold)}
+</style>
+</head>
+<body>
+
+<div id="boot" role="status" aria-live="polite">
+  <div class="ring"></div>
+  <p id="bootText">正在擦玻璃…</p>
+  <p id="bootHint"></p>
+</div>
+
+<div class="app" id="app" hidden>
+
+  <section class="title" id="scrTitle">
+    <div class="tinner">
+      <p class="eyebrow">弥萨格 · 地下十一层 · 门房值夜记录</p>
+      <h1>寻找伪人<span>：Morimens</span></h1>
+      <p class="lead">夜里有人敲门，白天屋里坐着人。
+放错一个进来，它会在今晚替你杀掉屋里的一个。</p>
+      <div class="diffpick" id="diffPick"></div>
+      <p class="diffnote" id="diffNote"></p>
+      <div class="menu">
+        <button class="btn primary" id="btnNew" type="button">开始值夜</button>
+        <button class="btn" id="btnCont" type="button" hidden>接着上一夜</button>
+        <button class="btn" id="btnBoard" type="button">排行榜</button>
+        <button class="btn" id="btnCodex" type="button">图鉴 <em id="codexCount">0/73</em></button>
+        <button class="btn ghost" id="btnHelp" type="button">玩法</button>
+      </div>
+      <p class="best" id="bestLine"></p>
+      <p class="tiny" id="knownLine"></p>
+      <p class="tiny">62 名唤醒体 + 11 位 B 站主播，全员登场。<br>粉丝向二创；角色与素材版权归原权利方所有。</p>
+    </div>
+    <div class="tdoor" aria-hidden="true">
+      <div class="twin"><i></i></div>
+      <span class="tnum">11</span>
+      <span class="tknob"></span>
+      <span class="tglow"></span>
+    </div>
+  </section>
+
+  <section class="game" id="scrGame" hidden>
+    <header class="hud">
+      <a class="home" href="index.html" title="回首页">←</a>
+      <div class="night"><b id="hNight">第一夜</b><span id="hProg">第 1 个 / 共 3 个</span><span class="hdiff" id="hDiff"></span></div>
+      <div class="sanity"><span>理智</span><div class="bar"><i id="hSanBar"></i></div><b id="hSan">100</b></div>
+      <div class="ammo" id="hAmmo" title="子弹"></div>
+      <button class="ico" id="btnSound" type="button" title="声音">♪</button>
+      <button class="ico" id="btnCodex2" type="button" title="图鉴">鉴</button>
+      <button class="ico" id="btnBoard2" type="button" title="排行榜">榜</button>
+      <button class="ico" id="btnHelp2" type="button" title="玩法">?</button>
+    </header>
+
+    <div class="main">
+      <div class="stage">
+        <canvas id="cv" width="480" height="270"></canvas>
+        <span class="stagetag" id="stageTag">11F</span>
+      </div>
+
+      <aside class="side">
+        <div class="tabs">
+          <button type="button" data-tab="card" class="on">登记卡</button>
+          <button type="button" data-tab="file">档案</button>
+          <button type="button" data-tab="log">记录</button>
+        </div>
+        <div class="pane" data-pane="card" id="paneCard"></div>
+        <div class="pane" data-pane="file" id="paneFile" hidden></div>
+        <div class="pane" data-pane="log" id="paneLog" hidden></div>
+        <div class="daypane" id="sideDay" hidden></div>
+      </aside>
+
+      <div class="talk">
+        <div class="who"><span id="tWho">门外</span><em id="tSub"></em></div>
+        <p id="tLine"></p>
+        <div class="acts" id="acts"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ending" id="scrEnd" hidden></section>
+
+</div>
+
+<div class="modal" id="modal" hidden><div class="mbox" id="mbox"></div></div>
+
+<!-- @boot -->
+<script type="module" src="js/fake/main.js"></script>
+</body>
+</html>

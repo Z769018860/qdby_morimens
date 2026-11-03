@@ -1676,6 +1676,38 @@ function bugfight() {
   };
 }
 
+// 大巴扎：银钥 —— 每局散场时记账（js/bazaar.js 的 zjtt:bazaar:v1）：最高分、走到第几天、开过几摊
+function bazaar() {
+  const s = RD('bazaar:v1') || {};
+  const runs = n(s.runs);
+  const wins = n(s.wins);
+  return {
+    items: [
+      { k: '最高分', v: n(s.best) ? String(n(s.best)) : '—' },
+      { k: '最远', v: n(s.day) ? '第 ' + n(s.day) + ' 天' : '—' },
+      { k: '开摊', v: runs + ' 次' },
+    ],
+    extra: runs ? (wins ? `打穿全部天数的有 ${wins} 摊` : `还没走完全部天数`) : '',
+  };
+}
+
+// 寻找伪人：Morimens —— 读本机最高分摘要（zjtt:fake:best，由 js/fake/engine.js 的 saveBest 写）
+function fake() {
+  const b = null;
+  let best = null;
+  try { best = JSON.parse(RAW('zjtt:fake:best') || 'null'); } catch { best = null; }
+  if (!best || !best.score) return { items: [], extra: '' };
+  const diffName = { intro: '入门', std: '标准', hard: '硬核', night: '噩梦' }[best.diff] || best.diff || '';
+  return {
+    items: [
+      { k: '最高分', v: String(best.score) },
+      { k: '难度', v: diffName || '—' },
+      { k: '走到', v: best.days ? '第 ' + best.days + ' 天' : '—' },
+    ],
+    extra: best.score ? '据难度与活过天数结算银芯' : '',
+  };
+}
+
 // 卡片顺序 = 首页的排列顺序，用户不用重新认路
 const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', icon: '🔍', read: detective, tip: '六边形自走棋推演' },
   { k: 'merge', n: '合成大杜勒', href: 'merge.html', icon: '⚫', read: merge, tip: '两个同级合成下一级' },
@@ -1693,6 +1725,8 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'keeper', n: '杀死守密人', href: 'keeper.html', icon: '🔪', read: keeper, tip: '126 个结局的文字恐怖' },
   { k: 'bugfight', n: '电子斗蛐蛐', href: 'bugfight.html', icon: '🦗', read: bugfight, tip: '押注两队怪物，活着出笼' },
   { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，73 位出战者，能上段' },
+  { k: 'bazaar', n: '大巴扎：银钥', href: 'bazaar.html', icon: '🏪', read: bazaar, tip: '十格布阵，唤醒体产算力、命轮吃算力开火' },
+  { k: 'fake', n: '寻找伪人：Morimens', href: 'fake.html', icon: '🚪', read: fake, tip: '昼夜轮转，放错的人会在夜里杀人' },
 ];
 
 // 一次性读全部：页面只调这一个
@@ -1784,6 +1818,17 @@ const GD_SPEC = [
     ['段位分', String(n(v[0]))],
     ['人机战绩', `${n(v[1])} 胜 ${n(v[2])} 负`],
   ] },
+  { k: 'bz', n: '大巴扎：银钥', f: (v) => [
+    ['最高分', v[0] ? String(n(v[0])) : '—'],
+    ['最远', v[1] ? '第 ' + n(v[1]) + ' 天' : '—'],
+    ['开摊', n(v[2]) ? n(v[2]) + ' 次' : '—'],
+    ['收满十二天', n(v[3]) + ' 摊'],
+  ] },
+  { k: 'fk', n: '寻找伪人：Morimens', f: (v) => [
+    ['最高分', v[0] ? String(n(v[0])) : '—'],
+    ['走到', v[1] ? '第 ' + n(v[1]) + ' 天' : '—'],
+    ['结局', n(v[2]) + ' 种'],
+  ] },
 ];
 
 
@@ -1801,6 +1846,7 @@ const GD_SPEC = [
 //   rg 王权 [结局数, 最长任期天数, 当过几任, 金色结局次数]（首页榜按结局数排，同数比最长任期）
 //   ll 音游 [最高分(全谱), 最长连击, 玩过的谱面数]（首页榜按最高分排）
 //   rl 轮盘 [段位分, 胜, 负, 段位下标]（首页榜按段位分排，和决斗同构）
+//   bz 大巴扎 [最高分, 最远第几天, 开摊次数, 收满十二天的摊数]
 // 单调递增的量（最好成绩、累计局数、时长），服务端合并时逐项取大即可。
 function digest() {
   const out = { at: Date.now() };
@@ -1858,6 +1904,14 @@ function digest() {
   // 电子斗蛐蛐 [最高荷包, 夺冠桌数, 打过几桌]：全部只增不减，首页榜按最高荷包排
   const bfS = RD('bugfight:v1') || {};
   out.bf = [n(bfS.best), n(bfS.wins), n(bfS.runs)];
+  // 大巴扎：银钥 [最高分, 最远第几天, 开摊次数, 收满十二天的摊数]：四个数都只增不减
+  const bzS = RD('bazaar:v1') || {};
+  out.bz = [n(bzS.best), n(bzS.day), n(bzS.runs), n(bzS.wins)];
+  // 寻找伪人：Morimens [最高分, 走到第几天, 已解锁结局数]：三个数都只增不减
+  let fkB = null;
+  try { fkB = JSON.parse(RAW('zjtt:fake:best') || 'null'); } catch { fkB = null; }
+  fkB = fkB && typeof fkB === 'object' ? fkB : {};
+  out.fk = [n(fkB.score), n(fkB.days), Object.keys(fkB.endings || {}).length];
   return out;
 }
 return { fmtDur, DIFF_MERGE, DIFF_BIRD, GAMES, readAll, credits, GD_SPEC, digest };
@@ -2763,6 +2817,8 @@ const GAMES = {
   reign: { zh: '弥萨格王权', prefix: ['zjtt:reign'], skip: /:sound/ },
   // 杀死守密人：结局图鉴 + 形态记录 + 中途那一夜（刷新能接着玩）
   keeper: { zh: '杀死守密人', prefix: ['zjtt:keeper'], skip: /^$/ },
+  // 寻找伪人：存档（中途那一夜）+ 图鉴 + 最高分 + 银芯摘要，全部跟着账号走
+  fake: { zh: '寻找伪人：Morimens', prefix: ['zjtt:fake'], skip: /^$/ },
   // 2048：局面（save）和最高分都值得跟着账号走，难度 / 侵蚀 / 音效是这台设备的偏好
   // （皮肤不同步：换设备一进来就得多拉四百来 KB 的换皮池，不值）
   g2048: {

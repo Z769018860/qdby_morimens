@@ -2468,6 +2468,8 @@ const GAMES = {
   reign: { zh: '弥萨格王权', prefix: ['zjtt:reign'], skip: /:sound/ },
   // 杀死守密人：结局图鉴 + 形态记录 + 中途那一夜（刷新能接着玩）
   keeper: { zh: '杀死守密人', prefix: ['zjtt:keeper'], skip: /^$/ },
+  // 寻找伪人：存档（中途那一夜）+ 图鉴 + 最高分 + 银芯摘要，全部跟着账号走
+  fake: { zh: '寻找伪人：Morimens', prefix: ['zjtt:fake'], skip: /^$/ },
   // 2048：局面（save）和最高分都值得跟着账号走，难度 / 侵蚀 / 音效是这台设备的偏好
   // （皮肤不同步：换设备一进来就得多拉四百来 KB 的换皮池，不值）
   g2048: {
