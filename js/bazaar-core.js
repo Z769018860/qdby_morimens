@@ -6,7 +6,8 @@
 //   命轮　 —— 攒够 cpu 算力就在自己的节拍上开一炮，主要输出；
 //   造物　 —— 不占出手，纯静态加成（算力上限、产出、增伤、暴击……）；
 //   地形　 —— 敌我同吃，熔岩掉血、雾障加盾、疾风加速、脆裂削血。
-// 一直打到有人倒下；打到 TUNING.beats（1000）拍还没分出胜负，按剩余血量百分比判。难度、当天曲线、地形表都在 js/bazaar-data.js。
+// 一直打到有人倒下。第 100 拍后出现「毒圈」：双方每拍同时掉最大生命的一截（真伤，无视护盾），越往后越疼，
+// 直到有人倒下为止。TUNING.beats（1000）只是兜底，按剩余血量百分比判，正常碰不到。难度、当天曲线、地形表都在 js/bazaar-data.js。
 
 import * as DATA from './bazaar-data.js';
 
@@ -861,6 +862,23 @@ export function stepFight(f) {
         const isDmg = op.k === 'dmg' || op.k === 'poison' || op.k === 'burn';
         ev.push(...applyOp(f, 'e', op, isDmg ? f.atkMul : f.supMul, { src: {} }));
       }
+    }
+  }
+  // 7) 毒圈：第 zoneFrom 拍之后，双方同时掉血（按各自最大生命的比例，无视护盾），越往后越疼
+  if (f.t > TUNING.zoneFrom && !f.over) {
+    const pre = { p: f.p.hp / f.p.maxHp, e: f.e.hp / f.e.maxHp };
+    const k = TUNING.zoneStep * (f.t - TUNING.zoneFrom);
+    const dp = f.p.maxHp * k;
+    const de = f.e.maxHp * k;
+    f.p.hp -= dp;
+    f.e.hp -= de;
+    f.zone = Math.round(k * 1000) / 10;            // 当前每拍掉的百分比（给界面显示）
+    ev.push({ s: 'z', k: 'zone', p: dp, e: de, pct: f.zone, first: f.t === TUNING.zoneFrom + 1 });
+    if (f.p.hp <= 0 && f.e.hp <= 0) {                // 同一拍双方一起倒：进圈前血线高的赢
+      f.win = pre.p >= pre.e;
+      f.over = f.win ? 'win' : 'lose';
+      f.zoneEnd = true;
+      return ev;
     }
   }
   checkOver(f);

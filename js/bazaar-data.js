@@ -15,7 +15,9 @@ export const FOES = G_FOES;
 export const SHOP_ITEMS = ITEMS.filter((x) => x.r !== 'FATE');
 
 export const TUNING = {
-  beats: 1000,        // 一直打到有人倒下；超过 1000 拍还没分出胜负，才按剩余血量百分比判（见 bazaar-core.js 的 checkOver）
+  beats: 1000,        // 兜底上限（毒圈会让战斗在 ~190 拍内结束，实际碰不到）；真碰到才按剩余血量百分比判
+  zoneFrom: 100,      // 第 100 拍之后出现「毒圈」：双方同时掉血
+  zoneStep: 0.0003,   // 毒圈每拍掉最大生命的 (拍数-100)×0.03%：第 150 拍每拍 1.5%，约 180 拍双方都撑不住
   beatMs: 480,        // 一拍的实际时长（×1/×2/×3 倍速）
   startHp: 130,
   startGold: 32,

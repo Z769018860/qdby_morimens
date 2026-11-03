@@ -186,6 +186,13 @@ export const sfx = {
     noise({ dur: 0.05, gain: 0.12, lp: 9000, hp: 5000, at: 0.0 });
     tone(k === 1 ? 1568 : 1100, { dur: 0.04, type: 'square', gain: 0.08 });   // 每拍都有的「嗒」，哪怕小声也一定听得见节拍
   },
+  // 毒圈：每拍一声低沉的「嗡」，越往后越高越急
+  zone(pct = 0) {
+    if (!gate('zone', 60)) return;
+    const k = Math.min(1, pct / 6);
+    tone(70 + k * 90, { to: 50, dur: 0.22, type: 'sawtooth', gain: 0.1 + k * 0.12 });
+    noise({ dur: 0.18, gain: 0.05 + k * 0.1, lp: 500 + k * 1500, hp: 60 });
+  },
   // 胜负
   win() {
     if (!gate('win', 400)) return;
