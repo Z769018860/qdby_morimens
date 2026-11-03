@@ -42,9 +42,9 @@ const FOES = G_FOES;
 const SHOP_ITEMS = ITEMS.filter((x) => x.r !== 'FATE');
 
 const TUNING = {
-  beats: 1000,        // 兜底上限（毒圈会让战斗在 ~190 拍内结束，实际碰不到）；真碰到才按剩余血量百分比判
-  zoneFrom: 100,      // 第 100 拍之后出现「毒圈」：双方同时掉血
-  zoneStep: 0.0003,   // 毒圈每拍掉最大生命的 (拍数-100)×0.03%：第 150 拍每拍 1.5%，约 180 拍双方都撑不住
+  beats: 1000,        // 兜底上限（毒圈会让战斗在两三百拍内结束，实际碰不到）；真碰到才按剩余血量百分比判
+  zoneFrom: 100,      // 第 100 拍之后出现「毒圈」：双方同时掉血（同样的固定点数）
+  zoneStep: 0.4,      // 毒圈固定点数：第 N 拍（N>100）双方各掉 (N-100)×0.4 点，无视护盾——第 130 拍 12 点，第 150 拍 20 点；和血量多少无关
   beatMs: 480,        // 一拍的实际时长（×1/×2/×3 倍速）
   startHp: 130,
   startGold: 32,
@@ -172,8 +172,8 @@ const DATA = m_bazaar_data;
 //   命轮　 —— 攒够 cpu 算力就在自己的节拍上开一炮，主要输出；
 //   造物　 —— 不占出手，纯静态加成（算力上限、产出、增伤、暴击……）；
 //   地形　 —— 敌我同吃，熔岩掉血、雾障加盾、疾风加速、脆裂削血。
-// 一直打到有人倒下。第 100 拍后出现「毒圈」：双方每拍同时掉最大生命的一截（真伤，无视护盾），越往后越疼，
-// 直到有人倒下为止。TUNING.beats（1000）只是兜底，按剩余血量百分比判，正常碰不到。难度、当天曲线、地形表都在 js/bazaar-data.js。
+// 一直打到有人倒下。第 100 拍后出现「毒圈」：双方每拍同时掉同样的固定点数（真伤，无视护盾），越往后越疼，
+// 直到有人倒下为止（固定点数，不按血量比例：血少的一方先撑不住）。TUNING.beats（1000）只是兜底，按剩余血量百分比判，正常碰不到。难度、当天曲线、地形表都在 js/bazaar-data.js。
 
 
 
@@ -1030,15 +1030,15 @@ function stepFight(f) {
       }
     }
   }
-  // 7) 毒圈：第 zoneFrom 拍之后，双方同时掉血（按各自最大生命的比例，无视护盾），越往后越疼
+  // 7) 毒圈：第 zoneFrom 拍之后，双方同时掉同样的固定点数（无视护盾），越往后越疼
   if (f.t > TUNING.zoneFrom && !f.over) {
     const pre = { p: f.p.hp / f.p.maxHp, e: f.e.hp / f.e.maxHp };
-    const k = TUNING.zoneStep * (f.t - TUNING.zoneFrom);
-    const dp = f.p.maxHp * k;
-    const de = f.e.maxHp * k;
+    const k = TUNING.zoneStep * (f.t - TUNING.zoneFrom);   // 固定点数：双方一样（不按血量比例），第 N 拍各掉 k 点
+    const dp = k;
+    const de = k;
     f.p.hp -= dp;
     f.e.hp -= de;
-    f.zone = Math.round(k * 1000) / 10;            // 当前每拍掉的百分比（给界面显示）
+    f.zone = Math.round(k * 10) / 10;            // 当前每拍掉的点数（给界面显示）
     ev.push({ s: 'z', k: 'zone', p: dp, e: de, pct: f.zone, first: f.t === TUNING.zoneFrom + 1 });
     if (f.p.hp <= 0 && f.e.hp <= 0) {                // 同一拍双方一起倒：进圈前血线高的赢
       f.win = pre.p >= pre.e;
@@ -1351,7 +1351,7 @@ const sfx = {
   // 毒圈：每拍一声低沉的「嗡」，越往后越高越急
   zone(pct = 0) {
     if (!gate('zone', 60)) return;
-    const k = Math.min(1, pct / 6);
+    const k = Math.min(1, pct / 40);
     tone(70 + k * 90, { to: 50, dur: 0.22, type: 'sawtooth', gain: 0.1 + k * 0.12 });
     noise({ dur: 0.18, gain: 0.05 + k * 0.1, lp: 500 + k * 1500, hp: 60 });
   },
@@ -1447,7 +1447,7 @@ const REALM_VAR = { CHAOS: '--chaos', CARO: '--caro', AEQUOR: '--aqua', ULTRA: '
 const REALM_CLS = { CHAOS: 'CH', CARO: 'CA', AEQUOR: 'AE', ULTRA: 'UL' };
 // 待机立绘：唤醒体是 GIF 动图（循环播放），主播彩蛋只有一张静图（.webp）
 // 资源地址带版本号：图集 / 立绘换过之后，线上和浏览器缓存里的旧文件不会和新数据错位（图标名字对不上就是这么来的）
-const ASSET_V = '3.4.0';
+const ASSET_V = '3.4.1';
 const idleUrl = (h) => `assets/bazaar/idle/${h.id}.${h.egg ? 'webp' : 'gif'}?v=${ASSET_V}`;
 const artHTML = (h) => (h ? `<img src="${idleUrl(h)}" alt="${h.n}" decoding="async">` : '');
 function setRealm(h, els) {
@@ -1551,7 +1551,7 @@ const TUT = [
   { at: 'wheels', t: '④ 命轮才是主要输出',
     d: '命轮有自己的节拍，走满后还要吃一口算力才开火；算力不够就卡在「等算力」。最多戴 3 条。别一味买贵的，先让产出跟上。下面的「造物」不出手，只给加成，最多装 4 件。' },
   { at: 'btnFight', t: '⑤ 开战：一直打到有人倒下',
-    d: '点「开战」自动开打，<b>一直打到有一方倒下</b>：打到第 100 拍后<b>毒圈</b>出现，双方每拍同时掉血、越往后越疼，所以拖不过去。战斗里<b>每个人的立绘会被界域色从脚底漫到头顶，漫满就出手</b>；每一拍有一个鼓点，四拍一小节。右下角可以 ×1/×2/×3 加速或跳过。毒圈无视护盾，所以最后比的是谁的血线更高：护盾、回血、削对面血都是在抢血线。' },
+    d: '点「开战」自动开打，<b>一直打到有一方倒下</b>：打到第 100 拍后<b>毒圈</b>出现，双方每拍同时掉<b>同样的固定点数</b>（无视护盾）、越往后越疼，所以血少的一方先倒——想赢就别拖过 100 拍。战斗里<b>每个人的立绘会被界域色从脚底漫到头顶，漫满就出手</b>；每一拍有一个鼓点，四拍一小节。右下角可以 ×1/×2/×3 加速或跳过。毒圈不看血量比例、无视护盾，血少的先倒，所以后期血厚的怪拖不过去：要在 100 拍内打死它。' },
   { at: 'foeBar', t: '⑥ 看清今天的对手和地形',
     d: '顶上是今天的对手（血量、技能节拍）和地形（对双方都生效，比如熔岩每三拍两边掉血）。赢了拿金币进下一天，商店会变丰富；<b>别忘了每天先买再开战</b>。随时可以点右上角「?」重看这份指导。' },
 ];
@@ -2065,7 +2065,7 @@ function paintBars() {
   $('bCpuFill').style.width = pct(f.cpu, f.cpuCap) + '%';
   $('bCpuRate').textContent = `产 ${f.cpuGain || 0} · 剩 ${f.cpuCap - Math.floor(f.cpu)} 空间`;
   const ls = $('logSum');
-  if (ls) ls.textContent = `第 ${f.t} 拍${f.zone ? ` · 毒圈 每拍 −${f.zone}% 生命` : ' · 100 拍后出毒圈'}${longMul() > 1 ? ` · 自动 ×${longMul()}` : ''}`;
+  if (ls) ls.textContent = `第 ${f.t} 拍${f.zone ? ` · 毒圈 每拍 −${f.zone} 点` : ' · 100 拍后出毒圈'}${longMul() > 1 ? ` · 自动 ×${longMul()}` : ''}`;
   for (const u of f.units) {
     const el = $(`bub${u.uid}`);   // 战斗页的单位 id 带 b 前缀：棋盘页那一份同样的单位在底下，不加前缀 $() 会先命中底下那份，战斗页的条就永远不动
     if (el) {
@@ -2216,7 +2216,7 @@ function applyEvents(ev) {
       float('p', `圈 -${fmt(e.p)}`, '#c06bff');
       float('e', `圈 -${fmt(e.e)}`, '#c06bff');
       sfx.zone(e.pct);
-      parts.push(e.first ? '毒圈出现了：双方每拍同时掉血，越往后越疼，直到有人倒下' : `毒圈 双方各掉 ${e.pct}% 生命`);
+      parts.push(e.first ? '毒圈出现了：双方每拍同时掉固定点数的血，越往后越疼，直到有人倒下' : `毒圈 双方各掉 ${e.pct} 点`);
       cls = 'bad';
     } else if (e.k === 'poisonTick' || e.k === 'burnTick') {
       if (e.v >= 1) float(e.s === 'p' ? 'e' : 'p', `-${fmt(e.v)}`, e.k === 'poisonTick' ? '#a98cff' : '#ff9a5c');
