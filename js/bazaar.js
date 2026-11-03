@@ -54,7 +54,7 @@ const REALM_VAR = { CHAOS: '--chaos', CARO: '--caro', AEQUOR: '--aqua', ULTRA: '
 const REALM_CLS = { CHAOS: 'CH', CARO: 'CA', AEQUOR: 'AE', ULTRA: 'UL' };
 // 待机立绘：唤醒体是 GIF 动图（循环播放），主播彩蛋只有一张静图（.webp）
 // 资源地址带版本号：图集 / 立绘换过之后，线上和浏览器缓存里的旧文件不会和新数据错位（图标名字对不上就是这么来的）
-const ASSET_V = '3.1.5';
+const ASSET_V = '3.1.6';
 const idleUrl = (h) => `assets/bazaar/idle/${h.id}.${h.egg ? 'webp' : 'gif'}?v=${ASSET_V}`;
 const artHTML = (h) => (h ? `<img src="${idleUrl(h)}" alt="${h.n}" decoding="async">` : '');
 function setRealm(h, els) {
@@ -166,6 +166,8 @@ function renderFoe() {
       <div class="fhp"><span>生命 ${fmt(st.maxHp)}</span><div class="bar"><i style="width:100%"></i></div></div>
       <div class="fsk">${foe.skills.map((s) => `<span title="${skillText(st, s)}">${s.n} · ${s.cd} 拍</span>`).join('')}</div>
     </div>`;
+  // 点今天这只怪：看它几拍放什么技能、掉多少血
+  $('foeBar').onclick = () => openDetail('foe', run.foeId);
 }
 
 function renderTerrain() {
@@ -259,8 +261,10 @@ function renderShop() {
     const def = C.defOf(o);
     const can = C.canBuy(run, i);
     const rar = o.kind === 'relic' ? def.r : def.r || 'SSR';
+    // 英雄卡带上界域色：图标描一圈对应色，不同唤醒体一眼分得开（和「每个唤醒体一个专属音色」呼应）
+    const rstyle = (o.kind === 'hero' && REALM_VAR[def.realm]) ? ` style="--realm:var(${REALM_VAR[def.realm]})"` : '';
     // 图标那一块单独可点：看详情，不买。手机上一张卡就是「买」，误触的代价太大。
-    return `<button class="card k-${o.kind} r-${rar} ${o.sold ? 'sold' : ''} ${!can && !o.sold ? 'poor' : ''}" type="button" data-offer="${i}">
+    return `<button class="card k-${o.kind} r-${rar} ${o.sold ? 'sold' : ''} ${!can && !o.sold ? 'poor' : ''}" type="button" data-offer="${i}"${rstyle}>
       <span class="ci" data-info="${i}">${sp(def.spr)}</span>
       ${o.kind === 'hero' ? `<span class="ca" style="background-image:url(${idleUrl(def)})"></span>` : ''}
       <span class="cp ${run.gold < o.price ? 'no' : ''}">${o.price}</span>
@@ -411,9 +415,35 @@ function sheetRelic(d) {
   $('sMeta').textContent = `造物 · ${d.r}`;
   $('sTxt').innerHTML = `<b>${C.itemText(d)}</b><br>造物不占出手，只要装在身上就一直生效。`;
 }
+// 怪物详情：点今天的对手 / 战斗页那只怪，看它掉什么血、几拍放什么技能（数值按当天缩放）
+function sheetFoe(d, st) {
+  paintSp($('sImg'), d.spr);
+  $('sName').textContent = d.n;
+  $('sMeta').textContent = `怪物 · ${RANK_ZH[d.rank] || '普通'} · 生命 ${fmt(st.maxHp)}`;
+  const sk = (d.skills || []).map((s) => `<b>${s.n}</b>：${skillText(st, s)}（${s.cd} 拍一次）`);
+  $('sTxt').innerHTML = [
+    st.boss ? '<em>首领：血厚、技能重，先把输出堆起来再打。</em>'
+      : st.elite ? '<em>精英：比普通怪多一手，别硬顶。</em>' : '',
+    sk.length ? sk.join('<br>') : '没有特殊技能，纯靠普通攻击磨血。',
+  ].filter(Boolean).join('<br>');
+  $('sArt').innerHTML = '';
+}
 
 // 打开方式二：own = uid（队伍 / 战场上的），offer = 集市第 i 个摊位（可以在这里直接买）
 function openDetail(kind, id, opt) {
+  // 怪物：不在队伍里，走单独一条（只能看，不能卖）
+  if (kind === 'foe') {
+    const fd = C.foeOf(id);
+    if (!fd) return;
+    sheetFoe(fd, C.foeStats(run));
+    $('sSell').textContent = '知道了';
+    $('sSell').disabled = false;
+    $('sSell').onclick = closeSheet;
+    $('sheet').classList.add('on');
+    sheetAt = Date.now();
+    sfx.open();
+    return;
+  }
   const isOffer = opt && typeof opt.offer === 'number';
   const o = isOffer ? null : C.owned(run, id);
   if (!isOffer && !o) return;
@@ -515,6 +545,9 @@ function paintFight() {
   $('bFoeHpTxt').textContent = `${fmt(f.e.maxHp)} / ${fmt(f.e.maxHp)}`;
   $('bFoeSkills').innerHTML = f.e.skills.map((s, i) => `
     <span class="skill" id="sk${i}" title="${skillText(C.foeStats(run), s)}">${s.n}<i id="skb${i}"></i></span>`).join('');
+  // 点战斗页这只怪，看它的技能详情（跟集市页同一块面板）
+  const bf = $('bFoe');
+  if (bf) bf.onclick = () => openDetail('foe', f.foe.id);
   renderTrack($('bTrack'), true);
   $('bTrack').onclick = (e) => {
     const el = e.target.closest('.unit');
@@ -674,7 +707,8 @@ function applyEvents(ev) {
         const el = document.querySelector(`[data-uid="${e.uid}"]`);
         if (el) float('p', `+${e.v} 算力`, '#8fb6ff', el);
         flash(e.uid);
-        sfx.gen();
+        const bu = f.units.find((x) => x.uid === e.uid);
+        if (bu && bu.def) sfx.cast(bu.def.id, bu.def.realm); else sfx.gen();
       } else if (e.waste > 0) {
         parts.push('算力满了溢出，该扩容了');
       }
@@ -909,7 +943,7 @@ document.addEventListener('click', (e) => {
   if (!sheet.classList.contains('on')) return;
   if (Date.now() - sheetAt < 240) return;
   if (e.target.closest('#sheet')) return;
-  if (e.target.closest('.ci') || e.target.closest('.unit') || e.target.closest('[data-wid]') || e.target.closest('[data-bw]') || e.target.closest('[data-rid]')) return;
+  if (e.target.closest('.ci') || e.target.closest('.unit') || e.target.closest('[data-wid]') || e.target.closest('[data-bw]') || e.target.closest('[data-rid]') || e.target.closest('#foeBar') || e.target.closest('#bFoe')) return;
   closeSheet();
 });
 document.addEventListener('keydown', (e) => {
