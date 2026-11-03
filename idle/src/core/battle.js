@@ -44,7 +44,10 @@ export function makeUnit(def, side, idx) {
 }
 
 const sumBuff = (u, stat) => u.buffs.reduce((s, b) => (b.stat === stat ? s + num(b.v) : s), 0);
-const WEAK_MULT = 0.75, FRAGILE_MULT = 0.75, POISON_CAP = 40, COUNTER_CAP = 8;
+const WEAK_MULT = 0.75, FRAGILE_MULT = 0.75, POISON_CAP = 40, POISON_CAP_ALLY = 28, COUNTER_CAP = 8;
+// 守护机制（站位 / 反击盾 / 盾爆 / 耐毒）只对「我方」和「带技能表的对手（竞技场人机）」生效，普通怪不吃
+const SLOT_FRONT_CUT = 0.92, SLOT_BACK_AMP = 6, WARD_BURST = 0.3, WARD_CARRY = 0.5, RAMP_STEP = 0.1, RAMP_MAX = 5, POISON_DECAY = 0.2, POISON_DECAY_WARD = 0.1;
+const isPlayerLike = (u) => u.side === 'a' || !!u.kit;
 
 // status icons shown by the UI: [{ id, n }] — derived from buffs, dots and the status table
 export function statusList(u) {
@@ -88,6 +91,8 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   let burstRound = 0;     // sync：全员到位后的那一回合，之后到位的人这回合也一起放
   const A = allies.map((d, i) => makeUnit(d, 'a', i));
   const E = enemies.map((d, i) => makeUnit(d, 'e', i));
+  // 站位：前排（前两个槽位）受到的直接伤害 −8%，后排 +6% 增伤。守护天生就该站前排、输出站后排，但站错也不罚，只是少一份好处。
+  for (const u of [...A, ...E]) if (isPlayerLike(u) && (u.idx ?? 0) >= FRONT_SLOTS) u.amp += SLOT_BACK_AMP;
   const ev = [];
   const stats = {};
   for (const u of [...A, ...E]) stats[u.uid] = { dmg: 0, heal: 0, taken: 0 };
@@ -223,8 +228,20 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       push({ k: 'dmg', by: src.uid, who: tgt.uid, amt: 0, absorbed: 0, crit: false, hp: tgt.hp, shield: tgt.shield, blocked: true });
       return 0;
     }
+    if (kind === 'dmg' && src.side !== tgt.side && isPlayerLike(tgt) && (tgt.idx ?? 0) < FRONT_SLOTS) dmg = Math.round(dmg * SLOT_FRONT_CUT);
     let absorbed = 0;
+    const shieldBefore = tgt.shield;
     if (tgt.shield > 0) { absorbed = Math.min(tgt.shield, dmg); tgt.shield -= absorbed; dmg -= absorbed; }
+    // 守护：盾没破 → 每挨一下攒 1 层反击（回合末清掉）；盾被打穿 → 反击清空，之后每挨一下给下一次出盾 +10%（最多 5 层）
+    if (kind === 'dmg' && src.side !== tgt.side && tgt.type === 'WARDEN' && tgt.kit && isPlayerLike(tgt)) {
+      if (tgt.shield > 0) {
+        const cur = tgt.st.counter;
+        tgt.st.counter = { n: Math.min(COUNTER_CAP, (cur?.n || 0) + 1), per: Math.max(cur?.per || 0, tgt.atk * 0.27), dur: Math.max(cur?.dur || 0, 1), w: cur ? !!cur.w : true };
+      } else if (shieldBefore > 0 || absorbed > 0 || dmg > 0) {
+        if (tgt.st.counter?.w) delete tgt.st.counter;
+        tgt.ramp = Math.min(RAMP_MAX, (tgt.ramp || 0) + 1);
+      }
+    }
     let saved = false;
     // 濒死存活：致命一击按概率挡成「剩 1 点血」。触发一次后概率折半，可以连续触发（以前整场只能救一次）；
     // survived 记已经触发了几次，surviveChance 就地折半，低于 0.1% 直接归零
@@ -270,7 +287,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       case 'poison': {
         const mine = src.atk * 0.1;
         const keep = cur && cur.per >= mine ? cur : { per: mine, by: src.uid };
-        t.st.poison = { n: Math.min(POISON_CAP, (cur?.n || 0) + n), per: keep.per, by: keep.by, dur: 99 };
+        t.st.poison = { n: Math.min(isPlayerLike(t) ? POISON_CAP_ALLY : POISON_CAP, (cur?.n || 0) + n), per: keep.per, by: keep.by, dur: 99 };
         break;
       }
       case 'counter': {
@@ -337,13 +354,16 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         case 'heal':
           for (const t of targets(u, e.to)) heal(u, t, u.atk * (1 + sumBuff(u, 'atk') / 100) * e.m * (1 + u.healBonus / 100));
           break;
-        case 'shield':
+        case 'shield': {
+          const ramp = 1 + RAMP_STEP * (u.ramp || 0);      // 守护：被打穿盾后挨的每一下，让下一次出盾更厚
           for (const t of targets(u, e.to)) {
-            const amt = Math.max(0, Math.round(num((u.def * 1.2 + u.maxHp * 0.08) * num(e.m) * (1 + u.shieldBonus / 100) * (t.st.fragile ? FRAGILE_MULT : 1))));
+            const amt = Math.max(0, Math.round(num((u.def * 1.2 + u.maxHp * 0.08) * num(e.m) * (1 + u.shieldBonus / 100) * ramp * (t.st.fragile ? FRAGILE_MULT : 1))));
             t.shield += amt;
             push({ k: 'shield', who: t.uid, amt, shield: t.shield });
           }
+          u.ramp = 0;
           break;
+        }
         case 'buff': case 'debuff':
           for (const t of targets(u, e.to)) {
             const v = e.t === 'debuff' ? (e.stat === 'vuln' ? num(e.v) : -num(e.v)) : num(e.v);
@@ -938,7 +958,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     // 敌人的盾到它自己下次出手前失效；我方的盾不在这里清（见回合开头）：
     // 以前每个人出手前都清一遍自己的盾，于是排在施盾者后面的队友一开动就把刚拿到的盾抹了，
     // 团队盾 / 超共鸣的盾大招基本全白给（实测发出去的盾只有 3%~8% 真吃到了伤害）。
-    if (u.side === 'e') u.shield = 0;
+    if (u.side === 'e') { u.shield = Math.min(num(u.carry), Math.round(u.maxHp * 0.3)); u.carry = 0; }
     for (const k of Object.keys(u.cd)) if (u.cd[k] > 0) u.cd[k]--;
     let slot, sk;
     if (u.kit) {
@@ -1029,7 +1049,9 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         // 下毒的人可能已经倒下 / 被打散，找不到就退回「对面随便一位」——只影响增伤乘数，不影响伤害本身
         const src = [...A, ...E].find((x) => x.uid === ps.by) || [...A, ...E].find((x) => x.side !== u.side) || u;
         applyDamage(src, u, guarded(src, u, ps.n * ps.per, true), false, null, 'dot', { s: 'poison' });
-        ps.n -= Math.max(1, Math.floor(ps.n * 0.2));
+        // 耐毒：场上每有一位活着的友方守护（最多 2 位），毒层每回合多褪 10%
+        const wards = isPlayerLike(u) ? Math.min(2, (u.side === 'a' ? A : E).filter((x) => x.alive && x.type === 'WARDEN' && x.kit).length) : 0;
+        ps.n -= Math.max(1, Math.floor(ps.n * (POISON_DECAY + POISON_DECAY_WARD * wards)));
         if (ps.n <= 0) delete u.st.poison;
       }
     }
@@ -1037,7 +1059,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     // 以前是在回合最开头就清（在毒结算之前），于是「中毒穿盾」——我方永远吃不到盾；
     // 敌方盾要到它自己出手前才清（见 act()），那时毒早结算完，所以只有玩家侧吃亏。
     // 本回合队友给的盾仍然从发出一直留到下一回合开头，不受影响。
-    for (const u of A) u.shield = 0;
+    for (const u of A) { u.shield = Math.min(num(u.carry), Math.round(u.maxHp * 0.3)); u.carry = 0; }
     emitAll();
     if (finished()) break;
     for (const u of [...A, ...E]) {
@@ -1061,6 +1083,16 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       //    而是让全队打得更快。只加反震的话，实测每回合才 19 点，等于没加。
       tgt.buffs.push({ stat: 'def', v: -15, dur: 2 });
       push({ k: 'buff', who: tgt.uid, stat: 'def', v: -15, dur: 2 });
+    }
+    // 盾爆：每位守护把本回合没被打掉的护盾 30% 化作对敌方全体的直接伤害，之后留 50% 带进下一回合
+    // （铁壁型守护有自己的反震，这里只补其余守护；留盾对所有守护都生效）
+    for (const u of [...A, ...E]) {
+      if (!u.alive || u.type !== 'WARDEN' || !u.kit || !isPlayerLike(u)) continue;
+      const pool = num(u.shield);
+      if (pool < 1) continue;
+      if (!u.thorns) for (const t of (u.side === 'a' ? E : A)) if (t.alive) applyDamage(u, t, guarded(u, t, pool * WARD_BURST, true), false, null, 'dmg', { s: 'burst' });
+      const keep = Math.floor(pool * WARD_CARRY);
+      u.carry = keep;
     }
     for (const u of [...A, ...E]) {
       u.buffs = u.buffs.map((b) => ({ ...b, dur: b.dur - 1 })).filter((b) => b.dur > 0);

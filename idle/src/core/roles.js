@@ -26,6 +26,7 @@ const SH = (m, to = 'self') => ({ t: 'shield', m, to });
 const BUF = (stat, v, dur, to = 'allies') => ({ t: 'buff', stat, v, dur, to });
 const DEB = (stat, v, dur, to = 'foe') => ({ t: 'debuff', stat, v, dur, to });
 const GAUGE = (v, to = 'allies') => ({ t: 'gauge', k: 'aliemus', v, to });
+const CLN = (to = 'allies') => ({ t: 'cleanse', to });
 const DOT = (m, dur, to = 'foe') => ({ t: 'dot', m, dur, to });
 
 /**
@@ -38,11 +39,11 @@ export const CHORUS_ROLES = {
   heal: {
     names: { Skill1: '愈合咏叹', Skill2: '汩汩生息', Exalt: '安魂长歌', OverExalt: '万籁回春' },
     zh: '司疗', tag: '疗', color: '#7ee2a8',
-    desc: '治疗专精：单体大治疗附带护盾，大招是全队治疗 + 减伤；输出几乎为零，作用是让队伍扛住伤害。',
+    desc: '治疗专精：单体大治疗附带护盾并净化，大招是全队治疗 + 全队净化（解毒）；输出几乎为零，作用是让队伍扛住伤害。',
     kit: {
-      Skill1: [HEAL(1.9), SH(0.45, 'ally')],
+      Skill1: [HEAL(1.9), SH(0.45, 'ally'), CLN('ally')],
       Skill2: [HEAL(0.8, 'allies'), BUF('atk', 12, 2)],
-      Exalt: [HEAL(1.6, 'allies'), SH(0.5, 'allies'), GAUGE(18)],
+      Exalt: [HEAL(1.6, 'allies'), SH(0.5, 'allies'), CLN('allies'), GAUGE(18)],
       OverExalt: [HEAL(2.6, 'allies'), BUF('def', 20, 3), D(1.0)],
     },
     aura: { healBonus: 12, amp: 4 },
@@ -92,7 +93,7 @@ export const CHORUS_ROLES = {
     zh: '守律', tag: '律', color: '#6fc2e8',
     desc: '护盾专精：技能二与两个大招都是全队护盾，附带防御加成；没有任何输出，但能把脆皮队抬成活人。',
     kit: {
-      Skill1: [HEAL(1.0), SH(0.9, 'allies')],
+      Skill1: [HEAL(1.0), SH(0.9, 'allies'), CLN('ally')],
       Skill2: [SH(1.3, 'allies'), BUF('def', 15, 2)],
       Exalt: [SH(1.9, 'allies'), HEAL(0.6, 'allies'), GAUGE(18)],
       OverExalt: [SH(2.5, 'allies'), HEAL(1.0, 'allies'), BUF('def', 20, 3)],
@@ -209,10 +210,13 @@ export function roleChipOf(a) {
     const r = chorusRoleOf(a);
     return { zh: `合唱 · ${r.zh}`, color: r.color, desc: r.desc, aura: r.auraZh };
   }
+  if (a.type === 'WARDEN' && !thornsOf(a.slug)) {
+    return { zh: '守护 · 反击盾', color: '#9fd0a8', desc: '盾没破时每挨一下攒 1 层反击；盾被打穿后反击清空，之后每挨一下让下一次出盾 +10%（最多 5 层）。回合末把剩余护盾的 30% 砸向敌方全体，并留 50% 进下一回合。场上有守护时，友方毒层每回合多褪 10%（最多 2 位）。', aura: '' };
+  }
   if (a.type === 'WARDEN' && thornsOf(a.slug)) {
     return {
       zh: '守护 · 铁壁', color: '#9fd0a8',
-      desc: `纯盾型守护：回合结束时把没被消耗的护盾按 ${thornsOf(a.slug)}% 反打回去，堆盾本身就是输出。`,
+      desc: `纯盾型守护：回合结束时把没被消耗的护盾按 ${thornsOf(a.slug)}% 反打回去，堆盾本身就是输出；同样享有反击盾、盾被打穿后的蓄盾、留盾与耐毒。`,
       aura: '',
     };
   }

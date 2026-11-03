@@ -105,18 +105,18 @@ export const BONDS = [
 
   /* ---------- 职业阵型：同类型三人（不看界域，混编也能凑） ---------- */
   {
-    id: 'type-assault', zh: '锋线三连', cat: 'type', rule: 'type', key: 'ASSAULT', need: 3,
-    tiers: { 3: { atkPct: 8, critDmg: 18 }, 4: { atkPct: 14, critDmg: 30, amp: 6 } },
+    id: 'type-assault', zh: '锋线三连', cat: 'type', rule: 'type', key: 'ASSAULT', need: 2,
+    tiers: { 2: { atkPct: 4, critDmg: 8 }, 3: { atkPct: 8, critDmg: 18 }, 4: { atkPct: 14, critDmg: 30, amp: 6 } },
     desc: '三名以上突击：全队攻击与暴击伤害抬升，第四名突击再上一档。',
   },
   {
-    id: 'type-warden', zh: '铁壁三连', cat: 'type', rule: 'type', key: 'WARDEN', need: 3,
-    tiers: { 3: { defPct: 15, hpPct: 10 }, 4: { defPct: 22, hpPct: 16, surviveChance: 0.05 } },
+    id: 'type-warden', zh: '铁壁三连', cat: 'type', rule: 'type', key: 'WARDEN', need: 2,
+    tiers: { 2: { defPct: 6, shieldBonus: 10 }, 3: { defPct: 15, hpPct: 10 }, 4: { defPct: 22, hpPct: 16, surviveChance: 0.05 } },
     desc: '三名以上守护：全队防御与生命抬升，第四名守护再给濒死存活。',
   },
   {
-    id: 'type-chorus', zh: '合唱三连', cat: 'type', rule: 'type', key: 'CHORUS', need: 3,
-    tiers: { 3: { aliGain: 14, healBonus: 12 }, 4: { aliGain: 22, healBonus: 20, openAli: 16 } },
+    id: 'type-chorus', zh: '合唱三连', cat: 'type', rule: 'type', key: 'CHORUS', need: 2,
+    tiers: { 2: { aliGain: 6, healBonus: 6 }, 3: { aliGain: 14, healBonus: 12 }, 4: { aliGain: 22, healBonus: 20, openAli: 16 } },
     desc: '三名以上合唱：全队共鸣回复与治疗抬升，第四名合唱再给起始共鸣。',
   },
 
