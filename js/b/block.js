@@ -718,11 +718,29 @@ function writeJSON(k, v) {
 // ------------------------------------------------------------------ 音效
 // 没有音频文件，全部现场合成。第一次交互时才建 AudioContext（自动播放策略）。
 let actx = null;
+let bgmBus = null;      // BGM 单独一条总线：能整体淡入淡出，不和音效抢音量
 let sndOn = readJSON('zjtt:block:snd', true);
 function audio() {
   if (!actx) {
     const C = window.AudioContext || window.webkitAudioContext;
-    if (C) actx = new C();
+    if (C) {
+      actx = new C();
+      bgmBus = actx.createGain();
+      bgmBus.gain.value = 0;
+      bgmBus.connect(actx.destination);
+      // 一条短反馈延迟，pad 才有一点「深水回响」
+      const dly = actx.createDelay(0.6);
+      dly.delayTime.value = 0.27;
+      const fb = actx.createGain();
+      fb.gain.value = 0.32;
+      const wet = actx.createGain();
+      wet.gain.value = 0.3;
+      bgmBus.connect(dly);
+      dly.connect(fb);
+      fb.connect(dly);
+      dly.connect(wet);
+      wet.connect(actx.destination);
+    }
   }
   if (actx && actx.state === 'suspended') actx.resume();
   return actx;
@@ -823,9 +841,149 @@ const sfx = {
     beep(680, 0.12, 'sine', 0.11);
     setTimeout(() => beep(920, 0.14, 'sine', 0.09), 70);
   },
+  // 造物真的用出去：上扬的一扫，和「捡到」区分开
+  itemUse() {
+    sweep(320, 700, 0.16, 'triangle', 0.11);
+    beep(520, 0.09, 'triangle', 0.09);
+    noise(0.12, 0.06, 1800, 1.2);
+  },
+  // 重抽：一串往上乱跳的小音
+  reroll() {
+    [0, 1, 2, 3, 4].forEach((i) => setTimeout(() => beep(520 + Math.random() * 720, 0.06, 'square', 0.05), i * 36));
+  },
+  // 自涨：水又往上顶了一格，比普通升行更沉
+  surge() {
+    sweep(82, 44, 0.42, 'sine', 0.17);
+    noise(0.44, 0.09, 420, 1.2);
+  },
+  // 带锚的块推不动：金属叮
+  lock() {
+    beep(1240, 0.06, 'square', 0.06);
+    setTimeout(() => beep(1860, 0.1, 'triangle', 0.05), 20);
+  },
+  // 贯穿块：一声快扫
+  lineHit() {
+    sweep(420, 1600, 0.12, 'sawtooth', 0.08);
+    noise(0.1, 0.05, 3000, 1.6);
+  },
+  // 棱彩块：四音琶音
+  prism() {
+    [784, 1046.5, 1318.5, 1568].forEach((f, i) => setTimeout(() => beep(f, 0.22, 'sine', 0.06), i * 55));
+  },
   win: () => [0, 110, 220, 340].forEach((d, i) => setTimeout(() => beep([523, 659, 784, 1047][i], 0.28, 'triangle', 0.12), d)),
   lose: () => [0, 120, 260].forEach((d, i) => setTimeout(() => beep([392, 330, 262][i], 0.34, 'sine', 0.12), d)),
 };
+
+// ------------------------------------------------------------------ BGM
+// 程序化生成的深海底色：Am → F → C → G 四小节循环，低音 + 三音 pad + 几粒水滴。
+// 慢、低、几乎不抢戏，只让操作有节拍可依。全部现场合成，不加载音频文件。
+const BGM = {
+  on: readJSON('zjtt:block:bgm', true),
+  bar: 0,
+  next: 0,
+  timer: null,
+};
+const BAR = 3.6;
+const PROG = [
+  { bass: 110.0, pad: [220.0, 261.63, 329.63] },
+  { bass: 87.31, pad: [174.61, 220.0, 261.63] },
+  { bass: 130.81, pad: [261.63, 329.63, 392.0] },
+  { bass: 98.0, pad: [196.0, 246.94, 293.66] },
+];
+const DRIPS = [1046.5, 1318.51, 1567.98, 783.99, 880.0];
+
+function bgmBar(t0, i) {
+  const a = actx;
+  if (!a || !bgmBus) return;
+  const ch = PROG[i % PROG.length];
+
+  // 低音：两个长音接满一小节
+  for (const k of [0, 1]) {
+    const osc = a.createOscillator();
+    const g = a.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = ch.bass * (k ? 1.5 : 1);
+    const st = t0 + k * (BAR / 2);
+    g.gain.setValueAtTime(0.0001, st);
+    g.gain.exponentialRampToValueAtTime(0.036, st + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.0001, st + BAR / 2);
+    osc.connect(g);
+    g.connect(bgmBus);
+    osc.start(st);
+    osc.stop(st + BAR / 2 + 0.1);
+  }
+
+  // pad：三个音慢慢涌上来
+  for (const f of ch.pad) {
+    const osc = a.createOscillator();
+    const g = a.createGain();
+    const lp = a.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 760;
+    osc.type = 'triangle';
+    osc.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.0095, t0 + 1.1);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + BAR * 0.98);
+    osc.connect(lp);
+    lp.connect(g);
+    g.connect(bgmBus);
+    osc.start(t0);
+    osc.stop(t0 + BAR);
+  }
+
+  // 水滴：每小节 1~2 粒，位置随机，别太规律
+  const n = 1 + (Math.random() < 0.45 ? 1 : 0);
+  for (let d = 0; d < n; d++) {
+    const f = DRIPS[(Math.random() * DRIPS.length) | 0];
+    const st = t0 + 0.4 + Math.random() * (BAR - 0.9);
+    const osc = a.createOscillator();
+    const g = a.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(f, st);
+    osc.frequency.exponentialRampToValueAtTime(f * 0.86, st + 0.5);
+    g.gain.setValueAtTime(0.0001, st);
+    g.gain.exponentialRampToValueAtTime(0.012, st + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, st + 0.55);
+    osc.connect(g);
+    g.connect(bgmBus);
+    osc.start(st);
+    osc.stop(st + 0.6);
+  }
+}
+
+function bgmTick() {
+  const a = actx;
+  if (!a || !BGM.on) return;
+  const ct = a.currentTime;
+  // 从后台切回来时别把积压的小节一口气补完
+  if (BGM.next < ct - 0.4) { BGM.next = ct + 0.1; BGM.bar = 0; }
+  while (BGM.next < ct + 1.4) {
+    bgmBar(BGM.next, BGM.bar);
+    BGM.next += BAR;
+    BGM.bar++;
+  }
+}
+
+function bgmStart() {
+  if (!BGM.on) return;
+  const a = audio();
+  if (!a || !bgmBus) return;
+  bgmBus.gain.setTargetAtTime(0.7, a.currentTime, 0.9);
+  if (BGM.timer) return;
+  BGM.next = a.currentTime + 0.2;
+  BGM.bar = 0;
+  BGM.timer = setInterval(bgmTick, 260);
+  bgmTick();
+}
+
+function bgmStop(fade) {
+  if (BGM.timer) {
+    clearInterval(BGM.timer);
+    BGM.timer = null;
+  }
+  if (actx && bgmBus) bgmBus.gain.setTargetAtTime(0.0001, actx.currentTime, fade == null ? 0.35 : fade);
+}
 
 // ------------------------------------------------------------------ 状态
 const G = {
@@ -1604,6 +1762,10 @@ function drainFx() {
         G.rings.push({ x: B.x + B.w / 2, y: B.y + r * ch + ch / 2, life: 0.45, max: 0.45, w: B.w });
       }
       sfx.clear(e.rows.length, e.combo);
+      const sps = new Set(e.cells.map((x) => x.sp).filter(Boolean));
+      if (sps.has('bomb')) sfx.boom();
+      if (sps.has('line')) sfx.lineHit();
+      if (sps.has('prism')) sfx.prism();
       const topRow = Math.min(...e.rows);
       const gain = e.gain + (e.resonate ? e.resonate * 200 : 0);
       pushFloat(B.x + B.w / 2, B.y + topRow * ch + ch * 0.4, '+' + gain, e.resonate ? '#ffd7a8' : '#ffe9a8', 20);
@@ -1646,8 +1808,10 @@ function drainFx() {
       }
     } else if (e.k === 'surge') {
       G.shake = Math.max(G.shake, 0.5);
+      sfx.surge();
       pushFloat(B.x + B.w / 2, B.y + B.h - ch * 0.6, '水又涨了一格', '#9ed4ff', 15);
     } else if (e.k === 'reroll') {
+      sfx.reroll();
       pushFloat(B.x + B.w / 2, G.nextY + ch * 0.3, '重抽', '#bff0c6', 14);
     } else if (e.k === 'win') {
       sfx.win();
@@ -1789,6 +1953,7 @@ function tapItem(id) {
   }
   const old0 = snapBlocks(st);
   if (useItem(st, id, -1, -1)) {
+    sfx.itemUse();
     G.aim = null;
     paintItems();
     startTweens(old0, st);
@@ -1809,6 +1974,7 @@ function stageDown(e) {
     const cell = cellFromPoint(pt.clientX, pt.clientY);
     const old1 = snapBlocks(st);
     if (cell && useItem(st, G.aim, cell.r, cell.c)) {
+      sfx.itemUse();
       startTweens(old1, st);
       G.aim = null;
       G.aimCell = null;
@@ -1837,6 +2003,7 @@ function stageDown(e) {
   if (bid == null) return;
   const lim = slideRange(st, bid);
   if (lim.locked) {
+    sfx.lock();
     showTip('这块带锚，推不动');
     sfx.nope();
     return;
@@ -2075,6 +2242,7 @@ function startRun() {
   G.shake = 0;
   hudCache = {};
   G.st = newRun(lv.id, (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0);
+  bgmStart();
 
   // 四张头像先挂上，loaded 之后重画
   G.imgs = [];
@@ -2107,6 +2275,7 @@ function finish(win) {
   if (!st || G.resultShown) return;
   G.resultShown = true;
   G.mode = 'over';
+  bgmStop(0.6);
 
   const rank = win ? rankOf(st) : 'D';
   const data = seenSave();
@@ -2152,6 +2321,7 @@ function payCredits(n) {
 }
 
 function backToSelect() {
+  bgmStop();
   G.mode = 'select';
   G.st = null;
   G.paused = false;
@@ -2168,6 +2338,8 @@ function backToSelect() {
 function togglePause(force) {
   if (G.mode !== 'play' || !G.st || G.st.over) return;
   G.paused = force == null ? !G.paused : force;
+  if (G.paused) bgmStop(0.15);
+  else bgmStart();
   const ov = $('#ovPause');
   ov.hidden = !G.paused;
   requestAnimationFrame(() => ov.classList.toggle('on', G.paused));
@@ -2198,6 +2370,15 @@ function bindUi() {
     if (sndOn) sfx.item();
   });
   $('#btnSnd').classList.toggle('off', !sndOn);
+
+  $('#btnBgm').addEventListener('click', () => {
+    BGM.on = !BGM.on;
+    writeJSON('zjtt:block:bgm', BGM.on);
+    $('#btnBgm').classList.toggle('off', !BGM.on);
+    if (BGM.on) { bgmStart(); sfx.item(); }
+    else bgmStop(0.1);
+  });
+  $('#btnBgm').classList.toggle('off', !BGM.on);
 
   let rt = 0;
   window.addEventListener('resize', () => {
@@ -2244,6 +2425,17 @@ if (location.search.includes('_test=1')) {
       syncHud();
       draw();
       return this.state();
+    },
+    // 音频自检：无头环境看不到声音，至少能看到上下文状态和 BGM 调度器有没有跑
+    audioState() {
+      return {
+        ctx: !!actx,
+        state: actx ? actx.state : null,
+        snd: sndOn,
+        bgm: BGM.on,
+        running: !!BGM.timer,
+        bar: BGM.bar,
+      };
     },
     paint() {
       paintItems();
