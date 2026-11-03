@@ -180,10 +180,10 @@ function unitHTML(u, inBattle) {
   const left = inBattle ? Math.max(0, cd - timer) : d.cd;
   return `<div class="unit r-${REALM_CLS[d.realm]}" data-uid="${u.uid}" style="--at:${u.start};--len:${u.len};--realm:var(${REALM_VAR[d.realm]})">
     <img src="${idleUrl(d)}" alt="${d.n}" decoding="async">
-    <span class="ucd${inBattle && left <= 1 ? ' now' : ''}" id="ucd${u.uid}" style="--p:${inBattle ? Math.round((timer / cd) * 100) : 0}"><i>${left}</i></span>
+    <span class="ucd${inBattle && left <= 1 ? ' now' : ''}" id="${inBattle ? 'b' : ''}ucd${u.uid}" style="--p:${inBattle ? Math.round((timer / cd) * 100) : 0}"><i>${left}</i></span>
     <span class="ut">${d.n}</span>
     <span class="um">产 ${d.gen}${d.egg ? ' · 主播' : ''}</span>
-    <span class="ub"><i id="ub${u.uid}"></i></span>
+    <span class="ub"><i id="${inBattle ? 'b' : ''}ub${u.uid}" style="width:${inBattle ? Math.round((timer / cd) * 100) : 0}%"></i></span>
   </div>`;
 }
 
@@ -560,9 +560,17 @@ function paintBars() {
   const ls = $('logSum');
   if (ls) ls.textContent = `第 ${Math.min(f.t, TUNING.beats)} / ${TUNING.beats} 拍`;
   for (const u of f.units) {
-    const el = $(`ub${u.uid}`);
-    if (el) el.style.width = pct(u.timer, u.cd) + '%';
-    const ring = $(`ucd${u.uid}`);
+    const el = $(`bub${u.uid}`);   // 战斗页的单位 id 带 b 前缀：棋盘页那一份同样的单位在底下，不加前缀 $() 会先命中底下那份，战斗页的条就永远不动
+    if (el) {
+      // 条在一拍的时间里匀速走向「下一拍」的位置，不是一拍跳一格；出手后归零那一下不做过渡
+      const to = Math.min(100, pct(u.timer + 1, u.cd));
+      const prev = parseFloat(el.dataset.p || '0');
+      const reset = pct(u.timer, u.cd) < prev - 0.5;
+      el.style.transition = reset ? 'none' : `width ${Math.round(TUNING.beatMs / speed)}ms linear`;
+      el.style.width = (reset ? pct(u.timer, u.cd) : to) + '%';
+      el.dataset.p = String(reset ? pct(u.timer, u.cd) : to);
+    }
+    const ring = $(`bucd${u.uid}`);
     if (ring) {
       const left = Math.max(0, u.cd - u.timer);
       ring.style.setProperty('--p', String(Math.round(pct(u.timer, u.cd))));
@@ -701,6 +709,7 @@ function loop(now) {
   if (timer >= TUNING.beatMs) {
     timer -= TUNING.beatMs;
     const ev = C.stepFight(fight);
+    sfx.beat(fight.t);
     if (ev.length) applyEvents(ev);
     else paintBars();
     if (fight.over) { endFight(); return; }

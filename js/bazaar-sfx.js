@@ -147,7 +147,20 @@ export const sfx = {
   heal() { if (gate('heal', 90)) tone(440, { to: 660, dur: 0.16, type: 'sine', gain: 0.08 }); },
   poison() { if (gate('poison', 90)) tone(240, { to: 180, dur: 0.16, type: 'triangle', gain: 0.07 }); },
   // 节拍
-  beat() { if (gate('beat', 90)) tone(1320, { dur: 0.03, type: 'square', gain: 0.03 }); },
+  // 每一拍一个鼓点，四拍一小节：第 1 拍「咚」+ 高音铃，第 3 拍「咚」，第 2、4 拍「嗒」（军鼓），拍拍带一下轻踩镲。
+  // 战斗里的其他声音（产算力、出炮、受击）全落在这条节奏上，听起来才是「在打拍子」。
+  beat(n = 1) {
+    if (!gate('beat', 40)) return;
+    const k = ((Math.max(1, n | 0) - 1) % 4) + 1;
+    if (k === 1 || k === 3) {
+      tone(k === 1 ? 120 : 100, { to: 48, dur: 0.16, type: 'sine', gain: k === 1 ? 0.22 : 0.17 });
+      if (k === 1) tone(1568, { dur: 0.07, type: 'triangle', gain: 0.05, at: 0.005 });
+    } else {
+      noise({ dur: 0.1, gain: 0.11, lp: 3800, hp: 1200 });
+      tone(210, { to: 150, dur: 0.07, type: 'triangle', gain: 0.07 });
+    }
+    noise({ dur: 0.04, gain: 0.04, lp: 9000, hp: 6000, at: 0.0 });
+  },
   // 胜负
   win() {
     if (!gate('win', 400)) return;

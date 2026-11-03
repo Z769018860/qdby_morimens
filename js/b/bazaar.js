@@ -1289,7 +1289,20 @@ const sfx = {
   heal() { if (gate('heal', 90)) tone(440, { to: 660, dur: 0.16, type: 'sine', gain: 0.08 }); },
   poison() { if (gate('poison', 90)) tone(240, { to: 180, dur: 0.16, type: 'triangle', gain: 0.07 }); },
   // 节拍
-  beat() { if (gate('beat', 90)) tone(1320, { dur: 0.03, type: 'square', gain: 0.03 }); },
+  // 每一拍一个鼓点，四拍一小节：第 1 拍「咚」+ 高音铃，第 3 拍「咚」，第 2、4 拍「嗒」（军鼓），拍拍带一下轻踩镲。
+  // 战斗里的其他声音（产算力、出炮、受击）全落在这条节奏上，听起来才是「在打拍子」。
+  beat(n = 1) {
+    if (!gate('beat', 40)) return;
+    const k = ((Math.max(1, n | 0) - 1) % 4) + 1;
+    if (k === 1 || k === 3) {
+      tone(k === 1 ? 120 : 100, { to: 48, dur: 0.16, type: 'sine', gain: k === 1 ? 0.22 : 0.17 });
+      if (k === 1) tone(1568, { dur: 0.07, type: 'triangle', gain: 0.05, at: 0.005 });
+    } else {
+      noise({ dur: 0.1, gain: 0.11, lp: 3800, hp: 1200 });
+      tone(210, { to: 150, dur: 0.07, type: 'triangle', gain: 0.07 });
+    }
+    noise({ dur: 0.04, gain: 0.04, lp: 9000, hp: 6000, at: 0.0 });
+  },
   // 胜负
   win() {
     if (!gate('win', 400)) return;
@@ -1505,10 +1518,10 @@ function unitHTML(u, inBattle) {
   const left = inBattle ? Math.max(0, cd - timer) : d.cd;
   return `<div class="unit r-${REALM_CLS[d.realm]}" data-uid="${u.uid}" style="--at:${u.start};--len:${u.len};--realm:var(${REALM_VAR[d.realm]})">
     <img src="${idleUrl(d)}" alt="${d.n}" decoding="async">
-    <span class="ucd${inBattle && left <= 1 ? ' now' : ''}" id="ucd${u.uid}" style="--p:${inBattle ? Math.round((timer / cd) * 100) : 0}"><i>${left}</i></span>
+    <span class="ucd${inBattle && left <= 1 ? ' now' : ''}" id="${inBattle ? 'b' : ''}ucd${u.uid}" style="--p:${inBattle ? Math.round((timer / cd) * 100) : 0}"><i>${left}</i></span>
     <span class="ut">${d.n}</span>
     <span class="um">产 ${d.gen}${d.egg ? ' · 主播' : ''}</span>
-    <span class="ub"><i id="ub${u.uid}"></i></span>
+    <span class="ub"><i id="${inBattle ? 'b' : ''}ub${u.uid}" style="width:${inBattle ? Math.round((timer / cd) * 100) : 0}%"></i></span>
   </div>`;
 }
 
@@ -1885,9 +1898,17 @@ function paintBars() {
   const ls = $('logSum');
   if (ls) ls.textContent = `第 ${Math.min(f.t, TUNING.beats)} / ${TUNING.beats} 拍`;
   for (const u of f.units) {
-    const el = $(`ub${u.uid}`);
-    if (el) el.style.width = pct(u.timer, u.cd) + '%';
-    const ring = $(`ucd${u.uid}`);
+    const el = $(`bub${u.uid}`);   // 战斗页的单位 id 带 b 前缀：棋盘页那一份同样的单位在底下，不加前缀 $() 会先命中底下那份，战斗页的条就永远不动
+    if (el) {
+      // 条在一拍的时间里匀速走向「下一拍」的位置，不是一拍跳一格；出手后归零那一下不做过渡
+      const to = Math.min(100, pct(u.timer + 1, u.cd));
+      const prev = parseFloat(el.dataset.p || '0');
+      const reset = pct(u.timer, u.cd) < prev - 0.5;
+      el.style.transition = reset ? 'none' : `width ${Math.round(TUNING.beatMs / speed)}ms linear`;
+      el.style.width = (reset ? pct(u.timer, u.cd) : to) + '%';
+      el.dataset.p = String(reset ? pct(u.timer, u.cd) : to);
+    }
+    const ring = $(`bucd${u.uid}`);
     if (ring) {
       const left = Math.max(0, u.cd - u.timer);
       ring.style.setProperty('--p', String(Math.round(pct(u.timer, u.cd))));
@@ -2026,6 +2047,7 @@ function loop(now) {
   if (timer >= TUNING.beatMs) {
     timer -= TUNING.beatMs;
     const ev = C.stepFight(fight);
+    sfx.beat(fight.t);
     if (ev.length) applyEvents(ev);
     else paintBars();
     if (fight.over) { endFight(); return; }
