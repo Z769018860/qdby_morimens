@@ -65,14 +65,15 @@ const TUNING = {
   cpuBase: 26,        // 算力上限（扩容前）
   coreCost: 6,        // 扩容一次的价格（每次 +3）
   coreGain: 5,        // 扩容一次加多少上限
+  shopSize: 6,        // 集市一次摆几个选项（2 列 × 3 行）
   rerollCost: 1,      // 刷新一次的价钱（原来 2）：放宽一点，玩家才有钱多刷几次找想要的人 / 命轮
   benchSlots: 4,      // 仓库格数：装不下的人 / 命轮先放仓库，随时换上场或卖掉
   sellRate: 0.5,
   cdMin: 2,
   wcdMin: 3,
   // 每天的血量预算 / 目标强度 / 收入。以 12 天为基准调出来，后面按同一斜率外推。
-  dayHp: [0, 93.6, 149.5, 201.5, 286.0, 396.5, 533.0, 637.0, 793.0, 917.8, 1040.0, 1128.4, 1318.2, 1384.5, 1453.4, 1526.2, 1602.9, 1683.5, 1768.0],
-  dayDps: [0, 3.2, 4.3, 5.2, 6.1, 6.6, 7.5, 8.0, 8.3, 8.7, 9.2, 9.3, 9.9, 10.2, 10.6, 10.9, 11.3, 11.6, 12.0],
+  dayHp: [0, 104.4, 166.8, 224.8, 319.0, 442.2, 594.5, 710.5, 884.5, 1023.7, 1160.0, 1258.6, 1470.3, 1544.2, 1621.1, 1702.3, 1787.8, 1877.8, 1972.0],
+  dayDps: [0, 3.4, 4.5, 5.5, 6.5, 7.0, 7.9, 8.5, 8.8, 9.3, 9.8, 9.9, 10.5, 10.9, 11.2, 11.6, 12.0, 12.3, 12.7],
   income: [0, 15, 15, 14, 13, 13, 13, 13, 13, 13, 13, 14, 15, 15, 16, 16, 17, 17, 18],
 };
 
@@ -377,7 +378,7 @@ function pickRarity(run, rnd) {
 }
 
 // 商店配比：前面几天先把「人 + 命轮」凑出来，造物只是调剂；第 5 天往后造物才慢慢变成主角。
-// 这不是数值平衡，是体感——开局四条摊位全摆造物，玩家连一次「换人 / 换轮」的选择都做不了。
+// 这不是数值平衡，是体感——开局摊位全摆造物，玩家连一次「换人 / 换轮」的选择都做不了。
 // 槽位满了 / 战场挤不进人时，对应那一类自动降权，免得刷出一堆买不了的东西。
 function shopMix(run) {
   const d = run.day;
@@ -408,7 +409,7 @@ function rollShop(run, { free = false } = {}) {
       run.rerolls += 1;
     }
   }
-  const n = 4 + (run.pact.k === 'rich' && run.day === 1 ? 1 : 0);
+  const n = TUNING.shopSize + (run.pact.k === 'rich' && run.day === 1 ? 1 : 0);   // 一次六个选项（2×3）
   const out = [];
   const used = new Set();
   const ownHeroes = new Set([...run.squad.map((h) => h.key), ...run.bench.filter((b) => b.kind === 'hero').map((b) => b.key)]);
@@ -1161,8 +1162,10 @@ function settle(run, f) {
   run.gold += goldGain;
   run.history.push({ day: run.day, foe: f.foe.n, win: f.win, hp: Math.max(0, Math.round(f.p.hp)) });
   let cleared = false;
+  let retry = false, stipend = 0;
   if (f.win) {
     run.wins += 1;
+    run.dayLosses = 0;
     if (run.pact.k === 'grow') run.bonusHp += run.pact.v;
     run.day += 1;
     run.freeReroll = 0;
@@ -1171,16 +1174,20 @@ function settle(run, f) {
   } else {
     run.losses += 1;
     run.sane -= 1;
-    if (run.sane <= 0 || run.day >= run.totalDays) {
+    run.dayLosses = (run.dayLosses || 0) + 1;
+    if (run.sane <= 0) {
       run.over = true;
     } else {
-      run.day += 1;
+      // 输了不往下走：留在这一天（同一个对手、同一片地形），发一笔「重整旗鼓」的金币，
+      // 刷一批新货，让玩家在商店里把队伍补强再打一次。同一天输得越多，补给越厚。
+      retry = true;
+      stipend = Math.round(income * 1.5 * (1 + 0.25 * (run.dayLosses - 1))) + 6;
+      run.gold += stipend;
       run.freeReroll = 0;
-      pickFoe(run);
       rollShop(run, { free: true });
     }
   }
-  return { goldGain, cleared };
+  return { goldGain, cleared, retry, stipend };
 }
 
 function scoreOf(run) {
@@ -1530,7 +1537,7 @@ const REALM_VAR = { CHAOS: '--chaos', CARO: '--caro', AEQUOR: '--aqua', ULTRA: '
 const REALM_CLS = { CHAOS: 'CH', CARO: 'CA', AEQUOR: 'AE', ULTRA: 'UL' };
 // 待机立绘：唤醒体是 GIF 动图（循环播放），主播彩蛋只有一张静图（.webp）
 // 资源地址带版本号：图集 / 立绘换过之后，线上和浏览器缓存里的旧文件不会和新数据错位（图标名字对不上就是这么来的）
-const ASSET_V = '3.5.0';
+const ASSET_V = '3.7.0';
 const idleUrl = (h) => `assets/bazaar/idle/${h.id}.${h.egg ? 'webp' : 'gif'}?v=${ASSET_V}`;
 const artHTML = (h) => (h ? `<img src="${idleUrl(h)}" alt="${h.n}" decoding="async">` : '');
 function setRealm(h, els) {
@@ -1624,8 +1631,8 @@ function tutSeen() { try { return localStorage.getItem(TUT_KEY) === '1'; } catch
 function tutMark() { try { localStorage.setItem(TUT_KEY, '1'); } catch (e) { /* 无痕模式 */ } }
 const TUT = [
   { at: null, t: '欢迎来到弥萨格大巴扎',
-    d: '这是一个「摆摊自走」小游戏：每天先在集市买东西、摆好阵，再开战，战斗全自动。<b>12 天里撑住，理智别掉光</b>就算通关（输一场掉 1 点理智）。接下来 1 分钟带你认一遍界面。' },
-  { at: 'shop', t: '① 集市：用金币招人、买命轮',
+    d: '这是一个「摆摊自走」小游戏：每天先在集市买东西、摆好阵，再开战，战斗全自动。<b>连赢 12 天、理智别掉光</b>就算通关（输一场掉 1 点理智，但留在原地有补给让你补强再打）。接下来 1 分钟带你认一遍界面。' },
+  { at: 'shop', t: '① 集市：一次六个选项，用金币招人、买命轮',
     d: '开局你只有 <b>32 金</b>：刚好够招 <b>2 个 1 格唤醒体</b>，或者 <b>1 个唤醒体 + 1 条命轮</b>。点卡面直接买，点左边小图标看详情。<b>第一个唤醒体会白送他的本命命轮</b>，所以先招人最稳。不想要这批货可以「刷新」（要花钱）。' },
   { at: 'track', t: '② 战场：十格地，人占 1~3 格',
     d: '队伍从左到右站在十格里，每个唤醒体占 1~3 格（占得越宽越强）。<b>按住人头左右拖</b>可以换位置。每个人头顶的圆圈数字是「还差几拍出手」。<b>光环只给左右相邻的人</b>，所以站位有用。每个唤醒体出手时除了产算力，还会<b>顺手打一下</b>：伤害型最疼，守护 / 辅助只打一点（输出主力还是命轮）。' },
@@ -1638,7 +1645,7 @@ const TUT = [
   { at: 'btnFight', t: '⑥ 开战：一直打到有人倒下',
     d: '点「开战」自动开打，<b>一直打到有一方倒下</b>：打到第 100 拍后<b>毒圈</b>出现，双方每拍同时掉最大生命的一截（无视护盾）、越往后越疼，所以拖不过去。战斗里<b>每个人的立绘会被界域色从脚底漫到头顶，漫满就出手</b>；每一拍有一个鼓点，四拍一小节。右下角可以 ×1/×2/×3 加速或跳过。毒圈无视护盾，所以最后比的是谁的血线更高：护盾、回血、削对面血都是在抢血线。' },
   { at: 'foeBar', t: '⑦ 看清今天的对手和地形',
-    d: '顶上是今天的对手（血量、技能节拍）和地形（对双方都生效，比如熔岩每三拍两边掉血）。赢了拿金币进下一天，商店会变丰富；<b>别忘了每天先买再开战</b>。随时可以点右上角「?」重看这份指导。' },
+    d: '顶上是今天的对手（血量、技能节拍）和地形（对双方都生效，比如熔岩每三拍两边掉血）。赢了拿金币进下一天，商店会变丰富；<b>别忘了每天先买再开战</b>。输了会掉 1 点理智，但<b>不会往下一天走</b>：留在原地，系统补给一笔金币、刷一批新货，让你补强后再挑战同一个对手。理智掉光才散场。随时可以点右上角「?」重看这份指导。' },
 ];
 let tutEl = null;
 function closeTutorial() {
@@ -2404,7 +2411,7 @@ function endFight() {
     $('battle').classList.remove('on');
     if (run.over) { showResult(); return; }
     renderAll();
-    toast(win ? `赢了：+${gain.goldGain} 金` : `输了一场，理智 ${run.sane}/${run.diff.sane}`);
+    toast(win ? `赢了：+${gain.goldGain} 金` : `输了，理智 ${run.sane}/${run.diff.sane}。留在第 ${run.day} 天，补给 +${gain.stipend} 金：去集市把队伍补强再打一次`);
   }, win ? 700 : 900);
 }
 

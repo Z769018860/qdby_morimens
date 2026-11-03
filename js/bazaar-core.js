@@ -200,7 +200,7 @@ function pickRarity(run, rnd) {
 }
 
 // 商店配比：前面几天先把「人 + 命轮」凑出来，造物只是调剂；第 5 天往后造物才慢慢变成主角。
-// 这不是数值平衡，是体感——开局四条摊位全摆造物，玩家连一次「换人 / 换轮」的选择都做不了。
+// 这不是数值平衡，是体感——开局摊位全摆造物，玩家连一次「换人 / 换轮」的选择都做不了。
 // 槽位满了 / 战场挤不进人时，对应那一类自动降权，免得刷出一堆买不了的东西。
 export function shopMix(run) {
   const d = run.day;
@@ -231,7 +231,7 @@ export function rollShop(run, { free = false } = {}) {
       run.rerolls += 1;
     }
   }
-  const n = 4 + (run.pact.k === 'rich' && run.day === 1 ? 1 : 0);
+  const n = TUNING.shopSize + (run.pact.k === 'rich' && run.day === 1 ? 1 : 0);   // 一次六个选项（2×3）
   const out = [];
   const used = new Set();
   const ownHeroes = new Set([...run.squad.map((h) => h.key), ...run.bench.filter((b) => b.kind === 'hero').map((b) => b.key)]);
@@ -984,8 +984,10 @@ export function settle(run, f) {
   run.gold += goldGain;
   run.history.push({ day: run.day, foe: f.foe.n, win: f.win, hp: Math.max(0, Math.round(f.p.hp)) });
   let cleared = false;
+  let retry = false, stipend = 0;
   if (f.win) {
     run.wins += 1;
+    run.dayLosses = 0;
     if (run.pact.k === 'grow') run.bonusHp += run.pact.v;
     run.day += 1;
     run.freeReroll = 0;
@@ -994,16 +996,20 @@ export function settle(run, f) {
   } else {
     run.losses += 1;
     run.sane -= 1;
-    if (run.sane <= 0 || run.day >= run.totalDays) {
+    run.dayLosses = (run.dayLosses || 0) + 1;
+    if (run.sane <= 0) {
       run.over = true;
     } else {
-      run.day += 1;
+      // 输了不往下走：留在这一天（同一个对手、同一片地形），发一笔「重整旗鼓」的金币，
+      // 刷一批新货，让玩家在商店里把队伍补强再打一次。同一天输得越多，补给越厚。
+      retry = true;
+      stipend = Math.round(income * 1.5 * (1 + 0.25 * (run.dayLosses - 1))) + 6;
+      run.gold += stipend;
       run.freeReroll = 0;
-      pickFoe(run);
       rollShop(run, { free: true });
     }
   }
-  return { goldGain, cleared };
+  return { goldGain, cleared, retry, stipend };
 }
 
 export function scoreOf(run) {
