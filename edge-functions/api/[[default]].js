@@ -959,7 +959,7 @@ async function ipLimit(kv, request, tag) {
 //   bug_idx                = JSON [id...]      最新的在前，只留 500 条给作者看
 // 为什么不做严格去重/防刷：这是同人站的评分，量级小、收益低。
 // 但 agg 用「读改写」会有并发丢失，所以写入时用 after-write 重算兜底（见 postHomeRate）。
-const HOME_GAMES = new Set(['detective', 'merge', 'bird', 'binding', 'idle', 'survivors', 'protocol', 'wolf', 'deathreport', 'g2048', 'duel', 'reign', 'lovelive', 'keeper', 'roulette', 'bugfight']);
+const HOME_GAMES = new Set(['detective', 'merge', 'bird', 'binding', 'idle', 'survivors', 'protocol', 'wolf', 'deathreport', 'g2048', 'duel', 'reign', 'lovelive', 'keeper', 'roulette', 'bugfight', 'bazaar', 'fake', 'block']);
 const BUG_IDX_MAX = 500;
 
 // 评分身份：登录用 uid，没登录用本机随机 id（前端 X-Device），都没有就不给投
@@ -1709,10 +1709,11 @@ export async function onRequest(context) {
         // v11 多了 /llsongs（lovelive 云端曲库：只收谱面，不收音频）
         // v12 榜单多了杀死守密人（已解锁结局数），见 BOARD_SPEC 的 kp
         // v13 赠礼支持 rw（免费回溯券，挂机前夜的「回溯券」），/grants/mine 会带回来
+        // v17 评分 / BUG 反馈的游戏白名单补上 大巴扎（bazaar）、寻找伪人（fake）、蚀界方块（block）：之前这三个的评分会被 400 拒掉，BUG 会被记成「首页」
         // v16 榜单的决斗 / 轮盘段位名补齐到 13 段（原来只有 9 段，高段位显示空白）
         // v15 榜单补上 lovelive（BOARD_SPEC 的 ll，之前漏了，榜单一直是空的）
         // v14 赠礼再加 tk（召唤券）/ gold（金币）；多了 GET /admin/bugs（后台看 BUG 反馈详情）
-        ok: Boolean(store), service: 'zjtt', v: 16, runtime: 'edgeone',
+        ok: Boolean(store), service: 'zjtt', v: 17, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),

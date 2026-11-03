@@ -268,7 +268,7 @@ function drawNextStrip(st, B, cw, ch) {
       if (c < 0 || c >= st.cols) continue;
       drawBlockCell(ctx, B.x + c * cw, y, cw, hh,
         run.sp === 'prism' ? -1 : run.k, run.sp,
-        { alpha: st.over || st.win ? 0.3 : 0.68, ghost: false });
+        { alpha: st.over || st.win ? 0.3 : 0.68, ghost: false, jl: i > 0, jr: i < run.len - 1 });
     }
   }
   ctx.restore();
@@ -384,6 +384,22 @@ function roundRect(g, x, y, w, h, r) {
   g.closePath();
 }
 
+// 左右两侧可以各自「接上邻格」（接上的那一侧不留缝、不倒角）：同一块的几格画成一整条，一眼看出是几格
+function blockRect(g, x, y, w, h, r, jl, jr) {
+  if (!jl && !jr) { roundRect(g, x, y, w, h, r); return; }
+  const rr = clamp(r, 0, Math.min(w, h) / 2);
+  const a = jl ? 0 : rr, b = jr ? 0 : rr;
+  g.beginPath();
+  g.moveTo(x + a, y);
+  g.lineTo(x + w - b, y);
+  if (b) g.arcTo(x + w, y, x + w, y + h, b); else g.lineTo(x + w, y);
+  if (b) g.arcTo(x + w, y + h, x, y + h, b); else g.lineTo(x + w, y + h);
+  g.lineTo(x + a, y + h);
+  if (a) g.arcTo(x, y + h, x, y, a); else g.lineTo(x, y + h);
+  if (a) g.arcTo(x, y, x + w, y, a); else g.lineTo(x, y);
+  g.closePath();
+}
+
 // 棱彩走彩虹，其余走界域色
 function realmColors(idx) {
   if (idx < 0 || idx >= REALMS.length) return { c: '#cfd6e6', d: '#5a6478', l: '#ffffff' };
@@ -394,12 +410,13 @@ function realmColors(idx) {
 // 一格方块：底色 + 上缘高光 + 头像 + 特殊块标记
 function drawBlockCell(g, x, y, cw, ch, realm, sp, opt) {
   const o = opt || {};
-  const pad = Math.min(cw, ch) * 0.06;
-  const bx = x + pad;
+  const jl = !!o.jl, jr = !!o.jr;                          // 左 / 右接着同一块的邻格
+  const pad = Math.min(cw, ch) * 0.09;                     // 块与块之间的缝（同色相邻也要看得出是两块）
+  const bx = x + (jl ? 0 : pad);
   const by = y + pad;
-  const bw = cw - pad * 2;
+  const bw = cw - (jl ? 0 : pad) - (jr ? 0 : pad);
   const bh = ch - pad * 2;
-  const rad = Math.min(bw, bh) * 0.26;
+  const rad = Math.min(cw - pad * 2, bh) * 0.26;
   const col = realmColors(realm);
   const alpha = o.alpha == null ? 1 : o.alpha;
 
@@ -409,7 +426,7 @@ function drawBlockCell(g, x, y, cw, ch, realm, sp, opt) {
   // 影子
   if (!o.ghost) {
     g.fillStyle = 'rgba(2,6,16,.4)';
-    roundRect(g, bx + 1, by + 2.5, bw, bh, rad);
+    blockRect(g, bx + 1, by + 2.5, bw, bh, rad, jl, jr);
     g.fill();
   }
 
@@ -419,13 +436,25 @@ function drawBlockCell(g, x, y, cw, ch, realm, sp, opt) {
   grd.addColorStop(0.42, col.c);
   grd.addColorStop(1, col.d);
   g.fillStyle = grd;
-  roundRect(g, bx, by, bw, bh, rad);
+  blockRect(g, bx, by, bw, bh, rad, jl, jr);
   g.fill();
+  // 描一圈深色细边，把「这一整条」和邻块分开
+  g.globalAlpha = alpha * 0.55;
+  g.strokeStyle = col.d;
+  g.lineWidth = 1.3;
+  g.save();
+  g.beginPath();
+  g.rect(jl ? bx + 1 : bx - 3, by - 3, bw + (jl ? -1 : 3) + (jr ? -1 : 3), bh + 6);   // 接缝那一侧的描边裁掉，几格才连成一整条
+  g.clip();
+  blockRect(g, bx, by, bw, bh, rad, jl, jr);
+  g.stroke();
+  g.restore();
+  g.globalAlpha = alpha;
 
   if (realm < 0) {
     // 棱彩：斜着扫一道彩带
     g.save();
-    roundRect(g, bx, by, bw, bh, rad);
+    blockRect(g, bx, by, bw, bh, rad, jl, jr);
     g.clip();
     const rb = g.createLinearGradient(bx, by, bx + bw, by + bh);
     rb.addColorStop(0, 'rgba(255,120,150,.85)');
@@ -441,7 +470,8 @@ function drawBlockCell(g, x, y, cw, ch, realm, sp, opt) {
   // 上缘高光
   g.globalAlpha = alpha * 0.55;
   g.fillStyle = 'rgba(255,255,255,.5)';
-  roundRect(g, bx + bw * 0.1, by + bh * 0.09, bw * 0.8, bh * 0.26, rad * 0.7);
+  const hl = jl ? 0 : bw * 0.1, hr = jr ? 0 : bw * 0.1;
+  blockRect(g, bx + hl, by + bh * 0.09, bw - hl - hr, bh * 0.26, rad * 0.7, jl, jr);
   g.fill();
   g.globalAlpha = alpha;
 
@@ -626,7 +656,9 @@ function draw() {
       const cell = st.board[r][c];
       if (!cell) continue;
       const isDrag = dragBid != null && cell.b === dragBid;
-      drawBlockCell(ctx, B.x + c * cw + (isDrag ? offX : 0), B.y + r * ch, cw, ch, cell.k, cell.sp, null);
+      const jl = c > 0 && st.board[r][c - 1] && st.board[r][c - 1].b === cell.b;
+      const jr = c < st.cols - 1 && st.board[r][c + 1] && st.board[r][c + 1].b === cell.b;
+      drawBlockCell(ctx, B.x + c * cw + (isDrag ? offX : 0), B.y + r * ch, cw, ch, cell.k, cell.sp, { jl, jr });
     }
   }
 
