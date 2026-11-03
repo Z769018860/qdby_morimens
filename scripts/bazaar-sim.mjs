@@ -87,10 +87,15 @@ function arrange(run) {
   }
 }
 
-function scoreOffer(o, plan) {
-  if (o.kind === 'hero') return heroScore(heroOf(o.key)) / Math.max(1, o.price * 0.35);
-  if (o.kind === 'wheel') return wheelScore(wheelOf(o.key), plan) / Math.max(1, o.price * 0.35);
-  return relicScore(itemOf(o.key), plan) / Math.max(1, o.price * 0.35);
+function scoreOffer(o, plan, run) {
+  let s;
+  if (o.kind === 'hero') s = heroScore(heroOf(o.key));
+  else if (o.kind === 'wheel') s = wheelScore(wheelOf(o.key), plan);
+  else s = relicScore(itemOf(o.key), plan);
+  s /= Math.max(1, o.price * 0.35);
+  // 开局 squad 还没凑起来时，优先把唤醒体买齐（光环 / 产出都靠人，没人就什么都转不动）
+  if (o.kind === 'hero' && run && run.squad.length < 3) s *= 3;
+  return s;
 }
 
 function shopStep(run, strat) {
@@ -100,7 +105,7 @@ function shopStep(run, strat) {
     const cands = run.shop
       .map((o, i) => ({ o, i }))
       .filter(({ o, i }) => !o.sold && canBuy(run, i))
-      .sort((a, b) => scoreOffer(b.o, plan) - scoreOffer(a.o, plan));
+      .sort((a, b) => scoreOffer(b.o, plan, run) - scoreOffer(a.o, plan, run));
     let bought = 0;
     for (const { i } of cands) {
       if (!canBuy(run, i)) continue;
@@ -122,19 +127,9 @@ function shopStep(run, strat) {
   }
 }
 
-// 开局抽人：6 格预算里塞下产出最高的几个
+// 开局不再预选唤醒体：给固定金币，靠 shopStep 在集市里自己挑人 / 买轮 / 买造物
 function draft(seed, heroPool, pactId) {
-  const sorted = heroPool.slice().sort((a, b) => heroScore(b) - heroScore(a));
-  const picks = [];
-  let used = 0;
-  for (const h of sorted) {
-    if (used + h.slots > TUNING.draftSlots) continue;
-    picks.push(h.id);
-    used += h.slots;
-    if (picks.length >= 3) break;
-  }
-  if (!picks.length) picks.push(sorted[0].id);
-  return newRun({ seed, heroIds: picks, pactId, diffId: DIFF });
+  return newRun({ seed, pactId, diffId: DIFF });
 }
 
 const pool = HEROES.filter((h) => !ONLY || h.n === ONLY || h.id === ONLY);

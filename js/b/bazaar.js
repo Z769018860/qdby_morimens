@@ -45,7 +45,7 @@ const TUNING = {
   beats: 40,          // 每场固定 40 拍
   beatMs: 480,        // 一拍的实际时长（×1/×2/×3 倍速）
   startHp: 130,
-  startGold: 18,
+  startGold: 60,
   fieldSlots: 10,     // 战场十格
   draftSlots: 8,      // 开局只能带 8 格的（大约三个）
   wheelSlots: 3,      // 命轮槽
@@ -238,10 +238,9 @@ function sellPrice(kind, def) {
   return Math.max(1, Math.floor(base * TUNING.sellRate));
 }
 
-function newRun({ seed = Date.now() >>> 0, heroIds, pactId, diffId = 'normal', heroId } = {}) {
+function newRun({ seed = Date.now() >>> 0, pactId, diffId = 'normal' } = {}) {
   const diff = diffOf(diffId);
   const pact = pactOf(pactId) || PACTS[0];
-  const ids = (heroIds && heroIds.length ? heroIds : [heroId || HEROES[0].id]);
   const run = {
     seed, rnd: rngFrom(seed), pact, diff, totalDays: diff.days,
     day: 1, sane: diff.sane, gold: TUNING.startGold,
@@ -252,11 +251,8 @@ function newRun({ seed = Date.now() >>> 0, heroIds, pactId, diffId = 'normal', h
     over: false, cleared: false, history: [],
   };
   if (pact.k === 'rich') run.gold += pact.v;
-  for (const id of ids) addHero(run, id);
-  // 本命命轮：领队那条白送，其余靠集市买
-  const lead = heroOf(run.squad[0].key);
-  const nw = wheelOf(lead.wheel);
-  if (nw) run.wheels.push({ uid: uid(), key: nw.id, native: true });
+  // 开局不自选：战场上空的，靠集市里用固定金币把队伍凑起来。
+  // 第一个唤醒体的本命命轮白送（见 buy），其余靠买。
   pickFoe(run);
   rollShop(run, { free: true });
   return run;
@@ -446,7 +442,9 @@ function rollShop(run, { free = false } = {}) {
       return false;
     };
     if (!has('wheel')) swap('wheel');
-    if (!has('hero') && freeSlots(run) >= 1) swap('hero');
+    // 开局战场上没人：至少给两个价位不同的唤醒体挑，别只甩一个让人没得选
+    const heroNeed = (run.day === 1 && run.squad.length === 0) ? 2 : (has('hero') ? 0 : 1);
+    for (let k = 0; k < heroNeed; k++) if (freeSlots(run) >= 1) swap('hero');
   }
 
   run.shop = out;
@@ -474,8 +472,16 @@ function buy(run, idx) {
   const o = run.shop[idx];
   run.gold -= o.price;
   o.sold = true;
-  if (o.kind === 'hero') addHero(run, o.key);
-  else if (o.kind === 'wheel') run.wheels.push({ uid: uid(), key: o.key });
+  if (o.kind === 'hero') {
+    const first = run.squad.length === 0;
+    addHero(run, o.key);
+    // 第一个唤醒体的本命命轮白送：开局没钱买齐命轮，先让领队能开出第一枪。
+    if (first && run.wheels.length < TUNING.wheelSlots) {
+      const d = heroOf(o.key);
+      const nw = d && wheelOf(d.wheel);
+      if (nw) run.wheels.push({ uid: uid(), key: nw.id, native: true });
+    }
+  } else if (o.kind === 'wheel') run.wheels.push({ uid: uid(), key: o.key });
   else run.relics.push({ uid: uid(), key: o.key });
   return true;
 }
@@ -1389,79 +1395,21 @@ function wheelPassive(w) {
 }
 const wheelFire = (w) => w.op.map((o) => C.opText(o, 1)).join('；');
 
-// ---------------------------------------------------------------- 选人
-function draftedSlots() {
-  return pick.heroes.reduce((s, id) => s + (C.heroOf(id).slots || 1), 0);
-}
-
+// ---------------------------------------------------------------- 选人（只选难度 + 密契；唤醒体靠开局金币在集市里买）
 function renderSetup() {
   $('diffPick').innerHTML = DIFFS.map((d) => `
     <button class="diff ${pick.diff === d.id ? 'on' : ''}" type="button" data-diff="${d.id}">
       <b>${d.n}</b><span>${d.days} 天 · ${d.sane} 理智</span>
     </button>`).join('');
-  const diff = DIFFS.find((d) => d.id === pick.diff) || DIFFS[0];
-  $('diffTip').textContent = diff.desc;
-
-  // 队伍条
-  const used = draftedSlots();
-  const chips = pick.heroes.map((id) => {
-    const d = C.heroOf(id);
-    return `<button class="sc" type="button" data-drop="${id}" title="点掉">
-      ${sp(d.spr)}${d.n}<i>${d.slots}格</i></button>`;
-  }).join('');
-  $('squadBar').innerHTML = (chips || '<span class="hint">还没挑人 —— 点下面的头像，总格数 ≤ 6</span>')
-    + `<span class="bud"><b>${used}</b>/${TUNING.draftSlots} 格</span>`;
-  $('squadBar').onclick = (e) => {
-    const el = e.target.closest('[data-drop]');
+  $('diffPick').onclick = (e) => {
+    const el = e.target.closest('[data-diff]');
     if (!el) return;
-    toggleHero(el.dataset.drop);
-  };
-
-  const realms = ['', '混沌', '血肉', '深海', '超维'];
-  $('heroFilter').innerHTML = realms.map((r) => `
-    <button class="${pick.realm === r ? 'on' : ''}" type="button" data-realm="${r}">${r || '全部'}${r ? '' : ` ${HEROES.length}`}</button>`).join('');
-  $('heroFilter').onclick = (e) => {
-    const el = e.target.closest('[data-realm]');
-    if (!el) return;
-    pick.realm = el.dataset.realm;
+    pick.diff = el.dataset.diff;
     renderSetup();
   };
-
-  const list = HEROES.filter((h) => !pick.realm || h.realmZh === pick.realm);
-  $('heroCount').textContent = `${list.length} 名`;
-  $('heroPick').innerHTML = list.map((h) => `
-    <button class="hcard r-${REALM_CLS[h.realm]} ${pick.heroes.indexOf(h.id) >= 0 ? 'on' : ''}" type="button" data-hero="${h.id}" title="${h.n}｜占 ${h.slots} 格">
-      ${sp(h.spr)}
-      <span class="hs">${h.slots}格</span>
-      <span class="hn">${h.n}</span>
-      <span class="hd">${h.realmZh.slice(0, 1)}·${h.type}${h.egg ? '·主播' : ''}</span>
-    </button>`).join('');
-  $('heroPick').onclick = (e) => {
-    const el = e.target.closest('[data-hero]');
-    if (!el) return;
-    toggleHero(el.dataset.hero);
-  };
-
-  // 大立绘：显示最后点选的那个
-  const focus = C.heroOf(pick.focus) || (pick.heroes.length ? C.heroOf(pick.heroes[pick.heroes.length - 1]) : null);
-  setRealm(focus, [$('setup')]);
-  $('hbArt').innerHTML = artHTML(focus);
-  if (focus) {
-    $('hbTag').textContent = `${focus.realmZh} · ${focus.type} · 占 ${focus.slots} 格`;
-    $('hbName').textContent = focus.n;
-    $('hbPas').textContent = focus.txt;
-    $('hbPills').innerHTML = [
-      focus.auraTxt,
-      `本命命轮 ${(C.wheelOf(focus.wheel) || {}).n || ''}`,
-      C.modText(focus.fate.k, focus.fate.v),
-    ].filter(Boolean).map((t) => `<span>${t}</span>`).join('');
-    preload(focus);
-  } else {
-    $('hbTag').textContent = '混沌 · 伤害 · 占 2 格';
-    $('hbName').textContent = '挑几个唤醒体';
-    $('hbPas').textContent = '唤醒体负责产算力，命轮负责花算力打人。总格数不超过 6 格，队伍顺序就是站位。';
-    $('hbPills').innerHTML = '';
-  }
+  const diff = DIFFS.find((d) => d.id === pick.diff) || DIFFS[0];
+  $('diffTip').textContent = diff.desc;
+  if ($('introGold')) $('introGold').textContent = TUNING.startGold;
 
   $('pactPick').innerHTML = PACTS.map((p) => `
     <button class="pcard ${pick.pact === p.id ? 'on' : ''}" type="button" data-pact="${p.id}">
@@ -1474,33 +1422,18 @@ function renderSetup() {
     renderSetup();
   };
 
-  $('btnStart').disabled = pick.heroes.length < 1;
-  $('btnStart').textContent = pick.heroes.length ? `开张 · ${pick.heroes.length} 人 ${used} 格` : '开张';
-}
-
-function toggleHero(id) {
-  const i = pick.heroes.indexOf(id);
-  if (i >= 0) {
-    pick.heroes.splice(i, 1);
-  } else {
-    const d = C.heroOf(id);
-    const left = TUNING.draftSlots - draftedSlots();
-    if (d.slots > left) { toast(`只剩 ${left} 格，${d.n} 要 ${d.slots} 格`); return; }
-    if (pick.heroes.length >= 4) { toast('最多带 4 个人，留点钱买命轮'); return; }
-    pick.heroes.push(id);
-  }
-  pick.focus = id;
-  renderSetup();
+  $('btnStart').disabled = false;
+  $('btnStart').textContent = '开张';
 }
 
 function startRun() {
-  if (!pick.heroes.length) return;
-  run = C.newRun({ seed: (Date.now() ^ (Math.random() * 1e9)) >>> 0, heroIds: pick.heroes.slice(), pactId: pick.pact, diffId: pick.diff });
+  run = C.newRun({ seed: (Date.now() ^ (Math.random() * 1e9)) >>> 0, pactId: pick.pact, diffId: pick.diff });
   $('setup').classList.remove('on');
   $('app').hidden = false;
-  setRealm(C.heroOf(run.squad[0].key), [$('app')]);
+  // 开局战场是空的（靠金币去集市招人）， realm 先用默认强调色，招到第一个人再跟着变
+  setRealm(null, [$('app')]);
   renderAll();
-  toast(`第 1 天：${run.foeId ? C.foeOf(run.foeId).n : ''}`);
+  toast(`第 1 天：${run.foeId ? C.foeOf(run.foeId).n : ''} · 去集市招个唤醒体`);
 }
 
 // ---------------------------------------------------------------- 集市
@@ -1690,6 +1623,8 @@ function renderAll() {
   const free = run.pact.k === 'freereroll' && run.freeReroll < 1;
   $('btnReroll').textContent = free ? '刷新 免费' : `刷新 ${cost}`;
   $('btnReroll').disabled = !free && run.gold < cost;
+  // 战场上一个人都没有时，开战没意义（startFight 也会拦），先把按钮置灰提示去集市
+  $('btnFight').disabled = run.squad.length === 0;
 }
 
 // ---------------------------------------------------------------- 拖动排位

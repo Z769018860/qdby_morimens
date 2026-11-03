@@ -18,7 +18,7 @@ export const TUNING = {
   beats: 40,          // 每场固定 40 拍
   beatMs: 480,        // 一拍的实际时长（×1/×2/×3 倍速）
   startHp: 130,
-  startGold: 18,
+  startGold: 60,
   fieldSlots: 10,     // 战场十格
   draftSlots: 8,      // 开局只能带 8 格的（大约三个）
   wheelSlots: 3,      // 命轮槽

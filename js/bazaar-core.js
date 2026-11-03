@@ -74,10 +74,9 @@ export function sellPrice(kind, def) {
   return Math.max(1, Math.floor(base * TUNING.sellRate));
 }
 
-export function newRun({ seed = Date.now() >>> 0, heroIds, pactId, diffId = 'normal', heroId } = {}) {
+export function newRun({ seed = Date.now() >>> 0, pactId, diffId = 'normal' } = {}) {
   const diff = diffOf(diffId);
   const pact = pactOf(pactId) || PACTS[0];
-  const ids = (heroIds && heroIds.length ? heroIds : [heroId || HEROES[0].id]);
   const run = {
     seed, rnd: rngFrom(seed), pact, diff, totalDays: diff.days,
     day: 1, sane: diff.sane, gold: TUNING.startGold,
@@ -88,11 +87,8 @@ export function newRun({ seed = Date.now() >>> 0, heroIds, pactId, diffId = 'nor
     over: false, cleared: false, history: [],
   };
   if (pact.k === 'rich') run.gold += pact.v;
-  for (const id of ids) addHero(run, id);
-  // 本命命轮：领队那条白送，其余靠集市买
-  const lead = heroOf(run.squad[0].key);
-  const nw = wheelOf(lead.wheel);
-  if (nw) run.wheels.push({ uid: uid(), key: nw.id, native: true });
+  // 开局不自选：战场上空的，靠集市里用固定金币把队伍凑起来。
+  // 第一个唤醒体的本命命轮白送（见 buy），其余靠买。
   pickFoe(run);
   rollShop(run, { free: true });
   return run;
@@ -282,7 +278,9 @@ export function rollShop(run, { free = false } = {}) {
       return false;
     };
     if (!has('wheel')) swap('wheel');
-    if (!has('hero') && freeSlots(run) >= 1) swap('hero');
+    // 开局战场上没人：至少给两个价位不同的唤醒体挑，别只甩一个让人没得选
+    const heroNeed = (run.day === 1 && run.squad.length === 0) ? 2 : (has('hero') ? 0 : 1);
+    for (let k = 0; k < heroNeed; k++) if (freeSlots(run) >= 1) swap('hero');
   }
 
   run.shop = out;
@@ -310,8 +308,16 @@ export function buy(run, idx) {
   const o = run.shop[idx];
   run.gold -= o.price;
   o.sold = true;
-  if (o.kind === 'hero') addHero(run, o.key);
-  else if (o.kind === 'wheel') run.wheels.push({ uid: uid(), key: o.key });
+  if (o.kind === 'hero') {
+    const first = run.squad.length === 0;
+    addHero(run, o.key);
+    // 第一个唤醒体的本命命轮白送：开局没钱买齐命轮，先让领队能开出第一枪。
+    if (first && run.wheels.length < TUNING.wheelSlots) {
+      const d = heroOf(o.key);
+      const nw = d && wheelOf(d.wheel);
+      if (nw) run.wheels.push({ uid: uid(), key: nw.id, native: true });
+    }
+  } else if (o.kind === 'wheel') run.wheels.push({ uid: uid(), key: o.key });
   else run.relics.push({ uid: uid(), key: o.key });
   return true;
 }
