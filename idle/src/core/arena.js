@@ -9,9 +9,17 @@ import { newState, teamDefs, stageGold, battleSeed } from './game.js';
 import { skillLevel } from './stats.js';
 
 export const LADDER = 1000, UNRANKED = LADDER + 1, ARENA_DAILY = 5, WINDOW = 5;
+// 登顶之后的「层数」：名次 1 之上再接 FLOORS 层，名次写成 0、-1、-2…（第 n 层 = 名次 1-n）。
+// 以前打到第 1 名就没有更高的对手了，而第 1 名那只人机只有 100 级 / 20 叠位——满养成的队伍随便碾过去，
+// 有人已经登顶、竞技场就此没东西可打。现在第 1 名之上还有 100 层，一层比一层强，第 100 层远超满养成的裸队。
+export const FLOORS = 100, MIN_RANK = 1 - FLOORS;
+export const floorOf = (rank) => (rank <= 0 ? 1 - rank : 0);                    // 名次 → 第几层（没登顶 = 0）
+export const rankZh = (rank) => (rank >= UNRANKED ? '未上榜' : rank <= 0 ? `登顶第 ${floorOf(rank)} 层` : `第 ${rank} 名`);
 // 候选对手的名次跨度：从自己名次开始依次往上减 1、2、4、8、16，
 // 也就是实际差距 1 / 3 / 7 / 15 / 31 名 —— 名次越多，单场能跨的跨度越大。
 const STEPS = [1, 2, 4, 8, 16];
+// 登顶层里的候选：比自己高 1 / 2 / 4 / 7 / 12 层（层与层之间差得多，跨度不用像名次那么大）
+const FSTEPS = [1, 1, 2, 3, 5];
 const SURNAME = ['雾', '灰', '沉', '蚀', '潮', '霜', '烬', '夜', '铁', '白', '赤', '墨', '星', '黯', '琥珀', '银'];
 const GIVEN = ['行者', '看守', '拾荒人', '缝补匠', '巡礼者', '守夜人', '调香师', '摆渡人', '誊写员', '旅伴', '歌者', '猎手'];
 const day = () => new Date().toISOString().slice(0, 10);
@@ -20,6 +28,9 @@ export function arenaState(state) {
   const a = (state.arena ||= { name: '', rank: UNRANKED, best: UNRANKED, wins: 0, losses: 0, day: '', tries: ARENA_DAILY, rewardDay: '' });
   a.name ||= '旅人';
   a.friends ||= [];
+  // 名次夹在 [第 100 层, 未上榜] 里（手改 / 老存档里的怪值不能让天梯算出 NaN 对手）
+  a.rank = Math.max(MIN_RANK, Math.min(UNRANKED, Math.round(Number(a.rank) || UNRANKED)));
+  a.best = Math.max(MIN_RANK, Math.min(UNRANKED, Math.round(Number(a.best) || UNRANKED)));
   return a;
 }
 export function arenaTries(state) {
@@ -45,11 +56,16 @@ export function hydrate(snap, data) {
 }
 
 // ---- bots
+const RANK1_POWER = 8200;                                      // 第 1 名人机的战力（测过：snapshot 口径 hp/10+atk+0.8def）
+const FLOOR_TOP = 22;                                          // 第 100 层的战力是第 1 名人机的多少倍
 export function botEntry(rank, data) {
   const rng = mulberry32(hash(`arena-bot${rank}`));
-  const f = (LADDER - rank) / (LADDER - 1);                  // 0 at the last rank … 1 at rank 1
+  const floor = floorOf(rank);                                // 登顶层数（名次 ≥ 1 时是 0）
+  const f = Math.min(1, (LADDER - rank) / (LADDER - 1));      // 0 at the last rank … 1 at rank 1（登顶层都按 1 算）
   // 天梯顶端要对得起玩家 159 级 / 99 叠位的上限，否则 1000 名只有前 100 名有难度
-  const lv = Math.round(2 + 98 * Math.pow(f, 1.15)), star = Math.min(20, Math.floor(f * 22));
+  // 登顶层：等级 100 → 159（前 30 层），叠位 20 → 99（前 60 层）
+  const lv = floor ? Math.round(100 + 59 * Math.min(1, (floor - 1) / 30)) : Math.round(2 + 98 * Math.pow(f, 1.15));
+  const star = floor ? Math.round(20 + 79 * Math.min(1, (floor - 1) / 60)) : Math.min(20, Math.floor(f * 22));
   const all = data.awakeners.map((a) => a.slug).sort();
   const realms = ['CHAOS', 'CARO', 'AEQUOR', 'ULTRA'], main = realms[Math.floor(rng() * 4)];
   const pickFrom = (arr, n) => { const a = [...arr], out = []; while (out.length < n && a.length) out.push(a.splice(Math.floor(rng() * a.length), 1)[0]); return out; };
@@ -59,8 +75,16 @@ export function botEntry(rank, data) {
   const fake = newState(data, 1);
   fake.roster = Object.fromEntries(slugs.map((s) => [s, { lv, star }]));
   const team = teamDefs(fake, data, slugs);
-  const gear = 1 + 0.8 * f;                                   // stands in for wheels / covenants / relics / orders
-  const snap = snapshot(team).map((s) => ({ ...s, hp: Math.round(s.hp * gear), atk: Math.round(s.atk * gear), def: Math.round(s.def * gear) }));
+  let gear = 1 + 0.8 * f;                                     // stands in for wheels / covenants / relics / orders
+  const raw = snapshot(team);
+  const powOf = (arr, g) => arr.reduce((s, x) => s + (x.hp * g) / 10 + x.atk * g + x.def * g * 0.8, 0);
+  if (floor) {
+    // 登顶层的目标战力按「第 1 名那只人机」的倍数给：第 1 层 1.3 倍，第 100 层 FLOOR_TOP 倍，指数过渡；
+    // 再按这一层的裸属性反推「装备倍率」。满养成的裸队（159 级 / 99 叠位 / 超限 99 / 法则 60）约是第 1 名人机的 5.5 倍。
+    const target = RANK1_POWER * 1.3 * Math.pow(FLOOR_TOP / 1.3, (floor - 1) / (FLOORS - 1));
+    gear = target / powOf(raw, 1);
+  }
+  const snap = raw.map((s) => ({ ...s, hp: Math.round(s.hp * gear), atk: Math.round(s.atk * gear), def: Math.round(s.def * gear) }));
   const name = `${SURNAME[Math.floor(rng() * SURNAME.length)]}${GIVEN[Math.floor(rng() * GIVEN.length)]}`;
   return { rank, type: 'bot', id: `bot${rank}`, name, snap, power: snap.reduce((s, x) => s + x.hp / 10 + x.atk + x.def * 0.8, 0) | 0 };
 }
@@ -69,11 +93,12 @@ export function botEntry(rank, data) {
 export function localOpponents(state, data) {
   const a = arenaState(state), out = [], seen = new Set();
   let r = Math.min(a.rank, UNRANKED);
-  for (const step of STEPS) {
-    r = Math.max(1, r - step);
+  if (r <= MIN_RANK) return out;
+  for (let i = 0; i < STEPS.length; i++) {
+    r = Math.max(MIN_RANK, r - (r <= 1 ? FSTEPS : STEPS)[i]);
     if (seen.has(r)) break;
     seen.add(r); out.push(botEntry(r, data));
-    if (r === 1) break;                                       // 登顶后没有更高的名次可打
+    if (r === MIN_RANK) break;                                // 第 100 层是最后一层
     if (out.length >= WINDOW) break;
   }
   return out;
@@ -89,7 +114,7 @@ export function fightArena(state, data, entry, slugs = null) {
   const res = simulate({ allies: team.list, enemies: foes, seed, strategy: state.strategy, maxRounds: ROUND_LIMIT.boss });
   return { ...res, team, foes, entry };
 }
-export const dailyRankReward = (rank) => (rank <= 1 ? 20 : rank <= 5 ? 16 : rank <= 20 ? 13 : rank <= 100 ? 10 : rank <= 300 ? 7 : rank <= 600 ? 5 : rank <= LADDER ? 3 : 0);
+export const dailyRankReward = (rank) => (rank <= 0 ? 20 + Math.min(10, Math.ceil(floorOf(rank) / 10)) : rank <= 1 ? 20 : rank <= 5 ? 16 : rank <= 20 ? 13 : rank <= 100 ? 10 : rank <= 300 ? 7 : rank <= 600 ? 5 : rank <= LADDER ? 3 : 0);
 
 // apply the outcome (rank already decided by the ladder) to the player's state
 export function applyArena(state, data, fight, newRank) {
@@ -104,7 +129,10 @@ export function applyArena(state, data, fight, newRank) {
     rw.gold = Math.round(stageGold(Math.round(20 + 45 * f)) * 0.7);
     const prevBest = a.best;
     a.rank = newRank;
-    if (newRank < prevBest) { rw.up = prevBest - newRank; rw.tickets = Math.max(1, Math.floor(rw.up / 4)); rw.cores = Math.min(120, Math.round(rw.up * 0.8)); a.best = newRank; }
+    if (newRank < prevBest) { rw.up = prevBest - newRank; rw.tickets = Math.max(1, Math.floor(rw.up / 4)); rw.cores = Math.min(120, Math.round(rw.up * 0.8)); a.best = newRank;
+      const nf = Math.max(0, floorOf(newRank) - floorOf(prevBest)); // 首次踏上的新层：额外奖励
+      if (nf) { rw.tickets += 2 * nf; rw.cores += 40 * nf; }
+    }
   } else { a.losses++; rw.gold = Math.round(stageGold(15) * 0.15); }
   state.gold += rw.gold; state.tickets += rw.tickets; state.cores += rw.cores; state.stats.gold += rw.gold;
   return rw;

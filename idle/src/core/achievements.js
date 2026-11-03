@@ -1,5 +1,5 @@
 import { THREATS } from './challenge.js';
-import { LADDER } from './arena.js';
+import { LADDER, FLOORS, floorOf } from './arena.js';
 import { relicTheme } from './gear.js';
 
 // ---- progress readers
@@ -15,6 +15,7 @@ const rtSum = (s) => Object.values(s.rtower || {}).reduce((a, t) => a + (t.best 
 const rtMin = (s) => Math.min(...['CHAOS', 'CARO', 'AEQUOR', 'ULTRA'].map((r) => s.rtower?.[r]?.best || 0));
 const arenaRank = (s) => (s.arena ? Math.max(0, LADDER + 1 - s.arena.best) : 0);   // 0 = unranked … 1000 = rank 1
 const owned = (s, data, rar) => Object.keys(s.roster).filter((k) => data?.bySlug?.[k]?.rarity === rar).length;
+const arenaFloor = (s) => (s.arena && s.arena.best <= 0 ? floorOf(s.arena.best) : 0);   // 登顶层最高层数
 const friendDuels = (s) => (s.arena?.friends || []).reduce((a, f) => a + f.wins + f.losses, 0);
 const trialTier = (s, ks) => Object.keys(s.trials.cleared).filter((k) => ks.some((x) => k.endsWith('-' + x))).length;
 const orderCount = (s) => Object.keys(s.orders?.owned || {}).length;
@@ -92,6 +93,7 @@ export const ACHIEVEMENTS = [
   { id: 'arena30', cat: 'arena', zh: '前三百', desc: '竞技场最高名次进入前 300', cur: arenaRank, goal: 701, reward: reward(3) },
   { id: 'arena10', cat: 'arena', zh: '百强', desc: '竞技场最高名次进入前 100', cur: arenaRank, goal: 901, reward: reward(5) },
   { id: 'arena1', cat: 'arena', zh: '天梯之巅', desc: '竞技场登顶第 1 名', cur: arenaRank, goal: LADDER, reward: reward(6) },
+  ...tiers('arena', 'floor', ['凌云', '摘星', '绝顶', '无人之境', '天外有天'], (g) => `竞技场登顶层数达到第 ${g} 层`, arenaFloor, [1, 10, 30, 60, FLOORS]),
   ...tiers('arena', 'awin', ['初试锋芒', '常胜', '百战天梯'], (g) => `竞技场累计胜利 ${g} 场`, (s) => s.arena?.wins || 0, [5, 30, 100]),
   ...tiers('arena', 'duel', ['以武会友', '切磋', '知己'], (g) => `好友对战累计 ${g} 场`, friendDuels, [1, 10, 30]),
   ...tiers('codex', 'codex', ['初识异形', '融蚀图鉴', '博物学家', '无所不知'], (g) => `遭遇 ${g} 种怪物`, seenCount, [30, 100, 250, 400]),

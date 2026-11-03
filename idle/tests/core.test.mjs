@@ -437,7 +437,7 @@ test('codex records encounters and kills; codex achievements count them', () => 
 import { doWeekly, weeklyState, claimWeekly, weekId, weeklyBoss, MILESTONES } from '../src/core/weekly.js';
 import { doRTower, rtTeam, rtPool } from '../src/core/rtower.js';
 import { encodeCode, decodeCode } from '../src/core/friend.js';
-import { botEntry, snapshot, hydrate, localOpponents, fightArena, applyArena, localSettle, arenaState, UNRANKED, LADDER, dailyRankReward, fightFriend } from '../src/core/arena.js';
+import { FLOORS, MIN_RANK, floorOf, rankZh, botEntry, snapshot, hydrate, localOpponents, fightArena, applyArena, localSettle, arenaState, UNRANKED, LADDER, dailyRankReward, fightFriend } from '../src/core/arena.js';
 
 const mkTeamState = (lv = 30) => { const s = newState(data, 11); for (const a of ['salvador', 'xu', 'vivian', 'caraboo']) s.roster[a] = { lv, star: 1 }; s.team = ['salvador', 'caraboo', 'xu', 'vivian']; return s; };
 
@@ -490,9 +490,9 @@ test('arena: bots scale with rank, snapshots round-trip, winning moves you up', 
   const rw = applyArena(s, data, f, localSettle(s, e, f.win).rank);
   assert.equal(arenaState(s).rank, 1000); assert.ok(rw.tickets >= 1);
   assert.ok(localOpponents(s, data)[0].rank === 999);
-  // 从第 2 名往上只有第 1 名，不会出现 0 或负名次
+  // 从第 2 名往上：第 1 名，再往上是登顶层（名次 0、-1…）
   const top = mkTeamState(40); arenaState(top).rank = 2;
-  assert.deepEqual(localOpponents(top, data).map((o) => o.rank), [1]);
+  assert.deepEqual(localOpponents(top, data).map((o) => o.rank), [1, 0, -2, -5, -10]);
   // hostile snapshots are clamped
   const evil = hydrate([{ slug: 'xu', lv: 999, star: 99, hp: 1e18, atk: -5 }], data)[0];
   assert.ok(evil.lv === 159 && evil.star === 99 && evil.hp <= 5e6 && evil.atk === 0);
@@ -3794,4 +3794,17 @@ test('大运：重投每次都出新的一批（种子带重掷次数、尽量�
   const r3 = L.startRun(s, data, 'ride', team); r3.hp.ogier = 0; r3.relics.push('r_revive');
   L.applyBattle(s, data, r3, { win: true, rounds: 3, roundLimit: 18, kills: 2, allies: [], __prep: null });
   assert.ok(r3.hp.ogier > 0.29);
+});
+
+test('arena floors: 100 floors above rank 1, ever harder, with floor rewards', () => {
+  assert.equal(FLOORS, 100); assert.equal(MIN_RANK, -99);
+  assert.equal(floorOf(0), 1); assert.equal(floorOf(-99), 100); assert.equal(floorOf(5), 0);
+  assert.equal(rankZh(-9), '登顶第 10 层'); assert.equal(rankZh(3), '第 3 名');
+  let prev = botEntry(1, data).power;
+  for (const r of [0, -9, -24, -49, -74, -99]) { const p = botEntry(r, data).power; assert.ok(p > prev, `floor ${floorOf(r)}`); prev = p; }
+  assert.ok(botEntry(0, data).power > botEntry(1, data).power * 1.2);
+  const s = mkTeamState(40); arenaState(s).rank = 1; arenaState(s).best = 1;
+  assert.deepEqual(localOpponents(s, data).map((o) => floorOf(o.rank)), [1, 2, 4, 7, 12]);
+  arenaState(s).rank = MIN_RANK; assert.equal(localOpponents(s, data).length, 0);
+  assert.ok(dailyRankReward(-99) > dailyRankReward(1));
 });

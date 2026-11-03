@@ -2,7 +2,7 @@
 import { REALMS } from '../core/constants.js';
 import { weeklyState, weeklyBoss, MILESTONES, WEEKLY_DAILY, WEEKLY_ROUNDS, weekId, weeklyEnemy, WEEKLY_TIER, WEEKLY_TIERS, tierOf, weeklyOpen, wkTrack } from '../core/weekly.js';
 import { REALM_TOWERS, TOWER_NAME, rtBest, rtTeam, rtEnemies, rtStage, rtInfo, RT_FLOORS, RT_MARK_EVERY } from '../core/rtower.js';
-import { arenaState, arenaTries, ARENA_DAILY, LADDER, dailyRankReward, canClaimArenaDaily, hydrate } from '../core/arena.js';
+import { arenaState, arenaTries, ARENA_DAILY, LADDER, FLOORS, rankZh, floorOf, dailyRankReward, canClaimArenaDaily, hydrate } from '../core/arena.js';
 import { RIFT_FLOORS, RIFT_TEAMS, RIFT_DAILY, RIFT_RUN_MAX, RIFT_PASS, RIFT_MILESTONES, riftCycle, riftState, riftParty, riftEnemies, riftStage } from '../core/rift.js';
 import { encodeCode } from '../core/friend.js';
 import { teamDefs } from '../core/game.js';
@@ -110,14 +110,14 @@ export function arenaPage(app) {
   const { state: s, data } = app;
   const a = arenaState(s), tries = arenaTries(s), ranked = a.rank <= LADDER;
   const opp = app.ui.arena?.list || [];
-  const entry = (o) => `<div class="opp"><div class="rk">#${o.rank}</div>
+  const entry = (o) => `<div class="opp"><div class="rk">${o.rank <= 0 ? `${floorOf(o.rank)}层` : `#${o.rank}`}</div>
       <div class="ob"><b>${esc(o.name)}</b> <span class="tag">人机</span><small>战力 ${fmt(o.power || 0)}</small>
       <div class="oteam">${(o.snap || []).map((x) => { const d = data.bySlug[x.slug]; return d ? `<img src="${img(d.portrait)}" title="${esc(d.zh)} Lv${x.lv}★${x.star}" alt="">` : ''; }).join('')}</div></div>
       <button class="btn sm gold" data-act="arena-go" data-rank="${o.rank}" ${tries > 0 ? '' : 'disabled'}>挑战</button></div>`;
   const code = app.ui.arena?.code || '';
-  return `<div class="page"><h2>竞技场 <small>${ranked ? `当前第 ${a.rank} 名` : '未上榜'} · 最高 ${a.best <= LADDER ? `第 ${a.best} 名` : '—'} · ${a.wins}胜${a.losses}负 · 今日 ${tries}/${ARENA_DAILY}</small></h2>
+  return `<div class="page"><h2>竞技场 <small>${ranked ? `当前${rankZh(a.rank)}` : '未上榜'} · 最高 ${a.best <= LADDER ? rankZh(a.best) : '—'} · ${a.wins}胜${a.losses}负 · 今日 ${tries}/${ARENA_DAILY}</small></h2>
     ${squadBar(app, 'arena', '天梯与好友对战都用这套阵容出战')}
-    <div class="banner-card"><h3>天梯（人机）</h3><p>${LADDER} 个名次，对手都是人机，名次越靠前越强。战胜名次更高的对手即可取代其名次；候选对手分别落后你 1 / 3 / 7 / 15 / 31 名，越往上跨的跨度越大。每天 ${ARENA_DAILY} 次。</p>
+    <div class="banner-card"><h3>天梯（人机）</h3><p>${LADDER} 个名次，对手都是人机，名次越靠前越强。战胜名次更高的对手即可取代其名次；候选对手分别领先你 1 / 3 / 7 / 15 / 31 名，越往上跨的跨度越大。登顶第 1 名后还有 ${FLOORS} 层「登顶层」，一层比一层强，首次踏上新层有额外奖励。每天 ${ARENA_DAILY} 次。</p>
       <div class="row"><button class="btn ${canClaimArenaDaily(s) ? 'gold' : ''}" data-act="arena-daily" ${canClaimArenaDaily(s) ? '' : 'disabled'}>每日排名奖励${ranked ? `（召唤券 ${dailyRankReward(a.rank)} + 金币 1500）` : '（上榜后可领）'}</button></div>
       <div class="opps">${opp.length ? opp.map(entry).join('') : '<p class="dim">你已经是第 1 名了。</p>'}</div></div>
     <div class="banner-card"><h3>好友对战</h3>
@@ -130,8 +130,8 @@ export function arenaPage(app) {
 }
 export function arenaResultModal(app, r, rw, newRank) {
   const mine = r.team.list.map((d) => d.name), foes = r.foes.map((d) => d.name), friend = r.entry.type === 'friend';
-  openModal(`<h3>${r.win ? '胜利' : '失败'} · ${friend ? `好友 ${esc(r.entry.name)}` : `对手 ${esc(r.entry.name)}（人机，原第 ${r.entry.rank} 名）`}</h3>
-    <p>${r.rounds} 回合${friend ? '　友谊赛，无奖励' : `　${r.win ? `名次：第 ${newRank} 名${rw.up ? ` <em class="new">最高名次提升 ${rw.up}</em>` : ''}` : '名次不变'}　${REWARD(rw)}`}</p>
+  openModal(`<h3>${r.win ? '胜利' : '失败'} · ${friend ? `好友 ${esc(r.entry.name)}` : `对手 ${esc(r.entry.name)}（人机，原${rankZh(r.entry.rank)}）`}</h3>
+    <p>${r.rounds} 回合${friend ? '　友谊赛，无奖励' : `　${r.win ? `名次：${rankZh(newRank)}${rw.up ? ` <em class="new">最高名次提升 ${rw.up}</em>` : ''}` : '名次不变'}　${REWARD(rw)}`}</p>
     ${reportHtml(analyzeBattle(r, r.team.list, r.foes))}`, 'wide');
 }
 /* ---------- 融灾禁区：五队齐上的爬塔 ---------- */
