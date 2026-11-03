@@ -702,10 +702,12 @@ function genFake() {
       slots.face++;
     }
   }
-  const ART_SRC = { idle: 'assets/fake/idle.webp', card: 'assets/fake/card.webp', bust: 'assets/fake/bust.webp', face: 'assets/fake/face.webp' };
+  const ART_SRC = { idle: 'assets/fake/idle.webp', card: 'assets/fake/card.webp', bust: 'assets/fake/bust.webp', face: 'assets/fake/face.webp', anim: 'assets/fake/anim.webp' };
+  if (!meta.anim || Object.keys(meta.anim).length < 1) throw new Error('寻找伪人：缺动画立绘表（先跑 python scripts/build_fake_art.py，再跑 scripts/build_fake_anim.py）');
   for (const [k, rel] of Object.entries(ART_SRC)) {
     const p = path.join(ROOT, rel);
     if (!has(p)) throw new Error(`缺少 ${rel}：先跑 python scripts/build_fake_art.py`);
+    if (k === 'anim') continue;
     const n = (meta[k] && meta[k].rects || []).length;
     if (n !== slots[k]) throw new Error(`${rel} 有 ${n} 格，但要用 ${slots[k]} 张：重跑 build_fake_art.py`);
   }

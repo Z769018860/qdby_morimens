@@ -42,10 +42,10 @@ function loadImage(src) {
 }
 
 export async function loadArt() {
-  const [idle, card, bust, face] = await Promise.all([
-    loadImage(ART.idle), loadImage(ART.card), loadImage(ART.bust), loadImage(ART.face),
+  const [idle, card, bust, face, anim] = await Promise.all([
+    loadImage(ART.idle), loadImage(ART.card), loadImage(ART.bust), loadImage(ART.face), loadImage(ART.anim),
   ]);
-  return { idle, card, bust, face };
+  return { idle, card, bust, face, anim };
 }
 
 /* --------------------------------------------------------------- 场景 */
@@ -209,12 +209,23 @@ export function makeScene(canvas, art) {
     rect(WIN.x, WIN.y + WIN.h - 12, WIN.w, 1, 'rgba(160,185,200,.08)');
   }
 
-  function awakenBody(c, t) {
+  // 动图帧：待机循环；伪人露馅（tell）时放技能动图。两套帧按同一比例缩，所以缩放以「待机」的高度为准。
+  function animFrame(slug, tell, t, i) {
+    const a = META.anim && META.anim[slug];
+    if (!a) return null;
+    const list = tell ? a.s : a.i;
+    const d = (tell ? a.ds : a.di) / 1000 || 0.2;
+    const ph = (t + i * 0.37) / d;
+    return { r: list[Math.floor(ph) % list.length], base: a.i[0][3] };
+  }
+
+  function awakenBody(c, t, tell) {
     const i = IDX.get(c.img.idle);
     if (i == null) return;
-    const r = META.idle.rects[i];
+    const fr = animFrame(c.img.idle, tell, t, i);
+    const r = fr ? fr.r : META.idle.rects[i];
     const box = WIN.h - 6;
-    const k = Math.min(box / r[3], 1.25);
+    const k = Math.min(box / (fr ? fr.base : r[3]), 1.25);
     const dw = Math.round(r[2] * k);
     const dh = Math.round(r[3] * k);
     const bob = Math.round(Math.sin(t * 1.5 + i) * 1);
@@ -229,7 +240,7 @@ export function makeScene(canvas, art) {
     g.addColorStop(1, 'rgba(150,190,215,0)');
     ctx.fillStyle = g;
     ctx.fillRect(x - 20, y - 10, dw + 40, dh + 20);
-    ctx.drawImage(art.idle, r[0], r[1], r[2], r[3], x, y, dw, dh);
+    ctx.drawImage(fr ? art.anim : art.idle, r[0], r[1], r[2], r[3], x, y, dw, dh);
   }
 
   function stickBody(c, t) {
@@ -455,6 +466,15 @@ export function makeScene(canvas, art) {
       const bx = 246 + i * 35;
       const bob = Math.sin(t * 0.8 + i * 2.1) * 1.4;
       const hy = 108 + bob;
+      // 有动图的唤醒体直接坐在沙发上（待机动图；伪人露馅时是技能动图），靠背和坐垫会遮住下半身
+      const who = st.roomList && st.roomList[i];
+      const fr = who && who.c && who.c.img ? animFrame(who.c.img.idle, who.tell, t, i) : null;
+      if (fr) {
+        const kd = 80 / fr.base;
+        const dw = Math.round(fr.r[2] * kd), dh = Math.round(fr.r[3] * kd);
+        ctx.drawImage(art.anim, fr.r[0], fr.r[1], fr.r[2], fr.r[3], Math.round(bx + 13 - dw / 2), Math.round(176 - dh), dw, dh);
+        continue;
+      }
       // 肩：从靠背上沿开始，被靠背挡住下半截
       ctx.fillStyle = '#0b0c0f';
       ctx.beginPath();
@@ -554,7 +574,7 @@ export function makeScene(canvas, art) {
       ctx.fillRect(WIN.x + 52, WIN.y + 58, 10, 3);
       ctx.fillRect(WIN.x + 96, WIN.y + 58, 10, 3);
     } else if (st.mode === 'visit' && st.char) {
-      if (st.char.k === 's') stickBody(st.char, t); else awakenBody(st.char, t);
+      if (st.char.k === 's') stickBody(st.char, t); else awakenBody(st.char, t, st.tell);
       if (st.peekK > 0.01) closeUp(st.char, t, st.peekK);
     }
     if (st.mode !== 'black') glass();
@@ -579,10 +599,10 @@ export function makeScene(canvas, art) {
   st.raf = requestAnimationFrame(loop);
 
   return {
-    setChar(c) { st.char = c; st.mode = c ? 'visit' : 'idle'; st.peek = 0; },
+    setChar(c, tell) { st.char = c; st.tell = !!tell; st.mode = c ? 'visit' : 'idle'; st.peek = 0; },
     setMode(m) { st.mode = m; if (m !== 'visit') st.char = null; if (m !== 'visit') st.peek = 0; },
     setPeek(on) { st.peek = on ? 1 : 0; },
-    setRoom(n) { st.room = n; },
+    setRoom(list) { st.roomList = Array.isArray(list) ? list : null; st.room = st.roomList ? st.roomList.length : (list | 0); },
     setAmmo(n) { st.ammo = n; },
     red(n) { st.red = Math.max(st.red, n); },
     flash(n) { st.flash = Math.max(st.flash, n); },

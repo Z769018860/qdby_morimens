@@ -393,6 +393,10 @@ export function newRun(seed, diffKey) {
 /* -------------------------------------------------------------- 查询 */
 export const currentVisitor = (s) => (s.over ? null : s.list[s.vi] || null);
 export const nightCfg = (s) => s.nights[Math.min(s.night, s.nights.length - 1)] || { visits: 2, acts: ACTS, ev: null };
+/* 伪人的「动图破绽」：真人永远是待机动图，伪人有一定概率放的是技能动图（门外、屋里都一样）。
+   按夜数递减（越往后越难看出来）；用 obsRoll 判定，不新增存档字段，老存档照常可用。 */
+const TELL = [0.85, 0.8, 0.75, 0.68, 0.6, 0.52, 0.45];
+export const tellsOf = (v) => !!(v && v.fake && typeof v.obsRoll === 'number' && v.obsRoll < TELL[Math.min(TELL.length - 1, Math.max(0, v.joined | 0))]);
 export const homeAlive = (s) => s.home.filter((h) => h.alive);
 export const homeReal = (s) => s.home.filter((h) => h.alive && !h.fake);
 export const homeFake = (s) => s.home.filter((h) => h.alive && h.fake);

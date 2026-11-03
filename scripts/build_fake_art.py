@@ -18,6 +18,7 @@
 然后统一调色板量化（所有人共用一套 32 色，画面才不会花）。
 
 用法：python scripts/build_fake_art.py [--q 62]
+注意：本脚本会重写 data/fake-art.json，之后要再跑 python scripts/build_fake_anim.py 补上动画立绘表（anim.webp）。
 """
 import json
 import os

@@ -10,7 +10,7 @@ import {
   DIFFS, diffOf, DIFF_INDEX, tasksOf, tasksDone, rewardOf, scoreParts, walletAdd,
   ask, hear, peek, decide, nextVisitor, nightDone, endNight, startNight,
   talk, shoot, canTalk, canAsk, canHear, canPeek, roomFull, roomMax,
-  homeAlive, homeReal, homeFake, homeOf, LIE_LABEL, TALK_PER_DAY,
+  homeAlive, homeReal, homeFake, homeOf, LIE_LABEL, TALK_PER_DAY, tellsOf,
   score, clearSave, codex, meetAll, isKnown, knownCount, KNOWN_MAX,
   best, saveBest, flush, FIELD_LABEL, FIELD_ASK, ALL_CHARS, ART_META, charOf, TOPICS,
   endingCount,
@@ -212,7 +212,7 @@ function startVisit(v) {
   $('#sideDay').hidden = true;
   $('#scrGame').classList.remove('isDay');
   scene.setMode('visit');
-  scene.setChar(v.c);
+  scene.setChar(v.c, tellsOf(v));
   // 看过一次就一直看得见：那是你记在脑子里的脸，不该因为换页就忘掉
   scene.setPeek(!!v.peeked);
   paintHud();
@@ -299,7 +299,7 @@ function enterDay(fresh) {
   $('#sideDay').hidden = false;
   $('#scrGame').classList.add('isDay');
   scene.setMode('day');
-  scene.setRoom(homeAlive(S).length);
+  scene.setRoom(homeAlive(S).map((h) => ({ c: h.c, tell: tellsOf(h) })));
   scene.setAmmo(S.bullets);
   paintHud();
   paintDay();
@@ -315,7 +315,7 @@ function enterDay(fresh) {
 }
 
 function paintDay() {
-  scene.setRoom(homeAlive(S).length);
+  scene.setRoom(homeAlive(S).map((h) => ({ c: h.c, tell: tellsOf(h) })));
   scene.setAmmo(S.bullets);
   paintHud();
   const side = $('#sideDay');
