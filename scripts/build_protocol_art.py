@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """把《忘却协议》要用的战斗动态立绘压成一张图集。
 
-素材来源：灰机 wiki 的「战斗立绘动作动图」（角色名-待机.gif / 角色名-打击.gif），
+素材来源：灰机 wiki 的「战斗立绘动作动图」（角色名-待机.gif / 角色名-技能1.gif；攻击用技能动图，不再用「打击」），
 和站内已有的头像、怪物战斗立绘。原始动图单张 1~9MB、47~50 帧、1032×1257，
 直接上站是不可能的——所以这里做三件事：
 
@@ -35,7 +35,7 @@ OUT_JSON = ROOT / 'data/protocol-art.json'
 UA = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) qdby-morimens/forget-protocol'}
 BASE = 'https://huiji-public.huijistatic.com/morimens/uploads'
 
-IDLE_N, ATK_N = 6, 6           # 每个动作取几帧
+IDLE_N, ATK_N = 8, 8           # 每个动作取几帧
 H, Q = 110, 52                 # 立绘高度 / webp 质量
 MOB_H = 118
 
@@ -88,7 +88,7 @@ def union_bbox(frames_im):
 def load_anim(path, want):
     """取 want 帧（在整段里均匀取样），按并集裁剪后缩到统一高度。"""
     im = Image.open(path)
-    all_frames = list(ImageSequence.Iterator(im))
+    all_frames = [f.convert('RGBA') for f in ImageSequence.Iterator(im)]   # 必须逐帧拷贝：迭代器每次返回同一个对象，旧版因此全是同一帧（动图其实是静止的）
     n = len(all_frames)
     dur = sum((f.info.get('duration') or im.info.get('duration') or 70) for f in all_frames) / max(1, n)
     box = union_bbox(all_frames)
@@ -97,7 +97,7 @@ def load_anim(path, want):
     idx = [round(i * (n - 1) / max(1, want - 1)) for i in range(want)] if n > want else list(range(n))
     out = []
     for i in idx:
-        f = all_frames[i].convert('RGBA').crop(box)
+        f = all_frames[i].crop(box)
         w = max(1, round(f.width * H / f.height))
         out.append(f.resize((w, H), Image.LANCZOS))
     # 每帧播放时长 = 原始帧间隔 × 采样步长
@@ -159,7 +159,7 @@ def main():
         anims = {}
         try:
             pair = []
-            for key, suffix, want in (('idle', '-待机.gif', IDLE_N), ('attack', '-打击.gif', ATK_N)):
+            for key, suffix, want in (('idle', '-待机.gif', IDLE_N), ('attack', '-技能1.gif', ATK_N)):
                 local = RAW / ('%s-%s.gif' % (u['id'], key))
                 fetch(u['src'] + suffix, local)
                 pair.append((key, load_anim(local, want)))
