@@ -513,10 +513,10 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
       </div>
     </article>
 
-    <article class="proj" data-game="block" data-version="4.1.1">
+    <article class="proj" data-game="block" data-version="4.2.0">
       <div class="phead">
         <span class="ico qav" aria-hidden="true"><!-- @ico:block --></span>
-        <h2>蚀界方块<span class="ver">v4.1.1</span></h2>
+        <h2>蚀界方块<span class="ver">v4.2.0</span></h2>
         <span class="badge ok">可玩</span>
       </div>
       <p class="desc">盘面上本来就有方块：按住一块左右滑，上面的方块失去支撑就往下掉、填进空位。松手算一步，底下的水立刻顶上来一整行。填满一行消掉，顶到天花板就结束。四界域的唤醒体趴在长猫耳的玻璃块上，会眨眼、会抖耳朵，消掉还会掉造物。评级打到 SSS 才算过，到手后能接着玩也能收手。十二关一关比一关挤，最后是无尽。</p>
@@ -1656,7 +1656,7 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
     ['il', 'idle'], ['dr', 'detective'], ['mg', 'merge'], ['bd', 'bird'], ['bn', 'binding'],
     ['sv', 'survivors'], ['pf', 'protocol'], ['wf', 'wolf'], ['dt', 'deathreport'], ['g2', 'g2048'],
     ['dl', 'duel'], ['rg', 'reign'], ['rl', 'roulette'], ['ll', 'lovelive'],     ['kp', 'keeper'], ['bf', 'bugfight'],
-    ['bz', 'bazaar'], ['fk', 'fake']
+    ['bz', 'bazaar'], ['fk', 'fake'], ['bk', 'block']
   ];
   var boardData = null, boardAwk = null, boardTab = 'il';
   function loadAwkMap() {
@@ -1686,7 +1686,9 @@ dialog.sheet::backdrop{background:rgba(17,24,39,.38); backdrop-filter:blur(2px)}
             return '<span title="' + esc2(a.zh + ' Lv' + t.lv + (t.st ? ' +' + t.st : '')) + '"><img loading="lazy" src="' + esc2(a.img) + '" alt="' + esc2(a.zh) + '"><em>' + (t.lv || '') + '</em></span>';
           }).join('') + '</div>';
         }
-        var sc = boardTab === 'il' ? '主线第 <b>' + it.score + '</b><small>关</small>' : '<b>' + it.score + '</b><small>' + esc2(it.unit || g.unit || '') + '</small>';
+        // 分数上万之后加千分位：无尽关这种分高的一个人能到五位数，不加逗号一眼数不清
+        var stxt = Number(it.score) >= 10000 ? Number(it.score).toLocaleString('en-US') : String(it.score);
+        var sc = boardTab === 'il' ? '主线第 <b>' + stxt + '</b><small>关</small>' : '<b>' + stxt + '</b><small>' + esc2(it.unit || g.unit || '') + '</small>';
         return '<li><span class="rk">' + (i + 1) + '</span><span class="nm">' + esc2(it.name) + (it.sub ? '<small>' + esc2(it.sub) + '</small>' : '') + '</span>' + team + '<span class="sc">' + sc + '</span></li>';
       }).join('');
     });

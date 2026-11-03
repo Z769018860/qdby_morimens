@@ -373,7 +373,34 @@ const G = {
 };
 
 const SAVE = 'zjtt:block:v2';
-const seenSave = () => readJSON(SAVE, { best: {}, endless: 0, seen: {} });
+const seenSave = () => readJSON(SAVE, { best: {}, endless: 0, endlessBest: 0, endlessBestLines: 0, seen: {} });
+
+// 无尽关的成绩要专门记：首页榜单按「无尽关最高分」排，选关卡片上也要能看到。
+// 只在破纪录时写，且只增不减（云端档案逐项取大，本地也别掉）。
+function applyEndless(st, d) {
+  if (!st || !st.endless) return false;
+  let dirty = false;
+  if (st.lines > (d.endless || 0)) { d.endless = st.lines; dirty = true; }
+  if (st.score > (d.endlessBest || 0)) {
+    d.endlessBest = st.score;
+    d.endlessBestLines = st.lines;
+    dirty = true;
+  }
+  return dirty;
+}
+
+function bumpEndless(st) {
+  const d = seenSave();
+  if (applyEndless(st, d)) {
+    writeJSON(SAVE, d);
+    markDirty();
+  }
+}
+
+// 成绩变了要让 account.js（登录后）把这版摘要推上云 —— 首页榜单读的就是云端的 gd
+function markDirty() {
+  try { document.dispatchEvent(new CustomEvent('zjtt:dirty', { detail: 'gd' })); } catch { /* 没登录也无所谓 */ }
+}
 function saveProgress() {
   const s = seenSave();
   writeJSON(SAVE, s);
@@ -1688,7 +1715,10 @@ function paintSelect() {
       <span class="meta">
         <b>${lv.t}</b>
         <i>${lv.sub}</i>
-        <em>${isEndless ? `最高 ${data.endless || 0} 行` : `评级 SSS 过关 · ${lv.moves} 回合`}${tags.length ? ' · ' + tags.join('/') : ''}</em>
+        <em>${isEndless
+          ? (data.endlessBest ? `最高 ${Number(data.endlessBest).toLocaleString('en-US')} 分 · ${data.endlessBestLines || data.endless || 0} 行`
+            : `最高 ${data.endless || 0} 行`)
+          : `评级 SSS 过关 · ${lv.moves} 回合`}${tags.length ? ' · ' + tags.join('/') : ''}</em>
       </span>
       <span class="rk">${best ? `<b data-k="${best}">${best}</b>` : open ? '<b class="none">—</b>' : '锁'}</span>
     `;
@@ -1804,6 +1834,9 @@ function startRun() {
 
   bgmStart();
 
+  // 第一关第一次进来先讲一遍怎么玩（看过一次就不再自动弹，开战面板的「怎么玩」还能翻）
+  if (lv.id === 1 && !readJSON(TUT_KEY, 0)) openTut(0, true);
+
   // 四张头像先挂上，loaded 之后重画
   G.imgs = [];
   G.ready = 0;
@@ -1828,6 +1861,52 @@ function startRun() {
   baseName = lv.t;
   $('#lvName').textContent = lv.t;
   showTip(lv.tip || '');
+}
+
+// ------------------------------------------------------------------ 新手教学
+// 第一关第一次进来自动弹一次；之后开战面板的「怎么玩」随时能翻回来。
+// 说明文字必须和真机制对得上（尤其是「松手才顶行」和 SSS 那条线），
+// 以前文案写错导致玩家以为是俄罗斯方块，这里每一句都对着 block-core.js 的行为写。
+const TUT_KEY = 'zjtt:block:tut';
+const TUT = [
+  { a: 1, t: '盘上的方块本来就在', b: '一开局方块就浮在水里，不用等它往下掉。按住盘上任意一块，左右滑。' },
+  { a: 2, t: '松手算一步，水顶上来一行', b: '松开手这一步才生效：上面失去支撑的方块先掉下来补空，同时从底下顶上来一整行。棋盘底下那条半透明的横带，就是下一行的预告。' },
+  { a: 3, t: '填满一行就消掉', b: '一行填满立刻消失，连着消有加成。造物也在消行时掉下来，点一下就能用。方块被顶出天花板就沉了。' },
+  { a: 4, t: '评级打到 SSS 才算过', b: '顶上「消行 N / M」写的是离 SSS 还差多少行（大约要消目标的 1.55 倍）。够了会问你：接着玩，还是现在就结算。' },
+];
+let tutStep = 0;
+
+function paintTut() {
+  const s = TUT[tutStep];
+  if (!s) return;
+  for (const el of document.querySelectorAll('#ovTut .ta')) {
+    el.classList.toggle('on', el.classList.contains('a' + s.a));
+  }
+  const no = $('#tutNo');
+  if (no) no.textContent = `${tutStep + 1} / ${TUT.length}`;
+  $('#tutTitle').textContent = s.t;
+  $('#tutBody').textContent = s.b;
+  $('#tutNext').textContent = tutStep === TUT.length - 1 ? '开打' : '下一步';
+  // 最后一页没有「跳过」的意义了，收起来免得两个按钮说的是同一件事
+  $('#tutSkip').hidden = tutStep === TUT.length - 1;
+}
+
+function openTut(step, pause) {
+  tutStep = Math.max(0, Math.min(TUT.length - 1, Number(step) || 0));
+  paintTut();
+  const ov = $('#ovTut');
+  ov.hidden = false;
+  requestAnimationFrame(() => ov.classList.add('on'));
+  // 从对局里打开（第一关自动弹）要冻住棋盘，不然一边看说明一边被顶
+  if (pause && G.mode === 'play' && G.st) G.paused = true;
+}
+
+function closeTut() {
+  const ov = $('#ovTut');
+  ov.classList.remove('on');
+  ov.hidden = true;
+  writeJSON(TUT_KEY, 1);
+  if (G.mode === 'play' && G.st && !G.st.over) G.paused = false;
 }
 
 // ------------------------------------------------------------------ 结束
@@ -1856,17 +1935,20 @@ function finish(win) {
 
   // 通关口径：摸到过 SSS 就算过 —— 之后接着玩到沉了，成绩照样算通关
   const passed = win || !!st.sss;
-  const rank = passed ? rankOf(st) : 'D';
+  // 无尽关没有「过关」，评级照 rankOf 的按行分档走（以前一律 D，跟打了多少行无关）
+  const rank = rankOf(st);
   const data = seenSave();
   const prev = data.best[st.lvId];
   const order = { D: 0, C: 1, B: 2, A: 3, S: 4, SS: 5, SSS: 6 };
   if (passed && (!prev || order[rank] > order[prev])) data.best[st.lvId] = rank;
-  if (st.lvId === 13 && st.lines > (data.endless || 0)) data.endless = st.lines;
+  const endlessBumped = applyEndless(st, data);
 
   // 银芯按消行折算，只在第一次拿到这个评级时给（重刷不给，避免刷分）
   const credit = passed && (!prev || order[rank] > order[prev]) ? creditOf(st.lines) : (passed ? 1 : 0);
   if (credit > 0) payCredits(credit);
   writeJSON(SAVE, data);
+  // 无尽关的成绩 / 新过的关都要让云端档案重推一次，否则首页榜单拿不到这一局
+  if (endlessBumped || (passed && (!prev || order[rank] > order[prev]))) markDirty();
 
   setTimeout(() => {
     const ov = $('#ovResult');
@@ -1874,11 +1956,17 @@ function finish(win) {
     requestAnimationFrame(() => ov.classList.add('on'));
     $('#resRank').textContent = rank;
     $('#resRank').dataset.k = rank;
-    $('#resTitle').textContent = passed ? (st.lvId === 13 ? '走到尽头了' : '过关') : '沉下去了';
-    $('#resWhy').textContent = passed
-      ? (st.lvId === 13 ? `这一趟消了 ${st.lines} 行。`
-        : `SSS 到手，共消 ${st.lines} 行、用了 ${st.moves} 回合${win ? '，自己收了手' : '，之后撑到沉了'}。`)
-      : (st.reason || '没撑住');
+    $('#resTitle').textContent = st.endless ? '沉下去了' : (passed ? '过关' : '沉下去了');
+    if (st.endless) {
+      // 无尽关的成绩单只讲「消了多少、拿了多少分」，最高分一并给出（榜单就是按它排的）
+      const best = seenSave().endlessBest || 0;
+      $('#resWhy').textContent = `这一趟消了 ${st.lines} 行、${st.score.toLocaleString('en-US')} 分`
+        + (best > st.score ? `。无尽关最高分 ${best.toLocaleString('en-US')}` : '，刷了新高。');
+    } else {
+      $('#resWhy').textContent = passed
+        ? `SSS 到手，共消 ${st.lines} 行、用了 ${st.moves} 回合${win ? '，自己收了手' : '，之后撑到沉了'}。`
+        : (st.reason || '没撑住');
+    }
     $('#resLines').textContent = st.lines;
     $('#resScore').textContent = st.score.toLocaleString('en-US');
     $('#resCombo').textContent = st.maxCombo > 1 ? `×${st.maxCombo}` : '—';
@@ -1902,6 +1990,8 @@ function payCredits(n) {
 
 function backToSelect() {
   bgmStop();
+  // 无尽关中途退出去也要留下成绩——不然刷了高分直接退出就白打了
+  if (G.st) bumpEndless(G.st);
   G.mode = 'select';
   G.st = null;
   G.paused = false;
@@ -1928,6 +2018,13 @@ function togglePause(force) {
 // ------------------------------------------------------------------ 绑定
 function bindUi() {
   $('#preGo').addEventListener('click', startRun);
+  // 新手教学：翻页 / 跳过 / 从开战面板随时调出来
+  $('#tutNext').addEventListener('click', () => {
+    if (tutStep >= TUT.length - 1) closeTut();
+    else { tutStep += 1; paintTut(); }
+  });
+  $('#tutSkip').addEventListener('click', closeTut);
+  $('#preHelp').addEventListener('click', () => openTut(0, false));
   $('#sssGo').addEventListener('click', () => hideSSS());
   $('#sssDone').addEventListener('click', () => {
     hideSSS();

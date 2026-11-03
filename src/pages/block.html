@@ -128,6 +128,12 @@ img{display:block}
   background:rgba(9,15,30,.55);border:1px solid rgba(120,170,240,.14);
 }
 .pgoals b{color:var(--text);font-size:13px;font-variant-numeric:tabular-nums}
+.pgoals .phelp{
+  flex:0 0 auto;padding:7px 10px;border-radius:9px;font-size:12px;color:#9fdcff;
+  border:1px solid rgba(124,216,255,.3);background:rgba(124,216,255,.1);
+  white-space:nowrap;
+}
+.pgoals .phelp:active{transform:translateY(1px)}
 .precard h3{
   margin:14px 0 7px;font-size:12px;font-weight:600;color:#9fb0d0;letter-spacing:.06em;
   display:flex;align-items:center;gap:7px;
@@ -302,6 +308,39 @@ img{display:block}
   transform:translateY(8px) scale(.985);transition:transform .26s cubic-bezier(.2,.9,.3,1.1);
 }
 .ov.on .card{transform:none}
+
+/* ---- 新手教学（第一关自动弹一次） ---- */
+.tutcard{text-align:left}
+.tutno{
+  margin:0 0 9px;font-size:11px;letter-spacing:.16em;color:#8093b8;text-align:center;
+  font-variant-numeric:tabular-nums;
+}
+.tutart{
+  position:relative;height:96px;margin-bottom:12px;border-radius:14px;overflow:hidden;
+  border:1px solid rgba(120,170,240,.18);
+  background:radial-gradient(120% 110% at 50% 0%,rgba(96,176,255,.16),rgba(9,16,34,.55));
+}
+.tutart .ta{
+  position:absolute;inset:0;width:100%;height:100%;
+  opacity:0;transition:opacity .22s ease;
+}
+.tutart .ta.on{opacity:1}
+.tutart .tb{fill:rgba(124,216,255,.2);stroke:rgba(160,215,255,.6);stroke-width:1.3}
+.tutart .tb.dim{fill:rgba(124,216,255,.1);stroke:rgba(150,200,255,.34)}
+.tutart .tb.hot{fill:rgba(255,170,208,.3);stroke:#ffb6d2;stroke-width:1.6}
+.tutart .tb.ghost{fill:rgba(255,255,255,.06);stroke:rgba(190,225,255,.5);stroke-dasharray:4 3}
+.tutart .tb.rise{fill:rgba(124,216,255,.38);stroke:rgba(196,238,255,.9)}
+.tutart .tb.full{fill:rgba(255,214,94,.26);stroke:#ffd45e}
+.tutart .arw{fill:none;stroke:#9fdcff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tutart .spk{fill:none;stroke:#f4fff9;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 2px rgba(6,12,24,.55))}
+.tutart .sss{
+  fill:#ffd45e;font:900 30px/1 system-ui,-apple-system,"PingFang SC",sans-serif;
+  font-style:italic;letter-spacing:.04em;filter:drop-shadow(0 0 8px rgba(255,205,90,.45));
+}
+.tutcard h3{font-size:16.5px;margin:0 0 6px}
+.tutcard .why{font-size:13px;line-height:1.6;color:#a7b6d4;margin:0 0 14px;text-align:left}
+.tutcard .prime{margin-bottom:6px}
+.tutcard .link{width:100%}
 .card .big{
   font-size:58px;font-weight:900;font-style:italic;line-height:1;margin:2px 0 4px;
   color:#8a93a8;letter-spacing:-.02em;
@@ -394,6 +433,7 @@ img{display:block}
       <div class="pgoals">
         <span>通关 <b id="preGoal">评级 SSS</b></span>
         <span>回合 <b id="preMoves">60</b></span>
+        <button class="phelp" id="preHelp" type="button" aria-label="新手教学">怎么玩</button>
       </div>
 
       <h3>关卡机制</h3>
@@ -445,6 +485,59 @@ img{display:block}
     </div>
     <div class="lvname" id="lvName">无光区深潜 1</div>
   </section>
+</div>
+
+<!-- ==================================================================== 新手教学 -->
+<!-- 第一次进第一关会自动弹；之后从开战面板的「怎么玩」随时能再看一遍 -->
+<div class="ov" id="ovTut" hidden>
+  <div class="card tutcard">
+    <p class="tutno" id="tutNo">1 / 4</p>
+    <div class="tutart">
+      <svg class="tutdefs" width="0" height="0" aria-hidden="true">
+        <symbol id="catblk" viewBox="0 0 40 44" preserveAspectRatio="none">
+          <path d="M0 11 L6 0 L13 11 Q20 7.5 27 11 L34 0 L40 11 L40 36 A8 8 0 0 1 32 44 L8 44 A8 8 0 0 1 0 36 Z"/>
+        </symbol>
+      </svg>
+      <svg class="ta a1" viewBox="0 0 240 96" aria-hidden="true">
+        <use class="tb dim" href="#catblk" x="25" y="20" width="40" height="44"/>
+        <use class="tb hot" href="#catblk" x="75" y="20" width="40" height="44"/>
+        <use class="tb dim" href="#catblk" x="125" y="20" width="40" height="44"/>
+        <use class="tb dim" href="#catblk" x="175" y="20" width="40" height="44"/>
+        <path class="arw" d="M64 80H44m6-6-6 6 6 6"/>
+        <path class="arw" d="M126 80h20m-6-6 6 6-6 6"/>
+      </svg>
+      <svg class="ta a2" viewBox="0 0 240 96" aria-hidden="true">
+        <use class="tb ghost" href="#catblk" x="95" y="2" width="40" height="26"/>
+        <path class="arw drop" d="M115 32v10m-5-5 5 5 5-5"/>
+        <use class="tb dim" href="#catblk" x="52" y="46" width="40" height="34"/>
+        <use class="tb dim" href="#catblk" x="142" y="46" width="40" height="34"/>
+        <path class="arw" d="M92 24v10m-5-5 5 5 5-5" opacity="0"/>
+        <path class="arw" d="M38 78V66m-4 4 4-4 4 4"/>
+        <use class="tb rise" href="#catblk" x="30" y="82" width="180" height="12"/>
+      </svg>
+      <svg class="ta a3" viewBox="0 0 240 96" aria-hidden="true">
+        <use class="tb dim" href="#catblk" x="34" y="8" width="38" height="30"/>
+        <use class="tb dim" href="#catblk" x="101" y="8" width="38" height="30"/>
+        <use class="tb dim" href="#catblk" x="168" y="8" width="38" height="30"/>
+        <use class="tb full" href="#catblk" x="20" y="50" width="40" height="42"/>
+        <use class="tb full" href="#catblk" x="62" y="50" width="40" height="42"/>
+        <use class="tb full" href="#catblk" x="104" y="50" width="40" height="42"/>
+        <use class="tb full" href="#catblk" x="146" y="50" width="40" height="42"/>
+        <use class="tb full" href="#catblk" x="188" y="50" width="40" height="42"/>
+        <path class="spk" d="M112 70l8 8 16-20"/>
+      </svg>
+      <svg class="ta a4" viewBox="0 0 240 96" aria-hidden="true">
+        <use class="tb dim" href="#catblk" x="38" y="56" width="40" height="36"/>
+        <use class="tb dim" href="#catblk" x="100" y="56" width="40" height="36"/>
+        <use class="tb dim" href="#catblk" x="162" y="56" width="40" height="36"/>
+        <text class="sss" x="120" y="46" text-anchor="middle">SSS</text>
+      </svg>
+    </div>
+    <h3 id="tutTitle">盘上的方块本来就在</h3>
+    <p class="why" id="tutBody">方块一开局就浮在水里，不用等它往下掉。按住任意一块，左右滑。</p>
+    <button class="prime" id="tutNext" type="button">下一步</button>
+    <button class="link" id="tutSkip" type="button">跳过，直接开打</button>
+  </div>
 </div>
 
 <!-- ==================================================================== 结算 -->
