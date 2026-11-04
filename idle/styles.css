@@ -1004,6 +1004,26 @@ button, a, [role="button"], input, select, label{touch-action:manipulation}
 .lkrow .dots i.on{background:var(--gold)}
 .lkrow.done{opacity:.6}
 @media(max-width:560px){.lkpath{grid-template-columns:repeat(6,1fr)}.lkfaces{grid-template-columns:repeat(4,1fr)}}
+/* 树海：等级条 / 券匣 / 天赋树 / 仓库 */
+.lkxp{position:relative;height:20px;border:1px solid var(--line);border-radius:6px;background:#05070b;overflow:hidden;margin:6px 0}
+.lkxp i{display:block;height:100%;background:linear-gradient(90deg,#8a6a1e,#e5b84b)}
+.lkxp em{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11px;color:#e9e2cf;text-shadow:0 1px 2px #000}
+.lkwallet .btn{text-align:left}
+.lkdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.lkbrs{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin:8px 0}
+.lkbranch{border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--panel)}
+.lkbranch h4{margin:2px 0 6px;font-size:13px;color:var(--gold)}
+.lktal{border:1px solid var(--line);border-radius:8px;padding:7px;background:var(--panel2);margin-bottom:6px}
+.lktal.done{border-color:var(--gold);box-shadow:0 0 0 1px #e5b84b44 inset}
+.lktal .hd{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.lktal p{margin:2px 0;font-size:12px}
+.lktal .btn{width:100%;margin-top:4px}
+.lkh4{margin:10px 0 4px;font-size:13px;color:var(--gold)}
+.lkrow.on{background:rgba(229,184,75,.07)}
+.lktag.gear{border-color:#7fd1b9;color:#b9f0e2}
+.lktag.bless{border-color:#e08ac0;color:#f4c8e6}
+.lkpick.gear b{color:#b9f0e2}
+@media(max-width:560px){.lkbrs{grid-template-columns:1fr}.lkwallet .btn{font-size:12px}}
 
 /* ---------- 同调率（core/affinity.js + ui/affinity.js） ---------- */
 .afflist{display:grid;gap:6px;margin-top:6px}

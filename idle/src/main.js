@@ -45,8 +45,10 @@ import {
   takeOffer as treeTakeOffer, rerollOffer as treeReroll, applyEvent as treeApplyEvent, applyRest as treeApplyRest,
   shopBuy as treeShopBuy, leaveNode as treeLeaveNode, takeGift as treeTakeGift, giftOptions as treeGiftOptions,
   abandonRun as treeAbandon, claimTreeAch, offerPool as treeOfferPool, checkDraft as treeCheckDraft,
+  gearEquip, gearUnequip, setLineup, takeChest, takeSpring, takeShrine, buyTalent as treeBuyTalent,
+  claimTreeLevel, talentMods as treeTalentMods,
 } from './core/treerun.js';
-import { useDirectVoucher, useAwakenVoucher } from './core/game.js';
+import { useDirectVoucher, useAwakenVoucher, awakenOf } from './core/game.js';
 import { claimDaily, redeemGuest, claimMile, dailyView, milePending } from './core/event.js';
 import { syncSigninGifts } from './core/creators.js';
 import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
@@ -920,6 +922,7 @@ function onAct(e) {
       if (out?.maxhp) bits.push(`生命上限 +${out.maxhp}%`);
       if (out?.reroll) bits.push(`重掷次数 +${out.reroll}`);
       if (out?.score) bits.push(`得分 +${fmt(out.score)}`);
+      if (out?.rec) bits.push(`旅人 ${d.bySlug[out.rec]?.zh || out.rec} 加入仓库`);
       if (out?.got?.length) bits.push(`获得 ${out.got.join('、')}`);
       toast(bits.length ? bits.join('，') : '什么都没发生', 3200);
       break;
@@ -1053,6 +1056,7 @@ function onAct(e) {
       if (!run) { render(); break; }
       const out = treeApplyRest(s, run, +el.dataset.i);
       if (!out) break;
+      if (out.stay) { app.save(); TREE.treeDepotModal(app); break; }
       app.save(); render(); sound.play('heal');
       toast(`${out.got.length ? `获得 ${out.got.join('、')}，` : ''}全队回复 ${out.heal}% 生命`, 2600);
       break;
@@ -1063,7 +1067,8 @@ function onAct(e) {
       const r2 = treeShopBuy(s, run, +el.dataset.i);
       if (r2?.err) { toast(r2.err); break; }
       app.save(); render(); sound.play('gold');
-      const extra = r2.tk ? `，唤醒券 +${r2.tk}` : r2.voucher ? `，${r2.voucher === 'direct' ? '直升' : '唤醒'}券 +1` : r2.bud ? `，古树之芽 +${r2.bud}` : '';
+      const vm = /^awaken:([A-Z]+)$/.exec(String(r2.voucher || ''));
+      const extra = r2.tk ? `，唤醒券 +${r2.tk}` : r2.voucher ? `，${r2.voucher === 'direct' ? '直升券' : `${({ CHAOS: '混沌', CARO: '血肉', AEQUOR: '深海', ULTRA: '超维' })[vm?.[1]] || ''}唤醒券`} +1` : r2.bud ? `，古树之芽 +${r2.bud}` : '';
       toast(`买下：${r2.zh}${extra}`);
       break;
     }
@@ -1106,7 +1111,89 @@ function onAct(e) {
     }
     case 'tree-ach': {
       const rw = claimTreeAch(s, el.dataset.id);
-      if (rw) { sound.play('ach'); toast(`成就奖励：${rewardLine(rw)}${rw.vouchers?.length ? ' ' + rw.vouchers.map((v) => (v === 'direct' ? '直升券+1' : '唤醒券+1')).join(' ') : ''}`); rerender(); }
+      if (rw) {
+        sound.play('ach');
+        const vz = { CHAOS: '混沌', CARO: '血肉', AEQUOR: '深海', ULTRA: '超维' };
+        const vs = (rw.vouchers || []).map((v) => { const m = /^awaken:([A-Z]+)$/.exec(v); return v === 'direct' ? '直升券+1' : `${vz[m?.[1]] || ''}唤醒券+1`; }).join(' ');
+        toast(`成就奖励：${rewardLine(rw)}${rw.tp ? `　天赋点+${rw.tp}` : ''}${vs ? ' ' + vs : ''}`);
+        rerender();
+      }
+      break;
+    }
+    case 'tree-lv-open': TREE.treeLevelModal(app); break;
+    case 'tree-lv-claim': {
+      const rw = claimTreeLevel(s, +el.dataset.lv);
+      if (!rw) { toast('这一级还领不了'); break; }
+      sound.play('ach');
+      toast(`Lv.${rw.lv} 奖励：金币 +${fmt(rw.gold)}　银芯 +${fmt(rw.cores)}${rw.tickets ? `　唤醒券 +${rw.tickets}` : ''}${rw.tp ? `　天赋点 +${rw.tp}` : ''}`, 3800);
+      rerender();
+      break;
+    }
+    case 'tree-talent': {
+      const r2 = treeBuyTalent(s, el.dataset.id);
+      if (!r2.ok) { toast(r2.err); break; }
+      sound.play('lvup'); rerender();
+      break;
+    }
+    case 'tree-depot': TREE.treeDepotModal(app); break;
+    case 'tree-depot-close': app.ui.treeGearPick = null; closeModal(); render(); break;
+    case 'tree-lineup': {
+      const run = treeState(s).cur;
+      if (!run) { render(); break; }
+      const slug = el.dataset.s;
+      const cur = run.slugs || [];
+      const next = cur.includes(slug) ? cur.filter((x) => x !== slug) : [...cur, slug];
+      if (!next.length) { toast('至少要留一个人上场'); break; }
+      if (next.length > 4) { toast('最多 4 人上场，先换下一个'); break; }
+      const r2 = setLineup(s, run, next);
+      if (r2.err) { toast(r2.err); break; }
+      app.save(); TREE.treeDepotModal(app); sound.play('click');
+      break;
+    }
+    case 'tree-gear-pick': app.ui.treeGearPick = el.dataset.uid; TREE.treeDepotModal(app); break;
+    case 'tree-equip': {
+      const run = treeState(s).cur;
+      if (!run) { render(); break; }
+      const uid = el.dataset.uid;
+      const slug = el.dataset.s || app.ui.treeGearPick || null;
+      const r2 = gearEquip(s, run, uid, slug);
+      if (r2.err) { toast(r2.err); break; }
+      app.ui.treeGearPick = null; app.save(); TREE.treeDepotModal(app); sound.play('click');
+      break;
+    }
+    case 'tree-unequip': {
+      const run = treeState(s).cur;
+      if (!run) { render(); break; }
+      const r2 = gearUnequip(s, run, el.dataset.uid);
+      if (r2.err) { toast(r2.err); break; }
+      app.ui.treeGearPick = null; app.save(); TREE.treeDepotModal(app); sound.play('click');
+      break;
+    }
+    case 'tree-chest': {
+      const run = treeState(s).cur;
+      if (!run) { render(); break; }
+      const r2 = takeChest(s, run, el.dataset.id);
+      if (!r2) break;
+      app.save(); render(); sound.play('ach');
+      toast(`宝箱：${r2.zh} 已入库（打开仓库装上）`, 3000);
+      break;
+    }
+    case 'tree-spring': {
+      const run = treeState(s).cur;
+      if (!run) { render(); break; }
+      const r2 = takeSpring(s, run, +el.dataset.i);
+      if (!r2) break;
+      app.save(); render(); sound.play('heal');
+      toast(r2.revive ? `${d.bySlug[r2.revive]?.zh || r2.revive} 从水里回来了（50% 生命）` : `全队回复 ${r2.heal}% 生命${r2.glow ? `，余晖 +${r2.glow}` : ''}`, 3000);
+      break;
+    }
+    case 'tree-shrine': {
+      const run = treeState(s).cur;
+      if (!run) { render(); break; }
+      const r2 = takeShrine(s, run, el.dataset.id);
+      if (!r2) break;
+      app.save(); render(); sound.play('ach');
+      toast(`祭坛祝福：${r2.zh}（全队失去 10% 生命）`, 3000);
       break;
     }
     case 'tree-use-direct': {
@@ -1122,13 +1209,14 @@ function onAct(e) {
       break;
     }
     case 'tree-use-awaken': {
-      if ((s.vouchers?.awaken || 0) <= 0) { toast('还没有唤醒券'); break; }
-      TREE.treeAwakenModal(app);
+      const realm = el.dataset.realm || null;
+      if (realm ? awakenOf(s, realm) <= 0 : !Object.keys(s.vouchers?.awaken || {}).some((k) => awakenOf(s, k) > 0)) { toast('这种唤醒券没有了'); break; }
+      TREE.treeAwakenModal(app, realm);
       break;
     }
     case 'tree-awaken-pick': {
-      const r2 = useAwakenVoucher(s, el.dataset.s, d);
-      if (!r2) { toast('用不了：券没了，或这位已经拥有 / 不是血肉界域'); break; }
+      const r2 = useAwakenVoucher(s, el.dataset.s, d, el.dataset.realm || null);
+      if (!r2) { toast('用不了：券没了，或这位已经拥有 / 界域不对'); break; }
       closeModal(); app.save(); render(); sound.play('summonSSR');
       toast(`唤醒成功：${r2.zh} 加入了名册`, 4000);
       break;

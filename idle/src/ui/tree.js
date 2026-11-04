@@ -1,19 +1,29 @@
 // 黑流树海：界面。
-// 主页（难度 / 券匣 / 成就）→ 募队弹窗（黑露 100 预算选 4 人）→ 局内（三条岔路二选一 + 古树试炼）→ 结算。
+// 主页（等级 / 天赋树 / 券匣 / 难度 / 成就）→ 募队弹窗（黑露买人进仓库）→
+// 局内（岔路二选一 + 仓库编队 + 古树试炼）→ 结算。
 import {
   TREE_ACTS, TREE_STEPS, TREE_BUDGET, TREE_DIFFS, TREE_PRICE, treeDiffOf, TREE_EVENTS, TREE_RELICS, TREE_ACH,
   treeState, priceOf, enhOvr, ENH_STEPS, giftOptions, REST_OPTS, treeStage,
-  allyDefsOf, offerPool,
+  allyDefsOf, offerPool, TREE_GEAR, GEAR_KIND_ZH, GEAR_LIMIT, gearRows, POOL_MAX, TEAM_MAX,
+  TREE_TALENTS, TREE_BRANCHES, talentLv, talentCost, canTalent, talentMods,
+  TREE_LEVELS, treeLevelOf, treeLevelDef, TREE_LEVEL_MAX, TREE_BLESSINGS,
 } from '../core/treerun.js';
 import { LUCK_BUFFS } from '../core/luckrun.js';
+import { REALMS } from '../core/constants.js';
+import { awakenOf } from '../core/game.js';
 import { esc, img, fmt, openModal } from './util.js';
 
-const KIND_ZH = { battle: '战斗', elite: '紧急作战', boss: '首领', event: '奇遇', shop: '黑市', rest: '休整', trial: '古树试炼' };
-const KIND_ICON = { battle: '⚔', elite: '✦', boss: '☠', event: '❖', shop: '⌂', rest: '♨', trial: '✧' };
+const KIND_ZH = { battle: '战斗', elite: '紧急作战', hunt: '猎场', boss: '首领', event: '奇遇', shop: '黑市', rest: '休整', trial: '古树试炼', chest: '宝箱', spring: '回声之泉', shrine: '古树祭坛' };
+const KIND_ICON = { battle: '⚔', elite: '✦', hunt: '🐗', boss: '☠', event: '❖', shop: '⌂', rest: '♨', trial: '✧', chest: '🎁', spring: '⛲', shrine: '🕯' };
 const RAR_ZH = { N: '普通', R: '稀有', SR: '精良', SSR: '史诗', Genesis: '创生' };
 const hpPct = (run, slug) => Math.max(0, Math.min(1, run.hp[slug] ?? 1));
 const TREE_EVENT_BY_ID = Object.fromEntries(TREE_EVENTS.map((e) => [e.id, e]));
 const allyDefs = (app, run) => allyDefsOf(app.state, app.data, run);
+const voucherZh = (tag) => {
+  if (tag === 'direct') return '直升券';
+  const m = /^awaken:([A-Z]+)$/.exec(String(tag));
+  return m ? `${REALMS[m[1]]?.zh || m[1]}唤醒券` : String(tag);
+};
 
 export function treePage(app) {
   const s = treeState(app.state);
@@ -26,47 +36,101 @@ export function treePage(app) {
 function homePage(app, s) {
   const { state: st, data } = app;
   const owned = Object.keys(st.roster || {}).filter((x) => data.bySlug[x]);
+  const tm = talentMods(s);
+  const budget = TREE_BUDGET + tm.budget;
   const diffs = TREE_DIFFS.map((d) => {
     const done = !!s.cleared[d.id];
     return `<div class="lkdiff ${done ? 'on' : ''}">
-      <div class="hd"><b>${esc(d.zh)}</b>${done ? '<em class="new">已首通</em>' : ''}<span class="dim">开局 50 级 · 无强化</span></div>
+      <div class="hd"><b>${esc(d.zh)}</b>${done ? '<em class="new">已首通</em>' : ''}<span class="dim">开局 50 级 · 无装备</span></div>
       <p class="hint">${esc(d.note)}</p>
-      <p class="dim">敌人强度≈主线 ${d.off >= 0 ? `第 ${treeStage(0, 0, d.off)}~${treeStage(2, 9, d.off)} 关` : `第 ${treeStage(0, 0, d.off)}~${treeStage(2, 9, d.off)} 关`} · 敌人 ×${d.scale.toFixed(2)} · 分数 ×${d.mult.toFixed(1)}</p>
+      <p class="dim">敌人强度≈主线第 ${treeStage(0, 0, d.off)}~${treeStage(2, 9, d.off)} 关 · 敌人 ×${d.scale.toFixed(2)} · 分数 ×${d.mult.toFixed(1)}</p>
       <button class="btn gold" data-act="tree-open-draft" data-k="${d.id}">进入树海（募队）</button>
     </div>`;
   }).join('');
-  const v = st.vouchers || {};
-  const wallet = `<div class="banner-card lk"><div><h3>券匣 <small>树海产出的账号级道具在这里使用</small></h3>
-    <div class="row">
-      <button class="btn" data-act="tree-use-direct" ${(v.direct || 0) > 0 && owned.length ? '' : 'disabled'}>直升券 ×${v.direct || 0} <small class="dim">——把一位角色直接练到超限满</small></button>
-      <button class="btn" data-act="tree-use-awaken" ${(v.awaken || 0) > 0 ? '' : 'disabled'}>唤醒券 ×${v.awaken || 0} <small class="dim">——唤醒一位未拥有的血肉界域角色</small></button>
-    </div>
-    <p class="hint">唤醒券在「深根」首通 / 成就 / 黑市上架；直升券只从「黑流之心」首通与成就里出——它们等效几十亿金币的养成，树海不会大方到哪去。</p>
+  return `<div class="page"><h2>黑流树海 <small>3 层 · 每层 ${TREE_STEPS} 步（每步两条岔路）· 募队进仓库 · 50 级白板 + 局内装备</small></h2>
+  ${levelCard(s)}
+  <div class="banner-card lk"><div><h3>黑流树海 <small>${s.runs} 趟 · 通关 ${s.clears} 次 · 最高单局 ${fmt(s.best)} 分</small></h3>
+    <p>启程时花 <b>${budget} 黑露</b>从自己的角色里募一队（史诗 ${TREE_PRICE.SSR} 一位），募到的人进<b>仓库</b>（最多 ${POOL_MAX} 人）——<b>每个战斗节点前都能在仓库面板里换 4 人上场、换装备</b>。
+    这个模式的练度和装备<b>都跟账号无关</b>：全员 50 级、无叠位、无超限、无法则，命轮 / 密契 / 造物 / 钥令一概不带；装备要在黑市、宝箱、猎场、首领和奇遇里现赚。</p>
+    <p class="hint">进度随<b>云端存档</b>同步：换设备登录同一个账号，进行中的这一趟、天赋树、等级经验都会接着走。</p>
+  </div></div>
+  ${walletCard(st)}
+  <h3>选一个深度</h3><div class="lkdiffs">${diffs}</div>
+  ${talentCard(s)}
+  <h3>树海成就 <small>奖励直接领取，含界域唤醒券 / 直升券 / 天赋点</small></h3><div class="list">${achRows(s)}</div>
+  ${s.lastRun ? `<h3>上一趟</h3><div class="list"><div class="lkrow"><b>${s.lastRun.win ? '走出树海' : `倒在第 ${s.lastRun.act + 1} 层`}</b><span>得分 <b>${fmt(s.lastRun.score)}</b></span><span class="dim">强化档 ${s.lastRun.enh}/3 · 仓库 ${s.lastRun.pool || 0} 人 · ${new Date(s.lastRun.at).toLocaleString()}</span></div></div>` : ''}
+  </div>`;
+}
+
+/** 等级条：pts → 树海等级，每级一份奖励（自领） */
+function levelCard(s) {
+  const lv = treeLevelOf(s.pts);
+  const cur = treeLevelDef(lv);
+  const next = lv < TREE_LEVEL_MAX ? treeLevelDef(lv + 1) : null;
+  const prevNeed = lv > 1 ? treeLevelDef(lv - 1).need : 0;
+  const pct = next ? Math.max(0, Math.min(100, Math.round(((s.pts - prevNeed) / Math.max(1, next.need - prevNeed)) * 100))) : 100;
+  const claimable = TREE_LEVELS.filter((L) => L.lv <= lv && !s.lvClaimed[L.lv]);
+  const rows = claimable.slice(0, 4).map((L) => `<button class="btn sm gold" data-act="tree-lv-claim" data-lv="${L.lv}">领取 Lv.${L.lv} 奖励</button>`).join(' ');
+  return `<div class="banner-card lk"><div><h3>树海等级 <small>Lv.${lv} / ${TREE_LEVEL_MAX} · 经验 ${fmt(s.pts)} · 天赋点 ${s.tp}</small></h3>
+    <div class="lkxp"><i style="width:${pct}%"></i><em>${next ? `${fmt(Math.max(0, s.pts - prevNeed))} / ${fmt(next.need - prevNeed)} → Lv.${next.lv}` : '已满级'}</em></div>
+    <p class="hint">每局结束按得分给经验（通关另加 30），升级拿金币 / 银芯 / 唤醒券 / 天赋点；每 10 级给一张对应界域的唤醒券，25 级给直升券。</p>
+    ${rows ? `<div class="row">${rows}</div>` : ''}
+    <div class="row"><button class="btn sm" data-act="tree-lv-open">查看全部等级奖励</button></div>
   </div></div>`;
-  const achRows = TREE_ACH.map((a) => {
+}
+
+/** 券匣：直升券 + 四种界域唤醒券 */
+function walletCard(st) {
+  const v = st.vouchers || {};
+  const keys = Object.keys(REALMS);
+  const rows = keys.map((k) => {
+    const n = awakenOf(st, k);
+    return `<button class="btn" data-act="tree-use-awaken" data-realm="${k}" ${n > 0 ? '' : 'disabled'}>
+      <span class="lkdot" style="background:${REALMS[k].color}"></span>${REALMS[k].zh}唤醒券 ×${n}<small class="dim">——唤醒一位未拥有的${REALMS[k].zh}界域角色</small></button>`;
+  }).join('');
+  return `<div class="banner-card lk"><div><h3>券匣 <small>树海产出的账号级道具在这里使用</small></h3>
+    <div class="row">
+      <button class="btn" data-act="tree-use-direct" ${(v.direct || 0) > 0 ? '' : 'disabled'}>直升券 ×${v.direct || 0} <small class="dim">——把一位角色直接练到超限满</small></button>
+    </div>
+    <div class="row lkwallet">${rows}</div>
+    <p class="hint">唤醒券<b>按界域分</b>：混沌 / 血肉 / 深海 / 超维各一种，只能唤醒对应界域的角色。黑市、首通、成就、等级奖励都会出；直升券只从「黑流之心」首通与成就里出。</p>
+  </div></div>`;
+}
+
+/** 天赋树：三支，每支线性解锁 */
+function talentCard(s) {
+  const cols = TREE_BRANCHES.map((br) => {
+    const items = TREE_TALENTS.filter((t) => t.br === br).map((t) => {
+      const lv = talentLv(s, t.id), max = t.max;
+      const c = talentCost(s, t.id);
+      const ok = canTalent(s, t.id);
+      const req = t.req ? TREE_TALENTS.find((x) => x.id === t.req) : null;
+      return `<div class="lktal ${lv >= max ? 'done' : ''}">
+        <div class="hd"><b>${esc(t.zh)}</b><span class="dim">${lv}/${max}</span></div>
+        <p class="hint">${esc(t.desc)}</p>
+        ${req ? `<p class="dim">前置：${esc(req.zh)} ≥ 1</p>` : ''}
+        <button class="btn sm ${ok.ok ? 'gold' : ''}" data-act="tree-talent" data-id="${t.id}" ${ok.ok ? '' : 'disabled'}>${lv >= max ? '已点满' : `点一级（${c} 点）`}</button>
+      </div>`;
+    }).join('');
+    return `<div class="lkbranch"><h4>${esc(br)}</h4>${items}</div>`;
+  }).join('');
+  return `<h3>天赋树 <small>剩 ${s.tp} 点 · 通关与等级奖励给点</small></h3><div class="lkbrs">${cols}</div>`;
+}
+
+function achRows(s) {
+  return TREE_ACH.map((a) => {
     const done = s.ach[a.id] && s.ach[a.id] !== true, claimed = s.ach[a.id] === true;
     const rw = [a.reward.gold ? `金币 +${fmt(a.reward.gold)}` : '', a.reward.tickets ? `唤醒券 +${a.reward.tickets}` : '', a.reward.cores ? `银芯 +${fmt(a.reward.cores)}` : '',
-      a.reward.voucher ? `直升券 ×1` : '', a.reward.voucher2 ? `唤醒券 ×1` : ''].filter(Boolean).join('　');
+      a.reward.tp ? `天赋点 +${a.reward.tp}` : '', ...(a.reward.vouchers || []).map((v) => `${voucherZh(v)} ×1`)].filter(Boolean).join('　');
     return `<div class="ach ${done || claimed ? 'done' : ''}"><div class="ab"><b>${esc(a.zh)}</b><small>${esc(a.desc)}　奖励：${rw}</small></div>
       <button class="btn sm ${done ? 'gold' : ''}" data-act="tree-ach" data-id="${a.id}" ${done ? '' : 'disabled'}>${claimed ? '已领取' : done ? '领取' : '未达成'}</button></div>`;
   }).join('');
-  return `<div class="page"><h2>黑流树海 <small>3 层 · 每层 ${TREE_STEPS} 步（每步两条岔路二选一）· 开局募队 · 全员 50 级白板出发</small></h2>
-  <div class="banner-card lk"><div><h3>黑流树海 <small>${s.runs} 趟 · 通关 ${s.clears} 次 · 最高单局 ${fmt(s.best)} 分</small></h3>
-    <p>启程时花 <b>${TREE_BUDGET} 黑露</b>从自己拥有的角色里募一队（史诗 ${TREE_PRICE.SSR} 一位，四张正好买不起）；全员一律 <b>50 级、无叠位、无超限、无法则</b>出发，命轮密契与钥令照常生效。
-    地图每一步给<b>两条岔路</b>——战斗、紧急、奇遇、黑市、休整、古树试炼，走到哪条算哪条；打完首领掉一枚古树之芽，在古树试炼里点亮 <b>高枝（159 级）→ 超限 → 终焉法则</b>。</p>
-    <p class="hint">通关与黑市会产出<b>唤醒券</b>；「深根」首通送<b>唤醒券</b>（唤醒血肉界域角色），「黑流之心」首通送<b>直升券</b>（直接练到超限满）。</p>
-  </div></div>
-  ${wallet}
-  <h3>选一个深度</h3><div class="lkdiffs">${diffs}</div>
-  <h3>树海成就 <small>奖励直接领取，含唤醒券 / 直升券</small></h3><div class="list">${achRows}</div>
-  ${s.lastRun ? `<h3>上一趟</h3><div class="list"><div class="lkrow"><b>${s.lastRun.win ? '走出树海' : `倒在第 ${s.lastRun.act + 1} 层`}</b><span>得分 <b>${fmt(s.lastRun.score)}</b></span><span class="dim">强化档 ${s.lastRun.enh}/3 · ${new Date(s.lastRun.at).toLocaleString()}</span></div></div>` : ''}
-  </div>`;
 }
 
 /* ---------------------------------------------------------------- 募队弹窗 */
 export function treeDraftModal(app, diffId) {
-  const { state: st, data } = app;
   app.ui.treeDraft ||= { diff: diffId, team: [] };
+  app.ui.treeDraft.diff = diffId;
   renderDraft(app);
 }
 
@@ -74,19 +138,23 @@ function renderDraft(app) {
   const { state: st, data } = app;
   const d = app.ui.treeDraft;
   const diff = treeDiffOf(d.diff);
+  const s = treeState(st);
+  const tm = talentMods(s);
+  const budget = TREE_BUDGET + tm.budget;
   const owned = Object.keys(st.roster || {}).filter((x) => data.bySlug[x])
     .sort((a, b) => (data.bySlug[b].rarity || '').localeCompare(data.bySlug[a].rarity || '') || (st.roster[b].lv || 0) - (st.roster[a].lv || 0));
-  const spent = d.team.reduce((n, s) => n + priceOf(data, s), 0);
+  const spent = d.team.reduce((n, x) => n + priceOf(data, x, tm.recruit), 0);
   const cards = owned.map((slug) => {
-    const a = data.bySlug[slug], p = priceOf(data, slug);
+    const a = data.bySlug[slug], p = priceOf(data, slug, tm.recruit);
     const inTeam = d.team.includes(slug);
-    const afford = spent + p <= TREE_BUDGET || inTeam;
-    const full = d.team.length >= 4 && !inTeam;
+    const afford = spent + p <= budget || inTeam;
+    const full = d.team.length >= POOL_MAX && !inTeam;
     return `<button class="lkpick ${inTeam ? 'relic' : ''}" data-act="tree-draft-toggle" data-s="${slug}" ${afford && !full ? '' : 'disabled style="opacity:.45"'}>
-      <em>${RAR_ZH[a.rarity] || a.rarity} · ${p} 黑露</em><b>${esc(a.zh)}</b><p class="hint">${a.type === 'ASSAULT' ? '突击' : a.type === 'WARDEN' ? '守护' : '合唱'} · Lv.${st.roster[slug].lv}</p></button>`;
+      <em>${RAR_ZH[a.rarity] || a.rarity} · ${p} 黑露</em><b>${esc(a.zh)}</b><p class="hint">${a.type === 'ASSAULT' ? '突击' : a.type === 'WARDEN' ? '守护' : '合唱'} · ${REALMS[a.realm]?.zh || ''}</p></button>`;
   }).join('');
-  openModal(`<h3>黑露募队 <small>预算 ${TREE_BUDGET} · 已花 ${spent} · ${4 - d.team.length} 个空位</small></h3>
-    <p class="hint">黑露不够就带不上——史诗 ${TREE_PRICE.SSR} 一位，四张史诗（${TREE_PRICE.SSR * 4}）买不起，这就是取舍。出发后全员 50 级白板，练度靠古树的馈赠一步一步点回来。</p>
+  openModal(`<h3>黑露募队 <small>预算 ${budget} · 已花 ${spent} · 仓库 ${d.team.length}/${POOL_MAX}（前 ${TEAM_MAX} 人先上场）</small></h3>
+    <p class="hint">募到的人进<b>仓库</b>，开局先上前 4 个；之后在黑市、奇遇里还能加人，每个战斗节点前都能重新编队。价格${tm.recruit ? `已按「熟人引路」打 ${tm.recruit}% 折` : `按稀有度算（史诗 ${TREE_PRICE.SSR}）`}——四张史诗（${TREE_PRICE.SSR * 4}）在没点天赋时买不起，这就是取舍。</p>
+    <p class="hint">这个模式的练度和装备都跟账号无关：出发后全员 50 级白板、身上一件装备都没有。</p>
     <div class="lkpicks">${cards}</div>
     <div class="row"><button class="btn sm" data-act="tree-draft-clear">清空</button>
       <button class="btn gold" data-act="tree-depart" ${d.team.length ? '' : 'disabled'}>出发（${esc(diff.zh)}）</button></div>`, 'wide');
@@ -100,26 +168,34 @@ function runPage(app, run) {
   const path = Array.from({ length: TREE_STEPS }, (_, i) => {
     const st = i < run.node ? 'done' : i === run.node ? 'now' : '';
     const k = i === TREE_STEPS - 1 ? 'boss' : i === run.node ? (run.branch ? 'branch' : (run.kind || 'battle')) : 'battle';
-    return `<div class="lknode ${st} k-${k === 'branch' ? 'battle' : k}" title="${k === 'branch' ? '岔路' : KIND_ZH[k]}"><i>${k === 'branch' ? '❓' : KIND_ICON[k]}</i><small>${i + 1}</small></div>`;
+    return `<div class="lknode ${st} k-${k === 'branch' ? 'battle' : k}" title="${k === 'branch' ? '岔路（二选一）' : KIND_ZH[k]}"><i>${k === 'branch' ? '❓' : (KIND_ICON[k] || '·')}</i><small>${i + 1}</small></div>`;
   }).join('');
-  const team = run.slugs.map((sl) => {
+  const team = (run.slugs || []).map((sl) => {
     const p = hpPct(run, sl);
     const face = data.bySlug[sl]?.portrait;
     return `<div class="lkface ${p <= 0 ? 'dead' : p <= 0.4 ? 'hurt' : ''}">${face ? `<img src="${img(face)}" alt="">` : '<i class="noface"></i>'}<b>${esc(data.bySlug[sl]?.zh || sl)}</b>
       <div class="bar"><i style="width:${Math.round(p * 100)}%"></i></div><small>${Math.round(p * 100)}%</small></div>`;
   }).join('');
-  const relics = run.relics.length
+  const rows = gearRows(run);
+  const equipOn = rows.filter((x) => x.where);
+  const relics = (run.relics || []).length
     ? run.relics.map((id) => { const r = TREE_RELICS.find((x) => x.id === id); return `<span class="lktag relic" title="${esc(r?.desc || '')}">${esc(r?.zh || id)}</span>`; }).join('')
     : '<span class="dim">还没有树海造物</span>';
+  const gears = equipOn.length
+    ? equipOn.map((x) => `<span class="lktag gear" title="${esc(x.def?.desc || '')}">${esc(x.def?.zh || '')}${x.where && x.where !== 'team' ? `·${esc(data.bySlug[x.where]?.zh || x.where)}` : ''}</span>`).join('')
+    : '<span class="dim">一件装备都没有（去黑市 / 宝箱 / 猎场赚）</span>';
   const buffs = Object.entries(run.buffs || {}).map(([id, n]) => {
     const b = LUCK_BUFFS.find((x) => x.id === id);
     return `<span class="lktag buff" title="${esc(b?.desc || '')}">${esc(b?.zh || id)}${n > 1 ? ` ×${n}` : ''}</span>`;
   }).join('') || '<span class="dim">还没有增益</span>';
-  const ups = run.ups.length
+  const bless = (run.bless || []).length
+    ? run.bless.map((id) => { const b = TREE_BLESSINGS_BY_ID[id]; return `<span class="lktag bless" title="${esc(b?.desc || '')}">${esc(b?.zh || id)}</span>`; }).join('')
+    : '<span class="dim">还没有祭坛祝福</span>';
+  const ups = (run.ups || []).length
     ? run.ups.map((u) => `<span class="lktag up" title="${esc(u.desc)}">${esc(u.zh)}</span>`).join('')
     : '<span class="dim">还没有专属强化</span>';
 
-  const stage = Math.max(1, Math.round(6 + run.act * 24 + run.node * 2.0) + diff.off);
+  const stage = treeStage(run.act, run.node, diff.off);
   let body = '';
   if (run.gift) body = giftPanel(app, run);
   else if (run.branch) {
@@ -129,9 +205,26 @@ function runPage(app, run) {
         <button class="btn big gold" data-act="tree-branch" data-i="0">${KIND_ICON[a]} ${KIND_ZH[a]}</button>
         <button class="btn big" data-act="tree-branch" data-i="1">${KIND_ICON[b]} ${KIND_ZH[b]}</button>
       </div>
-      <p class="hint">战斗 / 紧急作战需要开打；奇遇是事件，黑市能买东西，休整回血，古树试炼白给一次「古树的馈赠」。第 ${TREE_STEPS} 步固定首领。</p></div>`;
+      <p class="hint">战斗 / 紧急作战 / 猎场要开打；奇遇是事件，黑市买东西，休整回血，宝箱白给装备，泉水救人，祭坛换永久祝福，古树试炼白给一次「古树的馈赠」。第 ${TREE_STEPS} 步固定首领。</p>
+      ${run.gearDrop ? `<p class="hint">猎场战利品已入库：${esc(TREE_GEAR.find((g) => g.id === (run.gear?.pool || []).find((x) => x.uid === run.gearDrop.uid)?.defId)?.zh || '一件装备')}（去仓库装上）</p>` : ''}
+    </div>`;
+  } else if (run.chest) {
+    const cols = run.chest.map((g) => `<button class="lkpick relic" data-act="tree-chest" data-id="${g.id}"><em>${GEAR_KIND_ZH[g.kind]} · ${RAR_ZH[g.rar] || g.rar}</em><b>${esc(g.zh)}</b><p>${esc(g.desc)}</p></button>`).join('');
+    body = `<div class="lkevent"><h3>树海宝箱 <small>免费挑一件</small></h3><p>箱子上缠着新鲜的藤，像是刚被人放下的。</p><div class="lkpicks">${cols}</div></div>`;
+  } else if (run.spring) {
+    const dead = (run.pool || []).filter((x) => (run.hp[x] ?? 1) <= 0.001);
+    body = `<div class="lkevent"><h3>回声之泉 <small>${dead.length ? `倒下 ${dead.length} 人` : '没有人倒下'}</small></h3>
+      <p>水面平得像一块黑玻璃，往里看能看见自己队伍的影子——倒下的那几个也在。</p>
+      <div class="row">
+        <button class="btn gold" data-act="tree-spring" data-i="0">${dead.length ? '把一个人捞回来<br><small>复活一位倒下者（50% 生命）</small>' : '捧水洗把脸<br><small>全队回复 30% 生命</small>'}</button>
+        <button class="btn" data-act="tree-spring" data-i="1">让全队喝饱<br><small>全队回复 40% 生命，得 20 余晖</small></button>
+      </div></div>`;
+  } else if (run.shrine) {
+    const cols = run.shrine.map((b) => `<button class="lkpick buff" data-act="tree-shrine" data-id="${b.id}"><em>祭坛祝福</em><b>${esc(b.zh)}</b><p>${esc(b.desc)}</p></button>`).join('');
+    body = `<div class="lkevent"><h3>古树祭坛 <small>代价：全队 10% 生命</small></h3><p>石台上压着一层又一层的旧祭品，最上面那层还没干。</p><div class="lkpicks">${cols}</div>
+      <div class="row"><button class="btn sm" data-act="tree-leave">不碰它，离开</button></div></div>`;
   } else if (run.rest) {
-    body = `<div class="lkevent"><h3>休整 <small>余烬里的火堆</small></h3><p>树影围出一小块空地，中间烧着一堆捡来的枝子。睡一觉，还是聊聊天？</p><div class="row">${REST_OPTS.map((o, i) => `<button class="btn ${i === 0 ? 'gold' : ''}" data-act="tree-rest" data-i="${i}">${esc(o.k)}<br><small>${esc(o.desc)}</small></button>`).join('')}</div></div>`;
+    body = `<div class="lkevent"><h3>休整 <small>余烬里的火堆</small></h3><p>树影围出一小块空地，中间烧着一堆捡来的枝子。睡一觉，聊聊天，还是先清点行装？</p><div class="row">${REST_OPTS.map((o, i) => `<button class="btn ${i === 0 ? 'gold' : ''}" data-act="tree-rest" data-i="${i}">${esc(o.k)}<br><small>${esc(o.desc)}</small></button>`).join('')}</div></div>`;
   } else if (run.ev) {
     const def = TREE_EVENT_BY_ID[run.ev.id];
     const opts = def.opts.map((o, i) => {
@@ -140,21 +233,26 @@ function runPage(app, run) {
     }).join('');
     body = `<div class="lkevent"><h3>${esc(def.zh)}</h3><p>${esc(def.text)}</p><div class="row">${opts}</div></div>`;
   } else if (run.shop) {
-    const rows = run.shop.map((it, i) => `<div class="lkrow"><b>${esc(it.zh)}</b><span class="dim">${esc(it.desc)}</span>
+    const rows2 = run.shop.map((it, i) => `<div class="lkrow"><b>${esc(it.zh)}</b><span class="dim">${esc(it.desc)}</span>
       <button class="btn sm ${run.glow >= it.price ? 'gold' : ''}" data-act="tree-buy" data-i="${i}" ${run.glow >= it.price ? '' : 'disabled'}>${fmt(it.price)} 余晖</button></div>`).join('');
-    body = `<div class="lkshop"><h3>黑市 <small>持有 ${fmt(run.glow)} 余晖</small></h3><div class="list">${rows || '<p class="dim">货架空了</p>'}</div>
-      <div class="row"><button class="btn" data-act="tree-leave">离开</button></div></div>`;
+    body = `<div class="lkshop"><h3>黑市 <small>持有 ${fmt(run.glow)} 余晖 · 仓库 ${(run.pool || []).length}/${POOL_MAX}</small></h3><div class="list">${rows2 || '<p class="dim">货架空了</p>'}</div>
+      <div class="row"><button class="btn sm" data-act="tree-depot">打开仓库</button><button class="btn" data-act="tree-leave">离开</button></div></div>`;
   } else if (run.kind) {
     body = `<div class="lkbattle"><p>下一场：<b>${KIND_ZH[run.kind]}</b>　强度≈主线第 <b>${stage}</b> 关　深度 <b>${esc(diff.zh)}</b></p>
-      <button class="btn big gold" data-act="tree-fight">开打</button></div>`;
+      <div class="row"><button class="btn gold" data-act="tree-depot">仓库 / 编队</button><button class="btn big gold" data-act="tree-fight">开打</button></div>
+      <p class="hint">上场 ${(run.slugs || []).length}/${TEAM_MAX} 人；倒下的人上不了场。打之前可以先把装备穿上。</p></div>`;
   }
 
   return `<div class="page"><h2>黑流树海 · 第 ${run.act + 1} / ${TREE_ACTS} 层 <small>${esc(diff.zh)} · 余晖 ${fmt(run.glow)} · 古树之芽 ${run.buds} · 得分 ${fmt(run.score)}</small></h2>
   <div class="lkpath">${path}</div>
   <div class="lkfaces">${team}</div>
+  <div class="row"><button class="btn sm" data-act="tree-depot">仓库 / 编队（${(run.pool || []).length} 人 · ${rows.filter((x) => x.where).length} 件装备）</button>
+    ${run.buds > 0 ? `<button class="btn sm gold" data-act="tree-gift-open">古树试炼（芽 ×${run.buds}）</button>` : ''}</div>
   ${statusPanel(app, run)}
-  <div class="lkside"><b>练度（影子）</b><div class="lktags">${enh}${run.buds > 0 ? ` <button class="btn sm gold" data-act="tree-gift-open">古树试炼（芽 ×${run.buds}）</button>` : ''}</div>
+  <div class="lkside"><b>练度（影子）</b><div class="lktags">${enh}</div>
+    <b>装备</b><div class="lktags">${gears}</div>
     <b>树海造物</b><div class="lktags">${relics}</div>
+    <b>祭坛祝福</b><div class="lktags">${bless}</div>
     <b>增益</b><div class="lktags">${buffs}</div>
     <b>专属强化</b><div class="lktags">${ups}</div>
     ${run.maxhpPct ? `<b>额外</b><div class="lktags"><span class="lktag buff">生命上限 +${run.maxhpPct}%</span></div>` : ''}</div>
@@ -162,6 +260,8 @@ function runPage(app, run) {
   <div class="row"><button class="btn sm" data-act="tree-abandon">放弃这一趟</button></div>
   </div>`;
 }
+
+const TREE_BLESSINGS_BY_ID = Object.fromEntries(TREE_BLESSINGS.map((b) => [b.id, b]));
 
 function giftPanel(app, run) {
   const g = giftOptions(app.state, app.data, run);
@@ -175,7 +275,6 @@ function giftPanel(app, run) {
 }
 
 function statusPanel(app, run) {
-  const { state: s } = app;
   let defs = [];
   try { defs = allyDefs(app, run); } catch { return ''; }
   const f1 = (x) => (Math.round(x * 10) / 10);
@@ -185,25 +284,67 @@ function statusPanel(app, run) {
     const p = hpPct(run, d.slug), now = Math.round(d.hp * p);
     const dead = p <= 0.001;
     const a = app.data.bySlug[d.slug];
+    const ring = (run.gear?.ring || {})[d.slug];
+    const ringDef = ring && TREE_GEAR.find((g) => g.id === (run.gear.pool || []).find((x) => x.uid === ring)?.defId);
     return `<details class="lkunit ${dead ? 'dead' : ''}" ${dead ? '' : 'open'}>
       <summary>${a?.portrait ? `<img src="${img(a.portrait)}" alt="">` : ''}<b>${esc(a?.zh || d.slug)}</b>
-        <span class="dim">Lv.${ovr.lv}${ovr.star ? ' · 叠99' : ''}${ovr.od ? ' · 超限99' : ''}${ovr.law ? ' · 法则10' : ''}　生命 ${fmt(now)} / ${fmt(d.hp)}（${Math.round(p * 100)}%）</span>${dead ? '<em class="new">倒下</em>' : ''}</summary>
+        <span class="dim">Lv.${ovr.lv}${ovr.star ? ' · 叠99' : ''}${ovr.od ? ' · 超限99' : ''}${ovr.law ? ' · 法则10' : ''}　生命 ${fmt(now)} / ${fmt(d.hp)}（${Math.round(p * 100)}%）${ringDef ? `　环：${esc(ringDef.zh)}` : ''}</span>${dead ? '<em class="new">倒下</em>' : ''}</summary>
       <div class="lkstats">
         ${cell('攻击', fmt(d.atk))}${cell('防御', fmt(d.def))}${cell('暴击率', f1(d.critRate) + '%')}${cell('暴击伤害', '+' + f1(d.critDmg) + '%')}
         ${cell('增伤', f1(d.amp) + '%')}${cell('治疗加成', f1(d.healBonus) + '%')}${cell('护盾加成', f1(d.shieldBonus) + '%')}${cell('吸血', f1(d.steal) + '%')}
         ${cell('濒死存活', f1((d.surviveChance || 0) * 100) + '%', '触发一次后概率折半，可连续触发')}${cell('首击增伤', f1(d.firstBoost) + '%')}
       </div></details>`;
   }).join('');
-  return `<details class="lkstatus" open><summary><b>队伍状态</b><span class="dim">（影子练度 + 局内养成；战斗里就用这份）</span></summary>${rows}</details>`;
+  return `<details class="lkstatus" open><summary><b>上场队伍状态</b><span class="dim">（影子练度 + 局内装备与养成；战斗里就用这份）</span></summary>${rows}</details>`;
 }
 
+/* ---------------------------------------------------------------- 仓库弹窗 */
+export function treeDepotModal(app) {
+  const run = treeState(app.state).cur;
+  if (!run) { openModal('<h3>仓库</h3><p>当前没有进行中的一趟。</p>'); return; }
+  const { data } = app;
+  const pick = app.ui.treeGearPick || null;
+  const rows = gearRows(run);
+  const eq = new Set(rows.filter((x) => x.where).map((x) => x.uid));
+  const lineup = new Set(run.slugs || []);
+
+  // 手里拿着环的时候，点队员 = 装给他；平时点队员 = 上 / 下场
+  const members = (run.pool || []).map((sl) => {
+    const a = data.bySlug[sl] || { zh: sl };
+    const p = hpPct(run, sl);
+    const on = lineup.has(sl);
+    const dead = p <= 0.001;
+    const act = pick ? 'tree-equip' : 'tree-lineup';
+    return `<button class="lkpick ${on ? 'relic' : ''}" data-act="${act}" data-s="${sl}" ${pick ? `data-uid="${pick}"` : ''} ${dead && !pick ? 'disabled style="opacity:.45"' : ''}>
+      <em>${pick ? '装给他' : on ? '上场' : dead ? '倒下' : '替补'} · ${Math.round(p * 100)}%</em><b>${esc(a.zh)}</b>
+      <p class="hint">${pick ? '点一下把这件环装给他' : p <= 0.001 ? '要去泉水 / 事件里救回来' : on ? '点一下换下' : '点一下上场（最多 4 人）'}</p></button>`;
+  }).join('');
+
+  const gearList = rows.map((x) => {
+    const on = x.where;
+    const onWho = on && on !== 'team' ? data.bySlug[on]?.zh || on : on === 'team' ? '全队' : '';
+    const kind = x.def?.kind || 'ring';
+    return `<div class="lkrow ${on ? 'on' : ''}"><b>${esc(x.def?.zh || '')}</b>
+      <span class="dim">${GEAR_KIND_ZH[kind]} · ${esc(x.def?.desc || '')}${on ? `　→ ${esc(onWho)}` : ''}</span>
+      ${on ? `<button class="btn sm" data-act="tree-unequip" data-uid="${x.uid}">卸下</button>`
+        : kind === 'ring' ? `<button class="btn sm ${pick === x.uid ? 'gold' : ''}" data-act="tree-gear-pick" data-uid="${x.uid}">${pick === x.uid ? '选个人…' : '装备'}</button>`
+          : `<button class="btn sm" data-act="tree-equip" data-uid="${x.uid}">装备</button>`}</div>`;
+  }).join('') || '<p class="dim">仓库里还没有装备。去黑市、宝箱、猎场、首领那里赚。</p>';
+
+  const total = gearRows(run).filter((x) => x.where).length;
+  openModal(`<h3>仓库 <small>${(run.pool || []).length}/${POOL_MAX} 人 · 上场 ${(run.slugs || []).length}/${TEAM_MAX} · 已装 ${total} 件</small></h3>
+    <p class="hint">${pick ? '点一下队员，把「' + esc(TREE_GEAR.find((g) => g.id === (run.gear.pool || []).find((x) => x.uid === pick)?.defId)?.zh || '') + '」装给他。' : `战斗前在这里换人、换装备。环是个人装备（每人 1 个），契 / 令是全队生效（各限 ${GEAR_LIMIT.pact} 件）。`}</p>
+    <h4 class="lkh4">上场编队</h4><div class="lkpicks">${members}</div>
+    <h4 class="lkh4">装备库</h4><div class="list">${gearList}</div>
+    <div class="row"><button class="btn gold" data-act="tree-depot-close">收好（返回）</button></div>`, 'wide', 'tree-depot');
+}
 
 /* ---------------------------------------------------------------- 弹窗 */
 export function treeOfferModal(app, run) {
   const list = run.offer || (run.offer = offerPool(app.state, app.data, run, 3));
   const cols = list.map((it) => {
-    const t = it.type === 'relic' ? '树海造物' : it.type === 'up' ? '专属强化' : '增益';
-    const cls = it.type === 'relic' ? 'relic' : it.type === 'up' ? 'up' : 'buff';
+    const t = it.type === 'relic' ? '树海造物' : it.type === 'gear' ? `局内装备 · ${GEAR_KIND_ZH[it.kind] || ''}` : it.type === 'up' ? '专属强化' : '增益';
+    const cls = it.type === 'relic' ? 'relic' : it.type === 'gear' ? 'gear' : it.type === 'up' ? 'up' : 'buff';
     return `<button class="lkpick ${cls}" data-act="tree-pick" data-id="${it.id}"><em>${t}</em><b>${esc(it.zh)}</b><p>${esc(it.desc)}</p></button>`;
   }).join('');
   openModal(`<h3>选一个带走</h3><div class="lkpicks">${cols}</div>
@@ -215,14 +356,15 @@ export function treeEndModal(app, end) {
   const got = (end.got || []).map((id) => TREE_ACH.find((a) => a.id === id)).filter(Boolean);
   const rw = end.rw || {};
   const bits = [rw.gold ? `金币 +${fmt(rw.gold)}` : '', rw.tickets ? `唤醒券 +${rw.tickets}` : '', rw.cores ? `银芯 +${fmt(rw.cores)}` : '',
-    (rw.vouchers || []).map((v) => (v === 'direct' ? '直升券 ×1' : '唤醒券 ×1')).join('　')].filter(Boolean).join('　');
+    rw.tp ? `天赋点 +${rw.tp}` : '', ...(rw.vouchers || []).map((v) => `${voucherZh(v)} ×1`)].filter(Boolean).join('　');
   openModal(`<h3>${end.win ? '走出树海' : `倒在第 ${end.act + 1} 层`}</h3>
     <p>本局得分 <b>${fmt(end.score)}</b>　最高单局 <b>${fmt(s.best)}</b>　强化档 <b>${end.enh}/3</b></p>
+    <p class="hint">仓库 ${end.pool || 0} 人 · 装备 ${end.gear || 0} 件 · 祝福 ${end.bless || 0} 条</p>
     ${bits ? `<p class="hint">结算奖励：${bits}${rw.first ? `（「${esc(rw.first)}」首通！）` : ''}</p>` : ''}
+    <p class="hint">树海经验 +${fmt(rw.pts || 0)}　现在 Lv.${end.lv || treeLevelOf(s.pts)}（升级奖励去主页领）</p>
     ${got.length ? `<p class="hint">达成成就：${got.map((a) => esc(a.zh)).join('、')}（去树海主页领奖）</p>` : ''}
     <div class="row"><button class="btn gold" data-act="go-tree">回树海主页</button></div>`, 'wide');
 }
-
 
 /* ---------------------------------------------------------------- 券匣弹窗 */
 export function treeDirectModal(app) {
@@ -240,13 +382,30 @@ export function treeDirectModal(app) {
     <div class="lkpicks">${cards}</div>`, 'wide');
 }
 
-export function treeAwakenModal(app) {
+export function treeAwakenModal(app, realm = null) {
   const { state: st, data } = app;
-  const pool = data.awakeners.filter((a) => a.realm === 'CARO' && !st.roster[a.slug]);
-  const cards = pool.map((a) => `<button class="lkpick relic" data-act="tree-awaken-pick" data-s="${a.slug}">
-    <em>${RAR_ZH[a.rarity] || a.rarity} · 血肉</em><b>${esc(a.zh)}</b><p class="hint">${a.type === 'ASSAULT' ? '突击' : a.type === 'WARDEN' ? '守护' : '合唱'} · 唤醒后 1 级 0 叠</p></button>`).join('');
-  openModal(`<h3>使用唤醒券 <small>剩 ${st.vouchers?.awaken || 0} 张</small></h3>
-    <p class="hint">选一位<b>未拥有</b>的血肉界域角色直接加入名册。${pool.length ? '' : '血肉界域的角色你已经全收了——券先留着。'}</p>
-    <div class="lkpicks">${cards || '<p class="hint">没有可唤醒的血肉界域角色。</p>'}</div>`, 'wide');
+  const keys = Object.keys(REALMS).filter((k) => awakenOf(st, k) > 0);
+  const cur = realm && awakenOf(st, realm) > 0 ? realm : keys[0];
+  if (!cur) { openModal('<h3>唤醒券</h3><p class="hint">一张都没有。树海的深根 / 黑流之心首通、成就与等级奖励会给。</p>'); return; }
+  const pool = data.awakeners.filter((a) => a.realm === cur && !st.roster[a.slug]);
+  const tabs = keys.map((k) => `<button class="btn sm ${k === cur ? 'gold' : ''}" data-act="tree-use-awaken" data-realm="${k}"><span class="lkdot" style="background:${REALMS[k].color}"></span>${REALMS[k].zh} ×${awakenOf(st, k)}</button>`).join(' ');
+  const cards = pool.map((a) => `<button class="lkpick relic" data-act="tree-awaken-pick" data-s="${a.slug}" data-realm="${cur}">
+    <em>${RAR_ZH[a.rarity] || a.rarity} · ${REALMS[cur].zh}</em><b>${esc(a.zh)}</b><p class="hint">${a.type === 'ASSAULT' ? '突击' : a.type === 'WARDEN' ? '守护' : '合唱'} · 唤醒后 1 级 0 叠</p></button>`).join('');
+  openModal(`<h3>使用唤醒券 <small>${REALMS[cur].zh}界域 · 剩 ${awakenOf(st, cur)} 张</small></h3>
+    <div class="row">${tabs}</div>
+    <p class="hint">选一位<b>未拥有</b>的${REALMS[cur].zh}界域角色直接加入名册。${pool.length ? '' : `${REALMS[cur].zh}界域的角色你已经全收了——换一种券，或者先留着。`}</p>
+    <div class="lkpicks">${cards || '<p class="hint">没有可唤醒的角色。</p>'}</div>`, 'wide');
 }
 
+export function treeLevelModal(app) {
+  const s = treeState(app.state);
+  const lv = treeLevelOf(s.pts);
+  const rows = TREE_LEVELS.map((L) => {
+    const reached = lv >= L.lv, claimed = !!s.lvClaimed[L.lv];
+    const rw = [L.gold ? `金币 ${fmt(L.gold)}` : '', L.cores ? `银芯 ${fmt(L.cores)}` : '', L.tickets ? `唤醒券 ${L.tickets}` : '',
+      L.tp ? `天赋点 ${L.tp}` : '', L.awaken ? `${REALMS[L.awaken].zh}唤醒券 1` : '', L.direct ? '直升券 1' : ''].filter(Boolean).join('　');
+    return `<div class="lkrow"><b>Lv.${L.lv}</b><span class="dim">经验 ${fmt(L.need)}　${rw}</span>
+      <button class="btn sm ${reached && !claimed ? 'gold' : ''}" data-act="tree-lv-claim" data-lv="${L.lv}" ${reached && !claimed ? '' : 'disabled'}>${claimed ? '已领' : reached ? '领取' : '未到级'}</button></div>`;
+  }).join('');
+  openModal(`<h3>树海等级奖励 <small>Lv.${lv} · 经验 ${fmt(s.pts)}</small></h3><div class="list">${rows}</div>`, 'wide', 'tree-lv');
+}

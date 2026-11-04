@@ -3947,7 +3947,8 @@ test('树海：事件收益（芽 / 唤醒券 / 余晖）按明面结算', async
   run.ev = { id: 'w_unnamed' };
   const out2 = T.applyEvent(s, run, 0);
   assert.equal(out2.tk, 2);
-  assert.equal(s.tickets, tk0 + 2, '事件给的唤醒券要直接进账号');
+  const sumAw = () => Object.values(s.vouchers.awaken).reduce((a, b) => a + b, 0);
+  assert.equal(sumAw(), 2, '事件给的唤醒券要按界域进账号');
   assert.ok(run.buds >= 2);
 });
 
@@ -3963,8 +3964,8 @@ test('树海：通关结算发奖励与首通券，成就能领', async () => {
   const end = T.endRun(s, true);
   assert.ok(end.win);
   assert.ok(end.rw.gold > 0 && end.rw.tickets > 0);
-  assert.ok(end.rw.vouchers.includes('awaken'), '深根首通要送唤醒券');
-  assert.equal(s.vouchers.awaken >= 1, true);
+  assert.ok(end.rw.vouchers.includes('awaken:CARO'), '深根首通要送血肉唤醒券');
+  assert.equal(Object.values(s.vouchers.awaken).reduce((a, b) => a + b, 0) >= 1, true);
   assert.ok(T.treeState(s).ach.t_clear, '通关成就');
   // 领成就：奖励进账、不能领两次
   const w0 = s.tickets;
@@ -3984,7 +3985,7 @@ test('树海券：直升券拉到超限满、唤醒券只收未拥有的血肉�
   const T = await import('../src/core/treerun.js');
   const { useDirectVoucher, useAwakenVoucher } = await import('../src/core/game.js');
   const s = newState(data, 26);
-  s.vouchers.direct = 1; s.vouchers.awaken = 1;
+  s.vouchers.direct = 1; s.vouchers.awaken = { CHAOS: 0, CARO: 1, AEQUOR: 0, ULTRA: 0 };
   const slug = 'ogier';
   s.roster[slug] = { lv: 30, star: 5, brk: 1 };
   const r = useDirectVoucher(s, slug);
@@ -3998,11 +3999,15 @@ test('树海券：直升券拉到超限满、唤醒券只收未拥有的血肉�
   const caro = data.awakeners.find((a) => a.realm === 'CARO' && !s.roster[a.slug]);
   const ok = useAwakenVoucher(s, caro.slug, data);
   assert.ok(ok && s.roster[caro.slug]);
-  assert.equal(s.vouchers.awaken, 0);
+  assert.equal(s.vouchers.awaken.CARO, 0);
   assert.equal(useAwakenVoucher(s, caro.slug, data), null, '已拥有 / 没券都拒绝');
-  const nonCaro = data.awakeners.find((a) => a.realm !== 'CARO' && !s.roster[a.slug]);
-  s.vouchers.awaken = 1;
-  assert.equal(useAwakenVoucher(s, nonCaro.slug, data), null, '非血肉界域不能唤醒');
+  // 界域要一一对应：拿着血肉券唤不了别的界域
+  const other = data.awakeners.find((a) => a.realm !== 'CARO' && !s.roster[a.slug]);
+  s.vouchers.awaken.CARO = 1;
+  assert.equal(useAwakenVoucher(s, other.slug, data, 'CARO'), null, '血肉券不能唤醒别的界域');
+  assert.equal(s.vouchers.awaken.CARO, 1, '失败不能扣券');
+  s.vouchers.awaken[other.realm] = 1;
+  assert.ok(useAwakenVoucher(s, other.slug, data, other.realm), '对应界域的券可以唤醒');
 });
 
 test('树海：老存档迁移补出 tree 与两张券，进行中的局能续上', () => {
@@ -4010,6 +4015,136 @@ test('树海：老存档迁移补出 tree 与两张券，进行中的局能续�
   delete old.tree; old.vouchers = { rewind: 2 };
   const m = migrate(JSON.parse(JSON.stringify(old)), data);
   assert.ok(m.tree && m.tree.ach && m.tree.cleared, 'tree 要补出来');
-  assert.equal(m.vouchers.direct, 0); assert.equal(m.vouchers.awaken, 0);
+  assert.equal(m.vouchers.direct, 0);
+  assert.deepEqual(m.vouchers.awaken, { CHAOS: 0, CARO: 0, AEQUOR: 0, ULTRA: 0 }, '唤醒券按四个界域分开存');
   assert.equal(m.vouchers.rewind, 2);
+  // 老存档里的单个数字是「血肉券」，迁移要落到 CARO 上
+  const old2 = newState(data, 28); old2.vouchers = { rewind: 0, awaken: 3 };
+  const m2 = migrate(old2, data);
+  assert.equal(m2.vouchers.awaken.CARO, 3);
+});
+
+test('树海：账号上的命轮 / 造物 / 钥令一件都不带进来', async () => {
+  const T = await import('../src/core/treerun.js');
+  const s = newState(data, 29);
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  for (const sl of team) s.roster[sl] = { lv: 50, star: 0, brk: 3 };
+  // 满配账号：命轮 + 造物 + 钥令全塞上
+  const wheel = data.wheels[0];
+  s.gear.items = { g1: { uid: 'g1', kind: 'wheel', defId: wheel.id, lv: 15, rf: 3 } };
+  s.gear.equip = { ogier: { wheel: 'g1' } };
+  s.gear.relics = [];
+  const r0 = data.relics && data.relics[0];
+  if (r0) {
+    s.gear.items.g2 = { uid: 'g2', kind: 'relic', defId: r0.id, lv: 10, rf: 2 };
+    s.gear.relics = ['g2'];
+  }
+  const before = T.allyDefsOf(s, data, T.startRun(s, data, 'dim', team).run)[0];
+  // 把账号装备清空再算一次：树海里的数值必须一模一样
+  s.gear.items = {}; s.gear.equip = {}; s.gear.relics = [];
+  const after = T.allyDefsOf(s, data, T.treeState(s).cur)[0];
+  assert.equal(before.hp, after.hp, '账号装备不该影响树海的血量');
+  assert.equal(before.atk, after.atk, '账号装备不该影响树海的攻击');
+  assert.equal(before.def, after.def, '账号装备不该影响树海的防御');
+});
+
+test('树海：仓库能换人，装备在局内拿、装上就真加属性', async () => {
+  const T = await import('../src/core/treerun.js');
+  const s = newState(data, 30);
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  for (const sl of team) s.roster[sl] = { lv: 50, star: 0, brk: 3 };
+  const { run } = T.startRun(s, data, 'dim', team);
+  assert.equal(run.pool.length, 4);
+  assert.equal(run.slugs.length, 4);
+  // 仓库里加一个人（招募），再换上场
+  const extra = Object.keys(s.roster).find((x) => !run.pool.includes(x));
+  if (extra) {
+    assert.ok(T.recruitMember(s, data, run, extra).ok);
+    const r = T.setLineup(s, run, [extra, ...run.slugs.slice(0, 3)]);
+    assert.ok(r.ok && run.slugs[0] === extra);
+    assert.equal(T.setLineup(s, run, [...run.slugs, extra]).err.includes('4'), true, '最多 4 人');
+  }
+  // 局内装备：塞两件（环 + 契）再装
+  run.gear.pool.push({ uid: 't1', defId: 'rg_crown' }, { uid: 't2', defId: 'pc_roar' });
+  const atk0 = T.allyDefsOf(s, data, run)[0].atk;
+  assert.ok(T.gearEquip(s, run, 't1', run.slugs[0]).ok, '环要能装到个人身上');
+  assert.ok(T.allyDefsOf(s, data, run)[0].atk > atk0, '装上环要真的加攻击');
+  assert.ok(T.gearEquip(s, run, 't2').ok, '契是全队的');
+  assert.equal(T.gearEquip(s, run, 't2').err, '已经装上了', '同一件不能装两次');
+  assert.ok(T.gearUnequip(s, run, 't1').ok);
+  assert.equal(T.allyDefsOf(s, data, run)[0].atk, atk0, '卸下要回到原来的数值');
+  // 契 / 令各限 3 件（先把刚才那件卸下来）
+  T.gearUnequip(s, run, 't2');
+  for (let i = 0; i < 3; i++) run.gear.pool.push({ uid: `p${i}`, defId: 'pc_edge' });
+  for (let i = 0; i < 3; i++) assert.ok(T.gearEquip(s, run, `p${i}`).ok);
+  run.gear.pool.push({ uid: 'p9', defId: 'pc_edge' });
+  assert.equal(T.gearEquip(s, run, 'p9').err.includes('最多'), true, '契约最多 3 件');
+});
+
+test('树海：天赋树有前置，点上去真的改开局参数', async () => {
+  const T = await import('../src/core/treerun.js');
+  const s = newState(data, 31);
+  const st = T.treeState(s);
+  st.tp = 8;
+  assert.equal(T.buyTalent(s, 'g_deal').ok, false, '没点前置不能点');
+  assert.ok(T.buyTalent(s, 'g_seed').ok);
+  assert.ok(T.buyTalent(s, 'g_deal').ok);
+  assert.equal(st.tp, 8 - 1 - 1, '按 cost 扣点');
+  const tm = T.talentMods(st);
+  assert.ok(tm.budget >= 12 && tm.recruit >= 6);
+  assert.equal(T.buyTalent(s, 'g_seed').ok, true);
+  assert.equal(T.buyTalent(s, 'g_seed').ok, true);
+  assert.equal(T.buyTalent(s, 'g_seed').ok, false, '点满后不能再点');
+  // 天赋真的进开局：余晖更高、黑露更多
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  for (const sl of team) s.roster[sl] = { lv: 50, star: 0, brk: 3 };
+  st.tp = 20;
+  T.buyTalent(s, 'w_pocket');
+  const { run } = T.startRun(s, data, 'dim', team);
+  assert.ok(run.glow > 40, '「余晖口袋」要多带余晖');
+  assert.ok(run.budget > T.TREE_BUDGET, '「深扎根系」要多给黑露');
+});
+
+test('树海：等级奖励能领、每级只领一次，升级给天赋点', async () => {
+  const T = await import('../src/core/treerun.js');
+  const s = newState(data, 32);
+  const st = T.treeState(s);
+  st.pts = 20000;
+  const lv = T.treeLevelOf(st.pts);
+  assert.ok(lv >= 10, '两万经验应该有十级以上');
+  const g0 = s.gold, tp0 = st.tp;
+  const r = T.claimTreeLevel(s, 2);
+  assert.ok(r && s.gold > g0, '要发金币');
+  assert.ok(st.tp > tp0, '双数级要给天赋点');
+  assert.equal(T.claimTreeLevel(s, 2), null, '同一级不能领两次');
+  assert.equal(T.claimTreeLevel(s, lv + 3), null, '没到级不能领');
+  // 每 10 级一张界域唤醒券
+  const before = Object.values(s.vouchers.awaken).reduce((a, b) => a + b, 0);
+  T.claimTreeLevel(s, 10);
+  assert.equal(Object.values(s.vouchers.awaken).reduce((a, b) => a + b, 0), before + 1);
+});
+
+test('树海：整份进度能进云存档（序列化 → 迁移 → 接着打）', async () => {
+  const T = await import('../src/core/treerun.js');
+  const s = newState(data, 33);
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  for (const sl of team) s.roster[sl] = { lv: 50, star: 0, brk: 3 };
+  const { run } = T.startRun(s, data, 'shade', team);
+  run.gear.pool.push({ uid: 't1', defId: 'rg_crown' });
+  T.gearEquip(s, run, 't1', team[0]);
+  run.buds = 2; run.enh = 1;
+  T.treeState(s).tp = 3; T.treeState(s).pts = 1200;
+  T.treeState(s).talents = { g_seed: 2 };
+  // 云端只存 JSON：来回一趟之后，进度、仓库、装备、天赋都得在
+  const round = migrate(JSON.parse(JSON.stringify(s)), data);
+  const r2 = T.treeState(round).cur;
+  assert.ok(r2, '进行中的这趟要能接着走');
+  assert.deepEqual(r2.slugs, run.slugs);
+  assert.equal(r2.gear.pool[0].defId, 'rg_crown');
+  assert.equal(r2.gear.ring[team[0]], 't1');
+  assert.equal(T.treeState(round).tp, 3);
+  assert.equal(T.treeState(round).talents.g_seed, 2);
+  assert.equal(T.treeState(round).pts, 1200);
+  T.pickBranch(round, r2, 0);
+  assert.ok(r2.kind, '迁移后还能继续选路');
 });

@@ -6,8 +6,9 @@ import { readFileSync } from 'node:fs';
 import { indexData, newState } from '../src/core/game.js';
 import { mulberry32 } from '../src/core/rng.js';
 import {
-  TREE_DIFFS, TREE_STEPS, TREE_ACTS,   treeState, startRun, pickBranch, fightNode, giftOptions,
+  TREE_DIFFS, TREE_STEPS, TREE_ACTS, treeState, startRun, pickBranch, fightNode, giftOptions,
   takeGift, takeOffer, rerollOffer, leaveNode, applyEvent, applyRest, enhOvr,
+  TREE_GEAR, gearEquip, takeChest, takeSpring, takeShrine, offerPool,
 } from '../src/core/treerun.js';
 
 const pack = JSON.parse(readFileSync(new URL('../public/data/game-data.json', import.meta.url)));
@@ -33,7 +34,22 @@ function draftTeam(s) {
   return team;
 }
 
-const KIND_ORDER = ['battle', 'elite', 'rest', 'shop', 'trial', 'event'];
+const KIND_ORDER = ['elite', 'hunt', 'battle', 'chest', 'event', 'trial', 'shop', 'shrine', 'rest', 'spring'];
+/** 模拟玩家：进战斗前把仓库里的装备按「环给人、契令上全队」装上 */
+function autoEquip(s, run) {
+  const g = run.gear || {};
+  const eq = new Set([...Object.values(g.ring || {}), ...(g.pact || []), ...(g.order || [])]);
+  for (const it of (g.pool || [])) {
+    if (eq.has(it.uid)) continue;
+    const def = TREE_GEAR.find((x) => x.id === it.defId);
+    if (!def) continue;
+    if (def.kind === 'ring') {
+      const target = (run.slugs || []).find((sl) => !g.ring[sl]);
+      if (target) gearEquip(s, run, it.uid, target);
+    } else gearEquip(s, run, it.uid);
+  }
+}
+
 function playRun(s, data, diffId) {
   const r0 = treeState(s);
   r0.cur = null;
@@ -41,7 +57,7 @@ function playRun(s, data, diffId) {
   if (!run) return { err };
   const st = treeState(s);
   let guard = 0;
-  while (st.cur === run && guard++ < 200) {
+  while (st.cur === run && guard++ < 240) {
     if (run.gift) {
       const g = giftOptions(s, data, run);
       if (g.enh) takeGift(s, data, run, 'enh');
@@ -55,13 +71,21 @@ function playRun(s, data, diffId) {
       pickBranch(s, run, run.branch.indexOf(pick));
       continue;
     }
+    if (run.chest) { takeChest(s, run, run.chest[0].id); continue; }
+    if (run.spring) { takeSpring(s, run, 0); continue; }
+    if (run.shrine) { takeShrine(s, run, run.shrine[0].id); continue; }
     if (run.ev) { const out = applyEvent(s, run, 0); if (out?.err) leaveNode(s, run); continue; }
     if (run.rest) { applyRest(s, run, 0); continue; }
     if (run.shop) { leaveNode(s, run); continue; }
     if (run.kind) {
+      autoEquip(s, run);
       const r = fightNode(s, data, run);
       if (!r) break;
-      if (r.res.win) { run.offer = undefined; takeOffer(s, data, run, (r.run?.offer || [])[0]?.id) || (run.offer = null); }
+      if (r.res.win && st.cur === run) {
+        run.offer = offerPool(s, data, run, 3);
+        const first = (run.offer || [])[0];
+        if (first) takeOffer(s, data, run, first.id); else run.offer = null;
+      }
       continue;
     }
     break;

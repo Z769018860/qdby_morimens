@@ -1,6 +1,6 @@
 import { hash, mulberry32 } from './rng.js';
 import {
-  MAX_LV_HARD, MAX_AWAKEN, OVERDRIVE_MAX, LAW_MAX, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, ORDER_SLOTS, SAVE_VERSION, GEAR_MAX_LV, RARITY_ORDER, RIFT_FLOORS,
+  MAX_LV_HARD, MAX_AWAKEN, OVERDRIVE_MAX, LAW_MAX, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, ORDER_SLOTS, SAVE_VERSION, GEAR_MAX_LV, RARITY_ORDER, RIFT_FLOORS, REALMS,
 } from './constants.js';
 import { extraKit } from './extra.js';
 import { baseStats, lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, rewindPlan, overdrive, overdriveAmp, overdriveCost, law, lawAmp, lawCrit, lawCost } from './stats.js';
@@ -67,6 +67,19 @@ export function indexData(pack) {
   return d;
 }
 
+// ---------- 唤醒券：按界域分开 ----------
+// 唤醒券不是「一张万能券」：混沌 / 血肉 / 深海 / 超维各一种，只能唤醒对应界域的角色。
+// 用固定四键存（老存档 migrate 时把数字当成血肉券），读的时候不用防缺项。
+export function emptyAwaken() { return Object.fromEntries(Object.keys(REALMS).map((k) => [k, 0])); }
+export const awakenOf = (state, realm) => Math.max(0, Math.floor(Number(state?.vouchers?.awaken?.[realm]) || 0));
+export function addAwaken(state, realm, n = 1) {
+  if (!REALMS[realm]) return 0;
+  const v = (state.vouchers ||= { rewind: 0, direct: 0 });
+  if (!v.awaken || typeof v.awaken !== 'object') v.awaken = emptyAwaken();
+  v.awaken[realm] = Math.max(0, Math.min(99, awakenOf(state, realm) + n));
+  return v.awaken[realm];
+}
+
 // ---------- state ----------
 export function newState(data, now = Date.now()) {
   const roster = {};
@@ -98,10 +111,10 @@ export function newState(data, now = Date.now()) {
     gift: { signin: 0 },
     // 疾驰欢愉的大运（core/luckrun.js）：分数等级 / 天赋 / 专属成就 / 当前这一局
     luck: { pts: 0, best: 0, clears: 0, runs: 0, lvClaimed: {}, talents: {}, tp: 0, ach: {}, cur: null },
-    // 黑流树海（core/treerun.js）：局内统计与专属成就（没有等级阶梯，分数只记最高）
-    tree: { runs: 0, clears: 0, best: 0, cleared: {}, ach: {}, cur: null },
+    // 黑流树海（core/treerun.js）：局内统计 / 天赋树 / 等级经验（pts）/ 专属成就 / 当前这一局
+    tree: { runs: 0, clears: 0, best: 0, pts: 0, tp: 0, talents: {}, lvClaimed: {}, cleared: {}, ach: {}, cur: null },
     // 免费回溯券：后台发放 / 大运等级奖励给的「免费用一次回溯」，角色与装备通用（core/game.js spendRewind）
-    vouchers: { rewind: 0 },
+    vouchers: { rewind: 0, direct: 0, awaken: emptyAwaken() },
     // 同调率（core/affinity.js）：带着推关 / 送礼攒点，等级天赋 + 满级卡牌效果
     aff: emptyAff(),
   };
@@ -135,12 +148,28 @@ export function migrate(s, data) {
   // 免费回溯券：老存档没有就从 0 开始；数字被手改坏了也回到 0
   m.vouchers = {
     rewind: Math.max(0, Math.min(999, Math.floor(Number(s.vouchers?.rewind) || 0))),
-    // 树海券（core/treerun.js 的结算与商店产出）：直升券 = 直接把一位角色练到超限满；唤醒券 = 唤醒一位未拥有的血肉界域角色
+    // 直升券 = 直接把一位角色练到超限满（树海结算 / 成就产出）
     direct: Math.max(0, Math.min(99, Math.floor(Number(s.vouchers?.direct) || 0))),
-    awaken: Math.max(0, Math.min(99, Math.floor(Number(s.vouchers?.awaken) || 0))),
+    // 唤醒券：按界域分四张。老存档只有一个数字，那时是「血肉券」，迁移到 CARO 上
+    awaken: (() => {
+      const out = emptyAwaken();
+      const raw = s.vouchers?.awaken;
+      if (typeof raw === 'number') out.CARO = Math.max(0, Math.min(99, Math.floor(raw) || 0));
+      else if (raw && typeof raw === 'object') for (const k of Object.keys(out)) out[k] = Math.max(0, Math.min(99, Math.floor(Number(raw[k]) || 0)));
+      return out;
+    })(),
   };
-  // 黑流树海（core/treerun.js）：局内统计与专属成就
-  m.tree = { runs: 0, clears: 0, best: 0, cleared: {}, ach: {}, ...(s.tree || {}) };
+  // 黑流树海（core/treerun.js）：局内统计 / 天赋树 / 等级经验 / 专属成就
+  m.tree = {
+    runs: 0, clears: 0, best: 0, pts: 0, tp: 0, talents: {}, lvClaimed: {}, cleared: {}, ach: {},
+    ...(s.tree && typeof s.tree === 'object' ? s.tree : {}),
+  };
+  m.tree.talents = { ...(m.tree.talents || {}) };
+  m.tree.lvClaimed = { ...(m.tree.lvClaimed || {}) };
+  m.tree.cleared = { ...(m.tree.cleared || {}) };
+  m.tree.ach = { ...(m.tree.ach || {}) };
+  m.tree.pts = Math.max(0, Math.floor(Number(m.tree.pts) || 0));
+  m.tree.tp = Math.max(0, Math.floor(Number(m.tree.tp) || 0));
   m.team = [...new Set(Array.isArray(m.team) ? m.team : [])].filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
   if (m.strategy.ult === 'manual') m.strategy.ult = 'first';   // 手动开大已下线：老存档回到默认策略
   normalizeUltOrder(m);
@@ -241,7 +270,9 @@ export function relicBonuses(state, data) {
 // ---------- stats pipeline ----------
 // extra：队伍级被动（羁绊 / 混编共鸣）算出来的加成，直接叠进这个人的装备加成里。
 // 不传就只有「单人 + 装备」——战力对比、编队候选这类单人场景都走这条。
-export function allyDef(state, data, slug, teamSlugs = state.team, extra = null, ovr = null) {
+// bare=true：**连账号装备一起屏蔽**（命轮 / 密契 / 造物 / 钥令 / 同调率都不算），
+// 只剩「角色本体 + 影子练度」——黑流树海要用它，因为那个模式的装备得在局内自己买。
+export function allyDef(state, data, slug, teamSlugs = state.team, extra = null, ovr = null, bare = false) {
   const a = data.bySlug[slug];
   // ovr：影子练度（黑流树海开局锁 50 级无强化、局内点亮「高枝 / 超限 / 法则」时逐步放开）。
   // 只盖 lv / star / od / law 四个键，其余（brk、buy、aff…）照旧——技能解锁（extraKit）与
@@ -249,24 +280,26 @@ export function allyDef(state, data, slug, teamSlugs = state.team, extra = null,
   const r = ovr ? { ...state.roster[slug], ...(ovr || {}) } : state.roster[slug];
   const st = baseStats(a, r.lv, r.star, r.od, r.law);
   const bonus = ZERO();
-  const eq = state.gear.equip[slug] || {};
-  const wi = eq.wheel && state.gear.items[eq.wheel];
+  const eq = bare ? null : (state.gear.equip[slug] || {});
+  const wi = eq && eq.wheel && state.gear.items[eq.wheel];
   if (wi) addBonus(bonus, scaleBonus(wheelBonus(data.wheelById[wi.defId], wi.lv, a, wi.rune), refineMult(wi)));
-  const ci = eq.cov && state.gear.items[eq.cov];
+  const ci = eq && eq.cov && state.gear.items[eq.cov];
   if (ci) {
     const count = teamSlugs.filter((t) => { const e = state.gear.equip[t]; const it = e?.cov && state.gear.items[e.cov]; return it && it.defId === ci.defId; }).length;
     addBonus(bonus, scaleBonus(covenantBonus(ci.defId, ci.lv, count), refineMult(ci)));
   }
-  // 造物（含主题羁绊）与钥令都是全队被动
-  const rel = relicBonuses(state, data);
-  addBonus(bonus, rel.bonus);
-  addBonus(bonus, rel.bond.bonus);
-  addBonus(bonus, ordersBonus(state, data));
+  // 造物（含主题羁绊）与钥令都是全队被动；bare（树海）时账号装备一概不算
+  if (!bare) {
+    const rel = relicBonuses(state, data);
+    addBonus(bonus, rel.bonus);
+    addBonus(bonus, rel.bond.bonus);
+    addBonus(bonus, ordersBonus(state, data));
+  }
   // 唤醒体羁绊（core/bonds.js）：也是全队被动，由 teamDefs 统一算一次传进来
   if (extra) addBonus(bonus, extra);
   // 同调率（core/affinity.js）：等级天赋只作用在这一个人身上
-  addBonus(bonus, affBonus(state, slug));
-  const affLvNow = affLv(affOf(state, slug));
+  if (!bare) addBonus(bonus, affBonus(state, slug));
+  const affLvNow = bare ? 0 : affLv(affOf(state, slug));
   const sl = skillLevel(r.lv, r.star);
   const kitNow = affLvNow >= AFF_CARD_LV ? affKit(slug, a.type, data.kit(slug, sl), sl) : data.kit(slug, sl);
   // 叠位：每 10 层 +3% 增伤（属性与等级上限在 baseStats / levelCap 里）
@@ -309,10 +342,10 @@ export function teamView(state, data) {
 // 混编共鸣：队伍里凑齐 3 / 4 个不同界域时，补上同域加成缺的那一份（+6% / +10%）。
 // 两者互斥：能凑出 3 同域就吃同域那份，否则看界域够不够散——「四同域」与「四域同行」各是极端，中间不再两头空。
 export const MIXED_SYNERGY = { 3: 0.06, 4: 0.10 };
-export function teamDefs(state, data, slugs = state.team, ovr = null) {
+export function teamDefs(state, data, slugs = state.team, ovr = null, bare = false) {
   const live = (slugs || []).filter(Boolean);
   const bonds = teamBonds(live, data);
-  const list = live.map((s) => allyDef(state, data, s, slugs, bonds.bonus, ovr));
+  const list = live.map((s) => allyDef(state, data, s, slugs, bonds.bonus, ovr, bare));
   const realms = {};
   for (const d of list) realms[d.realm] = (realms[d.realm] || 0) + 1;
   const syn = Math.max(0, ...Object.values(realms));
@@ -727,7 +760,7 @@ export function lawUp(state, slug) {
  *  免费券等价于几十亿金币 + 几千银芯的养成，所以产出压得极低（黑流之心首通 / 树海成就 / 高难商店）。 */
 export function useDirectVoucher(state, slug) {
   const r = state.roster[slug];
-  const v = (state.vouchers ||= { rewind: 0, direct: 0, awaken: 0 });
+  const v = (state.vouchers ||= { rewind: 0, direct: 0 });
   if (!r || (v.direct || 0) <= 0 || r.star >= MAX_AWAKEN && overdrive(r.od) >= OVERDRIVE_MAX) return null;
   v.direct--;
   r.star = MAX_AWAKEN;
@@ -738,15 +771,17 @@ export function useDirectVoucher(state, slug) {
   return { slug, star: r.star, od: r.od, lv: r.lv };
 }
 
-/** 树海唤醒券：唤醒一位**未拥有**的血肉界域（CARO）角色，直接进 roster（1 级 0 叠）。
- *  已拥有 / 非血肉界域 / 没券都拒绝。 */
-export function useAwakenVoucher(state, slug, data) {
+/** 树海唤醒券（按界域）：唤醒一位**未拥有**的**对应界域**角色，直接进 roster（1 级 0 叠）。
+ *  券的界域和角色界域必须一致（血肉券唤不了深海）；已拥有 / 没券都拒绝。
+ *  realm 可以不传——默认按角色自己的界域查券。 */
+export function useAwakenVoucher(state, slug, data, realm = null) {
   const a = data.bySlug[slug];
-  const v = (state.vouchers ||= { rewind: 0, direct: 0, awaken: 0 });
-  if (!a || a.realm !== 'CARO' || state.roster[slug] || (v.awaken || 0) <= 0) return null;
-  v.awaken--;
+  if (!a) return null;
+  const rl = realm || a.realm;
+  if (rl !== a.realm || state.roster[slug] || awakenOf(state, rl) <= 0) return null;
+  state.vouchers.awaken[rl] = awakenOf(state, rl) - 1;
   state.roster[slug] = { lv: 1, star: 0, brk: 0 };
-  return { slug, zh: a.zh, isNew: true };
+  return { slug, zh: a.zh, realm: rl, isNew: true };
 }
 
 export function awakenUp(state, slug) {
