@@ -150,7 +150,10 @@ function achRows(s) {
 /* ---------------------------------------------------------------- 募队弹窗 */
 export function treeDraftModal(app, diffId) {
   app.ui.treeDraft ||= { diff: diffId, team: [], squad: TREE_SQUADS[0].id };
-  app.ui.treeDraft.diff = diffId;
+  // 只有真给了难度才覆盖：main.js 的几个内部调用（选分队 / 选人 / 清空后重画）不带 diffId，
+  // 以前无条件覆盖会把「tree-open-draft 时选好的难度」冲成 undefined，再被 treeDiffOf 回退成默认低语——
+  // 五个难度点哪个进来都是低语，出发也按低语算（这就是「切不了难度」）。
+  if (diffId) app.ui.treeDraft.diff = diffId;
   if (!app.ui.treeDraft.squad) app.ui.treeDraft.squad = TREE_SQUADS[0].id;
   renderDraft(app);
 }

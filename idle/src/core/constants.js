@@ -1,6 +1,7 @@
 export const REALMS = {
-  CHAOS: { zh: '混沌', color: '#c0392b' },
-  CARO: { zh: '血肉', color: '#d98a3d' },
+  // 混沌=琥珀金、血肉=红：与站内大巴扎 / 方块 / 对决的界域配色对齐（以前这两个是反的）
+  CHAOS: { zh: '混沌', color: '#e3b341' },
+  CARO: { zh: '血肉', color: '#cf3f46' },
   AEQUOR: { zh: '深海', color: '#2f8fc2' },
   ULTRA: { zh: '超维', color: '#8e6bd1' },
 };

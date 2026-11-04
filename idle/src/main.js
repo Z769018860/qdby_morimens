@@ -999,7 +999,7 @@ function onAct(e) {
     case 'go-tree': show('tree'); break;
     case 'tree-open-draft': {
       app.ui.treeDraft = { diff: el.dataset.k, team: [], squad: app.ui.treeSquad || TREE_SQUADS[0].id };
-      TREE.treeDraftModal(app);
+      TREE.treeDraftModal(app, el.dataset.k);
       break;
     }
     case 'tree-squad': {
