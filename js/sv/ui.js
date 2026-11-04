@@ -6,7 +6,7 @@
 //
 // 图标不额外请求：全部按格位从图集里用 background-position 切出来。
 
-import { G, applyChoice, skipChoice, summary, remaining, useItem, rollChoices } from './engine.js';
+import { G, applyChoice, skipChoice, summary, remaining, useItem, useDice, rollChoices } from './engine.js';
 import { CHARS, WEAPONS, META, ATLAS, CREATIONS, WHEELS, COVENANTS } from './gen.js';
 import {
   PROTOS, LV, WHEEL_FX, COVENANT_FX, CREATION_FX, DIFFS, RAGE, EVOS,
@@ -695,6 +695,19 @@ export function showUpgrade(choices) {
     choose(Number(b.dataset.i));
   };
   $('btnSkipUp').onclick = () => choose(-1);
+  // 命运骰子：升级面板盖住了道具栏，所以在面板里单独放一个重掷按钮
+  const nd = G.items.filter((i) => i.id === 'i_dice').length;
+  let db = $('btnDice');
+  if (!db) {
+    db = document.createElement('button');
+    db.id = 'btnDice';
+    db.className = 'up-skip';
+    db.style.cssText = 'margin-top:6px;border-color:#6ea8ff;color:#9cc4ff';
+    $('btnSkipUp').insertAdjacentElement('beforebegin', db);
+  }
+  db.hidden = nd === 0;
+  db.textContent = `⚄ 命运骰子 ×${nd} · 重掷这三张（键盘 R）`;
+  db.onclick = rerollUpgrade;
   // 跳过不是白跳：按钮上直接把补偿写清楚，否则没人会去发现这件事
   const sk = $('btnSkipUp');
   if (sk) {
@@ -777,6 +790,12 @@ function card(i, tier, title, sub, foot, imgStyle, tag, glyph) {
       </span>
       <span class="up-key">${i + 1}</span>
     </button>`;
+}
+
+// 重掷：消耗一颗骰子，卡面换一批并重画
+export function rerollUpgrade() {
+  if (useDice()) { sfx.play('item'); hudCache.ikey = ''; showUpgrade(G.choices); return true; }
+  return false;
 }
 
 export function choose(i) {

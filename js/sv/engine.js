@@ -641,6 +641,21 @@ export function addItem(id) {
   return o;
 }
 
+// 命运骰子：重掷本次三选一。只在升级面板开着时有意义；新一批卡面是空的就不用（别白扔骰子）。
+// 返回是否真的重掷了。以前这里「不消耗」又没人重画面板，而且升级面板盖住了道具栏根本点不到——
+// 所以骰子形同虚设；现在由三选一面板自己带一个重掷按钮（ui.js showUpgrade），点了消耗一颗并重画。
+export function useDice() {
+  if (G.phase !== 'levelup') return false;
+  const i = G.items.findIndex((x) => x.id === 'i_dice');
+  if (i < 0) return false;
+  const next = rollChoices();
+  if (!next.length) return false;
+  G.choices = next;
+  G.items.splice(i, 1);
+  addText(G.player.x, G.player.y - 50, '命运重掷', 6);
+  return true;
+}
+
 // 使用一件道具。返回是否真的用掉了 —— UI 靠它决定要不要刷道具栏。
 export function useItem(id) {
   const i = G.items.findIndex((x) => x.id === id);
@@ -662,11 +677,7 @@ export function useItem(id) {
     G.rage = RAGE.max; G.rageReady = true;
     addText(G.player.x, G.player.y - 50, '狂气满盈', 6);
   } else if (it.id === 'i_dice') {
-    // 重掷本次三选一：只允许在升级面板开着的时候用，否则等于白扔
-    if (G.phase !== 'levelup') return false;
-    G.choices = rollChoices();
-    addText(G.player.x, G.player.y - 50, '命运重掷', 6);
-    return true;   // 不消耗：由 UI 在刷新卡面后再决定
+    return useDice();            // 消耗骰子并换一批卡面；不在三选一里就不用（见 useDice）
   }
   G.items.splice(i, 1);
   return true;
@@ -1875,8 +1886,11 @@ function updateEnemies(dt, slow) {
   const farR = Math.hypot(G.W || 430, G.H || 900) * 1.7 / (G.s || 1);
   const far2 = farR * farR;
 
-  for (let i = G.enemies.length - 1; i >= 0; i--) {
-    const e = G.enemies[i];
+  // 循环里别的怪会被击杀（范围伤害 / 反伤 / 溅射）而从 G.enemies 里摘掉：以前按下标倒着走，
+  // 数组一缩短就读到 undefined 抛异常（整局卡死），或者删错下标。改成遍历快照，已死的跳过、删除按对象找。
+  const snap = G.enemies.slice().reverse();
+  for (const e of snap) {
+    if (e.hp <= 0) continue;
     const dx = P.x - e.x, dy = P.y - e.y;
     const d2 = dx * dx + dy * dy;
     const d = Math.sqrt(d2) || 1;
@@ -1891,7 +1905,8 @@ function updateEnemies(dt, slow) {
         continue;
       } else {
         give('enemies', e);
-        G.enemies.splice(i, 1);
+        const ix = G.enemies.indexOf(e);
+        if (ix >= 0) G.enemies.splice(ix, 1);
         continue;
       }
     }
