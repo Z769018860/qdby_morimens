@@ -46,7 +46,7 @@ import {
   shopBuy as treeShopBuy, leaveNode as treeLeaveNode, takeGift as treeTakeGift, giftOptions as treeGiftOptions,
   abandonRun as treeAbandon, claimTreeAch, offerPool as treeOfferPool, checkDraft as treeCheckDraft,
   gearEquip, gearUnequip, setLineup, takeChest, takeSpring, takeShrine, buyTalent as treeBuyTalent,
-  claimTreeLevel, talentMods as treeTalentMods, TREE_SQUADS,
+  claimTreeLevel, talentMods as treeTalentMods, TREE_SQUADS, teamMax,
 } from './core/treerun.js';
 import { useDirectVoucher, useAwakenVoucher, awakenOf, universalOf } from './core/game.js';
 import { claimDaily, redeemGuest, claimMile, dailyView, milePending } from './core/event.js';
@@ -1179,7 +1179,8 @@ function onAct(e) {
       const cur = run.slugs || [];
       const next = cur.includes(slug) ? cur.filter((x) => x !== slug) : [...cur, slug];
       if (!next.length) { toast('至少要留一个人上场'); break; }
-      if (next.length > 4) { toast('最多 4 人上场，先换下一个'); break; }
+      // 上限看这一趟的规矩（前锋分队可上 5 人），不能写死 4：以前前锋说「可上 5 人」，点第 5 个人却被这行挡下
+      if (next.length > teamMax(run)) { toast(`最多 ${teamMax(run)} 人上场，先换下一个`); break; }
       const r2 = setLineup(s, run, next);
       if (r2.err) { toast(r2.err); break; }
       app.save(); TREE.treeDepotModal(app); sound.play('click');

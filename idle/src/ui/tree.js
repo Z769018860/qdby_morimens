@@ -253,7 +253,7 @@ function runPage(app, run) {
   } else if (run.kind) {
     body = `<div class="lkbattle"><p>下一场：<b>${KIND_ZH[run.kind]}</b>　强度≈主线第 <b>${stage}</b> 关　深度 <b>${esc(diff.zh)}</b></p>
       <div class="row"><button class="btn gold" data-act="tree-depot">仓库 / 编队</button><button class="btn big gold" data-act="tree-fight">开打</button></div>
-      <p class="hint">上场 ${(run.slugs || []).length}/${TEAM_MAX} 人；倒下的人上不了场。打之前可以先把装备穿上。</p></div>`;
+      <p class="hint">上场 ${(run.slugs || []).length}/${teamMax(run)} 人；倒下的人上不了场。打之前可以先把装备穿上。</p></div>`;
   }
 
   return `<div class="page"><h2>黑流树海 · 第 ${run.act + 1} / ${TREE_ACTS} 层 <small>${esc(diff.zh)} · ${esc(squadOf(run.squad)?.zh || '常规分队')} · 余晖 ${fmt(run.glow)} · 古树之芽 ${run.buds} · 得分 ${fmt(run.score)}</small></h2>

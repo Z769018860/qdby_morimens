@@ -4331,3 +4331,27 @@ test('守护留盾：回合末剩余护盾的 50% 带进下一回合（上限最
   assert.ok(sh[2].shield < sh[1].amt + sh[2].amt, '留下的只是一部分（50%），不是全部');
   assert.ok(Math.abs((sh[2].shield - sh[2].amt) - sh[1].amt * 0.5) < sh[1].amt * 0.02, '留下的约等于上回合剩余护盾的 50%');
 });
+
+test('黑流树海·前锋分队：编队上限是 5（setLineup / 开战都认），其余分队仍是 4', async () => {
+  const T = await import('../src/core/treerun.js');
+  const sr = data.awakeners.filter((a) => a.rarity === 'SR').map((a) => a.slug);
+  const run = (squad) => {
+    const s = newState(data, 3);
+    for (const a of data.awakeners) s.roster[a.slug] = { lv: 50, star: 0, brk: 3 };
+    const caps = T.draftCaps(s, squad);
+    const picks = [];
+    let spent = 0;
+    for (const sl of sr) { const p = T.priceOf(data, sl, caps.recruit); if (spent + p <= caps.budget && picks.length < 5) { picks.push(sl); spent += p; } }
+    const r = T.startRun(s, data, 'glow', picks, squad);
+    return { s, run: r.run, picks };
+  };
+  const f = run('s_front');
+  assert.ok(f.run, '前锋分队能开局');
+  assert.equal(T.teamMax(f.run), 5);
+  const want = f.run.pool.slice(0, 5);
+  assert.equal(T.setLineup(f.s, f.run, want).slugs.length, Math.min(5, f.run.pool.length));
+  assert.equal(T.battlePrep(f.s, data, f.run).allies.length, f.run.slugs.length);
+  const n = run('s_logi');
+  assert.equal(T.teamMax(n.run), 4);
+  assert.ok(T.setLineup(n.s, n.run, n.run.pool).slugs.length <= 4);
+});
