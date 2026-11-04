@@ -398,7 +398,7 @@ export function shopMix(run) {
 export function rollShop(run, { free = false, keep = false } = {}) {
   const rnd = run.rnd;
   if (!free) {
-    const cost = TUNING.rerollCost + run.rerolls;
+    const cost = TUNING.rerollCost;                 // 刷新价固定，连续刷也不涨
     if (run.freeShops > 0) {
       run.freeShops -= 1;
     } else if (run.pact.k === 'freereroll' && run.freeReroll < 1) {
@@ -510,8 +510,7 @@ export function rollShop(run, { free = false, keep = false } = {}) {
   }
 
   run.shop = out;
-  // 刷新价「当天每刷一次再贵 1 金」：只有新的一天 / 输后重来（free 且不 keep）才归零。
-  // 以前每次刷完都清零，价格永远停在底价，新手指导里写的「每刷一次再贵」根本没生效。
+  // 刷新价固定为 TUNING.rerollCost，连续刷新不涨价（rerolls 只留作「当天刷了几次」的计数）
   if (free && !keep) run.rerolls = 0;
   return true;
 }
