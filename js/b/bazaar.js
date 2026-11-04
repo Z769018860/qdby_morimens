@@ -44,6 +44,82 @@ const TIER = {
   mul: [1, 1.85, 2.9],
 };
 
+// ---------------------------------------------------------------- 光环
+// 光环是「只喂左右相邻两家」的加成。原来一个流派共用一种（全游戏只有「多产算力 +1」
+// 和「节拍 -1」两句），挑人时看不出差别。现在按类型拆成 10 种，每个流派各排 5 个变体，
+// 按成员序号轮着发——同一个流派里，同占格的两个唤醒体不会再拿到一模一样的光环。
+//   gen    相邻唤醒体每次多产 v 算力
+//   cost   相邻命轮开火少耗 v 算力
+//   cd     相邻节拍 -v
+//   pow    相邻动作 / 命轮效果 +v
+//   dmg    相邻伤害 +v
+//   crit   相邻暴击率 +v
+//   dot    相邻施加的中毒 / 冻伤 +v
+//   shd    相邻护盾 +v
+//   heal   相邻治疗 +v
+//   pierce 相邻命轮的开火穿盾 +v（给人是伤害穿盾，一样生效）
+//   leech  相邻单位造成伤害的 v 回血
+const AURA_V = {
+  gen: [1, 2, 2],
+  cost: [3, 4, 5],
+  cd: [1, 1, 2],
+  pow: [0.30, 0.38, 0.46],
+  dmg: [0.26, 0.34, 0.42],
+  crit: [0.13, 0.17, 0.22],
+  dot: [0.30, 0.42, 0.56],
+  shd: [0.34, 0.48, 0.62],
+  heal: [0.34, 0.48, 0.62],
+  pierce: [0.15, 0.22, 0.30],
+  leech: [0.10, 0.15, 0.20],
+};
+const AURA_SHORT = {
+  gen: '供能', cost: '节流', cd: '加速', pow: '增幅', dmg: '锐锋', crit: '锐利',
+  dot: '蚀刻', shd: '壁垒', heal: '生息', pierce: '穿隙', leech: '汲血',
+};
+const AURA_ZH = {
+  gen: (v) => `相邻唤醒体每次多产 ${v} 算力`,
+  cost: (v) => `相邻命轮开火少耗 ${v} 算力`,
+  cd: (v) => `相邻单位的节拍 -${v}`,
+  pow: (v) => `相邻单位的动作效果 +${Math.round(v * 100)}%`,
+  dmg: (v) => `相邻单位的伤害 +${Math.round(v * 100)}%`,
+  crit: (v) => `相邻单位的暴击率 +${Math.round(v * 100)}%`,
+  dot: (v) => `相邻单位的中毒与冻伤 +${Math.round(v * 100)}%`,
+  shd: (v) => `相邻单位的护盾 +${Math.round(v * 100)}%`,
+  heal: (v) => `相邻单位的治疗 +${Math.round(v * 100)}%`,
+  pierce: (v) => `相邻命轮的开火穿盾 +${Math.round(v * 100)}%`,
+  leech: (v) => `相邻单位造成伤害的 ${Math.round(v * 100)}% 回血`,
+};
+function auraOf(k, tier) {
+  const base = AURA_V[k] || AURA_V.pow;
+  const v = base[Math.min(2, Math.max(0, tier))];
+  return { k, v };
+}
+const auraText = (k, v) => (AURA_ZH[k] || AURA_ZH.pow)(v);
+
+// 流派 → 5 个光环变体（按成员序号轮发）。第一个是这一派的招牌，其余按「这个流派
+// 玩家会想怎么搭」往后排：直伤派给暴击 / 供能，回复派给护盾 / 治疗，毒派给蚀刻。
+// 数字是相对强度：护盾、治疗、蚀刻这些窄效果给足一点，通用增幅压一点。
+const AURAS = {
+  berserk: [['pow', 1], ['dmg', 1], ['crit', 1], ['leech', 1], ['gen', 1]],
+  // 9 个人，按占格分组排满：2 格的三个人（0/3/6）与 1 格的六个人（1/2/4/5/7/8）各用各的，
+  // 否则同占格的两个人会拿到一模一样的光环。
+  overload: [['cost', 1], ['dmg', 1.1], ['crit', 1.1], ['pow', 1], ['cd', 1],
+    ['pierce', 1], ['shd', 1], ['gen', 1], ['leech', 1]],
+  blast: [['shd', 1], ['pierce', 1], ['pow', 1], ['dmg', 0.95], ['heal', 1]],
+
+  leech: [['dmg', 1], ['leech', 1.1], ['heal', 1], ['crit', 1], ['pierce', 1]],
+  tide: [['heal', 1], ['shd', 1], ['leech', 0.9], ['pow', 0.9], ['cost', 1]],
+  bulwark: [['shd', 1.1], ['heal', 0.9], ['cd', 1], ['pow', 1], ['leech', 1]],
+
+  frost: [['dot', 1], ['pow', 1], ['crit', 1], ['dmg', 0.9], ['heal', 1]],
+  venom: [['dot', 1.1], ['gen', 1], ['heal', 1], ['shd', 1], ['leech', 1], ['crit', 1], ['dmg', 0.95]],
+  slowtide: [['dot', 0.9], ['cd', 1], ['shd', 1], ['gen', 1], ['heal', 1]],
+
+  haste: [['cd', 1], ['crit', 1.2], ['cost', 1], ['dmg', 1], ['pow', 0.9]],
+  vuln: [['crit', 1.1], ['pow', 1], ['dmg', 0.95], ['pierce', 1], ['cd', 1]],
+  phase: [['pierce', 1.1], ['crit', 1.15], ['shd', 1], ['leech', 1], ['pow', 1]],
+};
+
 // ---------------------------------------------------------------- 唤醒体流派
 // 一个流派 = 一种打法：谁负责叠力量、谁负责下毒、谁负责把对面节拍拖慢。
 // act(s) 里的 s 是占格倍率；光环按格数微调（大个子光环更强，但更贵、更占地方）。
@@ -53,7 +129,6 @@ const ARCH = {
     n: '狂乱', realm: 'CHAOS', type: 'ASSAULT', tag: '叠力量',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'dmg', v: r1(4.25 * s) }, { k: 'str', v: r2(0.45 * s) }],
-    aura: { k: 'pow', v: [0.24, 0.30, 0.38] },
     fate: { k: 'amp', v: 0.08 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，本场每次伤害 +${a[1].v}（可叠加）。`,
   },
@@ -61,7 +136,6 @@ const ARCH = {
     n: '过载', realm: 'CHAOS', type: 'CHORUS', tag: '榨算力换一发',
     genOff: 1, cdOff: 0,
     act: (s) => [{ k: 'dmg', v: r1(3.6 * s) }],
-    aura: { k: 'gen', v: [1, 1, 2] },
     fate: { k: 'gen', v: 0.08 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，再把算力灌成一发 ${a[0].v} 点直伤（不分段，全砸在一起）。`,
   },
@@ -69,7 +143,6 @@ const ARCH = {
     n: '爆燃', realm: 'CHAOS', type: 'WARDEN', tag: '盾后爆发',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'shield', v: r1(6 * s) }, { k: 'dmg', v: r1(2.2 * s) }],
-    aura: { k: 'cd', v: [1, 1, 1] },
     fate: { k: 'amp', v: 0.07 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，烧出 ${Math.round(a[0].v)} 点护盾，并撞出 ${a[1].v} 点直伤。`,
   },
@@ -79,7 +152,6 @@ const ARCH = {
     n: '噬血', realm: 'CARO', type: 'ASSAULT', tag: '吸血',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'dmg', v: r1(3.8 * s), leech: 0.35 }],
-    aura: { k: 'gen', v: [1, 1, 1] },
     fate: { k: 'leech', v: 0.06 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，并把这发的 35% 吸回自己身上。`,
   },
@@ -87,7 +159,6 @@ const ARCH = {
     n: '血泉', realm: 'CARO', type: 'CHORUS', tag: '回血续航',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'heal', v: r1(3.2 * s) }, { k: 'shield', v: r1(3.6 * s) }],
-    aura: { k: 'gen', v: [1, 1, 1] },
     fate: { k: 'regen', v: 1.5 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，回复 ${Math.round(a[0].v)} 点生命，并架起 ${Math.round(a[1].v)} 点护盾。`,
   },
@@ -95,7 +166,6 @@ const ARCH = {
     n: '血壁', realm: 'CARO', type: 'WARDEN', tag: '护盾',
     genOff: -1, cdOff: 0,
     act: (s) => [{ k: 'shield', v: r1(6.5 * s) }, { k: 'dmg', v: r1(1.2 * s) }],
-    aura: { k: 'cd', v: [1, 1, 1] },
     fate: { k: 'shcap', v: 8 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并撞出 ${a[1].v} 点伤害。`,
   },
@@ -105,7 +175,6 @@ const ARCH = {
     n: '霜蚀', realm: 'AEQUOR', type: 'ASSAULT', tag: '冻伤',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'dmg', v: r1(1.9 * s) }, { k: 'burn', v: Math.round(1.2 * s) }],
-    aura: { k: 'pow', v: [0.22, 0.26, 0.32] },
     fate: { k: 'crit', v: 0.04 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，并给对手挂上 ${a[1].v} 层冻伤。`,
   },
@@ -113,7 +182,6 @@ const ARCH = {
     n: '腐潮', realm: 'AEQUOR', type: 'CHORUS', tag: '下毒',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'poison', v: Math.round(1.6 * s) }, { k: 'dmg', v: r1(1.1 * s) }],
-    aura: { k: 'pow', v: [0.22, 0.28, 0.34] },
     fate: { k: 'venom', v: 0.12 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，施加 ${a[0].v} 层中毒，并补 ${a[1].v} 点伤害。`,
   },
@@ -121,7 +189,6 @@ const ARCH = {
     n: '滞潮', realm: 'AEQUOR', type: 'WARDEN', tag: '毒 + 拖节拍',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'poison', v: Math.round(1.1 * s) }, { k: 'slow', v: r2(0.4 * s) }],
-    aura: { k: 'cd', v: [1, 1, 1] },
     fate: { k: 'fear', v: 0.05 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，下 ${a[0].v} 层中毒，并让对手的技能延后 ${a[1].v} 拍。`,
   },
@@ -131,7 +198,6 @@ const ARCH = {
     n: '速律', realm: 'ULTRA', type: 'ASSAULT', tag: '快节拍连击',
     genOff: -1, cdOff: -1,
     act: (s) => [{ k: 'dmg', v: r1(0.95 * s), hits: 3 }, { k: 'str', v: r2(0.15 * s) }],
-    aura: { k: 'cd', v: [1, 1, 1] },
     fate: { k: 'crit', v: 0.04 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，连打三次、每次 ${a[0].v} 点，本场每次伤害 +${a[1].v}。节拍比别人快一拍。`,
   },
@@ -139,7 +205,6 @@ const ARCH = {
     n: '虚隙', realm: 'ULTRA', type: 'CHORUS', tag: '易伤 + 连击',
     genOff: 1, cdOff: 0,
     act: (s) => [{ k: 'vuln', v: r2(0.07 * s) }, { k: 'dmg', v: r1(0.45 * s), hits: 2 }],
-    aura: { k: 'pow', v: [0.24, 0.30, 0.36] },
     fate: { k: 'amp', v: 0.06 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，让对手易伤 +${Math.round(a[0].v * 100)}%（3 拍），并连打两次、每次 ${a[1].v} 点。`,
   },
@@ -147,7 +212,6 @@ const ARCH = {
     n: '折跃', realm: 'ULTRA', type: 'WARDEN', tag: '穿盾连击',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'shield', v: r1(6 * s) }, { k: 'dmg', v: r1(0.48 * s), hits: 3, pierce: 1 }],
-    aura: { k: 'pow', v: [0.18, 0.22, 0.28] },
     fate: { k: 'pierce', v: 0.15 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并穿盾连打三次、每次 ${a[1].v} 点。`,
   },
@@ -430,10 +494,14 @@ function designHeroes(heroes) {
     const gen = Math.max(1, TIER.gen[t - 1] + arch.genOff);
     const cd = Math.max(2, TIER.cd[t - 1] + arch.cdOff);
     const act = arch.act(s);
-    const av = arch.aura.v[t - 1];
-    const auraTxt = arch.aura.k === 'gen' ? `相邻单位每次多产 ${av} 算力`
-      : arch.aura.k === 'cd' ? `相邻单位的节拍 -${av}`
-        : `相邻单位的动作效果 +${Math.round(av * 100)}%`;
+    // 光环按流派内序号轮发 5 个变体：i%5 与占格周期（1/2/3 循环、或 3/2 交替）互质，
+    // 所以同一个流派里不会出现「同占格、同光环」的两个人。
+    const list = AURAS[id] || AURAS.berserk;
+    const seq = list[i % list.length];
+    const au = auraOf(seq[0], t - 1);
+    const av = (au.k === 'gen' || au.k === 'cd' || au.k === 'cost')
+      ? Math.max(1, Math.round(au.v * seq[1]))
+      : r2(au.v * seq[1]);
     return {
       ...h,
       arch: id,
@@ -444,8 +512,8 @@ function designHeroes(heroes) {
       cd,
       act,
       txt: arch.txt(gen, cd, act),
-      aura: { k: arch.aura.k, v: av },
-      auraTxt,
+      aura: { k: au.k, v: av },
+      auraTxt: auraText(au.k, av),
       fate: { ...h.fate, k: arch.fate.k, v: arch.fate.v },
     };
   });
@@ -525,13 +593,13 @@ function designItems(items) {
     return { ...it, m: { k, v } };
   });
 }
-return { ARCH, HERO_RANKS, WHEEL_RANKS, REALM_TRAIT, ARCH_ZH, designHeroes, WARCH, designWheels, designItems };
+return { AURA_SHORT, auraOf, auraText, ARCH, HERO_RANKS, WHEEL_RANKS, REALM_TRAIT, ARCH_ZH, designHeroes, WARCH, designWheels, designItems };
 })();
 
 // ---- js/bazaar-data.js
 const m_bazaar_data = await (async () => {
 const { HEROES: G_HEROES, ITEMS: G_ITEMS, WHEELS: G_WHEELS, PACTS: G_PACTS, FOES: G_FOES, SHEETS: G_SHEETS } = m_bazaar_gen;
-const { designHeroes, designWheels, designItems, ARCH: ARCH_RAW, ARCH_ZH: ARCH_ZH_RAW, WARCH: WARCH_RAW, REALM_TRAIT: REALM_TRAIT_RAW, HERO_RANKS: HERO_RANKS_RAW, WHEEL_RANKS: WHEEL_RANKS_RAW } = m_bazaar_arch;
+const { designHeroes, designWheels, designItems, ARCH: ARCH_RAW, ARCH_ZH: ARCH_ZH_RAW, WARCH: WARCH_RAW, REALM_TRAIT: REALM_TRAIT_RAW, HERO_RANKS: HERO_RANKS_RAW, WHEEL_RANKS: WHEEL_RANKS_RAW, AURA_SHORT: AURA_SHORT_RAW } = m_bazaar_arch;
 // 《大巴扎：银钥》的数据层 —— 大表在 js/bazaar-gen.js（由 scripts/build_bazaar_gen.py 生成），
 // 这里只放「规则常数」「地形」和「按难度拼出来的关卡排期」。
 //
@@ -545,6 +613,8 @@ const SHEETS = G_SHEETS;
 const ARCH = ARCH_RAW;
 const WARCH = WARCH_RAW;
 const ARCH_ZH = ARCH_ZH_RAW;
+// 光环的短名（卡片角标用）：11 种，见 js/bazaar-arch.js
+const AURA_SHORT = AURA_SHORT_RAW;
 // 界域特性：同界域 2 / 3 / 4 人三档共鸣
 const REALM_TRAIT = REALM_TRAIT_RAW;
 // 唤醒体的五档叫「启灵」；命轮的五档叫「叠位」——命轮不是觉醒，是这条轮盘又叠了一层。
@@ -615,7 +685,7 @@ const TUNING = {
   wcdMin: 3,
   // 每天的血量预算 / 目标强度 / 收入。以 12 天为基准调出来，后面按同一斜率外推。
   dayHp: LATE_SCALE(RAW_DAY_HP, 1.63),
-  dayDps: LATE_SCALE(RAW_DAY_DPS, 1.34),
+  dayDps: LATE_SCALE(RAW_DAY_DPS, 1.16),
   income: [0, 15, 15, 14, 13, 13, 13, 13, 13, 13, 13, 14, 15, 15, 16, 16, 17, 17, 18],
 };
 
@@ -625,8 +695,8 @@ const DIFFS = [
     desc: '12 天，3 点理智。前四天只有普通怪，首领从第九天开始露面。' },
   { id: 'hard', n: '艰难', days: 12, dps: 1.02, hp: 1.0, income: 1.0, sane: 2, pole: 1,
     desc: '12 天，2 点理智。精英提前到第三天，第七天就有首领。' },
-  { id: 'nightmare', n: '噩梦', days: 15, dps: 1.02, hp: 1.04, income: 0.92, sane: 4, pole: 1.5,
-    desc: '15 天，4 点理智，收入 -8%。第二天起就会撞上精英，敌人也比寻常更硬。' },
+  { id: 'nightmare', n: '噩梦', days: 15, dps: 1.02, hp: 1.04, income: 0.98, sane: 4, pole: 1.5,
+    desc: '15 天，4 点理智，收入 -2%。第二天起就会撞上精英，敌人也比寻常更硬。' },
   { id: 'abyss', n: '深渊', days: 18, dps: 1.07, hp: 1.09, income: 0.82, sane: 5, pole: 2,
     desc: '18 天，5 点理智，收入 -18%。精英从第三天就露头，第十天之后全是首领。' },
 ];
@@ -666,7 +736,8 @@ const MOD_ZH = {
   hp: ['生命上限', '+', ''],
 };
 
-const AURA_ZH = { gen: '供能', cd: '加速', pow: '增幅' };
+// 光环短名（卡片角标 / 图例用）：11 种，完整句子由设计层的 auraOf / auraText 生成
+const AURA_ZH = AURA_SHORT_RAW;
 
 // ---------------------------------------------------------------- 地形
 // 对双方同时生效：敌我都在同一片地上打，所以没有「只坑玩家」的地形。
@@ -721,7 +792,7 @@ function rowFor(day, diffId) {
   const row = SCHEDULE[Math.min(day, SCHEDULE.length) - 1] || SCHEDULE[SCHEDULE.length - 1];
   return row.bands[diffId] || row.bands.normal;
 }
-return { SHEETS, ARCH, WARCH, ARCH_ZH, REALM_TRAIT, RANK_TIER, WHEEL_TIER, HERO_RANKS, WHEEL_RANKS, HEROES, ITEMS, WHEELS, PACTS, FOES, SHOP_ITEMS, TUNING, DIFFS, REALM_ZH, TYPE_ZH, RANK_ZH, REALM_COLOR, ITEM_ARCH_ZH, MOD_ZH, AURA_ZH, TERRAINS, SCHEDULE, rowFor };
+return { SHEETS, ARCH, WARCH, ARCH_ZH, AURA_SHORT, REALM_TRAIT, RANK_TIER, WHEEL_TIER, HERO_RANKS, WHEEL_RANKS, HEROES, ITEMS, WHEELS, PACTS, FOES, SHOP_ITEMS, TUNING, DIFFS, REALM_ZH, TYPE_ZH, RANK_ZH, REALM_COLOR, ITEM_ARCH_ZH, MOD_ZH, AURA_ZH, TERRAINS, SCHEDULE, rowFor };
 })();
 
 // ---- js/bazaar-events.js
@@ -1101,23 +1172,25 @@ function removeHero(run, hid) {
 // 每个位置从左右邻居那里吃到的光环（邻居是唤醒体才有光环）：人和命轮共用这一份，面板和实战不会错位
 //   gen  产出 +v（人）/ 开火耗算力 −2v（命轮）
 //   cd   节拍 −v（人 / 命轮都吃）
-//   pow  动作 / 命轮效果 +v（比例）
+//   pow  动作 / 命轮效果 +v（比例，乘在所有 op 上）
+//   dmg / dot / shd / heal / crit / pierce / leech  只乘对应的那一类 op（见 applyOp）
 function auraMap(run) {
   const lay = layoutOf(run);
   const m = new Map();
   lay.forEach((e, i) => {
-    const o = { gen: 0, cd: 0, pow: 0 };
+    const o = { gen: 0, cost: 0, cd: 0, pow: 0, dmg: 0, dot: 0, shd: 0, heal: 0, crit: 0, pierce: 0, leech: 0 };
     for (const j of [i - 1, i + 1]) {
       const nb = lay[j];
       if (!nb || nb.kind !== 'hero' || !nb.def.aura) continue;
       const a = nb.def.aura;
       const r = Math.min(TUNING.rankMax, nb.rank | 0);
       // 超限之后光环本身也变强（哪个流派有这条，写在 HERO_RANKS 的 aura 字段上）：
-      // 产算力光环不放大（否则算力会重新过剩），只放大节拍（+1 整数档）和增幅（×1.5）。
+      // 产算力光环不放大（否则算力会重新过剩），节拍 +1 整数档，其余 ×1.5。
       const boost = !!rankStepOf(HERO_RANKS, nb.def.arch, r).aura;
       if (a.k === 'gen') o.gen += a.v;
+      else if (a.k === 'cost') o.cost += boost ? Math.round(a.v * 1.5) : a.v;
       else if (a.k === 'cd') o.cd += boost ? a.v + 1 : a.v;
-      else if (a.k === 'pow') o.pow += boost ? a.v * 1.5 : a.v;
+      else o[a.k] = (o[a.k] || 0) + a.v * (boost ? 1.5 : 1);
     }
     m.set(e.uid, o);
   });
@@ -1134,7 +1207,7 @@ const wheelStat = (d, au, cdTer, mod, rank = 0) => {
   const r = Math.min(TUNING.rankMax, rank | 0);
   const step = rankStepOf(WHEEL_RANKS, d.arch, r);
   return {
-    cost: Math.max(4, d.cpu - 2 * au.gen - (step.cost || 0)),
+    cost: Math.max(4, d.cpu - au.cost - (step.cost || 0)),
     wcd: Math.max(TUNING.wcdMin, d.wcd - au.cd + cdTer - mod.wcdDown - (step.wcd || 0)),
     pow: 1 + au.pow,
     op: rankOps(d.op, step),
@@ -1720,13 +1793,13 @@ function createFight(run) {
         uid: e.uid, def: d, rank: e.rank || 0, timer: 0, act: hp.act, aura: d.aura, fired: 0,
         cd: Math.max(TUNING.cdMin, hp.cd - au.cd + cdTer - mod.herocd),
         gen: Math.max(1, Math.round((hp.gen + au.gen) * (1 + mod.gen))),
-        pow: (1 + au.pow) * hp.pow, follow: hp.follow || 0,
+        pow: (1 + au.pow) * hp.pow, follow: hp.follow || 0, a: au,
       });
     } else {
       const ws = wheelStat(e.def, au, cdTer, mod, e.rank || 0);
       wheels.push({
         uid: e.uid, def: e.def, rank: e.rank || 0, cost: ws.cost, wcd: ws.wcd, pow: ws.pow,
-        op: ws.op, echoLeft: ws.echo, follow: ws.follow,
+        op: ws.op, echoLeft: ws.echo, follow: ws.follow, a: au,
         timer: 0, native: !!e.native, waiting: false,
       });
     }
@@ -1793,12 +1866,12 @@ function hurt(f, target, amount, pierce = 0) {
   return lost;
 }
 
-// 我方伤害：kind='wheel' 才吃「命轮增伤」
-function rollDamage(f, base, kind) {
+// 我方伤害：kind='wheel' 才吃「命轮增伤」；au 是站位吃到的光环（暴击 / 伤害加成）
+function rollDamage(f, base, kind, au = {}) {
   let raw = base + f.mod.flat + f.p.str * 0.5;
   raw *= 1 + (kind === 'wheel' ? f.mod.amp : 0) + f.terAmp + (f.mod.burst || 0);
   if (f.p.weakT > 0) raw *= 1 - f.p.weak;
-  const crit = f.rnd() < Math.min(0.65, f.mod.crit);
+  const crit = f.rnd() < Math.min(0.75, f.mod.crit + (au.crit || 0));
   if (crit) raw *= 1.5 + f.mod.cdmg;
   if (f.e.vulnT > 0) raw *= 1 + f.e.vuln;
   return { raw, crit };
@@ -1807,6 +1880,7 @@ function rollDamage(f, base, kind) {
 function applyOp(f, side, op, mul, ctx = {}) {
   const ev = [];
   const src = ctx.src || {};
+  const au = ctx.a || {};
   const target = side === 'p' ? f.e : f.p;
   const self = side === 'p' ? f.p : f.e;
 
@@ -1817,8 +1891,10 @@ function applyOp(f, side, op, mul, ctx = {}) {
       const execute = side === 'p' && op.execute && target.hp <= target.maxHp * op.execute ? 1.8 : 1;
       // 多段共鸣：每一段都加一点，所以拆得越碎赚得越多（三段吃三份、一段只吃一份）
       const seg = side === 'p' && f.mod.multi ? 1 + f.mod.multi * hits : 1;
+      // 伤害类光环：只放大伤害本身，不加毒也不加盾
+      const dmgAura = 1 + (au.dmg || 0);
       const pierce = side === 'p'
-        ? (op.pierce != null ? op.pierce : (ctx.kind === 'wheel' ? f.mod.pierce : 0))
+        ? (op.pierce != null ? op.pierce : (ctx.kind === 'wheel' ? f.mod.pierce : 0)) + (au.pierce || 0)
         : 0;
       let total = 0;
       let anyCrit = false;
@@ -1826,7 +1902,7 @@ function applyOp(f, side, op, mul, ctx = {}) {
         let raw;
         let crit = false;
         if (side === 'p') {
-          const r = rollDamage(f, op.v * mul * execute * seg, ctx.kind);
+          const r = rollDamage(f, op.v * mul * execute * seg * dmgAura, ctx.kind, au);
           raw = r.raw; crit = r.crit;
           hurt(f, target, raw, pierce);
         } else {
@@ -1844,7 +1920,7 @@ function applyOp(f, side, op, mul, ctx = {}) {
       }
       if (side === 'p') {
         f.dealt += total;
-        let leech = (op.leech || 0) + f.mod.leech;
+        let leech = (op.leech || 0) + f.mod.leech + (au.leech || 0);
         if (f.mod.lowLeech && f.p.hp < f.p.maxHp * 0.5) leech += f.mod.lowLeech;
         if (leech > 0) {
           const h = Math.round(total * leech);
@@ -1856,7 +1932,7 @@ function applyOp(f, side, op, mul, ctx = {}) {
     }
     case 'poison': {
       let v = op.v * mul;
-      if (side === 'p') v *= 1 + f.mod.dotAmp;
+      if (side === 'p') v *= (1 + f.mod.dotAmp) * (1 + (au.dot || 0));
       if (side === 'p' && f.mod.venom) { v *= 1 + f.mod.venom; v += 1; }
       target.poison = Math.max(target.poison, Math.round(v));
       target.poisonT = DOT_TURNS;
@@ -1864,14 +1940,14 @@ function applyOp(f, side, op, mul, ctx = {}) {
       break;
     }
     case 'burn': {
-      const v = Math.round(op.v * mul * (side === 'p' ? 1 + f.mod.dotAmp : 1));
+      const v = Math.round(op.v * mul * (side === 'p' ? (1 + f.mod.dotAmp) * (1 + (au.dot || 0)) : 1));
       target.burn = Math.max(target.burn, v);
       target.burnT = DOT_TURNS;
       ev.push({ s: side, k: 'burn', v, src: ctx.srcId });
       break;
     }
     case 'shield': {
-      const v = op.v * mul;
+      const v = op.v * mul * (side === 'p' ? 1 + (au.shd || 0) : 1);
       const cap = side === 'p' ? f.shieldCap : 60;
       self.shield = Math.min(cap, self.shield + v);
       ev.push({ s: side, k: 'shield', v: Math.round(v), src: ctx.srcId });
@@ -1879,7 +1955,7 @@ function applyOp(f, side, op, mul, ctx = {}) {
     }
     case 'heal': {
       let v = Math.round(op.v * mul);
-      if (side === 'p') v = Math.round(v * (1 + f.mod.healAmp));
+      if (side === 'p') v = Math.round(v * (1 + f.mod.healAmp) * (1 + (au.heal || 0)));
       self.hp = Math.min(self.maxHp, self.hp + v);
       ev.push({ s: side, k: 'heal', v, src: ctx.srcId });
       if (side === 'p' && f.mod.realmHeal) {
@@ -2008,10 +2084,10 @@ function stepFight(f) {
     f.cpu += got;
     f.cpuGain += got;
     ev.push({ s: 'p', k: 'cpu', v: got, waste: u.gen - got, uid: u.uid });
-    for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow, { srcId: u.uid }));
+    for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow, { srcId: u.uid, a: u.a }));
     // 追击档（最终法则 / 终式）：按这一档表里写的比例再打一次——不同流派追的东西不一样
     if (u.follow > 0) {
-      for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow * u.follow, { srcId: u.uid }));
+      for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow * u.follow, { srcId: u.uid, a: u.a }));
     }
     if (checkOver(f)) return ev;
   }
@@ -2025,13 +2101,13 @@ function stepFight(f) {
     f.cpu -= w.cost;
     f.cpuSpent += w.cost;
     w.timer = 0;
-    for (const op of w.op) ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid }));
+    for (const op of w.op) ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid, a: w.a }));
     // 回响：叠到超叠 / 终式之后，前几发开火各再结算一次（每场 echoLeft 次，用完为止）
     if (w.echoLeft > 0 && w.op.some((o) => o.k === 'echo')) {
       w.echoLeft -= 1;
       for (const op of w.op) {
         if (op.k !== 'dmg') continue;
-        ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid, echo: true }));
+        ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid, echo: true, a: w.a }));
       }
       ev.push({ s: 'p', k: 'echo', src: w.uid });
     }
@@ -2698,7 +2774,7 @@ const TUT = [
   { at: 'shop', t: '① 集市：一次六个选项，用金币招人、买命轮',
     d: '开局你只有 <b>32 金</b>，价钱不高：<b>1 格唤醒体 12 金 / 2 格 17 金 / 3 格 22 金</b>，命轮大致 <b>15~17 金</b>（越费算力越贵）。所以开局够招 <b>2 个 1 格唤醒体</b>，或者 <b>1 个唤醒体 + 1 条命轮</b>，还能剩点刷新钱。点卡面直接买，点左边小图标看详情。<b>第一个唤醒体会白送他的本命命轮</b>，所以先招人最稳。不想要这批货可以「刷新」（2 金起，当天越刷越贵）。上面那排是<b>界域选择</b>：挑了某一界，今天只出那一界的唤醒体和命轮（每天第一次免费，之后 1 金）。摊位里偶尔还会多一张金框的<b>「启灵 / 叠位」</b>卡——买它不占格、不进仓库，直接把已有的那张往上顶一档（唤醒体叫启灵，命轮叫叠位，每一档加什么按它自己的流派走）。' },
   { at: 'track', t: '② 战场：十五格，人和命轮共用',
-    d: '<b>唤醒体和命轮一起站在十五格里</b>：唤醒体占 1~3 格，命轮占 1~2 格（SSR 占 2）。<b>按住任何一个左右拖</b>可以换位置，人和命轮可以互相换。每个人头顶的圆圈数字是「还差几拍出手」。<b>光环给左右相邻的那两个——不管邻居是人还是命轮</b>：把有光环的唤醒体贴在命轮旁边，命轮就能更快、更省算力、更疼。每个唤醒体出手时除了产算力，还会<b>顺手打一下</b>（输出主力还是命轮）。<b>唤醒体分十二个流派，界域就决定「伤害怎么算」</b>：混沌直伤（狂乱叠力量、过载灌一发、爆燃盾后爆发）、血肉回复（噬血、血泉、血壁）、深海持续伤害（霜蚀冻伤、腐潮下毒、滞潮拖节拍）、超维多段（速律、虚隙、折跃都是分段连击）。卡片右上角就是流派名，先看清它是干嘛的再买。' },
+    d: '<b>唤醒体和命轮一起站在十五格里</b>：唤醒体占 1~3 格，命轮占 1~2 格（SSR 占 2）。<b>按住任何一个左右拖</b>可以换位置，人和命轮可以互相换。每个人头顶的圆圈数字是「还差几拍出手」。<b>光环给左右相邻的那两个——不管邻居是人还是命轮</b>：光环有 11 种（供能、节流、加速、增幅、锐锋、锐利、蚀刻、壁垒、生息、穿隙、汲血），同一个流派的人也不一样，买之前先看卡片上写的那一种，把对得上的贴在命轮旁边。每个唤醒体出手时除了产算力，还会<b>顺手打一下</b>（输出主力还是命轮）。<b>唤醒体分十二个流派，界域就决定「伤害怎么算」</b>：混沌直伤（狂乱叠力量、过载灌一发、爆燃盾后爆发）、血肉回复（噬血、血泉、血壁）、深海持续伤害（霜蚀冻伤、腐潮下毒、滞潮拖节拍）、超维多段（速律、虚隙、折跃都是分段连击）。卡片右上角就是流派名，先看清它是干嘛的再买。' },
   { at: 'cpuBar', t: '③ 算力：唤醒体产，命轮花',
     d: '这条蓝条是<b>算力</b>。唤醒体每隔几拍产一次算力（右边写着 产 X · 耗 Y），命轮开火要消耗算力。<b>产 ≥ 耗（绿色 +）</b>才够用；不够就去招更多人或「扩容」。上限满了产出会浪费。' },
   { at: 'wheels', t: '④ 命轮才是主要输出',
@@ -3066,7 +3142,7 @@ function renderShop() {
       <span class="cp ${run.gold < o.price ? 'no' : ''}">${o.price}</span>
       <span class="cn">${o.dup ? `<span class="dup">${o.kind === 'wheel' ? '叠位' : '启灵'}</span>` : ''}${def.n}</span>
       <span class="ct">${offerText(o, def)}</span>
-      <span class="r">${o.kind === 'hero' ? (def.archZh || '唤醒体') : o.kind === 'wheel' ? (def.archZh || '命轮') : (ITEM_ARCH_ZH[def.arch] || def.r)}</span>
+      <span class="r">${o.kind === 'hero' ? `${def.archZh || '唤醒体'} · ${AURA_ZH[def.aura.k] || ''}` : o.kind === 'wheel' ? (def.archZh || '命轮') : (ITEM_ARCH_ZH[def.arch] || def.r)}</span>
     </button>`;
   }).join('');
   const total = run.shop.filter((x) => !x.sold).length;

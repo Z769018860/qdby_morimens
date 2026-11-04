@@ -284,23 +284,25 @@ export function removeHero(run, hid) {
 // 每个位置从左右邻居那里吃到的光环（邻居是唤醒体才有光环）：人和命轮共用这一份，面板和实战不会错位
 //   gen  产出 +v（人）/ 开火耗算力 −2v（命轮）
 //   cd   节拍 −v（人 / 命轮都吃）
-//   pow  动作 / 命轮效果 +v（比例）
+//   pow  动作 / 命轮效果 +v（比例，乘在所有 op 上）
+//   dmg / dot / shd / heal / crit / pierce / leech  只乘对应的那一类 op（见 applyOp）
 export function auraMap(run) {
   const lay = layoutOf(run);
   const m = new Map();
   lay.forEach((e, i) => {
-    const o = { gen: 0, cd: 0, pow: 0 };
+    const o = { gen: 0, cost: 0, cd: 0, pow: 0, dmg: 0, dot: 0, shd: 0, heal: 0, crit: 0, pierce: 0, leech: 0 };
     for (const j of [i - 1, i + 1]) {
       const nb = lay[j];
       if (!nb || nb.kind !== 'hero' || !nb.def.aura) continue;
       const a = nb.def.aura;
       const r = Math.min(TUNING.rankMax, nb.rank | 0);
       // 超限之后光环本身也变强（哪个流派有这条，写在 HERO_RANKS 的 aura 字段上）：
-      // 产算力光环不放大（否则算力会重新过剩），只放大节拍（+1 整数档）和增幅（×1.5）。
+      // 产算力光环不放大（否则算力会重新过剩），节拍 +1 整数档，其余 ×1.5。
       const boost = !!rankStepOf(HERO_RANKS, nb.def.arch, r).aura;
       if (a.k === 'gen') o.gen += a.v;
+      else if (a.k === 'cost') o.cost += boost ? Math.round(a.v * 1.5) : a.v;
       else if (a.k === 'cd') o.cd += boost ? a.v + 1 : a.v;
-      else if (a.k === 'pow') o.pow += boost ? a.v * 1.5 : a.v;
+      else o[a.k] = (o[a.k] || 0) + a.v * (boost ? 1.5 : 1);
     }
     m.set(e.uid, o);
   });
@@ -317,7 +319,7 @@ const wheelStat = (d, au, cdTer, mod, rank = 0) => {
   const r = Math.min(TUNING.rankMax, rank | 0);
   const step = rankStepOf(WHEEL_RANKS, d.arch, r);
   return {
-    cost: Math.max(4, d.cpu - 2 * au.gen - (step.cost || 0)),
+    cost: Math.max(4, d.cpu - au.cost - (step.cost || 0)),
     wcd: Math.max(TUNING.wcdMin, d.wcd - au.cd + cdTer - mod.wcdDown - (step.wcd || 0)),
     pow: 1 + au.pow,
     op: rankOps(d.op, step),
@@ -903,13 +905,13 @@ export function createFight(run) {
         uid: e.uid, def: d, rank: e.rank || 0, timer: 0, act: hp.act, aura: d.aura, fired: 0,
         cd: Math.max(TUNING.cdMin, hp.cd - au.cd + cdTer - mod.herocd),
         gen: Math.max(1, Math.round((hp.gen + au.gen) * (1 + mod.gen))),
-        pow: (1 + au.pow) * hp.pow, follow: hp.follow || 0,
+        pow: (1 + au.pow) * hp.pow, follow: hp.follow || 0, a: au,
       });
     } else {
       const ws = wheelStat(e.def, au, cdTer, mod, e.rank || 0);
       wheels.push({
         uid: e.uid, def: e.def, rank: e.rank || 0, cost: ws.cost, wcd: ws.wcd, pow: ws.pow,
-        op: ws.op, echoLeft: ws.echo, follow: ws.follow,
+        op: ws.op, echoLeft: ws.echo, follow: ws.follow, a: au,
         timer: 0, native: !!e.native, waiting: false,
       });
     }
@@ -976,12 +978,12 @@ function hurt(f, target, amount, pierce = 0) {
   return lost;
 }
 
-// 我方伤害：kind='wheel' 才吃「命轮增伤」
-function rollDamage(f, base, kind) {
+// 我方伤害：kind='wheel' 才吃「命轮增伤」；au 是站位吃到的光环（暴击 / 伤害加成）
+function rollDamage(f, base, kind, au = {}) {
   let raw = base + f.mod.flat + f.p.str * 0.5;
   raw *= 1 + (kind === 'wheel' ? f.mod.amp : 0) + f.terAmp + (f.mod.burst || 0);
   if (f.p.weakT > 0) raw *= 1 - f.p.weak;
-  const crit = f.rnd() < Math.min(0.65, f.mod.crit);
+  const crit = f.rnd() < Math.min(0.75, f.mod.crit + (au.crit || 0));
   if (crit) raw *= 1.5 + f.mod.cdmg;
   if (f.e.vulnT > 0) raw *= 1 + f.e.vuln;
   return { raw, crit };
@@ -990,6 +992,7 @@ function rollDamage(f, base, kind) {
 function applyOp(f, side, op, mul, ctx = {}) {
   const ev = [];
   const src = ctx.src || {};
+  const au = ctx.a || {};
   const target = side === 'p' ? f.e : f.p;
   const self = side === 'p' ? f.p : f.e;
 
@@ -1000,8 +1003,10 @@ function applyOp(f, side, op, mul, ctx = {}) {
       const execute = side === 'p' && op.execute && target.hp <= target.maxHp * op.execute ? 1.8 : 1;
       // 多段共鸣：每一段都加一点，所以拆得越碎赚得越多（三段吃三份、一段只吃一份）
       const seg = side === 'p' && f.mod.multi ? 1 + f.mod.multi * hits : 1;
+      // 伤害类光环：只放大伤害本身，不加毒也不加盾
+      const dmgAura = 1 + (au.dmg || 0);
       const pierce = side === 'p'
-        ? (op.pierce != null ? op.pierce : (ctx.kind === 'wheel' ? f.mod.pierce : 0))
+        ? (op.pierce != null ? op.pierce : (ctx.kind === 'wheel' ? f.mod.pierce : 0)) + (au.pierce || 0)
         : 0;
       let total = 0;
       let anyCrit = false;
@@ -1009,7 +1014,7 @@ function applyOp(f, side, op, mul, ctx = {}) {
         let raw;
         let crit = false;
         if (side === 'p') {
-          const r = rollDamage(f, op.v * mul * execute * seg, ctx.kind);
+          const r = rollDamage(f, op.v * mul * execute * seg * dmgAura, ctx.kind, au);
           raw = r.raw; crit = r.crit;
           hurt(f, target, raw, pierce);
         } else {
@@ -1027,7 +1032,7 @@ function applyOp(f, side, op, mul, ctx = {}) {
       }
       if (side === 'p') {
         f.dealt += total;
-        let leech = (op.leech || 0) + f.mod.leech;
+        let leech = (op.leech || 0) + f.mod.leech + (au.leech || 0);
         if (f.mod.lowLeech && f.p.hp < f.p.maxHp * 0.5) leech += f.mod.lowLeech;
         if (leech > 0) {
           const h = Math.round(total * leech);
@@ -1039,7 +1044,7 @@ function applyOp(f, side, op, mul, ctx = {}) {
     }
     case 'poison': {
       let v = op.v * mul;
-      if (side === 'p') v *= 1 + f.mod.dotAmp;
+      if (side === 'p') v *= (1 + f.mod.dotAmp) * (1 + (au.dot || 0));
       if (side === 'p' && f.mod.venom) { v *= 1 + f.mod.venom; v += 1; }
       target.poison = Math.max(target.poison, Math.round(v));
       target.poisonT = DOT_TURNS;
@@ -1047,14 +1052,14 @@ function applyOp(f, side, op, mul, ctx = {}) {
       break;
     }
     case 'burn': {
-      const v = Math.round(op.v * mul * (side === 'p' ? 1 + f.mod.dotAmp : 1));
+      const v = Math.round(op.v * mul * (side === 'p' ? (1 + f.mod.dotAmp) * (1 + (au.dot || 0)) : 1));
       target.burn = Math.max(target.burn, v);
       target.burnT = DOT_TURNS;
       ev.push({ s: side, k: 'burn', v, src: ctx.srcId });
       break;
     }
     case 'shield': {
-      const v = op.v * mul;
+      const v = op.v * mul * (side === 'p' ? 1 + (au.shd || 0) : 1);
       const cap = side === 'p' ? f.shieldCap : 60;
       self.shield = Math.min(cap, self.shield + v);
       ev.push({ s: side, k: 'shield', v: Math.round(v), src: ctx.srcId });
@@ -1062,7 +1067,7 @@ function applyOp(f, side, op, mul, ctx = {}) {
     }
     case 'heal': {
       let v = Math.round(op.v * mul);
-      if (side === 'p') v = Math.round(v * (1 + f.mod.healAmp));
+      if (side === 'p') v = Math.round(v * (1 + f.mod.healAmp) * (1 + (au.heal || 0)));
       self.hp = Math.min(self.maxHp, self.hp + v);
       ev.push({ s: side, k: 'heal', v, src: ctx.srcId });
       if (side === 'p' && f.mod.realmHeal) {
@@ -1191,10 +1196,10 @@ export function stepFight(f) {
     f.cpu += got;
     f.cpuGain += got;
     ev.push({ s: 'p', k: 'cpu', v: got, waste: u.gen - got, uid: u.uid });
-    for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow, { srcId: u.uid }));
+    for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow, { srcId: u.uid, a: u.a }));
     // 追击档（最终法则 / 终式）：按这一档表里写的比例再打一次——不同流派追的东西不一样
     if (u.follow > 0) {
-      for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow * u.follow, { srcId: u.uid }));
+      for (const op of u.act) ev.push(...applyOp(f, 'p', op, u.pow * u.follow, { srcId: u.uid, a: u.a }));
     }
     if (checkOver(f)) return ev;
   }
@@ -1208,13 +1213,13 @@ export function stepFight(f) {
     f.cpu -= w.cost;
     f.cpuSpent += w.cost;
     w.timer = 0;
-    for (const op of w.op) ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid }));
+    for (const op of w.op) ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid, a: w.a }));
     // 回响：叠到超叠 / 终式之后，前几发开火各再结算一次（每场 echoLeft 次，用完为止）
     if (w.echoLeft > 0 && w.op.some((o) => o.k === 'echo')) {
       w.echoLeft -= 1;
       for (const op of w.op) {
         if (op.k !== 'dmg') continue;
-        ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid, echo: true }));
+        ev.push(...applyOp(f, 'p', op, w.pow || 1, { kind: 'wheel', srcId: w.uid, echo: true, a: w.a }));
       }
       ev.push({ s: 'p', k: 'echo', src: w.uid });
     }

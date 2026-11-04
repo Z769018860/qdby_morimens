@@ -4,13 +4,15 @@
 // 之所以分成两份：三百多 KB 的客户端表是生成物，别手改；难度、曲线、地形这些是设计，要能一眼看见。
 
 import { HEROES as G_HEROES, ITEMS as G_ITEMS, WHEELS as G_WHEELS, PACTS as G_PACTS, FOES as G_FOES, SHEETS as G_SHEETS } from './bazaar-gen.js';
-import { designHeroes, designWheels, designItems, ARCH as ARCH_RAW, ARCH_ZH as ARCH_ZH_RAW, WARCH as WARCH_RAW, REALM_TRAIT as REALM_TRAIT_RAW, HERO_RANKS as HERO_RANKS_RAW, WHEEL_RANKS as WHEEL_RANKS_RAW } from './bazaar-arch.js';
+import { designHeroes, designWheels, designItems, ARCH as ARCH_RAW, ARCH_ZH as ARCH_ZH_RAW, WARCH as WARCH_RAW, REALM_TRAIT as REALM_TRAIT_RAW, HERO_RANKS as HERO_RANKS_RAW, WHEEL_RANKS as WHEEL_RANKS_RAW, AURA_SHORT as AURA_SHORT_RAW } from './bazaar-arch.js';
 
 export const SHEETS = G_SHEETS;
 // 流派（设计层，见 js/bazaar-arch.js）：唤醒体 12 个、命轮 13 个机制族、造物按机制分。
 export const ARCH = ARCH_RAW;
 export const WARCH = WARCH_RAW;
 export const ARCH_ZH = ARCH_ZH_RAW;
+// 光环的短名（卡片角标用）：11 种，见 js/bazaar-arch.js
+export const AURA_SHORT = AURA_SHORT_RAW;
 // 界域特性：同界域 2 / 3 / 4 人三档共鸣
 export const REALM_TRAIT = REALM_TRAIT_RAW;
 // 唤醒体的五档叫「启灵」；命轮的五档叫「叠位」——命轮不是觉醒，是这条轮盘又叠了一层。
@@ -81,7 +83,7 @@ export const TUNING = {
   wcdMin: 3,
   // 每天的血量预算 / 目标强度 / 收入。以 12 天为基准调出来，后面按同一斜率外推。
   dayHp: LATE_SCALE(RAW_DAY_HP, 1.63),
-  dayDps: LATE_SCALE(RAW_DAY_DPS, 1.34),
+  dayDps: LATE_SCALE(RAW_DAY_DPS, 1.16),
   income: [0, 15, 15, 14, 13, 13, 13, 13, 13, 13, 13, 14, 15, 15, 16, 16, 17, 17, 18],
 };
 
@@ -91,8 +93,8 @@ export const DIFFS = [
     desc: '12 天，3 点理智。前四天只有普通怪，首领从第九天开始露面。' },
   { id: 'hard', n: '艰难', days: 12, dps: 1.02, hp: 1.0, income: 1.0, sane: 2, pole: 1,
     desc: '12 天，2 点理智。精英提前到第三天，第七天就有首领。' },
-  { id: 'nightmare', n: '噩梦', days: 15, dps: 1.02, hp: 1.04, income: 0.92, sane: 4, pole: 1.5,
-    desc: '15 天，4 点理智，收入 -8%。第二天起就会撞上精英，敌人也比寻常更硬。' },
+  { id: 'nightmare', n: '噩梦', days: 15, dps: 1.02, hp: 1.04, income: 0.98, sane: 4, pole: 1.5,
+    desc: '15 天，4 点理智，收入 -2%。第二天起就会撞上精英，敌人也比寻常更硬。' },
   { id: 'abyss', n: '深渊', days: 18, dps: 1.07, hp: 1.09, income: 0.82, sane: 5, pole: 2,
     desc: '18 天，5 点理智，收入 -18%。精英从第三天就露头，第十天之后全是首领。' },
 ];
@@ -132,7 +134,8 @@ export const MOD_ZH = {
   hp: ['生命上限', '+', ''],
 };
 
-export const AURA_ZH = { gen: '供能', cd: '加速', pow: '增幅' };
+// 光环短名（卡片角标 / 图例用）：11 种，完整句子由设计层的 auraOf / auraText 生成
+export const AURA_ZH = AURA_SHORT_RAW;
 
 // ---------------------------------------------------------------- 地形
 // 对双方同时生效：敌我都在同一片地上打，所以没有「只坑玩家」的地形。

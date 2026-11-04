@@ -33,7 +33,13 @@ if (process.env.DUP != null) TUNING.dupRate = Number(process.env.DUP);
 
 // 一个唤醒体每拍产多少算力（含自己能给邻位的部分估个半价）
 const heroRate = (h) => h.gen / h.cd;
-const heroAura = (h) => (h.aura ? (h.aura.k === 'gen' ? h.aura.v * 0.5 : h.aura.k === 'cd' ? 0.5 : 0.3) : 0);
+// 光环也是钱：按各自的量纲折成「等效产出」。这 10 种在玩家眼里价值不同，
+// 机器人要是只会认 gen / cd / pow，新加的防御型光环就会被白白错过。
+const AURA_W = {
+  gen: 0.5, cost: 0.06, cd: 0.5, pow: 1.6, dmg: 1.2, crit: 3,
+  dot: 0.9, shd: 0.8, heal: 0.8, pierce: 0.9, leech: 1.5,
+};
+const heroAura = (h) => (h.aura ? h.aura.v * (AURA_W[h.aura.k] || 0.3) : 0);
 // 出手的副效果也算钱：盾 / 奶是保命，毒 / 灼烧 / 力量 / 易伤 / 减速是输出曲线
 const actValue = (a) => {
   switch (a.k) {

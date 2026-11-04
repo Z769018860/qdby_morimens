@@ -17,6 +17,82 @@ const TIER = {
   mul: [1, 1.85, 2.9],
 };
 
+// ---------------------------------------------------------------- 光环
+// 光环是「只喂左右相邻两家」的加成。原来一个流派共用一种（全游戏只有「多产算力 +1」
+// 和「节拍 -1」两句），挑人时看不出差别。现在按类型拆成 10 种，每个流派各排 5 个变体，
+// 按成员序号轮着发——同一个流派里，同占格的两个唤醒体不会再拿到一模一样的光环。
+//   gen    相邻唤醒体每次多产 v 算力
+//   cost   相邻命轮开火少耗 v 算力
+//   cd     相邻节拍 -v
+//   pow    相邻动作 / 命轮效果 +v
+//   dmg    相邻伤害 +v
+//   crit   相邻暴击率 +v
+//   dot    相邻施加的中毒 / 冻伤 +v
+//   shd    相邻护盾 +v
+//   heal   相邻治疗 +v
+//   pierce 相邻命轮的开火穿盾 +v（给人是伤害穿盾，一样生效）
+//   leech  相邻单位造成伤害的 v 回血
+const AURA_V = {
+  gen: [1, 2, 2],
+  cost: [3, 4, 5],
+  cd: [1, 1, 2],
+  pow: [0.30, 0.38, 0.46],
+  dmg: [0.26, 0.34, 0.42],
+  crit: [0.13, 0.17, 0.22],
+  dot: [0.30, 0.42, 0.56],
+  shd: [0.34, 0.48, 0.62],
+  heal: [0.34, 0.48, 0.62],
+  pierce: [0.15, 0.22, 0.30],
+  leech: [0.10, 0.15, 0.20],
+};
+export const AURA_SHORT = {
+  gen: '供能', cost: '节流', cd: '加速', pow: '增幅', dmg: '锐锋', crit: '锐利',
+  dot: '蚀刻', shd: '壁垒', heal: '生息', pierce: '穿隙', leech: '汲血',
+};
+const AURA_ZH = {
+  gen: (v) => `相邻唤醒体每次多产 ${v} 算力`,
+  cost: (v) => `相邻命轮开火少耗 ${v} 算力`,
+  cd: (v) => `相邻单位的节拍 -${v}`,
+  pow: (v) => `相邻单位的动作效果 +${Math.round(v * 100)}%`,
+  dmg: (v) => `相邻单位的伤害 +${Math.round(v * 100)}%`,
+  crit: (v) => `相邻单位的暴击率 +${Math.round(v * 100)}%`,
+  dot: (v) => `相邻单位的中毒与冻伤 +${Math.round(v * 100)}%`,
+  shd: (v) => `相邻单位的护盾 +${Math.round(v * 100)}%`,
+  heal: (v) => `相邻单位的治疗 +${Math.round(v * 100)}%`,
+  pierce: (v) => `相邻命轮的开火穿盾 +${Math.round(v * 100)}%`,
+  leech: (v) => `相邻单位造成伤害的 ${Math.round(v * 100)}% 回血`,
+};
+export function auraOf(k, tier) {
+  const base = AURA_V[k] || AURA_V.pow;
+  const v = base[Math.min(2, Math.max(0, tier))];
+  return { k, v };
+}
+export const auraText = (k, v) => (AURA_ZH[k] || AURA_ZH.pow)(v);
+
+// 流派 → 5 个光环变体（按成员序号轮发）。第一个是这一派的招牌，其余按「这个流派
+// 玩家会想怎么搭」往后排：直伤派给暴击 / 供能，回复派给护盾 / 治疗，毒派给蚀刻。
+// 数字是相对强度：护盾、治疗、蚀刻这些窄效果给足一点，通用增幅压一点。
+const AURAS = {
+  berserk: [['pow', 1], ['dmg', 1], ['crit', 1], ['leech', 1], ['gen', 1]],
+  // 9 个人，按占格分组排满：2 格的三个人（0/3/6）与 1 格的六个人（1/2/4/5/7/8）各用各的，
+  // 否则同占格的两个人会拿到一模一样的光环。
+  overload: [['cost', 1], ['dmg', 1.1], ['crit', 1.1], ['pow', 1], ['cd', 1],
+    ['pierce', 1], ['shd', 1], ['gen', 1], ['leech', 1]],
+  blast: [['shd', 1], ['pierce', 1], ['pow', 1], ['dmg', 0.95], ['heal', 1]],
+
+  leech: [['dmg', 1], ['leech', 1.1], ['heal', 1], ['crit', 1], ['pierce', 1]],
+  tide: [['heal', 1], ['shd', 1], ['leech', 0.9], ['pow', 0.9], ['cost', 1]],
+  bulwark: [['shd', 1.1], ['heal', 0.9], ['cd', 1], ['pow', 1], ['leech', 1]],
+
+  frost: [['dot', 1], ['pow', 1], ['crit', 1], ['dmg', 0.9], ['heal', 1]],
+  venom: [['dot', 1.1], ['gen', 1], ['heal', 1], ['shd', 1], ['leech', 1], ['crit', 1], ['dmg', 0.95]],
+  slowtide: [['dot', 0.9], ['cd', 1], ['shd', 1], ['gen', 1], ['heal', 1]],
+
+  haste: [['cd', 1], ['crit', 1.2], ['cost', 1], ['dmg', 1], ['pow', 0.9]],
+  vuln: [['crit', 1.1], ['pow', 1], ['dmg', 0.95], ['pierce', 1], ['cd', 1]],
+  phase: [['pierce', 1.1], ['crit', 1.15], ['shd', 1], ['leech', 1], ['pow', 1]],
+};
+
 // ---------------------------------------------------------------- 唤醒体流派
 // 一个流派 = 一种打法：谁负责叠力量、谁负责下毒、谁负责把对面节拍拖慢。
 // act(s) 里的 s 是占格倍率；光环按格数微调（大个子光环更强，但更贵、更占地方）。
@@ -26,7 +102,6 @@ export const ARCH = {
     n: '狂乱', realm: 'CHAOS', type: 'ASSAULT', tag: '叠力量',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'dmg', v: r1(4.25 * s) }, { k: 'str', v: r2(0.45 * s) }],
-    aura: { k: 'pow', v: [0.24, 0.30, 0.38] },
     fate: { k: 'amp', v: 0.08 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，本场每次伤害 +${a[1].v}（可叠加）。`,
   },
@@ -34,7 +109,6 @@ export const ARCH = {
     n: '过载', realm: 'CHAOS', type: 'CHORUS', tag: '榨算力换一发',
     genOff: 1, cdOff: 0,
     act: (s) => [{ k: 'dmg', v: r1(3.6 * s) }],
-    aura: { k: 'gen', v: [1, 1, 2] },
     fate: { k: 'gen', v: 0.08 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，再把算力灌成一发 ${a[0].v} 点直伤（不分段，全砸在一起）。`,
   },
@@ -42,7 +116,6 @@ export const ARCH = {
     n: '爆燃', realm: 'CHAOS', type: 'WARDEN', tag: '盾后爆发',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'shield', v: r1(6 * s) }, { k: 'dmg', v: r1(2.2 * s) }],
-    aura: { k: 'cd', v: [1, 1, 1] },
     fate: { k: 'amp', v: 0.07 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，烧出 ${Math.round(a[0].v)} 点护盾，并撞出 ${a[1].v} 点直伤。`,
   },
@@ -52,7 +125,6 @@ export const ARCH = {
     n: '噬血', realm: 'CARO', type: 'ASSAULT', tag: '吸血',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'dmg', v: r1(3.8 * s), leech: 0.35 }],
-    aura: { k: 'gen', v: [1, 1, 1] },
     fate: { k: 'leech', v: 0.06 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，并把这发的 35% 吸回自己身上。`,
   },
@@ -60,7 +132,6 @@ export const ARCH = {
     n: '血泉', realm: 'CARO', type: 'CHORUS', tag: '回血续航',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'heal', v: r1(3.2 * s) }, { k: 'shield', v: r1(3.6 * s) }],
-    aura: { k: 'gen', v: [1, 1, 1] },
     fate: { k: 'regen', v: 1.5 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，回复 ${Math.round(a[0].v)} 点生命，并架起 ${Math.round(a[1].v)} 点护盾。`,
   },
@@ -68,7 +139,6 @@ export const ARCH = {
     n: '血壁', realm: 'CARO', type: 'WARDEN', tag: '护盾',
     genOff: -1, cdOff: 0,
     act: (s) => [{ k: 'shield', v: r1(6.5 * s) }, { k: 'dmg', v: r1(1.2 * s) }],
-    aura: { k: 'cd', v: [1, 1, 1] },
     fate: { k: 'shcap', v: 8 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并撞出 ${a[1].v} 点伤害。`,
   },
@@ -78,7 +148,6 @@ export const ARCH = {
     n: '霜蚀', realm: 'AEQUOR', type: 'ASSAULT', tag: '冻伤',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'dmg', v: r1(1.9 * s) }, { k: 'burn', v: Math.round(1.2 * s) }],
-    aura: { k: 'pow', v: [0.22, 0.26, 0.32] },
     fate: { k: 'crit', v: 0.04 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，造成 ${a[0].v} 点伤害，并给对手挂上 ${a[1].v} 层冻伤。`,
   },
@@ -86,7 +155,6 @@ export const ARCH = {
     n: '腐潮', realm: 'AEQUOR', type: 'CHORUS', tag: '下毒',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'poison', v: Math.round(1.6 * s) }, { k: 'dmg', v: r1(1.1 * s) }],
-    aura: { k: 'pow', v: [0.22, 0.28, 0.34] },
     fate: { k: 'venom', v: 0.12 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，施加 ${a[0].v} 层中毒，并补 ${a[1].v} 点伤害。`,
   },
@@ -94,7 +162,6 @@ export const ARCH = {
     n: '滞潮', realm: 'AEQUOR', type: 'WARDEN', tag: '毒 + 拖节拍',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'poison', v: Math.round(1.1 * s) }, { k: 'slow', v: r2(0.4 * s) }],
-    aura: { k: 'cd', v: [1, 1, 1] },
     fate: { k: 'fear', v: 0.05 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，下 ${a[0].v} 层中毒，并让对手的技能延后 ${a[1].v} 拍。`,
   },
@@ -104,7 +171,6 @@ export const ARCH = {
     n: '速律', realm: 'ULTRA', type: 'ASSAULT', tag: '快节拍连击',
     genOff: -1, cdOff: -1,
     act: (s) => [{ k: 'dmg', v: r1(0.95 * s), hits: 3 }, { k: 'str', v: r2(0.15 * s) }],
-    aura: { k: 'cd', v: [1, 1, 1] },
     fate: { k: 'crit', v: 0.04 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，连打三次、每次 ${a[0].v} 点，本场每次伤害 +${a[1].v}。节拍比别人快一拍。`,
   },
@@ -112,7 +178,6 @@ export const ARCH = {
     n: '虚隙', realm: 'ULTRA', type: 'CHORUS', tag: '易伤 + 连击',
     genOff: 1, cdOff: 0,
     act: (s) => [{ k: 'vuln', v: r2(0.07 * s) }, { k: 'dmg', v: r1(0.45 * s), hits: 2 }],
-    aura: { k: 'pow', v: [0.24, 0.30, 0.36] },
     fate: { k: 'amp', v: 0.06 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，让对手易伤 +${Math.round(a[0].v * 100)}%（3 拍），并连打两次、每次 ${a[1].v} 点。`,
   },
@@ -120,7 +185,6 @@ export const ARCH = {
     n: '折跃', realm: 'ULTRA', type: 'WARDEN', tag: '穿盾连击',
     genOff: 0, cdOff: 0,
     act: (s) => [{ k: 'shield', v: r1(6 * s) }, { k: 'dmg', v: r1(0.48 * s), hits: 3, pierce: 1 }],
-    aura: { k: 'pow', v: [0.18, 0.22, 0.28] },
     fate: { k: 'pierce', v: 0.15 },
     txt: (g, cd, a) => `每 ${cd} 拍：产出 ${g} 算力，架起 ${Math.round(a[0].v)} 点护盾，并穿盾连打三次、每次 ${a[1].v} 点。`,
   },
@@ -403,10 +467,14 @@ export function designHeroes(heroes) {
     const gen = Math.max(1, TIER.gen[t - 1] + arch.genOff);
     const cd = Math.max(2, TIER.cd[t - 1] + arch.cdOff);
     const act = arch.act(s);
-    const av = arch.aura.v[t - 1];
-    const auraTxt = arch.aura.k === 'gen' ? `相邻单位每次多产 ${av} 算力`
-      : arch.aura.k === 'cd' ? `相邻单位的节拍 -${av}`
-        : `相邻单位的动作效果 +${Math.round(av * 100)}%`;
+    // 光环按流派内序号轮发 5 个变体：i%5 与占格周期（1/2/3 循环、或 3/2 交替）互质，
+    // 所以同一个流派里不会出现「同占格、同光环」的两个人。
+    const list = AURAS[id] || AURAS.berserk;
+    const seq = list[i % list.length];
+    const au = auraOf(seq[0], t - 1);
+    const av = (au.k === 'gen' || au.k === 'cd' || au.k === 'cost')
+      ? Math.max(1, Math.round(au.v * seq[1]))
+      : r2(au.v * seq[1]);
     return {
       ...h,
       arch: id,
@@ -417,8 +485,8 @@ export function designHeroes(heroes) {
       cd,
       act,
       txt: arch.txt(gen, cd, act),
-      aura: { k: arch.aura.k, v: av },
-      auraTxt,
+      aura: { k: au.k, v: av },
+      auraTxt: auraText(au.k, av),
       fate: { ...h.fate, k: arch.fate.k, v: arch.fate.v },
     };
   });
