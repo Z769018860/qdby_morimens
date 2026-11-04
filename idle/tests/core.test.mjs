@@ -4148,3 +4148,161 @@ test('树海：整份进度能进云存档（序列化 → 迁移 → 接着打�
   T.pickBranch(round, r2, 0);
   assert.ok(r2.kind, '迁移后还能继续选路');
 });
+
+test('树海分队：选哪支，这一趟的规矩就不一样', async () => {
+  const T = await import('../src/core/treerun.js');
+  // 全员拥有，按价格从便宜到贵挑，方便凑出「刚好在预算内」的人数
+  const all = data.awakeners.map((a) => a.slug);
+  const mk = (seed) => {
+    const s = newState(data, seed);
+    for (const sl of all) s.roster[sl] = { lv: 50, star: 0, brk: 3 };
+    return s;
+  };
+  const cheap = [...all].sort((x, y) => T.priceOf(data, x, 0) - T.priceOf(data, y, 0));
+  // 按这一支分队的预算贪心挑人：不超支、不超过 n 个
+  const pickN = (s, n, squad) => {
+    const caps = T.draftCaps(s, squad);
+    const out = [];
+    let spent = 0;
+    for (const sl of cheap) {
+      if (out.length >= n) break;
+      const p = T.priceOf(data, sl, caps.recruit);
+      if (spent + p > caps.budget) continue;
+      out.push(sl); spent += p;
+    }
+    return out;
+  };
+
+  // 后勤：预算 +30、招募 -20%、初始余晖 -15
+  const a = mk(40);
+  const ra = T.startRun(a, data, 'dim', pickN(a, 4, 's_logi'), 's_logi');
+  assert.ok(ra.run, ra.err);
+  assert.equal(ra.run.budget, T.TREE_BUDGET + 30, '后勤要多给 30 黑露');
+  assert.equal(ra.run.glow, 40 + 12, '后勤补给箱里带 12 余晖');
+  assert.equal(ra.run.squad, 's_logi');
+
+  // 前锋：可上 5 人，但全队生命 -12%
+  const b = mk(41);
+  const rb = T.startRun(b, data, 'dim', pickN(b, 5, 's_front'), 's_front');
+  assert.ok(rb.run, rb.err);
+  assert.equal(T.teamMax(rb.run), 5, '前锋能上 5 个人');
+  assert.equal(rb.run.slugs.length, 5);
+  const hpB = T.allyDefsOf(b, data, rb.run)[0].hp;
+  const c = mk(42);
+  const rc = T.startRun(c, data, 'dim', pickN(c, 4, 's_scav'), 's_scav');
+  assert.ok(rc.run, rc.err);
+  assert.ok(rb.run.hpMod < 0 && hpB < T.allyDefsOf(c, data, rc.run)[0].hp, '前锋的全队生命要更低');
+  assert.ok(rc.run.glowPerWin > 0 && rc.run.scoreMod > 0, '拾荒要带每胜余晖与结算加成');
+
+  // 漂泊：仓库 10 人、开局多一次重掷
+  const d = mk(43);
+  const rd = T.startRun(d, data, 'dim', pickN(d, 6, 's_free'), 's_free');
+  assert.ok(rd.run, rd.err);
+  assert.equal(T.poolCap(rd.run), 10, '漂泊的仓库要能装 10 人');
+  assert.equal(rd.run.reroll, 2);
+  // 换一支分队重开：上一次的分队不残留
+  const re = T.startRun(d, data, 'dim', pickN(d, 3, 's_hunt'), 's_hunt');
+  assert.ok(re.run, re.err);
+  assert.equal(re.run.squad, 's_hunt');
+  assert.equal(T.poolCap(re.run), T.POOL_MAX);
+  assert.ok((re.run.gear.pool || []).length === 2, '猎手开局带 2 件装备');
+});
+
+test('树海天赋：枝杈改的是规则（岔路条数 / 装备槽 / 留手）', async () => {
+  const T = await import('../src/core/treerun.js');
+  const s = newState(data, 44);
+  const st = T.treeState(s);
+  const all = data.awakeners.map((a) => a.slug);
+  for (const sl of all) s.roster[sl] = { lv: 50, star: 0, brk: 3 };
+  const cheap = [...all].sort((x, y) => T.priceOf(data, x, 0) - T.priceOf(data, y, 0));
+  const pickN = (st2, n, squad) => {
+    const caps = T.draftCaps(st2, squad);
+    const out = [];
+    let spent = 0;
+    for (const sl of cheap) {
+      if (out.length >= n) break;
+      const p = T.priceOf(data, sl, caps.recruit);
+      if (spent + p > caps.budget) continue;
+      out.push(sl); spent += p;
+    }
+    return out;
+  };
+
+  st.tp = 20;
+  assert.ok(T.buyTalent(s, 'b_paths').ok);
+  assert.ok(T.buyTalent(s, 'b_pack').ok);
+  const { run } = T.startRun(s, data, 'dim', pickN(s, 4, 's_scav'), 's_scav');
+  assert.ok(run);
+  assert.equal(run.paths, 3, '岔路生枝 → 每步三条路');
+  assert.equal(run.branch.length, 3);
+  assert.equal(run.pack, 1);
+  assert.equal(T.gearLimit(run, 'pact'), T.GEAR_LIMIT.pact + 1, '行囊加层要把契约槽顶到 4');
+
+  // 留手：全队倒下时不结束，原地以 35% 生命站起，且只保一次
+  const s2 = newState(data, 45);
+  const st2 = T.treeState(s2);
+  for (const sl of all) s2.roster[sl] = { lv: 50, star: 0, brk: 3 };
+  st2.tp = 20;
+  assert.equal(T.buyTalent(s2, 'b_mercy').ok, false, '没点前置不能点「留手」');
+  for (const id of ['b_paths', 'b_pack', 'b_reroll', 'b_mercy']) assert.ok(T.buyTalent(s2, id).ok, id);
+  const r2 = T.startRun(s2, data, 'dim', pickN(s2, 4, 's_scav'), 's_scav').run;
+  assert.ok(r2);
+  assert.equal(r2.mercy, 1);
+  for (const sl of r2.pool) r2.hp[sl] = 0;
+  const res = T.applyBattle(s2, data, r2, { win: false, allies: [], kills: 0, rounds: 9, roundLimit: 20 });
+  assert.equal(res.mercy, true, '第一次全灭要被「留手」接住');
+  assert.equal(st2.cur, r2, '这一趟不能结束');
+  assert.equal(r2.mercy, 0, '免死只能用一次');
+  assert.ok(r2.slugs.every((x) => r2.hp[x] === 0.35), '要以 35% 生命站起来');
+  // 第二次全灭就是真的结束
+  for (const sl of r2.pool) r2.hp[sl] = 0;
+  const res2 = T.applyBattle(s2, data, r2, { win: false, allies: [], kills: 0, rounds: 9, roundLimit: 20 });
+  assert.equal(res2.lost, true);
+  assert.equal(st2.cur, null);
+});
+
+test('树海通用唤醒券：四个界域通吃，但先扣专用券', async () => {
+  const T = await import('../src/core/treerun.js');
+  const { useAwakenVoucher, universalOf } = await import('../src/core/game.js');
+  const s = newState(data, 46);
+  const st = T.treeState(s);
+  // 5 级奖励里有一张通用券
+  st.pts = T.TREE_LEVELS[4].need;
+  const rw = T.claimTreeLevel(s, 5);
+  assert.ok(rw && rw.vouchers.includes('awaken:ANY'), '5 级要给通用唤醒券');
+  assert.equal(universalOf(s), 1);
+
+  const aeq = data.awakeners.find((a) => a.realm === 'AEQUOR' && !s.roster[a.slug]);
+  const r = useAwakenVoucher(s, aeq.slug, data, 'ANY');
+  assert.ok(r && r.used === 'univ', '手上只有通用券时用它');
+  assert.equal(universalOf(s), 0);
+  assert.equal(r.realm, 'AEQUOR');
+
+  // 有专用券时先扣专用券，通用券留着
+  s.vouchers.univ = 1;
+  s.vouchers.awaken.AEQUOR = 1;
+  const aeq2 = data.awakeners.find((a) => a.realm === 'AEQUOR' && !s.roster[a.slug]);
+  const r2 = useAwakenVoucher(s, aeq2.slug, data, 'ANY');
+  assert.ok(r2 && r2.used === 'awaken', '先扣界域券');
+  assert.equal(s.vouchers.awaken.AEQUOR, 0);
+  assert.equal(universalOf(s), 1, '通用券不能动');
+
+  // 黑市能上架通用券（深根 / 黑流之心）
+  const s2 = newState(data, 47);
+  const all = data.awakeners.map((a) => a.slug);
+  for (const sl of all) s2.roster[sl] = { lv: 50, star: 0, brk: 3 };
+  const cheap = [...all].sort((x, y) => T.priceOf(data, x, 0) - T.priceOf(data, y, 0));
+  const team = [];
+  let spent = 0;
+  for (const sl of cheap) { if (team.length >= 4) break; const p = T.priceOf(data, sl, 0); if (spent + p > T.TREE_BUDGET) continue; team.push(sl); spent += p; }
+  const run = T.startRun(s2, data, 'root', team, 's_scav').run;
+  assert.ok(run);
+  let sawUniv = false;
+  for (let i = 0; i < 40 && !sawUniv; i++) {
+    run.act = 2; run.node = i % 9; run.seen = {};
+    const stock = T.shopStock(s2, run, data);
+    if (stock.some((x) => x.voucher === 'awaken:ANY')) sawUniv = true;
+  }
+  assert.ok(sawUniv, '深根黑市应该会出通用券');
+});
+

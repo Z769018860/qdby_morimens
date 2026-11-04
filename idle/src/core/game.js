@@ -67,9 +67,11 @@ export function indexData(pack) {
   return d;
 }
 
-// ---------- 唤醒券：按界域分开 ----------
-// 唤醒券不是「一张万能券」：混沌 / 血肉 / 深海 / 超维各一种，只能唤醒对应界域的角色。
-// 用固定四键存（老存档 migrate 时把数字当成血肉券），读的时候不用防缺项。
+// ---------- 唤醒券：按界域分开，另有通用券 ----------
+// 混沌 / 血肉 / 深海 / 超维各一种界域券，只能唤醒对应界域的角色；
+// 另有「通用唤醒券」：任意界域都能换，但用的时候**先扣对应界域的券**，界域券空了才动它——
+// 灵活的东西留在手上，别让专用券烂在库里。
+// 界域券用固定四键存（老存档 migrate 时把数字当成血肉券），读的时候不用防缺项。
 export function emptyAwaken() { return Object.fromEntries(Object.keys(REALMS).map((k) => [k, 0])); }
 export const awakenOf = (state, realm) => Math.max(0, Math.floor(Number(state?.vouchers?.awaken?.[realm]) || 0));
 export function addAwaken(state, realm, n = 1) {
@@ -78,6 +80,13 @@ export function addAwaken(state, realm, n = 1) {
   if (!v.awaken || typeof v.awaken !== 'object') v.awaken = emptyAwaken();
   v.awaken[realm] = Math.max(0, Math.min(99, awakenOf(state, realm) + n));
   return v.awaken[realm];
+}
+/** 通用唤醒券（任意界域）：产出压得比界域券更低，属长期目标 */
+export const universalOf = (state) => Math.max(0, Math.floor(Number(state?.vouchers?.univ) || 0));
+export function addUniversal(state, n = 1) {
+  const v = (state.vouchers ||= { rewind: 0, direct: 0 });
+  v.univ = Math.max(0, Math.min(99, universalOf(state) + n));
+  return v.univ;
 }
 
 // ---------- state ----------
@@ -112,9 +121,9 @@ export function newState(data, now = Date.now()) {
     // 疾驰欢愉的大运（core/luckrun.js）：分数等级 / 天赋 / 专属成就 / 当前这一局
     luck: { pts: 0, best: 0, clears: 0, runs: 0, lvClaimed: {}, talents: {}, tp: 0, ach: {}, cur: null },
     // 黑流树海（core/treerun.js）：局内统计 / 天赋树 / 等级经验（pts）/ 专属成就 / 当前这一局
-    tree: { runs: 0, clears: 0, best: 0, pts: 0, tp: 0, talents: {}, lvClaimed: {}, cleared: {}, ach: {}, cur: null },
+    tree: { runs: 0, clears: 0, best: 0, pts: 0, tp: 0, talents: {}, lvClaimed: {}, cleared: {}, ach: {}, squads: {}, cur: null },
     // 免费回溯券：后台发放 / 大运等级奖励给的「免费用一次回溯」，角色与装备通用（core/game.js spendRewind）
-    vouchers: { rewind: 0, direct: 0, awaken: emptyAwaken() },
+    vouchers: { rewind: 0, direct: 0, univ: 0, awaken: emptyAwaken() },
     // 同调率（core/affinity.js）：带着推关 / 送礼攒点，等级天赋 + 满级卡牌效果
     aff: emptyAff(),
   };
@@ -150,6 +159,8 @@ export function migrate(s, data) {
     rewind: Math.max(0, Math.min(999, Math.floor(Number(s.vouchers?.rewind) || 0))),
     // 直升券 = 直接把一位角色练到超限满（树海结算 / 成就产出）
     direct: Math.max(0, Math.min(99, Math.floor(Number(s.vouchers?.direct) || 0))),
+    // 通用唤醒券：任意界域都能换（等级奖励 / 黑市 / 成就产出）
+    univ: Math.max(0, Math.min(99, Math.floor(Number(s.vouchers?.univ) || 0))),
     // 唤醒券：按界域分四张。老存档只有一个数字，那时是「血肉券」，迁移到 CARO 上
     awaken: (() => {
       const out = emptyAwaken();
@@ -168,6 +179,7 @@ export function migrate(s, data) {
   m.tree.lvClaimed = { ...(m.tree.lvClaimed || {}) };
   m.tree.cleared = { ...(m.tree.cleared || {}) };
   m.tree.ach = { ...(m.tree.ach || {}) };
+  m.tree.squads = { ...(m.tree.squads || {}) };
   m.tree.pts = Math.max(0, Math.floor(Number(m.tree.pts) || 0));
   m.tree.tp = Math.max(0, Math.floor(Number(m.tree.tp) || 0));
   m.team = [...new Set(Array.isArray(m.team) ? m.team : [])].filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
@@ -771,17 +783,26 @@ export function useDirectVoucher(state, slug) {
   return { slug, star: r.star, od: r.od, lv: r.lv };
 }
 
-/** 树海唤醒券（按界域）：唤醒一位**未拥有**的**对应界域**角色，直接进 roster（1 级 0 叠）。
- *  券的界域和角色界域必须一致（血肉券唤不了深海）；已拥有 / 没券都拒绝。
- *  realm 可以不传——默认按角色自己的界域查券。 */
+/** 树海唤醒券（按界域，另有通用券）：唤醒一位**未拥有**的**对应界域**角色，直接进 roster（1 级 0 叠）。
+ *  券的界域和角色界域必须一致（血肉券唤不了深海）；通用券（realm = 'ANY'）任意界域都能换。
+ *  扣券顺序：先扣对应界域券，界域券空了再扣通用券——把灵活的那张留在手上。
+ *  已拥有 / 没券都拒绝。realm 可以不传——默认按角色自己的界域查券。 */
 export function useAwakenVoucher(state, slug, data, realm = null) {
   const a = data.bySlug[slug];
   if (!a) return null;
-  const rl = realm || a.realm;
-  if (rl !== a.realm || state.roster[slug] || awakenOf(state, rl) <= 0) return null;
-  state.vouchers.awaken[rl] = awakenOf(state, rl) - 1;
+  const any = realm === 'ANY';
+  if (!any && realm && realm !== a.realm) return null;
+  if (state.roster[slug]) return null;
+  let used = null;
+  if (awakenOf(state, a.realm) > 0) {
+    state.vouchers.awaken[a.realm] = awakenOf(state, a.realm) - 1;
+    used = 'awaken';
+  } else if (universalOf(state) > 0) {
+    state.vouchers.univ = universalOf(state) - 1;
+    used = 'univ';
+  } else return null;
   state.roster[slug] = { lv: 1, star: 0, brk: 0 };
-  return { slug, zh: a.zh, realm: rl, isNew: true };
+  return { slug, zh: a.zh, realm: a.realm, isNew: true, used };
 }
 
 export function awakenUp(state, slug) {

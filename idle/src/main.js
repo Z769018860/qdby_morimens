@@ -46,9 +46,9 @@ import {
   shopBuy as treeShopBuy, leaveNode as treeLeaveNode, takeGift as treeTakeGift, giftOptions as treeGiftOptions,
   abandonRun as treeAbandon, claimTreeAch, offerPool as treeOfferPool, checkDraft as treeCheckDraft,
   gearEquip, gearUnequip, setLineup, takeChest, takeSpring, takeShrine, buyTalent as treeBuyTalent,
-  claimTreeLevel, talentMods as treeTalentMods,
+  claimTreeLevel, talentMods as treeTalentMods, TREE_SQUADS,
 } from './core/treerun.js';
-import { useDirectVoucher, useAwakenVoucher, awakenOf } from './core/game.js';
+import { useDirectVoucher, useAwakenVoucher, awakenOf, universalOf } from './core/game.js';
 import { claimDaily, redeemGuest, claimMile, dailyView, milePending } from './core/event.js';
 import { syncSigninGifts } from './core/creators.js';
 import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
@@ -741,6 +741,8 @@ function afterTreeBattle(app, r) {
   app.save(); render();
   const run = treeState(s).cur;
   if (!run) { const end = treeState(s).lastRun; if (end) TREE.treeEndModal(app, end); return; }
+  // 天赋「树海留手」：全灭但被救回来，原地重来这一格
+  if (r?.step?.mercy) { sound.play('lvup'); toast('树海留手：全队被树根拖了回来，以 35% 生命站住——这一趟的免死已经用完', 4600); return; }
   if (r?.res?.win) {
     if (r.step?.cleared) return;                    // endRun 已经弹结算框
     run.offer = offerPool(s, app.data, run, 3);
@@ -969,7 +971,15 @@ function onAct(e) {
     // ---- 黑流树海 ----
     case 'go-tree': show('tree'); break;
     case 'tree-open-draft': {
-      app.ui.treeDraft = { diff: el.dataset.k, team: [] };
+      app.ui.treeDraft = { diff: el.dataset.k, team: [], squad: app.ui.treeSquad || TREE_SQUADS[0].id };
+      TREE.treeDraftModal(app);
+      break;
+    }
+    case 'tree-squad': {
+      const d2 = app.ui.treeDraft;
+      if (!d2) break;
+      d2.squad = el.dataset.id;
+      app.ui.treeSquad = d2.squad;          // 记住上次选的分队，下次进来默认还是它
       TREE.treeDraftModal(app);
       break;
     }
@@ -989,16 +999,17 @@ function onAct(e) {
     case 'tree-depart': {
       const dr = app.ui.treeDraft;
       if (!dr) break;
-      const r = treeStart(s, d, dr.diff, dr.team);
+      const r = treeStart(s, d, dr.diff, dr.team, dr.squad);
       if (r?.err) { toast(r.err); break; }
       app.ui.treeDraft = null;
       closeModal(); app.save(); render(); sound.play('nav');
+      toast(`出发：${TREE_SQUADS.find((q) => q.id === dr.squad)?.zh || '常规分队'} · 仓库 ${r.run.pool.length} 人`, 3000);
       break;
     }
     case 'tree-branch': {
       const run = treeState(s).cur;
       if (!run || !run.branch) { render(); break; }
-      treePickBranch(s, run, +el.dataset.i);
+      treePickBranch(s, run, +el.dataset.i, d);
       app.save(); render(); sound.play('nav');
       break;
     }
@@ -1193,7 +1204,7 @@ function onAct(e) {
       const r2 = takeShrine(s, run, el.dataset.id);
       if (!r2) break;
       app.save(); render(); sound.play('ach');
-      toast(`祭坛祝福：${r2.zh}（全队失去 10% 生命）`, 3000);
+      toast(`祭坛祝福：${r2.zh}（全队失去 ${-r2.heal}% 生命）`, 3000);
       break;
     }
     case 'tree-use-direct': {
@@ -1210,7 +1221,10 @@ function onAct(e) {
     }
     case 'tree-use-awaken': {
       const realm = el.dataset.realm || null;
-      if (realm ? awakenOf(s, realm) <= 0 : !Object.keys(s.vouchers?.awaken || {}).some((k) => awakenOf(s, k) > 0)) { toast('这种唤醒券没有了'); break; }
+      const has = realm === 'ANY'
+        ? universalOf(s) > 0
+        : realm ? awakenOf(s, realm) > 0 : Object.keys(s.vouchers?.awaken || {}).some((k) => awakenOf(s, k) > 0) || universalOf(s) > 0;
+      if (!has) { toast('这种唤醒券没有了'); break; }
       TREE.treeAwakenModal(app, realm);
       break;
     }
@@ -1218,7 +1232,7 @@ function onAct(e) {
       const r2 = useAwakenVoucher(s, el.dataset.s, d, el.dataset.realm || null);
       if (!r2) { toast('用不了：券没了，或这位已经拥有 / 界域不对'); break; }
       closeModal(); app.save(); render(); sound.play('summonSSR');
-      toast(`唤醒成功：${r2.zh} 加入了名册`, 4000);
+      toast(`唤醒成功：${r2.zh} 加入了名册${r2.used === 'univ' ? '（用了通用券）' : ''}`, 4000);
       break;
     }
     case 'pick-order': {

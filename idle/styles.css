@@ -1023,7 +1023,17 @@ button, a, [role="button"], input, select, label{touch-action:manipulation}
 .lktag.gear{border-color:#7fd1b9;color:#b9f0e2}
 .lktag.bless{border-color:#e08ac0;color:#f4c8e6}
 .lkpick.gear b{color:#b9f0e2}
-@media(max-width:560px){.lkbrs{grid-template-columns:1fr}.lkwallet .btn{font-size:12px}}
+/* 树海：开局分队 / 通用券 / 「枝杈」规则天赋 */
+.lksquads{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.lkpick.squad em{color:var(--gold);opacity:.8}
+.lkpick.squad p{line-height:1.35}
+.lkpick.squad.relic{border-color:var(--gold);box-shadow:0 0 0 1px #e5b84b55 inset}
+.lkany{background:linear-gradient(135deg,#ff9a9a,#ffe08a,#9be7c4,#9bc4f5,#d5a6f2)}
+.lkbranch.rule{border-color:#8f7ae0;background:linear-gradient(180deg,rgba(143,122,224,.10),transparent)}
+.lkbranch.rule h4{color:#c6b4ff}
+.lktal.rule{background:rgba(143,122,224,.07)}
+.lktal.rule .btn:not(:disabled){box-shadow:0 0 0 1px #8f7ae055 inset}
+@media(max-width:560px){.lkbrs{grid-template-columns:1fr}.lkwallet .btn{font-size:12px}.lksquads{grid-template-columns:1fr 1fr}}
 
 /* ---------- 同调率（core/affinity.js + ui/affinity.js） ---------- */
 .afflist{display:grid;gap:6px;margin-top:6px}

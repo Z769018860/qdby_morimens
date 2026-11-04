@@ -16,7 +16,7 @@
 import { hash, mulberry32 } from './rng.js';
 import { simulate, roundLimitFor } from './battle.js';
 import { buildEnemies, domainRules, lateDotBoost } from './enemies.js';
-import { teamDefs, addAwaken, emptyAwaken } from './game.js';
+import { teamDefs, addAwaken, addUniversal, emptyAwaken } from './game.js';
 import { LUCK_BUFFS, charUp } from './luckrun.js';
 import { REALMS } from './constants.js';
 
@@ -39,6 +39,65 @@ export const TREE_DIFFS = [
   { id: 'heart', zh: '黑流之心', lv: 50, scale: 1.5, off: 20, mult: 4.6, note: '树海的心脏：越深域规越多，不点亮终焉法则几乎走不完。首通送直升券' },
 ];
 export const treeDiffOf = (id) => TREE_DIFFS.find((d) => d.id === id) || TREE_DIFFS[1];
+
+// ------------------------------------------------------------------ 开局分队
+// 明日方舟肉鸽的「分队」：开局挑一个，整趟的规矩就不一样。
+// 这里的分队不是数值小礼包，而是**改变这一趟怎么打**——多一个人上场、多一条岔路、团灭能站起来一次。
+// 和天赋树叠加：分队定基调，天赋管长期。mod 的键和天赋那套对齐（budget/recruit/start/…），
+// 额外几个是分队专属：teamMax 上场人数 / poolMax 仓库上限 / gear 开局装备 / huntDrop 猎场多掉 /
+// bless 开局祝福 / shrineHalf 祭坛代价减半 / glow 每胜余晖 / score 结算分数%。
+export const TREE_SQUADS = [
+  {
+    id: 's_front', zh: '前锋分队', tag: '人多',
+    desc: '可上场 5 人（比常规多一位），但全队生命 -12%',
+    note: '四个人的位置塞五个人：赢得更快，也更容易一起倒。',
+    mod: { teamMax: 1, hp: -12 },
+  },
+  {
+    id: 's_logi', zh: '后勤分队', tag: '起手厚',
+    desc: '开局黑露 +30、招募价 -20%、初始余晖 +12；背着补给，全队生命 -3%',
+    note: '背着补给箱进树海：人能挑得更讲究，走路却慢半拍。',
+    mod: { budget: 30, recruit: 20, start: 12, hp: -3 },
+  },
+  {
+    id: 's_hunt', zh: '猎手分队', tag: '装备',
+    desc: '开局白得 2 件局内装备；猎场战利品翻倍（每次掉 2 件）',
+    note: '走之前就把刀磨好了。装备来得快，是这趟唯一的底气。',
+    mod: { gear: 2, huntDrop: 1 },
+  },
+  {
+    id: 's_rite', zh: '祭祀分队', tag: '祝福',
+    desc: '开局带 1 条祭坛祝福；祭坛代价减半（扣 5% 生命）',
+    note: '出门前先祭过一次。树海认这个，收的价也便宜。',
+    mod: { bless: 1, shrineHalf: 1 },
+  },
+  {
+    id: 's_scav', zh: '拾荒分队', tag: '余晖',
+    desc: '每打赢一场额外 +10 余晖；结算得分 +12%',
+    note: '什么都捡，什么都卖。走得慢，但从不缺钱。',
+    mod: { glow: 10, score: 12 },
+  },
+  {
+    id: 's_free', zh: '漂泊分队', tag: '仓库',
+    desc: '仓库 +2 人（10 人）、开局重掷 +1、招募价 -10%、白得 1 件装备；人杂，全队生命 -3%',
+    note: '不挑人，谁来都带。人多好换，就是队伍杂一点。',
+    mod: { poolMax: 2, reroll: 1, recruit: 10, gear: 1, hp: -3 },
+  },
+];
+export const squadOf = (id) => TREE_SQUADS.find((x) => x.id === id) || null;
+export const SQUAD_MOD_KEYS = ['teamMax', 'poolMax', 'gear', 'huntDrop', 'bless', 'shrineHalf', 'glow', 'score', 'budget', 'recruit', 'start', 'hp', 'reroll'];
+/** 分队加成表（没有分队就是全 0，老存档 / 旧调用照常跑） */
+export function squadMods(id) {
+  const m = Object.fromEntries(SQUAD_MOD_KEYS.map((k) => [k, 0]));
+  const q = squadOf(id);
+  if (q?.mod) for (const k of SQUAD_MOD_KEYS) m[k] = Number(q.mod[k]) || 0;
+  return m;
+}
+
+/** 场上人数上限 / 仓库上限 / 装备槽上限：分队与天赋都能改，所以一律走函数，别直接读常量 */
+export const teamMax = (run) => TEAM_MAX + num(run?.teamMax);
+export const poolCap = (run) => POOL_MAX + num(run?.poolMax);
+export const gearLimit = (run, kind) => (GEAR_LIMIT[kind] || 1) + (kind === 'ring' ? 0 : num(run?.pack));
 
 /** 敌人曲线：1 层 6~24、2 层 30~48、3 层 54~72，再按难度挪档。
  *  90 关之后主线才有的域规（屏障 / 反震 / 压疗 / 重甲 / 封印）跟着 stage 自然出现。 */
@@ -313,7 +372,9 @@ export const TREE_BLESSINGS = [
 const blessingOf = (id) => TREE_BLESSINGS.find((b) => b.id === id) || null;
 
 // ------------------------------------------------------------------ 天赋树（局外成长）
-// 三支，每支 4 级深度：第 2 项要第 1 项 ≥1，依次往上。cost 按「点第 n 级要几点」给。
+// 三支管数值（开局 / 滚雪球 / 打赢），第四支「枝杈」专管**玩法规则**：
+// 多一条岔路、多两个装备槽、多几次重掷、团灭能站起来一次——点了以后，玩起来是另一副样子。
+// 每支线性解锁：第 2 项要第 1 项 ≥1，依次往上。cost 按「点第 n 级要几点」给。
 // key 直接映射到开局参数或战斗加成，算在 talentMods() 里。
 export const TREE_TALENTS = [
   // 生长：怎么开局
@@ -331,8 +392,13 @@ export const TREE_TALENTS = [
   { id: 'r_hide', br: '根须', zh: '厚皮', desc: '全队防御 +6% / 级', cost: [1, 2, 3], max: 3, key: 'def', per: 6, req: 'r_claw' },
   { id: 'r_eye', br: '根须', zh: '猎手直觉', desc: '全队暴击率 +3% / 级', cost: [1, 2], max: 2, key: 'critRate', per: 3, req: 'r_hide' },
   { id: 'r_flow', br: '根须', zh: '黑流灌注', desc: '全队增伤 +4% / 级', cost: [2, 3], max: 2, key: 'amp', per: 4, req: 'r_eye' },
+  // 枝杈：改规则（不是改数字）——点了以后玩起来明显不一样
+  { id: 'b_paths', br: '枝杈', zh: '岔路生枝', desc: '每一步给三条岔路（二选一 → 三选一）', cost: [3], max: 1, key: 'paths', per: 1 },
+  { id: 'b_pack', br: '枝杈', zh: '行囊加层', desc: '契 / 令 的装备槽各 +1 / 级（3 → 5）', cost: [2, 3], max: 2, key: 'pack', per: 1, req: 'b_paths' },
+  { id: 'b_reroll', br: '枝杈', zh: '以叶为签', desc: '开局重掷次数 +1 / 级', cost: [1, 2], max: 2, key: 'reroll', per: 1, req: 'b_pack' },
+  { id: 'b_mercy', br: '枝杈', zh: '树海留手', desc: '一趟里第一次全队倒下不算结束：以 35% 生命原地站起', cost: [4], max: 1, key: 'mercy', per: 1, req: 'b_reroll' },
 ];
-export const TREE_BRANCHES = ['生长', '低语', '根须'];
+export const TREE_BRANCHES = ['生长', '低语', '根须', '枝杈'];
 export const talentLv = (s, id) => Math.max(0, Number(s.talents?.[id]) || 0);
 export const talentById = (id) => TREE_TALENTS.find((t) => t.id === id) || null;
 /** 下一级要几点（点满返回 null） */
@@ -361,9 +427,10 @@ export function buyTalent(state, id) {
   s.talents[id] = talentLv(s, id) + 1;
   return { ok: true, lv: s.talents[id], cost: c.cost };
 }
-/** 天赋汇总（开局前算一次）：budget 黑露 / recruit 招募折扣% / start 初始余晖 / discount 商店折扣% / … */
+/** 天赋汇总（开局前算一次）：budget 黑露 / recruit 招募折扣% / start 初始余晖 / discount 商店折扣% /
+ *  paths 岔路条数增量 / pack 契令槽位 / reroll 重掷 / mercy 免死次数 … */
 export function talentMods(s) {
-  const m = { budget: 0, recruit: 0, start: 0, discount: 0, after: 0, score: 0, relic: 0, hp: 0, atk: 0, def: 0, critRate: 0, amp: 0 };
+  const m = { budget: 0, recruit: 0, start: 0, discount: 0, after: 0, score: 0, relic: 0, hp: 0, atk: 0, def: 0, critRate: 0, amp: 0, paths: 0, pack: 0, reroll: 0, mercy: 0 };
   for (const t of TREE_TALENTS) {
     const lv = talentLv(s, t.id);
     if (lv) m[t.key] += t.per * lv;
@@ -386,6 +453,8 @@ export const TREE_LEVELS = Array.from({ length: TREE_LEVEL_MAX }, (_, i) => {
     tp: lv % 2 === 0 ? 1 : 0,
     // 每 10 级给一张随机界域唤醒券，25 级给直升券——等级本身就是长期目标
     awaken: lv % 10 === 0 ? realms[(lv / 10 - 1) % realms.length] : null,
+    // 通用唤醒券只在中途与满级给：5 / 15 / 25 级各一张
+    univ: lv === 5 || lv === 15 || lv === TREE_LEVEL_MAX ? 1 : 0,
     direct: lv === TREE_LEVEL_MAX ? 1 : 0,
   };
 });
@@ -406,6 +475,7 @@ export function claimTreeLevel(state, lv) {
   s.tp += L.tp;
   const vs = [];
   if (L.awaken) { addAwaken(state, L.awaken, 1); vs.push(`awaken:${L.awaken}`); }
+  if (L.univ) { addUniversal(state, L.univ); vs.push('awaken:ANY'); }
   if (L.direct) { state.vouchers.direct = (state.vouchers.direct || 0) + 1; vs.push('direct'); }
   return { ...L, vouchers: vs };
 }
@@ -417,6 +487,7 @@ export function treeState(state) {
   t.pts ??= 0; t.tp ??= 0;
   t.talents ||= {}; t.lvClaimed ||= {};
   t.cleared ||= {}; t.ach ||= {};
+  t.squads ||= {};
   if (t.cur === undefined) t.cur = null;
   return t;
 }
@@ -431,40 +502,65 @@ export const priceOf = (data, slug, discount = 0) => {
   return Math.max(1, Math.round(base * (1 - Math.min(0.5, discount / 100))));
 };
 
-/** 校验一份招募名单：全是已拥有的、不重复、不超预算、不超过仓库上限。返回 { ok, pool, spent } 或 { err }。 */
+/** 开局可用资源：天赋 + 分队叠出来的预算 / 折扣 / 仓库上限 / 上场人数。募队弹窗也读它，别各算一套。 */
+export function draftCaps(state, squadId = null) {
+  const tm = talentMods(treeState(state));
+  const sm = squadMods(squadId);
+  return {
+    budget: TREE_BUDGET + tm.budget + sm.budget,
+    recruit: tm.recruit + sm.recruit,
+    poolMax: POOL_MAX + sm.poolMax,
+    teamMax: TEAM_MAX + sm.teamMax,
+    tm, sm,
+  };
+}
+
+/** 校验一份招募名单：全是已拥有的、不重复、不超预算、不超过仓库上限。返回 { ok, pool, spent } 或 { err }。
+ *  mods 可以传 talentMods 结果（老调用），也可以传 draftCaps 结果（带 poolMax / budget 合成值）。 */
 export function checkDraft(data, owned, slugs, mods = null) {
   const list = [...new Set(slugs || [])];
   const budget = TREE_BUDGET + (mods?.budget || 0);
   const disc = mods?.recruit || 0;
+  const cap = Number(mods?.poolMax) || POOL_MAX;
   if (!list.length) return { err: '还没选人' };
-  if (list.length > POOL_MAX) return { err: `仓库最多 ${POOL_MAX} 人` };
+  if (list.length > cap) return { err: `仓库最多 ${cap} 人` };
   let spent = 0;
   for (const s of list) {
     if (!owned[s]) return { err: '只能带已经唤醒的角色' };
     spent += priceOf(data, s, disc);
   }
   if (spent > budget) return { err: '黑露不够' };
-  return { ok: true, pool: list, spent, budget };
+  return { ok: true, pool: list, spent, budget, poolMax: cap };
 }
 
-export function startRun(state, data, diffId, drafts) {
+/** 开一趟。squadId 决定这一趟的规矩（上场人数 / 仓库 / 开局装备与祝福 / 猎场掉落…）。 */
+export function startRun(state, data, diffId, drafts, squadId = TREE_SQUADS[0].id) {
   const s = treeState(state);
   const diff = treeDiffOf(diffId);
-  const tm = talentMods(s);
-  const check = checkDraft(data, state.roster, drafts, tm);
+  const squad = squadOf(squadId) || TREE_SQUADS[0];
+  const caps = draftCaps(state, squad.id);
+  const sm = caps.sm;
+  const tm = caps.tm;
+  const check = checkDraft(data, state.roster, drafts, { budget: tm.budget + sm.budget, recruit: caps.recruit, poolMax: caps.poolMax });
   if (!check.ok) return { err: check.err };
   const base = (state.seed = (Math.imul(state.seed, 1664525) + 1013904223) >>> 0);
-  const pool = check.pool.slice(0, POOL_MAX);
+  const pool = check.pool.slice(0, caps.poolMax);
   const hp = {};
   for (const sl of pool) hp[sl] = 1;
   const run = {
-    seed: base, diff: diff.id, act: 0, node: 0,
-    pool, slugs: pool.slice(0, TEAM_MAX), hp,
+    seed: base, diff: diff.id, squad: squad.id, act: 0, node: 0,
+    pool, slugs: pool.slice(0, caps.teamMax), hp,
     spent: check.spent, budget: check.budget,                 // 这趟花掉的黑露（结算界面展示）
-    glow: 40 + tm.start, buds: 0, enh: 0,                     // 余晖 / 古树之芽 / 强化档（0..3）
+    glow: 40 + tm.start + sm.start, buds: 0, enh: 0,          // 余晖 / 古树之芽 / 强化档（0..3）
     relics: [], buffs: {}, ups: [], bless: [],
     gear: { pool: [], ring: {}, pact: [], order: [], n: 1 },
-    maxhpPct: 0, reroll: 1, rr: 0,
+    maxhpPct: 0, reroll: 1 + tm.reroll + sm.reroll, rr: 0,
+    // —— 这一趟的「规矩」：分队与天赋在开局固化进 run，之后所有判断都读这几个字段 ——
+    teamMax: sm.teamMax, poolMax: sm.poolMax, hpMod: sm.hp,
+    paths: 2 + (tm.paths || 0), pack: tm.pack || 0, mercy: tm.mercy || 0,
+    huntDrop: sm.huntDrop || 0, shrineHalf: sm.shrineHalf || 0,
+    glowPerWin: sm.glow || 0, scoreMod: sm.score || 0,
+    revives: 0,
     branch: null, kind: null, ev: null, shop: null, gift: null, offer: null,
     chest: null, spring: false, shrine: null,
     score: 0, kills: 0, battles: 0, seen: {},
@@ -472,13 +568,19 @@ export function startRun(state, data, diffId, drafts) {
   };
   // 天赋「古树所赐」：开局白得一件造物
   if (tm.relic) { const r = TREE_RELICS[Math.floor(runRng(run, 'gift0')() * TREE_RELICS.length)]; run.relics.push(r.id); }
+  // 分队：猎手开局带装备、祭祀开局带祝福
+  for (let i = 0; i < sm.gear; i++) addGear(run, pickGear(run).id);
+  for (let i = 0; i < sm.bless; i++) {
+    const b = TREE_BLESSINGS[Math.floor(runRng(run, `sbl:${i}`)() * TREE_BLESSINGS.length)];
+    if (b && !run.bless.includes(b.id)) run.bless.push(b.id);
+  }
   nextBranch(run);
   s.cur = run;
   s.runs++;
   return { run };
 }
 
-/** 每一步的两条岔路：第 10 步固定首领；前面每步从类型池里抽 2 个（尽量不同）。
+/** 每一步的岔路：第 10 步固定首领；前面每步从类型池里抽 2 条（天赋「岔路生枝」给 3 条），尽量不同。
  *  保底：一层快走完还没见过商店 / 奇遇的话，把它们的权重拉满——「一条都没遇到」比「遇到坏的」更伤体验。 */
 const NODE_POOL = ['battle', 'elite', 'hunt', 'event', 'shop', 'rest', 'trial', 'chest', 'spring', 'shrine'];
 function nextBranch(run) {
@@ -497,10 +599,15 @@ function nextBranch(run) {
   push('chest', 2);
   push('spring', run.slugs.some((x) => (run.hp[x] ?? 1) <= 0.001) ? 3 : 1);
   push('shrine', 2);
-  const a = pool[Math.floor(rng() * pool.length)];
-  const rest = pool.filter((k) => k !== a);
-  const b = rest[Math.floor(rng() * rest.length)];
-  run.branch = [a, b];
+  const n = Math.max(2, Math.min(3, num(run.paths, 2)));   // 天赋「岔路生枝」→ 3 条
+  const out = [];
+  let rest = [...pool];
+  while (out.length < n && rest.length) {
+    const k = rest[Math.floor(rng() * rest.length)];
+    out.push(k);
+    rest = rest.filter((x) => x !== k);               // 同一步里不出两条一样的路
+  }
+  run.branch = out.length ? out : ['battle', 'event'];
   run.kind = null;
 }
 
@@ -529,7 +636,7 @@ function addGear(run, defId) {
   g.pool.push({ uid, defId });
   return uid;
 }
-/** 装备到某人（环）或全队（契 / 令）。同一件不能重复装；契 / 令各限 3 件。 */
+/** 装备到某人（环）或全队（契 / 令）。同一件不能重复装；契 / 令 上限由天赋「行囊加层」加槽。 */
 export function gearEquip(state, run, uid, slug = null) {
   const g = run.gear || {};
   const item = (g.pool || []).find((x) => x.uid === uid);
@@ -543,7 +650,8 @@ export function gearEquip(state, run, uid, slug = null) {
     return { ok: true, replaced: old };
   }
   const arr = def.kind === 'pact' ? (g.pact ||= []) : (g.order ||= []);
-  if (arr.length >= GEAR_LIMIT[def.kind]) return { err: `${GEAR_KIND_ZH[def.kind]}最多 ${GEAR_LIMIT[def.kind]} 件` };
+  const cap = gearLimit(run, def.kind);
+  if (arr.length >= cap) return { err: `${GEAR_KIND_ZH[def.kind]}最多 ${cap} 件` };
   arr.push(uid);
   return { ok: true };
 }
@@ -558,17 +666,19 @@ export function gearUnequip(state, run, uid) {
 }
 /** 编队：从仓库里挑最多 4 人上场。倒下的人不能上场（先用泉水 / 事件救回来）。 */
 export function setLineup(state, run, slugs) {
-  const want = [...new Set((slugs || []).filter((x) => (run.pool || []).includes(x)))].slice(0, TEAM_MAX);
+  const cap = teamMax(run);          // 分队「前锋」可上 5 人
+  const want = [...new Set((slugs || []).filter((x) => (run.pool || []).includes(x)))].slice(0, cap);
   if (!want.length) return { err: '至少要留一个人上场' };
   const dead = want.filter((x) => (run.hp[x] ?? 1) <= 0.001);
   if (dead.length) return { err: '倒下的人上不了场，先去泉水或事件里救回来' };
   run.slugs = want;
-  return { ok: true, slugs: want };
+  return { ok: true, slugs: want, max: cap };
 }
 /** 局内招募：花余晖把一位旅人请进仓库（黑市 / 事件用） */
 export function recruitMember(state, data, run, slug) {
+  const cap = poolCap(run);
   if (!data.bySlug[slug] || (run.pool || []).includes(slug)) return { err: '不能重复招募' };
-  if ((run.pool || []).length >= POOL_MAX) return { err: '仓库满了' };
+  if ((run.pool || []).length >= cap) return { err: `仓库满了（${cap} 人）` };
   run.pool.push(slug);
   run.hp[slug] = 1;
   return { ok: true, slug };
@@ -619,7 +729,8 @@ export function allyDefsOf(state, data, run, slugs = run.slugs) {
   return t.list.map((d) => {
     const m = modsOf(run, d.slug);
     const out = { ...d };
-    out.hp = Math.max(1, Math.round(d.hp * (1 + (m.hp + tm.hp + num(run.maxhpPct)) / 100)));
+    // hpMod：分队自带的取舍（前锋 +1 人上场，但全队 -12% 生命）
+    out.hp = Math.max(1, Math.round(d.hp * (1 + (m.hp + tm.hp + num(run.maxhpPct) + num(run.hpMod)) / 100)));
     out.atk = Math.max(1, Math.round(d.atk * (1 + (m.atk + tm.atk) / 100)));
     out.def = Math.max(0, Math.round(d.def * (1 + (m.def + tm.def) / 100)));
     out.critRate = (d.critRate || 0) + m.critRate + tm.critRate;
@@ -686,7 +797,7 @@ export function applyBattle(state, data, run, res) {
   const roundBonus = res.win ? Math.round(10 * Math.max(0, 1 - res.rounds / Math.max(1, res.roundLimit || 20))) : 0;
   if (res.win) {
     run.score += Math.round((base + Math.round(25 * hpLeft) + roundBonus) * diff.mult);
-    run.glow += Math.round(((kind === 'boss' ? 34 : kind === 'hunt' ? 26 : kind === 'elite' ? 20 : 12) + runSum(run, state, 'glow')) * (1 + diff.mult * 0.12));
+    run.glow += Math.round(((kind === 'boss' ? 34 : kind === 'hunt' ? 26 : kind === 'elite' ? 20 : 12) + runSum(run, state, 'glow') + num(run.glowPerWin)) * (1 + diff.mult * 0.12));
     run.kills += res.kills || 0;
   }
   run.battles++;
@@ -694,14 +805,26 @@ export function applyBattle(state, data, run, res) {
   if (afterPct) healLiving(run, afterPct / 100);
   run.log.push({ k: kind, win: !!res.win, rounds: res.rounds, score: Math.round(run.score) });
   const wiped = run.slugs.every((x) => (run.hp[x] ?? 0) <= 0.001);
-  if (!res.win || wiped) { endRun(state, false); return { lost: true }; }
+  if (!res.win || wiped) {
+    // 天赋「树海留手」：一趟里第一次全队倒下不算结束，原地以 35% 生命站起（装备 / 编队还能再调）
+    if (wiped && num(run.mercy) > 0) {
+      run.mercy = 0;
+      run.revives = num(run.revives) + 1;
+      for (const x of run.pool || run.slugs) run.hp[x] = Math.max(num(run.hp[x]), 0.35);
+      run.gift = null;
+      return { mercy: true, revives: run.revives };
+    }
+    endRun(state, false); return { lost: true };
+  }
   if (kind === 'boss') {
     run.buds++;
     run.gift = { src: 'boss' };                       // 古树之芽到账，去试炼面板点亮
   }
-  if (kind === 'hunt') {                              // 猎场：必掉一件装备，下一格面板里挑
-    const uid = addGear(run, pickGear(run, 'any').id);
-    run.gearDrop = { uid, from: 'hunt' };
+  if (kind === 'hunt') {                              // 猎场：必掉装备；猎手分队每次掉两件
+    const n = 1 + num(run.huntDrop);
+    const drops = [];
+    for (let i = 0; i < n; i++) drops.push(addGear(run, pickGear(run, 'any').id));
+    run.gearDrop = { uid: drops[0], uids: drops, from: 'hunt' };
   }
   return stepForward(state, run);
 }
@@ -719,8 +842,9 @@ function stepForward(state, run) {
   return { next: run.node };
 }
 
-/** 选一条岔路：写 run.kind，事件 / 商店 / 休整 / 宝箱 / 泉水 / 祭坛当场结算面板，战斗等玩家点「开打」。 */
-export function pickBranch(state, run, i) {
+/** 选一条岔路：写 run.kind，事件 / 商店 / 休整 / 宝箱 / 泉水 / 祭坛当场结算面板，战斗等玩家点「开打」。
+ *  data 只用来把黑市的旅人名字显示成人名，不传也能跑（显示 slug）。 */
+export function pickBranch(state, run, i, data = null) {
   const k = (run.branch || [])[i];
   if (!k) return null;
   run.kind = k;
@@ -836,7 +960,7 @@ export function applyEvent(state, run, optIdx) {
   }
   if (g.rec) {
     const cand = Object.keys(state.roster).filter((x) => !run.pool.includes(x));
-    if (cand.length && run.pool.length < POOL_MAX) {
+    if (cand.length && run.pool.length < poolCap(run)) {
       const rng = runRng(run, `trec:${run.act}:${run.node}`);
       const sl = cand[Math.floor(rng() * cand.length)];
       run.pool.push(sl); run.hp[sl] = 1;
@@ -922,14 +1046,17 @@ export function shrineOptions(run) {
   while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
   return out;
 }
+/** 祭坛代价：祭祀分队减半（10% → 5%） */
+export const shrineCost = (run) => (num(run?.shrineHalf) ? 0.05 : 0.1);
 export function takeShrine(state, run, id) {
   const list = run.shrine || [];
   const def = list.find((b) => b.id === id);
   if (!def) return null;
   run.bless.push(def.id);
-  for (const x of run.pool) run.hp[x] = Math.max(0, Math.min(1, (run.hp[x] ?? 1) - 0.1));
+  const cost = shrineCost(run);
+  for (const x of run.pool) run.hp[x] = Math.max(0, Math.min(1, (run.hp[x] ?? 1) - cost));
   run.shrine = null;
-  return { ok: true, zh: def.zh, heal: -10, step: stepForward(state, run) };
+  return { ok: true, zh: def.zh, heal: -Math.round(cost * 100), step: stepForward(state, run) };
 }
 
 /** 黑市货架：2 造物 + 2 装备 + 2 增益 + 热汤 + 概率商品（招募 / 界域唤醒券 / 古树之芽 / 直升券）。 */
@@ -946,7 +1073,7 @@ export function shopStock(state, run, data = null) {
   for (const b of pick2(LUCK_BUFFS, 2)) items.push({ type: 'buff', id: b.id, zh: b.zh, desc: b.desc, price: Math.round(38 * off) });
   items.push({ type: 'heal', id: 's_heal', zh: '热汤', desc: '全队回复 30% 生命', price: Math.round(42 * off) });
   // 招募：仓库没满时可能上架一位旅人
-  if (run.pool.length < POOL_MAX && rng() < 0.55) {
+  if (run.pool.length < poolCap(run) && rng() < 0.55) {
     const cand = Object.keys(state.roster).filter((x) => !run.pool.includes(x));
     if (cand.length) {
       const sl = cand[Math.floor(rng() * cand.length)];
@@ -963,6 +1090,8 @@ export function shopStock(state, run, data = null) {
   if (rng() < 0.5) items.push({ type: 'bud', id: 's_bud', zh: '古树之芽', desc: '在古树试炼点亮练度，或换一次馈赠', price: Math.round(130 * off), bud: 1 });
   const deep = diff.id === 'root' || diff.id === 'heart';
   if (deep && rng() < 0.32) items.push({ type: 'voucher', id: 's_direct', zh: '无名之契', desc: '直升券：把一位角色直接练到超限满（账号资产）', price: Math.round(320 * off), voucher: 'direct' });
+  // 通用唤醒券：比界域券贵，出得也少——「挑哪个界域都行」是它唯一的卖点
+  if (deep && rng() < 0.3) items.push({ type: 'voucher', id: 's_univ', zh: '无界之茧', desc: '通用唤醒券：任意界域都可以换一位未拥有的角色', price: Math.round(230 * off), voucher: 'awaken:ANY' });
   return items;
 }
 
@@ -976,7 +1105,7 @@ export function shopBuy(state, run, idx) {
   else if (it.type === 'gear') { addGear(run, it.gear); out.got.push(it.zh); }
   else if (it.type === 'buff') run.buffs[it.id] = (run.buffs[it.id] || 0) + 1;
   else if (it.type === 'recruit') {
-    if ((run.pool || []).length >= POOL_MAX) return { err: '仓库满了' };
+    if ((run.pool || []).length >= poolCap(run)) return { err: `仓库满了（${poolCap(run)} 人）` };
     run.pool.push(it.slug); run.hp[it.slug] = 1; out.got.push(it.zh);
   }
   else if (it.type === 'bud') { run.buds += it.bud; out.bud = it.bud; }
@@ -985,9 +1114,10 @@ export function shopBuy(state, run, idx) {
   return out;
 }
 
-// ---- 券：'direct' 或 'awaken:REALM'
+// ---- 券：'direct' / 'awaken:REALM' / 'awaken:ANY'（通用唤醒券）
 function grantVoucher(state, tag) {
   if (tag === 'direct') { state.vouchers = state.vouchers || { rewind: 0, direct: 0 }; state.vouchers.direct = (state.vouchers.direct || 0) + 1; return 'direct'; }
+  if (tag === 'awaken:ANY') { addUniversal(state, 1); return 'awaken:ANY'; }
   const m = /^awaken:([A-Z]+)$/.exec(String(tag));
   if (m && REALMS[m[1]]) { addAwaken(state, m[1], 1); return tag; }
   return null;
@@ -1083,6 +1213,8 @@ export const TREE_ACH = [
   { id: 't_fullpool', zh: '满仓同行', desc: '单局把仓库塞满 8 个人', reward: { gold: 3500, cores: 60, tp: 1 } },
   { id: 't_bless3', zh: '三重祝福', desc: '单局拿到 3 条祭坛祝福', reward: { gold: 4000, cores: 80 } },
   { id: 't_lv10', zh: '树海常客', desc: '树海等级达到 10 级', reward: { gold: 6000, cores: 120, tp: 2 } },
+  { id: 't_squads', zh: '六路同行', desc: '六支分队各开过一趟（换着打法走）', reward: { gold: 8000, cores: 160, tp: 1, vouchers: ['awaken:ANY'] } },
+  { id: 't_mercy', zh: '死里逃生', desc: '靠「树海留手」站住一次，并且最终走出树海', reward: { gold: 9000, cores: 180, tickets: 4, tp: 1 } },
 ];
 
 // ------------------------------------------------------------------ 结算
@@ -1092,7 +1224,7 @@ export function endRun(state, win) {
   if (!run) return null;
   const diff = treeDiffOf(run.diff);
   const tm = talentMods(s);
-  let score = Math.round((run.score + run.enh * 60 * diff.mult) * (1 + tm.score / 100));
+  let score = Math.round((run.score + run.enh * 60 * diff.mult) * (1 + (tm.score + num(run.scoreMod)) / 100));
   if (win) score += Math.round(100 * diff.mult);
   const rw = { gold: 0, tickets: 0, cores: 0, vouchers: [], tp: 0, pts: 0 };
   // 经验（pts）与天赋点：赢一局给得多，输一局也给一点（不至于白跑）
@@ -1146,6 +1278,11 @@ export function endRun(state, win) {
   if (score >= 6000) mark('t_score6k');
   if (run.glow >= 350) mark('t_rich');
   if (treeLevelOf(s.pts) >= 10) mark('t_lv10');
+  // 分队：六支各开过一趟（不管输赢，重点是换打法）
+  s.squads ||= {};
+  if (run.squad) s.squads[run.squad] = true;
+  if (Object.keys(s.squads).length >= TREE_SQUADS.length) mark('t_squads');
+  if (win && num(run.revives) > 0) mark('t_mercy');
   s.cur = null;
   run.end.got = got;
   run.end.lv = treeLevelOf(s.pts);
