@@ -1,4 +1,4 @@
-// 黑流树海：界面。
+// 红流树海：界面。
 // 主页（等级 / 天赋树 / 券匣 / 难度 / 成就）→ 募队弹窗（黑露买人进仓库）→
 // 局内（岔路二选一 + 仓库编队 + 古树试炼）→ 结算。
 import {
@@ -8,6 +8,7 @@ import {
   TREE_TALENTS, TREE_BRANCHES, talentLv, talentCost, canTalent, talentMods,
   TREE_LEVELS, treeLevelOf, treeLevelDef, TREE_LEVEL_MAX, TREE_BLESSINGS,
   TREE_SQUADS, squadOf, draftCaps, teamMax, poolCap, gearLimit, shrineCost,
+  STASH_MAX, stashTake, stashPut, stashDrop, carryOptions,
 } from '../core/treerun.js';
 import { LUCK_BUFFS } from '../core/luckrun.js';
 import { REALMS } from '../core/constants.js';
@@ -49,15 +50,16 @@ function homePage(app, s) {
       <button class="btn gold" data-act="tree-open-draft" data-k="${d.id}">进入树海（募队）</button>
     </div>`;
   }).join('');
-  return `<div class="page"><h2>黑流树海 <small>3 层 · 每层 ${TREE_STEPS} 步（每步两条岔路）· 先选分队再募队 · 50 级白板 + 局内装备</small></h2>
+  return `<div class="page"><h2>红流树海 <small>3 层 · 每层 ${TREE_STEPS} 步（每步两条岔路）· 先选分队再募队 · 50 级白板 + 局内装备</small></h2>
   ${levelCard(s)}
-  <div class="banner-card lk"><div><h3>黑流树海 <small>${s.runs} 趟 · 通关 ${s.clears} 次 · 最高单局 ${fmt(s.best)} 分</small></h3>
+  <div class="banner-card lk"><div><h3>红流树海 <small>${s.runs} 趟 · 通关 ${s.clears} 次 · 最高单局 ${fmt(s.best)} 分</small></h3>
     <p>启程分两步：先挑一支<b>分队</b>（${TREE_SQUADS.length} 支，每支改一套规矩——多一个人上场、多一条岔路、团灭能站起来一次），再花 <b>${budget} 黑露</b>从自己的角色里募一队（史诗 ${TREE_PRICE.SSR} 一位）。募到的人进<b>仓库</b>（常规 ${POOL_MAX} 人）——<b>每个战斗节点前都能在仓库面板里换人上场、换装备</b>。</p>
     <p>这个模式的练度和装备<b>都跟账号无关</b>：全员 50 级、无叠位、无超限、无法则，命轮 / 密契 / 造物 / 钥令一概不带；装备要在黑市、宝箱、猎场、首领和奇遇里现赚。</p>
     <p class="hint">局外成长分两块：<b>天赋树</b>（四支，前三支加数值，第四支「枝杈」直接改玩法规则）与<b>等级奖励</b>。进度随<b>云端存档</b>同步：换设备登录同一个账号，进行中的这一趟、天赋树、等级经验都会接着走。</p>
   </div></div>
   ${walletCard(st)}
   <h3>选一个深度</h3><div class="lkdiffs">${diffs}</div>
+  ${stashCard(s)}
   ${talentCard(s)}
   <h3>树海成就 <small>奖励直接领取，含界域唤醒券 / 直升券 / 天赋点</small></h3><div class="list">${achRows(s)}</div>
   ${s.lastRun ? `<h3>上一趟</h3><div class="list"><div class="lkrow"><b>${s.lastRun.win ? '走出树海' : `倒在第 ${s.lastRun.act + 1} 层`}</b><span>得分 <b>${fmt(s.lastRun.score)}</b></span><span class="dim">强化档 ${s.lastRun.enh}/3 · 仓库 ${s.lastRun.pool || 0} 人 · ${new Date(s.lastRun.at).toLocaleString()}</span></div></div>` : ''}
@@ -98,7 +100,19 @@ function walletCard(st) {
         <span class="lkdot lkany"></span>通用唤醒券 ×${uni}<small class="dim">——任意界域都能换，四个界域通吃</small></button>
     </div>
     <div class="row lkwallet">${rows}</div>
-    <p class="hint">唤醒券<b>按界域分</b>：混沌 / 血肉 / 深海 / 超维各一种，只能唤醒对应界域的角色；<b>通用券</b>没有界域限制，用的时候先扣对应界域的券、界域券空了才动它。黑市、首通、成就、等级奖励都会出；直升券只从「黑流之心」首通与成就里出。</p>
+    <p class="hint">唤醒券<b>按界域分</b>：混沌 / 血肉 / 深海 / 超维各一种，只能唤醒对应界域的角色；<b>通用券</b>没有界域限制，用的时候先扣对应界域的券、界域券空了才动它。黑市、首通、成就、等级奖励都会出；直升券只从「红流之心」首通与成就里出。</p>
+  </div></div>`;
+}
+
+/** 行囊：跨局仓库，最多 STASH_MAX 件 */
+function stashCard(s) {
+  const list = s.stash || [];
+  const rows = list.map((it) => `<div class="lkrow">
+    <b>${esc(it.zh)}</b><span class="dim">${esc(it.tag || (it.kind === 'gear' ? '装备' : '造物'))} · ${esc(it.desc || '')}</span>
+    <button class="btn sm" data-act="tree-stash-drop" data-key="${it.key}">丢掉</button></div>`).join('');
+  return `<div class="banner-card lk"><div><h3>行囊 <small>${list.length}/${STASH_MAX} 件 · 跨局保留</small></h3>
+    <p class="hint">每趟结算可以<b>带一件局内道具</b>回来（输了也能带），存进行囊；下一趟出发后，在仓库面板里挑一件带上——<b>每趟限一件，取用不消耗</b>。行囊是这个账号自己的收藏，越多，开局可选的起手就越舒服。</p>
+    <div class="list">${rows || '<p class="dim">行囊还是空的。打完一趟，结算时挑一件带回来。</p>'}</div>
   </div></div>`;
 }
 
@@ -256,7 +270,7 @@ function runPage(app, run) {
       <p class="hint">上场 ${(run.slugs || []).length}/${teamMax(run)} 人；倒下的人上不了场。打之前可以先把装备穿上。</p></div>`;
   }
 
-  return `<div class="page"><h2>黑流树海 · 第 ${run.act + 1} / ${TREE_ACTS} 层 <small>${esc(diff.zh)} · ${esc(squadOf(run.squad)?.zh || '常规分队')} · 余晖 ${fmt(run.glow)} · 古树之芽 ${run.buds} · 得分 ${fmt(run.score)}</small></h2>
+  return `<div class="page"><h2>红流树海 · 第 ${run.act + 1} / ${TREE_ACTS} 层 <small>${esc(diff.zh)} · ${esc(squadOf(run.squad)?.zh || '常规分队')} · 余晖 ${fmt(run.glow)} · 古树之芽 ${run.buds} · 得分 ${fmt(run.score)}</small></h2>
   <div class="lkpath">${path}</div>
   <div class="lkfaces">${team}</div>
   <div class="row"><button class="btn sm" data-act="tree-depot">仓库 / 编队（${(run.pool || []).length}/${poolCap(run)} 人 · ${rows.filter((x) => x.where).length} 件装备）</button>
@@ -366,9 +380,16 @@ export function treeDepotModal(app) {
   }).join('') || '<p class="dim">仓库里还没有装备。去黑市、宝箱、猎场、首领那里赚。</p>';
 
   const total = gearRows(run).filter((x) => x.where).length;
+  const bag = treeState(app.state).stash || [];
+  const bagHtml = `<h4 class="lkh4">行囊 <small>${run.bagUsed ? '这一趟已经带过一件' : `这一趟可带一件 · ${bag.length}/${STASH_MAX}`}</small></h4>
+    <div class="list">${bag.length ? bag.map((it) => `<div class="lkrow ${run.bagUsed ? '' : 'on'}">
+      <b>${esc(it.zh)}</b><span class="dim">${esc(it.tag || '')} · ${esc(it.desc || '')}</span>
+      <button class="btn sm ${run.bagUsed ? '' : 'gold'}" data-act="tree-bag-take" data-key="${it.key}" ${run.bagUsed ? 'disabled' : ''}>${run.bagUsed ? '已带' : '带上'}</button></div>`).join('')
+      : '<p class="dim">行囊是空的。每趟结算可以带一件局内道具回去。</p>'}</div>`;
   openModal(`<h3>仓库 <small>${(run.pool || []).length}/${poolCap(run)} 人 · 上场 ${(run.slugs || []).length}/${teamMax(run)} · 已装 ${total} 件</small></h3>
     <p class="hint">${pick ? '点一下队员，把「' + esc(TREE_GEAR.find((g) => g.id === (run.gear.pool || []).find((x) => x.uid === pick)?.defId)?.zh || '') + '」装给他。' : `战斗前在这里换人、换装备。环是个人装备（每人 1 个），契 / 令是全队生效（各限 ${gearLimit(run, 'pact')} 件${n0(run.pack) ? `，含天赋加的 ${run.pack} 个槽` : ''}）。`}</p>
     <h4 class="lkh4">上场编队</h4><div class="lkpicks">${members}</div>
+    ${bagHtml}
     <h4 class="lkh4">装备库</h4><div class="list">${gearList}</div>
     <div class="row"><button class="btn gold" data-act="tree-depot-close">收好（返回）</button></div>`, 'wide', 'tree-depot');
 }
@@ -391,12 +412,21 @@ export function treeEndModal(app, end) {
   const rw = end.rw || {};
   const bits = [rw.gold ? `金币 +${fmt(rw.gold)}` : '', rw.tickets ? `唤醒券 +${rw.tickets}` : '', rw.cores ? `银芯 +${fmt(rw.cores)}` : '',
     rw.tp ? `天赋点 +${rw.tp}` : '', ...(rw.vouchers || []).map((v) => `${voucherZh(v)} ×1`)].filter(Boolean).join('　');
+  const carry = end.carry || [];
+  const stash = s.stash || [];
+  const carryHtml = carry.length ? `
+    <h4 class="lkh4">行囊 · 带一件回去 <small>${stash.length}/${STASH_MAX}</small></h4>
+    <div class="lkpicks">${carry.map((it) => `<button class="lkpick ${it.kind === 'relic' ? 'relic' : 'gear'}" data-act="tree-stash-put" data-key="${it.key}" ${end.stashed ? 'disabled style="opacity:.45"' : ''}>
+      <em>${esc(it.tag || (it.kind === 'gear' ? '装备' : '造物'))}${it.rar ? ` · ${it.rar}` : ''}</em><b>${esc(it.zh)}</b><p>${esc(it.desc || '')}</p></button>`).join('')}</div>
+    <p class="hint">${end.stashed ? `已带走「${esc((carry.find((x) => x.key === end.stashed) || {}).zh || '')}」。` : '这一趟只能带一件。带回去的东西进<b>行囊</b>，下一趟出发后可以从仓库面板挑一件带上（取用不消耗）。'}</p>`
+    : '<p class="hint">这一趟没捡到什么能带走的东西。</p>';
   openModal(`<h3>${end.win ? '走出树海' : `倒在第 ${end.act + 1} 层`}</h3>
     <p>本局得分 <b>${fmt(end.score)}</b>　最高单局 <b>${fmt(s.best)}</b>　强化档 <b>${end.enh}/3</b></p>
     <p class="hint">仓库 ${end.pool || 0} 人 · 装备 ${end.gear || 0} 件 · 祝福 ${end.bless || 0} 条</p>
     ${bits ? `<p class="hint">结算奖励：${bits}${rw.first ? `（「${esc(rw.first)}」首通！）` : ''}</p>` : ''}
     <p class="hint">树海经验 +${fmt(rw.pts || 0)}　现在 Lv.${end.lv || treeLevelOf(s.pts)}（升级奖励去主页领）</p>
     ${got.length ? `<p class="hint">达成成就：${got.map((a) => esc(a.zh)).join('、')}（去树海主页领奖）</p>` : ''}
+    ${carryHtml}
     <div class="row"><button class="btn gold" data-act="go-tree">回树海主页</button></div>`, 'wide');
 }
 
@@ -422,7 +452,7 @@ export function treeAwakenModal(app, realm = null) {
   const keys = Object.keys(REALMS).filter((k) => awakenOf(st, k) > 0);
   const tabsAll = [...keys, ...(uni > 0 ? ['ANY'] : [])];
   const cur = realm && tabsAll.includes(realm) ? realm : tabsAll[0];
-  if (!cur) { openModal('<h3>唤醒券</h3><p class="hint">一张都没有。树海的深根 / 黑流之心首通、成就与等级奖励会给界域券，5 / 15 / 25 级给通用券。</p>'); return; }
+  if (!cur) { openModal('<h3>唤醒券</h3><p class="hint">一张都没有。树海的深根 / 红流之心首通、成就与等级奖励会给界域券，5 / 15 / 25 级给通用券。</p>'); return; }
   const any = cur === 'ANY';
   const pool = data.awakeners
     .filter((a) => (any || a.realm === cur) && !st.roster[a.slug])

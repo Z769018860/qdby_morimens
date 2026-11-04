@@ -33,6 +33,9 @@ export function makeUnit(def, side, idx) {
     firstBoost: num(def.firstBoost, 0),
     rank: def.rank || null, kit: def.kit || null, extra: def.extra || null, pattern: def.pattern || null, opening: def.opening || [], boss: !!def.boss, reward: !!def.reward, affix: def.affix || null,
     mid: def.mid || null, trait: def.trait || null,
+    // 守关特性（core/denrun.js 的「逆潮守关」）：只有那个模式会给 a 侧单位挂 guard，
+    // 其他模式没有这个字段，下面每一处判定都会直接跳过，行为与以前完全一致。
+    guard: def.guard || null, raged: false,
     thorns: num(def.thorns, 0),          // 铁壁：回合结束按未消耗护盾的比例反伤（纯盾型守护，见 core/roles.js）
     ali: num(def.openAli, 0), key: num(def.openKey, 0), shield: num(def.shield, 0),
     // 开场就挂着的增减益（关卡词条 / 测试用）；平常没人传，等于空数组
@@ -229,6 +232,11 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       return 0;
     }
     if (kind === 'dmg' && src.side !== tgt.side && isPlayerLike(tgt) && (tgt.idx ?? 0) < FRONT_SLOTS) dmg = Math.round(dmg * SLOT_FRONT_CUT);
+    // 守关特性 · 壁垒：单次直接伤害封顶（多段攻击、毒、流血照常打满）——专门用来废掉「一击巨伤」
+    if (kind === 'dmg' && src.side !== tgt.side && tgt.side === 'a' && tgt.guard === 'bulwark') {
+      const cap = Math.max(1, Math.round(tgt.maxHp * 0.14));
+      if (dmg > cap) dmg = cap;
+    }
     let absorbed = 0;
     const shieldBefore = tgt.shield;
     if (tgt.shield > 0) { absorbed = Math.min(tgt.shield, dmg); tgt.shield -= absorbed; dmg -= absorbed; }
@@ -273,6 +281,21 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     // 反射：把受到伤害的一部分原样弹回去（只对直接伤害生效，反射出去的不再反射）
     if (kind === 'dmg' && tgt.reflect && tgt.alive && src.side !== tgt.side && src.alive && dmg > 0) {
       applyDamage(tgt, src, guarded(tgt, src, dmg * tgt.reflect.pct / 100, true), false, null, 'counter');
+    }
+    // ---- 守关特性（只对带 guard 的 a 侧单位生效） ----
+    if (kind === 'dmg' && src.side !== tgt.side && tgt.side === 'a') {
+      // 棘刺：挨打反弹（半量防御，和毒 / 反击一个口径）——小刀慢慢磨反而更疼，一次巨伤只弹一份
+      if (tgt.guard === 'spines' && tgt.alive && src.alive && dmg > 0) {
+        applyDamage(tgt, src, guarded(tgt, src, dmg * 0.1, true), false, null, 'counter', { guard: 'spines' });
+      }
+    }
+    if (kind === 'dmg' && src.side === 'a' && src.guard && src.alive) {
+      if (src.guard === 'venom' && tgt.alive) addStatus(src, tgt, 'poison', 1, 99);
+      else if (src.guard === 'leech' && dmg > 0) leech(src, dmg * 0.22);
+      else if (src.guard === 'sunder' && tgt.alive && rng() < 0.3) {
+        tgt.buffs.push({ stat: 'def', v: -18, dur: 2 });
+        push({ k: 'buff', who: tgt.uid, stat: 'def', v: -18, dur: 2 });
+      }
     }
     return dmg;
   }
@@ -1056,6 +1079,25 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         if (src) for (const tgt of list) addStatus(src, tgt, 'sealed', 1, 1);
       }
     }
+    // 守关特性 · 庇护：每 2 回合给最残的友军补一层护盾（能挡掉一次点杀）
+    if (round % 2 === 0) for (const u of A) {
+      if (!u.alive || u.guard !== 'ward') continue;
+      const live = A.filter((x) => x.alive);
+      if (!live.length) continue;
+      const t = live.reduce((a, b) => (a.hp / a.maxHp <= b.hp / b.maxHp ? a : b));
+      const v = Math.round(t.maxHp * 0.1);
+      t.shield = Math.min(Math.round(t.maxHp * 0.5), num(t.shield) + v);
+      push({ k: 'heal', by: u.uid, who: t.uid, amt: 0, hp: t.hp, shield: t.shield });
+    }
+    // 守关特性 · 噤声：每 3 回合封住玩家能量最高的那个人一回合
+    if (round % 3 === 0) {
+      const src = A.find((x) => x.alive && x.guard === 'seal');
+      if (src) {
+        const t = E.filter((x) => x.alive && x.kit && !x.st.sealed)
+          .sort((a, b) => Math.max(b.ali, b.key) - Math.max(a.ali, a.key))[0];
+        if (t) addStatus(src, t, 'sealed', 1, 1);
+      }
+    }
     for (const u of A) {      // 延迟爆发到点了
       if (!u.delayed.length) continue;
       const due = u.delayed.filter((d) => d.at <= round);
@@ -1109,6 +1151,13 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       for (const k of Object.keys(u.st)) if (u.st[k].dur < 90 && --u.st[k].dur <= 0) delete u.st[k];
       if (u.side === 'e' && round >= 12) u.enrage += 0.08;
     }
+    // 守关特性 · 狂血：生命第一次跌破 45% 时攻击永久 +45%（一次）——所以「控血」比「碾压」划算
+    for (const u of A) {
+      if (!u.alive || u.guard !== 'frenzy' || u.raged || u.hp >= u.maxHp * 0.45) continue;
+      u.raged = true;
+      u.buffs.push({ stat: 'atk', v: 45, dur: 98 });
+      push({ k: 'buff', who: u.uid, stat: 'atk', v: 45, dur: 98 });
+    }
     emitAll();
   }
 
@@ -1120,6 +1169,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   return {
     win, rounds: round, timeout, roundLimit: maxRounds, rules: [...RL], events: ev, kills, stats,
     allies: A.map((u) => ({ uid: u.uid, hp: u.hp, maxHp: u.maxHp, alive: u.alive })),
+    enemies: E.map((u) => ({ uid: u.uid, hp: u.hp, maxHp: u.maxHp, alive: u.alive })),
     // 观战回放用的展示数据（只有画面需要的字段，不含技能 kit）：挑塔 / 周 Boss / 竞技场
     // 这些「直接出结果」的模式原本没有 prep，现在也能把过程放出来。
     prep: { allies: A.map(prepOf), enemies: E.map(prepOf) },

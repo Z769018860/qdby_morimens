@@ -1,7 +1,7 @@
-// 黑流树海平衡体检：在 Node 里跑完整局（不碰 DOM），统计各难度的通关率 / 平均推进步数。
+// 红流树海平衡体检：在 Node 里跑完整局（不碰 DOM），统计各难度的通关率 / 平均推进步数。
 // 用法：node tools/tree-audit.mjs [每难度局数，默认 12]
 // 分支策略固定「有战斗先打战斗，否则走第一条」、馈赠固定「先点亮强化」——
-// 这是「中等偏上玩家」的基线，通关率目标：微光 ≥85%，低语 ~75%，树影 ~60%，深根 ~40%，黑流之心 ~25%。
+// 这是「中等偏上玩家」的基线，通关率目标：微光 ≥85%，低语 ~75%，树影 ~60%，深根 ~40%，红流之心 ~25%。
 import { readFileSync } from 'node:fs';
 import { indexData, newState } from '../src/core/game.js';
 import { mulberry32 } from '../src/core/rng.js';

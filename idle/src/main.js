@@ -32,6 +32,7 @@ import { buy as shopBuy, SHOP, buyTicketWithGold } from './core/shop.js';
 import { signinPage, eventPage } from './ui/pages4.js';
 import * as LK from './ui/luck.js';
 import * as TREE from './ui/tree.js';
+import * as DEN from './ui/den.js';
 import * as AF from './ui/affinity.js';
 import { affTick, giveGift, buyGift } from './core/affinity.js';
 import {
@@ -47,8 +48,10 @@ import {
   abandonRun as treeAbandon, claimTreeAch, offerPool as treeOfferPool, checkDraft as treeCheckDraft,
   gearEquip, gearUnequip, setLineup, takeChest, takeSpring, takeShrine, buyTalent as treeBuyTalent,
   claimTreeLevel, talentMods as treeTalentMods, TREE_SQUADS, teamMax,
+  stashPut as treeStashPut, stashTake as treeStashTake, stashDrop as treeStashDrop,
 } from './core/treerun.js';
 import { useDirectVoucher, useAwakenVoucher, awakenOf, universalOf } from './core/game.js';
+import { denFight, denApply, denChapterReward, denState, denCheck, monById, DEN_MAX, DEN_SLOTS } from './core/denrun.js';
 import { claimDaily, redeemGuest, claimMile, dailyView, milePending } from './core/event.js';
 import { syncSigninGifts } from './core/creators.js';
 import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
@@ -73,7 +76,7 @@ const GROUPS = [
   { k: 'battle', zh: '战斗', icon: ICON.battle, tabs: [['battle', '战斗']] },
   { k: 'team', zh: '养成', icon: ICON.team, tabs: [['team', '队伍'], ['roster', '唤醒体'], ['gear', '命轮密契'], ['orders', '钥令']] },
   { k: 'summon', zh: '召唤', icon: ICON.summon, tabs: [['summon', '召唤']] },
-  { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '无限塔'], ['rift', '融灾禁区'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场'], ['luck', '疾驰欢愉的大运'], ['tree', '黑流树海']] },
+  { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '无限塔'], ['rift', '融灾禁区'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场'], ['luck', '疾驰欢愉的大运'], ['tree', '红流树海'], ['den', '逆潮守关']] },
   { k: 'more', zh: '更多', icon: ICON.more, tabs: [['signin', '签到'], ['event', '联动'], ['aff', '同调'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']] },
 ];
 
@@ -83,7 +86,7 @@ const GROUPS = [
 const BG = {
   battle: '17', team: '13', roster: '14', gear: '15', orders: '16', summon: '18',
   challenge: '19', weekly: '20', rtower: '21', arena: '22', signin: '23', codex: '24', ach: '25', settings: '26', rift: '33',
-  event: '34', luck: '35', tree: '36',
+  event: '34', luck: '35', tree: '36', den: '28',
 };
 let bgNow = '';
 function setBg(tab) {
@@ -100,7 +103,7 @@ const GROUP_OF = Object.fromEntries(GROUPS.flatMap((g) => g.tabs.map(([k]) => [k
 // 每个页面配一首 BGM（audio.js 里的六首）。战斗页由 BattleView 按是否 Boss 战自己切。
 const MOOD_OF = {
   team: 'home', roster: 'home', gear: 'home', orders: 'home', summon: 'summon',
-  challenge: 'tower', weekly: 'tower', rtower: 'tower', arena: 'battle', tree: 'tower',
+  challenge: 'tower', weekly: 'tower', rtower: 'tower', arena: 'battle', tree: 'tower', den: 'tower',
   signin: 'home', codex: 'home', ach: 'home', settings: 'home', event: 'home',
 };
 const gachaSound = (out) => (out.some((p) => p.rarity === 'Genesis') ? 'reveal3' : out.some((p) => p.rarity === 'SSR') ? 'reveal2' : 'reveal1');
@@ -742,7 +745,7 @@ function refreshArena() {
   if (app.tab === 'arena') render();
 }
 function render() {
-  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, orders: P.ordersPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, rift: P3.riftPage, ach: P2.achievementPage, event: eventPage, luck: LK.luckPage, tree: TREE.treePage, aff: AF.affinityPage }[app.tab];
+  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, orders: P.ordersPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, rift: P3.riftPage, ach: P2.achievementPage, event: eventPage, luck: LK.luckPage, tree: TREE.treePage, aff: AF.affinityPage, den: DEN.denPage }[app.tab];
   if (f) { const y = window.scrollY; $('#view').innerHTML = f(app); window.scrollTo(0, y); }
   app.refreshTop();
   refreshBadges();
@@ -992,7 +995,7 @@ function onAct(e) {
       if (rw) { sound.play('ach'); toast(`成就奖励：${rewardLine(rw)}`); rerender(); }
       break;
     }
-    // ---- 黑流树海 ----
+    // ---- 红流树海 ----
     case 'go-tree': show('tree'); break;
     case 'tree-open-draft': {
       app.ui.treeDraft = { diff: el.dataset.k, team: [], squad: app.ui.treeSquad || TREE_SQUADS[0].id };
@@ -1172,6 +1175,31 @@ function onAct(e) {
     }
     case 'tree-depot': TREE.treeDepotModal(app); break;
     case 'tree-depot-close': app.ui.treeGearPick = null; closeModal(); render(); break;
+    case 'tree-stash-put': {
+      const r = treeStashPut(s, el.dataset.key);
+      if (r?.err) { toast(r.err); break; }
+      app.save(); sound.play('gold');
+      if (treeState(s).lastRun) TREE.treeEndModal(app, treeState(s).lastRun);
+      toast(`「${r.item.zh}」已放进行囊`, 2600);
+      break;
+    }
+    case 'tree-stash-drop': {
+      const it = treeStashDrop(s, el.dataset.key);
+      if (!it) break;
+      app.save(); render(); sound.play('click');
+      toast(`丢掉了「${it.zh}」`);
+      break;
+    }
+    case 'tree-bag-take': {
+      const run = treeState(s).cur;
+      if (!run) { render(); break; }
+      const r = treeStashTake(s, run, el.dataset.key);
+      if (r?.err) { toast(r.err); break; }
+      app.save(); sound.play('ach');
+      TREE.treeDepotModal(app);
+      toast(`从行囊带上「${r.item.zh}」`, 2600);
+      break;
+    }
     case 'tree-lineup': {
       const run = treeState(s).cur;
       if (!run) { render(); break; }
@@ -1258,6 +1286,89 @@ function onAct(e) {
       if (!r2) { toast('用不了：券没了，或这位已经拥有 / 界域不对'); break; }
       closeModal(); app.save(); render(); sound.play('summonSSR');
       toast(`唤醒成功：${r2.zh} 加入了名册${r2.used === 'univ' ? '（用了通用券）' : ''}`, 4000);
+      break;
+    }
+    /* ---------------- 逆潮守关（扮演怪物守关） ---------------- */
+    case 'den-open': {
+      app.ui.denN = Math.max(1, Math.min(DEN_MAX, +el.dataset.n || 1));
+      app.ui.denPicks = [];
+      app.ui.denRank = 'all'; app.ui.denFit = true;
+      render(); sound.play('nav');
+      break;
+    }
+    case 'den-back': {
+      app.ui.denN = 0; app.ui.denPicks = [];
+      closeModal(); render(); sound.play('nav');
+      break;
+    }
+    case 'den-pick': {
+      const n = app.ui.denN, picks = (app.ui.denPicks ||= []);
+      const id = el.dataset.id;
+      if (!n || !monById(d, id)) break;
+      if (picks.some((p) => p.id === id)) { toast('这只已经在守关队里了'); sound.play('deny'); break; }
+      if (picks.length >= DEN_SLOTS) { toast(`守关队最多 ${DEN_SLOTS} 只`); sound.play('deny'); break; }
+      // 默认按成体上场；装不下就自动降成幼体（玩家不用为了「加得进去」来回点两下）
+      const ok = ['t2', 't1'].find((t) => denCheck(n, [...picks, { id, tier: t }], d).ok);
+      if (!ok) { toast('算力不够了：先撤一只，或者把某只往下降一档'); sound.play('deny'); break; }
+      app.ui.denPicks = [...picks, { id, tier: ok }];
+      render(); sound.play('click');
+      break;
+    }
+    case 'den-tier': {
+      const n = app.ui.denN, picks = (app.ui.denPicks ||= []);
+      const next = picks.map((p) => (p.id === el.dataset.id ? { ...p, tier: el.dataset.tier } : p));
+      const chk = denCheck(n, next, d);
+      if (chk.err) { toast(chk.err); sound.play('deny'); break; }
+      app.ui.denPicks = next; render(); sound.play('click');
+      break;
+    }
+    case 'den-remove': {
+      app.ui.denPicks = (app.ui.denPicks || []).filter((p) => p.id !== el.dataset.id);
+      render(); sound.play('click');
+      break;
+    }
+    case 'den-clear': app.ui.denPicks = []; render(); sound.play('nav'); break;
+    case 'den-rank': app.ui.denRank = el.dataset.k || 'all'; render(); sound.play('click'); break;
+    case 'den-fit': app.ui.denFit = app.ui.denFit === false; render(); sound.play('click'); break;
+    case 'den-last': {
+      const n = app.ui.denN;
+      const last = (denState(s).lineups || {})[n];
+      if (!last || !last.length) { toast('还没用这套打过这一关'); break; }
+      const chk = denCheck(n, last, d);
+      if (chk.err) { toast(`上次那套现在用不了：${chk.err}`); sound.play('deny'); break; }
+      app.ui.denPicks = last.map((p) => ({ ...p }));
+      render(); sound.play('click');
+      break;
+    }
+    case 'den-fight': {
+      const n = app.ui.denN;
+      if (!n) break;
+      const picks = app.ui.denPicks || [];
+      const out = denFight(s, d, n, picks);
+      if (out.err) { toast(out.err); sound.play('deny'); break; }
+      const rw = denApply(s, n, out);
+      denState(s).lineups[n] = picks.map((p) => ({ ...p }));
+      app.save(); render();
+      sound.play(out.win ? 'win' : 'lose');
+      watchOrSkip(replayOf(out.res, {
+        title: `逆潮守关 · 第 ${n} 关 · ${out.stage.name}`,
+        sub: out.win ? `守住了：还剩 ${Math.round(out.hpLeft * 100)}% 生命` : `玩家还剩 ${Math.round(out.playerLeft * 100)}% 生命`,
+        note: '跳过回放不影响结算', kw: d.kw,
+      }), () => { app.save(); render(); DEN.denResultModal(app, out, rw, n); });
+      break;
+    }
+    case 'den-retry':
+    case 'den-next': {
+      app.ui.denN = Math.max(1, Math.min(DEN_MAX, +el.dataset.n || 1));
+      closeModal(); render(); sound.play('nav');
+      break;
+    }
+    case 'den-claim': {
+      const ch = +el.dataset.ch;
+      const rw = denChapterReward(s, ch);
+      if (!rw) { toast('这一章还没全通，或者已经领过了'); break; }
+      app.save(); render(); sound.play('unlock');
+      DEN.denClaimModal(rw, ch);
       break;
     }
     case 'pick-order': {

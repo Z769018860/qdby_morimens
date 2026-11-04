@@ -120,8 +120,10 @@ export function newState(data, now = Date.now()) {
     gift: { signin: 0 },
     // 疾驰欢愉的大运（core/luckrun.js）：分数等级 / 天赋 / 专属成就 / 当前这一局
     luck: { pts: 0, best: 0, clears: 0, runs: 0, lvClaimed: {}, talents: {}, tp: 0, ach: {}, cur: null },
-    // 黑流树海（core/treerun.js）：局内统计 / 天赋树 / 等级经验（pts）/ 专属成就 / 当前这一局
-    tree: { runs: 0, clears: 0, best: 0, pts: 0, tp: 0, talents: {}, lvClaimed: {}, cleared: {}, ach: {}, squads: {}, cur: null },
+    // 红流树海（core/treerun.js）：局内统计 / 天赋树 / 等级经验（pts）/ 专属成就 / 当前这一局 / 行囊
+    tree: { runs: 0, clears: 0, best: 0, pts: 0, tp: 0, talents: {}, lvClaimed: {}, cleared: {}, ach: {}, squads: {}, stash: [], cur: null },
+    // 逆潮守关（core/denrun.js）：你站在怪物这一边，用算力组队去拦下玩家阵容
+    den: { best: 0, stars: {}, lineups: {}, runs: 0, wins: 0, claim: {}, played: 0 },
     // 免费回溯券：后台发放 / 大运等级奖励给的「免费用一次回溯」，角色与装备通用（core/game.js spendRewind）
     vouchers: { rewind: 0, direct: 0, univ: 0, awaken: emptyAwaken() },
     // 同调率（core/affinity.js）：带着推关 / 送礼攒点，等级天赋 + 满级卡牌效果
@@ -170,7 +172,7 @@ export function migrate(s, data) {
       return out;
     })(),
   };
-  // 黑流树海（core/treerun.js）：局内统计 / 天赋树 / 等级经验 / 专属成就
+  // 红流树海（core/treerun.js）：局内统计 / 天赋树 / 等级经验 / 专属成就
   m.tree = {
     runs: 0, clears: 0, best: 0, pts: 0, tp: 0, talents: {}, lvClaimed: {}, cleared: {}, ach: {},
     ...(s.tree && typeof s.tree === 'object' ? s.tree : {}),
@@ -182,6 +184,19 @@ export function migrate(s, data) {
   m.tree.squads = { ...(m.tree.squads || {}) };
   m.tree.pts = Math.max(0, Math.floor(Number(m.tree.pts) || 0));
   m.tree.tp = Math.max(0, Math.floor(Number(m.tree.tp) || 0));
+  // 行囊（跨局仓库）：只留结构完整的条目，多出来的截断
+  m.tree.stash = (Array.isArray(m.tree.stash) ? m.tree.stash : []).filter((x) => x && typeof x === 'object' && x.key).slice(0, 8);
+  // 逆潮守关：进度 / 星级 / 每关上次用的阵容
+  m.den = {
+    best: 0, stars: {}, lineups: {}, runs: 0, wins: 0, claim: {}, played: 0,
+    ...(s.den && typeof s.den === 'object' ? s.den : {}),
+  };
+  m.den.best = Math.max(0, Math.min(100, Math.floor(Number(m.den.best) || 0)));
+  m.den.stars = { ...(m.den.stars || {}) };
+  m.den.lineups = { ...(m.den.lineups || {}) };
+  m.den.claim = { ...(m.den.claim || {}) };
+  m.den.runs = Math.max(0, Math.floor(Number(m.den.runs) || 0));
+  m.den.wins = Math.max(0, Math.floor(Number(m.den.wins) || 0));
   m.team = [...new Set(Array.isArray(m.team) ? m.team : [])].filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
   if (m.strategy.ult === 'manual') m.strategy.ult = 'first';   // 手动开大已下线：老存档回到默认策略
   normalizeUltOrder(m);
@@ -283,10 +298,10 @@ export function relicBonuses(state, data) {
 // extra：队伍级被动（羁绊 / 混编共鸣）算出来的加成，直接叠进这个人的装备加成里。
 // 不传就只有「单人 + 装备」——战力对比、编队候选这类单人场景都走这条。
 // bare=true：**连账号装备一起屏蔽**（命轮 / 密契 / 造物 / 钥令 / 同调率都不算），
-// 只剩「角色本体 + 影子练度」——黑流树海要用它，因为那个模式的装备得在局内自己买。
+// 只剩「角色本体 + 影子练度」——红流树海要用它，因为那个模式的装备得在局内自己买。
 export function allyDef(state, data, slug, teamSlugs = state.team, extra = null, ovr = null, bare = false) {
   const a = data.bySlug[slug];
-  // ovr：影子练度（黑流树海开局锁 50 级无强化、局内点亮「高枝 / 超限 / 法则」时逐步放开）。
+  // ovr：影子练度（红流树海开局锁 50 级无强化、局内点亮「高枝 / 超限 / 法则」时逐步放开）。
   // 只盖 lv / star / od / law 四个键，其余（brk、buy、aff…）照旧——技能解锁（extraKit）与
   // 增伤段（超限 / 法则那几行）读的也是这份，所以法则一点亮，终焉技和增伤同步生效。
   const r = ovr ? { ...state.roster[slug], ...(ovr || {}) } : state.roster[slug];
@@ -769,7 +784,7 @@ export function lawUp(state, slug) {
 }
 
 /** 树海直升券：把一位已有角色直接练到「超限满」——叠位 99、等级拉到 159、超限 99。最终法则不给（那档留给玩家自己练）。
- *  免费券等价于几十亿金币 + 几千银芯的养成，所以产出压得极低（黑流之心首通 / 树海成就 / 高难商店）。 */
+ *  免费券等价于几十亿金币 + 几千银芯的养成，所以产出压得极低（红流之心首通 / 树海成就 / 高难商店）。 */
 export function useDirectVoucher(state, slug) {
   const r = state.roster[slug];
   const v = (state.vouchers ||= { rewind: 0, direct: 0 });

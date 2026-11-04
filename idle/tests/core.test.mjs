@@ -3851,7 +3851,7 @@ test('周 Boss 扩到 8 层：逐层更硬、奖励更多、解锁门槛递增�
   assert.equal(weeklyOpen(s, 8), true);
 });
 
-// ---------------------------------------------------------------- 黑流树海
+// ---------------------------------------------------------------- 红流树海
 test('树海：募队按稀有度花黑露，超预算 / 重复 / 未拥有都拒绝', async () => {
   const T = await import('../src/core/treerun.js');
   const s = newState(data, 21);
@@ -3942,7 +3942,7 @@ test('树海：事件收益（芽 / 唤醒券 / 余晖）按明面结算', async
   const out = T.applyEvent(s, run, 0);
   assert.equal(out.bud, 1, '「枝头的茧」剖开要得一枚古树之芽');
   assert.ok(run.buds >= 1);
-  // 无名之物（黑流之心专属）：唤醒券直接进账号
+  // 无名之物（红流之心专属）：唤醒券直接进账号
   run.diff = 'heart';
   run.ev = { id: 'w_unnamed' };
   const out2 = T.applyEvent(s, run, 0);
@@ -3972,13 +3972,13 @@ test('树海：通关结算发奖励与首通券，成就能领', async () => {
   const got = T.claimTreeAch(s, 't_clear');
   assert.ok(got && s.tickets > w0);
   assert.equal(T.claimTreeAch(s, 't_clear'), null);
-  // 黑流之心首通：直升券 + 唤醒券
+  // 红流之心首通：直升券 + 唤醒券
   const v0 = { d: s.vouchers.direct || 0 };
   T.startRun(s, data, 'heart', team);
   const r2 = T.treeState(s).cur;
   r2.act = 2; r2.score = 5000;
   T.endRun(s, true);
-  assert.equal(s.vouchers.direct, v0.d + 1, '黑流之心首通送直升券');
+  assert.equal(s.vouchers.direct, v0.d + 1, '红流之心首通送直升券');
 });
 
 test('树海券：直升券拉到超限满、唤醒券只收未拥有的血肉界域角色', async () => {
@@ -4287,7 +4287,7 @@ test('树海通用唤醒券：四个界域通吃，但先扣专用券', async ()
   assert.equal(s.vouchers.awaken.AEQUOR, 0);
   assert.equal(universalOf(s), 1, '通用券不能动');
 
-  // 黑市能上架通用券（深根 / 黑流之心）
+  // 黑市能上架通用券（深根 / 红流之心）
   const s2 = newState(data, 47);
   const all = data.awakeners.map((a) => a.slug);
   for (const sl of all) s2.roster[sl] = { lv: 50, star: 0, brk: 3 };
@@ -4332,7 +4332,7 @@ test('守护留盾：回合末剩余护盾的 50% 带进下一回合（上限最
   assert.ok(Math.abs((sh[2].shield - sh[2].amt) - sh[1].amt * 0.5) < sh[1].amt * 0.02, '留下的约等于上回合剩余护盾的 50%');
 });
 
-test('黑流树海·前锋分队：编队上限是 5（setLineup / 开战都认），其余分队仍是 4', async () => {
+test('红流树海·前锋分队：编队上限是 5（setLineup / 开战都认），其余分队仍是 4', async () => {
   const T = await import('../src/core/treerun.js');
   const sr = data.awakeners.filter((a) => a.rarity === 'SR').map((a) => a.slug);
   const run = (squad) => {
@@ -4354,4 +4354,195 @@ test('黑流树海·前锋分队：编队上限是 5（setLineup / 开战都认�
   const n = run('s_logi');
   assert.equal(T.teamMax(n.run), 4);
   assert.ok(T.setLineup(n.s, n.run, n.run.pool).slugs.length <= 4);
+});
+
+/* ---------------------------------------------------------------- 逆潮守关 */
+const D = await import('../src/core/denrun.js');
+
+test('逆潮守关：100 关，每关四个玩家、位置与规则都合法', () => {
+  const s = newState(data, 1);
+  for (let n = 1; n <= D.DEN_MAX; n++) {
+    const st = D.denStage(n);
+    assert.equal(st.n, n);
+    assert.ok(st.cpu >= 10 && st.cpu <= 20, `第 ${n} 关算力应在 10~20：${st.cpu}`);
+    assert.ok(st.rules.length <= 2, `第 ${n} 关最多两条战术`);
+    assert.ok(st.lv >= 50 && st.lv <= 159, `第 ${n} 关等级：${st.lv}`);
+    assert.ok(st.star >= 0 && st.star <= 99);
+    const defs = D.denPlayerDefs(n, data);
+    assert.equal(defs.length, 4, `第 ${n} 关玩家应该正好四人`);
+    for (const d of defs) assert.ok(d.hp > 0 && d.atk > 0 && d.name, `第 ${n} 关玩家数值不正常`);
+    for (const r of st.rules) assert.ok(['thorns', 'antiheal', 'armor', 'crit', 'heal'].includes(r), `未知规则 ${r}`);
+  }
+  // 等级与成长系数单调不减；算力在同一章内不减。
+  // 跨章会回落一点点（章末不再额外加预算，见 cpuBudget 的注释），这是有意的：
+  // 宁可让第 10 关比第 11 关多 0.5 算力，也不要出现「刚打完精英关，下一关预算缩水」。
+  for (let n = 2; n <= D.DEN_MAX; n++) {
+    assert.ok(D.denStage(n).lv >= D.denStage(n - 1).lv);
+    assert.ok(D.denScale(n) >= D.denScale(n - 1));
+    if (D.denStage(n).chapter === D.denStage(n - 1).chapter) assert.ok(D.denStage(n).cpu >= D.denStage(n - 1).cpu);
+  }
+});
+
+test('逆潮守关：算力上限、同种一只、五只上限都拦得住', () => {
+  const s = newState(data, 1);
+  const pool = D.denPool(data, 1).list;
+  const boss = pool.find((m) => m.rank === 'Boss');
+  const cheap = pool.filter((m) => m.rank === 'Normal');
+  // 一只巨体首领 = 9 × 2.35 ≈ 21 算力，第 1 关预算 10，直接拦
+  const bad = D.denCheck(1, [{ id: boss.id, tier: 't3' }], data);
+  assert.ok(bad.err, '巨体首领不该塞得进第 1 关的预算');
+  // 同一种两只：必须拦
+  const dup = D.denCheck(1, [{ id: cheap[0].id, tier: 't1' }, { id: cheap[0].id, tier: 't1' }], data);
+  assert.ok(/同一种/.test(dup.err), dup.err);
+  // 六只：超上限
+  const six = D.denCheck(100, cheap.slice(0, 6).map((m) => ({ id: m.id, tier: 't1' })), data);
+  assert.ok(/最多/.test(six.err), six.err);
+  // 非法档位
+  assert.ok(D.denCheck(1, [{ id: cheap[0].id, tier: 't9' }], data).err);
+  // 空队
+  assert.ok(D.denCheck(1, [], data).err);
+  // 正常一套：三只幼体刚好 9 ≤ 10
+  const ok = D.denCheck(1, cheap.slice(0, 3).map((m) => ({ id: m.id, tier: 't1' })), data);
+  assert.ok(ok.ok, ok.err);
+  assert.equal(ok.used, 9);
+});
+
+test('逆潮守关：近战只能打前排、远程可以越前排', () => {
+  const all = D.denMonsters(data);
+  const melee = all.filter((m) => m.reach === 'front');
+  const ranged = all.filter((m) => m.reach === 'any');
+  assert.ok(melee.length > 20 && ranged.length > 20);
+  const m = melee[0];
+  const d1 = D.monDef(m, 't1', 1, data);
+  assert.equal(d1.type, 'WARDEN', '近战怪只能站前排');
+  const d2 = D.monDef(ranged[0], 't1', 1, data);
+  assert.equal(d2.type, 'ASSAULT', '远程怪能越过前排');
+  assert.ok(d1.guard && D.DEN_GUARDS[d1.guard], '每只怪都得有一条守关特性');
+});
+
+test('逆潮守关：孤军必输——只上一只时玩家全体增伤 30%', () => {
+  const s = newState(data, 1);
+  const solo = D.denPool(data, 1).list.filter((m) => m.rank === 'Boss')[0];
+  const out = D.denFight(s, data, 1, [{ id: solo.id, tier: 't1' }]);
+  assert.ok(out.ok, out.err);
+  const base = D.denPlayerDefs(1, data);
+  assert.equal(out.players.length, 4);
+  for (let i = 0; i < 4; i++) assert.equal(out.players[i].amp, (base[i].amp || 0) + 30, '孤军增伤要落在每个玩家身上');
+  // 一只怪单刷 100 关：一关都不该过（有孤军 + 算力双保险，理论上还能靠特性捡漏，所以只要求「几乎不行」）
+  let wins = 0;
+  for (const n of [1, 20, 40, 60, 80, 100]) {
+    const st = D.denStage(n);
+    const best = D.denPool(data, n).list.filter((m) => m.rank === 'Boss').slice(0, 3);
+    for (const m of best) {
+      if (D.monCost(m, 't1') > st.cpu) continue;
+      const o = D.denFight(newState(data, 1), data, n, [{ id: m.id, tier: 't1' }]);
+      if (o.ok && o.win) wins++;
+    }
+  }
+  assert.ok(wins <= 1, `单怪阵容不该成为答案，实际过了 ${wins} 组`);
+});
+
+test('逆潮守关：结算写进度、首通给券、星级只升不降、重复打只给零钱', () => {
+  const s = newState(data, 1);
+  const pool = D.denPool(data, 1).list.filter((m) => m.rank === 'Normal').slice(0, 3);
+  const picks = pool.map((m) => ({ id: m.id, tier: 't1' }));
+  const out = D.denFight(s, data, 1, picks);
+  assert.ok(out.ok, out.err);
+  // 手工把结果改成「守住且满血」来验证奖励分支，不依赖随机战斗的胜负
+  const win3 = { ...out, win: true, hpLeft: 0.95, stars: 3, res: { ...out.res, rounds: 8 } };
+  const s2 = newState(data, 1);
+  const rw = D.denApply(s2, 1, win3);
+  assert.ok(rw.first, '第一次守住应该算首通');
+  assert.ok(rw.gold > 0 && rw.cores > 0 && rw.tickets >= 1);
+  assert.equal(s2.den.best, 1);
+  assert.equal(D.denUnlocked(s2), 2);
+  assert.equal(D.denStarOf(s2, 1), 3);
+  assert.equal(D.denTotalStars(s2), 3);
+  // 再打一次：不算首通，奖励只有金币，星级不会掉
+  const again = D.denApply(s2, 1, { ...win3, stars: 1 });
+  assert.ok(!again.first);
+  assert.equal(again.tickets, 0);
+  assert.equal(D.denStarOf(s2, 1), 3, '星级不该被更差的成绩覆盖');
+  assert.equal(s2.den.wins, 2);
+  assert.equal(s2.den.runs, 2);
+  // 守住第 5 关才推进 best，中间跳关不会解锁
+  assert.equal(s2.den.best, 1);
+});
+
+test('逆潮守关：全章奖励要等 10 关都有星，且只能领一次', () => {
+  const s = newState(data, 1);
+  for (let n = 1; n <= 9; n++) s.den.stars[n] = 1;
+  assert.equal(D.denChapterReward(s, 1), null, '还差一关不能领');
+  s.den.stars[10] = 1;
+  const rw = D.denChapterReward(s, 1);
+  assert.ok(rw && rw.gold > 0 && rw.cores > 0 && rw.tickets > 0);
+  assert.equal(D.denChapterReward(s, 1), null, '领过就不能再领');
+  assert.equal(D.denChapterReward(s, 2), null, '第 2 章没打不能领');
+});
+
+test('逆潮守关：存档里的脏数据会被洗干净', () => {
+  const s = newState(data, 1);
+  s.den = { best: '999', stars: { 3: '7', 4: -2 }, lineups: null, runs: -5, wins: 'x', claim: undefined };
+  const m = migrate(JSON.parse(JSON.stringify(s)), data);
+  assert.equal(m.den.best, 100, 'best 要夹到 0~100');
+  assert.equal(m.den.runs, 0);
+  assert.equal(m.den.wins, 0);
+  assert.deepEqual(m.den.lineups, {});
+  assert.deepEqual(m.den.claim, {});
+  assert.equal(D.denStarOf(m, 3), 3, '单关星级最多 3');
+  assert.equal(D.denStarOf(m, 4), 0, '负数星级归零');
+});
+
+test('逆潮守关：守关特性八条都有克制说明，且分布覆盖全部怪物', () => {
+  const all = D.denMonsters(data);
+  const used = new Set(all.map((m) => m.guard));
+  assert.equal(used.size, D.DEN_GUARD_KEYS.length, `八条特性都得用上，实际 ${[...used].join(',')}`);
+  for (const k of D.DEN_GUARD_KEYS) {
+    const g = D.DEN_GUARDS[k];
+    assert.ok(g.zh && g.short && g.d.length > 8 && g.counter, `特性 ${k} 缺说明`);
+  }
+  // 同一只怪在哪一关都是同一条特性（玩家记一次就能用一辈子）
+  assert.equal(D.monGuard({ id: all[0].id, rank: all[0].rank }), all[0].guard);
+});
+
+/* ---------------------------------------------------------------- 红流树海 · 行囊（跨局仓库） */
+test('行囊：结算带走一件、丢掉、下一趟取用不消耗', async () => {
+  const T = await import('../src/core/treerun.js');
+  const s = newState(data, 1);
+  const st0 = T.treeState(s);
+  // 一趟打完的局：局内攒了两件装备、两件造物，结算面板上应该都能带走
+  const run = { gear: { pool: [T.TREE_GEAR[0].id, T.TREE_GEAR[1].id] }, relics: [T.TREE_RELICS[0].id, T.TREE_RELICS[1].id] };
+  const carry = T.carryOptions(run);
+  assert.ok(carry.length >= 2, `结算时应该有东西可带，实际 ${carry.length}`);
+  st0.lastRun = { carry, stashed: null, win: true, score: 120 };
+  const r1 = T.stashPut(s, carry[0].key);
+  assert.ok(r1.ok, r1.err);
+  assert.equal(st0.stash.length, 1);
+  assert.ok(st0.lastRun.stashed === carry[0].key, '带走的要记在那一趟的结算上');
+  const dup = T.stashPut(s, carry[1].key);
+  assert.ok(dup.err, '一趟只能带走一件');
+  // 新的一趟结算：塞满 8 件后再带要拒绝；腾一件出来就能带
+  for (let i = 1; i < T.STASH_MAX; i++) st0.stash.push({ key: `x${i}`, kind: 'relic', id: T.TREE_RELICS[0].id, zh: `测试${i}`, tag: '造物' });
+  st0.lastRun = { carry, stashed: null };
+  const full = T.stashPut(s, carry[1].key);
+  assert.ok(full.err, '行囊满了要拒绝');
+  assert.equal(st0.stash.length, T.STASH_MAX);
+  st0.stash.pop();
+  const r2 = T.stashPut(s, carry[1].key);
+  assert.ok(r2.ok, r2.err);
+  assert.equal(st0.stash.length, T.STASH_MAX);
+  // 开新局：从行囊取一件带上，取用不消耗、每趟限一次
+  const team = Object.keys(s.roster).slice(0, 4);
+  const run2 = T.startRun(s, data, 'root', team, 's_van').run;
+  assert.ok(run2, '出发失败');
+  const key = carry[0].key;
+  const t1 = T.stashTake(s, run2, key);
+  assert.ok(t1.ok, t1.err);
+  assert.equal(run2.bagUsed, true, '取用后这一趟标记已用');
+  assert.ok(st0.stash.some((x) => x.key === key), '取用不该消耗行囊里的东西');
+  const t2 = T.stashTake(s, run2, key);
+  assert.ok(t2.err, '一趟只能取一件');
+  // 丢掉
+  T.stashDrop(s, key);
+  assert.ok(!st0.stash.some((x) => x.key === key), '丢掉后行囊里应该没有这件');
 });

@@ -406,7 +406,9 @@ export class BattleView {
     this.app.onBattleDone?.(rw);
 
     if (!s.auto) this.renderFightBar();
-    if (pop) { this.popSettle(ctx); return; }
+    // 只在战斗页弹：玩家在挑战 / 树海 / 守关这些页面看自己的结算时，
+    // 主线这场自动胜利的弹窗会直接把人家的弹窗顶掉（openModal 是单例）。结算数据都在战报里，不丢。
+    if (pop && this.app.tab === 'battle') { this.popSettle(ctx); return; }
     this.timer = setTimeout(() => this.next(), NEXT_GAP);
   }
 

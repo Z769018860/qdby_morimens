@@ -1,5 +1,5 @@
-// 黑流树海：挑战页里的第二个肉鸽。模板沿用大运的「3 层 × 10 场战斗」，玩法换成
-// 明日方舟集成战略（萨米肉鸽 / 黑流树海）的路子：
+// 红流树海：挑战页里的第二个肉鸽。模板沿用大运的「3 层 × 10 场战斗」，玩法换成
+// 明日方舟集成战略（萨米肉鸽 / 红流树海）的路子：
 //
 //   · 地图每一步给**两条岔路**二选一（战斗 / 紧急 / 猎场 / 奇遇 / 黑市 / 休整 / 宝箱 / 祭坛 / 泉水 / 试炼），
 //     走到头是首领；
@@ -36,7 +36,7 @@ export const TREE_DIFFS = [
   { id: 'whisper', zh: '低语', lv: 50, scale: 1.05, off: 4, mult: 1.5, note: '树海开始跟你说话。标准难度，推荐从这里开始' },
   { id: 'shade', zh: '树影', lv: 50, scale: 1.4, off: 14, mult: 2.2, note: '影子比树干更密。敌人的血和拳头都厚一档，装备不齐会打不动' },
   { id: 'root', zh: '深根', lv: 50, scale: 1.45, off: 17, mult: 3.2, note: '根须缠到脚踝——首通送唤醒券，商店开始卖无名之物' },
-  { id: 'heart', zh: '黑流之心', lv: 50, scale: 1.5, off: 20, mult: 4.6, note: '树海的心脏：越深域规越多，不点亮终焉法则几乎走不完。首通送直升券' },
+  { id: 'heart', zh: '红流之心', lv: 50, scale: 1.5, off: 20, mult: 4.6, note: '树海的心脏：越深域规越多，不点亮终焉法则几乎走不完。首通送直升券' },
 ];
 export const treeDiffOf = (id) => TREE_DIFFS.find((d) => d.id === id) || TREE_DIFFS[1];
 
@@ -167,7 +167,7 @@ export const TREE_RELICS = [
   { id: 'n_moon', zh: '黑月印记', desc: '全队增伤 +10%、暴击伤害 +25%', mod: { amp: 10, critDmg: 25 } },
   { id: 'n_moth', zh: '扑火之蛾', desc: '全队首击加成 +35%', mod: { firstBoost: 35 } },
   { id: 'n_bark', zh: '铁桦皮', desc: '全队防御 +25%、濒死存活 +15%', mod: { def: 25, surviveChance: 0.15 } },
-  { id: 'n_sap', zh: '黑流树汁', desc: '每打赢一场额外得 9 余晖', glow: 9 },
+  { id: 'n_sap', zh: '红流树汁', desc: '每打赢一场额外得 9 余晖', glow: 9 },
   { id: 'n_root', zh: '缠根', desc: '每场战斗开局全队获得 18% 最大生命的护盾', mod: { shield: 18 } },
   { id: 'n_veil', zh: '雾纱', desc: '全队治疗加成 +40%', mod: { healBonus: 40 } },
   { id: 'n_fang', zh: '低语之牙', desc: '全队吸血 +12%、攻击 +8%', mod: { steal: 12, atk: 8 } },
@@ -179,7 +179,7 @@ export const TREE_RELICS = [
 const relicOf = (id) => TREE_RELICS.find((r) => r.id === id) || null;
 const relicSum = (run, key) => (run.relics || []).reduce((n, id) => n + (Number(relicOf(id)?.[key]) || 0), 0);
 
-// ------------------------------------------------------------------ 奇遇（黑流树海的事件）
+// ------------------------------------------------------------------ 奇遇（红流树海的事件）
 // 收益字段：glow 余晖 / heal 回血%（负掉血）/ maxhp 生命上限 / reroll 重掷 / score 分数 /
 // relic 造物 / gear 装备 / buff 增益 id / gamble 概率（成→造物 败→失血 12%）/ bud 古树之芽 /
 // rec 招募一位旅人进仓库 / tk 唤醒券（"界域" 或 "random"，直接进账号）。
@@ -271,7 +271,7 @@ export const TREE_EVENTS = [
     ],
   },
   {
-    id: 'w_sap', zh: '黑流泉眼', text: '地面裂开一道缝，黑色的液体从里面往外涌，气味像烧焦的糖。',
+    id: 'w_sap', zh: '红流泉眼', text: '地面裂开一道缝，黑色的液体从里面往外涌，气味像烧焦的糖。',
     opts: [
       { k: '把瓶子灌满', desc: '得 55 余晖，全队失去 10% 生命', gain: { glow: 55, heal: -10 } },
       { k: '只洗掉手上的灰', desc: '回复 16% 生命', gain: { heal: 16 } },
@@ -342,7 +342,7 @@ export const TREE_EVENTS = [
       { k: '把卵放回原处', desc: '全队生命上限 +10%，回复 10% 生命', gain: { maxhp: 10, heal: 10 } },
     ],
   },
-  // 高难度限定：黑流之心的「无名之物」——账号级的硬通货只从最深的地方长出来
+  // 高难度限定：红流之心的「无名之物」——账号级的硬通货只从最深的地方长出来
   {
     id: 'w_unnamed', zh: '无名之物', text: '雾最浓的地方浮着一小团不发光的黑，靠近时所有人都听见了同一句话：「带出去。」',
     opts: [
@@ -353,7 +353,7 @@ export const TREE_EVENTS = [
 ];
 export const treeEventOf = (run) => {
   const rng = runRng(run, `tev:${run.act}:${run.node}`);
-  // 黑流之心专属事件只在高难度出现；其余池子全难度共享
+  // 红流之心专属事件只在高难度出现；其余池子全难度共享
   const pool = TREE_EVENTS.filter((e) => e.id !== 'w_unnamed' || run.diff === 'heart');
   return pool[Math.floor(rng() * pool.length)];
 };
@@ -391,7 +391,7 @@ export const TREE_TALENTS = [
   { id: 'r_claw', br: '根须', zh: '磨利爪牙', desc: '全队攻击 +5% / 级', cost: [1, 2, 3], max: 3, key: 'atk', per: 5 },
   { id: 'r_hide', br: '根须', zh: '厚皮', desc: '全队防御 +6% / 级', cost: [1, 2, 3], max: 3, key: 'def', per: 6, req: 'r_claw' },
   { id: 'r_eye', br: '根须', zh: '猎手直觉', desc: '全队暴击率 +3% / 级', cost: [1, 2], max: 2, key: 'critRate', per: 3, req: 'r_hide' },
-  { id: 'r_flow', br: '根须', zh: '黑流灌注', desc: '全队增伤 +4% / 级', cost: [2, 3], max: 2, key: 'amp', per: 4, req: 'r_eye' },
+  { id: 'r_flow', br: '根须', zh: '红流灌注', desc: '全队增伤 +4% / 级', cost: [2, 3], max: 2, key: 'amp', per: 4, req: 'r_eye' },
   // 枝杈：改规则（不是改数字）——点了以后玩起来明显不一样
   { id: 'b_paths', br: '枝杈', zh: '岔路生枝', desc: '每一步给三条岔路（二选一 → 三选一）', cost: [3], max: 1, key: 'paths', per: 1 },
   { id: 'b_pack', br: '枝杈', zh: '行囊加层', desc: '契 / 令 的装备槽各 +1 / 级（3 → 5）', cost: [2, 3], max: 2, key: 'pack', per: 1, req: 'b_paths' },
@@ -488,8 +488,85 @@ export function treeState(state) {
   t.talents ||= {}; t.lvClaimed ||= {};
   t.cleared ||= {}; t.ach ||= {};
   t.squads ||= {};
+  // 行囊：跨局仓库。每趟结算可以留下一件局内道具，下一趟出发后从里面挑一件带上。
+  // 只存「来源 id」，不带数值——同一种装备 / 造物在行囊里永远只有一个位置。
+  t.stash = Array.isArray(t.stash) ? t.stash.filter((x) => x && x.key).slice(0, STASH_MAX) : [];
   if (t.cur === undefined) t.cur = null;
   return t;
+}
+
+/* ------------------------------------------------------------------ 行囊（跨局仓库）
+   结算带走一件、出发后取一件，取用不消耗（是藏品，不是补给）。
+   这样一趟一趟打下来，行囊会慢慢变成「这个账号最顺手的八件东西」，
+   但它不会让某一趟变得无脑——一趟仍然只能带一件，剩下的还得在局内现赚。 */
+export const STASH_MAX = 8;
+const RAR_RANK = { N: 0, R: 1, SR: 2 };
+
+/** 本局可以带走的候选（按品质降序，装备与造物各占一半以内，最多 6 个） */
+export function carryOptions(run) {
+  if (!run) return [];
+  const out = [];
+  const seen = new Set();
+  const gears = [...(run.gear?.pool || [])]
+    .map((it) => gearDefOf(it.defId))
+    .filter(Boolean)
+    .sort((a, b) => (RAR_RANK[b.rar] ?? 0) - (RAR_RANK[a.rar] ?? 0));
+  for (const g of gears) {
+    const key = `gear:${g.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ key, kind: 'gear', id: g.id, zh: g.zh, desc: g.desc, rar: g.rar, tag: GEAR_KIND_ZH[g.kind] });
+  }
+  for (const id of run.relics || []) {
+    const key = `relic:${id}`;
+    if (seen.has(key)) continue;
+    const r = relicOf(id);
+    if (!r) continue;
+    seen.add(key);
+    out.push({ key, kind: 'relic', id, zh: r.zh, desc: r.desc, rar: null, tag: '造物' });
+  }
+  return out.slice(0, 6);
+}
+
+/** 结算：把本局的一件道具收进行囊（每趟一次） */
+export function stashPut(state, key) {
+  const s = treeState(state);
+  const e = s.lastRun;
+  if (!e || !e.carry) return { err: '这一趟没有能带走的东西' };
+  if (e.stashed) return { err: '这一趟已经带走一件了' };
+  const it = e.carry.find((x) => x.key === key);
+  if (!it) return { err: '找不到这件道具' };
+  if (s.stash.some((x) => x.key === key)) return { err: '行囊里已经有一件了，先丢掉再带' };
+  if (s.stash.length >= STASH_MAX) return { err: `行囊满了（${STASH_MAX} 件），先去主页丢掉一件` };
+  s.stash.push({ key: it.key, kind: it.kind, id: it.id, zh: it.zh, desc: it.desc, rar: it.rar || null, tag: it.tag || '' });
+  e.stashed = it.key;
+  return { ok: true, item: it };
+}
+
+/** 主页：丢掉行囊里的一件（腾位置 / 换更好的） */
+export function stashDrop(state, key) {
+  const s = treeState(state);
+  const i = s.stash.findIndex((x) => x.key === key);
+  if (i < 0) return null;
+  return s.stash.splice(i, 1)[0];
+}
+
+/** 局内：从行囊取一件带上（每趟一次，取用不消耗） */
+export function stashTake(state, run, key) {
+  if (!run) return { err: '还没出发' };
+  if (run.bagUsed) return { err: '这一趟已经带过一件了' };
+  const s = treeState(state);
+  const it = s.stash.find((x) => x.key === key);
+  if (!it) return { err: '行囊里没有这件' };
+  if (it.kind === 'gear') {
+    if (!gearDefOf(it.id)) return { err: '这件装备已经不在表里了' };
+    addGear(run, it.id);
+  } else if (it.kind === 'relic') {
+    if (!relicOf(it.id)) return { err: '这件造物已经不在表里了' };
+    if (!(run.relics || []).includes(it.id)) run.relics.push(it.id);
+  } else return { err: '行囊里的东西坏了' };
+  run.bagUsed = true;
+  return { ok: true, item: it };
 }
 
 // ------------------------------------------------------------------ 开一局
@@ -564,6 +641,7 @@ export function startRun(state, data, diffId, drafts, squadId = TREE_SQUADS[0].i
     branch: null, kind: null, ev: null, shop: null, gift: null, offer: null,
     chest: null, spring: false, shrine: null,
     score: 0, kills: 0, battles: 0, seen: {},
+    bagUsed: false,                                            // 行囊这一趟是否已经取过（每趟一件）
     started: Date.now(), end: null, log: [],
   };
   // 天赋「古树所赐」：开局白得一件造物
@@ -1081,7 +1159,7 @@ export function shopStock(state, run, data = null) {
       items.push({ type: 'recruit', id: `s_rec_${sl}`, zh: `旅人 · ${data?.bySlug[sl]?.zh || sl}`, desc: '邀请一位角色进仓库（练度带不进来，只有 50 级白板）', price: Math.round(70 * off), slug: sl });
     }
   }
-  // 账号级商品：界域唤醒券随时可能上架；直升券只出现在深根与黑流之心
+  // 账号级商品：界域唤醒券随时可能上架；直升券只出现在深根与红流之心
   if (rng() < 0.55) {
     const realms = Object.keys(REALMS);
     const rl = realms[Math.floor(rng() * realms.length)];
@@ -1198,17 +1276,17 @@ export function fightNode(state, data, run) {
 
 // ------------------------------------------------------------------ 成就
 export const TREE_ACH = [
-  { id: 't_first', zh: '踏足树海', desc: '通过黑流树海的第一层', reward: { gold: 1500, cores: 30, tickets: 2 } },
+  { id: 't_first', zh: '踏足树海', desc: '通过红流树海的第一层', reward: { gold: 1500, cores: 30, tickets: 2 } },
   { id: 't_clear', zh: '穿林而出', desc: '完整走完三层', reward: { gold: 4000, cores: 80, tickets: 3 } },
   { id: 't_whisper', zh: '听过低语', desc: '在「低语」难度下通关', reward: { gold: 3000, cores: 60, tickets: 3, tp: 1 } },
   { id: 't_shade', zh: '树影不侵', desc: '在「树影」难度下通关', reward: { gold: 6000, cores: 120, tickets: 4, tp: 1 } },
   { id: 't_root', zh: '根须缠身', desc: '在「深根」难度下通关', reward: { gold: 12000, cores: 220, tickets: 6, tp: 2, vouchers: ['awaken:AEQUOR'] } },
-  { id: 't_heart', zh: '黑流之心', desc: '在「黑流之心」难度下通关', reward: { gold: 30000, cores: 500, tickets: 12, tp: 3, vouchers: ['direct', 'awaken:CHAOS'] } },
+  { id: 't_heart', zh: '红流之心', desc: '在「红流之心」难度下通关', reward: { gold: 30000, cores: 500, tickets: 12, tp: 3, vouchers: ['direct', 'awaken:CHAOS'] } },
   { id: 't_enh3', zh: '古树全馈', desc: '单局点亮全部三档强化', reward: { gold: 6000, cores: 100, tickets: 8 } },
   { id: 't_no_enh', zh: '本来如此', desc: '不点亮任何强化，在「微光」难度下通关', reward: { gold: 8000, cores: 150, tickets: 5, tp: 2 } },
   { id: 't_relic8', zh: '树海收藏家', desc: '单局拿到 6 件树海造物', reward: { gold: 3000, cores: 60 } },
   { id: 't_gear8', zh: '行囊鼓鼓', desc: '单局拿到 8 件局内装备', reward: { gold: 3200, cores: 70 } },
-  { id: 't_score', zh: '黑流回响', desc: '单局得分达到 3000', reward: { gold: 4000, cores: 80, tickets: 3 } },
+  { id: 't_score', zh: '红流回响', desc: '单局得分达到 3000', reward: { gold: 4000, cores: 80, tickets: 3 } },
   { id: 't_score6k', zh: '树海回声', desc: '单局得分达到 6000', reward: { gold: 7000, cores: 140, tickets: 4, tp: 1 } },
   { id: 't_rich', zh: '余晖满囊', desc: '单局结束时持有 350 以上余晖', reward: { gold: 2500, cores: 40 } },
   { id: 't_flawless', zh: '雾中无伤', desc: '通关时全队生命都在 70% 以上', reward: { gold: 5000, cores: 90, tickets: 3 } },
@@ -1252,6 +1330,8 @@ export function endRun(state, win) {
   run.end = {
     win, score, act: run.act, node: run.node, glow: run.glow, enh: run.enh, buds: run.buds,
     at: Date.now(), rw, pool: run.pool.length, gear: (run.gear?.pool || []).length, bless: (run.bless || []).length,
+    // 结算可以带一件局内道具进行囊：输了也让带（这趟没白跑），赢了照样只让带一件
+    carry: carryOptions(run), stashed: null,
   };
   s.best = Math.max(s.best, score);
   s.pts += rw.pts;
