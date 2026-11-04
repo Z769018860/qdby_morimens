@@ -4,25 +4,56 @@
 // 之所以分成两份：三百多 KB 的客户端表是生成物，别手改；难度、曲线、地形这些是设计，要能一眼看见。
 
 import { HEROES as G_HEROES, ITEMS as G_ITEMS, WHEELS as G_WHEELS, PACTS as G_PACTS, FOES as G_FOES, SHEETS as G_SHEETS } from './bazaar-gen.js';
+import { designHeroes, designWheels, designItems, ARCH as ARCH_RAW, ARCH_ZH as ARCH_ZH_RAW, WARCH as WARCH_RAW, REALM_TRAIT as REALM_TRAIT_RAW, HERO_RANKS as HERO_RANKS_RAW, WHEEL_RANKS as WHEEL_RANKS_RAW, AURA_SHORT as AURA_SHORT_RAW } from './bazaar-arch.js';
 
 export const SHEETS = G_SHEETS;
-// 唤醒体都要能出手打一下（以前只有「伤害型」会打，守护只架盾、辅助只挂易伤，整队站着不动）。
-// 按「伤害型同产出的伤害 ≈ 产出 ×1.25 + 0.5」折算：守护打 4 成、辅助打 3 成——比命轮低得多，但不再是零。
-// 生成表（bazaar-gen.js）是脚本生成物不手改，所以在这里统一补一层。
-const heroAttack = (h) => 1.25 * h.gen + 0.5;
-function withAttack(h) {
-  if (h.act.some((a) => a.k === 'dmg')) return h;                      // 伤害型本来就有
-  const k = h.typeKey === 'WARDEN' ? 0.4 : 0.3;
-  const v = Math.round(heroAttack(h) * k * 10) / 10;
-  return { ...h, act: [...h.act, { k: 'dmg', v }], txt: String(h.txt || '').replace(/。$/, '') + `，另外打出 ${v} 点伤害。` };
-}
-export const HEROES = G_HEROES.map(withAttack);
-export const ITEMS = G_ITEMS;
-export const WHEELS = G_WHEELS;
-export const PACTS = G_PACTS;
+// 流派（设计层，见 js/bazaar-arch.js）：唤醒体 12 个、命轮 13 个机制族、造物按机制分。
+export const ARCH = ARCH_RAW;
+export const WARCH = WARCH_RAW;
+export const ARCH_ZH = ARCH_ZH_RAW;
+// 光环的短名（卡片角标用）：11 种，见 js/bazaar-arch.js
+export const AURA_SHORT = AURA_SHORT_RAW;
+// 界域特性：同界域 2 / 3 / 4 人三档共鸣
+export const REALM_TRAIT = REALM_TRAIT_RAW;
+// 唤醒体的五档叫「启灵」；命轮的五档叫「叠位」——命轮不是觉醒，是这条轮盘又叠了一层。
+// 两边的每一档具体加什么，都按流派 / 机制族分别写在 js/bazaar-arch.js 里（HERO_RANKS / WHEEL_RANKS）。
+export const RANK_TIER = ['', '1 启', '2 启', '3 启', '超限', '最终法则'];
+export const WHEEL_TIER = ['', '1 叠', '2 叠', '3 叠', '超叠', '终式'];
+export const HERO_RANKS = HERO_RANKS_RAW;
+export const WHEEL_RANKS = WHEEL_RANKS_RAW;
+// 唤醒体、命轮、造物都要经过流派设计层：生成表里 73 个人只有 3 套数值、149 条命轮只有
+// 「直伤 + 一点毒或盾」，不拆开的话名字换一百遍打起来还是同一套。设计全在 js/bazaar-arch.js。
+export const HEROES = designHeroes(G_HEROES);
+export const ITEMS = designItems(G_ITEMS);
+export const WHEELS = designWheels(G_WHEELS);
+// 原有 21 条密契大多是「某项数值 +X%」，差别只在数字。这里补 8 条机制型的，
+// 让「开局选哪份密契」真的会改变这一局的打法。
+const EXTRA_PACTS = [
+  { id: 'p022', n: '蚀刻', spr: 'item:326', k: 'dotamp', v: 0.6, txt: '中毒与冻伤 +60%，但生命上限 -15。' },
+  { id: 'p023', n: '狙击', spr: 'item:327', k: 'snipe', v: 0.3, txt: '命轮伤害 30% 穿透护盾——对面越爱架盾越吃亏。' },
+  { id: 'p024', n: '缓毒', spr: 'item:328', k: 'zone', v: 50, txt: '毒圈晚 50 拍出现（第 150 拍起），慢热卡组多一段发育时间。' },
+  { id: 'p025', n: '苔生', spr: 'item:329', k: 'mossregen', v: 2, txt: '每拍回复 2 点生命。' },
+  { id: 'p026', n: '行囊', spr: 'item:330', k: 'bench', v: 2, txt: '仓库 +2 格，换阵容不用卖东西。' },
+  { id: 'p027', n: '早启', spr: 'item:331', k: 'rank', v: 1, txt: '开局每个唤醒体 +1 启、每条命轮 +1 叠。' },
+  { id: 'p028', n: '疾行', spr: 'item:332', k: 'herocd', v: 1, txt: '所有唤醒体的节拍 -1（最低 2 拍）。' },
+  { id: 'p029', n: '双刃', spr: 'item:333', k: 'twoedge', v: 0.3, txt: '命轮伤害 +30%，但你受到的伤害也多 15%。' },
+];
+export const PACTS = G_PACTS.concat(EXTRA_PACTS);
 export const FOES = G_FOES;
 // 集市里能刷出来的只有普通造物：维度影像（r='FATE'）是唤醒体随身带的本命造物，不外售
 export const SHOP_ITEMS = ITEMS.filter((x) => x.r !== 'FATE');
+
+// 原始敌人曲线（12 天基准）。
+const RAW_DAY_HP = [0, 104.4, 166.8, 224.8, 319.0, 442.2, 594.5, 710.5, 884.5, 1023.7, 1160.0, 1258.6, 1470.3, 1544.2, 1621.1, 1702.3, 1787.8, 1877.8, 1972.0];
+const RAW_DAY_DPS = [0, 3.4, 4.5, 5.5, 6.5, 7.0, 7.9, 8.5, 8.8, 9.3, 9.8, 9.9, 10.5, 10.9, 11.2, 11.6, 12.0, 12.3, 12.7];
+
+// 唤醒体拆成流派之后，玩家的成长曲线比原来陡得多（毒 / 灼烧会叠、力量越滚越高、穿盾不吃护盾、
+// 回响一发两响），敌人如果还按老曲线走，第十天以后基本是走个过场。
+// 所以第六天起把差距补回来：前五天完全不动（开局本来就是抛硬币，再抬难度就只剩运气），
+// 第 6~7 天每天补一截，之后按满额走。
+function LATE_SCALE(arr, x) {
+  return arr.map((v, i) => Math.round(v * (1 + (x - 1) * Math.min(1, i / 6)) * 10) / 10);
+}
 
 export const TUNING = {
   beats: 1000,        // 兜底上限（毒圈会让战斗在两三百拍内结束，实际碰不到）；真碰到才按剩余血量百分比判
@@ -31,6 +62,10 @@ export const TUNING = {
   beatMs: 480,        // 一拍的实际时长（×1/×2/×3 倍速）
   startHp: 130,
   startGold: 32,
+  heroBase: 9,        // 唤醒体价格 = 基数 + 占格 × 每格 - 全局减价
+  heroPerSlot: 5,
+  wheelBase: 7,       // 命轮价格 = 基数 + 耗算力 / 2 - 全局减价
+  priceCut: 2,        // 当前口径：所有唤醒体 / 命轮统降 2 金
   fieldSlots: 15,     // 战场十五格：唤醒体（1~3 格）和命轮（1~2 格）共用，可以互相拖动换位
   draftSlots: 8,      // 开局只能带 8 格的（大约三个）
   relicSlots: 4,      // 造物槽
@@ -40,12 +75,15 @@ export const TUNING = {
   shopSize: 6,        // 集市一次摆几个选项（2 列 × 3 行）
   rerollCost: 1,      // 刷新一次的价钱（原来 2）：放宽一点，玩家才有钱多刷几次找想要的人 / 命轮
   benchSlots: 4,      // 仓库格数：装不下的人 / 命轮先放仓库，随时换上场或卖掉
+  rankMax: 5,         // 启灵 / 叠位上限：1/2/3 → 超限·超叠 → 最终法则·终式
+  dupRate: 0.45,      // 集市多摆一个「升启」摊位的概率（买下就是把已有的那张往上顶一档，不占格）
+  realmShopCost: 1,   // 一天里第二次以后换界域商店的价钱
   sellRate: 0.5,
   cdMin: 2,
   wcdMin: 3,
   // 每天的血量预算 / 目标强度 / 收入。以 12 天为基准调出来，后面按同一斜率外推。
-  dayHp: [0, 104.4, 166.8, 224.8, 319.0, 442.2, 594.5, 710.5, 884.5, 1023.7, 1160.0, 1258.6, 1470.3, 1544.2, 1621.1, 1702.3, 1787.8, 1877.8, 1972.0],
-  dayDps: [0, 3.4, 4.5, 5.5, 6.5, 7.0, 7.9, 8.5, 8.8, 9.3, 9.8, 9.9, 10.5, 10.9, 11.2, 11.6, 12.0, 12.3, 12.7],
+  dayHp: LATE_SCALE(RAW_DAY_HP, 1.63),
+  dayDps: LATE_SCALE(RAW_DAY_DPS, 1.16),
   income: [0, 15, 15, 14, 13, 13, 13, 13, 13, 13, 13, 14, 15, 15, 16, 16, 17, 17, 18],
 };
 
@@ -55,19 +93,20 @@ export const DIFFS = [
     desc: '12 天，3 点理智。前四天只有普通怪，首领从第九天开始露面。' },
   { id: 'hard', n: '艰难', days: 12, dps: 1.02, hp: 1.0, income: 1.0, sane: 2, pole: 1,
     desc: '12 天，2 点理智。精英提前到第三天，第七天就有首领。' },
-  { id: 'nightmare', n: '噩梦', days: 15, dps: 0.95, hp: 0.96, income: 0.92, sane: 2, pole: 1.5,
-    desc: '15 天，2 点理智，收入 -8%。第二天起就会撞上精英。' },
-  { id: 'abyss', n: '深渊', days: 18, dps: 0.94, hp: 0.94, income: 0.82, sane: 2, pole: 2,
-    desc: '18 天，2 点理智，收入 -18%。精英从第三天就露头，第十天之后全是首领。' },
+  { id: 'nightmare', n: '噩梦', days: 15, dps: 1.02, hp: 1.04, income: 0.98, sane: 4, pole: 1.5,
+    desc: '15 天，4 点理智，收入 -2%。第二天起就会撞上精英，敌人也比寻常更硬。' },
+  { id: 'abyss', n: '深渊', days: 18, dps: 1.07, hp: 1.09, income: 0.82, sane: 5, pole: 2,
+    desc: '18 天，5 点理智，收入 -18%。精英从第三天就露头，第十天之后全是首领。' },
 ];
 
 export const REALM_ZH = { CHAOS: '混沌', CARO: '血肉', AEQUOR: '深海', ULTRA: '超维' };
 export const TYPE_ZH = { ASSAULT: '伤害', CHORUS: '辅助', WARDEN: '防御' };
 export const RANK_ZH = { normal: '普通', elite: '精英', boss: '首领' };
-export const REALM_COLOR = { 混沌: '#c4708f', 血肉: '#b8873f', 深海: '#4f9bb5', 超维: '#8f7fc4' };
+export const REALM_COLOR = { 混沌: '#ecd24f', 血肉: '#cf3f46', 深海: '#4a8fdb', 超维: '#a58ce8' };
 
-export const ARCH_ZH = {
-  dmg: '直伤', poison: '中毒', burn: '灼烧', shield: '护盾', heal: '回复', gold: '金币',
+// 造物卡片上那一小行标签（用的是原表的 arch 字段）
+export const ITEM_ARCH_ZH = {
+  dmg: '直伤', poison: '中毒', burn: '冻伤', shield: '护盾', heal: '回复', gold: '金币',
   crit: '暴击', haste: '节拍', regen: '回血', slow: '滞缓', vuln: '易伤', aura: '光环',
   str: '力量', thorns: '反伤', fate: '本命',
 };
@@ -85,9 +124,18 @@ export const MOD_ZH = {
   wcd: ['命轮节拍', '-', ' 拍'],
   thorns: ['反伤', '+', ''],
   gold: ['每场金币', '+', ''],
+  // 新机制：让造物不再只是「伤害/暴击」两种
+  flat: ['命轮伤害', '+', ' 点'],
+  ward: ['每 4 拍护盾', '+', ''],
+  leech: ['吸血', '+', '%'],
+  pierce: ['穿透护盾', '+', '%'],
+  venom: ['中毒效果', '+', '%'],
+  fear: ['敌方伤害', '-', '%'],
+  hp: ['生命上限', '+', ''],
 };
 
-export const AURA_ZH = { gen: '供能', cd: '加速', pow: '增幅' };
+// 光环短名（卡片角标 / 图例用）：11 种，完整句子由设计层的 auraOf / auraText 生成
+export const AURA_ZH = AURA_SHORT_RAW;
 
 // ---------------------------------------------------------------- 地形
 // 对双方同时生效：敌我都在同一片地上打，所以没有「只坑玩家」的地形。
