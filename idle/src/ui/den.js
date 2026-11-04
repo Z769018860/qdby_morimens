@@ -77,11 +77,13 @@ function stagePage(app, n) {
   const pcards = players.map((d) => {
     const sk = Object.values(d.kit || {}).map((k) => k && k.name).filter(Boolean);
     return `<div class="denpcard ${d.type}">
-      <img src="${img(d.img)}" alt="" loading="lazy">
-      <b>${esc(d.name)}</b><em>${TYPE_ZH[d.type] || d.type}</em>
-      <span class="dim">Lv.${d.lv}${d.star ? ` · ${d.star} 叠` : ''}</span>
-      <span class="dim">HP ${fmt(d.hp)}　ATK ${fmt(d.atk)}　DEF ${fmt(d.def)}</span>
-      <span class="dim densk" title="${esc(TYPE_TA[d.type] || '')}">${esc(sk.join(' / ') || TYPE_TA[d.type] || '')}</span>
+      <img src="${img(d.img)}" alt="${esc(d.name)}" loading="lazy">
+      <div class="denpi">
+        <div class="denpn"><b>${esc(d.name)}</b><em>${TYPE_ZH[d.type] || d.type}</em></div>
+        <span class="dim">Lv.${d.lv}${d.star ? ` · ${d.star} 叠` : ''}</span>
+        <span class="dim denst"><i>HP ${fmt(d.hp)}</i><i>ATK ${fmt(d.atk)}</i><i>DEF ${fmt(d.def)}</i></span>
+        <span class="dim densk" title="${esc(sk.join(' / '))}">${esc(sk.join(' / ') || TYPE_TA[d.type] || '')}</span>
+      </div>
     </div>`;
   }).join('');
 

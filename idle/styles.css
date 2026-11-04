@@ -1113,14 +1113,15 @@ button, a, [role="button"], input, select, label{touch-action:manipulation}
 .dencell.lock{opacity:.4;cursor:not-allowed}
 .denrule{font-style:normal;font-size:11px;padding:2px 7px;border-radius:6px;border:1px solid rgba(196,107,107,.4);background:rgba(196,107,107,.12);color:#f0a8a8;white-space:nowrap}
 .denrule.off{color:var(--dim);border-color:var(--line);background:transparent}
-.denteam{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:10px 0 8px}
-.denpcard{min-width:0;display:flex;flex-direction:column;gap:1px;padding:6px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.03)}
-.denpcard img{width:100%;height:72px;object-fit:cover;object-position:top;border-radius:8px;margin-bottom:3px}
-.denpcard b{font-size:12.5px}
+.denteam{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0 8px}
+.denpcard{min-width:0;display:flex;flex-direction:row;gap:10px;align-items:flex-start;padding:8px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.03)}
+.denpcard img{flex:none;width:76px;height:76px;object-fit:cover;border-radius:10px;background:#0b1017}
+.denpi{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.denpn{display:flex;align-items:baseline;gap:6px;min-width:0}.denst{display:flex;flex-wrap:wrap;gap:2px 8px}.denst i{font-style:normal}
+.denpcard b{font-size:13.5px}
 .denpcard em{font-style:normal;font-size:10px;color:var(--acc)}
-.denpcard span{font-size:10.5px;line-height:1.35}
+.denpcard span{font-size:11px;line-height:1.4}
 .denpcard.WARDEN{border-left:2px solid #6ec8ff}.denpcard.CHORUS{border-left:2px solid #b07cff}.denpcard.ASSAULT{border-left:2px solid #ff9b6e}
-.denpcard .densk{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all;max-width:100%;min-width:0}
+.denpcard .densk{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all;max-width:100%;min-width:0}
 .denpcard b,.denpcard em{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .denbar{position:relative;height:17px;border:1px solid var(--line);border-radius:8px;background:#111823;overflow:hidden;margin:7px 0}
 .denbar i{display:block;height:100%;background:linear-gradient(90deg,#5f8a52,#8fd07a);transition:width .2s}
@@ -1128,7 +1129,7 @@ button, a, [role="button"], input, select, label{touch-action:manipulation}
 .denbar em{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:10.5px;color:#e6ecf6;text-shadow:0 1px 2px #000}
 .denslots{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:6px 0}
 .denslot{min-width:0;display:flex;flex-direction:column;gap:1px;padding:5px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.03);min-height:76px}
-.denslot img{width:100%;height:44px;object-fit:cover;border-radius:6px;margin-bottom:2px}
+.denslot img{width:100%;aspect-ratio:1;height:auto;object-fit:cover;border-radius:6px;margin-bottom:2px}
 .denslot b{font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .denslot span{font-size:10px}
 .denslot.empty{align-items:center;justify-content:center;color:var(--dim);font-size:11px;border-style:dashed}
@@ -1138,7 +1139,7 @@ button, a, [role="button"], input, select, label{touch-action:manipulation}
 .denmons{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:6px;margin:8px 0}
 .denmon{position:relative;display:flex;flex-direction:column;gap:1px;padding:5px;border:1px solid var(--line);border-left-width:2px;border-radius:9px;background:var(--panel);cursor:pointer;text-align:left;line-height:1.2}
 .denmon:hover{border-color:var(--gold)}
-.denmon img{width:100%;height:50px;object-fit:cover;border-radius:6px;margin-bottom:2px}
+.denmon img{width:100%;aspect-ratio:1;height:auto;object-fit:cover;border-radius:6px;margin-bottom:2px}
 .denmon b{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .denmon span{font-size:9.5px}
 .denmon.Normal{border-left-color:#4a5b74}.denmon.Elite{border-left-color:#8a6d2b}.denmon.Boss{border-left-color:#a8543f}
@@ -1147,4 +1148,4 @@ button, a, [role="button"], input, select, label{touch-action:manipulation}
 .denmon .dencost{position:absolute;top:4px;right:4px;font-style:normal;font-size:10px;padding:0 4px;border-radius:5px;background:rgba(8,12,18,.8);color:#8fd07a;border:1px solid rgba(143,208,122,.35)}
 .denmon .denon{position:absolute;top:4px;left:4px;font-size:9px;text-decoration:none;padding:0 3px;border-radius:5px;background:rgba(229,184,75,.85);color:#1a1408}
 .deng{font-style:normal;display:inline-block;min-width:14px;text-align:center;font-size:9.5px;border-radius:4px;border:1px solid var(--line);background:rgba(255,255,255,.07);padding:0 2px;color:#c9d6ea}
-@media(max-width:560px){.dencells{grid-template-columns:repeat(5,minmax(0,1fr))}.denteam{grid-template-columns:repeat(2,minmax(0,1fr))}.denslots{grid-template-columns:repeat(3,minmax(0,1fr))}.denmons{grid-template-columns:repeat(auto-fill,minmax(76px,1fr))}}
+@media(max-width:560px){.dencells{grid-template-columns:repeat(5,minmax(0,1fr))}.denteam{grid-template-columns:minmax(0,1fr)}.denslots{grid-template-columns:repeat(2,minmax(0,1fr))}.denpcard img{width:64px;height:64px}.denmons{grid-template-columns:repeat(auto-fill,minmax(76px,1fr))}}
