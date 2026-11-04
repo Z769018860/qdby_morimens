@@ -3850,3 +3850,29 @@ test('周 Boss 扩到 8 层：逐层更硬、奖励更多、解锁门槛递增�
   s.weekly.tiers[7].damage = WEEKLY_TIER[7].unlock;
   assert.equal(weeklyOpen(s, 8), true);
 });
+
+test('流血在流血者自己行动结束后结算（和中毒一样），不再在回合开头跳', async () => {
+  const { simulate } = await import('../src/core/battle.js');
+  const bleeder = { ...unit({ hp: 9e6, atk: 400, def: 0, type: 'ASSAULT' }), kit: mkKit([{ t: 'dot', m: 1, dur: 3, to: 'foe' }]) };
+  const foe = { ...unit({ hp: 9e8, atk: 1, def: 0 }), pattern: [{ name: 'idle', effects: [] }] };
+  const ev = simulate({ allies: [bleeder], enemies: [foe], seed: 3, maxRounds: 4 }).events;
+  const iAct = ev.findIndex((e) => e.k === 'act' && e.who === 'e0' && e.round === 1);
+  const iDot = ev.findIndex((e) => e.k === 'dot' && e.who === 'e0' && e.amt > 0);
+  const iR2 = ev.findIndex((e) => e.k === 'round' && e.n === 2);
+  assert.ok(iAct >= 0 && iDot >= 0, '要出现敌人行动和流血伤害');
+  assert.ok(iDot > iAct, '第 1 回合：敌人先行动，之后才掉流血');
+  assert.ok(iDot < iR2, '第一跳在第 1 回合内，不拖到第 2 回合开头');
+});
+
+test('守护留盾：回合末剩余护盾的 50% 带进下一回合（上限最大生命 30%）', async () => {
+  const { simulate } = await import('../src/core/battle.js');
+  const ward = { ...unit({ hp: 80000, atk: 400, def: 300, type: 'WARDEN' }), kit: mkKit([{ t: 'shield', m: 1, to: 'self' }]) };
+  const foe = { ...unit({ hp: 9e8, atk: 1, def: 0 }), pattern: [{ name: 'idle', effects: [] }] };
+  const sh = simulate({ allies: [ward], enemies: [foe], seed: 3, maxRounds: 4 }).events.filter((e) => e.k === 'shield' && e.who === 'a0');
+  // sh[0] 是开场（第 0 回合）的盾，还没经历过回合末，所以从第 1 回合那一次开始比
+  assert.ok(sh.length >= 4);
+  assert.equal(sh[1].shield, sh[1].amt, '第 1 回合出盾：开场的盾已被回合开头清掉，身上只有这一份');
+  assert.ok(sh[2].shield > sh[2].amt, `第 2 回合出盾时身上还留着上回合的盾：${sh[2].shield} vs ${sh[2].amt}`);
+  assert.ok(sh[2].shield < sh[1].amt + sh[2].amt, '留下的只是一部分（50%），不是全部');
+  assert.ok(Math.abs((sh[2].shield - sh[2].amt) - sh[1].amt * 0.5) < sh[1].amt * 0.02, '留下的约等于上回合剩余护盾的 50%');
+});
