@@ -966,6 +966,18 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       if (ps.n <= 0) delete u.st.poison;
   }
 
+  /** 流血：和中毒一样，在流血者自己行动结束后结算。每次结算每条流血各跳一次，然后持续回合 −1。
+      中毒者 / 流血者先出手再掉血：死前至少还能打一轮；盾也是先给后吃。 */
+  function tickBleed(u) {
+    if (!u.alive || !u.dots.length) return;
+    for (const d of u.dots) {
+      if (!u.alive) break;
+      const src = [...A, ...E].find((x) => x.uid === d.by);
+      applyDamage(src || u, u, guarded(src || u, u, d.dmg, true), false, null, 'dot');
+    }
+    u.dots = u.dots.map((d) => ({ ...d, dur: d.dur - 1 })).filter((d) => d.dur > 0);
+  }
+
   function act(u, bonus = false) {
     if (u.stunned > 0) { u.stunned--; push({ k: 'act', who: u.uid, slot: 'Strike', name: '眩晕', round }); return; }
     u.acted++;
@@ -1050,25 +1062,16 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       u.delayed = u.delayed.filter((d) => d.at > round);
       for (const d of due) for (const t of E) if (t.alive && u.alive) applyDamage(u, t, guarded(u, t, u.atk * d.m * DMG_SCALE), false, null, 'dmg');
     }
-    for (const u of [...A, ...E]) {
-      if (!u.alive) continue;
-      for (const d of u.dots) {
-        if (!u.alive) break;
-        const src = [...A, ...E].find((x) => x.uid === d.by);
-        applyDamage(src || u, u, guarded(src || u, u, d.dmg, true), false, null, 'dot');
-      }
-      u.dots = u.dots.map((d) => ({ ...d, dur: d.dur - 1 })).filter((d) => d.dur > 0);
-    }
-    // 我方的盾撑到下一回合开头：先让它吃掉这一轮跳下来的流血，再清零（毒现在在各自行动后结算）。
+    // 流血和中毒一样，改到「流血者自己行动结束后」结算（见 tickBleed），回合开头不再跳。
+    // 我方的盾撑到下一回合开头才清零：本回合给的盾（和守护留下的 50%）能先吃掉这一轮的流血 / 中毒。
     // 以前是在回合最开头就清（在毒结算之前），于是「中毒穿盾」——我方永远吃不到盾；
-    // 敌方盾要到它自己出手前才清（见 act()），那时毒早结算完，所以只有玩家侧吃亏。
-    // 本回合队友给的盾仍然从发出一直留到下一回合开头，不受影响。
+    // 敌方盾要到它自己出手前才清（见 act()），所以只有玩家侧吃亏。
     for (const u of A) { u.shield = Math.min(num(u.carry), Math.round(u.maxHp * 0.3)); u.carry = 0; }
     emitAll();
     if (finished()) break;
     for (const u of [...A, ...E]) {
       if (finished()) break;
-      if (u.alive) { act(u); tickPoison(u); }
+      if (u.alive) { act(u); tickBleed(u); tickPoison(u); }
     }
     /* 铁壁（core/roles.js）：纯盾型守护把这一回合没被打掉的护盾按比例砸回去。
        护盾在本回合开头就清零了（见上面那行 `u.shield = 0`），所以这里读到的是

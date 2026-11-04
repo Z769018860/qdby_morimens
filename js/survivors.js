@@ -6,7 +6,7 @@
 
 import { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage, giveUp, recompute, addGrowth, addItem, useItem, gainExp, hurtPlayer, say } from './sv/engine.js';
 import { init, resize, draw } from './sv/render.js';
-import { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo, pickSwap, closeSwap } from './sv/ui.js';
+import { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo, pickSwap, closeSwap, rerollUpgrade } from './sv/ui.js';
 import { DIFFS } from './sv/defs.js';
 import { sfx } from './sv/audio.js';
 import { isUnlocked, unlockNeed, svProgress, saveProgress } from './sv/unlock.js';
@@ -99,7 +99,8 @@ window.addEventListener('keydown', (e) => {
   if (G.phase === 'levelup') {
     const n = Number(e.key);
     if (n >= 1 && n <= 3) { choose(n - 1); e.preventDefault(); return; }
-    if (e.key === '0') { choose(-1); e.preventDefault(); }
+    if (e.key === '0') { choose(-1); e.preventDefault(); return; }
+    if (e.key === 'r' || e.key === 'R') { if (rerollUpgrade()) e.preventDefault(); }
     return;
   }
   if (KEYMAP[e.code]) { keys.add(e.code); applyInput(); e.preventDefault(); }

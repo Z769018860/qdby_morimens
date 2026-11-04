@@ -101,6 +101,36 @@ def anim_from_gif(path):
     return out, int(round(dur * n / want))
 
 
+GIF_COLORS = 63   # 全片共用一套调色板（不闪），第 255 号留给透明；颜色少是为了压体积
+
+
+def gif_frames(frames):
+    """RGBA 帧 → 共用调色板的 P 模式帧：透明像素一律是 255 号（alpha<128），其余用同一套 63 色。
+    旧版每帧各量化各的、还假定 0 号是透明：人物里恰好量化到 0 号的颜色变成洞（洋红 / 黑），
+    不透明的黑底也会闪。共用调色板 + 固定透明号之后，每一帧的背景和颜色都是稳定的。"""
+    w, h = frames[0].size
+    # 把所有帧的不透明像素拼成一张马赛克来取调色板，颜色分布才覆盖全片
+    cols = len(frames)
+    mosaic = Image.new('RGB', (w * cols, h), (0, 0, 0))
+    for i, f in enumerate(frames):
+        rgb = Image.new('RGB', f.size, (0, 0, 0))
+        rgb.paste(f.convert('RGB'), mask=f.getchannel('A').point(lambda v: 255 if v >= 128 else 0))
+        mosaic.paste(rgb, (i * w, 0))
+    pal_img = mosaic.quantize(colors=GIF_COLORS, method=Image.MEDIANCUT, dither=Image.NONE)
+    pal = pal_img.getpalette()[:GIF_COLORS * 3]
+    pal += [0] * (255 * 3 - len(pal)) + [255, 0, 255]       # 255 号 = 透明（颜色值无所谓）
+    out = []
+    for f in frames:
+        rgb = Image.new('RGB', f.size, (0, 0, 0))
+        mask = f.getchannel('A').point(lambda v: 255 if v >= 128 else 0)
+        rgb.paste(f.convert('RGB'), mask=mask)
+        q = rgb.quantize(palette=pal_img, dither=Image.NONE)
+        q.putpalette(pal)
+        q.paste(255, mask=mask.point(lambda v: 255 - v))     # 透明处刷成 255 号
+        out.append(q)
+    return out
+
+
 def still_from_card(path):
     im = Image.open(path).convert('RGBA')
     b = im.getchannel('A').getbbox()
@@ -170,8 +200,8 @@ def main():
 
         # 存成真正的 GIF 动图：本机 Pillow 不带动图 WebP 编码，存出来只有一帧；GIF 到处都能播
         buf = io.BytesIO()
-        q = [f.quantize(colors=48, method=Image.FASTOCTREE, dither=Image.NONE) for f in frames]
-        q[0].save(buf, 'GIF', save_all=True, append_images=q[1:], duration=dur, loop=0, disposal=2, optimize=True, transparency=0)
+        q = gif_frames(frames)
+        q[0].save(buf, 'GIF', save_all=True, append_images=q[1:], duration=dur, loop=0, disposal=2, optimize=False, transparency=255)
         data = buf.getvalue()
         (OUT / ('%s.gif' % slug)).write_bytes(data)
         old = OUT / ('%s.webp' % slug)

@@ -1866,6 +1866,21 @@ function addItem(id) {
   return o;
 }
 
+// 命运骰子：重掷本次三选一。只在升级面板开着时有意义；新一批卡面是空的就不用（别白扔骰子）。
+// 返回是否真的重掷了。以前这里「不消耗」又没人重画面板，而且升级面板盖住了道具栏根本点不到——
+// 所以骰子形同虚设；现在由三选一面板自己带一个重掷按钮（ui.js showUpgrade），点了消耗一颗并重画。
+function useDice() {
+  if (G.phase !== 'levelup') return false;
+  const i = G.items.findIndex((x) => x.id === 'i_dice');
+  if (i < 0) return false;
+  const next = rollChoices();
+  if (!next.length) return false;
+  G.choices = next;
+  G.items.splice(i, 1);
+  addText(G.player.x, G.player.y - 50, '命运重掷', 6);
+  return true;
+}
+
 // 使用一件道具。返回是否真的用掉了 —— UI 靠它决定要不要刷道具栏。
 function useItem(id) {
   const i = G.items.findIndex((x) => x.id === id);
@@ -1887,11 +1902,7 @@ function useItem(id) {
     G.rage = RAGE.max; G.rageReady = true;
     addText(G.player.x, G.player.y - 50, '狂气满盈', 6);
   } else if (it.id === 'i_dice') {
-    // 重掷本次三选一：只允许在升级面板开着的时候用，否则等于白扔
-    if (G.phase !== 'levelup') return false;
-    G.choices = rollChoices();
-    addText(G.player.x, G.player.y - 50, '命运重掷', 6);
-    return true;   // 不消耗：由 UI 在刷新卡面后再决定
+    return useDice();            // 消耗骰子并换一批卡面；不在三选一里就不用（见 useDice）
   }
   G.items.splice(i, 1);
   return true;
@@ -3100,8 +3111,11 @@ function updateEnemies(dt, slow) {
   const farR = Math.hypot(G.W || 430, G.H || 900) * 1.7 / (G.s || 1);
   const far2 = farR * farR;
 
-  for (let i = G.enemies.length - 1; i >= 0; i--) {
-    const e = G.enemies[i];
+  // 循环里别的怪会被击杀（范围伤害 / 反伤 / 溅射）而从 G.enemies 里摘掉：以前按下标倒着走，
+  // 数组一缩短就读到 undefined 抛异常（整局卡死），或者删错下标。改成遍历快照，已死的跳过、删除按对象找。
+  const snap = G.enemies.slice().reverse();
+  for (const e of snap) {
+    if (e.hp <= 0) continue;
     const dx = P.x - e.x, dy = P.y - e.y;
     const d2 = dx * dx + dy * dy;
     const d = Math.sqrt(d2) || 1;
@@ -3116,7 +3130,8 @@ function updateEnemies(dt, slow) {
         continue;
       } else {
         give('enemies', e);
-        G.enemies.splice(i, 1);
+        const ix = G.enemies.indexOf(e);
+        if (ix >= 0) G.enemies.splice(ix, 1);
         continue;
       }
     }
@@ -3920,7 +3935,7 @@ function summary() {
 }
 
 function remaining() { return Math.max(0, RUN_TIME - G.t); }
-return { VIEW_H, setSeed, G, addText, say, reset, recompute, addWeapon, addCreation, addGrowth, addItem, useItem, addWheel, addCovenant, rollChoices, applyChoice, skipChoice, update, releaseRage, giveUp, damageEnemy, hurtPlayer, gainExp, summary, remaining };
+return { VIEW_H, setSeed, G, addText, say, reset, recompute, addWeapon, addCreation, addGrowth, addItem, useDice, useItem, addWheel, addCovenant, rollChoices, applyChoice, skipChoice, update, releaseRage, giveUp, damageEnemy, hurtPlayer, gainExp, summary, remaining };
 })();
 
 // ---- js/sv/render.js
@@ -5207,7 +5222,7 @@ return { init, resize, draw };
 
 // ---- js/sv/ui.js
 const m_ui = await (async () => {
-const { G, applyChoice, skipChoice, summary, remaining, useItem, rollChoices } = m_engine;
+const { G, applyChoice, skipChoice, summary, remaining, useItem, useDice, rollChoices } = m_engine;
 const { CHARS, WEAPONS, META, ATLAS, CREATIONS, WHEELS, COVENANTS } = m_gen;
 const { PROTOS, LV, WHEEL_FX, COVENANT_FX, CREATION_FX, DIFFS, RAGE, EVOS, creditsAt, nextTier, MECHS, GROWTHS } = m_defs;
 const { isUnlocked, unlockNeed, unlockProg, svProgress, recordRun, unlockedByRun } = m_unlock;
@@ -5906,6 +5921,19 @@ function showUpgrade(choices) {
     choose(Number(b.dataset.i));
   };
   $('btnSkipUp').onclick = () => choose(-1);
+  // 命运骰子：升级面板盖住了道具栏，所以在面板里单独放一个重掷按钮
+  const nd = G.items.filter((i) => i.id === 'i_dice').length;
+  let db = $('btnDice');
+  if (!db) {
+    db = document.createElement('button');
+    db.id = 'btnDice';
+    db.className = 'up-skip';
+    db.style.cssText = 'margin-top:6px;border-color:#6ea8ff;color:#9cc4ff';
+    $('btnSkipUp').insertAdjacentElement('beforebegin', db);
+  }
+  db.hidden = nd === 0;
+  db.textContent = `⚄ 命运骰子 ×${nd} · 重掷这三张（键盘 R）`;
+  db.onclick = rerollUpgrade;
   // 跳过不是白跳：按钮上直接把补偿写清楚，否则没人会去发现这件事
   const sk = $('btnSkipUp');
   if (sk) {
@@ -5988,6 +6016,12 @@ function card(i, tier, title, sub, foot, imgStyle, tag, glyph) {
       </span>
       <span class="up-key">${i + 1}</span>
     </button>`;
+}
+
+// 重掷：消耗一颗骰子，卡面换一批并重画
+function rerollUpgrade() {
+  if (useDice()) { sfx.play('item'); hudCache.ikey = ''; showUpgrade(G.choices); return true; }
+  return false;
 }
 
 function choose(i) {
@@ -6221,7 +6255,7 @@ function grantCredits(n) {
     document.dispatchEvent(new CustomEvent('zjtt:credits', { detail: { add: n } }));
   } catch { /* 隐私模式 */ }
 }
-return { ui, atlasStyle, eggStyle, faceStyle, charFaceHTML, showPick, buildHUD, openInfo, closeInfo, updateHUD, showUpgrade, choose, pickSwap, closeSwap, togglePause, showEnd };
+return { ui, atlasStyle, eggStyle, faceStyle, charFaceHTML, showPick, buildHUD, openInfo, closeInfo, updateHUD, showUpgrade, rerollUpgrade, choose, pickSwap, closeSwap, togglePause, showEnd };
 })();
 
 // ---- js/gamecloud.js
@@ -6491,7 +6525,7 @@ return { GAMES, account, isTrivial, collect, hashOf, record, plan, statusOf, syn
 const m_survivors = await (async () => {
 const { G, reset, update, summary, setSeed, applyChoice, skipChoice, rollChoices, addWeapon, addCreation, releaseRage, giveUp, recompute, addGrowth, addItem, useItem, gainExp, hurtPlayer, say } = m_engine;
 const { init, resize, draw } = m_render;
-const { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo, pickSwap, closeSwap } = m_ui;
+const { showPick, showUpgrade, showEnd, buildHUD, updateHUD, choose, togglePause, ui, closeInfo, pickSwap, closeSwap, rerollUpgrade } = m_ui;
 const { DIFFS } = m_defs;
 const { sfx } = m_audio;
 const { isUnlocked, unlockNeed, svProgress, saveProgress } = m_unlock;
@@ -6598,7 +6632,8 @@ window.addEventListener('keydown', (e) => {
   if (G.phase === 'levelup') {
     const n = Number(e.key);
     if (n >= 1 && n <= 3) { choose(n - 1); e.preventDefault(); return; }
-    if (e.key === '0') { choose(-1); e.preventDefault(); }
+    if (e.key === '0') { choose(-1); e.preventDefault(); return; }
+    if (e.key === 'r' || e.key === 'R') { if (rerollUpgrade()) e.preventDefault(); }
     return;
   }
   if (KEYMAP[e.code]) { keys.add(e.code); applyInput(); e.preventDefault(); }

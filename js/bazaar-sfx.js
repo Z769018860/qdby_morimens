@@ -100,6 +100,18 @@ function gate(name, gap = 30) {
   return voices < 24;
 }
 
+// 稳定的小哈希（FNV-1a）：同一个唤醒体每次都发同一个音，不同唤醒体尽量错开
+function hashStr(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+// 大调五声音阶：几个人的音同时叠在一起也不会刺耳
+const PENTA = [0, 2, 4, 7, 9];
+// 界域 → 基音与波形（混沌粗糙、血肉钝、深海干净、超维清亮）
+const CAST_BASE = { CHAOS: 207.65, CARO: 233.08, AEQUOR: 261.63, ULTRA: 293.66 };
+const CAST_WAVE = { CHAOS: 'sawtooth', CARO: 'square', AEQUOR: 'sine', ULTRA: 'triangle' };
+
 export const sfx = {
   // 界面
   tap() { if (gate('tap', 40)) tone(760, { to: 620, dur: 0.05, type: 'square', gain: 0.07 }); },
@@ -124,6 +136,18 @@ export const sfx = {
     if (!gate('gen', 45)) return;
     tone(520 + Math.random() * 90, { to: 700, dur: 0.09, type: 'sine', gain: 0.05 });
   },
+  // 唤醒体「出手」（每 cd 拍产一次算力，就是它放技能的时刻）：每个唤醒体一个专属音色。
+  // 界域定基音与波形，id 的哈希在五声音阶里挑一个音、再决定高八度 —— 同一个角色永远同一个音，
+  // 不同角色听感分得开；几人同拍出手时是一小串和声，不会糊成一团。
+  cast(id, realm) {
+    if (!gate('cast:' + id, 55)) return;
+    const h = hashStr(String(id || 'x'));
+    const f = (CAST_BASE[realm] || CAST_BASE.CARO) * (1 + ((h >>> 4) % 2)) * Math.pow(2, PENTA[h % 5] / 12);
+    const type = CAST_WAVE[realm] || 'triangle';
+    tone(f, { dur: 0.16, type, gain: 0.085 });
+    tone(f * 1.5, { dur: 0.1, type: 'sine', gain: 0.032, at: 0.03 });
+    if (realm === 'CHAOS') noise({ dur: 0.05, gain: 0.03, lp: 2600, hp: 700 });
+  },
   fire() {
     if (!gate('fire', 60)) return;
     noise({ dur: 0.09, gain: 0.1, lp: 2600, hp: 400 });
@@ -147,7 +171,28 @@ export const sfx = {
   heal() { if (gate('heal', 90)) tone(440, { to: 660, dur: 0.16, type: 'sine', gain: 0.08 }); },
   poison() { if (gate('poison', 90)) tone(240, { to: 180, dur: 0.16, type: 'triangle', gain: 0.07 }); },
   // 节拍
-  beat() { if (gate('beat', 90)) tone(1320, { dur: 0.03, type: 'square', gain: 0.03 }); },
+  // 每一拍一个鼓点，四拍一小节：第 1 拍「咚」+ 高音铃，第 3 拍「咚」，第 2、4 拍「嗒」（军鼓），拍拍带一下轻踩镲。
+  // 战斗里的其他声音（产算力、出炮、受击）全落在这条节奏上，听起来才是「在打拍子」。
+  beat(n = 1) {
+    if (!gate('beat', 40)) return;
+    const k = ((Math.max(1, n | 0) - 1) % 4) + 1;
+    if (k === 1 || k === 3) {
+      tone(k === 1 ? 130 : 110, { to: 50, dur: 0.18, type: 'sine', gain: k === 1 ? 0.5 : 0.4 });
+      if (k === 1) tone(1568, { dur: 0.07, type: 'triangle', gain: 0.05, at: 0.005 });
+    } else {
+      noise({ dur: 0.1, gain: 0.26, lp: 3800, hp: 1200 });
+      tone(210, { to: 150, dur: 0.08, type: 'triangle', gain: 0.2 });
+    }
+    noise({ dur: 0.05, gain: 0.12, lp: 9000, hp: 5000, at: 0.0 });
+    tone(k === 1 ? 1568 : 1100, { dur: 0.04, type: 'square', gain: 0.08 });   // 每拍都有的「嗒」，哪怕小声也一定听得见节拍
+  },
+  // 毒圈：每拍一声低沉的「嗡」，越往后越高越急
+  zone(pct = 0) {
+    if (!gate('zone', 60)) return;
+    const k = Math.min(1, pct / 6);
+    tone(70 + k * 90, { to: 50, dur: 0.22, type: 'sawtooth', gain: 0.1 + k * 0.12 });
+    noise({ dur: 0.18, gain: 0.05 + k * 0.1, lp: 500 + k * 1500, hp: 60 });
+  },
   // 胜负
   win() {
     if (!gate('win', 400)) return;

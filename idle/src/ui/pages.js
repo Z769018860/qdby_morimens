@@ -1501,6 +1501,9 @@ export function settingsPage(app) {
     <div class="banner-card"><h3>新手引导</h3>
       <p class="hint">重新过一遍底部五个分组的介绍（战斗 / 养成 / 召唤 / 挑战 / 更多），随时可跳过。</p>
       <div class="row"><button class="btn" data-act="guide">重看新手引导</button><button class="btn" data-act="guide-growth">养成指南</button></div></div>
+    <div class="banner-card"><h3>更新公告</h3>
+      <p class="hint">每次大更新会在进游戏时弹一次；想回头翻，点这里。</p>
+      <div class="row"><button class="btn" data-act="news">查看更新公告</button></div></div>
     <div class="banner-card"><h3>战斗节奏</h3>
       <p class="hint">本作没有倍速与「极速跳过」：战斗按固定节奏播放，胜负由队伍强度与策略决定，挂机收益按 ${Math.round(3600 / BATTLES_PER_HOUR)} 秒一场结算（离线同样口径）。关掉「自动挂机」是手动挂机——照常连打，但停在当前关不再自动推进，用右上角 ◀ ▶ 自己换关。</p></div>
     <div class="banner-card"><h3>每日奖励</h3><p class="hint">每日奖励已并入「签到」页（月历、累计宝箱、可补签）。</p></div>

@@ -55,6 +55,7 @@ import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welc
 import { startGuide } from './ui/guide.js';
 import * as Cloud from './core/cloud.js';
 import { readWallet, writeWallet, reconcile, WALLET_KEY } from './core/wallet.js';
+import { NEWS, NEWS_LATEST } from './core/news.js';
 import { $, $$, fmt, esc, dur, store, askPersist, toast, closeModal, openModal, modalEl, showKwPop } from './ui/util.js';
 
 /* 底部导航按「功能域」分 5 组。13 个平铺页签在手机上要横滚，一眼看不到全貌，
@@ -134,6 +135,28 @@ const app = {
     $('#cores').textContent = fmt(this.state.cores || 0);
   },
 };
+
+/* ---------- 更新公告 ---------- */
+const newsHtml = (list) => list.map((n) => `<div class="news-item"><h4>${esc(n.title)} <small>v${esc(n.v)} · ${esc(n.id)}</small></h4><ul>${n.items.map((t) => `<li>${esc(t).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')}</li>`).join('')}</ul></div>`).join('');
+function openNews(onlyNew) {
+  const seen = app.state?.newsSeen;
+  const list = onlyNew ? NEWS.filter((n) => n.id > (seen || '')) : NEWS;
+  openModal(`<h3>更新公告</h3><div class="news">${newsHtml(list.length ? list : NEWS.slice(0, 1))}</div><div class="row"><button class="btn gold" data-act="news-ok">知道了</button></div>`, 'news-modal');
+}
+// 离线结算 / 新手引导收起来之后再弹（它们的层级比公告高，抢着弹会互相盖住）；最多等 2 分钟
+function maybeNews() {
+  if (!app.state || app.state.newsSeen === NEWS_LATEST) return;
+  if (!app.state.guide && !app.hadSave) { app.state.newsSeen = NEWS_LATEST; app.save(); return; }   // 全新玩家：从头开始玩，不用看更新
+  let tries = 0;
+  const t = setInterval(() => {
+    if (++tries > 80 || !app.state || app.state.newsSeen === NEWS_LATEST) { clearInterval(t); return; }
+    if (app.offlinePending || app.booting || document.hidden || document.querySelector('.guide-bg')) return;
+    clearInterval(t);
+    openNews(true);
+    // 一弹出就记「已读」：战斗结算等弹窗之后可能会把它顶掉，不能因此每次进游戏都再弹一遍
+    app.state.newsSeen = NEWS_LATEST; app.save();
+  }, 1500);
+}
 
 async function boot() {
   const [pack, orders, special] = await Promise.all([
@@ -229,6 +252,7 @@ async function boot() {
     }
   };
   app.settleOffline();
+  maybeNews();
   // 累计签到送的那几位：达标就自动进包（老存档首次进游戏也会补发）
   checkSigninGifts();
   // 同调率：跨天补给礼物（花束 ×2 / 唱片 ×1），自动进包，不用点领取
@@ -597,9 +621,9 @@ function keywordGuide() {
     ], '总式：伤害 ＝ 攻击 × 攻击加成 × 技能倍率 × 增伤 × 暴击 × 狂暴 × 浮动 × 1.6（我方）× 防御曲线 × 易伤 × 减伤。例：攻击 1000、倍率 1.5、增伤 +40%、不暴击、敌防 150、无易伤 → 1000 × 1.5 × 1.4 × 1.6（浮动取 1）× 0.5 ＝ 1 680。')}
     ${grp('三、持续伤害 / 反击', [
       ['毒', '每层毒的跳伤 ＝ 下毒者攻击 × 0.1；每次结算 ＝ 层数 × 单层跳伤 × 半量防御 × 增伤 × 易伤'],
-      ['毒的时机', '中毒者<b>自己行动结束后</b>结算（流血仍在回合开头）；结算后毒层按 20% 衰减（至少 −1 层）；敌方每有一位存活守护，我方毒层每回合多衰减 10%（最多 2 位）'],
+      ['毒的时机', '中毒者<b>自己行动结束后</b>结算；结算后毒层按 20% 衰减（至少 −1 层）；敌方每有一位存活守护，我方毒层每回合多衰减 10%（最多 2 位）'],
       ['毒层上限', '给敌人 40 层；给我方（及竞技场人机）28 层'],
-      ['流血', '技能给出的固定数值，按「半量防御 × 增伤 × 易伤」结算，每回合开头跳一次，持续回合数到了就消失'],
+      ['流血', '技能给出的固定数值，按「半量防御 × 增伤 × 易伤」结算，和中毒一样在<b>流血者自己行动结束后</b>跳一次（先于毒结算），持续回合数到了就消失'],
       ['半量防御', '固定伤害吃的防御减免 ＝ 1 − (1 − 全额防御系数) × 0.5，再 × 1.2（补偿，防止被重甲甩开）；主线 90 关后我方的毒 / 反击再乘「成长补偿」倍率'],
       ['反击', '每层反击伤害 ＝ 反击者攻击 × 0.27；被打一次弹回 层数 × 单层伤害，同样走半量防御 / 增伤 / 易伤；层数上限 8（转移给守护的反击上限 12）'],
       ['反震 / 反射', '域规「反震」：单次伤害超过敌方最大生命 7% 时反弹 35%；「反射」状态按受到伤害的比例弹回，只对直接伤害生效、弹回的不再弹'],
@@ -609,7 +633,7 @@ function keywordGuide() {
       ['护盾', '护盾量 ＝ (防御 × 1.2 + 最大生命 × 0.08) × 技能倍率 × (1 + 护盾加成%) × 蓄盾倍率；被「脆弱」的目标 ×0.75'],
       ['吸血', '按<b>盾前伤害</b>（含被盾吸收的部分）× 吸血%，受疗压制同样 ×0.4'],
       ['濒死存活', '致命一击按概率挡成「剩 1 点生命」；每触发一次概率减半，低于 0.1% 归零'],
-      ['我方护盾寿命', '回合开头清零（留盾除外）：本回合给出的盾会撑到下回合开头，先吃完这一轮的流血再清零'],
+      ['我方护盾寿命', '回合开头清零（守护留下的 50% 除外，上限最大生命的 30%）：本回合给出的盾会撑到下回合开头，先挡敌人的攻击，再吃这一轮的流血 / 中毒，然后清零'],
     ])}
     ${grp('五、守护机制', [
       ['反击盾', '盾没被打穿时，每挨一下 +1 层反击（回合末清掉，单层 ＝ 攻击 × 0.27，上限 8）；盾被打穿时清空这类反击'],
@@ -1370,6 +1394,8 @@ function onAct(e) {
     case 'detail': P.detailModal(app, el.dataset.slug); break;
     case 'zoom': sound.play('open'); P.artModal(app, el.dataset.slug); break;
     case 'guide': startGuide(app, () => {}); break;
+    case 'news': openNews(false); break;
+    case 'news-ok': app.state.newsSeen = NEWS_LATEST; app.save(); closeModal(); break;
     case 'lvup': sound.play('lvup'); levelUp(s, el.dataset.slug, +el.dataset.n); app.save(); P.detailModal(app, el.dataset.slug); render(); break;
     case 'lvmax': sound.play('lvup'); levelUpMax(s, el.dataset.slug); app.save(); P.detailModal(app, el.dataset.slug); render(); break;
     case 'pick-slot': {
