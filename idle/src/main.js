@@ -31,6 +31,7 @@ import { signToday, backfill, claimCum } from './core/signin.js';
 import { buy as shopBuy, SHOP, buyTicketWithGold } from './core/shop.js';
 import { signinPage, eventPage } from './ui/pages4.js';
 import * as LK from './ui/luck.js';
+import * as TREE from './ui/tree.js';
 import * as AF from './ui/affinity.js';
 import { affTick, giveGift, buyGift } from './core/affinity.js';
 import {
@@ -39,6 +40,13 @@ import {
   leaveNode as luckLeaveNode, abandonRun as luckAbandon, claimLevel as luckClaimLevel, buyTalent as luckBuyTalent,
   claimLuckAch, offerPool as luckOfferPool,
 } from './core/luckrun.js';
+import {
+  treeState, startRun as treeStart, pickBranch as treePickBranch, fightNode as treeFight,
+  takeOffer as treeTakeOffer, rerollOffer as treeReroll, applyEvent as treeApplyEvent, applyRest as treeApplyRest,
+  shopBuy as treeShopBuy, leaveNode as treeLeaveNode, takeGift as treeTakeGift, giftOptions as treeGiftOptions,
+  abandonRun as treeAbandon, claimTreeAch, offerPool as treeOfferPool, checkDraft as treeCheckDraft,
+} from './core/treerun.js';
+import { useDirectVoucher, useAwakenVoucher } from './core/game.js';
 import { claimDaily, redeemGuest, claimMile, dailyView, milePending } from './core/event.js';
 import { syncSigninGifts } from './core/creators.js';
 import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
@@ -62,7 +70,7 @@ const GROUPS = [
   { k: 'battle', zh: '战斗', icon: ICON.battle, tabs: [['battle', '战斗']] },
   { k: 'team', zh: '养成', icon: ICON.team, tabs: [['team', '队伍'], ['roster', '唤醒体'], ['gear', '命轮密契'], ['orders', '钥令']] },
   { k: 'summon', zh: '召唤', icon: ICON.summon, tabs: [['summon', '召唤']] },
-  { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '无限塔'], ['rift', '融灾禁区'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场'], ['luck', '疾驰欢愉的大运']] },
+  { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '无限塔'], ['rift', '融灾禁区'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场'], ['luck', '疾驰欢愉的大运'], ['tree', '黑流树海']] },
   { k: 'more', zh: '更多', icon: ICON.more, tabs: [['signin', '签到'], ['event', '联动'], ['aff', '同调'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']] },
 ];
 
@@ -72,7 +80,7 @@ const GROUPS = [
 const BG = {
   battle: '17', team: '13', roster: '14', gear: '15', orders: '16', summon: '18',
   challenge: '19', weekly: '20', rtower: '21', arena: '22', signin: '23', codex: '24', ach: '25', settings: '26', rift: '33',
-  event: '34', luck: '35',
+  event: '34', luck: '35', tree: '36',
 };
 let bgNow = '';
 function setBg(tab) {
@@ -89,7 +97,7 @@ const GROUP_OF = Object.fromEntries(GROUPS.flatMap((g) => g.tabs.map(([k]) => [k
 // 每个页面配一首 BGM（audio.js 里的六首）。战斗页由 BattleView 按是否 Boss 战自己切。
 const MOOD_OF = {
   team: 'home', roster: 'home', gear: 'home', orders: 'home', summon: 'summon',
-  challenge: 'tower', weekly: 'tower', rtower: 'tower', arena: 'battle',
+  challenge: 'tower', weekly: 'tower', rtower: 'tower', arena: 'battle', tree: 'tower',
   signin: 'home', codex: 'home', ach: 'home', settings: 'home', event: 'home',
 };
 const gachaSound = (out) => (out.some((p) => p.rarity === 'Genesis') ? 'reveal3' : out.some((p) => p.rarity === 'SSR') ? 'reveal2' : 'reveal1');
@@ -300,7 +308,7 @@ async function giftRun() {
     const got = claimGifts(app.state, app.data, items.filter((g) => (Array.isArray(g.awk) && g.awk.length) || Number(g.rw) > 0 || Number(g.tk) > 0 || Number(g.gold) > 0));
     if (!got.length) return;
     app.save(); render(); app.refreshTop();
-    const names = got.map((g) => (g.voucher ? `回溯券 ×${g.voucher}` : g.tickets ? `召唤券 ×${g.tickets}` : g.gold ? `金币 +${fmt(g.gold)}` : g.isNew ? `${g.zh}（新）` : `${g.zh} 叠位+1`)).join('、');
+    const names = got.map((g) => (g.voucher ? `回溯券 ×${g.voucher}` : g.tickets ? `唤醒券 ×${g.tickets}` : g.gold ? `金币 +${fmt(g.gold)}` : g.isNew ? `${g.zh}（新）` : `${g.zh} 叠位+1`)).join('、');
     toast(`收到站长赠礼：${names}`, 5000);
   } catch { /* 没网 / 没登录：下次进游戏再领 */ }
 }
@@ -492,7 +500,7 @@ function settleBackground(since) {
   claimOffline(app.state, rep);
   app.save(); app.refreshTop();
   const bits = [`金币 +${fmt(rep.gold)}`];
-  if (rep.tickets) bits.push(`召唤券 +${rep.tickets}`);
+  if (rep.tickets) bits.push(`唤醒券 +${rep.tickets}`);
   if (rep.cores) bits.push(`银芯 +${rep.cores}`);
   if (rep.drops.length) bits.push(`装备 ${rep.drops.length} 件`);
   toast(`后台挂机 ${dur(rep.secs)}：${bits.join('，')}`, 4200);
@@ -610,7 +618,7 @@ function keywordGuide() {
     ])}
     ${grp('六、竞技场与周 Boss', [
       ['竞技场人机战力', '战力 ＝ Σ(生命 ÷ 10 + 攻击 + 防御 × 0.8)；第 1 名约 8 200，登顶第 1 层 ×1.3，第 100 层 ×22，第 1100 层 ×260（按层指数过渡，再反推装备倍率）'],
-      ['竞技场奖励', '胜利金币按对手高度折成「第 20~65 关金币 × 0.7」；最高名次提升 n 名 → 召唤券 max(1, ⌊n÷4⌋)、银芯 min(120, 0.8n)；首次踏上登顶新层每层再 +2 券 +40 银芯'],
+      ['竞技场奖励', '胜利金币按对手高度折成「第 20~65 关金币 × 0.7」；最高名次提升 n 名 → 唤醒券 max(1, ⌊n÷4⌋)、银芯 min(120, 0.8n)；首次踏上登顶新层每层再 +2 券 +40 银芯'],
       ['周 Boss 伤害', '12 回合内我方对 Boss 造成的总伤害（Boss 生命视为无限），逐档里程碑领奖；第 n 层 Boss ＝ 第 (48 + 层数加成) 关首领模板，攻击 / 防御再乘层数倍率'],
       ['周 Boss 奖励', '券 / 银芯 / 金币 ＝ 里程碑基础值 × 层奖励倍率（第 1~8 层 ×1 / 1.6 / 2.4 / 3.4 / 4.6 / 6 / 7.6 / 9.5），装备与钥令数量不变'],
     ])}
@@ -708,12 +716,12 @@ function refreshArena() {
   if (app.tab === 'arena') render();
 }
 function render() {
-  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, orders: P.ordersPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, rift: P3.riftPage, ach: P2.achievementPage, event: eventPage, luck: LK.luckPage, aff: AF.affinityPage }[app.tab];
+  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, orders: P.ordersPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, rift: P3.riftPage, ach: P2.achievementPage, event: eventPage, luck: LK.luckPage, tree: TREE.treePage, aff: AF.affinityPage }[app.tab];
   if (f) { const y = window.scrollY; $('#view').innerHTML = f(app); window.scrollTo(0, y); }
   app.refreshTop();
   refreshBadges();
 }
-const rewardLine = (r) => [`召唤券+${r.tickets}`, `银芯+${r.cores}`, `金币+${r.gold}`, r.rw ? `回溯券+${r.rw}` : ''].filter(Boolean).join(' ');
+const rewardLine = (r) => [`唤醒券+${r.tickets}`, `银芯+${r.cores}`, `金币+${r.gold}`, r.rw ? `回溯券+${r.rw}` : ''].filter(Boolean).join(' ');
 const rerender = () => { app.save(); render(); };
 
 /* 大运：一场打完之后的出口——还活着就出「三选一」，全灭 / 通关就直接结算。 */
@@ -723,6 +731,19 @@ function afterLuckBattle(app, r) {
   const run = luckState(s).cur;
   if (!run) { const end = luckState(s).lastRun; if (end) LK.luckEndModal(app, end); return; }
   if (r?.res?.win) { run.offer = luckOfferPool(s, app.data, run, 3); LK.luckOfferModal(app, run); }
+}
+
+/* 树海：同大运的出口，但首领战赢了先弹「古树之芽」提示（试炼在局内页点亮，不打断）。 */
+function afterTreeBattle(app, r) {
+  const s = app.state;
+  app.save(); render();
+  const run = treeState(s).cur;
+  if (!run) { const end = treeState(s).lastRun; if (end) TREE.treeEndModal(app, end); return; }
+  if (r?.res?.win) {
+    if (r.step?.cleared) return;                    // endRun 已经弹结算框
+    run.offer = offerPool(s, app.data, run, 3);
+    TREE.treeOfferModal(app, run);
+  }
 }
 
 /* 累计签到送的联名嘉宾（core/creators.js 的 SIGNIN_GIFTS）：达标自动进包，
@@ -942,6 +963,176 @@ function onAct(e) {
       if (rw) { sound.play('ach'); toast(`成就奖励：${rewardLine(rw)}`); rerender(); }
       break;
     }
+    // ---- 黑流树海 ----
+    case 'go-tree': show('tree'); break;
+    case 'tree-open-draft': {
+      app.ui.treeDraft = { diff: el.dataset.k, team: [] };
+      TREE.treeDraftModal(app);
+      break;
+    }
+    case 'tree-draft-toggle': {
+      const d = app.ui.treeDraft;
+      const slug = el.dataset.s;
+      if (!d) break;
+      d.team = d.team.includes(slug) ? d.team.filter((x) => x !== slug) : [...d.team, slug];
+      TREE.treeDraftModal(app);
+      break;
+    }
+    case 'tree-draft-clear': {
+      if (app.ui.treeDraft) app.ui.treeDraft.team = [];
+      TREE.treeDraftModal(app);
+      break;
+    }
+    case 'tree-depart': {
+      const dr = app.ui.treeDraft;
+      if (!dr) break;
+      const r = treeStart(s, d, dr.diff, dr.team);
+      if (r?.err) { toast(r.err); break; }
+      app.ui.treeDraft = null;
+      closeModal(); app.save(); render(); sound.play('nav');
+      break;
+    }
+    case 'tree-branch': {
+      const run = treeState(s).cur;
+      if (!run || !run.branch) { render(); break; }
+      treePickBranch(s, run, +el.dataset.i);
+      app.save(); render(); sound.play('nav');
+      break;
+    }
+    case 'tree-fight': {
+      const run = treeState(s).cur;
+      if (!run) { render(); break; }
+      const act = run.act + 1, stepNo = run.node + 1;
+      const r = treeFight(s, d, run);
+      if (!r) { app.save(); render(); break; }
+      app.save(); render();
+      sound.play(r.res.win ? 'win' : 'lose');
+      watchOrSkip(replayOf(r.res, {
+        title: `树海 · 第 ${act} 层 · 第 ${stepNo} 步`,
+        sub: r.res.win ? `还剩 ${Math.round(r.res.allies.reduce((n, a) => n + a.hp, 0) / Math.max(1, r.res.allies.reduce((n, a) => n + a.maxHp, 0)) * 100)}% 生命` : '树海收下了这一队',
+        note: '跳过回放不影响结算', kw: d.kw,
+      }), () => afterTreeBattle(app, r));
+      break;
+    }
+    case 'tree-pick': {
+      const run = treeState(s).cur;
+      if (!run) { closeModal(); break; }
+      const it = treeTakeOffer(s, d, run, el.dataset.id);
+      closeModal(); app.save(); render();
+      if (it) { sound.play('ach'); toast(`已获得：${it.zh}`, 2600); }
+      break;
+    }
+    case 'tree-reroll': {
+      const run = treeState(s).cur;
+      if (!run) { closeModal(); break; }
+      if (treeReroll(s, d, run)) { closeModal(); app.save(); TREE.treeOfferModal(app, run); sound.play('click'); }
+      else toast('没有重掷次数了');
+      break;
+    }
+    case 'tree-ev': {
+      const run = treeState(s).cur;
+      if (!run) { render(); break; }
+      const out = treeApplyEvent(s, run, +el.dataset.i);
+      if (out?.err) { toast(out.err); break; }
+      app.save(); render(); sound.play('gold');
+      const bits = [];
+      if (out?.glow) bits.push(`余晖 +${fmt(out.glow)}`);
+      if (out?.heal > 0) bits.push(`回复 ${out.heal}% 生命`);
+      if (out?.heal < 0) bits.push(`失去 ${-out.heal}% 生命`);
+      if (out?.maxhp) bits.push(`生命上限 +${out.maxhp}%`);
+      if (out?.reroll) bits.push(`重掷次数 +${out.reroll}`);
+      if (out?.score) bits.push(`得分 +${fmt(out.score)}`);
+      if (out?.bud) bits.push(`古树之芽 +${out.bud}`);
+      if (out?.tk) bits.push(`唤醒券 +${out.tk}`);
+      if (out?.got?.length) bits.push(`获得 ${out.got.join('、')}`);
+      toast(bits.length ? bits.join('，') : '什么都没发生', 3200);
+      break;
+    }
+    case 'tree-rest': {
+      const run = treeState(s).cur;
+      if (!run) { render(); break; }
+      const out = treeApplyRest(s, run, +el.dataset.i);
+      if (!out) break;
+      app.save(); render(); sound.play('heal');
+      toast(`${out.got.length ? `获得 ${out.got.join('、')}，` : ''}全队回复 ${out.heal}% 生命`, 2600);
+      break;
+    }
+    case 'tree-buy': {
+      const run = treeState(s).cur;
+      if (!run) { render(); break; }
+      const r2 = treeShopBuy(s, run, +el.dataset.i);
+      if (r2?.err) { toast(r2.err); break; }
+      app.save(); render(); sound.play('gold');
+      const extra = r2.tk ? `，唤醒券 +${r2.tk}` : r2.voucher ? `，${r2.voucher === 'direct' ? '直升' : '唤醒'}券 +1` : r2.bud ? `，古树之芽 +${r2.bud}` : '';
+      toast(`买下：${r2.zh}${extra}`);
+      break;
+    }
+    case 'tree-leave': {
+      const run = treeState(s).cur;
+      if (!run) { render(); break; }
+      treeLeaveNode(s, run); app.save(); render(); sound.play('nav');
+      break;
+    }
+    case 'tree-gift-open': {
+      const run = treeState(s).cur;
+      if (!run) { render(); break; }
+      if (run.buds <= 0) { toast('还没有古树之芽'); break; }
+      run.gift = { src: 'boss' };
+      app.save(); render();
+      break;
+    }
+    case 'tree-gift': {
+      const run = treeState(s).cur;
+      if (!run || !run.gift) { render(); break; }
+      const out = treeTakeGift(s, d, run, el.dataset.k, el.dataset.id);
+      if (!out) { toast('芽不够'); break; }
+      app.save(); render(); sound.play('ach');
+      const bits = [];
+      if (out.enh) bits.push('全队练度提升！');
+      if (out.got?.length) bits.push(`获得 ${out.got.join('、')}`);
+      if (out.heal) bits.push(`回复 ${out.heal}% 生命`);
+      if (out.glow) bits.push(`余晖 +${out.glow}`);
+      toast(bits.join('，') || '收下了', 3000);
+      break;
+    }
+    case 'tree-abandon': {
+      const run = treeState(s).cur;
+      if (!run) { render(); break; }
+      if (!confirm('放弃这一趟？参与奖照发（这一局算失败）。')) break;
+      const end = treeAbandon(s);
+      app.save(); render(); sound.play('lose');
+      if (end) TREE.treeEndModal(app, end);
+      break;
+    }
+    case 'tree-ach': {
+      const rw = claimTreeAch(s, el.dataset.id);
+      if (rw) { sound.play('ach'); toast(`成就奖励：${rewardLine(rw)}${rw.vouchers?.length ? ' ' + rw.vouchers.map((v) => (v === 'direct' ? '直升券+1' : '唤醒券+1')).join(' ') : ''}`); rerender(); }
+      break;
+    }
+    case 'tree-use-direct': {
+      if ((s.vouchers?.direct || 0) <= 0) { toast('还没有直升券'); break; }
+      TREE.treeDirectModal(app);
+      break;
+    }
+    case 'tree-direct-pick': {
+      const r2 = useDirectVoucher(s, el.dataset.s);
+      if (!r2) { toast('用不了：券没了，或这位已经超限满'); break; }
+      closeModal(); app.save(); render(); sound.play('lvup');
+      toast(`${d.bySlug[r2.slug]?.zh || r2.slug} 直升完成：叠位 99 · 等级 159 · 超限 99`, 4000);
+      break;
+    }
+    case 'tree-use-awaken': {
+      if ((s.vouchers?.awaken || 0) <= 0) { toast('还没有唤醒券'); break; }
+      TREE.treeAwakenModal(app);
+      break;
+    }
+    case 'tree-awaken-pick': {
+      const r2 = useAwakenVoucher(s, el.dataset.s, d);
+      if (!r2) { toast('用不了：券没了，或这位已经拥有 / 不是血肉界域'); break; }
+      closeModal(); app.save(); render(); sound.play('summonSSR');
+      toast(`唤醒成功：${r2.zh} 加入了名册`, 4000);
+      break;
+    }
     case 'pick-order': {
       const i = +el.dataset.i;
       P.pickOrder(app, i, (id) => { setOrderSlot(s, i, id); rerender(); });
@@ -1023,14 +1214,14 @@ function onAct(e) {
       if (rs.length) {
         sound.play('ach');
         const sum = (k) => rs.reduce((a, r) => a + (r[k] || 0), 0);
-        toast(`领取 ${rs.length} 档：召唤券+${sum('tickets')} 银芯+${sum('cores')} 金币+${sum('gold')}${rs.some((r) => r.items.length) ? ` 装备+${rs.reduce((a, r) => a + r.items.length, 0)}` : ''}`);
+        toast(`领取 ${rs.length} 档：唤醒券+${sum('tickets')} 银芯+${sum('cores')} 金币+${sum('gold')}${rs.some((r) => r.items.length) ? ` 装备+${rs.reduce((a, r) => a + r.items.length, 0)}` : ''}`);
         const ods = rs.flatMap((r) => r.orders || []);
         if (ods.length) P.showOrders(app, ods);
         rerender();
       }
       break;
     }
-    case 'weekly-claim': { const r = claimWeekly(s, d, +el.dataset.i, weeklyState(s).tier || 1); if (r) { sound.play('ach'); toast(`领取成功：召唤券+${r.tickets} 金币+${r.gold}${r.items.length ? ' 装备+1' : ''}${r.orders?.length ? ' 钥令+1' : ''}`); if (r.orders?.length) P.showOrders(app, r.orders); rerender(); } break; }
+    case 'weekly-claim': { const r = claimWeekly(s, d, +el.dataset.i, weeklyState(s).tier || 1); if (r) { sound.play('ach'); toast(`领取成功：唤醒券+${r.tickets} 金币+${r.gold}${r.items.length ? ' 装备+1' : ''}${r.orders?.length ? ' 钥令+1' : ''}`); if (r.orders?.length) P.showOrders(app, r.orders); rerender(); } break; }
     case 'rt-go': case 'rt-auto': {
       const out = [];
       const realm = el.dataset.realm;
@@ -1045,7 +1236,7 @@ function onAct(e) {
       }
       break;
     }
-    case 'arena-daily': { const r = claimArenaDaily(s); if (r) { sound.play('gold'); toast(`每日排名奖励：召唤券+${r.tickets} 金币+${r.gold}`); rerender(); } break; }
+    case 'arena-daily': { const r = claimArenaDaily(s); if (r) { sound.play('gold'); toast(`每日排名奖励：唤醒券+${r.tickets} 金币+${r.gold}`); rerender(); } break; }
     case 'arena-go': {
       const entry = app.ui.arena?.list?.find((x) => x.rank === +el.dataset.rank);
       if (!entry || arenaTries(s) <= 0) break;
@@ -1252,11 +1443,11 @@ function onAct(e) {
     case 'ach-claim': { const r = claimAchievement(s, el.dataset.id, app.data); if (r) { sound.play('ach'); toast('成就奖励已领取'); rerender(); } break; }
     case 'cpull': { const out = summonCores(s, d, +el.dataset.n); if (out) { app.save(); render(); sound.play(gachaSound(out)); P.showPulls(app, out); } break; }
     case 'cepull': { const out = equipPullCores(s, d, 1); if (out) { app.save(); render(); sound.play('summon'); P.showItems(app, out); } break; }
-    case 'gold-ticket': { const r = buyTicketWithGold(s); if (r) { sound.play('gold'); toast(`换到 1 张召唤券（今日还可换 ${r.left} 张）`); rerender(); } break; }
+    case 'gold-ticket': { const r = buyTicketWithGold(s); if (r) { sound.play('gold'); toast(`换到 1 张唤醒券（今日还可换 ${r.left} 张）`); rerender(); } break; }
     case 'shop-buy': { const r = shopBuy(s, d, el.dataset.id); if (r) { sound.play('gold'); toast(`已购买：${SHOP.find((x) => x.id === el.dataset.id).zh}`); if (r.items.length) P.showItems(app, r.items); if (r.orders?.length) P.showOrders(app, r.orders); rerender(); } break; }
     case 'gear-refine': if (refineItem(s, el.dataset.uid)) { sound.play('lvup'); rerender(); } break;
-    case 'welcome-claim': { const r = claimWelcome(s, d, portalUser()); if (r) { sound.play('summonSSR'); toast(`注册福利已到账：银芯+${r.cores} 召唤券+${r.tickets} 金币+${r.gold}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
-    case 'welcome-7': { const r = claimSeven(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`新手福利：银芯+${r.cores} 召唤券+${r.tickets}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
+    case 'welcome-claim': { const r = claimWelcome(s, d, portalUser()); if (r) { sound.play('summonSSR'); toast(`注册福利已到账：银芯+${r.cores} 唤醒券+${r.tickets} 金币+${r.gold}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
+    case 'welcome-7': { const r = claimSeven(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`新手福利：银芯+${r.cores} 唤醒券+${r.tickets}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
     case 'sign-today': { const r = signToday(s, d); if (r) { sound.play('ach'); toast(`签到成功：${rewardLine(r)}`); if (r.items.length) P.showItems(app, r.items); rerender(); checkSigninGifts(); } break; }
     case 'sign-back': { const r = backfill(s, d, +el.dataset.d); if (r) { sound.play('gold'); toast(`补签成功：${rewardLine(r)}`); rerender(); checkSigninGifts(); } break; }
     case 'sign-cum': { const r = claimCum(s, d, +el.dataset.i); if (r) { sound.play('ach'); toast(`累计奖励：${rewardLine(r)}`); if (r.items.length) P.showItems(app, r.items); rerender(); } break; }
@@ -1291,7 +1482,7 @@ function onAct(e) {
       break;
     }
     case 'ach-cat': app.ui.achCat = el.dataset.k; render(); break;
-    case 'ach-all': { const r = claimAllAchievements(s, d); if (r) { sound.play('ach'); toast(`领取 ${r.n} 个成就：召唤券+${r.tickets} 银芯+${r.cores} 金币+${r.gold}`); rerender(); } break; }
+    case 'ach-all': { const r = claimAllAchievements(s, d); if (r) { sound.play('ach'); toast(`领取 ${r.n} 个成就：唤醒券+${r.tickets} 银芯+${r.cores} 金币+${r.gold}`); rerender(); } break; }
     case 'export': {
       const blob = new Blob([JSON.stringify(s)], { type: 'application/json' });
       const l = document.createElement('a'); l.href = URL.createObjectURL(blob); l.download = `morimens-idle-${Date.now()}.json`; l.click(); break;

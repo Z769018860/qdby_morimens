@@ -31,7 +31,7 @@ export function weeklyPage(app) {
     const done = tr.damage >= m.dmg, got = tr.claimed.includes(i);
     const tk = Math.round(m.tickets * cur.rewardMul), co = Math.round(m.cores * cur.rewardMul), gd = Math.round(m.gold * cur.rewardMul);
     return `<div class="ach ${done ? 'done' : ''}"><div class="ab"><b>累计伤害 ${fmt(m.dmg)}</b><div class="bar"><i style="width:${Math.min(100, (tr.damage / m.dmg) * 100)}%"></i></div>
-      <small>奖励：召唤券 ${fmt(tk)} · 银芯 ${fmt(co)} · 金币 ${fmt(gd)}${m.item ? '　装备 ×1' : ''}${m.order ? '　钥令 ×1' : ''}</small></div>
+      <small>奖励：唤醒券 ${fmt(tk)} · 银芯 ${fmt(co)} · 金币 ${fmt(gd)}${m.item ? '　装备 ×1' : ''}${m.order ? '　钥令 ×1' : ''}</small></div>
       <button class="btn sm ${done && !got ? 'gold' : ''}" data-act="weekly-claim" data-i="${i}" ${done && !got ? '' : 'disabled'}>${got ? '已领取' : done ? '领取' : '未达成'}</button></div>`;
   };
   // 一共 56 档：只摆「能领的 + 接下来 4 档」，已领的和更远的折起来
@@ -92,7 +92,7 @@ export function rtowerPage(app) {
       <button class="btn" data-act="rt-auto" data-realm="${realm}" ${team && !rtCleared ? '' : 'disabled'}>连续挑战（最多 10 层）</button></div></div>`;
   }).join('');
   return `<div class="page"><h2>属性塔</h2>
-    <p class="hint">四座塔分别只允许对应界域的唤醒体进入，自动选取你拥有的战力最高的 4 名（凑满 3 名同界域有 +8%、4 名 +15% 加成）。每层只打一场，失败可无限重试，只有首次通关的层数给奖励：金币、每 3 层 1 张召唤券、每 10 层 3 张召唤券与装备，每 ${RT_MARK_EVERY} 层另有一份里程碑（券 / 银芯 / 装备，一次性）。四座塔都能爬到 ${RT_FLOORS} 层为止。敌人优先从带有对应界域特征的怪物中抽取（混沌无对应特征，抽全部）。</p>
+    <p class="hint">四座塔分别只允许对应界域的唤醒体进入，自动选取你拥有的战力最高的 4 名（凑满 3 名同界域有 +8%、4 名 +15% 加成）。每层只打一场，失败可无限重试，只有首次通关的层数给奖励：金币、每 3 层 1 张唤醒券、每 10 层 3 张唤醒券与装备，每 ${RT_MARK_EVERY} 层另有一份里程碑（券 / 银芯 / 装备，一次性）。四座塔都能爬到 ${RT_FLOORS} 层为止。敌人优先从带有对应界域特征的怪物中抽取（混沌无对应特征，抽全部）。</p>
     ${cards}</div>`;
 }
 export function rtResultModal(app, list) {
@@ -118,7 +118,7 @@ export function arenaPage(app) {
   return `<div class="page"><h2>竞技场 <small>${ranked ? `当前${rankZh(a.rank)}` : '未上榜'} · 最高 ${a.best <= LADDER ? rankZh(a.best) : '—'} · ${a.wins}胜${a.losses}负 · 今日 ${tries}/${ARENA_DAILY}</small></h2>
     ${squadBar(app, 'arena', '天梯与好友对战都用这套阵容出战')}
     <div class="banner-card"><h3>天梯（人机）</h3><p>${LADDER} 个名次，对手都是人机，名次越靠前越强。战胜名次更高的对手即可取代其名次；候选对手分别领先你 1 / 3 / 7 / 15 / 31 名，越往上跨的跨度越大。登顶第 1 名后还有 ${FLOORS} 层「登顶层」，一层比一层强，首次踏上新层有额外奖励。每天 ${ARENA_DAILY} 次。</p>
-      <div class="row"><button class="btn ${canClaimArenaDaily(s) ? 'gold' : ''}" data-act="arena-daily" ${canClaimArenaDaily(s) ? '' : 'disabled'}>每日排名奖励${ranked ? `（召唤券 ${dailyRankReward(a.rank)} + 金币 1500）` : '（上榜后可领）'}</button></div>
+      <div class="row"><button class="btn ${canClaimArenaDaily(s) ? 'gold' : ''}" data-act="arena-daily" ${canClaimArenaDaily(s) ? '' : 'disabled'}>每日排名奖励${ranked ? `（唤醒券 ${dailyRankReward(a.rank)} + 金币 1500）` : '（上榜后可领）'}</button></div>
       <div class="opps">${opp.length ? opp.map(entry).join('') : '<p class="dim">你已经是第 1 名了。</p>'}</div></div>
     <div class="banner-card"><h3>好友对战</h3>
       <p class="hint">把<b>对战码</b>发给好友，好友粘贴后就能和你当前的队伍（含装备、等级、星级）对战；你也可以输入好友的对战码挑战 TA 的队伍。对战码是队伍快照，不联网，不限次数，没有奖励，只记录胜负。队伍或装备变了请重新生成。</p>
@@ -163,7 +163,7 @@ export function riftPage(app) {
       <p class="hint">一层同时派 <b>${RIFT_TEAMS} 个队伍</b>：禁区一队~五队各打一组敌人，<b>${RIFT_TEAMS} 场胜 ${RIFT_PASS} 场</b>即通过。这五套是<b>融灾禁区专用</b>的，不会动到推图 / 塔 / 周 Boss 在用的通用编队；<b>五队的唤醒体和装备（命轮 / 密契 / 造物 / 钥令）都不能重复</b>，没编的队会自动用没被占用的补满，重复的会按一队→五队的顺序让给前面的队。每层满状态、不继承血量；一次挑战最多连爬 ${RIFT_RUN_MAX} 层。最高 ${RIFT_FLOORS} 层，<b>每两周换一期</b>：敌人重排、层数从头爬、奖励重发，历史最高层永久保留。</p>
       ${cleared ? '<p>本期已经打穿第 100 层，等下期刷新再来。</p>' : `<h4>第 ${next} 层 · 强度≈第 ${riftStage(next)} 关 <small class="dim">第 5 队负责顶 Boss / 精英</small></h4><div class="riftfoes">${foeRows}</div>`}
       <div class="row"><button class="btn big gold" data-act="rift-go" ${cleared || r.tries <= 0 ? 'disabled' : ''}>${cleared ? '本期已通关' : r.tries > 0 ? `挑战第 ${next} 层起（连续最多 ${RIFT_RUN_MAX} 层）` : '今日次数已用完'}</button></div>
-      <p class="hint">奖励：每层金币与券/银芯（随层数增长），每 5 层额外召唤券与银芯，每 10 层一件装备，<b>每 25 层</b>钥令 + 校猫奖励（券 6 / 银芯 80），打穿第 ${RIFT_FLOORS} 层再额外给 40 券与 600 银芯。</p>
+      <p class="hint">奖励：每层金币与券/银芯（随层数增长），每 5 层额外唤醒券与银芯，每 10 层一件装备，<b>每 25 层</b>钥令 + 校猫奖励（券 6 / 银芯 80），打穿第 ${RIFT_FLOORS} 层再额外给 40 券与 600 银芯。</p>
     </div>
     <h3>出战五队 <small>禁区一队~五队分别对应第 1~5 组敌人 · 队伍页可单独编排</small></h3>
     <div class="rt-teams">${teams}</div>

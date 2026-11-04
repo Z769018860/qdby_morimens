@@ -304,7 +304,7 @@ export const LUCK_ACH = [
 // 累积分数换等级，每级一份奖励；天赋点在看板上按等级发。
 // 15 级以前沿用原来的 1.3 倍曲线（第 15 级约 6300 分）；再往后换成 1.06 倍——
 // 继续按 1.3 走，第 30 级要几十万分，等于把台阶修到看不见的地方。
-// 每 5 级两张召唤券，每 10 级一张免费回溯券。
+// 每 5 级两张唤醒券，每 10 级一张免费回溯券。
 export const LUCK_LEVEL_MAX = 60;
 export const LUCK_LEVELS = Array.from({ length: LUCK_LEVEL_MAX }, (_, i) => {
   const lv = i + 1;

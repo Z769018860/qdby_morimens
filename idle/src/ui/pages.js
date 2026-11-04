@@ -789,11 +789,11 @@ const TIPS = {
   },
   summon: {
     t: '新手提示 · 怎么召唤、怎么兑换',
-    d: `<ul><li><b>召唤券</b>抽唤醒体：单抽 1 张、十连 10 张，十连至少 1 个史诗，<b>50 抽内必出创生</b>。券来自挂机掉落（越深的关越多）、关卡首通、签到、成就和各挑战奖励。</li>
-      <li><b>银芯</b>也能抽：200 / 抽，十连 1900，和召唤券<b>共用保底</b>。银芯来自首通、成就、签到、塔和周 Boss，分解装备也有。</li>
+    d: `<ul><li><b>唤醒券</b>抽唤醒体：单抽 1 张、十连 10 张，十连至少 1 个史诗，<b>50 抽内必出创生</b>。券来自挂机掉落（越深的关越多）、关卡首通、签到、成就和各挑战奖励。</li>
+      <li><b>银芯</b>也能抽：200 / 抽，十连 1900，和唤醒券<b>共用保底</b>。银芯来自首通、成就、签到、塔和周 Boss，分解装备也有。</li>
       <li><b>重复抽到 = 叠位 +1</b>（上限 99），所以抽到老角色不亏；满叠位折成金币和银芯。</li>
-      <li><b>兑换</b>：本页下方的<b>银芯商店</b>可以用银芯换召唤券、金币、装备、钥令匣和挑战次数（每日限购）；<b>装备祈愿</b>用金币抽命轮 / 密契 / 造物；联名嘉宾去「更多 → 联动」用征召券兑换。</li>
-      <li>第一次玩？先去「更多 → 签到」领<b>注册福利</b>（银芯 1000 + 召唤券 10），再回来十连。</li></ul>`,
+      <li><b>兑换</b>：本页下方的<b>银芯商店</b>可以用银芯换唤醒券、金币、装备、钥令匣和挑战次数（每日限购）；<b>装备祈愿</b>用金币抽命轮 / 密契 / 造物；联名嘉宾去「更多 → 联动」用征召券兑换。</li>
+      <li>第一次玩？先去「更多 → 签到」领<b>注册福利</b>（银芯 1000 + 唤醒券 10），再回来十连。</li></ul>`,
   },
 };
 export function tipCard(app, key) {
@@ -1297,17 +1297,17 @@ export function summonPage(app) {
   const p = s.pity;
   return `<div class="page"><h2>召唤${tipBtn(app, 'summon')}</h2>${tipCard(app, 'summon')}
     <div class="banner-card"><h3>唤醒体召唤</h3>
-      <p>召唤券：<b>${s.tickets}</b>　　创生保底：<b>${p.genesis}/${PULL_PITY_GENESIS}</b>　　史诗保底：<b>${p.ssr}/10</b></p>
+      <p>唤醒券：<b>${s.tickets}</b>　　创生保底：<b>${p.genesis}/${PULL_PITY_GENESIS}</b>　　史诗保底：<b>${p.ssr}/10</b></p>
       <div class="row"><button class="btn big" data-act="pull" data-n="1" ${s.tickets >= 1 ? '' : 'disabled'}>单抽 ×1</button><button class="btn big gold" data-act="pull" data-n="10" ${s.tickets >= 10 ? '' : 'disabled'}>十连 ×10</button></div>
       <p class="hint">概率：精良 60% · 史诗 37% · 创生 3%（第 38 抽起逐步提升，${PULL_PITY_GENESIS} 抽必出）。十连至少 1 个史诗以上。重复获得 = 叠位 +1（上限 ${MAX_AWAKEN}），满叠位折算金币与银芯。</p></div>
     <div class="banner-card"><h3>银芯召唤 <small><img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯"> ${fmt(s.cores)}</small></h3>
-      <p class="hint">银芯来自首通、成就、签到、周 Boss、属性塔、竞技场和分解装备（分解的基础银芯每天最多 40 枚）。与召唤券共用保底。</p>
+      <p class="hint">银芯来自首通、成就、签到、周 Boss、属性塔、竞技场和分解装备（分解的基础银芯每天最多 40 枚）。与唤醒券共用保底。</p>
       <div class="row"><button class="btn big" data-act="cpull" data-n="1" ${s.cores >= CORE_PULL_COST ? '' : 'disabled'}>单抽 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${CORE_PULL_COST}</button><button class="btn big gold" data-act="cpull" data-n="10" ${s.cores >= CORE_PULL10_COST ? '' : 'disabled'}>十连 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${CORE_PULL10_COST}</button>
       <button class="btn big" data-act="cepull" ${s.cores >= EQUIP_CORE_COST ? '' : 'disabled'}>精选祈愿（SR 以上装备）<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${EQUIP_CORE_COST}</button></div></div>
     ${luckCard(app)}
     <div class="banner-card"><h3>银芯商店 <small>每日 0 点（UTC）刷新限购</small></h3>
       <div class="shop">${SHOP.map((x) => { const n = boughtToday(s, x.id); return `<div class="shopi"><b>${x.zh}</b><small>今日 ${n}/${x.limit}</small><button class="btn sm" data-act="shop-buy" data-id="${x.id}" ${n < x.limit && s.cores >= x.cost ? '' : 'disabled'}><img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯"> ${x.cost}</button></div>`; }).join('')}</div></div>
-    ${(() => { const n = boughtToday(s, GOLD_TICKET_ID), pr = goldTicketPrice(s); return `<div class="banner-card"><h3>金币换召唤券 <small>今日 ${n}/${GOLD_TICKET_LIMIT}</small></h3>
+    ${(() => { const n = boughtToday(s, GOLD_TICKET_ID), pr = goldTicketPrice(s); return `<div class="banner-card"><h3>金币换唤醒券 <small>今日 ${n}/${GOLD_TICKET_LIMIT}</small></h3>
       <p class="hint">金币太多花不完时的出口：每张 <b>${fmt(pr)}</b> 金币（约等于最高关 300 场的收入，当天每买一张再贵 20%）。比挂机直接拿券贵得多，所以前中期不划算，金币先留给升级。</p>
       <div class="row"><button class="btn big" data-act="gold-ticket" ${n < GOLD_TICKET_LIMIT && s.gold >= pr ? '' : 'disabled'}>换 1 张 · ${fmt(pr)} 金币</button></div></div>`; })()}
     <div class="banner-card"><h3>装备祈愿</h3>
@@ -1441,7 +1441,7 @@ export function gachaLogModal(app) {
     return `<div class="glog r-${r.rarity}">
       <span class="gs">#${r.seq}</span>
       <img src="${img(a?.portrait)}" alt="">
-      <span class="gn"><b>${esc(a?.zh || r.slug)}</b><small>${RAR_ZH[r.rarity]} · ${r.banner === 'core' ? '银芯召唤' : '召唤券'}</small></span>
+      <span class="gn"><b>${esc(a?.zh || r.slug)}</b><small>${RAR_ZH[r.rarity]} · ${r.banner === 'core' ? '银芯召唤' : '唤醒券'}</small></span>
       <span class="gt">${r.isNew ? '<em class="new">NEW</em>' : r.dup ? (r.star >= MAX_AWAKEN ? '已满叠' : `叠位 ${r.star}`) : ''}</span>
       <span class="gd">${clock(r.t)}</span></div>`;
   }).join('') || '<p class="hint">这个筛选下没有记录。</p>';
@@ -1539,7 +1539,7 @@ export function offlineModal(app, rep, onClaim) {
     ? `<p class="hint offback">⚠ 第 ${rep.wantStage || rep.stage} 关打不过（胜率 0，挂在那儿没有收益），已按<b>有收益的最高层 · 第 ${rep.stage} 关</b>结算；挂机层也切到第 ${rep.stage} 关，之后继续在这儿刷。</p>`
     : '';
   const m = openModal(`<h3>欢迎回来</h3><p>离线 ${Math.round(rep.secs / 60)} 分钟（结算 ${Math.round(rep.capped / 60)} 分钟），在第 ${rep.stage} 关挂机 ${rep.battles} 场，预计胜 ${rep.wins} 场。</p>
-    ${note}<p>金币 <b>+${fmt(rep.gold)}</b>　召唤券 <b>+${rep.tickets}</b>　银芯 <b>+${rep.cores || 0}</b>　装备 <b>+${items}</b></p><button class="btn big gold" data-act="claim-offline">领取</button>`);
+    ${note}<p>金币 <b>+${fmt(rep.gold)}</b>　唤醒券 <b>+${rep.tickets}</b>　银芯 <b>+${rep.cores || 0}</b>　装备 <b>+${items}</b></p><button class="btn big gold" data-act="claim-offline">领取</button>`);
   // 点 ✕ / 点遮罩关掉弹窗也算领取：否则收益丢了、战斗也不会开始（onClaim 里才 bv.start）
   let done = false;
   const claim = () => { if (done) return; done = true; mo.disconnect(); onClaim(); };

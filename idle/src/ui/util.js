@@ -163,4 +163,4 @@ export function showKwPop(kw, slug, anchor) {
 }
 
 // reward object -> text ({ gold, tickets, cores })
-export const rewardText = (r) => [r.gold ? `金币 +${fmt(r.gold)}` : '', r.tickets ? `召唤券 +${r.tickets}` : '', r.cores ? `银芯 +${r.cores}` : '', r.rw ? `回溯券 +${r.rw}` : ''].filter(Boolean).join('　');
+export const rewardText = (r) => [r.gold ? `金币 +${fmt(r.gold)}` : '', r.tickets ? `唤醒券 +${r.tickets}` : '', r.cores ? `银芯 +${r.cores}` : '', r.rw ? `回溯券 +${r.rw}` : ''].filter(Boolean).join('　');

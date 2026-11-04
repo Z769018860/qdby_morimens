@@ -34,7 +34,7 @@ export function challengePage(app) {
   const look = Array.from({ length: 5 }, (_, i) => nextFloor + i).filter((f) => f <= TOWER_MAX_FLOOR).map((f) => {
     const inf = towerInfo(f), foes = towerEnemies(f, data);
     const tag = inf.reward ? '<em class="new">校猫奖励层</em>' : inf.boss ? '<em class="boss">BOSS</em>' : inf.elite ? '<em class="elite">精英</em>' : '';
-    const drop = inf.reward ? '券 + 银芯 + 装备' : f % 10 === 0 ? '券 + 装备' : f % 5 === 0 ? '召唤券' : '—';
+    const drop = inf.reward ? '券 + 银芯 + 装备' : f % 10 === 0 ? '券 + 装备' : f % 5 === 0 ? '唤醒券' : '—';
     return `<div class="tfline ${f === nextFloor ? 'next' : ''}"><b>第 ${f} 层</b>${tag}
       <small class="tf-foe">${foes.map((e) => esc(e.name)).join('、')}</small><small class="tf-drop">${drop}</small></div>`;
   }).join('');
@@ -49,7 +49,7 @@ export function challengePage(app) {
         </div>
       </div>
       <p>下一层的敌人：${ne.map((e) => esc(e.name)).join('、')}${info.reward ? '　<em class="new">🐈 校猫奖励层</em>' : info.boss ? '　<em class="boss">BOSS</em>' : info.elite ? '　<em class="elite">精英</em>' : ''}</p>
-      <p class="hint">从第 1 层开始连续战斗，存活者保留生命并回复 30%，倒下的不会复活；全灭或回合用尽即止。每 5 层奖励召唤券，每 10 层掉落装备，<b>每 20 层是「校猫」奖励层</b>（额外给券、银芯与一件装备）。<b>只有首次到达的新层数才有奖励</b>，重爬老层只记战绩。塔共 ${TOWER_MAX_FLOOR} 层，每天 ${TOWER_DAILY} 次。${done ? '<b>你已经打穿了整座塔，剩下的就是刷首通奖励。</b>' : ''}</p>
+      <p class="hint">从第 1 层开始连续战斗，存活者保留生命并回复 30%，倒下的不会复活；全灭或回合用尽即止。每 5 层奖励唤醒券，每 10 层掉落装备，<b>每 20 层是「校猫」奖励层</b>（额外给券、银芯与一件装备）。<b>只有首次到达的新层数才有奖励</b>，重爬老层只记战绩。塔共 ${TOWER_MAX_FLOOR} 层，每天 ${TOWER_DAILY} 次。${done ? '<b>你已经打穿了整座塔，剩下的就是刷首通奖励。</b>' : ''}</p>
       <div class="row"><button class="btn big gold" data-act="tower-go" ${tries > 0 && !done ? '' : 'disabled'}>${done ? '已打穿整座塔' : tries > 0 ? '开始爬塔' : '今日次数已用完'}</button></div>
     </div>
     <h3>接下来五层 <small>首通才掉奖励</small></h3>
@@ -66,7 +66,7 @@ export function trialSection(app) {
   const trials = data.trials.map((tr) => {
     const row = THREATS.map((th, i) => {
       const done = s.trials.cleared[trialKey(tr, th)], open = trialUnlocked(s, tr, i);
-      return `<button class="btn sm th th-${th.k} ${done ? 'done' : ''}" data-act="trial-go" data-id="${tr.id}" data-i="${i}" ${open ? '' : 'disabled'} title="推荐等级约第 ${th.stage} 关强度${done ? '，已首通' : `，首通奖励：召唤券 ${th.tickets}`}">${th.k}${done ? ' ✓' : ''}</button>`;
+      return `<button class="btn sm th th-${th.k} ${done ? 'done' : ''}" data-act="trial-go" data-id="${tr.id}" data-i="${i}" ${open ? '' : 'disabled'} title="推荐等级约第 ${th.stage} 关强度${done ? '，已首通' : `，首通奖励：唤醒券 ${th.tickets}`}">${th.k}${done ? ' ✓' : ''}</button>`;
     }).join('');
     const boss = data.trialMonsters[tr.boss[0]];
     return `<div class="trial"><img src="${img(boss.img)}" alt=""><div class="tb"><b>${esc(tr.name)}</b><small>第 ${tr.season} 期融灾 · 区域 ${tr.zone}</small>
@@ -74,7 +74,7 @@ export function trialSection(app) {
       <div class="ths">${row}</div></div></div>`;
   }).join('');
   return `<div class="banner-card">${squadBar(app, 'trial')}
-      <p class="hint">融灾禁区里的<b>区域首领</b>：单队挑战（就是以前说的「融灾试炼」，同一批区域首领）。使用原作技能效果，威胁等级 C→B→A→S 逐级解锁，等级越高越强；首通给召唤券与装备，重复挑战只给金币。上面的爬塔要五队齐上，这里只派一队。</p>
+      <p class="hint">融灾禁区里的<b>区域首领</b>：单队挑战（就是以前说的「融灾试炼」，同一批区域首领）。使用原作技能效果，威胁等级 C→B→A→S 逐级解锁，等级越高越强；首通给唤醒券与装备，重复挑战只给金币。上面的爬塔要五队齐上，这里只派一队。</p>
       <p class="hint">已首通 <b>${cleared}/${total}</b> 个威胁等级　·　当前队伍战力 <b>${fmt(t.power)}</b></p>
       <div class="trials">${trials}</div></div>`;
 }

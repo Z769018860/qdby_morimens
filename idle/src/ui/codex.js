@@ -56,7 +56,7 @@ export function monsterModal(app, id) {
     <div class="d-body"><h3>${esc(m.zh)} ${m.en ? `<small>${esc(m.en)}</small>` : ''}</h3>
       <div class="tags"><span class="tag">${RANK_ZH[m.rank]}</span>${m.reward ? '<span class="tag rw">奖励首领</span>' : ''}${m.mate ? '<span class="tag rw">奖励陪场</span>' : ''}<span class="tag">${SIZE_ZH[m.size] || m.size}</span>${m.traits.map((t) => `<span class="tag t2">${esc(TRAIT_ZH[t] || t)}</span>`).join('')}</div>
       <p>${esc(m.desc)}</p>
-      ${m.reward ? '<p class="hint">出现位置：推图每 40 关的 Boss 关、无限塔每 20 层、属性塔每 20 层。打赢额外掉落召唤券 5 + 银芯 60 + 装备 ×1，首次击败翻倍。</p>' : ''}
+      ${m.reward ? '<p class="hint">出现位置：推图每 40 关的 Boss 关、无限塔每 20 层、属性塔每 20 层。打赢额外掉落唤醒券 5 + 银芯 60 + 装备 ×1，首次击败翻倍。</p>' : ''}
       ${m.mate ? '<p class="hint">出现位置：和校猫同一场奖励战（推图每 40 关、无限塔每 20 层、属性塔每 20 层）的第二格。他不带奖励、不进随机池，每 7 秒往场上补两只小怪；把他清掉这一场才算真的过。</p>' : ''}
       <div class="stats"><span>生命系数 <b>${m.hp}</b></span><span>攻击系数 <b>${m.atk}</b></span><span>防御系数 <b>${m.df}</b></span><span>${c ? `遭遇 <b>${c.seen}</b> · 击败 <b>${c.kills}</b>` : '尚未遭遇'}</span></div>
       <h4>出招顺序</h4>

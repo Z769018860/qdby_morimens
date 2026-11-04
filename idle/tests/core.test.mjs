@@ -3850,3 +3850,166 @@ test('周 Boss 扩到 8 层：逐层更硬、奖励更多、解锁门槛递增�
   s.weekly.tiers[7].damage = WEEKLY_TIER[7].unlock;
   assert.equal(weeklyOpen(s, 8), true);
 });
+
+// ---------------------------------------------------------------- 黑流树海
+test('树海：募队按稀有度花黑露，超预算 / 重复 / 未拥有都拒绝', async () => {
+  const T = await import('../src/core/treerun.js');
+  const s = newState(data, 21);
+  const ssr = data.awakeners.filter((a) => a.rarity === 'SSR' || a.rarity === 'Genesis').slice(0, 4).map((a) => a.slug);
+  for (const sl of ssr) s.roster[sl] = { lv: 50, star: 0 };
+  assert.equal(T.TREE_BUDGET, 100);
+  assert.equal(T.priceOf(data, ssr[0]) * 4 > T.TREE_BUDGET, true, '四张史诗/创生要买不起');
+  assert.equal(T.checkDraft(data, s.roster, ssr).err, '黑露不够');
+  assert.equal(T.checkDraft(data, s.roster, [ssr[0], ssr[0]]).ok, true, '重复的人要去重（不算两个人）');
+  assert.equal(T.checkDraft(data, s.roster, [ssr[0], 'not-a-slug']).err, '只能带已经唤醒的角色');
+  assert.equal(T.startRun(s, data, 'whisper', ssr).err, '黑露不够', 'startRun 也要挡住超预算');
+  // 便宜的队伍能出发
+  const cheap = [...data.awakeners].sort((a, b) => T.priceOf(data, a.slug) - T.priceOf(data, b.slug)).slice(0, 3).map((a) => a.slug);
+  for (const sl of cheap) s.roster[sl] ||= { lv: 50, star: 0 };
+  const ok = T.startRun(s, data, 'whisper', cheap);
+  assert.ok(ok.run, '预算内要能出发');
+  assert.equal(ok.run.spent <= T.TREE_BUDGET, true);
+});
+
+test('树海：开局全员 50 级白板，账号里的练度一概不掺进来', async () => {
+  const T = await import('../src/core/treerun.js');
+  const s = newState(data, 22);
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  // 账号里已经练到 159 级满叠位满超限：树海仍然要从 50 级白板起步
+  for (const sl of team) s.roster[sl] = { lv: 159, star: 99, od: 99, law: 20, brk: 7 };
+  s.team = team;
+  const { run } = T.startRun(s, data, 'dim', team);
+  const defs = T.allyDefsOf(s, data, run);
+  for (const d of defs) {
+    assert.equal(d.lv, 50, `${d.slug} 在树海里应该是 50 级`);
+    assert.equal(d.star, 0);
+  }
+  // 点亮一档：高枝 = 159 级 + 满叠位
+  run.enh = 0; run.gift = { src: 'node' };
+  T.takeGift(s, data, run, 'enh');
+  assert.equal(run.enh, 1);
+  for (const d of T.allyDefsOf(s, data, run)) { assert.equal(d.lv, 159); assert.equal(d.star, 99); }
+  // 再点亮两档：超限 99 + 法则 10
+  run.enh = 2;
+  for (const d of T.allyDefsOf(s, data, run)) assert.ok(T.enhOvr(2).od === 99);
+  run.enh = 3;
+  assert.deepEqual(T.enhOvr(3), { lv: 159, star: 99, od: 99, law: 10 });
+  // 练度一档一档往上，身板必须真的变厚（不是只改个数字标签）
+  const hpAt = (enh) => { const r2 = { ...run, enh }; return T.allyDefsOf(s, data, r2)[0].hp; };
+  assert.ok(hpAt(1) > hpAt(0), '高枝之后血要更厚');
+  assert.ok(hpAt(2) > hpAt(1), '超限之后血要更厚');
+  assert.ok(hpAt(3) > hpAt(2), '法则之后血要更厚');
+});
+
+test('树海：岔路二选一，第 10 步固定首领，选完才能打', async () => {
+  const T = await import('../src/core/treerun.js');
+  const s = newState(data, 23);
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  for (const sl of team) s.roster[sl] = { lv: 50, star: 0, brk: 3 };
+  s.team = team;
+  const { run } = T.startRun(s, data, 'dim', team);
+  assert.equal(run.branch.length, 2, '每步给两条岔路');
+  assert.ok(run.branch[0] !== run.branch[1], '两条岔路要不一样');
+  assert.equal(run.kind, null, '还没选路之前不能打');
+  assert.equal(T.fightNode(s, data, run), null, '没选路时开打要被拒绝');
+  T.pickBranch(s, run, 0);
+  assert.ok(run.kind, '选完有当前节点类型');
+  assert.equal(run.branch, null);
+  // 走到第 10 步：只剩首领
+  run.node = T.TREE_STEPS - 1;
+  run.branch = null;
+  const { run: r2 } = T.startRun(s, data, 'dim', team);
+  r2.node = T.TREE_STEPS - 1;
+  r2.branch = null;
+  T.pickBranch(s, r2, 0);
+  // 内部 nextBranch 只在推进时调用；这里直接验证推进到第 10 步后 branch 是首领
+  r2.node = T.TREE_STEPS - 2;
+  r2.branch = null;
+  r2.kind = 'battle';
+  T.leaveNode(s, r2);
+  assert.deepEqual(r2.branch, ['boss'], '第 10 步固定首领');
+});
+
+test('树海：事件收益（芽 / 唤醒券 / 余晖）按明面结算', async () => {
+  const T = await import('../src/core/treerun.js');
+  const s = newState(data, 24);
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  for (const sl of team) s.roster[sl] = { lv: 50, star: 0, brk: 3 };
+  s.team = team;
+  const { run } = T.startRun(s, data, 'dim', team);
+  const tk0 = s.tickets, glow0 = run.glow;
+  run.ev = { id: 'w_cocoon' };
+  const out = T.applyEvent(s, run, 0);
+  assert.equal(out.bud, 1, '「枝头的茧」剖开要得一枚古树之芽');
+  assert.ok(run.buds >= 1);
+  // 无名之物（黑流之心专属）：唤醒券直接进账号
+  run.diff = 'heart';
+  run.ev = { id: 'w_unnamed' };
+  const out2 = T.applyEvent(s, run, 0);
+  assert.equal(out2.tk, 2);
+  assert.equal(s.tickets, tk0 + 2, '事件给的唤醒券要直接进账号');
+  assert.ok(run.buds >= 2);
+});
+
+test('树海：通关结算发奖励与首通券，成就能领', async () => {
+  const T = await import('../src/core/treerun.js');
+  const s = newState(data, 25);
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  for (const sl of team) s.roster[sl] = { lv: 50, star: 0, brk: 3 };
+  s.team = team;
+  T.startRun(s, data, 'root', team);
+  const run = T.treeState(s).cur;
+  run.act = 2; run.node = 9; run.score = 4000; run.enh = 3;
+  const end = T.endRun(s, true);
+  assert.ok(end.win);
+  assert.ok(end.rw.gold > 0 && end.rw.tickets > 0);
+  assert.ok(end.rw.vouchers.includes('awaken'), '深根首通要送唤醒券');
+  assert.equal(s.vouchers.awaken >= 1, true);
+  assert.ok(T.treeState(s).ach.t_clear, '通关成就');
+  // 领成就：奖励进账、不能领两次
+  const w0 = s.tickets;
+  const got = T.claimTreeAch(s, 't_clear');
+  assert.ok(got && s.tickets > w0);
+  assert.equal(T.claimTreeAch(s, 't_clear'), null);
+  // 黑流之心首通：直升券 + 唤醒券
+  const v0 = { d: s.vouchers.direct || 0 };
+  T.startRun(s, data, 'heart', team);
+  const r2 = T.treeState(s).cur;
+  r2.act = 2; r2.score = 5000;
+  T.endRun(s, true);
+  assert.equal(s.vouchers.direct, v0.d + 1, '黑流之心首通送直升券');
+});
+
+test('树海券：直升券拉到超限满、唤醒券只收未拥有的血肉界域角色', async () => {
+  const T = await import('../src/core/treerun.js');
+  const { useDirectVoucher, useAwakenVoucher } = await import('../src/core/game.js');
+  const s = newState(data, 26);
+  s.vouchers.direct = 1; s.vouchers.awaken = 1;
+  const slug = 'ogier';
+  s.roster[slug] = { lv: 30, star: 5, brk: 1 };
+  const r = useDirectVoucher(s, slug);
+  assert.ok(r);
+  assert.equal(s.roster[slug].star, 99);
+  assert.equal(s.roster[slug].lv, 159);
+  assert.equal(s.roster[slug].od, 99);
+  assert.equal(s.vouchers.direct, 0);
+  assert.equal(useDirectVoucher(s, slug), null, '没有券了不能再拉');
+  // 唤醒券：只能唤醒未拥有的 CARO 角色
+  const caro = data.awakeners.find((a) => a.realm === 'CARO' && !s.roster[a.slug]);
+  const ok = useAwakenVoucher(s, caro.slug, data);
+  assert.ok(ok && s.roster[caro.slug]);
+  assert.equal(s.vouchers.awaken, 0);
+  assert.equal(useAwakenVoucher(s, caro.slug, data), null, '已拥有 / 没券都拒绝');
+  const nonCaro = data.awakeners.find((a) => a.realm !== 'CARO' && !s.roster[a.slug]);
+  s.vouchers.awaken = 1;
+  assert.equal(useAwakenVoucher(s, nonCaro.slug, data), null, '非血肉界域不能唤醒');
+});
+
+test('树海：老存档迁移补出 tree 与两张券，进行中的局能续上', () => {
+  const old = newState(data, 27);
+  delete old.tree; old.vouchers = { rewind: 2 };
+  const m = migrate(JSON.parse(JSON.stringify(old)), data);
+  assert.ok(m.tree && m.tree.ach && m.tree.cleared, 'tree 要补出来');
+  assert.equal(m.vouchers.direct, 0); assert.equal(m.vouchers.awaken, 0);
+  assert.equal(m.vouchers.rewind, 2);
+});

@@ -138,14 +138,14 @@ export class BattleView {
         <div><span>胜率</span><b class="${r.rate >= 1 ? 'ok' : r.rate <= 0 ? 'bad' : ''}">${Math.round(r.rate * 100)}%</b></div>
         <div><span>金币/小时</span><b class="g">${fmt(r.goldPerHour)}</b></div>
         <div><span>单场金币</span><b>${fmt(r.perBattle)}</b></div>
-        <div><span>召唤券/小时</span><b class="t">${r.ticketsPerHour.toFixed(2)}</b></div>
+        <div><span>唤醒券/小时</span><b class="t">${r.ticketsPerHour.toFixed(2)}</b></div>
         <div><span>银芯/小时</span><b class="c">${r.coresPerHour.toFixed(2)}</b></div>
         <div><span>装备/小时</span><b class="i">${r.dropsPerHour.toFixed(2)}</b></div>
       </div>${bst(r)}${extra}</div>`;
     const nf = f.nxtRate;
     const pct = (a, b) => (b >= a ? '+' : '') + ((b / a - 1) * 100).toFixed(1) + '%';
     // 胜率为 0 的科目不参与对比（算出来没意义），一项都比不了就直说打不过
-    const deltas = [['金币', f.cur.goldPerHour, nf.goldPerHour], ['召唤券', f.cur.ticketsPerHour, nf.ticketsPerHour], ['银芯', f.cur.coresPerHour, nf.coresPerHour]]
+    const deltas = [['金币', f.cur.goldPerHour, nf.goldPerHour], ['唤醒券', f.cur.ticketsPerHour, nf.ticketsPerHour], ['银芯', f.cur.coresPerHour, nf.coresPerHour]]
       .filter(([, a]) => a > 0).map(([n, a, b]) => `${pct(a, b)} ${n}`);
     const first = firstClearReward(f.nxt);
     const extra = `<div class="farmx">${deltas.length ? `下一关 ${deltas.join(' · ')}` : '下一关：当前队伍还打不过（胜率 0）'}${f.nxt > s.maxStage ? `　首通：券+${first.tickets} 银芯+${first.cores}${first.order ? ' 钥令+1' : ''}${first.gear ? ' 装备+1' : ''}` : ''}</div>`;
@@ -155,7 +155,7 @@ export class BattleView {
       return rs.length ? `<div class="farmx rule">🜂 域规：${rs.map((k) => `<b>${DOMAINS[k].zh}</b>：${DOMAINS[k].d}`).join('；')}<br><small>对策：${rs.map((k) => DOMAINS[k].hint).join('；')}</small></div>` : '';
     };
     // 校猫奖励关：每 40 关一次，提示一下，别让人以为只是普通 Boss
-    const catNote = (st) => (stageInfo(st)?.reward ? `<div class="farmx cat">🐈 第 ${st} 关是「校猫」奖励关：打赢额外掉召唤券 5 + 银芯 60 + 装备，首杀翻倍；非首杀的额外奖励每天限 3 次（校猫身后还站着关卡设计师米酒：他不抢奖励，只往场上补怪、把难度上调一档）</div>` : '');
+    const catNote = (st) => (stageInfo(st)?.reward ? `<div class="farmx cat">🐈 第 ${st} 关是「校猫」奖励关：打赢额外掉唤醒券 5 + 银芯 60 + 装备，首杀翻倍；非首杀的额外奖励每天限 3 次（校猫身后还站着关卡设计师米酒：他不抢奖励，只往场上补怪、把难度上调一档）</div>` : '');
     /* 当前这一关胜率 0 = 挂机没有收益。攻坚时挂机跟着攻打层走，很容易撞上这种情况，
        所以直接把「有收益的最高层」找出来，给一颗一键退回的按钮。 */
     const best = f.cur.rate <= 0 ? farmableStage(s, this.app.data) : null;
@@ -167,7 +167,7 @@ export class BattleView {
         ${col('当前挂机', f.cur, stall + ruleNote(f.cur.stage) + catNote(f.cur.stage))}
         ${col('下一关', nf, extra + ruleNote(f.nxt) + catNote(f.nxt))}
       </div>
-      <p class="hint">一场按 25 秒结算：金币 = 单场金币 × 胜率；召唤券与银芯的基础掉率是 40 场 1 张 / 90 场 1 枚，并<b>随关卡缓慢提升</b>——每深一关 +1.8% / +2.6%（第 60 关约 2.1× / 2.6×，第 100 关约 2.8× / 3.6×），挂得越深越值钱；装备每场 10% 掉落。在线与离线同一口径（离线最多累计 8 小时）。
+      <p class="hint">一场按 25 秒结算：金币 = 单场金币 × 胜率；唤醒券与银芯的基础掉率是 40 场 1 张 / 90 场 1 枚，并<b>随关卡缓慢提升</b>——每深一关 +1.8% / +2.6%（第 60 关约 2.1× / 2.6×，第 100 关约 2.8× / 3.6×），挂得越深越值钱；装备每场 10% 掉落。在线与离线同一口径（离线最多累计 8 小时）。
         ${s.auto ? '自动挂机中：打赢且「从容」（存活 ≥3 人、回合数达标）才自动推进，否则原地刷；<b>打不过的关不会死守</b>——前线失手、或在已通关的关上连输 3 场，都会自动退到有收益的最高层。' : '手动挂机中：<b>不会自动推进关卡</b>，只在这一关反复刷（收益按本关算）；要打更高关用右上角 ▶ 自己走过去。'}</p>`;
   }
 
@@ -378,7 +378,7 @@ export class BattleView {
         : '全员倒下 · 战斗失败';
     const parts = [];
     if (res.win) parts.push(`<span class="g">金币 +${fmt(rw.gold)}</span>`);
-    if (rw.tickets) parts.push(`<span class="t">召唤券 +${rw.tickets}</span>`);
+    if (rw.tickets) parts.push(`<span class="t">唤醒券 +${rw.tickets}</span>`);
     if (rw.cores) parts.push(`<span class="c">银芯 +${rw.cores}</span>`);
     // 挂机零头：券/银芯一场给不满 1 个，把当前攒到多少写出来，玩家能看到进度
     if (res.win) {

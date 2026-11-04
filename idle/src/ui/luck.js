@@ -64,7 +64,7 @@ function homePage(app, s) {
   }).join('') + `<button class="btn sm" data-act="luck-lv-toggle">${allLv ? '只看最近的等级' : `查看全部 ${LUCK_LEVELS.length} 级（已领 ${claimed}）`}</button>`;
   const achRows = LUCK_ACH.map((a) => {
     const done = s.ach[a.id] && s.ach[a.id] !== true, claimed = s.ach[a.id] === true;
-    return `<div class="ach ${done || claimed ? 'done' : ''}"><div class="ab"><b>${esc(a.zh)}</b><small>${esc(a.desc)}　奖励：${REWARD(a.reward)}${a.reward.tickets ? ` · 召唤券 ${a.reward.tickets}` : ''}</small></div>
+    return `<div class="ach ${done || claimed ? 'done' : ''}"><div class="ab"><b>${esc(a.zh)}</b><small>${esc(a.desc)}　奖励：${REWARD(a.reward)}${a.reward.tickets ? ` · 唤醒券 ${a.reward.tickets}` : ''}</small></div>
       <button class="btn sm ${done ? 'gold' : ''}" data-act="luck-ach" data-id="${a.id}" ${done ? '' : 'disabled'}>${claimed ? '已领取' : done ? '领取' : '未达成'}</button></div>`;
   }).join('');
   const talRows = LUCK_TALENTS.map((x) => {

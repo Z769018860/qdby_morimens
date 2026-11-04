@@ -60,7 +60,7 @@ export function simulateTower(state, data, { maxFloors = TOWER_MAX_FLOOR, seed =
 export function towerReward(state, data, reached, rng) {
   const rw = { gold: 0, tickets: 0, cores: 0, items: [], orders: [], newBest: false, cat: 0 };
   const prev = state.tower.best;
-  // 每层都给一点点召唤券 / 银芯，随层数缓慢变多（零头存进 state.tower，攒够 1 才发）；
+  // 每层都给一点点唤醒券 / 银芯，随层数缓慢变多（零头存进 state.tower，攒够 1 才发）；
   // 里程碑（每 5 / 10 / 20 层）另有整份奖励，所以爬得越高、越愿意继续爬。
   let tk = state.tower.tkFrac || 0, co = state.tower.coFrac || 0;
   for (let f = prev + 1; f <= reached; f++) {

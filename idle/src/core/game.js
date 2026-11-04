@@ -98,6 +98,8 @@ export function newState(data, now = Date.now()) {
     gift: { signin: 0 },
     // 疾驰欢愉的大运（core/luckrun.js）：分数等级 / 天赋 / 专属成就 / 当前这一局
     luck: { pts: 0, best: 0, clears: 0, runs: 0, lvClaimed: {}, talents: {}, tp: 0, ach: {}, cur: null },
+    // 黑流树海（core/treerun.js）：局内统计与专属成就（没有等级阶梯，分数只记最高）
+    tree: { runs: 0, clears: 0, best: 0, cleared: {}, ach: {}, cur: null },
     // 免费回溯券：后台发放 / 大运等级奖励给的「免费用一次回溯」，角色与装备通用（core/game.js spendRewind）
     vouchers: { rewind: 0 },
     // 同调率（core/affinity.js）：带着推关 / 送礼攒点，等级天赋 + 满级卡牌效果
@@ -131,7 +133,14 @@ export function migrate(s, data) {
   // 累计游玩秒数：老存档没有就从 0 开始
   m.play = Math.max(0, Math.floor(Number(m.play) || 0));
   // 免费回溯券：老存档没有就从 0 开始；数字被手改坏了也回到 0
-  m.vouchers = { rewind: Math.max(0, Math.min(999, Math.floor(Number(s.vouchers?.rewind) || 0))) };
+  m.vouchers = {
+    rewind: Math.max(0, Math.min(999, Math.floor(Number(s.vouchers?.rewind) || 0))),
+    // 树海券（core/treerun.js 的结算与商店产出）：直升券 = 直接把一位角色练到超限满；唤醒券 = 唤醒一位未拥有的血肉界域角色
+    direct: Math.max(0, Math.min(99, Math.floor(Number(s.vouchers?.direct) || 0))),
+    awaken: Math.max(0, Math.min(99, Math.floor(Number(s.vouchers?.awaken) || 0))),
+  };
+  // 黑流树海（core/treerun.js）：局内统计与专属成就
+  m.tree = { runs: 0, clears: 0, best: 0, cleared: {}, ach: {}, ...(s.tree || {}) };
   m.team = [...new Set(Array.isArray(m.team) ? m.team : [])].filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
   if (m.strategy.ult === 'manual') m.strategy.ult = 'first';   // 手动开大已下线：老存档回到默认策略
   normalizeUltOrder(m);
@@ -232,9 +241,12 @@ export function relicBonuses(state, data) {
 // ---------- stats pipeline ----------
 // extra：队伍级被动（羁绊 / 混编共鸣）算出来的加成，直接叠进这个人的装备加成里。
 // 不传就只有「单人 + 装备」——战力对比、编队候选这类单人场景都走这条。
-export function allyDef(state, data, slug, teamSlugs = state.team, extra = null) {
+export function allyDef(state, data, slug, teamSlugs = state.team, extra = null, ovr = null) {
   const a = data.bySlug[slug];
-  const r = state.roster[slug];
+  // ovr：影子练度（黑流树海开局锁 50 级无强化、局内点亮「高枝 / 超限 / 法则」时逐步放开）。
+  // 只盖 lv / star / od / law 四个键，其余（brk、buy、aff…）照旧——技能解锁（extraKit）与
+  // 增伤段（超限 / 法则那几行）读的也是这份，所以法则一点亮，终焉技和增伤同步生效。
+  const r = ovr ? { ...state.roster[slug], ...(ovr || {}) } : state.roster[slug];
   const st = baseStats(a, r.lv, r.star, r.od, r.law);
   const bonus = ZERO();
   const eq = state.gear.equip[slug] || {};
@@ -297,10 +309,10 @@ export function teamView(state, data) {
 // 混编共鸣：队伍里凑齐 3 / 4 个不同界域时，补上同域加成缺的那一份（+6% / +10%）。
 // 两者互斥：能凑出 3 同域就吃同域那份，否则看界域够不够散——「四同域」与「四域同行」各是极端，中间不再两头空。
 export const MIXED_SYNERGY = { 3: 0.06, 4: 0.10 };
-export function teamDefs(state, data, slugs = state.team) {
+export function teamDefs(state, data, slugs = state.team, ovr = null) {
   const live = (slugs || []).filter(Boolean);
   const bonds = teamBonds(live, data);
-  const list = live.map((s) => allyDef(state, data, s, slugs, bonds.bonus));
+  const list = live.map((s) => allyDef(state, data, s, slugs, bonds.bonus, ovr));
   const realms = {};
   for (const d of list) realms[d.realm] = (realms[d.realm] || 0) + 1;
   const syn = Math.max(0, ...Object.values(realms));
@@ -330,11 +342,11 @@ export function teamDefs(state, data, slugs = state.team) {
 // ---------- rewards ----------
 export const stageGold = (stage) => Math.round(18 * Math.pow(1.085, stage) + 9 * stage);
 const DROP_RATE = 0.1;
-// 每场胜利的基础掉落：金币 + 10% 装备 + 1/40 召唤券 + 1/90 银芯。
+// 每场胜利的基础掉落：金币 + 10% 装备 + 1/40 唤醒券 + 1/90 银芯。
 // 在线和离线用同一套比率（不足 1 的零头存进 state.drip，攒够就发），所以收益面板上的数字既是离线预估也是在线实收。
 export const TICKET_PER_WIN = 1 / 40, CORE_PER_WIN = 1 / 90;
 
-/* 挂机收益随关卡缓慢提升：召唤券每关 +1.8%、银芯每关 +2.6%，纯线性、不会指数爆炸。
+/* 挂机收益随关卡缓慢提升：唤醒券每关 +1.8%、银芯每关 +2.6%，纯线性、不会指数爆炸。
    第 60 关约 2.1× / 2.6×，第 100 关约 2.8× / 3.6×——队伍能挂得越深，抽卡与淬炼才跟得上消耗。
    低于第 1 关（不该出现）按第 1 关算，避免负增长。 */
 export const ticketBoost = (stage) => 1 + Math.max(0, stage) * 0.018;
@@ -526,7 +538,7 @@ export function applyResult(state, data, res) {
     const cat = res.prep.enemies.find((e) => e.reward);
     const firstCat = !!cat && (state.codex?.[cat.mid]?.kills || 0) <= 1;
     if (cat && (firstCat || catBonusLeft(state) > 0)) {
-      // 首杀不占每日名额；之后的每场额外奖励一天只发 CAT_DAILY 次，否则停在奖励关手动刷，一小时能刷几百张召唤券
+      // 首杀不占每日名额；之后的每场额外奖励一天只发 CAT_DAILY 次，否则停在奖励关手动刷，一小时能刷几百张唤醒券
       if (!firstCat) state.cat.n += 1;
       rw.cat = true;
       rw.tickets += 5; rw.cores += 60;
@@ -536,7 +548,7 @@ export function applyResult(state, data, res) {
         rw.items.push(addItem(state, ...Object.values(rollItem(rng, res.stage + 12, data))));
       }
     }
-    // 挂机零头：召唤券 / 银芯按关卡加成后的比率累积（越深的关每场给得越多），攒满 1 就进账
+    // 挂机零头：唤醒券 / 银芯按关卡加成后的比率累积（越深的关每场给得越多），攒满 1 就进账
     const drip = (state.drip ||= { tickets: 0, cores: 0 });
     drip.tickets += ticketPerWin(res.stage); drip.cores += corePerWin(res.stage);
     const dt = Math.floor(drip.tickets), dc = Math.floor(drip.cores);
@@ -709,6 +721,32 @@ export function lawUp(state, slug) {
   state.stats.coresSpent = (state.stats.coresSpent || 0) + c.cores;
   r.law = law(r.law) + 1;
   return c;
+}
+
+/** 树海直升券：把一位已有角色直接练到「超限满」——叠位 99、等级拉到 159、超限 99。最终法则不给（那档留给玩家自己练）。
+ *  免费券等价于几十亿金币 + 几千银芯的养成，所以产出压得极低（黑流之心首通 / 树海成就 / 高难商店）。 */
+export function useDirectVoucher(state, slug) {
+  const r = state.roster[slug];
+  const v = (state.vouchers ||= { rewind: 0, direct: 0, awaken: 0 });
+  if (!r || (v.direct || 0) <= 0 || r.star >= MAX_AWAKEN && overdrive(r.od) >= OVERDRIVE_MAX) return null;
+  v.direct--;
+  r.star = MAX_AWAKEN;
+  r.buy = Math.max(r.buy || 0, MAX_AWAKEN);       // 银芯叠位数同步拉平（叠位定价看它）
+  r.od = OVERDRIVE_MAX;
+  r.lv = Math.max(r.lv || 1, levelCap(r.star));
+  r.brk = Math.max(r.brk || 0, Math.floor(r.lv / LEVEL_GATE));
+  return { slug, star: r.star, od: r.od, lv: r.lv };
+}
+
+/** 树海唤醒券：唤醒一位**未拥有**的血肉界域（CARO）角色，直接进 roster（1 级 0 叠）。
+ *  已拥有 / 非血肉界域 / 没券都拒绝。 */
+export function useAwakenVoucher(state, slug, data) {
+  const a = data.bySlug[slug];
+  const v = (state.vouchers ||= { rewind: 0, direct: 0, awaken: 0 });
+  if (!a || a.realm !== 'CARO' || state.roster[slug] || (v.awaken || 0) <= 0) return null;
+  v.awaken--;
+  state.roster[slug] = { lv: 1, star: 0, brk: 0 };
+  return { slug, zh: a.zh, isNew: true };
 }
 
 export function awakenUp(state, slug) {
@@ -1127,7 +1165,7 @@ export function claimGifts(state, data, items) {
     if (id === 'c:' || done.has(id)) continue;
     const rw = Math.max(0, Math.min(99, Math.floor(Number(g.rw) || 0)));
     if (rw) { (state.vouchers ||= { rewind: 0 }).rewind += rw; got.push({ voucher: rw }); }
-    // 召唤券 / 金币（站长在后台发的补偿）：直接进账；金币上限 10 亿一条，和后端 cleanGold 一致
+    // 唤醒券 / 金币（站长在后台发的补偿）：直接进账；金币上限 10 亿一条，和后端 cleanGold 一致
     const tk = Math.max(0, Math.min(9999, Math.floor(Number(g.tk) || 0)));
     if (tk) { state.tickets = (Number(state.tickets) || 0) + tk; got.push({ tickets: tk }); }
     const gd = Math.max(0, Math.min(1e9, Math.floor(Number(g.gold) || 0)));
@@ -1159,7 +1197,7 @@ export function summon(state, data, n) {
   recordBatch(state, out);
   return out;
 }
-// 银芯召唤: 200 each, 10-pull 1900 (shares the pity counters with 召唤券)
+// 银芯召唤: 200 each, 10-pull 1900 (shares the pity counters with 唤醒券)
 export const CORE_PULL_COST = 200, CORE_PULL10_COST = 1900;
 export function summonCores(state, data, n) {
   const cost = n === 10 ? CORE_PULL10_COST : CORE_PULL_COST * n;

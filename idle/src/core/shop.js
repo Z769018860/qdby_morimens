@@ -7,7 +7,7 @@ import { arenaTries, arenaState } from './arena.js';
 
 const day = () => new Date().toISOString().slice(0, 10);
 export const SHOP = [
-  { id: 'ticket', zh: '召唤券 ×1', cost: 120, limit: 10, give: { tickets: 1 } },
+  { id: 'ticket', zh: '唤醒券 ×1', cost: 120, limit: 10, give: { tickets: 1 } },
   { id: 'gold', zh: '金币 ×5000', cost: 40, limit: 5, give: { gold: 5000 } },
   { id: 'gear', zh: '装备（随机）×1', cost: 60, limit: 5, give: { gear: 1 } },
   { id: 'order', zh: '钥令匣（随机钥令）×1', cost: 80, limit: 2, give: { order: 1 } },
@@ -40,9 +40,9 @@ export function buy(state, data, id) {
   return out;
 }
 
-// ---------- 金币换召唤券（金币的后期出口）----------
+// ---------- 金币换唤醒券（金币的后期出口）----------
 // 关卡越深金币越多（每关 +8.5%），而等级上限归叠位、超限归银芯，到第 80 关以后金币基本没处花。
-// 这里给它一个出口：金币换召唤券，每天限 10 张，价格 = 「当前最高关一场战斗的金币」×300，
+// 这里给它一个出口：金币换唤醒券，每天限 10 张，价格 = 「当前最高关一场战斗的金币」×300，
 // 当天每买一张再贵 20%。价格随最高关一起涨，所以金币再多也只是「每天多几张券」，拉不动抽卡节奏；
 // 反过来在前中期它比挂机拿券（约 20 场一张）贵 10 倍以上，没人会拿它换，金币仍然留给升级。
 // 券没有反向兑换成金币的路，不会出现来回套利。
