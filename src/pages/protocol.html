@@ -489,6 +489,8 @@ html.calm .purse.pop b{animation:none}
   background:linear-gradient(180deg, color-mix(in oklab,var(--accent) 90%, #fff), var(--accent));
   border-color:transparent; color:#03101f}
 .btn.primary:hover{filter:brightness(1.08)}
+/* 开局卡片矮屏（横屏手机 / 620 高）装不下时内部滚动：「进入协议」钉在卡片底部，不用先滚到底才看得到 */
+.card #btnStart{position:sticky; bottom:0; z-index:3; box-shadow:0 0 0 8px #141a27, 0 -14px 14px 4px #141a27}
 .btn.ghost{color:var(--dim)}
 .row{display:flex; gap:8px; margin-top:10px}
 .row .btn{flex:1 1 0}
@@ -792,7 +794,7 @@ html.calm .purse.pop b{animation:none}
         <li><b>商店</b>：62 名唤醒体，每波结束免费换一批；同一名买三个合成 2 星，再三个合成 3 星，<b>升星送命轮 / 造物</b>。</li>
         <li><b>装备</b>：切到「命轮·造物」页签买装备，点装备栏里的一件再点唤醒体就装上。命轮是纯数值，造物带机制（反伤、追击、回血……）。</li>
         <li><b>羁绊</b>：20 条，分四类 —— <b>界域</b>（血肉 / 深海 / 混沌 / 超维）、<b>职阶</b>（伤害 / 防御 / 辅助）、<b>组织</b>（愚者结社 / 外乡人 / 混血 / 不可知者 / 群星 / 永恒 / 无所属）、<b>流派</b>（触手 / 剧毒 / 吞噬 / 穿刺 / 反击 / 胚胎）。凑够人数就生效，左侧面板按这四类分组列。</li>
-        <li><b>商店</b>：刷新只要 1 金；能三合一的那张卡会呼吸式高亮并挂「升星」角标，同名凑够两个的挂「同名×n」。</li>
+        <li><b>刷新与升星</b>：刷新只要 1 金；能三合一的那张卡会呼吸式高亮并挂「升星」角标，同名凑够两个的挂「同名×n」。</li>
         <li><b>词条</b>：选中唤醒体后，卡里的属性名（生命 / 护甲 / 攻速……）与「机制」小标签都是按钮 —— <b>点一下就地展开</b>说明：怎么算、什么时候有用、谁提供。想看全部 33 条，点底栏的「图鉴详情」。</li>
         <li><b>目标</b>：守住十二波，漏怪扣协议核心，核心归零就结束。<b>无尽关</b>没有终点——清完十二波照样往下打，敌人一波比一波强，撑到核心破碎为止。</li>
       </ul>

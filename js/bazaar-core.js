@@ -395,7 +395,7 @@ export function shopMix(run) {
   return { hero: hero / sum, wheel: wheel / sum, relic: relic / sum };
 }
 
-export function rollShop(run, { free = false } = {}) {
+export function rollShop(run, { free = false, keep = false } = {}) {
   const rnd = run.rnd;
   if (!free) {
     const cost = TUNING.rerollCost + run.rerolls;
@@ -510,7 +510,9 @@ export function rollShop(run, { free = false } = {}) {
   }
 
   run.shop = out;
-  run.rerolls = 0;
+  // 刷新价「当天每刷一次再贵 1 金」：只有新的一天 / 输后重来（free 且不 keep）才归零。
+  // 以前每次刷完都清零，价格永远停在底价，新手指导里写的「每刷一次再贵」根本没生效。
+  if (free && !keep) run.rerolls = 0;
   return true;
 }
 
@@ -524,7 +526,7 @@ export function setShopRealm(run, realm) {
   }
   run.realmSwitched = true;
   run.shopRealm = next;
-  rollShop(run, { free: true });
+  rollShop(run, { free: true, keep: true });     // 换界域商店不算新的一天：刷新价不归零
   return { ok: true };
 }
 

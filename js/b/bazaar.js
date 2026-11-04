@@ -1283,7 +1283,7 @@ function shopMix(run) {
   return { hero: hero / sum, wheel: wheel / sum, relic: relic / sum };
 }
 
-function rollShop(run, { free = false } = {}) {
+function rollShop(run, { free = false, keep = false } = {}) {
   const rnd = run.rnd;
   if (!free) {
     const cost = TUNING.rerollCost + run.rerolls;
@@ -1398,7 +1398,9 @@ function rollShop(run, { free = false } = {}) {
   }
 
   run.shop = out;
-  run.rerolls = 0;
+  // 刷新价「当天每刷一次再贵 1 金」：只有新的一天 / 输后重来（free 且不 keep）才归零。
+  // 以前每次刷完都清零，价格永远停在底价，新手指导里写的「每刷一次再贵」根本没生效。
+  if (free && !keep) run.rerolls = 0;
   return true;
 }
 
@@ -1412,7 +1414,7 @@ function setShopRealm(run, realm) {
   }
   run.realmSwitched = true;
   run.shopRealm = next;
-  rollShop(run, { free: true });
+  rollShop(run, { free: true, keep: true });     // 换界域商店不算新的一天：刷新价不归零
   return { ok: true };
 }
 
@@ -2780,7 +2782,7 @@ const TUT = [
   { at: 'wheels', t: '④ 命轮才是主要输出',
     d: '命轮有自己的节拍，走满后还要吃一口算力才开火；算力不够就卡在「等算力」。命轮也占格子，和人抢十五格。别一味买贵的，先让产出跟上。<b>冷却条的颜色 = 界域</b>：血肉红、深海蓝、混沌黄、超维紫，中立是金色。下面的「造物」不出手，最多装 4 件——除了面板属性，还有吸血 / 穿盾 / 每四拍护盾 / 压敌方伤害这些机制件。' },
   { at: 'bench', t: '⑤ 仓库：放不下的先存着，也能卖',
-    d: '战场十五格放不下的人 / 命轮，买下后会<b>自动进仓库</b>（最多 4 件）。点仓库里的可以<b>上场</b>，满了就选一个<b>换下来</b>；场上的人和命轮点开也能「移入仓库」。不要的点开可以<b>卖掉，返还一半金币</b>。刷新 2 金起，当天每刷一次再贵 1 金。' },
+    d: '战场十五格放不下的人 / 命轮，买下后会<b>自动进仓库</b>（最多 4 件）。点仓库里的可以<b>上场</b>，满了就选一个<b>换下来</b>；场上的人和命轮点开也能「移入仓库」。不要的点开可以<b>卖掉，返还一半金币</b>。刷新 1 金起，当天每刷一次再贵 1 金。' },
   { at: 'btnFight', t: '⑥ 开战：一直打到有人倒下',
     d: '点「开战」自动开打，<b>一直打到有一方倒下</b>：打到第 100 拍后<b>毒圈</b>出现，双方每拍同时掉最大生命的一截（无视护盾）、越往后越疼，所以拖不过去。战斗里<b>每个人的立绘会被界域色从脚底漫到头顶，漫满就出手</b>；每一拍有一个鼓点，四拍一小节。右下角可以 ×1/×2/×3 加速或跳过。毒圈无视护盾，所以最后比的是谁的血线更高：护盾、回血、削对面血都是在抢血线。' },
   { at: 'foeBar', t: '⑦ 看清今天的对手和地形',

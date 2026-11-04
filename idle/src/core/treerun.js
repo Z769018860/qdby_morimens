@@ -1098,6 +1098,8 @@ export function shopStock(state, run, data = null) {
 export function shopBuy(state, run, idx) {
   const it = (run.shop || [])[idx];
   if (!it || run.glow < it.price) return { err: '余晖不够' };
+  // 先判能不能收下，再扣钱：以前先扣钱、招募时才发现仓库满了，报错的同时余晖已经没了、商品还挂着
+  if (it.type === 'recruit' && (run.pool || []).length >= poolCap(run)) return { err: `仓库满了（${poolCap(run)} 人）` };
   const out = { ok: true, zh: it.zh, got: [] };
   run.glow -= it.price;
   if (it.type === 'heal') { healLiving(run, 0.3); out.heal = 30; }
