@@ -347,6 +347,23 @@ export const ENEMY_TUNE = { hp: 1.85, atk: 1.7 };
 export const waveHpMul = (w) => ENEMY_TUNE.hp * (1 + 0.10 * (w - 1));
 export const waveAtkMul = (w) => ENEMY_TUNE.atk * (1 + 0.17 * (w - 1));
 
+// ---------------------------------------------------------------- 无尽关
+// 第 13 波起进入「回响」：每 12 波一轮，沿用同一套构成，非首领每一种多来一只
+// （第 1 轮回响 +1，最多 +6），强度交给上面两条曲线线性外推。
+// 无尽关没有终点——结束条件是核心归零，能爬多高看阵容上限而不是波次表。
+// 这里只改「来多少人」，不改 ENEMY_TUNE，所以标准模式的十二波一个数字都没动。
+export const ENDLESS_FROM = WAVES.length + 1;
+const WAVE_HEAD = /^第[^·]*·\s*/;
+export function waveCfg(w) {
+  if (w < 1) return null;
+  if (w <= WAVES.length) return WAVES[w - 1];
+  const base = WAVES[(w - 1) % WAVES.length];
+  const round = Math.floor((w - 1) / WAVES.length);
+  const add = Math.min(round, 6);
+  const e = base.e.map(([key, count, gap]) => [(key), (ENEMY[key] || {}).cls === 'Boss' ? count : count + add, gap]);
+  return { ...base, e, endless: round, n: `第 ${w} 波 · 回响${round}｜${String(base.n).replace(WAVE_HEAD, '')}` };
+}
+
 // ---------------------------------------------------------------- 地形
 // 每一局（同一个种子）在可部署区里随机摆几块特殊地格，摆上去的东西不一样：
 // 高台给远程架枪、祭坛给大招、裂隙换伤害、岩壁直接堵死一格。
@@ -414,8 +431,11 @@ export const LEVEL_REWARD = { gold: 1 };
 
 // ---------------------------------------------------------------- 结算
 // 得分换银芯（与合成大杜勒、幸存者同一个钱包 zjtt:credits），阶梯取最高一档。
+// 银芯档位：前七档是十二波通关能摸到的区间（满分约 7000~7500），
+// 后三档只给无尽关——爬到十八波以上才够得着，否则无尽关打再深也只拿 60 银芯。
 export const CREDIT_TIERS = [
   [0, 0], [700, 4], [1200, 9], [1800, 16], [2500, 26], [3400, 40], [4600, 60],
+  [7000, 85], [10000, 120], [15000, 170],
 ];
 export function creditsAt(score) {
   let out = 0;

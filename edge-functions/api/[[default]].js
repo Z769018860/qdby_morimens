@@ -1525,7 +1525,13 @@ const BOARD_SPEC = [
   { k: 'bd', gd: 'bd', i: 1, unit: '分', label: '最高分', sub: (v) => (v[0] ? `最深 ${Number(v[0])} 层` : '') },
   { k: 'bn', gd: 'bn', i: 0, unit: '层', label: '最深楼层', sub: (v) => (v[1] ? `通关 ${Number(v[1])} 次` : '') },
   { k: 'sv', gd: 'sv', i: 0, unit: '分', label: '最高分' },
-  { k: 'pf', gd: 'pf', i: 1, unit: '分', label: '最高分', sub: (v) => (v[0] ? `最远第 ${Number(v[0])} 波` : '') },
+  // 忘却协议：按无尽关最深波次排（gd.pf = [标准最远波次, 标准最高分, 守住次数, 无尽最深, 无尽最高分, 总对局]）。
+  // 标准模式封顶十二波，永远比不过无尽关；2026-11 之前的老档案没有 v[3]，按 0 垫底。
+  // 同波数比那一趟的分数（tb），再往后交给总对局数，不会出现完全并列。
+  { k: 'pf', gd: 'pf', i: 3, unit: '波', label: '无尽最深',
+    sub: (v) => [Number(v[4]) > 0 ? `无尽 ${Number(v[4])} 分` : '',
+      Number(v[3]) > 0 && Number(v[0]) > 0 ? `标准第 ${Number(v[0])} 波` : ''].filter(Boolean).join(' · '),
+    tb: (v) => Number(v[4]) || 0 },
   { k: 'wf', gd: 'wf', i: 1, unit: '胜', label: '胜场', sub: (v) => (v[0] ? `共 ${Number(v[0])} 局` : '') },
   // 弥萨格大逃杀：按确认的报告数排，副标写提交数与正确率；老档案（还没有这两项）退回按已复原记录数
   { k: 'dt', gd: 'dt', i: 4, unit: '份', label: '确认报告',

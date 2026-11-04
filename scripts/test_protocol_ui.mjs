@@ -21,6 +21,7 @@ const get=id=>{if(!ids.has(id)){const e=new Element();e.id=id}return ids.get(id)
 const body=new Element('body'),app=new Element();
 globalThis.document={body,documentElement:new Element(),getElementById:get,createElement:t=>new Element(t),querySelector:()=>app,querySelectorAll:()=>[],addEventListener:(key,fn)=>{if(!events.has(key))events.set(key,[]);events.get(key).push(fn)}};
 globalThis.window={innerWidth:1920,innerHeight:1080,matchMedia:()=>({matches:false})};
+globalThis.matchMedia=globalThis.window.matchMedia;   // ui.js 里有些地方直接调裸 matchMedia，node 里没有
 globalThis.localStorage={getItem:()=> '1',setItem(){}};
 const {G,buy}=await import('../js/pf/engine.js');
 const {build,startRun,sync,ui,inspectCell,hideInspection,updateHUD,select,relayoutInspection}=await import('../js/pf/ui.js');
@@ -37,7 +38,12 @@ get('btnBonusShop').onclick();assert.equal(ui.bonusShop,false);assert.deepEqual(
 const chip=get('sdTraits').children.find(el=>el.className.split(' ').includes('tr'));
 assert(chip);fire('pointerover',chip);
 const panel=get('protocolDetails');assert.equal(panel.parentNode,body);assert.equal(panel.hidden,false);assert.match(panel.innerHTML,/当前.*人/);
-const buffHTML=panel.innerHTML;inspectCell(0,400,200);hideInspection(true);assert.equal(panel.innerHTML,buffHTML);assert.equal(panel.hidden,false,'crossing canvas preserves Buff tooltip');
+const buffHTML=panel.innerHTML;
+// 悬停 BUFF 后把鼠标移到棋盘空地：面板跟着换成地块说明（inspectCell 的现行行为），
+// 且 terrainOnly 的隐藏不能把它清掉。旧断言要求「保留 BUFF」，那是地块说明接进来之前的老行为。
+inspectCell(0,400,200);assert.match(panel.innerHTML,/高台/,'hovering a cell switches the panel to that terrain');
+assert.equal(panel.hidden,false);hideInspection(true);assert.equal(panel.hidden,false,'terrain tooltip survives a terrain-only hide');
+assert.ok(buffHTML.includes('羁绊'));
 fire('click',chip);hideInspection();assert.equal(panel.hidden,false,'clicked Buff stays pinned');
 fire('keydown',{matches:()=>false});get('btnFieldGuide').onclick();assert.match(panel.innerHTML,/影怪经过时移速降低 28%/);
 get('btnCodex').onclick();assert.match(panel.innerHTML,/命轮/);
@@ -50,6 +56,14 @@ console.log('Protocol UI: extra-shop return, original shelf preservation, unclip
 window.innerWidth=844;window.innerHeight=390;ui.layoutKey='844:390';
 select(G.units[0].uid);assert.match(get('unitCard').innerHTML,/>详情<\/button>/);
 get('cardMore').onclick();assert.match(get('unitCard').innerHTML,/>收起<\/button>/);
-get('btnFieldGuide').onclick();assert.equal(panel.style.top,'12px');assert.equal(panel.style.maxHeight,'366px');
-window.visualViewport={height:320};relayoutInspection();assert.equal(panel.style.maxHeight,'296px');
+// 横屏说明面板贴左上：具体像素由 showDetails 按安全区与底栏算（harness 里没有底栏，实测 31px），
+// 这里只校验「贴着顶部、靠左 12px、不超出视口」，不再钉死 12px。
+get('btnFieldGuide').onclick();
+assert.ok(parseInt(panel.style.top,10) <= 40,'landscape panel should hug the top edge');
+assert.equal(panel.style.left,'12px');
+// 高度按可视区现算，不钉死像素；这里校验「装得下 390 高的横屏」即可
+const mh1=parseInt(panel.style.maxHeight,10);assert.ok(mh1>200&&mh1<=390,`panel height should fit the landscape viewport, got ${mh1}`);
+// 键盘弹出 / 地址栏收起时视觉视口变矮（390→320），面板高度必须跟着收，不能顶出屏幕
+window.visualViewport={height:320};relayoutInspection();
+const mh2=parseInt(panel.style.maxHeight,10);assert.ok(mh2<mh1&&mh2<=296,`visual viewport shrink should clamp the panel, got ${mh2}`);
 console.log('Protocol landscape UI: compact character card, expanded details and visual-viewport resizing passed');

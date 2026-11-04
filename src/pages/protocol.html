@@ -477,6 +477,11 @@ html.calm .purse.pop b{animation:none}
   background:var(--panel2); color:var(--dim); font-size:12.5px; cursor:pointer}
 .diff button.on{color:var(--gold); font-weight:600; border-color:color-mix(in oklab,var(--gold) 58%, var(--line));
   background:color-mix(in oklab,var(--gold) 13%, var(--panel))}
+/* 玩法模式（协议 / 无尽关）：比难度那组低一档，用冷色区分，别和「标准 / 癫狂」混成一组 */
+.diff.mode{margin-top:8px}
+.diff.mode button{height:30px; font-size:12px}
+.diff.mode button.on{color:#8fc4ff; border-color:color-mix(in oklab,#8fc4ff 58%, var(--line));
+  background:color-mix(in oklab,#8fc4ff 13%, var(--panel))}
 .tip{margin:6px 0 0; font-size:11px; color:var(--dim); text-align:center}
 .btn{height:44px; border-radius:12px; border:1px solid var(--line); background:var(--panel);
   color:var(--text); cursor:pointer; font-size:14.5px; font-weight:600; transition:.14s}
@@ -789,13 +794,18 @@ html.calm .purse.pop b{animation:none}
         <li><b>羁绊</b>：20 条，分四类 —— <b>界域</b>（血肉 / 深海 / 混沌 / 超维）、<b>职阶</b>（伤害 / 防御 / 辅助）、<b>组织</b>（愚者结社 / 外乡人 / 混血 / 不可知者 / 群星 / 永恒 / 无所属）、<b>流派</b>（触手 / 剧毒 / 吞噬 / 穿刺 / 反击 / 胚胎）。凑够人数就生效，左侧面板按这四类分组列。</li>
         <li><b>商店</b>：刷新只要 1 金；能三合一的那张卡会呼吸式高亮并挂「升星」角标，同名凑够两个的挂「同名×n」。</li>
         <li><b>词条</b>：选中唤醒体后，卡里的属性名（生命 / 护甲 / 攻速……）与「机制」小标签都是按钮 —— <b>点一下就地展开</b>说明：怎么算、什么时候有用、谁提供。想看全部 33 条，点底栏的「图鉴详情」。</li>
-        <li><b>目标</b>：守住十二波，漏怪扣协议核心，核心归零就结束。</li>
+        <li><b>目标</b>：守住十二波，漏怪扣协议核心，核心归零就结束。<b>无尽关</b>没有终点——清完十二波照样往下打，敌人一波比一波强，撑到核心破碎为止。</li>
       </ul>
       <div class="diff">
         <button data-d="normal" class="on">标准</button>
         <button data-d="hard">癫狂</button>
       </div>
       <p class="tip" id="diffTip"></p>
+      <div class="diff mode">
+        <button data-m="normal" class="on">协议 · 十二波</button>
+        <button data-m="endless">无尽关</button>
+      </div>
+      <p class="tip" id="modeTip"></p>
       <button class="btn primary" id="btnStart">进入协议</button>
     </div>
   </div>
@@ -815,6 +825,7 @@ html.calm .purse.pop b{animation:none}
         <li><b>人口</b>：上场人数上限就是等级，升级固定 5 金，最高 8 级。等级越高，商店里高费唤醒体越常见。</li>
         <li><b>狂气</b>：每条紫色狂气条攻击和挨打都会涨，满了自动放大招；站在祭坛上攒得快，带活性注射器更快。六种大招各有各的样子和声音 —— <b>落雷</b>从天砸一道光柱、<b>冲击波</b>炸开三层环、<b>护罩</b>扣一层六边形玻璃罩、<b>加速</b>甩出横向速度线与箭头、<b>眩晕</b>扩散电波与星芒、<b>治疗</b>升起一串光点。</li>
         <li><b>经济</b>：每清一波给 4 金，手里每存 5 金额外给 1 金（最多 5 金）。存钱升人口是这套玩法的核心。</li>
+        <li><b>无尽关</b>：开局就能选，和标准模式共用前十二波。清完十二波后进入「回响」——每十二波一轮，沿用同一套敌人构成，但普通怪每一类都多来一只（最多 +6），生命与攻击仍按每波 +10% / +17% 往上叠。<b>没有波数上限</b>，只有核心归零才结束；每波结束照常回 40% 生命、照常发金币和商店，所以能不能再爬一轮全看阵容上限。<b>排行榜只记无尽关的最深波次</b>，标准模式的十二波不计入。</li>
         <li><b>顶栏按钮</b>：<b>1×/2×</b> 切倍速（记在本机，下一局还是这个速度，判定不变、只是每帧多推几步）；<b>♪</b> 开 / 关声音（音效与 BGM 都在浏览器里现场合成，不额外下载音频文件）。</li>
         <li><b>声音</b>：38 种音效 + 7 段 BGM，全在浏览器里合成。<b>BGM 跟着进度换</b>——备战慢 62bpm、前六波 96bpm、第七波起加密到 112bpm（多一层十六分琶音）、首领波降到 84bpm 走三全音、末波换成最高张力的一首、结算按胜负分开。音效里比较值得听的有：利息升一档（金币池下面那行小字跳档时）、狂气满放大招（先一声蓄力铃，再上这个流派自己的音色）、护盾吃掉伤害、核心掉到 5 以下的两声闷响、首领登场那记低音、升 2/3 星的琶音、结算时八项数字逐条落下的刻度声。</li>
         <li><b>快捷键</b>：空格开战 / R 刷新 / F 升级 / E 卖出 / Q 放回备战席 / Esc 取消选中。</li>

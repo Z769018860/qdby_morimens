@@ -12,7 +12,7 @@ import {
   COLS, ROWS, CELLS, HEX_W, BOARD_W, SPAWN_X, CORE_X, DEPLOY_COLS,
   cellXY, colOf, rowOf, cellOf, NEIGHBORS, STARS, MAX_STAR, MAX_LEVEL, LEVEL_COST, REROLL_COST,
   WAVE_GOLD, interestOf, BENCH_SIZE, START_GOLD, START_LEVEL, shopOdds,
-  TRAITS, TRAIT_BY_KEY, FAC_EFF, GMK_EFF, ENEMY, WAVES, waveHpMul, waveAtkMul, HEAL_PER_WAVE, creditsAt,
+  TRAITS, TRAIT_BY_KEY, FAC_EFF, GMK_EFF, ENEMY, WAVES, waveCfg, waveHpMul, waveAtkMul, HEAL_PER_WAVE, creditsAt,
   TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, ITEM_SLOTS, ITEM_REROLL, INV_SIZE,
   MERGE_REWARD, LEVEL_REWARD,
 } from './defs.js';
@@ -39,6 +39,7 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 export const G = {
   phase: 'idle',          // idle | prep | fight | over | win
   wave: 0,                // 已经打完的波次
+  endless: false,         // 无尽关：十二波之后继续打，只有核心归零才结束
   core: 20, coreMax: 20,
   gold: START_GOLD,
   level: START_LEVEL,
@@ -76,6 +77,7 @@ export function reset(s) {
   setSeed(s >>> 0);
   G.phase = 'prep';
   G.wave = 0;
+  G.endless = false;
   G.core = G.coreMax = 20;
   G.gold = START_GOLD;
   G.level = START_LEVEL;
@@ -720,7 +722,7 @@ export function lanePath(row) {
 // 这一波从哪几条通道、按什么顺序来。备战期就先算好，界面才能在开战前
 // 把「怪物意图」画出来（从哪条通道进、来的是什么、几只）。
 export function planWave(w) {
-  const cfg = WAVES[w - 1];
+  const cfg = waveCfg(w);
   if (!cfg) return [];
   const lanes = [0, 1, 2, 3];
   for (let i = lanes.length - 1; i > 0; i--) {
@@ -743,9 +745,10 @@ export function planWave(w) {
 
 export function beginWave() {
   if (G.phase !== 'prep') return false;
-  if (G.wave >= WAVES.length) return false;
+  // 无尽关没有波数上限：核心还在，第 13、14 波就能一直打下去
+  if (!G.endless && G.wave >= WAVES.length) return false;
   const w = G.wave + 1;
-  const cfg = WAVES[w - 1];
+  const cfg = waveCfg(w);
   // 开场前重新算一遍羁绊：布阵变了，数值要跟着变
   recount();
   G.wave = w;
@@ -1235,14 +1238,17 @@ function clearWave() {
     // 收招：下一波之前所有人回到待机，别顶着打击帧站一整段备战期
     u.atkAnim = 0; u.hurtT = 0; u.target = null; u.timer = 0;
   }
-  if (G.wave >= WAVES.length) {
+  if (!G.endless && G.wave >= WAVES.length) {
     G.phase = 'win';
     sfx.play('win');
   } else {
     sfx.play('clear');
     G.phase = 'prep';
     G.plan = planWave(G.wave + 1);
-    G.msg = `第 ${G.wave} 波清完，下一波：${WAVES[G.wave].n}`;
+    // 无尽关：十二波守住只是起点，这里必须明说，否则玩家会以为打完收工了
+    G.msg = G.endless && G.wave >= WAVES.length
+      ? `十二波守住了 · 无尽关继续，第 ${G.wave + 1} 波`
+      : `第 ${G.wave} 波清完，下一波：${waveCfg(G.wave + 1).n}`;
     rollShop(true);
     rollItemShop(true);
   }
@@ -1262,7 +1268,8 @@ export function summary() {
   );
   return {
     cleared: Math.max(0, cleared),
-    total: WAVES.length,
+    total: G.endless ? 0 : WAVES.length,   // 0 = 没有终点（无尽关）
+    endless: !!G.endless,
     core: G.core,
     coreMax: G.coreMax,
     gold: G.gold,

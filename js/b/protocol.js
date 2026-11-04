@@ -367,6 +367,23 @@ const ENEMY_TUNE = { hp: 1.85, atk: 1.7 };
 const waveHpMul = (w) => ENEMY_TUNE.hp * (1 + 0.10 * (w - 1));
 const waveAtkMul = (w) => ENEMY_TUNE.atk * (1 + 0.17 * (w - 1));
 
+// ---------------------------------------------------------------- 无尽关
+// 第 13 波起进入「回响」：每 12 波一轮，沿用同一套构成，非首领每一种多来一只
+// （第 1 轮回响 +1，最多 +6），强度交给上面两条曲线线性外推。
+// 无尽关没有终点——结束条件是核心归零，能爬多高看阵容上限而不是波次表。
+// 这里只改「来多少人」，不改 ENEMY_TUNE，所以标准模式的十二波一个数字都没动。
+const ENDLESS_FROM = WAVES.length + 1;
+const WAVE_HEAD = /^第[^·]*·\s*/;
+function waveCfg(w) {
+  if (w < 1) return null;
+  if (w <= WAVES.length) return WAVES[w - 1];
+  const base = WAVES[(w - 1) % WAVES.length];
+  const round = Math.floor((w - 1) / WAVES.length);
+  const add = Math.min(round, 6);
+  const e = base.e.map(([key, count, gap]) => [(key), (ENEMY[key] || {}).cls === 'Boss' ? count : count + add, gap]);
+  return { ...base, e, endless: round, n: `第 ${w} 波 · 回响${round}｜${String(base.n).replace(WAVE_HEAD, '')}` };
+}
+
 // ---------------------------------------------------------------- 地形
 // 每一局（同一个种子）在可部署区里随机摆几块特殊地格，摆上去的东西不一样：
 // 高台给远程架枪、祭坛给大招、裂隙换伤害、岩壁直接堵死一格。
@@ -434,8 +451,11 @@ const LEVEL_REWARD = { gold: 1 };
 
 // ---------------------------------------------------------------- 结算
 // 得分换银芯（与合成大杜勒、幸存者同一个钱包 zjtt:credits），阶梯取最高一档。
+// 银芯档位：前七档是十二波通关能摸到的区间（满分约 7000~7500），
+// 后三档只给无尽关——爬到十八波以上才够得着，否则无尽关打再深也只拿 60 银芯。
 const CREDIT_TIERS = [
   [0, 0], [700, 4], [1200, 9], [1800, 16], [2500, 26], [3400, 40], [4600, 60],
+  [7000, 85], [10000, 120], [15000, 170],
 ];
 function creditsAt(score) {
   let out = 0;
@@ -449,7 +469,7 @@ function nextTier(score) {
 
 // 波次节奏：备战不限时；开战后一只怪都不剩就算清完。
 const HEAL_PER_WAVE = 0.4;      // 每波结束回 40% 最大生命
-return { COLS, ROWS, HEX_W, R, HEX_H, ROW_PITCH, BOARD_W, BOARD_H, CORE_X, SPAWN_X, DEPLOY_COLS, CELLS, cellOf, colOf, rowOf, cellXY, cellAt, NEIGHBORS, STARS, STAR_NAME, START_GOLD, START_LEVEL, MAX_LEVEL, LEVEL_COST, REROLL_COST, WAVE_GOLD, INTEREST_CAP, INTEREST_STEP, interestOf, BENCH_SIZE, MAX_STAR, shopOdds, TRAITS, TRAIT_BY_KEY, TRAIT_KINDS, FAC_EFF, GMK_EFF, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON, FAC_ICON, GMK_ICON, ENEMY, WAVES, ENEMY_TUNE, waveHpMul, waveAtkMul, TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, WHEEL_BY_ID, CREATION_BY_ID, ITEM_SLOTS, ITEM_REROLL, INV_SIZE, MERGE_REWARD, LEVEL_REWARD, CREDIT_TIERS, creditsAt, nextTier, HEAL_PER_WAVE };
+return { COLS, ROWS, HEX_W, R, HEX_H, ROW_PITCH, BOARD_W, BOARD_H, CORE_X, SPAWN_X, DEPLOY_COLS, CELLS, cellOf, colOf, rowOf, cellXY, cellAt, NEIGHBORS, STARS, STAR_NAME, START_GOLD, START_LEVEL, MAX_LEVEL, LEVEL_COST, REROLL_COST, WAVE_GOLD, INTEREST_CAP, INTEREST_STEP, interestOf, BENCH_SIZE, MAX_STAR, shopOdds, TRAITS, TRAIT_BY_KEY, TRAIT_KINDS, FAC_EFF, GMK_EFF, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON, FAC_ICON, GMK_ICON, ENEMY, WAVES, ENEMY_TUNE, waveHpMul, waveAtkMul, ENDLESS_FROM, waveCfg, TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, WHEEL_BY_ID, CREATION_BY_ID, ITEM_SLOTS, ITEM_REROLL, INV_SIZE, MERGE_REWARD, LEVEL_REWARD, CREDIT_TIERS, creditsAt, nextTier, HEAL_PER_WAVE };
 })();
 
 // ---- js/pf/audio.js
@@ -804,7 +824,7 @@ return { sfx };
 // ---- js/pf/engine.js
 const m_engine = await (async () => {
 const { UNITS, ART } = m_gen;
-const { COLS, ROWS, CELLS, HEX_W, BOARD_W, SPAWN_X, CORE_X, DEPLOY_COLS, cellXY, colOf, rowOf, cellOf, NEIGHBORS, STARS, MAX_STAR, MAX_LEVEL, LEVEL_COST, REROLL_COST, WAVE_GOLD, interestOf, BENCH_SIZE, START_GOLD, START_LEVEL, shopOdds, TRAITS, TRAIT_BY_KEY, FAC_EFF, GMK_EFF, ENEMY, WAVES, waveHpMul, waveAtkMul, HEAL_PER_WAVE, creditsAt, TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, ITEM_SLOTS, ITEM_REROLL, INV_SIZE, MERGE_REWARD, LEVEL_REWARD } = m_defs;
+const { COLS, ROWS, CELLS, HEX_W, BOARD_W, SPAWN_X, CORE_X, DEPLOY_COLS, cellXY, colOf, rowOf, cellOf, NEIGHBORS, STARS, MAX_STAR, MAX_LEVEL, LEVEL_COST, REROLL_COST, WAVE_GOLD, interestOf, BENCH_SIZE, START_GOLD, START_LEVEL, shopOdds, TRAITS, TRAIT_BY_KEY, FAC_EFF, GMK_EFF, ENEMY, WAVES, waveCfg, waveHpMul, waveAtkMul, HEAL_PER_WAVE, creditsAt, TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, ITEM_SLOTS, ITEM_REROLL, INV_SIZE, MERGE_REWARD, LEVEL_REWARD } = m_defs;
 const { sfx } = m_audio;
 // 《忘却协议》规则引擎：商店、布阵、波次战斗、经济结算。
 //
@@ -840,6 +860,7 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const G = {
   phase: 'idle',          // idle | prep | fight | over | win
   wave: 0,                // 已经打完的波次
+  endless: false,         // 无尽关：十二波之后继续打，只有核心归零才结束
   core: 20, coreMax: 20,
   gold: START_GOLD,
   level: START_LEVEL,
@@ -877,6 +898,7 @@ function reset(s) {
   setSeed(s >>> 0);
   G.phase = 'prep';
   G.wave = 0;
+  G.endless = false;
   G.core = G.coreMax = 20;
   G.gold = START_GOLD;
   G.level = START_LEVEL;
@@ -1521,7 +1543,7 @@ function lanePath(row) {
 // 这一波从哪几条通道、按什么顺序来。备战期就先算好，界面才能在开战前
 // 把「怪物意图」画出来（从哪条通道进、来的是什么、几只）。
 function planWave(w) {
-  const cfg = WAVES[w - 1];
+  const cfg = waveCfg(w);
   if (!cfg) return [];
   const lanes = [0, 1, 2, 3];
   for (let i = lanes.length - 1; i > 0; i--) {
@@ -1544,9 +1566,10 @@ function planWave(w) {
 
 function beginWave() {
   if (G.phase !== 'prep') return false;
-  if (G.wave >= WAVES.length) return false;
+  // 无尽关没有波数上限：核心还在，第 13、14 波就能一直打下去
+  if (!G.endless && G.wave >= WAVES.length) return false;
   const w = G.wave + 1;
-  const cfg = WAVES[w - 1];
+  const cfg = waveCfg(w);
   // 开场前重新算一遍羁绊：布阵变了，数值要跟着变
   recount();
   G.wave = w;
@@ -2036,14 +2059,17 @@ function clearWave() {
     // 收招：下一波之前所有人回到待机，别顶着打击帧站一整段备战期
     u.atkAnim = 0; u.hurtT = 0; u.target = null; u.timer = 0;
   }
-  if (G.wave >= WAVES.length) {
+  if (!G.endless && G.wave >= WAVES.length) {
     G.phase = 'win';
     sfx.play('win');
   } else {
     sfx.play('clear');
     G.phase = 'prep';
     G.plan = planWave(G.wave + 1);
-    G.msg = `第 ${G.wave} 波清完，下一波：${WAVES[G.wave].n}`;
+    // 无尽关：十二波守住只是起点，这里必须明说，否则玩家会以为打完收工了
+    G.msg = G.endless && G.wave >= WAVES.length
+      ? `十二波守住了 · 无尽关继续，第 ${G.wave + 1} 波`
+      : `第 ${G.wave} 波清完，下一波：${waveCfg(G.wave + 1).n}`;
     rollShop(true);
     rollItemShop(true);
   }
@@ -2063,7 +2089,8 @@ function summary() {
   );
   return {
     cleared: Math.max(0, cleared),
-    total: WAVES.length,
+    total: G.endless ? 0 : WAVES.length,   // 0 = 没有终点（无尽关）
+    endless: !!G.endless,
     core: G.core,
     coreMax: G.coreMax,
     gold: G.gold,
@@ -3644,7 +3671,7 @@ const { boardBand, viewportSize, shortLandscape } = m_layout;
 const { motion, setCalm } = m_render;
 const { G, buy, sell, levelUp, rollShop, rollItemShop, beginWave, reset, traitList, deployed, summary, UNITS_BY_ID, buyItem, equip, unequip, itemDef, placeBench } = m_engine;
 const { ART, SHEET, REALM_ART } = m_gen;
-const { WAVES, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON, FAC_ICON, GMK_ICON, TRAIT_KINDS, STAR_NAME, LEVEL_COST, REROLL_COST, MAX_LEVEL, BENCH_SIZE, creditsAt, nextTier, ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS, ENEMY, interestOf, TRAITS, HEX_W } = m_defs;
+const { WAVES, waveCfg, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON, FAC_ICON, GMK_ICON, TRAIT_KINDS, STAR_NAME, LEVEL_COST, REROLL_COST, MAX_LEVEL, BENCH_SIZE, creditsAt, nextTier, ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS, ENEMY, interestOf, TRAITS, HEX_W } = m_defs;
 const { sfx } = m_audio;
 const { TERMS, TERM_CATS, FX_TERM, GMK_TERM, termOf, termsOfCat, termDetailHtml, termBriefHtml } = m_terms;
 // 《忘却协议》界面层：顶栏、商店（唤醒体 / 命轮·造物两个页签）、装备栏、备战席、
@@ -3666,7 +3693,8 @@ const { TERMS, TERM_CATS, FX_TERM, GMK_TERM, termOf, termsOfCat, termDetailHtml,
 const $ = (id) => document.getElementById(id);
 
 const ui = {
-  diff: 'normal',
+  diff: 'normal',     // normal | hard
+  mode: 'normal',     // normal（十二波通关）| endless（无尽关）
   tab: 'unit',        // unit | item
   sel: null,          // 选中的单位 uid
   item: null,         // 选中待装备的装备（装备栏下标）
@@ -3795,8 +3823,11 @@ function build() {
       G.msg = G.speed > 1 ? '战斗速度 2×' : '战斗速度 1×';
     };
   }
-  document.querySelectorAll('.diff button').forEach((b) => {
+  document.querySelectorAll('.diff button[data-d]').forEach((b) => {
     b.onclick = () => { setDiff(b.dataset.d); sfx.play('tab'); };
+  });
+  document.querySelectorAll('.diff.mode button').forEach((b) => {
+    b.onclick = () => { setMode(b.dataset.m); sfx.play('tab'); };
   });
   document.querySelectorAll('.tab').forEach((b) => {
     // 只有带 data-tab 的才是页签。「图鉴详情」「地块说明」也挂着 .tab 的样式，
@@ -3806,6 +3837,7 @@ function build() {
   });
   $('btnEqClear').onclick = () => { click(); ui.item = null; G.selItem = null; sync(); };
   setDiff('normal');
+  setMode('normal');
   setTab('unit');
   $('btnStart').onclick = () => { sfx.play('click'); startRun(); };
   $('btnAgain').onclick = () => { sfx.play('click'); $('ovEnd').hidden = true; startRun(); };
@@ -3829,10 +3861,21 @@ function setTab(t) {
 
 function setDiff(d) {
   ui.diff = d;
-  document.querySelectorAll('.diff button').forEach((x) => x.classList.toggle('on', x.dataset.d === d));
+  document.querySelectorAll('.diff button[data-d]').forEach((x) => x.classList.toggle('on', x.dataset.d === d));
   $('diffTip').textContent = d === 'hard'
     ? '癫狂：敌人生命 +50%、攻击 +110%，银芯 ×1.6'
     : '标准：按原数值打十二波';
+}
+
+// 模式：协议（守住十二波即通关）/ 无尽关（十二波之后继续，核心归零才结束）。
+// 排行榜只统计无尽关的最深波次，所以两条路要分开口径记账（见 showEnd）。
+function setMode(m) {
+  ui.mode = m === 'endless' ? 'endless' : 'normal';
+  document.querySelectorAll('.diff.mode button').forEach((x) => x.classList.toggle('on', x.dataset.m === ui.mode));
+  const tip = $('modeTip');
+  if (tip) tip.textContent = ui.mode === 'endless'
+    ? '无尽关：十二波之后不结束，敌人一波比一波强，打到核心破碎为止。'
+    : '协议：清完十二波就通关，核心归零则失败。';
 }
 
 function startRun(seed) {
@@ -3840,6 +3883,7 @@ function startRun(seed) {
   reset(seed != null ? seed : ((Date.now() ^ (Math.random() * 1e9)) >>> 0));
   // 难度只动敌人和结算倍率，唤醒体本身不削，手感才一致
   G.mod = ui.diff === 'hard' ? { hp: 1.5, atk: 2.1, credit: 1.6 } : { hp: 1, atk: 1, credit: 1 };
+  G.endless = ui.mode === 'endless';
   G.phase = 'prep';
   ui.sel = null;
   G.sel = null;
@@ -4312,8 +4356,9 @@ function updateHUD() {
     const t = TWIN[id];
     if (t) { const te = $(t); if (te) te.textContent = v; }
   };
-  const shown = Math.min(G.wave + (G.phase === 'fight' ? 0 : 1), WAVES.length);
-  set('sWave', `${shown}/${WAVES.length}`);
+  const raw = G.wave + (G.phase === 'fight' ? 0 : 1);
+  const shown = G.endless ? raw : Math.min(raw, WAVES.length);
+  set('sWave', G.endless ? `第 ${shown} 波` : `${shown}/${WAVES.length}`);
   set('sGold', String(G.gold));
   set('sPop', `${deployed()}/${G.level}`);
   set('sCore', `${G.core}`);
@@ -4335,9 +4380,11 @@ function updateHUD() {
     if (c2) c2.textContent = `${G.core}/${G.coreMax}`;
   }
   // 左侧面板的波名：战斗中写这一波，备战期写下一波
-  const nameTxt = G.phase === 'fight'
-    ? `第 ${G.wave} 波 · ${(WAVES[G.wave - 1] || {}).n || ''}`
-    : `下一波 · ${(WAVES[Math.min(G.wave, WAVES.length - 1)] || {}).n || ''}`;
+  // 无尽关的波名来自 waveCfg（第 13 波起是「回响」），不能再直接查 WAVES 表。
+  // 波名自己已经带「第 N 波」，这里不再补前缀，否则会写成「第 14 波 · 第 14 波 · 回响1」。
+  const nameTxt = G.phase === 'prep'
+    ? `下一波 · ${(waveCfg(G.wave + 1) || {}).n || '—'}`
+    : ((waveCfg(G.wave) || {}).n || `第 ${G.wave} 波`);
   if (L.sdName !== nameTxt) { L.sdName = nameTxt; const e = $('sdName'); if (e) e.textContent = nameTxt; }
   tickSideNext();
   const lvTxt = G.level >= MAX_LEVEL ? '人口已满' : `升级 ${LEVEL_COST}`;
@@ -4354,7 +4401,8 @@ function updateHUD() {
   }
   const msg = G.msg || '';
   if (L.msg !== msg) { L.msg = msg; $('msg').textContent = msg; }
-  const nxt = WAVES[Math.min(G.wave, WAVES.length - 1)];
+  // 开局前（idle、G.wave=0）也得有个合法的「下一波」，不然这里会写出「下一波 · undefined」
+  const nxt = waveCfg(Math.max(1, G.phase === 'prep' ? G.wave + 1 : G.wave)) || {};
   // 备战期把下一波的「来的是什么、几只」也写出来：路线画在棋盘上，构成写在这里
   const comp = G.phase === 'prep' ? waveComposition() : '';
   const nextTxt = G.phase === 'fight'
@@ -4364,12 +4412,13 @@ function updateHUD() {
 
   // 开战横幅：从备战切到战斗的那一帧弹一下，比只改数字更像「进入下一波」
   if (L.phase !== G.phase) {
-    if (G.phase === 'fight' && WAVES[G.wave - 1]) {
-      const cfg = WAVES[G.wave - 1];
-      const last = G.wave >= WAVES.length;
-      showBanner(cfg.n,
-        last ? '最终波 · 守住就赢' : (cfg.boss ? '首领波 · 撑住就有奖励' : `第 ${G.wave} 波`),
-        last ? '#ffd76a' : (cfg.boss ? '#ff6b6b' : undefined));
+    const fightCfg = waveCfg(G.wave);
+    if (G.phase === 'fight' && fightCfg) {
+      const last = !G.endless && G.wave >= WAVES.length;
+      const first = G.endless && G.wave === WAVES.length + 1;
+      showBanner(fightCfg.n,
+        last ? '最终波 · 守住就赢' : first ? '无尽关 · 往后没有终点' : (fightCfg.boss ? '首领波 · 撑住就有奖励' : `第 ${G.wave} 波`),
+        last ? '#ffd76a' : (fightCfg.boss ? '#ff6b6b' : undefined));
     }
     L.phase = G.phase;
     // 背景乐跟着阶段与进度走：备战慢 / 前六波紧 / 第七波起加密 / 首领更低更重 /
@@ -4378,8 +4427,9 @@ function updateHUD() {
       if (G.phase === 'win') return 'endWin';
       if (G.phase === 'over') return 'endLose';
       if (G.phase !== 'fight') return G.phase === 'prep' ? 'prep' : null;
-      const cfg = WAVES[G.wave - 1] || {};
-      if (G.wave >= WAVES.length) return 'final';
+      // 无尽关照样按「首领 / 深渊推进」轮换，不然第 13 波之后就是同一首听到底
+      const cfg = waveCfg(G.wave) || {};
+      if (!G.endless && G.wave >= WAVES.length) return 'final';
       if (cfg.boss) return 'boss';
       return G.wave >= 7 ? 'drive' : 'fight';
     })();
@@ -4438,12 +4488,18 @@ function updateHUD() {
 function showEnd() {
   const sm = summary();
   const credit = Math.round(sm.credits * (G.mod ? G.mod.credit : 1));
-  $('endTitle').textContent = sm.win ? '协议守住了' : '协议核心破碎';
-  $('endSub').textContent = sm.win
-    ? '十二波全部清完，忘却协议仍在运转。'
-    : `倒在第 ${Math.min(sm.cleared + 1, sm.total)} 波，还差 ${sm.total - sm.cleared} 波。`;
+  $('endTitle').textContent = sm.endless
+    ? `无尽关 · 第 ${sm.cleared} 波`
+    : sm.win ? '协议守住了' : '协议核心破碎';
+  $('endSub').textContent = sm.endless
+    ? (sm.cleared >= WAVES.length
+      ? `核心在第 ${sm.cleared + 1} 波被打破 —— 十二波之外又撑了 ${sm.cleared - WAVES.length} 波。`
+      : `核心在第 ${sm.cleared + 1} 波被打破，还没走完十二波。`)
+    : sm.win
+      ? '十二波全部清完，忘却协议仍在运转。'
+      : `倒在第 ${Math.min(sm.cleared + 1, sm.total)} 波，还差 ${sm.total - sm.cleared} 波。`;
   $('endStats').innerHTML = `
-    <div class="es"><b>${sm.cleared}/${sm.total}</b><span>波次</span></div>
+    <div class="es"><b>${sm.cleared}${sm.endless ? '' : `/${sm.total}`}</b><span>波次</span></div>
     <div class="es"><b>${sm.core}</b><span>核心</span></div>
     <div class="es"><b>${sm.kills}</b><span>击杀</span></div>
     <div class="es"><b>${sm.stars}</b><span>星级合计</span></div>
@@ -4474,12 +4530,18 @@ function showEnd() {
     const prev = {
       wave: Number(raw.wave) || 0, score: Number(raw.score) || 0,
       wins: Number(raw.wins) || 0, runs: Number(raw.runs) || 0,
+      endless: Number(raw.endless) || 0, endlessScore: Number(raw.endlessScore) || 0,
     };
+    // wave / score 是「标准模式」的老口径（吃满十二波封顶），endless 单独记：
+    // 榜单按无尽关最深波次排，两条路混在一个字段里会互相盖掉。
+    const std = sm.endless ? Math.min(sm.cleared, WAVES.length) : (sm.win ? WAVES.length : sm.cleared);
     const next = {
-      wave: Math.max(prev.wave, sm.win ? sm.total : sm.cleared),
+      wave: Math.max(prev.wave, std),
       score: Math.max(prev.score, sm.score || 0),
       wins: prev.wins + (sm.win ? 1 : 0),
       runs: prev.runs + 1,
+      endless: Math.max(prev.endless, sm.endless ? sm.cleared : 0),
+      endlessScore: Math.max(prev.endlessScore, sm.endless ? (sm.score || 0) : 0),
     };
     localStorage.setItem('zjtt:pf:best', JSON.stringify(next));
   } catch { /* 忽略 */ }
@@ -4705,7 +4767,7 @@ function relayoutInspection() {
   detailPanel.style.top = '12px';
   detailPanel.style.maxHeight = Math.max(80,height - 24) + 'px';
 }
-return { ui, bandRect, build, setTab, setDiff, startRun, sync, tapUnit, select, updateHUD, showEnd, TERRAIN_LIST, ITEM_POOL, hideInspection, inspectCell, relayoutInspection };
+return { ui, bandRect, build, setTab, setDiff, setMode, startRun, sync, tapUnit, select, updateHUD, showEnd, TERRAIN_LIST, ITEM_POOL, hideInspection, inspectCell, relayoutInspection };
 })();
 
 // ---- js/gamecloud.js
@@ -5131,7 +5193,7 @@ async function boot() {
 if (/[?&]_test=1/.test(location.search)) {
   window.__pf = {
     G, TUNE, summary, update, beginWave, place, sell, reset, startRun, ui, sync, screenPos, toLogic, sfx,
-    start: (diff, seed) => { if (diff) ui.diff = diff; startRun(seed); },
+    start: (diff, seed, mode) => { if (diff) ui.diff = diff; if (mode) ui.mode = mode; startRun(seed); },
     // 一步决策：先把备战席摆上场，再买人（能合成的优先），人口满了就升级
     think() {
       if (G.phase !== 'prep') return;

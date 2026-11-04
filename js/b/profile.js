@@ -1496,15 +1496,19 @@ function survivors() {
 }
 
 function protocol() {
-  // 2026-10 之后才记的键（js/pf/ui.js 的 showEnd）；老玩家这里会是空，显示「—」就行
+  // 2026-10 之后才记的键（js/pf/ui.js 的 showEnd）；老玩家这里会是空，显示「—」就行。
+  // 榜单只认无尽关（endless / endlessScore），标准模式的 wave 最多 12，只作参考显示。
   const b = RD('pf:best') || null;
+  const endless = n(b && b.endless);
   return {
     items: [
-      { k: '最远波次', v: b && b.wave ? `第 ${n(b.wave)} 波` : '—' },
-      { k: '最高分', v: b && b.score ? String(n(b.score)) : '—' },
+      { k: '无尽最深', v: endless ? `第 ${endless} 波` : '—' },
+      { k: '无尽最高分', v: b && b.endlessScore ? String(n(b.endlessScore)) : '—' },
       { k: '守住次数', v: String(n(b && b.wins)) },
     ],
-    extra: b && b.runs ? `共 ${n(b.runs)} 局` : '',
+    extra: b && b.runs
+      ? `标准最远第 ${n(b.wave)} 波 · 共 ${n(b.runs)} 局`
+      : '',
   };
 }
 
@@ -1735,7 +1739,7 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'binding', n: '校猫的结合', href: 'binding.html', icon: '🐱', read: binding, tip: '地牢射击' },
   { k: 'idle', n: '弥萨格挂机版', href: 'idle/', icon: '🏰', read: idle, tip: '五人队爬塔' },
   { k: 'survivors', n: '唤醒体幸存者', href: 'survivors.html', icon: '✨', read: survivors, tip: '15 分钟一局' },
-  { k: 'protocol', n: '忘却协议', href: 'protocol.html', icon: '⬡', read: protocol, tip: '守住十二波' },
+  { k: 'protocol', n: '忘却协议', href: 'protocol.html', icon: '⬡', read: protocol, tip: '守十二波，再战无尽关' },
   { k: 'wolf', n: '弥萨格狼人杀', href: 'wolf.html', icon: '🐺', read: wolf, tip: '身份推理' },
   { k: 'deathreport', n: '弥萨格大逃杀', href: 'deathreport/', icon: '📄', read: deathreport, tip: '档案式复盘' },
   { k: 'g2048', n: '忘却 2048', href: '2048.html', icon: '🔢', read: g2048, tip: '两块同样的合流' },
@@ -1796,9 +1800,12 @@ const GD_SPEC = [
     ['通关角色', n(v[2]) + ' 名'],
   ] },
   { k: 'pf', n: '忘却协议', f: (v) => [
-    ['最远波次', v[0] ? '第 ' + n(v[0]) + ' 波' : '—'],
-    ['最高分', v[1] ? String(n(v[1])) : '—'],
+    ['无尽最深', v[3] ? '第 ' + n(v[3]) + ' 波' : '—'],
+    ['无尽最高分', v[4] ? String(n(v[4])) : '—'],
+    ['标准最远', v[0] ? '第 ' + n(v[0]) + ' 波' : '—'],
+    ['标准最高分', v[1] ? String(n(v[1])) : '—'],
     ['守住次数', n(v[2]) + ' 次'],
+    ['总对局', n(v[5]) + ' 局'],
   ] },
   { k: 'wf', n: '弥萨格狼人杀', f: (v) => {
     const runs = n(v[0]);
@@ -1889,8 +1896,10 @@ function digest() {
   if (s) out.il = [Math.floor(n(s.play)), (s.roster && typeof s.roster === 'object' ? Object.keys(s.roster).length : 0), n(s.maxStage), n(s.stage), n(s.gold)];
   const sv = RD('survivors:progress') || {};
   out.sv = [numKey('survivors:best'), n(sv.runs), arr(sv.clears).length];
+  // 忘却协议：前 3 位是标准模式的老口径（不动，老档案照读），后 3 位是无尽关。
+  // 榜单按 v[3]（无尽最深波次）排，v[4] 是那一趟的分，v[5] 是总对局数。
   const pf = RD('pf:best') || {};
-  out.pf = [n(pf.wave), n(pf.score), n(pf.wins)];
+  out.pf = [n(pf.wave), n(pf.score), n(pf.wins), n(pf.endless), n(pf.endlessScore), n(pf.runs)];
   const wf = RD('wolf:stat') || {};
   out.wf = [n(wf.n), n(wf.win)];
   let rec = 0, docs = 0, done = 0, sub = 0, okRep = 0;

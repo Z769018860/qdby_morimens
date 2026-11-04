@@ -150,7 +150,7 @@ async function boot() {
 if (/[?&]_test=1/.test(location.search)) {
   window.__pf = {
     G, TUNE, summary, update, beginWave, place, sell, reset, startRun, ui, sync, screenPos, toLogic, sfx,
-    start: (diff, seed) => { if (diff) ui.diff = diff; startRun(seed); },
+    start: (diff, seed, mode) => { if (diff) ui.diff = diff; if (mode) ui.mode = mode; startRun(seed); },
     // 一步决策：先把备战席摆上场，再买人（能合成的优先），人口满了就升级
     think() {
       if (G.phase !== 'prep') return;
