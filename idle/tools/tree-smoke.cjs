@@ -1,5 +1,5 @@
-// 黑流树海 UI 冒烟：连一个已经开着的无头 Edge（CDP），走一遍
-// 挑战 → 黑流树海 → 选分队 → 募队 → 出发 → 局内，检查关键 DOM 与零 JS 报错。
+// 红流树海 UI 冒烟：连一个已经开着的无头 Edge（CDP），走一遍
+// 挑战 → 红流树海 → 选分队 → 募队 → 出发 → 局内，检查关键 DOM 与零 JS 报错。
 // 用法：先起 http 服务与 Edge（--remote-debugging-port=9367），再 node tools/tree-smoke.cjs [port]
 const http = require('node:http');
 
