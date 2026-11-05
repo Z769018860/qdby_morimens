@@ -198,6 +198,32 @@ function maybeDirectFix() {
   }, 1500);
 }
 
+/* ---------- 定向修正说明（2026-11-05，只弹一次） ---------- */
+function openTargetFixModal() {
+  const fx = app.state?.targetFix;
+  if (!fx) return;
+  const rows = (fx.chars || []).map((c) => {
+    const zh = esc(app.data.bySlug[c.slug]?.zh || c.slug);
+    return `<b>${zh}</b> 超限 ${c.from} → ${c.od}`;
+  }).join('、');
+  openModal(`<h3>超限已按站长要求调整 <small>券匣里补了 ${fx.vouchers} 张直升券</small></h3>
+    <p>· ${rows || '—'}。</p>
+    <p>· 叠位与等级没有改动。补的直升券是<b>红流树海限定券</b>，只在那一趟里生效，不会再动账号练度。</p>
+    <div class="row"><button class="btn gold" data-act="fix-ok">知道了</button></div>`, 'fix-modal');
+  app.state.targetFix = null;      // 只弹一次
+  app.save();
+}
+function maybeTargetFix() {
+  if (!app.state?.targetFix) return;
+  let tries = 0;
+  const t = setInterval(() => {
+    if (++tries > 80 || !app.state?.targetFix) { clearInterval(t); return; }
+    if (app.offlinePending || app.booting || document.hidden || document.querySelector('.guide-bg') || document.querySelector('.modal-bg')) return;
+    clearInterval(t);
+    openTargetFixModal();
+  }, 1500);
+}
+
 async function boot() {
   const [pack, orders, special] = await Promise.all([
     fetch('public/data/game-data.json').then((r) => r.json()),
@@ -293,6 +319,7 @@ async function boot() {
   };
   app.settleOffline();
   maybeDirectFix();      // 补偿说明比公告更该先看到
+  maybeTargetFix();
   maybeNews();
   // 累计签到送的那几位：达标就自动进包（老存档首次进游戏也会补发）
   checkSigninGifts();

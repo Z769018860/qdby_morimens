@@ -1313,13 +1313,13 @@ async function getAdminIdleSave(request, env, kv, url, cors) {
   const num = (x) => Math.round(Number(x) || 0);
   const stats = d.stats && typeof d.stats === 'object' ? d.stats : {};
   const roster = d.roster && typeof d.roster === 'object' ? Object.entries(d.roster) : [];
-  // od = 超限层数。0.17.0 的直升券回档靠「叠位 + 超限」双 99 认人，摘要里不带 od 就根本看不出谁被旧券改过。
+  // od = 超限层数。直升券的问题落在超限上（站长口径），摘要里不带 od 就根本看不出谁被旧券改过。
   const top = roster.map(([slug, r]) => ({ slug, lv: num(r && r.lv), star: num(r && r.star), brk: num(r && r.brk), od: num(r && r.od) }))
     .sort((a, b) => b.lv - a.lv || b.star - a.star).slice(0, 12);
-  // 旧版直升券（0.15.x ~ 0.16.2）的签名：叠位满 99 且超限满 99，正常玩堆不出来。
-  // 命中的账号说明还没进过 0.17.0 —— 一进游戏就会被本地 migrate 自动回档。这里只读，不动存档。
+  // 旧版直升券（0.15.x ~ 0.16.2）的签名：超限满 99（站长确认券的改动落在超限上；叠位只作参考）。
+  // 命中的账号说明还没被处理过 —— 一进 0.17.0 就会被本地定向修正/旧回档碰到。这里只读，不动存档。
   const directHit = roster
-    .filter(([, r]) => r && num(r.star) >= 99 && num(r.od) >= 99)
+    .filter(([, r]) => r && num(r.od) >= 99)
     .map(([slug, r]) => ({ slug, star: num(r.star), od: num(r.od) }));
   const play = num(d.play), battles = num(stats.battles), wins = num(stats.wins), maxStage = num(d.maxStage);
   const wall = num(d.lastSeen) && num(d.created) ? Math.round((num(d.lastSeen) - num(d.created)) / 1000) : 0;
@@ -1331,7 +1331,7 @@ async function getAdminIdleSave(request, env, kv, url, cors) {
   if (maxStage > 5 && play < maxStage * 6) flags.push(`最高 ${maxStage} 关，游玩只有 ${play} 秒（约 ${Math.round(play / 60)} 分钟）`);
   const star99 = top.filter((t) => t.star >= 99).length;
   if (star99 >= 3 && play < 36000) flags.push(`${star99} 位唤醒体已叠满 99，游玩却不到 10 小时`);
-  if (directHit.length) flags.push(`${directHit.length} 位唤醒体叠位与超限都是 99：用过旧版直升券，还没进过 0.17.0，进游戏会被自动回档`);
+  if (directHit.length) flags.push(`${directHit.length} 位唤醒体超限满 99：用过旧版直升券，还没被处理过`);
   return reply({
     ok: true, found: true, ver: num(row.ver), cloudAt: num(row.at), rev: num(row.rev), meta: row.meta || null,
     summary: {

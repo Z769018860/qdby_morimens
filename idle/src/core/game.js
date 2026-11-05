@@ -135,7 +135,7 @@ export function newState(data, now = Date.now()) {
   };
 }
 
-export function migrate(s, data) {
+export function migrate(s, data, uid = accountUid()) {
   if (!s || typeof s !== 'object' || Array.isArray(s)) return newState(data);
   const base = newState(data, Number.isFinite(Number(s.created)) && Number(s.created) > 0 ? Number(s.created) : Date.now());
   // roster 里的空值 / 非对象 / 数组一律剔掉（导入的存档可能是手改过的）
@@ -280,11 +280,15 @@ export function migrate(s, data) {
   m.gift = { signin: Math.max(0, Math.floor(s.gift?.signin || 0)) };
   // 同调率：老存档没有就是空的（不补历史，第一次进游戏才记下今天的日子）
   m.aff = normalizeAff(s.aff);
-  // 修复戳只认存档里自己的，别用 newState 的默认值（老存档根本没有这个字段 → 该跑回档）
-  m.fix = { direct: Math.max(0, Math.floor(Number(s.fix?.direct) || 0)) };
-  // 直升券回档（0.17.0）：只对「0.17.0 之前」的存档跑一次（新档创建时就是 SAVE_VERSION 4）
-  if ((Number(s.v) || 0) < SAVE_VERSION) rollbackDirectVouchers(m, data);
+  // 修复戳只认存档里自己的，别用 newState 的默认值（老存档根本没有这个字段 → 该跑修正）
+  m.fix = {
+    direct: Math.max(0, Math.floor(Number(s.fix?.direct) || 0)),
+    target: Math.max(0, Math.floor(Number(s.fix?.target) || 0)),
+  };
+  // 0.17.0 那套「所有老存档一律回档」已下线（2026-11-05 站长确认：只处理点名账号）。
+  // rollbackDirectVouchers 保留作参照与单测，不在这里调用；新存档照样记 v = SAVE_VERSION。
   m.v = SAVE_VERSION;
+  applyTargetFix(m, uid);
   return m;
 }
 
@@ -338,6 +342,61 @@ export function rollbackDirectVouchers(state, data) {
   const out = { hit, cores: DIRECT_FIX_CORES, chars, vouchers: hit.length };
   state.directFix = out;          // 进游戏弹一次说明（main.js 读完就清掉）
   return out;
+}
+
+/* ---------- 定向修正（2026-11-05）：只改站长点名的几个账号 ---------- */
+/* 0.17.0 原本是「所有老存档一律回档」，会把叠位 99 一起清掉。站长确认：券的争议只在超限，
+   所以改成点名修正，其余账号一个字不动：
+     · 45 朝星：白云出岫（baiyun）/ 朝星（chaoxing）的超限从 99 退回 35，券匣补 2 张直升券
+     · 143 爱丽丝 / 110 弥萨格校猫_Light / 51 ddl：被券拉到 99 的超限退回 0，
+       叠位 99 与等级原样保留，每退一位补 1 张直升券
+   只认「超限 ≥ 99」才动手：没吃到券的、以及已经被旧版全员回档清过的，都不会重复发券。
+   只跑一次：state.fix.target 记版本号。uid 取不到（没登录）就等下次进游戏再修。 */
+export const TARGET_FIX = 1;
+export const TARGET_FIX_OD = 35;
+export const TARGET_FIX_RULES = {
+  45: { od: { baiyun: TARGET_FIX_OD, chaoxing: TARGET_FIX_OD }, vouchers: 2 },
+  143: { zero: true },
+  110: { zero: true },
+  51: { zero: true },
+};
+
+// 账号 uid：站点登录时写进 zjtt:authUser 的 objectId。取不到就返回 0（不修，等下次）。
+function accountUid() {
+  try {
+    const u = JSON.parse(globalThis.localStorage?.getItem('zjtt:authUser') || 'null');
+    return u && Number(u.id) ? Number(u.id) : 0;
+  } catch { return 0; }
+}
+
+export function applyTargetFix(state, uid) {
+  const rule = TARGET_FIX_RULES[Number(uid)];
+  if (!rule) return null;
+  const fix = (state.fix && typeof state.fix === 'object') ? state.fix : (state.fix = {});
+  if ((fix.target || 0) >= TARGET_FIX) return null;
+  const roster = state.roster || {};
+  const changed = [];
+  if (rule.od) {
+    for (const [slug, od] of Object.entries(rule.od)) {
+      const r = roster[slug];
+      if (!r || overdrive(r.od) < OVERDRIVE_MAX) continue;   // 没被券拉满就不碰
+      r.od = od;
+      changed.push({ slug, from: OVERDRIVE_MAX, od });
+    }
+  } else if (rule.zero) {
+    for (const [slug, r] of Object.entries(roster)) {
+      if (!r || overdrive(r.od) < OVERDRIVE_MAX) continue;
+      r.od = 0;
+      changed.push({ slug, from: OVERDRIVE_MAX, od: 0 });
+    }
+  }
+  if (!changed.length) return null;
+  const add = rule.zero ? changed.length : (Number(rule.vouchers) || 0);
+  const v = (state.vouchers ||= { rewind: 0, direct: 0 });
+  v.direct = (Number(v.direct) || 0) + add;
+  fix.target = TARGET_FIX;
+  state.targetFix = { uid: Number(uid), chars: changed, vouchers: add };
+  return state.targetFix;
 }
 
 /* ---------- equipment helpers ---------- */

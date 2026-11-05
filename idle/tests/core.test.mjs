@@ -4783,22 +4783,64 @@ test('直升券回档：已经拥有杜勒赛因 / 朝星的账号，补偿折�
   assert.equal(s.roster.chaoxing.star, 1);
 });
 
-test('直升券回档：走 migrate 也认得出（老存档读进来就回档）', () => {
+test('全员回档已下线：其他账号走 migrate 一个字不动', () => {
   const s = newState(data, 1);
-  delete s.fix; s.v = 3;           // 老存档：0.17.0 之前没有这个戳，版本号也还是 3
+  delete s.fix; s.v = 3;           // 老存档：0.17.0 之前
   s.roster.ogier = { lv: 159, star: 99, brk: 7, od: 99, buy: 99 };
-  const m = migrate(JSON.parse(JSON.stringify(s)), data);
-  assert.equal(m.roster.ogier.star, 0);
+  const m = migrate(JSON.parse(JSON.stringify(s)), data, 999);
+  assert.equal(m.roster.ogier.star, 99, '叠位不动');
+  assert.equal(m.roster.ogier.od, 99, '超限不动');
+  assert.equal(m.vouchers.direct, 0, '不发券');
+  assert.equal(m.v, 4, '版本号照样抬到当前');
+});
+
+test('定向修正（朝星 uid 45）：白云出岫与朝星超限退回 35，补 2 张券', () => {
+  const s = newState(data, 1);
+  s.roster.baiyun = { lv: 159, star: 99, brk: 7, od: 99 };
+  s.roster.chaoxing = { lv: 159, star: 99, brk: 7, od: 99 };
+  s.vouchers.direct = 0;
+  const out = FIX.applyTargetFix(s, 45);
+  assert.equal(s.roster.baiyun.od, 35);
+  assert.equal(s.roster.chaoxing.od, 35);
+  assert.equal(s.roster.baiyun.star, 99, '叠位与等级不动');
+  assert.equal(s.roster.baiyun.lv, 159);
+  assert.equal(s.vouchers.direct, 2, '补 2 张直升券');
+  assert.equal(out.vouchers, 2);
+  assert.equal(FIX.applyTargetFix(s, 45), null, '只跑一次');
+  assert.equal(s.vouchers.direct, 2);
+});
+
+test('定向修正（爱丽丝 / 校猫 / ddl）：超限 99 退回 0，叠位保留，按角色数补券', () => {
+  const s = newState(data, 1);
+  s.roster.ogier = { lv: 159, star: 99, brk: 7, od: 99 };
+  s.roster.lotan = { lv: 159, star: 99, brk: 7, od: 99 };
+  s.roster.doll = { lv: 60, star: 12, brk: 3, od: 40 };    // 没被券拉满：不动
+  s.vouchers.direct = 0;
+  FIX.applyTargetFix(s, 143);
+  assert.equal(s.roster.ogier.od, 0);
+  assert.equal(s.roster.lotan.od, 0);
+  assert.equal(s.roster.doll.od, 40, '没到 99 的超限不碰');
+  assert.equal(s.roster.ogier.star, 99, '叠位保留');
+  assert.equal(s.vouchers.direct, 2, '两位各补 1 张');
+});
+
+test('定向修正：没吃到券的账号不补券', () => {
+  const s = newState(data, 1);
+  s.roster.ogier = { lv: 60, star: 40, brk: 3, od: 10 };
+  assert.equal(FIX.applyTargetFix(s, 110), null);
+  assert.equal(s.vouchers.direct, 0);
+  assert.equal(FIX.applyTargetFix(s, 12345), null, '不在名单里的一概不碰');
+});
+
+test('定向修正：走 migrate 传 uid 也生效', () => {
+  const s = newState(data, 1);
+  delete s.fix; s.v = 3;
+  s.roster.ogier = { lv: 159, star: 99, brk: 7, od: 99 };
+  const m = migrate(JSON.parse(JSON.stringify(s)), data, 51);
   assert.equal(m.roster.ogier.od, 0);
+  assert.equal(m.roster.ogier.star, 99);
   assert.equal(m.vouchers.direct, 1);
-  assert.equal(m.fix.direct, FIX.DIRECT_FIX);
-  assert.ok(m.directFix && m.directFix.hit.includes('ogier'));
-  // 第二次读档不会再回档 / 再发补偿（说明弹过之后会被清掉）
-  const m1 = JSON.parse(JSON.stringify(m));
-  delete m1.directFix;
-  const m2 = migrate(m1, data);
-  assert.equal(m2.vouchers.direct, 1);
-  assert.ok(!m2.directFix, '读过一次的存档不再回档，也不会重弹');
+  assert.equal(m.fix.target, FIX.TARGET_FIX);
 });
 
 test('逆潮守关：前 100 关的曲线保持原样，第二程只加在 101 关之后', () => {

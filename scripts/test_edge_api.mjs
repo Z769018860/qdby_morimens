@@ -735,7 +735,7 @@ console.log('\n[22] 管理员查看挂机存档');
   const r = await call('/admin/idle-save?uid=9101', { headers: AD });
   check('能读到摘要并给出异常对照', r.json.found && r.json.summary.maxStage === 200 && r.json.top[0].lv === 159 && r.json.flags.length >= 2 && !('data' in r.json), r.json);
   check('摘要带超限 od', r.json.top.find((t) => t.slug === 'e').od === 99, r.json.top);
-  check('认得旧版直升券签名（叠位 + 超限双 99）', r.json.directFix.hit === 1 && r.json.directFix.chars[0].slug === 'e', r.json.directFix);
+  check('认得旧版直升券签名（超限 99）', r.json.directFix.hit === 1 && r.json.directFix.chars[0].slug === 'e', r.json.directFix);
   check('带存档版本与修复标记', r.json.saveVersion === 3 && r.json.directFix.fixed === 0, r.json);
   check('命中的账号会带一条提示', r.json.flags.some((f) => f.includes('旧版直升券')), r.json.flags);
 }
