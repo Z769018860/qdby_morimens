@@ -426,7 +426,8 @@ export function treeEndModal(app, end) {
   openModal(`<h3>${end.win ? '走出树海' : `倒在第 ${end.act + 1} 层`}</h3>
     <p>本局得分 <b>${fmt(end.score)}</b>　最高单局 <b>${fmt(s.best)}</b>　强化档 <b>${end.enh}/3</b></p>
     <p class="hint">仓库 ${end.pool || 0} 人 · 装备 ${end.gear || 0} 件 · 祝福 ${end.bless || 0} 条</p>
-    ${bits ? `<p class="hint">结算奖励：${bits}${rw.first ? `（「${esc(rw.first)}」首通！）` : ''}</p>` : ''}
+    ${bits ? `<p class="hint">结算奖励：${bits}</p>` : ''}
+    ${rw.first ? `<p>🏅 <b>「${esc((TREE_DIFFS.find((d) => d.id === rw.first) || {}).zh || rw.first)}」难度首通！</b><span class="hint">额外的唤醒券 / 界域券已在上面发到账，树海主页的难度卡也会亮「已首通」。</span></p>` : ''}
     <p class="hint">树海经验 +${fmt(rw.pts || 0)}　现在 Lv.${end.lv || treeLevelOf(s.pts)}（升级奖励去主页领）</p>
     ${got.length ? `<p class="hint">达成成就：${got.map((a) => esc(a.zh)).join('、')}（去树海主页领奖）</p>` : ''}
     ${carryHtml}

@@ -3979,6 +3979,15 @@ test('树海：通关结算发奖励与首通券，成就能领', async () => {
   r2.act = 2; r2.score = 5000;
   T.endRun(s, true);
   assert.equal(s.vouchers.direct, v0.d + 1, '红流之心首通送直升券');
+  assert.ok(T.treeState(s).ach.t_heart, '红流之心通关成就已点亮');
+  assert.ok(T.treeState(s).cleared.heart, '难度卡「已首通」的依据也记上了');
+  // 二周目同难度：不能再发一次首通（首通提示 / 额外券都只给第一次）
+  T.startRun(s, data, 'heart', team);
+  const r3 = T.treeState(s).cur;
+  r3.act = 2; r3.score = 5000;
+  const e3 = T.endRun(s, true);
+  assert.ok(!e3.rw.first, '同难度第二次通关不算首通');
+  assert.equal(s.vouchers.direct, v0.d + 1, '直升券没有多发');
 });
 
 test('树海券：直升券拉到超限满、唤醒券只收未拥有的血肉界域角色', async () => {
