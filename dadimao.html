@@ -515,7 +515,7 @@ input[type=range]::-webkit-slider-thumb{
   .guide-item{width:64px}
 }
 </style>
-<meta name="build" content="b71c79ca16">
+<meta name="build" content="4251bc721c">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -1779,7 +1779,7 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', function (e) {
     var d = e.data || {};
     if (d.type !== 'offline-stale') return;
-    if (/offline\.html$/i.test(location.pathname)) return;
+    if (/offline.html$/i.test(location.pathname)) return;
     if (document.body.classList.contains('live')) return;
     try { if (sessionStorage.getItem('zjtt-stale') === d.build) return; } catch (err) {}
     var a = document.createElement('a');
