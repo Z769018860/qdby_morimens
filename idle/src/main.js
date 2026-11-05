@@ -143,7 +143,8 @@ const app = {
 const newsHtml = (list) => list.map((n) => `<div class="news-item"><h4>${esc(n.title)} <small>v${esc(n.v)} · ${esc(n.id)}</small></h4><ul>${n.items.map((t) => `<li>${esc(t).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')}</li>`).join('')}</ul></div>`).join('');
 function openNews(onlyNew) {
   const seen = app.state?.newsSeen;
-  const list = onlyNew ? NEWS.filter((n) => n.id > (seen || '')) : NEWS;
+  // 弹窗只放最近 3 条没看过的：老玩家（从没见过公告）一进来不至被十几条糊一脸，历史去设置页翻
+  const list = onlyNew ? NEWS.filter((n) => n.id > (seen || '')).slice(0, 3) : NEWS;
   openModal(`<h3>更新公告</h3><div class="news">${newsHtml(list.length ? list : NEWS.slice(0, 1))}</div><div class="row"><button class="btn gold" data-act="news-ok">知道了</button></div>`, 'news-modal');
 }
 // 离线结算 / 新手引导收起来之后再弹（它们的层级比公告高，抢着弹会互相盖住）；最多等 2 分钟
@@ -153,7 +154,8 @@ function maybeNews() {
   let tries = 0;
   const t = setInterval(() => {
     if (++tries > 80 || !app.state || app.state.newsSeen === NEWS_LATEST) { clearInterval(t); return; }
-    if (app.offlinePending || app.booting || document.hidden || document.querySelector('.guide-bg')) return;
+    // 有别的弹窗开着（离线结算 / 战斗胜利…）就再等等：公告被顶掉就再也读不到了
+    if (app.offlinePending || app.booting || document.hidden || document.querySelector('.guide-bg') || document.querySelector('.modal-bg')) return;
     clearInterval(t);
     openNews(true);
     // 一弹出就记「已读」：战斗结算等弹窗之后可能会把它顶掉，不能因此每次进游戏都再弹一遍

@@ -408,7 +408,8 @@ export class BattleView {
     if (!s.auto) this.renderFightBar();
     // 只在战斗页弹：玩家在挑战 / 树海 / 守关这些页面看自己的结算时，
     // 主线这场自动胜利的弹窗会直接把人家的弹窗顶掉（openModal 是单例）。结算数据都在战报里，不丢。
-    if (pop && this.app.tab === 'battle') { this.popSettle(ctx); return; }
+    // 更新公告开着时也不弹（这场胜利照常结算，只是不弹窗）：公告一被顶掉，玩家就再也没机会读了。
+    if (pop && this.app.tab === 'battle' && !document.querySelector('.news-modal')) { this.popSettle(ctx); return; }
     this.timer = setTimeout(() => this.next(), NEXT_GAP);
   }
 
