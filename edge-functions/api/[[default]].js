@@ -1313,8 +1313,14 @@ async function getAdminIdleSave(request, env, kv, url, cors) {
   const num = (x) => Math.round(Number(x) || 0);
   const stats = d.stats && typeof d.stats === 'object' ? d.stats : {};
   const roster = d.roster && typeof d.roster === 'object' ? Object.entries(d.roster) : [];
-  const top = roster.map(([slug, r]) => ({ slug, lv: num(r && r.lv), star: num(r && r.star), brk: num(r && r.brk) }))
+  // od = 超限层数。0.17.0 的直升券回档靠「叠位 + 超限」双 99 认人，摘要里不带 od 就根本看不出谁被旧券改过。
+  const top = roster.map(([slug, r]) => ({ slug, lv: num(r && r.lv), star: num(r && r.star), brk: num(r && r.brk), od: num(r && r.od) }))
     .sort((a, b) => b.lv - a.lv || b.star - a.star).slice(0, 12);
+  // 旧版直升券（0.15.x ~ 0.16.2）的签名：叠位满 99 且超限满 99，正常玩堆不出来。
+  // 命中的账号说明还没进过 0.17.0 —— 一进游戏就会被本地 migrate 自动回档。这里只读，不动存档。
+  const directHit = roster
+    .filter(([, r]) => r && num(r.star) >= 99 && num(r.od) >= 99)
+    .map(([slug, r]) => ({ slug, star: num(r.star), od: num(r.od) }));
   const play = num(d.play), battles = num(stats.battles), wins = num(stats.wins), maxStage = num(d.maxStage);
   const wall = num(d.lastSeen) && num(d.created) ? Math.round((num(d.lastSeen) - num(d.created)) / 1000) : 0;
   const flags = [];
@@ -1325,6 +1331,7 @@ async function getAdminIdleSave(request, env, kv, url, cors) {
   if (maxStage > 5 && play < maxStage * 6) flags.push(`最高 ${maxStage} 关，游玩只有 ${play} 秒（约 ${Math.round(play / 60)} 分钟）`);
   const star99 = top.filter((t) => t.star >= 99).length;
   if (star99 >= 3 && play < 36000) flags.push(`${star99} 位唤醒体已叠满 99，游玩却不到 10 小时`);
+  if (directHit.length) flags.push(`${directHit.length} 位唤醒体叠位与超限都是 99：用过旧版直升券，还没进过 0.17.0，进游戏会被自动回档`);
   return reply({
     ok: true, found: true, ver: num(row.ver), cloudAt: num(row.at), rev: num(row.rev), meta: row.meta || null,
     summary: {
@@ -1334,6 +1341,10 @@ async function getAdminIdleSave(request, env, kv, url, cors) {
       roster: roster.length, giftIds: Array.isArray(d.giftIds) ? d.giftIds.length : 0, ach: d.ach && typeof d.ach === 'object' ? Object.keys(d.ach).length : 0,
     },
     top, flags,
+    // 存档版本：v < 4 = 还没进过 0.17.0，回档还没在本地跑过
+    saveVersion: num(d.v),
+    // directFix.hit > 0 = 还带着旧券签名，等着自动回档；fixed = 本地一次性修复标记（新版新档也是 1，不能当「已回档」用）
+    directFix: { hit: directHit.length, chars: directHit.slice(0, 20), fixed: num(d.fix && d.fix.direct), vouchers: num(d.vouchers && d.vouchers.direct) },
   }, 200, cors);
 }
 
@@ -1721,11 +1732,12 @@ export async function onRequest(context) {
         // v11 多了 /llsongs（lovelive 云端曲库：只收谱面，不收音频）
         // v12 榜单多了杀死守密人（已解锁结局数），见 BOARD_SPEC 的 kp
         // v13 赠礼支持 rw（免费回溯券，挂机前夜的「回溯券」），/grants/mine 会带回来
+        // v18 挂机存档摘要补上「超限 od」与旧版直升券签名（directFix.hit / saveVersion），后台可扫回档名单
         // v17 评分 / BUG 反馈的游戏白名单补上 大巴扎（bazaar）、寻找伪人（fake）、蚀界方块（block）：之前这三个的评分会被 400 拒掉，BUG 会被记成「首页」
         // v16 榜单的决斗 / 轮盘段位名补齐到 13 段（原来只有 9 段，高段位显示空白）
         // v15 榜单补上 lovelive（BOARD_SPEC 的 ll，之前漏了，榜单一直是空的）
         // v14 赠礼再加 tk（召唤券）/ gold（金币）；多了 GET /admin/bugs（后台看 BUG 反馈详情）
-        ok: Boolean(store), service: 'zjtt', v: 17, runtime: 'edgeone',
+        ok: Boolean(store), service: 'zjtt', v: 18, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),

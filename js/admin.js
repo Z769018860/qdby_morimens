@@ -459,6 +459,107 @@ function batchCard(onDone) {
     h('div', { class: 'acts' }, okBtn));
 }
 
+// ------------------------------------------------------------------ 直升券回档体检（0.17.0）
+// 回档不是后台推名单：每份存档第一次进游戏时自己检查「叠位 99 且超限 99」，命中就退回练度、
+// 还券、发补偿。所以「谁还需要回档」= 云端存档里还带着旧券签名的人（还没进过 0.17.0）。
+// 这个卡片把每个账号的云端存档摘要读一遍（只读，不改存档），按同一套签名列出来。
+let SCAN = null;      // { at, total, rows: [{ u, data }], noSave: [], failed: [] }
+
+function rollbackCard() {
+  const out = h('div', {}, h('p', { class: 'sub' }, '还没扫过。'));
+  const copyBtn = h('button', { class: 'btn ghost', style: 'display:none', onclick: () => copyRollback() }, '复制名单');
+  const btn = h('button', { class: 'btn', onclick: () => scanRollback(btn, out, copyBtn) }, '扫描云端存档');
+  if (SCAN) paintRollback(out, copyBtn);
+  return h('section', { class: 'card' },
+    h('h2', {}, '直升券回档体检'),
+    h('p', { class: 'sub' }, '0.17.0 的回档是每份存档第一次进游戏时自己跑的（认「叠位 99 且超限 99」这个旧券签名），后台本来没有名单。这里把每个账号的云端存档摘要读一遍，列出还带着签名的账号——也就是还没进过新版、等着被自动回档的人。命中的人进游戏就会自动退练度 + 还券 + 拿到补偿，不用手工发。只读摘要，不动存档。'),
+    h('div', { class: 'acts' }, btn, copyBtn),
+    out);
+}
+
+async function scanRollback(btn, out, copyBtn) {
+  if (!(BACKEND.v >= 18)) {
+    out.replaceChildren(h('p', { class: 'sub', style: 'color:#b42318' },
+      `线上后端是 v${BACKEND.v || 0}，摘要里还没有「超限」字段，扫了也看不出谁被旧券改过。把 edge-functions 重新部署一次（v18）再来。`));
+    return;
+  }
+  if (!USERS.length) { out.replaceChildren(h('p', { class: 'sub' }, '用户列表是空的，没得扫。')); return; }
+  const queue = USERS.slice();
+  const total = queue.length;
+  const rows = [], noSave = [], failed = [];
+  let done = 0;
+  btn.disabled = true; copyBtn.style.display = 'none';
+  const paint = (msg) => out.replaceChildren(h('p', { class: 'sub' }, msg));
+  paint(`扫描中 0/${total} …（账号多了要等一会儿，别关页面）`);
+  // 3 路并发：Blob 存储一次读一个键，并发高了会限流，反而更慢
+  const worker = async () => {
+    for (;;) {
+      const u = queue.shift();
+      if (!u) return;
+      try {
+        const r = await req('/admin/idle-save?uid=' + encodeURIComponent(u.uid), { timeout: 30000 });
+        if (!r.found) noSave.push(u);
+        else if (r.broken) failed.push({ u, why: '存档正文损坏' });
+        else if (r.directFix && r.directFix.hit > 0) rows.push({ u, data: r });
+      } catch (e) { failed.push({ u, why: e.code || e.message || '读取失败' }); }
+      done++;
+      if (done % 2 === 0 || done === total) paint(`扫描中 ${done}/${total} · 待回档 ${rows.length} · 失败 ${failed.length}`);
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  rows.sort((a, b) => b.data.directFix.hit - a.data.directFix.hit || (b.data.cloudAt || 0) - (a.data.cloudAt || 0));
+  SCAN = { at: Date.now(), total, rows, noSave, failed };
+  btn.disabled = false;
+  paintRollback(out, copyBtn);
+}
+
+async function paintRollback(out, copyBtn) {
+  if (!SCAN) return;
+  const awk = await loadAwk();
+  const zh = (s) => (awk.find((a) => a.slug === s) || {}).zh || s;
+  const { at, total, rows, noSave, failed } = SCAN;
+  copyBtn.style.display = rows.length ? '' : 'none';
+  const parts = [
+    h('p', { class: 'sub' }, `扫描于 ${when(at)} · 共 ${total} 个账号：待回档 ${rows.length} · 没有云存档 ${noSave.length} · 读取失败 ${failed.length}`),
+  ];
+  if (!rows.length) {
+    parts.push(h('p', { class: 'sub', style: 'color:#1a7f37' }, '没有账号带着旧券签名：还没进新版而用过直升券的人已经没有了。'));
+  } else {
+    parts.push(h('div', { class: 'tblwrap' },
+      h('table', {},
+        h('thead', {}, h('tr', {},
+          h('th', {}, '账号'), h('th', {}, 'UID'), h('th', {}, '命中角色（叠位 / 超限）'),
+          h('th', {}, '存档版本'), h('th', {}, '云端上传'), h('th', {}, ''))),
+        h('tbody', {}, rows.map(({ u, data }) => h('tr', {},
+          h('td', {}, h('b', {}, u.name || '（未命名）')),
+          h('td', {}, String(u.uid)),
+          h('td', {}, data.directFix.chars.map((c) => `${zh(c.slug)} ${c.star}/${c.od}`).join('、') + (data.directFix.hit > data.directFix.chars.length ? ` 等 ${data.directFix.hit} 位` : '')),
+          h('td', {}, 'v' + data.saveVersion),
+          h('td', {}, when(data.cloudAt)),
+          h('td', {}, h('button', { class: 'btn sm ghost', onclick: () => openIdleSave(u) }, '存档')))
+        )))));
+  }
+  if (failed.length) {
+    parts.push(h('details', { class: 'bugrow' },
+      h('summary', { style: 'cursor:pointer' }, `读取失败的 ${failed.length} 个（点开看是谁）`),
+      h('p', { class: 'sub' }, failed.map(({ u, why }) => `${u.name || '（未命名）'}（${u.uid}）：${why}`).join('\n'))));
+  }
+  out.replaceChildren(...parts);
+}
+
+async function copyRollback() {
+  if (!SCAN || !SCAN.rows.length) return;
+  const awk = await loadAwk();
+  const zh = (s) => (awk.find((a) => a.slug === s) || {}).zh || s;
+  const lines = ['账号\tUID\t命中角色\t存档版本\t云端上传'];
+  for (const { u, data } of SCAN.rows) {
+    lines.push([u.name || '（未命名）', u.uid,
+      data.directFix.chars.map((c) => `${zh(c.slug)}(叠位${c.star}/超限${c.od})`).join('、'),
+      'v' + data.saveVersion, when(data.cloudAt)].join('\t'));
+  }
+  try { await navigator.clipboard.writeText(lines.join('\n')); toast(`已复制 ${SCAN.rows.length} 个账号`); } catch { toast('复制失败'); }
+}
+
 function render(data, h0) {
   const me = data.me || {};
   const stats = data.stats || { users: 0, today: 0, total: 0, bugs: 0 };
@@ -481,6 +582,7 @@ function render(data, h0) {
       h('h2', {}, '站点概况'),
       h('p', { class: 'sub' }, '浏览数从 2026-10 起统计；注册用户指用过本站的账号。'),
       kpis(stats, data.users || [])),
+    rollbackCard(),
     batchCard(),
     bugCard(),
     h('section', { class: 'card' },
