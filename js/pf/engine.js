@@ -831,7 +831,7 @@ function unitAttack(u, e) {
   } else {
     addFx({ k: 'slash', x: e.x - 6, y: e.y - 10, d: 0.18, col: crit ? '#ffe066' : '#ffd9d0' });
   }
-  addFloat(e.x, e.y - 26, Math.round(dmg), crit ? '#ffe066' : '#ffb0a6', crit ? 1.15 : 0.9);
+  addFloat(e.x - 14, e.y - 26, Math.round(dmg), crit ? '#ffe066' : '#ffb0a6', crit ? 1.0 : 0.9);
   if (crit) spark(e.x, e.y - 18, '#ffe066', 4);
   if (u.lifesteal > 0) u.hp = Math.min(u.hpMax, u.hp + dmg * u.lifesteal);
   sfx.play(crit ? 'crit' : 'hit');
@@ -881,13 +881,22 @@ function unitAttack(u, e) {
 
 
 // 命中火花：一次撒几粒，比一圈光环更「有手感」
+// 但它是真正的大头：每次命中 3~12 粒，无尽关二十几只怪一起挨打，
+// 实测第 29 波同屏 413 个发光点，整片棋盘白掉。这里按剩余预算按比例少撒几粒。
+// 注意 rnd 照常消耗（乱数该算完再丢），否则视觉预算会改变战斗随机流，
+// 同一套阵容会打出不一样的战果。
 function spark(x, y, col, n) {
+  const cap = FX_HARD * 2;
+  const keep = Math.min(n, Math.max(0, Math.round((n * (cap - G.fx.length)) / cap)));
   for (let i = 0; i < n; i++) {
     const a = rnd() * 6.284;
     const v = 40 + rnd() * 90;
+    const d = 0.3 + rnd() * 0.2;
+    const r = 1.2 + rnd() * 1.4;
+    if (i >= keep) continue;
     G.fx.push({
-      k: 'spark', x, y, t: 0, d: 0.3 + rnd() * 0.2, col,
-      vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, r: 1.2 + rnd() * 1.4,
+      k: 'spark', x, y, t: 0, d, col,
+      vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, r,
     });
   }
 }
@@ -1085,9 +1094,60 @@ function castUlt(u) {
 }
 
 // ---------------------------------------------------------------- 特效队列
-function addFx(o) { o.t = 0; G.fx.push(o); }
+// 无尽关后期同屏二十几只怪、十几个单位一起打，命中特效按次数往上堆：
+// 实测第 25~29 波同时存在 280~475 个，每个都带描边加光，画面直接糊成一片白光。
+// 这里给一个预算 —— 超了就抽稀「每一下的小火花」，大招/落雷/冲击波这类
+// 交代战况的大特效优先保留。少掉的是连续闪烁，不是「打中了」这件事。
+const FX_SOFT = 40;                  // 到这个数，小特效隔一个丢一个
+const FX_HARD = 90;                  // 到这个数，小特效全丢
+const FX_SMALL = new Set(['slash', 'ring']);
+let fxTick = 0;                      // 用计数器抽稀，不消耗 rnd（否则会改战斗结果与平衡基线）
+
+function addFx(o) {
+  o.t = 0;
+  const n = G.fx.length;
+  if (FX_SMALL.has(o.k)) {
+    fxTick++;
+    if (n >= FX_HARD) return;
+    if (n >= FX_SOFT && fxTick % 2) return;
+  } else if (n >= FX_HARD * 2) {
+    return;                          // 连大特效也挤爆了就只保最前面的
+  }
+  G.fx.push(o);
+}
+
 function addFloat(x, y, txt, col, size) {
-  G.floats.push({ x, y, txt: String(txt), col, size: size || 1, t: 0, d: 0.75, vy: -34 });
+  // 无尽关后期十几只怪叠在一处，每一下都单独跳一个白字，最后整片都是数字 —— 比不显示还糟。
+  // 两条规矩：
+  //   ① 0.25 秒内、18px 内的同类小伤害并到已经飘着的那条上（累加后重新跳），
+  //      同一堆怪只留一条在滚数字，看得见伤害量而不是一堆碎片；
+  //   ② 小伤害总计最多 16 条、大字（暴击 / 大招 / 治疗 / 升星）最多 20 条，超了就不显示。
+  const v = Number(txt);
+  const small = (size || 1) < 1;
+  // 伤害数字一律先找同行的合并 —— 暴击也合，不然暴击率一高还是一墙数字。
+  // 出怪口那一列的 x 是随机的（±40px），所以按「同一行、左右 70px 内」判断，
+  // 够不到就新开一条。玩家看到的是「这一行这波挨了多少」，不是十份碎片。
+  if (Number.isFinite(v)) {
+    for (let i = G.floats.length - 1; i >= 0; i--) {
+      const f = G.floats[i];
+      if (f.num == null || f.t > 0.3) continue;
+      if (Math.abs(f.y - y) < 30 && Math.abs(f.x - x) < 70) {
+        f.num += v;
+        f.txt = String(Math.round(f.num));
+        f.t = 0;
+        if (!small) { f.size = Math.max(f.size, size || 1); f.col = col; }
+        return;
+      }
+    }
+  }
+  if (Number.isFinite(v) && small) {
+    if (G.floats.length >= 8) return;
+  } else if (G.floats.length >= 16) {
+    return;
+  }
+  const o = { x, y, txt: String(txt), col, size: size || 1, t: 0, d: 0.75, vy: -34 };
+  if (Number.isFinite(v)) o.num = v;
+  G.floats.push(o);
 }
 
 // ---------------------------------------------------------------- 主更新

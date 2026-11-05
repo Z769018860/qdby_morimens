@@ -1676,7 +1676,7 @@ function unitAttack(u, e) {
   } else {
     addFx({ k: 'slash', x: e.x - 6, y: e.y - 10, d: 0.18, col: crit ? '#ffe066' : '#ffd9d0' });
   }
-  addFloat(e.x, e.y - 26, Math.round(dmg), crit ? '#ffe066' : '#ffb0a6', crit ? 1.15 : 0.9);
+  addFloat(e.x - 14, e.y - 26, Math.round(dmg), crit ? '#ffe066' : '#ffb0a6', crit ? 1.0 : 0.9);
   if (crit) spark(e.x, e.y - 18, '#ffe066', 4);
   if (u.lifesteal > 0) u.hp = Math.min(u.hpMax, u.hp + dmg * u.lifesteal);
   sfx.play(crit ? 'crit' : 'hit');
@@ -1726,13 +1726,22 @@ function unitAttack(u, e) {
 
 
 // 命中火花：一次撒几粒，比一圈光环更「有手感」
+// 但它是真正的大头：每次命中 3~12 粒，无尽关二十几只怪一起挨打，
+// 实测第 29 波同屏 413 个发光点，整片棋盘白掉。这里按剩余预算按比例少撒几粒。
+// 注意 rnd 照常消耗（乱数该算完再丢），否则视觉预算会改变战斗随机流，
+// 同一套阵容会打出不一样的战果。
 function spark(x, y, col, n) {
+  const cap = FX_HARD * 2;
+  const keep = Math.min(n, Math.max(0, Math.round((n * (cap - G.fx.length)) / cap)));
   for (let i = 0; i < n; i++) {
     const a = rnd() * 6.284;
     const v = 40 + rnd() * 90;
+    const d = 0.3 + rnd() * 0.2;
+    const r = 1.2 + rnd() * 1.4;
+    if (i >= keep) continue;
     G.fx.push({
-      k: 'spark', x, y, t: 0, d: 0.3 + rnd() * 0.2, col,
-      vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, r: 1.2 + rnd() * 1.4,
+      k: 'spark', x, y, t: 0, d, col,
+      vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, r,
     });
   }
 }
@@ -1930,9 +1939,60 @@ function castUlt(u) {
 }
 
 // ---------------------------------------------------------------- 特效队列
-function addFx(o) { o.t = 0; G.fx.push(o); }
+// 无尽关后期同屏二十几只怪、十几个单位一起打，命中特效按次数往上堆：
+// 实测第 25~29 波同时存在 280~475 个，每个都带描边加光，画面直接糊成一片白光。
+// 这里给一个预算 —— 超了就抽稀「每一下的小火花」，大招/落雷/冲击波这类
+// 交代战况的大特效优先保留。少掉的是连续闪烁，不是「打中了」这件事。
+const FX_SOFT = 40;                  // 到这个数，小特效隔一个丢一个
+const FX_HARD = 90;                  // 到这个数，小特效全丢
+const FX_SMALL = new Set(['slash', 'ring']);
+let fxTick = 0;                      // 用计数器抽稀，不消耗 rnd（否则会改战斗结果与平衡基线）
+
+function addFx(o) {
+  o.t = 0;
+  const n = G.fx.length;
+  if (FX_SMALL.has(o.k)) {
+    fxTick++;
+    if (n >= FX_HARD) return;
+    if (n >= FX_SOFT && fxTick % 2) return;
+  } else if (n >= FX_HARD * 2) {
+    return;                          // 连大特效也挤爆了就只保最前面的
+  }
+  G.fx.push(o);
+}
+
 function addFloat(x, y, txt, col, size) {
-  G.floats.push({ x, y, txt: String(txt), col, size: size || 1, t: 0, d: 0.75, vy: -34 });
+  // 无尽关后期十几只怪叠在一处，每一下都单独跳一个白字，最后整片都是数字 —— 比不显示还糟。
+  // 两条规矩：
+  //   ① 0.25 秒内、18px 内的同类小伤害并到已经飘着的那条上（累加后重新跳），
+  //      同一堆怪只留一条在滚数字，看得见伤害量而不是一堆碎片；
+  //   ② 小伤害总计最多 16 条、大字（暴击 / 大招 / 治疗 / 升星）最多 20 条，超了就不显示。
+  const v = Number(txt);
+  const small = (size || 1) < 1;
+  // 伤害数字一律先找同行的合并 —— 暴击也合，不然暴击率一高还是一墙数字。
+  // 出怪口那一列的 x 是随机的（±40px），所以按「同一行、左右 70px 内」判断，
+  // 够不到就新开一条。玩家看到的是「这一行这波挨了多少」，不是十份碎片。
+  if (Number.isFinite(v)) {
+    for (let i = G.floats.length - 1; i >= 0; i--) {
+      const f = G.floats[i];
+      if (f.num == null || f.t > 0.3) continue;
+      if (Math.abs(f.y - y) < 30 && Math.abs(f.x - x) < 70) {
+        f.num += v;
+        f.txt = String(Math.round(f.num));
+        f.t = 0;
+        if (!small) { f.size = Math.max(f.size, size || 1); f.col = col; }
+        return;
+      }
+    }
+  }
+  if (Number.isFinite(v) && small) {
+    if (G.floats.length >= 8) return;
+  } else if (G.floats.length >= 16) {
+    return;
+  }
+  const o = { x, y, txt: String(txt), col, size: size || 1, t: 0, d: 0.75, vy: -34 };
+  if (Number.isFinite(v)) o.num = v;
+  G.floats.push(o);
 }
 
 // ---------------------------------------------------------------- 主更新
@@ -2879,12 +2939,19 @@ function equipPips(x, y, u) {
   ctx.restore();
 }
 
+// 同屏人多的时候（无尽关后段）把「受击闪白」压一档：
+// 二十个东西一起闪，每一次都是整片白光，反而看不清谁在挨打。
+function crowded() { return G.units.length + G.enemies.length > 22; }
+
 function drawUnits() {
+  const crowd = crowded();
   const list = G.units.filter((u) => u.cell >= 0).sort((a, b) => cellXY(a.cell).y - cellXY(b.cell).y);
   for (const u of list) {
     const p = cellXY(u.cell);
     const by = p.y + HEX_H * 0.30;
-    const h = HEX_H * 1.12 * (1 + (u.star - 1) * 0.05);
+    // 星级带来的放大到 3★ 封顶（4★ 起只换数字，不再变大）：
+    // 星级没有上限之后，10★ 会撑到 1.45 倍，几个高星叠在一起就是一团立绘。
+    const h = HEX_H * 1.12 * (1 + (Math.min(u.star, 3) - 1) * 0.05);
     const dead = u.hp <= 0;
     const t = G.t || 0;
 
@@ -2933,9 +3000,9 @@ function drawUnits() {
       ctx.globalAlpha = 0.28;
       ctx.translate(0, 6);
     } else if (u.hurtT > 0 && !motion.calm) {
-      ctx.filter = 'brightness(1.9) saturate(0.6)';
+      ctx.filter = crowd ? 'brightness(1.45)' : 'brightness(1.9) saturate(0.6)';
     } else if (u.shield > 0) {
-      ctx.filter = 'drop-shadow(0 0 6px rgba(120,180,255,.8))';
+      ctx.filter = crowd ? 'none' : 'drop-shadow(0 0 6px rgba(120,180,255,.8))';
     }
     sprite(unitFrame(u), 0, 0, h, false);
     ctx.filter = 'none';
@@ -2949,12 +3016,17 @@ function drawUnits() {
       hpBar(bx, bYy, 46, 5, r, r > 0.5 ? '#6bd08a' : r > 0.25 ? '#e3b341' : '#e8695f', u.shield / u.hpMax);
       starPips(bx, bYy - 7, u.star);
       const ultReady = u.ult >= 99;
-      ctx.fillStyle = 'rgba(6,9,14,0.75)';
-      ctx.fillRect(bx - 23, bYy + 6, 46, 2.5);
-      ctx.fillStyle = ultReady ? '#ffe066' : 'rgba(176,107,217,0.95)';
-      ctx.fillRect(bx - 23, bYy + 6, 46 * Math.min(1, u.ult / 100), 2.5);
+      // 狂气条只在备战期画：开打之后二十个单位、每人头顶再挂一条紫色进度，
+      // 加上血条 / 星标 / 脚下两个装备方块，扫一眼全是小色块。
+      if (G.phase !== 'fight') {
+        ctx.fillStyle = 'rgba(6,9,14,0.75)';
+        ctx.fillRect(bx - 23, bYy + 6, 46, 2.5);
+        ctx.fillStyle = ultReady ? '#ffe066' : 'rgba(176,107,217,0.95)';
+        ctx.fillRect(bx - 23, bYy + 6, 46 * Math.min(1, u.ult / 100), 2.5);
+      }
     }
-    equipPips(p.x, by - 2, u);
+    // 装备小方块同理：战斗中不换装，两粒 4px 的色点只会加重噪点
+    if (G.phase !== 'fight') equipPips(p.x, by - 2, u);
     // 击杀叠加（红宝石胸针 / 吞噬流派）：层数直接标在头顶，不然只能看攻击力猜
     if (!dead && u.killAtkStep > 0 && u.killAtkMax > 0) {
       stackBadge(p.x + 22, by - h - 26, `叠 ${u.killStacks}/${u.killAtkMax}`, '#ff9d9d', 'rgba(56,12,12,0.86)');
@@ -2963,33 +3035,73 @@ function drawUnits() {
 }
 
 function drawEnemies() {
-  const list = G.enemies.slice().sort((a, b) => a.y - b.y);
+  const crowd = crowded();
+  const list = G.enemies.filter((e) => hasMob(e.def)).sort((a, b) => a.y - b.y);
+  // 通道被堵住时，出口那一格会叠七八只，立绘 100% 重合 —— 看上去就是一坨彩色的东西。
+  // 按位置分桶：同一处最多画三只（往两侧错开一点），血条只画一套并显示整堆的总血量，
+  // 右边挂「×N」交代还有几只。这样「这里有一堆怪」一眼就能读出来。
+  // 通道 + 60px 一段：挤在出怪口的那些合成一桶（一条血条 + ×N），
+  // 已经走进来散开的仍然各画各的。只按 x/y 分桶的话，出怪口 ±40px 的随机 x
+  // 会把同一堆怪拆成三四条血条。
+  const keyOf = (e) => `${e.row}:${Math.round(e.x / 60)}`;
+  const stackN = new Map();
+  const stackHp = new Map();
   for (const e of list) {
-    if (!hasMob(e.def)) continue;
+    const k = keyOf(e);
+    stackN.set(k, (stackN.get(k) || 0) + 1);
+    const acc = stackHp.get(k) || { hp: 0, max: 0 };
+    acc.hp += Math.max(0, e.hp); acc.max += e.hpMax;
+    stackHp.set(k, acc);
+  }
+  const stackI = new Map();
+
+  for (const e of list) {
+    const k = keyOf(e);
+    const si = stackI.get(k) || 0;
+    stackI.set(k, si + 1);
+    const total = stackN.get(k);
     const h = 88 * e.size;
     // 走路时上下起伏一点，静止的一排立绘看起来像贴纸
     const bob = Math.sin((G.t || 0) * 8 + e.x * 0.05) * (e.target ? 0.6 : 2.2);
     // 挨打时往后挫一下，比单纯变亮更有打击感
     const knock = e.hurtT > 0 ? (e.hurtT / 0.16) * 5 : 0;
     const by = e.y + 26 + bob;
+    // 叠在一起的第二、三只往两侧让开一点并略微缩小，至少看得出「不止一只」
+    const jx = si === 0 ? 0 : (si === 1 ? -16 : 16);
+    const jy = si === 0 ? 0 : (si === 1 ? -7 : -13);
+    const hh = si === 0 ? h : h * 0.92;
+    const x = e.x + knock + jx;
+    const bY = by + jy;
+
     ctx.save();
     // 影子
     ctx.fillStyle = 'rgba(0,0,0,0.38)';
     ctx.beginPath();
-    ctx.ellipse(e.x + knock, by - 4, 26 * e.size, 8 * e.size, 0, 0, 6.284);
+    ctx.ellipse(x, bY - 4, 26 * e.size, 8 * e.size, 0, 0, 6.284);
     ctx.fill();
-    if (e.stunT > 0) ctx.filter = 'grayscale(0.5) brightness(0.8)';
-    else if (e.hurtT > 0 && !motion.calm) ctx.filter = 'brightness(2.1) saturate(1.4)';
-    drawMob(e.def, e.x + knock, by, h, true);
-    ctx.filter = 'none';
+    if (si < 3) {
+      if (e.stunT > 0) ctx.filter = 'grayscale(0.5) brightness(0.8)';
+      else if (e.hurtT > 0 && !motion.calm) {
+        ctx.filter = crowd ? 'brightness(1.45)' : 'brightness(2.1) saturate(1.4)';
+      }
+      // 后排的叠怪压暗一点：三张同样的立绘糊在一起还是分不清，
+      // 让最前面那只保持满亮度，后面的退成「影子」，才看得出是排队而不是一团。
+      if (si > 0) ctx.globalAlpha = si === 1 ? 0.8 : 0.62;
+      drawMob(e.def, x, bY, hh, true);
+      ctx.filter = 'none';
+      ctx.globalAlpha = 1;
+    }
     ctx.restore();
+
+    // 只有最前面那只负责血条与状态字：十几条血条上下叠着，右边那一片会比怪本身还花
+    if (si > 0) continue;
 
     if (e.stunT > 0) {
       ctx.save();
       ctx.strokeStyle = 'rgba(140,203,255,0.85)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(e.x + knock, by - h * 0.66, 12, 0, 6.284);
+      ctx.arc(x, bY - h * 0.66, 12, 0, 6.284);
       ctx.stroke();
       // 星星绕圈
       const a0 = (G.t || 0) * 3;
@@ -2997,21 +3109,33 @@ function drawEnemies() {
       for (let i = 0; i < 3; i++) {
         const a = a0 + i * 2.09;
         ctx.beginPath();
-        ctx.arc(e.x + knock + Math.cos(a) * 13, by - h * 0.66 + Math.sin(a) * 5, 2, 0, 6.284);
+        ctx.arc(x + Math.cos(a) * 13, bY - h * 0.66 + Math.sin(a) * 5, 2, 0, 6.284);
         ctx.fill();
       }
       ctx.restore();
     }
-    // 血条
+    // 血条：叠在一起时显示整堆的总血量，不然「最前面那只满血」会骗人
+    const acc = stackHp.get(k) || { hp: e.hp, max: e.hpMax };
     const w = e.def.cls === 'Boss' ? 68 : 34;
-    hpBar(e.x + knock, by - h - 8, w, e.def.cls === 'Boss' ? 6 : 4, e.hp / e.hpMax,
+    hpBar(x, bY - h - 8, w, e.def.cls === 'Boss' ? 6 : 4, acc.max ? acc.hp / acc.max : 0,
       e.def.cls === 'Boss' ? '#ff5c5c' : e.def.cls === '精英' ? '#ffa45c' : '#e8695f', 0);
+    if (total > 1) {
+      ctx.save();
+      ctx.font = '700 10px system-ui,"PingFang SC",sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(255,214,214,0.95)';
+      ctx.shadowColor = 'rgba(0,0,0,0.85)';
+      ctx.shadowBlur = 3;
+      ctx.fillText('\u00d7' + total, x + w / 2 + 3, bY - h - 8);
+      ctx.restore();
+    }
     if (e.wound > 0) {
       ctx.save();
       ctx.fillStyle = 'rgba(176,107,217,0.95)';
       const n = Math.min(8, e.wound);
       for (let i = 0; i < n; i++) {
-        ctx.fillRect(e.x + knock - 4 + i * 5, by - h - 14, 3, 2.5);
+        ctx.fillRect(x - 4 + i * 5, bY - h - 14, 3, 2.5);
       }
       // 创口层数：格子最多画 8 个，数字补上，一眼知道还差几层满
       ctx.font = '700 9.5px system-ui,"PingFang SC",sans-serif';
@@ -3020,7 +3144,7 @@ function drawEnemies() {
       ctx.fillStyle = 'rgba(211,164,242,0.95)';
       ctx.shadowColor = 'rgba(0,0,0,0.85)';
       ctx.shadowBlur = 2;
-      ctx.fillText('×' + e.wound, e.x + knock - 4 + n * 5 + 3, by - h - 11);
+      ctx.fillText('\u00d7' + e.wound, x - 4 + n * 5 + 3, bY - h - 11);
       ctx.restore();
     }
     if (e.def.cls === 'Boss') {
@@ -3028,7 +3152,7 @@ function drawEnemies() {
       ctx.font = '600 11px system-ui,"PingFang SC",sans-serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(255,200,200,0.9)';
-      ctx.fillText(e.def.n, e.x + knock, by - h - 20);
+      ctx.fillText(e.def.n, x, bY - h - 20);
       ctx.restore();
     }
   }
@@ -3051,8 +3175,9 @@ function drawShots() {
     }
     ctx.globalAlpha = 0.95;
     ctx.fillStyle = s.col;
+    // 弹道一多，每颗都带光晕就是一团白雾：超过八颗就不发光，只留实心点
     ctx.shadowColor = s.col;
-    ctx.shadowBlur = 9;
+    ctx.shadowBlur = G.shots.length > 8 ? 0 : 9;
     ctx.beginPath(); ctx.arc(x, y, 3.2, 0, 6.284); ctx.fill();
     ctx.restore();
   }
@@ -3184,11 +3309,13 @@ function drawBeam(f, k) {
 
 // 冲击波：三层不同速度的环 + 一层径向渐变，比单环「炸」得明显
 function drawBlast(f, k) {
-  const layers = [[0, 1], [0.13, 0.72], [0.26, 0.46]];
-  for (const [delay, scale] of layers) {
+  // 第一环实、后两环淡：三层都按 0.95 画，几个大招同时落下来就成了一串同心圆，
+  // 糊在怪堆上谁也看不清；留一层实环 + 两层残影，方向感和「炸了」都还在。
+  const layers = [[0, 1, 0.92], [0.13, 0.72, 0.42], [0.26, 0.46, 0.26]];
+  for (const [delay, scale, alpha] of layers) {
     const kk = (k - delay) / (1 - delay);
     if (kk < 0 || kk > 1) continue;
-    ctx.globalAlpha = (1 - kk) * 0.95;
+    ctx.globalAlpha = (1 - kk) * alpha;
     ctx.strokeStyle = f.col;
     ctx.lineWidth = 3.4 * (1 - kk) + 0.7;
     ctx.beginPath();
