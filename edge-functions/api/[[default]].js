@@ -959,7 +959,7 @@ async function ipLimit(kv, request, tag) {
 //   bug_idx                = JSON [id...]      最新的在前，只留 500 条给作者看
 // 为什么不做严格去重/防刷：这是同人站的评分，量级小、收益低。
 // 但 agg 用「读改写」会有并发丢失，所以写入时用 after-write 重算兜底（见 postHomeRate）。
-const HOME_GAMES = new Set(['detective', 'merge', 'bird', 'binding', 'idle', 'survivors', 'protocol', 'wolf', 'deathreport', 'g2048', 'duel', 'reign', 'lovelive', 'keeper', 'roulette', 'bugfight', 'bazaar', 'fake', 'block']);
+const HOME_GAMES = new Set(['detective', 'merge', 'bird', 'binding', 'idle', 'survivors', 'protocol', 'wolf', 'deathreport', 'g2048', 'duel', 'reign', 'lovelive', 'keeper', 'roulette', 'bugfight', 'bazaar', 'fake', 'block', 'dadimao']);
 const BUG_IDX_MAX = 500;
 
 // 评分身份：登录用 uid，没登录用本机随机 id（前端 X-Device），都没有就不给投

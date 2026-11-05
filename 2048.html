@@ -91,6 +91,11 @@ body{
 
 /* ---------------------------------------------------------------- 棋盘 */
 .stage{flex:1 1 auto; min-height:0; display:flex; flex-direction:column; justify-content:center; gap:10px}
+.dpad{display:none;grid-template-columns:repeat(3,64px);grid-template-areas:". u ." "l d r";gap:8px;justify-content:center;margin:12px auto 4px;touch-action:manipulation}
+.dpad button{height:54px;border-radius:14px;border:1px solid var(--line,#3a3f55);background:rgba(255,255,255,.06);color:inherit;font-size:20px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.dpad button:active{background:rgba(255,255,255,.18);transform:scale(.96)}
+.dpad [data-mv=u]{grid-area:u}.dpad [data-mv=l]{grid-area:l}.dpad [data-mv=d]{grid-area:d}.dpad [data-mv=r]{grid-area:r}
+@media (pointer:coarse),(max-width:720px){.dpad{display:grid}}
 .board{
   position:relative; margin:0 auto; aspect-ratio:1;
   /* 棋盘尽量吃满：宽度不超过屏宽，也别把底下的狂气条挤出去 */
@@ -368,7 +373,7 @@ body{
 #skillPick{max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #forget{max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
-<meta name="build" content="4251bc721c">
+<meta name="build" content="3e505651d5">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -439,6 +444,13 @@ html{-webkit-tap-highlight-color:transparent}
     </div>
   </main>
 
+  <div class="dpad" id="dpad" aria-label="虚拟方向键">
+    <button type="button" data-mv="u" aria-label="上">▲</button>
+    <button type="button" data-mv="l" aria-label="左">◀</button>
+    <button type="button" data-mv="d" aria-label="下">▼</button>
+    <button type="button" data-mv="r" aria-label="右">▶</button>
+  </div>
+
   <div class="foot">
     <div class="tools">
       <div class="mania">
@@ -449,7 +461,7 @@ html{-webkit-tap-highlight-color:transparent}
       <button class="btn" type="button" id="forget" disabled title="狂气满了可以忘却：清掉场上最小的两块，给新块腾地方">忘却</button>
       <button class="btn" type="button" id="undo" title="退回上一步（每局 5 次）">回溯 <b id="undon">5</b></button>
     </div>
-    <p class="hint" id="hint">方向键 / WASD · 手机滑动（按住不松可以连着划）</p>
+    <p class="hint" id="hint">方向键 / WASD · 手机可用屏幕方向键，或在棋盘上滑动（一划一步）</p>
   </div>
 </div>
 
@@ -493,7 +505,7 @@ html{-webkit-tap-highlight-color:transparent}
   }, 18000);
 })();
 </script>
-<script type="module" src="js/b/2048.js?v=4251bc721c"></script>
+<script type="module" src="js/b/2048.js?v=3e505651d5"></script>
 <script>
 /* 回访加速：静态资源走 Service Worker 缓存。平台的静态响应头是
    Cache-Control: max-age=0, must-revalidate，每个文件每次都要回源，
