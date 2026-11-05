@@ -89,6 +89,14 @@ main{max-width:980px;margin:0 auto;padding:12px}
 .uo-row b{color:var(--gold);text-align:center;font-size:12px}
 .uo-row img{width:30px;height:30px;border-radius:6px;object-fit:cover}
 .uo-row span{font-size:13px}.uo-row span small{color:var(--dim);font-size:11px;margin-left:6px}
+/* 高级设置：默认收起，避免把队伍页撑得太长；只有改过顺序时自动展开 */
+.advbox{margin:8px 0;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.02);padding:0 10px}
+.advbox>summary{cursor:pointer;padding:9px 0;font-size:13px;color:var(--gold);list-style:none;display:flex;align-items:center;gap:8px}
+.advbox>summary::-webkit-details-marker{display:none}
+.advbox>summary::before{content:'▸';color:var(--dim);font-size:11px;transition:transform .15s}
+.advbox[open]>summary::before{transform:rotate(90deg)}
+.advbox>summary .new{margin-left:auto;font-size:10.5px}
+.advbox .hint{margin:2px 0 8px}
 .log{height:170px;overflow:auto;background:#0a0d13;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;margin-top:6px}
 .log .rnd{color:var(--dim);text-align:center}.log .dm{color:#c9ced8}.log .hl{color:#7dffb0}.log .dead{color:var(--bad)}
 .log .ca{color:#8fd0ff}.log .ce{color:#ff9a92}

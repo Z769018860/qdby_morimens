@@ -1,5 +1,5 @@
 import {
-  allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, ULT_MODES, normalizeUltOrder, equipItem, unequipItem, isEquipped,
+  allyDef, teamDefs, levelUp, levelUpMax, setTeam, autoTeam, setPreset, PRESETS, ULT_MODES, normalizeUltOrder, normalizeOrder, orderIsCustom, equipItem, unequipItem, isEquipped,
   enhanceItem, enhanceAllEquipped, enhanceScopes, dismantle, dismantlePreview, autoDmOf, dismantleCores, summon, equipPull, gearDexKey, EQUIP_PULL_COST, CORE_PULL_COST, CORE_PULL10_COST, EQUIP_CORE_COST,
   PULL_PITY_GENESIS, newState, migrate, relicItemsOf, stageGold, runeCost, BATTLES_PER_HOUR, fillLoadout, MIXED_SYNERGY, teamView,
 } from '../core/game.js';
@@ -884,6 +884,17 @@ function mainPanel(app) {
       <button class="btn xs" data-act="ult-order" data-slug="${slug}" data-dir="1" ${i === orderList.length - 1 ? 'disabled' : ''} title="后移一位">↓</button></div>`;
   }).join('')}</div>`;
   const pre = Object.entries(PRESETS).map(([k, p]) => `<button class="btn sm ${s.strategy.preset === k ? 'on' : ''}" data-act="preset" data-k="${k}">${p.zh}</button>`).join('');
+  // 高级设置 · 自动行动顺序：改的是「谁先动手」，和站位解耦（站位减伤 / 刺客越前排都还按原位算）
+  const actList = normalizeOrder(s);
+  const actCustom = orderIsCustom(s);
+  const actRows = actList.map((slug, i) => {
+    const a0 = data.bySlug[slug];
+    if (!a0) return '';
+    const tag = i === 0 ? '先手' : i === actList.length - 1 ? '压轴' : '';
+    return `<div class="uo-row"><b>${i + 1}</b><img src="${img(a0.portrait)}" alt=""><span>${esc(a0.zh)}<small>${TYPES[a0.type].short}${tag ? ` · ${tag}` : ''}</small></span>
+      <button class="btn xs" data-act="order-move" data-slug="${slug}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="提前一位">↑</button>
+      <button class="btn xs" data-act="order-move" data-slug="${slug}" data-dir="1" ${i === actList.length - 1 ? 'disabled' : ''} title="后移一位">↓</button></div>`;
+  }).join('');
   const on = orderSlotCount(s.maxStage);
   const ochips = Array.from({ length: ORDER_SLOTS }, (_, i) => {
     if (i >= on) return `<span class="ochip locked">🔒 最高通关 ${orderLockedHint(i, s.maxStage)} 关</span>`;
@@ -913,7 +924,15 @@ function mainPanel(app) {
     <p class="hint">${PRESETS[s.strategy.preset]?.zh || ''}：血量低于 ${Math.round(s.strategy.defend * 100)}% 时优先架势；目标选择：${{ low: '血量最低', first: '前排优先', atk: '攻击最高' }[s.strategy.target]}。</p>
     <h4>大招 <small class="dim">什么时候开大</small></h4>
     <div class="row">${ultBtns}</div>${orderRows}
-    <p class="hint"><b>${ULT_MODES[ultNow].zh}</b>：${ULT_MODES[ultNow].desc}</p>`;
+    <p class="hint"><b>${ULT_MODES[ultNow].zh}</b>：${ULT_MODES[ultNow].desc}</p>
+    <h3>高级设置 <small>进阶 · 不动也能正常打</small></h3>
+    <details class="advbox" ${actCustom ? 'open' : ''}>
+      <summary>自动行动顺序 <small class="dim">谁先动手</small>${actCustom ? '<em class="new">已自定义</em>' : ''}</summary>
+      <p class="hint">默认按<b>站位 1→4</b> 出手。先手适合上增益 / 上盾 / 下毒 / 降防，让后手吃现成的增益去打爆发；<b>毒与流血在中招者自己行动后</b>才跳伤，所以顺序也会改变第一跳毒的时机（先手先手的人，毒跳得也早）。<br>
+        这里只改出手先后，<b>不动站位</b>：前排照样吃单体、守护照样只能打敌阵前排、刺客照样能越前排。四人全自动，这一项纯粹是给想再抠一点输出的玩法。</p>
+      <div class="ultorder">${actRows}</div>
+      <div class="row"><button class="btn sm" data-act="order-reset" ${actCustom ? '' : 'disabled'}>恢复默认（按站位）</button></div>
+    </details>`;
 }
 
 export function pickAwakener(app, title, onPick, exclude = []) {

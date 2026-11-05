@@ -4546,3 +4546,105 @@ test('行囊：结算带走一件、丢掉、下一趟取用不消耗', async ()
   T.stashDrop(s, key);
   assert.ok(!st0.stash.some((x) => x.key === key), '丢掉后行囊里应该没有这件');
 });
+
+/* ---------------------------------------------------------------- 高级设置 · 自动行动顺序 */
+test('行动顺序：默认（空 order）与不传 order 逐事件一致', async () => {
+  const G = await import('../src/core/game.js');
+  const B = await import('../src/core/battle.js');
+  const s = newState(data, 1);
+  for (const a of data.awakeners.slice(0, 10)) s.roster[a.slug] = { lv: 100, star: 10, brk: 3 };
+  s.team = data.awakeners.slice(0, 4).map((a) => a.slug);
+  const p = G.prepareBattle(s, data, 40);
+  const a = B.simulate({ allies: p.allies, enemies: p.enemies, seed: 321, strategy: {}, maxRounds: 20 });
+  const b = B.simulate({ allies: p.allies, enemies: p.enemies, seed: 321, strategy: { order: [] }, maxRounds: 20 });
+  assert.equal(JSON.stringify(a.events), JSON.stringify(b.events), '没排过顺序的人，行为必须和以前一模一样');
+  // 存档里的旧战略对象（还没有 order 字段）也不能炸
+  const c = B.simulate({ allies: p.allies, enemies: p.enemies, seed: 321, strategy: { defend: 0.4, target: 'low', ult: 'first' }, maxRounds: 20 });
+  assert.equal(JSON.stringify(a.events), JSON.stringify(c.events));
+});
+
+test('行动顺序：排过之后第一回合就按新顺序出手', async () => {
+  const G = await import('../src/core/game.js');
+  const B = await import('../src/core/battle.js');
+  const s = newState(data, 1);
+  for (const a of data.awakeners.slice(0, 10)) s.roster[a.slug] = { lv: 100, star: 10, brk: 3 };
+  s.team = data.awakeners.slice(0, 4).map((a) => a.slug);
+  const p = G.prepareBattle(s, data, 40);
+  const order = [...p.allies].reverse().map((d) => d.slug);
+  const r = B.simulate({ allies: p.allies, enemies: p.enemies, seed: 321, strategy: { order }, maxRounds: 20 });
+  const acts = [];
+  let round = 0;
+  for (const e of r.events) {
+    if (e.k === 'round') { round = e.n; continue; }
+    if (round === 1 && e.k === 'act' && String(e.who).startsWith('a')) acts.push(e.who);
+  }
+  // 出手顺序 = order 里的先后（uid 的 aN 就是 allies 的下标）
+  assert.deepEqual(acts, order.map((slug) => `a${p.allies.findIndex((d) => d.slug === slug)}`));
+  // 站位不能跟着变：返回的 allies 仍是 a0→a3 的站位顺序，只有出手序列被重排
+  assert.deepEqual(r.allies.map((d) => d.uid), ['a0', 'a1', 'a2', 'a3']);
+});
+
+test('行动顺序：规整会跟随队伍，队外的丢掉、缺的补在后面', async () => {
+  const G = await import('../src/core/game.js');
+  const s = newState(data, 1);
+  s.team = data.awakeners.slice(0, 4).map((a) => a.slug);
+  s.strategy.order = [s.team[2], '不存在的人', s.team[0], s.team[0]];
+  const out = G.normalizeOrder(s);
+  assert.equal(out.length, 4);
+  assert.ok(!out.includes('不存在的人'), '队外的人要被清掉');
+  assert.equal(out[0], s.team[2]);
+  assert.equal(out[1], s.team[0]);
+  assert.deepEqual([...out].sort(), [...s.team].sort(), '四个人一个不多一个不少');
+  // 换队后，新来的人补在队尾
+  s.team = [s.team[0], data.awakeners[5].slug, s.team[2], s.team[3]];
+  const out2 = G.normalizeOrder(s);
+  assert.equal(out2.length, 4);
+  assert.ok(out2.includes(data.awakeners[5].slug));
+  // moveOrder 边界：第一位不能再上移、最后一位不能再下移
+  const first = out2[0], last = out2[3];
+  G.moveOrder(s, first, -1);
+  assert.equal(G.normalizeOrder(s)[0], first);
+  G.moveOrder(s, last, 1);
+  assert.equal(G.normalizeOrder(s)[3], last);
+  // 正常换位
+  G.moveOrder(s, first, 1);
+  assert.equal(G.normalizeOrder(s)[1], first);
+});
+
+test('行动顺序：默认判定、恢复默认、切预设不会把它清掉', async () => {
+  const G = await import('../src/core/game.js');
+  const s = newState(data, 1);
+  s.team = data.awakeners.slice(0, 4).map((a) => a.slug);
+  G.normalizeOrder(s);
+  assert.equal(G.orderIsCustom(s), false, '刚规整完就是默认顺序');
+  G.moveOrder(s, s.team[0], 1);
+  assert.equal(G.orderIsCustom(s), true);
+  // 换预设：出手顺序与大招顺序都得留着（以前整体重建 strategy，一点预设就清空）
+  s.strategy.ultOrder = [...s.team].reverse();
+  const keep = { order: [...s.strategy.order], ult: [...s.strategy.ultOrder] };
+  G.setPreset(s, 'aggressive');
+  assert.deepEqual(s.strategy.order, keep.order);
+  assert.deepEqual(s.strategy.ultOrder, keep.ult);
+  assert.equal(s.strategy.defend, 0.2);
+  // 恢复默认
+  G.resetOrder(s);
+  assert.equal(G.orderIsCustom(s), false);
+  assert.deepEqual(s.strategy.order, s.team);
+});
+
+test('行动顺序：存档里的脏 order 被洗干净', async () => {
+  const G = await import('../src/core/game.js');
+  const s = newState(data, 1);
+  for (const a of data.awakeners.slice(0, 4)) s.roster[a.slug] = { lv: 60, star: 0, brk: 3 };
+  s.team = data.awakeners.slice(0, 4).map((a) => a.slug);
+  s.strategy.order = 'not-an-array';
+  let m = G.migrate(JSON.parse(JSON.stringify(s)), data);
+  assert.ok(Array.isArray(m.strategy.order), 'order 必须是数组');
+  assert.equal(m.strategy.order.length, 4);
+  s.strategy.order = ['ghost', 42, null, s.team[1], s.team[1]];
+  m = G.migrate(JSON.parse(JSON.stringify(s)), data);
+  assert.equal(m.strategy.order.length, 4);
+  assert.deepEqual([...m.strategy.order].sort(), [...m.team].sort(), '洗完之后正好是队里这四个人');
+  assert.ok(!m.strategy.order.includes('ghost'));
+  assert.equal(new Set(m.strategy.order).size, 4, '不能有重复');
+});

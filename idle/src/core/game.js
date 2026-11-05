@@ -102,7 +102,8 @@ export function newState(data, now = Date.now()) {
     play: 0,
     gold: 600, tickets: 12, cores: 300, stage: 1, maxStage: 0,
     auto: true,
-    strategy: { defend: 0.4, target: 'low', preset: 'balanced', ult: 'first', ultOrder: [] },
+    // order = 出手顺序（高级设置，见 normalizeOrder）。空数组 = 按站位 1→4 出手
+    strategy: { defend: 0.4, target: 'low', preset: 'balanced', ult: 'first', ultOrder: [], order: [] },
     roster, team: [...STARTERS], codex: {},
     gear: { items: {}, next: 1, equip: {}, relics: Array(RELIC_SLOTS).fill(null) },
     drip: { tickets: 0, cores: 0 },
@@ -199,8 +200,11 @@ export function migrate(s, data) {
   m.den.wins = Math.max(0, Math.floor(Number(m.den.wins) || 0));
   m.team = [...new Set(Array.isArray(m.team) ? m.team : [])].filter((x) => m.roster[x] && data.bySlug[x]).slice(0, TEAM_SIZE);
   if (m.strategy.ult === 'manual') m.strategy.ult = 'first';   // 手动开大已下线：老存档回到默认策略
-  normalizeUltOrder(m);
   if (!m.team.length) m.team = Object.keys(m.roster).slice(0, TEAM_SIZE);
+  // 顺序类设置必须在 team 定下来之后再规整：早一步跑的话 team 还是空数组，
+  // 会把玩家排好的出手 / 大招顺序整条清空。
+  normalizeUltOrder(m);
+  normalizeOrder(m);
   // roster：补 brk（突破档数），并按新的叠位上限收紧
   for (const [k, r] of Object.entries(m.roster)) {
     if (!data.bySlug[k]) { delete m.roster[k]; continue; }
@@ -959,7 +963,12 @@ export const PRESETS = {
   defensive: { zh: '稳守', defend: 0.65, target: 'first' },
   focus: { zh: '集火强敌', defend: 0.4, target: 'atk' },
 };
-export function setPreset(state, key) { const p = PRESETS[key]; state.strategy = { preset: key, defend: p.defend, target: p.target, ult: state.strategy?.ult || 'first' }; }
+export function setPreset(state, key) {
+  const p = PRESETS[key];
+  // 换预设只改「血线 / 目标」这两件它自己管的事：大招模式、大招顺序、出手顺序都是玩家单独调过的，
+  // 以前这里整体重建 strategy，一点预设就把排好的大招顺序清空了。
+  state.strategy = { ...state.strategy, preset: key, defend: p.defend, target: p.target, ult: state.strategy?.ult || 'first' };
+}
 /** 大招策略：first 优先开大 / sync 攒大招一起开 / order 按自定义顺序开 */
 export const ULT_MODES = {
   first: { zh: '优先开大', desc: '大招一攒满就放，排在防御、技能之前（登场技是开场自动生效的，不占动作）。只有一种情况会捏一下：纯治疗 / 护盾型大招、全队满血、下一轮也没人要挨打——这一发放出去完全是白给，那就先做别的，下一次行动必定开。' },
@@ -987,6 +996,41 @@ export function moveUltOrder(state, slug, dir) {
   if (i < 0 || j < 0 || j >= list.length) return;
   [list[i], list[j]] = [list[j], list[i]];
   state.strategy = { ...state.strategy, ultOrder: list };
+}
+
+/* ---------- 高级设置 · 自动行动顺序 ----------
+   自动战斗里我方四人固定按站位 1→4 依次出手。站位本身是有意义的（前排吃单体、刺客越前排），
+   所以不能为了改顺序去动站位——这里单独给一条「谁先动手」的顺序，和站位解耦：
+   先手的人上增益 / 上盾 / 下毒，后手的人吃现成的增益去爆发；毒与流血在**中毒者自己行动后**结算，
+   所以顺序还会改变一跳毒的时机。默认（空数组）= 按站位，老存档与没动过的人行为完全不变。 */
+export function normalizeOrder(state) {
+  const team = Array.isArray(state.team) ? state.team.filter(Boolean) : [];
+  const cur = Array.isArray(state.strategy?.order) ? state.strategy.order : [];
+  // 去重：老存档 / 换队过程中可能把同一个人写进来两次，重复会让队列变长、顺序错位
+  const out = [...new Set(cur.filter((s) => team.includes(s)))];
+  for (const s of team) if (!out.includes(s)) out.push(s);
+  state.strategy = { ...state.strategy, order: out };
+  return out;
+}
+/** 调整某一位的出手顺序：dir = -1 提前 / 1 后移 */
+export function moveOrder(state, slug, dir) {
+  const list = normalizeOrder(state);
+  const i = list.indexOf(slug), j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+  state.strategy = { ...state.strategy, order: list };
+}
+/** 恢复默认：按站位 1→4 */
+export function resetOrder(state) {
+  const team = Array.isArray(state.team) ? state.team.filter(Boolean) : [];
+  state.strategy = { ...state.strategy, order: [...team] };
+}
+/** 当前是否已经不是默认顺序（UI 用来决定要不要标「已自定义」） */
+export function orderIsCustom(state) {
+  const team = Array.isArray(state.team) ? state.team.filter(Boolean) : [];
+  const cur = Array.isArray(state.strategy?.order) ? state.strategy.order.filter((s) => team.includes(s)) : [];
+  if (cur.length !== team.length) return false;
+  return cur.some((s, i) => s !== team[i]);
 }
 
 // ---------- gear ops ----------

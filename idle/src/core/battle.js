@@ -94,6 +94,15 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   let burstRound = 0;     // sync：全员到位后的那一回合，之后到位的人这回合也一起放
   const A = allies.map((d, i) => makeUnit(d, 'a', i));
   const E = enemies.map((d, i) => makeUnit(d, 'e', i));
+  // 出手顺序（高级设置）：默认按站位 1→4；玩家排过的按 order 来，没排到的排在后面。
+  // 只改「谁先动手」，不动 idx——站位减伤、刺客能不能越前排都还按原站位算。
+  // 敌方不参与排序：它们的顺序由登场顺序决定，玩家唯一能影响的是「先手把谁做掉」。
+  const ordList = Array.isArray(strat.order) ? strat.order : [];
+  const ordIdx = (u) => {
+    const i = u.slug ? ordList.indexOf(u.slug) : -1;
+    return i < 0 ? 900 + (u.idx || 0) : i;
+  };
+  const TURN = [...A].sort((x, y) => ordIdx(x) - ordIdx(y)).concat(E);
   // 站位：前排（前两个槽位）受到的直接伤害 −8%，后排 +6% 增伤。守护天生就该站前排、输出站后排，但站错也不罚，只是少一份好处。
   for (const u of [...A, ...E]) if (isPlayerLike(u) && (u.idx ?? 0) >= FRONT_SLOTS) u.amp += SLOT_BACK_AMP;
   const ev = [];
@@ -1111,7 +1120,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     for (const u of A) { u.shield = Math.min(num(u.carry), Math.round(u.maxHp * 0.3)); u.carry = 0; }
     emitAll();
     if (finished()) break;
-    for (const u of [...A, ...E]) {
+    for (const u of TURN) {
       if (finished()) break;
       if (u.alive) { act(u); tickBleed(u); tickPoison(u); }
     }
