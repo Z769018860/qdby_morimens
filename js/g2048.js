@@ -904,11 +904,11 @@ function act(d) {
 //     但同一次滑动最多 3 步（再多就成甩手划盘面了）；
 //   · 手抬起来时补一刀：位移短但方向明确也算数，点划党不用非得划半屏。
 const SWIPE = {
-  start: 13,        // 起判：抬起时用的最小位移
-  commit: 23,       // 出手：滑动中越过这个就立刻走一步（4×4 一格约 90px，四分之一格）
-  more: 34,         // 同一次滑动里再走下一步要更远一点
-  ratio: 1.28,      // 主轴 / 副轴 至少这么多倍才认，斜划不乱动
-  maxPerSwipe: 3,
+  start: 30,        // 起判：抬起时用的最小位移（手机上原先 13px 太灵敏，一划就走好几步）
+  commit: 52,       // 出手：滑动中越过这个就立刻走一步（4×4 一格约 90px，过半格才走）
+  more: 90,         // 同一次滑动里再走下一步要明显更远
+  ratio: 1.5,       // 主轴 / 副轴 至少这么多倍才认，斜划不乱动
+  maxPerSwipe: 1,   // 一划只走一步，想连走用屏幕方向键
   glideLock: 200,   // 撞墙后的冷却：别一直贴着墙抖
 };
 
@@ -943,6 +943,26 @@ function bindKeys() {
     else if (k === 'k') { e.preventDefault(); pickSkill(); }
     else if (k === 'y') { e.preventDefault(); if (SKIN.k === 'chain') openSheet(true); else shuffleSkin(SKIN.k, false); }
   });
+}
+
+function bindDpad() {
+  // 虚拟方向键：手机 / 触屏上的备用输入。touchstart 就走（不等 click 的 300ms），
+  // 长按不连发——一按一步，不会因为手抖一下滑到底。
+  const pad = $('#dpad');
+  if (!pad) return;
+  let lastT = 0;
+  const go = (e) => {
+    const b = e.target.closest('[data-mv]');
+    if (!b) return;
+    e.preventDefault();
+    const now = performance.now();
+    if (now - lastT < 60) return;      // touchstart 之后浏览器还会补发一个 click，去重
+    lastT = now;
+    if (!$('#sheet').hidden) return;
+    doMove(b.dataset.mv);
+  };
+  pad.addEventListener('touchstart', go, { passive: false });
+  pad.addEventListener('mousedown', go);
 }
 
 function bindTouch() {
@@ -1203,6 +1223,7 @@ function boot() {
   $('#skinReset').addEventListener('click', () => applyChain(false));
 
   bindTouch();
+  bindDpad();
   bindKeys();
   window.addEventListener('resize', () => { paint(false); });
 

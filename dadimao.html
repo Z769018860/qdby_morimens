@@ -433,6 +433,16 @@ input[type=range]::-webkit-slider-thumb{
 }
 .mini:hover{color:#ff8b70;background:rgba(226,85,60,.16);border-color:#7d3627}
 .mini.wide{width:auto;padding:0 12px;font-size:12px;font-weight:700;letter-spacing:.06em;color:#e7cfa6}
+.avpick{z-index:70}
+.avtabs{display:flex;gap:6px;padding:0 20px 8px;flex-wrap:wrap}
+.avtabs button{border:1px solid #4e3421;background:#22160d;color:#e7cfa6;border-radius:999px;padding:5px 14px;font-size:12.5px;font-weight:700;cursor:pointer}
+.avtabs button.on{background:#7a4a1c;color:#fff0d8;border-color:#c98a3f}
+.avgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:8px;padding:2px 20px 20px;overflow-y:auto;overscroll-behavior:contain;max-height:56vh}
+.avgrid button{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;padding:5px 2px;border:1px solid #3e2a1a;border-radius:10px;background:#1d130b;color:#e7cfa6;cursor:pointer}
+.avgrid button:hover{border-color:#c98a3f}
+.avgrid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:7px;background:#0d0804}
+.avgrid span{max-width:100%;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.avgrid .none{grid-column:1/-1;color:#a98d68;font-size:13px;text-align:center;padding:24px 0}
 .mini.wide:hover{color:#ffe0c0}
 .shop-grid{display:grid;gap:10px;padding-top:4px}
 .up-card{
@@ -515,7 +525,7 @@ input[type=range]::-webkit-slider-thumb{
   .guide-item{width:64px}
 }
 </style>
-<meta name="build" content="f2c198206e">
+<meta name="build" content="3e505651d5">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -631,7 +641,7 @@ html{-webkit-tap-highlight-color:transparent}
         <span class="v"><svg viewBox="0 0 24 24" width="17" height="17" fill="none"><path d="M12 2.2 20 7v10l-8 4.8L4 17V7z" fill="#cfd8e3" stroke="#5d6a7a" stroke-width="1.2" stroke-linejoin="round"/><path d="M12 7.4 16 12l-4 4.6L8 12z" fill="#5d6a7a" opacity=".55"/></svg><span id="shopBal">0</span></span>
       </div>
       <div class="shop-grid" id="shopGrid"></div>
-      <p class="note">银芯是站内所有小游戏共用的一个钱包，升级永久保留。<br>敲中校猫赚银芯，敲错干扰立牌会被扣。</p>
+      <p class="note">银芯是站内所有小游戏共用的一个钱包，升级永久保留。<br>按本局得分结算银芯，敲错干扰立牌会少拿分。</p>
     </div>
   </div>
 </div>
@@ -664,6 +674,15 @@ html{-webkit-tap-highlight-color:transparent}
   </div>
 </div>
 
+<!-- ============ 从仓库选头像 ============ -->
+<div class="overlay avpick" id="ovAvatar">
+  <div class="sheet wide">
+    <div class="sheet-head"><h2>从仓库选头像</h2><button class="close" id="avClose">×</button></div>
+    <div class="avtabs" id="avTabs"></div>
+    <div class="avgrid" id="avGrid"></div>
+  </div>
+</div>
+
 <!-- ============ 玩法 ============ -->
 <div class="overlay" id="ovHelp">
   <div class="sheet">
@@ -671,16 +690,16 @@ html{-webkit-tap-highlight-color:transparent}
     <div class="sheet-body">
       <p class="note" style="padding-top:0">
         <b>1 / 目标</b>　洞里会弹出各种木头立牌，只敲 <b>校猫</b>。<br>
-        <b>2 / 干扰</b>　米酒、白云等其它立牌是干扰项，敲到要扣分、断连击、扣银芯。<br>
+        <b>2 / 干扰</b>　米酒、白云等其它立牌是干扰项，敲到要扣分、断连击。<br>
         <b>3 / 连击</b>　连续敲中会累积倍率，每 4 连击 +0.5 倍（最高 ×4）。漏掉校猫会断连击。<br>
-        <b>4 / 银芯</b>　敲中即赚银芯（受「银芯袋」加成），可以在商店买永久升级。<br>
+        <b>4 / 银芯</b>　一局结束按得分发银芯（和合成大杜勒同一张阶梯表，受难度与「银芯袋」加成），可以在商店买永久升级。<br>
         <b>5 / 难度</b>　难度越高，弹出越快、停留越短、干扰越多，得分也越高；<br>
         　　「困难」起校猫会成对弹出（校猫 + 干扰同时在场上），漏掉校猫也会扣分。<br>
         <b>6 / 棋盘</b>　3×3（九洞）/ 4×4（十六洞）/ 5×5（廿五洞）。格子越多视线越散，<br>
-        　　同屏立牌更多，得分与银芯也按 1 / 1.15 / 1.35 倍补偿。<br>
+        　　同屏立牌更多，得分按 1 / 1.15 / 1.35 倍补偿（银芯按得分阶梯发）。<br>
         <b>7 / 无尽</b>　不限时，三条命。敲错或漏掉校猫各扣一条命；每 15 秒升一波，<br>
-        　　弹得越来越快、同屏越来越多，波次越高单次得分与银芯也越高。<br>
-        <b>8 / 自定义</b>　设置里可以改名、换头像/立绘，还能添加自己的干扰立牌。
+        　　弹得越来越快、同屏越来越多，波次越高单次得分也越高。<br>
+        <b>8 / 自定义</b>　设置里可以改名、上传头像/立绘或从仓库里选（唤醒体 / 怪物 / 主播），还能添加自己的干扰立牌。
       </p>
       <p class="note">
         操作：鼠标点击 / 手指点按立牌。<span class="kbd">Esc</span> 关闭弹窗，<span class="kbd">Space</span> 开始或再来一局。<br>
@@ -741,6 +760,22 @@ const MODES = {
 };
 const ENDLESS_LIVES = 3;
 const WAVE_SEC = 15;            // 无尽模式每 15 秒升一波
+
+/* ---------------- 银芯结算 ----------------
+   和合成大杜勒 / 2048 同一套口径：按「本局得分」取阶梯，一局只发一次（结算时入账），
+   不再每敲一下就赚。阶梯与合成大杜勒共用同一张表，难度只给一点倍率（得分本身已随难度放大，
+   所以倍率比合成的温和）；「银芯袋」升级照旧加成。敲错 / 漏猫只会少拿分，不再单独扣银芯。 */
+const CREDIT_TIERS = [
+  [150, 2], [350, 4], [700, 7], [1200, 11], [1800, 15],
+  [2600, 20], [3600, 26], [5000, 33], [7000, 42], [12000, 55]
+];
+const DIFF_PAY = { easy: .7, normal: 1, hard: 1.3, frenzy: 1.6 };
+function silverFor(score) {
+  let base = 0;
+  for (const [sc, c] of CREDIT_TIERS) if (score >= sc) base = c;
+  if (!base) return 0;
+  return Math.max(1, Math.round(base * (DIFF_PAY[store.diff] || 1) * (1 + .15 * store.up.luck)));
+}
 
 /* ---------------- 升级 ---------------- */
 const UPGRADES = [
@@ -1210,7 +1245,6 @@ function despawn(entry, escaped) {
     const L = levelNow();
     if (L.miss > 0) {
       Game.score = Math.max(0, Game.score - L.miss);
-      Game.silverEarned = Math.max(0, Game.silverEarned - 1);
       floatText(entry.hole, '漏 −' + L.miss, 'bad');
     }
     loseLife(1);
@@ -1289,6 +1323,7 @@ function renderHUD() {
   $('#comboNum').textContent = Game.combo;
   $('#comboTag').querySelector('em').textContent = '×' + comboMult(Game.combo).toFixed(1);
   $('#comboTag').classList.toggle('hot', Game.combo >= 5);
+  Game.silverEarned = silverFor(Game.score);
   $('#silverVal').textContent = walletGet() + Game.silverEarned;
 }
 
@@ -1376,6 +1411,7 @@ function endGame() {
   const titles = { S: '猫见猫怕', A: '手很稳', B: '还行，下次更好', C: '被猫反杀了' };
 
   /* 银芯进站内共用钱包（zjtt:credits），和侦探/合成/鸟弟同一个余额 */
+  Game.silverEarned = silverFor(Game.score);
   walletAdd(Game.silverEarned);
   const bucket = endless ? store.bestEnd : store.best;
   const prev = bucket[store.diff] || 0;
@@ -1418,8 +1454,6 @@ board.addEventListener('pointerdown', e => {
     if (Game.combo > Game.maxCombo) Game.maxCombo = Game.combo;
     const pts = Math.round(L.points * comboMult(Game.combo));
     Game.score += pts;
-    const gained = Math.max(1, Math.round(pts * .5 * (1 + .15 * store.up.luck)));
-    Game.silverEarned += gained;
     floatText(entry.hole, '+' + pts, 'good');
     burst(entry.hole, '#ffcf7a', 8);
     Snd.hit(Game.combo);
@@ -1431,7 +1465,6 @@ board.addEventListener('pointerdown', e => {
     Game.wrongs++;
     Game.combo = 0;
     Game.score = Math.max(0, Game.score - L.penalty);
-    Game.silverEarned = Math.max(0, Game.silverEarned - 2);
     floatText(entry.hole, '−' + L.penalty, 'bad');
     burst(entry.hole, '#ff6f57', 6);
     Snd.wrong();
@@ -1608,6 +1641,7 @@ function catRowHTML(cat, deletable) {
     + '<input class="inp" data-f="name" maxlength="4" value="' + esc(cat.name) + '" placeholder="名字">'
     + '<div class="cat-line">'
     + '<button class="mini wide" data-pick="' + cat.id + '">' + (custom ? '换头像' : '上传头像/立绘') + '</button>'
+    + '<button class="mini wide" data-repo="' + cat.id + '" title="从仓库里选唤醒体 / 怪物 / 主播的头像">仓库选图</button>'
     + (custom ? '<button class="mini wide" data-clear="' + cat.id + '" title="清空头像">清空</button>' : '')
     + (deletable ? '<button class="mini" data-del="' + cat.id + '" title="删除">×</button>' : '')
     + '</div></div></div>';
@@ -1663,6 +1697,38 @@ filePicker.addEventListener('change', () => {
   filePicker.value = '';
 });
 
+/* 从仓库选头像：目录由 scripts/build_dadimao_avatars.py 生成（data/dadimao-avatars.json），点开才加载 */
+let avCatalog = null, avTab = 0, avCatId = '';
+function avRender() {
+  const gs = (avCatalog && avCatalog.groups) || [];
+  $('#avTabs').innerHTML = gs.map((g, i) => '<button class="' + (i === avTab ? 'on' : '') + '" data-tab="' + i + '">' + esc(g.n) + ' ' + g.items.length + '</button>').join('');
+  const g = gs[avTab];
+  $('#avGrid').innerHTML = !avCatalog ? '<div class="none">加载中…</div>'
+    : (g && g.items.length ? g.items.map((it, i) => '<button data-i="' + i + '" title="' + esc(it.n) + '"><img loading="lazy" src="' + esc(it.s) + '" alt=""><span>' + esc(it.n) + '</span></button>').join('')
+      : '<div class="none">这一类还没有可选的头像</div>');
+}
+function avOpen(catId) {
+  avCatId = catId; avTab = 0;
+  $('#ovAvatar').classList.add('show');
+  avRender();
+  if (avCatalog) return;
+  fetch('data/dadimao-avatars.json').then(r => r.json()).then(j => { avCatalog = j; avRender(); })
+    .catch(() => { $('#avGrid').innerHTML = '<div class="none">读不到头像目录，联网后再试</div>'; });
+}
+function avClose() { $('#ovAvatar').classList.remove('show'); }
+$('#avClose').addEventListener('click', () => { Snd.ui(); avClose(); });
+$('#ovAvatar').addEventListener('click', e => { if (e.target.id === 'ovAvatar') avClose(); });
+$('#avTabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { avTab = +b.dataset.tab; avRender(); Snd.ui(); } });
+$('#avGrid').addEventListener('click', e => {
+  const b = e.target.closest('[data-i]'); if (!b || !avCatalog) return;
+  const it = avCatalog.groups[avTab].items[+b.dataset.i];
+  const cat = findCat(avCatId);
+  if (!cat || !it) return;
+  cat.img = it.s;
+  if (!(cat.name || '').trim()) cat.name = it.n.slice(0, 4);
+  save(); avClose(); renderSettings(); renderGuide(); Snd.coin();
+});
+
 function bindCatEditor(container) {
   container.addEventListener('input', e => {
     const row = e.target.closest('.cat-row');
@@ -1678,6 +1744,8 @@ function bindCatEditor(container) {
     save();
   });
   container.addEventListener('click', e => {
+    const repoBtn = e.target.closest('[data-repo]');
+    if (repoBtn) { Snd.ui(); avOpen(repoBtn.dataset.repo); return; }
     const pickBtn = e.target.closest('[data-pick]');
     if (pickBtn) {
       pickCatId = pickBtn.dataset.pick;

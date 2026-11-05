@@ -1695,6 +1695,16 @@ function bazaar() {
 }
 
 // 寻找伪人：Morimens —— 读本机最高分摘要（zjtt:fake:best，由 js/fake/engine.js 的 saveBest 写）
+// 打地猫 —— 读 zjtt:dadimao:best（全难度最高分）与 zjtt:dadimao:diff（页面写入）
+function dadimao() {
+  const best = Number(RAW('zjtt:dadimao:best')) || 0;
+  if (!best) return { items: [], extra: '' };
+  const dn = { easy: '简单', normal: '普通', hard: '困难', frenzy: '癫狂' };
+  let diff = '';
+  try { diff = dn[JSON.parse(RAW('zjtt:dadimao:diff') || 'null')] || ''; } catch { diff = ''; }
+  return { items: [{ k: '最高分', v: String(best) }, { k: '常玩难度', v: diff || '—' }], extra: '一局按得分阶梯结算银芯' };
+}
+
 function fake() {
   const b = null;
   let best = null;
@@ -1749,6 +1759,7 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'bugfight', n: '电子斗蛐蛐', href: 'bugfight.html', icon: '🦗', read: bugfight, tip: '押注两队怪物，活着出笼' },
   { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，73 位出战者，能上段' },
   { k: 'bazaar', n: '大巴扎：银钥', href: 'bazaar.html', icon: '🏪', read: bazaar, tip: '十格布阵，唤醒体产算力、命轮吃算力开火' },
+  { k: 'dadimao', n: '打地猫', href: 'dadimao.html', icon: '🐱', read: dadimao, tip: '只敲校猫立牌，别碰干扰项' },
   { k: 'fake', n: '寻找伪人：Morimens', href: 'fake.html', icon: '🚪', read: fake, tip: '昼夜轮转，放错的人会在夜里杀人' },
 ];
 

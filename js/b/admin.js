@@ -1781,6 +1781,16 @@ function bazaar() {
 }
 
 // 寻找伪人：Morimens —— 读本机最高分摘要（zjtt:fake:best，由 js/fake/engine.js 的 saveBest 写）
+// 打地猫 —— 读 zjtt:dadimao:best（全难度最高分）与 zjtt:dadimao:diff（页面写入）
+function dadimao() {
+  const best = Number(RAW('zjtt:dadimao:best')) || 0;
+  if (!best) return { items: [], extra: '' };
+  const dn = { easy: '简单', normal: '普通', hard: '困难', frenzy: '癫狂' };
+  let diff = '';
+  try { diff = dn[JSON.parse(RAW('zjtt:dadimao:diff') || 'null')] || ''; } catch { diff = ''; }
+  return { items: [{ k: '最高分', v: String(best) }, { k: '常玩难度', v: diff || '—' }], extra: '一局按得分阶梯结算银芯' };
+}
+
 function fake() {
   const b = null;
   let best = null;
@@ -1835,6 +1845,7 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'bugfight', n: '电子斗蛐蛐', href: 'bugfight.html', icon: '🦗', read: bugfight, tip: '押注两队怪物，活着出笼' },
   { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，73 位出战者，能上段' },
   { k: 'bazaar', n: '大巴扎：银钥', href: 'bazaar.html', icon: '🏪', read: bazaar, tip: '十格布阵，唤醒体产算力、命轮吃算力开火' },
+  { k: 'dadimao', n: '打地猫', href: 'dadimao.html', icon: '🐱', read: dadimao, tip: '只敲校猫立牌，别碰干扰项' },
   { k: 'fake', n: '寻找伪人：Morimens', href: 'fake.html', icon: '🚪', read: fake, tip: '昼夜轮转，放错的人会在夜里杀人' },
 ];
 
@@ -2304,7 +2315,7 @@ async function openIdleSave(u) {
 // ------------------------------------------------------------------ BUG 反馈详情
 // 首页「报 bug」写进去的反馈：以前后台只数条数，正文没有任何读取入口。这里按时间倒序列出（最多 100 条），
 // 每条带游戏、版本、联系方式、设备 UA 和全文，方便按反馈去发奖励（在上面的发放面板里发回溯券 / 银芯）。
-const BUG_GAME_ZH = { home: '首页', detective: '战报侦探', merge: '合成大杜勒', bird: '是鸟弟就下100层', binding: '校猫的结合', idle: '挂机前夜', survivors: '唤醒体幸存者', protocol: '忘却协议', wolf: '弥萨格狼人杀', deathreport: '弥萨格大逃杀', g2048: '忘却 2048', duel: '唤醒王：决斗链接', reign: '弥萨格王权', lovelive: 'lovelive！mori⭐mens！', keeper: '杀死守密人', roulette: '弥萨格轮盘', bugfight: '电子斗蛐蛐', bazaar: '大巴扎：银钥', fake: '寻找伪人', block: '蚀界方块' };
+const BUG_GAME_ZH = { home: '首页', detective: '战报侦探', merge: '合成大杜勒', bird: '是鸟弟就下100层', binding: '校猫的结合', idle: '挂机前夜', survivors: '唤醒体幸存者', protocol: '忘却协议', wolf: '弥萨格狼人杀', deathreport: '弥萨格大逃杀', g2048: '忘却 2048', duel: '唤醒王：决斗链接', reign: '弥萨格王权', lovelive: 'lovelive！mori⭐mens！', keeper: '杀死守密人', roulette: '弥萨格轮盘', bugfight: '电子斗蛐蛐', bazaar: '大巴扎：银钥', fake: '寻找伪人', block: '蚀界方块', dadimao: '打地猫' };
 const bugWhen = (t) => { const d = new Date(Number(t) || 0); const p = (n) => String(n).padStart(2, '0'); return t ? `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}` : ''; };
 function bugCard() {
   const list = h('div', { class: 'buglist' }, h('p', { class: 'sub' }, '点「读取 / 刷新」加载最近的 BUG 反馈。'));
