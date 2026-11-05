@@ -3,11 +3,12 @@
 // 固定步长（1/60 秒）推进战斗，渲染跟着屏幕刷新率走：高刷屏上不会打得更快，
 // 掉帧时也不会一帧跨过好几只怪。每帧最多补 5 步，切标签页回来不会一次补上千步。
 
-import { G, update, beginWave, place, sell, reset, summary, UNITS_BY_ID, buy, buyItem, equip, levelUp, rollShop, deployed, freeCell, TUNE } from './pf/engine.js';
+import { G, update, beginWave, place, sell, reset, summary, UNITS_BY_ID, buy, buyItem, equip, levelUp, rollShop, deployed, freeCell, buyBenchSlot, TUNE } from './pf/engine.js';
 import { init, draw, setBand, toLogic, hover, layout, screenPos } from './pf/render.js';
 import { build, startRun, sync, updateHUD, showEnd, bandRect, select, tapUnit, ui, inspectCell, hideInspection, relayoutInspection } from './pf/ui.js';
-import { cellAt, colOf, DEPLOY_COLS, MAX_LEVEL, LEVEL_COST, INV_SIZE } from './pf/defs.js';
+import { cellAt, colOf, DEPLOY_COLS, MAX_LEVEL, LEVEL_COST, INV_SIZE, BENCH_MAX, benchCost } from './pf/defs.js';
 import { sfx } from './pf/audio.js';
+import { botThink } from './pf/bot.js';
 import { startGameCloud } from './gamecloud.js';
 
 const FIXED = 1 / 60;
@@ -149,50 +150,10 @@ async function boot() {
 // 固定步长推进，备战期自动买/升级/开战，几秒钟就能跑完十二波，调平衡不用守着屏幕。
 if (/[?&]_test=1/.test(location.search)) {
   window.__pf = {
-    G, TUNE, summary, update, beginWave, place, sell, reset, startRun, ui, sync, screenPos, toLogic, sfx,
+    G, TUNE, summary, update, beginWave, place, sell, buy, reset, startRun, ui, sync, screenPos, toLogic, sfx,
     start: (diff, seed, mode) => { if (diff) ui.diff = diff; if (mode) ui.mode = mode; startRun(seed); },
-    // 一步决策：先把备战席摆上场，再买人（能合成的优先），人口满了就升级
-    think() {
-      if (G.phase !== 'prep') return;
-      const fill = () => {
-        for (const u of G.units.slice()) {
-          if (deployed() >= G.level) break;
-          if (u.cell >= 0) continue;
-          const c = freeCell(u.def.role);
-          if (c >= 0) place(u.uid, c);
-        }
-      };
-      fill();
-      for (let i = 0; i < G.shop.length; i++) {
-        const s = G.shop[i];
-        if (!s) continue;
-        const d = UNITS_BY_ID[s.id];
-        if (G.gold < d.cost) continue;
-        const owned = G.units.filter((u) => u.id === s.id).length;
-        if (owned > 0 || G.gold >= d.cost + 7 || G.units.length < 4) buy(i);
-      }
-      fill();
-      // 装备：有钱就先补齐装备栏再装上（跟人一样，优先给场上缺槽位的）
-      if (G.gold >= 14) {
-        for (let i = 0; i < G.itemShop.length; i++) {
-          const it = G.itemShop[i];
-          if (!it) continue;
-          if (G.inv.length >= INV_SIZE) break;
-          if (buyItem(i)) continue;
-        }
-      }
-      for (let k = G.inv.length - 1; k >= 0; k--) {
-        const it = G.inv[k];
-        const slot = it.kind === 'wheel' ? 'wheel' : 'creation';
-        const host = G.units.filter((u) => u.cell >= 0 && !u[slot])
-          .sort((a, b) => b.def.cost - a.def.cost)[0];
-        if (host) equip(host.uid, k);
-      }
-      if (deployed() >= G.level && G.level < MAX_LEVEL && G.gold >= LEVEL_COST) levelUp();
-      else if (G.gold >= 18 && G.level < MAX_LEVEL) levelUp();
-      else if (G.gold >= 12 && G.shop.every((s) => !s || G.gold < UNITS_BY_ID[s.id].cost)) rollShop(false);
-      beginWave();
-    },
+    // 一步决策：策略在 js/pf/bot.js，页面与 scripts/pf-endless-sim.mjs 共用同一份
+    think: botThink,
     // 推进到第 n 波（机器人代打），给截图/回归用
     runToWave(n) {
       let guard = 0;

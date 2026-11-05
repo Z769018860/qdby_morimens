@@ -10,8 +10,8 @@
 import { UNITS, ART } from './gen.js';
 import {
   COLS, ROWS, CELLS, HEX_W, BOARD_W, SPAWN_X, CORE_X, DEPLOY_COLS,
-  cellXY, colOf, rowOf, cellOf, NEIGHBORS, STARS, MAX_STAR, MAX_LEVEL, LEVEL_COST, REROLL_COST,
-  WAVE_GOLD, interestOf, BENCH_SIZE, START_GOLD, START_LEVEL, shopOdds,
+  cellXY, colOf, rowOf, cellOf, NEIGHBORS, starMul, starName, MAX_LEVEL, LEVEL_COST, REROLL_COST,
+  WAVE_GOLD, waveGold, interestOf, BENCH_SIZE, BENCH_MAX, benchCost, START_GOLD, START_LEVEL, shopOdds,
   TRAITS, TRAIT_BY_KEY, FAC_EFF, GMK_EFF, ENEMY, WAVES, waveCfg, waveHpMul, waveAtkMul, HEAL_PER_WAVE, creditsAt,
   TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, ITEM_SLOTS, ITEM_REROLL, INV_SIZE,
   MERGE_REWARD, LEVEL_REWARD,
@@ -45,7 +45,7 @@ export const G = {
   level: START_LEVEL,
   units: [],              // 全部单位（场上 + 备战席）
   board: new Map(),       // cell → unit
-  bench: [],              // BENCH_SIZE 长，元素是 unit 或 null
+  bench: [],              // G.benchSize 长，元素是 unit 或 null（可以花金币往后加）
   shop: [],               // 5 个 { id } 或 null
   bonusShops: [],          // 合成奖励货架，与原商店独立
   itemShop: [],           // ITEM_SLOTS 个 { kind, id } 或 null
@@ -59,6 +59,7 @@ export const G = {
   spawnQ: [],
   bonus: null,            // 当前羁绊加成（开场算一次）
   traitCount: {},         // key → 上场人数
+  benchSize: BENCH_SIZE,  // 备战席格数：开局 8，花金币最多扩到 BENCH_MAX
   stats: { kills: 0, leaks: 0, dmg: 0, best: 0, merged: 0, items: 0, fallback: 0 },
   msg: '',                // 顶部滚动提示（最近发生的事）
   sel: null,              // 选中的单位 uid（ui 用）
@@ -83,7 +84,8 @@ export function reset(s) {
   G.level = START_LEVEL;
   G.units = [];
   G.board = new Map();
-  G.bench = new Array(BENCH_SIZE).fill(null);
+  G.benchSize = BENCH_SIZE;
+  G.bench = new Array(G.benchSize).fill(null);
   G.enemies = [];
   G.fx = []; G.floats = []; G.shots = [];
   G.t = 0; G.waveT = 0; G.shake = 0;
@@ -153,7 +155,7 @@ function makeUnit(id) {
 
 function baseStats(u) {
   const d = u.def;
-  const s = STARS[u.star];
+  const s = starMul(u.star);
   return {
     hp: d.hp * s, atk: d.atk * s, aspd: d.aspd,
     armor: d.armor * (1 + (u.star - 1) * 0.35),
@@ -282,7 +284,14 @@ function rollOne() {
   const pool = UNITS.filter((u) => u.cost === cost);
   if (!pool.length) return pick(ALL_IDS);
   const own = {};
-  for (const u of G.units) own[u.id] = (own[u.id] || 0) + 1;
+  for (const u of G.units) {
+    // 3★ 以上的角色额外加权：合成会把九张牌吃掉，光按「现在手上几只」算，
+    // 滚到 3★ 之后加权反而掉回最低，越往上越凑不齐 —— 这里按星把吃掉的那批补回去。
+    // 3★ 记 6、4★ 记 12、5★ 记 18（1★/2★ 仍是 1，标准模式的十二波基本不受影响）。
+    // 只给无尽关开：标准模式里 3★ 很常见，开了会把商店全变成同一个人，
+    // 十二波的阵容反而更差（实测通关率 75% → 54%）。
+    own[u.id] = (own[u.id] || 0) + (G.endless && u.star >= 3 ? (u.star - 2) * 6 : 1);
+  }
   const ws = pool.map((u) => 1 + 3.2 * (own[u.id] || 0));
   let total = 0;
   for (const w of ws) total += w;
@@ -310,7 +319,7 @@ export function buy(i, bonus = false) {
   if (!slot || G.phase === 'fight' || G.phase === 'over' || G.phase === 'win') return false;
   const def = UNITS_BY_ID[slot.id];
   if (G.gold < def.cost) { G.msg = '金币不够'; sfx.play('deny'); return false; }
-  if (G.units.length >= BENCH_SIZE + CELLS) { G.msg = '没有空位了'; return false; }
+  if (G.units.length >= G.benchSize + CELLS) { G.msg = '没有空位了'; return false; }
   G.gold -= def.cost;
   shelf[i] = null;
   const u = makeUnit(slot.id);
@@ -366,11 +375,10 @@ function removeUnit(u) {
   u.cell = -1;
 }
 
-// 三合一：同 id 同星三只 → 合一只 +1 星，可以连锁（3★ 封顶）。
+// 三合一：同 id 同星三只 → 合一只 +1 星，可以连锁（星级没有上限）。
 // 升星顺带给奖励：2 星送一件命轮，3 星送一件造物并白刷一次商店 ——
 // 池子大了之后三合一变慢，这一条是让「攒同名」仍然值得的主要动力。
 function mergeAll(id, star) {
-  if (star >= MAX_STAR) return;
   const same = G.units.filter((u) => u.id === id && u.star === star);
   if (same.length < 3) return;
   // 优先保住场上那只，省得玩家摆好的位置飞了
@@ -382,7 +390,7 @@ function mergeAll(id, star) {
   const p = keep.cell >= 0 ? cellXY(keep.cell) : { x: BOARD_W / 2, y: 120 };
   // 升星是整局最值得看见的一刻：光柱 + 冲击波 + 一圈金火花，星级越高越夸张。
   // 早先这里只有一圈小光环，玩家基本注意不到，也就以为「合成了却什么都没给」。
-  const big = keep.star >= MAX_STAR;
+  const big = keep.star >= 3;
   addFx({ k: 'ring', x: p.x, y: p.y, d: 0.6, r: 40, col: '#e3b341' });
   addFx({
     k: 'blast', x: p.x, y: p.y - 18, d: big ? 0.9 : 0.7,
@@ -393,12 +401,13 @@ function mergeAll(id, star) {
   G.stats.merged++;
   sfx.play(big ? 'merge3' : 'merge2');
 
-  const rw = MERGE_REWARD[keep.star] || { gold: 0 };
+  // 4★ 起每升一星都是「27 张同名起」的量，奖励要跟得上，否则叠了半天只有属性变化
+  const rw = MERGE_REWARD[keep.star] || { gold: 3, wheel: 1, creation: 1 };
   let extra = '';
   if (rw.gold) { G.gold += rw.gold; extra += ` · +${rw.gold} 金`; }
   if (rw.wheel) extra += ' · ' + grantItem('wheel');
   if (rw.creation) extra += ' · ' + grantItem('creation');
-  if (keep.star >= MAX_STAR) {
+  if (keep.star >= 3) {
     G.bonusShops.push(Array.from({ length: 5 }, () => ({ id: rollOne() })));
     extra += ' · 获得一个额外商店（原商店保留）';
   }
@@ -409,7 +418,8 @@ function mergeAll(id, star) {
     n: keep.def.n, star: keep.star, seq: G.mergeSeq, extra: extra.replace(/^ · /, ''),
     gold: rw.gold || 0, t: 0,
   };
-  if (keep.star < MAX_STAR) mergeAll(id, keep.star);
+  // 星级没有上限：这一只升上去之后，如果同 id 又凑够三只，继续往上合
+  mergeAll(id, keep.star);
 }
 
 // 往装备栏里塞一件装备；满了就折成金币（不让人白高兴一场）
@@ -512,7 +522,8 @@ export function unequip(uid, kind) {
 export function sell(uid) {
   const u = G.units.find((x) => x.uid === uid);
   if (!u || G.phase === 'fight') return;
-  const refund = u.def.cost * [0, 1, 3, 9][u.star];
+  // 返还「合成进去的全部成本」：n 星 = 3^(n-1) 张 1 星，高星别让人一卖回到解放前
+  const refund = u.def.cost * Math.pow(3, u.star - 1);
   G.gold += refund;
   // 身上的装备退回装备栏（栏满就只能跟着人一起走了）
   for (const slot of ['wheel', 'creation']) {
@@ -577,7 +588,7 @@ export function place(uid, cell) {
 export function placeBench(uid, idx) {
   const u = G.units.find((x) => x.uid === uid);
   if (!u || G.phase === 'fight') return false;
-  if (idx == null || idx < 0 || idx >= BENCH_SIZE) return false;
+  if (idx == null || idx < 0 || idx >= G.benchSize) return false;
   const other = G.bench[idx];
   if (other === u) return false;
   const fromCell = u.cell;
@@ -603,6 +614,23 @@ export function placeBench(uid, idx) {
   u.cell = -1; u.bench = idx; G.bench[idx] = u;
   recount();
   sfx.play('swap');
+  return true;
+}
+
+// 花金币扩一格备战席。无尽关后期金币没处花，扩格子是为了「攒同名冲 4★ 以上」
+// 有地方堆材料 —— 8 格放三张一组，两组就把席位挤满了。
+export function buyBenchSlot() {
+  if (G.phase === 'fight' || G.phase === 'over' || G.phase === 'win') return false;
+  if (G.benchSize >= BENCH_MAX) { G.msg = `备战席已经扩到 ${BENCH_MAX} 格（上限）`; sfx.play('deny'); return false; }
+  const cost = benchCost(G.benchSize);
+  if (G.gold < cost) { G.msg = `扩一格要 ${cost} 金`; sfx.play('deny'); return false; }
+  G.gold -= cost;
+  G.benchSize++;
+  G.bench.push(null);
+  G.msg = G.benchSize >= BENCH_MAX
+    ? `备战席扩到 ${G.benchSize} 格（已满）`
+    : `备战席扩到 ${G.benchSize} 格 · 下一格 ${benchCost(G.benchSize)} 金`;
+  sfx.play('buy');
   return true;
 }
 
@@ -1232,7 +1260,7 @@ function tickFx(dt) {
 }
 
 function clearWave() {
-  G.gold += WAVE_GOLD + interestOf(G.gold);
+  G.gold += waveGold(G.wave) + interestOf(G.gold);
   for (const u of G.units) {
     u.hp = Math.min(u.hpMax, u.hp + u.hpMax * HEAL_PER_WAVE);
     // 收招：下一波之前所有人回到待机，别顶着打击帧站一整段备战期

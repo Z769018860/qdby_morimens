@@ -88,8 +88,13 @@ const NEIGHBORS = (() => {
 })();
 
 // ---------------------------------------------------------------- 星阶
-const STARS = [0, 1, 1.9, 3.4];      // 1★ / 2★ / 3★ 的属性倍率
-const STAR_NAME = ['', '★', '★★', '★★★'];
+// 1★ / 2★ / 3★ 沿用原来的倍率；3★ 以上**不封顶**：三张同星合成一只，
+// 成本 ×3、属性 ×1.8，越往上越贵 —— 只有无尽关那种「金币花不完」的局面才叠得起。
+const STARS = [0, 1, 1.9, 3.4];
+const STAR_STEP = 1.8;
+const starMul = (star) => (star <= 3 ? STARS[star] : STARS[3] * Math.pow(STAR_STEP, star - 3));
+// 4★ 起不再堆星号：「★★★★★★」在棋盘那行 11px 字里会糊成一团，改成「★4」
+const starName = (star) => (star <= 3 ? '★'.repeat(Math.max(0, star)) : `★${star}`);
 
 // ---------------------------------------------------------------- 经济
 const START_GOLD = 12;
@@ -100,11 +105,16 @@ const LEVEL_COST = 5;                // 升一级固定 5 金
 // 降到 1 金之后一局平均能多刷十几次，凑同名才跟得上池子的稀释。
 const REROLL_COST = 1;
 const WAVE_GOLD = 4;                 // 每波清完的基础收入
+// 无尽关的赏金线性跟着波数涨（第 13 波 +1、第 20 波 +8、第 30 波 +18）。
+// 这条不是白给：后段的金币基本全砸在刷新凑同名上，没有它「星级无上限」就是纸面规则。
+// 标准十二波永远是 4 金，一点没动。
+const waveGold = (w) => WAVE_GOLD + (w > WAVES.length ? (w - WAVES.length) : 0);
 const INTEREST_CAP = 5;
 const INTEREST_STEP = 5;
 const interestOf = gold => Math.min(INTEREST_CAP, Math.floor(Math.max(0, gold) / INTEREST_STEP));
-const BENCH_SIZE = 8;
-const MAX_STAR = 3;
+const BENCH_SIZE = 8;                // 开局备战席格数，不够可以花金币扩
+const BENCH_MAX = 14;                // 花钱能扩到的上限
+const benchCost = (size) => 6 + 4 * Math.max(0, size - BENCH_SIZE);  // 第 9 格 6 金，之后每格 +4
 
 // 商店按人口出不同费用的概率（顺序：1 费 / 2 费 / 3 费 / 4 费）
 function shopOdds(level) {
@@ -364,14 +374,21 @@ const WAVES = [
 // 这一组数是用无头机器人扫出来的（TUNE hp/atk 各档各 3 局，目标 12 波里
 // 大部分能通、但后期真的会漏怪）。改这里等于改整局难度，改完必须重扫。
 const ENEMY_TUNE = { hp: 1.85, atk: 1.7 };
-const waveHpMul = (w) => ENEMY_TUNE.hp * (1 + 0.10 * (w - 1));
-const waveAtkMul = (w) => ENEMY_TUNE.atk * (1 + 0.17 * (w - 1));
+// 十二波之内是纯线性（改一个数字就等于改标准模式难度，改完必须重扫）。
+// 第 13 波起再乘一条指数：线性的 +10% / +17% 到三十波只涨三倍，而满编高星阵容
+// 能涨十几倍 —— 不给指数项，无尽关后段就成了「站着看怪排队送」。
+// 生命涨得比攻击快：攻击是「前排会不会被一秒打死」，涨太猛就没有操作空间了。
+function endlessHpMul(w) { return w <= WAVES.length ? 1 : Math.pow(1.08, w - WAVES.length); }
+function endlessAtkMul(w) { return w <= WAVES.length ? 1 : Math.pow(1.05, w - WAVES.length); }
+const waveHpMul = (w) => ENEMY_TUNE.hp * (1 + 0.10 * (w - 1)) * endlessHpMul(w);
+const waveAtkMul = (w) => ENEMY_TUNE.atk * (1 + 0.17 * (w - 1)) * endlessAtkMul(w);
 
 // ---------------------------------------------------------------- 无尽关
-// 第 13 波起进入「回响」：每 12 波一轮，沿用同一套构成，非首领每一种多来一只
-// （第 1 轮回响 +1，最多 +6），强度交给上面两条曲线线性外推。
+// 第 13 波起进入「回响」：每 12 波一轮，沿用同一套构成，非首领的每一种越加越多，
+// 出场间隔同时收紧（加人不收紧间隔，只是把同一波拖长，压力并不会变大）。
+// 强度交给上面两条曲线：线性 + 每波复利，见 endlessHpMul / endlessAtkMul。
 // 无尽关没有终点——结束条件是核心归零，能爬多高看阵容上限而不是波次表。
-// 这里只改「来多少人」，不改 ENEMY_TUNE，所以标准模式的十二波一个数字都没动。
+// 这里只改「来多少、来多密」，不改 ENEMY_TUNE，所以标准模式的十二波一个数字都没动。
 const ENDLESS_FROM = WAVES.length + 1;
 const WAVE_HEAD = /^第[^·]*·\s*/;
 function waveCfg(w) {
@@ -379,8 +396,15 @@ function waveCfg(w) {
   if (w <= WAVES.length) return WAVES[w - 1];
   const base = WAVES[(w - 1) % WAVES.length];
   const round = Math.floor((w - 1) / WAVES.length);
-  const add = Math.min(round, 6);
-  const e = base.e.map(([key, count, gap]) => [(key), (ENEMY[key] || {}).cls === 'Boss' ? count : count + add, gap]);
+  // 第 1 轮回响 +2（还留一点喘息），第 2 轮起每轮 +3，封顶 +22 只。
+  // 原来第 1 轮只 +1，二十几波和标准十二波几乎一样密，玩家感觉不到「无尽」；
+  // 第一轮温和是有意的：13~24 波是玩家攒 4★ 的窗口，再往后才是真正的墙。
+  const add = Math.min(2 + (round - 1) * 3, 22);
+  const gapMul = Math.max(0.45, 1 - 0.05 * round);
+  const e = base.e.map(([key, count, gap]) => {
+    const boss = (ENEMY[key] || {}).cls === 'Boss';
+    return [key, boss ? count : count + add, boss ? gap : gap * gapMul];
+  });
   return { ...base, e, endless: round, n: `第 ${w} 波 · 回响${round}｜${String(base.n).replace(WAVE_HEAD, '')}` };
 }
 
@@ -469,7 +493,7 @@ function nextTier(score) {
 
 // 波次节奏：备战不限时；开战后一只怪都不剩就算清完。
 const HEAL_PER_WAVE = 0.4;      // 每波结束回 40% 最大生命
-return { COLS, ROWS, HEX_W, R, HEX_H, ROW_PITCH, BOARD_W, BOARD_H, CORE_X, SPAWN_X, DEPLOY_COLS, CELLS, cellOf, colOf, rowOf, cellXY, cellAt, NEIGHBORS, STARS, STAR_NAME, START_GOLD, START_LEVEL, MAX_LEVEL, LEVEL_COST, REROLL_COST, WAVE_GOLD, INTEREST_CAP, INTEREST_STEP, interestOf, BENCH_SIZE, MAX_STAR, shopOdds, TRAITS, TRAIT_BY_KEY, TRAIT_KINDS, FAC_EFF, GMK_EFF, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON, FAC_ICON, GMK_ICON, ENEMY, WAVES, ENEMY_TUNE, waveHpMul, waveAtkMul, ENDLESS_FROM, waveCfg, TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, WHEEL_BY_ID, CREATION_BY_ID, ITEM_SLOTS, ITEM_REROLL, INV_SIZE, MERGE_REWARD, LEVEL_REWARD, CREDIT_TIERS, creditsAt, nextTier, HEAL_PER_WAVE };
+return { COLS, ROWS, HEX_W, R, HEX_H, ROW_PITCH, BOARD_W, BOARD_H, CORE_X, SPAWN_X, DEPLOY_COLS, CELLS, cellOf, colOf, rowOf, cellXY, cellAt, NEIGHBORS, STARS, STAR_STEP, starMul, starName, START_GOLD, START_LEVEL, MAX_LEVEL, LEVEL_COST, REROLL_COST, WAVE_GOLD, waveGold, INTEREST_CAP, INTEREST_STEP, interestOf, BENCH_SIZE, BENCH_MAX, benchCost, shopOdds, TRAITS, TRAIT_BY_KEY, TRAIT_KINDS, FAC_EFF, GMK_EFF, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON, FAC_ICON, GMK_ICON, ENEMY, WAVES, ENEMY_TUNE, endlessHpMul, endlessAtkMul, waveHpMul, waveAtkMul, ENDLESS_FROM, waveCfg, TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, WHEEL_BY_ID, CREATION_BY_ID, ITEM_SLOTS, ITEM_REROLL, INV_SIZE, MERGE_REWARD, LEVEL_REWARD, CREDIT_TIERS, creditsAt, nextTier, HEAL_PER_WAVE };
 })();
 
 // ---- js/pf/audio.js
@@ -824,7 +848,7 @@ return { sfx };
 // ---- js/pf/engine.js
 const m_engine = await (async () => {
 const { UNITS, ART } = m_gen;
-const { COLS, ROWS, CELLS, HEX_W, BOARD_W, SPAWN_X, CORE_X, DEPLOY_COLS, cellXY, colOf, rowOf, cellOf, NEIGHBORS, STARS, MAX_STAR, MAX_LEVEL, LEVEL_COST, REROLL_COST, WAVE_GOLD, interestOf, BENCH_SIZE, START_GOLD, START_LEVEL, shopOdds, TRAITS, TRAIT_BY_KEY, FAC_EFF, GMK_EFF, ENEMY, WAVES, waveCfg, waveHpMul, waveAtkMul, HEAL_PER_WAVE, creditsAt, TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, ITEM_SLOTS, ITEM_REROLL, INV_SIZE, MERGE_REWARD, LEVEL_REWARD } = m_defs;
+const { COLS, ROWS, CELLS, HEX_W, BOARD_W, SPAWN_X, CORE_X, DEPLOY_COLS, cellXY, colOf, rowOf, cellOf, NEIGHBORS, starMul, starName, MAX_LEVEL, LEVEL_COST, REROLL_COST, WAVE_GOLD, waveGold, interestOf, BENCH_SIZE, BENCH_MAX, benchCost, START_GOLD, START_LEVEL, shopOdds, TRAITS, TRAIT_BY_KEY, FAC_EFF, GMK_EFF, ENEMY, WAVES, waveCfg, waveHpMul, waveAtkMul, HEAL_PER_WAVE, creditsAt, TERRAIN, TERRAIN_PLAN, WHEELS, CREATIONS, ITEM_SLOTS, ITEM_REROLL, INV_SIZE, MERGE_REWARD, LEVEL_REWARD } = m_defs;
 const { sfx } = m_audio;
 // 《忘却协议》规则引擎：商店、布阵、波次战斗、经济结算。
 //
@@ -866,7 +890,7 @@ const G = {
   level: START_LEVEL,
   units: [],              // 全部单位（场上 + 备战席）
   board: new Map(),       // cell → unit
-  bench: [],              // BENCH_SIZE 长，元素是 unit 或 null
+  bench: [],              // G.benchSize 长，元素是 unit 或 null（可以花金币往后加）
   shop: [],               // 5 个 { id } 或 null
   bonusShops: [],          // 合成奖励货架，与原商店独立
   itemShop: [],           // ITEM_SLOTS 个 { kind, id } 或 null
@@ -880,6 +904,7 @@ const G = {
   spawnQ: [],
   bonus: null,            // 当前羁绊加成（开场算一次）
   traitCount: {},         // key → 上场人数
+  benchSize: BENCH_SIZE,  // 备战席格数：开局 8，花金币最多扩到 BENCH_MAX
   stats: { kills: 0, leaks: 0, dmg: 0, best: 0, merged: 0, items: 0, fallback: 0 },
   msg: '',                // 顶部滚动提示（最近发生的事）
   sel: null,              // 选中的单位 uid（ui 用）
@@ -904,7 +929,8 @@ function reset(s) {
   G.level = START_LEVEL;
   G.units = [];
   G.board = new Map();
-  G.bench = new Array(BENCH_SIZE).fill(null);
+  G.benchSize = BENCH_SIZE;
+  G.bench = new Array(G.benchSize).fill(null);
   G.enemies = [];
   G.fx = []; G.floats = []; G.shots = [];
   G.t = 0; G.waveT = 0; G.shake = 0;
@@ -974,7 +1000,7 @@ function makeUnit(id) {
 
 function baseStats(u) {
   const d = u.def;
-  const s = STARS[u.star];
+  const s = starMul(u.star);
   return {
     hp: d.hp * s, atk: d.atk * s, aspd: d.aspd,
     armor: d.armor * (1 + (u.star - 1) * 0.35),
@@ -1103,7 +1129,14 @@ function rollOne() {
   const pool = UNITS.filter((u) => u.cost === cost);
   if (!pool.length) return pick(ALL_IDS);
   const own = {};
-  for (const u of G.units) own[u.id] = (own[u.id] || 0) + 1;
+  for (const u of G.units) {
+    // 3★ 以上的角色额外加权：合成会把九张牌吃掉，光按「现在手上几只」算，
+    // 滚到 3★ 之后加权反而掉回最低，越往上越凑不齐 —— 这里按星把吃掉的那批补回去。
+    // 3★ 记 6、4★ 记 12、5★ 记 18（1★/2★ 仍是 1，标准模式的十二波基本不受影响）。
+    // 只给无尽关开：标准模式里 3★ 很常见，开了会把商店全变成同一个人，
+    // 十二波的阵容反而更差（实测通关率 75% → 54%）。
+    own[u.id] = (own[u.id] || 0) + (G.endless && u.star >= 3 ? (u.star - 2) * 6 : 1);
+  }
   const ws = pool.map((u) => 1 + 3.2 * (own[u.id] || 0));
   let total = 0;
   for (const w of ws) total += w;
@@ -1131,7 +1164,7 @@ function buy(i, bonus = false) {
   if (!slot || G.phase === 'fight' || G.phase === 'over' || G.phase === 'win') return false;
   const def = UNITS_BY_ID[slot.id];
   if (G.gold < def.cost) { G.msg = '金币不够'; sfx.play('deny'); return false; }
-  if (G.units.length >= BENCH_SIZE + CELLS) { G.msg = '没有空位了'; return false; }
+  if (G.units.length >= G.benchSize + CELLS) { G.msg = '没有空位了'; return false; }
   G.gold -= def.cost;
   shelf[i] = null;
   const u = makeUnit(slot.id);
@@ -1187,11 +1220,10 @@ function removeUnit(u) {
   u.cell = -1;
 }
 
-// 三合一：同 id 同星三只 → 合一只 +1 星，可以连锁（3★ 封顶）。
+// 三合一：同 id 同星三只 → 合一只 +1 星，可以连锁（星级没有上限）。
 // 升星顺带给奖励：2 星送一件命轮，3 星送一件造物并白刷一次商店 ——
 // 池子大了之后三合一变慢，这一条是让「攒同名」仍然值得的主要动力。
 function mergeAll(id, star) {
-  if (star >= MAX_STAR) return;
   const same = G.units.filter((u) => u.id === id && u.star === star);
   if (same.length < 3) return;
   // 优先保住场上那只，省得玩家摆好的位置飞了
@@ -1203,7 +1235,7 @@ function mergeAll(id, star) {
   const p = keep.cell >= 0 ? cellXY(keep.cell) : { x: BOARD_W / 2, y: 120 };
   // 升星是整局最值得看见的一刻：光柱 + 冲击波 + 一圈金火花，星级越高越夸张。
   // 早先这里只有一圈小光环，玩家基本注意不到，也就以为「合成了却什么都没给」。
-  const big = keep.star >= MAX_STAR;
+  const big = keep.star >= 3;
   addFx({ k: 'ring', x: p.x, y: p.y, d: 0.6, r: 40, col: '#e3b341' });
   addFx({
     k: 'blast', x: p.x, y: p.y - 18, d: big ? 0.9 : 0.7,
@@ -1214,12 +1246,13 @@ function mergeAll(id, star) {
   G.stats.merged++;
   sfx.play(big ? 'merge3' : 'merge2');
 
-  const rw = MERGE_REWARD[keep.star] || { gold: 0 };
+  // 4★ 起每升一星都是「27 张同名起」的量，奖励要跟得上，否则叠了半天只有属性变化
+  const rw = MERGE_REWARD[keep.star] || { gold: 3, wheel: 1, creation: 1 };
   let extra = '';
   if (rw.gold) { G.gold += rw.gold; extra += ` · +${rw.gold} 金`; }
   if (rw.wheel) extra += ' · ' + grantItem('wheel');
   if (rw.creation) extra += ' · ' + grantItem('creation');
-  if (keep.star >= MAX_STAR) {
+  if (keep.star >= 3) {
     G.bonusShops.push(Array.from({ length: 5 }, () => ({ id: rollOne() })));
     extra += ' · 获得一个额外商店（原商店保留）';
   }
@@ -1230,7 +1263,8 @@ function mergeAll(id, star) {
     n: keep.def.n, star: keep.star, seq: G.mergeSeq, extra: extra.replace(/^ · /, ''),
     gold: rw.gold || 0, t: 0,
   };
-  if (keep.star < MAX_STAR) mergeAll(id, keep.star);
+  // 星级没有上限：这一只升上去之后，如果同 id 又凑够三只，继续往上合
+  mergeAll(id, keep.star);
 }
 
 // 往装备栏里塞一件装备；满了就折成金币（不让人白高兴一场）
@@ -1333,7 +1367,8 @@ function unequip(uid, kind) {
 function sell(uid) {
   const u = G.units.find((x) => x.uid === uid);
   if (!u || G.phase === 'fight') return;
-  const refund = u.def.cost * [0, 1, 3, 9][u.star];
+  // 返还「合成进去的全部成本」：n 星 = 3^(n-1) 张 1 星，高星别让人一卖回到解放前
+  const refund = u.def.cost * Math.pow(3, u.star - 1);
   G.gold += refund;
   // 身上的装备退回装备栏（栏满就只能跟着人一起走了）
   for (const slot of ['wheel', 'creation']) {
@@ -1398,7 +1433,7 @@ function place(uid, cell) {
 function placeBench(uid, idx) {
   const u = G.units.find((x) => x.uid === uid);
   if (!u || G.phase === 'fight') return false;
-  if (idx == null || idx < 0 || idx >= BENCH_SIZE) return false;
+  if (idx == null || idx < 0 || idx >= G.benchSize) return false;
   const other = G.bench[idx];
   if (other === u) return false;
   const fromCell = u.cell;
@@ -1424,6 +1459,23 @@ function placeBench(uid, idx) {
   u.cell = -1; u.bench = idx; G.bench[idx] = u;
   recount();
   sfx.play('swap');
+  return true;
+}
+
+// 花金币扩一格备战席。无尽关后期金币没处花，扩格子是为了「攒同名冲 4★ 以上」
+// 有地方堆材料 —— 8 格放三张一组，两组就把席位挤满了。
+function buyBenchSlot() {
+  if (G.phase === 'fight' || G.phase === 'over' || G.phase === 'win') return false;
+  if (G.benchSize >= BENCH_MAX) { G.msg = `备战席已经扩到 ${BENCH_MAX} 格（上限）`; sfx.play('deny'); return false; }
+  const cost = benchCost(G.benchSize);
+  if (G.gold < cost) { G.msg = `扩一格要 ${cost} 金`; sfx.play('deny'); return false; }
+  G.gold -= cost;
+  G.benchSize++;
+  G.bench.push(null);
+  G.msg = G.benchSize >= BENCH_MAX
+    ? `备战席扩到 ${G.benchSize} 格（已满）`
+    : `备战席扩到 ${G.benchSize} 格 · 下一格 ${benchCost(G.benchSize)} 金`;
+  sfx.play('buy');
   return true;
 }
 
@@ -2053,7 +2105,7 @@ function tickFx(dt) {
 }
 
 function clearWave() {
-  G.gold += WAVE_GOLD + interestOf(G.gold);
+  G.gold += waveGold(G.wave) + interestOf(G.gold);
   for (const u of G.units) {
     u.hp = Math.min(u.hpMax, u.hp + u.hpMax * HEAL_PER_WAVE);
     // 收招：下一波之前所有人回到待机，别顶着打击帧站一整段备战期
@@ -2114,14 +2166,14 @@ function summary() {
 function waveLeft() {
   return G.enemies.length + G.spawnQ.length;
 }
-return { UNITS_BY_ID, ALL_IDS, setSeed, G, TUNE, reset, restat, unitAt, benchIndex, deployed, unitPos, rollShop, buy, freeCell, grantItem, itemDef, rollItemShop, buyItem, equip, unequip, sell, place, placeBench, levelUp, recount, computeBonus, traitList, pathFor, lanePath, planWave, beginWave, update, summary, waveLeft };
+return { UNITS_BY_ID, ALL_IDS, setSeed, G, TUNE, reset, restat, unitAt, benchIndex, deployed, unitPos, rollShop, buy, freeCell, grantItem, itemDef, rollItemShop, buyItem, equip, unequip, sell, place, placeBench, buyBenchSlot, levelUp, recount, computeBonus, traitList, pathFor, lanePath, planWave, beginWave, update, summary, waveLeft };
 })();
 
 // ---- js/pf/render.js
 const m_render = await (async () => {
 const { G, lanePath } = m_engine;
 const { ART, SHEET, EXTRA } = m_gen;
-const { COLS, ROWS, CELLS, HEX_W, HEX_H, R, ROW_PITCH, BOARD_W, BOARD_H, CORE_X, SPAWN_X, DEPLOY_COLS, cellXY, cellOf, colOf, rowOf, STAR_NAME, REALM_COLOR, ROLE_COLOR, TERRAIN, ENEMY } = m_defs;
+const { COLS, ROWS, CELLS, HEX_W, HEX_H, R, ROW_PITCH, BOARD_W, BOARD_H, CORE_X, SPAWN_X, DEPLOY_COLS, cellXY, cellOf, colOf, rowOf, starName, REALM_COLOR, ROLE_COLOR, TERRAIN, ENEMY } = m_defs;
 const { unitAt } = m_engine;
 // 《忘却协议》绘制层：六边形棋盘、地形、唤醒体立绘、影怪、弹道、特效、飘字。
 //
@@ -2759,7 +2811,7 @@ function starPips(x, y, star) {
   ctx.fillStyle = '#e3b341';
   ctx.shadowColor = 'rgba(0,0,0,0.9)';
   ctx.shadowBlur = 3;
-  ctx.fillText(STAR_NAME[star], x, y);
+  ctx.fillText(starName(star), x, y);
   ctx.restore();
 }
 
@@ -3371,7 +3423,7 @@ const TERMS = {
   hp: {
     n: '生命', cat: 'stat', short: 'HP',
     one: '能吃下多少伤害，归零就倒下。',
-    how: '生命 = 基础生命 × 星级倍率 × (1 + 生命加成)。星级倍率 1★ / 2★ / 3★ 分别是 ×1 / ×1.9 / ×3.4。',
+    how: '生命 = 基础生命 × 星级倍率 × (1 + 生命加成)。星级倍率 1★ / 2★ / 3★ 是 ×1 / ×1.9 / ×3.4，3★ 以上每星再 ×1.8（4★ ×6.12、5★ ×11.0、6★ ×19.8）。',
     body: '换装备、调羁绊时会按当前百分比保留血量——满血换装不会掉血，半血换装也还是半血。防御型单位吃「防御型」羁绊的生命加成，是唯一能把生命堆到四位数的路子。',
     from: ['命轮：慈悲的哺育 +22%、吞噬摇篮曲 +12%、愿世界化作芬芳 +10%、冬夜追忆 +8%', '防御型羁绊 +24% / +44% / +68%', '界外者组织 +10% / +19% / +30%'],
   },
@@ -3393,7 +3445,7 @@ const TERMS = {
     n: '护甲', cat: 'stat', short: 'ARM',
     one: '按比例削掉每一次伤害，越堆收益越低但永远为正。',
     how: '受到伤害 × 70 / (70 + 护甲)。护甲 70 → 减伤 50%；140 → 66.7%；350 → 83.3%。',
-    body: '护甲从 2★ 起每星额外 +35%（1★ ×1、2★ ×1.35、3★ ×1.70），所以升星对肉盾的价值远不止面板那点生命。它只对普通伤害有效——真伤直接扣，不吃护甲。',
+    body: '护甲从 2★ 起每星额外 +35%（1★ ×1、2★ ×1.35、3★ ×1.70，再往上一直按每星 +35% 叠），所以升星对肉盾的价值远不止面板那点生命。它只对普通伤害有效——真伤直接扣，不吃护甲。',
     from: ['命轮：永世编织之网 +25', '万古之外组织 +8 / +15 / +24'],
   },
   range: {
@@ -3563,9 +3615,9 @@ const TERMS = {
   // ---------------------------------------------------------------- 规则
   star: {
     n: '星级', cat: 'rule', short: '★',
-    one: '三张同名合成 2★，再三张合成 3★，到顶为止。',
-    how: '属性倍率 1★ ×1、2★ ×1.9、3★ ×3.4；护甲额外 ×1 / ×1.35 / ×1.70。升星会送一件命轮或造物，并回满血。',
-    body: '两张同名不会自动合，必须再买到第三张。场上和备战席都算，别把材料卖早了。3★ 之后同名卡会变成金币补偿。',
+    one: '三张同名合成 2★，再三张合成 3★ —— 3★ 之后没有上限，可以继续往 4★、5★ 合。',
+    how: '属性倍率 1★ ×1、2★ ×1.9、3★ ×3.4，之后每星 ×1.8（4★ ×6.12、5★ ×11.0、6★ ×19.8）；护甲每星 +35%，一直没有顶。升星会送命轮 / 造物，并回满血。',
+    body: '两张同名不会自动合，必须再买到第三张。场上和备战席都算，别把材料卖早了。4★ 是 27 张 1★ 的量、5★ 是 81 张 —— 商店会给已经拥有的角色加权，所以攒同名靠的是「有钱一直刷」，金币不够就别硬冲。备战席可以花金币扩容，专门用来堆这些材料。',
     from: ['商店'],
   },
   leak: {
@@ -3669,9 +3721,9 @@ return { TERM_CATS, TERMS, TERM_BY_KEY, FX_TERM, GMK_TERM, termOf, termsOfCat, t
 const m_ui = await (async () => {
 const { boardBand, viewportSize, shortLandscape } = m_layout;
 const { motion, setCalm } = m_render;
-const { G, buy, sell, levelUp, rollShop, rollItemShop, beginWave, reset, traitList, deployed, summary, UNITS_BY_ID, buyItem, equip, unequip, itemDef, placeBench } = m_engine;
+const { G, buy, sell, levelUp, rollShop, rollItemShop, beginWave, reset, traitList, deployed, summary, UNITS_BY_ID, buyItem, equip, unequip, itemDef, placeBench, buyBenchSlot } = m_engine;
 const { ART, SHEET, REALM_ART } = m_gen;
-const { WAVES, waveCfg, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON, FAC_ICON, GMK_ICON, TRAIT_KINDS, STAR_NAME, LEVEL_COST, REROLL_COST, MAX_LEVEL, BENCH_SIZE, creditsAt, nextTier, ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS, ENEMY, interestOf, TRAITS, HEX_W } = m_defs;
+const { WAVES, waveCfg, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON, FAC_ICON, GMK_ICON, TRAIT_KINDS, starName, LEVEL_COST, REROLL_COST, MAX_LEVEL, BENCH_MAX, benchCost, creditsAt, nextTier, ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS, ENEMY, interestOf, TRAITS, HEX_W } = m_defs;
 const { sfx } = m_audio;
 const { TERMS, TERM_CATS, FX_TERM, GMK_TERM, termOf, termsOfCat, termDetailHtml, termBriefHtml } = m_terms;
 // 《忘却协议》界面层：顶栏、商店（唤醒体 / 命轮·造物两个页签）、装备栏、备战席、
@@ -3905,7 +3957,7 @@ function sync() {
     G.inv.map((s) => s.kind + s.id).join('|'),
     G.units.map((u) => [u.uid, u.star, u.cell, u.bench,
       u.wheel ? u.wheel.id : '', u.creation ? u.creation.id : ''].join(':')).join('|'),
-    G.level, ui.sel, ui.item, ui.tab, G.phase, G.wave, ui.bonusShop, ui.layoutKey,
+    G.level, G.benchSize, ui.sel, ui.item, ui.tab, G.phase, G.wave, ui.bonusShop, ui.layoutKey,
     G.bonusShops.map(shop => shop.map(s => s?.id || '-').join(',')).join('|'),
   ].join('#');
   if (sig === lastSig) return;
@@ -4023,7 +4075,7 @@ function renderInv() {
 function renderBench() {
   const box = $('bench');
   let html = '';
-  for (let i = 0; i < BENCH_SIZE; i++) {
+  for (let i = 0; i < G.benchSize; i++) {
     const u = G.bench[i];
     if (!u) {
       // 空槽也能点：手上有场上的人时，点它就是把这个人收回备战席
@@ -4033,13 +4085,26 @@ function renderBench() {
     const sel = ui.sel === u.uid ? ' on' : '';
     const armed = ui.sel != null && ui.sel !== u.uid ? ' swap' : '';
     html += `<button class="bslot has${sel}${armed}" data-u="${u.uid}" data-b="${i}"
-      style="--rc:${realmCol(u.def.realm)}" title="${u.def.n} ${STAR_NAME[u.star]}（点它选中，选中后再点别的格可以换位）">
+      style="--rc:${realmCol(u.def.realm)}" title="${u.def.n} ${starName(u.star)}（点它选中，选中后再点别的格可以换位）">
       ${portrait(u.id, 32)}
-      <b class="star">${STAR_NAME[u.star]}</b>
+      <b class="star">${starName(u.star)}</b>
       ${u.wheel || u.creation ? `<em class="eqdot"></em>` : ''}
     </button>`;
   }
+  // 备战席末尾挂一个「扩一格」：金币够就点亮，不够就灰着（价格直接写在按钮上）
+  if (G.benchSize < BENCH_MAX) {
+    const cost = benchCost(G.benchSize);
+    html += `<button class="bslot add${G.gold >= cost ? '' : ' poor'}" id="benchAdd"
+      title="花 ${cost} 金扩一格备战席（现在 ${G.benchSize}/${BENCH_MAX} 格）">+${cost}</button>`;
+  }
   box.innerHTML = html;
+  const add = box.querySelector('#benchAdd');
+  if (add) {
+    add.onclick = () => {
+      buyBenchSlot();
+      sync();
+    };
+  }
   box.querySelectorAll('.bslot[data-u]').forEach((el) => {
     el.onclick = () => { tapBench(Number(el.dataset.u)); };
   });
@@ -4209,7 +4274,7 @@ function renderCard() {
     <div class="ch">
       ${portrait(d.id, shortLandscape() ? 40 : window.innerWidth >= 1000 ? 64 : 50)}
       <div>
-        <h4>${d.n}<em>${STAR_NAME[u.star]}</em></h4>
+        <h4>${d.n}<em>${starName(u.star)}</em></h4>
         <p class="tags">${realmTag(d.realm)}${roleTag(d.role)}<span class="costb">${d.cost} 费</span></p>
         <p class="mini">生命 <b>${u.hpMax}</b> · 攻击 <b>${Math.round(u.atk)}</b>${u.wheel || u.creation ? ` · ${[u.wheel, u.creation].filter(Boolean).map((x) => x.n).join(' / ')}` : ''}</p>
       </div>
@@ -4360,6 +4425,13 @@ function updateHUD() {
   const shown = G.endless ? raw : Math.min(raw, WAVES.length);
   set('sWave', G.endless ? `第 ${shown} 波` : `${shown}/${WAVES.length}`);
   set('sGold', String(G.gold));
+  // 备战席「扩一格」的价格随格数走，金币不够就灰掉（按钮本身由 renderBench 建）
+  const ba = $('benchAdd');
+  if (ba) {
+    const cost = benchCost(G.benchSize);
+    if (ba.dataset.cost !== String(cost)) { ba.dataset.cost = String(cost); ba.textContent = '+' + cost; }
+    ba.classList.toggle('poor', G.gold < cost);
+  }
   set('sPop', `${deployed()}/${G.level}`);
   set('sCore', `${G.core}`);
   tickPurse();
@@ -4770,6 +4842,130 @@ function relayoutInspection() {
 return { ui, bandRect, build, setTab, setDiff, setMode, startRun, sync, tapUnit, select, updateHUD, showEnd, TERRAIN_LIST, ITEM_POOL, hideInspection, inspectCell, relayoutInspection };
 })();
 
+// ---- js/pf/bot.js
+const m_bot = await (async () => {
+const { G, buy, sell, levelUp, rollShop, buyItem, equip, place, beginWave, deployed, freeCell, buyBenchSlot, UNITS_BY_ID } = m_engine;
+const { INV_SIZE, MAX_LEVEL, LEVEL_COST, BENCH_MAX, benchCost, WAVES } = m_defs;
+// 无头平衡测量用的机器人决策。
+// 页面 ?_test=1 的 __pf.think() 与 scripts/pf-endless-sim.mjs 共用这一份 ——
+// 之前两边各写一份，改了一边另一边就不准，测出来的数字没法比。
+//
+// 策略（照着真人打的样子，尽量简单）：
+//   1. 先把备战席上的人尽量摆上场（受人口限制）；
+//   2. 席位塞满时，卖掉「凑不成对、又不上场」的一星垫底牌，给同名材料腾位置；
+//   3. 买人按价值排序：能三合的 > 凑对的 > 新人（新人只在人口没满时补）；
+//   4. 补装备、升人口；
+//   5. 有余钱就刷新找同名 —— 3★ 以上全靠这一条，无尽关后期的主要去处；
+//   6. 最后钱还多就扩一格备战席。
+
+
+
+function botThink() {
+  if (G.phase !== 'prep') return false;
+
+  const countOf = (id, star) => {
+    let n = 0;
+    for (const u of G.units) if (u.id === id && u.star === star) n++;
+    return n;
+  };
+  // 前十二波（标准模式也是这十二波）沿用老策略：见人就买、先凑宽阵容 ——
+  // 换策略会把标准模式 75% 的基线一起改掉，那是另一件事。
+  // 只有打到十二波之后才「收束投资」：无尽关的金币只够养一两个核心，
+  // 摊到七个 2★ 上，一个 3★ 都出不来。
+  const late = G.wave >= WAVES.length;
+  const invest = {};
+  for (const u of G.units) invest[u.id] = (invest[u.id] || 0) + u.star;
+  const core = Object.keys(invest).sort((a, b) => invest[b] - invest[a]).slice(0, 2);
+
+  // 5 = 再买一张就能三合；4 = 主力（继续堆同名冲下一星）；2 = 凑对；1 = 全新
+  const valueOf = (id) => {
+    const n1 = countOf(id, 1);
+    if (n1 >= 2) return 5;
+    if (late && core.includes(id)) return 4;
+    return n1 === 1 ? 2 : 1;
+  };
+
+  const fill = () => {
+    for (const u of G.units.slice()) {
+      if (deployed() >= G.level) break;
+      if (u.cell >= 0) continue;
+      const c = freeCell(u.def.role);
+      if (c >= 0) place(u.uid, c);
+    }
+  };
+
+  const buyAll = () => {
+    // 前十二波按商店顺序买（和改之前一模一样，标准模式的基线才可比）；
+    // 后段才按「能三合 > 主力 > 凑对」的优先级挑。
+    const order = G.shop.map((s, i) => i).filter((i) => G.shop[i]);
+    if (late) {
+      order.sort((a, b) => valueOf(G.shop[b].id) - valueOf(G.shop[a].id)
+        || UNITS_BY_ID[G.shop[a].id].cost - UNITS_BY_ID[G.shop[b].id].cost);
+    }
+    let bought = 0;
+    for (const i of order) {
+      const slot = G.shop[i];
+      if (!slot) continue;
+      const d = UNITS_BY_ID[slot.id];
+      if (G.gold < d.cost) continue;
+      const spare = G.gold - d.cost;
+      const v = valueOf(slot.id);
+      const owned = G.units.some((u) => u.id === slot.id);
+      const want = late
+        ? (v >= 4 || (v === 2 && spare >= 4) || (v === 1 && deployed() < G.level && spare >= 6))
+        : (owned || spare >= 7 || G.units.length < 4);
+      if (want && buy(i)) bought++;
+    }
+    return bought;
+  };
+
+  fill();
+  // 席位塞满：先清掉最便宜的、凑不成对的垫底牌，否则同名材料进不来
+  if (late && G.bench.every(Boolean)) {
+    const junk = G.units
+      .filter((u) => u.cell < 0 && u.star === 1 && countOf(u.id, 1) < 2)
+      .sort((a, b) => a.def.cost - b.def.cost)[0];
+    if (junk) sell(junk.uid);
+  }
+  buyAll();
+  fill();
+
+  // 装备：有钱先补齐装备栏再装上，优先给场上缺槽位的高费单位
+  if (G.gold >= 14) {
+    for (let i = 0; i < G.itemShop.length; i++) {
+      if (!G.itemShop[i]) continue;
+      if (G.inv.length >= INV_SIZE) break;
+      if (buyItem(i)) continue;
+    }
+  }
+  for (let k = G.inv.length - 1; k >= 0; k--) {
+    const it = G.inv[k];
+    const slot = it.kind === 'wheel' ? 'wheel' : 'creation';
+    const host = G.units.filter((u) => u.cell >= 0 && !u[slot]).sort((a, b) => b.def.cost - a.def.cost)[0];
+    if (host) equip(host.uid, k);
+  }
+
+  if (deployed() >= G.level && G.level < MAX_LEVEL && G.gold >= LEVEL_COST) levelUp();
+  else if (G.gold >= 18 && G.level < MAX_LEVEL) levelUp();
+  else if (G.gold >= 12 && G.shop.every((s) => !s || G.gold < UNITS_BY_ID[s.id].cost)) rollShop(false);
+
+  // 有余钱就刷同名：3★ 以上要 9 / 27 张，只靠每波免费那批永远不够
+  let rerolls = 0;
+  while (late && G.gold >= 20 && rerolls++ < 30) {
+    if (!rollShop(false)) break;
+    const got = buyAll();
+    fill();
+    if (!got && G.gold < 32) break;
+  }
+
+  // 钱还多就扩一格备战席（上限 12 格：再多底栏放不下，也没必要）
+  if (G.benchSize < Math.min(BENCH_MAX, 12) && G.gold >= benchCost(G.benchSize) + 12) buyBenchSlot();
+  beginWave();
+  return true;
+}
+return { botThink };
+})();
+
 // ---- js/gamecloud.js
 const m_gamecloud = await (async () => {
 
@@ -5035,16 +5231,18 @@ return { GAMES, account, isTrivial, collect, hashOf, record, plan, statusOf, syn
 
 // ---- js/protocol.js
 const m_protocol = await (async () => {
-const { G, update, beginWave, place, sell, reset, summary, UNITS_BY_ID, buy, buyItem, equip, levelUp, rollShop, deployed, freeCell, TUNE } = m_engine;
+const { G, update, beginWave, place, sell, reset, summary, UNITS_BY_ID, buy, buyItem, equip, levelUp, rollShop, deployed, freeCell, buyBenchSlot, TUNE } = m_engine;
 const { init, draw, setBand, toLogic, hover, layout, screenPos } = m_render;
 const { build, startRun, sync, updateHUD, showEnd, bandRect, select, tapUnit, ui, inspectCell, hideInspection, relayoutInspection } = m_ui;
-const { cellAt, colOf, DEPLOY_COLS, MAX_LEVEL, LEVEL_COST, INV_SIZE } = m_defs;
+const { cellAt, colOf, DEPLOY_COLS, MAX_LEVEL, LEVEL_COST, INV_SIZE, BENCH_MAX, benchCost } = m_defs;
 const { sfx } = m_audio;
+const { botThink } = m_bot;
 const { startGameCloud } = m_gamecloud;
 // 《忘却协议》入口：装配渲染、输入、主循环。
 //
 // 固定步长（1/60 秒）推进战斗，渲染跟着屏幕刷新率走：高刷屏上不会打得更快，
 // 掉帧时也不会一帧跨过好几只怪。每帧最多补 5 步，切标签页回来不会一次补上千步。
+
 
 
 
@@ -5192,50 +5390,10 @@ async function boot() {
 // 固定步长推进，备战期自动买/升级/开战，几秒钟就能跑完十二波，调平衡不用守着屏幕。
 if (/[?&]_test=1/.test(location.search)) {
   window.__pf = {
-    G, TUNE, summary, update, beginWave, place, sell, reset, startRun, ui, sync, screenPos, toLogic, sfx,
+    G, TUNE, summary, update, beginWave, place, sell, buy, reset, startRun, ui, sync, screenPos, toLogic, sfx,
     start: (diff, seed, mode) => { if (diff) ui.diff = diff; if (mode) ui.mode = mode; startRun(seed); },
-    // 一步决策：先把备战席摆上场，再买人（能合成的优先），人口满了就升级
-    think() {
-      if (G.phase !== 'prep') return;
-      const fill = () => {
-        for (const u of G.units.slice()) {
-          if (deployed() >= G.level) break;
-          if (u.cell >= 0) continue;
-          const c = freeCell(u.def.role);
-          if (c >= 0) place(u.uid, c);
-        }
-      };
-      fill();
-      for (let i = 0; i < G.shop.length; i++) {
-        const s = G.shop[i];
-        if (!s) continue;
-        const d = UNITS_BY_ID[s.id];
-        if (G.gold < d.cost) continue;
-        const owned = G.units.filter((u) => u.id === s.id).length;
-        if (owned > 0 || G.gold >= d.cost + 7 || G.units.length < 4) buy(i);
-      }
-      fill();
-      // 装备：有钱就先补齐装备栏再装上（跟人一样，优先给场上缺槽位的）
-      if (G.gold >= 14) {
-        for (let i = 0; i < G.itemShop.length; i++) {
-          const it = G.itemShop[i];
-          if (!it) continue;
-          if (G.inv.length >= INV_SIZE) break;
-          if (buyItem(i)) continue;
-        }
-      }
-      for (let k = G.inv.length - 1; k >= 0; k--) {
-        const it = G.inv[k];
-        const slot = it.kind === 'wheel' ? 'wheel' : 'creation';
-        const host = G.units.filter((u) => u.cell >= 0 && !u[slot])
-          .sort((a, b) => b.def.cost - a.def.cost)[0];
-        if (host) equip(host.uid, k);
-      }
-      if (deployed() >= G.level && G.level < MAX_LEVEL && G.gold >= LEVEL_COST) levelUp();
-      else if (G.gold >= 18 && G.level < MAX_LEVEL) levelUp();
-      else if (G.gold >= 12 && G.shop.every((s) => !s || G.gold < UNITS_BY_ID[s.id].cost)) rollShop(false);
-      beginWave();
-    },
+    // 一步决策：策略在 js/pf/bot.js，页面与 scripts/pf-endless-sim.mjs 共用同一份
+    think: botThink,
     // 推进到第 n 波（机器人代打），给截图/回归用
     runToWave(n) {
       let guard = 0;

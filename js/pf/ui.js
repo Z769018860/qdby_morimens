@@ -11,13 +11,13 @@ import { motion, setCalm } from './render.js';
 
 import {
   G, buy, sell, levelUp, rollShop, rollItemShop, beginWave, reset, traitList, deployed,
-  summary, UNITS_BY_ID, buyItem, equip, unequip, itemDef, placeBench,
+  summary, UNITS_BY_ID, buyItem, equip, unequip, itemDef, placeBench, buyBenchSlot,
 } from './engine.js';
 import { ART, SHEET, REALM_ART } from './gen.js';
 import {
   WAVES, waveCfg, REALM_NAME, REALM_COLOR, ROLE_NAME, ROLE_COLOR, ROLE_SHORT, REALM_ICON, ROLE_ICON,
   FAC_ICON, GMK_ICON, TRAIT_KINDS,
-  STAR_NAME, LEVEL_COST, REROLL_COST, MAX_LEVEL, BENCH_SIZE, creditsAt, nextTier,
+  starName, LEVEL_COST, REROLL_COST, MAX_LEVEL, BENCH_MAX, benchCost, creditsAt, nextTier,
   ITEM_REROLL, INV_SIZE, TERRAIN, WHEELS, CREATIONS, ENEMY, interestOf, TRAITS, HEX_W,
 } from './defs.js';
 import { sfx } from './audio.js';
@@ -239,7 +239,7 @@ export function sync() {
     G.inv.map((s) => s.kind + s.id).join('|'),
     G.units.map((u) => [u.uid, u.star, u.cell, u.bench,
       u.wheel ? u.wheel.id : '', u.creation ? u.creation.id : ''].join(':')).join('|'),
-    G.level, ui.sel, ui.item, ui.tab, G.phase, G.wave, ui.bonusShop, ui.layoutKey,
+    G.level, G.benchSize, ui.sel, ui.item, ui.tab, G.phase, G.wave, ui.bonusShop, ui.layoutKey,
     G.bonusShops.map(shop => shop.map(s => s?.id || '-').join(',')).join('|'),
   ].join('#');
   if (sig === lastSig) return;
@@ -357,7 +357,7 @@ function renderInv() {
 function renderBench() {
   const box = $('bench');
   let html = '';
-  for (let i = 0; i < BENCH_SIZE; i++) {
+  for (let i = 0; i < G.benchSize; i++) {
     const u = G.bench[i];
     if (!u) {
       // 空槽也能点：手上有场上的人时，点它就是把这个人收回备战席
@@ -367,13 +367,26 @@ function renderBench() {
     const sel = ui.sel === u.uid ? ' on' : '';
     const armed = ui.sel != null && ui.sel !== u.uid ? ' swap' : '';
     html += `<button class="bslot has${sel}${armed}" data-u="${u.uid}" data-b="${i}"
-      style="--rc:${realmCol(u.def.realm)}" title="${u.def.n} ${STAR_NAME[u.star]}（点它选中，选中后再点别的格可以换位）">
+      style="--rc:${realmCol(u.def.realm)}" title="${u.def.n} ${starName(u.star)}（点它选中，选中后再点别的格可以换位）">
       ${portrait(u.id, 32)}
-      <b class="star">${STAR_NAME[u.star]}</b>
+      <b class="star">${starName(u.star)}</b>
       ${u.wheel || u.creation ? `<em class="eqdot"></em>` : ''}
     </button>`;
   }
+  // 备战席末尾挂一个「扩一格」：金币够就点亮，不够就灰着（价格直接写在按钮上）
+  if (G.benchSize < BENCH_MAX) {
+    const cost = benchCost(G.benchSize);
+    html += `<button class="bslot add${G.gold >= cost ? '' : ' poor'}" id="benchAdd"
+      title="花 ${cost} 金扩一格备战席（现在 ${G.benchSize}/${BENCH_MAX} 格）">+${cost}</button>`;
+  }
   box.innerHTML = html;
+  const add = box.querySelector('#benchAdd');
+  if (add) {
+    add.onclick = () => {
+      buyBenchSlot();
+      sync();
+    };
+  }
   box.querySelectorAll('.bslot[data-u]').forEach((el) => {
     el.onclick = () => { tapBench(Number(el.dataset.u)); };
   });
@@ -543,7 +556,7 @@ function renderCard() {
     <div class="ch">
       ${portrait(d.id, shortLandscape() ? 40 : window.innerWidth >= 1000 ? 64 : 50)}
       <div>
-        <h4>${d.n}<em>${STAR_NAME[u.star]}</em></h4>
+        <h4>${d.n}<em>${starName(u.star)}</em></h4>
         <p class="tags">${realmTag(d.realm)}${roleTag(d.role)}<span class="costb">${d.cost} 费</span></p>
         <p class="mini">生命 <b>${u.hpMax}</b> · 攻击 <b>${Math.round(u.atk)}</b>${u.wheel || u.creation ? ` · ${[u.wheel, u.creation].filter(Boolean).map((x) => x.n).join(' / ')}` : ''}</p>
       </div>
@@ -694,6 +707,13 @@ export function updateHUD() {
   const shown = G.endless ? raw : Math.min(raw, WAVES.length);
   set('sWave', G.endless ? `第 ${shown} 波` : `${shown}/${WAVES.length}`);
   set('sGold', String(G.gold));
+  // 备战席「扩一格」的价格随格数走，金币不够就灰掉（按钮本身由 renderBench 建）
+  const ba = $('benchAdd');
+  if (ba) {
+    const cost = benchCost(G.benchSize);
+    if (ba.dataset.cost !== String(cost)) { ba.dataset.cost = String(cost); ba.textContent = '+' + cost; }
+    ba.classList.toggle('poor', G.gold < cost);
+  }
   set('sPop', `${deployed()}/${G.level}`);
   set('sCore', `${G.core}`);
   tickPurse();

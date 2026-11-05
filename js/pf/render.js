@@ -26,7 +26,7 @@ document.documentElement.classList.toggle('calm', motion.calm);
 import { ART, SHEET, EXTRA } from './gen.js';
 import {
   COLS, ROWS, CELLS, HEX_W, HEX_H, R, ROW_PITCH, BOARD_W, BOARD_H,
-  CORE_X, SPAWN_X, DEPLOY_COLS, cellXY, cellOf, colOf, rowOf, STAR_NAME,
+  CORE_X, SPAWN_X, DEPLOY_COLS, cellXY, cellOf, colOf, rowOf, starName,
   REALM_COLOR, ROLE_COLOR, TERRAIN, ENEMY,
 } from './defs.js';
 import { unitAt } from './engine.js';
@@ -638,7 +638,7 @@ function starPips(x, y, star) {
   ctx.fillStyle = '#e3b341';
   ctx.shadowColor = 'rgba(0,0,0,0.9)';
   ctx.shadowBlur = 3;
-  ctx.fillText(STAR_NAME[star], x, y);
+  ctx.fillText(starName(star), x, y);
   ctx.restore();
 }
 

@@ -5,56 +5,17 @@
 //   node scripts/pf-endless-sim.mjs            # 标准 16 局 + 无尽 16 局（标准难度）
 //   node scripts/pf-endless-sim.mjs 24 hard    # 局数 / 难度
 //   node scripts/pf-endless-sim.mjs 12 both    # 标准与癫狂各跑一遍无尽
-import {
-  G, reset, beginWave, update, summary, buy, place, equip, buyItem, levelUp, rollShop,
-  deployed, freeCell, UNITS_BY_ID,
-} from '../js/pf/engine.js';
-import { INV_SIZE, MAX_LEVEL, LEVEL_COST, WAVES } from '../js/pf/defs.js';
+import { G, reset, update, summary } from '../js/pf/engine.js';
+import { WAVES } from '../js/pf/defs.js';
+import { botThink } from '../js/pf/bot.js';
 
 const MOD = {
   normal: { hp: 1, atk: 1, credit: 1 },
   hard: { hp: 1.5, atk: 2.1, credit: 1.6 },
 };
 
-// 与 js/protocol.js 的 __pf.think 保持一致：摆满 → 买（能合成的优先）→ 补装备并装上 → 升级/刷新 → 开战
-function think() {
-  if (G.phase !== 'prep') return;
-  const fill = () => {
-    for (const u of G.units.slice()) {
-      if (deployed() >= G.level) break;
-      if (u.cell >= 0) continue;
-      const c = freeCell(u.def.role);
-      if (c >= 0) place(u.uid, c);
-    }
-  };
-  fill();
-  for (let i = 0; i < G.shop.length; i++) {
-    const s = G.shop[i];
-    if (!s) continue;
-    const d = UNITS_BY_ID[s.id];
-    if (G.gold < d.cost) continue;
-    const owned = G.units.filter((u) => u.id === s.id).length;
-    if (owned > 0 || G.gold >= d.cost + 7 || G.units.length < 4) buy(i);
-  }
-  fill();
-  if (G.gold >= 14) {
-    for (let i = 0; i < G.itemShop.length; i++) {
-      if (!G.itemShop[i]) continue;
-      if (G.inv.length >= INV_SIZE) break;
-      if (buyItem(i)) continue;
-    }
-  }
-  for (let k = G.inv.length - 1; k >= 0; k--) {
-    const it = G.inv[k];
-    const slot = it.kind === 'wheel' ? 'wheel' : 'creation';
-    const host = G.units.filter((u) => u.cell >= 0 && !u[slot]).sort((a, b) => b.def.cost - a.def.cost)[0];
-    if (host) equip(host.uid, k);
-  }
-  if (deployed() >= G.level && G.level < MAX_LEVEL && G.gold >= LEVEL_COST) levelUp();
-  else if (G.gold >= 18 && G.level < MAX_LEVEL) levelUp();
-  else if (G.gold >= 12 && G.shop.every((s) => !s || G.gold < UNITS_BY_ID[s.id].cost)) rollShop(false);
-  beginWave();
-}
+// 决策直接用页面那一份（js/pf/bot.js），两边不会跑偏
+const think = botThink;
 
 function run(seed, diff, endless) {
   reset(seed);
@@ -69,7 +30,9 @@ function run(seed, diff, endless) {
     t += 1 / 20;
   }
   const sm = summary();
-  return { seed, reached: sm.cleared, score: sm.score, core: G.core, win: sm.win, t: Math.round(t) };
+  // 这一局最高合到几星、备战席扩到几格：用来确认「星级无上限 / 扩席位」真被用上了
+  const maxStar = G.units.reduce((m, u) => Math.max(m, u.star), 0);
+  return { seed, reached: sm.cleared, score: sm.score, core: G.core, win: sm.win, t: Math.round(t), maxStar, bench: G.benchSize };
 }
 
 const n = Math.max(1, Number(process.argv[2]) || 16);
@@ -89,4 +52,9 @@ for (const diff of diffs) {
   console.log(`        过十二波 ${pct(end, (r) => r.reached >= WAVES.length)}，过十八波 ${pct(end, (r) => r.reached >= 18)}，过二十四波 ${pct(end, (r) => r.reached >= 24)}`);
   console.log(`        波次分布：${end.map((r) => r.reached).sort((a, b) => a - b).join(' ')}`);
   console.log(`        平均分 ${avg(end.map((r) => r.score))}，平均时长 ${avg(end.map((r) => r.t))} 秒`);
+  const starHist = {};
+  for (const r of end) starHist[r.maxStar + '★'] = (starHist[r.maxStar + '★'] || 0) + 1;
+  console.log(`        最高星级：${Object.entries(starHist).map(([k, v]) => `${k}×${v}`).join(' ')}；备战席平均 ${avg(end.map((r) => r.bench))} 格`);
+  const over4 = end.filter((r) => r.maxStar >= 4);
+  if (over4.length) console.log(`        合出 4★ 及以上的：${over4.map((r) => `种子${r.seed}→${r.maxStar}★/第${r.reached}波`).join('，')}`);
 }

@@ -68,8 +68,13 @@ export const NEIGHBORS = (() => {
 })();
 
 // ---------------------------------------------------------------- 星阶
-export const STARS = [0, 1, 1.9, 3.4];      // 1★ / 2★ / 3★ 的属性倍率
-export const STAR_NAME = ['', '★', '★★', '★★★'];
+// 1★ / 2★ / 3★ 沿用原来的倍率；3★ 以上**不封顶**：三张同星合成一只，
+// 成本 ×3、属性 ×1.8，越往上越贵 —— 只有无尽关那种「金币花不完」的局面才叠得起。
+export const STARS = [0, 1, 1.9, 3.4];
+export const STAR_STEP = 1.8;
+export const starMul = (star) => (star <= 3 ? STARS[star] : STARS[3] * Math.pow(STAR_STEP, star - 3));
+// 4★ 起不再堆星号：「★★★★★★」在棋盘那行 11px 字里会糊成一团，改成「★4」
+export const starName = (star) => (star <= 3 ? '★'.repeat(Math.max(0, star)) : `★${star}`);
 
 // ---------------------------------------------------------------- 经济
 export const START_GOLD = 12;
@@ -80,11 +85,16 @@ export const LEVEL_COST = 5;                // 升一级固定 5 金
 // 降到 1 金之后一局平均能多刷十几次，凑同名才跟得上池子的稀释。
 export const REROLL_COST = 1;
 export const WAVE_GOLD = 4;                 // 每波清完的基础收入
+// 无尽关的赏金线性跟着波数涨（第 13 波 +1、第 20 波 +8、第 30 波 +18）。
+// 这条不是白给：后段的金币基本全砸在刷新凑同名上，没有它「星级无上限」就是纸面规则。
+// 标准十二波永远是 4 金，一点没动。
+export const waveGold = (w) => WAVE_GOLD + (w > WAVES.length ? (w - WAVES.length) : 0);
 export const INTEREST_CAP = 5;
 export const INTEREST_STEP = 5;
 export const interestOf = gold => Math.min(INTEREST_CAP, Math.floor(Math.max(0, gold) / INTEREST_STEP));
-export const BENCH_SIZE = 8;
-export const MAX_STAR = 3;
+export const BENCH_SIZE = 8;                // 开局备战席格数，不够可以花金币扩
+export const BENCH_MAX = 14;                // 花钱能扩到的上限
+export const benchCost = (size) => 6 + 4 * Math.max(0, size - BENCH_SIZE);  // 第 9 格 6 金，之后每格 +4
 
 // 商店按人口出不同费用的概率（顺序：1 费 / 2 费 / 3 费 / 4 费）
 export function shopOdds(level) {
@@ -344,14 +354,21 @@ export const WAVES = [
 // 这一组数是用无头机器人扫出来的（TUNE hp/atk 各档各 3 局，目标 12 波里
 // 大部分能通、但后期真的会漏怪）。改这里等于改整局难度，改完必须重扫。
 export const ENEMY_TUNE = { hp: 1.85, atk: 1.7 };
-export const waveHpMul = (w) => ENEMY_TUNE.hp * (1 + 0.10 * (w - 1));
-export const waveAtkMul = (w) => ENEMY_TUNE.atk * (1 + 0.17 * (w - 1));
+// 十二波之内是纯线性（改一个数字就等于改标准模式难度，改完必须重扫）。
+// 第 13 波起再乘一条指数：线性的 +10% / +17% 到三十波只涨三倍，而满编高星阵容
+// 能涨十几倍 —— 不给指数项，无尽关后段就成了「站着看怪排队送」。
+// 生命涨得比攻击快：攻击是「前排会不会被一秒打死」，涨太猛就没有操作空间了。
+export function endlessHpMul(w) { return w <= WAVES.length ? 1 : Math.pow(1.08, w - WAVES.length); }
+export function endlessAtkMul(w) { return w <= WAVES.length ? 1 : Math.pow(1.05, w - WAVES.length); }
+export const waveHpMul = (w) => ENEMY_TUNE.hp * (1 + 0.10 * (w - 1)) * endlessHpMul(w);
+export const waveAtkMul = (w) => ENEMY_TUNE.atk * (1 + 0.17 * (w - 1)) * endlessAtkMul(w);
 
 // ---------------------------------------------------------------- 无尽关
-// 第 13 波起进入「回响」：每 12 波一轮，沿用同一套构成，非首领每一种多来一只
-// （第 1 轮回响 +1，最多 +6），强度交给上面两条曲线线性外推。
+// 第 13 波起进入「回响」：每 12 波一轮，沿用同一套构成，非首领的每一种越加越多，
+// 出场间隔同时收紧（加人不收紧间隔，只是把同一波拖长，压力并不会变大）。
+// 强度交给上面两条曲线：线性 + 每波复利，见 endlessHpMul / endlessAtkMul。
 // 无尽关没有终点——结束条件是核心归零，能爬多高看阵容上限而不是波次表。
-// 这里只改「来多少人」，不改 ENEMY_TUNE，所以标准模式的十二波一个数字都没动。
+// 这里只改「来多少、来多密」，不改 ENEMY_TUNE，所以标准模式的十二波一个数字都没动。
 export const ENDLESS_FROM = WAVES.length + 1;
 const WAVE_HEAD = /^第[^·]*·\s*/;
 export function waveCfg(w) {
@@ -359,8 +376,15 @@ export function waveCfg(w) {
   if (w <= WAVES.length) return WAVES[w - 1];
   const base = WAVES[(w - 1) % WAVES.length];
   const round = Math.floor((w - 1) / WAVES.length);
-  const add = Math.min(round, 6);
-  const e = base.e.map(([key, count, gap]) => [(key), (ENEMY[key] || {}).cls === 'Boss' ? count : count + add, gap]);
+  // 第 1 轮回响 +2（还留一点喘息），第 2 轮起每轮 +3，封顶 +22 只。
+  // 原来第 1 轮只 +1，二十几波和标准十二波几乎一样密，玩家感觉不到「无尽」；
+  // 第一轮温和是有意的：13~24 波是玩家攒 4★ 的窗口，再往后才是真正的墙。
+  const add = Math.min(2 + (round - 1) * 3, 22);
+  const gapMul = Math.max(0.45, 1 - 0.05 * round);
+  const e = base.e.map(([key, count, gap]) => {
+    const boss = (ENEMY[key] || {}).cls === 'Boss';
+    return [key, boss ? count : count + add, boss ? gap : gap * gapMul];
+  });
   return { ...base, e, endless: round, n: `第 ${w} 波 · 回响${round}｜${String(base.n).replace(WAVE_HEAD, '')}` };
 }
 
