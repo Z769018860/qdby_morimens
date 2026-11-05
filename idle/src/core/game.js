@@ -1,6 +1,6 @@
 import { hash, mulberry32 } from './rng.js';
 import {
-  MAX_LV_HARD, MAX_AWAKEN, OVERDRIVE_MAX, LAW_MAX, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, ORDER_SLOTS, SAVE_VERSION, GEAR_MAX_LV, RARITY_ORDER, RIFT_FLOORS, REALMS,
+  MAX_LV_HARD, MAX_AWAKEN, OVERDRIVE_MAX, LAW_MAX, LEVEL_GATE, TEAM_SIZE, RELIC_SLOTS, ORDER_SLOTS, SAVE_VERSION, GEAR_MAX_LV, RARITY_ORDER, RIFT_FLOORS, REALMS, DEN_MAX,
 } from './constants.js';
 import { extraKit } from './extra.js';
 import { baseStats, lvUpCost, power, skillLevel, levelCap, breakNeeded, breakCost, awakenCost, rewindPlan, overdrive, overdriveAmp, overdriveCost, law, lawAmp, lawCrit, lawCost } from './stats.js';
@@ -97,6 +97,9 @@ export function newState(data, now = Date.now()) {
   const free = (data?.orders || []).filter((o) => o.rarity === 'R').slice(0, 3).map((o) => o.id);
   return {
     v: SAVE_VERSION, created: now, lastSeen: now, seed: (now ^ 0x9e3779b9) >>> 0,
+    // 一次性修复的版本戳（见 rollbackDirectVouchers）。新档没有吃过旧版直升券，
+    // 直接记成「已处理」，免得将来练满一位角色反被回档。
+    fix: { direct: DIRECT_FIX },
     // play = 累计游玩秒数（只在页面可见时按墙钟累加，见 src/main.js）。
     // 个人中心与站长后台的「挂机时长」都读它；离线结算的时间不算进来。
     play: 0,
@@ -192,7 +195,7 @@ export function migrate(s, data) {
     best: 0, stars: {}, lineups: {}, runs: 0, wins: 0, claim: {}, played: 0,
     ...(s.den && typeof s.den === 'object' ? s.den : {}),
   };
-  m.den.best = Math.max(0, Math.min(100, Math.floor(Number(m.den.best) || 0)));
+  m.den.best = Math.max(0, Math.min(DEN_MAX, Math.floor(Number(m.den.best) || 0)));
   m.den.stars = { ...(m.den.stars || {}) };
   m.den.lineups = { ...(m.den.lineups || {}) };
   m.den.claim = { ...(m.den.claim || {}) };
@@ -277,7 +280,64 @@ export function migrate(s, data) {
   m.gift = { signin: Math.max(0, Math.floor(s.gift?.signin || 0)) };
   // 同调率：老存档没有就是空的（不补历史，第一次进游戏才记下今天的日子）
   m.aff = normalizeAff(s.aff);
+  // 修复戳只认存档里自己的，别用 newState 的默认值（老存档根本没有这个字段 → 该跑回档）
+  m.fix = { direct: Math.max(0, Math.floor(Number(s.fix?.direct) || 0)) };
+  // 直升券回档（0.17.0）：只对「0.17.0 之前」的存档跑一次（新档创建时就是 SAVE_VERSION 4）
+  if ((Number(s.v) || 0) < SAVE_VERSION) rollbackDirectVouchers(m, data);
+  m.v = SAVE_VERSION;
   return m;
+}
+
+/* ---------- 直升券回档（0.17.0） ---------- */
+/* 旧版直升券（0.15.x ~ 0.16.2）用的时候直接改**账号**：叠位 99 / 等级 159 / 超限 99，
+   银芯叠位（buy）也一并拉到 99。0.16.3 起券改成「只在红流树海的一趟里生效」，
+   但那批账号已经被改过了——这里做一次性回档：
+     · 认券的签名：叠位满 99 且 超限满 99（正常玩不可能堆到，99 叠要 99 个重复）
+     · 练度退回「一张券都没吃」的自然状态：叠位 / 超限 / 最终法则归零，等级夹回 0 叠位的上限
+     · 每退回一位就往券匣里还 1 张直升券（现在是树海限定券，不会再动账号）
+     · 受了影响才补偿：3000 银芯 + 杜勒赛因 ×1 + 朝星 ×1（已拥有就算一次叠位）
+   只跑一次：state.fix.direct 记版本号。 */
+export const DIRECT_FIX = 1;
+export const DIRECT_FIX_CORES = 3000;
+export const DIRECT_FIX_CHARS = ['doresain', 'chaoxing'];
+
+export function rollbackDirectVouchers(state, data) {
+  const fix = (state.fix && typeof state.fix === 'object') ? state.fix : (state.fix = {});
+  if ((fix.direct || 0) >= DIRECT_FIX) return null;
+  fix.direct = DIRECT_FIX;
+  const hit = [];
+  for (const [slug, r] of Object.entries(state.roster || {})) {
+    if (!r || !data?.bySlug?.[slug]) continue;
+    if (Math.floor(Number(r.star) || 0) < MAX_AWAKEN) continue;
+    if (overdrive(r.od) < OVERDRIVE_MAX) continue;
+    hit.push(slug);
+  }
+  if (!hit.length) return { hit: [], cores: 0, chars: [] };
+
+  const vouchers = (state.vouchers ||= { rewind: 0, direct: 0 });
+  const lvCap = levelCap(0);
+  for (const slug of hit) {
+    const r = state.roster[slug];
+    r.star = 0;
+    r.buy = 0;
+    r.od = 0;
+    r.law = 0;
+    r.lv = Math.max(1, Math.min(lvCap, Math.floor(Number(r.lv) || 1)));
+    r.brk = Math.max(0, Math.min(6, Math.floor(r.lv / LEVEL_GATE)));
+    vouchers.direct = (Number(vouchers.direct) || 0) + 1;
+  }
+  // 补偿：只给真的被回档的账号，且只发一次（上面 fix 已经落版）
+  state.cores = (Number(state.cores) || 0) + DIRECT_FIX_CORES;
+  const chars = [];
+  for (const slug of DIRECT_FIX_CHARS) {
+    if (!data.bySlug[slug]) continue;
+    const r = state.roster[slug];
+    if (!r) { state.roster[slug] = { lv: 1, star: 0, brk: 0 }; chars.push({ slug, dupe: false }); }
+    else { r.star = Math.min(MAX_AWAKEN, Math.floor(Number(r.star) || 0) + 1); chars.push({ slug, dupe: true }); }
+  }
+  const out = { hit, cores: DIRECT_FIX_CORES, chars, vouchers: hit.length };
+  state.directFix = out;          // 进游戏弹一次说明（main.js 读完就清掉）
+  return out;
 }
 
 /* ---------- equipment helpers ---------- */

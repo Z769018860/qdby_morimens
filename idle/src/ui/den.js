@@ -30,16 +30,25 @@ function listPage(app) {
   const s = denState(st);
   const total = denTotalStars(st);
   const unlocked = denUnlocked(st);
+  // 20 章 × 10 关一次全铺出来太长了：没打到的章节先折成一行，点「展开全部章节」再看。
+  const showAll = !!app.ui.denAll;
+  let hiddenCh = 0;
   const chapters = DEN_CHAPTERS.map((ch, i) => {
     const ci = i + 1;
+    const first = (ci - 1) * 10 + 1;
+    const locked = first > unlocked;
+    if (locked && !showAll) {
+      hiddenCh++;
+      return `<div class="denchap lock"><b>第 ${ci} 章 · ${esc(ch.zh)}</b><span class="dim">🔒 打到第 ${unlocked} 关后解锁（第 ${first} 关）</span></div>`;
+    }
     const cells = [];
     for (let k = 1; k <= 10; k++) {
       const n = (ci - 1) * 10 + k;
       const star = denStarOf(st, n);
-      const locked = n > unlocked;
+      const off = n > unlocked;
       const isBoss = n % 10 === 0;
-      cells.push(`<button class="dencell${locked ? ' lock' : ''}${star ? ' on' : ''}${isBoss ? ' boss' : ''}" data-act="den-open" data-n="${n}" ${locked ? 'disabled' : ''}>
-        <b>${n}</b><em>${locked ? '🔒' : stars(star)}</em></button>`);
+      cells.push(`<button class="dencell${off ? ' lock' : ''}${star ? ' on' : ''}${isBoss ? ' boss' : ''}" data-act="den-open" data-n="${n}" ${off ? 'disabled' : ''}>
+        <b>${n}</b><em>${off ? '🔒' : stars(star)}</em></button>`);
     }
     // 章节整体进度：这一章拿到多少星（0..30）+ 星级里程碑奖励（12 / 21 / 30 三档）
     const got = Array.from({ length: 10 }, (_, k) => denStarOf(st, (ci - 1) * 10 + k + 1)).reduce((a, b) => a + b, 0);
@@ -63,7 +72,10 @@ function listPage(app) {
     <p>这一次你站在怪物这边。每一关有一支<b>玩家阵容</b>（四位唤醒体 + 等级叠位 + 这一关的战术规则），你要在<b>算力</b>上限里从图鉴里挑怪、给每只怪定一个<b>成长档</b>，把它们全部打光才算守住。</p>
     <p>三条硬规矩：<b>算力</b>——首领单价 9 起、巨体再乘 ${tierOf('t3').cost}，预算只有 ${denStage(1).cpu}→${denStage(DEN_MAX).cpu}，堆一两只大怪永远填不满一队；<b>同种一只</b>——同一种怪只能上一只；<b>孤军不成立</b>——只带一两只时玩家会收拢阵型：防御大增、还腾出手集火，四打一在这里是打不赢的。</p>
     <p class="hint">每只怪带一条<b>守关特性</b>（壁垒 / 棘刺 / 蚀毒 / 汲取 / 破甲 / 狂血 / 庇护 / 噤声 / <b>涤净</b> / <b>逆鳞</b>），各自被一种玩家打法克制——涤净专撕毒与流血，逆鳞让反击队蹭不到血；玩家的战术规则（${Object.values(RULE_ZH).slice(0, 5).join(' / ')}）反过来也克制一部分怪，而且对面的辅助会先手铺增益、输出后手吃增益再打。所以每一关的最优解都不一样，抄不了上一关的阵容。</p>
+    <p class="hint">前 100 关是<b>第一程</b>：玩家的等级叠位一路长到满级满叠。第 101 关起是<b>第二程</b>——玩家练度到顶，改由装备与法则变强，规则也从「一种主题」变成「两种叠着来」，算力预算继续涨到 ${denStage(DEN_MAX).cpu}。</p>
   </div></div>
+  <div class="row denchapbar"><button class="btn sm" data-act="den-all">${showAll ? '收起未解锁的章节' : `展开全部章节${hiddenCh ? `（还有 ${hiddenCh} 章未解锁）` : ''}`}</button>
+    <span class="dim">已解锁到第 ${unlocked} 关</span></div>
   ${chapters}
   </div>`;
 }

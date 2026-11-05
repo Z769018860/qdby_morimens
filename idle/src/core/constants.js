@@ -47,6 +47,7 @@ export const LAW_CRIT_EVERY = 10;
 export const LAW_CRIT_PER = 8;
 export const LAW_MAX = 99999;             // 只防存档被改出天文数字
 export const LEVEL_GATE = 20;             // 每 20 级一次「突破」
+export const DEN_MAX = 200;               // 逆潮守关总关卡数（20 章 × 10 关；前 100 关 / 后 100 关各一程）
 export const SKILL_MAX = 4;               // 技能等级 0..4（显示 Lv.1–5）
 
 export const TEAM_SIZE = 4;
@@ -65,7 +66,7 @@ export const ORDER_LV_MULT = 0.15;        // 每级 +15% 效果
 export const GEAR_MAX_LV = 40;
 // 融灾禁区：每期层数上限（core/rift.js 用它，game.js 的存档迁移也用它，放这里避免循环引用）
 export const RIFT_FLOORS = 150;
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;           // 4：直升券回档（0.17.0）
 
 // Battle statuses. `kw` is the keyword slug used for the icon/tooltip (public/data/game-data.json -> kw).
 export const STATUS = {

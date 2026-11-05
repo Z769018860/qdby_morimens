@@ -62,7 +62,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('公告里没有开发者术语', !/回归测试|策略对象|undefined/.test(modalText));
   check('弹窗最多最近 3 条（不把 0.12.x 的老公告也糊上来）', !modalText.includes('流血改时序'));
   await shot('s_news_popup.png');
-  check('弹出即记已读', (await ev(`window.__game.state.newsSeen`)) === '2026-11-05c');
+  // 最新公告 id 每次都变（发版就加一条）：直接问模块要，别把日期写死在脚本里
+  const latest = await ev(`import('/src/core/news.js').then(m => m.NEWS[0].id)`);
+  check('弹出即记已读', (await ev(`window.__game.state.newsSeen`)) === latest);
 
   // 2.5) 弹窗里就地展开「往期公告」
   check('弹窗里有「往期公告」折叠入口', await ev(`!!document.querySelector('.news-modal .newspast')`));

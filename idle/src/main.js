@@ -171,6 +171,33 @@ function maybeNews() {
   }, 1500);
 }
 
+/* ---------- 直升券回档说明（0.17.0 只弹一次） ---------- */
+function openDirectFixModal() {
+  const fx = app.state?.directFix;
+  if (!fx) return;
+  const names = (fx.hit || []).map((s) => app.data.bySlug[s]?.zh || s);
+  const chars = (fx.chars || []).map((c) => `${app.data.bySlug[c.slug]?.zh || c.slug} ×1${c.dupe ? '（已拥有，转成 1 叠位）' : ''}`).join('、');
+  openModal(`<h3>直升券已回档 <small>并在券匣里补回来了</small></h3>
+    <p>旧版本的直升券会直接改<b>账号练度</b>，和「券匣只在红流树海使用」的规矩冲突，所以我们把这批改动撤销了：</p>
+    <p>· ${names.length ? names.map((x) => `<b>${esc(x)}</b>`).join('、') : '—'} 的练度退回<b>用券之前</b>：叠位 / 超限 / 最终法则归零，等级回到 0 叠位的上限。</p>
+    <p>· 券匣里补回 <b>${fx.vouchers} 张直升券</b>——现在它是红流树海限定券，只在那一趟里生效，不会再动账号。</p>
+    <p>· 补偿：<b>银芯 +${fmt(fx.cores)}</b>${chars ? `　<b>${chars}</b>` : ''}（已直接发到账号，不用领取）。</p>
+    <p class="hint">给你添麻烦了——这次改动是为了让「券匣」这条线彻底不碰账号数据。</p>
+    <div class="row"><button class="btn gold" data-act="fix-ok">知道了</button></div>`, 'fix-modal');
+  app.state.directFix = null;      // 只弹一次
+  app.save();
+}
+function maybeDirectFix() {
+  if (!app.state?.directFix) return;
+  let tries = 0;
+  const t = setInterval(() => {
+    if (++tries > 80 || !app.state?.directFix) { clearInterval(t); return; }
+    if (app.offlinePending || app.booting || document.hidden || document.querySelector('.guide-bg') || document.querySelector('.modal-bg')) return;
+    clearInterval(t);
+    openDirectFixModal();
+  }, 1500);
+}
+
 async function boot() {
   const [pack, orders, special] = await Promise.all([
     fetch('public/data/game-data.json').then((r) => r.json()),
@@ -265,6 +292,7 @@ async function boot() {
     }
   };
   app.settleOffline();
+  maybeDirectFix();      // 补偿说明比公告更该先看到
   maybeNews();
   // 累计签到送的那几位：达标就自动进包（老存档首次进游戏也会补发）
   checkSigninGifts();
@@ -1340,6 +1368,7 @@ function onAct(e) {
     case 'den-clear': app.ui.denPicks = []; render(); sound.play('nav'); break;
     case 'den-rank': app.ui.denRank = el.dataset.k || 'all'; render(); sound.play('click'); break;
     case 'den-fit': app.ui.denFit = app.ui.denFit === false; render(); sound.play('click'); break;
+    case 'den-all': app.ui.denAll = !app.ui.denAll; render(); sound.play('click'); break;
     case 'den-last': {
       const n = app.ui.denN;
       const last = (denState(s).lineups || {})[n];
@@ -1526,6 +1555,7 @@ function onAct(e) {
     case 'guide': startGuide(app, () => {}); break;
     case 'news': openNews(false); break;
     case 'news-ok': app.state.newsSeen = NEWS_LATEST; app.save(); closeModal(); break;
+    case 'fix-ok': closeModal(); break;
     case 'lvup': sound.play('lvup'); levelUp(s, el.dataset.slug, +el.dataset.n); app.save(); P.detailModal(app, el.dataset.slug); render(); break;
     case 'lvmax': sound.play('lvup'); levelUpMax(s, el.dataset.slug); app.save(); P.detailModal(app, el.dataset.slug); render(); break;
     case 'pick-slot': {

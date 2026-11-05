@@ -1128,6 +1128,13 @@ button, a, [role="button"], input, select, label{touch-action:manipulation}
 .dencell.on{border-color:#8a6d2b;background:rgba(229,184,75,.09)}
 .dencell.boss b{color:#f0d79a}
 .dencell.lock{opacity:.4;cursor:not-allowed}
+/* 未解锁的章节折成一行：20 章全铺太长，先给个「第几章 · 名字 · 打到第几关解锁」 */
+.denchapbar{justify-content:space-between;align-items:center;margin:10px 0 4px}
+.denchap{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding:9px 12px;margin:8px 0;border:1px dashed var(--line);border-radius:10px;background:rgba(255,255,255,.02)}
+.denchap.lock{opacity:.62}
+.denchap b{font-size:13.5px;color:var(--gold,#e8c36a)}
+.denchap .dim{font-size:12px}
 .denrule{font-style:normal;font-size:11px;padding:2px 7px;border-radius:6px;border:1px solid rgba(196,107,107,.4);background:rgba(196,107,107,.12);color:#f0a8a8;white-space:nowrap}
 .denrule.off{color:var(--dim);border-color:var(--line);background:transparent}
 .denteam{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0 8px}

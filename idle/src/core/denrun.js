@@ -14,8 +14,14 @@ import { simulate } from './battle.js';
 import { teamDefs, newState } from './game.js';
 import { makeEnemy, DOMAINS } from './enemies.js';
 import { patternOf } from './monsters.js';
+import { DEN_MAX } from './constants.js';
 
-export const DEN_MAX = 100;
+export { DEN_MAX };
+// 前 100 关是「第一程」：玩家的练度从这里一路长到满级满叠。
+// 101~200 是「第二程」：玩家的等级叠位已经到顶，变强改走装备 / 法则 / 战术三条线，
+// 守关方这边同步解锁更狠的战术组合与更厚的算力预算。分段是为了不把前 100 关的定档打乱
+// （直接把 200 关摊到同一条曲线上，第 1~100 关会突然全部变简单）。
+export const DEN_BASE = 100;
 export const DEN_SLOTS = 5;              // 守关队最多 5 只（再多玩家一张群体技就洗完了）
 export const DEN_ROUNDS = 20;
 
@@ -66,24 +72,42 @@ export const DEN_CHAPTERS = [
   { zh: '无光之海', note: '反震加集火：打得太狠会被弹死，打得太慢会被磨死。', comp: ['WARDEN', 'CHORUS', 'ASSAULT', 'ASSAULT'], rules: ['thorns'] },
   { zh: '镜面都市', note: '暴击与重甲并存的均衡队，没有明显短板。', comp: ['WARDEN', 'CHORUS', 'ASSAULT', 'ASSAULT'], rules: ['crit', 'armor'] },
   { zh: '终末列车', note: '重甲加反震，只有针对性的守关队才拦得住。', comp: ['WARDEN', 'CHORUS', 'ASSAULT', 'ASSAULT'], rules: ['armor', 'thorns'] },
+  /* ---- 第二程（101~200）：玩家的等级与叠位已经到顶，变强改走装备、法则与战术。
+     打法从「一种主题」变成「两种主题叠着来」，而且从第 11 章起章中就会提前叠第二条规则。 ---- */
+  { zh: '锈钟回廊', note: '压疗叠重甲：你回不上血，硬砸又吃不进防御——第二程的门槛章。', comp: ['WARDEN', 'CHORUS', 'CHORUS', 'ASSAULT'], rules: ['antiheal', 'armor'] },
+  { zh: '猩红祭坛', note: '暴击叠反震：对面落锤又重又快，你打回去还要被弹。', comp: ['WARDEN', 'ASSAULT', 'ASSAULT', 'ASSAULT'], rules: ['crit', 'thorns'] },
+  { zh: '缄默深井', note: '压疗叠暴击：血线一崩就再也抬不回来。', comp: ['WARDEN', 'CHORUS', 'ASSAULT', 'ASSAULT'], rules: ['antiheal', 'crit'] },
+  { zh: '千齿墓室', note: '续航叠压疗：奶量与「打不死」的墙一起上，全章最考验「磨」——速杀流会在这里卡住。', comp: ['WARDEN', 'CHORUS', 'ASSAULT', 'ASSAULT'], rules: ['heal', 'antiheal'] },
+  { zh: '熔心工厂', note: '暴击叠重甲：既砍得动你的墙，又扛得住你的爆发。', comp: ['WARDEN', 'CHORUS', 'ASSAULT', 'ASSAULT'], rules: ['crit', 'armor'] },
+  { zh: '暗潮圣所', note: '续航叠暴击：抬得起来又打得痛，拖久了必翻车。', comp: ['WARDEN', 'CHORUS', 'CHORUS', 'ASSAULT'], rules: ['heal', 'crit'] },
+  { zh: '无归阶梯', note: '压疗叠反震的双奶队：血抬不起来，打回去还要被弹——慢一回合就少一个人。', comp: ['WARDEN', 'CHORUS', 'CHORUS', 'ASSAULT'], rules: ['crit', 'thorns'] },
+  { zh: '逆位天穹', note: '重甲 + 反震 + 暴击三条一起开：没有短板的均衡队，得靠机制硬啃。', comp: ['WARDEN', 'CHORUS', 'ASSAULT', 'ASSAULT'], rules: ['armor', 'thorns', 'crit'] },
+  { zh: '尽头的海', note: '反震叠压疗：打回去要被弹，抬血又被砍——倒数第二关，先把续航与站位都想清楚。', comp: ['WARDEN', 'CHORUS', 'CHORUS', 'ASSAULT'], rules: ['thorns', 'antiheal'] },
+  { zh: '逆潮之眼', note: '终局：重甲、暴击、反震全开，玩家的练度也走完了最后一格。', comp: ['WARDEN', 'CHORUS', 'ASSAULT', 'ASSAULT'], rules: ['crit', 'armor', 'thorns'] },
 ];
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, Number(x) || 0));
-// 玩家阵容的成长曲线：第 1 关 50 级 0 叠，第 100 关 159 级 99 叠。
+/* 进度参数：第 1 关 0、第 100 关 1、第 200 关 2。
+   前 100 关沿用原来的曲线，第二程接在 p > 1 的延长线上——两边都不动原档。 */
+const prog = (n) => {
+  const num = clamp(Math.round(n), 1, DEN_MAX);
+  return num <= DEN_BASE ? (num - 1) / (DEN_BASE - 1) : 1 + (num - DEN_BASE) / (DEN_MAX - DEN_BASE);
+};
+// 玩家阵容的成长曲线：第 1 关 50 级 0 叠，第 100 关 159 级 99 叠（等级与叠位到顶）。
 // 指数取 0.92 / 1.35：前期升得快一点（让玩家先尝到「怪要练档」），后期叠位补上尾段。
-export const playerLv = (n) => Math.round(50 + 109 * Math.pow(clamp((n - 1) / (DEN_MAX - 1), 0, 1), 0.92));
-export const playerStar = (n) => Math.round(99 * Math.pow(clamp((n - 1) / (DEN_MAX - 1), 0, 1), 1.35));
-// 守关方的算力预算：10 → 15，一路只涨不回落。
-// （不在章末额外加成：那会让第 10 关有 17、第 11 关又掉回 10.5，玩家刚过完难关反而「预算缩水」，
-//  看着像 bug。章末的「精英玩家」改成属性 +6%，见 denStage / denPlayerDefs。）
-export const cpuBudget = (n) => Math.round((10 + 5 * clamp((n - 1) / (DEN_MAX - 1), 0, 1)) * 10) / 10;
+export const playerLv = (n) => Math.round(50 + 109 * Math.pow(clamp(prog(n), 0, 1), 0.92));
+export const playerStar = (n) => Math.round(99 * Math.pow(clamp(prog(n), 0, 1), 1.35));
+// 守关方的算力预算：10 → 15 → 21，一路只涨不回落。
+// 第二程的增量更陡（+0.06/关 vs 第一程 +0.05/关）：玩家那边已经满级，这边只能多给几只怪。
+export const cpuBudget = (n) => Math.round((10 + 5 * clamp(prog(n), 0, 1) + 6 * Math.max(0, prog(n) - 1)) * 10) / 10;
 // 怪物数值的关卡系数：跟着玩家一起长大，但留一点缺口（5.6 倍 vs 玩家的 6.3 倍），
 // 缺口靠「练档 + 特性搭配」补——不补就会被后期的玩家阵容反推。
 // 末段加速：后期玩家的强度不是线性的（第 9/10 章开始叠两条战术规则、暴击与重甲同时开），
 // 守关方只按线性追就会在最后 30 关集体掉队（实测第 8~10 章只剩 2/10）。t² 那一项就是补这个缺口。
+// 第二程（p > 1）继续按同一条抛物线走：p = 2 时约 19 倍，与玩家那边的 3 倍增幅 × 预算 1.4 倍相抵。
 export const denScale = (n) => {
-  const t = clamp((n - 1) / (DEN_MAX - 1), 0, 1);
-  return 1 + 5.4 * t + 1.8 * t * t;
+  const p = prog(n);
+  return 1 + 5.4 * p + 1.8 * p * p;
 };
 
 const RANK_BASE = {
@@ -135,10 +159,13 @@ export function denStage(n) {
   const boss = within === 9;                              // 章末：精英玩家
   const mid = within === 4;                               // 章中：多一条战术
   const rules = [];
-  // 规则分布：第 3 / 6 / 9 关各加一条章主题，章末叠满（第 6 章之后才是双规则）。
+  // 规则分布：第 2 / 4 / 6 / 8 关各加一条章主题，章末叠满（第 6 章之后才是双规则）。
   // 均匀铺开是为了让同一章里别出现「前四关白给、第五关突然打不过」的断层。
   // 第 1 章（雾港巡礼）整章没有规则——那是让人先看懂「算力怎么花」的一章。
+  // 第二程（第 11 章起）从章中就开始叠第二条规则：玩家练度到顶了，只能靠战术加码抬难度。
+  const late = ci >= 10;
   if (ch.rules.length && (within === 1 || within === 3 || within === 5 || within === 7)) rules.push(ch.rules[0]);
+  if (late && ch.rules.length > 1 && (within === 5 || within === 7)) rules.push(ch.rules[1]);
   if (boss) for (const r of ch.rules) if (!rules.includes(r)) rules.push(r);
   return {
     n: num, chapter: ci + 1, chapterZh: ch.zh, within: within + 1, boss, mid,
@@ -201,10 +228,15 @@ export function denPlayerDefs(n, data) {
     boss: false,                 // 不给玩家越前排的能力：守关方有「守」的优势
   }));
   // 目标曲线：第 1 关 4 200 血 / 1 020 攻，第 100 关 ×6.3（与 50 级 → 159 级 99 叠的实际成长一致）。
+  // 第二程（101~200）玩家等级叠位到顶，增长改由装备 / 法则 / 战术支撑：整体再 ×3.1，
+  // 与守关方那边的「数值系数 2.3 倍 × 预算 1.4 倍」大致对齐，剩下的差距靠特性与双规则补。
   // 章末的「精英玩家」再抬 6%：这是他比你多练的那一点点，比「多给守关方 3 点算力再收回」讲得通。
-  const grow = Math.pow(6.3, (n - 1) / (DEN_MAX - 1)) * (st.boss ? 1.06 : 1);
+  const p = prog(n);
+  const grow = Math.pow(6.3, Math.min(p, 1)) * Math.pow(3.1, Math.max(0, p - 1)) * (st.boss ? 1.06 : 1);
   const sumHp = raw.reduce((s, d) => s + d.hp, 0) || 1;
   const sumAtk = raw.reduce((s, d) => s + d.atk, 0) || 1;
+  const nCh = st.comp.filter((t) => t === 'CHORUS').length;
+  const nW = st.comp.filter((t) => t === 'WARDEN').length;
   const kHp = (4200 * grow) / sumHp;
   const kAtk = (1020 * grow) / sumAtk;
   // 「自动战斗的玩家」：护盾与治疗按 75% 结算。真人玩家会卡时机抬血、会把盾留到关键回合，
@@ -212,9 +244,8 @@ export function denPlayerDefs(n, data) {
   // 再叠一层「续航归一化」：总血量已经归一过了，但治疗人数没归一——双合唱那一章靠回血硬拖，
   // 会变成全场最硬的一关；三突击那一章没有奶，会被一波推平。按阵容把续航折成同一档，
   // 章节之间的差别才回到「打法不同」而不是「肉度不同」。
-  const nCh = st.comp.filter((t) => t === 'CHORUS').length;
-  const nW = st.comp.filter((t) => t === 'WARDEN').length;
   const healShift = nCh >= 2 ? -28 : nCh === 0 ? 5 : -12;
+
   const defShift = nCh === 0 ? 1.32 : nCh >= 2 ? 0.96 : 1;
   void nW;
   // 攻方的出手顺序也讲道理：辅助 / 治疗先动（把增益和盾铺好），输出后手吃现成的增益再打——
@@ -233,8 +264,9 @@ export function denPlayerDefs(n, data) {
     ...(st.rules.includes('armor') ? { def: Math.round(d.def * Math.pow(grow, 0.5) * defShift * 1.25) } : {}),
     // 玩家战术 · 暴击：全队暴击率 +26（挂机玩家不会挑时机，但暴击这种东西不看时机）
     ...(st.rules.includes('crit') ? { critRate: (d.critRate || 0) + 26 } : {}),
-    // 玩家战术 · 续航：治疗量 +50%（battle 里治疗读的就是 healBonus）
-    ...(st.rules.includes('heal') ? { healBonus: (d.healBonus || 0) + 50 } : {}),
+    // 玩家战术 · 续航：治疗量 +28%（battle 里治疗读的就是 healBonus）。
+    // 别给太高：双合唱的阵容本来就靠回血硬拖，+50 会让那一章直接变成「打不死」。
+    ...(st.rules.includes('heal') ? { healBonus: (d.healBonus || 0) + 28 } : {}),
   }));
 }
 
@@ -438,7 +470,8 @@ export function denApply(state, n, out) {
   if (out.win) {
     d.wins++;
     const st = denStage(n);
-    const tier = 1 + (n - 1) / (DEN_MAX - 1);                 // 1 → 2
+    // 奖励档位跟着「第几百关」走：第 100 关 ×2、第 200 关 ×3，第二程的产出是实打实的翻倍
+    const tier = 1 + (n - 1) / (DEN_BASE - 1);                // 1 → 3
     if (!prevStars) {
       rw.first = true;
       rw.gold = Math.round(900 * tier * 1.6);
@@ -457,7 +490,7 @@ export function denApply(state, n, out) {
     }
     if (n > d.best) d.best = n;
   } else {
-    rw.gold = Math.round(80 * (1 + (n - 1) / (DEN_MAX - 1)));
+    rw.gold = Math.round(80 * (1 + (n - 1) / (DEN_BASE - 1)));
   }
   state.gold += rw.gold; state.cores += rw.cores; state.tickets += rw.tickets;
   state.stats.gold += rw.gold;

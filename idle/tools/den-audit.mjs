@@ -1,4 +1,4 @@
-// 逆潮守关平衡体检：在 Node 里把 100 关跑一遍（不碰 DOM）。
+// 逆潮守关平衡体检：在 Node 里把全部关卡跑一遍（不碰 DOM），按 10 关一章汇总。
 //
 // 两种「玩家」：
 //   · 会玩的人：每关随机搜 K 套配队，取结果最好的那套（大致等于「认真配过的阵容」）
@@ -86,7 +86,7 @@ for (let n = 1; n <= D.DEN_MAX; n++) {
     console.log(`第 ${String(n / 10).padStart(2)} 章（${n - 9}–${n}）  通过 ${String(w).padStart(2)}/10  均星 ${(st2 / 10).toFixed(2)}  均回合 ${avgRound.toFixed(1)}  单体阵容通过 ${so}/10  预算 ${seg[0].cpu}→${seg[9].cpu}`);
   }
 }
-console.log(`\n总计：通过 ${totWin}/100　均星 ${(totStars / 100).toFixed(2)}　单怪阵容通过 ${totSolo}/100`);
+console.log(`\n总计：通过 ${totWin}/${D.DEN_MAX}　均星 ${(totStars / D.DEN_MAX).toFixed(2)}　单怪阵容通过 ${totSolo}/${D.DEN_MAX}`);
 
 if (process.argv.includes('--detail')) {
   for (const r of rows) console.log(`#${String(r.n).padStart(3)} ${r.win ? '胜' : '负'} ${r.stars}★ ${String(r.rounds).padStart(2)}R 我方${(r.hp * 100).toFixed(0)}%  [${r.picks.map((p) => `${p.id}:${p.tier}`).join(',')}]`);

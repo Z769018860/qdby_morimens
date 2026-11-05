@@ -14,7 +14,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const proc = spawn(CHROME, [
-    '--headless=new', `--remote-debugging-port=${PORT}`, '--user-data-dir=H:/Temp/edgeprof-den',
+    '--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=H:/Temp/edgeprof-den-${Date.now()}`,
     '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--hide-scrollbars',
     '--window-size=430,940', 'about:blank',
   ], { stdio: 'ignore' });
@@ -117,13 +117,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       'runs', await ev(`window.__game.state.den.runs`),
       'modalCount', await ev(`document.querySelectorAll('.modal-bg').length`));
     await shot('s_den_result.png', true);   // 这张就是要看结算弹窗
+    await ev(`(()=>{const b=document.querySelector('.modal [data-act="den-back"]'); if(b) b.click(); return 1;})()`);
+    await sleep(900);
     await clearModals();
-    await click('.modal .btn.gold');
-    await sleep(800);
   }
 
   console.log('存档', await ev(`JSON.stringify(window.__game.state.den)`));
   console.log('回到关卡列表', await ev(`!!document.querySelector('.dencells')`));
+  // 20 章：没打到的章节先折成一行，点「展开全部章节」才铺开
+  console.log('折叠行', await ev(`document.querySelectorAll('.denchap.lock').length`),
+    '关卡格', await ev(`document.querySelectorAll('.dencell').length`));
+  await click('[data-act="den-all"]');
+  await sleep(500);
+  console.log('展开后 折叠行', await ev(`document.querySelectorAll('.denchap.lock').length`),
+    '关卡格', await ev(`document.querySelectorAll('.dencell').length`));
+  await shot('s_den_all.png');
   await shot('s_den_after.png');
   console.log(errs.length ? errs.join('\n') : 'no errors');
   ws.close();

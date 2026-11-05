@@ -4381,13 +4381,13 @@ test('红流树海·前锋分队：编队上限是 5（setLineup / 开战都认�
 /* ---------------------------------------------------------------- 逆潮守关 */
 const D = await import('../src/core/denrun.js');
 
-test('逆潮守关：100 关，每关四个玩家、位置与规则都合法', () => {
+test('逆潮守关：200 关，每关四个玩家、位置与规则都合法', () => {
   const s = newState(data, 1);
   for (let n = 1; n <= D.DEN_MAX; n++) {
     const st = D.denStage(n);
     assert.equal(st.n, n);
-    assert.ok(st.cpu >= 10 && st.cpu <= 20, `第 ${n} 关算力应在 10~20：${st.cpu}`);
-    assert.ok(st.rules.length <= 2, `第 ${n} 关最多两条战术`);
+    assert.ok(st.cpu >= 10 && st.cpu <= 21, `第 ${n} 关算力应在 10~21：${st.cpu}`);
+    assert.ok(st.rules.length <= 3, `第 ${n} 关最多三条战术`);
     assert.ok(st.lv >= 50 && st.lv <= 159, `第 ${n} 关等级：${st.lv}`);
     assert.ok(st.star >= 0 && st.star <= 99);
     const defs = D.denPlayerDefs(n, data);
@@ -4568,7 +4568,7 @@ test('逆潮守关：存档里的脏数据会被洗干净', () => {
   const s = newState(data, 1);
   s.den = { best: '999', stars: { 3: '7', 4: -2 }, lineups: null, runs: -5, wins: 'x', claim: undefined };
   const m = migrate(JSON.parse(JSON.stringify(s)), data);
-  assert.equal(m.den.best, 100, 'best 要夹到 0~100');
+  assert.equal(m.den.best, D.DEN_MAX, 'best 要夹到 0~DEN_MAX');
   assert.equal(m.den.runs, 0);
   assert.equal(m.den.wins, 0);
   assert.deepEqual(m.den.lineups, {});
@@ -4731,4 +4731,95 @@ test('行动顺序：存档里的脏 order 被洗干净', async () => {
   assert.deepEqual([...m.strategy.order].sort(), [...m.team].sort(), '洗完之后正好是队里这四个人');
   assert.ok(!m.strategy.order.includes('ghost'));
   assert.equal(new Set(m.strategy.order).size, 4, '不能有重复');
+});
+
+/* ---------------------------------------------------------------- 直升券回档（0.17.0） */
+const FIX = await import('../src/core/game.js');
+
+test('直升券回档：旧券拉满的账号退回练度、券还回券匣、发补偿', () => {
+  const s = newState(data, 1);
+  delete s.fix;                    // 老存档（0.17.0 之前）没有这个戳
+  const slug = 'ogier';
+  s.roster[slug] = { lv: 159, star: 99, brk: 7, od: 99, buy: 99 };
+  s.vouchers.direct = 0;
+  const cores0 = s.cores;
+  const out = FIX.rollbackDirectVouchers(s, data);
+  assert.deepEqual(out.hit, [slug], '认出被券拉满的那位');
+  assert.equal(s.roster[slug].star, 0, '叠位回到 0');
+  assert.equal(s.roster[slug].od, 0, '超限回到 0');
+  assert.equal(s.roster[slug].lv, 60, '等级回到 0 叠位的上限');
+  assert.equal(s.roster[slug].buy, 0);
+  assert.equal(s.vouchers.direct, 1, '直升券还回券匣');
+  assert.equal(s.cores, cores0 + FIX.DIRECT_FIX_CORES, '补偿 3000 银芯');
+  assert.ok(s.roster.doresain && s.roster.chaoxing, '杜勒赛因与朝星进包');
+  assert.ok(s.directFix && s.directFix.hit.includes(slug), '留一条说明给进游戏时弹');
+  // 只跑一次：再跑什么都不做
+  assert.equal(FIX.rollbackDirectVouchers(s, data), null);
+  assert.equal(s.cores, cores0 + FIX.DIRECT_FIX_CORES, '补偿不会重复发');
+});
+
+test('直升券回档：没吃过券的账号一字不动，也不发补偿', () => {
+  const s = newState(data, 1);
+  delete s.fix;
+  s.roster.ogier = { lv: 60, star: 40, brk: 3, od: 0 };
+  s.vouchers.direct = 2;
+  const cores0 = s.cores;
+  const out = FIX.rollbackDirectVouchers(s, data);
+  assert.deepEqual(out.hit, []);
+  assert.equal(s.roster.ogier.star, 40, '没满 99 叠的不动');
+  assert.equal(s.vouchers.direct, 2);
+  assert.equal(s.cores, cores0);
+  assert.ok(!s.roster.doresain && !s.roster.chaoxing, '没受影响不发补偿角色');
+});
+
+test('直升券回档：已经拥有杜勒赛因 / 朝星的账号，补偿折算成 1 叠位', () => {
+  const s = newState(data, 1);
+  delete s.fix;
+  s.roster.ogier = { lv: 159, star: 99, brk: 7, od: 99 };
+  s.roster.doresain = { lv: 60, star: 3, brk: 3 };
+  s.roster.chaoxing = { lv: 60, star: 0, brk: 3 };
+  FIX.rollbackDirectVouchers(s, data);
+  assert.equal(s.roster.doresain.star, 4, '已有 → +1 叠位');
+  assert.equal(s.roster.chaoxing.star, 1);
+});
+
+test('直升券回档：走 migrate 也认得出（老存档读进来就回档）', () => {
+  const s = newState(data, 1);
+  delete s.fix; s.v = 3;           // 老存档：0.17.0 之前没有这个戳，版本号也还是 3
+  s.roster.ogier = { lv: 159, star: 99, brk: 7, od: 99, buy: 99 };
+  const m = migrate(JSON.parse(JSON.stringify(s)), data);
+  assert.equal(m.roster.ogier.star, 0);
+  assert.equal(m.roster.ogier.od, 0);
+  assert.equal(m.vouchers.direct, 1);
+  assert.equal(m.fix.direct, FIX.DIRECT_FIX);
+  assert.ok(m.directFix && m.directFix.hit.includes('ogier'));
+  // 第二次读档不会再回档 / 再发补偿（说明弹过之后会被清掉）
+  const m1 = JSON.parse(JSON.stringify(m));
+  delete m1.directFix;
+  const m2 = migrate(m1, data);
+  assert.equal(m2.vouchers.direct, 1);
+  assert.ok(!m2.directFix, '读过一次的存档不再回档，也不会重弹');
+});
+
+test('逆潮守关：前 100 关的曲线保持原样，第二程只加在 101 关之后', () => {
+  // 定档锚点：这几个数一改，前 100 关的手感就变了（0.16.3 已定档）
+  assert.equal(D.playerLv(1), 50);
+  assert.equal(D.playerLv(100), 159);
+  assert.equal(D.playerStar(100), 99);
+  assert.equal(D.cpuBudget(1), 10);
+  assert.equal(D.cpuBudget(100), 15);
+  assert.ok(Math.abs(D.denScale(100) - 8.2) < 1e-9);
+  // 第二程：等级叠位到顶，预算继续涨，且不回落
+  for (let n = 101; n <= D.DEN_MAX; n++) {
+    const st = D.denStage(n);
+    assert.equal(st.lv, 159, `第 ${n} 关玩家应该已经满级`);
+    assert.equal(st.star, 99);
+    assert.ok(st.cpu > 15 && st.cpu <= 21, `第 ${n} 关算力：${st.cpu}`);
+    assert.ok(D.denScale(n) > 8.2);
+    assert.equal(st.chapter, Math.floor((n - 1) / 10) + 1);
+  }
+  assert.equal(D.DEN_CHAPTERS.length, D.DEN_MAX / 10, '20 章');
+  // 章中就开始叠第二条规则（第二程比第一程更早加压）
+  assert.ok(D.denStage(106).rules.length >= 2);
+  assert.equal(D.denStage(200).rules.length, 3, '终局三条战术全开');
 });
