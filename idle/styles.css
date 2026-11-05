@@ -1108,6 +1108,15 @@ button, a, [role="button"], input, select, label{touch-action:manipulation}
 .news .news-item h4 small{font-weight:400;font-size:11px;color:var(--dim,#8c97ad);margin-left:6px}
 .news ul{margin:0;padding-left:18px;display:grid;gap:7px;font-size:13px;line-height:1.65}
 .news b{color:var(--gold,#e8c36a)}
+/* 往期公告：弹窗里就地折叠，点开就能翻，不用跑去设置页 */
+.newspast{margin:2px 0 14px;border-top:1px dashed var(--line);padding-top:10px}
+.newspast>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--gold,#e8c36a);padding:2px 0;user-select:none}
+.newspast>summary::-webkit-details-marker{display:none}
+.newspast>summary::before{content:'▸';font-size:11px;transition:transform .15s}
+.newspast[open]>summary::before{content:'▾'}
+.newspast>summary:hover{color:var(--tx)}
+.newspast .news{margin-top:10px;padding-left:10px;border-left:2px solid var(--line)}
+.newspast .news .news-item h4{font-size:14px;color:var(--dim,#8c97ad)}
 
 /* ---------- 逆潮守关：你守，玩家攻 ---------- */
 .denbad{color:var(--bad)}

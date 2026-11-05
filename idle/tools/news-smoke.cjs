@@ -64,6 +64,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await shot('s_news_popup.png');
   check('弹出即记已读', (await ev(`window.__game.state.newsSeen`)) === '2026-11-05c');
 
+  // 2.5) 弹窗里就地展开「往期公告」
+  check('弹窗里有「往期公告」折叠入口', await ev(`!!document.querySelector('.news-modal .newspast')`));
+  check('默认收起', (await ev(`!!document.querySelector('.newspast').open`)) === false);
+  const sumText = await ev(`document.querySelector('.newspast>summary').innerText`);
+  check('折叠标题写明还有几条', /往期公告/.test(sumText) && /更早的 \d+ 条/.test(sumText), sumText.replace(/\s+/g, ' '));
+  await ev(`document.querySelector('.newspast>summary').click()`);
+  await sleep(400);
+  check('点开后就地展开', (await ev(`!!document.querySelector('.newspast').open`)) === true);
+  const pastText = await ev(`document.querySelector('.newspast .news').innerText`);
+  check('往期里能看到更老的公告（0.12.x）', pastText.includes('0.12.11') || pastText.includes('流血改时序'));
+  check('往期条目不是空壳（展开后条数 = 标题里的数字）', (await ev(`document.querySelectorAll('.newspast .news-item').length`)) === Number((sumText.match(/更早的 (\d+) 条/) || [])[1] || 0));
+  check('展开后「知道了」仍在', await ev(`!!document.querySelector('[data-act=news-ok]')`));
+  await ev(`(()=>{const b=document.querySelector('.news-modal .modal-body'); b.scrollTop = b.scrollHeight; return b.scrollHeight;})()`);
+  await sleep(300);
+  await shot('s_news_past.png');
+
   // 3) 设置页 → 更新公告，历史能翻到
   await ev(`(()=>{document.querySelectorAll('.modal-bg').forEach(m=>m.remove()); const g=document.querySelector('[data-group=more]'); if(g) g.click(); return 1;})()`);
   await sleep(500);
@@ -77,6 +93,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const all = await ev(`document.querySelector('.news').innerText`);
     check('历史公告里 0.16.0 / 0.16.1 / 0.16.2 都在', ['0.16.2', '0.16.1', '0.16.0'].every((v) => all.includes(v)));
     check('历史里有「逆潮守关」新玩法', all.includes('逆潮守关'));
+    check('设置页是完整列表（不再套一层折叠）', !(await ev(`!!document.querySelector('.newspast')`)));
     await shot('s_news_history.png');
   }
   check('全程无 JS 报错', errs.length === 0, errs[0] || '');

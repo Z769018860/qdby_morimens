@@ -143,9 +143,16 @@ const app = {
 const newsHtml = (list) => list.map((n) => `<div class="news-item"><h4>${esc(n.title)} <small>v${esc(n.v)} · ${esc(n.id)}</small></h4><ul>${n.items.map((t) => `<li>${esc(t).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')}</li>`).join('')}</ul></div>`).join('');
 function openNews(onlyNew) {
   const seen = app.state?.newsSeen;
-  // 弹窗只放最近 3 条没看过的：老玩家（从没见过公告）一进来不至被十几条糊一脸，历史去设置页翻
-  const list = onlyNew ? NEWS.filter((n) => n.id > (seen || '')).slice(0, 3) : NEWS;
-  openModal(`<h3>更新公告</h3><div class="news">${newsHtml(list.length ? list : NEWS.slice(0, 1))}</div><div class="row"><button class="btn gold" data-act="news-ok">知道了</button></div>`, 'news-modal');
+  // 弹窗只摊开最近 3 条没看过的，更早的收进「往期公告」折叠区（点开就能翻，不用跑去设置页）
+  const unseen = NEWS.filter((n) => n.id > (seen || ''));
+  const list = onlyNew ? unseen.slice(0, 3) : NEWS;
+  const head = list.length ? list : NEWS.slice(0, 1);
+  // 弹窗模式下，折叠区放「head 之后」的全部公告：head 永远是 NEWS 的前缀，用长度切就够
+  const past = onlyNew ? NEWS.slice(head.length) : [];
+  const pastHtml = past.length
+    ? `<details class="newspast"><summary>往期公告 · 更早的 ${past.length} 条</summary><div class="news">${newsHtml(past)}</div></details>`
+    : '';
+  openModal(`<h3>更新公告</h3><div class="news">${newsHtml(head)}</div>${pastHtml}<div class="row"><button class="btn gold" data-act="news-ok">知道了</button></div>`, 'news-modal');
 }
 // 离线结算 / 新手引导收起来之后再弹（它们的层级比公告高，抢着弹会互相盖住）；最多等 2 分钟
 function maybeNews() {
