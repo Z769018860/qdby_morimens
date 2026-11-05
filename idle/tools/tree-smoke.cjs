@@ -34,7 +34,14 @@ const getJson = (p) => new Promise((res, rej) => {
   await send('Page.enable');
   await send('Emulation.setDeviceMetricsOverride', { width: 1000, height: 1400, deviceScaleFactor: 1, mobile: false });
   await send('Page.navigate', { url: URL_GAME });
-  await new Promise((r) => setTimeout(r, 2200));
+  // 等页面真的起出来（冷启动 / 慢盘时 2.2 秒可能不够）：轮询挑战分组按钮出现为止
+  let ready = false;
+  for (let i = 0; i < 60 && !ready; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    const r = await send('Runtime.evaluate', { expression: `!!document.querySelector('#tabs [data-group="challenge"]')`, returnByValue: true });
+    ready = !!r?.result?.value;
+  }
+  if (!ready) throw new Error('页面 30 秒内没起出来');
 
   const ev = async (expr) => {
     const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });

@@ -787,42 +787,8 @@ export function lawUp(state, slug) {
   return c;
 }
 
-/** 树海直升券：把一位已有角色直接练到「超限满」——叠位 99、等级拉到 159、超限 99。最终法则不给（那档留给玩家自己练）。
- *  免费券等价于几十亿金币 + 几千银芯的养成，所以产出压得极低（红流之心首通 / 树海成就 / 高难商店）。 */
-export function useDirectVoucher(state, slug) {
-  const r = state.roster[slug];
-  const v = (state.vouchers ||= { rewind: 0, direct: 0 });
-  if (!r || (v.direct || 0) <= 0 || r.star >= MAX_AWAKEN && overdrive(r.od) >= OVERDRIVE_MAX) return null;
-  v.direct--;
-  r.star = MAX_AWAKEN;
-  r.buy = Math.max(r.buy || 0, MAX_AWAKEN);       // 银芯叠位数同步拉平（叠位定价看它）
-  r.od = OVERDRIVE_MAX;
-  r.lv = Math.max(r.lv || 1, levelCap(r.star));
-  r.brk = Math.max(r.brk || 0, Math.floor(r.lv / LEVEL_GATE));
-  return { slug, star: r.star, od: r.od, lv: r.lv };
-}
-
-/** 树海唤醒券（按界域，另有通用券）：唤醒一位**未拥有**的**对应界域**角色，直接进 roster（1 级 0 叠）。
- *  券的界域和角色界域必须一致（血肉券唤不了深海）；通用券（realm = 'ANY'）任意界域都能换。
- *  扣券顺序：先扣对应界域券，界域券空了再扣通用券——把灵活的那张留在手上。
- *  已拥有 / 没券都拒绝。realm 可以不传——默认按角色自己的界域查券。 */
-export function useAwakenVoucher(state, slug, data, realm = null) {
-  const a = data.bySlug[slug];
-  if (!a) return null;
-  const any = realm === 'ANY';
-  if (!any && realm && realm !== a.realm) return null;
-  if (state.roster[slug]) return null;
-  let used = null;
-  if (awakenOf(state, a.realm) > 0) {
-    state.vouchers.awaken[a.realm] = awakenOf(state, a.realm) - 1;
-    used = 'awaken';
-  } else if (universalOf(state) > 0) {
-    state.vouchers.univ = universalOf(state) - 1;
-    used = 'univ';
-  } else return null;
-  state.roster[slug] = { lv: 1, star: 0, brk: 0 };
-  return { slug, zh: a.zh, realm: a.realm, isNew: true, used };
-}
+/** （直升券 / 唤醒券已改为红流树海限定，见 core/treerun.js 的 useDirectInRun / useAwakenInRun：
+ *  只在一趟里生效，不碰账号练度与名册。） */
 
 export function awakenUp(state, slug) {
   const r = state.roster[slug];

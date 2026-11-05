@@ -93,14 +93,14 @@ function walletCard(st) {
       <span class="lkdot" style="background:${REALMS[k].color}"></span>${REALMS[k].zh}唤醒券 ×${n}<small class="dim">——唤醒一位未拥有的${REALMS[k].zh}界域角色</small></button>`;
   }).join('');
   const uni = universalOf(st);
-  return `<div class="banner-card lk"><div><h3>券匣 <small>树海产出的账号级道具在这里使用</small></h3>
+  return `<div class="banner-card lk"><div><h3>券匣 <small>树海限定 · 出发后在一趟里使用</small></h3>
     <div class="row">
-      <button class="btn" data-act="tree-use-direct" ${(v.direct || 0) > 0 ? '' : 'disabled'}>直升券 ×${v.direct || 0} <small class="dim">——把一位角色直接练到超限满</small></button>
+      <button class="btn" data-act="tree-use-direct" ${(v.direct || 0) > 0 ? '' : 'disabled'}>直升券 ×${v.direct || 0} <small class="dim">——这一趟里把一位队员练到超限满</small></button>
       <button class="btn ${uni > 0 ? 'gold' : ''}" data-act="tree-use-awaken" data-realm="ANY" ${uni > 0 ? '' : 'disabled'}>
         <span class="lkdot lkany"></span>通用唤醒券 ×${uni}<small class="dim">——任意界域都能换，四个界域通吃</small></button>
     </div>
     <div class="row lkwallet">${rows}</div>
-    <p class="hint">唤醒券<b>按界域分</b>：混沌 / 血肉 / 深海 / 超维各一种，只能唤醒对应界域的角色；<b>通用券</b>没有界域限制，用的时候先扣对应界域的券、界域券空了才动它。黑市、首通、成就、等级奖励都会出；直升券只从「红流之心」首通与成就里出。</p>
+    <p class="hint">券匣是<b>红流树海限定</b>的：出发之后，在一趟里从仓库面板打开券匣使用。<b>唤醒券</b>按界域分（混沌 / 血肉 / 深海 / 超维），把账号还没有的角色唤醒进<b>这一趟的仓库</b>（50 级白板影子，本趟有效，不加入名册）；<b>通用券</b>没有界域限制，先扣对应界域券、界域券空了才动它。<b>直升券</b>在这一趟里把一位队员的个人练度拉到超限满（只在本趟生效）。黑市、首通、成就、等级奖励都会出。</p>
   </div></div>`;
 }
 
@@ -367,7 +367,7 @@ export function treeDepotModal(app) {
     const dead = p <= 0.001;
     const act = pick ? 'tree-equip' : 'tree-lineup';
     return `<button class="lkpick ${on ? 'relic' : ''}" data-act="${act}" data-s="${sl}" ${pick ? `data-uid="${pick}"` : ''} ${dead && !pick ? 'disabled style="opacity:.45"' : ''}>
-      <em>${pick ? '装给他' : on ? '上场' : dead ? '倒下' : '替补'} · ${Math.round(p * 100)}%</em><b>${esc(a.zh)}</b>
+      <em>${pick ? '装给他' : on ? '上场' : dead ? '倒下' : '替补'} · ${Math.round(p * 100)}%${(run.direct || {})[sl] ? ' · 🏅超限满' : ''}</em><b>${esc(a.zh)}</b>
       <p class="hint">${pick ? '点一下把这件环装给他' : p <= 0.001 ? '要去泉水 / 事件里救回来' : on ? '点一下换下' : '点一下上场（最多 4 人）'}</p></button>`;
   }).join('');
 
@@ -384,6 +384,13 @@ export function treeDepotModal(app) {
 
   const total = gearRows(run).filter((x) => x.where).length;
   const bag = treeState(app.state).stash || [];
+  const v = app.state.vouchers || {};
+  const wallet = `<h4 class="lkh4">券匣 <small>树海限定 · 只在本趟生效</small></h4>
+    <div class="row">
+      <button class="btn sm" data-act="tree-use-direct" ${(v.direct || 0) > 0 ? '' : 'disabled'}>直升券 ×${v.direct || 0}</button>
+      <button class="btn sm" data-act="tree-use-awaken">唤醒券…</button>
+    </div>
+    <p class="hint">直升券：这一趟里把一位队员的个人练度拉到超限满；唤醒券：把账号还没有的角色唤醒进这趟的仓库。都只在本趟生效，不碰账号。</p>`;
   const bagHtml = `<h4 class="lkh4">行囊 <small>${run.bagUsed ? '这一趟已经带过一件' : `这一趟可带一件 · ${bag.length}/${STASH_MAX}`}</small></h4>
     <div class="list">${bag.length ? bag.map((it) => `<div class="lkrow ${run.bagUsed ? '' : 'on'}">
       <b>${esc(it.zh)}</b><span class="dim">${esc(it.tag || '')} · ${esc(it.desc || '')}</span>
@@ -393,6 +400,7 @@ export function treeDepotModal(app) {
     <p class="hint">${pick ? '点一下队员，把「' + esc(TREE_GEAR.find((g) => g.id === (run.gear.pool || []).find((x) => x.uid === pick)?.defId)?.zh || '') + '」装给他。' : `战斗前在这里换人、换装备。环是个人装备（每人 1 个），契 / 令是全队生效（各限 ${gearLimit(run, 'pact')} 件${n0(run.pack) ? `，含天赋加的 ${run.pack} 个槽` : ''}）。`}</p>
     <h4 class="lkh4">上场编队</h4><div class="lkpicks">${members}</div>
     ${bagHtml}
+    ${wallet}
     <h4 class="lkh4">装备库</h4><div class="list">${gearList}</div>
     <div class="row"><button class="btn gold" data-act="tree-depot-close">收好（返回）</button></div>`, 'wide', 'tree-depot');
 }
@@ -437,21 +445,34 @@ export function treeEndModal(app, end) {
 /* ---------------------------------------------------------------- 券匣弹窗 */
 export function treeDirectModal(app) {
   const { state: st, data } = app;
-  const owned = Object.keys(st.roster || {}).filter((x) => data.bySlug[x])
-    .sort((a, b) => (data.bySlug[a].type || '').localeCompare(data.bySlug[b].type || '') || (st.roster[b].lv || 0) - (st.roster[a].lv || 0));
-  const cards = owned.map((slug) => {
-    const a = data.bySlug[slug], r = st.roster[slug];
-    const full = r.star >= 99 && r.od >= 99;
-    return `<button class="lkpick" data-act="tree-direct-pick" data-s="${slug}" ${full ? 'disabled style="opacity:.4"' : ''}>
-      <em>Lv.${r.lv} · 叠${r.star}${r.od ? ` · 超限${r.od}` : ''}${r.law ? ` · 法则${r.law}` : ''}</em><b>${esc(a.zh)}</b><p class="hint">${full ? '已经是超限满' : '直升后：叠位99 · 等级159 · 超限99'}</p></button>`;
+  const run = treeState(st).cur;
+  if (!run) {
+    openModal(`<h3>直升券 <small>树海限定</small></h3>
+      <p class="hint">直升券是<b>红流树海限定</b>的：先出发，在一趟里使用——把这一趟里的一位队员的个人练度拉到超限满，<b>只在本趟生效，不碰账号</b>。现在没有进行中的趟，先去树海出发。</p>`);
+    return;
+  }
+  const v = st.vouchers || {};
+  const members = [...(run.pool || [])].map((slug) => {
+    const a = data.bySlug[slug] || { zh: slug };
+    const done = (run.direct || {})[slug];
+    const on = (run.slugs || []).includes(slug);
+    return `<button class="lkpick" data-act="tree-direct-pick" data-s="${slug}" ${done || !(v.direct > 0) ? 'disabled style="opacity:.4"' : ''}>
+      <em>${on ? '上场' : '替补'}${done ? ' · 已直升' : ''}</em><b>${esc(a.zh)}</b>
+      <p class="hint">${done ? '这一趟里已经是超限满' : '点一下：这一趟里练度拉到超限满（叠位 99 · 等级 159 · 超限 99）'}</p></button>`;
   }).join('');
-  openModal(`<h3>使用直升券 <small>剩 ${st.vouchers?.direct || 0} 张</small></h3>
-    <p class="hint">选一位角色：叠位拉到 99、等级拉到 159、超限拉到 99。最终法则不送——那要自己练。已经超限满的人不能再吃券。</p>
-    <div class="lkpicks">${cards}</div>`, 'wide');
+  openModal(`<h3>使用直升券 <small>剩 ${v.direct || 0} 张 · 只在本趟生效</small></h3>
+    <p class="hint">选这一趟里的一位队员：他的个人练度立刻拉到超限满（叠位 99 · 等级 159 · 超限 99），<b>只在本趟生效，不碰账号</b>。</p>
+    <div class="lkpicks">${members}</div>`, 'wide');
 }
 
 export function treeAwakenModal(app, realm = null) {
   const { state: st, data } = app;
+  const run = treeState(st).cur;
+  if (!run) {
+    openModal(`<h3>唤醒券 <small>树海限定</small></h3>
+      <p class="hint">唤醒券是<b>红流树海限定</b>的：先出发，在一趟里使用——把账号还没有的角色唤醒进<b>这一趟的仓库</b>（50 级白板影子，本趟有效，不加入账号名册）。现在没有进行中的趟，先去树海出发。</p>`);
+    return;
+  }
   const uni = universalOf(st);
   const keys = Object.keys(REALMS).filter((k) => awakenOf(st, k) > 0);
   const tabsAll = [...keys, ...(uni > 0 ? ['ANY'] : [])];
@@ -459,17 +480,17 @@ export function treeAwakenModal(app, realm = null) {
   if (!cur) { openModal('<h3>唤醒券</h3><p class="hint">一张都没有。树海的深根 / 红流之心首通、成就与等级奖励会给界域券，5 / 15 / 25 级给通用券。</p>'); return; }
   const any = cur === 'ANY';
   const pool = data.awakeners
-    .filter((a) => (any || a.realm === cur) && !st.roster[a.slug])
+    .filter((a) => (any || a.realm === cur) && !st.roster[a.slug] && !(run.pool || []).includes(a.slug))
     .sort((a, b) => (any ? String(a.realm).localeCompare(String(b.realm)) : 0) || String(b.rarity).localeCompare(String(a.rarity)));
   const tabs = tabsAll.map((k) => `<button class="btn sm ${k === cur ? 'gold' : ''}" data-act="tree-use-awaken" data-realm="${k}">${
     k === 'ANY' ? '<span class="lkdot lkany"></span>通用' : `<span class="lkdot" style="background:${REALMS[k].color}"></span>${REALMS[k].zh}`
   } ×${k === 'ANY' ? uni : awakenOf(st, k)}</button>`).join(' ');
   const cards = pool.map((a) => `<button class="lkpick relic" data-act="tree-awaken-pick" data-s="${a.slug}" data-realm="${cur}">
-    <em>${RAR_ZH[a.rarity] || a.rarity} · ${REALMS[a.realm]?.zh || a.realm}</em><b>${esc(a.zh)}</b><p class="hint">${a.type === 'ASSAULT' ? '突击' : a.type === 'WARDEN' ? '守护' : '合唱'} · 唤醒后 1 级 0 叠</p></button>`).join('');
+    <em>${RAR_ZH[a.rarity] || a.rarity} · ${REALMS[a.realm]?.zh || a.realm}</em><b>${esc(a.zh)}</b><p class="hint">${a.type === 'ASSAULT' ? '突击' : a.type === 'WARDEN' ? '守护' : '合唱'} · 唤醒进这一趟的仓库（50 级白板影子）</p></button>`).join('');
   const head = any ? '通用唤醒券' : `${REALMS[cur].zh}界域`;
   openModal(`<h3>使用唤醒券 <small>${head} · 剩 ${any ? uni : awakenOf(st, cur)} 张</small></h3>
     <div class="row">${tabs}</div>
-    <p class="hint">选一位<b>未拥有</b>的角色直接加入名册。${any ? '通用券四个界域通吃——但会<b>先扣对应界域的专用券</b>，专用券空了才动通用券。' : `只有${REALMS[cur].zh}界域的角色能换。`}${pool.length ? '' : '这一档已经没有可唤醒的角色了——换一种券，或者先留着。'}</p>
+    <p class="hint">选一位<b>账号未拥有</b>的角色，唤醒进<b>这一趟的仓库</b>（50 级白板影子，本趟有效，不加入名册）。${any ? '通用券四个界域通吃——但会<b>先扣对应界域的专用券</b>，专用券空了才动通用券。' : `只有${REALMS[cur].zh}界域的角色能换。`}${pool.length ? '' : '这一档没有可唤醒的角色了——换一种券，或者先留着。'}</p>
     <div class="lkpicks">${cards || '<p class="hint">没有可唤醒的角色。</p>'}</div>`, 'wide');
 }
 

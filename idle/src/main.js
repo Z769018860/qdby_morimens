@@ -43,6 +43,7 @@ import {
 } from './core/luckrun.js';
 import {
   treeState, startRun as treeStart, pickBranch as treePickBranch, fightNode as treeFight,
+  useDirectInRun, useAwakenInRun,
   takeOffer as treeTakeOffer, rerollOffer as treeReroll, applyEvent as treeApplyEvent, applyRest as treeApplyRest,
   shopBuy as treeShopBuy, leaveNode as treeLeaveNode, takeGift as treeTakeGift, giftOptions as treeGiftOptions,
   abandonRun as treeAbandon, claimTreeAch, offerPool as treeOfferPool, checkDraft as treeCheckDraft,
@@ -50,8 +51,8 @@ import {
   claimTreeLevel, talentMods as treeTalentMods, TREE_SQUADS, teamMax,
   stashPut as treeStashPut, stashTake as treeStashTake, stashDrop as treeStashDrop,
 } from './core/treerun.js';
-import { useDirectVoucher, useAwakenVoucher, awakenOf, universalOf } from './core/game.js';
-import { denFight, denApply, denChapterReward, denState, denCheck, monById, DEN_MAX, DEN_SLOTS } from './core/denrun.js';
+import { awakenOf, universalOf } from './core/game.js';
+import { denFight, denApply, denChapterReward, denClaimStars, denState, denCheck, monById, DEN_MAX, DEN_SLOTS } from './core/denrun.js';
 import { claimDaily, redeemGuest, claimMile, dailyView, milePending } from './core/event.js';
 import { syncSigninGifts } from './core/creators.js';
 import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
@@ -1275,10 +1276,10 @@ function onAct(e) {
       break;
     }
     case 'tree-direct-pick': {
-      const r2 = useDirectVoucher(s, el.dataset.s);
-      if (!r2) { toast('用不了：券没了，或这位已经超限满'); break; }
+      const r2 = useDirectInRun(s, treeState(s).cur, el.dataset.s);
+      if (!r2.ok) { toast(r2.err || '用不了'); break; }
       closeModal(); app.save(); render(); sound.play('lvup');
-      toast(`${d.bySlug[r2.slug]?.zh || r2.slug} 直升完成：叠位 99 · 等级 159 · 超限 99`, 4000);
+      toast(`${d.bySlug[r2.slug]?.zh || r2.slug} 这一趟直升到超限满（只在本趟生效，不碰账号）`, 4000);
       break;
     }
     case 'tree-use-awaken': {
@@ -1291,10 +1292,10 @@ function onAct(e) {
       break;
     }
     case 'tree-awaken-pick': {
-      const r2 = useAwakenVoucher(s, el.dataset.s, d, el.dataset.realm || null);
-      if (!r2) { toast('用不了：券没了，或这位已经拥有 / 界域不对'); break; }
+      const r2 = useAwakenInRun(s, treeState(s).cur, el.dataset.s, d);
+      if (!r2.ok) { toast(r2.err || '用不了'); break; }
       closeModal(); app.save(); render(); sound.play('summonSSR');
-      toast(`唤醒成功：${r2.zh} 加入了名册${r2.used === 'univ' ? '（用了通用券）' : ''}`, 4000);
+      toast(`唤醒成功：${r2.zh} 进了这一趟的仓库${r2.used === 'univ' ? '（用了通用券）' : ''}（只在本趟生效）`, 4000);
       break;
     }
     /* ---------------- 逆潮守关（扮演怪物守关） ---------------- */
@@ -1378,6 +1379,14 @@ function onAct(e) {
       if (!rw) { toast('这一章还没全通，或者已经领过了'); break; }
       app.save(); render(); sound.play('unlock');
       DEN.denClaimModal(rw, ch);
+      break;
+    }
+    case 'den-star': {
+      const ch = +el.dataset.ch, ti = +el.dataset.ti;
+      const rw = denClaimStars(s, ch, ti);
+      if (!rw) { toast('还没攒够星，或者已经领过了'); break; }
+      app.save(); render(); sound.play('ach');
+      DEN.denStarClaimToast(rw, [12, 21, 30][ti] || '');
       break;
     }
     case 'pick-order': {

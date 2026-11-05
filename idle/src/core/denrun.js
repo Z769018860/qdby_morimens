@@ -42,12 +42,14 @@ export const DEN_GUARDS = {
   frenzy: { zh: '狂血', short: '狂', d: '生命首次降到 45% 以下时，攻击永久 +45%', counter: '控血、拖到最后一击' },
   ward: { zh: '庇护', short: '庇', d: '每 2 回合给最残的友军 10% 最大生命的护盾', counter: '群体伤害、溢出点杀' },
   seal: { zh: '噤声', short: '噤', d: '每 3 回合封住玩家能量最高的一人 1 回合（放不出大招）', counter: '分散能量、平A 输出' },
+  cleanse: { zh: '涤净', short: '涤', d: '每回合开始净化自身的中毒，并撕掉 2 条流血（持续伤害流在它面前只剩零头）', counter: '多段直接伤害、速杀' },
+  ironscale: { zh: '逆鳞', short: '鳞', d: '吃到的反击 / 反震伤害削减 70%（靠反击被动蹭血的打法在它面前失效）', counter: '真刀真枪的直接输出' },
 };
 export const DEN_GUARD_KEYS = Object.keys(DEN_GUARDS);
 const GUARD_BY_RANK = {
-  Normal: ['venom', 'spines', 'ward', 'sunder'],
-  Elite: ['spines', 'sunder', 'seal', 'bulwark', 'frenzy'],
-  Boss: ['bulwark', 'leech', 'frenzy', 'seal', 'ward'],
+  Normal: ['venom', 'spines', 'ward', 'sunder', 'cleanse'],
+  Elite: ['spines', 'sunder', 'seal', 'bulwark', 'frenzy', 'cleanse', 'ironscale'],
+  Boss: ['bulwark', 'leech', 'frenzy', 'seal', 'ward', 'ironscale'],
 };
 
 /* ------------------------------------------------------------------ 关卡 */
@@ -215,8 +217,13 @@ export function denPlayerDefs(n, data) {
   const healShift = nCh >= 2 ? -28 : nCh === 0 ? 5 : -12;
   const defShift = nCh === 0 ? 1.32 : nCh >= 2 ? 0.96 : 1;
   void nW;
+  // 攻方的出手顺序也讲道理：辅助 / 治疗先动（把增益和盾铺好），输出后手吃现成的增益再打——
+  // 和玩家自己在高级设置里排顺序是同一套学问。不这么做的话，「会排顺序的玩家」和
+  // 「按站位呆排的 AI」差着一大截，守关方等于在跟下等 AI 打，赢得没有含金量。
+  const roleOrd = { CHORUS: 0, WARDEN: 1, ASSAULT: 2 };
   return raw.map((d) => ({
     ...d,
+    ord: roleOrd[d.type] ?? 3,
     hp: Math.round(d.hp * kHp),
     atk: Math.round(d.atk * kAtk),
     healBonus: Math.round((d.healBonus || 0) - 25 + healShift),
@@ -335,6 +342,7 @@ export function denState(state) {
   d.best = clamp(Math.floor(Number(d.best) || 0), 0, DEN_MAX);
   d.stars = { ...(d.stars || {}) };
   d.lineups = { ...(d.lineups || {}) };
+  d.starClaim = { ...(d.starClaim || {}) };
   d.runs ||= 0; d.wins ||= 0;
   return d;
 }
@@ -466,6 +474,49 @@ export function denChapterReward(state, ch) {
   d.claim[ch] = true;
   const rw = { gold: 4000 + ch * 1200, cores: 60 + ch * 20, tickets: 2 + Math.floor(ch / 3) };
   state.gold += rw.gold; state.cores += rw.cores; state.tickets += rw.tickets;
+  state.stats.gold += rw.gold;
+  return rw;
+}
+
+/* ------------------------------------------------------------------ 星级里程碑奖励 */
+/* 每章 30 颗星里立三档：12 / 21 / 30。刷星（提档重打拿 2~3 星）从此有真奖励，
+   也给「这关我只求守住」和「这关我要满星」两种玩法分了层级。 */
+export const DEN_STAR_TIERS = [
+  { need: 12, zh: '12 星', d: '本章拿到 12 颗星', rw: (ch) => ({ gold: 2200 + ch * 900, cores: 40 + ch * 12 }) },
+  { need: 21, zh: '21 星', d: '本章拿到 21 颗星', rw: (ch) => ({ gold: 4200 + ch * 1300, cores: 90 + ch * 20, tickets: 2 }) },
+  { need: 30, zh: '满星', d: '本章 10 关全部 3 星', rw: (ch) => ({ gold: 7000 + ch * 1700, cores: 160 + ch * 32, tickets: 2 + Math.floor(ch / 3) }) },
+];
+export const denStarKey = (ch, ti) => `${ch}:${ti}`;
+
+/** 某章的星级里程碑视图：每档 [是否达标, 是否已领] */
+export function denStarClaims(state, ch) {
+  const d = denState(state);
+  d.starClaim ||= {};
+  const got = Array.from({ length: 10 }, (_, k) => denStarOf(state, (ch - 1) * 10 + k + 1)).reduce((a, b) => a + b, 0);
+  return {
+    got,
+    tiers: DEN_STAR_TIERS.map((t, ti) => ({
+      ...t, ti, got,
+      done: got >= t.need,
+      claimed: !!d.starClaim[denStarKey(ch, ti)],
+      rw: t.rw(ch),
+    })),
+  };
+}
+
+/** 领取星级里程碑：奖励直接进账，返回奖励或 null（没达标 / 已领过） */
+export function denClaimStars(state, ch, ti) {
+  const t = DEN_STAR_TIERS[ti];
+  if (!t) return null;
+  const d = denState(state);
+  d.starClaim ||= {};
+  const key = denStarKey(ch, ti);
+  if (d.starClaim[key]) return null;
+  const got = Array.from({ length: 10 }, (_, k) => denStarOf(state, (ch - 1) * 10 + k + 1)).reduce((a, b) => a + b, 0);
+  if (got < t.need) return null;
+  d.starClaim[key] = true;
+  const rw = { ...t.rw(ch) };
+  state.gold += rw.gold; state.cores += rw.cores; state.tickets += rw.tickets || 0;
   state.stats.gold += rw.gold;
   return rw;
 }

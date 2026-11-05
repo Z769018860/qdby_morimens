@@ -16,7 +16,7 @@
 import { hash, mulberry32 } from './rng.js';
 import { simulate, roundLimitFor } from './battle.js';
 import { buildEnemies, domainRules, lateDotBoost } from './enemies.js';
-import { teamDefs, addAwaken, addUniversal, emptyAwaken } from './game.js';
+import { teamDefs, addAwaken, addUniversal, emptyAwaken, awakenOf, universalOf } from './game.js';
 import { LUCK_BUFFS, charUp } from './luckrun.js';
 import { REALMS } from './constants.js';
 
@@ -805,22 +805,29 @@ export function allyDefsOf(state, data, run, slugs = run.slugs) {
   const t = teamDefs(state, data, slugs, ovr, true);
   const tm = talentMods(treeState(state));
   return t.list.map((d) => {
+    // 券匣 · 直升券（树海限定）：这一趟里单独把这位的个人练度拉到超限满——
+    // 只重算他一个人的基础属性（个人 ovr=超限满），全队强化档 / 局内养成 / 羁绊照旧。
+    let base = d;
+    if ((run.direct || {})[d.slug]) {
+      const single = teamDefs(state, data, [d.slug], enhOvr(3), true).list[0];
+      base = { ...single, slug: d.slug, idx: d.idx, mid: d.mid };
+    }
     const m = modsOf(run, d.slug);
-    const out = { ...d };
+    const out = { ...base };
     // hpMod：分队自带的取舍（前锋 +1 人上场，但全队 -12% 生命）
-    out.hp = Math.max(1, Math.round(d.hp * (1 + (m.hp + tm.hp + num(run.maxhpPct) + num(run.hpMod)) / 100)));
-    out.atk = Math.max(1, Math.round(d.atk * (1 + (m.atk + tm.atk) / 100)));
-    out.def = Math.max(0, Math.round(d.def * (1 + (m.def + tm.def) / 100)));
-    out.critRate = (d.critRate || 0) + m.critRate + tm.critRate;
-    out.critDmg = (d.critDmg || 0) + m.critDmg;
-    out.amp = (d.amp || 0) + m.amp + tm.amp;
-    out.healBonus = (d.healBonus || 0) + m.healBonus;
-    out.shieldBonus = (d.shieldBonus || 0) + m.shieldBonus;
-    out.steal = (d.steal || 0) + m.steal;
-    out.surviveChance = Math.min(0.9, (d.surviveChance || 0) + m.surviveChance);
-    out.firstBoost = (d.firstBoost || 0) + m.firstBoost;
-    out.aliGain = (d.aliGain || 0) + m.aliGain;
-    out.keyGain = (d.keyGain || 0) + m.keyGain;
+    out.hp = Math.max(1, Math.round(base.hp * (1 + (m.hp + tm.hp + num(run.maxhpPct) + num(run.hpMod)) / 100)));
+    out.atk = Math.max(1, Math.round(base.atk * (1 + (m.atk + tm.atk) / 100)));
+    out.def = Math.max(0, Math.round(base.def * (1 + (m.def + tm.def) / 100)));
+    out.critRate = (base.critRate || 0) + m.critRate + tm.critRate;
+    out.critDmg = (base.critDmg || 0) + m.critDmg;
+    out.amp = (base.amp || 0) + m.amp + tm.amp;
+    out.healBonus = (base.healBonus || 0) + m.healBonus;
+    out.shieldBonus = (base.shieldBonus || 0) + m.shieldBonus;
+    out.steal = (base.steal || 0) + m.steal;
+    out.surviveChance = Math.min(0.9, (base.surviveChance || 0) + m.surviveChance);
+    out.firstBoost = (base.firstBoost || 0) + m.firstBoost;
+    out.aliGain = (base.aliGain || 0) + m.aliGain;
+    out.keyGain = (base.keyGain || 0) + m.keyGain;
     out.shield = Math.round(out.hp * m.shield / 100);
     out.hpNow = Math.max(1, Math.round(out.hp * (run.hp[d.slug] ?? 1)));
     return out;
@@ -1159,17 +1166,18 @@ export function shopStock(state, run, data = null) {
       items.push({ type: 'recruit', id: `s_rec_${sl}`, zh: `旅人 · ${data?.bySlug[sl]?.zh || sl}`, desc: '邀请一位角色进仓库（练度带不进来，只有 50 级白板）', price: Math.round(70 * off), slug: sl });
     }
   }
-  // 账号级商品：界域唤醒券随时可能上架；直升券只出现在深根与红流之心
+  // 树海限定券：界域唤醒券随时可能上架（只在本趟生效）
   if (rng() < 0.55) {
     const realms = Object.keys(REALMS);
     const rl = realms[Math.floor(rng() * realms.length)];
-    items.push({ type: 'voucher', id: `s_awk_${rl}`, zh: `${REALMS[rl].zh}之茧`, desc: `唤醒券（${REALMS[rl].zh}界域）：唤醒一位未拥有的${REALMS[rl].zh}界域角色`, price: Math.round(150 * off), voucher: `awaken:${rl}` });
+    items.push({ type: 'voucher', id: `s_awk_${rl}`, zh: `${REALMS[rl].zh}之茧`, desc: `唤醒券（${REALMS[rl].zh}界域）：把一位未拥有的${REALMS[rl].zh}界域角色唤醒进这趟的仓库`, price: Math.round(150 * off), voucher: `awaken:${rl}` });
   }
   if (rng() < 0.5) items.push({ type: 'bud', id: 's_bud', zh: '古树之芽', desc: '在古树试炼点亮练度，或换一次馈赠', price: Math.round(130 * off), bud: 1 });
+  // 树海限定券：只对这一趟生效（不碰账号）；直升券只出现在深根与红流之心
   const deep = diff.id === 'root' || diff.id === 'heart';
-  if (deep && rng() < 0.32) items.push({ type: 'voucher', id: 's_direct', zh: '无名之契', desc: '直升券：把一位角色直接练到超限满（账号资产）', price: Math.round(320 * off), voucher: 'direct' });
+  if (deep && rng() < 0.32) items.push({ type: 'voucher', id: 's_direct', zh: '无名之契', desc: '直升券：这一趟里把一位队员练到超限满（树海限定，只在本趟生效）', price: Math.round(320 * off), voucher: 'direct' });
   // 通用唤醒券：比界域券贵，出得也少——「挑哪个界域都行」是它唯一的卖点
-  if (deep && rng() < 0.3) items.push({ type: 'voucher', id: 's_univ', zh: '无界之茧', desc: '通用唤醒券：任意界域都可以换一位未拥有的角色', price: Math.round(230 * off), voucher: 'awaken:ANY' });
+  if (deep && rng() < 0.3) items.push({ type: 'voucher', id: 's_univ', zh: '无界之茧', desc: '通用唤醒券：任意界域都可以换一位未拥有的角色进这趟的仓库', price: Math.round(230 * off), voucher: 'awaken:ANY' });
   return items;
 }
 
@@ -1388,6 +1396,36 @@ export function claimTreeAch(state, id) {
 }
 
 export const abandonRun = (state) => (treeState(state).cur ? endRun(state, false) : null);
+
+/* ------------------------------------------------------------------ 券匣（树海限定） */
+/* 直升券与唤醒券都只在「进行中的这一趟」里生效，不碰账号：
+   · 直升券：这一趟里把一位队员的个人练度拉到超限满（等价个人点亮全部三档强化）；
+   · 唤醒券：把账号还没有的角色唤醒进这一趟的仓库（50 级白板影子），一样只在这一趟存在。
+   没出发时用不了——券匣的按钮会提示先出发。 */
+export function useDirectInRun(state, run, slug) {
+  const v = (state.vouchers ||= { rewind: 0, direct: 0 });
+  if (!run || (v.direct || 0) <= 0) return { err: '没有直升券，或这一趟还没出发' };
+  if (!(run.pool || []).includes(slug)) return { err: '要选这一趟里的队员' };
+  if ((run.direct || {})[slug]) return { err: '这位在这一趟里已经是超限满了' };
+  v.direct--;
+  (run.direct ||= {})[slug] = true;
+  return { ok: true, slug };
+}
+
+export function useAwakenInRun(state, run, slug, data) {
+  const a = data.bySlug[slug];
+  if (!run || !a) return { err: '这一趟还没出发' };
+  if (state.roster[slug]) return { err: '这位已经拥有——用黑露直接招募就行' };
+  if ((run.pool || []).includes(slug)) return { err: '已经在这趟的仓库里了' };
+  if ((run.pool || []).length >= poolCap(run)) return { err: `仓库满了（${poolCap(run)} 人）` };
+  let used = null;
+  if (awakenOf(state, a.realm) > 0) { state.vouchers.awaken[a.realm] = awakenOf(state, a.realm) - 1; used = 'awaken'; }
+  else if (universalOf(state) > 0) { state.vouchers.univ = universalOf(state) - 1; used = 'univ'; }
+  else return { err: '这种唤醒券没有了' };
+  run.pool.push(slug);
+  run.hp[slug] = 1;
+  return { ok: true, slug, zh: a.zh, realm: a.realm, used };
+}
 
 // 兼容：空券对象（外部偶尔要初始化）
 export { emptyAwaken };

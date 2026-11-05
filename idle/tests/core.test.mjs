@@ -3990,33 +3990,40 @@ test('树海：通关结算发奖励与首通券，成就能领', async () => {
   assert.equal(s.vouchers.direct, v0.d + 1, '直升券没有多发');
 });
 
-test('树海券：直升券拉到超限满、唤醒券只收未拥有的血肉界域角色', async () => {
+test('树海券：券匣是树海限定——直升 / 唤醒都只在本趟生效，不碰账号', async () => {
   const T = await import('../src/core/treerun.js');
-  const { useDirectVoucher, useAwakenVoucher } = await import('../src/core/game.js');
   const s = newState(data, 26);
   s.vouchers.direct = 1; s.vouchers.awaken = { CHAOS: 0, CARO: 1, AEQUOR: 0, ULTRA: 0 };
-  const slug = 'ogier';
-  s.roster[slug] = { lv: 30, star: 5, brk: 1 };
-  const r = useDirectVoucher(s, slug);
-  assert.ok(r);
-  assert.equal(s.roster[slug].star, 99);
-  assert.equal(s.roster[slug].lv, 159);
-  assert.equal(s.roster[slug].od, 99);
+  // 开一趟，把 ogier 带进去
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  for (const sl of team) s.roster[sl] = { lv: 50, star: 0, brk: 3 };
+  T.startRun(s, data, 'dim', team);
+  const run = T.treeState(s).cur;
+  const before = JSON.stringify(s.roster.ogier);
+  // 直升券：本趟内把 ogier 拉到超限满
+  const r = T.useDirectInRun(s, run, 'ogier');
+  assert.ok(r.ok, r.err);
   assert.equal(s.vouchers.direct, 0);
-  assert.equal(useDirectVoucher(s, slug), null, '没有券了不能再拉');
-  // 唤醒券：只能唤醒未拥有的 CARO 角色
+  assert.equal(run.direct.ogier, true);
+  assert.equal(JSON.stringify(s.roster.ogier), before, '账号练度一个字都不动');
+  const defs = T.allyDefsOf(s, data, run);
+  const og = defs.find((x) => x.slug === 'ogier');
+  assert.ok(og.hp > 5000, '局内面板按超限满重算（50 级白板没这个血量）');
+  assert.equal(T.useDirectInRun(s, run, 'ogier').ok, undefined, '同一位不能吃两张');
+  // 没出发时用不了
+  const s2 = newState(data, 26);
+  s2.vouchers.direct = 1;
+  assert.ok(T.useDirectInRun(s2, null, 'ogier').err, '没出发不能直升');
+  // 唤醒券：把账号未拥有的 CARO 角色唤醒进这趟的仓库
   const caro = data.awakeners.find((a) => a.realm === 'CARO' && !s.roster[a.slug]);
-  const ok = useAwakenVoucher(s, caro.slug, data);
-  assert.ok(ok && s.roster[caro.slug]);
+  const ok = T.useAwakenInRun(s, run, caro.slug, data);
+  assert.ok(ok.ok, ok.err);
   assert.equal(s.vouchers.awaken.CARO, 0);
-  assert.equal(useAwakenVoucher(s, caro.slug, data), null, '已拥有 / 没券都拒绝');
-  // 界域要一一对应：拿着血肉券唤不了别的界域
-  const other = data.awakeners.find((a) => a.realm !== 'CARO' && !s.roster[a.slug]);
-  s.vouchers.awaken.CARO = 1;
-  assert.equal(useAwakenVoucher(s, other.slug, data, 'CARO'), null, '血肉券不能唤醒别的界域');
-  assert.equal(s.vouchers.awaken.CARO, 1, '失败不能扣券');
-  s.vouchers.awaken[other.realm] = 1;
-  assert.ok(useAwakenVoucher(s, other.slug, data, other.realm), '对应界域的券可以唤醒');
+  assert.ok(run.pool.includes(caro.slug) && run.hp[caro.slug] === 1, '进的是这一趟的仓库');
+  assert.ok(!s.roster[caro.slug], '账号名册纹丝不动');
+  assert.ok(T.useAwakenInRun(s, run, caro.slug, data).err, '已在仓库 / 没券都拒绝');
+  // 已拥有的角色不能用唤醒券（黑露招募就行）
+  assert.ok(T.useAwakenInRun(s, run, 'lotan', data).err, '已拥有的角色拒绝用券');
 });
 
 test('树海：老存档迁移补出 tree 与两张券，进行中的局能续上', () => {
@@ -4272,7 +4279,7 @@ test('树海天赋：枝杈改的是规则（岔路条数 / 装备槽 / 留手�
 
 test('树海通用唤醒券：四个界域通吃，但先扣专用券', async () => {
   const T = await import('../src/core/treerun.js');
-  const { useAwakenVoucher, universalOf } = await import('../src/core/game.js');
+  const { universalOf } = await import('../src/core/game.js');
   const s = newState(data, 46);
   const st = T.treeState(s);
   // 5 级奖励里有一张通用券
@@ -4281,18 +4288,24 @@ test('树海通用唤醒券：四个界域通吃，但先扣专用券', async ()
   assert.ok(rw && rw.vouchers.includes('awaken:ANY'), '5 级要给通用唤醒券');
   assert.equal(universalOf(s), 1);
 
+  // 开一趟再唤醒：券匣是树海限定，进的是这一趟的仓库
+  const team = ['ogier', 'lotan', 'doll', 'ramona'];
+  for (const sl of team) if (!s.roster[sl]) s.roster[sl] = { lv: 50, star: 0, brk: 3 };
+  T.startRun(s, data, 'dim', team);
+  const run = T.treeState(s).cur;
   const aeq = data.awakeners.find((a) => a.realm === 'AEQUOR' && !s.roster[a.slug]);
-  const r = useAwakenVoucher(s, aeq.slug, data, 'ANY');
-  assert.ok(r && r.used === 'univ', '手上只有通用券时用它');
+  const r = T.useAwakenInRun(s, run, aeq.slug, data);
+  assert.ok(r.ok && r.used === 'univ', '手上只有通用券时用它');
   assert.equal(universalOf(s), 0);
   assert.equal(r.realm, 'AEQUOR');
+  assert.ok(run.pool.includes(aeq.slug) && !s.roster[aeq.slug], '进仓库的是这一趟，账号名册不动');
 
   // 有专用券时先扣专用券，通用券留着
   s.vouchers.univ = 1;
   s.vouchers.awaken.AEQUOR = 1;
-  const aeq2 = data.awakeners.find((a) => a.realm === 'AEQUOR' && !s.roster[a.slug]);
-  const r2 = useAwakenVoucher(s, aeq2.slug, data, 'ANY');
-  assert.ok(r2 && r2.used === 'awaken', '先扣界域券');
+  const aeq2 = data.awakeners.find((a) => a.realm === 'AEQUOR' && !s.roster[a.slug] && a.slug !== aeq.slug);
+  const r2 = T.useAwakenInRun(s, run, aeq2.slug, data);
+  assert.ok(r2.ok && r2.used === 'awaken', '先扣界域券');
   assert.equal(s.vouchers.awaken.AEQUOR, 0);
   assert.equal(universalOf(s), 1, '通用券不能动');
 
@@ -4301,15 +4314,15 @@ test('树海通用唤醒券：四个界域通吃，但先扣专用券', async ()
   const all = data.awakeners.map((a) => a.slug);
   for (const sl of all) s2.roster[sl] = { lv: 50, star: 0, brk: 3 };
   const cheap = [...all].sort((x, y) => T.priceOf(data, x, 0) - T.priceOf(data, y, 0));
-  const team = [];
+  const team2 = [];
   let spent = 0;
-  for (const sl of cheap) { if (team.length >= 4) break; const p = T.priceOf(data, sl, 0); if (spent + p > T.TREE_BUDGET) continue; team.push(sl); spent += p; }
-  const run = T.startRun(s2, data, 'root', team, 's_scav').run;
-  assert.ok(run);
+  for (const sl of cheap) { if (team2.length >= 4) break; const p = T.priceOf(data, sl, 0); if (spent + p > T.TREE_BUDGET) continue; team2.push(sl); spent += p; }
+  const run2 = T.startRun(s2, data, 'root', team2, 's_scav').run;
+  assert.ok(run2);
   let sawUniv = false;
   for (let i = 0; i < 40 && !sawUniv; i++) {
-    run.act = 2; run.node = i % 9; run.seen = {};
-    const stock = T.shopStock(s2, run, data);
+    run2.act = 2; run2.node = i % 9; run2.seen = {};
+    const stock = T.shopStock(s2, run2, data);
     if (stock.some((x) => x.voucher === 'awaken:ANY')) sawUniv = true;
   }
   assert.ok(sawUniv, '深根黑市应该会出通用券');
@@ -4487,6 +4500,68 @@ test('逆潮守关：全章奖励要等 10 关都有星，且只能领一次', (
   assert.ok(rw && rw.gold > 0 && rw.cores > 0 && rw.tickets > 0);
   assert.equal(D.denChapterReward(s, 1), null, '领过就不能再领');
   assert.equal(D.denChapterReward(s, 2), null, '第 2 章没打不能领');
+});
+
+test('逆潮守关：星级里程碑 12 / 21 / 30 三档，达标才能领、每档一次', () => {
+  const s = newState(data, 1);
+  // 12 星：9 关 1 星 + 1 关 3 星，合计正好 12
+  for (let n = 1; n <= 9; n++) s.den.stars[n] = 1;
+  s.den.stars[10] = 3;
+  const rw1 = D.denClaimStars(s, 1, 0);
+  assert.ok(rw1 && rw1.gold > 0, '12 星档可领');
+  assert.equal(D.denClaimStars(s, 1, 0), null, '同一档不能领两次');
+  assert.equal(D.denClaimStars(s, 1, 1), null, '21 星没达标不能领');
+  // 攒到 21：再让 6 关升到 3 星（12 + 6×2 = 24 ≥ 21）
+  for (let n = 1; n <= 6; n++) s.den.stars[n] = 3;
+  const view = D.denStarClaims(s, 1);
+  assert.equal(view.got, 24);
+  assert.ok(view.tiers[1].done && !view.tiers[1].claimed, '21 星档达标未领');
+  const rw2 = D.denClaimStars(s, 1, 1);
+  assert.ok(rw2 && rw2.tickets >= 2, '21 星档发券');
+  // 满星档：全部 3 星才达标
+  for (let n = 1; n <= 10; n++) s.den.stars[n] = 3;
+  const rw3 = D.denClaimStars(s, 1, 2);
+  assert.ok(rw3 && rw3.tickets >= 2, '满星档发券');
+  // 各章奖励随章号递增：第 10 章同档要比第 1 章厚
+  const s2 = newState(data, 1);
+  for (let n = 91; n <= 100; n++) s2.den.stars[n] = 3;
+  const rwLate = D.denClaimStars(s2, 10, 0);
+  assert.ok(rwLate.gold > rw1.gold, '后期章节的星级奖励更厚');
+});
+
+test('逆潮守关：逆鳞削减反击伤害、涤净撕掉毒', async () => {
+  const B = await import('../src/core/battle.js');
+  // 对面猎手：给自己上 4 层反击 + 给怪物上毒，再补一刀——专吃「挨打蹭血」的打法
+  const foe = { name: '猎手', hp: 99999, atk: 100, def: 0, opening: [], pattern: [{ name: '缠斗', effects: [{ t: 'status', s: 'counter', n: 4, dur: 30, to: 'self' }, { t: 'status', s: 'poison', n: 6, dur: 30, to: 'foe' }, { t: 'dmg', m: 0.5, to: 'foe' }] }] };
+  const run = (guard) => B.simulate({
+    allies: [{ name: '木桩', hp: 999999, atk: 60, def: 0, type: 'ASSAULT', guard }],
+    enemies: [foe], seed: 7, maxRounds: 6,
+  });
+  const plain = run(null), iron = run('ironscale'), clean = run('cleanse');
+  assert.ok(iron.allies[0].hp > plain.allies[0].hp, '逆鳞：反击打上来要少七成');
+  assert.ok(clean.allies[0].hp > plain.allies[0].hp, '涤净：毒被回合开头撕掉，掉的血更少');
+  // 引擎的其它模式不传 guard，行为必须与以前一致（两边都不带新特性时同种子同结果）
+  const again = run(null);
+  assert.equal(again.allies[0].hp, plain.allies[0].hp, '同种子确定性没被破坏');
+});
+
+test('逆潮守关：攻方 AI 会「辅助先行」——合唱排在突击前面出手', async () => {
+  const B = await import('../src/core/battle.js');
+  // denPlayerDefs 给玩家阵容排的顺序：合唱(0) → 守护(1) → 突击(2)
+  const ps = D.denPlayerDefs(5, data);
+  assert.ok(ps.every((p) => Number.isFinite(p.ord) && p.ord >= 0), '每个玩家都带出手顺序');
+  const chorus = ps.find((p) => p.type === 'CHORUS');
+  const assault = ps.filter((p) => p.type === 'ASSAULT');
+  if (chorus && assault.length) assert.ok(assault.every((p) => p.ord > chorus.ord), '突击排在合唱后面');
+  // 引擎真的按 ord 排 e 侧出手：第一回合合唱最先动手
+  const mk = (type, i, ord) => ({ name: `${type}${i}`, hp: 8000, atk: 100, def: 20, type, slug: `p${i}`, ord });
+  const players = [mk('WARDEN', 0, 1), mk('CHORUS', 1, 0), mk('ASSAULT', 2, 2), mk('ASSAULT', 3, 2)];
+  const mon = { name: '木桩', hp: 999999, atk: 10, def: 0, type: 'ASSAULT' };
+  const res = B.simulate({ allies: [mon], enemies: players, seed: 3, maxRounds: 2 });
+  const acts = res.events.filter((e) => e.k === 'act' && e.who[0] === 'e');
+  const order = [...new Set(acts.map((e) => e.who))];
+  assert.equal(order[0], 'e1', '合唱（辅助）第一回合最先动手');
+  assert.ok(order.indexOf('e2') > order.indexOf('e1') && order.indexOf('e3') > order.indexOf('e1'), '突击排在辅助后面吃增益');
 });
 
 test('逆潮守关：存档里的脏数据会被洗干净', () => {

@@ -3,7 +3,7 @@
 import {
   DEN_MAX, DEN_SLOTS, DEN_TIERS, DEN_GUARDS, DEN_CHAPTERS, tierOf,
   denStage, denPlayerDefs, denHint, denPool, monById, monCost, monStats,
-  denState, denUnlocked, denStarOf, denTotalStars, denCheck,
+  denState, denUnlocked, denStarOf, denTotalStars, denCheck, denStarClaims,
 } from '../core/denrun.js';
 import { esc, img, fmt, openModal, toast } from './util.js';
 
@@ -12,6 +12,7 @@ const TYPE_ZH = { WARDEN: '守护', CHORUS: '合唱', ASSAULT: '突击' };
 const TYPE_TA = { WARDEN: '扛伤、给盾、嘲讽', CHORUS: '群攻、治疗、增益', ASSAULT: '单体爆发、越前排' };
 const RULE_ZH = { thorns: '反震', antiheal: '压疗', armor: '重甲', crit: '暴击', heal: '续航', seal: '封印', barrier: '屏障' };
 const stars = (n) => '★'.repeat(n) + '☆'.repeat(Math.max(0, 3 - n));
+const rwZh = (rw) => [rw.gold ? `金币 +${fmt(rw.gold)}` : '', rw.cores ? `银芯 +${fmt(rw.cores)}` : '', rw.tickets ? `唤醒券 +${rw.tickets}` : ''].filter(Boolean).join('　');
 const picksOf = (app) => (app.ui.denPicks ||= []);
 const sumCost = (data, picks) => Math.round((picks || []).reduce((s, p) => {
   const m = monById(data, p.id);
@@ -40,21 +41,28 @@ function listPage(app) {
       cells.push(`<button class="dencell${locked ? ' lock' : ''}${star ? ' on' : ''}${isBoss ? ' boss' : ''}" data-act="den-open" data-n="${n}" ${locked ? 'disabled' : ''}>
         <b>${n}</b><em>${locked ? '🔒' : stars(star)}</em></button>`);
     }
-    // 章节整体进度：这一章拿到多少星（0..30）
+    // 章节整体进度：这一章拿到多少星（0..30）+ 星级里程碑奖励（12 / 21 / 30 三档）
     const got = Array.from({ length: 10 }, (_, k) => denStarOf(st, (ci - 1) * 10 + k + 1)).reduce((a, b) => a + b, 0);
     const cleared = got >= 10;
     const claimable = cleared && !(s.claim || {})[ci];
+    const sc = denStarClaims(st, ci);
+    const chips = sc.tiers.map((t) => {
+      const title = `${t.d}：${rwZh(t.rw)}`;
+      if (t.claimed) return `<button class="btn xs" disabled title="${esc(title)}">${t.need}★ 已领</button>`;
+      if (t.done) return `<button class="btn xs gold" data-act="den-star" data-ch="${ci}" data-ti="${t.ti}" title="${esc(title)}">${t.need}★ 可领</button>`;
+      return `<button class="btn xs" disabled title="${esc(title)}">${t.need}★（${sc.got}/${t.need}）</button>`;
+    }).join('');
     return `<h3>第 ${ci} 章 · ${esc(ch.zh)} <small>${got}/30 星${claimable ? ' · <b class="new">全章奖励可领</b>' : ''}</small></h3>
       <p class="hint">${esc(ch.note)}</p>
       <div class="dencells">${cells.join('')}</div>
-      ${claimable ? `<div class="row"><button class="btn gold" data-act="den-claim" data-ch="${ci}">领取第 ${ci} 章全通奖励</button></div>` : ''}`;
+      <div class="row denmile">${chips}${claimable ? `<button class="btn xs gold" data-act="den-claim" data-ch="${ci}">全通奖励可领</button>` : ''}</div>`;
   }).join('');
 
   return `<div class="page"><h2>逆潮守关 <small>${DEN_MAX} 关 · 你守，玩家攻 · 算力编队</small></h2>
   <div class="banner-card lk"><div><h3>逆潮守关 <small>最高第 ${s.best} 关 · ${total} / ${DEN_MAX * 3} 星 · 守成 ${s.wins} / ${s.runs} 次</small></h3>
     <p>这一次你站在怪物这边。每一关有一支<b>玩家阵容</b>（四位唤醒体 + 等级叠位 + 这一关的战术规则），你要在<b>算力</b>上限里从图鉴里挑怪、给每只怪定一个<b>成长档</b>，把它们全部打光才算守住。</p>
     <p>三条硬规矩：<b>算力</b>——首领单价 9 起、巨体再乘 ${tierOf('t3').cost}，预算只有 ${denStage(1).cpu}→${denStage(DEN_MAX).cpu}，堆一两只大怪永远填不满一队；<b>同种一只</b>——同一种怪只能上一只；<b>孤军不成立</b>——只带一两只时玩家会收拢阵型：防御大增、还腾出手集火，四打一在这里是打不赢的。</p>
-    <p class="hint">每只怪带一条<b>守关特性</b>（壁垒 / 棘刺 / 蚀毒 / 汲取 / 破甲 / 狂血 / 庇护 / 噤声），各自被一种玩家打法克制；玩家的战术规则（${Object.values(RULE_ZH).slice(0, 5).join(' / ')}）反过来也克制一部分怪。所以每一关的最优解都不一样，抄不了上一关的阵容。</p>
+    <p class="hint">每只怪带一条<b>守关特性</b>（壁垒 / 棘刺 / 蚀毒 / 汲取 / 破甲 / 狂血 / 庇护 / 噤声 / <b>涤净</b> / <b>逆鳞</b>），各自被一种玩家打法克制——涤净专撕毒与流血，逆鳞让反击队蹭不到血；玩家的战术规则（${Object.values(RULE_ZH).slice(0, 5).join(' / ')}）反过来也克制一部分怪，而且对面的辅助会先手铺增益、输出后手吃增益再打。所以每一关的最优解都不一样，抄不了上一关的阵容。</p>
   </div></div>
   ${chapters}
   </div>`;
@@ -186,9 +194,13 @@ export function denResultModal(app, out, rw, n) {
     </div>`, 'wide');
 }
 
-/** 全章奖励的领取反馈 */
+/** 星级里程碑 / 全章奖励的领取反馈 */
 export function denClaimModal(rw, ch) {
   openModal(`<h3>第 ${ch} 章 · 全部守住</h3>
     <p>金币 +${fmt(rw.gold)}　银芯 +${fmt(rw.cores)}　唤醒券 +${rw.tickets}</p>
     <div class="row"><button class="btn gold" data-act="den-back">回关卡列表</button></div>`);
+}
+
+export function denStarClaimToast(rw, need) {
+  toast(`🏅 星级 ${need} 星达成：${rwZh(rw)}`, 4200);
 }

@@ -36,6 +36,7 @@ export function makeUnit(def, side, idx) {
     // 守关特性（core/denrun.js 的「逆潮守关」）：只有那个模式会给 a 侧单位挂 guard，
     // 其他模式没有这个字段，下面每一处判定都会直接跳过，行为与以前完全一致。
     guard: def.guard || null, raged: false,
+    ord: num(def.ord, -1),               // 守关模式：玩家阵容（e 侧）的出手顺序偏好；-1 = 没排，按登场顺序
     thorns: num(def.thorns, 0),          // 铁壁：回合结束按未消耗护盾的比例反伤（纯盾型守护，见 core/roles.js）
     ali: num(def.openAli, 0), key: num(def.openKey, 0), shield: num(def.shield, 0),
     // 开场就挂着的增减益（关卡词条 / 测试用）；平常没人传，等于空数组
@@ -102,7 +103,12 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     const i = u.slug ? ordList.indexOf(u.slug) : -1;
     return i < 0 ? 900 + (u.idx || 0) : i;
   };
-  const TURN = [...A].sort((x, y) => ordIdx(x) - ordIdx(y)).concat(E);
+  // 敌方也可以有自己的出手顺序（守关模式里「玩家阵容」在 e 侧，按「辅助先行」排序——
+  // 挂机的玩家也会把奶妈 / 增益位排到前面，让输出吃到现成的增益再动手）。
+  // 没传 ord 的照旧按登场顺序排，行为与以前完全一致。
+  const eOrd = (u, i) => (Number.isFinite(u.ord) && u.ord >= 0 ? u.ord : 900 + i);
+  const E_TURN = E.map((u, i) => [eOrd(u, i), i, u]).sort((x, y) => x[0] - y[0] || x[1] - y[1]).map((x) => x[2]);
+  const TURN = [...A].sort((x, y) => ordIdx(x) - ordIdx(y)).concat(E_TURN);
   // 站位：前排（前两个槽位）受到的直接伤害 −8%，后排 +6% 增伤。守护天生就该站前排、输出站后排，但站错也不罚，只是少一份好处。
   for (const u of [...A, ...E]) if (isPlayerLike(u) && (u.idx ?? 0) >= FRONT_SLOTS) u.amp += SLOT_BACK_AMP;
   const ev = [];
@@ -246,6 +252,9 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       const cap = Math.max(1, Math.round(tgt.maxHp * 0.14));
       if (dmg > cap) dmg = cap;
     }
+    // 守关特性 · 逆鳞：吃到的反击 / 反震伤害削减 70%——「人手一层反击蹭血」的打法在它面前失效，
+    // 想动它就得真刀真枪打（多段直接伤害、大招爆发），而不是靠被动反弹白嫖
+    if (kind === 'counter' && tgt.side === 'a' && tgt.guard === 'ironscale') dmg = Math.round(dmg * 0.3);
     let absorbed = 0;
     const shieldBefore = tgt.shield;
     if (tgt.shield > 0) { absorbed = Math.min(tgt.shield, dmg); tgt.shield -= absorbed; dmg -= absorbed; }
@@ -1106,6 +1115,13 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
           .sort((a, b) => Math.max(b.ali, b.key) - Math.max(a.ali, a.key))[0];
         if (t) addStatus(src, t, 'sealed', 1, 1);
       }
+    }
+    // 守关特性 · 涤净：回合开始净化自身的中毒，并撕掉 2 条流血——持续伤害流（毒 / 流血）在它
+    // 面前只剩个零头，想快点击杀就得换多段直接伤害。放在回合最开头，先净化再出手再跳伤。
+    for (const u of A) {
+      if (!u.alive || u.guard !== 'cleanse') continue;
+      if (u.st.poison) delete u.st.poison;
+      if (u.dots.length) u.dots = u.dots.slice(2);
     }
     for (const u of A) {      // 延迟爆发到点了
       if (!u.delayed.length) continue;
