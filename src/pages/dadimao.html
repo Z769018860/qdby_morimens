@@ -99,6 +99,11 @@ body::after{
 }
 .combo b{font-size:17px;color:#ffd89a;font-variant-numeric:tabular-nums}
 .combo em{font-style:normal;font-size:11px;color:#8a6c48}
+.combo .wave{font-style:normal;font-size:10.5px;color:#c2793f;letter-spacing:.06em;margin-left:2px}
+.combo .wave::before{content:"·";margin-right:5px;opacity:.6}
+/* 无尽模式：生命用红心，掉血时闪一下 */
+.hud-val.hearts{font-size:19px;letter-spacing:.06em;line-height:1.35;color:#e8604a;text-shadow:0 0 10px rgba(232,96,74,.35)}
+.hud-val.hearts .off{color:rgba(232,96,74,.2);text-shadow:none}
 .combo.hot{
   color:#ffe0a3;border-color:rgba(240,180,90,.45);
   background:rgba(240,180,90,.1);
@@ -120,7 +125,8 @@ body::after{
 .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:10px 14px 20px;position:relative}
 .board-wrap{position:relative}
 .board{
-  position:relative;display:grid;grid-template-columns:repeat(3,1fr);
+  --n:3;
+  position:relative;display:grid;grid-template-columns:repeat(var(--n),1fr);
   gap:clamp(5px,1.3vw,13px);
   width:min(700px,94vw,72vh);
   padding:clamp(7px,1.5vw,15px);
@@ -146,6 +152,16 @@ body::after{
     radial-gradient(circle at calc(100% - 14px) calc(100% - 14px),#d8ad74 0 2.6px,rgba(0,0,0,.55) 3.4px,transparent 4.4px);
   opacity:.85;
 }
+/* 4×4 / 5×5：格子多了整体放大一点，格子内的字与间距跟着收 */
+.board[data-n="4"]{width:min(800px,95vw,73vh);gap:clamp(4px,1.05vw,10px)}
+.board[data-n="5"]{width:min(880px,96vw,74vh);gap:clamp(3px,.85vw,8px);padding:clamp(6px,1.2vw,12px)}
+.board[data-n="4"] .sd-base span{font-size:9px}
+.board[data-n="5"] .sd-base span{font-size:7.6px;letter-spacing:.02em}
+.board[data-n="5"] .sd-q{font-size:19px}
+.board[data-n="4"] .hole,.board[data-n="5"] .hole{border-radius:11px}
+.board[data-n="4"] .lip,.board[data-n="5"] .lip{border-radius:0 0 11px 11px}
+.board[data-n="4"] .standee{bottom:7%}
+.board[data-n="5"] .standee{width:78%;max-width:126px;bottom:5%}
 .hole{position:relative;aspect-ratio:1/.98;overflow:hidden;border-radius:15px;isolation:isolate}
 .slot{
   position:absolute;left:7%;right:7%;bottom:1%;height:30%;border-radius:50%;
@@ -263,7 +279,7 @@ body::after{
 .overlay.show{opacity:1;visibility:visible}
 .sheet{
   width:min(560px,100%);max-height:88vh;display:flex;flex-direction:column;
-  border-radius:22px;overflow:hidden;
+  border-radius:22px;overflow-x:hidden;overflow-y:auto;
   background:linear-gradient(168deg,#2a1d12,#1a120a 60%,#150e07);
   border:1px solid #4e3421;
   box-shadow:0 30px 70px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.09);
@@ -282,12 +298,24 @@ body::after{
 .center{text-align:center}
 
 /* 主页 */
-.hero{padding:26px 24px 8px;text-align:center}
-.hero .plate{transform:scale(1.06);margin-bottom:14px}
+.hero{padding:16px 24px 4px;text-align:center}
+.hero .plate{transform:scale(1.02);margin-bottom:9px}
 .hero h1{font-size:34px;letter-spacing:.24em}
 .lead{margin:0 4px 6px;font-size:13.5px;line-height:1.85;color:#c8a97f}
 .lead b{color:#ffc978;font-weight:700}
-.diff-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;padding:16px 22px 6px}
+.diff-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:10px 22px 4px}
+/* 模式 / 棋盘尺寸：一条横带，两段并排 */
+.mode-bar{display:flex;gap:8px;padding:6px 22px 0;flex-wrap:wrap}
+.seg{display:flex;flex:1 1 0;min-width:150px;gap:4px;padding:3px;border-radius:11px;background:rgba(0,0,0,.34);border:1px solid #3a2818}
+.seg-btn{
+  appearance:none;flex:1;cursor:pointer;font-family:inherit;border:0;border-radius:8px;
+  padding:6px 4px;font-size:11.5px;font-weight:800;letter-spacing:.06em;
+  color:#a98a63;background:transparent;transition:.15s;white-space:nowrap;
+}
+.seg-btn:hover{color:#e6c294}
+.seg-btn.on{background:linear-gradient(#efb35c,#cf8629);color:#251605;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.seg-btn .k{display:block;font-size:9.5px;font-weight:600;letter-spacing:.04em;opacity:.72}
+.seg-btn.on .k{opacity:.8}
 .diff{
   appearance:none;cursor:pointer;font-family:inherit;text-align:left;
   padding:11px 13px;border-radius:13px;color:#d9bb92;
@@ -303,6 +331,12 @@ body::after{
 .diff .d-name{font-size:15px;font-weight:800;letter-spacing:.1em}
 .diff .d-sub{font-size:11px;color:#8d7150;letter-spacing:.06em}
 .diff .d-best{font-size:10.5px;color:#7a6142;font-variant-numeric:tabular-nums}
+.diff .d-stats{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:2px}
+.diff .d-stats i{
+  font-style:normal;font-size:9.5px;letter-spacing:.02em;color:#7d6244;
+  padding:1px 5px;border-radius:5px;background:rgba(255,255,255,.045);
+}
+.diff.on .d-stats i{color:#b59267;background:rgba(240,180,90,.1)}
 .diff.on .d-sub{color:#c2a374}
 .diff.on .d-best{color:#b08a56}
 .actions{padding:16px 22px 6px;display:flex;flex-direction:column;gap:9px}
@@ -334,7 +368,7 @@ body::after{
 .link:hover{color:#ffd79a;border-color:#a8763f}
 .guide-strip{
   display:flex;gap:8px;justify-content:center;flex-wrap:wrap;
-  padding:13px 18px 20px;border-top:1px dashed #3a2919;background:rgba(0,0,0,.16);
+  padding:11px 18px 14px;border-top:1px dashed #3a2919;background:rgba(0,0,0,.16);
 }
 .guide-item{width:78px;text-align:center}
 .guide-art{display:block;padding-bottom:2px;text-align:center}
@@ -512,11 +546,11 @@ input[type=range]::-webkit-slider-thumb{
       <div class="hud-val" id="scoreVal">0</div>
     </div>
     <div class="hud-mid">
-      <div class="combo" id="comboTag">连击 <b id="comboNum">0</b> <em>×1.0</em></div>
+      <div class="combo" id="comboTag">连击 <b id="comboNum">0</b> <em>×1.0</em><span class="wave" id="waveTag" hidden></span></div>
       <div class="timebar" id="timebar"><i id="timeFill"></i></div>
     </div>
     <div class="hud-cell right">
-      <div class="hud-label">剩余</div>
+      <div class="hud-label" id="hudRightLabel">剩余</div>
       <div class="hud-val" id="timeVal">60</div>
     </div>
   </div>
@@ -534,6 +568,10 @@ input[type=range]::-webkit-slider-thumb{
     <div class="hero">
       <div class="plate"><h1>打地猫</h1></div>
       <p class="lead">立牌从洞里弹出来 —— 只敲 <b>校猫</b>，<br>别人的立牌一根手指都别碰。</p>
+    </div>
+    <div class="mode-bar">
+      <div class="seg" id="modeSeg"></div>
+      <div class="seg" id="gridSeg"></div>
     </div>
     <div class="diff-grid" id="diffGrid"></div>
     <div class="actions">
@@ -623,8 +661,13 @@ input[type=range]::-webkit-slider-thumb{
         <b>2 / 干扰</b>　米酒、白云等其它立牌是干扰项，敲到要扣分、断连击、扣银芯。<br>
         <b>3 / 连击</b>　连续敲中会累积倍率，每 4 连击 +0.5 倍（最高 ×4）。漏掉校猫会断连击。<br>
         <b>4 / 银芯</b>　敲中即赚银芯（受「银芯袋」加成），可以在商店买永久升级。<br>
-        <b>5 / 难度</b>　难度越高，弹出越快、停留越短、干扰越多，得分也越高。<br>
-        <b>6 / 自定义</b>　设置里可以改名、换木料颜色、换花纹，还能添加自己的干扰立牌。
+        <b>5 / 难度</b>　难度越高，弹出越快、停留越短、干扰越多，得分也越高；<br>
+        　　「困难」起校猫会成对弹出（校猫 + 干扰同时在场上），漏掉校猫也会扣分。<br>
+        <b>6 / 棋盘</b>　3×3（九洞）/ 4×4（十六洞）/ 5×5（廿五洞）。格子越多视线越散，<br>
+        　　同屏立牌更多，得分与银芯也按 1 / 1.15 / 1.35 倍补偿。<br>
+        <b>7 / 无尽</b>　不限时，三条命。敲错或漏掉校猫各扣一条命；每 15 秒升一波，<br>
+        　　弹得越来越快、同屏越来越多，波次越高单次得分与银芯也越高。<br>
+        <b>8 / 自定义</b>　设置里可以改名、换头像/立绘，还能添加自己的干扰立牌。
       </p>
       <p class="note">
         操作：鼠标点击 / 手指点按立牌。<span class="kbd">Esc</span> 关闭弹窗，<span class="kbd">Space</span> 开始或再来一局。<br>
@@ -661,13 +704,30 @@ const ART = {
   mijiu: "data:image/webp;base64,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",
 };
 
-/* ---------------- 难度（沿用站内统一四档：简单 / 普通 / 困难 / 癫狂） ---------------- */
+/* ---------------- 难度（沿用站内统一四档：简单 / 普通 / 困难 / 癫狂） ----------------
+   burst = 一次弹出「一对」（校猫 + 干扰）的概率，逼你先认人再下手
+   miss  = 校猫自己缩回去时的扣分，提醒「不是只要不敲错就行」 */
 const DIFFS = {
-  easy:   { key: 'easy',   label: '简单', sub: '慢悠悠，适合认猫', duration: 60, spawn: [980, 1420], life: [1600, 2050], decoy: .16, penalty: 3,  points: 10, concurrent: 1, tempo: 96 },
-  normal: { key: 'normal', label: '普通', sub: '标准节奏',         duration: 60, spawn: [680, 1020], life: [1250, 1600], decoy: .30, penalty: 5,  points: 12, concurrent: 2, tempo: 108 },
-  hard:   { key: 'hard',   label: '困难', sub: '课间走廊',         duration: 60, spawn: [510, 760],  life: [950, 1180],  decoy: .40, penalty: 8,  points: 15, concurrent: 2, tempo: 124 },
-  frenzy: { key: 'frenzy', label: '癫狂', sub: '期末周',           duration: 60, spawn: [370, 550],  life: [700, 880],   decoy: .48, penalty: 12, points: 18, concurrent: 3, tempo: 142 }
+  easy:   { key: 'easy',   label: '简单', sub: '慢悠悠，适合认猫', duration: 60, spawn: [980, 1420], life: [1600, 2050], decoy: .16, penalty: 3,  points: 10, concurrent: 1, tempo: 96,  burst: 0,   miss: 0 },
+  normal: { key: 'normal', label: '普通', sub: '标准节奏',         duration: 60, spawn: [680, 1020], life: [1250, 1600], decoy: .30, penalty: 5,  points: 12, concurrent: 2, tempo: 108, burst: .12, miss: 0 },
+  hard:   { key: 'hard',   label: '困难', sub: '课间走廊',         duration: 60, spawn: [510, 760],  life: [950, 1180],  decoy: .40, penalty: 8,  points: 15, concurrent: 3, tempo: 124, burst: .30, miss: 1 },
+  frenzy: { key: 'frenzy', label: '癫狂', sub: '期末周',           duration: 60, spawn: [370, 550],  life: [700, 880],   decoy: .48, penalty: 12, points: 18, concurrent: 4, tempo: 142, burst: .50, miss: 2 }
 };
+
+/* 棋盘尺寸：格子越多，视线越散、错手越多，所以分与银芯都给一点补偿 */
+const GRIDS = {
+  3: { n: 3, mult: 1,    spawn: 0,     life: 1,    label: '3 × 3', note: '九洞' },
+  4: { n: 4, mult: 1.15, spawn: -.15,  life: 1.10, label: '4 × 4', note: '十六洞' },
+  5: { n: 5, mult: 1.35, spawn: -.28,  life: 1.18, label: '5 × 5', note: '廿五洞' }
+};
+
+/* 两种场：限时 60 秒，或三条命的无尽（越往后越快） */
+const MODES = {
+  timed:   { key: 'timed',   label: '限时',  full: '限时 60 秒', note: '时间到就收工' },
+  endless: { key: 'endless', label: '无尽',  full: '无尽 · 三条命', note: '敲错/漏猫扣命' }
+};
+const ENDLESS_LIVES = 3;
+const WAVE_SEC = 15;            // 无尽模式每 15 秒升一波
 
 /* ---------------- 升级 ---------------- */
 const UPGRADES = [
@@ -696,6 +756,10 @@ const WALLET_KEY = 'zjtt:credits';
 const DIFF_KEY = 'zjtt:dadimao:diff';           // 与 zjtt:merge:diff / zjtt:bird:diff 同一套写法
 const BEST_KEY = 'zjtt:dadimao:best';           // 全难度最高分（给个人中心读）
 const bestKey = k => 'zjtt:dadimao:best:' + k;  // 各难度单独纪录
+const MODE_KEY = 'zjtt:dadimao:mode';           // timed / endless
+const GRID_KEY = 'zjtt:dadimao:grid';           // 3 / 4 / 5
+const END_KEY = 'zjtt:dadimao:endless';         // 无尽全难度最高分
+const endKey = k => 'zjtt:dadimao:endless:' + k;
 
 function walletGet() {
   try { return Number(JSON.parse(localStorage.getItem(WALLET_KEY) || '0')) || 0; }
@@ -728,10 +792,13 @@ const lsGet = (k) => { try { const v = localStorage.getItem(k); return v == null
 
 const defaultSave = () => ({
   best: { easy: 0, normal: 0, hard: 0, frenzy: 0 },
+  bestEnd: { easy: 0, normal: 0, hard: 0, frenzy: 0 },
   up: { time: 0, steady: 0, calm: 0, luck: 0 },
   audio: { bgm: .5, sfx: .75 },
   feel: { shake: true },
   diff: 'normal',
+  mode: 'timed',
+  grid: 3,
   cats: {
     target: { id: 'school', name: '校猫', img: ART.leite },
     decoys: [
@@ -779,21 +846,34 @@ if (store.unifyV !== 1) {
   store.silver = 0;
   store.unifyV = 1;
 }
-// 3) 难度跟随站内存档：本地与 zjtt:dadimao:diff 取其一（另一边可能被别的页面写过）
+// 3) 难度 / 模式 / 棋盘跟随站内存档：本地与 zjtt:dadimao:* 取其一（另一边可能被别的页面写过）
 const savedDiff = lsGet(DIFF_KEY);
 if (savedDiff && DIFFS[savedDiff]) store.diff = savedDiff;
 if (!DIFFS[store.diff]) store.diff = 'normal';
+const savedMode = lsGet(MODE_KEY);
+if (savedMode && MODES[savedMode]) store.mode = savedMode;
+if (!MODES[store.mode]) store.mode = 'timed';
+const savedGrid = Number(lsGet(GRID_KEY));
+if (GRIDS[savedGrid]) store.grid = savedGrid;
+if (!GRIDS[store.grid]) store.grid = 3;
 // 4) 最佳成绩与 zjtt:dadimao:* 双向取大，换设备/换页面都能看到同一个纪录
 Object.keys(DIFFS).forEach(k => {
   const v = Number(lsGet(bestKey(k))) || 0;
   if (v > (store.best[k] || 0)) store.best[k] = v;
+  const e = Number(lsGet(endKey(k))) || 0;
+  if (e > (store.bestEnd[k] || 0)) store.bestEnd[k] = e;
 });
 syncSiteKeys();
 function syncSiteKeys() {
   lsSet(DIFF_KEY, store.diff);
+  lsSet(MODE_KEY, store.mode);
+  lsSet(GRID_KEY, store.grid);
   const all = Math.max(0, ...Object.keys(DIFFS).map(k => store.best[k] || 0));
   if (all > (Number(lsGet(BEST_KEY)) || 0)) lsSet(BEST_KEY, all);
   Object.keys(DIFFS).forEach(k => { if (store.best[k]) lsSet(bestKey(k), store.best[k]); });
+  const allEnd = Math.max(0, ...Object.keys(DIFFS).map(k => (store.bestEnd && store.bestEnd[k]) || 0));
+  if (allEnd > (Number(lsGet(END_KEY)) || 0)) lsSet(END_KEY, allEnd);
+  Object.keys(DIFFS).forEach(k => { if (store.bestEnd && store.bestEnd[k]) lsSet(endKey(k), store.bestEnd[k]); });
 }
 
 /* ---------------- 立牌：头像/立绘印在木质底板上 ---------------- */
@@ -1016,19 +1096,45 @@ const Snd = {
 const Game = {
   running: false, paused: false, raf: 0, last: 0, timeLeft: 0, duration: 60,
   score: 0, combo: 0, maxCombo: 0, hits: 0, wrongs: 0, escapes: 0, swings: 0,
-  silverEarned: 0, spawnIn: 0, idc: 0, active: new Map(), holes: [], lastTickSec: 99
+  silverEarned: 0, spawnIn: 0, idc: 0, active: new Map(), holes: [], lastTickSec: 99,
+  mode: 'timed', lives: ENDLESS_LIVES, wave: 1, elapsed: 0, overPending: false
 };
 const diffNow = () => DIFFS[store.diff] || DIFFS.normal;
+const gridNow = () => GRIDS[store.grid] || GRIDS[3];
 const comboMult = c => 1 + Math.min(3, Math.floor(c / 4) * .5);
+
+/* 本局实际参数：难度 × 棋盘尺寸 × 无尽波次。
+   难度表只写「基准」，这里把放大/加速都算进去，界面上也用它显示。 */
+function levelNow() {
+  const d = diffNow(), g = gridNow();
+  const endless = Game.mode === 'endless';
+  const wave = endless ? Math.max(1, Game.wave) : 1;
+  const wSpawn = endless ? Math.pow(.93, wave - 1) : 1;   // 每波间隔 −7%
+  const wLife = endless ? Math.pow(.955, wave - 1) : 1;   // 每波停留 −4.5%
+  return {
+    spawn: [d.spawn[0] * (1 + g.spawn) * wSpawn, d.spawn[1] * (1 + g.spawn) * wSpawn],
+    life: [d.life[0] * g.life * wLife, d.life[1] * g.life * wLife],
+    decoy: clamp(d.decoy - .08 * store.up.calm + (endless ? .012 * (wave - 1) : 0), .05, .7),
+    concurrent: d.concurrent + (g.n - 3) + (endless ? Math.floor((wave - 1) / 3) : 0),
+    penalty: d.penalty,
+    points: Math.round(d.points * g.mult * (endless ? 1 + .1 * (wave - 1) : 1)),
+    burst: d.burst,
+    miss: d.miss,
+    tempo: Math.min(172, d.tempo + (endless ? (wave - 1) * 4 : 0))
+  };
+}
 
 /* ---------------- DOM ---------------- */
 const board = $('#board');
 const app = $('#app');
 
 function buildBoard() {
+  const n = gridNow().n;
+  board.dataset.n = n;
+  board.style.setProperty('--n', n);
   board.innerHTML = '';
   Game.holes = [];
-  for (let i = 0; i < 9; i++) {
+  for (let i = 0; i < n * n; i++) {
     const hole = document.createElement('div');
     hole.className = 'hole';
     hole.innerHTML = '<div class="slot"></div><div class="lip"></div>';
@@ -1038,15 +1144,16 @@ function buildBoard() {
 }
 
 /* ---------------- 生成 / 收回 ---------------- */
-function spawnOne() {
-  const d = diffNow();
-  if (Game.active.size >= d.concurrent) return;
+function spawnOne(forceKind) {
+  const L = levelNow();
+  if (Game.active.size >= L.concurrent) return false;
   const free = Game.holes.filter(h => !h.classList.contains('busy'));
-  if (!free.length) return;
+  if (!free.length) return false;
 
   const hole = pick(free);
-  const decoyP = clamp(d.decoy - .08 * store.up.calm, .05, .62);
-  const useDecoy = store.cats.decoys.length > 0 && Math.random() < decoyP;
+  const useDecoy = forceKind
+    ? forceKind === 'decoy'
+    : (store.cats.decoys.length > 0 && Math.random() < L.decoy);
   const cat = useDecoy ? pick(store.cats.decoys) : store.cats.target;
 
   const el = document.createElement('div');
@@ -1058,16 +1165,23 @@ function spawnOne() {
   const entry = {
     id: ++Game.idc, el: el, hole: hole, kind: useDecoy ? 'decoy' : 'target',
     born: performance.now(),
-    life: rand(d.life[0], d.life[1]) * (1 + .12 * store.up.steady),
+    life: rand(L.life[0], L.life[1]) * (1 + .12 * store.up.steady),
     dead: false
   };
   el.__entry = entry;
   Game.active.set(entry.id, entry);
 
   requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('up')));
+  return true;
 }
 
 function releaseHole(hole) { hole.classList.remove('busy'); }
+
+function loseLife(n) {
+  if (Game.mode !== 'endless' || !Game.running) return;
+  Game.lives = Math.max(0, Game.lives - (n || 1));
+  if (Game.lives <= 0) Game.overPending = true;
+}
 
 function despawn(entry, escaped) {
   if (entry.dead) return;
@@ -1080,6 +1194,13 @@ function despawn(entry, escaped) {
   if (escaped && entry.kind === 'target') {
     Game.combo = 0;
     Game.escapes++;
+    const L = levelNow();
+    if (L.miss > 0) {
+      Game.score = Math.max(0, Game.score - L.miss);
+      Game.silverEarned = Math.max(0, Game.silverEarned - 1);
+      floatText(entry.hole, '漏 −' + L.miss, 'bad');
+    }
+    loseLife(1);
   }
 }
 
@@ -1125,10 +1246,33 @@ function shake() {
 /* ---------------- HUD ---------------- */
 function renderHUD() {
   $('#scoreVal').textContent = Math.max(0, Math.round(Game.score));
-  const sec = Math.ceil(Game.timeLeft);
-  $('#timeVal').textContent = sec;
-  $('#timeFill').style.transform = 'scaleX(' + clamp(Game.timeLeft / Game.duration, 0, 1).toFixed(4) + ')';
-  $('#timebar').classList.toggle('low', Game.timeLeft / Game.duration < .28);
+  const endless = Game.mode === 'endless';
+  const rightLabel = $('#hudRightLabel');
+  const timeVal = $('#timeVal');
+  const waveTag = $('#waveTag');
+
+  if (endless) {
+    rightLabel.textContent = '生命';
+    const lv = Math.max(0, Game.lives);
+    let s = '';
+    for (let i = 0; i < ENDLESS_LIVES; i++) s += '<span class="' + (i < lv ? '' : 'off') + '">♥</span>';
+    timeVal.innerHTML = s;
+    timeVal.classList.add('hearts');
+    // 进度条改成「这一波还剩多少」
+    const p = (Game.elapsed % WAVE_SEC) / WAVE_SEC;
+    $('#timeFill').style.transform = 'scaleX(' + (1 - p).toFixed(4) + ')';
+    $('#timebar').classList.toggle('low', Game.lives <= 1);
+    waveTag.hidden = false;
+    waveTag.textContent = '第 ' + Game.wave + ' 波';
+  } else {
+    rightLabel.textContent = '剩余';
+    timeVal.classList.remove('hearts');
+    timeVal.textContent = Math.ceil(Game.timeLeft);
+    $('#timeFill').style.transform = 'scaleX(' + clamp(Game.timeLeft / Game.duration, 0, 1).toFixed(4) + ')';
+    $('#timebar').classList.toggle('low', Game.timeLeft / Game.duration < .28);
+    waveTag.hidden = true;
+  }
+
   $('#comboNum').textContent = Game.combo;
   $('#comboTag').querySelector('em').textContent = '×' + comboMult(Game.combo).toFixed(1);
   $('#comboTag').classList.toggle('hot', Game.combo >= 5);
@@ -1142,17 +1286,28 @@ function loop(t) {
   Game.last = t;
   dt = Math.min(dt, 80);
 
-  Game.timeLeft -= dt / 1000;
-  if (Game.timeLeft <= 0) { Game.timeLeft = 0; renderHUD(); return endGame(); }
-
-  const sec = Math.ceil(Game.timeLeft);
-  if (sec <= 5 && sec !== Game.lastTickSec) { Game.lastTickSec = sec; Snd.tick(); }
+  if (Game.mode === 'endless') {
+    Game.elapsed += dt / 1000;
+    const w = 1 + Math.floor(Game.elapsed / WAVE_SEC);
+    if (w !== Game.wave) {
+      Game.wave = w;
+      Snd.coin();
+      if (Game.holes.length) floatText(Game.holes[(Game.holes.length / 2) | 0], '第 ' + w + ' 波', 'good');
+    }
+  } else {
+    Game.timeLeft -= dt / 1000;
+    if (Game.timeLeft <= 0) { Game.timeLeft = 0; renderHUD(); return endGame(); }
+    const sec = Math.ceil(Game.timeLeft);
+    if (sec <= 5 && sec !== Game.lastTickSec) { Game.lastTickSec = sec; Snd.tick(); }
+  }
 
   Game.spawnIn -= dt;
   if (Game.spawnIn <= 0) {
-    spawnOne();
-    const d = diffNow();
-    Game.spawnIn = rand(d.spawn[0], d.spawn[1]);
+    const L = levelNow();
+    const ok = spawnOne();
+    // 「癫狂」起偶尔一次弹出一对：校猫 + 干扰同时在场上，先认人再动手
+    if (ok && Math.random() < L.burst) spawnOne('decoy');
+    Game.spawnIn = rand(L.spawn[0], L.spawn[1]);
   }
 
   const now = performance.now();
@@ -1161,6 +1316,7 @@ function loop(t) {
   });
 
   renderHUD();
+  if (Game.overPending) { Game.overPending = false; return endGame(); }
   Game.raf = requestAnimationFrame(loop);
 }
 
@@ -1169,18 +1325,23 @@ function startGame() {
   Game.running = false;
   Game.paused = false;
   closeAll(true);
+  Game.mode = MODES[store.mode] ? store.mode : 'timed';
+  Game.lives = ENDLESS_LIVES;
+  Game.wave = 1;
+  Game.elapsed = 0;
+  Game.overPending = false;
   buildBoard();
   Game.active.clear();
   Game.running = true;
-  const d = diffNow();
-  Game.duration = d.duration + 8 * store.up.time;
-  Game.timeLeft = Game.duration;
+  const L = levelNow();
+  Game.duration = diffNow().duration + 8 * store.up.time;
+  Game.timeLeft = Game.mode === 'endless' ? 0 : Game.duration;
   Game.score = 0; Game.combo = 0; Game.maxCombo = 0;
   Game.hits = 0; Game.wrongs = 0; Game.escapes = 0; Game.swings = 0;
   Game.silverEarned = 0; Game.spawnIn = 380; Game.lastTickSec = 99;
   Game.last = performance.now();
   renderHUD();
-  if (Snd.ready()) { Snd.resume(); Snd.start(); Snd.startBgm(d.tempo); }
+  if (Snd.ready()) { Snd.resume(); Snd.start(); Snd.startBgm(L.tempo); }
   cancelAnimationFrame(Game.raf);
   Game.raf = requestAnimationFrame(loop);
 }
@@ -1195,6 +1356,7 @@ function endGame() {
   Snd.stopBgm();
   Snd.over();
 
+  const endless = Game.mode === 'endless';
   const total = Game.hits + Game.wrongs;
   const acc = total ? Game.hits / total : 0;
   const rank = (acc >= .92 && Game.hits >= 10) ? 'S' : acc >= .8 ? 'A' : acc >= .62 ? 'B' : 'C';
@@ -1202,21 +1364,24 @@ function endGame() {
 
   /* 银芯进站内共用钱包（zjtt:credits），和侦探/合成/鸟弟同一个余额 */
   walletAdd(Game.silverEarned);
-  if (Game.score > (store.best[store.diff] || 0)) store.best[store.diff] = Math.round(Game.score);
+  const bucket = endless ? store.bestEnd : store.best;
+  const prev = bucket[store.diff] || 0;
+  if (Game.score > prev) bucket[store.diff] = Math.round(Game.score);
   syncSiteKeys();
   save();
 
   $('#rankStamp').textContent = rank;
   $('#rankStamp').dataset.r = rank;
-  $('#resTitle').textContent = titles[rank];
-  $('#resSub').textContent = '难度 · ' + diffNow().label;
+  $('#resTitle').textContent = endless ? '猫潮结束' : titles[rank];
+  $('#resSub').textContent = '难度 · ' + diffNow().label + ' · ' + gridNow().label + ' · '
+    + (endless ? '第 ' + Game.wave + ' 波' : '限时');
   $('#resScore').textContent = Math.round(Game.score);
   $('#resCombo').textContent = Game.maxCombo;
   $('#resHits').textContent = Game.hits;
   $('#resAcc').textContent = Math.round(acc * 100) + '%';
   $('#resSilver').textContent = Game.silverEarned;
   $('#resTotal').textContent = walletGet();
-  $('#resBest').textContent = store.best[store.diff];
+  $('#resBest').textContent = bucket[store.diff] || 0;
   renderSilver();
   openOv('ovResult');
 }
@@ -1233,12 +1398,12 @@ board.addEventListener('pointerdown', e => {
   const entry = el.__entry;
   if (!entry || entry.dead) return;
 
-  const d = diffNow();
+  const L = levelNow();
   if (entry.kind === 'target') {
     Game.hits++;
     Game.combo++;
     if (Game.combo > Game.maxCombo) Game.maxCombo = Game.combo;
-    const pts = Math.round(d.points * comboMult(Game.combo));
+    const pts = Math.round(L.points * comboMult(Game.combo));
     Game.score += pts;
     const gained = Math.max(1, Math.round(pts * .5 * (1 + .15 * store.up.luck)));
     Game.silverEarned += gained;
@@ -1252,15 +1417,17 @@ board.addEventListener('pointerdown', e => {
   } else {
     Game.wrongs++;
     Game.combo = 0;
-    Game.score = Math.max(0, Game.score - d.penalty);
+    Game.score = Math.max(0, Game.score - L.penalty);
     Game.silverEarned = Math.max(0, Game.silverEarned - 2);
-    floatText(entry.hole, '−' + d.penalty, 'bad');
+    floatText(entry.hole, '−' + L.penalty, 'bad');
     burst(entry.hole, '#ff6f57', 6);
     Snd.wrong();
     shake();
     kill(entry, false);
+    loseLife(1);
   }
   renderHUD();
+  if (Game.overPending) { Game.overPending = false; endGame(); }
 }, { passive: true });
 
 /* ---------------- 覆盖层控制 ---------------- */
@@ -1270,7 +1437,7 @@ function openOv(id) {
   OVS.forEach(o => { const el = $('#' + o); if (el) el.classList.toggle('show', o === id); });
   if (id === 'ovShop') renderShop();
   if (id === 'ovSettings') renderSettings();
-  if (id === 'ovStart') { renderDiffs(); renderGuide(); }
+  if (id === 'ovStart') { renderModes(); renderDiffs(); renderGuide(); }
 }
 function closeAll(silent) {
   OVS.forEach(o => { const el = $('#' + o); if (el) el.classList.remove('show'); });
@@ -1317,15 +1484,52 @@ document.addEventListener('keydown', e => {
 });
 
 /* ---------------- 主页渲染 ---------------- */
+function renderModes() {
+  const ms = $('#modeSeg');
+  ms.innerHTML = '';
+  Object.values(MODES).forEach(m => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'seg-btn' + (store.mode === m.key ? ' on' : '');
+    b.innerHTML = m.label + '<span class="k">' + m.note + '</span>';
+    b.addEventListener('click', () => {
+      store.mode = m.key; syncSiteKeys(); save(); Snd.ui();
+      renderModes(); renderDiffs();
+    });
+    ms.appendChild(b);
+  });
+  const gs = $('#gridSeg');
+  gs.innerHTML = '';
+  Object.values(GRIDS).forEach(g => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'seg-btn' + (store.grid === g.n ? ' on' : '');
+    b.innerHTML = g.label + '<span class="k">' + g.note + '</span>';
+    b.addEventListener('click', () => {
+      store.grid = g.n; syncSiteKeys(); save(); Snd.ui();
+      renderModes(); renderDiffs(); buildBoard();
+    });
+    gs.appendChild(b);
+  });
+  const btn = $('#btnStart');
+  if (btn) btn.textContent = store.mode === 'endless' ? '开始无尽' : '开始敲猫';
+}
 function renderDiffs() {
   const g = $('#diffGrid');
   g.innerHTML = '';
+  const endless = store.mode === 'endless';
+  const gd = gridNow();
   Object.values(DIFFS).forEach(d => {
     const b = document.createElement('button');
     b.className = 'diff' + (store.diff === d.key ? ' on' : '');
+    const avg = ((d.spawn[0] + d.spawn[1]) / 2) * (1 + gd.spawn) / 1000;
+    const decoy = Math.round(clamp(d.decoy - .08 * store.up.calm, .05, .7) * 100);
+    const best = endless ? (store.bestEnd[d.key] || 0) : (store.best[d.key] || 0);
     b.innerHTML = '<span class="d-name">' + d.label + '</span>'
       + '<span class="d-sub">' + d.sub + '</span>'
-      + '<span class="d-best">最佳 ' + (store.best[d.key] || 0) + '</span>';
+      + '<span class="d-stats"><i>节奏 ' + avg.toFixed(2) + 's</i><i>干扰 ' + decoy + '%</i>'
+      + '<i>同屏 ' + (d.concurrent + gd.n - 3) + '</i><i>罚 ' + d.penalty + '</i></span>'
+      + '<span class="d-best">' + (endless ? '无尽最佳 ' : '最佳 ') + best + '</span>';
     b.addEventListener('click', () => { store.diff = d.key; syncSiteKeys(); save(); Snd.ui(); renderDiffs(); renderGuide(); });
     g.appendChild(b);
   });
@@ -1532,13 +1736,14 @@ $('#btnReset').addEventListener('click', e => {
   save();
   syncSiteKeys();
   try { localStorage.removeItem(SAVE_KEY); } catch (err) {}
-  renderSettings(); renderShop(); renderSilver(); renderDiffs(); renderGuide();
+  renderSettings(); renderShop(); renderSilver(); renderModes(); renderDiffs(); renderGuide();
   Snd.ui();
 });
 
 /* ---------------- 初始化 ---------------- */
 buildBoard();
 renderSilver();
+renderModes();
 renderDiffs();
 renderGuide();
 renderHUD();

@@ -100,7 +100,7 @@ function stagePage(app, n) {
       <img src="${img(d.img)}" alt="${esc(d.name)}" loading="lazy">
       <div class="denpi">
         <div class="denpn"><b>${esc(d.name)}</b><em>${TYPE_ZH[d.type] || d.type}</em></div>
-        <span class="dim">Lv.${d.lv}${d.star ? ` · ${d.star} 叠` : ''}</span>
+        <span class="dim">Lv.${d.lv}${d.star ? ` · 叠位 ${d.star}` : ''}</span>
         <span class="dim denst"><i>HP ${fmt(d.hp)}</i><i>ATK ${fmt(d.atk)}</i><i>DEF ${fmt(d.def)}</i></span>
         <span class="dim densk" title="${esc(sk.join(' / '))}">${esc(sk.join(' / ') || TYPE_TA[d.type] || '')}</span>
       </div>
@@ -155,7 +155,7 @@ function stagePage(app, n) {
     <span class="dim">算力 <b class="${over ? 'denbad' : ''}">${used}</b> / ${stage.cpu}</span></div>
 
   <div class="banner-card lk"><div>
-    <h3>${esc(stage.name)} <small>玩家 Lv.${stage.lv}${stage.star ? ` · ${stage.star} 叠` : ''} · 算力 ${stage.cpu}${stage.boss ? ' · 精英玩家' : ''}</small></h3>
+    <h3>${esc(stage.name)} <small>玩家 Lv.${stage.lv}${stage.star ? ` · 叠位 ${stage.star}` : ''} · 算力 ${stage.cpu}${stage.boss ? ' · 精英玩家' : ''}</small></h3>
     <p>${esc(stage.note)}</p>
     <div class="row">${stage.rules.length ? stage.rules.map((r) => `<i class="denrule">${esc(RULE_ZH[r] || r)}</i>`).join('') : '<i class="denrule off">这一关没有额外战术</i>'}</div>
     <div class="denteam">${pcards}</div>
@@ -195,7 +195,7 @@ export function denResultModal(app, out, rw, n) {
   const lineup = out.mons.map((m) => `${esc(m.name)}（${m.cost}）`).join('、');
   openModal(`<h3>${out.win ? `守住第 ${n} 关` : `第 ${n} 关被攻破`}</h3>
     <p>${out.win ? `<b class="gold">${stars(out.stars)}</b>　剩 ${Math.round(out.hpLeft * 100)}% 生命　${out.res.rounds} 回合` : `玩家还剩 ${Math.round(out.playerLeft * 100)}% 生命`}</p>
-    <p class="hint">${esc(stage.name)} · 玩家 Lv.${stage.lv}${stage.star ? ` · ${stage.star} 叠` : ''} · 算力 ${out.cpu}</p>
+    <p class="hint">${esc(stage.name)} · 玩家 Lv.${stage.lv}${stage.star ? ` · 叠位 ${stage.star}` : ''} · 算力 ${out.cpu}</p>
     <p class="hint">你的守关队：${lineup || '—'}</p>
     ${bits ? `<p class="hint">${bits}${rw.first ? '（首通）' : ''}${rw.starsUp ? `　星级提升 +${rw.starsUp}` : ''}</p>` : ''}
     ${hint.length ? `<p class="hint">这一关的机制：${hint.map((x) => esc(x)).join('；')}</p>` : ''}

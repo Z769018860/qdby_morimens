@@ -171,12 +171,8 @@ button{font:inherit; color:inherit}
   22%{opacity:1; transform:translate(-50%,-58%) scale(1)}
   100%{opacity:0; transform:translate(-50%,-175%) scale(1)}}
 
-/* 备战席可以花钱扩到 14 格：桌面放得下（每格还有 49px 宽），窄屏放不下就横向滑，
-   不折行 —— 折成两行会让底栏长高一截，棋盘区域反而更小。 */
-.bench{flex:1 1 auto; min-width:0; display:flex; gap:4px; overflow-x:auto; overflow-y:hidden;
-  scrollbar-width:none; -webkit-overflow-scrolling:touch}
-.bench::-webkit-scrollbar{display:none}
-.bslot{flex:1 1 0; min-width:38px; height:38px; border-radius:9px; padding:0; position:relative;
+.bench{flex:1 1 auto; min-width:0; display:flex; gap:4px}
+.bslot{flex:1 1 0; min-width:0; height:38px; border-radius:9px; padding:0; position:relative;
   border:1px dashed rgba(110,168,255,.17); background:rgba(14,19,29,.5);
   display:grid; place-items:center; transition:.12s}
 .bslot.has{border-style:solid; background:linear-gradient(180deg, var(--panel2), var(--panel)); cursor:pointer;
@@ -184,13 +180,6 @@ button{font:inherit; color:inherit}
 .bslot.has:hover{border-color:var(--accent)}
 .bslot.on{border-color:var(--gold); box-shadow:0 0 0 1px color-mix(in oklab,var(--gold) 55%, transparent) inset}
 .bslot.swap{border-color:color-mix(in oklab, var(--accent) 45%, var(--line))}
-/* 备战席末尾的「扩一格」：虚线冷青、价格直接写在按钮上；钱不够就灰着 */
-.bslot.add{border:1px dashed rgba(120,175,255,.45); background:rgba(120,175,255,.055);
-  color:#a9c9ff; font-size:11px; font-weight:800; letter-spacing:.02em; cursor:pointer;
-  font-variant-numeric:tabular-nums}
-.bslot.add:hover{border-color:rgba(120,175,255,.9); background:rgba(120,175,255,.15); color:#dbe9ff}
-.bslot.add.poor{color:#5b6478; border-color:rgba(255,255,255,.1); background:rgba(255,255,255,.02);
-  cursor:not-allowed}
 /* 星级挪到右上角、字号大一号：原来在右下角 8px，几乎看不见 */
 .bslot .star{position:absolute; right:3px; top:1px; font-size:9.5px; line-height:1.15; color:var(--gold);
   letter-spacing:-.6px; text-shadow:0 0 7px rgba(227,179,65,.75)}
@@ -716,7 +705,7 @@ html.calm .purse.pop b{animation:none}
  .pill b{font-size:11px}.hud-top{gap:3px}.pill{padding:0 4px}
 }
 </style>
-<meta name="build" content="920cf615e6">
+<meta name="build" content="745990d7c8">
 <style id="zj-lite">
 @media (pointer:coarse), (max-width:720px){
   *, *::before, *::after, ::backdrop{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
@@ -815,13 +804,12 @@ html{-webkit-tap-highlight-color:transparent}
       <p class="sub">六边形防线 · 自走棋 · 《忘却前夜》同人</p>
       <ul class="rule">
         <li><b>布阵</b>：在左侧四列六边形格子里摆唤醒体，影怪从右侧通道<b>一格一格</b>走进来 —— 备战期棋盘上就标好了下一波从哪几条通道来、来的是什么。每局地格不一样，<b>高台 / 祭坛 / 裂隙</b>站上去有加成，<b>岩壁</b>站不了人，影怪也过不去。</li>
-        <li><b>商店</b>：62 名唤醒体，每波结束免费换一批；同一名买三个合成 2 星，再三个合成 3 星 —— <b>3★ 之后还能继续三合一，星级没有上限</b>（4★ 起面板写「★4」，每星属性 ×1.8）。<b>升星送命轮 / 造物</b>。</li>
-        <li><b>备战席</b>：开局 8 格，点末尾那个「+价格」花金币扩一格（每扩一格 +4 金，最多 14 格）—— 想冲 4★ 以上要同时养三张一组，8 格根本不够放材料。</li>
+        <li><b>商店</b>：62 名唤醒体，每波结束免费换一批；同一名买三个合成 2 星，再三个合成 3 星，<b>升星送命轮 / 造物</b>。</li>
         <li><b>装备</b>：切到「命轮·造物」页签买装备，点装备栏里的一件再点唤醒体就装上。命轮是纯数值，造物带机制（反伤、追击、回血……）。</li>
         <li><b>羁绊</b>：20 条，分四类 —— <b>界域</b>（血肉 / 深海 / 混沌 / 超维）、<b>职阶</b>（伤害 / 防御 / 辅助）、<b>组织</b>（愚者结社 / 外乡人 / 混血 / 不可知者 / 群星 / 永恒 / 无所属）、<b>流派</b>（触手 / 剧毒 / 吞噬 / 穿刺 / 反击 / 胚胎）。凑够人数就生效，左侧面板按这四类分组列。</li>
         <li><b>刷新与升星</b>：刷新只要 1 金；能三合一的那张卡会呼吸式高亮并挂「升星」角标，同名凑够两个的挂「同名×n」。</li>
         <li><b>词条</b>：选中唤醒体后，卡里的属性名（生命 / 护甲 / 攻速……）与「机制」小标签都是按钮 —— <b>点一下就地展开</b>说明：怎么算、什么时候有用、谁提供。想看全部 33 条，点底栏的「图鉴详情」。</li>
-        <li><b>目标</b>：守住十二波，漏怪扣协议核心，核心归零就结束。<b>无尽关</b>没有终点——清完十二波照样往下打，敌人的数量和强度都按波数<b>复利</b>往上叠，撑到核心破碎为止。</li>
+        <li><b>目标</b>：守住十二波，漏怪扣协议核心，核心归零就结束。<b>无尽关</b>没有终点——清完十二波照样往下打，敌人一波比一波强，撑到核心破碎为止。</li>
       </ul>
       <div class="diff">
         <button data-d="normal" class="on">标准</button>
@@ -847,13 +835,12 @@ html{-webkit-tap-highlight-color:transparent}
         <li><b>射程</b>：选中一个唤醒体，棋盘上会画出它的攻击范围；人在备战席时，把鼠标移到格子上就能预览「放在这里打得到哪」。</li>
         <li><b>来敌</b>：备战期棋盘右侧的紫格标出下一波的入口，虚线是它们要走的路线，格上画着头像和数量（左侧面板里也列了一遍「哪条通道、什么怪、几只」）。影怪一格一格走，<b>不会</b>直线穿过棋盘。</li>
         <li><b>装备</b>：点「命轮·造物」页签买，买进装备栏 → 点装备栏里的一件 → 点棋盘上的立绘（或备战席头像）装上；点信息卡上的装备格可以卸下。一个唤醒体各带一件命轮、一件造物。</li>
-        <li><b>合成奖励</b>：合成 2 星给 +1 金与一件随机命轮，3 星给 +2 金、一件随机造物和一个独立额外商店；<b>4 星及以上每升一星</b>给 +3 金、一件命轮、一件造物和一个额外商店。原商店保留，可随时返回。升级人口返 1 金，不刷新任何商店。</li>
-        <li><b>卖出</b>：选中单位后按 E，或点信息卡上的「卖出」。返还「合成进去的全部成本」—— 每高 1 星 ×3（1★ 原价、2★ 3 倍、3★ 9 倍、4★ 27 倍），身上的装备会退回装备栏。</li>
-        <li><b>星级上限</b>：没有上限。3★ 之后每一星属性 ×1.8、护甲每星 +35%，但下一星要三张同级同名 —— 4★ 是 27 张 1★ 的量，金币不够别硬冲。备战席末尾的「+价格」可以花金币扩格子，专门用来堆这些材料。</li>
+        <li><b>合成奖励</b>：合成 2 星给 +1 金与一件随机命轮，3 星给 +2 金、一件随机造物和一个独立额外商店；原商店保留，可随时返回。升级人口返 1 金，不刷新任何商店。</li>
+        <li><b>卖出</b>：选中单位后按 E，或点信息卡上的「卖出」。1 星原价退，2 星 3 倍，3 星 9 倍，身上的装备会退回装备栏。</li>
         <li><b>人口</b>：上场人数上限就是等级，升级固定 5 金，最高 8 级。等级越高，商店里高费唤醒体越常见。</li>
         <li><b>狂气</b>：每条紫色狂气条攻击和挨打都会涨，满了自动放大招；站在祭坛上攒得快，带活性注射器更快。六种大招各有各的样子和声音 —— <b>落雷</b>从天砸一道光柱、<b>冲击波</b>炸开三层环、<b>护罩</b>扣一层六边形玻璃罩、<b>加速</b>甩出横向速度线与箭头、<b>眩晕</b>扩散电波与星芒、<b>治疗</b>升起一串光点。</li>
         <li><b>经济</b>：每清一波给 4 金，手里每存 5 金额外给 1 金（最多 5 金）。存钱升人口是这套玩法的核心。</li>
-        <li><b>无尽关</b>：开局就能选，和标准模式共用前十二波。清完十二波后进入「回响」——每十二波一轮，沿用同一套敌人构成，但普通怪越来越多（第 1 轮 +1，之后按轮次的 1.7 倍涨，最多 +20 只）且出场间隔一轮比一轮紧（每轮 -5%，最低 45%）；生命与攻击在原来的线性之上再乘复利（每过一波生命 ×1.09、攻击 ×1.06），所以后段是<b>越爬越陡</b>而不是越爬越平。<b>没有波数上限</b>，只有核心归零才结束；每波结束照常回 40% 生命、照常发金币和商店，能不能再爬一轮全看阵容上限与你的星级。<b>排行榜只记无尽关的最深波次</b>，标准模式的十二波不计入。</li>
+        <li><b>无尽关</b>：开局就能选，和标准模式共用前十二波。清完十二波后进入「回响」——每十二波一轮，沿用同一套敌人构成，但普通怪每一类都多来一只（最多 +6），生命与攻击仍按每波 +10% / +17% 往上叠。<b>没有波数上限</b>，只有核心归零才结束；每波结束照常回 40% 生命、照常发金币和商店，所以能不能再爬一轮全看阵容上限。<b>排行榜只记无尽关的最深波次</b>，标准模式的十二波不计入。</li>
         <li><b>顶栏按钮</b>：<b>1×/2×</b> 切倍速（记在本机，下一局还是这个速度，判定不变、只是每帧多推几步）；<b>♪</b> 开 / 关声音（音效与 BGM 都在浏览器里现场合成，不额外下载音频文件）。</li>
         <li><b>声音</b>：38 种音效 + 7 段 BGM，全在浏览器里合成。<b>BGM 跟着进度换</b>——备战慢 62bpm、前六波 96bpm、第七波起加密到 112bpm（多一层十六分琶音）、首领波降到 84bpm 走三全音、末波换成最高张力的一首、结算按胜负分开。音效里比较值得听的有：利息升一档（金币池下面那行小字跳档时）、狂气满放大招（先一声蓄力铃，再上这个流派自己的音色）、护盾吃掉伤害、核心掉到 5 以下的两声闷响、首领登场那记低音、升 2/3 星的琶音、结算时八项数字逐条落下的刻度声。</li>
         <li><b>快捷键</b>：空格开战 / R 刷新 / F 升级 / E 卖出 / Q 放回备战席 / Esc 取消选中。</li>
@@ -908,7 +895,7 @@ html{-webkit-tap-highlight-color:transparent}
   });
 })();
 </script>
-<script type="module" src="js/b/protocol.js?v=920cf615e6"></script>
+<script type="module" src="js/b/protocol.js?v=745990d7c8"></script>
 <!-- 横屏 / 竖屏：所有小游戏共用的一块 UI 与逻辑，构建时注入到每个游戏页 </body> 前。
      为什么放在这里而不是各页面各写一份：七个游戏的头部结构完全不一样，
      但「现在该用哪个方向」这件事是同一件——所以只留一份，改一次全站生效。

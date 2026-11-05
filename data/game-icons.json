@@ -93,5 +93,10 @@
     "src": "assets/ui/gameicons/fake.webp",
     "from": "assets/avatars-q/char-c06.webp",
     "who": "24"
+  },
+  "dadimao": {
+    "src": "assets/ui/gameicons/dadimao.webp",
+    "from": "dadimao 内嵌校猫头像",
+    "who": "校猫"
   }
 }
