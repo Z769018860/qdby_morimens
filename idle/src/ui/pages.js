@@ -1502,6 +1502,7 @@ function cloudCard(app) {
     ${acct ? `<p>状态：<b>${st}</b>${dirty && c.status === 'ok' ? '（有新改动，稍后自动上传）' : ''}</p>
       <label class="snd"><input type="checkbox" data-cloud-auto ${cfg.auto ? 'checked' : ''}> 自动同步（登录后每次改动自动上传，进游戏时自动拉取）</label>
       <div class="row"><button class="btn gold" data-act="cloud-sync" ${c.busy ? 'disabled' : ''}>立即同步</button><button class="btn" data-act="cloud-pull">用云端存档覆盖本机</button></div>
+      <p class="hint">同步前建议先备份：<button class="btn sm" data-act="export">导出本机存档</button></p>
       <p class="hint">本机存档 ${kb} KB。（服务端单条上限 480KB；超过 400KB 会自动压缩后上传，装备堆到几千件也不会卡住同步。）</p>`
     : `<p>登录本站账号后，挂机前夜的<b>整份进度</b>会自动存到云端，换手机 / 电脑登录同一个账号就能接着玩。</p>
       <div class="row"><a class="btn gold" href="../profile.html">去登录 / 注册</a></div>`}

@@ -436,6 +436,34 @@ function cloudRetryLater() {
   setTimeout(() => { cloudRetryAt = 0; cloudRun('auto'); }, wait);
 }
 
+/** 把本机存档导出成 json 文件（设置页「导出存档」与云同步前的备份提醒共用） */
+function exportSaveFile(st) {
+  const blob = new Blob([JSON.stringify(st)], { type: 'application/json' });
+  const l = document.createElement('a'); l.href = URL.createObjectURL(blob); l.download = `morimens-idle-${Date.now()}.json`; l.click();
+  setTimeout(() => URL.revokeObjectURL(l.href), 4000);
+}
+
+/** 云端存档要换掉本机之前，先提醒备份：给出「导出本机存档」键，点「已备份，继续同步」才往下走。
+    返回 true 继续 / false 取消（取消后暂停自动同步，设置页可再点「立即同步」）。 */
+function confirmBackupBeforePull() {
+  return new Promise((resolve) => {
+    let done = false;
+    const fin = (v) => { if (done) return; done = true; closeModal(); resolve(v); };
+    const m = openModal(`<h3>同步前建议先备份存档</h3>
+      <p class="hint">云端的进度比本机新，继续同步会<b>用云端存档整份替换这台设备上的存档</b>。万一云端那份有问题，替换后本机进度就找不回来了。</p>
+      <p class="hint">建议先点「导出本机存档」留一份文件（也可以事后在 设置 → 导出存档 里导出，但那时已经是替换后的存档）。</p>
+      <div class="row"><button class="btn gold" data-bk="export">导出本机存档</button></div>
+      <div class="row"><button class="btn" data-bk="go">继续同步</button><button class="btn sm" data-bk="cancel">先不同步</button></div>`);
+    m.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-bk]'); if (!b) return;
+      const k = b.dataset.bk;
+      if (k === 'export') { exportSaveFile(app.state); toast('已导出本机存档，可以放心同步了', 3000); const g = m.querySelector('[data-bk="go"]'); if (g) g.textContent = '已备份，继续同步'; }
+      else fin(k === 'go');
+    });
+    m.addEventListener('click', (e) => { if (e.target === m || e.target.closest('[data-act="close"]')) fin(false); });   // 点遮罩 / ✕ = 先不同步
+  });
+}
+
 // 把云端那份存档套到本机：lastSeen 重置为现在（这段时间已经在另一台设备上结算过，不重复发离线收益）
 async function applyCloudSave(save) {
   const doc = await Cloud.unpackSave(save.data);   // 大存档是 gz1: 压缩包，老存档是明文
@@ -518,6 +546,8 @@ export async function cloudRun(reason = 'auto') {
     } else if (act === 'pull') {
       // 离线收益弹窗还开着（还没领）时不能把存档换掉——否则这份离线收益就吞了；过几秒再来
       if (app.offlinePending) { setCloud('idle'); setTimeout(() => cloudRun('auto'), 4000); return; }
+      // 本机有存档（不是一台全新的设备）：先提醒备份，给出导出键
+      if (app.hadSave && !(await confirmBackupBeforePull())) { app.cloud.hold = true; setCloud('hold'); return; }
       await pullCloudSave();
       toast('已从云端同步最新进度', 3200);
       setCloud('ok');
@@ -555,11 +585,13 @@ function cloudConflict(cm) {
   const m = openModal(`<h3>本机和云端的进度不一样</h3>
     <p class="hint">这个账号在云端有一份存档，和这台设备上的不同。选一份留下，<b>另一份会被覆盖</b>。</p>
     <div class="cfrow">${col('本机', mine, mine.lastSeen)}${col('云端', c, cm?.at)}</div>${keep}
+    <p class="hint">⚠ 选之前建议先备份：<button class="btn sm" data-cf="export">导出本机存档</button></p>
     <div class="row"><button class="btn gold" data-cf="cloud">用云端的</button><button class="btn" data-cf="local">用本机的（覆盖云端）</button></div>
     <div class="row"><button class="btn sm" data-cf="later">先不处理</button></div>`, 'wide');
   m.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-cf]'); if (!b) return;
     const k = b.dataset.cf;
+    if (k === 'export') { exportSaveFile(s); toast('已导出本机存档', 2500); return; }
     if (k === 'later') { app.cloud.hold = true; closeModal(); setCloud('hold'); return; }
     closeModal();
     try {
@@ -1462,8 +1494,7 @@ function onAct(e) {
     }
     case 'cloud-sync': cloudRun('manual'); break;
     case 'cloud-pull': {
-      if (!confirm('用云端的存档覆盖这台设备上的进度？本机现在的进度会丢。')) break;
-      (async () => { try { const save = await pullCloudSave(); if (!save) { toast('云端还没有存档'); return; } toast('已用云端存档覆盖本机', 3000); setCloud('ok'); } catch (err) { setCloud('error', err.message); } })();
+      (async () => { try { if (!(await confirmBackupBeforePull())) return; const save = await pullCloudSave(); if (!save) { toast('云端还没有存档'); return; } toast('已用云端存档覆盖本机', 3000); setCloud('ok'); } catch (err) { setCloud('error', err.message); } })();
       break;
     }
     case 'tip-close': { (s.tips ||= {})[el.dataset.k] = 1; app.ui.tipOpen = null; app.save(); render(); break; }
@@ -1800,10 +1831,7 @@ function onAct(e) {
     }
     case 'ach-cat': app.ui.achCat = el.dataset.k; render(); break;
     case 'ach-all': { const r = claimAllAchievements(s, d); if (r) { sound.play('ach'); toast(`领取 ${r.n} 个成就：唤醒券+${r.tickets} 银芯+${r.cores} 金币+${r.gold}`); rerender(); } break; }
-    case 'export': {
-      const blob = new Blob([JSON.stringify(s)], { type: 'application/json' });
-      const l = document.createElement('a'); l.href = URL.createObjectURL(blob); l.download = `morimens-idle-${Date.now()}.json`; l.click(); break;
-    }
+    case 'export': { exportSaveFile(s); break; }
     case 'import': {
       const m = openModal('<h3>导入存档</h3><textarea id="imp" rows="8" placeholder="粘贴存档 JSON，或选择文件"></textarea><input type="file" id="impf" accept=".json"><div class="row"><button class="btn" data-act="do-import">导入</button></div>');
       $('#impf', m).addEventListener('change', async (ev) => { $('#imp', m).value = await ev.target.files[0].text(); });
