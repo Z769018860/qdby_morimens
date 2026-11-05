@@ -339,7 +339,7 @@ function statusPanel(app, run) {
     const ringDef = ring && TREE_GEAR.find((g) => g.id === (run.gear.pool || []).find((x) => x.uid === ring)?.defId);
     return `<details class="lkunit ${dead ? 'dead' : ''}" ${dead ? '' : 'open'}>
       <summary>${a?.portrait ? `<img src="${img(a.portrait)}" alt="">` : ''}<b>${esc(a?.zh || d.slug)}</b>
-        <span class="dim">Lv.${ovr.lv}${ovr.star ? ' · 叠99' : ''}${ovr.od ? ' · 超限99' : ''}${ovr.law ? ' · 法则10' : ''}　生命 ${fmt(now)} / ${fmt(d.hp)}（${Math.round(p * 100)}%）${ringDef ? `　环：${esc(ringDef.zh)}` : ''}</span>${dead ? '<em class="new">倒下</em>' : ''}</summary>
+        <span class="dim">Lv.${ovr.lv}${ovr.star ? ' · 叠位 99' : ''}${ovr.od ? ' · 超限 99' : ''}${ovr.law ? ' · 法则 10' : ''}　生命 ${fmt(now)} / ${fmt(d.hp)}（${Math.round(p * 100)}%）${ringDef ? `　环：${esc(ringDef.zh)}` : ''}</span>${dead ? '<em class="new">倒下</em>' : ''}</summary>
       <div class="lkstats">
         ${cell('攻击', fmt(d.atk))}${cell('防御', fmt(d.def))}${cell('暴击率', f1(d.critRate) + '%')}${cell('暴击伤害', '+' + f1(d.critDmg) + '%')}
         ${cell('增伤', f1(d.amp) + '%')}${cell('治疗加成', f1(d.healBonus) + '%')}${cell('护盾加成', f1(d.shieldBonus) + '%')}${cell('吸血', f1(d.steal) + '%')}

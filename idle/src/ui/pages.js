@@ -41,7 +41,7 @@ import {
   wheelText, runeOf, runeLabel, runeValue, RUNE_TIERS, RUNE_KEYS, STAT_ZH, relicText, covTheme, covenantTiers, gearCost, dismantleValue, relicBond, relicSlotCount, RELIC_BONDS, BOND_TIERS, bonusText, MAINSTAT, RELIC_THEMES,
 } from '../core/gear.js';
 import { orderSlotCount, orderLockedHint, orderText, orderUpCost, orderLvMult } from '../core/orders.js';
-import { teamBonds, bondHint, bondsOf, BONDS, BOND_CATS } from '../core/bonds.js';
+import { teamBonds, bondHint, bondsOf, BONDS, BOND_CATS, scaleTier } from '../core/bonds.js';
 import { roleChipOf, chorusRoleOf } from '../core/roles.js';
 import { esc, img, fmt, openModal, closeModal, toast, markup, dropModalScroll, modalEl } from './util.js';
 
@@ -174,7 +174,7 @@ export function bondBook(app) {
     const items = BONDS.filter((x) => x.cat === cat);
     if (!items.length) return '';
     const rows = items.map((x) => {
-      const tiers = Object.entries(x.tiers).map(([n, bo]) => `<span class="btier">${n} 人：${esc(bonusText(bo))}</span>`).join('');
+      const tiers = Object.entries(x.tiers).map(([n, bo]) => `<span class="btier">${n} 人：${esc(bonusText(scaleTier(bo)))}</span>`).join('');
       return `<li><b>${esc(x.zh)}</b><small>${esc(bondHint(x, data.bySlug))}</small><div>${tiers}</div><small class="dim">${esc(x.desc)}</small></li>`;
     }).join('');
     // 条数多的那一组（本命羁绊 13 条）再折一层，不然展开图鉴要滚很久
@@ -1005,7 +1005,7 @@ export function rosterPage(app) {
     const sq = r ? squadsOfSlug(s, a.slug) : [];
     const mark = sq.length ? `<i class="tmark${sq[0] === 'cur' ? ' on' : ''}" title="${esc(`已编入：${sq.map(squadKeyZh).join('、')}`)}">${sq[0] === 'cur' ? '上阵' : esc(squadKeyZh(sq[0]))}${sq.length > 1 ? `+${sq.length - 1}` : ''}</i>` : '';
     return `<div class="tile ${r ? '' : 'locked'} ${rarCls(a.rarity)} ${a.creator ? 'gift' : ''}" style="--rc:${R(a).color}" data-act="detail" data-slug="${a.slug}">
-      <img src="${img(a.portrait)}" alt="" loading="lazy">${mark}<b>${esc(a.zh)}</b><small>${r ? `Lv${r.lv} · 叠${r.star} · ${TYPES[a.type].short}` : a.creator ? '未获得 · 联名赠送' : `未获得 · ${TYPES[a.type].short}`}</small><small>${r ? `战力 ${fmt(p)}` : REALMS[a.realm].zh}</small>${a.creator ? '<i class="gmark">联名</i>' : ''}</div>`;
+      <img src="${img(a.portrait)}" alt="" loading="lazy">${mark}<b>${esc(a.zh)}</b><small>${r ? `Lv${r.lv} · 叠位 ${r.star} · ${TYPES[a.type].short}` : a.creator ? '未获得 · 联名赠送' : `未获得 · ${TYPES[a.type].short}`}</small><small>${r ? `战力 ${fmt(p)}` : REALMS[a.realm].zh}</small>${a.creator ? '<i class="gmark">联名</i>' : ''}</div>`;
   }).join('')}</div>
     <p class="hint">排序：稀有度 / 战力 / 等级 / 叠位数 / 获取顺序 / 界域，再点一次当前排序可以反过来。未获得的永远排在后面，筛选里的「仅已拥有」可以只看已有。<b>头像左上角的角标是编队情况</b>：「上阵」= 主线当前队伍，「一队 / 禁区三队…」= 只写在某套编队里（同时编进几套会跟「+N」，鼠标停上去能看到全部）。<b>带「联名」角标的是社区主播彩蛋</b>，不参与召唤，只从「更多 → 联动」的签到与活动里赠送。</p></div>`;
 }
