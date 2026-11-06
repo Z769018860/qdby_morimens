@@ -4923,3 +4923,16 @@ test('高层反击 / 中毒不再「一跳秒人」：单次按目标生命上�
   }
   assert.ok(counters + dots > 0, '这套对局里应该至少出现一次反击或持续伤害');
 });
+
+test('守关不套主线封顶：传 hitCaps:false 时反击不再被「目标生命上限」截断', () => {
+  // 主线高层要封顶（怪的攻击复利长，一击反击能打出玩家血的七八倍）；
+  // 守关的怪是算力定价的，毒与反击就是它的主要输出，套上封顶整座塔会塌掉一半（116/200 → 48/200）。
+  const thorny = unit({ hp: 100000, atk: 3000, kit: mkKit([fx.status('counter', 3, 3, 'self')]) });
+  const frail = { ...unit({ hp: 1200, atk: 100 }), pattern: [{ name: 'hit', effects: [fx.dmg(1.0)] }] };
+  const run = (hitCaps) => sim2({ allies: [thorny], enemies: [frail], seed: 3, maxRounds: 3, hitCaps })
+    .events.filter((e) => e.k === 'counter').map((e) => e.amt);
+  const capped = run(undefined), free = run(false);
+  assert.ok(capped.length && free.length, '两种口径下都要有反击事件');
+  assert.ok(Math.max(...capped) <= 1200 * 0.2 + 1, `默认口径要封顶在 20% 生命上限内：${capped}`);
+  assert.ok(Math.max(...free) > Math.max(...capped) * 2, `关掉封顶要打满：封顶 ${capped} vs 不封顶 ${free}`);
+});

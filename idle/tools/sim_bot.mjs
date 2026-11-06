@@ -1,4 +1,5 @@
 // Balance bot: plays the idle loop greedily and prints the progress curve.
+// 用法：node tools/sim_bot.mjs [战斗场数] [随机种子]——换种子等于换一条开局路线，用来做 A/B 对照（单条路线噪声太大）。
 import { readFileSync } from 'node:fs';
 import { indexData, newState, runBattle, applyResult, levelUp, breakThrough, autoLoadout, summon, equipPull, enhanceItem, allyDef, teamDefs } from '../src/core/game.js';
 import { levelCap, breakNeeded, lvUpCost } from '../src/core/stats.js';
@@ -14,8 +15,9 @@ const pack = JSON.parse(readFileSync(new URL('../public/data/game-data.json', im
 pack.orders = JSON.parse(readFileSync(new URL('../public/data/orders.json', import.meta.url), 'utf8')).items || [];
 pack.special = JSON.parse(readFileSync(new URL('../public/data/special.json', import.meta.url), 'utf8'));
 const data = indexData(pack);
-const s = newState(data, 1);
 const BATTLES = +process.argv[2] || 3000;
+const SEED = +process.argv[3] || 1;
+const s = newState(data, SEED);
 let lastReport = 0;
 function spend() {
   while (s.tickets >= 10) summon(s, data, 10);

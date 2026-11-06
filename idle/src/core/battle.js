@@ -12,7 +12,7 @@ export const roundLimitFor = (info = {}) => (info.boss || info.reward ? ROUND_LI
 export const FRONT_SLOTS = 2;
 // 全局伤害系数：把「磨」压成「决」——两边都打得动，战斗才会在十几回合内见分晓，
 // 通关的回合上限才有意义（以前一场常拖到 25–30 回合）。
-const DMG_SCALE = 1.72;
+export const DMG_SCALE = 1.72;
 // 反击的每层系数。以前是 0.27：一个「攻击 27% × 层数」的固定数值，不看防御、不看血量上限。
 // 怪物的攻击是复利长的（130 关附近的首领 88 万攻），玩家的血量却是线性长的（满养成 2 万血）——
 // 于是「N」这种全队发反击的怪，一次反击能打出 40 万，是玩家血量的 20 倍，比它自己的直伤高一个数量级。
@@ -95,7 +95,10 @@ export function frontLine(unit, foes) {
   return canReachBack(unit) ? live : front;
 }
 
-export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds = MAX_ROUNDS, rules = [], dotBoost = 1 }) {
+// hitCaps：反击 / 持续伤害的「单次不超过目标生命上限」封顶。默认沿用主线口径（20% / 15%）；
+// 传 false 表示这一局不封顶——守关（den）用的是算力定价的怪，玩家血量也被归一化过，
+// 怪的毒 / 反击本来就是它的主要输出，套主线的封顶等于把守关方的伤害砍掉一半。
+export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds = MAX_ROUNDS, rules = [], dotBoost = 1, hitCaps = null }) {
   const rng = mulberry32(seed);
   const strat = { defend: 0.4, target: 'low', ult: 'first', ...strategy };
   // 大招策略：first = 优先开大（默认，能开就开）；sync = 攒大招一起开大；
@@ -121,6 +124,8 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
   const TURN = [...A].sort((x, y) => ordIdx(x) - ordIdx(y)).concat(E_TURN);
   // 站位：前排（前两个槽位）受到的直接伤害 −8%，后排 +6% 增伤。守护天生就该站前排、输出站后排，但站错也不罚，只是少一份好处。
   for (const u of [...A, ...E]) if (isPlayerLike(u) && (u.idx ?? 0) >= FRONT_SLOTS) u.amp += SLOT_BACK_AMP;
+  const CAP_COUNTER = hitCaps === false ? Infinity : Math.max(0, num(hitCaps?.counter, COUNTER_HIT_CAP));
+  const CAP_DOT = hitCaps === false ? Infinity : Math.max(0, num(hitCaps?.dot, DOT_TICK_CAP));
   const ev = [];
   const stats = {};
   for (const u of [...A, ...E]) stats[u.uid] = { dmg: 0, heal: 0, taken: 0 };
@@ -269,8 +274,8 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     // 怪物那边的攻击是复利长的，反击与毒都按它的攻击算，不封顶的话高层一次就是七八倍玩家血量
     // （实测 135 关受反击 74 万 / 我方总血 8.7 万，中毒一跳 78 万）。封顶后它们回到「持续掉血」的定位，
     // 而直伤（DMG_SCALE，吃的是一整套防御 / 减伤）仍然是主要威胁。
-    if (kind === 'counter' && tgt.maxHp > 0) dmg = Math.min(dmg, Math.max(1, Math.round(tgt.maxHp * COUNTER_HIT_CAP)));
-    if (kind === 'dot' && tgt.maxHp > 0) dmg = Math.min(dmg, Math.max(1, Math.round(tgt.maxHp * DOT_TICK_CAP)));
+    if (kind === 'counter' && tgt.maxHp > 0 && CAP_COUNTER < 1) dmg = Math.min(dmg, Math.max(1, Math.round(tgt.maxHp * CAP_COUNTER)));
+    if (kind === 'dot' && tgt.maxHp > 0 && CAP_DOT < 1) dmg = Math.min(dmg, Math.max(1, Math.round(tgt.maxHp * CAP_DOT)));
     let absorbed = 0;
     const shieldBefore = tgt.shield;
     if (tgt.shield > 0) { absorbed = Math.min(tgt.shield, dmg); tgt.shield -= absorbed; dmg -= absorbed; }

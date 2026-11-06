@@ -10,7 +10,7 @@
 //  3. 八条守关特性各自被一种玩家战术克制，玩家的关卡规则（屏障 / 反震 / 重甲 / 压疗 / 封印）
 //     反过来克制某些怪——所以每一关的「最优解」都不一样，抄不了上一关的阵容。
 import { hash, mulberry32 } from './rng.js';
-import { simulate } from './battle.js';
+import { simulate, DMG_SCALE } from './battle.js';
 import { teamDefs, newState } from './game.js';
 import { makeEnemy, DOMAINS } from './enemies.js';
 import { patternOf } from './monsters.js';
@@ -143,14 +143,17 @@ const dmgRateOf = (rec, msk, rank) => {
   const c = pat.cycle.length ? pat.cycle.reduce((s, sk) => s + value(sk), 0) / pat.cycle.length : 1;
   return Math.max(0.05, Math.min(6, c));
 };
-// 玩家侧补偿：simulate 里只有 a 侧吃 1.6 的全局伤害系数，玩家阵容在 e 侧。
-// 不补的话守关怪白拿 1.6 倍输出（实测差 4 倍胜负），补上才是同一把尺子。
-const PLAYER_DMG_FIX = 1.6;
+// 玩家侧补偿：simulate 里全局伤害系数只作用在 a 侧（守关怪在这边），玩家阵容在 e 侧。
+// 不补的话守关怪白拿那份系数（实测差 4 倍胜负），补上才是同一把尺子。
+// 直接引用 battle.js 的 DMG_SCALE，别再写死——0.17.2 把它从 1.6 抬到 1.72 时这里漏改过，
+// 玩家侧等于被暗中削了 7%，后半程的通过率会莫名其妙掉一截。
+const PLAYER_DMG_FIX = DMG_SCALE;
 
 // 守关方的数值口径。和主线不同：主线怪靠 stage 曲线指数堆血，这里靠「算力」定价——
 // 1 点算力大概值多少有效生命 / 攻击，直接决定「多带一只」和「练高一档」哪个更划算。
 // hp 定得很高、atk 只有血量零头：守关方本来就该是「墙」，赢法是磨死玩家而不是秒掉玩家。
-const DEN_K = { hp: 34, atk: 85, def: 1.2 };
+// hp 定得很高、atk 只有血量零头：守关方本来就该是「墙」，赢法是磨死玩家而不是秒掉玩家。
+const DEN_K = { hp: 34, atk: 34, def: 1.2 };
 
 export function denStage(n) {
   const num = clamp(Math.round(n), 1, DEN_MAX);
@@ -441,9 +444,12 @@ export function denFight(state, data, n, picks) {
   // 只有真能作用于怪物的规则才交给引擎：armor / crit 在玩家 def 上单独实现（见 denPlayerDefs），
   // seal 对没有 kit 的怪物完全无效，所以一律不传。
   const simRules = st.rules.filter((r) => r === 'thorns' || r === 'antiheal');
+  // hitCaps: false —— 不套主线的「反击 / 毒单次封顶」。那个封顶是为主线高层设的
+  // （怪的攻击复利长、玩家血量线性长）；守关这边的怪是算力定价的，玩家血量也做过归一化，
+  // 毒与反击本来就是守关方的主要输出。实测套上封顶后整座塔从 116/200 掉到 48/200。
   const res = simulate({
     allies: mons, enemies: players, seed,
-    strategy: state.strategy, maxRounds: DEN_ROUNDS, rules: simRules,
+    strategy: state.strategy, maxRounds: DEN_ROUNDS, rules: simRules, hitCaps: false,
   });
   const myHp = res.allies.reduce((s, a) => s + a.hp, 0);
   const myMax = res.allies.reduce((s, a) => s + a.maxHp, 0);
