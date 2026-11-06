@@ -132,9 +132,10 @@ const dmgRateOf = (rec, msk, rank) => {
     if (e.t !== 'status') return a;
     // 中毒 / 流血：四个人各自独立掉，按「多打三个人」折算
     if (e.s === 'poison' || e.s === 'bleed') return a + 1.2;
-    // 反击：挨一下弹「攻击 × 0.27 × 层数」回去。玩家一回合打四次，等于每回合白送 1.08×层数 倍攻击。
-    // 这一项漏算的话，反击怪会被定价成废物，实际却能一两回合弹死全队（体检里的头号漏网之鱼）。
-    if (e.s === 'counter') return a + 0.27 * (Number(e.n) || 1) * AOE_W;
+    // 反击：挨一下弹「攻击 × 0.20 × 层数」回去（battle.js 的 COUNTER_PER）。玩家一回合打四次，
+    // 等于每回合白送 0.8×层数 倍攻击。这一项漏算的话，反击怪会被定价成废物，
+    // 实际却能一两回合弹死全队（体检里的头号漏网之鱼）。
+    if (e.s === 'counter') return a + 0.2 * (Number(e.n) || 1) * AOE_W;
     // 铁壁：按挨到的伤害百分比反伤，对「高输出阵容」是成比例的惩罚
     if (e.s === 'reflect') return a + 1.2;
     return a;
@@ -149,7 +150,7 @@ const PLAYER_DMG_FIX = 1.6;
 // 守关方的数值口径。和主线不同：主线怪靠 stage 曲线指数堆血，这里靠「算力」定价——
 // 1 点算力大概值多少有效生命 / 攻击，直接决定「多带一只」和「练高一档」哪个更划算。
 // hp 定得很高、atk 只有血量零头：守关方本来就该是「墙」，赢法是磨死玩家而不是秒掉玩家。
-const DEN_K = { hp: 34, atk: 34, def: 1.2 };
+const DEN_K = { hp: 34, atk: 85, def: 1.2 };
 
 export function denStage(n) {
   const num = clamp(Math.round(n), 1, DEN_MAX);

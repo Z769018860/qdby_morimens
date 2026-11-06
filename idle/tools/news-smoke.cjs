@@ -56,10 +56,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(600);
   const modalText = await ev(`document.querySelector('.news-modal').innerText`);
   check('老玩家进游戏自动弹出公告', popped);
-  check('弹出的是最新一条 0.16.2', modalText.includes('0.16.2'));
-  check('新内容在公告里（高级设置 · 行动顺序）', modalText.includes('高级设置'));
-  check('守关页排版修复也写进公告', modalText.includes('逆潮守关界面'));
-  check('公告里没有开发者术语', !/回归测试|策略对象|undefined/.test(modalText));
+  check('弹出的是最新一条 0.17.2', modalText.includes('0.17.2'));
+  check('新内容在公告里（反击 / 中毒封顶）', modalText.includes('单次反击'));
+  check('守关加开 100 关也在最近几条里', modalText.includes('逆潮守关加开 100 关'));
+  // 「undefined」在 0.17.2 那条里是引用玩家看到的报错原文（带引号），不算开发者术语
+  check('公告里没有开发者术语', !/回归测试|策略对象|undefined(?!」)/.test(modalText));
   check('弹窗最多最近 3 条（不把 0.12.x 的老公告也糊上来）', !modalText.includes('流血改时序'));
   await shot('s_news_popup.png');
   // 最新公告 id 每次都变（发版就加一条）：直接问模块要，别把日期写死在脚本里

@@ -60,7 +60,7 @@ import { startGuide } from './ui/guide.js';
 import * as Cloud from './core/cloud.js';
 import { readWallet, writeWallet, reconcile, WALLET_KEY } from './core/wallet.js';
 import { NEWS, NEWS_LATEST } from './core/news.js';
-import { $, $$, fmt, esc, dur, store, askPersist, toast, closeModal, openModal, modalEl, showKwPop } from './ui/util.js';
+import { $, $$, fmt, esc, dur, store, askPersist, toast, closeModal, openModal, modalEl, showKwPop, rewardClaimLine } from './ui/util.js';
 
 /* 底部导航按「功能域」分 5 组。13 个平铺页签在手机上要横滚，一眼看不到全貌，
    而且签到、设置这类低频页和战斗平起平坐也不合理。组内多页用顶部胶囊二级导航。 */
@@ -807,6 +807,9 @@ function buildChrome() {  $('#tabs').innerHTML = GROUPS.map((g) => `<button data
 export function show(tab) {
   if (!GROUP_OF[tab]) tab = 'battle';
   const prev = app.tab;
+  // 切页时先收掉弹窗：结算弹窗里那颗「回大运主页 / 回战斗页」以前只切页、不关窗，
+  // 结果新页面铺好了，旧弹窗还盖在上面（玩家看到的还是那层「打通三层」）。跨页跳转一律关窗。
+  if (prev !== tab) closeModal();
   app.tab = tab;
   const gk = GROUP_OF[tab];
   (app.ui.lastTab ||= {})[gk] = tab;
@@ -847,7 +850,8 @@ function render() {
   app.refreshTop();
   refreshBadges();
 }
-const rewardLine = (r) => [`唤醒券+${r.tickets}`, `银芯+${r.cores}`, `金币+${r.gold}`, r.rw ? `回溯券+${r.rw}` : ''].filter(Boolean).join(' ');
+// 领取奖励的一行文案（实现在 util.js，缺哪一样就不写哪一样——以前没召唤券时会显示「唤醒券+undefined」）
+const rewardLine = rewardClaimLine;
 const rerender = () => { app.save(); render(); };
 
 /* 大运：一场打完之后的出口——还活着就出「三选一」，全灭 / 通关就直接结算。 */
@@ -969,10 +973,13 @@ function onAct(e) {
       render(); break;
     }
     case 'guide-growth': P.growthGuideModal(app); break;
-    case 'go-orders': show('orders'); break;
-    case 'go-rift': show('rift'); break;
-    case 'go-luck': show('luck'); break;
-    case 'go-aff': show('aff'); break;
+    // 「回大运主页 / 回某某页」这些按钮都是从结算弹窗里点的：先关窗再切页。
+    // 只靠 show() 关不够——如果弹窗本来就在目标页上（大运结算就压在大运页上），
+    // prev === tab 不会触发关窗，玩家看到的就是「页面换了、弹窗还盖着」。
+    case 'go-orders': closeModal(); show('orders'); break;
+    case 'go-rift': closeModal(); show('rift'); break;
+    case 'go-luck': closeModal(); show('luck'); break;
+    case 'go-aff': closeModal(); show('aff'); break;
     // ---- 同调率 ----
     case 'aff-gift': AF.giftModal(app, el.dataset.slug, el.dataset.back || 'aff'); break;
     case 'aff-send': {
@@ -1093,7 +1100,7 @@ function onAct(e) {
       break;
     }
     // ---- 红流树海 ----
-    case 'go-tree': show('tree'); break;
+    case 'go-tree': closeModal(); show('tree'); break;
     case 'tree-open-draft': {
       app.ui.treeDraft = { diff: el.dataset.k, team: [], squad: app.ui.treeSquad || TREE_SQUADS[0].id };
       TREE.treeDraftModal(app, el.dataset.k);

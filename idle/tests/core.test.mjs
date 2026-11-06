@@ -9,6 +9,8 @@ import { mulberry32 } from '../src/core/rng.js';
 import { buildKit, describeSkill } from '../src/core/skills.js';
 import { SLOTS } from '../src/core/constants.js';
 import { covTheme, covenantTiers, covenantBonus } from '../src/core/gear.js';
+import { startRun, offerPool, takeOffer, LUCK_RELICS } from '../src/core/luckrun.js';
+import { rewardClaimLine } from '../src/ui/util.js';
 
 test('data pack is complete', () => {
   assert.equal(data.awakeners.length, 73);   // 62 名官方 + 11 名联名彩蛋（core/creators.js）
@@ -4864,4 +4866,60 @@ test('逆潮守关：前 100 关的曲线保持原样，第二程只加在 101 �
   // 章中就开始叠第二条规则（第二程比第一程更早加压）
   assert.ok(D.denStage(106).rules.length >= 2);
   assert.equal(D.denStage(200).rules.length, 3, '终局三条战术全开');
+});
+
+
+test('领奖文案：奖励里没有的那一样不再显示 undefined', () => {
+  // 大运成就「满载而归」只有金币 + 银芯，以前会弹出「唤醒券+undefined 银芯+70 金币+3500」
+  const line = rewardClaimLine({ gold: 3500, cores: 70 });
+  assert.equal(line, '银芯+70 金币+3500');
+  assert.ok(!line.includes('undefined'));
+  assert.ok(!line.includes('唤醒券'));
+  // 带召唤券的照旧
+  const full = rewardClaimLine({ gold: 3000, cores: 60, tickets: 2 });
+  assert.equal(full, '唤醒券+2 银芯+60 金币+3000');
+  // 回溯券只在自己有时出现；四样全无也不会拼出空串
+  assert.ok(rewardClaimLine({ gold: 1, rw: 1 }).includes('回溯券+1'));
+  assert.equal(rewardClaimLine({}), '无');
+});
+
+test('赌徒之骰：战后奖励真的变成四选一', () => {
+  const s = newState(data, 1);
+  const run = startRun(s, data, 'dim');
+  assert.ok(run, '开局要能建起来');
+  const three = offerPool(s, data, run, 3);
+  assert.ok(three.length >= 2 && three.length <= 3, `没骰子时最多三个：${three.length}`);
+  run.relics.push('r_gambler');                       // 拿到赌徒之骰
+  const four = offerPool(s, data, run, 3);
+  assert.equal(four.length, 4, '有骰子应该给四个选项');
+  assert.equal(new Set(four.map((x) => x.id)).size, 4, '四个选项不能重复');
+  // 拿其中一个 → 剩下的照常进背包（takeOffer 读的是 run.offer，先挂上去）
+  run.offer = four;
+  const got = takeOffer(s, data, run, four[0].id);
+  assert.ok(got && got.id === four[0].id);
+  assert.equal(run.offer, null);
+});
+
+
+test('高层反击 / 中毒不再「一跳秒人」：单次按目标生命上限封顶', () => {
+  // 130 层附近的「N」会给全队发反击，怪的攻击是复利长的、玩家血量是线性长的，
+  // 不封顶时一次反击能打出玩家总血的 8 倍（实测 74 万 vs 8.7 万）。这里守住两条线：
+  // 单次反击 ≤ 目标生命上限 20%，单次毒/流血 ≤ 15%。
+  const s = newState(data, 1);
+  s.roster = {};
+  for (const a of data.awakeners) s.roster[a.slug] = { lv: 159, star: 99, brk: 6, od: 99, law: 30 };
+  s.team = ['ogier', 'winkle', 'lotan', 'doll'];     // 双守护，挨打会攒反击
+  s.strategy = { defend: 0.4, target: 'low', preset: 'balanced', ult: 'first' };
+  let counters = 0, dots = 0;
+  for (const stage of [120, 125, 130, 135, 140]) {
+    s.stage = stage; s.seed = (stage * 13 + 7) >>> 0;
+    const r = runBattle(s, data, stage);
+    const hp = new Map([...r.allies, ...r.enemies].map((u) => [u.uid, u.maxHp]));
+    for (const e of r.events) {
+      if (e.amt == null || !hp.has(e.who)) continue;
+      if (e.k === 'counter') { counters++; assert.ok(e.amt <= Math.max(1, Math.round(hp.get(e.who) * 0.2)) + 1, `第 ${stage} 关反击 ${e.amt} 超过目标血量的 20%`); }
+      if (e.k === 'dot') { dots++; assert.ok(e.amt <= Math.max(1, Math.round(hp.get(e.who) * 0.15)) + 1, `第 ${stage} 关持续伤害 ${e.amt} 超过目标血量的 15%`); }
+    }
+  }
+  assert.ok(counters + dots > 0, '这套对局里应该至少出现一次反击或持续伤害');
 });

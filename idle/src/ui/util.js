@@ -164,3 +164,13 @@ export function showKwPop(kw, slug, anchor) {
 
 // reward object -> text ({ gold, tickets, cores })
 export const rewardText = (r) => [r.gold ? `金币 +${fmt(r.gold)}` : '', r.tickets ? `唤醒券 +${r.tickets}` : '', r.cores ? `银芯 +${r.cores}` : '', r.rw ? `回溯券 +${r.rw}` : ''].filter(Boolean).join('　');
+
+/** 领取奖励时 toast 里那一行（「唤醒券+2 银芯+60」）。奖励不一定四样俱全——
+ *  大运成就「满载而归」就只有金币 + 银芯，以前把 undefined 直接拼进去，会弹出「唤醒券+undefined」。
+ *  缺的那一样直接不出现；四样都没有（理论上不会）才写「无」。 */
+export const rewardClaimLine = (r = {}) => [
+  r.tickets ? `唤醒券+${fmt(r.tickets)}` : '',
+  r.cores ? `银芯+${fmt(r.cores)}` : '',
+  r.gold ? `金币+${fmt(r.gold)}` : '',
+  r.rw ? `回溯券+${r.rw}` : '',
+].filter(Boolean).join(' ') || '无';

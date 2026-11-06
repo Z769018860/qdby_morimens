@@ -655,16 +655,20 @@ export function offerPool(state, data, run, n = 3, skip = []) {
   const ups = shuffle(rng, fresh(run.slugs.flatMap((sl) => [0, 1].map((i) => charUp(sl, data, i))).filter((u) => u && !run.ups.some((x) => x.id === u.id))));
   const buffs = shuffle(rng, fresh(LUCK_BUFFS));
   const out = [];
+  // 赌徒之骰：战后奖励多一个选项（四选一）。以前是「先按 n 个凑满，再 slice 到 n+1」——
+  // 凑的时候就只凑到 n，多切出来的那一格永远是空的，等于这个造物完全没生效。
+  // 现在直接按 want 抽，抽满 n+1 才有得选。
+  const want = n + (run.relics.includes('r_gambler') ? 1 : 0);
   // 造物优先：它是整局唯一能改玩法的东西，先保证每次至少出现一件（有的话）
   if (relics.length) { const r = relics[0]; out.push({ type: 'relic', ...r }); }
   if (ups.length) { const u = ups[0]; out.push({ type: 'up', ...u }); }
-  while (out.length < n) {
+  while (out.length < want) {
     if (buffs.length) { const b = buffs.pop(); out.push({ type: 'buff', ...b }); continue; }
     const rest = relics.filter((r) => !out.some((o) => o.id === r.id));
     if (!rest.length) break;
     out.push({ type: 'relic', ...rest[0] });
   }
-  return out.slice(0, n + (run.relics.includes('r_gambler') ? 1 : 0));
+  return out.slice(0, want);
 }
 
 /** 选一个奖励。buff 可叠（同名叠层），造物 / 专属强化各限一次。 */

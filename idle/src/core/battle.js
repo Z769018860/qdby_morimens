@@ -12,7 +12,17 @@ export const roundLimitFor = (info = {}) => (info.boss || info.reward ? ROUND_LI
 export const FRONT_SLOTS = 2;
 // 全局伤害系数：把「磨」压成「决」——两边都打得动，战斗才会在十几回合内见分晓，
 // 通关的回合上限才有意义（以前一场常拖到 25–30 回合）。
-const DMG_SCALE = 1.6;
+const DMG_SCALE = 1.72;
+// 反击的每层系数。以前是 0.27：一个「攻击 27% × 层数」的固定数值，不看防御、不看血量上限。
+// 怪物的攻击是复利长的（130 关附近的首领 88 万攻），玩家的血量却是线性长的（满养成 2 万血）——
+// 于是「N」这种全队发反击的怪，一次反击能打出 40 万，是玩家血量的 20 倍，比它自己的直伤高一个数量级。
+// 系数降到 0.20，并且单次反击**按目标生命上限封顶**（COUNTER_HIT_CAP），高层才不会变成「被反击点名秒杀」。
+const COUNTER_PER = 0.2;
+// 单次反击最多打掉目标生命上限的这个比例（多段 / 多次反击仍然可以叠加，但单下不再秒人）
+const COUNTER_HIT_CAP = 0.2;
+// 毒 / 流血单跳同理：怪物的攻击复利长，毒按「施毒者攻击 × 层数 × 10%」结算，高层一跳就是几倍血量。
+// 只封顶单跳，不封顶层数：慢慢磨的dot队打法仍然成立，只是不再「一跳秒人」。
+const DOT_TICK_CAP = 0.15;
 // Imported enemy/skill data may contain missing or non-finite values. Never let them poison combat state.
 const num = (x, fallback = 0) => { const v = Number(x); return Number.isFinite(v) ? v : fallback; };
 const positive = (x, fallback = 1) => Math.max(1, num(x, fallback));
@@ -255,6 +265,12 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     // 守关特性 · 逆鳞：吃到的反击 / 反震伤害削减 70%——「人手一层反击蹭血」的打法在它面前失效，
     // 想动它就得真刀真枪打（多段直接伤害、大招爆发），而不是靠被动反弹白嫖
     if (kind === 'counter' && tgt.side === 'a' && tgt.guard === 'ironscale') dmg = Math.round(dmg * 0.3);
+    // 反击 / 毒 的单次上限：按**挨打这一方**的生命上限封顶。
+    // 怪物那边的攻击是复利长的，反击与毒都按它的攻击算，不封顶的话高层一次就是七八倍玩家血量
+    // （实测 135 关受反击 74 万 / 我方总血 8.7 万，中毒一跳 78 万）。封顶后它们回到「持续掉血」的定位，
+    // 而直伤（DMG_SCALE，吃的是一整套防御 / 减伤）仍然是主要威胁。
+    if (kind === 'counter' && tgt.maxHp > 0) dmg = Math.min(dmg, Math.max(1, Math.round(tgt.maxHp * COUNTER_HIT_CAP)));
+    if (kind === 'dot' && tgt.maxHp > 0) dmg = Math.min(dmg, Math.max(1, Math.round(tgt.maxHp * DOT_TICK_CAP)));
     let absorbed = 0;
     const shieldBefore = tgt.shield;
     if (tgt.shield > 0) { absorbed = Math.min(tgt.shield, dmg); tgt.shield -= absorbed; dmg -= absorbed; }
@@ -262,7 +278,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
     if (kind === 'dmg' && src.side !== tgt.side && tgt.type === 'WARDEN' && tgt.kit && isPlayerLike(tgt)) {
       if (tgt.shield > 0) {
         const cur = tgt.st.counter;
-        tgt.st.counter = { n: Math.min(COUNTER_CAP, (cur?.n || 0) + 1), per: Math.max(cur?.per || 0, tgt.atk * 0.27), dur: Math.max(cur?.dur || 0, 1), w: cur ? !!cur.w : true };
+        tgt.st.counter = { n: Math.min(COUNTER_CAP, (cur?.n || 0) + 1), per: Math.max(cur?.per || 0, tgt.atk * COUNTER_PER), dur: Math.max(cur?.dur || 0, 1), w: cur ? !!cur.w : true };
       } else if (shieldBefore > 0 || absorbed > 0 || dmg > 0) {
         if (tgt.st.counter?.w) delete tgt.st.counter;
         tgt.ramp = Math.min(RAMP_MAX, (tgt.ramp || 0) + 1);
@@ -335,7 +351,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
         // 反击转移：队里有人开着「转移」，所有队友（含自己）拿到的反击层都归他——他嘲讽吸火，反击才打得到人
         const guard = (t.side === 'a' ? A : E).find((x) => x.alive && x.csGuard > 0 && x !== t);
         if (guard) { t = guard; cur = t.st.counter; }
-        t.st.counter = { n: Math.min(guard ? COUNTER_CAP + 4 : COUNTER_CAP, (cur?.n || 0) + n), per: Math.max(cur?.per || 0, src.atk * 0.27), dur: Math.max(cur?.dur || 0, dur) };
+        t.st.counter = { n: Math.min(guard ? COUNTER_CAP + 4 : COUNTER_CAP, (cur?.n || 0) + n), per: Math.max(cur?.per || 0, src.atk * COUNTER_PER), dur: Math.max(cur?.dur || 0, dur) };
         break;
       }
       case 'barrier': t.st.barrier = { n: Math.min(3, (cur?.n || 0) + n), dur }; break;
@@ -780,7 +796,7 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
           if (!t || !t.alive) continue;
           switch (e.s) {
             case 'poison': acc.o += Math.min(num(e.n, 1) * atkOf(u) * 0.1 * dur * 0.7 * softCut(t) * ampF(u) * vulnF(t), num(t.hp)); break;
-            case 'counter': acc.s += Math.min(num(e.n, 1), 6) * atkOf(t) * 0.27 * 0.7 * ampF(t); break;
+            case 'counter': acc.s += Math.min(num(e.n, 1), 6) * atkOf(t) * COUNTER_PER * 0.7 * ampF(t); break;
             case 'barrier': acc.s += (hitFoes(u) / Math.max(1, foesOf(u).length)) * num(e.n, 1) * (t === u ? 1 : 0.8); break;
             case 'fortress': acc.s += hitFoes(u) * Math.min(50, num(e.n, 1)) / 100 * dur * 0.6; break;
             case 'weakness': acc.s += atkOf(t) * 0.25 * dur * 0.5; break;
