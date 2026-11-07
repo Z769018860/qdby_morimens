@@ -56,8 +56,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(600);
   const modalText = await ev(`document.querySelector('.news-modal').innerText`);
   check('老玩家进游戏自动弹出公告', popped);
-  check('弹出的是最新一条 0.17.2', modalText.includes('0.17.2'));
-  check('新内容在公告里（反击 / 中毒封顶）', modalText.includes('单次反击'));
+  check('弹出的是最新一条 0.17.3', modalText.includes('0.17.3'));
+  check('新内容在公告里（周 Boss 深层补上后期补偿）', modalText.includes('第 7 / 8 层'));
+  check('「毒反越深越弱」这个现象写进公告了', modalText.includes('越往深层伤害反而越低'));
   check('守关加开 100 关也在最近几条里', modalText.includes('逆潮守关加开 100 关'));
   // 「undefined」在 0.17.2 那条里是引用玩家看到的报错原文（带引号），不算开发者术语
   check('公告里没有开发者术语', !/回归测试|策略对象|undefined(?!」)/.test(modalText));

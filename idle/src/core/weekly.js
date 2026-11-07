@@ -6,7 +6,7 @@
 //   第 1 层 = 原来的周 Boss，一点没动（老存档的累计伤害与已领档位直接落在这层）。
 import { hash, mulberry32 } from './rng.js';
 import { simulate } from './battle.js';
-import { makeEnemy } from './enemies.js';
+import { makeEnemy, lateDotBoost } from './enemies.js';
 import { teamDefs, battleSeed, addItem, rollItem, addOrder, rollOrder, recordCodex } from './game.js';
 
 export const WEEKLY_DAILY = 3, WEEKLY_ROUNDS = 12, WEEKLY_STAGE = 48;
@@ -105,8 +105,10 @@ export function weeklyOpen(state, tier) {
 export function weeklyEnemy(data, wk = weekId(), tier = 1) {
   const t = tierOf(tier);
   const m = weeklyBoss(data, wk);
-  const e = makeEnemy(m, 'Boss', WEEKLY_STAGE + t.stageAdd, mulberry32(hash(wk)), { affixes: false, msk: data.msk });
+  const stage = WEEKLY_STAGE + t.stageAdd;
+  const e = makeEnemy(m, 'Boss', stage, mulberry32(hash(wk)), { affixes: false, msk: data.msk });
   e.hp = 1e12; e.weekly = true;
+  e.stage = stage;
   e.tier = t.n;
   if (t.n > 1) {
     e.atk = Math.round(e.atk * t.atkMul);
@@ -128,13 +130,16 @@ export function doWeekly(state, data, slugs = null, tier = null) {
   const tr = wkTrack(w, t.n);
   // 编队页存好的阵容可以单独指定（不传就用当前队伍）
   const team = teamDefs(state, data, slugs && slugs.length ? slugs : state.team), boss = weeklyEnemy(data, undefined, t.n);
-  const res = simulate({ allies: team.list, enemies: [boss], seed: battleSeed(state), strategy: state.strategy, maxRounds: WEEKLY_ROUNDS });
+  // 周 Boss 的关卡模板是「第 48 + stageAdd 关」，第 7 / 8 层已经到 96 / 104，越过了主线曲线的拐点（90）。
+  // 主线 / 大运 / 树海在这个位置都会给毒与反击乘 lateDotBoost（见 enemies.js），这里漏了：
+  // 结果是毒反队越往深层走伤害越低（实测第 6 层毒 74.7 万 → 第 8 层 71.1 万），补上后 71.1 万 → 187.6 万。
+  const res = simulate({ allies: team.list, enemies: [boss], seed: battleSeed(state), strategy: state.strategy, maxRounds: WEEKLY_ROUNDS, dotBoost: lateDotBoost(boss.stage) });
   const dmg = Object.entries(res.stats).filter(([k]) => k[0] === 'a').reduce((s, [, v]) => s + v.dmg, 0);
   tr.damage += dmg; tr.runs++; state.stats.battles++;
   const newBest = dmg > tr.best; if (newBest) tr.best = dmg;
   recordCodex(state, [boss], false);
   state.weeklyTotal = (state.weeklyTotal || 0) + dmg;
-  return { ...res, dmg, newBest, team, tier: t, track: tr, boss: data.monById[boss.mid], week: w };
+  return { ...res, dmg, newBest, team, tier: t, track: tr, boss: data.monById[boss.mid], week: w, dotBoost: lateDotBoost(boss.stage) };
 }
 /** 一键领取某层：把已达成、还没领的档位全领了，返回每档的结果（空数组 = 没有可领的） */
 export function claimAllWeekly(state, data, tier = null) {

@@ -3853,6 +3853,22 @@ test('周 Boss 扩到 8 层：逐层更硬、奖励更多、解锁门槛递增�
   assert.equal(weeklyOpen(s, 8), true);
 });
 
+test('周 Boss 深层：第 7 / 8 层的毒与反击跟主线 96 / 104 关吃同一份后期补偿', () => {
+  // 第 6 层的模板是 88 关（主线曲线拐点 90 之前），第 7 / 8 层是 96 / 104（之后）。
+  // 主线 / 大运 / 树海都会在拐点之后给毒与反击乘 lateDotBoost，周 Boss 以前漏传，
+  // 毒反队于是越往深层走伤害反而越低（第 6 层 74.7 万 → 第 8 层 71.1 万）。
+  assert.equal(weeklyEnemy(data, undefined, 6).stage, 88);
+  assert.equal(weeklyEnemy(data, undefined, 7).stage, 96);
+  assert.equal(weeklyEnemy(data, undefined, 8).stage, 104);
+  const s = newState(data, 77);
+  const w = weeklyState(s);
+  w.tries = 99;
+  for (const n of [2, 3, 4, 5, 6, 7, 8]) w.tiers[n].damage = 1e12;
+  const r6 = doWeekly(s, data, null, 6), r8 = doWeekly(s, data, null, 8);
+  assert.equal(r6.dotBoost, 1, '88 关还在拐点之前，不该有补偿');
+  assert.ok(r8.dotBoost > 2, `104 关该跟主线一样吃补偿，实际只有 ${r8.dotBoost}`);
+});
+
 // ---------------------------------------------------------------- 红流树海
 test('树海：募队按稀有度花黑露，超预算 / 重复 / 未拥有都拒绝', async () => {
   const T = await import('../src/core/treerun.js');
