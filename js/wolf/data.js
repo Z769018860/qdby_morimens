@@ -235,6 +235,9 @@ export const CHARS = [
   { av: '9012', zh: '米酒', en: 'Mijiu', tone: 'art', realm: '超维', cls: '辅助型', call: '主播', hint: '脑缸组 · 战斗设计师', up: true, badge: '官' },
   // 半醒的鱼：做萌新攻略和代洗密契的那位（B 站「半醒的鱼yyy」）。
   { av: '9013', zh: '半醒的鱼', en: 'Halfawake', tone: 'warm', realm: '深海', cls: '辅助型', call: '主播', hint: 'B站 · 半醒的鱼yyy', up: true },
+  // 伤春客：频道「悲秋客」，一整排鸟蛛阵容与低配逃课（B 站「伤春客」）。
+  // 语气原型用 dark：他夸人的方式是「这套能复现」，骂人的方式是「这是设计问题」。
+  { av: '9014', zh: '伤春客', en: 'Shangchunke', tone: 'dark', realm: '混沌', cls: '伤害型', call: '主播', hint: 'B站 · 伤春客', up: true },
 ];
 
 export const CHAR_BY_NAME = Object.fromEntries(CHARS.map((c) => [c.zh, c]));

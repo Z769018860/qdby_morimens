@@ -252,6 +252,11 @@ export const BONDS = [
     tiers: { 2: { critRate: 8, critDmg: 20 } },
     desc: '半醒的鱼 + 塔薇：代洗密契这活儿他接了不知多少单，结论始终是「再洗一次」——暴击率与暴击伤害。',
   },
+  {
+    id: 'patron-shangchunke-pollux', zh: '一架子鸟蛛', cat: 'patron', members: ['shangchunke', 'pollux'], need: 2,
+    tiers: { 2: { critDmg: 22, steal: 4 } },
+    desc: '伤春客 + 波吕克斯：他养一架子鸟蛛，他梦里也有一只鸟——都是一口咬住就不松的类型，暴击伤害与吸血一起抬。',
+  },
 
   /* ---------- 档案派系：原作档案「特性」标签相同的人 ----------
      标签来自 data/dictionary.json 的 traits（维基档案的 |特性= 字段），全 62 人里只有两枚：

@@ -6,7 +6,7 @@
   · data/huiji-awakeners.tsv     唤醒体的界域 / 职介 / 生日 / 身高 / 英文名 / 别名（灰机 wiki）
   · idle/public/data/game-data.json  62 名唤醒体的 slug（图集按它排）
   · data/protocol-units.json     界域 / 职介 / 编号
-  · data/survivors-extra.json    11 位 B 站主播（界域 / 职介 / 头像 / 签名）
+  · data/survivors-extra.json    12 位 B 站主播（界域 / 职介 / 头像 / 签名）
   · data/wolf-corpus.json        主播的直播间标题与分区（照抄 B 站，别自己编）
 
 输出 data/fake-chars.json：每人 6 条「档案事实」，前 3 条印在登记卡上，

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """《寻找伪人：Morimens》的像素素材图集。
 
-三张图解决 73 个角色的全部画面需求：
+四张图解决 74 个角色的全部画面需求：
 
   1. assets/fake/idle.webp   —— 战斗立绘（门外站着的那位）。源是 assets/bazaar/idle/*.webp，
      320px 高的透明立绘；缩到 132px、像素化、32 色调色板。
   2. assets/fake/card.webp   —— 立绘（档案夹里的那张全身照）。源是 assets/card/*.webp，
      240x600 的官方卡面；缩到 96x240。
   3. assets/fake/bust.webp   —— 登记卡上的小头像。源是 assets/awakener/*.webp（120x120 胸像）。
-  4. assets/fake/face.webp   —— 11 位主播的 B 站头像（assets/survivors/faces/*.webp），
+  4. assets/fake/face.webp   —— 12 位主播的 B 站头像（assets/survivors/faces/*.webp），
      他们没有战斗立绘，游戏里是「头像 + 火柴人」，脑袋就是这张。
 
-为什么全拼成图集：EdgeOne 每个请求固定 1~2 秒，73 个人各拉一张图就是 73 个来回。
+为什么全拼成图集：EdgeOne 每个请求固定 1~2 秒，74 个人各拉一张图就是 74 个来回。
 图集一共 4 个文件，构建时再内联成 data URI 塞进一个模块（见 scripts/build.mjs 的 genFake）。
 
 像素化不是简单缩小：先按 block 降采样再 NEAREST 放回原尺寸，边缘像素才是硬边方块；

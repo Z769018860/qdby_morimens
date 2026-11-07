@@ -48,6 +48,7 @@ import { N9 } from './lines-n9.js';
 import { U9 } from './lines-up9.js';
 import { U10 } from './lines-up10.js';
 import { U11 } from './lines-up11.js';
+import { U12 } from './lines-up12.js';
 
 // 语气原型表在 tones.js，这里的兜底取句逻辑直接用，不再转出去一份
 
@@ -67,7 +68,7 @@ function merge(dst, src) {
 }
 
 export const LINES = {};
-for (const chunk of [A, B, C, D, E, X, R, F, G, H, I, J, K, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, N1, N2, N3, N4, N5, N6, N7, N8, N9]) {
+for (const chunk of [A, B, C, D, E, X, R, F, G, H, I, J, K, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, N1, N2, N3, N4, N5, N6, N7, N8, N9]) {
   for (const name of Object.keys(chunk)) LINES[name] = merge(LINES[name] || {}, chunk[name]);
 }
 

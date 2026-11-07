@@ -9,6 +9,7 @@ import { hash, mulberry32 } from './rng.js';
 import { simulate, roundLimitFor } from './battle.js';
 import { buildEnemies, domainRules, lateDotBoost } from './enemies.js';
 import { teamDefs } from './game.js';
+import { grantCreator } from './creators.js';
 
 export const LUCK_ACTS = 3;
 export const LUCK_NODES = 12;        // 每层节点数（战斗 10 + 事件 1 + 商店 1）
@@ -622,6 +623,23 @@ export function claimLuckAch(state, id) {
   if (a.reward.rw) (state.vouchers ||= { rewind: 0 }).rewind += a.reward.rw;
   state.stats.gold = (state.stats.gold || 0) + (a.reward.gold || 0);
   return a.reward;
+}
+
+/* ---------------- 大运赠礼：联名嘉宾 ---------------- */
+/**
+ * 大运赠送的联名嘉宾：**走完一整趟**（三层通关，s.clears ≥ 1）就送一位，只送一次。
+ *
+ * 为什么不挂在成就上：成就是「点一下领走」的，老玩家早就把 a_clear 领完了，
+ * 想再补发就得动他们的存档；这条单独记 state.gift.luck，进游戏时补发，
+ * 新号老号都不会漏，也不会重复发（重复只会变成叠位 +1，见 grantCreator）。
+ */
+export const LUCK_GUEST = 'shangchunke';
+export function syncLuckGuest(state) {
+  const s = luckState(state);
+  state.gift ||= {};
+  if (state.gift.luck || Number(s.clears || 0) < 1) return null;
+  state.gift.luck = 1;
+  return grantCreator(state, LUCK_GUEST);
 }
 
 // ------------------------------------------------------------------ 奖励三选一

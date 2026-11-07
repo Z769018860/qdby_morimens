@@ -351,7 +351,7 @@ const squad = await cdp.evalIife(`(() => {
   return { cur, a, b, tabs, different: a.join() !== b.join(), pick: s.squadPick.weekly, on, bar,
     note: (document.querySelector('.sqchip.on')?.innerText || '').replace(/\\s+/g, ' ') };
 })()`);
-check(squad.tabs === 7, `队伍页标签 ${squad.tabs} 个（主线 / 无限塔 / 融灾禁区 / 周Boss / 属性塔 / 竞技场 / 编队库）`);
+check(squad.tabs === 8, `队伍页标签 ${squad.tabs} 个（主线 / 无限塔 / 融灾禁区 / 周Boss / 属性塔 / 竞技场 / 疾驰大运 / 编队库）`);
 check(squad.a.length === 4 && squad.different, `编队：一队 ${squad.a.length} 人 · 二队与一队不同（${squad.a.join('>')} / ${squad.b.join('>')}）`);
 check(squad.bar >= 1 && squad.pick === 'a' && squad.on >= 1, `周 Boss 出战阵容切到「${squad.note}」（${squad.on} 个选中）`);
 await cdp.shot('squad');
@@ -362,7 +362,7 @@ const usage = await cdp.evalIife(`(() => {
   const card = document.querySelector('.squad[data-squad="a"]');
   return { cards: document.querySelectorAll('.squad').length, use: (card?.querySelector('.squse')?.innerText || '') };
 })()`);
-check(usage.cards === 14 && /周Boss/.test(usage.use), `编队库 14 套（通用 5 + 属性塔 4 + 禁区 5），一队标注「${usage.use}」`);
+check(usage.cards === 15 && /周Boss/.test(usage.use), `编队库 15 套（通用 5 + 属性塔 4 + 禁区 5 + 大运 1），一队标注「${usage.use}」`);
 
 // 编队编辑器：打开的是这套编队自己的人，不是主线那 4 个；
 // 造物「详情 → 换一件」换的是这套的独立配装草稿，不能落到主线造物栏上
@@ -492,12 +492,12 @@ const assign = await cdp.evalIife(`(() => {
     allChaos: team.every((x) => __game.data.bySlug[x].realm === 'CHAOS'),
     pick: s.squadPick.rt_CHAOS, closed: !document.querySelector('.sqeditor') };
 })()`);
-check(assign.tabs.length === 7 && assign.tabs[0] === '主线队伍' && assign.tabs[1] === '无限塔' && assign.tabs[2] === '融灾禁区',
+check(assign.tabs.length === 8 && assign.tabs[0] === '主线队伍' && assign.tabs[1] === '无限塔' && assign.tabs[2] === '融灾禁区',
   `队伍页 ${assign.tabs.length} 个标签：${assign.tabs.join(' / ')}`);
 check(['tower', 'rt', 'weekly', 'arena'].every((k) => assign.per[k].blocks === 1) && assign.per.rift.blocks === 2,
   `每个挑战标签只放自己那一块（融灾禁区是「五队 + 区域首领」两块）：${Object.entries(assign.per).map(([k, v]) => `${k}=${v.blocks}`).join(' ')}`);
 check(assign.per.rift.lines === 5, `融灾禁区标签里是五队逐行（${assign.per.rift.lines} 行）`);
-check(assign.per.squads.squads === 14, `编队库里是通用五套 + 属性塔四套 + 禁区专用五套（${assign.per.squads.squads} 套）`);
+check(assign.per.squads.squads === 15, `编队库里是通用五套 + 属性塔四套 + 禁区专用五套 + 大运一套（${assign.per.squads.squads} 套）`);
 check(assign.opened && assign.slots === 4 && assign.allChaos, `属性塔现场编队一键上阵：${assign.picked.join('、')}（${assign.slots} 人，全混沌界域）`);
 check(assign.pick === 't_CHAOS' && assign.closed && assign.team.length === 4, `存好后「混沌尖塔」指向本塔专用队（${assign.pick}）`);
 check(assign.realmLocked.includes('血肉') && !assign.realmLocked.includes('混沌'), `混沌塔编辑器锁住其他界域（${assign.realmLocked.join('、') || '无'}）`);
@@ -818,7 +818,7 @@ const crInfo = await cdp.evalIife(`(() => {
   const cr = __game.data.awakeners.filter((a) => a.creator);
   return { total: __game.data.awakeners.length, n: cr.length, names: cr.map((a) => a.zh), avail: [...new Set(cr.map((a) => a.avail))] };
 })()`);
-check(crInfo.n === 11 && crInfo.total === 73, `11 位联名嘉宾已并进唤醒体表（共 ${crInfo.total} 名）：${crInfo.names.join('、')}`);
+check(crInfo.n === 12 && crInfo.total === 74, `12 位联名嘉宾已并进唤醒体表（共 ${crInfo.total} 名）：${crInfo.names.join('、')}`);
 check(crInfo.avail.length === 1 && crInfo.avail[0] === 'GIFT', '彩蛋角色 avail = GIFT，不进召唤池');
 
 const crPull = await cdp.evalIife(`(async () => {
@@ -837,7 +837,7 @@ const evPage = await cdp.evalIife(`(() => {
     sub: document.querySelector('#subnav')?.innerText || '' };
 })()`);
 // 嘉宾卡数量跟着 creators.js 走：新增一位联名主播这里就 +1，别再写死 10
-check(evPage.t && evPage.guests === 11 && evPage.tasks === 3, `活动页渲染：${evPage.guests} 张嘉宾卡 + ${evPage.tasks} 条每日任务`);
+check(evPage.t && evPage.guests === 12 && evPage.tasks === 3, `活动页渲染：${evPage.guests} 张嘉宾卡 + ${evPage.tasks} 条每日任务`);
 check(/联动/.test(evPage.sub), '「更多」组里多了「联动」页签');
 await cdp.shot('event-page');
 
@@ -863,6 +863,18 @@ check(evUnlock.delta === 1, `征召券换到联名「${evUnlock.zh}」，一次�
 check(evUnlock.used === 2 && evUnlock.star2 === evUnlock.star1 + 1,
   `同一人再换一次变成叠位：${evUnlock.star1} → ${evUnlock.star2}（共用券 ${evUnlock.used} 张）`);
 await cdp.shot('event-guests');
+
+// 大运赠礼那位（伤春客）：联动页那格只写「走完一趟大运赠送」，人气再高也不给征召按钮
+const luckCell = await cdp.evalIife(`(async () => {
+  const s = __game.state; s.event.fame = 5000; __game.save();
+  window.__go('event'); await new Promise((r) => setTimeout(r, 300));
+  const wrap = [...document.querySelectorAll('#view .gwrap')].find((w) => w.innerText.includes('伤春客'));
+  if (!wrap) return { found: false };
+  return { found: true, text: wrap.innerText, btn: !!wrap.querySelector('[data-act="event-summon"]'),
+    others: document.querySelectorAll('[data-act="event-summon"]').length };
+})()`);
+check(luckCell.found && /大运赠礼/.test(luckCell.text) && !luckCell.btn && luckCell.others > 0,
+  `伤春客只标「大运赠礼」、不给征召按钮（同时还有 ${luckCell.others} 位能用券换）`);
 
 const crFight = await cdp.evalIife(`(async () => {
   const g = await import('/src/core/game.js');

@@ -301,6 +301,23 @@
       "src": "idle/public/img/awk/dragond.webp"
     },
     {
+      "id": "c-shangchunke",
+      "n": "伤春客",
+      "hp": 5,
+      "items": [
+        "saw",
+        "needle"
+      ],
+      "passive": {
+        "k": "menace",
+        "n": "伏击",
+        "d": "你的实弹打中对手后，对手下一回合用不了道具。"
+      },
+      "realm": "混沌",
+      "role": "伤害型",
+      "src": "idle/public/img/awk/shangchunke.webp"
+    },
+    {
       "id": "a-15585",
       "n": "奥吉尔",
       "hp": 5,

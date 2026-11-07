@@ -1123,6 +1123,7 @@ export function detailModal(app, slug) {
         return `<div class="sqtags"><span class="dim">羁绊</span>${bs.map((b) => `<span class="tag bdtag${inTeam.has(b.id) ? ' on' : ''}" title="${esc(b.desc)}">${esc(b.zh)}<small>${esc(bondHint(b, data.bySlug))}</small></span>`).join('')}</div>`;
       })()}
       ${a.creator ? `<div class="cbox"><small class="clabel">B 站签名</small><b>${a.creator.bio ? esc(a.creator.bio) : '（这位主播没有填写签名）'}</b>
+        ${a.creator.channel ? `<div class="crow"><span>频道</span><em>${esc(a.creator.channel)}</em></div>` : ''}
         ${a.creator.nick ? `<div class="crow"><span>外号</span><em>${esc(a.creator.nick)}</em></div>` : ''}
         <div class="crow"><span>B 站首页</span><a href="${esc(a.creator.url)}" target="_blank" rel="noopener" title="打开 ${esc(a.creator.zh)} 的 B 站个人空间">${esc(a.creator.url.replace(/^https?:\/\//, ''))}</a></div>
         <small>UID ${esc(a.creator.uid)} · 只送不抽（签到 / 活动）</small>

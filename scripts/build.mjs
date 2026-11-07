@@ -673,7 +673,7 @@ function genBugfight() {
 }
 
 // ------------------------------------------- 寻找伪人的像素图集与档案
-// 73 个角色（62 唤醒体 + 11 主播）如果各拉一张图，边缘就是七十几个 1~2 秒的来回。
+// 74 个角色（62 唤醒体 + 12 主播）如果各拉一张图，边缘就是七十几个 1~2 秒的来回。
 // 素材已经由 scripts/build_fake_art.py 拼成四张图集（战斗立绘 / 立绘 / 头像 / 主播头像），
 // 这里连同 data/fake-chars.json 的档案一起内联成 js/fake/gen.js。
 // 构建期顺手校验一遍「谁少了哪张图」——线上少一张脸，比构建失败难查得多。
@@ -681,7 +681,7 @@ function genFake() {
   const meta = readJson(path.join(ROOT, 'data/fake-art.json'));
   const raw = readJson(path.join(ROOT, 'data/fake-chars.json'));
   const chars = raw.chars || [];
-  if (chars.length !== 73) throw new Error(`寻找伪人：角色应为 73 名（现在是 ${chars.length}）`);
+  if (chars.length !== 74) throw new Error(`寻找伪人：角色应为 74 名（现在是 ${chars.length}）`);
   const slots = { idle: 0, card: 0, bust: 0, face: 0 };
   const seen = new Set();
   for (const c of chars) {

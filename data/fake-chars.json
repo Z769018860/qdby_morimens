@@ -3144,6 +3144,44 @@
     "pet": "",
     "line": "我现在心跳一百四，你们听得见吗。"
    }
+  },
+  {
+   "id": "shangchunke",
+   "n": "伤春客",
+   "en": "Shangchunke",
+   "k": "s",
+   "realm": "混沌",
+   "role": "伤害型",
+   "color": "#a67c52",
+   "facts": {
+    "realm": "混沌",
+    "role": "伤害型",
+    "platform": "B 站",
+    "sign": "（没写签名）",
+    "live": "玩几把融灾",
+    "area": "手游 / 其他手游",
+    "no": "C-12"
+   },
+   "card": [
+    "realm",
+    "role",
+    "platform"
+   ],
+   "ask": [
+    "sign",
+    "live",
+    "area"
+   ],
+   "img": {
+    "face": "assets/survivors/faces/shangchunke.webp"
+   },
+   "tr": {
+    "self": "主播我",
+    "eye": "黑",
+    "item": "一副耳机",
+    "pet": "",
+    "line": "我现在心跳一百四，你们听得见吗。"
+   }
   }
  ],
  "_traitsNote": "每人的底细：self 自称 / eye 瞳色 / item 随身物 / pet 随行动物（多数为空）/ line 口头禅。伪人抄错的那一条可能落在其中任何一项；这些没有档案可查，只能靠图鉴里核实过的真值对照。瞳色按界域色系分配（不按立绘统计——统计只有一半能猜对，见脚本注释）。"

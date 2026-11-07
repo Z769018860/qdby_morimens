@@ -103,7 +103,7 @@ const bestOf = { easy: 0, normal: 0, hard: 0, frenzy: 0 };
 const diffOf = () => DIFF_OF[G.diff] || DIFF_OF.normal;
 
 // ------------------------------------------------------------------ 头像 / 换皮
-// 每一级「当前用的是哪张脸」记在 SKIN 里：0 = 合成链原图，1..n = 换皮池（全部唤醒体 + 十一位主播）的第几张。
+// 每一级「当前用的是哪张脸」记在 SKIN 里：0 = 合成链原图，1..n = 换皮池（全部唤醒体 + 十二位主播）的第几张。
 // 换皮池本身在 js/merge-skins.js（七十来张 data URI），首屏不加载：
 // 只有玩家点了「换皮」、或者上次换过要还原时才动态 import。
 const SKIN = new Array(LEVELS.length).fill(0);
@@ -1259,7 +1259,7 @@ function buildChainImgs() {
 }
 
 // 「换皮」：前 MAX 级每一级都重新摇一张脸，整池（杜勒赛因除外）里不重复地抽；
-// 池子里现在混着十一位主播（见 scripts/build.mjs 的 genMergeSkins）。
+// 池子里现在混着十二位主播（见 scripts/build.mjs 的 genMergeSkins）。
 // 尽量避开当前正在用的那几张，免得点了按钮看到的还是同一批脸。
 function shuffleSkins() {
   loadSkins().then((pool) => {
@@ -1295,7 +1295,7 @@ function paintSkinBtn() {
   if (!b) return;
   const n = SKIN.reduce((c, v, i) => c + (i < MAX && v > 0 ? 1 : 0), 0);
   b.classList.toggle('on', n > 0);
-  b.title = n ? `已换 ${n} 级头像，点一下重新随机（Y）；从全部唤醒体 + 十一位主播里抽，不重复` : '从全部唤醒体（杜勒赛因除外）和十一位主播里随机换掉前九级的头像（Y），不重复，杜勒赛因固定';
+  b.title = n ? `已换 ${n} 级头像，点一下重新随机（Y）；从全部唤醒体 + 十二位主播里抽，不重复` : '从全部唤醒体（杜勒赛因除外）和十二位主播里随机换掉前九级的头像（Y），不重复，杜勒赛因固定';
   const r = document.getElementById('skinReset');
   if (r) r.hidden = n === 0;
 }
@@ -1416,7 +1416,7 @@ function reset() {
 }
 
 // ------------------------------------------------------------------ 携带技能
-// 73 个角色（62 名唤醒体 + 11 位主播）每人一个技能，名字用 TA 原作的「狂气爆发」。
+// 74 个角色（62 名唤醒体 + 12 位主播）每人一个技能，名字用 TA 原作的「狂气爆发」。
 // 效果按 界域 × 定位 分成 12 种（SKM），稀有度 SSR 比 SR 多一档（m = 1 / 0）。
 // 能量：每次合成涨 2 + 1.2 × 新球等级，满 100 点按钮放出，放完清零；没带技能就不涨。
 const ENERGY_FULL = 100;

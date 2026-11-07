@@ -7,7 +7,7 @@ const m_gen = await (async () => {
 
 // 由 scripts/build.mjs 从 data/roulette-chars.json + data/avatars.json 生成，请勿手改。
 // face 是 data URI：选人一屏的头像一次传完，页面只发一个脚本请求。
-const CHAR_ORDER = ["a-15601","a-15600","a-15591","a-15567","a-95786","a-15570","a-15598","a-15568","a-15576","a-151844","a-77913","a-15580","a-15560","a-94450","a-15569","a-145363","c-dragond","a-15585","a-15588","a-15581","c-samo","a-15565","a-148578","a-54117","a-54116","a-15595","a-15602","a-15571","a-15604","a-15587","a-15584","c-ratking","a-77921","a-15577","a-15599","c-maodie","a-125346","a-130226","a-15596","a-77926","c-zerok","a-15597","a-15563","a-15573","a-15564","a-130901","a-77922","a-15594","a-141302","a-15592","c-banxing","c-xiamolin","a-15566","a-15582","c-mengyi","a-15575","a-15589","c-chaoxing","a-77917","c-alice","a-15562","a-15593","a-15590","a-77923","a-15586","a-15579","a-15603","a-77925","a-15572","a-15583","a-15574","c-baiyun","a-77918"];
+const CHAR_ORDER = ["a-15601","a-15600","a-15591","a-15567","a-95786","a-15570","a-15598","a-15568","a-15576","a-151844","a-77913","a-15580","a-15560","a-94450","a-15569","a-145363","c-dragond","c-shangchunke","a-15585","a-15588","a-15581","c-samo","a-15565","a-148578","a-54117","a-54116","a-15595","a-15602","a-15571","a-15604","a-15587","a-15584","c-ratking","a-77921","a-15577","a-15599","c-maodie","a-125346","a-130226","a-15596","a-77926","c-zerok","a-15597","a-15563","a-15573","a-15564","a-130901","a-77922","a-15594","a-141302","a-15592","c-banxing","c-xiamolin","a-15566","a-15582","c-mengyi","a-15575","a-15589","c-chaoxing","a-77917","c-alice","a-15562","a-15593","a-15590","a-77923","a-15586","a-15579","a-15603","a-77925","a-15572","a-15583","a-15574","c-baiyun","a-77918"];
 const CHARS = {
  "a-15601": {
   "id": "a-15601",
@@ -358,6 +358,26 @@ const CHARS = {
   "line": "",
   "creator": true,
   "face": "data:image/webp;base64,UklGRtYEAABXRUJQVlA4IMoEAAAwFQCdASpAAEAAPnkylEckoqIhLhSccJAPCWcAw2ii/ZBoxp2+p/KLkfxIO4d/WV2wj0sv7H/qOh+z7/XXsDfy/+s+l57N/Rzai/PoVnFRBFo8M5KBHq6KflJodfP7KZHRDuNLu/6IoXb7dMqaZJ0z5gcve4NSGWQ5zoFb/noOH6kTcz7TXU07nTNYb6I1TXixcIlEBZP3g1lP28xUtlCrfHwlXRl01UK0qOZCkyn98qUAAP79+B97PVUpT/MOJ0G79Y0xvvIT9eXdisvNXiMny2lqw98JVGpRjD8xW7YG5GMN3SKFhS/kEipS5KlhiNORz/mh4zdIYw/qdtdY+Cu+vtZ/M+doexy9WT1MhdfpaFL3p8qltJxNdf1ZWjkdgTs2Thod1qoWIdMdW3aRdUf9oK95FZkhrboRXaH+fKRQjnYnpNHkxclGFp6sWKFa2XFTYZbs7MVtLt3m9dWorKpmDOSYGPm/XHF9rjBqC2f0WaV6eFf+0s3TTtbUsIyPh+F/5069TuKnH+ciCxFJG9rAE+L+Dv3oWX5wP2gQQwqoIFfXo2gG2MufFt2NrvyFtsK7wQPgHlHpuky0HOg3EY12cnjW4W01SBeNWvVxv3CqoUT+KuhZYlje/fT9VJdt3SYhN4okk8x/IWXQOcT6BCGo8KlQcXEf7hc4bnU+X3TDbeeFjep21HUVok5OdUgqFHTc3x431RpNMWG3sWgMlcQ/oa7kd6elYR4i/TKspjmZ3V0ycPTVhOA51TzbwIqbSSsQrYNRgKyDZkWaC8YvndnZdbfyW81BI1sczYHpipueXAq/ajChDsoX935OSfiajNS0CcUiUFyt48oFMZxzf2UEEYXcdT7Q+0t2JhGfMeI9h1oyklxGu2O6iVsQOxMYDBmU0nOWj+FzAqivzB2c+r7hh2KLVutcnt7jsT65A++WdJFVziV7NiBphWs/AUf9xsCbknY9L7gX7IB1LBj1oYtPAxmFaq/liRO9Yf1ZjBYFHTJRWeT+hTwP/eDg9rqF3EFosG2atOf6F0g3kGC+7BM1a0HUz226fhwJKUFMhVd5wBNS/O/GeeaUNtFxsJj+JZCtr5kWoAzg2mix3zw5oZHNa7hAZECsiBttCNvFfxTn2TfTFGWK138QXtgpC4CFAMtXtwcFx1bB4nypQsggFEDhjWoiE4hON9yf1/jrv44TG2VjQedRO1+0D2jDOq8Bh+/bi7cOt43A8ORIN3l9/aSHrNgWZ/bvhG/97t+uqVp+w2Znn5E+m9JSE6yCtYTvZqVOf9g/nczNbI0eNSA+nQsEaLpQK56+8RsG12hnc2oPk1LgTa3aP7B2pqZsPTFm7bVq//pSP/aOkEWXvT3Tb4Hv1JSHbgzPRdWTRO5EAr3BUJMAxd59HeoW3yXpw2QS+f7QcGiIHB768nmHHvX91Eyz1scOVVj+f3fqvjiOpFcFuQtiXC/9eHYgVGspyh0EKMvqMqyikHJ/U8lRN0FKM/YJjH3IiZnKhcfDgSx2cX5rk14sD+6eqRW5HwgwGe68fmtoywS74jGFxKaYrTTiyaTApUyb4EkZRjbsjufCX5chxF5pMqjTj6dsAreuDQ+UhYRcaQV2PCv3a9xR1r7Pstcgv1nlIopV+AAAAA=="
+ },
+ "c-shangchunke": {
+  "id": "c-shangchunke",
+  "n": "伤春客",
+  "en": "",
+  "hp": 5,
+  "items": [
+   "saw",
+   "needle"
+  ],
+  "passive": {
+   "k": "menace",
+   "n": "伏击",
+   "d": "你的实弹打中对手后，对手下一回合用不了道具。"
+  },
+  "realm": "混沌",
+  "role": "伤害型",
+  "line": "",
+  "creator": true,
+  "face": "data:image/webp;base64,UklGRsQCAABXRUJQVlA4ILgCAABQDwCdASpAAEAAPnk4lUgko6IhJhqtiJAPCWkAFteXEvZcdv/N6AV/Kf8Njpf8Po1XGDR7+cd89+cf6A/7XuFfqf/vOwB6JP6zIQ/vkk4OxYD/F8wyl7Uti4u0sItOTwDXopRgkE4U1fk/977urBeB7ru6m/MCcLzN/Pfi1JUz7gaaAAD+/Kjf5HaaZMD7I9t9192DMN9Y1hpu7t5/D7ZGeJRL1+2oIvO+AMz0SCQZSp7s7XqCSG4zPw3nSQwvUjEJRCd1f6/ycNtXny+5kxUGkfnd/i6QiB0/6ocT063/zwfVMMH8RbZ3dW8g/Zphh2vWNAJBegMY64fij/GDsclXmZeqqMzWLCNSDb7NCPCHHbT+yOsCgSjn80Yndug/Gd1mHPkB+/0t6yf1UrlA7vaLzpjfwz4pfS3LDrizDNiN1p2wUrl66YJ47FXfEP2qWXFLuWmE139EMkhokIHYJGs2kTYb4kqdC9+teKernw4+mYv6+H50ZV/KRu0Zz9wol7u+ZB35J3myn6lVcfcpr+dynPjt+XBkzAHmAYTKe//jTuZ+T2Yc8EPQ6TruKPfnARmqn/Up5QQ4ACJuzQoD59RJuXNU3wubCc53iSVTqze9ydv3yfTq829eI+wHRxkTFC79rYduF6GNgTYb+tICKy1kHQEKnFXvNgJ2FaThTLx6Wc2xStERyvXEFHwnM6/6aXu5/2HpqCLVIyexoRFmbsTmgXqQ9qzo61vgT3jWi+HP9oPf8SUAoUkfDSopyYZGGW/4rorme3Z8ax1Mo29e6s5GszNWdcf9eJCRVXwa/y1qdDIrE0A2rP4hTn6WfVns9tzJFn+QdKFpyp1fr8g54J1NT8255ZdU14l+sD5N/jED0JlzVK9UZpItm7p+SzuAtDOq3btUfIDKLUXfNu/LaD4/s7OvckEAAAA="
  },
  "a-15585": {
   "id": "a-15585",
@@ -1511,7 +1531,7 @@ const CHARS = {
  }
 };
 const POWER = {"c-chaoxing":0,"a-15595":0.01,"a-77921":0.03,"a-130226":0.04,"c-baiyun":0.06,"a-77925":0.07,"a-15604":0.08,"a-77923":0.1,"a-141302":0.11,"a-125346":0.13,"a-15584":0.14,"a-15560":0.15,"a-130901":0.17,"c-ratking":0.18,"a-15563":0.19,"c-banxing":0.21,"a-15562":0.22,"a-15576":0.24,"a-15571":0.25,"a-15570":0.26,"c-zerok":0.28,"c-dragond":0.29,"a-77918":0.31,"a-15601":0.32,"a-54117":0.33,"c-xiamolin":0.35,"a-151844":0.36,"a-77926":0.38,"a-15580":0.39,"a-15589":0.4,"a-15567":0.42,"a-15597":0.43,"a-15587":0.44,"a-95786":0.46,"a-15585":0.47,"a-15579":0.49,"a-15602":0.5,"a-15592":0.51,"a-15583":0.53,"a-15565":0.54,"a-148578":0.56,"a-15568":0.57,"a-15596":0.58,"a-15572":0.6,"a-15591":0.61,"c-maodie":0.63,"a-15574":0.64,"a-15582":0.65,"a-54116":0.67,"a-15586":0.68,"c-mengyi":0.69,"a-15588":0.71,"a-15581":0.72,"a-15577":0.74,"a-77913":0.75,"a-15575":0.76,"a-15573":0.78,"a-15598":0.79,"a-15593":0.81,"a-15566":0.82,"a-145363":0.83,"a-15594":0.85,"a-77922":0.86,"a-15569":0.88,"a-15590":0.89,"c-samo":0.9,"a-15600":0.92,"a-15599":0.93,"a-15564":0.94,"c-alice":0.96,"a-15603":0.97,"a-94450":0.99,"a-77917":1};
-const CREATORS = ["c-dragond","c-samo","c-ratking","c-maodie","c-zerok","c-banxing","c-xiamolin","c-mengyi","c-chaoxing","c-alice","c-baiyun"];
+const CREATORS = ["c-dragond","c-shangchunke","c-samo","c-ratking","c-maodie","c-zerok","c-banxing","c-xiamolin","c-mengyi","c-chaoxing","c-alice","c-baiyun"];
 return { CHAR_ORDER, CHARS, POWER, CREATORS };
 })();
 

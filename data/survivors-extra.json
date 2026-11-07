@@ -638,6 +638,58 @@
         }
       ],
       "face": "assets/survivors/faces/banxing.webp"
+    },
+    {
+      "id": "egg-shangchunke",
+      "pid": "guest-shangchunke",
+      "n": "伤春客",
+      "en": "Shangchunke",
+      "realm": "混沌",
+      "realmCode": "CHAOS",
+      "role": "伤害型",
+      "roleCode": "ASSAULT",
+      "rarity": "彩蛋",
+      "img": null,
+      "egg": true,
+      "glyph": "伤",
+      "color": "#a67c52",
+      "talent": "伏击",
+      "talentText": "捕鸟蛛不动的时候最危险——先织网，再等那一口",
+      "kind": "B 站主播",
+      "bio": "",
+      "bioSrc": "B 站空间 · space.bilibili.com/2089296867",
+      "bonds": [
+        {
+          "with": "波吕克斯",
+          "alias": "波吕克斯",
+          "n": "一架子鸟蛛",
+          "need": 2,
+          "text": "暴击伤害 +22%，伤害的 4% 转为治疗。他养一架子鸟蛛，他梦里也有一只鸟——都是一口咬住就不松的类型。",
+          "fx": {
+            "add": {
+              "critMul": 0.22,
+              "lifesteal": 0.04
+            }
+          }
+        }
+      ],
+      "weapons": [
+        {
+          "n": "毒牙",
+          "e": "Venom Fang",
+          "proto": "chain",
+          "text": "一口咬下去，毒素顺着伤口再跳向旁边那只"
+        },
+        {
+          "n": "结网",
+          "e": "Web Snare",
+          "proto": "burrow",
+          "text": "在脚下铺开一层丝，踩上来的敌人先被粘住",
+          "cdMul": 1.08,
+          "color": "#a67c52"
+        }
+      ],
+      "face": "assets/survivors/faces/shangchunke.webp"
     }
   ],
   "boss": {

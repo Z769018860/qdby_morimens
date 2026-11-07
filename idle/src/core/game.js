@@ -120,8 +120,9 @@ export function newState(data, now = Date.now()) {
     squads: emptySquads(), squadPick: emptyPick(), gacha: emptyGacha(),
     // 联动活动「星辉直播间」：每日任务计数 + 人气 + 已用征召券（core/event.js）
     event: emptyEvent(),
-    // 签到轮转发到第几份了（core/creators.js 的 syncSigninGifts）
-    gift: { signin: 0 },
+    // 签到轮转发到第几份了（core/creators.js 的 syncSigninGifts）；
+    // luck 是大运那次一次性赠礼（core/luckrun.js 的 syncLuckGuest）发过没有
+    gift: { signin: 0, luck: 0 },
     // 疾驰欢愉的大运（core/luckrun.js）：分数等级 / 天赋 / 专属成就 / 当前这一局
     luck: { pts: 0, best: 0, clears: 0, runs: 0, lvClaimed: {}, talents: {}, tp: 0, ach: {}, cur: null },
     // 红流树海（core/treerun.js）：局内统计 / 天赋树 / 等级经验（pts）/ 专属成就 / 当前这一局 / 行囊
@@ -277,7 +278,7 @@ export function migrate(s, data, uid = accountUid()) {
   // 联动活动：老存档没有就从零开始；每日计数按当天惰性重置（eventState）
   m.event = { ...base.event, ...(s.event || {}), daily: { ...base.event.daily, ...(s.event?.daily || {}) } };
   // 签到轮转：老存档按已经签到的天数折算，进游戏一次补齐（syncSigninGifts 会做）
-  m.gift = { signin: Math.max(0, Math.floor(s.gift?.signin || 0)) };
+  m.gift = { signin: Math.max(0, Math.floor(s.gift?.signin || 0)), luck: Math.max(0, Math.floor(s.gift?.luck || 0)) };
   // 同调率：老存档没有就是空的（不补历史，第一次进游戏才记下今天的日子）
   m.aff = normalizeAff(s.aff);
   // 修复戳只认存档里自己的，别用 newState 的默认值（老存档根本没有这个字段 → 该跑修正）

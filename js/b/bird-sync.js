@@ -1757,7 +1757,7 @@ const GAMES = [  { k: 'detective', n: '战报侦探', href: 'detective.html', ic
   { k: 'lovelive', n: 'lovelive！mori⭐mens！', href: 'lovelive.html', icon: '🎵', read: lovelive, tip: '点按式音游' },
   { k: 'keeper', n: '杀死守密人', href: 'keeper.html', icon: '🔪', read: keeper, tip: '126 个结局的文字恐怖' },
   { k: 'bugfight', n: '电子斗蛐蛐', href: 'bugfight.html', icon: '🦗', read: bugfight, tip: '押注两队怪物，活着出笼' },
-  { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，73 位出战者，能上段' },
+  { k: 'roulette', n: '弥萨格轮盘', href: 'roulette.html', icon: '🎯', read: roulette, tip: '恶魔轮盘，74 位出战者，能上段' },
   { k: 'bazaar', n: '大巴扎：银钥', href: 'bazaar.html', icon: '🏪', read: bazaar, tip: '十格布阵，唤醒体产算力、命轮吃算力开火' },
   { k: 'dadimao', n: '打地猫', href: 'dadimao.html', icon: '🐱', read: dadimao, tip: '只敲校猫立牌，别碰干扰项' },
   { k: 'fake', n: '寻找伪人：Morimens', href: 'fake.html', icon: '🚪', read: fake, tip: '昼夜轮转，放错的人会在夜里杀人' },

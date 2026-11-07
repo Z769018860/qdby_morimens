@@ -21,7 +21,7 @@ export const RANK_TIER = ['', '1 启', '2 启', '3 启', '超限', '最终法则
 export const WHEEL_TIER = ['', '1 叠', '2 叠', '3 叠', '超叠', '终式'];
 export const HERO_RANKS = HERO_RANKS_RAW;
 export const WHEEL_RANKS = WHEEL_RANKS_RAW;
-// 唤醒体、命轮、造物都要经过流派设计层：生成表里 73 个人只有 3 套数值、149 条命轮只有
+// 唤醒体、命轮、造物都要经过流派设计层：生成表里 74 个人只有 3 套数值、149 条命轮只有
 // 「直伤 + 一点毒或盾」，不拆开的话名字换一百遍打起来还是同一套。设计全在 js/bazaar-arch.js。
 export const HEROES = designHeroes(G_HEROES);
 export const ITEMS = designItems(G_ITEMS);

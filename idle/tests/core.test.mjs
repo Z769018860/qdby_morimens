@@ -13,7 +13,7 @@ import { startRun, offerPool, takeOffer, LUCK_RELICS } from '../src/core/luckrun
 import { rewardClaimLine } from '../src/ui/util.js';
 
 test('data pack is complete', () => {
-  assert.equal(data.awakeners.length, 73);   // 62 名官方 + 11 名联名彩蛋（core/creators.js）
+  assert.equal(data.awakeners.length, 74);   // 62 名官方 + 12 名联名彩蛋（core/creators.js）
   assert.ok(data.wheels.length >= 140 && data.relics.length >= 300 && data.covenants.length === 21);
   for (const a of data.awakeners) assert.ok(a.portrait && a.zh, a.slug);
 });
@@ -1635,7 +1635,7 @@ test('自动挂机：前线失手会退到有收益的最高层，不会死守�
 
 /* ---------------------------------------------- M17: 联名彩蛋角色 + 联动活动「星辉直播间」 */
 
-import { CREATORS, SIGNIN_PER, signinPicks, nextGiftSlug, CREATOR_KITS, creatorKit, grantCreator, syncSigninGifts, CREATOR_BY_SLUG } from '../src/core/creators.js';
+import { CREATORS, GIFT_ROUND, LUCK_SLUGS, SIGNIN_PER, signinPicks, nextGiftSlug, CREATOR_KITS, creatorKit, grantCreator, syncSigninGifts, CREATOR_BY_SLUG } from '../src/core/creators.js';
 import {
   noteBattle, dailyView, claimDaily, claimMile, milePending, fameOf, tiersView, redeemGuest, eventSummary,
   eventState, DAILY, GUESTS, GUEST_GATE, FAME_PER_TOKEN, tokensOf, MILE, SIGNIN_FAME, dayKey,
@@ -1701,30 +1701,32 @@ test('彩蛋角色：技能数值随技能等级成长，四界域都有', () =>
   assert.deepEqual([...types].sort(), ['ASSAULT', 'CHORUS', 'WARDEN']);
 });
 
-test('彩蛋角色：签到按天数轮转发，先补齐十位再叠位', () => {
+test('彩蛋角色：签到按天数轮转发，先补齐（大运那位除外）再叠位', () => {
   const s = newState(data, 12);
   assert.equal(syncSigninGifts(s).length, 0, '没签到时什么都不送');
-  // 一天一份：签 3 天给 3 份，按 CREATORS 的顺序先来后面三位
+  // 一天一份：签 3 天给 3 份，按 GIFT_ROUND 的顺序先来后面三位
   s.stats.signins = 3;
   const three = syncSigninGifts(s);
   assert.equal(three.length, 3);
-  assert.deepEqual(three.map((g) => g.slug), CREATORS.slice(0, 3).map((a) => a.slug));
+  assert.deepEqual(three.map((g) => g.slug), GIFT_ROUND.slice(0, 3));
   assert.ok(three.every((g) => g.isNew), '前三位都是新获得');
   assert.equal(syncSigninGifts(s).length, 0, '再调一次不重复发');
-  // 累计到 10 天：把剩下的七位补齐
-  s.stats.signins = CREATORS.length;
+  // 累计到与轮转人数相同：把签到能给的都补齐
+  s.stats.signins = GIFT_ROUND.length;
   const rest = syncSigninGifts(s);
-  assert.equal(rest.length, CREATORS.length - 3);
+  assert.equal(rest.length, GIFT_ROUND.length - 3);
   assert.ok(rest.every((g) => g.isNew));
-  assert.equal(Object.keys(s.roster).filter((k) => CREATOR_BY_SLUG[k]).length, CREATORS.length, '十位全到手');
-  // 第 13 天开始重复：同一批人轮着叠位
-  s.stats.signins = CREATORS.length + 3;
+  assert.equal(Object.keys(s.roster).filter((k) => CREATOR_BY_SLUG[k]).length, GIFT_ROUND.length, '轮转里的都到手了');
+  // 大运赠礼那位不在签到轮转里：签满也拿不到
+  for (const slug of LUCK_SLUGS) assert.ok(!s.roster[slug], `签到不该发「${slug}」，他只从大运来`);
+  // 再往后开始重复：同一批人轮着叠位
+  s.stats.signins = GIFT_ROUND.length + 3;
   const more = syncSigninGifts(s);
   assert.equal(more.length, 3);
   assert.ok(more.every((g) => !g.isNew && g.star === 1), '重复获得就是叠位 +1');
   // 直接发也幂等：已满的说 full，没满的继续加
-  const before = s.roster[CREATORS[0].slug].star;
-  assert.equal(grantCreator(s, CREATORS[0].slug).star, before + 1);
+  const before = s.roster[GIFT_ROUND[0]].star;
+  assert.equal(grantCreator(s, GIFT_ROUND[0]).star, before + 1);
 });
 
 test('彩蛋角色：签到份数按 stats.signins 算，老存档一次补齐', () => {
@@ -1734,16 +1736,15 @@ test('彩蛋角色：签到份数按 stats.signins 算，老存档一次补齐',
   assert.equal(signinPicks(s), Math.floor(37 / SIGNIN_PER));
   const got = syncSigninGifts(s);
   assert.equal(got.length, signinPicks(s), '该发多少份就补多少份');
-  // 十位各拿一份之后，剩下的按顺序叠
-  const stars = CREATORS.map((a) => s.roster[a.slug]?.star || 0);
-  assert.ok(stars.every((n) => n >= 1), `十位都该有叠位：${stars.join(',')}`);
-  assert.equal(stars.reduce((a, b) => a + b, 0), signinPicks(s) - CREATORS.length, '多出来的份数变成叠位');
-  // 37 份 = 先用 10 份把十位补齐（那 10 份是「新获得」，叠位还是 0），剩下 27 份轮转叠位：
-  // 每人 2 级，多出来的 7 份按 sent % 10 落到前七个人头上
-  const base = Math.floor((signinPicks(s) - CREATORS.length) / CREATORS.length);
+  // 轮转里每人各拿一份之后，剩下的按顺序叠
+  const stars = GIFT_ROUND.map((slug) => s.roster[slug]?.star || 0);
+  assert.ok(stars.every((n) => n >= 1), `轮转里的都该有叠位：${stars.join(',')}`);
+  assert.equal(stars.reduce((a, b) => a + b, 0), signinPicks(s) - GIFT_ROUND.length, '多出来的份数变成叠位');
+  // 37 份 = 先用 N 份把轮转补齐（那 N 份是「新获得」，叠位还是 0），剩下的轮转叠位
+  const base = Math.floor((signinPicks(s) - GIFT_ROUND.length) / GIFT_ROUND.length);
   assert.ok(stars.every((n) => n >= base), `轮转要均衡：${stars.join(',')}`);
   assert.equal(stars[0], base + 1, '多出来的那份给轮转的下一位');
-  assert.equal(nextGiftSlug(s, signinPicks(s)), CREATORS[signinPicks(s) % CREATORS.length].slug, '轮转按已发份数继续往下走');
+  assert.equal(nextGiftSlug(s, signinPicks(s)), GIFT_ROUND[signinPicks(s) % GIFT_ROUND.length], '轮转按已发份数继续往下走');
 });
 
 test('联动活动：每日任务只数在线战斗，跨日重置', () => {
@@ -2299,7 +2300,7 @@ test('专属技能：战斗里按节奏免费追加，且比不带的队伍更�
 const NEW_MECH = new Set(['execute', 'pctHp', 'cleanse', 'dispel', 'revive', 'taunt', 'reflect', 'stun', 'chain', 'splash', 'echo', 'cdReset', 'shieldDmg', 'blood', 'missingHeal', 'delay', 'lowHpBoost', 'poisonBurst', 'dotBurst', 'extraTurn', 'counterBurst', 'barrierHeal', 'gaugeBurn', 'poisonHeal', 'poisonShield', 'dotSpread']);
 const sigOf = (sk) => sk.effects.map((e) => [e.t, e.to || '', e.stat || e.s || e.k || '', e.m ?? '', e.v ?? '', e.pct ?? '', e.n ?? '', e.hits ?? '', e.dur ?? '', e.cost ?? '', e.share ?? '', e.grow ?? ''].join(':')).join('|');
 
-test('专属技能：每位的终焉技都带自己的新机制，72 位的技能组合互不相同', () => {
+test('专属技能：每位的终焉技都带自己的新机制，各人的技能组合互不相同', () => {
   const od = new Map(), law = new Map();
   for (const a of data.awakeners) {
     const ex = extraSkills(a.slug, a);
@@ -2743,9 +2744,9 @@ test('羁绊：主播 × 主播、主播 × 同界域唤醒体都能凑，两位
   assert.equal(teamBonds(['samo', 'mengyi'], data).active.some((x) => x.cat === 'crew'), false);
 });
 
-test('本命羁绊：16 条主播 × 羁绊唤醒体都在，且只在两人同队时激活', () => {
+test('本命羁绊：17 条主播 × 羁绊唤醒体都在，且只在两人同队时激活', () => {
   const patron = BONDS.filter((b) => b.cat === 'patron');
-  assert.equal(patron.length, 16);
+  assert.equal(patron.length, 17);
   const creators = new Set();
   for (const b of patron) {
     assert.equal(b.members.length, 2, `${b.id} 应该是一对`);
@@ -3277,6 +3278,20 @@ test('大运：分数进等级、成就与天赋点一起结算', async () => {
   assert.ok(r1 && s.gold > gold0, '领等级奖励要真的到账');
   assert.ok(L.freeTp(st) >= lv1.tp, '领了带天赋点的等级，点数要能用');
   assert.ok(L.claimLevel(s, 1) === null, '同一级不能领两次');
+});
+
+test('大运赠礼：走完一趟三层就送联名嘉宾「伤春客」，只送一次', async () => {
+  const L = await import('../src/core/luckrun.js');
+  const s = newState(data, 15);
+  assert.equal(s.roster.shangchunke, undefined, '新号一开始不该有他');
+  assert.equal(L.syncLuckGuest(s), null, '没走完过一趟就不发');
+  L.luckState(s).clears = 1;
+  const g = L.syncLuckGuest(s);
+  assert.ok(g && g.slug === 'shangchunke' && g.isNew, '通了一趟要送人');
+  assert.ok(s.roster.shangchunke, '确实进了名册');
+  assert.equal(s.gift.luck, 1, '要把「已发过」记下来，否则进一次游戏发一次');
+  assert.equal(L.syncLuckGuest(s), null, '发过就不再发');
+  assert.equal(s.roster.shangchunke.star, 0);
 });
 
 test('大运：十档难度推荐等级递增、怪越难分越高，后五档强度档位后挪', async () => {

@@ -39,7 +39,7 @@ import {
   luckState, startRun as luckStart, fightNode as luckFight, takeOffer as luckTakeOffer, rerollOffer as luckReroll,
   applyEvent as luckApplyEvent, eventOf as luckEventOf, shopStock as luckShopStock, shopBuy as luckShopBuy,
   leaveNode as luckLeaveNode, abandonRun as luckAbandon, claimLevel as luckClaimLevel, buyTalent as luckBuyTalent,
-  claimLuckAch, offerPool as luckOfferPool,
+  claimLuckAch, offerPool as luckOfferPool, syncLuckGuest,
 } from './core/luckrun.js';
 import {
   treeState, startRun as treeStart, pickBranch as treePickBranch, fightNode as treeFight,
@@ -323,6 +323,8 @@ async function boot() {
   maybeNews();
   // 累计签到送的那几位：达标就自动进包（老存档首次进游戏也会补发）
   checkSigninGifts();
+  // 大运走完过一整趟就补发那位联名嘉宾（同样只在第一次真的发）
+  checkLuckGuest();
   // 同调率：跨天补给礼物（花束 ×2 / 唱片 ×1），自动进包，不用点领取
   {
     const got = affTick(app.state);
@@ -859,7 +861,8 @@ function afterLuckBattle(app, r) {
   const s = app.state;
   app.save(); render();
   const run = luckState(s).cur;
-  if (!run) { const end = luckState(s).lastRun; if (end) LK.luckEndModal(app, end); return; }
+  // 这一趟刚走完（通关或全灭）：通关的话把大运赠礼补上，再弹结算框
+  if (!run) { const end = luckState(s).lastRun; checkLuckGuest(); if (end) LK.luckEndModal(app, end); return; }
   if (r?.res?.win) { run.offer = luckOfferPool(s, app.data, run, 3); LK.luckOfferModal(app, run); }
 }
 
@@ -887,6 +890,18 @@ function checkSigninGifts() {
   app.save();
   sound.play('summonSSR');
   toast(`🎁 累计签到赠礼：${got.map((g) => g.zh).join('、')} 已加入队伍（更多 → 联动 可查看）`, 4200);
+  return got;
+}
+
+/* 大运送的那位联名嘉宾（core/luckrun.js 的 syncLuckGuest）：走完一趟三层就补发一次，
+   和签到赠礼一样可以放心每次都调——发过了就什么都不做。 */
+function checkLuckGuest() {
+  if (!app.state) return null;
+  const got = syncLuckGuest(app.state);
+  if (!got) return null;
+  app.save();
+  sound.play('summonSSR');
+  toast(`🎁 大运赠礼：联名嘉宾「${got.zh}」${got.isNew ? '加入队伍' : `叠位 ${got.star}`}（更多 → 联动 可查看）`, 4200);
   return got;
 }
 

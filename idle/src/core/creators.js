@@ -7,7 +7,7 @@
 //   2. 技能是手写的（CREATOR_KITS），不吃 skills.js 的「类型模板 + 原作文本反推」，因为他们在原作里不存在；
 //   3. 数值刻意压在史诗（SSR）之下、初始四人之上——彩蛋归彩蛋，不能破坏养成曲线。
 //
-// 11 位主播**都是男性**，所以文案里的第三人称统一用「他」——别按昵称 / 头像想当然。
+// 12 位主播**都是男性**，所以文案里的第三人称统一用「他」——别按昵称 / 头像想当然。
 //
 // creator.bio 一律**照录 B 站个人签名原文**（快照见 tools/faces/source.json 的 sign 字段），
 // 不要自己编写人物设定或事迹——签名是空的就留空，界面上会显示「没有填写签名」。
@@ -177,6 +177,21 @@ export const CREATORS = [
       hook: '必抽人权 · 保姆级攻略',
     },
   },
+  {
+    id: 'creator-12', slug: 'shangchunke', zh: '伤春客', en: 'Shangchunke', realm: 'CHAOS', type: 'ASSAULT', rarity: 'SR', avail: 'GIFT',
+    // luck: 只从大运赠礼拿（见 core/luckrun.js 的 syncLuckGuest），不进签到轮转、也不进征召
+    luck: true,
+    base: { CON: 33, ATK: 36, DEF: 29 }, scale: { CON: 1.58, ATK: 1.70, DEF: 1.32 }, sub: { ...SUB }, subScale: { ...SUB_SCALE },
+    portrait: portraitOf('shangchunke'), card: cardOf('shangchunke'),
+    // 频道名与 B 站昵称不是一个（频道叫「悲秋客」），单独存一份，详情页跟着显示。
+    // 签名是空的，按本文件开头的规矩留空，界面上会显示「没有填写签名」。
+    creator: {
+      uid: '2089296867', url: 'https://space.bilibili.com/2089296867', color: '#a67c52', tag: CREATOR_TAG, emoji: '🕷️',
+      bio: '',
+      channel: '悲秋客',
+      hook: '捕鸟蛛 · 鸟蛛阵容',
+    },
+  },
 ];
 
 export const CREATOR_BY_SLUG = Object.fromEntries(CREATORS.map((a) => [a.slug, a]));
@@ -310,6 +325,17 @@ export const CREATOR_KITS = {
     Exalt: ['融灾 425', (lv) => [D(2.7, lv, { to: 'foes' }), E.debuff('vuln', 18, 2), E.gauge('keyflare', 10)]],
     OverExalt: ['按需选用即可', (lv) => [D(1.3, lv, { to: 'foes' }), E.buff('amp', 24, 3, 'allies'), E.buff('crit', 12, 3, 'allies')]],
   }),
+  // 伤春客：捕鸟蛛那一套 —— 先结网（护盾 / 降攻）、再伏击（高倍率单体 + 叠毒），
+  // 收尾是「把一整架子都放出来」的群毒。毒不靠堆层数，靠单体那一口咬得深。
+  shangchunke: kit({
+    Strike: ['毒牙轻啮', (lv) => [D(0.95, lv), E.dot(0.22, 3)]],
+    Defense: ['结网待客', (lv) => [S(1.3, lv), E.status('barrier', 1, 2, 'self')]],
+    Skill1: ['布网', (lv) => [S(0.85, lv, 'allies'), E.status('poison', 2, 3, 'foes'), E.debuff('atk', 12, 2, 'foes')]],
+    Skill2: ['伏击一口', (lv) => [D(2.2, lv), E.status('poison', 3, 3), E.debuff('vuln', 15, 2)]],
+    Rouse: ['蜕壳', () => [E.buff('atk', 18, 3, 'allies'), E.gauge('keyflare', 20)]],
+    Exalt: ['鸟蛛出动', (lv) => [D(1.15, lv, { to: 'foes' }), E.status('poison', 3, 4, 'foes'), E.dot(0.3, 3, 'foes')]],
+    OverExalt: ['满架鸟蛛', (lv) => [D(1.8, lv), E.status('poison', 5, 4), E.dot(0.45, 4), E.buff('amp', 20, 3)]],
+  }),
 };
 
 export function creatorKit(slug, level = 2) {
@@ -322,7 +348,9 @@ export function creatorKit(slug, level = 2) {
 // 先把手上的空位补齐，九个人都到手之后继续轮，每轮给每个人多叠一级。
 // 一天一份是有意的：彩蛋角色不进池，只能靠这个和活动券叠位，量太小就永远停在 0 星。
 export const SIGNIN_PER = 1;
-export const GIFT_ROUND = CREATORS.map((a) => a.slug);
+// 大运赠礼那位（luck: true）不在这条轮转里：他只从「走完一趟大运」来，签到不会顺手把他发了。
+export const GIFT_ROUND = CREATORS.filter((a) => !a.luck).map((a) => a.slug);
+export const LUCK_SLUGS = CREATORS.filter((a) => a.luck).map((a) => a.slug);
 export const signinPicks = (state) => Math.floor(Math.max(0, state.stats?.signins || 0) / SIGNIN_PER);
 
 /** 下一份发给谁：还没到手的按固定顺序补齐，全齐了再按顺序轮转叠位 */

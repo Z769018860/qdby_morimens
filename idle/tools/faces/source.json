@@ -1,7 +1,7 @@
 {
-  "note": "十位联名主播的 B 站头像与签名来源（同人二创用途）。sign 是个人签名原文快照，游戏里 creator.bio 必须照录它，不要自行编写人设；换图：覆盖同名 <slug>.jpg 后重跑 python tools/build_creators.py --face-dir=tools/faces",
+  "note": "十二位联名主播的 B 站头像与签名来源（同人二创用途）。sign 是个人签名原文快照，游戏里 creator.bio 必须照录它，不要自行编写人设；换图：覆盖同名 <slug>.jpg 后重跑 python tools/build_creators.py --face-dir=tools/faces",
   "api": "https://api.bilibili.com/x/web-interface/card?mid=<mid>",
-  "fetched": "2026-10-30",
+  "fetched": "2026-11-08",
   "faces": {
     "samo": {
       "mid": "345114332",
@@ -79,6 +79,13 @@
       "sign": "主播的忘却前夜群：560011366",
       "face": "https://i0.hdslb.com/bfs/face/c5ef5a39d2d84d1a598ef6d1b4ba93219e79d8c8.jpg",
       "fans": 1482
+    },
+    "shangchunke": {
+      "mid": "2089296867",
+      "name": "伤春客",
+      "sign": "",
+      "face": "https://i0.hdslb.com/bfs/face/6a9e3c84cb5799d3159b7a7c10d2ec1b385e3b85.jpg",
+      "fans": 330
     }
   },
   "signFetched": "2026-10-30"

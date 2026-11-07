@@ -89,6 +89,7 @@ export const EXTRA_NAMES = {
   maodie: ['路过的风景', '长者的一瞥'],
   baiyun: ['十亿出伤', '上百条世界线'],
   banxing: ['保姆级攻略', '必抽人权'],
+  shangchunke: ['结网待时', '鸟蛛夜猎'],
 };
 
 
@@ -162,6 +163,8 @@ const SKILLS = {
   vivian: { theme: '毒 · 毒疗驱散', od: [H(0.55, 'allies'), St('poison', 4, 3, 'foes'), B('crit', 15, 2, 'allies')], law: [DSP(), PHL(4), B('crit', 35, 3, 'allies')] },
   caraboo: { theme: '毒 · 毒爆吸血', od: [S(0.9), LS(30)], law: [S(1.3, 'allies'), PSB(1.5), SHD(0.8), LS(40)] },
   'doll-inferno': { theme: '毒 · 反击层收毒', od: [H(0.6, 'allies'), St('counter', 1, 2, 'allies')], law: [CBR(0.22), St('poison', 8, 3, 'foes'), H(1.0, 'allies')] },
+  // 伤春客：捕鸟蛛那套——先织网（护盾 + 铺毒），收束是「等毒够厚了一口咬穿」
+  shangchunke: { theme: '毒 · 伏击收割', odEvery: 2, od: [S(0.55), St('poison', 4, 3, 'foe')], law: [PSB(1.9), D(2.2, 'foe'), Db('vuln', 20, 3, 'foes')] },
 
   // ============ 流血：把伤口撕开、再让所有人一起流血 ============
   helot: { theme: '流血 · 溅射放血', od: [SPL(1.2, 0.5), Dot(0.4, 3, 'foe'), LS(30)], law: [DTB(1.5), Db('def', 30, 3, 'foes'), B('atk', 30, 3)] },
@@ -245,6 +248,7 @@ const TUNE = {
   "aurita": 2.200,
   "baiyun": 2.200,
   "banxing": 1.800,
+  "shangchunke": 2.000,
   "caecus": 2.200,
   "caraboo": 1.711,
   "casiah": 2.200,

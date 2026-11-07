@@ -1,4 +1,4 @@
-// 联动活动「星辉直播间」：core/creators.js 里那 11 位主播的第二个获取口——攒人气换「嘉宾征召券」。
+// 联动活动「星辉直播间」：core/creators.js 里那 12 位主播的第二个获取口——攒人气换「嘉宾征召券」。
 //
 // 设计取舍：
 //   - **常驻**而不是限时。这是个单机同人小游戏，玩家随时可能隔一个月回来，
@@ -95,7 +95,8 @@ export function fameOf(state, now = Date.now()) {
 // 100 点一张：每天做满三个任务就是 100，加上签到的 5 点和推图里程碑，一天稳稳一张出头。
 export const FAME_PER_TOKEN = 100;
 
-// 十一位嘉宾统一在这里：fame 是「人气门槛」，到了才能用券换。
+// 十二位嘉宾统一在这里：fame 是「人气门槛」，到了才能用券换。
+// 伤春客（shangchunke）虽然也列在这儿，但他是大运赠礼角色：门槛写高只是不让人用券换，界面上那格显示「大运赠礼」。
 // 签到那三位门槛 0——签到每天发一份，谁先到手看轮转顺序，门槛不用再卡。
 // 这份名单必须和 creators.js 的 CREATORS 一一对应：漏一位就是「图鉴里有、联动页换不到」，
 // tests/core.test.mjs 有一条断言专门盯这个。
@@ -111,6 +112,7 @@ export const GUESTS = [
   { slug: 'maodie', fame: 700 },
   { slug: 'baiyun', fame: 900 },
   { slug: 'banxing', fame: 1100 },
+  { slug: 'shangchunke', fame: 1300 },
 ];
 export const GUEST_GATE = Object.fromEntries(GUESTS.map((g) => [g.slug, g.fame]));
 export const TIERS = GUESTS;   // 旧名字，别处还引用着
