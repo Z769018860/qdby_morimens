@@ -2,7 +2,7 @@
 // 以及 M10 的三处新交互（命轮密契页换装 / 一键配队 / 手动挂机不推进）。
 // 用法：node tools/regress.mjs [http://127.0.0.1:8777/index.html]
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -31,6 +31,9 @@ const WIN = process.platform === 'win32';
 const cleanup = () => {
   if (WIN) { try { spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* 已经退了 */ } }
   try { child.kill(); } catch { /* 已经退了 */ }
+  // 无头浏览器的 user-data-dir 是几百 MB 的缓存：不删的话每跑一次就留一份，
+  // 几百次之后临时盘就被这堆 edgeprof-* 撑满了（进程刚被 kill，句柄可能还没放，重试几下）。
+  try { rmSync(prof, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* 删不掉就交给系统清 */ }
 };
 process.on('exit', cleanup);
 process.on('SIGINT', () => { cleanup(); process.exit(130); });

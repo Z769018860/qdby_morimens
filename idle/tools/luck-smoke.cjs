@@ -13,6 +13,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 (async () => {
   const profile = 'H:/Temp/edgeprof-luck-' + Date.now();
   const proc = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`, '--no-first-run', '--disable-gpu', 'about:blank'], { stdio: 'ignore' });
+  // 临时配置目录（每个几百 MB）用完就删：以前只创建不清理，跑几十次临时盘就被 edgeprof-* 堆满。
+  // 先 taskkill 连子进程一起收（只 kill 父进程的话，Edge 的子进程还会捏着目录句柄，删不掉）。
+  const dropProfile = () => {
+    try { if (process.platform === 'win32') require('child_process').spawnSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* 已经退了 */ }
+    try { proc.kill(); } catch { /* 已经退了 */ }
+    try { require('fs').rmSync(profile, { recursive: true, force: true, maxRetries: 8, retryDelay: 200 }); } catch { /* 还是删不掉就留给系统 */ }
+  };
+  process.on('exit', dropProfile);
   let target = null;
   for (let i = 0; i < 60 && !target; i++) {
     try { const l = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json(); target = l.find((t) => t.type === 'page'); } catch { /* 还没起来 */ }

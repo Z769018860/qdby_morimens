@@ -646,10 +646,13 @@ export function syncLuckGuest(state) {
   for (let i = 0; i < want; i++) {
     const r = grantCreator(state, LUCK_GUEST);
     if (!r) break;
-    got = r; added++;
-    if (r.full) { full = true; break; }                  // 已满叠，剩下的趟数也换不出东西了
+    got = r;
+    if (r.full) { full = true; break; }                  // 已满叠，这一趟换不出叠位，剩下的也不必再试
+    added++;
   }
-  state.gift.luck = given + added;
+  // 满叠时直接记到「当前总趟数」，不再只 +1：否则积压多少趟，就要在之后多少次「进游戏 / 结算」
+  // 里各重试一次，每次都弹一条「已是满叠」——玩家什么都没做，提示却一直在响。
+  state.gift.luck = full ? clears : given + added;
   if (!added) return null;
   return { ...got, added, full };
 }

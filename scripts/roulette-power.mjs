@@ -47,5 +47,5 @@ const doc = {
   rate: Object.fromEntries(rows.map((x) => [x.id, Math.round(x.rate * 1000) / 10])),
 };
 fs.writeFileSync(path.join(ROOT, 'data/roulette-power.json'), JSON.stringify(doc, null, 1) + '\n');
-console.log(`${played} 场：最低 ${rows[0].rate.toFixed(1)}% · 最高 ${rows[rows.length - 1].rate.toFixed(1)}% · 中位 ${(rows[Math.floor(rows.length / 2)].rate * 100).toFixed(1)}%`);
+console.log(`${played} 场：最低 ${(rows[0].rate * 100).toFixed(1)}% · 最高 ${(rows[rows.length - 1].rate * 100).toFixed(1)}% · 中位 ${(rows[Math.floor(rows.length / 2)].rate * 100).toFixed(1)}%`);
 console.log('已写 data/roulette-power.json');

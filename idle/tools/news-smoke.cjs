@@ -13,6 +13,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 (async () => {
   const profile = 'H:/Temp/edgeprof-news-' + Date.now();
   const proc = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`, '--no-first-run', '--disable-gpu', 'about:blank'], { stdio: 'ignore' });
+  // 临时配置目录（每个几百 MB）用完就删：以前只创建不清理，跑几十次临时盘就被 edgeprof-* 堆满。
+  // 先 taskkill 连子进程一起收（只 kill 父进程的话，Edge 的子进程还会捏着目录句柄，删不掉）。
+  const dropProfile = () => {
+    try { if (process.platform === 'win32') require('child_process').spawnSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* 已经退了 */ }
+    try { proc.kill(); } catch { /* 已经退了 */ }
+    try { require('fs').rmSync(profile, { recursive: true, force: true, maxRetries: 8, retryDelay: 200 }); } catch { /* 还是删不掉就留给系统 */ }
+  };
+  process.on('exit', dropProfile);
   let target = null;
   for (let i = 0; i < 60 && !target; i++) {
     try { const l = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json(); target = l.find((t) => t.type === 'page'); } catch { /* 还没起来 */ }
@@ -56,7 +64,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(600);
   const modalText = await ev(`document.querySelector('.news-modal').innerText`);
   check('老玩家进游戏自动弹出公告', popped);
-  check('弹出的是最新一条 0.18.1', modalText.includes('0.18.1'));
+  check('弹出的是最新一条 0.18.2', modalText.includes('0.18.2'));
   check('新内容在公告里（大运赠礼每趟都送）', modalText.includes('每走完一趟'));
   check('守关等级 / 叠位那条写清楚了', modalText.includes('叠位'));
   check('一键分解那条写清楚了', modalText.includes('一键分解'));

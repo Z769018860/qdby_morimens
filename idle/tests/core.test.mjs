@@ -3314,6 +3314,31 @@ test('大运赠礼：每走完一趟送一位联名嘉宾「伤春客」，第�
   assert.equal(s.roster.shangchunke.star, MAX_AWAKEN, '叠位不能越界');
 });
 
+test('大运赠礼：满叠后的积压趟数一次记完，不会每次进游戏都再弹一条「已是满叠」', async () => {
+  const L = await import('../src/core/luckrun.js');
+  const s = newState(data, 15);
+  L.luckState(s).clears = 1;
+  L.syncLuckGuest(s);
+  s.roster.shangchunke.star = MAX_AWAKEN;
+  // 老号：以前存了几百趟没发，正好卡在满叠
+  L.luckState(s).clears = 300;
+  assert.equal(L.syncLuckGuest(s), null, '满叠以后没有真的加叠位，就不该再报一次赠礼');
+  assert.equal(s.gift.luck, 300, '积压的趟数要一次记完，而不是每次只 +1');
+  assert.equal(L.syncLuckGuest(s), null, '同一次进游戏不会重试');
+  L.luckState(s).clears = 301;
+  assert.equal(L.syncLuckGuest(s), null, '满叠后再走一趟也不弹提示');
+  assert.equal(s.gift.luck, 301, '新的一趟照样记账');
+  // 「这一趟刚好叠到 99」：要提示一次，同时把同一批里剩下的趟数记完
+  s.roster.shangchunke.star = MAX_AWAKEN - 1;
+  s.gift.luck = 300;
+  L.luckState(s).clears = 305;
+  const g = L.syncLuckGuest(s);
+  assert.ok(g && g.full && g.added === 1, '加到 99 的那一份要算进赠礼');
+  assert.equal(s.roster.shangchunke.star, MAX_AWAKEN);
+  assert.equal(s.gift.luck, 305, '满叠之后剩下的 4 趟也要一次记完');
+  assert.equal(L.syncLuckGuest(s), null);
+});
+
 test('大运：十档难度推荐等级递增、怪越难分越高，后五档强度档位后挪', async () => {
   const L = await import('../src/core/luckrun.js');
   assert.equal(L.LUCK_DIFFS.length, 10);
