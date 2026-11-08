@@ -56,10 +56,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(600);
   const modalText = await ev(`document.querySelector('.news-modal').innerText`);
   check('老玩家进游戏自动弹出公告', popped);
-  check('弹出的是最新一条 0.18.0', modalText.includes('0.18.0'));
-  check('新内容在公告里（第 12 位联名主播伤春客）', modalText.includes('伤春客'));
-  check('领取条件写清楚了（走完一趟三层就送）', modalText.includes('三层'));
-  check('同步范围写进公告（各同人游戏）', modalText.includes('幸存者营地') && modalText.includes('狼人杀'));
+  check('弹出的是最新一条 0.18.1', modalText.includes('0.18.1'));
+  check('新内容在公告里（大运赠礼每趟都送）', modalText.includes('每走完一趟'));
+  check('守关等级 / 叠位那条写清楚了', modalText.includes('叠位'));
+  check('一键分解那条写清楚了', modalText.includes('一键分解'));
   // 「undefined」在 0.17.2 那条里是引用玩家看到的报错原文（带引号），不算开发者术语
   check('公告里没有开发者术语', !/回归测试|策略对象|undefined(?!」)/.test(modalText));
   check('弹窗最多最近 3 条（不把 0.12.x 的老公告也糊上来）', !modalText.includes('流血改时序'));

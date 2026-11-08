@@ -627,19 +627,31 @@ export function claimLuckAch(state, id) {
 
 /* ---------------- 大运赠礼：联名嘉宾 ---------------- */
 /**
- * 大运赠送的联名嘉宾：**走完一整趟**（三层通关，s.clears ≥ 1）就送一位，只送一次。
+ * 大运赠送的联名嘉宾：**每走完一整趟**（三层通关一次，s.clears 累加）就送一位。
+ * 第一趟拿到人，之后每多走完一趟都是叠位 +1（满 MAX_AWAKEN 后 grantCreator 返回 full，不再加）。
  *
  * 为什么不挂在成就上：成就是「点一下领走」的，老玩家早就把 a_clear 领完了，
- * 想再补发就得动他们的存档；这条单独记 state.gift.luck，进游戏时补发，
- * 新号老号都不会漏，也不会重复发（重复只会变成叠位 +1，见 grantCreator）。
+ * 想再补发就得动他们的存档；这条单独记 state.gift.luck = 「已经发到第几趟」，
+ * 进游戏时 / 每次结算后补发，新号老号都不会漏，重复调用也不会多发。
  */
 export const LUCK_GUEST = 'shangchunke';
 export function syncLuckGuest(state) {
   const s = luckState(state);
   state.gift ||= {};
-  if (state.gift.luck || Number(s.clears || 0) < 1) return null;
-  state.gift.luck = 1;
-  return grantCreator(state, LUCK_GUEST);
+  const clears = Math.max(0, Math.floor(Number(s.clears) || 0));
+  const given = Math.max(0, Math.floor(Number(state.gift.luck) || 0));
+  if (clears <= given) return null;
+  const want = Math.min(clears - given, 200);            // 兜底：一次最多补 200 份，别让坏存档卡死
+  let got = null, added = 0, full = false;
+  for (let i = 0; i < want; i++) {
+    const r = grantCreator(state, LUCK_GUEST);
+    if (!r) break;
+    got = r; added++;
+    if (r.full) { full = true; break; }                  // 已满叠，剩下的趟数也换不出东西了
+  }
+  state.gift.luck = given + added;
+  if (!added) return null;
+  return { ...got, added, full };
 }
 
 // ------------------------------------------------------------------ 奖励三选一

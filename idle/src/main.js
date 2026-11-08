@@ -893,15 +893,16 @@ function checkSigninGifts() {
   return got;
 }
 
-/* 大运送的那位联名嘉宾（core/luckrun.js 的 syncLuckGuest）：走完一趟三层就补发一次，
-   和签到赠礼一样可以放心每次都调——发过了就什么都不做。 */
+/* 大运送的那位联名嘉宾（core/luckrun.js 的 syncLuckGuest）：每走完一趟三层就发一位，
+   第一趟是人，之后每趟都是叠位 +1。和签到赠礼一样可以放心每次都调——没新趟数就什么都不做。 */
 function checkLuckGuest() {
   if (!app.state) return null;
   const got = syncLuckGuest(app.state);
   if (!got) return null;
   app.save();
   sound.play('summonSSR');
-  toast(`🎁 大运赠礼：联名嘉宾「${got.zh}」${got.isNew ? '加入队伍' : `叠位 ${got.star}`}（更多 → 联动 可查看）`, 4200);
+  const what = got.isNew ? '加入队伍' : got.full ? '已是满叠' : `叠位 ${got.star}`;
+  toast(`🎁 大运赠礼${got.added > 1 ? ` ×${got.added}` : ''}：联名嘉宾「${got.zh}」${what}（更多 → 联动 可查看）`, 4200);
   return got;
 }
 
@@ -1745,6 +1746,7 @@ function onAct(e) {
       if (v) {
         const c = s.cores - c0; toast(`分解获得 ${v} 金币${c ? ` + ${c} 银芯` : ''}`);
         el.closest('.item')?.remove?.();
+        P.syncGearCounts(app);          // 页签 / 库存 / 密契套装的数字跟着变，别留在旧值上
         app.refreshTop(); app.saveSoon();
         if (!document.querySelector('#gearlist > *')) render();
       }

@@ -1198,32 +1198,48 @@ export function enhanceAllEquipped(state, opts = {}) {
   if (!o.dry) { state.gold = gold; for (const it of list) it.lv = lv.get(it.uid); }
   return { n, spent, items: touched.size, total: list.length };
 }
-/** 一键分解的筛选：kinds 类型、rarities 稀有度（covenant 没有稀有度按 SR 算）、maxLv 强化等级上限（null=不限）、keepRefined 保留精炼过的 */
+/** 一键分解的筛选：kinds 类型（命轮 / 造物）、rarities 稀有度、cov 是否连密契一起、
+ *  maxLv 强化等级上限（null=不限）、keepRefined 保留精炼过的。
+ *  **密契单独一个开关**：它没有稀有度（21 种全是同一档），以前拿「按 SR 算」硬塞进稀有度筛，
+ *  结果是勾 N/R 时一件都不动、勾 SR 时忽然把密契全清了，玩家根本猜不到会发生什么。 */
 export function dismantleCandidates(state, data, f = {}) {
-  const kinds = new Set(f.kinds || ['wheel', 'covenant', 'relic']), rars = new Set(f.rarities || ['N', 'R']);
+  const kinds = new Set(f.kinds || ['wheel', 'relic']), rars = new Set(f.rarities || ['N', 'R']);
   const maxLv = Number.isFinite(f.maxLv) ? f.maxLv : Infinity, keepRf = f.keepRefined !== false;
+  const cov = f.cov === true;
   const out = [];
   for (const it of Object.values(state.gear.items)) {
     const kind = it.kind === 'cov' ? 'covenant' : it.kind;
-    if (!kinds.has(kind) || isEquipped(state, it.uid)) continue;
+    if (isEquipped(state, it.uid)) continue;
+    if (kind === 'covenant' ? !cov : !kinds.has(kind)) continue;
     const def = (kind === 'wheel' ? data.wheelById : kind === 'covenant' ? data.covById : data.relicById)[it.defId];
-    if (!rars.has(def?.rarity || 'SR') || it.lv > maxLv || (keepRf && (it.rf || 0) > 0)) continue;
-    out.push({ it, def });
+    // 密契不分稀有度，只看开关；命轮 / 造物照旧按稀有度筛
+    if (kind !== 'covenant' && !rars.has(def?.rarity || 'SR')) continue;
+    if (it.lv > maxLv || (keepRf && (it.rf || 0) > 0)) continue;
+    out.push({ it, def, kind });
   }
   return out;
 }
-/** 预览：不改存档，算出会分解几件、拿多少金币和银芯（基础银芯每天 40 枚的上限也算进去） */
+/** 预览：不改存档，算出会分解几件、拿多少金币和银芯（基础银芯每天 40 枚的上限也算进去）。
+ *  byKind 按类型拆开（命轮 / 密契 / 造物各自几件、返多少），covNames 列出要分解的密契名字——
+ *  「一键分解会把哪些东西吃掉」要能在按下去之前就看见。 */
 export function dismantlePreview(state, data, f = {}) {
   const list = dismantleCandidates(state, data, f);
   const fake = { dismantle: { ...dismantleDay(state) } };
   let gold = 0, cores = 0;
-  for (const { it, def } of list) {
-    gold += dismantleValue(def?.rarity || 'SR', it.lv);
-    const base = dismantleBase(def?.rarity, fake);
-    cores += dismantleCores(def?.rarity, it, fake);
-    fake.dismantle.got += base;
+  const byKind = { wheel: { n: 0, gold: 0, cores: 0 }, covenant: { n: 0, gold: 0, cores: 0 }, relic: { n: 0, gold: 0, cores: 0 } };
+  const covNames = {};
+  for (const { it, def, kind } of list) {
+    const k = kind === 'cov' ? 'covenant' : kind;
+    const g = dismantleValue(def?.rarity || 'SR', it.lv);
+    const base = dismantleBase(def?.rarity || 'SR', fake);
+    const c = dismantleCores(def?.rarity || 'SR', it, fake);
+    gold += g; cores += c; fake.dismantle.got += base;
+    const b = byKind[k] || (byKind[k] = { n: 0, gold: 0, cores: 0 });
+    b.n++; b.gold += g; b.cores += c;
+    if (k === 'covenant') { const zh = def?.zh || it.defId; covNames[zh] = (covNames[zh] || 0) + 1; }
   }
-  return { n: list.length, gold, cores, baseLeft: dismantleBaseLeft(state) };
+  return { n: list.length, gold, cores, baseLeft: dismantleBaseLeft(state), byKind,
+    covNames: Object.entries(covNames).map(([zh, n]) => ({ zh, n })).sort((a, b) => b.n - a.n) };
 }
 /** 一键分解：真的分解满足筛选的所有装备（在用 / 编队占着的永远不动） */
 export function dismantleMatching(state, data, f = {}) {
@@ -1233,11 +1249,15 @@ export function dismantleMatching(state, data, f = {}) {
   return { n: list.length, gold, cores: state.cores - c0 };
 }
 /** 一键分解 / 自动分解共用的筛选设置，存在存档里（state.autoDm）；on = 是否开着自动分解 */
-export const defaultAutoDm = () => ({ on: false, kinds: ['wheel', 'covenant', 'relic'], rarities: ['N', 'R'], maxLv: null, keepRefined: true, keepFirst: true, incPull: false });
+// cov 默认 false：密契是「每人 1 件 + 同款凑套装」的稀缺件，不跟着一键分解一起走。
+// 老存档里的 kinds 含 'covenant'（那时它只对 SR 生效、实际从不触发），这里统一剔掉，
+// 免得升级之后打开自动分解就把密契清了——那是没法用金币买回来的东西。
+export const defaultAutoDm = () => ({ on: false, kinds: ['wheel', 'relic'], cov: false, rarities: ['N', 'R'], maxLv: null, keepRefined: true, keepFirst: true, incPull: false });
 export function autoDmOf(state) {
   const d = defaultAutoDm(), c = state.autoDm && typeof state.autoDm === 'object' ? state.autoDm : {};
+  const kinds = (Array.isArray(c.kinds) ? c.kinds : d.kinds).filter((k) => k !== 'covenant');
   return (state.autoDm = {
-    on: !!c.on, kinds: Array.isArray(c.kinds) ? c.kinds : d.kinds, rarities: Array.isArray(c.rarities) ? c.rarities : d.rarities,
+    on: !!c.on, kinds, cov: c.cov === true, rarities: Array.isArray(c.rarities) ? c.rarities : d.rarities,
     maxLv: Number.isFinite(c.maxLv) ? c.maxLv : null, keepRefined: c.keepRefined !== false, keepFirst: c.keepFirst !== false, incPull: !!c.incPull,
   });
 }
@@ -1266,8 +1286,8 @@ export function dismantle(state, data, uid) {
   const it = state.gear.items[uid]; if (!it || isEquipped(state, uid)) return 0;
   const def = (it.kind === 'wheel' ? data.wheelById : it.kind === 'cov' || it.kind === 'covenant' ? data.covById : data.relicById)[it.defId];
   const v = dismantleValue(def?.rarity || 'SR', it.lv);
-  state.gold += v; state.cores += dismantleCores(def?.rarity, it, state);
-  const base = dismantleBase(def?.rarity, state);
+  state.gold += v; state.cores += dismantleCores(def?.rarity || 'SR', it, state);
+  const base = dismantleBase(def?.rarity || 'SR', state);
   if (base) dismantleDay(state).got += base;
   delete state.gear.items[uid]; return v;
 }
@@ -1280,11 +1300,13 @@ export function dismantleDay(state) {
   return state.dismantle;
 }
 export const dismantleBaseLeft = (state) => Math.max(0, DISMANTLE_BASE_DAILY - (state ? dismantleDay(state).got : 0));
-export const dismantleBase = (rarity, state) => {
+// 密契在数据库里没有 rarity 字段：默认按 SR 算（和界面上的「不分稀有度，一律按 SR 折价」对齐）。
+// 以前这里是 undefined → 银芯 0、金币按兜底 80，和说明写的 SR 对不上。
+export const dismantleBase = (rarity = 'SR', state) => {
   const raw = { SSR: 6, SR: 2 }[rarity] || 0;
   return state ? Math.min(raw, dismantleBaseLeft(state)) : raw;
 };
-export const dismantleCores = (rarity, it, state) => dismantleBase(rarity, state) + Math.floor(REFINE_COST.slice(0, it.rf || 0).reduce((a, x) => a + x, 0) / 2);
+export const dismantleCores = (rarity = 'SR', it, state) => dismantleBase(rarity, state) + Math.floor(REFINE_COST.slice(0, it.rf || 0).reduce((a, x) => a + x, 0) / 2);
 // 精炼: spend 银芯, +8% of the item's whole bonus per tier (max 5)
 export function refineItem(state, uid) {
   const it = state.gear.items[uid]; if (!it) return false;

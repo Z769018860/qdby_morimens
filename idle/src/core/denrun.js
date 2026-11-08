@@ -14,7 +14,7 @@ import { simulate, DMG_SCALE } from './battle.js';
 import { teamDefs, newState } from './game.js';
 import { makeEnemy, DOMAINS } from './enemies.js';
 import { patternOf } from './monsters.js';
-import { DEN_MAX } from './constants.js';
+import { DEN_MAX, MAX_LV, MAX_AWAKEN } from './constants.js';
 
 export { DEN_MAX };
 // 前 100 关是「第一程」：玩家的练度从这里一路长到满级满叠。
@@ -96,7 +96,15 @@ const prog = (n) => {
 // 玩家阵容的成长曲线：第 1 关 50 级 0 叠，第 100 关 159 级 99 叠（等级与叠位到顶）。
 // 指数取 0.92 / 1.35：前期升得快一点（让玩家先尝到「怪要练档」），后期叠位补上尾段。
 export const playerLv = (n) => Math.round(50 + 109 * Math.pow(clamp(prog(n), 0, 1), 0.92));
-export const playerStar = (n) => Math.round(99 * Math.pow(clamp(prog(n), 0, 1), 1.35));
+// 叠位必须够撑住等级：stats.js 的 levelCap = 60 + 叠位（满叠 159 级）。
+// 两条曲线原来是各算各的，中段会出现「Lv.108 只有 39 叠」这种根本练不出来的影子号——
+// 玩家一眼就看出来（详情里还有每人的 Lv / 叠位），属于「安排出来的作弊号」。
+// 现在取「曲线值」与「等级要求的叠位」中的大者，等级曲线本身不动，守关侧的数值也不受影响
+// （denPlayerDefs 会把总血 / 总攻归一化到固定曲线，叠位只影响技能等级与增伤那一档）。
+export const playerStar = (n) => {
+  const curve = Math.round(99 * Math.pow(clamp(prog(n), 0, 1), 1.35));
+  return Math.min(MAX_AWAKEN, Math.max(curve, playerLv(n) - MAX_LV));
+};
 // 守关方的算力预算：10 → 15 → 21，一路只涨不回落。
 // 第二程的增量更陡（+0.06/关 vs 第一程 +0.05/关）：玩家那边已经满级，这边只能多给几只怪。
 export const cpuBudget = (n) => Math.round((10 + 5 * clamp(prog(n), 0, 1) + 6 * Math.max(0, prog(n) - 1)) * 10) / 10;

@@ -199,6 +199,47 @@ check(!slotSwap.err && slotSwap.modal && slotSwap.cand > 0, `点 ${slotSwap.slug
 check(slotSwap.after && slotSwap.after !== slotSwap.before, `选中后直接换成另一件命轮（${slotSwap.before} → ${slotSwap.after}）`);
 await cdp.shot('gear');
 
+// 3b) 单件分解之后，页签 / 库存 / 密契套装的数字要立刻跟着变（以前只删 DOM，数字停在那儿不动）
+await cdp.evalIife(`(() => {
+  const s = __game.state, d = __game.data;
+  for (let i = 0; i < 2; i++) s.gear.items['rgtcov' + i] = { uid: 'rgtcov' + i, kind: 'covenant', defId: d.covenants[i].id, lv: 0, rf: 0 };
+  __game.save(); window.__go('gear');
+  [...document.querySelectorAll('[data-act="gear-tab"]')].find((b) => b.dataset.k === 'covenant').click();
+  return true;
+})()`);
+await sleep(200);
+const covBefore = await cdp.evalIife(`(() => ({ tab: +document.querySelector('[data-gearcnt="covenant"]').textContent,
+  stock: document.getElementById('gearstock').textContent }))()`);
+const covClick = await cdp.evalIife(`(() => {
+  const b = __view().querySelector('.item [data-act="gear-dis"]:not([disabled])');
+  if (!b) return { err: '没有可分解的密契' };
+  const n0 = Object.keys(__game.state.gear.items).length;
+  b.click();
+  return { n0, n1: Object.keys(__game.state.gear.items).length };
+})()`);
+await sleep(120);
+const covAfter = await cdp.evalIife(`(() => ({ tab: +document.querySelector('[data-gearcnt="covenant"]').textContent,
+  stock: document.getElementById('gearstock').textContent }))()`);
+check(!covClick.err && covClick.n1 === covClick.n0 - 1, `手动分解一件密契：库存 ${covClick.n0} → ${covClick.n1}`);
+check(covAfter.tab === covBefore.tab - 1, `页签计数跟着减：密契 ${covBefore.tab} → ${covAfter.tab}`);
+check(covAfter.stock !== covBefore.stock, `库存件数跟着变：「${covBefore.stock}」→「${covAfter.stock}」`);
+
+// 3c) 一键分解：密契是单独开关（不混在 N/R/SR/SSR 里），勾上之后要列出会拆哪些、返多少
+const dmModal = await cdp.evalIife(`(() => {
+  __view().querySelector('[data-act="dm-open"]').click();
+  const m = document.querySelector('.modal');
+  if (!m) return { err: '没打开' };
+  const t0 = m.innerText, cov = m.querySelector('[data-dm="cov"]');
+  if (!cov) return { err: '没有密契开关' };
+  cov.click();                                   // 勾上密契，弹窗会按新条件重开
+  const t1 = document.querySelector('.modal')?.innerText || '';
+  window.__closeModal();
+  return { ok: true, hasHint: /不分稀有度/.test(t0), hasNames: /会分解的密契|没有可分解的密契/.test(t1),
+    hasBreak: /件 → \\d+ 金币 \\+ \\d+ 银芯/.test(t1) };
+})()`);
+check(dmModal.ok && dmModal.hasHint, '一键分解：密契单独一个开关，并写明「不分稀有度」');
+check(dmModal.hasNames && dmModal.hasBreak, '勾上密契后列出会拆哪几件、每件返多少，并按类型拆开');
+
 // 4) 一键配队
 await cdp.evalIife(`window.__go('team')`);
 await sleep(250);
@@ -864,7 +905,7 @@ check(evUnlock.used === 2 && evUnlock.star2 === evUnlock.star1 + 1,
   `同一人再换一次变成叠位：${evUnlock.star1} → ${evUnlock.star2}（共用券 ${evUnlock.used} 张）`);
 await cdp.shot('event-guests');
 
-// 大运赠礼那位（伤春客）：联动页那格只写「走完一趟大运赠送」，人气再高也不给征召按钮
+// 大运赠礼那位（伤春客）：联动页那格只写「走完一趟大运送一位」，人气再高也不给征召按钮
 const luckCell = await cdp.evalIife(`(async () => {
   const s = __game.state; s.event.fame = 5000; __game.save();
   window.__go('event'); await new Promise((r) => setTimeout(r, 300));
@@ -873,7 +914,7 @@ const luckCell = await cdp.evalIife(`(async () => {
   return { found: true, text: wrap.innerText, btn: !!wrap.querySelector('[data-act="event-summon"]'),
     others: document.querySelectorAll('[data-act="event-summon"]').length };
 })()`);
-check(luckCell.found && /大运赠礼/.test(luckCell.text) && !luckCell.btn && luckCell.others > 0,
+check(luckCell.found && /大运赠礼|走完一趟大运/.test(luckCell.text) && !luckCell.btn && luckCell.others > 0,
   `伤春客只标「大运赠礼」、不给征召按钮（同时还有 ${luckCell.others} 位能用券换）`);
 
 const crFight = await cdp.evalIife(`(async () => {

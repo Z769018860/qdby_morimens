@@ -1203,13 +1203,13 @@ export function gearPage(app) {
   const all = Object.values(s.gear.items).filter((i) => i.kind === tab)
     .sort((a, b) => (RARITY_ORDER[itemDef(app, b).rarity || 'SR'] - RARITY_ORDER[itemDef(app, a).rarity || 'SR']) || b.lv - a.lv);
   const items = affix ? all.filter((it) => itemAffix(app, it).key === affix) : all;
-  const tabs = [['wheel', '命轮'], ['covenant', '密契'], ['relic', '造物']].map(([k, z]) => `<button class="btn sm ${tab === k ? 'on' : ''}" data-act="gear-tab" data-k="${k}">${z} ${Object.values(s.gear.items).filter((i) => i.kind === k).length}</button>`).join('');
+  const tabs = [['wheel', '命轮'], ['covenant', '密契'], ['relic', '造物']].map(([k, z]) => `<button class="btn sm ${tab === k ? 'on' : ''}" data-act="gear-tab" data-k="${k}">${z} <span class="gtabn" data-gearcnt="${k}">${Object.values(s.gear.items).filter((i) => i.kind === k).length}</span></button>`).join('');
   const lim = app.ui.gearLimit ||= 60;
   const rows = items.slice(0, lim).map((it) => {
     const def = itemDef(app, it);
     const cost = it.lv < GEAR_MAX_LV ? gearCost(it.kind, it.lv) : 0, rc = refineCost(it);
     const eqd = isEquipped(s, it.uid);
-    const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button>${it.kind !== 'covenant' ? `<button class="btn sm" data-act="rune-open" data-uid="${it.uid}" title="${it.kind === 'relic' ? '特质' : '器纹'}：花金币随机刷 16 种属性 × 5 个品阶">${it.kind === 'relic' ? '特质' : '器纹'}${it.rune ? `·${RUNE_TIERS[it.rune.t - 1].zh}` : ''}</button>` : ''}${rewindBtn(s, it)}<button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity, it, s) ? ` +<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${dismantleCores(def.rarity, it, s)}` : ''}</button></div>`;
+    const btns = `<div class="ibtns"><button class="btn sm" data-act="gear-equip" data-uid="${it.uid}">${tab === 'relic' ? (eqd ? '卸下' : '装备') : '装备'}</button><button class="btn sm" data-act="gear-up" data-uid="${it.uid}" ${cost && s.gold >= cost ? '' : 'disabled'}>${cost ? `强化 ${fmt(cost)}` : '满级'}</button><button class="btn sm" data-act="gear-refine" data-uid="${it.uid}" ${rc && s.cores >= rc ? '' : 'disabled'} title="精炼：每阶 +8% 该装备全部加成">${rc ? `精炼 <img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${rc}` : '精炼满'}</button>${it.kind !== 'covenant' ? `<button class="btn sm" data-act="rune-open" data-uid="${it.uid}" title="${it.kind === 'relic' ? '特质' : '器纹'}：花金币随机刷 16 种属性 × 5 个品阶">${it.kind === 'relic' ? '特质' : '器纹'}${it.rune ? `·${RUNE_TIERS[it.rune.t - 1].zh}` : ''}</button>` : ''}${rewindBtn(s, it)}<button class="btn sm danger" data-act="gear-dis" data-uid="${it.uid}" ${eqd ? 'disabled' : ''}>分解 ${fmt(dismantleValue(def.rarity || 'SR', it.lv))}${dismantleCores(def.rarity || 'SR', it, s) ? ` +<img class="ico-sm" src="public/img/ui/silvercore.webp" alt="银芯">${dismantleCores(def.rarity || 'SR', it, s)}` : ''}</button></div>`;
     return itemCard(app, it, btns);
   }).join('') || '<p class="hint">暂无。推图有概率掉落，也可在「召唤」页用金币祈愿。</p>';
   const more = items.length > lim ? `<button class="btn" data-act="gear-more">显示更多（还有 ${items.length - lim} 件）</button>` : '';
@@ -1218,13 +1218,33 @@ export function gearPage(app) {
   const teamRows = equipPanel(app);
   const sets = covenantSetText(app);
   return `<div class="page"><h2>命轮 · 密契 <small>每人各 1 件</small>${rwCount(s) ? `<span class="tag rwtag" title="免费回溯券：角色与装备回溯各用一张，不花银芯">回溯券 ×${rwCount(s)}</span>` : ''}</h2>
-    <p class="hint">命轮与密契是<b>绑在单个唤醒体身上</b>的两件装备：点下面的槽位直接更换，点「已装备」的槽位可以卸下。密契全队同款凑到 2 / 4 件会触发套装效果（当前：${sets || '还没有凑成套'}）。造物与钥令是全队被动，分别在队伍页与钥令页配置。</p>
+    <p class="hint">命轮与密契是<b>绑在单个唤醒体身上</b>的两件装备：点下面的槽位直接更换，点「已装备」的槽位可以卸下。密契全队同款凑到 2 / 4 件会触发套装效果（当前：<span id="covsets">${sets || '还没有凑成套'}</span>）。造物与钥令是全队被动，分别在队伍页与钥令页配置。</p>
     <div class="eqpanel">${teamRows}</div>
     <div class="row"><button class="btn gold" data-act="gear-upall" title="只强化主线编队（队伍页上阵的 4 人 + 造物栏）正在用的装备，每次升当前最便宜的一级">一键强化主线编队</button><button class="btn" data-act="gear-up-pick" title="选择要强化哪几套编队的装备">选择队伍…</button><button class="btn danger" data-act="dm-open" title="按类型 / 稀有度 / 强化等级批量分解没在用的装备">一键分解…</button><small class="dim">每件最高 Lv${GEAR_MAX_LV}；10 级以后每级 +5%，金币花得很多</small></div>
     <p class="hint">「一键强化」只会强化<b>主线编队</b>（队伍页上阵的 4 人身上的命轮 / 密契，加上造物栏）：把金币花在这些装备上，每次挑当前最便宜的一级升，直到金币不够或者全部满级。想强化别的编队（一队～五队、禁区队、属性塔队），点「选择队伍…」勾选；已编入别的编队、但不在主线编队里的装备，默认不会动。</p>
     <p class="hint">想一次性配好？回队伍页点「一键配队」，会连着命轮、密契、造物、钥令一起排；队伍页也有同一块槽位面板，不用来回切页。</p>
-    <h3>${tab === 'relic' ? '造物库存' : '库存'} <small>${items.length}${affix ? ` / ${all.length}` : ''} 件</small></h3>
+    <h3>${tab === 'relic' ? '造物库存' : '库存'} <small id="gearstock">${items.length}${affix ? ` / ${all.length}` : ''} 件</small></h3>
     <div class="row">${tabs}</div>${affixBar(app, tab, affix, 'gear-affix')}<div class="list" id="gearlist">${rows}</div>${more}</div>`;
+}
+
+/** 分解 / 换装之后就地刷新库存计数：页签上的「密契 N」、库存「N 件」、密契套装提示。
+ *  以前单件分解只把 DOM 节点删掉，这三处数字停在那儿不动，玩家会以为没拆成功。 */
+export function syncGearCounts(app) {
+  const s = app.state;
+  const tab = app.ui.gearTab || 'wheel';
+  const affix = (app.ui.gearAffix || {})[tab] || '';
+  for (const el of document.querySelectorAll('[data-gearcnt]')) {
+    const k = el.dataset.gearcnt;
+    el.textContent = String(Object.values(s.gear.items).filter((i) => i.kind === k).length);
+  }
+  const stock = document.getElementById('gearstock');
+  if (stock) {
+    const all = Object.values(s.gear.items).filter((i) => i.kind === tab);
+    const n = affix ? all.filter((it) => itemAffix(app, it).key === affix).length : all.length;
+    stock.textContent = `${n}${affix ? ` / ${all.length}` : ''} 件`;
+  }
+  const sets = document.getElementById('covsets');
+  if (sets) sets.textContent = covenantSetText(app) || '还没有凑成套';
 }
 
 /* ----------------------------- ORDERS (钥令) ----------------------------- */
@@ -1363,10 +1383,15 @@ export function dismantleModal(app) {
   const f = dmFilter(app), p = dismantlePreview(app.state, app.data, f);
   const on = (arr, k) => arr.includes(k);
   const chip = (act, k, label, cur) => `<button class="btn sm ${cur ? 'on' : ''}" data-act="${act}" data-k="${k}">${label}</button>`;
+  const KIND_ZH = { wheel: '命轮', covenant: '密契', relic: '造物' };
+  const parts = ['wheel', 'covenant', 'relic'].filter((k) => p.byKind[k]?.n);
   openModal(`<h3>一键分解</h3>
     <p class="hint">按条件批量分解库存里<b>没在用</b>的装备（穿在身上的、造物栏里的、编队独立配装占着的，一律不动）。分解返还金币，SSR / SR 另有银芯（<b>基础银芯每天最多 40 枚</b>，精炼过的返还一半银芯不受限）。</p>
-    <h4>类型</h4><div class="row">${[['wheel', '命轮'], ['covenant', '密契'], ['relic', '造物']].map(([k, z]) => chip('dm-kind', k, z, on(f.kinds, k))).join('')}</div>
-    <h4>稀有度</h4><div class="row">${['N', 'R', 'SR', 'SSR'].map((k) => chip('dm-rar', k, k, on(f.rarities, k))).join('')}</div>
+    <h4>类型</h4><div class="row">${[['wheel', '命轮'], ['relic', '造物']].map(([k, z]) => chip('dm-kind', k, z, on(f.kinds, k))).join('')}</div>
+    <h4>稀有度 <small class="dim">只筛命轮与造物；密契看下面那个开关</small></h4><div class="row">${['N', 'R', 'SR', 'SSR'].map((k) => chip('dm-rar', k, k, on(f.rarities, k))).join('')}</div>
+    <h4>密契 <small class="dim">21 种，不分稀有度：一律按 SR 折价</small></h4>
+    <div class="row"><label class="snd"><input type="checkbox" data-dm="cov" ${f.cov ? 'checked' : ''}> 连密契一起分解<small class="dim">　每件按 SR 算：金币看强化等级、+2 银芯；每人只能装 1 件，同款还要凑套装，默认不碰</small></label></div>
+    ${f.cov ? (p.covNames.length ? `<p class="hint">会分解的密契：${p.covNames.slice(0, 12).map((x) => `${esc(x.zh)}${x.n > 1 ? ` ×${x.n}` : ''}`).join('、')}${p.covNames.length > 12 ? ` …等 ${p.covNames.length} 种` : ''}</p>` : '<p class="hint">没有可分解的密契（在用的、精炼过要保留的都不动）。</p>') : ''}
     <h4>强化等级</h4><div class="row">${DM_LEVELS.map(([k, z]) => chip('dm-lv', k == null ? '' : k, z, (f.maxLv ?? null) === k)).join('')}</div>
     <div class="row"><label class="snd"><input type="checkbox" data-dm="keepRefined" ${f.keepRefined ? 'checked' : ''}> 保留精炼过的（精炼花过银芯，默认不分解）</label></div>
     <h4>自动分解 <small class="dim">用上面同一组条件，每隔几秒自动处理新入库的装备</small></h4>
@@ -1374,6 +1399,8 @@ export function dismantleModal(app) {
     <div class="row"><label class="snd"><input type="checkbox" data-dm="keepFirst" ${f.keepFirst ? 'checked' : ''}> 每种至少留 1 件在库（刚收录的第一件不分解）</label></div>
     <div class="row"><label class="snd"><input type="checkbox" data-dm="incPull" ${f.incPull ? 'checked' : ''}> 连装备祈愿抽到的也自动分解（默认只处理推图掉落）</label></div>
     <div class="banner-card"><p>符合条件：<b>${p.n}</b> 件　预计返还 <b>${fmt(p.gold)}</b> 金币 + <b>${fmt(p.cores)}</b> 银芯<small class="dim">${p.baseLeft <= 0 ? '（今天的基础银芯额度已用完）' : `（今天基础银芯还剩 ${p.baseLeft} 枚额度）`}</small></p>
+      ${parts.length ? `<p class="hint">${parts.map((k) => `${KIND_ZH[k]} <b>${p.byKind[k].n}</b> 件 → ${fmt(p.byKind[k].gold)} 金币 + ${p.byKind[k].cores} 银芯`).join('　·　')}</p>` : '<p class="hint">当前条件下一件都不会分解，调整上面的勾选试试。</p>'}
+      ${p.byKind.covenant?.n ? '<p class="hint">密契拆掉就没了（不能再用金币抽回来），确认清楚再按。</p>' : ''}
       <div class="row"><button class="btn gold" data-act="dm-run" ${p.n ? '' : 'disabled'}>分解这 ${p.n} 件</button><button class="btn" data-act="close">取消</button></div></div>`, 'wide');
 }
 

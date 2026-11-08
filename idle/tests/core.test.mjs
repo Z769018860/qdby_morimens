@@ -7,7 +7,7 @@ import { simulate, frontLine } from '../src/core/battle.js';
 import { towerReward } from '../src/core/challenge.js';
 import { mulberry32 } from '../src/core/rng.js';
 import { buildKit, describeSkill } from '../src/core/skills.js';
-import { SLOTS } from '../src/core/constants.js';
+import { SLOTS, MAX_AWAKEN } from '../src/core/constants.js';
 import { covTheme, covenantTiers, covenantBonus } from '../src/core/gear.js';
 import { startRun, offerPool, takeOffer, LUCK_RELICS } from '../src/core/luckrun.js';
 import { rewardClaimLine } from '../src/ui/util.js';
@@ -3280,18 +3280,38 @@ test('大运：分数进等级、成就与天赋点一起结算', async () => {
   assert.ok(L.claimLevel(s, 1) === null, '同一级不能领两次');
 });
 
-test('大运赠礼：走完一趟三层就送联名嘉宾「伤春客」，只送一次', async () => {
+test('大运赠礼：每走完一趟送一位联名嘉宾「伤春客」，第二趟起叠位', async () => {
   const L = await import('../src/core/luckrun.js');
   const s = newState(data, 15);
   assert.equal(s.roster.shangchunke, undefined, '新号一开始不该有他');
   assert.equal(L.syncLuckGuest(s), null, '没走完过一趟就不发');
   L.luckState(s).clears = 1;
   const g = L.syncLuckGuest(s);
-  assert.ok(g && g.slug === 'shangchunke' && g.isNew, '通了一趟要送人');
+  assert.ok(g && g.slug === 'shangchunke' && g.isNew && g.added === 1, '通了一趟要送人');
   assert.ok(s.roster.shangchunke, '确实进了名册');
-  assert.equal(s.gift.luck, 1, '要把「已发过」记下来，否则进一次游戏发一次');
-  assert.equal(L.syncLuckGuest(s), null, '发过就不再发');
+  assert.equal(s.gift.luck, 1, '要把「发到第几趟」记下来，否则进一次游戏发一次');
+  assert.equal(L.syncLuckGuest(s), null, '同一趟不会发第二次');
   assert.equal(s.roster.shangchunke.star, 0);
+  // 第二趟：同一个人再来一份 = 叠位 +1（这一条是玩家反馈的核心：以前只送一次）
+  L.luckState(s).clears = 2;
+  const g2 = L.syncLuckGuest(s);
+  assert.ok(g2 && !g2.isNew && g2.added === 1, '第二趟要再给一份');
+  assert.equal(s.roster.shangchunke.star, 1, '第二次拿到就是叠位 1');
+  assert.equal(s.gift.luck, 2);
+  // 中间漏掉的趟数会一次补齐（离线 / 老号都走这条路）
+  L.luckState(s).clears = 5;
+  const g3 = L.syncLuckGuest(s);
+  assert.equal(g3.added, 3, '1 → 5 趟之间少发了 3 份，要一次补齐');
+  assert.equal(s.roster.shangchunke.star, 4);
+  assert.equal(s.gift.luck, 5);
+  assert.equal(L.syncLuckGuest(s), null, '补齐之后不再重复');
+  // 叠位满了就停在满叠，但「已发到第几趟」继续跟着走，不会每次进游戏都再试一遍
+  s.roster.shangchunke.star = MAX_AWAKEN;
+  L.luckState(s).clears = 6;
+  const g4 = L.syncLuckGuest(s);
+  assert.ok(g4 === null || g4.full, '满叠之后不再加叠位');
+  assert.equal(s.gift.luck, 6, '满叠那趟也要记下来，别每次都重试');
+  assert.equal(s.roster.shangchunke.star, MAX_AWAKEN, '叠位不能越界');
 });
 
 test('大运：十档难度推荐等级递增、怪越难分越高，后五档强度档位后挪', async () => {
@@ -4966,4 +4986,55 @@ test('守关不套主线封顶：传 hitCaps:false 时反击不再被「目标�
   assert.ok(capped.length && free.length, '两种口径下都要有反击事件');
   assert.ok(Math.max(...capped) <= 1200 * 0.2 + 1, `默认口径要封顶在 20% 生命上限内：${capped}`);
   assert.ok(Math.max(...free) > Math.max(...capped) * 2, `关掉封顶要打满：封顶 ${capped} vs 不封顶 ${free}`);
+});
+
+test('守关影子玩家：等级不越「叠位对应的上限」（Lv.108 就不能只有 39 叠）', async () => {
+  // 玩家在守关里看到的是一支「别人的阵容」：Lv + 叠位。等级上限完全由叠位决定
+  // （stats.js 的 levelCap = 60 + 叠位）。两条曲线原来各算各的，中段会出现练不出来的影子号。
+  const D = await import('../src/core/denrun.js');
+  const { levelCap } = await import('../src/core/stats.js');
+  for (let n = 1; n <= D.DEN_MAX; n++) {
+    const st = D.denStage(n);
+    assert.ok(st.star >= 0 && st.star <= MAX_AWAKEN, `第 ${n} 关叠位越界：${st.star}`);
+    assert.ok(st.lv <= levelCap(st.star), `第 ${n} 关 Lv.${st.lv} 超过 ${st.star} 叠的上限 ${levelCap(st.star)}`);
+    assert.ok(st.lv >= 1, `第 ${n} 关等级不能是 0`);
+  }
+  // 第一程末端：满级满叠，两边都要顶到 159 / 99
+  const end = D.denStage(100);
+  assert.equal(end.lv, 159);
+  assert.equal(end.star, MAX_AWAKEN);
+});
+
+test('一键分解：密契单独开关，不看稀有度；预览按类型拆开算', async () => {
+  const s = newState(data, 16);
+  const G = await import('../src/core/game.js');
+  // 造两件没在用的密契 + 一件没在用的 N 命轮
+  const cov = data.covenants.slice(0, 2).map((c, i) => ({ uid: `cov-cov-test${i}`, kind: 'covenant', defId: c.id, lv: 0, rf: 0 }));
+  const wheelN = data.wheels.find((w) => w.rarity === 'N');
+  const w1 = { uid: 'w-test1', kind: 'wheel', defId: wheelN.id, lv: 0, rf: 0 };
+  for (const it of [...cov, w1]) s.gear.items[it.uid] = it;
+
+  // 默认（没打开密契开关）：一件密契都不动，命轮照稀有度筛
+  const f = G.defaultAutoDm();
+  assert.deepEqual(f.kinds, ['wheel', 'relic'], '类型里不该再混着密契');
+  assert.equal(f.cov, false, '密契默认不跟着一键分解走');
+  const p0 = G.dismantlePreview(s, data, f);
+  assert.equal(p0.byKind.covenant.n, 0, '没开开关就不能碰密契');
+  assert.ok(p0.byKind.wheel.n >= 1, 'N 命轮该被选中');
+
+  // 打开开关：密契进列表，而且不受稀有度影响（N/R 也照算）
+  const f2 = { ...f, cov: true };
+  const p1 = G.dismantlePreview(s, data, f2);
+  assert.equal(p1.byKind.covenant.n, 2, '两件密契都要算进来');
+  assert.equal(p1.covNames.length, 2, '要把会被拆掉的密契名字列出来');
+  assert.ok(p1.byKind.covenant.cores >= 1, '密契按 SR 折价，得有银芯');
+  assert.equal(p1.byKind.covenant.n + p1.byKind.wheel.n + p1.byKind.relic.n, p1.n, '分类型的件数要加得起来');
+  assert.ok(p1.gold > p0.gold, '多拆两件密契金币要更多');
+
+  // 老存档（kinds 里还带着 covenant）读进来要被剔掉，并且 cov 默认 false
+  const old = { ...newState(data, 17) };
+  old.autoDm = { on: true, kinds: ['wheel', 'covenant', 'relic'], rarities: ['N', 'R'] };
+  const cfg = G.autoDmOf(old);
+  assert.deepEqual(cfg.kinds, ['wheel', 'relic'], '旧设置里的 covenant 要清掉');
+  assert.equal(cfg.cov, false, '旧存档不该因为升级就把密契清空');
 });
