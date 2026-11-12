@@ -754,33 +754,58 @@ console.log('\n[23] 世界 Boss /wboss：全服共享血池、每日三次、排
   };
   const WK = weekId();
   const wkey = (w) => 'wb_' + w.replace(/[^A-Za-z0-9]/g, '_');
+  // 领票 + 上报：世界里所有一击都得先在 /wboss/start 拿 seed
+  const start = async (headers) => call('/wboss/start', { method: 'POST', headers });
+  const hitAs = async (headers, dmg) => {
+    const t = await start(headers);
+    if (t.status !== 200) return { status: t.status, json: t.json };
+    return await call('/wboss/hit', { method: 'POST', headers, body: { seed: t.json.seed, dmg } });
+  };
 
   const g0 = await call('/wboss');
   eq('游客也能看血池', g0.status, 200);
   eq('游客没有个人数据', g0.json.me, null);
-  check('开局血池是满的', g0.json.hp === g0.json.hpMax && g0.json.hpMax === 1.2e7, g0.json);
+  check('首周没有参考人数，血池按下限 800 万开', g0.json.hp === g0.json.hpMax && g0.json.hpMax === 8e6, g0.json);
+  check('单次上限随血池给出（这里是两成 160 万）', g0.json.cap === 1.6e6 && g0.json.rounds === 12, g0.json);
   eq('本周还没有结算信息以外的上期', g0.json.last, null);
-  eq('没登录不能打 → 401', (await call('/wboss/hit', { method: 'POST', body: { dmg: 100 } })).status, 401);
-  eq('伤害为 0 → 400', (await call('/wboss/hit', { method: 'POST', headers: A, body: { dmg: 0 } })).status, 400);
-  eq('伤害是负数 → 400', (await call('/wboss/hit', { method: 'POST', headers: A, body: { dmg: -5 } })).status, 400);
+  eq('没登录不能领票 → 401', (await start({})).status, 401);
+  eq('没登录不能上报 → 401', (await call('/wboss/hit', { method: 'POST', body: { seed: 1, dmg: 100 } })).status, 401);
+  eq('上报不带 seed（老页面）→ 400 need_update', (await call('/wboss/hit', { method: 'POST', headers: A, body: { dmg: 100 } })).json.error, 'need_update');
+  // 这两条用「丁」来试：领票会扣次数，用甲会把后面的次数断言打乱
+  eq('伤害为 0 → 400', (await hitAs(D, 0)).status, 400);
+  eq('伤害是负数 → 400', (await hitAs(D, -5)).status, 400);
 
-  const h1 = await call('/wboss/hit', { method: 'POST', headers: A, body: { dmg: 1000 } });
-  eq('血池扣掉这一下', h1.json.hp, 1.2e7 - 1000);
+  // 领票就扣次数：并发两个请求不可能都通过（以前是先上报再扣，能并发刷出两刀）
+  const t1 = await start(A);
+  check('领票返回服务端 seed 与剩余次数', t1.json.ok && t1.json.seed > 0 && t1.json.me.tries === 2, t1.json);
+  const seed1 = t1.json.seed;
+  eq('拿错 seed 上报 → 403', (await call('/wboss/hit', { method: 'POST', headers: A, body: { seed: (seed1 + 1) >>> 0, dmg: 100 } })).status, 403);
+  const h1 = await call('/wboss/hit', { method: 'POST', headers: A, body: { seed: seed1, dmg: 1000 } });
+  eq('血池扣掉这一下', h1.json.hp, 8e6 - 1000);
   eq('个人累计伤害', h1.json.me.dmg, 1000);
-  eq('次数从 3 变 2', h1.json.me.tries, 2);
+  eq('次数在领票时就扣了（这里仍是 2）', h1.json.me.tries, 2);
   eq('自己是唯一参与者时排第 1', h1.json.me.rank, 1);
+  eq('同一张票再用一次 → 403', (await call('/wboss/hit', { method: 'POST', headers: A, body: { seed: seed1, dmg: 1000 } })).status, 403);
 
-  const h2 = await call('/wboss/hit', { method: 'POST', headers: B, body: { dmg: 5000 } });
+  const h2 = await hitAs(B, 5000);
   eq('乙的伤害记上', h2.json.applied, 5000);
-  eq('血池继续扣', h2.json.hp, 1.2e7 - 1000 - 5000);
+  eq('血池继续扣', h2.json.hp, 8e6 - 1000 - 5000);
   eq('乙排第 1', h2.json.me.rank, 1);
   eq('甲掉到第 2', (await call('/wboss', { headers: A })).json.me.rank, 2);
 
-  for (let i = 0; i < 3; i++) await call('/wboss/hit', { method: 'POST', headers: C, body: { dmg: 300 + i } });
+  for (let i = 0; i < 3; i++) await hitAs(C, 300 + i);
   eq('一天三次用完', (await call('/wboss', { headers: C })).json.me.tries, 0);
-  eq('第四次被拒（409 no_tries）', (await call('/wboss/hit', { method: 'POST', headers: C, body: { dmg: 500 } })).status, 409);
-  eq('被拒的原因', (await call('/wboss/hit', { method: 'POST', headers: C, body: { dmg: 500 } })).json.error, 'no_tries');
-  eq('被拒不会白扣血池', (await call('/wboss', { headers: A })).json.hp, 1.2e7 - 1000 - 5000 - 903);
+  eq('第四次领票被拒（409 no_tries）', (await start(C)).status, 409);
+  eq('被拒的原因', (await start(C)).json.error, 'no_tries');
+  eq('被拒不会白扣血池', (await call('/wboss', { headers: A })).json.hp, 8e6 - 1000 - 5000 - 903);
+
+  // 票据过期：把 at 改到 16 分钟前
+  await start(D);
+  const dk = wkey(WK) + '_u_' + sha('u:7004');
+  const drec = JSON.parse(kv._m.get(dk));
+  drec.tk.at = Date.now() - 16 * 60e3;
+  kv._m.set(dk, JSON.stringify(drec));
+  eq('票据过期上报 → 403', (await call('/wboss/hit', { method: 'POST', headers: D, body: { seed: drec.tk.s, dmg: 100 } })).json.error, 'ticket_expired');
 
   const top = (await call('/wboss')).json;
   check('排行榜按伤害降序', top.top.length === 3 && top.top[0].name === '乙' && top.top[1].name === '甲' && top.top[2].name === '丙', top.top);
@@ -805,15 +830,33 @@ console.log('\n[23] 世界 Boss /wboss：全服共享血池、每日三次、排
   eq('没登录不能领 → 401', (await call('/wboss/claim', { method: 'POST', body: { week: LW } })).status, 401);
   eq('太旧的周不能结算 → 400', (await call('/wboss/claim', { method: 'POST', headers: A, body: { week: '2020-W01' } })).status, 400);
 
-  // 单次伤害夹断：血池刻意给大一点，才看得到 2000 万的上限
+  // 单次伤害夹断：cap = min(绝对上限 200 万, 血池两成)
   const kvBig = fakeKV();
   const callBig = makeCaller({ zjtt_kv: kvBig, WALINE_URL: 'https://example.invalid' });
   seedSession(kvBig, 'a', '7201', '甲');
   await callBig('/wboss');
   kvBig._m.set(wkey(WK), JSON.stringify({ week: WK, hpMax: 1e8, hp: 1e8, at: Date.now(), killed: false, closed: false }));
-  const hb = await callBig('/wboss/hit', { method: 'POST', headers: { Authorization: 'Bearer a' }, body: { dmg: 1e12 } });
-  eq('单次伤害夹到 2000 万', hb.json.applied, 2e7);
-  eq('夹住之后血池按上限扣', hb.json.hp, 1e8 - 2e7);
+  const AB = { Authorization: 'Bearer a' };
+  const tb = await callBig('/wboss/start', { method: 'POST', headers: AB });
+  eq('血池够大时按绝对上限 200 万', tb.json.cap, 2e6);
+  const hb = await callBig('/wboss/hit', { method: 'POST', headers: AB, body: { seed: tb.json.seed, dmg: 1e12 } });
+  eq('单次伤害夹到 200 万', hb.json.applied, 2e6);
+  eq('夹断时会告诉客户端 capped', hb.json.capped, true);
+  eq('夹住之后血池按上限扣', hb.json.hp, 1e8 - 2e6);
+  eq('一发打不空一亿的血池（以前 2000 万上限时也打不空，但现在有 20% 的硬顶）', hb.json.killed, false);
+  eq('触顶记进了个人档案', (JSON.parse(kvBig._m.get(wkey(WK) + '_u_' + sha('u:7201')))).over, 1);
+
+  // 血池按上周人数伸缩
+  const kvP = fakeKV();
+  const callP = makeCaller({ zjtt_kv: kvP, WALINE_URL: 'https://example.invalid' });
+  const LWp = weekId(new Date(Date.now() - 7 * 86400e3));
+  kvP._m.set(wkey(LWp), JSON.stringify({ week: LWp, hpMax: 8e6, hp: 0, players: 40, killed: true, closed: true, at: Date.now() }));
+  const gp = await callP('/wboss');
+  eq('上周 40 人 → 本期血池 2400 万', gp.json.hpMax, 2.4e7);
+  const kvQ = fakeKV();
+  const callQ = makeCaller({ zjtt_kv: kvQ, WALINE_URL: 'https://example.invalid' });
+  kvQ._m.set(wkey(LWp), JSON.stringify({ week: LWp, hpMax: 8e6, hp: 0, players: 500, killed: true, closed: true, at: Date.now() }));
+  eq('人数再多也不超过 6000 万', (await callQ('/wboss')).json.hpMax, 6e7);
 
   // 血池打空：最后一下只按剩余血量计，Boss 关闭后不再接伤害
   const kv2 = fakeKV();
@@ -823,10 +866,12 @@ console.log('\n[23] 世界 Boss /wboss：全服共享血池、每日三次、排
   await call2('/wboss');
   const k2 = wkey(WK);
   kv2._m.set(k2, JSON.stringify({ week: WK, hpMax: 1.2e7, hp: 500, at: Date.now(), killed: false, closed: false }));
-  const k1 = await call2('/wboss/hit', { method: 'POST', headers: A2, body: { dmg: 5000 } });
+  const tk2 = await call2('/wboss/start', { method: 'POST', headers: A2 });
+  const k1 = await call2('/wboss/hit', { method: 'POST', headers: A2, body: { seed: tk2.json.seed, dmg: 5000 } });
   check('最后一下只结算剩余血量', k1.json.applied === 500 && k1.json.hp === 0 && k1.json.killed === true, k1.json);
   eq('击杀后个人伤害只记实际扣掉的', k1.json.me.dmg, 500);
-  eq('血池空了之后不能再打', (await call2('/wboss/hit', { method: 'POST', headers: A2, body: { dmg: 100 } })).status, 409);
+  eq('血池空了之后不能再领票', (await call2('/wboss/start', { method: 'POST', headers: A2 })).status, 409);
+  eq('血池空了之后也不能再上报', (await call2('/wboss/hit', { method: 'POST', headers: A2, body: { seed: tk2.json.seed, dmg: 100 } })).status, 409);
 }
 
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {

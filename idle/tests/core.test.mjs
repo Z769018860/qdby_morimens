@@ -5070,7 +5070,7 @@ test('一键分解：密契单独开关，不看稀有度；预览按类型拆�
 });
 
 test('世界 Boss：血池 / 每日次数 / 排名奖励都按同一套口径', () => {
-  assert.equal(WBN.wbossHpMax(), 1.2e7, '血池基准是服务端与客户端共用的 1200 万');
+  assert.equal(WBN.wbossHpMax(), 8e6, '血池真实值由服务端按人数给，客户端兜底按下限 800 万展示');
   assert.equal(WBN.wbossHpLeft({ hp: 3e6, hpMax: 1.2e7 }), 0.25);
   assert.equal(WBN.wbossHpLeft({ hp: -10, hpMax: 1.2e7 }), 0);
   assert.equal(WBN.wbossHpLeft({ hp: 1, hpMax: 0 }), 0);
@@ -5118,24 +5118,32 @@ test('世界 Boss：次数每日重置、换周清零、打完要扣次数', () 
   assert.equal(WBN.applyServer(s, null), null, '没有服务端数据时什么都不做');
 });
 
-test('世界 Boss：打一场会扣次数、记伤害，次数用完就拒绝', () => {
+test('世界 Boss：用服务端给的 seed 打一场，次数不由客户端扣', () => {
   const s = newState(data, 21);
   s.roster = Object.fromEntries(s.team.map((k) => [k, { lv: 159, star: 99, brk: 6 }]));
   const w = WBN.wbossState(s);
   const t0 = w.tries;
-  const out = WBN.wbossFight(s, data);
+  const out = WBN.wbossFight(s, data, null, 12345);
   assert.ok(out && out.ok, '应该能打');
   assert.ok(out.dmg > 0, '12 回合总能打出伤害');
-  assert.equal(w.tries, t0 - 1);
+  assert.equal(out.seed, 12345, '这一场用的是服务端下发的 seed');
+  // 次数在 POST /wboss/start 那一步扣，客户端不再自己减——否则两边会各算各的
+  assert.equal(w.tries, t0, '客户端不扣次数');
   assert.equal(w.runs, 1);
-  assert.equal(w.dmg, out.dmg);
-  assert.equal(w.best, out.dmg);
-  assert.ok(out.boss && out.boss.id, '要带 Boss 数据给结算框');
-  assert.equal(out.res.rounds <= WBN.WBOSS_ROUNDS, true);
+  assert.equal(w.best, out.dmg, '第一次就是本期最高');
 
-  w.tries = 0;
-  const no = WBN.wbossFight(s, data);
-  assert.equal(no.err, '今日次数已用完', '没次数要明确拒绝，不能白打');
+  // 同一个 seed 必须打出同一个结果：作弊者不能靠「重掷种子」刷最优解，
+  // 正常玩家也不该因为刷新页面就换一个伤害
+  const again = WBN.wbossFight(s, data, null, 12345);
+  assert.equal(again.dmg, out.dmg);
+  const other = WBN.wbossFight(s, data, null, 999);
+  assert.ok(other.dmg > 0);
+  assert.equal(w.best, Math.max(out.dmg, other.dmg), 'best 取最大值');
+
+  // 不传 seed 时退回本地种子（只用于离线自测，上报会被服务端拒）
+  const local = WBN.wbossFight(s, data);
+  assert.ok(local.dmg > 0 && local.seed > 0);
+  assert.equal(local.res.rounds <= WBN.WBOSS_ROUNDS, true);
 });
 
 test('世界 Boss：发奖只加一次，装备档才会出装备', () => {

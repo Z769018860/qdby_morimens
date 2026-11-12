@@ -697,11 +697,38 @@ async function putSave(request, env, kv, game, cors) {
 //   · 次数按 UTC 日切（客户端 dayKey 也是 UTC），一天 3 次，服务端说了算。
 //   · 结算奖励只由服务端判定「名次 + 是否已领」，奖励内容由客户端按同一张表发；
 //     这样服务端不用复制一份会漂移的奖励数值表。
+//
+// —— 防作弊（0.19.1）——
+// 伤害是客户端算出来的，服务端没法复算（战斗引擎和几 MB 的数据表都在前端，搬过来不现实）。
+// 所以不追求「验证这一刀是真的」，而是把「随便填个数」的收益压到最小：
+//   1) 挑战票据：打之前先 POST /wboss/start 领一个**服务端随机**的 seed，同时扣一次次数；
+//      上报必须带这个 seed，且一次性 —— 不能重放、不能并发双扣、不能自己挑种子反复重掷。
+//   2) 单次上限：cap = min(绝对上限, 血池 × 20%)。绝对上限按 tools/wboss-bench.mjs 标定的
+//      理论满配伤害（约 134 万）× 1.5 定成 200 万，作弊者一发最多打掉血池两成，
+//      拿不到以前那种「一条 curl 清空血池」的效果。
+//   3) 触顶记账：上报值 ≥ cap×0.98 时给个人记录累加 over，后台能捞出「每次都在上限」的号。
 const WBOSS_DAILY = 3;
-const WBOSS_MAX_HIT = 2e7;          // 单次伤害上限（客户端也有同一个数，这里再夹一次防脏数据）
-const WBOSS_HP_BASE = 1.2e7;        // 血池基准，和 idle/src/core/wboss.js 的 WBOSS_HP_BASE 一致（1200 万）
+const WBOSS_ROUNDS = 12;            // 一次打 12 回合（客户端同一口径）
+const WBOSS_HIT_ABS = 2e6;          // 单次伤害绝对上限（标定：满配 12 回合约 134 万）
+const WBOSS_HIT_POOL = 0.2;         // 单次最多打掉血池的两成：再怎么作弊也秒不掉池子
+const WBOSS_TICKET_TTL = 15 * 60e3; // 票据 15 分钟不用就作废（次数已扣，不退还）
+// 血池按「上周参与人数」伸缩，夹在 800 万 ~ 6000 万。
+// 固定值在两种极端下都不对：只有两个高配玩家时一周打空两次（击杀奖励白送），
+// 来了三十个新人时打一周还剩九成（完全看不出进度）。上周没人参与就按下限开。
+const WBOSS_HP_MIN = 8e6;
+const WBOSS_HP_MAX = 6e7;
+const WBOSS_HP_UNIT = 6e5;          // ≈ 一个大部队玩家打满一周（21 次）的量，见 tools/wboss-bench.mjs
 const WBOSS_TOP = 20;               // 排行榜返回前多少名
 const WBOSS_CLOSED_DAYS = 21;       // 多久以前的周不再允许结算（防止翻旧账）
+
+/** 单次上报的上限：绝对上限与「血池两成」取小，且不低于 10 万（血池很小时别把伤害砍到离谱） */
+const wbCap = (hpMax) => Math.max(1e5, Math.min(WBOSS_HIT_ABS, Math.round((Number(hpMax) || WBOSS_HP_MIN) * WBOSS_HIT_POOL)));
+/** 挑战种子：服务端随机，客户端拿它跑战斗，所以「挑一个暴击多的种子」这条路被堵死了 */
+const wbSeed = () => {
+  const a = new Uint32Array(1);
+  crypto.getRandomValues(a);
+  return (a[0] % 0x7fffffff) || 1;
+};
 
 const wbDay = () => new Date().toISOString().slice(0, 10);
 function wbWeekId(d = new Date()) {
@@ -718,11 +745,23 @@ const wbUserKey = (week, uh) => wbKeyOf(week) + '_u_' + uh;
 const wbAggKey = (week) => wbKeyOf(week) + '_agg';
 const wbCache = new Map();          // 同一节点 6 秒内的排行快照：血池页每次刷新都扫全部人太贵
 
+/* 本期血池开多大：读上一期的参与人数，夹在 [下限, 上限] 之间。
+   只在「本期第一次有人碰」时算一次（写进 row.hpMax），之后整周不变 ——
+   中途重算会让已经打掉的进度条突然跳一下，玩家会以为扣错了。 */
+async function wbPoolMax(kv) {
+  const lw = wbWeekId(new Date(Date.now() - 7 * 86400e3));
+  const row = await kvJson(kv, wbKeyOf(lw), true);
+  const n = Math.max(0, Math.floor(Number(row && row.players) || 0));
+  const basis = n > 0 ? n : 10;      // 第一周没有参考：按 10 个人开
+  return Math.round(Math.min(WBOSS_HP_MAX, Math.max(WBOSS_HP_MIN, basis * WBOSS_HP_UNIT)));
+}
+
 async function wbLoad(kv, week) {
   const key = wbKeyOf(week);
   let row = await kvJson(kv, key);
   if (!row) {
-    row = { week, hpMax: WBOSS_HP_BASE, hp: WBOSS_HP_BASE, at: Date.now(), killed: false, closed: false };
+    const hpMax = await wbPoolMax(kv);
+    row = { week, hpMax, hp: hpMax, at: Date.now(), killed: false, closed: false, players: 0 };
     await kv.put(key, JSON.stringify(row));
   }
   return row;
@@ -802,7 +841,7 @@ async function getWboss(request, env, kv, cors) {
     const uid = me ? me.uid : '';
     const my = uid ? lastList.find((x) => x.u === uid) : null;
     last = {
-      week: lastWeek, hp: Math.max(0, Number(lastRow.hp) || 0), hpMax: Number(lastRow.hpMax) || WBOSS_HP_BASE,
+      week: lastWeek, hp: Math.max(0, Number(lastRow.hp) || 0), hpMax: Number(lastRow.hpMax) || WBOSS_HP_MIN,
       killed: !!lastRow.killed, players: lastList.length,
       myDmg: my ? my.dmg : 0, myRank: my ? rankIn(lastList, uid) : 0, claimed: false,
     };
@@ -812,55 +851,109 @@ async function getWboss(request, env, kv, cors) {
       last.claimed = !!(rr && rr.claimed);
     }
   }
+  const hpMax = Number(row.hpMax) || WBOSS_HP_MIN;
   return reply({
-    ok: true, week, hpMax: Number(row.hpMax) || WBOSS_HP_BASE, hp: Math.max(0, Math.round(Number(row.hp) || 0)),
+    ok: true, week, hpMax, hp: Math.max(0, Math.round(Number(row.hp) || 0)),
     killed: !!row.killed, closed: !!row.closed, players,
+    // cap 是公开信息：让玩家知道「单次超过多少会被按上限记」，而不是莫名其妙少了一截
+    cap: wbCap(hpMax), rounds: WBOSS_ROUNDS,
     me: mine,
     top: list.slice(0, WBOSS_TOP).map((x, i) => ({ rank: i + 1, name: x.n || '旅人', dmg: x.dmg })),
     last,
   }, 200, cors);
 }
 
-// POST /wboss/hit { dmg } —— 上报一次伤害：夹上限、扣当日次数、扣血池
-async function postWbossHit(request, env, kv, cors) {
+// POST /wboss/start {} —— 领一次挑战：扣一次当日次数，返回服务端随机的 seed（客户端用它跑战斗）
+async function postWbossStart(request, env, kv, cors) {
   const me = await whoami(request, env, kv);
   if (!me) throw new HttpError(401, 'need_login');
-  const b = await readJson(request, 8 * 1024);
-  const raw = Math.round(Number(b.dmg) || 0);
-  if (!(raw > 0)) throw new HttpError(400, 'bad_dmg');
-  const dmg = Math.min(WBOSS_MAX_HIT, raw);
 
   const week = wbWeekId();
   const row = await wbLoad(kv, week);
-  if (row.closed || Number(row.hp) <= 0) return reply({ ok: false, error: 'over', week, hp: 0 }, 409, cors);
+  const hp = Math.max(0, Math.round(Number(row.hp) || 0));
+  if (row.closed || hp <= 0) return reply({ ok: false, error: 'over', week, hp: 0 }, 409, cors);
 
   const uh = await uhash(me.uid);
   const key = wbUserKey(week, uh);
   const cur = (await kvJson(kv, key)) || { u: me.uid, n: me.name, dmg: 0, best: 0, runs: 0, day: '', tries: WBOSS_DAILY, claimed: false, at: 0 };
   if (cur.day !== wbDay()) { cur.day = wbDay(); cur.tries = WBOSS_DAILY; }
-  if ((Number(cur.tries) || 0) <= 0) return reply({ ok: false, error: 'no_tries', week, hp: Math.max(0, Math.round(Number(row.hp) || 0)), me: { dmg: cur.dmg, best: cur.best, runs: cur.runs, day: cur.day, tries: 0 } }, 409, cors);
+  if ((Number(cur.tries) || 0) <= 0) {
+    return reply({
+      ok: false, error: 'no_tries', week, hp,
+      me: { dmg: Math.max(0, Number(cur.dmg) || 0), best: Math.max(0, Number(cur.best) || 0), runs: Math.max(0, Number(cur.runs) || 0), day: cur.day, tries: 0 },
+    }, 409, cors);
+  }
+
+  // 次数在「领票」这一步就扣掉，而不是等上报：否则并发两个 hit 都能通过次数检查。
+  // 上一张没用的票直接作废（次数不退），保证同一时刻只有一张有效票。
+  cur.day = wbDay();
+  cur.tries = Math.max(0, (Number(cur.tries) || 0) - 1);
+  cur.tk = { s: wbSeed(), at: Date.now(), used: false };
+  cur.n = me.name;
+  await kv.put(key, JSON.stringify(cur));
+
+  const hpMax = Number(row.hpMax) || WBOSS_HP_MIN;
+  return reply({
+    ok: true, week, seed: cur.tk.s, rounds: WBOSS_ROUNDS, cap: wbCap(hpMax), hp, hpMax,
+    me: { dmg: Math.max(0, Math.round(Number(cur.dmg) || 0)), best: Math.max(0, Math.round(Number(cur.best) || 0)), runs: Math.max(0, Number(cur.runs) || 0), day: cur.day, tries: cur.tries },
+  }, 200, cors);
+}
+
+// POST /wboss/hit { seed, dmg } —— 上报一次伤害：验票、夹上限、扣血池
+async function postWbossHit(request, env, kv, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) throw new HttpError(401, 'need_login');
+  const b = await readJson(request, 8 * 1024);
+  const seed = Math.floor(Number(b.seed)) >>> 0;
+  // 没带 seed 的基本都是没刷新的老页面：明确让客户端更新，别静默按 0 记
+  if (!seed) throw new HttpError(400, 'need_update');
+  const raw = Math.round(Number(b.dmg) || 0);
+  if (!(raw > 0)) throw new HttpError(400, 'bad_dmg');
+
+  const week = wbWeekId();
+  const row = await wbLoad(kv, week);
+  const hp = Math.max(0, Math.round(Number(row.hp) || 0));
+  if (row.closed || hp <= 0) return reply({ ok: false, error: 'over', week, hp: 0 }, 409, cors);
+
+  const uh = await uhash(me.uid);
+  const key = wbUserKey(week, uh);
+  const cur = await kvJson(kv, key);
+  if (!cur) throw new HttpError(403, 'bad_ticket');
+  const tk = cur.tk;
+  // 票必须是「这一张、还没用过、没过期」——重放、猜种子、拿上一张票再打都会被挡
+  if (!tk || tk.used || (Number(tk.s) >>> 0) !== seed) throw new HttpError(403, 'bad_ticket');
+  if (Date.now() - (Number(tk.at) || 0) > WBOSS_TICKET_TTL) throw new HttpError(403, 'ticket_expired');
+
+  const cap = wbCap(row.hpMax);
+  const dmg = Math.min(cap, raw);
+  const over = raw >= cap * 0.98;      // 触顶记账：正常玩家偶尔能打到上限，每次都触顶就值得看一眼
 
   // 血池只扣「实际还能扣」的部分：最后一个打死它的人不会把溢出伤害算进个人成绩
-  const hp = Math.max(0, Math.round(Number(row.hp) || 0));
   const applied = Math.min(dmg, hp);
   row.hp = hp - applied;
   row.at = Date.now();
   if (row.hp <= 0) { row.hp = 0; row.killed = true; row.closed = true; }
-  await kv.put(wbKeyOf(week), JSON.stringify(row));
 
-  cur.day = wbDay();
-  cur.tries = Math.max(0, (Number(cur.tries) || 0) - 1);
+  tk.used = true;
   cur.dmg = Math.max(0, Math.round(Number(cur.dmg) || 0) + applied);
   cur.best = Math.max(Math.round(Number(cur.best) || 0), applied);
   cur.runs = Math.max(0, Math.floor(Number(cur.runs) || 0) + 1);
+  if (over) cur.over = Math.max(0, Math.floor(Number(cur.over) || 0) + 1);
   cur.n = me.name; cur.at = Date.now();
+
+  // 先落个人记录（票已消费）再落血池：反过来的话，个人写失败会让同一张票还能再用一次。
+  // 代价是极端情况下「伤害记了、血池没扣」，比「血池扣了但次数没扣」安全得多。
   await kv.put(key, JSON.stringify(cur));
   await wbAggPut(kv, week, me.uid, me.name, cur.dmg);
-
   const list = await wbAggList(kv, week);
+  // 参与人数写回血池文档：下一周开池时按它决定血量
+  row.players = list.length;
+  await kv.put(wbKeyOf(week), JSON.stringify(row));
+
   return reply({
-    ok: true, week, hp: row.hp, hpMax: Number(row.hpMax) || WBOSS_HP_BASE, killed: !!row.killed, applied,
-    me: { dmg: cur.dmg, best: cur.best, runs: cur.runs, day: cur.day, tries: cur.tries, rank: rankIn(list, me.uid) },
+    ok: true, week, hp: row.hp, hpMax: Number(row.hpMax) || WBOSS_HP_MIN, killed: !!row.killed, applied,
+    capped: raw > cap, cap,
+    me: { dmg: cur.dmg, best: cur.best, runs: cur.runs, day: cur.day, tries: Math.max(0, Number(cur.tries) || 0), rank: rankIn(list, me.uid) },
     players: list.length,
   }, 200, cors);
 }
@@ -886,6 +979,9 @@ async function postWbossClaim(request, env, kv, cors) {
   const key = wbUserKey(week, uh);
   const cur = (await kvJson(kv, key)) || null;
   if (!cur || !(Number(cur.dmg) > 0)) throw new HttpError(400, 'no_damage');
+  // 结算要按「真实名次」发奖，所以这里扫全量个人键（不用聚合文档的缓存）；
+  // listKeys 一次最多 1000 条，参与者超过 1000 人时名次会在第 1000 名之后失真——
+  // 现在的规模远到不了，真要到了得改成按伤害分桶存。
   const list = await wbEntries(kv, week);
   const rank = rankIn(list, me.uid);
   const killed = !!row.killed;
@@ -1946,7 +2042,8 @@ export async function onRequest(context) {
         // v15 榜单补上 lovelive（BOARD_SPEC 的 ll，之前漏了，榜单一直是空的）
         // v14 赠礼再加 tk（召唤券）/ gold（金币）；多了 GET /admin/bugs（后台看 BUG 反馈详情）
         // v19 多了 /wboss /wboss/hit /wboss/claim（挂机前夜的世界 Boss：全服共享血池 + 周结算排名）
-        ok: Boolean(store), service: 'zjtt', v: 19, runtime: 'edgeone',
+        // v20 世界 Boss 加了 /wboss/start（挑战票据，防伪造上报）与单次伤害上限、血池按人数伸缩
+        ok: Boolean(store), service: 'zjtt', v: 20, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
@@ -1990,6 +2087,7 @@ export async function onRequest(context) {
     }
 
     if (path === '/wboss' && method === 'GET') return await getWboss(request, env, kv, cors);
+    if (path === '/wboss/start' && method === 'POST') return await postWbossStart(request, env, kv, cors);
     if (path === '/wboss/hit' && method === 'POST') return await postWbossHit(request, env, kv, cors);
     if (path === '/wboss/claim' && method === 'POST') return await postWbossClaim(request, env, kv, cors);
 

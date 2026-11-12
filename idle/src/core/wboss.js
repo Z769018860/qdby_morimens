@@ -21,8 +21,12 @@ export const WBOSS_ROUNDS = 12;        // 每次打 12 回合，比这段时间�
 export const WBOSS_STAGE = 80;         // Boss 数值按主线第 80 关档出（比周 Boss 第 2 层略硬）
 export const WBOSS_ATK_MUL = 1.4;
 export const WBOSS_DEF_MUL = 1.15;
-export const WBOSS_HP_BASE = 1.2e7;    // 血池基准：3~5 个活跃玩家打一周的量级（满配单次 30~40 万，21 次约 700~800 万）
-export const WBOSS_MAX_HIT = 2e7;      // 单次上报上限（服务端也会夹这个数）
+/* 血池大小由**服务端**按上周参与人数决定（800 万 ~ 6000 万），这里只是「还没同步到服务端时的展示值」。
+   数值依据：tools/wboss-bench.mjs —— 大部队（Lv65 / 8 叠）单次约 2.5 万，满配（Lv159 / 99 叠）约 134 万。 */
+export const WBOSS_HP_MIN = 8e6;
+/* 单次伤害上限，与服务端同口径：绝对上限 200 万 + 「血池的两成」取小。
+   客户端只用来在结算弹窗里提示「这一刀超过上限了」，真正的裁决在服务端。 */
+export const WBOSS_MAX_HIT = 2e6;
 
 /** 排名奖励：max 是「名次 ≤ max」这一档，从上往下取第一档 */
 export const WBOSS_RANK_TIERS = [
@@ -68,8 +72,8 @@ export function wbossEnemy(data, week = wbossWeek()) {
   return e;
 }
 
-/** 血池上限：固定值（服务端与客户端同一口径，避免两边算出来的血量不一样） */
-export const wbossHpMax = () => WBOSS_HP_BASE;
+/** 血池上限：真实值由服务端给（按上周人数伸缩），这里只是没同步到时的兜底展示 */
+export const wbossHpMax = () => WBOSS_HP_MIN;
 
 /** 本机记账：每周一份 { week, day, tries, dmg, best, runs, claimed:{} } */
 export function wbossState(state, week = wbossWeek()) {
@@ -97,27 +101,27 @@ export function applyServer(state, remote) {
   return w;
 }
 
-/** 打一次：用指定阵容（不传就用当前队伍）打 12 回合，返回这一场的伤害 */
-export function wbossFight(state, data, slugs = null) {
+/* 打一次：用服务端下发的 seed 跑 12 回合，返回这一场的伤害。
+   次数**不在这里扣**——它由服务端 POST /wboss/start 扣，本机只是显示缓存。
+   seed 也必须用服务端给的那一个：自己能挑种子就等于能反复重掷到暴击最多的一次。 */
+export function wbossFight(state, data, slugs = null, seed = 0) {
   const w = wbossState(state);
-  if (w.tries <= 0) return { err: '今日次数已用完' };
   const boss = wbossEnemy(data, w.week);
   if (!boss) return { err: '这一期还没有 Boss' };
   const team = teamDefs(state, data, slugs && slugs.length ? slugs : state.team);
   if (!team || !team.list || !team.list.length) return { err: '还没有出战阵容' };
-  w.tries--;
+  const usedSeed = (Math.floor(Number(seed)) >>> 0) || battleSeed(state);
   w.runs++;
   const res = simulate({
-    allies: team.list, enemies: [boss], seed: battleSeed(state),
+    allies: team.list, enemies: [boss], seed: usedSeed,
     strategy: state.strategy, maxRounds: WBOSS_ROUNDS, dotBoost: lateDotBoost(boss.stage),
   });
   const dmg = Math.round(Object.entries(res.stats).filter(([k]) => k[0] === 'a').reduce((s, [, v]) => s + (v.dmg || 0), 0));
   const newBest = dmg > w.best;
-  w.dmg += dmg;
   if (newBest) w.best = dmg;
   state.stats.battles++;
   recordCodex(state, [boss], false);
-  return { ok: true, res, dmg, newBest, team, boss: data.monById[boss.mid], week: w.week, affix: boss.affix, track: w };
+  return { ok: true, res, dmg, newBest, team, boss: data.monById[boss.mid], week: w.week, affix: boss.affix, seed: usedSeed, track: w };
 }
 
 /** 名次 → 奖励档（服务端只给名次，奖励表只在这里一份） */
@@ -165,18 +169,31 @@ export function wbossHpLeft(wb) {
 
 // ------------------------------------------------------------------ 网络
 // 薄封装：真正的鉴权 / 基址探测都在 core/cloud.js（和云存档同一套 token）。
+/* 接口返回的兜底整形：后端还没部署新路由时是 404 + 空 body，
+   不补一个 error 的话上层只能看到「未知原因」，排查时一头雾水。 */
+const shape = (r) => {
+  const j = (r && r.json) || {};
+  if (!j.ok && !j.error) j.error = r && r.status === 404 ? 'not_found' : `HTTP ${r && r.status}`;
+  return j;
+};
+
 export const net = {
   /** 拉本期状态：Boss / 血池 / 我的伤害与名次 / 排行榜 / 上期结算（游客也能看血池） */
   async fetch(opt) {
-    return (await Cloud.api('GET', '/wboss', null, { anon: true, ...opt })).json;
+    return shape(await Cloud.api('GET', '/wboss', null, { anon: true, ...opt }));
   },
-  /** 上报一次伤害：服务端夹上限、扣次数、扣血池 */
-  async hit(dmg, opt) {
-    const d = Math.max(1, Math.min(WBOSS_MAX_HIT, Math.round(Number(dmg) || 0)));
-    return (await Cloud.api('POST', '/wboss/hit', { dmg: d }, opt)).json;
+  /** 领一次挑战：服务端扣一次当日次数并下发 seed（这一刀必须用它跑，不然上报会被拒） */
+  async start(opt) {
+    return shape(await Cloud.api('POST', '/wboss/start', {}, opt));
+  },
+  /** 上报一次伤害：带 seed 验票，服务端夹上限、扣血池 */
+  async hit(seed, dmg, opt) {
+    const s = Math.floor(Number(seed)) >>> 0;
+    const d = Math.max(1, Math.round(Number(dmg) || 0));
+    return shape(await Cloud.api('POST', '/wboss/hit', { seed: s, dmg: d }, opt));
   },
   /** 领取上期奖励：服务端只回名次与是否已领，奖励内容由 wbossRewardOf 算 */
   async claim(week, opt) {
-    return (await Cloud.api('POST', '/wboss/claim', { week }, opt)).json;
+    return shape(await Cloud.api('POST', '/wboss/claim', { week }, opt));
   },
 };

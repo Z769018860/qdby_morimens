@@ -1593,17 +1593,23 @@ function onAct(e) {
     case 'weekly-claim': { const r = claimWeekly(s, d, +el.dataset.i, weeklyState(s).tier || 1); if (r) { sound.play('ach'); toast(`领取成功：唤醒券+${r.tickets} 金币+${r.gold}${r.items.length ? ' 装备+1' : ''}${r.orders?.length ? ' 钥令+1' : ''}`); if (r.orders?.length) P.showOrders(app, r.orders); rerender(); } break; }
     /* ---------------- 世界 Boss（全服共享血池） ---------------- */
     case 'wboss-go': {
-      const r = WB.fight(app);
-      if (!r || r.err) { toast(r?.err || '现在打不了'); sound.play('deny'); break; }
-      app.save(); render();
-      sound.play(r.res.win ? 'win' : 'click');
-      watchOrSkip(replayOf(r.res, {
-        title: `世界 Boss · ${r.boss ? r.boss.zh : '共讨'}`,
-        sub: `限 ${WBOSS_ROUNDS} 回合 · 本次伤害 ${fmt(r.dmg)}`,
-        note: '伤害会同步到全服血池，回放不影响结算', kw: d.kw,
-      }), () => WB.resultModal(app, r));
-      // 伤害上报是异步的：先让玩家看结果，回来再刷新血池与名次
-      WB.report(app, r.dmg, rerender);
+      // 打这一刀要先向服务端领票（扣次数 + 拿 seed），所以是异步的：
+      // 领到之前先把按钮按住（wbBusy），免得连点两下发两次 start 把次数白扣掉。
+      if (app.wbBusy) break;
+      app.wbBusy = true; render();
+      WB.fight(app).then((r) => {
+        app.wbBusy = false;
+        if (!r || r.err) { toast(r?.err || '现在打不了'); sound.play('deny'); render(); return; }
+        app.save(); render();
+        sound.play(r.res.win ? 'win' : 'click');
+        watchOrSkip(replayOf(r.res, {
+          title: `世界 Boss · ${r.boss ? r.boss.zh : '共讨'}`,
+          sub: `限 ${WBOSS_ROUNDS} 回合 · 本次伤害 ${fmt(r.dmg)}`,
+          note: '伤害会同步到全服血池，回放不影响结算', kw: d.kw,
+        }), () => WB.resultModal(app, r));
+        // 伤害上报是异步的：先让玩家看结果，回来再刷新血池与名次
+        WB.report(app, r.dmg, r.seed, rerender);
+      });
       break;
     }
     case 'wboss-refresh': WB.refresh(app, rerender); sound.play('click'); break;
