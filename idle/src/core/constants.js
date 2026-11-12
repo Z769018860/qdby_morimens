@@ -47,7 +47,7 @@ export const LAW_CRIT_EVERY = 10;
 export const LAW_CRIT_PER = 8;
 export const LAW_MAX = 99999;             // 只防存档被改出天文数字
 export const LEVEL_GATE = 20;             // 每 20 级一次「突破」
-export const DEN_MAX = 200;               // 逆潮守关总关卡数（20 章 × 10 关；前 100 关 / 后 100 关各一程）
+export const DEN_MAX = 220;               // 逆潮守关总关卡数（22 章 × 10 关；前 100 关 / 101~200 / 201~220 各一程）
 export const SKILL_MAX = 4;               // 技能等级 0..4（显示 Lv.1–5）
 
 export const TEAM_SIZE = 4;

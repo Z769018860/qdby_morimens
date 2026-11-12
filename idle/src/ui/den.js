@@ -2,7 +2,7 @@
 // 关卡列表（10 章 × 10 关）→ 编队页（看这一关的玩家阵容 / 规则，在算力里挑怪定档）→ 开打 → 结算。
 import {
   DEN_MAX, DEN_SLOTS, DEN_TIERS, DEN_GUARDS, DEN_CHAPTERS, tierOf,
-  denStage, denPlayerDefs, denHint, denPool, monById, monCost, monStats,
+  denStage, denPlayerDefs, denHint, denPool, monById, monCost, monStats, monGuardFor,
   denState, denUnlocked, denStarOf, denTotalStars, denCheck, denStarClaims,
 } from '../core/denrun.js';
 import { esc, img, fmt, openModal, toast } from './util.js';
@@ -71,8 +71,8 @@ function listPage(app) {
   <div class="banner-card lk"><div><h3>逆潮守关 <small>最高第 ${s.best} 关 · ${total} / ${DEN_MAX * 3} 星 · 守成 ${s.wins} / ${s.runs} 次</small></h3>
     <p>这一次你站在怪物这边。每一关有一支<b>玩家阵容</b>（四位唤醒体 + 等级叠位 + 这一关的战术规则），你要在<b>算力</b>上限里从图鉴里挑怪、给每只怪定一个<b>成长档</b>，把它们全部打光才算守住。</p>
     <p>三条硬规矩：<b>算力</b>——首领单价 9 起、巨体再乘 ${tierOf('t3').cost}，预算只有 ${denStage(1).cpu}→${denStage(DEN_MAX).cpu}，堆一两只大怪永远填不满一队；<b>同种一只</b>——同一种怪只能上一只；<b>孤军不成立</b>——只带一两只时玩家会收拢阵型：防御大增、还腾出手集火，四打一在这里是打不赢的。</p>
-    <p class="hint">每只怪带一条<b>守关特性</b>（壁垒 / 棘刺 / 蚀毒 / 汲取 / 破甲 / 狂血 / 庇护 / 噤声 / <b>涤净</b> / <b>逆鳞</b>），各自被一种玩家打法克制——涤净专撕毒与流血，逆鳞让反击队蹭不到血；玩家的战术规则（${Object.values(RULE_ZH).slice(0, 5).join(' / ')}）反过来也克制一部分怪，而且对面的辅助会先手铺增益、输出后手吃增益再打。所以每一关的最优解都不一样，抄不了上一关的阵容。</p>
-    <p class="hint">前 100 关是<b>第一程</b>：玩家的等级叠位一路长到满级满叠。第 101 关起是<b>第二程</b>——玩家练度到顶，改由装备与法则变强，规则也从「一种主题」变成「两种叠着来」，算力预算继续涨到 ${denStage(DEN_MAX).cpu}。</p>
+    <p class="hint">每只怪带一条<b>守关特性</b>（壁垒 / 棘刺 / 蚀毒 / 汲取 / 破甲 / 狂血 / 庇护 / 噤声 / 涤净 / 逆鳞；第 201 关起再解禁 <b>再生</b> / <b>棘甲</b>），各自被一种玩家打法克制——涤净专撕毒与流血，逆鳞让反击队蹭不到血，再生把磨血拖成死局，棘甲专治多段小刀；玩家的战术规则（${Object.values(RULE_ZH).slice(0, 5).join(' / ')}）反过来也克制一部分怪，而且对面的辅助会先手铺增益、输出后手吃增益再打。所以每一关的最优解都不一样，抄不了上一关的阵容。</p>
+    <p class="hint">前 100 关是<b>第一程</b>：玩家的等级叠位一路长到满级满叠。第 101 关起是<b>第二程</b>——玩家练度到顶，改由装备与法则变强，规则也从「一种主题」变成「两种叠着来」，算力预算继续涨到 ${denStage(DEN_MAX).cpu}。第 201 关起是<b>第三程</b>：四条战术同时压上来，章中就会叠第三条，守关怪也换上了针对后期的特性。</p>
   </div></div>
   <div class="row denchapbar"><button class="btn sm" data-act="den-all">${showAll ? '收起未解锁的章节' : `展开全部章节${hiddenCh ? `（还有 ${hiddenCh} 章未解锁）` : ''}`}</button>
     <span class="dim">已解锁到第 ${unlocked} 关</span></div>
@@ -113,7 +113,8 @@ function stagePage(app, n) {
     const p = picks[i];
     if (!p) { slots.push('<div class="denslot empty">空</div>'); continue; }
     const m = monById(data, p.id);
-    const g = DEN_GUARDS[m.guard];
+    const guard = monGuardFor(m, n);
+    const g = DEN_GUARDS[guard];
     const s2 = monStats(m, p.tier, n);
     const tbtns = DEN_TIERS.map((t) => `<button class="btn xs ${p.tier === t.id ? 'gold' : ''}" data-act="den-tier" data-id="${m.id}" data-tier="${t.id}" title="${esc(t.note)}">${t.short}</button>`).join('');
     slots.push(`<div class="denslot">
@@ -134,7 +135,7 @@ function stagePage(app, n) {
   const cut = 150;
   const more = Math.max(0, shown.length - cut);
   const rows = shown.slice(0, cut).map((m) => {
-    const g = DEN_GUARDS[m.guard];
+    const g = DEN_GUARDS[monGuardFor(m, n)];
     const picked = picks.some((p) => p.id === m.id);
     const c1 = monCost(m, 't1');
     const c3 = monCost(m, 't3');

@@ -327,6 +327,11 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       if (tgt.guard === 'spines' && tgt.alive && src.alive && dmg > 0) {
         applyDamage(tgt, src, guarded(tgt, src, dmg * 0.1, true), false, null, 'counter', { guard: 'spines' });
       }
+      // 棘甲（第三程）：单次伤害「小于」自身最大生命 6% 才反弹——专治多段小刀；
+      // 一次重击 / 毒 / 流血不会触发，所以它不是「又一个 spines」，而是逼玩家换节奏
+      if (tgt.guard === 'thornmail' && tgt.alive && src.alive && dmg > 0 && dmg < tgt.maxHp * 0.06) {
+        applyDamage(tgt, src, guarded(tgt, src, dmg * 0.18, true), false, null, 'counter', { guard: 'thornmail' });
+      }
     }
     if (kind === 'dmg' && src.side === 'a' && src.guard && src.alive) {
       if (src.guard === 'venom' && tgt.alive) addStatus(src, tgt, 'poison', 1, 99);
@@ -1143,6 +1148,15 @@ export function simulate({ allies, enemies, seed = 1, strategy = {}, maxRounds =
       if (!u.alive || u.guard !== 'cleanse') continue;
       if (u.st.poison) delete u.st.poison;
       if (u.dots.length) u.dots = u.dots.slice(2);
+    }
+    // 守关特性 · 再生（第三程）：每回合开始回复自身 6% 最大生命，玩家带压疗时只剩 3%。
+    // 放在毒 / 流血跳伤之前：先回血再挨打，磨血流的净收益被压掉一大截，必须靠爆发一口吃掉。
+    for (const u of A) {
+      if (!u.alive || u.guard !== 'regrow' || u.hp >= u.maxHp) continue;
+      const v = Math.max(1, Math.round(u.maxHp * (RL.has('antiheal') ? 0.03 : 0.06)));
+      const before = u.hp;
+      u.hp = Math.min(u.maxHp, u.hp + v);
+      if (u.hp > before) push({ k: 'heal', by: u.uid, who: u.uid, amt: u.hp - before, hp: u.hp });
     }
     for (const u of A) {      // 延迟爆发到点了
       if (!u.delayed.length) continue;

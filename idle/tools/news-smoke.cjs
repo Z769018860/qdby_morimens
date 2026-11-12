@@ -64,7 +64,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(600);
   const modalText = await ev(`document.querySelector('.news-modal').innerText`);
   check('老玩家进游戏自动弹出公告', popped);
-  check('弹出的是最新一条 0.18.2', modalText.includes('0.18.2'));
+  check('弹出的是最新一条 0.19.0', modalText.includes('0.19.0'));
   check('新内容在公告里（大运赠礼每趟都送）', modalText.includes('每走完一趟'));
   check('守关等级 / 叠位那条写清楚了', modalText.includes('叠位'));
   check('一键分解那条写清楚了', modalText.includes('一键分解'));

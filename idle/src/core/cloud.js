@@ -208,19 +208,25 @@ async function probe(f = fetch) {
   }
   return '';
 }
-async function call(method, path, body, { f = fetch, keepalive = false } = {}) {
+async function call(method, path, body, { f = fetch, keepalive = false, anon = false } = {}) {
   const acct = account();
-  if (!acct) throw new Error('not_logged_in');
+  if (!acct && !anon) throw new Error('not_logged_in');
   const base = await probe(f);
   if (!base) throw new Error('offline');
   const r = await f(base + path, {
     method, keepalive,
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + acct.token, Accept: 'application/json' },
+    headers: {
+      'Content-Type': 'application/json', Accept: 'application/json',
+      ...(acct ? { Authorization: 'Bearer ' + acct.token } : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   const j = await r.json().catch(() => ({}));
   return { status: r.status, ok: r.ok && j.ok !== false, json: j };
 }
+
+/** 通用接口调用：世界 Boss 这类新接口直接复用同一套登录态与基址探测（未登录会抛 not_logged_in） */
+export const api = (method, path, body, opt) => call(method, path, body, opt);
 
 /** 管理员发给本账号的赠礼（含唤醒体）；拿不到就当没有 */
 export async function fetchGrants(opt) {

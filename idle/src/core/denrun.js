@@ -50,12 +50,23 @@ export const DEN_GUARDS = {
   seal: { zh: '噤声', short: '噤', d: '每 3 回合封住玩家能量最高的一人 1 回合（放不出大招）', counter: '分散能量、平A 输出' },
   cleanse: { zh: '涤净', short: '涤', d: '每回合开始净化自身的中毒，并撕掉 2 条流血（持续伤害流在它面前只剩零头）', counter: '多段直接伤害、速杀' },
   ironscale: { zh: '逆鳞', short: '鳞', d: '吃到的反击 / 反震伤害削减 70%（靠反击被动蹭血的打法在它面前失效）', counter: '真刀真枪的直接输出' },
+  /* 第三程（201 关起）才解禁的两条：前 200 关的怪物特性保持不变，老关卡的平衡不会被这两条打乱。 */
+  regrow: { zh: '再生', short: '生', d: '每回合开始回复自身 6% 最大生命（玩家带压疗时只剩 3%）——磨血拖不死，得靠爆发一口吃掉', counter: '爆发、压疗' },
+  thornmail: { zh: '棘甲', short: '甲', d: '单次直接伤害低于自身最大生命 6% 时反弹 18%（一次重击反而不会被弹）——专治多段小刀', counter: '一击重击、毒与流血' },
 };
 export const DEN_GUARD_KEYS = Object.keys(DEN_GUARDS);
 const GUARD_BY_RANK = {
   Normal: ['venom', 'spines', 'ward', 'sunder', 'cleanse'],
   Elite: ['spines', 'sunder', 'seal', 'bulwark', 'frenzy', 'cleanse', 'ironscale'],
   Boss: ['bulwark', 'leech', 'frenzy', 'seal', 'ward', 'ironscale'],
+};
+/* 201 关之后（第三程）追加的新特性池：同样按 id 定死，只是换了一套「更针对后期打法」的表。
+   不直接并进上面那张表，是因为 guard 是按怪物 id 定的——并进去会让前 200 关的同一只怪
+   突然换了特性，老关卡的手感与平衡全部跟着变。 */
+const GUARD_BY_RANK_LATE = {
+  Normal: ['venom', 'spines', 'ward', 'sunder', 'cleanse', 'regrow', 'thornmail'],
+  Elite: ['spines', 'sunder', 'seal', 'bulwark', 'frenzy', 'cleanse', 'ironscale', 'regrow', 'thornmail'],
+  Boss: ['bulwark', 'leech', 'frenzy', 'seal', 'ward', 'ironscale', 'regrow', 'thornmail'],
 };
 
 /* ------------------------------------------------------------------ 关卡 */
@@ -84,14 +95,21 @@ export const DEN_CHAPTERS = [
   { zh: '逆位天穹', note: '重甲 + 反震 + 暴击三条一起开：没有短板的均衡队，得靠机制硬啃。', comp: ['WARDEN', 'CHORUS', 'ASSAULT', 'ASSAULT'], rules: ['armor', 'thorns', 'crit'] },
   { zh: '尽头的海', note: '反震叠压疗：打回去要被弹，抬血又被砍——倒数第二关，先把续航与站位都想清楚。', comp: ['WARDEN', 'CHORUS', 'CHORUS', 'ASSAULT'], rules: ['thorns', 'antiheal'] },
   { zh: '逆潮之眼', note: '终局：重甲、暴击、反震全开，玩家的练度也走完了最后一格。', comp: ['WARDEN', 'CHORUS', 'ASSAULT', 'ASSAULT'], rules: ['crit', 'armor', 'thorns'] },
+  /* ---- 第三程（201~220）：玩家把「装备 + 法则 + 战术」三条线都走完了，
+     守关方这边只剩最后一招——四条战术同时开，而且从章中就开始叠第三条。
+     这两章会解禁两条新守关特性（再生 / 棘甲），专门针对「磨血」和「多段小刀」两种打法。 ---- */
+  { zh: '逆潮王座', note: '四条战术全开的第一章：治疗被压、硬砸吃防御、打回去被弹、对面还专挑暴击落锤。章中就会叠上第三条。', comp: ['WARDEN', 'CHORUS', 'ASSAULT', 'ASSAULT'], rules: ['antiheal', 'armor', 'thorns', 'crit'] },
+  { zh: '终局之潮', note: '终章：它抬得起来，你抬不起来。续航与压疗同时开，再叠重甲与暴击——没有一条打法能一路走到底。', comp: ['WARDEN', 'CHORUS', 'CHORUS', 'ASSAULT'], rules: ['heal', 'antiheal', 'crit', 'armor'] },
 ];
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, Number(x) || 0));
-/* 进度参数：第 1 关 0、第 100 关 1、第 200 关 2。
-   前 100 关沿用原来的曲线，第二程接在 p > 1 的延长线上——两边都不动原档。 */
+/* 进度参数：第 1 关 0、第 100 关 1、第 200 关 2、第 220 关 2.2。
+   第一程走 (0,1) 的曲线，之后每往后 100 关再 +1 —— 分母固定成 DEN_BASE，不跟着 DEN_MAX 走：
+   0.19.0 把总关数从 200 扩到 220 时，如果按 (DEN_MAX - DEN_BASE) 算，第 200 关的 p 会从 2 掉到 1.83，
+   前 200 关的数值全部被压缩一遍，老玩家的关卡手感直接变形。 */
 const prog = (n) => {
   const num = clamp(Math.round(n), 1, DEN_MAX);
-  return num <= DEN_BASE ? (num - 1) / (DEN_BASE - 1) : 1 + (num - DEN_BASE) / (DEN_MAX - DEN_BASE);
+  return num <= DEN_BASE ? (num - 1) / (DEN_BASE - 1) : 1 + (num - DEN_BASE) / DEN_BASE;
 };
 // 玩家阵容的成长曲线：第 1 关 50 级 0 叠，第 100 关 159 级 99 叠（等级与叠位到顶）。
 // 指数取 0.92 / 1.35：前期升得快一点（让玩家先尝到「怪要练档」），后期叠位补上尾段。
@@ -107,7 +125,7 @@ export const playerStar = (n) => {
 };
 // 守关方的算力预算：10 → 15 → 21，一路只涨不回落。
 // 第二程的增量更陡（+0.06/关 vs 第一程 +0.05/关）：玩家那边已经满级，这边只能多给几只怪。
-export const cpuBudget = (n) => Math.round((10 + 5 * clamp(prog(n), 0, 1) + 6 * Math.max(0, prog(n) - 1)) * 10) / 10;
+export const cpuBudget = (n) => Math.round((10 + 5 * clamp(prog(n), 0, 1) + 6 * Math.max(0, prog(n) - 1) + 2 * Math.max(0, prog(n) - 2)) * 10) / 10;
 // 怪物数值的关卡系数：跟着玩家一起长大，但留一点缺口（5.6 倍 vs 玩家的 6.3 倍），
 // 缺口靠「练档 + 特性搭配」补——不补就会被后期的玩家阵容反推。
 // 末段加速：后期玩家的强度不是线性的（第 9/10 章开始叠两条战术规则、暴击与重甲同时开），
@@ -115,7 +133,8 @@ export const cpuBudget = (n) => Math.round((10 + 5 * clamp(prog(n), 0, 1) + 6 * 
 // 第二程（p > 1）继续按同一条抛物线走：p = 2 时约 19 倍，与玩家那边的 3 倍增幅 × 预算 1.4 倍相抵。
 export const denScale = (n) => {
   const p = prog(n);
-  return 1 + 5.4 * p + 1.8 * p * p;
+  // 第三程（p > 2）的尾巴再陡一档：玩家那 3 倍增幅也在往上走，只按同一条抛物线追会掉队。
+  return 1 + 5.4 * p + 1.8 * p * p + 17 * Math.max(0, p - 2);
 };
 
 const RANK_BASE = {
@@ -178,6 +197,8 @@ export function denStage(n) {
   const late = ci >= 10;
   if (ch.rules.length && (within === 1 || within === 3 || within === 5 || within === 7)) rules.push(ch.rules[0]);
   if (late && ch.rules.length > 1 && (within === 5 || within === 7)) rules.push(ch.rules[1]);
+  // 第三程的章节（21 / 22 章）有四条战术：章中的第 7 关就先把第三条叠上，章末四条全开
+  if (ci >= 20 && ch.rules.length > 2 && within === 7) rules.push(ch.rules[2]);
   if (boss) for (const r of ch.rules) if (!rules.includes(r)) rules.push(r);
   return {
     n: num, chapter: ci + 1, chapterZh: ch.zh, within: within + 1, boss, mid,
@@ -333,6 +354,13 @@ export function monGuard(m) {
   return arr[hash(`den:guard:${m.id}`) % arr.length];
 }
 
+/** 某一关的守关特性：201 关起（第三程）换用「再生 / 棘甲」那一套新池，前 200 关原样不动 */
+export function monGuardFor(mon, n) {
+  if (!(Number(n) > DEN_BASE * 2)) return mon.guard;
+  const arr = GUARD_BY_RANK_LATE[mon.rank] || GUARD_BY_RANK_LATE.Normal;
+  return arr[hash(`den:guard2:${mon.id}`) % arr.length];
+}
+
 export const monById = (data, id) => denMonsters(data).find((m) => m.id === id) || null;
 /** 某只怪在某个成长档下的单价（算力） */
 export const monCost = (mon, tierId) => Math.round(mon.cost * tierOf(tierId).cost * 10) / 10;
@@ -372,7 +400,7 @@ export function monDef(mon, tierId, n, data) {
     name: `${mon.zh}${t.id === 't1' ? '·幼' : t.id === 't2' ? '·成' : '·巨'}`,
     hp: st.hp, atk: st.atk, def: st.def,
     type: mon.reach === 'front' ? 'WARDEN' : 'ASSAULT',
-    guard: mon.guard, guardTier: t.id,
+    guard: monGuardFor(mon, n), guardTier: t.id,
     boss: mon.rank === 'Boss', rank: mon.rank,
     cost: st.cost, monId: mon.id,
     // 让「特攻」有个落点：首领只咬后排（远程），近战优先啃前排——这份偏好由 type / reach 决定

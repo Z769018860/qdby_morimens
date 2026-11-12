@@ -68,8 +68,15 @@ class CDP {
         if (!/navigator\.vibrate|AudioContext/i.test(txt)) this.runtime.push('CE ' + txt);
       }
       if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error' && !/favicon/.test(m.params.entry.url || '')
-        && !/navigator\.vibrate/i.test(m.params.entry.text || '')) this.logs.push(m.params.entry.text + ' ' + (m.params.entry.url || ''));
-      if (m.method === 'Network.responseReceived') { const r = m.params.response; if (r.status >= 400 && !/favicon/.test(r.url)) this.http.push(`${r.status} ${r.url}`); }
+        && !/navigator\.vibrate/i.test(m.params.entry.text || '')
+        && !/\/api\/|\/js\/account\.js/.test((m.params.entry.text || '') + (m.params.entry.url || ''))
+        // 上面那条被放行的 account.js 404 在 Log 里只留一句无 url 的通用文案，同样放行。
+        && !/^A bad HTTP response code \(404\) was received when fetching the script/.test(m.params.entry.text || '')) this.logs.push(m.params.entry.text + ' ' + (m.params.entry.url || ''));
+      // /api/ 是后端接口，本地静态服务器没有它，套件里也没有它的存根；
+      // 后端的行为由 scripts/test_edge_api.mjs 单独覆盖，这里不算前端回归。
+      // js/account.js 在站点根（不在 idle/ 里），本地把 idle/ 当根目录跑必然 404，
+      // 而 main.js 那段是「动态引入，失败就只用本机钱包」的可选模块，不算前端回归。
+      if (m.method === 'Network.responseReceived') { const r = m.params.response; if (r.status >= 400 && !/favicon|\/api\/|\/js\/account\.js/.test(r.url)) this.http.push(`${r.status} ${r.url}`); }
       if (m.method === 'Network.loadingFailed' && !/ERR_ABORTED/.test(m.params.errorText || '')) this.http.push(`FAIL ${m.params.errorText} ${m.params.type}`);
     };
   }
@@ -114,7 +121,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${msg}`); if (
 const HELPERS = `
   window.__go = (tab) => {
     const G = { battle: 'battle', team: 'team', roster: 'team', gear: 'team', orders: 'team', summon: 'summon',
-      challenge: 'challenge', weekly: 'challenge', rtower: 'challenge', arena: 'challenge', rift: 'challenge',
+      challenge: 'challenge', weekly: 'challenge', wboss: 'challenge', rtower: 'challenge', arena: 'challenge', rift: 'challenge',
       signin: 'more', event: 'more', codex: 'more', ach: 'more', settings: 'more' };
     document.querySelector('[data-group="' + G[tab] + '"]').click();
     const sub = document.querySelector('[data-sub="' + tab + '"]');
@@ -141,8 +148,8 @@ await cdp.evalIife(`(() => {
   return !!b;
 })()`);
 
-// 1) 16 个页面都能渲染
-const TABS = ['battle', 'team', 'roster', 'gear', 'orders', 'summon', 'challenge', 'rift', 'weekly', 'rtower', 'arena', 'signin', 'event', 'codex', 'ach', 'settings'];
+// 1) 17 个页面都能渲染
+const TABS = ['battle', 'team', 'roster', 'gear', 'orders', 'summon', 'challenge', 'rift', 'weekly', 'wboss', 'rtower', 'arena', 'signin', 'event', 'codex', 'ach', 'settings'];
 const rendered = await cdp.evalIife(`(() => {
   const out = [];
   for (const t of ${JSON.stringify(TABS)}) {
@@ -152,7 +159,7 @@ const rendered = await cdp.evalIife(`(() => {
   return out;
 })()`);
 const blank = rendered.filter(([, n]) => !(n > 100)).map(([t, n]) => `${t}(${n})`);
-check(blank.length === 0, `16 个页面都有内容${blank.length ? '，可疑：' + blank.join(', ') : ''}`);
+check(blank.length === 0, `17 个页面都有内容${blank.length ? '，可疑：' + blank.join(', ') : ''}`);
 
 // 2) 先抽一批装备（真实路径：召唤页的祈愿），后面配队才有货可用
 const pulled = await cdp.evalIife(`(() => {
@@ -395,7 +402,7 @@ const squad = await cdp.evalIife(`(() => {
   return { cur, a, b, tabs, different: a.join() !== b.join(), pick: s.squadPick.weekly, on, bar,
     note: (document.querySelector('.sqchip.on')?.innerText || '').replace(/\\s+/g, ' ') };
 })()`);
-check(squad.tabs === 8, `队伍页标签 ${squad.tabs} 个（主线 / 无限塔 / 融灾禁区 / 周Boss / 属性塔 / 竞技场 / 疾驰大运 / 编队库）`);
+check(squad.tabs === 9, `队伍页标签 ${squad.tabs} 个（主线 / 无限塔 / 融灾禁区 / 周Boss / 世界Boss / 属性塔 / 竞技场 / 疾驰大运 / 编队库）`);
 check(squad.a.length === 4 && squad.different, `编队：一队 ${squad.a.length} 人 · 二队与一队不同（${squad.a.join('>')} / ${squad.b.join('>')}）`);
 check(squad.bar >= 1 && squad.pick === 'a' && squad.on >= 1, `周 Boss 出战阵容切到「${squad.note}」（${squad.on} 个选中）`);
 await cdp.shot('squad');
@@ -513,7 +520,7 @@ const assign = await cdp.evalIife(`(() => {
   const tabs = [...document.querySelectorAll('.ttab')].map((b) => b.innerText.trim());
   // 每个挑战入口的标签页里应该只有一块，不再把 9 个入口堆在一页
   const per = {};
-  for (const t of ['tower', 'rt', 'weekly', 'arena', 'rift', 'squads']) {
+  for (const t of ['tower', 'rt', 'weekly', 'wboss', 'arena', 'rift', 'squads']) {
     document.querySelector('.ttab[data-k="' + t + '"]').click();
     const v = document.querySelector('#view');
     per[t] = { blocks: v.querySelectorAll('.assign').length, lines: v.querySelectorAll('.riftline').length,
@@ -536,9 +543,9 @@ const assign = await cdp.evalIife(`(() => {
     allChaos: team.every((x) => __game.data.bySlug[x].realm === 'CHAOS'),
     pick: s.squadPick.rt_CHAOS, closed: !document.querySelector('.sqeditor') };
 })()`);
-check(assign.tabs.length === 8 && assign.tabs[0] === '主线队伍' && assign.tabs[1] === '无限塔' && assign.tabs[2] === '融灾禁区',
+check(assign.tabs.length === 9 && assign.tabs[0] === '主线队伍' && assign.tabs[1] === '无限塔' && assign.tabs[2] === '融灾禁区',
   `队伍页 ${assign.tabs.length} 个标签：${assign.tabs.join(' / ')}`);
-check(['tower', 'rt', 'weekly', 'arena'].every((k) => assign.per[k].blocks === 1) && assign.per.rift.blocks === 2,
+check(['tower', 'rt', 'weekly', 'wboss', 'arena'].every((k) => assign.per[k].blocks === 1) && assign.per.rift.blocks === 2,
   `每个挑战标签只放自己那一块（融灾禁区是「五队 + 区域首领」两块）：${Object.entries(assign.per).map(([k, v]) => `${k}=${v.blocks}`).join(' ')}`);
 check(assign.per.rift.lines === 5, `融灾禁区标签里是五队逐行（${assign.per.rift.lines} 行）`);
 check(assign.per.squads.squads === 15, `编队库里是通用五套 + 属性塔四套 + 禁区专用五套 + 大运一套（${assign.per.squads.squads} 套）`);

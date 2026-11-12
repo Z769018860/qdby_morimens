@@ -11,6 +11,7 @@ import { SLOTS, MAX_AWAKEN } from '../src/core/constants.js';
 import { covTheme, covenantTiers, covenantBonus } from '../src/core/gear.js';
 import { startRun, offerPool, takeOffer, LUCK_RELICS } from '../src/core/luckrun.js';
 import { rewardClaimLine } from '../src/ui/util.js';
+import * as WBN from '../src/core/wboss.js';
 
 test('data pack is complete', () => {
   assert.equal(data.awakeners.length, 74);   // 62 名官方 + 12 名联名彩蛋（core/creators.js）
@@ -4459,13 +4460,13 @@ test('红流树海·前锋分队：编队上限是 5（setLineup / 开战都认�
 /* ---------------------------------------------------------------- 逆潮守关 */
 const D = await import('../src/core/denrun.js');
 
-test('逆潮守关：200 关，每关四个玩家、位置与规则都合法', () => {
+test('逆潮守关：220 关，每关四个玩家、位置与规则都合法', () => {
   const s = newState(data, 1);
   for (let n = 1; n <= D.DEN_MAX; n++) {
     const st = D.denStage(n);
     assert.equal(st.n, n);
-    assert.ok(st.cpu >= 10 && st.cpu <= 21, `第 ${n} 关算力应在 10~21：${st.cpu}`);
-    assert.ok(st.rules.length <= 3, `第 ${n} 关最多三条战术`);
+    assert.ok(st.cpu >= 10 && st.cpu <= 23, `第 ${n} 关算力应在 10~23：${st.cpu}`);
+    assert.ok(st.rules.length <= 4, `第 ${n} 关最多四条战术`);
     assert.ok(st.lv >= 50 && st.lv <= 159, `第 ${n} 关等级：${st.lv}`);
     assert.ok(st.star >= 0 && st.star <= 99);
     const defs = D.denPlayerDefs(n, data);
@@ -4655,10 +4656,14 @@ test('逆潮守关：存档里的脏数据会被洗干净', () => {
   assert.equal(D.denStarOf(m, 4), 0, '负数星级归零');
 });
 
-test('逆潮守关：守关特性八条都有克制说明，且分布覆盖全部怪物', () => {
+test('逆潮守关：守关特性都有克制说明，且分布覆盖全部怪物', () => {
   const all = D.denMonsters(data);
+  // 前 200 关沿用旧的 10 条池（第三程的再生 / 棘甲不进老关卡）
   const used = new Set(all.map((m) => m.guard));
-  assert.equal(used.size, D.DEN_GUARD_KEYS.length, `八条特性都得用上，实际 ${[...used].join(',')}`);
+  assert.equal(used.size, 10, `前 200 关的旧池要用满 10 条，实际 ${[...used].join(',')}`);
+  // 201 关起换新池：12 条都要能出现
+  const late = new Set(all.map((m) => D.monGuardFor(m, 205)));
+  assert.equal(late.size, D.DEN_GUARD_KEYS.length, `第三程的新池要用满 ${D.DEN_GUARD_KEYS.length} 条，实际 ${[...late].join(',')}`);
   for (const k of D.DEN_GUARD_KEYS) {
     const g = D.DEN_GUARDS[k];
     assert.ok(g.zh && g.short && g.d.length > 8 && g.counter, `特性 ${k} 缺说明`);
@@ -4934,11 +4939,11 @@ test('逆潮守关：前 100 关的曲线保持原样，第二程只加在 101 �
     const st = D.denStage(n);
     assert.equal(st.lv, 159, `第 ${n} 关玩家应该已经满级`);
     assert.equal(st.star, 99);
-    assert.ok(st.cpu > 15 && st.cpu <= 21, `第 ${n} 关算力：${st.cpu}`);
+    assert.ok(st.cpu > 15 && st.cpu <= 23, `第 ${n} 关算力：${st.cpu}`);
     assert.ok(D.denScale(n) > 8.2);
     assert.equal(st.chapter, Math.floor((n - 1) / 10) + 1);
   }
-  assert.equal(D.DEN_CHAPTERS.length, D.DEN_MAX / 10, '20 章');
+  assert.equal(D.DEN_CHAPTERS.length, D.DEN_MAX / 10, '22 章');
   // 章中就开始叠第二条规则（第二程比第一程更早加压）
   assert.ok(D.denStage(106).rules.length >= 2);
   assert.equal(D.denStage(200).rules.length, 3, '终局三条战术全开');
@@ -5062,4 +5067,87 @@ test('一键分解：密契单独开关，不看稀有度；预览按类型拆�
   const cfg = G.autoDmOf(old);
   assert.deepEqual(cfg.kinds, ['wheel', 'relic'], '旧设置里的 covenant 要清掉');
   assert.equal(cfg.cov, false, '旧存档不该因为升级就把密契清空');
+});
+
+test('世界 Boss：血池 / 每日次数 / 排名奖励都按同一套口径', () => {
+  assert.equal(WBN.wbossHpMax(), 1.2e7, '血池基准是服务端与客户端共用的 1200 万');
+  assert.equal(WBN.wbossHpLeft({ hp: 3e6, hpMax: 1.2e7 }), 0.25);
+  assert.equal(WBN.wbossHpLeft({ hp: -10, hpMax: 1.2e7 }), 0);
+  assert.equal(WBN.wbossHpLeft({ hp: 1, hpMax: 0 }), 0);
+
+  // 名次 → 奖励档：边界值各取一档
+  assert.equal(WBN.wbossTierOf(1).key, 'r1');
+  assert.equal(WBN.wbossTierOf(2).key, 'r3');
+  assert.equal(WBN.wbossTierOf(3).key, 'r3');
+  assert.equal(WBN.wbossTierOf(4).key, 'r10');
+  assert.equal(WBN.wbossTierOf(30).key, 'r30');
+  assert.equal(WBN.wbossTierOf(31).key, 'r100');
+  assert.equal(WBN.wbossTierOf(101).key, 'join');
+  assert.equal(WBN.wbossTierOf(9999).key, 'join');
+
+  const r1 = WBN.wbossRewardOf({ rank: 1, dmg: 5000 });
+  assert.equal(r1.tickets, 12); assert.equal(r1.item, true); assert.equal(r1.bonus, null);
+  const rk = WBN.wbossRewardOf({ rank: 5, dmg: 5000, killed: true });
+  assert.equal(rk.tickets, 5 + WBN.WBOSS_KILL_BONUS.tickets, '打空血池要叠一份击杀奖励');
+  assert.equal(rk.cores, 160 + WBN.WBOSS_KILL_BONUS.cores);
+  assert.ok(rk.bonus && rk.bonus.tickets > 0);
+  assert.equal(WBN.wbossRewardOf({ rank: 1, dmg: 0 }), null, '没打出伤害就没有参与奖');
+  assert.equal(WBN.wbossRewardOf({}), null);
+});
+
+test('世界 Boss：次数每日重置、换周清零、打完要扣次数', () => {
+  const s = newState(data, 9);
+  const w0 = WBN.wbossState(s, '2030-W01');
+  assert.equal(w0.tries, 3, '一天三次');
+  assert.equal(w0.dmg, 0);
+  w0.day = '2000-01-01'; w0.tries = 0;
+  const w1 = WBN.wbossState(s, '2030-W01');
+  assert.equal(w1.tries, 3, '跨天要补满次数');
+  w1.dmg = 12345; w1.best = 999;
+  const w2 = WBN.wbossState(s, '2030-W02');
+  assert.equal(w2.dmg, 0, '换周伤害清零');
+  assert.equal(w2.best, 0);
+  assert.equal(w2.tries, 3);
+
+  // 服务端状态落地：次数 / 伤害以服务端为准
+  const w3 = WBN.applyServer(s, { week: '2030-W02', tries: 1, dmg: 88888, best: 50000, runs: 2 });
+  assert.equal(w3.tries, 1);
+  assert.equal(w3.dmg, 88888);
+  assert.equal(w3.best, 50000);
+  assert.equal(w3.runs, 2);
+  assert.equal(WBN.applyServer(s, null), null, '没有服务端数据时什么都不做');
+});
+
+test('世界 Boss：打一场会扣次数、记伤害，次数用完就拒绝', () => {
+  const s = newState(data, 21);
+  s.roster = Object.fromEntries(s.team.map((k) => [k, { lv: 159, star: 99, brk: 6 }]));
+  const w = WBN.wbossState(s);
+  const t0 = w.tries;
+  const out = WBN.wbossFight(s, data);
+  assert.ok(out && out.ok, '应该能打');
+  assert.ok(out.dmg > 0, '12 回合总能打出伤害');
+  assert.equal(w.tries, t0 - 1);
+  assert.equal(w.runs, 1);
+  assert.equal(w.dmg, out.dmg);
+  assert.equal(w.best, out.dmg);
+  assert.ok(out.boss && out.boss.id, '要带 Boss 数据给结算框');
+  assert.equal(out.res.rounds <= WBN.WBOSS_ROUNDS, true);
+
+  w.tries = 0;
+  const no = WBN.wbossFight(s, data);
+  assert.equal(no.err, '今日次数已用完', '没次数要明确拒绝，不能白打');
+});
+
+test('世界 Boss：发奖只加一次，装备档才会出装备', () => {
+  const s = newState(data, 33);
+  const g0 = s.gold, c0 = s.cores, t0 = s.tickets;
+  const got = WBN.wbossGrant(s, data, WBN.wbossRewardOf({ rank: 1, dmg: 1000 }));
+  assert.ok(got);
+  assert.equal(s.gold, g0 + got.gold);
+  assert.equal(s.cores, c0 + got.cores);
+  assert.equal(s.tickets, t0 + got.tickets);
+  assert.equal(got.items.length, 1, '第一名档带一件装备');
+  const s2 = newState(data, 34);
+  const g2 = WBN.wbossGrant(s2, data, WBN.wbossRewardOf({ rank: 50, dmg: 1000 }));
+  assert.equal(g2.items.length, 0, '普通参与档不发装备');
 });

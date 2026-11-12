@@ -35,7 +35,7 @@ export const isLuckSquad = (k) => LUCK_SQUAD_KEYS.includes(k);
 export const SQUAD_MODES = [
   ['tower', '无限塔'],
   ['rt_CHAOS', '混沌尖塔'], ['rt_CARO', '血肉之塔'], ['rt_AEQUOR', '深海回廊'], ['rt_ULTRA', '超维阶梯'],
-  ['weekly', '周Boss'], ['trial', '融灾'], ['arena', '竞技场'], ['luck', '疾驰大运'],
+  ['weekly', '周Boss'], ['wboss', '世界Boss'], ['trial', '融灾'], ['arena', '竞技场'], ['luck', '疾驰大运'],
 ];
 export const MODE_ZH = Object.fromEntries(SQUAD_MODES);
 // 队伍页把入口分组显示，塔的四个界域压成一段，免得八行铺满一屏；
@@ -44,6 +44,7 @@ export const MODE_GROUPS = [
   ['无限塔', ['tower'], '一层层往上爬的连续战斗'],
   ['属性塔', ['rt_CHAOS', 'rt_CARO', 'rt_AEQUOR', 'rt_ULTRA'], '只收本界域成员，四座塔各存一套'],
   ['周 Boss', ['weekly'], '限 12 回合拼伤害'],
+  ['世界 Boss', ['wboss'], '全服共讨同一条血池：一天三次，拼 12 回合的伤害'],
   ['融灾试炼', ['trial'], '区域首领，逐级解锁'],
   ['疾驰大运', ['luck'], '一趟三层的肉鸽：整趟用选定的那一队，另有大运专用队'],
   ['竞技场', ['arena'], '天梯与好友对战共用'],

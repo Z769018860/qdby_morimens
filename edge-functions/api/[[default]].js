@@ -689,6 +689,214 @@ async function putSave(request, env, kv, game, cors) {
   return reply({ ok: true, ver, at }, 200, cors);
 }
 
+// ------------------------------------------------------------------ 世界 Boss（全服共享血池）
+// 挂机前夜的世界 Boss：一周一只，全服打同一条血池，按本期累计伤害排名发奖。
+// 语义上比存档简单，比点赞复杂一点：
+//   · 血池是「读改写」：KV 没有原子自减，并发下偶尔少扣一点伤害 —— 比上分布式锁划算，
+//     而且每个人自己的伤害记录是独立键，排名不受影响。
+//   · 次数按 UTC 日切（客户端 dayKey 也是 UTC），一天 3 次，服务端说了算。
+//   · 结算奖励只由服务端判定「名次 + 是否已领」，奖励内容由客户端按同一张表发；
+//     这样服务端不用复制一份会漂移的奖励数值表。
+const WBOSS_DAILY = 3;
+const WBOSS_MAX_HIT = 2e7;          // 单次伤害上限（客户端也有同一个数，这里再夹一次防脏数据）
+const WBOSS_HP_BASE = 1.2e7;        // 血池基准，和 idle/src/core/wboss.js 的 WBOSS_HP_BASE 一致（1200 万）
+const WBOSS_TOP = 20;               // 排行榜返回前多少名
+const WBOSS_CLOSED_DAYS = 21;       // 多久以前的周不再允许结算（防止翻旧账）
+
+const wbDay = () => new Date().toISOString().slice(0, 10);
+function wbWeekId(d = new Date()) {
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const n = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - n);
+  const y = t.getUTCFullYear();
+  const w = Math.ceil(((t - Date.UTC(y, 0, 1)) / 86400000 + 1) / 7);
+  return `${y}-W${String(w).padStart(2, '0')}`;
+}
+const WBOSS_RE = /^\d{4}-W\d{2}$/;
+const wbKeyOf = (week) => 'wb_' + String(week).replace(/[^A-Za-z0-9]/g, '_');
+const wbUserKey = (week, uh) => wbKeyOf(week) + '_u_' + uh;
+const wbAggKey = (week) => wbKeyOf(week) + '_agg';
+const wbCache = new Map();          // 同一节点 6 秒内的排行快照：血池页每次刷新都扫全部人太贵
+
+async function wbLoad(kv, week) {
+  const key = wbKeyOf(week);
+  let row = await kvJson(kv, key);
+  if (!row) {
+    row = { week, hpMax: WBOSS_HP_BASE, hp: WBOSS_HP_BASE, at: Date.now(), killed: false, closed: false };
+    await kv.put(key, JSON.stringify(row));
+  }
+  return row;
+}
+
+/** 本期所有参与者（伤害 > 0），按伤害降序 */
+async function wbEntries(kv, week) {
+  const keys = await listKeys(kv, wbKeyOf(week) + '_u_', 1000);
+  const rows = await mapLimit(keys, 6, async (k) => {
+    const r = await kvJson(kv, k, true);
+    return r && Number(r.dmg) > 0 ? { u: String(r.u || ''), n: str(r.n, 40), dmg: Math.max(0, Math.round(Number(r.dmg) || 0)), at: Number(r.at) || 0 } : null;
+  });
+  return rows.filter(Boolean).sort((a, b) => b.dmg - a.dmg || (a.u < b.u ? -1 : 1));
+}
+
+/* 排行快照：每次 GET 都「列出全部参与者 + 每人一次强一致读」在 Blob 上是十几秒的事（边缘函数会超时），
+   所以维护一份聚合文档 wb_{week}_agg：伤害上报时顺手更新，GET 只读这一份。
+   代价是并发读改写偶尔会少记别人一条（下一个人上报就会补回来）；
+   真正发奖的 claim 仍然扫个人键，名次以那份为准。 */
+async function wbAggList(kv, week) {
+  const c = wbCache.get(week);
+  if (c && Date.now() - c.at < 6000) return c.list;
+  let doc = await kvJson(kv, wbAggKey(week), true);
+  if (!doc || !Array.isArray(doc.list)) {
+    doc = { at: Date.now(), list: await wbEntries(kv, week) };
+    await kv.put(wbAggKey(week), JSON.stringify(doc));
+  }
+  const list = doc.list.filter((x) => x && Number(x.dmg) > 0).sort((a, b) => b.dmg - a.dmg || (String(a.u) < String(b.u) ? -1 : 1));
+  wbCache.set(week, { at: Date.now(), list });
+  return list;
+}
+
+/** 上报之后把这一条写进聚合文档（强一致读，尽量少丢别人的并发写） */
+async function wbAggPut(kv, week, uid, name, dmg) {
+  const doc = (await kvJson(kv, wbAggKey(week), false)) || { list: [] };
+  const list = Array.isArray(doc.list) ? doc.list.filter((x) => x && x.u !== uid) : [];
+  if (dmg > 0) list.push({ u: uid, n: name, dmg: Math.round(dmg) });
+  await kv.put(wbAggKey(week), JSON.stringify({ at: Date.now(), list }));
+  wbCache.delete(week);
+}
+
+const rankIn = (list, uid) => {
+  const i = list.findIndex((x) => x.u === uid);
+  return i < 0 ? 0 : i + 1;
+};
+
+// GET /wboss —— 本期血池 / 排行榜 / 我的名次；另外带上一期的结算信息（可以领奖）
+async function getWboss(request, env, kv, cors) {
+  const week = wbWeekId();
+  const row = await wbLoad(kv, week);
+  const hasTok = /^Bearer\s+\S+/i.test(String(request.headers.get('Authorization') || ''));
+  const me = hasTok ? await whoami(request, env, kv) : null;
+  const list = await wbAggList(kv, week);
+  const players = list.length;
+  let mine = null;
+  if (me) {
+    const uh = await uhash(me.uid);
+    const r = await kvJson(kv, wbUserKey(week, uh));
+    if (r) {
+      mine = {
+        dmg: Math.max(0, Math.round(Number(r.dmg) || 0)),
+        best: Math.max(0, Math.round(Number(r.best) || 0)),
+        runs: Math.max(0, Math.floor(Number(r.runs) || 0)),
+        day: String(r.day || ''), tries: Math.max(0, Math.min(WBOSS_DAILY, Number(r.tries) || 0)),
+        rank: rankIn(list, me.uid),
+      };
+    } else {
+      mine = { dmg: 0, best: 0, runs: 0, day: wbDay(), tries: WBOSS_DAILY, rank: 0 };
+    }
+  }
+  // 上一期：只在「上一周确实有记录」时返回，玩家可以补领
+  const lastWeek = wbWeekId(new Date(Date.now() - 7 * 86400e3));
+  const lastRow = await kvJson(kv, wbKeyOf(lastWeek));
+  let last = null;
+  if (lastRow) {
+    const lastList = await wbAggList(kv, lastWeek);
+    const uid = me ? me.uid : '';
+    const my = uid ? lastList.find((x) => x.u === uid) : null;
+    last = {
+      week: lastWeek, hp: Math.max(0, Number(lastRow.hp) || 0), hpMax: Number(lastRow.hpMax) || WBOSS_HP_BASE,
+      killed: !!lastRow.killed, players: lastList.length,
+      myDmg: my ? my.dmg : 0, myRank: my ? rankIn(lastList, uid) : 0, claimed: false,
+    };
+    // claimed 存在个人记录里，单独读一次（上面的排行只带了轻量字段）
+    if (me) {
+      const rr = await kvJson(kv, wbUserKey(lastWeek, await uhash(me.uid)));
+      last.claimed = !!(rr && rr.claimed);
+    }
+  }
+  return reply({
+    ok: true, week, hpMax: Number(row.hpMax) || WBOSS_HP_BASE, hp: Math.max(0, Math.round(Number(row.hp) || 0)),
+    killed: !!row.killed, closed: !!row.closed, players,
+    me: mine,
+    top: list.slice(0, WBOSS_TOP).map((x, i) => ({ rank: i + 1, name: x.n || '旅人', dmg: x.dmg })),
+    last,
+  }, 200, cors);
+}
+
+// POST /wboss/hit { dmg } —— 上报一次伤害：夹上限、扣当日次数、扣血池
+async function postWbossHit(request, env, kv, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) throw new HttpError(401, 'need_login');
+  const b = await readJson(request, 8 * 1024);
+  const raw = Math.round(Number(b.dmg) || 0);
+  if (!(raw > 0)) throw new HttpError(400, 'bad_dmg');
+  const dmg = Math.min(WBOSS_MAX_HIT, raw);
+
+  const week = wbWeekId();
+  const row = await wbLoad(kv, week);
+  if (row.closed || Number(row.hp) <= 0) return reply({ ok: false, error: 'over', week, hp: 0 }, 409, cors);
+
+  const uh = await uhash(me.uid);
+  const key = wbUserKey(week, uh);
+  const cur = (await kvJson(kv, key)) || { u: me.uid, n: me.name, dmg: 0, best: 0, runs: 0, day: '', tries: WBOSS_DAILY, claimed: false, at: 0 };
+  if (cur.day !== wbDay()) { cur.day = wbDay(); cur.tries = WBOSS_DAILY; }
+  if ((Number(cur.tries) || 0) <= 0) return reply({ ok: false, error: 'no_tries', week, hp: Math.max(0, Math.round(Number(row.hp) || 0)), me: { dmg: cur.dmg, best: cur.best, runs: cur.runs, day: cur.day, tries: 0 } }, 409, cors);
+
+  // 血池只扣「实际还能扣」的部分：最后一个打死它的人不会把溢出伤害算进个人成绩
+  const hp = Math.max(0, Math.round(Number(row.hp) || 0));
+  const applied = Math.min(dmg, hp);
+  row.hp = hp - applied;
+  row.at = Date.now();
+  if (row.hp <= 0) { row.hp = 0; row.killed = true; row.closed = true; }
+  await kv.put(wbKeyOf(week), JSON.stringify(row));
+
+  cur.day = wbDay();
+  cur.tries = Math.max(0, (Number(cur.tries) || 0) - 1);
+  cur.dmg = Math.max(0, Math.round(Number(cur.dmg) || 0) + applied);
+  cur.best = Math.max(Math.round(Number(cur.best) || 0), applied);
+  cur.runs = Math.max(0, Math.floor(Number(cur.runs) || 0) + 1);
+  cur.n = me.name; cur.at = Date.now();
+  await kv.put(key, JSON.stringify(cur));
+  await wbAggPut(kv, week, me.uid, me.name, cur.dmg);
+
+  const list = await wbAggList(kv, week);
+  return reply({
+    ok: true, week, hp: row.hp, hpMax: Number(row.hpMax) || WBOSS_HP_BASE, killed: !!row.killed, applied,
+    me: { dmg: cur.dmg, best: cur.best, runs: cur.runs, day: cur.day, tries: cur.tries, rank: rankIn(list, me.uid) },
+    players: list.length,
+  }, 200, cors);
+}
+
+// POST /wboss/claim { week } —— 结算一期：判定名次、标记已领（幂等）
+async function postWbossClaim(request, env, kv, cors) {
+  const me = await whoami(request, env, kv);
+  if (!me) throw new HttpError(401, 'need_login');
+  const b = await readJson(request, 8 * 1024);
+  const week = str(b.week, 12);
+  if (!WBOSS_RE.test(week)) throw new HttpError(400, 'bad_week');
+  const nowWeek = wbWeekId();
+  if (week > nowWeek) throw new HttpError(400, 'future_week');
+  // 太旧的期不结算：KV 里那些记录没人清理，一直能领会让奖励无限刷
+  if (week < wbWeekId(new Date(Date.now() - WBOSS_CLOSED_DAYS * 86400e3))) throw new HttpError(400, 'too_old');
+
+  const row = await kvJson(kv, wbKeyOf(week));
+  if (!row) throw new HttpError(404, 'no_week');
+  const over = !!row.closed || week < nowWeek;
+  if (!over) throw new HttpError(409, 'not_over');
+
+  const uh = await uhash(me.uid);
+  const key = wbUserKey(week, uh);
+  const cur = (await kvJson(kv, key)) || null;
+  if (!cur || !(Number(cur.dmg) > 0)) throw new HttpError(400, 'no_damage');
+  const list = await wbEntries(kv, week);
+  const rank = rankIn(list, me.uid);
+  const killed = !!row.killed;
+  if (cur.claimed) return reply({ ok: true, week, rank, dmg: cur.dmg, players: list.length, killed, claimed: true }, 200, cors);
+
+  cur.claimed = true; cur.claimedAt = Date.now();
+  await kv.put(key, JSON.stringify(cur));
+  wbCache.delete(week);
+  return reply({ ok: true, week, rank, dmg: Math.round(Number(cur.dmg) || 0), players: list.length, killed, claimed: true }, 200, cors);
+}
+
 // ------------------------------------------------------------------ 工坊题库
 // 索引就一份文档：新题 unshift 到最前，读的时候再按赞数排（题量小，够用）
 async function readIndex(kv) {
@@ -1737,7 +1945,8 @@ export async function onRequest(context) {
         // v16 榜单的决斗 / 轮盘段位名补齐到 13 段（原来只有 9 段，高段位显示空白）
         // v15 榜单补上 lovelive（BOARD_SPEC 的 ll，之前漏了，榜单一直是空的）
         // v14 赠礼再加 tk（召唤券）/ gold（金币）；多了 GET /admin/bugs（后台看 BUG 反馈详情）
-        ok: Boolean(store), service: 'zjtt', v: 18, runtime: 'edgeone',
+        // v19 多了 /wboss /wboss/hit /wboss/claim（挂机前夜的世界 Boss：全服共享血池 + 周结算排名）
+        ok: Boolean(store), service: 'zjtt', v: 19, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
@@ -1779,6 +1988,10 @@ export async function onRequest(context) {
       if (method === 'GET') return await getSave(request, env, kv, game, url, cors);
       if (method === 'PUT') return await putSave(request, env, kv, game, cors);
     }
+
+    if (path === '/wboss' && method === 'GET') return await getWboss(request, env, kv, cors);
+    if (path === '/wboss/hit' && method === 'POST') return await postWbossHit(request, env, kv, cors);
+    if (path === '/wboss/claim' && method === 'POST') return await postWbossClaim(request, env, kv, cors);
 
     if (path === '/account' && method === 'GET') return await getAccount(request, env, kv, cors);
     if (path === '/account' && method === 'PUT') return await putAccount(request, env, kv, cors);

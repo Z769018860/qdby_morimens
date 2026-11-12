@@ -33,6 +33,7 @@ import { signinPage, eventPage } from './ui/pages4.js';
 import * as LK from './ui/luck.js';
 import * as TREE from './ui/tree.js';
 import * as DEN from './ui/den.js';
+import * as WB from './ui/wboss.js';
 import * as AF from './ui/affinity.js';
 import { affTick, giveGift, buyGift } from './core/affinity.js';
 import {
@@ -54,6 +55,7 @@ import {
 import { awakenOf, universalOf } from './core/game.js';
 import { denFight, denApply, denChapterReward, denClaimStars, denState, denCheck, monById, DEN_MAX, DEN_SLOTS } from './core/denrun.js';
 import { claimDaily, redeemGuest, claimMile, dailyView, milePending } from './core/event.js';
+import { WBOSS_ROUNDS } from './core/wboss.js';
 import { syncSigninGifts } from './core/creators.js';
 import { claimWelcome, claimSeven, portalUser, welcomeStatus } from './core/welcome.js';
 import { startGuide } from './ui/guide.js';
@@ -77,7 +79,7 @@ const GROUPS = [
   { k: 'battle', zh: '战斗', icon: ICON.battle, tabs: [['battle', '战斗']] },
   { k: 'team', zh: '养成', icon: ICON.team, tabs: [['team', '队伍'], ['roster', '唤醒体'], ['gear', '命轮密契'], ['orders', '钥令']] },
   { k: 'summon', zh: '召唤', icon: ICON.summon, tabs: [['summon', '召唤']] },
-  { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '无限塔'], ['rift', '融灾禁区'], ['weekly', '周Boss'], ['rtower', '属性塔'], ['arena', '竞技场'], ['luck', '疾驰欢愉的大运'], ['tree', '红流树海'], ['den', '逆潮守关']] },
+  { k: 'challenge', zh: '挑战', icon: ICON.challenge, tabs: [['challenge', '无限塔'], ['rift', '融灾禁区'], ['weekly', '周Boss'], ['wboss', '世界Boss'], ['rtower', '属性塔'], ['arena', '竞技场'], ['luck', '疾驰欢愉的大运'], ['tree', '红流树海'], ['den', '逆潮守关']] },
   { k: 'more', zh: '更多', icon: ICON.more, tabs: [['signin', '签到'], ['event', '联动'], ['aff', '同调'], ['codex', '图鉴'], ['ach', '成就'], ['settings', '设置']] },
 ];
 
@@ -87,7 +89,7 @@ const GROUPS = [
 const BG = {
   battle: '17', team: '13', roster: '14', gear: '15', orders: '16', summon: '18',
   challenge: '19', weekly: '20', rtower: '21', arena: '22', signin: '23', codex: '24', ach: '25', settings: '26', rift: '33',
-  event: '34', luck: '35', tree: '36', den: '28',
+  event: '34', luck: '35', tree: '36', den: '28', wboss: '29',
 };
 let bgNow = '';
 function setBg(tab) {
@@ -104,7 +106,7 @@ const GROUP_OF = Object.fromEntries(GROUPS.flatMap((g) => g.tabs.map(([k]) => [k
 // 每个页面配一首 BGM（audio.js 里的六首）。战斗页由 BattleView 按是否 Boss 战自己切。
 const MOOD_OF = {
   team: 'home', roster: 'home', gear: 'home', orders: 'home', summon: 'summon',
-  challenge: 'tower', weekly: 'tower', rtower: 'tower', arena: 'battle', tree: 'tower', den: 'tower',
+  challenge: 'tower', weekly: 'tower', rtower: 'tower', arena: 'battle', tree: 'tower', den: 'tower', wboss: 'tower',
   signin: 'home', codex: 'home', ach: 'home', settings: 'home', event: 'home',
 };
 const gachaSound = (out) => (out.some((p) => p.rarity === 'Genesis') ? 'reveal3' : out.some((p) => p.rarity === 'SSR') ? 'reveal2' : 'reveal1');
@@ -827,6 +829,7 @@ export function show(tab) {
   v.hidden = tab === 'battle';
   if (tab !== 'battle') render();
   if (tab === 'arena') refreshArena();
+  if (tab === 'wboss') WB.enter(app, rerender);
   setBg(tab);
   document.body.dataset.tab = tab;
   // 切页淡入，避免内容「啪」地整块换掉
@@ -847,7 +850,7 @@ function refreshArena() {
   if (app.tab === 'arena') render();
 }
 function render() {
-  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, orders: P.ordersPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, rtower: P3.rtowerPage, arena: P3.arenaPage, rift: P3.riftPage, ach: P2.achievementPage, event: eventPage, luck: LK.luckPage, tree: TREE.treePage, aff: AF.affinityPage, den: DEN.denPage }[app.tab];
+  const f = { team: P.teamPage, roster: P.rosterPage, gear: P.gearPage, orders: P.ordersPage, summon: P.summonPage, settings: P.settingsPage, challenge: P2.challengePage, codex: codexPage, signin: signinPage, weekly: P3.weeklyPage, wboss: WB.wbossPage, rtower: P3.rtowerPage, arena: P3.arenaPage, rift: P3.riftPage, ach: P2.achievementPage, event: eventPage, luck: LK.luckPage, tree: TREE.treePage, aff: AF.affinityPage, den: DEN.denPage }[app.tab];
   if (f) { const y = window.scrollY; $('#view').innerHTML = f(app); window.scrollTo(0, y); }
   app.refreshTop();
   refreshBadges();
@@ -1588,6 +1591,23 @@ function onAct(e) {
       break;
     }
     case 'weekly-claim': { const r = claimWeekly(s, d, +el.dataset.i, weeklyState(s).tier || 1); if (r) { sound.play('ach'); toast(`领取成功：唤醒券+${r.tickets} 金币+${r.gold}${r.items.length ? ' 装备+1' : ''}${r.orders?.length ? ' 钥令+1' : ''}`); if (r.orders?.length) P.showOrders(app, r.orders); rerender(); } break; }
+    /* ---------------- 世界 Boss（全服共享血池） ---------------- */
+    case 'wboss-go': {
+      const r = WB.fight(app);
+      if (!r || r.err) { toast(r?.err || '现在打不了'); sound.play('deny'); break; }
+      app.save(); render();
+      sound.play(r.res.win ? 'win' : 'click');
+      watchOrSkip(replayOf(r.res, {
+        title: `世界 Boss · ${r.boss ? r.boss.zh : '共讨'}`,
+        sub: `限 ${WBOSS_ROUNDS} 回合 · 本次伤害 ${fmt(r.dmg)}`,
+        note: '伤害会同步到全服血池，回放不影响结算', kw: d.kw,
+      }), () => WB.resultModal(app, r));
+      // 伤害上报是异步的：先让玩家看结果，回来再刷新血池与名次
+      WB.report(app, r.dmg, rerender);
+      break;
+    }
+    case 'wboss-refresh': WB.refresh(app, rerender); sound.play('click'); break;
+    case 'wboss-claim': WB.claim(app, el.dataset.week || '', rerender); sound.play('click'); break;
     case 'rt-go': case 'rt-auto': {
       const out = [];
       const realm = el.dataset.realm;

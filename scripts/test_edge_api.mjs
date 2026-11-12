@@ -740,6 +740,95 @@ console.log('\n[22] 管理员查看挂机存档');
   check('命中的账号会带一条提示', r.json.flags.some((f) => f.includes('旧版直升券')), r.json.flags);
 }
 
+console.log('\n[23] 世界 Boss /wboss：全服共享血池、每日三次、排名与结算');
+{
+  const kv = fakeKV();
+  const call = makeCaller({ zjtt_kv: kv, WALINE_URL: 'https://example.invalid' });
+  seedSession(kv, 'a', '7001', '甲'); seedSession(kv, 'b', '7002', '乙'); seedSession(kv, 'c', '7003', '丙'); seedSession(kv, 'd', '7004', '丁');
+  const A = { Authorization: 'Bearer a' }, B = { Authorization: 'Bearer b' }, C = { Authorization: 'Bearer c' }, D = { Authorization: 'Bearer d' };
+  const weekId = (d = new Date()) => {
+    const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    const n = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - n);
+    const y = t.getUTCFullYear(), w = Math.ceil(((t - Date.UTC(y, 0, 1)) / 86400000 + 1) / 7);
+    return `${y}-W${String(w).padStart(2, '0')}`;
+  };
+  const WK = weekId();
+  const wkey = (w) => 'wb_' + w.replace(/[^A-Za-z0-9]/g, '_');
+
+  const g0 = await call('/wboss');
+  eq('游客也能看血池', g0.status, 200);
+  eq('游客没有个人数据', g0.json.me, null);
+  check('开局血池是满的', g0.json.hp === g0.json.hpMax && g0.json.hpMax === 1.2e7, g0.json);
+  eq('本周还没有结算信息以外的上期', g0.json.last, null);
+  eq('没登录不能打 → 401', (await call('/wboss/hit', { method: 'POST', body: { dmg: 100 } })).status, 401);
+  eq('伤害为 0 → 400', (await call('/wboss/hit', { method: 'POST', headers: A, body: { dmg: 0 } })).status, 400);
+  eq('伤害是负数 → 400', (await call('/wboss/hit', { method: 'POST', headers: A, body: { dmg: -5 } })).status, 400);
+
+  const h1 = await call('/wboss/hit', { method: 'POST', headers: A, body: { dmg: 1000 } });
+  eq('血池扣掉这一下', h1.json.hp, 1.2e7 - 1000);
+  eq('个人累计伤害', h1.json.me.dmg, 1000);
+  eq('次数从 3 变 2', h1.json.me.tries, 2);
+  eq('自己是唯一参与者时排第 1', h1.json.me.rank, 1);
+
+  const h2 = await call('/wboss/hit', { method: 'POST', headers: B, body: { dmg: 5000 } });
+  eq('乙的伤害记上', h2.json.applied, 5000);
+  eq('血池继续扣', h2.json.hp, 1.2e7 - 1000 - 5000);
+  eq('乙排第 1', h2.json.me.rank, 1);
+  eq('甲掉到第 2', (await call('/wboss', { headers: A })).json.me.rank, 2);
+
+  for (let i = 0; i < 3; i++) await call('/wboss/hit', { method: 'POST', headers: C, body: { dmg: 300 + i } });
+  eq('一天三次用完', (await call('/wboss', { headers: C })).json.me.tries, 0);
+  eq('第四次被拒（409 no_tries）', (await call('/wboss/hit', { method: 'POST', headers: C, body: { dmg: 500 } })).status, 409);
+  eq('被拒的原因', (await call('/wboss/hit', { method: 'POST', headers: C, body: { dmg: 500 } })).json.error, 'no_tries');
+  eq('被拒不会白扣血池', (await call('/wboss', { headers: A })).json.hp, 1.2e7 - 1000 - 5000 - 903);
+
+  const top = (await call('/wboss')).json;
+  check('排行榜按伤害降序', top.top.length === 3 && top.top[0].name === '乙' && top.top[1].name === '甲' && top.top[2].name === '丙', top.top);
+  eq('参与者计数', top.players, 3);
+  eq('本周还没结束不能结算', (await call('/wboss/claim', { method: 'POST', headers: A, body: { week: WK } })).status, 409);
+  eq('乱填周号 → 400', (await call('/wboss/claim', { method: 'POST', headers: A, body: { week: '2026-W99x' } })).status, 400);
+
+  // 上一期（伪造一份上周的记录）
+  const LW = weekId(new Date(Date.now() - 7 * 86400e3));
+  const lk = wkey(LW);
+  kv._m.set(lk, JSON.stringify({ week: LW, hpMax: 8e7, hp: 0, at: Date.now(), killed: true, closed: true }));
+  kv._m.set(lk + '_u_' + sha('u:7001'), JSON.stringify({ u: '7001', n: '甲', dmg: 5000, best: 5000, runs: 2, day: '', tries: 0, claimed: false, at: Date.now() }));
+  kv._m.set(lk + '_u_' + sha('u:7002'), JSON.stringify({ u: '7002', n: '乙', dmg: 9000, best: 9000, runs: 3, day: '', tries: 0, claimed: false, at: Date.now() }));
+  const g1 = await call('/wboss', { headers: A });
+  check('带回上一期：我的伤害 / 名次 / 未领', g1.json.last && g1.json.last.week === LW && g1.json.last.myDmg === 5000 && g1.json.last.myRank === 2 && g1.json.last.claimed === false && g1.json.last.killed === true, g1.json.last);
+  const c1 = await call('/wboss/claim', { method: 'POST', headers: A, body: { week: LW } });
+  check('结算给出名次与击杀标记', c1.json.ok && c1.json.rank === 2 && c1.json.dmg === 5000 && c1.json.killed === true && c1.json.players === 2, c1.json);
+  const c2 = await call('/wboss/claim', { method: 'POST', headers: A, body: { week: LW } });
+  check('重复领取幂等（不报错、仍是 claimed）', c2.status === 200 && c2.json.claimed === true && c2.json.rank === 2, c2.json);
+  eq('领过之后 last.claimed 变 true', (await call('/wboss', { headers: A })).json.last.claimed, true);
+  eq('没打过的人不能领 → 400', (await call('/wboss/claim', { method: 'POST', headers: D, body: { week: LW } })).status, 400);
+  eq('没登录不能领 → 401', (await call('/wboss/claim', { method: 'POST', body: { week: LW } })).status, 401);
+  eq('太旧的周不能结算 → 400', (await call('/wboss/claim', { method: 'POST', headers: A, body: { week: '2020-W01' } })).status, 400);
+
+  // 单次伤害夹断：血池刻意给大一点，才看得到 2000 万的上限
+  const kvBig = fakeKV();
+  const callBig = makeCaller({ zjtt_kv: kvBig, WALINE_URL: 'https://example.invalid' });
+  seedSession(kvBig, 'a', '7201', '甲');
+  await callBig('/wboss');
+  kvBig._m.set(wkey(WK), JSON.stringify({ week: WK, hpMax: 1e8, hp: 1e8, at: Date.now(), killed: false, closed: false }));
+  const hb = await callBig('/wboss/hit', { method: 'POST', headers: { Authorization: 'Bearer a' }, body: { dmg: 1e12 } });
+  eq('单次伤害夹到 2000 万', hb.json.applied, 2e7);
+  eq('夹住之后血池按上限扣', hb.json.hp, 1e8 - 2e7);
+
+  // 血池打空：最后一下只按剩余血量计，Boss 关闭后不再接伤害
+  const kv2 = fakeKV();
+  const call2 = makeCaller({ zjtt_kv: kv2, WALINE_URL: 'https://example.invalid' });
+  seedSession(kv2, 'a', '7101', '甲');
+  const A2 = { Authorization: 'Bearer a' };
+  await call2('/wboss');
+  const k2 = wkey(WK);
+  kv2._m.set(k2, JSON.stringify({ week: WK, hpMax: 1.2e7, hp: 500, at: Date.now(), killed: false, closed: false }));
+  const k1 = await call2('/wboss/hit', { method: 'POST', headers: A2, body: { dmg: 5000 } });
+  check('最后一下只结算剩余血量', k1.json.applied === 500 && k1.json.hp === 0 && k1.json.killed === true, k1.json);
+  eq('击杀后个人伤害只记实际扣掉的', k1.json.me.dmg, 500);
+  eq('血池空了之后不能再打', (await call2('/wboss/hit', { method: 'POST', headers: A2, body: { dmg: 100 } })).status, 409);
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
   console.log('\n失败项：');
   for (const f of fails) console.log('  - ' + f);

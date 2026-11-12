@@ -1173,3 +1173,24 @@ button, a, [role="button"], input, select, label{touch-action:manipulation}
 .denmon .denon{position:absolute;top:4px;left:4px;font-size:9px;text-decoration:none;padding:0 3px;border-radius:5px;background:rgba(229,184,75,.85);color:#1a1408}
 .deng{font-style:normal;display:inline-block;min-width:14px;text-align:center;font-size:9.5px;border-radius:4px;border:1px solid var(--line);background:rgba(255,255,255,.07);padding:0 2px;color:#c9d6ea}
 @media(max-width:560px){.dencells{grid-template-columns:repeat(5,minmax(0,1fr))}.denteam{grid-template-columns:minmax(0,1fr)}.denslots{grid-template-columns:repeat(2,minmax(0,1fr))}.denpcard img{width:64px;height:64px}.denmons{grid-template-columns:repeat(auto-fill,minmax(76px,1fr))}}
+
+/* ---------- 世界 Boss：全服共享血池 + 排行 + 奖励档 ---------- */
+.banner-card.wb>img{filter:drop-shadow(0 0 14px rgba(229,100,91,.35))}
+/* .bar.hp 的底色、高度与字号在 base 里 specificity 更高（.bar.hp / .bar.hp i / .bar.hp b），
+   所以这里必须带 .hp 一起写，否则绿色填充、13px 高度和 13px 行高会盖掉血池自己的设定，
+   数字还会被 overflow:hidden 上下切掉。 */
+.bar.hp.wbbar{height:16px;margin:10px 0 8px}
+.bar.hp.wbbar b{font-size:11px;line-height:16px;font-weight:600;text-align:center;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.95),0 0 5px rgba(0,0,0,.8)}
+.wbtop{display:flex;flex-direction:column;gap:4px;margin:8px 0 14px}
+.wbrow{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,.04);font-size:13px}
+.wbrow>b{color:var(--gold);text-align:center}
+.wbrow>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wbrow>em{font-style:normal;color:#e9c46a;font-variant-numeric:tabular-nums}
+.wbrow.hot{background:linear-gradient(90deg,rgba(227,179,65,.18),rgba(255,255,255,.03))}
+.wbrow.me{outline:1px solid rgba(227,179,65,.5);outline-offset:-1px}
+.wbsteps{display:grid;gap:5px;margin:8px 0 12px}
+.wbstep{display:flex;justify-content:space-between;gap:12px;padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.04);font-size:12.5px}
+.wbstep>b{color:var(--gold);flex:none}
+.wbstep>span{color:#c9d6ea;text-align:right}
+.banner-card.wb-last{margin:10px 0}
+@media(max-width:560px){.wbstep{flex-direction:column;gap:2px}.wbstep>span{text-align:left}}
