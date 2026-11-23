@@ -681,7 +681,7 @@ function genFake() {
   const meta = readJson(path.join(ROOT, 'data/fake-art.json'));
   const raw = readJson(path.join(ROOT, 'data/fake-chars.json'));
   const chars = raw.chars || [];
-  if (chars.length !== 74) throw new Error(`寻找伪人：角色应为 74 名（现在是 ${chars.length}）`);
+  if (chars.length !== 75) throw new Error(`寻找伪人：角色应为 75 名（现在是 ${chars.length}）`);
   const slots = { idle: 0, card: 0, bust: 0, face: 0 };
   const seen = new Set();
   for (const c of chars) {

@@ -156,23 +156,10 @@ for (const a of dict.awakener) {
 // img 指向图集格位（见 scripts/build_survivors_art.py 的 EXTRA_ART）；
 // lock 字段既是解锁表的键，也是「未解锁时用剪影代替头像」和「要不要从卡池里
 // 剔除」的判据 —— 有 img 但锁着，照样只画剪影。
+// 2026-11 起「神王·图鲁」进了官方图鉴（V2.7.0 预告的新唤醒体，pid awakener-0063），
+// 不再是这里的隐藏角色：它走 dict.awakener 的正常流程，图集格位沿用原来的索引 62，
+// 两条技能也换成官方原文的「不朽碑铭」「旧日敕令」。这里只剩三位。
 const EXTRA = [
-  {
-    id: '90001', pid: 'hidden-tulu', n: '神王·图鲁', en: 'Tulu the Godking',
-    realm: '混沌', realmCode: 'CHAOS', role: '伤害型', roleCode: 'ASSAULT', rarity: 'UR',
-    img: 'c:90001', lock: '90001', kind: '唤醒体 · 本源降临',
-    talent: '王权',
-    talentText: '每击杀 20 名敌人累积 1 层王权，攻击与范围随之增长',
-    // 立绘就是 wiki 上那张「神王·图鲁无底」黑影，不是图鲁本人的头像 ——
-    // 这两者别混：神王·图鲁是唤醒体图鲁的「本源降临」形态（第二形态），
-    // 画面上没有脸，只有王座、冠冕和一团黑影。
-    bio: '不是那个会开口说话的图鲁，而是他「本源降临」时的形貌——立绘上没有脸，只有一座凭空升起的王座、一顶悬在虚无里的黑冠。灰机wiki 没为这个形态单独写过档案，能查到的仍是唤醒体图鲁的原文：「顺应天命，不好吗？为什么要反抗命运的意志。」年幼的王沉睡于王座之上，于梦醒时分示下诏谕，权威遍及天下王土。',
-    bioSrc: '灰机wiki · 唤醒体「图鲁」·本源降临立绘「神王·图鲁无底」（形态立绘，非图鲁本人头像）',
-    weapons: [
-      { n: '断罪王座', e: 'Throne of Judgement', proto: 'judge', text: '王座自天而降，柱下无人得以站立' },
-      { n: '王土加冕', e: 'Coronation of Ash', proto: 'nova', text: '以王座为中心，把整片土地掀翻' },
-    ],
-  },
   {
     id: '90002', pid: 'hidden-n', n: 'N', en: 'N',
     realm: '超维', realmCode: 'ULTRA', role: '辅助型', roleCode: 'CHORUS', rarity: 'UR',

@@ -11,7 +11,7 @@
    "rarity": "SSR",
    "sex": "女",
    "age": "21.86",
-   "weight": "-",
+   "weight": "",
    "facts": {
     "realm": "混沌",
     "role": "伤害型",
@@ -2725,6 +2725,50 @@
     "item": "缝了七针的布偶",
     "pet": "",
     "line": "记不住名字没关系，记住脸就行。"
+   }
+  },
+  {
+   "id": "tulu-godking",
+   "n": "神王·图鲁",
+   "en": "Tulu: Sovereign",
+   "k": "a",
+   "realm": "深海",
+   "role": "伤害型",
+   "rarity": "本源",
+   "sex": "男",
+   "age": "",
+   "weight": "",
+   "facts": {
+    "realm": "深海",
+    "role": "伤害型",
+    "no": "No.15605",
+    "birthday": "8月20日",
+    "height": "不详",
+    "alias": "王图、神图、大图、王图鲁",
+    "zodiac": "狮子座"
+   },
+   "card": [
+    "realm",
+    "role",
+    "no"
+   ],
+   "ask": [
+    "birthday",
+    "height",
+    "alias",
+    "zodiac"
+   ],
+   "img": {
+    "idle": "tulu-godking",
+    "card": "tulu-godking",
+    "bust": "tulu-godking"
+   },
+   "tr": {
+    "self": "余",
+    "eye": "灰青",
+    "item": "一枚刻着自己名字的旧印",
+    "pet": "",
+    "line": "余的王座，不在你们数的这一层。"
    }
   },
   {

@@ -1599,6 +1599,100 @@
         "tentacle",
         "poison"
       ]
+    },
+    {
+      "id": "tulusovereign",
+      "n": "神王·图鲁",
+      "en": "Tulu: Sovereign",
+      "gid": "15605",
+      "src": "图鲁",
+      "avatar": "assets/avatars/a-15605.webp",
+      "realm": "aequor",
+      "role": "dps",
+      "cost": 4,
+      "hp": 1021,
+      "atk": 105.1,
+      "aspd": 1.04,
+      "armor": 20,
+      "range": 1.15,
+      "ult": {
+        "kind": "guard",
+        "name": "不朽碑铭",
+        "text": "获得 40–80%（防御力） 点护盾，获得 100–200 点银钥能量"
+      },
+      "fac": "aeons",
+      "tags": [
+        "tentacle"
+      ]
+    },
+    {
+      "id": "n",
+      "n": "N",
+      "en": "N",
+      "gid": "90002",
+      "src": "N",
+      "avatar": "assets/avatars/a-90002.webp",
+      "realm": "ultra",
+      "role": "sup",
+      "cost": 1,
+      "hp": 624,
+      "atk": 35.4,
+      "aspd": 0.88,
+      "armor": 22,
+      "range": 2.3,
+      "ult": {
+        "kind": "nuke",
+        "name": "无限递归",
+        "text": "把已经发生过的伤害，再发生一次"
+      },
+      "fac": "unknown",
+      "tags": []
+    },
+    {
+      "id": "william",
+      "n": "威廉",
+      "en": "William",
+      "gid": "90003",
+      "src": "威廉",
+      "avatar": "assets/avatars/a-90003.webp",
+      "realm": "aequor",
+      "role": "tank",
+      "cost": 1,
+      "hp": 888,
+      "atk": 37.6,
+      "aspd": 0.84,
+      "armor": 26,
+      "range": 1.15,
+      "ult": {
+        "kind": "nuke",
+        "name": "长明灯",
+        "text": "灯亮着的时候，雾里的东西不敢靠太近"
+      },
+      "fac": "unknown",
+      "tags": []
+    },
+    {
+      "id": "thekeeper",
+      "n": "守密人",
+      "en": "The Keeper",
+      "gid": "90004",
+      "src": "守密人",
+      "avatar": "assets/avatars/a-90004.webp",
+      "realm": "caro",
+      "role": "sup",
+      "cost": 1,
+      "hp": 680,
+      "atk": 36.4,
+      "aspd": 0.89,
+      "armor": 16,
+      "range": 2.3,
+      "ult": {
+        "kind": "nuke",
+        "name": "封页之印",
+        "text": "把敌人夹进书页，让它连呼吸都停住"
+      },
+      "fac": "unknown",
+      "tags": []
     }
   ]
 }

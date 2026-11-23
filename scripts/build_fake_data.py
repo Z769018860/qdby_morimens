@@ -69,12 +69,19 @@ def main():
         aliases = [x.strip() for x in row[10].split('、') if x.strip()]
         aliases = [x for x in aliases if x != zh and x != row[0]][:4]
         birthday = row[4].strip()
+
+        def cell(i):
+            """灰机表里没有值的写法有两种：'-'（还没填）和 '?'（官方就这么写）。
+            '-' 当作没填，退回默认文案；'?' 原样留着——那是她的档案本身。"""
+            v = row[i].strip()
+            return '' if v == '-' else v
+
         facts = {
             'realm': row[1].strip(),
             'role': row[3].strip(),
             'no': ('No.%s' % gid) if gid else 'No.----',
             'birthday': birthday,
-            'height': row[6].strip() or '不详',
+            'height': cell(6) or '不详',
             'alias': '、'.join(aliases) if aliases else '没有别的叫法',
         }
         z = zodiac_of(birthday)
@@ -84,7 +91,7 @@ def main():
             'id': a['slug'], 'n': zh, 'en': a['en'], 'k': 'a',
             'realm': facts['realm'], 'role': facts['role'],
             'rarity': row[2].strip(), 'sex': row[5].strip(),
-            'age': row[8].strip(), 'weight': row[7].strip(),
+            'age': cell(8), 'weight': cell(7),
             'facts': facts,
             'card': ['realm', 'role', 'no'],
             'ask': [k for k in ('birthday', 'height', 'alias', 'zodiac') if k in facts],

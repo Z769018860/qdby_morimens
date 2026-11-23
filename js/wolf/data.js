@@ -1,6 +1,7 @@
 // 弥萨格狼人杀：身份牌、难度、名单
 //
-// 台词全部在 lines.js（62 名唤醒体 × 11 种身份 × 10 种场合），这里只管规则与设定。
+// 台词全部在 lines.js（62 名唤醒体 × 11 种身份 × 10 种场合；神王·图鲁还没有专属台词，走 TONES 兜底），
+// 这里只管规则与设定。
 //
 // 世界观口径（与站内其它子项目一致）：
 //   融蚀 / 黑液    —— 被黑潮泡透的东西，渗进人身上就变成「融蚀体」
@@ -203,6 +204,8 @@ export const CHARS = [
   { av: '15596', zh: '泰旖丝', en: 'Thais', tone: 'dark', realm: '血肉', cls: '辅助型', call: '守密人', hint: '黑山羊' },
   { av: '15574', zh: '汀克特', en: 'Tinct', tone: 'meek', realm: '超维', cls: '辅助型', call: '您', hint: '歌者' },
   { av: '15563', zh: '图鲁', en: 'Tulu', tone: 'lord', realm: '深海', cls: '伤害型', call: '臣子', hint: '沉睡之主' },
+  // 本源形态的图鲁（官方 V2.7.0 预告）。专属台词还没写，先走 lord 语气原型兜底。
+  { av: '15605', zh: '神王·图鲁', en: 'Tulu: Sovereign', tone: 'lord', realm: '深海', cls: '伤害型', call: '臣子', hint: '利莫里亚之王' },
   { av: '15598', zh: '尤乌哈希', en: 'Uvhash', tone: 'dark', realm: '血肉', cls: '伤害型', call: '守密人', hint: '猩红心脏' },
   { av: '15586', zh: '旺达', en: 'Wanda', tone: 'lord', realm: '超维', cls: '防御型', call: '凡人', hint: '荆棘女王' },
   { av: '15579', zh: '温柯尔', en: 'Winkle', tone: 'meek', realm: '超维', cls: '防御型', call: '守密人', hint: '迁移者' },

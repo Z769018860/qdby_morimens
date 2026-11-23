@@ -48,9 +48,17 @@ def main():
     zh_of = {a['id']: a['zh'] for a in dic}
 
     units = json.loads(UNITS.read_text(encoding='utf-8'))['units']
+    # 数据源（SKeyDB）还没收录的新角色，手工指定组织；不写的话会被当成「未定」，
+    # 和真的没组织的人混在一起，凑不齐羁绊。
+    FAC_OVERRIDE = {
+        '15605': 'aeons',   # 神王·图鲁：利莫里亚之王，与图鲁同属「万古之外」
+    }
     fac = {}
     missing = []
     for u in units:
+        if u['gid'] in FAC_OVERRIDE:
+            fac[u['gid']] = FAC_OVERRIDE[u['gid']]
+            continue
         pid = gid_to_pid.get(u['gid'])
         r = by_pid.get(pid) if pid else None
         if not r:

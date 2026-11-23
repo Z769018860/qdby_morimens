@@ -65,6 +65,7 @@ export const EXTRA_NAMES = {
   thais: ['泰旖丝的香气', '盛宴余韵'],
   tinct: ['染色炼成', '终极配方'],
   tulu: ['图鲁的潮汐', '海啸终焉'],
+  'tulu-godking': ['万夜之敕', '神国诞临'],
   uvhash: ['尤乌哈希的撕裂', '血肉终局'],
   wanda: ['旺达的幻视', '双生之壁'],
   winkle: ['温柯尔的小窃盗', '偷天换日'],
@@ -159,6 +160,10 @@ const SKILLS = {
   saya: { theme: '毒 · 毒中复苏', od: [H(0.6, 'allies'), St('poison', 4, 3, 'foes')], law: [REV(45), H(1.1, 'allies'), St('poison', 8, 3, 'foes')] },
   thais: { theme: '毒 · 反击层收毒', od: [H(0.55, 'allies'), St('poison', 5, 3, 'foes'), St('counter', 1, 2, 'allies')], law: [CBR(0.13), PHL(3.5), H(0.85, 'allies')] },
   tulu: { theme: '毒 · 毒爆虚弱', od: [St('poison', 5, 3, 'foes'), St('weakness', 1, 2, 'foes')], law: [PSB(1.8), St('weakness', 1, 3, 'foes'), D(1.6, 'foes')] },
+  // 神王·图鲁：原作的核心是「护盾 + 共振叠暴击」，所以超限技把不朽碑铭的护盾做成循环，
+  // 终焉技拿护盾换一记重击（SHD = 按当前护盾算伤害）。odEvery 2 是快节奏位，
+  // 对应他每回合都在攒共振的打法。
+  'tulu-godking': { theme: '触腕 · 护盾叠暴', odEvery: 2, od: [S(0.8), St('poison', 4, 3, 'foes'), B('crit', 15, 2)], law: [SHD(1.6), D(2.0, 'foes'), B('crit', 30, 3)] },
   xu: { theme: '毒 · 毒疗压攻', od: [St('poison', 5, 3, 'foes'), Db('atk', 25, 2, 'foes')], law: [PHL(4.5), CLN(), Db('atk', 35, 3, 'foes')] },
   vivian: { theme: '毒 · 毒疗驱散', od: [H(0.55, 'allies'), St('poison', 4, 3, 'foes'), B('crit', 15, 2, 'allies')], law: [DSP(), PHL(4), B('crit', 35, 3, 'allies')] },
   caraboo: { theme: '毒 · 毒爆吸血', od: [S(0.9), LS(30)], law: [S(1.3, 'allies'), PSB(1.5), SHD(0.8), LS(40)] },
@@ -305,6 +310,7 @@ const TUNE = {
   "thais": 2.200,
   "tinct": 1.796,
   "tulu": 2.200,
+  "tulu-godking": 2.000,
   "uvhash": 0.701,
   "vivian": 2.200,
   "vortice": 1.129,

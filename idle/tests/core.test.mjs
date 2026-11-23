@@ -14,7 +14,7 @@ import { rewardClaimLine } from '../src/ui/util.js';
 import * as WBN from '../src/core/wboss.js';
 
 test('data pack is complete', () => {
-  assert.equal(data.awakeners.length, 74);   // 62 名官方 + 12 名联名彩蛋（core/creators.js）
+  assert.equal(data.awakeners.length, 75);   // 63 名官方（含 V2.7.0 的神王·图鲁）+ 12 名联名彩蛋（core/creators.js）
   assert.ok(data.wheels.length >= 140 && data.relics.length >= 300 && data.covenants.length === 21);
   for (const a of data.awakeners) assert.ok(a.portrait && a.zh, a.slug);
 });

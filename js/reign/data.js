@@ -94,6 +94,8 @@ export const CHARS = {
   caraboo: { n: '卡拉布', en: 'Caraboo', realm: 'flesh', sex: 'f', tag: '苍白仙女' },
   'ogier-oath': { n: '负誓·奥吉尔', en: 'Ogier: Oathbound', realm: 'chaos', sex: 'm', tag: '罪人骑士' },
   vivian: { n: '薇薇安', en: 'Vivian', realm: 'chaos', sex: 'f', tag: '睡不醒的公主' },
+  // 利莫里亚那位「本该坐王座的」。本源形态，跟图鲁本人不是一个人（见 codex 的 awakener-0063）。
+  'tulu-godking': { n: '神王·图鲁', en: 'Tulu: Sovereign', realm: 'deep', sex: 'm', tag: '利莫里亚之王', call: '守密人' },
   'up-samo': { n: '萨摩不耶', en: 'Samo', realm: 'chaos', sex: 'm', tag: '节拍器', call: '同学' },
   'up-myls': { n: '梦依流苏', en: 'Sue', realm: 'deep', sex: 'm', tag: '不做梦的人', call: '同学' },
   'up-alice': { n: '爱丽丝', en: 'Alice', realm: 'ultra', sex: 'm', tag: '洞口的兔子', call: '同学' },
@@ -1406,6 +1408,26 @@ export const CARDS = [
     say: '我可以告诉你很多知识……你总不希望自己还不如一顶帽子知道得多吧？',
     yes: { l: '请她讲', fx: { mem: 6, san: -4, tide: 2 }, re: '（她讲了一个小时。她讲的东西，第二天你在档案里找到了。）' },
     no: { l: '改天', fx: { bond: -3, san: 3, core: 2 }, re: '（她把帽子摘下来抱在怀里。）好吧。帽子也不着急。）' },
+  },
+
+  // ============================================================ 神王·图鲁
+  {
+    id: 'tul-throne', who: 'tulu-godking', act: 1,
+    say: '余要一间屋子。不要大——要最上面那间。余坐在里面的时候，得能看见底下所有的灯。',
+    yes: { l: '把顶楼给他', fx: { core: -3, bond: 4, tide: 3 }, re: '（顶楼的灯亮了一夜。第二天早上，走廊的砖缝里长出盐。）' },
+    no: { l: '只给地下室', fx: { bond: -4, san: 3, mem: 2 }, re: '（他没争。只是把手掌按在墙上。那面墙后来一直是凉的。）' },
+  },
+  {
+    id: 'tul-tentacle', who: 'tulu-godking', act: 2,
+    say: '雾里有东西在往上爬。余的触腕能替你们守住那面墙——但余要它们自己挑守哪一段。',
+    yes: { l: '让触腕上墙', fx: { tide: -5, bond: 3, san: -3, core: -2 }, re: '（那一夜墙外安静得反常。守夜的人说，触腕一动不动挂在墙上，像一排帘子。）' },
+    no: { l: '让学生守', fx: { bond: 4, tide: 4, core: -4 }, re: '（他侧过头看了你很久。）学生。……余十七岁的时候，自己守过一面墙。' },
+  },
+  {
+    id: 'tul-epitaph', who: 'tulu-godking', act: 3,
+    say: '给余一块碑。上面什么都不必写，只刻「余在这里坐过」。你们这所学校的结局，最后也就剩下碑。',
+    yes: { l: '立碑', fx: { mem: 6, bond: 3, core: -4 }, re: '（碑立在操场边上。第二天有人发现，碑背面多了一行小字：「底下还有人」。）' },
+    no: { l: '不立', fx: { mem: -4, bond: -3, san: 3 }, re: '（他把披风收起来。）也好。记不住的东西，本来也不配有碑。' },
   },
 
   // ============================================================ 萨摩不耶

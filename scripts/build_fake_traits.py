@@ -126,6 +126,18 @@ SWAP = [
 
 SALT = 'morimens-fake-traits'
 
+# 几个人不能靠哈希随机：神王·图鲁的自称是「余」，随口一句也不是「我上来的时候带了半口气」。
+# 这里的条目直接写死，其余仍按界域池子抽。
+OVERRIDE = {
+    '神王·图鲁': {
+        'self': '余',
+        'eye': '灰青',
+        'item': '一枚刻着自己名字的旧印',
+        'pet': '',
+        'line': '余的王座，不在你们数的这一层。',
+    },
+}
+
 
 def h(*parts):
     s = SALT + '|' + '|'.join(str(p) for p in parts)
@@ -152,6 +164,8 @@ def main():
             'pet': pet,
             'line': pick(LINE[realm], cid, 'line'),
         }
+        if cid in OVERRIDE:
+            c['tr'].update(OVERRIDE[cid])
     d['_traitsNote'] = ('每人的底细：self 自称 / eye 瞳色 / item 随身物 / pet 随行动物（多数为空）/ line 口头禅。'
                         '伪人抄错的那一条可能落在其中任何一项；这些没有档案可查，只能靠图鉴里核实过的真值对照。'
                         '瞳色按界域色系分配（不按立绘统计——统计只有一半能猜对，见脚本注释）。')
