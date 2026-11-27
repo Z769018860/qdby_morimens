@@ -43,6 +43,10 @@
 // 部署路径：edge-functions/api/[[default]].js  →  线上 /api/*，下面会自己剥掉 /api 前缀。
 
 import { getStore as blobGetStore } from './_lib/pages-blob.js';
+// 看报站的留言板 / 爱的节奏榜 / 访问统计原来是外部 Waline（跑在 Vercel 上），
+// 2026-11-27 那个部署因免费额度超额被平台暂停（全路径 402 DEPLOYMENT_DISABLED），
+// 这里补一层 Waline 协议兼容的接口，数据落到本站同一份 Blob。
+import { handleWaline } from './_lib/waline.js';
 
 // 本地用不到 EdgeOne CLI，就手写一个 KV 兜底，方便 node 直接跑测试
 const LIKE_MAX = 10;              // 每人每天最多点赞数
@@ -380,7 +384,7 @@ async function whoami(request, env, kv) {
     return me;
   }
 
-  const base = String((env && env.WALINE_URL) || 'https://textbox.qingdengbuyi.top').replace(/\/+$/, '');
+  const base = String((env && env.WALINE_URL) || 'https://morimens.qingdengbuyi.top/api/waline').replace(/\/+$/, '');
 
   // 验身份打的是「带 Bearer 的 GET /api/token」，不是 GET /api/user。
   // Waline 的 /api/user 只有 POST(注册) / PUT(改资料) / DELETE(注销)，压根没有 GET ——
@@ -2043,7 +2047,8 @@ export async function onRequest(context) {
         // v14 赠礼再加 tk（召唤券）/ gold（金币）；多了 GET /admin/bugs（后台看 BUG 反馈详情）
         // v19 多了 /wboss /wboss/hit /wboss/claim（挂机前夜的世界 Boss：全服共享血池 + 周结算排名）
         // v20 世界 Boss 加了 /wboss/start（挑战票据，防伪造上报）与单次伤害上限、血池按人数伸缩
-        ok: Boolean(store), service: 'zjtt', v: 20, runtime: 'edgeone',
+        // v21 多了 /waline/*（Waline 协议兼容层：看报站的留言板、爱的节奏榜、访问统计从 Vercel 迁进来）
+        ok: Boolean(store), service: 'zjtt', v: 21, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
@@ -2055,6 +2060,11 @@ export async function onRequest(context) {
     }
 
     const kv = storeOf(env);
+
+    // 看报站的 Waline 兼容层（/api/waline/*）：评论、赞踩、访问计数
+    if (path === '/waline' || path.startsWith('/waline/')) {
+      return await handleWaline(request, env, kv, url, cors, path);
+    }
 
     if (path === '/likes' && method === 'GET') return await getLikes(request, env, kv, url, cors);
     if (path === '/like' && method === 'POST') return await postLike(request, env, kv, cors);

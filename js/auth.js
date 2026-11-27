@@ -2,7 +2,7 @@
 // 用户名在内部映射为 <name>@zjtt.local 的邮箱形式，对用户只暴露「用户名 + 密码」。
 import { h, store, toast } from './common.js';
 
-const SERVER = 'https://textbox.qingdengbuyi.top';
+const SERVER = 'https://morimens.qingdengbuyi.top/api/waline';
 const DOMAIN = 'zjtt.local';
 const KEY = { token: 'authToken', user: 'authUser' };
 

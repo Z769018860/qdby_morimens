@@ -103,7 +103,7 @@ sqlite.exec(fs.readFileSync(schemaPath, 'utf8'));
 
 const env = {
   DB: makeD1(sqlite),
-  WALINE_URL: process.env.WALINE_URL || 'https://textbox.qingdengbuyi.top',
+  WALINE_URL: process.env.WALINE_URL || 'https://morimens.qingdengbuyi.top/api/waline',
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || '',
 };
 
