@@ -1037,6 +1037,48 @@ console.log('\n[16] 跨域：桌面版（app://local）与镜像站要能调接�
   eq('伪造的 http://app:// 不放行', (await call('/board', { origin: 'http://app://local' })).headers.get('access-control-allow-origin'), null);
 }
 
+console.log('\n[17] 重放评论索引：PUT 偶发 502 要重试，不能整批失败');
+{
+  const kv = fakeKV();
+  kv._m.set('wt_secret', 'unit-test-secret');
+  kv._m.set('admin_uid', '90001');
+  const b64url = (buf) => Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const sign = (u, n) => {
+    const body = b64url(Buffer.from(JSON.stringify({ u, n, e: Date.now() + 86400e3 })));
+    return 'Bearer ' + body + '.' + b64url(crypto.createHmac('sha256', 'unit-test-secret').update(body).digest());
+  };
+  const A = { Authorization: sign('90001', '姜酒') };
+
+  const p1 = '/zjtt/u/90001-old';
+  const p2 = '/qdby_chinese';
+  kv._m.set('wc_' + sha('c:' + p1), JSON.stringify({ v: 1, n: 2, list: [
+    { objectId: 101, nick: 'a', url: p1, comment: '老一', orig: '老一', like: 0, children: [] },
+    { objectId: 102, nick: 'b', url: p1, comment: '老二', orig: '老二', like: 0, children: [] },
+  ] }));
+  kv._m.set('wc_' + sha('c:' + p2), JSON.stringify({ v: 1, n: 1, list: [
+    { objectId: 135, nick: 'c', url: p2, comment: '老看报', orig: '老看报', like: 0, children: [] },
+  ] }));
+
+  const realPut = kv.put.bind(kv);
+  let boom = 2;   // 前两次写索引都 502（模拟 COS 网关抽风）
+  kv.put = async (k, v) => {
+    if (String(k).startsWith('wci_') && boom-- > 0) throw new Error('COS returned 502');
+    return realPut(k, v);
+  };
+  const call = makeCaller({ zjtt_kv: kv });
+  const r = await call('/waline/api/reindex-comments', { method: 'POST', headers: A });
+  eq('偶发 502 → 仍然 200', r.status, 200);
+  eq('三条老评论都补上索引', r.json.data && r.json.data.indexed, 3);
+  eq('重试后没有失败项', r.json.data && r.json.data.failed, 0);
+  check('索引内容正确', kv._m.get('wci_101') === p1 && kv._m.get('wci_135') === p2, { a: kv._m.get('wci_101'), b: kv._m.get('wci_135') });
+
+  // 一直失败：不抛 500，把失败数报出来（重放是幂等的，下次再跑就行）
+  kv.put = async (k, v) => { if (String(k).startsWith('wci_')) throw new Error('COS returned 502'); return realPut(k, v); };
+  const r2 = await call('/waline/api/reindex-comments', { method: 'POST', headers: A });
+  eq('持续性 502 → 仍是 200（可重复重放）', r2.status, 200);
+  eq('失败数如实上报', r2.json.data && r2.json.data.failed, 3);
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
   console.log('\n失败项：');
   for (const f of fails) console.log('  - ' + f);

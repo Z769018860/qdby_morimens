@@ -1478,8 +1478,22 @@ async function reindexComments(request, env, kv, cors) {
     if (!p) continue;
     for (const c of p.list) if (c && c.objectId) jobs.push({ id: c.objectId, path: p.path });
   }
-  await mapLimit(jobs, 8, async (j) => { await kv.put(commentIndex(j.id), j.path); });
-  return ok({ paths: paths.filter(Boolean).length, indexed: jobs.length }, cors);
+  // 并发别开大：Blob 的 PUT 在 8 并发下会被 COS 网关回 502（2026-11-27 实测，
+  // 单条提交没事，批量重放必挂）。改成 2 并发 + 单键重试，失败只记账不中断整批。
+  const failed = [];
+  await mapLimit(jobs, 2, async (j) => {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        await kv.put(commentIndex(j.id), j.path);
+        return true;
+      } catch (e) {
+        if (attempt === 3) { failed.push(j.id); return false; }
+        await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
+      }
+    }
+    return false;
+  });
+  return ok({ paths: paths.filter(Boolean).length, indexed: jobs.length - failed.length, failed: failed.length }, cors);
 }
 
 // ------------------------------------------------------------------ 全站最新索引

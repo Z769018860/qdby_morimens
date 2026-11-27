@@ -2138,7 +2138,9 @@ export async function onRequest(context) {
         // v28 补上 Waline 客户端要的 PUT/DELETE /comment/:id（点评论的赞、删自己的留言），
         //     评论写入时记 wci_ 索引；POST /reindex-comments 给迁移导入的老评论补索引
         // v29 CORS 放行 app:// 源（桌面版 Electron 的页面在 app://local 下）
-        ok: Boolean(store), service: 'zjtt', v: 29, runtime: 'edgeone',
+        // v30 重放评论索引改成 2 并发 + 单键重试：8 并发写 Blob 会被 COS 网关 502 打回，
+        //     整批 abort 导致一条索引都补不上；现在失败只记账，重放是幂等的
+        ok: Boolean(store), service: 'zjtt', v: 30, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
