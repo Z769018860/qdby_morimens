@@ -2056,7 +2056,8 @@ export async function onRequest(context) {
         // v21 多了 /waline/*（Waline 协议兼容层：看报站的留言板、爱的节奏榜、访问统计从 Vercel 迁进来）
         // v22 兼容层适配真实 Waline v3 客户端（双层 /api 归一、ISO 时间、time 字段），跨域放行自家域名，导入端点加 purge
         // v23 /health 多 envSet（只报环境变量有没有配上，不报值），用来判断「改了变量但没点部署」
-        ok: Boolean(store), service: 'zjtt', v: 23, runtime: 'edgeone',
+        // v24 密码校验同时支持 bcrypt（历史 Waline 库的 $2a$）与 phpass（新注册的 $P$）
+        ok: Boolean(store), service: 'zjtt', v: 24, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
