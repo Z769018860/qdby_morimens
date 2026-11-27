@@ -59,6 +59,8 @@ const IDX_CAP = 300;
 const DEFAULT_ORIGINS = [
   'https://z769018860.github.io',
   'https://morimens.qingdengbuyi.top',
+  // 看报站（qdby_chinese）的 apex 域，留言板/节奏榜的请求从这儿发出
+  'https://qingdengbuyi.top',
   'https://morimens-sumon.edgeone.dev',
   'http://localhost:8000',
   'http://127.0.0.1:8000',
@@ -108,7 +110,11 @@ function corsHeaders(origin, env) {
   const local = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
   // 预览域每次部署都会换（xxx.edgeone.dev），按后缀放行，别让预览页调不通
   const preview = /^https:\/\/[a-z0-9-]+\.(edgeone\.dev|edgeone\.app|edgeone\.run)$/i.test(origin);
-  if (origin && (local || preview || list.includes('*') || list.includes(origin))) {
+  // 自家域名（看报 qingdengbuyi.top / 小游戏 morimens.qingdengbuyi.top）无条件放行：
+  // 否则一旦控制台配了 ALLOWED_ORIGINS，DEFAULT_ORIGINS 就被整份顶掉，留言板会静默跨域失败。
+  // 同时认 http：EdgeOne 不做 http→https 跳转，从 http 进来的人否则一样加载不出留言。
+  const own = /^https?:\/\/([a-z0-9-]+\.)?qingdengbuyi\.top$/i.test(origin);
+  if (origin && (local || own || preview || list.includes('*') || list.includes(origin))) {
     h['Access-Control-Allow-Origin'] = origin;
   }
   return h;
