@@ -2054,7 +2054,8 @@ export async function onRequest(context) {
         // v19 多了 /wboss /wboss/hit /wboss/claim（挂机前夜的世界 Boss：全服共享血池 + 周结算排名）
         // v20 世界 Boss 加了 /wboss/start（挑战票据，防伪造上报）与单次伤害上限、血池按人数伸缩
         // v21 多了 /waline/*（Waline 协议兼容层：看报站的留言板、爱的节奏榜、访问统计从 Vercel 迁进来）
-        ok: Boolean(store), service: 'zjtt', v: 21, runtime: 'edgeone',
+        // v22 兼容层适配真实 Waline v3 客户端（双层 /api 归一、ISO 时间、time 字段），跨域放行自家域名，导入端点加 purge
+        ok: Boolean(store), service: 'zjtt', v: 22, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
