@@ -3,7 +3,9 @@
 // 因为 rendered 的 comment 会被 markdown 改写引号。
 import { encode, decodeWork, decodeRate, decodeDel, TAG_RATE, TAG_DEL } from './workshop.js';
 
-const SERVER = 'https://textbox.qingdengbuyi.top';
+// 后端：2026-11-27 起 Waline 实例并入主站 EdgeOne 函数（原 textbox 域被 Vercel 停用，
+// 全路径 402），路径前缀也从 /api 变成 /api/waline。
+const SERVER = 'https://morimens.qingdengbuyi.top/api/waline';
 const PATH = '/dr-workshop';
 const PAGE = 100, MAX_PAGE = 3;
 
@@ -38,7 +40,7 @@ async function req(url, opt = {}, ms = 20000) {
   } finally { clearTimeout(t); }
 }
 
-const post = (comment, nick) => req(`${SERVER}/api/comment`, {
+const post = (comment, nick) => req(`${SERVER}/comment`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ comment, nick: (nick || '无名守密人').slice(0, 20), mail: mailOf(nick), link: '', url: PATH, ua: navigator.userAgent }),
@@ -64,7 +66,7 @@ export async function withdraw(id, nick) {
 async function fetchAll() {
   const out = [];
   for (let p = 1; p <= MAX_PAGE; p++) {
-    const r = await req(`${SERVER}/api/comment?path=${encodeURIComponent(PATH)}&page=${p}&pageSize=${PAGE}&type=time`);
+    const r = await req(`${SERVER}/comment?path=${encodeURIComponent(PATH)}&page=${p}&pageSize=${PAGE}`);
     if (!r.ok) return { ok: false, err: r.err, rows: out };
     const d = r.data || {};
     out.push(...(d.data || []));

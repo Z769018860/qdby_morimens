@@ -1288,12 +1288,15 @@ const { store } = m_common;
 // 地址优先取 store 里的 apiBase（设置里可改，方便临时指向本地后端），其次是下面的常量。
 
 
-// 部署后把这里换成接口地址（末尾要带 /api）。只有「站点不在自家域名下」时才会用到它，
-// 比如 GitHub Pages 那份镜像站；站点本身就部署在 EdgeOne 上时走同源 /api，不用配。
+// 部署后把这里换成接口地址（末尾要带 /api）。只有「站点不在自家域名下」时才会用到它：
+// GitHub Pages 那份镜像站，以及桌面版（Electron 的 app:// 协议）。
+// 站点本身就部署在 EdgeOne 上时走同源 /api，不用配。
 // 用 `node scripts/set_api_base.mjs https://<你的域名>/api` 改这一行，别手改错。
-const API_BASE = 'https://zjtt-api.workers.dev';
+const EDGE_API = 'https://morimens.qingdengbuyi.top/api';
+const API_BASE = EDGE_API;
 
 // 还是占位符就当作「没配后端」：各模块退回纯本机模式，不会去打一个不存在的域名
+// （已经填了真实地址，这个判断留着当保险：以后有人改回占位符，ready() 仍然认得出）
 const PLACEHOLDER = 'https://zjtt-api.workers.dev';
 
 // 本地开发：站点由 scripts/preview.mjs 起在 8899（可用 PREVIEW_SITE_PORT 改），
@@ -1319,6 +1322,9 @@ const api = {
   get base() {
     const custom = String(store.get('apiBase', '') || '').trim().replace(/\/+$/, '');
     if (custom) return custom;
+    // 桌面版（Electron）的页面挂在 app://local 下，没有同源后端；
+    // 不单独认这一个协议的话会拼出 app://local/api，所有联网功能静默 404。
+    if (location.protocol === 'app:') return EDGE_API;
     if (isLocalDev()) return LOCAL;
     // 站点和函数在同一个项目里（EdgeOne 的自定义域名、预览域都算）就直接同源调，
     // 好处是换域名、换预览地址都不用改代码，也不会因为域名写错打到别人的站上
@@ -1389,7 +1395,7 @@ const api = {
   put(path, body) { return this.call(path, { method: 'PUT', body }); },
   del(path) { return this.call(path, { method: 'DELETE' }); },
 };
-return { API_BASE, ApiError, api };
+return { EDGE_API, API_BASE, ApiError, api };
 })();
 
 // ---- js/duel/tiers.js

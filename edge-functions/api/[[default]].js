@@ -108,13 +108,17 @@ function corsHeaders(origin, env) {
     Vary: 'Origin',
   };
   const local = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  // 桌面版（Electron）的页面挂在 app://local 下，跨域来调接口时 Origin 就是这个。
+  // 这个协议只有我们自己打包的客户端会发，外部网页伪造不出可用的 app:// 源，
+  // 所以直接放行；不放行的话桌面版登录/云存档/榜单全是跨域失败。
+  const desktop = /^app:\/\/[a-z0-9.\-]+$/i.test(origin);
   // 预览域每次部署都会换（xxx.edgeone.dev），按后缀放行，别让预览页调不通
   const preview = /^https:\/\/[a-z0-9-]+\.(edgeone\.dev|edgeone\.app|edgeone\.run)$/i.test(origin);
   // 自家域名（看报 qingdengbuyi.top / 小游戏 morimens.qingdengbuyi.top）无条件放行：
   // 否则一旦控制台配了 ALLOWED_ORIGINS，DEFAULT_ORIGINS 就被整份顶掉，留言板会静默跨域失败。
   // 同时认 http：EdgeOne 不做 http→https 跳转，从 http 进来的人否则一样加载不出留言。
   const own = /^https?:\/\/([a-z0-9-]+\.)?qingdengbuyi\.top$/i.test(origin);
-  if (origin && (local || own || preview || list.includes('*') || list.includes(origin))) {
+  if (origin && (local || desktop || own || preview || list.includes('*') || list.includes(origin))) {
     h['Access-Control-Allow-Origin'] = origin;
   }
   return h;
@@ -2133,7 +2137,8 @@ export async function onRequest(context) {
         //     写入侧也不再把这些塞进 recent
         // v28 补上 Waline 客户端要的 PUT/DELETE /comment/:id（点评论的赞、删自己的留言），
         //     评论写入时记 wci_ 索引；POST /reindex-comments 给迁移导入的老评论补索引
-        ok: Boolean(store), service: 'zjtt', v: 28, runtime: 'edgeone',
+        // v29 CORS 放行 app:// 源（桌面版 Electron 的页面在 app://local 下）
+        ok: Boolean(store), service: 'zjtt', v: 29, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),

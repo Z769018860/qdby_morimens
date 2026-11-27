@@ -10,7 +10,7 @@ import { account } from './account.js';
 
 // 接口地址：和 js/api.js 的 api.base 同一套判断，但不 import api.js（那会多带五十来 KB，
 // 而我们只需要一个字符串）。改规则时两处一起改。
-const PLACEHOLDER = 'https://zjtt-api.workers.dev';
+const EDGE_API = 'https://morimens.qingdengbuyi.top/api';
 function base() {
   // common.js 的 store 是 JSON 存的（写进去的字符串带引号），这里照它的样子解一次
   let custom = '';
@@ -21,8 +21,9 @@ function base() {
   if (custom) return custom;
   const h = location.hostname;
   if (h === 'localhost' || h === '127.0.0.1') return 'http://127.0.0.1:8795';
-  if (!/\.github\.io$/i.test(h)) return location.origin + '/api';
-  return PLACEHOLDER.replace(/\/+$/, '');
+  // 桌面版（app://local）与 GitHub Pages 镜像都没有同源后端，只能打正式域名
+  if (location.protocol === 'app:' || /\.github\.io$/i.test(h)) return EDGE_API;
+  return location.origin + '/api';
 }
 
 const TIMEOUT = 7000;

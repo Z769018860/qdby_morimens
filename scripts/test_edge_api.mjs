@@ -1021,6 +1021,22 @@ console.log('\n[15] 评论点赞 / 删自己的留言 / 老评论索引');
   eq('非管理员不能重建索引', (await call('/waline/api/reindex-comments', { method: 'POST', headers: B })).status, 403);
 }
 
+console.log('\n[16] 跨域：桌面版（app://local）与镜像站要能调接口');
+{
+  const kv = fakeKV();
+  const call = makeCaller({ zjtt_kv: kv, WALINE_URL: 'https://example.invalid' });
+
+  const desk = await call('/health', { origin: 'app://local' });
+  eq('app://local 的预检 → 204', (await call('/health', { method: 'OPTIONS', origin: 'app://local' })).status, 204);
+  eq('预检回显 app://local', (await call('/health', { method: 'OPTIONS', origin: 'app://local' })).headers.get('access-control-allow-origin'), 'app://local');
+  eq('实际请求也带 ACAO', desk.headers.get('access-control-allow-origin'), 'app://local');
+  eq('桌面版能读榜单', (await call('/board', { origin: 'app://local' })).status, 200);
+
+  eq('镜像站（github.io）放行', (await call('/board', { origin: 'https://z769018860.github.io' })).headers.get('access-control-allow-origin'), 'https://z769018860.github.io');
+  eq('陌生站点回空 ACAO', (await call('/board', { origin: 'https://evil.example' })).headers.get('access-control-allow-origin'), null);
+  eq('伪造的 http://app:// 不放行', (await call('/board', { origin: 'http://app://local' })).headers.get('access-control-allow-origin'), null);
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
   console.log('\n失败项：');
   for (const f of fails) console.log('  - ' + f);

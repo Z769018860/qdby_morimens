@@ -4,8 +4,8 @@
 // fetch('data/*.json') 也读不到。自定义协议注册成 standard + secure 之后，
 // 页面里的 module / fetch / cache 都按正常 http 源处理，和线上行为一致。
 //
-// 联网的地方只有一处：设置里的「检查更新」（GET latest.json，几 KB）。
-// 其余请求全被协议处理器直接从本地磁盘读，不会有任何外网访问。
+// 联网的地方只有两类：① 账号 / 云存档 / 榜单（登录后才会发请求，不登录就是纯离线）；
+// ② 设置里的「检查更新」（GET latest.json，几 KB）。其余请求全被协议处理器直接从本地磁盘读。
 const { app, BrowserWindow, Menu, protocol, net, ipcMain, shell, dialog } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -13,6 +13,8 @@ const { pathToFileURL } = require('node:url');
 
 const WEB = path.join(__dirname, 'web');
 const STATE = path.join(app.getPath('userData'), 'window.json');
+// 页面在 app://local 下没有同源后端，账号相关请求都打这个地址（preload.js 会写进 apiBase）
+const API_BASE = 'https://morimens.qingdengbuyi.top/api';
 // 更新清单：仓库里维护，发版时改版本号 + 传新包即可
 const UPDATE_URL = 'https://raw.githubusercontent.com/Z769018860/qdby_morimens/main/desktop/latest.json';
 
@@ -46,7 +48,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      additionalArguments: ['--zjtt-version=' + app.getVersion()],
+      additionalArguments: ['--zjtt-version=' + app.getVersion(), '--zjtt-api=' + API_BASE],
     },
   });
 
@@ -106,7 +108,7 @@ function buildMenu() {
             type: 'info',
             title: '关于',
             message: '忘忘同人小游戏 · 桌面版 v' + app.getVersion(),
-            detail: '《忘却前夜》非官方同人小游戏合集。\n\n无盈利、无充值，与官方无关；素材版权归原权利人所有。\n桌面版完全离线运行，只在你点「检查更新」的时候联网。',
+            detail: '《忘却前夜》非官方同人小游戏合集。\n\n无盈利、无充值，与官方无关；素材版权归原权利人所有。\n不登录也能完全离线玩；登录账号后会联网同步云存档、榜单与「忘忘看报」的评论，检查更新也需要网络。',
             buttons: ['好'],
           }),
         },
