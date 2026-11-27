@@ -2129,7 +2129,9 @@ export async function onRequest(context) {
         //     评论头像补兜底（Waline v3 只在 avatar 非空时画头像，迁移后全空导致一个头像都不显示）
         // v26 whoami 改成本地验票（不再回源 fetch 自己的域名 —— 那条路在 EdgeOne 上拿不到身份，
         //     管理页因此永远「需要登录」）；/health?self=1 可诊断回源到底卡在哪
-        ok: Boolean(store), service: 'zjtt', v: 26, runtime: 'edgeone',
+        // v27 留言板的「全站最新」滤掉机器写入（云档案 ZJ1D:、/zjtt/ 下的内部记录），
+        //     写入侧也不再把这些塞进 recent
+        ok: Boolean(store), service: 'zjtt', v: 27, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
