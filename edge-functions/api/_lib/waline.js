@@ -649,6 +649,32 @@ async function addComment(request, kv, cors) {
   return ok(row, cors);
 }
 
+// ------------------------------------------------------------------ 全站最新索引
+// 扫全部 wc_ 键重建 wcr。导入收尾与清理都要用，抽出来避免两处逻辑漂移。
+// 机器提交（MORIMENS_*_V1: 这类 payload）不进「最新留言」，留言板不该显示它们。
+async function rebuildRecent(kv) {
+  let keys = [];
+  try { keys = await kv.list('wc_'); } catch { keys = []; }
+  const all = [];
+  await mapLimit(keys.slice(0, 500), 6, async (key) => {
+    const doc = await readObj(kv, key, true);
+    for (const c of (doc && Array.isArray(doc.list) ? doc.list : [])) {
+      if (/MORIMENS_[A-Z_]+_V\d+:/.test(String(c.orig || ''))) continue;
+      all.push({
+        objectId: c.objectId, nick: c.nick, url: c.url, avatar: '',
+        link: c.link, comment: c.comment, orig: c.orig,
+        time: Date.parse(c.insertedAt) || Number(c.objectId) || 0,
+        createdAt: c.createdAt, insertedAt: c.insertedAt,
+        like: c.like || 0, status: 'approved', sticky: Boolean(c.sticky), children: [],
+      });
+    }
+  });
+  all.sort((a, b2) => (Date.parse(b2.insertedAt) || 0) - (Date.parse(a.insertedAt) || 0));
+  const top = all.slice(0, RECENT_CAP);
+  await writeObj(kv, 'wcr', top);
+  return top.length;
+}
+
 // ------------------------------------------------------------------ 一次性导入（历史数据）
 // 老 Waline 库导出的 JSON 分批灌进来，必须带 X-Import-Token（对应 env WALINE_IMPORT_TOKEN）。
 // 这条路径能改写全部评论，绝不能留无鉴权的口子；没配 token 就直接 503。
@@ -664,6 +690,27 @@ async function importDump(request, env, kv, cors) {
   const counters = Array.isArray(b.counters) ? b.counters.slice(0, 200) : [];
   const users = Array.isArray(b.users) ? b.users.slice(0, 100) : [];
   const finalize = Boolean(b.finalize);
+
+  // 清理：{"purge":["/__probe__"]}，删掉这些 path 下的全部评论、点赞记录与计数。
+  // 只给迁移/排障用，同样受 X-Import-Token 保护；删完请顺带传 finalize:true 重建 recent 索引。
+  const purgePaths = Array.isArray(b.purge)
+    ? b.purge.map((p) => normPath(str(p, 512))).filter(Boolean).slice(0, 20)
+    : [];
+  let purged = 0;
+  for (const p of purgePaths) {
+    const h = await H('c', p);
+    const doc = await readObj(kv, 'wc_' + h);
+    if (doc) purged += Array.isArray(doc.list) ? doc.list.length : 0;
+    await kv.delete('wc_' + h);
+    await kv.delete('wa_' + await H('w', p));
+    // 顺手清掉访客的点赞去重痕迹，别留孤儿键
+    let dkeys = [];
+    try { dkeys = await kv.list('wad_' + h + '_'); } catch { dkeys = []; }
+    for (const k of dkeys.slice(0, 500)) await kv.delete(typeof k === 'string' ? k : k.key);
+  }
+
+  // 单纯清理时也要重建一次 recent，否则首页「最新留言」还挂着已删的条目
+  const doFinalize = finalize || purgePaths.length > 0;
 
   let inserted = 0;
   let skipped = 0;
@@ -761,28 +808,7 @@ async function importDump(request, env, kv, cors) {
 
   // 最后一批传 finalize:true，重建「全站最新留言」索引
   let recentCount = null;
-  if (finalize) {
-    let keys = [];
-    try { keys = await kv.list('wc_'); } catch { keys = []; }
-    const all = [];
-    await mapLimit(keys.slice(0, 500), 6, async (key) => {
-      const doc = await readObj(kv, key, true);
-      for (const c of (doc && Array.isArray(doc.list) ? doc.list : [])) {
-        if (/MORIMENS_[A-Z_]+_V\d+:/.test(String(c.orig || ''))) continue;
-        all.push({
-          objectId: c.objectId, nick: c.nick, url: c.url, avatar: '',
-          link: c.link, comment: c.comment, orig: c.orig,
-          time: Date.parse(c.insertedAt) || Number(c.objectId) || 0,
-          createdAt: c.createdAt, insertedAt: c.insertedAt,
-          like: c.like || 0, status: 'approved', sticky: Boolean(c.sticky), children: [],
-        });
-      }
-    });
-    all.sort((a, b2) => (Date.parse(b2.insertedAt) || 0) - (Date.parse(a.insertedAt) || 0));
-    const top = all.slice(0, RECENT_CAP);
-    await writeObj(kv, 'wcr', top);
-    recentCount = top.length;
-  }
+  if (doFinalize) recentCount = await rebuildRecent(kv);
 
   return ok({
     inserted,
@@ -791,6 +817,7 @@ async function importDump(request, env, kv, cors) {
     usersSkipped: skippedUsers,
     paths: byPath.size,
     recent: recentCount,
+    ...(purgePaths.length ? { purged, purgePaths } : {}),
   }, cors);
 }
 
