@@ -372,6 +372,44 @@ async function touchUser(kv, me) {
   await kv.put('usr_n', String(n + 1));
 }
 
+// 本站 token 的格式（见 _lib/waline.js 的 signToken）：
+//   base64url({"u":uid,"n":name,"e":过期毫秒}) + '.' + base64url(HMAC-SHA256)
+// 密钥取 WALINE_JWT_SECRET，没配就用存储里那份随机值（键名 wt_secret，和兼容层同一份）。
+const b64urlOf = (bytes) => btoa(String.fromCharCode(...bytes))
+  .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64urlToBytes = (text) => {
+  const s = String(text).replace(/-/g, '+').replace(/_/g, '/');
+  return Uint8Array.from(atob(s + '='.repeat((4 - (s.length % 4)) % 4)), (c) => c.charCodeAt(0));
+};
+
+// 本地验票。老 Vercel Waline 签的票（无点、纯 hex）会在这里返回 null，交给回源兜底。
+async function verifySiteToken(env, kv, token) {
+  try {
+    const dot = token.indexOf('.');
+    if (dot <= 0) return null;
+    const body = token.slice(0, dot);
+    const sig = token.slice(dot + 1);
+    if (!sig) return null;
+    const secret = String((env && env.WALINE_JWT_SECRET) || '') || String((await kv.get('wt_secret')) || '');
+    if (!secret) return null;
+    const key = await crypto.subtle.importKey(
+      'raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+    );
+    const mac = b64urlOf(new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body))));
+    if (mac.length !== sig.length) return null;
+    // 定长比较，别用 === 提前 return（签名比对不该泄露前缀是否相同）
+    let diff = 0;
+    for (let i = 0; i < mac.length; i++) diff |= mac.charCodeAt(i) ^ sig.charCodeAt(i);
+    if (diff) return null;
+    const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(body)));
+    if (!payload || !payload.u) return null;
+    if (Number(payload.e) && Number(payload.e) < Date.now()) return null;
+    return { uid: String(payload.u), name: str(payload.n || '', 40) };
+  } catch {
+    return null;
+  }
+}
+
 // 前端把 Waline 登录得到的 token 放在 Authorization 里；这里回源验一次，验过缓存进 sess
 async function whoami(request, env, kv) {
   const raw = String(request.headers.get('Authorization') || '');
@@ -387,6 +425,18 @@ async function whoami(request, env, kv) {
     const me = { uid: String(hit.uid), name: String(hit.name || ''), token };
     await touchUser(kv, me);
     memPut(memOf(kv, 'sess'), th, { me: { uid: me.uid, name: me.name } });
+    return me;
+  }
+
+  // 先本地验票。以前这里唯一的路是「回头 fetch 自己域名的 GET /api/token」，
+  // 而 EdgeOne 的边缘函数打不通自己的域名（实测 POST 登录拿到的票，回源验票永远拿不到
+  // objectId，管理页于是永远停在「需要登录」，还要白等 2 秒）。票本来就是本站签的，
+  // 密钥也在同一个 KV 里，直接验签就够了；下面保留回源，只为兼容别处签的老票。
+  const local = await verifySiteToken(env, kv, token);
+  if (local) {
+    const me = { ...local, token };
+    await kv.put('sess_' + th, JSON.stringify({ uid: me.uid, name: me.name, at: Date.now() }));
+    await touchUser(kv, me);
     return me;
   }
 
@@ -2034,6 +2084,24 @@ export async function onRequest(context) {
       try { store = storeOf(env); } catch (e) { store = null; why = (e && e.detail) || null; }
       const kind = store ? (store.__kind || 'kv') : null;
       const pin = String((env && env.ZJTT_STORE) || '').toLowerCase() || null;
+
+      // ?self=1 才做：边缘函数能不能 fetch 自己的域名。
+      // whoami 的回源验票就卡在这一步（拿不到身份、还白等 2 秒），
+      // 但那里只能静默降级；留这个开关，下次再遇到「回源失败」能一眼看出是 DNS、
+      // 是 4xx，还是响应体不对。
+      let self = null;
+      if (url.searchParams.get('self')) {
+        const sbase = String((env && env.WALINE_URL) || 'https://morimens.qingdengbuyi.top/api/waline').replace(/\/+$/, '');
+        const at = sbase + '/api/token';
+        const t0 = Date.now();
+        try {
+          const r = await fetch(at, { headers: { Accept: 'application/json' } });
+          const txt = await r.text();
+          self = { url: at, status: r.status, ms: Date.now() - t0, len: txt.length, head: txt.slice(0, 80) };
+        } catch (e) {
+          self = { url: at, ms: Date.now() - t0, error: String((e && e.message) || e).slice(0, 160) };
+        }
+      }
       return reply({
         // v 是接口版本，不是代码版本：v2 只有点赞/档案/题库，
         // v3 才有 /stats /whoami /admin/*（管理页靠它判断要不要提示「重新部署」），
@@ -2059,7 +2127,9 @@ export async function onRequest(context) {
         // v24 密码校验同时支持 bcrypt（历史 Waline 库的 $2a$）与 phpass（新注册的 $P$）
         // v25 评论区表情图不再被 HTML 转义（<img class="wl-emoji"> 原样放行）、旧域名表情地址压成站点相对路径、
         //     评论头像补兜底（Waline v3 只在 avatar 非空时画头像，迁移后全空导致一个头像都不显示）
-        ok: Boolean(store), service: 'zjtt', v: 25, runtime: 'edgeone',
+        // v26 whoami 改成本地验票（不再回源 fetch 自己的域名 —— 那条路在 EdgeOne 上拿不到身份，
+        //     管理页因此永远「需要登录」）；/health?self=1 可诊断回源到底卡在哪
+        ok: Boolean(store), service: 'zjtt', v: 26, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
@@ -2071,6 +2141,7 @@ export async function onRequest(context) {
           waJwt: Boolean(env && env.WALINE_JWT_SECRET),
           origins: Boolean(env && env.ALLOWED_ORIGINS),
         },
+        ...(self ? { self } : {}),
         ...(store ? {} : {
           error: 'no_store',
           detail: why || 'Blob 没拿到凭据（项目设置 → 环境变量，配 ZJTT_BLOB_TOKEN 与 ZJTT_BLOB_PROJECT）',

@@ -920,6 +920,42 @@ console.log('\n[13] Waline 留言板：表情图与头像');
   ]);
 }
 
+
+console.log('\n[14] 本地验票：管理页不该因为「回源验票打不通自己域名」而永远进不去');
+{
+  const kv = fakeKV();
+  const call = makeCaller({ zjtt_kv: kv, WALINE_URL: 'https://example.invalid' });
+  // 兼容层签票用的密钥（没配 WALINE_JWT_SECRET 时就存在这里）
+  kv._m.set('wt_secret', 'unit-test-secret');
+  const b64url = (buf) => Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const sign = (payload, secret = 'unit-test-secret') => {
+    const body = b64url(Buffer.from(JSON.stringify(payload)));
+    return body + '.' + b64url(crypto.createHmac('sha256', secret).update(body).digest());
+  };
+  const H = (t) => ({ Authorization: 'Bearer ' + t });
+
+  const tok = sign({ u: '70001', n: '姜酒', e: Date.now() + 86400e3 });
+  const w = await call('/whoami', { headers: H(tok) });
+  eq('本站签的票 → logged', w.json.logged, true);
+  eq('→ uid 取票里的', w.json.uid, '70001');
+  eq('→ 昵称取票里的', w.json.name, '姜酒');
+  eq('→ 显示名对上就认领管理员', w.json.admin, true);
+  eq('→ 认领后 admin_uid 钉住', kv._m.get('admin_uid'), '70001');
+
+  // 篡改签名 / 换密钥 / 过期都要拒（回源那条路指向 example.invalid，必然失败 → logged:false）
+  const bad = sign({ u: '70001', n: '姜酒', e: Date.now() + 86400e3 }, 'other-secret');
+  eq('换密钥签的票 → 不认', (await call('/whoami', { headers: H(bad) })).json.logged, false);
+  const tampered = sign({ u: '70002', n: '姜酒', e: Date.now() + 86400e3 }).replace(/^[^.]{4}/, 'AAAA');
+  eq('载荷被改 → 不认', (await call('/whoami', { headers: H(tampered) })).json.logged, false);
+  const expired = sign({ u: '70003', n: '姜酒', e: Date.now() - 1000 });
+  eq('过期的票 → 不认', (await call('/whoami', { headers: H(expired) })).json.logged, false);
+  eq('没有点号的老票 → 不认', (await call('/whoami', { headers: H('deadbeefcafe') })).json.logged, false);
+
+  // 验一次就写会话缓存，下次不再验签
+  const th = crypto.createHash('sha256').update('t:' + tok).digest('hex');
+  check('验过的票写进 sess 缓存', !!kv._m.get('sess_' + th));
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
   console.log('\n失败项：');
   for (const f of fails) console.log('  - ' + f);
