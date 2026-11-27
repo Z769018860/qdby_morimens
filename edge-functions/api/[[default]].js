@@ -2131,7 +2131,9 @@ export async function onRequest(context) {
         //     管理页因此永远「需要登录」）；/health?self=1 可诊断回源到底卡在哪
         // v27 留言板的「全站最新」滤掉机器写入（云档案 ZJ1D:、/zjtt/ 下的内部记录），
         //     写入侧也不再把这些塞进 recent
-        ok: Boolean(store), service: 'zjtt', v: 27, runtime: 'edgeone',
+        // v28 补上 Waline 客户端要的 PUT/DELETE /comment/:id（点评论的赞、删自己的留言），
+        //     评论写入时记 wci_ 索引；POST /reindex-comments 给迁移导入的老评论补索引
+        ok: Boolean(store), service: 'zjtt', v: 28, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),

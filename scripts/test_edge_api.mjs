@@ -29,11 +29,15 @@ function fakeKV() {
       m.set(key, String(value));
     },
     async delete(key) { m.delete(key); },
-    async list({ prefix = '', limit = 256, cursor = '' } = {}) {
+    // 和真实适配层保持同一套签名与返回：list(prefix, limit) → 字符串数组。
+    // （原来这里只认 {prefix, limit} 对象、又返回 {keys:[{key}]}，源码按字符串调用时
+    //   前缀过滤根本没生效，还会在 keys.map 处炸掉。）
+    async list(prefixOrOpts = '', limitOrCount = 256) {
+      const opts = typeof prefixOrOpts === 'string' ? { prefix: prefixOrOpts, limit: limitOrCount } : (prefixOrOpts || {});
+      const { prefix = '', limit = 256, cursor = '' } = opts;
       const keys = [...m.keys()].filter((k) => k.startsWith(prefix)).sort();
       const start = cursor ? keys.indexOf(cursor) : 0;
-      const page = keys.slice(Math.max(0, start), Math.max(0, start) + limit);
-      return { complete: start + limit >= keys.length, cursor: page[page.length - 1] || null, keys: page.map((k) => ({ key: k })) };
+      return keys.slice(Math.max(0, start), Math.max(0, start) + limit);
     },
   };
 }
@@ -965,6 +969,56 @@ console.log('\n[14] 本地验票：管理页不该因为「回源验票打不通
   // 验一次就写会话缓存，下次不再验签
   const th = crypto.createHash('sha256').update('t:' + tok).digest('hex');
   check('验过的票写进 sess 缓存', !!kv._m.get('sess_' + th));
+}
+
+
+console.log('\n[15] 评论点赞 / 删自己的留言 / 老评论索引');
+{
+  const kv = fakeKV();
+  kv._m.set('wt_secret', 'unit-test-secret');
+  kv._m.set('admin_uid', '90001');
+  const call = makeCaller({ zjtt_kv: kv });
+  const b64url = (buf) => Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const sign = (u, n) => {
+    const body = b64url(Buffer.from(JSON.stringify({ u, n, e: Date.now() + 86400e3 })));
+    return 'Bearer ' + body + '.' + b64url(crypto.createHmac('sha256', 'unit-test-secret').update(body).digest());
+  };
+  const A = { Authorization: sign('90001', '姜酒') };   // 作者 + 管理员
+  const B = { Authorization: sign('90002', '路人') };
+  const path = '/zjtt/u/90001-abc';
+
+  const made = await call('/waline/api/comment', { method: 'POST', headers: A, body: { url: path, comment: '这是一句人话' } });
+  const id = made.json.data.objectId;
+  check('发评论时记下 wci_ 索引', kv._m.get('wci_' + id) === path, kv._m.get('wci_' + id));
+  eq('登录用户的留言带 user_id', made.json.data.user_id, '90001');
+
+  const like1 = await call('/waline/api/comment/' + id, { method: 'PUT', headers: B, body: { comment: { like: true } } });
+  eq('PUT 点赞 → like 1', like1.json.data.like, 1);
+  const like2 = await call('/waline/api/comment/' + id, { method: 'PUT', headers: B, body: { comment: { like: true } } });
+  eq('同一人重复点赞不累加', like2.json.data.like, 1);
+  const like3 = await call('/waline/api/comment/' + id, { method: 'PUT', headers: B, body: { comment: { like: false } } });
+  eq('取消赞 → like 0', like3.json.data.like, 0);
+  eq('未登录不能点赞', (await call('/waline/api/comment/' + id, { method: 'PUT', body: { comment: { like: true } } })).status, 401);
+  eq('普通人不能删别人的留言', (await call('/waline/api/comment/' + id, { method: 'DELETE', headers: B })).status, 403);
+  eq('普通人不能置顶', (await call('/waline/api/comment/' + id, { method: 'PUT', headers: B, body: { comment: { sticky: true } } })).status, 403);
+
+  const del = await call('/waline/api/comment/' + id, { method: 'DELETE', headers: A });
+  eq('作者能删自己的留言', del.status, 200);
+  check('删完索引也清掉', !kv._m.get('wci_' + id));
+  const after = await call('/waline/api/comment?path=' + encodeURIComponent(path));
+  eq('删完列表里没有了', (after.json.data.data || []).length, 0);
+
+  // 迁移导入的老评论没有索引：补一次就能点赞
+  const oldId = 1700000000001;
+  const oldKey = 'wc_' + sha('c:' + '/zjtt/u/90002-old');
+  kv._m.set(oldKey, JSON.stringify({ v: 1, n: 1, list: [{ objectId: oldId, nick: '老用户', url: '/zjtt/u/90002-old', comment: '老留言', orig: '老留言', like: 0, user_id: null, children: [] }] }));
+  eq('没有索引时点赞 → 404', (await call('/waline/api/comment/' + oldId, { method: 'PUT', headers: B, body: { comment: { like: true } } })).status, 404);
+  const ri = await call('/waline/api/reindex-comments', { method: 'POST', headers: A });
+  eq('重建索引成功', ri.status, 200);
+  check('老评论索引补上了', kv._m.get('wci_' + oldId) === '/zjtt/u/90002-old', kv._m.get('wci_' + oldId));
+  const like4 = await call('/waline/api/comment/' + oldId, { method: 'PUT', headers: B, body: { comment: { like: true } } });
+  eq('补完索引后老评论能点赞', like4.json.data.like, 1);
+  eq('非管理员不能重建索引', (await call('/waline/api/reindex-comments', { method: 'POST', headers: B })).status, 403);
 }
 
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {

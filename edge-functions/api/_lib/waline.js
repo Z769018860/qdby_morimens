@@ -179,6 +179,12 @@ function defaultAvatar(nick) {
 const isMachineNote = (raw, path) => /^(?:ZJ1D:|MORIMENS_[A-Z_]+_V\d+:)/.test(String(raw || ''))
   || /^\/zjtt\//.test(String(path || ''));
 
+// 单条评论的定位索引：wci_<objectId> = 它所在的 path。
+// Waline 客户端点「赞」/「删自己的留言」都是 PUT|DELETE /comment/<objectId>，不带 path，
+// 而我们是按 path 存的，没有索引就只能全表扫。新评论写入时顺手记一条；
+// 迁移导入的老评论用 POST /waline/reindex-comments 补一次。
+const commentIndex = (id) => 'wci_' + String(id);
+
 function presentComment(c) {
   if (!c || typeof c !== 'object') return c;
   const raw = typeof c.orig === 'string' && c.orig ? c.orig : String(c.comment || '');
@@ -1288,11 +1294,15 @@ async function listComments(url, kv, cors) {
   return ok(pageOf(doc, url), cors);
 }
 
-async function addComment(request, kv, cors) {
+async function addComment(request, env, kv, cors) {
   const b = await readJson(request);
   const path = normPath(str(b.url || b.path || '/', 512));
   const raw = str(b.comment, TEXT_MAX).trim();
   if (!raw) return fail(400, 'empty_comment', cors);
+
+  // 有登录态就把 uid 记进 user_id：删自己的留言要靠它判断归属
+  // （迁移导入的老评论没有这一列，只有管理员能删）
+  const me = await verifyToken(bearerOf(request), env, kv);
 
   const vh = await visitorOf(request);
   const qkey = 'wlq_' + vh + '_' + dayKeyFlat();
@@ -1327,6 +1337,7 @@ async function addComment(request, kv, cors) {
     children: [],
     pid: b.pid != null ? Number(b.pid) || null : null,
     rid: b.rid != null ? Number(b.rid) || null : null,
+    user_id: me ? String(me.u) : null,
   };
 
   // 平铺存储（读取时按 pid 组楼，见 nest()）：导入去重和分页都简单得多
@@ -1334,6 +1345,7 @@ async function addComment(request, kv, cors) {
   while (list.length > LIST_CAP) list.pop();
 
   await writeObj(kv, 'wc_' + await H('c', path), { v: 1, n: (Number(existing.n) || 0) + 1, list });
+  await kv.put(commentIndex(id), path);
   await kv.put(qkey, String(used + 1));
 
   // 全站最新索引（首页只显示人写的话，机器提交不进去占位置）
@@ -1341,7 +1353,7 @@ async function addComment(request, kv, cors) {
   if (!isMachine) {
     const recent = (await readObj(kv, 'wcr')) || [];
     const slim = {
-      objectId: id, nick, url: path, avatar: '', link,
+      objectId: id, nick, url: path, avatar: '', link, user_id: row.user_id,
       comment: row.comment, orig: raw,
       time: id, createdAt: row.createdAt, insertedAt: row.insertedAt,
       like: 0, status: 'approved', sticky: false, children: [],
@@ -1352,6 +1364,122 @@ async function addComment(request, kv, cors) {
   }
 
   return ok(presentComment(row), cors);
+}
+
+// ------------------------------------------------------------------ 单条评论：点赞 / 删除
+// Waline 客户端点「赞」是 PUT /comment/<objectId>（body {comment:{like:bool}}），
+// 删自己的留言是 DELETE /comment/<objectId>。两者都不带 path，靠 wci_ 索引定位。
+
+async function findCommentById(kv, id) {
+  const path = await kv.get(commentIndex(id));
+  if (!path) return null;
+  const key = 'wc_' + await H('c', path);
+  const doc = await readObj(kv, key);
+  const list = doc && Array.isArray(doc.list) ? doc.list : [];
+  const at = list.findIndex((c) => Number(c.objectId) === Number(id));
+  if (at < 0) return null;
+  return { path, key, doc, list, at, row: list[at] };
+}
+
+async function isAdminUser(kv, me) {
+  const pin = String((await kv.get('admin_uid')) || '');
+  return !!pin && String(me && me.u) === pin;
+}
+
+// 全站最新里那条也要跟着改，不然首页还显示旧数字
+async function patchRecent(kv, id, patch) {
+  const recent = await readObj(kv, 'wcr', true);
+  if (!Array.isArray(recent)) return;
+  const i = recent.findIndex((c) => Number(c.objectId) === Number(id));
+  if (i < 0) return;
+  recent[i] = { ...recent[i], ...patch };
+  await writeObj(kv, 'wcr', recent);
+}
+
+// PUT /waline/api/comment/:id
+async function updateComment(request, env, kv, id, cors) {
+  const me = await verifyToken(bearerOf(request), env, kv);
+  if (!me) return fail(401, 'need_login', cors);
+  const b = await readJson(request, 4 * 1024);
+  const patch = (b && b.comment) || {};
+  const hit = await findCommentById(kv, id);
+  if (!hit) return fail(404, 'not_found', cors);
+  const { row, list, doc, key } = hit;
+
+  let changed = false;
+  if (typeof patch.like !== 'undefined') {
+    const want = !!patch.like;
+    // 同一个账号反复点只算一次：客户端是 toggle，重复请求不能让计数一路涨
+    const lk = 'wcl_' + String(id) + '_' + String(me.u);
+    const was = (await kv.get(lk)) === '1';
+    if (want !== was) {
+      row.like = Math.max(0, (Number(row.like) || 0) + (want ? 1 : -1));
+      await kv.put(lk, want ? '1' : '0');
+      changed = true;
+    }
+  }
+  if (typeof patch.sticky !== 'undefined') {
+    if (!(await isAdminUser(kv, me))) return fail(403, 'not_admin', cors);
+    row.sticky = !!patch.sticky;
+    changed = true;
+  }
+  if (changed) {
+    await writeObj(kv, key, { ...doc, list });
+    await patchRecent(kv, id, { like: row.like, sticky: row.sticky });
+  }
+  return ok(presentComment(row), cors);
+}
+
+// DELETE /waline/api/comment/:id —— 自己的留言；管理员可以删任何一条
+async function deleteComment(request, env, kv, id, cors) {
+  const me = await verifyToken(bearerOf(request), env, kv);
+  if (!me) return fail(401, 'need_login', cors);
+  const hit = await findCommentById(kv, id);
+  if (!hit) return fail(404, 'not_found', cors);
+
+  const admin = await isAdminUser(kv, me);
+  const owner = String(hit.row.user_id || '') === String(me.u);
+  if (!admin && !owner) return fail(403, 'not_owner', cors);
+
+  // 带回复的楼一并删掉，否则留下孤儿回复（列表里会挂在一栋不存在的楼下）
+  const doomed = new Set([Number(id)]);
+  for (const c of hit.list) if (doomed.has(Number(c.pid))) doomed.add(Number(c.objectId));
+
+  const list = hit.list.filter((c) => !doomed.has(Number(c.objectId)));
+  await writeObj(kv, hit.key, { ...hit.doc, list });
+  await mapLimit([...doomed], 6, async (did) => { await kv.delete(commentIndex(did)); });
+
+  const recent = await readObj(kv, 'wcr', true);
+  if (Array.isArray(recent)) {
+    const next = recent.filter((c) => !doomed.has(Number(c.objectId)));
+    if (next.length !== recent.length) await writeObj(kv, 'wcr', next);
+  }
+  return ok({ objectId: Number(id), deleted: doomed.size }, cors);
+}
+
+// POST /waline/api/reindex-comments —— 给迁移导入的老评论补 wci_ 索引（管理员，幂等）。
+// 不补的话老评论点「赞」会 404（新评论写入时就带索引，不受影响）。
+async function reindexComments(request, env, kv, cors) {
+  const me = await verifyToken(bearerOf(request), env, kv);
+  if (!(await isAdminUser(kv, me))) return fail(403, 'not_admin', cors);
+
+  let keys = [];
+  try { keys = await kv.list('wc_', 1000); } catch { keys = []; }
+  const paths = await mapLimit(keys.map((k) => (typeof k === 'string' ? k : k && k.key)).filter(Boolean), 6, async (key) => {
+    if (!/^wc_[A-Za-z0-9]+$/.test(key)) return null;
+    const doc = await readObj(kv, key);
+    const list = doc && Array.isArray(doc.list) ? doc.list : [];
+    const path = String((list[0] && list[0].url) || '');
+    return path ? { path, list } : null;
+  });
+
+  const jobs = [];
+  for (const p of paths) {
+    if (!p) continue;
+    for (const c of p.list) if (c && c.objectId) jobs.push({ id: c.objectId, path: p.path });
+  }
+  await mapLimit(jobs, 8, async (j) => { await kv.put(commentIndex(j.id), j.path); });
+  return ok({ paths: paths.filter(Boolean).length, indexed: jobs.length }, cors);
 }
 
 // ------------------------------------------------------------------ 全站最新索引
@@ -1587,8 +1715,22 @@ export async function handleWaline(request, env, kv, url, cors, subPath) {
 
     if (sub === '/comment') {
       if (method === 'GET') return await listComments(url, kv, cors);
-      if (method === 'POST') return await addComment(request, kv, cors);
+      if (method === 'POST') return await addComment(request, env, kv, cors);
       return fail(405, 'method_not_allowed', cors);
+    }
+
+    // 单条评论：点赞（PUT）与删除（DELETE），Waline 客户端只管这两个
+    const one = /^\/comment\/(\d+)$/.exec(sub);
+    if (one) {
+      const id = Number(one[1]);
+      if (method === 'PUT') return await updateComment(request, env, kv, id, cors);
+      if (method === 'DELETE') return await deleteComment(request, env, kv, id, cors);
+      return fail(405, 'method_not_allowed', cors);
+    }
+
+    if (sub === '/reindex-comments') {
+      if (method !== 'POST') return fail(405, 'method_not_allowed', cors);
+      return await reindexComments(request, env, kv, cors);
     }
 
     // 小游戏站的账号体系就打这两个（注册 POST /user，登录 POST /token，验票 GET /token）。
