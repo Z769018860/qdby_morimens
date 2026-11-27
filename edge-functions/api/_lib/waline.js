@@ -541,10 +541,13 @@ function pageOf(doc, url) {
   const byId = new Map();
   for (const c of list) byId.set(Number(c.objectId), c);
 
+  // Waline 客户端对字符串才做 new Date()，数字会直接当 Date 用（NaN），
+  // 所以对外一律给 ISO 字符串，排序时再解析回时间（objectId 是毫秒戳，可兜底）。
+  const when = (c) => Date.parse(c.insertedAt) || Number(c.objectId) || 0;
   const compare = (a, b) => {
-    if (sortBy === 'insertedAt_asc') return Number(a.insertedAt) - Number(b.insertedAt);
+    if (sortBy === 'insertedAt_asc') return when(a) - when(b);
     if (sortBy === 'like_desc') return (Number(b.like) || 0) - (Number(a.like) || 0);
-    return Number(b.insertedAt) - Number(a.insertedAt);
+    return when(b) - when(a);
   };
 
   // 没有 pid，或父已经被 LIST_CAP 截掉了，都算顶层
@@ -562,7 +565,7 @@ function pageOf(doc, url) {
     const parent = dataById.get(pid);
     if (parent) parent.children.push({ ...c, children: [] });
   }
-  for (const c of data) c.children.sort((a, b) => Number(a.insertedAt) - Number(b.insertedAt));
+  for (const c of data) c.children.sort((a, b) => when(a) - when(b));
 
   return { page, pageSize, count: tops.length, total: tops.length, data };
 }
@@ -609,8 +612,9 @@ async function addComment(request, kv, cors) {
     avatar: '',
     comment: renderComment(raw),
     orig: raw,
-    createdAt: id,
-    insertedAt: id,
+    time: id,
+    createdAt: new Date(id).toISOString(),
+    insertedAt: new Date(id).toISOString(),
     status: 'approved',
     sticky: false,
     like: 0,
@@ -634,7 +638,8 @@ async function addComment(request, kv, cors) {
     const slim = {
       objectId: id, nick, url: path, avatar: '', link,
       comment: row.comment, orig: raw,
-      createdAt: id, insertedAt: id, like: 0, status: 'approved', sticky: false, children: [],
+      time: id, createdAt: row.createdAt, insertedAt: row.insertedAt,
+      like: 0, status: 'approved', sticky: false, children: [],
     };
     const next = [slim, ...(Array.isArray(recent) ? recent : []).filter((x) => Number(x.objectId) !== id)]
       .slice(0, RECENT_CAP);
@@ -693,8 +698,9 @@ async function importDump(request, env, kv, cors) {
         // 旧库里存的是渲染好的 HTML；万一混进 script 标签就退回自己转义
         comment: /<script/i.test(html) ? renderComment(orig) : html,
         orig,
-        createdAt: at,
-        insertedAt: at,
+        time: at,
+        createdAt: new Date(at).toISOString(),
+        insertedAt: new Date(at).toISOString(),
         status: 'approved',
         sticky: Boolean(r.sticky),
         like: Math.max(0, Number(r.like) || 0),
@@ -707,7 +713,7 @@ async function importDump(request, env, kv, cors) {
       inserted++;
     }
 
-    list.sort((a, b2) => Number(b2.insertedAt) - Number(a.insertedAt));
+    list.sort((a, b2) => (Date.parse(b2.insertedAt) || 0) - (Date.parse(a.insertedAt) || 0));
     while (list.length > LIST_CAP) list.pop();
     await writeObj(kv, key, { v: 1, n: list.length, list });
   }
@@ -766,12 +772,13 @@ async function importDump(request, env, kv, cors) {
         all.push({
           objectId: c.objectId, nick: c.nick, url: c.url, avatar: '',
           link: c.link, comment: c.comment, orig: c.orig,
+          time: Date.parse(c.insertedAt) || Number(c.objectId) || 0,
           createdAt: c.createdAt, insertedAt: c.insertedAt,
           like: c.like || 0, status: 'approved', sticky: Boolean(c.sticky), children: [],
         });
       }
     });
-    all.sort((a, b2) => Number(b2.insertedAt) - Number(a.insertedAt));
+    all.sort((a, b2) => (Date.parse(b2.insertedAt) || 0) - (Date.parse(a.insertedAt) || 0));
     const top = all.slice(0, RECENT_CAP);
     await writeObj(kv, 'wcr', top);
     recentCount = top.length;
@@ -792,8 +799,11 @@ async function importDump(request, env, kv, cors) {
 export async function handleWaline(request, env, kv, url, cors, subPath) {
   if (!kv) return fail(503, 'no_store', cors);
 
-  // Waline 客户端拼的是 `${serverURL}/api/comment`，所以这里可能多一层 /api
-  let sub = String(subPath || '').replace(/^\/waline/, '').replace(/^\/api(?=\/|$)/, '');
+  // Waline 客户端拼的是 `${serverURL}/api/comment`，所以这里可能多一层 /api；
+  // 直接调 handleWaline 的调用方（本地模拟、单测）可能连最外层 /api 都没剥，两种都认。
+  let sub = String(subPath || '');
+  sub = sub.replace(/^\/api(?=\/waline)/, '');                  // /api/waline/... → /waline/...
+  sub = sub.replace(/^\/waline/, '').replace(/^\/api(?=\/|$)/, ''); // /waline/api/x → /x
   sub = sub.replace(/\/+$/, '') || '/';
 
   const method = request.method.toUpperCase();
