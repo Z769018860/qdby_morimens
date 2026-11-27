@@ -2057,7 +2057,9 @@ export async function onRequest(context) {
         // v22 兼容层适配真实 Waline v3 客户端（双层 /api 归一、ISO 时间、time 字段），跨域放行自家域名，导入端点加 purge
         // v23 /health 多 envSet（只报环境变量有没有配上，不报值），用来判断「改了变量但没点部署」
         // v24 密码校验同时支持 bcrypt（历史 Waline 库的 $2a$）与 phpass（新注册的 $P$）
-        ok: Boolean(store), service: 'zjtt', v: 24, runtime: 'edgeone',
+        // v25 评论区表情图不再被 HTML 转义（<img class="wl-emoji"> 原样放行）、旧域名表情地址压成站点相对路径、
+        //     评论头像补兜底（Waline v3 只在 avatar 非空时画头像，迁移后全空导致一个头像都不显示）
+        ok: Boolean(store), service: 'zjtt', v: 25, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),

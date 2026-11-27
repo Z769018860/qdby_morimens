@@ -874,6 +874,44 @@ console.log('\n[23] 世界 Boss /wboss：全服共享血池、每日三次、排
   eq('血池空了之后也不能再上报', (await call2('/wboss/hit', { method: 'POST', headers: A2, body: { seed: tk2.json.seed, dmg: 100 } })).status, 409);
 }
 
+
+// ---------------------------------------------------------------- [13] Waline 留言板
+console.log('\n[13] Waline 留言板：表情图与头像');
+{
+  const kv = fakeKV();
+  const call = makeCaller({ zjtt_kv: kv });
+  const path = '/qdby_chinese';
+  const orig = 'timekeeper for life<img class="wl-emoji" src="https://qingdengbuyi.top/assets/waline-emojis/morimens/Emoji_KP_G_06.png" alt="Emoji_KP_G_06">';
+  // 旧库原样：comment 是被 HTML 转义过的（表情变成可见文字），orig 才是原始 HTML
+  const row = {
+    objectId: 40001, nick: '匿名', mail: '', link: '', url: path, avatar: '',
+    comment: 'timekeeper for life&lt;img class=&quot;wl-emoji&quot; src=&quot;https://qingdengbuyi.top/assets/waline-emojis/morimens/Emoji_KP_G_06.png&quot; alt=&quot;Emoji_KP_G_06&quot;&gt;',
+    orig, time: 40001, createdAt: new Date(40001).toISOString(), insertedAt: new Date(40001).toISOString(),
+    status: 'approved', sticky: false, like: 0, ua: '', children: [], pid: null, rid: null,
+  };
+  kv._m.set('wc_' + sha('c:' + path), JSON.stringify({ v: 1, n: 1, list: [row] }));
+
+  const got = await call('/waline/api/comment?path=' + encodeURIComponent(path) + '&pageSize=10&page=1');
+  const c0 = got.json.data.data[0];
+  check('历史评论：表情不再被转义成文字', c0.comment.includes('<img class="wl-emoji"'), c0.comment);
+  check('历史评论：表情地址换成站点相对路径', c0.comment.includes('src="assets/waline-emojis/morimens/Emoji_KP_G_06.png"'), c0.comment);
+  check('历史评论：头像非空（v3 只在 avatar 非空时画 img）', /^data:image\/svg\+xml,/.test(c0.avatar || ''), String(c0.avatar).slice(0, 48));
+
+  const posted = await call('/waline/api/comment', {
+    method: 'POST',
+    body: { url: path, nick: '测试', mail: '', comment: '加强骑士<img class="wl-emoji" src="https://z769018860.github.io/qdby_chinese/assets/waline-emojis/morimens/Emoji_24_P_11.png" alt="Emoji_24_P_11">' },
+  });
+  check('新评论：表情保留标签', posted.json.data.comment.includes('<img class="wl-emoji"'), posted.json.data.comment);
+  check('新评论：地址压平', posted.json.data.comment.includes('src="assets/waline-emojis/morimens/Emoji_24_P_11.png"'), posted.json.data.comment);
+  check('新评论：头像非空', /^data:image\/svg\+xml,/.test(posted.json.data.avatar || ''), String(posted.json.data.avatar).slice(0, 48));
+
+  const evil = await call('/waline/api/comment', { method: 'POST', body: { url: path, comment: '<img class="wl-emoji" src="https://evil.com/x.png" alt="x">' } });
+  check('外站 img 一律按文本处理', !evil.json.data.comment.includes('<img'), evil.json.data.comment);
+
+  const rq = await call('/waline/api/comment?type=recent&count=10');
+  check('recent 列表也带上了头像', (rq.json.data || []).length > 0 && rq.json.data.every((x) => !!x.avatar));
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
   console.log('\n失败项：');
   for (const f of fails) console.log('  - ' + f);

@@ -100,17 +100,84 @@ const escapeHtml = (s) => String(s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+// 表情图：Waline 客户端在提交前把 `:名字:` 展开成 <img class="wl-emoji" src=... alt=...>，
+// 服务端必须原样放行这类标签。客户端渲染走 marked，**不会**替我们反转义 HTML 实体，
+// 一旦转义就变成满屏「<img class="wl-emoji" ...>」的可见文字（2026-11-27 的问题）。
+const EMOJI_IMG_RE = /<img\b[^>]*\bclass\s*=\s*["'][^"']*\bwl-emoji\b[^"']*["'][^>]*>/gi;
+const tagAttr = (tag, name) => {
+  const m = new RegExp('\\b' + name + '\\s*=\\s*["\']([^"\']*)["\']', 'i').exec(tag);
+  return m ? m[1] : '';
+};
+
+// 历史评论里的表情地址写死在旧域名上（qingdengbuyi.top、z769018860.github.io/qdby_chinese），
+// 换站点/换域名就 404。统一压成站点相对路径，跟着当前页面走。
+function normalizeEmojiSrc(src) {
+  const s = String(src || '').trim();
+  if (!s) return '';
+  if (/^data:image\//i.test(s)) return s;
+  let clean = s.split(/[?#]/)[0];
+  // 只认 http(s)、协议相对、或本来就相对的路径；javascript: 之类一律拒掉
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(clean);
+  if (scheme && !/^https?$/i.test(scheme[1])) return '';
+  if (!clean.startsWith('/')) clean = '/' + clean;
+  const at = clean.indexOf('/assets/waline-emojis/');
+  if (at < 0) return '';
+  return clean.slice(at + 1);
+}
+
 // 渲染成 HTML：先转义，换行转 <br>。
-// 但 <!--machine payload--> 这段要原样保留 —— 融灾/互助提交把结构化数据藏在注释里，
-// 前端要从 DOM 里把它读回来，转义了就成可见文本了。
+// 两类片段原样保留：
+//   1) <!--machine payload--> 结构化数据注释，前端要从 DOM 里读回来，转义就看不见了；
+//   2) <img class="wl-emoji"> 表情图，只认自家表情目录 / data:image，别的 img 一律当文本。
 function renderComment(raw) {
   const holes = [];
-  let out = String(raw || '').replace(/<!--[\s\S]*?-->/g, (m) => {
-    holes.push(m);
-    return `\u0000${holes.length - 1}\u0000`;
+  const keep = (html) => { holes.push(html); return `\u0000${holes.length - 1}\u0000`; };
+  let out = String(raw || '').replace(/<!--[\s\S]*?-->/g, keep);
+  out = out.replace(EMOJI_IMG_RE, (tag) => {
+    const src = normalizeEmojiSrc(tagAttr(tag, 'src'));
+    if (!src) return tag;                       // 外站图片：按普通文本转义
+    const alt = tagAttr(tag, 'alt').replace(/[<>"'&]/g, '');
+    return keep(`<img class="wl-emoji" src="${src}" alt="${alt}">`);
   });
   out = escapeHtml(out).replace(/\r\n|\r|\n/g, '<br>');
   return out.replace(/\u0000(\d+)\u0000/g, (_, i) => holes[Number(i)]);
+}
+
+// 头像：Waline v3 只在 comment.avatar 非空时才画 <img class="wl-user-avatar">，
+// 为空连头像位都不渲染（前端那几个补 Q 版头像的脚本于是没处下手）。
+// 旧库迁移过来时没有算好的头像地址，这里给一张按昵称散列的首字头像：
+// data URI，不产生额外请求、不会 404，前端脚本仍会把它换成本地 Q 版头像。
+const AVATAR_CACHE = new Map();
+function defaultAvatar(nick) {
+  const name = String(nick || '匿名')
+    .replace(/[\u2062\u2063\u200B\u200C]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim() || '匿名';
+  const hit = AVATAR_CACHE.get(name);
+  if (hit) return hit;
+  const ch = [...name][0] || '匿';
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.codePointAt(0)) >>> 0;
+  const hue = h % 360;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">`
+    + `<rect width="96" height="96" rx="48" fill="hsl(${hue} 30% 24%)"/>`
+    + `<text x="48" y="50" text-anchor="middle" dominant-baseline="central" font-size="40" `
+    + `font-family="system-ui,-apple-system,'Noto Sans SC',sans-serif" fill="hsl(${hue} 72% 84%)">`
+    + `${escapeHtml(ch)}</text></svg>`;
+  const url = 'data:image/svg+xml,' + encodeURIComponent(svg);
+  if (AVATAR_CACHE.size > 400) AVATAR_CACHE.clear();
+  AVATAR_CACHE.set(name, url);
+  return url;
+}
+
+// 对外输出前统一整形：comment 一律按 orig 重算（把历史数据里被转义的表情救回来），
+// avatar 空了补兜底。读路径和写入回显都走这里，避免两处漂移。
+function presentComment(c) {
+  if (!c || typeof c !== 'object') return c;
+  const raw = typeof c.orig === 'string' && c.orig ? c.orig : String(c.comment || '');
+  const out = { ...c, comment: renderComment(raw) };
+  if (!out.avatar) out.avatar = defaultAvatar(out.nick);
+  return out;
 }
 
 async function readObj(kv, key, weak) {
@@ -1183,14 +1250,14 @@ function pageOf(doc, url) {
   const pageTops = tops.slice(start, start + pageSize);
 
   const wanted = new Set(pageTops.map((c) => Number(c.objectId)));
-  const data = pageTops.map((c) => ({ ...c, children: [] }));
+  const data = pageTops.map((c) => ({ ...presentComment(c), children: [] }));
   const dataById = new Map(data.map((c) => [Number(c.objectId), c]));
 
   for (const c of list) {
     const pid = Number(c.pid) || 0;
     if (!pid || !wanted.has(pid)) continue;
     const parent = dataById.get(pid);
-    if (parent) parent.children.push({ ...c, children: [] });
+    if (parent) parent.children.push({ ...presentComment(c), children: [] });
   }
   for (const c of data) c.children.sort((a, b) => when(a) - when(b));
 
@@ -1202,7 +1269,7 @@ async function listComments(url, kv, cors) {
   if (String(url.searchParams.get('type') || '') === 'recent') {
     const count = Math.min(50, Math.max(1, Number(url.searchParams.get('count')) || 10));
     const recent = (await readObj(kv, 'wcr', true)) || [];
-    return ok(Array.isArray(recent) ? recent.slice(0, count) : [], cors);
+    return ok(Array.isArray(recent) ? recent.slice(0, count).map(presentComment) : [], cors);
   }
 
   const path = normPath(str(url.searchParams.get('path') || '/', 512));
@@ -1273,7 +1340,7 @@ async function addComment(request, kv, cors) {
     await writeObj(kv, 'wcr', next);
   }
 
-  return ok(row, cors);
+  return ok(presentComment(row), cors);
 }
 
 // ------------------------------------------------------------------ 全站最新索引
@@ -1288,8 +1355,8 @@ async function rebuildRecent(kv) {
     for (const c of (doc && Array.isArray(doc.list) ? doc.list : [])) {
       if (/MORIMENS_[A-Z_]+_V\d+:/.test(String(c.orig || ''))) continue;
       all.push({
-        objectId: c.objectId, nick: c.nick, url: c.url, avatar: '',
-        link: c.link, comment: c.comment, orig: c.orig,
+        objectId: c.objectId, nick: c.nick, url: c.url, avatar: c.avatar || '',
+        link: c.link, comment: renderComment(c.orig || c.comment), orig: c.orig,
         time: Date.parse(c.insertedAt) || Number(c.objectId) || 0,
         createdAt: c.createdAt, insertedAt: c.insertedAt,
         like: c.like || 0, status: 'approved', sticky: Boolean(c.sticky), children: [],
@@ -1386,7 +1453,9 @@ async function importDump(request, env, kv, cors) {
       const id = Number(r.id);
       if (!Number.isFinite(id) || seen.has(String(id))) { skipped++; continue; }
       const orig = r.orig != null ? String(r.orig) : String(r.comment || '');
-      const html = r.comment != null && r.orig != null ? String(r.comment) : renderComment(orig);
+      // 旧库的 comment 是「渲染好的 HTML」，但表情图被 HTML 转义成了可见文字，
+      // 客户端又不会反转义，所以统一按 orig 重渲染（只放行 wl-emoji，别的一律转义）。
+      const html = renderComment(orig);
       const at = Date.parse(r.insertedAt) || Date.parse(r.createdAt) || id;
       list.push({
         objectId: id,
@@ -1395,8 +1464,7 @@ async function importDump(request, env, kv, cors) {
         link: str(r.link, 200),
         url: p,
         avatar: '',
-        // 旧库里存的是渲染好的 HTML；万一混进 script 标签就退回自己转义
-        comment: /<script/i.test(html) ? renderComment(orig) : html,
+        comment: html,
         orig,
         time: at,
         createdAt: new Date(at).toISOString(),
@@ -1541,3 +1609,5 @@ export async function handleWaline(request, env, kv, url, cors, subPath) {
 
 // 供 scripts/waline-selftest 使用：密码层单独暴露，方便和独立实现交叉验证
 export const __crypto = { md5, phpassCrypt, phpassHash, phpVerify, verifyPassword, bcryptVerify };
+// 调试/单测用：评论渲染与头像兜底（scripts/waline_render_test.mjs）
+export const __render = { renderComment, presentComment, defaultAvatar, normalizeEmojiSrc };
