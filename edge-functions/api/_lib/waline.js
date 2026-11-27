@@ -1596,8 +1596,20 @@ export async function handleWaline(request, env, kv, url, cors, subPath) {
       return fail(405, 'method_not_allowed', cors);
     }
 
-    // 统计类：前端偶尔会探测这些，返回空而不是 404
-    if (sub === '/counter' || sub === '/comment/count') return ok([], cors);
+    // 评论数：Waline 的 commentCount 期望 [{ url, count }]，给空数组会让计数永远显示 0。
+    // 计数含回复（和官方 SQL 的 count(*) 一致）。
+    if (sub === '/comment/count') {
+      const paths = [...new Set(String(url.searchParams.get('path') || '')
+        .split(',').map((x) => normPath(x.trim())).filter(Boolean))].slice(0, ART_MAX);
+      if (!paths.length) return ok([], cors);
+      const rows = await mapLimit(paths, 8, async (p) => {
+        const doc = await readObj(kv, 'wc_' + await H('c', p), true);
+        return { url: p, count: Array.isArray(doc && doc.list) ? doc.list.length : 0 };
+      });
+      return ok(rows, cors);
+    }
+    // 点赞/浏览计数（Waline 的 /counter）前端没用，留着返回空壳免得 404
+    if (sub === '/counter') return ok([], cors);
 
     return fail(404, 'not_found', cors);
   } catch (error) {

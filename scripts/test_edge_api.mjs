@@ -910,6 +910,14 @@ console.log('\n[13] Waline 留言板：表情图与头像');
 
   const rq = await call('/waline/api/comment?type=recent&count=10');
   check('recent 列表也带上了头像', (rq.json.data || []).length > 0 && rq.json.data.every((x) => !!x.avatar));
+
+  // 评论数：Waline 的 commentCount 要 [{url,count}]，计数含回复
+  const cc = await call('/waline/api/comment/count?path=' + encodeURIComponent(path) + ',' + encodeURIComponent('/nope'));
+  // seed 1 条 + 上面 POST 的 2 条 = 3
+  eq('评论数接口按 path 返回', cc.json.data, [
+    { url: path, count: 3 },
+    { url: '/nope', count: 0 },
+  ]);
 }
 
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);if (fail) {
