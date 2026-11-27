@@ -709,6 +709,32 @@ async function importDump(request, env, kv, cors) {
     for (const k of dkeys.slice(0, 500)) await kv.delete(typeof k === 'string' ? k : k.key);
   }
 
+  // 清理测试账号：{"purgeUsers":["probebot@zjtt.local"]}
+  // 必须在导入之前跑 —— 否则测试账号占掉的 id=1 会和旧库里的真实用户（通常就是管理员）撞号。
+  const purgeEmails = Array.isArray(b.purgeUsers)
+    ? b.purgeUsers.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean).slice(0, 20)
+    : [];
+  let purgedUsers = 0;
+  if (purgeEmails.length) {
+    for (const email of purgeEmails) {
+      const key = 'wu_' + await emailHash(email);
+      const rec = await readObj(kv, key);
+      if (!rec) continue;
+      await kv.delete(key);
+      if (rec.id != null) await kv.delete('wu_id_' + rec.id);
+      purgedUsers++;
+    }
+    // id 序列按剩下的用户重算，别让删掉的号被重复发放
+    let maxId = 0;
+    let idKeys = [];
+    try { idKeys = await kv.list('wu_id_'); } catch { idKeys = []; }
+    for (const k of idKeys) {
+      const n = Number(String(typeof k === 'string' ? k : k.key).slice(6));
+      if (Number.isFinite(n) && n > maxId) maxId = n;
+    }
+    await kv.put('wu_seq', String(maxId));
+  }
+
   // 单纯清理时也要重建一次 recent，否则首页「最新留言」还挂着已删的条目
   const doFinalize = finalize || purgePaths.length > 0;
 
@@ -818,6 +844,7 @@ async function importDump(request, env, kv, cors) {
     paths: byPath.size,
     recent: recentCount,
     ...(purgePaths.length ? { purged, purgePaths } : {}),
+    ...(purgeEmails.length ? { purgedUsers, purgeUsers: purgeEmails } : {}),
   }, cors);
 }
 
