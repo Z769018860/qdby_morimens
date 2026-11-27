@@ -2261,7 +2261,14 @@ async function pullLegacy() {
   const u = auth.user;
   const res = await wApi(`/api/comment?path=${encodeURIComponent(pathOf(u))}&pageSize=20&sortBy=insertedAt_desc`);
   const list = (res && res.data) || [];
-  const mine = list.filter((c) => String(c.user_id) === String(u.id));
+  // 归属靠 url 里那段 uid 判断：pathOf() 生成的地址是 /zjtt/u/<uid>-<散列>，
+  // 而我们自己的兼容层（edge-functions 的 Waline 实现）根本不返回 user_id 字段 ——
+  // 原来按 c.user_id 过滤，等于每一条都被滤掉，迁移前的老档案一份也搬不回来。
+  const myId = String(u.id);
+  const mine = list.filter((c) => {
+    const m = /^\/zjtt\/u\/(\d+)-/.exec(String(c.url || ''));
+    return !!m && m[1] === myId;
+  });
   const hit = mine.map((c) => ({ c, d: decodeDoc(c) })).find((x) => x.d);
   if (!hit) return null;
   store.set(K.obj, hit.c.objectId);

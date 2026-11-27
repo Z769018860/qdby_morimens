@@ -172,6 +172,13 @@ function defaultAvatar(nick) {
 
 // 对外输出前统一整形：comment 一律按 orig 重算（把历史数据里被转义的表情救回来），
 // avatar 空了补兜底。读路径和写入回显都走这里，避免两处漂移。
+// 哪些「评论」其实是机器写的存档，不该出现在首页的「全站最新」里。
+//   · ZJ1D:        —— account.js 的云端档案（整份 base64 文档）
+//   · MORIMENS_*   —— 各游戏提交的结构化数据（融灾/互助/点赞之类）
+//   · path 在 /zjtt/ 下 —— 内部记录（档案、点赞队列），一律不算人话
+const isMachineNote = (raw, path) => /^(?:ZJ1D:|MORIMENS_[A-Z_]+_V\d+:)/.test(String(raw || ''))
+  || /^\/zjtt\//.test(String(path || ''));
+
 function presentComment(c) {
   if (!c || typeof c !== 'object') return c;
   const raw = typeof c.orig === 'string' && c.orig ? c.orig : String(c.comment || '');
@@ -1269,7 +1276,11 @@ async function listComments(url, kv, cors) {
   if (String(url.searchParams.get('type') || '') === 'recent') {
     const count = Math.min(50, Math.max(1, Number(url.searchParams.get('count')) || 10));
     const recent = (await readObj(kv, 'wcr', true)) || [];
-    return ok(Array.isArray(recent) ? recent.slice(0, count).map(presentComment) : [], cors);
+    // 早先写进去的机器记录（云档案 ZJ1D:、点赞 /zjtt/like/…）也一并滤掉，
+    // 不然首页留言板会一直顶着一串 base64，等 50 条真人留言挤掉它要好几天。
+    const human = (Array.isArray(recent) ? recent : [])
+      .filter((c) => !isMachineNote(String((c && c.orig) || ''), String((c && c.url) || '')));
+    return ok(human.slice(0, count).map(presentComment), cors);
   }
 
   const path = normPath(str(url.searchParams.get('path') || '/', 512));
@@ -1326,7 +1337,7 @@ async function addComment(request, kv, cors) {
   await kv.put(qkey, String(used + 1));
 
   // 全站最新索引（首页只显示人写的话，机器提交不进去占位置）
-  const isMachine = /MORIMENS_[A-Z_]+_V\d+:/.test(raw);
+  const isMachine = isMachineNote(raw, path);
   if (!isMachine) {
     const recent = (await readObj(kv, 'wcr')) || [];
     const slim = {

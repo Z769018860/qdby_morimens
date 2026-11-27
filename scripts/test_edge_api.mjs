@@ -911,11 +911,22 @@ console.log('\n[13] Waline 留言板：表情图与头像');
   const rq = await call('/waline/api/comment?type=recent&count=10');
   check('recent 列表也带上了头像', (rq.json.data || []).length > 0 && rq.json.data.every((x) => !!x.avatar));
 
+  // 机器写入的存档不能顶到首页「全站最新」里
+  const before = (await call('/waline/api/comment?type=recent&count=50')).json.data.length;
+  await call('/waline/api/comment', { method: 'POST', body: { url: '/zjtt/u/1-abc', comment: 'ZJ1D:eyJ2IjoxfQ==' } });
+  await call('/waline/api/comment', { method: 'POST', body: { url: '/zjtt/like/w-queue', comment: 'MORIMENS_LIKE_V1:{"a":1}' } });
+  await call('/waline/api/comment', { method: 'POST', body: { url: '/qdby_chinese', comment: '这句是人话' } });
+  const after = (await call('/waline/api/comment?type=recent&count=50')).json.data;
+  check('云档案（ZJ1D:）不进全站最新', !after.some((c) => String(c.orig).startsWith('ZJ1D:')), after.map((c) => String(c.orig).slice(0, 12)));
+  check('/zjtt/ 下的内部记录不进全站最新', !after.some((c) => String(c.url).startsWith('/zjtt/')), after.map((c) => c.url));
+  check('真人留言照常进', after.some((c) => c.orig === '这句是人话'));
+  eq('机器提交不占 count 名额', after.length, before + 1);
+
   // 评论数：Waline 的 commentCount 要 [{url,count}]，计数含回复
   const cc = await call('/waline/api/comment/count?path=' + encodeURIComponent(path) + ',' + encodeURIComponent('/nope'));
-  // seed 1 条 + 上面 POST 的 2 条 = 3
+  // seed 1 条 + 上面 POST 的 2 条 + 一句人话 = 4
   eq('评论数接口按 path 返回', cc.json.data, [
-    { url: path, count: 3 },
+    { url: path, count: 4 },
     { url: '/nope', count: 0 },
   ]);
 }
