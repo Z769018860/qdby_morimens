@@ -2055,10 +2055,19 @@ export async function onRequest(context) {
         // v20 世界 Boss 加了 /wboss/start（挑战票据，防伪造上报）与单次伤害上限、血池按人数伸缩
         // v21 多了 /waline/*（Waline 协议兼容层：看报站的留言板、爱的节奏榜、访问统计从 Vercel 迁进来）
         // v22 兼容层适配真实 Waline v3 客户端（双层 /api 归一、ISO 时间、time 字段），跨域放行自家域名，导入端点加 purge
-        ok: Boolean(store), service: 'zjtt', v: 22, runtime: 'edgeone',
+        // v23 /health 多 envSet（只报环境变量有没有配上，不报值），用来判断「改了变量但没点部署」
+        ok: Boolean(store), service: 'zjtt', v: 23, runtime: 'edgeone',
         store: kind, pin, storeOk: Boolean(store),
         // KV 是否绑上单独报：默认不用 KV，绑了也不影响（除非 ZJTT_STORE=kv）
         kvBound: Boolean(kvBinding(env)), day: dayKey(),
+        // 环境变量只报「有没有」，不报值：EdgeOne 的环境变量改完必须在
+        // 「环境变量与密钥」里单独点一次部署，否则边缘函数读到的还是旧快照，
+        // 症状是 /waline/import 回 import_disabled，怎么改代码都没用。
+        envSet: {
+          waImport: Boolean(env && env.WALINE_IMPORT_TOKEN),
+          waJwt: Boolean(env && env.WALINE_JWT_SECRET),
+          origins: Boolean(env && env.ALLOWED_ORIGINS),
+        },
         ...(store ? {} : {
           error: 'no_store',
           detail: why || 'Blob 没拿到凭据（项目设置 → 环境变量，配 ZJTT_BLOB_TOKEN 与 ZJTT_BLOB_PROJECT）',
